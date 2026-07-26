@@ -1,0 +1,15 @@
+name: D-Drive CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  placeholder:
+    # Phase 0 (0-1): CI 空ジョブ。
+    # 実処理は 0-11 (Validation Core / batchmode 実行) と 6-1 (PR ゲート化) で追加する。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "D-Drive CI scaffold — validation/tests wired in 0-11 / 6-1"

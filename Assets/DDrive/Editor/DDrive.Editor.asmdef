@@ -1,0 +1,23 @@
+{
+    "name": "DDrive.Editor",
+    "rootNamespace": "DDrive.Editor",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime",
+        "UniTask",
+        "Unity.Addressables",
+        "Unity.Addressables.Editor",
+        "Unity.ResourceManager"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

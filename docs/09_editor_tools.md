@@ -76,42 +76,44 @@ Unity -batchmode -executeMethod DDrive.Editor.CI.RegenerateIds
 ## 6. メニュー構成
 
 メニューパスの文字列直書きは禁止（[00] §5）。定数クラス `DDriveMenu` に集約し、全 `[MenuItem]` がこれを経由する（後の改名・再配置を 1 箇所で吸収する）。
+新規のトップレベルメニューは追加せず、Unity 標準の `Tools` メニュー配下に置く。
 
 ```csharp
 // DDrive.Editor
 public static class DDriveMenu
 {
-    public const string Root       = "D-Drive/";
+    public const string Root       = "Tools/D-Drive/";
     public const string Editors    = Root + "Editors/";
     public const string Validation = Root + "Validation/";
-    public const string Tools      = Root + "Tools/";
+    public const string Generate   = Root + "Generate/";
     public const string Debug      = Root + "Debug/";
     // 使用例: [MenuItem(DDriveMenu.Root + "Asset Browser")]
 }
 ```
 
 ```
-D-Drive/
-├─ Asset Browser
-├─ Presentation Editor          ← 目玉機能につき最上段
-├─ Editors/
-│   ├─ Audio
-│   ├─ VFX
-│   ├─ Animation (3D)
-│   ├─ Animation (2D)
-│   ├─ Material · Texture
-│   ├─ Canvas
-│   ├─ UI Tween · Preset Gallery
-│   ├─ Slider
-│   └─ Shake · Haptics
-├─ Validation/
-│   ├─ Run All
-│   └─ Report Window
-├─ Tools/
-│   ├─ Regenerate Asset IDs
-│   ├─ Rebuild Dependency Graph
-│   └─ Live Tuning Connect
-└─ Debug/
-    ├─ Runtime Overlay
-    └─ Missing Asset Report（発注リスト）
+Tools/
+└─ D-Drive/
+    ├─ Asset Browser
+    ├─ Presentation Editor          ← 目玉機能につき最上段
+    ├─ Editors/
+    │   ├─ Audio
+    │   ├─ VFX
+    │   ├─ Animation (3D)
+    │   ├─ Animation (2D)
+    │   ├─ Material · Texture
+    │   ├─ Canvas
+    │   ├─ UI Tween · Preset Gallery
+    │   ├─ Slider
+    │   └─ Shake · Haptics
+    ├─ Validation/
+    │   ├─ Run All
+    │   └─ Report Window
+    ├─ Generate/
+    │   ├─ Regenerate Asset IDs
+    │   ├─ Rebuild Dependency Graph
+    │   └─ Live Tuning Connect
+    └─ Debug/
+        ├─ Runtime Overlay
+        └─ Missing Asset Report（発注リスト）
 ```

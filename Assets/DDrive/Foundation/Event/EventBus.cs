@@ -1,0 +1,93 @@
+using System;
+using System.Collections.Generic;
+using DDrive.Foundation.Manager;
+
+namespace DDrive.Foundation.Event
+{
+    // Manager は Instance のライフサイクル節目(Fire)と毎フレーム(Tick)を呼ぶだけ。
+    // 実際の Action 実行(PlayAsset/SetParam/...)は購読側(各 Manager/Presentation)が OnEventFired で行う。
+    public sealed class EventBus
+    {
+        private sealed class Session
+        {
+            public AssetEvent[] Events = Array.Empty<AssetEvent>();
+            public readonly HashSet<int> FiredOnce = new();
+            public float ElapsedTime;
+            public int ElapsedFrame;
+        }
+
+        private readonly Dictionary<InstanceContext, Session> _sessions = new();
+
+        public event Action<InstanceContext, AssetEvent> OnEventFired;
+
+        public void Begin(InstanceContext ctx, AssetEvent[] events)
+        {
+            _sessions[ctx] = new Session { Events = events ?? Array.Empty<AssetEvent>() };
+        }
+
+        public void End(InstanceContext ctx)
+        {
+            _sessions.Remove(ctx);
+        }
+
+        // OnSpawn/OnEnable/OnLoop/OnDisable/OnDestroy/Custom 用。Frame/Time は Tick から発火する。
+        public void Fire(InstanceContext ctx, EventTrigger trigger, string customKey = null)
+        {
+            if (!_sessions.TryGetValue(ctx, out var session))
+            {
+                return;
+            }
+
+            for (var i = 0; i < session.Events.Length; i++)
+            {
+                var evt = session.Events[i];
+                if (evt.Trigger != trigger)
+                {
+                    continue;
+                }
+
+                if (trigger == EventTrigger.Custom && evt.CustomKey != customKey)
+                {
+                    continue;
+                }
+
+                OnEventFired?.Invoke(ctx, evt);
+            }
+        }
+
+        public void Tick(InstanceContext ctx, float deltaTime)
+        {
+            if (!_sessions.TryGetValue(ctx, out var session))
+            {
+                return;
+            }
+
+            session.ElapsedTime += deltaTime;
+            session.ElapsedFrame++;
+
+            for (var i = 0; i < session.Events.Length; i++)
+            {
+                if (session.FiredOnce.Contains(i))
+                {
+                    continue;
+                }
+
+                var evt = session.Events[i];
+                var crossed = evt.Trigger switch
+                {
+                    EventTrigger.Time => session.ElapsedTime >= evt.Time,
+                    EventTrigger.Frame => session.ElapsedFrame >= (int)evt.Time,
+                    _ => false,
+                };
+
+                if (!crossed)
+                {
+                    continue;
+                }
+
+                session.FiredOnce.Add(i);
+                OnEventFired?.Invoke(ctx, evt);
+            }
+        }
+    }
+}
