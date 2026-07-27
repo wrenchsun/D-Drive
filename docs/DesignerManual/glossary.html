@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>用語集 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 用語集</nav>
+
+<h1>用語集</h1>
+
+<p>マニュアルや Unity の画面に出てくる言葉の説明です。五十音・アルファベット順。</p>
+
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="asset">アセット</td><td>ゲームで使う素材データのこと。このプロジェクトでは特に「D-Drive に登録された音・エフェクトなどのデータ」を指します。</td></tr>
+<tr><td>アセットブラウザ<br>(Asset Browser)</td><td>D-Drive の素材を一覧・検索・登録するウィンドウ。<a href="asset-browser.html">使い方はこちら</a>。</td></tr>
+<tr><td id="inspector">インスペクター<br>(Inspector)</td><td>Unity 画面の右側にある、選択中のものの詳細設定を表示する場所。項目にマウスを乗せると説明が表示されます。</td></tr>
+<tr><td id="id">ID（アイディー）</td><td>アセット1つ1つに付く「番号札」。プログラムはこの番号で音を呼び出すので、<strong>中身を差し替えてもプログラム修正は不要</strong>になります。番号はツールが自動で管理するため、手で触ることはありません。</td></tr>
+<tr><td>識別子</td><td>アセット登録時に入力する英語の名前（例: SwordSlash）。プログラマーがコードで使う名前になります。英字大文字始まり・英数字のみ。</td></tr>
+<tr><td id="hierarchy">ヒエラルキー<br>(Hierarchy)</td><td>Unity 画面の左側にある、シーン内に存在するモノの一覧。</td></tr>
+<tr><td id="pitch">ピッチ (Pitch)</td><td>音の高さ。1 が元のまま、2 で1オクターブ高く（再生速度も倍に）、0.5 で低く（半分の速さに）なります。</td></tr>
+<tr><td>プレビュー</td><td>ゲームを実行せずに、エディタ上でその場で再生して確認すること。D-Drive のプレビューは実際のゲームと同じ仕組みで再生されるので、「エディタでは良かったのに実機で違う」が起きにくいのが特長です。</td></tr>
+<tr><td id="loop">ループ (Loop)</td><td>繰り返し再生のこと。BGM や環境音は基本ループ、通常の効果音は非ループ。</td></tr>
+<tr><td id="bgm">BGM</td><td>背景音楽。D-Drive では「イントロ→ループ」構成やクロスフェード切替に対応。<a href="bgm-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="mixer">Mixer（ミキサー）<br>(Audio Mixer Group)</td><td>音の出力先グループ。「BGM 全体の音量」「SE 全体の音量」をまとめて調整できるようにするための仕組みです。どのグループを設定すべきかはサウンド担当の指示に従ってください。</td></tr>
+<tr><td id="se">SE（エスイー）</td><td>効果音（Sound Effect）。斬撃音・足音・ボタン音など。<a href="se-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="spatial">Spatial / 3D サウンド</td><td>音源の位置によって聞こえ方が変わる立体的な音の鳴らし方。遠いと小さく、右にあると右から聞こえます。対義語は 2D（どこでも同じ聞こえ方。UI 音など）。</td></tr>
+<tr><td id="trim">トリミング</td><td>音声の前後の不要部分（無音など）を切り落とすこと。D-Drive では元ファイルを変更しない「非破壊」方式です。<a href="audio-editor.html#trim">やり方はこちら</a>。</td></tr>
+<tr><td id="validation">Validation（バリデーション）</td><td>設定ミス（ファイル未設定・矛盾した数値など）を自動チェックする仕組み。警告が出たら該当ページの「よくある警告」を見て直してください。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップへ戻る</a></li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a></li>
+<li><a href="se-data.html">SE の設定項目</a> / <a href="bgm-data.html">BGM の設定項目</a></li>
+<li><a href="audio-editor.html">Audio Editor の使い方</a></li>
+<li><a href="scene-sound.html">シーンに環境音を置く</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

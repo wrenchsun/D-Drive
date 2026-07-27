@@ -33,11 +33,21 @@ namespace DDrive.Foundation.Loader
         {
             if (_entries.TryGetValue(key, out var entry))
             {
-                entry.RefCount++;
-                return entry.Task;
+                // ロード失敗が永続キャッシュされないよう、失敗済みエントリは作り直す(リトライ可能に)。
+                if (entry.Task.Status == UniTaskStatus.Faulted)
+                {
+                    _entries.Remove(key);
+                }
+                else
+                {
+                    entry.RefCount++;
+                    return entry.Task;
+                }
             }
 
-            var newEntry = new Entry { RefCount = 1, Task = _factory(key) };
+            // UniTask は 1 回しか await できないため、複数の呼び出し元へ返す Task は必ず Preserve する
+            // (これが無いと「同一キーの多重ロード防止」というこのクラスの主目的の場面で例外になる)。
+            var newEntry = new Entry { RefCount = 1, Task = _factory(key).Preserve() };
             _entries[key] = newEntry;
             return newEntry.Task;
         }

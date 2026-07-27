@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Asset Browser の使い方 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Asset Browser の使い方</nav>
+
+<h1>Asset Browser の使い方</h1>
+
+<p>Asset Browser は D-Drive の<strong>入口になるウィンドウ</strong>です。登録済みの素材（<span class="term" title="ゲームで使う音・エフェクトなどの素材データのこと">アセット</span>）を一覧で見たり、検索したり、新しく登録したりできます。</p>
+
+<h2>開き方</h2>
+<ol>
+<li>Unity 画面の一番上のメニューバーを見る</li>
+<li><code>Tools</code> をクリック → <code>D-Drive</code> → <code>Asset Browser</code> をクリック</li>
+</ol>
+
+<figure>
+<img src="images/asset-browser-window.png" alt="Asset Browser ウィンドウ">
+<figcaption>Asset Browser。上から「検索欄・種別フィルタ・ボタン類」「一覧」「プレビューバー」</figcaption>
+</figure>
+
+<h2>画面の見かた</h2>
+<table>
+<tr><th>場所</th><th>説明</th></tr>
+<tr><td>検索欄（左上）</td><td>文字を入れると、その場で一覧が絞り込まれます。<strong>日本語の表示名でも検索できます</strong>（例:「斬撃」と入れると「剣の斬撃音」がヒット）。カテゴリ・タグ・説明文も検索対象です。</td></tr>
+<tr><td>種別メニュー（検索欄の右）</td><td>「All」のままなら全部表示。「Se」を選ぶと効果音だけ、「Bgm」を選ぶと BGM だけに絞れます。</td></tr>
+<tr><td>「新規」ボタン</td><td>新しいアセットを登録するダイアログを開きます（下で説明）。</td></tr>
+<tr><td>「更新」ボタン</td><td>一覧を最新の状態に読み直します。（普段は自動で更新されるので、表示がおかしいと感じた時だけ押せばOK）</td></tr>
+<tr><td>一覧</td><td>登録済みのアセットが並びます。クリックすると右の Inspector に詳細が表示され、ダブルクリックすると Project ウィンドウの実ファイルがハイライトされます。</td></tr>
+<tr><td>プレビューバー（一番下）</td><td>選択中の音をその場で試聴できます。▶再生 / ■停止 / ループ / 速度。</td></tr>
+</table>
+
+<h2>検索の詳しい仕様</h2>
+
+<p>検索欄は<strong>1文字打つたびにその場で絞り込まれます</strong>（Enter キーを押す必要はありません）。</p>
+
+<h3>検索でヒットする項目</h3>
+<p>入力した文字は、そのアセットの以下の項目のうち<strong>どれか1つにでも含まれていれば</strong>ヒットします（大文字・小文字は区別しません）。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>表示名</td><td>「剣の斬撃音」のような、人が入力した名前</td></tr>
+<tr><td>ファイル名・保存場所</td><td>ツールが自動生成したファイル名(例: <code>SE_Player_SwordSlash</code>)や、保存されているフォルダのパス</td></tr>
+<tr><td>カテゴリ</td><td>登録時に入力した分類</td></tr>
+<tr><td>説明文</td><td>Inspector の「Description」に書いた内容</td></tr>
+<tr><td>作成者</td><td>Inspector の「Author」に入力した名前</td></tr>
+<tr><td>タグ</td><td>Inspector の「Tags」に登録した各キーワード</td></tr>
+</table>
+
+<div class="tip">
+<strong>例:</strong> 表示名が「剣の斬撃音」なら「斬撃」と打つだけでヒットします。ファイル名やカテゴリで検索したい時も、同じ検索欄にそのまま打ち込めば大丈夫です。
+</div>
+
+<h3>種別メニューとの組み合わせ</h3>
+<p>種別メニュー（All/Se/Bgm/…）を絞った状態で検索すると、<strong>「その種別に該当する」かつ「検索文字にヒットする」</strong>ものだけが表示されます。両方の条件を同時に満たす必要があります。</p>
+
+<h3>できないこと（現状の制限）</h3>
+<ul>
+<li>ID(管理番号)そのものを打ち込んでの検索はできません(表示名・ファイル名・カテゴリ・説明・作成者・タグのみが対象)</li>
+<li>「これを含み、あれは含まない」といった複雑な絞り込み条件は使えません。1つの言葉での単純な部分一致のみです</li>
+<li>タイプミスを自動で補正する機能はありません。文字が完全に一致している部分だけがヒットします</li>
+</ul>
+
+<h2>新しいアセットを登録する</h2>
+
+<h3>方法1: 音声ファイルをドラッグ＆ドロップ（おすすめ）</h3>
+<ol>
+<li>Project ウィンドウにある音声ファイル（.wav / .mp3 / .ogg）を、Asset Browser のウィンドウの上へドラッグ＆ドロップ</li>
+<li>登録ダイアログが開くので、下の表の項目を入力</li>
+<li>「作成」を押す</li>
+</ol>
+
+<h3>方法2: 「新規」ボタン</h3>
+<p>ファイルを後から設定したい場合はこちら。開くダイアログは同じです。</p>
+
+<h3>ダイアログの入力項目</h3>
+<table>
+<tr><th>項目</th><th>入力するもの</th><th>例</th></tr>
+<tr><td>種別</td><td>作りたいアセットの種類。効果音なら「Se」、BGM なら「Bgm」。</td><td>Se (SeData)</td></tr>
+<tr><td>表示名</td><td><strong>日本語でOK。</strong>一覧や検索で使われる名前。後から変えても大丈夫。</td><td>剣の斬撃音</td></tr>
+<tr><td>カテゴリ</td><td>整理用の分類。空欄でもOK。</td><td>Player</td></tr>
+<tr><td>識別子</td><td><strong>英語で、先頭大文字・スペースなし。</strong>プログラマーがコードから呼ぶときの名前になります。迷ったら英単語をつなげて各単語の頭を大文字に。</td><td>SwordSlash</td></tr>
+</table>
+
+<div class="tip">
+<strong>ファイル名と保存フォルダは自動で付きます。</strong>上の例なら <code>SE_Player_SwordSlash</code> というファイルが <code>Assets/GameData/Audio/SE/Player/</code> フォルダに自動で作られ、管理台帳への登録もすべてツールがやります。ダイアログの下に「生成先」がプレビュー表示されるので確認できます。<br>
+カテゴリを英語で入れておくと（例: <code>Player</code>、<code>Enemy/Attack</code> のように <code>/</code> で階層も可）、<strong>カテゴリごとのフォルダに自動で仕分けられる</strong>ので、Project ウィンドウから直接探すときも見つけやすくなります。
+</div>
+
+<div class="tip">
+<strong>カテゴリを後から変えたら:</strong> ファイルの場所と名前がカテゴリと合わなくなりますが、手で動かす必要はありません。メニューの <code>Tools</code> → <code>D-Drive</code> → <code>Generate</code> → <code>GameData をカテゴリ配置に整理</code> を実行すると、ツールが正しいフォルダへ移動して名前も直してくれます（移動してもゲーム側の参照は壊れない仕組みになっています）。
+</div>
+
+<div class="warn">
+<strong>識別子が赤くなって「作成」が押せない時:</strong> 識別子は「英字の大文字で始まり、英数字のみ」というルールがあります。日本語・小文字始まり・記号（アンダーバー含む）・数字始まりは使えません。<br>
+NG: <code>sword_slash</code> / <code>剣斬撃</code> / <code>1Slash</code> → OK: <code>SwordSlash</code>
+</div>
+
+<h2>試聴する（プレビューバー）</h2>
+<ol>
+<li>一覧で音を1つクリックして選ぶ</li>
+<li>下のプレビューバーの <strong>▶ 再生</strong> を押す（ゲームを実行しなくても鳴ります）</li>
+<li>「ループ」にチェックを入れて再生すると繰り返し再生（データ自体は変更されません）</li>
+<li>「速度」スライダーで再生スピードを変えて聞き比べ（0.1倍〜2倍）</li>
+</ol>
+<p>もっと細かく確認したい場合（波形を見る・3D の聞こえ方を確かめる等）は <a href="audio-editor.html">Audio Editor</a> を使います。</p>
+
+<h2>よくある質問</h2>
+<ul>
+<li><strong>Q. 表示名を変えたい</strong> → 一覧で選んで Inspector の「Display Name」を書き換えれば OK です。</li>
+<li><strong>Q. 間違えて作ってしまった</strong> → すぐ消さず、チームのリーダーに相談してください（プログラム側で既に使われている可能性があるため、削除には手順があります）。</li>
+<li><strong>Q. 一覧に出てこない</strong> → 「更新」ボタンを押してみてください。種別フィルタが絞られたままになっていないかも確認。</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="se-data.html">SE（効果音）の設定項目</a> — 登録した後の細かい調整</li>
+<li><a href="bgm-data.html">BGM の設定項目</a></li>
+<li><a href="audio-editor.html">Audio Editor の使い方</a> — 波形を見ながらの編集・試聴</li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

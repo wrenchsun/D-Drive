@@ -16,6 +16,12 @@ namespace DDrive.Foundation.Pool
 
         private readonly Dictionary<GameObject, Pool> _pools = new();
 
+        // 生成した Instance を配置する親(任意)。シーン整理のほか、Editor プレビュー(1-6)が
+        // 生成物をプレビューシーン内に閉じ込めるためにも使う(親のシーンに Instance が属する)。
+        private Transform _instanceParent;
+
+        public void SetInstanceParent(Transform parent) => _instanceParent = parent;
+
         // IPoolService には無いが、上限超過時の Priority 回収(AC)を機能させるために
         // 呼び出し側(Manager)が AssetFlags.Pool.MaxCount を渡して設定する。
         public void SetLimit(GameObject prefab, int maxCount, bool persistent = true)
@@ -30,7 +36,7 @@ namespace DDrive.Foundation.Pool
             var pool = GetOrCreatePool(prefab);
             for (var i = 0; i < count; i++)
             {
-                var go = Object.Instantiate(prefab);
+                var go = Object.Instantiate(prefab, _instanceParent);
                 go.SetActive(false);
                 pool.Free.Push(go);
             }
@@ -40,28 +46,36 @@ namespace DDrive.Foundation.Pool
         {
             var pool = GetOrCreatePool(prefab);
 
-            GameObject go;
-            if (pool.Free.Count > 0)
+            GameObject go = null;
+
+            // シーン破棄等で死んだ GO が Free に残っている可能性があるため、生きているものが出るまで捨てる。
+            while (pool.Free.Count > 0 && go == null)
             {
                 go = pool.Free.Pop();
             }
-            else if (pool.Active.Count >= pool.MaxCount)
+
+            if (go == null)
             {
-                var evicted = FindLowestPriority(pool.Active);
-                if (evicted == null)
+                if (pool.Active.Count >= pool.MaxCount)
                 {
-                    Debug.LogWarning("[DDrive] Pool at capacity with nothing to reclaim; instantiating over limit.");
-                    go = Object.Instantiate(prefab);
+                    var evicted = FindLowestPriority(pool.Active);
+                    if (evicted == null)
+                    {
+                        Debug.LogWarning("[DDrive] Pool at capacity with nothing to reclaim; instantiating over limit.");
+                        go = Object.Instantiate(prefab, _instanceParent);
+                    }
+                    else
+                    {
+                        // 回収した GO を直接使い回す。ForceReturn は Free に積むため、
+                        // 積んだままにすると同じ GO が二重に貸し出される(必ず取り除く)。
+                        ForceReturn(pool, evicted);
+                        go = pool.Free.Pop();
+                    }
                 }
                 else
                 {
-                    ForceReturn(pool, evicted);
-                    go = evicted.GameObject;
+                    go = Object.Instantiate(prefab, _instanceParent);
                 }
-            }
-            else
-            {
-                go = Object.Instantiate(prefab);
             }
 
             go.SetActive(true);
@@ -112,7 +126,17 @@ namespace DDrive.Foundation.Pool
 
         private static void ForceReturn(Pool pool, PooledObject obj)
         {
-            pool.Active.Remove(obj);
+            // 二重 Return / 回収済み PooledObject の Return を無視する。
+            // ここを素通しすると、他の利用者に貸出中の GO を停止・二重登録してしまう。
+            if (!pool.Active.Remove(obj))
+            {
+                return;
+            }
+
+            if (obj.GameObject == null)
+            {
+                return;
+            }
 
             if (obj.GameObject.TryGetComponent<IPoolable>(out var poolable))
             {

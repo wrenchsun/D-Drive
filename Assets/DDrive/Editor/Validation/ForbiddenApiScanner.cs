@@ -16,35 +16,40 @@ namespace DDrive.Editor.Validation
             public string[] AllowedFileSuffixes = Array.Empty<string>();
         }
 
+        // 注意: このファイル自身の Message 文字列が各パターンにマッチしてしまうため、
+        // 全ルールの許可リストに "ForbiddenApiScanner.cs" を含める(自己検出の偽陽性防止)。
         private static readonly Rule[] Rules =
         {
             new Rule
             {
                 Pattern = @"\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b",
                 Message = "UnityEngine.Time を直接参照しない。ITimeSource を使う([02_core_framework.md] §9.5)",
-                AllowedFileSuffixes = new[] { "LocalTimeSource.cs", "NetworkTimeSource.cs", "GameLoopDriver.cs" },
+                AllowedFileSuffixes = new[] { "LocalTimeSource.cs", "NetworkTimeSource.cs", "GameLoopDriver.cs", "ForbiddenApiScanner.cs" },
             },
             new Rule
             {
                 Pattern = @"\bResources\.Load\b",
                 Message = "Resources.Load は禁止。Addressables 経由(IAssetLoader)を使う([00_requirements.md] §5)",
+                AllowedFileSuffixes = new[] { "ForbiddenApiScanner.cs" },
             },
             new Rule
             {
                 Pattern = @"\bAddressables\.Load\w*\b",
                 Message = "Addressables への直接アクセスは禁止。IAssetLoader 経由にする([00_requirements.md] §5)",
-                AllowedFileSuffixes = new[] { "AddressablesAssetLoader.cs" },
+                AllowedFileSuffixes = new[] { "AddressablesAssetLoader.cs", "ForbiddenApiScanner.cs" },
             },
             new Rule
             {
+                // PreviewService: 非破壊ループ試聴のための ScriptableObject コピー(GameObject 生成ではない)を許可。
                 Pattern = @"\b(?:UnityEngine\.)?Object\.Instantiate\s*\(|(?<![.\w])Instantiate\s*\(",
                 Message = "Instantiate の直接呼び出しは禁止。PoolService 経由にする([00_requirements.md] §5)",
-                AllowedFileSuffixes = new[] { "PoolService.cs" },
+                AllowedFileSuffixes = new[] { "PoolService.cs", "PreviewService.cs", "ForbiddenApiScanner.cs" },
             },
             new Rule
             {
                 Pattern = @"\bAudioSource\.Play\b",
                 Message = "AudioSource.Play の直接呼び出しは禁止。AudioManager 経由にする([00_requirements.md] §5)",
+                AllowedFileSuffixes = new[] { "ForbiddenApiScanner.cs" },
             },
         };
 

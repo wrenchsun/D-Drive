@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>D-Drive デザイナーマニュアル</h1>
+
+<p>このマニュアルは、<strong>D-Drive</strong>（Designer-Driven Re: IDE Visual Environment、このプロジェクトのアセット管理システム）をデザイナーが使うためのガイドです。プログラムの知識は必要ありません。</p>
+
+<h2>D-Drive とは？（30秒で分かる説明)</h2>
+<p>ゲームで使う音・エフェクトなどの素材を、<strong>「ID（番号札）」で管理する仕組み</strong>です。</p>
+<ul>
+<li>プログラマーは「この場面でこの番号札の音を鳴らす」とだけ書きます</li>
+<li>デザイナーのあなたは「その番号札の中身（どんな音か、どのくらいの音量か）」を自由に作り込みます</li>
+<li>お互いの作業がぶつからないので、<strong>後から音を差し替えても、プログラムの修正は不要</strong>です</li>
+</ul>
+
+<div class="tip">
+<strong>大事な考え方:</strong> ファイル名は<strong>あなたが決める必要はありません</strong>。「表示名（日本語OK）」と「カテゴリ」などを入力すれば、ツールが自動で規則どおりのファイル名を付けてくれます。ファイル名を気にせず、中身づくりに集中してください。
+</div>
+
+<h2>ページ一覧</h2>
+<ul class="pagelinks">
+<li><a href="asset-browser.html">Asset Browser の使い方</a>
+<p>すべての入口になるウィンドウ。素材の一覧・検索・新規作成はここから。<strong>まず最初に読んでください。</strong></p></li>
+<li><a href="se-data.html">SE（効果音）の設定項目</a>
+<p>効果音データの全パラメータの説明。音量・ピッチ・3D設定・連打防止など。</p></li>
+<li><a href="bgm-data.html">BGM の設定項目</a>
+<p>BGMデータの全パラメータの説明。イントロ→ループ構成・フェードなど。</p></li>
+<li><a href="audio-editor.html">Audio Editor の使い方</a>
+<p>波形を見ながらの音の切り出し（トリミング）、試聴、3Dサウンドの確認。</p></li>
+<li><a href="scene-sound.html">シーンに環境音を置く（SeEmitter）</a>
+<p>滝や焚き火などの「その場所で鳴り続ける音」の配置方法。</p></li>
+<li><a href="glossary.html">用語集</a>
+<p>「アセット」「ピッチ」「Mixer」など、分からない言葉が出てきたらここ。</p></li>
+</ul>
+
+<h2>はじめの一歩（効果音を1つ登録してみる）</h2>
+<ol>
+<li>Unity のメニューバーから <code>Tools &gt; D-Drive &gt; Asset Browser</code> を開く</li>
+<li>Project ウィンドウから音声ファイル（.wav など）を Asset Browser の上に<strong>ドラッグ＆ドロップ</strong></li>
+<li>開いたダイアログに「表示名」（例: 剣の斬撃音）と「識別子」（例: SwordSlash ※英語）を入力して「作成」</li>
+<li>一覧に追加された音を選び、下の <strong>▶ 再生</strong> ボタンで試聴</li>
+</ol>
+<p>これだけで登録完了です。詳しくは <a href="asset-browser.html">Asset Browser の使い方</a> へ。</p>
+
+<figure>
+<img src="images/root-overview.png" alt="Asset Browser 全体像のスクリーンショット">
+<figcaption>Asset Browser の全体像（画像が表示されない場合は準備中です）</figcaption>
+</figure>
+
+<h2>困ったときは</h2>
+<ul>
+<li>ウィンドウが見つからない → メニューバーの <code>Tools &gt; D-Drive</code> の下にすべてまとまっています</li>
+<li>赤い表示が出ている → 何かの設定が足りていません。マウスを乗せると説明が出ます（各ページの「よくある警告」も参照）</li>
+<li>言葉が分からない → <a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

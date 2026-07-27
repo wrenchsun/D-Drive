@@ -66,7 +66,8 @@ MaterialData(ShaderA) ──共通データはそのまま──▶ MaterialData
 
 ### Maya FBX 自動生成
 
-- `AssetPostprocessor.OnPostprocessMaterial` で Maya 由来マテリアル（例: aiStandardSurface / Stingray PBS）のプロパティを規約に従って MaterialCommon にマッピングし、MaterialData + Unity Material を自動生成
+- 目標は **DCC からの「Export ボタン一つ」**（[00] FR-1.5 / [10] §3 の「命名はツールが生成する」方針の DCC 側入口）。アーティストは Maya 側で意味情報（対象キャラ・部位等）を意識するだけでよく、Unity 側の規約名・ID・Data 生成はインポートパイプラインが行う
+- `AssetPostprocessor.OnPostprocessMaterial` で Maya 由来マテリアル（例: aiStandardSurface / Stingray PBS）のプロパティを規約に従って MaterialCommon にマッピングし、MaterialData + Unity Material を自動生成（ID 発行・カタログ登録・規約名リネームまで一括）
 - マッピング規約は `MayaImportProfile`（ScriptableObject）でデザイナーが編集可能（テクスチャ命名規則 `_BC/_N/_M` → チャンネル割当）
 - 再インポート時は固有調整を上書きしない（Common のみ更新 / 差分レポート表示）
 

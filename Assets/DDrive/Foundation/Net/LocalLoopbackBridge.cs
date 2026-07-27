@@ -51,7 +51,10 @@ namespace DDrive.Foundation.Net
                 return;
             }
 
-            foreach (var d in list)
+            // ハンドラ内での Subscribe/Dispose(1回受信して解除するパターン等)でリストが変化しても
+            // 安全なように、スナップショットを取ってから配送する。
+            var snapshot = list.ToArray();
+            foreach (var d in snapshot)
             {
                 ((Action<ulong, T>)d).Invoke(senderId, msg);
             }

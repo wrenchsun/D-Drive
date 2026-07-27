@@ -19,7 +19,9 @@
 ```csharp
 public class SeData : AssetDataBase
 {
-    public AudioClip[] Clips;            // 複数=ランダム/ラウンドロビン
+    public AudioClip[] Clips;            // 実再生用(トリミング適用後)。Manager はこれだけを見る
+    public SeClipSource[] Sources;       // 非破壊編集用の元データ+トリム範囲（下記）。Editor専用
+    public float StartOffsetSec;         // 再生開始位置。トリムと別に、常に軽量にランタイム適用
     public ClipSelectMode SelectMode;    // Random / RoundRobin / First
     public AudioMixerGroup Mixer;
     [Range(0,1)] public float Volume = 1f;
@@ -38,6 +40,18 @@ public class SeData : AssetDataBase
     [Header("制御")]
     public int MaxConcurrent = 8;        // 同一SEの同時再生上限
     public float CooldownSec = 0.03f;    // 連打防止
+}
+
+// Clips[i] と対応する非破壊トリミング編集用データ(要素数を揃えて使う)。
+// Source は常にインポートしたままの状態を保持し、上書きしない。「トリミングを適用」操作で
+// Source を TrimStart/TrimEnd に基づき切り出したコピーを生成し、Clips[i] を差し替える
+// （= 元データ置換ではなく、常に Source から再生成できる非破壊編集）。
+[Serializable]
+public struct SeClipSource
+{
+    public AudioClip Source;
+    public float TrimStartSec;
+    public float TrimEndSec;   // TrimEndSec <= TrimStartSec は「クリップ終端まで」の意味
 }
 
 public class BgmData : AssetDataBase
@@ -105,20 +119,24 @@ AssetBrowser から開く Inspector 拡張 + プレビューペイン。
 |---|---|
 | 波形表示 | Clip の波形 + ループ範囲をドラッグで設定（BGM の LoopStart/End） |
 | 再生プレビュー | 再生/停止/ループ/音量/ピッチのスライダをその場で試聴に反映 |
-| 3D 距離確認 | Scene ビューに Min/MaxDistance の球ギズモ表示 + リスナー位置を動かして減衰試聴 |
+| 3D 距離確認 | AudioEditor 内の **2D パッド UI**（Animator のブレンドスペース風）。中央に音源（赤点）、リスナー（青点）をマウスドラッグで矩形内移動。矩形の縦横の縮尺（±m）は個別に変更可能。音源までの距離・リスナー角度（スライダで調整、ステレオ定位に反映）を表示。**再生中にリスナーを動かすと距離減衰・パンが即時に反映**される。Min/MaxDistance の円もパッド上に表示（設定値がすべて実 AudioManager 経由で適用される）。**3D プレビューが成立しない場合（BGM / Spatial=None の 2D 設定 / Clips 未設定）はパッドを暗転し「無効である旨と理由」を明示する**（設定不備が「効いていないだけ」に見える事故を防ぐ） |
 | Mixer 確認 | 割当先 Mixer グループと現在の dB を表示 |
 | ランダム試聴 | Clips 複数時に SelectMode 通りの挙動で連続試聴 |
 | イベント設定 | AssetEvent の編集（OnSpawn 等） |
+| 再生開始位置調整 | `StartOffsetSec` をスライダ/数値入力で調整し、その場で試聴に反映 |
+| 非破壊トリミング | `Sources[i]` の TrimStart/TrimEnd を波形上でドラッグ設定 →「トリミングを適用」で `Clips` を再生成（Source は不変） |
+| 無音自動トリミング | `Sources[i]` ごとにワンボタンで先頭/末尾の無音区間を検出し TrimStart/TrimEnd に反映（振幅しきい値ベース） |
 
 プレビューは実 AudioManager を EditMode で駆動する（[01] ADR-4）。
+現状の実装（Phase 1）はドラッグ操作前の数値入力ベース GUI（`SeDataEditor`）まで。波形上のドラッグ編集は本 AudioEditor（1-7）で波形表示と統合する。
 
 ## 6. 運用方法
 
-1. デザイナー: AssetBrowser →「新規 SE」→ Clip を D&D → パラメータ調整 → 試聴 → 保存
+1. デザイナー: AssetBrowser →「新規 SE」→ Clip を D&D → **表示名（「剣の斬撃音」等）・カテゴリ・識別子を入力** → ファイル名 `SE_Player_Slash` 等・ID・カタログ登録はツールが自動生成（[10] §3）→ パラメータ調整 → 試聴 → 保存
 2. 保存時に ID 定数が再生成され、プログラマーは `SEID.XXX` で参照可能に
 3. アニメ連携: AnimationData のイベントトラックに `Frame(15) → PlayAsset(SE)` を設定（コード不要）
 4. 会話シーン: CanvasData(会話UI) の OnEnable イベントに `Duck(Dialogue, -12dB)`、OnDisable に `PopDuck`
-5. 環境音（滝・焚き火等）: シーンに `SeEmitter`（SeIdRef を 1 つ持つ配置用マーカーコンポーネント）を置くだけ。OnEnable で `Audio.PlaySe(id, transform)`、OnDisable で Stop を自動発行する薄いラッパで、禁止事項（AudioSource.Play 直呼び）に抵触しない正規の配置手段。カリングは MaxDistance + Priority の既存機構に乗る
+5. 環境音（滝・焚き火等）: シーンに `SeEmitter`（SeIdRef を 1 つ持つ配置用マーカーコンポーネント）を置くだけ。OnEnable で `Audio.PlaySe(id, transform)`、OnDisable で Stop を自動発行する薄いラッパで、禁止事項（AudioSource.Play 直呼び）に抵触しない正規の配置手段。カリングは MaxDistance + Priority の既存機構に乗る。**配置には標準プレハブ `Assets/GameData/Prefabs/Audio/SeEmitter.prefab` を使うこと推奨**（無ければ `Tools/D-Drive/Generate/標準プレハブを生成`。[01] §5 / [10] §3.3）
 
 ## 7. Validation
 

@@ -59,19 +59,43 @@ namespace DDrive.Foundation.Validation
                 {
                     yield return ($"{fieldPath}.Alpha", ((ValueDefColor)value).Alpha);
                 }
-                else if (field.FieldType.IsArray && value is System.Array array)
+                else if (value is System.Collections.IList listValue && field.FieldType != typeof(string))
                 {
-                    for (var i = 0; i < array.Length; i++)
+                    // 配列/List の両方をここで処理する。要素自体が ValueDef 系の場合は直接検査対象として
+                    // 返す(要素の「フィールド」だけを見る再帰では ValueDef[] の中身が素通りしてしまう)。
+                    for (var i = 0; i < listValue.Count; i++)
                     {
-                        var element = array.GetValue(i);
+                        var element = listValue[i];
                         if (element == null)
                         {
                             continue;
                         }
 
-                        foreach (var found in FindValueDefs(element, $"{fieldPath}[{i}]", depth + 1))
+                        var elementPath = $"{fieldPath}[{i}]";
+
+                        switch (element)
                         {
-                            yield return found;
+                            case ValueDef vd:
+                                yield return (elementPath, vd);
+                                break;
+
+                            case ValueDef3 v3:
+                                yield return ($"{elementPath}.X", v3.X);
+                                yield return ($"{elementPath}.Y", v3.Y);
+                                yield return ($"{elementPath}.Z", v3.Z);
+                                break;
+
+                            case ValueDefColor vc:
+                                yield return ($"{elementPath}.Alpha", vc.Alpha);
+                                break;
+
+                            default:
+                                foreach (var found in FindValueDefs(element, elementPath, depth + 1))
+                                {
+                                    yield return found;
+                                }
+
+                                break;
                         }
                     }
                 }

@@ -13,5 +13,22 @@ namespace DDrive.Foundation.Registry
         public IReadOnlyList<CatalogEntry> Entries => entries;
 
         public void SetEntries(List<CatalogEntry> newEntries) => entries = newEntries ?? new List<CatalogEntry>();
+
+        // 追記型運用([10_workflow.md] §4)。同一 ID は上書きし、ID 昇順を維持することで
+        // ブランチ間マージ時のコンフリクトを最小化する。
+        public void AddOrUpdate(CatalogEntry entry)
+        {
+            for (var i = 0; i < entries.Count; i++)
+            {
+                if (entries[i].Id == entry.Id)
+                {
+                    entries[i] = entry;
+                    return;
+                }
+            }
+
+            entries.Add(entry);
+            entries.Sort((a, b) => a.Id.CompareTo(b.Id));
+        }
     }
 }

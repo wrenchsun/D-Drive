@@ -34,8 +34,18 @@ namespace DDrive.Runtime.Loading
 
         public async UniTask<T> LoadAsync<T>(string address, CancellationToken ct) where T : UnityEngine.Object
         {
-            var loaded = await _cache.Acquire(address).AttachExternalCancellation(ct);
-            return loaded.Value as T;
+            try
+            {
+                var loaded = await _cache.Acquire(address).AttachExternalCancellation(ct);
+                return loaded.Value as T;
+            }
+            catch (System.OperationCanceledException)
+            {
+                // Acquire 時点で参照カウントは増えているため、キャンセルした呼び出し元の分は返す
+                // (返さないと誰も Release しない参照が残り、アセットが永久にピン留めされる)。
+                _cache.Release(address);
+                throw;
+            }
         }
 
         public void Release(string address) => _cache.Release(address);
@@ -57,6 +67,15 @@ namespace DDrive.Runtime.Loading
             // UniTask の Addressables 拡張(ToUniTask)有無に依存しないよう、IsDone を素朴に待つ。
             var handle = Addressables.LoadAssetAsync<UnityEngine.Object>(address);
             await UniTask.WaitUntil(() => handle.IsDone);
+
+            // 失敗を null 成功として返すとキャッシュに毒が残る。例外にして呼び出し元へ伝播させる
+            // (RefCountedAsyncCache 側が失敗エントリを破棄し、後で再試行できる)。
+            if (handle.Status == AsyncOperationStatus.Failed)
+            {
+                Addressables.Release(handle);
+                throw new System.InvalidOperationException($"[DDrive] Addressables load failed for '{address}'.");
+            }
+
             return new LoadedAsset(handle, handle.Result);
         }
 

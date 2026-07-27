@@ -38,7 +38,7 @@
 | 1-2 | BGM クロスフェード / Intro→Loop サンプル精度 | 基盤 | 2 | 1-1 | ループ継ぎ目にノイズなし |
 | 1-3 | 3D サウンド（AnchorDef / 位置優先規則 / Spread / Doppler / 減衰） | 基盤 | 3 | 1-1, 0-2 | ボーン追従・引数上書き・DetachOnStop 動作 |
 | 1-4 | Duck 統合（AssetEvent Action=Duck） | 基盤 | 1 | 1-1, 0-9 | イベントから Duck/Pop 動作 |
-| 1-5 | AssetBrowser 骨格（一覧/検索/新規/D&D 登録） | ED | 4 | 0-4 | 1000 件で 60fps。D&D で種別自動判定 |
+| 1-5 | AssetBrowser 骨格（一覧/検索/新規/D&D 登録/自動命名） | ED | 4 | 0-4 | 1000 件で 60fps。D&D で種別自動判定。新規作成は意味情報入力のみでファイル名・ID・カタログ登録を自動生成（[10] §3） |
 | 1-6 | PreviewService（プレビューシーン + 実 Manager 駆動 + 共通 UI） | ED | 4 | 0-10 | EditMode で SE/ループ/速度変更が動く |
 | 1-7 | AudioEditor（波形/ループ範囲/3D 距離/試聴） | ED | 3 | 1-5, 1-6 | 設計書 03 §5 の全機能 |
 | 1-8 | ID PropertyDrawer（検索ドロップダウン） | ED | 2 | 0-3 | 未登録 ID 赤表示 |

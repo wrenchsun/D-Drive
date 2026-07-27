@@ -30,6 +30,14 @@ namespace DDrive.Foundation.Handle
                 _count++;
             }
 
+            // 世代 0 は「未初期化(default)の Handle」と衝突するため使わない。
+            // default(Handle<T>) は (index=0, generation=0) であり、これが最初のスロットの
+            // 正規ハンドルと一致してしまうと、未代入ハンドル経由で他人の Instance を操作できてしまう。
+            if (_generations[index] == 0)
+            {
+                _generations[index] = 1;
+            }
+
             _items[index] = instance;
             return new Handle<TMarker>(index, _generations[index]);
         }

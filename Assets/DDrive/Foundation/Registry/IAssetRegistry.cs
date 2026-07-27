@@ -13,6 +13,7 @@ namespace DDrive.Foundation.Registry
         UniTask RegisterCatalogAsync(AssetCatalog catalog);
         UniTask<T> ResolveAsync<T>(ulong id) where T : AssetDataBase;
         bool TryResolveSync<T>(ulong id, out T data) where T : AssetDataBase;
+        T ResolveOrPlaceholder<T>(ulong id) where T : AssetDataBase;
         IReadOnlyList<CatalogEntry> Entries(AssetType type);
     }
 }

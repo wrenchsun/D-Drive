@@ -10,26 +10,42 @@ namespace DDrive.Foundation.Registry
     public static class PlaceholderProvider
     {
         private static readonly Dictionary<Type, Func<AssetDataBase>> Factories = new();
+        private static readonly Dictionary<Type, AssetDataBase> Cache = new();
 
         public static void Register<T>(Func<T> factory) where T : AssetDataBase
         {
             Factories[typeof(T)] = () => factory();
+            Cache.Remove(typeof(T));
         }
 
         public static void Unregister<T>() where T : AssetDataBase
         {
             Factories.Remove(typeof(T));
+            Cache.Remove(typeof(T));
         }
 
+        // Placeholder は型ごとに 1 インスタンスをキャッシュして使い回す。
+        // 毎フレーム鳴らされる未登録 SE 等で呼ばれるため、毎回 CreateInstance すると
+        // ScriptableObject(ネイティブ資源)が無制限にリークする。
         public static T Get<T>() where T : AssetDataBase
         {
-            if (Factories.TryGetValue(typeof(T), out var factory))
+            if (Cache.TryGetValue(typeof(T), out var cached) && cached != null)
             {
-                return (T)factory();
+                return (T)cached;
             }
 
-            var instance = ScriptableObject.CreateInstance<T>();
-            instance.DisplayName = $"<Placeholder:{typeof(T).Name}>";
+            T instance;
+            if (Factories.TryGetValue(typeof(T), out var factory))
+            {
+                instance = (T)factory();
+            }
+            else
+            {
+                instance = ScriptableObject.CreateInstance<T>();
+                instance.DisplayName = $"<Placeholder:{typeof(T).Name}>";
+            }
+
+            Cache[typeof(T)] = instance;
             return instance;
         }
     }

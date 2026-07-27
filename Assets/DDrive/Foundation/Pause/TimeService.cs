@@ -10,6 +10,12 @@ namespace DDrive.Foundation.Pause
 
         public void HitStop(float duration, float scale = 0f)
         {
+            // duration<=0 を許すと Tick の早期リターン条件と噛み合って TimeScale が永久に戻らなくなる。
+            if (duration <= 0f)
+            {
+                return;
+            }
+
             _hitStopRemaining = duration;
             TimeScale = scale;
         }

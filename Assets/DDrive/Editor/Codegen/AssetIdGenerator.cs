@@ -104,9 +104,9 @@ namespace DDrive.Editor.Codegen
                         seenIds[asset.Id] = path;
                     }
 
-                    var sourceName = !string.IsNullOrEmpty(asset.DisplayName)
-                        ? asset.DisplayName
-                        : Path.GetFileNameWithoutExtension(path);
+                    // 定数名は必ずファイル名(ツールが規約生成した SE_Category_Identifier 形式)から作る。
+                    // DisplayName は日本語等の自由入力(FR-1.5)であり、C# 識別子の材料にしない。
+                    var sourceName = Path.GetFileNameWithoutExtension(path);
                     entries.Add((ToConstantName(sourceName), asset.Id));
                     result.TotalCount++;
                 }
@@ -115,9 +115,18 @@ namespace DDrive.Editor.Codegen
 
                 sb.AppendLine($"    public static class {def.ConstantsClassName}");
                 sb.AppendLine("    {");
+                var usedNames = new HashSet<string>();
                 foreach (var entry in entries)
                 {
-                    sb.AppendLine($"        public static readonly AssetId<{def.MarkerType.FullName}> {entry.constName} = new(0x{entry.id:X}UL, AssetType.{def.AssetType});");
+                    // 定数名の衝突(同名アセット等)は ID サフィックスで一意化し、生成コードの CS0102 を防ぐ。
+                    var constName = entry.constName;
+                    if (!usedNames.Add(constName))
+                    {
+                        constName = $"{constName}_{entry.id:X4}";
+                        usedNames.Add(constName);
+                    }
+
+                    sb.AppendLine($"        public static readonly AssetId<{def.MarkerType.FullName}> {constName} = new(0x{entry.id:X}UL, AssetType.{def.AssetType});");
                 }
 
                 sb.AppendLine("    }");
@@ -215,7 +224,14 @@ namespace DDrive.Editor.Codegen
             var sb = new StringBuilder();
             for (var i = start; i < tokens.Length; i++)
             {
-                var tok = tokens[i];
+                // C# 識別子に使えない文字(日本語・記号等)は除去する。素通しすると
+                // 生成された AssetIds.g.cs がコンパイルエラーになり、プロジェクト全体が壊れる。
+                var tok = SanitizeToken(tokens[i]);
+                if (tok.Length == 0)
+                {
+                    continue;
+                }
+
                 sb.Append(char.ToUpperInvariant(tok[0]));
                 if (tok.Length > 1)
                 {
@@ -236,7 +252,22 @@ namespace DDrive.Editor.Codegen
             return sb.ToString();
         }
 
-        private static ulong StableHashFromGuid(string guid)
+        private static string SanitizeToken(string token)
+        {
+            var sb = new StringBuilder(token.Length);
+            foreach (var c in token)
+            {
+                if (c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9')
+                {
+                    sb.Append(c);
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        // AssetCreationService(1-5) からも同じ規則で ID を発行するため public。
+        public static ulong StableHashFromGuid(string guid)
         {
             const ulong fnvOffset = 14695981039346656037UL;
             const ulong fnvPrime = 1099511628211UL;

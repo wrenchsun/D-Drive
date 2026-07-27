@@ -64,7 +64,9 @@ namespace DDrive.Tests.Editor
 
             var first = AssetIdGenerator.Regenerate(_tempOutputPath);
             Assert.IsTrue(first.Success);
-            Assert.AreEqual(1, first.AssignedCount);
+            // 他のテスト(AssetIdLookupTests 等)も同じ TestAssetData 型の一時アセットを作ることがあるため、
+            // プロジェクト内で自分だけが対象という前提を置かない(>=1 のみ検証)。
+            Assert.GreaterOrEqual(first.AssignedCount, 1);
             Assert.AreNotEqual(0UL, asset.Id);
             var idAfterFirst = asset.Id;
             var firstContent = File.ReadAllText(_tempOutputPath);

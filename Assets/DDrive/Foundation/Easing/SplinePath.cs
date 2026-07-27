@@ -20,6 +20,11 @@ namespace DDrive.Foundation.Easing
 
         public SplinePath(IReadOnlyList<Vector3> points, SplineType type)
         {
+            if (points == null || points.Count == 0)
+            {
+                throw new System.ArgumentException("SplinePath requires at least one control point.", nameof(points));
+            }
+
             _points = new Vector3[points.Count];
             for (var i = 0; i < points.Count; i++)
             {

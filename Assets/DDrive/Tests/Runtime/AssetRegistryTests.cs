@@ -67,6 +67,20 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
+        public void ResolveOrPlaceholder_UnregisteredId_WarnsOnceAndReturnsPlaceholder()
+        {
+            var registry = new AssetRegistry(new FakeAssetLoader());
+
+            LogAssert.Expect(LogType.Warning, new Regex(".*"));
+            var first = registry.ResolveOrPlaceholder<DummyData>(777);
+            var second = registry.ResolveOrPlaceholder<DummyData>(777);
+            LogAssert.NoUnexpectedReceived();
+
+            Assert.IsNotNull(first);
+            Assert.IsNotNull(second);
+        }
+
+        [Test]
         public async Task Entries_FiltersByType()
         {
             var loader = new FakeAssetLoader();
