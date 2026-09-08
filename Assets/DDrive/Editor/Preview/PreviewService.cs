@@ -4,6 +4,8 @@ using DDrive.Foundation.Handle;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.Model;
+using DDrive.Runtime.Vfx;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -32,12 +34,27 @@ namespace DDrive.Editor.Preview
         private readonly List<Handle<SeMarker>> _activeSeHandles = new();
         private readonly List<UnityEngine.Object> _dataCopies = new();
 
+        // EditMode では ParticleSystem が自動シミュレーションされない(再生時間が進むのは PlayMode のみ)。
+        // そのため試聴中の VFX は Tick で手動 Simulate して進める。GetComponentsInChildren を毎 Tick
+        // 呼ばないよう、Spawn 時に ParticleSystem 配列をキャッシュする。
+        private readonly List<(Handle<VfxMarker> handle, ParticleSystem[] systems)> _activeVfx = new();
+
         public AudioManager AudioManager { get; private set; }
         public BgmManager BgmManager { get; private set; }
+        public VfxManager VfxManager { get; private set; }
+        public ModelsManager ModelsManager { get; private set; }
 
         // 試聴の基準になる AudioListener。開いているシーンに存在すればそれを、
         // 無ければプレビューシーン内に生成したものを指す(3D 減衰・パンの基準)。
         public Transform ListenerTransform { get; private set; }
+
+        // VFX/Model の視覚プレビュー用([04_vfx.md] §5 / [05_model_animation.md] A-4)。
+        // Audio と同じプレビューシーンにカメラ+ライトを置き、任意モデルを Anchor 確認用に読み込める。
+        public Camera PreviewCamera { get; private set; }
+        public Light PreviewLight { get; private set; }
+        public GameObject PreviewModelRoot { get; private set; }
+
+        private RenderTexture _renderTexture;
 
         public bool IsInitialized => _initialized;
 
@@ -78,6 +95,27 @@ namespace DDrive.Editor.Preview
             var bgmChannelA = CreateBgmChannel("BgmChannelA");
             var bgmChannelB = CreateBgmChannel("BgmChannelB");
             BgmManager = new BgmManager(registry, bgmChannelA, bgmChannelB);
+
+            VfxManager = new VfxManager(_pool, registry);
+            ModelsManager = new ModelsManager(_pool, registry);
+
+            // _root は既に _previewScene に属しているため、親にぶら下げるだけでシーンも引き継ぐ
+            // (MoveGameObjectToScene はルートオブジェクトにしか使えず、親付け後に呼ぶと例外になる)。
+            var cameraGo = new GameObject("PreviewCamera");
+            cameraGo.transform.SetParent(_root.transform);
+            PreviewCamera = cameraGo.AddComponent<Camera>();
+            PreviewCamera.enabled = false; // 手動 Render() のみで使う(毎フレーム自動描画しない)
+            PreviewCamera.clearFlags = CameraClearFlags.SolidColor;
+            PreviewCamera.backgroundColor = new Color(0.16f, 0.16f, 0.16f);
+            PreviewCamera.transform.SetPositionAndRotation(new Vector3(0f, 1.5f, -4f), Quaternion.identity);
+            PreviewCamera.transform.LookAt(Vector3.up * 1f);
+
+            var lightGo = new GameObject("PreviewLight");
+            lightGo.transform.SetParent(_root.transform);
+            PreviewLight = lightGo.AddComponent<Light>();
+            PreviewLight.type = LightType.Directional;
+            PreviewLight.intensity = 1f;
+            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
             var existingListener = UnityEngine.Object.FindFirstObjectByType<AudioListener>();
             if (existingListener != null)
@@ -137,6 +175,105 @@ namespace DDrive.Editor.Preview
             }
         }
 
+        // VfxEditor(2-4)向け。VfxData はカタログ未登録の編集中アセットであることが多いため、
+        // ID 解決を経由せず直接 SpawnData する(PlaySeData と同じ考え方)。
+        public Handle<VfxMarker> PlayVfx(VfxData data, Transform attach = null)
+        {
+            if (!_initialized || data == null)
+            {
+                return Handle<VfxMarker>.Invalid;
+            }
+
+            var handle = VfxManager.SpawnData(data, contextRoot: attach);
+            var go = VfxManager.GetGameObject(handle);
+            if (go != null)
+            {
+                _activeVfx.Add((handle, go.GetComponentsInChildren<ParticleSystem>(true)));
+            }
+
+            return handle;
+        }
+
+        public void StopVfx(Handle<VfxMarker> handle) => VfxManager?.Stop(handle);
+
+        public void StopAllVfx() => VfxManager?.StopAll(Foundation.Manager.StopReason.Manual);
+
+        // ModelEditor(2-6)向け。
+        public Handle<ModelMarker> SpawnModel(ModelData data, Vector3 pos, Quaternion rot)
+            => _initialized && data != null ? ModelsManager.SpawnData(data, pos, rot) : Handle<ModelMarker>.Invalid;
+
+        public void DespawnModel(Handle<ModelMarker> handle) => ModelsManager?.Despawn(handle);
+
+        public void StopAllModels() => ModelsManager?.StopAll(Foundation.Manager.StopReason.Manual);
+
+        // Anchor のボーン確認(2-4)・ターンテーブル表示(2-6)用に、任意の Prefab をプレビューシーンへ
+        // 読み込む。既存のものは破棄してから差し替える(比較表示は複数呼び出しで切り替える運用)。
+        public GameObject SetPreviewModel(GameObject prefab)
+        {
+            ClearPreviewModel();
+
+            if (prefab == null)
+            {
+                return null;
+            }
+
+            PreviewModelRoot = UnityEngine.Object.Instantiate(prefab, _root.transform);
+            return PreviewModelRoot;
+        }
+
+        public void ClearPreviewModel()
+        {
+            if (PreviewModelRoot != null)
+            {
+                UnityEngine.Object.DestroyImmediate(PreviewModelRoot);
+                PreviewModelRoot = null;
+            }
+        }
+
+        public void SetBackgroundColor(Color color)
+        {
+            if (PreviewCamera != null)
+            {
+                PreviewCamera.backgroundColor = color;
+            }
+        }
+
+        public void SetLightIntensity(float intensity)
+        {
+            if (PreviewLight != null)
+            {
+                PreviewLight.intensity = intensity;
+            }
+        }
+
+        // 指定サイズで PreviewCamera を手動レンダリングし、結果の RenderTexture を返す
+        // (Camera.enabled=false のため、Repaint 時にここから明示的に呼ぶ想定)。
+        public RenderTexture Render(int width, int height)
+        {
+            if (PreviewCamera == null || width <= 0 || height <= 0)
+            {
+                return null;
+            }
+
+            if (_renderTexture == null || _renderTexture.width != width || _renderTexture.height != height)
+            {
+                if (_renderTexture != null)
+                {
+                    _renderTexture.Release();
+                    UnityEngine.Object.DestroyImmediate(_renderTexture);
+                }
+
+                _renderTexture = new RenderTexture(width, height, 16) { name = "DDrivePreviewRT" };
+            }
+
+            PreviewCamera.targetTexture = _renderTexture;
+            PreviewCamera.aspect = (float)width / height;
+            PreviewCamera.Render();
+            PreviewCamera.targetTexture = null;
+
+            return _renderTexture;
+        }
+
         public void StopAll()
         {
             if (!_initialized)
@@ -159,7 +296,18 @@ namespace DDrive.Editor.Preview
 
             EditorApplication.update -= EditorTick;
             StopAll();
+            StopAllVfx();
+            StopAllModels();
+            _activeVfx.Clear();
             ReleaseDataCopies();
+            ClearPreviewModel();
+
+            if (_renderTexture != null)
+            {
+                _renderTexture.Release();
+                UnityEngine.Object.DestroyImmediate(_renderTexture);
+                _renderTexture = null;
+            }
 
             if (_previewScene.IsValid())
             {
@@ -179,6 +327,9 @@ namespace DDrive.Editor.Preview
 
             AudioManager.Tick(dt);
             BgmManager.Tick(dt);
+            VfxManager.Tick(dt);
+            ModelsManager.Tick(dt);
+            AdvanceVfxSimulation(dt);
 
             for (var i = _activeSeHandles.Count - 1; i >= 0; i--)
             {
@@ -195,6 +346,38 @@ namespace DDrive.Editor.Preview
             var dt = Mathf.Clamp((float)(now - _lastTickTime), 0f, 0.25f);
             _lastTickTime = now;
             Tick(dt);
+        }
+
+        // 試聴中の VFX が1つでもあるか(エディタウィンドウが「再生中は毎フレーム Repaint する」判定に使う)。
+        public bool HasActiveVfx => _activeVfx.Count > 0;
+
+        private void AdvanceVfxSimulation(float dt)
+        {
+            for (var i = _activeVfx.Count - 1; i >= 0; i--)
+            {
+                var (handle, systems) = _activeVfx[i];
+                if (!VfxManager.IsPlaying(handle))
+                {
+                    _activeVfx.RemoveAt(i);
+                    continue;
+                }
+
+                // PlayMode 中は Unity が自動でシミュレーションするため二重に進めない。
+                if (Application.isPlaying)
+                {
+                    continue;
+                }
+
+                foreach (var ps in systems)
+                {
+                    if (ps != null)
+                    {
+                        // withChildren=false: 配列に子も個別に入っているため二重適用を避ける。
+                        // restart=false: 現在時刻から dt 分だけ進める。fixedTimeStep=false: 任意 dt で滑らかに。
+                        ps.Simulate(dt * _speed, false, false, false);
+                    }
+                }
+            }
         }
 
         private AudioSource CreateBgmChannel(string name)

@@ -3,10 +3,12 @@ using DDrive.Foundation.Data;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Manager;
+using DDrive.Foundation.Net;
 using DDrive.Foundation.Pause;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
+using DDrive.Runtime.Net;
 using UnityEngine;
 using SeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>;
 
@@ -23,6 +25,10 @@ namespace DDrive.Runtime.Audio
             public PooledObject Pooled;
             public Transform FollowTarget;
             public bool HasFollowTarget;
+
+            // 追従時に使うローカルオフセット。AnchorPoint のランダム散らばりは Play 時に1回だけ
+            // サンプリングされるため、Tick では Data 側から再計算せずこちらを使う。
+            public Vector3 FollowLocalOffset;
 
             // Pause() 中は isPlaying=false になるため、Tick の再生完了判定(自動返却)から除外する目印。
             public bool Paused;
@@ -42,15 +48,38 @@ namespace DDrive.Runtime.Audio
         private readonly Dictionary<ulong, int> _roundRobinIndex = new();
         private readonly Dictionary<ulong, float> _lastPlayedAt = new();
 
+        // [14_networking.md] §3/§4/§8 — NetMode=Cosmetic の SE は直接再生せず、いったんこのバッチに
+        // 積んで Tick で 1 パケットにまとめて Broadcast する(欠落許容の Unreliable)。
+        // 実際の再生は受信ハンドラ(OnReceiveCosmeticBatch)からのみ行う(送信元も loopback 経由で
+        // 自分の Broadcast を受け取って初めて鳴る。二重再生を避けるため直接は鳴らさない)。
+        private readonly INetBridge _netBridge;
+        private readonly List<SeNetMsg> _pendingCosmeticBatch = new();
+
         private float _clock;
 
         public AssetType Type => AssetType.Se;
 
-        public AudioManager(IPoolService pool, IAssetRegistry registry, GameObject seSourcePrefab)
+        public AudioManager(IPoolService pool, IAssetRegistry registry, GameObject seSourcePrefab, INetBridge netBridge = null)
         {
             _pool = pool;
             _registry = registry;
             _seSourcePrefab = seSourcePrefab;
+            _netBridge = netBridge ?? new LocalLoopbackBridge();
+            _netBridge.Subscribe<SeNetBatchMsg>(OnReceiveCosmeticBatch);
+        }
+
+        private void OnReceiveCosmeticBatch(ulong senderId, SeNetBatchMsg batch)
+        {
+            if (batch.Items == null)
+            {
+                return;
+            }
+
+            foreach (var item in batch.Items)
+            {
+                var data = _registry.ResolveOrPlaceholder<SeData>(item.SeId);
+                PlaySeDataLocal(data, item.Position);
+            }
         }
 
         // FR-1.4: 未登録/未ロードの SE は無音 0.5s のプレースホルダで代替し、警告は 1 回だけ出す
@@ -103,7 +132,41 @@ namespace DDrive.Runtime.Audio
 
         public Handle<SeMarker> PlaySeData(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null)
         {
-            if (data == null || IsOnCooldown(data))
+            if (data == null)
+            {
+                return Handle<SeMarker>.Invalid;
+            }
+
+            // Cosmetic は直接再生せず、Tick でまとめて Broadcast する([14_networking.md] §3/§4/§8)。
+            // 実際の再生は自分を含む全員が受信ハンドラ経由で行うため、ここでは Invalid を返す
+            // (呼び出し側は「必ず今フレーム中にハンドルを得られる」ことを前提にしないこと)。
+            if (data.Flags.Net == NetMode.Cosmetic)
+            {
+                _pendingCosmeticBatch.Add(new SeNetMsg
+                {
+                    SeId = data.Id,
+                    Position = ResolveWorldPositionForBroadcast(data, explicitPosition, contextRoot),
+                });
+                return Handle<SeMarker>.Invalid;
+            }
+
+            return PlaySeDataLocal(data, explicitPosition, contextRoot);
+        }
+
+        private static Vector3 ResolveWorldPositionForBroadcast(SeData data, Vector3? explicitPosition, Transform contextRoot)
+        {
+            if (explicitPosition.HasValue)
+            {
+                return explicitPosition.Value;
+            }
+
+            var resolved = AnchorResolver.Resolve(data.Anchor, contextRoot);
+            return resolved != null ? resolved.TransformPoint(data.Anchor.LocalOffset) : data.Anchor.LocalOffset;
+        }
+
+        private Handle<SeMarker> PlaySeDataLocal(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null)
+        {
+            if (IsOnCooldown(data))
             {
                 return Handle<SeMarker>.Invalid;
             }
@@ -123,6 +186,7 @@ namespace DDrive.Runtime.Audio
 
             Transform followTarget = null;
             var hasFollowTarget = false;
+            var followLocalOffset = data.Anchor.LocalOffset;
             var sourceTransform = pooled.GameObject.transform;
             sourceTransform.SetParent(null);
 
@@ -150,7 +214,15 @@ namespace DDrive.Runtime.Audio
                 {
                     followTarget = resolved;
                     hasFollowTarget = true;
-                    sourceTransform.position = resolved.TransformPoint(data.Anchor.LocalOffset);
+
+                    // 解決先が AnchorPoint(シーン配置型アンカー)なら、アンカー固有のオフセット+
+                    // 位置のランダム散らばりを追加適用する(回転/スケールは音に無関係なので位置のみ)。
+                    if (resolved.TryGetComponent<AnchorPoint>(out var point))
+                    {
+                        followLocalOffset = point.SampleLocalOffset(data.Anchor.LocalOffset);
+                    }
+
+                    sourceTransform.position = resolved.TransformPoint(followLocalOffset);
                     if (data.Anchor.FollowRotation)
                     {
                         sourceTransform.rotation = resolved.rotation;
@@ -176,6 +248,7 @@ namespace DDrive.Runtime.Audio
                 Pooled = pooled,
                 FollowTarget = followTarget,
                 HasFollowTarget = hasFollowTarget,
+                FollowLocalOffset = followLocalOffset,
             };
             var handle = _instances.Add(instance);
 
@@ -217,6 +290,10 @@ namespace DDrive.Runtime.Audio
         public bool IsPlaying(Handle<SeMarker> handle)
             => _instances.TryGet(handle, out var instance) && instance.Source.isPlaying;
 
+        // 現在アクティブな SE 再生数。Cosmetic 配送はネットワーク経由で受信ハンドラ側が Spawn するため、
+        // 送信元は具体的な Handle を得られない。「何か再生された」を確認する用途にも使える。
+        public int ActiveCount => _allActive.Count;
+
         public Vector3? GetPosition(Handle<SeMarker> handle)
             => _instances.TryGet(handle, out var instance) ? instance.Source.transform.position : (Vector3?)null;
 
@@ -256,6 +333,7 @@ namespace DDrive.Runtime.Audio
         public void Tick(float dt)
         {
             _clock += dt;
+            FlushCosmeticBatch();
 
             for (var i = _allActive.Count - 1; i >= 0; i--)
             {
@@ -282,7 +360,7 @@ namespace DDrive.Runtime.Audio
                 {
                     if (instance.FollowTarget != null)
                     {
-                        instance.Source.transform.position = instance.FollowTarget.TransformPoint(instance.Data.Anchor.LocalOffset);
+                        instance.Source.transform.position = instance.FollowTarget.TransformPoint(instance.FollowLocalOffset);
                         if (instance.Data.Anchor.FollowRotation)
                         {
                             instance.Source.transform.rotation = instance.FollowTarget.rotation;
@@ -344,6 +422,17 @@ namespace DDrive.Runtime.Audio
         }
 
         public void OnSceneUnload() => StopAll(StopReason.SceneUnload);
+
+        private void FlushCosmeticBatch()
+        {
+            if (_pendingCosmeticBatch.Count == 0)
+            {
+                return;
+            }
+
+            _netBridge.Broadcast(new SeNetBatchMsg { Items = _pendingCosmeticBatch.ToArray() }, NetChannel.Unreliable);
+            _pendingCosmeticBatch.Clear();
+        }
 
         private void CleanupBookkeeping(Handle<SeMarker> handle)
         {

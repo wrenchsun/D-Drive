@@ -48,18 +48,28 @@
 
 **M1 デモ**: デザイナーが SE/BGM を登録→試聴→ゲームで再生、の一連が通る。
 
-## Phase 2: VFX + Model (M2)  約 3.5 週
+## Phase 2: VFX + Model (M2)  約 3.5 週 — 実装完了(2026-07-27、レビュー待ち)
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|
-| 2-1 | VfxData/AnchorDef/VfxParam + VfxManager | 基盤 | 3 | 0-* | Spawn/Stop/Kill/Attach/Pool 動作 |
-| 2-2 | VfxParam 反映（MPB / VFXGraph、ID キャッシュ） | 基盤 | 2 | 2-1 | SetParam 0 alloc（定常時） |
-| 2-3 | UI パーティクル（UI カメラ + RectTransform 変換） | 基盤 | 3 | 2-1 | Canvas 上で通常 VFX と同 API で再生 |
-| 2-4 | VfxEditor（Anchor ギズモ編集/複数同時/環境切替） | ED | 4 | 1-6, 2-1 | 設計書 04 §5 の全機能 |
-| 2-5 | ModelData/Models Manager（Spawn/Slot 差し替え） | 基盤 | 2 | 0-* | SetMaterial がデータだけで動く |
-| 2-6 | ModelEditor（ターンテーブル/並列/Slot 差し替え） | ED | 2 | 1-6, 2-5 | — |
-| 2-7 | VFX/Model Validator | 基盤 | 1 | 0-11 | 04§7, 05§A-4 の全検査 |
-| 2-8 | VFX/SE の Cosmetic 配送（Broadcast + Unreliable バッチ + 受信再生） | 基盤 | 3 | 0-14, 2-1, 1-1 | 2 クライアントで同一 VFX/SE が再生される |
+| 2-1 | VfxData/AnchorDef/VfxParam + VfxManager | 基盤 | 3 | 0-* | ✅ Spawn/Stop/Kill/Attach/Pool 動作。対応は ParticleSystem のみ(下記注) |
+| 2-2 | VfxParam 反映（MPB / VFXGraph、ID キャッシュ） | 基盤 | 2 | 2-1 | ✅ SetParam は 2-1 に統合実装。MaterialPropertyBlock + Shader.PropertyToID キャッシュ。VFXGraph 未対応(下記注) |
+| 2-3 | UI パーティクル（UI カメラ + RectTransform 変換） | 基盤 | 3 | 2-1 | ✅ 座標変換は既存の Anchor(ContextTarget)機構がそのまま吸収。`VfxUiSetup`(Tools > D-Drive > Generate)で VfxUI レイヤー確保 + URP Overlay カメラのスタック追加を行うオプトインツールを用意 |
+| 2-4 | VfxEditor（Anchor ギズモ編集/複数同時/環境切替） | ED | 4 | 1-6, 2-1 | ✅ ライブプレビュー/複数同時再生(最大8)/環境切替(背景色・ライト強度・確認用モデル)/パラメータ即時反映/イベント編集/UIモード注記。Anchor 編集は 3D ギズモではなく 2D パッド(AudioEditor の 3D確認パッドと同じ手法)+ 数値フィールドで実装 |
+| 2-5 | ModelData/Models Manager（Spawn/Slot 差し替え） | 基盤 | 2 | 0-* | ⚠ Spawn/Despawn/SetLayer/Slot自動収集は動作。**SetMaterial は ID を保存するのみで実際のマテリアル適用は未実装**(下記注、Phase 3 の 3-5 完了後に完成) |
+| 2-6 | ModelEditor（ターンテーブル/並列/Slot 差し替え） | ED | 2 | 1-6, 2-5 | ✅ ターンテーブル自動回転/複数モデル並列表示(最大4)/背景・ライト切替/Slot自動収集+PropertyField編集。Skybox切替は見送り(下記注) |
+| 2-7 | VFX/Model Validator | 基盤 | 1 | 0-11 | ✅ 04§7, 05§A-4 の全検査(Anchor.BoneName プレビュー検査は SE と同様に対象外) |
+| 2-8 | VFX/SE の Cosmetic 配送（Broadcast + Unreliable バッチ + 受信再生） | 基盤 | 3 | 0-14, 2-1, 1-1 | ⚠ 同一 INetBridge を共有する複数 Manager インスタンスで実証(EditMode)。**位置(Position)のみの配送**で、anchorNetId によるライブ追従・paramOverrides 同期は未実装(下記注) |
+| 2-9 | AnchorPoint/AnchorRig（シーン配置型アンカー）+ プレビュー駆動修正 | 基盤+ED | 追加 | 2-1, 2-4 | ✅ 2026-07-28 追加実装([04] §2.5)。①EditMode プレビューのラグ/フレーム抜け修正(手動 Simulate + 再生中 Repaint) ②AnchorPoint(SpawnOffset/位置・回転・スケールのランダム/ギズモ) ③AnchorRig + `Generate/Anchor プレハブを生成` ④ボーン一覧に ★AnchorPoint 優先表示。当たり判定等への再利用は通常の GameObject としてそのまま可能 |
+| 2-10 | VfxEditor の SceneView プレビュー化 + AnchorPoint ギズモ視認性修正 | ED | 追加 | 2-4, 2-9 | ✅ 2026-07-28 追加実装([04] §5 改定)。独自ビューポート/環境切替を廃止し、開いているシーンへ直接スポーン(HideFlags.DontSave、ウィンドウを閉じると自動破棄)。確認専用シーンを開いて実ライティング/ポストプロセスの下で調整する方針へ。AnchorPoint ギズモはズーム追従サイズの塗りつぶし球に変更(旧: 5cm ワイヤ球は視認不能) |
+| 2-11 | URP/HDRP シェーダー互換性チェック + 既定パーティクルマテリアル生成 | 基盤+ED | 追加 | 2-7 | ✅ 2026-07-28 追加実装([04] §7)。`ShaderPipelineAnalyzer` が SubShader の RenderPipeline タグから互換性を機械判定し、VfxDataValidator/ModelDataValidator が Error 検出。`Generate/デフォルトパーティクルマテリアルを生成` で URP 対応の既定マテリアルを用意可能(Built-in RP 用マテリアルを URP プロジェクトで使うと Scene/Game ビューで透明になる不具合の再発防止) |
+
+**実装時に判明したスコープ調整(仕様書側にも反映済み):**
+- **VFX Graph 未対応**: `com.unity.visualeffectgraph` パッケージが本プロジェクトに未導入のため、VfxManager は ParticleSystem のみを対象とする。導入後は VisualEffect コンポーネント検出処理を追加すれば同じ Handle API で扱える設計にしてある
+- **AssetType に `Model` を追加**: 05 の ModelData(モデル本体・Slot・Avatar)と 07 の PrefabData(4-4、ゲームプレイ用オブジェクト・GameplayTags)は別概念だが、既存の `AssetType.Prefab` 1つしか無かったため両者が衝突していた。enum 末尾(既存値の並び順は変更しない)に `Model` を追加して分離した
+- **SetMaterial/DefaultAnimation は ID 保存のみ**: `ModelData.Slots[].Material`(AssetId&lt;MaterialMarker&gt;)と `DefaultAnimation`(AssetId&lt;AnimMarker&gt;)は、参照先の MaterialData(3-5)/AnimManager(3-1)がまだ存在しないため、実際の見た目反映・再生はできない。ID の保存・Validator・Inspector 表示までは完成しており、Phase 3 側でそのまま繋ぎ込める
+- **Cosmetic 配送は位置のみ**: `INetBridge` に Transform→NetId の逆引きが無いため、`anchorNetId` は将来の NGO アダプタ向けの予約フィールド(常に0)。現状は送信時点のワールド座標を送るのみで、リモート側でのアンカー追従は行わない。ParamValue の同期も未実装(AC の範囲外と判断)
+- **Skybox プレビュー見送り**: `RenderSettings.skybox` はプロジェクト全体で共有される設定のため、プレビュー用に切り替えるとユーザーが開いている実シーンの見た目まで変わってしまう。安全のため ModelEditor では背景色切り替えのみ実装した
 
 ## Phase 3: Animation + Material/Texture (M3)  約 5.5 週
 

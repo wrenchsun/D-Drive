@@ -39,6 +39,8 @@ public struct PresentationTrack
 }
 ```
 
+> **シーン配置型アンカー(AnchorPoint、[04] §2.5)との連携(2026-07-28 明記)**: トラックごとに `AnchorDef` を持つため、**1つの Presentation 内の複数トラックがそれぞれ別の AnchorPoint を参照できる**。各トラックの Anchor(BoneName/NamedObject)は `PlayContext.Self`(または Target)配下から名前解決されるので、キャラクターに AnchorRig を持たせておけば「斬撃 VFX は Anchor_RightHand、ヒット音は Anchor_Chest、土煙は Anchor_Foot」のように、まとめた演出の中でトラック単位に使い分けられる。AnchorPoint 固有のオフセット/ランダムも各トラックの Spawn 時に個別適用される(Phase 5 実装時はこの契約を維持すること)。
+
 ```csharp
 public struct PlayContext             // 再生文脈。プログラマーが渡す
 {

@@ -30,6 +30,8 @@ public class SeData : AssetDataBase
     [Header("3D")]
     public SpatialMode Spatial;          // None(2D) / Anchor / AtPosition
     public AnchorDef Anchor;             // ★VFX と同一の AnchorDef を共用（[04] §2）
+                                         //   シーン配置型アンカー(AnchorPoint)も共用（[04] §2.5）。
+                                         //   解決先に AnchorPoint があれば SpawnOffset + 位置ランダムを追加適用（SEは位置のみ）
                                          //   Space: World / BoneName / NamedObject / ContextTarget
                                          //   + LocalOffset / FollowRotation / DetachOnStop
                                          //   （DetachOnStop: 発生源破棄後も鳴り終わりまで残す）

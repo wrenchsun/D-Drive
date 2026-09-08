@@ -64,6 +64,8 @@ public enum NetMode
 |---|---|
 | SE / BGM | 常にクライアントローカル実行。Cosmetic はイベントとして受信して各自再生（音量・距離減衰は各クライアントのリスナー基準） |
 | VFX | Cosmetic。`VfxNetMsg{ vfxId, anchorNetId or pos, paramOverrides }`。欠落許容（Unreliable） |
+
+> **実装メモ(2026-07-27, Phase 2 の 2-8 時点)**: SE/VFX とも `SeNetMsg`/`VfxNetMsg{ SeId/VfxId, AnchorNetId(予約, 常に0), Position }` を実装済み。**`Position` のみが実際に使われる**(送信時点でのワールド座標を1回送るだけで、受信側でのアンカーへのライブ追従は行わない)。`AnchorNetId` は将来の NGO アダプタ向けの予約フィールド — `INetBridge` に Transform→NetId の逆引きが無く、Foundation 層だけでは安全に解決できないため。`paramOverrides` の同期も未実装（VFX の Params は各クライアントのローカルデフォルト値で再生される）。Cosmetic 指定時、Play/Spawn 呼び出しは即座に再生せず内部バッチへ積まれ、同一 Tick 内の呼び出しは1つの `SeNetBatchMsg`/`VfxNetBatchMsg` にまとめて Broadcast される（§8）。送信元自身も Broadcast を自分で受信して初めて再生する（直接再生しない。二重再生防止）ため、`PlaySe`/`Vfx.Spawn` は Cosmetic データに対して常に Invalid ハンドルを返す。
 | Animation | 原則 NetworkAnimator 等の既存同期に任せ、本システムの Frame イベント（SE/VFX）は**各クライアントがローカルの Animator から発火**（イベントを送らない = 帯域ゼロ・ズレなし） |
 | Prefab | Simulated はサーバーが `Prefabs.Spawn` → NetBridge の NetworkObject 複製。PrefabData に `NetworkPrefab` 検証（§8） |
 | Canvas / UI | 常に Local。ネット対象外 |

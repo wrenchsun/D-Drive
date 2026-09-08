@@ -1,4 +1,5 @@
 using DDrive.Editor.Menu;
+using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Audio;
 using UnityEditor;
 using UnityEngine;
@@ -20,6 +21,37 @@ namespace DDrive.Editor.AssetBrowser
             var prefab = EnsureSeEmitterPrefab();
             Debug.Log($"[DDrive] 標準プレハブ生成完了: {AssetDatabase.GetAssetPath(prefab)}");
             EditorGUIUtility.PingObject(prefab);
+        }
+
+        public const string AnchorRigFolder = PrefabRoot + "/Anchors";
+
+        // AnchorRig は SeEmitter と違い「用途ごとに複数作る」前提のため、クリックごとに
+        // 新しいプレハブを生成する(ユニーク名)。生成後は Project ウィンドウでリネームし、
+        // プレハブモードで子の AnchorPoint を追加・配置して使う([04_vfx.md] §2.5)。
+        [MenuItem(DDriveMenu.Generate + "Anchor プレハブを生成")]
+        public static void GenerateAnchorRig()
+        {
+            var prefab = CreateAnchorRigPrefab();
+            Debug.Log($"[DDrive] Anchor プレハブを生成しました: {AssetDatabase.GetAssetPath(prefab)}。プレハブを開いて子の AnchorPoint を配置してください。");
+            EditorGUIUtility.PingObject(prefab);
+            Selection.activeObject = prefab;
+        }
+
+        public static GameObject CreateAnchorRigPrefab(string folder = AnchorRigFolder)
+        {
+            AssetCreationService.EnsureFolder(folder);
+            var path = AssetDatabase.GenerateUniqueAssetPath($"{folder}/AnchorRig.prefab");
+
+            var root = new GameObject("AnchorRig");
+            root.AddComponent<AnchorRig>();
+
+            var point = new GameObject("Anchor_Main");
+            point.AddComponent<AnchorPoint>();
+            point.transform.SetParent(root.transform);
+
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+            Object.DestroyImmediate(root);
+            return prefab;
         }
 
         public static GameObject EnsureSeEmitterPrefab(string prefabPath = SeEmitterPrefabPath)

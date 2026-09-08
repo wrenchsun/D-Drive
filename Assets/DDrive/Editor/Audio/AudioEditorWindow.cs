@@ -79,7 +79,12 @@ namespace DDrive.Editor.Audio
 
         private void CreateGUI()
         {
-            var root = rootVisualElement;
+            // ウィンドウが小さい/セクションが増えても内容が見切れないよう、ルートをスクロール可能にする
+            // ([09_editor_tools.md] §7 拡縮前提のUI規約)。
+            var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
+            rootVisualElement.Add(scrollView);
+
+            var root = scrollView;
             root.style.paddingLeft = 6;
             root.style.paddingRight = 6;
             root.style.paddingTop = 6;

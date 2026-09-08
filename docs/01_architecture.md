@@ -117,6 +117,7 @@ Assets/
       Skill/     VFX_Skill_FireBall.asset
     Prefabs/
       Audio/     SeEmitter.prefab       … D-Drive 標準プレハブ（Tools > D-Drive > Generate で生成）
+    Model/       MODEL_Player.asset     … モデル本体(2-5)。Prefab とは別概念（下記参照）
     ...
   SourceAssets/                  … 実データ（インポートした音源・モデル等）。人間管理（[10] §3.3）
     Audio/  SE/  Player/  sword_slash_take3.wav
@@ -129,6 +130,7 @@ Generated/
 - **`GameData/` 配下のファイル名・フォルダ配置はツール（AssetBrowser）が管理する**。人は意味情報（表示名・カテゴリ・識別子）を入力するだけで、上図の規約名・配置はツールが自動生成・追従リネームする（[00] FR-1.5/1.6、[10] §3）。人がファイル名を手付けする運用を前提にしない
 - **カテゴリはフォルダ階層にも反映される**（`Player/Attack` → `Audio/SE/Player/Attack/`）。カテゴリ変更後の再配置は `Tools/D-Drive/Generate/GameData をカテゴリ配置に整理` が行う。フォルダはビュー、参照の真実は ID/Address（[10] §3.3）
 - シーンへ配置する既製コンポーネント（SeEmitter 等）は `GameData/Prefabs/<ドメイン>/` の**標準プレハブを使うこと推奨**。Phase 4 の Prefab 管理（4-4）もこのルートを基点にする
+- **`AssetType.Model`（Phase 2）と `AssetType.Prefab`（Phase 4, 4-4）は別種別**: ModelData はモデル本体（Slots/Avatar/Animation）、PrefabData はゲームプレイ用オブジェクト（GameplayTags/CollisionLayer、弾・ギミック等）。混同しやすいため enum を分けている
 
 ## 6. 共通イベントシステム
 

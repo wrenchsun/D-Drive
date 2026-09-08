@@ -93,5 +93,22 @@ namespace DDrive.Tests.Editor
             var second = DefaultPrefabs.EnsureSeEmitterPrefab(path);
             Assert.AreSame(first, second, "2回目は既存プレハブを返す(上書きしない)");
         }
+
+        [Test]
+        public void CreateAnchorRigPrefab_CreatesRigWithAnchorPoint_EachCallIsUnique()
+        {
+            var folder = $"{TestRoot}/Prefabs/Anchors";
+
+            var first = DefaultPrefabs.CreateAnchorRigPrefab(folder);
+            Assert.IsNotNull(first.GetComponent<DDrive.Runtime.Anchoring.AnchorRig>(), "ルートに AnchorRig が付いている");
+            Assert.GreaterOrEqual(first.GetComponentsInChildren<DDrive.Runtime.Anchoring.AnchorPoint>(true).Length, 1,
+                "子に AnchorPoint の雛形が1つ以上ある");
+
+            var second = DefaultPrefabs.CreateAnchorRigPrefab(folder);
+            Assert.AreNotEqual(
+                UnityEditor.AssetDatabase.GetAssetPath(first),
+                UnityEditor.AssetDatabase.GetAssetPath(second),
+                "AnchorRig は用途ごとに複数作る前提のため、クリックごとに別プレハブが生成される");
+        }
     }
 }

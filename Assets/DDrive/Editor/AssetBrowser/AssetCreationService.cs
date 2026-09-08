@@ -74,6 +74,7 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.Material or AssetType.Texture => "MaterialCatalog",
             AssetType.Canvas => "CanvasCatalog",
             AssetType.Prefab => "PrefabCatalog",
+            AssetType.Model => "ModelCatalog",
             AssetType.Presentation => "PresentationCatalog",
             AssetType.Shake or AssetType.Haptics => "CameraFxCatalog",
             AssetType.UiTween => "UiTweenCatalog",

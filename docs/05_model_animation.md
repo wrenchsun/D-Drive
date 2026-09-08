@@ -39,6 +39,8 @@ public struct MaterialSlot
 
 - マテリアルを ID 参照にすることで、Material 差し替え・スキン替えがデータだけで完結（[06] と連携）
 
+> **実装メモ(2026-07-27, Phase 2 時点)**: `MaterialSlot.Material`(AssetId&lt;MaterialMarker&gt;)と `DefaultAnimation`(AssetId&lt;AnimMarker&gt;)は、参照先の MaterialData（[06] 3-5）・AnimManager（3-1）が Phase 3 でしか実装されないため、現時点では **ID の保存・Inspector 編集・Validator 検査のみ**が完成している。`Models.SetMaterial` を呼んでも実際のレンダラーへの反映は行われず(開発ビルドでは警告ログを出す)、`PlayAnim` 相当の API もまだ提供していない。Phase 3 完了後、両 Manager をここに繋ぎ込むだけで動く設計にしてある。
+
 ## A-3. Manager API
 
 ```csharp
@@ -54,11 +56,14 @@ h.PlayAnim(AnimId);                      // AnimManager へ委譲
 h.SetLayer(int);
 ```
 
+> **実装との対応**: 実装済みシグネチャは `ModelsManager.SetMaterial(Handle, int slotIndex, AssetId&lt;MaterialMarker&gt;)`(slotLabel ではなく Slots 配列の index。RendererPath+SlotIndex の組がそのままスキーマなため)。`PlayAnim` は AnimManager 未実装のため未提供（Phase 3 で追加）。`GetGameObject(Handle)` も追加済み（プレビュー用）。
+
 ## A-4. プレビュー / 運用 / Validation
 
-- プレビュー: ターンテーブル回転 / 複数モデル並列表示 / 背景・Skybox・ライト切替 / Material スロットをその場で差し替え / DefaultAnimation 再生
-- 運用: モデラーが FBX→Prefab 化 → AssetBrowser で登録 → Slots 自動収集ボタン（Prefab の Renderer を走査して Slot リストを生成）→ MaterialId を割当
-- Validation: Prefab/Avatar Missing (Error)、Slot の RendererPath 不整合 (Error)、Material 未割当 Slot (Warning)
+- プレビュー: ターンテーブル回転(自動回転トグル+速度) / 複数モデル並列表示(最大4体、横に並べて配置) / 背景色・ライト強度切替 / Material スロットの ID 差し替え(Slots を PropertyField で編集。実際の見た目反映は Phase 3 完了後) / DefaultAnimation は情報表示のみ(再生確認は Phase 3 の AnimManager 実装後)
+- 運用: モデラーが FBX→Prefab 化 → AssetBrowser で登録 → Slots 自動収集ボタン（Prefab の Renderer を走査して Slot リストを生成、既存の Material 割当は RendererPath+SlotIndex が一致する分だけ保持）→ MaterialId を割当
+- Validation: Prefab Missing (Error)、Animator はあるが Avatar 未設定 (Error。Animator を持たない静的モデルは対象外)、Slot の RendererPath 不整合 (Error)、Material 未割当 Slot (Warning)、Prefab のマテリアルのシェーダーが現在のレンダーパイプラインと非互換 (Error。VfxDataValidator と共通の `ShaderPipelineAnalyzer` を使用、[04] §7参照)
+- Skybox・Post Process 切替は見送り（`RenderSettings` がプロジェクト全体で共有されるため、実シーンへの副作用を避けた）
 
 ---
 

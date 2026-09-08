@@ -49,7 +49,12 @@ namespace DDrive.Editor.AssetBrowser
                 return;
             }
 
-            var root = rootVisualElement;
+            // ウィンドウが小さい/項目が増えても内容が見切れないよう、ルートをスクロール可能にする
+            // ([09_editor_tools.md] §7 拡縮前提のUI規約)。
+            var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
+            rootVisualElement.Add(scrollView);
+
+            var root = scrollView;
             root.style.paddingLeft = 8;
             root.style.paddingRight = 8;
             root.style.paddingTop = 8;
