@@ -7,6 +7,7 @@ using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Audio;
 using NUnit.Framework;
+using DDrive.Runtime.Anchoring;
 using UnityEngine;
 using UnityEngine.TestTools;
 using SeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>;
@@ -226,6 +227,77 @@ namespace DDrive.Tests.Runtime
             var pos = _manager.GetPosition(handle);
             Assert.IsTrue(pos.HasValue);
             return pos.Value;
+        }
+            // ── [21_anchor_spec.md] AnchorId / 生成ディレイ / 確率(SE) ──
+
+        private AudioManager CreateManagerWithAnchor(ulong anchorId, Vector3 offset, float delay = 0f, float chance = 1f)
+        {
+            var anchor = AnchorChainTestRegistry.Anchor(anchorId, offset: offset);
+            anchor.DelaySec = delay;
+            anchor.SpawnChance = chance;
+            return new AudioManager(_pool, AnchorChainTestRegistry.Build(anchor), _sourcePrefab);
+        }
+
+        [Test]
+        public void PlaySeData_WithAnchorId_PositionsAtAssetAnchor()
+        {
+            var manager = CreateManagerWithAnchor(10, new Vector3(0f, 2f, 0f));
+            var data = CreateSeData(1);
+            data.Spatial = SpatialMode.Anchor;
+            data.Anchor.LocalOffset = new Vector3(5f, 5f, 5f); // 埋め込みは無視される
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.PlaySeData(data);
+
+            Assert.IsTrue(manager.IsPlaying(handle));
+            Assert.Less(Vector3.Distance(new Vector3(0f, 2f, 0f), manager.GetPosition(handle).Value), 1e-4f);
+        }
+
+        [Test]
+        public void PlaySeData_WithDelay_IsPendingThenPlays()
+        {
+            var manager = CreateManagerWithAnchor(10, Vector3.zero, delay: 0.5f);
+            var data = CreateSeData(1, CreateClip(2f));
+            data.Spatial = SpatialMode.Anchor;
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.PlaySeData(data);
+
+            Assert.IsTrue(manager.IsPlaying(handle), "Pending 中も Handle は有効");
+            Assert.IsTrue(manager.IsPending(handle));
+
+            manager.Tick(0.3f);
+            Assert.IsTrue(manager.IsPending(handle));
+
+            manager.Tick(0.3f);
+            Assert.IsFalse(manager.IsPending(handle), "ディレイ経過で再生が始まる");
+            Assert.IsTrue(manager.IsPlaying(handle));
+        }
+
+        [Test]
+        public void PlaySeData_StopWhilePending_Cancels()
+        {
+            var manager = CreateManagerWithAnchor(10, Vector3.zero, delay: 1f);
+            var data = CreateSeData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.PlaySeData(data);
+            manager.Stop(handle);
+
+            Assert.IsFalse(manager.IsPlaying(handle));
+        }
+
+        [Test]
+        public void PlaySeData_ChanceZero_ReturnsInvalid()
+        {
+            var manager = CreateManagerWithAnchor(10, Vector3.zero, chance: 0f);
+            var data = CreateSeData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.PlaySeData(data);
+
+            Assert.IsFalse(manager.IsPlaying(handle));
+            Assert.AreEqual(0, manager.ActiveCount);
         }
     }
 }

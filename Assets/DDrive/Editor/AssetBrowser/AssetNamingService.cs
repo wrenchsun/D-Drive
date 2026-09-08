@@ -26,6 +26,8 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.Shake => "SHAKE",
             AssetType.Haptics => "HAPTIC",
             AssetType.UiTween => "UITWEEN",
+            AssetType.Anchor => "ANC",
+            AssetType.AnchorGroup => "ANCG",
             _ => "ASSET",
         };
 
@@ -46,6 +48,8 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.Shake => "Camera",
             AssetType.Haptics => "Haptics",
             AssetType.UiTween => "UiTween",
+            AssetType.Anchor => "Anchor",
+            AssetType.AnchorGroup => "AnchorGroup",
             _ => "Misc",
         };
 

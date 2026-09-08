@@ -68,6 +68,46 @@ namespace DDrive.Editor.Audio
             }
 
             serializedObject.ApplyModifiedProperties();
+            DrawAnchorButtons();
+        }
+
+        // [21_anchor_spec.md] §3.6 — AnchorId の導線。設定済みなら AnchorEditor へ、未設定なら埋め込み Anchor をアセット化。
+        private void DrawAnchorButtons()
+        {
+            if (target is not SeData se)
+            {
+                return;
+            }
+
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (se.AnchorId.IsValid)
+                {
+                    EditorGUILayout.LabelField("Anchor アセットを使用中(埋め込み Anchor は無視されます)", EditorStyles.miniLabel);
+                    if (GUILayout.Button("AnchorEditor で開く", GUILayout.Width(150)))
+                    {
+                        var asset = DDrive.Editor.Preview.EditorAnchorRegistry.Find(se.AnchorId.Value);
+                        if (asset != null)
+                        {
+                            DDrive.Editor.Anchor.AnchorEditorWindow.Open(asset);
+                        }
+                    }
+                }
+                else if (GUILayout.Button("埋め込み Anchor をアセット化", GUILayout.Width(200)))
+                {
+                    var category = string.IsNullOrEmpty(se.Category) ? DDrive.Editor.Anchor.AnchorAssetFactory.DefaultCategory : DDrive.Editor.Anchor.AnchorAssetFactory.ToIdentifier(se.Category);
+                    var identifier = DDrive.Editor.Anchor.AnchorAssetFactory.ToIdentifier(se.name) + "Anchor";
+                    var asset = DDrive.Editor.Anchor.AnchorAssetFactory.CreateFromDef(se.Anchor, $"{(se.DisplayName ?? se.name)} の Anchor", category, identifier);
+                    if (asset != null)
+                    {
+                        Undo.RecordObject(se, "Set SE AnchorId");
+                        se.AnchorId = new DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>(asset.Id, DDrive.Foundation.Identity.AssetType.Anchor);
+                        EditorUtility.SetDirty(se);
+                        EditorGUIUtility.PingObject(asset);
+                    }
+                }
+            }
         }
     }
 }

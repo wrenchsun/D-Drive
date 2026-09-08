@@ -22,16 +22,16 @@
 | コンセプト | プログラマーは **ID だけ**でモックを完成させ、デザイナーが専用エディタで中身を作る |
 | Unity | **6000.3.13f1**（勝手に上げない）/ URP 17.3 / Addressables / UniTask / NGO 2.2 |
 | テスト | Unity Test Framework。`Assets/DDrive/Tests/{Editor,Runtime}` |
-| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model）実装済み。次は Phase 3（Anim/Material）。[docs/11_tasks.md](docs/11_tasks.md) |
+| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model + Anchor アセット化 [docs/21](docs/21_anchor_spec.md) + 配置セット [docs/22](docs/22_anchor_group.md)）実装済み。次は Phase 3（Anim/Material）。[docs/11_tasks.md](docs/11_tasks.md) |
 
 ## 2. ディレクトリ地図
 
 ```
 Assets/DDrive/                 ← システム本体。層 = asmdef（[docs/01_architecture.md] §4-5）
   Foundation/   Registry / Loader / Pool / Handle / EventBus / Pause / ValueDef / Validation
-  Runtime/      種別ごとの Data / Manager / 静的ファサード(Audio, Vfx ...) / Anchoring / Net
+  Runtime/      種別ごとの Data / Manager / 静的ファサード(Audio, Vfx ...) / Anchoring(AnchorData・AnchorChain・AnchorGroup・AnchorPoint) / Net
   Editor/       AssetBrowser / 各専用エディタ(Audio, Vfx, Model) / Preview / Codegen / Validation
-  Tests/        Editor(EditMode) / Runtime(PlayMode でも動く EditMode テスト)
+  Tests/        Editor(EditMode テスト) / Runtime(asmdef が全プラットフォーム対象のため Test Runner では PlayMode テスト。MCP の run_tests は mode=PlayMode で実行する)
 Assets/GameData/               ← ツールが管理する Data(.asset)・カタログ・標準プレハブ・確認用シーン
 Assets/SourceAssets/           ← 人が管理する実データ(音源・モデル)
 docs/                          ← 設計書(00〜20)。DesignerManual/ はデザイナー向け HTML
@@ -41,7 +41,7 @@ docs/                          ← 設計書(00〜20)。DesignerManual/ はデ�
 
 1. 関連する設計書（`docs/0X_*.md`）と既存コードを **grep してから** 書く。似たクラスの重複が最大の事故要因
 2. 実装 → [docs/12_review.md](docs/12_review.md) §3 のチェックリストで自己レビュー
-3. **コンパイル・テスト確認**: Unity MCP が繋がっていれば `read_console` でエラー 0、`run_tests`（EditMode）green を確認する。繋がっていなければ「未検証」と明示する
+3. **コンパイル・テスト確認**: Unity MCP が繋がっていれば `read_console` でエラー 0、`run_tests` を **EditMode と PlayMode の両方**で green にする（Tests/Runtime は PlayMode でしか走らない）。繋がっていなければ「未検証」と明示する
 4. 公開 API / データ構造 / エディタ機能を変えたら、対応する `docs/` を同じ PR で更新する（変更履歴は該当節に日付付きで追記する慣習）
 5. コミットは `main` 直接でよい（現状 1 人開発）。ただし 1 コミット = 1 チケット単位を意識する
 

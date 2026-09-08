@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>配置セット（複数の場所にまとめて出す） | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 配置セット（複数の場所にまとめて出す）</nav>
+
+<h1>配置セット（複数の場所にまとめて出す）</h1>
+
+<p>配置セット（Anchor Group）は、「<strong>この形に並べた場所に、このエフェクト / 効果音を出す</strong>」をひとまとめにしたデータです。3×3 の格子、円形、一列、ランダムなどの<strong>パターンを選んで数を入れるだけ</strong>で点が並び、1 か所ずつ作る必要はありません。</p>
+<ul>
+<li>回復フィールドの格子状の光、敵の周りを囲む円形の炎、道に沿って並ぶ灯り、爆発の周囲に散る火花など</li>
+<li>全部の点に同じものを出す、特定の点だけ別のものにする、出さない点を決める</li>
+<li>端から順に少しずつ遅らせて出す（波紋）、たまに欠ける</li>
+<li>配置セットの各点に別の配置セットを出す（格子の各点に小さな円、など）</li>
+</ul>
+
+<div class="tip">
+「1 か所だけの位置」は <a href="anchor-data.html">Anchor（出す位置）</a>で作ります。配置セットは「複数の場所 + 何を出すか」をまとめる単位で、原点として Anchor を使えます。
+</div>
+
+<h2>開き方</h2>
+<ol>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規作成」で種別に <strong>AnchorGroup</strong> を選んで作る</li>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Anchor Group</code>（Anchor Group Editor）。Project で配置セットを選ぶと自動で入ります</li>
+</ol>
+
+<h2>はじめの一歩（3×3 の格子に出す）</h2>
+<ol>
+<li>ツールバー「確認用シーンを開く」</li>
+<li>Asset Browser で種別 AnchorGroup の新規作成（例: 表示名「回復フィールド」、識別子 <code>HealField</code>）</li>
+<li>Anchor Group Editor の設定で「配置パターン」を <strong>Grid</strong>、Grid Count X = 3、Grid Count Z = 3、Grid Spacing = (1, 1, 1) → <strong>SceneView に 0〜8 の番号付きの点が 9 個並びます</strong></li>
+<li>「全点共通 VFX」の ＋ で 1 つ増やし、出したい VFX を選ぶ</li>
+<li>「▶ 全点」→ 9 か所にエフェクトが出ます。「■ 停止」で消えます</li>
+<li>並びを広げたい: SceneView で角の点（0 や 8）をクリックして選び、ハンドルで外側へドラッグ → 間隔が変わります</li>
+<li>端から順に出したい: 「番号順ディレイ(秒/点)」に 0.05</li>
+<li>使いたい場面をプログラマーに伝える（プログラムからは配置セットの ID 1 つで全点が出ます）</li>
+</ol>
+
+<h2>画面の説明</h2>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>スポーン先</td><td>原点の基準（ボーン名など）を探す起点。キャラクターや AnchorRig を入れる。原点が World 固定なら不要</td></tr>
+<tr><td>状態表示</td><td>「原点: ✓ '…'」「点: 9」「全点共通: VFX 1・SE 0」など。「⚠」なら原点の設定を見直す</td></tr>
+<tr><td>▶ 全点 / ▶ 選択点のみ / ■ 停止</td><td>試し出し。「選択点のみ」は SceneView でクリックした 1 点だけ出す</td></tr>
+<tr><td>選択中の点</td><td>クリックした点の番号と種類（Grid / 手置き など）。「選択点を Overrides に追加」で、その点だけ別のものにする / 出さない設定の行ができます</td></tr>
+<tr><td>SceneView</td><td>大きい円 = 原点。小さい球 = 各点（番号付き）。色: 通常 = 水色、上書きあり = 橙、出さない = 灰色に ×、選択中 = 黄。クリックで選択、ドラッグで編集。「SceneView 表示」を OFF にすると描きません。他の D-Drive ウィンドウと同時に開いているときは、最後にクリックしたウィンドウだけがハンドルを出します</td></tr>
+<tr><td>検証</td><td>点が 0、原点の Path 未設定、出すものが未登録、入れ子の循環などを表示</td></tr>
+</table>
+
+<h2>設定項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>原点 Anchor アセット / 原点(埋め込み)</td><td>並びの中心をどこに置くか。Anchor アセットを選ぶとそれが原点（ランダムやディレイも引き継ぐ）。選ばなければ埋め込みの Space / Path / オフセットで決める</td></tr>
+<tr><td>配置パターン</td><td><strong>Grid</strong>: 格子（X・Y・Z の個数と間隔、中央寄せ）。<strong>Circle</strong>: 円周（個数・半径・開始角・扇の角度・外向き）。<strong>Line</strong>: 一列（個数・長さ・方向・中央寄せ）。<strong>Random</strong>: 球の中にランダム（個数・半径・シード。シード 0 なら毎回違う配置）。<strong>Manual</strong>: 手置きの点だけ</td></tr>
+<tr><td>手置きの点</td><td>パターンに追加する点、または Manual のときの点。SceneView でドラッグして動かせます</td></tr>
+<tr><td>番号順ディレイ(秒/点) / ディレイのランダム</td><td>点の番号 × 秒だけ遅らせる。0.05 なら 8 番は 0.4 秒後。波紋・順番点灯に</td></tr>
+<tr><td>各点の生成確率</td><td>0.7 なら各点が 7 割の確率で出る（ランダムに欠ける）</td></tr>
+<tr><td>位置ランダム半径 / 回転ランダム / スケール範囲</td><td>各点に個別にかかるばらつき</td></tr>
+<tr><td>全点共通 VFX / SE</td><td>すべての点に出すもの。複数入れると全部出ます</td></tr>
+<tr><td>特定の点だけ変える / 出さない（Overrides）</td><td>Index = 点の番号。「Skip」ON でその点は出さない。Vfx / Se に入れるとその点だけ差し替え（空なら共通のまま）</td></tr>
+<tr><td>入れ子（Children）</td><td>各点（At Index = -1 で全点、番号で 1 点）に別の配置セットを出す。子の原点は無視され、その点が中心になります</td></tr>
+</table>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>回復エリアの床に格子状に光を出す</td><td>Grid 3×3、間隔 1、共通 VFX に光。番号順ディレイ 0.05 で波紋のように</td></tr>
+<tr><td>ボスの周りを 8 本の炎で囲む</td><td>スポーン先にボス、原点は Space=ContextTarget。Circle 8、半径 2、外向き ON</td></tr>
+<tr><td>中央だけ大きい柱、周りは小さい火花</td><td>Grid 3×3、共通 VFX に火花。中央（4 番）をクリック →「Overrides に追加」→ Vfx に柱を入れる</td></tr>
+<tr><td>四隅は出さない</td><td>0・2・6・8 番を Overrides に追加して Skip ON</td></tr>
+<tr><td>爆発の周囲にランダムに火花を散らす</td><td>Random 12、半径 1.5、各点の生成確率 0.7、位置ランダム半径 0.2</td></tr>
+<tr><td>格子の各点に小さな円形の粒</td><td>円形の配置セットを別に作り、格子側の「入れ子」に At Index = -1 で登録</td></tr>
+</table>
+
+<h2>確認のしかた（チェックリスト）</h2>
+<ul>
+<li>状態表示の「原点」が ✓、「点」の数が想定どおり</li>
+<li>「▶ 全点」で全部の位置に出る。ディレイ・確率は何度か押して確認</li>
+<li>上書きした点は SceneView で橙色 / 灰色 × になっている</li>
+<li>「検証」に赤（Error）が無い</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="anchor-data.html">Anchor（出す位置）の作り方</a> — 1 か所の位置・原点として使う</li>
+<li><a href="vfx-data.html">VFX の設定項目</a> / <a href="se-data.html">SE の設定項目</a></li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

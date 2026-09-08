@@ -29,7 +29,8 @@ public class SeData : AssetDataBase
     public bool Loop;
     [Header("3D")]
     public SpatialMode Spatial;          // None(2D) / Anchor / AtPosition
-    public AnchorDef Anchor;             // ★VFX と同一の AnchorDef を共用（[04] §2）
+    public AssetId<AnchorMarker> AnchorId; // Anchor アセット(AnchorData)。設定時は埋め込み Anchor より優先(2026-09-08 [21] §3.3。ランダム/ディレイ/確率/入れ子はアセット側)
+    public AnchorDef Anchor;             // ★VFX と同一の AnchorDef を共用（[04] §2）。AnchorId=0 のときだけ使う
                                          //   シーン配置型アンカー(AnchorPoint)も共用（[04] §2.5）。
                                          //   解決先に AnchorPoint があれば SpawnOffset + 位置ランダムを追加適用（SEは位置のみ）
                                          //   Space: World / BoneName / NamedObject / ContextTarget
@@ -79,6 +80,8 @@ public static class Audio   // static ファサード
     public static SeHandle PlaySe(SeId id);
     public static SeHandle PlaySe(SeId id, Vector3 pos);
     public static SeHandle PlaySe(SeId id, Transform follow);
+    public static SeHandle PlaySe(SeId id, AnchorId anchor);                   // Anchor アセットを明示(2026-09-08 [21] §3.3)
+    public static SeHandle PlaySe(SeId id, AnchorId anchor, Transform follow);
     public static void Stop(SeHandle h, float fade = 0f);
 
     // BGM
@@ -104,6 +107,7 @@ public static class Audio   // static ファサード
 
 1. 呼出し側の引数（`pos` / `Transform` / `PlayContext`）は**常に Data の Anchor を上書き**する（VFX と同一規則）
 2. 引数なしの `PlaySe(id)` は Data の Anchor 定義に従う。Spatial=Anchor で Anchor 未設定は Validation Error（鳴らす位置が決まらない）
+   - 2026-09-08: 優先順位は `PlaySe(id, anchorId)` の引数 > 明示座標/Transform > `Data.AnchorId` > 埋め込み `Data.Anchor`。AnchorData の DelaySec は「Source を借りて位置を決めた状態で待ち、Tick 後に Play」（`IsPlaying=true` / `IsPending=true`）。SpawnChance に外れたら `Handle.Invalid`。詳細は [04] §2.5.5 / [21]
 3. Spatial=None(2D) の Data に位置引数を渡した場合は位置を無視して 2D 再生 + 開発ビルドで警告 1 回（「2D のつもりが 3D」より「3D 引数が無視される」方が事故として軽い）
 4. Presentation トラックからの再生は `TrackTargetMode`（Self / ContextTarget / World / Anchor）が規則 1 に該当する
 
@@ -146,7 +150,8 @@ AssetBrowser から開く Inspector 拡張 + プレビューペイン。
 |---|---|
 | Clip 未設定 / Missing | Error |
 | Mixer 未割当 | Warning |
-| Spatial=Anchor で Anchor 未設定 | Error |
+| Spatial=Anchor で Anchor 未設定（AnchorId も 0） | Error |
+| AnchorId 設定済みなのに埋め込み Anchor が既定値以外 | Warning（埋め込みは無視される。2026-09-08） |
 | Anchor.BoneName がプレビューモデルに無い | Warning |
 | MaxDistance ≤ MinDistance | Error |
 | DopplerEnabled かつ Loop=false | Warning（ワンショットでは知覚されにくい） |

@@ -43,7 +43,7 @@
 
 | 対象 | 規約（ツールが生成） | 例 |
 |---|---|---|
-| Data ファイル名 | `<種別>_<カテゴリ>_<識別子>`。ツールが識別子とカテゴリから自動生成・追従リネーム | `SE_Player_Slash`, `VFX_Skill_FireBall` |
+| Data ファイル名 | `<種別>_<カテゴリ>_<識別子>`。ツールが識別子とカテゴリから自動生成・追従リネーム。種別接頭辞は `AssetNamingService.GetTypePrefix`（SE / BGM / VFX / MODEL / ANC(Anchor) / ANCG(AnchorGroup)(2026-09-08 追加) …） | `SE_Player_Slash`, `VFX_Skill_FireBall`, `ANC_Player_RightHand` |
 | ID 定数 | 識別子そのまま（PascalCase） | `SEID.PlayerSlash` |
 | タグ | リードが管理する **タグ辞書**（TagCatalog SO）から選択制。自由入力禁止 | Enemy, Boss, UI, Fire |
 | カテゴリ | 種別ごとに 2 階層まで。選択制（自由入力はリード承認で追加） | Audio/SE/Player |

@@ -69,7 +69,7 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 ## 3. 検証状況
 
 - コンパイルは Unity 6000.3.13f1 上で成功を確認済み（2026-09-08 11:20、DDrive 由来のエラー・警告なし）。EditMode テストの実行結果は未確認 → 下記 §3.1 の手順で確認する
-- 2026-09-08 午後の再確認: Unity MCP はポート 8080 を別プロセス（`Livelist.exe`）が占有していたため接続不可（docs/20 §1 の対処表参照）。MCP 無しで行った静的確認は次の通り: 変更した Runtime 5 ファイルに LINQ / `Instantiate` / `Resources.Load` / `UnityEditor` 参照なし、`Tick` 経路にクロージャ・boxing なし（`OnReturnedToPool` のラムダは Spawn 時 1 回で改修前から存在）、`ProjectSettings/EditorBuildSettings.asset` 等の改行のみ差分 6 件は `git checkout` で戻した。その後ポートを 8081 に変更して MCP 接続を回復し、`run_tests`（EditMode）を実行: **109 件中 109 件 green**（新規テスト含む）。初回実行で `AssetCreationServiceTests.Create_GeneratesConventionalFileNameIdAndCatalogEntry` が Id=0 で失敗したが、原因は今回の改修と無関係の既存不具合（`CreateAsset` 直後の `CreateFolder` による再インポートで Id と dirty が消える。1 回おきに再現）で、`AssetCreationService.Create` を修正（カタログフォルダを先に作成 + `SaveAssetIfDirty`）して解消。同テストを単独 3 回 + 全件で green を確認。docs/12 §3 にチェック項目を追加。`Tools/D-Drive/Validation/Run All` はテスト asmdef 内のダミー `IValidator`（`always fails`）を拾っていたため、`CI.DiscoverValidators` で `DDrive.Tests.*` アセンブリを除外（`AssetIdGenerator.FindDefinitions` はテストがテスト用型の検出を前提にしているため除外しない）。残る Validation エラーは確認用データの内容（`BGM_Title_Test` / `SE_Player_Slash` の Clip 未設定、`VFX_Player_Slash` のマテリアルが Built-in 用シェーダー）で、デザイナー側の修正対象。VFX Editor の手動操作確認（§3.1 手順 2）は人が実施し問題なし（2026-09-08）。追加要望「Prefab 内でも再生確認」は同日実装（`SceneVfxPreviewDriver` のプレハブモード対応。対象 Prefab 自身のステージでは二重表示を避けてその場再生、[04] §5、テスト 116/116 green）。調査中に EditMode の手動 Simulate では `IsAlive` が true のままで OneShot が終わらない（リピートが始まらない）ことが分かり、同日修正。Anchor 仕様改定の要望は [21_anchor_spec.md](21_anchor_spec.md) に提案としてまとめた
+- 2026-09-08 午後の再確認: Unity MCP はポート 8080 を別プロセス（`Livelist.exe`）が占有していたため接続不可（docs/20 §1 の対処表参照）。MCP 無しで行った静的確認は次の通り: 変更した Runtime 5 ファイルに LINQ / `Instantiate` / `Resources.Load` / `UnityEditor` 参照なし、`Tick` 経路にクロージャ・boxing なし（`OnReturnedToPool` のラムダは Spawn 時 1 回で改修前から存在）、`ProjectSettings/EditorBuildSettings.asset` 等の改行のみ差分 6 件は `git checkout` で戻した。その後ポートを 8081 に変更して MCP 接続を回復し、`run_tests`（EditMode）を実行: **109 件中 109 件 green**（新規テスト含む）。初回実行で `AssetCreationServiceTests.Create_GeneratesConventionalFileNameIdAndCatalogEntry` が Id=0 で失敗したが、原因は今回の改修と無関係の既存不具合（`CreateAsset` 直後の `CreateFolder` による再インポートで Id と dirty が消える。1 回おきに再現）で、`AssetCreationService.Create` を修正（カタログフォルダを先に作成 + `SaveAssetIfDirty`）して解消。同テストを単独 3 回 + 全件で green を確認。docs/12 §3 にチェック項目を追加。`Tools/D-Drive/Validation/Run All` はテスト asmdef 内のダミー `IValidator`（`always fails`）を拾っていたため、`CI.DiscoverValidators` で `DDrive.Tests.*` アセンブリを除外（`AssetIdGenerator.FindDefinitions` はテストがテスト用型の検出を前提にしているため除外しない）。残る Validation エラーは確認用データの内容（`BGM_Title_Test` / `SE_Player_Slash` の Clip 未設定、`VFX_Player_Slash` のマテリアルが Built-in 用シェーダー）で、デザイナー側の修正対象。VFX Editor の手動操作確認（§3.1 手順 2）は人が実施し問題なし（2026-09-08）。追加要望「Prefab 内でも再生確認」は同日実装（`SceneVfxPreviewDriver` のプレハブモード対応。対象 Prefab 自身のステージでは二重表示を避けてその場再生、[04] §5、テスト 116/116 green）。調査中に EditMode の手動 Simulate では `IsAlive` が true のままで OneShot が終わらない（リピートが始まらない）ことが分かり、同日修正。Anchor 仕様改定の要望は [21_anchor_spec.md](21_anchor_spec.md) に提案としてまとめた。デザイナー向けマニュアル（`docs/DesignerManual/`）に `vfx-data.html` / `vfx-editor.html` を追加し、トップと用語集を更新。**同日午後に Anchor 仕様改定（[21]）を実装**: この時点で判明したこととして、`Tests/Runtime` は asmdef が全プラットフォーム対象のため Test Runner では PlayMode テストであり、本書の「EditMode 109/112/116 件 green」は Editor 側のみだった。PlayMode（Runtime 側 258 件）も同日 green を確認し、CLAUDE.md の手順を「EditMode + PlayMode 両方」に改めた
 - 追加したテスト: `AnchorPoseTests`（式の往復）/ `VfxFacadeTests`（未 Bind no-op・拡張メソッド委譲）/ `VfxManagerTests`（既定値・ReapplyAnchor・FollowRotation×LocalEuler・LightLayerMask・破棄済み Root・TryGetAnchorTarget）/ `SceneVfxPreviewDriverTests`（プレビュールート・Dispose・ReapplyAnchorToAll）
 - `NgoNetBridge` は EditMode テストで検証できない（NetworkManager が必要）。**MPPM または実機 2 台で `NetBridgeSmokeTest` を回して、ホスト側でも Cosmetic VFX が出ることを確認する**こと
 
@@ -139,6 +139,58 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 | 11 | AssetBrowser（または `Tools > D-Drive`）で SE を**続けて 2 回**新規作成 | 2 回とも Id が 0 でない（Inspector の Id 欄、または AudioCatalog のエントリ）。以前は 1 回おきに 0 になっていた |
 | 12 | `Tools > D-Drive > Validation > Run All` | 「always fails」が出ない。残るエラーは確認用データの内容（Clip 未設定・Built-in シェーダー）のみ |
 | 13 | 任意の .cs を保存して再コンパイル → 手順 1〜2 | プレハブモード内でも再生状態と対象が復元される |
+
+#### 手順 4: Anchor アセット（[21_anchor_spec.md](21_anchor_spec.md)、2026-09-08 実装分）
+
+準備: VFX 確認用シーンを開く → `Tools > D-Drive > Generate > Anchor プレハブを生成` で出来た `AnchorRig.prefab` を Hierarchy にドラッグして配置（子に `Anchor_Main`）。`VFX_Player_Slash` と `SE_Player_Slash` を使う。自動テストは EditMode 125 / PlayMode 258 で green 済みなので、ここでは**エディタ操作と見た目**を確認する。
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | `Tools > D-Drive > Editors > Anchor` | Anchor Editor が開く。「対象アセットを選択してください」。ツールバーに 🔒 / 確認用シーンを開く / Project で表示 / SceneView 表示 |
+| 2 | Hierarchy で AnchorRig を選択 → `Tools > D-Drive > Generate > 選択した AnchorRig から Anchor を一括生成` | `Assets/GameData/Anchor/AnchorRig/ANC_AnchorRig_Main.asset` が出来て Console に「1 件生成」。Anchor Editor の対象に入る（Project 選択追従）。設定欄: Space=NamedObject / Path=AnchorRig / Local Offset = AnchorPoint のローカル位置 |
+| 3 | 「スポーン先」に Hierarchy の AnchorRig を入れる | 基準の表示が「✓ 'AnchorRig'」。「一覧から選択」に ★ Anchor_Main と AnchorRig 配下の名前が並ぶ |
+| 4 | SceneView を見る | 黄色い円が Anchor_Main の位置に出る。移動ハンドルでドラッグすると Local Offset が変わり、Ctrl+Z で戻る。回転ツール（E）で回転ハンドルに変わる |
+| 5 | 試し出し「確認用 VFX」に VFX_Player_Slash → ▶ | その位置にエフェクトが出る（ステータス「● 再生中」）。■ で消える。AnchorRig をシーンで動かすと追従する |
+| 6 | Position Jitter Radius = 0.5 → ▶ を数回 | SceneView に半径 0.5 の円が出て、出る位置が毎回ばらつく。Euler Jitter=(0,180,0) で向きもばらつく |
+| 7 | Delay Sec = 1 → ▶ | 試し出しのステータスが「● 生成待ち(Delay)」→ 約 1 秒後にエフェクトが出る。待ち中に ■ を押すと出ない |
+| 8 | Spawn Chance = 0.3 → ▶ を 10 回 | 3 回前後しか出ない。0 にすると「検証」に Warning、▶ で何も出ずステータスが「(SpawnChance に外れた…)」 |
+| 9 | Asset Browser「新規作成」で種別 Anchor、識別子 `Spark` → Anchor Editor で Parent に ANC_AnchorRig_Main、Local Offset=(0,0,1) | 上部の連鎖が「ANC_AnchorRig_Main → [ANC_…_Spark]」。SceneView で親から点線が伸び、親の前方 1m に円。「親を開く」で親に切り替わる |
+| 10 | 子（Spark）で Space=BoneName、Follow Rotation=ON にする | 「検証」に Warning「子 Anchor では Space/Path は無視されます」「FollowRotation/DetachOnStop は無視されます」。位置は変わらない |
+| 11 | Spark の Parent を Spark 自身（または親を Spark に）にする | 「検証」に Error「Parent が循環しています」。連鎖表示に「⚠ ルートに辿り着けません」。試し出しは警告付きで到達ノードをルート扱いにして出る（例外で止まらない） |
+| 12 | 親 ANC_AnchorRig_Main に Delay 0.5 / Chance 0.5、子 Spark に Delay 0.5 / Chance 0.5 → 子を対象に ▶ | 基準表示の末尾に「生成: 1s 後・確率 25%」。実際に約 1 秒後・4 回に 1 回程度 |
+| 13 | VFX Editor で VFX_Player_Slash を開き、Anchor 欄「Anchor アセット」に ANC_AnchorRig_Main を選ぶ | 埋め込み欄（Space/Path/スライダー/パッド）が畳まれ「Anchor アセット '…' を使用中」。「AnchorEditor で開く」が押せて Anchor Editor に切り替わる。「検証」に Warning は出ない（埋め込みが既定値のとき） |
+| 14 | その状態で ▶ 再生 → Anchor Editor 側で Local Offset を変える | VFX Editor で再生中の実体が**その場で**動く（再スポーン不要）。SceneView のハンドルは Anchor Editor 側だけに出る |
+| 15 | 埋め込み Anchor に高さ 1 を入れたまま Anchor アセットを設定 | 「検証」に Warning「AnchorId が設定されているため、埋め込みの Anchor は無視されます」 |
+| 16 | Anchor アセットを None に戻し、埋め込みで高さ 0.5・向き 45 → 「埋め込みをアセット化」 | `ANC_Player_VFXPlayerSlashAnchor.asset`（カテゴリ = VFX の Category）が出来て Anchor アセット欄に入る。Anchor Editor で開くと Local Offset y=0.5 / Local Euler y=45 |
+| 17 | SE_Player_Slash の Inspector: Spatial=Anchor、Anchor Id に ANC_AnchorRig_Main | Inspector 下部に「Anchor アセットを使用中」「AnchorEditor で開く」。Anchor Editor の試し出し「確認用 SE」に入れて ▶ で鳴る（Clip 未設定なら無音 + Validation Error は既存の内容） |
+| 18 | Hierarchy で AnchorRig の子に空オブジェクト `FxPoint` を作り、localPosition=(0,1,0) → 選択して Anchor Editor「選択した Transform から作成」 | `ANC_AnchorRig_FxPoint.asset`。Space=NamedObject / Path=AnchorRig / Local Offset=(0,1,0)。FxPoint を消しても Anchor は残る |
+| 19 | `Tools > D-Drive > Validation > Run All` | 追加した Anchor 由来の Error が 0（手順 11 の循環を直してから）。Anchor 以外の既存エラー（Clip 未設定等）は変わらず |
+| 20 | Anchor Editor と VFX Editor を両方開き、交互にクリック | 最後にクリックした方だけ SceneView にハンドル・連鎖が出て、もう片方は薄い小さな円だけ。各ウィンドウの案内が「このウィンドウが描画中 / '…' が描画中」に切り替わる。「SceneView 表示」OFF でそのウィンドウ分が消える |
+| 21 | 任意の .cs を保存して再コンパイル | Anchor Editor の対象・スポーン先・確認用 VFX/SE・SceneView 表示が保持される |
+| 22 | `Tools > D-Drive > Generate > Regenerate Asset IDs` | `Assets/Generated/AssetIds.g.cs` に `ANCHORID` クラスと作成した Anchor の定数（`ANCHORID.AnchorRig_Main` 等）が出る。コンパイルエラーなし |
+
+#### 手順 5: 配置セット（AnchorGroup、[22_anchor_group.md](22_anchor_group.md)）
+
+準備: 確認用シーン。`VFX_Player_Slash`（必要なら URP 用マテリアルに差し替え済みのもの）。
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | Asset Browser「新規作成」→ 種別 AnchorGroup、識別子 `HealField` | `Assets/GameData/AnchorGroup/<カテゴリ>/ANCG_<カテゴリ>_HealField.asset`。`Tools > D-Drive > Editors > Anchor Group` に対象として入る |
+| 2 | 設定: Layout=Grid、X=3・Z=3、Spacing=(1,1,1) | SceneView に 0〜8 の番号付きの点が 3×3 に並ぶ（原点 = 中央の大きい円）。状態表示「点: 9」。Grid 以外の欄（Circle 等）は隠れる |
+| 3 | 「全点共通 VFX」に VFX_Player_Slash → ▶ 全点 | 9 か所に出る。■ で全部消える |
+| 4 | SceneView で 8 番をクリック → ハンドルで外側へドラッグ | Grid Spacing が大きくなり、全点が広がる（Ctrl+Z で戻る） |
+| 5 | 「番号順ディレイ(秒/点)」= 0.1 → ▶ 全点 | 0 番から順に 0.1 秒ずつ遅れて出る |
+| 6 | 4 番をクリック →「選択点を Overrides に追加」→ Overrides の Vfx に別の VFX、0 番も追加して Skip ON | SceneView で 4 番が橙、0 番が灰色 ×。▶ 全点で 4 番だけ別の VFX、0 番は出ない。「▶ 選択点のみ」で 1 点だけ出る |
+| 7 | Layout=Circle、Count=8、Radius=2、外向き ON | 8 点が円周に並び、番号ラベルの向きが放射状（回転を持つ VFX なら外向きに出る）。0 番をドラッグで半径が変わる |
+| 8 | Layout=Line、Count=3、Length=2、Direction=(1,0,0) | 一列。端の点をドラッグで長さが変わる |
+| 9 | Layout=Random、Count=10、Radius=1、Seed=0 → ▶ を数回 | 表示は固定だが再生ごとに配置が変わる。Seed=7 にすると表示・再生とも同じ配置 |
+| 10 | 「手置きの点」を 1 つ追加（Local Offset=(0,2,0)） | 原点から点線でつながった点が増える（番号は末尾）。SceneView でドラッグで動く |
+| 11 | 円形の配置セットをもう 1 つ作り、格子側の「入れ子」に登録（At Index=-1） | ▶ 全点で格子の各点に円形の粒が出る（子の原点は無視され各点が中心）。入れ子を自分自身にすると「検証」に Error |
+| 12 | 「各点の生成確率」= 0.5 → ▶ 全点を数回 | 毎回半分程度の点だけ出る |
+| 13 | 原点 Anchor アセットに手順 4 で作った `ANC_AnchorRig_Main` を選び、スポーン先に AnchorRig | 状態表示「原点: ✓ 'AnchorRig'」。全点が AnchorRig の位置を中心に並ぶ |
+| 14 | Anchor Editor と Anchor Group Editor を同時に開き交互にクリック | 最後にクリックした側だけハンドル・番号が出て、他方は薄い円のみ |
+| 15 | `Validation > Run All` | 配置セット由来の Error 0（Children の自己参照を直してから） |
+
 
 | 17 | Play Mode に入る → 抜ける | Console に例外が出ない |
 | 18 | ウィンドウを閉じる | `[D-Drive] VFX Preview` が Hierarchy から消える。シーンに未保存マーク（*）が付かない |

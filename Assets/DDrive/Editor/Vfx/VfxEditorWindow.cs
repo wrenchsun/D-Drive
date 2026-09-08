@@ -82,8 +82,18 @@ namespace DDrive.Editor.Vfx
             SceneView.duringSceneGui += OnSceneGui;
         }
 
+        // SceneView の描画権: 最後にフォーカスしたウィンドウだけがハンドルと詳細を描く(SceneGuiOwner)。
+        private void OnFocus()
+        {
+            SceneGuiOwner.Claim(this);
+            RefreshSceneOwnerLabel();
+        }
+
+        private void OnLostFocus() => RefreshSceneOwnerLabel();
+
         private void OnDisable()
         {
+            SceneGuiOwner.Release(this);
             SceneView.duringSceneGui -= OnSceneGui;
             PrefabStage.prefabSaved -= OnPrefabSaved;
             PrefabStage.prefabStageClosing -= OnPrefabStageChanged;

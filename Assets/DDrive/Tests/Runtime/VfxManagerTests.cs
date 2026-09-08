@@ -6,6 +6,7 @@ using DDrive.Foundation.Registry;
 using DDrive.Foundation.Values;
 using DDrive.Runtime.Vfx;
 using NUnit.Framework;
+using DDrive.Runtime.Anchoring;
 using UnityEngine;
 
 namespace DDrive.Tests.Runtime
@@ -319,6 +320,125 @@ namespace DDrive.Tests.Runtime
 
             Assert.IsFalse(_manager.IsPlaying(h1));
             Assert.IsFalse(_manager.IsPlaying(h2));
+        }
+            // ── [21_anchor_spec.md] AnchorId / 生成ディレイ / 確率 ──
+
+        private (VfxManager manager, AnchorData anchor) CreateManagerWithAnchor(ulong anchorId, Vector3 offset, float delay = 0f, float chance = 1f)
+        {
+            var anchor = AnchorChainTestRegistry.Anchor(anchorId, offset: offset);
+            anchor.DelaySec = delay;
+            anchor.SpawnChance = chance;
+            var registry = AnchorChainTestRegistry.Build(anchor);
+            return (new VfxManager(_pool, registry), anchor);
+        }
+
+        [Test]
+        public void SpawnData_WithAnchorId_UsesAssetAnchorInsteadOfEmbedded()
+        {
+            var (manager, _) = CreateManagerWithAnchor(10, new Vector3(0f, 2f, 0f));
+            var data = CreateVfxData(1);
+            data.Anchor.LocalOffset = new Vector3(5f, 5f, 5f); // 埋め込みは無視される
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.SpawnData(data);
+            var go = manager.GetGameObject(handle);
+
+            Assert.Less(Vector3.Distance(new Vector3(0f, 2f, 0f), go.transform.position), 1e-4f);
+            Assert.IsTrue(manager.TryGetEffectiveAnchor(handle, out var effective));
+            Assert.AreEqual(new Vector3(0f, 2f, 0f), effective.LocalOffset);
+        }
+
+        [Test]
+        public void SpawnData_AnchorOverride_BeatsDataAnchorId()
+        {
+            var a = AnchorChainTestRegistry.Anchor(10, offset: new Vector3(0f, 2f, 0f));
+            var b = AnchorChainTestRegistry.Anchor(11, offset: new Vector3(3f, 0f, 0f));
+            var manager = new VfxManager(_pool, AnchorChainTestRegistry.Build(a, b));
+            var data = CreateVfxData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.SpawnData(data, anchorOverride: AnchorChainTestRegistry.Id(11));
+
+            Assert.Less(Vector3.Distance(new Vector3(3f, 0f, 0f), manager.GetGameObject(handle).transform.position), 1e-4f);
+        }
+
+        [Test]
+        public void SpawnData_WithDelay_IsPendingUntilTickReachesDelay()
+        {
+            var (manager, _) = CreateManagerWithAnchor(10, new Vector3(0f, 2f, 0f), delay: 0.5f);
+            var data = CreateVfxData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.SpawnData(data);
+
+            Assert.IsTrue(manager.IsPlaying(handle), "Pending 中も Handle は有効");
+            Assert.IsTrue(manager.IsPending(handle));
+            Assert.IsNull(manager.GetGameObject(handle), "実体はまだ無い");
+            Assert.AreEqual(1, manager.ActiveCount);
+
+            manager.Tick(0.3f);
+            Assert.IsTrue(manager.IsPending(handle));
+
+            manager.Tick(0.3f);
+            Assert.IsFalse(manager.IsPending(handle));
+            var go = manager.GetGameObject(handle);
+            Assert.IsNotNull(go, "ディレイ経過で実体が生成される");
+            Assert.Less(Vector3.Distance(new Vector3(0f, 2f, 0f), go.transform.position), 1e-4f);
+        }
+
+        [Test]
+        public void SpawnData_KillWhilePending_CancelsSpawn()
+        {
+            var (manager, _) = CreateManagerWithAnchor(10, Vector3.zero, delay: 1f);
+            var data = CreateVfxData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.SpawnData(data);
+            manager.Kill(handle);
+
+            Assert.IsFalse(manager.IsPlaying(handle));
+            manager.Tick(2f);
+            Assert.AreEqual(0, manager.ActiveCount);
+        }
+
+        [Test]
+        public void SpawnData_StopWhilePending_CancelsSpawn()
+        {
+            var (manager, _) = CreateManagerWithAnchor(10, Vector3.zero, delay: 1f);
+            var data = CreateVfxData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.SpawnData(data);
+            manager.Stop(handle);
+
+            Assert.IsFalse(manager.IsPlaying(handle));
+        }
+
+        [Test]
+        public void SpawnData_ChanceZero_ReturnsInvalidWithoutSpawning()
+        {
+            var (manager, _) = CreateManagerWithAnchor(10, Vector3.zero, chance: 0f);
+            var data = CreateVfxData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+
+            var handle = manager.SpawnData(data);
+
+            Assert.IsFalse(manager.IsPlaying(handle));
+            Assert.AreEqual(0, manager.ActiveCount);
+        }
+
+        [Test]
+        public void ReapplyAnchor_WithAnchorId_RecomposesFromAsset()
+        {
+            var (manager, anchor) = CreateManagerWithAnchor(10, new Vector3(0f, 2f, 0f));
+            var data = CreateVfxData(1);
+            data.AnchorId = AnchorChainTestRegistry.Id(10);
+            var handle = manager.SpawnData(data);
+
+            anchor.LocalOffset = new Vector3(0f, 0f, 7f);
+            manager.ReapplyAnchor(handle);
+
+            Assert.Less(Vector3.Distance(new Vector3(0f, 0f, 7f), manager.GetGameObject(handle).transform.position), 1e-4f);
         }
     }
 }

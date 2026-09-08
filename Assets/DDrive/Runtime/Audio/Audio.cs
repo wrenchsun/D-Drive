@@ -2,6 +2,7 @@ using DDrive.Foundation.Handle;
 using UnityEngine;
 using BgmId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.BgmMarker>;
 using SeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>;
+using AnchorId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>;
 
 namespace DDrive.Runtime.Audio
 {
@@ -21,6 +22,12 @@ namespace DDrive.Runtime.Audio
         public static Handle<SeMarker> PlaySe(SeId id, Vector3 pos) => _seInstance?.PlaySe(id, pos) ?? Handle<SeMarker>.Invalid;
 
         public static Handle<SeMarker> PlaySe(SeId id, Transform contextRoot) => _seInstance?.PlaySe(id, contextRoot) ?? Handle<SeMarker>.Invalid;
+
+        // Anchor アセットを明示して再生する(Data.AnchorId / 埋め込み Anchor より優先。[21] §3.3)。
+        public static Handle<SeMarker> PlaySe(SeId id, AnchorId anchor) => _seInstance?.PlaySe(id, anchor) ?? Handle<SeMarker>.Invalid;
+
+        public static Handle<SeMarker> PlaySe(SeId id, AnchorId anchor, Transform contextRoot)
+            => _seInstance?.PlaySe(id, anchor, contextRoot) ?? Handle<SeMarker>.Invalid;
 
         public static void Stop(Handle<SeMarker> h, float fade = 0f) => _seInstance?.Stop(h, fade);
 

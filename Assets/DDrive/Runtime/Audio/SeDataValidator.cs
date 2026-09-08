@@ -30,9 +30,14 @@ namespace DDrive.Runtime.Audio
             }
 
             var needsPath = se.Anchor.Space is AnchorSpace.BoneName or AnchorSpace.NamedObject;
-            if (se.Spatial == SpatialMode.Anchor && needsPath && string.IsNullOrEmpty(se.Anchor.Path))
+            if (se.Spatial == SpatialMode.Anchor && !se.AnchorId.IsValid && needsPath && string.IsNullOrEmpty(se.Anchor.Path))
             {
                 yield return ValidationResult.Error("Spatial=Anchor ですが Anchor の Path が未設定です");
+            }
+
+            if (se.AnchorId.IsValid && DDrive.Runtime.Anchoring.AnchorDataValidator.IsEmbeddedAnchorNonDefault(se.Anchor))
+            {
+                yield return ValidationResult.Warning("AnchorId が設定されているため、埋め込みの Anchor は無視されます");
             }
 
             if (se.MaxDistance <= se.MinDistance)

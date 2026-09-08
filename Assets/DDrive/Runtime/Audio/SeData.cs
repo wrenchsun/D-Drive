@@ -74,7 +74,10 @@ namespace DDrive.Runtime.Audio
         [Tooltip("None=2D再生 / Anchor=Anchor定義に従って追従 / AtPosition=呼び出し側の座標指定が必須。")]
         public SpatialMode Spatial;
 
-        [Tooltip("Spatial=Anchor 時のアタッチ位置定義。VFX と共通の AnchorDef。")]
+        [Tooltip("Spatial=Anchor 時に使う Anchor アセット(AnchorData)の ID。設定するとこちらが優先され、下の埋め込み Anchor は無視される([21] §3.3)。")]
+        public AssetId<DDrive.Runtime.Anchoring.AnchorMarker> AnchorId;
+
+        [Tooltip("Spatial=Anchor 時のアタッチ位置定義(埋め込み)。VFX と共通の AnchorDef。AnchorId が 0 のときだけ使われる。")]
         public AnchorDef Anchor;
 
         [Tooltip("この距離までは減衰なし(フル音量)。")]

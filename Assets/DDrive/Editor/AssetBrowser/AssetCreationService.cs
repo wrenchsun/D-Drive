@@ -85,6 +85,7 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.Presentation => "PresentationCatalog",
             AssetType.Shake or AssetType.Haptics => "CameraFxCatalog",
             AssetType.UiTween => "UiTweenCatalog",
+            AssetType.Anchor or AssetType.AnchorGroup => "AnchorCatalog",
             _ => "MiscCatalog",
         };
 

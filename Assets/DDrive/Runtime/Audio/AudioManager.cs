@@ -11,6 +11,7 @@ using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Net;
 using UnityEngine;
 using SeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>;
+using AnchorId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>;
 
 namespace DDrive.Runtime.Audio
 {
@@ -25,6 +26,13 @@ namespace DDrive.Runtime.Audio
             public PooledObject Pooled;
             public Transform FollowTarget;
             public bool HasFollowTarget;
+
+            // 有効な Anchor 定義(埋め込み Data.Anchor か AnchorId の連鎖を合成したもの。[21] §3.3)。
+            public AnchorDef Anchor;
+
+            // 生成ディレイ待ち(Source は借りて位置も決めてあるが、まだ Play していない)。
+            public bool Pending;
+            public float PendingRemaining;
 
             // 追従時に使うローカルオフセット。AnchorPoint のランダム散らばりは Play 時に1回だけ
             // サンプリングされるため、Tick では Data 側から再計算せずこちらを使う。
@@ -130,7 +138,11 @@ namespace DDrive.Runtime.Audio
         public Handle<SeMarker> PlaySe(SeId id, Transform contextRoot)
             => PlaySeData(_registry.ResolveOrPlaceholder<SeData>(id.Value), contextRoot: contextRoot);
 
-        public Handle<SeMarker> PlaySeData(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null)
+        // Anchor アセットを明示して再生する。Data.AnchorId / 埋め込み Anchor より優先([21_anchor_spec.md] §3.3)。
+        public Handle<SeMarker> PlaySe(SeId id, AnchorId anchor, Transform contextRoot = null)
+            => PlaySeData(_registry.ResolveOrPlaceholder<SeData>(id.Value), contextRoot: contextRoot, anchorOverride: anchor);
+
+        public Handle<SeMarker> PlaySeData(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null, AnchorId anchorOverride = default)
         {
             if (data == null)
             {
@@ -145,30 +157,87 @@ namespace DDrive.Runtime.Audio
                 _pendingCosmeticBatch.Add(new SeNetMsg
                 {
                     SeId = data.Id,
-                    Position = ResolveWorldPositionForBroadcast(data, explicitPosition, contextRoot),
+                    Position = ResolveWorldPositionForBroadcast(data, explicitPosition, contextRoot, anchorOverride),
                 });
                 return Handle<SeMarker>.Invalid;
             }
 
-            return PlaySeDataLocal(data, explicitPosition, contextRoot);
+            return PlaySeDataLocal(data, explicitPosition, contextRoot, anchorOverride);
         }
 
-        private static Vector3 ResolveWorldPositionForBroadcast(SeData data, Vector3? explicitPosition, Transform contextRoot)
+        // 配置セット(AnchorGroup)など、呼び出し側が合成済みの姿勢(spec)を持っている場合の経路([22] §3.5)。
+        public Handle<SeMarker> PlaySeData(SeData data, in AnchorSpawnSpec spec, Transform contextRoot = null)
+        {
+            if (data == null)
+            {
+                return Handle<SeMarker>.Invalid;
+            }
+
+            if (data.Flags.Net == NetMode.Cosmetic)
+            {
+                var resolved = AnchorResolver.Resolve(spec.Def, contextRoot);
+                _pendingCosmeticBatch.Add(new SeNetMsg
+                {
+                    SeId = data.Id,
+                    Position = resolved != null ? resolved.TransformPoint(spec.Def.LocalOffset + spec.ExtraOffset) : spec.Def.LocalOffset + spec.ExtraOffset,
+                });
+                return Handle<SeMarker>.Invalid;
+            }
+
+            return PlaySeDataLocal(data, null, contextRoot, default, spec);
+        }
+
+        // 優先順位: 引数 anchorOverride > Data.AnchorId > Data.Anchor(埋め込み)([21_anchor_spec.md] §3.3)。
+        private AnchorSpawnSpec ResolveAnchorSpec(SeData data, AnchorId anchorOverride, bool sampleRandom)
+        {
+            if (anchorOverride.IsValid)
+            {
+                return AnchorChain.Resolve(_registry, anchorOverride, sampleRandom);
+            }
+
+            if (data.AnchorId.IsValid)
+            {
+                return AnchorChain.Resolve(_registry, data.AnchorId, sampleRandom);
+            }
+
+            return AnchorSpawnSpec.FromDef(data.Anchor);
+        }
+
+        private Vector3 ResolveWorldPositionForBroadcast(SeData data, Vector3? explicitPosition, Transform contextRoot, AnchorId anchorOverride)
         {
             if (explicitPosition.HasValue)
             {
                 return explicitPosition.Value;
             }
 
-            var resolved = AnchorResolver.Resolve(data.Anchor, contextRoot);
-            return resolved != null ? resolved.TransformPoint(data.Anchor.LocalOffset) : data.Anchor.LocalOffset;
+            var def = ResolveAnchorSpec(data, anchorOverride, sampleRandom: false).Def;
+            var resolved = AnchorResolver.Resolve(def, contextRoot);
+            return resolved != null ? resolved.TransformPoint(def.LocalOffset) : def.LocalOffset;
         }
 
-        private Handle<SeMarker> PlaySeDataLocal(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null)
+        private Handle<SeMarker> PlaySeDataLocal(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null, AnchorId anchorOverride = default, AnchorSpawnSpec? presolved = null)
         {
             if (IsOnCooldown(data))
             {
                 return Handle<SeMarker>.Invalid;
+            }
+
+            // AnchorId の連鎖(またはそのまま埋め込み)を合成し、ランダム分をここで 1 回だけサンプリングする。
+            // 明示座標のときは Anchor を使わないので合成しない(ディレイ/確率も効かない)。
+            var anchor = data.Anchor;
+            var anchorExtraOffset = Vector3.zero;
+            var delay = 0f;
+            if (!explicitPosition.HasValue)
+            {
+                var spec = presolved ?? ResolveAnchorSpec(data, anchorOverride, sampleRandom: true);
+                if (spec.SpawnChance < 1f && UnityEngine.Random.value >= spec.SpawnChance)
+                {
+                    return Handle<SeMarker>.Invalid;
+                }
+
+                anchor = spec.Def;
+                anchorExtraOffset = spec.ExtraOffset;
+                delay = spec.DelaySec;
             }
 
             EnforceMaxConcurrent(data);
@@ -186,7 +255,7 @@ namespace DDrive.Runtime.Audio
 
             Transform followTarget = null;
             var hasFollowTarget = false;
-            var followLocalOffset = data.Anchor.LocalOffset;
+            var followLocalOffset = anchor.LocalOffset + anchorExtraOffset;
             var sourceTransform = pooled.GameObject.transform;
             sourceTransform.SetParent(null);
 
@@ -209,7 +278,7 @@ namespace DDrive.Runtime.Audio
                     Debug.LogWarning($"[DDrive] SE '{data.DisplayName}' is Spatial=AtPosition but no position was passed; falling back to Anchor/World.");
                 }
 #endif
-                var resolved = AnchorResolver.Resolve(data.Anchor, contextRoot);
+                var resolved = AnchorResolver.Resolve(anchor, contextRoot);
                 if (resolved != null)
                 {
                     followTarget = resolved;
@@ -219,18 +288,18 @@ namespace DDrive.Runtime.Audio
                     // 位置のランダム散らばりを追加適用する(回転/スケールは音に無関係なので位置のみ)。
                     if (resolved.TryGetComponent<AnchorPoint>(out var point))
                     {
-                        followLocalOffset = point.SampleLocalOffset(data.Anchor.LocalOffset);
+                        followLocalOffset = point.SampleLocalOffset(followLocalOffset);
                     }
 
                     sourceTransform.position = resolved.TransformPoint(followLocalOffset);
-                    if (data.Anchor.FollowRotation)
+                    if (anchor.FollowRotation)
                     {
                         sourceTransform.rotation = resolved.rotation;
                     }
                 }
                 else
                 {
-                    sourceTransform.position = data.Anchor.LocalOffset;
+                    sourceTransform.position = followLocalOffset;
                 }
             }
 
@@ -239,7 +308,11 @@ namespace DDrive.Runtime.Audio
                 source.time = Mathf.Min(data.StartOffsetSec, Mathf.Max(0f, source.clip.length - 0.001f));
             }
 
-            source.Play();
+            // 生成ディレイ: Source は借りて位置も決めた状態で待ち、Tick のカウントダウン後に Play する([21] §3.5)。
+            if (delay <= 0f)
+            {
+                source.Play();
+            }
 
             var instance = new SeInstance
             {
@@ -249,6 +322,9 @@ namespace DDrive.Runtime.Audio
                 FollowTarget = followTarget,
                 HasFollowTarget = hasFollowTarget,
                 FollowLocalOffset = followLocalOffset,
+                Anchor = anchor,
+                Pending = delay > 0f,
+                PendingRemaining = delay,
             };
             var handle = _instances.Add(instance);
 
@@ -288,7 +364,11 @@ namespace DDrive.Runtime.Audio
         }
 
         public bool IsPlaying(Handle<SeMarker> handle)
-            => _instances.TryGet(handle, out var instance) && instance.Source.isPlaying;
+            => _instances.TryGet(handle, out var instance) && (instance.Pending || instance.Source.isPlaying);
+
+        // 生成ディレイ待ち(Handle は有効だが、まだ鳴っていない)か。
+        public bool IsPending(Handle<SeMarker> handle)
+            => _instances.TryGet(handle, out var instance) && instance.Pending;
 
         // 現在アクティブな SE 再生数。Cosmetic 配送はネットワーク経由で受信ハンドラ側が Spawn するため、
         // 送信元は具体的な Handle を得られない。「何か再生された」を確認する用途にも使える。
@@ -344,6 +424,22 @@ namespace DDrive.Runtime.Audio
                     continue;
                 }
 
+                // 生成ディレイ待ち: カウントダウンして時間が来たら Play する(Pause 中は進めない)。
+                if (instance.Pending)
+                {
+                    if (!instance.Paused)
+                    {
+                        instance.PendingRemaining -= dt;
+                        if (instance.PendingRemaining <= 0f)
+                        {
+                            instance.Pending = false;
+                            instance.Source.Play();
+                        }
+                    }
+
+                    continue;
+                }
+
                 if (instance.FadeOutRemaining > 0f)
                 {
                     instance.FadeOutRemaining -= dt;
@@ -361,12 +457,12 @@ namespace DDrive.Runtime.Audio
                     if (instance.FollowTarget != null)
                     {
                         instance.Source.transform.position = instance.FollowTarget.TransformPoint(instance.FollowLocalOffset);
-                        if (instance.Data.Anchor.FollowRotation)
+                        if (instance.Anchor.FollowRotation)
                         {
                             instance.Source.transform.rotation = instance.FollowTarget.rotation;
                         }
                     }
-                    else if (!instance.Data.Anchor.DetachOnStop)
+                    else if (!instance.Anchor.DetachOnStop)
                     {
                         Stop(handle);
                         continue;

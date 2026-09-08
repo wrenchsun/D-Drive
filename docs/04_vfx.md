@@ -23,7 +23,8 @@ public class VfxData : AssetDataBase
 {
     public GameObject Prefab;                 // ParticleSystem / VFX Graph どちらも可
     [Header("Anchor")]
-    public AnchorDef Anchor;                  // 下記
+    public AssetId<AnchorMarker> AnchorId;    // Anchor アセット(AnchorData)。設定時は埋め込み Anchor より優先(2026-09-08 [21] §3.3)
+    public AnchorDef Anchor;                  // 下記(埋め込み。AnchorId=0 のときだけ使う)
     [Header("Lifetime")]
     public VfxLifeMode LifeMode;              // OneShot / Loop / Duration
     public float Duration;                    // LifeMode=Duration
@@ -88,6 +89,17 @@ public sealed class AnchorPoint : MonoBehaviour
 
 注意点: 解決は名前一致のため、**同一 contextRoot 配下で AnchorPoint 名を重複させない**こと（最初に見つかった方が使われる）。命名は `Anchor_` プレフィックス推奨（例: `Anchor_RightHand`, `Anchor_Muzzle`）。
 
+### §2.5.5 Anchor アセット（AnchorData / AnchorId）— 2026-09-08 追加（[21_anchor_spec.md](21_anchor_spec.md)）
+
+埋め込み `AnchorDef` の内容に「ランダム（位置半径 / 回転 / スケール）」「生成ディレイ（DelaySec + DelayJitterSec）」「生成確率（SpawnChance）」「入れ子（Parent）」を足した単独アセット。`Assets/GameData/Anchor/<カテゴリ>/ANC_<カテゴリ>_<識別子>.asset`、ID 定数は `ANCHORID.*`。SE と共通。
+
+- **解決の優先順位**: `Spawn(id, anchorId)` の引数 > 明示座標/Transform > `Data.AnchorId` > 埋め込み `Data.Anchor` > World 原点。未登録 AnchorId は Placeholder（World 既定値、警告 1 回）
+- **入れ子（連鎖）**: 子は親で決まった姿勢を基準にオフセットを積む。`Space/Path/FollowRotation/DetachOnStop` はルートの値だけが効き、Delay は加算・Chance は乗算。合成は `Runtime/Anchoring/AnchorChain.cs`（固定長バッファ、GC alloc 0）が行い、結果を 1 つの `AnchorDef` 相当にして §2.6 の式へ渡す。循環・深さ 8 超は警告して到達ノードをルート扱い
+- **生成ディレイ**: `DelaySec > 0` のとき Manager は Pending（実体無し）の Instance を作って Handle を返す（`IsPlaying=true` / `GetGameObject=null` / `IsPending=true`）。Tick でカウントダウンして実体化。Pending 中の Stop/Kill は生成をキャンセル。Pause 中は進まない
+- **生成確率**: `SpawnChance` に外れた場合は `Handle.Invalid`（警告なし）
+- **ReapplyAnchor**: AnchorId 経由の Instance は連鎖を再合成する（ランダム分は Instance が保持したまま）
+- **AnchorPoint との関係**: 解決先が AnchorPoint なら従来どおり SpawnOffset/ランダムが**追加**適用される。AnchorRig から AnchorData を一括生成する場合は基準を AnchorPoint の親（AnchorRig 名）にして二重適用を避ける
+
 ### §2.6 姿勢の式（2026-09-08 統一）
 
 Spawn 時・追従(Tick)・エディタでのライブ編集(`ReapplyAnchor`)・SceneView ハンドルの逆変換は、すべて `Runtime/Anchoring/AnchorPose.cs` の同じ式を通る。
@@ -113,6 +125,8 @@ public static class Vfx
     public static VfxHandle Spawn(VfxId id);                       // Data.Anchor 通り
     public static VfxHandle Spawn(VfxId id, Vector3 pos, Quaternion rot);
     public static VfxHandle Spawn(VfxId id, Transform attach);     // Anchor を上書き
+    public static VfxHandle Spawn(VfxId id, AnchorId anchor);      // Anchor アセットを明示(2026-09-08 [21] §3.3)
+    public static VfxHandle Spawn(VfxId id, AnchorId anchor, Transform attach);
     public static VfxHandle Spawn(VfxId id, in PlayContext ctx);   // Presentation 用
 
     public static void Stop(VfxHandle h);          // FadeOut→Pool返却
@@ -126,7 +140,9 @@ h.Move(pos); h.Attach(t); h.Detach(); h.SetParam("MainColor", color); h.SetSpeed
 // エディタ/ツール向け(VfxManager 直)
 manager.ReapplyAnchor(h);                // Data.Anchor の変更を再生中 Instance に再適用(追従先の再解決はしない)
 manager.TryGetAnchorTarget(h, out t);    // 解決済みの追従先
-manager.GetAnchorExtraOffset(h);         // AnchorPoint 由来の追加オフセット(逆変換用)
+manager.GetAnchorExtraOffset(h);         // AnchorPoint/AnchorData 由来の追加オフセット(逆変換用)
+manager.IsPending(h);                    // 生成ディレイ待ちか(2026-09-08)
+manager.TryGetEffectiveAnchor(h, out a); // 実際に使われている合成済み AnchorDef(2026-09-08)
 ```
 
 > `Spawn(VfxId, in PlayContext)` は Presentation 層(Phase 5)で追加する。
@@ -166,9 +182,11 @@ manager.GetAnchorExtraOffset(h);         // AnchorPoint 由来の追加オフセ
 | リピート | OneShot/Duration の VFX が終わったら 0.35 秒後に自動で再スポーン（調整中に何度も▶を押さない）。Loop は対象外。EditMode の手動 Simulate では `ParticleSystem.IsAlive` が true のままになるため、OneShot の終了は `SceneVfxPreviewDriver` が粒子数と再生位置（`particleCount == 0` かつ `time >= duration`、ループ無し）で判定して Kill する（2026-09-08 修正。PlayMode 中は Manager の判定そのまま） |
 | 基本設定 | Prefab / LifeMode / Duration / FadeOutSec / Render / RenderLayer（LayerField）/ LightLayerMask（Rendering Layer 名付きマスク）/ Flags を SerializedObject バインドで編集（Undo 対応）。Prefab 差し替えは再生中なら再スポーン |
 | スポーン先指定 | シーン内のキャラクターや AnchorRig を「スポーン先」に指定 → Anchor(ボーン名/AnchorPoint)の解決起点になる。変更時は再生中なら再スポーン |
+| Anchor アセット（2026-09-08 追加） | Anchor 欄の先頭に「Anchor アセット」(AnchorId) ドロップダウン + 「AnchorEditor で開く」+「埋め込みをアセット化」。AnchorId 設定中は埋め込み欄を畳み、位置編集は AnchorEditor（`Tools > D-Drive > Editors > Anchor`）へ誘導する。プレビューは `EditorAnchorRegistry` がプロジェクト内の AnchorData を Registry に登録して実 AnchorChain で解決する |
 | Anchor 編集 | Space / Path（ボーン・★AnchorPoint ドロップダウン。選択時に Space=World なら NamedObject に自動切替）/ 高さ・向きスライダー / スケール / 回転追従 / 親消滅後も残す / 2D パッド。**解決状態を常に文字で表示**（「✓ 'Anchor_RightHand'」「⚠ 'xxx' が見つかりません」等）。**変更は再生中の実体へ即時反映**（`ReapplyAnchor`。Path/Space の変更は自動再スポーン） |
 | プレハブモード内再生（2026-09-08 追加） | **対象 VfxData.Prefab 自身**をプレハブモードで開いている間（ツールバー「Prefab を開く」）は、別インスタンスを出さず**ステージ内の ParticleSystem をその場で再生**する（Inspector で ParticleSystem を編集しながら確認する前提。二重表示しない）。Manager を通らないため Anchor・パラメータの即時反映は対象外。ParticleSystem を選択中は Unity 標準のプレビューが進めるので、こちらからは進めない。**別の Prefab** のプレハブモード中は従来どおり Manager 経由でステージのシーンへスポーンする（スポーン物は Prefab に保存されない）。ステージの開閉はシーン切替と同じ扱い（台帳リセット・旧スポーン物の破棄） |
-| SceneView ハンドル | 「SceneView で編集」ON で、Anchor のワールド位置に移動ハンドル（回転ツール選択時は回転ハンドル）を表示。ドラッグ結果を AnchorDef.LocalOffset/LocalEuler に逆変換して保存（AnchorPoint の SpawnOffset・ランダム分は差し引く） |
+| SceneView 描画権（2026-09-08 追加） | VFX Editor と Anchor Editor が同時に開いていると描画が重なるため、`SceneGuiOwner` で「最後にフォーカスしたウィンドウ」だけがハンドル・連鎖・ラベルを描き、他のウィンドウは薄い目印（小さな円 + 短いラベル）のみ。各ウィンドウの「SceneView 表示」チェックを OFF にすると一切描かない。ウィンドウ内に「SceneView: このウィンドウが描画中 / '…' が描画中」の案内を出す |
+| SceneView ハンドル | 「SceneView 表示」ON かつ描画権を持つとき、Anchor のワールド位置に移動ハンドル（回転ツール選択時は回転ハンドル）を表示。ドラッグ結果を AnchorDef.LocalOffset/LocalEuler に逆変換して保存（AnchorPoint の SpawnOffset・ランダム分は差し引く） |
 | 複数同時再生 | 最大 8 スロットに別 VFX を並べて同時再生（打撃+火花+煙の重なり確認） |
 | パラメータ | Params の即時反映コントロール（Float/Int/Color/Vector/Texture。Curve/Gradient は表示のみ）+ **定義の追加・削除**（Label/Type/TargetProperty/Anim を PropertyField で編集。定義が変わると即時反映コントロールを作り直す） |
 | イベント編集 | Events(AssetEvent[])を PropertyField で編集。OnSpawn/OnLoop/OnDestroy → SE 再生等 |
@@ -196,6 +214,7 @@ manager.GetAnchorExtraOffset(h);         // AnchorPoint 由来の追加オフセ
 | LifeMode=Loop かつ Pool 上限未設定 | Warning（リーク危険） |
 | Params.TargetProperty が Prefab に存在しない | Error |
 | Anchor.BoneName がプレビューモデルに無い | Warning(静的 Validator の対象外。SeDataValidator と同様、プレビュー実行時の関心事として VfxEditor 側で扱う) |
+| AnchorId 設定済みなのに埋め込み Anchor が既定値以外 | Warning（埋め込みは無視される。2026-09-08） |
 | UIOverlay なのに Domain=Game3D | Warning |
 | Stop 時 FadeOut > 10s | Warning |
 | Prefab のマテリアルのシェーダーが現在のレンダーパイプライン(URP/HDRP/Built-in)と非互換 | Error(2026-07-28 追加。`ShaderPipelineAnalyzer` が SubShader の `RenderPipeline` タグを見て判定。ModelDataValidator も同じ検査を共有) |

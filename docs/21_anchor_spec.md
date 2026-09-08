@@ -1,7 +1,10 @@
 # 21. Anchor 仕様改定案（2026-09-08）
 
-> **状態: 仕様確定（2026-09-08）。** §6 は全項目「推奨」で決定。追加要件 R7（既存ボーン・ヒエラルキーの流用）を §3.9 に追記。実装は §5 の 2-14a〜g の順に進め、完了した項目から [04_vfx.md](04_vfx.md) §2 / [03_audio.md](03_audio.md) §2 へ反映する。
+> **状態: 実装済み（2026-09-08）。** §6 は全項目「推奨」で決定し、同日 2-14a〜g を実装した。本書は仕様として維持し、種別ごとの記述は [04_vfx.md](04_vfx.md) §2/§3/§5 と [03_audio.md](03_audio.md) §2/§3 に反映済み。
+>
+> **実装の要点（§3 との差分）**: 連鎖の合成は `Runtime/Anchoring/AnchorChain.cs`（固定長バッファ、GC alloc 0）。ランダムは各段でサンプリングし、位置はその段の向きでルート基準へ畳み込む。`AnchorId` 未登録は Placeholder（World 既定値）。エディタのプレビュー Registry は `EditorAnchorRegistry` がプロジェクト内の全 AnchorData を登録する（未保存の編集もそのまま反映）。AnchorRig からの一括生成では、AnchorPoint の SpawnOffset/ランダムを AnchorData に写し、基準は AnchorPoint 自身ではなく「その親（AnchorRig 名）」にする（AnchorPoint を Path に指すと SpawnOffset が二重適用されるため）。
 > 実装済みの先行分: VfxEditor のプレハブモード内再生（[04] §5、チケット 2-13）。
+> 続編: 「Anchor 側にアセットを登録して複数の位置へ一括で出す」単位は [22_anchor_group.md](22_anchor_group.md)（配置セット）。本書の AnchorData は 1 つの位置、配置セットはその集合 + 出すもの。
 
 ---
 
@@ -118,6 +121,7 @@ public sealed class AnchorData : AssetDataBase
 | AnchorEditor（新規 `Tools/D-Drive/Editors/Anchor`） | 対象 AnchorData を選択追従 + ロック。**親子の連鎖をパンくずで表示**（ルート → … → 対象）。スポーン先（シーン内オブジェクト / AnchorRig）を指定して解決状態を表示。SceneView に姿勢ギズモ（ルートから対象までの各段を線で結ぶ、ランダム半径の球、Delay の秒数ラベル）。移動/回転ハンドルで LocalOffset/LocalEuler を逆変換して保存（`VfxEditorWindow.Anchor.cs` の SceneView ハンドル部分を `AnchorSceneHandles` として共通化し、両エディタで使う） |
 | 試し出し | ウィンドウ内で「確認用 VFX」「確認用 SE」を 1 つずつ選び ▶ で実 Manager 経由に再生する（ADR-4。`SceneVfxPreviewDriver` を再利用、SE は既存の AudioEditor プレビュー経路）。Delay/Chance/ランダムの効き方をその場で確認できる。プレハブモード内でも可（2-13 の仕組み） |
 | 専用シーン | 新設しない。VFX 確認用シーン（AnchorRig 配置済み）をそのまま使う（§6-5） |
+| SceneView 描画権（2026-09-08 追加） | 複数ウィンドウの描画が重なる対策として `Editor/Preview/SceneGuiOwner`。最後にフォーカスしたウィンドウだけが連鎖・ランダム半径・ハンドルを描き、他は薄い目印のみ。各ウィンドウの「SceneView 表示」チェックで完全オフ |
 | VfxEditor / AudioEditor の Anchor 欄 | 先頭に「Anchor アセット」ドロップダウン（AnchorId）+「開く」ボタン。AnchorId≠0 のときは埋め込み Anchor 欄を折りたたみ「AnchorData 側で編集」と表示。0 のときは従来どおり埋め込みを編集 |
 | 「埋め込み → アセット化」ボタン | 現在の埋め込み Anchor から AnchorData を新規作成して AnchorId を差し替える（移行補助。埋め込み値は残す） |
 | AssetBrowser | 種別タブに Anchor を追加。作成ダイアログ・命名（接頭辞 `ANC`、配置 `Assets/GameData/Anchor/<Category>/`）・カタログ `AnchorCatalog` を `AssetNamingService` / `AssetCreationService.GetCatalogName` に追加 |

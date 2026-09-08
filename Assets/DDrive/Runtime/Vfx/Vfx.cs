@@ -2,6 +2,7 @@ using DDrive.Foundation.Data;
 using DDrive.Foundation.Handle;
 using UnityEngine;
 using VfxId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>;
+using AnchorId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>;
 
 namespace DDrive.Runtime.Vfx
 {
@@ -21,6 +22,12 @@ namespace DDrive.Runtime.Vfx
 
         public static Handle<VfxMarker> Spawn(VfxId id, Vector3 pos, Quaternion rot)
             => _instance?.Spawn(id, pos, rot) ?? Handle<VfxMarker>.Invalid;
+
+        // Anchor アセットを明示して Spawn する(Data.AnchorId / 埋め込み Anchor より優先。[21] §3.3)。
+        public static Handle<VfxMarker> Spawn(VfxId id, AnchorId anchor) => _instance?.Spawn(id, anchor) ?? Handle<VfxMarker>.Invalid;
+
+        public static Handle<VfxMarker> Spawn(VfxId id, AnchorId anchor, Transform attach)
+            => _instance?.Spawn(id, anchor, attach) ?? Handle<VfxMarker>.Invalid;
 
         public static Handle<VfxMarker> Spawn(VfxId id, Transform attach)
             => _instance?.Spawn(id, attach) ?? Handle<VfxMarker>.Invalid;

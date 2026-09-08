@@ -41,6 +41,11 @@ namespace DDrive.Runtime.Vfx
                 yield return ValidationResult.Warning("FadeOutSec が 10 秒を超えています");
             }
 
+            if (vfx.AnchorId.IsValid && DDrive.Runtime.Anchoring.AnchorDataValidator.IsEmbeddedAnchorNonDefault(vfx.Anchor))
+            {
+                yield return ValidationResult.Warning("AnchorId が設定されているため、埋め込みの Anchor は無視されます");
+            }
+
             if (vfx.Prefab != null)
             {
                 if (vfx.Params != null)

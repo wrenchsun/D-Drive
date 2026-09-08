@@ -30,7 +30,8 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 17 | [値定義の統一規約](17_value_definition.md) | 定数 / パラメトリック曲線 / 任意カーブ + スピード（ValueDef）・共通 Drawer |
 | 18 | [UI コントロール](18_ui_controls.md) | UiInteractable 共通基底・UiSlider 全面新規実装・応答曲線・標準オプション直結 |
 | 19 | [VFX 使い勝手レビュー](19_vfx_usability_review.md) | 2026-09-08 のレビュー記録: 問題点 → 判断 → 改修内容 → 未着手 |
-| 21 | [Anchor 仕様改定案](21_anchor_spec.md) | 2026-09-08 提案: Anchor のアセット化・入れ子・Audio 共通化・生成ディレイ/ランダム/イベント。§6 の決定待ち |
+| 21 | [Anchor 仕様](21_anchor_spec.md) | Anchor のアセット化（AnchorData / AnchorId）・入れ子連鎖・VFX/SE 共通・生成ディレイ/ランダム/確率・既存ボーン流用・AnchorEditor（2026-09-08 実装済み） |
+| 22 | [配置セット（AnchorGroup）](22_anchor_group.md) | 複数の位置にまとめて出す: 原点 + Grid/Circle/Line/Random/手置き + 全点共通/点ごとのアセット + 入れ子。`Anchors.Play(groupId, ctx)`（2026-09-08 実装済み） |
 | 20 | [MCP セットアップ](20_mcp_setup.md) | AI ⇄ Unity Editor 連携（MCP for Unity）の導入手順・運用ルール・バージョン管理 |
 
 ## 全体像 1 枚図

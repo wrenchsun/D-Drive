@@ -10,6 +10,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using AnchorId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>;
 
 namespace DDrive.Editor.Vfx
 {
@@ -58,6 +59,10 @@ namespace DDrive.Editor.Vfx
         public static readonly Handle<VfxMarker> InPlaceHandle = Handle<VfxMarker>.Sentinel(0);
 
         public VfxManager Manager { get; }
+
+        // プレビュー用 Registry。プロジェクト内の AnchorData を登録済み(VfxData.AnchorId / anchorOverride を
+        // ランタイムと同じ AnchorChain で解決するため)。アセット追加後は EditorAnchorRegistry.Refresh で更新する。
+        public AssetRegistry Registry { get; }
 
         // 再生速度(0.1x-2x)。EditMode では手動 Simulate の dt に乗算し、PlayMode 中は
         // 実 Manager の SetSpeed(simulationSpeed)で反映する(二重適用しない)。
@@ -108,7 +113,8 @@ namespace DDrive.Editor.Vfx
 
         public SceneVfxPreviewDriver()
         {
-            Manager = new VfxManager(_pool, new AssetRegistry(new NullAssetLoader()));
+            Registry = EditorAnchorRegistry.Build();
+            Manager = new VfxManager(_pool, Registry);
             _lastTickTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += EditorTick;
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
@@ -116,7 +122,8 @@ namespace DDrive.Editor.Vfx
             PrefabStage.prefabStageClosing += OnPrefabStageChanged;
         }
 
-        public Handle<VfxMarker> Play(VfxData data, Transform attach = null)
+        // anchorOverride: AnchorEditor の試し出し等で Anchor アセットを明示する([21] §3.3 の優先順位 1)。
+        public Handle<VfxMarker> Play(VfxData data, Transform attach = null, AnchorId anchorOverride = default)
         {
             if (data == null)
             {
@@ -128,7 +135,7 @@ namespace DDrive.Editor.Vfx
                 return PlayInPlace(data, CurrentPrefabStage.prefabContentsRoot);
             }
 
-            var handle = Manager.SpawnData(data, contextRoot: attach);
+            var handle = Manager.SpawnData(data, contextRoot: attach, anchorOverride: anchorOverride);
             var go = Manager.GetGameObject(handle);
             if (go != null)
             {
@@ -145,6 +152,42 @@ namespace DDrive.Editor.Vfx
             }
 
             return handle;
+        }
+
+        // 配置セット(AnchorGroup)のプレビュー: 合成済みの姿勢で Spawn し、通常の Play と同じく台帳に載せる([22] §3.7)。
+        public Handle<VfxMarker> Play(VfxData data, Transform attach, in DDrive.Runtime.Anchoring.AnchorSpawnSpec spec)
+        {
+            if (data == null)
+            {
+                return Handle<VfxMarker>.Invalid;
+            }
+
+            var handle = Manager.SpawnData(data, spec, attach);
+            RegisterSpawned(handle, data);
+            return handle;
+        }
+
+        private void RegisterSpawned(Handle<VfxMarker> handle, VfxData data)
+        {
+            var go = Manager.GetGameObject(handle);
+            if (go == null)
+            {
+                if (Manager.IsPending(handle))
+                {
+                    _active.Add((handle, System.Array.Empty<ParticleSystem>(), data));
+                }
+
+                return;
+            }
+
+            go.hideFlags = HideFlags.DontSave;
+            go.transform.SetParent(PreviewRoot.transform, true);
+            _spawnedRoots.Add(go);
+            _active.Add((handle, go.GetComponentsInChildren<ParticleSystem>(true), data));
+            if (Application.isPlaying)
+            {
+                Manager.SetSpeed(handle, _speed);
+            }
         }
 
         public bool IsPlaying(Handle<VfxMarker> handle)
@@ -363,6 +406,20 @@ namespace DDrive.Editor.Vfx
                 }
 
                 anyAlive = true;
+
+                // 生成ディレイ待ちだった実体が今フレーム生まれたら、まとめ用ルートに入れて手動 Simulate の対象にする。
+                if (systems.Length == 0 && !Manager.IsPending(handle))
+                {
+                    var born = Manager.GetGameObject(handle);
+                    if (born != null)
+                    {
+                        born.hideFlags = HideFlags.DontSave;
+                        born.transform.SetParent(PreviewRoot.transform, true);
+                        _spawnedRoots.Add(born);
+                        systems = born.GetComponentsInChildren<ParticleSystem>(true);
+                        _active[i] = (handle, systems, data);
+                    }
+                }
 
                 // EditMode では ParticleSystem が自動シミュレーションされないため手動で進める。
                 // PlayMode 中は Unity が自動で進めるので二重適用しない。

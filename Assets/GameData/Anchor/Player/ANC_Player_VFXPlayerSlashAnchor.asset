@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6fda21e2aeb4cc64aa9f160a655602f5, type: 3}
+  m_Name: ANC_Player_VFXPlayerSlashAnchor
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Anchoring.AnchorData
+  Id: 14359323102462893152
+  DisplayName: "\u65AC\u64831 \u306E Anchor"
+  Description: 
+  Category: Player
+  Tags: []
+  Icon: {fileID: 0}
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 0
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  Parent:
+    value: 0
+    type: 0
+  Space: 0
+  Path: 
+  LocalOffset: {x: -0.06566604, y: 0, z: 2.5625}
+  LocalEuler: {x: 0, y: 0, z: 0}
+  LocalScale: {x: 1, y: 1, z: 1}
+  FollowRotation: 0
+  DetachOnStop: 0
+  PositionJitterRadius: 0
+  EulerJitter: {x: 0, y: 0, z: 0}
+  ScaleRange: {x: 1, y: 1}
+  DelaySec: 0
+  DelayJitterSec: 0
+  SpawnChance: 1

@@ -100,6 +100,9 @@ Tools/
     ├─ Editors/
     │   ├─ Audio
     │   ├─ VFX
+    │   ├─ VFX確認用シーンを開く
+    │   ├─ Anchor                      ← 2026-09-08 追加(AnchorData 専用エディタ、[21])
+    │   ├─ Anchor Group                ← 2026-09-08 追加(配置セット、[22])
     │   ├─ Animation (3D)
     │   ├─ Animation (2D)
     │   ├─ Material · Texture
@@ -112,6 +115,7 @@ Tools/
     │   └─ Report Window
     ├─ Generate/
     │   ├─ Regenerate Asset IDs
+    │   ├─ Anchor プレハブを生成 / 選択した Transform から Anchor を作成 / 選択した AnchorRig から Anchor を一括生成   ← [21] §3.9
     │   ├─ Rebuild Dependency Graph
     │   └─ Live Tuning Connect
     └─ Debug/

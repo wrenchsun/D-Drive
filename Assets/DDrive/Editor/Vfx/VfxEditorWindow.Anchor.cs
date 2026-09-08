@@ -1,4 +1,7 @@
+using DDrive.Editor.Anchor;
 using DDrive.Editor.Audio;
+using DDrive.Editor.Preview;
+using DDrive.Foundation.Identity;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Anchoring;
 using UnityEditor;
@@ -28,12 +31,52 @@ namespace DDrive.Editor.Vfx
         private ToolbarMenu _boneDropdown;
         private IMGUIContainer _padContainer;
 
+        // AnchorId(Anchor アセット参照)。設定されている間は埋め込み欄を畳み、編集は AnchorEditor へ誘導する([21] §3.6)。
+        private PropertyField _anchorIdField;
+        private Button _openAnchorButton;
+        private Button _toAssetButton;
+        private Label _anchorAssetLabel;
+        private VisualElement _embeddedContainer;
+
+        private bool UsesAnchorAsset => _target != null && _target.AnchorId.IsValid;
+
+        private Label _sceneOwnerLabel;
+
         private Vector2 _anchorPadOffset; // X/Z(メートル)。パッド上の 2D 表現
         private bool _draggingAnchorPad;
 
         private void BuildAnchorSection(VisualElement root)
         {
             var foldout = new Foldout { text = "Anchor(アタッチ位置)", value = true };
+
+            // ── Anchor アセット(AnchorId) ──
+            var idRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            _anchorIdField = new PropertyField { label = "Anchor アセット", style = { flexGrow = 1f }, tooltip = "設定すると埋め込み Anchor より優先される。位置の調整は AnchorEditor で行う" };
+            _anchorIdField.RegisterCallback<SerializedPropertyChangeEvent>(_ =>
+            {
+                RefreshAnchorUi();
+                RestartMainIfPlaying();
+            });
+            idRow.Add(_anchorIdField);
+            _openAnchorButton = new Button(() =>
+            {
+                var asset = UsesAnchorAsset ? EditorAnchorRegistry.Find(_target.AnchorId.Value) : null;
+                if (asset != null)
+                {
+                    AnchorEditorWindow.Open(asset);
+                }
+            }) { text = "AnchorEditor で開く" };
+            idRow.Add(_openAnchorButton);
+            _toAssetButton = new Button(ConvertEmbeddedAnchorToAsset) { text = "埋め込みをアセット化", tooltip = "現在の埋め込み Anchor から AnchorData を作り、この VFX の AnchorId に設定する(埋め込み値は残る)" };
+            idRow.Add(_toAssetButton);
+            foldout.Add(idRow);
+
+            _anchorAssetLabel = new Label { style = { opacity = 0.8f, marginLeft = 4, marginBottom = 4, whiteSpace = WhiteSpace.Normal } };
+            foldout.Add(_anchorAssetLabel);
+
+            _embeddedContainer = new VisualElement();
+            foldout.Add(_embeddedContainer);
+            var embeddedRoot = foldout;
 
             _anchorSpaceField = new EnumField("Space", AnchorSpace.World)
             {
@@ -48,7 +91,7 @@ namespace DDrive.Editor.Vfx
                 });
                 RestartMainIfPlaying();
             });
-            foldout.Add(_anchorSpaceField);
+            _embeddedContainer.Add(_anchorSpaceField);
 
             var pathRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
             _anchorPathField = new TextField("Path(ボーン/オブジェクト名)") { style = { flexGrow = 1f } };
@@ -65,10 +108,10 @@ namespace DDrive.Editor.Vfx
 
             _boneDropdown = new ToolbarMenu { text = "一覧から選択" };
             pathRow.Add(_boneDropdown);
-            foldout.Add(pathRow);
+            _embeddedContainer.Add(pathRow);
 
             _anchorStatusLabel = new Label { style = { opacity = 0.8f, marginLeft = 4, marginBottom = 4, whiteSpace = WhiteSpace.Normal } };
-            foldout.Add(_anchorStatusLabel);
+            _embeddedContainer.Add(_anchorStatusLabel);
 
             _anchorHeightSlider = new Slider("高さオフセット(Y)", -3f, 3f) { showInputField = true };
             _anchorHeightSlider.RegisterValueChangedCallback(evt => ApplyAnchorChange(a =>
@@ -78,7 +121,7 @@ namespace DDrive.Editor.Vfx
                 a.LocalOffset = offset;
                 return a;
             }));
-            foldout.Add(_anchorHeightSlider);
+            _embeddedContainer.Add(_anchorHeightSlider);
 
             _anchorFacingSlider = new Slider("向き(Euler Y)", -180f, 180f) { showInputField = true, tooltip = "アタッチ先の回転に対する相対回転(回転追従 OFF ならワールド基準)" };
             _anchorFacingSlider.RegisterValueChangedCallback(evt => ApplyAnchorChange(a =>
@@ -88,7 +131,7 @@ namespace DDrive.Editor.Vfx
                 a.LocalEuler = euler;
                 return a;
             }));
-            foldout.Add(_anchorFacingSlider);
+            _embeddedContainer.Add(_anchorFacingSlider);
 
             _anchorScaleField = new Vector3Field("スケール") { tooltip = "スポーン物の localScale。(0,0,0) は 1 扱い" };
             _anchorScaleField.RegisterValueChangedCallback(evt => ApplyAnchorChange(a =>
@@ -96,7 +139,7 @@ namespace DDrive.Editor.Vfx
                 a.LocalScale = evt.newValue;
                 return a;
             }));
-            foldout.Add(_anchorScaleField);
+            _embeddedContainer.Add(_anchorScaleField);
 
             var toggleRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
             _anchorFollowRotToggle = new Toggle("回転追従") { tooltip = "アタッチ先の回転に追従する(FollowRotation)" };
@@ -115,20 +158,25 @@ namespace DDrive.Editor.Vfx
             }));
             toggleRow.Add(_anchorDetachToggle);
 
-            _sceneHandleToggle = new Toggle("SceneView で編集") { style = { marginLeft = 12 }, value = _sceneHandleEnabled, tooltip = "SceneView に移動/回転ハンドルを出して Anchor を直接動かす(回転ツール選択時は回転)" };
+            _sceneHandleToggle = new Toggle("SceneView 表示") { style = { marginLeft = 12 }, value = _sceneHandleEnabled, tooltip = "OFF: この VFX の Anchor を SceneView に一切描かない。ON: 目印を描き、このウィンドウを最後に操作していれば移動/回転ハンドルも出す(回転ツール選択時は回転)" };
             _sceneHandleToggle.RegisterValueChangedCallback(evt =>
             {
                 _sceneHandleEnabled = evt.newValue;
+                RefreshSceneOwnerLabel();
                 SceneView.RepaintAll();
             });
             toggleRow.Add(_sceneHandleToggle);
-            foldout.Add(toggleRow);
+            _embeddedContainer.Add(toggleRow);
+
+            _sceneOwnerLabel = new Label { style = { opacity = 0.65f, marginLeft = 4, whiteSpace = WhiteSpace.Normal } };
+            _embeddedContainer.Add(_sceneOwnerLabel);
+            RefreshSceneOwnerLabel();
 
             _padContainer = new IMGUIContainer(DrawAnchorPad);
             _padContainer.style.height = AnchorPadHeight;
-            foldout.Add(_padContainer);
+            _embeddedContainer.Add(_padContainer);
 
-            root.Add(foldout);
+            root.Add(embeddedRoot);
         }
 
         // Anchor 編集 UI がまだ構築されていない(初回 CreateGUI 実行前)場合は何もしない。
@@ -141,6 +189,33 @@ namespace DDrive.Editor.Vfx
 
             var anchor = _target != null ? _target.Anchor : default;
             _anchorPadOffset = new Vector2(anchor.LocalOffset.x, anchor.LocalOffset.z);
+
+            // AnchorId 行(SerializedObject バインド)と、埋め込み欄の表示切替。
+            if (_serializedTarget != null)
+            {
+                _anchorIdField.BindProperty(_serializedTarget.FindProperty("AnchorId"));
+            }
+            else
+            {
+                _anchorIdField.Unbind();
+            }
+
+            var usesAsset = UsesAnchorAsset;
+            _anchorIdField.SetEnabled(_target != null);
+            _openAnchorButton.SetEnabled(usesAsset);
+            _toAssetButton.SetEnabled(_target != null && !usesAsset);
+            _embeddedContainer.style.display = usesAsset ? DisplayStyle.None : DisplayStyle.Flex;
+            if (usesAsset)
+            {
+                var asset = EditorAnchorRegistry.Find(_target.AnchorId.Value);
+                _anchorAssetLabel.text = asset != null
+                    ? $"Anchor アセット '{asset.name}' を使用中(埋め込みの Anchor は無視されます)。位置・ランダム・ディレイの調整は「AnchorEditor で開く」から。"
+                    : $"⚠ AnchorId 0x{_target.AnchorId.Value:X} のアセットが見つかりません(World 原点扱い)。";
+            }
+            else
+            {
+                _anchorAssetLabel.text = string.Empty;
+            }
 
             _anchorSpaceField.SetValueWithoutNotify(anchor.Space);
             _anchorPathField.SetValueWithoutNotify(anchor.Path ?? string.Empty);
@@ -172,6 +247,12 @@ namespace DDrive.Editor.Vfx
             }
 
             if (_target == null)
+            {
+                _anchorStatusLabel.text = string.Empty;
+                return;
+            }
+
+            if (UsesAnchorAsset)
             {
                 _anchorStatusLabel.text = string.Empty;
                 return;
@@ -354,11 +435,19 @@ namespace DDrive.Editor.Vfx
         // ── SceneView ハンドル ──
         // 再生中は実体の追従先(+AnchorPoint のランダム分)、停止中はスポーン先から解決した Transform を基準に
         // Anchor のワールド姿勢を求め、移動/回転ハンドルの結果を AnchorDef に逆変換して書き戻す。
+        private void RefreshSceneOwnerLabel()
+        {
+            if (_sceneOwnerLabel != null)
+            {
+                _sceneOwnerLabel.text = _sceneHandleEnabled ? SceneGuiOwner.DescribeFor(this) : "SceneView: 表示オフ";
+            }
+        }
+
         private void OnSceneGui(SceneView sceneView)
         {
-            if (!_sceneHandleEnabled || _target == null || _driver == null)
+            if (!_sceneHandleEnabled || _target == null || _driver == null || UsesAnchorAsset)
             {
-                return;
+                return; // 表示オフ / AnchorId 使用時のハンドル編集は AnchorEditor 側
             }
 
             var anchor = _target.Anchor;
@@ -379,38 +468,30 @@ namespace DDrive.Editor.Vfx
                 }
             }
 
-            var worldPos = AnchorPose.WorldPosition(anchor, baseTransform, extraOffset);
-            var worldRot = AnchorPose.WorldRotation(anchor, baseTransform, Quaternion.identity);
-            var size = HandleUtility.GetHandleSize(worldPos);
-
-            Handles.color = new Color(0.35f, 0.85f, 0.65f);
-            Handles.DrawWireDisc(worldPos, Vector3.up, size * 0.25f);
-            Handles.Label(worldPos + Vector3.up * size * 0.35f, $"VFX Anchor: {(_target.DisplayName ?? _target.name)}");
-
-            if (Tools.current == Tool.Rotate)
+            // 描画権が他のウィンドウにあるときは薄い目印だけ(重なりを避ける)。
+            var vfxColor = new Color(0.35f, 0.85f, 0.65f);
+            if (!SceneGuiOwner.IsOwner(this))
             {
-                EditorGUI.BeginChangeCheck();
-                var newRot = Handles.RotationHandle(worldRot, worldPos);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    var euler = AnchorPose.LocalEulerFromWorld(anchor, baseTransform, newRot);
-                    ApplyAnchorChange(a =>
-                    {
-                        a.LocalEuler = euler;
-                        return a;
-                    });
-                    RefreshAnchorUi();
-                }
-
+                AnchorSceneHandles.DrawInactiveMarker(anchor, baseTransform, extraOffset, $"VFX: {(_target.DisplayName ?? _target.name)}", vfxColor);
                 return;
             }
 
-            EditorGUI.BeginChangeCheck();
-            var handleRot = Tools.pivotRotation == PivotRotation.Local ? worldRot : Quaternion.identity;
-            var newPos = Handles.PositionHandle(worldPos, handleRot);
-            if (EditorGUI.EndChangeCheck())
+            // 描画と逆変換は AnchorEditor と共通(AnchorSceneHandles)。
+            var result = AnchorSceneHandles.Draw(anchor, baseTransform, extraOffset, $"VFX Anchor: {(_target.DisplayName ?? _target.name)}", vfxColor);
+            if (result.RotationChanged)
             {
-                var local = AnchorPose.LocalOffsetFromWorld(baseTransform, newPos, extraOffset);
+                var euler = result.LocalEuler;
+                ApplyAnchorChange(a =>
+                {
+                    a.LocalEuler = euler;
+                    return a;
+                });
+                RefreshAnchorUi();
+            }
+
+            if (result.PositionChanged)
+            {
+                var local = result.LocalOffset;
                 ApplyAnchorChange(a =>
                 {
                     a.LocalOffset = local;
@@ -418,6 +499,32 @@ namespace DDrive.Editor.Vfx
                 });
                 RefreshAnchorUi();
             }
+        }
+
+        // 埋め込み Anchor → AnchorData アセット化(移行補助)。埋め込み値は残す。
+        private void ConvertEmbeddedAnchorToAsset()
+        {
+            if (_target == null || UsesAnchorAsset)
+            {
+                return;
+            }
+
+            var category = string.IsNullOrEmpty(_target.Category) ? AnchorAssetFactory.DefaultCategory : AnchorAssetFactory.ToIdentifier(_target.Category);
+            var identifier = AnchorAssetFactory.ToIdentifier(_target.name) + "Anchor";
+            var asset = AnchorAssetFactory.CreateFromDef(_target.Anchor, $"{(_target.DisplayName ?? _target.name)} の Anchor", category, identifier);
+            if (asset == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(_target, "Set VFX AnchorId");
+            _target.AnchorId = new AssetId<AnchorMarker>(asset.Id, AssetType.Anchor);
+            EditorUtility.SetDirty(_target);
+            _serializedTarget?.Update();
+            EditorAnchorRegistry.Refresh(_driver?.Registry);
+            RefreshAnchorUi();
+            RestartMainIfPlaying();
+            EditorGUIUtility.PingObject(asset);
         }
     }
 }

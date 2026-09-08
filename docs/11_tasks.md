@@ -66,7 +66,8 @@
 
 **実装時に判明したスコープ調整(仕様書側にも反映済み):**
 | 2-13 | VfxEditor のプレハブモード（Prefab Stage）内再生 | ED | 追加 | 2-10 | ✅ 2026-09-08 追加実装（[04] §5）。`SceneVfxPreviewDriver` が対象 Prefab 自身のステージではその場再生（二重表示しない）、他のステージではステージのシーンへスポーン。EditMode の OneShot 終了判定（リピートの前提）も修正。テスト 7 件追加 |
-| 2-14 | Anchor 仕様改定（アセット化・入れ子・Audio 共通・生成時イベント） | 基盤+ED | 12 | 2-1, 1-3 | 🔜 仕様確定（2026-09-08、[21_anchor_spec.md](21_anchor_spec.md) §6 全項目推奨案 + 既存ボーン/ヒエラルキー流用）。2-14a〜g の順に実装 |
+| 2-14 | Anchor 仕様改定（アセット化・入れ子・Audio 共通・生成時イベント） | 基盤+ED | 12 | 2-1, 1-3 | ✅ 2026-09-08 実装（[21_anchor_spec.md](21_anchor_spec.md)）。`AssetType.Anchor` / `AnchorData` / `AnchorChain`（連鎖合成・ディレイ・確率・ランダム）/ `AnchorDataValidator` / VfxManager・AudioManager の AnchorId 優先順位と Pending / ファサード / `AnchorEditorWindow` / `AnchorSceneHandles` 共通化 / `AnchorAssetFactory`（Transform・AnchorRig・埋め込みからの生成）/ VfxEditor・SE Inspector の導線。テスト: PlayMode 22 件 + EditMode 6 件追加（EditMode 122 / PlayMode 258 green） |
+| 2-15 | 配置セット（AnchorGroup）: パターン生成・点ごとのアセット・入れ子・一括再生・専用エディタ | 基盤+ED | 7 | 2-14 | ✅ 2026-09-08 実装（[22_anchor_group.md](22_anchor_group.md)）。PlayMode テスト 16 件追加（274 green）|
 | 2-12 | VfxEditor 使い勝手改修 + VFX ランタイム設計見直し | 基盤+ED | 追加 | 2-4, 2-9, 2-10 | ✅ 2026-09-08 追加実装([19_vfx_usability_review.md](19_vfx_usability_review.md) / [04] §2.6・§3・§5)。ウィンドウ単体で調整完結(基本設定/Params 定義/検証を内包)、選択追従+ロック、ドメインリロード耐性、Anchor 変更の即時反映(`ReapplyAnchor`)+解決状態表示+SceneView 移動/回転ハンドル、リピート再生、Hierarchy 整理、Undo 同期。ランタイム: 姿勢式を `AnchorPose` に統一(FollowRotation 時も LocalEuler が効く)、`Vfx` ファサード完成+Handle 拡張、LightLayerMask 既定 1 / 0=上書きしない、破棄済み Root の台帳掃除。⚠ Unity 上でのコンパイル・EditMode テスト実行による確認が必要(MCP 接続後に実施) |
 
 - **VFX Graph 未対応**: `com.unity.visualeffectgraph` パッケージが本プロジェクトに未導入のため、VfxManager は ParticleSystem のみを対象とする。導入後は VisualEffect コンポーネント検出処理を追加すれば同じ Handle API で扱える設計にしてある

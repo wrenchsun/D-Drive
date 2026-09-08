@@ -68,7 +68,10 @@ namespace DDrive.Runtime.Vfx
         public GameObject Prefab;
 
         [Header("Anchor")]
-        [Tooltip("アタッチ位置定義(Audio と共通)。LocalEuler はアタッチ先の回転に対する相対回転。")]
+        [Tooltip("Anchor アセット(AnchorData)の ID。設定するとこちらが優先され、下の埋め込み Anchor は無視される([21] §3.3)。0 なら埋め込み Anchor を使う。")]
+        public AssetId<DDrive.Runtime.Anchoring.AnchorMarker> AnchorId;
+
+        [Tooltip("埋め込みのアタッチ位置定義(Audio と共通)。AnchorId が 0 のときだけ使われる。LocalEuler はアタッチ先の回転に対する相対回転。")]
         public AnchorDef Anchor = AnchorDef.WorldDefault;
 
         [Header("Lifetime")]

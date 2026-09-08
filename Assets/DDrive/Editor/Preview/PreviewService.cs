@@ -89,7 +89,8 @@ namespace DDrive.Editor.Preview
             _pool = new PoolService();
             _pool.SetInstanceParent(_root.transform);
 
-            var registry = new AssetRegistry(new NullAssetLoader());
+            // AnchorData を登録済みの Registry(SeData.AnchorId / AnchorEditor の試し出しを実 AnchorChain で解決する)。
+            var registry = EditorAnchorRegistry.Build();
             AudioManager = new AudioManager(_pool, registry, _seSourceTemplate);
 
             var bgmChannelA = CreateBgmChannel("BgmChannelA");
@@ -160,6 +161,42 @@ namespace DDrive.Editor.Preview
             if (AudioManager.IsPlaying(handle))
             {
                 // 試聴の再現性を優先し、ランダムピッチではなく速度そのままを適用する。
+                AudioManager.SetPitch(handle, _speed);
+                _activeSeHandles.Add(handle);
+            }
+
+            return handle;
+        }
+
+        // AnchorEditor の試し出し: Anchor アセットを明示し、スポーン先(メインシーン側の Transform でも可)を基準に鳴らす。
+        public Handle<SeMarker> PlaySe(SeData data, Transform contextRoot, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchor)
+        {
+            if (!_initialized || data == null)
+            {
+                return Handle<SeMarker>.Invalid;
+            }
+
+            var handle = AudioManager.PlaySeData(data, contextRoot: contextRoot, anchorOverride: anchor);
+            if (AudioManager.IsPlaying(handle))
+            {
+                AudioManager.SetPitch(handle, _speed);
+                _activeSeHandles.Add(handle);
+            }
+
+            return handle;
+        }
+
+        // 配置セットのプレビュー用: 合成済みの姿勢で鳴らす([22] §3.7)。
+        public Handle<SeMarker> PlaySe(SeData data, Transform contextRoot, in DDrive.Runtime.Anchoring.AnchorSpawnSpec spec)
+        {
+            if (!_initialized || data == null)
+            {
+                return Handle<SeMarker>.Invalid;
+            }
+
+            var handle = AudioManager.PlaySeData(data, spec, contextRoot);
+            if (AudioManager.IsPlaying(handle))
+            {
                 AudioManager.SetPitch(handle, _speed);
                 _activeSeHandles.Add(handle);
             }

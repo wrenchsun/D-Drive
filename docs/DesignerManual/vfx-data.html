@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>VFX（エフェクト）の設定項目 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › VFX の設定項目</nav>
+
+<h1>VFX（エフェクト）の設定項目</h1>
+
+<p>VFX データ（VfxData）は「どのエフェクトを・どこに・どのくらいの時間出すか」をまとめたものです。中身の見た目（粒の飛び方や色）は Unity の <span class="term" title="Unity 標準の粒子エフェクト機能。火花・煙・光などを粒の集まりで表現する">ParticleSystem</span> を持つ Prefab 側で作り、VFX データはそれを「どう使うか」を決めます。</p>
+
+<h2>作り方</h2>
+<ol>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規作成」で種別に <strong>Vfx</strong> を選び、表示名（日本語 OK）とカテゴリ・識別子（英語）を入力</li>
+<li>作られたデータの <code>Prefab</code> に、エフェクトの Prefab を設定</li>
+<li><a href="vfx-editor.html">VFX Editor</a> で再生しながら位置・寿命・色を調整</li>
+</ol>
+<p>ファイルは <code>Assets/GameData/Vfx/カテゴリ/VFX_カテゴリ_識別子.asset</code> に自動で置かれます。ファイル名を自分で付ける必要はありません。</p>
+
+<h2>Prefab</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Prefab</td><td>再生する実体。ParticleSystem の Prefab（VFX Graph でも可）。<strong>未設定だと Error</strong>。</td></tr>
+</table>
+<div class="warn">
+Prefab のマテリアルが古い（Built-in 用）シェーダーだと、このプロジェクト（URP）では<strong>透明になって見えません</strong>。「検証」に赤く出ます。<code>Tools &gt; D-Drive &gt; Generate &gt; デフォルトパーティクルマテリアルを生成</code> で作った URP 用マテリアルに差し替えてください。
+</div>
+
+<h2>Lifetime（寿命）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Life Mode</td><td>いつ消えるか。<br><strong>OneShot</strong>: 粒子が全部消えたら自動で終わる（斬撃・ヒットなど 1 回きりのもの）。<br><strong>Loop</strong>: 止める指示があるまで出続ける（オーラ・炎など）。<br><strong>Duration</strong>: 下の Duration 秒で強制的に終わる。</td></tr>
+<tr><td>Duration</td><td>Life Mode = Duration のときの継続秒数。ParticleSystem を持たない Prefab（VFX Graph など）では OneShot でもこの秒数で終了します。</td></tr>
+<tr><td>Fade Out Sec</td><td>「止める」指示が来たとき、新しい粒子を出すのをやめてから実際に消えるまでの待ち秒数。出ている粒子が自然に消えるのを待つための時間です。0 だと即座に消えます。10 秒を超えると Warning。</td></tr>
+</table>
+
+<h2>Render（描画）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Render</td><td><strong>World3D</strong>: 通常のシーン内に出す。<br><strong>UIOverlay</strong>: UI（メニュー画面など）の上に重ねて出す。専用カメラで合成されます。</td></tr>
+<tr><td>Render Layer（レイヤー）</td><td>出したエフェクトに付ける Unity のレイヤー。通常は Default のまま。UIOverlay のときは VfxUI レイヤーを選びます（<code>Tools &gt; D-Drive &gt; Generate &gt; VFX UI レイヤー/カメラを設定</code> で用意されます）。</td></tr>
+<tr><td>Light Layer Mask（ライトレイヤー）</td><td>どのライトの影響を受けるか。通常は Default のまま。「Nothing」にすると Prefab 側の設定をそのまま使います。</td></tr>
+</table>
+
+<h2 id="anchor">Anchor（アタッチ位置）</h2>
+<p><strong>Anchor Id</strong>: <a href="anchor-data.html">Anchor データ</a>を指定すると、そちらが優先され、下の埋め込み項目は無視されます。ランダム・ディレイ・確率・入れ子を使いたい場合は Anchor データ側で設定します。</p>
+<p>「エフェクトをどこに出すか」の定義です。効果音（SE）の 3D 設定と<strong>同じ仕組み</strong>で、用語も共通です。調整は <a href="vfx-editor.html#anchor">VFX Editor の Anchor 欄</a> でスライダーや SceneView のドラッグを使うのが簡単です。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Space</td><td>基準の決め方。<br><strong>World</strong>: 固定座標（Local Offset がそのままワールド座標）。<br><strong>BoneName</strong>: キャラクターのボーン名で探す（例: RightHand）。<br><strong>NamedObject</strong>: オブジェクト名で探す（例: Anchor_Muzzle）。<br><strong>ContextTarget</strong>: プログラムが渡してきたオブジェクトそのもの。</td></tr>
+<tr><td>Path</td><td>BoneName / NamedObject のときに探す名前。VFX Editor の「一覧から選択」で選ぶと確実です。</td></tr>
+<tr><td>Local Offset</td><td>基準からの位置のずれ（メートル）。X=右、Y=上、Z=前。</td></tr>
+<tr><td>Local Euler</td><td>基準からの向きのずれ（度）。</td></tr>
+<tr><td>Local Scale</td><td>大きさの倍率。(0,0,0) は 1 扱い（古いデータとの互換のため）。</td></tr>
+<tr><td>Follow Rotation（回転追従）</td><td>ON: 基準が回転するとエフェクトも一緒に回る。OFF: 向きは固定。</td></tr>
+<tr><td>Detach On Stop（親消滅後も残す）</td><td>ON: 基準のキャラクターが消えてもエフェクトはその場に残って最後まで再生。OFF: 一緒に消える。</td></tr>
+</table>
+
+<h3 id="anchorpoint">AnchorPoint / AnchorRig（シーンに置く目印）</h3>
+<p>ボーンが無いオブジェクトや、「ボーンから少しずらした場所」を SceneView で直接決めたいときは、<strong>目印（AnchorPoint）をシーンや Prefab に置いて</strong>、その名前を Path に指定します。</p>
+<ol>
+<li><code>Tools &gt; D-Drive &gt; Generate &gt; Anchor プレハブを生成</code> → <code>Assets/GameData/Prefabs/Anchors/AnchorRig.prefab</code> ができる</li>
+<li>キャラクター Prefab の子に AnchorRig を置き、その下の AnchorPoint を SceneView でドラッグして位置決め。名前は <code>Anchor_RightHand</code> のように <code>Anchor_</code> で始めるのがおすすめ</li>
+<li>VFX Editor の「一覧から選択」に <strong>★ Anchor_RightHand</strong> のように ★ 付きで出るので選ぶ</li>
+</ol>
+<p>AnchorPoint には次の項目があり、そこに出すすべてのエフェクト・効果音に追加で効きます。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Spawn Offset</td><td>この目印から更にずらす位置。</td></tr>
+<tr><td>Position Jitter Radius</td><td>出す位置をこの半径（メートル）の球の中でランダムに散らす。0 で無効。</td></tr>
+<tr><td>Euler Jitter</td><td>向きを ± この角度の範囲でランダムに変える。(0,0,0) で無効。</td></tr>
+<tr><td>Scale Range</td><td>大きさの倍率をこの範囲（最小, 最大）でランダムに変える。両方 1 で無効。エフェクトのみ。</td></tr>
+<tr><td>Gizmo Color</td><td>SceneView に表示される目印の色。</td></tr>
+</table>
+<div class="tip">
+同じキャラクターの中で AnchorPoint の名前を重複させないでください（最初に見つかったものが使われます）。
+</div>
+
+<h2>Parameters（公開パラメータ）</h2>
+<p>「このエフェクトの色は場面ごとに変えたい」といった項目に名前を付けて公開しておくと、プログラムから名前で変更できます。VFX Editor で再生中に変えて確認できます。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Label</td><td>表示名（例: MainColor、Size）。プログラマーはこの名前で指定します。</td></tr>
+<tr><td>Type</td><td>値の種類。Float（小数）/ Int（整数）/ Color（色）/ Vector / Texture / Curve / Gradient。</td></tr>
+<tr><td>Target Property</td><td>マテリアルのプロパティ名（例: <code>_BaseColor</code>）。Prefab のマテリアルに無い名前だと Error。</td></tr>
+<tr><td>Default</td><td>既定値。VFX Editor のパラメータ欄で変えた値はここに保存されます。</td></tr>
+<tr><td>Anim</td><td>任意。時間とともに値を変化させたい場合の形（カーブ）と速さ。</td></tr>
+</table>
+
+<h2>Events（イベント）</h2>
+<p>エフェクトの出現・ループ・消滅に合わせて効果音などを鳴らす設定です。Trigger（OnSpawn / OnLoop / OnDestroy など）と Action（鳴らすアセットなど）を指定します。</p>
+
+<h2>よくある警告</h2>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Prefab が未設定(または Missing)です</td><td>Prefab を設定する。Missing の場合は Prefab が削除・移動されています。</td></tr>
+<tr><td>マテリアル '…' のシェーダーは Built-in 用です</td><td>上の「Prefab」の枠内を参照。</td></tr>
+<tr><td>Params '…' の TargetProperty が存在しません</td><td>プロパティ名を確認する。</td></tr>
+<tr><td>Render=UIOverlay ですが Domain=Game3D です</td><td>UI 用なのに用途が 3D になっています。プログラマーに確認。</td></tr>
+<tr><td>FadeOutSec が 10 秒を超えています</td><td>入力ミスでないか確認。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="vfx-editor.html">VFX Editor の使い方</a></li>
+<li><a href="se-data.html">SE（効果音）の設定項目</a> — 3D 設定（Anchor）は VFX と共通</li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a></li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>
