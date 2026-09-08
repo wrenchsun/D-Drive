@@ -45,8 +45,8 @@ MonoBehaviour:
     LocalScale: {x: 1, y: 1, z: 1}
     FollowRotation: 0
     DetachOnStop: 0
-  Layout: 1
-  GridCountX: 3
+  Layout: 0
+  GridCountX: 1
   GridCountY: 1
   GridCountZ: 3
   GridSpacing: {x: 1, y: 1, z: 1}
@@ -63,7 +63,19 @@ MonoBehaviour:
   RandomCount: 8
   RandomRadius: 1
   RandomSeed: 0
-  Points: []
+  Points:
+  - Name: 
+    LocalOffset: {x: -2.3363192, y: 0, z: -0.31569546}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 0, y: 0, z: 0}
+  - Name: 
+    LocalOffset: {x: 1.9077628, y: 0, z: 0}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 0, y: 0, z: 0}
+  - Name: 
+    LocalOffset: {x: 0, y: 0, z: 2.4146044}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 0, y: 0, z: 0}
   DelayPerIndex: 0
   DelayJitterSec: 0
   ChancePerPoint: 1
@@ -72,5 +84,11 @@ MonoBehaviour:
   ScaleRange: {x: 1, y: 1}
   SharedVfx: []
   SharedSe: []
-  Overrides: []
+  Overrides:
+  - Index: 0
+    Skip: 0
+    Vfx:
+    - value: 7393815273046077722
+      type: 3
+    Se: []
   Children: []
