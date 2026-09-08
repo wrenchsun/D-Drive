@@ -21,6 +21,10 @@ namespace DDrive.Samples
         [SerializeField] private NgoNetBridge bridge;
         [SerializeField] private float intervalSeconds = 2f;
 
+        // true にすると Client 側が Broadcast を呼ぶ(= Host への中継依頼経路 [14_networking.md] §2 を確認する)。
+        // false(既定)は Host から Broadcast する正規経路。どちらでも Host / Client 両方の Console に受信ログが出れば OK。
+        [SerializeField] private bool broadcastFromClient;
+
         private float _timer;
         private int _counter;
         private IDisposable _subscription;
@@ -46,7 +50,8 @@ namespace DDrive.Samples
 
         private void Update()
         {
-            if (!bridge.IsServer)
+            var shouldSend = broadcastFromClient ? !bridge.IsServer : bridge.IsServer;
+            if (!shouldSend)
             {
                 return;
             }
@@ -59,7 +64,7 @@ namespace DDrive.Samples
 
             _timer = 0f;
             _counter++;
-            Debug.Log($"[NetBridgeSmokeTest] Server broadcasting Ping #{_counter}");
+            Debug.Log($"[NetBridgeSmokeTest] {(bridge.IsServer ? "Host" : "Client")} broadcasting Ping #{_counter}");
             bridge.Broadcast(new PingMessage { Counter = _counter }, NetChannel.Unreliable);
         }
 

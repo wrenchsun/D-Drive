@@ -1,21 +1,34 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using DDrive.Foundation.Net;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace DDrive.Runtime.Net
 {
-    // INetBridge の Netcode for GameObjects 実装。シーンに 1 つ NetworkObject として配置する。
+    // INetBridge の Netcode for GameObjects(2.13.2) 実装。シーンに 1 つ NetworkObject として配置する
+    // (NetworkManager と同じシーン。MS2026 側では Host が生成する NetworkPrefab に含めてもよい)。
     // LocalLoopbackBridge と差し替えるだけでゲームコード・データ側は無改修で動く(FR-13.1)。
     //
-    // 制約: Broadcast/SendTo はサーバー権威のシナリオ([14_networking.md] の想定どおり、
-    // サーバー/権威側から呼ぶ)にのみ対応する。クライアント発の送信は本チケットのスコープ外
-    // (ServerRpc 中継が必要になった時点で追加する)。
-    // また com.unity.netcode.gameobjects パッケージの解決(要インターネット接続)と
-    // 実機 2 クライアントでの動作確認はこのコード単体では検証できない(手動確認が必要)。
+    // MS2026 移植方針([14_networking.md] §12, 2026-09-08 統一):
+    //   - 接続モデルは Host(+Client) / Client の 1v1。D-Drive の「Server」= MS2026 の「Host」。
+    //   - 権威は Host。Broadcast/SendTo は Host から呼ぶのが正規経路。
+    //   - Client から Cosmetic を出したい場合は Server 宛 RPC で Host に「依頼」し、Host が検証(レート制限)の上で
+    //     全員へ配る(MS2026 ルール「入力はクライアントが送る / 表示は両者が受け取って描く」)。
+    //   - 配送は NGO 2.x の統一 RPC(`[Rpc(Unity.Netcode.SendTo.*)]`)を使う。旧 `[ClientRpc]` は 2.x では SendTo.NotServer 扱いで
+    //     **ホスト自身に届かない**ため、ホストの Manager が Cosmetic を再生できない(2026-09-08 修正)。
+    //   - NetChannel.Unreliable は RpcDelivery.Unreliable に対応させる(欠落許容の演出イベント)。
+    //     ただし NGO の Unreliable は 1 パケット(MTU)制限があるため、大きいペイロードは Reliable にフォールバックする。
+    //   - ログは "[Net/Host]" / "[Net/Client]" プレフィックス(MS2026 Networking.md §5)。
     public sealed class NgoNetBridge : NetworkBehaviour, INetBridge
     {
+        // Unreliable RPC で安全に送れるペイロードの目安(bytes)。NGO の Unreliable は 1 パケットに収まる必要がある。
+        public const int UnreliablePayloadLimit = 1000;
+
+        // Client からの Cosmetic 依頼のレート制限(1 クライアントあたり / 秒)。超過分は破棄して警告。
+        public const int ClientRelayLimitPerSecond = 60;
+
         private sealed class Subscription : IDisposable
         {
             private readonly Action _onDispose;
@@ -23,36 +36,60 @@ namespace DDrive.Runtime.Net
             public void Dispose() => _onDispose();
         }
 
+        private struct RelayBudget
+        {
+            public double WindowStart;
+            public int Count;
+        }
+
         private readonly Dictionary<string, Type> _keyToType = new();
         private readonly Dictionary<string, List<Delegate>> _handlers = new();
+        private readonly Dictionary<ulong, RelayBudget> _relayBudgets = new();
 
         public double NetworkTime => NetworkManager != null ? NetworkManager.ServerTime.Time : 0d;
 
+        private string LogTag => IsServer ? "[Net/Host]" : "[Net/Client]";
+
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage
         {
-            if (!IsServer)
+            var key = KeyOf<T>();
+            var json = JsonUtility.ToJson(msg);
+
+            if (IsServer)
             {
-                Debug.LogWarning("[DDrive] NgoNetBridge.Broadcast must be called from the server.");
+                SendToAll(key, json, channel);
                 return;
             }
 
-            ReceiveClientRpc(KeyOf<T>(), JsonUtility.ToJson(msg));
+            if (!IsClient || !IsSpawned)
+            {
+                Debug.LogWarning($"{LogTag} NgoNetBridge.Broadcast: 未接続のため送信できません({key})。");
+                return;
+            }
+
+            // Client 発: Host へ依頼し、Host が検証して全員へ配る(自分も Host からの RPC で受信して再生する)。
+            RequestBroadcastRpc(key, json, channel == NetChannel.Unreliable);
         }
 
         public void SendTo<T>(ulong clientId, in T msg, NetChannel channel) where T : INetMessage
         {
             if (!IsServer)
             {
-                Debug.LogWarning("[DDrive] NgoNetBridge.SendTo must be called from the server.");
+                Debug.LogWarning($"{LogTag} NgoNetBridge.SendTo は Host からのみ呼べます(Client→特定 Client の直接送信は権威モデル上許可しない)。");
                 return;
             }
 
-            var rpcParams = new ClientRpcParams
-            {
-                Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } },
-            };
+            var json = JsonUtility.ToJson(msg);
+            var target = RpcTarget.Single(clientId, RpcTargetUse.Temp);
 
-            ReceiveClientRpc(KeyOf<T>(), JsonUtility.ToJson(msg), rpcParams);
+            if (channel == NetChannel.Unreliable && FitsUnreliable(json))
+            {
+                ReceiveUnreliableToRpc(KeyOf<T>(), json, target);
+            }
+            else
+            {
+                ReceiveToRpc(KeyOf<T>(), json, target);
+            }
         }
 
         public IDisposable Subscribe<T>(Action<ulong, T> handler) where T : INetMessage
@@ -81,11 +118,90 @@ namespace DDrive.Runtime.Net
             return null;
         }
 
-        [ClientRpc]
-        private void ReceiveClientRpc(string typeKey, string json, ClientRpcParams rpcParams = default)
+        // ── 送信(Host 側) ──
+
+        private void SendToAll(string key, string json, NetChannel channel)
+        {
+            if (channel == NetChannel.Unreliable && FitsUnreliable(json))
+            {
+                ReceiveUnreliableRpc(key, json);
+            }
+            else
+            {
+                ReceiveRpc(key, json);
+            }
+        }
+
+        private static bool FitsUnreliable(string json) => Encoding.UTF8.GetByteCount(json) <= UnreliablePayloadLimit;
+
+        // ── RPC(Host → 全員。ホスト自身も含む) ──
+    // 注: enum Unity.Netcode.SendTo は本クラスの SendTo<T>() メソッドと名前が衝突するため完全修飾する。
+
+        [Rpc(Unity.Netcode.SendTo.ClientsAndHost)]
+        private void ReceiveRpc(string typeKey, string json)
         {
             Dispatch(typeKey, json);
         }
+
+        [Rpc(Unity.Netcode.SendTo.ClientsAndHost, Delivery = RpcDelivery.Unreliable)]
+        private void ReceiveUnreliableRpc(string typeKey, string json)
+        {
+            Dispatch(typeKey, json);
+        }
+
+        // ── RPC(Host → 特定クライアント) ──
+
+        [Rpc(Unity.Netcode.SendTo.SpecifiedInParams)]
+        private void ReceiveToRpc(string typeKey, string json, RpcParams rpcParams)
+        {
+            Dispatch(typeKey, json);
+        }
+
+        [Rpc(Unity.Netcode.SendTo.SpecifiedInParams, Delivery = RpcDelivery.Unreliable)]
+        private void ReceiveUnreliableToRpc(string typeKey, string json, RpcParams rpcParams)
+        {
+            Dispatch(typeKey, json);
+        }
+
+        // ── RPC(Client → Host の依頼) ──
+        // Host は発信者ごとのレート制限を掛けてから中継する([14_networking.md] §9: クライアント発の中継は無条件に行わない)。
+        // Simulated な生成はこの経路を通さない(Prefab の Simulated Spawn は Phase 4 で Host 権威の専用 API を用意する)。
+        [Rpc(Unity.Netcode.SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+        private void RequestBroadcastRpc(string typeKey, string json, bool unreliable, RpcParams rpcParams = default)
+        {
+            var sender = rpcParams.Receive.SenderClientId;
+            if (!_keyToType.ContainsKey(typeKey))
+            {
+                Debug.LogWarning($"{LogTag} 未登録のメッセージ種別 '{typeKey}' の中継依頼を Client {sender} から受信したため破棄しました。");
+                return;
+            }
+
+            if (!ConsumeRelayBudget(sender))
+            {
+                Debug.LogWarning($"{LogTag} Client {sender} からの中継依頼がレート制限({ClientRelayLimitPerSecond}/秒)を超えたため破棄しました({typeKey})。");
+                return;
+            }
+
+            SendToAll(typeKey, json, unreliable ? NetChannel.Unreliable : NetChannel.ReliableOrdered);
+        }
+
+        private bool ConsumeRelayBudget(ulong clientId)
+        {
+            var now = NetworkTime;
+            _relayBudgets.TryGetValue(clientId, out var budget);
+
+            if (now - budget.WindowStart >= 1d)
+            {
+                budget.WindowStart = now;
+                budget.Count = 0;
+            }
+
+            budget.Count++;
+            _relayBudgets[clientId] = budget;
+            return budget.Count <= ClientRelayLimitPerSecond;
+        }
+
+        // ── 受信 ──
 
         private void Dispatch(string key, string json)
         {

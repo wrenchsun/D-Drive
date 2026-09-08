@@ -1,6 +1,8 @@
 using DDrive.Editor.Vfx;
 using DDrive.Runtime.Vfx;
 using NUnit.Framework;
+using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -75,6 +77,43 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        public void Play_ParentsSpawnedObjectUnderPreviewRoot()
+        {
+            var handle = _driver.Play(CreateVfxData());
+            var go = _driver.Manager.GetGameObject(handle);
+
+            Assert.IsNotNull(go.transform.parent);
+            Assert.AreEqual(SceneVfxPreviewDriver.PreviewRootName, go.transform.parent.name);
+            Assert.AreEqual(HideFlags.DontSave, go.transform.parent.hideFlags);
+        }
+
+        [Test]
+        public void Dispose_RemovesPreviewRoot()
+        {
+            _driver.Play(CreateVfxData());
+            var root = _driver.PreviewRoot;
+            Assert.IsNotNull(root);
+
+            _driver.Dispose();
+
+            Assert.IsTrue(root == null, "Dispose でまとめ用ルートも破棄される");
+        }
+
+        [Test]
+        public void ReapplyAnchorToAll_ReflectsEditedOffset()
+        {
+            var data = CreateVfxData();
+            data.Anchor = new DDrive.Foundation.Data.AnchorDef { Space = DDrive.Foundation.Data.AnchorSpace.World, LocalScale = Vector3.one };
+            var handle = _driver.Play(data);
+            var go = _driver.Manager.GetGameObject(handle);
+
+            data.Anchor.LocalOffset = new Vector3(0f, 0f, 7f);
+            _driver.ReapplyAnchorToAll();
+
+            Assert.Less(Vector3.Distance(new Vector3(0f, 0f, 7f), go.transform.position), 1e-4f);
+        }
+
+        [Test]
         public void Play_WithAttach_ResolvesAnchorUnderAttachTarget()
         {
             var rig = new GameObject("Rig");
@@ -96,6 +135,209 @@ namespace DDrive.Tests.Editor
             Assert.Less(Vector3.Distance(anchor.transform.position, go.transform.position), 1e-4f);
 
             Object.DestroyImmediate(rig);
+        }
+            // ── プレハブモード(Prefab Stage)内での再生 ──
+
+        private const string StageTempFolder = "Assets/DDrive/Tests/Editor/TempPrefabStage";
+
+        private static PrefabStage OpenTempPrefabStage()
+        {
+            if (!AssetDatabase.IsValidFolder(StageTempFolder))
+            {
+                AssetDatabase.CreateFolder("Assets/DDrive/Tests/Editor", "TempPrefabStage");
+            }
+
+            var host = new GameObject("StageHost");
+            var path = $"{StageTempFolder}/StageHost.prefab";
+            PrefabUtility.SaveAsPrefabAsset(host, path);
+            Object.DestroyImmediate(host);
+            return PrefabStageUtility.OpenPrefab(path);
+        }
+
+        private static void CloseTempPrefabStage()
+        {
+            StageUtility.GoToMainStage();
+            if (AssetDatabase.IsValidFolder(StageTempFolder))
+            {
+                AssetDatabase.DeleteAsset(StageTempFolder);
+            }
+        }
+
+        [Test]
+        public void Play_InPrefabStage_SpawnsIntoStageScene()
+        {
+            var stage = OpenTempPrefabStage();
+            try
+            {
+                Assert.IsNotNull(stage, "プレハブモードが開く");
+                var handle = _driver.Play(CreateVfxData());
+                var go = _driver.Manager.GetGameObject(handle);
+
+                Assert.IsNotNull(go);
+                Assert.AreEqual(stage.scene, go.scene, "プレハブモード中はステージのシーンへスポーンされる");
+                Assert.AreEqual(stage.scene, _driver.PreviewRoot.scene);
+                Assert.AreEqual(HideFlags.DontSave, go.hideFlags, "プレハブには保存されない");
+            }
+            finally
+            {
+                CloseTempPrefabStage();
+            }
+        }
+
+        [Test]
+        public void PrefabStageClose_ResetsPreview_AndNextPlayGoesToMainScene()
+        {
+            OpenTempPrefabStage();
+            _driver.Play(CreateVfxData());
+            Assert.IsTrue(_driver.HasActive);
+
+            CloseTempPrefabStage();
+
+            Assert.IsFalse(_driver.HasActive, "ステージを閉じたら台帳がリセットされる");
+            var handle = _driver.Play(CreateVfxData());
+            var go = _driver.Manager.GetGameObject(handle);
+            Assert.AreEqual(SceneManager.GetActiveScene(), go.scene, "閉じた後の Play はメインシーンへ戻る");
+        }
+
+        [Test]
+        public void PrefabStageOpen_WhilePlayingInMainScene_DestroysOldSpawn()
+        {
+            var handle = _driver.Play(CreateVfxData());
+            var go = _driver.Manager.GetGameObject(handle);
+            Assert.IsNotNull(go);
+
+            OpenTempPrefabStage();
+            try
+            {
+                Assert.IsTrue(go == null, "メインシーンに残っていたスポーン物は破棄される");
+                Assert.IsFalse(_driver.HasActive);
+            }
+            finally
+            {
+                CloseTempPrefabStage();
+            }
+        }
+            // ── 対象 Prefab 自身のプレハブモード: その場再生(別インスタンスを出さない) ──
+
+        private static (PrefabStage stage, GameObject prefabAsset) OpenTargetPrefabStage(bool oneShot)
+        {
+            if (!AssetDatabase.IsValidFolder(StageTempFolder))
+            {
+                AssetDatabase.CreateFolder("Assets/DDrive/Tests/Editor", "TempPrefabStage");
+            }
+
+            var src = new GameObject("TargetFx");
+            var ps = src.AddComponent<ParticleSystem>();
+            var main = ps.main;
+            main.loop = !oneShot;
+            main.duration = 0.2f;
+            main.startLifetime = 0.1f;
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var path = $"{StageTempFolder}/TargetFx.prefab";
+            var asset = PrefabUtility.SaveAsPrefabAsset(src, path);
+            Object.DestroyImmediate(src);
+            return (PrefabStageUtility.OpenPrefab(path), asset);
+        }
+
+        [Test]
+        public void Play_InTargetPrefabStage_PlaysInPlace_WithoutSpawning()
+        {
+            var (stage, asset) = OpenTargetPrefabStage(oneShot: false);
+            try
+            {
+                var data = CreateVfxData();
+                data.Prefab = asset;
+                Assert.IsTrue(_driver.IsInPlaceTarget(data));
+
+                var handle = _driver.Play(data);
+
+                Assert.AreEqual(SceneVfxPreviewDriver.InPlaceHandle, handle, "擬似ハンドルが返る");
+                Assert.IsTrue(_driver.IsPlaying(handle));
+                Assert.IsTrue(_driver.HasActive);
+                Assert.AreEqual(0, _driver.Manager.ActiveCount, "Manager 経由のスポーンは行わない(二重表示しない)");
+                Assert.IsTrue(stage.prefabContentsRoot.GetComponent<ParticleSystem>().isPlaying, "ステージ内の ParticleSystem 自身が再生される");
+
+                _driver.Tick(0.05f);
+                Assert.IsTrue(_driver.IsPlaying(handle));
+
+                _driver.Kill(handle);
+                Assert.IsFalse(_driver.IsPlaying(handle));
+                Assert.IsFalse(_driver.HasActive);
+                Assert.IsFalse(stage.prefabContentsRoot.GetComponent<ParticleSystem>().isPlaying);
+            }
+            finally
+            {
+                CloseTempPrefabStage();
+            }
+        }
+
+        [Test]
+        public void Play_InTargetPrefabStage_OneShotEndsByItself()
+        {
+            var (_, asset) = OpenTargetPrefabStage(oneShot: true);
+            try
+            {
+                var data = CreateVfxData();
+                data.Prefab = asset;
+                data.LifeMode = VfxLifeMode.OneShot;
+
+                var handle = _driver.Play(data);
+                Assert.IsTrue(_driver.IsPlaying(handle));
+
+                for (var i = 0; i < 40 && _driver.IsPlaying(handle); i++)
+                {
+                    _driver.Tick(0.05f);
+                }
+
+                Assert.IsFalse(_driver.IsPlaying(handle), "OneShot は粒子が尽きたら終わる");
+            }
+            finally
+            {
+                CloseTempPrefabStage();
+            }
+        }
+
+        [Test]
+        public void Play_InTargetPrefabStage_ManagerCallsWithPseudoHandle_AreNoOp()
+        {
+            var (_, asset) = OpenTargetPrefabStage(oneShot: false);
+            try
+            {
+                var data = CreateVfxData();
+                data.Prefab = asset;
+                var handle = _driver.Play(data);
+
+                // Manager に擬似ハンドルを渡しても警告なしで無効扱いになる(ウィンドウは Manager を直接呼ぶ箇所がある)。
+                Assert.IsFalse(_driver.Manager.IsPlaying(handle));
+                Assert.IsFalse(_driver.Manager.TryGetAnchorTarget(handle, out _));
+                Assert.AreEqual(Vector3.zero, _driver.Manager.GetAnchorExtraOffset(handle));
+            }
+            finally
+            {
+                CloseTempPrefabStage();
+            }
+        }
+            [Test]
+        public void Tick_EditMode_OneShotEndsWhenParticlesRunOut()
+        {
+            var ps = _prefab.GetComponent<ParticleSystem>();
+            var main = ps.main;
+            main.loop = false;
+            main.duration = 0.2f;
+            main.startLifetime = 0.1f;
+
+            var data = CreateVfxData();
+            data.LifeMode = VfxLifeMode.OneShot;
+            var handle = _driver.Play(data);
+            Assert.IsTrue(_driver.IsPlaying(handle));
+
+            for (var i = 0; i < 40 && _driver.IsPlaying(handle); i++)
+            {
+                _driver.Tick(0.05f);
+            }
+
+            Assert.IsFalse(_driver.IsPlaying(handle), "EditMode の手動 Simulate でも OneShot は粒子が尽きたら終わる(リピートの前提)");
+            Assert.IsFalse(_driver.HasActive);
         }
     }
 }

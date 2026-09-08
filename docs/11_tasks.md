@@ -22,7 +22,7 @@
 | 0-11 | Validation Core（IValidator 登録制 + CI 実行） | 基盤 | 2 | 0-2 | batchmode で exit code 反映。JUnit XML 出力 |
 | 0-12 | ネット前提の注入点（INetBridge+Loopback / ITimeSource / NetMode フラグ / Seed 決定的乱数） | 基盤 | 2 | 0-2 | Loopback でシングルプレイが完全動作。Time.time 直接参照ゼロ（Analyzer 検出） |
 | 0-13 | EasingCore（31 種 + Bezier + Curve、既存実装の Runtime 昇格）+ SplinePath（4 種、弧長等速化） | 基盤 | 3 | 0-1 | 全 Ease の参照値テスト green。Evaluate が等速（誤差 1% 以内） |
-| 0-14 | NGO アダプタ（INetBridge 実装 + NetworkTime 同期） | 基盤 | 3 | 0-12 | Loopback と差し替えて 2 クライアントテストシーンが動く |
+| 0-14 | NGO アダプタ（INetBridge 実装 + NetworkTime 同期） | 基盤 | 3 | 0-12 | Loopback と差し替えて 2 クライアントテストシーンが動く。**2026-09-08 改修**: NGO 2.13.2 に統一（MS2026 と同一）、`[ClientRpc]`→`[Rpc(SendTo.ClientsAndHost)]`（旧属性はホスト自身に届かない）、Client 発 Cosmetic の Host 中継 + レート制限、Unreliable 配送対応、`[Net/Host]` ログ（[14] §2/§12）。⚠ 実機 2 クライアントでの再確認が必要 |
 | 0-15 | ValueDef / TimeDef / ValueDef3 / ValueDefColor 定義 + Evaluate | 基盤 | 2 | 0-13 | 全モードの参照値テスト green。定常経路 0 alloc・純関数 |
 | 0-16 | ValueDef Validator（共通検査一式） | 基盤 | 2 | 0-15, 0-11 | [17] §6 の全検査 |
 
@@ -65,6 +65,10 @@
 | 2-11 | URP/HDRP シェーダー互換性チェック + 既定パーティクルマテリアル生成 | 基盤+ED | 追加 | 2-7 | ✅ 2026-07-28 追加実装([04] §7)。`ShaderPipelineAnalyzer` が SubShader の RenderPipeline タグから互換性を機械判定し、VfxDataValidator/ModelDataValidator が Error 検出。`Generate/デフォルトパーティクルマテリアルを生成` で URP 対応の既定マテリアルを用意可能(Built-in RP 用マテリアルを URP プロジェクトで使うと Scene/Game ビューで透明になる不具合の再発防止) |
 
 **実装時に判明したスコープ調整(仕様書側にも反映済み):**
+| 2-13 | VfxEditor のプレハブモード（Prefab Stage）内再生 | ED | 追加 | 2-10 | ✅ 2026-09-08 追加実装（[04] §5）。`SceneVfxPreviewDriver` が対象 Prefab 自身のステージではその場再生（二重表示しない）、他のステージではステージのシーンへスポーン。EditMode の OneShot 終了判定（リピートの前提）も修正。テスト 7 件追加 |
+| 2-14 | Anchor 仕様改定（アセット化・入れ子・Audio 共通・生成時イベント） | 基盤+ED | 12 | 2-1, 1-3 | 🔜 仕様確定（2026-09-08、[21_anchor_spec.md](21_anchor_spec.md) §6 全項目推奨案 + 既存ボーン/ヒエラルキー流用）。2-14a〜g の順に実装 |
+| 2-12 | VfxEditor 使い勝手改修 + VFX ランタイム設計見直し | 基盤+ED | 追加 | 2-4, 2-9, 2-10 | ✅ 2026-09-08 追加実装([19_vfx_usability_review.md](19_vfx_usability_review.md) / [04] §2.6・§3・§5)。ウィンドウ単体で調整完結(基本設定/Params 定義/検証を内包)、選択追従+ロック、ドメインリロード耐性、Anchor 変更の即時反映(`ReapplyAnchor`)+解決状態表示+SceneView 移動/回転ハンドル、リピート再生、Hierarchy 整理、Undo 同期。ランタイム: 姿勢式を `AnchorPose` に統一(FollowRotation 時も LocalEuler が効く)、`Vfx` ファサード完成+Handle 拡張、LightLayerMask 既定 1 / 0=上書きしない、破棄済み Root の台帳掃除。⚠ Unity 上でのコンパイル・EditMode テスト実行による確認が必要(MCP 接続後に実施) |
+
 - **VFX Graph 未対応**: `com.unity.visualeffectgraph` パッケージが本プロジェクトに未導入のため、VfxManager は ParticleSystem のみを対象とする。導入後は VisualEffect コンポーネント検出処理を追加すれば同じ Handle API で扱える設計にしてある
 - **AssetType に `Model` を追加**: 05 の ModelData(モデル本体・Slot・Avatar)と 07 の PrefabData(4-4、ゲームプレイ用オブジェクト・GameplayTags)は別概念だが、既存の `AssetType.Prefab` 1つしか無かったため両者が衝突していた。enum 末尾(既存値の並び順は変更しない)に `Model` を追加して分離した
 - **SetMaterial/DefaultAnimation は ID 保存のみ**: `ModelData.Slots[].Material`(AssetId&lt;MaterialMarker&gt;)と `DefaultAnimation`(AssetId&lt;AnimMarker&gt;)は、参照先の MaterialData(3-5)/AnimManager(3-1)がまだ存在しないため、実際の見た目反映・再生はできない。ID の保存・Validator・Inspector 表示までは完成しており、Phase 3 側でそのまま繋ぎ込める

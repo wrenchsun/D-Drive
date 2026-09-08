@@ -64,6 +64,12 @@ namespace DDrive.Editor
         {
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
+                // テスト asmdef(DDrive.Tests.*)内のダミー実装は対象外。テスト実行後に Editor の
+                // Run All / Regenerate が拾ってしまい、"always fails" 等の偽の結果を出すため。
+                if (asm.GetName().Name.StartsWith("DDrive.Tests", StringComparison.Ordinal))
+                {
+                    continue;
+                }
                 Type[] types;
                 try
                 {

@@ -41,6 +41,11 @@ namespace DDrive.Editor.AssetBrowser
             var folder = $"{gameDataRoot}/{AssetNamingService.GetTargetFolder(assetType, category)}";
             EnsureFolder(folder);
 
+            // カタログ用フォルダも先に作る。CreateAsset の後に CreateFolder を呼ぶと、その Refresh で
+            // 作りたてのアセットが再インポートされ、メモリ上の Id と dirty がディスク値(Id=0)で
+            // 上書きされることがある(1 回おきに再現)。
+            EnsureFolder($"{gameDataRoot}/Catalogs");
+
             var fileName = AssetNamingService.BuildFileName(assetType, category, identifier);
             var path = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{fileName}.asset");
 
@@ -54,6 +59,8 @@ namespace DDrive.Editor.AssetBrowser
             var guid = AssetDatabase.AssetPathToGUID(path);
             asset.Id = AssetIdGenerator.StableHashFromGuid(guid);
             EditorUtility.SetDirty(asset);
+            // Id は他の AssetDatabase 操作(カタログ作成等)より前にディスクへ確定させる(上記の再インポート対策)。
+            AssetDatabase.SaveAssetIfDirty(asset);
 
             // Address は必ず「実際に作られたファイル名」から取る。同名衝突時に
             // GenerateUniqueAssetPath が "〜 1.asset" 等へリネームするため、

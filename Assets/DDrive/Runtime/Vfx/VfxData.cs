@@ -59,13 +59,17 @@ namespace DDrive.Runtime.Vfx
     [AssetIdDefinition(AssetType.Vfx, typeof(VfxMarker), "VFXID")]
     public class VfxData : AssetDataBase
     {
+        // 0 = Prefab 側の Renderer 設定を上書きしない(2026-09-08 改定。以前は既定値 0 がそのまま
+        // renderingLayerMask=0 として適用され、Lit 系マテリアルが一切ライトを受けない事故があった)。
+        public const uint LightLayerKeepPrefab = 0;
+
         [Header("Prefab")]
         [Tooltip("再生する実体。ParticleSystem / VFX Graph のどちらでも可。")]
         public GameObject Prefab;
 
         [Header("Anchor")]
-        [Tooltip("アタッチ位置定義(Audio と共通)。")]
-        public AnchorDef Anchor;
+        [Tooltip("アタッチ位置定義(Audio と共通)。LocalEuler はアタッチ先の回転に対する相対回転。")]
+        public AnchorDef Anchor = AnchorDef.WorldDefault;
 
         [Header("Lifetime")]
         [Tooltip("OneShot=自然終了で自動返却 / Loop=Stop/Killまで継続 / Duration=Durationで強制終了。")]
@@ -81,11 +85,11 @@ namespace DDrive.Runtime.Vfx
         [Tooltip("World3D=通常シーン内 / UIOverlay=UI上のパーティクル(専用カメラで合成)。")]
         public VfxRenderMode Render;
 
-        [Tooltip("Sorting/RenderingLayerMask に使う値。")]
+        [Tooltip("スポーンした GameObject に設定する Layer(カリングマスク用)。UIOverlay の場合は VfxUiSetup が確保した VfxUI レイヤーを指定する。")]
         public int RenderLayer;
 
-        [Tooltip("Light Layer のビットマスク。")]
-        public uint LightLayerMask;
+        [Tooltip("Rendering Layer Mask(Light Layer)。0 = Prefab の設定を上書きしない。既定は 1(Default)。")]
+        public uint LightLayerMask = 1;
 
         [Header("Parameters")]
         [Tooltip("デザイナーが公開する調整項目。ラベル経由で SetParam から反映する。")]

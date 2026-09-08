@@ -21,6 +21,9 @@ namespace DDrive.Runtime.Vfx
     // 対応範囲: ParticleSystem。VFX Graph(com.unity.visualeffectgraph)はこのプロジェクトに
     // パッケージが未導入のためハード依存を避けている。導入後は VisualEffect コンポーネントの
     // 検出・SetFloat 等の反映を Instance 生成時に追加すれば同じ Handle API で扱える。
+    //
+    // 姿勢(位置/回転/スケール)の式は AnchorPose に集約してあり、Spawn・Tick(追従)・ReapplyAnchor
+    // (エディタでの Anchor ライブ編集)の全てが同じ式を通る([04_vfx.md] §2 / 2026-09-08 改定)。
     public sealed class VfxManager : IAssetManager
     {
         private sealed class VfxInstance
@@ -31,10 +34,18 @@ namespace DDrive.Runtime.Vfx
             public Transform FollowTarget;
             public bool HasFollowTarget;
 
-            // 追従時に使うローカルオフセット。AnchorPoint のランダム散らばりは Spawn 時に1回だけ
-            // サンプリングされるため、Tick で Data.Anchor.LocalOffset から再計算せずこちらを使う
-            // (毎 Tick 再計算するとランダム分が消えて位置が吸い付いてしまう)。
+            // AnchorPoint 由来の追加オフセット/回転/スケール(SpawnOffset + ランダム散らばり)。
+            // Spawn 時に 1 回だけサンプリングし、以後 Tick/ReapplyAnchor では再抽選しない
+            // (毎 Tick 再計算するとランダム分が消えて位置が吸い付く/震える)。
+            public Vector3 AnchorExtraOffset;
+            public Quaternion AnchorJitterRotation = Quaternion.identity;
+            public float AnchorScaleMultiplier = 1f;
+
+            // 追従時に使うローカルオフセット(= Data.Anchor.LocalOffset + AnchorExtraOffset のキャッシュ)。
             public Vector3 FollowLocalOffset;
+
+            // 追従時の相対回転(= Euler(LocalEuler) * JitterRotation のキャッシュ)。
+            public Quaternion FollowLocalRotation = Quaternion.identity;
 
             public bool Paused;
             public float ElapsedSeconds;
@@ -105,6 +116,8 @@ namespace DDrive.Runtime.Vfx
             }
         }
 
+        // ── Spawn ──
+
         // 引数なし: Data.Anchor をそのまま解決する(コンテキストが無いので BoneName/NamedObject は
         // World 固定扱いにフォールバックする。Audio の PlaySe(id) と同じ規則)。
         public Handle<VfxMarker> Spawn(VfxId id)
@@ -148,7 +161,7 @@ namespace DDrive.Runtime.Vfx
             }
 
             var resolved = AnchorResolver.Resolve(data.Anchor, contextRoot);
-            return resolved != null ? resolved.TransformPoint(data.Anchor.LocalOffset) : data.Anchor.LocalOffset;
+            return AnchorPose.WorldPosition(data.Anchor, resolved, Vector3.zero);
         }
 
         private Handle<VfxMarker> SpawnDataLocal(VfxData data, (Vector3 pos, Quaternion rot)? explicitPose = null, Transform contextRoot = null)
@@ -169,48 +182,37 @@ namespace DDrive.Runtime.Vfx
             pooled.Priority = data.Flags.Priority;
 
             var root = pooled.GameObject;
-            var rootTransform = root.transform;
-            rootTransform.SetParent(null);
-            rootTransform.localScale = data.Anchor.LocalScale == Vector3.zero ? Vector3.one : data.Anchor.LocalScale;
+            root.transform.SetParent(null);
 
-            Transform followTarget = null;
-            var hasFollowTarget = false;
-            var followLocalOffset = data.Anchor.LocalOffset;
+            var instance = new VfxInstance
+            {
+                Data = data,
+                Root = root,
+                Pooled = pooled,
+                PropertyBlock = new MaterialPropertyBlock(),
+            };
 
             if (explicitPose.HasValue)
             {
-                rootTransform.SetPositionAndRotation(explicitPose.Value.pos, explicitPose.Value.rot);
+                root.transform.SetPositionAndRotation(explicitPose.Value.pos, explicitPose.Value.rot);
+                root.transform.localScale = AnchorPose.BaseScale(data.Anchor);
             }
             else
             {
                 var resolved = AnchorResolver.Resolve(data.Anchor, contextRoot);
-                if (resolved != null)
+                instance.FollowTarget = resolved;
+                instance.HasFollowTarget = resolved != null;
+
+                // 解決先が AnchorPoint(シーン配置型アンカー)なら、アンカー固有のオフセット+
+                // ランダム散らばり(位置/回転/スケール)を Spawn 時に 1 回だけサンプリングする([04_vfx.md] §2.5)。
+                if (resolved != null && resolved.TryGetComponent<AnchorPoint>(out var point))
                 {
-                    followTarget = resolved;
-                    hasFollowTarget = true;
-
-                    var baseRotation = data.Anchor.FollowRotation ? resolved.rotation : Quaternion.Euler(data.Anchor.LocalEuler);
-
-                    // 解決先が AnchorPoint(シーン配置型アンカー)なら、アンカー固有のオフセット+
-                    // ランダム散らばり(位置/回転/スケール)を追加適用する([04_vfx.md] §2.5)。
-                    if (resolved.TryGetComponent<AnchorPoint>(out var point))
-                    {
-                        followLocalOffset = point.SampleLocalOffset(data.Anchor.LocalOffset);
-                        rootTransform.rotation = point.SampleRotation(baseRotation);
-                        rootTransform.localScale *= point.SampleScaleMultiplier();
-                    }
-                    else
-                    {
-                        rootTransform.rotation = baseRotation;
-                    }
-
-                    rootTransform.position = resolved.TransformPoint(followLocalOffset);
+                    instance.AnchorExtraOffset = point.SampleLocalOffset(Vector3.zero);
+                    instance.AnchorJitterRotation = point.SampleRotation(Quaternion.identity);
+                    instance.AnchorScaleMultiplier = point.SampleScaleMultiplier();
                 }
-                else
-                {
-                    rootTransform.position = data.Anchor.LocalOffset;
-                    rootTransform.rotation = Quaternion.Euler(data.Anchor.LocalEuler);
-                }
+
+                ApplyAnchorPose(instance);
             }
 
             var poolable = root.GetComponent<VfxInstancePoolable>();
@@ -219,28 +221,19 @@ namespace DDrive.Runtime.Vfx
                 poolable = root.AddComponent<VfxInstancePoolable>();
             }
 
-            var particleSystems = root.GetComponentsInChildren<ParticleSystem>(true);
-            poolable.ParticleSystems = particleSystems;
-
-            var instance = new VfxInstance
-            {
-                Data = data,
-                Root = root,
-                Pooled = pooled,
-                FollowTarget = followTarget,
-                HasFollowTarget = hasFollowTarget,
-                FollowLocalOffset = followLocalOffset,
-                ParticleSystems = particleSystems,
-                Renderers = root.GetComponentsInChildren<Renderer>(true),
-                PropertyBlock = new MaterialPropertyBlock(),
-            };
+            instance.ParticleSystems = root.GetComponentsInChildren<ParticleSystem>(true);
+            instance.Renderers = root.GetComponentsInChildren<Renderer>(true);
+            poolable.ParticleSystems = instance.ParticleSystems;
 
             SetLayerRecursively(root, data.RenderLayer);
-            foreach (var renderer in instance.Renderers)
+            if (data.LightLayerMask != VfxData.LightLayerKeepPrefab)
             {
-                if (renderer != null)
+                foreach (var renderer in instance.Renderers)
                 {
-                    renderer.renderingLayerMask = data.LightLayerMask;
+                    if (renderer != null)
+                    {
+                        renderer.renderingLayerMask = data.LightLayerMask;
+                    }
                 }
             }
 
@@ -252,6 +245,22 @@ namespace DDrive.Runtime.Vfx
             _allActive.Add(handle);
 
             return handle;
+        }
+
+        // Data.Anchor + AnchorPoint 由来の追加分から Root の姿勢を組み立てる(Spawn / ReapplyAnchor 共通)。
+        private static void ApplyAnchorPose(VfxInstance instance)
+        {
+            var anchor = instance.Data.Anchor;
+            var target = instance.HasFollowTarget ? instance.FollowTarget : null;
+
+            instance.FollowLocalOffset = AnchorPose.LocalOffsetWithExtra(anchor, instance.AnchorExtraOffset);
+            instance.FollowLocalRotation = Quaternion.Euler(anchor.LocalEuler) * instance.AnchorJitterRotation;
+
+            var t = instance.Root.transform;
+            t.SetPositionAndRotation(
+                AnchorPose.WorldPosition(anchor, target, instance.AnchorExtraOffset),
+                AnchorPose.WorldRotation(anchor, target, instance.AnchorJitterRotation));
+            t.localScale = AnchorPose.WorldScale(anchor, instance.AnchorScaleMultiplier);
         }
 
         public void Preload(params VfxId[] ids)
@@ -268,6 +277,8 @@ namespace DDrive.Runtime.Vfx
             }
         }
 
+        // ── Stop / Kill ──
+
         // FadeOutSec 分の放出停止待ちを経てから Pool へ返却する。
         public void Stop(Handle<VfxMarker> handle)
         {
@@ -278,14 +289,14 @@ namespace DDrive.Runtime.Vfx
 
             StopEmission(instance);
 
-            if (instance.Data.FadeOutSec > 0f)
+            if (instance.Data.FadeOutSec > 0f && instance.Root != null)
             {
                 instance.Stopping = true;
                 instance.FadeOutRemaining = instance.Data.FadeOutSec;
                 return;
             }
 
-            _pool.Return(instance.Pooled);
+            ReturnToPool(handle, instance);
         }
 
         // 即時返却(残留パーティクルの消失を待たない)。
@@ -296,8 +307,18 @@ namespace DDrive.Runtime.Vfx
                 return;
             }
 
-            _pool.Return(instance.Pooled);
+            ReturnToPool(handle, instance);
         }
+
+        // Pool へ返す。Root がシーン破棄等で既に消えている場合、Pool は IPoolable.OnReturn を呼ばない
+        // (= 台帳掃除のコールバックが来ない)ため、ここで必ず台帳から外す(CleanupBookkeeping は冪等)。
+        private void ReturnToPool(Handle<VfxMarker> handle, VfxInstance instance)
+        {
+            _pool.Return(instance.Pooled);
+            CleanupBookkeeping(handle);
+        }
+
+        // ── 問い合わせ ──
 
         public bool IsPlaying(Handle<VfxMarker> handle) => _instances.IsValid(handle);
 
@@ -308,9 +329,29 @@ namespace DDrive.Runtime.Vfx
         public GameObject GetGameObject(Handle<VfxMarker> handle)
             => _instances.TryGet(handle, out var instance) ? instance.Root : null;
 
+        // 追従先(解決済み Anchor)。World 固定や explicitPose で生成した場合は null。
+        public bool TryGetAnchorTarget(Handle<VfxMarker> handle, out Transform target)
+        {
+            if (_instances.TryGet(handle, out var instance) && instance.HasFollowTarget)
+            {
+                target = instance.FollowTarget;
+                return target != null;
+            }
+
+            target = null;
+            return false;
+        }
+
+        // AnchorPoint 由来の追加オフセット(SpawnOffset + ランダム)。エディタが「ワールド座標 → LocalOffset」
+        // の逆変換をするときに差し引くために公開する。
+        public Vector3 GetAnchorExtraOffset(Handle<VfxMarker> handle)
+            => _instances.TryGet(handle, out var instance) ? instance.AnchorExtraOffset : Vector3.zero;
+
+        // ── Handle 操作 ──
+
         public void Move(Handle<VfxMarker> handle, Vector3 position)
         {
-            if (_instances.TryGet(handle, out var instance))
+            if (_instances.TryGet(handle, out var instance) && instance.Root != null)
             {
                 instance.Root.transform.position = position;
             }
@@ -331,6 +372,16 @@ namespace DDrive.Runtime.Vfx
             {
                 instance.HasFollowTarget = false;
                 instance.FollowTarget = null;
+            }
+        }
+
+        // Data.Anchor が(エディタ等で)変更された後に、再生中 Instance の姿勢を再計算する。
+        // 追従先の再解決はしない(Path/Space の変更は Spawn し直す)。AnchorPoint のランダム分は保持する。
+        public void ReapplyAnchor(Handle<VfxMarker> handle)
+        {
+            if (_instances.TryGet(handle, out var instance) && instance.Root != null)
+            {
+                ApplyAnchorPose(instance);
             }
         }
 
@@ -364,6 +415,8 @@ namespace DDrive.Runtime.Vfx
             ApplyParam(instance, label, value);
         }
 
+        // ── Tick / Pause / StopAll ──
+
         public void Tick(float dt)
         {
             FlushCosmeticBatch();
@@ -377,12 +430,19 @@ namespace DDrive.Runtime.Vfx
                     continue;
                 }
 
+                // シーン破棄等で Root が先に消えた Instance は台帳から外す(NRE で Tick を止めない)。
+                if (instance.Root == null)
+                {
+                    ReturnToPool(handle, instance);
+                    continue;
+                }
+
                 if (instance.Stopping)
                 {
                     instance.FadeOutRemaining -= dt;
                     if (instance.FadeOutRemaining <= 0f)
                     {
-                        _pool.Return(instance.Pooled);
+                        ReturnToPool(handle, instance);
                     }
 
                     continue;
@@ -399,10 +459,11 @@ namespace DDrive.Runtime.Vfx
                 {
                     if (instance.FollowTarget != null)
                     {
-                        instance.Root.transform.position = instance.FollowTarget.TransformPoint(instance.FollowLocalOffset);
+                        var t = instance.Root.transform;
+                        t.position = instance.FollowTarget.TransformPoint(instance.FollowLocalOffset);
                         if (instance.Data.Anchor.FollowRotation)
                         {
-                            instance.Root.transform.rotation = instance.FollowTarget.rotation;
+                            t.rotation = instance.FollowTarget.rotation * instance.FollowLocalRotation;
                         }
                     }
                     else if (!instance.Data.Anchor.DetachOnStop)

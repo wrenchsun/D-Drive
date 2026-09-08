@@ -189,6 +189,125 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(Handle<VfxMarker>.Invalid, handle);
         }
 
+        // ── 2026-09-08 改定([19_vfx_usability_review.md]): Anchor 姿勢の再適用 / LightLayer / 破棄済み Root ──
+
+        [Test]
+        public void NewVfxData_HasSafeDefaults()
+        {
+            var data = ScriptableObject.CreateInstance<VfxData>();
+
+            Assert.AreEqual(Vector3.one, data.Anchor.LocalScale, "Anchor は WorldDefault(スケール 1)で初期化される");
+            Assert.AreEqual(1u, data.LightLayerMask, "LightLayerMask の既定は Default(1)");
+        }
+
+        [Test]
+        public void ReapplyAnchor_MovesLiveInstance_WhenDataAnchorChanges()
+        {
+            var rig = new GameObject("Rig");
+            var bone = new GameObject("Bone");
+            bone.transform.SetParent(rig.transform);
+            bone.transform.position = new Vector3(10f, 0f, 0f);
+
+            var data = CreateVfxData(1);
+            data.Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "Bone", LocalScale = Vector3.one };
+            var handle = _manager.SpawnData(data, contextRoot: rig.transform);
+            var root = _manager.GetGameObject(handle).transform;
+            Assert.Less(Vector3.Distance(new Vector3(10f, 0f, 0f), root.position), 1e-4f);
+
+            data.Anchor.LocalOffset = new Vector3(0f, 2f, 0f);
+            _manager.ReapplyAnchor(handle);
+            Assert.Less(Vector3.Distance(new Vector3(10f, 2f, 0f), root.position), 1e-4f, "ReapplyAnchor で即時反映");
+
+            // 以後の Tick(追従)でも新しいオフセットが維持される。
+            _manager.Tick(0.016f);
+            Assert.Less(Vector3.Distance(new Vector3(10f, 2f, 0f), root.position), 1e-4f);
+
+            Object.DestroyImmediate(rig);
+        }
+
+        [Test]
+        public void FollowRotation_AppliesLocalEulerRelativeToTarget()
+        {
+            var rig = new GameObject("Rig");
+            rig.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+
+            var data = CreateVfxData(1);
+            data.Anchor = new AnchorDef
+            {
+                Space = AnchorSpace.ContextTarget,
+                FollowRotation = true,
+                LocalEuler = new Vector3(0f, 45f, 0f),
+                LocalScale = Vector3.one,
+            };
+            var handle = _manager.SpawnData(data, contextRoot: rig.transform);
+            var root = _manager.GetGameObject(handle).transform;
+
+            Assert.Less(Quaternion.Angle(Quaternion.Euler(0f, 135f, 0f), root.rotation), 1e-3f, "Spawn 時");
+
+            rig.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            _manager.Tick(0.016f);
+            Assert.Less(Quaternion.Angle(Quaternion.Euler(0f, 225f, 0f), root.rotation), 1e-3f, "追従時も LocalEuler を保つ");
+
+            Object.DestroyImmediate(rig);
+        }
+
+        [Test]
+        public void LightLayerMask_Zero_KeepsPrefabRendererSetting()
+        {
+            var renderer = _prefab.GetComponent<ParticleSystemRenderer>();
+            renderer.renderingLayerMask = 4u;
+
+            var data = CreateVfxData(1);
+            data.LightLayerMask = VfxData.LightLayerKeepPrefab;
+            var handle = _manager.SpawnData(data);
+
+            Assert.AreEqual(4u, _manager.GetGameObject(handle).GetComponent<Renderer>().renderingLayerMask);
+        }
+
+        [Test]
+        public void LightLayerMask_NonZero_OverridesRenderer()
+        {
+            var data = CreateVfxData(1);
+            data.LightLayerMask = 2u;
+            var handle = _manager.SpawnData(data);
+
+            Assert.AreEqual(2u, _manager.GetGameObject(handle).GetComponent<Renderer>().renderingLayerMask);
+        }
+
+        [Test]
+        public void Tick_DestroyedRoot_IsRemovedWithoutException()
+        {
+            var rig = new GameObject("Rig");
+            var data = CreateVfxData(1);
+            data.Anchor = new AnchorDef { Space = AnchorSpace.ContextTarget, LocalScale = Vector3.one };
+            var handle = _manager.SpawnData(data, contextRoot: rig.transform);
+
+            Object.DestroyImmediate(_manager.GetGameObject(handle));
+
+            Assert.DoesNotThrow(() => _manager.Tick(0.016f));
+            Assert.IsFalse(_manager.IsPlaying(handle));
+            Assert.AreEqual(0, _manager.ActiveCount);
+
+            Object.DestroyImmediate(rig);
+        }
+
+        [Test]
+        public void TryGetAnchorTarget_ReturnsResolvedTransform()
+        {
+            var rig = new GameObject("Rig");
+            var data = CreateVfxData(1);
+            data.Anchor = new AnchorDef { Space = AnchorSpace.ContextTarget, LocalScale = Vector3.one };
+            var handle = _manager.SpawnData(data, contextRoot: rig.transform);
+
+            Assert.IsTrue(_manager.TryGetAnchorTarget(handle, out var target));
+            Assert.AreEqual(rig.transform, target);
+
+            var worldHandle = _manager.SpawnData(CreateVfxData(2));
+            Assert.IsFalse(_manager.TryGetAnchorTarget(worldHandle, out _));
+
+            Object.DestroyImmediate(rig);
+        }
+
         [Test]
         public void StopAll_ReturnsEveryActiveInstance()
         {

@@ -1,0 +1,185 @@
+# 19. VFX 使い勝手レビューと設計見直し（2026-09-08）
+
+関連: [04_vfx.md](04_vfx.md) / [09_editor_tools.md](09_editor_tools.md) / [11_tasks.md](11_tasks.md) 2-12 / [14_networking.md](14_networking.md) §12
+
+Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点で「使い勝手が悪い」という評価を受け、**デザイナーが VfxEditor だけで調整を完結できるか**を軸にランタイム・エディタ・ドキュメントを見直した記録。判断の根拠を残し、同種の問題を Phase 3 以降のエディタ（Anim/Material/Presentation）で繰り返さないためのチェックリストを末尾に置く。
+
+---
+
+## 1. 見つかった問題と判断
+
+### A. エディタ（VfxEditorWindow）— 使い勝手の本丸
+
+| # | 問題 | 影響 | 判断・対応 |
+|---|---|---|---|
+| A-1 | Prefab / LifeMode / Duration / Render / Layer は Inspector でしか編集できず、ウィンドウは Anchor・Params・Events だけ | Inspector とウィンドウを行き来する。ウィンドウで「なぜ出ないか」が分からない | **基本設定 Foldout を追加**（SerializedObject バインド。Undo/Prefab 変更検知は Unity 標準）。RenderLayer は `LayerField`、LightLayerMask は Rendering Layer 名付き `MaskField` |
+| A-2 | 再コンパイル・PlayMode 遷移で対象・スポーン先が消える（`_target` が非シリアライズ） | 調整のたびにアセットを入れ直す | `[SerializeField]` 化（対象 / スポーン先 / ロック / リピート / ハンドル ON / 速度）。AudioEditor と同じ方針 |
+| A-3 | Project ウィンドウで別の VfxData を選んでも追従しない（開いた時だけ） | 複数 VFX を順に見るときにドラッグし直し | `OnSelectionChange` で追従 + ツールバー「🔒 対象を固定」 |
+| A-4 | Anchor を変えても再生中の実体に反映されない。Path をドロップダウンで選んでも Space=World のままだと効かない | 「効いていない」に見える。停止→再生を繰り返す | `VfxManager.ReapplyAnchor` で**即時反映**。Path/Space/スポーン先/Prefab など再スポーンが必要な変更は自動で撮り直し。ドロップダウン選択時は Space を NamedObject に自動切替。**解決状態を常に文字で表示**（✓ / ⚠ 見つからない / ⚠ スポーン先未指定） |
+| A-5 | Anchor 位置の編集手段が 2D パッド + 数値だけ。SceneView で見ながら動かせない | 3D 的な位置合わせが試行錯誤になる | **SceneView に移動/回転ハンドル**（`SceneView.duringSceneGui`）。逆変換は `AnchorPose` の式を共有し、AnchorPoint の SpawnOffset・ランダム分を差し引く |
+| A-6 | OneShot の VFX は毎回 ▶ を押す | 数十回押すことになる | **リピート**トグル（終了後 0.35 秒で再スポーン。Loop は対象外） |
+| A-7 | 速度スライダーが EditMode の手動 Simulate にしか効かない（PlayMode 中は無視） | PlayMode 中の確認で速度が変わらない | PlayMode 中は `Manager.SetSpeed`（simulationSpeed）に反映。EditMode は従来どおり dt 乗算（二重適用しない） |
+| A-8 | Undo/Redo 後に UI が古い値のまま | 混乱する | `Undo.undoRedoPerformed` で UI・再生中実体・SceneView を同期 |
+| A-9 | スポーン物とプール残骸が Hierarchy 直下に散らばる | 確認用シーンが汚れる | `[D-Drive] VFX Preview` ルート（DontSave）配下にまとめ、シーン切替で台帳をリセット |
+| A-10 | Params の定義（追加/削除/TargetProperty）は Inspector 頼み | 「TargetProperty をどこで書くか」が分からない | Params の PropertyField を「定義の追加・削除」Foldout として内包。定義が変わったときだけ即時反映コントロールを作り直す（Default 編集でフォーカスが飛ばない） |
+| A-11 | Validation 結果はウィンドウに出ない | Prefab 未設定・URP 非対応シェーダー等に気づくのが遅れる | `VfxDataValidator` をその場で実行して Error/Warning を表示 |
+| A-12 | 確認用シーン・Prefab を開くのにメニューを探す | 導線が長い | ツールバーに「確認用シーンを開く / Prefab を開く / Project で表示」。シーンにカメラ・ライトが無ければ警告 |
+| A-13 | 535 行の単一ファイル | 変更しづらい | `VfxEditorWindow.cs`（対象/再生/基本設定）+ `.Anchor.cs` + `.Params.cs` の partial に分割 |
+
+### B. ランタイム（VfxManager / VfxData / Vfx）
+
+| # | 問題 | 影響 | 判断・対応 |
+|---|---|---|---|
+| B-1 | `LightLayerMask` の既定値 0 がそのまま `renderingLayerMask=0` に適用される | Lit 系マテリアルのパーティクルが**一切ライトを受けない**。原因に気づきにくい | 既定値を 1（Default）に変更し、**0 = Prefab の設定を上書きしない**と定義（既存アセットの 0 は安全側に倒れる） |
+| B-2 | `FollowRotation=true` のとき `LocalEuler` が完全に無視される | 「向き」スライダーが効かない | 姿勢の式を `AnchorPose` に統一し、回転 = アタッチ先回転 × Euler(LocalEuler) × jitter に。LocalEuler=0 の既存アセットは挙動不変（[04] §2.6） |
+| B-3 | 姿勢の計算が Spawn/Tick/エディタで別々に書かれていた | 一箇所直すと他がズレる | `Runtime/Anchoring/AnchorPose.cs` に純粋関数として集約。Manager・エディタ・テストが共有 |
+| B-4 | `Vfx` 静的ファサードが Spawn/Stop/Kill/Preload のみ。設計書の `h.Move(...)` が書けない | プログラマーが Manager 実体を掴む羽目になる | `Vfx.Move/Attach/Detach/SetSpeed/SetParam/IsPlaying` + `VfxHandleExtensions`（`h.Move(pos)` 等）。未 Bind は no-op |
+| B-5 | Root がシーン破棄で先に消えると Tick が NRE。Pool は破棄済み GO の `OnReturn` を呼ばず台帳が残る | シーン切替時にエディタ/実機で例外 | `ReturnToPool` で `CleanupBookkeeping` を必ず通す。Tick で `Root == null` を検出して掃除 |
+| B-6 | `VfxData.Anchor` が `default`（LocalScale=0）で生成される | エディタのスケール欄が 0 で混乱 | 既定値を `AnchorDef.WorldDefault`。0 は 1 扱いを維持（旧アセット互換） |
+| B-7 | EditMode の手動 Simulate が PreviewService と SceneVfxPreviewDriver に重複 | 片方だけ直すと差が出る | `EditModeParticleStepper` に共通化 |
+
+### C. ネットワーク（MS2026 移植前提での統一。ユーザー指示 2026-09-08）
+
+| # | 問題 | 判断・対応 |
+|---|---|---|
+| C-1 | NGO のバージョンが D-Drive 2.2.0 / MS2026 2.13.2 で不一致 | 2.13.2 に統一（同じ Unity 6000.3.13f1 なので互換） |
+| C-2 | `NgoNetBridge` の `[ClientRpc]` は NGO 2.x では `SendTo.NotServer` 扱いで**ホスト自身に届かない** → ホストの Manager が Cosmetic を再生できない | 統一 RPC `[Rpc(SendTo.ClientsAndHost)]` に変更 |
+| C-3 | Client からの `Broadcast` は警告して破棄（MS2026 の「入力はクライアントが送る」モデルと噛み合わない） | `[Rpc(SendTo.Server)]` で Host に依頼 → Host がレート制限・種別検証して全員へ配る（[14] §9 の方針を実装） |
+| C-4 | `NetChannel.Unreliable` が無視され常に Reliable | `RpcDelivery.Unreliable` に対応（1000 bytes 超は Reliable にフォールバック） |
+| C-5 | ログ表記が `[DDrive]` | `[Net/Host]` / `[Net/Client]` に統一（MS2026 Networking.md §5） |
+
+詳細な対応表は [14_networking.md](14_networking.md) §12。
+
+---
+
+## 2. 見送った・後回しにしたもの
+
+| 項目 | 理由 | いつ |
+|---|---|---|
+| VFX Graph 対応 | パッケージ未導入。`VisualEffect` 検出を Instance 生成時に足せば同じ Handle API で扱える設計は維持 | 必要になった時点 |
+| `Spawn(VfxId, in PlayContext)` | Presentation 層（Phase 5）の PlayContext 定義待ち | Phase 5 |
+| Cosmetic の `AnchorNetId` 追従・`paramOverrides` 同期 | `INetBridge` に Transform→NetId の逆引きが無い。NGO 側で `NetworkObject.NetworkObjectId` を使えば実装できる | Phase 5（Presentation ネット再生）と同時 |
+| Params の Curve/Gradient 即時反映 | MaterialPropertyBlock 非対応。ベイク（テクスチャ化）が必要 | 要望があれば |
+| SceneView ハンドルでのスケール編集 | 数値入力で足りると判断 | 要望があれば |
+| 複数スロットの Anchor 即時反映 | スロットは別 VfxData を並べる用途で、Anchor 編集はメイン対象のみ | — |
+| ModelEditor の SceneView 方式移行 | ターンテーブル用途はプレビューシーン方式が適する | 要望があれば |
+
+---
+
+## 3. 検証状況
+
+- コンパイルは Unity 6000.3.13f1 上で成功を確認済み（2026-09-08 11:20、DDrive 由来のエラー・警告なし）。EditMode テストの実行結果は未確認 → 下記 §3.1 の手順で確認する
+- 2026-09-08 午後の再確認: Unity MCP はポート 8080 を別プロセス（`Livelist.exe`）が占有していたため接続不可（docs/20 §1 の対処表参照）。MCP 無しで行った静的確認は次の通り: 変更した Runtime 5 ファイルに LINQ / `Instantiate` / `Resources.Load` / `UnityEditor` 参照なし、`Tick` 経路にクロージャ・boxing なし（`OnReturnedToPool` のラムダは Spawn 時 1 回で改修前から存在）、`ProjectSettings/EditorBuildSettings.asset` 等の改行のみ差分 6 件は `git checkout` で戻した。その後ポートを 8081 に変更して MCP 接続を回復し、`run_tests`（EditMode）を実行: **109 件中 109 件 green**（新規テスト含む）。初回実行で `AssetCreationServiceTests.Create_GeneratesConventionalFileNameIdAndCatalogEntry` が Id=0 で失敗したが、原因は今回の改修と無関係の既存不具合（`CreateAsset` 直後の `CreateFolder` による再インポートで Id と dirty が消える。1 回おきに再現）で、`AssetCreationService.Create` を修正（カタログフォルダを先に作成 + `SaveAssetIfDirty`）して解消。同テストを単独 3 回 + 全件で green を確認。docs/12 §3 にチェック項目を追加。`Tools/D-Drive/Validation/Run All` はテスト asmdef 内のダミー `IValidator`（`always fails`）を拾っていたため、`CI.DiscoverValidators` で `DDrive.Tests.*` アセンブリを除外（`AssetIdGenerator.FindDefinitions` はテストがテスト用型の検出を前提にしているため除外しない）。残る Validation エラーは確認用データの内容（`BGM_Title_Test` / `SE_Player_Slash` の Clip 未設定、`VFX_Player_Slash` のマテリアルが Built-in 用シェーダー）で、デザイナー側の修正対象。VFX Editor の手動操作確認（§3.1 手順 2）は人が実施し問題なし（2026-09-08）。追加要望「Prefab 内でも再生確認」は同日実装（`SceneVfxPreviewDriver` のプレハブモード対応。対象 Prefab 自身のステージでは二重表示を避けてその場再生、[04] §5、テスト 116/116 green）。調査中に EditMode の手動 Simulate では `IsAlive` が true のままで OneShot が終わらない（リピートが始まらない）ことが分かり、同日修正。Anchor 仕様改定の要望は [21_anchor_spec.md](21_anchor_spec.md) に提案としてまとめた
+- 追加したテスト: `AnchorPoseTests`（式の往復）/ `VfxFacadeTests`（未 Bind no-op・拡張メソッド委譲）/ `VfxManagerTests`（既定値・ReapplyAnchor・FollowRotation×LocalEuler・LightLayerMask・破棄済み Root・TryGetAnchorTarget）/ `SceneVfxPreviewDriverTests`（プレビュールート・Dispose・ReapplyAnchorToAll）
+- `NgoNetBridge` は EditMode テストで検証できない（NetworkManager が必要）。**MPPM または実機 2 台で `NetBridgeSmokeTest` を回して、ホスト側でも Cosmetic VFX が出ることを確認する**こと
+
+### 3.1 検証手順（2026-09-08 改修分）
+
+#### 手順 1: EditMode テスト
+
+いずれか 1 つでよい。
+
+**A. Test Runner（推奨）**
+1. Unity のウィンドウをクリックし、Console にコンパイルエラーが無いことを確認する
+2. `Window > General > Test Runner` → **EditMode** タブ
+3. ツリーで `DDrive.Tests.Editor` と `DDrive.Tests.Runtime` を展開し **Run All**
+4. 期待: 全件 green。今回追加分は `AnchorPoseTests`（7 件）/ `VfxFacadeTests`（2 件）/ `VfxManagerTests` の `NewVfxData_HasSafeDefaults`・`ReapplyAnchor_*`・`FollowRotation_*`・`LightLayerMask_*`・`Tick_DestroyedRoot_*`・`TryGetAnchorTarget_*` / `SceneVfxPreviewDriverTests` の `Play_ParentsSpawnedObjectUnderPreviewRoot`・`Dispose_RemovesPreviewRoot`・`ReapplyAnchorToAll_ReflectsEditedOffset`
+5. 失敗があればテスト名と Console のスタックトレースを控える
+
+**B. MCP 経由**
+1. `Window > MCP for Unity > Toggle MCP Window` → Transport を HTTP (Local) → **Start Server** → **Connect**
+2. Claude Code を再起動（`.mcp.json` の許可ダイアログで許可）
+3. 「EditMode テストを全部実行して結果を教えて」と依頼する（内部で `run_tests` が走る）
+
+**C. コマンドライン（Unity を閉じてから）**
+```bash
+"C:\Program Files\Unity\Hub\Editor\6000.3.13f1\Editor\Unity.exe" -batchmode -projectPath C:\Users\yamag\wrench\D-Drive -runTests -testPlatform EditMode -testResults C:\Users\yamag\wrench\D-Drive\TestResults\editmode.xml -logFile C:\Users\yamag\wrench\D-Drive\Logs\editmode-test.log
+```
+`TestResults/editmode.xml` の `<test-run ... result="Passed"` を確認する。
+
+#### 手順 2: VFX Editor の操作確認
+
+準備: `Tools > D-Drive > Editors > VFX確認用シーンを開く` → Project で `Assets/GameData/Vfx/Player/VFX_Player_Slash.asset` を選択 → `Tools > D-Drive > Editors > VFX`。
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | ウィンドウを開く | 対象アセットに VFX_Player_Slash が自動で入る。「検証」Foldout に結果が出る（問題なし or Error/Warning） |
+| 2 | Project で別の VfxData を選ぶ → 戻す | 対象が追従する。ツールバー「🔒 対象を固定」ON にすると追従しない |
+| 3 | ▶ 再生 | SceneView にエフェクトが出る。Hierarchy に `[D-Drive] VFX Preview` が現れ、その下にスポーン物が入る。ステータスが「● 再生中」 |
+| 4 | 「リピート」ON のまま再生 | OneShot が終わるたび約 0.35 秒後に自動再スポーン。■ 停止で止まる |
+| 5 | 速度スライダーを 0.3 / 2.0 に | 再生速度が変わる |
+| 6 | Anchor の「高さオフセット」「向き」スライダー、2D パッドをドラッグ | **再生中の実体がその場で動く**（停止→再生の押し直し不要）。SceneView の緑の円も追従 |
+| 7 | 「SceneView で編集」ON → SceneView の移動ハンドルをドラッグ | 高さスライダー・2D パッドの値が追従する。`E`（回転ツール）で回転ハンドルに変わり、向きスライダーが追従する |
+| 8 | Ctrl+Z / Ctrl+Y | ウィンドウの値・実体の位置・SceneView が一緒に戻る |
+| 9 | `Assets/GameData/Prefabs/Anchors/AnchorRig.prefab` を Hierarchy にドラッグして配置 → ウィンドウの「スポーン先」に指定 | 「一覧から選択」の先頭に `★ Anchor_Main` が出る |
+| 10 | `★ Anchor_Main` を選ぶ | Space が NamedObject に切り替わり、解決欄が「✓ 'Anchor_Main'(★AnchorPoint…)」。再生中なら AnchorRig の位置に再スポーン。AnchorRig をシーンで動かすと追従する |
+| 11 | Path に存在しない名前を手入力 | 解決欄が「⚠ '…' が見つかりません」 |
+| 12 | 基本設定で LifeMode を Loop → 再生 | 停止するまで続く。Duration に戻すと Duration 秒で消える |
+| 13 | 基本設定で Prefab を別のパーティクル Prefab に差し替え（再生中） | 自動で再スポーンされ、新しい Prefab が出る。「検証」が更新される |
+| 14 | パラメータ →「定義の追加・削除」で + → Label `Tint` / Type `Color` / TargetProperty `_BaseColor` | 即時反映欄に `Tint` の色フィールドが出る。再生中に色を変えると反映（URP Particles/Unlit 系マテリアルの場合）。TargetProperty を `_Nothing` にすると「検証」に Error |
+| 15 | 複数同時再生に 2 つ以上入れて ▶ | 同時に出る。各 ■ で個別停止 |
+| 16 | 任意の .cs を保存して再コンパイル | ウィンドウの対象・スポーン先・トグルが保持される |
+
+#### 手順 3: プレハブモード内再生 + 本日の修正分（2026-09-08 午後）
+
+準備: 手順 2 と同じ（VFX 確認用シーン + `VFX_Player_Slash` を対象にして VFX ウィンドウを開く）。
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | ツールバー「Prefab を開く」でプレハブモードに入る | 上部に青い案内「…この VFX の Prefab 自身なので、ステージ内の実体をその場で再生します」。カメラ/ライトの黄色い警告は出ない |
+| 2 | ▶ 再生 | **ステージ内の ParticleSystem がそのまま動く。Hierarchy に `[D-Drive] VFX Preview` や 2 つ目のインスタンスは出ない**（二重表示なし） |
+| 3 | 再生中に Inspector で ParticleSystem を編集（Start Size、色、Emission など） | 編集した内容が再生中の実体にそのまま出る（保存不要） |
+| 4 | 速度スライダー 0.3 / 2.0、■ 停止 | 速度が変わる。停止で粒子が消える |
+| 5 | Hierarchy で ParticleSystem を選択し、SceneView 右下の Particle Effect パネルで再生 | ウィンドウ側は進めない（倍速にならない）。選択を外すとウィンドウ側の進行に戻る |
+| 6 | 「リピート」ON + LifeMode=OneShot で ▶ | 粒子が尽きると約 0.35 秒後に再スポーン（EditMode でも繰り返す。以前は繰り返さなかった） |
+| 7 | プレハブモードを閉じる（Hierarchy 上部の ←） | ステータスが停止に戻る。確認用シーンにスポーン物が残っていない |
+| 8 | 確認用シーンで ▶ 再生中に、Project から**別の** Prefab（例: `AnchorRig.prefab`）をダブルクリックしてプレハブモードへ | 確認用シーンのスポーン物が消える。案内は「プレハブモード 'AnchorRig' の中で再生します」。▶ でステージのシーンにスポーンする（この場合は別インスタンス） |
+| 9 | 手順 8 の状態で Ctrl+S（プレハブ保存）→ 閉じる | 保存しても `[D-Drive] VFX Preview` はプレハブに入らない。閉じた後の確認用シーンは変更なし（ダーティにならない） |
+| 10 | 確認用シーンに戻り LifeMode=OneShot でリピート ON | 手順 6 と同じく繰り返す（Manager 経由のスポーンでも OneShot が終わる） |
+| 11 | AssetBrowser（または `Tools > D-Drive`）で SE を**続けて 2 回**新規作成 | 2 回とも Id が 0 でない（Inspector の Id 欄、または AudioCatalog のエントリ）。以前は 1 回おきに 0 になっていた |
+| 12 | `Tools > D-Drive > Validation > Run All` | 「always fails」が出ない。残るエラーは確認用データの内容（Clip 未設定・Built-in シェーダー）のみ |
+| 13 | 任意の .cs を保存して再コンパイル → 手順 1〜2 | プレハブモード内でも再生状態と対象が復元される |
+
+| 17 | Play Mode に入る → 抜ける | Console に例外が出ない |
+| 18 | ウィンドウを閉じる | `[D-Drive] VFX Preview` が Hierarchy から消える。シーンに未保存マーク（*）が付かない |
+
+#### 手順 3: NgoNetBridge の 2 クライアント確認（MPPM）
+
+1. 新規シーン `Assets/Scenes/NetSmokeScene.unity` を作る（SampleScene を複製でも可）
+2. 空 GameObject `NetworkManager` を作り `NetworkManager` コンポーネントを追加 → Inspector の Network Transport で **UnityTransport** を選択
+3. 空 GameObject `NetBridge` を作り `NetworkObject` / `NgoNetBridge` / `NetBridgeSmokeTest` を追加（bridge 欄は Awake で自動取得）
+4. `Window > Multiplayer > Multiplayer Play Mode` → **Player 2** にチェック → Virtual Player が起動するのを待つ
+5. メインエディタで Play → Hierarchy の `NetworkManager` を選択 → Inspector の **Start Host**
+6. Player 2 のウィンドウで `NetworkManager` を選択 → **Start Client**（初回は Windows Firewall の許可ダイアログが出る → 許可）
+7. 期待ログ（2 秒ごと）
+   - ホスト Console: `[NetBridgeSmokeTest] Host broadcasting Ping #1` と **`ClientId=0 received Ping #1`**（← ホスト自身が受信する。旧 `[ClientRpc]` ではこの行が出なかった）
+   - Player 2 Console: `ClientId=1 received Ping #1`
+8. `NetBridgeSmokeTest` の **Broadcast From Client** を ON にして 5〜6 をやり直す
+   - Player 2: `Client broadcasting Ping #1` → ホスト・Player 2 の両方に `received Ping #1`（Client→Host 中継経路）。ホストに `[Net/Host] … レート制限` の警告が出ないこと
+9. 余裕があれば実機 2 台 + 実 LAN で同じ確認（`UnityTransport` の Address をホストの IP にする）
+
+> VfxManager と NgoNetBridge を組み合わせた起動コード（composition root）はまだ無いため、VFX の Cosmetic 配送そのものは `CosmeticDeliveryTests`（Loopback）と上記ブリッジ疎通で分けて確認する。
+
+#### 手順 4: コミット前
+
+1. `git status` で `.cs` に対応する `.meta` が揃っていることを確認（Unity が自動生成済み）
+2. `ProjectSettings/EditorBuildSettings.asset` と `ShaderGraphSettings.asset` は改行コードのみの差分（`git diff --ignore-all-space` で空）。`git checkout -- ProjectSettings/EditorBuildSettings.asset ProjectSettings/ShaderGraphSettings.asset` で戻してよい
+3. `Packages/packages-lock.json` は unity-mcp / NGO 2.13.2 の解決結果なので含める
+4. `Tools > D-Drive > Validation > Run All` で Error 0 を確認
+5. コミット例: `feature/P2 VFX設計見直し(2-12) + MCP導入 + NGO 2.13.2統一`
+
+---
+
+## 4. 次のエディタ実装で最初から満たすチェックリスト（[12_review.md](12_review.md) §3「Editor / ツール」への追加提案）
+
+- [ ] そのウィンドウだけで Data の全項目を編集できる（Inspector との往復を前提にしない）
+- [ ] 編集対象・作業状態が `[SerializeField]` でドメインリロードを跨ぐ
+- [ ] Project の選択に追従する + ロックできる
+- [ ] 値の変更が再生中の実体に即時反映される。再スポーンが必要な変更は自動で撮り直す
+- [ ] 「今の設定で何が起きるか」（解決先・無効理由）を常に文字で表示する
+- [ ] 空間的な値は SceneView ハンドルでも編集できる（数値と 2D パッドだけにしない）
+- [ ] ワンショットの繰り返し確認（リピート）がある
+- [ ] Undo/Redo 後に UI・実体・SceneView が同期する
+- [ ] スポーン物を専用ルートにまとめ、シーン切替・ウィンドウ閉鎖で確実に片付ける
+- [ ] Validator の結果をウィンドウ内に出す
+- [ ] 300〜400 行を超えたら partial / 責務で分割する

@@ -56,6 +56,7 @@
 
 ### Editor / ツール
 - [ ] 全操作 Undo 対応
+- [ ] `AssetDatabase.CreateAsset` 直後に `CreateFolder` / `Refresh` を挟んでいない（作りたてのアセットが再インポートされ、メモリ上の変更と dirty が消える。フォルダは先に作り、Id 等は `SaveAssetIfDirty` で即確定する。2026-09-08 `AssetCreationService` で実例あり）
 - [ ] プレビューが実 Manager 経路（Editor 専用再生コードなし）
 - [ ] 1000 件規模での動作確認（仮想化・遅延ロード）
 - [ ] 保存フック（Version/Author/Validation）が動く

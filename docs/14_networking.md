@@ -39,7 +39,17 @@ public interface INetBridge          // Foundation 層。実装はアダプタ�
 ```
 
 - シングルプレイでは `LocalLoopbackBridge`（自分に即時配送）を挿す → **ゲームコード・データは通信の有無で一切変わらない**
-- アダプタは v1 で NGO（Netcode for GameObjects）実装を 1 つ用意。Photon 等は同インタフェースで追加
+- アダプタは v1 で NGO（Netcode for GameObjects **2.13.2**）実装 `NgoNetBridge` を 1 つ用意。Photon 等は同インタフェースで追加
+
+### NgoNetBridge の配送規則（2026-09-08 改定・MS2026 統一）
+
+| 呼び出し | 実装 | 備考 |
+|---|---|---|
+| Host から `Broadcast` | `[Rpc(SendTo.ClientsAndHost)]` | **ホスト自身にも届く**。旧 `[ClientRpc]` は NGO 2.x では `SendTo.NotServer` 扱いでホストに届かず、ホストの Manager が Cosmetic を再生できなかった |
+| Client から `Broadcast` | `[Rpc(SendTo.Server)]` で Host に「依頼」→ Host がレート制限（60/秒/クライアント）と種別登録を検証して全員へ配る | §9 の「無条件中継しない」の実装。Simulated はこの経路を通さない |
+| Host から `SendTo(clientId)` | `[Rpc(SendTo.SpecifiedInParams)]` + `RpcTarget.Single` | Client からの呼び出しは警告して破棄 |
+| `NetChannel.Unreliable` | `RpcDelivery.Unreliable`。ペイロードが 1000 bytes を超える場合は Reliable にフォールバック | NGO の Unreliable は 1 パケット(MTU)制限があるため |
+| ログ | `[Net/Host]` / `[Net/Client]` プレフィックス | MS2026 Networking.md §5 と同じ |
 
 ## 3. NetMode（AssetFlags 拡張）
 
@@ -142,3 +152,24 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
 
 - 各マイルストーンのデモは**常に 2 クライアント + サーバー構成で実施**する（[12_review.md](12_review.md)）。シングル動作のみのデモは合格としない
 - CI に Loopback ⇔ NGO の両ブリッジでの PlayMode テストを含め、「シングルでしか動かない実装」の混入を機械的に防ぐ
+
+## 12. MS2026 移植方針（統一ルール・2026-09-08）
+
+D-Drive は最終的に **MS2026（LAN 内 1v1、NGO 2.13.2、Host+Client 方式）** へ移植する。ネットワーク関連は MS2026 の `Docs/Networking.md` を正とし、D-Drive 側の用語・実装・パッケージをそれに揃える。
+
+| 項目 | MS2026 のルール | D-Drive での対応 |
+|---|---|---|
+| ネットコード | NGO **2.13.2** 固定（勝手に上げない。上げるときは全員同時） | `manifest.json` を 2.13.2 に統一（旧 2.2.0 から更新）。Multiplayer Play Mode 2.0.2 / Multiplayer Center 1.0.1 も同一 |
+| 接続モデル | Host（= Server + Client）+ Client。専用サーバなし。IP 直打ち | D-Drive の「Server」は MS2026 の「Host」を指す。`INetBridge.IsServer` = Host 判定 |
+| 権威 | 判定・スコア・勝敗は Host。クライアントは入力を送り、結果を受け取って描くだけ | `NetMode.Simulated` = Host 権威生成（Phase 4）。`NetMode.Cosmetic` = 「きっかけ（イベント）」を配って各自ローカル再生（§3/§4 と同じ思想）。Client 発の Cosmetic は Host 経由で中継（§2） |
+| 同期してよいもの | 位置・状態・HP・「攻撃した/被弾した」イベント。パーティクル 1 粒・UI・カメラ揺れは同期しない | VFX/SE は ID + 位置だけを送る `VfxNetMsg`/`SeNetMsg`。Canvas/UI/CameraShake は `Local`。HitStop/Shake は Presentation の Signal を受けて各自ローカル発火（§5） |
+| 乱数 | `Random.Range` をホストとクライアントで別々に呼ばない。ホストで引いて送る／シード同期 | `SeedRandom` + `PresentationPlayMsg.Seed`（§6）。`AnchorPoint` のランダム散らばりは **見た目専用**なので各自ローカルで可（結果に影響しない） |
+| 時刻 | `Time.time` 基準の同期判定禁止。ネットワーク時刻を使う | `ITimeSource` 注入。`NetworkTimeSource` が `NetworkManager.ServerTime` を返す（§6） |
+| static 状態 | ゲーム状態を static に持たない | D-Drive の静的ファサード（`Vfx`/`Audio`）は **Manager 実体への参照だけ**を持ち、状態は Manager インスタンス側。Host/Client は別プロセスなので衝突しない（MPPM の Virtual Player も別プロセス） |
+| RPC 頻度 | `Update()` 内で毎フレーム RPC を投げない | Cosmetic は Tick 内でバッチ → 1 パケット（§8）。Client→Host 依頼はレート制限 |
+| Prefab 登録 | NetworkObject を持つ Prefab は NetworkPrefabsList 登録必須。`Assets/DefaultNetworkPrefabs.asset` は `Assets/` 直下のまま | `NgoNetBridge` を載せる Prefab も登録対象。`DefaultNetworkPrefabs.asset` は移動しない（D-Drive でも `Assets/` 直下） |
+| 初期化 | `Awake()` ではなく `OnNetworkSpawn()` | `NgoNetBridge` は状態を持たない。購読は各 Manager のコンストラクタ、Bind は `OnNetworkSpawn` 以降に行う |
+| ログ | `[Net]`、Host/Client を分けて `[Net/Host]` `[Net/Client]` | `NgoNetBridge` のログを同プレフィックスに統一 |
+| テスト | 1 台での確認だけで「動いた」と言わない。MPPM → 実機 2 台 + 実 LAN | [12_review.md](12_review.md) §5 の「M2 以降は 2 クライアント + サーバー構成」と同じ。`NetBridgeSmokeTest` を MPPM で回す |
+
+**移植時の配置**: D-Drive は `Assets/DDrive/`（asmdef ごと）を MS2026 にそのまま持ち込み、ゲームコード（`Assets/_Project/Scripts/`）は `DDrive.Runtime` のみを参照する（Editor 参照禁止）。`Assets/GameData/` はカタログごと移す。MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API として挙げているが、NGO 2.x では統一 RPC `[Rpc(SendTo.*)]` が推奨（旧属性の `RequireOwnership` は Obsolete 警告）であり、D-Drive の bridge は統一 RPC で書く。移植時に MS2026 側の文書も同じ記述に揃える。

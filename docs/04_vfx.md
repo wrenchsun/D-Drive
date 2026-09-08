@@ -29,9 +29,9 @@ public class VfxData : AssetDataBase
     public float Duration;                    // LifeMode=Duration
     public float FadeOutSec;                  // Stop時にパーティクル放出停止→残り待ち
     [Header("Render")]
-    public RenderMode Render;                 // World3D / UIOverlay ★UIパーティクル
-    public int RenderLayer;                   // Sorting/RenderingLayerMask
-    public uint LightLayerMask;
+    public VfxRenderMode Render;              // World3D / UIOverlay ★UIパーティクル
+    public int RenderLayer;                   // スポーン物の GameObject.layer(カリング用。UIOverlay は VfxUI レイヤー)
+    public uint LightLayerMask = 1;           // Rendering Layer Mask。0 = Prefab の設定を上書きしない(2026-09-08 改定)
     [Header("Parameters")]
     public VfxParam[] Params;                 // ラベル付き公開引数
 }
@@ -47,6 +47,7 @@ public struct AnchorDef
     public bool FollowRotation;  // アタッチ後、回転に追従するか
     public bool DetachOnStop;    // 親破棄時に切り離して残す（軌跡等）
 }
+// VfxData.Anchor の既定値は AnchorDef.WorldDefault(LocalScale=1)。LocalScale=(0,0,0) は 1 扱い(旧アセット互換)
 
 [Serializable]
 public struct VfxParam    // デザイナーが命名する公開引数
@@ -87,6 +88,19 @@ public sealed class AnchorPoint : MonoBehaviour
 
 注意点: 解決は名前一致のため、**同一 contextRoot 配下で AnchorPoint 名を重複させない**こと（最初に見つかった方が使われる）。命名は `Anchor_` プレフィックス推奨（例: `Anchor_RightHand`, `Anchor_Muzzle`）。
 
+### §2.6 姿勢の式（2026-09-08 統一）
+
+Spawn 時・追従(Tick)・エディタでのライブ編集(`ReapplyAnchor`)・SceneView ハンドルの逆変換は、すべて `Runtime/Anchoring/AnchorPose.cs` の同じ式を通る。
+
+```
+位置     = target.TransformPoint(LocalOffset + extra)          target 無し: LocalOffset + extra をワールド座標
+回転     = (FollowRotation ? target.rotation : identity) * Euler(LocalEuler) * jitter
+スケール = (LocalScale == 0 ? 1 : LocalScale) * scaleMul
+extra / jitter / scaleMul = AnchorPoint 由来(SpawnOffset + ランダム)。Spawn 時に 1 回だけサンプリングして Instance が保持
+```
+
+> 改定前は FollowRotation=true のとき LocalEuler が無視されていた(アタッチ先の回転そのものになる)。改定後は「アタッチ先に対する相対回転」として常に効く。既存アセットで LocalEuler=0 のものは挙動が変わらない。
+
 ### Data / Instance の分離（重要）
 
 Prefab/Loop/Lifetime/Anchor は **Data**。位置・速度・経過時間・アタッチ先は **VfxInstance**。Move/Destroy は Handle 経由で Instance に対して行う。
@@ -105,9 +119,17 @@ public static class Vfx
     public static void Kill(VfxHandle h);          // 即時返却
     public static void Preload(params VfxId[] ids);
 }
-// Handle 操作
-h.Move(pos); h.Attach(t); h.Detach(); h.SetParam("MainColor", color); h.SetSpeed(0.5f);
+// Handle 操作(2026-09-08: 静的ファサード Vfx.Move/Attach/Detach/SetParam/SetSpeed/IsPlaying と、
+// VfxHandleExtensions による拡張メソッドの両方で書ける。未 Bind 時は no-op)
+h.Move(pos); h.Attach(t); h.Detach(); h.SetParam("MainColor", color); h.SetSpeed(0.5f); h.IsPlaying();
+
+// エディタ/ツール向け(VfxManager 直)
+manager.ReapplyAnchor(h);                // Data.Anchor の変更を再生中 Instance に再適用(追従先の再解決はしない)
+manager.TryGetAnchorTarget(h, out t);    // 解決済みの追従先
+manager.GetAnchorExtraOffset(h);         // AnchorPoint 由来の追加オフセット(逆変換用)
 ```
+
+> `Spawn(VfxId, in PlayContext)` は Presentation 層(Phase 5)で追加する。
 
 内部実装:
 
@@ -115,6 +137,7 @@ h.Move(pos); h.Attach(t); h.Detach(); h.SetParam("MainColor", color); h.SetSpeed
 - Loop でない Instance は Tick で寿命監視 → 自動 Return
 - `SetParam` は Params 定義を引いて MaterialPropertyBlock / VFXGraph SetXxx に反映（文字列引きは初回のみ、以後 ID キャッシュ）
 - Pause: `ParticleSystem.Pause()` / VFX Graph は `pause=true`
+- Root がシーン破棄等で先に消えた Instance は Tick で検出して台帳から外す(Pool は破棄済み GO の `IPoolable.OnReturn` を呼ばないため、Manager 側で `CleanupBookkeeping` を必ず通す。2026-09-08)
 
 ## 4. UI パーティクル（RenderMode.UIOverlay）
 
@@ -128,24 +151,34 @@ h.Move(pos); h.Attach(t); h.Detach(); h.SetParam("MainColor", color); h.SetSpeed
   `Vfx.Spawn(id, uiElement.transform)` で動く
 - 制約の明文化: UI マスク(RectMask2D)対象外。マスクが必要な演出のみ Mesh ベーカー方式を追加検討（将来拡張）
 
-## 5. 専用エディタ（VfxEditor）— 2026-07-28 プレビュー方式改定
+## 5. 専用エディタ（VfxEditor）— 2026-07-28 プレビュー方式改定 / 2026-09-08 使い勝手改修
 
 **プレビューは独自ビューポートではなく「開いているシーンへ直接スポーン → SceneView で確認」方式**。
 ライティング・ポストプロセス・Skybox はシーン側の設定がそのまま適用されるため、**確認専用シーン**（暗室・屋外等のライティングと Volume を組んだシーン）をプロジェクトに用意し、それを開いた状態で調整する運用とする。埋め込みビューポートでは実シーンのレンダリング環境を再現しきれない（旧実装で Skybox/PostProcess 切替を見送った理由そのもの）ため、この方式に一本化した。
 
+**設計方針（2026-09-08）: このウィンドウだけで VfxData の調整が完結する。** Inspector との往復・「停止→再生の押し直し」を不要にする。レビュー経緯と判断は [19_vfx_usability_review.md](19_vfx_usability_review.md)。
+
 | 機能 | 内容 |
 |---|---|
-| ライブプレビュー | 開いているシーンに Spawn/Stop/速度変更。**実 VfxManager を駆動**。スポーン物は `HideFlags.DontSave` でシーンには保存されず、ウィンドウを閉じると自動破棄。EditMode ではエディタが手動 Simulate + SceneView 再描画を毎更新行う(ラグ・フレーム抜け対策) |
-| スポーン先指定 | シーン内のキャラクターや AnchorRig を「スポーン先」に指定 → Anchor(ボーン名/AnchorPoint)の解決起点になる |
-| Anchor 編集 | スポーン先のボーン/AnchorPoint 一覧をドロップダウンから選び Path に設定（AnchorPoint は★付きで先頭表示）。Offset/回転は 2D パッド + 高さ・向きスライダーで調整 → AnchorDef に保存。AnchorPoint 自体の位置は SceneView のギズモを直接動かして調整 |
+| 対象の選択 | Project ウィンドウの選択に自動追従（ツールバーの「🔒 対象を固定」で固定）。ドメインリロード後も対象・スポーン先・各トグルを保持 |
+| ツールバー | 確認用シーンを開く / Prefab を開く（プレハブモード）/ Project で表示。開いているシーンにカメラ・ライトが無い場合は警告を出す |
+| ライブプレビュー | 開いているシーンに Spawn/Stop/速度変更。**実 VfxManager を駆動**。スポーン物は `[D-Drive] VFX Preview` ルート(HideFlags.DontSave)配下にまとめ、ウィンドウを閉じる/シーン切替で自動破棄。EditMode では手動 Simulate + SceneView 再描画 |
+| リピート | OneShot/Duration の VFX が終わったら 0.35 秒後に自動で再スポーン（調整中に何度も▶を押さない）。Loop は対象外。EditMode の手動 Simulate では `ParticleSystem.IsAlive` が true のままになるため、OneShot の終了は `SceneVfxPreviewDriver` が粒子数と再生位置（`particleCount == 0` かつ `time >= duration`、ループ無し）で判定して Kill する（2026-09-08 修正。PlayMode 中は Manager の判定そのまま） |
+| 基本設定 | Prefab / LifeMode / Duration / FadeOutSec / Render / RenderLayer（LayerField）/ LightLayerMask（Rendering Layer 名付きマスク）/ Flags を SerializedObject バインドで編集（Undo 対応）。Prefab 差し替えは再生中なら再スポーン |
+| スポーン先指定 | シーン内のキャラクターや AnchorRig を「スポーン先」に指定 → Anchor(ボーン名/AnchorPoint)の解決起点になる。変更時は再生中なら再スポーン |
+| Anchor 編集 | Space / Path（ボーン・★AnchorPoint ドロップダウン。選択時に Space=World なら NamedObject に自動切替）/ 高さ・向きスライダー / スケール / 回転追従 / 親消滅後も残す / 2D パッド。**解決状態を常に文字で表示**（「✓ 'Anchor_RightHand'」「⚠ 'xxx' が見つかりません」等）。**変更は再生中の実体へ即時反映**（`ReapplyAnchor`。Path/Space の変更は自動再スポーン） |
+| プレハブモード内再生（2026-09-08 追加） | **対象 VfxData.Prefab 自身**をプレハブモードで開いている間（ツールバー「Prefab を開く」）は、別インスタンスを出さず**ステージ内の ParticleSystem をその場で再生**する（Inspector で ParticleSystem を編集しながら確認する前提。二重表示しない）。Manager を通らないため Anchor・パラメータの即時反映は対象外。ParticleSystem を選択中は Unity 標準のプレビューが進めるので、こちらからは進めない。**別の Prefab** のプレハブモード中は従来どおり Manager 経由でステージのシーンへスポーンする（スポーン物は Prefab に保存されない）。ステージの開閉はシーン切替と同じ扱い（台帳リセット・旧スポーン物の破棄） |
+| SceneView ハンドル | 「SceneView で編集」ON で、Anchor のワールド位置に移動ハンドル（回転ツール選択時は回転ハンドル）を表示。ドラッグ結果を AnchorDef.LocalOffset/LocalEuler に逆変換して保存（AnchorPoint の SpawnOffset・ランダム分は差し引く） |
 | 複数同時再生 | 最大 8 スロットに別 VFX を並べて同時再生（打撃+火花+煙の重なり確認） |
-| パラメータ即時反映 | Params のスライダ操作が再生中 Instance に反映(Float/Int/Color/Vector/Texture。Curve/Gradient は MaterialPropertyBlock 非対応のため表示のみ) |
-| UI モード | Render=UIOverlay のとき、実機では専用カメラで合成される旨を案内表示 |
+| パラメータ | Params の即時反映コントロール（Float/Int/Color/Vector/Texture。Curve/Gradient は表示のみ）+ **定義の追加・削除**（Label/Type/TargetProperty/Anim を PropertyField で編集。定義が変わると即時反映コントロールを作り直す） |
 | イベント編集 | Events(AssetEvent[])を PropertyField で編集。OnSpawn/OnLoop/OnDestroy → SE 再生等 |
+| 検証 | `VfxDataValidator` をその場で実行し Error/Warning を表示（AssetBrowser の一括検証と同じ結果）。設定変更・Undo で自動更新 |
+| UI モード | Render=UIOverlay のとき、実機では専用カメラで合成される旨を案内表示 |
+| Undo | 全操作 Undo 対応。Undo/Redo 後は UI・再生中実体・SceneView を同期 |
 
-> 旧・埋め込みビューポート（RenderTexture + オービットカメラ + 環境切替 Foldout）は廃止。ModelEditor は引き続きプレビューシーン方式（ターンテーブル用途にはこちらが適する。要望があれば同様に移行検討）。
+> 旧・埋め込みビューポート（RenderTexture + オービットカメラ + 環境切替 Foldout）は廃止。ModelEditor は引き続きプレビューシーン方式（ターンテーブル用途にはこちらが適する。要望があれば同様に移行検討）。EditMode の手動 Simulate は `EditModeParticleStepper` に共通化し、PreviewService と SceneVfxPreviewDriver が共有する。
 
-**確認専用シーン**: `Tools > D-Drive > Editors > VFX確認用シーンを開く` で `Assets/GameData/PreviewScenes/VfxPreviewScene.unity` を開く(初回は自動生成)。生成される最小構成は Directional Light + 参照用の床(Plane) + Camera(URP) + Global Volume(Bloom/ColorAdjustments の最小プロファイル)。これはあくまで叩き台で、本番のライティング/ポストプロセスに合わせて各自チューニングする前提。現在開いているシーンに未保存の変更がある場合は標準の保存確認ダイアログが出る。
+**確認専用シーン**: `Tools > D-Drive > Editors > VFX確認用シーンを開く`（ウィンドウのツールバーからも可）で `Assets/GameData/PreviewScenes/VfxPreviewScene.unity` を開く(初回は自動生成)。生成される最小構成は Directional Light + 参照用の床(Plane) + Camera(URP) + Global Volume(Bloom/ColorAdjustments の最小プロファイル)。これはあくまで叩き台で、本番のライティング/ポストプロセスに合わせて各自チューニングする前提。現在開いているシーンに未保存の変更がある場合は標準の保存確認ダイアログが出る。
 
 ## 6. 運用方法
 

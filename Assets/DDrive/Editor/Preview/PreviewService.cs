@@ -368,15 +368,7 @@ namespace DDrive.Editor.Preview
                     continue;
                 }
 
-                foreach (var ps in systems)
-                {
-                    if (ps != null)
-                    {
-                        // withChildren=false: 配列に子も個別に入っているため二重適用を避ける。
-                        // restart=false: 現在時刻から dt 分だけ進める。fixedTimeStep=false: 任意 dt で滑らかに。
-                        ps.Simulate(dt * _speed, false, false, false);
-                    }
-                }
+                EditModeParticleStepper.Step(systems, dt * _speed);
             }
         }
 

@@ -3,7 +3,7 @@
 **D-Drive** — **D**esigner-**D**riven **Re:** **I**DE **V**isual **E**nvironment
 （**Re:** は「Unity 標準機能の再定義・再実装」。uGUI Button / Slider を使わない全面新規実装、AnimationEvent・Resources.Load の独自基盤への置換という設計思想を表す）
 
-Unity 6 / URP / Addressables / UniTask+R3 前提。
+Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.13.2（[MS2026](14_networking.md) §12 へ移植する前提で統一）。AI エージェント向けの入口はルートの [CLAUDE.md](../CLAUDE.md)。
 コンセプト: **プログラマーは ID だけでモックを完成させ、デザイナーが専用エディタで中身を作る。**
 
 ## 読む順番
@@ -29,6 +29,9 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。
 | 16 | [カメラシェイク / 振動](16_camera_haptics.md) | Trauma 合成シェイク・2 モーターカーブ振動・実揺れ/実パッドプレビュー |
 | 17 | [値定義の統一規約](17_value_definition.md) | 定数 / パラメトリック曲線 / 任意カーブ + スピード（ValueDef）・共通 Drawer |
 | 18 | [UI コントロール](18_ui_controls.md) | UiInteractable 共通基底・UiSlider 全面新規実装・応答曲線・標準オプション直結 |
+| 19 | [VFX 使い勝手レビュー](19_vfx_usability_review.md) | 2026-09-08 のレビュー記録: 問題点 → 判断 → 改修内容 → 未着手 |
+| 21 | [Anchor 仕様改定案](21_anchor_spec.md) | 2026-09-08 提案: Anchor のアセット化・入れ子・Audio 共通化・生成ディレイ/ランダム/イベント。§6 の決定待ち |
+| 20 | [MCP セットアップ](20_mcp_setup.md) | AI ⇄ Unity Editor 連携（MCP for Unity）の導入手順・運用ルール・バージョン管理 |
 
 ## 全体像 1 枚図
 
