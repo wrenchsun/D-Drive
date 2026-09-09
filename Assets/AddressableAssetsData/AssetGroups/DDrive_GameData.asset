@@ -1,0 +1,68 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: DDrive_GameData
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: DDrive_GameData
+  m_GUID: 7d0330e9280bfa74aaca9631072f761c
+  m_SerializeEntries:
+  - m_GUID: 10f4fc669d1c0d049a277fafbbd60eea
+    m_Address: SE_Player_Slash
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 21573cd5ef6ada84682b30f7a322abe3
+    m_Address: PREFAB_Player_Model
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4670c02ca60e7624f80fd96924f39cbb
+    m_Address: ANC_Anim_Jump
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 646370b61f6b06d408e3aa447eda79e5
+    m_Address: BGM_Title_Test
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9c912d504098803498b29e862618a9a5
+    m_Address: ANCG_1_PlayerSlash
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a41aa650ace21a24db8d0cb193031302
+    m_Address: ANIM_Player_Jump
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c947cc2894989ba45b19d8168ad8d23c
+    m_Address: SE_test_NewSound
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d7f9265ffc9ff0f41b743644daf1ac5f
+    m_Address: VFX_Player_Slash
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ecb3243253c227148a3de1f837ff59bd
+    m_Address: ANC_Player_VFXPlayerSlashAnchor
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 1f09223bfdf1aa247a055dcdb53d6a91, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 5619f643a1ee6564ea1a6979b9455f78, type: 2}
+    - {fileID: 11400000, guid: 83207bf46fbfd334b95c8cf6871ff2e2, type: 2}

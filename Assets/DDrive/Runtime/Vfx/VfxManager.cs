@@ -440,6 +440,19 @@ namespace DDrive.Runtime.Vfx
             => _instances.TryGet(handle, out var instance) && instance.Pending;
 
         // 実際に使われている Anchor 定義(AnchorId の連鎖を合成済み)。エディタの表示・逆変換用。
+        // Handle → Data(エディタのプレビュー台帳が OneShot の終了判定などに使う)。無効なら false。
+        public bool TryGetData(Handle<VfxMarker> handle, out VfxData data)
+        {
+            if (_instances.TryGet(handle, out var instance))
+            {
+                data = instance.Data;
+                return true;
+            }
+
+            data = null;
+            return false;
+        }
+
         public bool TryGetEffectiveAnchor(Handle<VfxMarker> handle, out AnchorDef anchor)
         {
             if (_instances.TryGet(handle, out var instance))

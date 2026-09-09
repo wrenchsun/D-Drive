@@ -55,6 +55,74 @@ namespace DDrive.Foundation.Event
             }
         }
 
+        // アニメーション用: Frame/Time トリガを「ゲームのフレーム数」ではなく「クリップ時間」で判定する
+        // ([05_model_animation.md] B-3、2026-09-08)。clipTimeSeconds はクリップ先頭からの秒、Frame は frameRate で秒に換算。
+        public void TickAnimation(InstanceContext ctx, float clipTimeSeconds, float frameRate)
+        {
+            if (!_sessions.TryGetValue(ctx, out var session))
+            {
+                return;
+            }
+
+            for (var i = 0; i < session.Events.Length; i++)
+            {
+                if (session.FiredOnce.Contains(i))
+                {
+                    continue;
+                }
+
+                var evt = session.Events[i];
+                var crossed = evt.Trigger switch
+                {
+                    EventTrigger.Time => clipTimeSeconds >= evt.Time,
+                    EventTrigger.Frame => frameRate > 0f && clipTimeSeconds * frameRate >= evt.Time,
+                    _ => false,
+                };
+
+                if (!crossed)
+                {
+                    continue;
+                }
+
+                session.FiredOnce.Add(i);
+                OnEventFired?.Invoke(ctx, evt);
+            }
+        }
+
+        // シーク用: Frame/Time を発火せずに「clipTimeSeconds 以前のものは発火済み」に揃える(エディタのタイムライン操作)。
+        public void SeekAnimation(InstanceContext ctx, float clipTimeSeconds, float frameRate)
+        {
+            if (!_sessions.TryGetValue(ctx, out var session))
+            {
+                return;
+            }
+
+            session.FiredOnce.Clear();
+            for (var i = 0; i < session.Events.Length; i++)
+            {
+                var evt = session.Events[i];
+                var crossed = evt.Trigger switch
+                {
+                    EventTrigger.Time => clipTimeSeconds >= evt.Time,
+                    EventTrigger.Frame => frameRate > 0f && clipTimeSeconds * frameRate >= evt.Time,
+                    _ => false,
+                };
+                if (crossed)
+                {
+                    session.FiredOnce.Add(i);
+                }
+            }
+        }
+
+        // ループ周回時に Frame/Time を再発火可能にする(毎周発火)。
+        public void ResetOnce(InstanceContext ctx)
+        {
+            if (_sessions.TryGetValue(ctx, out var session))
+            {
+                session.FiredOnce.Clear();
+            }
+        }
+
         public void Tick(InstanceContext ctx, float deltaTime)
         {
             if (!_sessions.TryGetValue(ctx, out var session))

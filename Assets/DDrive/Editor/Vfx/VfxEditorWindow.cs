@@ -22,6 +22,7 @@ namespace DDrive.Editor.Vfx
     //
     // 設計方針: このウィンドウだけで VfxData の調整が完結する(Inspector との往復を不要にする)。
     // Data への書き込みは全て Undo 対応。プレビューは実 VfxManager を駆動する(ADR-4)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(VfxData), "VFX Editor で開く")]
     public sealed partial class VfxEditorWindow : EditorWindow
     {
         private const float RepeatGapSec = 0.35f;

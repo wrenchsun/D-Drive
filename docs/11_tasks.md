@@ -22,6 +22,7 @@
 | 0-11 | Validation Core（IValidator 登録制 + CI 実行） | 基盤 | 2 | 0-2 | batchmode で exit code 反映。JUnit XML 出力 |
 | 0-12 | ネット前提の注入点（INetBridge+Loopback / ITimeSource / NetMode フラグ / Seed 決定的乱数） | 基盤 | 2 | 0-2 | Loopback でシングルプレイが完全動作。Time.time 直接参照ゼロ（Analyzer 検出） |
 | 0-13 | EasingCore（31 種 + Bezier + Curve、既存実装の Runtime 昇格）+ SplinePath（4 種、弧長等速化） | 基盤 | 3 | 0-1 | 全 Ease の参照値テスト green。Evaluate が等速（誤差 1% 以内） |
+| 0-14 | 起動配線（`DDriveRuntimeBootstrap` = Composition Root）+ カタログ ⇔ Addressables 同期 | 基盤 | 2 | 0-4, 0-5, 0-10 | ✅ 2026-09-09（レビュー P0-1/P0-2 対応、[02] §14 / §5）。`Generate/起動オブジェクトをシーンに配置`、`Generate/Addressables 登録を同期`、`AddressablesRegistrationValidator`。`RuntimeBootstrapTests` / `AddressablesRegistrationValidatorTests` |
 | 0-14 | NGO アダプタ（INetBridge 実装 + NetworkTime 同期） | 基盤 | 3 | 0-12 | Loopback と差し替えて 2 クライアントテストシーンが動く。**2026-09-08 改修**: NGO 2.13.2 に統一（MS2026 と同一）、`[ClientRpc]`→`[Rpc(SendTo.ClientsAndHost)]`（旧属性はホスト自身に届かない）、Client 発 Cosmetic の Host 中継 + レート制限、Unreliable 配送対応、`[Net/Host]` ログ（[14] §2/§12）。⚠ 実機 2 クライアントでの再確認が必要 |
 | 0-15 | ValueDef / TimeDef / ValueDef3 / ValueDefColor 定義 + Evaluate | 基盤 | 2 | 0-13 | 全モードの参照値テスト green。定常経路 0 alloc・純関数 |
 | 0-16 | ValueDef Validator（共通検査一式） | 基盤 | 2 | 0-15, 0-11 | [17] §6 の全検査 |
@@ -80,10 +81,10 @@
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|
-| 3-1 | AnimData + AnimManager + AnimatorProxy | 基盤 | 4 | 0-8 | CrossFade 再生、Frame/Time イベント発火 |
-| 3-2 | BlendShapeTrack / IkProfile 適用 | 基盤 | 2 | 3-1 | カーブ通りに反映 |
-| 3-3 | AnimEditor（タイムライン/イベント D&D/ブレンド確認） | ED | 4 | 1-6, 3-1 | 設計書 05 §B-4 |
-| 3-4 | Anim × SE/VFX 同時プレビュー | ED | 2 | 3-3, 2-4, 1-7 | イベント設定が試聴・表示に反映 |
+| 3-1 | AnimData + AnimManager + AnimatorProxy | 基盤 | 4 | 0-8 | ✅ 2026-09-08 実装（[05] B-3 実装メモ）。`AnimManagerTests` 17 件（PlayMode 290 green、2026-09-09 確認）。2026-09-09 レビュー対応: Layer 別 Proxy 状態、Animator.speed 復元、複数周回 Tick、`StopAllFor`、Model Despawn での停止、SetMaterial の Instance 側保持（`AnimLifetimeReviewTests` 7 件） |
+| 3-2 | BlendShapeTrack / IkProfile 適用 | 基盤 | 2 | 3-1 | ✅ 3-1 と同時に `AnimatorProxy` へ実装（BlendShape はテスト済み。IK は OnAnimatorIK 経由のため AnimEditor(3-3) で実機確認） |
+| 3-3 | AnimEditor（タイムライン/イベント D&D/ブレンド確認） | ED | 4 | 1-6, 3-1 | ✅ 2026-09-09 実装（[05] B-4 実装メモ）。タイムラインのシーク・マーカードラッグ・ブレンド確認・実行時 Validation。IK ターゲットの配置 UI は未実装。2026-09-09 追記: 再生先「シーン(SceneView)」を追加（`SceneAnimPreviewDriver`。確認用シーン / プレハブモードのモデルをその場で駆動、停止で元ポーズに復元）。全 Data の Inspector 最上部に「エディターで開く」（[09] §8） |
+| 3-4 | Anim × SE/VFX 同時プレビュー | ED | 2 | 3-3, 2-4, 1-7 | ✅ 2026-09-09 `AssetEventDispatcher`（Runtime/Presentation）を PreviewService に組み込み。PlayMode 293 green（`AnimIntegrationTests` 3 件追加） |
 | 3-5 | MaterialCommon 規約確定 + MaterialData/Mats | TA+基盤 | 3 | 0-* | Apply/Replace/FadeTo、MaterialAnim 駆動 |
 | 3-6 | シェーダー変換テーブル + 変換エディタ | TA | 3 | 3-5 | 共通データ維持・固有差分レポート |
 | 3-7 | Maya FBX → MaterialData 自動生成（ImportProfile） | TA | 3 | 3-5 | 再インポートで固有調整を破壊しない |

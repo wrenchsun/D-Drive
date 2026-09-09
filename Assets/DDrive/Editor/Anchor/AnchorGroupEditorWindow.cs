@@ -20,6 +20,7 @@ namespace DDrive.Editor.Anchor
     // [22_anchor_group.md] §3.7 — 配置セット(AnchorGroupData)専用エディタ。
     // 全点のギズモ(番号付き)を SceneView に描き、クリックで点を選択、パターン(Grid の間隔 / Circle の半径 / Line の長さ)や
     // 手置きの点をハンドルで編集、▶ で全点または選択点だけを実 Manager 経由で試し出しする。
+    [DDrive.Editor.Inspector.DataEditor(typeof(AnchorGroupData), "Anchor Group Editor で開く")]
     public sealed class AnchorGroupEditorWindow : EditorWindow
     {
         [SerializeField] private AnchorGroupData _target;

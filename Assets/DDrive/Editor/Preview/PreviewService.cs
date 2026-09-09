@@ -44,6 +44,10 @@ namespace DDrive.Editor.Preview
         public VfxManager VfxManager { get; private set; }
         public ModelsManager ModelsManager { get; private set; }
 
+        // [05] B-3/B-4 — AnimEditor(3-3)用。イベント(Frame/Time → SE/VFX)は AssetEventDispatcher が同じプレビュー内で実行する。
+        public DDrive.Runtime.Anim.AnimManager AnimManager { get; private set; }
+        private DDrive.Runtime.Presentation.AssetEventDispatcher _eventDispatcher;
+
         // 試聴の基準になる AudioListener。開いているシーンに存在すればそれを、
         // 無ければプレビューシーン内に生成したものを指す(3D 減衰・パンの基準)。
         public Transform ListenerTransform { get; private set; }
@@ -98,7 +102,11 @@ namespace DDrive.Editor.Preview
             BgmManager = new BgmManager(registry, bgmChannelA, bgmChannelB);
 
             VfxManager = new VfxManager(_pool, registry);
-            ModelsManager = new ModelsManager(_pool, registry);
+            AnimManager = new DDrive.Runtime.Anim.AnimManager(registry);
+            ModelsManager = new ModelsManager(_pool, registry, AnimManager);
+            _eventDispatcher = new DDrive.Runtime.Presentation.AssetEventDispatcher(AnimManager.Events, registry, AudioManager, VfxManager, AnimManager.GetContextTransform);
+            _eventDispatcher.OnVfxSpawned += TrackVfx;
+            _eventDispatcher.OnSePlayed += h => _activeSeHandles.Add(h);
 
             // _root は既に _previewScene に属しているため、親にぶら下げるだけでシーンも引き継ぐ
             // (MoveGameObjectToScene はルートオブジェクトにしか使えず、親付け後に呼ぶと例外になる)。
@@ -235,6 +243,22 @@ namespace DDrive.Editor.Preview
 
         public void StopAllVfx() => VfxManager?.StopAll(Foundation.Manager.StopReason.Manual);
 
+        // イベント経由で出た VFX も EditMode の手動 Simulate 対象にする。
+        private void TrackVfx(Handle<VfxMarker> handle)
+        {
+            var go = VfxManager.GetGameObject(handle);
+            if (go != null)
+            {
+                _activeVfx.Add((handle, go.GetComponentsInChildren<ParticleSystem>(true)));
+            }
+        }
+
+        // AnimEditor(3-3)向け: 実 AnimManager で再生。fade < 0 は Data の既定値。
+        public Handle<DDrive.Runtime.Anim.AnimMarker> PlayAnim(DDrive.Runtime.Anim.AnimData data, Animator target, float fade = -1f)
+            => _initialized && data != null ? AnimManager.PlayData(data, target, fade) : Handle<DDrive.Runtime.Anim.AnimMarker>.Invalid;
+
+        public void StopAllAnim() => AnimManager?.StopAll(Foundation.Manager.StopReason.Manual);
+
         // ModelEditor(2-6)向け。
         public Handle<ModelMarker> SpawnModel(ModelData data, Vector3 pos, Quaternion rot)
             => _initialized && data != null ? ModelsManager.SpawnData(data, pos, rot) : Handle<ModelMarker>.Invalid;
@@ -334,7 +358,10 @@ namespace DDrive.Editor.Preview
             EditorApplication.update -= EditorTick;
             StopAll();
             StopAllVfx();
+            StopAllAnim();
             StopAllModels();
+            _eventDispatcher?.Dispose();
+            _eventDispatcher = null;
             _activeVfx.Clear();
             ReleaseDataCopies();
             ClearPreviewModel();
@@ -365,6 +392,7 @@ namespace DDrive.Editor.Preview
             AudioManager.Tick(dt);
             BgmManager.Tick(dt);
             VfxManager.Tick(dt);
+            AnimManager.Tick(dt * _speed);
             ModelsManager.Tick(dt);
             AdvanceVfxSimulation(dt);
 

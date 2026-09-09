@@ -62,7 +62,7 @@ namespace DDrive.Tests.Editor
             var asset = CreateAsset("SE_Gen_Idempotent");
             AssetDatabase.SaveAssets();
 
-            var first = AssetIdGenerator.Regenerate(_tempOutputPath);
+            var first = AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             Assert.IsTrue(first.Success);
             // 他のテスト(AssetIdLookupTests 等)も同じ TestAssetData 型の一時アセットを作ることがあるため、
             // プロジェクト内で自分だけが対象という前提を置かない(>=1 のみ検証)。
@@ -71,7 +71,7 @@ namespace DDrive.Tests.Editor
             var idAfterFirst = asset.Id;
             var firstContent = File.ReadAllText(_tempOutputPath);
 
-            var second = AssetIdGenerator.Regenerate(_tempOutputPath);
+            var second = AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             Assert.IsTrue(second.Success);
             Assert.AreEqual(0, second.AssignedCount);
             Assert.AreEqual(idAfterFirst, asset.Id);
@@ -84,7 +84,7 @@ namespace DDrive.Tests.Editor
         {
             var asset = CreateAsset("SE_Gen_RenameMe");
             AssetDatabase.SaveAssets();
-            AssetIdGenerator.Regenerate(_tempOutputPath);
+            AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             var idBefore = asset.Id;
             Assert.AreNotEqual(0UL, idBefore);
 
@@ -92,7 +92,7 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(string.IsNullOrEmpty(error), error);
             _createdAssetPaths[0] = TempDir + "/SE_Gen_Renamed.asset";
 
-            AssetIdGenerator.Regenerate(_tempOutputPath);
+            AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             Assert.AreEqual(idBefore, asset.Id);
         }
 
@@ -103,7 +103,7 @@ namespace DDrive.Tests.Editor
             var b = CreateAsset("SE_Gen_DupB");
             AssetDatabase.SaveAssets();
 
-            AssetIdGenerator.Regenerate(_tempOutputPath);
+            AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             Assert.AreNotEqual(a.Id, b.Id);
 
             b.Id = a.Id;
@@ -111,7 +111,7 @@ namespace DDrive.Tests.Editor
             AssetDatabase.SaveAssets();
 
             LogAssert.Expect(LogType.Error, new Regex(".*Duplicate AssetId.*"));
-            var result = AssetIdGenerator.Regenerate(_tempOutputPath);
+            var result = AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             Assert.IsFalse(result.Success);
             Assert.AreEqual(1, result.Duplicates.Count);
             Assert.AreEqual(a.Id, result.Duplicates[0].Id);

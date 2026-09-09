@@ -14,6 +14,8 @@ namespace DDrive.Editor.Audio
     // 波形表示 + 範囲ドラッグ(SE: トリム範囲 / BGM: ループ範囲)、実 AudioManager 試聴、
     // 音量/ピッチ/開始位置のライブ調整、3D サウンド確認パッド(ブレンドスペース風 2D UI)、Mixer 表示。
     // ランダム試聴は ▶ が実 Manager の SelectMode 経路(Random/RoundRobin)をそのまま通ることで実現。
+    [DDrive.Editor.Inspector.DataEditor(typeof(SeData), "Audio Editor で開く(波形・トリム編集)")]
+    [DDrive.Editor.Inspector.DataEditor(typeof(BgmData), "Audio Editor で開く(波形・ループ編集)")]
     public sealed class AudioEditorWindow : EditorWindow
     {
         private const float WaveformHeight = 96f;

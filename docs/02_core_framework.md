@@ -98,7 +98,8 @@ public struct AssetEvent
 ```
 
 - 発火は `EventBus.Fire(instance, trigger)`。Manager は節目で呼ぶだけ
-- `PlayAsset` の実行は AssetType に応じて対応 Manager にディスパッチ
+- Frame/Time は `EventBus.Tick(ctx, dt)`（ゲームフレーム/秒）か `EventBus.TickAnimation(ctx, clipTime, frameRate)`（クリップ時間。AnimManager 用、2026-09-08 追加）で判定。`ResetOnce(ctx)` でループ周回ごとに再発火できる
+- `PlayAsset` の実行は AssetType に応じて対応 Manager にディスパッチ（実装: `Runtime/Presentation/AssetEventDispatcher.cs`。Se / Vfx / AnchorGroup に対応。発火元の Transform を contextRoot にする。2026-09-09）
 - Validation 対象（Target 欠落 = 赤）
 
 ## 4. AssetRegistry（ID→Data 解決）
@@ -129,6 +130,7 @@ public interface IAssetLoader
 
 - 参照カウントで多重ロード防止・自動 Release
 - ゲームコードから直接呼ぶの禁止（Manager 専用）
+- **カタログと Addressables の一致**（2026-09-09）: 実装 `AddressablesAssetLoader` は Addressables の address しか引かない。そのため「カタログにある Data は Addressables に同じ address で登録済み」を、①作成時（`AssetCreationService` → `AddressablesSync.EnsureEntry`、グループ `DDrive_GameData`）②`Generate/Addressables 登録を同期` ③Validation（`AddressablesRegistrationValidator` が未登録 / Address 不一致を Error、FixAction で登録）の 3 箇所で保証する。カタログ自体もグループ `DDrive_Catalogs` にラベル `DDriveCatalog` で登録され、起動オブジェクトがラベルから集められる
 
 ## 6. PoolService
 
@@ -235,7 +237,7 @@ public interface IValidator
 - 種別ごとの Validator を登録制にする（新種別追加時は Validator を足すだけ）
 - 実行タイミング: ①保存フック ②AssetBrowser の一括実行 ③CI バッチ
   `Unity -batchmode -executeMethod DDrive.Editor.CI.ValidateAll`（エラーで exit 1）
-- 共通検査: ID 重複 / 参照欠落 / 循環参照 / Addressable 未登録 / 未使用検出
+- 共通検査: ID 重複 / 参照欠落 / 循環参照 / Addressable 未登録（実装済み 2026-09-09: `Editor/Validation/AddressablesRegistrationValidator.cs`、カタログ未登録も Error）/ 未使用検出
 - `FixAction` があるものは「自動修正」ボタンを出す（例: Addressable 登録漏れ→登録）
 
 ## 12. 依存関係グラフ
@@ -255,3 +257,13 @@ public interface IValidator
 | Validation | EditMode | 各 Validator の検出・FixAction |
 | ID 生成 | EditMode | 再生成の冪等性、重複検出 |
 | ValueDef | EditMode | 3 モードの参照値、Loop/PingPong、0 alloc、純関数性（同入力同出力） |
+
+## 14. 起動配線（Composition Root）— 2026-09-09
+
+**ランタイムの組み立ては `Runtime/Loop/DDriveRuntimeBootstrap.cs` の 1 箇所だけで行う。** テスト・Editor プレビュー（`PreviewService` / `Scene*PreviewDriver`）以外で Manager を new しない。
+
+- 配置: `Tools > D-Drive > Generate > 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置`（`[D-Drive] Runtime` を作り、`GameData/Catalogs` の全カタログを直参照で割り当てる。Inspector の「カタログを再収集」で更新）。シーンに 1 つ。2 つ目は警告して自壊
+- Awake（`DefaultExecutionOrder(-1000)`）: `AssetRegistry(AddressablesAssetLoader)` → `PoolService` → `AudioManager` / `BgmManager` / `VfxManager` / `AnimManager` / `ModelsManager(anim)` / `AnchorGroupPlayer` → `AssetEventDispatcher(Anim.Events → SE/VFX/配置セット)` を生成し、同居する `GameLoopDriver.GameLoop` に登録、静的ファサード（`Audio` / `Vfx` / `Anim` / `Models` / `Anchors`）を Bind。`INetBridge` は `LocalLoopbackBridge`（NGO 統合時にここを差し替える）
+- Start: `Catalogs`（直参照）と Addressables ラベル `DDriveCatalog` のカタログを `Registry.RegisterCatalogAsync` → `IsReady` / `OnReady` / `WhenReady`。IsReady 前の Play は未登録 ID として Placeholder になる（例外にしない）
+- 破棄: `GameLoop.StopAll(SceneUnload)` → Dispatcher 破棄 → ファサード Unbind → GameLoop から解除 → Pool Clear。`KeepAcrossScenes`（既定 ON）でシーンをまたいで生きる
+- テスト: `Tests/Runtime/RuntimeBootstrapTests.cs`（組み立て・Bind・Unbind・カタログ登録・多重配置の拒否）

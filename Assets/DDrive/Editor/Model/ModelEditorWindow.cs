@@ -13,6 +13,7 @@ namespace DDrive.Editor.Model
     // [05_model_animation.md] A-4 — Model 専用エディタ(2-6)。
     // ターンテーブル回転 / 複数モデル並列表示 / 背景・ライト切替 / Slot 自動収集 /
     // Material スロット差し替え(ID 保存。実適用は Phase 3 の MaterialData 実装後)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(ModelData), "Model Editor で開く")]
     public sealed class ModelEditorWindow : EditorWindow
     {
         private const int MaxParallelSlots = 4;

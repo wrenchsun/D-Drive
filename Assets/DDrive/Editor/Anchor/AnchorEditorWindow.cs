@@ -22,6 +22,7 @@ namespace DDrive.Editor.Anchor
     // [21_anchor_spec.md] §3.6 — AnchorData 専用エディタ。
     // 連鎖(ルート → 対象)の表示、スポーン先を基準にした解決状態、SceneView のギズモ/ハンドル編集、
     // 確認用 VFX / SE の試し出し(実 Manager 経由、ADR-4)、既存ヒエラルキーからの作成(§3.9)、Validation 表示。
+    [DDrive.Editor.Inspector.DataEditor(typeof(AnchorData), "Anchor Editor で開く")]
     public sealed class AnchorEditorWindow : EditorWindow
     {
         private const string PathFieldName = "Path";

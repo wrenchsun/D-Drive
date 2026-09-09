@@ -12,6 +12,8 @@ namespace DDrive.Runtime.Model
 
         public static void Bind(ModelsManager instance) => _instance = instance;
 
+        public static bool IsBound => _instance != null;
+
         public static Handle<ModelMarker> Spawn(ModelId id, Vector3 pos, Quaternion rot)
             => _instance?.Spawn(id, pos, rot) ?? Handle<ModelMarker>.Invalid;
 
@@ -26,5 +28,12 @@ namespace DDrive.Runtime.Model
         public static void SetLayer(Handle<ModelMarker> h, int layer) => _instance?.SetLayer(h, layer);
 
         public static GameObject GetGameObject(Handle<ModelMarker> h) => _instance?.GetGameObject(h);
+
+        // [05] A-3 — AnimManager へ委譲(ModelsManager に AnimManager が接続されていないときは no-op)。
+        public static Handle<DDrive.Runtime.Anim.AnimMarker> PlayAnim(Handle<ModelMarker> h, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> animId)
+            => _instance?.PlayAnim(h, animId) ?? Handle<DDrive.Runtime.Anim.AnimMarker>.Invalid;
+
+        public static Handle<DDrive.Runtime.Anim.AnimMarker> PlayAnim(Handle<ModelMarker> h, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> animId, float fade)
+            => _instance?.PlayAnim(h, animId, fade) ?? Handle<DDrive.Runtime.Anim.AnimMarker>.Invalid;
     }
 }

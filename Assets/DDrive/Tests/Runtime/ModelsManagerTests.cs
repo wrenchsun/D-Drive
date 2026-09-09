@@ -91,7 +91,7 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
-        public void SetMaterial_ResolvesRendererByPath_StoresIdOnSlot()
+        public void SetMaterial_ResolvesRendererByPath_StoresIdOnInstance()
         {
             var data = CreateModelData(1);
             data.Slots = new[]
@@ -104,7 +104,10 @@ namespace DDrive.Tests.Runtime
             LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*MaterialData.*"));
             _manager.SetMaterial(handle, 0, materialId);
 
-            Assert.AreEqual(123UL, data.Slots[0].Material.Value);
+            // 共有 Data は書き換えず、Instance 側の現在値として持つ(2026-09-09 レビュー P1-4)。
+            Assert.AreEqual(0UL, data.Slots[0].Material.Value);
+            Assert.IsTrue(_manager.TryGetMaterial(handle, 0, out var current));
+            Assert.AreEqual(123UL, current.Value);
         }
 
         [Test]

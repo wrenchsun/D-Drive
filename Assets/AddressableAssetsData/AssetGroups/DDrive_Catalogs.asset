@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: DDrive_Catalogs
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: DDrive_Catalogs
+  m_GUID: 699857bab6555d747ae5b22f8ebcebd8
+  m_SerializeEntries:
+  - m_GUID: 023d24e056a15844289d13a78224593e
+    m_Address: AnchorCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 67edb57ec85dff34da0b199908952aca
+    m_Address: PrefabCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7446d79e41b81c846b80f80e936cd0f7
+    m_Address: VfxCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 86546471a6874db4fa4eb1abe89e3f82
+    m_Address: AudioCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: afae82ac11ab03944865aebd0e54cbb7
+    m_Address: AnimCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 1f09223bfdf1aa247a055dcdb53d6a91, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: e445c6bb1deed084c8d82f27fc7f018b, type: 2}
+    - {fileID: 11400000, guid: 242b9117991cb434b891c0c152efb0e9, type: 2}

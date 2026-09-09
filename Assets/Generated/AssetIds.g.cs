@@ -26,16 +26,18 @@ namespace DDrive.Generated
         public static readonly AssetId<DDrive.Runtime.Audio.SeMarker> TestNewSound = new(0x69E86561CF2A3D23UL, AssetType.Se);
     }
 
+    public static class ANIMID
+    {
+    }
+
     public static class ANCHORID
     {
+        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorMarker> ANCPlayerVFXPlayerSlashAnchor = new(0xC7469048615C5C60UL, AssetType.Anchor);
     }
 
-    public static class DDRIVE_TEST_ID
+    public static class ANCHORGROUPID
     {
-    }
-
-    public static class DUMMYID
-    {
+        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker> ANCG1PlayerSlash = new(0xAA1D726D57FCC93EUL, AssetType.AnchorGroup);
     }
 
 }

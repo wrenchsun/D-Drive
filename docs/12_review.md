@@ -40,7 +40,8 @@
 
 ### Manager / 基盤
 - [ ] `Play/Spawn(id, ctx) → Handle` の命名規約準拠
-- [ ] Data を書き換えていない（Data は読み取り専用）
+- [ ] Data を書き換えていない（Data は読み取り専用。Instance ごとの現在値は Instance 側に持つ — `ModelsManager.Materials` の例）
+- [ ] Manager を new するのは `DDriveRuntimeBootstrap` / テスト / Editor プレビューだけ（[02] §14）。Instance を破棄するときは、その Instance が起動した他 Manager の再生（Anim 等）を止めている
 - [ ] Pause / StopAll / OnSceneUnload に応答する
 - [ ] Pool の Return パスでリセット漏れなし（Trail/Particle/コールバック解除）
 - [ ] Handle の世代チェックが全操作に入っている
@@ -58,6 +59,7 @@
 - [ ] 全操作 Undo 対応
 - [ ] `AssetDatabase.CreateAsset` 直後に `CreateFolder` / `Refresh` を挟んでいない（作りたてのアセットが再インポートされ、メモリ上の変更と dirty が消える。フォルダは先に作り、Id 等は `SaveAssetIfDirty` で即確定する。2026-09-08 `AssetCreationService` で実例あり）
 - [ ] プレビューが実 Manager 経路（Editor 専用再生コードなし）
+- [ ] 専用エディタを持つ Data 種別は EditorWindow に `[DataEditor(typeof(XxxData), "…で開く")]` を付けた（Inspector 最上部の「エディターで開く」ボタン、[09] §8。`DataEditorRegistryTests` が未登録を検出する）
 - [ ] 1000 件規模での動作確認（仮想化・遅延ロード）
 - [ ] 保存フック（Version/Author/Validation）が動く
 - [ ] ドメインリロード・プレビューシーン破棄でリークなし（`NewPreviewScene` の Close 確認)

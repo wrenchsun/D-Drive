@@ -58,6 +58,13 @@ namespace DDrive.Editor.Audio
                 File.WriteAllBytes(wavPath, WavWriter.Encode(samples, channels, frequency));
                 AssetDatabase.ImportAsset(wavPath, ImportAssetOptions.ForceUpdate);
                 newClips[i] = AssetDatabase.LoadAssetAtPath<AudioClip>(wavPath);
+                if (newClips[i] == null)
+                {
+                    // 他の保留中の変更(Addressables 設定の保存など)が同じ Import に相乗りすると、上書き直後の
+                    // ロードが null になることがある(2026-09-09 に順序依存のテストで再現)。Refresh してもう一度引く。
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                    newClips[i] = AssetDatabase.LoadAssetAtPath<AudioClip>(wavPath);
+                }
             }
 
             DeleteStaleTrimFiles(directory, baseName, data.Sources.Length);

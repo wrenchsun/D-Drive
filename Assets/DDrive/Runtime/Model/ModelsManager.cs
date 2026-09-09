@@ -20,6 +20,10 @@ namespace DDrive.Runtime.Model
     // MaterialData 実装後に完成する(Phase 3 側で AssetRegistry.ResolveAsync<MaterialData> を
     // 呼ぶ実処理を追加する想定)。[11_tasks.md] 2-5 の AC 「SetMaterial がデータだけで動く」は
     // この制約を踏まえて Phase 3 完了後に再検証すること。
+    //
+    // 2026-09-09: (1) Material の差し替えは共有 Data(ModelData.Slots)を書き換えず、Instance 側の
+    // Materials 配列に保持する(Data は読み取り専用 — [02] §2)。(2) Instance は自分の Animator で再生した
+    // Anim Handle を所有し、Despawn 時に必ず停止する(プール再利用時に旧アニメが残らない)。
     public sealed class ModelsManager : IAssetManager
     {
         private sealed class ModelInstance
@@ -28,6 +32,9 @@ namespace DDrive.Runtime.Model
             public GameObject Root;
             public PooledObject Pooled;
             public Renderer[] SlotRenderers; // Data.Slots と同じ並び順(未解決は null)
+            public AssetId<MaterialMarker>[] Materials; // Instance ごとの現在値(初期値は Data.Slots[i].Material)
+            public Animator Animator; // Spawn 時に解決(無ければ null)
+            public readonly List<Handle<DDrive.Runtime.Anim.AnimMarker>> Anims = new(); // この Instance が所有する再生
         }
 
         private readonly IPoolService _pool;
@@ -37,10 +44,64 @@ namespace DDrive.Runtime.Model
 
         public AssetType Type => AssetType.Model;
 
-        public ModelsManager(IPoolService pool, IAssetRegistry registry)
+        private DDrive.Runtime.Anim.AnimManager _anim;
+
+        public ModelsManager(IPoolService pool, IAssetRegistry registry, DDrive.Runtime.Anim.AnimManager anim = null)
         {
             _pool = pool;
             _registry = registry;
+            _anim = anim;
+        }
+
+        // [05_model_animation.md] A-3 — h.PlayAnim(AnimId) の委譲先(Phase 3-3 で接続)。未設定なら PlayAnim は no-op。
+        public void SetAnimManager(DDrive.Runtime.Anim.AnimManager anim) => _anim = anim;
+
+        public Animator GetAnimator(Handle<ModelMarker> handle)
+            => _instances.TryGet(handle, out var instance) ? instance.Animator : null;
+
+        public Handle<DDrive.Runtime.Anim.AnimMarker> PlayAnim(Handle<ModelMarker> handle, AssetId<DDrive.Runtime.Anim.AnimMarker> animId, float fade = -1f)
+        {
+            if (_anim == null || !_instances.TryGet(handle, out var instance) || instance.Animator == null)
+            {
+                return Handle<DDrive.Runtime.Anim.AnimMarker>.Invalid;
+            }
+
+            var animHandle = fade < 0f ? _anim.Play(animId, instance.Animator) : _anim.Play(animId, instance.Animator, fade);
+            if (_anim.IsPlaying(animHandle))
+            {
+                // 終わった分を落としてから所有リストに載せる(長寿命の Instance で伸び続けないように)。
+                for (var i = instance.Anims.Count - 1; i >= 0; i--)
+                {
+                    if (!_anim.IsPlaying(instance.Anims[i]))
+                    {
+                        instance.Anims.RemoveAt(i);
+                    }
+                }
+
+                instance.Anims.Add(animHandle);
+            }
+
+            return animHandle;
+        }
+
+        // Instance が所有する再生中の Anim 数(テスト / デバッグ表示用)。
+        public int GetOwnedAnimCount(Handle<ModelMarker> handle)
+        {
+            if (!_instances.TryGet(handle, out var instance) || _anim == null)
+            {
+                return 0;
+            }
+
+            var count = 0;
+            for (var i = 0; i < instance.Anims.Count; i++)
+            {
+                if (_anim.IsPlaying(instance.Anims[i]))
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         public Handle<ModelMarker> Spawn(ModelId id, Vector3 pos, Quaternion rot)
@@ -97,10 +158,19 @@ namespace DDrive.Runtime.Model
                 Root = root,
                 Pooled = pooled,
                 SlotRenderers = slotRenderers,
+                Materials = CopySlotMaterials(data.Slots),
+                Animator = root.GetComponentInChildren<Animator>(true),
             };
 
             var handle = _instances.Add(instance);
             _allActive.Add(handle);
+
+            // DefaultAnimation: AnimManager が接続されていれば Spawn 直後に再生する([05] A-2)。
+            if (data.DefaultAnimation.IsValid && _anim != null)
+            {
+                PlayAnim(handle, data.DefaultAnimation);
+            }
+
             return handle;
         }
 
@@ -111,6 +181,19 @@ namespace DDrive.Runtime.Model
                 return;
             }
 
+            // この Instance の Animator で動いているアニメーションを全て止めてからプールへ返す
+            // (所有リスト + 外部が Anim.Play した分も含めて Animator 単位で中断)。
+            if (_anim != null)
+            {
+                for (var i = 0; i < instance.Anims.Count; i++)
+                {
+                    _anim.Stop(instance.Anims[i]);
+                }
+
+                _anim.StopAllFor(instance.Animator);
+            }
+
+            instance.Anims.Clear();
             _allActive.Remove(handle);
             _instances.Remove(handle);
             _pool.Return(instance.Pooled);
@@ -134,12 +217,13 @@ namespace DDrive.Runtime.Model
         public void SetMaterial(Handle<ModelMarker> handle, int slotIndex, AssetId<MaterialMarker> materialId)
         {
             if (!_instances.TryGet(handle, out var instance) ||
-                instance.Data.Slots == null || slotIndex < 0 || slotIndex >= instance.Data.Slots.Length)
+                instance.Materials == null || slotIndex < 0 || slotIndex >= instance.Materials.Length)
             {
                 return;
             }
 
-            instance.Data.Slots[slotIndex].Material = materialId;
+            // 共有 Data(ModelData.Slots)は書き換えない。この Instance の現在値としてだけ持つ。
+            instance.Materials[slotIndex] = materialId;
 
             var renderer = instance.SlotRenderers[slotIndex];
             if (renderer == null || !materialId.IsValid)
@@ -152,6 +236,35 @@ namespace DDrive.Runtime.Model
             // 実際のマテリアル差し替えはまだ行えない。ここは Phase 3 完了後に実処理へ差し替える。
             Debug.LogWarning("[DDrive] Models.SetMaterial: MaterialData is not implemented yet (Phase 3, ticket 3-5). ID stored on Slots but not yet applied to the renderer.");
 #endif
+        }
+
+        // この Instance のスロットに現在割り当てられている Material ID(Data の初期値 + SetMaterial の上書き)。
+        public bool TryGetMaterial(Handle<ModelMarker> handle, int slotIndex, out AssetId<MaterialMarker> materialId)
+        {
+            if (_instances.TryGet(handle, out var instance) && instance.Materials != null && slotIndex >= 0 && slotIndex < instance.Materials.Length)
+            {
+                materialId = instance.Materials[slotIndex];
+                return true;
+            }
+
+            materialId = AssetId<MaterialMarker>.Invalid;
+            return false;
+        }
+
+        private static AssetId<MaterialMarker>[] CopySlotMaterials(MaterialSlot[] slots)
+        {
+            if (slots == null || slots.Length == 0)
+            {
+                return System.Array.Empty<AssetId<MaterialMarker>>();
+            }
+
+            var result = new AssetId<MaterialMarker>[slots.Length];
+            for (var i = 0; i < slots.Length; i++)
+            {
+                result[i] = slots[i].Material;
+            }
+
+            return result;
         }
 
         public void Tick(float dt)

@@ -9,9 +9,9 @@ using UnityEngine;
 namespace DDrive.Editor.AssetBrowser
 {
     // 「新規作成 = 意味情報の入力だけ」を実現する作成パイプライン(FR-1.5)。
-    // ファイル名生成 → アセット作成 → GUID 由来の安定 ID 発行 → カタログ登録 までを 1 回で行う。
-    // Addressables グループへの登録は未実装(カタログの Address 文字列までは発行する。
-    // AddressableAssetSettings への自動組み込みは Preload 実装(5-7)前までに対応する)。
+    // ファイル名生成 → アセット作成 → GUID 由来の安定 ID 発行 → カタログ登録 → Addressables 登録 までを 1 回で行う
+    // (2026-09-09: 実行時ローダーは Addressables のみを引くため、カタログの Address と同じ address で
+    // AddressablesSync がグループへ登録する。カタログ自体もラベル付きで登録し、起動時にラベルから集められる)。
     public static class AssetCreationService
     {
         public const string DefaultGameDataRoot = "Assets/GameData";
@@ -66,7 +66,9 @@ namespace DDrive.Editor.AssetBrowser
             // GenerateUniqueAssetPath が "〜 1.asset" 等へリネームするため、
             // 元の fileName を使うと既存アセットの Address と重複してカタログが壊れる。
             var finalAddress = System.IO.Path.GetFileNameWithoutExtension(path);
-            RegisterToCatalog(asset, assetType, finalAddress, gameDataRoot);
+            var catalog = RegisterToCatalog(asset, assetType, finalAddress, gameDataRoot);
+            AddressablesSync.EnsureEntry(asset, finalAddress);
+            AddressablesSync.EnsureCatalogEntry(catalog);
 
             AssetDatabase.SaveAssets();
             return asset;
@@ -89,7 +91,24 @@ namespace DDrive.Editor.AssetBrowser
             _ => "MiscCatalog",
         };
 
-        private static void RegisterToCatalog(AssetDataBase asset, AssetType assetType, string address, string gameDataRoot)
+        // 既存アセットのカタログ登録漏れを直す(Validation の FixAction 用)。address はファイル名(拡張子なし)。
+        public static AssetCatalog RegisterExisting(AssetDataBase asset, AssetType assetType, string gameDataRoot = DefaultGameDataRoot)
+        {
+            var path = AssetDatabase.GetAssetPath(asset);
+            if (string.IsNullOrEmpty(path) || asset.Id == 0)
+            {
+                return null;
+            }
+
+            var address = System.IO.Path.GetFileNameWithoutExtension(path);
+            var catalog = RegisterToCatalog(asset, assetType, address, gameDataRoot);
+            AddressablesSync.EnsureEntry(asset, address);
+            AddressablesSync.EnsureCatalogEntry(catalog);
+            AssetDatabase.SaveAssets();
+            return catalog;
+        }
+
+        private static AssetCatalog RegisterToCatalog(AssetDataBase asset, AssetType assetType, string address, string gameDataRoot)
         {
             var catalogFolder = $"{gameDataRoot}/Catalogs";
             EnsureFolder(catalogFolder);
@@ -111,6 +130,7 @@ namespace DDrive.Editor.AssetBrowser
             });
 
             EditorUtility.SetDirty(catalog);
+            return catalog;
         }
 
         internal static void EnsureFolder(string folder)

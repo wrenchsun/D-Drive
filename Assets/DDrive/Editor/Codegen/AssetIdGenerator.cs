@@ -58,10 +58,13 @@ namespace DDrive.Editor.Codegen
             }
         }
 
-        public static Result Regenerate(string outputPath = DefaultOutputPath)
+        // includeTestAssemblies: テスト asmdef(DDrive.Tests.*)内の Data 型も走査するか。
+        // メニューからの通常再生成では除外する(生成物に DUMMYID 等のテスト用クラスを残さないため。2026-09-08)。
+        // AssetIdGeneratorTests はテスト用の型で検証するため true で呼ぶ。
+        public static Result Regenerate(string outputPath = DefaultOutputPath, bool includeTestAssemblies = false)
         {
             var result = new Result();
-            var definitions = FindDefinitions();
+            var definitions = FindDefinitions(includeTestAssemblies);
             var seenIds = new Dictionary<ulong, string>();
             var sb = new StringBuilder();
 
@@ -164,12 +167,17 @@ namespace DDrive.Editor.Codegen
             return result;
         }
 
-        private static List<Definition> FindDefinitions()
+        private static List<Definition> FindDefinitions(bool includeTestAssemblies)
         {
             var list = new List<Definition>();
 
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
+                if (!includeTestAssemblies && asm.GetName().Name.StartsWith("DDrive.Tests", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 Type[] types;
                 try
                 {

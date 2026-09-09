@@ -111,9 +111,10 @@ namespace DDrive.Editor.Vfx
             }
         }
 
-        public SceneVfxPreviewDriver()
+        // registry: 省略時はプロジェクト内の Anchor / VFX / SE を登録した EditorAnchorRegistry(AnimEditor のシーン再生やテストは共有 Registry を渡す)。
+        public SceneVfxPreviewDriver(AssetRegistry registry = null)
         {
-            Registry = EditorAnchorRegistry.Build();
+            Registry = registry ?? EditorAnchorRegistry.Build();
             Manager = new VfxManager(_pool, Registry);
             _lastTickTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += EditorTick;
@@ -165,6 +166,14 @@ namespace DDrive.Editor.Vfx
             var handle = Manager.SpawnData(data, spec, attach);
             RegisterSpawned(handle, data);
             return handle;
+        }
+
+        // 外部(AssetEventDispatcher 等)が Manager に直接 Spawn した実体を台帳に載せる
+        // (DontSave・まとめ用ルート・EditMode の手動 Simulate・OneShot の終了判定)。
+        public void Adopt(Handle<VfxMarker> handle)
+        {
+            Manager.TryGetData(handle, out var data);
+            RegisterSpawned(handle, data);
         }
 
         private void RegisterSpawned(Handle<VfxMarker> handle, VfxData data)

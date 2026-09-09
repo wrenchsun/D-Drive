@@ -125,7 +125,7 @@ Generated/
   AssetIds.g.cs                  … ID定数（自動生成、手編集禁止）
 ```
 
-- カタログは Addressables のエントリポイント。起動時（またはシーン単位）にカタログをロードし、Registry に登録
+- カタログは Addressables のエントリポイント。起動時（またはシーン単位）にカタログをロードし、Registry に登録（実装: `DDriveRuntimeBootstrap`（[02] §14）が Inspector 直参照 + ラベル `DDriveCatalog` で集める。カタログと Data の Addressables 登録は AssetBrowser の作成パイプラインと Validation が維持する（[02] §5））
 - Data 本体は Lazy ロード（カタログは ID とアドレスのみ持つ軽量構造も選択可。`CatalogEntry { ulong id; string address; AssetFlags flags; }`）
 - **`GameData/` 配下のファイル名・フォルダ配置はツール（AssetBrowser）が管理する**。人は意味情報（表示名・カテゴリ・識別子）を入力するだけで、上図の規約名・配置はツールが自動生成・追従リネームする（[00] FR-1.5/1.6、[10] §3）。人がファイル名を手付けする運用を前提にしない
 - **カテゴリはフォルダ階層にも反映される**（`Player/Attack` → `Audio/SE/Player/Attack/`）。カテゴリ変更後の再配置は `Tools/D-Drive/Generate/GameData をカテゴリ配置に整理` が行う。フォルダはビュー、参照の真実は ID/Address（[10] §3.3）

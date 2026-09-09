@@ -7,13 +7,14 @@ namespace DDrive.Editor.Audio
     // [03_audio.md] §2 の非破壊トリミング(Source→Clips ベイク)・無音自動検出・再生開始位置の GUI。
     // 波形表示・ドラッグでのトリム編集は 1-7 AudioEditor で拡張する(ここは数値入力ベースの最小GUI)。
     [CustomEditor(typeof(SeData))]
-    public sealed class SeDataEditor : UnityEditor.Editor
+    public sealed class SeDataEditor : DDrive.Editor.Inspector.AssetDataInspector
     {
         private const float SilenceThreshold = 0.01f;
 
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+            DrawOpenEditorHeader();
 
             DrawPropertiesExcluding(serializedObject, "m_Script", "Sources");
 
@@ -59,11 +60,6 @@ namespace DDrive.Editor.Audio
                 if (GUILayout.Button("トリミングを適用(Clips を再生成)", GUILayout.Height(24)))
                 {
                     SeTrimApplier.Apply(data);
-                }
-
-                if (GUILayout.Button("AudioEditor で開く(波形編集)", GUILayout.Height(20)))
-                {
-                    AudioEditorWindow.Open(data);
                 }
             }
 

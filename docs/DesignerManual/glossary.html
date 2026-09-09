@@ -18,6 +18,7 @@
 <tr><td id="anchor">アンカー (Anchor)</td><td>エフェクトや効果音を「どこに・いつ・どう出すか」の定義。ボーン名やオブジェクト名で基準を決め、そこからのずれ（オフセット）を足します。VFX と SE で共通の仕組み。VFX / SE データの中に埋め込む方法と、単独の Anchor データ（ランダム・ディレイ・確率・入れ子つき）を作って参照する方法があります。<a href="anchor-data.html">Anchor データの作り方</a> / <a href="vfx-data.html#anchor">埋め込み項目の説明</a>。</td></tr>
 <tr><td id="anchorpoint">アンカーポイント<br>(AnchorPoint / AnchorRig)</td><td>シーンや Prefab に置く「ここに出す」という目印。SceneView でドラッグして位置を決められ、ランダムな散らばりも設定できます。<a href="vfx-data.html#anchorpoint">使い方はこちら</a>。</td></tr>
 <tr><td id="anchorgroup">配置セット<br>(Anchor Group)</td><td>格子・円・一列・ランダムなどのパターンで並べた複数の場所に、エフェクトや効果音をまとめて出すためのデータ。<a href="anchor-group.html">使い方はこちら</a>。</td></tr>
+<tr><td id="anim">アニメーションデータ<br>(AnimData)</td><td>Clip とステート名、そして「何フレーム目で音・エフェクトを出すか」をまとめたデータ。Anim Editor でモデルを動かしながら調整します。<a href="anim-editor.html">使い方はこちら</a>。</td></tr>
 <tr><td id="asset">アセット</td><td>ゲームで使う素材データのこと。このプロジェクトでは特に「D-Drive に登録された音・エフェクトなどのデータ」を指します。</td></tr>
 <tr><td>アセットブラウザ<br>(Asset Browser)</td><td>D-Drive の素材を一覧・検索・登録するウィンドウ。<a href="asset-browser.html">使い方はこちら</a>。</td></tr>
 <tr><td id="inspector">インスペクター<br>(Inspector)</td><td>Unity 画面の右側にある、選択中のものの詳細設定を表示する場所。項目にマウスを乗せると説明が表示されます。</td></tr>
@@ -26,6 +27,7 @@
 <tr><td id="particle">パーティクルシステム<br>(ParticleSystem)</td><td>Unity 標準の粒子エフェクト機能。火花・煙・光などを小さな粒の集まりで表現します。エフェクトの見た目そのものは Prefab の中のこれで作ります。</td></tr>
 <tr><td id="hierarchy">ヒエラルキー<br>(Hierarchy)</td><td>Unity 画面の左側にある、シーン内に存在するモノの一覧。</td></tr>
 <tr><td id="pitch">ピッチ (Pitch)</td><td>音の高さ。1 が元のまま、2 で1オクターブ高く（再生速度も倍に）、0.5 で低く（半分の速さに）なります。</td></tr>
+<tr><td id="frame">フレーム (Frame)</td><td>アニメーションの時間の単位。Clip のフレームレート（多くは 30）で 1 秒を割ったもの。「Frame 15」は 30fps なら 0.5 秒目。</td></tr>
 <tr><td id="prefab">プレハブ (Prefab)</td><td>シーンに何度でも置ける「ひな形」。エフェクトの実体（ParticleSystem など）は Prefab として作り、VFX データから参照します。</td></tr>
 <tr><td id="prefabmode">プレハブモード</td><td>Prefab の中身だけを編集する Unity の画面状態。Project で Prefab をダブルクリック、または VFX Editor の「Prefab を開く」で入り、Hierarchy 左上の「←」で抜けます。VFX Editor はこの状態でも再生できます（<a href="vfx-editor.html#prefab-mode">詳しくはこちら</a>）。</td></tr>
 <tr><td>プレビュー</td><td>ゲームを実行せずに、エディタ上でその場で再生して確認すること。D-Drive のプレビューは実際のゲームと同じ仕組みで再生されるので、「エディタでは良かったのに実機で違う」が起きにくいのが特長です。</td></tr>
@@ -47,7 +49,7 @@
 <li><a href="se-data.html">SE の設定項目</a> / <a href="bgm-data.html">BGM の設定項目</a></li>
 <li><a href="audio-editor.html">Audio Editor の使い方</a></li>
 <li><a href="scene-sound.html">シーンに環境音を置く</a></li>
-<li><a href="vfx-data.html">VFX の設定項目</a> / <a href="vfx-editor.html">VFX Editor の使い方</a> / <a href="anchor-data.html">Anchor の作り方</a> / <a href="anchor-group.html">配置セット</a></li>
+<li><a href="vfx-data.html">VFX の設定項目</a> / <a href="vfx-editor.html">VFX Editor の使い方</a> / <a href="anchor-data.html">Anchor の作り方</a> / <a href="anchor-group.html">配置セット</a> / <a href="anim-editor.html">アニメーション（3D）</a></li>
 </ul>
 
 <footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>

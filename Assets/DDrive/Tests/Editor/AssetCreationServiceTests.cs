@@ -21,7 +21,9 @@ namespace DDrive.Tests.Editor
         {
             if (AssetDatabase.IsValidFolder(TestRoot))
             {
+                AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
+                AssetDatabase.SaveAssets(); // Addressables 設定の dirty を後続テストに持ち越さない
             }
         }
 

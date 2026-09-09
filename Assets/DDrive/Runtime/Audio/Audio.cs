@@ -17,6 +17,8 @@ namespace DDrive.Runtime.Audio
 
         public static void Bind(BgmManager instance) => _bgmInstance = instance;
 
+        public static bool IsBound => _seInstance != null && _bgmInstance != null;
+
         public static Handle<SeMarker> PlaySe(SeId id) => _seInstance?.PlaySe(id) ?? Handle<SeMarker>.Invalid;
 
         public static Handle<SeMarker> PlaySe(SeId id, Vector3 pos) => _seInstance?.PlaySe(id, pos) ?? Handle<SeMarker>.Invalid;

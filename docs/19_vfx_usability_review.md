@@ -191,6 +191,47 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 | 14 | Anchor Editor と Anchor Group Editor を同時に開き交互にクリック | 最後にクリックした側だけハンドル・番号が出て、他方は薄い円のみ |
 | 15 | `Validation > Run All` | 配置セット由来の Error 0（Children の自己参照を直してから） |
 
+#### 手順 6: アニメーション（3-1〜3-4、[05] B）
+
+準備: Animator（Controller 付きが望ましい）を持つモデルの ModelData。無ければ Animator だけの Prefab でも「Controller なし」経路で確認できる。
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | Asset Browser「新規作成」→ 種別 Anim、Clip を設定 | `Assets/GameData/Anim/<カテゴリ>/ANIM_…asset`。`Tools > D-Drive > Editors > Animation (3D)` に対象として入る |
+| 2 | 「確認用モデル」に ModelData →「確認用シーンを開く」 | 確認用シーンが開き、モデルが原点に配置されて「シーン上の Animator(対象)」に自動で入る。モデル情報は 1 行の要約（Controller / BlendShape 数）、詳細は折りたたみ |
+| 3 | ▶ 再生 | SceneView でモデルが動く（Controller ありなら CrossFade、無しなら Clip のサンプリング）。ステータス「● 再生中 xx%」。タイムラインの再生ヘッドが進む |
+| 4 | タイムラインをクリック | その位置にシーク（ポーズが変わる）。イベントログに発火は出ない |
+| 5 | Events に Frame=15 / Action=PlayAsset / Target=SE を追加 → ▶ | 0.5 秒で SE が鳴り、イベントログに「Frame 15: PlayAsset Se …」。マーカーが橙で出る |
+| 6 | マーカーをドラッグ | Time が変わり（Frame 単位）、Ctrl+Z で戻る。Clip 長を超えると赤 + 検証に Error |
+| 7 | Target を VFX にして ▶ | ビューポート内のモデル位置に VFX が出る（Anchor が BoneName ならそのボーン） |
+| 8 | Loop ON + Events に OnLoop → ▶ | 周回ごとにログに OnLoop。ステータスの周回数が増える |
+| 9 | ブレンド確認: B に別の Anim、CrossFade 0.3 →「A → B を再生」 | A の半分で B に切り替わる（ログに「→ '…' へ CrossFade」） |
+| 10 | StateName を存在しない名前に | 検証に Error「StateName '…' が確認用モデルの Controller にありません」。再生は時間追跡だけ続く（警告 1 回） |
+| 11 | BlendShapes に存在しない名前 | 検証に Warning。存在する名前 + カーブなら再生中に表情が変わる |
+| 12 | 速度 0.3 / 2.0、ループ試聴 ON | 速度が変わる。終わると自動でもう一度 |
+| 13 | Hierarchy に `[D-Drive] Anim Preview` | 保存対象外（DontSave）。■ 停止でモデルは残り、Frame イベントの SE / VFX はシーン内に出る |
+| 14 | ツールバー「モデル Prefab を開く」→ ▶ | プレハブモードに入ると「シーン上の Animator(対象)」に Prefab ルートの Animator が自動で入り、その場で動く。■ 停止で再生前のポーズに戻り、Prefab は dirty にならない（Ctrl+S しても再生中ポーズが保存されない） |
+| 15 | シーン再生中にプレハブモードを閉じる / 別シーンを開く | エラーなし。配置物が消え、対象が空になる（確認用モデルがあれば次の ▶ で再配置） |
+| 16 | Hierarchy で別のモデルを選んで「選択から取得」→ ▶ | そのモデルが動き、停止で元のポーズに戻る |
+
+#### 手順 8: 起動配線と Addressables（[02] §14 / §5、レビュー P0-1 / P0-2）
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | `Tools > D-Drive > Generate > Addressables 登録を同期(カタログ → グループ)` | Addressables Groups に `DDrive_GameData`（全 Data、address = ファイル名）と `DDrive_Catalogs`（カタログ、ラベル `DDriveCatalog`）が出来る。ログに件数 |
+| 2 | `Validation > Run All` | Addressables 由来の Error 0。エントリを 1 つ消して Run All → 「Addressables 未登録」Error、FixAction で復帰 |
+| 3 | `Generate > 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置` | `[D-Drive] Runtime` が出来て Catalogs に GameData/Catalogs の全カタログが入る。GameLoopDriver が同居 |
+| 4 | Play Mode | Inspector に「● Ready(カタログ N 件)」。`Anim.Play(ANIMID.…, animator)` / `Models.Spawn` がコードから動く（未 Bind の no-op にならない）。Frame イベントの SE / VFX が実行時にも出る |
+| 5 | Asset Browser で新規作成 | 作成直後に Addressables のエントリがある（Groups ウィンドウで address を確認） |
+
+#### 手順 7: Inspector の「エディターで開く」（[09] §8）
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | Project で VfxData / SeData / BgmData / ModelData / AnimData / AnchorData / AnchorGroupData を選ぶ | Inspector の一番上に「▶ … Editor で開く」ボタン。押すとそのアセットを対象に専用エディタが開く |
+| 2 | SeData | ヘッダーのボタンに加え、従来のトリミング GUI がそのまま下に出る（末尾の AudioEditor ボタンはヘッダーへ統合） |
+| 3 | Test Runner（EditMode）`DataEditorRegistryTests` | 4 件 green（新しい Data 種別を作って属性を付け忘れると `EveryConcreteDataType_HasEditor` が落ちる） |
+
 
 | 17 | Play Mode に入る → 抜ける | Console に例外が出ない |
 | 18 | ウィンドウを閉じる | `[D-Drive] VFX Preview` が Hierarchy から消える。シーンに未保存マーク（*）が付かない |
