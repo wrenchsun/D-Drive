@@ -13,6 +13,7 @@ using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Prefab;
 using DDrive.Runtime.Presentation;
+using DDrive.Runtime.Ui;
 using DDrive.Runtime.Vfx;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -59,11 +60,14 @@ namespace DDrive.Runtime.Loop
         public ModelsManager Models { get; private set; }
         public MaterialManager Materials { get; private set; }
         public PrefabsManager Prefabs { get; private set; }
+        public UiManager Ui { get; private set; }
         public AnchorGroupPlayer Groups { get; private set; }
         public AssetEventDispatcher Dispatcher { get; private set; }
         // Prefabs.Events(OnSpawn/OnDestroy)を SE/VFX/配置セットへ配線する 2 つ目の Dispatcher
         // (Anim.Events とは別セッション空間のため、同じ Dispatcher に相乗りさせず独立させる。[07] B-3)。
         public AssetEventDispatcher PrefabDispatcher { get; private set; }
+        // Ui.Events(OnSpawn/OnEnable/OnDisable/OnDestroy)を SE/VFX へ配線する 3 つ目の Dispatcher([07] A-3)。
+        public AssetEventDispatcher UiDispatcher { get; private set; }
 
         // カタログ登録が終わったか(IsReady 前の Play は未登録 ID として Placeholder になる)。
         public bool IsReady { get; private set; }
@@ -145,9 +149,11 @@ namespace DDrive.Runtime.Loop
             Materials = new MaterialManager(Registry);
             Models = new ModelsManager(Pool, Registry, Anim, Materials);
             Prefabs = new PrefabsManager(Pool, Registry);
+            Ui = new UiManager(Pool, Registry, Loop.PauseService);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
+            UiDispatcher = new AssetEventDispatcher(Ui.Events, Registry, Audio, Vfx, Ui.GetContextTransform, Groups);
 
             var loop = Loop.GameLoop;
             loop.Register(Audio);
@@ -157,6 +163,7 @@ namespace DDrive.Runtime.Loop
             loop.Register(Materials);
             loop.Register(Models);
             loop.Register(Prefabs);
+            loop.Register(Ui);
             _groupAdapter = new AnchorGroupLoopAdapter(Groups);
             loop.Register(_groupAdapter);
 
@@ -170,6 +177,7 @@ namespace DDrive.Runtime.Loop
                 Mats.Bind(Materials);
                 Runtime.Model.Models.Bind(Models);
                 Runtime.Prefab.Prefabs.Bind(Prefabs);
+                Runtime.Ui.Ui.Bind(Ui);
                 Anchors.Bind(Groups);
             }
 
@@ -201,6 +209,7 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Materials);
                 loop.Unregister(Models);
                 loop.Unregister(Prefabs);
+                loop.Unregister(Ui);
                 loop.Unregister(_groupAdapter);
             }
 
@@ -208,6 +217,8 @@ namespace DDrive.Runtime.Loop
             Dispatcher = null;
             PrefabDispatcher?.Dispose();
             PrefabDispatcher = null;
+            UiDispatcher?.Dispose();
+            UiDispatcher = null;
 
             if (BindFacades)
             {
@@ -219,6 +230,7 @@ namespace DDrive.Runtime.Loop
                 Mats.Bind(null);
                 Runtime.Model.Models.Bind(null);
                 Runtime.Prefab.Prefabs.Bind(null);
+                Runtime.Ui.Ui.Bind(null);
                 Anchors.Bind(null);
             }
 

@@ -6,7 +6,8 @@
         "UniTask",
         "Unity.Addressables",
         "Unity.ResourceManager",
-        "Unity.Netcode.Runtime"
+        "Unity.Netcode.Runtime",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

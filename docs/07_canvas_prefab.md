@@ -88,6 +88,20 @@ public static class Ui
 - CanvasEditor: Prefab をプレビュー表示し、Selectable を自動収集 → Navigation をノードグラフ（矢印表示）で編集。ボタン配線もリスト編集。ゲームパッド入力シミュレーションでフォーカス移動を確認
 - Validation: Prefab Missing (Error) / ButtonPath・Element パス不整合 (Error) / Navigation の到達不能要素 (Warning) / FirstSelected 未設定 (Warning) / SendSignal のキーがコード側に購読なし (Info)。Slider 関連の検査は [18] §B-7 を参照
 
+### 実装メモ（2026-09-10、4-1 / 4-5 Canvas 側）
+
+- 実装: `Assets/DDrive/Runtime/Canvas/`(`CanvasData.cs` / `UiManager.cs` / `Ui.cs` / `CanvasDataValidator.cs`)+ `Assets/DDrive/Editor/Canvas/`(`CanvasEditorWindow.cs` / `CanvasNavigationCollector.cs`)。ModelsManager([05] A-3)/ PrefabsManager([07] B-3)と同じ設計で InstanceStore + PoolService の Rent/Return/Discard、EventBus の Begin/Fire/End を踏襲する。namespace は疑似コードと異なり `DDrive.Runtime.Ui`(フォルダは `Runtime/Canvas/`)
+- ルート: 初回使用時に `UiManager.EnsureRoot()` が `"[D-Drive] UI Root"` を生成し(Play 中は `DontDestroyOnLoad`、Edit 中は `HideFlags.DontSave`)、`UiLayer` の値ごとに `Canvas`(ScreenSpaceOverlay, sortingOrder = レイヤー index * 100)+ `GraphicRaycaster` + `CanvasGroup` を持つ子を作る。EventSystem は作らず、Play 中に無ければ 1 回だけ警告する
+- スタック: レイヤー別ではなく単一のグローバル `_stack`(`List<Handle<CanvasMarker>>`)で開いた順序を管理する。`Open`/`Popup` で末尾に push、`Close` は演出完了後に `Remove`、`CloseTop`/`CloseTopAsync` はスタック上位から `CloseOnBack==true` かつ閉じ処理中でないものを 1 つ探して閉じる(間に `CloseOnBack==false` があってもスキップして探し続ける)
+- 演出: `UiTransition.Kind` が `None`/`Anim` または `Duration<=0` は即時完了、それ以外(`Fade`/`Slide`/`Scale`)は `_transitions`(小さいリスト、LINQ/クロージャなし)に積んで `Tick(dt)` ごとに `EaseDef.Evaluate` で進める。`OpenAsync`/`PopupAsync`/`CloseAsync` は対応する `TransitionState.Completion`(`UniTaskCompletionSource`)を await する。`Kind=Anim` は `UiManager.AnimHook`(`Func<AssetId<AnimMarker>, Animator, Handle<AnimMarker>>`)が設定されていれば呼び出すだけで、再生完了待ちはしない(即時完了扱い。UiButton/AnimEditor からの本格配線は 4-2/4-6 以降)
+- モーダルブロッキング: `OpenData(data, modal:true)` かつ `ModalBlocksInput` のとき `IsModalBlocking=true` を立て、`RecomputeBlocking()` がスタック中で最も上にある「閉じ処理中でないモーダル」より下の全 CanvasGroup の `interactable`/`blocksRaycasts` を false にする(Push/Pop のたびに再計算するため、複数モーダルが重なっても閉じた順に正しく復元される)
+- ポーズ: `PauseGameWhileOpen` は `Open` 時に `PauseService.Push(PauseChannel.Gameplay)`、`Close` の演出完了時に `Pop`(疑似コードの `[02] §10` と同じ規則)
+- イベント/シグナル: `UiManager.Events`(EventBus)で OnSpawn/OnEnable/OnDisable/OnDestroy を発火する(Bootstrap が `UiDispatcher` という 3 つ目の `AssetEventDispatcher` を Prefabs/Anim とは独立して生成する)。`SendSignal(key, handle, elementPath)` はコード購読(`OnSignal`)へ配る用途で、UiButton 本体の配線(4-2/4-6)は未実装
+- Placeholder: 未登録 ID や `Prefab` 未設定の `CanvasData` は名前 `"<Placeholder:CANVAS>"` の空 `RectTransform` を生成する(Pool を経由しない。Close で `Object.Destroy`)
+- Validation: 疑似コードの「SendSignal のキーが購読なし (Info)」は Validate 時点でランタイムの購読状況を知りようがないため実装せず、代わりにチケット仕様通り「`ButtonWire.Action==SendSignal` なのに `SignalKey` が空 (Error)」を検査する。到達不能な Selectable の判定は `Navigation` の Up/Down/Left/Right が指す要素だけを「到達済み」とし、`FirstSelected` に一致する要素は対象外にする
+- 未実装(後続チケット): UiButton/UiSlider 本体(4-2/4-6)、ElementFx(4-9)、CanvasEditor のノードグラフ・ゲームパッド入力シミュレーション(4-3)。`ButtonWire`/`SliderWire` は現時点ではデータのみで、コードから直接 `Ui.SendSignal`/`Ui.OnSignal` を叩く運用でも成立する
+- テスト: `Assets/DDrive/Tests/Runtime/UiManagerTests.cs`(`UiManagerTests` 12 件 + `CanvasDataValidatorTests` 4 件)、`Assets/DDrive/Tests/Editor/CanvasEditorTests.cs`(4 件)。Open/Close/スタック/Popup ブロッキングと復元/CloseTop の CloseOnBack/PauseGameWhileOpen/Navigation 明示配線/OnSignal 購読解除/Fade 演出の Tick 完了と OpenAsync/ライフサイクルイベント/未登録 ID の Placeholder、Validator の 4 ケース、Selectable 自動収集(新規収集・既存保持・null Prefab)、DataEditorRegistry 解決を確認
+
 ---
 
 # Part B — 汎用 Prefab

@@ -9,7 +9,8 @@
         "Unity.Addressables.Editor",
         "Unity.ResourceManager",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.RenderPipelines.Core.Runtime"
+        "Unity.RenderPipelines.Core.Runtime",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [
         "Editor"
