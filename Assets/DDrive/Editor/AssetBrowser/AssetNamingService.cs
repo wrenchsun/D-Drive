@@ -28,6 +28,7 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.UiTween => "UITWEEN",
             AssetType.Anchor => "ANC",
             AssetType.AnchorGroup => "ANCG",
+            AssetType.ControlSkin => "SKIN",
             _ => "ASSET",
         };
 
@@ -50,6 +51,7 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.UiTween => "UiTween",
             AssetType.Anchor => "Anchor",
             AssetType.AnchorGroup => "AnchorGroup",
+            AssetType.ControlSkin => "Ui/Skin",
             _ => "Misc",
         };
 

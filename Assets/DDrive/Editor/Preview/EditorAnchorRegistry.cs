@@ -59,6 +59,7 @@ namespace DDrive.Editor.Preview
             Collect<DDrive.Runtime.Material.TextureData>(AssetType.Texture, entries, loads);
             Collect<DDrive.Runtime.Prefab.PrefabData>(AssetType.Prefab, entries, loads);
             Collect<DDrive.Runtime.Ui.CanvasData>(AssetType.Canvas, entries, loads);
+            Collect<DDrive.Runtime.Ui.ButtonSkinData>(AssetType.ControlSkin, entries, loads);
 
             var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
             catalog.hideFlags = HideFlags.HideAndDontSave;
@@ -75,6 +76,7 @@ namespace DDrive.Editor.Preview
                 else if (type == typeof(DDrive.Runtime.Material.TextureData)) registry.ResolveAsync<DDrive.Runtime.Material.TextureData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Prefab.PrefabData)) registry.ResolveAsync<DDrive.Runtime.Prefab.PrefabData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Ui.CanvasData)) registry.ResolveAsync<DDrive.Runtime.Ui.CanvasData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Ui.ButtonSkinData)) registry.ResolveAsync<DDrive.Runtime.Ui.ButtonSkinData>(id).GetAwaiter().GetResult();
                 else registry.ResolveAsync<DDrive.Runtime.Audio.SeData>(id).GetAwaiter().GetResult();
             }
 

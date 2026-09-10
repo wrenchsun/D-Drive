@@ -178,6 +178,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Model.Models.Bind(Models);
                 Runtime.Prefab.Prefabs.Bind(Prefabs);
                 Runtime.Ui.Ui.Bind(Ui);
+                Runtime.Ui.UiSkins.Bind(Registry);
                 Anchors.Bind(Groups);
             }
 
@@ -231,6 +232,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Model.Models.Bind(null);
                 Runtime.Prefab.Prefabs.Bind(null);
                 Runtime.Ui.Ui.Bind(null);
+                Runtime.Ui.UiSkins.Bind((IAssetRegistry)null);
                 Anchors.Bind(null);
             }
 

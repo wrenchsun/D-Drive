@@ -56,6 +56,14 @@ public abstract class UiInteractable : MonoBehaviour,
 - Skin は `ControlSkinData` を基底とし、`ButtonSkinData`（[15] A-3）/ `SliderSkinData`（本書 B-2）が派生する
 - 状態遷移演出は [15] Part B の Tween システムを使用。`StateVisual` の数値は [17] の `ValueDef` で定義する
 
+### 実装メモ（2026-09-11、4-6）
+
+`UiInteractable`/`UiButton` の実装詳細・R3 非導入の扱い・ナビゲーション統合・ButtonWire 実行は [15_ui_interaction.md](15_ui_interaction.md) の実装メモを参照(本書と実装は共通)。要点のみ:
+
+- `Observable<T>` は `event Action`/`Action<bool>`/`Action<ControlState>` で代替(R3 未導入)
+- `ControlSkinData`(abstract、`Assets/DDrive/Runtime/Ui/ControlSkinData.cs`)は `AssetIdDefinition` を持たない(codegen は具象型のみ走査するため、派生の `ButtonSkinData` 側に付与する。`SliderSkinData` を追加する際も同様に派生側へ付ける)
+- `IUiNavigable` は Selectable でない `UiInteractable` 向けの最小インタフェース。実際のフォーカス移動は `UiNavigation`(新設 MonoBehaviour)+ `UiManager.MoveFocus(Vector2)` が担う
+
 ---
 
 # Part B — UiSlider

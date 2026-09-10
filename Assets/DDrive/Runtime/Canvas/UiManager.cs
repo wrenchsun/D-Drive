@@ -61,6 +61,8 @@ namespace DDrive.Runtime.Ui
             public bool Closing;
             public Vector2 BaseAnchoredPosition;
             public Vector3 BaseScale;
+            // 4-2/4-6: ButtonWire で購読した UiButton イベントの解除アクション(Close で全て呼ぶ)。
+            public List<Action> WireUnsubscribers;
         }
 
         // Tick で毎フレーム進める演出。Kind=None または Duration<=0 は即完了として生成しない。
@@ -285,6 +287,7 @@ namespace DDrive.Runtime.Ui
 
             ApplyNavigation(root.transform, data);
             ApplyFirstSelected(root.transform, data);
+            WireButtons(root.transform, data, instance, handle);
 
             if (data.PauseGameWhileOpen && _pause != null)
             {
@@ -470,6 +473,16 @@ namespace DDrive.Runtime.Ui
 
         private void FinalizeClose(Handle<CanvasMarker> handle, CanvasInstance instance)
         {
+            if (instance.WireUnsubscribers != null)
+            {
+                for (var i = 0; i < instance.WireUnsubscribers.Count; i++)
+                {
+                    instance.WireUnsubscribers[i]?.Invoke();
+                }
+
+                instance.WireUnsubscribers.Clear();
+            }
+
             _events.Fire(instance.Context, EventTrigger.OnDisable);
             _events.Fire(instance.Context, EventTrigger.OnDestroy);
             _events.End(instance.Context);
@@ -530,6 +543,9 @@ namespace DDrive.Runtime.Ui
 
         // ── ナビゲーション ──
 
+        // uGUI Selectable(既存ボタン等)と UiInteractable(4-6, Selectable ではない)の両方に対応する。
+        // 対象要素が Selectable なら従来通り Navigation を explicit 設定、UiInteractable なら
+        // UiNavigation コンポーネントに Up/Down/Left/Right の Transform を持たせる(MoveFocus が辿る)。
         private static void ApplyNavigation(Transform root, CanvasData data)
         {
             if (data.Navigation == null)
@@ -540,40 +556,259 @@ namespace DDrive.Runtime.Ui
             for (var i = 0; i < data.Navigation.Length; i++)
             {
                 var node = data.Navigation[i];
-                var self = ResolveSelectable(root, node.Element);
+                var self = FindTransform(root, node.Element);
                 if (self == null)
                 {
                     continue;
                 }
 
-                var nav = self.navigation;
-                nav.mode = Navigation.Mode.Explicit;
-
-                var up = ResolveSelectable(root, node.Up);
-                if (up != null)
+                var selectable = self.GetComponent<Selectable>();
+                if (selectable != null)
                 {
-                    nav.selectOnUp = up;
+                    ApplySelectableNavigation(selectable, root, node);
+                    continue;
                 }
 
-                var down = ResolveSelectable(root, node.Down);
-                if (down != null)
+                if (self.GetComponent<UiInteractable>() != null)
                 {
-                    nav.selectOnDown = down;
+                    ApplyUiInteractableNavigation(self, root, node);
+                }
+            }
+        }
+
+        private static void ApplySelectableNavigation(Selectable self, Transform root, NavNode node)
+        {
+            var nav = self.navigation;
+            nav.mode = Navigation.Mode.Explicit;
+
+            var up = ResolveSelectable(root, node.Up);
+            if (up != null)
+            {
+                nav.selectOnUp = up;
+            }
+
+            var down = ResolveSelectable(root, node.Down);
+            if (down != null)
+            {
+                nav.selectOnDown = down;
+            }
+
+            var left = ResolveSelectable(root, node.Left);
+            if (left != null)
+            {
+                nav.selectOnLeft = left;
+            }
+
+            var right = ResolveSelectable(root, node.Right);
+            if (right != null)
+            {
+                nav.selectOnRight = right;
+            }
+
+            self.navigation = nav;
+        }
+
+        private static void ApplyUiInteractableNavigation(Transform self, Transform root, NavNode node)
+        {
+            var nav = self.GetComponent<UiNavigation>();
+            if (nav == null)
+            {
+                nav = self.gameObject.AddComponent<UiNavigation>();
+            }
+
+            var up = FindTransform(root, node.Up);
+            if (up != null)
+            {
+                nav.Up = up;
+            }
+
+            var down = FindTransform(root, node.Down);
+            if (down != null)
+            {
+                nav.Down = down;
+            }
+
+            var left = FindTransform(root, node.Left);
+            if (left != null)
+            {
+                nav.Left = left;
+            }
+
+            var right = FindTransform(root, node.Right);
+            if (right != null)
+            {
+                nav.Right = right;
+            }
+        }
+
+        // [15]/[18] 十字キー/スティックでのフォーカス移動。EventSystem.currentSelectedGameObject が
+        // Selectable なら navigation を、UiNavigation を持つ UiInteractable ならそちらを辿る(最小実装)。
+        public bool MoveFocus(Vector2 dir)
+        {
+            var current = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+            if (current == null)
+            {
+                return false;
+            }
+
+            var t = current.transform;
+            Transform target = null;
+
+            var nav = t.GetComponent<UiNavigation>();
+            if (nav != null)
+            {
+                target = ResolveDirection(nav, dir);
+            }
+            else
+            {
+                var selectable = t.GetComponent<Selectable>();
+                if (selectable != null)
+                {
+                    var s = ResolveSelectableDirection(selectable, dir);
+                    target = s != null ? s.transform : null;
+                }
+            }
+
+            if (target == null)
+            {
+                return false;
+            }
+
+            EventSystem.current.SetSelectedGameObject(target.gameObject);
+            return true;
+        }
+
+        private static Transform ResolveDirection(UiNavigation nav, Vector2 dir)
+        {
+            if (dir.y > 0.5f)
+            {
+                return nav.Up;
+            }
+
+            if (dir.y < -0.5f)
+            {
+                return nav.Down;
+            }
+
+            if (dir.x < -0.5f)
+            {
+                return nav.Left;
+            }
+
+            if (dir.x > 0.5f)
+            {
+                return nav.Right;
+            }
+
+            return null;
+        }
+
+        private static Selectable ResolveSelectableDirection(Selectable s, Vector2 dir)
+        {
+            if (dir.y > 0.5f)
+            {
+                return s.navigation.selectOnUp;
+            }
+
+            if (dir.y < -0.5f)
+            {
+                return s.navigation.selectOnDown;
+            }
+
+            if (dir.x < -0.5f)
+            {
+                return s.navigation.selectOnLeft;
+            }
+
+            if (dir.x > 0.5f)
+            {
+                return s.navigation.selectOnRight;
+            }
+
+            return null;
+        }
+
+        // ── ボタン配線(ButtonWire, 4-2/4-6) ──
+
+        private void WireButtons(Transform root, CanvasData data, CanvasInstance instance, Handle<CanvasMarker> handle)
+        {
+            if (data.Buttons == null || data.Buttons.Length == 0)
+            {
+                return;
+            }
+
+            instance.WireUnsubscribers = new List<Action>();
+            for (var i = 0; i < data.Buttons.Length; i++)
+            {
+                var wire = data.Buttons[i];
+                var target = FindTransform(root, wire.ButtonPath);
+                var button = target != null ? target.GetComponent<UiButton>() : null;
+                if (button == null)
+                {
+                    continue;
                 }
 
-                var left = ResolveSelectable(root, node.Left);
-                if (left != null)
-                {
-                    nav.selectOnLeft = left;
-                }
+                // クロージャは Open 時に配線の数だけ生成される(Tick 経路ではないため許容。[12]§3)。
+                void Handler() => ExecuteButtonWire(wire, handle);
+                SubscribeWire(button, wire.Trigger, Handler, instance.WireUnsubscribers);
+            }
+        }
 
-                var right = ResolveSelectable(root, node.Right);
-                if (right != null)
-                {
-                    nav.selectOnRight = right;
-                }
+        private static void SubscribeWire(UiButton button, WireTrigger trigger, Action handler, List<Action> unsubscribers)
+        {
+            switch (trigger)
+            {
+                case WireTrigger.Click:
+                    button.OnClick += handler;
+                    unsubscribers.Add(() => button.OnClick -= handler);
+                    break;
+                case WireTrigger.DoubleClick:
+                    button.OnDoubleClick += handler;
+                    unsubscribers.Add(() => button.OnDoubleClick -= handler);
+                    break;
+                case WireTrigger.LongPress:
+                    button.OnLongPress += handler;
+                    unsubscribers.Add(() => button.OnLongPress -= handler);
+                    break;
+                case WireTrigger.Repeat:
+                    button.OnRepeat += handler;
+                    unsubscribers.Add(() => button.OnRepeat -= handler);
+                    break;
+            }
+        }
 
-                self.navigation = nav;
+        private void ExecuteButtonWire(ButtonWire wire, Handle<CanvasMarker> from)
+        {
+            if (wire.ClickSe.IsValid)
+            {
+                Runtime.Audio.Audio.PlaySe(wire.ClickSe);
+            }
+
+            switch (wire.Action)
+            {
+                case UiAction.OpenCanvas:
+                    if (wire.Target.IsAssigned)
+                    {
+                        OpenAsync(new CanvasId(wire.Target.Id, AssetType.Canvas)).Forget();
+                    }
+
+                    break;
+
+                case UiAction.CloseSelf:
+                    Close(from);
+                    break;
+
+                case UiAction.CloseTop:
+                    CloseTop();
+                    break;
+
+                case UiAction.SendSignal:
+                    SendSignal(wire.SignalKey, from, wire.ButtonPath);
+                    break;
+
+                case UiAction.PlayPresentation:
+                    Debug.LogWarning("[DDrive] ButtonWire.Action=PlayPresentation は Phase 5 で実装予定です");
+                    break;
             }
         }
 

@@ -274,6 +274,93 @@ namespace DDrive.Tests.Runtime
 
             Assert.DoesNotThrow(() => _manager.Close(handle));
         }
+
+        // ── ButtonWire(4-2/4-6) ──
+
+        private static GameObject CreateWireTestPrefab(out UiButton button)
+        {
+            var prefab = new GameObject("WireTestPrefab", typeof(RectTransform));
+            prefab.AddComponent<Canvas>();
+            prefab.AddComponent<CanvasGroup>();
+
+            var buttonGo = new GameObject("Btn", typeof(RectTransform), typeof(Image), typeof(UiButton));
+            buttonGo.transform.SetParent(prefab.transform);
+            button = buttonGo.GetComponent<UiButton>();
+            button.DoubleClickSec = 0f;
+            button.BlockDoubleFire = false;
+            return prefab;
+        }
+
+        [Test]
+        public void ButtonWire_SendSignal_FiresOnSignal_WhenButtonClicked()
+        {
+            UiInteractable.ResetDoubleFireGuardForTests();
+            var prefab = CreateWireTestPrefab(out _);
+
+            var data = CreateCanvasData(101);
+            data.Prefab = prefab;
+            data.Buttons = new[] { new ButtonWire { ButtonPath = "Btn", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "test/signal" } };
+
+            var received = new List<SignalArgs>();
+            _manager.OnSignal("test/signal", args => received.Add(args));
+
+            var handle = _manager.OpenData(data);
+            var wiredButton = _manager.GetComponent<UiButton>(handle, "Btn");
+            wiredButton.Press();
+            wiredButton.Release(true);
+
+            Assert.AreEqual(1, received.Count);
+            Assert.AreEqual("test/signal", received[0].Key);
+
+            Object.DestroyImmediate(prefab);
+        }
+
+        [Test]
+        public void ButtonWire_CloseSelf_ClosesCanvas_WhenButtonClicked()
+        {
+            UiInteractable.ResetDoubleFireGuardForTests();
+            var prefab = CreateWireTestPrefab(out _);
+
+            var data = CreateCanvasData(102);
+            data.Prefab = prefab;
+            data.Buttons = new[] { new ButtonWire { ButtonPath = "Btn", Trigger = WireTrigger.Click, Action = UiAction.CloseSelf } };
+
+            var handle = _manager.OpenData(data);
+            var wiredButton = _manager.GetComponent<UiButton>(handle, "Btn");
+            wiredButton.Press();
+            wiredButton.Release(true);
+
+            Assert.IsFalse(_manager.IsOpen(handle));
+
+            Object.DestroyImmediate(prefab);
+        }
+
+        [Test]
+        public void ButtonWire_Unsubscribes_AfterClose()
+        {
+            UiInteractable.ResetDoubleFireGuardForTests();
+            var prefab = CreateWireTestPrefab(out _);
+
+            var data = CreateCanvasData(103);
+            data.Prefab = prefab;
+            data.Flags.Pool = PoolPolicy.Pooled(0, 8);
+            data.Buttons = new[] { new ButtonWire { ButtonPath = "Btn", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "test/signal2" } };
+
+            var received = new List<SignalArgs>();
+            _manager.OnSignal("test/signal2", args => received.Add(args));
+
+            var handle = _manager.OpenData(data);
+            var wiredButton = _manager.GetComponent<UiButton>(handle, "Btn");
+
+            _manager.Close(handle);
+
+            wiredButton.Press();
+            wiredButton.Release(true);
+
+            Assert.AreEqual(0, received.Count);
+
+            Object.DestroyImmediate(prefab);
+        }
     }
 
     public class CanvasDataValidatorTests
@@ -346,6 +433,65 @@ namespace DDrive.Tests.Runtime
             var results = Run(data);
             Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("SignalKey")));
             Object.DestroyImmediate(data);
+        }
+
+        [Test]
+        public void DuplicateButtonWireTrigger_ReportsWarning()
+        {
+            var data = ScriptableObject.CreateInstance<CanvasData>();
+            data.Prefab = _prefab;
+            data.Buttons = new[]
+            {
+                new ButtonWire { ButtonPath = "A", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "k" },
+                new ButtonWire { ButtonPath = "A", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "k" },
+            };
+
+            var results = Run(data);
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Warning && r.Message.Contains("重複")));
+            Object.DestroyImmediate(data);
+        }
+
+        [Test]
+        public void LongPressTrigger_WithZeroLongPressSec_ReportsError()
+        {
+            var buttonGo = new GameObject("Btn", typeof(RectTransform), typeof(UiButton));
+            buttonGo.transform.SetParent(_prefab.transform);
+            buttonGo.GetComponent<UiButton>().LongPressSec = 0f;
+
+            var data = ScriptableObject.CreateInstance<CanvasData>();
+            data.Prefab = _prefab;
+            data.Buttons = new[] { new ButtonWire { ButtonPath = "Btn", Trigger = WireTrigger.LongPress } };
+
+            var results = Run(data);
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("LongPressSec")));
+            Object.DestroyImmediate(data);
+            Object.DestroyImmediate(buttonGo);
+        }
+
+        [Test]
+        public void OpenCanvasWire_WithZeroCooldown_ReportsWarning()
+        {
+            var buttonGo = new GameObject("Btn2", typeof(RectTransform), typeof(UiButton));
+            buttonGo.transform.SetParent(_prefab.transform);
+            buttonGo.GetComponent<UiButton>().CooldownSec = 0f;
+
+            var data = ScriptableObject.CreateInstance<CanvasData>();
+            data.Prefab = _prefab;
+            data.Buttons = new[]
+            {
+                new ButtonWire
+                {
+                    ButtonPath = "Btn2",
+                    Trigger = WireTrigger.Click,
+                    Action = UiAction.OpenCanvas,
+                    Target = AssetRef.From(new AssetId<CanvasMarker>(1, AssetType.Canvas)),
+                },
+            };
+
+            var results = Run(data);
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Warning && r.Message.Contains("CooldownSec")));
+            Object.DestroyImmediate(data);
+            Object.DestroyImmediate(buttonGo);
         }
     }
 }

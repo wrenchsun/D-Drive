@@ -122,6 +122,9 @@ namespace DDrive.Runtime.Ui
                 yield break;
             }
 
+            // [15] A-4: (ButtonPath, Trigger) の重複配線を検出する。
+            var seen = new HashSet<(string path, WireTrigger trigger)>();
+
             for (var i = 0; i < canvas.Buttons.Length; i++)
             {
                 var wire = canvas.Buttons[i];
@@ -139,7 +142,34 @@ namespace DDrive.Runtime.Ui
                 {
                     yield return ValidationResult.Error($"ButtonWire[{i}] '{wire.ButtonPath}': Action=SendSignal なのに SignalKey が未設定です");
                 }
+
+                if (!seen.Add((wire.ButtonPath ?? string.Empty, wire.Trigger)))
+                {
+                    yield return ValidationResult.Warning($"ButtonWire[{i}] '{wire.ButtonPath}' の Trigger={wire.Trigger} が重複しています");
+                }
+
+                var button = ResolveUiButton(root, wire.ButtonPath);
+                if (wire.Trigger == WireTrigger.LongPress && button != null && button.LongPressSec <= 0f)
+                {
+                    yield return ValidationResult.Error($"ButtonWire[{i}] '{wire.ButtonPath}': Trigger=LongPress なのに対象 UiButton の LongPressSec が 0 以下です");
+                }
+
+                if (wire.Action == UiAction.OpenCanvas && button != null && button.CooldownSec <= 0f)
+                {
+                    yield return ValidationResult.Warning($"ButtonWire[{i}] '{wire.ButtonPath}': CooldownSec=0 の状態で OpenCanvas に配線されています(連打で多重遷移するおそれがあります)");
+                }
             }
+        }
+
+        private static UiButton ResolveUiButton(Transform root, string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return null;
+            }
+
+            var t = root.Find(path);
+            return t != null ? t.GetComponent<UiButton>() : null;
         }
 
         private static bool ResolvesTo<T>(Transform root, string path) where T : Component

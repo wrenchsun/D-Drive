@@ -26,5 +26,8 @@ namespace DDrive.Foundation.Identity
 
         // [22_anchor_group.md]: 配置セット(AnchorGroupData)。2026-09-08 追加。
         AnchorGroup,
+
+        // [15_ui_interaction.md] / [18_ui_controls.md]: UiInteractable 共通 Skin(ButtonSkinData 等)。2026-09-11 追加。
+        ControlSkin,
     }
 }
