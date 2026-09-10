@@ -89,7 +89,7 @@
 | 3-5 | MaterialCommon 規約確定 + MaterialData/Mats | TA+基盤 | 3 | 0-* | ✅ 2026-09-10 実装（[06] A 実装メモ）。`MaterialCommon` 規約確定 + `MaterialCommonBinding`（URP Lit / HDRP / Built-in へ流し込み）+ `MaterialData` / `TextureData`(最小) + `MaterialManager`（Get / Apply / Replace / FadeTo / MaterialAnim / Placeholder）+ `Mats` + Validator + Bootstrap 配線 + `Models.SetMaterial` 実処理。`MaterialManagerTests` 9 件。エディタ（プレビュー）は 3-9 |
 | 3-6 | シェーダー変換テーブル + 変換エディタ | TA | 3 | 3-5 | ✅ 2026-09-10 実装（[06] A 実装メモ）。`ShaderConversionTable` + `MaterialConverter`（共通維持 / 対応 / 同名維持 / 破棄レポート）+ `MaterialConvertWindow`（差分プレビュー → 新規作成 or Undo 付き変換）。`MaterialConverterTests` 4 件。見た目の並列比較は 3-9 |
 | 3-7 | Maya FBX → MaterialData 自動生成（ImportProfile） | TA | 3 | 3-5 | 再インポートで固有調整を破壊しない |
-| 3-8 | TextureData + Importer 規約（命名→自動設定） | TA | 2 | 3-5 | `_N`→NormalMap 等の自動化 + FixAction |
+| 3-8 | TextureData + Importer 規約（命名→自動設定） | TA | 2 | 3-5 | ✅ 2026-09-10 実装（[06] B-4 実装メモ）。`TextureImportProfile`（既定ルール `_N/_M/_E/_UI/T_*` + カスタム可）+ `TexturePostprocessor`（`OnPreprocessTexture` で適用）+ `TextureDataValidator`（Missing/UI-Sprite/9-slice/Normal/Mask/POT/MaxSize/規約差分、FixAction 付き）+ `MaterialEditorWindow` に規約表示・再インポートボタン。`TextureImportRulesTests` 9 件 |
 | 3-9 | MaterialEditor / TextureEditor プレビュー | ED | 2 | 1-6, 3-5 | 球/板/任意モデル、変換前後比較 |
 | 3-10 | Anim/Material/Texture Validator | 基盤 | 1 | 0-11 | 各設計書の全検査 |
 | 3-11 | 2D スプライトアニメ統合（既存ツール移植 + Anim2DData 自動生成 + ID 発行） | 基盤+ED | 4 | 0-13, 3-1 | 分割→Clip→BlendTree→ID 登録がワンストップ |

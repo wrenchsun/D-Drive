@@ -33,6 +33,10 @@ namespace DDrive.Editor.Materials
         private VisualElement _inspectorContainer;
         private Label _statusLabel;
         private Image _textureImage;
+        private Label _textureInfoLabel;
+        private Button _applyRuleButton;
+        private TextureImportProfile.Rule _matchedRule;
+        private bool _hasMatchedRule;
 
         [MenuItem(DDriveMenu.Editors + "Material")]
         public static void OpenFromMenu() => Open(Selection.activeObject as MaterialData);
@@ -120,6 +124,14 @@ namespace DDrive.Editor.Materials
             _textureImage.style.display = DisplayStyle.None;
             _root.Add(_textureImage);
 
+            _textureInfoLabel = new Label { style = { marginLeft = 4, marginBottom = 4, whiteSpace = WhiteSpace.Normal } };
+            _textureInfoLabel.style.display = DisplayStyle.None;
+            _root.Add(_textureInfoLabel);
+
+            _applyRuleButton = new Button(ApplyMatchedRule) { text = "命名規約を適用して再インポート" };
+            _applyRuleButton.style.display = DisplayStyle.None;
+            _root.Add(_applyRuleButton);
+
             _inspectorContainer = new VisualElement();
             _root.Add(_inspectorContainer);
 
@@ -159,15 +171,85 @@ namespace DDrive.Editor.Materials
                 _textureImage.image = tex.Texture;
                 _textureImage.style.display = tex.Texture != null ? DisplayStyle.Flex : DisplayStyle.None;
                 _statusLabel.text = tex.Texture != null ? $"{tex.Texture.width}×{tex.Texture.height}  Channel={tex.Channel}" : "Texture が未設定です";
+                UpdateTextureInfo(tex);
             }
             else
             {
+                _textureInfoLabel.style.display = DisplayStyle.None;
+                _applyRuleButton.style.display = DisplayStyle.None;
                 _statusLabel.text = _previewRenderer != null ? "プレビュー球に適用中" : "「シーンにプレビュー球を配置」で確認できます";
                 if (_previewRenderer != null)
                 {
                     RebuildPreview();
                 }
             }
+        }
+
+        // [06] B-3/B-4 — Importer の現状と命名規約(TextureImportProfile)への適合を表示する(3-8)。
+        private void UpdateTextureInfo(TextureData tex)
+        {
+            _hasMatchedRule = false;
+            if (tex.Texture == null)
+            {
+                _textureInfoLabel.style.display = DisplayStyle.None;
+                _applyRuleButton.style.display = DisplayStyle.None;
+                return;
+            }
+
+            var path = AssetDatabase.GetAssetPath(tex.Texture);
+            var importer = string.IsNullOrEmpty(path) ? null : AssetImporter.GetAtPath(path) as TextureImporter;
+
+            _textureInfoLabel.style.display = DisplayStyle.Flex;
+            if (importer == null)
+            {
+                _textureInfoLabel.text = "Importer 情報なし(メモリ上のテクスチャ)";
+                _applyRuleButton.style.display = DisplayStyle.None;
+                return;
+            }
+
+            var profile = TextureImportProfile.FindOrDefault();
+            string ruleText;
+            _applyRuleButton.style.display = DisplayStyle.None;
+            if (profile.AppliesTo(path) && profile.TryMatch(path, out var rule))
+            {
+                _matchedRule = rule;
+                _hasMatchedRule = true;
+                ruleText = $"規約: {rule.Name}";
+                if (TextureImportProfile.Diff(importer, rule).Count > 0)
+                {
+                    _applyRuleButton.style.display = DisplayStyle.Flex;
+                }
+            }
+            else
+            {
+                ruleText = "規約に該当なし";
+            }
+
+            _textureInfoLabel.text =
+                $"Texture Type: {importer.textureType}  sRGB: {importer.sRGBTexture}  Mipmap: {importer.mipmapEnabled}  " +
+                $"圧縮: {importer.textureCompression}  Max Size: {importer.maxTextureSize}\n{ruleText}";
+        }
+
+        private void ApplyMatchedRule()
+        {
+            if (_target is not TextureData tex || tex.Texture == null || !_hasMatchedRule)
+            {
+                return;
+            }
+
+            var path = AssetDatabase.GetAssetPath(tex.Texture);
+            if (AssetImporter.GetAtPath(path) is not TextureImporter importer)
+            {
+                return;
+            }
+
+            if (TextureImportProfile.Apply(importer, _matchedRule))
+            {
+                importer.SaveAndReimport();
+            }
+
+            UpdateTextureInfo(tex);
+            _statusLabel.text = $"命名規約 '{_matchedRule.Name}' を適用しました";
         }
 
         private void PlacePreview()

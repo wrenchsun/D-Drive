@@ -159,3 +159,11 @@ public class TextureData : AssetDataBase
 | Channel=Normal で sRGB on | Error (FixAction) |
 | 非 POT サイズ（Model 用） | Warning |
 | 最大サイズ超過（プロファイル規定） | Warning |
+
+### 実装メモ（2026-09-10、3-8）
+
+> - **`TextureImportProfile`**（`Editor/Material/TextureImportProfile.cs`）: `Create > D-Drive/Material/Texture Import Profile` で作成できる ScriptableObject。`Rules[]`（`Name` / `Match`(Suffix・Prefix・Contains) / `Pattern` / `Type` / `SRgb` / `Mipmaps` / `Compression` / `MaxSize` / `SpriteFullRect` / 既定の `Channel` / `Usage`）+ `Enabled` + `IncludePathContains`（既定 `Assets/SourceAssets`, `Assets/GameData`）+ `ModelMaxSize`（既定 2048。Model 用の最大サイズ Warning 用、0 で検査しない）。プロジェクトに置かれていなければ組み込みの既定ルール(`DefaultRules()`: `_N`→NormalMap / `_M`→Mask / `_E`→Emission / `_UI`→Sprite(FullRect) / `T_*`→Model 既定)をメモリ上で使う。`FindOrDefault()` は Tests 配下の Profile を無視する。`AppliesTo(path)` は DDrive 本体・Tests・Packages を常に除外し、`IncludePathContains` のいずれかに一致するパスだけを対象にする。`TryMatch` は上から順に最初に一致したルールを返す。`Apply(importer, rule)` はルールを Importer に書き込み(変更有無を bool で返す。`SaveAndReimport` は呼び出し側の責務)、`Diff(importer, rule)` は食い違いを文字列リストで返す(Validation 用)
+> - **`TexturePostprocessor`**（`Editor/Material/TexturePostprocessor.cs`）: `AssetPostprocessor.OnPreprocessTexture` で `FindOrDefault → AppliesTo → TryMatch → Apply` を実行する。`Apply` はインポート設定への書き込みのみで `SaveAndReimport` は呼ばない(このインポート自体に反映される)。テストが通常経路を止められるよう `public static bool Suppress` を持つ
+> - **`TextureDataValidator`**（`Editor/Material/TextureDataValidator.cs`、`IValidator`、`Target=AssetType.Texture`）: B-4 の表の検査に加え、Importer が取得できる場合は `TextureImportProfile` との `Diff` を Warning として出す(FixAction=`Apply`+`SaveAndReimport`)。FixAction: 「UI で Sprite 未生成」は Importer を Sprite化 → `SaveAndReimport` → `LoadAssetAtPath<Sprite>` を `Undo.RecordObject`+`EditorUtility.SetDirty` で `TextureData.Sprite` に代入。「Channel=Normal で NormalMap でない」「Channel=Mask で sRGB on」はそれぞれ Importer のプロパティを直して `SaveAndReimport`。Texture がメモリ上だけ(Importer が取れない)ときは Importer 系の検査をスキップする(例外にしない)
+> - **エディタ**: `MaterialEditorWindow` の TextureData 分岐に、Importer の現況(Texture Type / sRGB / Mipmap / 圧縮 / Max Size)と一致した規約名(未一致なら「規約に該当なし」)を表示するラベルと、食い違いがあるときだけ出る「命名規約を適用して再インポート」ボタンを追加
+> - 未実装: `UsedInCanvas` / `UsedInModels` の自動収集([02] §12 の依存グラフが未実装のため。実装され次第、保存フックで逆引き記入する)
