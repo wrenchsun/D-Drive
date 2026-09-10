@@ -35,7 +35,122 @@ MonoBehaviour:
     Net: 0
   Events: []
   Prefab: {fileID: 100096, guid: 412b92d4feeb9c548bfa98f62c4d1022, type: 3}
-  Slots: []
+  Slots:
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/BLW_DEF
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/eye_base_old
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/EYE_DEF
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/EYE_DEF/EL_DEF
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/eye_L_old
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/eye_R_old
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/head_back
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/MTH_DEF
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/button
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/cheek
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/hair_accce
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/hair_front
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/hair_frontside
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/hairband
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/Leg
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/Shirts
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/shirts_sode
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/shirts_sode_BK
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/skin
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/tail
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/tail_bottom
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/uwagi
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
+  - RendererPath: mesh_root/uwagi_BK
+    SlotIndex: 0
+    Material:
+      value: 0
+      type: 0
   DefaultAnimation:
     value: 0
     type: 0

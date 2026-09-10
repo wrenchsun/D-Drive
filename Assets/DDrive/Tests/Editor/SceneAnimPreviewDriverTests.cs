@@ -101,7 +101,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
-        public void Play_OnSceneAnimator_MovesPose_AndStopRestoresIt()
+        public void Play_OnSceneAnimator_MovesPose_StopKeepsPose_RestoreResetsIt()
         {
             var animator = _target.GetComponent<Animator>();
             var handle = _driver.Play(Anim(), animator);
@@ -117,8 +117,11 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(HideFlags.DontSave, proxy.hideFlags, "こちらで付けた Proxy は保存されない");
 
             _driver.Stop();
-            Assert.AreEqual(0f, _bone.localPosition.x, 1e-4f, "停止で元のポーズに戻る");
             Assert.IsFalse(_driver.Manager.IsPlaying(handle));
+            Assert.Greater(_bone.localPosition.x, 0.1f, "停止ではその瞬間のポーズを残す(2026-09-10 改定)");
+
+            _driver.RestorePoseNow();
+            Assert.AreEqual(0f, _bone.localPosition.x, 1e-4f, "「ポーズを戻す」で再生前のポーズに戻る");
 
             _driver.ReleaseTarget();
             Assert.IsTrue(_target.GetComponent<AnimatorProxy>() == null, "対象解除で付けた Proxy を外す");

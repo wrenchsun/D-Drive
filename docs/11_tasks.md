@@ -83,7 +83,7 @@
 |---|---|---|---|---|---|
 | 3-1 | AnimData + AnimManager + AnimatorProxy | 基盤 | 4 | 0-8 | ✅ 2026-09-08 実装（[05] B-3 実装メモ）。`AnimManagerTests` 17 件（PlayMode 290 green、2026-09-09 確認）。2026-09-09 レビュー対応: Layer 別 Proxy 状態、Animator.speed 復元、複数周回 Tick、`StopAllFor`、Model Despawn での停止、SetMaterial の Instance 側保持（`AnimLifetimeReviewTests` 7 件） |
 | 3-2 | BlendShapeTrack / IkProfile 適用 | 基盤 | 2 | 3-1 | ✅ 3-1 と同時に `AnimatorProxy` へ実装（BlendShape はテスト済み。IK は OnAnimatorIK 経由のため AnimEditor(3-3) で実機確認） |
-| 3-3 | AnimEditor（タイムライン/イベント D&D/ブレンド確認） | ED | 4 | 1-6, 3-1 | ✅ 2026-09-09 実装（[05] B-4 実装メモ）。タイムラインのシーク・マーカードラッグ・ブレンド確認・実行時 Validation。IK ターゲットの配置 UI は未実装。2026-09-09 追記: 再生先「シーン(SceneView)」を追加（`SceneAnimPreviewDriver`。確認用シーン / プレハブモードのモデルをその場で駆動、停止で元ポーズに復元）。全 Data の Inspector 最上部に「エディターで開く」（[09] §8） |
+| 3-3 | AnimEditor（タイムライン/イベント D&D/ブレンド確認） | ED | 4 | 1-6, 3-1 | ✅ 2026-09-09 実装（[05] B-4 実装メモ）。タイムラインのシーク・マーカードラッグ・ブレンド確認・実行時 Validation。IK ターゲットの配置 UI は未実装。2026-09-09 追記: 再生先「シーン(SceneView)」を追加（`SceneAnimPreviewDriver`。確認用シーン / プレハブモードのモデルをその場で駆動、停止で元ポーズに復元）。全 Data の Inspector 最上部に「エディターで開く」（[09] §8）。2026-09-10: ブレンド確認を高級化（遷移シーケンス / レイヤー同時再生 + レイヤー重み / Blend Tree パラメータ 2D パッド。`AnimEditorWindow.Blend.cs`）。同日、ITAMI の SE タブから「Animator から選択 / SE 波形 / SE・VFX イベント一覧 / イベントコピー」を移植（`AnimEditorWindow.Source.cs`） |
 | 3-4 | Anim × SE/VFX 同時プレビュー | ED | 2 | 3-3, 2-4, 1-7 | ✅ 2026-09-09 `AssetEventDispatcher`（Runtime/Presentation）を PreviewService に組み込み。PlayMode 293 green（`AnimIntegrationTests` 3 件追加） |
 | 3-5 | MaterialCommon 規約確定 + MaterialData/Mats | TA+基盤 | 3 | 0-* | Apply/Replace/FadeTo、MaterialAnim 駆動 |
 | 3-6 | シェーダー変換テーブル + 変換エディタ | TA | 3 | 3-5 | 共通データ維持・固有差分レポート |
@@ -158,6 +158,7 @@
 | 7-5 | BudgetProfile + Budget Validator + シーン別集計 | 基盤 | 2 | 0-11, 5-7 | 予算超過が CI で fail |
 | 7-6 | サムネイル自動生成（バッチ駆動 + PR 差分画像） | ED | 2 | 1-6, 6-1 | 全 Data のサムネが CI で更新 |
 | 7-7 | AssetVariantSet（Quality/プラットフォーム別解決） | 基盤 | 3 | 0-4 | tier 切替で同一 ID の Data が替わる |
+| 7-8 | FacialController 移植（カメラ角度依存フェイシャル補正。`C:\Users\yamag\wrench\FacialController_UE` の UE5 プラグイン。2026-09-10 決定） | 基盤+ED | 26〜29（MVP 12〜15） | 3-1, 3-3 | 新種別 Facial: `FacialData`（グリッド・感情レイヤー・ソースポーズ・ポリシー）+ ベイカー（BakeMesh − バインドポーズ → 複製 Mesh に AddBlendShapeFrame、差分ベイク・閾値カット・ミラー/IDW）+ `FacialManager`（カメラ→頭ボーン相対角、FacialCore の重み評価・スムージング・距離フェード・表情強度減衰、MaterialPropertyBlock 出力）+ エディタ（グリッド/ポーズ/作業セット/レイヤー/検証/コピー/参照リペア）+ `.fcpose.json` 入出力。UE 側 FacialCore（370 行）と JSON 形式は写経で移植可、Slate UI 6,000 行は UI Toolkit で作り直し |
 
 **M7 デモ**: 実機接続で VFX の色・Anchor をエディタから即時調整 → 書き戻し。未実装アセット一覧が発注書として出力される。
 

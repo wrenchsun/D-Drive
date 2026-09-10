@@ -49,6 +49,7 @@ docs/                          ← 設計書(00〜20)。DesignerManual/ はデ�
 ## 4. Unity MCP
 
 **状態**: ブリッジ `com.coplaydev.unity-mcp` **v10.2.0** を `Packages/manifest.json` に導入済み。クライアント設定はリポジトリ直下の `.mcp.json`（HTTP `http://127.0.0.1:8081/mcp`。8080 は別アプリが使用中のため 2026-09-08 に変更）。
+**2026-09-10 から組み込み型 `jp.shiranui-isuzu.unity-mcp` v4.2.0 を併用評価中**（サーバー名 `isuzu-unity`、ポート 27725、Bearer トークン必須。登録は各自の `claude mcp add`、[docs/20](docs/20_mcp_setup.md) §4）。両方が繋がっているときは isuzu 版を優先して使う（`test_run` + `test_results`、`compile_status`、`console_read_logs`、`execute_code`、`menu_execute`）。
 セットアップ手順・運用ルールは [docs/20_mcp_setup.md](docs/20_mcp_setup.md)。
 
 - 接続前提: Unity 起動中 + MCP ウィンドウ（`Window > MCP for Unity`）で HTTP サーバ起動 + Connect

@@ -172,6 +172,14 @@ namespace DDrive.Editor.Vfx
         // (DontSave・まとめ用ルート・EditMode の手動 Simulate・OneShot の終了判定)。
         public void Adopt(Handle<VfxMarker> handle)
         {
+            foreach (var (h, _, _) in _active)
+            {
+                if (h == handle)
+                {
+                    return; // 登録済み
+                }
+            }
+
             Manager.TryGetData(handle, out var data);
             RegisterSpawned(handle, data);
         }
@@ -382,6 +390,46 @@ namespace DDrive.Editor.Vfx
         // Data.Anchor の編集内容を再生中の全 Instance に即時反映する(Path/Space の変更は再スポーンが必要)。
         public void ReapplyAnchor(Handle<VfxMarker> handle) => Manager.ReapplyAnchor(handle);
 
+        // プレビューの一時停止(AnimEditor の ⏸)。EditMode の手動 Simulate と Manager の Tick(ディレイ・OneShot の時間)を止める。
+        // PlayMode 中の粒子は Manager.SetPausedAll で止める。
+        private bool _paused;
+
+        public bool Paused
+        {
+            get => _paused;
+            set
+            {
+                if (_paused == value)
+                {
+                    return;
+                }
+
+                _paused = value;
+                Manager.SetPausedAll(value);
+                if (_inPlace.Active)
+                {
+                    foreach (var ps in _inPlace.Systems)
+                    {
+                        if (ps == null)
+                        {
+                            continue;
+                        }
+
+                        if (value)
+                        {
+                            ps.Pause(false);
+                        }
+                        else
+                        {
+                            ps.Play(false);
+                        }
+                    }
+                }
+
+                SceneView.RepaintAll();
+            }
+        }
+
         public void ReapplyAnchorToAll()
         {
             foreach (var (handle, _, _) in _active)
@@ -401,6 +449,11 @@ namespace DDrive.Editor.Vfx
         // テストからも直接呼べる公開 Tick(EditorApplication.update の実体)。
         public void Tick(float dt)
         {
+            if (_paused)
+            {
+                return;
+            }
+
             Manager.Tick(dt);
             TickInPlace(dt);
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
@@ -24,6 +25,10 @@ namespace DDrive.Runtime.Presentation
         private readonly AnchorGroupPlayer _groups;
         private readonly Func<InstanceContext, Transform> _contextResolver;
 
+        // Repeat=KeepWhilePlaying で出した実体。発火元の Instance が終わったら止める(ループする追従エフェクトの後始末)。
+        private readonly List<(InstanceContext ctx, Handle<VfxMarker> handle)> _keptVfx = new();
+        private readonly List<(InstanceContext ctx, Handle<SeMarker> handle)> _keptSe = new();
+
         // プレビュー等が「イベントから出た実体」を追跡するためのフック(EditMode の手動 Simulate 用)。
         public event Action<Handle<VfxMarker>> OnVfxSpawned;
         public event Action<Handle<SeMarker>> OnSePlayed;
@@ -38,9 +43,40 @@ namespace DDrive.Runtime.Presentation
             _groups = groups;
             _contextResolver = contextResolver;
             _bus.OnEventFired += HandleEvent;
+            _bus.OnSessionEnded += HandleEnded;
         }
 
-        public void Dispose() => _bus.OnEventFired -= HandleEvent;
+        public void Dispose()
+        {
+            _bus.OnEventFired -= HandleEvent;
+            _bus.OnSessionEnded -= HandleEnded;
+            _keptVfx.Clear();
+            _keptSe.Clear();
+        }
+
+        // 維持中(KeepWhilePlaying)の実体数(テスト / デバッグ表示用)。
+        public int KeptCount => _keptVfx.Count + _keptSe.Count;
+
+        private void HandleEnded(InstanceContext ctx)
+        {
+            for (var i = _keptVfx.Count - 1; i >= 0; i--)
+            {
+                if (_keptVfx[i].ctx.Equals(ctx))
+                {
+                    _vfx?.Stop(_keptVfx[i].handle);
+                    _keptVfx.RemoveAt(i);
+                }
+            }
+
+            for (var i = _keptSe.Count - 1; i >= 0; i--)
+            {
+                if (_keptSe[i].ctx.Equals(ctx))
+                {
+                    _audio?.Stop(_keptSe[i].handle);
+                    _keptSe.RemoveAt(i);
+                }
+            }
+        }
 
         private void HandleEvent(InstanceContext ctx, AssetEvent evt)
         {
@@ -58,6 +94,11 @@ namespace DDrive.Runtime.Presentation
                         var h = _audio.PlaySeData(_registry.ResolveOrPlaceholder<SeData>(evt.Target.Id), contextRoot: contextRoot);
                         if (_audio.IsPlaying(h))
                         {
+                            if (evt.Repeat == EventRepeat.KeepWhilePlaying)
+                            {
+                                _keptSe.Add((ctx, h));
+                            }
+
                             OnSePlayed?.Invoke(h);
                         }
                     }
@@ -70,6 +111,11 @@ namespace DDrive.Runtime.Presentation
                         var h = _vfx.SpawnData(_registry.ResolveOrPlaceholder<VfxData>(evt.Target.Id), contextRoot: contextRoot);
                         if (_vfx.IsPlaying(h))
                         {
+                            if (evt.Repeat == EventRepeat.KeepWhilePlaying)
+                            {
+                                _keptVfx.Add((ctx, h));
+                            }
+
                             OnVfxSpawned?.Invoke(h);
                         }
                     }

@@ -63,6 +63,8 @@ h.SetLayer(int);
 ## A-4. プレビュー / 運用 / Validation
 
 - プレビュー: ターンテーブル回転(自動回転トグル+速度) / 複数モデル並列表示(最大4体、横に並べて配置) / 背景色・ライト強度切替 / Material スロットの ID 差し替え(Slots を PropertyField で編集。実際の見た目反映は Phase 3 完了後) / DefaultAnimation は情報表示のみ(再生確認は Phase 3 の AnimManager 実装後)
+
+> **2026-09-10 改定（SceneView 方式へ統一）**: `Editor/Model/ModelEditorWindow.cs` はウィンドウ内ビューポートと背景色・ライト切替を廃止し、AnimEditor と同じ `SceneAnimPreviewDriver` で **開いているシーン / プレハブモードに配置して SceneView で確認**する。ツールバー「確認用シーンを開く」= 確認用シーン（VFX と共通）を開いて対象を原点に配置、「Prefab を開く」= `ModelData.Prefab` をプレハブモードで開く（Renderer / Material をその場で編集。Ctrl+S で保存）。ターンテーブルは配置したモデルを回す（プレハブモードの実体は回さない）。並列表示は `SpawnExtraModel` で対象の隣に 2m 間隔。DefaultAnimation は配置時に実 AnimManager が自動再生（`EditorAnchorRegistry` に Anim / Model も登録するようにした）。配置物は DontSave で保存されない
 - 運用: モデラーが FBX→Prefab 化 → AssetBrowser で登録 → Slots 自動収集ボタン（Prefab の Renderer を走査して Slot リストを生成、既存の Material 割当は RendererPath+SlotIndex が一致する分だけ保持）→ MaterialId を割当
 - Validation: Prefab Missing (Error)、Animator はあるが Avatar 未設定 (Error。Animator を持たない静的モデルは対象外)、Slot の RendererPath 不整合 (Error)、Material 未割当 Slot (Warning)、Prefab のマテリアルのシェーダーが現在のレンダーパイプラインと非互換 (Error。VfxDataValidator と共通の `ShaderPipelineAnalyzer` を使用、[04] §7参照)
 - Skybox・Post Process 切替は見送り（`RenderSettings` がプロジェクト全体で共有されるため、実シーンへの副作用を避けた）
@@ -133,7 +135,7 @@ h.Stop(fade); h.SetSpeed(1.5f); h.NormalizedTime; h.OnEnd(callback);
 
 > **実装メモ(2026-09-08, 3-1)**: `Runtime/Anim/AnimData.cs` / `AnimManager.cs` / `AnimatorProxy.cs` / `Anim.cs`(ファサード + `AnimHandleExtensions`) / `AnimDataValidator.cs`。
 >
-> **2026-09-09（レビュー対応）**: `AnimatorProxy` は Layer ごとに再生中の Data / 正規化時間を持ち（`GetActiveData(layer)` / `GetNormalizedTime(layer)`）、`OnAnimatorIK(layerIndex)` はその Layer の Data だけを見る（複数 Layer 同時再生で IK が上書きされない。BlendShape は各再生が自分のトラックを書くため、同じ ShapeName を複数 Layer で同時に使うと後勝ち）。`SetSpeed` / Pause で書いた `Animator.speed` は解放時に戻す（同じ Animator の別再生が残ればその速度、無ければ 1。触っていなければ何もしない）。`Tick` は 1 回の dt が複数周回分でも通過した周回数だけ `OnLoop` と Frame/Time を処理する（フレーム落ち・復帰直後・倍速で欠落しない）。`StopAllFor(animator)` を追加（ModelsManager.Despawn が使う）
+> **2026-09-09（レビュー対応）**: `AnimatorProxy` は Layer ごとに再生中の Data / 正規化時間を持ち（`GetActiveData(layer)` / `GetNormalizedTime(layer)`）、`OnAnimatorIK(layerIndex)` はその Layer の Data だけを見る（複数 Layer 同時再生で IK が上書きされない。BlendShape は各再生が自分のトラックを書くため、同じ ShapeName を複数 Layer で同時に使うと後勝ち）。`SetSpeed` / Pause で書いた `Animator.speed` は解放時に戻す（同じ Animator の別再生が残ればその速度、無ければ 1。触っていなければ何もしない）。`Tick` は 1 回の dt が複数周回分でも通過した周回数だけ `OnLoop` と Frame/Time を処理する（フレーム落ち・復帰直後・倍速で欠落しない）。`StopAllFor(animator)` を追加（ModelsManager.Despawn が使う）。`SetPaused(h, bool)` / `IsPaused(h)`（Handle 単位の一時停止。時間・イベント・ポーズ更新が止まり、Seek は効く。エディタのシーク用。2026-09-10）
 > - 経過時間は Manager が自前で追跡する(`Animator` の状態を読まない)。`LengthSec` は Clip 長、Clip 無し(Placeholder)は 0.5 秒。`GetNormalizedTime` / `GetLoopCount` / `SetSpeed`(Animator.speed にも反映)
 > - トリガの対応: Play → `OnSpawn` + `OnEnable` / 周回 → `OnLoop`(Frame/Time は `EventBus.ResetOnce` で毎周再発火) / 自然終了 → `OnDisable` + `OnDestroy` / `Stop` と同じ Animator + Layer への別 Play による中断 → `OnDisable` のみ(設計書の OnInterrupted に相当。`EventTrigger` に種別は増やさない)
 > - Frame/Time はゲームのフレーム数ではなく **クリップ時間**で判定する(`EventBus.TickAnimation(ctx, clipTime, frameRate)` を追加。Frame = `Time / Clip.frameRate` 秒)。終端(Clip 長ちょうど)のイベントは終了直前に一度だけ拾う
@@ -150,7 +152,7 @@ h.Stop(fade); h.SetSpeed(1.5f); h.NormalizedTime; h.OnEnd(callback);
 |---|---|
 | タイムライン | Clip をシークバー表示。イベントマーカー（SE/VFX）を D&D で配置 |
 | モデル選択 | 任意の ModelData を読み込んで再生確認 |
-| ブレンド確認 | 2 つの AnimData を選び CrossFade 時間を変えながら遷移を再生 |
+| ブレンド確認 | ①遷移シーケンス（対象 → Step1 → Step2 …、遷移ごとの CrossFade 秒と切替位置、ループ）②レイヤー同時再生（別 Layer の AnimData を重ね、Controller のレイヤー重みスライダーで AvatarMask の効きを確認）③Blend Tree パラメータ（float を 2D パッド / スライダーで操作）。2026-09-10 高級化 |
 | Mask/IK 確認 | AvatarMask 適用結果、IK ウェイトカーブの効果を表示 |
 | 同時プレビュー | イベントに設定した SE・VFX を実 Manager 経由で同時再生 ★ |
 | BlendShape 編集 | ShapeName をモデルから選択、カーブエディタでウェイト編集 |
@@ -158,7 +160,10 @@ h.Stop(fade); h.SetSpeed(1.5f); h.NormalizedTime; h.OnEnd(callback);
 > **実装メモ(2026-09-09, 3-3/3-4)**: `Editor/Anim/AnimEditorWindow.cs`（`Tools > D-Drive > Editors > Animation (3D)`）。
 > - プレビューは `PreviewService` のプレビューシーン（`ModelEditor` と同じ実 ModelsManager + オービットカメラ）。「確認用モデル」に ModelData を入れると配置し、その Animator に対して実 `AnimManager` で再生する。EditMode では `AnimManager` が Controller ありなら `Animator.Update(dt)`、無しなら `Clip.SampleAnimation` でポーズを進める（PlayMode では Unity 任せ）
 > - タイムライン: 0.5 秒目盛り、再生ヘッド、Frame/Time イベントのマーカー（PlayAsset=橙、他=水色、Clip 長超過=赤）。**クリックでシーク**（`AnimManager.Seek`: イベントは発火せず、その時刻以前を発火済みに揃える = `EventBus.SeekAnimation`）、**マーカーのドラッグで Time を変更**（Frame はフレーム単位、Time は 0.01 秒単位。Undo 対応）
-> - ブレンド確認: B（遷移先）と CrossFade 秒を指定し「A → B を再生」で A の 50% で B へ遷移
+> - **SE タブ由来の使い勝手**（2026-09-10、ITAMI の Sprite Animation Tool「SE タブ」から移植。`Editor/Anim/AnimEditorWindow.Source.cs`）: ①**Animator から選択** — 対象 Animator の Controller をスキャンして「レイヤー / ステート [クリップ]」の一覧を出し、選ぶと対応する AnimData を探す（Clip 一致 > StateName + Layer 一致）。無ければ「このクリップの AnimData を作成」で AssetBrowser の作成パイプライン（ID・カタログ・Addressables）を通して作り、そのまま対象にする ②**SE 波形** — タイムラインの SE マーカーから SE の長さぶん波形（`WaveformTextureCache`、`WaveformRenderer` 共用）を半透明で重ねる ③**SE / VFX イベント一覧** — 「＋ 現在位置に SE / VFX / 配置セット」、行ごとにアセットのドロップダウン（プロジェクト内の SeData / VfxData / AnchorGroupData）、Frame / Time 切替、フレーム・秒の直接入力、▶ 単体試聴（実 Manager、対象の位置から）、✕。中身は `AnimData.Events` の PlayAsset なのでデータ形式は不変、Undo 対応 ④**イベントのコピー** — 別の AnimData へ、または同じステートの他クリップ（方向違い等）の AnimData へ一括（無ければ作成）。取り込まなかったもの: クリップへの AnimationEvent 書き出し（D-Drive はクリップにイベントを埋めない方針）、SfxId enum / Receiver / AnimationMode サンプリング（ID / Manager / シーンドライバが同じ役割）
+> - **イベントの繰り返し**（2026-09-10、`AssetEvent.Repeat`）: 行の「毎周回 / 1 回 / 再生中は維持」。ダッシュの土煙のようにループする追従 VFX は「再生中は維持」にすると 1 回だけ出て、モーションの終了・中断で止まる。イベント行の「↗」でそのアセットの専用エディタを開く（ツールチップにエディタ名）。**▶ で最初から再生し直すとき・■ 停止のときは、前回出した SE / VFX / 配置セットを全部消す**
+> - 再生操作（2026-09-10 改定）: **■ 停止はポーズをその瞬間のまま残す**（初期ポーズに戻さない）。戻すのは「↺ ポーズを戻す」、対象解除、ステージ切替、Prefab 保存の直前。**タイムラインをクリックするとその位置で一時停止**（`AnimManager.SetPaused`）し、⏸ / ▶ で**続きから**再開（最初からにしない）。一時停止はプレビュー全体に効く: 同時再生中の他レイヤーの Anim、イベントで出た SE（`AudioManager.SetPausedAll`）/ VFX（`VfxManager.SetPausedAll` + `SceneVfxPreviewDriver.Paused` で EditMode の手動 Simulate も停止）/ 配置セットのディレイもまとめて止まる。ステータスは「⏸ 一時停止 xx%（Frame n）」
+> - ブレンド確認（2026-09-10 高級化、`Editor/Anim/AnimEditorWindow.Blend.cs`）: ①**遷移シーケンス** — Steps（AnimData / CrossFade 秒 / SwitchAt=前の Clip の切替位置 0〜1、1 以上は終了時）を任意個並べ「▶ シーケンスを再生」。対象 → Step1 → … を実 AnimManager の CrossFade で再生し、ループ可。Step 1 つで従来の A → B と同じ ②**レイヤー同時再生** — 「一緒に再生する Anim」を対象と同時に `AnimManager.PlayData`（Layer は各 AnimData の値。同じ Layer は中断されるので警告）。Controller の各レイヤーに重みスライダー（`Animator.SetLayerWeight`、AvatarMask 名を表示。Layer 0 は固定） ③**Blend Tree パラメータ** — `Animator.parameters` の float をスライダー、選んだ 2 つを 2D パッド（範囲 -1〜1 / 0〜1 切替）で `SetFloat`。Int / Bool / Trigger も操作可。いずれも Animator への直接操作で Data は変えない。EditMode でも AnimManager が `Animator.Update` を回すので反映される
 > - 同時プレビュー（3-4）: `Runtime/Presentation/AssetEventDispatcher.cs` が `EventBus.OnEventFired` を購読し、`Action=PlayAsset` の Target 種別に応じて AudioManager / VfxManager / AnchorGroupPlayer へ配送する（contextRoot = 発火元 Animator の Transform → SE/VFX の Anchor がそのモデルの階層から解決される）。PreviewService がこれを組み込んでいるので、イベントに設定した SE/VFX はプレビュー中に実際に鳴る/出る。発火順は「イベントログ」に表示
 > - Mask/IK: 情報表示（IK ターゲットは `AnimatorProxy` の *Target に設定。ウィンドウからの配置 UI は未実装）。BlendShape 名は確認用モデルの SkinnedMeshRenderer から列挙して表示
 > - Validation: 静的 `AnimDataValidator` に加え、確認用モデルに対する実行時検査（StateName が Controller に無い = Error、BlendShape 名がモデルに無い = Warning）

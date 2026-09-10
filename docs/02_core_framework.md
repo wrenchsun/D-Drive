@@ -94,11 +94,12 @@ public struct AssetEvent
     public EventAction Action;     // PlayAsset / SetParam / SendMessage / Duck
     public AssetRef Target;        // 任意種別の ID を保持 { AssetType, ulong }
     public ParamValue Param;       // 汎用パラメータ (float/color/curve/string)。時間変化する値は ValueDef（[17]）
+    public EventRepeat Repeat;     // 2026-09-10 追加: EveryLoop(毎周回、既定) / Once(再生ごとに 1 回) / KeepWhilePlaying(1 回出して終了・中断で止める)
 }
 ```
 
 - 発火は `EventBus.Fire(instance, trigger)`。Manager は節目で呼ぶだけ
-- Frame/Time は `EventBus.Tick(ctx, dt)`（ゲームフレーム/秒）か `EventBus.TickAnimation(ctx, clipTime, frameRate)`（クリップ時間。AnimManager 用、2026-09-08 追加）で判定。`ResetOnce(ctx)` でループ周回ごとに再発火できる
+- Frame/Time は `EventBus.Tick(ctx, dt)`（ゲームフレーム/秒）か `EventBus.TickAnimation(ctx, clipTime, frameRate)`（クリップ時間。AnimManager 用、2026-09-08 追加）で判定。`ResetOnce(ctx)` でループ周回ごとに再発火できる（`Repeat=EveryLoop` のものだけ。Once / KeepWhilePlaying は発火済みのまま）。`End(ctx)` は `OnSessionEnded` を出し、Dispatcher が KeepWhilePlaying で出した SE / VFX を `Stop` する（ループする追従エフェクトの後始末。2026-09-10）
 - `PlayAsset` の実行は AssetType に応じて対応 Manager にディスパッチ（実装: `Runtime/Presentation/AssetEventDispatcher.cs`。Se / Vfx / AnchorGroup に対応。発火元の Transform を contextRoot にする。2026-09-09）
 - Validation 対象（Target 欠落 = 赤）
 

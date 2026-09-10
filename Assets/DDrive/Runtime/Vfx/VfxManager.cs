@@ -685,6 +685,36 @@ namespace DDrive.Runtime.Vfx
             }
         }
 
+        // 再生中の VFX を Flags.Pause に関係なく全部一時停止 / 再開する(エディタのプレビュー一時停止用。ゲーム側は OnPause)。
+        public void SetPausedAll(bool paused)
+        {
+            for (var i = 0; i < _allActive.Count; i++)
+            {
+                if (!_instances.TryGet(_allActive[i], out var instance) || instance.ParticleSystems == null)
+                {
+                    continue;
+                }
+
+                instance.Paused = paused;
+                foreach (var ps in instance.ParticleSystems)
+                {
+                    if (ps == null)
+                    {
+                        continue;
+                    }
+
+                    if (paused)
+                    {
+                        ps.Pause(true);
+                    }
+                    else
+                    {
+                        ps.Play(true);
+                    }
+                }
+            }
+        }
+
         public void OnSceneUnload() => StopAll(StopReason.SceneUnload);
 
         private void FlushCosmeticBatch()

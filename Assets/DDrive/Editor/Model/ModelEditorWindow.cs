@@ -1,23 +1,29 @@
 using System.Collections.Generic;
+using DDrive.Editor.Anim;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
 using DDrive.Foundation.Handle;
 using DDrive.Runtime.Model;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace DDrive.Editor.Model
 {
     // [05_model_animation.md] A-4 — Model 専用エディタ(2-6)。
-    // ターンテーブル回転 / 複数モデル並列表示 / 背景・ライト切替 / Slot 自動収集 /
-    // Material スロット差し替え(ID 保存。実適用は Phase 3 の MaterialData 実装後)。
+    // 2026-09-10: AnimEditor と同じく SceneView 方式に統一(ウィンドウ内ビューポートと背景/ライト切替は廃止。
+    // ライト・ポスプロは確認用シーンのものをそのまま使う)。
+    //  - 「確認用シーンを開く」→ 対象モデルをシーンに配置(SceneAnimPreviewDriver、DontSave)して SceneView で確認
+    //  - 「Prefab を開く」→ ModelData.Prefab をプレハブモードで開く(Renderer / Material をその場で編集)
+    //  - ターンテーブル(配置したモデルを回す) / 複数モデル並列表示 / Slot 自動収集 / Material スロット ID 差し替え /
+    //    DefaultAnimation の再生確認(実 AnimManager。Anim も EditorAnchorRegistry に登録済み)
     [DDrive.Editor.Inspector.DataEditor(typeof(ModelData), "Model Editor で開く")]
     public sealed class ModelEditorWindow : EditorWindow
     {
         private const int MaxParallelSlots = 4;
-        private const float ViewportHeight = 240f;
         private const float ParallelSpacingMeters = 2f;
 
         private sealed class SlotState
@@ -28,22 +34,21 @@ namespace DDrive.Editor.Model
             public Button ToggleButton;
         }
 
-        private ModelData _target;
-        private PreviewService _preview;
-        private Handle<ModelMarker> _mainHandle;
-        private SerializedObject _serializedTarget;
+        [SerializeField] private ModelData _target;
+        [SerializeField] private bool _lockTarget;
+        [SerializeField] private bool _turntableEnabled;
+        [SerializeField] private float _turntableSpeedDegPerSec = 30f;
 
-        private readonly OrbitCameraController _orbit = new();
+        private SceneAnimPreviewDriver _scene;
+        private SerializedObject _serializedTarget;
         private readonly List<SlotState> _slots = new();
+        private double _lastTurntableTime;
 
         private ObjectField _targetField;
-        private IMGUIContainer _viewportContainer;
+        private Label _statusLabel;
         private VisualElement _slotsContainer;
         private VisualElement _animContainer;
-
-        private bool _turntableEnabled;
-        private float _turntableSpeedDegPerSec = 30f;
-        private double _lastTurntableTime;
+        private Button _applySlotsButton;
 
         [MenuItem(DDriveMenu.Editors + "Model")]
         public static void OpenFromMenu() => Open(Selection.activeObject as ModelData);
@@ -51,31 +56,67 @@ namespace DDrive.Editor.Model
         public static void Open(ModelData target)
         {
             var window = GetWindow<ModelEditorWindow>("Model Editor");
-            window.minSize = new Vector2(520, 480);
+            window.minSize = new Vector2(520, 420);
             if (target != null)
             {
                 window.SetTarget(target);
             }
         }
 
+        // ── ライフサイクル ──
+
         private void OnEnable()
         {
-            _preview = new PreviewService();
-            _preview.Initialize();
+            _scene = new SceneAnimPreviewDriver();
             _lastTurntableTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += OnEditorUpdate;
+            EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
+            PrefabStage.prefabStageOpened += OnPrefabStageChanged;
+            PrefabStage.prefabStageClosing += OnPrefabStageChanged;
         }
 
         private void OnDisable()
         {
+            PrefabStage.prefabStageClosing -= OnPrefabStageChanged;
+            PrefabStage.prefabStageOpened -= OnPrefabStageChanged;
+            EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
             EditorApplication.update -= OnEditorUpdate;
-            _preview?.Dispose();
-            _preview = null;
+            _scene?.Dispose();
+            _scene = null;
+        }
+
+        private void OnSelectionChange()
+        {
+            if (!_lockTarget && Selection.activeObject is ModelData selected && selected != _target)
+            {
+                SetTarget(selected);
+            }
+        }
+
+        private void OnActiveSceneChanged(Scene previous, Scene current) => OnStageChanged();
+
+        private void OnPrefabStageChanged(PrefabStage stage) => OnStageChanged();
+
+        // ドライバはシーン切替で配置物を自動撤去済み。UI の状態だけ合わせる。
+        private void OnStageChanged()
+        {
+            foreach (var slot in _slots)
+            {
+                slot.Handle = Handle<ModelMarker>.Invalid;
+                if (slot.ToggleButton != null)
+                {
+                    slot.ToggleButton.text = "配置";
+                }
+            }
+
+            RefreshStatus();
+            RebuildMaterialUi();
         }
 
         private void OnEditorUpdate()
         {
-            if (!_turntableEnabled || !_preview.ModelsManager.IsValid(_mainHandle))
+            var root = _scene != null && _scene.OwnsCurrent ? _scene.CurrentRoot : null;
+            if (!_turntableEnabled || root == null)
             {
                 _lastTurntableTime = EditorApplication.timeSinceStartup;
                 return;
@@ -84,23 +125,19 @@ namespace DDrive.Editor.Model
             var now = EditorApplication.timeSinceStartup;
             var dt = Mathf.Clamp((float)(now - _lastTurntableTime), 0f, 0.25f);
             _lastTurntableTime = now;
-
-            var go = _preview.ModelsManager.GetGameObject(_mainHandle);
-            if (go != null)
-            {
-                go.transform.Rotate(Vector3.up, _turntableSpeedDegPerSec * dt, Space.World);
-            }
-
-            Repaint();
+            root.transform.Rotate(Vector3.up, _turntableSpeedDegPerSec * dt, Space.World);
+            SceneView.RepaintAll();
         }
+
+        // ── UI ──
 
         private void CreateGUI()
         {
-            // ウィンドウが小さい/セクションが増えても内容が見切れないよう、ルートをスクロール可能にする
-            // ([09_editor_tools.md] §7 拡縮前提のUI規約)。
+            BuildToolbar(rootVisualElement);
+
+            // ウィンドウが小さい/セクションが増えても内容が見切れないよう、ルートをスクロール可能にする([09] §7)。
             var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
             rootVisualElement.Add(scrollView);
-
             var root = scrollView;
             root.style.paddingLeft = 6;
             root.style.paddingRight = 6;
@@ -110,25 +147,21 @@ namespace DDrive.Editor.Model
             _targetField.RegisterValueChangedCallback(evt => SetTarget(evt.newValue as ModelData));
             root.Add(_targetField);
 
-            _viewportContainer = new IMGUIContainer(DrawViewport);
-            _viewportContainer.style.height = ViewportHeight;
-            _viewportContainer.style.marginBottom = 4;
-            root.Add(_viewportContainer);
-
-            var playRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 6 } };
-            playRow.Add(new Button(PlayMain) { text = "▶ 配置" });
-            playRow.Add(new Button(StopMain) { text = "■ 撤去" });
+            var playRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 6 } };
+            playRow.Add(new Button(PlaceMain) { text = "▶ シーンに配置", tooltip = "開いているシーン / プレハブモードの原点に対象を配置する(保存されない)" });
+            playRow.Add(new Button(RemoveMain) { text = "■ 撤去" });
+            _statusLabel = new Label { style = { marginLeft = 8, opacity = 0.8f, whiteSpace = WhiteSpace.Normal, flexShrink = 1f } };
+            playRow.Add(_statusLabel);
             root.Add(playRow);
 
             BuildTurntableSection(root);
-            BuildEnvironmentSection(root);
             BuildMultiSlotSection(root);
             BuildMaterialSection(root);
 
             _animContainer = new VisualElement();
             root.Add(_animContainer);
 
-            if (_target == null && Selection.activeObject is ModelData selected)
+            if (_target == null && !_lockTarget && Selection.activeObject is ModelData selected)
             {
                 SetTarget(selected);
             }
@@ -136,94 +169,53 @@ namespace DDrive.Editor.Model
             {
                 RefreshTargetUi();
             }
+
+            RefreshStatus();
         }
 
-        private void SetTarget(ModelData data)
+        private void BuildToolbar(VisualElement root)
         {
-            StopMain();
-            _target = data;
-            _targetField.SetValueWithoutNotify(data);
-            RefreshTargetUi();
-        }
-
-        private void RefreshTargetUi()
-        {
-            _serializedTarget = _target != null ? new SerializedObject(_target) : null;
-            RebuildMaterialUi();
-            RebuildAnimUi();
-        }
-
-        // ── Viewport(実 ModelsManager 駆動 + オービットカメラ + ターンテーブル) ──
-        private void DrawViewport()
-        {
-            var rect = GUILayoutUtility.GetRect(100, ViewportHeight, GUILayout.ExpandWidth(true));
-
-            if (_preview == null || !_preview.IsInitialized)
+            var toolbar = new Toolbar();
+            var lockToggle = new ToolbarToggle { text = "🔒 対象を固定", value = _lockTarget };
+            lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
+            toolbar.Add(lockToggle);
+            toolbar.Add(new ToolbarSpacer());
+            toolbar.Add(new ToolbarButton(OpenPreviewScene)
             {
-                EditorGUI.HelpBox(rect, "プレビュー未初期化です", MessageType.Info);
-                return;
-            }
-
-            _orbit.HandleInput(rect);
-            _orbit.Apply(_preview.PreviewCamera, new Vector3(0f, 1f, 0f));
-
-            var texture = _preview.Render((int)rect.width, (int)rect.height);
-            if (texture != null)
-            {
-                GUI.DrawTexture(rect, texture, ScaleMode.StretchToFill, false);
-            }
-
-            GUI.Label(new Rect(rect.x + 4f, rect.y + rect.height - 18f, rect.width - 8f, 16f),
-                "ドラッグ: 視点回転 / ホイール: ズーム", EditorStyles.miniLabel);
+                text = "確認用シーンを開く",
+                tooltip = "ライト/カメラ/Volume/床を備えた確認用シーンを開き(無ければ生成)、対象を原点に配置する",
+            });
+            toolbar.Add(new ToolbarButton(OpenPrefab) { text = "Prefab を開く", tooltip = "ModelData.Prefab をプレハブモードで開く(Renderer / Material をその場で編集)" });
+            toolbar.Add(new ToolbarButton(() => { if (_target != null) EditorGUIUtility.PingObject(_target); }) { text = "Project で表示" });
+            root.Add(toolbar);
         }
 
         private void BuildTurntableSection(VisualElement root)
         {
             var row = new VisualElement { style = { flexDirection = FlexDirection.Row } };
-
-            var toggle = new Toggle("ターンテーブル自動回転") { value = _turntableEnabled };
+            var toggle = new Toggle("ターンテーブル自動回転") { value = _turntableEnabled, tooltip = "シーンに配置したモデルを Y 軸で回す(プレハブモードの実体は回さない)" };
             toggle.RegisterValueChangedCallback(evt => _turntableEnabled = evt.newValue);
             row.Add(toggle);
-
             var speedSlider = new Slider("速度(度/秒)", -180f, 180f) { value = _turntableSpeedDegPerSec, style = { flexGrow = 1f } };
             speedSlider.RegisterValueChangedCallback(evt => _turntableSpeedDegPerSec = evt.newValue);
             row.Add(speedSlider);
-
             root.Add(row);
         }
 
-        private void BuildEnvironmentSection(VisualElement root)
-        {
-            var foldout = new Foldout { text = "環境切替", value = false };
-
-            var bgField = new ColorField("背景色") { value = new Color(0.16f, 0.16f, 0.16f) };
-            bgField.RegisterValueChangedCallback(evt => _preview.SetBackgroundColor(evt.newValue));
-            foldout.Add(bgField);
-
-            var lightSlider = new Slider("ライト強度", 0f, 3f) { value = 1f };
-            lightSlider.RegisterValueChangedCallback(evt => _preview.SetLightIntensity(evt.newValue));
-            foldout.Add(lightSlider);
-
-            root.Add(foldout);
-        }
-
         // ── 複数モデル並列表示 ──
+
         private void BuildMultiSlotSection(VisualElement root)
         {
-            var foldout = new Foldout { text = $"複数モデル並列表示(最大 {MaxParallelSlots})", value = false };
-
+            var foldout = new Foldout { text = $"複数モデル並列表示(最大 {MaxParallelSlots}、対象の隣に 2m 間隔で配置)", value = false };
             for (var i = 0; i < MaxParallelSlots; i++)
             {
                 var row = new VisualElement { style = { flexDirection = FlexDirection.Row } };
                 var slot = new SlotState();
-
                 slot.Field = new ObjectField { objectType = typeof(ModelData), style = { flexGrow = 1f } };
                 row.Add(slot.Field);
-
                 slot.ToggleButton = new Button(() => ToggleSlot(slot)) { text = "配置" };
                 slot.ToggleButton.style.width = 48;
                 row.Add(slot.ToggleButton);
-
                 foldout.Add(row);
                 _slots.Add(slot);
             }
@@ -233,9 +225,14 @@ namespace DDrive.Editor.Model
 
         private void ToggleSlot(SlotState slot)
         {
-            if (_preview.ModelsManager.IsValid(slot.Handle))
+            if (_scene == null)
             {
-                _preview.DespawnModel(slot.Handle);
+                return;
+            }
+
+            if (_scene.Models != null && _scene.Models.IsValid(slot.Handle))
+            {
+                _scene.DespawnExtraModel(slot.Handle);
                 slot.Handle = Handle<ModelMarker>.Invalid;
                 slot.ToggleButton.text = "配置";
                 return;
@@ -247,28 +244,31 @@ namespace DDrive.Editor.Model
                 return;
             }
 
-            var index = _slots.IndexOf(slot) + 1; // メイン(index 0 相当)の隣から並べる
-            var pos = new Vector3(index * ParallelSpacingMeters, 0f, 0f);
-            slot.Handle = _preview.SpawnModel(slot.Data, pos, Quaternion.identity);
-            slot.ToggleButton.text = "撤去";
+            var index = _slots.IndexOf(slot) + 1; // 対象(原点)の隣から並べる
+            slot.Handle = _scene.SpawnExtraModel(slot.Data, new Vector3(index * ParallelSpacingMeters, 0f, 0f), Quaternion.identity);
+            slot.ToggleButton.text = _scene.Models != null && _scene.Models.IsValid(slot.Handle) ? "撤去" : "配置";
         }
 
         // ── Material スロット(自動収集 + ID 差し替え。AssetIdDrawer が自動適用される) ──
+
         private void BuildMaterialSection(VisualElement root)
         {
             var foldout = new Foldout { text = "Material スロット", value = true };
             foldout.Add(new Button(CollectSlots) { text = "Slot 自動収集(Prefab の Renderer を走査)" });
-
             _slotsContainer = new VisualElement();
             foldout.Add(_slotsContainer);
-
             root.Add(foldout);
         }
 
         private void RebuildMaterialUi()
         {
-            _slotsContainer.Clear();
+            if (_slotsContainer == null)
+            {
+                return;
+            }
 
+            _slotsContainer.Clear();
+            _applySlotsButton = null;
             if (_serializedTarget == null)
             {
                 return;
@@ -284,10 +284,9 @@ namespace DDrive.Editor.Model
             field.Bind(_serializedTarget);
             _slotsContainer.Add(field);
 
-            if (_preview.ModelsManager.IsValid(_mainHandle))
-            {
-                _slotsContainer.Add(new Button(ApplySlotsToPreview) { text = "プレビューに反映(現状 ID 保存のみ。実適用は Phase 3)" });
-            }
+            _applySlotsButton = new Button(ApplySlotsToPreview) { text = "配置中のモデルに反映(現状 ID 保存のみ。実適用は Phase 3-5)" };
+            _applySlotsButton.SetEnabled(_scene != null && _scene.OwnsCurrent);
+            _slotsContainer.Add(_applySlotsButton);
         }
 
         private void CollectSlots()
@@ -300,21 +299,14 @@ namespace DDrive.Editor.Model
             var renderers = _target.Prefab.GetComponentsInChildren<Renderer>(true);
             var existing = _target.Slots ?? System.Array.Empty<MaterialSlot>();
             var collected = new List<MaterialSlot>();
-
             foreach (var renderer in renderers)
             {
                 var path = GetRelativePath(_target.Prefab.transform, renderer.transform);
                 var materialCount = renderer.sharedMaterials.Length;
-
                 for (var slotIndex = 0; slotIndex < materialCount; slotIndex++)
                 {
                     var preserved = FindExisting(existing, path, slotIndex);
-                    collected.Add(new MaterialSlot
-                    {
-                        RendererPath = path,
-                        SlotIndex = slotIndex,
-                        Material = preserved.Material,
-                    });
+                    collected.Add(new MaterialSlot { RendererPath = path, SlotIndex = slotIndex, Material = preserved.Material });
                 }
             }
 
@@ -357,22 +349,27 @@ namespace DDrive.Editor.Model
 
         private void ApplySlotsToPreview()
         {
-            if (_target == null || _target.Slots == null || !_preview.ModelsManager.IsValid(_mainHandle))
+            if (_target == null || _target.Slots == null || _scene == null || !_scene.OwnsCurrent)
             {
                 return;
             }
 
             for (var i = 0; i < _target.Slots.Length; i++)
             {
-                _preview.ModelsManager.SetMaterial(_mainHandle, i, _target.Slots[i].Material);
+                _scene.Models.SetMaterial(_scene.SpawnedModelHandle, i, _target.Slots[i].Material);
             }
         }
 
-        // ── DefaultAnimation(情報表示。再生確認は AnimManager 実装後の Phase 3) ──
+        // ── DefaultAnimation(実 AnimManager で再生確認) ──
+
         private void RebuildAnimUi()
         {
-            _animContainer.Clear();
+            if (_animContainer == null)
+            {
+                return;
+            }
 
+            _animContainer.Clear();
             if (_serializedTarget == null)
             {
                 return;
@@ -384,38 +381,140 @@ namespace DDrive.Editor.Model
                 return;
             }
 
-            var foldout = new Foldout { text = "Default Animation", value = false };
+            var foldout = new Foldout { text = "Default Animation", value = true };
             var field = new PropertyField(animProp);
             field.Bind(_serializedTarget);
             foldout.Add(field);
-            foldout.Add(new Label("AnimManager は Phase 3 で実装されるため、ここでの再生確認は未対応です。")
-            {
-                style = { opacity = 0.75f, whiteSpace = WhiteSpace.Normal },
-            });
-
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            row.Add(new Button(PlayDefaultAnimation) { text = "▶ 配置して DefaultAnimation を再生" });
+            row.Add(new Button(() => _scene?.Stop()) { text = "■ 停止" });
+            foldout.Add(row);
+            foldout.Add(new Label("配置時に AnimManager が DefaultAnimation を自動再生します(ランタイムの Models.Spawn と同じ経路)。細かい確認は Anim Editor で。") { style = { opacity = 0.7f, whiteSpace = WhiteSpace.Normal } });
             _animContainer.Add(foldout);
         }
 
-        // ── 配置/撤去(メイン対象) ──
-        private void PlayMain()
+        private void PlayDefaultAnimation()
         {
-            if (_target == null)
+            if (_target == null || _scene == null)
             {
                 return;
             }
 
-            StopMain();
-            _mainHandle = _preview.SpawnModel(_target, Vector3.zero, Quaternion.identity);
-        }
-
-        private void StopMain()
-        {
-            if (_preview != null && _preview.ModelsManager != null && _preview.ModelsManager.IsValid(_mainHandle))
+            if (!_target.DefaultAnimation.IsValid)
             {
-                _preview.DespawnModel(_mainHandle);
+                Debug.LogWarning("[DDrive] DefaultAnimation が未設定です。");
+                return;
             }
 
-            _mainHandle = Handle<ModelMarker>.Invalid;
+            PlaceMain(); // 配置と同時に DefaultAnimation が再生される
+            if (_scene.OwnsCurrent && _scene.Current != null && _scene.Manager.ActiveCount == 0)
+            {
+                _scene.Manager.Play(_target.DefaultAnimation, _scene.Current);
+            }
+        }
+
+        // ── 対象 / 配置 ──
+
+        public void SetTarget(ModelData data)
+        {
+            RemoveMain();
+            _target = data;
+            _targetField?.SetValueWithoutNotify(data);
+            RefreshTargetUi();
+        }
+
+        private void RefreshTargetUi()
+        {
+            _serializedTarget = _target != null ? new SerializedObject(_target) : null;
+            RebuildMaterialUi();
+            RebuildAnimUi();
+            RefreshStatus();
+        }
+
+        private void OpenPreviewScene()
+        {
+            RemoveMain();
+            VfxPreviewSceneSetup.OpenOrCreate();
+            PlaceMain();
+        }
+
+        private void OpenPrefab()
+        {
+            if (_target != null && _target.Prefab != null)
+            {
+                RemoveMain();
+                AssetDatabase.OpenAsset(_target.Prefab);
+            }
+            else
+            {
+                Debug.LogWarning("[DDrive] 対象 ModelData に Prefab がありません。");
+            }
+        }
+
+        private void PlaceMain()
+        {
+            if (_target == null || _scene == null)
+            {
+                return;
+            }
+
+            RemoveMain();
+            if (_target.Prefab == null)
+            {
+                Debug.LogWarning("[DDrive] 対象 ModelData に Prefab がありません。");
+                RefreshStatus();
+                return;
+            }
+
+            _scene.SpawnModel(_target, Vector3.zero, Quaternion.identity, requireAnimator: false);
+            RefreshStatus();
+            RebuildMaterialUi();
+            Selection.activeGameObject = _scene.CurrentRoot;
+        }
+
+        private void RemoveMain()
+        {
+            if (_scene != null && _scene.OwnsCurrent)
+            {
+                _scene.ReleaseTarget();
+            }
+
+            foreach (var slot in _slots)
+            {
+                slot.Handle = Handle<ModelMarker>.Invalid;
+                if (slot.ToggleButton != null)
+                {
+                    slot.ToggleButton.text = "配置";
+                }
+            }
+
+            RefreshStatus();
+            RebuildMaterialUi();
+        }
+
+        private void RefreshStatus()
+        {
+            if (_statusLabel == null)
+            {
+                return;
+            }
+
+            var stage = PrefabStageUtility.GetCurrentPrefabStage();
+            var where = stage != null
+                ? $"プレハブモード '{System.IO.Path.GetFileNameWithoutExtension(stage.assetPath)}'"
+                : $"シーン '{SceneManager.GetActiveScene().name}'";
+            if (_scene != null && _scene.OwnsCurrent && _scene.CurrentRoot != null)
+            {
+                _statusLabel.text = $"● {where} に配置中: {_scene.CurrentRoot.name}(保存されません)";
+            }
+            else if (stage != null && _target != null && _target.Prefab != null && stage.assetPath == AssetDatabase.GetAssetPath(_target.Prefab))
+            {
+                _statusLabel.text = $"● {where} を編集中(対象の Prefab そのもの)。Ctrl+S で保存";
+            }
+            else
+            {
+                _statusLabel.text = _target == null ? "対象アセットを選んでください" : $"未配置。「確認用シーンを開く」か「▶ シーンに配置」で {where} に置きます";
+            }
         }
     }
 }

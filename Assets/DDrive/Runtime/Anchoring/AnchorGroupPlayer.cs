@@ -36,6 +36,23 @@ namespace DDrive.Runtime.Anchoring
 
         public int ActiveCount => _active.Count;
 
+        // この配置セットが出した VFX Handle を into に追加する(エディタのシーンプレビューが DontSave / 手動 Simulate の
+        // 台帳へ引き取るため。無効 Handle なら何もしない)。戻り値は追加数。
+        public int CollectVfxHandles(Handle<AnchorGroupMarker> handle, List<Handle<VfxMarker>> into)
+        {
+            if (into == null || !_instances.TryGet(handle, out var instance))
+            {
+                return 0;
+            }
+
+            for (var i = 0; i < instance.Vfx.Count; i++)
+            {
+                into.Add(instance.Vfx[i]);
+            }
+
+            return instance.Vfx.Count;
+        }
+
         public Handle<AnchorGroupMarker> Play(AnchorGroupId id, Transform contextRoot = null)
             => PlayData(_registry.ResolveOrPlaceholder<AnchorGroupData>(id.Value), contextRoot);
 

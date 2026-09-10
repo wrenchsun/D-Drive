@@ -200,12 +200,22 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 | 1 | Asset Browser「新規作成」→ 種別 Anim、Clip を設定 | `Assets/GameData/Anim/<カテゴリ>/ANIM_…asset`。`Tools > D-Drive > Editors > Animation (3D)` に対象として入る |
 | 2 | 「確認用モデル」に ModelData →「確認用シーンを開く」 | 確認用シーンが開き、モデルが原点に配置されて「シーン上の Animator(対象)」に自動で入る。モデル情報は 1 行の要約（Controller / BlendShape 数）、詳細は折りたたみ |
 | 3 | ▶ 再生 | SceneView でモデルが動く（Controller ありなら CrossFade、無しなら Clip のサンプリング）。ステータス「● 再生中 xx%」。タイムラインの再生ヘッドが進む |
-| 4 | タイムラインをクリック | その位置にシーク（ポーズが変わる）。イベントログに発火は出ない |
+| 4 | タイムラインをクリック | その位置にシークしてポーズが変わり、**その瞬間で一時停止する**（ステータス「⏸ 一時停止 xx%」）。⏸ か ▶ で続きから動く。イベントログには何も出ない |
+| 4b | 再生中に ■ 停止 | モデルはその瞬間のポーズのまま止まる（初期ポーズに戻らない）。「↺ ポーズを戻す」で再生前のポーズに戻る |
+| 4c | SE / VFX のイベントが鳴った直後に ⏸ → ▶ | 音も粒子も止まり、▶ で音・粒子・モーションが同じ位置から続く（最初からにならない） |
 | 5 | Events に Frame=15 / Action=PlayAsset / Target=SE を追加 → ▶ | 0.5 秒で SE が鳴り、イベントログに「Frame 15: PlayAsset Se …」。マーカーが橙で出る |
 | 6 | マーカーをドラッグ | Time が変わり（Frame 単位）、Ctrl+Z で戻る。Clip 長を超えると赤 + 検証に Error |
 | 7 | Target を VFX にして ▶ | ビューポート内のモデル位置に VFX が出る（Anchor が BoneName ならそのボーン） |
 | 8 | Loop ON + Events に OnLoop → ▶ | 周回ごとにログに OnLoop。ステータスの周回数が増える |
-| 9 | ブレンド確認: B に別の Anim、CrossFade 0.3 →「A → B を再生」 | A の半分で B に切り替わる（ログに「→ '…' へ CrossFade」） |
+| 9 | ブレンド確認 > 遷移シーケンス: Steps に別の Anim を 2 つ（CrossFade 0.3、SwitchAt 0.5 / 1.0）、ループ ON →「▶ シーケンスを再生」 | 対象の半分で Step1 へ、Step1 が終わると Step2 へ CrossFade（ログに「→ Step1 '…' へ CrossFade」）。最後まで行くと対象から繰り返す。■ 停止で止まる |
+| 9b | ブレンド確認 > レイヤー同時再生: 「一緒に再生する Anim」に Layer=1 の Anim →「▶ 対象と一緒に再生」→ レイヤー [1] のスライダーを 0 ↔ 1 | 両方が同時に動き、スライダーで上半身（AvatarMask 名が表示される）の効きが変わる。同じ Layer の Anim を入れると警告 |
+| 9c | ブレンド確認 > Blend Tree パラメータ: X/Y に Controller の float を選び、パッドをドラッグ | Blend Tree の混ざり方が SceneView で変わる。スライダーの値がパッドと連動。範囲 0〜1 切替で軸が変わる |
+| 17 | 「Animator から選択」で Controller のステートを選ぶ | 対応する AnimData があれば対象に切り替わる。無ければ「このクリップの AnimData を作成」が出て、押すと `GameData/Anim/<モデル名>/ANIM_<モデル名>_<ステート名>.asset` が出来て対象になる（Addressables にも登録） |
+| 18 | 「＋ 現在位置に SE」→ 行のドロップダウンで SE を選ぶ → ▶ | 再生ヘッドのフレームにイベントが入り、タイムラインに橙マーカー + SE の波形が重なる。▶ で単体試聴。フレーム欄の変更で波形の位置が動く。Ctrl+Z で戻る |
+| 19 | 「＋ 現在位置に VFX」→ VFX を選ぶ → ▶ | シーン上の対象の位置に VFX が出る。Frame / Time 切替で時刻が換算される |
+| 20 | 「イベントを別の AnimData へコピー」/「同じステートの他クリップへ一括コピー」 | コピー先の Events が同じ内容になる（無い AnimData は作成される）。ログに件数 |
+| 21 | Loop ON の Anim に、Loop の VFX（例 `VFX_Player_Slash`）を「再生中は維持」で登録 → ▶ | VFX は 1 回だけ出て周回しても増えない。■ 停止で消える。「毎周回」にすると周回ごとに出て、▶ で最初からにすると前回分が消える |
+| 22 | 行の「↗」 | その SE / VFX の専用エディタが開く（ツールチップに「… を VfxEditorWindow で開く」） |
 | 10 | StateName を存在しない名前に | 検証に Error「StateName '…' が確認用モデルの Controller にありません」。再生は時間追跡だけ続く（警告 1 回） |
 | 11 | BlendShapes に存在しない名前 | 検証に Warning。存在する名前 + カーブなら再生中に表情が変わる |
 | 12 | 速度 0.3 / 2.0、ループ試聴 ON | 速度が変わる。終わると自動でもう一度 |
@@ -213,6 +223,16 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 | 14 | ツールバー「モデル Prefab を開く」→ ▶ | プレハブモードに入ると「シーン上の Animator(対象)」に Prefab ルートの Animator が自動で入り、その場で動く。■ 停止で再生前のポーズに戻り、Prefab は dirty にならない（Ctrl+S しても再生中ポーズが保存されない） |
 | 15 | シーン再生中にプレハブモードを閉じる / 別シーンを開く | エラーなし。配置物が消え、対象が空になる（確認用モデルがあれば次の ▶ で再配置） |
 | 16 | Hierarchy で別のモデルを選んで「選択から取得」→ ▶ | そのモデルが動き、停止で元のポーズに戻る |
+
+#### 手順 7b: Model Editor（SceneView 方式、2026-09-10）
+
+| # | 操作 | 期待 |
+|---|---|---|
+| 1 | ModelData を選び Inspector「Model Editor で開く」→「確認用シーンを開く」 | 確認用シーンが開き、モデルが原点に配置され、Hierarchy で選択される。ステータス「● シーン '…' に配置中」。ウィンドウ内にビューポートは無い |
+| 2 | ターンテーブル ON | SceneView でモデルが回る。■ 撤去で消える |
+| 3 | 並列表示に別の ModelData →「配置」 | 対象の隣（2m 間隔）に並ぶ。「撤去」で消える |
+| 4 | 「Prefab を開く」 | プレハブモードに入り、ステータス「● プレハブモード '…' を編集中」。Renderer / Material を編集して Ctrl+S |
+| 5 | DefaultAnimation を設定して「▶ 配置して DefaultAnimation を再生」 | 配置と同時にアニメーションが再生される。■ 停止で止まる |
 
 #### 手順 8: 起動配線と Addressables（[02] §14 / §5、レビュー P0-1 / P0-2）
 
@@ -231,6 +251,8 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 | 1 | Project で VfxData / SeData / BgmData / ModelData / AnimData / AnchorData / AnchorGroupData を選ぶ | Inspector の一番上に「▶ … Editor で開く」ボタン。押すとそのアセットを対象に専用エディタが開く |
 | 2 | SeData | ヘッダーのボタンに加え、従来のトリミング GUI がそのまま下に出る（末尾の AudioEditor ボタンはヘッダーへ統合） |
 | 3 | Test Runner（EditMode）`DataEditorRegistryTests` | 4 件 green（新しい Data 種別を作って属性を付け忘れると `EveryConcreteDataType_HasEditor` が落ちる） |
+| 4 | 任意の Data を選び、SceneView で対象を映して「シーンから作成」 | 「アイコンを切り出す」ウィンドウに SceneView 全体の撮影が出る（真っ黒でない）。ドラッグで正方形を決め「この範囲でアイコンを作成」→ `Assets/GameData/Icons/<種別>/<名前>_Icon.png` が出来て Inspector のサムネイルと Asset Browser の一覧に出る。もう一度作ると上書き（ファイルが増えない）。「再撮影」「画面からスクショ」「ホイールで拡縮」「ダブルクリックで中央最大」が効く |
+| 5 | 「フォルダから選択」でプロジェクト外の PNG | Icons フォルダにコピーされて割り当たる。「クリア」で外れる（Ctrl+Z で戻る） |
 
 
 | 17 | Play Mode に入る → 抜ける | Console に例外が出ない |

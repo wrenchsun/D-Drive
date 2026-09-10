@@ -27,7 +27,7 @@ namespace DDrive.Editor.Anim
     // 対象の Animator は自動で決まる: 「確認用シーンを開く」→ 確認用モデルをシーンに配置して対象にする、
     // 「モデル Prefab を開く」/ プレハブモードに入る → その Prefab の Animator を対象にする。手動で差し替えも可。
     [DataEditor(typeof(AnimData), "Anim Editor で開く")]
-    public sealed class AnimEditorWindow : EditorWindow
+    public sealed partial class AnimEditorWindow : EditorWindow
     {
         private const float TimelineHeight = 44f;
         private const int MaxEventLog = 12;
@@ -35,8 +35,6 @@ namespace DDrive.Editor.Anim
         [SerializeField] private AnimData _target;
         [SerializeField] private bool _lockTarget;
         [SerializeField] private ModelData _model;
-        [SerializeField] private AnimData _blendTarget;
-        [SerializeField] private float _blendFade = 0.2f;
         [SerializeField] private float _speed = 1f;
         [SerializeField] private bool _loopPreview;
         [SerializeField] private Animator _sceneTarget;
@@ -44,7 +42,6 @@ namespace DDrive.Editor.Anim
         private SceneAnimPreviewDriver _scene;
         private SerializedObject _serializedTarget;
         private Handle<AnimMarker> _animHandle = Handle<AnimMarker>.Invalid;
-        private bool _blendPending;
         private int _draggingEvent = -1;
         private readonly List<string> _eventLog = new();
 
@@ -114,6 +111,7 @@ namespace DDrive.Editor.Anim
         private void OnUndoRedo()
         {
             _serializedTarget?.Update();
+            RefreshEventList();
             RefreshValidation();
             _timelineContainer?.MarkDirtyRepaint();
         }
@@ -122,7 +120,7 @@ namespace DDrive.Editor.Anim
         private void OnActiveSceneChanged(Scene previous, Scene current)
         {
             _animHandle = Handle<AnimMarker>.Invalid;
-            _blendPending = false;
+            _seqIndex = -1;
             SetSceneTarget(null);
         }
 
@@ -130,7 +128,7 @@ namespace DDrive.Editor.Anim
         private void OnPrefabStageOpened(PrefabStage stage)
         {
             _animHandle = Handle<AnimMarker>.Invalid;
-            _blendPending = false;
+            _seqIndex = -1;
             var animator = stage != null && stage.prefabContentsRoot != null ? stage.prefabContentsRoot.GetComponentInChildren<Animator>(true) : null;
             SetSceneTarget(animator);
             if (animator != null)
@@ -142,7 +140,7 @@ namespace DDrive.Editor.Anim
         private void OnPrefabStageClosing(PrefabStage stage)
         {
             _animHandle = Handle<AnimMarker>.Invalid;
-            _blendPending = false;
+            _seqIndex = -1;
             SetSceneTarget(null);
         }
 
@@ -156,15 +154,10 @@ namespace DDrive.Editor.Anim
             var anim = _scene.Manager;
             var playing = anim.IsPlaying(_animHandle);
 
-            // ブレンド確認: A の半分を過ぎたら B へ CrossFade。
-            if (_blendPending && playing && _blendTarget != null && anim.GetNormalizedTime(_animHandle) >= 0.5f)
-            {
-                _blendPending = false;
-                _animHandle = _scene.Play(_blendTarget, _blendFade);
-                AppendLog($"→ '{_blendTarget.DisplayName ?? _blendTarget.name}' へ CrossFade({_blendFade:0.##}s)");
-            }
+            // ブレンド確認: 遷移シーケンスの進行(AnimEditorWindow.Blend.cs)。
+            TickSequence(anim, ref playing);
 
-            if (!playing && _loopPreview && _target != null && _scene.Current != null && !_blendPending)
+            if (!playing && _loopPreview && _target != null && _scene.Current != null && _seqIndex < 0)
             {
                 Play();
                 playing = true;
@@ -178,7 +171,9 @@ namespace DDrive.Editor.Anim
 
             var t = anim.GetNormalizedTime(_animHandle);
             var status = playing
-                ? $"● 再生中  {t:P0}  (周回 {anim.GetLoopCount(_animHandle)})"
+                ? (anim.IsPaused(_animHandle)
+                    ? $"⏸ 一時停止  {t:P0}  (Frame {Mathf.RoundToInt(t * _target.LengthSec * _target.FrameRate)})"
+                    : $"● 再生中  {t:P0}  (周回 {anim.GetLoopCount(_animHandle)})")
                 : _loopPreview ? "↻ ループ試聴待機" : "■ 停止中";
             if (_statusLabel.text != status)
             {
@@ -245,12 +240,15 @@ namespace DDrive.Editor.Anim
             _modelDetailFoldout.Add(_modelDetailLabel);
             root.Add(_modelDetailFoldout);
 
+            BuildSourceSection(root);
             BuildPlaySection(root);
 
             _timelineContainer = new IMGUIContainer(DrawTimeline);
             _timelineContainer.style.height = TimelineHeight + 18f;
             root.Add(_timelineContainer);
 
+            RefreshAssetChoices();
+            BuildEventListSection(root);
             BuildBlendSection(root);
 
             var fieldsFoldout = new Foldout { text = "設定(Clip / StateMachine / IK / BlendShape / イベント)", value = true };
@@ -336,7 +334,9 @@ namespace DDrive.Editor.Anim
             var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 4 } };
             _playButton = new Button(Play) { text = "▶ 再生" };
             row.Add(_playButton);
-            row.Add(new Button(Stop) { text = "■ 停止" });
+            row.Add(new Button(TogglePause) { text = "⏸ 一時停止", tooltip = "その瞬間で止める(タイムラインをクリックしても止まる)。もう一度押すか ▶ で続き" });
+            row.Add(new Button(Stop) { text = "■ 停止", tooltip = "再生を止める(ポーズはそのまま残す)" });
+            row.Add(new Button(() => _scene?.RestorePoseNow()) { text = "↺ ポーズを戻す", tooltip = "シーン上の対象を再生前のポーズに戻す" });
             var loopToggle = new Toggle("ループ試聴") { value = _loopPreview, tooltip = "終わったら自動でもう一度(データは変更しない)" };
             loopToggle.RegisterValueChangedCallback(evt => _loopPreview = evt.newValue);
             row.Add(loopToggle);
@@ -354,29 +354,6 @@ namespace DDrive.Editor.Anim
                 }
             });
             root.Add(speed);
-        }
-
-        private void BuildBlendSection(VisualElement root)
-        {
-            var foldout = new Foldout { text = "ブレンド確認(A → B を CrossFade)", value = false };
-            var field = new ObjectField("B(遷移先)") { objectType = typeof(AnimData) };
-            field.SetValueWithoutNotify(_blendTarget);
-            field.RegisterValueChangedCallback(evt => _blendTarget = evt.newValue as AnimData);
-            foldout.Add(field);
-            var fade = new Slider("CrossFade 秒", 0f, 1f) { value = _blendFade, showInputField = true };
-            fade.RegisterValueChangedCallback(evt => _blendFade = evt.newValue);
-            foldout.Add(fade);
-            foldout.Add(new Button(() =>
-            {
-                if (_target == null || _blendTarget == null)
-                {
-                    return;
-                }
-
-                Play();
-                _blendPending = true;
-            }) { text = "A → B を再生(A の半分で遷移)" });
-            root.Add(foldout);
         }
 
         private void RebuildFields()
@@ -408,6 +385,7 @@ namespace DDrive.Editor.Anim
             _fieldsContainer.RegisterCallback<SerializedPropertyChangeEvent>(_ =>
             {
                 RefreshValidation();
+                RefreshEventList();
                 _timelineContainer?.MarkDirtyRepaint();
             });
         }
@@ -560,6 +538,7 @@ namespace DDrive.Editor.Anim
             _serializedTarget = _target != null ? new SerializedObject(_target) : null;
             _targetField.SetValueWithoutNotify(_target);
             RebuildFields();
+            RefreshEventList();
             RefreshValidation();
             _timelineContainer?.MarkDirtyRepaint();
         }
@@ -573,6 +552,8 @@ namespace DDrive.Editor.Anim
             }
 
             var animator = _scene?.Current != null ? _scene.Current : _sceneTarget;
+            RefreshBlendUi(animator);
+            RefreshSourceStates(animator);
             if (animator == null)
             {
                 _modelSummaryLabel.text = _model == null
@@ -619,6 +600,14 @@ namespace DDrive.Editor.Anim
                 return;
             }
 
+            // 一時停止中の ▶ は続きから(最初からにしない)。
+            if (_scene.IsPaused && _scene.Manager.IsPlaying(_animHandle))
+            {
+                _scene.SetPaused(_animHandle, false);
+                AppendLog("▶ 再開");
+                return;
+            }
+
             var animator = EnsureSceneTarget();
             if (animator == null)
             {
@@ -626,7 +615,8 @@ namespace DDrive.Editor.Anim
                 return;
             }
 
-            _blendPending = false;
+            _seqIndex = -1;
+            _scene.StopSpawned(); // 最初に戻るので前回の SE / VFX は切る
             _animHandle = _scene.Play(_target, animator);
             AppendLog($"▶ '{_target.DisplayName ?? _target.name}' on {animator.name}");
             RefreshValidation();
@@ -634,7 +624,7 @@ namespace DDrive.Editor.Anim
 
         private void Stop()
         {
-            _blendPending = false;
+            _seqIndex = -1;
             if (_scene != null)
             {
                 if (_scene.Manager.IsPlaying(_animHandle))
@@ -642,10 +632,29 @@ namespace DDrive.Editor.Anim
                     _scene.Manager.Stop(_animHandle);
                 }
 
-                _scene.Stop(); // 借用中の対象を再生前のポーズに戻す
+                _scene.Stop(); // ポーズはその瞬間のまま(戻すのは「↺ ポーズを戻す」)
             }
 
             _animHandle = Handle<AnimMarker>.Invalid;
+        }
+
+        // 一時停止 / 再開。停止中なら ▶ と同じ。
+        private void TogglePause()
+        {
+            if (_scene == null)
+            {
+                return;
+            }
+
+            if (!_scene.Manager.IsPlaying(_animHandle))
+            {
+                Play();
+                return;
+            }
+
+            var paused = _scene.IsPaused;
+            _scene.SetPaused(_animHandle, !paused);
+            AppendLog(paused ? "▶ 再開" : "⏸ 一時停止");
         }
 
         // ── タイムライン(シーク + イベントマーカーのドラッグ) ──
@@ -675,6 +684,9 @@ namespace DDrive.Editor.Anim
             GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, rect.width - 12f, 14f),
                 $"0s  —  {length:0.##}s ({length * frameRate:0} フレーム @ {frameRate:0}fps)   クリック: シーク / マーカーをドラッグ: イベント時刻の変更",
                 EditorStyles.miniLabel);
+
+            // SE 波形(マーカー位置から SE の長さぶん)
+            DrawSeWaveforms(bar, length);
 
             // イベントマーカー
             var events = _target.Events;
@@ -746,6 +758,8 @@ namespace DDrive.Editor.Anim
                             _animHandle = _scene.Play(_target, animator, 0f);
                         }
 
+                        // クリックした瞬間で止める(ポーズはその位置に更新される)。続きは ▶ か ⏸。
+                        _scene.SetPaused(_animHandle, true);
                         _scene.Seek(_animHandle, t);
                     }
 

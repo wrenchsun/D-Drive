@@ -20,6 +20,9 @@ namespace DDrive.Foundation.Event
 
         public event Action<InstanceContext, AssetEvent> OnEventFired;
 
+        // Instance の終了(End)。KeepWhilePlaying で出した SE / VFX を止めるために Dispatcher が購読する。
+        public event Action<InstanceContext> OnSessionEnded;
+
         public void Begin(InstanceContext ctx, AssetEvent[] events)
         {
             _sessions[ctx] = new Session { Events = events ?? Array.Empty<AssetEvent>() };
@@ -27,7 +30,10 @@ namespace DDrive.Foundation.Event
 
         public void End(InstanceContext ctx)
         {
-            _sessions.Remove(ctx);
+            if (_sessions.Remove(ctx))
+            {
+                OnSessionEnded?.Invoke(ctx);
+            }
         }
 
         // OnSpawn/OnEnable/OnLoop/OnDisable/OnDestroy/Custom 用。Frame/Time は Tick から発火する。
@@ -114,12 +120,20 @@ namespace DDrive.Foundation.Event
             }
         }
 
-        // ループ周回時に Frame/Time を再発火可能にする(毎周発火)。
+        // ループ周回時に Frame/Time を再発火可能にする。Repeat=EveryLoop のものだけ戻し、Once / KeepWhilePlaying は発火済みのまま。
         public void ResetOnce(InstanceContext ctx)
         {
-            if (_sessions.TryGetValue(ctx, out var session))
+            if (!_sessions.TryGetValue(ctx, out var session))
             {
-                session.FiredOnce.Clear();
+                return;
+            }
+
+            for (var i = 0; i < session.Events.Length; i++)
+            {
+                if (session.Events[i].Repeat == EventRepeat.EveryLoop)
+                {
+                    session.FiredOnce.Remove(i);
+                }
             }
         }
 

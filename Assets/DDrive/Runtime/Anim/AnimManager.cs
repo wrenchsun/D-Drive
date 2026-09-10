@@ -270,6 +270,25 @@ namespace DDrive.Runtime.Anim
             }
         }
 
+        // Handle 単位の一時停止(エディタのシークで「その瞬間で止める」用。ゲーム側のポーズは OnPause の PauseChannel 経路)。
+        // 一時停止中は時間・イベント・ポーズ更新が止まる。Seek は一時停止中でもポーズを更新する。
+        public void SetPaused(Handle<AnimMarker> handle, bool paused)
+        {
+            if (!_instances.TryGet(handle, out var instance) || instance.Paused == paused)
+            {
+                return;
+            }
+
+            instance.Paused = paused;
+            if (instance.Animator != null)
+            {
+                instance.Animator.speed = paused ? 0f : instance.Speed;
+                instance.SpeedTouched = true;
+            }
+        }
+
+        public bool IsPaused(Handle<AnimMarker> handle) => _instances.TryGet(handle, out var instance) && instance.Paused;
+
         public void SetSpeed(Handle<AnimMarker> handle, float speed)
         {
             if (_instances.TryGet(handle, out var instance))

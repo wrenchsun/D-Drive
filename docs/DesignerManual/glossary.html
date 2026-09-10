@@ -18,6 +18,7 @@
 <tr><td id="anchor">アンカー (Anchor)</td><td>エフェクトや効果音を「どこに・いつ・どう出すか」の定義。ボーン名やオブジェクト名で基準を決め、そこからのずれ（オフセット）を足します。VFX と SE で共通の仕組み。VFX / SE データの中に埋め込む方法と、単独の Anchor データ（ランダム・ディレイ・確率・入れ子つき）を作って参照する方法があります。<a href="anchor-data.html">Anchor データの作り方</a> / <a href="vfx-data.html#anchor">埋め込み項目の説明</a>。</td></tr>
 <tr><td id="anchorpoint">アンカーポイント<br>(AnchorPoint / AnchorRig)</td><td>シーンや Prefab に置く「ここに出す」という目印。SceneView でドラッグして位置を決められ、ランダムな散らばりも設定できます。<a href="vfx-data.html#anchorpoint">使い方はこちら</a>。</td></tr>
 <tr><td id="anchorgroup">配置セット<br>(Anchor Group)</td><td>格子・円・一列・ランダムなどのパターンで並べた複数の場所に、エフェクトや効果音をまとめて出すためのデータ。<a href="anchor-group.html">使い方はこちら</a>。</td></tr>
+<tr><td id="icon">アイコン (Icon)</td><td>Asset Browser の一覧や Inspector に出る小さな画像。Inspector の「シーンから作成」で SceneView の写真から切り取って作れます（<a href="Readme.html">トップ</a>の「共通の入口」参照）。</td></tr>
 <tr><td id="anim">アニメーションデータ<br>(AnimData)</td><td>Clip とステート名、そして「何フレーム目で音・エフェクトを出すか」をまとめたデータ。Anim Editor でモデルを動かしながら調整します。<a href="anim-editor.html">使い方はこちら</a>。</td></tr>
 <tr><td id="asset">アセット</td><td>ゲームで使う素材データのこと。このプロジェクトでは特に「D-Drive に登録された音・エフェクトなどのデータ」を指します。</td></tr>
 <tr><td>アセットブラウザ<br>(Asset Browser)</td><td>D-Drive の素材を一覧・検索・登録するウィンドウ。<a href="asset-browser.html">使い方はこちら</a>。</td></tr>
@@ -31,6 +32,8 @@
 <tr><td id="prefab">プレハブ (Prefab)</td><td>シーンに何度でも置ける「ひな形」。エフェクトの実体（ParticleSystem など）は Prefab として作り、VFX データから参照します。</td></tr>
 <tr><td id="prefabmode">プレハブモード</td><td>Prefab の中身だけを編集する Unity の画面状態。Project で Prefab をダブルクリック、または VFX Editor の「Prefab を開く」で入り、Hierarchy 左上の「←」で抜けます。VFX Editor はこの状態でも再生できます（<a href="vfx-editor.html#prefab-mode">詳しくはこちら</a>）。</td></tr>
 <tr><td>プレビュー</td><td>ゲームを実行せずに、エディタ上でその場で再生して確認すること。D-Drive のプレビューは実際のゲームと同じ仕組みで再生されるので、「エディタでは良かったのに実機で違う」が起きにくいのが特長です。</td></tr>
+<tr><td id="repeat">繰り返し (Repeat)</td><td>アニメーションのイベント（音・エフェクト）を「毎周回」出すか、「1 回」だけか、「再生中は維持」（1 回出してモーションが終わるまで付いていき、終わると消える）か。<a href="anim-editor.html">Anim Editor</a> のイベント一覧で選びます。</td></tr>
+<tr><td id="model">モデルデータ<br>(ModelData)</td><td>キャラクターや物体の Prefab に、マテリアルのスロットと最初に再生するアニメーションをまとめたもの。<a href="model-editor.html">Model Editor</a> で確認します。</td></tr>
 <tr><td id="loop">ループ (Loop)</td><td>繰り返し再生のこと。BGM や環境音は基本ループ、通常の効果音は非ループ。</td></tr>
 <tr><td id="bgm">BGM</td><td>背景音楽。D-Drive では「イントロ→ループ」構成やクロスフェード切替に対応。<a href="bgm-data.html">設定項目はこちら</a>。</td></tr>
 <tr><td id="mixer">Mixer（ミキサー）<br>(Audio Mixer Group)</td><td>音の出力先グループ。「BGM 全体の音量」「SE 全体の音量」をまとめて調整できるようにするための仕組みです。どのグループを設定すべきかはサウンド担当の指示に従ってください。</td></tr>
@@ -49,7 +52,7 @@
 <li><a href="se-data.html">SE の設定項目</a> / <a href="bgm-data.html">BGM の設定項目</a></li>
 <li><a href="audio-editor.html">Audio Editor の使い方</a></li>
 <li><a href="scene-sound.html">シーンに環境音を置く</a></li>
-<li><a href="vfx-data.html">VFX の設定項目</a> / <a href="vfx-editor.html">VFX Editor の使い方</a> / <a href="anchor-data.html">Anchor の作り方</a> / <a href="anchor-group.html">配置セット</a> / <a href="anim-editor.html">アニメーション（3D）</a></li>
+<li><a href="vfx-data.html">VFX の設定項目</a> / <a href="vfx-editor.html">VFX Editor の使い方</a> / <a href="anchor-data.html">Anchor の作り方</a> / <a href="anchor-group.html">配置セット</a> / <a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a></li>
 </ul>
 
 <footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>

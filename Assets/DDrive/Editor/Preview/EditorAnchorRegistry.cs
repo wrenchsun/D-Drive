@@ -53,6 +53,8 @@ namespace DDrive.Editor.Preview
             Collect<AnchorGroupData>(AssetType.AnchorGroup, entries, loads);
             Collect<DDrive.Runtime.Vfx.VfxData>(AssetType.Vfx, entries, loads);
             Collect<DDrive.Runtime.Audio.SeData>(AssetType.Se, entries, loads);
+            Collect<DDrive.Runtime.Anim.AnimData>(AssetType.Anim, entries, loads);
+            Collect<DDrive.Runtime.Model.ModelData>(AssetType.Model, entries, loads);
 
             var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
             catalog.hideFlags = HideFlags.HideAndDontSave;
@@ -63,6 +65,8 @@ namespace DDrive.Editor.Preview
                 if (type == typeof(AnchorData)) registry.ResolveAsync<AnchorData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(AnchorGroupData)) registry.ResolveAsync<AnchorGroupData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Vfx.VfxData)) registry.ResolveAsync<DDrive.Runtime.Vfx.VfxData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Anim.AnimData)) registry.ResolveAsync<DDrive.Runtime.Anim.AnimData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Model.ModelData)) registry.ResolveAsync<DDrive.Runtime.Model.ModelData>(id).GetAwaiter().GetResult();
                 else registry.ResolveAsync<DDrive.Runtime.Audio.SeData>(id).GetAwaiter().GetResult();
             }
 

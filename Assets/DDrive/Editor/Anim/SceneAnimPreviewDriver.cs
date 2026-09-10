@@ -6,10 +6,12 @@ using DDrive.Foundation.Handle;
 using DDrive.Foundation.Manager;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
+using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Presentation;
+using DDrive.Runtime.Vfx;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -51,7 +53,11 @@ namespace DDrive.Editor.Anim
         private PoolService _pool;
         private GameObject _root;
         private AssetEventDispatcher _dispatcher;
+        private AnchorGroupPlayer _groups;
+        private readonly List<Handle<AnchorGroupMarker>> _groupHandles = new();
+        private readonly List<Handle<VfxMarker>> _vfxScratch = new();
         private Handle<ModelMarker> _spawnedModel = Handle<ModelMarker>.Invalid;
+        private readonly List<Handle<ModelMarker>> _extraModels = new(); // ModelEditor の並列表示(対象とは別に配置)
         private AnimatorProxy _addedProxy;
         private bool _proxyPreexisted;
         private double _lastTickTime;
@@ -73,6 +79,11 @@ namespace DDrive.Editor.Anim
 
         // Current がこのドライバの配置した確認用モデルか(true なら解除時に Despawn、false なら元ポーズへ復元)。
         public bool OwnsCurrent => Models != null && Models.IsValid(_spawnedModel);
+
+        // 自前で配置した確認用モデルの Handle / ルート(ModelEditor のターンテーブルや Material 反映に使う)。
+        public Handle<ModelMarker> SpawnedModelHandle => _spawnedModel;
+
+        public GameObject CurrentRoot => OwnsCurrent ? Models.GetGameObject(_spawnedModel) : (Current != null ? Current.gameObject : null);
 
         public bool HasActive => Manager.ActiveCount > 0 || Vfx.HasActive;
 
@@ -154,7 +165,8 @@ namespace DDrive.Editor.Anim
         }
 
         // 確認用モデルを開いているシーン / プレハブモードに配置して対象にする(保存されない)。
-        public Animator SpawnModel(ModelData model, Vector3 position, Quaternion rotation)
+        // requireAnimator=false は Animator の無い静的モデルも配置する用途(ModelEditor)。
+        public Animator SpawnModel(ModelData model, Vector3 position, Quaternion rotation, bool requireAnimator = true)
         {
             ReleaseTarget();
             if (model == null || model.Prefab == null)
@@ -174,13 +186,111 @@ namespace DDrive.Editor.Anim
             go.hideFlags = HideFlags.DontSave;
             go.transform.SetParent(_root.transform, true);
             Current = Models.GetAnimator(_spawnedModel);
-            if (Current == null)
+            if (Current == null && requireAnimator)
             {
                 Debug.LogWarning($"[DDrive] Model '{model.DisplayName ?? model.name}' の Prefab に Animator がありません。再生できません。");
             }
 
             SceneView.RepaintAll();
             return Current;
+        }
+
+        // 対象とは別にもう 1 体配置する(並列比較用)。ReleaseTarget / ステージ切替 / Dispose でまとめて撤去する。
+        public Handle<ModelMarker> SpawnExtraModel(ModelData model, Vector3 position, Quaternion rotation)
+        {
+            if (model == null || model.Prefab == null)
+            {
+                return Handle<ModelMarker>.Invalid;
+            }
+
+            EnsureManagers();
+            var handle = Models.SpawnData(model, position, rotation);
+            var go = Models.GetGameObject(handle);
+            if (go == null)
+            {
+                return Handle<ModelMarker>.Invalid;
+            }
+
+            go.hideFlags = HideFlags.DontSave;
+            go.transform.SetParent(_root.transform, true);
+            _extraModels.Add(handle);
+            SceneView.RepaintAll();
+            return handle;
+        }
+
+        public void DespawnExtraModel(Handle<ModelMarker> handle)
+        {
+            if (Models != null && Models.IsValid(handle))
+            {
+                Models.Despawn(handle);
+            }
+
+            _extraModels.Remove(handle);
+            SceneView.RepaintAll();
+        }
+
+        // イベント一覧の ▶(単体試聴)。対象があればその位置(contextRoot)から出す。
+        public void PreviewSe(SeData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            EnsureManagers();
+            Audio.PlaySeData(data, contextRoot: Current != null ? Current.transform : null);
+        }
+
+        public void PreviewVfx(VfxData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            Vfx.Play(data, Current != null ? Current.transform : null);
+        }
+
+        public void PreviewGroup(AnchorGroupData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            EnsureManagers();
+            var handle = _groups.PlayData(data, Current != null ? Current.transform : null);
+            if (_groups.IsPlaying(handle))
+            {
+                _groupHandles.Add(handle);
+            }
+
+            AdoptGroupVfx();
+        }
+
+        // 配置セットが(ディレイ後も含めて)出した VFX をシーンの台帳へ引き取る。
+        private void AdoptGroupVfx()
+        {
+            if (_groups == null)
+            {
+                return;
+            }
+
+            for (var i = _groupHandles.Count - 1; i >= 0; i--)
+            {
+                if (!_groups.IsPlaying(_groupHandles[i]))
+                {
+                    _groupHandles.RemoveAt(i);
+                    continue;
+                }
+
+                _vfxScratch.Clear();
+                _groups.CollectVfxHandles(_groupHandles[i], _vfxScratch);
+                foreach (var h in _vfxScratch)
+                {
+                    Vfx.Adopt(h);
+                }
+            }
         }
 
         public Handle<AnimMarker> Play(AnimData data, float fade = -1f) => Play(data, Current, fade);
@@ -216,11 +326,47 @@ namespace DDrive.Editor.Anim
         }
 
         // 再生を止めて、借用中の対象なら元のポーズに戻す(対象自体は保持する)。
+        // 再生を止める。ポーズはその瞬間のまま残す(2026-09-10: 停止で初期ポーズに戻ると確認しづらいため)。
+        // 元のポーズへ戻すのは RestorePoseNow / ReleaseTarget / ステージ切替 / Prefab 保存の直前。
+        // イベントで出た SE / VFX / 配置セットを全部消す(最初から再生し直すとき・停止のとき)。
+        public void StopSpawned()
+        {
+            Audio?.StopAll(StopReason.Manual);
+            _groups?.StopAll();
+            _groupHandles.Clear();
+            Vfx.StopAll();
+        }
+
         public void Stop()
         {
             Manager.StopAll(StopReason.Manual);
-            Audio?.StopAll(StopReason.Manual);
+            StopSpawned();
+            if (IsPaused)
+            {
+                IsPaused = false;
+                Vfx.Paused = false;
+            }
+
+            SceneView.RepaintAll();
+        }
+
+        // 借用中の対象を再生前のポーズに戻す(自前配置のモデルは何もしない)。
+        public void RestorePoseNow()
+        {
             RestorePose();
+            SceneView.RepaintAll();
+        }
+
+        // プレビュー全体の一時停止(2026-09-10): 対象の Anim だけでなく、同時再生中の他レイヤーの Anim、
+        // イベントで出た SE / VFX / 配置セットのディレイもまとめて止める。Seek は一時停止中でも効く。
+        public bool IsPaused { get; private set; }
+
+        public void SetPaused(Handle<AnimMarker> handle, bool paused)
+        {
+            Manager.SetPaused(handle, paused);
+            IsPaused = paused;
+            Audio?.SetPausedAll(paused);
+            Vfx.Paused = paused;
             SceneView.RepaintAll();
         }
 
@@ -242,6 +388,18 @@ namespace DDrive.Editor.Anim
             }
 
             _spawnedModel = Handle<ModelMarker>.Invalid;
+            if (Models != null)
+            {
+                foreach (var extra in _extraModels)
+                {
+                    if (Models.IsValid(extra))
+                    {
+                        Models.Despawn(extra);
+                    }
+                }
+            }
+
+            _extraModels.Clear();
             _pose.Clear();
             _blend.Clear();
             Current = null;
@@ -250,9 +408,19 @@ namespace DDrive.Editor.Anim
 
         public void Tick(float dt)
         {
+            if (IsPaused)
+            {
+                return; // 時間・イベント・ディレイ・SE 終了判定を全部止める
+            }
+
             Manager.Tick(dt * _speed);
             Audio?.Tick(dt);
             Models?.Tick(dt);
+            if (_groups != null)
+            {
+                _groups.Tick();
+                AdoptGroupVfx();
+            }
             if (Manager.ActiveCount > 0)
             {
                 SceneView.RepaintAll();
@@ -298,8 +466,9 @@ namespace DDrive.Editor.Anim
             Audio = new AudioManager(_pool, Registry, template);
             Models = new ModelsManager(_pool, Registry, Manager);
 
+            _groups = new AnchorGroupPlayer(Registry, Vfx.Manager, Audio);
             _dispatcher?.Dispose();
-            _dispatcher = new AssetEventDispatcher(Manager.Events, Registry, Audio, Vfx.Manager, Manager.GetContextTransform);
+            _dispatcher = new AssetEventDispatcher(Manager.Events, Registry, Audio, Vfx.Manager, Manager.GetContextTransform, _groups);
             _dispatcher.OnVfxSpawned += Vfx.Adopt;
         }
 
@@ -386,7 +555,11 @@ namespace DDrive.Editor.Anim
         private void OnPrefabStageChanged(PrefabStage stage) => ResetForStageChange();
 
         // Prefab 保存の直前に元ポーズへ戻す(再生中のポーズが Prefab に書かれないように)。
-        private void OnPrefabSaving(GameObject root) => Stop();
+        private void OnPrefabSaving(GameObject root)
+        {
+            Stop();
+            RestorePose();
+        }
 
         private void ResetForStageChange()
         {
@@ -394,6 +567,9 @@ namespace DDrive.Editor.Anim
             Audio?.StopAll(StopReason.SceneUnload);
             _dispatcher?.Dispose();
             _dispatcher = null;
+            _groups?.StopAll();
+            _groups = null;
+            _groupHandles.Clear();
             Audio = null;
             Models = null;
             _pool = null;

@@ -517,6 +517,28 @@ namespace DDrive.Runtime.Audio
             }
         }
 
+        // 再生中の SE を Flags.Pause に関係なく全部一時停止 / 再開する(エディタのプレビュー一時停止用。ゲーム側は OnPause)。
+        public void SetPausedAll(bool paused)
+        {
+            for (var i = 0; i < _allActive.Count; i++)
+            {
+                if (!_instances.TryGet(_allActive[i], out var instance) || instance.Source == null)
+                {
+                    continue;
+                }
+
+                instance.Paused = paused;
+                if (paused)
+                {
+                    instance.Source.Pause();
+                }
+                else
+                {
+                    instance.Source.UnPause();
+                }
+            }
+        }
+
         public void OnSceneUnload() => StopAll(StopReason.SceneUnload);
 
         private void FlushCosmeticBatch()

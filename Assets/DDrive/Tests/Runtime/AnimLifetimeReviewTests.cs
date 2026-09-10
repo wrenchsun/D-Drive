@@ -200,6 +200,32 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
+        public void SetPaused_FreezesTimeAndEvents_SeekStillUpdatesPose()
+        {
+            var manager = new AnimManager(new AssetRegistry(new FakeAssetLoader()));
+            manager.Events.OnEventFired += (_, evt) => _fired.Add(evt.Trigger);
+            var data = Anim(1, 0, false, new AssetEvent { Trigger = EventTrigger.Frame, Time = 15f });
+            var h = manager.PlayData(data, _modelPrefab.GetComponent<Animator>());
+
+            manager.Tick(0.2f);
+            manager.SetPaused(h, true);
+            Assert.IsTrue(manager.IsPaused(h));
+            manager.Tick(1.0f);
+            Assert.AreEqual(0.2f, manager.GetNormalizedTime(h), 1e-3f, "一時停止中は時間が進まない");
+            Assert.AreEqual(0, Count(EventTrigger.Frame), "一時停止中はイベントも出ない");
+            Assert.IsTrue(manager.IsPlaying(h), "一時停止は再生中扱い(停止ではない)");
+
+            manager.Seek(h, 0.8f);
+            Assert.AreEqual(0.8f, manager.GetNormalizedTime(h), 1e-3f, "一時停止中でもシークできる");
+            Assert.AreEqual(0.8f, _modelPrefab.transform.localPosition.x, 1e-2f, "シークでポーズが更新される(0.8s → x=0.8)");
+
+            manager.SetPaused(h, false);
+            manager.Tick(0.1f);
+            Assert.AreEqual(0.9f, manager.GetNormalizedTime(h), 1e-3f, "再開で続きから進む");
+            manager.StopAll(StopReason.Manual);
+        }
+
+        [Test]
         public void StopAllFor_InterruptsOnlyThatAnimator()
         {
             var manager = new AnimManager(new AssetRegistry(new FakeAssetLoader()));

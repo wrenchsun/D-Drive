@@ -77,3 +77,48 @@ Claude に「Unity の Console を読んで」と頼み、エラーにならず�
 2. 各自 Unity の MCP ウィンドウでサーバを **Stop → Start**（新しい `mcpforunityserver==X.Y.Z` が取得される）
 3. 本ドキュメントと [CLAUDE.md](../CLAUDE.md) のバージョン表記を更新
 4. 同一 PC で複数プロジェクト（MS2026 等）を運用している場合は、**全プロジェクトを同じバージョンに揃える**（サーバは PC で 1 つ）
+
+## 4. 組み込み型サーバー `jp.shiranui-isuzu.unity-mcp` の併用（2026-09-10 評価開始）
+
+CoplayDev 版で困っていた「別プロセスの Python サーバー」「固定ポートの衝突（8080 → 8081）」「`run_tests` が 2 回に 1 回初期化タイムアウト」「失敗テストのスタックトレースが返らない」を解消するため、[isuzu-shiranui/UnityMCP](https://github.com/isuzu-shiranui/UnityMCP)（MIT、サーバーが Editor 内に組み込み）を **CoplayDev と併用**で導入した。当面は両方を登録しておき、isuzu 版で数セッション運用して問題なければ CoplayDev を manifest から外す。
+
+### 導入状態
+
+- `Packages/manifest.json`: `"jp.shiranui-isuzu.unity-mcp": "https://github.com/isuzu-shiranui/UnityMCP.git?path=jp.shiranui-isuzu.unity-mcp#v4.2.0"`（タグ固定。上げるときは §3 と同じ手順）
+- サーバーは Editor 起動時に自動起動（`Preferences > Unity MCP` で確認・停止・ポート固定・トークン再生成）。**ポートはプロジェクトパスから決まる**（27200〜27999。D-Drive は 27725）ので他アプリ・他プロジェクトと衝突しない
+- 接続情報は `%LOCALAPPDATA%\UnityMCP\instances\<hash>.json`（port / mcpUrl / token / pid）と `tokens\<hash>.token`。Bearer トークン必須
+- **クライアント登録はローカル設定に置く（リポジトリには入れない）**: トークンが入るため `.mcp.json` ではなく、各自が 1 回だけ実行する
+  ```bash
+  claude mcp add --transport http isuzu-unity http://127.0.0.1:27725/mcp --header "Authorization: Bearer <tokens/<hash>.token の中身>"
+  ```
+  （`~/.claude.json` の D-Drive プロジェクト配下に保存される。`claude mcp list` で両方 ✓ Connected になること）
+- 追加後は Claude Code のセッションを開き直すとツールが載る。載っていないセッションでも HTTP 直叩き（`mcpcli2.py` 相当: `Authorization: Bearer` 付きの streamable HTTP）で使える
+
+### ツール対応表（CoplayDev → isuzu）
+
+| 用途 | CoplayDev v10.2.0 | isuzu v4.2.0 |
+|---|---|---|
+| コンパイル状態 / エラー | `read_console`（`error CS` でフィルタ） | `compile_status`（`succeeded` / `errorCount` / `messages`） |
+| コンソール | `read_console` | `console_read_logs`（type=error 等）/ `console_get_count` / `console_clear` |
+| 再コンパイル・再インポート | `refresh_unity` | `compile_request` / `asset_reimport` |
+| テスト | `run_tests` + `get_test_job`（ジョブ ID） | `test_run`（mode=edit/play、filter=正規表現）+ `test_results`（メイン スレッド不要でポーリング可。失敗の message と stackTrace を含む） |
+| C# 実行 | `execute_code`（CodeDom = C# 6 が既定） | `execute_code`（Roslyn。System/Linq/UnityEngine/UnityEditor は import 済み。`using` 不可） |
+| メニュー | `execute_menu_item` | `menu_execute` |
+| エディタ状態 | resource `mcpforunity://editor/state` | `play_mode_status` / `compile_status` / `scene_list` |
+| その他 | `manage_*` 各種 | `gameobject_*` / `asset_*` / `prefab_*` / `inspect_*` / `material_*` / `capture_screenshot` / `editor_dialog_*` / `reflect_*` など 86 個 |
+
+### 評価結果（2026-09-10、D-Drive で実測）
+
+| 項目 | 結果 |
+|---|---|
+| インストール | manifest 追記 → 解決後にスクリプトの再コンパイルが走らなかったため、`Client.Resolve()` + `RequestScriptCompilation` を明示。以後は自動起動 |
+| `execute_code` / `menu_execute` | 動作。`execute_code` は Roslyn（C# 最新）で local function も使える |
+| EditMode 全件（137） | 1 回で完走、約 26 秒。初期化失敗なし |
+| PlayMode 全件（303） | 1 回で完走、約 20 秒（ドメインリロード含む）。初期化失敗なし |
+| 失敗テストの情報 | `test_results` が message + stackTrace を返す（ソース確認。`TestFailureLogger` は保険として残す） |
+| 注意 | Roslyn DLL がパッケージに同梱されるため、CoplayDev の `execute_code` も同じプロセスで Roslyn を使うようになる（副作用は未確認だが害はない）。テスト実行中はメインスレッドが塞がるので `test_results` 以外を呼ばない |
+
+### 切り替えの判断基準
+
+- 3 セッション程度、`test_run` / `compile_status` / `console_read_logs` / `execute_code` / `menu_execute` で不都合が出なければ CoplayDev を外す（manifest・`.mcp.json`・CLAUDE.md §4・本書 §1〜3 を isuzu 版に書き換える。MS2026 も同時に）
+- 破壊的変更が多い時期（v4.0.0 が 2026-09-04）なので、タグ固定を守り、上げるときは §3 の手順で
