@@ -103,8 +103,8 @@
 | 4-1 | CanvasData + Ui Manager（Open/Close/Stack/Popup/Back） | 基盤 | 3 | 0-* | スタック・モーダル・PauseGame 連動 |
 | 4-2 | ButtonWire / Signal / Navigation 適用 | 基盤 | 3 | 4-1 | 配線データだけで UI 遷移が組める |
 | 4-3 | CanvasEditor（Navigation ノードグラフ/パッド シミュレーション） | ED | 4 | 1-6, 4-2 | 到達不能検出、矢印編集 |
-| 4-4 | PrefabData + Prefabs Manager | 基盤 | 2 | 0-* | Spawn/Tag/Layer/Pool |
-| 4-5 | Canvas/Prefab Validator | 基盤 | 1 | 0-11 | 07 の全検査 |
+| 4-4 | PrefabData + Prefabs Manager | 基盤 | 2 | 0-* | ✅ 2026-09-10 実装（[07] B-3 実装メモ）。`PrefabData`/`PrefabsManager`/`Prefabs`(ファサード)/`PrefabHandleExtensions`。Spawn(位置/親)/Despawn/Tag/Layer/Pool(Prewarm)/Move/GetComponent<T>、OnSpawn・OnDestroy を EventBus で発火(Bootstrap に 2 つ目の `AssetEventDispatcher` を追加)、Prefab 未設定は空 GameObject の Placeholder。`PrefabsManagerTests` 9 件（PlayMode 345 green） |
+| 4-5 | Canvas/Prefab Validator | 基盤 | 1 | 0-11 | ⚠ Prefab 側 ✅ 2026-09-10（`PrefabDataValidator` + `GameplayTagDictionary` によるタイポ検出。Prefab Missing / CollisionLayer 未定義値 / Projectile で Pool 未設定 / GameplayTags の空白・重複・タイポ）/ Canvas 側は 4-1 で |
 | 4-6 | UiInteractable 基底 + UiButton 新規実装（状態機械 + 全イベント R3/UniTask + Cooldown/Locked） | 基盤 | 4 | 0-13 | 15§A の全 API。多重発火防止テスト green |
 | 4-7 | ButtonSkinData + 状態遷移演出/SE 統合 | 基盤 | 2 | 4-6, 4-8 | Skin 差し替えで全ボタンの見た目・音が変わる |
 | 4-8 | UiTween エンジン（構造体 0 alloc + TweenHandle + UiFx 関数群） | 基盤 | 3 | 0-13 | MoveTo/Scale/Fade/MoveAlong、await 可、定常 0 alloc |

@@ -265,7 +265,7 @@ public interface IValidator
 **ランタイムの組み立ては `Runtime/Loop/DDriveRuntimeBootstrap.cs` の 1 箇所だけで行う。** テスト・Editor プレビュー（`PreviewService` / `Scene*PreviewDriver`）以外で Manager を new しない。
 
 - 配置: `Tools > D-Drive > Generate > 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置`（`[D-Drive] Runtime` を作り、`GameData/Catalogs` の全カタログを直参照で割り当てる。Inspector の「カタログを再収集」で更新）。シーンに 1 つ。2 つ目は警告して自壊
-- Awake（`DefaultExecutionOrder(-1000)`）: `AssetRegistry(AddressablesAssetLoader)` → `PoolService` → `AudioManager` / `BgmManager` / `VfxManager` / `AnimManager` / `ModelsManager(anim)` / `AnchorGroupPlayer` → `AssetEventDispatcher(Anim.Events → SE/VFX/配置セット)` を生成し、同居する `GameLoopDriver.GameLoop` に登録、静的ファサード（`Audio` / `Vfx` / `Anim` / `Models` / `Anchors`）を Bind。`INetBridge` は `LocalLoopbackBridge`（NGO 統合時にここを差し替える）
+- Awake（`DefaultExecutionOrder(-1000)`）: `AssetRegistry(AddressablesAssetLoader)` → `PoolService` → `AudioManager` / `BgmManager` / `VfxManager` / `AnimManager` / `ModelsManager(anim)` / `PrefabsManager`（4-4、2026-09-10 追加）/ `AnchorGroupPlayer` → `AssetEventDispatcher(Anim.Events → SE/VFX/配置セット)` + `AssetEventDispatcher(Prefabs.Events → SE/VFX/配置セット、Anim 用とは別インスタンス)` を生成し、同居する `GameLoopDriver.GameLoop` に登録、静的ファサード（`Audio` / `Vfx` / `Anim` / `Models` / `Prefabs` / `Anchors`）を Bind。`INetBridge` は `LocalLoopbackBridge`（NGO 統合時にここを差し替える）
 - Start: `Catalogs`（直参照）と Addressables ラベル `DDriveCatalog` のカタログを `Registry.RegisterCatalogAsync` → `IsReady` / `OnReady` / `WhenReady`。IsReady 前の Play は未登録 ID として Placeholder になる（例外にしない）
 - 破棄: `GameLoop.StopAll(SceneUnload)` → Dispatcher 破棄 → ファサード Unbind → GameLoop から解除 → Pool Clear。`KeepAcrossScenes`（既定 ON）でシーンをまたいで生きる
 - テスト: `Tests/Runtime/RuntimeBootstrapTests.cs`（組み立て・Bind・Unbind・カタログ登録・多重配置の拒否）

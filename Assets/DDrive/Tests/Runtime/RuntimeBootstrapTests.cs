@@ -52,13 +52,16 @@ namespace DDrive.Tests.Runtime
             Assert.IsNotNull(bootstrap.Vfx);
             Assert.IsNotNull(bootstrap.Anim);
             Assert.IsNotNull(bootstrap.Models);
+            Assert.IsNotNull(bootstrap.Prefabs);
             Assert.IsNotNull(bootstrap.Groups);
             Assert.IsNotNull(bootstrap.Dispatcher);
+            Assert.IsNotNull(bootstrap.PrefabDispatcher);
 
             Assert.IsTrue(DDrive.Runtime.Audio.Audio.IsBound);
             Assert.IsTrue(Vfx.IsBound);
             Assert.IsTrue(Anim.IsBound);
             Assert.IsTrue(Models.IsBound);
+            Assert.IsTrue(DDrive.Runtime.Prefab.Prefabs.IsBound);
             Assert.IsTrue(Anchors.IsBound);
 
             // 未登録 ID でも例外なく Placeholder で動く(FR-1.4)。
@@ -83,6 +86,7 @@ namespace DDrive.Tests.Runtime
             Assert.IsFalse(Anim.IsBound, "破棄でファサードが Unbind される");
             Assert.IsFalse(Vfx.IsBound);
             Assert.IsFalse(Models.IsBound);
+            Assert.IsFalse(DDrive.Runtime.Prefab.Prefabs.IsBound);
             Assert.IsFalse(Anchors.IsBound);
         }
 

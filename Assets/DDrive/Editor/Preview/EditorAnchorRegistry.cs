@@ -57,6 +57,7 @@ namespace DDrive.Editor.Preview
             Collect<DDrive.Runtime.Model.ModelData>(AssetType.Model, entries, loads);
             Collect<DDrive.Runtime.Material.MaterialData>(AssetType.Material, entries, loads);
             Collect<DDrive.Runtime.Material.TextureData>(AssetType.Texture, entries, loads);
+            Collect<DDrive.Runtime.Prefab.PrefabData>(AssetType.Prefab, entries, loads);
 
             var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
             catalog.hideFlags = HideFlags.HideAndDontSave;
@@ -71,6 +72,7 @@ namespace DDrive.Editor.Preview
                 else if (type == typeof(DDrive.Runtime.Model.ModelData)) registry.ResolveAsync<DDrive.Runtime.Model.ModelData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Material.MaterialData)) registry.ResolveAsync<DDrive.Runtime.Material.MaterialData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Material.TextureData)) registry.ResolveAsync<DDrive.Runtime.Material.TextureData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Prefab.PrefabData)) registry.ResolveAsync<DDrive.Runtime.Prefab.PrefabData>(id).GetAwaiter().GetResult();
                 else registry.ResolveAsync<DDrive.Runtime.Audio.SeData>(id).GetAwaiter().GetResult();
             }
 
