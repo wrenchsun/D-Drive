@@ -112,7 +112,8 @@ Tools/
     │   ├─ Canvas                     ← 2026-09-11 実装(CanvasEditorWindow。SerializedObject バインド + Selectable 自動収集 + 確認用シーンで開く/閉じる + Validation リスト。ノードグラフ/パッドシミュレーションは 4-3、[07] A-4 実装メモ)
     │   ├─ Button Skin                ← 2026-09-11 追加(ButtonSkinEditorWindow。ウィンドウ内描画なし、SerializedObject の InspectorElement のみ + 「確認用シーンに配置」で実 UiButton を生成、[15] A-4 実装メモ)
     │   ├─ UI Tween                    ← 2026-09-11 実装(UiTweenEditorWindow。SerializedObject の InspectorElement + プリセットから Tracks を生成 + 「確認用シーンに配置」で実 UiTweenManager を駆動 + Validation リスト。カーブ/スプラインのハンドル編集とプリセットギャラリーは 4-10/4-12、[15] B-6 実装メモ)
-    │   ├─ Slider
+    │   ├─ Slider Skin                 ← 2026-09-11 追加(SliderSkinEditorWindow。ButtonSkinEditorWindow と同じ設計 + 音量/感度/HPバー/スタミナ/キャラメイクの 5 プリセット。応答曲線グラフ・ノッチ可視化・追従比較は 4-17、[18] B-7 実装メモ)
+    │   ├─ Slider                      ← 4-17(未実装。応答曲線グラフ・ノッチ可視化・実操作プレビュー・プリセット 5 種)
     │   └─ Shake · Haptics
     ├─ Validation/
     │   ├─ Run All

@@ -241,6 +241,22 @@ public struct SliderWire
 
 カーブ未設定・尺 ≤ 0 等の ValueDef 共通検査は [17] §6 に集約。
 
+### 実装メモ(2026-09-11、4-14 / 4-15 / 4-16 / 4-18)
+
+- 実装: `Assets/DDrive/Runtime/Ui/UiSlider.cs`(+`SliderDirection`)、`SliderSkinData.cs`(+`SliderSkinDataValidator.cs`)、`OptionStore.cs`(`OptionKey` / `IOptionStorage` / `PlayerPrefsOptionStorage` / 静的ファサード `Options` を同居)、`UiSliderValidation.cs`(静的検査、`CanvasDataValidator` と将来の SliderEditor 4-17 が共用)。エディタは `Assets/DDrive/Editor/Ui/SliderSkinEditorWindow.cs`
+- R3 は未導入のため `OnValueChanged`/`OnCommit`/`OnDragBegin`/`OnDragEnd`/`OnNotchPassed`/`OnLimitReached` は全て素の `event Action<T>`。`WaitCommitAsync` だけ UniTask(`UiButton.WaitClickAsync` と同じパターン)
+- テスト用フック(`BeginDragAt`/`DragTo`/`EndDrag`/`TrackClickAt`/`Wheel`/`Move`/`MoveRelease`/`Advance`)は `UiButton` の `Press`/`Release`/`Advance` と同じ設計で、EventSystem 無しで PlayMode 同期テストから直接駆動できる。`Update()` は `Advance(Time.unscaledDeltaTime)` を呼ぶだけの薄いラッパー
+- **Response(応答曲線)**: `Mode=Constant`(未設定既定を含む)は線形として扱う。ドラッグ位置→値は `Response.Evaluate(p)` を直接使うが、値→ハンドル表示位置の逆変換は解析的に解けない(任意のカーブ/パラメトリック曲線を許容するため)ので、単調増加を前提に **16 分探索(二分探索)** で近似する(`InverseResponse`)。Validation(`UiSliderValidation`)は 32 サンプルで非単調を検出する
+- **FollowMotion / DelayFill**: 表示だけを追従させる仕組みは `UiTweenManager` の `EvaluateShape`(Constant→shape=1=即時反映)と同じ考え方を流用した簡易実装を `UiSlider` 内に持つ(専用の Tween インスタンスは使わない。ノッチ可視化やグラフ表示を伴う本格的な演出比較は SliderEditor 4-17 に委ねる)。`DelayFill` は `DelayFollowMotion` が未設定なら `FollowMotion` を共有する
+- **AnimateTo**: `Value`(実値)自体を `ValueDef` の尺/イージングに沿って動かす(HP バーの減少演出等)。表示だけを追従させる `FollowMotion` とは独立した機構で、`Advance` の中で両方が並行して進む
+- **通知制御**: `NotifyOnlyOnCommit` はドラッグ中の `SetValueInternal(commit:false)` 呼び出しでは `OnValueChanged` を保留し、`EndDrag`(`commit:true`)でまとめて 1 回発火する。`ChangeThrottleSec` は保留値を持ち、`Advance` のタイマーが切れた時点でまとめて発火する(いずれも `OnCommit` は常に即時)
+- **SliderWire + OptionStore**: [07_canvas_prefab.md] A-2/A-3 の 2026-09-11 追記を参照。`UiManager.WireSliders` が `Open` 時に `OptionStore` の現在値で初期化し、`Trigger` ごとに購読 → `Action=SetOption`/`SendSignal`/`PlayPresentation(Phase5警告)` を実行する
+- **音量バス**: `Audio.SetBusVolume`([03])は未実装のため、`OptionStore` は `MasterVolume` のみ `AudioListener.volume` に直結し、`BgmVolume`/`SeVolume`/`VoiceVolume` は値を保持した上で `ExternalApplier` フック(未設定なら 1 回だけ警告)に委ねる。`UiSpeedScale` は `UiTweenManager.GlobalSpeed`(新設)に反映する。`ShakeScale`/`HapticScale` は Phase 6([16])の消費先待ちで値の保持のみ
+- **触覚**: `SliderSkinData.NotchHapticId`/`LimitHapticId` は `ulong` のプレースホルダで、[16] Part B の `HapticId` 実装時に置換する(現状は未使用)
+- **Skin の AssetIdDefinition**: `SliderSkinData` は `ButtonSkinData` と同じ `AssetType.ControlSkin`/`ControlSkinMarker` を使うが、`ConstantsClassName` は `"SLIDERSKINID"`(`ButtonSkinData` は `"SKINID"`)にした。`AssetIdGenerator` は `ConstantsClassName` ごとに別の `static class` を生成するため、同名にすると生成コードで `CS0101`(クラス重複定義)になる
+- 繰り延べ: 本格的な SliderEditor(応答曲線グラフ・ノッチ可視化オーバーレイ・追従比較・Skin プレビュー一覧、4-17)、Audio バス別音量([03] `Audio.SetBusVolume`、Phase 5)、触覚([16] Part B の `HapticId` 統合)
+- テスト: `Assets/DDrive/Tests/Runtime/UiSliderTests.cs`(`UiSliderTests` 19 件 + `OptionStoreTests` 4 件 + `SliderSkinDataValidatorTests` 2 件 + `UiSliderValidationTests` 6 件)。`UiManagerTests`/`CanvasDataValidatorTests` への追加は [07_canvas_prefab.md] 参照
+
 ## B-8. ネットワーク（[14] との整合）
 
 - UiSlider は Canvas 配下の要素であり `NetMode = Local` 固定（[14] §4「Canvas / UI は常に Local」）

@@ -99,7 +99,7 @@ public static class Ui
 - イベント/シグナル: `UiManager.Events`(EventBus)で OnSpawn/OnEnable/OnDisable/OnDestroy を発火する(Bootstrap が `UiDispatcher` という 3 つ目の `AssetEventDispatcher` を Prefabs/Anim とは独立して生成する)。`SendSignal(key, handle, elementPath)` はコード購読(`OnSignal`)へ配る用途で、UiButton 本体の配線(4-2/4-6)は未実装
 - Placeholder: 未登録 ID や `Prefab` 未設定の `CanvasData` は名前 `"<Placeholder:CANVAS>"` の空 `RectTransform` を生成する(Pool を経由しない。Close で `Object.Destroy`)
 - Validation: 疑似コードの「SendSignal のキーが購読なし (Info)」は Validate 時点でランタイムの購読状況を知りようがないため実装せず、代わりにチケット仕様通り「`ButtonWire.Action==SendSignal` なのに `SignalKey` が空 (Error)」を検査する。到達不能な Selectable の判定は `Navigation` の Up/Down/Left/Right が指す要素だけを「到達済み」とし、`FirstSelected` に一致する要素は対象外にする
-- 未実装(後続チケット): UiSlider 本体([18])、ElementFx(4-9)、CanvasEditor のノードグラフ・ゲームパッド入力シミュレーション(4-3)。`SliderWire` は現時点ではデータのみ
+- 未実装(後続チケット): ElementFx(4-9)は完了、UiSlider 本体は 2026-09-11(4-14)で実装済み(下記追記参照)。CanvasEditor のノードグラフ・ゲームパッド入力シミュレーション(4-3)は未実装
 - **2026-09-11 追記(4-2/4-6)**: UiButton/UiInteractable 本体を実装し、`ButtonWire` の実行(Trigger→UiButton イベント購読、Open で配線 → Close で解除)まで完了した。詳細は [15_ui_interaction.md](15_ui_interaction.md) の実装メモを参照。`Navigation` は `Selectable` に加え `UiInteractable`(`UiNavigation` コンポーネント)にも対応し、`UiManager.MoveFocus(Vector2)` を新設した
 - テスト: `Assets/DDrive/Tests/Runtime/UiManagerTests.cs`(`UiManagerTests` 12 件 + `CanvasDataValidatorTests` 4 件)、`Assets/DDrive/Tests/Editor/CanvasEditorTests.cs`(4 件)。Open/Close/スタック/Popup ブロッキングと復元/CloseTop の CloseOnBack/PauseGameWhileOpen/Navigation 明示配線/OnSignal 購読解除/Fade 演出の Tick 完了と OpenAsync/ライフサイクルイベント/未登録 ID の Placeholder、Validator の 4 ケース、Selectable 自動収集(新規収集・既存保持・null Prefab)、DataEditorRegistry 解決を確認
 
@@ -112,6 +112,16 @@ public static class Ui
 - **Close**: `StartAllDisappearFx`(全要素の Disappear を一斉開始し `PendingDisappearCount` を確定)→ `StartTransition(CloseTransition)` の順。実際に `FinalizeClose` するのは `CloseTransitionCompleted && PendingDisappearCount<=0` の両方が揃ってから(`TryFinalizeClose`)。`StopAll` は演出を待たず `Stop(complete:true)` で畳んでから閉じる
 - 詳細な実装メモ・解決順・スタッガーの仕組みは [15_ui_interaction.md](15_ui_interaction.md) B-4 の 2026-09-11 実装メモを参照
 - テスト: `Assets/DDrive/Tests/Runtime/ElementFxTests.cs`(`ElementFxTests` 8 件 + `ElementFxValidatorTests` 5 件)
+
+### 実装メモ追記(2026-09-11、4-16 SliderWire + OptionStore)
+
+- `SliderWire` の形を疑似コード段階の `{ SliderPath, OptionKey(string), Target, SignalKey }` から [18_ui_controls.md](18_ui_controls.md) B-4 の形(`ElementPath` / `Trigger(SliderTrigger)` / `Action(UiAction)` / `SignalKey` / `Option(OptionKey)` / `ThrottleSec`)へ置き換えた。`UiAction` に `SetOption` を追加(SliderWire 専用)
+- `UiManager.WireSliders` を `WireButtons` と同じ形で追加。`Open` 時、`Action=SetOption` の配線は `OptionStore.Get(Option)` を `Min..Max` へ写像して `SetValueSilent` で初期化する。`Trigger` ごとに `UiSlider` の `OnValueChanged`/`OnCommit`/`OnNotchPassed`/`OnLimitReached` を購読し(`Close` で `WireUnsubscribers` から解除、`ButtonWire` と共用)、`Action=SetOption` なら `OptionStore.Set(Option, slider.NormalizedValue)`、`Action=SendSignal` なら `SendSignal(key, handle, path, value)` を呼ぶ。`Trigger=Changed` は `SliderWire.ThrottleSec` と `UiSlider.ChangeThrottleSec` の大きい方を採用する(スライダー側の設定を尊重しつつ配線からも間引ける)
+- `SignalArgs` に `float Value` を追加(既定値 0 の追加パラメータなので既存呼び出しは無変更で動く)。`SendSignal` も同様に `value=0f` を追加パラメータにした
+- `OptionStore`(`Assets/DDrive/Runtime/Ui/OptionStore.cs`)は `DDriveRuntimeBootstrap.Options` として構築し、起動時に `PlayerPrefsOptionStorage` から `Load`、`Ui.SetOptionStore` で `UiManager` へ渡す。静的ファサード `DDrive.Runtime.Ui.Options`(`Ui`/`UiSkins` と同じ設計)も Bind する
+- Validation: `CanvasDataValidator` に `ValidateSliders`(配線: ElementPath 不整合 Error / Action=SetOption で Option=None Error / Trigger=Changed かつ ThrottleSec=0 で Action=PlayPresentation は Warning)と `ValidateSliderComponents`(Prefab 内の全 `UiSlider` に `UiSliderValidation.Validate` を適用)を追加。NavNode の左右設定 + `EscapeOnLimit=false` の警告は `ValidateNavigation` に統合した
+- 詳細な UiSlider 本体の実装メモは [18_ui_controls.md](18_ui_controls.md) B-7 の 2026-09-11 実装メモを参照
+- テスト: `Assets/DDrive/Tests/Runtime/UiManagerTests.cs` に `SliderWire_SetOption_InitializesFromStore_AndWritesBackOnCommit` / `SliderWire_SendSignal_CarriesValue` および `CanvasDataValidatorTests` に 3 ケース追加。`Assets/DDrive/Tests/Runtime/UiSliderTests.cs` に `OptionStoreTests`(4 件)を追加
 
 ---
 

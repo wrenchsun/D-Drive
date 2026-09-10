@@ -18,18 +18,20 @@ using EventTrigger = DDrive.Foundation.Event.EventTrigger; // UnityEngine.EventS
 
 namespace DDrive.Runtime.Ui
 {
-    // OnSignal の購読先へ渡す引数。
+    // OnSignal の購読先へ渡す引数。Value は SliderWire.Action=SendSignal のとき現在値が入る(4-16)。
     public readonly struct SignalArgs
     {
         public readonly string Key;
         public readonly Handle<CanvasMarker> Canvas;
         public readonly string ElementPath;
+        public readonly float Value;
 
-        public SignalArgs(string key, Handle<CanvasMarker> canvas, string elementPath)
+        public SignalArgs(string key, Handle<CanvasMarker> canvas, string elementPath, float value = 0f)
         {
             Key = key;
             Canvas = canvas;
             ElementPath = elementPath;
+            Value = value;
         }
     }
 
@@ -145,6 +147,7 @@ namespace DDrive.Runtime.Ui
         private bool _eventSystemWarned;
         private UiTweenManager _tweens;
         private UiLayerSettings _layerSettings;
+        private OptionStore _options;
 
         public AssetType Type => AssetType.Canvas;
 
@@ -169,6 +172,9 @@ namespace DDrive.Runtime.Ui
 
         // 4-9/4-7 残り: レイヤーごとの既定 Skin/SE/Appear/Disappear(未設定なら null のまま = フォールバック無し)。
         public void SetLayerSettings(UiLayerSettings settings) => _layerSettings = settings;
+
+        // [18_ui_controls.md] B-4(4-16) — SliderWire.Action=SetOption の解決先。未設定なら SetOption は no-op。
+        public void SetOptionStore(OptionStore options) => _options = options;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void RegisterPlaceholder()
@@ -322,6 +328,7 @@ namespace DDrive.Runtime.Ui
             ApplyNavigation(root.transform, data);
             ApplyFirstSelected(root.transform, data);
             WireButtons(root.transform, data, instance, handle);
+            WireSliders(root.transform, data, instance, handle);
             ApplyLayerDefaults(root.transform, data);
             SetupElementFx(instance, data, root.transform);
 
@@ -843,6 +850,101 @@ namespace DDrive.Runtime.Ui
             }
         }
 
+        // ── スライダー配線(SliderWire, 4-16) ──
+
+        private void WireSliders(Transform root, CanvasData data, CanvasInstance instance, Handle<CanvasMarker> handle)
+        {
+            if (data.Sliders == null || data.Sliders.Length == 0)
+            {
+                return;
+            }
+
+            instance.WireUnsubscribers ??= new List<Action>();
+            for (var i = 0; i < data.Sliders.Length; i++)
+            {
+                var wire = data.Sliders[i];
+                var target = FindTransform(root, wire.ElementPath);
+                var slider = target != null ? target.GetComponent<UiSlider>() : null;
+                if (slider == null)
+                {
+                    continue;
+                }
+
+                if (wire.Action == UiAction.SetOption && wire.Option != OptionKey.None && _options != null)
+                {
+                    var normalized = _options.Get(wire.Option);
+                    slider.SetValueSilent(Mathf.Lerp(slider.Min, slider.Max, normalized));
+                }
+
+                if (wire.Trigger == SliderTrigger.Changed && wire.ThrottleSec > slider.ChangeThrottleSec)
+                {
+                    slider.ChangeThrottleSec = wire.ThrottleSec;
+                }
+
+                SubscribeSliderWire(slider, wire, handle, instance.WireUnsubscribers);
+            }
+        }
+
+        private void SubscribeSliderWire(UiSlider slider, SliderWire wire, Handle<CanvasMarker> handle, List<Action> unsubscribers)
+        {
+            switch (wire.Trigger)
+            {
+                case SliderTrigger.Changed:
+                {
+                    void OnChanged(float v) => ExecuteSliderWire(wire, handle, slider, v);
+                    slider.OnValueChanged += OnChanged;
+                    unsubscribers.Add(() => slider.OnValueChanged -= OnChanged);
+                    break;
+                }
+
+                case SliderTrigger.Commit:
+                {
+                    void OnCommit(float v) => ExecuteSliderWire(wire, handle, slider, v);
+                    slider.OnCommit += OnCommit;
+                    unsubscribers.Add(() => slider.OnCommit -= OnCommit);
+                    break;
+                }
+
+                case SliderTrigger.NotchPassed:
+                {
+                    void OnNotch(int idx) => ExecuteSliderWire(wire, handle, slider, idx);
+                    slider.OnNotchPassed += OnNotch;
+                    unsubscribers.Add(() => slider.OnNotchPassed -= OnNotch);
+                    break;
+                }
+
+                case SliderTrigger.LimitReached:
+                {
+                    void OnLimit(bool isMax) => ExecuteSliderWire(wire, handle, slider, isMax ? 1f : 0f);
+                    slider.OnLimitReached += OnLimit;
+                    unsubscribers.Add(() => slider.OnLimitReached -= OnLimit);
+                    break;
+                }
+            }
+        }
+
+        private void ExecuteSliderWire(SliderWire wire, Handle<CanvasMarker> from, UiSlider slider, float value)
+        {
+            switch (wire.Action)
+            {
+                case UiAction.SetOption:
+                    if (wire.Option != OptionKey.None)
+                    {
+                        _options?.Set(wire.Option, slider.NormalizedValue);
+                    }
+
+                    break;
+
+                case UiAction.SendSignal:
+                    SendSignal(wire.SignalKey, from, wire.ElementPath, value);
+                    break;
+
+                case UiAction.PlayPresentation:
+                    Debug.LogWarning("[DDrive] SliderWire.Action=PlayPresentation は Phase 5 で実装予定です");
+                    break;
+            }
+        }
+
         private static void ApplyFirstSelected(Transform root, CanvasData data)
         {
             if (string.IsNullOrEmpty(data.FirstSelected))
@@ -1240,14 +1342,14 @@ namespace DDrive.Runtime.Ui
             return new SignalSubscription(this, key, cb);
         }
 
-        public void SendSignal(string key, Handle<CanvasMarker> from, string elementPath = null)
+        public void SendSignal(string key, Handle<CanvasMarker> from, string elementPath = null, float value = 0f)
         {
             if (string.IsNullOrEmpty(key) || !_signalSubs.TryGetValue(key, out var list))
             {
                 return;
             }
 
-            var args = new SignalArgs(key, from, elementPath);
+            var args = new SignalArgs(key, from, elementPath, value);
             for (var i = 0; i < list.Count; i++)
             {
                 list[i]?.Invoke(args);

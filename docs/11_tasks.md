@@ -113,11 +113,11 @@
 | 4-11 | UiPreset ライブラリ（50 種以上のファクトリ + UiFx 同名関数 + Sequence） | 基盤 | 3 | 4-8 | ⚠ 2026-09-11 前半実装([15] B-5 実装メモ)。`UiPreset` enum(docs 掲載順+`None`)/`UiPresetRef`/`UiPresetFactory.Build`/`UiFx` の同名 1 行関数・`Sequence()` は実装済みだが、約 25 種は実装済み、残り約 11 種(FlipInX/Y・FlipOutX/Y・RotateIn/Out・TypeFillIn・RainbowTint・WobbleLoop・ColorFlash・Jelly・Tada・RubberBand・AttentionJump)は近似実装(`IsApproximation`)のまま。`UiPresetCatalog`(独自プリセット登録)も未実装。残作業は 4-11 の続きで対応 |
 | 4-12 | プリセットギャラリー（実再生サムネ一覧・タブ・一括適用・独自プリセット登録） | ED | 3 | 4-11, 4-10 | 要素選択→クリックで適用・即プレビュー |
 | 4-13 | Prefab の Simulated Spawn（サーバー権威生成 + NetworkObject 検証 + クライアント直 Spawn 禁止） | 基盤 | 3 | 0-14, 4-4 | サーバー経由でのみ複製生成される |
-| 4-14 | UiSlider 実装（値・刻み・全入力・Response/FollowMotion） | 基盤 | 3 | 4-6, 0-15 | 18§B-1/B-3 の全 API。パッド Step・リピート・微調整動作 |
-| 4-15 | SliderSkinData + ノッチ SE / 触覚統合 | 基盤 | 2 | 4-14, 4-7 | Skin 差し替えで全スライダーの見た目・音が変わる |
-| 4-16 | SliderWire + OptionStore（標準オプション直結） | 基盤 | 2 | 4-14, 4-2 | 音量設定画面がスクリプト 0 行で完成する |
-| 4-17 | SliderEditor（応答曲線 / ノッチ可視化 / 実操作プレビュー / プリセット 5 種） | ED | 3 | 4-14, 4-10 | 18§B-6 の全機能 |
-| 4-18 | Slider Validator 一式 | 基盤 | 1 | 4-14, 0-11 | 18§B-7 の全検査 |
+| 4-14 | UiSlider 実装（値・刻み・全入力・Response/FollowMotion） | 基盤 | 3 | 4-6, 0-15 | ✅ 2026-09-11 実装([18] B-1/B-3 実装メモ)。`UiSlider`(+`SliderDirection`)。Response の逆変換は 16 分探索、FollowMotion/DelayFill/AnimateTo/パッド Step・リピート・微調整/NotifyOnlyOnCommit/ChangeThrottleSec を実装。テスト `UiSliderTests` 19 件 |
+| 4-15 | SliderSkinData + ノッチ SE / 触覚統合 | 基盤 | 2 | 4-14, 4-7 | ✅ 2026-09-11 実装。`SliderSkinData`(`ConstantsClassName="SLIDERSKINID"`、Track/Fill/Handle/DelayFill + SE + `NotchHapticId`/`LimitHapticId` プレースホルダ)。触覚本体は [16] Part B 待ち(繰り延べ) |
+| 4-16 | SliderWire + OptionStore（標準オプション直結） | 基盤 | 2 | 4-14, 4-2 | ✅ 2026-09-11 実装([07] A-2/A-3 実装メモ)。`SliderWire` を [18]B-4 の形へ置換、`UiManager.WireSliders`、`OptionStore`(+`PlayerPrefsOptionStorage`+静的ファサード `Options`)。MasterVolume→`AudioListener.volume`、UiSpeedScale→`UiTweenManager.GlobalSpeed`。Bgm/Se/Voice バスは Phase 5 待ちで値保持のみ |
+| 4-17 | SliderEditor（応答曲線 / ノッチ可視化 / 実操作プレビュー / プリセット 5 種） | ED | 3 | 4-14, 4-10 | 18§B-6 の全機能。4-15 で最低限の `SliderSkinEditorWindow`(確認用シーン配置 + 5 プリセット)のみ先行実装済み |
+| 4-18 | Slider Validator 一式 | 基盤 | 1 | 4-14, 0-11 | ✅ 2026-09-11 実装([18] B-7 実装メモ)。`UiSliderValidation`(静的、再利用可)+ `SliderSkinDataValidator` + `CanvasDataValidator` の SliderWire/NavNode 検査。テスト `UiSliderValidationTests` 6 件 + `SliderSkinDataValidatorTests` 2 件 + `CanvasDataValidatorTests` 追加 3 件 |
 
 ## Phase 5: Presentation + ブラウザ完成 (M5 — 目玉)  約 5 週
 

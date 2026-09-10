@@ -65,6 +65,8 @@ namespace DDrive.Runtime.Loop
         public PrefabsManager Prefabs { get; private set; }
         public UiManager Ui { get; private set; }
         public UiTweenManager UiTweens { get; private set; }
+        // [18_ui_controls.md] B-4(4-16) — 音量/アクセシビリティ/UI 速度の永続化ストア。起動時に PlayerPrefs から読み込む。
+        public OptionStore Options { get; private set; }
         public AnchorGroupPlayer Groups { get; private set; }
         public AssetEventDispatcher Dispatcher { get; private set; }
         // Prefabs.Events(OnSpawn/OnDestroy)を SE/VFX/配置セットへ配線する 2 つ目の Dispatcher
@@ -156,6 +158,9 @@ namespace DDrive.Runtime.Loop
             UiTweens = new UiTweenManager(Registry);
             Ui = new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens);
             Ui.SetLayerSettings(LayerSettings);
+            Options = new OptionStore { UiTweens = UiTweens };
+            Options.Load(new PlayerPrefsOptionStorage());
+            Ui.SetOptionStore(Options);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
@@ -187,6 +192,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.Ui.Bind(Ui);
                 Runtime.Ui.UiSkins.Bind(Registry);
                 Runtime.Ui.UiFx.Bind(UiTweens);
+                Runtime.Ui.Options.Bind(Options);
                 Anchors.Bind(Groups);
             }
 
@@ -243,6 +249,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.Ui.Bind(null);
                 Runtime.Ui.UiSkins.Bind((IAssetRegistry)null);
                 Runtime.Ui.UiFx.Bind(null);
+                Runtime.Ui.Options.Bind(null);
                 Anchors.Bind(null);
             }
 
