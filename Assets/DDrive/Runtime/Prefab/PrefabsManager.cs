@@ -4,10 +4,12 @@ using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Manager;
+using DDrive.Foundation.Net;
 using DDrive.Foundation.Pause;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Model;
+using DDrive.Runtime.Net;
 using DDrive.Runtime.Vfx;
 using UnityEngine;
 using PrefabAssetId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker>;
@@ -27,7 +29,17 @@ namespace DDrive.Runtime.Prefab
             public InstanceContext Context;
             public bool IsPlaceholder;
             public bool IsPooled; // Flags.Pool.Kind == Pooled のとき true。false(None)は Despawn で Discard する
+            public bool IsSimulated; // NetMode.Simulated かつサーバー権威で実際に生成したインスタンスか([14] §3/§10、4-13)
         }
+
+        // クライアント→サーバーの Spawn 要求(PrefabSpawnRequestMsg)のレート制限窓([14] §9 と同じ考え方。NgoNetBridge.ConsumeRelayBudget 相当)。
+        private struct RateLimitState
+        {
+            public double WindowStart;
+            public int Count;
+        }
+
+        private const int MaxRequestsPerSecondPerClient = 60;
 
         private readonly IPoolService _pool;
         private readonly IAssetRegistry _registry;
@@ -36,15 +48,26 @@ namespace DDrive.Runtime.Prefab
         private readonly List<Handle<PrefabMarker>> _allActive = new();
         private readonly HashSet<PrefabData> _placeholderWarned = new();
 
+        // [14_networking.md] §3/§4/§10(4-13) — NetMode.Simulated はサーバー権威。null(既定)ならシングルプレイ相当で
+        // 今までどおり常にローカル Spawn する(ゲームコード・データは通信の有無で変わらない、[14] §1 と同じ原則)。
+        private readonly INetBridge _netBridge;
+        private readonly Dictionary<ulong, RateLimitState> _requestRateLimits = new();
+        private readonly HashSet<ulong> _nonSimulatedRequestWarned = new();
+
+        // クライアント→サーバーの宛先。D-Drive の抽象では「サーバー = clientId 0」として扱う([14] §12。NGO では NetworkManager.ServerClientId)。
+        private const ulong ServerClientId = 0UL;
+
         public AssetType Type => AssetType.Prefab;
 
         public EventBus Events => _events;
 
-        public PrefabsManager(IPoolService pool, IAssetRegistry registry, EventBus events = null)
+        public PrefabsManager(IPoolService pool, IAssetRegistry registry, EventBus events = null, INetBridge netBridge = null)
         {
             _pool = pool;
             _registry = registry;
             _events = events ?? new EventBus();
+            _netBridge = netBridge;
+            _netBridge?.Subscribe<PrefabSpawnRequestMsg>(OnReceiveSpawnRequest);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -80,6 +103,21 @@ namespace DDrive.Runtime.Prefab
         {
             if (data == null)
             {
+                return Handle<PrefabMarker>.Invalid;
+            }
+
+            // NetMode.Simulated はサーバー権威([14] §3/§10、4-13)。クライアントはここでは生成せず、
+            // サーバーへ Spawn を要求するだけ。サーバー側で実際に生成されたインスタンスは PrefabSpawnedMsg で
+            // 通知されるのみで、要求元クライアントもローカル Handle は持たない(観測は別経路に委ねる)。
+            if (_netBridge != null && data.Flags.Net == NetMode.Simulated && !_netBridge.IsServer)
+            {
+                _netBridge.SendTo(ServerClientId, new PrefabSpawnRequestMsg
+                {
+                    PrefabId = data.Id,
+                    Position = pos,
+                    Rotation = rot,
+                    RequestKey = 0,
+                }, NetChannel.ReliableOrdered);
                 return Handle<PrefabMarker>.Invalid;
             }
 
@@ -132,6 +170,7 @@ namespace DDrive.Runtime.Prefab
                 Pooled = pooled,
                 IsPlaceholder = isPlaceholder,
                 IsPooled = !isPlaceholder && data.Flags.Pool.Kind == PoolPolicyKind.Pooled,
+                IsSimulated = !isPlaceholder && data.Flags.Net == NetMode.Simulated,
             };
 
             var handle = _instances.Add(instance);
@@ -141,7 +180,65 @@ namespace DDrive.Runtime.Prefab
             _events.Begin(instance.Context, data.Events);
             _events.Fire(instance.Context, EventTrigger.OnSpawn);
 
+            // ここに到達するのはサーバー(またはシングルプレイの netBridge==null)のときだけ。今生成したのが
+            // 権威インスタンスであることを全員へ通知する(情報提供のみ。NGO の NetworkObject 複製は Phase 6)。
+            if (_netBridge != null && instance.IsSimulated && _netBridge.IsServer)
+            {
+                _netBridge.Broadcast(new PrefabSpawnedMsg
+                {
+                    PrefabId = data.Id,
+                    NetObjectId = 0,
+                    Position = pos,
+                    Rotation = rot,
+                    RequestKey = 0,
+                }, NetChannel.ReliableOrdered);
+            }
+
             return handle;
+        }
+
+        // サーバーが受け取る Spawn 要求のハンドラ。レート制限とレジストリ検証を経てから権威生成する([14] §9/§10)。
+        private void OnReceiveSpawnRequest(ulong senderId, PrefabSpawnRequestMsg msg)
+        {
+            if (_netBridge == null || !_netBridge.IsServer)
+            {
+                return;
+            }
+
+            if (!ConsumeRequestRateLimit(senderId))
+            {
+                Debug.LogWarning($"[DDrive] PrefabsManager: Client {senderId} からの Spawn 要求がレート制限({MaxRequestsPerSecondPerClient}/秒)を超えたため破棄しました(PrefabId={msg.PrefabId})。");
+                return;
+            }
+
+            var data = _registry.ResolveOrPlaceholder<PrefabData>(msg.PrefabId);
+            if (data == null || data.Flags.Net != NetMode.Simulated)
+            {
+                if (_nonSimulatedRequestWarned.Add(msg.PrefabId))
+                {
+                    Debug.LogWarning($"[DDrive] PrefabsManager: NetMode.Simulated ではない PrefabId={msg.PrefabId} への Spawn 要求を Client {senderId} から受信したため無視しました。");
+                }
+
+                return;
+            }
+
+            SpawnData(data, msg.Position, msg.Rotation);
+        }
+
+        private bool ConsumeRequestRateLimit(ulong clientId)
+        {
+            var now = _netBridge.NetworkTime;
+            _requestRateLimits.TryGetValue(clientId, out var state);
+
+            if (now - state.WindowStart >= 1d)
+            {
+                state.WindowStart = now;
+                state.Count = 0;
+            }
+
+            state.Count++;
+            _requestRateLimits[clientId] = state;
+            return state.Count <= MaxRequestsPerSecondPerClient;
         }
 
         public void Despawn(Handle<PrefabMarker> handle)
@@ -153,6 +250,12 @@ namespace DDrive.Runtime.Prefab
 
             _events.Fire(instance.Context, EventTrigger.OnDestroy);
             _events.End(instance.Context);
+
+            // サーバー権威インスタンスの消滅を通知する(NetObjectId は NGO 統合前は常に 0。4-13)。
+            if (_netBridge != null && instance.IsSimulated && _netBridge.IsServer)
+            {
+                _netBridge.Broadcast(new PrefabDespawnedMsg { NetObjectId = 0 }, NetChannel.ReliableOrdered);
+            }
 
             _allActive.Remove(handle);
             _instances.Remove(handle);

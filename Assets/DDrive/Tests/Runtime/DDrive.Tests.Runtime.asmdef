@@ -7,6 +7,7 @@
         "UniTask",
         "Unity.Addressables",
         "Unity.ResourceManager",
+        "Unity.Netcode.Runtime",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "UnityEngine.UI"

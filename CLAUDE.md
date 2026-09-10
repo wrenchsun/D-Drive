@@ -23,7 +23,7 @@
 | コンセプト | プログラマーは **ID だけ**でモックを完成させ、デザイナーが専用エディタで中身を作る |
 | Unity | **6000.3.13f1**（勝手に上げない）/ URP 17.3 / Addressables / UniTask / NGO 2.2 |
 | テスト | Unity Test Framework。`Assets/DDrive/Tests/{Editor,Runtime}` |
-| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model + Anchor アセット化 [docs/21](docs/21_anchor_spec.md) + 配置セット [docs/22](docs/22_anchor_group.md)）実装済み。Phase 3 は 3-1〜3-13 まで実装済み（Phase 3 完了）、次は Phase 4（4-4 Prefab → 4-1 Canvas）。0-14 起動配線（`DDriveRuntimeBootstrap`）+ Addressables 同期は 2026-09-09 に追加。Phase 4 は 4-1〜4-12 / 4-14〜4-18 実装済み（4-12 / 4-17 は 2026-09-11 実装、EditMode 237 / PlayMode 466 green）、次は 4-13（Simulated Spawn）→ Phase 5。**人による確認は [docs/23](docs/23_manual_verification_2026-09-11.md) の手順書を参照**。[docs/11_tasks.md](docs/11_tasks.md) |
+| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model + Anchor アセット化 [docs/21](docs/21_anchor_spec.md) + 配置セット [docs/22](docs/22_anchor_group.md)）実装済み。Phase 3 は 3-1〜3-13 まで実装済み（Phase 3 完了）、次は Phase 4（4-4 Prefab → 4-1 Canvas）。0-14 起動配線（`DDriveRuntimeBootstrap`）+ Addressables 同期は 2026-09-09 に追加。Phase 4 完了（4-1〜4-18 実装済み。4-13 の NGO 複製は Phase 6 の NGO 統合で接続）、次は Phase 5（Presentation）。**人による確認は [docs/23](docs/23_manual_verification_2026-09-11.md) の手順書を参照**。[docs/11_tasks.md](docs/11_tasks.md) |
 
 ## 2. ディレクトリ地図
 

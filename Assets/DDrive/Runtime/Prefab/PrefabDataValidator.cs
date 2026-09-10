@@ -149,9 +149,40 @@ namespace DDrive.Runtime.Prefab
                 yield return ValidationResult.Warning("Kind=Projectile ですが Flags.Pool が Pooled ではありません(Pooled(32, 128) を推奨)");
             }
 
+            foreach (var result in ValidateSimulated(prefab))
+            {
+                yield return result;
+            }
+
             foreach (var result in ValidateTags(prefab, ctx))
             {
                 yield return result;
+            }
+        }
+
+        // [14_networking.md] §10(4-13) — NetMode.Simulated はサーバー権威で複製されるため、Prefab に
+        // NetworkObject が無いと NGO 統合後に Spawn できない。DDrive.Runtime.asmdef は Unity.Netcode.Runtime を
+        // 参照済みなので直接型参照する(ModelDataValidator 等と違い文字列 GetComponent にする必要は無い)。
+        private static IEnumerable<ValidationResult> ValidateSimulated(PrefabData prefab)
+        {
+            if (prefab.Flags.Net != DDrive.Foundation.Net.NetMode.Simulated)
+            {
+                yield break;
+            }
+
+            if (prefab.Prefab != null && prefab.Prefab.GetComponent<Unity.Netcode.NetworkObject>() == null)
+            {
+                yield return ValidationResult.Error("Flags.Net=Simulated ですが Prefab に NetworkObject がありません(サーバー権威の複製には NetworkObject が必須です)");
+            }
+
+            if (prefab.Kind != PrefabKind.Projectile && prefab.Kind != PrefabKind.Gimmick && prefab.Kind != PrefabKind.Character)
+            {
+                yield return ValidationResult.Info($"Flags.Net=Simulated は Kind=Projectile/Gimmick/Character を想定しています(現在: {prefab.Kind})");
+            }
+
+            if (prefab.Flags.Pool.Kind == DDrive.Foundation.Data.PoolPolicyKind.Pooled)
+            {
+                yield return ValidationResult.Warning("Flags.Net=Simulated(サーバー権威の複製)と Flags.Pool=Pooled(プール再利用)は併用注意です");
             }
         }
 
