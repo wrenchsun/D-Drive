@@ -81,7 +81,8 @@ MaterialData(ShaderA) ──共通データはそのまま──▶ MaterialData
 > - **Mats** ファサード: `Get / Apply / Replace / FadeTo / SetGlobalParam / IsFading / Stop`。`DDriveRuntimeBootstrap` が生成・Bind し、`ModelsManager` に接続する（`ModelData.Slots` の Material は Spawn 時に適用、`Models.SetMaterial` も実際に差し替わる = 2-5 の残課題を解消）
 > - **Validation**（`MaterialDataValidator`）: Shader 未設定(Warning) / パイプライン不一致(Error、`ShaderPipelineAnalyzer`) / Albedo 未設定(Warning) / Blend と RenderQueue 帯の不一致(Warning) / Emission が発光しない設定(Warning) / Specific がシェーダーに無い(Warning) / Anims が動かない設定(Warning)
 > - **エディタ（最小版）**: `Editor/Material/MaterialEditorWindow.cs`（`Tools/D-Drive/Editors/Material`、`[DataEditor]` で MaterialData / TextureData の Inspector から開ける）。SerializedObject バインドで編集し、「シーンにプレビュー球を配置」で実 MaterialManager が生成した共有 Material を DontSave の球に適用して SceneView で確認（MaterialAnim も EditMode で動く）。TextureData は画像プレビュー
-> - 未実装: MaterialEditor の球 / 板 / 任意 ModelData 切替・Skybox・変換前後比較（3-9）、Maya FBX 自動生成（3-7）、変換テーブル（3-6）、Material の生成 / 消滅イベント（AssetEvent は保持するが Manager は発火しない。必要になったら Apply / Replace を節目にする）
+> - **相互変換（3-6、2026-09-10）**: `ShaderConversionTable`（ScriptableObject。`Rules[] = {From, To, Mappings[] = {FromProperty, ToProperty(空=意図的に破棄), Scale, Offset}}`。`D-Drive/Material/Shader Conversion Table` で作成、複数可）+ `MaterialConverter.Convert(source, targetShader, tables)`（純関数。共通データはそのまま、固有は 表で対応 → 同名・同型なら維持 → 無ければ破棄 の順で判定し、`Result.Entries` に Mapped / Kept / Dropped / Discarded を返す）+ `MaterialConverter.ApplyTo(dest, source, result)`。変換エディタは `Editor/Material/MaterialConvertWindow.cs`（`Tools/D-Drive/Editors/Material 変換`、MaterialData の Inspector の「シェーダー変換」）: 差分プレビュー（→ 対応 / = 維持 / ✕ 破棄 / − 意図的に破棄）を表示し、「新規 MaterialData として作成」（同じカテゴリへ `AssetCreationService.Create`）か「この Data を変換」（Undo）を行う。テスト: `MaterialConverterTests`
+> - 未実装: MaterialEditor の球 / 板 / 任意 ModelData 切替・Skybox・変換前後比較（3-9）、Maya FBX 自動生成（3-7）、Material の生成 / 消滅イベント（AssetEvent は保持するが Manager は発火しない。必要になったら Apply / Replace を節目にする）
 
 ## A-3. Manager API
 

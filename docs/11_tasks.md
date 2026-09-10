@@ -87,7 +87,7 @@
 | 3-4 | Anim × SE/VFX 同時プレビュー | ED | 2 | 3-3, 2-4, 1-7 | ✅ 2026-09-09 `AssetEventDispatcher`（Runtime/Presentation）を PreviewService に組み込み。PlayMode 293 green（`AnimIntegrationTests` 3 件追加） |
 | 3-R | VFX / Anim レビュー対応（2026-09-10、実バグ 10 件） | 基盤+ED | 1 | 3-4 | ✅ Pool 上限時の死んだエントリ / Pending の台帳 / シーン保存前の復元 + speed 復元 / 一時停止の一括解除 / Frame 判定の誤差 / Animator.Update 二重 / FadeOut 中の再開 / Fire・Seek の Repeat / AnchorGroup の KeepWhilePlaying + フック / 無効 Handle 警告のノイズ。回帰テスト 13 件追加 |
 | 3-5 | MaterialCommon 規約確定 + MaterialData/Mats | TA+基盤 | 3 | 0-* | ✅ 2026-09-10 実装（[06] A 実装メモ）。`MaterialCommon` 規約確定 + `MaterialCommonBinding`（URP Lit / HDRP / Built-in へ流し込み）+ `MaterialData` / `TextureData`(最小) + `MaterialManager`（Get / Apply / Replace / FadeTo / MaterialAnim / Placeholder）+ `Mats` + Validator + Bootstrap 配線 + `Models.SetMaterial` 実処理。`MaterialManagerTests` 9 件。エディタ（プレビュー）は 3-9 |
-| 3-6 | シェーダー変換テーブル + 変換エディタ | TA | 3 | 3-5 | 共通データ維持・固有差分レポート |
+| 3-6 | シェーダー変換テーブル + 変換エディタ | TA | 3 | 3-5 | ✅ 2026-09-10 実装（[06] A 実装メモ）。`ShaderConversionTable` + `MaterialConverter`（共通維持 / 対応 / 同名維持 / 破棄レポート）+ `MaterialConvertWindow`（差分プレビュー → 新規作成 or Undo 付き変換）。`MaterialConverterTests` 4 件。見た目の並列比較は 3-9 |
 | 3-7 | Maya FBX → MaterialData 自動生成（ImportProfile） | TA | 3 | 3-5 | 再インポートで固有調整を破壊しない |
 | 3-8 | TextureData + Importer 規約（命名→自動設定） | TA | 2 | 3-5 | `_N`→NormalMap 等の自動化 + FixAction |
 | 3-9 | MaterialEditor / TextureEditor プレビュー | ED | 2 | 1-6, 3-5 | 球/板/任意モデル、変換前後比較 |

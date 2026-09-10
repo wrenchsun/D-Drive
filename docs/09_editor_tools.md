@@ -107,6 +107,7 @@ Tools/
     │   ├─ Animation (3D)
     │   ├─ Animation (2D)
     │   ├─ Material                   ← 2026-09-10 追加(MaterialData / TextureData 共用の最小版、[06] A 実装メモ。3-9 で拡張)
+    │   ├─ Material 変換              ← 2026-09-10 追加(シェーダー変換、差分プレビュー、[06] A-2)
     │   ├─ Canvas
     │   ├─ UI Tween · Preset Gallery
     │   ├─ Slider
