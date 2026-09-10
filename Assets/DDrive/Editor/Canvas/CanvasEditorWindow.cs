@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
+using DDrive.Editor.Ui;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Handle;
+using DDrive.Foundation.Identity;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Foundation.Validation;
@@ -23,6 +25,8 @@ namespace DDrive.Editor.CanvasTool
     [DDrive.Editor.Inspector.DataEditor(typeof(CanvasData), "Canvas Editor で開く")]
     public sealed class CanvasEditorWindow : EditorWindow
     {
+        private const string NoneChoice = "なし";
+
         private CanvasData _target;
         private bool _lockTarget;
         private UiManager _manager;
@@ -38,8 +42,11 @@ namespace DDrive.Editor.CanvasTool
         private ScrollView _root;
         private ObjectField _targetField;
         private VisualElement _inspectorContainer;
+        private VisualElement _elementFxContainer;
         private Label _statusLabel;
         private VisualElement _validationFoldout;
+
+        private readonly List<(string label, UiTweenData tween)> _catalogChoices = new();
 
         [MenuItem(DDriveMenu.Editors + "Canvas")]
         public static void OpenFromMenu() => Open(Selection.activeObject as CanvasData);
@@ -148,6 +155,11 @@ namespace DDrive.Editor.CanvasTool
             bulkRow.Add(new Button(ApplyBulkPresetToButtons) { text = "一括適用: 全ボタンに反映", tooltip = "Prefab 内の全 UiButton の AppearPreset にこのプリセットを設定する" });
             _root.Add(bulkRow);
 
+            _root.Add(new Label("ElementFx 割当(Appear / Idle / Disappear)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            _root.Add(new HelpBox("各要素の行でプリセット・プロジェクト独自カタログ([Catalog] 名前)・UiTweenData 直接指定のいずれかを選べます。", HelpBoxMessageType.Info));
+            _elementFxContainer = new VisualElement();
+            _root.Add(_elementFxContainer);
+
             var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
             previewButtons.Add(new Button(PlacePreview) { text = "確認用シーンで開く", tooltip = "開いているシーン(またはプレハブステージ)に実 UiManager で OpenData する" });
             previewButtons.Add(new Button(RemovePreview) { text = "閉じる" });
@@ -190,6 +202,7 @@ namespace DDrive.Editor.CanvasTool
             {
                 _statusLabel.text = "CanvasData を選択してください";
                 _validationFoldout?.Clear();
+                _elementFxContainer?.Clear();
                 return;
             }
 
@@ -199,6 +212,7 @@ namespace DDrive.Editor.CanvasTool
 
             _statusLabel.text = _manager != null && _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "「確認用シーンで開く」で確認できます";
             RefreshValidation();
+            RebuildElementFxAssignments();
         }
 
         private void CollectSelectables()
@@ -237,6 +251,204 @@ namespace DDrive.Editor.CanvasTool
 
             SetTarget(_target);
             _statusLabel.text = $"ElementFx を {merged.Length} 件収集しました";
+        }
+
+        // 4-10: 各 ElementFx 行の Appear/Idle/Disappear を「なし / 組み込みプリセット / プロジェクトの
+        // UiPresetCatalog / UiTweenData 直接指定」から選べる UI(PopupField + ObjectField)。
+        // 選択の解決優先順位はランタイム側([15] B-5 実装メモ)と同じ id > Preset。
+        private void RebuildElementFxAssignments()
+        {
+            if (_elementFxContainer == null)
+            {
+                return;
+            }
+
+            _elementFxContainer.Clear();
+            if (_target == null || _target.ElementEffects == null || _target.ElementEffects.Length == 0)
+            {
+                _elementFxContainer.Add(new Label("ElementFx がありません(上の「要素を自動収集」で追加してください)") { style = { opacity = 0.7f } });
+                return;
+            }
+
+            _catalogChoices.Clear();
+            foreach (var (name, tween) in UiPresetCatalogUtility.Collect())
+            {
+                _catalogChoices.Add(($"[Catalog] {name}", tween));
+            }
+
+            for (var i = 0; i < _target.ElementEffects.Length; i++)
+            {
+                var index = i;
+                var fx = _target.ElementEffects[i];
+                var box = new Box { style = { marginBottom = 6, paddingLeft = 4, paddingTop = 2, paddingBottom = 4 } };
+                box.Add(new Label(string.IsNullOrEmpty(fx.ElementPath) ? "(ルート)" : fx.ElementPath) { style = { unityFontStyleAndWeight = FontStyle.Bold } });
+
+                box.Add(BuildPhaseRow(
+                    "Appear",
+                    () => _target.ElementEffects[index].AppearPreset,
+                    v => { var e = _target.ElementEffects[index]; e.AppearPreset = v; _target.ElementEffects[index] = e; },
+                    () => _target.ElementEffects[index].Appear,
+                    v => { var e = _target.ElementEffects[index]; e.Appear = v; _target.ElementEffects[index] = e; }));
+
+                box.Add(BuildPhaseRow(
+                    "Idle",
+                    () => _target.ElementEffects[index].IdlePreset,
+                    v => { var e = _target.ElementEffects[index]; e.IdlePreset = v; _target.ElementEffects[index] = e; },
+                    () => _target.ElementEffects[index].Idle,
+                    v => { var e = _target.ElementEffects[index]; e.Idle = v; _target.ElementEffects[index] = e; }));
+
+                box.Add(BuildPhaseRow(
+                    "Disappear",
+                    () => _target.ElementEffects[index].DisappearPreset,
+                    v => { var e = _target.ElementEffects[index]; e.DisappearPreset = v; _target.ElementEffects[index] = e; },
+                    () => _target.ElementEffects[index].Disappear,
+                    v => { var e = _target.ElementEffects[index]; e.Disappear = v; _target.ElementEffects[index] = e; }));
+
+                box.Add(new Button(() => CopyRowToOthers(index)) { text = "この要素の設定を他の要素へコピー", style = { marginTop = 4 } });
+
+                _elementFxContainer.Add(box);
+            }
+        }
+
+        private VisualElement BuildPhaseRow(
+            string label,
+            System.Func<UiPresetRef> getPreset, System.Action<UiPresetRef> setPreset,
+            System.Func<AssetId<UiTweenMarker>> getId, System.Action<AssetId<UiTweenMarker>> setId)
+        {
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2 } };
+            row.Add(new Label(label) { style = { width = 70 } });
+
+            var choices = new List<string> { NoneChoice };
+            foreach (var name in System.Enum.GetNames(typeof(UiPreset)))
+            {
+                if (name == nameof(UiPreset.None))
+                {
+                    continue;
+                }
+
+                choices.Add(name);
+            }
+
+            foreach (var (choiceLabel, _) in _catalogChoices)
+            {
+                choices.Add(choiceLabel);
+            }
+
+            var currentId = getId();
+            var currentPreset = getPreset();
+            var currentLabel = NoneChoice;
+            if (currentId.IsValid)
+            {
+                var match = _catalogChoices.Find(c => c.tween != null && c.tween.Id == currentId.Value);
+                currentLabel = match.tween != null ? match.label : $"(Id 0x{currentId.Value:X})";
+                if (!choices.Contains(currentLabel))
+                {
+                    choices.Add(currentLabel);
+                }
+            }
+            else if (currentPreset.Preset != UiPreset.None)
+            {
+                currentLabel = currentPreset.Preset.ToString();
+            }
+
+            var startIndex = choices.IndexOf(currentLabel);
+            var popup = new PopupField<string>(choices, startIndex >= 0 ? startIndex : 0) { style = { flexGrow = 1f } };
+            popup.RegisterValueChangedCallback(evt =>
+            {
+                if (_target == null)
+                {
+                    return;
+                }
+
+                Undo.RecordObject(_target, "ElementFx: 割当変更");
+                var value = evt.newValue;
+                if (value == NoneChoice)
+                {
+                    setPreset(default);
+                    setId(default);
+                }
+                else
+                {
+                    var match = _catalogChoices.Find(c => c.label == value);
+                    if (match.tween != null)
+                    {
+                        setId(new AssetId<UiTweenMarker>(match.tween.Id, AssetType.UiTween));
+                        setPreset(default);
+                    }
+                    else if (System.Enum.TryParse<UiPreset>(value, out var preset))
+                    {
+                        setPreset(new UiPresetRef { Preset = preset });
+                        setId(default);
+                    }
+                }
+
+                EditorUtility.SetDirty(_target);
+                RebuildElementFxAssignments();
+            });
+            row.Add(popup);
+
+            var objectField = new ObjectField { objectType = typeof(UiTweenData), style = { width = 160 } };
+            objectField.SetValueWithoutNotify(currentId.IsValid ? FindUiTweenData(currentId.Value) : null);
+            objectField.RegisterValueChangedCallback(evt =>
+            {
+                if (_target == null)
+                {
+                    return;
+                }
+
+                Undo.RecordObject(_target, "ElementFx: Tween 直接指定");
+                if (evt.newValue is UiTweenData tween && tween.Id != 0)
+                {
+                    setId(new AssetId<UiTweenMarker>(tween.Id, AssetType.UiTween));
+                    setPreset(default);
+                }
+                else
+                {
+                    setId(default);
+                }
+
+                EditorUtility.SetDirty(_target);
+                RebuildElementFxAssignments();
+            });
+            row.Add(objectField);
+
+            return row;
+        }
+
+        private static UiTweenData FindUiTweenData(ulong id)
+        {
+            if (id == 0)
+            {
+                return null;
+            }
+
+            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(UiTweenData)))
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<UiTweenData>(AssetDatabase.GUIDToAssetPath(guid));
+                if (asset != null && asset.Id == id)
+                {
+                    return asset;
+                }
+            }
+
+            return null;
+        }
+
+        // 4-10:「この要素の設定を他の要素へコピー」。実体は CanvasElementFxCollector.CopyPhases(配列操作のみ切り出し済み)。
+        private void CopyRowToOthers(int index)
+        {
+            if (_target == null || _target.ElementEffects == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(_target, "ElementFx: 設定を他の要素へコピー");
+            var rows = _target.ElementEffects;
+            CanvasElementFxCollector.CopyPhases(ref rows, index);
+            _target.ElementEffects = rows;
+            EditorUtility.SetDirty(_target);
+            RebuildElementFxAssignments();
+            _statusLabel.text = "設定を他の要素へコピーしました";
         }
 
         // 4-9: Prefab 内の全 UiButton へ、選択中のプリセットを AppearPreset として一括設定する(行が無ければ追加する)。

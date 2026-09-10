@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Preview;
+using DDrive.Foundation.Easing;
 using DDrive.Foundation.Validation;
 using DDrive.Runtime.Ui;
 using UnityEditor;
@@ -11,22 +13,33 @@ using Button = UnityEngine.UIElements.Button;
 
 namespace DDrive.Editor.Ui
 {
-    // [15_ui_interaction.md] B-6 — UiTweenData 専用エディタ(チケット 4-8 の最小実装。カーブ/スプラインの
-    // ハンドル編集や実寸プレビューギャラリーは 4-10 で拡張する)。プロジェクト方針(2026-09-10)により
-    // ウィンドウ内には何も描画しない。SerializedObject をそのまま InspectorElement で表示し、確認は
-    // 「確認用シーンに配置」で開いているシーン/Game ビュー側に実 Manager(UiTweenManager)を駆動して出す(ADR-4)。
+    // [15_ui_interaction.md] B-6 — UiTweenData 専用エディタ(4-8 の最小実装 → 4-10 でカーブ一覧 +
+    // スプライン制御点のハンドル編集を追加)。プロジェクト方針(2026-09-10)により
+    // ウィンドウ内には「動く」ものは描画しない。カーブのグラフ表示・SceneView ハンドルは
+    // 「静的な編集 UI」であり禁止対象ではない(動く Tween プレビュー自体は
+    // 「確認用シーンに配置」が DontSave の Canvas+Image を出し、「▶ 再生」が実 UiTweenManager を
+    // EditorApplication.update から駆動して見せる。ADR-4)。
     [DDrive.Editor.Inspector.DataEditor(typeof(UiTweenData), "UI Tween Editor で開く")]
     public sealed class UiTweenEditorWindow : EditorWindow
     {
         private const string PreviewRootName = "[D-Drive] Ui Preview";
+        private const int SplinePreviewSamples = 32;
 
         [SerializeField] private UiTweenData _target;
-        [SerializeField] private UiPreset _preset;
+        [SerializeField] private string _presetSelection;
+        [SerializeField] private int _selectedTrackIndex;
 
         private ObjectField _targetField;
         private VisualElement _inspectorContainer;
         private VisualElement _validationContainer;
+        private VisualElement _tracksListContainer;
+        private VisualElement _selectedTrackContainer;
+        private VisualElement _splineToolsContainer;
         private Label _statusLabel;
+        private Label _sceneOwnerLabel;
+        private DropdownField _presetDropdown;
+
+        private readonly List<(string label, UiTweenData tween)> _catalogChoices = new();
 
         private UiTweenManager _previewManager;
         private RectTransform _previewTarget;
@@ -46,6 +59,25 @@ namespace DDrive.Editor.Ui
             }
         }
 
+        private void OnEnable()
+        {
+            SceneView.duringSceneGui += OnSceneGui;
+        }
+
+        private void OnFocus()
+        {
+            SceneGuiOwner.Claim(this);
+            RefreshSceneOwnerLabel();
+        }
+
+        private void OnLostFocus() => RefreshSceneOwnerLabel();
+
+        private void OnDisable()
+        {
+            SceneView.duringSceneGui -= OnSceneGui;
+            SceneGuiOwner.Release(this);
+        }
+
         private void CreateGUI()
         {
             var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
@@ -59,12 +91,11 @@ namespace DDrive.Editor.Ui
             scrollView.Add(_targetField);
 
             var presetRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6, alignItems = Align.Center } };
-            var presetField = new EnumField("プリセット", _preset);
-            presetField.style.flexGrow = 1f;
-            presetField.RegisterValueChangedCallback(evt => _preset = (UiPreset)evt.newValue);
-            presetRow.Add(presetField);
-            presetRow.Add(new Button(GenerateFromPreset) { text = "プリセットから Tracks を生成" });
+            _presetDropdown = new DropdownField("プリセット / カタログ", new List<string> { string.Empty }, 0) { style = { flexGrow = 1f } };
+            presetRow.Add(_presetDropdown);
+            presetRow.Add(new Button(GenerateFromSelection) { text = "プリセットから Tracks を生成" });
             scrollView.Add(presetRow);
+            RebuildPresetChoices();
 
             var sceneRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
             sceneRow.Add(new Button(PlaceInScene) { text = "確認用シーンに配置" });
@@ -76,7 +107,22 @@ namespace DDrive.Editor.Ui
             _statusLabel = new Label();
             scrollView.Add(_statusLabel);
 
-            _inspectorContainer = new VisualElement();
+            scrollView.Add(new Label("カーブ一覧") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            _tracksListContainer = new VisualElement();
+            scrollView.Add(_tracksListContainer);
+
+            _selectedTrackContainer = new VisualElement { style = { marginTop = 4 } };
+            scrollView.Add(_selectedTrackContainer);
+
+            _splineToolsContainer = new VisualElement();
+            scrollView.Add(_splineToolsContainer);
+
+            _sceneOwnerLabel = new Label { style = { opacity = 0.65f, marginTop = 2 } };
+            scrollView.Add(_sceneOwnerLabel);
+            RefreshSceneOwnerLabel();
+
+            _inspectorContainer = new VisualElement { style = { marginTop = 8 } };
+            scrollView.Add(new Label("Inspector(全フィールド)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
             scrollView.Add(_inspectorContainer);
 
             _validationContainer = new VisualElement { style = { marginTop = 8 } };
@@ -89,8 +135,7 @@ namespace DDrive.Editor.Ui
             else
             {
                 _targetField.SetValueWithoutNotify(_target);
-                RebuildInspector();
-                RebuildValidation();
+                RebuildAll();
             }
 
             EditorApplication.update += OnEditorUpdate;
@@ -105,9 +150,16 @@ namespace DDrive.Editor.Ui
         private void SetTarget(UiTweenData target)
         {
             _target = target;
+            _selectedTrackIndex = 0;
             _targetField?.SetValueWithoutNotify(_target);
+            RebuildAll();
+        }
+
+        private void RebuildAll()
+        {
             RebuildInspector();
             RebuildValidation();
+            RebuildTrackList();
         }
 
         private void RebuildInspector()
@@ -157,17 +209,362 @@ namespace DDrive.Editor.Ui
             }
         }
 
-        // Data 自体は編集しない。プリセットの展開結果を Tracks へ書き込むだけ(Undo 対応)。
-        private void GenerateFromPreset()
+        // ── カーブ一覧(4-10) ──
+
+        private void RebuildTrackList()
         {
-            if (_target == null)
+            if (_tracksListContainer == null)
+            {
+                return;
+            }
+
+            _tracksListContainer.Clear();
+            if (_target == null || _target.Tracks == null || _target.Tracks.Length == 0)
+            {
+                _tracksListContainer.Add(new Label("Tracks がありません(上のプリセット生成、または Inspector で追加してください)") { style = { opacity = 0.7f } });
+                _selectedTrackIndex = 0;
+                RebuildSelectedTrack();
+                return;
+            }
+
+            if (_selectedTrackIndex >= _target.Tracks.Length)
+            {
+                _selectedTrackIndex = _target.Tracks.Length - 1;
+            }
+
+            if (_selectedTrackIndex < 0)
+            {
+                _selectedTrackIndex = 0;
+            }
+
+            for (var i = 0; i < _target.Tracks.Length; i++)
+            {
+                var index = i;
+                var track = _target.Tracks[i];
+                var selected = index == _selectedTrackIndex;
+                var row = new VisualElement
+                {
+                    style =
+                    {
+                        flexDirection = FlexDirection.Row,
+                        alignItems = Align.Center,
+                        marginBottom = 2,
+                        backgroundColor = selected ? new Color(0.25f, 0.42f, 0.58f, 0.35f) : new Color(0f, 0f, 0f, 0f),
+                    },
+                };
+
+                var button = new Button(() => SelectTrack(index))
+                {
+                    text = $"[{index}] {TweenTrackSummary.Describe(in track)}",
+                    style = { flexGrow = 1f, unityTextAlign = TextAnchor.MiddleLeft },
+                };
+                row.Add(button);
+
+                var curve = new IMGUIContainer(() => DrawCurvePreview(GUILayoutUtility.GetRect(64, 32), track))
+                {
+                    style = { width = 70, height = 36 },
+                };
+                row.Add(curve);
+
+                _tracksListContainer.Add(row);
+            }
+
+            RebuildSelectedTrack();
+        }
+
+        // 64 サンプルでイージング曲線の形だけを描く(From/To は使わず 0..1 の形のみ。TweenTrack.Motion の仕様通り)。
+        private static void DrawCurvePreview(Rect rect, in TweenTrack track)
+        {
+            EditorGUI.DrawRect(rect, new Color(0.12f, 0.12f, 0.12f));
+
+            const int samples = 64;
+            var motion = track.Motion;
+            var raw = new float[samples];
+            var min = float.MaxValue;
+            var max = float.MinValue;
+            for (var i = 0; i < samples; i++)
+            {
+                var t = i / (float)(samples - 1);
+                var v = motion.Evaluate(t);
+                raw[i] = v;
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+
+            if (max - min < 0.0001f)
+            {
+                min -= 0.5f;
+                max += 0.5f;
+            }
+
+            var points = new Vector3[samples];
+            for (var i = 0; i < samples; i++)
+            {
+                var t = i / (float)(samples - 1);
+                var norm = Mathf.InverseLerp(min, max, raw[i]);
+                points[i] = new Vector3(rect.x + t * rect.width, rect.yMax - norm * rect.height, 0f);
+            }
+
+            Handles.BeginGUI();
+            var prevColor = Handles.color;
+            Handles.color = new Color(0.4f, 0.85f, 1f);
+            Handles.DrawAAPolyLine(2f, points);
+            Handles.color = prevColor;
+            Handles.EndGUI();
+        }
+
+        private void SelectTrack(int index)
+        {
+            _selectedTrackIndex = index;
+            RebuildTrackList();
+            SceneView.RepaintAll();
+        }
+
+        private void RebuildSelectedTrack()
+        {
+            if (_selectedTrackContainer == null)
+            {
+                return;
+            }
+
+            _selectedTrackContainer.Clear();
+            if (_target == null || _target.Tracks == null || _target.Tracks.Length == 0 ||
+                _selectedTrackIndex < 0 || _selectedTrackIndex >= _target.Tracks.Length)
+            {
+                _splineToolsContainer?.Clear();
+                return;
+            }
+
+            var so = new SerializedObject(_target);
+            var tracksProp = so.FindProperty(nameof(UiTweenData.Tracks));
+            var elementProp = tracksProp.GetArrayElementAtIndex(_selectedTrackIndex);
+            var field = new PropertyField(elementProp, $"選択中 Track [{_selectedTrackIndex}]");
+            field.Bind(so);
+            _selectedTrackContainer.Add(field);
+
+            RebuildSplineTools();
+        }
+
+        // ── スプライン制御点(4-10。SceneView ハンドルは OnSceneGui、ここは追加/削除ボタンのみ) ──
+
+        private void RebuildSplineTools()
+        {
+            if (_splineToolsContainer == null)
+            {
+                return;
+            }
+
+            _splineToolsContainer.Clear();
+            if (!TryGetSelectedTrack(out var track) || track.Property != TweenProperty.PathMove)
+            {
+                return;
+            }
+
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
+            row.Add(new Button(AddSplinePoint) { text = "＋点を追加" });
+            row.Add(new Button(RemoveLastSplinePoint) { text = "−最後の点を削除" });
+            _splineToolsContainer.Add(row);
+            _splineToolsContainer.Add(new HelpBox(
+                "このウィンドウがフォーカスされている間、SceneView 上のハンドルで制御点をドラッグ編集できます(「確認用シーンに配置」した対象のローカル座標系)。",
+                HelpBoxMessageType.Info));
+        }
+
+        private bool TryGetSelectedTrack(out TweenTrack track)
+        {
+            if (_target == null || _target.Tracks == null || _selectedTrackIndex < 0 || _selectedTrackIndex >= _target.Tracks.Length)
+            {
+                track = default;
+                return false;
+            }
+
+            track = _target.Tracks[_selectedTrackIndex];
+            return true;
+        }
+
+        private void AddSplinePoint()
+        {
+            if (!TryGetSelectedTrack(out var track))
+            {
+                return;
+            }
+
+            var points = track.Path.Points ?? System.Array.Empty<Vector3>();
+            var last = points.Length > 0 ? points[points.Length - 1] : Vector3.zero;
+            var newPoints = new Vector3[points.Length + 1];
+            System.Array.Copy(points, newPoints, points.Length);
+            newPoints[points.Length] = last + new Vector3(50f, 0f, 0f);
+
+            Undo.RecordObject(_target, "UiTweenData: スプライン点を追加");
+            track.Path.Points = newPoints;
+            _target.Tracks[_selectedTrackIndex] = track;
+            EditorUtility.SetDirty(_target);
+            RebuildInspector();
+            RebuildTrackList();
+            SceneView.RepaintAll();
+        }
+
+        private void RemoveLastSplinePoint()
+        {
+            if (!TryGetSelectedTrack(out var track) || track.Path.Points == null || track.Path.Points.Length == 0)
+            {
+                return;
+            }
+
+            var points = track.Path.Points;
+            var newPoints = new Vector3[points.Length - 1];
+            System.Array.Copy(points, newPoints, newPoints.Length);
+
+            Undo.RecordObject(_target, "UiTweenData: スプライン点を削除");
+            track.Path.Points = newPoints;
+            _target.Tracks[_selectedTrackIndex] = track;
+            EditorUtility.SetDirty(_target);
+            RebuildInspector();
+            RebuildTrackList();
+            SceneView.RepaintAll();
+        }
+
+        // SceneView 上の制御点ハンドル。対象は「確認用シーンに配置」した _previewTarget のローカル座標系
+        // (world = _previewTarget.TransformPoint(local))。複数の D-Drive エディタが同時に開ける前提のため、
+        // SceneGuiOwner が最後にフォーカスしたウィンドウだけに描画権を渡す([04]§5 と同じ調停)。
+        private void OnSceneGui(SceneView sceneView)
+        {
+            if (_target == null || _previewTarget == null || !SceneGuiOwner.IsOwner(this))
+            {
+                return;
+            }
+
+            if (!TryGetSelectedTrack(out var track) || track.Property != TweenProperty.PathMove)
+            {
+                return;
+            }
+
+            var points = track.Path.Points;
+            if (points == null || points.Length == 0)
+            {
+                return;
+            }
+
+            var xform = _previewTarget;
+            var changed = false;
+            for (var i = 0; i < points.Length; i++)
+            {
+                var world = SplineHandleMath.LocalToWorld(xform, points[i]);
+                EditorGUI.BeginChangeCheck();
+                var moved = Handles.PositionHandle(world, xform.rotation);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    if (!changed)
+                    {
+                        Undo.RecordObject(_target, "UiTweenData: スプライン点を移動");
+                        changed = true;
+                    }
+
+                    points[i] = SplineHandleMath.WorldToLocal(xform, moved);
+                }
+
+                Handles.Label(world, $"P{i}");
+            }
+
+            if (points.Length >= 2)
+            {
+                var spline = new SplinePath(points, track.Path.Type);
+                var poly = new Vector3[SplinePreviewSamples + 1];
+                for (var i = 0; i <= SplinePreviewSamples; i++)
+                {
+                    poly[i] = SplineHandleMath.LocalToWorld(xform, spline.Evaluate(i / (float)SplinePreviewSamples));
+                }
+
+                var prevColor = Handles.color;
+                Handles.color = new Color(0.3f, 0.8f, 1f);
+                Handles.DrawAAPolyLine(3f, poly);
+                Handles.color = prevColor;
+            }
+
+            if (changed)
+            {
+                EditorUtility.SetDirty(_target);
+                RebuildInspector();
+            }
+        }
+
+        private void RefreshSceneOwnerLabel()
+        {
+            if (_sceneOwnerLabel != null)
+            {
+                _sceneOwnerLabel.text = SceneGuiOwner.DescribeFor(this);
+            }
+        }
+
+        // ── プリセット / カタログからの Tracks 生成 ──
+
+        private void RebuildPresetChoices()
+        {
+            if (_presetDropdown == null)
+            {
+                return;
+            }
+
+            var choices = new List<string>(System.Enum.GetNames(typeof(UiPreset)));
+            _catalogChoices.Clear();
+            foreach (var (name, tween) in UiPresetCatalogUtility.Collect())
+            {
+                var label = $"[Catalog] {name}";
+                choices.Add(label);
+                _catalogChoices.Add((label, tween));
+            }
+
+            _presetDropdown.choices = choices;
+            var current = string.IsNullOrEmpty(_presetSelection) ? nameof(UiPreset.None) : _presetSelection;
+            if (!choices.Contains(current))
+            {
+                current = choices.Count > 0 ? choices[0] : string.Empty;
+            }
+
+            _presetSelection = current;
+            _presetDropdown.SetValueWithoutNotify(current);
+        }
+
+        // Data 自体は編集しない。プリセット/カタログの展開結果を Tracks へ書き込むだけ(Undo 対応)。
+        private void GenerateFromSelection()
+        {
+            if (_target == null || _presetDropdown == null)
+            {
+                return;
+            }
+
+            _presetSelection = _presetDropdown.value;
+
+            foreach (var (label, tween) in _catalogChoices)
+            {
+                if (label != _presetSelection)
+                {
+                    continue;
+                }
+
+                if (tween == null || tween.Tracks == null)
+                {
+                    _statusLabel.text = "カタログの Tween に Tracks がありません";
+                    return;
+                }
+
+                Undo.RecordObject(_target, "UiTweenData: カタログから Tracks をコピー");
+                var copy = new TweenTrack[tween.Tracks.Length];
+                System.Array.Copy(tween.Tracks, copy, copy.Length);
+                _target.Tracks = copy;
+                EditorUtility.SetDirty(_target);
+                _statusLabel.text = $"カタログ '{label}' から Tracks を生成しました";
+                RebuildAll();
+                return;
+            }
+
+            if (!System.Enum.TryParse<UiPreset>(_presetSelection, out var preset))
             {
                 return;
             }
 
             var target = _previewTarget != null ? _previewTarget : CreateScratchRect();
             var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
-            var refValue = new UiPresetRef { Preset = _preset };
+            var refValue = new UiPresetRef { Preset = preset };
             var count = UiPresetFactory.Build(in refValue, target, buffer);
 
             Undo.RecordObject(_target, "UiTweenData: プリセットから Tracks を生成");
@@ -181,8 +578,8 @@ namespace DDrive.Editor.Ui
                 Object.DestroyImmediate(target.gameObject);
             }
 
-            RebuildInspector();
-            RebuildValidation();
+            _statusLabel.text = $"プリセット '{preset}' から Tracks を生成しました";
+            RebuildAll();
         }
 
         private static RectTransform CreateScratchRect()
@@ -192,6 +589,8 @@ namespace DDrive.Editor.Ui
             rt.sizeDelta = new Vector2(200f, 80f);
             return rt;
         }
+
+        // ── 確認用シーンプレビュー(4-8。ADR-4: 実 UiTweenManager を EditorApplication.update から駆動) ──
 
         private void PlaceInScene()
         {
