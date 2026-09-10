@@ -243,6 +243,13 @@ public static class Anim2D
 - 方向付きは BlendTree パラメータ `x,y` を設定（既存 BlendTreeRegistrar の規約 `ParamXName="x"/"y"` を踏襲）
 - Frame イベントは 3D と同じ AnimatorProxy 系で発火（実装共有）
 
+### 実装メモ（2026-09-10、チケット 3-12: ランタイム側を先行実装）
+
+> - `Runtime/Anim2D/Anim2DData.cs`: **`Anim2DData : AnimData`**（`AssetType.Anim2D` / `Anim2DMarker` / `ANIM2DID`）。時間追跡・Frame/Time/OnLoop イベント・CrossFade・EditMode サンプリングは AnimManager をそのまま使う（実装共有。Registry は `ResolveOrPlaceholder<AnimData>` で派生型も返す）。追加フィールド: `Directions`(None / Four / Eight) / `DirectionClips`（角度順） / `ParamXName`・`ParamYName`（既定 "x" / "y"） / `Retiming`(ValueDef。Clip 生成時に焼き込む。ランタイム未参照)
+> - `Anim2D` ファサード（`Bind(AnimManager, IAssetRegistry)`、`Play(id, animator)` / `Play(id, animator, dir)` / `SetDirection(animator, dir, x, y)` / `SetSpeed` / `Stop` / `IsPlaying`）: 方向は正規化して BlendTree の float パラメータへ、0 ベクトルは無視、パラメータが無ければ何もしない。**Handle は 3D と同じ `Handle<AnimMarker>`**（設計の `Anim2DHandle` は AnimManager 共有のため同型にした）。`DDriveRuntimeBootstrap` が Bind
+> - `Anim2DDataValidator`（C-6 の静的検査: Clip 未生成 / FrameRate / DirectionClips 不足・欠損 / パラメータ名空 / 未使用の DirectionClips）。BlendTree の x,y 有無（FixAction=追加）とスライス済みスプライトの参照切れは Editor 側（3-13）
+> - テスト: `Anim2DTests`。3-11（既存ツール移植 + Anim2DData 自動生成）と 3-13（エディタ）は未着手
+
 ## C-5. エディタ（Anim2DEditor = 既存 ToolWindow の移植 + 拡張）
 
 既存の Create / Edit / Preview の 3 モード構成を維持し、以下を追加:

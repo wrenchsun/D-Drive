@@ -158,6 +158,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Audio.Audio.Bind(Bgm);
                 Runtime.Vfx.Vfx.Bind(Vfx);
                 Runtime.Anim.Anim.Bind(Anim);
+                Runtime.Anim2D.Anim2D.Bind(Anim, Registry);
                 Mats.Bind(Materials);
                 Runtime.Model.Models.Bind(Models);
                 Anchors.Bind(Groups);
@@ -202,6 +203,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Audio.Audio.Bind((BgmManager)null);
                 Runtime.Vfx.Vfx.Bind(null);
                 Runtime.Anim.Anim.Bind(null);
+                Runtime.Anim2D.Anim2D.Bind(null, null);
                 Mats.Bind(null);
                 Runtime.Model.Models.Bind(null);
                 Anchors.Bind(null);

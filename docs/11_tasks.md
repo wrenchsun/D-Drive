@@ -93,7 +93,7 @@
 | 3-9 | MaterialEditor / TextureEditor プレビュー | ED | 2 | 1-6, 3-5 | ✅ 2026-09-10 実装（[06] A 実装メモ）。`MaterialPreviewBuilder`（球/板(Quad)/Cube/任意 ModelData の生成 + 適用ロジックを UI から分離）+ `MaterialEditorWindow` に形状切替 / ターンテーブル / ライト回転 / 変換前後の並列比較（比較対象 + 「並べて比較」）を追加。`MaterialConvertWindow` に「Material Editor で比較」を追加(`MaterialEditorWindow.OpenCompare`)。`MaterialEditorPreviewTests` 8 件 |
 | 3-10 | Anim/Material/Texture Validator | 基盤 | 1 | 0-11 | ✅ 2026-09-10。Anim（`AnimDataValidator`）/ Material（`MaterialDataValidator`）/ Texture（`TextureDataValidator`）が設計書の静的検査を全てカバー。Controller / モデル依存の検査は各エディタ側 |
 | 3-11 | 2D スプライトアニメ統合（既存ツール移植 + Anim2DData 自動生成 + ID 発行） | 基盤+ED | 4 | 0-13, 3-1 | 分割→Clip→BlendTree→ID 登録がワンストップ |
-| 3-12 | Anim2D Manager + 方向 BlendTree 再生 + Frame イベント | 基盤 | 2 | 3-11 | 8 方向再生 + Frame→SE 発火 |
+| 3-12 | Anim2D Manager + 方向 BlendTree 再生 + Frame イベント | 基盤 | 2 | 3-11 | ✅ 2026-09-10 実装（[05] C 実装メモ）。`Anim2DData : AnimData`（AnimManager 共有で Frame イベントも同経路）+ `Anim2D` ファサード（方向 → BlendTree x,y）+ `Anim2DDataValidator` + Bootstrap Bind。`Anim2DTests` 4 件。3-11 より先に着手（Data の形を確定するため） |
 | 3-13 | Anim2DEditor（共通プレビュー移植 + イベント D&D + Validator） | ED | 3 | 3-11, 1-6 | 設計書 05 §C-5/C-6 |
 
 ## Phase 4: Canvas + Prefab (M4)  約 7.5 週
