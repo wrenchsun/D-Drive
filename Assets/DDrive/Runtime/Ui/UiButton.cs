@@ -124,6 +124,14 @@ namespace DDrive.Runtime.Ui
         {
             TickCooldown(unscaledDt);
 
+            // 押下中に Disabled / Locked になったら hold を打ち切る(Repeat / LongPress / 保留中の Click を出さない。Codex a9600d3 P1)。
+            if (_isHeld && (State == ControlState.Disabled || State == ControlState.Locked))
+            {
+                _isHeld = false;
+                _longPressFired = false;
+                _pendingClickActive = false;
+            }
+
             if (_isHeld)
             {
                 _heldSec += unscaledDt;
