@@ -766,6 +766,189 @@ namespace DDrive.Runtime.Ui
             return null;
         }
 
+        // 4-3: CanvasEditorWindow のパッド操作シミュレーション向け。EventSystem に頼らずデータだけから
+        // 次のフォーカス先を解決する(1: NavNode の明示リンク、2: Selectable/UiInteractable の中から
+        // 指定方向にある最も近いものを Unity の自動ナビゲーションに近い基準で選ぶ)。
+        // EventSystem.current があれば実際に選択も反映する(無ければ呼び出し元が nextPath を保持する)。
+        public bool MoveFocusFrom(Handle<CanvasMarker> handle, string currentPath, Vector2 dir, out string nextPath)
+        {
+            nextPath = currentPath;
+            if (!_instances.TryGet(handle, out var instance) || instance.Root == null)
+            {
+                return false;
+            }
+
+            var root = instance.Root.transform;
+            var data = instance.Data;
+
+            if (data.Navigation != null)
+            {
+                for (var i = 0; i < data.Navigation.Length; i++)
+                {
+                    var node = data.Navigation[i];
+                    if (!string.Equals(node.Element ?? string.Empty, currentPath ?? string.Empty, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    var explicitPath = ResolveDirectionPath(node, dir);
+                    if (!string.IsNullOrEmpty(explicitPath))
+                    {
+                        nextPath = explicitPath;
+                        ApplyFocusPath(root, nextPath);
+                        return true;
+                    }
+
+                    break;
+                }
+            }
+
+            var currentT = FindTransform(root, currentPath);
+            var currentRect = currentT as RectTransform;
+            if (currentRect == null)
+            {
+                return false;
+            }
+
+            var currentCenter = RectCenter(currentRect);
+            Transform best = null;
+            var bestScore = float.MaxValue;
+
+            foreach (var candidate in CollectFocusableTransforms(root))
+            {
+                if (candidate == currentT || candidate is not RectTransform rt)
+                {
+                    continue;
+                }
+
+                var delta = RectCenter(rt) - currentCenter;
+                if (!IsInDirection(delta, dir))
+                {
+                    continue;
+                }
+
+                var primary = Mathf.Abs(Vector2.Dot(delta, dir));
+                var lateral = Mathf.Abs(Vector2.Dot(delta, new Vector2(-dir.y, dir.x)));
+                var score = primary + lateral * 2f;
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    best = candidate;
+                }
+            }
+
+            if (best == null)
+            {
+                return false;
+            }
+
+            nextPath = GetRelativePath(root, best);
+            ApplyFocusPath(root, nextPath);
+            return true;
+        }
+
+        private static string ResolveDirectionPath(NavNode node, Vector2 dir)
+        {
+            if (dir.y > 0.5f)
+            {
+                return node.Up;
+            }
+
+            if (dir.y < -0.5f)
+            {
+                return node.Down;
+            }
+
+            if (dir.x < -0.5f)
+            {
+                return node.Left;
+            }
+
+            if (dir.x > 0.5f)
+            {
+                return node.Right;
+            }
+
+            return null;
+        }
+
+        private static bool IsInDirection(Vector2 delta, Vector2 dir)
+        {
+            if (delta.sqrMagnitude < 0.0001f)
+            {
+                return false;
+            }
+
+            return Vector2.Dot(delta.normalized, dir.normalized) > 0.2f;
+        }
+
+        private static Vector2 RectCenter(RectTransform rt)
+        {
+            var corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+            return (corners[0] + corners[2]) * 0.5f;
+        }
+
+        private static IEnumerable<Transform> CollectFocusableTransforms(Transform root)
+        {
+            foreach (var s in root.GetComponentsInChildren<Selectable>(true))
+            {
+                if (s.interactable)
+                {
+                    yield return s.transform;
+                }
+            }
+
+            foreach (var ui in root.GetComponentsInChildren<UiInteractable>(true))
+            {
+                if (ui.CanFocus)
+                {
+                    yield return ui.transform;
+                }
+            }
+        }
+
+        // EventSystem があるときだけ実際に選択を反映する(無ければ呼び出し元が nextPath を保持するだけでよい)。
+        private static void ApplyFocusPath(Transform root, string path)
+        {
+            var t = FindTransform(root, path);
+            if (t == null || EventSystem.current == null)
+            {
+                return;
+            }
+
+            var selectable = t.GetComponent<Selectable>();
+            if (selectable != null)
+            {
+                selectable.Select();
+                return;
+            }
+
+            if (t.GetComponent<UiInteractable>() != null)
+            {
+                EventSystem.current.SetSelectedGameObject(t.gameObject);
+            }
+        }
+
+        private static string GetRelativePath(Transform root, Transform target)
+        {
+            if (target == root)
+            {
+                return string.Empty;
+            }
+
+            var names = new List<string>();
+            var cur = target;
+            while (cur != null && cur != root)
+            {
+                names.Add(cur.name);
+                cur = cur.parent;
+            }
+
+            names.Reverse();
+            return string.Join("/", names);
+        }
+
         // ── ボタン配線(ButtonWire, 4-2/4-6) ──
 
         private void WireButtons(Transform root, CanvasData data, CanvasInstance instance, Handle<CanvasMarker> handle)
