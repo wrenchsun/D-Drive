@@ -223,6 +223,11 @@ public struct SliderWire
 | Skin プレビュー | 全状態（Normal〜Locked）を一覧で並べて確認。Skin 差し替えで全スライダーの見た目が変わることを確認 |
 | プリセット | 「音量」「感度」「HP バー」「スタミナ」「キャラメイク」の 5 種を標準同梱。選ぶだけで Response/Step/Skin/SE が入る |
 
+### 実装メモ（2026-09-11、4-17 SliderEditor）
+
+> - `Assets/DDrive/Editor/Ui/SliderEditorWindow.cs`（`Tools/D-Drive/Editors/Slider`、`[DataEditor(typeof(SliderSkinData), "Slider Editor で開く")]`）: 対象はシーン / プレハブステージ上の `UiSlider`（「確認用シーンにサンプルを配置」で DontSave のサンプルを作れる）。応答曲線グラフとノッチ可視化は**静的描画**（IMGUIContainer）、実操作 / 追従比較（2 体目を配置）/ Skin プレビュー（全状態を並べる）は**シーン上の実 UiSlider を駆動**して Game ビューで確認する（ウィンドウ内での再生描画はしない、[09] §2）。`SliderPresets`（音量 / 感度 / HP バー / スタミナ / キャラメイク）を Slider Skin エディタと共用、`SliderEditorMath` に曲線サンプリング・ノッチ位置の純関数。
+> - 自動テスト: `SliderEditorTests`(EditMode 237 / PlayMode 466 green、Unity 再起動後に確認)。人による確認手順は [23_manual_verification_2026-09-11.md](23_manual_verification_2026-09-11.md)
+
 ## B-7. Validation
 
 | 検査 | 重度 |

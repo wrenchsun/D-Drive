@@ -236,6 +236,11 @@ public static class UiFx
 - フェーズ（出現/常時/消滅/強調）でタブ分け、検索・お気に入り付き
 - 「この要素と同じ設定を他の要素にコピー」「Canvas 内一括適用（全ボタンに PopIn 等）」
 
+### 実装メモ（2026-09-11、4-12 プリセットギャラリー）
+
+> - `Assets/DDrive/Editor/Ui/UiPresetGalleryWindow.cs`（`Tools/D-Drive/Editors/UI Tween · Preset Gallery`）: 出現 / 常時 / 消滅 / 強調 / カタログ のタブ、検索、お気に入り（EditorPrefs）、カードは名前 + カテゴリ + **静的なイージング曲線**（実再生サムネイルは「ウィンドウ内描画をしない」方針に合わせて廃止）。カードの操作は「この要素に適用（Appear / Idle / Disappear）」「Canvas 内一括適用」「選択中のシーン要素で再生」「独自プリセットとして登録（UiPresetCatalog）」。補助: `UiPresetGalleryFilter` / `UiPresetGalleryFavorites` / `UiPresetCatalogEditing` / `ElementFxAssignment`（CanvasEditor と共用）
+> - 自動テスト: `UiPresetGalleryTests`(EditMode 237 / PlayMode 466 green、Unity 再起動後に確認)。人による確認手順は [23_manual_verification_2026-09-11.md](23_manual_verification_2026-09-11.md)
+
 ## B-4. 要素への割当（出現・常時・消滅）
 
 CanvasData に要素単位の演出割当を追加する（[07] §A-2 拡張）。**任意の Image / スプライト / UiButton / パネル**が対象。

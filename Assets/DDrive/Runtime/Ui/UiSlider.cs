@@ -618,7 +618,8 @@ namespace DDrive.Runtime.Ui
         // ── 内部: 応答曲線 ──
 
         // Mode=Constant(未設定既定含む)は線形として扱う([18] B-1「応答曲線」)。
-        private float EvaluateResponse(float p)
+        // SliderEditor(4-17)の応答曲線グラフ/フィル計算からサンプリングできるよう public にしてある。
+        public float EvaluateResponse(float p)
         {
             if (Response.Mode == ValueMode.Constant)
             {
@@ -628,8 +629,8 @@ namespace DDrive.Runtime.Ui
             return Mathf.Clamp01(Response.Evaluate(Mathf.Clamp01(p)));
         }
 
-        // 値→つまみ位置の逆変換(単調増加前提の 16 分探索)。
-        private float InverseResponse(float f)
+        // 値→つまみ位置の逆変換(単調増加前提の 16 分探索)。SliderEditor の応答曲線グラフでも使う。
+        public float InverseResponse(float f)
         {
             if (Response.Mode == ValueMode.Constant)
             {
