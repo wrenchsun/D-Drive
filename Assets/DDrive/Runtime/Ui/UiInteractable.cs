@@ -148,6 +148,15 @@ namespace DDrive.Runtime.Ui
 
         protected abstract void OnSkinApplied(in StateVisual v);
 
+        // [18_ui_controls.md] B-6(4-17) — SliderEditor「全状態を並べる」専用。Interactable/Locked の実フラグは
+        // 変えず、見た目(State + Skin適用)だけを指定状態へ強制する。エディタのプレビュー配置(DontSave)
+        // にのみ使う想定で、通常のランタイム状態遷移フロー(SetState 経由の優先度解決)は経由しない。
+        public void ForceStateForPreview(ControlState state)
+        {
+            State = state;
+            ApplySkinForCurrentState();
+        }
+
         // ── 状態機械 ──
 
         private ControlState ComputeBaseState()

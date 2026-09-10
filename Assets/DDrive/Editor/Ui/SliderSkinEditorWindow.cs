@@ -20,16 +20,6 @@ namespace DDrive.Editor.Ui
     {
         private const string PreviewCanvasName = "[D-Drive] Ui Preview";
 
-        private enum Preset
-        {
-            None,
-            音量,
-            感度,
-            HPバー,
-            スタミナ,
-            キャラメイク,
-        }
-
         [SerializeField] private SliderSkinData _target;
 
         private ObjectField _targetField;
@@ -59,7 +49,8 @@ namespace DDrive.Editor.Ui
             scrollView.style.paddingRight = 6;
             scrollView.style.paddingTop = 6;
 
-            scrollView.Add(new Label("本格的なグラフ/ノッチ可視化/追従比較は SliderEditor(4-17)で提供予定です。ここは最低限の見た目・プリセット確認のみ。") { style = { whiteSpace = WhiteSpace.Normal, marginBottom = 4 } });
+            scrollView.Add(new Label("本格的なグラフ/ノッチ可視化/追従比較/全状態プレビューは SliderEditor(Tools > D-Drive > Editors > Slider)を使ってください。ここは最低限の見た目・プリセット確認のみ。") { style = { whiteSpace = WhiteSpace.Normal, marginBottom = 4 } });
+            scrollView.Add(new UnityEngine.UIElements.Button(() => SliderEditorWindow.Open(_target)) { text = "SliderEditor で開く" });
 
             _targetField = new ObjectField("対象 Skin") { objectType = typeof(SliderSkinData) };
             _targetField.RegisterValueChangedCallback(evt => SetTarget(evt.newValue as SliderSkinData));
@@ -70,8 +61,8 @@ namespace DDrive.Editor.Ui
             row.Add(new UnityEngine.UIElements.Button(RemoveFromScene) { text = "撤去" });
             scrollView.Add(row);
 
-            _presetField = new EnumField("プリセット", Preset.None);
-            _presetField.RegisterValueChangedCallback(evt => ApplyPreset((Preset)evt.newValue));
+            _presetField = new EnumField("プリセット", SliderPresets.SliderPreset.None);
+            _presetField.RegisterValueChangedCallback(evt => ApplyPreset((SliderPresets.SliderPreset)evt.newValue));
             scrollView.Add(_presetField);
 
             _inspectorContainer = new VisualElement();
@@ -168,55 +159,10 @@ namespace DDrive.Editor.Ui
             _previewSlider = null;
         }
 
-        // プリセットは Response/Step/Notches/FollowMotion を配るだけの最小実装(本格編集は 4-17 SliderEditor)。
-        private void ApplyPreset(Preset preset)
+        // 実体は共有の SliderPresets(4-17 で SliderEditor と共通化)。
+        private void ApplyPreset(SliderPresets.SliderPreset preset)
         {
-            if (_previewSlider == null || preset == Preset.None)
-            {
-                return;
-            }
-
-            switch (preset)
-            {
-                case Preset.音量:
-                    _previewSlider.SetRange(0f, 1f);
-                    _previewSlider.Step = 0f;
-                    _previewSlider.Notches = 0;
-                    _previewSlider.Response = new ValueDef { Mode = ValueMode.Parametric, Parametric = EaseDef.Named(Ease.InQuad), From = 0f, To = 1f };
-                    _previewSlider.FollowMotion = ValueDef.Constant01(0f);
-                    break;
-
-                case Preset.感度:
-                    _previewSlider.SetRange(0.1f, 5f);
-                    _previewSlider.Step = 0f;
-                    _previewSlider.Notches = 0;
-                    _previewSlider.Response = new ValueDef { Mode = ValueMode.Parametric, Parametric = EaseDef.Named(Ease.OutQuad), From = 0f, To = 1f };
-                    break;
-
-                case Preset.HPバー:
-                    _previewSlider.SetRange(0f, 100f);
-                    _previewSlider.Step = 1f;
-                    _previewSlider.Notches = 0;
-                    _previewSlider.Response = default;
-                    _previewSlider.FollowMotion = new ValueDef { Mode = ValueMode.Parametric, Parametric = EaseDef.Named(Ease.OutCubic), Time = TimeDef.Duration(0.25f), Loop = LoopMode.Once };
-                    break;
-
-                case Preset.スタミナ:
-                    _previewSlider.SetRange(0f, 100f);
-                    _previewSlider.Step = 1f;
-                    _previewSlider.Notches = 4;
-                    _previewSlider.SnapThreshold = 0.03f;
-                    _previewSlider.Response = default;
-                    break;
-
-                case Preset.キャラメイク:
-                    _previewSlider.SetRange(0f, 10f);
-                    _previewSlider.Step = 1f;
-                    _previewSlider.WholeNumbers = true;
-                    _previewSlider.Notches = 10;
-                    _previewSlider.Response = default;
-                    break;
-            }
+            SliderPresets.Apply(_previewSlider, preset);
         }
     }
 }
