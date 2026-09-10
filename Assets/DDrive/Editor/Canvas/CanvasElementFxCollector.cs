@@ -55,6 +55,34 @@ namespace DDrive.Editor.CanvasTool
             return ToArray(map, order);
         }
 
+        // 4-10: rows[from] の Appear/Idle/Disappear(Preset/Id とも)を、他の全行へコピーする
+        // (CanvasEditorWindow「この要素の設定を他の要素へコピー」の実体。テストしやすいよう配列操作のみ切り出す)。
+        public static void CopyPhases(ref ElementFx[] rows, int from)
+        {
+            if (rows == null || from < 0 || from >= rows.Length)
+            {
+                return;
+            }
+
+            var source = rows[from];
+            for (var i = 0; i < rows.Length; i++)
+            {
+                if (i == from)
+                {
+                    continue;
+                }
+
+                var row = rows[i];
+                row.AppearPreset = source.AppearPreset;
+                row.IdlePreset = source.IdlePreset;
+                row.DisappearPreset = source.DisappearPreset;
+                row.Appear = source.Appear;
+                row.Idle = source.Idle;
+                row.Disappear = source.Disappear;
+                rows[i] = row;
+            }
+        }
+
         private static void AddExisting(ElementFx[] existing, Dictionary<string, ElementFx> map, List<string> order)
         {
             if (existing == null)
