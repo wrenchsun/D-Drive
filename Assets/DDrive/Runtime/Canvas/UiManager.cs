@@ -63,6 +63,29 @@ namespace DDrive.Runtime.Ui
             public Vector3 BaseScale;
             // 4-2/4-6: ButtonWire で購読した UiButton イベントの解除アクション(Close で全て呼ぶ)。
             public List<Action> WireUnsubscribers;
+
+            // 4-9: ElementFx(Appear/Idle/Disappear)のランタイム状態。ElementEffects が空なら null のまま。
+            public List<ElementFxRuntime> ElementFx;
+            public float ElementFxElapsed; // Open からの経過秒(AppearDelay の基準)
+            public int PendingAppearCount; // まだ完了していない Appear の数(>0 の間は入力を受け付けない)
+            public int PendingDisappearCount; // まだ完了していない Disappear の数(>0 の間は Close を確定しない)
+            public bool CloseTransitionCompleted; // CloseTransition(演出)側が完了したか(TryFinalizeClose が両条件を見る)
+        }
+
+        // 1 ElementFx 行ぶんのランタイム状態(4-9)。
+        private sealed class ElementFxRuntime
+        {
+            public RectTransform Target;
+            public ElementFx Def;
+            public bool HasAppear; // Appear/AppearPreset/レイヤー既定のいずれかが有効か(入力ゲートの初期カウント判定用)
+            public bool AppearStarted;
+            public bool AppearCompleted;
+            public bool IdleStarted;
+            public bool DisappearStarted;
+            public bool DisappearDone;
+            public Handle<UiTweenMarker> AppearHandle = Handle<UiTweenMarker>.Invalid;
+            public Handle<UiTweenMarker> IdleHandle = Handle<UiTweenMarker>.Invalid;
+            public Handle<UiTweenMarker> DisappearHandle = Handle<UiTweenMarker>.Invalid;
         }
 
         // Tick で毎フレーム進める演出。Kind=None または Duration<=0 は即完了として生成しない。
@@ -115,10 +138,13 @@ namespace DDrive.Runtime.Ui
         private readonly List<TransitionState> _transitions = new();
         private readonly Dictionary<string, List<Action<SignalArgs>>> _signalSubs = new();
         private readonly HashSet<CanvasData> _placeholderWarned = new();
+        private readonly HashSet<(CanvasData data, string path)> _elementPathWarned = new();
 
         private GameObject _root;
         private readonly LayerRoot[] _layerRoots = new LayerRoot[5];
         private bool _eventSystemWarned;
+        private UiTweenManager _tweens;
+        private UiLayerSettings _layerSettings;
 
         public AssetType Type => AssetType.Canvas;
 
@@ -128,13 +154,21 @@ namespace DDrive.Runtime.Ui
         // (UiButton/AnimEditor 側の配線は 4-2/4-6 以降)。
         public Func<AssetId<AnimMarker>, Animator, Handle<AnimMarker>> AnimHook;
 
-        public UiManager(IPoolService pool, IAssetRegistry registry, PauseService pause = null, EventBus events = null)
+        public UiManager(IPoolService pool, IAssetRegistry registry, PauseService pause = null, EventBus events = null, UiTweenManager tweens = null)
         {
             _pool = pool;
             _registry = registry;
             _pause = pause;
             _events = events ?? new EventBus();
+            _tweens = tweens;
         }
+
+        // 4-9: ElementFx の再生に使う UiTweenManager。GameLoopDriver は UiTweenManager.Tick を別枠で回すため、
+        // ここで受け取るのは「再生を頼む相手」だけで UiManager.Tick からは Tick(dt) を呼ばない。
+        public void SetTweenManager(UiTweenManager tweens) => _tweens = tweens;
+
+        // 4-9/4-7 残り: レイヤーごとの既定 Skin/SE/Appear/Disappear(未設定なら null のまま = フォールバック無し)。
+        public void SetLayerSettings(UiLayerSettings settings) => _layerSettings = settings;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void RegisterPlaceholder()
@@ -288,6 +322,8 @@ namespace DDrive.Runtime.Ui
             ApplyNavigation(root.transform, data);
             ApplyFirstSelected(root.transform, data);
             WireButtons(root.transform, data, instance, handle);
+            ApplyLayerDefaults(root.transform, data);
+            SetupElementFx(instance, data, root.transform);
 
             if (data.PauseGameWhileOpen && _pause != null)
             {
@@ -321,7 +357,10 @@ namespace DDrive.Runtime.Ui
             }
 
             instance.Closing = true;
+            instance.CloseTransitionCompleted = false;
+            StartAllDisappearFx(instance); // PendingDisappearCount を確定させてから CloseTransition を始める
             StartTransition(handle, instance, instance.Data.CloseTransition, isOpen: false);
+            TryFinalizeClose(handle, instance); // Duration<=0/Kind=None で上の StartTransition が同期完了した場合の後始末
         }
 
         public async UniTask CloseAsync(Handle<CanvasMarker> handle)
@@ -443,8 +482,27 @@ namespace DDrive.Runtime.Ui
             ApplyTransitionFrame(instance, def, isOpen, 1f);
             if (!isOpen)
             {
-                FinalizeClose(handle, instance);
+                // 4-9: CloseTransition(見た目の演出)自体はここで終わるが、実際に閉じる(FinalizeClose)のは
+                // ElementFx の Disappear も全て終わってから(TryFinalizeClose が両方を見る)。
+                instance.CloseTransitionCompleted = true;
+                TryFinalizeClose(handle, instance);
             }
+        }
+
+        // CloseTransition と全 ElementFx.Disappear の両方が終わって初めて実際に閉じる([07] A-3 実装メモ)。
+        private void TryFinalizeClose(Handle<CanvasMarker> handle, CanvasInstance instance)
+        {
+            if (!instance.CloseTransitionCompleted || instance.PendingDisappearCount > 0)
+            {
+                return;
+            }
+
+            if (!_instances.TryGet(handle, out _))
+            {
+                return; // 既に FinalizeClose 済み(二重呼び出しガード)
+            }
+
+            FinalizeClose(handle, instance);
         }
 
         private async UniTask AwaitOpenTransition(Handle<CanvasMarker> handle)
@@ -535,7 +593,8 @@ namespace DDrive.Runtime.Ui
                     continue;
                 }
 
-                var blocked = blockIndex >= 0 && i < blockIndex;
+                // 4-9: ElementFx の Appear が完了するまでは(モーダルブロックとは無関係に)入力を受け付けない。
+                var blocked = (blockIndex >= 0 && i < blockIndex) || inst.PendingAppearCount > 0;
                 inst.Group.interactable = !blocked;
                 inst.Group.blocksRaycasts = !blocked;
             }
@@ -807,9 +866,314 @@ namespace DDrive.Runtime.Ui
         private static Transform FindTransform(Transform root, string path)
             => string.IsNullOrEmpty(path) ? null : root.Find(path);
 
+        // ── レイヤー既定(4-7 残り: UiLayerSettings) ──
+
+        // Open 時、SkinId 未設定 かつ 明示 SetVisual 未実行の UiInteractable にだけレイヤー既定 Skin/SE を配る。
+        private void ApplyLayerDefaults(Transform root, CanvasData data)
+        {
+            if (_layerSettings == null || !_layerSettings.TryGet(data.Layer, out var defaults))
+            {
+                return;
+            }
+
+            ControlSkinData skin = null;
+            if (defaults.DefaultButtonSkin.IsValid && _registry != null)
+            {
+                _registry.TryResolveSync(defaults.DefaultButtonSkin.Value, out skin);
+            }
+
+            var interactables = root.GetComponentsInChildren<UiInteractable>(true);
+            for (var i = 0; i < interactables.Length; i++)
+            {
+                var ui = interactables[i];
+                if (skin != null)
+                {
+                    ui.ApplyDefaultSkin(skin);
+                }
+
+                ui.SetDefaultSe(defaults.DefaultClickSe, defaults.DefaultHoverSe, defaults.DefaultDeniedSe);
+            }
+        }
+
+        // ── ElementFx(4-9: Appear / Idle / Disappear) ──
+
+        // Open 直後に 1 回だけ呼ぶ。要素を解決してランタイム一覧を作り、Appear を持つ要素の数だけ
+        // PendingAppearCount を積む(実際の再生開始は Tick の Delay 待ちを経て行う)。
+        private void SetupElementFx(CanvasInstance instance, CanvasData data, Transform root)
+        {
+            if (data.ElementEffects == null || data.ElementEffects.Length == 0)
+            {
+                return;
+            }
+
+            var layerDefaults = default(UiLayerDefaultEntry);
+            _layerSettings?.TryGet(data.Layer, out layerDefaults);
+            var hasLayerAppear = _layerSettings != null && layerDefaults.DefaultAppear.Preset != UiPreset.None;
+
+            var list = new List<ElementFxRuntime>(data.ElementEffects.Length);
+            for (var i = 0; i < data.ElementEffects.Length; i++)
+            {
+                var def = data.ElementEffects[i];
+                var target = FindTransform(root, def.ElementPath) as RectTransform;
+                if (target == null)
+                {
+                    if (_elementPathWarned.Add((data, def.ElementPath)))
+                    {
+                        Debug.LogWarning($"[DDrive] CanvasData '{data.DisplayName}' の ElementFx[{i}] '{def.ElementPath}' が Prefab 内(RectTransform)で見つかりません。この行はスキップします。");
+                    }
+
+                    continue;
+                }
+
+                var hasAppear = def.Appear.IsValid || def.AppearPreset.Preset != UiPreset.None || hasLayerAppear;
+                var runtime = new ElementFxRuntime { Target = target, Def = def, HasAppear = hasAppear };
+                list.Add(runtime);
+                if (hasAppear)
+                {
+                    instance.PendingAppearCount++;
+                }
+            }
+
+            instance.ElementFx = list;
+        }
+
+        // 戻り値: PendingAppearCount(入力ゲート)が変化したか(呼び出し元 Tick が RecomputeBlocking を呼ぶかの判断に使う)。
+        private bool TickElementFx(Handle<CanvasMarker> handle, CanvasInstance instance, float dt)
+        {
+            var list = instance.ElementFx;
+            var gateChanged = false;
+
+            if (!instance.Closing)
+            {
+                instance.ElementFxElapsed += dt;
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var r = list[i];
+                    if (!r.AppearStarted)
+                    {
+                        if (instance.ElementFxElapsed < r.Def.AppearDelay)
+                        {
+                            continue;
+                        }
+
+                        PlayAppear(instance, r);
+                    }
+
+                    if (!r.AppearCompleted && !IsTweenPlaying(r.AppearHandle))
+                    {
+                        gateChanged |= OnAppearCompleted(instance, r);
+                    }
+                }
+            }
+            else
+            {
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var r = list[i];
+                    if (r.DisappearStarted && !r.DisappearDone && !IsTweenPlaying(r.DisappearHandle))
+                    {
+                        r.DisappearDone = true;
+                        instance.PendingDisappearCount = Mathf.Max(0, instance.PendingDisappearCount - 1);
+                    }
+                }
+
+                if (instance.PendingDisappearCount <= 0)
+                {
+                    TryFinalizeClose(handle, instance);
+                }
+            }
+
+            return gateChanged;
+        }
+
+        private void PlayAppear(CanvasInstance instance, ElementFxRuntime r)
+        {
+            r.AppearStarted = true;
+            if (r.Def.Appear.IsValid)
+            {
+                r.AppearHandle = _tweens?.Play(r.Def.Appear, r.Target) ?? Handle<UiTweenMarker>.Invalid;
+            }
+            else if (r.Def.AppearPreset.Preset != UiPreset.None)
+            {
+                r.AppearHandle = PlayPreset(r.Def.AppearPreset, r.Target);
+            }
+            else if (_layerSettings != null && _layerSettings.TryGet(instance.Data.Layer, out var defaults) && defaults.DefaultAppear.Preset != UiPreset.None)
+            {
+                r.AppearHandle = PlayPreset(defaults.DefaultAppear, r.Target);
+            }
+            else
+            {
+                r.AppearHandle = Handle<UiTweenMarker>.Invalid;
+            }
+
+            if (r.Def.AppearSe.IsValid)
+            {
+                Runtime.Audio.Audio.PlaySe(r.Def.AppearSe);
+            }
+        }
+
+        // Appear が完了したら Idle を開始する。戻り値は PendingAppearCount が変化したか。
+        private bool OnAppearCompleted(CanvasInstance instance, ElementFxRuntime r)
+        {
+            r.AppearCompleted = true;
+            var changed = false;
+            if (r.HasAppear && instance.PendingAppearCount > 0)
+            {
+                instance.PendingAppearCount--;
+                changed = true;
+            }
+
+            StartIdle(r);
+            return changed;
+        }
+
+        private void StartIdle(ElementFxRuntime r)
+        {
+            if (r.IdleStarted)
+            {
+                return;
+            }
+
+            r.IdleStarted = true;
+            if (r.Def.Idle.IsValid)
+            {
+                r.IdleHandle = _tweens?.Play(r.Def.Idle, r.Target) ?? Handle<UiTweenMarker>.Invalid;
+            }
+            else if (r.Def.IdlePreset.Preset != UiPreset.None)
+            {
+                r.IdleHandle = PlayPreset(r.Def.IdlePreset, r.Target);
+            }
+        }
+
+        // Close 開始時に全 ElementFx の Disappear を一斉に始める(Appear のような Delay スタッガーは無い)。
+        private void StartAllDisappearFx(CanvasInstance instance)
+        {
+            instance.PendingDisappearCount = 0;
+            var list = instance.ElementFx;
+            if (list == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                StartDisappear(instance, list[i]);
+            }
+        }
+
+        private void StartDisappear(CanvasInstance instance, ElementFxRuntime r)
+        {
+            if (r.DisappearStarted)
+            {
+                return;
+            }
+
+            r.DisappearStarted = true;
+
+            // Stop は無効/既に完了済みの Handle に対しても安全な no-op(UiTweenManager.Stop 参照)なので、
+            // Idle/Appear が実際に生きているかを確認せずそのまま呼んでよい。
+            _tweens?.Stop(r.IdleHandle);
+            r.IdleHandle = Handle<UiTweenMarker>.Invalid;
+            _tweens?.Stop(r.AppearHandle);
+
+            Handle<UiTweenMarker> handle;
+            if (r.Def.Disappear.IsValid)
+            {
+                handle = _tweens?.Play(r.Def.Disappear, r.Target) ?? Handle<UiTweenMarker>.Invalid;
+            }
+            else if (r.Def.DisappearPreset.Preset != UiPreset.None)
+            {
+                handle = PlayPreset(r.Def.DisappearPreset, r.Target);
+            }
+            else
+            {
+                handle = PlayLayerDefaultDisappear(instance, r);
+            }
+
+            r.DisappearHandle = handle;
+            if (r.Def.DisappearSe.IsValid)
+            {
+                Runtime.Audio.Audio.PlaySe(r.Def.DisappearSe);
+            }
+
+            if (!IsTweenPlaying(handle))
+            {
+                r.DisappearDone = true;
+            }
+            else
+            {
+                instance.PendingDisappearCount++;
+            }
+        }
+
+        private Handle<UiTweenMarker> PlayLayerDefaultDisappear(CanvasInstance instance, ElementFxRuntime r)
+        {
+            if (_layerSettings != null && _layerSettings.TryGet(instance.Data.Layer, out var defaults) && defaults.DefaultDisappear.Preset != UiPreset.None)
+            {
+                return PlayPreset(defaults.DefaultDisappear, r.Target);
+            }
+
+            return Handle<UiTweenMarker>.Invalid;
+        }
+
+        // 演出を待たず即完了させる(StopAll 用)。実体を巻き戻さず終端値へジャンプする(complete:true)。
+        private void StopAllElementFx(CanvasInstance instance)
+        {
+            var list = instance.ElementFx;
+            if (list == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                var r = list[i];
+                // 無効/終了済み Handle への Stop は no-op(UiTweenManager.Stop 参照)なので判定せずまとめて呼ぶ。
+                _tweens?.Stop(r.AppearHandle, complete: true);
+                _tweens?.Stop(r.IdleHandle);
+                _tweens?.Stop(r.DisappearHandle, complete: true);
+            }
+
+            instance.PendingAppearCount = 0;
+            instance.PendingDisappearCount = 0;
+        }
+
+        // UiPresetRef → TweenTrack[] へ展開して再生する(UiFx.Play と同じ手順。静的ファサードに依存せず
+        // このインスタンスの _tweens を直接使う)。
+        private Handle<UiTweenMarker> PlayPreset(in UiPresetRef p, RectTransform target)
+        {
+            if (_tweens == null || target == null || p.Preset == UiPreset.None)
+            {
+                return Handle<UiTweenMarker>.Invalid;
+            }
+
+            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+            var count = UiPresetFactory.Build(in p, target, buffer);
+            if (count <= 0)
+            {
+                return Handle<UiTweenMarker>.Invalid;
+            }
+
+            if (p.Se.IsValid)
+            {
+                Runtime.Audio.Audio.PlaySe(p.Se);
+            }
+
+            return _tweens.PlayTracks(buffer, count, target);
+        }
+
+        private bool IsTweenPlaying(Handle<UiTweenMarker> handle) => _tweens != null && _tweens.IsPlaying(handle);
+
         // ── Handle 操作 ──
 
         public bool IsOpen(Handle<CanvasMarker> handle) => _instances.IsValidSilent(handle);
+
+        // 4-9: テスト/デザイナーツール向け。Appear 待ち(入力ブロック中)/ Close の Disappear+CloseTransition 待ち。
+        public bool IsOpening(Handle<CanvasMarker> handle)
+            => _instances.TryGet(handle, out var instance) && !instance.Closing && instance.PendingAppearCount > 0;
+
+        public bool IsClosing(Handle<CanvasMarker> handle)
+            => _instances.TryGet(handle, out var instance) && instance.Closing;
 
         public int StackCount => _stack.Count;
 
@@ -917,6 +1281,25 @@ namespace DDrive.Runtime.Ui
                     ApplyTransitionFrame(instance, t.Def, t.IsOpen, normalized);
                 }
             }
+
+            // 4-9: ElementFx(スタッガー再生の Delay 進行 / Appear-Idle-Disappear の進行監視)。
+            // FinalizeClose が _stack.Remove を呼ぶことがあるため後ろから走査する(既存の _transitions ループと同じ規則)。
+            var gateChanged = false;
+            for (var i = _stack.Count - 1; i >= 0; i--)
+            {
+                var handle = _stack[i];
+                if (!_instances.TryGet(handle, out var instance) || instance.ElementFx == null)
+                {
+                    continue;
+                }
+
+                gateChanged |= TickElementFx(handle, instance, dt);
+            }
+
+            if (gateChanged)
+            {
+                RecomputeBlocking();
+            }
         }
 
         public void OnPause(PauseChannel channel, bool paused)
@@ -938,6 +1321,7 @@ namespace DDrive.Runtime.Ui
             {
                 if (_instances.TryGet(_stack[i], out var instance))
                 {
+                    StopAllElementFx(instance); // 演出を待たず即完了(Stop(complete:true))させてから閉じる
                     FinalizeClose(_stack[i], instance);
                 }
             }

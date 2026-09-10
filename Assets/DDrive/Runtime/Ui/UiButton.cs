@@ -46,7 +46,7 @@ namespace DDrive.Runtime.Ui
             if (TryBeginFire())
             {
                 OnClick?.Invoke();
-                PlaySe(ButtonSkin?.ClickSe ?? default);
+                PlaySe(ResolveSe(ButtonSkin?.ClickSe, DefaultClickSe));
             }
         }
 
@@ -77,7 +77,7 @@ namespace DDrive.Runtime.Ui
             if (State == ControlState.Disabled || State == ControlState.Locked)
             {
                 RaiseDenied();
-                PlaySe(ButtonSkin?.DeniedSe ?? default);
+                PlaySe(ResolveSe(ButtonSkin?.DeniedSe, DefaultDeniedSe));
                 _isHeld = false;
                 return;
             }
@@ -112,11 +112,21 @@ namespace DDrive.Runtime.Ui
             SetHovered(over);
             if (over && !wasOver)
             {
-                PlaySe(ButtonSkin?.HoverSe ?? default);
+                PlaySe(ResolveSe(ButtonSkin?.HoverSe, DefaultHoverSe));
             }
         }
 
-        public void Focus(bool focused) => SetFocusedState(focused);
+        // [18_ui_controls.md] A-3: パッド/キーボードでのフォーカス移動(Selected)も Hover 相当として扱い、
+        // HoverSe を再生する(ポインタ操作の Hover と同じ音が鳴ることで「選ばれている」感を統一する)。
+        public void Focus(bool focused)
+        {
+            var wasSelected = State == ControlState.Selected;
+            SetFocusedState(focused);
+            if (focused && !wasSelected && State == ControlState.Selected)
+            {
+                PlaySe(ResolveSe(ButtonSkin?.HoverSe, DefaultHoverSe));
+            }
+        }
 
         // Update から Time.unscaledDeltaTime で呼ばれる(テストは直接呼んで時間経過を模擬する。
         // InternalsVisibleTo が未設定のため public にしている)。
@@ -175,7 +185,7 @@ namespace DDrive.Runtime.Ui
                     if (TryBeginFire())
                     {
                         OnDoubleClick?.Invoke();
-                        PlaySe(ButtonSkin?.ClickSe ?? default);
+                        PlaySe(ResolveSe(ButtonSkin?.ClickSe, DefaultClickSe));
                     }
                 }
                 else
@@ -195,8 +205,17 @@ namespace DDrive.Runtime.Ui
             if (TryBeginFire())
             {
                 OnClick?.Invoke();
-                PlaySe(ButtonSkin?.ClickSe ?? default);
+                PlaySe(ResolveSe(ButtonSkin?.ClickSe, DefaultClickSe));
             }
+        }
+
+        // ButtonSkin 側が未設定(Invalid)なら UiManager が配ったレイヤー既定 SE(4-7 残り)にフォールバックする。
+        private static DDrive.Foundation.Identity.AssetId<SeMarker> ResolveSe(
+            DDrive.Foundation.Identity.AssetId<SeMarker>? skinValue,
+            DDrive.Foundation.Identity.AssetId<SeMarker> fallback)
+        {
+            var id = skinValue ?? default;
+            return id.IsValid ? id : fallback;
         }
 
         private static void PlaySe(DDrive.Foundation.Identity.AssetId<SeMarker> id)

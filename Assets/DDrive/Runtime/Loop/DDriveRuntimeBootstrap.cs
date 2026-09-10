@@ -47,6 +47,9 @@ namespace DDrive.Runtime.Loop
         [Tooltip("静的ファサード(Audio.PlaySe 等)をこのインスタンスへ Bind する。テストや多重起動の検証で OFF にする")]
         public bool BindFacades = true;
 
+        [Tooltip("UiLayer ごとの既定 Skin/SE/Appear/Disappear(4-9 + 4-7 残り)。未設定(null)ならフォールバック無し")]
+        public UiLayerSettings LayerSettings;
+
         public static DDriveRuntimeBootstrap Instance { get; private set; }
 
         public GameLoopDriver Loop { get; private set; }
@@ -150,8 +153,9 @@ namespace DDrive.Runtime.Loop
             Materials = new MaterialManager(Registry);
             Models = new ModelsManager(Pool, Registry, Anim, Materials);
             Prefabs = new PrefabsManager(Pool, Registry);
-            Ui = new UiManager(Pool, Registry, Loop.PauseService);
             UiTweens = new UiTweenManager(Registry);
+            Ui = new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens);
+            Ui.SetLayerSettings(LayerSettings);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);

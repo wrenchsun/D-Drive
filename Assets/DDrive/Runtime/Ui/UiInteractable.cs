@@ -1,6 +1,7 @@
 using System;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
+using DDrive.Runtime.Audio;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -51,6 +52,15 @@ namespace DDrive.Runtime.Ui
         private bool _focused;
         private float _cooldownRemaining;
         private ControlSkinData _skin;
+
+        // 4-7 残り: SetVisual を明示的に呼んだか(true なら UiManager の Open 時レイヤー既定 Skin 適用の対象外)。
+        public bool HasExplicitSkin { get; private set; }
+
+        // 4-7 残り: ButtonSkin 側の Se が無効(未設定)のときに使う UiLayerSettings のフォールバック。
+        // UiManager.ApplyLayerDefaults が Open 時に SetDefaultSe で配る(未設定なら default=Invalid のまま)。
+        protected AssetId<SeMarker> DefaultClickSe { get; private set; }
+        protected AssetId<SeMarker> DefaultHoverSe { get; private set; }
+        protected AssetId<SeMarker> DefaultDeniedSe { get; private set; }
 
         // 状態遷移時に再生した Tween(次の遷移で止める。[15_ui_interaction.md] B-4「UiButton の StateVisual.EnterTween」)。
         private Handle<UiTweenMarker> _stateTween = Handle<UiTweenMarker>.Invalid;
@@ -109,7 +119,31 @@ namespace DDrive.Runtime.Ui
         public void SetVisual(ControlSkinData skin)
         {
             _skin = skin;
+            HasExplicitSkin = true;
             ApplySkinForCurrentState();
+        }
+
+        // 4-7 残り: UiManager が Open 時に「SkinId 未設定 かつ 明示 SetVisual 未実行」の UiInteractable へだけ
+        // レイヤー既定 Skin を当てる(HasExplicitSkin は立てない。デザイナーが後から SkinId/SetVisual を
+        // 設定すればそちらが優先される)。
+        public void ApplyDefaultSkin(ControlSkinData skin)
+        {
+            if (skin == null || SkinId.IsValid || HasExplicitSkin)
+            {
+                return;
+            }
+
+            _skin = skin;
+            ApplySkinForCurrentState();
+        }
+
+        // 4-7 残り: ButtonSkin(または個別 Skin)の Se が未設定(Invalid)のときのフォールバック先。
+        // UiManager.Open がレイヤー既定(UiLayerSettings)から配る。
+        public void SetDefaultSe(AssetId<SeMarker> click, AssetId<SeMarker> hover, AssetId<SeMarker> denied)
+        {
+            DefaultClickSe = click;
+            DefaultHoverSe = hover;
+            DefaultDeniedSe = denied;
         }
 
         protected abstract void OnSkinApplied(in StateVisual v);
