@@ -27,6 +27,37 @@ namespace DDrive.Tests.Runtime
         public void SetUp() => UiInteractable.ResetDoubleFireGuardForTests();
 
         [Test]
+        public void Repeat_StopsWhenDisabledOrLockedWhileHeld()
+        {
+            var go = CreateButton(out var button, out _);
+            button.LongPressSec = 0.2f;
+            button.RepeatIntervalSec = 0.1f;
+            var repeats = 0;
+            button.OnRepeat += () => repeats++;
+
+            button.Press();
+            button.Advance(0.25f); // LongPress
+            button.Advance(0.15f); // Repeat 1 回(float 誤差を避けて間隔より少し長く進める)
+            Assert.AreEqual(1, repeats);
+
+            button.Interactable = false; // 押しっぱなしのまま無効化
+            button.Advance(0.15f);
+            button.Advance(0.15f);
+            Assert.AreEqual(1, repeats, "Disabled 後は Repeat が発火しない(Codex a9600d3 P1)");
+
+            button.Interactable = true;
+            button.Advance(0.15f);
+            Assert.AreEqual(1, repeats, "hold は打ち切られているので再有効化しても勝手に再開しない");
+
+            button.Press();
+            button.Advance(0.25f);
+            button.SetLocked(true);
+            button.Advance(0.15f);
+            Assert.AreEqual(1, repeats, "Locked でも同様");
+            Object.DestroyImmediate(go);
+        }
+
+        [Test]
         public void Click_FiresOnce_OnPressAndRelease()
         {
             var go = CreateButton(out var button, out _);

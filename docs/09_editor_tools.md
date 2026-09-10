@@ -111,7 +111,7 @@ Tools/
     │   ├─ Material 変換              ← 2026-09-10 追加(シェーダー変換、差分プレビュー、[06] A-2)
     │   ├─ Canvas                     ← 2026-09-11 実装(CanvasEditorWindow。SerializedObject バインド + Selectable 自動収集 + 確認用シーンで開く/閉じる + Validation リスト。ノードグラフ/パッドシミュレーションは 4-3、[07] A-4 実装メモ)
     │   ├─ Button Skin                ← 2026-09-11 追加(ButtonSkinEditorWindow。ウィンドウ内描画なし、SerializedObject の InspectorElement のみ + 「確認用シーンに配置」で実 UiButton を生成、[15] A-4 実装メモ)
-    │   ├─ UI Tween · Preset Gallery
+    │   ├─ UI Tween                    ← 2026-09-11 実装(UiTweenEditorWindow。SerializedObject の InspectorElement + プリセットから Tracks を生成 + 「確認用シーンに配置」で実 UiTweenManager を駆動 + Validation リスト。カーブ/スプラインのハンドル編集とプリセットギャラリーは 4-10/4-12、[15] B-6 実装メモ)
     │   ├─ Slider
     │   └─ Shake · Haptics
     ├─ Validation/
