@@ -186,6 +186,31 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
+        public void Navigation_EmptyLinks_KeepAutomaticMode_AndReuseClearsStaleLinks()
+        {
+            // 「Selectable を自動収集」が作る 4 方向とも空の NavNode は Unity の自動ナビゲーションのまま(Codex 201285b P1)。
+            var explicitData = CreateCanvasData(1);
+            explicitData.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 4);
+            explicitData.Navigation = new[] { new NavNode { Element = "A", Up = "B" } };
+            var first = _manager.OpenData(explicitData);
+            var a1 = _manager.GetComponent<Selectable>(first, "A");
+            Assert.AreEqual(UnityEngine.UI.Navigation.Mode.Explicit, a1.navigation.mode);
+            _manager.Close(first);
+
+            // 同じ Prefab をプールから再利用し、今度は空のリンクで開く → Automatic に戻り、古い明示リンクが残らない。
+            var emptyData = CreateCanvasData(2);
+            emptyData.Prefab = explicitData.Prefab;
+            emptyData.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 4);
+            emptyData.Navigation = new[] { new NavNode { Element = "A" } };
+            var second = _manager.OpenData(emptyData);
+            var a2 = _manager.GetComponent<Selectable>(second, "A");
+
+            Assert.AreEqual(UnityEngine.UI.Navigation.Mode.Automatic, a2.navigation.mode);
+            Assert.IsNull(a2.navigation.selectOnUp, "再利用時に前回の明示リンクが残らない");
+            _manager.Close(second);
+        }
+
+        [Test]
         public void OnSignal_ReceivesSendSignal_AndDisposeUnsubscribes()
         {
             var received = new List<SignalArgs>();

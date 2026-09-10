@@ -576,35 +576,23 @@ namespace DDrive.Runtime.Ui
             }
         }
 
+        // 4 方向すべて空の NavNode(「Selectable を自動収集」が作る初期状態)は Unity の自動ナビゲーションのままにする。
+        // Explicit にして null リンクを入れると一切移動できなくなる(Codex レビュー 201285b P1)。
+        // プールから再利用した実体に前回の明示リンクが残らないよう、指定が無い方向は null で上書きする。
         private static void ApplySelectableNavigation(Selectable self, Transform root, NavNode node)
         {
             var nav = self.navigation;
-            nav.mode = Navigation.Mode.Explicit;
-
             var up = ResolveSelectable(root, node.Up);
-            if (up != null)
-            {
-                nav.selectOnUp = up;
-            }
-
             var down = ResolveSelectable(root, node.Down);
-            if (down != null)
-            {
-                nav.selectOnDown = down;
-            }
-
             var left = ResolveSelectable(root, node.Left);
-            if (left != null)
-            {
-                nav.selectOnLeft = left;
-            }
-
             var right = ResolveSelectable(root, node.Right);
-            if (right != null)
-            {
-                nav.selectOnRight = right;
-            }
+            var anyExplicit = up != null || down != null || left != null || right != null;
 
+            nav.mode = anyExplicit ? Navigation.Mode.Explicit : Navigation.Mode.Automatic;
+            nav.selectOnUp = up;
+            nav.selectOnDown = down;
+            nav.selectOnLeft = left;
+            nav.selectOnRight = right;
             self.navigation = nav;
         }
 
@@ -616,29 +604,13 @@ namespace DDrive.Runtime.Ui
                 nav = self.gameObject.AddComponent<UiNavigation>();
             }
 
-            var up = FindTransform(root, node.Up);
-            if (up != null)
-            {
-                nav.Up = up;
-            }
+            nav.Up = FindTransform(root, node.Up); // 指定なしは null(再利用時の古いリンクを消す)
 
-            var down = FindTransform(root, node.Down);
-            if (down != null)
-            {
-                nav.Down = down;
-            }
+            nav.Down = FindTransform(root, node.Down); // 指定なしは null(再利用時の古いリンクを消す)
 
-            var left = FindTransform(root, node.Left);
-            if (left != null)
-            {
-                nav.Left = left;
-            }
+            nav.Left = FindTransform(root, node.Left); // 指定なしは null(再利用時の古いリンクを消す)
 
-            var right = FindTransform(root, node.Right);
-            if (right != null)
-            {
-                nav.Right = right;
-            }
+            nav.Right = FindTransform(root, node.Right); // 指定なしは null(再利用時の古いリンクを消す)
         }
 
         // [15]/[18] 十字キー/スティックでのフォーカス移動。EventSystem.currentSelectedGameObject が
