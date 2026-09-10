@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
@@ -21,7 +22,9 @@ namespace DDrive.Editor.CanvasTool
     // プレビューは実 UiManager で OpenData した実体を開いているシーン / プレハブステージの DontSave
     // ルートに置いて SceneView / Game View で確認する(ADR-4: Editor 専用の再生経路を作らない。
     // PrefabEditorWindow / MaterialEditorWindow と同じ設計。owner instruction 2026-09-10: EditorWindow 内部には描画しない)。
-    // ノードグラフによるナビゲーション編集・ゲームパッド入力シミュレーションはチケット 4-3(未実装)。
+    // ノードグラフ(NavigationGraphView)は静的な編集用ダイアグラムであり実 UI を描画するものではないため許容する。
+    // ゲームパッド入力シミュレーション(4-3)は「確認用シーンで開く」で実際に開いた UiManager インスタンスに対して
+    // MoveFocus/MoveFocusFrom を叩くだけで、ウィンドウ内で UI を再現描画することはしない(owner instruction 2026-09-10)。
     [DDrive.Editor.Inspector.DataEditor(typeof(CanvasData), "Canvas Editor で開く")]
     public sealed class CanvasEditorWindow : EditorWindow
     {
@@ -45,6 +48,14 @@ namespace DDrive.Editor.CanvasTool
         private VisualElement _elementFxContainer;
         private Label _statusLabel;
         private VisualElement _validationFoldout;
+
+        // 4-3: ノードグラフ(NavigationGraphView)とパッド操作シミュレーション。
+        private Foldout _graphFoldout;
+        private NavigationGraphView _graphView;
+        private VisualElement _unreachableContainer;
+        private VisualElement _padRow;
+        private Label _focusLabel;
+        private string _simFocusPath;
 
         private readonly List<(string label, UiTweenData tween)> _catalogChoices = new();
 
@@ -70,10 +81,12 @@ namespace DDrive.Editor.CanvasTool
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
             _lastEditorTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += OnEditorUpdate;
+            Undo.undoRedoPerformed += OnUndoRedoPerformed;
         }
 
         private void OnDisable()
         {
+            Undo.undoRedoPerformed -= OnUndoRedoPerformed;
             EditorApplication.update -= OnEditorUpdate;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
             RemovePreview();
@@ -108,6 +121,10 @@ namespace DDrive.Editor.CanvasTool
                 SetTarget(data);
             }
         }
+
+        // 4-3: NavNode の編集(SetLink/ClearLink 等)は Undo.RecordObject で包んでいるため、Undo/Redo が
+        // 走ったらグラフを作り直す(SerializedObject 側は Bind 済みなので自動で追従する)。
+        private void OnUndoRedoPerformed() => RebuildGraph();
 
         private void OnActiveSceneChanged(UnityEngine.SceneManagement.Scene previous, UnityEngine.SceneManagement.Scene current)
         {
@@ -168,7 +185,7 @@ namespace DDrive.Editor.CanvasTool
             _statusLabel = new Label { style = { marginLeft = 4, marginBottom = 4 } };
             _root.Add(_statusLabel);
 
-            _root.Add(new HelpBox("ノードグラフでのナビゲーション編集・ゲームパッド入力シミュレーションはチケット 4-3 で実装予定です。ここでは自動収集とテキストでの編集のみ行えます。", HelpBoxMessageType.Info));
+            BuildNavigationGraphSection();
 
             _inspectorContainer = new VisualElement();
             _root.Add(_inspectorContainer);
@@ -213,6 +230,8 @@ namespace DDrive.Editor.CanvasTool
             _statusLabel.text = _manager != null && _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "「確認用シーンで開く」で確認できます";
             RefreshValidation();
             RebuildElementFxAssignments();
+            _simFocusPath = target.FirstSelected;
+            RebuildGraph();
         }
 
         private void CollectSelectables()
@@ -229,7 +248,7 @@ namespace DDrive.Editor.CanvasTool
             _target.Navigation = merged;
             EditorUtility.SetDirty(_target);
 
-            SetTarget(_target); // Inspector / Validation を再構築
+            SetTarget(_target); // Inspector / Validation / グラフを再構築
             _statusLabel.text = $"Selectable を {merged.Length} 件収集しました";
         }
 
@@ -470,6 +489,243 @@ namespace DDrive.Editor.CanvasTool
             _statusLabel.text = $"全ボタンの AppearPreset に {_bulkPreset} を設定しました";
         }
 
+        // ── ナビゲーションのノードグラフ + パッド操作シミュレーション(4-3) ──
+
+        private void BuildNavigationGraphSection()
+        {
+            _graphFoldout = new Foldout { text = "Navigation グラフ", value = true, style = { marginTop = 8 } };
+            _root.Add(_graphFoldout);
+
+            var toolRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 4 } };
+            toolRow.Add(new Button(RebuildGraph) { text = "自動レイアウトを更新" });
+            toolRow.Add(new Button(DetectUnreachable) { text = "到達不能を検出" });
+            toolRow.Add(new Button(ReportUnlinked) { text = "未配線を自動リンク" });
+            _graphFoldout.Add(toolRow);
+
+            var heightSlider = new SliderInt("表示高さ", 320, 900) { value = 320, style = { marginBottom = 4 } };
+            _graphView = new NavigationGraphView { style = { height = 320, minHeight = 320 } };
+            heightSlider.RegisterValueChangedCallback(evt => _graphView.style.height = evt.newValue);
+            _graphFoldout.Add(heightSlider);
+            _graphFoldout.Add(_graphView);
+
+            _graphView.OnSetLink = (from, dir, to) => ApplyNavEdit(() => NavigationGraph.SetLink(_target, from, dir, to), "リンクを設定");
+            _graphView.OnClearLink = (from, dir) => ApplyNavEdit(() => NavigationGraph.ClearLink(_target, from, dir), "リンクを削除");
+            _graphView.OnClearAllLinks = from => ApplyNavEdit(() => NavigationGraph.ClearAllLinks(_target, from), "リンクを全て削除");
+            _graphView.OnSetFirstSelected = path => ApplyNavEdit(() => _target.FirstSelected = path, "FirstSelected を設定");
+
+            _unreachableContainer = new VisualElement { style = { marginTop = 4 } };
+            _graphFoldout.Add(_unreachableContainer);
+
+            _graphFoldout.Add(new Label("パッド操作シミュレーション") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            _padRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
+            _padRow.Add(new Button(() => SimulateMove(Vector2.up)) { text = "▲" });
+            _padRow.Add(new Button(() => SimulateMove(Vector2.down)) { text = "▼" });
+            _padRow.Add(new Button(() => SimulateMove(Vector2.left)) { text = "◀" });
+            _padRow.Add(new Button(() => SimulateMove(Vector2.right)) { text = "▶" });
+            _padRow.Add(new Button(SimulateSubmit) { text = "決定" });
+            _graphFoldout.Add(_padRow);
+
+            _focusLabel = new Label("フォーカス: (未確認)") { style = { marginTop = 2 } };
+            _graphFoldout.Add(_focusLabel);
+
+            UpdatePadEnabled();
+        }
+
+        // Undo.RecordObject + SetDirty + serializedObject.Update() で包んでからグラフ/検証を再構築する。
+        private void ApplyNavEdit(Action mutate, string undoLabel)
+        {
+            if (_target == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(_target, undoLabel);
+            mutate();
+            EditorUtility.SetDirty(_target);
+            _inspectorContainer.Q<InspectorElement>()?.Bind(new SerializedObject(_target));
+            RefreshValidation();
+            RebuildGraph();
+        }
+
+        private void RebuildGraph()
+        {
+            if (_graphView == null)
+            {
+                return;
+            }
+
+            if (_target == null || _target.Prefab == null)
+            {
+                _graphView.SetGraph(new NavigationGraph(), string.Empty, null);
+                _unreachableContainer?.Clear();
+                UpdatePadEnabled();
+                return;
+            }
+
+            var graph = NavigationGraph.Build(_target, _target.Prefab);
+            _graphView.SetGraph(graph, _target.FirstSelected, _target.Prefab);
+            _graphView.SetFocusedPath(_simFocusPath);
+            UpdateFocusLabel();
+            UpdatePadEnabled();
+        }
+
+        private void DetectUnreachable()
+        {
+            if (_unreachableContainer == null)
+            {
+                return;
+            }
+
+            _unreachableContainer.Clear();
+            if (_target == null || _target.Prefab == null)
+            {
+                return;
+            }
+
+            var unreachable = NavigationGraph.Build(_target, _target.Prefab).Unreachable(_target.FirstSelected);
+            if (unreachable.Count == 0)
+            {
+                _unreachableContainer.Add(new Label("到達不能な要素はありません。") { style = { opacity = 0.7f } });
+                return;
+            }
+
+            _unreachableContainer.Add(new HelpBox($"到達不能な要素が {unreachable.Count} 件あります(赤枠のノード):", HelpBoxMessageType.Warning));
+            foreach (var path in unreachable)
+            {
+                _unreachableContainer.Add(new Label("・" + (string.IsNullOrEmpty(path) ? "(ルート)" : path)));
+            }
+        }
+
+        // 「未配線を自動リンク」: Navigation に登録されているが 4 方向とも空(Unity の自動ナビゲーションのまま)の
+        // 要素を一覧するだけで、データは書き換えない(Automatic のままにする方針を守る)。
+        private void ReportUnlinked()
+        {
+            if (_unreachableContainer == null || _target == null)
+            {
+                return;
+            }
+
+            _unreachableContainer.Clear();
+            var unlinked = new List<string>();
+            if (_target.Navigation != null)
+            {
+                foreach (var node in _target.Navigation)
+                {
+                    if (string.IsNullOrEmpty(node.Up) && string.IsNullOrEmpty(node.Down) && string.IsNullOrEmpty(node.Left) && string.IsNullOrEmpty(node.Right))
+                    {
+                        unlinked.Add(node.Element);
+                    }
+                }
+            }
+
+            if (unlinked.Count == 0)
+            {
+                _unreachableContainer.Add(new Label("未配線(Automatic のまま)の要素はありません。") { style = { opacity = 0.7f } });
+                return;
+            }
+
+            _unreachableContainer.Add(new HelpBox($"未配線(Automatic のまま)の要素が {unlinked.Count} 件あります。Unity の自動ナビゲーションのまま動作します:", HelpBoxMessageType.Info));
+            foreach (var path in unlinked)
+            {
+                _unreachableContainer.Add(new Label("・" + (string.IsNullOrEmpty(path) ? "(ルート)" : path)));
+            }
+        }
+
+        private void UpdatePadEnabled()
+        {
+            var enabled = _target != null && _manager != null && _manager.IsOpen(_previewHandle);
+            if (_padRow != null)
+            {
+                _padRow.SetEnabled(enabled);
+            }
+        }
+
+        private void SimulateMove(Vector2 dir)
+        {
+            if (_target == null || _manager == null || !_manager.IsOpen(_previewHandle))
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_simFocusPath))
+            {
+                _simFocusPath = _target.FirstSelected;
+            }
+
+            if (UnityEngine.EventSystems.EventSystem.current != null && _manager.MoveFocus(dir))
+            {
+                var go = UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject;
+                if (go != null)
+                {
+                    _simFocusPath = ComputeRelativePath(go.transform);
+                }
+            }
+            else
+            {
+                _manager.MoveFocusFrom(_previewHandle, _simFocusPath, dir, out var next);
+                _simFocusPath = next;
+            }
+
+            _graphView.SetFocusedPath(_simFocusPath);
+            UpdateFocusLabel();
+        }
+
+        private void SimulateSubmit()
+        {
+            if (_target == null || _manager == null || !_manager.IsOpen(_previewHandle) || string.IsNullOrEmpty(_simFocusPath))
+            {
+                return;
+            }
+
+            var button = _manager.GetComponent<UiButton>(_previewHandle, _simFocusPath);
+            if (button != null)
+            {
+                button.SimulateClick();
+                return;
+            }
+
+            var uguiButton = _manager.GetComponent<UnityEngine.UI.Selectable>(_previewHandle, _simFocusPath);
+            (uguiButton as UnityEngine.EventSystems.ISubmitHandler)?.OnSubmit(new UnityEngine.EventSystems.BaseEventData(UnityEngine.EventSystems.EventSystem.current));
+        }
+
+        private string ComputeRelativePath(Transform target)
+        {
+            var rootGo = _manager.GetGameObject(_previewHandle);
+            if (rootGo == null)
+            {
+                return _simFocusPath;
+            }
+
+            var root = rootGo.transform;
+            if (target == root)
+            {
+                return string.Empty;
+            }
+
+            var names = new List<string>();
+            var cur = target;
+            while (cur != null && cur != root)
+            {
+                names.Add(cur.name);
+                cur = cur.parent;
+            }
+
+            names.Reverse();
+            return string.Join("/", names);
+        }
+
+        private void UpdateFocusLabel()
+        {
+            if (_focusLabel == null)
+            {
+                return;
+            }
+
+            _focusLabel.text = string.IsNullOrEmpty(_simFocusPath)
+                ? "フォーカス: (未確認)"
+                : $"フォーカス: {_simFocusPath}";
+        }
+
         private void EnsurePreviewRoot()
         {
             if (_previewRoot != null)
@@ -496,6 +752,10 @@ namespace DDrive.Editor.CanvasTool
 
             _previewHandle = _manager.OpenData(_target);
             _statusLabel.text = _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "表示に失敗しました";
+            _simFocusPath = _target.FirstSelected;
+            UpdatePadEnabled();
+            UpdateFocusLabel();
+            _graphView?.SetFocusedPath(_simFocusPath);
             SceneView.RepaintAll();
         }
 
@@ -519,6 +779,11 @@ namespace DDrive.Editor.CanvasTool
             {
                 _statusLabel.text = "「確認用シーンで開く」で確認できます";
             }
+
+            _simFocusPath = null;
+            UpdatePadEnabled();
+            UpdateFocusLabel();
+            _graphView?.SetFocusedPath(null);
 
             SceneView.RepaintAll();
         }
