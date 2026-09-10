@@ -71,6 +71,10 @@ namespace DDrive.Runtime.Material
         [Tooltip("常時アニメ(UV スクロール等)。MaterialManager の Tick が共有 Material に対して一括で駆動する。")]
         public MaterialAnim[] Anims;
 
+        [Header("Import")]
+        [Tooltip("Maya FBX 自動生成の由来(\"FBX名/マテリアル名\")。再インポート時の同定に使う。手動で作った Data は空。")]
+        public string SourceMaterial;
+
         // Blend から決まる基準 RenderQueue。
         public int BaseRenderQueue => Common.Blend switch
         {
