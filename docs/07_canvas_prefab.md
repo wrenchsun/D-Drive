@@ -103,6 +103,16 @@ public static class Ui
 - **2026-09-11 追記(4-2/4-6)**: UiButton/UiInteractable 本体を実装し、`ButtonWire` の実行(Trigger→UiButton イベント購読、Open で配線 → Close で解除)まで完了した。詳細は [15_ui_interaction.md](15_ui_interaction.md) の実装メモを参照。`Navigation` は `Selectable` に加え `UiInteractable`(`UiNavigation` コンポーネント)にも対応し、`UiManager.MoveFocus(Vector2)` を新設した
 - テスト: `Assets/DDrive/Tests/Runtime/UiManagerTests.cs`(`UiManagerTests` 12 件 + `CanvasDataValidatorTests` 4 件)、`Assets/DDrive/Tests/Editor/CanvasEditorTests.cs`(4 件)。Open/Close/スタック/Popup ブロッキングと復元/CloseTop の CloseOnBack/PauseGameWhileOpen/Navigation 明示配線/OnSignal 購読解除/Fade 演出の Tick 完了と OpenAsync/ライフサイクルイベント/未登録 ID の Placeholder、Validator の 4 ケース、Selectable 自動収集(新規収集・既存保持・null Prefab)、DataEditorRegistry 解決を確認
 
+### 実装メモ追記(2026-09-11、4-9 ElementFx + 4-7 残り レイヤー既定 SE)
+
+- `CanvasData.ElementEffects`(`ElementFx[]`)を追加。1 要素 = `ElementPath` + Appear/Idle/Disappear(それぞれ id/Preset)+ `AppearDelay` + Appear/DisappearSe([15] B-4 参照)
+- **`UiLayerSettings`**(新規 `ScriptableObject`。`Assets/DDrive/Runtime/Canvas/UiLayerSettings.cs`)を追加。`AssetDataBase` ではなくプロジェクト単位の設定アセット 1 個(`DDriveRuntimeBootstrap.LayerSettings` を Inspector 直参照、`Ui.SetLayerSettings` で `UiManager` へ配る)。`UiLayer` ごとに `DefaultButtonSkin` / `DefaultClickSe` / `DefaultHoverSe` / `DefaultDeniedSe` / `DefaultAppear` / `DefaultDisappear` を持つ
+- **Open**: `ApplyLayerDefaults` → `SetupElementFx` を `WireButtons` の直後に実行する。`ApplyLayerDefaults` は Prefab 内の全 `UiInteractable` に `SetDefaultSe` を配り、`SkinId` 未設定 かつ 明示 `SetVisual` 未実行(`HasExplicitSkin==false`)の対象にだけ `ApplyDefaultSkin` を当てる。`SetupElementFx` は `ElementPath` を解決して `ElementFxRuntime` の一覧を作り、Appear を持つ要素の数だけ `PendingAppearCount` を積む(未解決パスは 1 回だけ警告してスキップ)
+- **入力ゲート**: `RecomputeBlocking` がモーダルブロックとは独立に `PendingAppearCount > 0` の Canvas を非対話化する。要素の Appear が完了するたびに `UiManager.Tick` が呼び直す
+- **Close**: `StartAllDisappearFx`(全要素の Disappear を一斉開始し `PendingDisappearCount` を確定)→ `StartTransition(CloseTransition)` の順。実際に `FinalizeClose` するのは `CloseTransitionCompleted && PendingDisappearCount<=0` の両方が揃ってから(`TryFinalizeClose`)。`StopAll` は演出を待たず `Stop(complete:true)` で畳んでから閉じる
+- 詳細な実装メモ・解決順・スタッガーの仕組みは [15_ui_interaction.md](15_ui_interaction.md) B-4 の 2026-09-11 実装メモを参照
+- テスト: `Assets/DDrive/Tests/Runtime/ElementFxTests.cs`(`ElementFxTests` 8 件 + `ElementFxValidatorTests` 5 件)
+
 ---
 
 # Part B — 汎用 Prefab

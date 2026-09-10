@@ -28,6 +28,9 @@ namespace DDrive.Editor.CanvasTool
         private UiManager _manager;
         private AssetRegistry _registry;
         private PoolService _pool;
+        private UiTweenManager _tweenManager;
+        private double _lastEditorTime;
+        private UiPreset _bulkPreset;
 
         private GameObject _previewRoot;
         private Handle<CanvasMarker> _previewHandle = Handle<CanvasMarker>.Invalid;
@@ -55,17 +58,40 @@ namespace DDrive.Editor.CanvasTool
         {
             _registry = EditorAnchorRegistry.Build();
             _pool = new PoolService();
-            _manager = new UiManager(_pool, _registry);
+            _tweenManager = new UiTweenManager(_registry);
+            _manager = new UiManager(_pool, _registry, tweens: _tweenManager);
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
+            _lastEditorTime = EditorApplication.timeSinceStartup;
+            EditorApplication.update += OnEditorUpdate;
         }
 
         private void OnDisable()
         {
+            EditorApplication.update -= OnEditorUpdate;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
             RemovePreview();
             _manager = null;
+            _tweenManager = null;
             _pool = null;
             _registry = null;
+        }
+
+        // ADR-4 / owner instruction 2026-09-10: 確認用シーンのプレビューは実 UiManager + UiTweenManager を
+        // EditorApplication.update から駆動する(ウィンドウ内には何も描画しない)。ElementFx(4-9)の
+        // Appear/Idle/Disappear は UiTweenManager.Tick が進めないと一切動かないため、UiTweenEditorWindow と
+        // 同じ手順でここでも Tick する。
+        private void OnEditorUpdate()
+        {
+            var now = EditorApplication.timeSinceStartup;
+            var dt = (float)(now - _lastEditorTime);
+            _lastEditorTime = now;
+            if (_manager == null || dt <= 0f || dt > 1f)
+            {
+                return;
+            }
+
+            _tweenManager?.Tick(dt);
+            _manager.Tick(dt);
         }
 
         private void OnSelectionChange()
@@ -110,6 +136,17 @@ namespace DDrive.Editor.CanvasTool
             var navButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
             navButtons.Add(new Button(CollectSelectables) { text = "Selectable を自動収集", tooltip = "Prefab 内の Selectable から Navigation を作る(既存の行は保持する)" });
             _root.Add(navButtons);
+
+            var fxButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
+            fxButtons.Add(new Button(CollectElementFx) { text = "要素を自動収集(Image / UiButton / パネル)", tooltip = "Prefab 内の Graphic/UiInteractable から ElementFx の行を作る(既存の行は保持する)" });
+            _root.Add(fxButtons);
+
+            var bulkRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, alignItems = Align.Center } };
+            var presetField = new EnumField("プリセット", _bulkPreset) { style = { flexGrow = 1f } };
+            presetField.RegisterValueChangedCallback(evt => _bulkPreset = (UiPreset)evt.newValue);
+            bulkRow.Add(presetField);
+            bulkRow.Add(new Button(ApplyBulkPresetToButtons) { text = "一括適用: 全ボタンに反映", tooltip = "Prefab 内の全 UiButton の AppearPreset にこのプリセットを設定する" });
+            _root.Add(bulkRow);
 
             var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
             previewButtons.Add(new Button(PlacePreview) { text = "確認用シーンで開く", tooltip = "開いているシーン(またはプレハブステージ)に実 UiManager で OpenData する" });
@@ -180,6 +217,45 @@ namespace DDrive.Editor.CanvasTool
 
             SetTarget(_target); // Inspector / Validation を再構築
             _statusLabel.text = $"Selectable を {merged.Length} 件収集しました";
+        }
+
+        // 4-9: Graphic(Image 等)/UiInteractable(UiButton 等)/パネル(RectTransform+Graphic)を持つパスを
+        // ElementEffects に追加する(既存の行・値は保持する)。
+        private void CollectElementFx()
+        {
+            if (_target == null || _target.Prefab == null)
+            {
+                _statusLabel.text = "Prefab を設定してください";
+                return;
+            }
+
+            var merged = CanvasElementFxCollector.CollectMerged(_target.Prefab, _target.ElementEffects);
+
+            Undo.RecordObject(_target, "Collect ElementFx");
+            _target.ElementEffects = merged;
+            EditorUtility.SetDirty(_target);
+
+            SetTarget(_target);
+            _statusLabel.text = $"ElementFx を {merged.Length} 件収集しました";
+        }
+
+        // 4-9: Prefab 内の全 UiButton へ、選択中のプリセットを AppearPreset として一括設定する(行が無ければ追加する)。
+        private void ApplyBulkPresetToButtons()
+        {
+            if (_target == null || _target.Prefab == null)
+            {
+                _statusLabel.text = "Prefab を設定してください";
+                return;
+            }
+
+            var merged = CanvasElementFxCollector.ApplyPresetToButtons(_target.Prefab, _target.ElementEffects, _bulkPreset);
+
+            Undo.RecordObject(_target, "Apply Preset To Buttons");
+            _target.ElementEffects = merged;
+            EditorUtility.SetDirty(_target);
+
+            SetTarget(_target);
+            _statusLabel.text = $"全ボタンの AppearPreset に {_bulkPreset} を設定しました";
         }
 
         private void EnsurePreviewRoot()

@@ -96,6 +96,32 @@ namespace DDrive.Runtime.Ui
         public string SignalKey;
     }
 
+    // [15_ui_interaction.md] B-4 — Canvas 内の 1 要素分の Appear/Idle/Disappear 演出(チケット 4-9)。
+    // 解決順は id(Appear/Idle/Disappear) → Preset(AppearPreset/IdlePreset/DisappearPreset) →
+    // レイヤー既定(UiLayerSettings.DefaultAppear/DefaultDisappear。Idle にはレイヤー既定は無い)。
+    // いずれも未設定なら該当区間は何もしない(即完了扱い)。
+    [Serializable]
+    public struct ElementFx
+    {
+        [Tooltip("Prefab ルートからの相対パス(UiManager.OpenData の root.Find 基準)")]
+        public string ElementPath;
+
+        public UiPresetRef AppearPreset;
+        public UiPresetRef IdlePreset;
+        public UiPresetRef DisappearPreset;
+
+        [Tooltip("設定があれば対応する Preset より優先される")]
+        public AssetId<UiTweenMarker> Appear;
+        public AssetId<UiTweenMarker> Idle;
+        public AssetId<UiTweenMarker> Disappear;
+
+        [Tooltip("Open 開始からこの秒数だけ遅らせて Appear を再生する(スタッガー演出用)")]
+        public float AppearDelay;
+
+        public AssetId<SeMarker> AppearSe;
+        public AssetId<SeMarker> DisappearSe;
+    }
+
     // [07_canvas_prefab.md] Part A-2 — UI の 1 画面(Canvas Prefab)の設定。Open/Close/スタック/モーダル/
     // ポーズ/ナビゲーション/ボタン配線をまとめて持つ。UiButton/ElementFx 本体は後続チケット(4-2/4-6/4-9)。
     [CreateAssetMenu(menuName = "D-Drive/Ui/Canvas Data", fileName = "CANVAS_New")]
@@ -129,5 +155,9 @@ namespace DDrive.Runtime.Ui
         [Header("Wiring")]
         public ButtonWire[] Buttons;
         public SliderWire[] Sliders;
+
+        [Header("ElementFx")]
+        [Tooltip("Open/Close 時に個別再生する要素演出(4-9)。Idle は Appear 完了後にループ再生し、Close で停止する。")]
+        public ElementFx[] ElementEffects;
     }
 }

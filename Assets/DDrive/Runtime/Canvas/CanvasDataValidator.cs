@@ -44,6 +44,11 @@ namespace DDrive.Runtime.Ui
                 yield return result;
             }
 
+            foreach (var result in ValidateElementFx(canvas, root))
+            {
+                yield return result;
+            }
+
             if (canvas.Layer == UiLayer.Popup && !canvas.ModalBlocksInput)
             {
                 yield return ValidationResult.Info("Layer=Popup ですが ModalBlocksInput が OFF です(背後の入力がブロックされません)");
@@ -158,6 +163,68 @@ namespace DDrive.Runtime.Ui
                 {
                     yield return ValidationResult.Warning($"ButtonWire[{i}] '{wire.ButtonPath}': CooldownSec=0 の状態で OpenCanvas に配線されています(連打で多重遷移するおそれがあります)");
                 }
+            }
+        }
+
+        // [15_ui_interaction.md] B-4 — 4-9: ElementFx(Appear/Idle/Disappear)の検査。
+        private static IEnumerable<ValidationResult> ValidateElementFx(CanvasData canvas, Transform root)
+        {
+            if (canvas.ElementEffects == null)
+            {
+                yield break;
+            }
+
+            var seenPaths = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var i = 0; i < canvas.ElementEffects.Length; i++)
+            {
+                var fx = canvas.ElementEffects[i];
+
+                if (!ResolvesTo<Transform>(root, fx.ElementPath))
+                {
+                    yield return ValidationResult.Error($"ElementFx[{i}] の ElementPath '{fx.ElementPath}' が Prefab 内で見つかりません");
+                }
+                else if (!string.IsNullOrEmpty(fx.ElementPath) && !seenPaths.Add(fx.ElementPath))
+                {
+                    yield return ValidationResult.Warning($"ElementFx[{i}] '{fx.ElementPath}' の ElementPath が重複しています");
+                }
+
+                if (fx.AppearDelay < 0f)
+                {
+                    yield return ValidationResult.Error($"ElementFx[{i}] '{fx.ElementPath}': AppearDelay が負数です");
+                }
+
+                var hasAppear = fx.Appear.IsValid || fx.AppearPreset.Preset != UiPreset.None;
+                var hasDisappearOrIdle = fx.Disappear.IsValid || fx.DisappearPreset.Preset != UiPreset.None
+                                                                || fx.Idle.IsValid || fx.IdlePreset.Preset != UiPreset.None;
+                if (!hasAppear && hasDisappearOrIdle)
+                {
+                    yield return ValidationResult.Info($"ElementFx[{i}] '{fx.ElementPath}': 出現なし(Appear/AppearPreset が未設定です)");
+                }
+
+                if (!fx.Idle.IsValid && fx.IdlePreset.Preset != UiPreset.None && !IsLoopPreset(fx.IdlePreset.Preset))
+                {
+                    yield return ValidationResult.Warning($"ElementFx[{i}] '{fx.ElementPath}': Idle には常時系プリセットを推奨します(Pulse/Blink/Float/Sway/Breathe/RotateLoop/ShimmerAlpha/RainbowTint/WobbleLoop)");
+                }
+            }
+        }
+
+        private static bool IsLoopPreset(UiPreset preset)
+        {
+            switch (preset)
+            {
+                case UiPreset.Pulse:
+                case UiPreset.Blink:
+                case UiPreset.Float:
+                case UiPreset.Sway:
+                case UiPreset.Breathe:
+                case UiPreset.RotateLoop:
+                case UiPreset.ShimmerAlpha:
+                case UiPreset.RainbowTint:
+                case UiPreset.WobbleLoop:
+                    return true;
+                default:
+                    return false;
             }
         }
 

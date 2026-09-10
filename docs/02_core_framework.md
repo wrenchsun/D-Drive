@@ -271,3 +271,4 @@ public interface IValidator
 - Start: `Catalogs`（直参照）と Addressables ラベル `DDriveCatalog` のカタログを `Registry.RegisterCatalogAsync` → `IsReady` / `OnReady` / `WhenReady`。IsReady 前の Play は未登録 ID として Placeholder になる（例外にしない）
 - 破棄: `GameLoop.StopAll(SceneUnload)` → Dispatcher 破棄 → ファサード Unbind → GameLoop から解除 → Pool Clear。`KeepAcrossScenes`（既定 ON）でシーンをまたいで生きる
 - テスト: `Tests/Runtime/RuntimeBootstrapTests.cs`（組み立て・Bind・Unbind・カタログ登録・多重配置の拒否）
+- **2026-09-11 追記(4-9)**: `UiTweenManager` を `UiManager` より先に生成し、`new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens)` で ElementFx の再生先として渡す。`[SerializeField] UiLayerSettings LayerSettings`(Inspector 直参照、未設定なら null のままでフォールバック無し)を追加し、`Ui.SetLayerSettings(LayerSettings)` で配る([15_ui_interaction.md] B-4 実装メモ参照)
