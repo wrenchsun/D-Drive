@@ -67,6 +67,10 @@ namespace DDrive.Runtime.Ui
         // 現在再生中の Tween 数(テスト・デバッグ表示用)。
         public int ActiveCount => _active.Count;
 
+        // [18_ui_controls.md] B-4 — OptionKey.UiSpeedScale が反映する全体速度倍率(既定 1=等速)。
+        // Instance.Speed(個別倍率)と掛け合わせて Tick の effectiveDt に使う。
+        public float GlobalSpeed = 1f;
+
         public UiTweenManager(IAssetRegistry registry)
         {
             _registry = registry;
@@ -375,7 +379,7 @@ namespace DDrive.Runtime.Ui
                 // 検証できることを優先する)。UseScaledTime は「将来 GameLoopDriver が scaled/unscaled の
                 // 2 系統の dt を配るようになったときにどちらを使うか」を Instance 単位で選べるようにする
                 // ための予約フラグで、現時点では実効値に差は無い(deferred。docs/15 実装メモ参照)。
-                var effectiveDt = dt * inst.Speed;
+                var effectiveDt = dt * inst.Speed * GlobalSpeed;
                 inst.Elapsed += effectiveDt;
 
                 var allDone = true;

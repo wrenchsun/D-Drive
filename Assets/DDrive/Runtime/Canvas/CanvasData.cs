@@ -71,6 +71,8 @@ namespace DDrive.Runtime.Ui
         CloseTop,
         SendSignal,
         PlayPresentation,
+        // [18_ui_controls.md] B-4(4-16) — SliderWire 専用。OptionStore(Option)へ現在値を書く。
+        SetOption,
     }
 
     // ボタン配線。UiButton 本体の実装(4-2/4-6)より先にデータだけ持たせておく(現時点ではコードから
@@ -86,14 +88,27 @@ namespace DDrive.Runtime.Ui
         public AssetId<SeMarker> ClickSe;
     }
 
-    // スライダー配線。UiSlider 本体([18_ui_controls.md])は未実装のためデータのみ(4-2/4-16 が配線する)。
+    // [18_ui_controls.md] B-4 — UiSlider の入力種別(4-16)。
+    public enum SliderTrigger
+    {
+        Changed,
+        Commit,
+        NotchPassed,
+        LimitReached,
+    }
+
+    // スライダー配線([18_ui_controls.md] B-4、4-16)。Action=SetOption のとき Option を使い、
+    // OptionStore との直結を配線だけで完結させる(コード不要で音量設定画面が組める)。
     [Serializable]
     public struct SliderWire
     {
-        public string SliderPath;
-        public string OptionKey;
-        public AssetRef Target;
+        public string ElementPath;
+        public SliderTrigger Trigger;
+        public UiAction Action;
         public string SignalKey;
+        public OptionKey Option;
+        [Tooltip("Trigger=Changed の通知間引き(秒)。UiSlider.ChangeThrottleSec との大きい方が使われる")]
+        public float ThrottleSec;
     }
 
     // [15_ui_interaction.md] B-4 — Canvas 内の 1 要素分の Appear/Idle/Disappear 演出(チケット 4-9)。

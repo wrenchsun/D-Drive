@@ -44,6 +44,16 @@ namespace DDrive.Runtime.Ui
                 yield return result;
             }
 
+            foreach (var result in ValidateSliders(canvas, root))
+            {
+                yield return result;
+            }
+
+            foreach (var result in ValidateSliderComponents(canvas, root))
+            {
+                yield return result;
+            }
+
             foreach (var result in ValidateElementFx(canvas, root))
             {
                 yield return result;
@@ -85,6 +95,18 @@ namespace DDrive.Runtime.Ui
                     else
                     {
                         reached.Add(pair.path);
+                    }
+                }
+
+                // [18_ui_controls.md] B-7 — 左右 NavNode が設定されているのに EscapeOnLimit=false だと
+                // スライダー操作にキーが吸収され続けてフォーカスを抜けられない。
+                if (!string.IsNullOrEmpty(node.Left) || !string.IsNullOrEmpty(node.Right))
+                {
+                    var self = root.Find(node.Element);
+                    var slider = self != null ? self.GetComponent<UiSlider>() : null;
+                    if (slider != null && !slider.EscapeOnLimit)
+                    {
+                        yield return ValidationResult.Warning($"Navigation[{i}] '{node.Element}': 左右 NavNode が設定されていますが EscapeOnLimit=false です(フォーカスが抜けられません)");
                     }
                 }
             }
@@ -163,6 +185,56 @@ namespace DDrive.Runtime.Ui
                 {
                     yield return ValidationResult.Warning($"ButtonWire[{i}] '{wire.ButtonPath}': CooldownSec=0 の状態で OpenCanvas に配線されています(連打で多重遷移するおそれがあります)");
                 }
+            }
+        }
+
+        // [18_ui_controls.md] B-7 — SliderWire(4-16)配線の検査。
+        private static IEnumerable<ValidationResult> ValidateSliders(CanvasData canvas, Transform root)
+        {
+            if (canvas.Sliders == null)
+            {
+                yield break;
+            }
+
+            for (var i = 0; i < canvas.Sliders.Length; i++)
+            {
+                var wire = canvas.Sliders[i];
+                if (!ResolvesTo<Transform>(root, wire.ElementPath))
+                {
+                    yield return ValidationResult.Error($"SliderWire[{i}] の ElementPath '{wire.ElementPath}' が Prefab 内で見つかりません");
+                }
+
+                if (wire.Action == UiAction.SetOption && wire.Option == OptionKey.None)
+                {
+                    yield return ValidationResult.Error($"SliderWire[{i}] '{wire.ElementPath}': Action=SetOption なのに Option が未設定(None)です");
+                }
+
+                if (wire.Trigger == SliderTrigger.Changed && wire.ThrottleSec <= 0f && wire.Action == UiAction.PlayPresentation)
+                {
+                    yield return ValidationResult.Warning($"SliderWire[{i}] '{wire.ElementPath}': Trigger=Changed かつ ThrottleSec=0 のまま重処理(PlayPresentation)に配線されています");
+                }
+            }
+        }
+
+        // [18_ui_controls.md] B-7 — Prefab 内の全 UiSlider に対する単体検査(Min/Max/Response/Step/Notches 等)。
+        private static IEnumerable<ValidationResult> ValidateSliderComponents(CanvasData canvas, Transform root)
+        {
+            var sliders = canvas.Prefab.GetComponentsInChildren<UiSlider>(true);
+            if (sliders.Length == 0)
+            {
+                yield break;
+            }
+
+            var results = new List<ValidationResult>();
+            for (var i = 0; i < sliders.Length; i++)
+            {
+                var path = GetPath(root, sliders[i].transform);
+                UiSliderValidation.Validate(sliders[i], string.IsNullOrEmpty(path) ? sliders[i].name : path, results);
+            }
+
+            foreach (var r in results)
+            {
+                yield return r;
             }
         }
 

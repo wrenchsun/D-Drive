@@ -386,6 +386,77 @@ namespace DDrive.Tests.Runtime
 
             Object.DestroyImmediate(prefab);
         }
+
+        // ── SliderWire(4-16) ──
+
+        private static GameObject CreateSliderWireTestPrefab(out UiSlider slider)
+        {
+            var prefab = new GameObject("SliderWireTestPrefab", typeof(RectTransform));
+            prefab.AddComponent<Canvas>();
+            prefab.AddComponent<CanvasGroup>();
+
+            var sliderGo = new GameObject("Sld", typeof(RectTransform), typeof(Image), typeof(UiSlider));
+            sliderGo.transform.SetParent(prefab.transform);
+            slider = sliderGo.GetComponent<UiSlider>();
+            slider.Min = 0f;
+            slider.Max = 1f;
+            return prefab;
+        }
+
+        [Test]
+        public void SliderWire_SetOption_InitializesFromStore_AndWritesBackOnCommit()
+        {
+            var prefab = CreateSliderWireTestPrefab(out _);
+            var options = new OptionStore();
+            options.Set(OptionKey.SeVolume, 0.7f);
+            _manager.SetOptionStore(options);
+
+            var data = CreateCanvasData(201);
+            data.Prefab = prefab;
+            data.Sliders = new[]
+            {
+                new SliderWire { ElementPath = "Sld", Trigger = SliderTrigger.Commit, Action = UiAction.SetOption, Option = OptionKey.SeVolume },
+            };
+
+            var handle = _manager.OpenData(data);
+            var slider = _manager.GetComponent<UiSlider>(handle, "Sld");
+
+            Assert.AreEqual(0.7f, slider.Value, 0.001f, "Open 時に OptionStore の現在値で初期化される");
+
+            slider.BeginDragAt(0.2f);
+            slider.EndDrag();
+
+            Assert.AreEqual(0.2f, options.Get(OptionKey.SeVolume), 0.001f, "Commit で OptionStore へ書き戻す");
+
+            Object.DestroyImmediate(prefab);
+        }
+
+        [Test]
+        public void SliderWire_SendSignal_CarriesValue()
+        {
+            var prefab = CreateSliderWireTestPrefab(out _);
+
+            var data = CreateCanvasData(202);
+            data.Prefab = prefab;
+            data.Sliders = new[]
+            {
+                new SliderWire { ElementPath = "Sld", Trigger = SliderTrigger.Commit, Action = UiAction.SendSignal, SignalKey = "slider/test" },
+            };
+
+            var received = new List<SignalArgs>();
+            _manager.OnSignal("slider/test", args => received.Add(args));
+
+            var handle = _manager.OpenData(data);
+            var slider = _manager.GetComponent<UiSlider>(handle, "Sld");
+
+            slider.BeginDragAt(0.6f);
+            slider.EndDrag();
+
+            Assert.AreEqual(1, received.Count);
+            Assert.AreEqual(0.6f, received[0].Value, 0.001f);
+
+            Object.DestroyImmediate(prefab);
+        }
     }
 
     public class CanvasDataValidatorTests
@@ -517,6 +588,54 @@ namespace DDrive.Tests.Runtime
             Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Warning && r.Message.Contains("CooldownSec")));
             Object.DestroyImmediate(data);
             Object.DestroyImmediate(buttonGo);
+        }
+
+        // ── SliderWire(4-16 配線 / 4-18 検査) ──
+
+        [Test]
+        public void BadSliderElementPath_ReportsError()
+        {
+            var data = ScriptableObject.CreateInstance<CanvasData>();
+            data.Prefab = _prefab;
+            data.Sliders = new[] { new SliderWire { ElementPath = "NoSuchSlider" } };
+
+            var results = Run(data);
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("ElementPath")));
+            Object.DestroyImmediate(data);
+        }
+
+        [Test]
+        public void SetOptionWithoutOptionKey_ReportsError()
+        {
+            var sliderGo = new GameObject("Sld", typeof(RectTransform), typeof(UiSlider));
+            sliderGo.transform.SetParent(_prefab.transform);
+
+            var data = ScriptableObject.CreateInstance<CanvasData>();
+            data.Prefab = _prefab;
+            data.Sliders = new[] { new SliderWire { ElementPath = "Sld", Action = UiAction.SetOption, Option = OptionKey.None } };
+
+            var results = Run(data);
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("Option")));
+            Object.DestroyImmediate(data);
+            Object.DestroyImmediate(sliderGo);
+        }
+
+        [Test]
+        public void SliderComponent_MinGreaterEqualMax_ReportsError()
+        {
+            var sliderGo = new GameObject("Sld2", typeof(RectTransform), typeof(UiSlider));
+            sliderGo.transform.SetParent(_prefab.transform);
+            var slider = sliderGo.GetComponent<UiSlider>();
+            slider.Min = 1f;
+            slider.Max = 1f;
+
+            var data = ScriptableObject.CreateInstance<CanvasData>();
+            data.Prefab = _prefab;
+
+            var results = Run(data);
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("Min")));
+            Object.DestroyImmediate(data);
+            Object.DestroyImmediate(sliderGo);
         }
     }
 }
