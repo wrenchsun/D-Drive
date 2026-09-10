@@ -1,5 +1,6 @@
 using System;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Identity;
 using DDrive.Foundation.Values;
 using UnityEngine;
 
@@ -10,13 +11,15 @@ namespace DDrive.Runtime.Ui
     }
 
     // [15_ui_interaction.md] A-3 / [18_ui_controls.md] A-1 — 状態 1 つ分の見た目。
-    // EnterTweenId は 4-8(UiTween)実装後に AssetId<UiTweenMarker> へ置き換える予定のプレースホルダで、
-    // 現時点では未使用(生 ulong のまま保持するだけ)。
+    // EnterTween/EnterPreset は 2026-09-11(4-8+4-11 前半)で追加。UiInteractable.ApplyVisual が状態遷移時に
+    // EnterTween(あれば優先) → EnterPreset(Preset!=None なら)の順で UiFx 経由で再生する。
     [Serializable]
     public struct StateVisual
     {
-        [Tooltip("4-8 で UiTweenId に置換")]
-        public ulong EnterTweenId;
+        [Tooltip("この状態に入ったときに再生する Tween(UiTweenData)。設定があれば EnterPreset より優先")]
+        public AssetId<UiTweenMarker> EnterTween;
+        [Tooltip("EnterTween が未設定のときに使う簡易プリセット指定。Preset=None なら何も再生しない")]
+        public UiPresetRef EnterPreset;
         public Color Tint;
         public ValueDef Scale;
         public Sprite OverrideSprite;

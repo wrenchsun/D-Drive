@@ -1,4 +1,5 @@
 using System;
+using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -50,6 +51,9 @@ namespace DDrive.Runtime.Ui
         private bool _focused;
         private float _cooldownRemaining;
         private ControlSkinData _skin;
+
+        // 状態遷移時に再生した Tween(次の遷移で止める。[15_ui_interaction.md] B-4「UiButton の StateVisual.EnterTween」)。
+        private Handle<UiTweenMarker> _stateTween = Handle<UiTweenMarker>.Invalid;
 
         public bool Interactable
         {
@@ -244,7 +248,35 @@ namespace DDrive.Runtime.Ui
 
             ref readonly var v = ref skin.Get(State);
             ApplyVisual(in v);
+            PlayStateTween(in v);
             OnSkinApplied(in v);
+        }
+
+        // EnterTween(あれば優先) → EnterPreset(Preset!=None) の順で再生する。UiFx 未 Bind 時は no-op。
+        private void PlayStateTween(in StateVisual v)
+        {
+            if (!UiFx.IsBound)
+            {
+                return;
+            }
+
+            var rt = transform as RectTransform;
+            if (rt == null)
+            {
+                return;
+            }
+
+            UiFx.Stop(_stateTween);
+            _stateTween = Handle<UiTweenMarker>.Invalid;
+
+            if (v.EnterTween.IsValid)
+            {
+                _stateTween = UiFx.Play(v.EnterTween, rt);
+            }
+            else if (v.EnterPreset.Preset != UiPreset.None)
+            {
+                _stateTween = UiFx.Play(v.EnterPreset.Preset, rt, in v.EnterPreset);
+            }
         }
 
         private void ApplyVisual(in StateVisual v)

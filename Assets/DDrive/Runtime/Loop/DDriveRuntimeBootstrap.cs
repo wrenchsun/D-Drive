@@ -61,6 +61,7 @@ namespace DDrive.Runtime.Loop
         public MaterialManager Materials { get; private set; }
         public PrefabsManager Prefabs { get; private set; }
         public UiManager Ui { get; private set; }
+        public UiTweenManager UiTweens { get; private set; }
         public AnchorGroupPlayer Groups { get; private set; }
         public AssetEventDispatcher Dispatcher { get; private set; }
         // Prefabs.Events(OnSpawn/OnDestroy)を SE/VFX/配置セットへ配線する 2 つ目の Dispatcher
@@ -150,6 +151,7 @@ namespace DDrive.Runtime.Loop
             Models = new ModelsManager(Pool, Registry, Anim, Materials);
             Prefabs = new PrefabsManager(Pool, Registry);
             Ui = new UiManager(Pool, Registry, Loop.PauseService);
+            UiTweens = new UiTweenManager(Registry);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
@@ -164,6 +166,7 @@ namespace DDrive.Runtime.Loop
             loop.Register(Models);
             loop.Register(Prefabs);
             loop.Register(Ui);
+            loop.Register(UiTweens);
             _groupAdapter = new AnchorGroupLoopAdapter(Groups);
             loop.Register(_groupAdapter);
 
@@ -179,6 +182,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Prefab.Prefabs.Bind(Prefabs);
                 Runtime.Ui.Ui.Bind(Ui);
                 Runtime.Ui.UiSkins.Bind(Registry);
+                Runtime.Ui.UiFx.Bind(UiTweens);
                 Anchors.Bind(Groups);
             }
 
@@ -211,6 +215,7 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Models);
                 loop.Unregister(Prefabs);
                 loop.Unregister(Ui);
+                loop.Unregister(UiTweens);
                 loop.Unregister(_groupAdapter);
             }
 
@@ -233,6 +238,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Prefab.Prefabs.Bind(null);
                 Runtime.Ui.Ui.Bind(null);
                 Runtime.Ui.UiSkins.Bind((IAssetRegistry)null);
+                Runtime.Ui.UiFx.Bind(null);
                 Anchors.Bind(null);
             }
 
