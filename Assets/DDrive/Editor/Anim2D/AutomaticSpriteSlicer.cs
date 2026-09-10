@@ -12,7 +12,50 @@ namespace DDrive.Editor.Anim2D
     // 確定処理は SpriteSlicer と同じく TextureImporter.spritesheet フォールバックで書き込む([05] C-2)。
     public static class AutomaticSpriteSlicer
     {
+        // インポーター設定の変更点を検出前に退避し、検出後に元へ戻すためのスナップショット。
+        private struct ImporterSnapshot
+        {
+            public TextureImporterType textureType;
+            public SpriteImportMode spriteImportMode;
+            public bool isReadable;
+            public bool mipmapEnabled;
+            public FilterMode filterMode;
+            public TextureImporterCompression textureCompression;
+            public TextureImporterNPOTScale npotScale;
+            public int maxTextureSize;
+
+            public static ImporterSnapshot Capture(TextureImporter importer)
+            {
+                return new ImporterSnapshot
+                {
+                    textureType = importer.textureType,
+                    spriteImportMode = importer.spriteImportMode,
+                    isReadable = importer.isReadable,
+                    mipmapEnabled = importer.mipmapEnabled,
+                    filterMode = importer.filterMode,
+                    textureCompression = importer.textureCompression,
+                    npotScale = importer.npotScale,
+                    maxTextureSize = importer.maxTextureSize,
+                };
+            }
+
+            public void Restore(TextureImporter importer)
+            {
+                importer.textureType = textureType;
+                importer.spriteImportMode = spriteImportMode;
+                importer.isReadable = isReadable;
+                importer.mipmapEnabled = mipmapEnabled;
+                importer.filterMode = filterMode;
+                importer.textureCompression = textureCompression;
+                importer.npotScale = npotScale;
+                importer.maxTextureSize = maxTextureSize;
+            }
+        }
+
         // 透明領域から自動検出した矩形を取得する。並びは左上→右下にソート済み。
+        // keepImportSettings=false(既定)の場合、検出のために一時的に変更したインポーター設定
+        // (Sprite/Multiple・readable・no mipmap 等)は検出後に元の値へ復元する。
+        // ユーザーがまだスライスを確定していない段階でテクスチャの設定を恒久的に書き換えないため([Codex レビュー 2026-09-10])。
         public static bool DetectRects(
             Texture2D texture,
             int minSpriteSize,
@@ -20,7 +63,8 @@ namespace DDrive.Editor.Anim2D
             out Rect[] sortedRects,
             out int estimatedRows,
             out int estimatedColumns,
-            out bool isRegularGrid)
+            out bool isRegularGrid,
+            bool keepImportSettings = false)
         {
             sortedRects = null;
             estimatedRows = 0;
@@ -45,6 +89,9 @@ namespace DDrive.Editor.Anim2D
                 Debug.LogError($"[AutomaticSpriteSlicer] TextureImporter が取得できません: {path}");
                 return false;
             }
+
+            // 検出のために変更するインポーター設定を退避しておく(keepImportSettings=false のとき検出後に復元する)。
+            var snapshot = ImporterSnapshot.Capture(importer);
 
             // SpriteRect.rect はソース画像の元サイズ座標系を期待する。GenerateAutomaticSpriteRectangles は
             // 渡した Texture2D のピクセル空間で座標を返すため、maxTextureSize によるスケールダウンが起きていると
@@ -104,10 +151,24 @@ namespace DDrive.Editor.Anim2D
                 importer.SaveAndReimport();
             }
 
+            // needReimport で変更したインポーター設定を元に戻す(keepImportSettings=true のときは何もしない)。
+            void RestoreImportSettingsIfNeeded()
+            {
+                if (keepImportSettings || !needReimport)
+                {
+                    return;
+                }
+
+                snapshot.Restore(importer);
+                EditorUtility.SetDirty(importer);
+                importer.SaveAndReimport();
+            }
+
             var reloaded = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
             if (reloaded == null)
             {
                 Debug.LogError("[AutomaticSpriteSlicer] 再読込に失敗しました。");
+                RestoreImportSettingsIfNeeded();
                 return false;
             }
 
@@ -123,6 +184,7 @@ namespace DDrive.Editor.Anim2D
                     "[AutomaticSpriteSlicer] 検出された矩形が 0 件です。" +
                     "背景が透明でない / minSpriteSize が大きすぎる可能性があります。");
                 sortedRects = System.Array.Empty<Rect>();
+                RestoreImportSettingsIfNeeded();
                 return true;
             }
 
@@ -144,6 +206,7 @@ namespace DDrive.Editor.Anim2D
             estimatedColumns = colCount;
             isRegularGrid = regular;
 
+            RestoreImportSettingsIfNeeded();
             return true;
         }
 

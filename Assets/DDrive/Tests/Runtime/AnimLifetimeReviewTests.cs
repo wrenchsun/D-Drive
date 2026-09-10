@@ -114,7 +114,8 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(0, animManager.ActiveCount, "Despawn で所有分も外部 Play 分も止まる");
             Assert.IsFalse(animManager.IsPlaying(extra));
 
-            // プールから同じ GameObject を再利用しても旧アニメは残らない(DefaultAnimation だけが新規に再生される)。
+            // (2026-09-10: Kind==None の既定では Despawn で GO は破棄されるため別インスタンスになるが、
+            // いずれにせよ旧アニメが残らないこと(DefaultAnimation だけが新規に再生される)を確認する。
             var plain = ScriptableObject.CreateInstance<ModelData>();
             plain.Id = 4;
             plain.Prefab = _modelPrefab;

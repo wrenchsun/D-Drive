@@ -102,6 +102,42 @@ namespace DDrive.Foundation.Pool
             ForceReturn(pool, obj);
         }
 
+        // Pool.Kind == None 用: Active から取り除き、Free に積まずに GameObject を破棄する(Codex レビュー 2026-09-10)。
+        // 既に破棄済み/二重 Discard は無視する(冪等)。
+        public void Discard(PooledObject obj)
+        {
+            if (obj == null || !_pools.TryGetValue(obj.PrefabKey, out var pool))
+            {
+                return;
+            }
+
+            if (!pool.Active.Remove(obj))
+            {
+                return;
+            }
+
+            if (obj.GameObject == null)
+            {
+                return;
+            }
+
+            // OnReturn は呼ばない: Discard は「プールに戻って再利用される」のではなく破棄されるため。
+            if (Application.isPlaying)
+            {
+                Object.Destroy(obj.GameObject);
+            }
+            else
+            {
+                Object.DestroyImmediate(obj.GameObject);
+            }
+        }
+
+        // Preload の検証用(IPoolService には含めない): 指定 prefab の Free(待機中)数を返す。
+        public int FreeCount(GameObject prefab)
+        {
+            return _pools.TryGetValue(prefab, out var pool) ? pool.Free.Count : 0;
+        }
+
         public void Clear(PoolScope scope)
         {
             foreach (var pool in _pools.Values)

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
@@ -91,9 +92,11 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
-        public void Despawn_ReturnsToPool_AndInvalidatesHandle_AndReuseGivesSameGameObject()
+        public void Despawn_PooledPolicy_ReturnsToPool_AndInvalidatesHandle_AndReuseGivesSameGameObject()
         {
             var data = CreatePrefabData(1);
+            data.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 8);
+
             var handle = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
             var root = _manager.GetGameObject(handle);
             _manager.Despawn(handle);
@@ -103,6 +106,31 @@ namespace DDrive.Tests.Runtime
 
             var handle2 = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
             Assert.AreSame(root, _manager.GetGameObject(handle2));
+        }
+
+        // Codex レビュー 2026-09-10: Kind == None(既定)は「プールしない」を意味する。
+        // Despawn で GameObject が実際に破棄され、再 Spawn は別インスタンスになることを検証する。
+        // PlayMode の Object.Destroy は次フレームまで実体が残るため UnityTest でフレームをまたぐ。
+        [UnityTest]
+        public System.Collections.IEnumerator Despawn_NonePolicy_DestroysGameObject_AndReuseGivesDifferentGameObject()
+        {
+            var data = CreatePrefabData(1); // Flags.Pool は既定(None)
+
+            var handle = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var root = _manager.GetGameObject(handle);
+            _manager.Despawn(handle);
+
+            Assert.IsNull(_manager.GetGameObject(handle));
+            Assert.IsFalse(_manager.IsValid(handle));
+
+            yield return null;
+
+            Assert.IsTrue(root == null, "None ポリシーの Instance は Despawn で実際に破棄されるはず。");
+
+            var handle2 = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var root2 = _manager.GetGameObject(handle2);
+            Assert.IsNotNull(root2);
+            Assert.AreNotSame(root, root2);
         }
 
         [Test]
@@ -166,6 +194,31 @@ namespace DDrive.Tests.Runtime
             var root = _manager.GetGameObject(handle);
             Assert.IsNotNull(root);
             Assert.IsTrue(root.activeSelf);
+        }
+
+        // Codex レビュー 2026-09-10: Preload(同期)は既にロード済みの ID しか Prewarm できない。
+        // カタログ登録だけ行い ResolveAsync を呼ばない(lazy な)状態で PreloadAsync を使うと
+        // Registry が実データをロードしてから Prewarm できることを検証する。
+        [UnityTest]
+        public System.Collections.IEnumerator PreloadAsync_ResolvesLazyEntry_AndPrewarmsPool()
+        {
+            var data = CreatePrefabData(1);
+            data.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(3, 8);
+
+            var address = "prefab/" + data.Id;
+            _loader.Assets[address] = data;
+
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = data.Id, Type = AssetType.Prefab, Address = address } });
+            yield return _registry.RegisterCatalogAsync(catalog).ToCoroutine();
+
+            // ここでは ResolveAsync を呼ばない(lazy のまま)。同期 Preload は何もしないはず。
+            _manager.Preload(new AssetId<PrefabMarker>(data.Id, AssetType.Prefab));
+            Assert.AreEqual(0, _pool.FreeCount(_prefab));
+
+            yield return _manager.PreloadAsync(new AssetId<PrefabMarker>(data.Id, AssetType.Prefab)).ToCoroutine();
+
+            Assert.AreEqual(3, _pool.FreeCount(_prefab));
         }
 
         [Test]

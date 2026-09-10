@@ -62,6 +62,8 @@ h.SetLayer(int);
 
 > **2026-09-09（レビュー対応）**: (1) `SetMaterial` は共有 `ModelData.Slots` を書き換えず、Instance 側の `Materials[]`（初期値 = `Slots[i].Material`）に保持する。現在値は `TryGetMaterial(h, slot, out id)`。(2) Instance は自分の Animator で再生した Anim Handle を所有し（`DefaultAnimation` / `PlayAnim` の両方）、`Despawn` で所有分を `Stop`、さらに `AnimManager.StopAllFor(animator)` で外部が `Anim.Play` した分も中断してからプールへ返す。プール再利用時に旧アニメの時間・イベント・BlendShape / IK が残らない。`GetOwnedAnimCount(h)` で確認できる。テスト: `AnimLifetimeReviewTests`
 
+> **2026-09-10（Codex レビュー対応、P1）**: `Flags.Pool.Kind`（既定は `None`）は「プールしない」の意味だが、従来は `Despawn` が常に `IPoolService.Return` を呼んでいたため、None 指定でも Instance が Free に無限に貯まり続けていた（`MaxCount`/`Persistent` も効かない）。修正後は Instance 生成/親付け/上限管理は引き続き `IPoolService.Rent` 経由で統一しつつ、`Despawn` は `Kind == Pooled` のときだけ `Return`、`Kind == None`（既定）のときは新設の `IPoolService.Discard` で Active から取り除いて即破棄する（Play モードは `Object.Destroy`、Edit モードは `DestroyImmediate`）。PrefabsManager も同じ規則（[07] 実装メモ参照）。**VFX / SE は対象外**（VfxManager/AudioManager は短命で再生頻度が高いため、Kind に関わらず常にプールする設計を維持）。テスト: `ModelsManagerTests.Despawn_NonePolicy_DestroysGameObject_AndReuseGivesDifferentGameObject` / `Despawn_PooledPolicy_ReturnsToPool_AndReuseGivesSameGameObject`、`PoolServiceTests.Discard_*`
+
 ## A-4. プレビュー / 運用 / Validation
 
 - プレビュー: ターンテーブル回転(自動回転トグル+速度) / 複数モデル並列表示(最大4体、横に並べて配置) / 背景色・ライト強度切替 / Material スロットの ID 差し替え(Slots を PropertyField で編集。実際の見た目反映は Phase 3 完了後) / DefaultAnimation は情報表示のみ(再生確認は Phase 3 の AnimManager 実装後)
@@ -274,6 +276,11 @@ public static class Anim2D
 >   - 編集: Anim2DData を読み込み、`AnimationClipEditorUtility.LoadSprites` でスプライト/時刻を取得 → 配置モード(Uniform/Retiming) → 「適用」で `RebuildClip` + `Retiming`(ValueDef)を `Undo.RecordObject`+`SetDirty` で書き戻す。スプライトのミニプレビュー(EditorApplication.update で再生)付き。`Retiming` フィールドは既存 `ValueDefDrawer` を `PropertyField` 経由でそのまま流用
 >   - 旧「Sequence Preview」「Sound」モードは廃止(ウィンドウに注記ラベルを表示)。共通プレビュー・イベント D&D・Validation パネル統合は 3-13
 > - テスト: `Anim2DToolTests`(EditMode, 22 件)。NamingRuleResolver の角度抽出/クリップ命名、DirectionAngle の 8 方向マッピング往復、BuildUniformTimes/BuildRetimingTimes の単調性・範囲、AnimationClipBuilder が Sprite キーを持つ Clip を生成すること、BlendTreeRegistrar が 2D Freeform Directional Tree + x/y パラメータを登録すること、Anim2DImportProfile.FindOrDefault の組み込み既定値
+
+#### Codex レビュー対応（2026-09-10）
+
+> - **P1**: `AutomaticSpriteSlicer.DetectRects` がユーザーの確定操作前にソーステクスチャの TextureImporter 設定(Sprite/Multiple・readable・no mipmap・Point・Uncompressed・NPOT None・maxTextureSize 16384)を恒久的に書き換えて `SaveAndReimport` していた問題を修正。検出前に対象プロパティをスナップショットし、検出後（`keepImportSettings=false` が既定）に元の値へ復元して再度 `SaveAndReimport` する。確定処理(`ApplyRectsAndCollect`)は従来どおり自分で必要な設定をセットする。テスト: `Anim2DToolTests.DetectRects_DoesNotMutatePersistedImporterSettings`（mipmap ON・Compressed でインポート → DetectRects → 設定が保たれていることを確認）
+> - **P2**: `AnimationClipBuilder.BuildWithTimes` に `Build` と同じ frameRate/totalSeconds ≤ 0 の検証を追加(不正値は false を返し警告ログのみ)。テスト: `BuildWithTimes_NonPositiveFrameRate_ReturnsFalse_AndDoesNotThrow` / `BuildWithTimes_NonPositiveTotalSeconds_ReturnsFalse_AndDoesNotThrow`
 
 ### 実装メモ（2026-09-10、3-13: 共通プレビュー移植 + イベント D&D + Validator）
 

@@ -26,6 +26,7 @@ namespace DDrive.Runtime.Prefab
             public PooledObject Pooled; // Placeholder のときは null(Pool を経由しない)
             public InstanceContext Context;
             public bool IsPlaceholder;
+            public bool IsPooled; // Flags.Pool.Kind == Pooled のとき true。false(None)は Despawn で Discard する
         }
 
         private readonly IPoolService _pool;
@@ -98,6 +99,8 @@ namespace DDrive.Runtime.Prefab
             }
             else
             {
+                // Kind == None(既定)は「プールしない」の意味。Instance 生成/親付け/上限は Pool 経由で統一しつつ、
+                // Despawn では Return せず Discard して破棄する(Codex レビュー 2026-09-10。[07] 実装メモ参照)。
                 if (data.Flags.Pool.Kind == PoolPolicyKind.Pooled && _pool is PoolService concrete)
                 {
                     concrete.SetLimit(data.Prefab, data.Flags.Pool.MaxCount);
@@ -128,6 +131,7 @@ namespace DDrive.Runtime.Prefab
                 Root = root,
                 Pooled = pooled,
                 IsPlaceholder = isPlaceholder,
+                IsPooled = !isPlaceholder && data.Flags.Pool.Kind == PoolPolicyKind.Pooled,
             };
 
             var handle = _instances.Add(instance);
@@ -160,9 +164,14 @@ namespace DDrive.Runtime.Prefab
                     Object.Destroy(instance.Root);
                 }
             }
-            else
+            else if (instance.IsPooled)
             {
                 _pool.Return(instance.Pooled);
+            }
+            else
+            {
+                // Kind == None: プールに戻さず破棄する(待機中インスタンスが無限に残るのを防ぐ)。
+                _pool.Discard(instance.Pooled);
             }
         }
 
@@ -196,17 +205,47 @@ namespace DDrive.Runtime.Prefab
             }
         }
 
+        // 同期 Preload。ResolveOrPlaceholder は「既にロード済みのものだけ」返すため、Addressables から
+        // まだ解決されていない(lazy な)カタログ登録は Prewarm できずに素通りする。その場合は開発ビルドで
+        // 警告を出し、PreloadAsync を使うよう促す(Codex レビュー 2026-09-10。[07] 実装メモ参照)。
         public void Preload(params PrefabAssetId[] ids)
         {
             foreach (var id in ids)
             {
-                var data = _registry.ResolveOrPlaceholder<PrefabData>(id.Value);
-                if (data == null || data.Prefab == null || data.Flags.Pool.Kind != PoolPolicyKind.Pooled)
+                if (!_registry.TryResolveSync<PrefabData>(id.Value, out var data) || data == null)
+                {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    Debug.LogWarning($"[DDrive] Prefabs.Preload: AssetId {id.Value} is not resolvable synchronously yet (lazy Addressables entry?). Use PreloadAsync instead to actually Prewarm it.");
+#endif
+                    continue;
+                }
+
+                if (data.Prefab == null || data.Flags.Pool.Kind != PoolPolicyKind.Pooled)
                 {
                     continue;
                 }
 
                 _pool.Prewarm(data.Prefab, data.Flags.Pool.InitialCount);
+            }
+        }
+
+        // 非同期 Preload。カタログがまだ実データを解決していない(lazy)場合でも ResolveAsync で確実に
+        // ロードしてから Prewarm する。Kind == Pooled かつ InitialCount > 0 のときのみ Prewarm する
+        // (Kind == None は「プールしない」ため事前確保は不要)。
+        public async Cysharp.Threading.Tasks.UniTask PreloadAsync(params PrefabAssetId[] ids)
+        {
+            foreach (var id in ids)
+            {
+                var data = await _registry.ResolveAsync<PrefabData>(id.Value);
+                if (data == null || data.Prefab == null)
+                {
+                    continue;
+                }
+
+                if (data.Flags.Pool.Kind == PoolPolicyKind.Pooled && data.Flags.Pool.InitialCount > 0)
+                {
+                    _pool.Prewarm(data.Prefab, data.Flags.Pool.InitialCount);
+                }
             }
         }
 

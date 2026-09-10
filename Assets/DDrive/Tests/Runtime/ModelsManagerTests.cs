@@ -69,13 +69,51 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
-        public void Despawn_ReturnsToPoolAndInvalidatesHandle()
+        public void Despawn_InvalidatesHandle()
         {
             var data = CreateModelData(1);
             var handle = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
             _manager.Despawn(handle);
 
             Assert.IsNull(_manager.GetGameObject(handle));
+        }
+
+        // Codex レビュー 2026-09-10: Kind == None(既定)は「プールしない」を意味する。
+        // Despawn で GameObject が実際に破棄され、再 Spawn は別インスタンスになることを検証する。
+        // PlayMode の Object.Destroy は次フレームまで実体が残るため UnityTest でフレームをまたぐ。
+        [UnityTest]
+        public System.Collections.IEnumerator Despawn_NonePolicy_DestroysGameObject_AndReuseGivesDifferentGameObject()
+        {
+            var data = CreateModelData(1); // Flags.Pool は既定(None)
+
+            var handle = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var root = _manager.GetGameObject(handle);
+            _manager.Despawn(handle);
+
+            yield return null;
+
+            Assert.IsTrue(root == null, "None ポリシーの Instance は Despawn で実際に破棄されるはず。");
+
+            var handle2 = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var root2 = _manager.GetGameObject(handle2);
+            Assert.IsNotNull(root2);
+            Assert.AreNotSame(root, root2);
+        }
+
+        [Test]
+        public void Despawn_PooledPolicy_ReturnsToPool_AndReuseGivesSameGameObject()
+        {
+            var data = CreateModelData(1);
+            data.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 8);
+
+            var handle = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var root = _manager.GetGameObject(handle);
+            _manager.Despawn(handle);
+
+            Assert.IsNull(_manager.GetGameObject(handle));
+
+            var handle2 = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            Assert.AreSame(root, _manager.GetGameObject(handle2));
         }
 
         [Test]

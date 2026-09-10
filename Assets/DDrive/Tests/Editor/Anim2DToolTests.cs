@@ -168,6 +168,116 @@ namespace DDrive.Tests.Editor
             }
         }
 
+        // ── AutomaticSpriteSlicer ──
+
+        // Codex レビュー 2026-09-10 P1: DetectRects はユーザーがスライスを確定する前に
+        // テクスチャの mipmap/圧縮設定を恒久的に書き換えてはいけない。
+        // mipmap ON・Compressed でインポートしたテクスチャに対して DetectRects を呼び、
+        // 呼び出し後もその設定が保たれていることを検証する。
+        [Test]
+        public void DetectRects_DoesNotMutatePersistedImporterSettings()
+        {
+            EnsureTestRoot();
+            var path = $"{TestRoot}/DetectRectsTemp.png";
+
+            var texture = new Texture2D(8, 8, TextureFormat.RGBA32, false);
+            var clear = new Color32(0, 0, 0, 0);
+            var opaque = new Color32(255, 255, 255, 255);
+            for (var y = 0; y < 8; y++)
+            {
+                for (var x = 0; x < 8; x++)
+                {
+                    var inCenter = x is >= 2 and < 6 && y is >= 2 and < 6;
+                    texture.SetPixel(x, y, inCenter ? opaque : clear);
+                }
+            }
+
+            texture.Apply();
+            System.IO.File.WriteAllBytes(path, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+            importer.textureType = TextureImporterType.Default;
+            importer.mipmapEnabled = true;
+            importer.textureCompression = TextureImporterCompression.Compressed;
+            importer.alphaIsTransparency = true;
+            EditorUtility.SetDirty(importer);
+            importer.SaveAndReimport();
+
+            var loaded = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            Assert.IsNotNull(loaded);
+
+            var success = AutomaticSpriteSlicer.DetectRects(
+                loaded, minSpriteSize: 1, extrudeSize: 0,
+                out var rects, out _, out _, out _);
+
+            Assert.IsTrue(success);
+            Assert.IsNotNull(rects);
+            Assert.Greater(rects.Length, 0, "透明背景の中央に不透明な矩形があるので 1 件以上検出されるはず");
+
+            var importerAfter = (TextureImporter)AssetImporter.GetAtPath(path);
+            Assert.IsTrue(importerAfter.mipmapEnabled, "DetectRects 後も mipmap 設定が復元されているはず");
+            Assert.AreEqual(TextureImporterCompression.Compressed, importerAfter.textureCompression, "DetectRects 後も圧縮設定が復元されているはず");
+        }
+
+        // Codex レビュー 2026-09-10 P2: BuildWithTimes は Build と同じ frameRate/totalSeconds 検証を持つべき。
+        [Test]
+        public void BuildWithTimes_NonPositiveFrameRate_ReturnsFalse_AndDoesNotThrow()
+        {
+            EnsureTestRoot();
+            var sprites = CreateTestSprites(2);
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(".*frameRate.*"));
+            var success = true;
+            AnimationClip clip = null;
+            Assert.DoesNotThrow(() => success = AnimationClipBuilder.BuildWithTimes(
+                sprites, AnimationClipEditorUtility.BuildUniformTimes(2), TestRoot, "InvalidFrameRateClip",
+                frameRate: 0, totalSeconds: 1f, loop: false, out clip));
+
+            Assert.IsFalse(success);
+            Assert.IsNull(clip);
+
+            var texture = sprites.Length > 0 ? sprites[0].texture : null;
+            foreach (var s in sprites)
+            {
+                Object.DestroyImmediate(s);
+            }
+
+            if (texture != null)
+            {
+                Object.DestroyImmediate(texture);
+            }
+        }
+
+        [Test]
+        public void BuildWithTimes_NonPositiveTotalSeconds_ReturnsFalse_AndDoesNotThrow()
+        {
+            EnsureTestRoot();
+            var sprites = CreateTestSprites(2);
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(".*totalSeconds.*"));
+            var success = true;
+            AnimationClip clip = null;
+            Assert.DoesNotThrow(() => success = AnimationClipBuilder.BuildWithTimes(
+                sprites, AnimationClipEditorUtility.BuildUniformTimes(2), TestRoot, "InvalidTotalSecondsClip",
+                frameRate: 12, totalSeconds: 0f, loop: false, out clip));
+
+            Assert.IsFalse(success);
+            Assert.IsNull(clip);
+
+            var texture = sprites.Length > 0 ? sprites[0].texture : null;
+            foreach (var s in sprites)
+            {
+                Object.DestroyImmediate(s);
+            }
+
+            if (texture != null)
+            {
+                Object.DestroyImmediate(texture);
+            }
+        }
+
         // ── BlendTreeRegistrar ──
 
         [Test]

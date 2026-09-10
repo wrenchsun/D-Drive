@@ -35,6 +35,7 @@ namespace DDrive.Runtime.Model
             public AssetId<MaterialMarker>[] Materials; // Instance ごとの現在値(初期値は Data.Slots[i].Material)
             public Animator Animator; // Spawn 時に解決(無ければ null)
             public readonly List<Handle<DDrive.Runtime.Anim.AnimMarker>> Anims = new(); // この Instance が所有する再生
+            public bool IsPooled; // Flags.Pool.Kind == Pooled のとき true。false(None)は Despawn で Discard する
         }
 
         private readonly IPoolService _pool;
@@ -165,6 +166,7 @@ namespace DDrive.Runtime.Model
                 SlotRenderers = slotRenderers,
                 Materials = CopySlotMaterials(data.Slots),
                 Animator = root.GetComponentInChildren<Animator>(true),
+                IsPooled = data.Flags.Pool.Kind == DDrive.Foundation.Data.PoolPolicyKind.Pooled,
             };
 
             var handle = _instances.Add(instance);
@@ -217,7 +219,16 @@ namespace DDrive.Runtime.Model
             instance.Anims.Clear();
             _allActive.Remove(handle);
             _instances.Remove(handle);
-            _pool.Return(instance.Pooled);
+
+            if (instance.IsPooled)
+            {
+                _pool.Return(instance.Pooled);
+            }
+            else
+            {
+                // Kind == None(既定): プールに戻さず破棄する(Codex レビュー 2026-09-10。[05] A-3 実装メモ参照)。
+                _pool.Discard(instance.Pooled);
+            }
         }
 
         public void SetLayer(Handle<ModelMarker> handle, int layer)

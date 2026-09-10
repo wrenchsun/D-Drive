@@ -24,6 +24,10 @@ namespace DDrive.Runtime.Prefab
 
         public static void Preload(params PrefabAssetId[] ids) => _instance?.Preload(ids);
 
+        // Addressables から未解決(lazy)なカタログ登録でも確実に Prewarm したいときに使う([07] 実装メモ 3-11)。
+        public static Cysharp.Threading.Tasks.UniTask PreloadAsync(params PrefabAssetId[] ids)
+            => _instance != null ? _instance.PreloadAsync(ids) : Cysharp.Threading.Tasks.UniTask.CompletedTask;
+
         public static GameObject GetGameObject(Handle<PrefabMarker> h) => _instance?.GetGameObject(h);
 
         public static bool HasTag(Handle<PrefabMarker> h, string tag) => _instance?.HasTag(h, tag) ?? false;

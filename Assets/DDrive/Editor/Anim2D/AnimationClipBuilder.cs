@@ -119,6 +119,26 @@ namespace DDrive.Editor.Anim2D
                 return false;
             }
 
+            if (string.IsNullOrEmpty(clipName))
+            {
+                Debug.LogError("[AnimationClipBuilder] clipName が空です。");
+                return false;
+            }
+
+            // Build と同じ検証を行う(Codex レビュー 2026-09-10): frameRate / totalSeconds が 0 以下だと
+            // 無効な AnimationClip(サンプルレート 0 など)が生成されてしまうため、ここで弾く。
+            if (frameRate <= 0)
+            {
+                Debug.LogError("[AnimationClipBuilder] frameRate は 1 以上を指定してください。");
+                return false;
+            }
+
+            if (totalSeconds <= 0f)
+            {
+                Debug.LogError("[AnimationClipBuilder] totalSeconds は 0 より大きい値を指定してください。");
+                return false;
+            }
+
             var clip = new AnimationClip { frameRate = frameRate };
             var settings = AnimationUtility.GetAnimationClipSettings(clip);
             settings.loopTime = loop;

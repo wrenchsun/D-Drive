@@ -115,6 +115,48 @@ namespace DDrive.Tests.Runtime
             Object.DestroyImmediate(prefab);
         }
 
+        // Codex レビュー 2026-09-10: Discard は Return と違い Free に積まず GameObject を破棄する
+        // (Kind == None の Prefabs/Models が「プールしない」を実現するための API)。
+        [UnityTest]
+        public IEnumerator Discard_RemovesFromActive_AndDestroysGameObject_WithoutPushingToFree()
+        {
+            var prefab = new GameObject("Prefab");
+            var pool = new PoolService();
+
+            var rented = pool.Rent(prefab);
+            var go = rented.GameObject;
+
+            pool.Discard(rented);
+            yield return null;
+
+            Assert.IsTrue(go == null, "Discard された GameObject は破棄されているはず。");
+
+            // Free に積まれていなければ、次の Rent は新規 Instantiate になる(同じ GO は再利用されない)。
+            var next = pool.Rent(prefab);
+            Assert.AreNotSame(go, next.GameObject);
+
+            pool.Clear(PoolScope.Global);
+            yield return null;
+            Object.DestroyImmediate(prefab);
+        }
+
+        [UnityTest]
+        public IEnumerator Discard_AlreadyDiscarded_IsIdempotent()
+        {
+            var prefab = new GameObject("Prefab");
+            var pool = new PoolService();
+
+            var rented = pool.Rent(prefab);
+            pool.Discard(rented);
+            yield return null;
+
+            Assert.DoesNotThrow(() => pool.Discard(rented));
+
+            pool.Clear(PoolScope.Global);
+            yield return null;
+            Object.DestroyImmediate(prefab);
+        }
+
         [UnityTest]
         public IEnumerator Clear_Scene_KeepsPersistentPools()
         {
