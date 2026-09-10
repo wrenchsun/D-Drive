@@ -21,7 +21,7 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 21573cd5ef6ada84682b30f7a322abe3
-    m_Address: PREFAB_Player_Model
+    m_Address: MODEL_Player_Model
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

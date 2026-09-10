@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f301c6cf9a6d45e4ebfca2a7cf42b43f, type: 3}
-  m_Name: PREFAB_Player_Model
+  m_Name: MODEL_Player_Model
   m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Model.ModelData
   Id: 2355482686604575325
   DisplayName: UnityChan

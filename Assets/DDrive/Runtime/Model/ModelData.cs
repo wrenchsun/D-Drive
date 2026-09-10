@@ -39,7 +39,7 @@ namespace DDrive.Runtime.Model
     }
 
     [CreateAssetMenu(menuName = "D-Drive/Model/Model Data", fileName = "MODEL_NewModel")]
-    [AssetIdDefinition(AssetType.Prefab, typeof(ModelMarker), "MODELID")]
+    [AssetIdDefinition(AssetType.Model, typeof(ModelMarker), "MODELID")]
     public class ModelData : AssetDataBase
     {
         [Header("Prefab")]

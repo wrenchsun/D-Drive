@@ -10,6 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 02b02146e7ae53741932c128e99966dc, type: 3}
-  m_Name: PrefabCatalog
+  m_Name: ModelCatalog
   m_EditorClassIdentifier: DDrive.Foundation::DDrive.Foundation.Registry.AssetCatalog
-  entries: []
+  entries:
+  - Id: 2355482686604575325
+    Type: 14
+    Address: MODEL_Player_Model
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0

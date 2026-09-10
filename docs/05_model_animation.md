@@ -58,6 +58,8 @@ h.SetLayer(int);
 
 > **実装との対応**: 実装済みシグネチャは `ModelsManager.SetMaterial(Handle, int slotIndex, AssetId&lt;MaterialMarker&gt;)`(slotLabel ではなく Slots 配列の index。RendererPath+SlotIndex の組がそのままスキーマなため)。`PlayAnim` は AnimManager 未実装のため未提供（Phase 3 で追加）。`GetGameObject(Handle)` も追加済み（プレビュー用）。
 >
+> **2026-09-10（修正）**: `ModelData` の `[AssetIdDefinition]` が `AssetType.Prefab` のままだった（`AssetType.Model` 追加時の漏れ。`ValidatorRegistry` が属性の Type で Validator を選ぶため `ModelDataValidator` が走らず、PrefabData（4-4）と種別が衝突していた）→ `AssetType.Model` に修正。既存の `PREFAB_Player_Model` は `MODEL_Player_Model`（`GameData/Model/Player/`）へ移動・リネームし、PrefabCatalog から ModelCatalog へ登録し直した（参照は GUID なので Prefab / シーンの参照は影響なし）。
+
 > **2026-09-09（レビュー対応）**: (1) `SetMaterial` は共有 `ModelData.Slots` を書き換えず、Instance 側の `Materials[]`（初期値 = `Slots[i].Material`）に保持する。現在値は `TryGetMaterial(h, slot, out id)`。(2) Instance は自分の Animator で再生した Anim Handle を所有し（`DefaultAnimation` / `PlayAnim` の両方）、`Despawn` で所有分を `Stop`、さらに `AnimManager.StopAllFor(animator)` で外部が `Anim.Play` した分も中断してからプールへ返す。プール再利用時に旧アニメの時間・イベント・BlendShape / IK が残らない。`GetOwnedAnimCount(h)` で確認できる。テスト: `AnimLifetimeReviewTests`
 
 ## A-4. プレビュー / 運用 / Validation
