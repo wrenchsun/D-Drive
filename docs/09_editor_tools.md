@@ -106,7 +106,7 @@ Tools/
     │   ├─ Anchor Group                ← 2026-09-08 追加(配置セット、[22])
     │   ├─ Animation (3D)
     │   ├─ Animation (2D)
-    │   ├─ Material · Texture
+    │   ├─ Material                   ← 2026-09-10 追加(MaterialData / TextureData 共用の最小版、[06] A 実装メモ。3-9 で拡張)
     │   ├─ Canvas
     │   ├─ UI Tween · Preset Gallery
     │   ├─ Slider

@@ -9,6 +9,7 @@ using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.Loading;
+using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
@@ -55,6 +56,7 @@ namespace DDrive.Runtime.Loop
         public VfxManager Vfx { get; private set; }
         public AnimManager Anim { get; private set; }
         public ModelsManager Models { get; private set; }
+        public MaterialManager Materials { get; private set; }
         public AnchorGroupPlayer Groups { get; private set; }
         public AssetEventDispatcher Dispatcher { get; private set; }
 
@@ -135,7 +137,8 @@ namespace DDrive.Runtime.Loop
             Bgm = new BgmManager(Registry, CreateAudioChannel("BgmChannelA"), CreateAudioChannel("BgmChannelB"));
             Vfx = new VfxManager(Pool, Registry, NetBridge);
             Anim = new AnimManager(Registry);
-            Models = new ModelsManager(Pool, Registry, Anim);
+            Materials = new MaterialManager(Registry);
+            Models = new ModelsManager(Pool, Registry, Anim, Materials);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
 
@@ -144,6 +147,7 @@ namespace DDrive.Runtime.Loop
             loop.Register(Bgm);
             loop.Register(Vfx);
             loop.Register(Anim);
+            loop.Register(Materials);
             loop.Register(Models);
             _groupAdapter = new AnchorGroupLoopAdapter(Groups);
             loop.Register(_groupAdapter);
@@ -154,6 +158,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Audio.Audio.Bind(Bgm);
                 Runtime.Vfx.Vfx.Bind(Vfx);
                 Runtime.Anim.Anim.Bind(Anim);
+                Mats.Bind(Materials);
                 Runtime.Model.Models.Bind(Models);
                 Anchors.Bind(Groups);
             }
@@ -183,6 +188,7 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Bgm);
                 loop.Unregister(Vfx);
                 loop.Unregister(Anim);
+                loop.Unregister(Materials);
                 loop.Unregister(Models);
                 loop.Unregister(_groupAdapter);
             }
@@ -196,6 +202,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Audio.Audio.Bind((BgmManager)null);
                 Runtime.Vfx.Vfx.Bind(null);
                 Runtime.Anim.Anim.Bind(null);
+                Mats.Bind(null);
                 Runtime.Model.Models.Bind(null);
                 Anchors.Bind(null);
             }

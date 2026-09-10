@@ -55,6 +55,8 @@ namespace DDrive.Editor.Preview
             Collect<DDrive.Runtime.Audio.SeData>(AssetType.Se, entries, loads);
             Collect<DDrive.Runtime.Anim.AnimData>(AssetType.Anim, entries, loads);
             Collect<DDrive.Runtime.Model.ModelData>(AssetType.Model, entries, loads);
+            Collect<DDrive.Runtime.Material.MaterialData>(AssetType.Material, entries, loads);
+            Collect<DDrive.Runtime.Material.TextureData>(AssetType.Texture, entries, loads);
 
             var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
             catalog.hideFlags = HideFlags.HideAndDontSave;
@@ -67,6 +69,8 @@ namespace DDrive.Editor.Preview
                 else if (type == typeof(DDrive.Runtime.Vfx.VfxData)) registry.ResolveAsync<DDrive.Runtime.Vfx.VfxData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Anim.AnimData)) registry.ResolveAsync<DDrive.Runtime.Anim.AnimData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Model.ModelData)) registry.ResolveAsync<DDrive.Runtime.Model.ModelData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Material.MaterialData)) registry.ResolveAsync<DDrive.Runtime.Material.MaterialData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Material.TextureData)) registry.ResolveAsync<DDrive.Runtime.Material.TextureData>(id).GetAwaiter().GetResult();
                 else registry.ResolveAsync<DDrive.Runtime.Audio.SeData>(id).GetAwaiter().GetResult();
             }
 

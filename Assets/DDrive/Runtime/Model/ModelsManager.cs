@@ -45,9 +45,11 @@ namespace DDrive.Runtime.Model
         public AssetType Type => AssetType.Model;
 
         private DDrive.Runtime.Anim.AnimManager _anim;
+        private MaterialManager _materials;
 
-        public ModelsManager(IPoolService pool, IAssetRegistry registry, DDrive.Runtime.Anim.AnimManager anim = null)
+        public ModelsManager(IPoolService pool, IAssetRegistry registry, DDrive.Runtime.Anim.AnimManager anim = null, MaterialManager materials = null)
         {
+            _materials = materials;
             _pool = pool;
             _registry = registry;
             _anim = anim;
@@ -55,6 +57,9 @@ namespace DDrive.Runtime.Model
 
         // [05_model_animation.md] A-3 — h.PlayAnim(AnimId) の委譲先(Phase 3-3 で接続)。未設定なら PlayAnim は no-op。
         public void SetAnimManager(DDrive.Runtime.Anim.AnimManager anim) => _anim = anim;
+
+        // [06] A-3 — Slots / SetMaterial の実処理(3-5 で接続)。未設定なら ID の保持だけ行う。
+        public void SetMaterialManager(MaterialManager materials) => _materials = materials;
 
         public Animator GetAnimator(Handle<ModelMarker> handle)
             => _instances.TryGet(handle, out var instance) ? instance.Animator : null;
@@ -165,6 +170,18 @@ namespace DDrive.Runtime.Model
             var handle = _instances.Add(instance);
             _allActive.Add(handle);
 
+            // Slots の Material: MaterialManager が接続されていれば Spawn 時に共有 Material を割り当てる([06] A-3、3-5)。
+            if (_materials != null && data.Slots != null)
+            {
+                for (var i = 0; i < data.Slots.Length; i++)
+                {
+                    if (data.Slots[i].Material.IsValid && slotRenderers[i] != null)
+                    {
+                        _materials.Apply(slotRenderers[i], data.Slots[i].SlotIndex, data.Slots[i].Material);
+                    }
+                }
+            }
+
             // DefaultAnimation: AnimManager が接続されていれば Spawn 直後に再生する([05] A-2)。
             if (data.DefaultAnimation.IsValid && _anim != null)
             {
@@ -236,11 +253,15 @@ namespace DDrive.Runtime.Model
                 return;
             }
 
+            if (_materials == null)
+            {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // MaterialData/MaterialManager(Phase 3, ticket 3-5)が未実装のため、ID の保存はできても
-            // 実際のマテリアル差し替えはまだ行えない。ここは Phase 3 完了後に実処理へ差し替える。
-            Debug.LogWarning("[DDrive] Models.SetMaterial: MaterialData is not implemented yet (Phase 3, ticket 3-5). ID stored on Slots but not yet applied to the renderer.");
+                Debug.LogWarning("[DDrive] Models.SetMaterial: MaterialManager is not connected; MaterialData ID stored on the instance but not applied to the renderer.");
 #endif
+                return;
+            }
+
+            _materials.Apply(renderer, instance.Data.Slots[slotIndex].SlotIndex, materialId);
         }
 
         // この Instance のスロットに現在割り当てられている Material ID(Data の初期値 + SetMaterial の上書き)。

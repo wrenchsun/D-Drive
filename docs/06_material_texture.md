@@ -71,6 +71,18 @@ MaterialData(ShaderA) ──共通データはそのまま──▶ MaterialData
 - マッピング規約は `MayaImportProfile`（ScriptableObject）でデザイナーが編集可能（テクスチャ命名規則 `_BC/_N/_M` → チャンネル割当）
 - 再インポート時は固有調整を上書きしない（Common のみ更新 / 差分レポート表示）
 
+### 実装メモ（2026-09-10、チケット 3-5 で確定した規約）
+
+> - **MaterialCommon の規約を確定**（`Runtime/Material/MaterialCommon.cs`）: Albedo(+AlbedoTint) / Normal(+NormalScale) / Mask(R=Metallic G=Occlusion B=Detail A=Smoothness、Mask 無しの定数 Metallic / Smoothness) / Emission(+EmissionColor × EmissionIntensity) / Blend(Opaque / Cutout(Cutoff) / Transparent) / DoubleSided。テクスチャは `AssetId<TextureMarker>`（TextureData の ID）で参照し、`TextureData.Channel` と 1:1 対応
+> - **シェーダーへの流し込み** は `MaterialCommonBinding.Apply(material, common, resolveTexture)`: プロパティ名は候補を順に `HasProperty` で探す（Albedo=`_BaseMap`→`_MainTex`、Tint=`_BaseColor`→`_Color`、Normal=`_BumpMap`+`_BumpScale`、Mask=`_MetallicGlossMap`+`_OcclusionMap`(URP Lit)/`_MaskMap`(HDRP)、Emission=`_EmissionMap`+`_EmissionColor`+`_EMISSION`）。Blend は URP の ShaderGUI がやるブレンドステート設定（`_Surface/_SrcBlend/_DstBlend/_ZWrite/_AlphaClip` + keyword + RenderType タグ）をランタイムで再現する。固有パラメータの変換（`ShaderConversionTable`）は 3-6
+> - **MaterialData**（`MaterialData.cs`）: `Shader`（未設定なら既定の URP Lit → Standard）/ `Common` / `Specific: ShaderParam[]`（名前 + `ParamValue`）/ `RenderQueueOffset`（Blend から決まる基準 2000 / 2450 / 3000 へのオフセット）/ `RenderingLayerMask` / `Anims: MaterialAnim[]`。`MaterialAnim` は `Property` + `Channel`(Float / OffsetU / OffsetV) + `ValueDef`（設計の「`_BaseMap_ST` を文字列で指定」は、UV スクロールがどの成分かを明示するため Channel に分けた）
+> - **TextureData**（`TextureData.cs`）: 設計 B-2 の最小構成（Texture / Usage / Sprite / AllowScale / SliceBorder / Channel）を 3-5 で先行実装。Importer 規約・`TextureImportProfile`・`UsedIn*` 自動収集・Validator は 3-8
+> - **MaterialManager**（`MaterialManager.cs`）: `Get(id)` は Data ごとに Unity Material を 1 つ生成して共有（DontSave。Data は書き換えない）。`Apply` はスロットへ共有 Material を割り当て、`Replace` は Apply 済み + シーン内の Renderer を走査して差し替える（明示呼び出し限定）。`FadeTo` は from のコピー（一時 Material）を `Material.Lerp` で to へ寄せ、終了時に共有 to へ戻して一時 Material を破棄する（シェーダーが違うときは半分で切替）。`MaterialAnim` は Tick が共有 Material に対して駆動（`OnPause` は Flags.Pause 準拠）。未登録 ID はマゼンタの Placeholder
+> - **Mats** ファサード: `Get / Apply / Replace / FadeTo / SetGlobalParam / IsFading / Stop`。`DDriveRuntimeBootstrap` が生成・Bind し、`ModelsManager` に接続する（`ModelData.Slots` の Material は Spawn 時に適用、`Models.SetMaterial` も実際に差し替わる = 2-5 の残課題を解消）
+> - **Validation**（`MaterialDataValidator`）: Shader 未設定(Warning) / パイプライン不一致(Error、`ShaderPipelineAnalyzer`) / Albedo 未設定(Warning) / Blend と RenderQueue 帯の不一致(Warning) / Emission が発光しない設定(Warning) / Specific がシェーダーに無い(Warning) / Anims が動かない設定(Warning)
+> - **エディタ（最小版）**: `Editor/Material/MaterialEditorWindow.cs`（`Tools/D-Drive/Editors/Material`、`[DataEditor]` で MaterialData / TextureData の Inspector から開ける）。SerializedObject バインドで編集し、「シーンにプレビュー球を配置」で実 MaterialManager が生成した共有 Material を DontSave の球に適用して SceneView で確認（MaterialAnim も EditMode で動く）。TextureData は画像プレビュー
+> - 未実装: MaterialEditor の球 / 板 / 任意 ModelData 切替・Skybox・変換前後比較（3-9）、Maya FBX 自動生成（3-7）、変換テーブル（3-6）、Material の生成 / 消滅イベント（AssetEvent は保持するが Manager は発火しない。必要になったら Apply / Replace を節目にする）
+
 ## A-3. Manager API
 
 ```csharp

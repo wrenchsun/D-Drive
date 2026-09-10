@@ -39,7 +39,7 @@ public struct MaterialSlot
 
 - マテリアルを ID 参照にすることで、Material 差し替え・スキン替えがデータだけで完結（[06] と連携）
 
-> **実装メモ(2026-07-27, Phase 2 時点)**: `MaterialSlot.Material`(AssetId&lt;MaterialMarker&gt;)と `DefaultAnimation`(AssetId&lt;AnimMarker&gt;)は、参照先の MaterialData（[06] 3-5）・AnimManager（3-1）が Phase 3 でしか実装されないため、現時点では **ID の保存・Inspector 編集・Validator 検査のみ**が完成している。`Models.SetMaterial` を呼んでも実際のレンダラーへの反映は行われず(開発ビルドでは警告ログを出す)、`PlayAnim` 相当の API もまだ提供していない。Phase 3 完了後、両 Manager をここに繋ぎ込むだけで動く設計にしてある。
+> **実装メモ(2026-07-27, Phase 2 時点)**: `MaterialSlot.Material`(AssetId&lt;MaterialMarker&gt;)と `DefaultAnimation`(AssetId&lt;AnimMarker&gt;)は、参照先の MaterialData（[06] 3-5）・AnimManager（3-1）が Phase 3 でしか実装されないため、現時点では **ID の保存・Inspector 編集・Validator 検査のみ**が完成している。`Models.SetMaterial` を呼んでも実際のレンダラーへの反映は行われず(開発ビルドでは警告ログを出す)、`PlayAnim` 相当の API もまだ提供していない。Phase 3 完了後、両 Manager をここに繋ぎ込むだけで動く設計にしてある。**2026-09-10（3-5）**: `MaterialManager` を接続（コンストラクタ第 4 引数 / `SetMaterialManager`）。`Slots[].Material` は Spawn 時に `Mats.Apply` 相当で共有 Material が割り当てられ、`SetMaterial` も実際にレンダラーへ反映される。
 
 ## A-3. Manager API
 
