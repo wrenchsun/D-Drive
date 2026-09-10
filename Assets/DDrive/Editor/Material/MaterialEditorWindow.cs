@@ -1,7 +1,9 @@
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
+using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Material;
+using DDrive.Runtime.Model;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditor.UIElements;
@@ -10,23 +12,38 @@ using UnityEngine.UIElements;
 
 namespace DDrive.Editor.Materials
 {
-    // [06_material_texture.md] A-4 — MaterialData / TextureData の専用エディタ(3-5 の最小版。2026-09-10)。
+    // [06_material_texture.md] A-4 — MaterialData / TextureData の専用エディタ(3-5 の最小版 → 3-9 で拡張。2026-09-10)。
     // 編集は SerializedObject バインド(Undo 対応)、プレビューは実 MaterialManager で生成した共有 Material を
-    // 開いているシーンのプレビュー球(DontSave)に適用して SceneView で確認する(ADR-4: Editor 専用の再生経路を作らない)。
-    // 球 / 板 / 任意 ModelData / Skybox 切替 / 変換前後比較は 3-9 で拡張する。
+    // 開いているシーンのプレビュー形状(DontSave)に適用して SceneView で確認する(ADR-4: Editor 専用の再生経路を作らない)。
+    // 3-9: 球 / 板(Quad) / Cube / 任意 ModelData の切替、ターンテーブル、ライト回転、変換前後の並列比較を追加。
+    // 生成ロジック自体は MaterialPreviewBuilder に分離してテストできるようにしてある。
     [DDrive.Editor.Inspector.DataEditor(typeof(MaterialData), "Material Editor で開く")]
     [DDrive.Editor.Inspector.DataEditor(typeof(TextureData), "Material Editor で開く")]
     public sealed class MaterialEditorWindow : EditorWindow
     {
         public const string PreviewRootName = "[D-Drive] Material Preview";
+        private const float CompareOffsetX = 1.5f;
 
         private UnityEngine.Object _target;
         private bool _lockTarget;
         private MaterialManager _manager;
         private AssetRegistry _registry;
+        private PoolService _pool;
+        private ModelsManager _modelsManager;
+
         private GameObject _previewRoot;
-        private Renderer _previewRenderer;
+        private MaterialPreviewShape _shape = MaterialPreviewShape.Sphere;
+        private ModelData _previewModel;
+        private MaterialData _compareTarget;
+        private MaterialPreviewBuilder.Preview _primaryPreview;
+        private MaterialPreviewBuilder.Preview _comparePreview;
+
+        private bool _turntableEnabled;
+        private readonly float _turntableSpeedDegPerSec = 45f;
         private double _lastTickTime;
+
+        private Light _rotatedLight;
+        private Quaternion _originalLightRotation;
 
         private ScrollView _root;
         private ObjectField _targetField;
@@ -38,12 +55,36 @@ namespace DDrive.Editor.Materials
         private TextureImportProfile.Rule _matchedRule;
         private bool _hasMatchedRule;
 
+        private EnumField _shapeField;
+        private ObjectField _modelField;
+        private Toggle _turntableToggle;
+        private Slider _lightRotationSlider;
+        private ObjectField _compareField;
+
         [MenuItem(DDriveMenu.Editors + "Material")]
         public static void OpenFromMenu() => Open(Selection.activeObject as MaterialData);
 
         public static void Open(MaterialData target) => OpenWith(target);
 
         public static void Open(TextureData target) => OpenWith(target);
+
+        // MaterialConvertWindow の「Material Editor で比較」から呼ぶ(a=変換元、b=変換で新規作成された Data。無ければ null)。
+        public static void OpenCompare(MaterialData a, MaterialData b)
+        {
+            var window = GetWindow<MaterialEditorWindow>("Material Editor");
+            window.minSize = new Vector2(420, 360);
+            if (a != null)
+            {
+                window.SetTarget(a);
+            }
+
+            window._compareTarget = b;
+            window._compareField?.SetValueWithoutNotify(b);
+            if (a != null)
+            {
+                window.PlacePreview();
+            }
+        }
 
         private static void OpenWith(UnityEngine.Object target)
         {
@@ -59,6 +100,8 @@ namespace DDrive.Editor.Materials
         {
             _registry = EditorAnchorRegistry.Build();
             _manager = new MaterialManager(_registry);
+            _pool = new PoolService();
+            _modelsManager = new ModelsManager(_pool, _registry, null, _manager);
             _lastTickTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += OnEditorUpdate;
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
@@ -71,6 +114,8 @@ namespace DDrive.Editor.Materials
             RemovePreview();
             _manager?.Clear();
             _manager = null;
+            _modelsManager = null;
+            _pool = null;
         }
 
         private void OnSelectionChange()
@@ -83,8 +128,11 @@ namespace DDrive.Editor.Materials
 
         private void OnActiveSceneChanged(UnityEngine.SceneManagement.Scene previous, UnityEngine.SceneManagement.Scene current)
         {
+            // シーンが切り替わると DontSave の配置物は Unity 側で既に失われているので、参照だけ捨てる。
             _previewRoot = null;
-            _previewRenderer = null;
+            _primaryPreview = null;
+            _comparePreview = null;
+            _rotatedLight = null;
         }
 
         public void CreateGUI()
@@ -111,9 +159,11 @@ namespace DDrive.Editor.Materials
             toolbar.Add(lockToggle);
             _root.Add(toolbar);
 
+            BuildPreviewControls(_root);
+
             var buttons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
-            buttons.Add(new Button(PlacePreview) { text = "シーンにプレビュー球を配置", tooltip = "開いているシーンに球(保存されない)を置き、生成した共有 Material を適用する" });
-            buttons.Add(new Button(RebuildPreview) { text = "再生成", tooltip = "Data の変更を共有 Material に反映し直す" });
+            buttons.Add(new Button(PlacePreview) { text = "シーンにプレビューを配置", tooltip = "開いているシーンに選んだ形状(保存されない)を置き、生成した共有 Material を適用する" });
+            buttons.Add(new Button(RebuildPreview) { text = "再生成", tooltip = "Data の変更を共有 Material に反映し直す(比較用も含む)" });
             buttons.Add(new Button(RemovePreview) { text = "撤去" });
             _root.Add(buttons);
 
@@ -143,6 +193,48 @@ namespace DDrive.Editor.Materials
             {
                 SetTarget(Selection.activeObject);
             }
+        }
+
+        // 形状 / ターンテーブル / ライト回転 / 比較対象(3-9)。
+        private void BuildPreviewControls(VisualElement root)
+        {
+            var foldout = new Foldout { text = "プレビュー", value = true };
+
+            _shapeField = new EnumField("形状", _shape) { tooltip = "球 / 板(Quad) / Cube / 任意 ModelData" };
+            _shapeField.RegisterValueChangedCallback(evt =>
+            {
+                _shape = (MaterialPreviewShape)evt.newValue;
+                _modelField.style.display = _shape == MaterialPreviewShape.Model ? DisplayStyle.Flex : DisplayStyle.None;
+            });
+            foldout.Add(_shapeField);
+
+            _modelField = new ObjectField("プレビュー用モデル") { objectType = typeof(ModelData), allowSceneObjects = false };
+            _modelField.RegisterValueChangedCallback(evt => _previewModel = evt.newValue as ModelData);
+            _modelField.style.display = DisplayStyle.None;
+            foldout.Add(_modelField);
+
+            var turntableRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            _turntableToggle = new Toggle("ターンテーブル") { tooltip = "配置したプレビューを Y 軸で回す" };
+            _turntableToggle.RegisterValueChangedCallback(evt => _turntableEnabled = evt.newValue);
+            turntableRow.Add(_turntableToggle);
+            foldout.Add(turntableRow);
+
+            _lightRotationSlider = new Slider("ライト回転", 0f, 360f) { tooltip = "シーンの最初の Directional Light を Y 軸で回す(無ければ何もしない)", style = { flexGrow = 1 } };
+            _lightRotationSlider.RegisterValueChangedCallback(evt =>
+            {
+                ApplyLightRotation(evt.newValue);
+                SceneView.RepaintAll();
+            });
+            foldout.Add(_lightRotationSlider);
+
+            var compareRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            _compareField = new ObjectField("比較対象") { objectType = typeof(MaterialData), allowSceneObjects = false, style = { flexGrow = 1 } };
+            _compareField.RegisterValueChangedCallback(evt => _compareTarget = evt.newValue as MaterialData);
+            compareRow.Add(_compareField);
+            compareRow.Add(new Button(CompareSideBySide) { text = "並べて比較", tooltip = "対象の隣(X+1.5)に比較対象の Material を適用したプレビューを並べる" });
+            foldout.Add(compareRow);
+
+            root.Add(foldout);
         }
 
         private void SetTarget(UnityEngine.Object target)
@@ -177,8 +269,8 @@ namespace DDrive.Editor.Materials
             {
                 _textureInfoLabel.style.display = DisplayStyle.None;
                 _applyRuleButton.style.display = DisplayStyle.None;
-                _statusLabel.text = _previewRenderer != null ? "プレビュー球に適用中" : "「シーンにプレビュー球を配置」で確認できます";
-                if (_previewRenderer != null)
+                _statusLabel.text = _primaryPreview != null ? "プレビューに適用中" : "「シーンにプレビューを配置」で確認できます";
+                if (_primaryPreview != null)
                 {
                     RebuildPreview();
                 }
@@ -252,6 +344,22 @@ namespace DDrive.Editor.Materials
             _statusLabel.text = $"命名規約 '{_matchedRule.Name}' を適用しました";
         }
 
+        // ── プレビュー配置(3-9: 球/板/Cube/Model + 比較対象) ──
+
+        private void EnsurePreviewRoot()
+        {
+            if (_previewRoot != null)
+            {
+                return;
+            }
+
+            _previewRoot = new GameObject(PreviewRootName) { hideFlags = HideFlags.DontSave };
+            StageUtility.PlaceGameObjectInCurrentStage(_previewRoot);
+            var pivot = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.pivot : Vector3.zero;
+            _previewRoot.transform.position = pivot;
+            _pool.SetInstanceParent(_previewRoot.transform);
+        }
+
         private void PlacePreview()
         {
             if (_target is not MaterialData data)
@@ -260,21 +368,39 @@ namespace DDrive.Editor.Materials
                 return;
             }
 
-            if (_previewRoot == null)
+            if (_shape == MaterialPreviewShape.Model && _previewModel == null)
             {
-                _previewRoot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                _previewRoot.name = PreviewRootName;
-                _previewRoot.hideFlags = HideFlags.DontSave;
-                StageUtility.PlaceGameObjectInCurrentStage(_previewRoot);
-                var pivot = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.pivot : Vector3.zero;
-                _previewRoot.transform.position = pivot;
-                _previewRenderer = _previewRoot.GetComponent<Renderer>();
+                _statusLabel.text = "プレビュー用の ModelData を選択してください";
+                return;
             }
 
+            _primaryPreview?.Dispose();
+            _comparePreview?.Dispose();
+            EnsurePreviewRoot();
             EditorAnchorRegistry.Refresh(_registry);
-            _manager.ApplyData(_previewRenderer, 0, data);
-            _statusLabel.text = "プレビュー球に適用中";
+
+            _primaryPreview = MaterialPreviewBuilder.Create(_shape, _previewModel, data, _manager, _previewRoot.transform, Vector3.zero, _modelsManager, "Primary");
+            if (_compareTarget != null)
+            {
+                _comparePreview = MaterialPreviewBuilder.Create(_shape, _previewModel, _compareTarget, _manager, _previewRoot.transform,
+                    new Vector3(CompareOffsetX, 0f, 0f), _modelsManager, "Compare");
+            }
+
+            _statusLabel.text = _primaryPreview != null
+                ? (_comparePreview != null ? "プレビューに適用中(比較対象あり)" : "プレビューに適用中")
+                : "プレビューの生成に失敗しました(ModelData の Prefab を確認してください)";
             SceneView.RepaintAll();
+        }
+
+        private void CompareSideBySide()
+        {
+            if (_compareTarget == null)
+            {
+                _statusLabel.text = "比較対象の MaterialData を選択してください";
+                return;
+            }
+
+            PlacePreview();
         }
 
         private void RebuildPreview()
@@ -286,43 +412,114 @@ namespace DDrive.Editor.Materials
 
             _manager.Clear();
             EditorAnchorRegistry.Refresh(_registry);
-            if (_previewRenderer != null)
+            if (_primaryPreview != null)
             {
-                _manager.ApplyData(_previewRenderer, 0, data);
-                SceneView.RepaintAll();
+                MaterialPreviewBuilder.Apply(_primaryPreview, _shape, _previewModel, data, _manager);
             }
+
+            if (_comparePreview != null && _compareTarget != null)
+            {
+                MaterialPreviewBuilder.Apply(_comparePreview, _shape, _previewModel, _compareTarget, _manager);
+            }
+
+            SceneView.RepaintAll();
         }
 
         private void RemovePreview()
         {
+            _primaryPreview?.Dispose();
+            _primaryPreview = null;
+            _comparePreview?.Dispose();
+            _comparePreview = null;
+
             if (_previewRoot != null)
             {
                 DestroyImmediate(_previewRoot);
             }
 
             _previewRoot = null;
-            _previewRenderer = null;
+            RestoreLightRotation();
+
             if (_statusLabel != null && _target is MaterialData)
             {
-                _statusLabel.text = "「シーンにプレビュー球を配置」で確認できます";
+                _statusLabel.text = "「シーンにプレビューを配置」で確認できます";
             }
 
             SceneView.RepaintAll();
         }
 
-        // MaterialAnim(UV スクロール等)を EditMode でも動かす。
+        // ── ライト回転(3-9) ──
+
+        private void FindDirectionalLight()
+        {
+            if (_rotatedLight != null)
+            {
+                return;
+            }
+
+            foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+            {
+                if (light.type == LightType.Directional)
+                {
+                    _rotatedLight = light;
+                    _originalLightRotation = light.transform.rotation;
+                    return;
+                }
+            }
+        }
+
+        private void ApplyLightRotation(float degreesY)
+        {
+            FindDirectionalLight();
+            if (_rotatedLight == null)
+            {
+                return;
+            }
+
+            var euler = _originalLightRotation.eulerAngles;
+            _rotatedLight.transform.rotation = Quaternion.Euler(euler.x, degreesY, euler.z);
+        }
+
+        private void RestoreLightRotation()
+        {
+            if (_rotatedLight != null)
+            {
+                _rotatedLight.transform.rotation = _originalLightRotation;
+            }
+
+            _rotatedLight = null;
+            _lightRotationSlider?.SetValueWithoutNotify(0f);
+        }
+
+        // MaterialAnim(UV スクロール等)/ ターンテーブルを EditMode でも動かす。
         private void OnEditorUpdate()
         {
             var now = EditorApplication.timeSinceStartup;
             var dt = Mathf.Clamp((float)(now - _lastTickTime), 0f, 0.25f);
             _lastTickTime = now;
-            if (_manager == null || _previewRenderer == null)
+            if (_manager == null)
             {
                 return;
             }
 
             _manager.Tick(dt);
-            if (_target is MaterialData data && data.HasAnims)
+
+            if (_turntableEnabled)
+            {
+                if (_primaryPreview?.Root != null)
+                {
+                    _primaryPreview.Root.transform.Rotate(Vector3.up, _turntableSpeedDegPerSec * dt, Space.World);
+                }
+
+                if (_comparePreview?.Root != null)
+                {
+                    _comparePreview.Root.transform.Rotate(Vector3.up, _turntableSpeedDegPerSec * dt, Space.World);
+                }
+
+                SceneView.RepaintAll();
+            }
+
+            if (_primaryPreview != null && _target is MaterialData data && data.HasAnims)
             {
                 SceneView.RepaintAll();
             }

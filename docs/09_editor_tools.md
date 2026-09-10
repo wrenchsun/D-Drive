@@ -106,7 +106,7 @@ Tools/
     │   ├─ Anchor Group                ← 2026-09-08 追加(配置セット、[22])
     │   ├─ Animation (3D)
     │   ├─ Animation (2D)
-    │   ├─ Material                   ← 2026-09-10 追加(MaterialData / TextureData 共用の最小版、[06] A 実装メモ。3-9 で拡張)
+    │   ├─ Material                   ← 2026-09-10 追加(MaterialData / TextureData 共用エディタ。3-9 で球/板/Cube/任意 ModelData の切替・ターンテーブル・ライト回転・変換前後比較を追加、[06] A 実装メモ)
     │   ├─ Material 変換              ← 2026-09-10 追加(シェーダー変換、差分プレビュー、[06] A-2)
     │   ├─ Canvas
     │   ├─ UI Tween · Preset Gallery

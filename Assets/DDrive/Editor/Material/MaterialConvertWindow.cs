@@ -22,6 +22,7 @@ namespace DDrive.Editor.Materials
         private Shader _target;
         private MaterialConverter.Result _result;
         private readonly List<ShaderConversionTable> _tables = new();
+        private MaterialData _lastCreated; // 直近で「新規 MaterialData として作成」した変換結果(3-9: 比較用)
 
         private ScrollView _root;
         private ObjectField _sourceField;
@@ -74,6 +75,11 @@ namespace DDrive.Editor.Materials
             _applyButton = new Button(ApplyInPlace) { text = "この Data を変換(Undo 可)", tooltip = "変換元の Shader と Specific を書き換える" };
             buttons.Add(_createButton);
             buttons.Add(_applyButton);
+            buttons.Add(new Button(OpenCompareInMaterialEditor)
+            {
+                text = "Material Editor で比較",
+                tooltip = "変換元と(直近で作成した場合はその)変換結果を Material Editor に並べて表示する(3-9)",
+            });
             _root.Add(buttons);
 
             ReloadTables();
@@ -199,9 +205,21 @@ namespace DDrive.Editor.Materials
                 data => MaterialConverter.ApplyTo((MaterialData)data, source, result));
             if (created != null)
             {
+                _lastCreated = created as MaterialData;
                 EditorGUIUtility.PingObject(created);
                 Selection.activeObject = created;
             }
+        }
+
+        // 変換元(と、直近で新規作成していればその結果)を MaterialEditorWindow の「変換前後比較」に渡す(3-9)。
+        private void OpenCompareInMaterialEditor()
+        {
+            if (_source == null)
+            {
+                return;
+            }
+
+            MaterialEditorWindow.OpenCompare(_source, _lastCreated);
         }
 
         private void ApplyInPlace()
