@@ -11,7 +11,7 @@
 4. **例外で止めない。** 警告 + no-op / Placeholder で継続する（デザイナーの作業を止めない）
 5. **Data は読み取り専用。** Manager が Data を書き換えない。エディタが書き換えるときは必ず `Undo.RecordObject` + `EditorUtility.SetDirty`
 6. **メニューパス直書き禁止。** `DDriveMenu` 定数経由。新規 EditorWindow は `ScrollView` ルート必須（[docs/09_editor_tools.md](docs/09_editor_tools.md) §6-7）。Data 専用エディタには `[DataEditor(typeof(XxxData), "…で開く")]` を付ける（Inspector 最上部の「エディターで開く」が自動で付く。§8）
-7. **プレビューは実 Manager を Editor から駆動する**（ADR-4）。Editor 専用の再生経路を作らない
+7. **プレビューは実 Manager を Editor から駆動する**（ADR-4）。Editor 専用の再生経路を作らない。**ウィンドウ内での描画確認は避け、確認用シーン / Prefab を開いて SceneView で確認する**（2026-09-10）
 8. **Manager を new するのは `DDriveRuntimeBootstrap`（[docs/02](docs/02_core_framework.md) §14）・テスト・Editor プレビューだけ。** 作成した Data は Addressables に同じ address で登録されていること（AssetBrowser が自動、`Validation > Run All` が検出）
 9. 迷ったら実装せずに聞く。特にシリアライズ形式（フィールド削除・型変更）・asmdef 構成・ProjectSettings
 
@@ -23,7 +23,7 @@
 | コンセプト | プログラマーは **ID だけ**でモックを完成させ、デザイナーが専用エディタで中身を作る |
 | Unity | **6000.3.13f1**（勝手に上げない）/ URP 17.3 / Addressables / UniTask / NGO 2.2 |
 | テスト | Unity Test Framework。`Assets/DDrive/Tests/{Editor,Runtime}` |
-| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model + Anchor アセット化 [docs/21](docs/21_anchor_spec.md) + 配置セット [docs/22](docs/22_anchor_group.md)）実装済み。Phase 3 は 3-1〜3-10 まで実装済み、次は 3-11（2D スプライトアニメ統合）。0-14 起動配線（`DDriveRuntimeBootstrap`）+ Addressables 同期は 2026-09-09 に追加。[docs/11_tasks.md](docs/11_tasks.md) |
+| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model + Anchor アセット化 [docs/21](docs/21_anchor_spec.md) + 配置セット [docs/22](docs/22_anchor_group.md)）実装済み。Phase 3 は 3-1〜3-12 まで実装済み、次は 3-13（Anim2DEditor の共通プレビュー + イベント D&D）。0-14 起動配線（`DDriveRuntimeBootstrap`）+ Addressables 同期は 2026-09-09 に追加。[docs/11_tasks.md](docs/11_tasks.md) |
 
 ## 2. ディレクトリ地図
 

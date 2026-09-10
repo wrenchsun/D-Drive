@@ -259,6 +259,20 @@ public static class Anim2D
 - 方向スプライトの一括処理（8 方向シートを一括スライス → 角度別 Clip → BlendTree 登録）
 - Validation パネル統合
 
+### 実装メモ（2026-09-10、3-11: 既存ツール移植 + Anim2DData 自動生成 + ID 発行）
+
+> - **プレビュー方式（2026-09-10 決定）**: 編集モードのプレビューはウィンドウ内描画ではなく「確認用シーンを開く / 今のシーンに配置」で `[D-Drive] Anim2D Preview`（SpriteRenderer + Animator、DontSave）を置き、`SceneAnimPreviewDriver` で ▶ / ■ して SceneView で確認する（[09] §2 の全エディタ共通ルール）
+
+> - 移植元 `Katsuya.Tools.SpriteAnimation`（`Editor/`: SpriteSlicer / AutomaticSpriteSlicer / ExistingSpriteCollector / AnimationClipBuilder / AnimationClipEditorUtility / BlendTreeRegistrar / DirectionAngle / NamingRuleResolver 等）を `Assets/DDrive/Editor/Anim2D/`（namespace `DDrive.Editor.Anim2D`）へロジックそのままで移植。`AnimationSfxEditorUtility` は移植せず廃止（SE マーカーは 3-13 の共通 AssetEvent Frame イベントに置換）
+> - C-2 表の対応どおり: **EasingFunction / CubicBezierEvaluator → Foundation `EasingCore`/`ValueDef`/`EaseDef`**（既に [15] §B-2 で昇格済みのものを利用。新規実装なし）。`AnimationClipEditorUtility.BuildTimes` は `PlacementMode.Uniform`(等間隔) / `PlacementMode.Retiming`(`ValueDef.Evaluate` をそのまま使用) の 2 モードに単純化した
+> - スプライト分割は **`TextureImporter.spritesheet`(SpriteMetaData 配列)によるフォールバック実装**。本プロジェクトに `com.unity.2d.sprite` パッケージが未導入(`Packages/manifest.json` に無し)のため `UnityEditor.U2D.Sprites.ISpriteEditorDataProvider` は使わず、旧 API `TextureImporter.spritesheet`(Obsolete 警告のみ、削除はされていない)で矩形を書き込む。`AutomaticSpriteSlicer` の自動検出自体は `UnityEditorInternal.InternalSpriteUtility.GenerateAutomaticSpriteRectangles`(コア UnityEditor.dll、パッケージ非依存)を使用
+> - `SpriteAnimationNameData`(固定パスの命名規則 SO) → **`Anim2DImportProfile`**(`TextureImportProfile` と同じ `FindOrDefault()` パターンで AssetData 化。Entries{Name, States[]} / DefaultFrameRate / DefaultDirections / DefaultClipFolder)
+> - **`Anim2DEditorWindow`**(`[DataEditor(typeof(Anim2DData), "Anim2D Editor で開く")]`、`Tools/D-Drive/Editors/Animation (2D)`)。ScrollView ルート + 作成/編集のトグル 2 モード:
+>   - 作成: 入力モード(Grid/Automatic/既存) → 命名(Import Profile から選択 or 手入力) → アニメーション(FrameRate/Loop/Length) → Animator(任意、BlendTree 登録) → 「生成」。単一クリップ(方向なし、`DirectionMode` で角度サフィックスのみ付与も可)と、方向セット一括(Four=4方向/Eight=8方向のテクスチャをまとめて投入 → 角度別 Clip を生成し `DirectionClips` を角度順で構築、0° の Clip が `Anim2DData.Clip`)の両方に対応。生成完了時に `AssetCreationService.Create` で Anim2DData を自動発行(ID・カタログ・Addressables 登録込み)
+>   - 編集: Anim2DData を読み込み、`AnimationClipEditorUtility.LoadSprites` でスプライト/時刻を取得 → 配置モード(Uniform/Retiming) → 「適用」で `RebuildClip` + `Retiming`(ValueDef)を `Undo.RecordObject`+`SetDirty` で書き戻す。スプライトのミニプレビュー(EditorApplication.update で再生)付き。`Retiming` フィールドは既存 `ValueDefDrawer` を `PropertyField` 経由でそのまま流用
+>   - 旧「Sequence Preview」「Sound」モードは廃止(ウィンドウに注記ラベルを表示)。共通プレビュー・イベント D&D・Validation パネル統合は 3-13
+> - テスト: `Anim2DToolTests`(EditMode, 22 件)。NamingRuleResolver の角度抽出/クリップ命名、DirectionAngle の 8 方向マッピング往復、BuildUniformTimes/BuildRetimingTimes の単調性・範囲、AnimationClipBuilder が Sprite キーを持つ Clip を生成すること、BlendTreeRegistrar が 2D Freeform Directional Tree + x/y パラメータを登録すること、Anim2DImportProfile.FindOrDefault の組み込み既定値
+
 ## C-6. Validation
 
 Clip 未生成/Missing (Error) / Directions=Eight なのに DirectionClips 不足 (Error) / BlendTree に x,y パラメータ無し (Error, FixAction=追加) / FrameRate ≤ 0 (Error) / スライス済みスプライトの参照切れ（元テクスチャ再インポートで消失）(Error)
