@@ -64,9 +64,17 @@ namespace DDrive.Foundation.Handle
 
         public bool IsValid(Handle<TMarker> handle) => TryGet(handle, out _);
 
+        // 警告・InvalidAccessCount 無しの有効判定。「まだ再生中か」の問い合わせ(IsPlaying / ポーリング)用。
+        // 終了済み Handle を問い合わせるのは正常な使い方なので、操作(Stop 等)と違って不正アクセス扱いにしない。
+        public bool IsValidSilent(Handle<TMarker> handle)
+            => handle.Index >= 0 && handle.Index < _count &&
+               _generations[handle.Index] == handle.Generation &&
+               _items[handle.Index] != null;
+
+        // 冪等: 既に外れている Handle の Remove は何もしない(警告も出さない。Pool 返却コールバックとの二重掃除に備える)。
         public void Remove(Handle<TMarker> handle)
         {
-            if (!IsValid(handle))
+            if (!IsValidSilent(handle))
             {
                 return;
             }

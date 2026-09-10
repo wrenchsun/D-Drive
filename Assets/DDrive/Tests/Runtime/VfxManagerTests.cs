@@ -118,6 +118,43 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
+        public void SetPausedAll_DuringFadeOut_FreezesFade_AndResumeDoesNotRestartEmission()
+        {
+            var data = CreateVfxData(1);
+            data.FadeOutSec = 0.5f;
+            var handle = _manager.SpawnData(data);
+            var ps = _manager.GetGameObject(handle).GetComponentInChildren<ParticleSystem>();
+            _manager.Stop(handle);
+            Assert.IsFalse(ps.isEmitting, "Stop で放出が止まる");
+
+            _manager.SetPausedAll(true);
+            _manager.Tick(1f);
+            Assert.IsTrue(_manager.IsPlaying(handle), "一時停止中はフェードアウトの残り時間が進まない(レビュー指摘 7)");
+
+            _manager.SetPausedAll(false);
+            Assert.IsFalse(ps.isEmitting, "再開してもフェードアウト中の放出は戻らない");
+
+            _manager.Tick(0.6f);
+            Assert.IsFalse(_manager.IsPlaying(handle), "再開後にフェードアウトが進んで返却される");
+        }
+
+        [Test]
+        public void OnPause_Resume_DoesNotRestartEmission_OfStoppingInstance()
+        {
+            var data = CreateVfxData(1);
+            data.FadeOutSec = 0.5f;
+            data.Flags.Pause = PauseMode.PauseWithGame;
+            var handle = _manager.SpawnData(data);
+            var ps = _manager.GetGameObject(handle).GetComponentInChildren<ParticleSystem>();
+            _manager.Stop(handle);
+
+            _manager.OnPause(DDrive.Foundation.Pause.PauseChannel.Gameplay, true);
+            _manager.OnPause(DDrive.Foundation.Pause.PauseChannel.Gameplay, false);
+            Assert.IsFalse(ps.isEmitting);
+            Assert.IsTrue(_manager.IsPlaying(handle));
+        }
+
+        [Test]
         public void Tick_DurationLifeMode_AutoStopsAfterDuration()
         {
             var data = CreateVfxData(1, VfxLifeMode.Duration);

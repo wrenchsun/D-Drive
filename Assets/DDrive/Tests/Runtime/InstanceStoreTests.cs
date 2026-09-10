@@ -70,6 +70,22 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
+        public void IsValidSilent_OnRemovedHandle_DoesNotWarnOrCount()
+        {
+            var store = new InstanceStore<TestMarker, TestInstance>();
+            var handle = store.Add(new TestInstance());
+            Assert.IsTrue(store.IsValidSilent(handle));
+
+            store.Remove(handle);
+            Assert.IsFalse(store.IsValidSilent(handle));
+            Assert.AreEqual(0, store.InvalidAccessCount, "問い合わせは不正アクセス扱いにしない");
+
+            store.Remove(handle); // 二重 Remove も警告なし
+            Assert.AreEqual(0, store.InvalidAccessCount);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
         public void Invalid_IsNotConfusedWithAllocatedHandle()
         {
             var store = new InstanceStore<TestMarker, TestInstance>();

@@ -5,6 +5,7 @@ using Cysharp.Threading.Tasks;
 using DDrive.Editor.Anim;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Event;
+using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Loader;
 using DDrive.Foundation.Registry;
@@ -181,6 +182,84 @@ namespace DDrive.Tests.Editor
             var spawned = root.GetComponentInChildren<ParticleSystem>(true);
             Assert.IsNotNull(spawned, "VFX は SceneVfxPreviewDriver のまとめ用ルート(DontSave)の下に出る");
             Assert.AreEqual(HideFlags.DontSave, spawned.gameObject.hideFlags);
+        }
+
+        [Test]
+        public void SetPaused_InvalidHandle_IsRejected()
+        {
+            _driver.SetPaused(Handle<AnimMarker>.Invalid, true);
+            Assert.IsFalse(_driver.IsPaused, "無効 Handle では一時停止にしない(解除経路が無いまま Tick が止まらない。レビュー指摘 4)");
+            Assert.IsFalse(_driver.Vfx.Paused);
+        }
+
+        [Test]
+        public void Play_And_ReleaseTarget_ClearPause()
+        {
+            var animator = _target.GetComponent<Animator>();
+            var handle = _driver.Play(Anim(), animator);
+            _driver.SetPaused(handle, true);
+            Assert.IsTrue(_driver.IsPaused);
+            Assert.IsTrue(_driver.Vfx.Paused);
+            _driver.Tick(0.5f);
+            Assert.AreEqual(0f, _driver.Manager.GetNormalizedTime(handle), 1e-4f, "一時停止中は進まない");
+
+            var again = _driver.Play(Anim(), animator);
+            Assert.IsFalse(_driver.IsPaused, "Play 系の入口で一時停止を解除する");
+            Assert.IsFalse(_driver.Vfx.Paused);
+            _driver.Tick(0.5f);
+            Assert.AreEqual(0.5f, _driver.Manager.GetNormalizedTime(again), 1e-3f);
+
+            _driver.SetPaused(again, true);
+            _driver.ReleaseTarget();
+            Assert.IsFalse(_driver.IsPaused, "対象解除でも解除される");
+            Assert.IsFalse(_driver.Vfx.Paused);
+        }
+
+        [Test]
+        public void Tick_EditMode_TwoLayersOnSameAnimator_UpdatesAnimatorOnce()
+        {
+            var animator = _target.GetComponent<Animator>();
+            var controller = new UnityEditor.Animations.AnimatorController();
+            controller.AddLayer("Base");
+            controller.AddLayer("Upper");
+            var clipA = Clip();
+            clipA.legacy = false;
+            clipA.name = "A";
+            var clipB = Clip();
+            clipB.legacy = false;
+            clipB.name = "B";
+            var idle = controller.layers[0].stateMachine.AddState("Idle");
+            var stateA = controller.layers[0].stateMachine.AddState("A");
+            stateA.motion = clipA;
+            controller.layers[0].stateMachine.defaultState = idle;
+            var stateB = controller.layers[1].stateMachine.AddState("B");
+            stateB.motion = clipB;
+            animator.runtimeAnimatorController = controller;
+            animator.Rebind();
+            animator.Update(0f);
+
+            var a = Anim();
+            a.Clip = clipA;
+            a.StateName = "A";
+            a.Layer = 0;
+            a.DefaultCrossFade = 0f;
+            var b = Anim();
+            b.Clip = clipB;
+            b.StateName = "B";
+            b.Layer = 1;
+            b.DefaultCrossFade = 0f;
+
+            _driver.Play(a, animator);
+            _driver.Play(b, animator);
+            _driver.Tick(0.25f);
+            _driver.Tick(0.25f);
+
+            // Clip A は Bone.localPosition.x を 0→1 (1 秒) で動かす。CrossFade 直後の最初の Update は遷移の適用に使われるため、
+            // Update が 1 回/Tick なら 2 Tick 後は x≈0.25、インスタンス数(2)ぶん呼ばれていると x≈0.75 になる。
+            var info = animator.GetCurrentAnimatorStateInfo(0);
+            Assert.IsTrue(info.IsName("A"), $"state={info.shortNameHash} normalized={info.normalizedTime}");
+            Assert.Greater(_bone.localPosition.x, 0.15f, $"normalized={info.normalizedTime}");
+            Assert.Less(_bone.localPosition.x, 0.45f, $"同じ Animator に 2 インスタンスあっても Animator.Update は Tick ごとに 1 回(レビュー指摘 6)。normalized={info.normalizedTime}");
         }
 
         [Test]

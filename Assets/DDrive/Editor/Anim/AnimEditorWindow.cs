@@ -43,6 +43,7 @@ namespace DDrive.Editor.Anim
         private SerializedObject _serializedTarget;
         private Handle<AnimMarker> _animHandle = Handle<AnimMarker>.Invalid;
         private int _draggingEvent = -1;
+        private int _dragUndoGroup;
         private readonly List<string> _eventLog = new();
 
         private ObjectField _targetField;
@@ -153,6 +154,11 @@ namespace DDrive.Editor.Anim
 
             var anim = _scene.Manager;
             var playing = anim.IsPlaying(_animHandle);
+            if (!playing)
+            {
+                // 終了済み Handle を毎フレーム問い合わせて無効 Handle 警告を出さないよう Invalid に戻す。
+                _animHandle = Handle<AnimMarker>.Invalid;
+            }
 
             // ブレンド確認: 遷移シーケンスの進行(AnimEditorWindow.Blend.cs)。
             TickSequence(anim, ref playing);
@@ -713,7 +719,7 @@ namespace DDrive.Editor.Anim
                     if (evt.type == EventType.MouseDown && marker.Contains(evt.mousePosition))
                     {
                         _draggingEvent = i;
-                        Undo.RecordObject(_target, "Move Anim Event");
+                        _dragUndoGroup = Undo.GetCurrentGroup();
                         evt.Use();
                     }
                 }
@@ -732,6 +738,8 @@ namespace DDrive.Editor.Anim
             {
                 case EventType.MouseDrag when _draggingEvent >= 0 && events != null && _draggingEvent < events.Length:
                 {
+                    // MouseDown だけの RecordObject は変更前に記録が終わって Undo が効かないため、ドラッグごとに記録し MouseUp で 1 つにまとめる。
+                    Undo.RecordObject(_target, "Move Anim Event");
                     var sec = Mathf.Clamp((evt.mousePosition.x - bar.x) / bar.width, 0f, 1f) * length;
                     var e = events[_draggingEvent];
                     e.Time = e.Trigger == EventTrigger.Frame ? Mathf.Round(sec * frameRate) : Mathf.Round(sec * 100f) / 100f;
@@ -743,6 +751,7 @@ namespace DDrive.Editor.Anim
                 }
                 case EventType.MouseUp when _draggingEvent >= 0:
                     _draggingEvent = -1;
+                    Undo.CollapseUndoOperations(_dragUndoGroup);
                     RefreshValidation();
                     evt.Use();
                     break;

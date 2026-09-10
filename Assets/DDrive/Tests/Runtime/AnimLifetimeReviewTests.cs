@@ -10,6 +10,7 @@ using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using AnimId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker>;
 
 namespace DDrive.Tests.Runtime
@@ -197,6 +198,72 @@ namespace DDrive.Tests.Runtime
             manager.Stop(fast);
             Assert.AreEqual(0.5f, animator.speed, 1e-4f);
             manager.StopAll(StopReason.Manual);
+        }
+
+        [Test]
+        public void Release_RestoresOriginalAnimatorSpeed_NotOne()
+        {
+            var manager = new AnimManager(new AssetRegistry(new FakeAssetLoader()));
+            var animator = _modelPrefab.GetComponent<Animator>();
+            animator.speed = 0.7f;
+
+            var h = manager.PlayData(Anim(1), animator);
+            manager.SetSpeed(h, 2f);
+            manager.Stop(h);
+            Assert.AreEqual(0.7f, animator.speed, 1e-4f, "解放時は 1 ではなく触る前の speed に戻す(レビュー指摘 3)");
+
+            // 一時停止(speed=0)経由でも同じ。同じ Animator の後続再生は先行再生が記録した元の値を引き継ぐ。
+            var a = manager.PlayData(Anim(2, layer: 0), animator);
+            manager.SetPaused(a, true);
+            var b = manager.PlayData(Anim(3, layer: 1), animator);
+            manager.SetSpeed(b, 2f);
+            manager.Stop(a);
+            manager.Stop(b);
+            Assert.AreEqual(0.7f, animator.speed, 1e-4f);
+            manager.StopAll(StopReason.Manual);
+        }
+
+        [Test]
+        public void SetPausedAll_PausesAndResumesEveryInstance_RegardlessOfFlags()
+        {
+            var manager = new AnimManager(new AssetRegistry(new FakeAssetLoader()));
+            var animator = _modelPrefab.GetComponent<Animator>();
+            var a = manager.PlayData(Anim(1, layer: 0), animator);
+            var b = manager.PlayData(Anim(2, layer: 1), animator);
+
+            manager.SetPausedAll(true);
+            Assert.IsTrue(manager.IsPaused(a));
+            Assert.IsTrue(manager.IsPaused(b));
+            manager.Tick(0.5f);
+            Assert.AreEqual(0f, manager.GetNormalizedTime(a), 1e-4f);
+
+            manager.SetPausedAll(false);
+            Assert.IsFalse(manager.IsPaused(a));
+            manager.Tick(0.5f);
+            Assert.AreEqual(0.5f, manager.GetNormalizedTime(a), 1e-3f);
+            manager.StopAll(StopReason.Manual);
+        }
+
+        [Test]
+        public void Despawn_AfterOwnedAnimFinished_DoesNotWarn()
+        {
+            var animData = Anim(1);
+            var model = ScriptableObject.CreateInstance<ModelData>();
+            model.Id = 3;
+            model.Prefab = _modelPrefab;
+            var registry = Registry(animData, model);
+            var anim = new AnimManager(registry);
+            var models = new ModelsManager(_pool, registry, anim);
+
+            var h = models.SpawnData(model, Vector3.zero, Quaternion.identity);
+            var ah = models.PlayAnim(h, new AnimId(1, AssetType.Anim));
+            Assert.IsTrue(anim.IsPlaying(ah));
+            anim.Tick(2f); // 自然終了(所有リストには残る)
+            Assert.IsFalse(anim.IsPlaying(ah));
+
+            LogAssert.NoUnexpectedReceived();
+            models.Despawn(h); // 終了済みの所有 Handle を Stop しない(無効 Handle 警告を出さない。レビュー指摘 10)
+            LogAssert.NoUnexpectedReceived();
         }
 
         [Test]

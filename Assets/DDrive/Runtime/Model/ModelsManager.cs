@@ -187,7 +187,11 @@ namespace DDrive.Runtime.Model
             {
                 for (var i = 0; i < instance.Anims.Count; i++)
                 {
-                    _anim.Stop(instance.Anims[i]);
+                    // 自然終了した所有 Handle は台帳から消えているので、無効 Handle 警告を出さないよう先に確認する。
+                    if (_anim.IsPlaying(instance.Anims[i]))
+                    {
+                        _anim.Stop(instance.Anims[i]);
+                    }
                 }
 
                 _anim.StopAllFor(instance.Animator);
@@ -210,7 +214,8 @@ namespace DDrive.Runtime.Model
         public GameObject GetGameObject(Handle<ModelMarker> handle)
             => _instances.TryGet(handle, out var instance) ? instance.Root : null;
 
-        public bool IsValid(Handle<ModelMarker> handle) => _instances.IsValid(handle);
+        // 終了済み Handle の問い合わせは正常系なので警告を出さない。
+        public bool IsValid(Handle<ModelMarker> handle) => _instances.IsValidSilent(handle);
 
         // slotIndex は Data.Slots 配列内のインデックス(RendererPath+SlotIndex の組を label 相当として
         // 使う設計書の pseudocode を、実際のスキーマに合わせて明示引数化したもの)。

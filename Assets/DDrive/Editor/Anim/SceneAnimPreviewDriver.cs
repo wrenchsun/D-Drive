@@ -111,6 +111,7 @@ namespace DDrive.Editor.Anim
             PrefabStage.prefabStageOpened += OnPrefabStageChanged;
             PrefabStage.prefabStageClosing += OnPrefabStageChanged;
             PrefabStage.prefabSaving += OnPrefabSaving;
+            EditorSceneManager.sceneSaving += OnSceneSaving;
         }
 
         // Hierarchy の選択(その親/子)の Animator、無ければプレハブモードのルート配下の Animator。Project 内のアセットは対象外。
@@ -313,6 +314,8 @@ namespace DDrive.Editor.Anim
             }
 
             EnsureManagers();
+            // Play 系の入口で一時停止を一括解除する(前回の ⏸ が残って Tick が止まり続けないように)。
+            ClearPause();
             var handle = Manager.PlayData(data, Current, fade);
             TrackProxy();
             SceneView.RepaintAll();
@@ -341,12 +344,7 @@ namespace DDrive.Editor.Anim
         {
             Manager.StopAll(StopReason.Manual);
             StopSpawned();
-            if (IsPaused)
-            {
-                IsPaused = false;
-                Vfx.Paused = false;
-            }
-
+            ClearPause();
             SceneView.RepaintAll();
         }
 
@@ -363,17 +361,45 @@ namespace DDrive.Editor.Anim
 
         public void SetPaused(Handle<AnimMarker> handle, bool paused)
         {
-            Manager.SetPaused(handle, paused);
-            IsPaused = paused;
-            Audio?.SetPausedAll(paused);
-            Vfx.Paused = paused;
+            if (!paused)
+            {
+                ClearPause();
+                SceneView.RepaintAll();
+                return;
+            }
+
+            // 無効 Handle(終了済み / 未再生)で一時停止にすると解除経路が無いまま Tick が止まるので弾く。
+            if (!Manager.IsPlaying(handle))
+            {
+                return;
+            }
+
+            Manager.SetPausedAll(true);
+            IsPaused = true;
+            Audio?.SetPausedAll(true);
+            Vfx.Paused = true;
             SceneView.RepaintAll();
+        }
+
+        // 一時停止を全経路でまとめて解除する(Play / Stop / 対象解除 / ステージ切替 / Dispose)。
+        private void ClearPause()
+        {
+            if (!IsPaused)
+            {
+                return;
+            }
+
+            IsPaused = false;
+            Manager.SetPausedAll(false);
+            Audio?.SetPausedAll(false);
+            Vfx.Paused = false;
         }
 
         // 対象を手放す: 借用なら復元 + 付けた Proxy を外す、自前配置なら Despawn。
         public void ReleaseTarget()
         {
             Manager.StopAll(StopReason.Manual);
+            ClearPause();
             RestorePose();
             if (_addedProxy != null)
             {
@@ -434,6 +460,7 @@ namespace DDrive.Editor.Anim
             PrefabStage.prefabStageOpened -= OnPrefabStageChanged;
             PrefabStage.prefabStageClosing -= OnPrefabStageChanged;
             PrefabStage.prefabSaving -= OnPrefabSaving;
+            EditorSceneManager.sceneSaving -= OnSceneSaving;
             ResetForStageChange();
             Vfx.Dispose();
         }
@@ -470,6 +497,18 @@ namespace DDrive.Editor.Anim
             _dispatcher?.Dispose();
             _dispatcher = new AssetEventDispatcher(Manager.Events, Registry, Audio, Vfx.Manager, Manager.GetContextTransform, _groups);
             _dispatcher.OnVfxSpawned += Vfx.Adopt;
+            _dispatcher.OnGroupPlayed += OnGroupPlayed;
+        }
+
+        // イベント(PlayAsset=AnchorGroup)で出た配置セットを台帳に載せ、その VFX をシーンの台帳へ引き取る。
+        private void OnGroupPlayed(Handle<AnchorGroupMarker> handle)
+        {
+            if (!_groupHandles.Contains(handle))
+            {
+                _groupHandles.Add(handle);
+            }
+
+            AdoptGroupVfx();
         }
 
         private void Snapshot(Animator target)
@@ -561,9 +600,22 @@ namespace DDrive.Editor.Anim
             RestorePose();
         }
 
+        // シーン保存の直前に、借用中の対象を元ポーズへ戻す(停止後に残しているポーズや再生中のポーズがシーンに書かれないように)。
+        // 再生中なら次の Tick で再サンプルされる。停止後のポーズ維持は保存で解除される(保存を優先)。
+        private void OnSceneSaving(UnityEngine.SceneManagement.Scene scene, string path)
+        {
+            if (Current == null || OwnsCurrent || Current.gameObject.scene != scene)
+            {
+                return;
+            }
+
+            RestorePose();
+        }
+
         private void ResetForStageChange()
         {
             ReleaseTarget();
+            ClearPause();
             Audio?.StopAll(StopReason.SceneUnload);
             _dispatcher?.Dispose();
             _dispatcher = null;

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Menu;
 using DDrive.Foundation.Data;
@@ -192,28 +191,7 @@ namespace DDrive.Editor.Anchor
                 name = name.Substring(7);
             }
 
-            var sb = new StringBuilder();
-            var upperNext = true;
-            foreach (var c in name)
-            {
-                if (char.IsLetterOrDigit(c) && c < 128)
-                {
-                    sb.Append(upperNext ? char.ToUpperInvariant(c) : c);
-                    upperNext = false;
-                }
-                else
-                {
-                    upperNext = true;
-                }
-            }
-
-            var result = sb.ToString();
-            if (result.Length == 0 || char.IsDigit(result[0]))
-            {
-                result = "Anchor" + result;
-            }
-
-            return result;
+            return AssetNamingService.ToIdentifier(name, "Anchor");
         }
 
         // ── メニュー ──

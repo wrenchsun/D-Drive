@@ -56,20 +56,28 @@ namespace DDrive.Foundation.Pool
 
             if (go == null)
             {
+                // シーン破棄等で GO が死んだ Active エントリは上限に数えない(回収対象にもしない)。
+                // 死んだエントリを ForceReturn すると Free に何も積まれず、直後の Pop で例外になる。
+                PruneDeadActive(pool.Active);
+
                 if (pool.Active.Count >= pool.MaxCount)
                 {
                     var evicted = FindLowestPriority(pool.Active);
-                    if (evicted == null)
-                    {
-                        Debug.LogWarning("[DDrive] Pool at capacity with nothing to reclaim; instantiating over limit.");
-                        go = Object.Instantiate(prefab, _instanceParent);
-                    }
-                    else
+                    if (evicted != null)
                     {
                         // 回収した GO を直接使い回す。ForceReturn は Free に積むため、
                         // 積んだままにすると同じ GO が二重に貸し出される(必ず取り除く)。
                         ForceReturn(pool, evicted);
-                        go = pool.Free.Pop();
+                        if (pool.Free.Count > 0)
+                        {
+                            go = pool.Free.Pop();
+                        }
+                    }
+
+                    if (go == null)
+                    {
+                        Debug.LogWarning("[DDrive] Pool at capacity with nothing to reclaim; instantiating over limit.");
+                        go = Object.Instantiate(prefab, _instanceParent);
                     }
                 }
                 else
@@ -147,11 +155,27 @@ namespace DDrive.Foundation.Pool
             pool.Free.Push(obj.GameObject);
         }
 
+        private static void PruneDeadActive(List<PooledObject> active)
+        {
+            for (var i = active.Count - 1; i >= 0; i--)
+            {
+                if (active[i].GameObject == null)
+                {
+                    active.RemoveAt(i);
+                }
+            }
+        }
+
         private static PooledObject FindLowestPriority(List<PooledObject> active)
         {
             PooledObject lowest = null;
             foreach (var candidate in active)
             {
+                if (candidate.GameObject == null)
+                {
+                    continue;
+                }
+
                 if (lowest == null || candidate.Priority < lowest.Priority)
                 {
                     lowest = candidate;

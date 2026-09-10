@@ -93,6 +93,34 @@ namespace DDrive.Editor.AssetBrowser
         }
 
         // 識別子は英語 PascalCase(先頭大文字、英数字のみ)。ID 定数名としてそのまま使われる。
+        // 表示名 → PascalCase の識別子(ASCII 英数字のみ。区切りの次を大文字化)。空か数字始まりなら fallback を前置する。
+        // AnimEditor(State 名 → AnimData 識別子)と AnchorAssetFactory(GameObject 名 → AnchorData 識別子)が共用する。
+        public static string ToIdentifier(string name, string fallback)
+        {
+            var sb = new System.Text.StringBuilder();
+            var upperNext = true;
+            foreach (var c in name ?? string.Empty)
+            {
+                if (char.IsLetterOrDigit(c) && c < 128)
+                {
+                    sb.Append(upperNext ? char.ToUpperInvariant(c) : c);
+                    upperNext = false;
+                }
+                else
+                {
+                    upperNext = true;
+                }
+            }
+
+            var result = sb.ToString();
+            if (result.Length == 0 || char.IsDigit(result[0]))
+            {
+                result = fallback + result;
+            }
+
+            return result;
+        }
+
         public static bool IsValidIdentifier(string identifier)
             => !string.IsNullOrEmpty(identifier) && IdentifierPattern.IsMatch(identifier);
 

@@ -96,6 +96,7 @@ public sealed class AnchorPoint : MonoBehaviour
 - **解決の優先順位**: `Spawn(id, anchorId)` の引数 > 明示座標/Transform > `Data.AnchorId` > 埋め込み `Data.Anchor` > World 原点。未登録 AnchorId は Placeholder（World 既定値、警告 1 回）
 - **入れ子（連鎖）**: 子は親で決まった姿勢を基準にオフセットを積む。`Space/Path/FollowRotation/DetachOnStop` はルートの値だけが効き、Delay は加算・Chance は乗算。合成は `Runtime/Anchoring/AnchorChain.cs`（固定長バッファ、GC alloc 0）が行い、結果を 1 つの `AnchorDef` 相当にして §2.6 の式へ渡す。循環・深さ 8 超は警告して到達ノードをルート扱い
 - **生成ディレイ**: `DelaySec > 0` のとき Manager は Pending（実体無し）の Instance を作って Handle を返す（`IsPlaying=true` / `GetGameObject=null` / `IsPending=true`）。Tick でカウントダウンして実体化。Pending 中の Stop/Kill は生成をキャンセル。Pause 中は進まない
+- **一時停止と FadeOut**: `OnPause` / `SetPausedAll`（`ApplyPause` に統合、2026-09-10）は Stopping（フェードアウト中）の Instance の残り時間も止め、再開時に放出を戻さない（`Play(true)` の直後に再度 `StopEmitting`）。エディタのプレビュー一時停止は `SetPausedAll`（Flags 無視）を使う
 - **生成確率**: `SpawnChance` に外れた場合は `Handle.Invalid`（警告なし）
 - **ReapplyAnchor**: AnchorId 経由の Instance は連鎖を再合成する（ランダム分は Instance が保持したまま）
 - **AnchorPoint との関係**: 解決先が AnchorPoint なら従来どおり SpawnOffset/ランダムが**追加**適用される。AnchorRig から AnchorData を一括生成する場合は基準を AnchorPoint の親（AnchorRig 名）にして二重適用を避ける

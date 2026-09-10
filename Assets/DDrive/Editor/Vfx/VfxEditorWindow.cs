@@ -164,6 +164,11 @@ namespace DDrive.Editor.Vfx
             }
 
             var playing = _driver.IsPlaying(_mainHandle);
+            if (!playing)
+            {
+                // 終了済み Handle を毎フレーム問い合わせて無効 Handle 警告を出さないよう Invalid に戻す。
+                _mainHandle = Handle<VfxMarker>.Invalid;
+            }
 
             // リピート: OneShot/Duration が終わったら少し間を置いて再スポーンする(Loop は終わらないので対象外)。
             if (_wantPlaying && _repeat && !playing && _target != null)

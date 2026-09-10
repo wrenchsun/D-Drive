@@ -76,6 +76,30 @@ namespace DDrive.Tests.Runtime
         }
 
         [UnityTest]
+        public IEnumerator Rent_AtLimit_WithDestroyedActive_DoesNotThrowAndRentsLiveInstance()
+        {
+            var prefab = new GameObject("Prefab");
+            var pool = new PoolService();
+            pool.SetLimit(prefab, 1);
+
+            var dead = pool.Rent(prefab);
+            dead.Priority = 0;
+            Object.DestroyImmediate(dead.GameObject);
+
+            // 破棄済み GO を持つ Active エントリしか無い状態で上限に達しても、Free.Pop で例外にならず
+            // 生きた Instance が返ること(レビュー指摘 1)。
+            PooledObject rented = null;
+            Assert.DoesNotThrow(() => rented = pool.Rent(prefab));
+            Assert.IsNotNull(rented);
+            Assert.IsNotNull(rented.GameObject);
+            Assert.IsTrue(rented.GameObject.activeSelf);
+
+            pool.Clear(PoolScope.Global);
+            yield return null;
+            Object.DestroyImmediate(prefab);
+        }
+
+        [UnityTest]
         public IEnumerator Prewarm_CreatesInstancesReadyToRentActivated()
         {
             var prefab = new GameObject("Prefab");

@@ -99,7 +99,7 @@ public struct AssetEvent
 ```
 
 - 発火は `EventBus.Fire(instance, trigger)`。Manager は節目で呼ぶだけ
-- Frame/Time は `EventBus.Tick(ctx, dt)`（ゲームフレーム/秒）か `EventBus.TickAnimation(ctx, clipTime, frameRate)`（クリップ時間。AnimManager 用、2026-09-08 追加）で判定。`ResetOnce(ctx)` でループ周回ごとに再発火できる（`Repeat=EveryLoop` のものだけ。Once / KeepWhilePlaying は発火済みのまま）。`End(ctx)` は `OnSessionEnded` を出し、Dispatcher が KeepWhilePlaying で出した SE / VFX を `Stop` する（ループする追従エフェクトの後始末。2026-09-10）
+- Frame/Time は `EventBus.Tick(ctx, dt)`（ゲームフレーム/秒）か `EventBus.TickAnimation(ctx, clipTime, frameRate)`（クリップ時間。AnimManager 用、2026-09-08 追加）で判定。`ResetOnce(ctx)` でループ周回ごとに再発火できる（`Repeat=EveryLoop` のものだけ。Once / KeepWhilePlaying は発火済みのまま）。`End(ctx)` は `OnSessionEnded` を出し、Dispatcher が KeepWhilePlaying で出した SE / VFX / AnchorGroup を `Stop` する（ループする追従エフェクトの後始末。2026-09-10）。**Repeat は `Fire()`（OnLoop / Custom 等）と `SeekAnimation` でも効く**（Once / KeepWhilePlaying は Fire 経由でも再生ごとに 1 回、シークで戻しても発火済みを保持。2026-09-10 レビュー対応）。Frame 判定は `clipTime*frameRate + FrameEpsilon(0.001) >= Time` で float 誤差を吸収（63 フレーム @30fps 等の最終フレームを落とさない。`AnimDataValidator` の上限 +0.001 と整合）
 - `PlayAsset` の実行は AssetType に応じて対応 Manager にディスパッチ（実装: `Runtime/Presentation/AssetEventDispatcher.cs`。Se / Vfx / AnchorGroup に対応。発火元の Transform を contextRoot にする。2026-09-09）
 - Validation 対象（Target 欠落 = 赤）
 
@@ -147,7 +147,7 @@ public interface IPoolService
 
 - 対象: VFX / AudioSource / Prefab / Canvas / Projectile（AssetFlags.Pool で指定）
 - Return 時に `IPoolable.OnReturn()` を呼びリセット（Trail/Particle の Clear 等）
-- 上限超過時は Priority 最低の稼働 Instance を強制回収
+- 上限超過時は Priority 最低の稼働 Instance を強制回収（シーン破棄等で GameObject が死んだ Active エントリは先に台帳から外し、回収しても Free に積めなければ新規 Instantiate に落とす。2026-09-10）
 
 ## 7. Handle と Instance
 
@@ -222,7 +222,8 @@ AudioDuck.Push(DuckChannel.Dialogue, -12f); // 会話中 BGM を下げる
 ```
 
 - チャンネルはスタック式（多重ポーズ・多重ダックに対応）
-- 各 Instance は自分の `Flags.Pause` を見て応答を決める
+- 各 Instance は自分の `Flags.Pause` を見て応答を決める。各 Manager は `OnPause` と、エディタ向けの `SetPausedAll(bool)`（Flags を無視して全部止める）を `ApplyPause(paused, respectFlags)` の 1 実装に統合している（Audio / Vfx / Anim、2026-09-10）
+- **無効 Handle の問い合わせと操作**: `InstanceStore.TryGet / IsValid` は無効 Handle で警告 + `InvalidAccessCount`（操作の誤りを検出する）。**`IsValidSilent` は警告なし**で、各 Manager の `IsPlaying` / `ModelsManager.IsValid` はこちらを使う（終了済み Handle を毎フレーム問い合わせるエディタのポーリングや Dispatcher の後始末は正常系）。`Remove` も冪等で警告なし。エディタは終了を検知したらローカルの Handle を `Invalid` に戻す（2026-09-10）
 
 ## 11. Validation Core
 

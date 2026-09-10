@@ -118,9 +118,10 @@ namespace DDrive.Runtime.Anchoring
         }
 
         // どれか 1 つでも再生中(生成待ち含む)なら true。
+        // 終了済み Handle の問い合わせは正常系(エディタのポーリング / Dispatcher の後始末)なので警告を出さない。
         public bool IsPlaying(Handle<AnchorGroupMarker> handle)
         {
-            if (!_instances.TryGet(handle, out var instance))
+            if (!_instances.IsValidSilent(handle) || !_instances.TryGet(handle, out var instance))
             {
                 return false;
             }

@@ -137,21 +137,8 @@ namespace DDrive.Editor.Vfx
             }
 
             var handle = Manager.SpawnData(data, contextRoot: attach, anchorOverride: anchorOverride);
-            var go = Manager.GetGameObject(handle);
-            if (go != null)
-            {
-                go.hideFlags = HideFlags.DontSave;
-                // VfxManager は Rent 直後に SetParent(null) するため、ここで毎回まとめ直す(ワールド姿勢は維持)。
-                go.transform.SetParent(PreviewRoot.transform, true);
-                _spawnedRoots.Add(go);
-                _active.Add((handle, go.GetComponentsInChildren<ParticleSystem>(true), data));
-
-                if (Application.isPlaying)
-                {
-                    Manager.SetSpeed(handle, _speed);
-                }
-            }
-
+            // Pending(ディレイ)スポーンも台帳に載せる(Materialize 後に DontSave / まとめ直しを適用する)。
+            RegisterSpawned(handle, data);
             return handle;
         }
 

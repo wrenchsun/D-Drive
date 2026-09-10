@@ -320,8 +320,7 @@ namespace DDrive.Editor.Anim
                     return;
                 }
 
-                var t = anim.GetNormalizedTime(_animHandle);
-                var due = !playing || (step.SwitchAt < 1f && t >= step.SwitchAt);
+                var due = !playing || (step.SwitchAt < 1f && anim.GetNormalizedTime(_animHandle) >= step.SwitchAt);
                 if (due)
                 {
                     _animHandle = _scene.Play(step.Anim, _scene.Current, step.CrossFade);

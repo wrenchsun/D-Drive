@@ -426,7 +426,8 @@ namespace DDrive.Runtime.Vfx
 
         // ── 問い合わせ ──
 
-        public bool IsPlaying(Handle<VfxMarker> handle) => _instances.IsValid(handle);
+        // 終了済み Handle の問い合わせは正常系(エディタのポーリング / Dispatcher の後始末)なので警告を出さない。
+        public bool IsPlaying(Handle<VfxMarker> handle) => _instances.IsValidSilent(handle);
 
         // Cosmetic 配送は受信ハンドラ側が Spawn するため、送信元は具体的な Handle を得られない。
         // 「何か Spawn された」を確認する用途にも使える。
@@ -598,6 +599,12 @@ namespace DDrive.Runtime.Vfx
                     continue;
                 }
 
+                // 一時停止中はフェードアウト(Stopping)の残り時間も進めない。
+                if (instance.Paused)
+                {
+                    continue;
+                }
+
                 if (instance.Stopping)
                 {
                     instance.FadeOutRemaining -= dt;
@@ -606,11 +613,6 @@ namespace DDrive.Runtime.Vfx
                         ReturnToPool(handle, instance);
                     }
 
-                    continue;
-                }
-
-                if (instance.Paused)
-                {
                     continue;
                 }
 
@@ -647,35 +649,7 @@ namespace DDrive.Runtime.Vfx
             }
         }
 
-        public void OnPause(PauseChannel channel, bool paused)
-        {
-            for (var i = 0; i < _allActive.Count; i++)
-            {
-                if (!_instances.TryGet(_allActive[i], out var instance) ||
-                    instance.Data.Flags.Pause != PauseMode.PauseWithGame)
-                {
-                    continue;
-                }
-
-                instance.Paused = paused;
-                foreach (var ps in instance.ParticleSystems)
-                {
-                    if (ps == null)
-                    {
-                        continue;
-                    }
-
-                    if (paused)
-                    {
-                        ps.Pause(true);
-                    }
-                    else
-                    {
-                        ps.Play(true);
-                    }
-                }
-            }
-        }
+        public void OnPause(PauseChannel channel, bool paused) => ApplyPause(paused, respectFlags: true);
 
         public void StopAll(StopReason reason)
         {
@@ -686,11 +660,21 @@ namespace DDrive.Runtime.Vfx
         }
 
         // 再生中の VFX を Flags.Pause に関係なく全部一時停止 / 再開する(エディタのプレビュー一時停止用。ゲーム側は OnPause)。
-        public void SetPausedAll(bool paused)
+        public void SetPausedAll(bool paused) => ApplyPause(paused, respectFlags: false);
+
+        // OnPause / SetPausedAll の共通実装。respectFlags=true なら Flags.Pause=PauseWithGame のものだけ。
+        // Stopping(フェードアウト中)は放出を再開させない: 再開時に Play(true) すると放出が戻ってしまうため、
+        // Play で残留パーティクルの再生だけ戻したあと再度 StopEmitting にする。
+        private void ApplyPause(bool paused, bool respectFlags)
         {
             for (var i = 0; i < _allActive.Count; i++)
             {
                 if (!_instances.TryGet(_allActive[i], out var instance) || instance.ParticleSystems == null)
+                {
+                    continue;
+                }
+
+                if (respectFlags && instance.Data.Flags.Pause != PauseMode.PauseWithGame)
                 {
                     continue;
                 }
@@ -706,6 +690,11 @@ namespace DDrive.Runtime.Vfx
                     if (paused)
                     {
                         ps.Pause(true);
+                    }
+                    else if (instance.Stopping)
+                    {
+                        ps.Play(true);
+                        ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
                     }
                     else
                     {

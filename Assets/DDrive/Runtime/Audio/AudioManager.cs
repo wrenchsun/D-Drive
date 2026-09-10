@@ -363,8 +363,9 @@ namespace DDrive.Runtime.Audio
             _pool.Return(instance.Pooled);
         }
 
+        // 終了済み Handle の問い合わせは正常系(ポーリング / Dispatcher の後始末)なので警告を出さない。
         public bool IsPlaying(Handle<SeMarker> handle)
-            => _instances.TryGet(handle, out var instance) && (instance.Pending || instance.Source.isPlaying);
+            => _instances.IsValidSilent(handle) && _instances.TryGet(handle, out var instance) && (instance.Pending || instance.Source.isPlaying);
 
         // 生成ディレイ待ち(Handle は有効だが、まだ鳴っていない)か。
         public bool IsPending(Handle<SeMarker> handle)
@@ -482,47 +483,19 @@ namespace DDrive.Runtime.Audio
             }
         }
 
-        public void OnPause(PauseChannel channel, bool paused)
-        {
-            for (var i = 0; i < _allActive.Count; i++)
-            {
-                if (!_instances.TryGet(_allActive[i], out var instance))
-                {
-                    continue;
-                }
+        public void OnPause(PauseChannel channel, bool paused) => ApplyPause(paused, respectFlags: true);
 
-                if (instance.Data.Flags.Pause != PauseMode.PauseWithGame)
-                {
-                    continue;
-                }
-
-                if (paused)
-                {
-                    instance.Paused = true;
-                    instance.Source.Pause();
-                }
-                else
-                {
-                    instance.Paused = false;
-                    instance.Source.UnPause();
-                }
-            }
-        }
-
-        public void StopAll(StopReason reason)
-        {
-            for (var i = _allActive.Count - 1; i >= 0; i--)
-            {
-                Stop(_allActive[i]);
-            }
-        }
-
-        // 再生中の SE を Flags.Pause に関係なく全部一時停止 / 再開する(エディタのプレビュー一時停止用。ゲーム側は OnPause)。
-        public void SetPausedAll(bool paused)
+        // OnPause / SetPausedAll の共通実装。respectFlags=true なら Flags.Pause=PauseWithGame のものだけ。
+        private void ApplyPause(bool paused, bool respectFlags)
         {
             for (var i = 0; i < _allActive.Count; i++)
             {
                 if (!_instances.TryGet(_allActive[i], out var instance) || instance.Source == null)
+                {
+                    continue;
+                }
+
+                if (respectFlags && instance.Data.Flags.Pause != PauseMode.PauseWithGame)
                 {
                     continue;
                 }
@@ -538,6 +511,17 @@ namespace DDrive.Runtime.Audio
                 }
             }
         }
+
+        public void StopAll(StopReason reason)
+        {
+            for (var i = _allActive.Count - 1; i >= 0; i--)
+            {
+                Stop(_allActive[i]);
+            }
+        }
+
+        // 再生中の SE を Flags.Pause に関係なく全部一時停止 / 再開する(エディタのプレビュー一時停止用。ゲーム側は OnPause)。
+        public void SetPausedAll(bool paused) => ApplyPause(paused, respectFlags: false);
 
         public void OnSceneUnload() => StopAll(StopReason.SceneUnload);
 

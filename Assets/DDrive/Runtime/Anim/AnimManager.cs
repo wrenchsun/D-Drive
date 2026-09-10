@@ -37,6 +37,7 @@ namespace DDrive.Runtime.Anim
             public int LoopCount;
             public InstanceContext Context;
             public bool SpeedTouched; // SetSpeed / Pause で Animator.speed を書いたか(解放時に戻すため)
+            public float OriginalSpeed = 1f; // 触る前の Animator.speed(解放時にこれへ戻す。同じ Animator の先行再生から引き継ぐ)
         }
 
         private readonly IAssetRegistry _registry;
@@ -44,6 +45,8 @@ namespace DDrive.Runtime.Anim
         private readonly InstanceStore<AnimMarker, AnimInstance> _instances = new();
         private readonly List<Handle<AnimMarker>> _allActive = new();
         private readonly HashSet<AnimData> _stateWarned = new();
+        // EditMode で同じ Animator に複数インスタンス(レイヤー同時再生)があっても Animator.Update は Tick ごとに 1 回だけ。
+        private readonly HashSet<Animator> _updatedThisTick = new();
 
         public AssetType Type => AssetType.Anim;
 
@@ -115,6 +118,7 @@ namespace DDrive.Runtime.Anim
                 Data = data,
                 Animator = target,
                 Proxy = proxy,
+                OriginalSpeed = FindOriginalSpeed(target),
             };
             var handle = _instances.Add(instance);
             instance.Context = new InstanceContext(handle.Index, handle.Generation);
@@ -154,7 +158,8 @@ namespace DDrive.Runtime.Anim
 
         // ── Handle 操作 ──
 
-        public bool IsPlaying(Handle<AnimMarker> handle) => _instances.IsValid(handle);
+        // 終了済み Handle の問い合わせは正常系(エディタのポーリング / ModelsManager の所有リスト)なので警告を出さない。
+        public bool IsPlaying(Handle<AnimMarker> handle) => _instances.IsValidSilent(handle);
 
         public int ActiveCount => _allActive.Count;
 
@@ -256,7 +261,7 @@ namespace DDrive.Runtime.Anim
                     return;
                 }
 
-                if (!Application.isPlaying)
+                if (!Application.isPlaying && _updatedThisTick.Add(animator))
                 {
                     animator.Update(dt * instance.Speed);
                 }
@@ -288,6 +293,9 @@ namespace DDrive.Runtime.Anim
         }
 
         public bool IsPaused(Handle<AnimMarker> handle) => _instances.TryGet(handle, out var instance) && instance.Paused;
+
+        // 再生中の Anim を Flags.Pause に関係なく全部一時停止 / 再開する(エディタのプレビュー一時停止用。ゲーム側は OnPause)。
+        public void SetPausedAll(bool paused) => ApplyPause(paused, respectFlags: false);
 
         public void SetSpeed(Handle<AnimMarker> handle, float speed)
         {
@@ -339,7 +347,7 @@ namespace DDrive.Runtime.Anim
         }
 
         // SetSpeed / Pause で書き換えた Animator.speed を、解放時に戻す。同じ Animator の別再生が残っていれば
-        // その速度、無ければ 1(触っていなければ何もしない: 外部が設定した speed を壊さない)。
+        // その速度、無ければ触る前の値(触っていなければ何もしない: 外部が設定した speed を壊さない)。
         private void RestoreAnimatorSpeed(AnimInstance released)
         {
             var animator = released.Animator;
@@ -357,13 +365,28 @@ namespace DDrive.Runtime.Anim
                 }
             }
 
-            animator.speed = 1f;
+            animator.speed = released.OriginalSpeed;
+        }
+
+        // 触る前の Animator.speed。同じ Animator で既に speed を書き換えた再生があれば、その再生が記録した元の値を引き継ぐ。
+        private float FindOriginalSpeed(Animator animator)
+        {
+            for (var i = 0; i < _allActive.Count; i++)
+            {
+                if (_instances.TryGet(_allActive[i], out var other) && other.Animator == animator && other.SpeedTouched)
+                {
+                    return other.OriginalSpeed;
+                }
+            }
+
+            return animator.speed;
         }
 
         // ── Tick / Pause / StopAll ──
 
         public void Tick(float dt)
         {
+            _updatedThisTick.Clear();
             for (var i = _allActive.Count - 1; i >= 0; i--)
             {
                 var handle = _allActive[i];
@@ -428,11 +451,23 @@ namespace DDrive.Runtime.Anim
             }
         }
 
-        public void OnPause(PauseChannel channel, bool paused)
+        public void OnPause(PauseChannel channel, bool paused) => ApplyPause(paused, respectFlags: true);
+
+        private void ApplyPause(bool paused, bool respectFlags)
         {
             for (var i = 0; i < _allActive.Count; i++)
             {
-                if (!_instances.TryGet(_allActive[i], out var instance) || instance.Data.Flags.Pause != PauseMode.PauseWithGame)
+                if (!_instances.TryGet(_allActive[i], out var instance))
+                {
+                    continue;
+                }
+
+                if (respectFlags && instance.Data.Flags.Pause != PauseMode.PauseWithGame)
+                {
+                    continue;
+                }
+
+                if (instance.Paused == paused)
                 {
                     continue;
                 }

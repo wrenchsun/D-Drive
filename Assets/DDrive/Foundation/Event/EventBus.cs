@@ -18,6 +18,9 @@ namespace DDrive.Foundation.Event
 
         private readonly Dictionary<InstanceContext, Session> _sessions = new();
 
+        // Frame 判定の float 誤差吸収(例: 63 フレーム @30fps は 2.1s*30 = 62.99999…)。AnimDataValidator の上限(+0.001)と揃える。
+        public const float FrameEpsilon = 0.001f;
+
         public event Action<InstanceContext, AssetEvent> OnEventFired;
 
         // Instance の終了(End)。KeepWhilePlaying で出した SE / VFX を止めるために Dispatcher が購読する。
@@ -57,8 +60,29 @@ namespace DDrive.Foundation.Event
                     continue;
                 }
 
+                // Repeat は Fire 経由(OnLoop / Custom 等)でも効かせる。Once / KeepWhilePlaying は再生ごとに 1 回だけ。
+                if (evt.Repeat != EventRepeat.EveryLoop)
+                {
+                    if (session.FiredOnce.Contains(i))
+                    {
+                        continue;
+                    }
+
+                    session.FiredOnce.Add(i);
+                }
+
                 OnEventFired?.Invoke(ctx, evt);
             }
+        }
+
+        private static bool IsCrossed(in AssetEvent evt, float clipTimeSeconds, float frameRate)
+        {
+            return evt.Trigger switch
+            {
+                EventTrigger.Time => clipTimeSeconds >= evt.Time,
+                EventTrigger.Frame => frameRate > 0f && clipTimeSeconds * frameRate + FrameEpsilon >= evt.Time,
+                _ => false,
+            };
         }
 
         // アニメーション用: Frame/Time トリガを「ゲームのフレーム数」ではなく「クリップ時間」で判定する
@@ -78,14 +102,7 @@ namespace DDrive.Foundation.Event
                 }
 
                 var evt = session.Events[i];
-                var crossed = evt.Trigger switch
-                {
-                    EventTrigger.Time => clipTimeSeconds >= evt.Time,
-                    EventTrigger.Frame => frameRate > 0f && clipTimeSeconds * frameRate >= evt.Time,
-                    _ => false,
-                };
-
-                if (!crossed)
+                if (!IsCrossed(evt, clipTimeSeconds, frameRate))
                 {
                     continue;
                 }
@@ -103,19 +120,22 @@ namespace DDrive.Foundation.Event
                 return;
             }
 
-            session.FiredOnce.Clear();
             for (var i = 0; i < session.Events.Length; i++)
             {
                 var evt = session.Events[i];
-                var crossed = evt.Trigger switch
+                // Once / KeepWhilePlaying は一度出したら再生中はシークで戻しても再発火しない(発火済みを保持)。
+                if (evt.Repeat != EventRepeat.EveryLoop && session.FiredOnce.Contains(i))
                 {
-                    EventTrigger.Time => clipTimeSeconds >= evt.Time,
-                    EventTrigger.Frame => frameRate > 0f && clipTimeSeconds * frameRate >= evt.Time,
-                    _ => false,
-                };
-                if (crossed)
+                    continue;
+                }
+
+                if (IsCrossed(evt, clipTimeSeconds, frameRate))
                 {
                     session.FiredOnce.Add(i);
+                }
+                else
+                {
+                    session.FiredOnce.Remove(i);
                 }
             }
         }

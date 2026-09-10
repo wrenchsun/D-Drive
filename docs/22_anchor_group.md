@@ -76,6 +76,9 @@ public sealed class AnchorGroupData : AssetDataBase
 
 ### 3.4 ランタイム（`AnchorGroupPlayer` / `Anchors`）
 
+- `CollectVfxHandles(handle, into)`: そのグループが（ディレイ後も含めて）出した VFX Handle を列挙する。エディタのプレビュー台帳（`SceneAnimPreviewDriver.AdoptGroupVfx`）が DontSave / 手動 Simulate のために引き取るのに使う
+- `AssetEventDispatcher` は AnchorGroup イベントを `Play` したあと `OnGroupPlayed(handle)` を出し、`Repeat=KeepWhilePlaying` なら発火元の終了で `Stop` する（2026-09-10）
+
 ```csharp
 var h = Anchors.Play(ANCHORGROUPID.HealField, ctx);   // 全点分を VfxManager.SpawnData(data, spec) / AudioManager.PlaySeData(data, spec) で再生
 Anchors.Stop(h); Anchors.Kill(h); Anchors.IsPlaying(h);  // まとめて操作

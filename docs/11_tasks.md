@@ -85,6 +85,7 @@
 | 3-2 | BlendShapeTrack / IkProfile 適用 | 基盤 | 2 | 3-1 | ✅ 3-1 と同時に `AnimatorProxy` へ実装（BlendShape はテスト済み。IK は OnAnimatorIK 経由のため AnimEditor(3-3) で実機確認） |
 | 3-3 | AnimEditor（タイムライン/イベント D&D/ブレンド確認） | ED | 4 | 1-6, 3-1 | ✅ 2026-09-09 実装（[05] B-4 実装メモ）。タイムラインのシーク・マーカードラッグ・ブレンド確認・実行時 Validation。IK ターゲットの配置 UI は未実装。2026-09-09 追記: 再生先「シーン(SceneView)」を追加（`SceneAnimPreviewDriver`。確認用シーン / プレハブモードのモデルをその場で駆動、停止で元ポーズに復元）。全 Data の Inspector 最上部に「エディターで開く」（[09] §8）。2026-09-10: ブレンド確認を高級化（遷移シーケンス / レイヤー同時再生 + レイヤー重み / Blend Tree パラメータ 2D パッド。`AnimEditorWindow.Blend.cs`）。同日、ITAMI の SE タブから「Animator から選択 / SE 波形 / SE・VFX イベント一覧 / イベントコピー」を移植（`AnimEditorWindow.Source.cs`） |
 | 3-4 | Anim × SE/VFX 同時プレビュー | ED | 2 | 3-3, 2-4, 1-7 | ✅ 2026-09-09 `AssetEventDispatcher`（Runtime/Presentation）を PreviewService に組み込み。PlayMode 293 green（`AnimIntegrationTests` 3 件追加） |
+| 3-R | VFX / Anim レビュー対応（2026-09-10、実バグ 10 件） | 基盤+ED | 1 | 3-4 | ✅ Pool 上限時の死んだエントリ / Pending の台帳 / シーン保存前の復元 + speed 復元 / 一時停止の一括解除 / Frame 判定の誤差 / Animator.Update 二重 / FadeOut 中の再開 / Fire・Seek の Repeat / AnchorGroup の KeepWhilePlaying + フック / 無効 Handle 警告のノイズ。回帰テスト 13 件追加 |
 | 3-5 | MaterialCommon 規約確定 + MaterialData/Mats | TA+基盤 | 3 | 0-* | Apply/Replace/FadeTo、MaterialAnim 駆動 |
 | 3-6 | シェーダー変換テーブル + 変換エディタ | TA | 3 | 3-5 | 共通データ維持・固有差分レポート |
 | 3-7 | Maya FBX → MaterialData 自動生成（ImportProfile） | TA | 3 | 3-5 | 再インポートで固有調整を破壊しない |

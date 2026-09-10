@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Audio;
 using DDrive.Foundation.Data;
@@ -263,32 +262,7 @@ namespace DDrive.Editor.Anim
             return asset as AnimData;
         }
 
-        // 表示名 → PascalCase の識別子(英数字のみ)。
-        private static string ToIdentifier(string name, string fallback)
-        {
-            var sb = new StringBuilder();
-            var upperNext = true;
-            foreach (var c in name ?? string.Empty)
-            {
-                if (char.IsLetterOrDigit(c) && c < 128)
-                {
-                    sb.Append(upperNext ? char.ToUpperInvariant(c) : c);
-                    upperNext = false;
-                }
-                else
-                {
-                    upperNext = true;
-                }
-            }
-
-            var result = sb.ToString();
-            if (result.Length == 0 || char.IsDigit(result[0]))
-            {
-                result = fallback + result;
-            }
-
-            return result;
-        }
+        private static string ToIdentifier(string name, string fallback) => AssetNamingService.ToIdentifier(name, fallback);
 
         // ── 2. SE 波形(本体の DrawTimeline から) ──
 
