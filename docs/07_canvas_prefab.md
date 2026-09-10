@@ -187,6 +187,12 @@ public static class Prefabs
 > - **P2（Preload が lazy カタログで空振りする）**: 同期 `Preload` は `AssetRegistry.ResolveOrPlaceholder` を使っており、これは「既にロード済みの ID」しか実データを返さない(未解決の lazy な Addressables エントリは placeholder のまま Prewarm 対象から外れて素通りする)。`PreloadAsync(params PrefabId[] ids)` を追加し、`ResolveAsync<PrefabData>` で確実にロードしてから `Kind == Pooled` かつ `InitialCount > 0` のときだけ Prewarm する。同期 `Preload` は `TryResolveSync` を使うよう変更し、解決できなかった ID は開発ビルド/エディタで警告を出して `PreloadAsync` の利用を促す
 > - テスト: `PrefabsManagerTests.Despawn_NonePolicy_DestroysGameObject_AndReuseGivesDifferentGameObject` / `Despawn_PooledPolicy_ReturnsToPool_AndReuseGivesSameGameObject` / `PreloadAsync_ResolvesLazyEntry_AndPrewarmsPool`、`PoolServiceTests.Discard_*`
 
+#### 実装メモ追記（2026-09-11、4-13 Simulated Spawn）
+
+- `PrefabsManager` に `INetBridge netBridge = null` を追加(既定 null はシングルプレイ相当で従来どおり常にローカル Spawn)。`Bootstrap` は `NetBridge`(`LocalLoopbackBridge`)を渡す。詳細な通信フロー・レート制限・メッセージ定義は [14_networking.md](14_networking.md) §4 の実装メモを参照
+- `PrefabDataValidator` に Simulated 検証 3 種(NetworkObject 未設定 Error / Kind 不一致 Info / Pooled 併用 Warning)を追加([14] §10)
+- テスト: `Assets/DDrive/Tests/Runtime/PrefabSimulatedSpawnTests.cs`(`FakeNetBridge` で IsServer/IsClient を切替できるテスト用 bridge を新設)
+
 ## B-4. Validation
 
-Prefab Missing (Error) / CollisionLayer 未定義値 (Error) / Kind=Projectile で Pool 未設定 (Warning) / GameplayTags のタイポ検出（登録済みタグ辞書と照合, Warning）
+Prefab Missing (Error) / CollisionLayer 未定義値 (Error) / Kind=Projectile で Pool 未設定 (Warning) / GameplayTags のタイポ検出（登録済みタグ辞書と照合, Warning） / NetMode=Simulated で NetworkObject 未設定 (Error) / Simulated で Kind が Projectile・Gimmick・Character 以外 (Info) / Simulated と Pool=Pooled の併用 (Warning)（4-13。[14_networking.md](14_networking.md) §10）

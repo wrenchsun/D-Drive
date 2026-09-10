@@ -82,6 +82,15 @@ public enum NetMode
 | Material | Cosmetic（スキン替え等は見た目のみ）。装備など結果に影響する場合はゲームロジック側の同期変数から駆動 |
 | Presentation | §5 参照。ネット対応の主役 |
 
+> **実装メモ（2026-09-11、4-13）**: `PrefabsManager` に `INetBridge netBridge = null` を追加（既定 null = シングルプレイ相当で今までどおり常にローカル Spawn）。`Assets/DDrive/Runtime/Net/PrefabMessages.cs` に3種のメッセージを追加。
+> - `PrefabSpawnRequestMsg{ PrefabId, Position, Rotation, RequestKey }`: クライアント→サーバーの Spawn 要求。`netBridge.IsServer == false` のとき `SpawnData` はローカル Instantiate せず、`SendTo(serverClientId=0, ...)` でこのメッセージを送って `Handle<PrefabMarker>.Invalid` を返す（クライアントは Simulated Prefab のローカル Handle を一切持たない。観測は将来 NGO の NetworkObject 経由に委ねる）。
+> - `PrefabSpawnedMsg{ PrefabId, NetObjectId, Position, Rotation, RequestKey }`: サーバーが権威生成した直後に `Broadcast` する通知のみのメッセージ。`NetObjectId` は現状常に 0（`LocalLoopbackBridge` 経路。NGO の `NetworkObjectId` 配線は Phase 6）。
+> - `PrefabDespawnedMsg{ NetObjectId }`: サーバーが Simulated インスタンスを Despawn した際に `Broadcast`。
+> - サーバー（`netBridge.IsServer == true`）は `PrefabSpawnRequestMsg` を Subscribe し、クライアントごとに 60 件/秒のレート制限（`NgoNetBridge.ConsumeRelayBudget` と同じ考え方の簡易ウィンドウ）を掛けたうえで、`PrefabId` がレジストリ上 `NetMode.Simulated` の `PrefabData` に解決できる場合のみ権威 Spawn する。非 Simulated ID への要求は ID ごとに 1 回だけ警告して無視する。
+> - Cosmetic/Local な Prefab は今までどおり無条件でローカル Spawn（挙動変更なし）。
+> - Validator（`PrefabDataValidator`）: `NetMode.Simulated` かつ Prefab に `Unity.Netcode.NetworkObject` が無い → Error。`Kind` が Projectile/Gimmick/Character 以外 → Info。`Flags.Pool.Kind == Pooled` との併用 → Warning。
+> - 見送り: 実際の NGO `NetworkObject` 複製（`NetworkManager.SpawnManager.InstantiateAndSpawn` 等）と `NetObjectId` の実配線、Late Join 時の Simulated インスタンス一覧のスナップショット同期は Phase 6（NGO 統合）で行う。テストは `PrefabSimulatedSpawnTests`（`FakeNetBridge` で IsServer/IsClient を切替、ループバック配送は `SendTo`/`Broadcast` が同一インスタンス内の Subscribe ハンドラへ即時配送する簡易実装）。
+
 ## 5. Presentation のネットワーク再生
 
 ```csharp
@@ -146,7 +155,7 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
 |---|---|
 | Phase 0 | NetBridge 抽象 + Loopback + **NGO アダプタ** / ITimeSource(NetworkTime) / NetMode フラグ / Seed 決定的乱数 |
 | Phase 2 | VFX/SE の Cosmetic 配送（Broadcast + Unreliable バッチ） |
-| Phase 4 | Prefab の Simulated Spawn（サーバー権威生成 + NetworkObject 検証） |
+| Phase 4 | Prefab の Simulated Spawn（サーバー権威生成 + NetworkObject 検証） ✅ 2026-09-11(4-13。NetworkObject の実複製は Phase 6 で接続) |
 | Phase 5 | Presentation ネット再生（開始時刻シーク / Signal 中継 / 予測再生）+ Late Join 復元 |
 | Phase 6 | カタログ ContentHash 照合 / 受信検証・レート制限 / ネット Validator / 2 クライアント自動テスト |
 

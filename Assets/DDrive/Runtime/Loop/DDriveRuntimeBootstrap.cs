@@ -154,7 +154,7 @@ namespace DDrive.Runtime.Loop
             Anim = new AnimManager(Registry);
             Materials = new MaterialManager(Registry);
             Models = new ModelsManager(Pool, Registry, Anim, Materials);
-            Prefabs = new PrefabsManager(Pool, Registry);
+            Prefabs = new PrefabsManager(Pool, Registry, netBridge: NetBridge); // NetMode.Simulated のサーバー権威生成([14] §3/§10、4-13)
             UiTweens = new UiTweenManager(Registry);
             Ui = new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens);
             Ui.SetLayerSettings(LayerSettings);
