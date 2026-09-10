@@ -92,6 +92,32 @@ namespace DDrive.Runtime.Ui
         public static Handle<UiTweenMarker> Flash(RectTransform t, float sec = 0.3f) => Play(UiPreset.Flash, t, new UiPresetRef { Duration = sec });
         public static Handle<UiTweenMarker> HeartBeat(RectTransform t, float sec = 0.6f) => Play(UiPreset.HeartBeat, t, new UiPresetRef { Duration = sec });
 
+        // 2026-09-11(4-11 完了): 残っていた UiPreset 全メンバーの 1 行関数を追加(既存分と命名/引数順を揃える)。
+        public static Handle<UiTweenMarker> BounceOut(RectTransform t, float sec = 0.4f) => Play(UiPreset.BounceOut, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> ElasticOut(RectTransform t, float sec = 0.4f) => Play(UiPreset.ElasticOut, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> FlipInX(RectTransform t, float sec = 0.35f) => Play(UiPreset.FlipInX, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> FlipInY(RectTransform t, float sec = 0.35f) => Play(UiPreset.FlipInY, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> FlipOutX(RectTransform t, float sec = 0.25f) => Play(UiPreset.FlipOutX, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> FlipOutY(RectTransform t, float sec = 0.25f) => Play(UiPreset.FlipOutY, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> RotateIn(RectTransform t, float sec = 0.35f) => Play(UiPreset.RotateIn, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> RotateOut(RectTransform t, float sec = 0.25f) => Play(UiPreset.RotateOut, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> TypeFillIn(RectTransform t, float sec = 0.6f) => Play(UiPreset.TypeFillIn, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> SlideFadeInLeft(RectTransform t, float sec = 0.3f, float distance = 0f) => Play(UiPreset.SlideFadeInLeft, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> SlideFadeInRight(RectTransform t, float sec = 0.3f, float distance = 0f) => Play(UiPreset.SlideFadeInRight, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> SlideFadeInTop(RectTransform t, float sec = 0.3f, float distance = 0f) => Play(UiPreset.SlideFadeInTop, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> SlideFadeInBottom(RectTransform t, float sec = 0.3f, float distance = 0f) => Play(UiPreset.SlideFadeInBottom, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> SlideFadeOutLeft(RectTransform t, float sec = 0.25f, float distance = 0f) => Play(UiPreset.SlideFadeOutLeft, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> SlideFadeOutRight(RectTransform t, float sec = 0.25f, float distance = 0f) => Play(UiPreset.SlideFadeOutRight, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> SlideFadeOutTop(RectTransform t, float sec = 0.25f, float distance = 0f) => Play(UiPreset.SlideFadeOutTop, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> SlideFadeOutBottom(RectTransform t, float sec = 0.25f, float distance = 0f) => Play(UiPreset.SlideFadeOutBottom, t, new UiPresetRef { Duration = sec, Distance = distance });
+        public static Handle<UiTweenMarker> RainbowTint(RectTransform t, float period = 2f) => Play(UiPreset.RainbowTint, t, new UiPresetRef { Duration = period });
+        public static Handle<UiTweenMarker> WobbleLoop(RectTransform t, float degrees = 6f, float period = 0.6f) => Play(UiPreset.WobbleLoop, t, new UiPresetRef { Duration = period, Distance = degrees });
+        public static Handle<UiTweenMarker> ColorFlash(RectTransform t, float sec = 0.3f) => Play(UiPreset.ColorFlash, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> Jelly(RectTransform t, float sec = 0.5f) => Play(UiPreset.Jelly, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> Tada(RectTransform t, float sec = 0.6f) => Play(UiPreset.Tada, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> RubberBand(RectTransform t, float sec = 0.6f) => Play(UiPreset.RubberBand, t, new UiPresetRef { Duration = sec });
+        public static Handle<UiTweenMarker> AttentionJump(RectTransform t, float height = 20f, float sec = 0.4f) => Play(UiPreset.AttentionJump, t, new UiPresetRef { Duration = sec, Distance = height });
+
         // ── アドホック(データ化するほどでない場面用) ──
 
         public static Handle<UiTweenMarker> MoveTo(RectTransform t, Vector2 to, float sec, Ease e = Ease.OutCubic) => _instance?.MoveTo(t, to, sec, e) ?? Handle<UiTweenMarker>.Invalid;

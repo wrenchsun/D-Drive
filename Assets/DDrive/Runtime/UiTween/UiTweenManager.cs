@@ -519,6 +519,7 @@ namespace DDrive.Runtime.Ui
                         break;
 
                     case TweenProperty.Color:
+                    case TweenProperty.ColorHue:
                         if (inst.Graphic == null)
                         {
                             inst.Graphic = inst.Target.GetComponent<Graphic>();
@@ -609,6 +610,24 @@ namespace DDrive.Runtime.Ui
                     break;
                 }
 
+                case TweenProperty.RotationX:
+                {
+                    var x = Mathf.LerpUnclamped(state.From.FloatValue, state.To.FloatValue, shape);
+                    var e = inst.Target.localEulerAngles;
+                    e.x = x;
+                    inst.Target.localEulerAngles = e;
+                    break;
+                }
+
+                case TweenProperty.RotationY:
+                {
+                    var y = Mathf.LerpUnclamped(state.From.FloatValue, state.To.FloatValue, shape);
+                    var e = inst.Target.localEulerAngles;
+                    e.y = y;
+                    inst.Target.localEulerAngles = e;
+                    break;
+                }
+
                 case TweenProperty.Alpha:
                 {
                     if (inst.Group != null)
@@ -645,6 +664,22 @@ namespace DDrive.Runtime.Ui
                     {
                         var p = state.Path.Evaluate(shape);
                         inst.Target.anchoredPosition = new Vector2(p.x, p.y);
+                    }
+
+                    break;
+                }
+
+                case TweenProperty.ColorHue:
+                {
+                    // RainbowTint 用: From/To.FloatValue を色相[0,1]として扱い、S=1,V=1 固定で毎フレーム RGB へ変換する。
+                    // 現在の Alpha は保持する(RainbowTint と併用の Alpha フェードを壊さないため)。
+                    if (inst.Graphic != null)
+                    {
+                        var hue = Mathf.LerpUnclamped(state.From.FloatValue, state.To.FloatValue, shape);
+                        hue -= Mathf.Floor(hue); // HSVToRGB は [0,1) 範囲を期待するため wrap する
+                        var rgb = Color.HSVToRGB(hue, 1f, 1f);
+                        rgb.a = inst.Graphic.color.a;
+                        inst.Graphic.color = rgb;
                     }
 
                     break;
@@ -695,12 +730,20 @@ namespace DDrive.Runtime.Ui
 
                 case TweenProperty.Rotation:
                     return ParamValue.Of(inst.Target.localEulerAngles.z);
+                case TweenProperty.RotationX:
+                    return ParamValue.Of(inst.Target.localEulerAngles.x);
+                case TweenProperty.RotationY:
+                    return ParamValue.Of(inst.Target.localEulerAngles.y);
                 case TweenProperty.Alpha:
                     return ParamValue.Of(inst.Group != null ? inst.Group.alpha : 1f);
                 case TweenProperty.Color:
                     return new ParamValue { Type = ParamValueType.Color, ColorValue = inst.Graphic != null ? inst.Graphic.color : Color.white };
                 case TweenProperty.FillAmount:
                     return ParamValue.Of(inst.Image != null ? inst.Image.fillAmount : 0f);
+                case TweenProperty.ColorHue:
+                    // Hue には「現在値」の安定した読み戻しが無い(RGB→Hue はコースの往復にならない)ため、
+                    // RainbowTint は常に From=Absolute で 0→1 を明示駆動する前提。Current 使用時は 0 を返す。
+                    return ParamValue.Of(0f);
                 default:
                     return default;
             }
@@ -716,8 +759,11 @@ namespace DDrive.Runtime.Ui
                 case TweenProperty.Scale:
                     return raw.Type == ParamValueType.Vector ? raw : VecParam(raw.FloatValue, raw.FloatValue, raw.FloatValue);
                 case TweenProperty.Rotation:
+                case TweenProperty.RotationX:
+                case TweenProperty.RotationY:
                 case TweenProperty.Alpha:
                 case TweenProperty.FillAmount:
+                case TweenProperty.ColorHue:
                     return raw.Type == ParamValueType.Float ? raw : ParamValue.Of(raw.VectorValue.x);
                 default:
                     return raw;
@@ -733,8 +779,11 @@ namespace DDrive.Runtime.Ui
                 case TweenProperty.Scale:
                     return VecParam(a.VectorValue.x + b.VectorValue.x, a.VectorValue.y + b.VectorValue.y, a.VectorValue.z + b.VectorValue.z);
                 case TweenProperty.Rotation:
+                case TweenProperty.RotationX:
+                case TweenProperty.RotationY:
                 case TweenProperty.Alpha:
                 case TweenProperty.FillAmount:
+                case TweenProperty.ColorHue:
                     return ParamValue.Of(a.FloatValue + b.FloatValue);
                 case TweenProperty.Color:
                     return new ParamValue { Type = ParamValueType.Color, ColorValue = a.ColorValue + b.ColorValue };

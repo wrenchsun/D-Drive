@@ -315,10 +315,12 @@ namespace DDrive.Tests.Runtime
             Assert.Less(rt.anchoredPosition.x, startX - 100f, "SlideInLeft は画面外(左)から始まるはず");
         }
 
+        // 2026-09-11(4-11 完了): 全プリセットが実装され、もう近似委譲は残っていない
+        // (詳細な全件チェックは UiPresetTests.AllPresets_ProduceFiniteTracks_AndAreNotApproximated 側)。
         [Test]
-        public void IsApproximation_ReportsMappedPresets()
+        public void IsApproximation_NoLongerMapsAnyPreset()
         {
-            Assert.IsTrue(UiPresetFactory.IsApproximation(UiPreset.FlipInX));
+            Assert.IsFalse(UiPresetFactory.IsApproximation(UiPreset.FlipInX));
             Assert.IsFalse(UiPresetFactory.IsApproximation(UiPreset.FadeIn));
         }
 

@@ -12,6 +12,8 @@ namespace DDrive.Runtime.Ui
     }
 
     // [15_ui_interaction.md] B-3 — Tween が動かせる対象プロパティ。
+    // 2026-09-11(4-11 完了): RotationX/RotationY/ColorHue を末尾に追加。既存 .asset が無い時点での追加のため
+    // enum 順序を書き換えても安全だが、将来の互換性のため既存メンバーの並びは変えず末尾追加のみで揃える。
     public enum TweenProperty
     {
         AnchoredPosition,
@@ -22,6 +24,12 @@ namespace DDrive.Runtime.Ui
         FillAmount,
         SizeDelta,
         PathMove,
+        RotationX,
+        RotationY,
+
+        // RainbowTint 用。Color(RGB 直接補間)と違い、From/To.FloatValue を色相[0,1]として扱い
+        // Color.HSVToRGB(hue, 1, 1) で毎フレーム変換する(直線 RGB 補間だと彩度が落ちて虹に見えないため)。
+        ColorHue,
     }
 
     // [15_ui_interaction.md] B-3 — 開始値の決め方。OffScreen は Property=AnchoredPosition のときのみ意味を持つ
