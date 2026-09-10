@@ -1,6 +1,10 @@
+using System.Collections.Generic;
 using DDrive.Editor.Anim;
 using DDrive.Editor.Preview;
+using DDrive.Foundation.Data;
+using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
+using DDrive.Foundation.Validation;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Anim2D;
 using UnityEditor;
@@ -24,10 +28,12 @@ namespace DDrive.Editor.Anim2D
         private ObjectField _editTargetField;
         private Label _editSummaryLabel;
         private Label _previewStatusLabel;
+        private Label _eventSummaryLabel;
+        private Foldout _validationFoldout;
 
         // プレビューはウィンドウ内描画ではなく、開いているシーン / プレハブモードに DontSave の SpriteRenderer + Animator を
         // 配置して実 AnimManager(SceneAnimPreviewDriver)で動かし、SceneView で確認する(2026-09-10 決定、全エディタ共通)。
-        public const string PreviewObjectName = "[D-Drive] Anim2D Preview";
+        public const string PreviewObjectName = Anim2DPreviewObject.Name;
         private SceneAnimPreviewDriver _scene;
         private GameObject _previewObject;
         private Handle<AnimMarker> _previewHandle = Handle<AnimMarker>.Invalid;
@@ -67,6 +73,22 @@ namespace DDrive.Editor.Anim2D
             _previewStatusLabel = new Label("プレビュー物は未配置") { style = { marginLeft = 4, whiteSpace = WhiteSpace.Normal } };
             root.Add(_previewStatusLabel);
 
+            root.Add(new Label("イベント / 同時プレビュー") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            var openAnimEditorButton = new Button(() =>
+            {
+                if (_editTarget != null)
+                {
+                    AnimEditorWindow.Open(_editTarget);
+                }
+            })
+            {
+                text = "Anim Editor で開く(イベント D&D・SE/VFX 同時再生)",
+                tooltip = "Frame/Time イベントの編集・タイムライン上でのマーカー D&D・SE/VFX/配置セットの同時プレビューは Anim2DData も AnimData なので共通の Anim Editor をそのまま使う",
+            };
+            root.Add(openAnimEditorButton);
+            _eventSummaryLabel = new Label { style = { opacity = 0.75f, marginLeft = 4, whiteSpace = WhiteSpace.Normal } };
+            root.Add(_eventSummaryLabel);
+
             root.Add(new Label("リタイミング") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
 
             var placementField = new EnumField("配置モード", _placementMode);
@@ -80,6 +102,16 @@ namespace DDrive.Editor.Anim2D
 
             var applyButton = new Button(ApplyRetiming) { text = "適用(Clip に焼き込む)", style = { marginTop = 10, height = 28 } };
             root.Add(applyButton);
+
+            RefreshEventSummary();
+        }
+
+        // 検証パネル: Create / Edit どちらのモードでも見えるよう、モード切替のトグル対象外(共通ルート)に置く。
+        private void BuildValidationSection(VisualElement root)
+        {
+            _validationFoldout = new Foldout { text = "検証", value = true, style = { marginTop = 8 } };
+            root.Add(_validationFoldout);
+            RefreshValidation();
         }
 
         private void BindRetimingField(PropertyField field)
@@ -121,6 +153,99 @@ namespace DDrive.Editor.Anim2D
             {
                 ApplyFirstFrame();
             }
+
+            RefreshEventSummary();
+            RefreshValidation();
+        }
+
+        // Anim Editor で編集するイベント(基底 AnimData.Events)の件数だけをここに要約する(編集そのものは Anim Editor で行う)。
+        private void RefreshEventSummary()
+        {
+            if (_eventSummaryLabel == null)
+            {
+                return;
+            }
+
+            var events = _editTarget != null ? _editTarget.Events : null;
+            if (events == null || events.Length == 0)
+            {
+                _eventSummaryLabel.text = "イベント: なし。「Anim Editor で開く」から追加できます。";
+                return;
+            }
+
+            var frame = 0;
+            var time = 0;
+            var playAsset = 0;
+            foreach (var e in events)
+            {
+                switch (e.Trigger)
+                {
+                    case EventTrigger.Frame: frame++; break;
+                    case EventTrigger.Time: time++; break;
+                }
+
+                if (e.Action == EventAction.PlayAsset)
+                {
+                    playAsset++;
+                }
+            }
+
+            _eventSummaryLabel.text = $"イベント: {events.Length} 件(Frame {frame} / Time {time} / PlayAsset(SE・VFX 等) {playAsset})";
+        }
+
+        // Anim2DDataValidator(方向・Clip 未生成等) + AnimDataValidator(Clip/StateName/イベント範囲等) +
+        // Anim2DEditorValidator(Controller の x,y パラメータ・スライス済みスプライトの参照切れ)をまとめて表示する。
+        private void RefreshValidation()
+        {
+            if (_validationFoldout == null)
+            {
+                return;
+            }
+
+            _validationFoldout.Clear();
+            if (_editTarget == null)
+            {
+                _validationFoldout.Add(new Label("対象を読み込むと検証結果が出ます。") { style = { opacity = 0.6f } });
+                return;
+            }
+
+            var ctx = new ValidationContext(new List<AssetDataBase> { _editTarget });
+            var results = new List<ValidationResult>();
+            results.AddRange(new Anim2DDataValidator().Validate(_editTarget, ctx));
+            results.AddRange(new AnimDataValidator().Validate(_editTarget, ctx));
+            results.AddRange(new Anim2DEditorValidator().Validate(_editTarget, ctx));
+
+            if (results.Count == 0)
+            {
+                _validationFoldout.Add(new Label("Validation に問題はありません。") { style = { opacity = 0.6f } });
+                return;
+            }
+
+            foreach (var result in results)
+            {
+                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 2 } };
+                var type = result.Severity switch
+                {
+                    ValidationSeverity.Error => HelpBoxMessageType.Error,
+                    ValidationSeverity.Warning => HelpBoxMessageType.Warning,
+                    _ => HelpBoxMessageType.Info,
+                };
+                row.Add(new HelpBox(result.Message, type) { style = { flexGrow = 1f } });
+
+                if (result.FixAction != null)
+                {
+                    var fix = result.FixAction;
+                    row.Add(new Button(() =>
+                    {
+                        fix();
+                        AssetDatabase.SaveAssets();
+                        RefreshValidation();
+                    })
+                    { text = "修正" });
+                }
+
+                _validationFoldout.Add(row);
+            }
         }
 
         private void ApplyRetiming()
@@ -147,6 +272,7 @@ namespace DDrive.Editor.Anim2D
             EditorUtility.SetDirty(_editTarget);
             AssetDatabase.SaveAssets();
             Debug.Log($"[Anim2DEditorWindow] {_editClip.name} のリタイミングを適用しました({_editSprites.Length} 枚)。");
+            RefreshValidation();
         }
 
         // ── シーンプレビュー ──
@@ -169,14 +295,7 @@ namespace DDrive.Editor.Anim2D
             _scene ??= new SceneAnimPreviewDriver();
             if (_previewObject == null)
             {
-                _previewObject = new GameObject(PreviewObjectName) { hideFlags = HideFlags.DontSave };
-                StageUtility.PlaceGameObjectInCurrentStage(_previewObject);
-                _previewObject.AddComponent<SpriteRenderer>();
-                _previewObject.AddComponent<Animator>();
-                if (SceneView.lastActiveSceneView != null)
-                {
-                    _previewObject.transform.position = SceneView.lastActiveSceneView.pivot;
-                }
+                _previewObject = Anim2DPreviewObject.Create(_editTarget);
             }
 
             ApplyFirstFrame();
@@ -232,11 +351,7 @@ namespace DDrive.Editor.Anim2D
         {
             StopPreview();
             _scene?.ReleaseTarget();
-            if (_previewObject != null)
-            {
-                DestroyImmediate(_previewObject);
-            }
-
+            Anim2DPreviewObject.Destroy(_previewObject);
             _previewObject = null;
             if (_previewStatusLabel != null)
             {

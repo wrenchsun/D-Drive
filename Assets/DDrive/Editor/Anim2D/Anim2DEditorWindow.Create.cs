@@ -326,6 +326,14 @@ namespace DDrive.Editor.Anim2D
             Debug.Log(asset != null
                 ? $"[Anim2DEditorWindow] 生成完了: {clip.name}({sprites.Length} 枚) → {AssetDatabase.GetAssetPath(asset)}"
                 : "[Anim2DEditorWindow] Anim2DData の作成に失敗しました。");
+
+            if (asset is Anim2DData created)
+            {
+                _editTarget = created;
+                _editTargetField?.SetValueWithoutNotify(created);
+                RefreshEventSummary();
+                RefreshValidation();
+            }
         }
 
         private void GenerateDirectionSet(string folder)
@@ -405,6 +413,14 @@ namespace DDrive.Editor.Anim2D
             Debug.Log(asset != null
                 ? $"[Anim2DEditorWindow] 方向セット生成完了: {ordered.Count} 方向 → {AssetDatabase.GetAssetPath(asset)}"
                 : "[Anim2DEditorWindow] Anim2DData の作成に失敗しました。");
+
+            if (asset is Anim2DData created)
+            {
+                _editTarget = created;
+                _editTargetField?.SetValueWithoutNotify(created);
+                RefreshEventSummary();
+                RefreshValidation();
+            }
         }
 
         private static BlendTreeConflictResolution ConfirmOverwrite(int angle)

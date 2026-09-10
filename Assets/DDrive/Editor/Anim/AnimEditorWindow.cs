@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using DDrive.Editor.Anim2D;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
@@ -8,6 +9,7 @@ using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Validation;
 using DDrive.Runtime.Anim;
+using DDrive.Runtime.Anim2D;
 using DDrive.Runtime.Model;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -38,6 +40,10 @@ namespace DDrive.Editor.Anim
         [SerializeField] private float _speed = 1f;
         [SerializeField] private bool _loopPreview;
         [SerializeField] private Animator _sceneTarget;
+
+        // 2026-09-10(3-13): 対象が Anim2DData で確認用モデル(ModelData)が未設定のときのフォールバック。
+        // Anim2DEditorWindow.Edit と同じ Anim2DPreviewObject(SpriteRenderer + Animator、DontSave)を使う。
+        private GameObject _anim2DPreview;
 
         private SceneAnimPreviewDriver _scene;
         private SerializedObject _serializedTarget;
@@ -88,6 +94,7 @@ namespace DDrive.Editor.Anim
 
         private void OnDisable()
         {
+            DestroyAnim2DPreview();
             PrefabStage.prefabStageClosing -= OnPrefabStageClosing;
             PrefabStage.prefabStageOpened -= OnPrefabStageOpened;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
@@ -426,6 +433,7 @@ namespace DDrive.Editor.Anim
         private void OnModelChanged()
         {
             Stop();
+            DestroyAnim2DPreview(); // ModelData を設定/変更したら Anim2D フォールバックの配置物は手放す
             // 自前で配置していた分は手放す(次の ▶ / 確認用シーンを開くで新しいモデルを配置)。
             if (_scene != null && _scene.OwnsCurrent)
             {
@@ -442,6 +450,12 @@ namespace DDrive.Editor.Anim
         private void SetSceneTarget(Animator animator)
         {
             Stop();
+            // 手動で別の Animator が指定された(Anim2D フォールバック物ではない)ら、配置物は手放す。
+            if (_anim2DPreview != null && (animator == null || animator != _anim2DPreview.GetComponent<Animator>()))
+            {
+                DestroyAnim2DPreview();
+            }
+
             if (_scene != null && animator != _scene.Current)
             {
                 _scene.ReleaseTarget();
@@ -452,6 +466,37 @@ namespace DDrive.Editor.Anim
             RefreshSceneHelp();
             RefreshModelInfo();
             RefreshValidation();
+        }
+
+        // 対象が Anim2DData で ModelData が未設定のときのフォールバック(2026-09-10、3-13):
+        // [D-Drive] Anim2D Preview(SpriteRenderer + Animator、DontSave)を配置して対象にする。
+        private Animator EnsureAnim2DPreviewTarget(Anim2DData anim2D)
+        {
+            if (_anim2DPreview == null)
+            {
+                _anim2DPreview = Anim2DPreviewObject.Create(anim2D);
+                AppendLog("確認用 Anim2D プレビュー物(SpriteRenderer + Animator)を配置");
+            }
+
+            var animator = _anim2DPreview.GetComponent<Animator>();
+            _scene.SetTarget(animator);
+            _sceneTarget = animator;
+            _sceneTargetField?.SetValueWithoutNotify(animator);
+            RefreshSceneHelp();
+            RefreshModelInfo();
+            RefreshValidation();
+            return animator;
+        }
+
+        private void DestroyAnim2DPreview()
+        {
+            if (_anim2DPreview == null)
+            {
+                return;
+            }
+
+            Anim2DPreviewObject.Destroy(_anim2DPreview);
+            _anim2DPreview = null;
         }
 
         // 再生対象を確定する: 指定 Animator > 配置済みの自前モデル > 確認用モデルを配置。配置したものは欄にも反映する。
@@ -493,6 +538,12 @@ namespace DDrive.Editor.Anim
                 return animator;
             }
 
+            // ModelData(3D)が未設定でも、対象が Anim2DData なら SpriteRenderer + Animator のプレビュー物で代用する。
+            if (_target is Anim2DData anim2D)
+            {
+                return EnsureAnim2DPreviewTarget(anim2D);
+            }
+
             return null;
         }
 
@@ -517,6 +568,10 @@ namespace DDrive.Editor.Anim
             else if (_model != null)
             {
                 _sceneHelpLabel.text = $"対象なし。「確認用シーンを開く」で確認用モデル '{_model.DisplayName ?? _model.name}' を配置するか、「モデル Prefab を開く」でプレハブモードのモデルを対象にします(▶ でも {where} の原点に配置します)。";
+            }
+            else if (_target is Anim2DData)
+            {
+                _sceneHelpLabel.text = $"対象なし。「確認用シーンを開く」で Anim2D プレビュー物({where} に配置、保存されません)を出すか、Hierarchy でモデルを選んで「選択から取得」を押してください。";
             }
             else
             {

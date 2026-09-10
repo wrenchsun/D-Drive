@@ -112,8 +112,16 @@ namespace DDrive.Editor.Anim2D
 
             BuildCreateSection(_createRoot);
             BuildEditSection(_editRoot);
+            BuildValidationSection(scroll); // Create / Edit どちらのモードでも見える共通ルート
 
             RefreshModeVisibility();
+        }
+
+        // Anim Editor(共通イベントエディタ)から戻ってきたときにイベント要約・検証を最新化する。
+        private void OnFocus()
+        {
+            RefreshEventSummary();
+            RefreshValidation();
         }
 
         private void RefreshModeVisibility()

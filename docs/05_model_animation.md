@@ -273,6 +273,16 @@ public static class Anim2D
 >   - 旧「Sequence Preview」「Sound」モードは廃止(ウィンドウに注記ラベルを表示)。共通プレビュー・イベント D&D・Validation パネル統合は 3-13
 > - テスト: `Anim2DToolTests`(EditMode, 22 件)。NamingRuleResolver の角度抽出/クリップ命名、DirectionAngle の 8 方向マッピング往復、BuildUniformTimes/BuildRetimingTimes の単調性・範囲、AnimationClipBuilder が Sprite キーを持つ Clip を生成すること、BlendTreeRegistrar が 2D Freeform Directional Tree + x/y パラメータを登録すること、Anim2DImportProfile.FindOrDefault の組み込み既定値
 
+### 実装メモ（2026-09-10、3-13: 共通プレビュー移植 + イベント D&D + Validator）
+
+> - **イベント編集・SE/VFX 同時プレビュー・タイムラインの D&D は Anim2DEditor で作り直さず、`AnimEditorWindow`(3D 用、B-4)をそのまま再利用する**。`Anim2DData : AnimData` なので `DataEditorRegistry`(継承元を遡って引く実装、[09] §8)が `Anim2DData` に対して `Anim2DEditorWindow`(作成/編集)と `AnimEditorWindow`(タイムライン・イベント・Validation)の両方を自動で解決する。属性の追加は不要だった(`DataEditorRegistryTests` 相当のアサーションを `Anim2DEditorTests.DataEditorRegistry_ResolvesAnim2DData_ToBothEditors` で固定)
+> - `Anim2DEditorWindow.Edit` の「編集」タブに「イベント / 同時プレビュー」を追加: 「Anim Editor で開く(イベント D&D・SE/VFX 同時再生)」ボタンで `AnimEditorWindow.Open(_editTarget)` を呼ぶだけ。Events(Frame/Time/PlayAsset)の件数だけを読み取り専用で要約表示し(編集はしない)、`OnFocus`(Anim Editor から戻ったとき)・読み込み・生成直後に更新する
+> - **`Anim2DPreviewObject`**(新規、`Assets/DDrive/Editor/Anim2D/Anim2DPreviewObject.cs`)— `[D-Drive] Anim2D Preview`(SpriteRenderer + Animator、DontSave、Clip 先頭 Sprite キーを反映)の生成/破棄を `Create(Anim2DData)` / `Destroy(GameObject)` に切り出し、`Anim2DEditorWindow.Edit`(既存の配置ロジックを置換)と `AnimEditorWindow` の両方から使う
+> - **`AnimEditorWindow` に Anim2D フォールバック**: 対象 `AnimData` が `Anim2DData` で確認用モデル(ModelData、3D 専用)が未設定のとき、`EnsureSceneTarget`(「確認用シーンを開く」/ ▶ の入口)が `Anim2DPreviewObject.Create` で配置した Animator を対象にする。`SetSceneTarget` で手動選択に切り替えたとき・`OnModelChanged`・`OnDisable` で配置物を手放す(3D の `SpawnModel`+`OwnsCurrent` とは別経路で追跡する専用フィールド `_anim2DPreview` を持つ。DontSave なのでシーン切替時は Unity 側でも破棄される)
+> - Validation パネル(Create / Edit どちらのモードでも見える共通ルートに配置): `Anim2DDataValidator`(ランタイム側、3-12) + `AnimDataValidator`(基底、Clip/StateName/イベント範囲等) + 新規 `Anim2DEditorValidator` をまとめて実行し、`HelpBox` + `FixAction` がある行だけ「修正」ボタンを表示する
+> - **`Anim2DEditorValidator`**(新規、Editor API 依存の 2 検査。`CI.DiscoverValidators` がリフレクションで自動発見): (a) `Directions != None` のとき、`AssetDatabase.FindAssets("t:AnimatorController")` でプロジェクト内から `StateName` のステートを持つ Controller を探し、`ParamXName`/`ParamYName` の Float パラメータが無ければ Error(FixAction で `controller.AddParameter` を追加)。Controller 自体が見つからないときは Warning に留める(配線は任意のため)。(b) `Clip` と `DirectionClips` それぞれについて `AnimationUtility.GetObjectReferenceCurve` の `m_Sprite` キーフレームに `null`(参照切れ)が無いか調べ、件数付きで Error
+> - テスト: `Anim2DEditorTests`(EditMode、7 件)。`Anim2DPreviewObject.Create` が DontSave の SpriteRenderer+Animator を配置し先頭 Sprite を反映すること(Clip 無しでも例外にしない)、`Anim2DEditorValidator` が x/y パラメータ不足を検出し FixAction で追加できること・方向無しでは検査しないこと、Sprite キー参照切れを件数付きで検出すること・全て有効なら何も出ないこと、`DataEditorRegistry.GetEntries(typeof(Anim2DData))` が `Anim2DEditorWindow` と `AnimEditorWindow` の両方を返すこと
+
 ## C-6. Validation
 
 Clip 未生成/Missing (Error) / Directions=Eight なのに DirectionClips 不足 (Error) / BlendTree に x,y パラメータ無し (Error, FixAction=追加) / FrameRate ≤ 0 (Error) / スライス済みスプライトの参照切れ（元テクスチャ再インポートで消失）(Error)
