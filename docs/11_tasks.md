@@ -99,6 +99,7 @@
 | 3-15 | Material Editor 修正 + ウィンドウ内サムネイル + エディタのメモリ対策 | ED+基盤 | 1 | 3-9 | ✅ 2026-09-11。人による確認で判明した 3 件（Data 編集が反映されない / 配置位置 / 重さ）を修正（[06] A 実装メモ）。Material だけウィンドウ内サムネイルを併用（[09] §2 例外、`MaterialThumbnailRenderer`）。メモリ: Unity 6000.3 の `AssetDatabase.FindAssets` が 1 回ごとに走査ファイル数比例のネイティブメモリを保持する問題を `AssetSearch`（プロジェクト変更までキャッシュ、[09] §9）で対策し、`Assets/DDrive` の 22 か所を置換。`AssetSearchTests` / `MaterialThumbnailRendererTests` |
 | 3-16 | 初期アイコンの自動生成 | ED | 1 | 3-15 | ✅ 2026-09-11。`AssetIconService.RegisterSource / RegisterRenderer` + `DefaultIconProviders`（Prefab / Texture / Sprite）+ `MaterialIconProvider`（描画）。作成直後・Inspector「自動生成」・一括メニュー（[09] §8.1）。`AssetIconServiceTests` に 3 件追加 |
 | 3-17 | Unity 標準 Material → D-Drive 標準シェーダーの MaterialData 変換 | TA | 1 | 3-7, 3-14 | ✅ 2026-09-11。`UnityMaterialMigrator`（URP Lit 系 → DDrive/Lit、Unlit 系 → DDrive/Unlit。共通は Maya インポータの写像、固有は既定値 + 同名の値引き継ぎ、再実行は Common のみ更新）+ メニュー（Material / Prefab 選択）。`UnityMaterialMigratorTests` 4 件 |
+| 3-18 | TextureData → Importer 自動反映（Usage / Channel / SliceBorder） | TA | 1 | 3-8 | ✅ 2026-09-11。`TextureDataImporterSync`（ObjectChangeEvents で検知、規約と食い違えば警告して書かない）。`TextureDataImporterSyncTests` 5 件 |
 
 ## Phase 4: Canvas + Prefab (M4)  約 7.5 週
 
