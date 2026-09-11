@@ -48,6 +48,12 @@
 - TextureData の Texture / Sprite を設定して「自動生成」→ その画像（Sprite は切り出し範囲）がアイコンになること
 - 手で設定したアイコンがある Data は `Tools > D-Drive > Generate > 初期アイコンを生成(未設定の Data のみ)` で上書きされないこと
 
+## Unity 標準 Material → D-Drive 標準シェーダー(2026-09-11)
+- URP Lit の Material アセット(色・Metallic・テクスチャ付き)を Project で選び `Tools > D-Drive > Generate > 選択した Material を D-Drive/Lit・Unlit の MaterialData に変換` → 同じ親フォルダ名のカテゴリに `DDrive/Lit` の MaterialData と TextureData ができ、Common に色・Metallic・テクスチャ ID が入っていること。Specific の `_OcclusionStrength` に元の値が入っていること
+- URP Unlit の Material → `DDrive/Unlit` の MaterialData になること
+- Prefab を選んで実行 → Renderer の Material がまとめて変換されること。同じ Material をもう一度変換しても Data が増えず Common だけ更新されること
+- 既存の MaterialData(Shader = URP Lit)を Material 変換ウィンドウで `DDrive/Lit` へ変換 → 互換表がすべて 〇 / －(固有は同名維持)になること
+
 ## 3-8 Texture Importer 規約(コミット 669783a)
 - Assets/SourceAssets 配下に `Xxx_N.png` / `Xxx_M.png` / `Xxx_UI.png` を置いてインポート → Texture Type / sRGB / Mipmap が規約どおりになること(TexturePostprocessor)
 - Material Editor で TextureData を選択 → Importer 要約 + 規約名 + 「命名規約を適用して再インポート」ボタンの表示(差分があるときだけ)
