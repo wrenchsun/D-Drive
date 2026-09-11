@@ -48,12 +48,51 @@ namespace DDrive.Editor.Materials
         private ScrollView _root;
         private ObjectField _targetField;
         private VisualElement _inspectorContainer;
+        private VisualElement _inspectorHost; // 対象ごとに作り直す(バインド + 変更追跡の持ち主)
         private Label _statusLabel;
         private Image _textureImage;
         private Label _textureInfoLabel;
         private Button _applyRuleButton;
         private TextureImportProfile.Rule _matchedRule;
         private bool _hasMatchedRule;
+
+        private VisualElement _specificRow;
+        private Label _specificLabel;
+        private Shader _trackedShader;
+
+        // Data の編集(Inspector バインド / Undo)を検知して共有 Material を自動で作り直す(2026-09-11)。
+        // ドラッグ中に毎フレーム作り直さないよう OnEditorUpdate 側で間引く。
+        private bool _previewDirty;
+        private double _lastAutoRebuildTime;
+        private const double AutoRebuildIntervalSec = 0.1;
+
+        // Registry(TextureData 等の ID 解決)の再走査が必要か。OnEnable の Build 直後は最新。projectChanged で立てる。
+        private bool _registryDirty;
+
+        // ウィンドウ内サムネイル([09] §2 の Material 例外、2026-09-11)。実 Manager の共有 Material を PreviewRenderUtility で描く。
+        private MaterialThumbnailRenderer _thumbnail;
+        private Image _thumbnailImage;
+        private Label _thumbnailLabel;
+        private VisualElement _thumbnailRow;
+        private bool _thumbnailDirty;
+
+        // サムネイル比較(2026-09-11): 比較対象があるとき「左右」(2 分割)か「切替」(1 枚を A/B で切替)で見る。
+        private enum ThumbnailCompareMode { SideBySide, Toggle }
+        private ThumbnailCompareMode _compareMode = ThumbnailCompareMode.SideBySide;
+        private bool _showCompareInToggle; // 切替モードで B(比較対象)を表示中
+        private VisualElement _thumbnailArea;
+        private VisualElement _compareColumn;
+        private Image _compareThumbnailImage;
+        private Label _thumbnailCaptionA;
+        private Label _thumbnailCaptionB;
+        private MaterialThumbnailRenderer _compareThumbnail;
+        private VisualElement _compareControls;
+        private Button _compareModeButton;
+        private Button _abButton;
+        private float _thumbnailAngle;
+        private float _thumbnailPitch;
+        private float _thumbnailLightDeg;
+        private const int ThumbnailHeight = 220;
 
         private EnumField _shapeField;
         private ObjectField _modelField;
@@ -80,11 +119,59 @@ namespace DDrive.Editor.Materials
 
             window._compareTarget = b;
             window._compareField?.SetValueWithoutNotify(b);
+            window.UpdateCompareUi();
             if (a != null)
             {
                 window.PlacePreview();
             }
         }
+
+        // 両サムネイル共通の Image(ドラッグ回転は共有の角度を動かす)。
+        private Image CreateThumbnailImage()
+        {
+            var image = new Image { scaleMode = ScaleMode.ScaleToFit, style = { height = ThumbnailHeight } };
+            image.RegisterCallback<GeometryChangedEvent>(_ => _thumbnailDirty = true);
+            image.tooltip = "ドラッグで回転(横 = Y 軸、縦 = 傾き)";
+            MaterialThumbnailRenderer.AttachDrag(image, (yaw, pitch) =>
+            {
+                _thumbnailAngle = (_thumbnailAngle + yaw) % 360f;
+                _thumbnailPitch = Mathf.Clamp(_thumbnailPitch + pitch, -MaterialThumbnailRenderer.MaxPitchDeg, MaterialThumbnailRenderer.MaxPitchDeg);
+                _thumbnailDirty = true;
+            });
+            return image;
+        }
+
+        private void ToggleCompareMode()
+        {
+            _compareMode = _compareMode == ThumbnailCompareMode.SideBySide ? ThumbnailCompareMode.Toggle : ThumbnailCompareMode.SideBySide;
+            UpdateCompareUi();
+        }
+
+        private void ToggleAB()
+        {
+            _showCompareInToggle = !_showCompareInToggle;
+            UpdateCompareUi();
+        }
+
+        // 比較対象の有無とモードに合わせて 2 列目・ボタンの表示を切り替え、描き直す。
+        private void UpdateCompareUi()
+        {
+            if (_compareControls == null)
+            {
+                return;
+            }
+
+            var hasCompare = _compareTarget != null && _target is MaterialData;
+            _compareControls.style.display = hasCompare ? DisplayStyle.Flex : DisplayStyle.None;
+            _compareColumn.style.display = hasCompare && _compareMode == ThumbnailCompareMode.SideBySide ? DisplayStyle.Flex : DisplayStyle.None;
+            _compareModeButton.text = _compareMode == ThumbnailCompareMode.SideBySide ? "左右" : "切替";
+            _abButton.style.display = hasCompare && _compareMode == ThumbnailCompareMode.Toggle ? DisplayStyle.Flex : DisplayStyle.None;
+            _abButton.text = _showCompareInToggle ? "B → A" : "A → B";
+            _thumbnailDirty = true;
+        }
+
+        private static string DisplayNameOf(MaterialData data)
+            => data == null ? "" : string.IsNullOrEmpty(data.DisplayName) ? data.name : data.DisplayName;
 
         private static void OpenWith(UnityEngine.Object target)
         {
@@ -103,15 +190,24 @@ namespace DDrive.Editor.Materials
             _pool = new PoolService();
             _modelsManager = new ModelsManager(_pool, _registry, null, _manager);
             _lastTickTime = EditorApplication.timeSinceStartup;
+            _registryDirty = false;
             EditorApplication.update += OnEditorUpdate;
+            EditorApplication.projectChanged += OnProjectChanged;
+            ObjectChangeEvents.changesPublished += OnObjectChanges;
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
         }
 
         private void OnDisable()
         {
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
+            ObjectChangeEvents.changesPublished -= OnObjectChanges;
+            EditorApplication.projectChanged -= OnProjectChanged;
             EditorApplication.update -= OnEditorUpdate;
             RemovePreview();
+            _thumbnail?.Dispose();
+            _thumbnail = null;
+            _compareThumbnail?.Dispose();
+            _compareThumbnail = null;
             _manager?.Clear();
             _manager = null;
             _modelsManager = null;
@@ -123,6 +219,33 @@ namespace DDrive.Editor.Materials
             if (!_lockTarget && (Selection.activeObject is MaterialData || Selection.activeObject is TextureData) && Selection.activeObject != _target)
             {
                 SetTarget(Selection.activeObject);
+            }
+        }
+
+        private void OnProjectChanged() => _registryDirty = true;
+
+        // 比較対象(B)は SerializedObject でバインドしていないので、その変更(Inspector / Undo)はここで拾う。
+        private void OnObjectChanges(ref ObjectChangeEventStream stream)
+        {
+            if (_compareTarget == null)
+            {
+                return;
+            }
+
+            var compareId = _compareTarget.GetInstanceID();
+            for (var i = 0; i < stream.length; i++)
+            {
+                if (stream.GetEventType(i) != ObjectChangeKind.ChangeAssetObjectProperties)
+                {
+                    continue;
+                }
+
+                stream.GetChangeAssetObjectPropertiesEvent(i, out var evt);
+                if (evt.instanceId == compareId)
+                {
+                    _previewDirty = true;
+                    return;
+                }
             }
         }
 
@@ -159,6 +282,44 @@ namespace DDrive.Editor.Materials
             toolbar.Add(lockToggle);
             _root.Add(toolbar);
 
+            // サムネイル(Material のみ。Model 形状・TextureData 選択時は非表示)。比較対象があれば左右 2 分割 or 切替。
+            _thumbnailArea = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 2 } };
+            _thumbnailArea.style.display = DisplayStyle.None;
+
+            var columnA = new VisualElement { style = { flexGrow = 1, flexBasis = 0, flexShrink = 1 } };
+            _thumbnailImage = CreateThumbnailImage();
+            columnA.Add(_thumbnailImage);
+            _thumbnailCaptionA = new Label { style = { fontSize = 10, unityTextAlign = TextAnchor.MiddleCenter } };
+            columnA.Add(_thumbnailCaptionA);
+            _thumbnailArea.Add(columnA);
+
+            _compareColumn = new VisualElement { style = { flexGrow = 1, flexBasis = 0, flexShrink = 1, marginLeft = 4 } };
+            _compareThumbnailImage = CreateThumbnailImage();
+            _compareColumn.Add(_compareThumbnailImage);
+            _thumbnailCaptionB = new Label { style = { fontSize = 10, unityTextAlign = TextAnchor.MiddleCenter } };
+            _compareColumn.Add(_thumbnailCaptionB);
+            _compareColumn.style.display = DisplayStyle.None;
+            _thumbnailArea.Add(_compareColumn);
+            _root.Add(_thumbnailArea);
+
+            var thumbnailRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 4, flexWrap = Wrap.Wrap } };
+            _thumbnailLabel = new Label { style = { marginLeft = 4, whiteSpace = WhiteSpace.Normal, fontSize = 10, flexGrow = 1, flexShrink = 1 } };
+            thumbnailRow.Add(_thumbnailLabel);
+
+            _compareControls = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexShrink = 0, marginRight = 6 } };
+            _compareModeButton = new Button(ToggleCompareMode) { tooltip = "比較の見せ方: 左右(2 分割) ⇄ 切替(1 枚を A/B で切替)" };
+            _compareControls.Add(_compareModeButton);
+            _abButton = new Button(ToggleAB) { tooltip = "表示する方を切り替える(A = 対象、B = 比較対象)" };
+            _compareControls.Add(_abButton);
+            _compareControls.style.display = DisplayStyle.None;
+            thumbnailRow.Add(_compareControls);
+
+            thumbnailRow.Add(MaterialThumbnailRenderer.CreateInvertToggles());
+            thumbnailRow.Add(new Button(PopOutThumbnail) { text = "ポップアップ", tooltip = "サムネイルを独立したウィンドウ(Material プレビュー)に出す。形状・回転・ライトの設定を引き継ぐ" });
+            thumbnailRow.style.display = DisplayStyle.None;
+            _root.Add(thumbnailRow);
+            _thumbnailRow = thumbnailRow;
+
             BuildPreviewControls(_root);
 
             var buttons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
@@ -181,6 +342,18 @@ namespace DDrive.Editor.Materials
             _applyRuleButton = new Button(ApplyMatchedRule) { text = "命名規約を適用して再インポート" };
             _applyRuleButton.style.display = DisplayStyle.None;
             _root.Add(_applyRuleButton);
+
+            // Specific 自動解決(2026-09-11): Shader を変えると自動で同期。ボタンは手動で同期し直すとき用。
+            _specificRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 4 } };
+            _specificRow.Add(new Button(SyncSpecificFromShader)
+            {
+                text = "シェーダーから固有を同期",
+                tooltip = "シェーダーの固有プロパティ(共通チャンネル名の規約に該当しないもの)を既定値で Specific に追加する。既存の値は保持",
+            });
+            _specificLabel = new Label { style = { marginLeft = 4, whiteSpace = WhiteSpace.Normal, flexShrink = 1 } };
+            _specificRow.Add(_specificLabel);
+            _specificRow.style.display = DisplayStyle.None;
+            _root.Add(_specificRow);
 
             _inspectorContainer = new VisualElement();
             _root.Add(_inspectorContainer);
@@ -205,6 +378,7 @@ namespace DDrive.Editor.Materials
             {
                 _shape = (MaterialPreviewShape)evt.newValue;
                 _modelField.style.display = _shape == MaterialPreviewShape.Model ? DisplayStyle.Flex : DisplayStyle.None;
+                _thumbnailDirty = true;
             });
             foldout.Add(_shapeField);
 
@@ -214,14 +388,16 @@ namespace DDrive.Editor.Materials
             foldout.Add(_modelField);
 
             var turntableRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
-            _turntableToggle = new Toggle("ターンテーブル") { tooltip = "配置したプレビューを Y 軸で回す" };
+            _turntableToggle = new Toggle("ターンテーブル") { tooltip = "サムネイルと配置したプレビューを Y 軸で回す" };
             _turntableToggle.RegisterValueChangedCallback(evt => _turntableEnabled = evt.newValue);
             turntableRow.Add(_turntableToggle);
             foldout.Add(turntableRow);
 
-            _lightRotationSlider = new Slider("ライト回転", 0f, 360f) { tooltip = "シーンの最初の Directional Light を Y 軸で回す(無ければ何もしない)", style = { flexGrow = 1 } };
+            _lightRotationSlider = new Slider("ライト回転", 0f, 360f) { tooltip = "サムネイルのライトと、シーンの最初の Directional Light を Y 軸で回す(無ければサムネイルのみ)", style = { flexGrow = 1 } };
             _lightRotationSlider.RegisterValueChangedCallback(evt =>
             {
+                _thumbnailLightDeg = evt.newValue;
+                _thumbnailDirty = true;
                 ApplyLightRotation(evt.newValue);
                 SceneView.RepaintAll();
             });
@@ -229,7 +405,11 @@ namespace DDrive.Editor.Materials
 
             var compareRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
             _compareField = new ObjectField("比較対象") { objectType = typeof(MaterialData), allowSceneObjects = false, style = { flexGrow = 1 } };
-            _compareField.RegisterValueChangedCallback(evt => _compareTarget = evt.newValue as MaterialData);
+            _compareField.RegisterValueChangedCallback(evt =>
+            {
+                _compareTarget = evt.newValue as MaterialData;
+                UpdateCompareUi();
+            });
             compareRow.Add(_compareField);
             compareRow.Add(new Button(CompareSideBySide) { text = "並べて比較", tooltip = "対象の隣(X+1.5)に比較対象の Material を適用したプレビューを並べる" });
             foldout.Add(compareRow);
@@ -254,9 +434,33 @@ namespace DDrive.Editor.Materials
                 return;
             }
 
+            // 対象ごとに新しいホスト要素へバインドする。同じ要素に TrackPropertyValue を 2 回付けると
+            // "An element can track properties on only one serializedObject at a time" になるため(2026-09-11 修正)。
+            _inspectorHost?.Unbind();
             var so = new SerializedObject(target);
-            _inspectorContainer.Add(new InspectorElement(so));
-            _inspectorContainer.Bind(so);
+            _inspectorHost = new VisualElement();
+            _inspectorHost.Add(new InspectorElement(so));
+            _inspectorContainer.Add(_inspectorHost);
+            _inspectorHost.Bind(so);
+
+            if (target is MaterialData mat)
+            {
+                _trackedShader = mat.Shader;
+                _inspectorHost.TrackPropertyValue(so.FindProperty(nameof(MaterialData.Shader)), OnShaderPropertyChanged);
+                _inspectorHost.TrackSerializedObjectValue(so, _ => _previewDirty = true);
+                _specificRow.style.display = DisplayStyle.Flex;
+                UpdateSpecificStatus(mat, null);
+                _thumbnailArea.style.display = DisplayStyle.Flex;
+                _thumbnailRow.style.display = DisplayStyle.Flex;
+                UpdateCompareUi();
+            }
+            else
+            {
+                _trackedShader = null;
+                _specificRow.style.display = DisplayStyle.None;
+                _thumbnailArea.style.display = DisplayStyle.None;
+                _thumbnailRow.style.display = DisplayStyle.None;
+            }
 
             if (target is TextureData tex)
             {
@@ -275,6 +479,61 @@ namespace DDrive.Editor.Materials
                     RebuildPreview();
                 }
             }
+        }
+
+        // Shader フィールドが変わったら(Undo / Redo 含む)固有を同期する。Undo 処理中に Undo を積まないよう delayCall で 1 フレーム遅らせる。
+        private void OnShaderPropertyChanged(SerializedProperty property)
+        {
+            if (_target is not MaterialData mat || mat.Shader == _trackedShader)
+            {
+                return;
+            }
+
+            _trackedShader = mat.Shader;
+            EditorApplication.delayCall += () =>
+            {
+                if (_target != mat || mat == null)
+                {
+                    return;
+                }
+
+                SyncSpecificFromShader();
+            };
+        }
+
+        private void SyncSpecificFromShader()
+        {
+            if (_target is not MaterialData mat)
+            {
+                return;
+            }
+
+            var report = MaterialSpecificSync.Sync(mat);
+            UpdateSpecificStatus(mat, report);
+            if (report.Changed && _primaryPreview != null)
+            {
+                RebuildPreview();
+            }
+        }
+
+        private void UpdateSpecificStatus(MaterialData mat, MaterialSpecificResolver.MergeReport report)
+        {
+            if (mat.Shader == null)
+            {
+                _specificLabel.text = "Shader 未設定(既定の Lit で生成)";
+                return;
+            }
+
+            if (report != null && report.Changed)
+            {
+                _specificLabel.text = MaterialSpecificSync.Describe(report);
+                return;
+            }
+
+            var unregistered = MaterialSpecificResolver.FindUnregistered(mat.Specific, mat.Shader);
+            _specificLabel.text = unregistered.Count == 0
+                ? $"固有 {mat.Specific?.Length ?? 0} 件(シェーダーと同期済み)"
+                : $"未登録の固有 {unregistered.Count} 件: {string.Join(", ", unregistered)}";
         }
 
         // [06] B-3/B-4 — Importer の現状と命名規約(TextureImportProfile)への適合を表示する(3-8)。
@@ -355,9 +614,29 @@ namespace DDrive.Editor.Materials
 
             _previewRoot = new GameObject(PreviewRootName) { hideFlags = HideFlags.DontSave };
             StageUtility.PlaceGameObjectInCurrentStage(_previewRoot);
-            var pivot = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.pivot : Vector3.zero;
-            _previewRoot.transform.position = pivot;
             _pool.SetInstanceParent(_previewRoot.transform);
+        }
+
+        // 配置のたびに「今見ている SceneView の視点中心」へ置き、そこへ SceneView を寄せる(2026-09-11: 以前はルート生成時の pivot に固定されていた)。
+        private void MovePreviewRootToSceneViewAndFrame()
+        {
+            var sceneView = SceneView.lastActiveSceneView;
+            var position = Vector3.zero;
+            if (sceneView != null && sceneView.camera != null)
+            {
+                var cam = sceneView.camera.transform;
+                var distance = Mathf.Clamp(sceneView.cameraDistance, 2f, 10f);
+                position = sceneView.in2DMode ? sceneView.pivot : cam.position + cam.forward * distance;
+            }
+
+            _previewRoot.transform.position = position;
+            _previewRoot.transform.rotation = Quaternion.identity;
+
+            if (sceneView != null)
+            {
+                var size = _comparePreview != null ? CompareOffsetX + 2f : 2f;
+                sceneView.Frame(new Bounds(position + new Vector3(_comparePreview != null ? CompareOffsetX * 0.5f : 0f, 0f, 0f), Vector3.one * size), false);
+            }
         }
 
         private void PlacePreview()
@@ -374,10 +653,15 @@ namespace DDrive.Editor.Materials
                 return;
             }
 
+            DeselectPreviewObjects();
             _primaryPreview?.Dispose();
             _comparePreview?.Dispose();
             EnsurePreviewRoot();
-            EditorAnchorRegistry.Refresh(_registry);
+            if (_registryDirty)
+            {
+                _registryDirty = false;
+                EditorAnchorRegistry.Refresh(_registry);
+            }
 
             _primaryPreview = MaterialPreviewBuilder.Create(_shape, _previewModel, data, _manager, _previewRoot.transform, Vector3.zero, _modelsManager, "Primary");
             if (_compareTarget != null)
@@ -389,6 +673,12 @@ namespace DDrive.Editor.Materials
             _statusLabel.text = _primaryPreview != null
                 ? (_comparePreview != null ? "プレビューに適用中(比較対象あり)" : "プレビューに適用中")
                 : "プレビューの生成に失敗しました(ModelData の Prefab を確認してください)";
+            if (_primaryPreview != null)
+            {
+                MovePreviewRootToSceneViewAndFrame();
+            }
+
+            _previewDirty = false;
             SceneView.RepaintAll();
         }
 
@@ -411,7 +701,13 @@ namespace DDrive.Editor.Materials
             }
 
             _manager.Clear();
-            EditorAnchorRegistry.Refresh(_registry);
+            // Registry の再走査(全 Data の FindAssets + 同期ロード)は重いので、アセットの追加・削除があったときだけ行う(2026-09-11)。
+            if (_registryDirty)
+            {
+                _registryDirty = false;
+                EditorAnchorRegistry.Refresh(_registry);
+            }
+
             if (_primaryPreview != null)
             {
                 MaterialPreviewBuilder.Apply(_primaryPreview, _shape, _previewModel, data, _manager);
@@ -425,8 +721,23 @@ namespace DDrive.Editor.Materials
             SceneView.RepaintAll();
         }
 
+        // プレビュー物を Inspector で選択したまま破棄すると GameObjectInspector が MissingReference を出すので、先に選択を外す(2026-09-11)。
+        private void DeselectPreviewObjects()
+        {
+            if (_previewRoot == null || Selection.activeTransform == null)
+            {
+                return;
+            }
+
+            if (Selection.activeTransform == _previewRoot.transform || Selection.activeTransform.IsChildOf(_previewRoot.transform))
+            {
+                Selection.activeObject = null;
+            }
+        }
+
         private void RemovePreview()
         {
+            DeselectPreviewObjects();
             _primaryPreview?.Dispose();
             _primaryPreview = null;
             _comparePreview?.Dispose();
@@ -504,8 +815,27 @@ namespace DDrive.Editor.Materials
 
             _manager.Tick(dt);
 
+            // Data 編集の自動反映(間引き)。共有 Material を作り直し、配置済みプレビューがあれば再適用、サムネイルも描き直す。
+            if (_previewDirty && now - _lastAutoRebuildTime >= AutoRebuildIntervalSec)
+            {
+                _previewDirty = false;
+                _lastAutoRebuildTime = now;
+                if (_primaryPreview != null)
+                {
+                    RebuildPreview();
+                }
+                else
+                {
+                    _manager.Clear();
+                }
+
+                _thumbnailDirty = true;
+            }
+
             if (_turntableEnabled)
             {
+                _thumbnailAngle = (_thumbnailAngle + _turntableSpeedDegPerSec * dt) % 360f;
+                _thumbnailDirty = true;
                 if (_primaryPreview?.Root != null)
                 {
                     _primaryPreview.Root.transform.Rotate(Vector3.up, _turntableSpeedDegPerSec * dt, Space.World);
@@ -519,10 +849,80 @@ namespace DDrive.Editor.Materials
                 SceneView.RepaintAll();
             }
 
-            if (_primaryPreview != null && _target is MaterialData data && data.HasAnims)
+            if (_target is MaterialData data && data.HasAnims)
             {
-                SceneView.RepaintAll();
+                _thumbnailDirty = true;
+                if (_primaryPreview != null)
+                {
+                    SceneView.RepaintAll();
+                }
             }
+
+            if (_thumbnailDirty)
+            {
+                _thumbnailDirty = false;
+                RenderThumbnail();
+            }
+        }
+
+        private void PopOutThumbnail()
+        {
+            if (_target is not MaterialData data)
+            {
+                return;
+            }
+
+            MaterialThumbnailWindow.Open(data, _shape, _turntableEnabled, _lightRotationSlider?.value ?? 0f);
+        }
+
+        // 共有 Material(実 Manager 生成)を PreviewRenderUtility で描いて Image に出す。Model 形状はシーン配置へ誘導。
+        private void RenderThumbnail()
+        {
+            if (_thumbnailArea == null || _thumbnailArea.style.display == DisplayStyle.None || _target is not MaterialData data)
+            {
+                return;
+            }
+
+            if (_shape == MaterialPreviewShape.Model)
+            {
+                _thumbnailImage.image = null;
+                _compareThumbnailImage.image = null;
+                _thumbnailCaptionA.text = _thumbnailCaptionB.text = "";
+                _thumbnailLabel.text = "Model 形状はサムネイルに出しません。「シーンにプレビューを配置」で確認してください";
+                return;
+            }
+
+            var hasCompare = _compareTarget != null;
+            var sideBySide = hasCompare && _compareMode == ThumbnailCompareMode.SideBySide;
+            var showB = hasCompare && _compareMode == ThumbnailCompareMode.Toggle && _showCompareInToggle;
+
+            _thumbnail ??= new MaterialThumbnailRenderer();
+            var primary = showB ? _compareTarget : data;
+            RenderInto(_thumbnail, _thumbnailImage, primary);
+            _thumbnailCaptionA.text = hasCompare ? (showB ? "B: " : "A: ") + DisplayNameOf(primary) : "";
+
+            if (sideBySide)
+            {
+                _compareThumbnail ??= new MaterialThumbnailRenderer();
+                RenderInto(_compareThumbnail, _compareThumbnailImage, _compareTarget);
+                _thumbnailCaptionB.text = "B: " + DisplayNameOf(_compareTarget);
+            }
+
+            _thumbnailLabel.text = hasCompare
+                ? "比較: A = 対象 / B = 比較対象(回転・ライトは共通)。既定ライトのみ"
+                : "サムネイル: 既定ライトのみ(実シーン照明・モデル適用は「シーンにプレビューを配置」で確認)";
+        }
+
+        private void RenderInto(MaterialThumbnailRenderer renderer, Image image, MaterialData data)
+        {
+            var width = Mathf.RoundToInt(image.resolvedStyle.width);
+            if (float.IsNaN(image.resolvedStyle.width) || width < 16)
+            {
+                width = 320;
+            }
+
+            image.image = renderer.Render(_manager.GetData(data), _shape, _thumbnailAngle, _thumbnailPitch, _thumbnailLightDeg, width, ThumbnailHeight);
+            image.MarkDirtyRepaint();
         }
     }
 }

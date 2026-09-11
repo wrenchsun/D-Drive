@@ -76,7 +76,7 @@ namespace DDrive.Editor.Inspectors
             }
 
             var (dataType, assetType) = definition.Value;
-            var guids = AssetDatabase.FindAssets("t:" + dataType.Name);
+            var guids = AssetSearch.FindAssets("t:" + dataType.Name);
             var list = new List<Candidate>();
 
             foreach (var guid in guids)

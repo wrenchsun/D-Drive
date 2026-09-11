@@ -63,6 +63,7 @@
 - [ ] 1000 件規模での動作確認（仮想化・遅延ロード）
 - [ ] 保存フック（Version/Author/Validation）が動く
 - [ ] ドメインリロード・プレビューシーン破棄でリークなし（`NewPreviewScene` の Close 確認)
+- [ ] `AssetDatabase.FindAssets` を直接呼んでいない（`DDrive.Editor.AssetSearch.FindAssets` 経由。Unity 6000.3 の `FindAssets` は 1 回ごとに走査ファイル数比例のネイティブメモリを解放せず保持するため、プロジェクト変更までキャッシュする。アセット作成直後に同フレームで検索するなら `AssetSearch.Invalidate()`。2026-09-11 実測、[09] §9）
 
 ## 4. データ PR（デザイナー）チェックリスト
 

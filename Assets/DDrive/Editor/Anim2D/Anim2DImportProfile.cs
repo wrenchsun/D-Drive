@@ -41,7 +41,7 @@ namespace DDrive.Editor.Anim2D
 
         public static Anim2DImportProfile FindOrDefault()
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(Anim2DImportProfile)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(Anim2DImportProfile)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (path.Contains("/Tests/"))

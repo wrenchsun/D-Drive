@@ -27,6 +27,21 @@
 - Tools > D-Drive > Editors > Material 変換: 変換元 MaterialData + 変換先 Shader(URP Unlit 等)で差分が出る / 「新規 MaterialData として作成」で同じカテゴリに作成される / 「この Data を変換」→ Ctrl+Z で戻る
 - ShaderConversionTable アセット(Create > D-Drive > Material > Shader Conversion Table)にルールを追加して「変換テーブルを再読み込み」→ 対応(→)表示になること
 
+## 3-14 D-Drive 標準シェーダー + Specific 自動解決(2026-09-11)
+- `Assets/SourceAssets/Shaders/DDrive_Lit.shader`(`DDrive/Lit`= URP Lit を D-Drive フォーマットに整理)/ `DDrive_Unlit.shader`(`DDrive/Unlit`)がコンパイルエラー無しでインポートされ、Material アセットに付けたときの見た目が URP Lit / Unlit と同じこと
+- Material Editor で MaterialData の Shader を `DDrive/Lit` に変更 → Specific に `_OcclusionStrength` だけが既定値 1 で自動追加され、`_BaseMap` / `_BaseColor` / `_Surface` / `_Cull` 等の共通チャンネル・描画ステートと `[HideInInspector]` の Parallax / Detail / Specular 系は追加されないこと。ラベルに「追加 1」が出ること
+- `_OcclusionStrength` の値を変えてから「シェーダーから固有を同期」→ 値が保持されたまま「同期済み」になること。Ctrl+Z で同期前に戻ること
+- Material 変換で `DDrive/Lit` → `DDrive/Unlit`(テーブル無し)→ `_OcclusionStrength` が「✕ 破棄」。ShaderConversionTable に `_OcclusionStrength → (空)` を登録 → 「− 意図的に破棄」になること。逆向き `DDrive/Unlit` → `DDrive/Lit` では結果の Specific に `_OcclusionStrength` が既定値で補完されること
+- Material Editor: MaterialData を選ぶとウィンドウ最上部にサムネイル（球）が出て、Tint / Metallic / Smoothness をドラッグすると即座に追従すること。形状で板 / Cube に切り替わること。ターンテーブル・ライト回転がサムネイルに効くこと。Model 形状では「シーン配置で確認」の案内になること
+- サムネイルを左ドラッグ → 横で Y 回転、縦で傾き（±80° で止まる）。ターンテーブル ON でもドラッグが効くこと。板（Quad）は縦ドラッグで傾かないこと。「X 反転」「Y 反転」で方向が逆になり、Material Editor とポップアップの両方に同じ設定が効くこと（Unity 再起動後も保持）
+- Material 変換の互換表: `DDrive/Lit` → `DDrive/Unlit` で、共通チャンネルの Normal / Mask / Emission 系が ×（受け口無し）、Albedo / AlbedoTint / Blend が 〇、未設定のテクスチャは －、固有の `_OcclusionStrength` が ×、逆向き（Unlit → Lit）では「変換先で追加される固有」に `_OcclusionStrength` が出ること
+- Material 変換: 変換元と変換先 Shader を選ぶと、ウィンドウ内「見た目の比較」に A（変換前）/ B（変換後）が左右に並ぶこと（アセット作成前）。変換先を `DDrive/Unlit` に変えると B が即座に変わること。「左右」→「切替」で 1 枚になり「A → B」「B → A」で入れ替わること。変換元を Inspector で編集 / Ctrl+Z → A と B の両方が追従すること。ドラッグ回転・ライトが両方同時に効くこと
+- Material Editor の「比較対象」に別の MaterialData を入れる → サムネイルが左右 2 分割になり、B の Data を編集 / Ctrl+Z → B 側だけ追従すること
+- Material Editor の「ポップアップ」→ 独立ウィンドウ「Material プレビュー」が形状・回転・ライト角を引き継いで開き、ウィンドウを広げると描画も広がること。Inspector で Tint を変える / Ctrl+Z で戻す → ポップアップが追従すること。Material Editor を閉じてもポップアップ単独で動くこと。Inspector 最上部に「プレビューをポップアップ」ボタンが出ること
+- 「シーンにプレビューを配置」で SceneView の視点前方に球が置かれ、視点がそこへ寄ること。Data を編集すると配置した球にも 0.1 秒以内に反映されること。プレビュー球を Inspector で選択したまま再配置してもコンソールにエラーが出ないこと
+- メモリ: Material Editor を開閉・再生成を繰り返しても Task Manager の Unity メモリが増え続けないこと（以前は 1 回の開閉で約 100 MB 増）
+- Validation > Run All: Specific を空にした `DDrive/Lit` の MaterialData に「固有プロパティが Specific に未登録: _OcclusionStrength」の Info が出ること
+
 ## 3-8 Texture Importer 規約(コミット 669783a)
 - Assets/SourceAssets 配下に `Xxx_N.png` / `Xxx_M.png` / `Xxx_UI.png` を置いてインポート → Texture Type / sRGB / Mipmap が規約どおりになること(TexturePostprocessor)
 - Material Editor で TextureData を選択 → Importer 要約 + 規約名 + 「命名規約を適用して再インポート」ボタンの表示(差分があるときだけ)

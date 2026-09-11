@@ -53,7 +53,7 @@ namespace DDrive.Editor.Bootstrap
         public static List<AssetCatalog> FindProjectCatalogs()
         {
             var result = new List<AssetCatalog>();
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AssetCatalog)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetCatalog)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (path.Contains("/Tests/"))

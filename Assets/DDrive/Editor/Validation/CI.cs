@@ -108,7 +108,7 @@ namespace DDrive.Editor
         private static List<AssetDataBase> LoadAllAssetDataAssets()
         {
             var result = new List<AssetDataBase>();
-            var guids = AssetDatabase.FindAssets("t:" + nameof(AssetDataBase));
+            var guids = AssetSearch.FindAssets("t:" + nameof(AssetDataBase));
 
             foreach (var guid in guids)
             {

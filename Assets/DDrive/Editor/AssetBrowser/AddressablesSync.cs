@@ -99,7 +99,7 @@ namespace DDrive.Editor.AssetBrowser
         public static List<AssetCatalog> FindCatalogs(bool includeTestFolders)
         {
             var result = new List<AssetCatalog>();
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AssetCatalog)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetCatalog)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (!includeTestFolders && path.Contains("/Tests/"))
@@ -144,7 +144,7 @@ namespace DDrive.Editor.AssetBrowser
 
             var fixedAssets = 0;
             var missing = 0;
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AssetDataBase)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (path.Contains("/Tests/"))

@@ -55,6 +55,7 @@ namespace DDrive.Editor.AssetBrowser
             configure?.Invoke(asset);
 
             AssetDatabase.CreateAsset(asset, path);
+            AssetSearch.Invalidate(); // 同じフレームで続けて検索する呼び出し元(Maya インポート等)が作りたてを見落とさないように([09] §9)
 
             var guid = AssetDatabase.AssetPathToGUID(path);
             asset.Id = AssetIdGenerator.StableHashFromGuid(guid);

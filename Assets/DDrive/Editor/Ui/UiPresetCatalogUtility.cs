@@ -13,7 +13,7 @@ namespace DDrive.Editor.Ui
         public static List<(string name, UiTweenData tween)> Collect()
         {
             var result = new List<(string name, UiTweenData tween)>();
-            var guids = AssetDatabase.FindAssets("t:" + nameof(UiPresetCatalog));
+            var guids = AssetSearch.FindAssets("t:" + nameof(UiPresetCatalog));
             foreach (var guid in guids)
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);

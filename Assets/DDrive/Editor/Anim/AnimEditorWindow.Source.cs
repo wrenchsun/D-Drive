@@ -196,7 +196,7 @@ namespace DDrive.Editor.Anim
         private static AnimData FindAnimDataFor(ClipChoice choice)
         {
             AnimData byState = null;
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AnimData)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AnimData)))
             {
                 var data = AssetDatabase.LoadAssetAtPath<AnimData>(AssetDatabase.GUIDToAssetPath(guid));
                 if (data == null)
@@ -378,7 +378,7 @@ namespace DDrive.Editor.Anim
 
         private void Collect<T>(AssetType type, string prefix) where T : AssetDataBase
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:" + typeof(T).Name))
+            foreach (var guid in AssetSearch.FindAssets("t:" + typeof(T).Name))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (path.Contains("/Tests/"))

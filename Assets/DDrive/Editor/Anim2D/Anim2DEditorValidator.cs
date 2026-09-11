@@ -108,7 +108,7 @@ namespace DDrive.Editor.Anim2D
         // プロジェクト内の AnimatorController から、stateName のステートを持つ最初のものを探す。
         private static AnimatorController FindControllerWithState(string stateName)
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:AnimatorController"))
+            foreach (var guid in AssetSearch.FindAssets("t:AnimatorController"))
             {
                 var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(AssetDatabase.GUIDToAssetPath(guid));
                 if (controller == null)

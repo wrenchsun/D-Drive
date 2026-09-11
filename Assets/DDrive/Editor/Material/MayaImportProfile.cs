@@ -61,7 +61,7 @@ namespace DDrive.Editor.Materials
 
         public static MayaImportProfile FindOrDefault()
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(MayaImportProfile)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(MayaImportProfile)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (path.Contains("/Tests/"))

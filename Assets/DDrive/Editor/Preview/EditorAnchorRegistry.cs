@@ -87,7 +87,7 @@ namespace DDrive.Editor.Preview
 
         private static void Collect<T>(AssetType type, List<CatalogEntry> entries, List<(ulong, System.Type)> loads) where T : DDrive.Foundation.Data.AssetDataBase
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:" + typeof(T).Name))
+            foreach (var guid in AssetSearch.FindAssets("t:" + typeof(T).Name))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 var asset = AssetDatabase.LoadAssetAtPath<T>(path);
@@ -108,7 +108,7 @@ namespace DDrive.Editor.Preview
                 return null;
             }
 
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AnchorGroupData)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AnchorGroupData)))
             {
                 var asset = AssetDatabase.LoadAssetAtPath<AnchorGroupData>(AssetDatabase.GUIDToAssetPath(guid));
                 if (asset != null && asset.Id == id)
@@ -128,7 +128,7 @@ namespace DDrive.Editor.Preview
                 return null;
             }
 
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AnchorData)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AnchorData)))
             {
                 var asset = AssetDatabase.LoadAssetAtPath<AnchorData>(AssetDatabase.GUIDToAssetPath(guid));
                 if (asset != null && asset.Id == id)

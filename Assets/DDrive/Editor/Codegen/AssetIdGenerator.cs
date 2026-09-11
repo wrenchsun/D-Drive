@@ -80,7 +80,7 @@ namespace DDrive.Editor.Codegen
             foreach (var def in definitions)
             {
                 var entries = new List<(string constName, ulong id)>();
-                var guids = AssetDatabase.FindAssets("t:" + def.DataType.Name);
+                var guids = AssetSearch.FindAssets("t:" + def.DataType.Name);
 
                 foreach (var guid in guids)
                 {

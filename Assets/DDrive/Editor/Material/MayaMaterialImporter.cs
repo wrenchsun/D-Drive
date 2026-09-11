@@ -100,6 +100,8 @@ namespace DDrive.Editor.Materials
                 mat.Shader = profile.TargetShader;
                 mat.Common = capturedCommon;
                 mat.SourceMaterial = sourceMaterial;
+                // 新規作成時はシェーダーの固有を既定値で登録しておく(再インポート時は Specific を保持するので触らない。2026-09-11)。
+                mat.Specific = MaterialSpecificResolver.Merge(null, mat.Shader);
             }, gameDataRoot) as MaterialData;
 
             if (created != null)

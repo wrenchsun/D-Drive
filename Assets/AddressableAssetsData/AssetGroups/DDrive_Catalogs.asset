@@ -51,6 +51,12 @@ MonoBehaviour:
     m_SerializedLabels:
     - DDriveCatalog
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ff20348f27c74da468b8b09e2f711c18
+    m_Address: MaterialCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 1f09223bfdf1aa247a055dcdb53d6a91, type: 2}
   m_SchemaSet:

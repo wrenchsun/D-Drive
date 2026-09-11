@@ -550,7 +550,7 @@ namespace DDrive.Editor.Anchor
             }
 
             var all = new List<AssetDataBase>();
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AnchorData)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AnchorData)))
             {
                 var a = AssetDatabase.LoadAssetAtPath<AnchorData>(AssetDatabase.GUIDToAssetPath(guid));
                 if (a != null)

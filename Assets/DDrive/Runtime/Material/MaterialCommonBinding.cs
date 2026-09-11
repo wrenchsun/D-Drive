@@ -45,6 +45,40 @@ namespace DDrive.Runtime.Material
         private static readonly int Cull = Shader.PropertyToID("_Cull");
         private static readonly int Mode = Shader.PropertyToID("_Mode");
 
+        // 共通チャンネルの一覧(変換エディタの互換表・Validator 用。2026-09-11)。Apply の候補名と同じ表で判定する。
+        public enum CommonChannel
+        {
+            Albedo, AlbedoTint, Normal, NormalScale, Mask, Metallic, Smoothness, Emission, EmissionColor, Blend, Cutoff, DoubleSided,
+        }
+
+        // そのシェーダーがチャンネルを受け取れるか(Apply が SetXxxFirst で書き込む候補名のどれかを持つか)。
+        public static bool IsSupported(Shader shader, CommonChannel channel)
+        {
+            if (shader == null)
+            {
+                return false;
+            }
+
+            switch (channel)
+            {
+                case CommonChannel.Albedo: return Has(shader, "_BaseMap") || Has(shader, "_MainTex");
+                case CommonChannel.AlbedoTint: return Has(shader, "_BaseColor") || Has(shader, "_Color");
+                case CommonChannel.Normal: return Has(shader, "_BumpMap");
+                case CommonChannel.NormalScale: return Has(shader, "_BumpScale") || Has(shader, "_NormalScale");
+                case CommonChannel.Mask: return Has(shader, "_MaskMap") || Has(shader, "_MetallicGlossMap") || Has(shader, "_OcclusionMap");
+                case CommonChannel.Metallic: return Has(shader, "_Metallic");
+                case CommonChannel.Smoothness: return Has(shader, "_Smoothness") || Has(shader, "_Glossiness");
+                case CommonChannel.Emission: return Has(shader, "_EmissionMap");
+                case CommonChannel.EmissionColor: return Has(shader, "_EmissionColor");
+                case CommonChannel.Blend: return Has(shader, "_Surface") || Has(shader, "_SrcBlend") || Has(shader, "_Mode");
+                case CommonChannel.Cutoff: return Has(shader, "_Cutoff");
+                case CommonChannel.DoubleSided: return Has(shader, "_Cull");
+                default: return false;
+            }
+        }
+
+        private static bool Has(Shader shader, string property) => shader.FindPropertyIndex(property) >= 0;
+
         // テクスチャ ID の解決は呼び出し側(Manager: Registry 経由 / エディタ: AssetDatabase 経由)が渡す。
         public delegate Texture TextureResolver(DDrive.Foundation.Identity.AssetId<TextureMarker> id);
 

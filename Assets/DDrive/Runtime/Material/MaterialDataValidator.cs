@@ -65,6 +65,19 @@ namespace DDrive.Runtime.Material
                 }
             }
 
+            // 2026-09-11: シェーダーの固有プロパティ(MaterialCommonNaming の規約で固有と判定されるもの)が Specific に無い場合は
+            // シェーダー既定値のまま使われる。Material Editor の「シェーダーから固有を同期」で既定値付きで登録できる(Info)。
+            if (mat.Shader != null)
+            {
+                var unregistered = MaterialSpecificResolver.FindUnregistered(mat.Specific, mat.Shader);
+                if (unregistered.Count > 0)
+                {
+                    yield return ValidationResult.Info(
+                        $"シェーダー '{mat.Shader.name}' の固有プロパティが Specific に未登録です(既定値で描画): {string.Join(", ", unregistered)}。" +
+                        "Material Editor の「シェーダーから固有を同期」で登録できます");
+                }
+            }
+
             if (mat.Anims != null)
             {
                 foreach (var anim in mat.Anims)

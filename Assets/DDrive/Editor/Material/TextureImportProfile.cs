@@ -83,7 +83,7 @@ namespace DDrive.Editor.Materials
 
         public static TextureImportProfile FindOrDefault()
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(TextureImportProfile)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(TextureImportProfile)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (path.Contains("/Tests/"))

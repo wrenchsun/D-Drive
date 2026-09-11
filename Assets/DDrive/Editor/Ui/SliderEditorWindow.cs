@@ -547,7 +547,7 @@ namespace DDrive.Editor.Ui
                 return null;
             }
 
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(SliderSkinData)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(SliderSkinData)))
             {
                 var asset = AssetDatabase.LoadAssetAtPath<SliderSkinData>(AssetDatabase.GUIDToAssetPath(guid));
                 if (asset != null && asset.Id == _target.SkinId.Value)

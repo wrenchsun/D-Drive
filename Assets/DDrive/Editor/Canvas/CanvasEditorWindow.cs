@@ -441,7 +441,7 @@ namespace DDrive.Editor.CanvasTool
                 return null;
             }
 
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(UiTweenData)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(UiTweenData)))
             {
                 var asset = AssetDatabase.LoadAssetAtPath<UiTweenData>(AssetDatabase.GUIDToAssetPath(guid));
                 if (asset != null && asset.Id == id)

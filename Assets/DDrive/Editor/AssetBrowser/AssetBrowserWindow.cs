@@ -156,7 +156,7 @@ namespace DDrive.Editor.AssetBrowser
                 .Where(d => d.dataType.Namespace?.Contains("Tests") != true)
                 .ToDictionary(d => d.dataType, d => d.assetType);
 
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AssetDataBase)))
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
