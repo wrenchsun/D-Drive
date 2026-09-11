@@ -103,7 +103,8 @@ namespace DDrive.Editor.Anim2D
 
             AnimationUtility.SetObjectReferenceCurve(clip, binding, kfs);
             EditorUtility.SetDirty(clip);
-            AssetDatabase.SaveAssets();
+            // AssetDatabase.SaveAssets() は呼ばない。方向 Clip まで含めると 1 回の操作で 9 回保存されるため、
+            // 保存は呼び出し側(ApplyRetiming の最後)で 1 回だけ行う(2026-09-11 レビュー対応)。
             return true;
         }
 
@@ -137,5 +138,43 @@ namespace DDrive.Editor.Anim2D
         // 配置モードに応じた正規化時刻配列を返す。
         public static float[] BuildTimes(int count, PlacementMode mode, ValueDef retiming)
             => mode == PlacementMode.Retiming ? BuildRetimingTimes(count, retiming) : BuildUniformTimes(count);
+
+        // 時刻が単調増加(狭義)かどうか。Retiming カーブが定数(既定の Constant01(1))だと全フレームが同じ時刻に潰れ、
+        // Clip が 1 枚のアニメになってしまうため、焼き込み前にこれで弾く(2026-09-11 レビュー対応)。
+        public static bool IsStrictlyIncreasing(float[] times)
+        {
+            if (times == null || times.Length == 0)
+            {
+                return false;
+            }
+
+            for (var i = 1; i < times.Length; i++)
+            {
+                if (times[i] <= times[i - 1])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // 配置モードに応じた時刻配列を作り、焼き込んで良い形(狭義単調増加)かを検証する。
+        // 不正なら警告 + false(何も書き換えない)。例外は投げない。
+        public static bool TryBuildTimes(int count, PlacementMode mode, ValueDef retiming, out float[] times)
+        {
+            times = BuildTimes(count, mode, retiming);
+            if (IsStrictlyIncreasing(times))
+            {
+                return true;
+            }
+
+            times = null;
+            Debug.LogWarning(
+                "[Anim2D] リタイミングのカーブが 0 → 1 へ単調増加していないため適用しませんでした。" +
+                "Retiming(ValueDef)は「正規化時間 0..1 を入れて 0..1 の位置を返す」カーブです。" +
+                "既定の Constant(1) のままだと全フレームが最後に潰れます。Ease(EaseInOut 等)やカーブを設定してください。");
+            return false;
+        }
     }
 }

@@ -61,26 +61,16 @@ namespace DDrive.Editor.Anim2D
             importer.mipmapEnabled = false;
             importer.filterMode = FilterMode.Point;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
-            // SpriteMetaData.rect は元画像のピクセル座標。Max Size で縮小されるテクスチャ(例: 2500x2000 → 2048x1638)で
-            // インポート後サイズからセルを計算すると矩形がずれるため、Automatic(ApplyRectsAndCollect)と同じく
-            // Max Size を 16384 にして元サイズのまま扱い、セルも元画像サイズで計算する(2026-09-11 修正)。
             importer.npotScale = TextureImporterNPOTScale.None;
-            importer.maxTextureSize = 16384;
-            EditorUtility.SetDirty(importer);
-            importer.SaveAndReimport();
 
-            var reloaded = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-            if (reloaded == null)
-            {
-                Debug.LogError("[SpriteSlicer] 再読込に失敗しました。");
-                return false;
-            }
-
+            // SpriteMetaData.rect は「元画像のピクセル座標」で、Max Size で縮小されたぶんは Unity 側がスケールする。
+            // よってセルは元画像サイズ(GetSourceTextureWidthAndHeight)で計算すれば足り、Max Size は触らない
+            // (勝手に 16384 へ書き換えるとプロジェクトのテクスチャ設定を壊す。2026-09-11 レビュー対応)。
             importer.GetSourceTextureWidthAndHeight(out var texW, out var texH);
             if (texW <= 0 || texH <= 0)
             {
-                texW = reloaded.width;
-                texH = reloaded.height;
+                texW = texture.width;
+                texH = texture.height;
             }
 
             var cellW = texW / columns;

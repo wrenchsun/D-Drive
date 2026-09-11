@@ -220,8 +220,9 @@ void LitPassFragment(
 
     InitializeBakedGIData(input, inputData);
 
-    half4 color = UniversalFragmentPBR(inputData, surfaceData);
+    // 主光源は sheen で使う分を 1 回だけ取る(UniversalFragmentPBR の後に取り直さない。2026-09-11 レビュー対応)。
     Light mainLight = GetMainLight(inputData.shadowCoord, inputData.positionWS, inputData.shadowMask);
+    half4 color = UniversalFragmentPBR(inputData, surfaceData);
     color.rgb += SheenTerm(inputData, mainLight);
     color.rgb = MixFog(color.rgb, inputData.fogCoord);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));

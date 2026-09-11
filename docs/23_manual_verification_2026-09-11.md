@@ -43,7 +43,7 @@
 - Validation > Run All: Specific を空にした `DDrive/Lit` の MaterialData に「固有プロパティが Specific に未登録: _OcclusionStrength」の Info が出ること
 
 ## 初期アイコンの自動生成(2026-09-11)
-- MaterialData を新規作成 → 数フレーム後に Inspector のアイコン行に球のサムネイルが入ること（`Assets/GameData/Icons/Material/<名前>_Icon.png`）
+- MaterialData を新規作成 → 数フレーム後に Inspector のアイコン行に球のサムネイルが入ること（`Assets/GameData/Icons/Material/<名前>_<GUID8>_Icon.png`）
 - ModelData の Prefab を設定してから「自動生成」→ Prefab のプレビューがアイコンになること（Prefab 未設定ではボタンが無効で、ツールチップに「元アセット未設定」）
 - TextureData の Texture / Sprite を設定して「自動生成」→ その画像（Sprite は切り出し範囲）がアイコンになること
 - 手で設定したアイコンがある Data は `Tools > D-Drive > Generate > 初期アイコンを生成(未設定の Data のみ)` で上書きされないこと
@@ -164,3 +164,14 @@
 - Play で NetMode=Simulated の PrefabData を `Prefabs.Spawn` → LocalLoopbackBridge(単機)では生成されること。NGO 接続時の NetworkObject 複製は Phase 6 で接続予定
 - レビュー対応の手動確認: プリセットギャラリーの「選択中のシーン要素で再生」→ 停止で位置 / スケール / alpha が元に戻り、追加された CanvasGroup が Undo で消えること(P1-6)。Canvas を Scale 遷移で閉じて再度開いたとき表示されること(P1-1)。設定画面で音量を変えて Play 終了 → 再度 Play で値が復元されること(P1-4)
 - docs/24 の整理項目 1〜6 は未対応(後続)
+
+## Phase 3 後半レビュー対応(docs/25、2026-09-11)
+- Anim2D Editor →「Anim Editor で開く」→ **Anim2D Editor を閉じる** → Anim Editor のプレビュー物が残り ▶ で再生できること。スクリプトを再コンパイルしてもプレビュー物が消えないこと(A1)。「撤去」ボタンでだけ消えること
+- Anim2D Editor の配置モードを Retiming にして Retiming(ValueDef)が既定の Constant(1)のまま「適用」→ 警告が 1 件出て Clip・方向 Clip が変わらないこと。Ease を設定すると適用されること(A2)
+- Material Editor で Blend=Transparent の Data のサムネイル / 初期アイコン PNG に穴が開かないこと(M1)。Cutout の輪郭が URP Lit のプレビュー球と同じに見えること
+- MaterialData の Specific に `_Metallic` を手で足す → Validation に「共通チャンネル名です」の警告が出て、Material Editor の「共通チャンネルの重複を削除」で消えること(M2)
+- Tools > D-Drive > 初期アイコンを生成(一括)で Material 10 件以上 → 途中で止まらず、`Icons/Material/<名前>_<GUID8>_Icon.png` が作られること。同名の MaterialData が別フォルダにあっても別ファイルになること(M3 / M4)
+- Material Editor / Material プレビューのウィンドウでスクリプト再コンパイル → 対象・比較対象・形状・ロックが保たれること(M9)
+- Substance の `Xxx_MetallicSmoothness.png` を SourceAssets に置く → TextureData の Channel が Other になること(I1)
+- 別フォルダの同名 `.mat` 2 つを選んで「選択した Material を変換」→ MaterialData が 2 件できること(I2)。既存の MaterialData(旧形式 SourceMaterial)を再変換すると SourceMaterial が GUID 付きに移行されること
+- aiStandardSurface の FBX を再インポート → マテリアルが `DDrive/AiStandardSurface` のままで、Metalness / Roughness / Opacity マップが効いていること(I3 / I8。GetVersion 更新で全 FBX が再インポートされる)

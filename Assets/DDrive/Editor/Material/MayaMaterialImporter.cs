@@ -39,16 +39,130 @@ namespace DDrive.Editor.Materials
 
             var category = profile.ResolveCategory(modelPath);
             var sourceKey = System.IO.Path.GetFileNameWithoutExtension(modelPath);
-            foreach (var sub in AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath))
+            BeginBatch(gameDataRoot);
+            try
             {
-                if (sub is UnityEngine.Material material)
+                foreach (var sub in AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath))
                 {
-                    ImportMaterial(material, category, sourceKey, profile, report, gameDataRoot);
+                    if (sub is UnityEngine.Material material)
+                    {
+                        ImportMaterial(material, category, sourceKey, profile, report, gameDataRoot);
+                    }
                 }
+            }
+            finally
+            {
+                EndBatch();
             }
 
             return report;
         }
+
+        // ── 一括処理の同定インデックス(2026-09-11 レビュー対応) ──
+        // FindExisting / EnsureTextureData は 1 件ごとに全 MaterialData / TextureData を検索していた。
+        // 一括の開始時に SourceMaterial → MaterialData / Texture → TextureData の辞書を 1 度だけ作って使い回す。
+        // (検索自体も AssetSearch 経由にしてある。[12_review.md] §3 / [09] §9)
+        private static int _batchDepth;
+        private static string _batchRoot;
+        private static Dictionary<string, MaterialData> _materialIndex;
+        private static Dictionary<Texture, TextureData> _textureIndex;
+
+        public static void BeginBatch(string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
+        {
+            if (_batchDepth++ == 0 || _batchRoot != gameDataRoot)
+            {
+                _batchRoot = gameDataRoot;
+                _materialIndex = null;
+                _textureIndex = null;
+            }
+        }
+
+        public static void EndBatch()
+        {
+            _batchDepth = Mathf.Max(0, _batchDepth - 1);
+            if (_batchDepth == 0)
+            {
+                _batchRoot = null;
+                _materialIndex = null;
+                _textureIndex = null;
+            }
+        }
+
+        private static Dictionary<string, MaterialData> GetMaterialIndex(string gameDataRoot)
+        {
+            if (_batchDepth > 0 && _batchRoot == gameDataRoot && _materialIndex != null)
+            {
+                return _materialIndex;
+            }
+
+            var index = new Dictionary<string, MaterialData>();
+            if (AssetDatabase.IsValidFolder(gameDataRoot))
+            {
+                foreach (var guid in AssetSearch.FindAssets("t:" + nameof(MaterialData), new[] { gameDataRoot }))
+                {
+                    var data = AssetDatabase.LoadAssetAtPath<MaterialData>(AssetDatabase.GUIDToAssetPath(guid));
+                    if (data != null && !string.IsNullOrEmpty(data.SourceMaterial))
+                    {
+                        index.TryAdd(data.SourceMaterial, data);
+                    }
+                }
+            }
+
+            if (_batchDepth > 0 && _batchRoot == gameDataRoot)
+            {
+                _materialIndex = index;
+            }
+
+            return index;
+        }
+
+        private static Dictionary<Texture, TextureData> GetTextureIndex(string gameDataRoot)
+        {
+            if (_batchDepth > 0 && _batchRoot == gameDataRoot && _textureIndex != null)
+            {
+                return _textureIndex;
+            }
+
+            var index = new Dictionary<Texture, TextureData>();
+            if (AssetDatabase.IsValidFolder(gameDataRoot))
+            {
+                foreach (var guid in AssetSearch.FindAssets("t:" + nameof(TextureData), new[] { gameDataRoot }))
+                {
+                    var data = AssetDatabase.LoadAssetAtPath<TextureData>(AssetDatabase.GUIDToAssetPath(guid));
+                    if (data != null && data.Texture != null)
+                    {
+                        index.TryAdd(data.Texture, data);
+                    }
+                }
+            }
+
+            if (_batchDepth > 0 && _batchRoot == gameDataRoot)
+            {
+                _textureIndex = index;
+            }
+
+            return index;
+        }
+
+        // ── SourceMaterial(再インポート時の同定キー) ──
+        // "<sourceKey>/<元アセットの GUID>/<マテリアル名>"。GUID を挟むのは、同名の Material が別フォルダにある場合や
+        // 同名の FBX が複数ある場合に 1 つの MaterialData を奪い合っていたため(2026-09-11 レビュー対応)。
+        // FBX のサブアセットは GetAssetPath が FBX 自身を返すので、Material アセットでも FBX でも同じ経路で求まる。
+        public static string BuildSourceMaterial(UnityEngine.Material source, string sourceKey)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(source));
+            var head = string.IsNullOrEmpty(sourceKey) ? string.Empty : sourceKey + "/";
+            return string.IsNullOrEmpty(guid) ? head + source.name : head + guid + "/" + source.name;
+        }
+
+        // 旧形式("<sourceKey>/<マテリアル名>")。既存アセットとの互換のために探し、見つかったら新形式へ移行する。
+        public static string BuildLegacySourceMaterial(UnityEngine.Material source, string sourceKey)
+            => source == null ? null : string.IsNullOrEmpty(sourceKey) ? source.name : sourceKey + "/" + source.name;
 
         // 1 マテリアル分。sourceKey は FBX 名(再インポート時の同定に使う)。
         public static MaterialData ImportMaterial(UnityEngine.Material source, string category, string sourceKey, MayaImportProfile profile, Report report,
@@ -60,10 +174,10 @@ namespace DDrive.Editor.Materials
                 return null;
             }
 
-            var sourceMaterial = string.IsNullOrEmpty(sourceKey) ? source.name : sourceKey + "/" + source.name;
+            var sourceMaterial = BuildSourceMaterial(source, sourceKey);
             var common = BuildCommon(source, category, profile, report, gameDataRoot);
 
-            var existing = FindExisting(sourceMaterial, gameDataRoot);
+            var existing = FindExisting(sourceMaterial, BuildLegacySourceMaterial(source, sourceKey), gameDataRoot);
             if (existing != null)
             {
                 var diff = DescribeDiff(existing.Common, common);
@@ -80,7 +194,7 @@ namespace DDrive.Editor.Materials
                 {
                     existing.Shader = ResolveTargetShader(profile, source);
                     existing.Specific = MaterialSpecificResolver.Merge(existing.Specific, existing.Shader);
-                    UnityMaterialMigrator.CopySpecificValues(source, existing);
+                    UnityMaterialMigrator.CopySpecificValues(source, existing); // 既存アセットなので Undo に積む
                 }
 
                 if (!profile.PreserveSpecificOnReimport)
@@ -105,11 +219,13 @@ namespace DDrive.Editor.Materials
                 // 新規作成時はシェーダーの固有を既定値で登録し、元 Material に同名があれば値を引き継ぐ
                 // (aiStandardSurface の Coat / Sheen / IOR 等。再インポート時は Specific を保持するので触らない。2026-09-11)。
                 mat.Specific = MaterialSpecificResolver.Merge(null, mat.Shader);
-                UnityMaterialMigrator.CopySpecificValues(source, mat);
+                // configure は AssetDatabase.CreateAsset の前に呼ばれる(まだアセットではない)ので Undo に積まない。
+                UnityMaterialMigrator.CopySpecificValues(source, mat, recordUndo: false);
             }, gameDataRoot) as MaterialData;
 
             if (created != null)
             {
+                GetMaterialIndex(gameDataRoot)[sourceMaterial] = created; // 同じ一括処理の後続が見つけられるように
                 report.Created++;
                 report.Log($"新規: {created.name}(カテゴリ {category})");
             }
@@ -136,21 +252,33 @@ namespace DDrive.Editor.Materials
             return Shader.Find(UnityMaterialMigrator.LitShaderName);
         }
 
-        // 同じ FBX / マテリアル名から作られた MaterialData を探す(SourceMaterial で同定)。
+        // 同じ元アセット / マテリアル名から作られた MaterialData を探す(SourceMaterial で同定)。
         public static MaterialData FindExisting(string sourceMaterial, string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
+            => FindExisting(sourceMaterial, null, gameDataRoot);
+
+        // legacySourceMaterial は旧形式(GUID 無し)のキー。新形式で見つからず旧形式で見つかったら、新形式へ移行する。
+        public static MaterialData FindExisting(string sourceMaterial, string legacySourceMaterial, string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
         {
             if (string.IsNullOrEmpty(sourceMaterial))
             {
                 return null;
             }
 
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(MaterialData), new[] { gameDataRoot }))
+            var index = GetMaterialIndex(gameDataRoot);
+            if (index.TryGetValue(sourceMaterial, out var hit) && hit != null)
             {
-                var data = AssetDatabase.LoadAssetAtPath<MaterialData>(AssetDatabase.GUIDToAssetPath(guid));
-                if (data != null && data.SourceMaterial == sourceMaterial)
-                {
-                    return data;
-                }
+                return hit;
+            }
+
+            if (!string.IsNullOrEmpty(legacySourceMaterial) && legacySourceMaterial != sourceMaterial &&
+                index.TryGetValue(legacySourceMaterial, out var legacy) && legacy != null)
+            {
+                Undo.RecordObject(legacy, "Migrate SourceMaterial Key");
+                legacy.SourceMaterial = sourceMaterial;
+                EditorUtility.SetDirty(legacy);
+                index.Remove(legacySourceMaterial);
+                index[sourceMaterial] = legacy;
+                return legacy;
             }
 
             return null;
@@ -217,13 +345,15 @@ namespace DDrive.Editor.Materials
         // 同じ Texture2D を指す TextureData があればその ID、無ければ作る。
         public static TextureId EnsureTextureData(Texture2D texture, TextureChannel channel, string category, Report report, string gameDataRoot)
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(TextureData), new[] { gameDataRoot }))
+            if (texture == null)
             {
-                var data = AssetDatabase.LoadAssetAtPath<TextureData>(AssetDatabase.GUIDToAssetPath(guid));
-                if (data != null && data.Texture == texture)
-                {
-                    return new TextureId(data.Id, AssetType.Texture);
-                }
+                return TextureId.Invalid;
+            }
+
+            var index = GetTextureIndex(gameDataRoot);
+            if (index.TryGetValue(texture, out var existing) && existing != null)
+            {
+                return new TextureId(existing.Id, AssetType.Texture);
             }
 
             var identifier = AssetNamingService.ToIdentifier(texture.name, "Tex");
@@ -240,6 +370,7 @@ namespace DDrive.Editor.Materials
                 return TextureId.Invalid;
             }
 
+            index[texture] = created; // 同じ一括処理の後続が見つけられるように
             report.TexturesCreated++;
             report.Log($"  TextureData 新規: {created.name}({channel})");
             return new TextureId(created.Id, AssetType.Texture);

@@ -14,7 +14,8 @@ namespace DDrive.Editor.Materials
     //   1. 変換先シェーダーを元シェーダーから決める(ResolveTargetShader)
     //   2. 共通チャンネルは MayaMaterialImporter.ImportMaterial(Unity Material → MaterialCommon + TextureData)で写す
     //   3. 変換先の固有(Specific)は既定値で登録したうえで、元 Material に同名プロパティがあれば値を引き継ぐ
-    // 同じ Material を再実行すると SourceMaterial("UnityMaterial/<名前>")で同定して Common だけ更新する(固有調整は保持)。
+    // 同じ Material を再実行すると SourceMaterial("UnityMaterial/<Material の GUID>/<名前>")で同定して Common だけ更新する
+    // (固有調整は保持)。GUID を挟むのは、同名 Material が別フォルダにあると 1 つの MaterialData を奪い合うため(2026-09-11)。
     // Material アセットに加えて、Prefab / モデルを選んだ場合は Renderer の sharedMaterials も対象にする。
     public static class UnityMaterialMigrator
     {
@@ -121,7 +122,9 @@ namespace DDrive.Editor.Materials
         }
 
         // 変換先の固有(Specific に登録済み)のうち、元 Material に同名プロパティがあるものは値を引き継ぐ。戻り値は引き継いだ名前。
-        public static List<string> CopySpecificValues(UnityEngine.Material source, MaterialData data)
+        // recordUndo=false は「まだアセットになっていない Data」用(AssetCreationService.Create の configure は CreateAsset の
+        // 前に呼ばれるため、Undo.RecordObject が意味を持たない。2026-09-11 レビュー対応)。
+        public static List<string> CopySpecificValues(UnityEngine.Material source, MaterialData data, bool recordUndo = true)
         {
             var copied = new List<string>();
             if (source == null || data == null || data.Specific == null || data.Shader == null)
@@ -178,7 +181,11 @@ namespace DDrive.Editor.Materials
 
                 if (!changed)
                 {
-                    Undo.RecordObject(data, "Migrate Unity Material Specific");
+                    if (recordUndo)
+                    {
+                        Undo.RecordObject(data, "Migrate Unity Material Specific");
+                    }
+
                     changed = true;
                 }
 
@@ -243,13 +250,22 @@ namespace DDrive.Editor.Materials
 
             var report = new MayaMaterialImporter.Report();
             MaterialData last = null;
-            foreach (var m in materials)
+            // 一括の間は同定インデックス(SourceMaterial → MaterialData / Texture → TextureData)を作って使い回す([09] §9)。
+            MayaMaterialImporter.BeginBatch();
+            try
             {
-                var data = Migrate(m, null, report);
-                if (data != null)
+                foreach (var m in materials)
                 {
-                    last = data;
+                    var data = Migrate(m, null, report);
+                    if (data != null)
+                    {
+                        last = data;
+                    }
                 }
+            }
+            finally
+            {
+                MayaMaterialImporter.EndBatch();
             }
 
             Debug.Log($"[DDrive] Unity Material → D-Drive MaterialData: {materials.Count} 件\n{report}");

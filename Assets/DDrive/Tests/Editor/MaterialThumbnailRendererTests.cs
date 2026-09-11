@@ -44,6 +44,54 @@ namespace DDrive.Tests.Editor
             Assert.GreaterOrEqual(texture.width, 128);
             Assert.GreaterOrEqual(texture.height, 96);
             Assert.AreEqual(128f / 96f, (float)texture.width / texture.height, 0.05f);
+
+            // 2026-09-11 レビュー対応: サイズだけだと「背景しか描けていない」状態でも通るので、
+            // 背景色(BackgroundColor)と違うピクセルが十分にあること = 形状が描けていることを見る。
+            AssertHasForeground(texture, _renderer.BackgroundColor, 0.05f);
+        }
+
+        // RenderTexture を一時 Texture2D に読み出して、background と目に見えて違うピクセルの割合を確かめる。
+        private static void AssertHasForeground(Texture texture, Color background, float minRatio)
+        {
+            var readable = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
+            var temp = texture as RenderTexture;
+            var borrowed = temp == null ? RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32) : null;
+            try
+            {
+                var previous = RenderTexture.active;
+                if (borrowed != null)
+                {
+                    Graphics.Blit(texture, borrowed);
+                }
+
+                RenderTexture.active = borrowed ?? temp;
+                readable.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
+                readable.Apply();
+                RenderTexture.active = previous;
+
+                var pixels = readable.GetPixels();
+                var differing = 0;
+                for (var i = 0; i < pixels.Length; i++)
+                {
+                    var d = pixels[i];
+                    if (Mathf.Abs(d.r - background.r) > 0.02f || Mathf.Abs(d.g - background.g) > 0.02f || Mathf.Abs(d.b - background.b) > 0.02f)
+                    {
+                        differing++;
+                    }
+                }
+
+                var ratio = (float)differing / pixels.Length;
+                Assert.Greater(ratio, minRatio, $"背景色だけの描画になっている(異なるピクセル {ratio:P1})");
+            }
+            finally
+            {
+                if (borrowed != null)
+                {
+                    RenderTexture.ReleaseTemporary(borrowed);
+                }
+
+                Object.DestroyImmediate(readable);
+            }
         }
 
         [Test]

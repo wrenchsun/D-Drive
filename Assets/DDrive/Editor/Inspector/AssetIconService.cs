@@ -14,7 +14,8 @@ namespace DDrive.Editor.Inspector
     //  - シーンから作成: SceneView(無ければ Main Camera)の見た目を丸ごと撮影 → IconCropWindow で正方形を切り出し → PNG 保存
     //    (撮影は GUI イベントの外(delayCall)で行う。OnInspectorGUI の中で Camera.Render すると URP の RenderPass 内で
     //    衝突して真っ黒になる — 2026-09-10 に実例)
-    // 保存先は `Assets/GameData/Icons/<種別>/<アセット名>_Icon.png`(ツール管理、[10] §3)。
+    // 保存先は `Assets/GameData/Icons/<種別>/<アセット名>_<GUID 先頭 8 桁>_Icon.png`(ツール管理、[10] §3。
+    // 同名 Data どうしがファイルを奪い合わないよう GUID を混ぜる — 2026-09-11 レビュー対応)。
     // 取り込んだ画像は Editor 用途(ミップ無し・非圧縮・最大 512)に設定する。
     public static class AssetIconService
     {
@@ -83,7 +84,7 @@ namespace DDrive.Editor.Inspector
 
         // 自動生成して割り当てる。Prefab のプレビューは非同期なので完了時に onDone(null なら失敗)を呼ぶ。
         // 戻り値: 開始できたか(提供元が無い / 元アセット未設定なら false)。
-        public static bool TryCreateDefaultIcon(AssetDataBase asset, Action<Texture2D> onDone = null, int size = -1, string iconRoot = DefaultIconRoot)
+        public static bool TryCreateDefaultIcon(AssetDataBase asset, Action<Texture2D> onDone = null, int size = -1, string iconRoot = DefaultIconRoot, bool recordUndo = true)
         {
             if (asset == null)
             {
@@ -102,9 +103,10 @@ namespace DDrive.Editor.Inspector
                 try
                 {
                     rendered = render(asset, size);
-                    var icon = rendered != null ? CropAndSave(asset, rendered, new RectInt(0, 0, rendered.width, rendered.height), size, iconRoot) : null;
+                    var icon = rendered != null ? CropAndSave(asset, rendered, new RectInt(0, 0, rendered.width, rendered.height), size, iconRoot, recordUndo) : null;
                     onDone?.Invoke(icon);
-                    return icon != null;
+                    // 一括生成中(_batching)は PNG を書くだけで割り当ては EndBatch なので、icon は null でも「開始した」。
+                    return icon != null || (_batching && rendered != null);
                 }
                 finally
                 {
@@ -125,13 +127,13 @@ namespace DDrive.Editor.Inspector
                 {
                     var r = sprite.textureRect;
                     var crop = new RectInt(Mathf.RoundToInt(r.x), Mathf.RoundToInt(sprite.texture.height - r.yMax), Mathf.RoundToInt(r.width), Mathf.RoundToInt(r.height));
-                    var icon = CropAndSave(asset, sprite.texture, crop, size, iconRoot);
+                    var icon = CropAndSave(asset, sprite.texture, crop, size, iconRoot, recordUndo);
                     onDone?.Invoke(icon);
                     return true;
                 }
                 case Texture2D texture:
                 {
-                    var icon = CropAndSave(asset, texture, new RectInt(0, 0, texture.width, texture.height), size, iconRoot);
+                    var icon = CropAndSave(asset, texture, new RectInt(0, 0, texture.width, texture.height), size, iconRoot, recordUndo);
                     onDone?.Invoke(icon);
                     return true;
                 }
@@ -141,7 +143,7 @@ namespace DDrive.Editor.Inspector
                         Texture2D icon = null;
                         if (asset != null && preview != null)
                         {
-                            icon = CropAndSave(asset, preview, new RectInt(0, 0, preview.width, preview.height), size, iconRoot);
+                            icon = CropAndSave(asset, preview, new RectInt(0, 0, preview.width, preview.height), size, iconRoot, recordUndo);
                         }
                         else if (asset != null)
                         {
@@ -157,9 +159,12 @@ namespace DDrive.Editor.Inspector
         }
 
         // Icon 未設定で自動生成できる Data すべてに生成する(メニュー / 一括用)。戻り値は開始した件数。
+        // 2026-09-11 レビュー対応: 1 件ごとに ImportAsset / SaveAndReimport すると、そのたびに projectChanged と
+        // OnPostprocessAllAssets が飛んで AssetSearch のキャッシュと MaterialIconProvider の Registry が捨てられ、
+        // 件数分の FindAssets が走っていた。PNG の書き出しだけ先に済ませ、インポートと割り当てを最後にまとめて行う。
         public static int CreateDefaultIconsForAll(bool onlyMissing = true)
         {
-            var started = 0;
+            var targets = new List<AssetDataBase>();
             foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
@@ -174,29 +179,117 @@ namespace DDrive.Editor.Inspector
                     continue;
                 }
 
-                if (TryCreateDefaultIcon(data))
+                targets.Add(data);
+            }
+
+            var started = 0;
+            BeginBatch();
+            try
+            {
+                for (var i = 0; i < targets.Count; i++)
                 {
-                    started++;
+                    if (TryCreateDefaultIcon(targets[i]))
+                    {
+                        started++;
+                    }
                 }
+            }
+            finally
+            {
+                EndBatch();
             }
 
             return started;
         }
 
+        // ── 一括書き出し(PNG だけ先に書き、インポート / 割り当ては最後にまとめる) ──
+        private static bool _batching;
+        private static readonly List<(AssetDataBase asset, string path, bool recordUndo)> PendingBatch = new();
+
+        private static void BeginBatch()
+        {
+            _batching = true;
+            PendingBatch.Clear();
+        }
+
+        // 書き出した PNG をまとめてインポートし、Importer 設定と Icon 割り当てを行う。
+        private static void EndBatch()
+        {
+            _batching = false;
+            if (PendingBatch.Count == 0)
+            {
+                return;
+            }
+
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            for (var i = 0; i < PendingBatch.Count; i++)
+            {
+                var (asset, path, recordUndo) = PendingBatch[i];
+                if (asset == null)
+                {
+                    continue;
+                }
+
+                ConfigureImporter(path);
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (texture == null)
+                {
+                    Debug.LogWarning($"[DDrive] '{asset.name}' の初期アイコン: '{path}' をテクスチャとして読み込めませんでした。");
+                    continue;
+                }
+
+                Assign(asset, texture, recordUndo);
+            }
+
+            PendingBatch.Clear();
+        }
+
         // AssetPreview は初回 null(バックグラウンド生成)なので、生成が終わるまで EditorApplication.update で待つ(最大 30 秒。
         // エディタが非フォーカスだと生成が遅いので長め)。
+        // 2026-09-11 レビュー対応: 一括生成で全 Prefab 分の待ちを同時に走らせると AssetPreview のキャッシュが溢れて
+        // どれも生成されないまま 30 秒待つことがあったため、同時に待つのは MaxConcurrentPreviewWaits 件までにして順番待ちさせる。
         private const double PreviewTimeoutSec = 30.0;
+        private const int MaxConcurrentPreviewWaits = 4;
+
+        private static readonly Queue<(UnityEngine.Object target, Action<Texture2D> onReady)> PreviewQueue = new();
+        private static int _activePreviewWaits;
 
         private static void WaitForAssetPreview(UnityEngine.Object target, Action<Texture2D> onReady)
         {
+            PreviewQueue.Enqueue((target, onReady));
+            PumpPreviewQueue();
+        }
+
+        private static void PumpPreviewQueue()
+        {
+            while (_activePreviewWaits < MaxConcurrentPreviewWaits && PreviewQueue.Count > 0)
+            {
+                var (target, onReady) = PreviewQueue.Dequeue();
+                BeginPreviewWait(target, onReady);
+            }
+        }
+
+        private static void BeginPreviewWait(UnityEngine.Object target, Action<Texture2D> onReady)
+        {
+            _activePreviewWaits++;
             var deadline = EditorApplication.timeSinceStartup + PreviewTimeoutSec;
             void Poll()
             {
                 var preview = target != null ? AssetPreview.GetAssetPreview(target) : null;
-                if (preview != null || target == null || EditorApplication.timeSinceStartup > deadline)
+                if (preview == null && target != null && EditorApplication.timeSinceStartup <= deadline)
                 {
-                    EditorApplication.update -= Poll;
+                    return;
+                }
+
+                EditorApplication.update -= Poll;
+                _activePreviewWaits--;
+                try
+                {
                     onReady(preview);
+                }
+                finally
+                {
+                    PumpPreviewQueue();
                 }
             }
 
@@ -358,7 +451,7 @@ namespace DDrive.Editor.Inspector
         }
 
         // 画像の一部(source 内のピクセル矩形、左上原点)を size×size に縮小して PNG 保存し、Icon に割り当てる。
-        public static Texture2D CropAndSave(AssetDataBase asset, Texture2D source, RectInt crop, int size = -1, string iconRoot = DefaultIconRoot)
+        public static Texture2D CropAndSave(AssetDataBase asset, Texture2D source, RectInt crop, int size = -1, string iconRoot = DefaultIconRoot, bool recordUndo = true)
         {
             if (asset == null || source == null)
             {
@@ -389,7 +482,7 @@ namespace DDrive.Editor.Inspector
                 result.ReadPixels(new Rect(0, 0, size, size), 0, 0);
                 result.Apply();
                 RenderTexture.active = previous;
-                return SavePng(asset, result.EncodeToPNG(), iconRoot);
+                return SavePng(asset, result.EncodeToPNG(), iconRoot, recordUndo);
             }
             finally
             {
@@ -402,12 +495,19 @@ namespace DDrive.Editor.Inspector
         }
 
         // PNG バイト列を規約の場所へ書き、インポートして Icon に割り当てる。
-        public static Texture2D SavePng(AssetDataBase asset, byte[] png, string iconRoot = DefaultIconRoot)
+        // 一括生成中(BeginBatch〜EndBatch)は書き出しだけ行い、インポートと割り当ては EndBatch でまとめて行う(戻り値は null)。
+        public static Texture2D SavePng(AssetDataBase asset, byte[] png, string iconRoot = DefaultIconRoot, bool recordUndo = true)
         {
             var folder = IconFolderFor(asset, iconRoot);
             AssetCreationService.EnsureFolder(folder);
-            var path = $"{folder}/{IconFileName(asset)}.png";
+            var path = IconAssetPath(asset, folder, iconRoot);
             File.WriteAllBytes(path, png);
+            if (_batching)
+            {
+                PendingBatch.Add((asset, path, recordUndo));
+                return null;
+            }
+
             AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
             ConfigureImporter(path);
             var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
@@ -419,7 +519,7 @@ namespace DDrive.Editor.Inspector
 
             if (texture != null)
             {
-                Assign(asset, texture);
+                Assign(asset, texture, recordUndo);
             }
 
             return texture;
@@ -440,11 +540,43 @@ namespace DDrive.Editor.Inspector
             return $"{iconRoot}/{type}";
         }
 
-        public static string IconFileName(AssetDataBase asset) => $"{asset.name}_Icon";
-
-        private static void Assign(AssetDataBase asset, Texture2D texture)
+        // 2026-09-11 レビュー対応: 種別が同じで名前も同じ Data(別カテゴリの同名など)が同じ PNG を上書きし合っていたので、
+        // アセットの GUID 先頭 8 桁をファイル名に混ぜて一意にする。GUID が取れない(まだアセットでない)ときは名前だけ。
+        public static string IconFileName(AssetDataBase asset)
         {
-            Undo.RecordObject(asset, "Set Asset Icon");
+            if (asset == null)
+            {
+                return "Icon";
+            }
+
+            var assetPath = AssetDatabase.GetAssetPath(asset);
+            var guid = string.IsNullOrEmpty(assetPath) ? null : AssetDatabase.AssetPathToGUID(assetPath);
+            return string.IsNullOrEmpty(guid) ? $"{asset.name}_Icon" : $"{asset.name}_{guid.Substring(0, 8)}_Icon";
+        }
+
+        // 書き出し先の PNG パス。既にアイコン置き場の PNG が割り当たっているなら、そのファイルを上書きする
+        // (アイコンを作り直してもファイルが増えない。リネーム前の名前で作られた既存アイコンもそのまま使い続ける)。
+        private static string IconAssetPath(AssetDataBase asset, string folder, string iconRoot)
+        {
+            var current = asset != null && asset.Icon != null ? AssetDatabase.GetAssetPath(asset.Icon) : null;
+            if (!string.IsNullOrEmpty(current) && current.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                && current.StartsWith(iconRoot + "/", StringComparison.Ordinal))
+            {
+                return current;
+            }
+
+            return $"{folder}/{IconFileName(asset)}.png";
+        }
+
+        private static void Assign(AssetDataBase asset, Texture2D texture, bool recordUndo = true)
+        {
+            // 2026-09-11 レビュー対応: アセット作成直後の自動生成は recordUndo=false。
+            // 作成自体が Undo 対象でないため、ここで Undo を積むと Ctrl+Z が「アイコン割り当てだけ」を取り消して紛らわしい。
+            if (recordUndo)
+            {
+                Undo.RecordObject(asset, "Set Asset Icon");
+            }
+
             asset.Icon = texture;
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssetIfDirty(asset);

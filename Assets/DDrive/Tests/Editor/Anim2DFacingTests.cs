@@ -32,6 +32,76 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(Vector2.down, Anim2DFacing.ToScreenDirection(Vector2.zero, 45f));
         }
 
+        // ── コンポーネント経路(2026-09-11 レビュー対応) ──
+
+        private static Anim2DFacing MakeFacing()
+        {
+            var go = new GameObject("FacingTest") { hideFlags = HideFlags.HideAndDontSave };
+            var facing = go.AddComponent<Anim2DFacing>();
+            facing.Smoothing = 0f; // 即時反映(EditMode では Awake が走らないので初期値に頼らない)
+            return facing;
+        }
+
+        [Test]
+        public void SetWorldDirection_WithoutCamera_KeepsCurrentDirectionValid()
+        {
+            var facing = MakeFacing();
+            try
+            {
+                facing.CameraRelative = true; // Camera.main が無くてもワールド基準で成立する
+                facing.SetWorldDirection(new Vector3(0f, 0f, 1f));
+                facing.Tick(1f / 60f);
+
+                Assert.AreEqual(1f, facing.CurrentDirection.magnitude, 1e-3f, "正規化された向きが入る");
+            }
+            finally
+            {
+                Object.DestroyImmediate(facing.gameObject);
+            }
+        }
+
+        [Test]
+        public void SetWorldDirection_Zero_KeepsPreviousDirection()
+        {
+            var facing = MakeFacing();
+            try
+            {
+                facing.CameraRelative = false;
+                facing.SetWorldDirection(new Vector3(1f, 0f, 0f));
+                facing.Tick(1f / 60f);
+                var before = facing.CurrentDirection;
+
+                facing.SetWorldDirection(Vector3.zero);
+                facing.Tick(1f / 60f);
+
+                Assert.AreEqual(before.x, facing.CurrentDirection.x, 1e-4f, "0 ベクトルでは向きを変えない");
+                Assert.AreEqual(before.y, facing.CurrentDirection.y, 1e-4f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(facing.gameObject);
+            }
+        }
+
+        // Animator を持たない(= パラメータが引けない)対象でも Tick が例外を投げない(警告 + no-op で続ける)。
+        [Test]
+        public void Tick_WithAnimatorWithoutController_DoesNotThrow()
+        {
+            var facing = MakeFacing();
+            try
+            {
+                facing.Target = facing.gameObject.AddComponent<Animator>();
+                facing.CameraRelative = false;
+                facing.SetWorldDirection(new Vector3(0f, 0f, 1f));
+                Assert.DoesNotThrow(() => facing.Tick(1f / 60f));
+                Assert.DoesNotThrow(() => facing.Tick(1f / 60f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(facing.gameObject);
+            }
+        }
+
         [Test]
         public void Smooth_ZeroSmoothing_IsImmediate()
         {

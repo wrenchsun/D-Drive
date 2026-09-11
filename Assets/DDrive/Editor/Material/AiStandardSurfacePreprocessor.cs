@@ -11,10 +11,16 @@ namespace DDrive.Editor.Materials
     // その後 MayaModelPostprocessor → MayaMaterialImporter が、このシェーダーのまま MaterialData を作る(Common + Arnold 固有の引き継ぎ)。
     public sealed class AiStandardSurfacePreprocessor : AssetPostprocessor
     {
+        // シェーダーが見つからないときのフォールバック用パス(Shader.Find が null でも依存として登録する)。
+        public const string ShaderPath = "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurface.shader";
+
         // テストや一括インポート中の抑止。
         public static bool Suppress;
 
         public override int GetPostprocessOrder() => -950;
+
+        // 写像(AiStandardSurfaceMapper)を変えたときに上げる。上げると対象の FBX が再インポートされる(2026-09-11 レビュー対応)。
+        public override uint GetVersion() => 1;
 
         public void OnPreprocessMaterialDescription(MaterialDescription description, UnityEngine.Material material, AnimationClip[] clips)
         {
@@ -30,6 +36,15 @@ namespace DDrive.Editor.Materials
             }
 
             var shader = Shader.Find(AiStandardSurfaceMapper.ShaderName);
+
+            // シェーダーを依存に登録する。クリーンインポート(シェーダーより先に FBX が処理される)で Shader.Find が
+            // null になっても、シェーダーが入った時点で FBX が再インポートされる(2026-09-11 レビュー対応)。
+            var shaderPath = shader != null ? AssetDatabase.GetAssetPath(shader) : ShaderPath;
+            if (context != null && !string.IsNullOrEmpty(shaderPath))
+            {
+                context.DependsOnSourceAsset(shaderPath);
+            }
+
             if (shader == null)
             {
                 Debug.LogWarning($"[DDrive] {AiStandardSurfaceMapper.ShaderName} が見つからないため、aiStandardSurface '{material.name}' は Unity 標準の割り当てのままです({assetPath})");

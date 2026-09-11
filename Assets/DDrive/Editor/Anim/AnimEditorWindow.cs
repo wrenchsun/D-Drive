@@ -94,7 +94,10 @@ namespace DDrive.Editor.Anim
 
         private void OnDisable()
         {
-            DestroyAnim2DPreview();
+            // Anim2D のプレビュー物(DontSave)はここでは壊さない。Anim2D Editor と共有しており、
+            // ウィンドウを閉じた / ドメインリロードしただけで相手の対象や絵が消えてしまうため(2026-09-11 レビュー対応)。
+            // 破棄はモデル変更 / 対象切替などの明示操作だけ。残った物は次の FindOrCreate が拾い直す。
+            _anim2DPreview = null;
             PrefabStage.prefabStageClosing -= OnPrefabStageClosing;
             PrefabStage.prefabStageOpened -= OnPrefabStageOpened;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
@@ -615,7 +618,7 @@ namespace DDrive.Editor.Anim
             if (changed)
             {
                 // 対象の切り替えで前の対象の配置物・確認用モデルを引き継がない(2026-09-11: 人による確認で判明)。
-                if (data is Anim2DData anim2D)
+                if (data is Anim2DData)
                 {
                     // 2D は Prefab を持たないので確認用モデル(3D)は使わない。前の 3D 対象で配置したモデルも手放す
                     if (_model != null)
@@ -624,13 +627,11 @@ namespace DDrive.Editor.Anim
                         _modelField?.SetValueWithoutNotify(null);
                     }
 
-                    if (_scene != null && _scene.OwnsCurrent)
-                    {
-                        _scene.ReleaseTarget();
-                        _sceneTarget = null;
-                        _sceneTargetField?.SetValueWithoutNotify(null);
-                    }
-
+                    // 手で入れた 3D の Animator も含めて対象を必ず外す(残すと EnsureSceneTarget がそれを返し、
+                    // 3D のリグで 2D の Clip を再生してしまう。2026-09-11 レビュー対応)
+                    _scene?.ReleaseTarget();
+                    _sceneTarget = null;
+                    _sceneTargetField?.SetValueWithoutNotify(null);
                 }
                 else if (_anim2DPreview != null)
                 {
@@ -809,10 +810,17 @@ namespace DDrive.Editor.Anim
             // 目盛り: フレームごと(細)+ ラベル付き(太)。ラベル間隔は幅に応じて間引く(OH_CASE2026_ITAMI の SE タイムライン相当、2026-09-11)。
             var totalFrames = Mathf.Max(1, Mathf.RoundToInt(length * frameRate));
             var labelEvery = Mathf.Max(1, Mathf.CeilToInt(totalFrames / Mathf.Max(1f, bar.width / 40f)));
+            // 細目盛りも 2px 未満に詰まると潰れて描画負荷だけ増えるので同じように間引く(2026-09-11 レビュー対応)。
+            var tickEvery = Mathf.Max(1, Mathf.CeilToInt(totalFrames / Mathf.Max(1f, bar.width / 2f)));
             for (var f = 0; f <= totalFrames; f++)
             {
-                var x = bar.x + bar.width * (f / (float)totalFrames);
                 var labeled = f % labelEvery == 0 || f == totalFrames;
+                if (!labeled && f % tickEvery != 0)
+                {
+                    continue;
+                }
+
+                var x = bar.x + bar.width * (f / (float)totalFrames);
                 EditorGUI.DrawRect(new Rect(x, bar.y - (labeled ? 4f : 2f), 1f, bar.height + (labeled ? 8f : 4f)), new Color(1f, 1f, 1f, labeled ? 0.35f : 0.12f));
                 if (labeled)
                 {

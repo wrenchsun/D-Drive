@@ -8,6 +8,7 @@ namespace DDrive.Runtime.Material
     // [06_material_texture.md] A-2 — シェーダーから固有パラメータ(Specific)を自動解決する(2026-09-11)。
     //   Resolve : シェーダーのプロパティを MaterialCommonNaming の規約でふるい、固有だけを既定値付き ShaderParam にする
     //   Merge   : 既存の Specific を保持したまま、足りないものだけ追加する(値は上書きしない。シェーダーに無くなったものも残す = Validator が警告)
+    //             共通チャンネル名等が Specific に紛れている場合は MergeReport.Conflict に列挙する(残すが警告。2026-09-11)
     // 純関数(Data を書き換えない)。Data への書き込みは Editor 側(MaterialSpecificSync)が Undo 付きで行う。
     // 実行時に呼ばない(Shader.GetProperty* は毎回文字列を作る)。
     public static class MaterialSpecificResolver
@@ -17,6 +18,12 @@ namespace DDrive.Runtime.Material
             public readonly List<string> Added = new();   // 追加した(シェーダーにあるが Specific に無かった)
             public readonly List<string> Kept = new();    // 既に Specific にあった(値は保持)
             public readonly List<string> Stale = new();   // Specific にあるがシェーダーに無い(残す。Validator が警告)
+
+            // 共通チャンネル名 / 描画ステート名 / 予約名 が Specific に入っている(2026-09-11 レビュー対応)。
+            // MaterialManager は Common → Specific の順に流し込むので、これらは Common の値を黙って上書きしてしまう。
+            // データを失わないよう配列には残し、ここに列挙して Validator / エディタが警告する。
+            public readonly List<string> Conflict = new();
+
             public bool Changed => Added.Count > 0;
         }
 
@@ -66,13 +73,21 @@ namespace DDrive.Runtime.Material
                     }
 
                     seen.Add(name);
-                    if (shader == null || shader.FindPropertyIndex(name) >= 0)
+                    var index = shader != null ? shader.FindPropertyIndex(name) : -1;
+                    if (shader == null || index >= 0)
                     {
                         report?.Kept.Add(name);
                     }
                     else
                     {
                         report?.Stale.Add(name);
+                    }
+
+                    // シェーダーにあっても「固有ではない」名前(共通チャンネル / 描画ステート / 予約 / 付随、
+                    // または [HideInInspector] 等のフラグ付き)は Common を上書きするので衝突として報告する。
+                    if (index >= 0 && !MaterialCommonNaming.IsSpecific(name, shader.GetPropertyFlags(index)))
+                    {
+                        report?.Conflict.Add(name);
                     }
                 }
             }
@@ -103,6 +118,20 @@ namespace DDrive.Runtime.Material
             }
 
             return missing;
+        }
+
+        // その名前を Specific に置くと Common(MaterialCommonBinding)の値を上書きしてしまうか(2026-09-11 レビュー対応)。
+        // Manager は Common → Specific の順に流し込むため、共通チャンネル名・描画ステート名・付随名・予約名・
+        // フラグ除外プロパティが Specific にあると、デザイナーが Common で設定した値が黙って消える。
+        public static bool IsConflicting(Shader shader, string property)
+        {
+            if (shader == null || string.IsNullOrEmpty(property))
+            {
+                return false;
+            }
+
+            var index = shader.FindPropertyIndex(property);
+            return index >= 0 && !MaterialCommonNaming.IsSpecific(property, shader.GetPropertyFlags(index));
         }
 
         private static bool Contains(ShaderParam[] list, string property)

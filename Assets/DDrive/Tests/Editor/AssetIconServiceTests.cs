@@ -53,7 +53,10 @@ namespace DDrive.Tests.Editor
                 Assert.AreEqual(128, icon.height);
                 Assert.AreSame(icon, data.Icon, "Icon に割り当てられる");
                 var path = AssetDatabase.GetAssetPath(icon);
-                Assert.AreEqual($"{TestRoot}/Icons/{AssetType.Se}/SE_Icon_Test_Icon.png", path, "<Icons>/<種別>/<アセット名>_Icon.png に保存される");
+                Assert.AreEqual($"{TestRoot}/Icons/{AssetType.Se}/{AssetIconService.IconFileName(data)}.png", path,
+                    "<Icons>/<種別>/<アセット名>_<GUID8>_Icon.png に保存される");
+                StringAssert.StartsWith($"{TestRoot}/Icons/{AssetType.Se}/SE_Icon_Test_", path);
+                StringAssert.EndsWith("_Icon.png", path);
 
                 var importer = AssetImporter.GetAtPath(path) as TextureImporter;
                 Assert.IsNotNull(importer);
@@ -61,7 +64,8 @@ namespace DDrive.Tests.Editor
 
                 // 2 回目は上書き(ファイルが増えない)
                 AssetIconService.CropAndSave(data, shot, crop, 128, TestRoot + "/Icons");
-                Assert.AreEqual(1, AssetDatabase.FindAssets("t:Texture2D", new[] { TestRoot + "/Icons" }).Length);
+                DDrive.Editor.AssetSearch.Invalidate(); // 作りたてのアセットを同じフレームで数えるため([09] §9)
+                Assert.AreEqual(1, DDrive.Editor.AssetSearch.FindAssets("t:Texture2D", new[] { TestRoot + "/Icons" }).Length);
 
                 AssetIconService.Clear(data);
                 Assert.IsNull(data.Icon);
@@ -103,7 +107,7 @@ namespace DDrive.Tests.Editor
                 Assert.IsNotNull(result, "同期で生成される");
                 Assert.AreEqual(32, result.width);
                 Assert.AreSame(result, data.Icon);
-                Assert.AreEqual($"{TestRoot}/Icons/{AssetType.Texture}/TEX_Icon_Test_Icon.png", AssetDatabase.GetAssetPath(result));
+                Assert.AreEqual($"{TestRoot}/Icons/{AssetType.Texture}/{AssetIconService.IconFileName(data)}.png", AssetDatabase.GetAssetPath(result));
             }
             finally
             {
@@ -166,7 +170,51 @@ namespace DDrive.Tests.Editor
             Assert.IsNotNull(result);
             Assert.AreEqual(64, result.width);
             Assert.AreSame(result, data.Icon);
-            Assert.AreEqual($"{TestRoot}/Icons/{AssetType.Material}/MAT_Icon_Test_Icon.png", AssetDatabase.GetAssetPath(result));
+            Assert.AreEqual($"{TestRoot}/Icons/{AssetType.Material}/{AssetIconService.IconFileName(data)}.png", AssetDatabase.GetAssetPath(result));
+
+            // 2026-09-11 レビュー対応: サイズとパスだけだと「背景だけの真っ黒 PNG」でも通ってしまうので、
+            // サムネイル背景色(0.18)と違うピクセルが十分にあること(= 球が描けていること)を見る。
+            AssertHasForeground(result, MaterialThumbnailBackground, 0.05f);
+        }
+
+        // MaterialThumbnailRenderer.BackgroundColor と同じ値。
+        private static readonly Color MaterialThumbnailBackground = new(0.18f, 0.18f, 0.18f, 1f);
+
+        // background と目に見えて違うピクセルが minRatio 以上あることを確かめる。
+        private static void AssertHasForeground(Texture2D texture, Color background, float minRatio)
+        {
+            var path = AssetDatabase.GetAssetPath(texture);
+            // インポート済みテクスチャは Read/Write off なので、いったん RenderTexture 経由で読み取る。
+            var rt = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32);
+            var readable = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
+            try
+            {
+                var previous = RenderTexture.active;
+                Graphics.Blit(texture, rt);
+                RenderTexture.active = rt;
+                readable.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
+                readable.Apply();
+                RenderTexture.active = previous;
+
+                var pixels = readable.GetPixels();
+                var differing = 0;
+                for (var i = 0; i < pixels.Length; i++)
+                {
+                    var d = pixels[i];
+                    if (Mathf.Abs(d.r - background.r) > 0.02f || Mathf.Abs(d.g - background.g) > 0.02f || Mathf.Abs(d.b - background.b) > 0.02f)
+                    {
+                        differing++;
+                    }
+                }
+
+                var ratio = (float)differing / pixels.Length;
+                Assert.Greater(ratio, minRatio, $"'{path}' が背景色だけの画像になっている(異なるピクセル {ratio:P1})");
+            }
+            finally
+            {
+                RenderTexture.ReleaseTemporary(rt);
+                Object.DestroyImmediate(readable);
+            }
         }
 
         private static void EnsureTestRoot()

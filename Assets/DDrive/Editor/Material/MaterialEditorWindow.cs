@@ -24,21 +24,23 @@ namespace DDrive.Editor.Materials
         public const string PreviewRootName = "[D-Drive] Material Preview";
         private const float CompareOffsetX = 1.5f;
 
-        private UnityEngine.Object _target;
-        private bool _lockTarget;
+        // ドメインリロード(スクリプト再コンパイル)を跨いで残すウィンドウ状態は [SerializeField] を付ける
+        // (AnimEditorWindow と同じ方式。2026-09-11 レビュー対応)。VisualElement / PreviewRenderUtility 等は対象外。
+        [SerializeField] private UnityEngine.Object _target;
+        [SerializeField] private bool _lockTarget;
         private MaterialManager _manager;
         private AssetRegistry _registry;
         private PoolService _pool;
         private ModelsManager _modelsManager;
 
         private GameObject _previewRoot;
-        private MaterialPreviewShape _shape = MaterialPreviewShape.Sphere;
-        private ModelData _previewModel;
-        private MaterialData _compareTarget;
+        [SerializeField] private MaterialPreviewShape _shape = MaterialPreviewShape.Sphere;
+        [SerializeField] private ModelData _previewModel;
+        [SerializeField] private MaterialData _compareTarget;
         private MaterialPreviewBuilder.Preview _primaryPreview;
         private MaterialPreviewBuilder.Preview _comparePreview;
 
-        private bool _turntableEnabled;
+        [SerializeField] private bool _turntableEnabled;
         private readonly float _turntableSpeedDegPerSec = 45f;
         private double _lastTickTime;
 
@@ -58,6 +60,7 @@ namespace DDrive.Editor.Materials
 
         private VisualElement _specificRow;
         private Label _specificLabel;
+        private Button _removeConflictsButton;
         private Shader _trackedShader;
 
         // Data の編集(Inspector バインド / Undo)を検知して共有 Material を自動で作り直す(2026-09-11)。
@@ -75,11 +78,13 @@ namespace DDrive.Editor.Materials
         private Label _thumbnailLabel;
         private VisualElement _thumbnailRow;
         private bool _thumbnailDirty;
+        private double _lastThumbnailTime;
+        private const double ThumbnailIntervalSec = 1.0 / 30.0; // 描き直しの最短間隔(2026-09-11 レビュー対応)
 
         // サムネイル比較(2026-09-11): 比較対象があるとき「左右」(2 分割)か「切替」(1 枚を A/B で切替)で見る。
         private enum ThumbnailCompareMode { SideBySide, Toggle }
-        private ThumbnailCompareMode _compareMode = ThumbnailCompareMode.SideBySide;
-        private bool _showCompareInToggle; // 切替モードで B(比較対象)を表示中
+        [SerializeField] private ThumbnailCompareMode _compareMode = ThumbnailCompareMode.SideBySide;
+        [SerializeField] private bool _showCompareInToggle; // 切替モードで B(比較対象)を表示中
         private VisualElement _thumbnailArea;
         private VisualElement _compareColumn;
         private Image _compareThumbnailImage;
@@ -89,9 +94,9 @@ namespace DDrive.Editor.Materials
         private VisualElement _compareControls;
         private Button _compareModeButton;
         private Button _abButton;
-        private float _thumbnailAngle;
-        private float _thumbnailPitch;
-        private float _thumbnailLightDeg;
+        [SerializeField] private float _thumbnailAngle;
+        [SerializeField] private float _thumbnailPitch;
+        [SerializeField] private float _thumbnailLightDeg;
         private const int ThumbnailHeight = 220;
 
         private EnumField _shapeField;
@@ -107,24 +112,9 @@ namespace DDrive.Editor.Materials
 
         public static void Open(TextureData target) => OpenWith(target);
 
-        // MaterialConvertWindow の「Material Editor で比較」から呼ぶ(a=変換元、b=変換で新規作成された Data。無ければ null)。
-        public static void OpenCompare(MaterialData a, MaterialData b)
-        {
-            var window = GetWindow<MaterialEditorWindow>("Material Editor");
-            window.minSize = new Vector2(420, 360);
-            if (a != null)
-            {
-                window.SetTarget(a);
-            }
-
-            window._compareTarget = b;
-            window._compareField?.SetValueWithoutNotify(b);
-            window.UpdateCompareUi();
-            if (a != null)
-            {
-                window.PlacePreview();
-            }
-        }
+        // OpenCompare(MaterialConvertWindow の「Material Editor で比較」用)は、変換ウィンドウ内に見た目比較が入って
+        // ボタンが廃止されたあと呼び出し元が無く、CreateGUI 前に呼ぶと NRE になるため削除した(2026-09-11 レビュー対応)。
+        // 比較は Material Editor の「比較対象」フィールドか、変換ウィンドウ内の A/B 表示で行う。
 
         // 両サムネイル共通の Image(ドラッグ回転は共有の角度を動かす)。
         private Image CreateThumbnailImage()
@@ -293,6 +283,7 @@ namespace DDrive.Editor.Materials
             });
             toolbar.Add(_targetField);
             var lockToggle = new ToolbarToggle { text = "🔒", tooltip = "選択に追従しない" };
+            lockToggle.SetValueWithoutNotify(_lockTarget); // ドメインリロード後の復元
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
             _root.Add(toolbar);
@@ -365,6 +356,13 @@ namespace DDrive.Editor.Materials
                 text = "シェーダーから固有を同期",
                 tooltip = "シェーダーの固有プロパティ(共通チャンネル名の規約に該当しないもの)を既定値で Specific に追加する。既存の値は保持",
             });
+            _removeConflictsButton = new Button(RemoveSpecificConflicts)
+            {
+                text = "共通チャンネルの重複を削除",
+                tooltip = "Specific に紛れている共通チャンネル名 / 描画ステート名を取り除く(そのままだと Common の値を上書きしてしまう)",
+            };
+            _removeConflictsButton.style.display = DisplayStyle.None;
+            _specificRow.Add(_removeConflictsButton);
             _specificLabel = new Label { style = { marginLeft = 4, whiteSpace = WhiteSpace.Normal, flexShrink = 1 } };
             _specificRow.Add(_specificLabel);
             _specificRow.style.display = DisplayStyle.None;
@@ -398,17 +396,20 @@ namespace DDrive.Editor.Materials
             foldout.Add(_shapeField);
 
             _modelField = new ObjectField("プレビュー用モデル") { objectType = typeof(ModelData), allowSceneObjects = false };
+            _modelField.SetValueWithoutNotify(_previewModel);
             _modelField.RegisterValueChangedCallback(evt => _previewModel = evt.newValue as ModelData);
-            _modelField.style.display = DisplayStyle.None;
+            _modelField.style.display = _shape == MaterialPreviewShape.Model ? DisplayStyle.Flex : DisplayStyle.None;
             foldout.Add(_modelField);
 
             var turntableRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
             _turntableToggle = new Toggle("ターンテーブル") { tooltip = "サムネイルと配置したプレビューを Y 軸で回す" };
+            _turntableToggle.SetValueWithoutNotify(_turntableEnabled);
             _turntableToggle.RegisterValueChangedCallback(evt => _turntableEnabled = evt.newValue);
             turntableRow.Add(_turntableToggle);
             foldout.Add(turntableRow);
 
             _lightRotationSlider = new Slider("ライト回転", 0f, 360f) { tooltip = "サムネイルのライトと、シーンの最初の Directional Light を Y 軸で回す(無ければサムネイルのみ)", style = { flexGrow = 1 } };
+            _lightRotationSlider.SetValueWithoutNotify(_thumbnailLightDeg);
             _lightRotationSlider.RegisterValueChangedCallback(evt =>
             {
                 _thumbnailLightDeg = evt.newValue;
@@ -420,6 +421,7 @@ namespace DDrive.Editor.Materials
 
             var compareRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
             _compareField = new ObjectField("比較対象") { objectType = typeof(MaterialData), allowSceneObjects = false, style = { flexGrow = 1 } };
+            _compareField.SetValueWithoutNotify(_compareTarget);
             _compareField.RegisterValueChangedCallback(evt =>
             {
                 _compareTarget = evt.newValue as MaterialData;
@@ -531,13 +533,55 @@ namespace DDrive.Editor.Materials
             }
         }
 
+        // Common を上書きしてしまう項目を Specific から取り除く(2026-09-11 レビュー対応)。
+        private void RemoveSpecificConflicts()
+        {
+            if (_target is not MaterialData mat)
+            {
+                return;
+            }
+
+            var removed = MaterialSpecificSync.RemoveConflicts(mat);
+            if (removed > 0)
+            {
+                _statusLabel.text = $"Specific から共通チャンネル名 {removed} 件を削除しました";
+                _previewDirty = true;
+            }
+
+            UpdateSpecificStatus(mat, null);
+        }
+
+        // Specific に共通チャンネル名が紛れていないか(Common を黙って上書きする)。
+        private static int CountSpecificConflicts(MaterialData mat)
+        {
+            if (mat.Specific == null || mat.Shader == null)
+            {
+                return 0;
+            }
+
+            var count = 0;
+            for (var i = 0; i < mat.Specific.Length; i++)
+            {
+                if (MaterialSpecificResolver.IsConflicting(mat.Shader, mat.Specific[i].Property))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         private void UpdateSpecificStatus(MaterialData mat, MaterialSpecificResolver.MergeReport report)
         {
             if (mat.Shader == null)
             {
                 _specificLabel.text = "Shader 未設定(既定の Lit で生成)";
+                _removeConflictsButton.style.display = DisplayStyle.None;
                 return;
             }
+
+            var conflicts = CountSpecificConflicts(mat);
+            _removeConflictsButton.style.display = conflicts > 0 ? DisplayStyle.Flex : DisplayStyle.None;
 
             if (report != null && report.Changed)
             {
@@ -549,6 +593,10 @@ namespace DDrive.Editor.Materials
             _specificLabel.text = unregistered.Count == 0
                 ? $"固有 {mat.Specific?.Length ?? 0} 件(シェーダーと同期済み)"
                 : $"未登録の固有 {unregistered.Count} 件: {string.Join(", ", unregistered)}";
+            if (conflicts > 0)
+            {
+                _specificLabel.text += $" / Common を上書きする項目 {conflicts} 件";
+            }
         }
 
         // [06] B-3/B-4 — Importer の現状と命名規約(TextureImportProfile)への適合を表示する(3-8)。
@@ -856,7 +904,9 @@ namespace DDrive.Editor.Materials
                 SceneView.RepaintAll();
             }
 
-            if (_target is MaterialData data && data.HasAnims)
+            // MaterialAnim の再生。非フォーカスかつターンテーブル off のときは描き直さない(2026-09-11 レビュー対応。
+            // 以前は EditorApplication.update のたびに PreviewRenderUtility で描いていて、裏に回しても負荷が下がらなかった)。
+            if (_target is MaterialData data && data.HasAnims && (hasFocus || _turntableEnabled))
             {
                 _thumbnailDirty = true;
                 if (_primaryPreview != null)
@@ -865,9 +915,11 @@ namespace DDrive.Editor.Materials
                 }
             }
 
-            if (_thumbnailDirty)
+            // サムネイルの描き直しは 30fps 上限に間引く。
+            if (_thumbnailDirty && now - _lastThumbnailTime >= ThumbnailIntervalSec)
             {
                 _thumbnailDirty = false;
+                _lastThumbnailTime = now;
                 RenderThumbnail();
             }
         }

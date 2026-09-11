@@ -85,8 +85,12 @@ namespace DDrive.Editor.Materials
             SubstanceNormal("_Normal", flipGreen: false),
             // ── Substance Painter: パック済みマスク(Mask チャンネル) ──
             SubstanceLinear("_MaskMap", TextureChannel.Mask, TextureImporterCompression.CompressedHQ),
-            SubstanceLinear("_MetallicSmoothness", TextureChannel.Mask, TextureImporterCompression.CompressedHQ),
-            SubstanceLinear("_SpecularSmoothness", TextureChannel.Mask, TextureImporterCompression.CompressedHQ),
+            // Unity 5 テンプレートの _MetallicSmoothness / _SpecularSmoothness は G(Occlusion)が 0 のため、
+            // D-Drive の Mask(R=Metallic / G=Occlusion / A=Smoothness)としてそのまま使うと _OcclusionMap の
+            // 遮蔽が 0 になり間接光が消える(MaterialCommonBinding は Mask を _OcclusionMap にも割り当てて
+            // _OCCLUSIONMAP を on にする)。Mask に詰め直す前提なので Channel は Other にする(2026-09-11 レビュー対応)。
+            SubstanceLinear("_MetallicSmoothness", TextureChannel.Other, TextureImporterCompression.CompressedHQ),
+            SubstanceLinear("_SpecularSmoothness", TextureChannel.Other, TextureImporterCompression.CompressedHQ),
             // ── Substance Painter: 単チャンネル(リニア。Mask に詰め直す前提なので Channel は Other) ──
             SubstanceLinear("_Metallic", TextureChannel.Other, TextureImporterCompression.Compressed),
             SubstanceLinear("_Roughness", TextureChannel.Other, TextureImporterCompression.Compressed),

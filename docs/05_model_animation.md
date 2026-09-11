@@ -301,7 +301,19 @@ public static class Anim2D
 > - **AnimEditor（3D / 2D 共用）の SE / VFX 連携を OH 側の SE タブと同じ見え方に**: タイムラインの目盛りを 0.5 秒刻みからフレーム刻み（幅に応じてラベルを間引き）に変更、イベントマーカーの直下に時刻 + 対象名（SE / VFX の DisplayName）を表示、秒モードの行にフレーム換算を併記。マーカーのドラッグ・波形・試聴・シーク・Undo は既存どおり
 > - **人による確認で判明した修正（2026-09-11）**: (1) 検出オーバーレイの縮尺を「インポート後サイズ」で計算していて、Max Size で縮小されるテクスチャ（2500×2000 → 2048×1638）で矩形がずれた → Importer の元画像サイズ（`GetSourceTextureWidthAndHeight`）基準に。(2) 「検出プレビュー」後も入力モードが Grid のままで、「生成」が既定の 4×1 Grid で切っていた → 検出時に入力モードを Automatic に切り替える。(3) `SpriteSlicer`（Grid）がセルをインポート後サイズから計算し、`SpriteMetaData.rect`（元画像座標）と食い違っていた → Automatic と同じく Max Size 16384 + 元画像サイズで計算（`SpriteSlicerTests`）
 > - **プレビュー物の引き継ぎ問題（2026-09-11、人による確認で判明）**: (1) Anim Editor で対象を切り替えても `[D-Drive] Anim2D Preview` と確認用モデルが前の対象のまま残り、前の絵が出ていた → `SetTarget` で対象が変わったら、2D なら確認用モデル（ModelData、3D 専用）を None にして配置済みモデルを手放し、既存のプレビュー物は新しい Data の先頭スプライトに差し替える（`Anim2DPreviewObject.FindOrCreate` = Animator を素に戻して先頭 Sprite を当て直す）。3D に切り替えたら 2D の配置物は破棄。(2) Anim2D Editor の「確認用シーンを開く」→「Anim Editor で開く」で両方がプレビュー物を作り、前のものが残った → プレビュー物はシーン内で同名 1 つを共有（`FindExisting` / `FindOrCreate`、`Create` も既存があれば再利用）し、Anim2D Editor は「Anim Editor で開く」の前に再生を止めてドライバの対象だけ手放し（プレビュー物はシーンに残す = スプライトが消えない）、Anim Editor は `SetTarget` で対象の変更有無に関係なくシーンの同名プレビュー物を引き取って対象にする
-> - テスト: `Anim2DFacingTests` 5 件、`Anim2DRetimingTests` 2 件、`SpriteSlicerTests` 1 件
+> - テスト: `Anim2DFacingTests` 8 件、`Anim2DRetimingTests` 4 件、`SpriteSlicerTests` 1 件
+
+### レビュー対応（2026-09-11）
+
+Phase 3（Anim2D）の自前レビューで確認した指摘の修正。挙動の変更点だけを挙げる。
+
+- **プレビュー物の所有権**: `[D-Drive] Anim2D Preview`（DontSave）は Anim2D Editor と Anim Editor の共有物なので、**どちらの `OnDisable` でも破棄しない**（ウィンドウを閉じる / ドメインリロードで相手の対象と絵が消えていた）。破棄は Anim2D Editor の「撤去」ボタンと、Anim Editor の明示操作（確認用モデルの設定変更 / 3D 対象への切替）だけ。「Anim Editor で開く」では所有権も渡す（`_previewObject = null`、状態表示は「Anim Editor に引き渡し済み」）。残った物は次の `FindOrCreate` が拾う。`FindOrCreate` は名前だけで拾うため、再利用時に `HideFlags.DontSave` と SpriteRenderer / Animator を付け直す
+- **リタイミングの安全弁**: `Anim2DData.Retiming` の既定値は `ValueDef.Constant01(1)` で、そのまま「適用」すると全フレームが末尾に潰れ、主 Clip も 4 / 8 方向 Clip も 1 枚のアニメになっていた。`AnimationClipEditorUtility.TryBuildTimes` で**狭義単調増加**を検証し、満たさなければ警告 + no-op（何も書き換えない）。`Anim2DRetiming.ApplyToDirectionClips` にも同じ門を置き、時刻配列は枚数ごとに 1 回だけ作る
+- **保存回数**: `RebuildClip` 内の `AssetDatabase.SaveAssets()` を廃止（1 クリックで 9 回保存していた）。`SetDirty` だけ行い、保存は `ApplyRetiming` の最後に 1 回
+- **Grid 分割**: `SpriteSlicer` が `maxTextureSize` を 16384 に固定して 2 回リインポートしていたのをやめた。`SpriteMetaData.rect` は元画像座標で Unity 側がスケールするため、セル計算に `GetSourceTextureWidthAndHeight` を使えば足りる（ユーザーの Max Size 設定を壊さない。リインポートは spritesheet 書き込み後の 1 回だけ）
+- **Anim Editor の 2D 切替**: 対象が `Anim2DData` になったら、自分で配置したモデルだけでなく**手で入れた 3D の Animator も必ず外す**（3D リグで 2D の Clip を再生していた）
+- **定常経路の alloc**: `Anim2D.SetDirection` にハッシュ版オーバーロード（`SetDirection(Animator, Vector2, int, int)`）と `ResolveFloatParameterHash` を追加。`Anim2DFacing` は対象 / Controller / パラメータ名が変わったときだけ解決し、`Update` では `animator.parameters`（配列 alloc）を踏まない。平滑化 1 ステップは `Tick(dt)` として公開（テスト用）
+- **エディタ UI**: 検出プレビューの高さをウィンドウ幅の変化（`GeometryChangedEvent`）でも取り直す（縦に切れていた）。AnimEditor のタイムラインは細目盛りが 2px 未満に詰まる場合に間引く
 
 ## C-6. Validation
 

@@ -76,7 +76,10 @@ TEXTURE2D(_DetailNormalMap);    SAMPLER(sampler_DetailNormalMap);
 TEXTURE2D(_MetallicGlossMap);   SAMPLER(sampler_MetallicGlossMap);
 TEXTURE2D(_SpecGlossMap);       SAMPLER(sampler_SpecGlossMap);
 TEXTURE2D(_ClearCoatMap);       SAMPLER(sampler_ClearCoatMap);
-// ── Arnold のテクスチャ入力(キーワード無しで常にサンプルする。既定値: Metalness=white / Roughness=black / SpecColor=white / Opacity=white) ──
+// ── Arnold のテクスチャ入力 ──
+// 割り当てがあるときだけキーワード(_METALNESSMAP / _SPECULARROUGHNESSMAP / _SPECULARCOLORMAP / _OPACITYMAP)が on になり、
+// off のときはサンプルしない(2026-09-11 レビュー対応。キーワードは AiStandardSurfaceMapper が設定する)。
+// 宣言は SRP Batcher のため #ifdef で増減させない。
 TEXTURE2D(_MetalnessMap);          SAMPLER(sampler_MetalnessMap);
 TEXTURE2D(_SpecularRoughnessMap);  SAMPLER(sampler_SpecularRoughnessMap);
 TEXTURE2D(_SpecularColorMap);      SAMPLER(sampler_SpecularColorMap);
@@ -116,13 +119,19 @@ inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfa
     half4 albedoAlpha = SampleAlbedoAlpha(uv, TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap));
 
     // opacity / transmission
-    half opacity = _Opacity * SAMPLE_TEXTURE2D(_OpacityMap, sampler_OpacityMap, uv).r * (1.0h - _TransmissionWeight);
+    half opacity = _Opacity * (1.0h - _TransmissionWeight);
+    #ifdef _OPACITYMAP
+    opacity *= SAMPLE_TEXTURE2D(_OpacityMap, sampler_OpacityMap, uv).r;
+    #endif
     outSurfaceData.alpha = Alpha(albedoAlpha.a * opacity, _BaseColor, _Cutoff);
 
     half3 baseColor = albedoAlpha.rgb * _BaseColor.rgb * _BaseWeight;
 
     // metalness
-    half metallic = _Metallic * SAMPLE_TEXTURE2D(_MetalnessMap, sampler_MetalnessMap, uv).r;
+    half metallic = _Metallic;
+    #ifdef _METALNESSMAP
+    metallic *= SAMPLE_TEXTURE2D(_MetalnessMap, sampler_MetalnessMap, uv).r;
+    #endif
     #ifdef _METALLICSPECGLOSSMAP
     metallic *= SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap, uv).r; // Common の Mask(R=Metallic)
     #endif
@@ -132,16 +141,22 @@ inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfa
     #ifdef _METALLICSPECGLOSSMAP
     smoothness *= SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap, uv).a; // Common の Mask(A=Smoothness)
     #endif
+    #ifdef _SPECULARROUGHNESSMAP
     smoothness *= 1.0h - SAMPLE_TEXTURE2D(_SpecularRoughnessMap, sampler_SpecularRoughnessMap, uv).r;
+    #endif
 
     // specular F0(specular ワークフロー)。誘電体 = IOR × weight × color、金属 = baseColor
-    half3 specColor = _SpecularColor.rgb * SAMPLE_TEXTURE2D(_SpecularColorMap, sampler_SpecularColorMap, uv).rgb;
+    half3 specColor = _SpecularColor.rgb;
+    #ifdef _SPECULARCOLORMAP
+    specColor *= SAMPLE_TEXTURE2D(_SpecularColorMap, sampler_SpecularColorMap, uv).rgb;
+    #endif
     half3 dielectricF0 = DielectricF0(_SpecularIOR).xxx * _SpecularWeight * specColor;
     half3 f0 = lerp(dielectricF0, baseColor, metallic);
 
     outSurfaceData.albedo = baseColor * (1.0h - metallic);
     outSurfaceData.albedo = AlphaModulate(outSurfaceData.albedo, outSurfaceData.alpha);
-    outSurfaceData.metallic = half(1.0);
+    // specular ワークフロー(_SPECULAR_SETUP)では metallic は描画に使われないが、デバッグビューが読むので実値を入れる。
+    outSurfaceData.metallic = metallic;
     outSurfaceData.specular = f0;
     outSurfaceData.smoothness = smoothness;
     outSurfaceData.normalTS = SampleNormal(uv, TEXTURE2D_ARGS(_BumpMap, sampler_BumpMap), _BumpScale);
