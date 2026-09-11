@@ -483,6 +483,11 @@ namespace DDrive.Editor.Anim
         // [D-Drive] Anim2D Preview(SpriteRenderer + Animator、DontSave)を配置して対象にする。
         private Animator EnsureAnim2DPreviewTarget(Anim2DData anim2D)
         {
+            if (_scene == null)
+            {
+                return null;
+            }
+
             // シーンに既にあるプレビュー物(Anim2D Editor が置いたもの等)は再利用し、二重配置しない(2026-09-11)。
             var hadPreview = _anim2DPreview != null;
             _anim2DPreview = Anim2DPreviewObject.FindOrCreate(anim2D);
@@ -626,11 +631,6 @@ namespace DDrive.Editor.Anim
                         _sceneTargetField?.SetValueWithoutNotify(null);
                     }
 
-                    // 既にある Anim2D プレビュー物は新しい Data の先頭スプライトに差し替える(前の絵を残さない)
-                    if (_anim2DPreview != null)
-                    {
-                        _anim2DPreview = Anim2DPreviewObject.FindOrCreate(anim2D);
-                    }
                 }
                 else if (_anim2DPreview != null)
                 {
@@ -648,6 +648,13 @@ namespace DDrive.Editor.Anim
 
                 RefreshSceneHelp();
                 RefreshModelInfo();
+            }
+
+            // シーンに既にプレビュー物があれば(Anim2D Editor から引き渡された物、または前の対象の物)、対象の変更有無に
+            // 関係なく新しい Data の先頭スプライトに差し替えて対象にする(前の絵を残さず、スプライトも消さない。2026-09-11)。
+            if (_target is Anim2DData current && (_anim2DPreview != null || Anim2DPreviewObject.FindExisting() != null))
+            {
+                EnsureAnim2DPreviewTarget(current);
             }
 
             RefreshTargetUi();
