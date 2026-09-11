@@ -31,7 +31,7 @@ namespace DDrive.Editor.Materials
         private Shader _target;
         private MaterialConverter.Result _result;
         private readonly List<ShaderConversionTable> _tables = new();
-        private MaterialData _lastCreated; // 直近で「新規 MaterialData として作成」した変換結果
+        private bool _disposed; // OnDisable 済み(delayCall 経由の Refresh で _previewData を作り直さない)
 
         // 比較プレビュー
         private AssetRegistry _registry;
@@ -84,6 +84,7 @@ namespace DDrive.Editor.Materials
 
         private void OnEnable()
         {
+            _disposed = false;
             _registry = EditorAnchorRegistry.Build();
             _manager = new MaterialManager(_registry);
             _lastTickTime = EditorApplication.timeSinceStartup;
@@ -94,6 +95,8 @@ namespace DDrive.Editor.Materials
 
         private void OnDisable()
         {
+            _disposed = true;
+            EditorApplication.delayCall -= Refresh; // 予約済みの Refresh が閉じた後に走って _previewData を作り直さないように
             EditorApplication.projectChanged -= OnProjectChanged;
             ObjectChangeEvents.changesPublished -= OnObjectChanges;
             EditorApplication.update -= OnEditorUpdate;
@@ -303,7 +306,9 @@ namespace DDrive.Editor.Materials
 
         private void Refresh()
         {
-            if (_root == null)
+            // delayCall はウィンドウを閉じた後にも届く。閉じた後に作り直すと、持ち主のいない
+            // HideAndDontSave の MaterialData が残る(2026-09-11 レビュー対応)。
+            if (_disposed || this == null || _root == null)
             {
                 return;
             }
@@ -554,7 +559,6 @@ namespace DDrive.Editor.Materials
                 });
             if (created != null)
             {
-                _lastCreated = created as MaterialData;
                 EditorGUIUtility.PingObject(created);
                 Selection.activeObject = created;
             }

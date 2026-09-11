@@ -106,6 +106,8 @@ namespace DDrive.Editor.Anim2D
 
             // 検出結果をテクスチャの上に重ねて描く(OH_CASE2026_ITAMI の Sprite Animation Tool から取り込み、2026-09-11)。
             _detectPreview = new IMGUIContainer(DrawDetectPreview) { style = { height = 0, marginTop = 2, marginBottom = 4 } };
+            // 高さは幅から決まるので、ウィンドウ幅が変わったら取り直す(検出時だけだと縦に切れる。2026-09-11 レビュー対応)。
+            _detectPreview.RegisterCallback<GeometryChangedEvent>(_ => UpdateDetectPreviewHeight());
             root.Add(_detectPreview);
 
             _directionListContainer = new VisualElement();
@@ -287,14 +289,26 @@ namespace DDrive.Editor.Anim2D
 
             if (_detectedTexture == null)
             {
-                _detectPreview.style.height = 0;
+                SetDetectPreviewHeight(0f);
                 return;
             }
 
             var resolved = _detectPreview.resolvedStyle.width;
             var width = float.IsNaN(resolved) || resolved < 64f ? 320f : resolved; // レイアウト前は NaN
             var scale = Mathf.Min(width / _detectedSourceSize.x, DetectPreviewMaxHeight / _detectedSourceSize.y);
-            _detectPreview.style.height = Mathf.Ceil(_detectedSourceSize.y * scale) + 4f;
+            SetDetectPreviewHeight(Mathf.Ceil(_detectedSourceSize.y * scale) + 4f);
+        }
+
+        // GeometryChangedEvent から呼ばれるので、同じ高さなら何もしない(高さ変更 → 再レイアウトの往復を防ぐ)。
+        private void SetDetectPreviewHeight(float height)
+        {
+            var current = _detectPreview.resolvedStyle.height;
+            if (!float.IsNaN(current) && Mathf.Abs(current - height) < 0.5f)
+            {
+                return;
+            }
+
+            _detectPreview.style.height = height;
             _detectPreview.MarkDirtyRepaint();
         }
 

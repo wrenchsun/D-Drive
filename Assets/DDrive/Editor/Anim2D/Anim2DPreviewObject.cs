@@ -44,12 +44,22 @@ namespace DDrive.Editor.Anim2D
                 return Create(data);
             }
 
-            var animator = existing.GetComponent<Animator>();
-            if (animator != null)
+            // 名前だけで拾っているので、ユーザーが作った同名オブジェクトや壊れかけの物でも成立するよう整える
+            // (DontSave を付け直し、必要なコンポーネントを補う。2026-09-11 レビュー対応)。
+            existing.hideFlags = HideFlags.DontSave;
+            if (existing.GetComponent<SpriteRenderer>() == null)
             {
-                animator.runtimeAnimatorController = null;
-                animator.Rebind();
+                existing.AddComponent<SpriteRenderer>();
             }
+
+            var animator = existing.GetComponent<Animator>();
+            if (animator == null)
+            {
+                animator = existing.AddComponent<Animator>();
+            }
+
+            animator.runtimeAnimatorController = null;
+            animator.Rebind();
 
             ApplyFirstSprite(existing, data);
             return existing;

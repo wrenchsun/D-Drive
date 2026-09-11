@@ -136,6 +136,36 @@ Shader ""DDrive/Tests/SpecificResolver""
             Assert.IsEmpty(MaterialSpecificResolver.Resolve(null));
         }
 
+        // D-Drive 標準シェーダーの固有は「ヘッダーコメントに書いてある通り」であることを実シェーダーで固定する(2026-09-11 レビュー対応)。
+        [Test]
+        public void Resolve_DDriveLit_HasOnlyOcclusionStrength()
+        {
+            var lit = FindShaderOrIgnore("DDrive/Lit");
+
+            var resolved = MaterialSpecificResolver.Resolve(lit);
+
+            CollectionAssert.AreEquivalent(new[] { "_OcclusionStrength" }, resolved.ConvertAll(p => p.Property));
+        }
+
+        [Test]
+        public void Resolve_DDriveUnlit_HasNoSpecific()
+        {
+            var unlit = FindShaderOrIgnore("DDrive/Unlit");
+
+            Assert.IsEmpty(MaterialSpecificResolver.Resolve(unlit), "DDrive/Unlit に固有は無い(ヘッダーコメントの通り)");
+        }
+
+        private static Shader FindShaderOrIgnore(string name)
+        {
+            var shader = Shader.Find(name);
+            if (shader == null)
+            {
+                Assert.Ignore($"シェーダー '{name}' がプロジェクトに無いためスキップ");
+            }
+
+            return shader;
+        }
+
         // --- Merge ---
 
         [Test]
@@ -169,6 +199,49 @@ Shader ""DDrive/Tests/SpecificResolver""
 
             Assert.IsFalse(report.Changed);
             Assert.AreEqual(full.Length, merged.Length);
+        }
+
+        // 共通チャンネル名が Specific に入っていると Common を黙って上書きするので、Merge が Conflict に挙げる(2026-09-11 レビュー対応)。
+        [Test]
+        public void Merge_CommonChannelInSpecific_IsReportedAsConflict()
+        {
+            var lit = FindShaderOrIgnore("DDrive/Lit");
+            var existing = new[]
+            {
+                new ShaderParam { Property = "_Metallic", Value = ParamValue.Of(1f) },   // 共通チャンネル名
+                new ShaderParam { Property = "_Cutoff", Value = ParamValue.Of(0.7f) },   // 描画ステート名
+            };
+            var report = new MaterialSpecificResolver.MergeReport();
+
+            var merged = MaterialSpecificResolver.Merge(existing, lit, report);
+
+            CollectionAssert.Contains(report.Conflict, "_Metallic");
+            CollectionAssert.Contains(report.Conflict, "_Cutoff");
+            Assert.AreEqual("_Metallic", merged[0].Property, "データは失わない(配列には残す)");
+            Assert.IsTrue(MaterialSpecificResolver.IsConflicting(lit, "_Metallic"));
+            Assert.IsFalse(MaterialSpecificResolver.IsConflicting(lit, "_OcclusionStrength"), "本来の固有は衝突ではない");
+        }
+
+        [Test]
+        public void RemoveConflicts_DropsCommonChannels_AndUndoRestores()
+        {
+            var lit = FindShaderOrIgnore("DDrive/Lit");
+            _data.Shader = lit;
+            _data.Specific = new[]
+            {
+                new ShaderParam { Property = "_Metallic", Value = ParamValue.Of(1f) },
+                new ShaderParam { Property = "_OcclusionStrength", Value = ParamValue.Of(0.5f) },
+            };
+            Undo.IncrementCurrentGroup();
+
+            var removed = MaterialSpecificSync.RemoveConflicts(_data);
+
+            Assert.AreEqual(1, removed);
+            Assert.AreEqual(1, _data.Specific.Length);
+            Assert.AreEqual("_OcclusionStrength", _data.Specific[0].Property);
+
+            Undo.PerformUndo();
+            Assert.AreEqual(2, _data.Specific.Length, "Undo で削除前に戻る");
         }
 
         [Test]
@@ -234,6 +307,20 @@ Shader ""DDrive/Tests/SpecificResolver""
 
             var info = results.Find(r => r.Severity == DDrive.Foundation.Validation.ValidationSeverity.Info && r.Message.Contains("_RimColor"));
             Assert.IsNotNull(info.Message, "未登録の固有が Info で報告される");
+        }
+
+        // 2026-09-11 レビュー対応: Specific に共通チャンネル名が入っていると Common を上書きするので Warning。
+        [Test]
+        public void Validator_ReportsCommonChannelInSpecificAsWarning()
+        {
+            _data.Specific = new[] { new ShaderParam { Property = "_BaseColor", Value = ParamValue.Of(Color.green) } };
+
+            var results = new System.Collections.Generic.List<DDrive.Foundation.Validation.ValidationResult>(
+                new MaterialDataValidator().Validate(_data, default));
+
+            var warning = results.Find(r => r.Severity == DDrive.Foundation.Validation.ValidationSeverity.Warning
+                                            && r.Message.Contains("_BaseColor") && r.Message.Contains("上書き"));
+            Assert.IsNotNull(warning.Message, "共通チャンネル名の Specific が Warning で報告される");
         }
     }
 }

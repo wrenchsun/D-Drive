@@ -62,6 +62,19 @@ namespace DDrive.Runtime.Material
                     {
                         yield return ValidationResult.Warning($"Specific '{param.Property}' はシェーダー '{mat.Shader.name}' にありません(無視されます)");
                     }
+                    else if (MaterialSpecificResolver.IsConflicting(mat.Shader, param.Property))
+                    {
+                        // 2026-09-11 レビュー対応: Manager は Common → Specific の順に流し込むので、共通チャンネル名・描画ステート名が
+                        // Specific にあると Common の値を黙って上書きする。FixAction(項目の削除)は Editor の
+                        // MaterialSpecificSync.RemoveConflicts が担当する(Runtime から UnityEditor を参照しないため)。
+                        var classified = MaterialCommonNaming.Classify(param.Property);
+                        var kind = classified == MaterialCommonNaming.Kind.Specific
+                            ? "シェーダー内部用([HideInInspector] 等)"
+                            : MaterialCommonNaming.DisplayName(classified);
+                        yield return ValidationResult.Warning(
+                            $"Specific '{param.Property}' は{kind}名です。Common の値を上書きします" +
+                            "(Material Editor の「共通チャンネルの重複を削除」で取り除けます)");
+                    }
                 }
             }
 

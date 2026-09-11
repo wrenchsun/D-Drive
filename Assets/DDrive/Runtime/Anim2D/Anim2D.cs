@@ -41,6 +41,7 @@ namespace DDrive.Runtime.Anim2D
             => _anim != null ? _anim.PlayData(data, target) : Handle<AnimMarker>.Invalid;
 
         // 再生中でも方向だけ変える(BlendTree の x, y)。
+        // 毎フレーム呼ぶ経路では animator.parameters(配列 alloc)を走査するのでハッシュ版を使うこと。
         public static void SetDirection(Animator target, Vector2 dir, string paramX = "x", string paramY = "y")
         {
             if (target == null || target.runtimeAnimatorController == null || dir.sqrMagnitude <= 0f)
@@ -59,6 +60,36 @@ namespace DDrive.Runtime.Anim2D
                 target.SetFloat(paramY, n.y);
             }
         }
+
+        /// <summary>
+        /// 方向パラメータをハッシュ指定で設定する(定常経路用。alloc なし)。
+        /// ハッシュは <see cref="Animator.StringToHash"/> で事前に求め、存在しないパラメータには 0 を渡す(その軸は書かない)。
+        /// </summary>
+        public static void SetDirection(Animator target, Vector2 dir, int paramXHash, int paramYHash)
+        {
+            if (target == null || target.runtimeAnimatorController == null || dir.sqrMagnitude <= 0f)
+            {
+                return;
+            }
+
+            var n = dir.normalized;
+            if (paramXHash != 0)
+            {
+                target.SetFloat(paramXHash, n.x);
+            }
+
+            if (paramYHash != 0)
+            {
+                target.SetFloat(paramYHash, n.y);
+            }
+        }
+
+        /// <summary>
+        /// Float パラメータが存在すればそのハッシュを、無ければ 0 を返す(<see cref="SetDirection(Animator, Vector2, int, int)"/> 用のキャッシュ作成)。
+        /// animator.parameters を走査するので、対象が決まった時に 1 回だけ呼ぶこと。
+        /// </summary>
+        public static int ResolveFloatParameterHash(Animator target, string name)
+            => target != null && HasParameter(target, name) ? Animator.StringToHash(name) : 0;
 
         public static void SetSpeed(Handle<AnimMarker> h, float speed) => _anim?.SetSpeed(h, speed);
 

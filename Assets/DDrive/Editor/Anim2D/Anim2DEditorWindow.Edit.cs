@@ -82,6 +82,15 @@ namespace DDrive.Editor.Anim2D
                     // Anim Editor に引き渡す(Anim Editor は開いた時点で同名のプレビュー物を引き取る。2026-09-11)
                     StopPreview();
                     _scene?.ReleaseTarget();
+
+                    // 引き渡した後はこちらが所有しない(_previewObject を持ったままだと、このウィンドウを閉じた /
+                    // ドメインリロードした時に Anim Editor が使っている物を壊してしまう。2026-09-11 レビュー対応)
+                    _previewObject = null;
+                    if (_previewStatusLabel != null)
+                    {
+                        _previewStatusLabel.text = "Anim Editor に引き渡し済み";
+                    }
+
                     AnimEditorWindow.Open(_editTarget);
                 }
             })
@@ -261,7 +270,13 @@ namespace DDrive.Editor.Anim2D
             }
 
             var totalSeconds = _editClip.length > 0f ? _editClip.length : _editSprites.Length / Mathf.Max(1f, _editClip.frameRate);
-            var times = AnimationClipEditorUtility.BuildTimes(_editSprites.Length, _placementMode, _editTarget.Retiming);
+
+            // 潰れたカーブ(既定の Constant(1) 等)では主 Clip も方向 Clip も書き換えない(警告 + no-op。2026-09-11 レビュー対応)。
+            if (!AnimationClipEditorUtility.TryBuildTimes(_editSprites.Length, _placementMode, _editTarget.Retiming, out var times))
+            {
+                _editSummaryLabel.text = "リタイミングのカーブが単調増加していないため適用しませんでした(Console 参照)。";
+                return;
+            }
 
             Undo.RecordObject(_editClip, "Anim2D Retiming");
             Undo.RecordObject(_editTarget, "Anim2D Retiming");
@@ -369,9 +384,13 @@ namespace DDrive.Editor.Anim2D
             SceneView.RepaintAll();
         }
 
+        // ウィンドウを閉じる / ドメインリロードの後始末。プレビュー物(DontSave)は破棄しない:
+        // Anim Editor に引き渡している場合も、単にコンパイルが走った場合もあり、消すと相手の対象や絵が消えるため。
+        // 残った物は次の FindOrCreate が拾い直す。明示的な破棄は「撤去」ボタンだけ(2026-09-11 レビュー対応)。
         private void DisposeScenePreview()
         {
-            RemovePreview();
+            StopPreview();
+            _previewObject = null;
             _scene?.Dispose();
             _scene = null;
         }

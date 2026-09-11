@@ -128,6 +128,54 @@ namespace DDrive.Tests.Editor
             }
         }
 
+        // 9-slice の境界はテクスチャサイズに丸めてから Importer と比べる(丸めないと毎回「食い違い → 再インポート」になる)。
+        [Test]
+        public void ClampBorder_FitsInsideTexture()
+        {
+            Assert.AreEqual(new Vector4(2, 1, 3, 2), TextureDataImporterSync.ClampBorder(new Vector4(2, 1, 3, 2), 8, 8), "収まっていればそのまま");
+            Assert.AreEqual(new Vector4(8, 0, 0, 0), TextureDataImporterSync.ClampBorder(new Vector4(100, 0, 100, 0), 8, 8), "左 + 右 ≤ 幅");
+            Assert.AreEqual(new Vector4(0, 8, 0, 0), TextureDataImporterSync.ClampBorder(new Vector4(0, 100, 0, 100), 8, 8), "下 + 上 ≤ 高さ");
+            Assert.AreEqual(Vector4.zero, TextureDataImporterSync.ClampBorder(new Vector4(-5, -5, -5, -5), 8, 8), "負の値は 0");
+        }
+
+        // AutoApply=true の通常経路(変更イベント → delayCall)。1 回適用したら収束して、2 回目は再インポートしない(2026-09-11)。
+        [Test]
+        public void PendingApply_Converges_AndPropertyEditDoesNotReimport()
+        {
+            var dataPath = TempFolder + "/SyncConverge.asset";
+            TextureDataImporterSync.AutoApply = true;
+            var asset = ScriptableObject.CreateInstance<TextureData>();
+            AssetDatabase.CreateAsset(asset, dataPath);
+            try
+            {
+                var data = AssetDatabase.LoadAssetAtPath<TextureData>(dataPath);
+                Undo.RecordObject(data, "Edit TextureData");
+                data.Texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PlainPath);
+                data.Usage = TextureUsage.UI;
+                data.SliceBorder = new Vector4(2, 1, 3, 2);
+                EditorUtility.SetDirty(data);
+
+                // 変更イベントは EditMode テストでは届かないので、積む → 処理する、を直接呼ぶ。
+                TextureDataImporterSync.MarkPending(data);
+                TextureDataImporterSync.ProcessPending();
+                Assert.AreEqual(TextureImporterType.Sprite, ImporterOf(PlainPath).textureType);
+
+                // DisplayName を変えただけ(Importer に関係ない編集)では再インポートする差分が出ない
+                Undo.RecordObject(data, "Rename");
+                data.DisplayName = "名前だけ変更";
+                EditorUtility.SetDirty(data);
+                TextureDataImporterSync.MarkPending(data);
+                TextureDataImporterSync.ProcessPending();
+
+                Assert.IsEmpty(TextureDataImporterSync.Apply(data), "2 回目は差分なし(収束している)");
+            }
+            finally
+            {
+                TextureDataImporterSync.AutoApply = false;
+                AssetDatabase.DeleteAsset(dataPath);
+            }
+        }
+
         [Test]
         public void NoTexture_DoesNothing()
         {

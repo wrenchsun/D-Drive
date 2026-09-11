@@ -83,7 +83,9 @@ namespace DDrive.Editor.AssetBrowser
                 {
                     if (created != null && created.Icon == null)
                     {
-                        AssetIconService.TryCreateDefaultIcon(created);
+                        // 作成自体が Undo 対象でないので、ここで Undo を積まない(積むと Ctrl+Z が
+                        // 「アイコン割り当て」だけを取り消してアセットが残る。2026-09-11 レビュー対応)。
+                        AssetIconService.TryCreateDefaultIcon(created, recordUndo: false);
                     }
                 };
             }

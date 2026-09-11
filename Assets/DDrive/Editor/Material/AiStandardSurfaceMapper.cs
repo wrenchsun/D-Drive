@@ -43,40 +43,27 @@ namespace DDrive.Editor.Materials
             }
             else
             {
-                material.SetColor("_BaseColor", GetColor(src, "baseColor", Color.gray * 1.6f)); // Arnold 既定 0.8
+                // Arnold 既定 0.8。Color の乗算はアルファも掛かる(a=1.6 になり Alpha() でクリップされなくなる)ので rgb だけ書く。
+                material.SetColor("_BaseColor", GetColor(src, "baseColor", new Color(0.8f, 0.8f, 0.8f, 1f)));
             }
 
             material.SetFloat("_DiffuseRoughness", GetFloat(src, "diffuseRoughness", 0f));
 
             // ── Metalness ──
-            if (SetTexture(src, material, "metalness", "_MetalnessMap"))
-            {
-                material.SetFloat("_Metallic", 1f);
-            }
-            else
-            {
-                material.SetFloat("_Metallic", GetFloat(src, "metalness", 0f));
-            }
+            // テクスチャの有無はキーワードで伝える(シェーダー側は #ifdef でサンプルを省く。_NORMALMAP / _EMISSION と同じ扱い)。
+            var hasMetalnessMap = SetTexture(src, material, "metalness", "_MetalnessMap");
+            SetKeyword(material, "_METALNESSMAP", hasMetalnessMap);
+            material.SetFloat("_Metallic", hasMetalnessMap ? 1f : GetFloat(src, "metalness", 0f));
 
             // ── Specular ──
             material.SetFloat("_SpecularWeight", GetFloat(src, "specular", 1f));
-            if (SetTexture(src, material, "specularColor", "_SpecularColorMap"))
-            {
-                material.SetColor("_SpecularColor", Color.white);
-            }
-            else
-            {
-                material.SetColor("_SpecularColor", GetColor(src, "specularColor", Color.white));
-            }
+            var hasSpecularColorMap = SetTexture(src, material, "specularColor", "_SpecularColorMap");
+            SetKeyword(material, "_SPECULARCOLORMAP", hasSpecularColorMap);
+            material.SetColor("_SpecularColor", hasSpecularColorMap ? Color.white : GetColor(src, "specularColor", Color.white));
 
-            if (SetTexture(src, material, "specularRoughness", "_SpecularRoughnessMap"))
-            {
-                material.SetFloat("_Smoothness", 1f);
-            }
-            else
-            {
-                material.SetFloat("_Smoothness", 1f - Mathf.Clamp01(GetFloat(src, "specularRoughness", 0.2f)));
-            }
+            var hasSpecularRoughnessMap = SetTexture(src, material, "specularRoughness", "_SpecularRoughnessMap");
+            SetKeyword(material, "_SPECULARROUGHNESSMAP", hasSpecularRoughnessMap);
+            material.SetFloat("_Smoothness", hasSpecularRoughnessMap ? 1f : 1f - Mathf.Clamp01(GetFloat(src, "specularRoughness", 0.2f)));
 
             material.SetFloat("_SpecularIOR", GetFloat(src, "specularIOR", 1.5f));
             material.SetFloat("_SpecularAnisotropy", GetFloat(src, "specularAnisotropy", 0f));
@@ -97,7 +84,9 @@ namespace DDrive.Editor.Materials
             var emissionColor = Color.black;
             if (emission > 0f)
             {
-                emissionColor = SetTexture(src, material, "emissionColor", "_EmissionMap") ? Color.white * emission : GetColor(src, "emissionColor", Color.white) * emission;
+                // Color × float はアルファも掛かるので rgb だけ乗算する(アルファは 1 固定)。
+                var baseEmission = SetTexture(src, material, "emissionColor", "_EmissionMap") ? Color.white : GetColor(src, "emissionColor", Color.white);
+                emissionColor = new Color(baseEmission.r * emission, baseEmission.g * emission, baseEmission.b * emission, 1f);
             }
 
             material.SetColor("_EmissionColor", emissionColor);
@@ -106,6 +95,7 @@ namespace DDrive.Editor.Materials
 
             // ── Opacity / Transmission ──
             var hasOpacityMap = SetTexture(src, material, "opacity", "_OpacityMap");
+            SetKeyword(material, "_OPACITYMAP", hasOpacityMap);
             var opacity = 1f;
             if (!hasOpacityMap && src.TryGetColor("opacity", out var opacityColor))
             {

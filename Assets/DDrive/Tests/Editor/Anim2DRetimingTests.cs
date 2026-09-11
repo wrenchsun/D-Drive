@@ -1,8 +1,10 @@
+using System.Text.RegularExpressions;
 using DDrive.Editor.Anim2D;
+using DDrive.Foundation.Values;
 using DDrive.Runtime.Anim2D;
 using NUnit.Framework;
-using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace DDrive.Tests.Editor
 {
@@ -43,7 +45,7 @@ namespace DDrive.Tests.Editor
             for (var i = 0; i < frames; i++)
             {
                 sprites[i] = _sprites[i % _sprites.Length];
-                times[i] = length * i / frames;
+                times[i] = (float)i / frames; // RebuildClip は正規化時刻(0..1)を受け取る
             }
 
             Assert.IsTrue(AnimationClipEditorUtility.RebuildClip(clip, sprites, times, length));
@@ -79,6 +81,59 @@ namespace DDrive.Tests.Editor
                 Object.DestroyImmediate(dir0);
                 Object.DestroyImmediate(dir90);
                 Object.DestroyImmediate(odd);
+            }
+        }
+
+        // 既定の Retiming(Constant01(1))では全フレームが末尾に潰れるので、1 本も書き換えず警告だけ出す(2026-09-11 レビュー対応)。
+        [Test]
+        public void ApplyToDirectionClips_ConstantRetiming_WarnsAndLeavesClipsUntouched()
+        {
+            var main = MakeClip(4, 1f);
+            var dir0 = MakeClip(4, 1f);
+            var data = ScriptableObject.CreateInstance<Anim2DData>();
+            data.Clip = main;
+            data.DirectionClips = new[] { main, dir0 };
+            data.Retiming = ValueDef.Constant01(1f);
+            try
+            {
+                LogAssert.Expect(LogType.Warning, new Regex("単調増加"));
+                var applied = Anim2DRetiming.ApplyToDirectionClips(data, PlacementMode.Retiming, 2f, 4, out var skipped);
+
+                Assert.AreEqual(0, applied);
+                Assert.AreEqual(0, skipped);
+                Assert.IsTrue(AnimationClipEditorUtility.LoadSprites(dir0, out _, out var times0));
+                Assert.AreEqual(0.25f, times0[1], 1e-3f, "元の等間隔(1 秒 / 4 枚)のまま");
+            }
+            finally
+            {
+                Object.DestroyImmediate(data);
+                Object.DestroyImmediate(main);
+                Object.DestroyImmediate(dir0);
+            }
+        }
+
+        // 長さが 1 秒でない Clip でも、正規化時刻 x totalSeconds で配置される。
+        [Test]
+        public void ApplyToDirectionClips_NonUnitLength_ScalesTimes()
+        {
+            var main = MakeClip(4, 0.5f);
+            var dir0 = MakeClip(4, 0.5f);
+            var data = ScriptableObject.CreateInstance<Anim2DData>();
+            data.Clip = main;
+            data.DirectionClips = new[] { main, dir0 };
+            try
+            {
+                Assert.AreEqual(1, Anim2DRetiming.ApplyToDirectionClips(data, PlacementMode.Uniform, 0.5f, 4, out var skipped));
+                Assert.AreEqual(0, skipped);
+                Assert.IsTrue(AnimationClipEditorUtility.LoadSprites(dir0, out _, out var times0));
+                Assert.AreEqual(0.125f, times0[1], 1e-3f, "0.5 秒 / 4 枚 = 0.125 秒間隔");
+                Assert.AreEqual(0.375f, times0[3], 1e-3f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(data);
+                Object.DestroyImmediate(main);
+                Object.DestroyImmediate(dir0);
             }
         }
 

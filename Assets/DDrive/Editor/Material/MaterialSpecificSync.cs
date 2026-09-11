@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using DDrive.Foundation.Data;
 using DDrive.Runtime.Material;
 using UnityEditor;
 using UnityEngine;
@@ -22,6 +24,15 @@ namespace DDrive.Editor.Materials
             }
 
             var merged = MaterialSpecificResolver.Merge(data.Specific, data.Shader, report);
+
+            // 共通チャンネル名等が Specific に紛れていると Common を黙って上書きするので警告する(2026-09-11 レビュー対応)。
+            // 値は消さない(データを失わない)。取り除くのは RemoveConflicts。
+            if (report.Conflict.Count > 0)
+            {
+                Debug.LogWarning($"[DDrive] '{data.name}' の Specific に共通チャンネル / 描画ステート名が含まれています(Common の値を上書きします): " +
+                                 string.Join(", ", report.Conflict));
+            }
+
             if (!report.Changed)
             {
                 return report;
@@ -35,6 +46,45 @@ namespace DDrive.Editor.Materials
             data.Specific = merged;
             EditorUtility.SetDirty(data);
             return report;
+        }
+
+        public const string RemoveConflictsUndoName = "Remove Common Channel Overrides";
+
+        // Common を上書きしてしまう項目(共通チャンネル / 描画ステート / 予約 / 付随 / フラグ除外)を Specific から取り除く。
+        // 戻り値は取り除いた件数。Validator の警告に対する手当て(2026-09-11 レビュー対応)。
+        public static int RemoveConflicts(MaterialData data, bool recordUndo = true)
+        {
+            if (data == null || data.Shader == null || data.Specific == null || data.Specific.Length == 0)
+            {
+                return 0;
+            }
+
+            var kept = new List<ShaderParam>(data.Specific.Length);
+            var removed = 0;
+            for (var i = 0; i < data.Specific.Length; i++)
+            {
+                if (MaterialSpecificResolver.IsConflicting(data.Shader, data.Specific[i].Property))
+                {
+                    removed++;
+                    continue;
+                }
+
+                kept.Add(data.Specific[i]);
+            }
+
+            if (removed == 0)
+            {
+                return 0;
+            }
+
+            if (recordUndo)
+            {
+                Undo.RecordObject(data, RemoveConflictsUndoName);
+            }
+
+            data.Specific = kept.ToArray();
+            EditorUtility.SetDirty(data);
+            return removed;
         }
 
         public static string Describe(MaterialSpecificResolver.MergeReport report)
@@ -53,6 +103,11 @@ namespace DDrive.Editor.Materials
             if (report.Stale.Count > 0)
             {
                 text += "\nシェーダーに無い(残しています): " + string.Join(", ", report.Stale);
+            }
+
+            if (report.Conflict.Count > 0)
+            {
+                text += "\n共通チャンネル名のため Common を上書きします(残しています): " + string.Join(", ", report.Conflict);
             }
 
             return text;

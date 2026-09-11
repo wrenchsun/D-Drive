@@ -22,9 +22,18 @@ namespace DDrive.Editor.Materials
         public static bool AutoApply = true;
 
         private static readonly HashSet<int> Pending = new();
+        private static readonly List<int> PendingBuffer = new();
+        private static bool _scheduled;
+
+        // 規約との食い違い警告を出した TextureData(1 アセットにつき 1 回だけ出す。プロジェクト変更・ドメインリロードで戻す)。
+        private static readonly HashSet<int> WarnedConflicts = new();
 
         [InitializeOnLoadMethod]
-        private static void Register() => ObjectChangeEvents.changesPublished += OnChanges;
+        private static void Register()
+        {
+            ObjectChangeEvents.changesPublished += OnChanges;
+            EditorApplication.projectChanged += WarnedConflicts.Clear;
+        }
 
         private static void OnChanges(ref ObjectChangeEventStream stream)
         {
@@ -41,20 +50,55 @@ namespace DDrive.Editor.Materials
                 }
 
                 stream.GetChangeAssetObjectPropertiesEvent(i, out var evt);
-                if (EditorUtility.InstanceIDToObject(evt.instanceId) is TextureData data && Pending.Add(evt.instanceId))
+                if (EditorUtility.InstanceIDToObject(evt.instanceId) is TextureData)
                 {
-                    // 変更イベントの中で Reimport しない(delayCall)。同じフレームの多重変更は 1 回にまとめる。
-                    var id = evt.instanceId;
-                    EditorApplication.delayCall += () =>
-                    {
-                        Pending.Remove(id);
-                        if (data != null)
-                        {
-                            Apply(data);
-                        }
-                    };
+                    MarkPending(evt.instanceId);
                 }
             }
+        }
+
+        // 次の delayCall で Apply する対象に積む(テストから直接呼べるように公開している)。
+        public static void MarkPending(TextureData data)
+        {
+            if (data != null)
+            {
+                MarkPending(data.GetInstanceID());
+            }
+        }
+
+        private static void MarkPending(int instanceId)
+        {
+            if (!Pending.Add(instanceId) || _scheduled)
+            {
+                return;
+            }
+
+            // 変更イベントの中で Reimport しない(delayCall)。同じフレームの多重変更は 1 回にまとめる。
+            _scheduled = true;
+            EditorApplication.delayCall += ProcessPending;
+        }
+
+        // 積まれている TextureData に Apply する。通常は delayCall から呼ばれる(テストは直接呼ぶ)。
+        public static void ProcessPending()
+        {
+            _scheduled = false;
+            if (Pending.Count == 0)
+            {
+                return;
+            }
+
+            PendingBuffer.Clear();
+            PendingBuffer.AddRange(Pending);
+            Pending.Clear();
+            for (var i = 0; i < PendingBuffer.Count; i++)
+            {
+                if (EditorUtility.InstanceIDToObject(PendingBuffer[i]) is TextureData data)
+                {
+                    Apply(data);
+                }
+            }
+
+            PendingBuffer.Clear();
         }
 
         // Data の設定を Importer に書く。戻り値は変更点(空なら既に一致 / 対象外)。profile はテスト用の差し替え(通常は FindOrDefault)。
@@ -83,7 +127,12 @@ namespace DDrive.Editor.Materials
             var desiredType = DesiredType(data, importer.textureType);
             if (hasRule && rule.Type != desiredType)
             {
-                Debug.LogWarning($"[DDrive] TextureData '{data.name}': Usage/Channel から求まる Texture Type({desiredType})がファイル名規約 '{rule.Name}'({rule.Type})と食い違うため適用しません。ファイル名か Data のどちらかを合わせてください: {path}");
+                // 同じ Data を編集するたびに出さない(1 アセットにつき 1 回。2026-09-11 レビュー対応)。
+                if (WarnedConflicts.Add(data.GetInstanceID()))
+                {
+                    Debug.LogWarning($"[DDrive] TextureData '{data.name}': Usage/Channel から求まる Texture Type({desiredType})がファイル名規約 '{rule.Name}'({rule.Type})と食い違うため適用しません。ファイル名か Data のどちらかを合わせてください: {path}");
+                }
+
                 return changes;
             }
 
@@ -120,10 +169,15 @@ namespace DDrive.Editor.Materials
                     changes.Add("Sprite Mode → Single");
                 }
 
-                if (importer.spriteBorder != data.SliceBorder)
+                // テクスチャより大きい境界は Importer 側で切り詰められるので、先に同じ形に丸めてから比べる。
+                // 丸めずに書くと「書く → 切り詰められる → 次も食い違う」で毎回再インポートになる(2026-09-11 レビュー対応)。
+                // 境界の座標空間は元画像サイズ(Max Size で縮小されたテクスチャの大きさではない。SpriteSlicer と同じ)。
+                importer.GetSourceTextureWidthAndHeight(out var sourceWidth, out var sourceHeight);
+                var border = ClampBorder(data.SliceBorder, sourceWidth, sourceHeight);
+                if (importer.spriteBorder != border)
                 {
-                    importer.spriteBorder = data.SliceBorder;
-                    changes.Add($"Sprite Border → {data.SliceBorder}");
+                    importer.spriteBorder = border;
+                    changes.Add($"Sprite Border → {border}");
                 }
             }
 
@@ -146,6 +200,16 @@ namespace DDrive.Editor.Materials
             }
 
             return changes;
+        }
+
+        // 9-slice の境界(x=左 / y=下 / z=右 / w=上)をテクスチャサイズに収める。左+右 ≤ 幅、下+上 ≤ 高さ。
+        public static Vector4 ClampBorder(Vector4 border, int width, int height)
+        {
+            var left = Mathf.Clamp(Mathf.Round(border.x), 0f, width);
+            var bottom = Mathf.Clamp(Mathf.Round(border.y), 0f, height);
+            var right = Mathf.Clamp(Mathf.Round(border.z), 0f, width - left);
+            var top = Mathf.Clamp(Mathf.Round(border.w), 0f, height - bottom);
+            return new Vector4(left, bottom, right, top);
         }
 
         private static bool HasAnySprite(string path)

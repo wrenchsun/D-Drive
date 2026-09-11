@@ -144,6 +144,11 @@ Shader "DDrive/AiStandardSurface"
             #pragma shader_feature_local_fragment _OCCLUSIONMAP
             #pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
+            // Arnold のテクスチャ入力(割り当てがあるときだけサンプルする。2026-09-11 レビュー対応)
+            #pragma shader_feature_local_fragment _METALNESSMAP
+            #pragma shader_feature_local_fragment _SPECULARROUGHNESSMAP
+            #pragma shader_feature_local_fragment _SPECULARCOLORMAP
+            #pragma shader_feature_local_fragment _OPACITYMAP
 
             // -------------------------------------
             // Universal Pipeline keywords
@@ -280,6 +285,11 @@ Shader "DDrive/AiStandardSurface"
             #pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
             #pragma shader_feature_local _RECEIVE_SHADOWS_OFF
+            // Arnold のテクスチャ入力(2026-09-11 レビュー対応)
+            #pragma shader_feature_local_fragment _METALNESSMAP
+            #pragma shader_feature_local_fragment _SPECULARROUGHNESSMAP
+            #pragma shader_feature_local_fragment _SPECULARCOLORMAP
+            #pragma shader_feature_local_fragment _OPACITYMAP
 
             // -------------------------------------
             // Universal Pipeline keywords
@@ -440,6 +450,11 @@ Shader "DDrive/AiStandardSurface"
             #pragma shader_feature_local_fragment _METALLICSPECGLOSSMAP
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _SPECGLOSSMAP
+            // Arnold のテクスチャ入力(Meta も InitializeStandardLitSurfaceData を通る。2026-09-11 レビュー対応)
+            #pragma shader_feature_local_fragment _METALNESSMAP
+            #pragma shader_feature_local_fragment _SPECULARROUGHNESSMAP
+            #pragma shader_feature_local_fragment _SPECULARCOLORMAP
+            #pragma shader_feature_local_fragment _OPACITYMAP
             #pragma shader_feature EDITOR_VISUALIZATION
 
             // -------------------------------------

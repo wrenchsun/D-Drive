@@ -15,7 +15,8 @@ namespace DDrive.Runtime.Material
     //   Mask(RGBA規約) : _MetallicGlossMap + _OcclusionMap(URP Lit: R=Metallic, A=Smoothness, G=Occlusion)、_MaskMap(HDRP)
     //                    定数: _Metallic / _Smoothness(_Glossiness)
     //   Emission       : _EmissionMap / _EmissionColor(× Intensity)+ keyword _EMISSION
-    //   Blend          : URP は _Surface/_Blend/_SrcBlend/_DstBlend/_ZWrite/_AlphaClip/_Cutoff + keyword、Built-in は _Mode 相当を直接設定
+    //   Blend          : URP は _Surface/_Blend/_SrcBlend/_DstBlend/_SrcBlendAlpha/_DstBlendAlpha/_ZWrite/_AlphaClip/_AlphaToMask/_Cutoff
+    //                    + keyword、Built-in は _Mode 相当を直接設定
     //   DoubleSided    : _Cull(0=Off / 2=Back)
     public static class MaterialCommonBinding
     {
@@ -39,6 +40,9 @@ namespace DDrive.Runtime.Material
         private static readonly int Blend = Shader.PropertyToID("_Blend");
         private static readonly int SrcBlend = Shader.PropertyToID("_SrcBlend");
         private static readonly int DstBlend = Shader.PropertyToID("_DstBlend");
+        private static readonly int SrcBlendAlpha = Shader.PropertyToID("_SrcBlendAlpha");
+        private static readonly int DstBlendAlpha = Shader.PropertyToID("_DstBlendAlpha");
+        private static readonly int AlphaToMask = Shader.PropertyToID("_AlphaToMask");
         private static readonly int ZWrite = Shader.PropertyToID("_ZWrite");
         private static readonly int AlphaClip = Shader.PropertyToID("_AlphaClip");
         private static readonly int Cutoff = Shader.PropertyToID("_Cutoff");
@@ -165,6 +169,26 @@ namespace DDrive.Runtime.Material
             {
                 material.SetFloat(SrcBlend, transparent ? (float)BlendMode.SrcAlpha : (float)BlendMode.One);
                 material.SetFloat(DstBlend, transparent ? (float)BlendMode.OneMinusSrcAlpha : (float)BlendMode.Zero);
+            }
+
+            // アルファチャンネルのブレンド(2026-09-11 レビュー対応)。DDrive/Lit・DDrive/Unlit は URP 17.3 と同じく
+            // `Blend [_SrcBlend][_DstBlend], [_SrcBlendAlpha][_DstBlendAlpha]` で書くため、ここを設定しないとシェーダー既定の
+            // One/Zero のままになり、半透明マテリアルが描画先(サムネイル / アイコン PNG)のアルファを 0 で塗り潰して穴が開く。
+            // URP の BaseShaderGUI.SetupMaterialBlendMode と同じ値にする。
+            if (material.HasProperty(SrcBlendAlpha))
+            {
+                material.SetFloat(SrcBlendAlpha, (float)BlendMode.One);
+            }
+
+            if (material.HasProperty(DstBlendAlpha))
+            {
+                material.SetFloat(DstBlendAlpha, transparent ? (float)BlendMode.OneMinusSrcAlpha : (float)BlendMode.Zero);
+            }
+
+            // Opaque + AlphaClip のときだけ AlphaToMask(URP と同じ)。Transparent では切る。
+            if (material.HasProperty(AlphaToMask))
+            {
+                material.SetFloat(AlphaToMask, cutout && !transparent ? 1f : 0f);
             }
 
             if (material.HasProperty(ZWrite))

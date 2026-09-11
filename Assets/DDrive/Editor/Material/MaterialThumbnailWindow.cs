@@ -20,13 +20,14 @@ namespace DDrive.Editor.Materials
     {
         private const float TurntableSpeedDegPerSec = 45f;
 
-        private MaterialData _target;
-        private MaterialPreviewShape _shape = MaterialPreviewShape.Sphere;
-        private bool _turntable;
-        private float _angle;
-        private float _pitch;
-        private float _lightDeg;
-        private bool _lockTarget;
+        // ドメインリロードを跨いで残す状態(2026-09-11 レビュー対応)。
+        [SerializeField] private MaterialData _target;
+        [SerializeField] private MaterialPreviewShape _shape = MaterialPreviewShape.Sphere;
+        [SerializeField] private bool _turntable;
+        [SerializeField] private float _angle;
+        [SerializeField] private float _pitch;
+        [SerializeField] private float _lightDeg;
+        [SerializeField] private bool _lockTarget;
 
         private AssetRegistry _registry;
         private MaterialManager _manager;
@@ -35,6 +36,8 @@ namespace DDrive.Editor.Materials
         private bool _materialDirty;
         private double _lastTickTime;
         private double _lastRebuildTime;
+        private double _lastRenderTime;
+        private const double RenderIntervalSec = 1.0 / 30.0; // 描き直しの最短間隔(2026-09-11 レビュー対応)
 
         private ScrollView _root;
         private ObjectField _targetField;
@@ -107,6 +110,7 @@ namespace DDrive.Editor.Materials
             _targetField.RegisterValueChangedCallback(evt => SetTarget(evt.newValue as MaterialData));
             toolbar.Add(_targetField);
             var lockToggle = new ToolbarToggle { text = "🔒", tooltip = "選択に追従しない" };
+            lockToggle.SetValueWithoutNotify(_lockTarget); // ドメインリロード後の復元
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
             _root.Add(toolbar);
@@ -246,14 +250,17 @@ namespace DDrive.Editor.Materials
                 _dirty = true;
             }
 
-            if (_target != null && _target.HasAnims)
+            // MaterialAnim の再生。非フォーカスかつ回転 off なら描き直さない(2026-09-11 レビュー対応)。
+            if (_target != null && _target.HasAnims && (hasFocus || _turntable))
             {
                 _dirty = true;
             }
 
-            if (_dirty)
+            // 描き直しは 30fps 上限に間引く。
+            if (_dirty && now - _lastRenderTime >= RenderIntervalSec)
             {
                 _dirty = false;
+                _lastRenderTime = now;
                 Render();
             }
         }

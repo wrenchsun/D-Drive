@@ -82,7 +82,9 @@ namespace DDrive.Tests.Editor
         [TestCase("Assets/SourceAssets/Chara_Body_Normal_DirectX.png", "Substance _Normal_DirectX", TextureImporterType.NormalMap, false, TextureChannel.Normal, true)]
         [TestCase("Assets/SourceAssets/Chara_Body_Normal_OpenGL.png", "Substance _Normal_OpenGL", TextureImporterType.NormalMap, false, TextureChannel.Normal, false)]
         [TestCase("Assets/SourceAssets/Chara_Body_MaskMap.png", "Substance _MaskMap", TextureImporterType.Default, false, TextureChannel.Mask, false)]
-        [TestCase("Assets/SourceAssets/Chara_Body_MetallicSmoothness.png", "Substance _MetallicSmoothness", TextureImporterType.Default, false, TextureChannel.Mask, false)]
+        // _MetallicSmoothness / _SpecularSmoothness(Unity 5 テンプレート)は G=0 で Occlusion が消えるので Mask にしない(2026-09-11)。
+        [TestCase("Assets/SourceAssets/Chara_Body_MetallicSmoothness.png", "Substance _MetallicSmoothness", TextureImporterType.Default, false, TextureChannel.Other, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_SpecularSmoothness.png", "Substance _SpecularSmoothness", TextureImporterType.Default, false, TextureChannel.Other, false)]
         [TestCase("Assets/SourceAssets/Chara_Body_Roughness.png", "Substance _Roughness", TextureImporterType.Default, false, TextureChannel.Other, false)]
         [TestCase("Assets/SourceAssets/Chara_Body_BaseMap.png", "Substance _BaseMap", TextureImporterType.Default, true, TextureChannel.Albedo, false)]
         [TestCase("Assets/SourceAssets/Chara_Body_AlbedoTransparency.png", "Substance _AlbedoTransparency", TextureImporterType.Default, true, TextureChannel.Albedo, false)]
@@ -99,13 +101,38 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(flipGreen, rule.FlipGreenChannel);
         }
 
-        [Test]
-        public void TryMatch_ShortSuffix_StillWins_ForDDriveNames()
+        // ルールの並び順(上から最初に一致したものを使う)。長い接尾辞が短い接尾辞に食われないことを確かめる(2026-09-11)。
+        [TestCase("Assets/SourceAssets/Chara_Normal.png", "Substance _Normal")]
+        [TestCase("Assets/SourceAssets/Chara_Normal_DirectX.png", "Substance _Normal_DirectX")]
+        [TestCase("Assets/SourceAssets/T_Body_N.png", "NormalMap")] // 短縮規約(_N)は Substance の _Normal と競合しない
+        [TestCase("Assets/SourceAssets/Chara_MetallicSmoothness.png", "Substance _MetallicSmoothness")]
+        [TestCase("Assets/SourceAssets/Chara_Metallic.png", "Substance _Metallic")]
+        [TestCase("Assets/SourceAssets/Chara_Smoothness.png", "Substance _Smoothness")]
+        [TestCase("Assets/SourceAssets/Chara_AmbientOcclusion.png", "Substance _AmbientOcclusion")]
+        [TestCase("Assets/SourceAssets/Chara_Occlusion.png", "Substance _Occlusion")]
+        [TestCase("Assets/SourceAssets/Chara_AO.png", "Substance _AO")]
+        [TestCase("Assets/SourceAssets/Chara_Base_Color.png", "Substance _Base_Color")]
+        public void TryMatch_RuleOrder_LongerSuffixWins(string path, string ruleName)
         {
-            // 短縮規約(_N)は Substance の _Normal と競合しない
             var profile = TextureImportProfile.FindOrDefault();
-            Assert.IsTrue(profile.TryMatch("Assets/SourceAssets/T_Body_N.png", out var rule));
-            Assert.AreEqual("NormalMap", rule.Name);
+            Assert.IsTrue(profile.TryMatch(path, out var rule), path);
+            Assert.AreEqual(ruleName, rule.Name, path);
+        }
+
+        [Test]
+        public void SubstanceSmoothnessPacks_AreNotMaskChannel()
+        {
+            // Substance の _MetallicSmoothness / _SpecularSmoothness は G(Occlusion)が 0 なので、
+            // D-Drive の Mask(R=Metallic / G=Occlusion / A=Smoothness)として使うと間接光が消える。
+            var profile = TextureImportProfile.FindOrDefault();
+            Assert.IsTrue(profile.TryMatch("Assets/SourceAssets/Chara_MetallicSmoothness.png", out var metallic));
+            Assert.AreEqual(TextureChannel.Other, metallic.Channel);
+            Assert.IsTrue(profile.TryMatch("Assets/SourceAssets/Chara_SpecularSmoothness.png", out var specular));
+            Assert.AreEqual(TextureChannel.Other, specular.Channel);
+
+            // パック済みの _MaskMap(URP/HDRP テンプレート)は Mask のまま
+            Assert.IsTrue(profile.TryMatch("Assets/SourceAssets/Chara_MaskMap.png", out var mask));
+            Assert.AreEqual(TextureChannel.Mask, mask.Channel);
         }
 
         [Test]

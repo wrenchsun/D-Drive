@@ -85,7 +85,7 @@ namespace DDrive.Tests.Editor
             Assert.IsNotNull(created);
             Assert.AreNotEqual(0UL, created.Id);
             Assert.AreEqual("Player", created.Category);
-            Assert.AreEqual("Body/MayaTestMat", created.SourceMaterial, "FBX名/マテリアル名(アセット名)で同定する");
+            Assert.AreEqual($"Body/{AssetDatabase.AssetPathToGUID(MaterialPath)}/MayaTestMat", created.SourceMaterial, "FBX名/元アセット GUID/マテリアル名で同定する(2026-09-11 レビュー対応 I2)");
             Assert.AreEqual(1, report.Created);
             Assert.AreEqual(1, report.TexturesCreated, "参照テクスチャの TextureData が作られる");
             Assert.IsTrue(created.Common.Normal.IsValid || created.Common.Albedo.IsValid, "テクスチャがチャンネルに載る");

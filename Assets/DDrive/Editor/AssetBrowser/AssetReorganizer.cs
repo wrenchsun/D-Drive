@@ -56,7 +56,8 @@ namespace DDrive.Editor.AssetBrowser
                 .Where(d => d.dataType.Namespace?.Contains("Tests") != true)
                 .ToDictionary(d => d.dataType, d => d.assetType);
 
-            foreach (var guid in AssetDatabase.FindAssets("t:" + nameof(AssetDataBase), new[] { gameDataRoot }))
+            // [09] §9: FindAssets は AssetSearch 経由(ネイティブメモリを抱え込まないようキャッシュする)。
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase), new[] { gameDataRoot }))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);

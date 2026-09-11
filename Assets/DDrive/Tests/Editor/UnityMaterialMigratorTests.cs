@@ -16,6 +16,8 @@ namespace DDrive.Tests.Editor
         private const string LitMaterialPath = TempFolder + "/MigrateLit.mat";
         private const string UnlitMaterialPath = TempFolder + "/MigrateUnlit.mat";
 
+        private readonly System.Collections.Generic.List<string> _subFolders = new();
+
         [SetUp]
         public void SetUp()
         {
@@ -31,6 +33,12 @@ namespace DDrive.Tests.Editor
         {
             AssetDatabase.DeleteAsset(LitMaterialPath);
             AssetDatabase.DeleteAsset(UnlitMaterialPath);
+            foreach (var folder in _subFolders)
+            {
+                AssetDatabase.DeleteAsset(folder);
+            }
+
+            _subFolders.Clear();
             if (AssetDatabase.IsValidFolder(TestRoot))
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
@@ -76,7 +84,8 @@ namespace DDrive.Tests.Editor
             AssertColor(new Color(0.2f, 0.4f, 0.6f, 1f), data.Common.AlbedoTint);
             Assert.AreEqual(0.75f, data.Common.Metallic, 0.001f);
             Assert.AreEqual(0.25f, data.Common.Smoothness, 0.001f);
-            Assert.AreEqual(UnityMaterialMigrator.SourceKey + "/MigrateLit", data.SourceMaterial);
+            // 同定キーは「SourceKey / 元 Material の GUID / 名前」(同名 Material の取り違え防止。2026-09-11)
+            Assert.AreEqual($"{UnityMaterialMigrator.SourceKey}/{AssetDatabase.AssetPathToGUID(LitMaterialPath)}/MigrateLit", data.SourceMaterial);
 
             var occlusion = System.Array.Find(data.Specific, p => p.Property == "_OcclusionStrength");
             Assert.AreEqual("_OcclusionStrength", occlusion.Property, "DDrive/Lit の固有が登録される");
@@ -102,7 +111,62 @@ namespace DDrive.Tests.Editor
             Assert.IsNotNull(data);
             Assert.AreEqual(UnityMaterialMigrator.UnlitShaderName, data.Shader.name);
             AssertColor(Color.green, data.Common.AlbedoTint);
-            Assert.IsTrue(data.Specific == null || data.Specific.Length == 0, "DDrive/Unlit に固有は無い");
+            var expected = MaterialSpecificResolver.Resolve(data.Shader).Count;
+            Assert.AreEqual(expected, data.Specific?.Length ?? 0, "変換先シェーダーの固有が既定値で登録される");
+        }
+
+        // 同名の Material が別フォルダにあっても 1 つの MaterialData を奪い合わない(2026-09-11 レビュー対応)。
+        [Test]
+        public void Migrate_SameNameInDifferentFolders_CreatesTwoData()
+        {
+            var lit = Shader.Find("Universal Render Pipeline/Lit");
+            Assume.That(lit != null && Shader.Find(UnityMaterialMigrator.LitShaderName) != null);
+
+            var pathA = CreateSubFolderMaterial("FolderA", lit);
+            var pathB = CreateSubFolderMaterial("FolderB", lit);
+            var report = new MayaMaterialImporter.Report();
+
+            var a = UnityMaterialMigrator.Migrate(AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(pathA), "Migrate", report, TestRoot);
+            var b = UnityMaterialMigrator.Migrate(AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(pathB), "Migrate", report, TestRoot);
+
+            Assert.IsNotNull(a, report.ToString());
+            Assert.IsNotNull(b, report.ToString());
+            Assert.AreNotSame(a, b, "フォルダ違いの同名 Material はそれぞれの MaterialData になる");
+            Assert.AreNotEqual(a.SourceMaterial, b.SourceMaterial);
+            Assert.AreEqual(2, report.Created);
+        }
+
+        // 未対応シェーダーは Lit に倒し、その旨をレポートに残す。
+        [Test]
+        public void Migrate_UnsupportedShader_FallsBackToLit_AndReports()
+        {
+            var unsupported = Shader.Find("Sprites/Default") ?? Shader.Find("Hidden/InternalErrorShader");
+            Assume.That(unsupported != null && Shader.Find(UnityMaterialMigrator.LitShaderName) != null);
+            Assume.That(!UnityMaterialMigrator.IsSupported(unsupported), "変換表に無いシェーダーであること");
+
+            var material = new UnityEngine.Material(unsupported) { name = "MigrateLit" };
+            AssetDatabase.CreateAsset(material, LitMaterialPath);
+
+            var report = new MayaMaterialImporter.Report();
+            var data = UnityMaterialMigrator.Migrate(material, "Migrate", report, TestRoot);
+
+            Assert.IsNotNull(data, report.ToString());
+            Assert.AreEqual(UnityMaterialMigrator.LitShaderName, data.Shader.name, "未対応は Lit に倒す");
+            StringAssert.Contains("未対応", string.Join("\n", report.Lines));
+        }
+
+        private string CreateSubFolderMaterial(string folderName, Shader shader)
+        {
+            var folder = TempFolder + "/" + folderName;
+            if (!AssetDatabase.IsValidFolder(folder))
+            {
+                AssetDatabase.CreateFolder(TempFolder, folderName);
+            }
+
+            _subFolders.Add(folder);
+            var path = folder + "/SameName.mat";
+            AssetDatabase.CreateAsset(new UnityEngine.Material(shader) { name = "SameName" }, path);
+            return path;
         }
 
         // Color の == は成分の float 誤差(sRGB/linear 変換等)で落ちるので許容誤差付きで比べる。

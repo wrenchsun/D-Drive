@@ -123,6 +123,8 @@ namespace DDrive.Tests.Editor
                 Assert.AreEqual(0.5f, m.GetColor("_SheenColor").g, 1e-4f);
                 Assert.AreEqual(0.6f, m.GetFloat("_SheenRoughness"), 1e-4f);
                 Assert.AreEqual(2f, m.GetColor("_EmissionColor").r, 1e-4f, "emissionColor × emission");
+                Assert.AreEqual(1f, m.GetColor("_EmissionColor").a, 1e-4f, "アルファは乗算しない");
+                Assert.AreEqual(1f, m.GetColor("_BaseColor").a, 1e-4f, "Tint のアルファは 1(> 1 になると Cutout が効かない)");
                 Assert.IsTrue(m.IsKeywordEnabled("_EMISSION"));
                 Assert.AreEqual(1f, m.GetFloat("_Opacity"), 1e-4f);
                 Assert.AreEqual(0f, m.GetFloat("_TransmissionWeight"), 1e-4f);
@@ -165,6 +167,28 @@ namespace DDrive.Tests.Editor
             }
         }
 
+        // 既定値(baseColor / emissionColor が FBX に無い)でもアルファが 1 を超えない(2026-09-11 レビュー対応)。
+        [Test]
+        public void Apply_Defaults_KeepAlphaOne()
+        {
+            var src = MayaSource();
+            src.Floats["emission"] = 1.6f;
+            var m = new UnityEngine.Material(Shader.Find("Universal Render Pipeline/Lit"));
+            try
+            {
+                AiStandardSurfaceMapper.Apply(src, m, _shader);
+                var tint = m.GetColor("_BaseColor");
+                Assert.AreEqual(0.8f, tint.r, 1e-4f, "Arnold 既定 0.8");
+                Assert.AreEqual(1f, tint.a, 1e-4f, "アルファは 1 のまま");
+                Assert.AreEqual(1.6f, m.GetColor("_EmissionColor").r, 1e-4f);
+                Assert.AreEqual(1f, m.GetColor("_EmissionColor").a, 1e-4f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(m);
+            }
+        }
+
         [Test]
         public void Apply_TexturedInputs_GoToMaps()
         {
@@ -189,6 +213,12 @@ namespace DDrive.Tests.Editor
                 Assert.IsTrue(m.IsKeywordEnabled("_NORMALMAP"));
                 Assert.AreSame(tex, m.GetTexture("_OpacityMap"));
                 Assert.AreEqual(1f, m.GetFloat("_Surface"), 1e-4f, "Opacity マップがあれば透過");
+
+                // マップの有無はキーワードで伝える(シェーダー側は off ならサンプルしない。2026-09-11)
+                Assert.IsTrue(m.IsKeywordEnabled("_METALNESSMAP"));
+                Assert.IsTrue(m.IsKeywordEnabled("_SPECULARROUGHNESSMAP"));
+                Assert.IsTrue(m.IsKeywordEnabled("_OPACITYMAP"));
+                Assert.IsFalse(m.IsKeywordEnabled("_SPECULARCOLORMAP"), "specularColor にテクスチャは無い");
             }
             finally
             {

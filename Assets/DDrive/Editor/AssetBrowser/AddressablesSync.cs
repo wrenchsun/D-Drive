@@ -65,7 +65,8 @@ namespace DDrive.Editor.AssetBrowser
 
             var settings = AddressableAssetSettingsDefaultObject.Settings;
             var removed = 0;
-            foreach (var guid in AssetDatabase.FindAssets(string.Empty, new[] { folder }))
+            // [09] §9: FindAssets は AssetSearch 経由。削除直後に呼ばれることがあるので結果は常に最新(ImportWatcher が無効化する)。
+            foreach (var guid in AssetSearch.FindAssets(string.Empty, new[] { folder }))
             {
                 if (settings.RemoveAssetEntry(guid, false))
                 {

@@ -251,7 +251,7 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 | 1 | Project で VfxData / SeData / BgmData / ModelData / AnimData / AnchorData / AnchorGroupData を選ぶ | Inspector の一番上に「▶ … Editor で開く」ボタン。押すとそのアセットを対象に専用エディタが開く |
 | 2 | SeData | ヘッダーのボタンに加え、従来のトリミング GUI がそのまま下に出る（末尾の AudioEditor ボタンはヘッダーへ統合） |
 | 3 | Test Runner（EditMode）`DataEditorRegistryTests` | 4 件 green（新しい Data 種別を作って属性を付け忘れると `EveryConcreteDataType_HasEditor` が落ちる） |
-| 4 | 任意の Data を選び、SceneView で対象を映して「シーンから作成」 | 「アイコンを切り出す」ウィンドウに SceneView 全体の撮影が出る（真っ黒でない）。ドラッグで正方形を決め「この範囲でアイコンを作成」→ `Assets/GameData/Icons/<種別>/<名前>_Icon.png` が出来て Inspector のサムネイルと Asset Browser の一覧に出る。もう一度作ると上書き（ファイルが増えない）。「再撮影」「画面からスクショ」「ホイールで拡縮」「ダブルクリックで中央最大」が効く |
+| 4 | 任意の Data を選び、SceneView で対象を映して「シーンから作成」 | 「アイコンを切り出す」ウィンドウに SceneView 全体の撮影が出る（真っ黒でない）。ドラッグで正方形を決め「この範囲でアイコンを作成」→ `Assets/GameData/Icons/<種別>/<名前>_<GUID8>_Icon.png` が出来て Inspector のサムネイルと Asset Browser の一覧に出る。もう一度作ると上書き（ファイルが増えない）。「再撮影」「画面からスクショ」「ホイールで拡縮」「ダブルクリックで中央最大」が効く |
 | 5 | 「フォルダから選択」でプロジェクト外の PNG | Icons フォルダにコピーされて割り当たる。「クリア」で外れる（Ctrl+Z で戻る） |
 
 

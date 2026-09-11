@@ -33,6 +33,14 @@ namespace DDrive.Runtime.Anim2D
         private Vector2 _current;
         private Camera _camera;
 
+        // 定常経路(Update)で animator.parameters(配列 alloc)を踏まないよう、対象 / パラメータ名が変わった時だけ解決する。
+        private Animator _cachedAnimator;
+        private RuntimeAnimatorController _cachedController;
+        private string _cachedParamX;
+        private string _cachedParamY;
+        private int _hashX;
+        private int _hashY;
+
         public Vector2 CurrentDirection => _current;
 
         private void Awake()
@@ -105,13 +113,37 @@ namespace DDrive.Runtime.Anim2D
             return next.sqrMagnitude > 1e-8f ? next.normalized : desired;
         }
 
-        private void Update()
+        // Animator / パラメータ名の変更を検知してハッシュを取り直す(存在しないパラメータは 0 = 書かない)。
+        private void RefreshParameterCache()
         {
-            _current = Smooth(_current, _desired, Smoothing, Time.deltaTime);
-            if (Target != null)
+            _cachedAnimator = Target;
+            _cachedController = Target != null ? Target.runtimeAnimatorController : null;
+            _cachedParamX = ParamX;
+            _cachedParamY = ParamY;
+            _hashX = Anim2D.ResolveFloatParameterHash(Target, ParamX);
+            _hashY = Anim2D.ResolveFloatParameterHash(Target, ParamY);
+        }
+
+        private void Update() => Tick(Time.deltaTime);
+
+        /// <summary>平滑化と Animator への反映を 1 ステップ進める(通常は Update から呼ばれる。テスト / 独自ループ用に公開)。</summary>
+        public void Tick(float dt)
+        {
+            _current = Smooth(_current, _desired, Smoothing, dt);
+            if (Target == null)
             {
-                Anim2D.SetDirection(Target, _current, ParamX, ParamY);
+                return;
             }
+
+            if (!ReferenceEquals(_cachedAnimator, Target) ||
+                !ReferenceEquals(_cachedController, Target.runtimeAnimatorController) ||
+                !string.Equals(_cachedParamX, ParamX) ||
+                !string.Equals(_cachedParamY, ParamY))
+            {
+                RefreshParameterCache();
+            }
+
+            Anim2D.SetDirection(Target, _current, _hashX, _hashY);
         }
     }
 }
