@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using DDrive.Foundation.Easing;
 using DDrive.Foundation.Validation;
@@ -6,6 +7,7 @@ using DDrive.Runtime.Ui;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 
 namespace DDrive.Tests.Runtime
@@ -209,6 +211,56 @@ namespace DDrive.Tests.Runtime
             var beforeFine = slider.Value;
             slider.Move(MoveDirection.Right, fine: true);
             Assert.AreEqual(beforeFine + 0.5f, slider.Value, 0.001f);
+
+            Object.DestroyImmediate(go);
+        }
+
+        // Codex レビュー対応(2026-09-11): EventSystem 経由の OnMove は _padActive を立てるだけで
+        // MoveRelease を呼ぶ実行時経路が無かった(呼び出すのはテストのみ)。フレームをまたいで
+        // Move が来なければ Advance 側で自動的に離した扱いにする。
+        [UnityTest]
+        public IEnumerator PadMove_StopsRepeating_WhenNoFurtherMove_AcrossFrames()
+        {
+            var go = CreateSlider(out var slider);
+            slider.SetRange(0f, 100f);
+            slider.PadStepAmount = 1f;
+            slider.PadRepeatDelaySec = 0f;
+            slider.PadRepeatIntervalSec = 0f;
+            slider.SetValueSilent(0f);
+
+            slider.Move(MoveDirection.Right); // OnMove 相当。MoveRelease は誰も呼ばない想定
+            Assert.AreEqual(1f, slider.Value, 0.001f);
+
+            yield return null; // 1 フレーム経過(Move が来ないまま)
+
+            slider.Advance(Time.unscaledDeltaTime);
+            var afterOneFrame = slider.Value;
+
+            yield return null;
+
+            slider.Advance(Time.unscaledDeltaTime);
+            var afterTwoFrames = slider.Value;
+
+            Assert.AreEqual(afterOneFrame, afterTwoFrames, 0.001f, "MoveRelease を呼ばなくても Advance がフレーム経過で自動的に停止させる");
+
+            Object.DestroyImmediate(go);
+        }
+
+        // Codex レビュー対応(2026-09-11): 方針決定の明文化。Direction=RightToLeft でも Move(Right) は
+        // (見た目の並びに関わらず)常に値を増やす。ポインタ操作は Direction に追従するため非対称だが、
+        // これは意図的な仕様(SignFor 付近のコメント参照)。
+        [Test]
+        public void Move_Right_AlwaysIncreasesValue_RegardlessOfDirection()
+        {
+            var go = CreateSlider(out var slider);
+            slider.Direction = SliderDirection.RightToLeft;
+            slider.SetRange(0f, 10f);
+            slider.PadStepAmount = 1f;
+            slider.SetValueSilent(5f);
+
+            slider.Move(MoveDirection.Right);
+
+            Assert.AreEqual(6f, slider.Value, 0.001f);
 
             Object.DestroyImmediate(go);
         }
@@ -428,6 +480,27 @@ namespace DDrive.Tests.Runtime
             loaded.Load(storage);
 
             Assert.AreEqual(0.42f, loaded.Get(OptionKey.BgmVolume), 0.001f);
+        }
+
+        // Codex レビュー対応(2026-09-11): これまで OptionStore は Load するだけで一度も保存されなかった
+        // (DDriveRuntimeBootstrap が Save を呼んでいなかった)。Storage を注入して SaveIfDirty() が
+        // 実際に書き込むこと/変更が無ければ書き込まないことを確認する。
+        [Test]
+        public void SaveIfDirty_WritesOnlyAfterChange_ThenClearsDirtyFlag()
+        {
+            var storage = new InMemoryStorage();
+            var store = new OptionStore { Storage = storage };
+
+            store.SaveIfDirty();
+            Assert.IsFalse(storage.Values.ContainsKey(OptionKey.SeVolume.ToString()), "未変更なら書き込まない");
+
+            store.Set(OptionKey.SeVolume, 0.77f);
+            store.SaveIfDirty();
+            Assert.AreEqual(0.77f, storage.Values[OptionKey.SeVolume.ToString()], 0.001f);
+
+            storage.Values[OptionKey.SeVolume.ToString()] = -1f; // dirty がクリアされていることの確認用に外側から汚す
+            store.SaveIfDirty();
+            Assert.AreEqual(-1f, storage.Values[OptionKey.SeVolume.ToString()], 0.001f, "2 回目の SaveIfDirty は dirty がクリア済みなので再書き込みしない");
         }
     }
 

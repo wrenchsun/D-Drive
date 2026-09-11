@@ -262,6 +262,13 @@ public struct SliderWire
 - 繰り延べ: 本格的な SliderEditor(応答曲線グラフ・ノッチ可視化オーバーレイ・追従比較・Skin プレビュー一覧、4-17)、Audio バス別音量([03] `Audio.SetBusVolume`、Phase 5)、触覚([16] Part B の `HapticId` 統合)
 - テスト: `Assets/DDrive/Tests/Runtime/UiSliderTests.cs`(`UiSliderTests` 19 件 + `OptionStoreTests` 4 件 + `SliderSkinDataValidatorTests` 2 件 + `UiSliderValidationTests` 6 件)。`UiManagerTests`/`CanvasDataValidatorTests` への追加は [07_canvas_prefab.md] 参照
 
+### レビュー対応(2026-09-11、Phase 4 コードレビュー)
+
+- **パッドリピートが EventSystem 経由だと止まらない**: `OnMove`(`IMoveHandler`)は `Move()` を呼ぶだけで `_padActive=true` にする一方、実行時に `MoveRelease()` を呼ぶ経路が無かった(呼んでいたのはテストのみ)。`Move()` で `Time.frameCount` を `_lastMoveFrame` に記録し、`Advance()` の先頭で「`_padActive` かつ 1 フレーム以上 `Move` が来ていない」なら自動的に `MoveRelease()` する。同一フレーム内の `Move→Advance`(テストの典型パターン)は継続扱いになるよう `Time.frameCount > _lastMoveFrame + 1` を条件にした。テスト専用に `SetPadHeldForTest(bool)` を追加(明示的に「押しっぱなし」を模擬したいテスト向け)
+- **Direction(RightToLeft/TopToBottom)とキー入力の関係を明文化**: `SignFor`(十字キー/パッド)は Direction に関わらず Right/Up が常に「値を増やす」(`Wheel` も同様、既に Direction を見ていない)。ポインタ操作(`ComputePointerFraction`)は Direction 通りの空間的な向きに従う(`RightToLeft` なら画面右へドラッグすると値は減る)。この非対称は意図的な仕様(キー入力は操作感、ポインタは見た目の並びを優先)として `SignFor` にコメントを追加した。コード変更は無し(方針の明文化のみ)
+- **`UiInteractable`/`UiButton` の Pool 再利用汚染**: `CanvasGroup`/`RectTransform` と違い、`_pointerDown`/`_pointerOver`/`_focused`/`_cooldownRemaining`/`_stateTween`(基底)や `_isHeld`/`_longPressFired`/`_pendingClickActive`(`UiButton`)は Pool から Return されても(`SetActive(false)`)クリアされず、次に Rent された瞬間に「まだ押されている/ホバー中」扱いになっていた。基底に `protected virtual void OnDisable()` → `ResetInteractionState()`(public、テストからも呼べる)を追加し、`UiButton` は追加のフィールドをクリアしてから `base.OnDisable()` を呼ぶ
+- テスト: `Assets/DDrive/Tests/Runtime/UiSliderTests.cs` の `PadMove_StopsRepeating_WhenNoFurtherMove_AcrossFrames`(UnityTest)/`Move_Right_AlwaysIncreasesValue_RegardlessOfDirection`、`Assets/DDrive/Tests/Runtime/UiButtonTests.cs` の `OnDisable_ResetsHoverState_ToNormal`/`OnDisable_ResetsHeldAndLongPress_SoRepeatDoesNotFireAfterReuse`
+
 ## B-8. ネットワーク（[14] との整合）
 
 - UiSlider は Canvas 配下の要素であり `NetMode = Local` 固定（[14] §4「Canvas / UI は常に Local」）

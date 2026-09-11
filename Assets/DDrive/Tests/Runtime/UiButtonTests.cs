@@ -290,5 +290,46 @@ namespace DDrive.Tests.Runtime
             Object.DestroyImmediate(go);
             Object.DestroyImmediate(skin);
         }
+
+        // Codex レビュー対応(2026-09-11): Pool.Return は SetActive(false) を伴うため OnDisable が走る。
+        // Hover/Press/LongPress の途中状態が残ったまま次に Rent されると、再利用直後にいきなり
+        // Hover 状態や Repeat 発火から始まってしまっていた。
+        [Test]
+        public void OnDisable_ResetsHoverState_ToNormal()
+        {
+            var go = CreateButton(out var button, out _);
+            button.Hover(true);
+            Assert.AreEqual(ControlState.Hover, button.State);
+
+            go.SetActive(false);
+            go.SetActive(true);
+
+            Assert.AreEqual(ControlState.Normal, button.State, "Pool 再利用相当の非アクティブ化/再アクティブ化で Normal に戻るはず");
+
+            Object.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void OnDisable_ResetsHeldAndLongPress_SoRepeatDoesNotFireAfterReuse()
+        {
+            var go = CreateButton(out var button, out _);
+            button.LongPressSec = 0.1f;
+            button.RepeatIntervalSec = 0.05f;
+            var repeats = 0;
+            button.OnRepeat += () => repeats++;
+
+            button.Press();
+            button.Advance(0.2f); // LongPress 発火 → Repeat も 1 回
+
+            go.SetActive(false); // Pool.Return 相当(_isHeld/_longPressFired が残っていないことを確認する)
+            go.SetActive(true);
+
+            repeats = 0;
+            button.Advance(1f); // Release されていないが _isHeld はリセット済みのはずなので Repeat は発火しない
+
+            Assert.AreEqual(0, repeats, "OnDisable で _isHeld がリセットされていれば再利用後に Repeat は自動発火しない");
+
+            Object.DestroyImmediate(go);
+        }
     }
 }

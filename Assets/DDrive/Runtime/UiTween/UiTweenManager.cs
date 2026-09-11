@@ -144,7 +144,9 @@ namespace DDrive.Runtime.Ui
 
             var inst = RentInstance();
             inst.Target = target;
-            count = Mathf.Min(count, MaxTracksPerTween);
+            // Codex レビュー対応(2026-09-11): MaxTracksPerTween だけでなく tracks.Length にもクランプする
+            // (呼び出し側が実際のバッファ長より大きい count を渡すと Array.Copy が例外になっていた)。
+            count = Mathf.Min(count, Mathf.Min(MaxTracksPerTween, tracks.Length));
             Array.Copy(tracks, inst.OwnedTracks, count);
             inst.Tracks = inst.OwnedTracks;
             inst.TrackCount = count;
@@ -327,7 +329,9 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            if (complete)
+            // Codex レビュー対応(2026-09-11): Target が(シーン破棄等で)既に破棄されている可能性がある。
+            // ApplyTrack は Target のコンポーネントへ直接書き込むため、null なら complete 分岐をスキップする。
+            if (complete && inst.Target != null)
             {
                 for (var i = 0; i < inst.TrackCount; i++)
                 {

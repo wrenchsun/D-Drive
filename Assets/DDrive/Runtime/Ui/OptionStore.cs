@@ -68,6 +68,11 @@ namespace DDrive.Runtime.Ui
         // UiSpeedScale の反映先(未設定なら値の保持のみ)。
         public UiTweenManager UiTweens;
 
+        // Codex レビュー対応(2026-09-11): Set() のたびに毎回 Write すると PlayerPrefs I/O が頻発するため、
+        // 変更があったことだけ記録して SaveIfDirty() でまとめて書く(Bootstrap の OnDestroy/OnApplicationQuit から呼ぶ)。
+        public IOptionStorage Storage { get; set; }
+        private bool _dirty;
+
         public OptionStore()
         {
             for (var i = 0; i < _values.Length; i++)
@@ -88,7 +93,21 @@ namespace DDrive.Runtime.Ui
             value = Mathf.Clamp01(value);
             _values[(int)key] = value;
             Apply(key, value);
+            _dirty = true;
             OnChanged?.Invoke(key, value);
+        }
+
+        // Storage が設定されていて、かつ Set() 以降に変更があるときだけ保存する(Bootstrap の
+        // OnDestroy/OnApplicationQuit から呼ぶ想定。未設定/未変更なら no-op)。
+        public void SaveIfDirty()
+        {
+            if (!_dirty || Storage == null)
+            {
+                return;
+            }
+
+            Save(Storage);
+            _dirty = false;
         }
 
         private void Apply(OptionKey key, float value)
@@ -168,6 +187,8 @@ namespace DDrive.Runtime.Ui
                     Set(values[i], v);
                 }
             }
+
+            _dirty = false; // Load 直後は「未変更」扱い(Set() が立てた dirty フラグを打ち消す)
         }
     }
 

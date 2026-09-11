@@ -133,6 +133,50 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(1f, rt.localScale.z, 0.02f);
         }
 
+        // ── Shake / Tada(Codex レビュー対応 2026-09-11: 偶数 loopCount の PingPong は From で静止するため、
+        //    From=静止姿勢/To=変位側 に組み替えて元の姿勢に戻るようにした) ──
+
+        [Test]
+        public void Shake_EndsAtOriginalAnchoredPosition()
+        {
+            var rt = CreateRect();
+            var original = rt.anchoredPosition;
+
+            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+            var p = new UiPresetRef { Preset = UiPreset.Shake, Duration = 0.1f };
+            var count = UiPresetFactory.Build(in p, rt, buffer);
+
+            var handle = _manager.PlayTracks(buffer, count, rt);
+            for (var i = 0; i < 40; i++)
+            {
+                _manager.Tick(0.05f);
+            }
+
+            Assert.IsFalse(_manager.IsPlaying(handle), "Shake は loopCount 指定の PingPong なので自然完了するはず");
+            Assert.AreEqual(original.x, rt.anchoredPosition.x, 0.02f);
+            Assert.AreEqual(original.y, rt.anchoredPosition.y, 0.02f);
+        }
+
+        [Test]
+        public void Tada_EndsAtRotationZero()
+        {
+            var rt = CreateRect();
+            rt.localEulerAngles = Vector3.zero;
+
+            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+            var p = new UiPresetRef { Preset = UiPreset.Tada, Duration = 0.1f };
+            var count = UiPresetFactory.Build(in p, rt, buffer);
+
+            var handle = _manager.PlayTracks(buffer, count, rt);
+            for (var i = 0; i < 40; i++)
+            {
+                _manager.Tick(0.05f);
+            }
+
+            Assert.IsFalse(_manager.IsPlaying(handle), "Tada は loopCount 指定の PingPong なので自然完了するはず");
+            Assert.AreEqual(0f, Mathf.DeltaAngle(0f, rt.localEulerAngles.z), 0.5f);
+        }
+
         // ── RainbowTint ──
 
         [Test]

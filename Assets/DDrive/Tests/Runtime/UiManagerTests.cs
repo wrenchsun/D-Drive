@@ -110,6 +110,31 @@ namespace DDrive.Tests.Runtime
             Assert.AreSame(root, _manager.GetGameObject(handle2));
         }
 
+        // Codex レビュー対応(2026-09-11): CloseTransition(Scale/Fade/Slide)の終端値(scale 0 / alpha 0 /
+        // スライドオフセット位置)を残したままプールへ返すと、次に Rent した実体がそのまま非表示で開いていた。
+        [Test]
+        public void Close_WithScaleTransition_ThenReopen_PooledCanvas_IsVisibleAgain()
+        {
+            var data = CreateCanvasData(1);
+            data.Flags.Pool = PoolPolicy.Pooled(0, 8);
+            data.CloseTransition = new UiTransition { Kind = UiTransitionKind.Scale, Duration = 0.1f };
+
+            var handle = _manager.OpenData(data);
+            _manager.Tick(1f); // OpenTransition(既定 Kind=None)を確定
+
+            _manager.Close(handle);
+            _manager.Tick(1f); // CloseTransition(Scale)を完了させ、FinalizeClose → Pool.Return まで進める
+
+            Assert.IsFalse(_manager.IsOpen(handle));
+
+            var handle2 = _manager.OpenData(data);
+            var root = _manager.GetGameObject(handle2);
+            var group = _manager.GetComponent<CanvasGroup>(handle2);
+
+            Assert.AreEqual(Vector3.one, root.transform.localScale, "Close の終端値(scale 0)を引き継いだままではいけない");
+            Assert.AreEqual(1f, group.alpha, 0.001f, "Close の終端値(alpha 0 相当)を引き継いだままではいけない");
+        }
+
         [Test]
         public void Popup_BlocksCanvasBelow_AndRestoresOnClose()
         {

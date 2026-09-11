@@ -694,12 +694,38 @@ namespace DDrive.Editor.Ui
 
             TickDragSimulate();
 
-            _target?.Advance(dt);
+            // Codex レビュー対応(2026-09-11): 「対象 UiSlider」は ObjectField(allowSceneObjects=true)/
+            // 「選択から取得」でシーン上の実物(ユーザーの配置物)を直接指せてしまう。Advance() は
+            // anchoredPosition 等を Undo 無しで毎フレーム書き換えるため、実物を選ぶと気づかないうちに
+            // 動かし続けてしまっていた。DontSave のプレビュー配下([確認用シーンに配置]で生成した実体)
+            // のときだけ駆動し、それ以外は駆動しない(ステータスラベルで理由を示す)。
+            if (IsPreviewObject(_target))
+            {
+                _target.Advance(dt);
+            }
+            else if (_target != null && _statusLabel != null)
+            {
+                _statusLabel.text = "シーン上の実物は駆動しません(「確認用シーンに配置」したサンプルを使ってください)";
+            }
+
             _compareSlider?.Advance(dt);
             foreach (var s in _skinPreviewSliders)
             {
                 s?.Advance(dt);
             }
+        }
+
+        // _target がこのウィンドウの「確認用シーンに配置」(PreviewRootName 配下、DontSave)で生成した
+        // 実体かどうか。ユーザーがシーン上の実物を指定した場合は false になる。
+        private static bool IsPreviewObject(UiSlider target)
+        {
+            if (target == null)
+            {
+                return false;
+            }
+
+            var root = target.transform.root;
+            return root != null && root.name == PreviewRootName;
         }
     }
 }

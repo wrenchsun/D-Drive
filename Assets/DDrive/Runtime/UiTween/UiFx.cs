@@ -14,6 +14,11 @@ namespace DDrive.Runtime.Ui
     {
         private static UiTweenManager _instance;
 
+        // Codex レビュー対応(2026-09-11): Play のたびに new TweenTrack[MaxTracksPerTween] していた
+        // (定常経路での alloc、[12_review.md] §3)。PlayTracks が OwnedTracks へコピーするため、
+        // このスクラッチは呼び出しをまたいで使い回せる(この Play 呼び出し内でしか参照しない)。
+        private static readonly TweenTrack[] Scratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+
         public static void Bind(UiTweenManager instance) => _instance = instance;
 
         public static bool IsBound => _instance != null;
@@ -35,8 +40,7 @@ namespace DDrive.Runtime.Ui
 
             var actual = p;
             actual.Preset = preset;
-            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
-            var count = UiPresetFactory.Build(in actual, target, buffer);
+            var count = UiPresetFactory.Build(in actual, target, Scratch);
             if (count <= 0)
             {
                 return Handle<UiTweenMarker>.Invalid;
@@ -47,7 +51,7 @@ namespace DDrive.Runtime.Ui
                 Audio.Audio.PlaySe(actual.Se);
             }
 
-            return _instance.PlayTracks(buffer, count, target);
+            return _instance.PlayTracks(Scratch, count, target);
         }
 
         public static Handle<UiTweenMarker> Appear(RectTransform t) => FadeIn(t);

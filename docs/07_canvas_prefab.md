@@ -123,6 +123,13 @@ public static class Ui
 - 詳細な UiSlider 本体の実装メモは [18_ui_controls.md](18_ui_controls.md) B-7 の 2026-09-11 実装メモを参照
 - テスト: `Assets/DDrive/Tests/Runtime/UiManagerTests.cs` に `SliderWire_SetOption_InitializesFromStore_AndWritesBackOnCommit` / `SliderWire_SendSignal_CarriesValue` および `CanvasDataValidatorTests` に 3 ケース追加。`Assets/DDrive/Tests/Runtime/UiSliderTests.cs` に `OptionStoreTests`(4 件)を追加
 
+### レビュー対応(2026-09-11、Phase 4 コードレビュー)
+
+- **プールした Canvas が再オープン時に見えない**: `CloseTransition`(Scale/Fade/Slide)の終端値(scale 0 / alpha 0 / スライドオフセット位置)を残したまま `_pool.Return` していたため、次に `Rent` した実体をそのまま `OpenData` が使うと非表示のまま開いていた。`UiManager.FinalizeClose` の Return 直前で `CanvasGroup.alpha=1` / `localScale=Vector3.one` / `anchoredPosition=BaseAnchoredPosition` に戻すよう修正
+- **`CloseTransition=None` で `CloseAsync` が ElementFx.Disappear を待たずに返る**: `AwaitCloseTransition` は `_transitions`(演出が実際に走っているものだけ積まれる)を走査していたため、`Kind=None`/`Duration<=0` は何も見つからず即座に返っていた。`CanvasInstance` に `CloseCompletion`(`UniTaskCompletionSource`)を追加し、`FinalizeClose`(実際に閉じ切った瞬間、`CloseTransitionCompleted && PendingDisappearCount<=0` の両方が揃ってから)で解決するよう変更。`CloseAsync` はこれを await する(`AwaitCloseTransition` は削除)
+- **`OptionStore` が一度も保存されない**: `DDriveRuntimeBootstrap` は起動時に `Options.Load` するだけで `Save` を一度も呼んでいなかった。`OptionStore` に `Storage`(注入可能)+ `SaveIfDirty()`(`Set` のたびに dirty フラグを立て、保存後にクリア)を追加し、`Bootstrap.OnDestroy`/`OnApplicationQuit` から呼ぶようにした
+- テスト: `Assets/DDrive/Tests/Runtime/UiManagerTests.cs` の `Close_WithScaleTransition_ThenReopen_PooledCanvas_IsVisibleAgain`(プール再利用時の scale/alpha 復元)、`Assets/DDrive/Tests/Runtime/UiSliderTests.cs` の `OptionStoreTests.SaveIfDirty_WritesOnlyAfterChange_ThenClearsDirtyFlag`(OptionStore の保存)
+
 ### 実装メモ（2026-09-11、4-3 CanvasEditor: Navigation ノードグラフ / パッド入力シミュレーション）
 
 - **モデル**: `Assets/DDrive/Editor/Canvas/NavigationGraph.cs`(UI 非依存の純粋クラス)。`NavigationGraph.Build(CanvasData, GameObject prefab)` が Prefab 内の全 `Selectable`/`UiInteractable` を(`Navigation` への登録有無に関わらず)ノード化し(`IsListed` で区別)、`Navigation` に書かれているが Prefab 側で見つからない要素も `HasComponent=false` のノードとして可視化する(パス不整合の発見用)。ノードの表示座標は対象 `RectTransform` の world corners の中心を Prefab ルート基準に投影し、画面表示に合わせて上下反転する(`ComputePosition`)。`RectTransform` が無い/計算できないノードは `AssignGridFallback` でグリッドに並べる。`Unreachable(firstSelected)` は BFS ではなく `CanvasDataValidator.ValidateNavigation` と同じ「いずれかの方向から参照されている要素(または FirstSelected)は到達済み」という参照集合の一致判定にしている(Validator と結果を確実に一致させるため。`CanvasGraphTests.Unreachable_AgreesWithCanvasDataValidator_OnThreeNodeSample` で一致を確認)。`SetLink`/`ClearLink`/`ClearAllLinks` は `CanvasData.Navigation` を直接書き換えるだけの純粋なヘルパーで、Undo/SetDirty は呼び出し側(`CanvasEditorWindow`)の責務
