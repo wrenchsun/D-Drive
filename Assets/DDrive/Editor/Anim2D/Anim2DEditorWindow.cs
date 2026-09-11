@@ -65,12 +65,7 @@ namespace DDrive.Editor.Anim2D
             var scroll = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
             rootVisualElement.Add(scroll);
 
-            scroll.Add(new Label("D-Drive Anim2D Editor") { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 14, marginBottom = 4 } });
-            scroll.Add(new Label(
-                "旧: Sequence Preview / Sound モードは廃止しました。共通プレビュー・イベント D&D は 3-13 で対応します。")
-            {
-                style = { whiteSpace = WhiteSpace.Normal, color = new StyleColor(new Color(0.7f, 0.7f, 0.5f)), marginBottom = 6 },
-            });
+            scroll.Add(new Label("D-Drive Anim2D Editor") { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 14, marginBottom = 6 } });
 
             var toolbar = new Toolbar();
             var createToggle = new ToolbarToggle { text = "作成", value = _mode == WindowMode.Create };

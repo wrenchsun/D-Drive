@@ -274,7 +274,7 @@ public static class Anim2D
 > - **`Anim2DEditorWindow`**(`[DataEditor(typeof(Anim2DData), "Anim2D Editor で開く")]`、`Tools/D-Drive/Editors/Animation (2D)`)。ScrollView ルート + 作成/編集のトグル 2 モード:
 >   - 作成: 入力モード(Grid/Automatic/既存) → 命名(Import Profile から選択 or 手入力) → アニメーション(FrameRate/Loop/Length) → Animator(任意、BlendTree 登録) → 「生成」。単一クリップ(方向なし、`DirectionMode` で角度サフィックスのみ付与も可)と、方向セット一括(Four=4方向/Eight=8方向のテクスチャをまとめて投入 → 角度別 Clip を生成し `DirectionClips` を角度順で構築、0° の Clip が `Anim2DData.Clip`)の両方に対応。生成完了時に `AssetCreationService.Create` で Anim2DData を自動発行(ID・カタログ・Addressables 登録込み)
 >   - 編集: Anim2DData を読み込み、`AnimationClipEditorUtility.LoadSprites` でスプライト/時刻を取得 → 配置モード(Uniform/Retiming) → 「適用」で `RebuildClip` + `Retiming`(ValueDef)を `Undo.RecordObject`+`SetDirty` で書き戻す。スプライトのミニプレビュー(EditorApplication.update で再生)付き。`Retiming` フィールドは既存 `ValueDefDrawer` を `PropertyField` 経由でそのまま流用
->   - 旧「Sequence Preview」「Sound」モードは廃止(ウィンドウに注記ラベルを表示)。共通プレビュー・イベント D&D・Validation パネル統合は 3-13
+>   - 旧「Sequence Preview」「Sound」モードは廃止(廃止を知らせる注記ラベルは 3-13 完了後の 2026-09-11 に削除)。共通プレビュー・イベント D&D・Validation パネル統合は 3-13
 > - テスト: `Anim2DToolTests`(EditMode, 22 件)。NamingRuleResolver の角度抽出/クリップ命名、DirectionAngle の 8 方向マッピング往復、BuildUniformTimes/BuildRetimingTimes の単調性・範囲、AnimationClipBuilder が Sprite キーを持つ Clip を生成すること、BlendTreeRegistrar が 2D Freeform Directional Tree + x/y パラメータを登録すること、Anim2DImportProfile.FindOrDefault の組み込み既定値
 
 #### Codex レビュー対応（2026-09-10）
