@@ -433,6 +433,17 @@ namespace DDrive.Editor.Anim
         private void OnModelChanged()
         {
             Stop();
+            if (_target is Anim2DData && _model != null)
+            {
+                // 2D の対象では確認用モデル(3D)は使わない。入れられても None に戻す(2026-09-11)
+                _model = null;
+                _modelField?.SetValueWithoutNotify(null);
+                AppendLog("⚠ Anim2DData では確認用モデル(3D)は使いません(None に戻しました)。プレビュー物は「確認用シーンを開く」で配置されます");
+                RefreshSceneHelp();
+                RefreshModelInfo();
+                return;
+            }
+
             DestroyAnim2DPreview(); // ModelData を設定/変更したら Anim2D フォールバックの配置物は手放す
             // 自前で配置していた分は手放す(次の ▶ / 確認用シーンを開くで新しいモデルを配置)。
             if (_scene != null && _scene.OwnsCurrent)
@@ -472,9 +483,11 @@ namespace DDrive.Editor.Anim
         // [D-Drive] Anim2D Preview(SpriteRenderer + Animator、DontSave)を配置して対象にする。
         private Animator EnsureAnim2DPreviewTarget(Anim2DData anim2D)
         {
-            if (_anim2DPreview == null)
+            // シーンに既にあるプレビュー物(Anim2D Editor が置いたもの等)は再利用し、二重配置しない(2026-09-11)。
+            var hadPreview = _anim2DPreview != null;
+            _anim2DPreview = Anim2DPreviewObject.FindOrCreate(anim2D);
+            if (!hadPreview)
             {
-                _anim2DPreview = Anim2DPreviewObject.Create(anim2D);
                 AppendLog("確認用 Anim2D プレビュー物(SpriteRenderer + Animator)を配置");
             }
 
@@ -520,6 +533,12 @@ namespace DDrive.Editor.Anim
             if (_scene.Current != null && _scene.OwnsCurrent)
             {
                 return _scene.Current;
+            }
+
+            // Anim2DData は Prefab を持たないので確認用モデル(3D)より先に 2D プレビュー物を使う(2026-09-11)。
+            if (_target is Anim2DData anim2DFirst)
+            {
+                return EnsureAnim2DPreviewTarget(anim2DFirst);
             }
 
             if (_model != null)
@@ -584,8 +603,53 @@ namespace DDrive.Editor.Anim
         public void SetTarget(AnimData data)
         {
             Stop();
+            var changed = _target != data;
             _target = data;
             _targetField?.SetValueWithoutNotify(data);
+
+            if (changed)
+            {
+                // 対象の切り替えで前の対象の配置物・確認用モデルを引き継がない(2026-09-11: 人による確認で判明)。
+                if (data is Anim2DData anim2D)
+                {
+                    // 2D は Prefab を持たないので確認用モデル(3D)は使わない。前の 3D 対象で配置したモデルも手放す
+                    if (_model != null)
+                    {
+                        _model = null;
+                        _modelField?.SetValueWithoutNotify(null);
+                    }
+
+                    if (_scene != null && _scene.OwnsCurrent)
+                    {
+                        _scene.ReleaseTarget();
+                        _sceneTarget = null;
+                        _sceneTargetField?.SetValueWithoutNotify(null);
+                    }
+
+                    // 既にある Anim2D プレビュー物は新しい Data の先頭スプライトに差し替える(前の絵を残さない)
+                    if (_anim2DPreview != null)
+                    {
+                        _anim2DPreview = Anim2DPreviewObject.FindOrCreate(anim2D);
+                    }
+                }
+                else if (_anim2DPreview != null)
+                {
+                    // 3D に切り替えたら 2D の配置物は手放す
+                    var previewAnimator = _anim2DPreview.GetComponent<Animator>();
+                    if (_sceneTarget == previewAnimator)
+                    {
+                        _scene?.ReleaseTarget();
+                        _sceneTarget = null;
+                        _sceneTargetField?.SetValueWithoutNotify(null);
+                    }
+
+                    DestroyAnim2DPreview();
+                }
+
+                RefreshSceneHelp();
+                RefreshModelInfo();
+            }
+
             RefreshTargetUi();
         }
 

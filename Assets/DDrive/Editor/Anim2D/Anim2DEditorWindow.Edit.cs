@@ -78,6 +78,8 @@ namespace DDrive.Editor.Anim2D
             {
                 if (_editTarget != null)
                 {
+                    // こちらのプレビュー物・ドライバは手放してから開く(Anim Editor 側が同じ物を作り直す。2026-09-11: 前のものがシーンに残る問題)
+                    RemovePreview();
                     AnimEditorWindow.Open(_editTarget);
                 }
             })

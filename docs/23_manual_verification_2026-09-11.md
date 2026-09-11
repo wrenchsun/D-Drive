@@ -65,6 +65,7 @@
 - 「検出プレビュー」を押すと入力モードが自動で Automatic に変わること（Grid のまま「生成」して既定の 4×1 で切られない）。Max Size より大きいテクスチャ（例 2500×2000）を Grid で分割しても、Sprite Editor で見た矩形が元画像どおりに並ぶこと（2026-09-11 修正）
 - 編集モードで 8 方向の Anim2DData に配置モード Retiming を「適用」→ 8 本すべての Clip のキー時刻が変わること（Console に「方向 Clip: 適用 7 / スキップ 0」）
 - Anim Editor のタイムラインにフレーム目盛りと番号が出て、SE / VFX マーカーの下に時刻と名前が出ること。秒モードの行に「= F12」のようなフレーム換算が出ること
+- Anim2D Editor で「確認用シーンを開く」→「Anim Editor で開く」→ シーンの `[D-Drive] Anim2D Preview` が 1 つだけであること。Anim Editor で別の Anim2DData に切り替える → 確認用モデル欄が None になり、プレビュー物の絵が新しい Data の先頭フレームに変わり、▶ で新しい Data が再生されること。3D の AnimData に切り替えると 2D のプレビュー物が消えること（2026-09-11 修正）
 - Anim2DFacing を付けた 8 方向キャラで SetWorldDirection を呼ぶ → カメラを回しても画面上の向きが正しく、方向切替が滑らかなこと。FreezeAtFirstFrame → 先頭で止まり Unfreeze で再開すること
 
 ## 3-8 Texture Importer 規約(コミット 669783a)
