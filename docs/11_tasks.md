@@ -101,6 +101,7 @@
 | 3-17 | Unity 標準 Material → D-Drive 標準シェーダーの MaterialData 変換 | TA | 1 | 3-7, 3-14 | ✅ 2026-09-11。`UnityMaterialMigrator`（URP Lit 系 → DDrive/Lit、Unlit 系 → DDrive/Unlit。共通は Maya インポータの写像、固有は既定値 + 同名の値引き継ぎ、再実行は Common のみ更新）+ メニュー（Material / Prefab 選択）。`UnityMaterialMigratorTests` 4 件 |
 | 3-18 | TextureData → Importer 自動反映（Usage / Channel / SliceBorder） | TA | 1 | 3-8 | ✅ 2026-09-11。`TextureDataImporterSync`（ObjectChangeEvents で検知、規約と食い違えば警告して書かない）。`TextureDataImporterSyncTests` 5 件 |
 | 3-19 | Substance Painter 標準命名の自動判別 | TA | 0.5 | 3-8 | ✅ 2026-09-11。既定規約に Painter の接尾辞（Normal/DirectX 緑反転/MaskMap/MetallicSmoothness/BaseMap/AlbedoTransparency/Emissive 等）を追加。Rule.FlipGreenChannel。`TextureImportRulesTests` +12 |
+| 3-20 | aiStandardSurface 対応シェーダー + FBX 前処理 | TA | 2 | 3-7, 3-14 | ✅ 2026-09-11。`DDrive/AiStandardSurface`（Arnold パラメータ一式、リアルタイム近似）+ `AiStandardSurfacePreprocessor`（TypeId 判定で Unity の割り当てを上書き）+ `AiStandardSurfaceMapper`。Maya インポータは元が DDrive/ シェーダーなら維持し固有値を引き継ぐ、それ以外は DDrive/Lit。`AiStandardSurfaceMapperTests` 6 件 |
 
 ## Phase 4: Canvas + Prefab (M4)  約 7.5 週
 

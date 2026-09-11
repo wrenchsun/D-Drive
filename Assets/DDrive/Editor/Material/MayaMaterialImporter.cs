@@ -78,7 +78,9 @@ namespace DDrive.Editor.Materials
                 existing.Common = common;
                 if (existing.Shader == null)
                 {
-                    existing.Shader = profile.TargetShader;
+                    existing.Shader = ResolveTargetShader(profile, source);
+                    existing.Specific = MaterialSpecificResolver.Merge(existing.Specific, existing.Shader);
+                    UnityMaterialMigrator.CopySpecificValues(source, existing);
                 }
 
                 if (!profile.PreserveSpecificOnReimport)
@@ -97,11 +99,13 @@ namespace DDrive.Editor.Materials
             var created = AssetCreationService.Create(typeof(MaterialData), AssetType.Material, source.name, category, identifier, data =>
             {
                 var mat = (MaterialData)data;
-                mat.Shader = profile.TargetShader;
+                mat.Shader = ResolveTargetShader(profile, source);
                 mat.Common = capturedCommon;
                 mat.SourceMaterial = sourceMaterial;
-                // 新規作成時はシェーダーの固有を既定値で登録しておく(再インポート時は Specific を保持するので触らない。2026-09-11)。
+                // 新規作成時はシェーダーの固有を既定値で登録し、元 Material に同名があれば値を引き継ぐ
+                // (aiStandardSurface の Coat / Sheen / IOR 等。再インポート時は Specific を保持するので触らない。2026-09-11)。
                 mat.Specific = MaterialSpecificResolver.Merge(null, mat.Shader);
+                UnityMaterialMigrator.CopySpecificValues(source, mat);
             }, gameDataRoot) as MaterialData;
 
             if (created != null)
@@ -111,6 +115,25 @@ namespace DDrive.Editor.Materials
             }
 
             return created;
+        }
+
+        // 生成する MaterialData のシェーダー(2026-09-11)。
+        //   1. Profile の TargetShader が設定されていればそれ
+        //   2. 元 Material が D-Drive のシェーダー(AiStandardSurfacePreprocessor が割り当てた DDrive/AiStandardSurface 等)ならそのまま
+        //   3. それ以外は DDrive/Lit(無ければ null = Manager の既定 Lit)
+        public static Shader ResolveTargetShader(MayaImportProfile profile, UnityEngine.Material source)
+        {
+            if (profile != null && profile.TargetShader != null)
+            {
+                return profile.TargetShader;
+            }
+
+            if (source != null && source.shader != null && source.shader.name.StartsWith("DDrive/", System.StringComparison.Ordinal))
+            {
+                return source.shader;
+            }
+
+            return Shader.Find(UnityMaterialMigrator.LitShaderName);
         }
 
         // 同じ FBX / マテリアル名から作られた MaterialData を探す(SourceMaterial で同定)。

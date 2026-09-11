@@ -54,6 +54,12 @@
 - Prefab を選んで実行 → Renderer の Material がまとめて変換されること。同じ Material をもう一度変換しても Data が増えず Common だけ更新されること
 - 既存の MaterialData(Shader = URP Lit)を Material 変換ウィンドウで `DDrive/Lit` へ変換 → 互換表がすべて 〇 / －(固有は同名維持)になること
 
+## 3-20 aiStandardSurface(2026-09-11)
+- Maya で aiStandardSurface を割り当てた FBX を Assets/SourceAssets 配下に入れる → FBX 内の Material のシェーダーが `DDrive/AiStandardSurface` になり、Base / Specular / Coat / Sheen / Opacity の値が Inspector に入っていること（Unity 標準の ArnoldStandardSurface ShaderGraph にならない）
+- 生成された MaterialData の Shader が `DDrive/AiStandardSurface`、Specific に `_CoatWeight` / `_SpecularIOR` 等が元の値で入っていること。lambert / phong など aiStandardSurface 以外の材質は `DDrive/Lit` になること
+- Material Editor のサムネイルで Coat を上げると光沢の層が乗ること、Sheen を上げると輪郭が明るくなること、Opacity を下げると透けること
+- 既存の Maya 由来 MaterialData（Shader=None のもの）は Material Editor で Shader を `DDrive/AiStandardSurface` か `DDrive/Lit` に設定する（固有は自動同期）。FBX を再インポートしても Shader が None のものはこのタイミングで自動設定される
+
 ## 3-8 Texture Importer 規約(コミット 669783a)
 - Assets/SourceAssets 配下に `Xxx_N.png` / `Xxx_M.png` / `Xxx_UI.png` を置いてインポート → Texture Type / sRGB / Mipmap が規約どおりになること(TexturePostprocessor)
 - TextureData の Usage を UI に変えて SliceBorder を入れる → Importer が Sprite になり Sprite Editor の Border に同じ値が入ること、Sprite が自動で割り当たること。Channel を Normal にすると Texture Type が NormalMap、Mask にすると sRGB off になること（Validation の Fix を押さなくてよい）。`_N` 名のファイルで Channel=Albedo にすると警告が出て Importer が変わらないこと（2026-09-11 追加）
