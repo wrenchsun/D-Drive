@@ -111,6 +111,8 @@ namespace DDrive.Runtime.Ui
         private bool _padFine;
         private float _padHeldSec;
         private float _padLastRepeatSec;
+        private int _lastMoveFrame = -1; // Codex レビュー対応(2026-09-11): Move() を呼んだ最終フレーム(EventSystem 駆動では MoveRelease が呼ばれないため、フレームの空きで解放を検出する)
+        private bool _padHeldForTests; // テスト用: Time.frameCount に依存させず「押しっぱなし」を明示できるようにする
 
         private SliderSkinData SliderSkin => ResolvedSkin as SliderSkinData;
 
@@ -313,6 +315,7 @@ namespace DDrive.Runtime.Ui
             _padFine = fine;
             _padHeldSec = 0f;
             _padRepeating = false;
+            _lastMoveFrame = Time.frameCount;
 
             return false;
         }
@@ -322,11 +325,25 @@ namespace DDrive.Runtime.Ui
             _padActive = false;
             _padRepeating = false;
             _padHeldSec = 0f;
+            _padHeldForTests = false;
         }
+
+        // テスト専用: EventSystem を介さず「パッドを押し続けている」状態を明示する(Move → Advance を
+        // 複数フレームに分けて呼べないテストのためのフック。実行時コードは使わない)。
+        internal void SetPadHeldForTest(bool held) => _padHeldForTests = held;
 
         // Update から Time.unscaledDeltaTime で呼ばれる(テストは直接呼んで時間経過を模擬する)。
         public void Advance(float unscaledDt)
         {
+            // Codex レビュー対応(2026-09-11): OnMove(EventSystem 駆動)は _padActive を立てるだけで
+            // MoveRelease を呼ぶ実行時経路が無いため、キーを離しても Repeat が止まらなかった。
+            // Move() を呼んだフレームの「翌フレーム以降」まで Move が来ていなければ離されたとみなす。
+            // 同一フレーム内の Move→Advance(テストの典型パターン)は押しっぱなし継続として扱う。
+            if (_padActive && !_padHeldForTests && Time.frameCount > _lastMoveFrame + 1)
+            {
+                MoveRelease();
+            }
+
             TickPadRepeat(unscaledDt);
             TickThrottle(unscaledDt);
             TickAnimate(unscaledDt);
@@ -502,6 +519,11 @@ namespace DDrive.Runtime.Ui
             SetValueInternal(_value + sign * amount, notify: true, commit: true);
         }
 
+        // Codex レビュー対応(2026-09-11): 方針決定 — 十字キー/パッドの Right/Up は Direction(見た目の
+        // 並び)に関わらず常に「値を増やす」(Wheel も同じ規則で既に Direction を見ていない)。
+        // 一方、ポインタ操作(ComputePointerFraction)は Direction 通りの空間的な向きに従う(RightToLeft
+        // なら画面右へドラッグすると値は減る)。これは意図的な非対称(キー入力は「Right=増加」という
+        // 操作感を優先し、ポインタは見た目の並びに追従する)であり、SignFor は変更しない。
         private static int SignFor(MoveDirection dir)
         {
             switch (dir)

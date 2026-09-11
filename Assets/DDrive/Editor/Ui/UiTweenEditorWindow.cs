@@ -62,6 +62,10 @@ namespace DDrive.Editor.Ui
         private void OnEnable()
         {
             SceneView.duringSceneGui += OnSceneGui;
+            // Codex レビュー対応(2026-09-11): CreateGUI は Show() のたびに複数回呼ばれ得るのに対し、
+            // 解除は OnDestroy でしか行っていなかったため、購読が重複する余地があった。
+            // OnEnable/OnDisable(必ず対になる)へ移す。
+            EditorApplication.update += OnEditorUpdate;
         }
 
         private void OnFocus()
@@ -76,6 +80,7 @@ namespace DDrive.Editor.Ui
         {
             SceneView.duringSceneGui -= OnSceneGui;
             SceneGuiOwner.Release(this);
+            EditorApplication.update -= OnEditorUpdate;
         }
 
         private void CreateGUI()
@@ -138,12 +143,10 @@ namespace DDrive.Editor.Ui
                 RebuildAll();
             }
 
-            EditorApplication.update += OnEditorUpdate;
         }
 
         private void OnDestroy()
         {
-            EditorApplication.update -= OnEditorUpdate;
             RemoveFromScene();
         }
 

@@ -108,6 +108,49 @@ namespace DDrive.Runtime.Ui
 
         protected virtual void OnEnable() => ApplySkinForCurrentState();
 
+        // Codex レビュー対応(2026-09-11): Pool から Return されても pointer/focus/cooldown/StateTween が
+        // 前回の状態のまま残り、次に Rent された瞬間に「まだ押されている/ホバー中」扱いになっていた。
+        // OnDisable(Pool.Return は非アクティブ化を伴う)で必ず中立状態に戻す。
+        protected virtual void OnDisable() => ResetInteractionState();
+
+        // 入力に関する内部状態を Normal へ戻す。OnDisable から自動的に呼ばれるほか、テストからも直接呼べる。
+        public void ResetInteractionState()
+        {
+            _pointerDown = false;
+            _pointerOver = false;
+            _focused = false;
+            _cooldownRemaining = 0f;
+
+            // UiFx.Stop は無効/既に完了済みの Handle に対しても安全な no-op(UiManager の同種コメント参照)。
+            if (UiFx.IsBound)
+            {
+                UiFx.Stop(_stateTween);
+            }
+
+            _stateTween = Handle<UiTweenMarker>.Invalid;
+
+            // SetState は resolved==State のとき何もしないため、Skin/Tween の再適用まで含めて明示的に行う。
+            State = ComputeResetState();
+            ApplySkinForCurrentState();
+        }
+
+        // ResetInteractionState 用: Locked/Disabled はフラグが残っていれば維持し、それ以外は Normal にする
+        // (SetState と同じ優先度規則。Locked > Disabled > Normal)。
+        private ControlState ComputeResetState()
+        {
+            if (_locked)
+            {
+                return ControlState.Locked;
+            }
+
+            if (!_interactable)
+            {
+                return ControlState.Disabled;
+            }
+
+            return ControlState.Normal;
+        }
+
         public void SetLocked(bool locked, string reasonKey = null)
         {
             _locked = locked;

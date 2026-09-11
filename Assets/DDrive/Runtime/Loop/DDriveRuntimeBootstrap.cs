@@ -122,8 +122,16 @@ namespace DDrive.Runtime.Loop
                 return;
             }
 
+            Options?.SaveIfDirty(); // Codex レビュー対応(2026-09-11): これまで一度も永続化されていなかった
             Teardown();
             Instance = null;
+        }
+
+        // アプリ終了時は OnDestroy より先にここが呼ばれることがある(DontDestroyOnLoad でも同様)。
+        // Teardown 前に保存だけ済ませておく(Teardown 自体は OnDestroy 側に任せる)。
+        private void OnApplicationQuit()
+        {
+            Options?.SaveIfDirty();
         }
 
         // ── 組み立て ──
@@ -158,8 +166,11 @@ namespace DDrive.Runtime.Loop
             UiTweens = new UiTweenManager(Registry);
             Ui = new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens);
             Ui.SetLayerSettings(LayerSettings);
-            Options = new OptionStore { UiTweens = UiTweens };
-            Options.Load(new PlayerPrefsOptionStorage());
+            // Codex レビュー対応(2026-09-11): Storage を保持しておき、OnDestroy/OnApplicationQuit で
+            // SaveIfDirty() を呼べるようにする(これまでは Load するだけで一度も保存していなかった)。
+            var optionStorage = new PlayerPrefsOptionStorage();
+            Options = new OptionStore { UiTweens = UiTweens, Storage = optionStorage };
+            Options.Load(optionStorage);
             Ui.SetOptionStore(Options);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);

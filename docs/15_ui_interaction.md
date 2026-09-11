@@ -308,6 +308,13 @@ public static class UiFx
 - **テスト**: `Assets/DDrive/Tests/Runtime/UiTweenTests.cs`(MoveTo/Scale(OutBack オーバーシュート)/Fade(CanvasGroup 自動追加)/PathMove/Delay/無限ループ+Stop/Stop(complete:true)/2 トラック並列/WaitAsync/OnPause(Data.Flags 追従 + アドホックは追従しない)/未登録 ID のプレースホルダ/プリセット(FadeIn/SlideInLeft/IsApproximation)/Validator 3 件/UiButton×EnterPreset 統合/0 alloc)
 - **既知の制約・deferred**: `EaseOverride` の CustomBezier 上書き未対応、近似プリセット群の本実装、`UiPresetCatalog`、プリセットギャラリー(4-12)、`UiTweenEditor` のカーブ/スプラインハンドル編集(4-10)、GameLoopDriver の scaled/unscaled dt 二系統化(UseScaledTime を実効化するため)
 
+### レビュー対応(2026-09-11、Phase 4 コードレビュー)
+
+- **Shake/ShakeHard/Tada が元の姿勢に戻らない**: `From=cur-dist/To=cur+dist` の対称往復 PingPong は偶数 `LoopCount`(Shake=6, ShakeHard=10, Tada の回転=4)だと `Mathf.PingPong` の仕様で `From` 側(`cur-dist`)に静止して戻っていた(`Jelly` の「loopCount=2 で必ず元へ戻る」と同じ理屈で、こちらは From 自体が元姿勢ではなかった)。`From=cur(静止姿勢)/To=cur+dist` に組み替えて修正(`UiPresetFactory.Build`)。テスト: `UiPresetTests.Shake_EndsAtOriginalAnchoredPosition` / `Tada_EndsAtRotationZero`
+- **`UiFx.Play`/`UiManager.PlayPreset` の毎回 alloc**: `new TweenTrack[MaxTracksPerTween]` を Play のたびに確保していた([12_review.md] §3 違反)。`PlayTracks` が `OwnedTracks` へコピーするため、`static readonly TweenTrack[] Scratch`(`UiFx`)/`PresetScratch`(`UiManager`)に置き換えて使い回すようにした
+- **`UiTweenManager.PlayTracks(TweenTrack[], int, RectTransform)` の count クランプ漏れ**: `MaxTracksPerTween` にはクランプしていたが `tracks.Length` にクランプしておらず、呼び出し側が実バッファ長より大きい `count` を渡すと `Array.Copy` が例外になり得た。両方にクランプするよう修正
+- **`UiTweenManager.Stop(handle, complete:true)` が破棄済み Target を参照**: `complete` 分岐が `inst.Target` の null チェック無しに `ApplyTrack` を呼んでいた。`inst.Target != null` を追加
+
 ### 実装メモ(2026-09-11、4-9 ElementFx + 4-7 残り レイヤー既定)
 
 - 実装場所: `CanvasData.cs`(`ElementFx` 構造体 + `ElementEffects` 追加)/ `UiLayerSettings.cs`(新規。`UiLayerDefaultEntry[]`)/ `UiManager.cs`(ElementFx ランタイム一式)/ `UiInteractable.cs`(`HasExplicitSkin`/`ApplyDefaultSkin`/`SetDefaultSe`)/ `UiButton.cs`(SE フォールバック + Selected→HoverSe)/ `CanvasDataValidator.cs`(ElementFx 検査)/ `Assets/DDrive/Editor/Canvas/CanvasElementFxCollector.cs`(新規)+ `CanvasEditorWindow.cs` 拡張

@@ -814,6 +814,9 @@ namespace DDrive.Editor.CanvasTool
                     var fixAction = result.FixAction;
                     row.Add(new Button(() =>
                     {
+                        // Codex レビュー対応(2026-09-11): Undo.RecordObject 無しで fixAction が _target を
+                        // 書き換えていたため、Ctrl+Z で元に戻せなかった([CLAUDE.md] #5)。
+                        Undo.RecordObject(_target, "Canvas Validation 修正");
                         fixAction();
                         EditorUtility.SetDirty(_target);
                         RefreshValidation();

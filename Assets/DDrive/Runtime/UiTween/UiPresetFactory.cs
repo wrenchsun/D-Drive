@@ -276,12 +276,16 @@ namespace DDrive.Runtime.Ui
                     buffer[0] = RotTrack(duration, Ease.OutElastic, dist > 0f ? dist : 15f, 0f);
                     return 1;
 
+                // Codex レビュー対応(2026-09-11): From=cur-dist/To=cur+dist の対称往復だと、loopCount が偶数の
+                // PingPong は「From」で止まる(Mathf.PingPong の仕様。Jelly のコメント参照)ため、cur ではなく
+                // cur-dist で静止していた。From=cur(静止姿勢)/To=cur+dist に変更し、偶数 loopCount で必ず
+                // cur(元の位置)に戻るようにする。
                 case UiPreset.Shake:
-                    buffer[0] = PosTrack(duration, Ease.OutSine, cur + new Vector2(-(dist > 0f ? dist : 8f), 0f), cur + new Vector2(dist > 0f ? dist : 8f, 0f), LoopMode.PingPong, 6);
+                    buffer[0] = PosTrack(duration, Ease.OutSine, cur, cur + new Vector2(dist > 0f ? dist : 8f, 0f), LoopMode.PingPong, 6);
                     return 1;
 
                 case UiPreset.ShakeHard:
-                    buffer[0] = PosTrack(duration, Ease.OutSine, cur + new Vector2(-(dist > 0f ? dist : 16f), 0f), cur + new Vector2(dist > 0f ? dist : 16f, 0f), LoopMode.PingPong, 10);
+                    buffer[0] = PosTrack(duration, Ease.OutSine, cur, cur + new Vector2(dist > 0f ? dist : 16f, 0f), LoopMode.PingPong, 10);
                     return 1;
 
                 case UiPreset.Flash:
@@ -409,7 +413,9 @@ namespace DDrive.Runtime.Ui
                     buffer[0] = ScaleTrack(duration, Ease.InOutSine, curScale, curScale * (dist > 0f ? 1f + dist : 1.1f), LoopMode.PingPong, 2);
                     if (buffer.Length > 1)
                     {
-                        buffer[1] = RotTrack(duration, Ease.InOutSine, -(dist > 0f ? dist * 30f : 6f), dist > 0f ? dist * 30f : 6f, LoopMode.PingPong, 4);
+                        // Codex レビュー対応(2026-09-11): From=-dist*30/To=dist*30 だと loopCount=4(偶数)は
+                        // From(-dist*30°)で静止してしまう。From=0(回転無し)/To=dist*30° にして 0° へ戻す。
+                        buffer[1] = RotTrack(duration, Ease.InOutSine, 0f, dist > 0f ? dist * 30f : 6f, LoopMode.PingPong, 4);
                         return 2;
                     }
 

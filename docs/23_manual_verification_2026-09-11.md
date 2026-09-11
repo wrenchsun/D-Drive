@@ -114,3 +114,8 @@
 - Tools > D-Drive > Editors > Slider: 「確認用シーンにサンプルを配置」→ 応答曲線グラフ(Response=InQuad で下側が細かい)、ノッチ可視化、◀▶ / ドラッグ模擬で Game ビューのスライダーが動き Notch / Limit の SE が鳴ること、「2 体目を配置して FollowMotion を比較」、「全状態を並べる」で 6 状態の Skin
 - SliderSkinData の Inspector に「Slider Editor で開く」が出ること
 - Tools > D-Drive > Editors > UI Tween · Preset Gallery: タブ / 検索 / お気に入り、カードの「この要素に適用」「Canvas 内一括適用」「選択中のシーン要素で再生」「独自プリセットとして登録」
+
+## 4-13 Simulated Spawn(PR #7)/ Phase 4 レビュー対応(2026-09-11)
+- Play で NetMode=Simulated の PrefabData を `Prefabs.Spawn` → LocalLoopbackBridge(単機)では生成されること。NGO 接続時の NetworkObject 複製は Phase 6 で接続予定
+- レビュー対応の手動確認: プリセットギャラリーの「選択中のシーン要素で再生」→ 停止で位置 / スケール / alpha が元に戻り、追加された CanvasGroup が Undo で消えること(P1-6)。Canvas を Scale 遷移で閉じて再度開いたとき表示されること(P1-1)。設定画面で音量を変えて Play 終了 → 再度 Play で値が復元されること(P1-4)
+- docs/24 の整理項目 1〜6 は未対応(後続)

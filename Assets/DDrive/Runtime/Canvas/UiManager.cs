@@ -72,6 +72,12 @@ namespace DDrive.Runtime.Ui
             public int PendingAppearCount; // まだ完了していない Appear の数(>0 の間は入力を受け付けない)
             public int PendingDisappearCount; // まだ完了していない Disappear の数(>0 の間は Close を確定しない)
             public bool CloseTransitionCompleted; // CloseTransition(演出)側が完了したか(TryFinalizeClose が両条件を見る)
+
+            // Codex レビュー対応(2026-09-11): CloseTransition.Kind=None のときは _transitions に何も積まれない
+            // ため、AwaitCloseTransition(_transitions を走査する実装)は何も見つけられず即座に戻ってしまい、
+            // ElementFx.Disappear の完了を待たずに CloseAsync が返っていた。FinalizeClose(実際に閉じ切った瞬間)
+            // で確実に解決される専用の CompletionSource を持たせる。
+            public UniTaskCompletionSource CloseCompletion;
         }
 
         // 1 ElementFx 行ぶんのランタイム状態(4-9)。
@@ -141,6 +147,11 @@ namespace DDrive.Runtime.Ui
         private readonly Dictionary<string, List<Action<SignalArgs>>> _signalSubs = new();
         private readonly HashSet<CanvasData> _placeholderWarned = new();
         private readonly HashSet<(CanvasData data, string path)> _elementPathWarned = new();
+
+        // Codex レビュー対応(2026-09-11): PlayPreset のたびに new TweenTrack[MaxTracksPerTween] していた
+        // (定常経路での alloc、[12_review.md] §3)。UiTweenManager.PlayTracks が OwnedTracks へコピーする
+        // ため、この呼び出し内でしか使わないスクラッチは使い回せる。
+        private static readonly TweenTrack[] PresetScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
 
         private GameObject _root;
         private readonly LayerRoot[] _layerRoots = new LayerRoot[5];
@@ -365,6 +376,7 @@ namespace DDrive.Runtime.Ui
 
             instance.Closing = true;
             instance.CloseTransitionCompleted = false;
+            instance.CloseCompletion = new UniTaskCompletionSource();
             StartAllDisappearFx(instance); // PendingDisappearCount を確定させてから CloseTransition を始める
             StartTransition(handle, instance, instance.Data.CloseTransition, isOpen: false);
             TryFinalizeClose(handle, instance); // Duration<=0/Kind=None で上の StartTransition が同期完了した場合の後始末
@@ -378,7 +390,10 @@ namespace DDrive.Runtime.Ui
             }
 
             Close(handle);
-            await AwaitCloseTransition(handle);
+            if (instance.CloseCompletion != null)
+            {
+                await instance.CloseCompletion.Task;
+            }
         }
 
         // 戻る操作。スタック上位から CloseOnBack==true かつ閉じ処理中でないものを 1 つ閉じる。
@@ -524,20 +539,10 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        private async UniTask AwaitCloseTransition(Handle<CanvasMarker> handle)
-        {
-            for (var i = 0; i < _transitions.Count; i++)
-            {
-                if (_transitions[i].Handle.Equals(handle) && !_transitions[i].IsOpen)
-                {
-                    await _transitions[i].Completion.Task;
-                    return;
-                }
-            }
-        }
-
         private void FinalizeClose(Handle<CanvasMarker> handle, CanvasInstance instance)
         {
+            instance.CloseCompletion?.TrySetResult();
+
             if (instance.WireUnsubscribers != null)
             {
                 for (var i = 0; i < instance.WireUnsubscribers.Count; i++)
@@ -570,6 +575,24 @@ namespace DDrive.Runtime.Ui
             }
             else if (instance.IsPooled)
             {
+                // Codex レビュー対応(2026-09-11): CloseTransition(Scale/Fade/Slide)の終端値(scale 0 / alpha 0 /
+                // スライドオフセット位置)を残したままプールへ返すと、次に Rent した際そのまま見えなくなる。
+                // 返却前に中立状態へ戻しておく(次回 OpenData が正しい BaseAnchoredPosition/BaseScale を記録できる)。
+                if (instance.Group != null)
+                {
+                    instance.Group.alpha = 1f;
+                }
+
+                if (instance.Root != null)
+                {
+                    instance.Root.transform.localScale = Vector3.one;
+                }
+
+                if (instance.Rect != null)
+                {
+                    instance.Rect.anchoredPosition = instance.BaseAnchoredPosition;
+                }
+
                 _pool.Return(instance.Pooled);
             }
             else
@@ -1432,8 +1455,7 @@ namespace DDrive.Runtime.Ui
                 return Handle<UiTweenMarker>.Invalid;
             }
 
-            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
-            var count = UiPresetFactory.Build(in p, target, buffer);
+            var count = UiPresetFactory.Build(in p, target, PresetScratch);
             if (count <= 0)
             {
                 return Handle<UiTweenMarker>.Invalid;
@@ -1444,7 +1466,7 @@ namespace DDrive.Runtime.Ui
                 Runtime.Audio.Audio.PlaySe(p.Se);
             }
 
-            return _tweens.PlayTracks(buffer, count, target);
+            return _tweens.PlayTracks(PresetScratch, count, target);
         }
 
         private bool IsTweenPlaying(Handle<UiTweenMarker> handle) => _tweens != null && _tweens.IsPlaying(handle);

@@ -49,8 +49,26 @@ namespace DDrive.Editor.Ui
         private DDrive.Foundation.Handle.Handle<UiTweenMarker> _previewHandle;
         private double _lastEditorTime;
 
+        // Codex レビュー対応(2026-09-11): 「選択中のシーン要素で再生」はユーザーの実オブジェクトを直接
+        // 動かすため、再生前の姿勢を保存しておき Stop 時に必ず元へ戻す(Undo だけに頼らない。ドメインリロード
+        // や別要素への切り替えでも復元漏れが起きないようにするため)。CanvasGroup を UiTweenManager が
+        // 内部で追加した場合は「元々無かった」ことも記録し、Stop 時に取り除く(Undo.RegisterCreatedObjectUndo
+        // で Ctrl+Z 側の経路も確保する)。
+        private RectTransform _previewTarget;
+        private Vector2 _previewSnapAnchoredPosition;
+        private Vector3 _previewSnapLocalScale;
+        private Vector3 _previewSnapLocalEuler;
+        private bool _previewHadCanvasGroup;
+        private float _previewSnapAlpha;
+
         private readonly List<(string name, UiTweenData tween)> _catalogEntries = new();
         private List<GalleryCard> _allCards = new();
+
+        // Codex レビュー対応(2026-09-11): DrawCurveSketch はカードの再描画(IMGUIContainer は毎 Repaint 呼ばれる)
+        // のたびに `CreateScratchRect()` で GameObject を生成/破棄していた。曲線の「形」自体はカード名が
+        // 同じなら毎回同じなので、64 サンプルを 1 回だけ計算してキャッシュする(Rect のサイズ変更には
+        // 追従しなくてよい。points の x/y は描画時に現在の rect から計算し直す)。
+        private readonly Dictionary<string, float[]> _sketchSampleCache = new();
 
         [MenuItem(DDriveMenu.Editors + "UI Tween · Preset Gallery")]
         public static void OpenFromMenu() => GetWindow<UiPresetGalleryWindow>("Preset Gallery").minSize = new Vector2(520, 480);
@@ -65,6 +83,7 @@ namespace DDrive.Editor.Ui
         private void OnDisable()
         {
             EditorApplication.update -= OnEditorUpdate;
+            StopPreview();
         }
 
         private void CreateGUI()
@@ -282,7 +301,7 @@ namespace DDrive.Editor.Ui
 
             box.Add(new Label(card.Tab.ToString()) { style = { opacity = 0.6f, fontSize = 10 } });
 
-            var curve = new IMGUIContainer(() => DrawCurveSketch(GUILayoutUtility.GetRect(160, 50), card)) { style = { height = 54 } };
+            var curve = new IMGUIContainer(() => DrawCurveSketch(GUILayoutUtility.GetRect(160, 50), in card)) { style = { height = 54 } };
             box.Add(curve);
 
             box.Add(new Button(() => ApplyToElement(card)) { text = "この要素に適用" });
@@ -310,10 +329,40 @@ namespace DDrive.Editor.Ui
 
         // 64 サンプルの静的イージング曲線スケッチ(UiTweenEditorWindow.DrawCurvePreview と同じ考え方)。
         // 実際の値域(位置/スケール等)ではなく、Motion(Parametric/Curve)の形そのものを 0..1 で描く。
-        private static void DrawCurveSketch(Rect rect, in GalleryCard card)
+        // サンプル自体はカード単位で 1 回だけ計算してキャッシュする(下記 BuildSketchSamples)。
+        private void DrawCurveSketch(Rect rect, in GalleryCard card)
         {
             EditorGUI.DrawRect(rect, new Color(0.12f, 0.12f, 0.12f));
 
+            if (!_sketchSampleCache.TryGetValue(card.Name, out var samples))
+            {
+                samples = BuildSketchSamples(card);
+                _sketchSampleCache[card.Name] = samples;
+            }
+
+            if (samples == null)
+            {
+                return;
+            }
+
+            var points = new Vector3[samples.Length];
+            for (var i = 0; i < samples.Length; i++)
+            {
+                var t = i / (float)(samples.Length - 1);
+                points[i] = new Vector3(rect.x + t * rect.width, rect.yMax - Mathf.Clamp01(samples[i]) * rect.height, 0f);
+            }
+
+            Handles.BeginGUI();
+            var prev = Handles.color;
+            Handles.color = new Color(0.4f, 0.85f, 1f);
+            Handles.DrawAAPolyLine(2f, points);
+            Handles.color = prev;
+            Handles.EndGUI();
+        }
+
+        // card.Name をキーにキャッシュされる「形」だけのサンプル配列(GameObject の生成/破棄はここで 1 回だけ)。
+        private static float[] BuildSketchSamples(in GalleryCard card)
+        {
             ValueDef motion;
             if (card.Preset != UiPreset.None)
             {
@@ -329,24 +378,18 @@ namespace DDrive.Editor.Ui
             }
             else
             {
-                return;
+                return null;
             }
 
             const int samples = 64;
-            var points = new Vector3[samples];
+            var result = new float[samples];
             for (var i = 0; i < samples; i++)
             {
                 var t = i / (float)(samples - 1);
-                var shape = SampleShape(motion, t);
-                points[i] = new Vector3(rect.x + t * rect.width, rect.yMax - Mathf.Clamp01(shape) * rect.height, 0f);
+                result[i] = SampleShape(motion, t);
             }
 
-            Handles.BeginGUI();
-            var prev = Handles.color;
-            Handles.color = new Color(0.4f, 0.85f, 1f);
-            Handles.DrawAAPolyLine(2f, points);
-            Handles.color = prev;
-            Handles.EndGUI();
+            return result;
         }
 
         // UiTweenManager.EvaluateShape と同じ考え方(Constant=1=即時反映)。曲線の「形」だけを見せるため
@@ -453,8 +496,17 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            StopPreview();
+            StopPreview(); // 前回の再生対象が残っていれば先に元へ戻す
             _previewManager ??= new UiTweenManager(EditorAnchorRegistry.Build());
+
+            // 再生前の姿勢を保存(Stop 時に必ずここへ戻す)。
+            _previewTarget = target;
+            _previewSnapAnchoredPosition = target.anchoredPosition;
+            _previewSnapLocalScale = target.localScale;
+            _previewSnapLocalEuler = target.localEulerAngles;
+            var existingGroup = target.GetComponent<CanvasGroup>();
+            _previewHadCanvasGroup = existingGroup != null;
+            _previewSnapAlpha = existingGroup != null ? existingGroup.alpha : 1f;
 
             if (card.Preset != UiPreset.None)
             {
@@ -467,18 +519,53 @@ namespace DDrive.Editor.Ui
                 _previewHandle = _previewManager.PlayData(card.CatalogTween, target);
             }
 
+            // UiTweenManager.ResolveComponents が CanvasGroup/Rigidbody 等を必要に応じて追加することがある。
+            // 元々無かったのに追加された場合は Ctrl+Z でも消せるよう Undo に登録しておく(実削除は StopPreview)。
+            if (!_previewHadCanvasGroup)
+            {
+                var addedGroup = target.GetComponent<CanvasGroup>();
+                if (addedGroup != null)
+                {
+                    Undo.RegisterCreatedObjectUndo(addedGroup, "Preset Gallery Preview: CanvasGroup");
+                }
+            }
+
             _lastEditorTime = EditorApplication.timeSinceStartup;
             _statusLabel.text = $"'{card.Name}' を '{target.name}' で再生中";
         }
 
+        // complete=false で即座に停止し(演出の終端値へジャンプさせない)、再生前の姿勢へ戻す。
+        // UiTweenManager が追加した CanvasGroup(元々無かった場合のみ)もここで取り除く。
         private void StopPreview()
         {
             if (_previewManager != null)
             {
-                _previewManager.Stop(_previewHandle);
+                _previewManager.Stop(_previewHandle, complete: false);
             }
 
             _previewHandle = DDrive.Foundation.Handle.Handle<UiTweenMarker>.Invalid;
+
+            if (_previewTarget != null)
+            {
+                _previewTarget.anchoredPosition = _previewSnapAnchoredPosition;
+                _previewTarget.localScale = _previewSnapLocalScale;
+                _previewTarget.localEulerAngles = _previewSnapLocalEuler;
+
+                var group = _previewTarget.GetComponent<CanvasGroup>();
+                if (group != null)
+                {
+                    if (_previewHadCanvasGroup)
+                    {
+                        group.alpha = _previewSnapAlpha;
+                    }
+                    else
+                    {
+                        Undo.DestroyObjectImmediate(group);
+                    }
+                }
+            }
+
+            _previewTarget = null;
         }
 
         private void OnEditorUpdate()

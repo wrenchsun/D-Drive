@@ -36,6 +36,20 @@ namespace DDrive.Runtime.Ui
         private bool _pendingClickActive;
         private float _pendingClickTimer;
 
+        // Codex レビュー対応(2026-09-11): 基底の ResetInteractionState(OnDisable から自動で呼ばれる)は
+        // pointer/focus/state/cooldown/StateTween しか戻さないため、UiButton 固有の LongPress/Repeat/
+        // DoubleClick 保留状態が Pool 再利用後に残ってしまう(再利用直後に Repeat が発火する等)。
+        protected override void OnDisable()
+        {
+            _isHeld = false;
+            _heldSec = 0f;
+            _longPressFired = false;
+            _lastRepeatSec = 0f;
+            _pendingClickActive = false;
+            _pendingClickTimer = 0f;
+            base.OnDisable();
+        }
+
         private ButtonSkinData ButtonSkin => ResolvedSkin as ButtonSkinData;
 
         public void SetVisual(ButtonSkinData skin) => SetVisual((ControlSkinData)skin);
