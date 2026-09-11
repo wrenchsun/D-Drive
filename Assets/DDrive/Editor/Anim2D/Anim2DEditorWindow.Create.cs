@@ -225,6 +225,7 @@ namespace DDrive.Editor.Anim2D
 
         private Rect[] _detectedRects;
         private Texture2D _detectedTexture;
+        private Vector2Int _detectedSourceSize; // 元画像のピクセルサイズ(矩形の座標空間)
         private Button _spriteEditorButton;
         private IMGUIContainer _detectPreview;
         private const float DetectPreviewMaxHeight = 260f;
@@ -250,6 +251,18 @@ namespace DDrive.Editor.Anim2D
 
             _detectedRects = rects;
             _detectedTexture = _texture;
+            // 検出矩形は元画像のピクセル座標(DetectRects が Max Size を 16384 にして検出する)。表示用テクスチャは
+            // Max Size で縮小されている(例: 2500x2000 → 2048x1638)ので、縮尺と Y 反転は元画像サイズで行う(2026-09-11 修正)。
+            _detectedSourceSize = new Vector2Int(_texture.width, _texture.height);
+            if (AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(_texture)) is TextureImporter importer)
+            {
+                importer.GetSourceTextureWidthAndHeight(out var sw, out var sh);
+                if (sw > 0 && sh > 0)
+                {
+                    _detectedSourceSize = new Vector2Int(sw, sh);
+                }
+            }
+
             _spriteEditorButton?.SetEnabled(true);
             _resultLabel.text = $"検出: {rects.Length} 枚 / 推定 {rows} 行 x {cols} 列({(regular ? "規則的グリッド" : "不規則")})。緑 = 生成に使う矩形(番号 = フレーム順)";
             UpdateDetectPreviewHeight();
@@ -270,8 +283,8 @@ namespace DDrive.Editor.Anim2D
 
             var resolved = _detectPreview.resolvedStyle.width;
             var width = float.IsNaN(resolved) || resolved < 64f ? 320f : resolved; // レイアウト前は NaN
-            var scale = Mathf.Min(width / _detectedTexture.width, DetectPreviewMaxHeight / _detectedTexture.height);
-            _detectPreview.style.height = Mathf.Ceil(_detectedTexture.height * scale) + 4f;
+            var scale = Mathf.Min(width / _detectedSourceSize.x, DetectPreviewMaxHeight / _detectedSourceSize.y);
+            _detectPreview.style.height = Mathf.Ceil(_detectedSourceSize.y * scale) + 4f;
             _detectPreview.MarkDirtyRepaint();
         }
 
@@ -289,8 +302,11 @@ namespace DDrive.Editor.Anim2D
                 return;
             }
 
-            var scale = Mathf.Min(area.width / _detectedTexture.width, DetectPreviewMaxHeight / _detectedTexture.height);
-            var drawn = new Rect(area.x, area.y, _detectedTexture.width * scale, _detectedTexture.height * scale);
+            // 縮尺・Y 反転は元画像サイズ基準(矩形の座標空間)。テクスチャは同じ比率なので StretchToFill で重ねる。
+            var srcW = (float)_detectedSourceSize.x;
+            var srcH = (float)_detectedSourceSize.y;
+            var scale = Mathf.Min(area.width / srcW, DetectPreviewMaxHeight / srcH);
+            var drawn = new Rect(area.x, area.y, srcW * scale, srcH * scale);
             EditorGUI.DrawRect(drawn, new Color(0.12f, 0.12f, 0.12f));
             GUI.DrawTexture(drawn, _detectedTexture, ScaleMode.StretchToFill, true);
 
@@ -300,7 +316,7 @@ namespace DDrive.Editor.Anim2D
             {
                 var r = _detectedRects[i];
                 var x = drawn.x + r.x * scale;
-                var y = drawn.y + (_detectedTexture.height - r.y - r.height) * scale;
+                var y = drawn.y + (srcH - r.y - r.height) * scale;
                 var rect = new Rect(x, y, r.width * scale, r.height * scale);
                 EditorGUI.DrawRect(rect, fill);
                 EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), line);
