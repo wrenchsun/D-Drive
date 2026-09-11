@@ -27,6 +27,7 @@
 <ol>
 <li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Anchor</code>（Anchor Editor）</li>
 <li>または VFX Editor の Anchor 欄「AnchorEditor で開く」、SE データの Inspector の「AnchorEditor で開く」</li>
+<li>Anchor データそのものを Project で選んだときは、Inspector 最上部の「▶ Anchor Editor で開く」（Anchor は絵の元が無いので、アイコンの「自動生成」は使えません）</li>
 </ol>
 
 <h2>はじめの一歩（5 分でできる練習）</h2>
@@ -46,7 +47,7 @@
 <h2>作り方（3 通り）</h2>
 <table>
 <tr><th>方法</th><th>手順</th><th>向いている場面</th></tr>
-<tr><td>新規作成</td><td><a href="asset-browser.html">Asset Browser</a> の「新規作成」で種別に <strong>Anchor</strong> を選ぶ。Anchor Editor でスポーン先（キャラクター）を指定し、「一覧から選択」でボーンを選んで位置を調整</td><td>ゼロから作る</td></tr>
+<tr><td>新規作成</td><td><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anchor</strong> を選ぶ。Anchor Editor でスポーン先（キャラクター）を指定し、「一覧から選択」でボーンを選んで位置を調整</td><td>ゼロから作る</td></tr>
 <tr><td>Hierarchy の Transform から作る</td><td>シーンでボーンの下に空のオブジェクトを置いて位置を決め、それを選択したまま Anchor Editor の「<strong>選択した Transform から作成</strong>」（または <code>Tools &gt; D-Drive &gt; Generate &gt; 選択した Transform から Anchor を作成</code>）。親のボーン名と、そこからのずれが自動で入ります。作った後、その空オブジェクトは消して構いません</td><td>既存のボーンやモデルの階層をそのまま使いたい</td></tr>
 <tr><td>AnchorRig から一括で作る</td><td><a href="vfx-data.html#anchorpoint">AnchorRig</a>（AnchorPoint の集まり）を選択して「<strong>AnchorRig から一括生成</strong>」。AnchorPoint 1 つにつき Anchor データが 1 つでき、AnchorPoint の親子関係はそのまま Anchor の入れ子になります。ランダム設定も写されます</td><td>SceneView でドラッグして決めた目印をデータ化したい</td></tr>
 </table>

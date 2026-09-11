@@ -28,12 +28,16 @@
 <table>
 <tr><th>場所</th><th>説明</th></tr>
 <tr><td>検索欄（左上）</td><td>文字を入れると、その場で一覧が絞り込まれます。<strong>日本語の表示名でも検索できます</strong>（例:「斬撃」と入れると「剣の斬撃音」がヒット）。カテゴリ・タグ・説明文も検索対象です。</td></tr>
-<tr><td>種別メニュー（検索欄の右）</td><td>「All」のままなら全部表示。「Se」を選ぶと効果音だけ、「Bgm」を選ぶと BGM だけに絞れます。</td></tr>
+<tr><td>種別メニュー（検索欄の右）</td><td>「All」のままなら全部表示。「Se」を選ぶと効果音だけ、「Bgm」を選ぶと BGM だけに絞れます。種別は Se / Bgm / Vfx / Anim / Anim2D / Material / Texture / Canvas / Prefab / Model / Anchor / AnchorGroup / ControlSkin（ボタン・スライダーの Skin）/ UiTween など。「Presentation」「Shake」「Haptics」はまだ中身が無いので選んでも 0 件です。</td></tr>
 <tr><td>「新規」ボタン</td><td>新しいアセットを登録するダイアログを開きます（下で説明）。</td></tr>
 <tr><td>「更新」ボタン</td><td>一覧を最新の状態に読み直します。（普段は自動で更新されるので、表示がおかしいと感じた時だけ押せばOK）</td></tr>
 <tr><td>一覧</td><td>登録済みのアセットが並びます。クリックすると右の Inspector に詳細が表示され、ダブルクリックすると Project ウィンドウの実ファイルがハイライトされます。</td></tr>
-<tr><td>プレビューバー（一番下）</td><td>選択中の音をその場で試聴できます。▶再生 / ■停止 / ループ / 速度。</td></tr>
+<tr><td>プレビューバー（一番下）</td><td>選択中の音をその場で試聴できます。▶再生 / ■停止 / ループ / 速度。音以外（VFX やモデルなど）を選んでいるときは押せません。</td></tr>
+<tr><td>件数表示（一覧の下）</td><td>「12 / 48 件」のように「いま表示している件数 / 全件数」が出ます。検索や種別で絞っているときの目安に。</td></tr>
 </table>
+<div class="tip">
+一覧に出るのは「種別 / 表示名 / カテゴリ」の文字だけで、アイコン画像は出ません。アイコンは Inspector で確認します。
+</div>
 
 <h2>検索の詳しい仕様</h2>
 
@@ -67,20 +71,23 @@
 
 <h2>新しいアセットを登録する</h2>
 
-<h3>方法1: 音声ファイルをドラッグ＆ドロップ（おすすめ）</h3>
+<h3>方法1: 音声ファイルをドラッグ＆ドロップ（効果音だけ）</h3>
 <ol>
 <li>Project ウィンドウにある音声ファイル（.wav / .mp3 / .ogg）を、Asset Browser のウィンドウの上へドラッグ＆ドロップ</li>
 <li>登録ダイアログが開くので、下の表の項目を入力</li>
 <li>「作成」を押す</li>
 </ol>
+<div class="warn">
+ドラッグ＆ドロップで作れるのは<strong>効果音（Se）だけ</strong>です。Prefab・画像・マテリアルなどを落としても何も起きません。それ以外の種類はすべて「新規」ボタンから作ります。
+</div>
 
-<h3>方法2: 「新規」ボタン</h3>
-<p>ファイルを後から設定したい場合はこちら。開くダイアログは同じです。</p>
+<h3>方法2: 「新規」ボタン（効果音以外はこちら）</h3>
+<p>ファイルを後から設定したい場合や、効果音以外の種類はこちら。開くダイアログは同じで、「種別」で作るものを選びます。</p>
 
 <h3>ダイアログの入力項目</h3>
 <table>
 <tr><th>項目</th><th>入力するもの</th><th>例</th></tr>
-<tr><td>種別</td><td>作りたいアセットの種類。効果音なら「Se」、BGM なら「Bgm」。</td><td>Se (SeData)</td></tr>
+<tr><td>種別</td><td>作りたいアセットの種類。効果音なら「Se (SeData)」、BGM なら「Bgm (BgmData)」。ほかに Vfx / Anim / Anim2D / Material / Texture / Canvas / Prefab / Model / Anchor / AnchorGroup / UiTween があり、ボタン用とスライダー用の Skin は「ControlSkin (ButtonSkinData)」「ControlSkin (SliderSkinData)」の 2 行に分かれています。</td><td>Se (SeData)</td></tr>
 <tr><td>表示名</td><td><strong>日本語でOK。</strong>一覧や検索で使われる名前。後から変えても大丈夫。</td><td>剣の斬撃音</td></tr>
 <tr><td>カテゴリ</td><td>整理用の分類。空欄でもOK。</td><td>Player</td></tr>
 <tr><td>識別子</td><td><strong>英語で、先頭大文字・スペースなし。</strong>プログラマーがコードから呼ぶときの名前になります。迷ったら英単語をつなげて各単語の頭を大文字に。</td><td>SwordSlash</td></tr>
@@ -91,8 +98,22 @@
 カテゴリを英語で入れておくと（例: <code>Player</code>、<code>Enemy/Attack</code> のように <code>/</code> で階層も可）、<strong>カテゴリごとのフォルダに自動で仕分けられる</strong>ので、Project ウィンドウから直接探すときも見つけやすくなります。
 </div>
 
+<h3>種別ごとの保存先</h3>
+<table>
+<tr><th>種別</th><th>ファイル名の頭</th><th>保存フォルダ（<code>Assets/GameData/</code> の下）</th></tr>
+<tr><td>Se / Bgm</td><td>SE_ / BGM_</td><td>Audio/SE / Audio/BGM</td></tr>
+<tr><td>Vfx</td><td>VFX_</td><td>Vfx</td></tr>
+<tr><td>Anim / Anim2D</td><td>ANIM_ / ANIM2D_</td><td>Anim / Anim2D</td></tr>
+<tr><td>Material / Texture</td><td>MAT_ / TEX_</td><td>Material / Texture</td></tr>
+<tr><td>Model / Prefab</td><td>MODEL_ / PREFAB_</td><td>Model / Prefab</td></tr>
+<tr><td>Canvas</td><td>CANVAS_</td><td>Canvas</td></tr>
+<tr><td>Anchor / AnchorGroup</td><td>ANC_ / ANCG_</td><td>Anchor / AnchorGroup</td></tr>
+<tr><td>ControlSkin（Skin）</td><td>SKIN_</td><td>Ui/Skin</td></tr>
+<tr><td>UiTween</td><td>UITWEEN_</td><td>UiTween</td></tr>
+</table>
+
 <div class="tip">
-<strong>カテゴリを後から変えたら:</strong> ファイルの場所と名前がカテゴリと合わなくなりますが、手で動かす必要はありません。メニューの <code>Tools</code> → <code>D-Drive</code> → <code>Generate</code> → <code>GameData をカテゴリ配置に整理</code> を実行すると、ツールが正しいフォルダへ移動して名前も直してくれます（移動してもゲーム側の参照は壊れない仕組みになっています）。
+<strong>カテゴリを後から変えたら:</strong> ファイルの場所と名前がカテゴリと合わなくなりますが、手で動かす必要はありません。メニューの <code>Tools</code> → <code>D-Drive</code> → <code>Generate</code> → <code>GameData をカテゴリ配置に整理</code> を実行すると、ツールが正しいフォルダへ移動して名前も直してくれます（移動してもゲーム側の参照は壊れない仕組みになっています）。アイコン画像（<code>GameData/Icons</code>）は移動・改名されませんが、そのまま使われ続けるので問題ありません。
 </div>
 
 <div class="warn">
@@ -121,6 +142,8 @@ NG: <code>sword_slash</code> / <code>剣斬撃</code> / <code>1Slash</code> → 
 <li><a href="se-data.html">SE（効果音）の設定項目</a> — 登録した後の細かい調整</li>
 <li><a href="bgm-data.html">BGM の設定項目</a></li>
 <li><a href="audio-editor.html">Audio Editor の使い方</a> — 波形を見ながらの編集・試聴</li>
+<li><a href="validation.html">Validation の使い方</a> — 登録漏れ・設定ミスの一括チェック</li>
+<li>種類ごとの設定: <a href="vfx-data.html">VFX</a> / <a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a> / <a href="anim2d-editor.html">2D アニメーション</a> / <a href="material-data.html">マテリアル・テクスチャ</a> / <a href="prefab-data.html">Prefab</a> / <a href="canvas-data.html">Canvas</a> / <a href="ui-skin.html">Skin</a> / <a href="ui-tween.html">UI Tween</a></li>
 <li><a href="glossary.html">用語集</a></li>
 </ul>
 

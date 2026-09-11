@@ -12,7 +12,7 @@
 <p>このマニュアルは、<strong>D-Drive</strong>（Designer-Driven Re: IDE Visual Environment、このプロジェクトのアセット管理システム）をデザイナーが使うためのガイドです。プログラムの知識は必要ありません。</p>
 
 <h2>D-Drive とは？（30秒で分かる説明)</h2>
-<p>ゲームで使う音・エフェクトなどの素材を、<strong>「ID（番号札）」で管理する仕組み</strong>です。現在は<strong>効果音・BGM・エフェクト（VFX）・出す位置（Anchor / 配置セット）・モデル・3D アニメーション</strong>に対応しています。</p>
+<p>ゲームで使う音・エフェクトなどの素材を、<strong>「ID（番号札）」で管理する仕組み</strong>です。現在は<strong>効果音・BGM・エフェクト（VFX）・出す位置（Anchor / 配置セット）・モデル・3D アニメーション・2D アニメーション（スプライト）・マテリアル / テクスチャ・Prefab（ゲーム中に出す物）・Canvas（UI 画面）・UI の動き（UI Tween）・ボタン / スライダーの見た目（Skin）</strong>に対応しています。</p>
 <ul>
 <li>プログラマーは「この場面でこの番号札の音を鳴らす」とだけ書きます</li>
 <li>デザイナーのあなたは「その番号札の中身（どんな音か、どのくらいの音量か）」を自由に作り込みます</li>
@@ -24,14 +24,16 @@
 </div>
 
 <div class="tip">
-<strong>共通の入口:</strong> Project でデータ（効果音・BGM・VFX・モデル・アニメーション・Anchor・配置セット）を選ぶと、<strong>Inspector の一番上に「▶ 〜 Editor で開く」ボタン</strong>が出ます。迷ったらこれを押せば、そのデータ用の専用エディタが開きます。<br>
-<strong>アイコン:</strong> 同じ場所に「フォルダから選択」「シーンから作成」があります。SceneView でエフェクトやモデルを良い角度で映してから「シーンから作成」を押すと、シーン全体の写真が出るので、ドラッグで四角く切り取って「この範囲でアイコンを作成」。それがそのままアイコンになり、一覧で見分けやすくなります（画像は <code>GameData/Icons</code> に自動で保存されます）。
+<strong>共通の入口:</strong> Project で D-Drive のデータ（効果音・BGM・VFX・モデル・アニメーション・Anchor・配置セット・マテリアル・テクスチャ・Prefab・Canvas・Skin・UI Tween）を選ぶと、<strong>Inspector の一番上に「▶ 〜 Editor で開く」ボタン</strong>が出ます。迷ったらこれを押せば、そのデータ用の専用エディタが開きます（マテリアルのように、ボタンが 2〜3 個並ぶものもあります）。<br>
+<strong>アイコン:</strong> 同じ場所に「自動生成」「フォルダから選択」「シーンから作成」「クリア」があります。Prefab や画像を持つデータ（モデル・VFX・Prefab・Canvas・テクスチャ・Skin）とマテリアルは、<strong>「自動生成」を押すだけ</strong>で見た目からアイコンが作られます（作成直後にも自動で試みます）。効果音・BGM・アニメーション・Anchor のように絵の元が無い種類ではこのボタンは押せません。SceneView で良い角度に映してから「シーンから作成」を押すと、シーン全体の写真からドラッグで四角く切り取ってアイコンにできます。画像は <code>Assets/GameData/Icons/&lt;種別&gt;/</code> に自動で保存され、アイコンは Inspector に表示されます（Asset Browser の一覧には出ません）。
 </div>
 
 <h2>ページ一覧</h2>
 <ul class="pagelinks">
 <li><a href="asset-browser.html">Asset Browser の使い方</a>
 <p>すべての入口になるウィンドウ。素材の一覧・検索・新規作成はここから。<strong>まず最初に読んでください。</strong></p></li>
+<li><a href="validation.html">Validation（自動チェック）の使い方</a>
+<p>設定ミス・登録漏れをまとめて見つけて、「修正」ボタンで直す。赤い表示が出たらまずここ。</p></li>
 <li><a href="se-data.html">SE（効果音）の設定項目</a>
 <p>効果音データの全パラメータの説明。音量・ピッチ・3D設定・連打防止など。</p></li>
 <li><a href="bgm-data.html">BGM の設定項目</a>
@@ -52,14 +54,30 @@
 <p>キャラクター / 物体の Prefab を登録し、確認用シーンで回して見る。マテリアルのスロット、出した瞬間に再生するアニメーション。</p></li>
 <li><a href="anim-editor.html">アニメーション（3D）の設定と Anim Editor</a>
 <p>モデルを動かしながら「何フレーム目で音・エフェクト」を決める。Animator のステートから選んで作る、音の波形を見ながら調整、一時停止、繰り返し設定、ブレンド確認。</p></li>
+<li><a href="anim2d-editor.html">2D アニメーション（スプライト）の作成と Anim2D Editor</a>
+<p>スプライトシートを切り分けてコマアニメにする。自動検出、8 方向、コマ間隔の調整（リタイミング）。音・エフェクトは Anim Editor と共通。</p></li>
+<li><a href="material-data.html">マテリアル / テクスチャの設定項目</a>
+<p>色・凹凸・金属感・発光などの「表面の質感」と画像の管理。ファイル名のルールで自動設定、Maya / Substance からの受け渡し。</p></li>
+<li><a href="material-editor.html">Material Editor の使い方（プレビュー・シェーダー変換）</a>
+<p>球や板に貼って回しながら確認、2 つを見比べる、シーンに置く、シェーダーの乗り換え。</p></li>
+<li><a href="prefab-data.html">Prefab データ（ゲーム中に出す物）の設定と Prefab Editor</a>
+<p>弾・ギミック・拾い物などを ID で登録。使い回し（プール）の設定、出現時の音・エフェクト。</p></li>
+<li><a href="canvas-data.html">Canvas（UI 画面）データの設定項目</a>
+<p>メニューやダイアログ 1 画面分の設定。レイヤー、開閉の演出、ボタンを押したら何が起きるか（配線）、パッドのフォーカス移動。</p></li>
+<li><a href="canvas-editor.html">Canvas Editor の使い方（ナビゲーション・演出・プレビュー）</a>
+<p>フォーカスのつながりを線で描く、要素ごとの出現 / 常時 / 消滅演出、パッド操作のシミュレーション。</p></li>
+<li><a href="ui-skin.html">ボタン / スライダーの見た目（Skin）と Slider Editor</a>
+<p>通常・ホバー・押下・無効などの状態ごとの色・大きさ・音。スライダーの応答曲線と目盛り（ノッチ）。</p></li>
+<li><a href="ui-tween.html">UI の動き（UI Tween）・プリセットギャラリー・要素演出（ElementFx）</a>
+<p>フェード・スライド・跳ねるなどの動きを作る、59 種類のプリセットから選んで当てる、音量などの標準オプションと直結。</p></li>
 <li><a href="glossary.html">用語集</a>
-<p>「アセット」「ピッチ」「Mixer」など、分からない言葉が出てきたらここ。</p></li>
+<p>「アセット」「ピッチ」「Mixer」「Skin」「Tween」など、分からない言葉が出てきたらここ。</p></li>
 </ul>
 
 <h2>はじめの一歩（効果音を1つ登録してみる）</h2>
 <ol>
 <li>Unity のメニューバーから <code>Tools &gt; D-Drive &gt; Asset Browser</code> を開く</li>
-<li>Project ウィンドウから音声ファイル（.wav など）を Asset Browser の上に<strong>ドラッグ＆ドロップ</strong></li>
+<li>Project ウィンドウから音声ファイル（.wav など）を Asset Browser の上に<strong>ドラッグ＆ドロップ</strong>（ドラッグ＆ドロップで登録できるのは音声ファイルだけです。他の種類は「新規」ボタンから作ります）</li>
 <li>開いたダイアログに「表示名」（例: 剣の斬撃音）と「識別子」（例: SwordSlash ※英語）を入力して「作成」</li>
 <li>一覧に追加された音を選び、下の <strong>▶ 再生</strong> ボタンで試聴</li>
 </ol>
@@ -72,8 +90,9 @@
 
 <h2>困ったときは</h2>
 <ul>
-<li>ウィンドウが見つからない → メニューバーの <code>Tools &gt; D-Drive</code> の下にすべてまとまっています</li>
-<li>赤い表示が出ている → 何かの設定が足りていません。マウスを乗せると説明が出ます（各ページの「よくある警告」も参照）</li>
+<li>ウィンドウが見つからない → メニューバーの <code>Tools &gt; D-Drive</code> の下にすべてまとまっています。専用エディタは <code>Editors</code>、一括処理は <code>Generate</code>、自動チェックは <code>Validation</code></li>
+<li>赤い表示が出ている → 何かの設定が足りていません。マウスを乗せると説明が出ます（各ページの「よくある警告」と <a href="validation.html">Validation の使い方</a> を参照）</li>
+<li>ゲームで出てこない・ピンク色になる → 登録漏れの可能性。<a href="validation.html">Validation</a> の「Run All」で「未登録」が出たら「修正」を押します</li>
 <li>言葉が分からない → <a href="glossary.html">用語集</a></li>
 </ul>
 

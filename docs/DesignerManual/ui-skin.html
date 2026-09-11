@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ボタン / スライダーの見た目(Skin)と Slider Editor | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › ボタン / スライダーの見た目(Skin)と Slider Editor</nav>
+
+<h1>ボタン / スライダーの見た目(Skin)と Slider Editor</h1>
+
+<p>Skin（スキン）は、ボタンやスライダーの「<strong>見た目と音の着せ替え</strong>」をまとめたデータです。ボタン 1 個ずつに色や音を手で設定する代わりに、Skin を 1 つ作って全部のボタンに同じものを指しておけば、Skin を直すだけで全ボタンの操作感が同時に変わります。</p>
+<ul>
+<li><strong>Button Skin</strong>: 6 つの状態ごとの「色・拡大率・差し替え画像・入ったときの演出」と、ホバー音・クリック音・長押し音・拒否音</li>
+<li><strong>Slider Skin</strong>: 同じ 6 状態に加えて、掴む・離す・刻みを越える・端に当たる・拒否される、の 5 種類の操作音</li>
+<li><strong>Slider Editor</strong>: スライダーの動き方（応答曲線・目盛り・追従）を<strong>グラフと帯で見ながら</strong>確かめるウィンドウ</li>
+</ul>
+
+<h2>6 つの状態と優先順位</h2>
+<table>
+<tr><th>状態</th><th>いつ</th></tr>
+<tr><td>Normal</td><td>何もしていないとき</td></tr>
+<tr><td>Hover</td><td>マウスが乗っているとき</td></tr>
+<tr><td>Pressed</td><td>押している最中</td></tr>
+<tr><td>Selected</td><td>パッド / キーボードでフォーカスが当たっているとき</td></tr>
+<tr><td>Disabled</td><td>いまは押せない（グレーアウト）</td></tr>
+<tr><td>Locked</td><td>解放されていない（鍵付き）</td></tr>
+</table>
+<p>複数が同時に当てはまるときは <strong>Locked &gt; Disabled &gt; Pressed &gt; Hover / Selected &gt; Normal</strong> の順で強いものが表示されます。どの状態も未設定なら白・等倍で普通に見えます。</p>
+
+<h2>Canvas への当て方</h2>
+<ol>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>ControlSkin (ButtonSkinData)</strong> または <strong>ControlSkin (SliderSkinData)</strong> を選んで作る（接頭辞 <code>SKIN</code>、<code>Ui/Skin</code> フォルダに置かれます）</li>
+<li>Canvas の Prefab の中にある UiButton / UiSlider の「<strong>SkinId</strong>」にその Skin を設定する（<a href="canvas-editor.html">Canvas Editor</a>）</li>
+<li>SkinId が空のボタンは、レイヤーの既定 Skin（UiLayerSettings）が自動で使われます。プロジェクト共通の Skin はここに入れておくと楽です</li>
+</ol>
+
+<h2>Button Skin</h2>
+<h3>開き方</h3>
+<ol>
+<li>Project で Button Skin を選び、Inspector の一番上の「<strong>▶ Skin Editor で開く</strong>」を押す</li>
+<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Button Skin</code>。Project で Button Skin を選んでいればそれが対象になります</li>
+</ol>
+
+<h3>画面の説明</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>対象 Skin</td><td>編集する Button Skin</td></tr>
+<tr><td>確認用シーンに配置</td><td>開いているシーンに <code>[D-Drive] Ui Preview</code> という Canvas を作り、その下に 200×60 のボタンを置いてこの Skin を当てます。シーンには保存されません。すでに置いてあれば作り直します</td></tr>
+<tr><td>撤去</td><td><code>[D-Drive] Ui Preview</code> を消します</td></tr>
+<tr><td>設定（Inspector）</td><td>Skin の全項目をそのまま編集（Ctrl+Z 可）。対象が無いと「ButtonSkinData を選択してください」</td></tr>
+</table>
+<div class="tip">このウィンドウには状態ごとの一覧プレビューや演出の再生はありません。見え方は Game ビューで実際にマウスを乗せる・押す・Interactable を OFF にする、で確かめます。</div>
+
+<h3>設定項目（状態別ビジュアル: Normal / Hover / Pressed / Selected / Disabled / Locked）</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Tint</td><td>その状態のときの色。ボタン側の「TargetGraphic」に掛かります</td></tr>
+<tr><td>Scale</td><td>拡大率。「Mode = Constant」で数字を入れるのが基本（押したとき 0.95 など）</td></tr>
+<tr><td>Override Sprite</td><td>その状態で差し替える画像。Normal に入れると Asset Browser のアイコンにもなります</td></tr>
+<tr><td>Enter Tween</td><td>この状態に入った瞬間に再生する演出（<a href="ui-tween.html">UI Tween</a> のデータ）。設定があれば Enter Preset より優先</td></tr>
+<tr><td>Enter Preset</td><td>Enter Tween が空のときに使う既成の演出。Preset = None なら何も再生しません（例: Pressed に PunchScale）</td></tr>
+</table>
+
+<h3>設定項目（SE）</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Hover Se</td><td>マウスが乗ったときの音（任意）。パッドでフォーカスが来た（Selected）ときも鳴ります</td></tr>
+<tr><td>Click Se</td><td>クリックしたときの音</td></tr>
+<tr><td>Long Press Se</td><td>長押しが成立したときの音</td></tr>
+<tr><td>Denied Se</td><td>Disabled / Locked のボタンを押したときの「ブッ」という拒否音</td></tr>
+</table>
+<p>SE が空のボタンは、レイヤーの既定 SE（UiLayerSettings）が鳴ります。SE の作り方は <a href="se-data.html">SE の設定項目</a>。</p>
+
+<h3>ボタン側（UiButton）の項目</h3>
+<p>Skin ではなく、Prefab の中の UiButton にある項目です。押し方の判定を決めます。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Target Graphic</td><td>Tint / Override Sprite を掛ける画像。<strong>空だと見た目の変化は Scale だけ</strong>になります</td></tr>
+<tr><td>Skin Id</td><td>使う Skin。空ならレイヤー既定</td></tr>
+<tr><td>Long Press Sec</td><td>この秒数押し続けると長押しになる（既定 0.5、0 = 無効）</td></tr>
+<tr><td>Repeat Interval Sec</td><td>長押し後、押しっぱなしでこの間隔ごとに繰り返し発火（既定 0.1、0 = 無効）</td></tr>
+<tr><td>Double Click Sec</td><td>この秒数以内の 2 回目をダブルクリック扱い（既定 0.3、0 = 無効。単発クリックが即時に発火）</td></tr>
+<tr><td>Cooldown Sec</td><td>発火後に反応しない時間（既定 0.15、0 = 無効）。連打対策</td></tr>
+<tr><td>Block Double Fire</td><td>同じフレームに複数のボタンが同時に発火するのを防ぐ</td></tr>
+</table>
+
+<h3>よくある使い方</h3>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>プロジェクト共通の標準ボタン</td><td>Skin を 1 つ作り、全 Canvas の UiButton の Skin Id に指す（またはレイヤー既定に）</td></tr>
+<tr><td>押し込み感</td><td>Pressed の Scale を Constant 0.95</td></tr>
+<tr><td>跳ねる押し心地</td><td>Pressed の Enter Preset = PunchScale</td></tr>
+<tr><td>押せないことを伝える</td><td>Disabled の Tint をグレー、Denied Se に「ブッ」</td></tr>
+<tr><td>パッドのフォーカス位置を目立たせる</td><td>Selected の Tint を Hover とは別の色に</td></tr>
+<tr><td>危険な操作（削除など）だけ赤に</td><td>赤系の Skin を別に作り、そのボタンだけ Skin Id を差し替え</td></tr>
+</table>
+
+<h3>よくある警告</h3>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>全状態の Tint.a が 0 です(何も描画されません)</td><td>どれか 1 つの状態でも Tint の透明度（A）を上げる</td></tr>
+<tr><td>ClickSe が未設定です</td><td>情報のみ。クリック音を付けるか、レイヤー既定 SE に任せる</td></tr>
+<tr><td>ButtonWire[…] '…': Trigger=LongPress なのに対象 UiButton の LongPressSec が 0 以下です</td><td>Canvas 側の警告。ボタンの Long Press Sec を 0 より大きく</td></tr>
+<tr><td>ButtonWire[…] '…': CooldownSec=0 の状態で OpenCanvas に配線されています</td><td>連打で画面が多重に開くおそれ。Cooldown Sec を入れる</td></tr>
+</table>
+
+<h2>Slider Skin</h2>
+<h3>開き方</h3>
+<ol>
+<li>Project で Slider Skin を選び、Inspector の「<strong>▶ Skin Editor で開く</strong>」（見た目と音）または「<strong>▶ Slider Editor で開く</strong>」（動き方。下記）</li>
+<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Slider Skin</code></li>
+</ol>
+
+<h3>画面の説明</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>案内ラベル / SliderEditor で開く</td><td>グラフや目盛りの確認は Slider Editor の担当です。ボタンで対象 Skin を渡して開けます</td></tr>
+<tr><td>対象 Skin</td><td>編集する Slider Skin</td></tr>
+<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] Ui Preview</code> Canvas の下に 300×24 のスライダー（Fill と 20×24 の Handle 付き）を置いて Skin を当てます</td></tr>
+<tr><td>プリセット</td><td>音量 / 感度 / HPバー / スタミナ / キャラメイク。選んだ瞬間に<strong>配置中のプレビュースライダー</strong>の動き方が変わります（Skin 自体は変わりません）。<strong>先に「確認用シーンに配置」していないと何も起きません</strong></td></tr>
+<tr><td>設定（Inspector）</td><td>対象が無いと「SliderSkinData を選択してください」</td></tr>
+</table>
+
+<h3>設定項目</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>状態別ビジュアル（6 状態）</td><td>Button Skin と同じ。Tint / Scale / Override Sprite / Enter Tween / Enter Preset</td></tr>
+<tr><td>パーツ: Track / Fill / Handle / Delay Fill</td><td>溝 / 値ぶん伸びるバー / つまみ / ダメージ表現用の「白い遅延バー」の見た目。<strong>まだ画面に反映されません</strong>（下記「制限」）</td></tr>
+<tr><td>Notch Sprite</td><td>目盛り位置に並べる飾り画像（任意）。いまはアイコンにだけ使われます</td></tr>
+<tr><td>Hide Handle On Gamepad</td><td>パッド操作時につまみを隠す。<strong>まだ効きません</strong></td></tr>
+<tr><td>Extra Hit Padding</td><td>タッチ用に掴める範囲を広げる。<strong>まだ効きません</strong></td></tr>
+<tr><td>Grab Se / Release Se</td><td>掴んだ瞬間 / 離した瞬間の音</td></tr>
+<tr><td>Notch Se</td><td>目盛り（ノッチ = 刻み）を越えたときの「カチッ」</td></tr>
+<tr><td>Notch Se Min Interval Sec</td><td>速くドラッグしても Notch Se が詰まらないようにする最小間隔（既定 0.04 秒）</td></tr>
+<tr><td>Limit Se</td><td>端に当たったときの音</td></tr>
+<tr><td>Denied Se</td><td>Disabled / Locked のときに触ったときの拒否音</td></tr>
+<tr><td>Notch Haptic Id / Limit Haptic Id</td><td>振動（触覚）の ID。<strong>仮の項目で、いまは何も起きません</strong></td></tr>
+</table>
+
+<h3>よくある警告</h3>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>NotchSeMinIntervalSec が負数です</td><td>0 以上にする（0.04 前後）</td></tr>
+<tr><td>全状態の Tint.a が 0 です(何も描画されません)</td><td>どれかの状態の Tint の透明度を上げる</td></tr>
+</table>
+
+<div class="warn">
+<strong>既知の制限:</strong> Track / Fill / Handle / Delay Fill のパーツ別の見た目、Notch Sprite、Hide Handle On Gamepad、Extra Hit Padding、触覚 ID は<strong>まだ実行時に効きません</strong>。色・拡大率・差し替え画像はスライダー側の Target Graphic にだけ掛かります。音（SE）は効きます。
+</div>
+
+<h2>Slider Editor（スライダーの動き方を見る）</h2>
+<p>音量・感度・HP バー・スタミナ・キャラメイクなど「連続した値を触らせる」部品が UiSlider です。パッド操作・長押しリピート・微調整・目盛り吸着・応答曲線をはじめから持っています。Slider Editor は、その設定を<strong>グラフと帯で見ながら</strong>試すウィンドウです。</p>
+<h3>開き方</h3>
+<ol>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Slider</code>。Hierarchy で UiSlider の付いたオブジェクトを選んでいればそれが対象</li>
+<li>または Slider Skin の Inspector の「<strong>▶ Slider Editor で開く</strong>」。この経路だと、その Skin を当てたサンプルが自動で確認用シーンに置かれます</li>
+</ol>
+<div class="tip">対象はアセットではなく<strong>シーン上の UiSlider</strong>です。実際のスライダーは Canvas の Prefab の中に置き、<a href="canvas-data.html">Canvas データ</a>の Sliders で配線します。</div>
+
+<h3>画面の説明</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>対象 UiSlider / 選択から取得 / 確認用シーンにサンプルを配置 / 撤去</td><td>対象の選択。状態行に「UiSlider を選択してください」または「対象: 名前」</td></tr>
+<tr><td>(a) 応答曲線</td><td>横軸 = つまみの位置、縦軸 = 値。<strong>薄い対角線</strong> = まっすぐ（線形）の目安、<strong>水色の曲線</strong> = いまの Response、<strong>黄色い点</strong> = 現在のつまみ位置と値。曲線が対角線より下にたわんでいれば「左側で細かく動く」、上なら「右側で細かく」です。直下で Response を編集できます</td></tr>
+<tr><td>(b) ノッチ / Step</td><td>目盛りの帯。<strong>白い縦線</strong> = 目盛り位置（両端を含めて Notches+1 本）、<strong>黄色い半透明の帯</strong> = 吸着が効く幅（Snap Threshold）、<strong>シアンの点</strong> = 現在値。Notches = 0 なら「Notches=0(連続値)」。このウィンドウがフォーカス中は、SceneView の Track の上にも同じ帯が重なります</td></tr>
+<tr><td>(c) 実操作</td><td>「◀」「▶」= パッド左右 1 回分（Ctrl+Z 可）。「微調整」ON で移動量が Fine Step Multiplier 倍。「ドラッグ模擬: 0 → 1」で 20 段階の実際のドラッグを再現。下のログに Changed / NotchPassed / LimitReached / Commit が並び、SE も鳴ります</td></tr>
+<tr><td>(d) 追従比較</td><td>「2 体目を配置して FollowMotion を比較」で右に 2 体目（Follow Motion だけ OutBack / 0.4 秒 / Once に変えたもの）を置き、「同時に 0→1 を模擬」で並べて比べます。2 体目の Follow Motion はその場で編集可</td></tr>
+<tr><td>(e) Skin プレビュー</td><td>「全状態を並べる」で Normal / Hover / Pressed / Selected / Disabled / Locked の 6 本を横に並べ、対象の Skin Id の見た目を各状態に固定します。Skin Id が空だと 6 本とも同じ見た目</td></tr>
+<tr><td>(f) プリセット</td><td>下の表の 5 種。対象の値・刻み・応答・追従をまとめて書き換えます（Ctrl+Z 可）</td></tr>
+<tr><td>(g) Validation</td><td>下の「UiSlider の警告」。問題なければ「問題なし」</td></tr>
+</table>
+
+<h3>プリセット</h3>
+<table>
+<tr><th>名前</th><th>範囲 / Step / Notches</th><th>応答 / 追従</th><th>見え方</th></tr>
+<tr><td>音量</td><td>0〜1 / 0 / 0</td><td>InQuad / 即時</td><td>つまみの下側で細かく動く（聴こえ方に合う）</td></tr>
+<tr><td>感度</td><td>0.1〜5 / 0 / 0</td><td>OutQuad / 変更なし</td><td>低い側を細かく</td></tr>
+<tr><td>HPバー</td><td>0〜100 / 1 / 0</td><td>線形 / OutCubic 0.25 秒 Once</td><td>表示が 0.25 秒かけて滑らかに減る</td></tr>
+<tr><td>スタミナ</td><td>0〜100 / 1 / 4（Snap Threshold 0.03）</td><td>線形 / 変更なし</td><td>4 分割の目盛りに吸い付く</td></tr>
+<tr><td>キャラメイク</td><td>0〜10 / 1 / 10（Whole Numbers ON）</td><td>線形 / 変更なし</td><td>0〜10 の整数 11 段階</td></tr>
+</table>
+
+<div class="warn">
+Slider Editor は<strong>シーン上の実物を動かしません</strong>。追従アニメや見た目の更新は Ctrl+Z で戻せない書き換えなので、「確認用シーンにサンプルを配置」で作ったサンプルだけを駆動します。実物を対象に選ぶと「シーン上の実物は駆動しません(「確認用シーンに配置」したサンプルを使ってください)」と出ます。パッド操作とプリセット適用は Ctrl+Z で戻せます。
+</div>
+
+<h2>UiSlider の設定項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>値: Min / Max</td><td>値の範囲（既定 0〜1）</td></tr>
+<tr><td>刻み: Step</td><td>値の最小刻み。0 = 連続値</td></tr>
+<tr><td>刻み: Whole Numbers</td><td>ON で値を必ず整数に丸める</td></tr>
+<tr><td>刻み: Notches</td><td>目盛りの分割数。0 = 目盛り無し。4 なら 0 / 25 / 50 / 75 / 100 の 5 点に吸着し、Notch Se が鳴ります</td></tr>
+<tr><td>刻み: Snap Threshold</td><td>目盛りにどれだけ近づいたら吸い付くか（全長を 1 とした幅。既定 0.02）</td></tr>
+<tr><td>入力: Direction</td><td>LeftToRight / RightToLeft / BottomToTop（縦ゲージ）/ TopToBottom</td></tr>
+<tr><td>入力: Jump On Track Click</td><td>ON = 溝を直接押した位置へ即ジャンプ。OFF = 1 Step だけ動く（Step = 0 なら範囲の 10%）</td></tr>
+<tr><td>入力: Pad Step Amount</td><td>パッド左右 1 回の移動量（値の単位。既定 0.05）</td></tr>
+<tr><td>入力: Pad Repeat Delay Sec / Pad Repeat Interval Sec</td><td>押しっぱなしでリピートが始まるまでの秒数（0.4）/ リピート中の間隔（0.06）</td></tr>
+<tr><td>入力: Fine Step Multiplier</td><td>微調整の修飾キー中の倍率（既定 0.2 = 5 分の 1 の速さ）</td></tr>
+<tr><td>入力: Wheel Enabled</td><td>マウスホイールで 1 Step 動かせるか</td></tr>
+<tr><td>入力: Escape On Limit</td><td>ON = 端に到達したときだけ左右キーでフォーカスが隣へ抜ける。OFF だと左右キーはスライダーに吸われ続けます</td></tr>
+<tr><td>応答: Response</td><td>つまみの位置（0〜1）と値（0〜1）の関係。未設定 = まっすぐ。<strong>右肩上がりでないと Error</strong></td></tr>
+<tr><td>追従: Follow Motion</td><td>表示が実際の値に追いつく動き。未設定 = 即時。HP バーの「じわっと減る」に</td></tr>
+<tr><td>追従: Delay Follow Motion</td><td>白い遅延バー（Delay Fill）専用の追従。未設定なら Follow Motion と同じ</td></tr>
+<tr><td>通知: Change Throttle Sec</td><td>値の通知をこの秒数間隔に間引く（0 = 毎フレーム）</td></tr>
+<tr><td>通知: Notify Only On Commit</td><td>ON = ドラッグを離したときだけ通知</td></tr>
+<tr><td>ビジュアル: Track Rect / Fill Rect / Handle Rect / Delay Fill Rect</td><td>溝 / バー / つまみ / 遅延バーの RectTransform（任意）</td></tr>
+</table>
+<div class="tip"><strong>キー入力と Direction:</strong> 十字キー / パッドの右・上とマウスホイールは、Direction に関係なく<strong>常に値を増やします</strong>。マウスやタッチのドラッグだけが Direction どおりの向きです（仕様）。</div>
+
+<h3>よくある警告（UiSlider）</h3>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>…: Min(…) が Max(…) 以上です</td><td>Min を Max より小さく</td></tr>
+<tr><td>…: Response が単調増加ではありません(つまみ位置が一意に決まりません)</td><td>応答曲線を右肩上がりに描き直す</td></tr>
+<tr><td>…: Step が (Max-Min) を割り切れません(端に到達できない刻みです)</td><td>0〜100 なら Step を 1 / 2 / 5 / 10 などに</td></tr>
+<tr><td>…: Notches(…) と Step から求まる分割数(…)が一致しません</td><td>Notches = (Max−Min) ÷ Step に合わせるか、どちらかを 0 に</td></tr>
+<tr><td>…: WholeNumbers=true なのに Step(…)が非整数です</td><td>Step を整数に</td></tr>
+<tr><td>…: FollowMotion が Loop 設定です(表示値が収束しません)</td><td>Follow Motion の Loop を Once に</td></tr>
+</table>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>音量スライダー</td><td>「音量」プリセット → Canvas データの Sliders で Action = SetOption、Option = MasterVolume（<a href="ui-tween.html">標準オプション</a>）</td></tr>
+<tr><td>HP バー</td><td>「HPバー」プリセット + Delay Fill Rect に白いバー + Delay Follow Motion をさらに遅く。Skin の Delay Fill は未反映なので色はバーの画像側で</td></tr>
+<tr><td>画質 低 / 中 / 高 / 最高 の 4 段階</td><td>Notches = 3 にして Step を合わせ、Skin の Notch Se で「カチッ」</td></tr>
+<tr><td>重い処理につなぐ（読み込みなど）</td><td>Notify Only On Commit ON、または Change Throttle Sec = 0.1</td></tr>
+<tr><td>縦ゲージ</td><td>Direction = BottomToTop、Fill Rect を縦に伸びるアンカーに</td></tr>
+<tr><td>パッドで一覧の中にスライダーを置く</td><td>Escape On Limit ON（端に着いたら隣の項目へ抜けられる）</td></tr>
+<tr><td>設定画面の共通スライダー</td><td>Slider Skin を 1 つ作り、音量・感度・明るさで共用</td></tr>
+</table>
+
+<h2>注意点</h2>
+<ul>
+<li>プレビュー用の Canvas <code>[D-Drive] Ui Preview</code> は Button Skin / Slider Skin / UI Tween の 3 つのエディタで<strong>共用</strong>です。複数開いていると、片方の「撤去」がもう片方のプレビューも消します</li>
+<li>Tint と Override Sprite はボタン / スライダー側の Target Graphic が空だと効きません</li>
+<li>Slider Skin のパーツ別の見た目・Notch Sprite・Hide Handle On Gamepad・Extra Hit Padding・触覚 ID はまだ効きません（上の「既知の制限」）</li>
+<li>Bgm / Se / Voice の個別音量はまだ音に接続されていません（Master Volume と Ui Speed Scale は効きます）</li>
+<li>「全状態を並べる」の見た目は Skin Id からだけ解決します。Skin Id が空だと 6 本とも同じに見えます</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="ui-tween.html">UI の動き(UI Tween)・プリセットギャラリー・要素演出</a> — Enter Tween / Enter Preset に指す演出、標準オプション</li>
+<li><a href="canvas-data.html">Canvas データ</a> / <a href="canvas-editor.html">Canvas Editor</a> — Skin Id の設定、Sliders の配線</li>
+<li><a href="se-data.html">SE の設定項目</a> — クリック音・ノッチ音の作り方</li>
+<li><a href="validation.html">検証（Validation）</a> / <a href="asset-browser.html">Asset Browser</a> / <a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

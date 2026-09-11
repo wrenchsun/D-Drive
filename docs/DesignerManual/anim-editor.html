@@ -19,7 +19,7 @@
 
 <h2>開き方</h2>
 <ol>
-<li><a href="asset-browser.html">Asset Browser</a> の「新規作成」で種別に <strong>Anim</strong> を選んで作る（表示名は日本語 OK）</li>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anim</strong> を選んで作る（表示名は日本語 OK）</li>
 <li>アニメーションデータを Project で選び、<strong>Inspector の一番上の「▶ Anim Editor で開く」</strong>を押す（効果音・VFX・モデル・Anchor も同じ場所に「〜で開く」があります）</li>
 <li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Animation (3D)</code>。Project でアニメーションデータを選ぶと自動で入ります</li>
 </ol>
@@ -44,7 +44,10 @@
 <li>ツールバーの「<strong>確認用シーンを開く</strong>」（ライト・カメラ・床の揃ったシーン。VFX と共通）→ モデルがシーンの原点に置かれ、対象に入ります。Hierarchy に <code>[D-Drive] Anim Preview</code> が出ますが、<strong>シーンには保存されません</strong></li>
 <li>▶ 再生 → SceneView でモデルが動きます。効果音・VFX のイベントもシーン内で鳴り、出ます</li>
 </ol>
-<p><strong>モデルの Prefab の中で動かす:</strong> ツールバーの「<strong>モデル Prefab を開く</strong>」でプレハブモードに入ると、その Prefab のモデルが自動で対象になります。BlendShape や IK の見え方を Prefab を編集しながら確認できます。■ 停止してもポーズはそのまま残るので、止めた絵を見ながら Prefab を直せます。<strong>Prefab を保存（Ctrl+S）するときは自動で再生前のポーズに戻してから保存するので、再生中の姿勢が Prefab に入ることはありません。</strong>「↺ ポーズを戻す」でいつでも元に戻せます。</p>
+<p><strong>モデルの Prefab の中で動かす:</strong> ツールバーの「<strong>モデル Prefab を開く</strong>」でプレハブモードに入ると、その Prefab のモデルが自動で対象になります。BlendShape や IK の見え方を Prefab を編集しながら確認できます。■ 停止してもポーズはそのまま残るので、止めた絵を見ながら Prefab を直せます。<strong>Prefab でもシーンでも、保存（Ctrl+S）の直前に自動で再生前のポーズへ戻してから保存するので、再生中の姿勢が Prefab やシーンに入ることはありません。</strong>「↺ ポーズを戻す」でいつでも元に戻せます。</p>
+<div class="tip">
+対象に <a href="anim2d-editor.html">2D アニメーション（Anim2DData）</a>を入れたときは、3D の「確認用モデル」は使われず、2D 用のプレビュー物（<code>[D-Drive] Anim2D Preview</code>）がシーンに置かれます。イベント編集やタイムラインの操作はこのページのとおりです。
+</div>
 <p>シーンに置いてある自分のキャラクターを動かしたい場合は、Hierarchy でそのキャラクターを選んで「選択から取得」を押します。「↺ ポーズを戻す」か対象の切り替えで元のポーズに戻ります。</p>
 
 <h2>画面の説明</h2>
@@ -53,9 +56,9 @@
 <tr><td>確認用モデル</td><td>Animator を持つ ModelData。「確認用シーンを開く」でシーンに置かれます。Controller が無いモデルでも Clip をそのまま再生して確認できます</td></tr>
 <tr><td>シーン上の Animator(対象)</td><td>動かす相手。確認用シーン / モデル Prefab を開くと自動で入ります。「選択から取得」で Hierarchy の選択を入れることもできます</td></tr>
 <tr><td>モデル情報</td><td>1 行の要約（Controller 名 / BlendShape の数）。BlendShape の一覧は「モデル情報の詳細」を開くと出ます</td></tr>
-<tr><td>▶ 再生 / ⏸ 一時停止 / ■ 停止 / ↺ ポーズを戻す</td><td>⏸ は音・エフェクトも一緒に止まり、もう一度押すか ▶ で<strong>続きから</strong>再開します。■ 停止はその瞬間のポーズのまま止まり、前に出した音・エフェクトは消えます。「↺ ポーズを戻す」で再生前のポーズに</td></tr>
+<tr><td>▶ 再生 / ⏸ 一時停止 / ■ 停止 / ↺ ポーズを戻す</td><td>⏸ は音・エフェクトも一緒に止まり、もう一度押すか ▶ で<strong>続きから</strong>再開します（まだ再生していない・終わった状態で ⏸ を押しても何も起きません）。■ 停止はその瞬間のポーズのまま止まり、前に出した音・エフェクト・配置セットは消えます。「↺ ポーズを戻す」で再生前のポーズに</td></tr>
 <tr><td>ループ試聴 / 速度</td><td>ループ試聴は終わったら自動でもう一度（データは変えません）。速度は 0.1〜2 倍</td></tr>
-<tr><td>タイムライン</td><td>0.5 秒ごとの目盛りと再生ヘッド。<strong>クリックでその位置にシークして一時停止</strong>（絵を止めて確認できます。イベントは鳴りません）。イベントのマーカー: 橙 = 効果音・エフェクトなど（PlayAsset）、水色 = それ以外、赤 = Clip の長さを超えている。<strong>マーカーをドラッグすると時刻が変わります</strong>（Ctrl+Z 可）</td></tr>
+<tr><td>タイムライン</td><td>フレームごとの目盛り（太い目盛りにはフレーム番号）と再生ヘッド。<strong>クリックでその位置にシークして一時停止</strong>（絵を止めて確認できます。イベントは鳴りません）。イベントのマーカー: 橙 = 効果音・エフェクトなど（PlayAsset）、水色 = それ以外、赤 = Clip の長さを超えている。マーカーの下には「F15 剣の斬撃音」のように時刻と対象の名前が出ます。<strong>マーカーをドラッグすると時刻が変わります</strong>（ドラッグ 1 回が Ctrl+Z 1 回で戻ります）</td></tr>
 <tr><td>ブレンド確認</td><td>3 つの確認ができます（下の「ブレンドを確認する」参照）: <strong>遷移シーケンス</strong>（対象 → Step1 → Step2 … を CrossFade でつなぐ）/ <strong>レイヤー同時再生</strong>（上半身だけ別モーションを重ね、レイヤーの重みをスライダーで）/ <strong>Blend Tree パラメータ</strong>（歩き↔走りなどの混ざり具合をパッドで）</td></tr>
 <tr><td>設定</td><td>下の「設定項目」を参照</td></tr>
 <tr><td>イベントログ</td><td>再生中に発火したイベントの一覧（Frame 15: PlayAsset Se … のように）。狙った位置で鳴っているかの確認に</td></tr>
@@ -68,13 +71,13 @@
 <li>タイムラインをクリックして、鳴らしたい位置に白い線（再生ヘッド）を置く</li>
 <li>「<strong>＋ 現在位置に SE</strong>」（または VFX / 配置セット）を押す → 行が増える</li>
 <li>行のドロップダウンで音・エフェクトを選ぶ。「▶」でその音だけ試聴できます</li>
-<li>フレームの数字を直すか、タイムラインの橙色のマーカーをドラッグして位置を調整。SE は<strong>波形</strong>が重なって表示されるので、どこまで鳴るかが分かります</li>
-<li>「繰り返し」を決める: <strong>毎周回</strong> = ループするたびに出す（足音など）/ <strong>1 回</strong> = 再生ごとに 1 回 / <strong>再生中は維持</strong> = 1 回出してモーションが終わるまで付いていき、終わると消える（ダッシュの土煙など、ループするエフェクト向け）</li>
+<li>フレームの数字を直すか、タイムラインの橙色のマーカーをドラッグして位置を調整（Trigger が Time＝秒指定の行には「= F12」のようにフレーム換算も出ます）。SE は<strong>波形</strong>が重なって表示されるので、どこまで鳴るかが分かります</li>
+<li>「繰り返し」を決める: <strong>毎周回</strong> = ループするたびに出す（足音など）/ <strong>1 回</strong> = 再生ごとに 1 回 / <strong>再生中は維持</strong> = 1 回出してモーションが終わるまで付いていき、終わると消える（ダッシュの土煙など、ループするエフェクト向け）。「1 回」「再生中は維持」は OnSpawn や OnLoop のような時刻以外のタイミングにも効き、タイムラインで再生ヘッドを戻してももう一度は出ません</li>
 <li>「↗」でその音・エフェクトの専用エディタが開きます（中身を直したいとき）</li>
 </ol>
 <div class="tip">▶ で最初から再生し直すときと ■ 停止のときは、前に出した音・エフェクトは消えます。</div>
 <div class="tip">
-<strong>Animator から選ぶ:</strong> 「Animator から選択」でモデルの Controller にあるステート（Idle / Attack …）を選ぶと、そのアニメーションデータに自動で切り替わります。まだ無ければ「このクリップの AnimData を作成」を押すだけで作られます。方向違いのクリップにも同じ音を付けたいときは「同じステートの他クリップへ一括コピー」。
+<strong>Animator から選ぶ:</strong> 「Animator から選択(ステートを選ぶと AnimData を探す / 作る)」でモデルの Controller にあるステート（Idle / Attack …）を選ぶと、そのアニメーションデータに自動で切り替わります。まだ無ければ「このクリップの AnimData を作成(ID 発行・カタログ・Addressables 登録)」を押すだけで作られます。方向違いのクリップにも同じ音を付けたいときは「同じステートの他クリップの AnimData へ一括コピー(無ければ作成)」。
 </div>
 
 <h2>ブレンドを確認する</h2>
@@ -117,9 +120,9 @@
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Clip が未設定(または Missing)です</td><td>Clip を設定する</td></tr>
-<tr><td>Frame イベント(…)が Clip 長(… フレーム)を超えています</td><td>マーカーが赤になっています。Clip の長さより手前にドラッグ</td></tr>
-<tr><td>StateName '…' が確認用モデルの Controller にありません</td><td>Controller のステート名を確認して合わせる。空にすれば Clip 名が使われます</td></tr>
-<tr><td>BlendShape '…' が確認用モデルにありません</td><td>モデル情報に出ている名前から選び直す</td></tr>
+<tr><td>Frame イベント(…)が Clip 長(… フレーム)を超えています</td><td>マーカーが赤になっています。Clip の長さより手前にドラッグ（Clip の最後のフレームちょうどは OK です）</td></tr>
+<tr><td>StateName '…'(Layer 0) が対象モデルの Controller にありません</td><td>Controller のステート名を確認して合わせる。空にすれば Clip 名が使われます</td></tr>
+<tr><td>BlendShape '…' が対象モデルにありません</td><td>モデル情報に出ている名前から選び直す</td></tr>
 <tr><td>Loop=false ですが OnLoop イベントがあります</td><td>ループしないので鳴りません。Loop を ON にするか行を消す</td></tr>
 </table>
 
@@ -128,6 +131,7 @@
 <li><a href="se-data.html">SE（効果音）の設定項目</a> / <a href="vfx-data.html">VFX の設定項目</a> — イベントで鳴らす・出すもの</li>
 <li><a href="anchor-data.html">Anchor（出す位置）</a> — エフェクトをボーンに付ける</li>
 <li><a href="model-editor.html">モデルの設定と Model Editor</a> — 確認用モデルの登録、Default Animation</li>
+<li><a href="anim2d-editor.html">2D アニメーション（スプライト）</a> — 2D のコマアニメも同じこのエディタで音・エフェクトを付ける</li>
 <li><a href="glossary.html">用語集</a></li>
 </ul>
 

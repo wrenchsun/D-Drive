@@ -73,7 +73,7 @@
 
 - **VFX Graph 未対応**: `com.unity.visualeffectgraph` パッケージが本プロジェクトに未導入のため、VfxManager は ParticleSystem のみを対象とする。導入後は VisualEffect コンポーネント検出処理を追加すれば同じ Handle API で扱える設計にしてある
 - **AssetType に `Model` を追加**: 05 の ModelData(モデル本体・Slot・Avatar)と 07 の PrefabData(4-4、ゲームプレイ用オブジェクト・GameplayTags)は別概念だが、既存の `AssetType.Prefab` 1つしか無かったため両者が衝突していた。enum 末尾(既存値の並び順は変更しない)に `Model` を追加して分離した
-- **SetMaterial/DefaultAnimation は ID 保存のみ**: `ModelData.Slots[].Material`(AssetId&lt;MaterialMarker&gt;)と `DefaultAnimation`(AssetId&lt;AnimMarker&gt;)は、参照先の MaterialData(3-5)/AnimManager(3-1)がまだ存在しないため、実際の見た目反映・再生はできない。ID の保存・Validator・Inspector 表示までは完成しており、Phase 3 側でそのまま繋ぎ込める
+- **SetMaterial/DefaultAnimation は ID 保存のみ**: `ModelData.Slots[].Material`(AssetId&lt;MaterialMarker&gt;)と `DefaultAnimation`(AssetId&lt;AnimMarker&gt;)は、参照先の MaterialData(3-5)/AnimManager(3-1)がまだ存在しないため、実際の見た目反映・再生はできない。ID の保存・Validator・Inspector 表示までは完成しており、Phase 3 側でそのまま繋ぎ込める → 2026-09-12: ランタイム(`DDriveRuntimeBootstrap`)に加えて Editor プレビュー(`SceneAnimPreviewDriver` / `PreviewService`)にも `MaterialManager` を接続し、Model Editor の「配置中のモデルに反映」で実適用されるようにした(マニュアル整備時に発見)
 - **Cosmetic 配送は位置のみ**: `INetBridge` に Transform→NetId の逆引きが無いため、`anchorNetId` は将来の NGO アダプタ向けの予約フィールド(常に0)。現状は送信時点のワールド座標を送るのみで、リモート側でのアンカー追従は行わない。ParamValue の同期も未実装(AC の範囲外と判断)
 - **Skybox プレビュー見送り**: `RenderSettings.skybox` はプロジェクト全体で共有される設定のため、プレビュー用に切り替えるとユーザーが開いている実シーンの見た目まで変わってしまう。安全のため ModelEditor では背景色切り替えのみ実装した
 

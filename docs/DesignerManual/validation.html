@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Validation（自動チェック）の使い方 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Validation（自動チェック）の使い方</nav>
+
+<h1>Validation（自動チェック）の使い方</h1>
+
+<p>Validation は、D-Drive のデータの<strong>設定ミス・矛盾・登録漏れを自動で見つける仕組み</strong>です。「Prefab が入っていない」「フォーカスの行き先が無い」「カタログに載っていないのでゲームで出てこない」といった問題を、ゲームを実行する前に一覧で教えてくれます。</p>
+<ul>
+<li>各専用エディタ（VFX / Anim / Canvas など）の下の方にある「検証」「Validation」欄には、<strong>いま開いているデータ 1 件分</strong>の結果がその場で出ます</li>
+<li>プロジェクト全体をまとめて調べるときは、メニューの <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code></li>
+</ul>
+
+<h2>重要度の見かた</h2>
+<table>
+<tr><th>表示</th><th>意味</th><th>対応</th></tr>
+<tr><td>Error（赤）</td><td>そのままだと動かない / 出てこない</td><td>必ず直す</td></tr>
+<tr><td>Warning（黄）</td><td>動くが、意図と違う結果になりやすい</td><td>内容を読んで判断。意図的ならそのままでよい</td></tr>
+<tr><td>Info（青）</td><td>お知らせ。設定の確認用</td><td>読んでおくだけでよい</td></tr>
+</table>
+
+<h2>「修正」ボタン</h2>
+<p>自動で直せる項目には、メッセージの横に<strong>「修正」ボタン</strong>が出ます。押すとその場で直り、Ctrl+Z で戻せます。すべての項目に付いているわけではなく、付いていないものは各ページの「よくある警告」を見て手で直します。</p>
+
+<h2>登録漏れ（全種類共通のチェック）</h2>
+<p>D-Drive のデータは、<strong>「カタログ（管理台帳）」と「Addressables（ゲーム実行時に読み込む仕組み）」の両方に登録</strong>されていないと、ゲームでは出てこず、代わりの仮の物（Placeholder）になります。Asset Browser の「新規」で作ったものは自動で登録されますが、Project で複製した・別のフォルダから持ってきた、などのときに漏れることがあります。</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>カタログ未登録: '…'(ID 0x…)がどのカタログにもありません。実行時に解決できず Placeholder になります。</td><td>「修正」を押す（カタログに追加されます）</td></tr>
+<tr><td>Addressables 未登録: '…' がグループに入っていません(カタログの Address '…')。実行時にロードできません。</td><td>「修正」を押す</td></tr>
+<tr><td>Address 不一致: '…' のカタログ '…' と Addressables '…' が違います。実行時にロードできません。</td><td>「修正」を押す</td></tr>
+<tr><td>Addressables の設定(AddressableAssetSettings)がありません。…</td><td>プログラマーに相談（プロジェクトの初期設定が必要です）</td></tr>
+</table>
+<div class="tip">
+まとめて登録し直したいときは <code>Tools &gt; D-Drive &gt; Generate &gt; Addressables 登録を同期(カタログ → グループ)</code>。実行後の Console に「カタログ未登録の Data N 件」と出たら、続けて Run All で「修正」を押してください。
+</div>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>手順</th></tr>
+<tr><td>作業の区切りに全体を確認する</td><td><code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> → 赤（Error）が 0 になるまで直す</td></tr>
+<tr><td>ゲームで出てこない原因を探す</td><td>Run All で「未登録」「Placeholder」の文字を探す → 「修正」</td></tr>
+<tr><td>1 つのデータだけ確認する</td><td>Inspector の「▶ 〜 Editor で開く」→ ウィンドウ下部の「検証」/「Validation」欄</td></tr>
+</table>
+
+<h2>種類ごとのメッセージ</h2>
+<p>データの種類ごとの具体的なメッセージと直し方は、各ページの「よくある警告」にまとめてあります。</p>
+<ul>
+<li><a href="se-data.html">SE</a> / <a href="bgm-data.html">BGM</a></li>
+<li><a href="vfx-data.html">VFX</a> / <a href="anchor-data.html">Anchor</a> / <a href="anchor-group.html">配置セット</a></li>
+<li><a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a> / <a href="anim2d-editor.html">2D アニメーション</a></li>
+<li><a href="material-data.html">マテリアル / テクスチャ</a></li>
+<li><a href="prefab-data.html">Prefab</a> / <a href="canvas-data.html">Canvas</a></li>
+<li><a href="ui-skin.html">Skin / スライダー</a> / <a href="ui-tween.html">UI Tween</a></li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="asset-browser.html">Asset Browser の使い方</a> — 正しい作り方（自動で登録される）</li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

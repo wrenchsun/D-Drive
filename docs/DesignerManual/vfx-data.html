@@ -15,8 +15,8 @@
 
 <h2>作り方</h2>
 <ol>
-<li><a href="asset-browser.html">Asset Browser</a> の「新規作成」で種別に <strong>Vfx</strong> を選び、表示名（日本語 OK）とカテゴリ・識別子（英語）を入力</li>
-<li>作られたデータの <code>Prefab</code> に、エフェクトの Prefab を設定</li>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Vfx (VfxData)</strong> を選び、表示名（日本語 OK）とカテゴリ・識別子（英語）を入力</li>
+<li>作られたデータの <code>Prefab</code> に、エフェクトの Prefab を設定（Prefab の見た目からアイコンが自動で作られます。Inspector の「自動生成」で作り直せます）</li>
 <li><a href="vfx-editor.html">VFX Editor</a> で再生しながら位置・寿命・色を調整</li>
 </ol>
 <p>ファイルは <code>Assets/GameData/Vfx/カテゴリ/VFX_カテゴリ_識別子.asset</code> に自動で置かれます。ファイル名を自分で付ける必要はありません。</p>
@@ -92,7 +92,7 @@ Prefab のマテリアルが古い（Built-in 用）シェーダーだと、こ�
 </table>
 
 <h2>Events（イベント）</h2>
-<p>エフェクトの出現・ループ・消滅に合わせて効果音などを鳴らす設定です。Trigger（OnSpawn / OnLoop / OnDestroy など）と Action（鳴らすアセットなど）を指定します。</p>
+<p>エフェクトの出現・ループ・消滅に合わせて効果音などを鳴らす設定です。Trigger（OnSpawn / OnLoop / OnDestroy など）と Action（鳴らすアセットなど）を指定します。各行の <strong>Repeat（繰り返し）</strong>は「毎周回 / 1 回 / 再生中は維持」で、「1 回」「再生中は維持」は OnSpawn や OnLoop のような時刻以外のタイミングでも<strong>再生ごとに 1 回だけ</strong>発火します（<a href="glossary.html#repeat">用語集: 繰り返し</a>）。</p>
 
 <h2>よくある警告</h2>
 <table>
@@ -109,6 +109,7 @@ Prefab のマテリアルが古い（Built-in 用）シェーダーだと、こ�
 <li><a href="vfx-editor.html">VFX Editor の使い方</a></li>
 <li><a href="se-data.html">SE（効果音）の設定項目</a> — 3D 設定（Anchor）は VFX と共通</li>
 <li><a href="asset-browser.html">Asset Browser の使い方</a></li>
+<li><a href="validation.html">Validation の使い方</a></li>
 <li><a href="glossary.html">用語集</a></li>
 </ul>
 
