@@ -299,7 +299,8 @@ public static class Anim2D
 > - **方向 Clip への一括リタイミング**: 編集モードの「適用」が主 Clip に加えて `DirectionClips` の全 Clip（主 Clip と同じ枚数の Sprite キーを持つもの）へ同じ配置を適用する（`Anim2DRetiming.ApplyToDirectionClips`、Undo 対応、枚数違いはスキップして件数を報告）
 > - **ランタイム補助**: `Anim2D.FreezeAtFirstFrame(h)`（Seek 0 + speed 0。チャージ中の構え）/ `Unfreeze(h)`。`Runtime/Anim2D/Anim2DFacing.cs`（MonoBehaviour。`SetWorldDirection(移動ベクトル)` → カメラ Yaw 基準の画面向きへ変換（`CameraRelative`）→ 指数平滑化（`Smoothing` 秒、`t = 1 − exp(−dt/τ)`）→ 毎フレーム `Anim2D.SetDirection`。純関数 `ToScreenDirection` / `Smooth` をテスト）。残像・ビルボードはゲーム固有のため取り込まない
 > - **AnimEditor（3D / 2D 共用）の SE / VFX 連携を OH 側の SE タブと同じ見え方に**: タイムラインの目盛りを 0.5 秒刻みからフレーム刻み（幅に応じてラベルを間引き）に変更、イベントマーカーの直下に時刻 + 対象名（SE / VFX の DisplayName）を表示、秒モードの行にフレーム換算を併記。マーカーのドラッグ・波形・試聴・シーク・Undo は既存どおり
-> - テスト: `Anim2DFacingTests` 5 件、`Anim2DRetimingTests` 2 件
+> - **人による確認で判明した修正（2026-09-11）**: (1) 検出オーバーレイの縮尺を「インポート後サイズ」で計算していて、Max Size で縮小されるテクスチャ（2500×2000 → 2048×1638）で矩形がずれた → Importer の元画像サイズ（`GetSourceTextureWidthAndHeight`）基準に。(2) 「検出プレビュー」後も入力モードが Grid のままで、「生成」が既定の 4×1 Grid で切っていた → 検出時に入力モードを Automatic に切り替える。(3) `SpriteSlicer`（Grid）がセルをインポート後サイズから計算し、`SpriteMetaData.rect`（元画像座標）と食い違っていた → Automatic と同じく Max Size 16384 + 元画像サイズで計算（`SpriteSlicerTests`）
+> - テスト: `Anim2DFacingTests` 5 件、`Anim2DRetimingTests` 2 件、`SpriteSlicerTests` 1 件
 
 ## C-6. Validation
 

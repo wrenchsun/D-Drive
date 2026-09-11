@@ -60,6 +60,7 @@ namespace DDrive.Editor.Anim2D
             var inputModeField = new EnumField("入力モード", _inputMode);
             inputModeField.RegisterValueChangedCallback(evt => _inputMode = (SliceInputMode)evt.newValue);
             root.Add(inputModeField);
+            _inputModeField = inputModeField;
 
             var gridColumnsField = new IntegerField("Columns") { value = _gridColumns };
             gridColumnsField.RegisterValueChangedCallback(evt => _gridColumns = Mathf.Max(1, evt.newValue));
@@ -226,6 +227,13 @@ namespace DDrive.Editor.Anim2D
         private Rect[] _detectedRects;
         private Texture2D _detectedTexture;
         private Vector2Int _detectedSourceSize; // 元画像のピクセルサイズ(矩形の座標空間)
+        private EnumField _inputModeField;
+
+        private void SetInputMode(SliceInputMode mode)
+        {
+            _inputMode = mode;
+            _inputModeField?.SetValueWithoutNotify(mode);
+        }
         private Button _spriteEditorButton;
         private IMGUIContainer _detectPreview;
         private const float DetectPreviewMaxHeight = 260f;
@@ -264,7 +272,9 @@ namespace DDrive.Editor.Anim2D
             }
 
             _spriteEditorButton?.SetEnabled(true);
-            _resultLabel.text = $"検出: {rects.Length} 枚 / 推定 {rows} 行 x {cols} 列({(regular ? "規則的グリッド" : "不規則")})。緑 = 生成に使う矩形(番号 = フレーム順)";
+            // 検出結果で生成するので入力モードを Automatic に揃える(Grid のまま「生成」して既定の 4x1 で切られる事故を防ぐ。2026-09-11)。
+            SetInputMode(SliceInputMode.Automatic);
+            _resultLabel.text = $"検出: {rects.Length} 枚 / 推定 {rows} 行 x {cols} 列({(regular ? "規則的グリッド" : "不規則")})。緑 = 生成に使う矩形(番号 = フレーム順)。入力モードを Automatic にしました";
             UpdateDetectPreviewHeight();
         }
 
@@ -342,7 +352,7 @@ namespace DDrive.Editor.Anim2D
                 return;
             }
 
-            _inputMode = SliceInputMode.Existing;
+            SetInputMode(SliceInputMode.Existing);
             var opened = EditorApplication.ExecuteMenuItem("Window/2D/Sprite Editor");
             Selection.activeObject = _detectedTexture;
             _resultLabel.text = opened

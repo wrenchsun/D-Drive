@@ -61,6 +61,11 @@ namespace DDrive.Editor.Anim2D
             importer.mipmapEnabled = false;
             importer.filterMode = FilterMode.Point;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
+            // SpriteMetaData.rect は元画像のピクセル座標。Max Size で縮小されるテクスチャ(例: 2500x2000 → 2048x1638)で
+            // インポート後サイズからセルを計算すると矩形がずれるため、Automatic(ApplyRectsAndCollect)と同じく
+            // Max Size を 16384 にして元サイズのまま扱い、セルも元画像サイズで計算する(2026-09-11 修正)。
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.maxTextureSize = 16384;
             EditorUtility.SetDirty(importer);
             importer.SaveAndReimport();
 
@@ -71,8 +76,13 @@ namespace DDrive.Editor.Anim2D
                 return false;
             }
 
-            var texW = reloaded.width;
-            var texH = reloaded.height;
+            importer.GetSourceTextureWidthAndHeight(out var texW, out var texH);
+            if (texW <= 0 || texH <= 0)
+            {
+                texW = reloaded.width;
+                texH = reloaded.height;
+            }
+
             var cellW = texW / columns;
             var cellH = texH / rows;
             if (cellW <= 0 || cellH <= 0)
