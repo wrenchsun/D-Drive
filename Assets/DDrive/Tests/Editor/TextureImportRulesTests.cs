@@ -76,6 +76,61 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("Model default", rule.Name);
         }
 
+        // ---- Substance Painter の標準エクスポート名(2026-09-11) ----
+
+        [TestCase("Assets/SourceAssets/Chara_Body_Normal.png", "Substance _Normal", TextureImporterType.NormalMap, false, TextureChannel.Normal, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_Normal_DirectX.png", "Substance _Normal_DirectX", TextureImporterType.NormalMap, false, TextureChannel.Normal, true)]
+        [TestCase("Assets/SourceAssets/Chara_Body_Normal_OpenGL.png", "Substance _Normal_OpenGL", TextureImporterType.NormalMap, false, TextureChannel.Normal, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_MaskMap.png", "Substance _MaskMap", TextureImporterType.Default, false, TextureChannel.Mask, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_MetallicSmoothness.png", "Substance _MetallicSmoothness", TextureImporterType.Default, false, TextureChannel.Mask, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_Roughness.png", "Substance _Roughness", TextureImporterType.Default, false, TextureChannel.Other, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_BaseMap.png", "Substance _BaseMap", TextureImporterType.Default, true, TextureChannel.Albedo, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_AlbedoTransparency.png", "Substance _AlbedoTransparency", TextureImporterType.Default, true, TextureChannel.Albedo, false)]
+        [TestCase("Assets/SourceAssets/Chara_Body_Emissive.png", "Substance _Emissive", TextureImporterType.Default, true, TextureChannel.Emission, false)]
+        [TestCase("Assets/SourceAssets/chara_body_basecolor.png", "Substance _BaseColor", TextureImporterType.Default, true, TextureChannel.Albedo, false)]
+        public void TryMatch_SubstancePainterNames(string path, string ruleName, TextureImporterType type, bool srgb, TextureChannel channel, bool flipGreen)
+        {
+            var profile = TextureImportProfile.FindOrDefault();
+            Assert.IsTrue(profile.TryMatch(path, out var rule), path);
+            Assert.AreEqual(ruleName, rule.Name);
+            Assert.AreEqual(type, rule.Type);
+            Assert.AreEqual(srgb, rule.SRgb);
+            Assert.AreEqual(channel, rule.Channel);
+            Assert.AreEqual(flipGreen, rule.FlipGreenChannel);
+        }
+
+        [Test]
+        public void TryMatch_ShortSuffix_StillWins_ForDDriveNames()
+        {
+            // 短縮規約(_N)は Substance の _Normal と競合しない
+            var profile = TextureImportProfile.FindOrDefault();
+            Assert.IsTrue(profile.TryMatch("Assets/SourceAssets/T_Body_N.png", out var rule));
+            Assert.AreEqual("NormalMap", rule.Name);
+        }
+
+        [Test]
+        public void Apply_DirectXNormal_FlipsGreenChannel()
+        {
+            var path = TempDir + "/Apply_Normal_DirectX.png";
+            var png = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+            File.WriteAllBytes(path, png.EncodeToPNG());
+            Object.DestroyImmediate(png);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+            _createdAssetPaths.Add(path);
+
+            var profile = TextureImportProfile.FindOrDefault();
+            Assert.IsTrue(profile.TryMatch(path, out var rule));
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+
+            Assert.IsTrue(TextureImportProfile.Apply(importer, rule));
+            importer.SaveAndReimport();
+            importer = (TextureImporter)AssetImporter.GetAtPath(path);
+
+            Assert.AreEqual(TextureImporterType.NormalMap, importer.textureType);
+            Assert.IsTrue(importer.flipGreenChannel, "DirectX 形式は緑反転");
+            Assert.IsEmpty(TextureImportProfile.Diff(importer, rule), "適用後は規約と一致");
+        }
+
         [Test]
         public void TryMatch_NoRuleMatches_ReturnsFalse()
         {

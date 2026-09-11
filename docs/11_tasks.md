@@ -100,6 +100,7 @@
 | 3-16 | 初期アイコンの自動生成 | ED | 1 | 3-15 | ✅ 2026-09-11。`AssetIconService.RegisterSource / RegisterRenderer` + `DefaultIconProviders`（Prefab / Texture / Sprite）+ `MaterialIconProvider`（描画）。作成直後・Inspector「自動生成」・一括メニュー（[09] §8.1）。`AssetIconServiceTests` に 3 件追加 |
 | 3-17 | Unity 標準 Material → D-Drive 標準シェーダーの MaterialData 変換 | TA | 1 | 3-7, 3-14 | ✅ 2026-09-11。`UnityMaterialMigrator`（URP Lit 系 → DDrive/Lit、Unlit 系 → DDrive/Unlit。共通は Maya インポータの写像、固有は既定値 + 同名の値引き継ぎ、再実行は Common のみ更新）+ メニュー（Material / Prefab 選択）。`UnityMaterialMigratorTests` 4 件 |
 | 3-18 | TextureData → Importer 自動反映（Usage / Channel / SliceBorder） | TA | 1 | 3-8 | ✅ 2026-09-11。`TextureDataImporterSync`（ObjectChangeEvents で検知、規約と食い違えば警告して書かない）。`TextureDataImporterSyncTests` 5 件 |
+| 3-19 | Substance Painter 標準命名の自動判別 | TA | 0.5 | 3-8 | ✅ 2026-09-11。既定規約に Painter の接尾辞（Normal/DirectX 緑反転/MaskMap/MetallicSmoothness/BaseMap/AlbedoTransparency/Emissive 等）を追加。Rule.FlipGreenChannel。`TextureImportRulesTests` +12 |
 
 ## Phase 4: Canvas + Prefab (M4)  約 7.5 週
 

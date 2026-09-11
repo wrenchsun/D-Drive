@@ -55,6 +55,9 @@ namespace DDrive.Editor.Materials
 
             [Tooltip("用途(TextureData 作成時の既定値)。")]
             public TextureUsage Usage;
+
+            [Tooltip("NormalMap のとき緑(Y)を反転する(DirectX 形式の法線を Unity の OpenGL 形式へ。Substance Painter の _Normal_DirectX 用)。")]
+            public bool FlipGreenChannel;
         }
 
         [Tooltip("OFF なら Postprocessor は何もしない(Validation の検出は続く)。")]
@@ -69,13 +72,65 @@ namespace DDrive.Editor.Materials
         [Tooltip("ルール。上から順に最初に一致したものを使う。")]
         public Rule[] Rules = DefaultRules();
 
+        // 上から順に最初に一致したものを使う。Substance Painter の標準エクスポート名(`$mesh_$textureSet_<channel>`)を先に置く
+        // (2026-09-11 追加。Unity URP/HDRP テンプレート: _BaseMap/_MaskMap/_Normal/_Emission、Unity 5 テンプレート:
+        // _AlbedoTransparency/_MetallicSmoothness/_SpecularSmoothness、PBR Metal Rough: _BaseColor/_Roughness/_Metallic/_Emissive/_Height/_AO)。
+        // DirectX 形式の法線(_Normal_DirectX)は緑を反転して Unity(OpenGL 形式)に合わせる。
         public static Rule[] DefaultRules() => new[]
         {
+            // ── Substance Painter: 法線 ──
+            SubstanceNormal("_Normal_DirectX", flipGreen: true),
+            SubstanceNormal("_Normal_OpenGL", flipGreen: false),
+            SubstanceNormal("_NormalMap", flipGreen: false),
+            SubstanceNormal("_Normal", flipGreen: false),
+            // ── Substance Painter: パック済みマスク(Mask チャンネル) ──
+            SubstanceLinear("_MaskMap", TextureChannel.Mask, TextureImporterCompression.CompressedHQ),
+            SubstanceLinear("_MetallicSmoothness", TextureChannel.Mask, TextureImporterCompression.CompressedHQ),
+            SubstanceLinear("_SpecularSmoothness", TextureChannel.Mask, TextureImporterCompression.CompressedHQ),
+            // ── Substance Painter: 単チャンネル(リニア。Mask に詰め直す前提なので Channel は Other) ──
+            SubstanceLinear("_Metallic", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_Roughness", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_Smoothness", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_AmbientOcclusion", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_Ambient_occlusion", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_Occlusion", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_AO", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_Height", TextureChannel.Other, TextureImporterCompression.Compressed),
+            SubstanceLinear("_Opacity", TextureChannel.Other, TextureImporterCompression.Compressed),
+            // ── Substance Painter: カラー ──
+            SubstanceColor("_BaseMap", TextureChannel.Albedo),
+            SubstanceColor("_BaseColor", TextureChannel.Albedo),
+            SubstanceColor("_Base_Color", TextureChannel.Albedo),
+            SubstanceColor("_AlbedoTransparency", TextureChannel.Albedo),
+            SubstanceColor("_Albedo", TextureChannel.Albedo),
+            SubstanceColor("_Diffuse", TextureChannel.Albedo),
+            SubstanceColor("_Emission", TextureChannel.Emission),
+            SubstanceColor("_Emissive", TextureChannel.Emission),
+            // ── D-Drive 短縮規約 ──
             new Rule { Name = "NormalMap", Match = MatchKind.Suffix, Pattern = "_N", Type = TextureImporterType.NormalMap, SRgb = false, Mipmaps = true, Compression = TextureImporterCompression.Compressed, Channel = TextureChannel.Normal, Usage = TextureUsage.Model },
             new Rule { Name = "Mask", Match = MatchKind.Suffix, Pattern = "_M", Type = TextureImporterType.Default, SRgb = false, Mipmaps = true, Compression = TextureImporterCompression.CompressedHQ, Channel = TextureChannel.Mask, Usage = TextureUsage.Model },
             new Rule { Name = "Emission", Match = MatchKind.Suffix, Pattern = "_E", Type = TextureImporterType.Default, SRgb = true, Mipmaps = true, Compression = TextureImporterCompression.Compressed, Channel = TextureChannel.Emission, Usage = TextureUsage.Model },
             new Rule { Name = "UI Sprite", Match = MatchKind.Suffix, Pattern = "_UI", Type = TextureImporterType.Sprite, SRgb = true, Mipmaps = false, Compression = TextureImporterCompression.Compressed, SpriteFullRect = true, Channel = TextureChannel.Other, Usage = TextureUsage.UI },
             new Rule { Name = "Model default", Match = MatchKind.Prefix, Pattern = "T_", Type = TextureImporterType.Default, SRgb = true, Mipmaps = true, Compression = TextureImporterCompression.Compressed, Channel = TextureChannel.Albedo, Usage = TextureUsage.Model },
+        };
+
+        private static Rule SubstanceNormal(string suffix, bool flipGreen) => new()
+        {
+            Name = "Substance " + suffix, Match = MatchKind.Suffix, Pattern = suffix, Type = TextureImporterType.NormalMap,
+            SRgb = false, Mipmaps = true, Compression = TextureImporterCompression.Compressed,
+            Channel = TextureChannel.Normal, Usage = TextureUsage.Model, FlipGreenChannel = flipGreen,
+        };
+
+        private static Rule SubstanceLinear(string suffix, TextureChannel channel, TextureImporterCompression compression) => new()
+        {
+            Name = "Substance " + suffix, Match = MatchKind.Suffix, Pattern = suffix, Type = TextureImporterType.Default,
+            SRgb = false, Mipmaps = true, Compression = compression, Channel = channel, Usage = TextureUsage.Model,
+        };
+
+        private static Rule SubstanceColor(string suffix, TextureChannel channel) => new()
+        {
+            Name = "Substance " + suffix, Match = MatchKind.Suffix, Pattern = suffix, Type = TextureImporterType.Default,
+            SRgb = true, Mipmaps = true, Compression = TextureImporterCompression.Compressed, Channel = channel, Usage = TextureUsage.Model,
         };
 
         // プロジェクト内の Profile(Tests 配下は除外)。無ければ組み込み既定(メモリ上、保存しない)。
@@ -210,6 +265,12 @@ namespace DDrive.Editor.Materials
                 changed = true;
             }
 
+            if (rule.Type == TextureImporterType.NormalMap && importer.flipGreenChannel != rule.FlipGreenChannel)
+            {
+                importer.flipGreenChannel = rule.FlipGreenChannel;
+                changed = true;
+            }
+
             if (rule.Type == TextureImporterType.Sprite)
             {
                 if (importer.spriteImportMode == SpriteImportMode.None)
@@ -264,6 +325,11 @@ namespace DDrive.Editor.Materials
             if (rule.MaxSize > 0 && importer.maxTextureSize != rule.MaxSize)
             {
                 diffs.Add($"Max Size が {importer.maxTextureSize}(規約: {rule.MaxSize})");
+            }
+
+            if (rule.Type == TextureImporterType.NormalMap && importer.flipGreenChannel != rule.FlipGreenChannel)
+            {
+                diffs.Add($"緑反転が {(importer.flipGreenChannel ? "on" : "off")}(規約: {(rule.FlipGreenChannel ? "on" : "off")})");
             }
 
             return diffs;

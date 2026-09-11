@@ -57,6 +57,7 @@
 ## 3-8 Texture Importer 規約(コミット 669783a)
 - Assets/SourceAssets 配下に `Xxx_N.png` / `Xxx_M.png` / `Xxx_UI.png` を置いてインポート → Texture Type / sRGB / Mipmap が規約どおりになること(TexturePostprocessor)
 - TextureData の Usage を UI に変えて SliceBorder を入れる → Importer が Sprite になり Sprite Editor の Border に同じ値が入ること、Sprite が自動で割り当たること。Channel を Normal にすると Texture Type が NormalMap、Mask にすると sRGB off になること（Validation の Fix を押さなくてよい）。`_N` 名のファイルで Channel=Albedo にすると警告が出て Importer が変わらないこと（2026-09-11 追加）
+- Substance Painter の Unity URP テンプレートで書き出した `Xxx_BaseMap.png` / `Xxx_MaskMap.png` / `Xxx_Normal.png`（または `_Normal_DirectX`）を Assets/SourceAssets に置く → それぞれ Default+sRGB / Default+リニア / NormalMap になり、DirectX 版は Importer の「Flip Green Channel」が on になること（2026-09-11 追加）
 - Material Editor で TextureData を選択 → Importer 要約 + 規約名 + 「命名規約を適用して再インポート」ボタンの表示(差分があるときだけ)
 - Validation > Run All に TextureDataValidator の項目(Normal/Mask/Sprite/9-slice/POT/MaxSize)が出て FixAction が効くこと
 - 必要なら Assets/GameData に TextureImportProfile を作成して規約をカスタマイズ(無ければ組み込み既定)
