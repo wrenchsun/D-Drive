@@ -224,6 +224,21 @@ namespace DDrive.Editor.Materials
 
         private void OnProjectChanged() => _registryDirty = true;
 
+        // アセットの追加・削除後(例: Maya インポートで TextureData が増えた)に Registry を再走査し、古い ID 解決で作った
+        // 共有 Material を捨てる。描画・再生成の直前に必ず通す(2026-09-11: サムネイル経路が通っておらずテクスチャ無しで描いていた)。
+        private bool EnsureRegistryFresh()
+        {
+            if (!_registryDirty)
+            {
+                return false;
+            }
+
+            _registryDirty = false;
+            EditorAnchorRegistry.Refresh(_registry);
+            _manager.Clear();
+            return true;
+        }
+
         // 比較対象(B)は SerializedObject でバインドしていないので、その変更(Inspector / Undo)はここで拾う。
         private void OnObjectChanges(ref ObjectChangeEventStream stream)
         {
@@ -657,11 +672,7 @@ namespace DDrive.Editor.Materials
             _primaryPreview?.Dispose();
             _comparePreview?.Dispose();
             EnsurePreviewRoot();
-            if (_registryDirty)
-            {
-                _registryDirty = false;
-                EditorAnchorRegistry.Refresh(_registry);
-            }
+            EnsureRegistryFresh();
 
             _primaryPreview = MaterialPreviewBuilder.Create(_shape, _previewModel, data, _manager, _previewRoot.transform, Vector3.zero, _modelsManager, "Primary");
             if (_compareTarget != null)
@@ -702,11 +713,7 @@ namespace DDrive.Editor.Materials
 
             _manager.Clear();
             // Registry の再走査(全 Data の FindAssets + 同期ロード)は重いので、アセットの追加・削除があったときだけ行う(2026-09-11)。
-            if (_registryDirty)
-            {
-                _registryDirty = false;
-                EditorAnchorRegistry.Refresh(_registry);
-            }
+            EnsureRegistryFresh();
 
             if (_primaryPreview != null)
             {
@@ -896,6 +903,7 @@ namespace DDrive.Editor.Materials
             var sideBySide = hasCompare && _compareMode == ThumbnailCompareMode.SideBySide;
             var showB = hasCompare && _compareMode == ThumbnailCompareMode.Toggle && _showCompareInToggle;
 
+            EnsureRegistryFresh();
             _thumbnail ??= new MaterialThumbnailRenderer();
             var primary = showB ? _compareTarget : data;
             RenderInto(_thumbnail, _thumbnailImage, primary);

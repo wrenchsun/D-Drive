@@ -68,6 +68,8 @@
 - 生成された MaterialData の Specific / RenderQueueOffset を編集 → FBX を再インポート → Common だけ更新され固有調整が残ること(ログに「更新: ...(Common: ...)」)
 - Tools > D-Drive > Generate > 「選択したモデルから MaterialData を生成」が FBX 選択時だけ有効になること
 
+- Material Editor を開いたまま FBX をインポート → 生成された MaterialData を選ぶとサムネイル・配置球にテクスチャが貼られていること（2026-09-11 修正。以前は灰色）
+
 ## 3-9 Material プレビュー拡張(コミット 予定→済)
 - Material Editor: 形状(球 / 板=Quad / Cube / ModelData)を切り替えて配置、ターンテーブルの回転、ライト回転スライダー(Directional Light の Y 回転、撤去で元に戻る)を SceneView で確認
 - 「比較対象」に別の MaterialData を入れて「並べて比較」→ 右 1.5m に 2 体目が出ること

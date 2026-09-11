@@ -74,10 +74,12 @@ namespace DDrive.Editor.Materials
             _lastTickTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += OnEditorUpdate;
             ObjectChangeEvents.changesPublished += OnObjectChanges;
+            EditorApplication.projectChanged += OnProjectChanged;
         }
 
         private void OnDisable()
         {
+            EditorApplication.projectChanged -= OnProjectChanged;
             ObjectChangeEvents.changesPublished -= OnObjectChanges;
             EditorApplication.update -= OnEditorUpdate;
             _renderer?.Dispose();
@@ -256,8 +258,19 @@ namespace DDrive.Editor.Materials
             }
         }
 
+        // アセットの追加・削除後は Registry を再走査し、古い ID 解決で作った Material を捨てる(2026-09-11)。
+        private bool _registryDirty;
+        private void OnProjectChanged() => _registryDirty = true;
+
         private void Render()
         {
+            if (_registryDirty)
+            {
+                _registryDirty = false;
+                EditorAnchorRegistry.Refresh(_registry);
+                _manager.Clear();
+            }
+
             if (_target == null)
             {
                 _image.image = null;
