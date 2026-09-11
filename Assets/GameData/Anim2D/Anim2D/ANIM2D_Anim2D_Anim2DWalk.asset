@@ -1,0 +1,82 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7cadc30892f07d442a9f9e67327f2c70, type: 3}
+  m_Name: ANIM2D_Anim2D_Anim2DWalk
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Anim2D.Anim2DData
+  Id: 17177843442966040570
+  DisplayName: Anim2D Walk
+  Description: 
+  Category: Anim2D
+  Tags: []
+  Icon: {fileID: 0}
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 0
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  Clip: {fileID: 7400000, guid: 6190ea1c04d436545879616c9fb5c0d0, type: 2}
+  StateName: Walk
+  Layer: 0
+  Loop: 1
+  DefaultCrossFade: 0.1
+  Mask: {fileID: 0}
+  Ik:
+    LeftHand: 0
+    RightHand: 0
+    LeftFoot: 0
+    RightFoot: 0
+    Weight:
+      serializedVersion: 2
+      m_Curve: []
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  BlendShapes: []
+  Directions: 0
+  DirectionClips: []
+  ParamXName: x
+  ParamYName: y
+  Retiming:
+    Mode: 0
+    Constant: 1
+    Parametric:
+      Kind: 0
+      Ease: 0
+      BezierP1: {x: 0, y: 0}
+      BezierP2: {x: 0, y: 0}
+    Curve:
+      serializedVersion: 2
+      m_Curve: []
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    From: 0
+    To: 0
+    Normalized: 0
+    Time:
+      Mode: 0
+      Value: 0
+      SpeedScale: 0
+      IgnoreTimeScale: 0
+    Loop: 0
+    LoopCount: 0

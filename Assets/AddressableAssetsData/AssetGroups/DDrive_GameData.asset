@@ -15,8 +15,38 @@ MonoBehaviour:
   m_GroupName: DDrive_GameData
   m_GUID: 7d0330e9280bfa74aaca9631072f761c
   m_SerializeEntries:
+  - m_GUID: 0a9e65c22f6122347941d4430af936fb
+    m_Address: MAT_FBX_ShizukuBlendShapeMatBody01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0b25978d8a727b94ba4e56a167e7a19c
+    m_Address: MAT_FBX_MatBody01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0e43732a754563f409ed4920cf6a837c
+    m_Address: TEX_FBX_Wear02D
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 10f4fc669d1c0d049a277fafbbd60eea
     m_Address: SE_Player_Slash
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 146ea9544b33b3043b018a332d23f6f5
+    m_Address: ANIM2D_Anim2D_Anim2DWalk 1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 164a221f919c8954aa5fac7cd147161f
+    m_Address: TEX_FBX_Hair01D
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1c8c7b7976ba4514290d3b21da0f47d0
+    m_Address: TEX_FBX_Body01N
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -25,8 +55,43 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 290e328c6ed8fc549993bc0526a1dea7
+    m_Address: TEX_FBX_Wear01N
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2cb3256cb5b68654fbd900c3d2232e18
+    m_Address: TEX_FBX_FaceOptionD
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 37fcc298459defc45a0d9be08361ce42
+    m_Address: MAT_FBX_MatFaceOption1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3bea3ac219b77654e98b22cc9d291f0d
+    m_Address: MAT_FBX_MatWear03
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3c7821964d1050e46b7dde1b32909635
+    m_Address: TEX_FBX_Wear03N
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3fd27e03238cdbd4dacaa4dc032759a2
+    m_Address: ANIM2D_2DAnim_Anim2D2DAnimTest
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 4670c02ca60e7624f80fd96924f39cbb
     m_Address: ANC_Anim_Jump
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4cd84a0527a1d134984191ff936836a3
+    m_Address: MAT_FBX_MatWear02
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -40,13 +105,43 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 67f4377a04bc9af4c963711724435f3d
+    m_Address: MAT_FBX_MtlHairline
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 689ed567fea0e524393d24b4cf1305d7
     m_Address: MAT_Test_Material
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 70beab92a744bad4e84b9e4f3f5ad122
+    m_Address: ANIM2D_Anim2D_Anim2DTest
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 738a3d2ed8488414c89b9abba44b31be
+    m_Address: TEX_FBX_Wear03D
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7464a21ea2a36e24ebff8fb582308d1d
+    m_Address: TEX_FBX_Body01D
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 77a6a3e8569e47e46901485391b538ff
     m_Address: MAT_Test_TestUnlit
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 787a743a88227a9489fffe10414f5f3c
+    m_Address: TEX_Jam_House
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 81651da68213bb24d970dcf6516d742a
+    m_Address: MAT_FBX_MatWear01
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -60,8 +155,28 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: aa8128847b5885947a20d53dc2a711d3
+    m_Address: MAT_FBX_MatHair01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c5e7b25c2bee2d84981d13a13b559500
+    m_Address: ANIM2D_2DAnim_Anim2D2DAnimWalk
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c947cc2894989ba45b19d8168ad8d23c
     m_Address: SE_test_NewSound
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d0bd9a44eaa235e48a4b36034e6195db
+    m_Address: ANIM2D_Anim2D_Anim2DWalk
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d14df62be2ee46e498c9168111feb3a7
+    m_Address: MAT_FBX_MatBody01 1
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -70,8 +185,28 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dbcb06836a48c644a970c4a59252d9b6
+    m_Address: TEX_FBX_Wear02N
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e217c6cc76933884980f6122697943c4
+    m_Address: TEX_FBX_Wear01D
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e7493e39fee0fc04f9525d98f7d5f6f8
+    m_Address: MAT_FBX_MatFaceOption1 1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ecb3243253c227148a3de1f837ff59bd
     m_Address: ANC_Player_VFXPlayerSlashAnchor
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f91d25d9fd3199b4aa93e7d0291e1b84
+    m_Address: MAT_FBX_Lambert1
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

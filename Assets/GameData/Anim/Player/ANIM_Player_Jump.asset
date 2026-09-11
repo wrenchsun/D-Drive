@@ -35,7 +35,7 @@ MonoBehaviour:
     Net: 0
   Events:
   - Trigger: 5
-    Time: 12
+    Time: 10
     CustomKey: 
     Action: 0
     Target:
@@ -88,7 +88,7 @@ MonoBehaviour:
       ObjectValue: {fileID: 0}
     Repeat: 0
   - Trigger: 5
-    Time: 26
+    Time: 28
     CustomKey: 
     Action: 0
     Target:

@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f96de42cc27251544b8f5c49e05daa7b, type: 3}
+  m_Name: TEX_Jam_House
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Material.TextureData
+  Id: 9736741878492926523
+  DisplayName: "\u30B8\u30E3\u30E0\u30CF\u30A6\u30B9"
+  Description: 
+  Category: Jam
+  Tags: []
+  Icon: {fileID: 2800000, guid: f504678544501d74ea816e32d956480c, type: 3}
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 0
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  Texture: {fileID: 2800000, guid: e1a365811a0c29649ae2a76ef88d84cd, type: 3}
+  Usage: 1
+  Sprite: {fileID: 0}
+  AllowScale: 0
+  SliceBorder: {x: 0, y: 0, z: 0, w: 0}
+  Channel: 0

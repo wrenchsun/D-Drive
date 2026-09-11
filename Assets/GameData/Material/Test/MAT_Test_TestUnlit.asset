@@ -47,7 +47,7 @@ MonoBehaviour:
     Mask:
       value: 0
       type: 0
-    Metallic: 0
+    Metallic: 1
     Smoothness: 0.5
     Emission:
       value: 0

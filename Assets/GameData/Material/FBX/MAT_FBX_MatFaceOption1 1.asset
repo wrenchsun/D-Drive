@@ -1,0 +1,64 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ce6e8dd22649854484d97a90e4bb3da, type: 3}
+  m_Name: MAT_FBX_MatFaceOption1 1
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Material.MaterialData
+  Id: 14563858843800638609
+  DisplayName: mat_faceOption1
+  Description: 
+  Category: FBX
+  Tags: []
+  Icon: {fileID: 0}
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 0
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  Shader: {fileID: 0}
+  Common:
+    Albedo:
+      value: 18003058593433904693
+      type: 7
+    AlbedoTint: {r: 0.8, g: 0.8, b: 0.8, a: 1}
+    Normal:
+      value: 0
+      type: 0
+    NormalScale: 1
+    Mask:
+      value: 0
+      type: 0
+    Metallic: 0
+    Smoothness: 0
+    Emission:
+      value: 0
+      type: 0
+    EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    EmissionIntensity: 0
+    Blend: 2
+    Cutoff: 0.5
+    DoubleSided: 0
+  Specific: []
+  RenderQueueOffset: 0
+  RenderingLayerMask: 0
+  Anims: []
+  SourceMaterial: shizuku/mat_faceOption1
