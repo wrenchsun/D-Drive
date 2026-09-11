@@ -483,6 +483,8 @@ namespace DDrive.Editor.Anim
                 sec.RegisterValueChangedCallback(evt => ModifyEvent(index, "Set Event Time", ref e, (ref AssetEvent ev) => ev.Time = Mathf.Max(0f, evt.newValue)));
                 row.Add(sec);
                 row.Add(new Label("秒") { style = { marginRight = 4 } });
+                // 秒モードでもフレーム換算を併記する(2026-09-11)
+                row.Add(new Label($"= F{e.Time * _target.FrameRate:0.#}") { style = { width = 60, opacity = 0.7f } });
             }
             else
             {

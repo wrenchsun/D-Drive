@@ -60,6 +60,12 @@
 - Material Editor のサムネイルで Coat を上げると光沢の層が乗ること、Sheen を上げると輪郭が明るくなること、Opacity を下げると透けること
 - 既存の Maya 由来 MaterialData（Shader=None のもの）は Material Editor で Shader を `DDrive/AiStandardSurface` か `DDrive/Lit` に設定する（固有は自動同期）。FBX を再インポートしても Shader が None のものはこのタイミングで自動設定される
 
+## 3-21 Anim2D 取り込み(2026-09-11)
+- Anim2D Editor 作成モードで Automatic のテクスチャを入れて「検出プレビュー」→ テクスチャの縮小表示に緑枠 + 番号が重なること。「Sprite Editor で手動補正」→ Importer に矩形が書かれ、入力モードが「既存スプライト」に変わること（2D Sprite パッケージが無い場合は案内メッセージ）
+- 編集モードで 8 方向の Anim2DData に配置モード Retiming を「適用」→ 8 本すべての Clip のキー時刻が変わること（Console に「方向 Clip: 適用 7 / スキップ 0」）
+- Anim Editor のタイムラインにフレーム目盛りと番号が出て、SE / VFX マーカーの下に時刻と名前が出ること。秒モードの行に「= F12」のようなフレーム換算が出ること
+- Anim2DFacing を付けた 8 方向キャラで SetWorldDirection を呼ぶ → カメラを回しても画面上の向きが正しく、方向切替が滑らかなこと。FreezeAtFirstFrame → 先頭で止まり Unfreeze で再開すること
+
 ## 3-8 Texture Importer 規約(コミット 669783a)
 - Assets/SourceAssets 配下に `Xxx_N.png` / `Xxx_M.png` / `Xxx_UI.png` を置いてインポート → Texture Type / sRGB / Mipmap が規約どおりになること(TexturePostprocessor)
 - TextureData の Usage を UI に変えて SliceBorder を入れる → Importer が Sprite になり Sprite Editor の Border に同じ値が入ること、Sprite が自動で割り当たること。Channel を Normal にすると Texture Type が NormalMap、Mask にすると sRGB off になること（Validation の Fix を押さなくてよい）。`_N` 名のファイルで Channel=Albedo にすると警告が出て Importer が変わらないこと（2026-09-11 追加）

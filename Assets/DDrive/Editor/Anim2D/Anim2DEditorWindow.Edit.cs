@@ -269,9 +269,13 @@ namespace DDrive.Editor.Anim2D
             }
 
             _editTimes = times;
+
+            // 方向 Clip(4 / 8 方向)にも同じ配置をまとめて適用する(OH_CASE2026_ITAMI の BlendTree 一括リタイミング相当、2026-09-11)。
+            var applied = Anim2DRetiming.ApplyToDirectionClips(_editTarget, _placementMode, totalSeconds, _editSprites.Length, out var skipped);
+
             EditorUtility.SetDirty(_editTarget);
             AssetDatabase.SaveAssets();
-            Debug.Log($"[Anim2DEditorWindow] {_editClip.name} のリタイミングを適用しました({_editSprites.Length} 枚)。");
+            Debug.Log($"[Anim2DEditorWindow] {_editClip.name} のリタイミングを適用しました({_editSprites.Length} 枚)。方向 Clip: 適用 {applied} / スキップ {skipped}(枚数が違う・Sprite キー無し)。");
             RefreshValidation();
         }
 

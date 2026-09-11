@@ -90,10 +90,22 @@ namespace DDrive.Editor.Anim2D
             textureField.RegisterValueChangedCallback(evt => _texture = evt.newValue as Texture2D);
             root.Add(textureField);
 
-            var detectButton = new Button(() => RunDetectPreview()) { text = "検出プレビュー(Automatic)" };
-            root.Add(detectButton);
+            var detectRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            detectRow.Add(new Button(() => RunDetectPreview()) { text = "検出プレビュー(Automatic)" });
+            _spriteEditorButton = new Button(OpenInSpriteEditor)
+            {
+                text = "Sprite Editor で手動補正",
+                tooltip = "検出した矩形を Importer に書き込んでから Sprite Editor を開く。直したら入力モードを「既存スプライト」にして生成する",
+            };
+            _spriteEditorButton.SetEnabled(false);
+            detectRow.Add(_spriteEditorButton);
+            root.Add(detectRow);
             _resultLabel = new Label(string.Empty) { style = { whiteSpace = WhiteSpace.Normal } };
             root.Add(_resultLabel);
+
+            // 検出結果をテクスチャの上に重ねて描く(OH_CASE2026_ITAMI の Sprite Animation Tool から取り込み、2026-09-11)。
+            _detectPreview = new IMGUIContainer(DrawDetectPreview) { style = { height = 0, marginTop = 2, marginBottom = 4 } };
+            root.Add(_detectPreview);
 
             _directionListContainer = new VisualElement();
             root.Add(_directionListContainer);
@@ -211,21 +223,115 @@ namespace DDrive.Editor.Anim2D
             }
         }
 
+        private Rect[] _detectedRects;
+        private Texture2D _detectedTexture;
+        private Button _spriteEditorButton;
+        private IMGUIContainer _detectPreview;
+        private const float DetectPreviewMaxHeight = 260f;
+
         private void RunDetectPreview()
         {
+            _detectedRects = null;
+            _detectedTexture = null;
+            _spriteEditorButton?.SetEnabled(false);
             if (_texture == null)
             {
                 _resultLabel.text = "Texture が未設定です。";
+                UpdateDetectPreviewHeight();
                 return;
             }
 
             if (!AutomaticSpriteSlicer.DetectRects(_texture, _autoMinSize, _autoExtrude, out var rects, out var rows, out var cols, out var regular))
             {
                 _resultLabel.text = "検出に失敗しました(Console 参照)。";
+                UpdateDetectPreviewHeight();
                 return;
             }
 
-            _resultLabel.text = $"検出: {rects.Length} 枚 / 推定 {rows} 行 x {cols} 列(regular={regular})";
+            _detectedRects = rects;
+            _detectedTexture = _texture;
+            _spriteEditorButton?.SetEnabled(true);
+            _resultLabel.text = $"検出: {rects.Length} 枚 / 推定 {rows} 行 x {cols} 列({(regular ? "規則的グリッド" : "不規則")})。緑 = 生成に使う矩形(番号 = フレーム順)";
+            UpdateDetectPreviewHeight();
+        }
+
+        private void UpdateDetectPreviewHeight()
+        {
+            if (_detectPreview == null)
+            {
+                return;
+            }
+
+            if (_detectedTexture == null)
+            {
+                _detectPreview.style.height = 0;
+                return;
+            }
+
+            var resolved = _detectPreview.resolvedStyle.width;
+            var width = float.IsNaN(resolved) || resolved < 64f ? 320f : resolved; // レイアウト前は NaN
+            var scale = Mathf.Min(width / _detectedTexture.width, DetectPreviewMaxHeight / _detectedTexture.height);
+            _detectPreview.style.height = Mathf.Ceil(_detectedTexture.height * scale) + 4f;
+            _detectPreview.MarkDirtyRepaint();
+        }
+
+        // テクスチャを縮小表示し、検出矩形を緑枠 + 番号で重ねる(テクスチャは左下原点、IMGUI は左上原点なので Y を反転)。
+        private void DrawDetectPreview()
+        {
+            if (_detectedTexture == null || _detectedRects == null)
+            {
+                return;
+            }
+
+            var area = _detectPreview.contentRect;
+            if (area.width <= 1f)
+            {
+                return;
+            }
+
+            var scale = Mathf.Min(area.width / _detectedTexture.width, DetectPreviewMaxHeight / _detectedTexture.height);
+            var drawn = new Rect(area.x, area.y, _detectedTexture.width * scale, _detectedTexture.height * scale);
+            EditorGUI.DrawRect(drawn, new Color(0.12f, 0.12f, 0.12f));
+            GUI.DrawTexture(drawn, _detectedTexture, ScaleMode.StretchToFill, true);
+
+            var fill = new Color(0.3f, 1f, 0.3f, 0.12f);
+            var line = new Color(0.3f, 1f, 0.3f, 0.9f);
+            for (var i = 0; i < _detectedRects.Length; i++)
+            {
+                var r = _detectedRects[i];
+                var x = drawn.x + r.x * scale;
+                var y = drawn.y + (_detectedTexture.height - r.y - r.height) * scale;
+                var rect = new Rect(x, y, r.width * scale, r.height * scale);
+                EditorGUI.DrawRect(rect, fill);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), line);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), line);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.y, 1f, rect.height), line);
+                EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), line);
+                GUI.Label(new Rect(rect.x + 2f, rect.y + 1f, 40f, 14f), i.ToString(), EditorStyles.whiteBoldLabel);
+            }
+        }
+
+        // 検出矩形を Importer に確定させて Sprite Editor を開く(2D Sprite パッケージが無いと Sprite Editor は開けないので案内する)。
+        private void OpenInSpriteEditor()
+        {
+            if (_detectedTexture == null || _detectedRects == null)
+            {
+                _resultLabel.text = "先に「検出プレビュー」を実行してください。";
+                return;
+            }
+
+            if (!AutomaticSpriteSlicer.ApplyRectsAndCollect(_detectedTexture, _detectedRects, out var sprites))
+            {
+                _resultLabel.text = "矩形の書き込みに失敗しました(Console 参照)。";
+                return;
+            }
+
+            _inputMode = SliceInputMode.Existing;
+            var opened = EditorApplication.ExecuteMenuItem("Window/2D/Sprite Editor");
+            Selection.activeObject = _detectedTexture;
+            _resultLabel.text = opened
+                ? $"{sprites.Length} 枚を Importer に書き込みました。Sprite Editor で直したら Apply → 入力モードは「既存スプライト」に切り替えてあります"
+                : $"{sprites.Length} 枚を Importer に書き込みました。Sprite Editor は 2D Sprite パッケージ(com.unity.2d.sprite)が無いため開けません。Package Manager で導入してください。入力モードは「既存スプライト」に切り替えてあります";
         }
 
         private bool TrySlice(Texture2D texture, out Sprite[] sprites)

@@ -62,6 +62,21 @@ namespace DDrive.Runtime.Anim2D
 
         public static void SetSpeed(Handle<AnimMarker> h, float speed) => _anim?.SetSpeed(h, speed);
 
+        // 先頭フレームで止めて保持する(チャージ中の構え等。OH_CASE2026_ITAMI の DirectionalSpriteAnimator.FreezeAtFirstFrame 相当、2026-09-11)。
+        // 再生中の Handle に対して呼ぶ。Unfreeze で speed を戻す。
+        public static void FreezeAtFirstFrame(Handle<AnimMarker> h)
+        {
+            if (_anim == null)
+            {
+                return;
+            }
+
+            _anim.Seek(h, 0f);
+            _anim.SetSpeed(h, 0f);
+        }
+
+        public static void Unfreeze(Handle<AnimMarker> h, float speed = 1f) => _anim?.SetSpeed(h, speed);
+
         public static void Stop(Handle<AnimMarker> h) => _anim?.Stop(h);
 
         public static bool IsPlaying(Handle<AnimMarker> h) => _anim?.IsPlaying(h) ?? false;

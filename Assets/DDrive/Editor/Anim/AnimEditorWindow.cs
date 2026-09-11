@@ -31,7 +31,7 @@ namespace DDrive.Editor.Anim
     [DataEditor(typeof(AnimData), "Anim Editor で開く")]
     public sealed partial class AnimEditorWindow : EditorWindow
     {
-        private const float TimelineHeight = 44f;
+        private const float TimelineHeight = 62f; // 2026-09-11: フレーム番号の行(bar.yMax + 22)を追加したため 44 → 62
         private const int MaxEventLog = 12;
 
         [SerializeField] private AnimData _target;
@@ -735,11 +735,18 @@ namespace DDrive.Editor.Anim
             var bar = new Rect(rect.x + 8f, rect.y + 18f, rect.width - 16f, 8f);
             EditorGUI.DrawRect(bar, new Color(0.3f, 0.3f, 0.3f));
 
-            // 目盛り(0.5 秒ごと)
-            for (var t = 0f; t <= length + 1e-4f; t += 0.5f)
+            // 目盛り: フレームごと(細)+ ラベル付き(太)。ラベル間隔は幅に応じて間引く(OH_CASE2026_ITAMI の SE タイムライン相当、2026-09-11)。
+            var totalFrames = Mathf.Max(1, Mathf.RoundToInt(length * frameRate));
+            var labelEvery = Mathf.Max(1, Mathf.CeilToInt(totalFrames / Mathf.Max(1f, bar.width / 40f)));
+            for (var f = 0; f <= totalFrames; f++)
             {
-                var x = bar.x + bar.width * (t / length);
-                EditorGUI.DrawRect(new Rect(x, bar.y - 3f, 1f, bar.height + 6f), new Color(1f, 1f, 1f, 0.15f));
+                var x = bar.x + bar.width * (f / (float)totalFrames);
+                var labeled = f % labelEvery == 0 || f == totalFrames;
+                EditorGUI.DrawRect(new Rect(x, bar.y - (labeled ? 4f : 2f), 1f, bar.height + (labeled ? 8f : 4f)), new Color(1f, 1f, 1f, labeled ? 0.35f : 0.12f));
+                if (labeled)
+                {
+                    GUI.Label(new Rect(x - 14f, bar.yMax + 22f, 28f, 12f), f.ToString(), EditorStyles.centeredGreyMiniLabel);
+                }
             }
 
             GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, rect.width - 12f, 14f),
@@ -769,7 +776,11 @@ namespace DDrive.Editor.Anim
                     var marker = new Rect(x - 5f, bar.y - 6f, 10f, bar.height + 12f);
                     var over = sec > length + 1e-3f;
                     EditorGUI.DrawRect(marker, over ? new Color(1f, 0.3f, 0.3f) : (e.Action == EventAction.PlayAsset ? new Color(1f, 0.8f, 0.3f) : new Color(0.6f, 0.8f, 1f)));
-                    GUI.Label(new Rect(x - 30f, bar.y + 10f, 60f, 14f), e.Trigger == EventTrigger.Frame ? $"F{e.Time:0}" : $"{e.Time:0.##}s", EditorStyles.centeredGreyMiniLabel);
+                    // 時刻 + 対象名(SE / VFX)をマーカー直下に出す
+                    var asset = e.Action == EventAction.PlayAsset ? FindAsset(e.Target) : null;
+                    var timeText = e.Trigger == EventTrigger.Frame ? $"F{e.Time:0}" : $"{e.Time:0.##}s";
+                    var nameText = asset != null ? (asset.DisplayName ?? asset.name) : null;
+                    GUI.Label(new Rect(x - 40f, bar.y + 10f, 80f, 14f), nameText != null ? $"{timeText} {nameText}" : timeText, EditorStyles.centeredGreyMiniLabel);
 
                     if (evt.type == EventType.MouseDown && marker.Contains(evt.mousePosition))
                     {

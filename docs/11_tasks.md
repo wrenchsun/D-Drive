@@ -102,6 +102,7 @@
 | 3-18 | TextureData → Importer 自動反映（Usage / Channel / SliceBorder） | TA | 1 | 3-8 | ✅ 2026-09-11。`TextureDataImporterSync`（ObjectChangeEvents で検知、規約と食い違えば警告して書かない）。`TextureDataImporterSyncTests` 5 件 |
 | 3-19 | Substance Painter 標準命名の自動判別 | TA | 0.5 | 3-8 | ✅ 2026-09-11。既定規約に Painter の接尾辞（Normal/DirectX 緑反転/MaskMap/MetallicSmoothness/BaseMap/AlbedoTransparency/Emissive 等）を追加。Rule.FlipGreenChannel。`TextureImportRulesTests` +12 |
 | 3-20 | aiStandardSurface 対応シェーダー + FBX 前処理 | TA | 2 | 3-7, 3-14 | ✅ 2026-09-11。`DDrive/AiStandardSurface`（Arnold パラメータ一式、リアルタイム近似）+ `AiStandardSurfacePreprocessor`（TypeId 判定で Unity の割り当てを上書き）+ `AiStandardSurfaceMapper`。Maya インポータは元が DDrive/ シェーダーなら維持し固有値を引き継ぐ、それ以外は DDrive/Lit。`AiStandardSurfaceMapperTests` 6 件 |
+| 3-21 | OH_CASE2026_ITAMI の Sprite Animation Tool から取り込み | ED+基盤 | 1 | 3-13 | ✅ 2026-09-11。検出オーバーレイ + Sprite Editor 連携（2D Sprite パッケージは未導入）/ 方向 Clip 一括リタイミング / `Anim2D.FreezeAtFirstFrame` + `Anim2DFacing` / AnimEditor のフレーム目盛り・マーカー名・秒/フレーム併記。`Anim2DFacingTests` 5 + `Anim2DRetimingTests` 2（[05] C-5 実装メモ） |
 
 ## Phase 4: Canvas + Prefab (M4)  約 7.5 週
 

@@ -292,6 +292,15 @@ public static class Anim2D
 > - **`Anim2DEditorValidator`**(新規、Editor API 依存の 2 検査。`CI.DiscoverValidators` がリフレクションで自動発見): (a) `Directions != None` のとき、`AssetDatabase.FindAssets("t:AnimatorController")` でプロジェクト内から `StateName` のステートを持つ Controller を探し、`ParamXName`/`ParamYName` の Float パラメータが無ければ Error(FixAction で `controller.AddParameter` を追加)。Controller 自体が見つからないときは Warning に留める(配線は任意のため)。(b) `Clip` と `DirectionClips` それぞれについて `AnimationUtility.GetObjectReferenceCurve` の `m_Sprite` キーフレームに `null`(参照切れ)が無いか調べ、件数付きで Error
 > - テスト: `Anim2DEditorTests`(EditMode、7 件)。`Anim2DPreviewObject.Create` が DontSave の SpriteRenderer+Animator を配置し先頭 Sprite を反映すること(Clip 無しでも例外にしない)、`Anim2DEditorValidator` が x/y パラメータ不足を検出し FixAction で追加できること・方向無しでは検査しないこと、Sprite キー参照切れを件数付きで検出すること・全て有効なら何も出ないこと、`DataEditorRegistry.GetEntries(typeof(Anim2DData))` が `Anim2DEditorWindow` と `AnimEditorWindow` の両方を返すこと
 
+### 実装メモ（2026-09-11、3-21: OH_CASE2026_ITAMI の Sprite Animation Tool から取り込み）
+
+> - 移植元（`Katsuya.Tools.SpriteAnimation`）を再調査し、D-Drive 側に無かったものだけを取り込んだ。構造面（Anim2DData / Registry / Undo / テスト / 方向セット一括生成 / Data 側の AssetEvent / ValueDef Retiming / 遷移シーケンス）は D-Drive が既に上回っているため戻していない
+> - **検出オーバーレイ**: 作成モードの「検出プレビュー(Automatic)」で、検出矩形をテクスチャ縮小表示の上に緑枠 + 番号で重ねて描く（`IMGUIContainer`、テクスチャ左下原点 → IMGUI 左上原点の Y 反転）。「Sprite Editor で手動補正」ボタンで矩形を Importer に確定（`AutomaticSpriteSlicer.ApplyRectsAndCollect`）→ `Window/2D/Sprite Editor` を開き、入力モードを「既存スプライト」に切り替える。**Sprite Editor は `com.unity.2d.sprite` 未導入だと開けない**（案内を出す。パッケージ導入は manifest 変更のため未実施）
+> - **方向 Clip への一括リタイミング**: 編集モードの「適用」が主 Clip に加えて `DirectionClips` の全 Clip（主 Clip と同じ枚数の Sprite キーを持つもの）へ同じ配置を適用する（`Anim2DRetiming.ApplyToDirectionClips`、Undo 対応、枚数違いはスキップして件数を報告）
+> - **ランタイム補助**: `Anim2D.FreezeAtFirstFrame(h)`（Seek 0 + speed 0。チャージ中の構え）/ `Unfreeze(h)`。`Runtime/Anim2D/Anim2DFacing.cs`（MonoBehaviour。`SetWorldDirection(移動ベクトル)` → カメラ Yaw 基準の画面向きへ変換（`CameraRelative`）→ 指数平滑化（`Smoothing` 秒、`t = 1 − exp(−dt/τ)`）→ 毎フレーム `Anim2D.SetDirection`。純関数 `ToScreenDirection` / `Smooth` をテスト）。残像・ビルボードはゲーム固有のため取り込まない
+> - **AnimEditor（3D / 2D 共用）の SE / VFX 連携を OH 側の SE タブと同じ見え方に**: タイムラインの目盛りを 0.5 秒刻みからフレーム刻み（幅に応じてラベルを間引き）に変更、イベントマーカーの直下に時刻 + 対象名（SE / VFX の DisplayName）を表示、秒モードの行にフレーム換算を併記。マーカーのドラッグ・波形・試聴・シーク・Undo は既存どおり
+> - テスト: `Anim2DFacingTests` 5 件、`Anim2DRetimingTests` 2 件
+
 ## C-6. Validation
 
 Clip 未生成/Missing (Error) / Directions=Eight なのに DirectionClips 不足 (Error) / BlendTree に x,y パラメータ無し (Error, FixAction=追加) / FrameRate ≤ 0 (Error) / スライス済みスプライトの参照切れ（元テクスチャ再インポートで消失）(Error)
