@@ -42,6 +42,12 @@
 - メモリ: Material Editor を開閉・再生成を繰り返しても Task Manager の Unity メモリが増え続けないこと（以前は 1 回の開閉で約 100 MB 増）
 - Validation > Run All: Specific を空にした `DDrive/Lit` の MaterialData に「固有プロパティが Specific に未登録: _OcclusionStrength」の Info が出ること
 
+## 初期アイコンの自動生成(2026-09-11)
+- MaterialData を新規作成 → 数フレーム後に Inspector のアイコン行に球のサムネイルが入ること（`Assets/GameData/Icons/Material/<名前>_Icon.png`）
+- ModelData の Prefab を設定してから「自動生成」→ Prefab のプレビューがアイコンになること（Prefab 未設定ではボタンが無効で、ツールチップに「元アセット未設定」）
+- TextureData の Texture / Sprite を設定して「自動生成」→ その画像（Sprite は切り出し範囲）がアイコンになること
+- 手で設定したアイコンがある Data は `Tools > D-Drive > Generate > 初期アイコンを生成(未設定の Data のみ)` で上書きされないこと
+
 ## 3-8 Texture Importer 規約(コミット 669783a)
 - Assets/SourceAssets 配下に `Xxx_N.png` / `Xxx_M.png` / `Xxx_UI.png` を置いてインポート → Texture Type / sRGB / Mipmap が規約どおりになること(TexturePostprocessor)
 - Material Editor で TextureData を選択 → Importer 要約 + 規約名 + 「命名規約を適用して再インポート」ボタンの表示(差分があるときだけ)

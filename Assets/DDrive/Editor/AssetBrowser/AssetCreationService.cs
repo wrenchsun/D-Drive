@@ -1,5 +1,6 @@
 using System;
 using DDrive.Editor.Codegen;
+using DDrive.Editor.Inspector;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Registry;
@@ -72,6 +73,21 @@ namespace DDrive.Editor.AssetBrowser
             AddressablesSync.EnsureCatalogEntry(catalog);
 
             AssetDatabase.SaveAssets();
+
+            // 初期アイコン: 元アセット(Prefab / Texture / Sprite)が configure で入っているか、描画で表現できる種別(Material)なら
+            // 自動で作る([09] §8.1、2026-09-11)。GUI の外(delayCall)で行う(Camera.Render / AssetPreview の都合)。
+            if (asset.Icon == null && AssetIconService.CanCreateDefaultIcon(asset))
+            {
+                var created = asset;
+                EditorApplication.delayCall += () =>
+                {
+                    if (created != null && created.Icon == null)
+                    {
+                        AssetIconService.TryCreateDefaultIcon(created);
+                    }
+                };
+            }
+
             return asset;
         }
 

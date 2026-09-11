@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Foundation.Data;
@@ -27,6 +29,198 @@ namespace DDrive.Editor.Inspector
         {
             get => EditorPrefs.GetInt(SizePrefKey, DefaultSize);
             set => EditorPrefs.SetInt(SizePrefKey, value);
+        }
+
+        // ── 初期アイコンの自動生成(2026-09-11) ──
+        // Data 種別ごとに「元アセット(Prefab / Texture / Sprite)」か「描画(Material 等、元アセットが無くても表現できるもの)」の
+        // 提供元を登録し、Icon が未設定なら自動で PNG を作って割り当てる。登録は DefaultIconProviders(元アセット)と
+        // MaterialIconProvider(描画)が [InitializeOnLoadMethod] で行う。
+        //   元アセット: Texture2D / Sprite はそのまま縮小、GameObject(Prefab)は AssetPreview の描画結果(非同期なので完了を待つ)
+        //   描画      : Func<AssetDataBase, int, Texture2D>(size×size の読める Texture2D を返す。呼び出し側が破棄する)
+
+        private static readonly Dictionary<Type, Func<AssetDataBase, UnityEngine.Object>> SourceProviders = new();
+        private static readonly Dictionary<Type, Func<AssetDataBase, int, Texture2D>> RenderProviders = new();
+
+        public static void RegisterSource<T>(Func<T, UnityEngine.Object> resolve) where T : AssetDataBase
+            => SourceProviders[typeof(T)] = data => resolve((T)data);
+
+        public static void RegisterRenderer<T>(Func<T, int, Texture2D> render) where T : AssetDataBase
+            => RenderProviders[typeof(T)] = (data, size) => render((T)data, size);
+
+        // その Data に自動生成の手段があるか(元アセットが実際に入っているか、描画できる種別か)。
+        public static bool CanCreateDefaultIcon(AssetDataBase asset)
+        {
+            if (asset == null)
+            {
+                return false;
+            }
+
+            if (FindProvider(RenderProviders, asset.GetType()) != null)
+            {
+                return true;
+            }
+
+            var source = FindProvider(SourceProviders, asset.GetType());
+            return source != null && source(asset) != null;
+        }
+
+        public static string DescribeDefaultIconSource(AssetDataBase asset)
+        {
+            if (asset == null)
+            {
+                return "";
+            }
+
+            if (FindProvider(RenderProviders, asset.GetType()) != null)
+            {
+                return "描画から生成";
+            }
+
+            var source = FindProvider(SourceProviders, asset.GetType());
+            var obj = source?.Invoke(asset);
+            return obj != null ? $"元アセット({obj.name})から生成" : "元アセット未設定";
+        }
+
+        // 自動生成して割り当てる。Prefab のプレビューは非同期なので完了時に onDone(null なら失敗)を呼ぶ。
+        // 戻り値: 開始できたか(提供元が無い / 元アセット未設定なら false)。
+        public static bool TryCreateDefaultIcon(AssetDataBase asset, Action<Texture2D> onDone = null, int size = -1, string iconRoot = DefaultIconRoot)
+        {
+            if (asset == null)
+            {
+                return false;
+            }
+
+            if (size <= 0)
+            {
+                size = PreferredSize;
+            }
+
+            var render = FindProvider(RenderProviders, asset.GetType());
+            if (render != null)
+            {
+                Texture2D rendered = null;
+                try
+                {
+                    rendered = render(asset, size);
+                    var icon = rendered != null ? CropAndSave(asset, rendered, new RectInt(0, 0, rendered.width, rendered.height), size, iconRoot) : null;
+                    onDone?.Invoke(icon);
+                    return icon != null;
+                }
+                finally
+                {
+                    if (rendered != null)
+                    {
+                        UnityEngine.Object.DestroyImmediate(rendered);
+                    }
+                }
+            }
+
+            // 注意: onDone?.Invoke(CropAndSave(...)) と書くと onDone が null のとき引数(= 生成処理)ごと評価されない。
+            // 生成は必ず別の文で行ってからコールバックする(2026-09-11 に一括生成で実害)。
+            var resolve = FindProvider(SourceProviders, asset.GetType());
+            var source = resolve?.Invoke(asset);
+            switch (source)
+            {
+                case Sprite sprite when sprite.texture != null:
+                {
+                    var r = sprite.textureRect;
+                    var crop = new RectInt(Mathf.RoundToInt(r.x), Mathf.RoundToInt(sprite.texture.height - r.yMax), Mathf.RoundToInt(r.width), Mathf.RoundToInt(r.height));
+                    var icon = CropAndSave(asset, sprite.texture, crop, size, iconRoot);
+                    onDone?.Invoke(icon);
+                    return true;
+                }
+                case Texture2D texture:
+                {
+                    var icon = CropAndSave(asset, texture, new RectInt(0, 0, texture.width, texture.height), size, iconRoot);
+                    onDone?.Invoke(icon);
+                    return true;
+                }
+                case GameObject prefab:
+                    WaitForAssetPreview(prefab, preview =>
+                    {
+                        Texture2D icon = null;
+                        if (asset != null && preview != null)
+                        {
+                            icon = CropAndSave(asset, preview, new RectInt(0, 0, preview.width, preview.height), size, iconRoot);
+                        }
+                        else if (asset != null)
+                        {
+                            Debug.LogWarning($"[DDrive] '{asset.name}' の初期アイコン: Prefab '{prefab.name}' のプレビューが時間内に生成されませんでした。Inspector の「自動生成」で再試行してください。");
+                        }
+
+                        onDone?.Invoke(icon);
+                    });
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // Icon 未設定で自動生成できる Data すべてに生成する(メニュー / 一括用)。戻り値は開始した件数。
+        public static int CreateDefaultIconsForAll(bool onlyMissing = true)
+        {
+            var started = 0;
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.Contains("/Tests/"))
+                {
+                    continue;
+                }
+
+                var data = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
+                if (data == null || (onlyMissing && data.Icon != null) || !CanCreateDefaultIcon(data))
+                {
+                    continue;
+                }
+
+                if (TryCreateDefaultIcon(data))
+                {
+                    started++;
+                }
+            }
+
+            return started;
+        }
+
+        // AssetPreview は初回 null(バックグラウンド生成)なので、生成が終わるまで EditorApplication.update で待つ(最大 30 秒。
+        // エディタが非フォーカスだと生成が遅いので長め)。
+        private const double PreviewTimeoutSec = 30.0;
+
+        private static void WaitForAssetPreview(UnityEngine.Object target, Action<Texture2D> onReady)
+        {
+            var deadline = EditorApplication.timeSinceStartup + PreviewTimeoutSec;
+            void Poll()
+            {
+                var preview = target != null ? AssetPreview.GetAssetPreview(target) : null;
+                if (preview != null || target == null || EditorApplication.timeSinceStartup > deadline)
+                {
+                    EditorApplication.update -= Poll;
+                    onReady(preview);
+                }
+            }
+
+            EditorApplication.update += Poll;
+        }
+
+        private static TFunc FindProvider<TFunc>(Dictionary<Type, TFunc> table, Type type) where TFunc : class
+        {
+            for (var t = type; t != null && t != typeof(object); t = t.BaseType)
+            {
+                if (table.TryGetValue(t, out var f))
+                {
+                    return f;
+                }
+            }
+
+            return null;
+        }
+
+        [MenuItem(DDrive.Editor.Menu.DDriveMenu.Generate + "初期アイコンを生成(未設定の Data のみ)")]
+        private static void CreateDefaultIconsMenu()
+        {
+            var n = CreateDefaultIconsForAll(onlyMissing: true);
+            Debug.Log($"[DDrive] 初期アイコンの生成を {n} 件開始しました(Prefab のプレビューは数秒後に反映)。");
         }
 
         // 画像ファイルを選んで Icon に割り当てる。キャンセルなら null。
@@ -156,10 +350,10 @@ namespace DDrive.Editor.Inspector
                 if (rt != null)
                 {
                     rt.Release();
-                    Object.DestroyImmediate(rt);
+                    UnityEngine.Object.DestroyImmediate(rt);
                 }
 
-                Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(go);
             }
         }
 
@@ -202,7 +396,7 @@ namespace DDrive.Editor.Inspector
                 RenderTexture.ReleaseTemporary(rt);
                 if (result != null)
                 {
-                    Object.DestroyImmediate(result);
+                    UnityEngine.Object.DestroyImmediate(result);
                 }
             }
         }
@@ -331,6 +525,15 @@ namespace DDrive.Editor.Inspector
                             GUIUtility.ExitGUI();
                         }
 
+                        using (new EditorGUI.DisabledScope(!AssetIconService.CanCreateDefaultIcon(target)))
+                        {
+                            if (GUILayout.Button(new GUIContent("自動生成", AssetIconService.DescribeDefaultIconSource(target) + "。Prefab / Texture / Sprite は元アセットの見た目、Material は描画から作る")))
+                            {
+                                AssetIconService.TryCreateDefaultIcon(target);
+                                GUIUtility.ExitGUI();
+                            }
+                        }
+
                         using (new EditorGUI.DisabledScope(target.Icon == null))
                         {
                             if (GUILayout.Button("クリア", GUILayout.Width(50)))
@@ -361,7 +564,9 @@ namespace DDrive.Editor.Inspector
                             AssetIconService.PreferredSize = AssetIconService.SizeChoices[next];
                         }
 
-                        var path = target.Icon != null ? AssetDatabase.GetAssetPath(target.Icon) : "SceneView で対象を映してから「シーンから作成」";
+                        var path = target.Icon != null
+                            ? AssetDatabase.GetAssetPath(target.Icon)
+                            : AssetIconService.CanCreateDefaultIcon(target) ? "「自動生成」で " + AssetIconService.DescribeDefaultIconSource(target) : "SceneView で対象を映してから「シーンから作成」";
                         EditorGUILayout.LabelField(path, EditorStyles.miniLabel);
                     }
                 }
