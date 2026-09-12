@@ -23,11 +23,12 @@ namespace DDrive.Editor.CanvasTool
     // ルートに置いて SceneView / Game View で確認する(ADR-4: Editor 専用の再生経路を作らない。
     // PrefabEditorWindow / MaterialEditorWindow と同じ設計。owner instruction 2026-09-10: EditorWindow 内部には描画しない)。
     // ノードグラフ(NavigationGraphView)は静的な編集用ダイアグラムであり実 UI を描画するものではないため許容する。
-    // ゲームパッド入力シミュレーション(4-3)は「ここに配置」で実際に開いた UiManager インスタンスに対して
+    // ゲームパッド入力シミュレーション(4-3)は「確認用シーンを開く」で実際に開いた UiManager インスタンスに対して
     // MoveFocus/MoveFocusFrom を叩くだけで、ウィンドウ内で UI を再現描画することはしない(owner instruction 2026-09-10)。
-    // 2026-09-12: 「確認用シーンを開く」(CanvasPreviewSceneSetup、専用の空シーンに切り替え)を追加。
-    // 「ここに配置」(旧「確認用シーンで開く」)は今開いているシーンに置くだけなので、ユーザー自身の Canvas 等と
-    // 重ならずに確認したい場合は先にこちらでシーンを切り替えてから「ここに配置」を押す運用にする。
+    // 2026-09-12: 「確認用シーンを開く」は CanvasPreviewSceneSetup で専用の空シーン(CanvasPreviewScene)に
+    // 切り替えたうえで、その場で OpenData まで行う(ユーザー自身の Canvas 等と重ならずに確認できる。以前は
+    // 「切り替え」と「配置」を別ボタンにしていたが、切り替えたら必ず置きたいだけなので統合した)。
+    // Disappear の見た目は UI Tween Editor 側(実要素をプレビュー対象に自動割り当てして再生できる)で確認する。
     [DDrive.Editor.Inspector.DataEditor(typeof(CanvasData), "Canvas Editor で開く")]
     public sealed class CanvasEditorWindow : EditorWindow
     {
@@ -44,9 +45,6 @@ namespace DDrive.Editor.CanvasTool
 
         private GameObject _previewRoot;
         private Handle<CanvasMarker> _previewHandle = Handle<CanvasMarker>.Invalid;
-        // 2026-09-12: 「Disappear を再生」で実際の Close() を呼んだあと、CloseTransition + ElementFx.Disappear が
-        // 最後まで再生されて FinalizeClose される(_manager.IsOpen が false になる)のを OnEditorUpdate から待つためのフラグ。
-        private bool _awaitingDisappearFinish;
 
         private ScrollView _root;
         private ObjectField _targetField;
@@ -119,12 +117,6 @@ namespace DDrive.Editor.CanvasTool
 
             _tweenManager?.Tick(dt);
             _manager.Tick(dt);
-
-            if (_awaitingDisappearFinish && !_manager.IsOpen(_previewHandle))
-            {
-                _awaitingDisappearFinish = false;
-                FinishDisappearPreview();
-            }
         }
 
         private void OnSelectionChange()
@@ -144,7 +136,6 @@ namespace DDrive.Editor.CanvasTool
             // シーンが切り替わると DontSave の配置物は Unity 側で既に失われているので、参照だけ捨てる。
             _previewRoot = null;
             _previewHandle = Handle<CanvasMarker>.Invalid;
-            _awaitingDisappearFinish = false;
         }
 
         public void CreateGUI()
@@ -193,13 +184,12 @@ namespace DDrive.Editor.CanvasTool
             _elementFxFoldout.Add(_elementFxContainer);
 
             var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
-            // 2026-09-12: 「確認用シーンを開く」(専用の空シーンに切り替え)と「ここに配置」(いま開いている
-            // シーンに置くだけ)を分離。以前は 1 個のボタン「確認用シーンで開く」が両方を兼ねていて、
-            // 常に「今のシーン」に置いていたため、そこに既にユーザー自身の Canvas 等があると重なって
-            // 見分けが付かなかった(ユーザー報告)。VFX/Anim 等と同じく専用シーンへの切り替えも選べるようにする。
-            previewButtons.Add(new Button(CanvasPreviewSceneSetup.OpenOrCreate) { text = "確認用シーンを開く", tooltip = "EventSystem だけを置いた空の専用シーン(CanvasPreviewScene)に切り替える(無ければ生成)。自分の Canvas 等と重ならずに確認したいときに" });
-            previewButtons.Add(new Button(PlacePreview) { text = "ここに配置", tooltip = "いま開いているシーン(またはプレハブステージ)に実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。表示中にもう一度押すと閉じて開き直す(Appear / Idle をやり直す)" });
-            previewButtons.Add(new Button(PlayDisappearPreview) { text = "Disappear を再生", tooltip = "実際に Close() して CloseTransition + ElementFx.Disappear を最後まで再生してから片付ける(「閉じる」は即座に消えるだけで演出を確認できない)" });
+            // 2026-09-12 レビュー対応: 「確認用シーンを開く」と「ここに配置」を分けていたが、専用シーンに
+            // 切り替えたら必ず置きたいだけなので手間なだけだった(ユーザー指摘)。1 ボタンに統合する
+            // (専用シーンへ切り替え → その場で OpenData まで行う)。「Disappear を再生」も撤去: Disappear の
+            // 見た目確認は UI Tween Editor 側(実要素をプレビュー対象に自動割り当てして▶再生できる。2026-09-12
+            // 追加)でできるようになったため、Canvas Editor に専用ボタンを残す必要がなくなった。
+            previewButtons.Add(new Button(OpenPreviewSceneAndPlace) { text = "確認用シーンを開く", tooltip = "EventSystem だけを置いた空の専用シーン(CanvasPreviewScene)に切り替え、そのまま実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。自分の Canvas 等と重ならずに確認できる。表示中にもう一度押すと閉じて開き直す(Appear / Idle をやり直す)" });
             previewButtons.Add(new Button(RemovePreview) { text = "閉じる", tooltip = "演出を待たず即座に片付ける(StopAll)" });
             _root.Add(previewButtons);
 
@@ -248,7 +238,7 @@ namespace DDrive.Editor.CanvasTool
             _inspectorContainer.Add(new InspectorElement(so));
             _inspectorContainer.Bind(so);
 
-            _statusLabel.text = _manager != null && _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "「ここに配置」で確認できます";
+            _statusLabel.text = _manager != null && _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "「確認用シーンを開く」で確認できます";
             RefreshValidation();
             RebuildElementFxAssignments();
             _simFocusPath = target.FirstSelected;
@@ -826,6 +816,16 @@ namespace DDrive.Editor.CanvasTool
             _pool.SetInstanceParent(_previewRoot.transform);
         }
 
+        // 2026-09-12: 「確認用シーンを開く」ボタンの実体。専用シーンへの切り替えと配置を 1 手で行う
+        // (切り替えた直後に必ず置きたいだけなので、2 ボタンに分ける意味が無かった)。
+        private void OpenPreviewSceneAndPlace()
+        {
+            if (CanvasPreviewSceneSetup.OpenOrCreate())
+            {
+                PlacePreview();
+            }
+        }
+
         private void PlacePreview()
         {
             if (_target == null)
@@ -859,8 +859,6 @@ namespace DDrive.Editor.CanvasTool
 
         private void RemovePreview()
         {
-            _awaitingDisappearFinish = false; // Disappear 再生待ちの途中でも即片付ける方が優先(StopAll は待たない仕様)
-
             if (_manager != null && _manager.IsOpen(_previewHandle))
             {
                 _manager.StopAll(DDrive.Foundation.Manager.StopReason.Manual);
@@ -877,49 +875,7 @@ namespace DDrive.Editor.CanvasTool
 
             if (_statusLabel != null && _target != null)
             {
-                _statusLabel.text = "「ここに配置」で確認できます";
-            }
-
-            _simFocusPath = null;
-            UpdatePadEnabled();
-            UpdateFocusLabel();
-            _graphView?.SetFocusedPath(null);
-
-            SceneView.RepaintAll();
-        }
-
-        // 2026-09-12: ElementFx(4-9)の Disappear / CloseTransition を実際に最後まで再生して確認するための
-        // ボタン(ADR-4: 実 UiManager.Close を呼ぶだけで、Editor 専用の再生経路は作らない)。
-        // StopAll(RemovePreview が使う)は演出を待たず即完了させるため、Disappear の見た目はここでしか確認できない。
-        private void PlayDisappearPreview()
-        {
-            if (_manager == null || !_manager.IsOpen(_previewHandle))
-            {
-                _statusLabel.text = "先に「ここに配置」を押してください";
-                return;
-            }
-
-            _manager.Close(_previewHandle);
-            _awaitingDisappearFinish = true;
-            _statusLabel.text = "Disappear を再生中…";
-            SceneView.RepaintAll();
-        }
-
-        // OnEditorUpdate が Close() の完了(FinalizeClose 済み = IsOpen==false)を検知したら呼ぶ後片付け。
-        // RemovePreview と違い、インスタンスは既に UiManager 側で破棄/プール返却済みなので StopAll は呼ばない。
-        private void FinishDisappearPreview()
-        {
-            _previewHandle = Handle<CanvasMarker>.Invalid;
-
-            if (_previewRoot != null)
-            {
-                DestroyImmediate(_previewRoot);
-                _previewRoot = null;
-            }
-
-            if (_statusLabel != null && _target != null)
-            {
-                _statusLabel.text = "Disappear の再生が完了しました(「ここに配置」で開き直せます)";
+                _statusLabel.text = "「確認用シーンを開く」で確認できます";
             }
 
             _simFocusPath = null;

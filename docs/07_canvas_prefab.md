@@ -183,12 +183,26 @@ public static class Ui
 - **対応**: `AssetCreationService.Create()`(`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`)で `AssetType.Canvas`/`AssetType.ControlSkin` を新規作成するときは既定 `Flags.Load=Preload` にする。既存アセット向けに `AddressablesRegistrationValidator`(`Assets/DDrive/Editor/Validation/AddressablesRegistrationValidator.cs`)へ「対象 AssetType で `Flags.Load != Preload`」を Error + FixAction(`Flags.Load=Preload` に書き換えて保存)として追加し、`Validation > Run All` で拾えるようにした
 - 今後 `SliderSkinData`(4-17 で型追加時)等、`UiInteractable`/`UiManager` の同期解決に乗る新しい `ControlSkinData` 派生を増やす場合は、`AssetCreationService` の分岐と `AddressablesRegistrationValidator.NeedsPreload` の両方に追記すること
 
-### 追記（2026-09-12、CanvasEditor に「Disappear を再生」ボタン追加）
+### 追記（2026-09-12、CanvasEditor に「Disappear を再生」ボタン追加 → 同日中に撤去）
 
 - **経緯**: 「確認用シーンで開く」は実 `UiManager.OpenData` を呼ぶため Appear→Idle は元から Tick で再生されていたが、「閉じる」は `StopAll(Manual)` で演出を待たず即完了させる実装だったため、ElementFx の Disappear / CloseTransition を Editor 上で見る手段が無かった(ADR-4 の「実 Manager を Editor から駆動する」に対し、消える演出だけ確認できない片手落ちだった)
 - **対応**: `CanvasEditorWindow` に「Disappear を再生」ボタンを追加(`PlacePreview`/`RemovePreview` の間)。実際に `UiManager.Close(handle)` を呼び、`OnEditorUpdate` の `Tick` で CloseTransition + ElementFx.Disappear が最後まで再生されるのを待ってから後片付けする(`_awaitingDisappearFinish` フラグで `IsOpen==false` になった瞬間を検知)。「閉じる」(即時 `StopAll`)はそのまま残し、見た目を待たず片付けたいときと使い分けられるようにした
-- 実装: `Assets/DDrive/Editor/Canvas/CanvasEditorWindow.cs`(`PlayDisappearPreview` / `FinishDisappearPreview` / `OnEditorUpdate` の待ち受け分岐)
 - 確認: SceneView スクリーンショットで PopIn(Appear)→FadeOut(Disappear、ボタン押下)の一連が実際に描画されること、`Disappear` 完了後に `_manager.IsOpen`/`_previewRoot` が正しくクリアされ、コンソールにエラーが出ないことを確認済み
+- **撤去(同日、ユーザー指示)**: 同日中に UI Tween Editor 側へ「実要素をプレビュー対象に自動割り当てして再生できる」機能(§後述「Canvas Editor から実要素で確認」)が入り、Disappear の Track を UI Tween Editor で個別に確認できるようになったため、Canvas Editor 専用の「Disappear を再生」ボタン(`PlayDisappearPreview`/`FinishDisappearPreview`/`_awaitingDisappearFinish`)は不要と判断し削除した
+
+### 追記（2026-09-12、CanvasEditor に専用の確認用シーン切り替えを追加、配置ボタンと統合）
+
+- **経緯**: Canvas Editor は「今開いているシーンで OpenData する」(旧「確認用シーンで開く」)のみで、VFX/Anim のような専用シーン切り替えが無かった。UI は Screen Space - Overlay で 3D ライティングに依存しないためこれ自体は妥当だが、シーンに既にユーザー自身の Canvas 等が配置されていると重なって見分けが付かない(ユーザー報告)
+- **対応**: `CanvasPreviewSceneSetup`(`VfxPreviewSceneSetup` と同構造)を新設し、`Assets/GameData/PreviewScenes/CanvasPreviewScene.unity`(EventSystem のみの空シーン)に切り替えられるようにした
+- **ボタン統合(同日、ユーザー指示)**: 当初は「確認用シーンを開く」(切り替えのみ)と「ここに配置」(OpenData)を別ボタンにしたが、切り替えたら必ず置きたいだけで手間なだけだった。1 ボタン(`OpenPreviewSceneAndPlace`)に統合し、`CanvasPreviewSceneSetup.OpenOrCreate()` が `bool` を返して保存ダイアログでキャンセルされた場合は続けて OpenData しないようにした
+- **EventSystem が作られないバグ修正(同日)**: 当初は入力モジュールの判断を `EditorApplication.ExecuteMenuItem("GameObject/UI/Event System")` に任せていたが、この呼び出しはフォーカス/選択状態次第で何も作らずに黙って失敗することがあり、実際に EventSystem 自体が入らないシーンができてしまった(ユーザーの手元で発生・確認)。`DDrive.Editor` から `Unity.InputSystem` を直接参照する(asmdef 変更)のは避けたいため、リフレクションで `InputSystemUIInputModule` を探して `EventSystem` に付ける方式に変更(`CanvasPreviewSceneSetup.AddEventSystem`)。見つからない場合は警告ログのみで例外にしない(TL;DR #4)
+- 実装: `Assets/DDrive/Editor/Preview/CanvasPreviewSceneSetup.cs`、`Assets/DDrive/Editor/Canvas/CanvasEditorWindow.cs`(`OpenPreviewSceneAndPlace`)
+
+### 追記（2026-09-12、Navigation グラフの矢印が向きが分かりづらいバグを修正）
+
+- **経緯**: 矢印を描く `_arrowLayer` はノードの箱より先に(＝背面に)追加していたため、矢印はノード中心まで描いていても、その終端(矢頭そのもの)が丸ごとノードの箱の下に隠れて見えなかった。さらに A→B の Down と B→A の Up のように同じ 2 ノードを結ぶ逆向きのリンクが両方あると、中心同士を結ぶ直線が完全に重なって色でしか区別できなかった(ユーザー報告)
+- **対応**(`NavigationGraphView.cs`): `ClipToBoxEdge` でノードの箱の境界の手前まで線を引っ込め、隙間の中に矢頭がはっきり見えるようにした。`ComputeParallelOffset` で同じ 2 ノードを結ぶ逆向きのエッジを進行方向と垂直に(パスの文字列比較で決めた向きに)ずらし、2 本の平行線として見えるようにした。矢頭のサイズも 9x5 → 13x7 に拡大
+- ヒットテスト(`TryFindWireNear`、Reroute point 追加位置)は従来どおりノード中心同士の直線を使う(見た目の調整のみで判定ロジックは変えない)
 
 ---
 

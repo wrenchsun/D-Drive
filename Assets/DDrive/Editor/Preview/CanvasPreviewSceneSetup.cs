@@ -2,6 +2,7 @@ using DDrive.Editor.Menu;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace DDrive.Editor.Preview
 {
@@ -14,22 +15,25 @@ namespace DDrive.Editor.Preview
     {
         public const string ScenePath = "Assets/GameData/PreviewScenes/CanvasPreviewScene.unity";
 
+        // 戻り値は「実際に切り替わったか」(CanvasEditorWindow が続けて OpenData してよいかの判断に使う)。
+        // [MenuItem] からの呼び出しでは戻り値は無視される。
         [MenuItem(DDriveMenu.Editors + "Canvas確認用シーンを開く")]
-        public static void OpenOrCreate()
+        public static bool OpenOrCreate()
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
                 // ユーザーが保存ダイアログでキャンセルした場合は何もしない(現在の作業を失わせない)。
-                return;
+                return false;
             }
 
             if (System.IO.File.Exists(ScenePath))
             {
                 EditorSceneManager.OpenScene(ScenePath);
-                return;
+                return true;
             }
 
             CreateScene();
+            return true;
         }
 
         private static void CreateScene()
@@ -49,12 +53,45 @@ namespace DDrive.Editor.Preview
             camera.backgroundColor = new Color(0.16f, 0.16f, 0.16f);
             cameraGo.AddComponent<AudioListener>();
 
-            // EventSystem は Unity 標準のメニュー経由で作る(Input System(新)/旧いずれのモジュールが
-            // 正しいかは Unity 自身に判断させ、DDrive.Editor から Unity.InputSystem を直接参照しない)。
-            EditorApplication.ExecuteMenuItem("GameObject/UI/Event System");
+            AddEventSystem();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
-            Debug.Log($"[DDrive] Canvas確認用シーンを新規作成しました: {ScenePath}。パッド操作の確認に使う EventSystem の入力モジュールを確認してください。");
+            Debug.Log($"[DDrive] Canvas確認用シーンを新規作成しました: {ScenePath}。");
+        }
+
+        // Codex レビュー対応(2026-09-12): 当初は EditorApplication.ExecuteMenuItem("GameObject/UI/Event System")
+        // で Unity 標準の入力モジュール判定に任せていたが、この呼び出しは(フォーカスや選択状態次第で)
+        // 何も作らずに黙って失敗することがあり、実際に EventSystem が入らないシーンができてしまった。
+        // DDrive.Editor から Unity.InputSystem を直接参照する(asmdef 変更)のは避けたいので、リフレクションで
+        // InputSystemUIInputModule を探して付ける。見つからない場合だけ警告して手動対応を促す
+        // (activeInputHandler=Input System 専用のプロジェクトでは StandaloneInputModule は動かないため
+        // フォールバックにしない)。
+        internal static void AddEventSystem()
+        {
+            var esGo = new GameObject("EventSystem", typeof(EventSystem));
+            var moduleType = FindType("UnityEngine.InputSystem.UI.InputSystemUIInputModule");
+            if (moduleType != null)
+            {
+                esGo.AddComponent(moduleType);
+            }
+            else
+            {
+                Debug.LogWarning("[DDrive] InputSystemUIInputModule が見つかりませんでした(Unity.InputSystem 未導入?)。EventSystem に入力モジュールを手動で追加してください。");
+            }
+        }
+
+        private static System.Type FindType(string fullName)
+        {
+            foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(fullName);
+                if (type != null)
+                {
+                    return type;
+                }
+            }
+
+            return null;
         }
     }
 }
