@@ -35,6 +35,8 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 23 | [実装確認手順書（2026-09-11）](23_manual_verification_2026-09-11.md) | 3-5〜4-18 の自律実装分を人が確認するための手順（見た目・音・操作感は未確認） |
 | 22 | [配置セット（AnchorGroup）](22_anchor_group.md) | 複数の位置にまとめて出す: 原点 + Grid/Circle/Line/Random/手置き + 全点共通/点ごとのアセット + 入れ子。`Anchors.Play(groupId, ctx)`（2026-09-08 実装済み） |
 | 20 | [MCP セットアップ](20_mcp_setup.md) | AI ⇄ Unity Editor 連携（MCP for Unity）の導入手順・運用ルール・バージョン管理 |
+| 26 | [Timeline 連携（ドラフト）](26_timeline.md) | Timeline の基礎・CutsceneData・D-Drive トラック（SE/VFX/イベント）・Maya FBX 自動取り込みと命名規則・未決事項（2026-09-13） |
+| 27 | [仕様書スプレッドシート連携（ドラフト）](27_spec_sheet.md) | 人向け + ツール向けタブのテンプレート・一方向同期・差分プレビュー・仕様書リンク（2026-09-13） |
 
 ## 全体像 1 枚図
 
