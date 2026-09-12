@@ -570,6 +570,42 @@ namespace DDrive.Editor.CanvasTool
 
         private static Vector2 CenterOf(NavNodeInfo n) => new(n.Position.x + NodeWidth / 2f, n.Position.y + NodeHeight / 2f);
 
+        // A→B と B→A が両方あると、ノード中心同士を結ぶ直線が完全に重なって色でしか区別できない
+        // (2026-09-12 レビュー対応)。2 ノードの組ごとに一定の基準線(小さい方のパスから大きい方へ)を決め、
+        // その基準と同じ向きのエッジは +、逆向きのエッジは - に振ることで、常に反対側へ平行にずれる。
+        private static Vector2 ComputeParallelOffset(NavEdge edge, Vector2 fromCenter, Vector2 toCenter)
+        {
+            const float offsetDistance = 4f;
+            var isForward = string.CompareOrdinal(edge.From, edge.To) <= 0;
+            var canonicalDir = isForward ? toCenter - fromCenter : fromCenter - toCenter;
+            if (canonicalDir.sqrMagnitude < 0.0001f)
+            {
+                return Vector2.zero;
+            }
+
+            var normal = new Vector2(-canonicalDir.y, canonicalDir.x).normalized;
+            return isForward ? normal * offsetDistance : normal * -offsetDistance;
+        }
+
+        // 矢印レイヤーはノードの箱より後ろに描かれるため、箱の中心まで描くと矢頭ごと箱に隠れて見えない
+        // (2026-09-12 レビュー対応)。線分を箱の境界の手前で止める。from は「箱の外側にあるもう一方の点」、
+        // boxCenter は隠れないようにしたい箱の中心。
+        private static Vector2 ClipToBoxEdge(Vector2 from, Vector2 boxCenter)
+        {
+            var dir = boxCenter - from;
+            var absX = Mathf.Abs(dir.x);
+            var absY = Mathf.Abs(dir.y);
+            if (absX < 0.0001f && absY < 0.0001f)
+            {
+                return boxCenter;
+            }
+
+            var sx = absX > 0.0001f ? (NodeWidth / 2f) / absX : float.PositiveInfinity;
+            var sy = absY > 0.0001f ? (NodeHeight / 2f) / absY : float.PositiveInfinity;
+            var s = Mathf.Min(Mathf.Min(sx, sy), 1f); // from が箱の内側にあるような極端な近距離でも行き過ぎない
+            return boxCenter - dir * s;
+        }
+
         // ダブルクリック/右クリックでの Reroute point 追加のためのワイヤー当たり判定。
         private bool TryFindWireNear(Vector2 worldPos, out NavEdge hitEdge, out int hitSegmentIndex)
         {
@@ -902,6 +938,27 @@ namespace DDrive.Editor.CanvasTool
 
                 // Reroute point があれば、そこを経由する折れ線として描く(矢頭は最後の区間だけ)。
                 var points = BuildEdgePolyline(edge, from, to);
+
+                // 2026-09-12 レビュー対応(ユーザー報告「配線後、矢印の向きが分かりづらい」):
+                // 矢印レイヤーはノードの箱より後ろに描画されるため、従来は線・矢頭とも箱の中心まで
+                // 引いていて、肝心の矢頭(向きを示す三角形)が丸ごと箱の下に隠れて見えなかった。
+                // 箱の境界の手前で止め、さらに A→B と B→A が両方あるとき(同じ 2 点を結ぶ直線が完全に
+                // 重なって色でしか区別できなかった)は進行方向と垂直にずらして 2 本の平行線にする。
+                if (points.Count >= 2)
+                {
+                    var lastIdx = points.Count - 1;
+                    var offset = ComputeParallelOffset(edge, points[0], points[lastIdx]);
+                    for (var i = 1; i < lastIdx; i++)
+                    {
+                        points[i] += offset;
+                    }
+
+                    var shiftedStart = points[0] + offset;
+                    var shiftedEnd = points[lastIdx] + offset;
+                    points[0] = ClipToBoxEdge(points.Count > 2 ? points[1] : shiftedEnd, shiftedStart);
+                    points[lastIdx] = ClipToBoxEdge(points.Count > 2 ? points[lastIdx - 1] : shiftedStart, shiftedEnd);
+                }
+
                 var color = DirectionColor(edge.Direction);
                 for (var i = 0; i < points.Count - 2; i++)
                 {
@@ -963,8 +1020,10 @@ namespace DDrive.Editor.CanvasTool
 
             dir.Normalize();
             var normal = new Vector2(-dir.y, dir.x);
-            const float headLength = 9f;
-            const float headWidth = 5f;
+            // 2026-09-12: 矢頭が見えるようになった(ノードの箱に隠れなくなった)ので、向きがより
+            // 一目で分かるよう一回り大きくする(9x5 → 13x7)。
+            const float headLength = 13f;
+            const float headWidth = 7f;
             var tip = b;
             var baseCenter = b - dir * headLength;
 
