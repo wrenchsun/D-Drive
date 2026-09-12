@@ -1,0 +1,610 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0690b4003d1eda746aa2ed7057428f6b, type: 3}
+  m_Name: CANVAS_Can_Vas
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Ui.CanvasData
+  Id: 16238438813594388925
+  DisplayName: Canvas
+  Description: 
+  Category: Can
+  Tags: []
+  Icon: {fileID: 0}
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 1
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  Prefab: {fileID: 2144447545384852608, guid: 4798eed72fcd8984fb28572c7c203dbc, type: 3}
+  Layer: 1
+  SortOffset: 0
+  OpenTransition:
+    Kind: 0
+    Duration: 0
+    Ease:
+      Kind: 0
+      Ease: 0
+      BezierP1: {x: 0, y: 0}
+      BezierP2: {x: 0, y: 0}
+    SlideOffset: {x: 0, y: 0}
+    Anim:
+      value: 0
+      type: 0
+  CloseTransition:
+    Kind: 0
+    Duration: 0
+    Ease:
+      Kind: 0
+      Ease: 0
+      BezierP1: {x: 0, y: 0}
+      BezierP2: {x: 0, y: 0}
+    SlideOffset: {x: 0, y: 0}
+    Anim:
+      value: 0
+      type: 0
+  CloseOnBack: 1
+  ModalBlocksInput: 0
+  PauseGameWhileOpen: 1
+  Navigation:
+  - Element: Button2
+    Up: 
+    Down: Button1
+    Left: 
+    Right: 
+  - Element: Button1
+    Up: Button2
+    Down: 
+    Left: 
+    Right: 
+  FirstSelected: Button2
+  NavigationNodeLayout:
+  - Element: Button1
+    Position: {x: 72.96, y: 139.6}
+  - Element: Button2
+    Position: {x: -47.559998, y: -15.08}
+  - Element: BtnStart
+    Position: {x: 176.16, y: -14.800012}
+  - Element: BtnQuit
+    Position: {x: 271.5, y: 75.00001}
+  - Element: Slider1
+    Position: {x: 244.29999, y: 166.80006}
+  NavigationEdgeWaypoints:
+  - Element: Button2
+    Direction: Down
+    Points:
+    - {x: 192, y: 73.600006}
+  Buttons:
+  - ButtonPath: BtnStart
+    Trigger: 0
+    Action: 1
+    Target:
+      Type: 8
+      Id: 8217244413215036442
+    SignalKey: 
+    ClickSe:
+      value: 0
+      type: 0
+  - ButtonPath: BtnOption
+    Trigger: 0
+    Action: 4
+    Target:
+      Type: 0
+      Id: 0
+    SignalKey: test/option
+    ClickSe:
+      value: 0
+      type: 0
+  - ButtonPath: BtnQuit
+    Trigger: 0
+    Action: 2
+    Target:
+      Type: 0
+      Id: 0
+    SignalKey: 
+    ClickSe:
+      value: 0
+      type: 0
+  Sliders:
+  - ElementPath: Slider1
+    Trigger: 1
+    Action: 6
+    SignalKey: 
+    Option: 1
+    ThrottleSec: 0
+  ElementEffects:
+  - ElementPath: BtnQuit
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 21
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 11105237152147224749
+      type: 13
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: 
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: BtnStart
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: BtnStart/Text (TMP)
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: BtnOption
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: BtnOption/Text (TMP)
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: Image
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: BtnQuit/Text (TMP)
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0
+  - ElementPath: Slider1
+    AppearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    IdlePreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    DisappearPreset:
+      Preset: 0
+      Duration: 0
+      Distance: 0
+      EaseOverride:
+        Kind: 0
+        Ease: 0
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Se:
+        value: 0
+        type: 0
+    Appear:
+      value: 0
+      type: 0
+    Idle:
+      value: 0
+      type: 0
+    Disappear:
+      value: 0
+      type: 0
+    AppearDelay: 0
+    AppearSe:
+      value: 0
+      type: 0
+    DisappearSe:
+      value: 0
+      type: 0

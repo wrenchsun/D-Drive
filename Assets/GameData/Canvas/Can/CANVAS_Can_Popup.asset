@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0690b4003d1eda746aa2ed7057428f6b, type: 3}
+  m_Name: CANVAS_Can_Popup
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Ui.CanvasData
+  Id: 8217244413215036442
+  DisplayName: 
+  Description: 
+  Category: 
+  Tags: []
+  Icon: {fileID: 0}
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 1
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  Prefab: {fileID: 2144447545384852608, guid: 4798eed72fcd8984fb28572c7c203dbc, type: 3}
+  Layer: 2
+  SortOffset: 0
+  OpenTransition:
+    Kind: 0
+    Duration: 0
+    Ease:
+      Kind: 0
+      Ease: 0
+      BezierP1: {x: 0, y: 0}
+      BezierP2: {x: 0, y: 0}
+    SlideOffset: {x: 0, y: 0}
+    Anim:
+      value: 0
+      type: 0
+  CloseTransition:
+    Kind: 0
+    Duration: 0
+    Ease:
+      Kind: 0
+      Ease: 0
+      BezierP1: {x: 0, y: 0}
+      BezierP2: {x: 0, y: 0}
+    SlideOffset: {x: 0, y: 0}
+    Anim:
+      value: 0
+      type: 0
+  CloseOnBack: 1
+  ModalBlocksInput: 1
+  PauseGameWhileOpen: 0
+  Navigation:
+  - Element: BtnOption
+    Up: 
+    Down: 
+    Left: 
+    Right: 
+  FirstSelected: 
+  NavigationNodeLayout:
+  - Element: BtnQuit
+    Position: {x: 57.100002, y: 32.600014}
+  - Element: Slider1
+    Position: {x: -37.299995, y: 118.79997}
+  NavigationEdgeWaypoints:
+  - Element: BtnOption
+    Direction: Down
+    Points:
+    - {x: -13.60001, y: 50.400055}
+  Buttons: []
+  Sliders: []
+  ElementEffects: []

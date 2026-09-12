@@ -75,5 +75,41 @@ namespace DDrive.Tests.Editor
 
             Assert.IsTrue(found, "CanvasData → CanvasEditorWindow が DataEditorRegistry に登録されていません");
         }
+
+        // [07_canvas_prefab.md] 2026-09-12 追記 — ノードグラフのドラッグ位置/Reroute point は
+        // CanvasData.NavigationNodeLayout/NavigationEdgeWaypoints へ永続化する(ユーザー要望による例外)。
+        // ドラッグ操作自体はポインタイベントに依存するため、LoadLayout/Export の往復だけを検証する。
+        [Test]
+        public void NavigationGraphView_LoadLayout_ThenExport_RoundTripsNodePositionsAndWaypoints()
+        {
+            var view = new NavigationGraphView();
+
+            var nodeLayout = new[] { new NavNodeLayout { Element = "Group/A", Position = new Vector2(10f, 20f) } };
+            var waypoints = new[] { new NavEdgeWaypoint { Element = "Group/A", Direction = "Right", Points = new[] { new Vector2(50f, 60f) } } };
+
+            view.LoadLayout(nodeLayout, waypoints);
+
+            var exportedNodes = view.ExportNodeLayout();
+            var exportedWaypoints = view.ExportEdgeWaypoints();
+
+            Assert.AreEqual(1, exportedNodes.Length);
+            Assert.AreEqual("Group/A", exportedNodes[0].Element);
+            Assert.AreEqual(new Vector2(10f, 20f), exportedNodes[0].Position);
+
+            Assert.AreEqual(1, exportedWaypoints.Length);
+            Assert.AreEqual("Group/A", exportedWaypoints[0].Element);
+            Assert.AreEqual("Right", exportedWaypoints[0].Direction);
+            CollectionAssert.AreEqual(new[] { new Vector2(50f, 60f) }, exportedWaypoints[0].Points);
+        }
+
+        [Test]
+        public void NavigationGraphView_LoadLayout_IgnoresUnknownDirectionString()
+        {
+            var view = new NavigationGraphView();
+
+            view.LoadLayout(null, new[] { new NavEdgeWaypoint { Element = "A", Direction = "Diagonal", Points = new[] { Vector2.zero } } });
+
+            Assert.AreEqual(0, view.ExportEdgeWaypoints().Length, "パースできない Direction 文字列は無視されるはず");
+        }
     }
 }

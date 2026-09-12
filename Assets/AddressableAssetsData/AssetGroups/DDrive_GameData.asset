@@ -140,6 +140,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7e891a44defbdbf40890f41da4190ccc
+    m_Address: UITWEEN_Ui_Tween
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 81651da68213bb24d970dcf6516d742a
     m_Address: MAT_FBX_MatWear01
     m_ReadOnly: 0
@@ -150,8 +155,18 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a23a06ad62a0a8d4b960a5cb75ffb375
+    m_Address: SKIN_test_Default
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a41aa650ace21a24db8d0cb193031302
     m_Address: ANIM_Player_Jump
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a97756645b6fc4447a4ee11c9934c2c1
+    m_Address: CANVAS_Can_Vas
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -187,6 +202,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dbcb06836a48c644a970c4a59252d9b6
     m_Address: TEX_FBX_Wear02N
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e17b9a2a158676d489f3ac05eb5cf981
+    m_Address: CANVAS_Can_Popup
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

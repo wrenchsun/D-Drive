@@ -221,6 +221,27 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("A", next);
         }
 
+        // CanvasEditorWindow のパッド操作シミュレーションは FirstSelected 未設定のとき currentPath="" (ルート)
+        // で最初の MoveFocusFrom を呼ぶ。FindTransform(root, "") が null を返す(NavNode の未設定リンクと区別する
+        // ための挙動)ため、以前はここで即 false になり「フォーカス: (未確認)」のまま変化しなかった不具合の回帰テスト。
+        [Test]
+        public void MoveFocusFrom_FromRootPath_FindsNearestElement_WhenFirstSelectedNotSet()
+        {
+            _prefab = new GameObject("RootFocusPrefab", typeof(RectTransform));
+            ((RectTransform)_prefab.transform).sizeDelta = new Vector2(400, 400);
+            CreateButton(_prefab.transform, "A", new Vector2(0, -100)); // ルート中心より下
+
+            var data = CreateCanvasData(_prefab);
+            // data.FirstSelected は未設定のまま。
+
+            var handle = _manager.OpenData(data);
+
+            var moved = _manager.MoveFocusFrom(handle, string.Empty, Vector2.down, out var next);
+
+            Assert.IsTrue(moved, "FirstSelected 未設定でもルートを起点に探索できるはず");
+            Assert.AreEqual("A", next);
+        }
+
         // ── UiButton.SimulateClick(決定ボタンの実体) ──
 
         [Test]

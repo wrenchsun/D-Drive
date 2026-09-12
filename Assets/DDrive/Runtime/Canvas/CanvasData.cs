@@ -54,6 +54,26 @@ namespace DDrive.Runtime.Ui
         public string Right;
     }
 
+    // [07_canvas_prefab.md] 実装メモ 2026-09-12 追記 — CanvasEditorWindow のノードグラフ(NavigationGraphView)で
+    // ドラッグして動かしたノードの表示位置。ランタイムのナビゲーション動作(UiManager.ApplyNavigation/
+    // MoveFocusFrom)には一切使わない、エディタ表示専用のデータ。ユーザー要望により例外的に永続化する
+    // (通常方針「Data はエディタでのみ、実 UI に関わる項目だけを書き換える」の対象外の見た目情報)。
+    [Serializable]
+    public struct NavNodeLayout
+    {
+        public string Element;   // NavigationGraph のノードパス(ルートは空文字)
+        public Vector2 Position; // NavigationGraphView 座標系での表示位置
+    }
+
+    // 同上。配線(Element から Direction 方向へのリンク)に挿入した Reroute point(中継点)の一覧。
+    [Serializable]
+    public struct NavEdgeWaypoint
+    {
+        public string Element;   // From
+        public string Direction; // "Up"/"Down"/"Left"/"Right"(Editor 側 NavDirection.ToString() と対応)
+        public Vector2[] Points;
+    }
+
     // [15_ui_interaction.md] Part A の入力種別。UiButton 本体(4-6)より先にデータ形だけ定義しておく。
     public enum WireTrigger
     {
@@ -166,6 +186,14 @@ namespace DDrive.Runtime.Ui
         public NavNode[] Navigation;
         [Tooltip("Open 時に EventSystem.current.SetSelectedGameObject へ渡す初期フォーカス要素の相対パス。")]
         public string FirstSelected;
+
+        [Header("Navigation グラフ(エディタ表示専用)")]
+        [Tooltip("CanvasEditorWindow のノードグラフでドラッグして動かした表示位置。ランタイムの動作には影響しない。")]
+        [HideInInspector]
+        public NavNodeLayout[] NavigationNodeLayout;
+        [Tooltip("同上。配線に挿入した Reroute point(中継点)の一覧。")]
+        [HideInInspector]
+        public NavEdgeWaypoint[] NavigationEdgeWaypoints;
 
         [Header("Wiring")]
         public ButtonWire[] Buttons;

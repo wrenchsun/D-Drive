@@ -11,7 +11,64 @@ namespace DDrive.Generated
         public static readonly AssetId<DDrive.Runtime.Vfx.VfxMarker> PlayerSlash = new(0x669C1BD114C4F11AUL, AssetType.Vfx);
     }
 
+    public static class PREFABID
+    {
+    }
+
     public static class MODELID
+    {
+        public static readonly AssetId<DDrive.Runtime.Model.ModelMarker> MODELPlayerModel = new(0x20B05B0609A6025DUL, AssetType.Model);
+    }
+
+    public static class MATID
+    {
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXLambert1 = new(0xB2D29BC6ED87C73FUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatBody01 = new(0x2701A113AEBF928EUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatBody011 = new(0x3823A95102FA5C21UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatFaceOption1 = new(0x1B8A145E1BDFD048UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatFaceOption11 = new(0xCA1D3874AFAB1491UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatHair01 = new(0x45B465BE426C6130UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatWear01 = new(0x82149914291A402UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatWear02 = new(0x55CC821F1C95424EUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatWear03 = new(0x33C4284C79C7A3CBUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMtlHairline = new(0x18A471B11DC81BB9UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXShizukuBlendShapeMatBody01 = new(0xCFDEAD81A6E5DF87UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> TestMaterial = new(0x99CFC63ADF9690D5UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> TestTestUnlit = new(0xC99CF9E25C481ABAUL, AssetType.Material);
+    }
+
+    public static class TEXID
+    {
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXBody01D = new(0x8BD46113EF33F80DUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXBody01N = new(0xB4C21F6F2FE06C5AUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXFaceOptionD = new(0xF9D7B6680C2BE635UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXHair01D = new(0xCE4B69174BFA13CFUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear01D = new(0x47270B8B174AE4CAUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear01N = new(0xAF35B3D26F62E25FUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear02D = new(0x6A72580CCBF7341EUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear02N = new(0xCE8CA30CF0B0FBFAUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear03D = new(0xC5801C4D7ACC2653UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear03N = new(0xC0E0194AC75452EFUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> JamHouse = new(0x871FDB26A93D923BUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> TestTexture = new(0x60F4B3A28C81F893UL, AssetType.Texture);
+    }
+
+    public static class CANVASID
+    {
+        public static readonly AssetId<DDrive.Runtime.Ui.CanvasMarker> CanPopup = new(0x72098441CA3ED41AUL, AssetType.Canvas);
+        public static readonly AssetId<DDrive.Runtime.Ui.CanvasMarker> CanVas = new(0xE15A8610E73589BDUL, AssetType.Canvas);
+    }
+
+    public static class SKINID
+    {
+        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SKINTestDefault = new(0x3035F13910E476CAUL, AssetType.ControlSkin);
+    }
+
+    public static class SLIDERSKINID
+    {
+    }
+
+    public static class UITWEENID
     {
     }
 
@@ -26,12 +83,23 @@ namespace DDrive.Generated
         public static readonly AssetId<DDrive.Runtime.Audio.SeMarker> TestNewSound = new(0x69E86561CF2A3D23UL, AssetType.Se);
     }
 
+    public static class ANIM2DID
+    {
+        public static readonly AssetId<DDrive.Runtime.Anim2D.Anim2DMarker> Anim2DAnim2DTest = new(0x3F6036C7342C779UL, AssetType.Anim2D);
+        public static readonly AssetId<DDrive.Runtime.Anim2D.Anim2DMarker> Anim2DAnim2DWalk = new(0xEE63F59969438FFAUL, AssetType.Anim2D);
+        public static readonly AssetId<DDrive.Runtime.Anim2D.Anim2DMarker> Anim2DAnim2DWalk1 = new(0x7720BD4A397D24B2UL, AssetType.Anim2D);
+        public static readonly AssetId<DDrive.Runtime.Anim2D.Anim2DMarker> _2DAnimAnim2D2DAnimTest = new(0xA5F3D031EC30FEBBUL, AssetType.Anim2D);
+        public static readonly AssetId<DDrive.Runtime.Anim2D.Anim2DMarker> _2DAnimAnim2D2DAnimWalk = new(0x2B65A7DCA48DEC72UL, AssetType.Anim2D);
+    }
+
     public static class ANIMID
     {
+        public static readonly AssetId<DDrive.Runtime.Anim.AnimMarker> PlayerJump = new(0x1A9DCF08E76F392UL, AssetType.Anim);
     }
 
     public static class ANCHORID
     {
+        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorMarker> ANCAnimJump = new(0xF9D43148AA70B61CUL, AssetType.Anchor);
         public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorMarker> ANCPlayerVFXPlayerSlashAnchor = new(0xC7469048615C5C60UL, AssetType.Anchor);
     }
 

@@ -53,6 +53,17 @@ namespace DDrive.Editor.AssetBrowser
             var asset = (AssetDataBase)ScriptableObject.CreateInstance(dataType);
             asset.DisplayName = string.IsNullOrEmpty(displayName) ? identifier : displayName;
             asset.Category = category;
+
+            // Canvas/ControlSkin は Ui.Open / ApplyLayerDefaults が同期解決(ResolveOrPlaceholder/TryResolveSync)
+            // でしか引かないため、LazyLoad(既定)のままだと「初回参照時にロード」が起きず常に Placeholder になる。
+            // 2026-09-12: 実際にこの理由で配線済みの CanvasData が動かない不具合を確認したため、既定を Preload にする。
+            if (assetType == AssetType.Canvas || assetType == AssetType.ControlSkin)
+            {
+                var flags = asset.Flags;
+                flags.Load = LoadMode.Preload;
+                asset.Flags = flags;
+            }
+
             configure?.Invoke(asset);
 
             AssetDatabase.CreateAsset(asset, path);

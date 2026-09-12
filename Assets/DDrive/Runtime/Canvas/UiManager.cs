@@ -849,7 +849,10 @@ namespace DDrive.Runtime.Ui
                 }
             }
 
-            var currentT = FindTransform(root, currentPath);
+            // currentPath が空(=ルート自身。NavigationGraph 等での慣習)のときも FindTransform は null を返す
+            // (NavNode.Up/Down/Left/Right の「未設定」を null にするための挙動で、こちらとは意味が違う)。
+            // FirstSelected 未設定で開いた直後はここがルートになるため、その場合だけ root 自身を現在位置として使う。
+            var currentT = string.IsNullOrEmpty(currentPath) ? root : FindTransform(root, currentPath);
             var currentRect = currentT as RectTransform;
             if (currentRect == null)
             {

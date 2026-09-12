@@ -140,6 +140,56 @@ public static class Ui
 - **デザイナーが手動確認すべき点**: (1) ノードグラフのポートドラッグ&ドロップの実際の操作感(マウス操作は自動テストできない)、(2) パン/ズームの視認性(特に要素数が多い Prefab)、(3) パッド操作シミュレーションのフォーカス移動が実際の見た目(SceneView/GameView)と一致すること
 - テスト: `Assets/DDrive/Tests/Editor/CanvasGraphTests.cs`(8 件)。`NavigationGraph.Build` のノード収集(登録済み/未登録、座標の上下判定)、`Unreachable` と `CanvasDataValidator` の一致、`SetLink`/`ClearLink`/`ClearAllLinks`、`UiManager.MoveFocusFrom` の明示リンク追従・方向フォールバック・該当なしケース、`UiButton.SimulateClick` の `OnClick` 発火
 
+### 追記（2026-09-12、ノードグラフのドラッグ移動）
+
+- **経緯**: ノード座標を実 `RectTransform` の位置そのまま投影しているため、密集した UI(ボタンが近接するパネル等)では箱同士が重なり、ポート/矢印が判読できず配線しづらいという指摘(デザイナー確認事項(2)で懸念されていたもの)。自動で間隔を空けるより、必要な箇所だけ手で退避できる方が良いため手動ドラッグ移動を追加した
+- **実装**: `NavigationGraphView` のノード本体(`BuildNodeElement` の box)に `PointerDown`/`PointerMove`/`PointerUp` を追加し、ポート以外の場所を左ドラッグするとノードを移動できる(ポートは `RegisterPortDrag` 側で `StopPropagation` 済みのため、リンク作成のドラッグとは干渉しない。ダブルクリックの Ping も従来通り)。動かした位置は `_manualPositions`(`Dictionary<string, Vector2>`、パスをキー)にビュー側で保持し、`SetGraph`(=`RebuildGraph`。リンク編集や Undo/Redo のたびに呼ばれる)を跨いで維持する。当初は `CanvasData` に保存しない設計だったが、2026-09-12 にユーザー要望で例外的に永続化するよう変更した(下記追記を参照)。「自動レイアウトを更新」ボタンは `NavigationGraphView.ClearManualLayout()` を呼んでから再構築し、Prefab のレイアウトどおりの自動配置に戻す
+- **デザイナーが手動確認すべき点に追加**: (4) ノード本体のドラッグ移動がポートからのリンク作成ドラッグと誤操作なく区別できること、リンク編集後も動かした位置が保持されること
+- **配線を切る(UE ブループリント風のカット操作)**: 背景を Ctrl+左ドラッグでなぞると赤い線が引かれ(`_cutPoints` に一定距離ごとに頂点を追加する折れ線)、離した時点でその線分と交差するエッジ(`FindEdgesCrossingCutPath` が矢印の描画線分そのものとの交差判定 `SegmentsIntersect` で収集)をまとめて `OnCutLinks`(`List<NavEdge>`)で通知する。`CanvasEditorWindow` 側は `ApplyNavEdit` で 1 回の Undo にまとめて `NavigationGraph.ClearLink` を順に呼ぶ。右クリックメニューの個別削除(既存)と役割が異なる: ノードが密集して個別にポート/右クリックを狙いにくい場面向けの一括操作
+- **デザイナーが手動確認すべき点に追加**: (5) Ctrl+左ドラッグのカット操作が誤って別の操作(パン/リンク作成/ノード移動)と衝突しないこと、意図した配線だけが切れること
+- **Reroute point(UE ブループリント風の中継点)**: 配線(矢印)を空クリックではなくダブルクリックすると、その位置に中継点を挿入できる(`TryFindWireNear` が矢印の折れ線各区間との距離判定でヒットを取り、`InsertReroutePoint` が該当区間のインデックスにそのまま挿入する)。中継点は小さな丸の `VisualElement`(`BuildRerouteElement`)としてノードと同様にドラッグで移動でき、右クリックメニューから削除できる。エッジは `From/Direction` の組で一意に決まるため、中継点は `(From, Direction)` をキーに `List<Vector2>` として保持する(`_reroutePoints`)。矢印描画(`DrawArrows`)・配線カット(`FindEdgesCrossingCutPath`)は共通の `BuildEdgePolyline`(始点ノード中心→中継点→終点ノード中心)を使うため、中継点を経由した折れ線に対しても矢頭表示とカットが正しく機能する。ノード位置(`_manualPositions`)と同様、2026-09-12 からは `CanvasData` へ永続化される(下記追記を参照)。リンクを削除すると `SetGraph` 時点の `PruneReroutePoints` で孤立した中継点も消える。「自動レイアウトを更新」は `ClearManualLayout` 経由でノード位置と一緒に中継点も全消去する
+- **デザイナーが手動確認すべき点に追加**: (6) 配線のダブルクリックでの中継点追加、ドラッグ移動、右クリック削除の操作感、中継点を挟んだ配線でもカット(Ctrl+ドラッグ)と矢印の向きが正しいこと
+
+### バグ修正（2026-09-12、パッド操作シミュレーションが FirstSelected 未設定だと反応しない）
+
+- **症状**: 「確認用シーンで開く」でパッド操作シミュレーションのボタンは有効になるが、`FirstSelected` が未設定の `CanvasData` では ▲▼◀▶ を押しても何も起きず、「フォーカス: (未確認)」のまま変化しなかった
+- **原因**: `CanvasEditorWindow` は `FirstSelected` 未設定時 `_simFocusPath` を空文字(=ルート。`NavigationGraph`/エディタ側の慣習)にする。`UiManager.MoveFocusFrom` はこれを `FindTransform(root, currentPath)` で解決していたが、`FindTransform` は `NavNode.Up/Down/Left/Right` の「未設定」を表すために空文字を `null` として扱う設計になっており、「ルート自身」を指す空文字もこれと区別できず `null` になっていた。結果、`currentRect == null` で即 `false` を返し、方向探索(`CollectFocusableTransforms` からの最近傍検索)まで到達しなかった
+- **修正**: `Assets/DDrive/Runtime/Canvas/UiManager.cs` の `MoveFocusFrom` で、`currentPath` が空のときだけ `FindTransform` を経由せず `root` 自身を現在位置として使うようにした(`NavNode.Up` 等の「未設定」判定には影響しない、`MoveFocusFrom` 内のこの 1 箇所だけの変更)。これにより `FirstSelected` 未設定でも、ルート(Prefab 全体の矩形)を起点に指定方向の最も近い `Selectable`/`UiInteractable` を見つけて最初のフォーカスが決まるようになった
+- テスト: `CanvasGraphTests.MoveFocusFrom_FromRootPath_FindsNearestElement_WhenFirstSelectedNotSet` を追加(回帰防止)
+
+### 追記（2026-09-12、ノードグラフの手動レイアウトを例外的に永続化）
+
+- **経緯**: ノードのドラッグ位置・Reroute point はエディタセッション内だけの一時状態として実装していたが、「毎回開くたびに並べ直すのは手間」というユーザー要望を受け、例外的に `CanvasData` へ保存するようにした。CLAUDE.md #5(Data は読み取り専用/エディタが書き換えるときは Undo.RecordObject + SetDirty)には従うが、#9 で言うような「実行時の挙動に関わるデータ」ではなく、あくまで見た目の整理用データという位置付け
+- **追加した Data**: `Assets/DDrive/Runtime/Canvas/CanvasData.cs` に `[Serializable] struct NavNodeLayout { string Element; Vector2 Position; }` と `[Serializable] struct NavEdgeWaypoint { string Element; string Direction; Vector2[] Points; }` を追加し、`CanvasData.NavigationNodeLayout` / `CanvasData.NavigationEdgeWaypoints` として持たせた(どちらも `[HideInInspector]`。通常の Inspector には出さず、`CanvasEditorWindow` のノードグラフからだけ操作する)。`Direction` は Editor 専用の `NavDirection` enum をランタイム側が参照できない(Runtime asmdef は Editor asmdef を参照できない)ため、`ToString()`/`Enum.TryParse` で文字列として橋渡しする
+- **実装**: `NavigationGraphView` に `OnLayoutChanged`(Action)を追加し、ノードのドラッグ確定時(`PointerUp`)・Reroute point のドラッグ確定時・追加(`InsertReroutePoint`)・削除(`RemoveReroutePoint`)・全消去(`ClearManualLayout`)のたびに発火する。`LoadLayout(NavNodeLayout[], NavEdgeWaypoint[])`(内部辞書へ読み込む)と `ExportNodeLayout()`/`ExportEdgeWaypoints()`(内部辞書から配列を作る)を公開し、`CanvasEditorWindow` は `OnLayoutChanged` で `Undo.RecordObject` + `Export*` の代入 + `SetDirty` を行う(グラフ形状は変わらないため `ApplyNavEdit` は使わず `RebuildGraph` は呼ばない)。逆方向の読み込みは `RebuildGraph()` の先頭で毎回 `LoadLayout(_target?.NavigationNodeLayout, _target?.NavigationEdgeWaypoints)` を呼ぶことで行う(冪等なので毎回呼んでも無害。`Undo.RecordObject` は `CanvasData` の全フィールドをスナップショットするため、Ctrl+Z でリンクと一緒にレイアウトも元に戻る)
+- **デザイナーが手動確認すべき点に追加**: (7) ウィンドウを閉じて開き直しても・Unity を再起動しても、ドラッグしたノード位置と Reroute point が復元されること。Undo(Ctrl+Z)でレイアウト変更も戻ること
+- テスト: `CanvasEditorTests.NavigationGraphView_LoadLayout_ThenExport_RoundTripsNodePositionsAndWaypoints` / `NavigationGraphView_LoadLayout_IgnoresUnknownDirectionString` を追加
+
+### 追記（2026-09-12、「確認用シーンで開く」で Selectable も自動収集）
+
+- **経緯**: パッド操作シミュレーション/ノードグラフを使うには `Navigation`(Selectable の収集結果)が必要だが、「Selectable を自動収集」ボタンを別途押す一手間があった。プレビューを開く時点でほぼ確実に収集したくなるため、`PlacePreview` の中で自動的に `CollectSelectables()` を呼ぶようにした
+- **実装**: `CanvasEditorWindow.PlacePreview()` で `_manager.OpenData(_target)` が成功した(`_manager.IsOpen(_previewHandle)`)場合だけ `CollectSelectables()` を続けて呼ぶ(表示に失敗した場合は呼ばない)。`CollectSelectables` は `CanvasNavigationCollector.CollectMerged` で既存の行を保持しつつ不足分だけ追加するため、「確認用シーンで開く」を何度押しても安全(重複追加や上書きは起きない)
+- 副作用として、プレビューを開くたびに `_statusLabel` の表示が「プレビュー表示中」から `CollectSelectables` 側の「Selectable を N 件収集しました」に置き換わる(意図した挙動)
+
+### 追記（2026-09-12、「確認用シーンで開く」で要素(ElementFx)も自動収集 + ElementFx 割当を Foldout 化）
+
+- **自動収集**: 上記と同じ理由で `PlacePreview` の同じ分岐(プレビュー表示成功時)から `CollectElementFx()` も呼ぶようにした(`CollectSelectables()` の直後)。こちらも `CanvasElementFxCollector.CollectMerged` で既存行を保持するため繰り返し実行しても安全。2 つとも `SetTarget(_target)` を内部で呼び直す(Inspector/Validation/ElementFx 割当/グラフを再構築)ため多少冗長だが、実害はない。最終的な `_statusLabel` の表示は後に呼ばれる `CollectElementFx` 側の「ElementFx を N 件収集しました」になる
+- **ElementFx 割当の Foldout 化**: 「ElementFx 割当(Appear / Idle / Disappear)」のラベル+HelpBox+一覧(`_elementFxContainer`)を `Foldout`(`_elementFxFoldout`、初期値 `true`)にまとめた。要素数が多い Prefab で「Navigation グラフ」を編集する際にスクロールが長くなりすぎるのを緩和する意図(Navigation グラフの Foldout と同様の扱い)
+
+### バグ修正（2026-09-12、CanvasData/ButtonSkinData は Flags.Load=Preload 必須）
+
+- **症状**: `ButtonWire`/`SliderWire`/`UiLayerSettings` を正しく設定していても、実機/Play で `Ui.Open` した Canvas が常に `"<Placeholder:CANVAS>"` になり、レイヤー既定 Skin(4-7)も一切効かないことがある(手動確認シート [23_manual_verification_2026-09-11.md](23_manual_verification_2026-09-11.md) 相当の検証で発覚)
+- **原因**: `Ui.Open`/`Ui.Popup` は `AssetRegistry.ResolveOrPlaceholder`、`UiManager.ApplyLayerDefaults`(4-7 の `UiLayerSettings.DefaultButtonSkin` 解決)は `TryResolveSync` を使うが、両方とも「既に `_loaded` キャッシュにあるものしか返さない」同期専用の解決であり、`Flags.Load` の既定値 `LazyLoad`(「初回参照時にロード」のはずの非同期パス)を経由しない。`_loaded` に乗るのは `Flags.Load=Preload` でカタログ登録時にプリロードされたものだけ。B-3([07] 実装メモ 2026-09-10 の Codex レビュー P2)で `PrefabsManager.Preload` に対して一度直した同種の罠が、`CanvasData`/`ButtonSkinData` 側には残っていた
+- **対応**: `AssetCreationService.Create()`(`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`)で `AssetType.Canvas`/`AssetType.ControlSkin` を新規作成するときは既定 `Flags.Load=Preload` にする。既存アセット向けに `AddressablesRegistrationValidator`(`Assets/DDrive/Editor/Validation/AddressablesRegistrationValidator.cs`)へ「対象 AssetType で `Flags.Load != Preload`」を Error + FixAction(`Flags.Load=Preload` に書き換えて保存)として追加し、`Validation > Run All` で拾えるようにした
+- 今後 `SliderSkinData`(4-17 で型追加時)等、`UiInteractable`/`UiManager` の同期解決に乗る新しい `ControlSkinData` 派生を増やす場合は、`AssetCreationService` の分岐と `AddressablesRegistrationValidator.NeedsPreload` の両方に追記すること
+
+### 追記（2026-09-12、CanvasEditor に「Disappear を再生」ボタン追加）
+
+- **経緯**: 「確認用シーンで開く」は実 `UiManager.OpenData` を呼ぶため Appear→Idle は元から Tick で再生されていたが、「閉じる」は `StopAll(Manual)` で演出を待たず即完了させる実装だったため、ElementFx の Disappear / CloseTransition を Editor 上で見る手段が無かった(ADR-4 の「実 Manager を Editor から駆動する」に対し、消える演出だけ確認できない片手落ちだった)
+- **対応**: `CanvasEditorWindow` に「Disappear を再生」ボタンを追加(`PlacePreview`/`RemovePreview` の間)。実際に `UiManager.Close(handle)` を呼び、`OnEditorUpdate` の `Tick` で CloseTransition + ElementFx.Disappear が最後まで再生されるのを待ってから後片付けする(`_awaitingDisappearFinish` フラグで `IsOpen==false` になった瞬間を検知)。「閉じる」(即時 `StopAll`)はそのまま残し、見た目を待たず片付けたいときと使い分けられるようにした
+- 実装: `Assets/DDrive/Editor/Canvas/CanvasEditorWindow.cs`(`PlayDisappearPreview` / `FinishDisappearPreview` / `OnEditorUpdate` の待ち受け分岐)
+- 確認: SceneView スクリーンショットで PopIn(Appear)→FadeOut(Disappear、ボタン押下)の一連が実際に描画されること、`Disappear` 完了後に `_manager.IsOpen`/`_previewRoot` が正しくクリアされ、コンソールにエラーが出ないことを確認済み
+
 ---
 
 # Part B — 汎用 Prefab

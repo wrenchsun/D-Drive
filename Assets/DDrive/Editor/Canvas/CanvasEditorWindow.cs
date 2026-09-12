@@ -41,10 +41,14 @@ namespace DDrive.Editor.CanvasTool
 
         private GameObject _previewRoot;
         private Handle<CanvasMarker> _previewHandle = Handle<CanvasMarker>.Invalid;
+        // 2026-09-12: 「Disappear を再生」で実際の Close() を呼んだあと、CloseTransition + ElementFx.Disappear が
+        // 最後まで再生されて FinalizeClose される(_manager.IsOpen が false になる)のを OnEditorUpdate から待つためのフラグ。
+        private bool _awaitingDisappearFinish;
 
         private ScrollView _root;
         private ObjectField _targetField;
         private VisualElement _inspectorContainer;
+        private Foldout _elementFxFoldout;
         private VisualElement _elementFxContainer;
         private Label _statusLabel;
         private VisualElement _validationFoldout;
@@ -112,6 +116,12 @@ namespace DDrive.Editor.CanvasTool
 
             _tweenManager?.Tick(dt);
             _manager.Tick(dt);
+
+            if (_awaitingDisappearFinish && !_manager.IsOpen(_previewHandle))
+            {
+                _awaitingDisappearFinish = false;
+                FinishDisappearPreview();
+            }
         }
 
         private void OnSelectionChange()
@@ -131,6 +141,7 @@ namespace DDrive.Editor.CanvasTool
             // シーンが切り替わると DontSave の配置物は Unity 側で既に失われているので、参照だけ捨てる。
             _previewRoot = null;
             _previewHandle = Handle<CanvasMarker>.Invalid;
+            _awaitingDisappearFinish = false;
         }
 
         public void CreateGUI()
@@ -172,14 +183,16 @@ namespace DDrive.Editor.CanvasTool
             bulkRow.Add(new Button(ApplyBulkPresetToButtons) { text = "一括適用: 全ボタンに反映", tooltip = "Prefab 内の全 UiButton の AppearPreset にこのプリセットを設定する" });
             _root.Add(bulkRow);
 
-            _root.Add(new Label("ElementFx 割当(Appear / Idle / Disappear)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
-            _root.Add(new HelpBox("各要素の行でプリセット・プロジェクト独自カタログ([Catalog] 名前)・UiTweenData 直接指定のいずれかを選べます。", HelpBoxMessageType.Info));
+            _elementFxFoldout = new Foldout { text = "ElementFx 割当(Appear / Idle / Disappear)", value = true, style = { marginTop = 8 } };
+            _root.Add(_elementFxFoldout);
+            _elementFxFoldout.Add(new HelpBox("各要素の行でプリセット・プロジェクト独自カタログ([Catalog] 名前)・UiTweenData 直接指定のいずれかを選べます。", HelpBoxMessageType.Info));
             _elementFxContainer = new VisualElement();
-            _root.Add(_elementFxContainer);
+            _elementFxFoldout.Add(_elementFxContainer);
 
             var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
-            previewButtons.Add(new Button(PlacePreview) { text = "確認用シーンで開く", tooltip = "開いているシーン(またはプレハブステージ)に実 UiManager で OpenData する" });
-            previewButtons.Add(new Button(RemovePreview) { text = "閉じる" });
+            previewButtons.Add(new Button(PlacePreview) { text = "確認用シーンで開く", tooltip = "開いているシーン(またはプレハブステージ)に実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。表示中にもう一度押すと閉じて開き直す(Appear / Idle をやり直す)" });
+            previewButtons.Add(new Button(PlayDisappearPreview) { text = "Disappear を再生", tooltip = "実際に Close() して CloseTransition + ElementFx.Disappear を最後まで再生してから片付ける(「閉じる」は即座に消えるだけで演出を確認できない)" });
+            previewButtons.Add(new Button(RemovePreview) { text = "閉じる", tooltip = "演出を待たず即座に片付ける(StopAll)" });
             _root.Add(previewButtons);
 
             _statusLabel = new Label { style = { marginLeft = 4, marginBottom = 4 } };
@@ -497,10 +510,12 @@ namespace DDrive.Editor.CanvasTool
             _root.Add(_graphFoldout);
 
             var toolRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 4 } };
-            toolRow.Add(new Button(RebuildGraph) { text = "自動レイアウトを更新" });
+            toolRow.Add(new Button(() => { _graphView.ClearManualLayout(); RebuildGraph(); }) { text = "自動レイアウトを更新", tooltip = "ドラッグで動かしたノード位置・追加した Reroute point を破棄し、Prefab のレイアウトどおりに戻す" });
             toolRow.Add(new Button(DetectUnreachable) { text = "到達不能を検出" });
             toolRow.Add(new Button(ReportUnlinked) { text = "未配線を自動リンク" });
             _graphFoldout.Add(toolRow);
+
+            _graphFoldout.Add(new Label("パン: 中ドラッグ / Alt+左ドラッグ　ズーム: ホイール　リンク作成: ポートからドラッグ　配線を切る: Ctrl+左ドラッグでなぞる　Reroute point 追加: 配線をダブルクリック(移動はドラッグ、削除は右クリック)") { style = { opacity = 0.7f, whiteSpace = WhiteSpace.Normal, marginBottom = 2 } });
 
             var heightSlider = new SliderInt("表示高さ", 320, 900) { value = 320, style = { marginBottom = 4 } };
             _graphView = new NavigationGraphView { style = { height = 320, minHeight = 320 } };
@@ -512,6 +527,28 @@ namespace DDrive.Editor.CanvasTool
             _graphView.OnClearLink = (from, dir) => ApplyNavEdit(() => NavigationGraph.ClearLink(_target, from, dir), "リンクを削除");
             _graphView.OnClearAllLinks = from => ApplyNavEdit(() => NavigationGraph.ClearAllLinks(_target, from), "リンクを全て削除");
             _graphView.OnSetFirstSelected = path => ApplyNavEdit(() => _target.FirstSelected = path, "FirstSelected を設定");
+            _graphView.OnCutLinks = edges => ApplyNavEdit(() =>
+            {
+                foreach (var edge in edges)
+                {
+                    NavigationGraph.ClearLink(_target, edge.From, edge.Direction);
+                }
+            }, "配線を切る");
+            // ドラッグで動かしたノード位置・Reroute point はユーザー要望により例外的に CanvasData へ保存する
+            // (ランタイムの動作には使わないエディタ表示専用データ。[07_canvas_prefab.md] 2026-09-12 追記)。
+            // グラフ形状は変わらないので ApplyNavEdit(RebuildGraph を伴う)は使わず、Undo + SetDirty だけ行う。
+            _graphView.OnLayoutChanged = () =>
+            {
+                if (_target == null)
+                {
+                    return;
+                }
+
+                Undo.RecordObject(_target, "グラフレイアウトを変更");
+                _target.NavigationNodeLayout = _graphView.ExportNodeLayout();
+                _target.NavigationEdgeWaypoints = _graphView.ExportEdgeWaypoints();
+                EditorUtility.SetDirty(_target);
+            };
 
             _unreachableContainer = new VisualElement { style = { marginTop = 4 } };
             _graphFoldout.Add(_unreachableContainer);
@@ -553,6 +590,9 @@ namespace DDrive.Editor.CanvasTool
             {
                 return;
             }
+
+            // 保存済みのノード位置/Reroute point を読み込む(Undo/Redo で配列側が変わった場合もここで追従する)。
+            _graphView.LoadLayout(_target?.NavigationNodeLayout, _target?.NavigationEdgeWaypoints);
 
             if (_target == null || _target.Prefab == null)
             {
@@ -756,11 +796,23 @@ namespace DDrive.Editor.CanvasTool
             UpdatePadEnabled();
             UpdateFocusLabel();
             _graphView?.SetFocusedPath(_simFocusPath);
+
+            if (_manager.IsOpen(_previewHandle))
+            {
+                // パッド操作シミュレーション/ノードグラフ/ElementFx 割当がすぐ使えるよう、プレビューを開いたら
+                // Selectable と要素(Image/UiButton/パネル)を両方自動収集する(どちらも既存の行を保持する
+                // CollectMerged 経由なので、何度押しても安全)。
+                CollectSelectables();
+                CollectElementFx();
+            }
+
             SceneView.RepaintAll();
         }
 
         private void RemovePreview()
         {
+            _awaitingDisappearFinish = false; // Disappear 再生待ちの途中でも即片付ける方が優先(StopAll は待たない仕様)
+
             if (_manager != null && _manager.IsOpen(_previewHandle))
             {
                 _manager.StopAll(DDrive.Foundation.Manager.StopReason.Manual);
@@ -778,6 +830,48 @@ namespace DDrive.Editor.CanvasTool
             if (_statusLabel != null && _target != null)
             {
                 _statusLabel.text = "「確認用シーンで開く」で確認できます";
+            }
+
+            _simFocusPath = null;
+            UpdatePadEnabled();
+            UpdateFocusLabel();
+            _graphView?.SetFocusedPath(null);
+
+            SceneView.RepaintAll();
+        }
+
+        // 2026-09-12: ElementFx(4-9)の Disappear / CloseTransition を実際に最後まで再生して確認するための
+        // ボタン(ADR-4: 実 UiManager.Close を呼ぶだけで、Editor 専用の再生経路は作らない)。
+        // StopAll(RemovePreview が使う)は演出を待たず即完了させるため、Disappear の見た目はここでしか確認できない。
+        private void PlayDisappearPreview()
+        {
+            if (_manager == null || !_manager.IsOpen(_previewHandle))
+            {
+                _statusLabel.text = "先に「確認用シーンで開く」を押してください";
+                return;
+            }
+
+            _manager.Close(_previewHandle);
+            _awaitingDisappearFinish = true;
+            _statusLabel.text = "Disappear を再生中…";
+            SceneView.RepaintAll();
+        }
+
+        // OnEditorUpdate が Close() の完了(FinalizeClose 済み = IsOpen==false)を検知したら呼ぶ後片付け。
+        // RemovePreview と違い、インスタンスは既に UiManager 側で破棄/プール返却済みなので StopAll は呼ばない。
+        private void FinishDisappearPreview()
+        {
+            _previewHandle = Handle<CanvasMarker>.Invalid;
+
+            if (_previewRoot != null)
+            {
+                DestroyImmediate(_previewRoot);
+                _previewRoot = null;
+            }
+
+            if (_statusLabel != null && _target != null)
+            {
+                _statusLabel.text = "Disappear の再生が完了しました(「確認用シーンで開く」で開き直せます)";
             }
 
             _simFocusPath = null;

@@ -70,11 +70,36 @@ namespace DDrive.Editor.Validation
                     $"Address 不一致: '{data.name}' のカタログ '{address}' と Addressables '{entry.address}' が違います。実行時にロードできません。",
                     () => Fix(captured, address));
             }
+
+            // 2026-09-12: Ui.Open(CanvasData) / ApplyLayerDefaults(ControlSkinData)は AssetRegistry の
+            // 同期解決(ResolveOrPlaceholder/TryResolveSync)しか使わず、これは Flags.Load=Preload でカタログ
+            // 登録時にロード済みのものしか引けない(LazyLoad の「初回参照時にロード」は非同期経路専用)。
+            // 配線が正しくても Preload を忘れると常に Placeholder になり原因が分かりにくいため、ここで検出する。
+            var resolvedType = ResolveType(data);
+            if (NeedsPreload(resolvedType) && data.Flags.Load != LoadMode.Preload)
+            {
+                var captured = data;
+                yield return ValidationResult.Error(
+                    $"Flags.Load が Preload ではありません: '{data.name}'({resolvedType})は Ui.Open 等の同期解決でしか引かれないため、Preload 以外だと実行時に常に Placeholder になります。",
+                    () => FixPreload(captured));
+            }
         }
+
+        private static bool NeedsPreload(AssetType type) => type == AssetType.Canvas || type == AssetType.ControlSkin;
 
         private static void Fix(AssetDataBase data, string address)
         {
             AddressablesSync.EnsureEntry(data, address);
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void FixPreload(AssetDataBase data)
+        {
+            Undo.RecordObject(data, "Set Flags.Load = Preload");
+            var flags = data.Flags;
+            flags.Load = LoadMode.Preload;
+            data.Flags = flags;
+            EditorUtility.SetDirty(data);
             AssetDatabase.SaveAssets();
         }
 

@@ -21,6 +21,24 @@ MonoBehaviour:
     m_SerializedLabels:
     - DDriveCatalog
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0814ee7299e944c46982a3954ab53a4b
+    m_Address: UiCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2d171fbe02aceab4ea7005e10f34db4c
+    m_Address: CanvasCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 568e961ffb6286643a2f5645c23c1292
+    m_Address: UiTweenCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 67edb57ec85dff34da0b199908952aca
     m_Address: PrefabCatalog
     m_ReadOnly: 0

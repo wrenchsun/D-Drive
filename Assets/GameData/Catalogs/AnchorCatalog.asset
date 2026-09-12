@@ -13,6 +13,20 @@ MonoBehaviour:
   m_Name: AnchorCatalog
   m_EditorClassIdentifier: DDrive.Foundation::DDrive.Foundation.Registry.AssetCatalog
   entries:
+  - Id: 1162069426699075884
+    Type: 15
+    Address: ANC_Can_Vas
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 12258079574725544254
     Type: 16
     Address: ANCG_1_PlayerSlash
