@@ -321,6 +321,18 @@ namespace DDrive.Runtime.Ui
             }
         }
 
+        // Handle 単位の一時停止(AnimManager.SetPaused と同じ設計。エディタのプレビュー用で
+        // Data.Flags.Pause(PauseWithGame、OnPause 経路)とは独立に効く)。
+        public void SetPaused(Handle<UiTweenMarker> handle, bool paused)
+        {
+            if (_instances.TryGet(handle, out var inst))
+            {
+                inst.Paused = paused;
+            }
+        }
+
+        public bool IsPaused(Handle<UiTweenMarker> handle) => _instances.TryGet(handle, out var inst) && inst.Paused;
+
         // complete=true は最終状態(shape=1)へ即座に反映してから終了する。
         public void Stop(Handle<UiTweenMarker> handle, bool complete = false)
         {

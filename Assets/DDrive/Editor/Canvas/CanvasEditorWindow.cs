@@ -64,6 +64,22 @@ namespace DDrive.Editor.CanvasTool
 
         private readonly List<(string label, UiTweenData tween)> _catalogChoices = new();
 
+        // ElementFx 各行の直接再生(Appear/Idle/Disappear)。UI Tween Editor を開かず Canvas Editor 内で
+        // 完結できるようにする(2026-09-12 ユーザー要望)。Key は (ElementPath, Phase ラベル)。
+        private readonly Dictionary<(string path, string phase), Handle<UiTweenMarker>> _phasePreviewHandles = new();
+        private readonly List<PhaseRowWidgets> _phaseRowWidgets = new();
+        private readonly TweenTrack[] _presetPlayScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+
+        private sealed class PhaseRowWidgets
+        {
+            public string ElementPath;
+            public string Phase;
+            public Button PlayButton;
+            public Button PauseButton;
+            public Button StopButton;
+            public Label StatusLabel;
+        }
+
         [MenuItem(DDriveMenu.Editors + "Canvas")]
         public static void OpenFromMenu() => Open(Selection.activeObject as CanvasData);
 
@@ -117,6 +133,7 @@ namespace DDrive.Editor.CanvasTool
 
             _tweenManager?.Tick(dt);
             _manager.Tick(dt);
+            RefreshPhaseRowStatuses();
         }
 
         private void OnSelectionChange()
@@ -218,6 +235,14 @@ namespace DDrive.Editor.CanvasTool
 
         private void SetTarget(CanvasData target)
         {
+            if (target != _target)
+            {
+                // ElementFx 直接再生の Handle は (ElementPath, Phase) 文字列だけがキーなので、別の CanvasData に
+                // 切り替えると偶然同じパスの行が「再生中」と誤判定されうる。対象を切り替えたら破棄しておく
+                // (再生自体はプレビューの実体ごと RemovePreview 側で止まるので、ここは辞書のクリアのみでよい)。
+                _phasePreviewHandles.Clear();
+            }
+
             _target = target;
             if (_root == null)
             {
@@ -306,6 +331,8 @@ namespace DDrive.Editor.CanvasTool
                 _catalogChoices.Add(($"[Catalog] {name}", tween));
             }
 
+            _phaseRowWidgets.Clear();
+
             for (var i = 0; i < _target.ElementEffects.Length; i++)
             {
                 var index = i;
@@ -348,6 +375,8 @@ namespace DDrive.Editor.CanvasTool
             System.Func<UiPresetRef> getPreset, System.Action<UiPresetRef> setPreset,
             System.Func<AssetId<UiTweenMarker>> getId, System.Action<AssetId<UiTweenMarker>> setId)
         {
+            var container = new VisualElement();
+
             var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2 } };
             row.Add(new Label(label) { style = { width = 70 } });
 
@@ -450,8 +479,8 @@ namespace DDrive.Editor.CanvasTool
             // ときだけ開ける。プリセット指定だけのときは実体の UiTweenData が無いので押せない。
             // 2026-09-12: 「確認用シーンに配置」の無関係な仮画像でしか試せない、という声を受け、
             // 開いたときにこの行が担当している実要素(elementPath)を自動でプレビュー対象にする。
-            // プレビューがまだ開いていなければ先に開く(閉じているのに ▶ を押しても失敗しないように)。
-            var openButton = new Button(() =>
+            // プレビューがまだ開いていなければ先に開く(閉じているのに押しても失敗しないように)。
+            var editButton = new Button(() =>
             {
                 var tween = currentId.IsValid ? FindUiTweenData(currentId.Value) : null;
                 if (tween == null)
@@ -476,13 +505,165 @@ namespace DDrive.Editor.CanvasTool
                 UiTweenEditorWindow.Open(tween, collectRoot, elementTarget, elementLabel);
             })
             {
-                text = "▶",
-                tooltip = "UI Tween Editor で開く(この要素を自動でプレビュー対象にして Track を編集・確認)",
+                text = "✎ Tween Editor",
+                tooltip = "UI Tween Editor で開く(この要素を自動でプレビュー対象にして Track を編集・確認)。直接指定(UiTweenData)があるときだけ押せる",
             };
-            openButton.SetEnabled(currentId.IsValid);
-            row.Add(openButton);
+            editButton.SetEnabled(currentId.IsValid);
+            row.Add(editButton);
+
+            container.Add(row);
+            container.Add(BuildPhasePlaybackRow(label, elementPath, getPreset, getId));
+
+            return container;
+        }
+
+        // 2026-09-12 ユーザー要望: ElementFx の Appear/Idle/Disappear を UI Tween Editor を開かずに
+        // Canvas Editor 内でそのまま再生・一時停止・停止できるように(プリセット指定でも直接指定でも可)。
+        // 実要素(elementPath)を対象に実 UiTweenManager で再生するので、見た目は本番と同じになる(ADR-4)。
+        private VisualElement BuildPhasePlaybackRow(
+            string phase, string elementPath,
+            System.Func<UiPresetRef> getPreset, System.Func<AssetId<UiTweenMarker>> getId)
+        {
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2 } };
+            row.Add(new Label(string.Empty) { style = { width = 70 } });
+
+            var widgets = new PhaseRowWidgets { ElementPath = elementPath, Phase = phase };
+
+            widgets.PlayButton = new Button(() => PlayPhasePreview(elementPath, phase, getPreset(), getId()))
+            {
+                text = "▶ 再生",
+                tooltip = "この Appear/Idle/Disappear を、確認用シーンの実要素に対して再生する(未表示なら自動で「確認用シーンを開く」)",
+            };
+            row.Add(widgets.PlayButton);
+
+            widgets.PauseButton = new Button(() => TogglePausePhasePreview(elementPath, phase))
+            {
+                text = "⏸ 一時停止",
+                tooltip = "その場で一時停止 / 再開する",
+            };
+            row.Add(widgets.PauseButton);
+
+            widgets.StopButton = new Button(() => StopPhasePreview(elementPath, phase))
+            {
+                text = "■ 停止",
+                tooltip = "途中で止める(最終状態には進めない)",
+            };
+            row.Add(widgets.StopButton);
+
+            widgets.StatusLabel = new Label(string.Empty) { style = { marginLeft = 4, opacity = 0.8f } };
+            row.Add(widgets.StatusLabel);
+
+            _phaseRowWidgets.Add(widgets);
+            UpdatePhaseRowWidgets(widgets);
 
             return row;
+        }
+
+        private void PlayPhasePreview(string elementPath, string phase, UiPresetRef preset, AssetId<UiTweenMarker> id)
+        {
+            if (_target == null || _tweenManager == null)
+            {
+                return;
+            }
+
+            if (_manager != null && !_manager.IsOpen(_previewHandle))
+            {
+                PlacePreview();
+            }
+
+            if (_manager == null || !_manager.IsOpen(_previewHandle))
+            {
+                return;
+            }
+
+            var elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, elementPath);
+            if (elementTarget == null)
+            {
+                _statusLabel.text = $"{phase}: 要素が見つかりません({(string.IsNullOrEmpty(elementPath) ? "(ルート)" : elementPath)})";
+                return;
+            }
+
+            StopPhasePreview(elementPath, phase);
+
+            Handle<UiTweenMarker> handle;
+            if (id.IsValid)
+            {
+                var tween = FindUiTweenData(id.Value);
+                if (tween == null)
+                {
+                    return;
+                }
+
+                handle = _tweenManager.PlayData(tween, elementTarget);
+            }
+            else if (preset.Preset != UiPreset.None)
+            {
+                var count = UiPresetFactory.Build(in preset, elementTarget, _presetPlayScratch);
+                if (count <= 0)
+                {
+                    return;
+                }
+
+                handle = _tweenManager.PlayTracks(_presetPlayScratch, count, elementTarget);
+            }
+            else
+            {
+                return;
+            }
+
+            _phasePreviewHandles[(elementPath, phase)] = handle;
+        }
+
+        private void TogglePausePhasePreview(string elementPath, string phase)
+        {
+            if (_tweenManager == null || !_phasePreviewHandles.TryGetValue((elementPath, phase), out var handle) || !_tweenManager.IsPlaying(handle))
+            {
+                return;
+            }
+
+            _tweenManager.SetPaused(handle, !_tweenManager.IsPaused(handle));
+        }
+
+        private void StopPhasePreview(string elementPath, string phase)
+        {
+            if (_tweenManager != null && _phasePreviewHandles.TryGetValue((elementPath, phase), out var handle))
+            {
+                _tweenManager.Stop(handle);
+            }
+
+            _phasePreviewHandles.Remove((elementPath, phase));
+        }
+
+        // OnEditorUpdate から毎フレーム呼ぶ(AnimEditorWindow の状態ラベル更新と同じ方針)。行数分だけ
+        // 軽い問い合わせ(IsPlaying/IsPaused、いずれも Dictionary 参照)をするだけなので許容範囲。
+        private void RefreshPhaseRowStatuses()
+        {
+            for (var i = 0; i < _phaseRowWidgets.Count; i++)
+            {
+                UpdatePhaseRowWidgets(_phaseRowWidgets[i]);
+            }
+        }
+
+        private void UpdatePhaseRowWidgets(PhaseRowWidgets widgets)
+        {
+            var key = (widgets.ElementPath, widgets.Phase);
+            var handle = Handle<UiTweenMarker>.Invalid;
+            var playing = _tweenManager != null && _phasePreviewHandles.TryGetValue(key, out handle) && _tweenManager.IsPlaying(handle);
+            if (!playing)
+            {
+                _phasePreviewHandles.Remove(key);
+            }
+
+            var paused = playing && _tweenManager.IsPaused(handle);
+            widgets.PauseButton.SetEnabled(playing);
+            widgets.PauseButton.text = paused ? "▶ 再開" : "⏸ 一時停止";
+            widgets.StopButton.SetEnabled(playing);
+
+            var status = !playing ? "■ 停止中" : paused ? "⏸ 一時停止" : "● 再生中";
+            if (widgets.StatusLabel.text != status)
+            {
+                widgets.StatusLabel.text = status;
+            }
         }
 
         private static UiTweenData FindUiTweenData(ulong id)
@@ -872,6 +1053,7 @@ namespace DDrive.Editor.CanvasTool
             }
 
             _previewRoot = null;
+            _phasePreviewHandles.Clear();
 
             if (_statusLabel != null && _target != null)
             {

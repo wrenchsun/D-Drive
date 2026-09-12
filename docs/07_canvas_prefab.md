@@ -204,6 +204,15 @@ public static class Ui
 - **対応**(`NavigationGraphView.cs`): `ClipToBoxEdge` でノードの箱の境界の手前まで線を引っ込め、隙間の中に矢頭がはっきり見えるようにした。`ComputeParallelOffset` で同じ 2 ノードを結ぶ逆向きのエッジを進行方向と垂直に(パスの文字列比較で決めた向きに)ずらし、2 本の平行線として見えるようにした。矢頭のサイズも 9x5 → 13x7 に拡大
 - ヒットテスト(`TryFindWireNear`、Reroute point 追加位置)は従来どおりノード中心同士の直線を使う(見た目の調整のみで判定ロジックは変えない)
 
+### 追記（2026-09-12、ElementFx 行に直接再生(▶/⏸/■)を追加）
+
+- **経緯**: ElementFx(Appear/Idle/Disappear)の見た目を確認するには UI Tween Editor を開く必要があったが(直接指定(UiTweenData)があるときだけ)、プリセット指定のときはそもそも開けず、確認手段が無かった。「Canvas Editor 内で再生・一時停止・停止まで完結したい」という要望を受けた
+- **対応**: `CanvasEditorWindow.BuildPhasePlaybackRow` を追加。各行に「▶ 再生」「⏸ 一時停止/▶ 再開」「■ 停止」を置き、プリセット指定・直接指定(UiTweenData)のどちらでも、確認用シーンの実要素(ElementPath で解決した RectTransform)に対して実 `UiTweenManager` で再生する(ADR-4 のまま。埋め込みで独自の再生経路は作らない)。プレビュー未表示なら自動で開く(`PlacePreview`)。プリセットは `UiPresetFactory.Build` でトラックへ変換してから `UiTweenManager.PlayTracks` に渡す
+- **一時停止 API を追加**: `UiTweenManager` に Handle 単位の `SetPaused`/`IsPaused` を追加(`AnimManager.SetPaused` と同じ設計。既存の `OnPause`(`PauseWithGame` の Data のみ対象)とは独立に効く)
+- Handle は `(ElementPath, Phase)` をキーに `CanvasEditorWindow._phasePreviewHandles` で保持し、`OnEditorUpdate` から毎フレーム状態(再生中/一時停止/停止中)をボタンとラベルに反映する。対象の CanvasData を切り替えたとき、および確認用プレビューを閉じたときにクリアする(パス文字列が別データで偶然一致して誤表示することを避けるため)
+- 直接指定を編集する既存の「▶」ボタンは「✎ Tween Editor」に改名(新しい「▶ 再生」と役割が紛らわしくなるため)。挙動は変えていない
+- EditMode 340/340・PlayMode 488/488 green、`execute_code` でプリセット/直接指定の両経路・一時停止トグル・停止時の Handle 破棄を確認済み
+
 ---
 
 # Part B — 汎用 Prefab
