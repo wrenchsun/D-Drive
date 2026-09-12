@@ -9,6 +9,7 @@ using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
@@ -54,6 +55,9 @@ namespace DDrive.Editor.Anim
         private GameObject _root;
         private AssetEventDispatcher _dispatcher;
         private AnchorGroupPlayer _groups;
+        // ModelData.Slots のマテリアルを確認用シーンでも実適用するための実 MaterialManager(ランタイムの
+        // DDriveRuntimeBootstrap と同じ配線。2026-09-12: 未接続で「ID 保存のみ」になっていた抜けを修正)。
+        private MaterialManager _materials;
         private readonly List<Handle<AnchorGroupMarker>> _groupHandles = new();
         private readonly List<Handle<VfxMarker>> _vfxScratch = new();
         private Handle<ModelMarker> _spawnedModel = Handle<ModelMarker>.Invalid;
@@ -491,7 +495,8 @@ namespace DDrive.Editor.Anim
             }
 
             Audio = new AudioManager(_pool, Registry, template);
-            Models = new ModelsManager(_pool, Registry, Manager);
+            _materials = new MaterialManager(Registry);
+            Models = new ModelsManager(_pool, Registry, Manager, _materials);
 
             _groups = new AnchorGroupPlayer(Registry, Vfx.Manager, Audio);
             _dispatcher?.Dispose();
@@ -624,6 +629,8 @@ namespace DDrive.Editor.Anim
             _groupHandles.Clear();
             Audio = null;
             Models = null;
+            _materials?.Clear(); // 共有 Material(生成物)を破棄。Renderer 側は _root ごと消える
+            _materials = null;
             _pool = null;
             if (_root != null)
             {

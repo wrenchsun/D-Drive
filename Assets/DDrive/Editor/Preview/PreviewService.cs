@@ -4,6 +4,7 @@ using DDrive.Foundation.Handle;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Vfx;
 using UnityEditor;
@@ -43,6 +44,7 @@ namespace DDrive.Editor.Preview
         public BgmManager BgmManager { get; private set; }
         public VfxManager VfxManager { get; private set; }
         public ModelsManager ModelsManager { get; private set; }
+        public MaterialManager MaterialManager { get; private set; }
 
         // [05] B-3/B-4 — AnimEditor(3-3)用。イベント(Frame/Time → SE/VFX)は AssetEventDispatcher が同じプレビュー内で実行する。
         public DDrive.Runtime.Anim.AnimManager AnimManager { get; private set; }
@@ -103,7 +105,8 @@ namespace DDrive.Editor.Preview
 
             VfxManager = new VfxManager(_pool, registry);
             AnimManager = new DDrive.Runtime.Anim.AnimManager(registry);
-            ModelsManager = new ModelsManager(_pool, registry, AnimManager);
+            MaterialManager = new MaterialManager(registry); // Slots のマテリアル実適用(2026-09-12 に接続)
+            ModelsManager = new ModelsManager(_pool, registry, AnimManager, MaterialManager);
             _eventDispatcher = new DDrive.Runtime.Presentation.AssetEventDispatcher(AnimManager.Events, registry, AudioManager, VfxManager, AnimManager.GetContextTransform);
             _eventDispatcher.OnVfxSpawned += TrackVfx;
             _eventDispatcher.OnSePlayed += h => _activeSeHandles.Add(h);
@@ -360,6 +363,8 @@ namespace DDrive.Editor.Preview
             StopAllVfx();
             StopAllAnim();
             StopAllModels();
+            MaterialManager?.Clear();
+            MaterialManager = null;
             _eventDispatcher?.Dispose();
             _eventDispatcher = null;
             _activeVfx.Clear();

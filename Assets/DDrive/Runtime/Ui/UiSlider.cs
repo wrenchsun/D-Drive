@@ -803,7 +803,16 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        public void OnMove(AxisEventData eventData) => Move(eventData.moveDir);
+        // パッドの 4 方向はすべて値の操作(Right/Up = 増、Left/Down = 減。SignFor)として消費し、端に到達 + EscapeOnLimit の
+        // ときだけフォーカスを隣へ抜ける([18] A-3)。2026-09-12: 以前は Move の戻り値を捨てていたため EscapeOnLimit が
+        // 実行時に効いていなかった。「Direction と直交する方向は値を変えずにフォーカス移動」は未対応(既存の SignFor 仕様を維持)。
+        public override void OnMove(AxisEventData eventData)
+        {
+            if (eventData != null && Move(eventData.moveDir))
+            {
+                base.OnMove(eventData);
+            }
+        }
 
         private float ComputePointerFraction(PointerEventData eventData)
         {

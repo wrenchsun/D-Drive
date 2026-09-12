@@ -123,7 +123,7 @@
 <li><strong>モーダル</strong>: <code>Ui.Popup</code> で開いた ModalBlocksInput=ON の画面より下にある画面は、すべて操作できなくなります</li>
 <li><strong>入力ゲート</strong>: 要素の Appear が全部終わるまで、その画面は入力を受け付けません(モーダルとは無関係)。AppearDelay を大きくしすぎると、その分だけ操作できない時間が延びます</li>
 <li><strong>Close の完了</strong>: CloseTransition が終わり、<strong>かつ</strong>全要素の Disappear が終わったとき。Disappear にループ演出を入れると閉じ終わりません</li>
-<li><strong>フォーカス移動</strong>: 十字キー / スティックで自動的にフォーカスが移るのは <strong>uGUI の Selectable(Button / Slider / Toggle など)どうしだけ</strong>です。UiButton 間の移動はゲームコードから呼ぶ必要があります。コード無しで確かめたいときは Canvas Editor の「パッド操作シミュレーション」を使ってください</li>
+<li><strong>フォーカス移動</strong>: 十字キー / スティックで、uGUI の Button も D-Drive の UiButton / UiSlider も同じようにフォーカスが移ります。順番は Navigation の明示リンクが優先、無ければ開いている画面の中でその方向に一番近い要素へ。スライダーは十字キーが値の操作になり(右・上で増、左・下で減)、端まで行ったときだけ隣へ抜けます(<code>EscapeOnLimit</code> ON のとき)</li>
 </ul>
 
 <h2>よくある使い方</h2>
@@ -176,7 +176,7 @@
 <li><strong>Idle にレイヤー既定はありません</strong>。単発プリセットを Idle に入れると警告になります</li>
 <li>Disappear に無限ループの演出を入れると画面が閉じ終わりません</li>
 <li>Option の BgmVolume / SeVolume / VoiceVolume / ShakeScale / HapticScale は値を保存するだけで、まだ効きません(コンソールに 1 回「Audio バス別音量 … は Phase 5 で実装予定のため、値は保持のみです」と出ますが仕様です)</li>
-<li>UiButton 間の十字キー移動はコード無しでは動きません(uGUI Selectable どうしのみ自動)</li>
+<li>十字キーのフォーカス移動には、シーンに EventSystem(InputSystemUIInputModule 付き)が必要です</li>
 </ul>
 
 <h2>関連ページ</h2>

@@ -284,7 +284,7 @@ namespace DDrive.Editor.Model
             field.Bind(_serializedTarget);
             _slotsContainer.Add(field);
 
-            _applySlotsButton = new Button(ApplySlotsToPreview) { text = "配置中のモデルに反映(現状 ID 保存のみ。実適用は Phase 3-5)" };
+            _applySlotsButton = new Button(ApplySlotsToPreview) { text = "配置中のモデルに反映", tooltip = "Slots の Material ID を、配置中のモデルの Renderer に実 MaterialManager 経由で適用する(Spawn 時と同じ経路)" };
             _applySlotsButton.SetEnabled(_scene != null && _scene.OwnsCurrent);
             _slotsContainer.Add(_applySlotsButton);
         }

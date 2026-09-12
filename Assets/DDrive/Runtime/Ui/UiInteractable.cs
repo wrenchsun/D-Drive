@@ -13,7 +13,7 @@ namespace DDrive.Runtime.Ui
     // 素の C# event(Action)で表現する(WaitXxxAsync だけ UniTask を使う)。
     public abstract class UiInteractable : MonoBehaviour,
         IPointerDownHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler,
-        ISelectHandler, IDeselectHandler, IUiNavigable
+        ISelectHandler, IDeselectHandler, IMoveHandler, IUiNavigable
     {
         // 同フレーム内での多重発火防止(全 UiInteractable 横断の静的ガード)。Time.frameCount 基準なので
         // 実行時は 1 フレーム内、PlayMode の同期テストでは「その [Test] メソッドの実行中ずっと」が
@@ -84,6 +84,35 @@ namespace DDrive.Runtime.Ui
         public Transform Transform => transform;
         public bool CanFocus => Interactable && !_locked;
         public void SetFocused(bool focused) => SetFocusedState(focused);
+
+        // [07_canvas_prefab.md] NavNode / [18_ui_controls.md] A-1 — EventSystem の Navigate(十字キー / スティック)。
+        // Selectable でない UiInteractable は Unity の自動ナビゲーションの対象外なので、ここで UiManager.MoveFocus に
+        // 回す(NavNode の明示リンク → 開いている Canvas 内で方向の最寄り、の順。2026-09-12。以前はゲームコードが
+        // MoveFocus を呼ばない限り UiButton 間をパッドで移動できなかった)。Disabled / Locked でもフォーカスは抜けられる。
+        public virtual void OnMove(AxisEventData eventData)
+        {
+            if (eventData == null)
+            {
+                return;
+            }
+
+            if (Ui.MoveFocus(ToVector(eventData.moveDir)))
+            {
+                eventData.Use();
+            }
+        }
+
+        protected static Vector2 ToVector(MoveDirection dir)
+        {
+            switch (dir)
+            {
+                case MoveDirection.Up: return Vector2.up;
+                case MoveDirection.Down: return Vector2.down;
+                case MoveDirection.Left: return Vector2.left;
+                case MoveDirection.Right: return Vector2.right;
+                default: return Vector2.zero;
+            }
+        }
 
         protected ControlSkinData ResolvedSkin
         {

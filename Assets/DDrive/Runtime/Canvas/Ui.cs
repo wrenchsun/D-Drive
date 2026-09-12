@@ -40,6 +40,10 @@ namespace DDrive.Runtime.Ui
 
         public static void SetLayerVisible(UiLayer layer, bool visible) => _instance?.SetLayerVisible(layer, visible);
 
+        // 十字キー / スティックのフォーカス移動(NavNode の明示リンク → 開いている Canvas 内で方向の最寄り)。
+        // UiInteractable.OnMove が EventSystem の Navigate から呼ぶほか、ゲームコードから直接呼んでもよい。
+        public static bool MoveFocus(Vector2 dir) => _instance?.MoveFocus(dir) ?? false;
+
         public static GameObject GetGameObject(Handle<CanvasMarker> h) => _instance?.GetGameObject(h);
 
         public static bool IsOpen(Handle<CanvasMarker> h) => _instance?.IsOpen(h) ?? false;

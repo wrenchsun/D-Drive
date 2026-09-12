@@ -73,8 +73,8 @@
 <tr><td>決定</td><td>フォーカス中の UiButton を押します(配線した OpenCanvas などが実際に動きます)。UiButton が無ければ uGUI のボタンに決定を送ります</td></tr>
 <tr><td>フォーカス: …</td><td>現在フォーカスしている要素のパス。まだ動かしていないときは「フォーカス: (未確認)」</td></tr>
 </table>
-<div class="warn">
-実機で十字キー / スティックのフォーカス移動が自動で動くのは <strong>uGUI の Selectable どうしだけ</strong>です。UiButton 間の移動はゲームコードが呼ぶ必要があります。<strong>コード無しで配線を確かめるなら、このシミュレーションを使ってください</strong>。
+<div class="tip">
+実機(Play)でも、EventSystem がシーンにあれば十字キー / スティックで同じ順にフォーカスが移ります(uGUI の Button も D-Drive の UiButton / UiSlider も同じ扱い。リンクが無い方向は、開いている画面の中でその方向に一番近い要素へ移ります)。スライダーは十字キーを値の操作に使い(右・上で増、左・下で減)、端まで行ったときだけ隣へ抜けます(<code>EscapeOnLimit</code> が ON のとき)。
 </div>
 
 <h2>Navigation グラフの操作</h2>
@@ -112,7 +112,7 @@
 <h2>注意点</h2>
 <ul>
 <li><strong>「Selectable を自動収集」は uGUI の Selectable だけ</strong>を拾います。UiButton / UiSlider はグラフにはノードとして出るので、リンクを張るか Inspector の Navigation に行を足してください</li>
-<li><strong>実機で十字キー / スティックのフォーカス移動が自動で動くのは uGUI Selectable どうしだけ</strong>です。UiButton 間の移動はゲームコードが呼ぶ必要があります。コード無しで確かめるなら「パッド操作シミュレーション」で</li>
+<li>実機の十字キー / スティックは、シーンに EventSystem(InputSystemUIInputModule 付き)があるときだけ動きます。無い場合は「パッド操作シミュレーション」で配線を確かめてください</li>
 <li><strong>「未配線を自動リンク」はリンクを張りません</strong>(一覧するだけ)</li>
 <li>「パッド操作シミュレーション」は「確認用シーンで開く」中だけ。「決定」で押せるのは UiButton(無ければ uGUI のボタン)</li>
 <li>Navigation グラフは配線の図であって、UI の見た目のプレビューではありません。見た目は「確認用シーンで開く」で</li>

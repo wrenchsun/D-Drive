@@ -732,11 +732,34 @@ namespace DDrive.Runtime.Ui
 
             if (target == null)
             {
-                return false;
+                // 明示リンクが無い(NavNode 未設定 / その方向が空)ときは、開いている Canvas の中から方向の最寄りを探す
+                // (uGUI Selectable の自動ナビゲーション相当。UiInteractable.OnMove から呼ばれる実行時経路。2026-09-12)。
+                return MoveFocusBySearch(t, dir);
             }
 
             EventSystem.current.SetSelectedGameObject(target.gameObject);
             return true;
+        }
+
+        private bool MoveFocusBySearch(Transform current, Vector2 dir)
+        {
+            for (var i = _stack.Count - 1; i >= 0; i--)
+            {
+                if (!_instances.TryGet(_stack[i], out var instance) || instance.Root == null || instance.Closing)
+                {
+                    continue;
+                }
+
+                var root = instance.Root.transform;
+                if (!current.IsChildOf(root))
+                {
+                    continue;
+                }
+
+                return MoveFocusFrom(_stack[i], GetRelativePath(root, current), dir, out _);
+            }
+
+            return false;
         }
 
         private static Transform ResolveDirection(UiNavigation nav, Vector2 dir)

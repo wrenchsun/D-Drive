@@ -173,7 +173,7 @@ public class SliderSkinData : ControlSkinData      // Skin 基底は ButtonSkinD
 | 微調整修飾 | 修飾入力中は移動量 × `FineStepMultiplier` |
 | タッチ | ハンドル外を押しても掴めるヒット領域拡張（`ExtraHitPadding`） |
 
-- フォーカス移動（上下キー）は [07] の `NavNode` に従う。**左右キーはスライダー操作に消費される**ため、`NavNode.Left/Right` へは端到達時のみ抜ける（`EscapeOnLimit` フラグで切替）
+- フォーカス移動（上下キー）は [07] の `NavNode` に従う。**左右キーはスライダー操作に消費される**ため、`NavNode.Left/Right` へは端到達時のみ抜ける（`EscapeOnLimit` フラグで切替）。実装は `UiSlider.OnMove`(2026-09-12 に `UiInteractable.OnMove` の override として整理。[15] 実装メモ参照)
 - `Locked` 状態でのドラッグは `DeniedSe` を鳴らして無視（理由ツールチップは UiButton と同じ機構）
 
 ## B-4. CanvasData 配線（[07] §A-2 の `SliderWire`）
