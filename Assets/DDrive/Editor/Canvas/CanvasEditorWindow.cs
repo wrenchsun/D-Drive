@@ -317,6 +317,7 @@ namespace DDrive.Editor.CanvasTool
 
                 box.Add(BuildPhaseRow(
                     "Appear",
+                    fx.ElementPath,
                     () => _target.ElementEffects[index].AppearPreset,
                     v => { var e = _target.ElementEffects[index]; e.AppearPreset = v; _target.ElementEffects[index] = e; },
                     () => _target.ElementEffects[index].Appear,
@@ -324,6 +325,7 @@ namespace DDrive.Editor.CanvasTool
 
                 box.Add(BuildPhaseRow(
                     "Idle",
+                    fx.ElementPath,
                     () => _target.ElementEffects[index].IdlePreset,
                     v => { var e = _target.ElementEffects[index]; e.IdlePreset = v; _target.ElementEffects[index] = e; },
                     () => _target.ElementEffects[index].Idle,
@@ -331,6 +333,7 @@ namespace DDrive.Editor.CanvasTool
 
                 box.Add(BuildPhaseRow(
                     "Disappear",
+                    fx.ElementPath,
                     () => _target.ElementEffects[index].DisappearPreset,
                     v => { var e = _target.ElementEffects[index]; e.DisappearPreset = v; _target.ElementEffects[index] = e; },
                     () => _target.ElementEffects[index].Disappear,
@@ -343,7 +346,7 @@ namespace DDrive.Editor.CanvasTool
         }
 
         private VisualElement BuildPhaseRow(
-            string label,
+            string label, string elementPath,
             System.Func<UiPresetRef> getPreset, System.Action<UiPresetRef> setPreset,
             System.Func<AssetId<UiTweenMarker>> getId, System.Action<AssetId<UiTweenMarker>> setId)
         {
@@ -447,17 +450,36 @@ namespace DDrive.Editor.CanvasTool
             // 4-10 レビュー対応(2026-09-12): Track の細かい編集(カーブ一覧・スプライン・Validation)は
             // UI Tween Editor 側の設備をそのまま使う(埋め込みで二重管理しない方針)。直接指定(Id)がある
             // ときだけ開ける。プリセット指定だけのときは実体の UiTweenData が無いので押せない。
+            // 2026-09-12: 「確認用シーンに配置」の無関係な仮画像でしか試せない、という声を受け、
+            // 開いたときにこの行が担当している実要素(elementPath)を自動でプレビュー対象にする。
+            // プレビューがまだ開いていなければ先に開く(閉じているのに ▶ を押しても失敗しないように)。
             var openButton = new Button(() =>
             {
                 var tween = currentId.IsValid ? FindUiTweenData(currentId.Value) : null;
-                if (tween != null)
+                if (tween == null)
                 {
-                    UiTweenEditorWindow.Open(tween);
+                    return;
                 }
+
+                if (_manager != null && !_manager.IsOpen(_previewHandle))
+                {
+                    PlacePreview();
+                }
+
+                GameObject collectRoot = null;
+                RectTransform elementTarget = null;
+                if (_manager != null && _manager.IsOpen(_previewHandle))
+                {
+                    collectRoot = _manager.GetGameObject(_previewHandle);
+                    elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, elementPath);
+                }
+
+                var elementLabel = string.IsNullOrEmpty(elementPath) ? "(ルート)" : elementPath;
+                UiTweenEditorWindow.Open(tween, collectRoot, elementTarget, elementLabel);
             })
             {
                 text = "▶",
-                tooltip = "UI Tween Editor で開く(Track を編集・確認)",
+                tooltip = "UI Tween Editor で開く(この要素を自動でプレビュー対象にして Track を編集・確認)",
             };
             openButton.SetEnabled(currentId.IsValid);
             row.Add(openButton);

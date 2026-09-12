@@ -14,20 +14,23 @@ using Button = UnityEngine.UIElements.Button;
 namespace DDrive.Editor.Ui
 {
     // [15_ui_interaction.md] B-6 — UiTweenData 専用エディタ(4-8 の最小実装 → 4-10 でカーブ一覧 +
-    // スプライン制御点のハンドル編集を追加)。プロジェクト方針(2026-09-10)により
-    // ウィンドウ内には「動く」ものは描画しない。カーブのグラフ表示・SceneView ハンドルは
-    // 「静的な編集 UI」であり禁止対象ではない(動く Tween プレビュー自体は
-    // 「確認用シーンに配置」が DontSave の Canvas+Image を出し、「▶ 再生」が実 UiTweenManager を
-    // EditorApplication.update から駆動して見せる。ADR-4)。
+    // スプライン制御点のハンドル編集、2026-09-12 でプレビュー対象の選択を追加)。プロジェクト方針
+    // (2026-09-10)によりウィンドウ内には「動く」ものは描画しない。カーブのグラフ表示・SceneView
+    // ハンドルは「静的な編集 UI」であり禁止対象ではない(動く Tween プレビュー自体は、「収集元」から
+    // 実要素を選ぶか「確認用シーンに配置」が出す DontSave の仮画像を対象にして、「▶ 再生」が実
+    // UiTweenManager を EditorApplication.update から駆動して見せる。ADR-4)。
     [DDrive.Editor.Inspector.DataEditor(typeof(UiTweenData), "UI Tween Editor で開く")]
     public sealed class UiTweenEditorWindow : EditorWindow
     {
         private const string PreviewRootName = "[D-Drive] Ui Preview";
         private const int SplinePreviewSamples = 32;
+        private const string NoElementChoice = "(なし)";
+        private const string RootElementLabel = "(ルート)";
 
         [SerializeField] private UiTweenData _target;
         [SerializeField] private string _presetSelection;
         [SerializeField] private int _selectedTrackIndex;
+        [SerializeField] private string _selectedElementLabel = NoElementChoice;
 
         private ObjectField _targetField;
         private VisualElement _inspectorContainer;
@@ -38,11 +41,22 @@ namespace DDrive.Editor.Ui
         private Label _statusLabel;
         private Label _sceneOwnerLabel;
         private DropdownField _presetDropdown;
+        private ObjectField _collectRootField;
+        private DropdownField _elementDropdown;
 
         private readonly List<(string label, UiTweenData tween)> _catalogChoices = new();
+        // 「要素を自動収集」で集めた候補(2026-09-12)。CanvasEditor 等の「収集元」の子 RectTransform 一覧。
+        // 実際に動かしたい要素(ボタンやパネル)を直接プレビュー対象にできるようにする(「確認用シーンに配置」の
+        // 無関係な仮画像しか選べない、という声への対応)。
+        private readonly List<(string label, RectTransform rt)> _elementChoices = new();
+
+        [SerializeField] private GameObject _collectRoot;
+        // PlaceInScene() が自分で作ったプレースホルダだけを覚えておく。「撤去」は所有物だけを消す
+        // (収集/自動割り当てで得た「よそのオブジェクト」は触らない)。
+        private GameObject _ownedPlaceholderRoot;
 
         private UiTweenManager _previewManager;
-        private RectTransform _previewTarget;
+        [SerializeField] private RectTransform _previewTarget;
         private DDrive.Foundation.Handle.Handle<UiTweenMarker> _previewHandle;
         private double _lastEditorTime;
 
@@ -56,6 +70,38 @@ namespace DDrive.Editor.Ui
             if (target != null)
             {
                 window.SetTarget(target);
+            }
+        }
+
+        // Canvas Editor 等、確認したい実要素が既に分かっている呼び出し元向け(2026-09-12)。
+        // collectRoot(実 Prefab インスタンスのルート)を渡すと「要素を自動収集」を自動実行し、
+        // assignedElement があればそれを最初からプレビュー対象として選択状態にする。
+        public static void Open(UiTweenData target, GameObject collectRoot, RectTransform assignedElement, string assignedElementLabel)
+        {
+            var window = GetWindow<UiTweenEditorWindow>("UI Tween Editor");
+            window.minSize = new Vector2(380, 360);
+            if (target != null)
+            {
+                window.SetTarget(target);
+            }
+
+            if (collectRoot != null)
+            {
+                window._collectRoot = collectRoot;
+                window._collectRootField?.SetValueWithoutNotify(collectRoot);
+                window.CollectElements();
+            }
+
+            if (assignedElement != null)
+            {
+                var label = string.IsNullOrEmpty(assignedElementLabel) ? RootElementLabel : assignedElementLabel;
+                window._previewTarget = assignedElement;
+                window._selectedElementLabel = label;
+                window._elementDropdown?.SetValueWithoutNotify(label);
+                if (window._statusLabel != null)
+                {
+                    window._statusLabel.text = $"プレビュー対象: {label}(Canvas Editor から自動割り当て)";
+                }
             }
         }
 
@@ -94,6 +140,28 @@ namespace DDrive.Editor.Ui
             _targetField = new ObjectField("対象 UiTweenData") { objectType = typeof(UiTweenData) };
             _targetField.RegisterValueChangedCallback(evt => SetTarget(evt.newValue as UiTweenData));
             scrollView.Add(_targetField);
+
+            // プレビュー対象(2026-09-12): 「確認用シーンに配置」の仮画像ではなく、実際に動かしたい
+            // 要素(ボタンやパネル)で確認したいという要望への対応。収集元(シーン上のオブジェクト)の
+            // 子を「要素を自動収集」で一覧化し、そこから選ぶ。Canvas Editor の「▶」から開いた場合は
+            // 収集元・要素とも自動で入る(Open(target, collectRoot, assignedElement, label))。
+            scrollView.Add(new Label("プレビュー対象") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            scrollView.Add(new HelpBox(
+                "実際の要素で確認したいときは「収集元」にシーン上のオブジェクトを指定して「要素を自動収集」→「要素」で選びます" +
+                "(Canvas Editor の「▶」から開いた場合は自動で入ります)。適当な仮物でよければ下の「確認用シーンに配置」を使ってください。",
+                HelpBoxMessageType.Info));
+
+            var collectRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, alignItems = Align.Center } };
+            _collectRootField = new ObjectField("収集元") { objectType = typeof(GameObject), allowSceneObjects = true, style = { flexGrow = 1f } };
+            _collectRootField.RegisterValueChangedCallback(evt => _collectRoot = evt.newValue as GameObject);
+            collectRow.Add(_collectRootField);
+            collectRow.Add(new Button(CollectElements) { text = "要素を自動収集" });
+            scrollView.Add(collectRow);
+
+            _elementDropdown = new DropdownField("要素", new List<string> { NoElementChoice }, 0) { style = { flexGrow = 1f } };
+            _elementDropdown.SetValueWithoutNotify(_selectedElementLabel);
+            _elementDropdown.RegisterValueChangedCallback(evt => SelectElement(evt.newValue));
+            scrollView.Add(_elementDropdown);
 
             var presetRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6, alignItems = Align.Center } };
             _presetDropdown = new DropdownField("プリセット / カタログ", new List<string> { string.Empty }, 0) { style = { flexGrow = 1f } };
@@ -144,6 +212,13 @@ namespace DDrive.Editor.Ui
                 RebuildAll();
             }
 
+            // ドメインリロード等でウィンドウが生き残った場合、収集元(SerializeField)から要素一覧を
+            // 作り直す(_previewTarget 自体は SerializeField だが、参照先が張り替わっている可能性もあるため)。
+            if (_collectRoot != null)
+            {
+                _collectRootField.SetValueWithoutNotify(_collectRoot);
+                CollectElements();
+            }
         }
 
         private void OnDestroy()
@@ -370,7 +445,7 @@ namespace DDrive.Editor.Ui
             row.Add(new Button(RemoveLastSplinePoint) { text = "−最後の点を削除" });
             _splineToolsContainer.Add(row);
             _splineToolsContainer.Add(new HelpBox(
-                "このウィンドウがフォーカスされている間、SceneView 上のハンドルで制御点をドラッグ編集できます(「確認用シーンに配置」した対象のローカル座標系)。",
+                "このウィンドウがフォーカスされている間、SceneView 上のハンドルで制御点をドラッグ編集できます(プレビュー対象のローカル座標系)。",
                 HelpBoxMessageType.Info));
         }
 
@@ -428,8 +503,8 @@ namespace DDrive.Editor.Ui
             SceneView.RepaintAll();
         }
 
-        // SceneView 上の制御点ハンドル。対象は「確認用シーンに配置」した _previewTarget のローカル座標系
-        // (world = _previewTarget.TransformPoint(local))。複数の D-Drive エディタが同時に開ける前提のため、
+        // SceneView 上の制御点ハンドル。対象はプレビュー対象(_previewTarget。仮画像 or 収集した実要素)の
+        // ローカル座標系(world = _previewTarget.TransformPoint(local))。複数の D-Drive エディタが同時に開ける前提のため、
         // SceneGuiOwner が最後にフォーカスしたウィンドウだけに描画権を渡す([04]§5 と同じ調停)。
         private void OnSceneGui(SceneView sceneView)
         {
@@ -691,7 +766,97 @@ namespace DDrive.Editor.Ui
             return rt;
         }
 
+        // ── プレビュー対象の選択(2026-09-12) ──
+        // 「収集元」の子 RectTransform を一覧化し、そこから実際にプレビューしたい要素を選べるようにする。
+        // Canvas Editor の「▶」から開いたときは Open(target, collectRoot, assignedElement, label) が
+        // これを自動実行する。手動でも、シーン上の好きなオブジェクトを「収集元」に入れて使える。
+
+        private void CollectElements()
+        {
+            if (_elementDropdown == null)
+            {
+                return;
+            }
+
+            _elementChoices.Clear();
+            var choices = new List<string> { NoElementChoice };
+
+            if (_collectRoot != null)
+            {
+                if (_collectRoot.transform is RectTransform rootRect)
+                {
+                    _elementChoices.Add((RootElementLabel, rootRect));
+                    choices.Add(RootElementLabel);
+                }
+
+                foreach (var rect in _collectRoot.GetComponentsInChildren<RectTransform>(true))
+                {
+                    if (rect.gameObject == _collectRoot)
+                    {
+                        continue;
+                    }
+
+                    var path = GetRelativePath(_collectRoot.transform, rect.transform);
+                    _elementChoices.Add((path, rect));
+                    choices.Add(path);
+                }
+            }
+
+            _elementDropdown.choices = choices;
+            var keep = choices.Contains(_selectedElementLabel) ? _selectedElementLabel : NoElementChoice;
+            _elementDropdown.SetValueWithoutNotify(keep);
+            ApplyElementSelection(keep);
+
+            if (_statusLabel != null)
+            {
+                _statusLabel.text = _collectRoot == null
+                    ? "収集元(シーン上のオブジェクト)を指定してください"
+                    : $"要素を {_elementChoices.Count} 件収集しました";
+            }
+        }
+
+        // ドロップダウンの値変更(ユーザー操作)経由。ステータス表示も更新する。
+        private void SelectElement(string label)
+        {
+            ApplyElementSelection(label);
+            if (label != NoElementChoice && _statusLabel != null)
+            {
+                _statusLabel.text = $"プレビュー対象: {label}";
+            }
+        }
+
+        // CollectElements からの再適用(初期化・再収集時)とドロップダウン操作の共通処理。
+        private void ApplyElementSelection(string label)
+        {
+            _selectedElementLabel = label;
+            if (label == NoElementChoice)
+            {
+                return;
+            }
+
+            var match = _elementChoices.Find(c => c.label == label);
+            if (match.rt != null)
+            {
+                _previewTarget = match.rt;
+            }
+        }
+
+        private static string GetRelativePath(Transform root, Transform target)
+        {
+            var names = new List<string>();
+            var cur = target;
+            while (cur != null && cur != root)
+            {
+                names.Add(cur.name);
+                cur = cur.parent;
+            }
+
+            names.Reverse();
+            return string.Join("/", names);
+        }
+
         // ── 確認用シーンプレビュー(4-8。ADR-4: 実 UiTweenManager を EditorApplication.update から駆動) ──
+        // 「収集元」から実要素を選ばず手早く確認したいときの、無関係な仮画像 1 枚(旧来の挙動)。
 
         private void PlaceInScene()
         {
@@ -702,11 +867,16 @@ namespace DDrive.Editor.Ui
                 hideFlags = HideFlags.DontSave,
             };
             canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            _ownedPlaceholderRoot = canvasGo;
 
             var imageGo = new GameObject("PreviewImage", typeof(RectTransform), typeof(UnityEngine.UI.Image));
             imageGo.transform.SetParent(canvasGo.transform, false);
             _previewTarget = (RectTransform)imageGo.transform;
             _previewTarget.sizeDelta = new Vector2(200f, 80f);
+
+            // 仮画像は「要素を自動収集」の候補ではないので、選択表示を明示的に外しておく。
+            _selectedElementLabel = NoElementChoice;
+            _elementDropdown?.SetValueWithoutNotify(NoElementChoice);
 
             Selection.activeGameObject = imageGo;
             _statusLabel.text = "確認用シーンに配置しました";
@@ -715,13 +885,19 @@ namespace DDrive.Editor.Ui
         private void RemoveFromScene()
         {
             Stop();
-            var existing = GameObject.Find(PreviewRootName);
-            if (existing != null)
+            if (_ownedPlaceholderRoot != null)
             {
-                Object.DestroyImmediate(existing);
+                Object.DestroyImmediate(_ownedPlaceholderRoot);
+                _ownedPlaceholderRoot = null;
             }
 
-            _previewTarget = null;
+            // 自分で置いたプレースホルダを指していた場合は Destroy で自動的に(Unity の)null になる。
+            // 収集/自動割り当てで得た「よそのオブジェクト」は撤去の対象外(所有していないため触らない)。
+            if (_previewTarget == null)
+            {
+                _selectedElementLabel = NoElementChoice;
+                _elementDropdown?.SetValueWithoutNotify(NoElementChoice);
+            }
         }
 
         // ADR-4: プレビューは実 Manager(UiTweenManager)を EditorApplication.update から駆動する。
@@ -730,7 +906,7 @@ namespace DDrive.Editor.Ui
         {
             if (_target == null || _previewTarget == null)
             {
-                _statusLabel.text = "先に「確認用シーンに配置」してください";
+                _statusLabel.text = "プレビュー対象がありません(上で要素を選ぶか、「確認用シーンに配置」してください)";
                 return;
             }
 
