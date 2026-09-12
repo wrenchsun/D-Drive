@@ -211,6 +211,17 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
+            if (!Application.isPlaying)
+            {
+                // Codex レビュー対応(2026-09-12): この UiManager インスタンス(Editor プレビュー用。
+                // CanvasEditorWindow 等が生成)がドメインリロード等で丸ごと破棄されると、_root への
+                // 唯一の参照を失う。HideFlags.DontSave な旧ルートはそれでも破棄されず、しかし
+                // どのシーンにも属さない「孤児」になって二度と見つからず・消せず、レンダリングだけ
+                // 残り続ける(名前だけ見ても Hierarchy に出ないため気づきにくい)。新しく作る前に、
+                // 同名の孤児(シーンに属していないもの)を掃除しておく。
+                DestroyOrphanedRoots();
+            }
+
             _root = new GameObject(RootName);
             if (Application.isPlaying)
             {
@@ -228,6 +239,14 @@ namespace DDrive.Runtime.Ui
                 var go = new GameObject(layer.ToString(), typeof(RectTransform));
                 go.transform.SetParent(_root.transform, false);
 
+                // Codex レビュー対応(2026-09-12): HideFlags は子には引き継がれない。親の _root だけに
+                // DontSave を付けていたため、このプレビューが開いたままシーンを保存すると、この 5 枚が
+                // 親無し(シーン直下)のオブジェクトとして保存されてしまう欠陥があった。
+                if (!Application.isPlaying)
+                {
+                    go.hideFlags = HideFlags.DontSave;
+                }
+
                 var canvas = go.AddComponent<Canvas>();
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
                 canvas.sortingOrder = (int)layer * 100;
@@ -241,6 +260,25 @@ namespace DDrive.Runtime.Ui
             {
                 _eventSystemWarned = true;
                 Debug.LogWarning("[DDrive] UiManager: シーンに EventSystem がありません。UI の入力(選択/ナビゲーション)が動作しません。");
+            }
+        }
+
+        // Edit Mode 専用: 過去の(参照を失った)UiManager インスタンスが遺した、どのシーンにも属さない
+        // "[D-Drive] UI Root" を掃除する。生きたシーンに属しているもの(=まだどこかで使われている可能性が
+        // ある)には触れない。
+        private static void DestroyOrphanedRoots()
+        {
+            // 孤児は「どのシーンにも属さない」のが特徴で、Object.FindObjectsByType はロード済みシーンの
+            // 中しか見ないため見つけられない。Resources.FindObjectsOfTypeAll だけがシーン外のオブジェクトも
+            // 返す(重いが EnsureRoot は 1 回しか呼ばれないため許容する)。
+            foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>())
+            {
+                if (go.name != RootName || go.transform.parent != null || go.scene.IsValid())
+                {
+                    continue;
+                }
+
+                UnityEngine.Object.DestroyImmediate(go);
             }
         }
 
