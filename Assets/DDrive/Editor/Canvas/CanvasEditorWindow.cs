@@ -23,8 +23,11 @@ namespace DDrive.Editor.CanvasTool
     // ルートに置いて SceneView / Game View で確認する(ADR-4: Editor 専用の再生経路を作らない。
     // PrefabEditorWindow / MaterialEditorWindow と同じ設計。owner instruction 2026-09-10: EditorWindow 内部には描画しない)。
     // ノードグラフ(NavigationGraphView)は静的な編集用ダイアグラムであり実 UI を描画するものではないため許容する。
-    // ゲームパッド入力シミュレーション(4-3)は「確認用シーンで開く」で実際に開いた UiManager インスタンスに対して
+    // ゲームパッド入力シミュレーション(4-3)は「ここに配置」で実際に開いた UiManager インスタンスに対して
     // MoveFocus/MoveFocusFrom を叩くだけで、ウィンドウ内で UI を再現描画することはしない(owner instruction 2026-09-10)。
+    // 2026-09-12: 「確認用シーンを開く」(CanvasPreviewSceneSetup、専用の空シーンに切り替え)を追加。
+    // 「ここに配置」(旧「確認用シーンで開く」)は今開いているシーンに置くだけなので、ユーザー自身の Canvas 等と
+    // 重ならずに確認したい場合は先にこちらでシーンを切り替えてから「ここに配置」を押す運用にする。
     [DDrive.Editor.Inspector.DataEditor(typeof(CanvasData), "Canvas Editor で開く")]
     public sealed class CanvasEditorWindow : EditorWindow
     {
@@ -190,7 +193,12 @@ namespace DDrive.Editor.CanvasTool
             _elementFxFoldout.Add(_elementFxContainer);
 
             var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
-            previewButtons.Add(new Button(PlacePreview) { text = "確認用シーンで開く", tooltip = "開いているシーン(またはプレハブステージ)に実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。表示中にもう一度押すと閉じて開き直す(Appear / Idle をやり直す)" });
+            // 2026-09-12: 「確認用シーンを開く」(専用の空シーンに切り替え)と「ここに配置」(いま開いている
+            // シーンに置くだけ)を分離。以前は 1 個のボタン「確認用シーンで開く」が両方を兼ねていて、
+            // 常に「今のシーン」に置いていたため、そこに既にユーザー自身の Canvas 等があると重なって
+            // 見分けが付かなかった(ユーザー報告)。VFX/Anim 等と同じく専用シーンへの切り替えも選べるようにする。
+            previewButtons.Add(new Button(CanvasPreviewSceneSetup.OpenOrCreate) { text = "確認用シーンを開く", tooltip = "EventSystem だけを置いた空の専用シーン(CanvasPreviewScene)に切り替える(無ければ生成)。自分の Canvas 等と重ならずに確認したいときに" });
+            previewButtons.Add(new Button(PlacePreview) { text = "ここに配置", tooltip = "いま開いているシーン(またはプレハブステージ)に実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。表示中にもう一度押すと閉じて開き直す(Appear / Idle をやり直す)" });
             previewButtons.Add(new Button(PlayDisappearPreview) { text = "Disappear を再生", tooltip = "実際に Close() して CloseTransition + ElementFx.Disappear を最後まで再生してから片付ける(「閉じる」は即座に消えるだけで演出を確認できない)" });
             previewButtons.Add(new Button(RemovePreview) { text = "閉じる", tooltip = "演出を待たず即座に片付ける(StopAll)" });
             _root.Add(previewButtons);
@@ -240,7 +248,7 @@ namespace DDrive.Editor.CanvasTool
             _inspectorContainer.Add(new InspectorElement(so));
             _inspectorContainer.Bind(so);
 
-            _statusLabel.text = _manager != null && _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "「確認用シーンで開く」で確認できます";
+            _statusLabel.text = _manager != null && _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "「ここに配置」で確認できます";
             RefreshValidation();
             RebuildElementFxAssignments();
             _simFocusPath = target.FirstSelected;
@@ -869,7 +877,7 @@ namespace DDrive.Editor.CanvasTool
 
             if (_statusLabel != null && _target != null)
             {
-                _statusLabel.text = "「確認用シーンで開く」で確認できます";
+                _statusLabel.text = "「ここに配置」で確認できます";
             }
 
             _simFocusPath = null;
@@ -887,7 +895,7 @@ namespace DDrive.Editor.CanvasTool
         {
             if (_manager == null || !_manager.IsOpen(_previewHandle))
             {
-                _statusLabel.text = "先に「確認用シーンで開く」を押してください";
+                _statusLabel.text = "先に「ここに配置」を押してください";
                 return;
             }
 
@@ -911,7 +919,7 @@ namespace DDrive.Editor.CanvasTool
 
             if (_statusLabel != null && _target != null)
             {
-                _statusLabel.text = "Disappear の再生が完了しました(「確認用シーンで開く」で開き直せます)";
+                _statusLabel.text = "Disappear の再生が完了しました(「ここに配置」で開き直せます)";
             }
 
             _simFocusPath = null;
