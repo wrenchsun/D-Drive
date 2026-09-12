@@ -1,8 +1,10 @@
 # 26. Timeline 連携(Maya FBX 取り込み + D-Drive トラック) 詳細設計(ドラフト)
 
-関連: [08_presentation.md](08_presentation.md) §3 Timeline トラック / [05_model_animation.md](05_model_animation.md) / [02_core_framework.md](02_core_framework.md) §3 AssetEvent / [13_extensions.md](13_extensions.md) B-9 カットシーン種別 / [11_tasks.md](11_tasks.md) 5-3a〜5-3d
+関連: [08_presentation.md](08_presentation.md) §3 Timeline トラック / [05_model_animation.md](05_model_animation.md) / [02_core_framework.md](02_core_framework.md) §3 AssetEvent / [13_extensions.md](13_extensions.md) B-9 カットシーン種別 / [11_tasks.md](11_tasks.md) 6-10a〜6-10d
 
-> 2026-09-13 ドラフト。ユーザー要望:「Maya のカメラやアニメを Timeline に流し込み、Unity 側で SE や VFX を足す。ほかのアセットと同様にイベントも付けたい。Maya 側スクリプトは無しが望ましい」。§7 の未決事項をユーザーと詰めてから 5-3a に着手する。
+> 2026-09-13 ドラフト。ユーザー要望:「Maya のカメラやアニメを Timeline に流し込み、Unity 側で SE や VFX を足す。ほかのアセットと同様にイベントも付けたい。Maya 側スクリプトは無しが望ましい」。§7 の未決事項をユーザーと詰めてから 6-10a に着手する。
+>
+> **2026-09-13 ユーザー決定: 実装は P6 の最後(6-10a〜d)、運用開始後に行う**(実際にカットシーンを作る段階がまだ先のため。旧チケット番号 5-3a〜d)。
 
 ---
 
@@ -66,14 +68,14 @@ D-Drive の設計を読むのに必要な範囲だけまとめる。
 
 ```
 Maya ──FBX 書き出し(標準機能のみ)──▶ Assets/SourceAssets/Cutscene/<カテゴリ>/<ショット>.fbx
-                                               │ AssetPostprocessor(5-3c)
+                                               │ AssetPostprocessor(6-10c)
                                                ▼
                          CutsceneData(新種別)  ── TimelineAsset(自動生成・再生成可能)
                            ├ 役割バインド表(Camera / Self / Target / 名前付き)
                            ├ Events(AssetEvent[] 共通)
                            └ Flags / Net 同期設定
                                                │
-Unity(デザイナー)── Timeline ウィンドウで D-Drive トラックを追加(5-3b)
+Unity(デザイナー)── Timeline ウィンドウで D-Drive トラックを追加(6-10b)
                            ├ D-Drive Event トラック(AssetEvent マーカー)
                            ├ D-Drive SE / VFX / AnchorGroup / Shake / Haptic / Presentation クリップ
                            └ Signal マーカー(コード通知)
@@ -129,7 +131,7 @@ public struct CutsceneBinding
 
 未解決は **警告 + そのトラックだけミュートで続行**(TL;DR #4)。Validation で事前に検出する。
 
-### 4.3 D-Drive トラック(5-3b)
+### 4.3 D-Drive トラック(6-10b)
 
 | トラック / マーカー | 中身 | 委譲先 |
 |---|---|---|
@@ -160,7 +162,7 @@ public struct CutsceneBinding
 
 ---
 
-## 5. Maya → Unity 取り込み(5-3c、Maya スクリプト無し)
+## 5. Maya → Unity 取り込み(6-10c、Maya スクリプト無し)
 
 ### 5.1 Maya 側でやること(標準 FBX 書き出しだけ)
 
@@ -231,7 +233,7 @@ public struct CutsceneBinding
 **イベント用ロケーター(任意・要検証)**
 
 - ロケーター `EVT_Hit` にカスタムアトリビュート(例 `ddEvent`、整数)を追加してキーを打つと、FBX にアニメ付きユーザープロパティとして出る。Unity の `AssetPostprocessor.OnPostprocessGameObjectWithAnimatedUserProperties` で読めるので、値が変わったフレームに Signal マーカーを自動で置ける
-- Maya 側はアトリビュート追加とキー打ちだけ(標準機能)。ただし Unity 2023 以降の FBX 取り込みで確実に取れるかは 5-3c 着手時に検証する。取れなければこの機能は外し、Unity の Timeline 上で置く運用にする
+- Maya 側はアトリビュート追加とキー打ちだけ(標準機能)。ただし Unity 2023 以降の FBX 取り込みで確実に取れるかは 6-10c 着手時に検証する。取れなければこの機能は外し、Unity の Timeline 上で置く運用にする
 
 ---
 

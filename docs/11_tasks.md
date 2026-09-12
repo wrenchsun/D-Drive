@@ -129,7 +129,7 @@
 | 3-R | Phase 3 後半（Material / Anim2D）コードレビュー対応（Codex 未レビュー分 3-14〜3-21） | 基盤/ED/TA | 1 | 3-14〜3-21 | ✅ 2026-09-11 P1 8 件（Anim2D プレビュー物の所有権 / Retiming 既定値で全キー潰れ / ApplyBlend のアルファブレンド・AlphaToMask 未設定 / Specific に共通名が載ると Common を黙って上書き / 一括アイコン生成の FindAssets 多重走査 / アイコン PNG の同名衝突 / Substance MetallicSmoothness を Mask 扱いで環境光消失 / SourceMaterial の同名衝突）+ P2 大半を修正、回帰テスト 30 件追加。詳細は [25](25_phase3_material_anim2d_review_2026-09-11.md) と [05]/[06]/[09] の「レビュー対応（2026-09-11）」。残: 各領域の整理項目（バグではない） |
 | 4-R | Phase 4 コードレビュー対応（Codex 未レビュー分） | 基盤/ED | 1 | 4-1〜4-18 | ✅ 2026-09-11 主要 P1(プール Canvas の Close 終端値残存/パッドリピート停止漏れ/Shake・Tada の静止姿勢/OptionStore 未保存/UiInteractable の Pool 再利用汚染/プリセットギャラリー再生の Undo・復元)+ P2 一部(Stop の破棄済み Target 参照・PlayTracks alloc/count クランプ・UiTweenEditorWindow の update 購読漏れ・CloseAsync が Disappear を待たない・Validator 修正ボタンの Undo・Direction とキー入力の方針明文化)を修正。詳細は [15]/[07]/[18] の「レビュー対応(2026-09-11)」参照。残: DrawCurveSketch の毎フレーム GameObject 生成、SliderEditorWindow.Advance の Undo 無し駆動 |
 
-## Phase 5: Presentation + ブラウザ完成 (M5 — 目玉)  約 5 週
+## Phase 5: Presentation + ブラウザ完成 (M5 — 目玉)  約 7.5 週（2026-09-13 追加分を含む）
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|
@@ -137,10 +137,6 @@
 | 5-2 | CameraShakeData + CameraFx（Trauma 合成 / 揺れ専用ノード / GlobalScale） | 基盤 | 3 | 0-9 | 多重発火で破綻しない。オプション 0% で無揺れ |
 | 5-2b | HapticsData + Haptics Manager（2 モーター Max 合成 / LocalPlayerOnly / GlobalScale） | 基盤 | 2 | 0-9 | パッドで振動再生。同時再生で飽和しない |
 | 5-2c | ShakeEditor / HapticsEditor（波形編集 + カメラ実揺れプレビュー + Test on Pad + プリセット 10 種） | ED | 3 | 5-2, 5-2b, 1-6 | 設計書 16 §C-2 の全機能 |
-| 5-3a | Timeline 基盤: 新種別 CutsceneData（`AssetType.Cutscene` 末尾追加、`CUTID`）+ CutsceneManager（PlayableDirector プール・Manual 更新・役割名バインド・PlayContext）+ `Cutscene.Play` / CutsceneHandle（Presentation と同じ API 形）。2026-09-13 ユーザー要望で 5-3 を分割・拡張（[26](26_timeline.md)） | 基盤 | 3 | 5-1 | `Cutscene.Play(id, ctx)` で Timeline が再生され、Self/Target/MainCamera/SpawnModel に自動バインド。未解決は警告 + ミュートで継続 |
-| 5-3b | D-Drive Timeline トラック群（Event マーカー = 共通 AssetEvent / SE・VFX・AnchorGroup・UI クリップ / Shake・Haptic マーカー / Signal マーカー）+ 編集中スクラブプレビュー（実 Manager 駆動） | 基盤+ED | 4 | 5-3a, 5-2, 5-2b | Timeline ウィンドウで SE/VFX/イベントを置けて、スクラブで連打・残留しない。標準 Audio/Control/Signal トラック使用は Validation Warning |
-| 5-3c | Maya FBX → Timeline 自動構築（Maya 側スクリプト無し。カメラは種類で判別、キャラ・小物は名前空間 = Model 識別子で判別・自動バインド、fps 自動設定、再取り込み時は自動生成トラックのみ差し替え）。イベント用ロケーター（アニメ付きユーザープロパティ → Signal）は検証の上で採否決定 | TA+基盤 | 3 | 5-3a, 5-11 | `SourceAssets/Cutscene/` に FBX を置くだけで CutsceneData + TimelineAsset ができ、確認用シーンで再生できる |
-| 5-3d | Cutscene 確認用シーン + Inspector 導線（標準 Timeline ウィンドウを編集 UI として開く・バインド検査・CutsceneDataValidator） | ED | 2 | 5-3b, 5-3c | [26] §6/§5.3/§5.4 の検査が Validation に出る |
 | 5-4 | PresentationEditor（マルチトラック UI + 統合プレビュー + Signal 手動発火） | ED | 5 | 5-1, 1-6 | 設計書 08 §4 の全機能 |
 | 5-5 | 依存関係グラフ（収集/キャッシュ/差分更新） | ED | 3 | 0-2 | Scene/Prefab 内 IdRef も収集 |
 | 5-6 | 使用箇所検索 / 未使用検出 / 依存ツリー UI + **安全な削除**（2026-09-13 追加: 参照チェック → Archive → 削除確定で Addressables/カタログ登録解除・アイコン PNG ごと `MoveAssetToTrash`。参照が残る場合は一覧を出して中止） | ED | 4 | 5-5, 1-5 | ダブルクリックジャンプ、一括 Archive。AssetBrowser から削除でき、参照ありは削除不可・ゴミ箱から復元可 |
@@ -148,14 +144,14 @@
 | 5-8 | Presentation ネット再生（開始時刻シーク / Signal 中継 / 予測再生） | 基盤 | 4 | 2-8, 5-1 | 遅延 200ms 環境で 2 クライアントの位相が揃う |
 | 5-9 | Late Join 復元（アクティブ演出スナップショット） | 基盤 | 2 | 5-8 | 途中参加でループ VFX/BGM が復元 |
 | 5-10 | アイコン表示の拡張（2026-09-13 追加）: AssetBrowser の行にアイコン、Project ウィンドウのサムネ（Data 用 Inspector の `RenderStaticPreview`） | ED | 1 | 1-6 | 生成済みアイコンが AssetBrowser 一覧と Project ウィンドウ(グリッド表示)に出る |
-| 5-11 | インポート検知による Data 自動生成を全種別へ（2026-09-13 追加）: `ImportRule`（監視フォルダ `SourceAssets/<種別>/<カテゴリ>/` → 種別・拡張子）で Se/Bgm/Texture/Model/Anim/Anim2D/Prefab/Canvas/Vfx/Cutscene を自動生成。元ファイル削除時は Data を消さず「欠落」表示。元ファイルの無い種別（Presentation/Shake/Haptics/UiTween/Anchor/AnchorGroup/ControlSkin）は対象外（5-13 で作る） | 基盤+ED | 3 | 1-5, 3-14 | 各種別の元ファイルを規定フォルダに置くだけで Data・ID・Addressables 登録ができる。既存の Maya→Material 経路と共存 |
+| 5-11 | インポート検知による Data 自動生成を全種別へ（2026-09-13 追加）: `ImportRule`（監視フォルダ `SourceAssets/<種別>/<カテゴリ>/` → 種別・拡張子）で Se/Bgm/Texture/Model/Anim/Anim2D/Prefab/Canvas/Vfx を自動生成（Cutscene は 6-10c で追加）。元ファイル削除時は Data を消さず「欠落」表示。元ファイルの無い種別（Presentation/Shake/Haptics/UiTween/Anchor/AnchorGroup/ControlSkin）は対象外（5-13 で作る） | 基盤+ED | 3 | 1-5, 3-14 | 各種別の元ファイルを規定フォルダに置くだけで Data・ID・Addressables 登録ができる。既存の Maya→Material 経路と共存 |
 | 5-12 | 仕様書テンプレート（2026-09-13 追加）: 新規 Google スプレッドシート（README / 概要 / 機能_* 人向け + `アセット`・`調整値` ツール向け + `_選択肢`）+ 記入ガイド | 全員 | 1 | — | [27](27_spec_sheet.md) §2〜3 の構成で企画が記入を始められる |
 | 5-13 | 仕様書同期（2026-09-13 追加）: CSV 取得（リンク共有 gviz / 将来サービスアカウント）→ 差分プレビュー → 新規行は Placeholder Data 作成・表示名/カテゴリ/状態/担当/備考を反映・消えた行は Archive 候補表示のみ。起動時の自動取得 + 通知、`TuningTable`（調整値）取り込み | 基盤+ED | 4 | 5-12, 1-5 | シートに 1 行足して同期するだけで ID 付き Placeholder が生まれ、コードから参照できる。デザイナーの中身は上書きされない |
 | 5-14 | 仕様書リンク（2026-09-13 追加）: `AssetDataBase.SpecUrl` 追加（シリアライズ追加のため着手前に確認）+ Inspector「仕様書を開く」+ 同期時に自動設定 | ED | 1 | 5-13 | 同期したアセットの Inspector から該当仕様へ 1 クリックで飛べる |
 | 5-15 | 各エディタ上部に「＋ 新規作成」ボタン（2026-09-13 追加）: `[DataEditor]` 付きの全専用エディタのツールバーに共通ボタンを置き、押すと `NewAssetDialog`（命名規則の画面）をそのエディタの種別で固定して開く（`NewAssetDialog.Open` に種別指定のオーバーロードを追加）。作成後はそのエディタの対象に自動で切り替える | ED | 1 | 1-5 | Audio/VFX/Model/Anim/Canvas/UiTween 等のどのエディタからでも、AssetBrowser を開かずに命名規則どおりの新規アセットを作れる |
 | 5-16 | 新規作成ダイアログに「仕様書から選ぶ」（2026-09-13 追加）: 仕様書の `アセット` タブのうち、まだ Data が無い行を一覧（種別固定で開いたときはその種別だけ・検索可）。選ぶと種別・カテゴリ・識別子・表示名・備考・仕様リンクが入力済みになり、そのまま作成できる（手入力も従来どおり可）。一覧は 5-13 の取得キャッシュを使う（ダイアログを開くたびにネットへ行かない） | ED | 1 | 5-13, 5-15 | 仕様書にある未作成アセットを、名前を打たずに選ぶだけで作れる。作成後は一覧から消える |
 
-## Phase 6: 仕上げ・運用化 (M6)  約 2 週
+## Phase 6: 仕上げ・運用化 (M6)  約 2 週 + Timeline 対応 約 2.5 週（運用開始後）
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|
@@ -168,6 +164,15 @@
 | 6-7 | 2 クライアント自動テスト（Loopback ⇔ NGO 両ブリッジで PlayMode CI） | 基盤 | 2 | 6-1, 5-8 | CI で同期再生テスト green |
 | 6-8 | 受け入れデモ（要件 §7 成功基準の 5 項目） | 全員 | 2 | 全 | リード承認 |
 | 6-9 | 仕様書差分の Validation / CI 組込み（2026-09-13 追加）: 未作成・本番なのに Placeholder・調整値の範囲外を検出（[27] §6） | 基盤 | 1 | 5-13, 6-1 | CI で仕様書との食い違いが Warning/Error として出る |
+
+> **Timeline 対応（6-10a〜d）は P6 の最後、運用開始後に作る**（2026-09-13 ユーザー決定。実際にカットシーンを作る段階がまだ先のため。旧 5-3 → 5-3a〜d を移動）。設計は [26](26_timeline.md)。着手前に [26] §7 の未決事項を決める。
+
+| # | チケット | 担当 | 日数 | 依存 | AC |
+|---|---|---|---|---|---|
+| 6-10a | Timeline 基盤: 新種別 CutsceneData（`AssetType.Cutscene` 末尾追加、`CUTID`）+ CutsceneManager（PlayableDirector プール・Manual 更新・役割名バインド・PlayContext）+ `Cutscene.Play` / CutsceneHandle（Presentation と同じ API 形） | 基盤 | 3 | 5-1 | `Cutscene.Play(id, ctx)` で Timeline が再生され、Self/Target/MainCamera/SpawnModel に自動バインド。未解決は警告 + ミュートで継続 |
+| 6-10b | D-Drive Timeline トラック群（Event マーカー = 共通 AssetEvent / SE・VFX・AnchorGroup・UI クリップ / Shake・Haptic マーカー / Signal マーカー）+ 編集中スクラブプレビュー（実 Manager 駆動） | 基盤+ED | 4 | 6-10a, 5-2, 5-2b | Timeline ウィンドウで SE/VFX/イベントを置けて、スクラブで連打・残留しない。標準 Audio/Control/Signal トラック使用は Validation Warning |
+| 6-10c | Maya FBX → Timeline 自動構築（Maya 側スクリプト無し。カメラは種類で判別、キャラ・小物は名前空間 = Model 識別子で判別・自動バインド、fps 自動設定、再取り込み時は自動生成トラックのみ差し替え）。5-11 の ImportRule に Cutscene を追加。イベント用ロケーター（アニメ付きユーザープロパティ → Signal）は検証の上で採否決定 | TA+基盤 | 3 | 6-10a, 5-11 | `SourceAssets/Cutscene/` に FBX を置くだけで CutsceneData + TimelineAsset ができ、確認用シーンで再生できる |
+| 6-10d | Cutscene 確認用シーン + Inspector 導線（標準 Timeline ウィンドウを編集 UI として開く・バインド検査・CutsceneDataValidator） | ED | 2 | 6-10b, 6-10c | [26] §6/§5.3/§5.4 の検査が Validation に出る |
 
 ## Phase 7: 推奨拡張 A 群 (M7)  約 3 週　※詳細は [13_extensions.md](13_extensions.md)
 
@@ -193,9 +198,9 @@
 | 2 | 3.5 週 | VFX（UI パーティクル含む）+ Model + Cosmetic 配送 |
 | 3 | 5.5 週 | Animation 3D/2D（既存ツール統合）+ Material/Texture パイプライン |
 | 4 | 7.5 週 | Canvas + UiButton/UiSlider（UiInteractable 基底）+ UiTween + プリセットライブラリ + Prefab（Simulated Spawn 含む） |
-| 5 | 約 10 週（2026-09-13 追加分 約 5 週を含む） | Presentation（ネット同期再生・Late Join 含む）+ Shake/Haptics + ブラウザ完成 + Timeline/Maya 連携 + インポート自動生成の全種別化 + 仕様書連携 + 安全な削除 |
-| 6 | 3 週 | CI・性能・運用化・ContentHash 照合・2 クライアント自動テスト |
+| 5 | 約 7.5 週（2026-09-13 追加分 約 2.5 週を含む） | Presentation（ネット同期再生・Late Join 含む）+ Shake/Haptics + ブラウザ完成 + インポート自動生成の全種別化 + 仕様書連携 + 各エディタからの新規作成 + 安全な削除 |
+| 6 | 約 5.5 週（Timeline 約 2.5 週は運用開始後） | CI・性能・運用化・ContentHash 照合・2 クライアント自動テスト・仕様書差分チェック + Timeline/Maya 連携（最後） |
 | 7 | 3 週 | 発注リスト・デバッグ・Live Tuning・予算・バリアント |
-| 計 | **約 36 週** | 2〜3 名（基盤 1 + エディタ 1 + TA 0.5）想定。マルチプレイは全 Phase に組込（v1 必須） |
+| 計 | **約 41 週**（2026-09-13 の追加要件で約 5 週増） | 2〜3 名（基盤 1 + エディタ 1 + TA 0.5）想定。マルチプレイは全 Phase に組込（v1 必須） |
 
 並列化のヒント: Phase1 以降、基盤担当と ED 担当はチケット依存の範囲でほぼ常時並列。TA は Phase3 集中。
