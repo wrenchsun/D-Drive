@@ -213,6 +213,12 @@ public static class Ui
 - 直接指定を編集する既存の「▶」ボタンは「✎ Tween Editor」に改名(新しい「▶ 再生」と役割が紛らわしくなるため)。挙動は変えていない
 - EditMode 340/340・PlayMode 488/488 green、`execute_code` でプリセット/直接指定の両経路・一時停止トグル・停止時の Handle 破棄を確認済み
 
+### 追記（2026-09-12、ElementFx を全要素まとめて再生 / 各行を折りたたみ表示に）
+
+- **一括再生**: 「▶ 全 Appear」「▶ 全 Idle」「▶ 全 Disappear」「■ 全て停止」を ElementFx 割当セクションの先頭に追加(`PlayAllPhasePreview`/`StopAllPhasePreview`)。登録済みの全要素のうち、その区間に割り当て(プリセット or 直接指定)がある要素だけをそれぞれの設定でまとめて再生する。1 行ずつ「▶ 再生」を押す手間を無くすのが目的で、内部的には既存の行内再生(`PlayPhasePreview`)をループで呼ぶだけ
+- **折りたたみ**: 要素数が多いと縦に長くなりすぎるため、各要素の箱を `Box` から `Foldout` に変更し、デフォルトを折りたたみ状態にした。展開状態は `ElementPath` をキーに `_elementFxExpanded` で保持し、他の行の編集で全体が再構築されても開閉が飛ばないようにしている
+- EditMode 340/340・PlayMode 488/488 green、`execute_code` で一括再生(割り当て済みの行だけ再生される)・一括停止・Foldout がデフォルト折りたたみであることを確認済み
+
 ---
 
 # Part B — 汎用 Prefab

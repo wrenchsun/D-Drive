@@ -67,6 +67,11 @@ namespace DDrive.Editor.CanvasTool
         // ElementFx 各行の直接再生(Appear/Idle/Disappear)。UI Tween Editor を開かず Canvas Editor 内で
         // 完結できるようにする(2026-09-12 ユーザー要望)。Key は (ElementPath, Phase ラベル)。
         private readonly Dictionary<(string path, string phase), Handle<UiTweenMarker>> _phasePreviewHandles = new();
+
+        // ElementFx 各要素の Foldout 開閉状態(ElementPath がキー、デフォルトは折りたたみ)。
+        // RebuildElementFxAssignments は行の変更のたびに全 Foldout を作り直すため、ここに残しておかないと
+        // 別の行を編集しただけで開いていた行まで畳まれてしまう。
+        private readonly Dictionary<string, bool> _elementFxExpanded = new();
         private readonly List<PhaseRowWidgets> _phaseRowWidgets = new();
         private readonly TweenTrack[] _presetPlayScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
 
@@ -197,6 +202,17 @@ namespace DDrive.Editor.CanvasTool
             _elementFxFoldout = new Foldout { text = "ElementFx 割当(Appear / Idle / Disappear)", value = true, style = { marginTop = 8 } };
             _root.Add(_elementFxFoldout);
             _elementFxFoldout.Add(new HelpBox("各要素の行でプリセット・プロジェクト独自カタログ([Catalog] 名前)・UiTweenData 直接指定のいずれかを選べます。", HelpBoxMessageType.Info));
+
+            // 2026-09-12 ユーザー要望: 登録済みの ElementFx を 1 行ずつ「▶ 再生」するのは数が多いと手間なので、
+            // 同じ区間(Appear/Idle/Disappear)を全要素まとめて再生できるようにする(各要素は自分に割り当てられた
+            // プリセット/直接指定をそれぞれ再生する。実 UiTweenManager 経由で ADR-4 のまま)。
+            var batchPlayRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 4 } };
+            batchPlayRow.Add(new Button(() => PlayAllPhasePreview("Appear")) { text = "▶ 全 Appear", tooltip = "登録済みの全要素の Appear を、それぞれに割り当てられた演出でまとめて再生する" });
+            batchPlayRow.Add(new Button(() => PlayAllPhasePreview("Idle")) { text = "▶ 全 Idle", tooltip = "登録済みの全要素の Idle をまとめて再生する" });
+            batchPlayRow.Add(new Button(() => PlayAllPhasePreview("Disappear")) { text = "▶ 全 Disappear", tooltip = "登録済みの全要素の Disappear をまとめて再生する" });
+            batchPlayRow.Add(new Button(StopAllPhasePreview) { text = "■ 全て停止", tooltip = "再生中の ElementFx プレビューをまとめて止める(最終状態には進めない)" });
+            _elementFxFoldout.Add(batchPlayRow);
+
             _elementFxContainer = new VisualElement();
             _elementFxFoldout.Add(_elementFxContainer);
 
@@ -337,8 +353,20 @@ namespace DDrive.Editor.CanvasTool
             {
                 var index = i;
                 var fx = _target.ElementEffects[i];
-                var box = new Box { style = { marginBottom = 6, paddingLeft = 4, paddingTop = 2, paddingBottom = 4 } };
-                box.Add(new Label(string.IsNullOrEmpty(fx.ElementPath) ? "(ルート)" : fx.ElementPath) { style = { unityFontStyleAndWeight = FontStyle.Bold } });
+                var elementPath = fx.ElementPath;
+
+                // 2026-09-12 ユーザー要望: 要素数が多いと縦に長くなりすぎるので、各要素を折りたためるようにする
+                // (デフォルトは折りたたみ)。展開状態は ElementPath をキーに保持し、ドロップダウン変更などで
+                // 再構築が起きても(その行自身の変更でなければ)開閉が飛ばないようにする。
+                var expanded = _elementFxExpanded.TryGetValue(elementPath, out var wasExpanded) && wasExpanded;
+                var box = new Foldout { text = string.IsNullOrEmpty(elementPath) ? "(ルート)" : elementPath, value = expanded, style = { marginBottom = 6 } };
+                box.RegisterValueChangedCallback(evt =>
+                {
+                    if (evt.target == box)
+                    {
+                        _elementFxExpanded[elementPath] = evt.newValue;
+                    }
+                });
 
                 box.Add(BuildPhaseRow(
                     "Appear",
@@ -632,6 +660,58 @@ namespace DDrive.Editor.CanvasTool
             }
 
             _phasePreviewHandles.Remove((elementPath, phase));
+        }
+
+        // 2026-09-12 ユーザー要望: 登録済みの ElementFx を同じ区間(Appear/Idle/Disappear)でまとめて再生する。
+        // 各要素は自分に割り当てられたプリセット/直接指定をそれぞれ再生する(何も割り当てが無い要素はスキップ)。
+        private void PlayAllPhasePreview(string phase)
+        {
+            if (_target == null || _target.ElementEffects == null || _target.ElementEffects.Length == 0)
+            {
+                return;
+            }
+
+            if (_manager != null && !_manager.IsOpen(_previewHandle))
+            {
+                PlacePreview();
+            }
+
+            var played = 0;
+            foreach (var fx in _target.ElementEffects)
+            {
+                var (preset, id) = GetPhaseValue(fx, phase);
+                if (!id.IsValid && preset.Preset == UiPreset.None)
+                {
+                    continue;
+                }
+
+                PlayPhasePreview(fx.ElementPath, phase, preset, id);
+                played++;
+            }
+
+            _statusLabel.text = played > 0 ? $"{phase} を {played} 件まとめて再生しました" : $"{phase} が割り当てられた要素がありません";
+        }
+
+        private static (UiPresetRef preset, AssetId<UiTweenMarker> id) GetPhaseValue(ElementFx fx, string phase) => phase switch
+        {
+            "Appear" => (fx.AppearPreset, fx.Appear),
+            "Idle" => (fx.IdlePreset, fx.Idle),
+            "Disappear" => (fx.DisappearPreset, fx.Disappear),
+            _ => (default, default),
+        };
+
+        private void StopAllPhasePreview()
+        {
+            if (_tweenManager != null)
+            {
+                foreach (var handle in _phasePreviewHandles.Values)
+                {
+                    _tweenManager.Stop(handle);
+                }
+            }
+
+            _phasePreviewHandles.Clear();
+            _statusLabel.text = "すべて停止しました";
         }
 
         // OnEditorUpdate から毎フレーム呼ぶ(AnimEditorWindow の状態ラベル更新と同じ方針)。行数分だけ
