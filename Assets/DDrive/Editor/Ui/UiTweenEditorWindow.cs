@@ -98,7 +98,8 @@ namespace DDrive.Editor.Ui
             var presetRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6, alignItems = Align.Center } };
             _presetDropdown = new DropdownField("プリセット / カタログ", new List<string> { string.Empty }, 0) { style = { flexGrow = 1f } };
             presetRow.Add(_presetDropdown);
-            presetRow.Add(new Button(GenerateFromSelection) { text = "プリセットから Tracks を生成" });
+            presetRow.Add(new Button(GenerateFromSelection) { text = "プリセットから Tracks を生成", tooltip = "いまの Tracks を丸ごと置き換える" });
+            presetRow.Add(new Button(AppendFromSelection) { text = "＋ プリセットを追加", tooltip = "いまの Tracks は残したまま、選んだプリセットの Track を末尾に追加する(スライドイン + フェードインのような組み合わせに)" });
             scrollView.Add(presetRow);
             RebuildPresetChoices();
 
@@ -344,6 +345,7 @@ namespace DDrive.Editor.Ui
             var field = new PropertyField(elementProp, $"選択中 Track [{_selectedTrackIndex}]");
             field.Bind(so);
             _selectedTrackContainer.Add(field);
+            _selectedTrackContainer.Add(new Button(RemoveSelectedTrack) { text = "－ 選択中の Track を削除", style = { marginTop = 2 } });
 
             RebuildSplineTools();
         }
@@ -582,6 +584,102 @@ namespace DDrive.Editor.Ui
             }
 
             _statusLabel.text = $"プリセット '{preset}' から Tracks を生成しました";
+            RebuildAll();
+        }
+
+        // 「＋ プリセットを追加」: 上の GenerateFromSelection と違い、いまの Tracks を残したまま末尾に足す
+        // (スライドイン + フェードインのように、複数のプリセット/手動 Track を組み合わせたいという要望への対応。2026-09-12)。
+        // MaxTracksPerTween を超える分は追加しない(UiTweenManager 側もそれ以上再生しないため)。
+        private void AppendFromSelection()
+        {
+            if (_target == null || _presetDropdown == null)
+            {
+                return;
+            }
+
+            _presetSelection = _presetDropdown.value;
+            var existing = _target.Tracks ?? System.Array.Empty<TweenTrack>();
+            var room = UiTweenManager.MaxTracksPerTween - existing.Length;
+            if (room <= 0)
+            {
+                _statusLabel.text = $"Track が上限({UiTweenManager.MaxTracksPerTween} 本)に達しているため追加できません";
+                return;
+            }
+
+            foreach (var (label, tween) in _catalogChoices)
+            {
+                if (label != _presetSelection)
+                {
+                    continue;
+                }
+
+                if (tween == null || tween.Tracks == null || tween.Tracks.Length == 0)
+                {
+                    _statusLabel.text = "カタログの Tween に Tracks がありません";
+                    return;
+                }
+
+                var addCount = Mathf.Min(room, tween.Tracks.Length);
+                Undo.RecordObject(_target, "UiTweenData: カタログの Tracks を追加");
+                var merged = new TweenTrack[existing.Length + addCount];
+                System.Array.Copy(existing, merged, existing.Length);
+                System.Array.Copy(tween.Tracks, 0, merged, existing.Length, addCount);
+                _target.Tracks = merged;
+                EditorUtility.SetDirty(_target);
+                _selectedTrackIndex = merged.Length - 1;
+                _statusLabel.text = addCount < tween.Tracks.Length
+                    ? $"カタログ '{label}' から Track を {addCount} 本追加しました(上限のため一部省略)"
+                    : $"カタログ '{label}' から Track を {addCount} 本追加しました";
+                RebuildAll();
+                return;
+            }
+
+            if (!System.Enum.TryParse<UiPreset>(_presetSelection, out var preset))
+            {
+                return;
+            }
+
+            var target = _previewTarget != null ? _previewTarget : CreateScratchRect();
+            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+            var refValue = new UiPresetRef { Preset = preset };
+            var generated = UiPresetFactory.Build(in refValue, target, buffer);
+            var toAdd = Mathf.Min(room, generated);
+
+            Undo.RecordObject(_target, "UiTweenData: プリセットの Track を追加");
+            var result = new TweenTrack[existing.Length + toAdd];
+            System.Array.Copy(existing, result, existing.Length);
+            System.Array.Copy(buffer, 0, result, existing.Length, toAdd);
+            _target.Tracks = result;
+            EditorUtility.SetDirty(_target);
+
+            if (target != _previewTarget)
+            {
+                Object.DestroyImmediate(target.gameObject);
+            }
+
+            _selectedTrackIndex = result.Length - 1;
+            _statusLabel.text = toAdd < generated
+                ? $"プリセット '{preset}' から Track を {toAdd} 本追加しました(上限のため一部省略)"
+                : $"プリセット '{preset}' から Track を {toAdd} 本追加しました";
+            RebuildAll();
+        }
+
+        private void RemoveSelectedTrack()
+        {
+            if (_target == null || _target.Tracks == null || _selectedTrackIndex < 0 || _selectedTrackIndex >= _target.Tracks.Length)
+            {
+                return;
+            }
+
+            Undo.RecordObject(_target, "UiTweenData: Track を削除");
+            var tracks = _target.Tracks;
+            var result = new TweenTrack[tracks.Length - 1];
+            System.Array.Copy(tracks, 0, result, 0, _selectedTrackIndex);
+            System.Array.Copy(tracks, _selectedTrackIndex + 1, result, _selectedTrackIndex, tracks.Length - _selectedTrackIndex - 1);
+            _target.Tracks = result;
+            EditorUtility.SetDirty(_target);
+            _selectedTrackIndex = Mathf.Clamp(_selectedTrackIndex, 0, result.Length - 1);
+            _statusLabel.text = "Track を削除しました";
             RebuildAll();
         }
 

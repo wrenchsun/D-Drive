@@ -444,6 +444,24 @@ namespace DDrive.Editor.CanvasTool
             });
             row.Add(objectField);
 
+            // 4-10 レビュー対応(2026-09-12): Track の細かい編集(カーブ一覧・スプライン・Validation)は
+            // UI Tween Editor 側の設備をそのまま使う(埋め込みで二重管理しない方針)。直接指定(Id)がある
+            // ときだけ開ける。プリセット指定だけのときは実体の UiTweenData が無いので押せない。
+            var openButton = new Button(() =>
+            {
+                var tween = currentId.IsValid ? FindUiTweenData(currentId.Value) : null;
+                if (tween != null)
+                {
+                    UiTweenEditorWindow.Open(tween);
+                }
+            })
+            {
+                text = "▶",
+                tooltip = "UI Tween Editor で開く(Track を編集・確認)",
+            };
+            openButton.SetEnabled(currentId.IsValid);
+            row.Add(openButton);
+
             return row;
         }
 
