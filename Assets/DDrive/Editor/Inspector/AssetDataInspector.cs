@@ -24,6 +24,7 @@ namespace DDrive.Editor.Inspector
             {
                 DataEditorHeader.Draw(target as AssetDataBase);
                 AssetIconGui.Draw(target as AssetDataBase);
+                SpecUrlGui.Draw(target as AssetDataBase);
             }
         }
 
