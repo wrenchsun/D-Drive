@@ -224,7 +224,9 @@ namespace DDrive.Editor.Codegen
             "SE", "BGM", "VFX", "ANIM", "ANIM2D", "MAT", "TEX", "CANVAS", "PREFAB", "PRES", "SHAKE", "HAPTIC", "HAPTICS", "UITWEEN",
         };
 
-        private static string ToConstantName(string rawName)
+        // internal(同一 asmdef): 5-6 の CodeReferenceScan が「削除しようとしている ID の生成済み定数名」を
+        // 同じ規則で再現するために公開する(定数名の生成ロジックを二重に持たないため)。
+        internal static string ToConstantName(string rawName)
         {
             var tokens = rawName.Split(new[] { '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
             var start = tokens.Length > 1 && KnownPrefixes.Contains(tokens[0]) ? 1 : 0;
