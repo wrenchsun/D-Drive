@@ -88,6 +88,13 @@ DDrive.Tests.Editor    … Validation/ID生成のテスト
 Game.*                 … ゲーム本体。DDrive.Runtime のみ参照（Editor参照禁止）
 ```
 
+### 外部依存パッケージ（2026-09-14 追記、5-1）
+
+`DDrive.Runtime.PresentationHandle` のイベント公開（[08_presentation.md] §3.5）のため **R3**(Reactive Extensions for Unity)を導入した。
+
+- `Packages/manifest.json`: `scopedRegistries` に UnityNuGet(`https://unitynuget-registry.openupm.com`、スコープ `org.nuget`)を追加し、`org.nuget.r3`(コア型 `R3.dll`。`Observable<T>`/`Unit`/`Subject<T>` 等)と `com.cysharp.r3`(git、`R3.Unity`。Unity 統合層で Player Loop スケジューラ等を提供するが 5-1 時点では未使用)をどちらも 1.3.1 で追加
+- `DDrive.Runtime.asmdef` / `DDrive.Samples.asmdef`(`overrideReferences: false`)は R3.dll が自動参照されるため無編集。`overrideReferences: true` の asmdef(`DDrive.Tests.Runtime.asmdef` 等)は `precompiledReferences` に `"R3.dll"` を明示追加する必要がある
+- DLL 重複の懸念(`org.nuget.system.runtime.compilerservices.unsafe` と isuzu MCP 側の同名 DLL)があったが、導入後も「Multiple precompiled assemblies」等のエラーは発生せず、isuzu MCP 自体も問題なく動作を継続した(詳細: [08_presentation.md] 実装メモ)
 ## 5. データ配置・カタログ構成
 
 **配置の基本原則**: D-Drive に関連するアセット・スクリプトファイルは、基本的にすべて `Assets/DDrive/` 以下に置く。その中を層・種別ごとに適切にディレクトリ分割し、各スクリプトを対応するディレクトリへ配置する（`Assets/` 直下や無関係なフォルダへの散在を禁止）。ディレクトリの分割単位は §4 の asmdef 構成と一致させる。

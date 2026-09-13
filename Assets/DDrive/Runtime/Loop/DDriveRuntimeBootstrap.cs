@@ -68,6 +68,8 @@ namespace DDrive.Runtime.Loop
         public PrefabsManager Prefabs { get; private set; }
         public UiManager Ui { get; private set; }
         public UiTweenManager UiTweens { get; private set; }
+        // [08_presentation.md] / [11_tasks.md] 5-1 — 演出統合(Presentation)のオーケストレータ。
+        public PresentationManager Presentation { get; private set; }
         // [18_ui_controls.md] B-4(4-16) — 音量/アクセシビリティ/UI 速度の永続化ストア。起動時に PlayerPrefs から読み込む。
         public OptionStore Options { get; private set; }
         public AnchorGroupPlayer Groups { get; private set; }
@@ -176,6 +178,10 @@ namespace DDrive.Runtime.Loop
             Options.Load(optionStorage);
             Ui.SetOptionStore(Options);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
+            // [11_tasks.md] 5-1 — Loop.TimeService を渡すことで、HitStop トラックが TimeService.HitStop を
+            // 呼ぶだけで AtTime の進行も(他の全 Manager と同じく)自動的に止まる(GameLoopDriver が
+            // ScaledDeltaTime を配るため、Presentation 側で特別な配線は不要)。
+            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
             UiDispatcher = new AssetEventDispatcher(Ui.Events, Registry, Audio, Vfx, Ui.GetContextTransform, Groups);
@@ -190,6 +196,7 @@ namespace DDrive.Runtime.Loop
             loop.Register(Prefabs);
             loop.Register(Ui);
             loop.Register(UiTweens);
+            loop.Register(Presentation);
             _groupAdapter = new AnchorGroupLoopAdapter(Groups);
             loop.Register(_groupAdapter);
 
@@ -210,6 +217,7 @@ namespace DDrive.Runtime.Loop
                 Anchors.Bind(Groups);
                 Runtime.Tuning.Tuning.Bind(TuningTable);
                 Runtime.Loading.ScenePreload.Bind(Registry); // [11_tasks.md] 5-7
+                Runtime.Presentation.Presentation.Bind(Presentation); // [11_tasks.md] 5-1
             }
 
             _built = true;
@@ -242,6 +250,7 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Prefabs);
                 loop.Unregister(Ui);
                 loop.Unregister(UiTweens);
+                loop.Unregister(Presentation);
                 loop.Unregister(_groupAdapter);
             }
 
@@ -269,6 +278,7 @@ namespace DDrive.Runtime.Loop
                 Anchors.Bind(null);
                 Runtime.Tuning.Tuning.Bind(null);
                 Runtime.Loading.ScenePreload.Bind(null); // [11_tasks.md] 5-7
+                Runtime.Presentation.Presentation.Bind(null); // [11_tasks.md] 5-1
             }
 
             Pool?.Clear(PoolScope.Global);

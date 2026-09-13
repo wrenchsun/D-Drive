@@ -231,3 +231,28 @@
 - **ロード画面 UI は最小実装**: `SceneLoadingScreen` は uGUI の `Slider`/`Text` を任意で受けるだけの確認用コンポーネントで、デザイナー向けの正式なロード画面(Canvas/UiManager ベース)は未実装。実運用では置き換えを検討してほしい
 - **参照カウントの解放漏れリスク**: `ScenePreload.RunAsync` で確保した参照は対応する `ScenePreload.Release` を呼ぶまで解放されない。`SceneLoadingScreen.OnDisable` では解放するが、独自に `ScenePreload.RunAsync` を呼ぶコードを書く場合は解放を呼び忘れないよう注意が要る
 
+## 5-1 Presentation（PR #TBD）
+
+対象: `Runtime/Presentation/{PresentationData,PresentationTrack,PlayContext,PresentationManager,PresentationHandle,Presentation,PresentationTiming,PresentationDataValidator}.cs`(新規)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(Presentation 配線追加)、`Editor/AssetBrowser/AssetCreationService.cs`(Presentation を Preload 既定に追加)、`Samples/PresentationSkillSlashDemo.cs`(新規、確認用)。設計は [08_presentation.md](08_presentation.md)、依存パッケージは [01_architecture.md](01_architecture.md) §4。
+
+事前準備: Unity Package Manager(`Window > Package Manager`)で「Unity NuGet」レジストリ経由の `R3`(1.3.1)と `R3 (Utility for Unity)`(`com.cysharp.r3`)が入っていることを確認する(`Packages/manifest.json` に記載済みなので、プロジェクトを開いた時点で自動解決されるはず。初回だけ Package Manager の「Importing a scoped registry」ダイアログが出ることがある。「Close」で進めてよい)。
+
+確認手順:
+
+1. **剣攻撃デモ**: `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity` を開いて Play Mode に入る → 起動直後に **1 API(`Presentation.Play(PRESENTID.DemoSkillSlash 相当, ctx)`)** で VFX(`VFX_Player_Slash`)と SE(`SE_Player_Slash`)が Self(`Player` オブジェクト)の位置で同時に再生されること(Console に `[PresentationSkillSlashDemo] Play() -> IsPlaying=True` が出る)
+2. **Signal("hit")**: Space キーを押す → 画面が一瞬止まる(ヒットストップ、約 0.08 秒)のと同時に SE がもう一度鳴ること(Console に `Signal("hit") -> HitStop + SE` が出る)。連打しても例外が出ないこと
+3. **Cancel**: C キーを押す → 演出が中断されること(Console に `Cancel() -> IsPlaying=False` が出る)。手順1の VFX は `StopOnCancel=false` にしているため、鳴らし切って自然に消えること(即座に消えないのは仕様どおり)
+4. **P キーで再実行**: P キーを押すと最初から再生し直せること
+5. **Package Manager 確認**: `Window > Package Manager` の「In Project」タブに `R3`(Unity NuGet 経由)と `R3 (Utility for Unity)` の 2 つが表示されていること。バージョンはどちらも 1.3.1
+6. **isuzu MCP が引き続き動く**: R3 導入後も isuzu MCP(`compile_status`/`test_run`/`execute_code` 等)が問題なく動作すること(このチケット自体を isuzu MCP 経由で検証しているため、動いていなければ既に気付いているはずだが念のため)
+7. Inspector からの手編集も試す: `Assets/GameData/Presentation/Demo/PRES_Demo_SkillSlash.asset` を選び、Tracks の要素を増減・Time を変更して保存 → Play し直した結果に反映されること(専用エディタ(5-4)が無いため、現状はこれが唯一の編集手段)
+
+要判断:
+- **R3 導入方法は「素の R3(org.nuget.r3) + R3.Unity(com.cysharp.r3)」の両方を入れたが、実際に使っているのは前者のみ**(`Observable<T>`/`Unit`/`Subject<T>`)。R3.Unity(Player Loop 連携・`ObservableTracker` 等)は 5-1 時点で未使用。将来 UI 側([15_ui_interaction.md] の「R3 未導入」コメント箇所)が R3 化される際に本格的に使われる想定。不要なら `com.cysharp.r3` を抜いて `org.nuget.r3` だけにする選択肢もある(DLL 増加を避けたい場合)
+- **DLL 重複は発生しなかった**が、isuzu MCP のバージョンが上がった際に再度確認した方がよい(`org.nuget.system.runtime.compilerservices.unsafe` 等の transitive 依存が今後増える可能性がある)
+- **TrackTargetMode.World と Anchor は同一実装**(いずれも `PlayContext` を参照せず `Anchor.LocalOffset` を絶対座標として使う)。意味的な区別が必要になったら実装を分ける
+- **CameraShake / Haptic / Timeline は警告 + no-op のみ**(5-2/5-2b/6-10 で実装)。剣攻撃デモには含めていない
+- **`VFX_Player_Slash`/`SE_Player_Slash`/`PRES_Demo_SkillSlash` の `Flags.Load` を `Preload` に変更した**(LazyLoad のままだと `PresentationManager` の同期解決で常に Placeholder になるため)。前者 2 つは他のデモ(AnchorGroup 等)でも使われている既存アセットのため、Preload 化の影響が無いか確認してほしい
+- **Addressables グループ(`DDrive_GameData.asset`/`DDrive_Catalogs.asset`)はユーザーの未コミット変更と混ざっている**ため、5-1 のデモアセット登録に伴う変更はコミットしていない(ワーキングツリー上は両方の変更が混在した状態で残る)。次にこれらのファイルをコミットする人は、5-1 分(PresentationCatalog へのエントリ追加、VFX/SE の Preload 化)が含まれていることを把握しておくこと
+- **PresentationEditor(5-4)は未実装**: `DataEditorRegistryTests` の Exempt に `PresentationData` を追加した。5-4 実装時に Exempt から外すこと
+

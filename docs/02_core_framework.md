@@ -116,6 +116,7 @@ public interface IAssetRegistry
 ```
 
 - 内部は `Dictionary<ulong, CatalogEntry>`。Entry は address のみ保持し Data 本体は Lazy ロード（Flags.Load = Preload のものはカタログ登録時に一括ロード）
+- **`ResolveOrPlaceholder<T>` は同期解決専用**（`TryResolveSync` と同じく `_loaded` キャッシュしか見ない）: Play/Spawn を同期 API にしている Manager（Audio/Vfx/Anim/Presentation 等、ほぼ全種別）は、対象 Data が `Flags.Load = Preload` でカタログ登録時に一括ロードされているか、事前に誰かが `ResolveAsync` を呼んでいない限り、**初回参照時は必ず Placeholder になる**（LazyLoad は「遅延ロードされる」のではなく「明示的に ResolveAsync しない限りロードされない」という意味に近い）。`AssetCreationService.Create` は同期解決でしか使われない種別（Canvas/ControlSkin/Presentation、2026-09-12・2026-09-14 順に対応）の既定を Preload にしてこれを避けている。新しい種別を追加する場合、その Manager が同期 API のみなら同様に Preload をデフォルトにするか、`ScenePreload`（5-7、§14 参照）等で事前ロードする運用にすること
 - 解決失敗 → `PlaceholderProvider.Get<T>()` + 警告（モック動作保証）
 
 ## 5. AssetLoader（Addressables ラッパ）
@@ -283,3 +284,4 @@ public interface IValidator
 - **2026-09-11 追記(4-9)**: `UiTweenManager` を `UiManager` より先に生成し、`new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens)` で ElementFx の再生先として渡す。`[SerializeField] UiLayerSettings LayerSettings`(Inspector 直参照、未設定なら null のままでフォールバック無し)を追加し、`Ui.SetLayerSettings(LayerSettings)` で配る([15_ui_interaction.md] B-4 実装メモ参照)
 - **2026-09-14 追記(5-13)**: `[SerializeField] TuningTable TuningTable`(`Runtime/Tuning/TuningTable.cs`。Inspector 直参照、`UiLayerSettings` と同じ扱いで Addressables には登録しない)を追加し、`Tuning.Bind(TuningTable)` で静的ファサード `Runtime.Tuning.Tuning` に配る。仕様書「調整値」タブの取り込み先([27_spec_sheet.md] §3.2/§8.4)。§2.5 の `ValueDef`(アセットのフィールドに埋め込むカーブ/イージング)とは別物で、`Tuning` はゲームコードから `TUNING.キー定数` で読む文字列キー→値のフラットな辞書
 - **2026-09-14 追記(5-7)**: `BindFacades` ブロックで `Runtime.Loading.ScenePreload.Bind(Registry)` / `Teardown` で `Bind(null)` を追加(他の静的ファサードと同じ Bind/Unbind パターン)。`ScenePreload` は §5 で追加した `IAssetRegistry.PreloadIdsAsync`/`ReleaseIds` への薄い窓口で、シーンに置いた `SceneLoadingScreen`(`Runtime/Loading/SceneLoadingScreen.cs`、確認用の最小 UI)等がこれ経由で `ScenePreloadList`(Editor が自動生成する SO)を Preload する。`ScenePreloadList` は `Catalogs[]` のような Bootstrap 側の中央インデックスを持たない(シーン側から直参照する運用。要判断は [09_editor_tools.md] §10 の 5-7 節)
+- **2026-09-14 追記(5-1)**: `Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens)` を Groups 生成の直後・Dispatcher 生成の直前に追加し、`loop.Register(Presentation)` / `Runtime.Presentation.Presentation.Bind(Presentation)`(Teardown は逆順で Unregister/Unbind)。他の Manager と違い `IAssetRegistry` に加えて `Loop.TimeService` を直接渡す(HitStop トラック用。[08_presentation.md] 実装メモ参照)。CameraShake/Haptic 用の Manager(5-2/5-2b)はまだ無いためコンストラクタ引数は null のまま渡していない(該当 Kind は警告 1 回 + no-op)。

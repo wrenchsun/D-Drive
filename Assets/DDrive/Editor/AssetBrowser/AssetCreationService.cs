@@ -57,7 +57,9 @@ namespace DDrive.Editor.AssetBrowser
             // Canvas/ControlSkin は Ui.Open / ApplyLayerDefaults が同期解決(ResolveOrPlaceholder/TryResolveSync)
             // でしか引かないため、LazyLoad(既定)のままだと「初回参照時にロード」が起きず常に Placeholder になる。
             // 2026-09-12: 実際にこの理由で配線済みの CanvasData が動かない不具合を確認したため、既定を Preload にする。
-            if (assetType == AssetType.Canvas || assetType == AssetType.ControlSkin)
+            // 2026-09-14(5-1): Presentation も PresentationManager.Play が同じく同期解決のみで引くため、
+            // 同じ理由で追加(剣攻撃デモ PRES_Demo_SkillSlash が Placeholder になる不具合で発見)。
+            if (assetType == AssetType.Canvas || assetType == AssetType.ControlSkin || assetType == AssetType.Presentation)
             {
                 var flags = asset.Flags;
                 flags.Load = LoadMode.Preload;

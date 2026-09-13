@@ -18,7 +18,7 @@ MonoBehaviour:
     Address: VFX_Player_Slash
     Flags:
       Pause: 0
-      Load: 0
+      Load: 1
       Pool:
         Kind: 0
         InitialCount: 0

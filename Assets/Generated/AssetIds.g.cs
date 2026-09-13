@@ -11,6 +11,11 @@ namespace DDrive.Generated
         public static readonly AssetId<DDrive.Runtime.Vfx.VfxMarker> PlayerSlash = new(0x669C1BD114C4F11AUL, AssetType.Vfx);
     }
 
+    public static class PRESENTID
+    {
+        public static readonly AssetId<DDrive.Runtime.Presentation.PresentationMarker> DemoSkillSlash = new(0xCD2986D134D20E66UL, AssetType.Presentation);
+    }
+
     public static class PREFABID
     {
     }
@@ -61,15 +66,18 @@ namespace DDrive.Generated
 
     public static class SKINID
     {
+        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SKINButtonSkin = new(0x4023EF5CC383002CUL, AssetType.ControlSkin);
         public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SKINTestDefault = new(0x3035F13910E476CAUL, AssetType.ControlSkin);
     }
 
     public static class SLIDERSKINID
     {
+        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SKINSkiderTest = new(0x699D0AFE5F3166DUL, AssetType.ControlSkin);
     }
 
     public static class UITWEENID
     {
+        public static readonly AssetId<DDrive.Runtime.Ui.UiTweenMarker> UiTween = new(0x9A1DBA5A1034B8ADUL, AssetType.UiTween);
     }
 
     public static class BGMID

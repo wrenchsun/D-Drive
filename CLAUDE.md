@@ -21,16 +21,16 @@
 |---|---|
 | 名称 | D-Drive（Designer-Driven Re: IDE Visual Environment）。C# 識別子は `DDrive` |
 | コンセプト | プログラマーは **ID だけ**でモックを完成させ、デザイナーが専用エディタで中身を作る |
-| Unity | **6000.3.13f1**（勝手に上げない）/ URP 17.3 / Addressables / UniTask / NGO 2.2 |
+| Unity | **6000.3.13f1**（勝手に上げない）/ URP 17.3 / Addressables / UniTask / NGO 2.2 / R3 1.3.1（5-1 で導入。[docs/01](docs/01_architecture.md) §4 外部依存パッケージ参照） |
 | テスト | Unity Test Framework。`Assets/DDrive/Tests/{Editor,Runtime}` |
-| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model + Anchor アセット化 [docs/21](docs/21_anchor_spec.md) + 配置セット [docs/22](docs/22_anchor_group.md)）実装済み。Phase 3 は 3-1〜3-13 まで実装済み（Phase 3 完了）、次は Phase 4（4-4 Prefab → 4-1 Canvas）。0-14 起動配線（`DDriveRuntimeBootstrap`）+ Addressables 同期は 2026-09-09 に追加。Phase 4 完了（4-1〜4-18 実装済み。4-13 の NGO 複製は Phase 6 の NGO 統合で接続）、次は Phase 5（Presentation）。Codex 未レビュー分の自前レビューは Phase 4 = [docs/24](docs/24_phase4_review_2026-09-11.md)、Phase 3 後半(3-14〜3-21)= [docs/25](docs/25_phase3_material_anim2d_review_2026-09-11.md)(いずれも 2026-09-11 に対応済み。P4 の整理項目 1〜6 と P4 全体の再レビュー対応は 2026-09-14 に完了、P3 後半の整理項目のみ後続)。**人による確認は [docs/23](docs/23_manual_verification_2026-09-11.md) の手順書を参照**。[docs/11_tasks.md](docs/11_tasks.md) |
+| 進捗 | Phase 0（基盤）・Phase 1（Audio）・Phase 2（VFX + Model + Anchor アセット化 [docs/21](docs/21_anchor_spec.md) + 配置セット [docs/22](docs/22_anchor_group.md)）実装済み。Phase 3 は 3-1〜3-13 まで実装済み（Phase 3 完了）、次は Phase 4（4-4 Prefab → 4-1 Canvas）。0-14 起動配線（`DDriveRuntimeBootstrap`）+ Addressables 同期は 2026-09-09 に追加。Phase 4 完了（4-1〜4-18 実装済み。4-13 の NGO 複製は Phase 6 の NGO 統合で接続）。Phase 5 は 5-1（Presentation 基盤 + R3 導入、2026-09-14）着手。Codex 未レビュー分の自前レビューは Phase 4 = [docs/24](docs/24_phase4_review_2026-09-11.md)、Phase 3 後半(3-14〜3-21)= [docs/25](docs/25_phase3_material_anim2d_review_2026-09-11.md)(いずれも 2026-09-11 に対応済み。P4 の整理項目 1〜6 と P4 全体の再レビュー対応は 2026-09-14 に完了、P3 後半の整理項目のみ後続)。**人による確認は [docs/23](docs/23_manual_verification_2026-09-11.md) の手順書を参照**。[docs/11_tasks.md](docs/11_tasks.md) |
 
 ## 2. ディレクトリ地図
 
 ```
 Assets/DDrive/                 ← システム本体。層 = asmdef（[docs/01_architecture.md] §4-5）
   Foundation/   Registry / Loader / Pool / Handle / EventBus / Pause / ValueDef / Validation
-  Runtime/      種別ごとの Data / Manager / 静的ファサード(Audio, Vfx, Anim ...) / Anchoring(AnchorData・AnchorChain・AnchorGroup・AnchorPoint) / Presentation(AssetEventDispatcher) / Loop(GameLoopDriver・DDriveRuntimeBootstrap = 唯一の起動配線) / Net
+  Runtime/      種別ごとの Data / Manager / 静的ファサード(Audio, Vfx, Anim ...) / Anchoring(AnchorData・AnchorChain・AnchorGroup・AnchorPoint) / Presentation(PresentationData・PresentationManager・Presentation ファサード・AssetEventDispatcher) / Loop(GameLoopDriver・DDriveRuntimeBootstrap = 唯一の起動配線) / Net
   Editor/       AssetBrowser / 各専用エディタ(Audio, Vfx, Model) / Preview / Codegen / Validation
   Tests/        Editor(EditMode テスト) / Runtime(asmdef が全プラットフォーム対象のため Test Runner では PlayMode テスト。MCP の run_tests は mode=PlayMode で実行する)
 Assets/GameData/               ← ツールが管理する Data(.asset)・カタログ・標準プレハブ・確認用シーン
