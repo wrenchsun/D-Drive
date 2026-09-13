@@ -84,6 +84,31 @@
 <h3>方法2: 「新規」ボタン（効果音以外はこちら）</h3>
 <p>ファイルを後から設定したい場合や、効果音以外の種類はこちら。開くダイアログは同じで、「種別」で作るものを選びます。</p>
 
+<h3>方法3: SourceAssets フォルダに置くだけ（自動生成、2026-09-14 追加）</h3>
+<p>Asset Browser を開かずに、<strong>決められたフォルダにファイルを置くだけ</strong>で下記 9 種類の Data が自動的にできます（数秒後に Console にログが出ます）。</p>
+<table>
+<tr><th>置く場所</th><th>置くファイル</th><th>できる Data</th></tr>
+<tr><td><code>Assets/SourceAssets/Se/&lt;カテゴリ&gt;/</code></td><td>.wav / .mp3 / .ogg</td><td>SeData</td></tr>
+<tr><td><code>Assets/SourceAssets/Bgm/&lt;カテゴリ&gt;/</code></td><td>.wav / .mp3 / .ogg</td><td>BgmData</td></tr>
+<tr><td><code>Assets/SourceAssets/Texture/&lt;カテゴリ&gt;/</code></td><td>.png / .jpg / .tga 等</td><td>TextureData</td></tr>
+<tr><td><code>Assets/SourceAssets/Model/&lt;カテゴリ&gt;/</code></td><td>.fbx</td><td>ModelData</td></tr>
+<tr><td><code>Assets/SourceAssets/Anim/&lt;カテゴリ&gt;/</code></td><td>.anim / .fbx</td><td>AnimData</td></tr>
+<tr><td><code>Assets/SourceAssets/Anim2D/&lt;カテゴリ&gt;/</code></td><td>.anim / .fbx</td><td>Anim2DData</td></tr>
+<tr><td><code>Assets/SourceAssets/Prefab/&lt;カテゴリ&gt;/</code></td><td>.prefab</td><td>PrefabData</td></tr>
+<tr><td><code>Assets/SourceAssets/Canvas/&lt;カテゴリ&gt;/</code></td><td>.prefab</td><td>CanvasData</td></tr>
+<tr><td><code>Assets/SourceAssets/Vfx/&lt;カテゴリ&gt;/</code></td><td>.prefab</td><td>VfxData</td></tr>
+</table>
+<div class="tip">
+<code>&lt;カテゴリ&gt;</code> のフォルダ名がそのまま Data の「カテゴリ」になり、ファイル名がそのまま識別子(英語 PascalCase になっていない場合は自動で整形)になります。例えば <code>Assets/SourceAssets/Se/Player/Slash.wav</code> を置くと、カテゴリ「Player」・識別子「Slash」の <code>SE_Player_Slash</code> ができます。表示名は後から Inspector で日本語に変えられます。
+</div>
+<div class="warn">
+<strong>元ファイルを削除しても Data は消えません。</strong>音や見た目が「未設定(または Missing)」の警告付きで残るだけです（<a href="validation.html">Validation</a> の一覧に出ます）。うっかりファイルを消してしまっても、AssetBrowser 側のデータは安全です。逆に言うと、Data を完全に消したいときはこの方法では消えないので、通常のアセット削除手順を使ってください。<br>
+また、同じファイルを再インポートしても Data が二重にできることはありません。
+</div>
+<div class="tip">
+この機能で作られた Data は、ファイルへの参照（Clip / Texture / Prefab のいずれか）以外の項目は初期値のままです。細かい調整（3D 設定・Layer・Params 等）は作られた後に Asset Browser や各専用エディタで行ってください。
+</div>
+
 <h3>ダイアログの入力項目</h3>
 <table>
 <tr><th>項目</th><th>入力するもの</th><th>例</th></tr>

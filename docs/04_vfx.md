@@ -206,6 +206,7 @@ manager.TryGetEffectiveAnchor(h, out a); // 実際に使われている合成済
 3. Anchor をプレビューで調整（キャラモデルを読み込み、右手ボーンに Offset を付ける等）
 4. 公開したい調整値を Params に登録（"MainColor" 等ラベルを付ける）
 5. プログラマーは `Vfx.Spawn(VFXID.SlashBlue, ctx)` だけ。色違いは `h.SetParam` か、色違い VfxData を複製して別 ID に
+6. **（2026-09-14 追加、5-11）** Prefab を `Assets/SourceAssets/Vfx/<カテゴリ>/` に置くだけでも `VfxData`(Prefab のみ設定、その他は既定値)が自動生成される（`ImportRule`、[09_editor_tools.md](09_editor_tools.md) §1.1）。LifeMode/Anchor/Params は AssetBrowser か VfxEditor で追って調整する
 
 ## 7. Validation
 

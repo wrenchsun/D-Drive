@@ -48,6 +48,12 @@ namespace DDrive.Foundation.Data
         [Tooltip("生成/常時/消滅などのライフサイクル節目で発火するイベント一覧(他アセットの再生等に使う)。")]
         public AssetEvent[] Events;
 
+        [Header("Import")]
+        [Tooltip("インポート検知(ImportRule、5-11)がこの Data を自動生成した元ファイルの GUID(内部用)。" +
+                 "再インポート時の二重生成防止に使う。手動作成や Maya 経由(MaterialData.SourceMaterial 等、種別独自のキーを使う)の Data は空。手編集しないこと。")]
+        [HideInInspector]
+        public string ImportSourceGuid;
+
         public virtual IAssetBehaviour CreateBehaviour() => null;
     }
 }

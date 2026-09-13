@@ -26,3 +26,30 @@
 - 生成済みアイコンは 128〜512px 止まり（Inspector のサイズ選択に準拠）。Project ウィンドウを最大ズームにしたときの滲みが実用上気になるレベルか、デザイナーの目で確認してほしい（気になる場合は [09] §8.2 の要判断を参照して上限サイズや縮小方法を見直す）
 - AssetBrowser 未設定時のフォールバックは Unity 既定のミニサムネイル（`AssetPreview.GetMiniThumbnail`）。種別ごとに分かりやすい代替アイコン（例: 種別ロゴ）にすべきかは今回判断せず据え置いた
 
+## 5-11 インポート検知による Data 自動生成（PR #12）
+
+対象: `Editor/Import/ImportRuleService.cs`（+`ImportRulePostprocessor.cs` / `IImportRuleHandler.cs` / `ImportRuleHandlers.cs`）、`Foundation/Data/AssetDataBase.cs`（`ImportSourceGuid` 追加）。設計は [09_editor_tools.md](09_editor_tools.md) §1.1 / [10_workflow.md](10_workflow.md) §3.3。
+
+事前準備: Unity Editor で `Assets/SourceAssets/` 配下に、確認用の一時サブフォルダ（例 `Assets/SourceAssets/_ImportRuleCheck/`）を作っておく（確認後にまとめて削除できるように、実運用フォルダと混ぜない）。
+
+1. **Se**: `Assets/SourceAssets/_ImportRuleCheck/Se/Check/` に音声ファイル（.wav 等）を 1 つドラッグ＆ドロップで置く → 数秒後（Console に `[DDrive] ImportRule: ...` のログが出る）に `Assets/GameData/Audio/SE/Check/SE_Check_<ファイル名>.asset` が自動生成されていること。AssetBrowser で開き、Clips に置いた音声が入っていること
+2. **Bgm**: 同様に `.../Bgm/Check/` に音声ファイルを置く → `Assets/GameData/Audio/BGM/Check/BGM_Check_<ファイル名>.asset` が生成され、LoopBody に音声が入っていること
+3. **Texture**: `.../Texture/Check/` に画像ファイル（.png 等）を置く → `Assets/GameData/Texture/Check/TEX_Check_<ファイル名>.asset` が生成され、Texture に画像が入っていること
+4. **Model**: `.../Model/Check/` に FBX を置く → `Assets/GameData/Model/Check/MODEL_Check_<ファイル名>.asset` が生成され、Prefab に FBX のルートが入っていること（同時に Maya→Material 経路で MaterialData/TextureData も生成されていれば正常な共存)
+5. **Anim**: `.../Anim/Check/` に `.anim` ファイル（既存の AnimationClip をコピーするか、AnimEditor で作った物を配置）を置く → `Assets/GameData/Anim/Check/ANIM_Check_<ファイル名>.asset` が生成され、Clip が入っていること
+6. **Anim2D**: `.../Anim2D/Check/` に `.anim` ファイルを置く → `Assets/GameData/Anim2D/Check/ANIM2D_Check_<ファイル名>.asset` が生成され、Clip が入っていること（Directions=None のまま。方向づけは Anim2DEditor で追加する）
+7. **Prefab**: `.../Prefab/Check/` に Prefab を置く → `Assets/GameData/Prefab/Check/PREFAB_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
+8. **Canvas**: `.../Canvas/Check/` に UI Prefab を置く → `Assets/GameData/Canvas/Check/CANVAS_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
+9. **Vfx**: `.../Vfx/Check/` に ParticleSystem/VFX Graph の Prefab を置く → `Assets/GameData/Vfx/Check/VFX_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
+10. **二重生成しないこと**: 上記のいずれか 1 つを選び、そのファイルを右クリック →「Reimport」（または一度別プロジェクトへコピーして戻す）を行っても、対応する Data が増えず 1 個のままであること
+11. **欠落表示**: 手順 1〜9 のいずれかで作った元ファイルを 1 つ削除する → 対応する Data 自体は消えずに残ること、AssetBrowser の ⚠ Validation（または `Tools > D-Drive > Validation > Run All`）でその Data が Error（「未設定(または Missing)です」）として表示されること
+12. **AutoImport=OFF 相当の手動フォールバック**: 上記の一時フォルダ全体を一度削除し、別の場所に同じ構成のファイル一式を用意した状態で `Tools > D-Drive > Generate > SourceAssets からインポートルールを再実行` を実行 → Console にまとめて生成ログが出て、対応する Data が一括生成されること
+13. 確認が終わったら、`Assets/SourceAssets/_ImportRuleCheck/` と生成された `Assets/GameData/**/Check/` 配下の Data 一式を Unity Editor から削除する（AssetBrowser の削除機能、または Project ウィンドウで `Assets/SourceAssets/_ImportRuleCheck` フォルダと `Assets/GameData/*/Check` フォルダを削除して Addressables のエントリも合わせて外す）
+
+要判断:
+- **Anim2D の元ファイルの解釈**: スプライトシート/Texture からの自動スライス(既存 Anim2DEditor のワークフローと重複)ではなく、`AnimData` と同じ「単一の `.anim`/`.fbx` を `Clip` に設定するだけの Placeholder」を採用した。方向づけ(`DirectionClips`)は既存の Anim2DEditor(3-11/3-12)で追加する運用。デザイナーの実際のワークフロー(スプライトから作ることが多いのか、既存クリップの流用が多いのか)によって、Texture フォルダ起点にすべきかどうかは要判断
+- **Anim の複数テイク FBX**: 1 つの FBX に複数の `AnimationClip` が埋め込まれている場合、`ImportRule` は先頭 1 本(`__preview__` を除く)だけを取り込む。複数テイクを個別の `AnimData` に分けたい運用が多い場合は、ファイル単位でなくクリップ単位の複数生成へ拡張するか、テイクごとに FBX を分けて Export する運用にするかは要判断
+- **Model の Prefab 直参照**: `ModelData.Prefab` に FBX のインポート直後のルート GameObject をそのまま設定する。Animator/追加コンポーネントを載せたラッパー Prefab を挟む運用がある場合、そのラッパー生成までは自動化していない(現状は ModelEditor 等で手動差し替え)
+- **Texture の Usage/Channel 既定値**: `TextureImportProfile` の命名規約(`_N`/`_M`/`_UI` 等)に一致すればその既定値、一致しなければ `TextureData` のクラス既定値(Model/Albedo)のまま。UI 用テクスチャを規約に合わない名前で置いた場合は手動で Usage を直す必要がある
+- **既存 Data と同名衝突時の挙動は未検証**: 手動で同じ識別子の Data を先に作っていた場合、`AssetCreationService.Create` が別ファイルとして作成する(既存の重複回避ロジックに委ねている)。運用上どちらが優先されるべきかは今回判断していない
+

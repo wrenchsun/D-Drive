@@ -143,6 +143,7 @@ AssetBrowser から開く Inspector 拡張 + プレビューペイン。
 3. アニメ連携: AnimationData のイベントトラックに `Frame(15) → PlayAsset(SE)` を設定（コード不要）
 4. 会話シーン: CanvasData(会話UI) の OnEnable イベントに `Duck(Dialogue, -12dB)`、OnDisable に `PopDuck`
 5. 環境音（滝・焚き火等）: シーンに `SeEmitter`（SeIdRef を 1 つ持つ配置用マーカーコンポーネント）を置くだけ。OnEnable で `Audio.PlaySe(id, transform)`、OnDisable で Stop を自動発行する薄いラッパで、禁止事項（AudioSource.Play 直呼び）に抵触しない正規の配置手段。カリングは MaxDistance + Priority の既存機構に乗る。**配置には標準プレハブ `Assets/GameData/Prefabs/Audio/SeEmitter.prefab` を使うこと推奨**（無ければ `Tools/D-Drive/Generate/標準プレハブを生成`。[01] §5 / [10] §3.3）
+6. **（2026-09-14 追加、5-11）** AssetBrowser を使わなくても、音声ファイルを `Assets/SourceAssets/Se/<カテゴリ>/`（BGM は `Assets/SourceAssets/Bgm/<カテゴリ>/`）に置くだけで `SeData`/`BgmData` が自動生成される（`ImportRule`、[09_editor_tools.md](09_editor_tools.md) §1.1）。元ファイルを消しても Data は残り、上記 §7 の Validation が「未設定(または Missing)」で欠落を知らせる
 
 ## 7. Validation
 
