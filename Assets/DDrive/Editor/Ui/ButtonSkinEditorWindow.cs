@@ -54,12 +54,7 @@ namespace DDrive.Editor.Ui
             row.Add(new UnityEngine.UIElements.Button(RemoveFromScene) { text = "撤去" });
             scrollView.Add(row);
 
-            _settings = new ControlSkinPreviewSection(
-                EnsurePreview,
-                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.HoverSe), s => ((ButtonSkinData)s).HoverSe),
-                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.ClickSe), s => ((ButtonSkinData)s).ClickSe),
-                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.LongPressSe), s => ((ButtonSkinData)s).LongPressSe),
-                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.DeniedSe), s => ((ButtonSkinData)s).DeniedSe));
+            _settings = new ControlSkinPreviewSection(BuildOptions());
             scrollView.Add(_settings);
 
             if (_target == null && Selection.activeObject is ButtonSkinData selected)
@@ -92,6 +87,42 @@ namespace DDrive.Editor.Ui
             }
 
             return _previewButton;
+        }
+
+        // SE の欄と状態遷移の並び。遷移は実行時(UiButton)で音が鳴るタイミングに合わせる
+        // (Hover / Selected に入ると HoverSe、押して離すと ClickSe、Disabled / Locked で押すと DeniedSe)。
+        private ControlSkinPreviewSection.Options BuildOptions()
+        {
+            const string hover = nameof(ButtonSkinData.HoverSe);
+            const string click = nameof(ButtonSkinData.ClickSe);
+            const string denied = nameof(ButtonSkinData.DeniedSe);
+            static ControlSkinPreviewSection.TransitionStep S(ControlState state, string se = null) => new(state, se);
+
+            return new ControlSkinPreviewSection.Options
+            {
+                EnsurePreview = EnsurePreview,
+                CurrentPreview = () => _previewButton,
+                SeFields = new[]
+                {
+                    new ControlSkinPreviewSection.SeField(hover, s => ((ButtonSkinData)s).HoverSe),
+                    new ControlSkinPreviewSection.SeField(click, s => ((ButtonSkinData)s).ClickSe),
+                    new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.LongPressSe), s => ((ButtonSkinData)s).LongPressSe),
+                    new ControlSkinPreviewSection.SeField(denied, s => ((ButtonSkinData)s).DeniedSe),
+                },
+                Sequences = new[]
+                {
+                    new ControlSkinPreviewSection.TransitionSequence("マウスでクリック",
+                        S(ControlState.Normal), S(ControlState.Hover, hover), S(ControlState.Pressed), S(ControlState.Hover, click), S(ControlState.Normal)),
+                    new ControlSkinPreviewSection.TransitionSequence("パッドで選んで決定",
+                        S(ControlState.Normal), S(ControlState.Selected, hover), S(ControlState.Pressed), S(ControlState.Selected, click), S(ControlState.Normal)),
+                    new ControlSkinPreviewSection.TransitionSequence("押せない(Disabled)ボタンを押す",
+                        S(ControlState.Normal), S(ControlState.Disabled), S(ControlState.Disabled, denied), S(ControlState.Normal)),
+                    new ControlSkinPreviewSection.TransitionSequence("ロック中(Locked)のボタンを押す",
+                        S(ControlState.Normal), S(ControlState.Locked), S(ControlState.Locked, denied), S(ControlState.Normal)),
+                    new ControlSkinPreviewSection.TransitionSequence("全状態を順に",
+                        S(ControlState.Normal), S(ControlState.Hover), S(ControlState.Pressed), S(ControlState.Selected), S(ControlState.Disabled), S(ControlState.Locked), S(ControlState.Normal)),
+                },
+            };
         }
 
         // Data 自体は編集しない。実配置での見た目確認だけをシーン上で行う(ADR-4: プレビューは実 Manager/実コンポーネントを駆動する)。

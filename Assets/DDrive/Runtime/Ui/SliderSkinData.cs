@@ -22,8 +22,12 @@ namespace DDrive.Runtime.Ui
         public Sprite NotchSprite;
         [Tooltip("パッド操作時はハンドルを隠し、フォーカス枠のみ表示する")]
         public bool HideHandleOnGamepad;
-        [Tooltip("タッチ用ヒット領域拡張(ハンドル外を押しても掴める)")]
+        [Tooltip("タッチ用ヒット領域拡張(ハンドル外を押しても掴める)。X=左右、Y=上下に広げる幅で、共通の Hit Area Expand に足される")]
         public Vector2 ExtraHitPadding;
+
+        // 2026-09-14: ExtraHitPadding は長らく未接続だった。共通の当たり判定(HitAreaExpand)に足して効かせる。
+        public override Vector4 EffectiveHitAreaExpand
+            => HitAreaExpand + new Vector4(ExtraHitPadding.x, ExtraHitPadding.y, ExtraHitPadding.x, ExtraHitPadding.y);
 
         [Header("SE")]
         public SeId GrabSe;

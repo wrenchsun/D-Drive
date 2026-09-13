@@ -43,6 +43,19 @@ namespace DDrive.Runtime.Ui
         public StateVisual Disabled = StateVisual.Default;
         public StateVisual Locked = StateVisual.Default;
 
+        // 2026-09-14 追加(ユーザー要望: 当たり判定の調整)。状態ごとではなく Skin 全体の設定で、
+        // UiInteractable が TargetGraphic へ適用する(Graphic.raycastPadding / Image.alphaHitTestMinimumThreshold)。
+        [Header("当たり判定")]
+        [Tooltip("押せる範囲を四辺ごとに広げる(+)/狭める(-)。単位は UI のピクセル(X=左, Y=下, Z=右, W=上)。Target Graphic に掛かる")]
+        public Vector4 HitAreaExpand;
+
+        [Tooltip("画像の不透明度がこの値未満のピクセルは押せない(0=無効、例 0.5)。画像(Sprite の Texture)の Read/Write を ON にし、Sprite Atlas には入れないこと")]
+        [Range(0f, 1f)]
+        public float AlphaHitThreshold;
+
+        // 実際に適用する広げ幅(派生 Skin が固有の設定を足す。SliderSkinData.ExtraHitPadding)。
+        public virtual Vector4 EffectiveHitAreaExpand => HitAreaExpand;
+
         public ref readonly StateVisual Get(ControlState state)
         {
             switch (state)

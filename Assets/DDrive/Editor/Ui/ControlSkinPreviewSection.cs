@@ -12,13 +12,17 @@ using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Button = UnityEngine.UIElements.Button;
+using Image = UnityEngine.UI.Image;
+using Object = UnityEngine.Object;
 
 namespace DDrive.Editor.Ui
 {
     // ButtonSkin / SliderSkin エディタ共通の設定欄(2026-09-13 追加、2026-09-14 改修)。
-    // 各状態の Enter Tween / Enter Preset 欄のすぐ上に演出の再生ボタンを、各 SE 欄の同じ行に試聴ボタンを置く
-    // (当初は Inspector とプレビュー一覧が上下に離れていて操作しづらかった)。それ以外の項目は通常の
-    // PropertyField で元の順に並べる。
+    // - 各状態の Enter Tween / Enter Preset 欄のすぐ上に演出の再生ボタン、各 SE 欄の同じ行に試聴ボタンを置く
+    // - 「状態遷移」: Normal→Hover→Pressed… のような遷移を自動で順に再生し、画像の差し替え・演出・SE を通しで見る
+    // - 「当たり判定」: 確認用シーンのプレビューに赤い半透明の枠を重ね(Game / Scene ビュー)、SceneView の四辺の
+    //   ハンドルで HitAreaExpand をドラッグ調整できる
+    // それ以外の項目は通常の PropertyField で元の順に並べる。
     // Editor では UiFx が未 Bind のため ForceStateForPreview は色・拡大率・画像しか適用しない。状態に入ったときの
     // 演出はここで実行時(UiInteractable.PlayStateTween)と同じ規則(EnterTween 優先 → EnterPreset、プリセット付属
     // SE も鳴らす)で実 UiTweenManager に再生させ、SE は PreviewService の実 AudioManager で鳴らす(ADR-4)。
@@ -34,8 +38,42 @@ namespace DDrive.Editor.Ui
                 PropertyName = propertyName;
                 Get = get;
             }
+        }
 
-            public string Label => ObjectNames.NicifyVariableName(PropertyName);
+        public readonly struct TransitionStep
+        {
+            public readonly ControlState State;
+            public readonly string SePropertyName;
+
+            public TransitionStep(ControlState state, string sePropertyName = null)
+            {
+                State = state;
+                SePropertyName = sePropertyName;
+            }
+        }
+
+        public readonly struct TransitionSequence
+        {
+            public readonly string Name;
+            public readonly TransitionStep[] Steps;
+
+            public TransitionSequence(string name, params TransitionStep[] steps)
+            {
+                Name = name;
+                Steps = steps ?? Array.Empty<TransitionStep>();
+            }
+        }
+
+        public sealed class Options
+        {
+            // 確認用シーンのプレビュー部品(未配置なら配置してから返す)。
+            public Func<UiInteractable> EnsurePreview;
+
+            // 現在のプレビュー部品(配置しない。当たり判定の枠・ハンドル表示用)。
+            public Func<UiInteractable> CurrentPreview;
+
+            public SeField[] SeFields = Array.Empty<SeField>();
+            public TransitionSequence[] Sequences = Array.Empty<TransitionSequence>();
         }
 
         private sealed class StateRow
@@ -55,6 +93,8 @@ namespace DDrive.Editor.Ui
             public Button Stop;
         }
 
+        private const string HitOverlayName = "[D-Drive] HitArea";
+
         private static readonly Dictionary<string, ControlState> StateByProperty = new()
         {
             { nameof(ControlSkinData.Normal), ControlState.Normal },
@@ -69,8 +109,7 @@ namespace DDrive.Editor.Ui
         private static readonly HashSet<string> TweenFieldNames = new() { nameof(StateVisual.EnterTween), nameof(StateVisual.EnterPreset) };
         private static readonly Dictionary<ControlState, bool> LookExpanded = new();
 
-        private readonly Func<UiInteractable> _ensurePreview;
-        private readonly SeField[] _seFields;
+        private readonly Options _options;
         private readonly TweenTrack[] _presetScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
         private readonly VisualElement _body = new();
         private readonly List<StateRow> _stateWidgets = new();
@@ -86,13 +125,28 @@ namespace DDrive.Editor.Ui
         private string _sePropertyName;
         private double _lastTime;
 
-        // ensurePreview: 確認用シーンのプレビュー部品を返す(未配置なら配置してから返す)。
-        public ControlSkinPreviewSection(Func<UiInteractable> ensurePreview, params SeField[] seFields)
-        {
-            _ensurePreview = ensurePreview;
-            _seFields = seFields ?? Array.Empty<SeField>();
+        // 状態遷移の自動再生。
+        private PopupField<string> _seqPopup;
+        private Button _seqPause;
+        private Button _seqStop;
+        private Label _seqStatus;
+        private int _seqIndex = -1;
+        private int _seqStep;
+        private float _seqTimer;
+        private bool _seqPaused;
+        private ControlState _seqPrevState;
+        private float _seqInterval = 0.7f;
+        private bool _seqLoop;
+        private bool _seqWithSe = true;
 
-            Add(new HelpBox("各状態の「▶ 再生」でプレビューの部品をその状態にし、状態に入ったときの演出(すぐ下の Enter Tween / Enter Preset)を再生します。未配置なら自動で「確認用シーンに配置」します。SE 欄の右の「▶」で試聴できます。", HelpBoxMessageType.Info));
+        // 当たり判定の表示。
+        private bool _showHitArea;
+
+        public ControlSkinPreviewSection(Options options)
+        {
+            _options = options ?? new Options();
+
+            Add(new HelpBox("各状態の「▶ 再生」でプレビューの部品をその状態にし、状態に入ったときの演出(すぐ下の Enter Tween / Enter Preset)を再生します。「状態遷移」は複数の状態を順に自動で切り替えます。未配置なら自動で「確認用シーンに配置」します。SE 欄の右の「▶」で試聴できます。動きは Game ビューで見てください。", HelpBoxMessageType.Info));
             Add(_status);
             Add(_body);
 
@@ -100,17 +154,19 @@ namespace DDrive.Editor.Ui
             {
                 _lastTime = EditorApplication.timeSinceStartup;
                 EditorApplication.update += OnEditorUpdate;
+                SceneView.duringSceneGui += OnSceneGui;
             });
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
                 EditorApplication.update -= OnEditorUpdate;
+                SceneView.duringSceneGui -= OnSceneGui;
                 Shutdown();
             });
         }
 
         public void SetSkin(ControlSkinData skin)
         {
-            StopTween();
+            StopSequence();
             StopSe();
             _skin = skin;
             _status.text = string.Empty;
@@ -119,6 +175,7 @@ namespace DDrive.Editor.Ui
             _body.Clear();
             _stateWidgets.Clear();
             _seWidgets.Clear();
+            _seqPopup = null;
 
             if (skin == null)
             {
@@ -127,7 +184,7 @@ namespace DDrive.Editor.Ui
             }
 
             var seByName = new Dictionary<string, SeField>();
-            foreach (var field in _seFields)
+            foreach (var field in _options.SeFields)
             {
                 seByName[field.PropertyName] = field;
             }
@@ -150,6 +207,11 @@ namespace DDrive.Editor.Ui
                     if (!statesHeaderAdded)
                     {
                         _body.Add(Header("状態別ビジュアル"));
+                        if (_options.Sequences.Length > 0)
+                        {
+                            _body.Add(BuildTransitionBlock());
+                        }
+
                         statesHeaderAdded = true;
                     }
 
@@ -159,6 +221,11 @@ namespace DDrive.Editor.Ui
                 {
                     _body.Add(BuildSeRow(prop, seField));
                 }
+                else if (prop.name == nameof(ControlSkinData.HitAreaExpand))
+                {
+                    _body.Add(new PropertyField(prop));
+                    _body.Add(BuildHitAreaRow());
+                }
                 else
                 {
                     _body.Add(new PropertyField(prop));
@@ -167,25 +234,27 @@ namespace DDrive.Editor.Ui
 
             _body.Bind(so);
 
-            // 欄を編集したら見出しの要約・押せるボタンを追従させる(欄自体は作り直さない = 入力中のフォーカスを奪わない)。
+            // 欄を編集したら見出しの要約・押せるボタン・当たり判定の枠を追従させる
+            // (欄自体は作り直さない = 入力中のフォーカスを奪わない)。
             var tracker = new VisualElement();
             _body.Add(tracker);
-            tracker.TrackSerializedObjectValue(so, _ => RefreshSummaries());
+            tracker.TrackSerializedObjectValue(so, _ =>
+            {
+                RefreshSummaries();
+                UpdateHitOverlay();
+                SceneView.RepaintAll();
+            });
 
             RefreshSummaries();
             RefreshWidgets();
+            UpdateHitOverlay();
         }
+
+        // ── 状態ごとの箱 ──
 
         private VisualElement BuildStateBlock(SerializedProperty prop, ControlState state)
         {
-            var block = new VisualElement
-            {
-                style =
-                {
-                    marginTop = 6, paddingLeft = 6, paddingTop = 2, paddingBottom = 4,
-                    borderLeftWidth = 3, borderLeftColor = new Color(0.35f, 0.6f, 0.95f, 0.8f),
-                },
-            };
+            var block = Block(new Color(0.35f, 0.6f, 0.95f, 0.8f));
 
             var w = new StateRow { State = state };
             var header = Row();
@@ -199,7 +268,7 @@ namespace DDrive.Editor.Ui
             });
             w.Pause = new Button(TogglePause) { text = "⏸ 一時停止", tooltip = "その場で一時停止 / 再開" };
             header.Add(w.Pause);
-            w.Stop = new Button(StopTween) { text = "■ 停止", tooltip = "途中で止める(最終状態には進めない)" };
+            w.Stop = new Button(StopSequence) { text = "■ 停止", tooltip = "途中で止める(最終状態には進めない)" };
             header.Add(w.Stop);
             w.Status = new Label { style = { marginLeft = 4, opacity = 0.8f, minWidth = 64 } };
             header.Add(w.Status);
@@ -257,6 +326,154 @@ namespace DDrive.Editor.Ui
             return block;
         }
 
+        // ── 状態遷移の自動再生 ──
+
+        private VisualElement BuildTransitionBlock()
+        {
+            var block = Block(new Color(0.95f, 0.7f, 0.3f, 0.8f));
+
+            var names = new List<string>();
+            foreach (var seq in _options.Sequences)
+            {
+                names.Add(seq.Name);
+            }
+
+            var row1 = Row();
+            row1.Add(new Label("状態遷移") { style = { unityFontStyleAndWeight = FontStyle.Bold, width = 70 } });
+            _seqPopup = new PopupField<string>(names, 0) { style = { flexGrow = 1f } };
+            _seqPopup.RegisterValueChangedCallback(_ => UpdateSequenceHint());
+            row1.Add(_seqPopup);
+            row1.Add(new Button(StartSequence) { text = "▶ 遷移を再生", tooltip = "選んだ遷移を順に自動で再生する(画像の差し替え・演出・SE を通しで確認)" });
+            _seqPause = new Button(ToggleSequencePause) { text = "⏸ 一時停止" };
+            row1.Add(_seqPause);
+            _seqStop = new Button(StopSequence) { text = "■ 停止" };
+            row1.Add(_seqStop);
+            block.Add(row1);
+
+            var row2 = Row();
+            var interval = new Slider("1 状態の長さ(秒)", 0.2f, 2f) { value = _seqInterval, showInputField = true, style = { flexGrow = 1f } };
+            interval.RegisterValueChangedCallback(evt => _seqInterval = evt.newValue);
+            row2.Add(interval);
+            var loop = new Toggle("ループ") { value = _seqLoop, style = { marginLeft = 8 } };
+            loop.RegisterValueChangedCallback(evt => _seqLoop = evt.newValue);
+            row2.Add(loop);
+            var withSe = new Toggle("SE も鳴らす") { value = _seqWithSe, style = { marginLeft = 8 } };
+            withSe.RegisterValueChangedCallback(evt => _seqWithSe = evt.newValue);
+            row2.Add(withSe);
+            block.Add(row2);
+
+            _seqStatus = new Label { style = { opacity = 0.85f, whiteSpace = WhiteSpace.Normal } };
+            block.Add(_seqStatus);
+            UpdateSequenceHint();
+            return block;
+        }
+
+        private void UpdateSequenceHint()
+        {
+            if (_seqStatus == null || _seqIndex >= 0 || _seqPopup == null)
+            {
+                return;
+            }
+
+            var seq = _options.Sequences[Mathf.Clamp(_seqPopup.index, 0, _options.Sequences.Length - 1)];
+            var parts = new List<string>();
+            foreach (var step in seq.Steps)
+            {
+                parts.Add(string.IsNullOrEmpty(step.SePropertyName) ? step.State.ToString() : $"{step.State}({ObjectNames.NicifyVariableName(step.SePropertyName)})");
+            }
+
+            _seqStatus.text = string.Join(" → ", parts);
+        }
+
+        private void StartSequence()
+        {
+            if (_skin == null || _seqPopup == null || _options.Sequences.Length == 0)
+            {
+                return;
+            }
+
+            StopSequence();
+            _seqIndex = Mathf.Clamp(_seqPopup.index, 0, _options.Sequences.Length - 1);
+            _seqStep = -1;
+            _seqPaused = false;
+            AdvanceSequence();
+        }
+
+        private void AdvanceSequence()
+        {
+            var seq = _options.Sequences[_seqIndex];
+            _seqStep++;
+            if (_seqStep >= seq.Steps.Length)
+            {
+                if (!_seqLoop)
+                {
+                    _seqIndex = -1;
+                    _seqStatus.text = $"{seq.Name}: 完了";
+                    return;
+                }
+
+                _seqStep = 0;
+            }
+
+            var step = seq.Steps[_seqStep];
+            // 同じ状態が続く段(例: Disabled のまま押して拒否音)は演出をやり直さず、SE だけ鳴らす。
+            if (_seqStep == 0 || step.State != _seqPrevState)
+            {
+                PlayStateCore(step.State);
+            }
+
+            _seqPrevState = step.State;
+
+            var seText = string.Empty;
+            if (_seqWithSe && !string.IsNullOrEmpty(step.SePropertyName))
+            {
+                foreach (var field in _options.SeFields)
+                {
+                    if (field.PropertyName == step.SePropertyName && field.Get(_skin).IsValid)
+                    {
+                        PlaySe(field.Get(_skin), field.PropertyName);
+                        seText = $"  ♪ {ObjectNames.NicifyVariableName(field.PropertyName)}";
+                        break;
+                    }
+                }
+            }
+
+            _seqTimer = 0f;
+            _seqStatus.text = $"● {seq.Name}: {_seqStep + 1}/{seq.Steps.Length} {step.State}{seText}";
+        }
+
+        private void ToggleSequencePause()
+        {
+            if (_seqIndex < 0)
+            {
+                return;
+            }
+
+            _seqPaused = !_seqPaused;
+            if (_tweens != null && _tweens.IsPlaying(_tweenHandle))
+            {
+                _tweens.SetPaused(_tweenHandle, _seqPaused);
+            }
+        }
+
+        private void StopSequence()
+        {
+            var wasRunning = _seqIndex >= 0;
+            _seqIndex = -1;
+            _seqPaused = false;
+            StopTween();
+            if (wasRunning)
+            {
+                StopSe();
+                if (_seqStatus != null)
+                {
+                    _seqStatus.text = "停止";
+                }
+            }
+        }
+
+        // ── SE 欄 ──
+
         private VisualElement BuildSeRow(SerializedProperty prop, SeField field)
         {
             var row = Row();
@@ -272,6 +489,140 @@ namespace DDrive.Editor.Ui
             _seWidgets.Add(w);
             return row;
         }
+
+        // ── 当たり判定 ──
+
+        private VisualElement BuildHitAreaRow()
+        {
+            var row = Row();
+            var toggle = new Toggle("当たり判定を表示")
+            {
+                value = _showHitArea,
+                tooltip = "確認用シーンのプレビューに押せる範囲を赤い半透明で重ねる(Game / Scene ビュー)。SceneView では四辺の四角をドラッグして Hit Area Expand を調整できる",
+            };
+            toggle.RegisterValueChangedCallback(evt =>
+            {
+                _showHitArea = evt.newValue;
+                if (_showHitArea)
+                {
+                    _options.EnsurePreview?.Invoke();
+                }
+
+                UpdateHitOverlay();
+                SceneView.RepaintAll();
+                InternalEditorUtility.RepaintAllViews();
+            });
+            row.Add(toggle);
+            row.Add(new Label("透明部分の判定(Alpha Hit Threshold)は実行時のみ効きます") { style = { marginLeft = 8, opacity = 0.7f } });
+            return row;
+        }
+
+        private void UpdateHitOverlay()
+        {
+            var control = _options.CurrentPreview?.Invoke();
+            if (control == null)
+            {
+                return;
+            }
+
+            var existing = control.transform.Find(HitOverlayName);
+            if (!_showHitArea || _skin == null)
+            {
+                if (existing != null)
+                {
+                    Object.DestroyImmediate(existing.gameObject);
+                }
+
+                return;
+            }
+
+            RectTransform overlay;
+            if (existing == null)
+            {
+                var go = new GameObject(HitOverlayName, typeof(RectTransform), typeof(Image)) { hideFlags = HideFlags.DontSave };
+                go.transform.SetParent(control.transform, false);
+                var image = go.GetComponent<Image>();
+                image.color = new Color(1f, 0.25f, 0.25f, 0.35f);
+                image.raycastTarget = false;
+                overlay = (RectTransform)go.transform;
+                overlay.anchorMin = Vector2.zero;
+                overlay.anchorMax = Vector2.one;
+                overlay.pivot = new Vector2(0.5f, 0.5f);
+            }
+            else
+            {
+                overlay = (RectTransform)existing;
+            }
+
+            var e = _skin.EffectiveHitAreaExpand;
+            overlay.offsetMin = new Vector2(-e.x, -e.y);
+            overlay.offsetMax = new Vector2(e.z, e.w);
+        }
+
+        private void OnSceneGui(SceneView view)
+        {
+            if (!_showHitArea || _skin == null)
+            {
+                return;
+            }
+
+            var control = _options.CurrentPreview?.Invoke();
+            if (control == null || !(control.transform is RectTransform rt))
+            {
+                return;
+            }
+
+            var e = _skin.EffectiveHitAreaExpand;
+            var r = rt.rect;
+            var min = new Vector2(r.xMin - e.x, r.yMin - e.y);
+            var max = new Vector2(r.xMax + e.z, r.yMax + e.w);
+            var mid = (min + max) * 0.5f;
+
+            var prevColor = Handles.color;
+            Handles.color = new Color(1f, 0.3f, 0.3f, 1f);
+            Handles.DrawPolyLine(
+                rt.TransformPoint(new Vector3(min.x, min.y)), rt.TransformPoint(new Vector3(min.x, max.y)),
+                rt.TransformPoint(new Vector3(max.x, max.y)), rt.TransformPoint(new Vector3(max.x, min.y)),
+                rt.TransformPoint(new Vector3(min.x, min.y)));
+
+            var changed = false;
+            var next = e;
+            next.x = DragEdge(rt, new Vector3(min.x, mid.y), Vector3.left, e.x, ref changed);
+            next.y = DragEdge(rt, new Vector3(mid.x, min.y), Vector3.down, e.y, ref changed);
+            next.z = DragEdge(rt, new Vector3(max.x, mid.y), Vector3.right, e.z, ref changed);
+            next.w = DragEdge(rt, new Vector3(mid.x, max.y), Vector3.up, e.w, ref changed);
+            Handles.color = prevColor;
+
+            if (changed)
+            {
+                // 派生 Skin の上乗せ分(SliderSkin.ExtraHitPadding)はそのままに、差分だけ HitAreaExpand へ反映する。
+                Undo.RecordObject(_skin, "当たり判定の調整");
+                _skin.HitAreaExpand += next - e;
+                EditorUtility.SetDirty(_skin);
+                UpdateHitOverlay();
+                InternalEditorUtility.RepaintAllViews();
+            }
+        }
+
+        private static float DragEdge(RectTransform rt, Vector3 localPos, Vector3 localDir, float value, ref bool changed)
+        {
+            var world = rt.TransformPoint(localPos);
+            var worldDir = rt.TransformDirection(localDir).normalized;
+            var size = HandleUtility.GetHandleSize(world) * 0.08f;
+
+            EditorGUI.BeginChangeCheck();
+            var moved = Handles.Slider(world, worldDir, size, Handles.CubeHandleCap, 0f);
+            if (!EditorGUI.EndChangeCheck())
+            {
+                return value;
+            }
+
+            var along = Vector3.Dot(rt.InverseTransformVector(moved - world), localDir);
+            changed = true;
+            return Mathf.Round(value + along);
+        }
+
+        // ── 共通の再生処理 ──
 
         private void RefreshSummaries()
         {
@@ -300,14 +651,21 @@ namespace DDrive.Editor.Ui
             }
         }
 
+        // 状態の「▶ 再生」。遷移の自動再生中なら止めてから 1 状態だけ再生する。
         private void PlayState(ControlState state)
+        {
+            StopSequence();
+            PlayStateCore(state);
+        }
+
+        private void PlayStateCore(ControlState state)
         {
             if (_skin == null)
             {
                 return;
             }
 
-            var control = _ensurePreview?.Invoke();
+            var control = _options.EnsurePreview?.Invoke();
             if (control == null || !(control.transform is RectTransform rt))
             {
                 _status.text = "確認用シーンにプレビューを配置できませんでした";
@@ -349,6 +707,7 @@ namespace DDrive.Editor.Ui
             _tweenState = state;
             _lastTime = EditorApplication.timeSinceStartup;
             _status.text = _tweens.IsPlaying(_tweenHandle) ? $"{state} の演出を再生中(Game ビューで確認)" : $"{state} の見た目を適用しました(演出なし)";
+            UpdateHitOverlay();
             InternalEditorUtility.RepaintAllViews();
         }
 
@@ -419,7 +778,7 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            var control = _ensurePreview?.Invoke();
+            var control = _options.EnsurePreview?.Invoke();
             var rt = control != null ? control.transform as RectTransform : null;
             var root = control != null ? control.transform.root.gameObject : null;
             UiTweenEditorWindow.Open(tween, root, rt, control != null ? control.name : null);
@@ -428,20 +787,41 @@ namespace DDrive.Editor.Ui
         private void OnEditorUpdate()
         {
             var now = EditorApplication.timeSinceStartup;
-            var dt = (float)(now - _lastTime);
+            var dt = Mathf.Min((float)(now - _lastTime), 0.1f);
             _lastTime = now;
             if (dt <= 0f)
             {
                 return;
             }
 
+            var animating = false;
             if (_tweens != null && _tweens.ActiveCount > 0)
             {
-                _tweens.Tick(Mathf.Min(dt, 0.1f));
+                _tweens.Tick(dt);
+                animating = true;
+            }
 
-                // Edit Mode の Game ビューは自動では再描画されないため、演出中は毎フレーム描き直す
-                // (これが無いと Game ビューには最後の姿しか映らず「再生されない」ように見える)。
+            if (_seqIndex >= 0 && !_seqPaused)
+            {
+                _seqTimer += dt;
+                if (_seqTimer >= _seqInterval)
+                {
+                    AdvanceSequence();
+                }
+
+                animating = true;
+            }
+
+            // Edit Mode の Game ビューは自動では再描画されないため、動いている間は毎フレーム描き直す
+            // (これが無いと Game ビューには最後の姿しか映らず「再生されない」ように見える)。
+            if (animating)
+            {
                 InternalEditorUtility.RepaintAllViews();
+            }
+
+            if (_showHitArea)
+            {
+                UpdateHitOverlay();
             }
 
             RefreshWidgets();
@@ -455,13 +835,21 @@ namespace DDrive.Editor.Ui
             {
                 var mine = playing && w.State == _tweenState;
                 w.Pause.SetEnabled(mine);
-                w.Stop.SetEnabled(mine);
+                w.Stop.SetEnabled(mine || _seqIndex >= 0);
                 SetText(w.Pause, mine && paused ? "▶ 再開" : "⏸ 一時停止");
                 var status = !mine ? string.Empty : paused ? "⏸ 一時停止" : "● 再生中";
                 if (w.Status.text != status)
                 {
                     w.Status.text = status;
                 }
+            }
+
+            if (_seqPause != null)
+            {
+                var running = _seqIndex >= 0;
+                _seqPause.SetEnabled(running);
+                _seqStop.SetEnabled(running);
+                SetText(_seqPause, running && _seqPaused ? "▶ 再開" : "⏸ 一時停止");
             }
 
             var sePlaying = _audio != null && _audio.IsInitialized && _audio.AudioManager.IsPlaying(_seHandle);
@@ -473,7 +861,7 @@ namespace DDrive.Editor.Ui
 
         private void Shutdown()
         {
-            StopTween();
+            StopSequence();
             _tweens = null;
             _audio?.Dispose();
             _audio = null;
@@ -500,6 +888,15 @@ namespace DDrive.Editor.Ui
         private static string NameOf(AssetDataBase data) => string.IsNullOrEmpty(data.DisplayName) ? data.name : data.DisplayName;
 
         private static VisualElement Row() => new() { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2 } };
+
+        private static VisualElement Block(Color accent) => new()
+        {
+            style =
+            {
+                marginTop = 6, paddingLeft = 6, paddingTop = 2, paddingBottom = 4,
+                borderLeftWidth = 3, borderLeftColor = accent,
+            },
+        };
 
         private static Label Header(string text) => new(text) { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } };
 

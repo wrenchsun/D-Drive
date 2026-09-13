@@ -26,6 +26,11 @@ namespace DDrive.Runtime.Ui
             {
                 yield return ValidationResult.Info("ClickSe が未設定です");
             }
+
+            foreach (var result in ControlSkinHitAreaValidation.Validate(skin))
+            {
+                yield return result;
+            }
         }
 
         private static bool AllTintAlphaZero(ButtonSkinData skin)

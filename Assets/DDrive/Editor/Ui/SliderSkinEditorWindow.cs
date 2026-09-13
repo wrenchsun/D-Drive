@@ -68,13 +68,7 @@ namespace DDrive.Editor.Ui
             // 反映されないため、再生対象にしない(見た目を偽って見せない)。
             scrollView.Add(new HelpBox("パーツ(Track / Fill / Handle / Delay Fill)の見た目はまだ実行時に反映されないため、再生ボタンは付けていません。状態の演出はスライダー本体に掛かります。", HelpBoxMessageType.None));
 
-            _settings = new ControlSkinPreviewSection(
-                EnsurePreview,
-                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.GrabSe), s => ((SliderSkinData)s).GrabSe),
-                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.ReleaseSe), s => ((SliderSkinData)s).ReleaseSe),
-                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.NotchSe), s => ((SliderSkinData)s).NotchSe),
-                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.LimitSe), s => ((SliderSkinData)s).LimitSe),
-                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.DeniedSe), s => ((SliderSkinData)s).DeniedSe));
+            _settings = new ControlSkinPreviewSection(BuildOptions());
             scrollView.Add(_settings);
 
             if (_target == null && Selection.activeObject is SliderSkinData selected)
@@ -107,6 +101,41 @@ namespace DDrive.Editor.Ui
             }
 
             return _previewSlider;
+        }
+
+        // SE の欄と状態遷移の並び。遷移は実行時(UiSlider)で音が鳴るタイミングに合わせる
+        // (掴むと GrabSe、離すと ReleaseSe、Disabled / Locked で触ると DeniedSe)。
+        private ControlSkinPreviewSection.Options BuildOptions()
+        {
+            const string grab = nameof(SliderSkinData.GrabSe);
+            const string release = nameof(SliderSkinData.ReleaseSe);
+            const string denied = nameof(SliderSkinData.DeniedSe);
+            static ControlSkinPreviewSection.TransitionStep S(ControlState state, string se = null) => new(state, se);
+
+            return new ControlSkinPreviewSection.Options
+            {
+                EnsurePreview = EnsurePreview,
+                CurrentPreview = () => _previewSlider,
+                SeFields = new[]
+                {
+                    new ControlSkinPreviewSection.SeField(grab, s => ((SliderSkinData)s).GrabSe),
+                    new ControlSkinPreviewSection.SeField(release, s => ((SliderSkinData)s).ReleaseSe),
+                    new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.NotchSe), s => ((SliderSkinData)s).NotchSe),
+                    new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.LimitSe), s => ((SliderSkinData)s).LimitSe),
+                    new ControlSkinPreviewSection.SeField(denied, s => ((SliderSkinData)s).DeniedSe),
+                },
+                Sequences = new[]
+                {
+                    new ControlSkinPreviewSection.TransitionSequence("マウスで掴んで離す",
+                        S(ControlState.Normal), S(ControlState.Hover), S(ControlState.Pressed, grab), S(ControlState.Hover, release), S(ControlState.Normal)),
+                    new ControlSkinPreviewSection.TransitionSequence("パッドで選ぶ",
+                        S(ControlState.Normal), S(ControlState.Selected), S(ControlState.Normal)),
+                    new ControlSkinPreviewSection.TransitionSequence("押せない(Disabled)スライダーを触る",
+                        S(ControlState.Normal), S(ControlState.Disabled), S(ControlState.Disabled, denied), S(ControlState.Normal)),
+                    new ControlSkinPreviewSection.TransitionSequence("全状態を順に",
+                        S(ControlState.Normal), S(ControlState.Hover), S(ControlState.Pressed), S(ControlState.Selected), S(ControlState.Disabled), S(ControlState.Locked), S(ControlState.Normal)),
+                },
+            };
         }
 
         // Data 自体は編集しない。実配置での見た目確認だけをシーン上で行う(ADR-4: プレビューは実 Manager/実コンポーネントを駆動する)。

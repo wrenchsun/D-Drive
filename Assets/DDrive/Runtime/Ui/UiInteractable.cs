@@ -52,6 +52,7 @@ namespace DDrive.Runtime.Ui
         private bool _focused;
         private float _cooldownRemaining;
         private ControlSkinData _skin;
+        private bool _alphaHitWarned;
 
         // 4-7 残り: SetVisual を明示的に呼んだか(true なら UiManager の Open 時レイヤー既定 Skin 適用の対象外)。
         public bool HasExplicitSkin { get; private set; }
@@ -363,8 +364,63 @@ namespace DDrive.Runtime.Ui
 
             ref readonly var v = ref skin.Get(State);
             ApplyVisual(in v);
+            ApplyHitArea(skin);
             PlayStateTween(in v);
             OnSkinApplied(in v);
+        }
+
+        // 当たり判定(2026-09-14)。Graphic.raycastPadding は「内側へ縮める量」が正なので、広げ幅の符号を反転して渡す。
+        // 透明判定は Sprite の Texture が読めないと Image が毎回エラーを出すため、読めないときは警告 1 回 + 無効で続行する。
+        private void ApplyHitArea(ControlSkinData skin)
+        {
+            var graphic = TargetGraphic;
+            if (graphic == null)
+            {
+                return;
+            }
+
+            graphic.raycastPadding = -skin.EffectiveHitAreaExpand;
+
+            if (graphic is Image image)
+            {
+                var threshold = skin.AlphaHitThreshold;
+                if (threshold > 0f)
+                {
+                    var sprite = image.overrideSprite;
+                    var texture = sprite != null ? sprite.texture : null;
+                    if (texture == null || !texture.isReadable)
+                    {
+                        if (!_alphaHitWarned)
+                        {
+                            _alphaHitWarned = true;
+                            Debug.LogWarning($"[DDrive] '{name}': AlphaHitThreshold が有効ですが、画像の Read/Write が無効(または画像が無い)ため透明部分の判定を行いません。画像のインポート設定で Read/Write を ON にしてください。", this);
+                        }
+
+                        threshold = 0f;
+                    }
+                }
+
+                SetAlphaHitThreshold(image, threshold);
+            }
+        }
+
+        // Image.alphaHitTestMinimumThreshold の setter は、画像が読めない(Read/Write 無効)と値に関係なく
+        // InvalidOperationException を投げる(0 を書いても投げる)。多くのボタンの画像は読めないため、値が変わる
+        // ときだけ書き、読めない画像で戻せない場合は諦めて続行する(TL;DR #4。警告は呼び出し側で 1 回出し済み)。
+        private static void SetAlphaHitThreshold(Image image, float value)
+        {
+            if (Mathf.Approximately(image.alphaHitTestMinimumThreshold, value))
+            {
+                return;
+            }
+
+            try
+            {
+                image.alphaHitTestMinimumThreshold = value;
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
 
         // EnterTween(あれば優先) → EnterPreset(Preset!=None) の順で再生する。UiFx 未 Bind 時は no-op。

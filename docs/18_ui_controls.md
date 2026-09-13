@@ -262,6 +262,7 @@ public struct SliderWire
 - 繰り延べ: 本格的な SliderEditor(応答曲線グラフ・ノッチ可視化オーバーレイ・追従比較・Skin プレビュー一覧、4-17)、Audio バス別音量([03] `Audio.SetBusVolume`、Phase 5)、触覚([16] Part B の `HapticId` 統合)
 - テスト: `Assets/DDrive/Tests/Runtime/UiSliderTests.cs`(`UiSliderTests` 19 件 + `OptionStoreTests` 4 件 + `SliderSkinDataValidatorTests` 2 件 + `UiSliderValidationTests` 6 件)。`UiManagerTests`/`CanvasDataValidatorTests` への追加は [07_canvas_prefab.md] 参照
 - **2026-09-13 追記**: `SliderSkinEditorWindow` に ButtonSkin と共通の `ControlSkinPreviewSection`([15] A-4 実装メモの 2026-09-13 追記)を追加。6 状態の演出再生・一時停止・停止・「✎ Tween Editor」と、Grab / Release / Notch / Limit / Denied の SE 試聴ができる。演出はスライダー本体(`UiSlider` の RectTransform)に掛かる。パーツ(`Track`/`Fill`/`Handle`/`DelayFill`)の `StateVisual` は `UiSlider.OnSkinApplied` が空実装で実行時に反映されないため、プレビュー対象にしていない(見た目を偽って見せない。反映は別途)。2026-09-14 に設定欄と一体化(状態の箱に ▶、SE 欄の横に ▶/■)。詳細は [15] 同節の 2026-09-14 改修
+- **2026-09-14 追記**: 当たり判定を ButtonSkin と共通化(`ControlSkinData.HitAreaExpand` / `AlphaHitThreshold`)。**長らく未接続だった `SliderSkinData.ExtraHitPadding` が効くようになった**(`EffectiveHitAreaExpand` で X を左右、Y を上下に加算し、Track の `TargetGraphic.raycastPadding` に反映)。状態遷移の自動再生と当たり判定の表示・ドラッグ調整も SliderSkin エディタで使える([15] 同節)
 
 ### レビュー対応(2026-09-11、Phase 4 コードレビュー)
 

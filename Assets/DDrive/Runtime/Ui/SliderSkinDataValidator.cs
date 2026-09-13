@@ -26,6 +26,11 @@ namespace DDrive.Runtime.Ui
             {
                 yield return ValidationResult.Warning("全状態の Tint.a が 0 です(何も描画されません)");
             }
+
+            foreach (var result in ControlSkinHitAreaValidation.Validate(skin))
+            {
+                yield return result;
+            }
         }
 
         private static bool AllTintAlphaZero(SliderSkinData skin)
