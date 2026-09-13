@@ -256,7 +256,7 @@
 - **Addressables グループ(`DDrive_GameData.asset`/`DDrive_Catalogs.asset`)はユーザーの未コミット変更と混ざっている**ため、5-1 のデモアセット登録に伴う変更はコミットしていない(ワーキングツリー上は両方の変更が混在した状態で残る)。次にこれらのファイルをコミットする人は、5-1 分(PresentationCatalog へのエントリ追加、VFX/SE の Preload 化)が含まれていることを把握しておくこと
 - **PresentationEditor(5-4)は未実装**: `DataEditorRegistryTests` の Exempt に `PresentationData` を追加した。5-4 実装時に Exempt から外すこと
 
-## 5-2 カメラシェイク（PR #TBD）
+## 5-2 カメラシェイク（PR #22）
 
 対象: `Runtime/Camera/{CameraShakeData,CameraFxManager,CameraFx,CameraShakeDataValidator}.cs`(新規)、`Runtime/Anim2D/Anim2DFacing.cs`(名前空間衝突の修正のみ)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(CameraFx 配線 + UnscaledCameraFxAdapter 追加)、`Runtime/Presentation/PresentationManager.cs`(CameraShake トラックの委譲先を実装)、`Runtime/Ui/OptionStore.cs`(ShakeScale の接続先)、`Editor/AssetBrowser/AssetCreationService.cs`(Shake を Preload 既定に追加)。設計は [16_camera_haptics.md](16_camera_haptics.md) Part A。確認用デモ資産 `Assets/GameData/Camera/Demo/SHAKE_Demo_DemoHitSmall.asset` を新規作成し、5-1 の剣攻撃デモ `PRES_Demo_SkillSlash.asset` の onHit トラックに接続した。
 
@@ -275,7 +275,7 @@
 - **CameraShake アセットを Preload 既定に追加した**: `AssetCreationService.Create` で `AssetType.Shake` を Canvas/ControlSkin/Presentation と同じ Preload 既定グループに加えた(LazyLoad のままだと常に Placeholder になるため)。既存の Shake アセットが無い(このチケットで初めて作る種別の)ため影響範囲は無いはず
 - **Addressables グループへの追加**: `CameraFxCatalog`(`DDrive_Catalogs.asset`)、`SHAKE_Demo_DemoHitSmall`(`DDrive_GameData.asset`)の 2 行が追加されたが、ユーザーの未コミット変更と同じファイルのためコミットしていない(ワーキングツリー上に残る)
 
-## 5-2b コントローラー振動（PR #TBD）
+## 5-2b コントローラー振動（PR #22）
 
 対象: `Runtime/Haptics/{HapticsData,IHapticOutput,GamepadHapticOutput,HapticsManager,Haptics,HapticsDataValidator}.cs`(新規)、`Runtime/DDrive.Runtime.asmdef`(`Unity.InputSystem` 参照追加)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(Haptics 配線 + OnApplicationQuit/OnApplicationFocus での ResetOutput)、`Runtime/Presentation/PresentationManager.cs`(Haptic トラックの委譲先を実装)、`Runtime/Ui/OptionStore.cs`(HapticScale の接続先)、`Runtime/Ui/UiSlider.cs`(Notch/Limit Haptic の発火)、`Editor/AssetBrowser/AssetCreationService.cs`(Haptics を Preload 既定に追加)。設計は [16_camera_haptics.md](16_camera_haptics.md) Part B。確認用デモ資産 `Assets/GameData/Haptics/Demo/HAPTIC_Demo_DemoHitPunch.asset` を新規作成し、剣攻撃デモの onHit トラックに接続した。
 
