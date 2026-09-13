@@ -192,3 +192,85 @@
 `状態` 列の値は既存コードに対応する固定タグが無いため(`TagCatalog` 自体が未実装)、本ドキュメント §3.1 で決めた
 `未着手 / 仮 / 本番 / 保留` の 4 値を `_選択肢` タブにそのまま置いている。[13_extensions.md](13_extensions.md) A-1 の
 「未実装タブ」が使う `未着手・作業中・完了` とは**別の語彙**(役割が異なるため、無理に統一しない)。
+
+---
+
+## 8. 実装メモ(2026-09-14、5-13/5-14)
+
+対象コード: `Assets/DDrive/Editor/Spec/*`(新規)、`Assets/DDrive/Editor/Codegen/TuningCodegen.cs`(新規)、
+`Assets/DDrive/Runtime/Tuning/*`(新規)、`Assets/DDrive/Foundation/Data/AssetDataBase.cs`(フィールド追加)、
+`Assets/DDrive/Runtime/Loop/DDriveRuntimeBootstrap.cs`、`Assets/DDrive/Editor/Inspector/AssetDataInspector.cs`、
+`Assets/DDrive/Editor/AssetBrowser/AssetBrowserWindow.cs`。
+
+### 8.1 追加したシリアライズフィールド(`AssetDataBase`、追加のみ)
+
+- `public string Assignee` - 「担当」列の反映先。既存の `Author`(保存時に自動記録される最終更新者)とは別物
+- `public string SpecUrl` - 「仕様」列の反映先(5-14)。Inspector の「仕様書を開く」ボタン(`SpecUrlGui`)から `Application.OpenURL` で開く。空なら非表示
+
+「状態」列は新規フィールドを増やさず、既存の `Tags`(string[])に `State/仮` のような値を1つだけ載せる方式にした
+(`DDrive.Editor.Spec.SpecStatusTag`)。`TagCatalog` が未実装のため「既存のタグ機構があればそれ」の要件をこう解釈した。
+
+### 8.2 同期の仕組み(`Assets/DDrive/Editor/Spec/`)
+
+| ファイル | 役割 |
+|---|---|
+| `DDriveSpecSettings.cs` | 接続設定(SO)。`Assets/GameData/Settings/DDriveSpecSettings.asset` に `GetOrCreate()` で必要時のみ自動生成 |
+| `SpecCsv.cs` | gviz CSV URL の組み立て + 引用符/カンマ/改行対応の CSV パーサ(純ロジック) |
+| `SpecSheetParser.cs` | CSV から `SpecAssetRow`/`SpecTuningRow` へ変換。必須列欠落・種別不明・識別子書式違反・キー重複を `Issues` に集める |
+| `SpecIdentifierCodec.cs` | 既存アセットの識別子をファイル名から逆算する(§8.3) |
+| `SpecDiffService.cs` | 新規/変更/Archive候補/衝突を算出する |
+| `SpecSyncService.cs` | 新規(`AssetCreationService.Create` 経由)・変更の適用、TuningTable への取り込み、選択肢/既存アセットの TSV 生成 |
+| `SpecFetcher.cs` | `UnityWebRequest` + `Library/DDriveSpec/` キャッシュ(Editor 専用) |
+| `SpecAutoSync.cs` | `[InitializeOnLoad]` + `delayCall` で起動時に取得と差分検出だけ行う |
+| `SpecCache.cs` | 直近の取得・差分結果の保持(AssetBrowser のバッジ、5-16 の入力元) |
+| `SpecSyncWindow.cs` | `Tools > D-Drive > 仕様書と同期`(差分プレビュー + 適用 + TSV コピー) |
+
+### 8.3 既存アセットとの結び付け(新フィールドを増やさない決定)
+
+`AssetDataBase` は識別子そのものを保持しない(表示名は日本語可、カテゴリは自由記述)。
+`AssetNamingService.BuildFileName` が組み立てるファイル名 `{prefix}_{categorySegment}_{identifier}` は、
+`categorySegment` と `identifier` のどちらも `_` を含み得ない(識別子は PascalCase、カテゴリセグメントは英数字のみに
+正規化される)ため、ファイル名を `_` で分割した最後のトークンは常に元の識別子と一致する。この性質を使い、
+`SpecIdentifierCodec.TryExtractIdentifier` でファイル名から識別子を逆算し、「種別+識別子」で仕様書の行と結び付けている
+(新しい永続フィールドを増やさずに済ませる決定。§9 の要判断も参照)。
+
+### 8.4 Tuning(調整値)の読み方
+
+`TuningTable`(`Assets/DDrive/Runtime/Tuning/TuningTable.cs`)は `AssetDataBase` ではない
+(`UiLayerSettings` と同じ「プロジェクト単位の設定 SO」。`DDriveRuntimeBootstrap.TuningTable` の Inspector 直参照 1 個だけを
+想定し、Addressables には登録しない)。同期(`SpecSyncService.ApplyTuning`)が仕様書の「調整値」タブで丸ごと上書きする。
+
+コードからの読み方:
+
+    using DDrive.Generated; // TUNING.キー定数。Tools > D-Drive > Generate > Regenerate Tuning Keys で再生成
+    using DDrive.Runtime.Tuning;
+
+    float hitStopSec = Tuning.GetFloat(TUNING.CombatHitStopSec, defaultValue: 0.05f);
+
+未登録キーは警告を1回だけ出し、呼び出し側が渡した `defaultValue` を返す(例外で止めない)。`Tuning.Bind`/`GetFloat`/
+`GetInt`/`GetBool`/`GetString` は `Options.cs` と同じ静的ファサード設計(ADR#3)。
+
+### 8.5 自動取得と通知
+
+`SpecAutoSync`(`[InitializeOnLoad]`)が起動時・ドメインリロード後に `delayCall` 経由で取得+差分検出だけを行う。
+`Application.isBatchMode` またはコマンドライン引数 `-runTests` のときは走らせない(インタラクティブな Test Runner
+ウィンドウ経由の実行は検出できないため、自動同期は Assets を書かない(取得+差分検出のみ)設計にして安全側に振っている。
+§9 の要判断に記載)。差分があれば `AssetBrowserWindow` のツールバーに「仕様書に変更 n 件」ボタンが出て、押すと
+`SpecSyncWindow` が開く。
+
+### 8.6 5-16 で使うキャッシュ API
+
+`DDrive.Editor.Spec.SpecCache.GetUncreatedRows(AssetType? filterType = null)` が、まだ Data の無い(新規)行だけを返す
+(`SpecCache.LastDiff.New` から組み立てる)。`NewAssetDialog` の「仕様書から選ぶ」はこれを呼べばよい。
+
+---
+
+## 9. 要判断(2026-09-14、5-13/5-14 実装時)
+
+1. **Archive 候補の絞り込み**: 「シートから消えた」の対象を、`SpecUrl` が設定済み(=一度でも仕様書と同期された)アセットだけに限定した。手動で個別に作った既存アセットが「仕様書に無い」だけで毎回 Archive 候補に出るのを避けるため。運用開始直後、まだ1度も同期していない既存アセットは Archive 候補に出ない(想定どおり)
+2. **識別子の逆算方式**: §8.3 のとおり、新しい永続フィールドを増やさずファイル名から逆算する方式にした。カテゴリの表記だけを変えて識別子は変えていない場合、ファイル名の再計算結果が変わり結び付けが外れる可能性がある(§4.3 のリネーム結び付けと同様、未対応)
+3. **ControlSkin の自動作成**: `AssetType.ControlSkin` は `ButtonSkinData`/`SliderSkinData` の2つの具象型があり、どちらを作るか一意に決められないため、シートの新規行が `ControlSkin` のときは自動作成をスキップし警告ログのみ出す(手動作成が必要)
+4. **自動同期のテスト検出**: `Application.isBatchMode` と `-runTests` コマンドライン引数だけで判定している。Unity Editor 内で Test Runner ウィンドウから対話的に EditMode/PlayMode テストを実行するケースは検出できない。ただし自動同期は Assets を書き換えない(取得+差分検出のみ)ため、テスト中に走っても実害は無い設計にしている
+5. **リネーム結び付け(§4.3 末尾)**: 未実装。シートで識別子を変えると「新規1件 + シートから消えた扱い(Archive候補、SpecUrl 設定済みの場合のみ)」に見える
+6. **差分プレビュー画面の選択粒度**: `SpecSyncWindow` は行ごとのチェックボックスで新規/変更を個別に適用できるが、Archive 候補・衝突には何のアクションも付けていない(仕様どおり「表示のみ」)
+7. **`DDriveSpecSettings`/`TuningTable` の .asset は今回コミットしていない**: `Assets/GameData/Settings/` に自動生成される想定だが、ユーザーが実際に URL を設定して初回同期するまで存在しない。今回のブランチでは生成していない(手順は docs/28 の確認手順を参照)

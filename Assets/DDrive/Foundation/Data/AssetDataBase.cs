@@ -21,11 +21,17 @@ namespace DDrive.Foundation.Data
         [Tooltip("AssetBrowser でのフォルダ分け用カテゴリ(任意)。")]
         public string Category;
 
-        [Tooltip("検索用タグ。TagCatalog から選択する運用(自由入力は非推奨)。")]
+        [Tooltip("検索用タグ。TagCatalog から選択する運用(自由入力は非推奨)。仕様書同期(5-13)は状態を \"State/仮\" 等のタグで表す。")]
         public string[] Tags;
 
         [Tooltip("AssetBrowser の一覧に出すアイコン(任意)。")]
         public Texture2D Icon;
+
+        [Tooltip("担当者(自由入力)。仕様書の「担当」列から同期時に設定される([27_spec_sheet.md] §3.1、5-13)。")]
+        public string Assignee;
+
+        [Tooltip("この仕様の参照先URL(仕様書の該当セル等)。Inspector の「仕様書を開く」ボタンで使う([27_spec_sheet.md] §5、5-14)。")]
+        public string SpecUrl;
 
         [Header("Meta")]
         [Tooltip("保存フックで自動的に+1される。手編集しないこと。")]

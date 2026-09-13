@@ -40,6 +40,8 @@ namespace DDrive.Tests.Editor
             data.Author = "wrench";
             data.UpdatedAt = "2026-07-26";
             data.ChangeNote = "note";
+            data.Assignee = "yoshida";
+            data.SpecUrl = "https://docs.google.com/spreadsheets/d/EXAMPLE/edit#gid=0";
             data.Flags = new AssetFlags
             {
                 Pause = PauseMode.IgnorePause,
@@ -78,6 +80,8 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(data.Author, reloaded.Author);
             Assert.AreEqual(data.UpdatedAt, reloaded.UpdatedAt);
             Assert.AreEqual(data.ChangeNote, reloaded.ChangeNote);
+            Assert.AreEqual(data.Assignee, reloaded.Assignee);
+            Assert.AreEqual(data.SpecUrl, reloaded.SpecUrl);
 
             Assert.AreEqual(data.Flags.Pause, reloaded.Flags.Pause);
             Assert.AreEqual(data.Flags.Load, reloaded.Flags.Load);

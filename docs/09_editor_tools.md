@@ -134,6 +134,7 @@ public static class DDriveMenu
 Tools/
 └─ D-Drive/
     ├─ Asset Browser
+    ├─ 仕様書と同期                 ← 2026-09-14 追加(5-13。SpecSyncWindow。差分プレビュー + 適用 + TSV コピー、[27] §8.2)
     ├─ Presentation Editor          ← 目玉機能につき最上段
     ├─ Editors/
     │   ├─ Audio
@@ -159,6 +160,7 @@ Tools/
     │   └─ Report Window
     ├─ Generate/
     │   ├─ Regenerate Asset IDs
+    │   ├─ Regenerate Tuning Keys       ← 2026-09-14 追加(5-13。TuningTable.Entries から Assets/Generated/Tuning.g.cs の TUNING.キー定数を生成、[27] §8.4)
     │   ├─ Anchor プレハブを生成 / 選択した Transform から Anchor を作成 / 選択した AnchorRig から Anchor を一括生成   ← [21] §3.9
     │   ├─ Rebuild Dependency Graph
     │   └─ Live Tuning Connect
@@ -228,6 +230,12 @@ Tools/
 - **対応済みの全 16 宣言**: AudioEditorWindow(SeData/BgmData)、VfxEditorWindow、ModelEditorWindow、AnimEditorWindow、Anim2DEditorWindow、PrefabEditorWindow、CanvasEditorWindow、MaterialEditorWindow(MaterialData/TextureData)、MaterialConvertWindow、MaterialThumbnailWindow、AnchorEditorWindow、AnchorGroupEditorWindow、ButtonSkinEditorWindow、SliderEditorWindow、SliderSkinEditorWindow、UiTweenEditorWindow
 - テスト: `Tests/Editor/NewAssetToolbarButtonTests.cs`(`GetDataTypes` が既存の全 `[DataEditor]` ウィンドウで 1 つ以上の `AssetDataBase` 派生型を返すこと、既知の対応(Audio/Material 等)、`SwitchToCreated` が実際にウィンドウを開いて対象を切り替えること・対応が無くても例外にしないこと、`NewAssetDialog.Open(Type[], ...)` が種別ロックを内部状態に反映すること)
 - 要判断: [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-15」節末尾を参照(MaterialConvertWindow / MaterialThumbnailWindow / SliderEditorWindow のような二次的な専用エディタにまで同じボタンを付けるべきか)
+
+### 8.4 「仕様書を開く」ボタン + AssetBrowser の変更バッジ（2026-09-14、5-13/5-14）
+
+- `AssetDataBase.SpecUrl` が設定されていれば、§8 のヘッダー(`DataEditorHeader.Draw` の次)に `SpecUrlGui.Draw` が「📄 仕様書を開く」ボタンを追加で描く(`Editor/Inspector/SpecUrlGui.cs`)。空なら何も描かない(ボタンを無効表示にはしない)。押すと `Application.OpenURL(SpecUrl)`
+- `AssetBrowserWindow` のツールバーに `SpecCache.Updated` を購読するバッジ用 `ToolbarButton` を追加。`SpecAutoSync`(起動時自動取得、[27] §8.5)や `SpecSyncWindow` の「取得」が差分を見つけると「仕様書に変更 n 件」と表示され、押すと `SpecSyncWindow`(§6 のメニュー「仕様書と同期」)が開く。差分が 0 件なら非表示
+- 詳細な同期の仕組み・列定義・データフローは [27_spec_sheet.md](27_spec_sheet.md) §8 を参照
 
 ## 9. AssetDatabase.FindAssets のキャッシュ（2026-09-11）
 

@@ -98,3 +98,42 @@
 - **種別ロックはドロップダウンを消さず選択肢を絞る方式にした**: Audio(SE/BGM)・Material(MaterialData/TextureData) のように 1 エディタが複数種別を持つ場合、ドロップダウン自体は残して候補をその 2 つだけに絞っている(候補が 1 つの場合のみ無効化して見せる)。「エディタごとに 1 種別に固定」という文言を厳密に取るなら、Audio/Material では追加のトグルなどでどちらを作るか明示すべきかは要判断
 - **Anim2D は「空の Placeholder」を作る**: Anim2DEditorWindow は元々スプライト分割からクリップまで一括生成する「作成」モードを持つが、「＋ 新規作成」は(ImportRule と同じ考え方で)Clip 未設定の Anim2DData をまず作って編集モードに切り替えるだけにした。ID だけ先に確保して後でスプライトを割り当てる、という D-Drive の基本コンセプトには合致するはずだが、既存の「作成」モードと役割が重複して見えないかは要判断
 
+## 5-13 仕様書同期（PR #15）
+
+対象: `Assets/DDrive/Editor/Spec/*`(新規)、`Assets/DDrive/Editor/Codegen/TuningCodegen.cs`(新規)、`Assets/DDrive/Runtime/Tuning/*`(新規)、`Assets/DDrive/Runtime/Loop/DDriveRuntimeBootstrap.cs`(`TuningTable` 直参照を追加)。設計は [27_spec_sheet.md](27_spec_sheet.md) §4/§8。
+
+実際の Google スプレッドシートを使った確認手順(テンプレートは [docs/SpecSheetTemplate/](SpecSheetTemplate/) を参照):
+
+1. [docs/SpecSheetTemplate/DDrive_仕様書テンプレート.xlsx](SpecSheetTemplate/DDrive_仕様書テンプレート.xlsx) を自分の Google ドライブへアップロードし、「アプリで開く」→「Google スプレッドシート」で開く
+2. 共有設定を「リンクを知っている全員が閲覧可」にする
+3. `アセット` タブに 1 行追加する(例: 種別 `Se` / カテゴリ `Player` / 識別子 `Check1` / 表示名「確認用効果音」/ 状態「仮」/ 担当に自分の名前 / 仕様列に人向けタブのセルへのリンク / 備考に何か一言)
+4. Unity で `Tools > D-Drive > 仕様書と同期` を開く。「スプレッドシート URL」にシートの URL を貼り「設定を保存」→「取得」
+5. 「新規」に手順3の行が出ること。チェックが付いた状態で「適用」を押す → `Assets/GameData/Audio/SE/Player/SE_Player_Check1.asset` のような Placeholder(`SeData`)が作られ、Inspector の Tags に `State/仮`、Assignee に担当、Description に備考、SpecUrl に仕様列のリンクが入っていること
+6. 手順3の行の「表示名」「状態」を書き換えて Unity 側で再度「取得」→「変更」に出ること。「適用」を押すと該当項目だけが上書きされ、手順5で作った Data 自体(ファイル・ID)は変わらないこと
+7. 手順3の行をシートから削除して再度「取得」→「新規」「変更」には出ず、「シートから消えた(Archive 候補)」に手順5の Data が表示されるだけで、実際には削除されていないこと(Project ウィンドウにファイルが残っている)
+8. 「調整値」タブに `Check/Value,1.5,float,0,10,,確認用` のような行を追加して「取得」→「適用」(「調整値も同期する」にチェックが入っていること)。`Tools > D-Drive > Generate > Regenerate Tuning Keys` を実行 → `Assets/Generated/Tuning.g.cs` に `TUNING.CheckValue` が生成されること
+9. Console やテストコードから `DDrive.Runtime.Tuning.Tuning.GetFloat(DDrive.Generated.TUNING.CheckValue)` を呼んで `1.5f` が返ること(Editor から `execute_code` 等で確認、またはテストコードを一時的に書いて確認)
+10. 「選択肢をコピー」「既存アセットをコピー」を押し、クリップボードに TSV がコピーされること(貼り付け先はテキストエディタで確認して構わない)
+11. Unity を再起動(またはドメインリロード)し、事前に URL・自動取得 ON を設定しておいた状態で、Asset Browser のツールバーに「仕様書に変更 n 件」のバッジが自動で出ること(手順3〜7 を通しで試すなら、シートに未反映の行を残した状態で再起動する)
+12. 確認が終わったら、手順5で作った `Assets/GameData/Audio/SE/Player/SE_Player_Check1.asset`(存在すれば)と `Assets/GameData/Settings/DDriveSpecSettings.asset` / `DDriveTuningTable.asset` を Unity Editor から削除する(Addressables のエントリも合わせて外す)
+
+要判断:
+- **Archive 候補の絞り込み**: `SpecUrl` が設定済みのアセットだけを対象にした(§9-1 参照)。運用開始時にまだ 1 度も同期していない既存アセットは対象に入らない
+- **識別子の逆算方式(新フィールドを増やさない)**: ファイル名から `_` 区切りの最後のトークンを識別子として逆算している(§9-2 参照)。カテゴリだけを変えて識別子を変えていない場合、次回同期での結び付けが外れる可能性がある
+- **ControlSkin の自動作成不可**: `ButtonSkinData`/`SliderSkinData` のどちらを作るか一意に決められないため、シートの新規行が `ControlSkin` のときは自動作成をスキップする(§9-3 参照)
+- **自動同期のテスト検出**: `Application.isBatchMode` と `-runTests` 引数だけで判定しており、Test Runner ウィンドウからの対話的実行は検出できない(§9-4 参照。実害は無い設計だが要確認)
+- **リネーム結び付け(§4.3 末尾)は未実装**
+- **`DDriveSpecSettings`/`DDriveTuningTable` の .asset は今回コミットしていない**: `Assets/GameData/Settings/` に必要になったときだけ自動生成される。ユーザーが実際に同期を試すと生成されるので、その時点でコミットするか判断してほしい
+
+## 5-14 仕様書リンク（PR #15）
+
+対象: `Assets/DDrive/Foundation/Data/AssetDataBase.cs`(`SpecUrl`/`Assignee` フィールド追加)、`Assets/DDrive/Editor/Inspector/SpecUrlGui.cs`(新規)、`Assets/DDrive/Editor/Inspector/AssetDataInspector.cs`。
+
+1. 任意の Data アセット(例: 5-13 の手順5で作った Placeholder、または既存の SeData)を選び、Inspector の `SpecUrl` フィールドに URL を入力する
+2. Inspector 最上部(アイコン行の下)に「📄 仕様書を開く」ボタンが出ること。押すとブラウザで該当 URL が開くこと
+3. `SpecUrl` を空にすると、ボタン自体が表示されなくなること(無効表示ではなく非表示)
+4. 5-13 の手順3〜5 のとおり仕様書経由で同期した場合、「仕様」列に書いたリンクが自動的に `SpecUrl` に入り、同じボタンが機能すること
+
+要判断:
+- 特になし(5-13 の要判断と共通)
+

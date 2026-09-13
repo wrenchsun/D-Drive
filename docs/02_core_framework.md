@@ -272,3 +272,4 @@ public interface IValidator
 - 破棄: `GameLoop.StopAll(SceneUnload)` → Dispatcher 破棄 → ファサード Unbind → GameLoop から解除 → Pool Clear。`KeepAcrossScenes`（既定 ON）でシーンをまたいで生きる
 - テスト: `Tests/Runtime/RuntimeBootstrapTests.cs`（組み立て・Bind・Unbind・カタログ登録・多重配置の拒否）
 - **2026-09-11 追記(4-9)**: `UiTweenManager` を `UiManager` より先に生成し、`new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens)` で ElementFx の再生先として渡す。`[SerializeField] UiLayerSettings LayerSettings`(Inspector 直参照、未設定なら null のままでフォールバック無し)を追加し、`Ui.SetLayerSettings(LayerSettings)` で配る([15_ui_interaction.md] B-4 実装メモ参照)
+- **2026-09-14 追記(5-13)**: `[SerializeField] TuningTable TuningTable`(`Runtime/Tuning/TuningTable.cs`。Inspector 直参照、`UiLayerSettings` と同じ扱いで Addressables には登録しない)を追加し、`Tuning.Bind(TuningTable)` で静的ファサード `Runtime.Tuning.Tuning` に配る。仕様書「調整値」タブの取り込み先([27_spec_sheet.md] §3.2/§8.4)。§2.5 の `ValueDef`(アセットのフィールドに埋め込むカーブ/イージング)とは別物で、`Tuning` はゲームコードから `TUNING.キー定数` で読む文字列キー→値のフラットな辞書
