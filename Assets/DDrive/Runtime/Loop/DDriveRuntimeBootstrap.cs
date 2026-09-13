@@ -209,6 +209,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.Options.Bind(Options);
                 Anchors.Bind(Groups);
                 Runtime.Tuning.Tuning.Bind(TuningTable);
+                Runtime.Loading.ScenePreload.Bind(Registry); // [11_tasks.md] 5-7
             }
 
             _built = true;
@@ -267,6 +268,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.Options.Bind(null);
                 Anchors.Bind(null);
                 Runtime.Tuning.Tuning.Bind(null);
+                Runtime.Loading.ScenePreload.Bind(null); // [11_tasks.md] 5-7
             }
 
             Pool?.Clear(PoolScope.Global);

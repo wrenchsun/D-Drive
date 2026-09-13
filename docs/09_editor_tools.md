@@ -325,3 +325,23 @@ Tools/
 - **「グラフ未構築」の判定は `CachedFileCount == 0` のみ**: 「古いかもしれない(Library はあるが最新の変更を反映していない)」ケースは検出できない(5-5 の要判断と同じ制約を引き継ぐ)
 - **Scene ジャンプは自動テスト対象外**: `EditorSceneManager.OpenScene(Single)` はアクティブシーンを差し替える副作用があり、共有の Test Runner セッションを不安定にし得るため、`DependencyJumpServiceTests` は `.asset`/`.prefab` 分岐のみを自動テストし、Scene 分岐は手動検証([28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-6」節)に委ねた
 - **Archived というタグ名の予約語化**: `AssetDataBase.Tags` は本来 TagCatalog(未実装)からの選択制だが、`"Archived"` という文字列を予約語にした。将来 TagCatalog を実装する際はこの文字列を辞書から除外する(またはタグでなく専用の bool フィールドに移行する)必要がある
+
+### 実装メモ(2026-09-14、5-7: Preload リスト自動集計 + シーンロード統合)
+
+[10_workflow.md](10_workflow.md) §5 の設計(`ScenePreloadList` = シーンごとの「使用 ID 一覧」SO、依存グラフから自動集計)をそのまま実装。新規は `Assets/DDrive/Editor/Preload/`(`ScenePreloadAggregator.cs`/`ScenePreloadGenerator.cs`/`ScenePreloadBuildPreprocessor.cs`)と `Assets/DDrive/Runtime/Loading/`(`PreloadEntry.cs`/`ScenePreloadList.cs`/`ScenePreload.cs`/`SceneLoadingScreen.cs`)。詳細は [02_core_framework.md](02_core_framework.md) §5/§14 実装メモ。
+
+- **集計ロジック(`ScenePreloadAggregator.Aggregate(rootPath)`)**: 5-6 の `DependencyTreeBuilder`(同ファイル `DependencyTreeNode.cs`)と全く同じ「`FindReferencesIn` を再帰的に辿り、祖先パスの集合に戻ってきたら打ち切る」方式を流用し、ツリーではなく `ulong Id` で重複排除したフラットな一覧(`List<PreloadEntry>`、ID 昇順)を作る点だけが違う。見つからない参照先(削除済み等)も `PreloadEntry` としては採用する(それ以上は展開しない)。ランタイム側で Address 解決に失敗した時点でどのみち警告+スキップされるため、集計側で弾く必要が無いという判断
+- **`ScenePreloadList`**(Runtime asmdef、`ScriptableObject`): `SceneName`(表示用) + `IReadOnlyList<PreloadEntry> Entries`(`AssetType`/`ulong Id`/`DisplayName`)。`SetEntries` は Editor 専用の更新口(CLAUDE.md §0-5: Data は読み取り専用、書き換えは Editor API 経由のみ)。**Addressables には登録しない**(`ScenePreloadGenerator` 冒頭コメント参照。理由: (1) シーン専用のデータでカタログのような「ID→Data」解決の対象ではない (2) 実行中の `Assets/AddressableAssetsData/AssetGroups/*.asset` が別チケットの未コミット変更と衝突するのを避けるため)。シーン側の `SceneLoadingScreen` 等から `[SerializeField]` で直参照する運用(`UiLayerSettings`/`TuningTable` と同じ「Bootstrap 直参照、Addressables 対象外」パターン)
+- **`.asset` の生成先**: `Assets/GameData/Preload/<シーン名>_PreloadList.asset`(`ScenePreloadGenerator.DefaultOutputRoot`)。既存があれば `Undo.RecordObject` + `SetEntries` + `SetDirty` で上書き、無ければ `AssetDatabase.CreateAsset` で新規作成(重複生成しない)
+- **自動更新のタイミング(要判断で確定させた設計判断)**: 「シーン保存時」は付けなかった。5-5 が既に「全 Scene の Open/Close は重く、デザイナーの作業を止めない([00_requirements.md] 方針)ため保存の度の自動再構築はしない」と判断しており、Preload 集計はその上に乗っているため保存の度に実行するとさらに重くなる。代わりに次の 2 経路のみ:
+  1. 手動メニュー `Tools > D-Drive > Generate > Preload リストを再集計(現在のシーン)` / `(ビルド設定の全シーン)`(`DDriveMenu.Generate`)
+  2. ビルド前フック `ScenePreloadBuildPreprocessor`(`IPreprocessBuildWithReport`)。Build Settings の有効シーン全部を `ScenePreloadGenerator.GenerateForAllBuildScenes()` で一括更新してからビルドする。失敗しても例外を握り警告に留め、ビルド自体は止めない(CLAUDE.md §0-4)
+  - どちらも依存グラフ(5-5)が未構築(`CachedFileCount == 0`)なら「Preload リストが空になる可能性があります」と警告するだけで処理は続行する
+- **ランタイム側 API**: [02_core_framework.md](02_core_framework.md) §5/§14 参照。`IAssetRegistry.PreloadIdsAsync(ids, progress)` / `ReleaseIds(ids)` を新設し、既存の `IAssetLoader.PreloadAsync`(参照カウント式)をそのまま再利用。静的ファサード `DDrive.Runtime.Loading.ScenePreload`(`Bind`/`RunAsync`/`Release`)を `DDriveRuntimeBootstrap` から Bind/Unbind する
+- **ロード画面の確認用実装**: 専用の CanvasData/Data 種別は起こさず(スコープ超過と判断)、`SceneLoadingScreen`(MonoBehaviour、`UnityEngine.UI.Slider`/`Text` を任意で受ける最小実装)を Runtime に追加した。デザイナー向けの本実装(Canvas/UiManager ベース)は別チケットで置き換えてよい前提
+
+要判断:
+- **シーン→Preload リストの対応付けは「シーンに置いた `SceneLoadingScreen` が直参照する」方式のみ**: `Catalogs[]`(Bootstrap 直参照配列)のような「シーン名→リスト」の中央インデックスは作らなかった(スコープ超過と判断)。複数シーンを一括で扱うロード画面(タイトル→複数シーンをまとめて Preload 等)が要る場合は、`DDriveRuntimeBootstrap` に `ScenePreloadList[]` を足して名前引きする仕組みを追加検討してほしい
+- **`GenerateForAllBuildScenes` / `ScenePreloadBuildPreprocessor` は自動テスト対象外**: `EditorBuildSettings.scenes` は `ProjectSettings/EditorBuildSettings.asset`(git 管理下)を書き換えるため、テストが失敗して復元できなかった場合に実プロジェクトの設定を汚しかねない。自動テストは `ScenePreloadGenerator.GenerateForScene`(パス直接指定)のみとし、全ビルドシーン一括・ビルド前フックの経路は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の手動確認に委ねた
+- **Preload の粒度は「Data(.asset)そのもの」まで**: Data が内部で持つ AudioClip/Texture/Prefab 等のサブアセットを個別に先読みする API は無い(Addressables が Data の依存関係として同じ/依存バンドルに含めてロードする前提)。極端に重いサブアセットを持つ Data がある場合、体感のロード時間短縮効果が薄い可能性がある(要実測)
+- **`PreloadIdsAsync` で確保した参照カウントの解放漏れリスク**: `ScenePreload.Release` を呼び忘れる(例: `SceneLoadingScreen` を使わず `RunAsync` だけ直接呼ぶ)と `IAssetLoader` 内の参照が張られたままになる。`SceneLoadingScreen.OnDisable` では解放するが、他の呼び出し経路を追加する場合は対で `Release` を呼ぶ運用を徹底する必要がある
