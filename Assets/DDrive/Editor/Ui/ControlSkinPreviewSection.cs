@@ -8,34 +8,41 @@ using DDrive.Runtime.Audio;
 using DDrive.Runtime.Ui;
 using UnityEditor;
 using UnityEditor.UIElements;
+using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Button = UnityEngine.UIElements.Button;
 
 namespace DDrive.Editor.Ui
 {
-    // ButtonSkin / SliderSkin エディタ共通の「状態演出と SE の確認」セクション(2026-09-13)。
-    // Editor では UiFx が未 Bind のため、UiInteractable.ForceStateForPreview は色・拡大率・差し替え画像だけを
-    // 適用し、状態に入ったときの Tween は流れない。ここで実行時(UiInteractable.PlayStateTween)と同じ規則
-    // (EnterTween 優先 → EnterPreset)で実 UiTweenManager に再生させ、SE は PreviewService の実 AudioManager
-    // で鳴らす(ADR-4)。
+    // ButtonSkin / SliderSkin エディタ共通の設定欄(2026-09-13 追加、2026-09-14 改修)。
+    // 各状態の Enter Tween / Enter Preset 欄のすぐ上に演出の再生ボタンを、各 SE 欄の同じ行に試聴ボタンを置く
+    // (当初は Inspector とプレビュー一覧が上下に離れていて操作しづらかった)。それ以外の項目は通常の
+    // PropertyField で元の順に並べる。
+    // Editor では UiFx が未 Bind のため ForceStateForPreview は色・拡大率・画像しか適用しない。状態に入ったときの
+    // 演出はここで実行時(UiInteractable.PlayStateTween)と同じ規則(EnterTween 優先 → EnterPreset、プリセット付属
+    // SE も鳴らす)で実 UiTweenManager に再生させ、SE は PreviewService の実 AudioManager で鳴らす(ADR-4)。
     public sealed class ControlSkinPreviewSection : VisualElement
     {
         public readonly struct SeField
         {
-            public readonly string Label;
+            public readonly string PropertyName;
             public readonly Func<ControlSkinData, AssetId<SeMarker>> Get;
 
-            public SeField(string label, Func<ControlSkinData, AssetId<SeMarker>> get)
+            public SeField(string propertyName, Func<ControlSkinData, AssetId<SeMarker>> get)
             {
-                Label = label;
+                PropertyName = propertyName;
                 Get = get;
             }
+
+            public string Label => ObjectNames.NicifyVariableName(PropertyName);
         }
 
         private sealed class StateRow
         {
             public ControlState State;
+            public Label Summary;
+            public Button Edit;
             public Button Pause;
             public Button Stop;
             public Label Status;
@@ -43,33 +50,40 @@ namespace DDrive.Editor.Ui
 
         private sealed class SeRow
         {
-            public string Label;
+            public SeField Field;
+            public Button Play;
             public Button Stop;
         }
 
-        private static readonly ControlState[] States =
+        private static readonly Dictionary<string, ControlState> StateByProperty = new()
         {
-            ControlState.Normal, ControlState.Hover, ControlState.Pressed,
-            ControlState.Selected, ControlState.Disabled, ControlState.Locked,
+            { nameof(ControlSkinData.Normal), ControlState.Normal },
+            { nameof(ControlSkinData.Hover), ControlState.Hover },
+            { nameof(ControlSkinData.Pressed), ControlState.Pressed },
+            { nameof(ControlSkinData.Selected), ControlState.Selected },
+            { nameof(ControlSkinData.Disabled), ControlState.Disabled },
+            { nameof(ControlSkinData.Locked), ControlState.Locked },
         };
+
+        // 演出の欄は再生ボタンの直下に常に出し、色・拡大率・画像は折りたたむ(開閉は状態ごとに保持)。
+        private static readonly HashSet<string> TweenFieldNames = new() { nameof(StateVisual.EnterTween), nameof(StateVisual.EnterPreset) };
+        private static readonly Dictionary<ControlState, bool> LookExpanded = new();
 
         private readonly Func<UiInteractable> _ensurePreview;
         private readonly SeField[] _seFields;
         private readonly TweenTrack[] _presetScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
-        private readonly VisualElement _stateRows = new();
-        private readonly VisualElement _seRows = new();
+        private readonly VisualElement _body = new();
         private readonly List<StateRow> _stateWidgets = new();
         private readonly List<SeRow> _seWidgets = new();
-        private readonly Label _status = new() { style = { opacity = 0.8f, marginTop = 2, marginBottom = 6 } };
+        private readonly Label _status = new() { style = { opacity = 0.8f, marginTop = 2, marginBottom = 4, whiteSpace = WhiteSpace.Normal } };
 
-        private VisualElement _tracker;
         private ControlSkinData _skin;
         private UiTweenManager _tweens;
         private PreviewService _audio;
         private Handle<UiTweenMarker> _tweenHandle = Handle<UiTweenMarker>.Invalid;
         private ControlState _tweenState;
         private Handle<SeMarker> _seHandle = Handle<SeMarker>.Invalid;
-        private string _seLabel;
+        private string _sePropertyName;
         private double _lastTime;
 
         // ensurePreview: 確認用シーンのプレビュー部品を返す(未配置なら配置してから返す)。
@@ -78,12 +92,9 @@ namespace DDrive.Editor.Ui
             _ensurePreview = ensurePreview;
             _seFields = seFields ?? Array.Empty<SeField>();
 
-            Add(Header("状態演出の確認(Enter Tween / Enter Preset)"));
-            Add(new HelpBox("「▶ 再生」でプレビューの部品をその状態にして、状態に入ったときの演出を実際に再生します(未配置なら自動で配置)。「✎ Tween Editor」は Enter Tween を指定している状態だけ押せます。", HelpBoxMessageType.Info));
-            Add(_stateRows);
-            Add(Header("SE の試聴"));
-            Add(_seRows);
+            Add(new HelpBox("各状態の「▶ 再生」でプレビューの部品をその状態にし、状態に入ったときの演出(すぐ下の Enter Tween / Enter Preset)を再生します。未配置なら自動で「確認用シーンに配置」します。SE 欄の右の「▶」で試聴できます。", HelpBoxMessageType.Info));
             Add(_status);
+            Add(_body);
 
             RegisterCallback<AttachToPanelEvent>(_ =>
             {
@@ -102,100 +113,191 @@ namespace DDrive.Editor.Ui
             StopTween();
             StopSe();
             _skin = skin;
+            _status.text = string.Empty;
 
-            // Inspector 側で Enter Tween / Preset / SE を変えたら行を作り直す(表示名・押せる状態を追従させる)。
-            _tracker?.RemoveFromHierarchy();
-            _tracker = null;
-            if (skin != null)
-            {
-                _tracker = new VisualElement();
-                Add(_tracker);
-                _tracker.TrackSerializedObjectValue(new SerializedObject(skin), _ => Rebuild());
-            }
-
-            Rebuild();
-        }
-
-        private void Rebuild()
-        {
-            _stateRows.Clear();
+            _body.Unbind();
+            _body.Clear();
             _stateWidgets.Clear();
-            _seRows.Clear();
             _seWidgets.Clear();
 
-            if (_skin == null)
+            if (skin == null)
             {
-                _stateRows.Add(new Label("Skin を選択してください") { style = { opacity = 0.7f } });
+                _body.Add(new Label("Skin を選択してください") { style = { opacity = 0.7f } });
                 return;
             }
 
-            foreach (var state in States)
-            {
-                _stateRows.Add(BuildStateRow(state));
-            }
-
+            var seByName = new Dictionary<string, SeField>();
             foreach (var field in _seFields)
             {
-                _seRows.Add(BuildSeRow(field));
+                seByName[field.PropertyName] = field;
             }
 
+            var so = new SerializedObject(skin);
+            var it = so.GetIterator();
+            var enterChildren = true;
+            var statesHeaderAdded = false;
+            while (it.NextVisible(enterChildren))
+            {
+                enterChildren = false;
+                if (it.propertyPath == "m_Script")
+                {
+                    continue;
+                }
+
+                var prop = it.Copy();
+                if (StateByProperty.TryGetValue(prop.name, out var state))
+                {
+                    if (!statesHeaderAdded)
+                    {
+                        _body.Add(Header("状態別ビジュアル"));
+                        statesHeaderAdded = true;
+                    }
+
+                    _body.Add(BuildStateBlock(prop, state));
+                }
+                else if (seByName.TryGetValue(prop.name, out var seField))
+                {
+                    _body.Add(BuildSeRow(prop, seField));
+                }
+                else
+                {
+                    _body.Add(new PropertyField(prop));
+                }
+            }
+
+            _body.Bind(so);
+
+            // 欄を編集したら見出しの要約・押せるボタンを追従させる(欄自体は作り直さない = 入力中のフォーカスを奪わない)。
+            var tracker = new VisualElement();
+            _body.Add(tracker);
+            tracker.TrackSerializedObjectValue(so, _ => RefreshSummaries());
+
+            RefreshSummaries();
             RefreshWidgets();
         }
 
-        private VisualElement BuildStateRow(ControlState state)
+        private VisualElement BuildStateBlock(SerializedProperty prop, ControlState state)
         {
-            var v = _skin.Get(state);
-            var tween = v.EnterTween.IsValid ? FindData<UiTweenData>(v.EnterTween.Value) : null;
-
-            var row = Row();
-            row.Add(new Label(state.ToString()) { style = { width = 70 } });
-            row.Add(new Label(Describe(v, tween)) { style = { flexGrow = 1f, opacity = 0.85f } });
-
-            var edit = new Button(() => OpenTweenEditor(tween))
+            var block = new VisualElement
             {
-                text = "✎ Tween Editor",
-                tooltip = "UI Tween Editor で開く(確認用シーンのプレビュー部品を自動でプレビュー対象にする)",
+                style =
+                {
+                    marginTop = 6, paddingLeft = 6, paddingTop = 2, paddingBottom = 4,
+                    borderLeftWidth = 3, borderLeftColor = new Color(0.35f, 0.6f, 0.95f, 0.8f),
+                },
             };
-            edit.SetEnabled(tween != null);
-            row.Add(edit);
 
-            var widgets = new StateRow { State = state };
-            row.Add(new Button(() => PlayState(state))
+            var w = new StateRow { State = state };
+            var header = Row();
+            header.Add(new Label(state.ToString()) { style = { unityFontStyleAndWeight = FontStyle.Bold, width = 70 } });
+            w.Summary = new Label { style = { flexGrow = 1f, opacity = 0.8f } };
+            header.Add(w.Summary);
+            header.Add(new Button(() => PlayState(state))
             {
                 text = "▶ 再生",
-                tooltip = "プレビュー部品をこの状態にして、状態に入ったときの演出を再生する",
+                tooltip = "プレビューの部品をこの状態にして、状態に入ったときの演出を再生する",
             });
-            widgets.Pause = new Button(TogglePause) { text = "⏸ 一時停止", tooltip = "その場で一時停止 / 再開" };
-            row.Add(widgets.Pause);
-            widgets.Stop = new Button(StopTween) { text = "■ 停止", tooltip = "途中で止める(最終状態には進めない)" };
-            row.Add(widgets.Stop);
-            widgets.Status = new Label { style = { marginLeft = 4, opacity = 0.8f, minWidth = 70 } };
-            row.Add(widgets.Status);
+            w.Pause = new Button(TogglePause) { text = "⏸ 一時停止", tooltip = "その場で一時停止 / 再開" };
+            header.Add(w.Pause);
+            w.Stop = new Button(StopTween) { text = "■ 停止", tooltip = "途中で止める(最終状態には進めない)" };
+            header.Add(w.Stop);
+            w.Status = new Label { style = { marginLeft = 4, opacity = 0.8f, minWidth = 64 } };
+            header.Add(w.Status);
+            block.Add(header);
 
-            _stateWidgets.Add(widgets);
+            var look = new Foldout { text = "見た目(Tint / Scale / 画像)", value = LookExpanded.TryGetValue(state, out var open) && open };
+            look.RegisterValueChangedCallback(evt =>
+            {
+                if (evt.target == look)
+                {
+                    LookExpanded[state] = evt.newValue;
+                }
+            });
+
+            var child = prop.Copy();
+            var end = prop.GetEndProperty();
+            if (child.NextVisible(true))
+            {
+                do
+                {
+                    if (SerializedProperty.EqualContents(child, end))
+                    {
+                        break;
+                    }
+
+                    var field = new PropertyField(child.Copy());
+                    if (child.name == nameof(StateVisual.EnterTween))
+                    {
+                        // 開く対象の欄の横に置く(見出し行に置くと横に長くなり、何を開くのかも分かりづらい)。
+                        var tweenRow = Row();
+                        field.style.flexGrow = 1f;
+                        tweenRow.Add(field);
+                        w.Edit = new Button(() => OpenTweenEditor(state))
+                        {
+                            text = "✎ Tween Editor",
+                            tooltip = "この UiTweenData を UI Tween Editor で開く(プレビューの部品を対象にする)",
+                        };
+                        tweenRow.Add(w.Edit);
+                        block.Add(tweenRow);
+                    }
+                    else if (TweenFieldNames.Contains(child.name))
+                    {
+                        block.Add(field);
+                    }
+                    else
+                    {
+                        look.Add(field);
+                    }
+                }
+                while (child.NextVisible(false));
+            }
+
+            block.Add(look);
+            _stateWidgets.Add(w);
+            return block;
+        }
+
+        private VisualElement BuildSeRow(SerializedProperty prop, SeField field)
+        {
+            var row = Row();
+            row.style.alignItems = Align.FlexEnd; // [Header] 付きの欄でもボタンを値の行に揃える
+            row.Add(new PropertyField(prop) { style = { flexGrow = 1f } });
+
+            var w = new SeRow { Field = field };
+            w.Play = new Button(() => PlaySe(field.Get(_skin), field.PropertyName)) { text = "▶", tooltip = "試聴" };
+            row.Add(w.Play);
+            w.Stop = new Button(StopSe) { text = "■", tooltip = "停止" };
+            row.Add(w.Stop);
+
+            _seWidgets.Add(w);
             return row;
         }
 
-        private VisualElement BuildSeRow(SeField field)
+        private void RefreshSummaries()
         {
-            var id = field.Get(_skin);
-            var data = id.IsValid ? FindData<SeData>(id.Value) : null;
+            if (_skin == null)
+            {
+                return;
+            }
 
-            var row = Row();
-            row.Add(new Label(field.Label) { style = { width = 110 } });
-            var name = !id.IsValid ? "(未設定)" : data != null ? NameOf(data) : $"(0x{id.Value:X} が見つかりません)";
-            row.Add(new Label(name) { style = { flexGrow = 1f, opacity = 0.85f } });
+            foreach (var w in _stateWidgets)
+            {
+                var v = _skin.Get(w.State);
+                var tween = v.EnterTween.IsValid ? FindData<UiTweenData>(v.EnterTween.Value) : null;
+                var text = Describe(v, tween);
+                if (w.Summary.text != text)
+                {
+                    w.Summary.text = text;
+                }
 
-            var play = new Button(() => PlaySe(field.Get(_skin), field.Label)) { text = "▶ 試聴" };
-            play.SetEnabled(data != null);
-            row.Add(play);
+                w.Edit?.SetEnabled(tween != null);
+            }
 
-            var widgets = new SeRow { Label = field.Label };
-            widgets.Stop = new Button(StopSe) { text = "■ 停止" };
-            row.Add(widgets.Stop);
-
-            _seWidgets.Add(widgets);
-            return row;
+            foreach (var w in _seWidgets)
+            {
+                var id = w.Field.Get(_skin);
+                w.Play.SetEnabled(id.IsValid && FindData<SeData>(id.Value) != null);
+            }
         }
 
         private void PlayState(ControlState state)
@@ -240,13 +342,14 @@ namespace DDrive.Editor.Ui
                 // UiFx.Play(preset) と同じく、プリセット自身に付いた SE も鳴らす。
                 if (preset.Se.IsValid)
                 {
-                    PlaySe(preset.Se, $"{state} のプリセット SE");
+                    PlaySe(preset.Se, null);
                 }
             }
 
             _tweenState = state;
-            _status.text = _tweens.IsPlaying(_tweenHandle) ? $"{state} の演出を再生中" : $"{state} の見た目を適用しました(演出なし)";
-            SceneView.RepaintAll();
+            _lastTime = EditorApplication.timeSinceStartup;
+            _status.text = _tweens.IsPlaying(_tweenHandle) ? $"{state} の演出を再生中(Game ビューで確認)" : $"{state} の見た目を適用しました(演出なし)";
+            InternalEditorUtility.RepaintAllViews();
         }
 
         private void TogglePause()
@@ -259,12 +362,19 @@ namespace DDrive.Editor.Ui
 
         private void StopTween()
         {
-            _tweens?.Stop(_tweenHandle);
+            // 終了済み Handle に Stop すると InstanceStore が「Invalid handle access」を警告するため、再生中だけ止める。
+            if (_tweens != null && _tweens.IsPlaying(_tweenHandle))
+            {
+                _tweens.Stop(_tweenHandle);
+            }
+
             _tweenHandle = Handle<UiTweenMarker>.Invalid;
         }
 
-        private void PlaySe(AssetId<SeMarker> id, string label)
+        // propertyName=null はプリセット付属 SE(行に対応するボタンが無い)。
+        private void PlaySe(AssetId<SeMarker> id, string propertyName)
         {
+            var label = propertyName != null ? ObjectNames.NicifyVariableName(propertyName) : "プリセットの SE";
             var data = id.IsValid ? FindData<SeData>(id.Value) : null;
             if (data == null)
             {
@@ -276,7 +386,7 @@ namespace DDrive.Editor.Ui
             _audio.Initialize();
             StopSe();
             _seHandle = _audio.PlaySe(data);
-            _seLabel = label;
+            _sePropertyName = propertyName;
 
             // Clip が 1 つも無い SeData 等は AudioManager が何も鳴らさない。黙って失敗しないよう理由を出す。
             _status.text = _audio.AudioManager.IsPlaying(_seHandle)
@@ -292,11 +402,18 @@ namespace DDrive.Editor.Ui
             }
 
             _seHandle = Handle<SeMarker>.Invalid;
-            _seLabel = null;
+            _sePropertyName = null;
         }
 
-        private void OpenTweenEditor(UiTweenData tween)
+        private void OpenTweenEditor(ControlState state)
         {
+            if (_skin == null)
+            {
+                return;
+            }
+
+            var id = _skin.Get(state).EnterTween;
+            var tween = id.IsValid ? FindData<UiTweenData>(id.Value) : null;
             if (tween == null)
             {
                 return;
@@ -313,15 +430,18 @@ namespace DDrive.Editor.Ui
             var now = EditorApplication.timeSinceStartup;
             var dt = (float)(now - _lastTime);
             _lastTime = now;
-            if (dt <= 0f || dt > 1f)
+            if (dt <= 0f)
             {
                 return;
             }
 
             if (_tweens != null && _tweens.ActiveCount > 0)
             {
-                _tweens.Tick(dt);
-                SceneView.RepaintAll();
+                _tweens.Tick(Mathf.Min(dt, 0.1f));
+
+                // Edit Mode の Game ビューは自動では再描画されないため、演出中は毎フレーム描き直す
+                // (これが無いと Game ビューには最後の姿しか映らず「再生されない」ように見える)。
+                InternalEditorUtility.RepaintAllViews();
             }
 
             RefreshWidgets();
@@ -347,7 +467,7 @@ namespace DDrive.Editor.Ui
             var sePlaying = _audio != null && _audio.IsInitialized && _audio.AudioManager.IsPlaying(_seHandle);
             foreach (var s in _seWidgets)
             {
-                s.Stop.SetEnabled(sePlaying && s.Label == _seLabel);
+                s.Stop.SetEnabled(sePlaying && s.Field.PropertyName == _sePropertyName);
             }
         }
 
@@ -374,7 +494,7 @@ namespace DDrive.Editor.Ui
                 return tween != null ? $"Tween: {NameOf(tween)}" : $"Tween: (0x{v.EnterTween.Value:X} が見つかりません)";
             }
 
-            return v.EnterPreset.Preset != UiPreset.None ? $"Preset: {v.EnterPreset.Preset}" : "演出なし(色・拡大率・画像のみ)";
+            return v.EnterPreset.Preset != UiPreset.None ? $"Preset: {v.EnterPreset.Preset}" : "演出なし";
         }
 
         private static string NameOf(AssetDataBase data) => string.IsNullOrEmpty(data.DisplayName) ? data.name : data.DisplayName;

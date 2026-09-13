@@ -9,8 +9,9 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Ui
 {
     // [15_ui_interaction.md] / [18_ui_controls.md] Part A — ButtonSkinData 専用エディタ(4-6)。
-    // プロジェクト方針(2026-09-10)によりウィンドウ内では何も描画しない。SerializedObject をそのまま
-    // InspectorElement で表示し、確認は「確認用シーンに配置」で開いているシーン/Game ビュー側に出す(ADR-4)。
+    // プロジェクト方針(2026-09-10)によりウィンドウ内では何も描画しない。設定欄は ControlSkinPreviewSection
+    // (各状態の演出欄の横に再生、各 SE 欄の横に試聴)で、確認は「確認用シーンに配置」した実 UiButton を
+    // シーン/Game ビュー側で見る(ADR-4)。
     [DDrive.Editor.Inspector.DataEditor(typeof(ButtonSkinData), "Skin Editor で開く")]
     public sealed class ButtonSkinEditorWindow : EditorWindow
     {
@@ -19,8 +20,7 @@ namespace DDrive.Editor.Ui
         [SerializeField] private ButtonSkinData _target;
 
         private ObjectField _targetField;
-        private VisualElement _inspectorContainer;
-        private ControlSkinPreviewSection _previewSection;
+        private ControlSkinPreviewSection _settings;
         private UiButton _previewButton;
 
         [MenuItem(DDriveMenu.Editors + "Button Skin")]
@@ -54,16 +54,13 @@ namespace DDrive.Editor.Ui
             row.Add(new UnityEngine.UIElements.Button(RemoveFromScene) { text = "撤去" });
             scrollView.Add(row);
 
-            _previewSection = new ControlSkinPreviewSection(
+            _settings = new ControlSkinPreviewSection(
                 EnsurePreview,
-                new ControlSkinPreviewSection.SeField("Hover Se", s => ((ButtonSkinData)s).HoverSe),
-                new ControlSkinPreviewSection.SeField("Click Se", s => ((ButtonSkinData)s).ClickSe),
-                new ControlSkinPreviewSection.SeField("Long Press Se", s => ((ButtonSkinData)s).LongPressSe),
-                new ControlSkinPreviewSection.SeField("Denied Se", s => ((ButtonSkinData)s).DeniedSe));
-            scrollView.Add(_previewSection);
-
-            _inspectorContainer = new VisualElement();
-            scrollView.Add(_inspectorContainer);
+                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.HoverSe), s => ((ButtonSkinData)s).HoverSe),
+                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.ClickSe), s => ((ButtonSkinData)s).ClickSe),
+                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.LongPressSe), s => ((ButtonSkinData)s).LongPressSe),
+                new ControlSkinPreviewSection.SeField(nameof(ButtonSkinData.DeniedSe), s => ((ButtonSkinData)s).DeniedSe));
+            scrollView.Add(_settings);
 
             if (_target == null && Selection.activeObject is ButtonSkinData selected)
             {
@@ -72,8 +69,7 @@ namespace DDrive.Editor.Ui
             else
             {
                 _targetField.SetValueWithoutNotify(_target);
-                RebuildInspector();
-                _previewSection.SetSkin(_target);
+                _settings.SetSkin(_target);
             }
         }
 
@@ -81,8 +77,7 @@ namespace DDrive.Editor.Ui
         {
             _target = target;
             _targetField?.SetValueWithoutNotify(_target);
-            RebuildInspector();
-            _previewSection?.SetSkin(_target);
+            _settings?.SetSkin(_target);
             if (_previewButton != null && _target != null)
             {
                 _previewButton.SetVisual(_target);
@@ -97,24 +92,6 @@ namespace DDrive.Editor.Ui
             }
 
             return _previewButton;
-        }
-
-        private void RebuildInspector()
-        {
-            if (_inspectorContainer == null)
-            {
-                return;
-            }
-
-            _inspectorContainer.Clear();
-            if (_target == null)
-            {
-                _inspectorContainer.Add(new Label("ButtonSkinData を選択してください"));
-                return;
-            }
-
-            var so = new SerializedObject(_target);
-            _inspectorContainer.Add(new InspectorElement(so));
         }
 
         // Data 自体は編集しない。実配置での見た目確認だけをシーン上で行う(ADR-4: プレビューは実 Manager/実コンポーネントを駆動する)。

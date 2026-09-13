@@ -1,6 +1,4 @@
 using DDrive.Editor.Menu;
-using DDrive.Foundation.Easing;
-using DDrive.Foundation.Values;
 using DDrive.Runtime.Ui;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -11,8 +9,9 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Ui
 {
     // [18_ui_controls.md] Part B — SliderSkinData 専用エディタ(4-15/4-18)。
-    // プロジェクト方針(2026-09-10)によりウィンドウ内では何も描画しない。SerializedObject をそのまま
-    // InspectorElement で表示し、確認は「確認用シーンに配置」で開いているシーン/Game ビュー側に出す(ADR-4)。
+    // プロジェクト方針(2026-09-10)によりウィンドウ内では何も描画しない。設定欄は ControlSkinPreviewSection
+    // (各状態の演出欄の横に再生、各 SE 欄の横に試聴)で、確認は「確認用シーンに配置」した実 UiSlider を
+    // シーン/Game ビュー側で見る(ADR-4)。
     // 本格的な SliderEditor(応答曲線グラフ・ノッチ可視化・追従比較・Skin プレビュー一覧、4-17)は別チケット。
     // ここではプリセットで Response/Step/Notches/FollowMotion を配って最低限の見た目確認だけ行う。
     [DDrive.Editor.Inspector.DataEditor(typeof(SliderSkinData), "Skin Editor で開く")]
@@ -23,10 +22,9 @@ namespace DDrive.Editor.Ui
         [SerializeField] private SliderSkinData _target;
 
         private ObjectField _targetField;
-        private VisualElement _inspectorContainer;
         private EnumField _presetField;
         private UiSlider _previewSlider;
-        private ControlSkinPreviewSection _previewSection;
+        private ControlSkinPreviewSection _settings;
 
         [MenuItem(DDriveMenu.Editors + "Slider Skin")]
         public static void OpenFromMenu() => Open(Selection.activeObject as SliderSkinData);
@@ -66,20 +64,18 @@ namespace DDrive.Editor.Ui
             _presetField.RegisterValueChangedCallback(evt => ApplyPreset((SliderPresets.SliderPreset)evt.newValue));
             scrollView.Add(_presetField);
 
-            _previewSection = new ControlSkinPreviewSection(
-                EnsurePreview,
-                new ControlSkinPreviewSection.SeField("Grab Se", s => ((SliderSkinData)s).GrabSe),
-                new ControlSkinPreviewSection.SeField("Release Se", s => ((SliderSkinData)s).ReleaseSe),
-                new ControlSkinPreviewSection.SeField("Notch Se", s => ((SliderSkinData)s).NotchSe),
-                new ControlSkinPreviewSection.SeField("Limit Se", s => ((SliderSkinData)s).LimitSe),
-                new ControlSkinPreviewSection.SeField("Denied Se", s => ((SliderSkinData)s).DeniedSe));
-            scrollView.Add(_previewSection);
             // パーツ(Track/Fill/Handle/DelayFill)の StateVisual は UiSlider.OnSkinApplied が未実装で実行時に
-            // 反映されないため、ここでは再生対象にしない(見た目を偽って見せない)。
-            scrollView.Add(new HelpBox("パーツ(Track / Fill / Handle / Delay Fill)の見た目はまだ実行時に反映されないため、ここでは再生しません。状態演出はスライダー本体に掛かります。", HelpBoxMessageType.None));
+            // 反映されないため、再生対象にしない(見た目を偽って見せない)。
+            scrollView.Add(new HelpBox("パーツ(Track / Fill / Handle / Delay Fill)の見た目はまだ実行時に反映されないため、再生ボタンは付けていません。状態の演出はスライダー本体に掛かります。", HelpBoxMessageType.None));
 
-            _inspectorContainer = new VisualElement();
-            scrollView.Add(_inspectorContainer);
+            _settings = new ControlSkinPreviewSection(
+                EnsurePreview,
+                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.GrabSe), s => ((SliderSkinData)s).GrabSe),
+                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.ReleaseSe), s => ((SliderSkinData)s).ReleaseSe),
+                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.NotchSe), s => ((SliderSkinData)s).NotchSe),
+                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.LimitSe), s => ((SliderSkinData)s).LimitSe),
+                new ControlSkinPreviewSection.SeField(nameof(SliderSkinData.DeniedSe), s => ((SliderSkinData)s).DeniedSe));
+            scrollView.Add(_settings);
 
             if (_target == null && Selection.activeObject is SliderSkinData selected)
             {
@@ -88,8 +84,7 @@ namespace DDrive.Editor.Ui
             else
             {
                 _targetField.SetValueWithoutNotify(_target);
-                RebuildInspector();
-                _previewSection.SetSkin(_target);
+                _settings.SetSkin(_target);
             }
         }
 
@@ -97,8 +92,7 @@ namespace DDrive.Editor.Ui
         {
             _target = target;
             _targetField?.SetValueWithoutNotify(_target);
-            RebuildInspector();
-            _previewSection?.SetSkin(_target);
+            _settings?.SetSkin(_target);
             if (_previewSlider != null && _target != null)
             {
                 _previewSlider.SetVisual(_target);
@@ -113,24 +107,6 @@ namespace DDrive.Editor.Ui
             }
 
             return _previewSlider;
-        }
-
-        private void RebuildInspector()
-        {
-            if (_inspectorContainer == null)
-            {
-                return;
-            }
-
-            _inspectorContainer.Clear();
-            if (_target == null)
-            {
-                _inspectorContainer.Add(new Label("SliderSkinData を選択してください"));
-                return;
-            }
-
-            var so = new SerializedObject(_target);
-            _inspectorContainer.Add(new InspectorElement(so));
         }
 
         // Data 自体は編集しない。実配置での見た目確認だけをシーン上で行う(ADR-4: プレビューは実 Manager/実コンポーネントを駆動する)。

@@ -50,9 +50,9 @@
 <tr><td>対象 Skin</td><td>編集する Button Skin</td></tr>
 <tr><td>確認用シーンに配置</td><td>開いているシーンに <code>[D-Drive] Ui Preview</code> という Canvas を作り、その下に 200×60 のボタンを置いてこの Skin を当てます。シーンには保存されません。すでに置いてあれば作り直します</td></tr>
 <tr><td>撤去</td><td><code>[D-Drive] Ui Preview</code> を消します</td></tr>
-<tr><td>状態演出の確認</td><td>6 状態（Normal〜Locked）が 1 行ずつ並びます。各行に、その状態で再生される演出（「Tween: 名前」/「Preset: 名前」/「演出なし」）が表示されます。<br>「<strong>▶ 再生</strong>」= プレビューのボタンをその状態にし（色・拡大率・差し替え画像）、状態に入ったときの演出を実際に再生します。未配置なら自動で「確認用シーンに配置」します。<br>「<strong>⏸ 一時停止</strong>」/「▶ 再開」・「<strong>■ 停止</strong>」は再生中の行だけ押せます。<br>「<strong>✎ Tween Editor</strong>」= Enter Tween を指定している状態だけ押せ、<a href="ui-tween.html">UI Tween Editor</a> がプレビューのボタンを対象にした状態で開きます</td></tr>
-<tr><td>SE の試聴</td><td>Hover / Click / Long Press / Denied の SE ごとに「<strong>▶ 試聴</strong>」「■ 停止」。未設定は「(未設定)」と表示され押せません。SE データに音（Clip）が 1 つも入っていないと「再生できませんでした(Clip 未設定など…)」と出ます。Enter Preset に SE を付けている場合は、状態の「▶ 再生」でもその SE が鳴ります</td></tr>
-<tr><td>設定（Inspector）</td><td>Skin の全項目をそのまま編集（Ctrl+Z 可）。変更すると上の一覧もすぐ追従します。対象が無いと「ButtonSkinData を選択してください」</td></tr>
+<tr><td>設定欄</td><td>Skin の全項目を編集（Ctrl+Z 可）。対象が無いと「Skin を選択してください」。確認用のボタンは、その設定のすぐ横に付いています（下の 2 行）</td></tr>
+<tr><td>状態ごとの箱（Normal〜Locked）</td><td>見出しの行に、その状態で再生される演出（「Tween: 名前」/「Preset: 名前」/「演出なし」）と「<strong>▶ 再生</strong>」「<strong>⏸ 一時停止</strong>」（再開）「<strong>■ 停止</strong>」。すぐ下が演出の設定欄（Enter Tween / Enter Preset）で、Enter Tween の右に「<strong>✎ Tween Editor</strong>」があります。色・拡大率・画像は「見た目(Tint / Scale / 画像)」を開くと出ます。<br>「▶ 再生」= プレビューのボタンをその状態にし（色・拡大率・差し替え画像）、状態に入ったときの演出を実際に再生します。未配置なら自動で「確認用シーンに配置」します。動きは <strong>Game ビュー</strong>で見ます。<br>「⏸」「■」は再生中の箱だけ押せます。「✎ Tween Editor」は Enter Tween を指定しているときだけ押せ、<a href="ui-tween.html">UI Tween Editor</a> がプレビューのボタンを対象にした状態で開きます</td></tr>
+<tr><td>SE の欄</td><td>Hover / Click / Long Press / Denied の各欄の右に「<strong>▶</strong>」（試聴）「<strong>■</strong>」（停止）。未設定の欄は押せません。SE データに音（Clip）が 1 つも入っていないと「再生できませんでした(Clip 未設定など…)」と出ます。Enter Preset に SE を付けている場合は、状態の「▶ 再生」でもその SE が鳴ります</td></tr>
 </table>
 <div class="tip">「▶ 再生」は 1 つの状態を強制的に見せる確認用です。状態の切り替わり（マウスを乗せる→押す→離す）の流れは、Game ビューで実際に操作して確かめてください。</div>
 
@@ -123,8 +123,7 @@
 <tr><td>対象 Skin</td><td>編集する Slider Skin</td></tr>
 <tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] Ui Preview</code> Canvas の下に 300×24 のスライダー（Fill と 20×24 の Handle 付き）を置いて Skin を当てます</td></tr>
 <tr><td>プリセット</td><td>音量 / 感度 / HPバー / スタミナ / キャラメイク。選んだ瞬間に<strong>配置中のプレビュースライダー</strong>の動き方が変わります（Skin 自体は変わりません）。<strong>先に「確認用シーンに配置」していないと何も起きません</strong></td></tr>
-<tr><td>状態演出の確認 / SE の試聴</td><td>Button Skin と同じです（6 状態の「▶ 再生」「⏸」「■」「✎ Tween Editor」、SE は Grab / Release / Notch / Limit / Denied の「▶ 試聴」「■ 停止」）。演出はスライダー本体に掛かります。パーツ（Track / Fill / Handle / Delay Fill）の見た目はまだ実行時に反映されないため、ここでも再生しません</td></tr>
-<tr><td>設定（Inspector）</td><td>対象が無いと「SliderSkinData を選択してください」</td></tr>
+<tr><td>設定欄（状態ごとの箱 / SE の欄）</td><td>Button Skin と同じです（状態ごとの箱の「▶ 再生」「⏸」「■」、Enter Tween の右の「✎ Tween Editor」、SE は Grab / Release / Notch / Limit / Denied の各欄の右に「▶」「■」）。演出はスライダー本体に掛かります。パーツ（Track / Fill / Handle / Delay Fill）の見た目はまだ実行時に反映されないため、再生ボタンは付いていません。対象が無いと「Skin を選択してください」</td></tr>
 </table>
 
 <h3>設定項目</h3>
