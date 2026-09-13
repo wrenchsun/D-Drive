@@ -28,6 +28,16 @@ namespace DDrive.Editor.AssetBrowser
         // D&D 由来の作成時に事前設定される(AudioClip → SeData の Clips 等)。
         private AudioClip[] _pendingClips;
 
+        // 5-15: 各専用エディタの「＋ 新規作成」ボタンから開いたときに、種別選択をそのエディタの
+        // 対応種別だけに絞り、作成後にコールバックでそのエディタへ切り替えるための状態。
+        private Type[] _lockedTypes;
+        private Action<AssetDataBase> _onCreated;
+
+        // CreateGUI は GetWindow<T>() が新規ウィンドウを生成した瞬間に走るため、Open() の呼び出し側から
+        // インスタンスフィールドへ値を渡すより前に実行されてしまう。static の受け渡し用領域を経由する。
+        private static Type[] _pendingLockedTypes;
+        private static Action<AssetDataBase> _pendingOnCreated;
+
         public static void Open(AudioClip[] pendingClips = null)
         {
             var window = GetWindow<NewAssetDialog>(utility: true, title: "新規アセット作成");
@@ -36,16 +46,44 @@ namespace DDrive.Editor.AssetBrowser
             window.RefreshPreview();
         }
 
+        // 5-15: 種別をそのエディタの対応種別(1 つ以上)に固定して開く。作成が完了したら onCreated(created) を呼ぶ
+        // (呼び出し側はここで DataEditorRegistry 経由の Open を叩いて自分のエディタへ切り替える想定)。
+        public static void Open(Type[] lockedTypes, Action<AssetDataBase> onCreated)
+        {
+            _pendingLockedTypes = lockedTypes != null && lockedTypes.Length > 0 ? lockedTypes : null;
+            _pendingOnCreated = onCreated;
+
+            // 既存のウィンドウが(ロック無しの通常の「新規」等で)既に開いていると GetWindow は CreateGUI を
+            // 呼び直さず種別ロックが反映されないため、開き直して確実に反映する。
+            if (HasOpenInstances<NewAssetDialog>())
+            {
+                GetWindow<NewAssetDialog>().Close();
+            }
+
+            var window = GetWindow<NewAssetDialog>(utility: true, title: "新規アセット作成");
+            window.minSize = new Vector2(380, 230);
+            window.RefreshPreview();
+        }
+
         private void CreateGUI()
         {
+            _lockedTypes = _pendingLockedTypes;
+            _onCreated = _pendingOnCreated;
+            _pendingLockedTypes = null;
+            _pendingOnCreated = null;
+
             _definitions = AssetIdLookup.GetAllDefinitions()
                 .Where(d => d.dataType.Namespace?.Contains("Tests") != true)
+                .Where(d => _lockedTypes == null || _lockedTypes.Contains(d.dataType))
                 .OrderBy(d => d.assetType.ToString())
                 .ToList();
 
             if (_definitions.Count == 0)
             {
-                rootVisualElement.Add(new HelpBox("作成可能なアセット種別が見つかりません。", HelpBoxMessageType.Warning));
+                var message = _lockedTypes == null
+                    ? "作成可能なアセット種別が見つかりません。"
+                    : "このエディタに対応する作成可能な種別が見つかりません。";
+                rootVisualElement.Add(new HelpBox(message, HelpBoxMessageType.Warning));
                 return;
             }
 
@@ -63,6 +101,18 @@ namespace DDrive.Editor.AssetBrowser
             _typeField = new DropdownField("種別", choices, 0);
             _typeField.RegisterValueChangedCallback(_ => RefreshPreview());
             root.Add(_typeField);
+
+            if (_lockedTypes != null)
+            {
+                // 5-15: エディタの「＋ 新規作成」から開いた場合は種別をそのエディタの対応種別に固定する。
+                // 候補が 1 つだけなら選ぶ必要が無いのでドロップダウンごと無効化する。
+                var lockHelp = new HelpBox("このエディタに対応する種別のみ選べます。", HelpBoxMessageType.Info);
+                root.Add(lockHelp);
+                if (choices.Count == 1)
+                {
+                    _typeField.SetEnabled(false);
+                }
+            }
 
             _displayNameField = new TextField("表示名(日本語可)") { tooltip = "AssetBrowser での表示・検索に使う名前。例:「剣の斬撃音」" };
             root.Add(_displayNameField);
@@ -154,6 +204,17 @@ namespace DDrive.Editor.AssetBrowser
                 foreach (var browser in Resources.FindObjectsOfTypeAll<AssetBrowserWindow>())
                 {
                     browser.Refresh();
+                }
+
+                // 5-15: 専用エディタの「＋ 新規作成」から開いた場合、作成後にそのエディタへ切り替える。
+                // 呼び出し元のエディタが既に閉じていても例外で落とさない([00] §0-4: 例外で止めない)。
+                try
+                {
+                    _onCreated?.Invoke(asset);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[DDrive] 新規アセット作成後のエディタ切り替えに失敗しました: {e.Message}");
                 }
 
                 Close();

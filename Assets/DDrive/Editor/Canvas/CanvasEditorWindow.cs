@@ -207,6 +207,7 @@ namespace DDrive.Editor.CanvasTool
             var lockToggle = new ToolbarToggle { text = "🔒", tooltip = "選択に追従しない" };
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(CanvasEditorWindow)));
             _root.Add(toolbar);
 
             var navButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };

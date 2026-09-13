@@ -113,6 +113,7 @@ namespace DDrive.Editor.Materials
             lockToggle.SetValueWithoutNotify(_lockTarget); // ドメインリロード後の復元
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
+            toolbar.Add(NewAssetToolbarButton.CreateToolbarButton(typeof(MaterialThumbnailWindow)));
             _root.Add(toolbar);
 
             var controls = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2, marginBottom = 2, flexWrap = Wrap.Wrap } };

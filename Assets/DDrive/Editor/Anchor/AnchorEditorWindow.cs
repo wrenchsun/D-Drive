@@ -192,6 +192,7 @@ namespace DDrive.Editor.Anchor
                 SceneView.RepaintAll();
             });
             toolbar.Add(handleToggle);
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(AnchorEditorWindow)));
             root.Add(toolbar);
 
             _sceneOwnerLabel = new Label { style = { opacity = 0.65f, marginLeft = 6, marginTop = 2, whiteSpace = WhiteSpace.Normal } };

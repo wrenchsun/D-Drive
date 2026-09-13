@@ -80,6 +80,11 @@ namespace DDrive.Editor.Ui
 
         private void CreateGUI()
         {
+            // 5-15: 上部に「＋ 新規作成」ツールバー(スクロールしても見える固定行)。
+            var toolbar = new Toolbar();
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(SliderSkinEditorWindow)));
+            rootVisualElement.Add(toolbar);
+
             // ルートをスクロール可能にする([09_editor_tools.md] §7)。
             var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
             rootVisualElement.Add(scrollView);

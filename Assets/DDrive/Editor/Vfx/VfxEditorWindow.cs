@@ -275,6 +275,8 @@ namespace DDrive.Editor.Vfx
             });
             toolbar.Add(new ToolbarButton(OpenPrefab) { text = "Prefab を開く", tooltip = "VfxData.Prefab をプレハブモードで開く" });
             toolbar.Add(new ToolbarButton(PingTarget) { text = "Project で表示", tooltip = "対象アセットを Project ウィンドウでハイライト" });
+            toolbar.Add(new ToolbarSpacer());
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(VfxEditorWindow)));
 
             root.Add(toolbar);
         }
