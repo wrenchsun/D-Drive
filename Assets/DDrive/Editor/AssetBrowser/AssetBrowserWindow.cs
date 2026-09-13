@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
+using DDrive.Editor.Spec;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using UnityEditor;
@@ -34,6 +35,8 @@ namespace DDrive.Editor.AssetBrowser
         private Label _statusLabel;
         private PreviewService _previewService;
         private AudioPreviewPane _previewPane;
+        // [27_spec_sheet.md] §4.2 / 5-13 — 起動時自動取得(SpecAutoSync)が差分を見つけたときの通知バッジ。
+        private ToolbarButton _specBadge;
 
         [MenuItem(DDriveMenu.Root + "Asset Browser")]
         public static void Open()
@@ -62,6 +65,10 @@ namespace DDrive.Editor.AssetBrowser
             toolbar.Add(new ToolbarButton(() => NewAssetDialog.Open()) { text = "新規" });
             toolbar.Add(new ToolbarButton(Refresh) { text = "更新" });
 
+            _specBadge = new ToolbarButton(() => SpecSyncWindow.Open()) { text = string.Empty };
+            _specBadge.style.display = DisplayStyle.None;
+            toolbar.Add(_specBadge);
+
             root.Add(toolbar);
 
             _listView = new ListView
@@ -88,12 +95,35 @@ namespace DDrive.Editor.AssetBrowser
 
             SetupDragAndDrop(root);
             Refresh();
+
+            SpecCache.Updated += RefreshSpecBadge;
+            RefreshSpecBadge();
         }
 
         private void OnDisable()
         {
+            SpecCache.Updated -= RefreshSpecBadge;
             _previewService?.Dispose();
             _previewService = null;
+        }
+
+        private void RefreshSpecBadge()
+        {
+            if (_specBadge == null)
+            {
+                return;
+            }
+
+            var count = SpecCache.PendingChangeCount;
+            if (count > 0)
+            {
+                _specBadge.text = $"仕様書に変更 {count} 件";
+                _specBadge.style.display = DisplayStyle.Flex;
+            }
+            else
+            {
+                _specBadge.style.display = DisplayStyle.None;
+            }
         }
 
         private const float RowIconSize = 18f;

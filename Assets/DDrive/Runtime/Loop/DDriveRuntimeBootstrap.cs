@@ -50,6 +50,9 @@ namespace DDrive.Runtime.Loop
         [Tooltip("UiLayer ごとの既定 Skin/SE/Appear/Disappear(4-9 + 4-7 残り)。未設定(null)ならフォールバック無し")]
         public UiLayerSettings LayerSettings;
 
+        [Tooltip("仕様書「調整値」タブの取り込み先(5-13)。未設定(null)なら Tuning.Get* は常に既定値を返す")]
+        public DDrive.Runtime.Tuning.TuningTable TuningTable;
+
         public static DDriveRuntimeBootstrap Instance { get; private set; }
 
         public GameLoopDriver Loop { get; private set; }
@@ -205,6 +208,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.UiFx.Bind(UiTweens);
                 Runtime.Ui.Options.Bind(Options);
                 Anchors.Bind(Groups);
+                Runtime.Tuning.Tuning.Bind(TuningTable);
             }
 
             _built = true;
@@ -262,6 +266,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.UiFx.Bind(null);
                 Runtime.Ui.Options.Bind(null);
                 Anchors.Bind(null);
+                Runtime.Tuning.Tuning.Bind(null);
             }
 
             Pool?.Clear(PoolScope.Global);
