@@ -15,24 +15,25 @@ namespace DDrive.Tests.Editor
 {
     // 5-16 — NewAssetDialog の「仕様書から選ぶ」。ネットワークには出ない(SpecSheetParser で CSV 文字列を
     // 直接パースし、SpecCache に注入する。実際の取得(SpecFetcher/SpecAutoSync.Run)は呼ばない)。
-    // DDriveSpecSettings はプロジェクトに 1 個だけの実 SO のため、テスト前後で状態を保存/復元する。
     // 識別子は実プロジェクトの既存アセットと衝突しない専用の接頭辞 "ZzTest5016" を使う(過去に本番アセットを
     // 汚した事故があったため)。
+    //
+    // P5 テスト隔離(2026-09-14): NewAssetDialog は元々 DDriveSpecSettings.Load()(実シングルトン
+    // Assets/GameData/Settings/DDriveSpecSettings.asset)と AssetCreationService.DefaultGameDataRoot
+    // (実 Assets/GameData、実カタログ、実 Addressables グループ)を直接参照していたため、このテストは
+    // 実データを一時的に書き換えて後始末する作りになっていた。ImportRuleServiceTests/SpecCacheTests と
+    // 同じ「差し替え口を引数化する」流儀に揃え、NewAssetDialog に internal テスト専用フック
+    // (TestSpecSettingsOverride / TestGameDataRootOverride)を追加して、実データに一切触れないようにした。
     public class NewAssetDialogSpecPickerTests
     {
         private const string AssetHeader = "種別,カテゴリ,識別子,表示名,状態,担当,仕様,備考\n";
+        private const string TestRoot = "Assets/DDrive/Tests/Editor/TempNewAssetDialogGameData";
 
         private SpecParseResult<SpecAssetRow> _prevAssetRows;
         private SpecParseResult<SpecTuningRow> _prevTuningRows;
         private SpecDiffResult _prevDiff;
         private string _prevWarning;
         private string _prevError;
-
-        private bool _settingsAssetExistedBefore;
-        private bool _settingsFolderExistedBefore;
-        private string _prevSpreadsheetUrl;
-
-        private const string SettingsFolder = "Assets/GameData/Settings";
 
         [SetUp]
         public void SetUp()
@@ -43,20 +44,12 @@ namespace DDrive.Tests.Editor
             _prevWarning = SpecCache.LastWarning;
             _prevError = SpecCache.LastError;
 
-            var existing = DDriveSpecSettings.Load();
-            _settingsAssetExistedBefore = existing != null;
-            _prevSpreadsheetUrl = existing != null ? existing.SpreadsheetUrl : null;
-            // GetOrCreate() が初回に Assets/GameData/Settings フォルダを新設する場合があるため、
-            // 元々あったかどうかも記録して後始末する(このプロジェクトはまだ一度も仕様書同期を
-            // 試していないため、初回はフォルダ自体が無い。docs/28 の要判断も参照)。
-            _settingsFolderExistedBefore = AssetDatabase.IsValidFolder(SettingsFolder);
-
             // 「仕様書から選ぶ」の一覧を表示させるには URL が非空である必要がある(空だと案内文だけの分岐になる)。
-            // 取得自体は行わない(SpecCache は直接 Set するのでネットへは出ない)。
-            var settings = DDriveSpecSettings.GetOrCreate();
+            // 実 DDriveSpecSettings.asset には一切触れず、メモリ上だけのインスタンスを差し替える。
+            var settings = ScriptableObject.CreateInstance<DDriveSpecSettings>();
             settings.SpreadsheetUrl = "https://example.com/ddrive-test-5016-spec";
-            EditorUtility.SetDirty(settings);
-            AssetDatabase.SaveAssets();
+            NewAssetDialog.TestSpecSettingsOverride = settings;
+            NewAssetDialog.TestGameDataRootOverride = TestRoot;
         }
 
         [TearDown]
@@ -69,32 +62,19 @@ namespace DDrive.Tests.Editor
 
             SpecCache.Set(_prevAssetRows, _prevTuningRows, _prevDiff, _prevWarning, _prevError);
 
-            if (_settingsAssetExistedBefore)
+            if (NewAssetDialog.TestSpecSettingsOverride != null)
             {
-                var settings = DDriveSpecSettings.Load();
-                if (settings != null)
-                {
-                    settings.SpreadsheetUrl = _prevSpreadsheetUrl;
-                    EditorUtility.SetDirty(settings);
-                    AssetDatabase.SaveAssets();
-                }
+                Object.DestroyImmediate(NewAssetDialog.TestSpecSettingsOverride);
             }
-            else if (AssetDatabase.LoadAssetAtPath<DDriveSpecSettings>(DDriveSpecSettings.DefaultPath) != null)
-            {
-                AssetDatabase.DeleteAsset(DDriveSpecSettings.DefaultPath);
-                AssetDatabase.SaveAssets();
 
-                // このテストで初めて作られたフォルダなら、空になったはずなので後始末する
-                // (AssetDatabase.FindAssets はフィルタ空文字だと不安定なため、ファイルシステムで直接確認する)。
-                if (!_settingsFolderExistedBefore && AssetDatabase.IsValidFolder(SettingsFolder))
-                {
-                    var hasOtherContents = System.IO.Directory.Exists(SettingsFolder)
-                        && System.IO.Directory.GetFileSystemEntries(SettingsFolder).Any(p => !p.EndsWith(".meta"));
-                    if (!hasOtherContents)
-                    {
-                        AssetDatabase.DeleteAsset(SettingsFolder);
-                    }
-                }
+            NewAssetDialog.TestSpecSettingsOverride = null;
+            NewAssetDialog.TestGameDataRootOverride = null;
+
+            if (AssetDatabase.IsValidFolder(TestRoot))
+            {
+                AddressablesSync.RemoveEntriesUnder(TestRoot);
+                AssetDatabase.DeleteAsset(TestRoot);
+                AssetDatabase.SaveAssets();
             }
         }
 
@@ -208,11 +188,8 @@ namespace DDrive.Tests.Editor
         [Test]
         public void RebuildSpecSection_NoSpreadsheetUrl_ShowsGuidanceOnly_NoListContainer()
         {
-            // このテストだけ URL を空に戻して「未設定」分岐を確認する(他テストの SetUp が入れた URL を上書き)。
-            var settings = DDriveSpecSettings.GetOrCreate();
-            settings.SpreadsheetUrl = string.Empty;
-            EditorUtility.SetDirty(settings);
-            AssetDatabase.SaveAssets();
+            // このテストだけ URL を空にして「未設定」分岐を確認する(メモリ上のオーバーライドを直接書き換えるだけ)。
+            NewAssetDialog.TestSpecSettingsOverride.SpreadsheetUrl = string.Empty;
 
             var window = OpenUnlocked();
 
@@ -228,9 +205,9 @@ namespace DDrive.Tests.Editor
         // 5-16 の本丸: ダイアログの「作成」を仕様書の行を選んだ状態で押すと、
         // SpecSyncService.ApplyExtraFields と同じ結果(状態タグ/Assignee/Description/SpecUrl)になり、
         // 作成後はその行が SpecCache の「未作成」一覧から消える。
-        // NewAssetDialog.CreateAsset は gameDataRoot を差し替えられない(常に Assets/GameData に作る)ため、
-        // このテストだけ実際に Assets/GameData 配下へアセットを作り、カタログ/Addressables エントリも含めて
-        // 確実に後始末する(要判断: docs/28 参照)。
+        // TestGameDataRootOverride(= TestRoot)により実 Assets/GameData には一切書き込まれない。
+        // SpecDiffService.BuildExistingIndex はプロジェクト全体を t:AssetDataBase で検索するため、
+        // TestRoot 配下に作られたアセットでも「既存」として正しく見つかる。
         [Test]
         public void CreateFromSelectedSpecRow_AppliesExtraFields_AndRemovesRowFromCache()
         {
@@ -246,45 +223,15 @@ namespace DDrive.Tests.Editor
             var index = SpecDiffService.BuildExistingIndex();
             Assert.IsTrue(index.TryGetValue("Se::" + identifier, out var asset), "作成されたはずのアセットが見つかりません");
 
-            try
-            {
-                Assert.AreEqual("仮", SpecStatusTag.GetCurrent(asset.Tags));
-                Assert.AreEqual("よしだ", asset.Assignee);
-                Assert.AreEqual("備考テスト", asset.Description);
-                Assert.AreEqual("https://example/spec", asset.SpecUrl);
+            Assert.IsTrue(AssetDatabase.GetAssetPath(asset).StartsWith(TestRoot),
+                "テスト用の一時フォルダ配下に作られているはず(実 Assets/GameData には書き込まない)");
+            Assert.AreEqual("仮", SpecStatusTag.GetCurrent(asset.Tags));
+            Assert.AreEqual("よしだ", asset.Assignee);
+            Assert.AreEqual("備考テスト", asset.Description);
+            Assert.AreEqual("https://example/spec", asset.SpecUrl);
 
-                Assert.IsFalse(SpecCache.GetUncreatedRows(AssetType.Se).Any(r => r.Identifier == identifier),
-                    "作成後は「仕様書から選ぶ」一覧から消えるはず(SpecCache.RecomputeDiff)");
-            }
-            finally
-            {
-                CleanUpRealAsset(asset, AssetType.Se);
-            }
-        }
-
-        // Assets/GameData 配下に実際に作られたテスト用アセットを、カタログ登録・Addressables エントリも
-        // 含めて元に戻す(このダイアログには TestRoot を渡す口が無いため、他の Spec テストのように
-        // gameDataRoot: TestRoot で隔離できない。要判断: docs/28 参照)。
-        private static void CleanUpRealAsset(AssetDataBase asset, AssetType assetType)
-        {
-            var path = AssetDatabase.GetAssetPath(asset);
-            if (string.IsNullOrEmpty(path))
-            {
-                return;
-            }
-
-            var catalogPath = $"{AssetCreationService.DefaultGameDataRoot}/Catalogs/{AssetCreationService.GetCatalogName(assetType)}.asset";
-            var catalog = AssetDatabase.LoadAssetAtPath<AssetCatalog>(catalogPath);
-            if (catalog != null)
-            {
-                var filtered = catalog.Entries.Where(e => e.Id != asset.Id).ToList();
-                catalog.SetEntries(filtered);
-                EditorUtility.SetDirty(catalog);
-            }
-
-            AddressablesSync.RemoveEntry(asset);
-            AssetDatabase.DeleteAsset(path);
-            AssetDatabase.SaveAssets();
+            Assert.IsFalse(SpecCache.GetUncreatedRows(AssetType.Se).Any(r => r.Identifier == identifier),
+                "作成後は「仕様書から選ぶ」一覧から消えるはず(SpecCache.RecomputeDiff)");
         }
     }
 }

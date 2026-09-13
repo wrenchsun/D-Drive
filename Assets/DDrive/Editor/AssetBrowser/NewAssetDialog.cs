@@ -56,6 +56,17 @@ namespace DDrive.Editor.AssetBrowser
         private static Type[] _pendingLockedTypes;
         private static Action<AssetDataBase> _pendingOnCreated;
 
+        // テスト専用の差し替え口(P5 テスト隔離、2026-09-14)。本番は常に null で、AssetCreationService.
+        // Create の既定(gameDataRoot=DefaultGameDataRoot)/DDriveSpecSettings.Load() の実シングルトンを
+        // そのまま使う。テストだけ ImportRuleService.ProcessPaths(sourceRoot, gameDataRoot) や
+        // AssetCreationService.Create(gameDataRoot: TestRoot) と同じ流儀で一時フォルダ・メモリ上の設定に
+        // 差し替えて、実 Assets/GameData・実カタログ・実 Addressables グループ・実 DDriveSpecSettings.asset
+        // に書き込まないようにする。テストは使い終わったら必ず null に戻すこと。
+        // public(SpecDiffService.BuildExistingIndex と同じ理由: InternalsVisibleTo 未設定のため、
+        // テスト asmdef から直接差し替えられるようにする)。
+        public static string TestGameDataRootOverride;
+        public static DDriveSpecSettings TestSpecSettingsOverride;
+
         public static void Open(AudioClip[] pendingClips = null)
         {
             var window = GetWindow<NewAssetDialog>(utility: true, title: "新規アセット作成");
@@ -213,7 +224,8 @@ namespace DDrive.Editor.AssetBrowser
             {
                 var fileName = AssetNamingService.BuildFileName(assetType, _categoryField?.value, identifier);
                 var folder = AssetNamingService.GetTargetFolder(assetType, _categoryField?.value);
-                _previewLabel.text = $"生成先: {AssetCreationService.DefaultGameDataRoot}/{folder}/{fileName}.asset";
+                var gameDataRoot = TestGameDataRootOverride ?? AssetCreationService.DefaultGameDataRoot;
+                _previewLabel.text = $"生成先: {gameDataRoot}/{folder}/{fileName}.asset";
             }
             else
             {
@@ -252,7 +264,8 @@ namespace DDrive.Editor.AssetBrowser
                 {
                     ApplyPendingClips(created, clips);
                     SpecSyncService.ApplyExtraFields(created, extraFieldsRow);
-                });
+                },
+                gameDataRoot: TestGameDataRootOverride ?? AssetCreationService.DefaultGameDataRoot);
 
             if (asset != null)
             {
@@ -294,7 +307,7 @@ namespace DDrive.Editor.AssetBrowser
         {
             _specSection.Clear();
 
-            var settings = DDriveSpecSettings.Load();
+            var settings = TestSpecSettingsOverride ?? DDriveSpecSettings.Load();
             if (settings == null || string.IsNullOrEmpty(settings.SpreadsheetUrl))
             {
                 // [27] §4.5: 設定 URL 未設定時は案内文だけ出す(この場から設定 SO を自動生成しない)。
