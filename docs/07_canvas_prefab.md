@@ -254,6 +254,10 @@ public static class Ui
   - 同名の兄弟要素には「 #2」を付けて区別する。
   - `FindUiTweenData` は Id → アセットのキャッシュを持つ。
 
+### 実装メモ（2026-09-14、5-11 ImportRule）
+
+> `Assets/SourceAssets/Canvas/<カテゴリ>/*.prefab` に UI 用 Prefab を置くだけでも `CanvasData`(Prefab のみ設定、Layer/Transition/Wiring 等は既定値)が自動生成される（[09_editor_tools.md](09_editor_tools.md) §1.1）。元ファイル削除時は Data を消さず、A-4 の既存 Validator の「Prefab が未設定(または Missing)です」がそのまま欠落表示を担う。
+
 ---
 
 # Part B — 汎用 Prefab
@@ -317,3 +321,7 @@ public static class Prefabs
 ## B-4. Validation
 
 Prefab Missing (Error) / CollisionLayer 未定義値 (Error) / Kind=Projectile で Pool 未設定 (Warning) / GameplayTags のタイポ検出（登録済みタグ辞書と照合, Warning） / NetMode=Simulated で NetworkObject 未設定 (Error) / Simulated で Kind が Projectile・Gimmick・Character 以外 (Info) / Simulated と Pool=Pooled の併用 (Warning)（4-13。[14_networking.md](14_networking.md) §10）
+
+### 実装メモ（2026-09-14、5-11 ImportRule）
+
+> `Assets/SourceAssets/Prefab/<カテゴリ>/*.prefab` に Prefab を置くだけでも `PrefabData`(Prefab のみ設定、Kind/Tags 等は既定値)が自動生成される（[09_editor_tools.md](09_editor_tools.md) §1.1）。元ファイル削除時は Data を消さず、本節の既存 Validator の「Prefab が未設定(または Missing)です」がそのまま欠落表示を担う。

@@ -318,3 +318,12 @@ Phase 3（Anim2D）の自前レビューで確認した指摘の修正。挙動�
 ## C-6. Validation
 
 Clip 未生成/Missing (Error) / Directions=Eight なのに DirectionClips 不足 (Error) / BlendTree に x,y パラメータ無し (Error, FixAction=追加) / FrameRate ≤ 0 (Error) / スライス済みスプライトの参照切れ（元テクスチャ再インポートで消失）(Error)
+
+### 実装メモ（2026-09-14、5-11 ImportRule。Part A/B/C 共通）
+
+> `Assets/SourceAssets/<種別>/<カテゴリ>/` に元ファイルを置くだけで Data が自動生成される仕組み（`ImportRule`、[09_editor_tools.md](09_editor_tools.md) §1.1）を Model/Anim/Anim2D にも適用した。
+> - **Model**: `SourceAssets/Model/<カテゴリ>/*.fbx` → `ModelData.Prefab` に FBX のインポート直後のルート GameObject をそのまま設定（Slots/Avatar/Lod は未設定のまま。ModelEditor の「Slot 自動収集」等で追って調整）
+> - **Anim**: `SourceAssets/Anim/<カテゴリ>/*.anim` または `*.fbx`(埋め込みクリップの先頭 1 本、`__preview__` は除く) → `AnimData.Clip`
+> - **Anim2D**: `SourceAssets/Anim2D/<カテゴリ>/*.anim` または `*.fbx` → `Anim2DData.Clip` のみ設定する Placeholder(Directions=None のまま)。方向づけ(DirectionClips)は既存の Anim2DEditor(C-5)でスプライトから組み立てる運用とした(要判断。[28_manual_verification_phase5.md](28_manual_verification_phase5.md) 参照)
+> - いずれも元ファイル削除時は Data を消さず、本節・B-6・A-4 の既存 Validator の「未設定(または Missing)です」がそのまま欠落表示を担う(新規 Validator は追加していない)
+> - 既存の Maya→Material 経由の MaterialData 自動生成（[06] A-2）とは独立に動く(同じ FBX インポートで両方が発火してよい)
