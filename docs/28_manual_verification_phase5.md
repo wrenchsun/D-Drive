@@ -54,6 +54,19 @@
 - **既存 Data と同名衝突時の挙動は未検証**: 手動で同じ識別子の Data を先に作っていた場合、`AssetCreationService.Create` が別ファイルとして作成する(既存の重複回避ロジックに委ねている)。運用上どちらが優先されるべきかは今回判断していない
 - `AssetDataBase` に `[HideInInspector] string ImportSourceGuid` を追加した(シリアライズ形式の変更＝フィールド追加のみ。既存 Data は空文字で読み込まれ互換性に問題なし)。CLAUDE.md §0-9 の事前確認を自律作業中のため省略したので、問題があれば指摘してほしい
 
+## 5-12 仕様書テンプレート（PR #13）
+
+対象: `docs/SpecSheetTemplate/`（`DDrive_仕様書テンプレート.xlsx` / `make_template.py` / `README.md`）、[27_spec_sheet.md](27_spec_sheet.md) §7.1。
+
+1. `docs/SpecSheetTemplate/DDrive_仕様書テンプレート.xlsx` を Google ドライブにアップロードし、「アプリで開く → Google スプレッドシート」で開けること
+2. 共有設定を「リンクを知っている全員が閲覧可」にして、別アカウント（またはシークレットウィンドウ）で内容が見えること
+3. `アセット` タブの「種別」「状態」列、`調整値` タブの「型」列のプルダウンが Google スプレッドシート上でも効くこと（xlsx → Google Sheets 変換で入力規則が引き継がれるかは未検証）。`_選択肢` タブが非表示になっていること
+4. `機能_サンプル` タブを複製して `機能_<名前>` を作れ、体裁が崩れないこと
+
+要判断:
+- [27] §7.1 の暫定既定（取得方法 A = リンク共有 + CSV / 調整値を D-Drive に取り込む / テンプレートはユーザーが自分のドライブへアップロード）を正式決定とするか
+- `アセット` タブの「種別」表記を AssetType の enum 名（Se / Bgm / Vfx …）にした。デザイナーに馴染みのあるファイル名接頭辞（SE / BGM / VFX …）の方がよいか
+
 ## 5-15 各エディタの「＋ 新規作成」（PR #14）
 
 対象: `Editor/Inspector/NewAssetToolbarButton.cs`（共通ヘルパー）、`Editor/AssetBrowser/NewAssetDialog.cs`（`Open(Type[], Action<AssetDataBase>)` を新設）、各専用エディタのツールバー 16 か所。設計は [09_editor_tools.md](09_editor_tools.md) §8.3。
