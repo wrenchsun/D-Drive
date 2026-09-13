@@ -250,6 +250,14 @@ public interface IValidator
 - 用途: AssetBrowser のツリー表示・使用箇所検索・未使用検出・循環検出
 - Scene / Prefab 内の `*IdRef` フィールドも走査対象（使用箇所検索の要）
 
+### 実装メモ（2026-09-14、5-5）
+
+`Editor/Dependencies/DependencyGraphService`(+`Collector`/`Cache`/`Postprocessor`)として実装。詳細・API 一覧・キャッシュ形式は [09_editor_tools.md](09_editor_tools.md) §10 を参照。要点のみ:
+
+- 「`*IdRef` フィールド」は実装上 `AssetId<TMarker>`(強い型。`SerializedProperty.type == "AssetId\`1"`)と `AssetRef`(弱い型。`AssetEvent.Target` 等。`SerializedProperty.type == "AssetRef"`)の 2 種類として現れる。どちらも `SerializedObject` の全走査で検出し、型ごとの専用パーサは書いていない
+- `DependencyGraph { ulong → ulong[] }` という素朴な形ではなく、`(AssetType, ulong) → 参照元一覧(パス/オブジェクトパス/型名/プロパティパス)` の逆引きインデックスにした(使用箇所検索・未使用検出にそのまま使えるように、5-6 の要求形に合わせた)
+- 循環検出は 5-5 の時点では未実装(5-6 の依存ツリー UI で深さ優先探索時に検出する想定。要判断)
+
 ## 13. テスト方針
 
 | 対象 | 種別 | 例 |

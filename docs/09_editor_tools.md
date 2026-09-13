@@ -253,3 +253,47 @@ Tools/
 - `AssetSearch` は同じ (filter, folders) の結果をキャッシュし、`EditorApplication.projectChanged` と `AssetPostprocessor.OnPostprocessAllAssets`（import / delete / move）で無効化する。アセットを作った直後に同じフレームで検索するコード（`AssetCreationService.Create` など）は `AssetSearch.Invalidate()` を明示的に呼ぶ
 - 2026-09-11 に `Assets/DDrive` 内の 22 か所を `AssetSearch` 経由に一括置換。合わせて `MaterialEditorWindow` の「再生成」から `EditorAnchorRegistry.Refresh` を外し、`projectChanged` で dirty を立てたときだけ再走査する（[06] A 実装メモ）
 - **レビュー対応（2026-09-11）**: 置換漏れだった `AssetReorganizer.Reorganize`（GameData 全走査）と `AddressablesSync.RemoveEntriesUnder`（フォルダ配下の全 GUID）、`AssetIconServiceTests` を `AssetSearch` 経由に直した。テストは `AssetSearchTests`（キャッシュ／フォルダ別エントリ／**作成直後でも手動 `Invalidate` 無しで見つかる**＝`ImportWatcher` の自動無効化）
+
+## 10. 依存関係グラフ（DependencyGraphService、チケット 5-5、2026-09-14）
+
+§1 の「使用箇所検索」「依存関係ツリー」「未使用検出」（5-6 で UI 化）と、5-7（Preload 自動集計）・7-1（MissingAssetLog）が使う基盤。実装は `Assets/DDrive/Editor/Dependencies/`。
+
+### 収集方式
+
+- **テキストで `.unity`/`.prefab`/`.asset` をパースしない。** すべて Unity API 経由:
+  - Data(`.asset`、`AssetDataBase` 派生): `AssetDatabase.LoadAssetAtPath` → `new SerializedObject(asset)`
+  - Prefab: `AssetDatabase.LoadAssetAtPath<GameObject>(path)` → `GetComponentsInChildren<Component>(true)` → 各コンポーネントを `SerializedObject` で走査（`PrefabUtility.LoadPrefabContents` は使わない。読み取りだけなら `LoadAssetAtPath` で得た GameObject に直接 `GetComponentsInChildren` できることを実測で確認済み）
+  - Scene(`.unity`): `EditorSceneManager.OpenScene(path, OpenSceneMode.Additive)` で開き、`GetRootGameObjects()` → `GetComponentsInChildren<Component>(true)` を走査してから **必ず** `EditorSceneManager.CloseScene(scene, removeScene: true)` で閉じる。現在アクティブなシーンには触れない（Additive で開いて閉じるだけなので `SceneManager.sceneCount` は前後で変わらないことをテストで確認）
+- **検出対象の見分け方**: `SerializedProperty.propertyType == Generic` かつ `SerializedProperty.type` が `"AssetId\`1"`(`AssetId<TMarker>`。`AssetIdDrawer` と同じ実測値)または `"AssetRef"`(`AssetEvent.Target` 等の弱い型の相互参照)。子プロパティ `value`/`type`(`AssetId<TMarker>`)または `Id`/`Type`(`AssetRef`)から `(AssetType, ulong)` を読む
+- **入れ子・配列・`[SerializeReference]`**: `SerializedObject.GetIterator()` + `NextVisible(true)` を先頭から最後まで辿るだけの素朴な深さ優先走査にした。配列(`vector`)も `[SerializeReference]` による多態も Unity 側が可視プロパティとして展開してくれるため、型ごとの特別扱いは不要（2026-09-14 時点でプロジェクト内に `[SerializeReference]` フィールドは無いが、将来追加されても収集ロジックの変更は不要なはず。要判断: 未検証)
+- 例外は 1 ファイル/1 コンポーネント単位で警告 + スキップ（CLAUDE.md §0-4: 例外で止めない）。壊れた Prefab・開けないシーンがあっても全体は止まらない
+
+### キャッシュ
+
+- `Library/DDriveDeps/<guid>.json`(ファイル単位、`DependencyFileRecord` を `JsonUtility` でそのまま保存)。`Library/` は `.gitignore` 済みなのでコミットされない
+- 起動時 / ドメインリロード時に自動で全再構築はしない（全 Scene の Open/Close は重く、デザイナーの作業を止めない方針(CLAUDE.md §0-4)に反するため）。`Library` が既にある限り `AssetPostprocessor` の差分更新だけで維持できる。**Library を消した直後や導入直後は空**なので、`Tools > D-Drive > Generate > 依存関係グラフを再構築` を一度手動で実行する必要がある(要判断)
+- Unity 自身がエディタ起動時に外部変更されたファイルを再インポートし `OnPostprocessAllAssets` を呼ぶ挙動に相乗りしているため、Editor を閉じている間の外部変更(git pull 等)も次回起動時の差分更新で拾えるはず(要判断: 明示的な再検証パスは未実装)
+
+### 差分更新
+
+- `DependencyGraphPostprocessor`(`AssetPostprocessor`)が `imported`/`moved`/`deleted`/`movedFrom` を集めて `delayCall` で `DependencyGraphService.UpdatePaths(changed, deleted)` にまとめて渡す(`ImportRulePostprocessor` と同じ形)
+- Play Mode 中(`isPlayingOrWillChangePlaymode`)は保留し、`playModeStateChanged` で Edit Mode に戻ってから実行する(Scene の Open/Close を Play Mode 中に行わない)
+- テストからは `DependencyGraphPostprocessor.Suppress = true` で自動実行を止め、`DependencyGraphService.UpdatePaths` を直接呼ぶ(`ImportRulePostprocessor.Suppress` と同じ流儀)
+
+### 公開 API（`DependencyGraphService`、5-6/5-7/7-1 が使う想定）
+
+| メソッド | 用途 |
+|---|---|
+| `FindUsages(AssetType type, ulong id) : IReadOnlyList<DependencyReference>` | この ID を使っている場所一覧(参照元パス・オブジェクトパス・コンポーネント/Data 型名・プロパティパス) |
+| `FindReferencesIn(string assetPath) : IReadOnlyList<DependencyReference>` | このアセット(.asset/.prefab/.unity)が参照する ID 一覧 |
+| `FindUnusedIds() : IReadOnlyList<UnusedAssetId>` | どこからも参照されない ID 一覧(登録済み ID の全体は既存の `AssetIdLookup.GetAllDefinitions()` を再利用して求める) |
+| `RebuildAll()` | 全再構築(メニュー用。全 Prefab/Scene を開閉するため重い) |
+| `UpdatePaths(changed, deleted)` | 差分更新(Postprocessor・テストから) |
+
+### メニュー
+
+`Tools > D-Drive > Generate > 依存関係グラフを再構築`(`DDriveMenu.Generate`)。全再構築 + 件数ログのみ(UI は 5-6 で作る)。
+
+### テスト
+
+`Tests/Editor/DependencyGraphServiceTests.cs`。一時フォルダ(`Assets/DDrive/Tests/Editor/TempDepsGameData`)に Data/Prefab/Scene(`EditorSceneManager.SaveScene(activeScene, path, saveAsCopy: true)` で作成。**`EditorSceneManager.NewScene(..., Additive)` は Test Runner の「無題・未保存シーン」上では使えない**ため、アクティブシーンのコピー保存で代替した)を作り、`UpdatePaths` の結果と `FindUsages`/`FindReferencesIn`/`FindUnusedIds`/削除時の索引除去を確認。`DependencyGraphService.ResetInMemoryCacheForTests()` でテスト間のプロセス内キャッシュを分離し、`TearDown` で `UpdatePaths(null, 作成したパス)` を呼んで実プロジェクトの `Library` キャッシュに残骸(削除済みファイルを指す索引)を残さないようにしている。

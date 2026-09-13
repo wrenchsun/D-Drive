@@ -157,6 +157,24 @@
 要判断:
 - **選択後に他の欄を手で書き換えても Status/Assignee は選択時のまま**: ダイアログに Status/Assignee 専用の入力欄が無いため、行を選んだ後に他の欄を書き換えても、作成時の Status/Assignee は「選んだ時点の行」のものになる([27] §9.1-8 参照)
 - **キャッシュの古さの閾値(1 時間)は暫定**: 根拠のある値ではない。運用してみて長すぎる/短すぎるかを判断してほしい([27] §9.1-9 参照)
-- **`NewAssetDialog` に `gameDataRoot` のテスト用オーバーライドが無い**: 5-16 の統合テストは実際に `Assets/GameData` 配下にアセットを作ってテスト側で後始末している(他の Spec 系テストのような `TestRoot` 隔離ができない)。テストの安定運用に問題が出る場合は差し替え口の追加を検討してほしい([27] §9.1-10 参照)
+- ~~**`NewAssetDialog` に `gameDataRoot` のテスト用オーバーライドが無い**~~ → **2026-09-14 対応済み(PR #17、P5 テスト隔離)**: `NewAssetDialog.TestGameDataRootOverride` / `TestSpecSettingsOverride` を追加し、`NewAssetDialogSpecPickerTests` は実 `Assets/GameData`・実カタログ・実 Addressables・実 `DDriveSpecSettings.asset` に一切触れなくなった
 - **「備考」「仕様リンク」欄はダイアログの全ケース(手入力のみの作成も含む)に常時表示**: 仕様書から選ばない通常の手入力作成でも入力できるようにした(空でも作成可、既存動作に影響なし)。専用エディタからのロック付き作成でも同じ欄が出る。UI が煩雑に見える場合は「仕様書から選ぶ」を使っている時だけ表示する等の整理を検討してほしい
+
+## 5-5 依存関係グラフ（PR #18）
+
+対象: `Assets/DDrive/Editor/Dependencies/`(新規: `DependencyGraphService.cs`/`DependencyGraphCollector.cs`/`DependencyGraphCache.cs`/`DependencyGraphPostprocessor.cs`/`DependencyGraphTypes.cs`)。UI は 5-6 で作るため、今回はメニュー + ログのみ。設計は [09_editor_tools.md](09_editor_tools.md) §10、[02_core_framework.md](02_core_framework.md) §12。
+
+確認手順:
+
+1. `Tools > D-Drive > Generate > 依存関係グラフを再構築` を実行する → Console に `[DDrive] DependencyGraph: 再構築完了(対象 N ファイル, 参照 M 件)` のログが出ること(プロジェクト内の全 Data/Prefab/Scene を開閉して走査するため、Scene 数によっては数秒〜数十秒かかる)
+2. 任意の Data(例: `SeData`)の `AnchorId` に値を設定して保存する → 数秒後(delayCall)に自動で差分更新される(明示的なログは出さない設計。確認は次項の API 経由、または一旦 Unity を再起動して `依存関係グラフを再構築` を実行し直し件数が増えていることで代用してもよい)
+3. Scene に `SeEmitter` 等の `AssetId<TMarker>` フィールドを持つ MonoBehaviour を配置して ID を設定し保存する → 上記同様に差分更新されるはず(シーンの Open/Close を伴うため、保存直後に若干のカクつきが起きても異常ではない)
+4. `Tools > D-Drive > Generate > 依存関係グラフを再構築` を再実行し、件数ログが手順2・3の分だけ増えていること
+5. Play Mode に入った状態で Data を編集した場合(通常運用ではまず起きないが)、差分更新が Edit Mode に戻るまで保留され、エラーが出ないこと
+
+要判断:
+- **起動時 / ドメインリロード時の自動再構築をしていない**: 全 Scene の Open/Close が重く、デザイナーの作業を止めない方針(CLAUDE.md §0-4)を優先した。`Library/DDriveDeps/` を消した直後や初回導入時は空なので、手動で 1 度「依存関係グラフを再構築」を実行する必要がある。運用してみて不便なら、軽量な整合性チェック(ファイルの内容ハッシュ比較。`DependencyFileRecord.ContentHash` は実装済みで保存だけしている)を起動時に追加することを検討してほしい
+- **循環参照検出は未実装**: 5-6 の依存ツリー UI 側で深さ優先探索時に検出する想定
+- **`[SerializeReference]` は未検証**: 2026-09-14 時点でプロジェクト内に使用箇所が無いため、実際の多態フィールドでの動作は未確認(収集ロジック自体は Unity の `SerializedProperty` 標準走査に乗っているため動くはずという設計判断)
+- **循環参照や巨大な依存グラフでのパフォーマンスは未計測**: 現状のプロジェクト規模(Scene 17・Data 数百件程度)では `RebuildAll` が数秒〜十数秒で完了することを確認したのみ
 
