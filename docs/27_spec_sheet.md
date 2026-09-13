@@ -147,3 +147,48 @@
 1. 取得方法 A(リンク共有)で良いか。学外に見られて困る内容を書くなら B
 2. `調整値` を D-Drive に取り込むか(取り込むならゲームコードの読み方 `Tuning.Get` を 5-13 で決める)。仕様書の参照用に書くだけなら取り込まない
 3. テンプレートのスプレッドシートを誰の Google ドライブに作るか(ユーザーのドライブで作成して共有する想定)
+
+### 7.1 2026-09-14 自律作業での既定(ユーザー未確認)
+
+チケット 5-12 の実装にあたり、Unity や外部 Google アカウントへの直接書き込みを避けるため、以下を**仮の既定**として実装した。
+ユーザー未確認のため、次回レビュー時に上記 §7 の 1〜3 と併せて確定させること。
+
+1. **取得方法は A(リンク共有 + CSV)** を既定とする。5-13 の実装は A を前提に進めてよい。非公開が必要な内容が出てきたら B に切り替える
+2. **`調整値` は D-Drive に取り込む**。5-13 で新規 SO `TuningTable`(キー→値)を追加し、`Tuning.Get(TUNING.キー)` で読む方針(§3.2 の記載どおり)
+3. **テンプレートは Google ドライブに直接作成しない**。代わりに、Google スプレッドシートにそのままインポートできる **`.xlsx` テンプレート**をリポジトリに置いた。ユーザー(または企画)が自分の Google ドライブにアップロードし、「アプリで開く → Google スプレッドシート」で開いて使う運用にする
+   - テンプレート本体: [docs/SpecSheetTemplate/DDrive_仕様書テンプレート.xlsx](SpecSheetTemplate/DDrive_仕様書テンプレート.xlsx)
+   - 生成スクリプト(再生成用): [docs/SpecSheetTemplate/make_template.py](SpecSheetTemplate/make_template.py)(openpyxl 使用。手で .xlsx を直接編集せず、このスクリプトを直して再生成する)
+   - 記入ガイド(企画向け、アップロード手順・共有設定・よくある間違い): [docs/SpecSheetTemplate/README.md](SpecSheetTemplate/README.md)
+   - タブ構成は本ドキュメント §2 のとおり(`README` / `概要` / `機能_サンプル` / `アセット` / `調整値` / `_選択肢`(非表示))
+
+### 7.2 種別表記の対応表(`アセット` タブ「種別」列)
+
+`アセット` タブの「種別」列は、[docs/10_workflow.md](10_workflow.md) §3.3 の SourceAssets 9 種別フォルダ命名(`Se`/`Bgm`/`Texture`/...)と同じ考え方で、
+**`AssetType`(`Assets/DDrive/Foundation/Identity/AssetType.cs`)の enum 名をそのまま**使う(`SE`/`BGM` のようなファイル名接頭辞ではない)。
+5-13 の同期実装は `Enum.TryParse<AssetType>(cell, ignoreCase: true)` で変換できるため、変換テーブルを別途持つ必要がない。
+
+| `アセット` タブの種別表記 | `AssetType` enum 値 | ファイル名接頭辞(`AssetNamingService.GetTypePrefix`) |
+|---|---|---|
+| `Se` | `AssetType.Se` | `SE` |
+| `Bgm` | `AssetType.Bgm` | `BGM` |
+| `Vfx` | `AssetType.Vfx` | `VFX` |
+| `Anim` | `AssetType.Anim` | `ANIM` |
+| `Anim2D` | `AssetType.Anim2D` | `ANIM2D` |
+| `Material` | `AssetType.Material` | `MAT` |
+| `Texture` | `AssetType.Texture` | `TEX` |
+| `Canvas` | `AssetType.Canvas` | `CANVAS` |
+| `Prefab` | `AssetType.Prefab` | `PREFAB` |
+| `Presentation` | `AssetType.Presentation` | `PRES` |
+| `Shake` | `AssetType.Shake` | `SHAKE` |
+| `Haptics` | `AssetType.Haptics` | `HAPTIC` |
+| `UiTween` | `AssetType.UiTween` | `UITWEEN` |
+| `Model` | `AssetType.Model` | `MODEL` |
+| `Anchor` | `AssetType.Anchor` | `ANC` |
+| `AnchorGroup` | `AssetType.AnchorGroup` | `ANCG` |
+| `ControlSkin` | `AssetType.ControlSkin` | `SKIN` |
+
+`AssetType.None` は選択肢に含めない(未設定を表す内部値のため)。
+
+`状態` 列の値は既存コードに対応する固定タグが無いため(`TagCatalog` 自体が未実装)、本ドキュメント §3.1 で決めた
+`未着手 / 仮 / 本番 / 保留` の 4 値を `_選択肢` タブにそのまま置いている。[13_extensions.md](13_extensions.md) A-1 の
+「未実装タブ」が使う `未着手・作業中・完了` とは**別の語彙**(役割が異なるため、無理に統一しない)。
