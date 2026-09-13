@@ -20,6 +20,8 @@ namespace DDrive.Editor.Ui
 
         private ObjectField _targetField;
         private VisualElement _inspectorContainer;
+        private ControlSkinPreviewSection _previewSection;
+        private UiButton _previewButton;
 
         [MenuItem(DDriveMenu.Editors + "Button Skin")]
         public static void OpenFromMenu() => Open(Selection.activeObject as ButtonSkinData);
@@ -52,6 +54,14 @@ namespace DDrive.Editor.Ui
             row.Add(new UnityEngine.UIElements.Button(RemoveFromScene) { text = "撤去" });
             scrollView.Add(row);
 
+            _previewSection = new ControlSkinPreviewSection(
+                EnsurePreview,
+                new ControlSkinPreviewSection.SeField("Hover Se", s => ((ButtonSkinData)s).HoverSe),
+                new ControlSkinPreviewSection.SeField("Click Se", s => ((ButtonSkinData)s).ClickSe),
+                new ControlSkinPreviewSection.SeField("Long Press Se", s => ((ButtonSkinData)s).LongPressSe),
+                new ControlSkinPreviewSection.SeField("Denied Se", s => ((ButtonSkinData)s).DeniedSe));
+            scrollView.Add(_previewSection);
+
             _inspectorContainer = new VisualElement();
             scrollView.Add(_inspectorContainer);
 
@@ -63,6 +73,7 @@ namespace DDrive.Editor.Ui
             {
                 _targetField.SetValueWithoutNotify(_target);
                 RebuildInspector();
+                _previewSection.SetSkin(_target);
             }
         }
 
@@ -71,6 +82,21 @@ namespace DDrive.Editor.Ui
             _target = target;
             _targetField?.SetValueWithoutNotify(_target);
             RebuildInspector();
+            _previewSection?.SetSkin(_target);
+            if (_previewButton != null && _target != null)
+            {
+                _previewButton.SetVisual(_target);
+            }
+        }
+
+        private UiInteractable EnsurePreview()
+        {
+            if (_previewButton == null)
+            {
+                PlaceInScene();
+            }
+
+            return _previewButton;
         }
 
         private void RebuildInspector()
@@ -114,6 +140,7 @@ namespace DDrive.Editor.Ui
             var button = buttonGo.GetComponent<UiButton>();
             button.TargetGraphic = buttonGo.GetComponent<UnityEngine.UI.Image>();
             button.SetVisual(_target);
+            _previewButton = button;
 
             Selection.activeGameObject = buttonGo;
         }
@@ -125,6 +152,8 @@ namespace DDrive.Editor.Ui
             {
                 DestroyImmediate(existing);
             }
+
+            _previewButton = null;
         }
     }
 }
