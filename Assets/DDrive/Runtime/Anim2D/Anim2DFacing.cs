@@ -31,7 +31,9 @@ namespace DDrive.Runtime.Anim2D
 
         private Vector2 _desired;
         private Vector2 _current;
-        private Camera _camera;
+        // フルネームで参照する: [16_camera_haptics.md] 5-2 で追加された DDrive.Runtime.Camera 名前空間と
+        // 型名(UnityEngine.Camera)が衝突するため(CS0118)。
+        private UnityEngine.Camera _camera;
 
         // 定常経路(Update)で animator.parameters(配列 alloc)を踏まないよう、対象 / パラメータ名が変わった時だけ解決する。
         private Animator _cachedAnimator;
@@ -68,7 +70,7 @@ namespace DDrive.Runtime.Anim2D
             {
                 if (_camera == null)
                 {
-                    _camera = Camera.main;
+                    _camera = UnityEngine.Camera.main;
                 }
 
                 if (_camera != null)
