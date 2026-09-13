@@ -4,7 +4,9 @@
     "references": [
         "DDrive.Foundation",
         "DDrive.Runtime",
-        "Unity.Netcode.Runtime"
+        "Unity.Netcode.Runtime",
+        "UniTask",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

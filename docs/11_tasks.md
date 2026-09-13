@@ -133,7 +133,7 @@
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|
-| 5-1 | PresentationData + Presentation Manager（AtTime/OnSignal/Cancel） | 基盤 | 3 | 1〜4 | 剣攻撃デモが 1 API で再生 |
+| 5-1 | PresentationData + Presentation Manager（AtTime/OnSignal/Cancel） | 基盤 | 3 | 1〜4 | ✅ 2026-09-14 実装。`PresentationData`(Tracks/TotalDuration/Interruptible)+`PresentationTrack`+`PlayContext`+`PresentationManager`(Audio/Vfx/Anim/Anim2D/Canvas/UiTween/HitStop/Marker/Signal に委譲。CameraShake/Haptic/Timeline は 5-2/5-2b/6-10 待ちで警告+no-op)+`PresentationHandle`(Signal/Cancel/Pause/Resume/SetSpeed/Seek/NormalizedTime/IsPlaying/OnCompleted/OnCancelled/OnMarker/OnTrackFired/WaitAsync、R3 導入)+`PresentationDataValidator`。剣攻撃デモ `PRES_Demo_SkillSlash`(既存 VFX_Player_Slash/SE_Player_Slash 参照)+確認用シーン `PresentationSkillSlashPreviewScene` で AC 確認済み([08_presentation.md] 実装メモ参照)。専用エディタ(5-4)までは Inspector で Tracks を編集する |
 | 5-2 | CameraShakeData + CameraFx（Trauma 合成 / 揺れ専用ノード / GlobalScale） | 基盤 | 3 | 0-9 | 多重発火で破綻しない。オプション 0% で無揺れ |
 | 5-2b | HapticsData + Haptics Manager（2 モーター Max 合成 / LocalPlayerOnly / GlobalScale） | 基盤 | 2 | 0-9 | パッドで振動再生。同時再生で飽和しない |
 | 5-2c | ShakeEditor / HapticsEditor（波形編集 + カメラ実揺れプレビュー + Test on Pad + プリセット 10 種） | ED | 3 | 5-2, 5-2b, 1-6 | 設計書 16 §C-2 の全機能 |

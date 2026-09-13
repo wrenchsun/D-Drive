@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>演出（Presentation）の設定項目 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 演出（Presentation）の設定項目</nav>
+
+<h1>演出（Presentation）の設定項目</h1>
+
+<p>「剣攻撃」のように、<strong>アニメ・効果音・エフェクト・カメラ揺れ・振動・画面停止（ヒットストップ）</strong>などを 1 つにまとめたものが「演出（PresentationData）」です。プログラマーは <code>Presentation.Play(演出のID, ...)</code> と 1 行書くだけで、中身（何を・いつ・どう鳴らすか）はすべてこのデータで決まります。あとから演出の中身を差し替えても、プログラムの修正は不要です。</p>
+
+<div class="tip">
+<strong>現状の注意</strong>: 専用の編集画面（Presentation Editor、タイムライン風の UI）はまだ用意されていません。今のところは Asset Browser で演出データを選び、<strong>Inspector（右側の詳細パネル）から直接</strong> Tracks（後述）を編集します。専用エディタが来たら、このページも合わせて更新されます。
+</div>
+
+<h2>基本の考え方: トラック（Tracks）</h2>
+<p>演出は「トラック」という短い指示の集まりでできています。1 本のトラックは「いつ」「何を」の 2 つを決めます。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Trigger（いつ）</td><td><strong>At Time</strong>: 再生開始から何秒後に鳴らすか(Time 欄に秒数)。0 秒は「開始と同時」。<br><strong>On Signal</strong>: プログラム側が「合図（例: 攻撃が当たった）」を送ってきたら鳴らす。Signal Key 欄に合図の名前(例: <code>hit</code>)を入れる。</td></tr>
+<tr><td>Kind（何を）</td><td>下記「トラックの種類」参照。</td></tr>
+<tr><td>Asset（何のデータを）</td><td>Kind に応じた ID(例: Kind=Vfx なら VfxData の ID)。Marker/Signal/HitStop は不要。</td></tr>
+<tr><td>Target（基準になる場所）</td><td><strong>Self</strong>: 演出を出した本人(例: 攻撃した本人)。<strong>Context Target</strong>: 相手(例: 攻撃を受けた敵)。<strong>World</strong> / <strong>Anchor</strong>: 場所を固定したい据え置きの演出向け(下の Anchor 欄の位置をそのまま使う)。</td></tr>
+<tr><td>Anchor</td><td>VFX・SE を出す細かい位置(ボーン名や右手・足元など)。<a href="anchor-data.html">Anchor のページ</a>と同じ形式。</td></tr>
+<tr><td>Params</td><td>Kind ごとの追加パラメータ(例: Kind=HitStop なら「何秒止めるか」を 1 つ目に入れる)。</td></tr>
+<tr><td>Stop On Cancel</td><td>途中で演出が中断された(Cancel された)とき、このトラックで出した物(VFX・SE 等)も一緒に止めるか。オフなら鳴らし切る。</td></tr>
+</table>
+
+<h2>トラックの種類（Kind）</h2>
+<table>
+<tr><th>Kind</th><th>内容</th><th>今の対応状況</th></tr>
+<tr><td>Anim / Anim2D</td><td>アニメーションを再生する</td><td>対応済み</td></tr>
+<tr><td>Se / Bgm</td><td>効果音 / BGM を鳴らす</td><td>対応済み</td></tr>
+<tr><td>Vfx</td><td>エフェクトを出す</td><td>対応済み</td></tr>
+<tr><td>Canvas</td><td>UI 画面(ポップアップ等)を開く</td><td>対応済み</td></tr>
+<tr><td>UiTween</td><td>UI の動き(<a href="ui-tween.html">UI Tween</a>)を再生する</td><td>対応済み</td></tr>
+<tr><td>HitStop</td><td>一瞬だけゲーム全体の時間を止める(「ヒットストップ」演出)。Params の 1 つ目に止める秒数を入れる</td><td>対応済み</td></tr>
+<tr><td>Marker</td><td>プログラム側に「ここまで来た」を知らせるだけの目印(見た目には何も起きない)。Signal Key 欄が目印の名前になる</td><td>対応済み</td></tr>
+<tr><td>Signal</td><td>プログラム側の処理を直接呼び出すための合図(Marker と似ているが、コード側の受け取り方が違う)。Signal Key 欄が合図の名前になる</td><td>対応済み</td></tr>
+<tr><td>CameraShake</td><td>画面を揺らす</td><td class="warn">未対応(近日実装予定)。設定しても警告が出るだけで何も起きません</td></tr>
+<tr><td>Haptic</td><td>コントローラーを振動させる</td><td class="warn">未対応(近日実装予定)。設定しても警告が出るだけで何も起きません</td></tr>
+<tr><td>Timeline</td><td>Unity Timeline を再生する(カットシーン向け)</td><td class="warn">未対応(近日実装予定)</td></tr>
+</table>
+
+<h2>共通項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Total Duration</td><td>演出全体の長さ(秒)。<strong>0 のままにすると、At Time トラックの一番遅い時刻から自動で決まります。</strong>「On Signal のトラックだけ」で組んだ演出は、この自動計算だと 0 秒扱いになりすぐ終わってしまうため、必ず秒数を入れてください。</td></tr>
+<tr><td>Interruptible</td><td>途中で中断(Cancel)できるか。オフにすると、プログラム側が止めようとしても無視されます(最後まで再生し切る前提の演出向け)。</td></tr>
+</table>
+
+<h2>剣攻撃デモで確認する</h2>
+<p><code>Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity</code> を開いて Play すると、剣攻撃の演出(アニメ相当の代わりに VFX+SE を Self に配置、当たった合図で画面停止+SE)が自動で再生されます。P キーでもう一度再生、Space キーで「当たった」合図(Signal)、C キーで中断(Cancel)を試せます。</p>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>警告</th><th>意味と直し方</th></tr>
+<tr><td>トラック N(Kind)の Asset が未設定です</td><td>そのトラックが使う ID(VfxData など)を設定してください。Marker/Signal/HitStop は対象外です。</td></tr>
+<tr><td>SignalKey が空です</td><td>On Signal トラック、または Marker/Signal の名前欄が空です。半角英数字などで名前を入れてください。</td></tr>
+<tr><td>Time が Total Duration を超過しています</td><td>そのトラックが鳴る前に演出全体が終わってしまいます。Total Duration を伸ばすか、Time を短くしてください。</td></tr>
+<tr><td>Interruptible=false ですが尺が長すぎます</td><td>10 秒を超える演出を「中断不可」にすると、プレイヤーを長時間拘束してしまいます。本当に中断不可でよいか見直してください。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="anchor-data.html">Anchor（出す位置）の作り方</a></li>
+<li><a href="vfx-data.html">VFX（エフェクト）の設定項目</a></li>
+<li><a href="se-data.html">SE（効果音）の設定項目</a></li>
+<li><a href="ui-tween.html">UI の動き（UI Tween）</a></li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

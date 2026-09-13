@@ -18,13 +18,15 @@ MonoBehaviour:
   Category: Player
   Tags: []
   Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
   Version: 0
   Author: 
   UpdatedAt: 
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -34,6 +36,7 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Clips: []
   Sources: []
   StartOffsetSec: 0
@@ -43,6 +46,9 @@ MonoBehaviour:
   PitchRange: {x: 1, y: 1}
   Loop: 0
   Spatial: 0
+  AnchorId:
+    value: 0
+    type: 0
   Anchor:
     Space: 0
     Path: 
