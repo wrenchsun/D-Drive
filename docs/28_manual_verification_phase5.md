@@ -251,8 +251,51 @@
 - **R3 導入方法は「素の R3(org.nuget.r3) + R3.Unity(com.cysharp.r3)」の両方を入れたが、実際に使っているのは前者のみ**(`Observable<T>`/`Unit`/`Subject<T>`)。R3.Unity(Player Loop 連携・`ObservableTracker` 等)は 5-1 時点で未使用。将来 UI 側([15_ui_interaction.md] の「R3 未導入」コメント箇所)が R3 化される際に本格的に使われる想定。不要なら `com.cysharp.r3` を抜いて `org.nuget.r3` だけにする選択肢もある(DLL 増加を避けたい場合)
 - **DLL 重複は発生しなかった**が、isuzu MCP のバージョンが上がった際に再度確認した方がよい(`org.nuget.system.runtime.compilerservices.unsafe` 等の transitive 依存が今後増える可能性がある)
 - **TrackTargetMode.World と Anchor は同一実装**(いずれも `PlayContext` を参照せず `Anchor.LocalOffset` を絶対座標として使う)。意味的な区別が必要になったら実装を分ける
-- **CameraShake / Haptic / Timeline は警告 + no-op のみ**(5-2/5-2b/6-10 で実装)。剣攻撃デモには含めていない
+- **CameraShake / Haptic は 5-2/5-2b で実装済み、Timeline のみ警告 + no-op のまま**(6-10 で実装予定)。剣攻撃デモには 5-2/5-2b で CameraShake/Haptic トラックを追記した(下記「5-2 カメラシェイク」「5-2b コントローラー振動」の節を参照)
 - **`VFX_Player_Slash`/`SE_Player_Slash`/`PRES_Demo_SkillSlash` の `Flags.Load` を `Preload` に変更した**(LazyLoad のままだと `PresentationManager` の同期解決で常に Placeholder になるため)。前者 2 つは他のデモ(AnchorGroup 等)でも使われている既存アセットのため、Preload 化の影響が無いか確認してほしい
 - **Addressables グループ(`DDrive_GameData.asset`/`DDrive_Catalogs.asset`)はユーザーの未コミット変更と混ざっている**ため、5-1 のデモアセット登録に伴う変更はコミットしていない(ワーキングツリー上は両方の変更が混在した状態で残る)。次にこれらのファイルをコミットする人は、5-1 分(PresentationCatalog へのエントリ追加、VFX/SE の Preload 化)が含まれていることを把握しておくこと
 - **PresentationEditor(5-4)は未実装**: `DataEditorRegistryTests` の Exempt に `PresentationData` を追加した。5-4 実装時に Exempt から外すこと
 
+## 5-2 カメラシェイク（PR #TBD）
+
+対象: `Runtime/Camera/{CameraShakeData,CameraFxManager,CameraFx,CameraShakeDataValidator}.cs`(新規)、`Runtime/Anim2D/Anim2DFacing.cs`(名前空間衝突の修正のみ)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(CameraFx 配線 + UnscaledCameraFxAdapter 追加)、`Runtime/Presentation/PresentationManager.cs`(CameraShake トラックの委譲先を実装)、`Runtime/Ui/OptionStore.cs`(ShakeScale の接続先)、`Editor/AssetBrowser/AssetCreationService.cs`(Shake を Preload 既定に追加)。設計は [16_camera_haptics.md](16_camera_haptics.md) Part A。確認用デモ資産 `Assets/GameData/Camera/Demo/SHAKE_Demo_DemoHitSmall.asset` を新規作成し、5-1 の剣攻撃デモ `PRES_Demo_SkillSlash.asset` の onHit トラックに接続した。
+
+確認手順:
+
+1. **剣攻撃デモで揺れを見る**: `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity` を開いて Play Mode に入る → Space キー(Signal("hit"))を押す → 画面停止(ヒットストップ)と同時に画面が一瞬揺れること
+2. **連打しても破綻しない(AC)**: 手順1で Space キーを連打する → 揺れが異常に大きくなったり、カメラの位置がおかしくなったりしないこと(Console にエラーが出ないこと)
+3. **オプション 0% で無揺れ(AC)**: `Runtime.Ui.Options.Set(OptionKey.ShakeScale, 0f)` を(確認用シーンに一時的なテストコード、または `execute_code`/デバッグ用ボタンで)呼んでから手順1を再実行する → 画面が一切揺れないこと。`Set(OptionKey.ShakeScale, 1f)` に戻すと揺れが復活すること
+4. **カメラが後から現れても揺れる**: `Camera.main` がまだ無いシーンで `Presentation.Play` 等を呼んでシェイクを発火させる → Console に `Camera.main が見つからないため、シェイクは no-op です` の警告が(1 回だけ)出ること。その後カメラを配置する(タグ MainCamera)と、次のシェイクから正常に揺れること
+5. **HitStop 中も揺れが止まらない**: 手順1のヒットストップ中(約 0.08 秒)にも画面の揺れが進行していること(スロー再生や連続スクリーンショットで確認するか、`CameraFxManagerTests` の自動テストで代替可)
+6. **Inspector から調整**: `Assets/GameData/Camera/Demo/SHAKE_Demo_DemoHitSmall.asset` を選び、Pattern を Decay Sine や Impulse に変えて保存 → 再生し直した結果に反映されること(専用エディタ(5-2c)が無いため、現状はこれが唯一の編集手段)
+
+要判断:
+- **Space/Pattern の簡略化**: `World`/`FromSource` の位置変換、`CustomCurve`(現状 Impulse と同じ)、回転(Rot)は常に CameraLocal 相当で適用、など複数の簡略化を行った。詳細と理由は [16_camera_haptics.md] 実装メモを参照。5-2c(専用エディタ)で波形プレビューを作る際に、これらの挙動で十分か判断してほしい
+- **`DDrive.Runtime.Camera` 名前空間が `UnityEngine.Camera` と衝突する**: `Runtime/Anim2D/Anim2DFacing.cs` の `Camera.main` 使用箇所を `UnityEngine.Camera.main` にフル修飾して解消した。今後 `DDrive.Runtime.*` 配下で `UnityEngine.Camera` を非修飾で使うコードを書くとコンパイルエラーになるので注意(詳細は [16] 実装メモ)
+- **CameraShake アセットを Preload 既定に追加した**: `AssetCreationService.Create` で `AssetType.Shake` を Canvas/ControlSkin/Presentation と同じ Preload 既定グループに加えた(LazyLoad のままだと常に Placeholder になるため)。既存の Shake アセットが無い(このチケットで初めて作る種別の)ため影響範囲は無いはず
+- **Addressables グループへの追加**: `CameraFxCatalog`(`DDrive_Catalogs.asset`)、`SHAKE_Demo_DemoHitSmall`(`DDrive_GameData.asset`)の 2 行が追加されたが、ユーザーの未コミット変更と同じファイルのためコミットしていない(ワーキングツリー上に残る)
+
+## 5-2b コントローラー振動（PR #TBD）
+
+対象: `Runtime/Haptics/{HapticsData,IHapticOutput,GamepadHapticOutput,HapticsManager,Haptics,HapticsDataValidator}.cs`(新規)、`Runtime/DDrive.Runtime.asmdef`(`Unity.InputSystem` 参照追加)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(Haptics 配線 + OnApplicationQuit/OnApplicationFocus での ResetOutput)、`Runtime/Presentation/PresentationManager.cs`(Haptic トラックの委譲先を実装)、`Runtime/Ui/OptionStore.cs`(HapticScale の接続先)、`Runtime/Ui/UiSlider.cs`(Notch/Limit Haptic の発火)、`Editor/AssetBrowser/AssetCreationService.cs`(Haptics を Preload 既定に追加)。設計は [16_camera_haptics.md](16_camera_haptics.md) Part B。確認用デモ資産 `Assets/GameData/Haptics/Demo/HAPTIC_Demo_DemoHitPunch.asset` を新規作成し、剣攻撃デモの onHit トラックに接続した。
+
+事前準備: Xbox/PlayStation 系のゲームパッドを PC に USB または Bluetooth で接続する(Input System が対応する機種)。パッドが無い環境では手順1・2・4は「Console にエラーが出ず、`GamepadHapticOutput` が no-op で継続すること」だけ確認すればよい。
+
+確認手順:
+
+1. **パッドで振動再生(AC)**: パッドを接続した状態で `PresentationSkillSlashPreviewScene.unity` を Play Mode に入り、Space キー(Signal("hit"))を押す → パッドが一瞬振動すること
+2. **同時再生で飽和しない(AC)**: Space キーを連打する(複数の Haptic インスタンスが重なる状態を作る)、または `HapticsManagerTests.PlayData_OverlappingInstances_ComposeWithMax_NotSum` を確認する → 振動が加算されて振り切れたような感覚にならないこと(自動テストで Low/High が Max 合成(加算しない)されていることを確認済み)
+3. **パッド未接続時は no-op**: パッドを外した状態で手順1を実行する → 例外・エラーが出ないこと
+4. **オプション 0% で振動オフ**: `Runtime.Ui.Options.Set(OptionKey.HapticScale, 0f)` を呼んでから手順1を再実行する → 振動しないこと。`1f` に戻すと振動が復活すること
+5. **Pause でモーター停止**: Play Mode 中に振動をトリガーした直後に `Loop.PauseService.Push(PauseChannel.Gameplay)`(ポーズ機構があればポーズ操作)を呼ぶ → パッドの振動が即座に止まること。`Pop` で解除すると再生中の振動があれば復帰すること
+6. **アプリ終了/フォーカス喪失でモーター停止**: Play Mode 中に振動をトリガーした直後に Unity エディタのフォーカスを外す(Alt+Tab)→ 振動が止まること(実機ビルドでは Alt+Tab の代わりにタスク切り替えで確認)
+7. **スライダーのノッチ/端で振動**: `Assets/GameData/Ui/Skin/Skider` 等、Notches>0 のスライダーを持つ確認用 Canvas を Play Mode で操作する(Notch Haptic Id / Limit Haptic Id に `HAPTIC_Demo_DemoHitPunch` の Id を設定した Slider Skin を使う)→ 目盛りを跨いだとき・端に到達したときにパッドが振動すること
+8. **Inspector から調整**: `Assets/GameData/Haptics/Demo/HAPTIC_Demo_DemoHitPunch.asset` を選び、Low Freq / High Freq のカーブを変えて保存 → 再生し直した結果に反映されること(専用エディタ(5-2c)が無いため、現状はこれが唯一の編集手段)
+
+要判断:
+- **Pause 中は per-instance の Flags.Pause を見ない**: 実機のモーターを鳴らし続ける事故を避けるため、Pause チャンネルが立ったら一律で出力 0 にする安全側の設計にした(Vfx/CameraFx とは異なる)。per-instance 制御が必要になったら見直すこと
+- **`LocalPlayerOnly`/`Priority`/`Extensions` は現状ロジックに未使用**: NGO 統合前のため送信元判定ができず、`LocalPlayerOnly` は常にローカル再生扱い。`Priority` は Max 合成そのものが優先度を実現しているため未使用。`Extensions` は型だけ用意し、設定すると警告のみ
+- **`NotchHapticId`/`LimitHapticId` は `ulong` のまま**: シリアライズ形式の変更(型の置換)は事前確認が必要なため、5-2b では既存の `ulong` 型のまま `Haptics.Play` への接続だけ行った。`HapticId`(`AssetId<HapticMarker>`)への置換は 5-2c で判断してほしい
+- **HapticsManager は Scaled dt のまま(CameraFx とは異なる決定)**: HitStop 中に振動を止めるべきか止めないべきかが仕様書に明記されていなかったため、他の全 Manager と同じ既定(HitStop で一緒に止まる)にした。要望があれば CameraFx と同じ Unscaled 駆動に変更を検討してほしい
+- **Addressables グループへの追加**: `HAPTIC_Demo_DemoHitPunch`(`DDrive_GameData.asset`)の 1 行が追加されたが、ユーザーの未コミット変更と同じファイルのためコミットしていない(ワーキングツリー上に残る)
+- **実機での動作確認は未実施**: 本セッションはヘッドレスな isuzu MCP 経由の自動テストのみで検証しており、実際にゲームパッドを接続した目視確認は行っていない(「未検証」と明記)。上記確認手順1〜7は人が実機で確認すること

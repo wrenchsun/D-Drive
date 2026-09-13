@@ -4,6 +4,7 @@ using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Values;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.Haptics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -660,6 +661,8 @@ namespace DDrive.Runtime.Ui
                 _notchSeElapsed = 0f;
                 PlaySe(SliderSkin?.NotchSe ?? default);
             }
+
+            PlayHaptic(SliderSkin?.NotchHapticId ?? 0);
         }
 
         private void UpdateLimitTracking()
@@ -672,6 +675,7 @@ namespace DDrive.Runtime.Ui
                 _atMax = true;
                 OnLimitReached?.Invoke(true);
                 PlaySe(SliderSkin?.LimitSe ?? default);
+                PlayHaptic(SliderSkin?.LimitHapticId ?? 0);
             }
             else if (!isMax)
             {
@@ -683,6 +687,7 @@ namespace DDrive.Runtime.Ui
                 _atMin = true;
                 OnLimitReached?.Invoke(false);
                 PlaySe(SliderSkin?.LimitSe ?? default);
+                PlayHaptic(SliderSkin?.LimitHapticId ?? 0);
             }
             else if (!isMin)
             {
@@ -840,6 +845,16 @@ namespace DDrive.Runtime.Ui
             if (id.IsValid)
             {
                 Runtime.Audio.Audio.PlaySe(id);
+            }
+        }
+
+        // NotchHapticId / LimitHapticId は [16] Part B で HapticId(AssetId<HapticMarker>)に置換予定の
+        // 暫定 ulong(要判断: [16] 実装メモ参照)。0 は「未設定」として無視する。
+        private static void PlayHaptic(ulong id)
+        {
+            if (id != 0)
+            {
+                Runtime.Haptics.Haptics.Play(new AssetId<HapticMarker>(id, AssetType.Haptics));
             }
         }
 

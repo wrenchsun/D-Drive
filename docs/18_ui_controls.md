@@ -159,6 +159,8 @@ public class SliderSkinData : ControlSkinData      // Skin 基底は ButtonSkinD
 }
 ```
 
+> **実装メモ(2026-09-14、5-2b)**: 実装では `NotchHaptic`/`LimitHaptic` ではなく `NotchHapticId`/`LimitHapticId`(`ulong`)というフィールド名・型のまま(シリアライズ形式の変更は事前確認が必要なため、5-2b では型を変えず接続だけ行った。要判断: `HapticId`(`AssetId<HapticMarker>`)への置換は 5-2c 側で判断してほしい)。`UiSlider` の `UpdateNotchTracking`/`UpdateLimitTracking` から、値が非 0 のときだけ `new AssetId<HapticMarker>(id, AssetType.Haptics)` を組み立てて `Haptics.Play(...)` する。
+
 - ノッチ音・端到達音を Skin 側に持たせることで、**プロジェクト全体のスライダーの操作感が 1 箇所で揃う**
 - `NotchSeMinIntervalSec` により、素早くドラッグしても SE が飽和しない（[03] の `CooldownSec` と同じ思想）
 
@@ -198,8 +200,8 @@ public struct SliderWire
 | OptionKey | 接続先 |
 |---|---|
 | MasterVolume / BgmVolume / SeVolume / VoiceVolume | `Audio.SetBusVolume`（[03] §3） |
-| ShakeScale | `CameraFx.SetGlobalScale`（[16] A-2）★ FR-17.4 アクセシビリティ要件の受け皿 |
-| HapticScale | `Haptics.SetGlobalScale`（[16] B-2） |
+| ShakeScale | `CameraFx.SetGlobalScale`（[16] A-2）★ FR-17.4 アクセシビリティ要件の受け皿。✅ 5-2 で接続済み(0 で完全に無揺れ) |
+| HapticScale | `Haptics.SetGlobalScale`（[16] B-2）。✅ 5-2b で接続済み(0 で出力 0) |
 | UiSpeedScale | UiTween の `GlobalScale`（[17] §3） |
 
 - 値の保存・読込は `OptionStore`（Foundation の軽量 SO + セーブデータ抽象）が担当。Canvas 側は Open 時に現在値でスライダーを初期化する（`SetValueSilent`）
@@ -256,10 +258,10 @@ public struct SliderWire
 - **AnimateTo**: `Value`(実値)自体を `ValueDef` の尺/イージングに沿って動かす(HP バーの減少演出等)。表示だけを追従させる `FollowMotion` とは独立した機構で、`Advance` の中で両方が並行して進む
 - **通知制御**: `NotifyOnlyOnCommit` はドラッグ中の `SetValueInternal(commit:false)` 呼び出しでは `OnValueChanged` を保留し、`EndDrag`(`commit:true`)でまとめて 1 回発火する。`ChangeThrottleSec` は保留値を持ち、`Advance` のタイマーが切れた時点でまとめて発火する(いずれも `OnCommit` は常に即時)
 - **SliderWire + OptionStore**: [07_canvas_prefab.md] A-2/A-3 の 2026-09-11 追記を参照。`UiManager.WireSliders` が `Open` 時に `OptionStore` の現在値で初期化し、`Trigger` ごとに購読 → `Action=SetOption`/`SendSignal`/`PlayPresentation(Phase5警告)` を実行する
-- **音量バス**: `Audio.SetBusVolume`([03])は未実装のため、`OptionStore` は `MasterVolume` のみ `AudioListener.volume` に直結し、`BgmVolume`/`SeVolume`/`VoiceVolume` は値を保持した上で `ExternalApplier` フック(未設定なら 1 回だけ警告)に委ねる。`UiSpeedScale` は `UiTweenManager.GlobalSpeed`(新設)に反映する。`ShakeScale`/`HapticScale` は Phase 6([16])の消費先待ちで値の保持のみ
+- **音量バス**: `Audio.SetBusVolume`([03])は未実装のため、`OptionStore` は `MasterVolume` のみ `AudioListener.volume` に直結し、`BgmVolume`/`SeVolume`/`VoiceVolume` は値を保持した上で `ExternalApplier` フック(未設定なら 1 回だけ警告)に委ねる。`UiSpeedScale` は `UiTweenManager.GlobalSpeed`(新設)に反映する。`ShakeScale`/`HapticScale` は 5-2/5-2b で `CameraFxManager.SetGlobalScale`/`HapticsManager.SetGlobalScale` に接続済み(`OptionStore.CameraFx`/`Haptics` フィールドを `DDriveRuntimeBootstrap` が Bind する。[16_camera_haptics.md] 実装メモ参照)
 - **触覚**: `SliderSkinData.NotchHapticId`/`LimitHapticId` は `ulong` のプレースホルダで、[16] Part B の `HapticId` 実装時に置換する(現状は未使用)
 - **Skin の AssetIdDefinition**: `SliderSkinData` は `ButtonSkinData` と同じ `AssetType.ControlSkin`/`ControlSkinMarker` を使うが、`ConstantsClassName` は `"SLIDERSKINID"`(`ButtonSkinData` は `"SKINID"`)にした。`AssetIdGenerator` は `ConstantsClassName` ごとに別の `static class` を生成するため、同名にすると生成コードで `CS0101`(クラス重複定義)になる
-- 繰り延べ: 本格的な SliderEditor(応答曲線グラフ・ノッチ可視化オーバーレイ・追従比較・Skin プレビュー一覧、4-17)、Audio バス別音量([03] `Audio.SetBusVolume`、Phase 5)、触覚([16] Part B の `HapticId` 統合)
+- 繰り延べ: 本格的な SliderEditor(応答曲線グラフ・ノッチ可視化オーバーレイ・追従比較・Skin プレビュー一覧、4-17)、Audio バス別音量([03] `Audio.SetBusVolume`、Phase 5)、`SliderSkinData.NotchHapticId`/`LimitHapticId` の `HapticId` 型への置換([16] Part B、5-2c で判断)
 - テスト: `Assets/DDrive/Tests/Runtime/UiSliderTests.cs`(`UiSliderTests` 19 件 + `OptionStoreTests` 4 件 + `SliderSkinDataValidatorTests` 2 件 + `UiSliderValidationTests` 6 件)。`UiManagerTests`/`CanvasDataValidatorTests` への追加は [07_canvas_prefab.md] 参照
 - **2026-09-13 追記**: `SliderSkinEditorWindow` に ButtonSkin と共通の `ControlSkinPreviewSection`([15] A-4 実装メモの 2026-09-13 追記)を追加。6 状態の演出再生・一時停止・停止・「✎ Tween Editor」と、Grab / Release / Notch / Limit / Denied の SE 試聴ができる。演出はスライダー本体(`UiSlider` の RectTransform)に掛かる。パーツ(`Track`/`Fill`/`Handle`/`DelayFill`)の `StateVisual` は `UiSlider.OnSkinApplied` が空実装で実行時に反映されないため、プレビュー対象にしていない(見た目を偽って見せない。反映は別途)。2026-09-14 に設定欄と一体化(状態の箱に ▶、SE 欄の横に ▶/■)。詳細は [15] 同節の 2026-09-14 改修
 - **2026-09-14 追記**: 当たり判定を ButtonSkin と共通化(`ControlSkinData.HitAreaExpand` / `AlphaHitThreshold`)。**長らく未接続だった `SliderSkinData.ExtraHitPadding` が効くようになった**(`EffectiveHitAreaExpand` で X を左右、Y を上下に加算し、Track の `TargetGraphic.raycastPadding` に反映)。状態遷移の自動再生と当たり判定の表示・ドラッグ調整も SliderSkin エディタで使える([15] 同節)

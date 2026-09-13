@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>画面の揺れ・コントローラーの振動 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 画面の揺れ・コントローラーの振動</nav>
+
+<h1>画面の揺れ・コントローラーの振動</h1>
+
+<p>攻撃が当たった・爆発が起きた、といった「手応え」を出す 2 つの仕組みです。どちらも <strong>ID(番号札)で管理するデータ</strong>で、<a href="presentation.html">演出(Presentation)</a> の中の 1 トラックとして使うことも、プログラム側から直接鳴らすこともできます。</p>
+<ul>
+<li><strong>カメラシェイク(Camera Shake)</strong>: 画面をガクガク揺らす</li>
+<li><strong>ハプティクス(Haptics)</strong>: コントローラー(パッド)をブルブル振動させる</li>
+</ul>
+
+<div class="tip">
+<strong>現状の注意</strong>: 専用の編集画面(Shake Editor / Haptics Editor。波形を見ながらの調整や「パッドを実際に振動させて試す」ボタン)はまだ用意されていません。今のところは Asset Browser でデータを選び、<strong>Inspector(右側の詳細パネル)から直接</strong>数値を編集します。専用エディタが来たら、このページも合わせて更新されます。
+</div>
+
+<h2>カメラシェイクの設定項目(Camera Shake Data)</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Pattern(波形)</td><td><strong>Perlin Noise</strong>: 手ブレ・地響きのようなランダムな揺れ(既定)。<strong>Decay Sine</strong>: 一定のリズムで震える揺れ。<strong>Impulse</strong>: 振動せず、一方向に「グッ」と押される一撃。<strong>Custom Curve</strong>: 今のところ Impulse と同じ動きです</td></tr>
+<tr><td>Pos Amplitude(位置の揺れ幅)</td><td>上下・左右・前後にどれだけ動くか(メートル)。X/Y/Z を別々に設定できます</td></tr>
+<tr><td>Rot Amplitude(回転の揺れ幅)</td><td>どれだけ傾く・回るか(度)。Z だけ入れると「首をかしげる」ような揺れになります</td></tr>
+<tr><td>Frequency(周波数)</td><td>Perlin Noise / Decay Sine で使う、揺れの速さ(Hz)。数字が大きいほど細かく速く揺れます</td></tr>
+<tr><td>Envelope(減衰)</td><td>揺れの強さが時間とともにどう弱まっていくか。既定は 0.3 秒でスッと収まる設定。<a href="glossary.html">用語集</a>にもある「形+速さ」の共通の編集項目(ValueDef)で調整します</td></tr>
+<tr><td>Space(基準の向き)</td><td><strong>Camera Local</strong>(既定): カメラ自身の向きを基準に揺れる。<strong>World</strong>: カメラの向きに関係なく、いつも同じ方向に揺れる。<strong>From Source</strong>: 発生位置(爆発の場所など)からカメラへ向かって「奥から手前に押される」揺れになる</td></tr>
+<tr><td>Trauma Weight(合成の重み)</td><td>複数のシェイクが同時に起きたときの寄与度。既定 1。大きくすると、他のシェイクと重なったときにより強く効きます</td></tr>
+<tr><td>Max Stack(同時再生数の上限)</td><td>同じシェイクが同時に何個まで積み重なれるか。既定 3。これを超えて呼ばれた分は静かに無視されます(連打しても壊れないための安全弁)</td></tr>
+</table>
+
+<div class="tip">
+<strong>連打しても大丈夫な理由</strong>: 複数のシェイクが同時に起きても、単純に足し算はしません(トラウマ方式という合成をしていて、最終的な揺れの強さは 0〜100% の範囲に収まります)。何度連打しても、画面が異常に揺れすぎることはありません。
+</div>
+
+<h2>振動の設定項目(Haptics Data)</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Low Freq(低周波モーター)</td><td>「ドスン」という低い振動。強さが時間とともにどう変わるかを ValueDef(形+速さ)で決める。既定は 0.2 秒で収まる設定</td></tr>
+<tr><td>High Freq(高周波モーター)</td><td>「ビリビリ」という高い振動。Low Freq と同じ形式</td></tr>
+<tr><td>Priority(優先度)</td><td>今のところ参考情報のみ(下記「複数の振動が重なったら」を参照)</td></tr>
+<tr><td>Local Player Only</td><td>自分に起きた事象のときだけ振動させるか(既定 ON)。マルチプレイ対応前の現状は常にこの動きです</td></tr>
+<tr><td>Extensions(拡張)</td><td>DualSense のアダプティブトリガー等、機種別の特殊な振動。<strong>まだ未対応</strong>で、設定しても警告が出るだけです</td></tr>
+</table>
+
+<div class="tip">
+<strong>複数の振動が重なったら</strong>: 足し算(2 つ重なると 2 倍の強さ)にはしません。<strong>チャンネルごとに一番強い値だけ</strong>を採用します(Low は Low どうし、High は High どうしで比較)。手元のパッドが振り切れて壊れたように感じることはありません。
+</div>
+
+<h2>プログラムから鳴らす(参考)</h2>
+<p>デザイナーが直接書く場面は少ないですが、演出(Presentation)を経由しない単発の揺れ・振動はプログラム側がこう書きます。<code>CameraFx.Shake(シェイクの ID)</code> / <code>Haptics.Play(振動の ID)</code>。中身の調整はこのページの手順のとおり、データ側だけで完結します。</p>
+
+<h2>演出(Presentation)から使う</h2>
+<p><a href="presentation.html">演出のページ</a>にあるとおり、Tracks の Kind に <strong>Camera Shake</strong> / <strong>Haptic</strong> を選び、Asset 欄にこのページで作ったデータの ID を入れるだけで、他の SE・VFX と同じタイミングで揺れ・振動が鳴らせます。剣攻撃デモ(<code>PresentationSkillSlashPreviewScene</code>)では、当たった合図(<code>hit</code>)で画面停止(ヒットストップ)・SE と同時に、画面が揺れてパッドが振動するようになっています。</p>
+
+<h2>オプション画面との連動</h2>
+<p>設定画面の「画面揺れ」「振動」のスライダー(0〜100%)は、コード不要でこの仕組みに直結しています。<strong>0% にすると完全に揺れ・振動が止まります</strong>(酔いやすい人・振動が苦手な人向けのアクセシビリティ対応)。詳しくは <a href="ui-tween.html">UI Tween のページ</a>の標準オプションの節を参照してください。</p>
+
+<h2>スライダーのノッチ・端での振動</h2>
+<p><a href="ui-skin.html">スライダーの見た目(Skin)</a>にある「Notch Haptic Id」「Limit Haptic Id」にこのページで作った振動データの ID を入れると、目盛りを越えた・端に当たったときにパッドが振動します(2026-09-14 から対応)。</p>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>警告</th><th>意味と直し方</th></tr>
+<tr><td>PosAmplitude / RotAmplitude が両方ゼロです</td><td>このままでは何も揺れません。どちらかに値を入れてください</td></tr>
+<tr><td>PosAmplitude / RotAmplitude が大きすぎる可能性があります(酔いのリスク)</td><td>揺れが強すぎるとプレイヤーが酔いやすくなります。数値を小さくするか、本当に必要な演出か見直してください</td></tr>
+<tr><td>MaxStack が 0 以下です</td><td>このままでは Shake() を呼んでも常に無視されます。1 以上にしてください</td></tr>
+<tr><td>TraumaWeight が 0 以下です</td><td>このままでは合成に一切寄与しません(揺れません)。1 前後にしてください</td></tr>
+<tr><td>振動の尺が 2 秒を超えています</td><td>長すぎる振動は不快に感じやすいです。短くすることを検討してください</td></tr>
+<tr><td>Extensions は未実装です</td><td>プラットフォーム別の特殊な振動はまだ使えません。基本の 2 モーターカーブだけで表現してください</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="presentation.html">演出(Presentation)の設定項目</a></li>
+<li><a href="ui-skin.html">ボタン / スライダーの見た目(Skin)</a> — スライダーのノッチ・端の振動</li>
+<li><a href="ui-tween.html">UI の動き(UI Tween)</a> — 音量・画面揺れ・振動などの標準オプション</li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

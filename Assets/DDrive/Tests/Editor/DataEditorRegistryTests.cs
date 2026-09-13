@@ -24,7 +24,9 @@ namespace DDrive.Tests.Editor
         // 専用エディタを持たない Data 種別はここに明示する(理由をコメントで残す)。
         // PresentationData: 専用エディタ(マルチトラック UI + 統合プレビュー)は 5-4(PresentationEditor)で
         // 実装予定([08_presentation.md] §4)。5-1 時点では Inspector から Tracks を直接編集する。
-        private static readonly HashSet<string> Exempt = new() { "PresentationData" };
+        // CameraShakeData / HapticsData: 専用エディタ(ShakeEditor / HapticsEditor)は 5-2c で実装予定
+        // ([16_camera_haptics.md] §C-2)。5-2/5-2b 時点では Inspector から直接編集する。
+        private static readonly HashSet<string> Exempt = new() { "PresentationData", "CameraShakeData", "HapticsData" };
 
         private sealed class DerivedVfxData : VfxData
         {

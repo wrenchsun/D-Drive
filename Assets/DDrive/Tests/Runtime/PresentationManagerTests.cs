@@ -8,12 +8,16 @@ using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.Camera;
+using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
 using NUnit.Framework;
 using R3;
 using UnityEngine;
 using VfxId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>;
+using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Camera.ShakeMarker>;
+using HapticId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker>;
 
 namespace DDrive.Tests.Runtime
 {
@@ -27,11 +31,27 @@ namespace DDrive.Tests.Runtime
         private VfxManager _vfx;
         private AudioManager _audio;
         private AnimManager _anim;
+        private CameraFxManager _cameraFx;
+        private HapticsManager _haptics;
+        private FakeHapticOutput _hapticOutput;
         private TimeService _time;
         private PresentationManager _manager;
         private GameObject _vfxPrefab;
         private GameObject _seSourcePrefab;
         private ulong _nextVfxId = 900001;
+        private ulong _nextShakeId = 910001;
+        private ulong _nextHapticId = 920001;
+
+        private sealed class FakeHapticOutput : IHapticOutput
+        {
+            public float Low;
+            public float High;
+            public void SetMotors(float low, float high)
+            {
+                Low = low;
+                High = high;
+            }
+        }
 
         [SetUp]
         public void SetUp()
@@ -47,8 +67,11 @@ namespace DDrive.Tests.Runtime
             _audio = new AudioManager(_pool, _registry, _seSourcePrefab);
 
             _anim = new AnimManager(_registry);
+            _cameraFx = new CameraFxManager(_registry);
+            _hapticOutput = new FakeHapticOutput();
+            _haptics = new HapticsManager(_registry, _hapticOutput);
             _time = new TimeService();
-            _manager = new PresentationManager(_registry, _time, _audio, null, _vfx, _anim, null, null);
+            _manager = new PresentationManager(_registry, _time, _audio, null, _vfx, _anim, null, null, _cameraFx, _haptics);
         }
 
         [TearDown]
@@ -89,6 +112,40 @@ namespace DDrive.Tests.Runtime
             _registry.ResolveAsync<VfxData>(id).GetAwaiter().GetResult();
 
             return new VfxId(id, AssetType.Vfx);
+        }
+
+        private ShakeId RegisterShake()
+        {
+            var id = _nextShakeId++;
+            var address = $"shake/{id}";
+            var data = ScriptableObject.CreateInstance<CameraShakeData>();
+            data.Id = id;
+            data.PosAmplitude = new Vector3(1f, 0f, 0f);
+            data.MaxStack = 5;
+
+            _loader.Assets[address] = data;
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = id, Type = AssetType.Shake, Address = address } });
+            _registry.RegisterCatalogAsync(catalog).GetAwaiter().GetResult();
+            _registry.ResolveAsync<CameraShakeData>(id).GetAwaiter().GetResult();
+
+            return new ShakeId(id, AssetType.Shake);
+        }
+
+        private HapticId RegisterHaptic()
+        {
+            var id = _nextHapticId++;
+            var address = $"haptic/{id}";
+            var data = ScriptableObject.CreateInstance<HapticsData>();
+            data.Id = id;
+
+            _loader.Assets[address] = data;
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = id, Type = AssetType.Haptics, Address = address } });
+            _registry.RegisterCatalogAsync(catalog).GetAwaiter().GetResult();
+            _registry.ResolveAsync<HapticsData>(id).GetAwaiter().GetResult();
+
+            return new HapticId(id, AssetType.Haptics);
         }
 
         private static PresentationData CreateData(ulong id, params PresentationTrack[] tracks)
@@ -270,6 +327,46 @@ namespace DDrive.Tests.Runtime
             Assert.IsFalse(_manager.IsPlaying(handle));
         }
 
+        // ── CameraShake / Haptic トラック(5-2 / 5-2b) ──
+
+        [Test]
+        public void CameraShakeTrack_FiresIntoCameraFx_AndStopsOnCancel()
+        {
+            var shakeId = RegisterShake();
+            var track = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.CameraShake, Asset = AssetRef.From(shakeId), StopOnCancel = true };
+            var data = CreateData(200, track);
+            data.TotalDuration = 5f;
+
+            var handle = _manager.PlayData(data, new PlayContext { Position = Vector3.zero });
+
+            Assert.AreEqual(1, _cameraFx.ActiveCount, "CameraShake トラックの発火で CameraFxManager に Instance が追加される");
+
+            _manager.Cancel(handle);
+            _cameraFx.Tick(0f); // fade=0 で Stop したため、次の Tick で台帳から外れる
+
+            Assert.AreEqual(0, _cameraFx.ActiveCount, "StopOnCancel=true の Shake は Cancel で止まる(即時 fade=0)");
+            Assert.IsFalse(_manager.IsPlaying(handle));
+        }
+
+        [Test]
+        public void HapticTrack_FiresIntoHaptics_AndStopsOnCancel()
+        {
+            var hapticId = RegisterHaptic();
+            var track = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Haptic, Asset = AssetRef.From(hapticId), StopOnCancel = true };
+            var data = CreateData(201, track);
+            data.TotalDuration = 5f;
+
+            var handle = _manager.PlayData(data, new PlayContext());
+            _haptics.Tick(0.01f);
+            Assert.Greater(_hapticOutput.Low + _hapticOutput.High, 0f, "Haptic トラックの発火で出力が 0 より大きくなる");
+
+            _manager.Cancel(handle);
+            _haptics.Tick(0.01f);
+
+            Assert.AreEqual(0f, _hapticOutput.Low);
+            Assert.AreEqual(0f, _hapticOutput.High);
+        }
+
         // ── 無効 Handle ──
 
         [Test]
@@ -305,12 +402,15 @@ namespace DDrive.Tests.Runtime
             Assert.DoesNotThrow(() => handle.Cancel());
         }
 
-        // ── CameraShake/Haptic/Timeline は 5-1 の範囲外(警告 1 回 + no-op) ──
+        // ── CameraShake/Haptic は 5-2/5-2b で実装済み。この Fixture は CameraFx/Haptics を配線していない
+        // ため、ここでは「委譲先 Manager 未設定」の警告 1 回 + no-op のほうを検証する
+        // (専用の Fixture は CameraFxManagerTests / HapticsManagerTests / PresentationManagerTests 内の
+        // 別テスト(CameraShakeAndHapticTracks_...)を参照)。Timeline は引き続き 6-10 待ちで未実装。
 
         [Test]
         public void UnimplementedKind_DoesNotThrow_AndPresentationStillCompletes()
         {
-            var track = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.CameraShake };
+            var track = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Timeline };
             var data = CreateData(108, track);
 
             Handle<PresentationMarker> handle = default;

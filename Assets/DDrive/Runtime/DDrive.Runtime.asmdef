@@ -7,7 +7,8 @@
         "Unity.Addressables",
         "Unity.ResourceManager",
         "Unity.Netcode.Runtime",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
