@@ -132,6 +132,7 @@ public interface IAssetLoader
 - 参照カウントで多重ロード防止・自動 Release
 - ゲームコードから直接呼ぶの禁止（Manager 専用）
 - **カタログと Addressables の一致**（2026-09-09）: 実装 `AddressablesAssetLoader` は Addressables の address しか引かない。そのため「カタログにある Data は Addressables に同じ address で登録済み」を、①作成時（`AssetCreationService` → `AddressablesSync.EnsureEntry`、グループ `DDrive_GameData`）②`Generate/Addressables 登録を同期` ③Validation（`AddressablesRegistrationValidator` が未登録 / Address 不一致を Error、FixAction で登録）の 3 箇所で保証する。カタログ自体もグループ `DDrive_Catalogs` にラベル `DDriveCatalog` で登録され、起動オブジェクトがラベルから集められる
+- **実装メモ（2026-09-14、5-7: Preload リスト自動集計 + シーンロード統合）**: `IAssetRegistry` に `PreloadIdsAsync(IReadOnlyList<ulong> ids, IProgress<float> progress)` / `ReleaseIds(IReadOnlyList<ulong> ids)` を追加した。ID を（既存の）`_index` で Address に解決し、`IAssetLoader.PreloadAsync`（参照カウント式。既存のまま変更なし）にまとめて渡すだけの薄い実装。未登録 ID は例外にせず 1 ID につき 1 回警告してスキップする（`ResolveAsync` 系と警告の重複排除セットを共有）。呼び出し元は Editor が依存グラフ（§12）から自動集計する `ScenePreloadList`（詳細: [09_editor_tools.md](09_editor_tools.md) §10 の 5-7 節）。`PreloadIdsAsync` で確保した参照は、対応する `ReleaseIds` を呼ぶまで解放されない点に注意（シーンアンロード時等に呼び忘れるとリークする。要判断は [09] §10 参照）
 
 ## 6. PoolService
 
@@ -281,3 +282,4 @@ public interface IValidator
 - テスト: `Tests/Runtime/RuntimeBootstrapTests.cs`（組み立て・Bind・Unbind・カタログ登録・多重配置の拒否）
 - **2026-09-11 追記(4-9)**: `UiTweenManager` を `UiManager` より先に生成し、`new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens)` で ElementFx の再生先として渡す。`[SerializeField] UiLayerSettings LayerSettings`(Inspector 直参照、未設定なら null のままでフォールバック無し)を追加し、`Ui.SetLayerSettings(LayerSettings)` で配る([15_ui_interaction.md] B-4 実装メモ参照)
 - **2026-09-14 追記(5-13)**: `[SerializeField] TuningTable TuningTable`(`Runtime/Tuning/TuningTable.cs`。Inspector 直参照、`UiLayerSettings` と同じ扱いで Addressables には登録しない)を追加し、`Tuning.Bind(TuningTable)` で静的ファサード `Runtime.Tuning.Tuning` に配る。仕様書「調整値」タブの取り込み先([27_spec_sheet.md] §3.2/§8.4)。§2.5 の `ValueDef`(アセットのフィールドに埋め込むカーブ/イージング)とは別物で、`Tuning` はゲームコードから `TUNING.キー定数` で読む文字列キー→値のフラットな辞書
+- **2026-09-14 追記(5-7)**: `BindFacades` ブロックで `Runtime.Loading.ScenePreload.Bind(Registry)` / `Teardown` で `Bind(null)` を追加(他の静的ファサードと同じ Bind/Unbind パターン)。`ScenePreload` は §5 で追加した `IAssetRegistry.PreloadIdsAsync`/`ReleaseIds` への薄い窓口で、シーンに置いた `SceneLoadingScreen`(`Runtime/Loading/SceneLoadingScreen.cs`、確認用の最小 UI)等がこれ経由で `ScenePreloadList`(Editor が自動生成する SO)を Preload する。`ScenePreloadList` は `Catalogs[]` のような Bootstrap 側の中央インデックスを持たない(シーン側から直参照する運用。要判断は [09_editor_tools.md] §10 の 5-7 節)

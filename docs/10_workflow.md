@@ -102,6 +102,12 @@
 - Preload リストは依存グラフから「このシーンで参照される ID」を自動集計するボタンで生成
 - Persistent フラグの BGM/UI はタイトルで常駐ロード
 
+**実装メモ（2026-09-14、5-7）**: `Assets/DDrive/Editor/Preload/`（集計・生成）+ `Assets/DDrive/Runtime/Loading/`（`ScenePreloadList`/`ScenePreload`/`SceneLoadingScreen`）。詳細・API は [02_core_framework.md](02_core_framework.md) §5/§14、[09_editor_tools.md](09_editor_tools.md) §10 参照。
+
+- 生成: `Tools > D-Drive > Generate > Preload リストを再集計(現在のシーン)` / `(ビルド設定の全シーン)`、または `Assets/GameData/Preload/` を出力先とするビルド前フック（`ScenePreloadBuildPreprocessor`）
+- **シーン保存時の自動更新はしない**（5-5 の依存関係グラフと同じ判断。全 Scene の Open/Close を伴う集計を保存の度に走らせない）
+- `ScenePreloadList` は Addressables に登録しない。`UiLayerSettings`/`TuningTable` と同じ「シーン側から `[SerializeField]` で直参照」運用
+
 ## 6. デザイナー向けクイックリファレンス（例: SE を追加する）
 
 1. AssetBrowser を開く（メニュー: `D-Drive > Asset Browser`）

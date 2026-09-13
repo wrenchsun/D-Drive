@@ -119,6 +119,51 @@ namespace DDrive.Foundation.Registry
         public IReadOnlyList<CatalogEntry> Entries(AssetType type)
             => _byType.TryGetValue(type, out var list) ? list : Array.Empty<CatalogEntry>();
 
+        // [11_tasks.md] 5-7 — ScenePreloadList(Editor が依存グラフから集計)を実行するランタイム側の入口。
+        // 既存の CatalogEntry.Address 解決 + IAssetLoader.PreloadAsync(参照カウント式)をそのまま再利用する
+        // (新しいロード経路を増やさない)。
+        public UniTask PreloadIdsAsync(IReadOnlyList<ulong> ids, IProgress<float> progress)
+        {
+            if (ids == null || ids.Count == 0)
+            {
+                progress?.Report(1f);
+                return UniTask.CompletedTask;
+            }
+
+            var addresses = new List<string>(ids.Count);
+            for (var i = 0; i < ids.Count; i++)
+            {
+                var id = ids[i];
+                if (_index.TryGetValue(id, out var entry))
+                {
+                    addresses.Add(entry.Address);
+                }
+                else if (_warnedIds.Add(id))
+                {
+                    // 例外にしない(CLAUDE.md §0-4): 未登録 ID はスキップし、ロード画面は残りだけで完了させる。
+                    Debug.LogWarning($"[DDrive] ScenePreload: Unregistered AssetId 0x{id:X} was skipped.");
+                }
+            }
+
+            return _loader.PreloadAsync(addresses, progress);
+        }
+
+        public void ReleaseIds(IReadOnlyList<ulong> ids)
+        {
+            if (ids == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < ids.Count; i++)
+            {
+                if (_index.TryGetValue(ids[i], out var entry))
+                {
+                    _loader.Release(entry.Address);
+                }
+            }
+        }
+
         private async UniTask PreloadEntryAsync(CatalogEntry entry)
         {
             var data = await _loader.LoadAsync<AssetDataBase>(entry.Address, CancellationToken.None);

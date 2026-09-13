@@ -207,3 +207,27 @@
 - **Archived タグは `AssetDataBase.Tags` への予約語追加**: TagCatalog(選択制の辞書。未実装)が将来入る場合、`"Archived"` を予約語として除外するか、専用フィールドへの移行を検討する必要がある
 - **「1 リリース後に削除」の自動化はしていない**: Archived タグが付いてからどれくらい経過したら安全に削除してよいかの判断・催促は今回自動化せず、人が未使用一覧を見て判断する運用のまま
 
+## 5-7 Preload 自動集計 + シーンロード統合（PR #20）
+
+対象: `Editor/Preload/`(新規: `ScenePreloadAggregator.cs`/`ScenePreloadGenerator.cs`/`ScenePreloadBuildPreprocessor.cs`)、`Runtime/Loading/`(新規: `PreloadEntry.cs`/`ScenePreloadList.cs`/`ScenePreload.cs`/`SceneLoadingScreen.cs`)、`Foundation/Registry/IAssetRegistry.cs`+`AssetRegistry.cs`(`PreloadIdsAsync`/`ReleaseIds` 新設)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(`ScenePreload.Bind`/`Unbind` 追加)。設計は [10_workflow.md](10_workflow.md) §5、[02_core_framework.md](02_core_framework.md) §5/§14、[09_editor_tools.md](09_editor_tools.md) §10 の 5-7 節。
+
+事前準備: `Tools > D-Drive > Generate > 依存関係グラフを再構築` を一度実行しておく(5-5/5-6 と同じ前提)。
+
+確認手順:
+
+1. **集計メニュー(現在のシーン)**: 何らかの ID 参照(`SeEmitter` 等)を含む適当な確認用シーンを開いて保存し、`Tools > D-Drive > Generate > Preload リストを再集計(現在のシーン)` を実行する → Console に `[DDrive] Preload リストを更新しました: '...'（N 件）` のログが出て、`Assets/GameData/Preload/<シーン名>_PreloadList.asset` が生成され Project ウィンドウで選択状態になること
+2. **中身の妥当性**: 手順1で生成された `ScenePreloadList` の Inspector を開き、`Entries` にそのシーンが直接・間接に参照する ID が入っていること(表示名 `DisplayName` が実際のアセット名と一致していること)。シーンから参照していない Data が混ざっていないこと
+3. **再実行で重複しない**: 同じシーンでもう一度「Preload リストを再集計(現在のシーン)」を実行する → 同じ `.asset` が更新されるだけで新しいファイルが増えないこと(Project ウィンドウの `Preload` フォルダのファイル数が変わらないこと)
+4. **全ビルドシーン一括**: `Tools > D-Drive > Generate > Preload リストを再集計(ビルド設定の全シーン)` を実行する → Build Settings(`File > Build Settings...`)に登録されている有効シーンの数だけ `.asset` が更新されること
+5. **確認用シーンで Preload を Play**: 手順1のシーン(または新規の確認用シーン)に `DDriveRuntimeBootstrap` を配置し(`Tools > D-Drive > Generate > 起動オブジェクトをシーンに配置`)、空の GameObject に `SceneLoadingScreen` コンポーネントを追加して `Preload List` に手順1の `.asset` をアサインする(`Progress Slider`/`Progress Text` は uGUI の `Slider`/`Text` があれば割り当てる、無くても動作は確認できる)。Play Mode に入る → 進捗が 0 から 1 まで進み、`IsDone` が true になること(Slider/Text を割り当てていれば見た目でも進むこと)。Console にエラーが出ないこと
+6. **未登録 ID のスキップ**: 手順2の `Entries` のどれか1件の ID を Inspector で書き換えて(存在しない値にする)保存し、再度 Play Mode で `SceneLoadingScreen` を走らせる → その ID については `[DDrive] ScenePreload: Unregistered AssetId 0x... was skipped.` という警告が出るだけで、Preload 全体は止まらず完了すること。確認後は書き換えた値を元に戻す(または `.asset` ごと破棄する)
+7. **ビルド前フック**: 実際の開発ビルドを1回実行する(時間があれば。Development Build で可) → Console に `[DDrive] ビルド前処理: Preload リストを N シーン分更新しました。` のログが出て、ビルドが正常に完了すること
+8. 確認で作った `SceneLoadingScreen` 付き GameObject・`DDriveRuntimeBootstrap`・テスト用に書き換えた `.asset` の中身は元に戻す(または確認用シーンごと破棄する)
+
+要判断:
+- **シーン→Preload リストの対応付けが「シーンに置いたコンポーネントの直参照」のみ**: `AssetCatalog`/`Catalogs[]` のような中央インデックスは作っていない。複数シーンをまとめて Preload するタイトル画面等が要る場合は `DDriveRuntimeBootstrap` に `ScenePreloadList[]` を足す拡張を検討してほしい([09] §10 5-7 節参照)
+- **`GenerateForAllBuildScenes` とビルド前フックは自動テスト対象外**: `EditorBuildSettings.scenes`(git 管理下の `ProjectSettings/EditorBuildSettings.asset`)を書き換えるため、実プロジェクトの設定を汚すリスクを避けて自動テストにしなかった。上記手順4・7で手動確認する
+- **Preload の粒度は Data(.asset)単位**: Data 内部の AudioClip/Texture/Prefab 等のサブアセットを個別に先読みする経路は無い(Addressables の依存バンドルとして一緒にロードされる前提)。体感のロード時間短縮効果は未実測
+- **ロード画面 UI は最小実装**: `SceneLoadingScreen` は uGUI の `Slider`/`Text` を任意で受けるだけの確認用コンポーネントで、デザイナー向けの正式なロード画面(Canvas/UiManager ベース)は未実装。実運用では置き換えを検討してほしい
+- **参照カウントの解放漏れリスク**: `ScenePreload.RunAsync` で確保した参照は対応する `ScenePreload.Release` を呼ぶまで解放されない。`SceneLoadingScreen.OnDisable` では解放するが、独自に `ScenePreload.RunAsync` を呼ぶコードを書く場合は解放を呼び忘れないよう注意が要る
+
