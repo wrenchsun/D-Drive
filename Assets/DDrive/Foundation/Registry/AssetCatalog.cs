@@ -30,5 +30,20 @@ namespace DDrive.Foundation.Registry
             entries.Add(entry);
             entries.Sort((a, b) => a.Id.CompareTo(b.Id));
         }
+
+        // [11_tasks.md] 5-6 — 安全な削除の逆操作(カタログ登録解除)。見つからなければ false。
+        public bool Remove(ulong id)
+        {
+            for (var i = 0; i < entries.Count; i++)
+            {
+                if (entries[i].Id == id)
+                {
+                    entries.RemoveAt(i);
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DDrive.Editor.Dependencies;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Spec;
@@ -16,7 +17,8 @@ namespace DDrive.Editor.AssetBrowser
     // [09_editor_tools.md] §1 — AssetBrowser 骨格(1-5)。
     // 本チケットの範囲: 横断一覧(仮想化 ListView) / インクリメンタル検索 / 種別フィルタ /
     // 新規作成(意味情報のみ入力) / AudioClip の D&D 登録 / 選択で Inspector 連動。
-    // 使用箇所検索・依存ツリー(5-5, 5-6)、プレビューペイン(1-6)、お気に入り/最近は後続チケット。
+    // 使用箇所検索・依存ツリー・未使用検出・安全な削除(5-6、2026-09-14): 行の右クリックメニューから。
+    // プレビューペイン(1-6)、お気に入り/最近は後続チケット。
     public sealed class AssetBrowserWindow : EditorWindow
     {
         private sealed class Row
@@ -64,6 +66,8 @@ namespace DDrive.Editor.AssetBrowser
 
             toolbar.Add(new ToolbarButton(() => NewAssetDialog.Open()) { text = "新規" });
             toolbar.Add(new ToolbarButton(Refresh) { text = "更新" });
+            // 5-6: 未使用検出は専用ウィンドウ([09] §1)。使用箇所検索・依存ツリー・削除は行の右クリックメニューから。
+            toolbar.Add(new ToolbarButton(UnusedAssetsWindow.Open) { text = "未使用..." });
 
             _specBadge = new ToolbarButton(() => SpecSyncWindow.Open()) { text = string.Empty };
             _specBadge.style.display = DisplayStyle.None;
@@ -128,7 +132,7 @@ namespace DDrive.Editor.AssetBrowser
 
         private const float RowIconSize = 18f;
 
-        private static VisualElement MakeRowElement()
+        private VisualElement MakeRowElement()
         {
             var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
 
@@ -153,12 +157,18 @@ namespace DDrive.Editor.AssetBrowser
             categoryLabel.style.opacity = 0.6f;
             row.Add(categoryLabel);
 
+            // 5-6: 右クリックメニュー(使用箇所検索 / 依存ツリー / Archive / 安全な削除)。行は ListView に
+            // よって使い回されるため、対象は毎回 element.userData(BindRowElement が差し替える)から読む。
+            row.AddManipulator(new ContextualMenuManipulator(evt => PopulateRowContextMenu(evt, row)));
+
             return row;
         }
 
         private void BindRowElement(VisualElement element, int index)
         {
             var row = _visibleRows[index];
+            element.userData = row;
+
             // 5-10: 行の先頭にアイコン(Data.Icon。未設定なら Unity の既定サムネイル/型アイコンにフォールバック)。
             element.Q<Image>("icon").image = row.Asset != null
                 ? (row.Asset.Icon != null ? (Texture)row.Asset.Icon : AssetPreview.GetMiniThumbnail(row.Asset))
@@ -168,6 +178,41 @@ namespace DDrive.Editor.AssetBrowser
                 ? row.Asset.DisplayName
                 : System.IO.Path.GetFileNameWithoutExtension(row.Path);
             element.Q<Label>("category").text = row.Asset != null ? row.Asset.Category : string.Empty;
+        }
+
+        private void PopulateRowContextMenu(ContextualMenuPopulateEvent evt, VisualElement rowElement)
+        {
+            if (rowElement.userData is not Row row || row.Asset == null)
+            {
+                return;
+            }
+
+            var displayName = !string.IsNullOrEmpty(row.Asset.DisplayName) ? row.Asset.DisplayName : row.Asset.name;
+
+            evt.menu.AppendAction("使用箇所を表示", _ => UsagesWindow.Open(row.Type, row.Asset.Id, displayName));
+            evt.menu.AppendAction("依存ツリーを表示", _ => DependencyTreeWindow.Open(row.Path, displayName));
+
+            var archived = ArchiveTagService.IsArchived(row.Asset);
+            evt.menu.AppendAction(archived ? "アーカイブを解除" : "アーカイブする", _ =>
+            {
+                ArchiveTagService.SetArchived(row.Asset, !archived);
+                AssetDatabase.SaveAssets();
+                Refresh();
+            });
+
+            evt.menu.AppendSeparator();
+            evt.menu.AppendAction("削除...", _ => DeleteRow(row));
+        }
+
+        // [11_tasks.md] 5-6 — 安全な削除の入口。参照チェック→(Archive)→確認ダイアログ→
+        // カタログ/Addressables 登録解除+アイコンごと MoveAssetToTrash は SafeDeleteService に委譲する。
+        private void DeleteRow(Row row)
+        {
+            var report = SafeDeleteService.TryDelete(row.Asset, row.Type);
+            if (report.Outcome == SafeDeleteService.DeleteOutcome.Deleted)
+            {
+                Refresh();
+            }
         }
 
         private void OnSelectionChanged(IEnumerable<object> selection)

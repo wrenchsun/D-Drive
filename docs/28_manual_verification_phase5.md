@@ -178,3 +178,32 @@
 - **`[SerializeReference]` は未検証**: 2026-09-14 時点でプロジェクト内に使用箇所が無いため、実際の多態フィールドでの動作は未確認(収集ロジック自体は Unity の `SerializedProperty` 標準走査に乗っているため動くはずという設計判断)
 - **循環参照や巨大な依存グラフでのパフォーマンスは未計測**: 現状のプロジェクト規模(Scene 17・Data 数百件程度)では `RebuildAll` が数秒〜十数秒で完了することを確認したのみ
 
+## 5-6 使用箇所検索 / 未使用検出 / 安全な削除（PR #19）
+
+対象: `Assets/DDrive/Editor/Dependencies/`(新規: `UsagesWindow.cs`/`DependencyTreeWindow.cs`/`DependencyTreeNode.cs`/`UnusedAssetsWindow.cs`/`ArchiveTagService.cs`/`SafeDeleteService.cs`/`DependencyJumpService.cs`/`DependencyAssetResolver.cs`/`CodeReferenceScan.cs`)、`Editor/AssetBrowser/AssetBrowserWindow.cs`(行の右クリックメニュー・「未使用...」ボタン)、`Foundation/Registry/AssetCatalog.cs`(`Remove(id)` 新設)。設計は [09_editor_tools.md](09_editor_tools.md) §1 / §10、運用は [10_workflow.md](10_workflow.md) §3、デザイナー向けは [DesignerManual/asset-browser.html](DesignerManual/asset-browser.html)。
+
+事前準備: `Tools > D-Drive > Generate > 依存関係グラフを再構築` を一度実行しておく(5-5 の要判断どおり、Library を消した直後・導入直後は索引が空)。
+
+確認手順:
+
+1. **グラフ再構築**: 上記の事前準備を実施し、Console にログが出ることを確認
+2. **使用箇所検索**: `Tools > D-Drive > Asset Browser` を開き、どこかから参照されている Data(例: 既存の `SeEmitter` 等から使われている SE)を右クリック →「使用箇所を表示」→ 参照元の一覧(パス・オブジェクトパス・コンポーネント.プロパティ)が出ること。逆にどこからも使われていない Data では「どこからも参照されていません」と出ること
+3. **ダブルクリックジャンプ(Data)**: 使用箇所一覧で参照元が Data(.asset)の行をダブルクリック → Project ウィンドウでその Data が選択・ハイライトされること
+4. **ダブルクリックジャンプ(Prefab)**: 参照元が Prefab の行をダブルクリック → Project ウィンドウで Prefab 内の該当 GameObject(無ければ Prefab 自身)が選択されること
+5. **ダブルクリックジャンプ(Scene)**: 参照元が Scene の行をダブルクリック → 「開きますか?」の確認ダイアログが出ること。今のシーンに未保存の変更がある状態で試し、保存確認ダイアログも正しく出ること。「開く」を選ぶとシーンが開き、該当オブジェクトが選択されること
+6. **依存ツリー**: 何かを参照している Data(例: Prefab や、AnchorId を設定した SE)を右クリック →「依存ツリーを表示」→ 参照先がツリーで展開されること。可能なら A→B→A のような循環参照を作る Data を用意し、循環箇所が打ち切り表示(色つき)になることを確認
+7. **未使用一覧**: AssetBrowser ツールバーの「未使用...」を押す → どこからも参照されていない Data の一覧が出ること。いくつかチェックを入れて「選択項目を一括Archive」→ Console にログが出て、対象の Inspector の Tags に `Archived` が付くこと(削除はされないこと)
+8. **参照ありは削除不可**: 何かから参照されている Data を右クリック →「削除...」→ 参照元一覧が出て中止されること(削除されていないこと・カタログ/Addressables 登録もそのままであること)
+9. **参照なしの削除**: テスト用に何にも参照されていない Data を1つ用意し(例: 手順7で Archive したもの、または新規作成して未使用のまま)、右クリック →「削除...」→ 確認ダイアログの内容を確認してから「削除する」を押す → 一覧から消えること、`Assets/GameData/Catalogs/` の対応するカタログからエントリが消えること(カタログ .asset をテキストエディタ等で開いて確認)、Addressables Groups ウィンドウ(`Window > Asset Management > Addressables > Groups`)から該当エントリが消えていること
+10. **ゴミ箱からの復元**: 手順9で削除した Data とアイコン画像を OS のゴミ箱(Windows のごみ箱)から元の場所へ復元する → Unity がファイルを再インポートし、Project ウィンドウにアセットとして戻ってくることを確認する。ただし **カタログ・Addressables の登録は自動では戻らない**こと(AssetBrowser の一覧には出ない・Validation で登録漏れとして検出される)も合わせて確認する
+11. **コード参照の警告**: 生成済み ID 定数(`Assets/Generated/AssetIds.g.cs`)がコードから実際に参照されている Data を1つ選び、右クリック →「削除...」の確認ダイアログに「生成された ID 定数 '...' を参照しているコードが見つかりました」という注意が出ること(**そのまま削除は実行せずキャンセルする** — 実際に削除するとコンパイルエラーになるため)
+12. 確認で作った一時 Data・Archive 済みタグはテスト後に元に戻す(Archive を解除する、または実際に不要なら安全な削除の手順で片付ける)
+
+要判断:
+- **グラフ未構築の判定は `CachedFileCount == 0` のみ**: 「古いが空ではない」状態は検出できない(5-5 の要判断を引き継ぐ)。手順1を飛ばして削除した場合の実際の挙動(「先に再構築してください」と出て中止されること)も合わせて確認してほしい
+- **依存ツリーは事前に全展開**: 巨大な依存グラフ(1 アセットが数百件を再帰的に参照する等)での表示速度は未計測。実際に触ってみて重いと感じたら [09] §10 の要判断を参照して遅延展開への切り替えを検討する
+- **コード参照チェックは grep ベースの簡易実装**: 誤検知(コメント中の文字列等にヒット)・見逃し(リフレクション経由の参照等)があり得る。実運用でノイズが多い/少なすぎると感じたら精度改善を検討する
+- **Scene ジャンプの自動テストは無し**: `EditorSceneManager.OpenScene(Single)` がアクティブシーンを差し替える副作用があるため、自動テストは `.asset`/`.prefab` 分岐のみ(`DependencyJumpServiceTests`)。手順5の手動確認で代替している
+- **Archived タグは `AssetDataBase.Tags` への予約語追加**: TagCatalog(選択制の辞書。未実装)が将来入る場合、`"Archived"` を予約語として除外するか、専用フィールドへの移行を検討する必要がある
+- **「1 リリース後に削除」の自動化はしていない**: Archived タグが付いてからどれくらい経過したら安全に削除してよいかの判断・催促は今回自動化せず、人が未使用一覧を見て判断する運用のまま
+

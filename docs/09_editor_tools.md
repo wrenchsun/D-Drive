@@ -35,6 +35,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 | 使用箇所検索 | 選択アセットを参照する Data / Scene / Prefab を一覧表示（依存グラフ逆引き）。ダブルクリックでジャンプ |
 | 依存関係ツリー | Player.prefab → Fire.mat → Fire.shader → FireVFX → FireSE をツリー/グラフ表示。深さ切替 |
 | 未使用検出 | どこからも参照されない Data の一覧。一括アーカイブ（削除でなく Archived タグ付与 → 次リリースで削除） |
+| 安全な削除（2026-09-14、5-6） | 行の右クリックメニュー「削除...」。参照チェック（1件でもあれば一覧を出して中止）→ Archived タグ付与 → 確認ダイアログ → カタログ登録解除 + Addressables エントリ削除 + アイコン PNG ごと `MoveAssetToTrash`（OS のゴミ箱、復元可能）。実装は §10 の実装メモ参照 |
 | お気に入り/最近 | ユーザーローカル（EditorPrefs）に保存 |
 | ID 定数再生成 | ツールバーから 1 クリック。保存フックでの自動生成も設定可 |
 | Validation | ⚠ボタンで全体検査 → 結果一覧（Error/Warning、FixAction ボタン付き）。行クリックで該当 Data へ |
@@ -134,6 +135,7 @@ public static class DDriveMenu
 Tools/
 └─ D-Drive/
     ├─ Asset Browser
+    ├─ 未使用アセット                ← 2026-09-14 追加(5-6。UnusedAssetsWindow。AssetBrowser の「未使用...」ボタンからも開く)
     ├─ 仕様書と同期                 ← 2026-09-14 追加(5-13。SpecSyncWindow。差分プレビュー + 適用 + TSV コピー、[27] §8.2)
     ├─ Presentation Editor          ← 目玉機能につき最上段
     ├─ Editors/
@@ -297,3 +299,29 @@ Tools/
 ### テスト
 
 `Tests/Editor/DependencyGraphServiceTests.cs`。一時フォルダ(`Assets/DDrive/Tests/Editor/TempDepsGameData`)に Data/Prefab/Scene(`EditorSceneManager.SaveScene(activeScene, path, saveAsCopy: true)` で作成。**`EditorSceneManager.NewScene(..., Additive)` は Test Runner の「無題・未保存シーン」上では使えない**ため、アクティブシーンのコピー保存で代替した)を作り、`UpdatePaths` の結果と `FindUsages`/`FindReferencesIn`/`FindUnusedIds`/削除時の索引除去を確認。`DependencyGraphService.ResetInMemoryCacheForTests()` でテスト間のプロセス内キャッシュを分離し、`TearDown` で `UpdatePaths(null, 作成したパス)` を呼んで実プロジェクトの `Library` キャッシュに残骸(削除済みファイルを指す索引)を残さないようにしている。
+
+### 実装メモ(2026-09-14、5-6: 使用箇所検索 / 未使用検出 / 依存ツリー UI + 安全な削除)
+
+§1 の3機能と「安全な削除」を実装。すべて `Assets/DDrive/Editor/Dependencies/` に置き、5-5 の `DependencyGraphService` の上に薄く乗せてある(新しい索引は増やさない)。
+
+- **使用箇所検索**: `UsagesWindow.Open(type, id, title)`。`AssetBrowserWindow` の行を右クリック →「使用箇所を表示」から開く。`FindUsages` の結果を `ListView` で表示し、`itemsChosen`(ダブルクリック/Enter)で `DependencyJumpService.Reveal` へ渡す。依存グラフが未構築(`CachedFileCount == 0`)なら警告 + 「再構築」ボタンを出す
+- **依存ツリー**: `DependencyTreeWindow.Open(assetPath, label)`。木構造は `DependencyTreeBuilder.Build`(同ファイル、`DependencyTreeNode`)が `FindReferencesIn` を再帰的に辿って**事前にすべて組み立ててから** `UnityEngine.UIElements.TreeView.SetRootItems` に渡す(遅延展開はしていない。プロジェクト規模的に一括構築で十分速いという判断。要判断は末尾)。循環検出は「現在たどっている経路(祖先の assetPath 集合)に戻ってきたら打ち切り、`IsCycle=true` を立てる」方式。ダイヤモンド型の共有参照(循環ではない)は複数回展開されるため、同じ Data が複数箇所に出ることがある(意図した挙動)。解決できない(削除済み・存在しない) (Type,Id) は `IsUnresolved=true` で赤字表示
+  - (Type, Id) → 実 Data の解決は `DependencyAssetResolver.Find`(`AssetIdLookup.GetAllDefinitions()` を流用。5-6 で新設した唯一の「もう1つの列挙ロジック」だが、依存ツリー・使用箇所検索の表示名解決・未使用一覧の3箇所で共有しているため重複はしていない)
+- **未使用検出**: `UnusedAssetsWindow`(メニュー `Tools > D-Drive > 未使用アセット`、AssetBrowser ツールバーの「未使用...」からも開く)。`FindUnusedIds` の一覧をチェックボックス付き `ListView` で表示し、「選択項目を一括Archive」で `ArchiveTagService.SetArchived(asset, true)` を選択分だけ実行する(削除はしない)。ダブルクリックで対象 Data を選択
+- **Archived タグ**: `ArchiveTagService`。[10_workflow.md] §3 の「Archived タグ→1リリース後に削除」の運用に、専用フィールドや TagCatalog が無いため `AssetDataBase.Tags` に予約タグ `"Archived"` を載せる最小実装(`SpecStatusTag` の `"State/…"` と同じ発想だが、ライフサイクルの軸が違うためプレフィックスは共有しない)。`Undo.RecordObject` + `SetDirty` 済み
+- **安全な削除**: `SafeDeleteService.TryDelete(asset, type, requireGraphBuilt: true, scanCodeReferences: true)`。`AssetBrowserWindow` の行コンテキストメニュー「削除...」から呼ぶ。手順:
+  1. `requireGraphBuilt` かつ `CachedFileCount == 0` → 「先に依存関係グラフを再構築してください」と案内して中止(`DeleteOutcome.GraphNotBuilt`)
+  2. `FindUsages(type, id)` が 1 件でもあれば、参照元一覧(パス・オブジェクトパス・コンポーネント型.プロパティ名、最大20件)を出して中止(`DeleteOutcome.BlockedByUsages`)。この時点では確認ダイアログを一切出さない
+  3. まだ Archived でなければ `ArchiveTagService.SetArchived(asset, true)` を実行(削除フローの一部としての2段階目。ここで最終確認をキャンセルしても Archived タグは残る = 「未使用・削除候補」の印として有効なまま。Undo 可能な通常の Data 変更なので Ctrl+Z で戻せる)
+  4. `CodeReferenceScan.FindPossibleReferences` で「生成済み ID 定数(`SEID.PlayerSlash` 等)をコードから grep」した簡易チェック(見つかれば確認ダイアログの文言に警告を追加するだけで、削除は止めない。`DependencyGraphService` はコード側の参照を追わないため、これでしか拾えない。要判断は末尾)
+  5. 最終確認ダイアログ → 確定で「カタログ登録解除(`AssetCatalog.Remove(id)`、新設)」「Addressables エントリ削除(`AddressablesSync.RemoveEntry`)」「アイコン PNG と Data 本体を `AssetDatabase.MoveAssetToTrash`(OS のゴミ箱。復元可能)」「`DependencyGraphService.UpdatePaths(null, [assetPath])` で依存グラフからも除去」の順で実行(`DeleteOutcome.Deleted`)
+  - `AssetCreationService.Create`(作成: Data生成→ID発行→カタログ登録→Addressables登録)の**逆操作を同じ層に対称に用意する**という [09] §1 の設計メモどおりの構成
+- **ダブルクリックジャンプ**: `DependencyJumpService.RevealAt(sourcePath, objectPath)`。`.asset` は Data を選択+Ping。`.prefab` は `GameObject.transform.Find(objectPath)`(空なら Prefab ルート自身)を選択+Ping。`.unity` はまず確認ダイアログ→`EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()`→`OpenScene(Single)`(既に開いていればそのまま使う)→ ルート名(`objectPath` の先頭セグメント。5-5 の Scene 収集がオブジェクトパスの先頭にルート名を含める仕様と対応)から `GetRootGameObjects()` で探し、残りを `Transform.Find` で辿って選択+Ping。ダイアログ2箇所(`ConfirmOpenSceneOverride`/`SaveModifiedScenesOverride`)・削除確認(`SafeDeleteService.ConfirmDialogOverride`/`InfoDialogOverride`)はすべてテストから差し替え可能な `public static` デリゲート(`NewAssetDialog.TestGameDataRootOverride` と同じ流儀)
+- **AssetBrowser 側の配線**: 行の `VisualElement` に `ContextualMenuManipulator` を1つだけ付け(仮想化 `ListView` で使い回されるため)、対象は `BindRowElement` が差し替える `element.userData` から読む。ツールバーに「未使用...」ボタンを追加
+
+要判断:
+- **依存ツリーは事前に全展開**(遅延展開・仮想化 TreeView にしていない)。1個のアセットが数百件を再帰的に参照するような極端なケースでは初回表示が重くなり得るが、5-5 のコメント同様このプロジェクト規模(Scene 17・Data 数百件)では実測上問題にならなかった。将来重くなったら `TreeView` の遅延展開(`IsExpanded` に応じてその場で `FindReferencesIn` する)に切り替える
+- **コード参照チェック(`CodeReferenceScan`)は grep ベースの best-effort**: 生成定数名(`ToConstantName` と同じ規則で組み立てた文字列)を `Assets/**/*.cs` から単純文字列検索するだけで、コメント内・文字列内・別名 using・部分一致等での誤検知/見逃しがあり得る。削除を止める判定には使わず、確認ダイアログの注意書きに留めた
+- **「グラフ未構築」の判定は `CachedFileCount == 0` のみ**: 「古いかもしれない(Library はあるが最新の変更を反映していない)」ケースは検出できない(5-5 の要判断と同じ制約を引き継ぐ)
+- **Scene ジャンプは自動テスト対象外**: `EditorSceneManager.OpenScene(Single)` はアクティブシーンを差し替える副作用があり、共有の Test Runner セッションを不安定にし得るため、`DependencyJumpServiceTests` は `.asset`/`.prefab` 分岐のみを自動テストし、Scene 分岐は手動検証([28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-6」節)に委ねた
+- **Archived というタグ名の予約語化**: `AssetDataBase.Tags` は本来 TagCatalog(未実装)からの選択制だが、`"Archived"` という文字列を予約語にした。将来 TagCatalog を実装する際はこの文字列を辞書から除外する(またはタグでなく専用の bool フィールドに移行する)必要がある
