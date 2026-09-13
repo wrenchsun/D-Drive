@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DDrive.Editor.Inspectors;
+using DDrive.Editor.Spec;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Runtime.Audio;
@@ -14,13 +15,22 @@ namespace DDrive.Editor.AssetBrowser
     // 新規アセット作成ダイアログ(FR-1.5)。人が入力するのは意味情報のみ:
     // 種別 / 表示名(日本語可) / カテゴリ / 識別子(英語 PascalCase)。
     // ファイル名・ID・カタログ登録は AssetCreationService が自動生成する。
+    // 5-16: 上部の「仕様書から選ぶ」から、まだ Data が無い仕様書の行を選ぶと各欄が入力済みになる
+    // (手入力も従来どおり可)。[27_spec_sheet.md] §4.5。
     public sealed class NewAssetDialog : EditorWindow
     {
+        // 5-16: 仕様書キャッシュ(SpecCache.LastFetchUtc)がこれより古いと「古い可能性があります」を出す。
+        // 起動時自動同期はドメインリロードごとに 1 回走るため、長時間ドメインリロード無しで開き続けた
+        // 場合の目安として 1 時間にした(要判断。docs/28 参照)。
+        private static readonly TimeSpan SpecCacheStaleThreshold = TimeSpan.FromHours(1);
+
         private List<(Type dataType, AssetType assetType)> _definitions;
         private DropdownField _typeField;
         private TextField _displayNameField;
         private TextField _categoryField;
         private TextField _identifierField;
+        private TextField _noteField;
+        private TextField _specLinkField;
         private Label _previewLabel;
         private Label _validationLabel;
         private Button _createButton;
@@ -32,6 +42,14 @@ namespace DDrive.Editor.AssetBrowser
         // 対応種別だけに絞り、作成後にコールバックでそのエディタへ切り替えるための状態。
         private Type[] _lockedTypes;
         private Action<AssetDataBase> _onCreated;
+
+        // 5-16: 「仕様書から選ぶ」で選択中の行(未選択なら null)。作成時に Status/Assignee を
+        // (UI に専用欄が無いため)ここから引く。選択後に他の欄を手で書き換えても保持したままにする
+        // (ユーザーが選んだうえで微調整するケースを妨げない。要判断は docs/28 参照)。
+        private SpecAssetRow _selectedSpecRow;
+        private VisualElement _specSection;
+        private VisualElement _specListContainer;
+        private TextField _specSearchField;
 
         // CreateGUI は GetWindow<T>() が新規ウィンドウを生成した瞬間に走るため、Open() の呼び出し側から
         // インスタンスフィールドへ値を渡すより前に実行されてしまう。static の受け渡し用領域を経由する。
@@ -97,6 +115,24 @@ namespace DDrive.Editor.AssetBrowser
             root.style.paddingRight = 8;
             root.style.paddingTop = 8;
 
+            // 5-16: 「仕様書から選ぶ」セクション(先頭)。選ぶと下の各欄が入力済みになる。
+            root.Add(new Label("仕様書から選ぶ") { style = { unityFontStyleAndWeight = FontStyle.Bold } });
+            _specSection = new VisualElement();
+            root.Add(_specSection);
+            RebuildSpecSection();
+
+            var divider = new VisualElement
+            {
+                style =
+                {
+                    height = 1,
+                    marginTop = 8,
+                    marginBottom = 8,
+                    backgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.4f),
+                },
+            };
+            root.Add(divider);
+
             var choices = _definitions.Select(d => $"{d.assetType} ({d.dataType.Name})").ToList();
             _typeField = new DropdownField("種別", choices, 0);
             _typeField.RegisterValueChangedCallback(_ => RefreshPreview());
@@ -124,6 +160,13 @@ namespace DDrive.Editor.AssetBrowser
             _identifierField = new TextField("識別子(英語)") { tooltip = "ID 定数名になる。PascalCase 英数字。例: PlayerSlash → SEID.PlayerSlash" };
             _identifierField.RegisterValueChangedCallback(_ => RefreshPreview());
             root.Add(_identifierField);
+
+            // 5-16: 仕様書から選ぶと備考・仕様リンクも入力済みになる(手入力も可)。
+            _noteField = new TextField("備考") { tooltip = "Description に反映される。仕様書の「備考」列と同じ欄。" };
+            root.Add(_noteField);
+
+            _specLinkField = new TextField("仕様リンク") { tooltip = "SpecUrl に反映される。Inspector の「仕様書を開く」ボタンから開ける。空でも作成可。" };
+            root.Add(_specLinkField);
 
             _previewLabel = new Label();
             _previewLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -187,13 +230,29 @@ namespace DDrive.Editor.AssetBrowser
             }
 
             var clips = _pendingClips;
+
+            // 5-16: 状態タグ/Assignee/Description/SpecUrl の反映は SpecSyncService.ApplyExtraFields を
+            // そのまま再利用する(同期の「新規 → Placeholder 作成」と同じ結果になるようにコピペしない)。
+            // 仕様書の行を選んでいなければ Status/Assignee は空(= 従来どおり何も設定しない)。
+            var extraFieldsRow = new SpecAssetRow
+            {
+                Status = _selectedSpecRow?.Status ?? string.Empty,
+                Assignee = _selectedSpecRow?.Assignee ?? string.Empty,
+                Note = _noteField?.value ?? string.Empty,
+                SpecLink = _specLinkField?.value ?? string.Empty,
+            };
+
             var asset = AssetCreationService.Create(
                 dataType,
                 assetType,
                 _displayNameField.value,
                 _categoryField.value,
                 _identifierField.value,
-                configure: created => ApplyPendingClips(created, clips));
+                configure: created =>
+                {
+                    ApplyPendingClips(created, clips);
+                    SpecSyncService.ApplyExtraFields(created, extraFieldsRow);
+                });
 
             if (asset != null)
             {
@@ -204,6 +263,14 @@ namespace DDrive.Editor.AssetBrowser
                 foreach (var browser in Resources.FindObjectsOfTypeAll<AssetBrowserWindow>())
                 {
                     browser.Refresh();
+                }
+
+                // 5-16: 仕様書の行から作った場合、その行を「未作成」一覧(次回このダイアログを開いた時や
+                // AssetBrowser の変更バッジ)から消す。ネットへは行かず、既存の取得結果を使って
+                // 既存アセットとの照合だけ再計算する(SpecCache.RecomputeDiff)。
+                if (_selectedSpecRow != null)
+                {
+                    SpecCache.RecomputeDiff();
                 }
 
                 // 5-15: 専用エディタの「＋ 新規作成」から開いた場合、作成後にそのエディタへ切り替える。
@@ -219,6 +286,171 @@ namespace DDrive.Editor.AssetBrowser
 
                 Close();
             }
+        }
+
+        // ── 5-16: 仕様書から選ぶ ──
+
+        private void RebuildSpecSection()
+        {
+            _specSection.Clear();
+
+            var settings = DDriveSpecSettings.Load();
+            if (settings == null || string.IsNullOrEmpty(settings.SpreadsheetUrl))
+            {
+                // [27] §4.5: 設定 URL 未設定時は案内文だけ出す(この場から設定 SO を自動生成しない)。
+                _specSection.Add(new HelpBox(
+                    "仕様書の URL が未設定です。Tools > D-Drive > 仕様書と同期 で設定すると、ここから仕様書の未作成アセットを選べます。",
+                    HelpBoxMessageType.Info));
+                return;
+            }
+
+            var (statusText, needsRefreshButton) = DescribeCacheFreshness();
+            _specSection.Add(new Label(statusText) { style = { marginBottom = 2 } });
+
+            if (needsRefreshButton)
+            {
+                _specSection.Add(new Button(() => OnRefetchClicked(settings)) { text = "仕様書を再取得" });
+            }
+
+            if (!SpecCache.HasData)
+            {
+                return; // まだ一度も取得していない(このセッションでドメインリロード後の起動時自動取得もまだ)
+            }
+
+            _specSearchField = new TextField("検索(表示名・識別子)") { value = string.Empty };
+            _specSearchField.RegisterValueChangedCallback(_ => RenderSpecList());
+            _specSection.Add(_specSearchField);
+
+            _specListContainer = new VisualElement { style = { marginTop = 2 } };
+            _specSection.Add(_specListContainer);
+
+            RenderSpecList();
+        }
+
+        // このダイアログで選べる種別(ロック時はロック対象だけ)に絞って「未作成」行を出す。
+        private void RenderSpecList()
+        {
+            if (_specListContainer == null)
+            {
+                return;
+            }
+
+            _specListContainer.Clear();
+
+            var allowedTypes = new HashSet<AssetType>(_definitions.Select(d => d.assetType));
+            var rows = SpecCache.GetUncreatedRows(null).Where(r => allowedTypes.Contains(r.Type));
+
+            var search = _specSearchField?.value?.Trim();
+            if (!string.IsNullOrEmpty(search))
+            {
+                rows = rows.Where(r =>
+                    (r.DisplayName?.IndexOf(search, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0 ||
+                    (r.Identifier?.IndexOf(search, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0);
+            }
+
+            var rowList = rows.ToList();
+            if (rowList.Count == 0)
+            {
+                _specListContainer.Add(new Label("(該当する未作成行はありません)") { style = { color = new Color(0.6f, 0.6f, 0.6f) } });
+                return;
+            }
+
+            foreach (var row in rowList)
+            {
+                _specListContainer.Add(BuildSpecRowElement(row));
+            }
+        }
+
+        private VisualElement BuildSpecRowElement(SpecAssetRow row)
+        {
+            var isSelected = ReferenceEquals(_selectedSpecRow, row);
+            var container = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 1 } };
+            var label = new Label($"{row.Type} / {row.Category} / {row.Identifier} — {row.DisplayName}")
+            {
+                style = { flexGrow = 1, unityFontStyleAndWeight = isSelected ? FontStyle.Bold : FontStyle.Normal },
+            };
+            container.Add(label);
+
+            var button = new Button(() => OnSpecRowSelected(row)) { text = isSelected ? "選択中" : "選ぶ" };
+            button.SetEnabled(!isSelected);
+            container.Add(button);
+            return container;
+        }
+
+        private void OnSpecRowSelected(SpecAssetRow row)
+        {
+            _selectedSpecRow = row;
+
+            // 種別: ロック済みならそのまま。そうでなければ row.Type に一致する最初の選択肢に切り替える
+            // (ControlSkin のように 1 AssetType に複数の具象 Data 型がある場合、どちらを作るかは
+            // ドロップダウンで人が選ぶ。ここでは最初の候補を仮に選ぶだけで、必要なら手で変更できる)。
+            var index = _definitions.FindIndex(d => d.assetType == row.Type);
+            if (index >= 0 && index < _typeField.choices.Count)
+            {
+                _typeField.value = _typeField.choices[index];
+            }
+
+            _categoryField.value = row.Category ?? string.Empty;
+            _identifierField.value = row.Identifier ?? string.Empty;
+            _displayNameField.value = row.DisplayName ?? string.Empty;
+            _noteField.value = row.Note ?? string.Empty;
+            _specLinkField.value = row.SpecLink ?? string.Empty;
+
+            RenderSpecList(); // 選択中の行の見た目(太字/ボタン)を更新
+            RefreshPreview();
+        }
+
+        private void OnRefetchClicked(DDriveSpecSettings settings)
+        {
+            _specSection.Clear();
+            _specSection.Add(new Label("仕様書を取得中..."));
+
+            // 非同期(UnityWebRequest)。手動の「取得」と同じく、新規行の自動作成はしない(プレビューのみ)。
+            SpecAutoSync.Run(settings, applyAutoPlaceholders: false, onComplete: () =>
+            {
+                // ウィンドウが既に閉じられていたら何もしない(Unity の破棄済みオブジェクト判定)。
+                if (this == null)
+                {
+                    return;
+                }
+
+                RebuildSpecSection();
+            });
+        }
+
+        // (表示文, 再取得ボタンを出すか)。キャッシュが無い/古い ときだけボタンを出す([27] §4.5)。
+        private (string text, bool needsRefreshButton) DescribeCacheFreshness()
+        {
+            if (!SpecCache.HasData)
+            {
+                return ("仕様書のキャッシュがまだありません。", true);
+            }
+
+            var age = DateTime.UtcNow - SpecCache.LastFetchUtc;
+            var ageText = FormatAge(age);
+            return age > SpecCacheStaleThreshold
+                ? ($"最終取得: {ageText}前(古い可能性があります)", true)
+                : ($"最終取得: {ageText}前", false);
+        }
+
+        private static string FormatAge(TimeSpan age)
+        {
+            if (age.TotalMinutes < 1)
+            {
+                return "1分未満";
+            }
+
+            if (age.TotalHours < 1)
+            {
+                return $"{(int)age.TotalMinutes}分";
+            }
+
+            if (age.TotalDays < 1)
+            {
+                return $"{(int)age.TotalHours}時間";
+            }
+
+            return $"{(int)age.TotalDays}日";
         }
 
         private static void ApplyPendingClips(AssetDataBase asset, AudioClip[] clips)

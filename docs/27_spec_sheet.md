@@ -122,6 +122,35 @@
 - 一覧は §4.2 の取得キャッシュを使う。キャッシュが無い・古いときは「仕様書を再取得」ボタンを出す
 - 同期(§4.3)でまとめて作るか、必要なものだけダイアログで 1 件ずつ作るかを使い分けられる
 
+### 4.5.1 実装メモ(2026-09-14、5-16)
+
+対象コード: `Assets/DDrive/Editor/AssetBrowser/NewAssetDialog.cs`(「仕様書から選ぶ」セクション追加)、
+`Assets/DDrive/Editor/Spec/SpecSyncService.cs`(`ApplyExtraFields` を `public` 化)、
+`Assets/DDrive/Editor/Spec/SpecCache.cs`(`RecomputeDiff()` を追加)。
+
+- **状態タグ/Assignee/Description/SpecUrl の反映はコピペしない**: `SpecSyncService.ApplyExtraFields(asset, row)` を
+  `private` → `public` にして、`NewAssetDialog.CreateAsset()` からも直接呼ぶ。ダイアログでは選択中の仕様書行
+  (`_selectedSpecRow`)の `Status`/`Assignee` と、ダイアログの「備考」「仕様リンク」欄(新設 `TextField`)の値から
+  最小限の `SpecAssetRow` を組み立てて渡すだけで、同期の「新規 → Placeholder 作成」(`SpecSyncService.ApplyNew`)と
+  全く同じ反映ロジックを通る
+- **「備考」「仕様リンク」欄を新設**: 既存の 表示名/カテゴリ/識別子 の下に追加した(手入力でも使える。空でも作成可)。
+  Status/Assignee は選んだ行から引くだけで、ダイアログには専用の入力欄を置いていない(選んだ後に他の項目を
+  手で書き換えても、選択時の Status/Assignee は保持したまま作成される。§9 の要判断を参照)
+- **一覧のフィルタ**: `SpecCache.GetUncreatedRows(null)` で全「未作成」行を取得し、ダイアログの `_definitions`
+  (種別ロック時はロック対象だけ)に含まれる `AssetType` だけへローカルに絞り込む。`GetUncreatedRows` 自体の
+  `filterType` 引数(単一 `AssetType`)は使わず、複数種別ロック(Audio = Se/Bgm)に対応するため呼び出し側で絞る
+- **行を選ぶと**: 種別ドロップダウンをその行の `AssetType` に一致する最初の選択肢へ切り替え(`ControlSkin` のように
+  1 `AssetType` に複数の具象 Data 型がある場合、どちらを作るかは人がドロップダウンで選び直す)、カテゴリ/識別子/
+  表示名/備考/仕様リンクの各欄を埋める
+- **作成後に一覧から消える**: `AssetCreationService.Create` の直後、`SpecCache.RecomputeDiff()` を呼ぶ(新設)。
+  ネットへは行かず、取得済みの `LastAssetRows` と最新の `AssetDatabase` 状態から差分だけ再計算する。
+  `LastFetchUtc` は更新しない(仕様書自体を再取得したわけではないため、キャッシュの新しさの表示を変えない)
+- **キャッシュの古さ判定**: 取得から 1 時間を「古い可能性があります」の閾値にした(要判断。§9 参照)。閾値を
+  超えている、またはキャッシュが無い場合だけ「仕様書を再取得」ボタンを出す。再取得は既存の `SpecAutoSync.Run`
+  (`applyAutoPlaceholders: false`)をそのまま呼ぶ(非同期・新規行の自動作成はしない)
+- **設定 URL 未設定時**: `DDriveSpecSettings.Load()`(`GetOrCreate()` は呼ばない = この場から設定 SO を自動生成
+  しない)が `null` または `SpreadsheetUrl` が空なら、案内文(`HelpBox`)だけを出して一覧・検索欄は組み立てない
+
 ## 5. 仕様書リンク(5-14)
 
 - 全 Data の基底 `AssetDataBase` に `SpecUrl`(string)を追加(**シリアライズ形式の変更 = 追加のみ**。CLAUDE.md §0-9 により着手前に確認)
@@ -274,3 +303,10 @@
 5. **リネーム結び付け(§4.3 末尾)**: 未実装。シートで識別子を変えると「新規1件 + シートから消えた扱い(Archive候補、SpecUrl 設定済みの場合のみ)」に見える
 6. **差分プレビュー画面の選択粒度**: `SpecSyncWindow` は行ごとのチェックボックスで新規/変更を個別に適用できるが、Archive 候補・衝突には何のアクションも付けていない(仕様どおり「表示のみ」)
 7. **`DDriveSpecSettings`/`TuningTable` の .asset は今回コミットしていない**: `Assets/GameData/Settings/` に自動生成される想定だが、ユーザーが実際に URL を設定して初回同期するまで存在しない。今回のブランチでは生成していない(手順は docs/28 の確認手順を参照)
+
+### 9.1 2026-09-14 追加(5-16 実装時)
+
+8. **選択後に他の欄を手で書き換えても Status/Assignee は選択時のまま**: ダイアログには Status/Assignee 専用の入力欄が無いため、行を選んだ後にカテゴリ・識別子・表示名・備考・仕様リンクを手で書き換えても、作成時に反映される Status/Assignee は「選んだ時点の行」のものになる(選び直さない限り変わらない)。誤解を招く場合は選択中の行を画面に明示する UI(現状は一覧の対象行が太字+「選択中」表示になるだけ)を強化すべきかもしれない
+9. **キャッシュの古さの閾値は 1 時間**: 起動時自動同期はドメインリロードごとに 1 回しか走らないため、ドメインリロード無しで長時間 Editor を開き続けた場合に「古い可能性があります」を出す目安として 1 時間にした(根拠は無く暫定)。長すぎる/短すぎるかは運用してみて判断してほしい
+10. **`NewAssetDialog` に `gameDataRoot` のテスト用オーバーライドが無い**: 既存の `Open(...)` はどちらも `AssetCreationService.DefaultGameDataRoot`(`Assets/GameData`)固定で作成する。5-16 の統合テスト(`CreateFromSelectedSpecRow_AppliesExtraFields_AndRemovesRowFromCache`)は実際に `Assets/GameData` 配下にアセットを作り、カタログ(`AudioCatalog.asset`)・Addressables エントリを含めてテスト側で後始末している。他の Spec 系テストのように `gameDataRoot: TestRoot` で隔離できないため、今後同種のテストを増やすなら `NewAssetDialog` にテスト用の差し替え口を用意することを検討してほしい
+11. **設定 URL 未設定時に `DDriveSpecSettings` を自動生成しない**: ダイアログを開くたびに設定 SO ができてしまうのを避けるため、`Load()` のみを呼び `GetOrCreate()` は呼ばない(既存の `SpecSyncWindow` の「設定を保存」だけが生成する)。ダイアログからは案内文のみで、設定自体はできない
