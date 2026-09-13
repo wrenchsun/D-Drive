@@ -231,7 +231,7 @@
 - **ロード画面 UI は最小実装**: `SceneLoadingScreen` は uGUI の `Slider`/`Text` を任意で受けるだけの確認用コンポーネントで、デザイナー向けの正式なロード画面(Canvas/UiManager ベース)は未実装。実運用では置き換えを検討してほしい
 - **参照カウントの解放漏れリスク**: `ScenePreload.RunAsync` で確保した参照は対応する `ScenePreload.Release` を呼ぶまで解放されない。`SceneLoadingScreen.OnDisable` では解放するが、独自に `ScenePreload.RunAsync` を呼ぶコードを書く場合は解放を呼び忘れないよう注意が要る
 
-## 5-1 Presentation（PR #TBD）
+## 5-1 Presentation（PR #21）
 
 対象: `Runtime/Presentation/{PresentationData,PresentationTrack,PlayContext,PresentationManager,PresentationHandle,Presentation,PresentationTiming,PresentationDataValidator}.cs`(新規)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(Presentation 配線追加)、`Editor/AssetBrowser/AssetCreationService.cs`(Presentation を Preload 既定に追加)、`Samples/PresentationSkillSlashDemo.cs`(新規、確認用)。設計は [08_presentation.md](08_presentation.md)、依存パッケージは [01_architecture.md](01_architecture.md) §4。
 
