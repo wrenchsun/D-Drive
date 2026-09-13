@@ -52,7 +52,10 @@ namespace DDrive.Editor.Spec
             EditorUtility.SetDirty(asset);
         }
 
-        private static void ApplyExtraFields(AssetDataBase asset, SpecAssetRow row)
+        // public: NewAssetDialog の「仕様書から選ぶ」(5-16)もここを呼ぶ。ダイアログ経由で作った結果と
+        // 同期の「新規 → Placeholder 作成」の結果が食い違わないよう、状態タグ/Assignee/Description/SpecUrl の
+        // 反映ロジックをコピペせずここ 1 箇所に保つ。
+        public static void ApplyExtraFields(AssetDataBase asset, SpecAssetRow row)
         {
             asset.Tags = SpecStatusTag.WithStatus(asset.Tags, row.Status);
             asset.Assignee = row.Assignee;

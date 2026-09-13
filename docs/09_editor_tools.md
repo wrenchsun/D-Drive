@@ -237,6 +237,15 @@ Tools/
 - `AssetBrowserWindow` のツールバーに `SpecCache.Updated` を購読するバッジ用 `ToolbarButton` を追加。`SpecAutoSync`(起動時自動取得、[27] §8.5)や `SpecSyncWindow` の「取得」が差分を見つけると「仕様書に変更 n 件」と表示され、押すと `SpecSyncWindow`(§6 のメニュー「仕様書と同期」)が開く。差分が 0 件なら非表示
 - 詳細な同期の仕組み・列定義・データフローは [27_spec_sheet.md](27_spec_sheet.md) §8 を参照
 
+### 8.5 NewAssetDialog の「仕様書から選ぶ」（2026-09-14、5-16）
+
+`NewAssetDialog`(§8.3)の先頭に「仕様書から選ぶ」セクションを追加した。`SpecCache.GetUncreatedRows(...)`([27] §8.6)で
+まだ Data の無い仕様書の行を検索付きで一覧表示し、選ぶと 種別/カテゴリ/識別子/表示名/備考(新設)/仕様リンク(新設)が
+入力済みになる(手入力も従来どおり可)。「作成」を押すと `SpecSyncService.ApplyExtraFields`(新規 → Placeholder 作成
+と同じ反映ロジック、コピペしない)で状態タグ/Assignee/Description/SpecUrl も設定され、作成後は `SpecCache.RecomputeDiff()`
+(ネットへ行かず既存キャッシュから差分だけ再計算)でその行が一覧から消える。設定 URL 未設定時は案内文のみ。
+詳細・要判断は [27_spec_sheet.md](27_spec_sheet.md) §4.5.1/§9.1 を参照。
+
 ## 9. AssetDatabase.FindAssets のキャッシュ（2026-09-11）
 
 - **`AssetDatabase.FindAssets` を直接呼ばない。** 必ず `DDrive.Editor.AssetSearch.FindAssets(filter[, folders])` を通す（既定の検索範囲は `Assets` 配下）
