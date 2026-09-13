@@ -180,6 +180,8 @@ namespace DDrive.Editor.Model
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
             toolbar.Add(new ToolbarSpacer());
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(ModelEditorWindow)));
+            toolbar.Add(new ToolbarSpacer());
             toolbar.Add(new ToolbarButton(OpenPreviewScene)
             {
                 text = "確認用シーンを開く",

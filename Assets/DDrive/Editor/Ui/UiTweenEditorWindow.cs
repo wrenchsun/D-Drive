@@ -183,6 +183,11 @@ namespace DDrive.Editor.Ui
 
         private void CreateGUI()
         {
+            // 5-15: 上部に「＋ 新規作成」ツールバー(スクロールしても見える固定行)。
+            var toolbar = new Toolbar();
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(UiTweenEditorWindow)));
+            rootVisualElement.Add(toolbar);
+
             var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
             rootVisualElement.Add(scrollView);
             scrollView.style.paddingLeft = 6;

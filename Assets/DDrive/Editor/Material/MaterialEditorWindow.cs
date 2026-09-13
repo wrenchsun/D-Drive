@@ -286,6 +286,7 @@ namespace DDrive.Editor.Materials
             lockToggle.SetValueWithoutNotify(_lockTarget); // ドメインリロード後の復元
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(MaterialEditorWindow)));
             _root.Add(toolbar);
 
             // サムネイル(Material のみ。Model 形状・TextureData 選択時は非表示)。比較対象があれば左右 2 分割 or 切替。

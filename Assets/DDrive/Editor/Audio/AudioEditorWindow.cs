@@ -81,6 +81,11 @@ namespace DDrive.Editor.Audio
 
         private void CreateGUI()
         {
+            // 5-15: 上部に「＋ 新規作成」ツールバー(スクロールしても見える固定行)。
+            var toolbar = new Toolbar();
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(AudioEditorWindow)));
+            rootVisualElement.Add(toolbar);
+
             // ウィンドウが小さい/セクションが増えても内容が見切れないよう、ルートをスクロール可能にする
             // ([09_editor_tools.md] §7 拡縮前提のUI規約)。
             var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };

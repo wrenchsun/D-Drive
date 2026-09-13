@@ -318,6 +318,8 @@ namespace DDrive.Editor.Anim
             });
             toolbar.Add(new ToolbarButton(OpenModelPrefab) { text = "モデル Prefab を開く", tooltip = "確認用モデルの Prefab をプレハブモードで開き、その Animator を対象にする" });
             toolbar.Add(new ToolbarButton(() => { if (_target != null) EditorGUIUtility.PingObject(_target); }) { text = "Project で表示" });
+            toolbar.Add(new ToolbarSpacer());
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(AnimEditorWindow)));
             root.Add(toolbar);
         }
 

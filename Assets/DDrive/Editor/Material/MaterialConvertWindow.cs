@@ -118,6 +118,12 @@ namespace DDrive.Editor.Materials
             _root = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
             rootVisualElement.Add(_root);
 
+            // 5-15: この画面自体は既存 MaterialData の変換用だが、[DataEditor] 付き専用エディタとして
+            // 一覧に含まれるため、他のエディタと同じく「＋ 新規作成」を上部に置く(空の MaterialData を作って変換元にできる)。
+            var toolbar = new Toolbar();
+            toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(MaterialConvertWindow)));
+            _root.Add(toolbar);
+
             _sourceField = new ObjectField("変換元 MaterialData") { objectType = typeof(MaterialData), allowSceneObjects = false };
             _sourceField.RegisterValueChangedCallback(evt => SetSource(evt.newValue as MaterialData));
             _root.Add(_sourceField);

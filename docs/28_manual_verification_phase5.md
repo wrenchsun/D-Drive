@@ -52,4 +52,36 @@
 - **Model の Prefab 直参照**: `ModelData.Prefab` に FBX のインポート直後のルート GameObject をそのまま設定する。Animator/追加コンポーネントを載せたラッパー Prefab を挟む運用がある場合、そのラッパー生成までは自動化していない(現状は ModelEditor 等で手動差し替え)
 - **Texture の Usage/Channel 既定値**: `TextureImportProfile` の命名規約(`_N`/`_M`/`_UI` 等)に一致すればその既定値、一致しなければ `TextureData` のクラス既定値(Model/Albedo)のまま。UI 用テクスチャを規約に合わない名前で置いた場合は手動で Usage を直す必要がある
 - **既存 Data と同名衝突時の挙動は未検証**: 手動で同じ識別子の Data を先に作っていた場合、`AssetCreationService.Create` が別ファイルとして作成する(既存の重複回避ロジックに委ねている)。運用上どちらが優先されるべきかは今回判断していない
+- `AssetDataBase` に `[HideInInspector] string ImportSourceGuid` を追加した(シリアライズ形式の変更＝フィールド追加のみ。既存 Data は空文字で読み込まれ互換性に問題なし)。CLAUDE.md §0-9 の事前確認を自律作業中のため省略したので、問題があれば指摘してほしい
+
+## 5-15 各エディタの「＋ 新規作成」（PR #14）
+
+対象: `Editor/Inspector/NewAssetToolbarButton.cs`（共通ヘルパー）、`Editor/AssetBrowser/NewAssetDialog.cs`（`Open(Type[], Action<AssetDataBase>)` を新設）、各専用エディタのツールバー 16 か所。設計は [09_editor_tools.md](09_editor_tools.md) §8.3。
+
+各エディタを `Tools > D-Drive > Editors > …` から開き、ツールバー（多くは対象アセットの ObjectField や🔒トグルと同じ行、一部はウィンドウ最上部の単独行）にある **「＋ 新規作成」** ボタンを押す → `NewAssetDialog` が開き、種別ドロップダウンがそのエディタの対応種別だけに絞られていること（候補が 1 つなら選べず固定表示）を確認 → 表示名・カテゴリ・識別子を入力して「作成」→ **ダイアログが閉じて、元のエディタの対象がその場で作った新規アセットに切り替わっていること**（対象アセットの ObjectField に反映される。Anchor/Anchor Group/Model/Vfx/Anim は SceneView 側の表示も追従する）を確認する。
+
+| エディタ（メニュー） | ボタンを押すと固定される種別 | 作成後に切り替わる対象 |
+|---|---|---|
+| Audio | SeData / BgmData（2 択） | 対象アセット（波形表示が空の新規データになる） |
+| VFX | VfxData | 対象アセット |
+| Animation (3D) | AnimData | 対象アセット |
+| Animation (2D) | Anim2DData | 編集モードに切り替わり、Clip 未設定の新規データが対象になる |
+| Prefab | PrefabData | 対象アセット |
+| Canvas | CanvasData | 対象アセット |
+| Material | MaterialData / TextureData（2 択） | 対象アセット |
+| Material 変換 | MaterialData | 「変換元 MaterialData」欄 |
+| Material プレビュー | MaterialData | サムネイル対象（タイトルバーの名前も切り替わる） |
+| Anchor | AnchorData | 対象アセット |
+| Anchor Group | AnchorGroupData | 対象アセット |
+| Button Skin | ButtonSkinData | 対象 Skin |
+| Slider | SliderSkinData | 確認用シーンにそのスキンのサンプルスライダーが配置される（対象は UiSlider のサンプル） |
+| Slider Skin | SliderSkinData | 対象 Skin |
+| UI Tween | UiTweenData | 対象 UiTweenData |
+
+いずれも AssetBrowser を一度も開かずに完了できること、Console に想定外の Error が出ないこと（作成先エディタが無い/閉じている等の異常系で警告ログが 1 行出るのは正常）を確認する。
+
+要判断:
+- **二次的な専用エディタにも同じボタンを付けた**: `MaterialConvertWindow`（既存 MaterialData をシェーダー変換する画面。「新規 MaterialData として作成」という別の作成手段を既に持つ）、`MaterialThumbnailWindow`（サムネイルだけの独立ポップアップ）、`SliderEditorWindow`（`SliderSkinData` の応答曲線・追従比較などの高度編集。`SliderSkinEditorWindow` の方が本来の作成入口）は、チケットの「`[DataEditor]` 付きの全専用エディタ」を文字どおり解釈して含めた。実際にはこの 3 つは「新規に作る場所」としては使われにくく、ボタンが冗長・混乱の元と感じる場合は `NewAssetToolbarButton` の呼び出しをこの 3 か所だけ外すことを検討してほしい
+- **種別ロックはドロップダウンを消さず選択肢を絞る方式にした**: Audio(SE/BGM)・Material(MaterialData/TextureData) のように 1 エディタが複数種別を持つ場合、ドロップダウン自体は残して候補をその 2 つだけに絞っている(候補が 1 つの場合のみ無効化して見せる)。「エディタごとに 1 種別に固定」という文言を厳密に取るなら、Audio/Material では追加のトグルなどでどちらを作るか明示すべきかは要判断
+- **Anim2D は「空の Placeholder」を作る**: Anim2DEditorWindow は元々スプライト分割からクリップまで一括生成する「作成」モードを持つが、「＋ 新規作成」は(ImportRule と同じ考え方で)Clip 未設定の Anim2DData をまず作って編集モードに切り替えるだけにした。ID だけ先に確保して後でスプライトを割り当てる、という D-Drive の基本コンセプトには合致するはずだが、既存の「作成」モードと役割が重複して見えないかは要判断
 

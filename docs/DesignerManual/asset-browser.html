@@ -109,6 +109,18 @@
 この機能で作られた Data は、ファイルへの参照（Clip / Texture / Prefab のいずれか）以外の項目は初期値のままです。細かい調整（3D 設定・Layer・Params 等）は作られた後に Asset Browser や各専用エディタで行ってください。
 </div>
 
+<h3>方法4: 各専用エディタの「＋ 新規作成」ボタン（2026-09-14 追加）</h3>
+<p>Audio Editor・VFX Editor・Canvas Editor・UI Tween Editor など、各専用エディタのツールバー（上部）にも同じ「＋ 新規作成」ボタンがあります。Asset Browser を開かずに、いま作業しているエディタからその場で新しいアセットを作れます。</p>
+<ol>
+<li>専用エディタを開く（<code>Tools &gt; D-Drive &gt; Editors &gt; …</code>）</li>
+<li>ツールバーの「＋ 新規作成」を押す</li>
+<li>ダイアログが開く。<strong>種別はそのエディタで扱える種類だけに絞られています</strong>（例: Audio Editor なら Se か Bgm の 2 択、他のほとんどのエディタは 1 種類に固定）</li>
+<li>表示名・カテゴリ・識別子を入力して「作成」</li>
+</ol>
+<div class="tip">
+作成が終わると、ダイアログが閉じて<strong>そのままいま開いているエディタの対象がこの新しいアセットに切り替わります</strong>。作った直後から続けて調整を始められます。
+</div>
+
 <h3>ダイアログの入力項目</h3>
 <table>
 <tr><th>項目</th><th>入力するもの</th><th>例</th></tr>

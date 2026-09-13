@@ -94,6 +94,7 @@ namespace DDrive.Editor.Anim2D
             });
             toolbar.Add(createToggle);
             toolbar.Add(editToggle);
+            toolbar.Add(NewAssetToolbarButton.CreateToolbarButton(typeof(Anim2DEditorWindow)));
             scroll.Add(toolbar);
 
             var profileField = new ObjectField("Import Profile") { objectType = typeof(Anim2DImportProfile), value = _profile };
