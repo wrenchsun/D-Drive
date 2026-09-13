@@ -33,6 +33,10 @@ namespace DDrive.Editor.CanvasTool
     public sealed class CanvasEditorWindow : EditorWindow
     {
         private const string NoneChoice = "なし";
+        // (レビュー対応 2026-09-14) 生の new GameObject をやめ EditorPreviewRoots で生成し、OnEnable で同名の残骸を掃除する。
+        private const string PreviewRootName = "[D-Drive] Canvas Preview";
+        // (レビュー対応 2026-09-14) "(ルート)" の直書きが 5 か所あったので UI Tween Editor と共有の定数にする。
+        private const string RootElementLabel = UiTweenEditorWindow.RootElementLabel;
 
         private CanvasData _target;
         private bool _lockTarget;
@@ -75,6 +79,10 @@ namespace DDrive.Editor.CanvasTool
         private readonly List<PhaseRowWidgets> _phaseRowWidgets = new();
         private readonly TweenTrack[] _presetPlayScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
 
+        // (レビュー対応 2026-09-14) FindUiTweenData が ▶ のたびに(「▶ 全〜」では要素数ぶん)AssetDatabase を
+        // 全走査していた。Id → アセットの対応を 1 回の走査でまとめて作り、ヒットしなかったときだけ作り直す。
+        private readonly Dictionary<ulong, UiTweenData> _tweenLookup = new();
+
         private sealed class PhaseRowWidgets
         {
             public string ElementPath;
@@ -108,6 +116,9 @@ namespace DDrive.Editor.CanvasTool
             _lastEditorTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += OnEditorUpdate;
             Undo.undoRedoPerformed += OnUndoRedoPerformed;
+
+            // (レビュー対応 2026-09-14) 前回閉じ損ねた・ドメインリロードで参照を失ったプレビュールートの残骸を消す。
+            EditorPreviewRoots.DestroyAll(PreviewRootName);
         }
 
         private void OnDisable()
@@ -116,6 +127,10 @@ namespace DDrive.Editor.CanvasTool
             EditorApplication.update -= OnEditorUpdate;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
             RemovePreview();
+            // (レビュー対応 2026-09-14) 閉じても "[D-Drive] UI Root"(レイヤー 5 枚 + プールに戻った Canvas 実体)が
+            // 次にシーンを閉じるまで残っていた。RemovePreview(StopAll 済み)の後に UiManager 自身のルートを破棄する
+            // (この後 _manager / _pool ごと捨てるので、破棄済みのプール実体が再利用されることは無い)。
+            _manager?.DestroyEditorRoot();
             _manager = null;
             _tweenManager = null;
             _pool = null;
@@ -151,13 +166,23 @@ namespace DDrive.Editor.CanvasTool
 
         // 4-3: NavNode の編集(SetLink/ClearLink 等)は Undo.RecordObject で包んでいるため、Undo/Redo が
         // 走ったらグラフを作り直す(SerializedObject 側は Bind 済みなので自動で追従する)。
-        private void OnUndoRedoPerformed() => RebuildGraph();
+        // (レビュー対応 2026-09-14) グラフだけ作り直していたため、Undo で ElementFx の行が減ると古い行 UI の
+        // ▶ / プリセット選択が範囲外の index を引いていた。ElementFx 割当と Validation も作り直す。
+        private void OnUndoRedoPerformed()
+        {
+            RebuildGraph();
+            RebuildElementFxAssignments();
+            RefreshValidation();
+        }
 
         private void OnActiveSceneChanged(UnityEngine.SceneManagement.Scene previous, UnityEngine.SceneManagement.Scene current)
         {
-            // シーンが切り替わると DontSave の配置物は Unity 側で既に失われているので、参照だけ捨てる。
-            _previewRoot = null;
-            _previewHandle = Handle<CanvasMarker>.Invalid;
+            // (レビュー対応 2026-09-14) 以前は参照を捨てるだけだったため、UiManager の _stack / _instances に
+            // 実体を失った CanvasInstance が残り、Idle 等の Tween も走り続けていた。StopAll で Manager 側の状態を
+            // 片付け(破棄済みの実体には各所の null 判定で触れない)、UI Root も破棄して次の OpenData で
+            // 新しいシーンに作り直させる(DontSave のルートがシーン外に取り残されても確実に消えるように)。
+            RemovePreview();
+            _manager?.DestroyEditorRoot();
         }
 
         public void CreateGUI()
@@ -185,11 +210,11 @@ namespace DDrive.Editor.CanvasTool
             _root.Add(toolbar);
 
             var navButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
-            navButtons.Add(new Button(CollectSelectables) { text = "Selectable を自動収集", tooltip = "Prefab 内の Selectable から Navigation を作る(既存の行は保持する)" });
+            navButtons.Add(new Button(() => CollectSelectables()) { text = "Selectable を自動収集", tooltip = "Prefab 内の Selectable から Navigation を作る(既存の行は保持する)" });
             _root.Add(navButtons);
 
             var fxButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
-            fxButtons.Add(new Button(CollectElementFx) { text = "要素を自動収集(Image / UiButton / パネル)", tooltip = "Prefab 内の Graphic/UiInteractable から ElementFx の行を作る(既存の行は保持する)" });
+            fxButtons.Add(new Button(() => CollectElementFx()) { text = "要素を自動収集(Image / UiButton / パネル)", tooltip = "Prefab 内の Graphic/UiInteractable から ElementFx の行を作る(既存の行は保持する)" });
             _root.Add(fxButtons);
 
             var bulkRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, alignItems = Align.Center } };
@@ -222,7 +247,7 @@ namespace DDrive.Editor.CanvasTool
             // (専用シーンへ切り替え → その場で OpenData まで行う)。「Disappear を再生」も撤去: Disappear の
             // 見た目確認は UI Tween Editor 側(実要素をプレビュー対象に自動割り当てして▶再生できる。2026-09-12
             // 追加)でできるようになったため、Canvas Editor に専用ボタンを残す必要がなくなった。
-            previewButtons.Add(new Button(OpenPreviewSceneAndPlace) { text = "確認用シーンを開く", tooltip = "EventSystem だけを置いた空の専用シーン(CanvasPreviewScene)に切り替え、そのまま実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。自分の Canvas 等と重ならずに確認できる。表示中にもう一度押すと閉じて開き直す(Appear / Idle をやり直す)" });
+            previewButtons.Add(new Button(OpenPreviewSceneAndPlace) { text = "確認用シーンを開く", tooltip = "EventSystem だけを置いた空の専用シーン(CanvasPreviewScene)に切り替え、そのまま実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。自分の Canvas 等と重ならずに確認できる。既に確認用シーンを開いているときはシーンを開き直さず、表示だけやり直す(Appear / Idle をやり直す)" });
             previewButtons.Add(new Button(RemovePreview) { text = "閉じる", tooltip = "演出を待たず即座に片付ける(StopAll)" });
             _root.Add(previewButtons);
 
@@ -272,6 +297,7 @@ namespace DDrive.Editor.CanvasTool
                 _statusLabel.text = "CanvasData を選択してください";
                 _validationFoldout?.Clear();
                 _elementFxContainer?.Clear();
+                _phaseRowWidgets.Clear(); // 消した行の UI を毎フレーム更新し続けないように(レビュー対応 2026-09-14)
                 return;
             }
 
@@ -286,15 +312,23 @@ namespace DDrive.Editor.CanvasTool
             RebuildGraph();
         }
 
-        private void CollectSelectables()
+        // 戻り値: データを書き換えたか。
+        // (レビュー対応 2026-09-14) PlacePreview(▶ で暗黙に呼ばれる)が毎回これを実行し、差分が無くても Undo を
+        // 2 件積んでアセットを Dirty にしていた。CollectMerged の結果が既存と同じ(キーの並びが一致)なら何も書かない。
+        private bool CollectSelectables()
         {
             if (_target == null || _target.Prefab == null)
             {
                 _statusLabel.text = "Prefab を設定してください";
-                return;
+                return false;
             }
 
             var merged = CanvasNavigationCollector.CollectMerged(_target.Prefab, _target.Navigation);
+            if (SameNavigationKeys(_target.Navigation, merged))
+            {
+                _statusLabel.text = $"Selectable は収集済みです({merged.Length} 件)";
+                return false;
+            }
 
             Undo.RecordObject(_target, "Collect Selectables");
             _target.Navigation = merged;
@@ -302,19 +336,25 @@ namespace DDrive.Editor.CanvasTool
 
             SetTarget(_target); // Inspector / Validation / グラフを再構築
             _statusLabel.text = $"Selectable を {merged.Length} 件収集しました";
+            return true;
         }
 
         // 4-9: Graphic(Image 等)/UiInteractable(UiButton 等)/パネル(RectTransform+Graphic)を持つパスを
-        // ElementEffects に追加する(既存の行・値は保持する)。
-        private void CollectElementFx()
+        // ElementEffects に追加する(既存の行・値は保持する)。戻り値: データを書き換えたか(レビュー対応 2026-09-14)。
+        private bool CollectElementFx()
         {
             if (_target == null || _target.Prefab == null)
             {
                 _statusLabel.text = "Prefab を設定してください";
-                return;
+                return false;
             }
 
             var merged = CanvasElementFxCollector.CollectMerged(_target.Prefab, _target.ElementEffects);
+            if (SameElementFxKeys(_target.ElementEffects, merged))
+            {
+                _statusLabel.text = $"ElementFx は収集済みです({merged.Length} 件)";
+                return false;
+            }
 
             Undo.RecordObject(_target, "Collect ElementFx");
             _target.ElementEffects = merged;
@@ -322,6 +362,47 @@ namespace DDrive.Editor.CanvasTool
 
             SetTarget(_target);
             _statusLabel.text = $"ElementFx を {merged.Length} 件収集しました";
+            return true;
+        }
+
+        // CollectMerged は既存の行をそのままの値・順序で残し、無いキーだけ末尾に足す(重複キーは 1 行にまとまる)。
+        // よって「件数とキーの並びが一致」なら内容も同一で、書き換える必要が無い(レビュー対応 2026-09-14)。
+        private static bool SameNavigationKeys(NavNode[] existing, NavNode[] merged)
+        {
+            var count = existing?.Length ?? 0;
+            if (count != merged.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                if (!string.Equals(existing[i].Element ?? string.Empty, merged[i].Element ?? string.Empty, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool SameElementFxKeys(ElementFx[] existing, ElementFx[] merged)
+        {
+            var count = existing?.Length ?? 0;
+            if (count != merged.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                if (!string.Equals(existing[i].ElementPath ?? string.Empty, merged[i].ElementPath ?? string.Empty, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         // 4-10: 各 ElementFx 行の Appear/Idle/Disappear を「なし / 組み込みプリセット / プロジェクトの
@@ -335,6 +416,8 @@ namespace DDrive.Editor.CanvasTool
             }
 
             _elementFxContainer.Clear();
+            // (レビュー対応 2026-09-14) 早期 return の前に消す(以前は行が 0 になっても古い行の UI を毎フレーム更新していた)。
+            _phaseRowWidgets.Clear();
             if (_target == null || _target.ElementEffects == null || _target.ElementEffects.Length == 0)
             {
                 _elementFxContainer.Add(new Label("ElementFx がありません(上の「要素を自動収集」で追加してください)") { style = { opacity = 0.7f } });
@@ -347,19 +430,18 @@ namespace DDrive.Editor.CanvasTool
                 _catalogChoices.Add(($"[Catalog] {name}", tween));
             }
 
-            _phaseRowWidgets.Clear();
-
             for (var i = 0; i < _target.ElementEffects.Length; i++)
             {
                 var index = i;
                 var fx = _target.ElementEffects[i];
-                var elementPath = fx.ElementPath;
+                // (レビュー対応 2026-09-14) ElementPath が null の行で Dictionary<string, bool> が ArgumentNullException になっていた。
+                var elementPath = fx.ElementPath ?? string.Empty;
 
                 // 2026-09-12 ユーザー要望: 要素数が多いと縦に長くなりすぎるので、各要素を折りたためるようにする
                 // (デフォルトは折りたたみ)。展開状態は ElementPath をキーに保持し、ドロップダウン変更などで
                 // 再構築が起きても(その行自身の変更でなければ)開閉が飛ばないようにする。
                 var expanded = _elementFxExpanded.TryGetValue(elementPath, out var wasExpanded) && wasExpanded;
-                var box = new Foldout { text = string.IsNullOrEmpty(elementPath) ? "(ルート)" : elementPath, value = expanded, style = { marginBottom = 6 } };
+                var box = new Foldout { text = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath, value = expanded, style = { marginBottom = 6 } };
                 box.RegisterValueChangedCallback(evt =>
                 {
                     if (evt.target == box)
@@ -368,34 +450,53 @@ namespace DDrive.Editor.CanvasTool
                     }
                 });
 
+                // (レビュー対応 2026-09-14) getter/setter は GetFx/UpdateFx 経由で範囲チェックする(Undo で行が減った後に
+                // 古い行 UI から呼ばれても例外にしない)。
                 box.Add(BuildPhaseRow(
                     "Appear",
-                    fx.ElementPath,
-                    () => _target.ElementEffects[index].AppearPreset,
-                    v => { var e = _target.ElementEffects[index]; e.AppearPreset = v; _target.ElementEffects[index] = e; },
-                    () => _target.ElementEffects[index].Appear,
-                    v => { var e = _target.ElementEffects[index]; e.Appear = v; _target.ElementEffects[index] = e; }));
+                    elementPath,
+                    () => GetFx(index).AppearPreset,
+                    v => UpdateFx(index, e => { e.AppearPreset = v; return e; }),
+                    () => GetFx(index).Appear,
+                    v => UpdateFx(index, e => { e.Appear = v; return e; })));
 
                 box.Add(BuildPhaseRow(
                     "Idle",
-                    fx.ElementPath,
-                    () => _target.ElementEffects[index].IdlePreset,
-                    v => { var e = _target.ElementEffects[index]; e.IdlePreset = v; _target.ElementEffects[index] = e; },
-                    () => _target.ElementEffects[index].Idle,
-                    v => { var e = _target.ElementEffects[index]; e.Idle = v; _target.ElementEffects[index] = e; }));
+                    elementPath,
+                    () => GetFx(index).IdlePreset,
+                    v => UpdateFx(index, e => { e.IdlePreset = v; return e; }),
+                    () => GetFx(index).Idle,
+                    v => UpdateFx(index, e => { e.Idle = v; return e; })));
 
                 box.Add(BuildPhaseRow(
                     "Disappear",
-                    fx.ElementPath,
-                    () => _target.ElementEffects[index].DisappearPreset,
-                    v => { var e = _target.ElementEffects[index]; e.DisappearPreset = v; _target.ElementEffects[index] = e; },
-                    () => _target.ElementEffects[index].Disappear,
-                    v => { var e = _target.ElementEffects[index]; e.Disappear = v; _target.ElementEffects[index] = e; }));
+                    elementPath,
+                    () => GetFx(index).DisappearPreset,
+                    v => UpdateFx(index, e => { e.DisappearPreset = v; return e; }),
+                    () => GetFx(index).Disappear,
+                    v => UpdateFx(index, e => { e.Disappear = v; return e; })));
 
                 box.Add(new Button(() => CopyRowToOthers(index)) { text = "この要素の設定を他の要素へコピー", style = { marginTop = 4 } });
 
                 _elementFxContainer.Add(box);
             }
+        }
+
+        // 範囲外(Undo で行が減った等)なら default を返す(レビュー対応 2026-09-14)。
+        private ElementFx GetFx(int index)
+            => _target != null && _target.ElementEffects != null && index >= 0 && index < _target.ElementEffects.Length
+                ? _target.ElementEffects[index]
+                : default;
+
+        // 範囲外なら何もしない(レビュー対応 2026-09-14)。Undo.RecordObject / SetDirty は呼び出し側が行う。
+        private void UpdateFx(int index, Func<ElementFx, ElementFx> mutate)
+        {
+            if (_target == null || _target.ElementEffects == null || index < 0 || index >= _target.ElementEffects.Length)
+            {
+                return;
+            }
+
+            _target.ElementEffects[index] = mutate(_target.ElementEffects[index]);
         }
 
         private VisualElement BuildPhaseRow(
@@ -529,7 +630,7 @@ namespace DDrive.Editor.CanvasTool
                     elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, elementPath);
                 }
 
-                var elementLabel = string.IsNullOrEmpty(elementPath) ? "(ルート)" : elementPath;
+                var elementLabel = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
                 UiTweenEditorWindow.Open(tween, collectRoot, elementTarget, elementLabel);
             })
             {
@@ -587,12 +688,15 @@ namespace DDrive.Editor.CanvasTool
             return row;
         }
 
-        private void PlayPhasePreview(string elementPath, string phase, UiPresetRef preset, AssetId<UiTweenMarker> id)
+        // 戻り値: 実際に再生を開始したか(レビュー対応 2026-09-14。「▶ 全〜」が失敗も再生件数に数えていた)。
+        private bool PlayPhasePreview(string elementPath, string phase, UiPresetRef preset, AssetId<UiTweenMarker> id)
         {
             if (_target == null || _tweenManager == null)
             {
-                return;
+                return false;
             }
+
+            elementPath ??= string.Empty; // 行 UI 側のキー(null → 空文字に正規化済み)と揃える(レビュー対応 2026-09-14)
 
             if (_manager != null && !_manager.IsOpen(_previewHandle))
             {
@@ -601,17 +705,21 @@ namespace DDrive.Editor.CanvasTool
 
             if (_manager == null || !_manager.IsOpen(_previewHandle))
             {
-                return;
+                return false;
             }
 
             var elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, elementPath);
             if (elementTarget == null)
             {
-                _statusLabel.text = $"{phase}: 要素が見つかりません({(string.IsNullOrEmpty(elementPath) ? "(ルート)" : elementPath)})";
-                return;
+                _statusLabel.text = $"{phase}: 要素が見つかりません({(string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath)})";
+                return false;
             }
 
             StopPhasePreview(elementPath, phase);
+            // (レビュー対応 2026-09-14) 同じ要素で UiManager 自身の ElementFx(開いた直後の Appear や自動の Idle ループ)が
+            // 走っていると同じプロパティを取り合うため、この要素の Tween を全て止めてから再生する
+            // (_tweenManager はこのウィンドウ専用のプレビュー用インスタンスなので、止めてよいのはプレビューの Tween だけ)。
+            _tweenManager.StopAll(elementTarget);
 
             Handle<UiTweenMarker> handle;
             if (id.IsValid)
@@ -619,7 +727,7 @@ namespace DDrive.Editor.CanvasTool
                 var tween = FindUiTweenData(id.Value);
                 if (tween == null)
                 {
-                    return;
+                    return false;
                 }
 
                 handle = _tweenManager.PlayData(tween, elementTarget);
@@ -629,17 +737,18 @@ namespace DDrive.Editor.CanvasTool
                 var count = UiPresetFactory.Build(in preset, elementTarget, _presetPlayScratch);
                 if (count <= 0)
                 {
-                    return;
+                    return false;
                 }
 
                 handle = _tweenManager.PlayTracks(_presetPlayScratch, count, elementTarget);
             }
             else
             {
-                return;
+                return false;
             }
 
             _phasePreviewHandles[(elementPath, phase)] = handle;
+            return true;
         }
 
         private void TogglePausePhasePreview(string elementPath, string phase)
@@ -676,7 +785,16 @@ namespace DDrive.Editor.CanvasTool
                 PlacePreview();
             }
 
+            // (レビュー対応 2026-09-14) 開けなかったときに要素ごとに PlacePreview(RemovePreview/OpenData)を繰り返していた。
+            // 1 回で打ち切る。
+            if (_manager == null || !_manager.IsOpen(_previewHandle))
+            {
+                _statusLabel.text = $"{phase}: プレビューを開けませんでした";
+                return;
+            }
+
             var played = 0;
+            var assigned = 0;
             foreach (var fx in _target.ElementEffects)
             {
                 var (preset, id) = GetPhaseValue(fx, phase);
@@ -685,11 +803,18 @@ namespace DDrive.Editor.CanvasTool
                     continue;
                 }
 
-                PlayPhasePreview(fx.ElementPath, phase, preset, id);
-                played++;
+                assigned++;
+                if (PlayPhasePreview(fx.ElementPath, phase, preset, id))
+                {
+                    played++;
+                }
             }
 
-            _statusLabel.text = played > 0 ? $"{phase} を {played} 件まとめて再生しました" : $"{phase} が割り当てられた要素がありません";
+            _statusLabel.text = assigned == 0
+                ? $"{phase} が割り当てられた要素がありません"
+                : played == assigned
+                    ? $"{phase} を {played} 件まとめて再生しました"
+                    : $"{phase} を {played} / {assigned} 件再生しました(要素または Tween が見つからない行はスキップ)";
         }
 
         private static (UiPresetRef preset, AssetId<UiTweenMarker> id) GetPhaseValue(ElementFx fx, string phase) => phase switch
@@ -746,23 +871,31 @@ namespace DDrive.Editor.CanvasTool
             }
         }
 
-        private static UiTweenData FindUiTweenData(ulong id)
+        // (レビュー対応 2026-09-14) キャッシュ(_tweenLookup)に生きた一致があればそれを返し、無ければ 1 回だけ全走査して
+        // 作り直す(アセットの削除・Id の変更は「キャッシュの値が null / Id 不一致」で検出される)。
+        private UiTweenData FindUiTweenData(ulong id)
         {
             if (id == 0)
             {
                 return null;
             }
 
+            if (_tweenLookup.TryGetValue(id, out var cached) && cached != null && cached.Id == id)
+            {
+                return cached;
+            }
+
+            _tweenLookup.Clear();
             foreach (var guid in AssetSearch.FindAssets("t:" + nameof(UiTweenData)))
             {
                 var asset = AssetDatabase.LoadAssetAtPath<UiTweenData>(AssetDatabase.GUIDToAssetPath(guid));
-                if (asset != null && asset.Id == id)
+                if (asset != null && asset.Id != 0)
                 {
-                    return asset;
+                    _tweenLookup.TryAdd(asset.Id, asset); // 同じ Id が複数あるときは従来どおり最初に見つかったもの
                 }
             }
 
-            return null;
+            return _tweenLookup.TryGetValue(id, out cached) ? cached : null;
         }
 
         // 4-10:「この要素の設定を他の要素へコピー」。実体は CanvasElementFxCollector.CopyPhases(配列操作のみ切り出し済み)。
@@ -931,7 +1064,7 @@ namespace DDrive.Editor.CanvasTool
             _unreachableContainer.Add(new HelpBox($"到達不能な要素が {unreachable.Count} 件あります(赤枠のノード):", HelpBoxMessageType.Warning));
             foreach (var path in unreachable)
             {
-                _unreachableContainer.Add(new Label("・" + (string.IsNullOrEmpty(path) ? "(ルート)" : path)));
+                _unreachableContainer.Add(new Label("・" + (string.IsNullOrEmpty(path) ? RootElementLabel : path)));
             }
         }
 
@@ -966,7 +1099,7 @@ namespace DDrive.Editor.CanvasTool
             _unreachableContainer.Add(new HelpBox($"未配線(Automatic のまま)の要素が {unlinked.Count} 件あります。Unity の自動ナビゲーションのまま動作します:", HelpBoxMessageType.Info));
             foreach (var path in unlinked)
             {
-                _unreachableContainer.Add(new Label("・" + (string.IsNullOrEmpty(path) ? "(ルート)" : path)));
+                _unreachableContainer.Add(new Label("・" + (string.IsNullOrEmpty(path) ? RootElementLabel : path)));
             }
         }
 
@@ -1035,22 +1168,7 @@ namespace DDrive.Editor.CanvasTool
                 return _simFocusPath;
             }
 
-            var root = rootGo.transform;
-            if (target == root)
-            {
-                return string.Empty;
-            }
-
-            var names = new List<string>();
-            var cur = target;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            return string.Join("/", names);
+            return TransformPath.GetRelative(rootGo.transform, target); // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
         }
 
         private void UpdateFocusLabel()
@@ -1072,16 +1190,28 @@ namespace DDrive.Editor.CanvasTool
                 return;
             }
 
-            _previewRoot = new GameObject("[D-Drive] Canvas Preview") { hideFlags = HideFlags.DontSave };
+            _previewRoot = EditorPreviewRoots.CreateRoot(PreviewRootName); // DontSave(レビュー対応 2026-09-14)
             StageUtility.PlaceGameObjectInCurrentStage(_previewRoot);
             _pool.SetInstanceParent(_previewRoot.transform);
         }
 
         // 2026-09-12: 「確認用シーンを開く」ボタンの実体。専用シーンへの切り替えと配置を 1 手で行う
         // (切り替えた直後に必ず置きたいだけなので、2 ボタンに分ける意味が無かった)。
+        // (レビュー対応 2026-09-14) 表示中に押すと、シーンの読み直しで実体だけが消え UiManager の _stack / _instances に
+        // 古い CanvasInstance が残っていた。先に RemovePreview で Manager 側を片付ける。また既に確認用シーンを
+        // 開いているときはシーンを開き直さない(保存確認ダイアログや読み直しが無駄なため。表示だけやり直す)。
         private void OpenPreviewSceneAndPlace()
         {
-            if (CanvasPreviewSceneSetup.OpenOrCreate())
+            RemovePreview();
+
+            var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            if (active.IsValid() && active.path == CanvasPreviewSceneSetup.ScenePath)
+            {
+                PlacePreview();
+                return;
+            }
+
+            if (CanvasPreviewSceneSetup.TryOpenOrCreate())
             {
                 PlacePreview();
             }
@@ -1111,8 +1241,13 @@ namespace DDrive.Editor.CanvasTool
                 // パッド操作シミュレーション/ノードグラフ/ElementFx 割当がすぐ使えるよう、プレビューを開いたら
                 // Selectable と要素(Image/UiButton/パネル)を両方自動収集する(どちらも既存の行を保持する
                 // CollectMerged 経由なので、何度押しても安全)。
-                CollectSelectables();
-                CollectElementFx();
+                // (レビュー対応 2026-09-14) 差分が無ければ書き込まない(Undo を積まない・Dirty にしない)。
+                var changed = CollectSelectables();
+                changed |= CollectElementFx();
+                if (!changed)
+                {
+                    _statusLabel.text = "プレビュー表示中";
+                }
             }
 
             SceneView.RepaintAll();
@@ -1120,10 +1255,24 @@ namespace DDrive.Editor.CanvasTool
 
         private void RemovePreview()
         {
-            if (_manager != null && _manager.IsOpen(_previewHandle))
+            // (レビュー対応 2026-09-14) 以前は _phasePreviewHandles をクリアするだけで止めていなかった。Canvas 実体は
+            // UI Root のレイヤー下に残り、プールに戻っても SetActive(false) されるだけなので、Idle ループ等が非表示の
+            // 要素上で走り続け、開き直した後の Appear とぶつかっていた。
+            // 1) 行ごとの直接再生を止める → 2) UiManager.StopAll(自身の ElementFx は Appear を終端値で完了させて閉じる)
+            // → 3) 残りをこのウィンドウ専用の _tweenManager ごと止める、の順(2 を先にすると行の再生の途中値が残るため)。
+            if (_tweenManager != null)
             {
-                _manager.StopAll(DDrive.Foundation.Manager.StopReason.Manual);
+                foreach (var handle in _phasePreviewHandles.Values)
+                {
+                    _tweenManager.Stop(handle);
+                }
             }
+
+            _phasePreviewHandles.Clear();
+
+            // 実体を失った(シーン切り替え等)インスタンスも片付けるため、IsOpen に関係なく呼ぶ(開いていなければ no-op)。
+            _manager?.StopAll(DDrive.Foundation.Manager.StopReason.Manual);
+            _tweenManager?.StopAll(DDrive.Foundation.Manager.StopReason.Manual);
 
             _previewHandle = Handle<CanvasMarker>.Invalid;
 
@@ -1133,7 +1282,6 @@ namespace DDrive.Editor.CanvasTool
             }
 
             _previewRoot = null;
-            _phasePreviewHandles.Clear();
 
             if (_statusLabel != null && _target != null)
             {

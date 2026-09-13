@@ -26,7 +26,8 @@ namespace DDrive.Editor.Ui
         private const string PreviewRootName = "[D-Drive] UI Tween Preview";
         private const int SplinePreviewSamples = 32;
         private const string NoElementChoice = "(なし)";
-        private const string RootElementLabel = "(ルート)";
+        // Canvas Editor / Preset Gallery と共有する(レビュー対応 2026-09-14。"(ルート)" の直書きが各所に散っていた)。
+        internal const string RootElementLabel = "(ルート)";
 
         [SerializeField] private UiTweenData _target;
         [SerializeField] private string _presetSelection;
@@ -60,6 +61,29 @@ namespace DDrive.Editor.Ui
         [SerializeField] private RectTransform _previewTarget;
         private DDrive.Foundation.Handle.Handle<UiTweenMarker> _previewHandle;
         private double _lastEditorTime;
+
+        // (レビュー対応 2026-09-14) 「▶ 再生」は収集元から選んだユーザーの実オブジェクトを直接動かすのに、Undo も
+        // 復元も無かった(UiTweenManager が CanvasGroup を AddComponent することもある)。UiPresetGalleryWindow と同じく
+        // 再生前の状態を保存し、停止・完了・対象の切り替え・ウィンドウを閉じるときに必ず戻す。元々無かった CanvasGroup は
+        // 取り除く(差し引きでシーンに変更が残らないので Undo には積まない)。
+        private RectTransform _snapTarget;
+        private Vector2 _snapAnchoredPosition;
+        private Vector2 _snapSizeDelta;
+        private Vector3 _snapLocalScale;
+        private Vector3 _snapLocalEuler;
+        private bool _snapHadCanvasGroup;
+        private float _snapAlpha;
+        private UnityEngine.UI.Graphic _snapGraphic;
+        private Color _snapColor;
+        private UnityEngine.UI.Image _snapImage;
+        private float _snapFillAmount;
+        // 「再生中 → 終了」の変化を 1 回だけ拾うため(以前は終了後も毎フレーム「完了」を書き込んでいた。レビュー対応 2026-09-14)。
+        private bool _wasPlaying;
+
+        // DrawCurvePreview の作業バッファ(描画のたびに 2 配列を確保していた。レビュー対応 2026-09-14)。
+        private const int CurvePreviewSamples = 64;
+        private static readonly float[] CurveRawBuffer = new float[CurvePreviewSamples];
+        private static readonly Vector3[] CurvePointBuffer = new Vector3[CurvePreviewSamples];
 
         [MenuItem(DDriveMenu.Editors + "UI Tween")]
         public static void OpenFromMenu() => Open(Selection.activeObject as UiTweenData);
@@ -96,6 +120,11 @@ namespace DDrive.Editor.Ui
             if (assignedElement != null)
             {
                 var label = string.IsNullOrEmpty(assignedElementLabel) ? RootElementLabel : assignedElementLabel;
+                if (window._previewTarget != assignedElement)
+                {
+                    window.Stop(); // 前の対象で再生中なら止めて元に戻してから切り替える(レビュー対応 2026-09-14)
+                }
+
                 window._previewTarget = assignedElement;
                 window._selectedElementLabel = label;
                 window._elementDropdown?.SetValueWithoutNotify(label);
@@ -113,9 +142,23 @@ namespace DDrive.Editor.Ui
             // 解除は OnDestroy でしか行っていなかったため、購読が重複する余地があった。
             // OnEnable/OnDisable(必ず対になる)へ移す。
             EditorApplication.update += OnEditorUpdate;
+            Undo.undoRedoPerformed += OnUndoRedoPerformed;
 
             // 前回閉じ損ねた・ドメインリロードで参照を失った仮画像の残骸を消す(2026-09-14)。
             DDrive.Editor.Preview.EditorPreviewRoots.DestroyAll(PreviewRootName);
+        }
+
+        // (レビュー対応 2026-09-14) Undo/Redo を購読していなかったため、Track の追加・削除を Undo すると一覧が古いまま残り、
+        // 選択中 Track の PropertyField が存在しない Tracks.Array.data[i] にバインドされたままになっていた。
+        private void OnUndoRedoPerformed()
+        {
+            if (_target == null)
+            {
+                return;
+            }
+
+            RebuildAll(); // RebuildTrackList が _selectedTrackIndex を範囲内に丸める
+            SceneView.RepaintAll();
         }
 
         private void OnFocus()
@@ -131,6 +174,7 @@ namespace DDrive.Editor.Ui
             SceneView.duringSceneGui -= OnSceneGui;
             SceneGuiOwner.Release(this);
             EditorApplication.update -= OnEditorUpdate;
+            Undo.undoRedoPerformed -= OnUndoRedoPerformed;
 
             // 閉じる / ドメインリロードの前に自分の仮画像を片付ける(参照を失うと残骸になるため。2026-09-14)。
             // 収集・自動割り当てで指している「よその実要素」は所有していないので触らない(RemoveFromScene の仕様)。
@@ -364,9 +408,9 @@ namespace DDrive.Editor.Ui
         {
             EditorGUI.DrawRect(rect, new Color(0.12f, 0.12f, 0.12f));
 
-            const int samples = 64;
+            const int samples = CurvePreviewSamples;
             var motion = track.Motion;
-            var raw = new float[samples];
+            var raw = CurveRawBuffer; // 使い回し(レビュー対応 2026-09-14)
             var min = float.MaxValue;
             var max = float.MinValue;
             for (var i = 0; i < samples; i++)
@@ -384,7 +428,7 @@ namespace DDrive.Editor.Ui
                 max += 0.5f;
             }
 
-            var points = new Vector3[samples];
+            var points = CurvePointBuffer; // 使い回し(レビュー対応 2026-09-14)
             for (var i = 0; i < samples; i++)
             {
                 var t = i / (float)(samples - 1);
@@ -620,53 +664,17 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            _presetSelection = _presetDropdown.value;
-
-            foreach (var (label, tween) in _catalogChoices)
-            {
-                if (label != _presetSelection)
-                {
-                    continue;
-                }
-
-                if (tween == null || tween.Tracks == null)
-                {
-                    _statusLabel.text = "カタログの Tween に Tracks がありません";
-                    return;
-                }
-
-                Undo.RecordObject(_target, "UiTweenData: カタログから Tracks をコピー");
-                var copy = new TweenTrack[tween.Tracks.Length];
-                System.Array.Copy(tween.Tracks, copy, copy.Length);
-                _target.Tracks = copy;
-                EditorUtility.SetDirty(_target);
-                _statusLabel.text = $"カタログ '{label}' から Tracks を生成しました";
-                RebuildAll();
-                return;
-            }
-
-            if (!System.Enum.TryParse<UiPreset>(_presetSelection, out var preset))
+            if (!TryResolveSelectionTracks(out var source, out var sourceLabel))
             {
                 return;
             }
 
-            var target = _previewTarget != null ? _previewTarget : CreateScratchRect();
-            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
-            var refValue = new UiPresetRef { Preset = preset };
-            var count = UiPresetFactory.Build(in refValue, target, buffer);
-
-            Undo.RecordObject(_target, "UiTweenData: プリセットから Tracks を生成");
-            var tracks = new TweenTrack[count];
-            System.Array.Copy(buffer, tracks, count);
-            _target.Tracks = tracks;
+            Undo.RecordObject(_target, "UiTweenData: プリセット / カタログから Tracks を生成");
+            var copy = new TweenTrack[source.Length];
+            System.Array.Copy(source, copy, copy.Length);
+            _target.Tracks = copy;
             EditorUtility.SetDirty(_target);
-
-            if (target != _previewTarget)
-            {
-                Object.DestroyImmediate(target.gameObject);
-            }
-
-            _statusLabel.text = $"プリセット '{preset}' から Tracks を生成しました";
+            _statusLabel.text = $"{sourceLabel} から Tracks を生成しました";
             RebuildAll();
         }
 
@@ -680,7 +688,6 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            _presetSelection = _presetDropdown.value;
             var existing = _target.Tracks ?? System.Array.Empty<TweenTrack>();
             var room = UiTweenManager.MaxTracksPerTween - existing.Length;
             if (room <= 0)
@@ -688,6 +695,33 @@ namespace DDrive.Editor.Ui
                 _statusLabel.text = $"Track が上限({UiTweenManager.MaxTracksPerTween} 本)に達しているため追加できません";
                 return;
             }
+
+            if (!TryResolveSelectionTracks(out var source, out var sourceLabel))
+            {
+                return;
+            }
+
+            var addCount = Mathf.Min(room, source.Length);
+            Undo.RecordObject(_target, "UiTweenData: プリセット / カタログの Track を追加");
+            var merged = new TweenTrack[existing.Length + addCount];
+            System.Array.Copy(existing, merged, existing.Length);
+            System.Array.Copy(source, 0, merged, existing.Length, addCount);
+            _target.Tracks = merged;
+            EditorUtility.SetDirty(_target);
+            _selectedTrackIndex = merged.Length - 1;
+            _statusLabel.text = addCount < source.Length
+                ? $"{sourceLabel} から Track を {addCount} 本追加しました(上限のため一部省略)"
+                : $"{sourceLabel} から Track を {addCount} 本追加しました";
+            RebuildAll();
+        }
+
+        // (レビュー対応 2026-09-14) Generate / Append で重複していた「ドロップダウンの選択(カタログ or 組み込みプリセット)
+        // → Track 列」の解決を共通化。カタログの場合は元の配列をそのまま返す(呼び出し側がコピーする)。
+        private bool TryResolveSelectionTracks(out TweenTrack[] tracks, out string sourceLabel)
+        {
+            tracks = null;
+            sourceLabel = null;
+            _presetSelection = _presetDropdown.value;
 
             foreach (var (label, tween) in _catalogChoices)
             {
@@ -699,52 +733,33 @@ namespace DDrive.Editor.Ui
                 if (tween == null || tween.Tracks == null || tween.Tracks.Length == 0)
                 {
                     _statusLabel.text = "カタログの Tween に Tracks がありません";
-                    return;
+                    return false;
                 }
 
-                var addCount = Mathf.Min(room, tween.Tracks.Length);
-                Undo.RecordObject(_target, "UiTweenData: カタログの Tracks を追加");
-                var merged = new TweenTrack[existing.Length + addCount];
-                System.Array.Copy(existing, merged, existing.Length);
-                System.Array.Copy(tween.Tracks, 0, merged, existing.Length, addCount);
-                _target.Tracks = merged;
-                EditorUtility.SetDirty(_target);
-                _selectedTrackIndex = merged.Length - 1;
-                _statusLabel.text = addCount < tween.Tracks.Length
-                    ? $"カタログ '{label}' から Track を {addCount} 本追加しました(上限のため一部省略)"
-                    : $"カタログ '{label}' から Track を {addCount} 本追加しました";
-                RebuildAll();
-                return;
+                tracks = tween.Tracks;
+                sourceLabel = $"カタログ '{label}'";
+                return true;
             }
 
             if (!System.Enum.TryParse<UiPreset>(_presetSelection, out var preset))
             {
-                return;
+                return false;
             }
 
             var target = _previewTarget != null ? _previewTarget : CreateScratchRect();
             var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
             var refValue = new UiPresetRef { Preset = preset };
-            var generated = UiPresetFactory.Build(in refValue, target, buffer);
-            var toAdd = Mathf.Min(room, generated);
-
-            Undo.RecordObject(_target, "UiTweenData: プリセットの Track を追加");
-            var result = new TweenTrack[existing.Length + toAdd];
-            System.Array.Copy(existing, result, existing.Length);
-            System.Array.Copy(buffer, 0, result, existing.Length, toAdd);
-            _target.Tracks = result;
-            EditorUtility.SetDirty(_target);
+            var count = UiPresetFactory.Build(in refValue, target, buffer);
 
             if (target != _previewTarget)
             {
                 Object.DestroyImmediate(target.gameObject);
             }
 
-            _selectedTrackIndex = result.Length - 1;
-            _statusLabel.text = toAdd < generated
-                ? $"プリセット '{preset}' から Track を {toAdd} 本追加しました(上限のため一部省略)"
-                : $"プリセット '{preset}' から Track を {toAdd} 本追加しました";
-            RebuildAll();
+            tracks = new TweenTrack[count];
+            System.Array.Copy(buffer, tracks, count);
+            sourceLabel = $"プリセット '{preset}'";
+            return true;
         }
 
         private void RemoveSelectedTrack()
@@ -791,8 +806,13 @@ namespace DDrive.Editor.Ui
 
             if (_collectRoot != null)
             {
+                // (レビュー対応 2026-09-14) 同名の兄弟があると同じラベルになり、どれを選んでも最初の要素になっていた。
+                // 2 つ目以降に " #2" のような番号を付けてラベルを一意にする(選択はラベルで引くため)。
+                var usedLabels = new HashSet<string>(System.StringComparer.Ordinal) { NoElementChoice };
+
                 if (_collectRoot.transform is RectTransform rootRect)
                 {
+                    usedLabels.Add(RootElementLabel);
                     _elementChoices.Add((RootElementLabel, rootRect));
                     choices.Add(RootElementLabel);
                 }
@@ -804,9 +824,15 @@ namespace DDrive.Editor.Ui
                         continue;
                     }
 
-                    var path = GetRelativePath(_collectRoot.transform, rect.transform);
-                    _elementChoices.Add((path, rect));
-                    choices.Add(path);
+                    var path = TransformPath.GetRelative(_collectRoot.transform, rect.transform); // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
+                    var label = path;
+                    for (var n = 2; !usedLabels.Add(label); n++)
+                    {
+                        label = $"{path} #{n}";
+                    }
+
+                    _elementChoices.Add((label, rect));
+                    choices.Add(label);
                 }
             }
 
@@ -845,22 +871,13 @@ namespace DDrive.Editor.Ui
             var match = _elementChoices.Find(c => c.label == label);
             if (match.rt != null)
             {
+                if (match.rt != _previewTarget)
+                {
+                    Stop(); // 前の対象で再生中なら止めて元に戻してから切り替える(レビュー対応 2026-09-14)
+                }
+
                 _previewTarget = match.rt;
             }
-        }
-
-        private static string GetRelativePath(Transform root, Transform target)
-        {
-            var names = new List<string>();
-            var cur = target;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            return string.Join("/", names);
         }
 
         // ── 確認用シーンプレビュー(4-8。ADR-4: 実 UiTweenManager を EditorApplication.update から駆動) ──
@@ -918,18 +935,43 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
+            // (レビュー対応 2026-09-14) 収集元の ObjectField は Prefab アセットも受け付けるため、アセットを直接書き換えないよう弾く。
+            if (EditorUtility.IsPersistent(_previewTarget.gameObject))
+            {
+                _statusLabel.text = "Prefab アセットは再生対象にできません(シーン上のオブジェクトを指定してください)";
+                return;
+            }
+
+            // (レビュー対応 2026-09-14) ▶ の連打で前の Handle を止めずに上書きしていたため、ループが止められなくなっていた。
+            // 前の再生を止めて元に戻してから始める。
+            Stop();
+
             _previewManager ??= new UiTweenManager(EditorAnchorRegistryFallback());
+            TakeSnapshot(_previewTarget);
             _previewHandle = _previewManager.PlayData(_target, _previewTarget);
             _lastEditorTime = EditorApplication.timeSinceStartup;
+            _wasPlaying = _previewManager.IsPlaying(_previewHandle);
+            if (!_wasPlaying)
+            {
+                RestoreSnapshot(); // Tracks 0 本などで即完了した
+                _statusLabel.text = "完了";
+                return;
+            }
+
             _statusLabel.text = "再生中";
         }
 
+        // 途中で止め(最終状態には進めない)、再生前の状態へ戻す(レビュー対応 2026-09-14)。
         private void Stop()
         {
             if (_previewManager != null)
             {
                 _previewManager.Stop(_previewHandle);
             }
+
+            _previewHandle = DDrive.Foundation.Handle.Handle<UiTweenMarker>.Invalid;
+            _wasPlaying = false;
+            RestoreSnapshot();
 
             if (_statusLabel != null)
             {
@@ -939,7 +981,7 @@ namespace DDrive.Editor.Ui
 
         private void OnEditorUpdate()
         {
-            if (_previewManager == null || _previewTarget == null)
+            if (_previewManager == null)
             {
                 return;
             }
@@ -947,12 +989,87 @@ namespace DDrive.Editor.Ui
             var now = EditorApplication.timeSinceStartup;
             var dt = (float)(now - _lastEditorTime);
             _lastEditorTime = now;
+            if (!_wasPlaying)
+            {
+                return;
+            }
+
             _previewManager.Tick(dt);
 
-            if (_statusLabel != null && !_previewManager.IsPlaying(_previewHandle))
+            // 「再生中 → 終了」に変わった 1 回だけ、元の状態へ戻してステータスを書く(レビュー対応 2026-09-14)。
+            if (!_previewManager.IsPlaying(_previewHandle))
             {
-                _statusLabel.text = "完了";
+                _wasPlaying = false;
+                RestoreSnapshot();
+                if (_statusLabel != null)
+                {
+                    _statusLabel.text = "完了(再生前の状態に戻しました)";
+                }
             }
+        }
+
+        // UiTweenManager.ApplyTrack が書き込み得る値(位置・サイズ・スケール・回転・CanvasGroup.alpha・Graphic.color・
+        // Image.fillAmount)を保存する(レビュー対応 2026-09-14)。
+        private void TakeSnapshot(RectTransform target)
+        {
+            _snapTarget = target;
+            _snapAnchoredPosition = target.anchoredPosition;
+            _snapSizeDelta = target.sizeDelta;
+            _snapLocalScale = target.localScale;
+            _snapLocalEuler = target.localEulerAngles;
+
+            var group = target.GetComponent<CanvasGroup>();
+            _snapHadCanvasGroup = group != null;
+            _snapAlpha = group != null ? group.alpha : 1f;
+
+            _snapGraphic = target.GetComponent<UnityEngine.UI.Graphic>();
+            _snapColor = _snapGraphic != null ? _snapGraphic.color : Color.white;
+            _snapImage = target.GetComponent<UnityEngine.UI.Image>();
+            _snapFillAmount = _snapImage != null ? _snapImage.fillAmount : 1f;
+        }
+
+        // 保存が無い / 対象が既に破棄されている場合は何もしない。1 回戻したら保存は捨てる(二重に戻さない)。
+        private void RestoreSnapshot()
+        {
+            var target = _snapTarget;
+            _snapTarget = null;
+            if (target == null)
+            {
+                _snapGraphic = null;
+                _snapImage = null;
+                return;
+            }
+
+            target.anchoredPosition = _snapAnchoredPosition;
+            target.sizeDelta = _snapSizeDelta;
+            target.localScale = _snapLocalScale;
+            target.localEulerAngles = _snapLocalEuler;
+
+            var group = target.GetComponent<CanvasGroup>();
+            if (group != null)
+            {
+                if (_snapHadCanvasGroup)
+                {
+                    group.alpha = _snapAlpha;
+                }
+                else
+                {
+                    Object.DestroyImmediate(group); // UiTweenManager が Alpha Track のために追加したもの
+                }
+            }
+
+            if (_snapGraphic != null)
+            {
+                _snapGraphic.color = _snapColor;
+            }
+
+            if (_snapImage != null)
+            {
+                _snapImage.fillAmount = _snapFillAmount;
+            }
+
+            _snapGraphic = null;
+            _snapImage = null;
         }
 
         // UiTweenData は AssetId を引かないため、プレビュー用 Registry は Placeholder 解決さえできれば十分。

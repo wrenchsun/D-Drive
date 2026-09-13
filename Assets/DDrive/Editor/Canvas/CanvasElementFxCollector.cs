@@ -124,23 +124,7 @@ namespace DDrive.Editor.CanvasTool
             return result;
         }
 
-        private static string GetPath(Transform root, Transform target)
-        {
-            if (target == root)
-            {
-                return string.Empty;
-            }
-
-            var names = new List<string>();
-            var cur = target;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            return string.Join("/", names);
-        }
+        // 共通ヘルパー TransformPath.GetRelative へ集約(レビュー対応 2026-09-14)。
+        private static string GetPath(Transform root, Transform target) => TransformPath.GetRelative(root, target);
     }
 }

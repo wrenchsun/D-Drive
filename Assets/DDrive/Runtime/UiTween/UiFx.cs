@@ -14,11 +14,6 @@ namespace DDrive.Runtime.Ui
     {
         private static UiTweenManager _instance;
 
-        // Codex レビュー対応(2026-09-11): Play のたびに new TweenTrack[MaxTracksPerTween] していた
-        // (定常経路での alloc、[12_review.md] §3)。PlayTracks が OwnedTracks へコピーするため、
-        // このスクラッチは呼び出しをまたいで使い回せる(この Play 呼び出し内でしか参照しない)。
-        private static readonly TweenTrack[] Scratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
-
         public static void Bind(UiTweenManager instance) => _instance = instance;
 
         public static bool IsBound => _instance != null;
@@ -31,27 +26,17 @@ namespace DDrive.Runtime.Ui
         public static Handle<UiTweenMarker> PlayData(UiTweenData data, RectTransform target)
             => _instance?.PlayData(data, target) ?? Handle<UiTweenMarker>.Invalid;
 
+        // 展開と再生は UiTweenManager.PlayPreset(UiManager の ElementFx と共通。docs/24 整理項目 1)。
         public static Handle<UiTweenMarker> Play(UiPreset preset, RectTransform target, in UiPresetRef p = default)
         {
-            if (_instance == null || target == null || preset == UiPreset.None)
+            if (_instance == null)
             {
                 return Handle<UiTweenMarker>.Invalid;
             }
 
             var actual = p;
             actual.Preset = preset;
-            var count = UiPresetFactory.Build(in actual, target, Scratch);
-            if (count <= 0)
-            {
-                return Handle<UiTweenMarker>.Invalid;
-            }
-
-            if (actual.Se.IsValid)
-            {
-                Audio.Audio.PlaySe(actual.Se);
-            }
-
-            return _instance.PlayTracks(Scratch, count, target);
+            return _instance.PlayPreset(in actual, target);
         }
 
         public static Handle<UiTweenMarker> Appear(RectTransform t) => FadeIn(t);
@@ -167,6 +152,7 @@ namespace DDrive.Runtime.Ui
         private struct Step
         {
             public Handle<UiTweenMarker> Handle;
+            public Func<Handle<UiTweenMarker>> Start;
             public float IntervalSec;
             public bool IsInterval;
             public bool Join;
@@ -177,9 +163,18 @@ namespace DDrive.Runtime.Ui
 
         internal TweenSequence(UiTweenManager manager) => _manager = manager;
 
+        // 開始済みの Handle を渡す版。再生は渡した時点で始まっているため、順番になるのは「完了の待ち合わせ」だけ
+        // (見た目は同時に動く)。区間ごとに順番に再生したいときは Func 版を使う(docs/24 整理項目 4、2026-09-14)。
         public TweenSequence Append(Handle<UiTweenMarker> handle)
         {
             _steps.Add(new Step { Handle = handle });
+            return this;
+        }
+
+        // 前の区間が終わってから start を呼んで再生を始める(本当の順番再生)。例: .Append(() => UiFx.FadeIn(a)).Append(() => UiFx.PopIn(b))
+        public TweenSequence Append(Func<Handle<UiTweenMarker>> start)
+        {
+            _steps.Add(new Step { Start = start });
             return this;
         }
 
@@ -189,6 +184,15 @@ namespace DDrive.Runtime.Ui
             _steps.Add(new Step { Handle = handle, Join = true });
             return this;
         }
+
+        // 直前の区間が始まるときに一緒に start を呼ぶ(Func 版 Append と組み合わせて使う)。
+        public TweenSequence Join(Func<Handle<UiTweenMarker>> start)
+        {
+            _steps.Add(new Step { Start = start, Join = true });
+            return this;
+        }
+
+        private static Handle<UiTweenMarker> Begin(in Step step) => step.Start != null ? step.Start() : step.Handle;
 
         public TweenSequence AppendInterval(float sec)
         {
@@ -212,13 +216,13 @@ namespace DDrive.Runtime.Ui
 
                 if (step.Join && parallel.Count > 0)
                 {
-                    parallel.Add(step.Handle);
+                    parallel.Add(Begin(in step));
                 }
                 else
                 {
                     await AwaitParallel(parallel);
                     parallel.Clear();
-                    parallel.Add(step.Handle);
+                    parallel.Add(Begin(in step));
                 }
             }
 

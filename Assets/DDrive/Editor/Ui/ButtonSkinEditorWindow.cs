@@ -41,7 +41,12 @@ namespace DDrive.Editor.Ui
         // (以前は閉じてもシーンに残っていた。2026-09-14 ユーザー報告)。
         private void OnEnable() => DDrive.Editor.Preview.EditorPreviewRoots.DestroyAll(PreviewCanvasName);
 
-        private void OnDisable() => RemoveFromScene();
+        // (レビュー対応 2026-09-14) 試聴用の PreviewService も必ず閉じる(DetachFromPanelEvent 頼みだとドメインリロードで漏れる)。
+        private void OnDisable()
+        {
+            _settings?.Dispose();
+            RemoveFromScene();
+        }
 
         private void CreateGUI()
         {
@@ -80,7 +85,10 @@ namespace DDrive.Editor.Ui
             _target = target;
             _targetField?.SetValueWithoutNotify(_target);
             _settings?.SetSkin(_target);
-            if (_previewButton != null && _target != null)
+
+            // (レビュー対応 2026-09-14) Skin を外したときも SetVisual(null) で差し替え前の見た目に戻す
+            // (以前は null のとき呼ばず、古い Skin の見た目のまま残っていた)。
+            if (_previewButton != null)
             {
                 _previewButton.SetVisual(_target);
             }
@@ -142,23 +150,26 @@ namespace DDrive.Editor.Ui
 
             RemoveFromScene();
 
-            var canvasGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateRoot(PreviewCanvasName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            // (レビュー対応 2026-09-14) 子も DontSave で作る(以前は子が HideFlags.None で、プレビューを置いたまま
+            // シーンを保存すると PreviewButton だけ親無しで保存されていた)。
+            var canvasGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateOverlayCanvas(PreviewCanvasName);
 
-            var buttonGo = new GameObject("PreviewButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UiButton));
-            buttonGo.transform.SetParent(canvasGo.transform, false);
+            var buttonGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateChild(canvasGo.transform, "PreviewButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UiButton));
             ((RectTransform)buttonGo.transform).sizeDelta = new Vector2(200f, 60f);
 
             var button = buttonGo.GetComponent<UiButton>();
             button.TargetGraphic = buttonGo.GetComponent<UnityEngine.UI.Image>();
             button.SetVisual(_target);
             _previewButton = button;
+            DDrive.Editor.Preview.EditorPreviewRoots.MarkDontSaveRecursive(canvasGo);
 
             Selection.activeGameObject = buttonGo;
         }
 
         private void RemoveFromScene()
         {
+            // (レビュー対応 2026-09-14) 遷移の自動再生・演出・SE も止める(止めないと次の段がプレビューを置き直していた)。
+            _settings?.StopAll();
             DDrive.Editor.Preview.EditorPreviewRoots.DestroyAll(PreviewCanvasName);
             _previewButton = null;
         }

@@ -60,7 +60,11 @@ namespace DDrive.Runtime.Ui
         private readonly InstanceStore<UiTweenMarker, TweenInstance> _instances = new();
         private readonly List<Handle<UiTweenMarker>> _active = new();
         private readonly Stack<TweenInstance> _pool = new();
-        private static readonly HashSet<UiTweenData> PlaceholderWarned = new();
+        // 警告済みの Data(インスタンス単位。以前は static で ScriptableObject を保持し続けていた。docs/24 整理項目 6、2026-09-14)。
+        private readonly HashSet<UiTweenData> _placeholderWarned = new();
+
+        // PlayPreset 用。PlayTracks が OwnedTracks へコピーするため、この呼び出し内だけで使い回せる(定常経路で alloc しない)。
+        private static readonly TweenTrack[] PresetScratch = new TweenTrack[MaxTracksPerTween];
 
         public AssetType Type => AssetType.UiTween;
 
@@ -109,7 +113,7 @@ namespace DDrive.Runtime.Ui
             if (data.Tracks == null || data.Tracks.Length == 0)
             {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                if (PlaceholderWarned.Add(data))
+                if (_placeholderWarned.Add(data))
                 {
                     Debug.LogWarning($"[DDrive] UiTweenData '{data.DisplayName}' に Tracks がありません。何もせず即完了します。");
                 }
@@ -133,6 +137,29 @@ namespace DDrive.Runtime.Ui
             }
 
             return handle;
+        }
+
+        // UiPresetRef → TweenTrack[] へ展開して再生する。UiFx.Play と UiManager の ElementFx が同じ手順を別々に持っていた
+        // のを集約した(docs/24 整理項目 1、2026-09-14)。SE があれば同時に鳴らす。
+        public Handle<UiTweenMarker> PlayPreset(in UiPresetRef p, RectTransform target)
+        {
+            if (target == null || p.Preset == UiPreset.None)
+            {
+                return Handle<UiTweenMarker>.Invalid;
+            }
+
+            var count = UiPresetFactory.Build(in p, target, PresetScratch);
+            if (count <= 0)
+            {
+                return Handle<UiTweenMarker>.Invalid;
+            }
+
+            if (p.Se.IsValid)
+            {
+                Audio.Audio.PlaySe(p.Se);
+            }
+
+            return PlayTracks(PresetScratch, count, target);
         }
 
         public Handle<UiTweenMarker> PlayTracks(TweenTrack[] tracks, int count, RectTransform target)
@@ -321,8 +348,8 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        // Handle 単位の一時停止(AnimManager.SetPaused と同じ設計。エディタのプレビュー用で
-        // Data.Flags.Pause(PauseWithGame、OnPause 経路)とは独立に効く)。
+        // Handle 単位の一時停止(AnimManager.SetPaused と同じ設計。エディタのプレビュー用)。ゲームのポーズ(OnPause)と
+        // 同じ Paused フラグを使うため独立ではない: PauseWithGame の Tween はゲームのポーズ解除でこの一時停止も解ける。
         public void SetPaused(Handle<UiTweenMarker> handle, bool paused)
         {
             if (_instances.TryGet(handle, out var inst))

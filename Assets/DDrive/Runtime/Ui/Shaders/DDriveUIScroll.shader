@@ -84,6 +84,8 @@ Shader "DDrive/UI/Scroll"
             float4 _ClipRect;
             float4 _MainTex_ST;
             float4 _ScrollSpeed;
+            // UiInteractable が配る止まらない時計(秒)。_Time は timeScale=0 のポーズ中に止まるため使わない(2026-09-14)。
+            float _DDriveUiUnscaledTime;
 
             v2f vert(appdata_t v)
             {
@@ -92,7 +94,7 @@ Shader "DDrive/UI/Scroll"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
-                OUT.texcoord = TRANSFORM_TEX(v.texcoord, _MainTex) + frac(_ScrollSpeed.xy * _Time.y);
+                OUT.texcoord = TRANSFORM_TEX(v.texcoord, _MainTex) + frac(_ScrollSpeed.xy * _DDriveUiUnscaledTime);
                 OUT.color = v.color * _Color;
                 return OUT;
             }

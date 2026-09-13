@@ -79,6 +79,47 @@ namespace DDrive.Tests.Runtime
             Assert.IsTrue(button.HasVisualAnimation);
         }
 
+        // レビュー対応(2026-09-14): Skin が外れたら、差し替えた画像を元に戻しアニメも止める(以前は前の Skin のまま動き続けた)。
+        [Test]
+        public void SkinRemoved_RestoresOriginalSprite_AndStopsAnimation()
+        {
+            var button = MakeButton(out var image);
+            var original = MakeSprite("original");
+            image.sprite = original;
+            var skin = Track(ScriptableObject.CreateInstance<ButtonSkinData>());
+            skin.Normal.AnimFrames = new[] { MakeSprite("a"), MakeSprite("b") };
+            skin.Normal.AnimFps = 10f;
+
+            button.SetVisual(skin);
+            Assert.AreNotSame(original, image.sprite);
+
+            button.SetVisual((ButtonSkinData)null);
+
+            Assert.AreSame(original, image.sprite);
+            Assert.IsFalse(button.HasVisualAnimation);
+        }
+
+        // レビュー対応(2026-09-14): スクロール速度を変えるたびにマテリアルが増え続けない(使われなくなった分は破棄)。
+        [Test]
+        public void ScrollMaterial_OldSpeedReleased_WhenSpeedChanges()
+        {
+            var before = UiInteractable.ScrollMaterialCountForTests;
+            var button = MakeButton(out _);
+            var skin = Track(ScriptableObject.CreateInstance<ButtonSkinData>());
+            skin.ScrollMaterial = Track(new Material(Shader.Find("UI/Default")));
+            skin.Normal.ScrollSpeed = new Vector2(1f, 0f);
+
+            button.SetVisual(skin);
+            Assert.AreEqual(before + 1, UiInteractable.ScrollMaterialCountForTests);
+
+            skin.Normal.ScrollSpeed = new Vector2(2f, 0f);
+            button.SetVisual(skin);
+            Assert.AreEqual(before + 1, UiInteractable.ScrollMaterialCountForTests, "前の速度のマテリアルは破棄される");
+
+            button.SetVisual((ButtonSkinData)null);
+            Assert.AreEqual(before, UiInteractable.ScrollMaterialCountForTests);
+        }
+
         [Test]
         public void SpriteAnim_NoLoop_StopsAtLastFrame()
         {

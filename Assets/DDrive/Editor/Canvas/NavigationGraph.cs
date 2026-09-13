@@ -123,7 +123,7 @@ namespace DDrive.Editor.CanvasTool
 
         private static void AddNode(NavigationGraph graph, HashSet<string> seen, Transform root, Transform target, HashSet<string> listed)
         {
-            var path = GetPath(root, target);
+            var path = TransformPath.GetRelative(root, target); // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
             if (!seen.Add(path))
             {
                 return;
@@ -268,25 +268,6 @@ namespace DDrive.Editor.CanvasTool
             SetLink(data, fromPath, NavDirection.Down, string.Empty);
             SetLink(data, fromPath, NavDirection.Left, string.Empty);
             SetLink(data, fromPath, NavDirection.Right, string.Empty);
-        }
-
-        private static string GetPath(Transform root, Transform target)
-        {
-            if (target == root)
-            {
-                return string.Empty;
-            }
-
-            var names = new List<string>();
-            var cur = target;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            return string.Join("/", names);
         }
     }
 }

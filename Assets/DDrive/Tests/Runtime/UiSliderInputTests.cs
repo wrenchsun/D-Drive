@@ -120,6 +120,122 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(0f, handle.localPosition.x, 0.01f, "値 0.5 で溝の中央");
         }
 
+        // 回帰(2026-09-14): スタミナ設定(0〜100 / Step 1 / Notches 4 / Snap 0.03)で、パッドの移動量(既定 0.05)が
+        // 刻みと目盛りの吸い付きで元に戻り、何度押しても「Commit: 100」のまま動かなかった。隣の目盛りへ進む。
+        [Test]
+        public void PadMove_WithStepAndNotches_MovesToNeighbourNotch()
+        {
+            var slider = CreateSlider(out _);
+            slider.SetRange(0f, 100f);
+            slider.Step = 1f;
+            slider.Notches = 4;
+            slider.SnapThreshold = 0.03f;
+            slider.SetValueSilent(100f);
+
+            slider.Move(MoveDirection.Left);
+            Assert.AreEqual(75f, slider.Value, 0.001f);
+            slider.MoveRelease();
+
+            slider.Move(MoveDirection.Left);
+            Assert.AreEqual(50f, slider.Value, 0.001f);
+            slider.MoveRelease();
+
+            slider.Move(MoveDirection.Right);
+            Assert.AreEqual(75f, slider.Value, 0.001f);
+        }
+
+        [Test]
+        public void Wheel_WithNotchSnap_MovesToNeighbourNotch()
+        {
+            var slider = CreateSlider(out _);
+            slider.SetRange(0f, 100f);
+            slider.Step = 1f;
+            slider.Notches = 4;
+            slider.SnapThreshold = 0.03f;
+            slider.SetValueSilent(100f);
+
+            slider.Wheel(-1f);
+
+            Assert.AreEqual(75f, slider.Value, 0.001f);
+        }
+
+        [Test]
+        public void PadMove_SmallerThanStep_StillMovesOneStep()
+        {
+            var slider = CreateSlider(out _);
+            slider.SetRange(0f, 100f);
+            slider.Step = 5f;
+            slider.PadStepAmount = 0.05f;
+            slider.SetValueSilent(50f);
+
+            slider.Move(MoveDirection.Right);
+
+            Assert.AreEqual(55f, slider.Value, 0.001f);
+        }
+
+        // レビュー対応(2026-09-14): 整数のみ(Step=0)でも、移動量 0.05 が四捨五入で元に戻らず 1 ずつ動く。
+        [Test]
+        public void PadMove_WholeNumbersWithoutStep_MovesByOne()
+        {
+            var slider = CreateSlider(out _);
+            slider.SetRange(0f, 10f);
+            slider.WholeNumbers = true;
+            slider.SetValueSilent(5f);
+
+            Assert.IsFalse(slider.Move(MoveDirection.Right), "範囲の途中で端に着いた扱いにしない");
+            Assert.AreEqual(6f, slider.Value, 0.001f);
+        }
+
+        // レビュー対応(2026-09-14): Min > Max でも、▶ で隣の目盛りへ進むとき値が増える方向へ進む(以前は逆に減っていた)。
+        [Test]
+        public void PadMove_ReversedRangeWithNotches_MovesValueUp()
+        {
+            var slider = CreateSlider(out _);
+            slider.Min = 100f;
+            slider.Max = 0f;
+            slider.Step = 1f;
+            slider.Notches = 4;
+            slider.SnapThreshold = 0.03f;
+            slider.SetValueSilent(50f);
+
+            slider.Move(MoveDirection.Right);
+
+            Assert.AreEqual(75f, slider.Value, 0.001f);
+        }
+
+        // レビュー対応(2026-09-14): ドラッグ中・ホバー中に PointerInput を OFF にしても、ドラッグ終了・ホバー解除は届く。
+        [Test]
+        public void PointerInputTurnedOffMidway_EndDragAndExitStillProcessed()
+        {
+            var slider = CreateSlider(out _);
+            var ended = 0;
+            slider.OnDragEnd += () => ended++;
+            var e = new PointerEventData(null);
+
+            slider.OnPointerEnter(e);
+            slider.BeginDragAt(0.3f);
+            slider.PointerInput = false;
+            slider.OnEndDrag(e);
+            slider.OnPointerExit(e);
+
+            Assert.AreEqual(1, ended);
+            Assert.AreEqual(ControlState.Normal, slider.State);
+        }
+
+        // レビュー対応(2026-09-14): つまみに手設定した padding を Skin が消さない(広げ幅は足し算)。
+        [Test]
+        public void HandleHitAreaExpand_AddsToHandSetPadding()
+        {
+            var slider = CreateSlider(out var handleImage);
+            handleImage.raycastPadding = new Vector4(1f, 1f, 1f, 1f);
+            _skin = ScriptableObject.CreateInstance<SliderSkinData>();
+            _skin.HandleHitAreaExpand = new Vector4(1f, 2f, 3f, 4f);
+
+            slider.SetVisual(_skin);
+
+            Assert.AreEqual(new Vector4(0f, -1f, -2f, -3f), handleImage.raycastPadding);
+        }
+
         [Test]
         public void HandleHitAreaExpand_AppliedToHandleGraphic()
         {

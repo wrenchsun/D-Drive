@@ -156,9 +156,9 @@
 - 「確認用シーンで開く」→ パッド ▲▼◀▶ / 決定 でフォーカスが Game ビューと一致すること(EventSystem が無い EditMode ではウィンドウ内のラベルだけ)
 
 ## 4-17 SliderEditor / 4-12 プリセットギャラリー(2026-09-11。EditMode 237 / PlayMode 466 green)
-- Tools > D-Drive > Editors > Slider: 「確認用シーンにサンプルを配置」→ 応答曲線グラフ(Response=InQuad で下側が細かい)、ノッチ可視化、◀▶ / ドラッグ模擬で Game ビューのスライダーが動き Notch / Limit の SE が鳴ること、「2 体目を配置して FollowMotion を比較」、「全状態を並べる」で 6 状態の Skin
+- Tools > D-Drive > Editors > Slider(2026-09-14 手順を具体化): Slider Skin の Inspector の「Slider Editor で開く」で開く(Skin 付きのサンプルが確認用シーンに置かれる。メニューの「確認用シーンにサンプルを配置」だと Skin 無し)→ ①プリセット「音量」を押すと応答曲線グラフの水色線が対角線より下にたわむ(InQuad = つまみの左側で細かい)②「スタミナ」を押すとノッチの帯に白線 5 本 + 黄色の吸着幅 ③「◀」「▶」「ドラッグ模擬: 0 → 1」で Game ビューのスライダーが動き、ログに NotchPassed / LimitReached / Commit、Skin に設定した Grab / Release / Notch / Limit の SE が鳴る(スタミナでは ◀▶ 1 回で隣の目盛りへ)④「2 体目を配置して FollowMotion を比較」→「同時に 0→1 を模擬」で 2 本の追従の違い ⑤「全状態を並べる」で 6 本が各状態の Skin の見た目になる
 - SliderSkinData の Inspector に「Slider Editor で開く」が出ること
-- Tools > D-Drive > Editors > UI Tween · Preset Gallery: タブ / 検索 / お気に入り、カードの「この要素に適用」「Canvas 内一括適用」「選択中のシーン要素で再生」「独自プリセットとして登録」
+- Tools > D-Drive > Editors > UI Tween · Preset Gallery: タブ(出現 / 常時 / 消滅 / 強調 / カタログ)/ 検索 / カード右上の ☆(お気に入り、閉じても保持)。カードの「この要素に適用」「Canvas 内一括適用」は上の「適用先」で CanvasData・要素・適用フェーズを先に選ぶ(Canvas データを書き換えるので確認用の Canvas で)。「選択中のシーン要素で再生」は Hierarchy でシーン上の UI 要素を選んでから(Canvas Editor の「確認用シーンを開く」で出した画面の要素が手軽)。「独自プリセットとして登録」は一番下でカタログ・UiTweenData・表示名を入れて「登録する」→「カタログ」タブに出る
 
 ## 4-13 Simulated Spawn(PR #7)/ Phase 4 レビュー対応(2026-09-11)
 - Play で NetMode=Simulated の PrefabData を `Prefabs.Spawn` → LocalLoopbackBridge(単機)では生成されること。NGO 接続時の NetworkObject 複製は Phase 6 で接続予定

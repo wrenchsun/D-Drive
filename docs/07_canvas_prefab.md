@@ -194,7 +194,7 @@ public static class Ui
 
 - **経緯**: Canvas Editor は「今開いているシーンで OpenData する」(旧「確認用シーンで開く」)のみで、VFX/Anim のような専用シーン切り替えが無かった。UI は Screen Space - Overlay で 3D ライティングに依存しないためこれ自体は妥当だが、シーンに既にユーザー自身の Canvas 等が配置されていると重なって見分けが付かない(ユーザー報告)
 - **対応**: `CanvasPreviewSceneSetup`(`VfxPreviewSceneSetup` と同構造)を新設し、`Assets/GameData/PreviewScenes/CanvasPreviewScene.unity`(EventSystem のみの空シーン)に切り替えられるようにした
-- **ボタン統合(同日、ユーザー指示)**: 当初は「確認用シーンを開く」(切り替えのみ)と「ここに配置」(OpenData)を別ボタンにしたが、切り替えたら必ず置きたいだけで手間なだけだった。1 ボタン(`OpenPreviewSceneAndPlace`)に統合し、`CanvasPreviewSceneSetup.OpenOrCreate()` が `bool` を返して保存ダイアログでキャンセルされた場合は続けて OpenData しないようにした
+- **ボタン統合(同日、ユーザー指示)**: 当初は「確認用シーンを開く」(切り替えのみ)と「ここに配置」(OpenData)を別ボタンにしたが、切り替えたら必ず置きたいだけで手間なだけだった。1 ボタン(`OpenPreviewSceneAndPlace`)に統合し、`CanvasPreviewSceneSetup.OpenOrCreate()` が `bool` を返して保存ダイアログでキャンセルされた場合は続けて OpenData しないようにした(2026-09-14: メニュー用の `void OpenOrCreate()` と、ウィンドウが使う `internal bool TryOpenOrCreate()` に分離)
 - **EventSystem が作られないバグ修正(同日)**: 当初は入力モジュールの判断を `EditorApplication.ExecuteMenuItem("GameObject/UI/Event System")` に任せていたが、この呼び出しはフォーカス/選択状態次第で何も作らずに黙って失敗することがあり、実際に EventSystem 自体が入らないシーンができてしまった(ユーザーの手元で発生・確認)。`DDrive.Editor` から `Unity.InputSystem` を直接参照する(asmdef 変更)のは避けたいため、リフレクションで `InputSystemUIInputModule` を探して `EventSystem` に付ける方式に変更(`CanvasPreviewSceneSetup.AddEventSystem`)。見つからない場合は警告ログのみで例外にしない(TL;DR #4)
 - 実装: `Assets/DDrive/Editor/Preview/CanvasPreviewSceneSetup.cs`、`Assets/DDrive/Editor/Canvas/CanvasEditorWindow.cs`(`OpenPreviewSceneAndPlace`)
 
@@ -203,12 +203,13 @@ public static class Ui
 - **経緯**: 矢印を描く `_arrowLayer` はノードの箱より先に(＝背面に)追加していたため、矢印はノード中心まで描いていても、その終端(矢頭そのもの)が丸ごとノードの箱の下に隠れて見えなかった。さらに A→B の Down と B→A の Up のように同じ 2 ノードを結ぶ逆向きのリンクが両方あると、中心同士を結ぶ直線が完全に重なって色でしか区別できなかった(ユーザー報告)
 - **対応**(`NavigationGraphView.cs`): `ClipToBoxEdge` でノードの箱の境界の手前まで線を引っ込め、隙間の中に矢頭がはっきり見えるようにした。`ComputeParallelOffset` で同じ 2 ノードを結ぶ逆向きのエッジを進行方向と垂直に(パスの文字列比較で決めた向きに)ずらし、2 本の平行線として見えるようにした。矢頭のサイズも 9x5 → 13x7 に拡大
 - ヒットテスト(`TryFindWireNear`、Reroute point 追加位置)は従来どおりノード中心同士の直線を使う(見た目の調整のみで判定ロジックは変えない)
+  - 2026-09-14(レビュー対応): 描画・当たり判定・カット判定が同じ形(`BuildDisplayPolyline`: 平行ずらし + 箱の手前での打ち切り)を使うように統一した。ノードの箱が重なって打ち切り後の向きが逆になる端は打ち切らない(以前は重ねると矢印が逆向きになった)
 
 ### 追記（2026-09-12、ElementFx 行に直接再生(▶/⏸/■)を追加）
 
 - **経緯**: ElementFx(Appear/Idle/Disappear)の見た目を確認するには UI Tween Editor を開く必要があったが(直接指定(UiTweenData)があるときだけ)、プリセット指定のときはそもそも開けず、確認手段が無かった。「Canvas Editor 内で再生・一時停止・停止まで完結したい」という要望を受けた
 - **対応**: `CanvasEditorWindow.BuildPhasePlaybackRow` を追加。各行に「▶ 再生」「⏸ 一時停止/▶ 再開」「■ 停止」を置き、プリセット指定・直接指定(UiTweenData)のどちらでも、確認用シーンの実要素(ElementPath で解決した RectTransform)に対して実 `UiTweenManager` で再生する(ADR-4 のまま。埋め込みで独自の再生経路は作らない)。プレビュー未表示なら自動で開く(`PlacePreview`)。プリセットは `UiPresetFactory.Build` でトラックへ変換してから `UiTweenManager.PlayTracks` に渡す
-- **一時停止 API を追加**: `UiTweenManager` に Handle 単位の `SetPaused`/`IsPaused` を追加(`AnimManager.SetPaused` と同じ設計。既存の `OnPause`(`PauseWithGame` の Data のみ対象)とは独立に効く)
+- **一時停止 API を追加**: `UiTweenManager` に Handle 単位の `SetPaused`/`IsPaused` を追加(`AnimManager.SetPaused` と同じ設計。2026-09-14 訂正: ゲームのポーズ `OnPause` と同じ `Paused` フラグを使うため独立ではなく、`PauseWithGame` の Tween はゲームのポーズ解除でこの一時停止も解ける)
 - Handle は `(ElementPath, Phase)` をキーに `CanvasEditorWindow._phasePreviewHandles` で保持し、`OnEditorUpdate` から毎フレーム状態(再生中/一時停止/停止中)をボタンとラベルに反映する。対象の CanvasData を切り替えたとき、および確認用プレビューを閉じたときにクリアする(パス文字列が別データで偶然一致して誤表示することを避けるため)
 - 直接指定を編集する既存の「▶」ボタンは「✎ Tween Editor」に改名(新しい「▶ 再生」と役割が紛らわしくなるため)。挙動は変えていない
 - EditMode 340/340・PlayMode 488/488 green、`execute_code` でプリセット/直接指定の両経路・一時停止トグル・停止時の Handle 破棄を確認済み
@@ -218,6 +219,40 @@ public static class Ui
 - **一括再生**: 「▶ 全 Appear」「▶ 全 Idle」「▶ 全 Disappear」「■ 全て停止」を ElementFx 割当セクションの先頭に追加(`PlayAllPhasePreview`/`StopAllPhasePreview`)。登録済みの全要素のうち、その区間に割り当て(プリセット or 直接指定)がある要素だけをそれぞれの設定でまとめて再生する。1 行ずつ「▶ 再生」を押す手間を無くすのが目的で、内部的には既存の行内再生(`PlayPhasePreview`)をループで呼ぶだけ
 - **折りたたみ**: 要素数が多いと縦に長くなりすぎるため、各要素の箱を `Box` から `Foldout` に変更し、デフォルトを折りたたみ状態にした。展開状態は `ElementPath` をキーに `_elementFxExpanded` で保持し、他の行の編集で全体が再構築されても開閉が飛ばないようにしている
 - EditMode 340/340・PlayMode 488/488 green、`execute_code` で一括再生(割り当て済みの行だけ再生される)・一括停止・Foldout がデフォルト折りたたみであることを確認済み
+
+### 追記（2026-09-14、コードレビュー対応: Canvas Editor の後片付け・Undo）
+
+- **閉じる / 閉じて開き直すで演出が残る**
+  - `RemovePreview` は行ごとの直接再生を止めてから `UiManager.StopAll` → `UiTweenManager.StopAll` の順に止める。以前は Handle を捨てるだけだった。
+  - そのため、プールに戻った要素の上で Idle ループが動き続け、次に開いた Appear とぶつかっていた。
+- **ウィンドウを閉じても UI Root が残る**
+  - `OnDisable` で `UiManager.DestroyEditorRoot()`(Edit Mode 専用。新設)を呼ぶ。
+  - `OnEnable` で `[D-Drive] Canvas Preview` の残骸を `EditorPreviewRoots.DestroyAll` で消す。
+  - プレビューのルートは `EditorPreviewRoots.CreateRoot` で作る。
+- **「確認用シーンを開く」の押し直し**
+  - 先に `RemovePreview` する。すでに確認用シーンにいるときはシーンを開き直さず、表示だけやり直す。
+  - `OnActiveSceneChanged` でも両 Manager を止めて UI Root を破棄する。以前はシーンの読み直しで実体だけが消え、`UiManager` に中身の無いインスタンスが残っていた。
+- **Undo**
+  - Undo/Redo で ElementFx の割り当て一覧と検証も作り直す。
+  - 行ごとの読み書きは範囲を確認する。以前は行が減った後の ▶ で範囲外の例外が出た。
+- **行ごとの ▶**:再生前にその要素の Tween を全部止める(`UiTweenManager.StopAll(RectTransform)`)。自動の Idle と混ざらない。
+  - 残る制約: UiManager は Appear が止まったのを完了とみなし、次の Tick で Idle を始める。
+- **一括再生**
+  - 「▶ 全〜」は開けなかったら 1 回で打ち切り、成功数を表示する。
+  - 暗黙の自動収集(`CollectSelectables` / `CollectElementFx`)は差分があるときだけ書き込む(▶ のたびに Undo が積まれアセットが dirty になっていた)。
+- **UiManager**:プレースホルダ(Prefab 未設定)の Canvas を Edit Mode で閉じたときは `DestroyImmediate` を使う(`Destroy` はエラーになる)。
+- **UI Tween Editor**
+  - 実要素で再生する前に、`ApplyTrack` が書き込む全項目を保存する(位置・sizeDelta・拡大率・回転・CanvasGroup の有無と alpha・色・fillAmount)。
+  - 停止・完了・対象の切り替え・閉じるときに元へ戻す。自動で付いた CanvasGroup も外す。
+  - Prefab アセットは対象外。
+  - ▶ の連打は前の再生を止めてからやり直す。
+  - Undo/Redo で一覧を作り直す。
+  - 「完了」の表示は、再生中から終了に変わった 1 回だけ出す。
+- **重複の整理**
+  - 相対パスは `TransformPath.GetRelative` に統一した(docs/24 整理項目 6)。
+  - 「(ルート)」表記は `UiTweenEditorWindow.RootElementLabel` に統一した。
+  - 同名の兄弟要素には「 #2」を付けて区別する。
+  - `FindUiTweenData` は Id → アセットのキャッシュを持つ。
 
 ---
 

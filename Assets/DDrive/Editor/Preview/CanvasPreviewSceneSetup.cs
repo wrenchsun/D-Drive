@@ -15,10 +15,13 @@ namespace DDrive.Editor.Preview
     {
         public const string ScenePath = "Assets/GameData/PreviewScenes/CanvasPreviewScene.unity";
 
-        // 戻り値は「実際に切り替わったか」(CanvasEditorWindow が続けて OpenData してよいかの判断に使う)。
-        // [MenuItem] からの呼び出しでは戻り値は無視される。
+        // (レビュー対応 2026-09-14) [MenuItem] のメソッドが bool を返していた(VfxPreviewSceneSetup 等は void)。
+        // メニュー用の void ラッパーと、戻り値付きの TryOpenOrCreate に分ける。
         [MenuItem(DDriveMenu.Editors + "Canvas確認用シーンを開く")]
-        public static bool OpenOrCreate()
+        public static void OpenOrCreate() => TryOpenOrCreate();
+
+        // 戻り値は「実際に切り替わったか」(CanvasEditorWindow が続けて OpenData してよいかの判断に使う)。
+        internal static bool TryOpenOrCreate()
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {

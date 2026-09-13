@@ -69,6 +69,8 @@ namespace DDrive.Editor.Ui
         // 同じなら毎回同じなので、64 サンプルを 1 回だけ計算してキャッシュする(Rect のサイズ変更には
         // 追従しなくてよい。points の x/y は描画時に現在の rect から計算し直す)。
         private readonly Dictionary<string, float[]> _sketchSampleCache = new();
+        // DrawCurveSketch の作業バッファ(描画のたびに new Vector3[64] していた。レビュー対応 2026-09-14)。
+        private Vector3[] _sketchPoints = Array.Empty<Vector3>();
 
         [MenuItem(DDriveMenu.Editors + "UI Tween · Preset Gallery")]
         public static void OpenFromMenu() => GetWindow<UiPresetGalleryWindow>("Preset Gallery").minSize = new Vector2(520, 480);
@@ -136,7 +138,9 @@ namespace DDrive.Editor.Ui
             root.Add(_canvasField);
 
             _elementDropdown = new DropdownField("要素", new List<string> { NoneChoice }, 0);
-            _elementDropdown.RegisterValueChangedCallback(evt => _selectedElementPath = evt.newValue == NoneChoice ? string.Empty : evt.newValue);
+            // (レビュー対応 2026-09-14) "(ルート)" を選ぶとその表示文字列がそのままパスとして使われていた。ルート = 空文字に戻す。
+            _elementDropdown.RegisterValueChangedCallback(evt => _selectedElementPath =
+                evt.newValue == NoneChoice || evt.newValue == UiTweenEditorWindow.RootElementLabel ? string.Empty : evt.newValue);
             root.Add(_elementDropdown);
 
             var selectionRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 2 } };
@@ -159,17 +163,7 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            var root = selected.root;
-            var names = new List<string>();
-            var cur = selected;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            _selectedElementPath = string.Join("/", names);
+            _selectedElementPath = TransformPath.GetRelative(selected.root, selected); // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
             _statusLabel.text = $"要素パスを '{_selectedElementPath}' に設定しました(手動確認してください)";
         }
 
@@ -186,7 +180,7 @@ namespace DDrive.Editor.Ui
                 var merged = CanvasElementFxCollector.CollectMerged(_canvas.Prefab, _canvas.ElementEffects);
                 foreach (var fx in merged)
                 {
-                    choices.Add(string.IsNullOrEmpty(fx.ElementPath) ? "(ルート)" : fx.ElementPath);
+                    choices.Add(string.IsNullOrEmpty(fx.ElementPath) ? UiTweenEditorWindow.RootElementLabel : fx.ElementPath);
                 }
             }
 
@@ -261,6 +255,8 @@ namespace DDrive.Editor.Ui
         {
             _catalogEntries.Clear();
             _catalogEntries.AddRange(UiPresetCatalogUtility.Collect());
+            // (レビュー対応 2026-09-14) カタログを編集(登録・上書き)しても同名カードの曲線キャッシュが古いままだった。
+            _sketchSampleCache.Clear();
 
             _allCards = UiPresetGalleryFilter.BuildBuiltinCards();
             _allCards.AddRange(UiPresetGalleryFilter.BuildCatalogCards(_catalogEntries));
@@ -345,7 +341,12 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            var points = new Vector3[samples.Length];
+            if (_sketchPoints.Length != samples.Length)
+            {
+                _sketchPoints = new Vector3[samples.Length];
+            }
+
+            var points = _sketchPoints;
             for (var i = 0; i < samples.Length; i++)
             {
                 var t = i / (float)(samples.Length - 1);
