@@ -86,6 +86,19 @@ namespace DDrive.Editor.Dependencies
         {
             var edges = new List<DependencyEdgeRecord>();
 
+            // 既に開いているシーン(ユーザーが編集中・保存直後の差分更新など)は OpenScene が同じ Scene を返すため、
+            // 閉じるとユーザーのシーンを閉じてしまう。開いていればそのまま走査し、閉じない。
+            var loaded = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(path);
+            if (loaded.IsValid() && loaded.isLoaded)
+            {
+                foreach (var rootGo in loaded.GetRootGameObjects())
+                {
+                    CollectFromGameObjectTree(rootGo, edges, path);
+                }
+
+                return edges;
+            }
+
             UnityEngine.SceneManagement.Scene scene = default;
             var opened = false;
             try
