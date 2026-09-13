@@ -1,5 +1,6 @@
 using DDrive.Foundation.Data;
 using UnityEditor;
+using UnityEngine;
 
 namespace DDrive.Editor.Inspector
 {
@@ -24,6 +25,17 @@ namespace DDrive.Editor.Inspector
                 DataEditorHeader.Draw(target as AssetDataBase);
                 AssetIconGui.Draw(target as AssetDataBase);
             }
+        }
+
+        // [09_editor_tools.md] §8.2 — Project ウィンドウのグリッド表示サムネイル(5-10)。
+        // Icon が設定されていれば要求サイズに縮小して返す(全 Data 型共通。種別独自の Inspector も本クラスを
+        // 継承していれば自動で効く。SeDataEditor 参照)。未設定なら既定の動作(スクリプトアイコン)に委ねる。
+        public override Texture2D RenderStaticPreview(string assetPath, Object[] subAssets, int width, int height)
+        {
+            var icon = (target as AssetDataBase)?.Icon;
+            return icon != null
+                ? AssetIconService.ScaleForPreview(icon, width, height)
+                : base.RenderStaticPreview(assetPath, subAssets, width, height);
         }
     }
 }

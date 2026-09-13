@@ -96,9 +96,18 @@ namespace DDrive.Editor.AssetBrowser
             _previewService = null;
         }
 
+        private const float RowIconSize = 18f;
+
         private static VisualElement MakeRowElement()
         {
             var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
+
+            var icon = new Image { name = "icon", scaleMode = ScaleMode.ScaleToFit };
+            icon.style.width = RowIconSize;
+            icon.style.height = RowIconSize;
+            icon.style.marginRight = 4;
+            icon.style.flexShrink = 0;
+            row.Add(icon);
 
             var typeLabel = new Label { name = "type" };
             typeLabel.style.width = 70;
@@ -120,6 +129,10 @@ namespace DDrive.Editor.AssetBrowser
         private void BindRowElement(VisualElement element, int index)
         {
             var row = _visibleRows[index];
+            // 5-10: 行の先頭にアイコン(Data.Icon。未設定なら Unity の既定サムネイル/型アイコンにフォールバック)。
+            element.Q<Image>("icon").image = row.Asset != null
+                ? (row.Asset.Icon != null ? (Texture)row.Asset.Icon : AssetPreview.GetMiniThumbnail(row.Asset))
+                : null;
             element.Q<Label>("type").text = row.Type.ToString();
             element.Q<Label>("name").text = row.Asset != null && !string.IsNullOrEmpty(row.Asset.DisplayName)
                 ? row.Asset.DisplayName

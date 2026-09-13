@@ -143,7 +143,7 @@
 | 5-7 | Preload リスト自動集計 + シーンロード統合 | 基盤 | 2 | 5-5 | ロード画面で Preload 完了 |
 | 5-8 | Presentation ネット再生（開始時刻シーク / Signal 中継 / 予測再生） | 基盤 | 4 | 2-8, 5-1 | 遅延 200ms 環境で 2 クライアントの位相が揃う |
 | 5-9 | Late Join 復元（アクティブ演出スナップショット） | 基盤 | 2 | 5-8 | 途中参加でループ VFX/BGM が復元 |
-| 5-10 | アイコン表示の拡張（2026-09-13 追加）: AssetBrowser の行にアイコン、Project ウィンドウのサムネ（Data 用 Inspector の `RenderStaticPreview`） | ED | 1 | 1-6 | 生成済みアイコンが AssetBrowser 一覧と Project ウィンドウ(グリッド表示)に出る |
+| 5-10 | アイコン表示の拡張（2026-09-13 追加）: AssetBrowser の行にアイコン、Project ウィンドウのサムネ（Data 用 Inspector の `RenderStaticPreview`） | ED | 1 | 1-6 | ✅ 2026-09-14 実装（`AssetBrowserWindow` の各行に `Image`(Icon、無ければ既定サムネイルにフォールバック)。全 Data 共通 `AssetDataInspector` に `RenderStaticPreview` を追加し `AssetIconService.ScaleForPreview` で Icon を要求サイズに縮小。詳細は [09] §8.2、テストは `AssetDataInspectorPreviewTests`） |
 | 5-11 | インポート検知による Data 自動生成を全種別へ（2026-09-13 追加）: `ImportRule`（監視フォルダ `SourceAssets/<種別>/<カテゴリ>/` → 種別・拡張子）で Se/Bgm/Texture/Model/Anim/Anim2D/Prefab/Canvas/Vfx を自動生成（Cutscene は 6-10c で追加）。元ファイル削除時は Data を消さず「欠落」表示。元ファイルの無い種別（Presentation/Shake/Haptics/UiTween/Anchor/AnchorGroup/ControlSkin）は対象外（5-13 で作る） | 基盤+ED | 3 | 1-5, 3-14 | 各種別の元ファイルを規定フォルダに置くだけで Data・ID・Addressables 登録ができる。既存の Maya→Material 経路と共存 |
 | 5-12 | 仕様書テンプレート（2026-09-13 追加）: 新規 Google スプレッドシート（README / 概要 / 機能_* 人向け + `アセット`・`調整値` ツール向け + `_選択肢`）+ 記入ガイド | 全員 | 1 | — | [27](27_spec_sheet.md) §2〜3 の構成で企画が記入を始められる |
 | 5-13 | 仕様書同期（2026-09-13 追加）: CSV 取得（リンク共有 gviz / 将来サービスアカウント）→ 差分プレビュー → 新規行は Placeholder Data 作成・表示名/カテゴリ/状態/担当/備考を反映・消えた行は Archive 候補表示のみ。起動時の自動取得 + 通知、`TuningTable`（調整値）取り込み | 基盤+ED | 4 | 5-12, 1-5 | シートに 1 行足して同期するだけで ID 付き Placeholder が生まれ、コードから参照できる。デザイナーの中身は上書きされない |

@@ -450,6 +450,34 @@ namespace DDrive.Editor.Inspector
             }
         }
 
+        // [09_editor_tools.md] §8.2 — Project ウィンドウのグリッド表示サムネイル(5-10)用に、Icon(128/256/512px 想定)を
+        // 要求された width×height にそのまま縮小する(クロップ無し)。RenderStaticPreview はズームレベルごとに違う
+        // サイズを要求してくるため、都度この関数で作り直す(呼び出し側が破棄する。null なら生成不可)。
+        public static Texture2D ScaleForPreview(Texture2D source, int width, int height)
+        {
+            if (source == null || width <= 0 || height <= 0)
+            {
+                return null;
+            }
+
+            var rt = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+            try
+            {
+                Graphics.Blit(source, rt);
+                var previous = RenderTexture.active;
+                RenderTexture.active = rt;
+                var result = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                result.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                result.Apply();
+                RenderTexture.active = previous;
+                return result;
+            }
+            finally
+            {
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
         // 画像の一部(source 内のピクセル矩形、左上原点)を size×size に縮小して PNG 保存し、Icon に割り当てる。
         public static Texture2D CropAndSave(AssetDataBase asset, Texture2D source, RectInt crop, int size = -1, string iconRoot = DefaultIconRoot, bool recordUndo = true)
         {
