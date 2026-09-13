@@ -269,6 +269,7 @@ public struct SliderWire
   - **動かしてみる**: `SliderSkinEditorWindow` に ◀▶(`Move` + `MoveRelease`)・ドラッグ模擬(`BeginDragAt`→`DragTo`→`EndDrag`、0.8 秒)・値スライダー(`Value` = ゲームコードからの変更と同じ)を追加。プレビュー実体を `EditorApplication.update` で `Advance` し(Follow Motion の追従)、`OnDragBegin/End`・`OnNotchPassed`(`NotchSeMinIntervalSec` で間引き)・`OnLimitReached`・`OnDenied` に合わせて Grab / Release / Notch / Limit / Denied の SE を試聴側(`ControlSkinPreviewSection.PlaySeField`)で鳴らす(Editor では Audio が未 Bind で UiSlider 自身の SE は鳴らないため)
   - テスト: `UiSliderInputTests`(PlayMode 5 件)、`SliderEditorTests` に HPバーの入力 OFF / 他プリセットで ON に戻る を追加
   - **つまみの位置ずれを修正(ユーザー報告: 値 0〜1 で動かすとかなりずれる)**: `ApplyFillAndHandle` は「つまみのアンカーが溝の左端にある」前提で `anchoredPosition.x = 溝の幅 × 値` にしていたため、Unity 既定の中央アンカーのつまみ(確認用プレビューも、デザイナーが普通に作った Prefab も該当)では値 0 で溝の中央、値 1 で右端より半幅はみ出していた。Unity 標準 Slider と同じく**つまみのアンカーを値の位置へ動かし(軸方向の anchorMin/Max = 値)、軸方向の anchoredPosition を 0 にする**方式へ変更。つまみの中心が親(溝、またはスライド領域)の中の値の位置に乗り、元のアンカー設定に依存しない。軸方向にストレッチしていたつまみは点アンカーになる(Unity 標準 Slider と同じ挙動)。回帰テスト `Handle_FollowsValue_EvenWithCenterAnchor`
+  - **パーツの見た目を反映(ユーザー報告: パーツに入れた Override Sprite が反映されない)**: `SliderSkinData.Track/Fill/Handle/DelayFill` は長らく未接続だった。`UiSlider.OnSkinApplied` で各 RectTransform の Graphic へ画像・色・拡大率を適用(状態に依らない固定の見た目)。既存 Skin の既定値で消えたり潰れたりしないよう、Tint 未設定(0,0,0,0)と Scale ≤ 0 は触らない。Track の Graphic が TargetGraphic と同じなら色は状態が決め、Track の画像は状態に画像(Override Sprite / コマ)が無いときだけ使う。パーツ画像を外したら元の画像に戻す
 
 ### レビュー対応(2026-09-11、Phase 4 コードレビュー)
 

@@ -99,9 +99,9 @@ namespace DDrive.Editor.Ui
 
             scrollView.Add(BuildMoveBlock());
 
-            // パーツ(Track/Fill/Handle/DelayFill)の StateVisual は UiSlider.OnSkinApplied が未実装で実行時に
-            // 反映されないため、再生対象にしない(見た目を偽って見せない)。
-            scrollView.Add(new HelpBox("パーツ(Track / Fill / Handle / Delay Fill)の見た目はまだ実行時に反映されないため、再生ボタンは付けていません。状態の演出はスライダー本体に掛かります。", HelpBoxMessageType.None));
+            // パーツ(Track/Fill/Handle/DelayFill)は 2026-09-14 から画像・色・拡大率が反映される(状態に依らない固定の見た目)。
+            // 状態ごとの演出(Enter Tween / Preset)はスライダー本体に掛かるため、パーツには再生ボタンを付けない。
+            scrollView.Add(new HelpBox("パーツ(Track / Fill / Handle / Delay Fill)の画像・色・拡大率は、状態に関係なく常に反映されます(色が未設定=透明な黒、拡大率 0 のままなら変えません)。状態ごとの演出はスライダー本体に掛かります。", HelpBoxMessageType.None));
 
             _settings = new ControlSkinPreviewSection(BuildOptions());
             scrollView.Add(_settings);
@@ -153,6 +153,8 @@ namespace DDrive.Editor.Ui
             {
                 EnsurePreview = EnsurePreview,
                 CurrentPreview = () => _previewSlider,
+                // このウィンドウが毎フレーム UiSlider.Advance を回す(その中でスプライトアニメも進む)ので二重に進めない。
+                TickPreviewVisuals = false,
                 SeFields = new[]
                 {
                     new ControlSkinPreviewSection.SeField(grab, s => ((SliderSkinData)s).GrabSe),

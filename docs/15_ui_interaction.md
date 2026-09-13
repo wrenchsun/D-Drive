@@ -99,6 +99,12 @@ ButtonWire の Trigger 重複 (Warning) / LongPressSec≤0 なのに LongPress �
   - **状態遷移の自動再生**: `ControlSkinPreviewSection` に「状態遷移」ブロックを追加。エディタ側が `TransitionSequence`(状態 + その段で鳴らす SE 欄名)の並びを渡し(Button: クリック / パッド決定 / Disabled を押す / Locked を押す / 全状態、Slider: 掴んで離す / パッドで選ぶ / Disabled を触る / 全状態)、1 段ごとに `ForceStateForPreview` + 状態演出 + SE を実行時と同じタイミングで鳴らす(同じ状態が続く段は演出をやり直さず SE のみ)。段の長さ・ループ・SE の有無を指定できる
   - **当たり判定の確認**: 「当たり判定を表示」で確認用プレビューの子に DontSave の赤い半透明 Image を重ね(Game / Scene ビュー)、SceneView の四辺ハンドル(`Handles.Slider`)で `HitAreaExpand` をドラッグ調整(Undo 可)。Edit Mode では EventSystem が動かず実際には押せないため、透明判定の効き目は実行時に確認する
   - テスト: `ControlSkinHitAreaTests`(PlayMode 7 件: raycastPadding の符号、閾値の適用 / 読めない画像での警告 + 無効、読めない画像 + 閾値なしで例外が出ない(回帰)、SliderSkin の ExtraHitPadding 加算、Validator の警告有無)
+- **2026-09-14 追記(ユーザー要望: ボタン・スライダーの画像にスプライトアニメ / スクロールアニメ)**:
+  - `StateVisual` に `AnimFrames`(Sprite[])/`AnimFps`(0 以下は 12)/`AnimLoop` と `ScrollSpeed`(UV/秒)、`ControlSkinData` に `ScrollMaterial` を追加(シリアライズ追加)。`StateVisual.Default` は `AnimFps=12, AnimLoop=true`
+  - `UiInteractable`: 状態適用時にコマ(あれば 1 コマ目、無ければ Override Sprite)を当て、`TickVisuals(dt)`(`UiButton`/`UiSlider` の `Advance` から毎フレーム。0 alloc)でコマを進める。**画像を持たない状態に入ったら差し替える前の画像に戻す**(以前は前の状態の画像が残っていた)。スクロールは `ScrollMaterial`(`Assets/DDrive/Runtime/Ui/Shaders/DDriveUIScroll.shader` = UI/Default + `_ScrollSpeed` で `_Time` から UV をずらす)を元に **(元マテリアル, 速度) ごとに 1 つ作ったマテリアルを共有**(同速度のボタンは描画をまとめられる)。毎フレームの CPU 処理は無い。スクロールしない状態では元のマテリアルに戻す。`ScrollMaterial` が空なら警告 1 回 + スクロールなし
+  - Validator(`ControlSkinVisualValidation`): Scroll Speed ありで Scroll Material 空 → Warning、空のコマ → Warning、スクロールする画像が Sprite Atlas 内 → Warning、Wrap Mode が Repeat でない → Info
+  - エディタ: 既定マテリアル `DDrive_UI_Scroll.mat` を Scroll Speed 使用時に自動設定、「見た目」内の「Anim2D から読み込む」(Clip の `m_Sprite` カーブからコマ・fps・ループを取り込む)、プレビューでのコマ送りと描き直し。**設定欄の変更を配置済みプレビューへ即時に当て直す**(`ReapplyPreviewVisuals`。以前は ▶ か置き直しまで反映されなかった)
+  - テスト: `ControlSkinVisualTests`(PlayMode 7 件)
 
 ---
 

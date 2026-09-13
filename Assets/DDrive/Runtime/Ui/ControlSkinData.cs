@@ -24,8 +24,18 @@ namespace DDrive.Runtime.Ui
         public ValueDef Scale;
         public Sprite OverrideSprite;
 
+        // 2026-09-14 追加(ユーザー要望: ボタン・スライダーの画像にスプライトアニメ / スクロールアニメ)。
+        [Tooltip("この状態のあいだ順に切り替えるコマ画像(スプライトアニメ)。空なら無効。Override Sprite より優先")]
+        public Sprite[] AnimFrames;
+        [Tooltip("1 秒あたりのコマ数(0 以下は 12)")]
+        public float AnimFps;
+        [Tooltip("最後のコマまで行ったら最初に戻る(OFF なら最後のコマで止まる)")]
+        public bool AnimLoop;
+        [Tooltip("画像を流す速さ(UV / 秒。X=横, Y=縦。0 なら無効)。Skin の Scroll Material が必要。画像の Wrap Mode を Repeat にし、Sprite Atlas には入れないこと")]
+        public Vector2 ScrollSpeed;
+
         // Inspector 上の既定値。Tint=白・Scale=定数1(Evaluate(1f)=1)で「未設定でも普通に表示される」を保証する。
-        public static StateVisual Default => new() { Tint = Color.white, Scale = ValueDef.Constant01(1f) };
+        public static StateVisual Default => new() { Tint = Color.white, Scale = ValueDef.Constant01(1f), AnimFps = 12f, AnimLoop = true };
     }
 
     // [15_ui_interaction.md] A-3 / [18_ui_controls.md] A-1 — ButtonSkinData(15) /
@@ -52,6 +62,10 @@ namespace DDrive.Runtime.Ui
         [Tooltip("画像の不透明度がこの値未満のピクセルは押せない(0=無効、例 0.5)。画像(Sprite の Texture)の Read/Write を ON にし、Sprite Atlas には入れないこと")]
         [Range(0f, 1f)]
         public float AlphaHitThreshold;
+
+        [Header("スクロール")]
+        [Tooltip("スクロールアニメ用のマテリアル(DDrive/UI/Scroll シェーダー)。Scroll Speed を使う状態があるのに空だとスクロールしない。Skin Editor が既定のものを自動で入れる")]
+        public UnityEngine.Material ScrollMaterial; // 名前空間 DDrive.Runtime.Material と衝突するため完全修飾
 
         // 実際に適用する広げ幅(派生 Skin が固有の設定を足す。SliderSkinData.ExtraHitPadding)。
         public virtual Vector4 EffectiveHitAreaExpand => HitAreaExpand;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Runtime.Audio;
@@ -53,6 +54,25 @@ namespace DDrive.Runtime.Ui
         private float _cooldownRemaining;
         private ControlSkinData _skin;
         private bool _alphaHitWarned;
+
+        // 状態ごとのスプライトアニメ / スクロール(2026-09-14)。
+        private Sprite[] _animFrames;
+        private float _animFps;
+        private bool _animLoop;
+        private float _animTime;
+        private int _animFrameIndex = -1;
+        private bool _spriteOverridden;
+        private Sprite _spriteBeforeOverride;
+        private bool _materialOverridden;
+        private UnityEngine.Material _materialBeforeScroll; // 名前空間 DDrive.Runtime.Material と衝突するため完全修飾
+        private bool _scrollWarned;
+
+        // 同じ(元マテリアル, 速度)のボタン同士はマテリアルを共有する(描画をまとめられるように)。
+        private static readonly Dictionary<(UnityEngine.Material template, Vector2 speed), UnityEngine.Material> ScrollMaterials = new();
+        private static readonly int ScrollSpeedId = Shader.PropertyToID("_ScrollSpeed");
+
+        // 今の状態でスプライトアニメ / スクロールが動いているか(エディタのプレビューが描き直し続ける判定に使う)。
+        public bool HasVisualAnimation => _animFrames != null || _materialOverridden;
 
         // 4-7 残り: SetVisual を明示的に呼んだか(true なら UiManager の Open 時レイヤー既定 Skin 適用の対象外)。
         public bool HasExplicitSkin { get; private set; }
@@ -363,10 +383,115 @@ namespace DDrive.Runtime.Ui
             }
 
             ref readonly var v = ref skin.Get(State);
-            ApplyVisual(in v);
+            ApplyVisual(skin, in v);
             ApplyHitArea(skin);
             PlayStateTween(in v);
             OnSkinApplied(in v);
+        }
+
+        // 状態の画像: コマ(AnimFrames)があれば 1 コマ目、無ければ Override Sprite。どちらも無い状態に入ったら、差し替える前の
+        // 画像に戻す(2026-09-14。以前は前の状態の画像が残っていた)。
+        private void ApplySprite(Image image, in StateVisual v)
+        {
+            var frames = v.AnimFrames != null && v.AnimFrames.Length > 0 ? v.AnimFrames : null;
+            _animFrames = frames;
+            _animFps = v.AnimFps > 0f ? v.AnimFps : 12f;
+            _animLoop = v.AnimLoop;
+            _animTime = 0f;
+            _animFrameIndex = frames != null ? 0 : -1;
+
+            var sprite = frames != null ? frames[0] : v.OverrideSprite;
+            if (sprite != null)
+            {
+                if (!_spriteOverridden)
+                {
+                    _spriteBeforeOverride = image.sprite;
+                    _spriteOverridden = true;
+                }
+
+                image.sprite = sprite;
+            }
+            else if (_spriteOverridden)
+            {
+                image.sprite = _spriteBeforeOverride;
+                _spriteOverridden = false;
+            }
+        }
+
+        // 状態のスプライトアニメを進める(UiButton / UiSlider の Advance から毎フレーム。エディタのプレビューからも呼べる)。
+        // 定常経路なので割り当て無し(コマ番号の計算と、変わったときだけ sprite を差し替える)。
+        public void TickVisuals(float dt)
+        {
+            if (_animFrames == null || !(TargetGraphic is Image image))
+            {
+                return;
+            }
+
+            _animTime += dt;
+            var count = _animFrames.Length;
+            var index = (int)(_animTime * _animFps);
+            index = _animLoop ? index % count : Mathf.Min(index, count - 1);
+            if (index == _animFrameIndex)
+            {
+                return;
+            }
+
+            _animFrameIndex = index;
+            var sprite = _animFrames[index];
+            if (sprite != null)
+            {
+                image.sprite = sprite;
+            }
+        }
+
+        // スクロール: Skin の ScrollMaterial(DDrive/UI/Scroll)を元に、速度ごとに 1 つ作ったマテリアルを使う。
+        // 動かすのはシェーダー(_Time)なので毎フレームの処理は無い。スクロールしない状態に入ったら元のマテリアルに戻す。
+        private void ApplyScroll(ControlSkinData skin, Graphic graphic, in StateVisual v)
+        {
+            var speed = v.ScrollSpeed;
+            var template = skin.ScrollMaterial;
+            if (speed == Vector2.zero || template == null)
+            {
+                if (speed != Vector2.zero && !_scrollWarned)
+                {
+                    _scrollWarned = true;
+                    Debug.LogWarning($"[DDrive] '{name}': Scroll Speed が設定されていますが、Skin の Scroll Material が空のためスクロールしません。", this);
+                }
+
+                if (_materialOverridden)
+                {
+                    graphic.material = _materialBeforeScroll;
+                    _materialOverridden = false;
+                    _materialBeforeScroll = null;
+                }
+
+                return;
+            }
+
+            if (!_materialOverridden)
+            {
+                _materialBeforeScroll = graphic.material == graphic.defaultMaterial ? null : graphic.material;
+                _materialOverridden = true;
+            }
+
+            graphic.material = GetScrollMaterial(template, speed);
+        }
+
+        private static UnityEngine.Material GetScrollMaterial(UnityEngine.Material template, Vector2 speed)
+        {
+            var key = (template, speed);
+            if (!ScrollMaterials.TryGetValue(key, out var material) || material == null)
+            {
+                material = new UnityEngine.Material(template)
+                {
+                    name = $"{template.name} (Scroll {speed.x}, {speed.y})",
+                    hideFlags = HideFlags.DontSave,
+                };
+                material.SetVector(ScrollSpeedId, new Vector4(speed.x, speed.y, 0f, 0f));
+                ScrollMaterials[key] = material;
+            }
+
+            return material;
         }
 
         // 当たり判定(2026-09-14)。Graphic.raycastPadding は「内側へ縮める量」が正なので、広げ幅の符号を反転して渡す。
@@ -450,15 +575,17 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        private void ApplyVisual(in StateVisual v)
+        private void ApplyVisual(ControlSkinData skin, in StateVisual v)
         {
             if (TargetGraphic != null)
             {
                 TargetGraphic.color = v.Tint;
-                if (v.OverrideSprite != null && TargetGraphic is Image image)
+                if (TargetGraphic is Image image)
                 {
-                    image.sprite = v.OverrideSprite;
+                    ApplySprite(image, in v);
                 }
+
+                ApplyScroll(skin, TargetGraphic, in v);
             }
 
             var rt = transform as RectTransform;

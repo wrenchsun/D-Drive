@@ -343,6 +343,8 @@ namespace DDrive.Runtime.Ui
         // Update から Time.unscaledDeltaTime で呼ばれる(テストは直接呼んで時間経過を模擬する)。
         public void Advance(float unscaledDt)
         {
+            TickVisuals(unscaledDt);
+
             // Codex レビュー対応(2026-09-11): OnMove(EventSystem 駆動)は _padActive を立てるだけで
             // MoveRelease を呼ぶ実行時経路が無いため、キーを離しても Repeat が止まらなかった。
             // Move() を呼んだフレームの「翌フレーム以降」まで Move が来ていなければ離されたとみなす。
@@ -791,12 +793,81 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        // 2026-09-14: つまみ(Handle)の当たり判定。Skin 全体の当たり判定(本体 = TargetGraphic)は基底が適用済み。
+        // 2026-09-14: つまみ(Handle)の当たり判定と、パーツ(Track/Fill/Handle/DelayFill)の見た目を反映する。
+        // パーツは長らく未接続で、Override Sprite 等を入れても実行時に何も変わらなかった(ユーザー報告)。
         protected override void OnSkinApplied(in StateVisual v)
         {
             if (HandleRect != null && HandleRect.TryGetComponent<Graphic>(out var handleGraphic))
             {
                 handleGraphic.raycastPadding = -(SliderSkin != null ? SliderSkin.HandleHitAreaExpand : Vector4.zero);
+            }
+
+            var skin = SliderSkin;
+            if (skin == null)
+            {
+                return;
+            }
+
+            ApplyPart(TrackRect, in skin.Track, in v, ref _trackPart);
+            ApplyPart(FillRect, in skin.Fill, in v, ref _fillPart);
+            ApplyPart(HandleRect, in skin.Handle, in v, ref _handlePart);
+            ApplyPart(DelayFillRect, in skin.DelayFill, in v, ref _delayFillPart);
+        }
+
+        private struct PartSprite
+        {
+            public bool Overridden;
+            public Sprite Before;
+        }
+
+        private PartSprite _trackPart;
+        private PartSprite _fillPart;
+        private PartSprite _handlePart;
+        private PartSprite _delayFillPart;
+
+        // パーツは状態に依らない固定の見た目。既存 Skin の既定値(Tint=透明な黒 / Scale=0)で消えたり潰れたりしないよう、
+        // Tint が未設定(0,0,0,0)・Scale が 0 以下のときは触らない。Track の画像が TargetGraphic と同じ部品なら、
+        // 色は状態が決め、Track の画像は「状態に画像(Override Sprite / コマ)が無いとき」だけ使う。
+        private void ApplyPart(RectTransform rect, in StateVisual part, in StateVisual state, ref PartSprite memo)
+        {
+            if (rect == null || !rect.TryGetComponent<Graphic>(out var graphic))
+            {
+                return;
+            }
+
+            var isTarget = graphic == TargetGraphic;
+            if (!isTarget && part.Tint != default)
+            {
+                graphic.color = part.Tint;
+            }
+
+            if (graphic is Image image)
+            {
+                var stateHasSprite = isTarget && (state.OverrideSprite != null || (state.AnimFrames != null && state.AnimFrames.Length > 0));
+                if (part.OverrideSprite != null && !stateHasSprite)
+                {
+                    if (!memo.Overridden)
+                    {
+                        memo.Before = image.sprite;
+                        memo.Overridden = true;
+                    }
+
+                    image.sprite = part.OverrideSprite;
+                }
+                else if (part.OverrideSprite == null && memo.Overridden && !stateHasSprite)
+                {
+                    image.sprite = memo.Before;
+                    memo.Overridden = false;
+                }
+            }
+
+            if (!isTarget)
+            {
+                var scale = part.Scale.Evaluate(1f);
+                if (scale > 0f)
+                {
+                    rect.localScale = new Vector3(scale, scale, scale);
+                }
             }
         }
 

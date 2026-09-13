@@ -31,6 +31,11 @@ namespace DDrive.Runtime.Ui
             {
                 yield return result;
             }
+
+            foreach (var result in ControlSkinVisualValidation.Validate(skin))
+            {
+                yield return result;
+            }
         }
 
         private static bool AllTintAlphaZero(SliderSkinData skin)

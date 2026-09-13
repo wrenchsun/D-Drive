@@ -66,6 +66,8 @@
 <tr><td>Override Sprite</td><td>その状態で差し替える画像。Normal に入れると Asset Browser のアイコンにもなります</td></tr>
 <tr><td>Enter Tween</td><td>この状態に入った瞬間に再生する演出（<a href="ui-tween.html">UI Tween</a> のデータ）。設定があれば Enter Preset より優先</td></tr>
 <tr><td>Enter Preset</td><td>Enter Tween が空のときに使う既成の演出。Preset = None なら何も再生しません（例: Pressed に PunchScale）</td></tr>
+<tr><td>Anim Frames / Anim Fps / Anim Loop</td><td><strong>スプライトアニメ</strong>。その状態のあいだ、コマ画像を順に切り替えます（Override Sprite より優先）。Anim Fps = 1 秒あたりのコマ数（0 以下は 12）、Anim Loop = 最後のコマから最初に戻る（OFF なら最後のコマで止まる）。「見た目」の中の「Anim2D から読み込む」に Anim2D データを入れて「コマを読み込む」を押すと、コマ・コマ数/秒・ループをまとめて取り込めます</td></tr>
+<tr><td>Scroll Speed</td><td><strong>スクロールアニメ</strong>。画像を流す速さ（X = 横、Y = 縦。1 秒あたりに画像の何枚分動くか。0 = 無効）。縞模様が流れるボタンなどに。画像のインポート設定で <strong>Wrap Mode を Repeat</strong> にし、<strong>Sprite Atlas には入れない</strong>でください。スクロールに必要な Scroll Material は、Skin Editor が既定のものを自動で入れます</td></tr>
 </table>
 
 <h3>設定項目（SE）</h3>
@@ -83,7 +85,9 @@
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Hit Area Expand</td><td>押せる範囲を<strong>見た目より広げる（+）/ 狭める（−）</strong>。X = 左、Y = 下、Z = 右、W = 上 の各辺をピクセルで指定します（例: 小さいアイコンボタンを押しやすくするなら 4 辺とも 10）。ボタン側の Target Graphic に掛かります。「当たり判定を表示」で範囲を見ながら調整できます</td></tr>
 <tr><td>Alpha Hit Threshold</td><td>画像の<strong>透明な部分を押せなくする</strong>。0 = 無効、0.5 なら不透明度 50% 未満のピクセルは押しても反応しません（丸いボタンの四隅など）。<strong>画像のインポート設定で Read/Write を ON</strong> にし、Sprite Atlas には入れないでください。読めない画像だと透明判定をせず、全面が押せるまま警告が出ます。エディタの確認用シーンでは実際に押せないため、効き目はゲーム実行中に確かめます</td></tr>
+<tr><td>Scroll Material</td><td>スクロールアニメ用のマテリアル（<code>DDrive/UI/Scroll</code>）。Scroll Speed を使う状態があれば Skin Editor が既定の <code>DDrive_UI_Scroll</code> を自動で入れるので、普段は触りません。空のままだとスクロールせず警告が出ます</td></tr>
 </table>
+<div class="tip">状態の画像（Override Sprite / コマ）を持たない状態に戻ると、ボタンは<strong>元の画像に戻ります</strong>。Skin Editor で設定を変えると、配置済みのプレビューに<strong>すぐ反映</strong>されます（演出や遷移の再生中は、次の再生で反映）。</div>
 
 <h3>ボタン側（UiButton）の項目</h3>
 <p>Skin ではなく、Prefab の中の UiButton にある項目です。押し方の判定を決めます。</p>
@@ -134,14 +138,14 @@
 <tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] Slider Skin Preview</code> Canvas の下に 300×24 のスライダー（Fill と 20×24 の Handle 付き）を置いて Skin を当てます。エディタを閉じたとき・別のシーンに移ったときは自動で片付きます</td></tr>
 <tr><td>プリセット</td><td>音量 / 感度 / HPバー / スタミナ / キャラメイク。選んだ瞬間に<strong>配置中のプレビュースライダー</strong>の動き方が変わります（Skin 自体は変わりません）。<strong>先に「確認用シーンに配置」していないと何も起きません</strong></td></tr>
 <tr><td>動かしてみる（緑の線の箱）</td><td>プレビューのスライダーを実際に動かして確かめます（未配置なら自動で配置）。「◀」「▶」= キーボード / パッド 1 回分、「ドラッグ 0 → 1 / 1 → 0」= マウスで端から端まで掴んで動かす操作、「値(0〜1)」= ゲームのコードから値を変えたとき（HP の増減など）と同じ動き。<strong>つまみ・バーの動き、表示が追いつく動き（Follow Motion）、掴む・離す・目盛り・端・拒否の SE</strong> が確認できます。下に現在の値と直前の出来事（「目盛り 2」「端(Max)」など）が出ます。入力の許可を OFF にした部品でも、ここからは動かせます</td></tr>
-<tr><td>設定欄（状態ごとの箱 / SE の欄）</td><td>Button Skin と同じです（状態ごとの箱の「▶ 再生」「⏸」「■」、Enter Tween の右の「✎ Tween Editor」、SE は Grab / Release / Notch / Limit / Denied の各欄の右に「▶」「■」）。演出はスライダー本体に掛かります。パーツ（Track / Fill / Handle / Delay Fill）の見た目はまだ実行時に反映されないため、再生ボタンは付いていません。「状態遷移」（マウスで掴んで離す / パッドで選ぶ / 押せないスライダーを触る / 全状態を順に）と「当たり判定を表示」も Button Skin と同じです。対象が無いと「Skin を選択してください」</td></tr>
+<tr><td>設定欄（状態ごとの箱 / SE の欄）</td><td>Button Skin と同じです（状態ごとの箱の「▶ 再生」「⏸」「■」、Enter Tween の右の「✎ Tween Editor」、SE は Grab / Release / Notch / Limit / Denied の各欄の右に「▶」「■」）。演出はスライダー本体に掛かります。パーツ（Track / Fill / Handle / Delay Fill）の画像・色・拡大率は常に反映されます（状態ごとの演出は無いので再生ボタンはありません）。「状態遷移」（マウスで掴んで離す / パッドで選ぶ / 押せないスライダーを触る / 全状態を順に）と「当たり判定を表示」も Button Skin と同じです。対象が無いと「Skin を選択してください」</td></tr>
 </table>
 
 <h3>設定項目</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>状態別ビジュアル（6 状態）</td><td>Button Skin と同じ。Tint / Scale / Override Sprite / Enter Tween / Enter Preset</td></tr>
-<tr><td>パーツ: Track / Fill / Handle / Delay Fill</td><td>溝 / 値ぶん伸びるバー / つまみ / ダメージ表現用の「白い遅延バー」の見た目。<strong>まだ画面に反映されません</strong>（下記「制限」）</td></tr>
+<tr><td>パーツ: Track / Fill / Handle / Delay Fill</td><td>溝 / 値ぶん伸びるバー / つまみ / ダメージ表現用の「白い遅延バー」の見た目。<strong>画像（Override Sprite）・色（Tint）・拡大率（Scale）が反映されます</strong>（2026-09-14 から。状態に関係なく常にこの見た目）。色が未設定（透明な黒のまま）・拡大率 0 のままなら、その項目は変えません。Track がスライダー本体の画像と同じ部品なら、色は状態が決め、Track の画像は状態に画像が無いときだけ使われます</td></tr>
 <tr><td>Notch Sprite</td><td>目盛り位置に並べる飾り画像（任意）。いまはアイコンにだけ使われます</td></tr>
 <tr><td>Hide Handle On Gamepad</td><td>パッド操作時につまみを隠す。<strong>まだ効きません</strong></td></tr>
 <tr><td>Hit Area Expand / Alpha Hit Threshold</td><td>Button Skin と同じ（上の「設定項目（当たり判定）」）。スライダー本体（Track）の画像に掛かります</td></tr>
@@ -164,7 +168,7 @@
 </table>
 
 <div class="warn">
-<strong>既知の制限:</strong> Track / Fill / Handle / Delay Fill のパーツ別の見た目、Notch Sprite、Hide Handle On Gamepad、触覚 ID は<strong>まだ実行時に効きません</strong>。色・拡大率・差し替え画像はスライダー側の Target Graphic にだけ掛かります。音（SE）は効きます。
+<strong>既知の制限:</strong> Notch Sprite、Hide Handle On Gamepad、触覚 ID は<strong>まだ実行時に効きません</strong>。パーツ（Track / Fill / Handle / Delay Fill）の画像・色・拡大率は 2026-09-14 から反映されます（状態ごとの切り替えはありません）。音（SE）は効きます。
 </div>
 
 <h2>Slider Editor（スライダーの動き方を見る）</h2>
@@ -244,7 +248,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
 <tr><td>音量スライダー</td><td>「音量」プリセット → Canvas データの Sliders で Action = SetOption、Option = MasterVolume（<a href="ui-tween.html">標準オプション</a>）</td></tr>
-<tr><td>HP バー</td><td>「HPバー」プリセット（入力の許可が OFF になり、プレイヤーは触れません）+ Delay Fill Rect に白いバー + Delay Follow Motion をさらに遅く。Skin の Delay Fill は未反映なので色はバーの画像側で</td></tr>
+<tr><td>HP バー</td><td>「HPバー」プリセット（入力の許可が OFF になり、プレイヤーは触れません）+ Delay Fill Rect に白いバー + Delay Follow Motion をさらに遅く。白いバーの色・画像は Slider Skin の Delay Fill（Tint / Override Sprite）で</td></tr>
 <tr><td>つまみを掴みやすく</td><td>Slider Skin の Handle Hit Area Expand を 4 辺とも 8〜12 程度に（「当たり判定を表示」の青い枠で確認）</td></tr>
 <tr><td>画質 低 / 中 / 高 / 最高 の 4 段階</td><td>Notches = 3 にして Step を合わせ、Skin の Notch Se で「カチッ」</td></tr>
 <tr><td>重い処理につなぐ（読み込みなど）</td><td>Notify Only On Commit ON、または Change Throttle Sec = 0.1</td></tr>
@@ -257,7 +261,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <ul>
 <li>確認用のプレビューはエディタごとに別の名前（<code>[D-Drive] Button Skin Preview</code> / <code>[D-Drive] Slider Skin Preview</code> / <code>[D-Drive] UI Tween Preview</code>）で置かれ、<strong>エディタを閉じたとき・別のシーンに移ったときに自動で片付きます</strong>。シーンには保存されません。万一画面に消えないプレビューが残ったら <code>Tools &gt; D-Drive &gt; Debug &gt; 確認用プレビューの残骸を掃除</code></li>
 <li>Tint と Override Sprite はボタン / スライダー側の Target Graphic が空だと効きません</li>
-<li>Slider Skin のパーツ別の見た目・Notch Sprite・Hide Handle On Gamepad・触覚 ID はまだ効きません（上の「既知の制限」）</li>
+<li>Slider Skin の Notch Sprite・Hide Handle On Gamepad・触覚 ID はまだ効きません（パーツの画像・色・拡大率は効きます）（上の「既知の制限」）</li>
 <li>Bgm / Se / Voice の個別音量はまだ音に接続されていません（Master Volume と Ui Speed Scale は効きます）</li>
 <li>「全状態を並べる」の見た目は Skin Id からだけ解決します。Skin Id が空だと 6 本とも同じに見えます</li>
 </ul>

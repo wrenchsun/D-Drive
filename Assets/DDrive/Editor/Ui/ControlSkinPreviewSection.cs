@@ -91,6 +91,9 @@ namespace DDrive.Editor.Ui
 
             public SeField[] SeFields = Array.Empty<SeField>();
             public TransitionSequence[] Sequences = Array.Empty<TransitionSequence>();
+
+            // プレビュー部品のスプライトアニメをこの欄が毎フレーム進めるか(部品側で Advance を回すエディタは false)。
+            public bool TickPreviewVisuals = true;
         }
 
         private sealed class StateRow
@@ -258,6 +261,7 @@ namespace DDrive.Editor.Ui
             tracker.TrackSerializedObjectValue(so, _ =>
             {
                 RefreshSummaries();
+                ReapplyPreviewVisuals();
                 UpdateHitOverlay();
                 SceneView.RepaintAll();
             });
@@ -338,6 +342,7 @@ namespace DDrive.Editor.Ui
                 while (child.NextVisible(false));
             }
 
+            look.Add(BuildAnimImportRow(prop));
             block.Add(look);
             _stateWidgets.Add(w);
             return block;
@@ -714,6 +719,8 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
+            EnsureScrollMaterial();
+
             foreach (var w in _stateWidgets)
             {
                 var v = _skin.Get(w.State);
@@ -732,6 +739,124 @@ namespace DDrive.Editor.Ui
                 var id = w.Field.Get(_skin);
                 w.Play.SetEnabled(id.IsValid && FindData<SeData>(id.Value) != null);
             }
+        }
+
+        // 設定欄の変更を配置済みのプレビューへすぐ当て直す(2026-09-14。以前は ▶ を押すか置き直すまで変わらなかった)。
+        // 演出・遷移の再生中は触らない(途中の拡大率等を上書きしてしまうため。次の再生で反映される)。
+        private void ReapplyPreviewVisuals()
+        {
+            var control = _options.CurrentPreview?.Invoke();
+            if (control == null || _skin == null || _seqIndex >= 0 || (_tweens != null && _tweens.IsPlaying(_tweenHandle)))
+            {
+                return;
+            }
+
+            control.ForceStateForPreview(control.State);
+            InternalEditorUtility.RepaintAllViews();
+        }
+
+        public const string DefaultScrollMaterialPath = "Assets/DDrive/Runtime/Ui/Shaders/DDrive_UI_Scroll.mat";
+
+        // Scroll Speed を使う状態があるのに Scroll Material が空なら、既定のものを入れる(デザイナーが探さなくて済むように)。
+        private void EnsureScrollMaterial()
+        {
+            if (_skin.ScrollMaterial != null)
+            {
+                return;
+            }
+
+            var needed = false;
+            foreach (var state in StateByProperty.Values)
+            {
+                if (_skin.Get(state).ScrollSpeed != Vector2.zero)
+                {
+                    needed = true;
+                    break;
+                }
+            }
+
+            if (!needed)
+            {
+                return;
+            }
+
+            var material = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(DefaultScrollMaterialPath);
+            if (material == null)
+            {
+                _status.text = "既定のスクロール用マテリアルが見つかりません: " + DefaultScrollMaterialPath;
+                return;
+            }
+
+            Undo.RecordObject(_skin, "スクロール用マテリアルを設定");
+            _skin.ScrollMaterial = material;
+            EditorUtility.SetDirty(_skin);
+            _status.text = "Scroll Speed を使う状態があるため、既定のスクロール用マテリアルを設定しました";
+        }
+
+        // 既存の Anim2D / Anim データ(スプライトの切り替えを持つ Clip)からコマを読み込む。
+        private VisualElement BuildAnimImportRow(SerializedProperty stateProp)
+        {
+            var row = Row();
+            var source = new ObjectField("Anim2D から読み込む")
+            {
+                objectType = typeof(DDrive.Runtime.Anim.AnimData),
+                tooltip = "Anim2D エディタで作ったデータ(スプライトを切り替える Clip)を選び、右のボタンでコマ・コマ数/秒・ループを取り込む",
+                style = { flexGrow = 1f },
+            };
+            row.Add(source);
+            var so = stateProp.serializedObject;
+            var path = stateProp.propertyPath;
+            row.Add(new Button(() => ImportFrames(so, path, source.value as DDrive.Runtime.Anim.AnimData)) { text = "コマを読み込む" });
+            return row;
+        }
+
+        private void ImportFrames(SerializedObject so, string statePath, DDrive.Runtime.Anim.AnimData data)
+        {
+            var clip = data != null ? data.Clip : null;
+            if (clip == null)
+            {
+                _status.text = "Clip を持つ Anim2D データを指定してください";
+                return;
+            }
+
+            var sprites = new List<Sprite>();
+            foreach (var binding in AnimationUtility.GetObjectReferenceCurveBindings(clip))
+            {
+                if (binding.propertyName != "m_Sprite")
+                {
+                    continue;
+                }
+
+                foreach (var key in AnimationUtility.GetObjectReferenceCurve(clip, binding))
+                {
+                    if (key.value is Sprite sprite)
+                    {
+                        sprites.Add(sprite);
+                    }
+                }
+
+                break;
+            }
+
+            if (sprites.Count == 0)
+            {
+                _status.text = $"'{clip.name}' にスプライトのコマがありません";
+                return;
+            }
+
+            so.Update();
+            var state = so.FindProperty(statePath);
+            var frames = state.FindPropertyRelative(nameof(StateVisual.AnimFrames));
+            frames.arraySize = sprites.Count;
+            for (var i = 0; i < sprites.Count; i++)
+            {
+                frames.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
+            }
+
+            state.FindPropertyRelative(nameof(StateVisual.AnimFps)).floatValue = clip.frameRate;
+            state.FindPropertyRelative(nameof(StateVisual.AnimLoop)).boolValue = clip.isLooping;
+            so.ApplyModifiedProperties();
+            _status.text = $"'{clip.name}' から {sprites.Count} コマを読み込みました({clip.frameRate:0.#} コマ/秒)";
         }
 
         // 状態の「▶ 再生」。遷移の自動再生中なら止めてから 1 状態だけ再生する。
@@ -887,6 +1012,21 @@ namespace DDrive.Editor.Ui
             {
                 _tweens.Tick(dt);
                 animating = true;
+            }
+
+            // 状態のスプライトアニメ / スクロールもプレビューで動かす(Edit Mode では部品の Update が回らないため)。
+            var control = _options.CurrentPreview?.Invoke();
+            if (control != null)
+            {
+                if (_options.TickPreviewVisuals)
+                {
+                    control.TickVisuals(dt);
+                }
+
+                if (control.HasVisualAnimation)
+                {
+                    animating = true;
+                }
             }
 
             if (_seqIndex >= 0 && !_seqPaused)
