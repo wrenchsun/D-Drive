@@ -162,9 +162,26 @@ namespace DDrive.Editor.Ui
         // 当たり判定の表示。
         private bool _showHitArea;
 
+        // (レビュー対応 2026-09-14) 毎フレームの処理を減らす: 描き直しは 30fps 上限、当たり判定の枠は値が変わったときだけ、
+        // ボタンの有効/無効は再生状態が変わったときだけ更新する。
+        private readonly ViewRepaintThrottle _repaint = new();
+        private bool _wasAnimating;
+        private int _widgetKey = int.MinValue;
+        private bool _overlayShown;
+        private UiInteractable _overlayControl;
+        private ControlSkinData _overlaySkin;
+        private Vector4 _overlayMain;
+        private readonly RectTransform[] _overlayExtraTargets;
+        private readonly Vector4[] _overlayExtra;
+
+        // (レビュー対応 2026-09-14) Scroll Speed を使うのに Scroll Material が空のときの案内(自動では書き込まない)。
+        private VisualElement _scrollHint;
+
         public ControlSkinPreviewSection(Options options)
         {
             _options = options ?? new Options();
+            _overlayExtraTargets = new RectTransform[_options.ExtraHitAreas.Length];
+            _overlayExtra = new Vector4[_options.ExtraHitAreas.Length];
 
             Add(new HelpBox("各状態の「▶ 再生」でプレビューの部品をその状態にし、状態に入ったときの演出(すぐ下の Enter Tween / Enter Preset)を再生します。「状態遷移」は複数の状態を順に自動で切り替えます。未配置なら自動で「確認用シーンに配置」します。SE 欄の右の「▶」で試聴できます。動きは Game ビューで見てください。", HelpBoxMessageType.Info));
             Add(_status);
@@ -176,12 +193,34 @@ namespace DDrive.Editor.Ui
                 EditorApplication.update += OnEditorUpdate;
                 SceneView.duringSceneGui += OnSceneGui;
             });
+            // ウィンドウの OnDisable から Dispose が呼ばれない経路の保険(Dispose は何度呼んでもよい)。
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
                 EditorApplication.update -= OnEditorUpdate;
                 SceneView.duringSceneGui -= OnSceneGui;
-                Shutdown();
+                Dispose();
             });
+        }
+
+        // (レビュー対応 2026-09-14) プレビューの撤去・置き直しのときにウィンドウから呼ぶ。遷移の自動再生・演出・SE を
+        // 全て止める(止めないと遷移の次の段が撤去済みのプレビューを置き直していた)。
+        public void StopAll()
+        {
+            StopSequence();
+            StopTween();
+            StopSe();
+        }
+
+        // (レビュー対応 2026-09-14) ウィンドウの OnDisable(閉じる・ドメインリロード)から呼ぶ。試聴用の PreviewService
+        // (プレビューシーン + AudioSource)を確実に閉じる。以前は DetachFromPanelEvent 頼みで、ドメインリロード時に
+        // 閉じられず残ることがあった。何度呼んでもよい(次に再生するときに作り直す)。
+        public void Dispose()
+        {
+            StopSequence();
+            StopSe();
+            _tweens = null;
+            _audio?.Dispose();
+            _audio = null;
         }
 
         public void SetSkin(ControlSkinData skin)
@@ -195,13 +234,26 @@ namespace DDrive.Editor.Ui
             _body.Clear();
             _stateWidgets.Clear();
             _seWidgets.Clear();
+            // (レビュー対応 2026-09-14) 遷移の欄は作り直すので、古い要素への参照も全部捨てる(_seqPopup だけ捨てていた)。
             _seqPopup = null;
+            _seqPause = null;
+            _seqStop = null;
+            _seqStatus = null;
+            _scrollHint = null;
+            _widgetKey = int.MinValue;
 
             if (skin == null)
             {
                 _body.Add(new Label("Skin を選択してください") { style = { opacity = 0.7f } });
+
+                // (レビュー対応 2026-09-14) 以前はここで戻り、プレビューに赤い当たり判定の枠が残っていた。
+                // _skin == null なので枠を外す(見た目はウィンドウ側の SetVisual(null) で元に戻る)。
+                UpdateHitOverlay();
                 return;
             }
+
+            _scrollHint = BuildScrollHint();
+            _body.Add(_scrollHint);
 
             var seByName = new Dictionary<string, SeField>();
             foreach (var field in _options.SeFields)
@@ -415,6 +467,14 @@ namespace DDrive.Editor.Ui
             }
 
             StopSequence();
+
+            // (レビュー対応 2026-09-14) 配置するのは「▶ 遷移を再生」を押したこのときだけ。自動で進む段では置き直さない。
+            if (_options.EnsurePreview?.Invoke() == null)
+            {
+                _status.text = "確認用シーンにプレビューを配置できませんでした";
+                return;
+            }
+
             _seqIndex = Mathf.Clamp(_seqPopup.index, 0, _options.Sequences.Length - 1);
             _seqStep = -1;
             _seqPaused = false;
@@ -423,6 +483,19 @@ namespace DDrive.Editor.Ui
 
         private void AdvanceSequence()
         {
+            // (レビュー対応 2026-09-14) 撤去された・別のシーンに移ってプレビューが消えたら、置き直さずに遷移を止める
+            // (以前は次の段が EnsurePreview で置き直し、「撤去」やシーン移動の後もプレビューが復活していた)。
+            if (_options.CurrentPreview?.Invoke() == null)
+            {
+                StopSequence();
+                if (_seqStatus != null)
+                {
+                    _seqStatus.text = "プレビューが無くなったため停止しました";
+                }
+
+                return;
+            }
+
             var seq = _options.Sequences[_seqIndex];
             _seqStep++;
             if (_seqStep >= seq.Steps.Length)
@@ -441,7 +514,7 @@ namespace DDrive.Editor.Ui
             // 同じ状態が続く段(例: Disabled のまま押して拒否音)は演出をやり直さず、SE だけ鳴らす。
             if (_seqStep == 0 || step.State != _seqPrevState)
             {
-                PlayStateCore(step.State);
+                PlayStateCore(step.State, placeIfMissing: false);
             }
 
             _seqPrevState = step.State;
@@ -589,12 +662,62 @@ namespace DDrive.Editor.Ui
                     }
                 }
 
+                RememberHitOverlay(control);
                 return;
             }
 
             foreach (var (rt, expand, _, color) in CollectHitAreas())
             {
                 ApplyOverlay(rt, expand, color);
+            }
+
+            RememberHitOverlay(control);
+        }
+
+        // (レビュー対応 2026-09-14) 毎フレーム枠を作り直さないよう、前回反映した値を覚えて変化だけを見る(割り当て無し)。
+        private bool HitOverlayChanged()
+        {
+            var control = _options.CurrentPreview?.Invoke();
+            if (control != _overlayControl || _skin != _overlaySkin || _showHitArea != _overlayShown)
+            {
+                return true;
+            }
+
+            if (control == null || _skin == null || !_showHitArea)
+            {
+                return false;
+            }
+
+            if (_skin.EffectiveHitAreaExpand != _overlayMain)
+            {
+                return true;
+            }
+
+            for (var i = 0; i < _options.ExtraHitAreas.Length; i++)
+            {
+                var extra = _options.ExtraHitAreas[i];
+                var rt = extra.Target?.Invoke();
+                if (rt != _overlayExtraTargets[i] || (rt != null && extra.Get(_skin) != _overlayExtra[i]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void RememberHitOverlay(UiInteractable control)
+        {
+            _overlayControl = control;
+            _overlaySkin = _skin;
+            _overlayShown = _showHitArea;
+            _overlayMain = _skin != null ? _skin.EffectiveHitAreaExpand : Vector4.zero;
+            for (var i = 0; i < _options.ExtraHitAreas.Length; i++)
+            {
+                var extra = _options.ExtraHitAreas[i];
+                var rt = extra.Target?.Invoke();
+                _overlayExtraTargets[i] = rt;
+                _overlayExtra[i] = rt != null && _skin != null ? extra.Get(_skin) : Vector4.zero;
             }
         }
 
@@ -719,7 +842,7 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            EnsureScrollMaterial();
+            UpdateScrollHint();
 
             foreach (var w in _stateWidgets)
             {
@@ -757,25 +880,51 @@ namespace DDrive.Editor.Ui
 
         public const string DefaultScrollMaterialPath = "Assets/DDrive/Runtime/Ui/Shaders/DDrive_UI_Scroll.mat";
 
-        // Scroll Speed を使う状態があるのに Scroll Material が空なら、既定のものを入れる(デザイナーが探さなくて済むように)。
-        private void EnsureScrollMaterial()
+        // (レビュー対応 2026-09-14) 以前は Scroll Material が空なら開いただけで自動で書き込んでいた(Data が勝手に
+        // 変更扱いになり、Undo しても直後に入れ直されて空に戻せず、Redo 履歴も消えていた)。自動では書き込まず、
+        // 案内とボタンを出して押したときだけ Undo 付きで設定する。
+        private VisualElement BuildScrollHint()
         {
-            if (_skin.ScrollMaterial != null)
+            var box = new VisualElement { style = { marginBottom = 4 } };
+            box.Add(new HelpBox("Scroll Speed を使う状態がありますが、Scroll Material が空のためスクロールしません。", HelpBoxMessageType.Warning));
+            box.Add(new Button(AssignDefaultScrollMaterial)
             {
-                return;
+                text = "既定のマテリアルを設定",
+                tooltip = "Scroll Material に " + DefaultScrollMaterialPath + " を設定する(Ctrl+Z で戻せます)",
+            });
+            box.style.display = DisplayStyle.None;
+            return box;
+        }
+
+        private bool NeedsScrollMaterial()
+        {
+            if (_skin == null || _skin.ScrollMaterial != null)
+            {
+                return false;
             }
 
-            var needed = false;
             foreach (var state in StateByProperty.Values)
             {
                 if (_skin.Get(state).ScrollSpeed != Vector2.zero)
                 {
-                    needed = true;
-                    break;
+                    return true;
                 }
             }
 
-            if (!needed)
+            return false;
+        }
+
+        private void UpdateScrollHint()
+        {
+            if (_scrollHint != null)
+            {
+                _scrollHint.style.display = NeedsScrollMaterial() ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        private void AssignDefaultScrollMaterial()
+        {
+            if (_skin == null)
             {
                 return;
             }
@@ -784,13 +933,16 @@ namespace DDrive.Editor.Ui
             if (material == null)
             {
                 _status.text = "既定のスクロール用マテリアルが見つかりません: " + DefaultScrollMaterialPath;
+                Debug.LogWarning("[DDrive] 既定のスクロール用マテリアルが見つかりません: " + DefaultScrollMaterialPath);
                 return;
             }
 
             Undo.RecordObject(_skin, "スクロール用マテリアルを設定");
             _skin.ScrollMaterial = material;
             EditorUtility.SetDirty(_skin);
-            _status.text = "Scroll Speed を使う状態があるため、既定のスクロール用マテリアルを設定しました";
+            _status.text = "既定のスクロール用マテリアルを設定しました";
+            RefreshSummaries();
+            ReapplyPreviewVisuals();
         }
 
         // 既存の Anim2D / Anim データ(スプライトの切り替えを持つ Clip)からコマを読み込む。
@@ -820,6 +972,7 @@ namespace DDrive.Editor.Ui
             }
 
             var sprites = new List<Sprite>();
+            var keyTimes = new List<float>();
             foreach (var binding in AnimationUtility.GetObjectReferenceCurveBindings(clip))
             {
                 if (binding.propertyName != "m_Sprite")
@@ -832,6 +985,7 @@ namespace DDrive.Editor.Ui
                     if (key.value is Sprite sprite)
                     {
                         sprites.Add(sprite);
+                        keyTimes.Add(key.time);
                     }
                 }
 
@@ -853,30 +1007,73 @@ namespace DDrive.Editor.Ui
                 frames.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
             }
 
-            state.FindPropertyRelative(nameof(StateVisual.AnimFps)).floatValue = clip.frameRate;
+            // (レビュー対応 2026-09-14) clip.frameRate は Clip のサンプルレートで、1 コマの長さではない。Anim2D の
+            // AnimationClipBuilder はキーを Clip の長さに等間隔で並べる(例: 4 コマ・12fps・長さ 8 フレーム → 6 コマ/秒)ため、
+            // キーの間隔から求める。
+            var fps = EstimateFramesPerSecond(keyTimes, clip.length, clip.frameRate, out var uneven);
+            state.FindPropertyRelative(nameof(StateVisual.AnimFps)).floatValue = fps;
             state.FindPropertyRelative(nameof(StateVisual.AnimLoop)).boolValue = clip.isLooping;
             so.ApplyModifiedProperties();
-            _status.text = $"'{clip.name}' から {sprites.Count} コマを読み込みました({clip.frameRate:0.#} コマ/秒)";
+            _status.text = $"'{clip.name}' から {sprites.Count} コマを読み込みました({fps:0.##} コマ/秒)";
+            if (uneven)
+            {
+                _status.text += "。コマの間隔が一定でないため、平均の間隔で等速にしています(Retiming の緩急は再現されません)";
+                Debug.LogWarning($"[DDrive] '{clip.name}': コマの間隔が一定でないため、平均 {fps:0.##} コマ/秒の等速として読み込みました。", data);
+            }
+        }
+
+        // キーの時刻(スプライトの切り替え時刻)からコマ数/秒を求める。キーが 1 つ以下なら「コマ数 / Clip の長さ」、
+        // それも出せなければ fallback。間隔のばらつきが平均の 5% を超えたら uneven=true。
+        public static float EstimateFramesPerSecond(IReadOnlyList<float> keyTimes, float clipLength, float fallback, out bool uneven)
+        {
+            uneven = false;
+            var count = keyTimes != null ? keyTimes.Count : 0;
+            if (count >= 2)
+            {
+                var span = keyTimes[count - 1] - keyTimes[0];
+                if (span > 0f)
+                {
+                    var average = span / (count - 1);
+                    for (var i = 1; i < count; i++)
+                    {
+                        if (Mathf.Abs(keyTimes[i] - keyTimes[i - 1] - average) > average * 0.05f + 1e-4f)
+                        {
+                            uneven = true;
+                            break;
+                        }
+                    }
+
+                    return 1f / average;
+                }
+            }
+
+            if (count >= 1 && clipLength > 0f)
+            {
+                return count / clipLength;
+            }
+
+            return fallback > 0f ? fallback : 12f;
         }
 
         // 状態の「▶ 再生」。遷移の自動再生中なら止めてから 1 状態だけ再生する。
         private void PlayState(ControlState state)
         {
             StopSequence();
-            PlayStateCore(state);
+            PlayStateCore(state, placeIfMissing: true);
         }
 
-        private void PlayStateCore(ControlState state)
+        // placeIfMissing=false は遷移の自動再生の段(レビュー対応 2026-09-14: 未配置なら置き直さずに何もしない)。
+        private void PlayStateCore(ControlState state, bool placeIfMissing)
         {
             if (_skin == null)
             {
                 return;
             }
 
-            var control = _options.EnsurePreview?.Invoke();
+            var control = placeIfMissing ? _options.EnsurePreview?.Invoke() : _options.CurrentPreview?.Invoke();
             if (control == null || !(control.transform is RectTransform rt))
             {
-                _status.text = "確認用シーンにプレビューを配置できませんでした";
+                _status.text = placeIfMissing ? "確認用シーンにプレビューを配置できませんでした" : "プレビューが配置されていません";
                 return;
             }
 
@@ -921,6 +1118,13 @@ namespace DDrive.Editor.Ui
 
         private void TogglePause()
         {
+            // (レビュー対応 2026-09-14) 遷移の再生中は遷移側の一時停止に回す(Tween だけ止めると遷移のタイマーが進み続けてずれていた)。
+            if (_seqIndex >= 0)
+            {
+                ToggleSequencePause();
+                return;
+            }
+
             if (_tweens != null && _tweens.IsPlaying(_tweenHandle))
             {
                 _tweens.SetPaused(_tweenHandle, !_tweens.IsPaused(_tweenHandle));
@@ -1040,19 +1244,46 @@ namespace DDrive.Editor.Ui
                 animating = true;
             }
 
-            // Edit Mode の Game ビューは自動では再描画されないため、動いている間は毎フレーム描き直す
+            // Edit Mode の Game ビューは自動では再描画されないため、動いている間は描き直す
             // (これが無いと Game ビューには最後の姿しか映らず「再生されない」ように見える)。
+            // (レビュー対応 2026-09-14) 30fps 上限に間引き、止まった直後に 1 回だけ最終の姿を描く。
             if (animating)
             {
-                InternalEditorUtility.RepaintAllViews();
+                _repaint.Request();
+            }
+            else if (_wasAnimating)
+            {
+                _repaint.Request(force: true);
             }
 
-            if (_showHitArea)
+            _wasAnimating = animating;
+
+            // (レビュー対応 2026-09-14) 枠は値・対象が変わったときだけ作り直す(以前は毎フレーム List + クロージャを作っていた)。
+            if ((_showHitArea || _overlayShown) && HitOverlayChanged())
             {
                 UpdateHitOverlay();
             }
 
-            RefreshWidgets();
+            // (レビュー対応 2026-09-14) ボタンは再生状態が変わったときだけ更新する。
+            var key = WidgetKey();
+            if (key != _widgetKey)
+            {
+                _widgetKey = key;
+                RefreshWidgets();
+            }
+        }
+
+        private int WidgetKey()
+        {
+            var playing = _tweens != null && _tweens.IsPlaying(_tweenHandle);
+            var sePlaying = _audio != null && _audio.IsInitialized && _audio.AudioManager.IsPlaying(_seHandle);
+            var flags = (playing ? 1 : 0)
+                        | (playing && _tweens.IsPaused(_tweenHandle) ? 2 : 0)
+                        | (_seqIndex >= 0 ? 4 : 0)
+                        | (_seqPaused ? 8 : 0)
+                        | (sePlaying ? 16 : 0)
+                        | (((int)_tweenState + 1) << 5);
+            return (flags * 397) ^ (sePlaying && _sePropertyName != null ? _sePropertyName.GetHashCode() : 0);
         }
 
         private void RefreshWidgets()
@@ -1062,7 +1293,8 @@ namespace DDrive.Editor.Ui
             foreach (var w in _stateWidgets)
             {
                 var mine = playing && w.State == _tweenState;
-                w.Pause.SetEnabled(mine);
+                // (レビュー対応 2026-09-14) 遷移の再生中は状態ごとの ⏸ を使えなくする(一時停止は遷移の欄の ⏸ で行う)。
+                w.Pause.SetEnabled(mine && _seqIndex < 0);
                 w.Stop.SetEnabled(mine || _seqIndex >= 0);
                 SetText(w.Pause, mine && paused ? "▶ 再開" : "⏸ 一時停止");
                 var status = !mine ? string.Empty : paused ? "⏸ 一時停止" : "● 再生中";
@@ -1085,14 +1317,6 @@ namespace DDrive.Editor.Ui
             {
                 s.Stop.SetEnabled(sePlaying && s.Field.PropertyName == _sePropertyName);
             }
-        }
-
-        private void Shutdown()
-        {
-            StopSequence();
-            _tweens = null;
-            _audio?.Dispose();
-            _audio = null;
         }
 
         private static void SetText(Button button, string text)
@@ -1128,23 +1352,7 @@ namespace DDrive.Editor.Ui
 
         private static Label Header(string text) => new(text) { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } };
 
-        private static T FindData<T>(ulong id) where T : AssetDataBase
-        {
-            if (id == 0)
-            {
-                return null;
-            }
-
-            foreach (var guid in AssetSearch.FindAssets("t:" + typeof(T).Name))
-            {
-                var asset = AssetDatabase.LoadAssetAtPath<T>(AssetDatabase.GUIDToAssetPath(guid));
-                if (asset != null && asset.Id == id)
-                {
-                    return asset;
-                }
-            }
-
-            return null;
-        }
+        // (レビュー対応 2026-09-14) 全件走査を毎回していたため、Id ごとにキャッシュする共通の DataIdLookup を使う。
+        private static T FindData<T>(ulong id) where T : AssetDataBase => DataIdLookup.Find<T>(id);
     }
 }

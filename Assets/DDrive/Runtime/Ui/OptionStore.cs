@@ -197,7 +197,23 @@ namespace DDrive.Runtime.Ui
     {
         private static OptionStore _instance;
 
-        public static void Bind(OptionStore instance) => _instance = instance;
+        // ファサード経由の購読者。以前は未 Bind のとき購読を黙って捨てていた(起動順によって通知が来ない)。
+        // ここに持っておき、Bind のたびに今のインスタンスへ付け替える(docs/24 整理項目 3、2026-09-14)。
+        private static Action<OptionKey, float> _subscribers;
+
+        public static void Bind(OptionStore instance)
+        {
+            if (_instance != null && _subscribers != null)
+            {
+                _instance.OnChanged -= _subscribers;
+            }
+
+            _instance = instance;
+            if (_instance != null && _subscribers != null)
+            {
+                _instance.OnChanged += _subscribers;
+            }
+        }
 
         public static bool IsBound => _instance != null;
 
@@ -207,8 +223,22 @@ namespace DDrive.Runtime.Ui
 
         public static event Action<OptionKey, float> OnChanged
         {
-            add { if (_instance != null) _instance.OnChanged += value; }
-            remove { if (_instance != null) _instance.OnChanged -= value; }
+            add
+            {
+                _subscribers += value;
+                if (_instance != null)
+                {
+                    _instance.OnChanged += value;
+                }
+            }
+            remove
+            {
+                _subscribers -= value;
+                if (_instance != null)
+                {
+                    _instance.OnChanged -= value;
+                }
+            }
         }
     }
 }

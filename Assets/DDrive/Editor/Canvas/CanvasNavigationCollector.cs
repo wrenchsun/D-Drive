@@ -21,7 +21,7 @@ namespace DDrive.Editor.CanvasTool
             var result = new NavNode[selectables.Length];
             for (var i = 0; i < selectables.Length; i++)
             {
-                result[i] = new NavNode { Element = GetPath(prefab.transform, selectables[i].transform) };
+                result[i] = new NavNode { Element = TransformPath.GetRelative(prefab.transform, selectables[i].transform) }; // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
             }
 
             return result;
@@ -63,25 +63,6 @@ namespace DDrive.Editor.CanvasTool
             }
 
             return merged;
-        }
-
-        private static string GetPath(Transform root, Transform target)
-        {
-            if (target == root)
-            {
-                return string.Empty;
-            }
-
-            var names = new List<string>();
-            var cur = target;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            return string.Join("/", names);
         }
     }
 }

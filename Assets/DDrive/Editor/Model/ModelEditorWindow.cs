@@ -301,7 +301,7 @@ namespace DDrive.Editor.Model
             var collected = new List<MaterialSlot>();
             foreach (var renderer in renderers)
             {
-                var path = GetRelativePath(_target.Prefab.transform, renderer.transform);
+                var path = DDrive.Runtime.Ui.TransformPath.GetRelative(_target.Prefab.transform, renderer.transform); // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
                 var materialCount = renderer.sharedMaterials.Length;
                 for (var slotIndex = 0; slotIndex < materialCount; slotIndex++)
                 {
@@ -327,24 +327,6 @@ namespace DDrive.Editor.Model
             }
 
             return default;
-        }
-
-        private static string GetRelativePath(Transform root, Transform target)
-        {
-            if (target == root)
-            {
-                return string.Empty;
-            }
-
-            var segments = new List<string>();
-            var current = target;
-            while (current != null && current != root)
-            {
-                segments.Insert(0, current.name);
-                current = current.parent;
-            }
-
-            return string.Join("/", segments);
         }
 
         private void ApplySlotsToPreview()

@@ -30,7 +30,7 @@ namespace DDrive.Runtime.Ui
                     {
                         if (frame == null)
                         {
-                            yield return ValidationResult.Warning($"{state} の Anim Frames に空のコマがあります(そのコマの間は前の画像のまま)");
+                            yield return ValidationResult.Warning($"{state} の Anim Frames に空のコマがあります(そのコマの間は直前のコマのまま。1 コマ目が空なら元の画像になります)");
                             break;
                         }
                     }
@@ -46,7 +46,8 @@ namespace DDrive.Runtime.Ui
                     yield return ValidationResult.Warning($"{state} に Scroll Speed がありますが、Scroll Material が空です(スクロールしません)");
                 }
 
-                var sprite = v.OverrideSprite;
+                // 流す画像はコマがあれば 1 コマ目、無ければ Override Sprite(Image の元画像はここからは見えないので対象外)。
+                var sprite = v.AnimFrames != null && v.AnimFrames.Length > 0 && v.AnimFrames[0] != null ? v.AnimFrames[0] : v.OverrideSprite;
                 if (sprite != null && sprite.packed)
                 {
                     yield return ValidationResult.Warning($"{state} の画像 '{sprite.name}' は Sprite Atlas に入っています(スクロールすると隣の画像が流れ込みます)");

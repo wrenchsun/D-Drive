@@ -66,8 +66,8 @@
 <tr><td>Override Sprite</td><td>その状態で差し替える画像。Normal に入れると Asset Browser のアイコンにもなります</td></tr>
 <tr><td>Enter Tween</td><td>この状態に入った瞬間に再生する演出（<a href="ui-tween.html">UI Tween</a> のデータ）。設定があれば Enter Preset より優先</td></tr>
 <tr><td>Enter Preset</td><td>Enter Tween が空のときに使う既成の演出。Preset = None なら何も再生しません（例: Pressed に PunchScale）</td></tr>
-<tr><td>Anim Frames / Anim Fps / Anim Loop</td><td><strong>スプライトアニメ</strong>。その状態のあいだ、コマ画像を順に切り替えます（Override Sprite より優先）。Anim Fps = 1 秒あたりのコマ数（0 以下は 12）、Anim Loop = 最後のコマから最初に戻る（OFF なら最後のコマで止まる）。「見た目」の中の「Anim2D から読み込む」に Anim2D データを入れて「コマを読み込む」を押すと、コマ・コマ数/秒・ループをまとめて取り込めます</td></tr>
-<tr><td>Scroll Speed</td><td><strong>スクロールアニメ</strong>。画像を流す速さ（X = 横、Y = 縦。1 秒あたりに画像の何枚分動くか。0 = 無効）。縞模様が流れるボタンなどに。画像のインポート設定で <strong>Wrap Mode を Repeat</strong> にし、<strong>Sprite Atlas には入れない</strong>でください。スクロールに必要な Scroll Material は、Skin Editor が既定のものを自動で入れます</td></tr>
+<tr><td>Anim Frames / Anim Fps / Anim Loop</td><td><strong>スプライトアニメ</strong>。その状態のあいだ、コマ画像を順に切り替えます（Override Sprite より優先）。Anim Fps = 1 秒あたりのコマ数（0 以下は 12）、Anim Loop = 最後のコマから最初に戻る（OFF なら最後のコマで止まる）。「見た目」の中の「Anim2D から読み込む」に Anim2D データを入れて「コマを読み込む」を押すと、コマ・コマ数/秒・ループをまとめて取り込めます（コマ数/秒はクリップの長さとコマの並びから求めます。コマの間隔が不揃いなクリップは、平均の速さになる旨の警告が出ます）</td></tr>
+<tr><td>Scroll Speed</td><td><strong>スクロールアニメ</strong>。画像を流す速さ（X = 横、Y = 縦。1 秒あたりに画像の何枚分動くか。0 = 無効）。縞模様が流れるボタンなどに。画像のインポート設定で <strong>Wrap Mode を Repeat</strong> にし、<strong>Sprite Atlas には入れない</strong>でください。スクロールに必要な Scroll Material が空だと、Skin Editor の上に警告と「<strong>既定のマテリアルを設定</strong>」ボタンが出るので押してください（Ctrl+Z で戻せます）。ゲームがポーズ中（時間停止中）でもスクロールは止まりません</td></tr>
 </table>
 
 <h3>設定項目（SE）</h3>
@@ -83,9 +83,9 @@
 <h3>設定項目（当たり判定）</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>Hit Area Expand</td><td>押せる範囲を<strong>見た目より広げる（+）/ 狭める（−）</strong>。X = 左、Y = 下、Z = 右、W = 上 の各辺をピクセルで指定します（例: 小さいアイコンボタンを押しやすくするなら 4 辺とも 10）。ボタン側の Target Graphic に掛かります。「当たり判定を表示」で範囲を見ながら調整できます</td></tr>
+<tr><td>Hit Area Expand</td><td>押せる範囲を<strong>見た目より広げる（+）/ 狭める（−）</strong>。X = 左、Y = 下、Z = 右、W = 上 の各辺をピクセルで指定します（例: 小さいアイコンボタンを押しやすくするなら 4 辺とも 10）。ボタン側の Target Graphic に掛かります。Prefab の画像に Raycast Padding を手で設定してある場合は、<strong>その値に足されます</strong>（手設定は消えません。Skin を外すと手設定に戻ります）。「当たり判定を表示」で範囲を見ながら調整できます</td></tr>
 <tr><td>Alpha Hit Threshold</td><td>画像の<strong>透明な部分を押せなくする</strong>。0 = 無効、0.5 なら不透明度 50% 未満のピクセルは押しても反応しません（丸いボタンの四隅など）。<strong>画像のインポート設定で Read/Write を ON</strong> にし、Sprite Atlas には入れないでください。読めない画像だと透明判定をせず、全面が押せるまま警告が出ます。エディタの確認用シーンでは実際に押せないため、効き目はゲーム実行中に確かめます</td></tr>
-<tr><td>Scroll Material</td><td>スクロールアニメ用のマテリアル（<code>DDrive/UI/Scroll</code>）。Scroll Speed を使う状態があれば Skin Editor が既定の <code>DDrive_UI_Scroll</code> を自動で入れるので、普段は触りません。空のままだとスクロールせず警告が出ます</td></tr>
+<tr><td>Scroll Material</td><td>スクロールアニメ用のマテリアル（<code>DDrive/UI/Scroll</code>）。Scroll Speed を使う状態があるのに空だと、Skin Editor に「既定のマテリアルを設定」ボタンが出ます。押すと既定の <code>DDrive_UI_Scroll</code> が入ります（自動では入りません。開いただけでデータが変わらないように）。空のままだとスクロールせず警告が出ます</td></tr>
 </table>
 <div class="tip">状態の画像（Override Sprite / コマ）を持たない状態に戻ると、ボタンは<strong>元の画像に戻ります</strong>。Skin Editor で設定を変えると、配置済みのプレビューに<strong>すぐ反映</strong>されます（演出や遷移の再生中は、次の再生で反映）。</div>
 
@@ -186,9 +186,9 @@
 <tr><td>対象 UiSlider / 選択から取得 / 確認用シーンにサンプルを配置 / 撤去</td><td>対象の選択。状態行に「UiSlider を選択してください」または「対象: 名前」</td></tr>
 <tr><td>(a) 応答曲線</td><td>横軸 = つまみの位置、縦軸 = 値。<strong>薄い対角線</strong> = まっすぐ（線形）の目安、<strong>水色の曲線</strong> = いまの Response、<strong>黄色い点</strong> = 現在のつまみ位置と値。曲線が対角線より下にたわんでいれば「左側で細かく動く」、上なら「右側で細かく」です。直下で Response を編集できます</td></tr>
 <tr><td>(b) ノッチ / Step</td><td>目盛りの帯。<strong>白い縦線</strong> = 目盛り位置（両端を含めて Notches+1 本）、<strong>黄色い半透明の帯</strong> = 吸着が効く幅（Snap Threshold）、<strong>シアンの点</strong> = 現在値。Notches = 0 なら「Notches=0(連続値)」。このウィンドウがフォーカス中は、SceneView の Track の上にも同じ帯が重なります</td></tr>
-<tr><td>(c) 実操作</td><td>「◀」「▶」= パッド左右 1 回分（Ctrl+Z 可）。「微調整」ON で移動量が Fine Step Multiplier 倍。「ドラッグ模擬: 0 → 1」で 20 段階の実際のドラッグを再現。下のログに Changed / NotchPassed / LimitReached / Commit が並び、SE も鳴ります</td></tr>
+<tr><td>(c) 実操作</td><td>「◀」「▶」= パッド左右 1 回分（シーン上の実物なら、つまみ・バーの位置まで Ctrl+Z で戻せます）。「微調整」ON で移動量が Fine Step Multiplier 倍。「ドラッグ模擬: 0 → 1」で 20 段階の実際のドラッグを再現（<strong>確認用サンプルだけ</strong>。シーン上の実物のスライダーでは理由を表示して動かしません。実物を記録なしに書き換えないため）。下のログに Changed / NotchPassed / LimitReached / Commit が並び、Skin に設定した掴む・離す・目盛り・端・拒否の SE も鳴ります（Slider Skin の「Slider Editor で開く」から開いた場合、または対象の Skin Id が設定されている場合）</td></tr>
 <tr><td>(d) 追従比較</td><td>「2 体目を配置して FollowMotion を比較」で右に 2 体目（Follow Motion だけ OutBack / 0.4 秒 / Once に変えたもの）を置き、「同時に 0→1 を模擬」で並べて比べます。2 体目の Follow Motion はその場で編集可</td></tr>
-<tr><td>(e) Skin プレビュー</td><td>「全状態を並べる」で Normal / Hover / Pressed / Selected / Disabled / Locked の 6 本を横に並べ、対象の Skin Id の見た目を各状態に固定します。Skin Id が空だと 6 本とも同じ見た目</td></tr>
+<tr><td>(e) Skin プレビュー</td><td>「全状態を並べる」で Normal / Hover / Pressed / Selected / Disabled / Locked の 6 本を横に並べ、対象の Skin の見た目を各状態に固定します。Skin は対象の Skin Id、無ければ「Slider Editor で開く」で開いたときの Slider Skin を使います。どちらも無い（メニューからサンプルを置いた）と 6 本とも同じ見た目</td></tr>
 <tr><td>(f) プリセット</td><td>下の表の 5 種。対象の値・刻み・応答・追従をまとめて書き換えます（Ctrl+Z 可）</td></tr>
 <tr><td>(g) Validation</td><td>下の「UiSlider の警告」。問題なければ「問題なし」</td></tr>
 </table>
@@ -213,7 +213,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <tr><td>値: Min / Max</td><td>値の範囲（既定 0〜1）</td></tr>
 <tr><td>刻み: Step</td><td>値の最小刻み。0 = 連続値</td></tr>
 <tr><td>刻み: Whole Numbers</td><td>ON で値を必ず整数に丸める</td></tr>
-<tr><td>刻み: Notches</td><td>目盛りの分割数。0 = 目盛り無し。4 なら 0 / 25 / 50 / 75 / 100 の 5 点に吸着し、Notch Se が鳴ります</td></tr>
+<tr><td>刻み: Notches</td><td>目盛りの分割数。0 = 目盛り無し。4 なら 0 / 25 / 50 / 75 / 100 の 5 点に吸着し、Notch Se が鳴ります。キーボード / パッド / ホイールで 1 回動かしても吸着で元の目盛りに戻ってしまう設定のときは、<strong>隣の目盛りまで進みます</strong>（スタミナなら 1 回で 25）</td></tr>
 <tr><td>刻み: Snap Threshold</td><td>目盛りにどれだけ近づいたら吸い付くか（全長を 1 とした幅。既定 0.02）</td></tr>
 <tr><td>入力: Direction</td><td>LeftToRight / RightToLeft / BottomToTop（縦ゲージ）/ TopToBottom</td></tr>
 <tr><td>入力: Jump On Track Click</td><td>ON = 溝を直接押した位置へ即ジャンプ。OFF = 1 Step だけ動く（Step = 0 なら範囲の 10%）</td></tr>
@@ -222,7 +222,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <tr><td>入力: Fine Step Multiplier</td><td>微調整の修飾キー中の倍率（既定 0.2 = 5 分の 1 の速さ）</td></tr>
 <tr><td>入力: Wheel Enabled</td><td>マウスホイールで 1 Step 動かせるか</td></tr>
 <tr><td>入力: Escape On Limit</td><td>ON = 端に到達したときだけ左右キーでフォーカスが隣へ抜ける。OFF だと左右キーはスライダーに吸われ続けます</td></tr>
-<tr><td>入力の許可: Pointer Input</td><td>マウス / タッチ（ドラッグ・溝のクリック・ホイール・ホバー）で操作できるか（既定 ON）。<strong>HP バーなど表示専用なら OFF</strong>。OFF でもゲームのコードから値を変えるのは効きます。クリックを後ろへ通したいときは、画像側の Raycast Target も OFF にしてください</td></tr>
+<tr><td>入力の許可: Pointer Input</td><td>マウス / タッチ（ドラッグ・溝のクリック・ホイール・ホバー）で操作できるか（既定 ON）。<strong>HP バーなど表示専用なら OFF</strong>。OFF でもゲームのコードから値を変えるのは効きます。操作の途中（ドラッグ中など）で OFF にしても、指を離す・カーソルが外れるは受け付けるので、押されたまま残りません。クリックを後ろへ通したいときは、画像側の Raycast Target も OFF にしてください</td></tr>
 <tr><td>入力の許可: Navigation Input</td><td>キーボード / パッド（十字キー・スティック）で値を操作できるか（既定 ON）。OFF にするとフォーカスも受けず、パッドのフォーカス移動で飛ばされます</td></tr>
 <tr><td>応答: Response</td><td>つまみの位置（0〜1）と値（0〜1）の関係。未設定 = まっすぐ。<strong>右肩上がりでないと Error</strong></td></tr>
 <tr><td>追従: Follow Motion</td><td>表示が実際の値に追いつく動き。未設定 = 即時。HP バーの「じわっと減る」に</td></tr>
@@ -263,7 +263,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <li>Tint と Override Sprite はボタン / スライダー側の Target Graphic が空だと効きません</li>
 <li>Slider Skin の Notch Sprite・Hide Handle On Gamepad・触覚 ID はまだ効きません（パーツの画像・色・拡大率は効きます）（上の「既知の制限」）</li>
 <li>Bgm / Se / Voice の個別音量はまだ音に接続されていません（Master Volume と Ui Speed Scale は効きます）</li>
-<li>「全状態を並べる」の見た目は Skin Id からだけ解決します。Skin Id が空だと 6 本とも同じに見えます</li>
+<li>「全状態を並べる」の見た目は、対象の Skin Id、無ければ「Slider Editor で開く」で開いたときの Slider Skin を使います。メニューからサンプルを置いただけだと 6 本とも同じに見えます</li>
 </ul>
 
 <h2>関連ページ</h2>

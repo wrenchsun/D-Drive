@@ -39,10 +39,14 @@ namespace DDrive.Editor.Ui
         private float _dragFrom;
         private float _dragTo;
         private float _dragT;
-        private double _lastNotchSeTime;
         private double _lastTime;
         private double _repaintUntil;
         private string _lastEvent = string.Empty;
+
+        // (レビュー対応 2026-09-14) イベント → SE の対応と目盛り SE の間引きは SliderEditorWindow と共通の SliderSePreview、
+        // 描き直しは 30fps 上限の ViewRepaintThrottle。
+        private readonly SliderSePreview _sePreview = new();
+        private readonly DDrive.Editor.Preview.ViewRepaintThrottle _repaint = new();
 
         [MenuItem(DDriveMenu.Editors + "Slider Skin")]
         public static void OpenFromMenu() => Open(Selection.activeObject as SliderSkinData);
@@ -69,6 +73,8 @@ namespace DDrive.Editor.Ui
         private void OnDisable()
         {
             EditorApplication.update -= OnEditorUpdate;
+            // (レビュー対応 2026-09-14) 試聴用の PreviewService も必ず閉じる(DetachFromPanelEvent 頼みだとドメインリロードで漏れる)。
+            _settings?.Dispose();
             RemoveFromScene();
         }
 
@@ -122,7 +128,10 @@ namespace DDrive.Editor.Ui
             _target = target;
             _targetField?.SetValueWithoutNotify(_target);
             _settings?.SetSkin(_target);
-            if (_previewSlider != null && _target != null)
+
+            // (レビュー対応 2026-09-14) Skin を外したときも SetVisual(null) で差し替え前の見た目に戻す
+            // (以前は null のとき呼ばず、古い Skin の見た目のまま残っていた)。
+            if (_previewSlider != null)
             {
                 _previewSlider.SetVisual(_target);
             }
@@ -302,39 +311,41 @@ namespace DDrive.Editor.Ui
         // Editor では Audio が未 Bind のため UiSlider 自身の SE は鳴らない。同じタイミングのイベントで試聴側から鳴らす。
         private void OnPreviewDragBegin()
         {
-            _settings?.PlaySeField(nameof(SliderSkinData.GrabSe));
+            PlaySliderSe(SliderSeEvent.Grab);
             Log("掴む");
         }
 
         private void OnPreviewDragEnd()
         {
-            _settings?.PlaySeField(nameof(SliderSkinData.ReleaseSe));
+            PlaySliderSe(SliderSeEvent.Release);
             Log("離す");
         }
 
         private void OnPreviewNotch(int index)
         {
-            var now = EditorApplication.timeSinceStartup;
-            var minInterval = _target != null ? _target.NotchSeMinIntervalSec : 0.04f;
-            if (now - _lastNotchSeTime >= minInterval)
-            {
-                _lastNotchSeTime = now;
-                _settings?.PlaySeField(nameof(SliderSkinData.NotchSe));
-            }
-
+            PlaySliderSe(SliderSeEvent.Notch);
             Log($"目盛り {index}");
         }
 
         private void OnPreviewLimit(bool isMax)
         {
-            _settings?.PlaySeField(nameof(SliderSkinData.LimitSe));
+            PlaySliderSe(SliderSeEvent.Limit);
             Log(isMax ? "端(Max)" : "端(Min)");
         }
 
         private void OnPreviewDenied()
         {
-            _settings?.PlaySeField(nameof(SliderSkinData.DeniedSe));
+            PlaySliderSe(SliderSeEvent.Denied);
             Log("拒否(Disabled / Locked)");
+        }
+
+        // 鳴らすのは設定欄の SE 行と同じ経路(試聴の状態表示・■ 停止と揃える)。目盛り SE の間引きは SliderSePreview。
+        private void PlaySliderSe(SliderSeEvent e)
+        {
+            if (_sePreview.ShouldPlay(_target, e))
+            {
+                _settings?.PlaySeField(SliderSePreview.PropertyName(e));
+            }
         }
 
         private void OnPreviewValueChanged(float value)
@@ -392,10 +403,10 @@ namespace DDrive.Editor.Ui
             // FollowMotion / DelayFill の追従は Advance が進める(ExecuteAlways を付けない方針のため手動で駆動)。
             _previewSlider.Advance(dt);
 
-            // Edit Mode の Game ビューは自動では再描画されないため、動いている間だけ描き直す。
+            // Edit Mode の Game ビューは自動では再描画されないため、動いている間だけ描き直す(30fps 上限。レビュー対応 2026-09-14)。
             if (now < _repaintUntil)
             {
-                InternalEditorUtility.RepaintAllViews();
+                _repaint.Request();
             }
         }
 
@@ -409,51 +420,50 @@ namespace DDrive.Editor.Ui
 
             RemoveFromScene();
 
-            var canvasGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateRoot(PreviewCanvasName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-
-            var trackGo = new GameObject("PreviewSlider", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UiSlider));
-            trackGo.transform.SetParent(canvasGo.transform, false);
-            var trackRect = (RectTransform)trackGo.transform;
-            trackRect.sizeDelta = new Vector2(300f, 24f);
-
-            var fillGo = new GameObject("Fill", typeof(RectTransform), typeof(UnityEngine.UI.Image));
-            fillGo.transform.SetParent(trackGo.transform, false);
-            var fillRect = (RectTransform)fillGo.transform;
-            fillRect.anchorMin = new Vector2(0f, 0f);
-            fillRect.anchorMax = new Vector2(0f, 1f);
-            fillRect.offsetMin = Vector2.zero;
-            fillRect.offsetMax = Vector2.zero;
-
-            var handleGo = new GameObject("Handle", typeof(RectTransform), typeof(UnityEngine.UI.Image));
-            handleGo.transform.SetParent(trackGo.transform, false);
-            var handleRect = (RectTransform)handleGo.transform;
-            handleRect.sizeDelta = new Vector2(20f, 24f);
-
-            _previewSlider = trackGo.GetComponent<UiSlider>();
-            _previewSlider.TargetGraphic = trackGo.GetComponent<UnityEngine.UI.Image>();
-            _previewSlider.TrackRect = trackRect;
-            _previewSlider.FillRect = fillRect;
-            _previewSlider.HandleRect = handleRect;
+            // (レビュー対応 2026-09-14) 組み立ては SliderEditorWindow と共通の PreviewSliderFactory(子も DontSave)。
+            var canvasGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateOverlayCanvas(PreviewCanvasName);
+            _previewSlider = PreviewSliderFactory.Create(canvasGo.transform, "PreviewSlider", Vector2.zero);
             _previewSlider.SetVisual(_target);
+            DDrive.Editor.Preview.EditorPreviewRoots.MarkDontSaveRecursive(canvasGo);
             Subscribe(_previewSlider);
 
-            Selection.activeGameObject = trackGo;
+            // (レビュー対応 2026-09-14) 新しいスライダーにはまだプリセットを当てていないので、欄を None に戻す。
+            _presetField?.SetValueWithoutNotify(SliderPresets.SliderPreset.None);
+
+            Selection.activeGameObject = _previewSlider.gameObject;
         }
 
         private void RemoveFromScene()
         {
+            // (レビュー対応 2026-09-14) 遷移の自動再生・演出・SE も止める(止めないと次の段がプレビューを置き直していた)。
+            _settings?.StopAll();
             Unsubscribe();
             _dragSimActive = false;
             DDrive.Editor.Preview.EditorPreviewRoots.DestroyAll(PreviewCanvasName);
             _previewSlider = null;
+            _presetField?.SetValueWithoutNotify(SliderPresets.SliderPreset.None);
             UpdateMoveStatus();
         }
 
         // 実体は共有の SliderPresets(4-17 で SliderEditor と共通化)。
+        // (レビュー対応 2026-09-14) 未配置なら配置してから当てる(以前は何も起きないのに欄だけ選んだプリセットを表示していた)。
+        // 配置で欄が None に戻るため、当てた後に選んだ値を表示し直す。
         private void ApplyPreset(SliderPresets.SliderPreset preset)
         {
-            SliderPresets.Apply(_previewSlider, preset);
+            if (preset == SliderPresets.SliderPreset.None)
+            {
+                return;
+            }
+
+            var slider = EnsurePreviewSlider();
+            if (slider == null)
+            {
+                _presetField?.SetValueWithoutNotify(SliderPresets.SliderPreset.None);
+                return;
+            }
+
+            SliderPresets.Apply(slider, preset);
+            _presetField?.SetValueWithoutNotify(preset);
             UpdateMoveStatus();
         }
     }

@@ -21,12 +21,29 @@ namespace DDrive.Runtime.Ui
 
             foreach (var state in States)
             {
-                var sprite = skin.Get(state).OverrideSprite;
-                if (sprite != null && sprite.texture != null && !sprite.texture.isReadable)
+                var v = skin.Get(state);
+                var sprite = v.OverrideSprite;
+                if (IsUnreadable(sprite))
                 {
                     yield return ValidationResult.Warning($"AlphaHitThreshold が有効ですが、{state} の Override Sprite '{sprite.name}' の画像が Read/Write 無効です(透明部分の判定が効かず、全面が押せます)");
                 }
+
+                if (v.AnimFrames == null)
+                {
+                    continue;
+                }
+
+                foreach (var frame in v.AnimFrames)
+                {
+                    if (IsUnreadable(frame))
+                    {
+                        yield return ValidationResult.Warning($"AlphaHitThreshold が有効ですが、{state} の Anim Frames のコマ '{frame.name}' の画像が Read/Write 無効です(この状態の間は透明部分の判定が効かず、全面が押せます)");
+                        break;
+                    }
+                }
             }
         }
+
+        private static bool IsUnreadable(UnityEngine.Sprite sprite) => sprite != null && sprite.texture != null && !sprite.texture.isReadable;
     }
 }

@@ -328,23 +328,6 @@ namespace DDrive.Runtime.Ui
         }
 
         // root からの相対パス("/"区切り、root 自身は空文字)。
-        private static string GetPath(Transform root, Transform target)
-        {
-            if (target == root)
-            {
-                return string.Empty;
-            }
-
-            var names = new List<string>();
-            var cur = target;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            return string.Join("/", names);
-        }
+        private static string GetPath(Transform root, Transform target) => TransformPath.GetRelative(root, target);
     }
 }

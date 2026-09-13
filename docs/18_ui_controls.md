@@ -270,6 +270,35 @@ public struct SliderWire
   - テスト: `UiSliderInputTests`(PlayMode 5 件)、`SliderEditorTests` に HPバーの入力 OFF / 他プリセットで ON に戻る を追加
   - **つまみの位置ずれを修正(ユーザー報告: 値 0〜1 で動かすとかなりずれる)**: `ApplyFillAndHandle` は「つまみのアンカーが溝の左端にある」前提で `anchoredPosition.x = 溝の幅 × 値` にしていたため、Unity 既定の中央アンカーのつまみ(確認用プレビューも、デザイナーが普通に作った Prefab も該当)では値 0 で溝の中央、値 1 で右端より半幅はみ出していた。Unity 標準 Slider と同じく**つまみのアンカーを値の位置へ動かし(軸方向の anchorMin/Max = 値)、軸方向の anchoredPosition を 0 にする**方式へ変更。つまみの中心が親(溝、またはスライド領域)の中の値の位置に乗り、元のアンカー設定に依存しない。軸方向にストレッチしていたつまみは点アンカーになる(Unity 標準 Slider と同じ挙動)。回帰テスト `Handle_FollowsValue_EvenWithCenterAnchor`
   - **パーツの見た目を反映(ユーザー報告: パーツに入れた Override Sprite が反映されない)**: `SliderSkinData.Track/Fill/Handle/DelayFill` は長らく未接続だった。`UiSlider.OnSkinApplied` で各 RectTransform の Graphic へ画像・色・拡大率を適用(状態に依らない固定の見た目)。既存 Skin の既定値で消えたり潰れたりしないよう、Tint 未設定(0,0,0,0)と Scale ≤ 0 は触らない。Track の Graphic が TargetGraphic と同じなら色は状態が決め、Track の画像は状態に画像(Override Sprite / コマ)が無いときだけ使う。パーツ画像を外したら元の画像に戻す
+  - **パッド / ホイールで動かなくなる不具合を修正(ユーザー報告: スタミナ設定で ◀▶ が効かず「Commit: 100」のまま)**: 移動量(`PadStepAmount` 既定 0.05)が `Step` より小さいと `SnapValue` の丸めで元に戻り、さらに目盛りの吸い付き幅(SnapThreshold)に入ると元の目盛りへ吸い戻されていた。`StepTarget` を新設し、パッド・押しっぱなしのリピート・ホイール・溝クリックのページ送りで共通に「移動量は Step 未満にしない」「それでも吸い付きで元の値に戻るなら隣の目盛りへ進める」。回帰テスト 3 件(`UiSliderInputTests`)
+  - **コードレビュー対応(2026-09-14)**:
+    - `StepTarget`
+      - `WholeNumbers`(Step=0)でも移動量を 1 未満にしない。以前は範囲の途中で「端に着いた」扱いになり、EscapeOnLimit でフォーカスが抜けていた。
+      - Min > Max でも、隣の目盛りへ進む向きを値の向きに合わせる。
+    - `PointerInput` が止めるのは始まり側だけにした(押す・入る・ドラッグ開始・ドラッグ・ホイール)。離す・出る・ドラッグ終了は OFF でも処理する(操作の途中で OFF にしても押下・ホバー・ドラッグ中のまま残らない)。
+    - つまみの当たり判定(`HandleHitAreaExpand`)と本体の `HitAreaExpand` は、Prefab で手設定した `raycastPadding` に**足す**(Skin を当てても手設定を消さない)。透明判定も Skin が 0 なら手設定を使う。
+    - Skin が外れたら(`SetVisual(null)` / Resolver が null)、差し替えた画像・スクロール用マテリアル・コマ送り・当たり判定を元に戻す。
+    - 透明判定が有効なまま読めない画像の状態へ替わるときは、差し替えの前に透明判定を外す。以前は setter が例外を投げて外せず、ポインタが動くたびに Image がエラーを出していた。コマに読めない画像が 1 枚でもある状態では透明判定を使わない。
+    - スクロールはシェーダー標準の `_Time` をやめ、`UiInteractable` が配る止まらない時計(`_DDriveUiUnscaledTime`)で動かす(timeScale=0 のポーズ中も止まらない)。共有マテリアルは使っている数を数え、誰も使わなくなったら破棄する。
+    - `TickFollow` は表示値が変わらないフレームでは描き直さない(docs/24 整理項目 5)。
+    - つまみの位置はアンカーで決めるため、つまみの親は溝(またはスライド領域)にし、つまみのアンカーは点(min=max)で置く前提。横に stretch したつまみは幅が sizeDelta に潰れる。
+  - **エディタ側のレビュー対応(2026-09-14)**:
+    - Skin Editor(Button / Slider 共通の `ControlSkinPreviewSection`)
+      - Scroll Material を自動で書き込まない(開いただけでアセットが dirty になり、Undo しても即座に書き戻していた)。空なら警告と「既定のマテリアルを設定」ボタン(Undo 付き)を出す。
+      - 状態遷移の自動で進む段はプレビューを作り直さず、無くなっていたら止まる(撤去・シーン移動の後に復活していた)。
+      - 「Anim2D から読み込む」のコマ/秒は、キーの平均間隔から求める(以前は `clip.frameRate` で、長さ 8 フレームに 4 コマのクリップが 2 倍速になった)。
+      - `Dispose()` をウィンドウの `OnDisable` から呼び、試聴用のプレビューシーンを確実に閉じる。
+      - 描き直しは 30fps 上限。
+      - Skin を外すとプレビューも Skin 無しに戻り、当たり判定の枠も消える。
+      - 遷移の再生中は状態ごとの ⏸ を遷移側の一時停止に回す。
+    - Slider Editor
+      - ドメインリロード後もイベント購読(SE・イベントログ)と、サンプルに当てた Skin(`_explicitSkin` を保存)を戻す。
+      - ドラッグ模擬は確認用サンプルだけで動き、実物のスライダーでは理由を表示して中止する。
+      - 実物へのパッド操作は子(Handle / Fill)ごと Undo に積む。
+      - SE の試聴は `SliderSePreview`、Id → Data の検索は `DataIdLookup`(キャッシュ付き)に共通化した。
+    - スライダーのプレビュー部品は `PreviewSliderFactory` に一本化し、子まで DontSave にする。
+    - 残る制約: Slider Editor の比較用 2 体目と全状態プレビューは、ドメインリロードで参照が切れて止まったまま残る(撤去で消える)。
+  - **SliderEditor**: Editor では Audio が未 Bind で UiSlider 自身の SE が鳴らなかった(docs/23 の確認項目と不一致)。`OnDragBegin/End`・`OnNotchPassed`(`NotchSeMinIntervalSec` で間引き)・`OnLimitReached`・`OnDenied` に合わせてプレビュー用 `PreviewService` から Grab / Release / Notch / Limit / Denied を鳴らす。Slider Skin から開いたサンプルは Skin Id を持たないため、「全状態を並べる」と SE は開いたときの Skin を使う(以前は 6 本とも Skin 無しだった)
 
 ### レビュー対応(2026-09-11、Phase 4 コードレビュー)
 

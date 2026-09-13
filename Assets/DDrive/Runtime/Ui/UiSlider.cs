@@ -269,9 +269,9 @@ namespace DDrive.Runtime.Ui
 
             var targetFraction = EvaluateResponse(Mathf.Clamp01(normalizedPointer));
             var currentFraction = NormalizedFromValue(_value);
-            var dir = targetFraction > currentFraction ? 1f : -1f;
+            var dir = targetFraction > currentFraction ? 1 : -1;
             var stepAmount = Step > 0f ? Step : (Max - Min) * 0.1f;
-            SetValueInternal(_value + dir * stepAmount, notify: true, commit: true);
+            SetValueInternal(StepTarget(dir, stepAmount), notify: true, commit: true);
         }
 
         public void Wheel(float delta)
@@ -288,9 +288,9 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            var dir = delta > 0f ? 1f : -1f;
+            var dir = delta > 0f ? 1 : -1;
             var stepAmount = Step > 0f ? Step : PadStepAmount;
-            SetValueInternal(_value + dir * stepAmount, notify: true, commit: true);
+            SetValueInternal(StepTarget(dir, stepAmount), notify: true, commit: true);
         }
 
         // 戻り値: false=消費した(スライダーが処理した) / true=端に到達済みでフォーカスを抜けるべき。
@@ -309,9 +309,8 @@ namespace DDrive.Runtime.Ui
                 return false;
             }
 
-            var amount = PadStepAmount * (fine ? FineStepMultiplier : 1f);
-            var target = Clamp(_value + sign * amount);
-            if (Mathf.Approximately(target, _value))
+            var target = StepTarget(sign, PadStepAmount * (fine ? FineStepMultiplier : 1f));
+            if (Mathf.Approximately(SnapValue(target), _value))
             {
                 return EscapeOnLimit;
             }
@@ -487,8 +486,24 @@ namespace DDrive.Runtime.Ui
             var dshape = EvaluateShape(delayMotion, dt01);
             _delayDisplayedFraction = Mathf.LerpUnclamped(_delayFollowFrom, _targetFraction, dshape);
 
+            // 表示値・向き・つなぐ部品が前回と同じなら描き直さない(InverseResponse は 16 回の二分探索で、止まっている
+            // スライダーでも毎フレーム走っていた。docs/24 整理項目 5、2026-09-14)。
+            if (_displayedFraction == _appliedFraction && _delayDisplayedFraction == _appliedDelayFraction && Direction == _appliedDirection
+                && ReferenceEquals(FillRect, _appliedFillRect) && ReferenceEquals(HandleRect, _appliedHandleRect)
+                && ReferenceEquals(DelayFillRect, _appliedDelayFillRect))
+            {
+                return;
+            }
+
             UpdateVisuals();
         }
+
+        private float _appliedFraction = float.NaN;
+        private float _appliedDelayFraction = float.NaN;
+        private SliderDirection _appliedDirection;
+        private RectTransform _appliedFillRect;
+        private RectTransform _appliedHandleRect;
+        private RectTransform _appliedDelayFillRect;
 
         private bool HasDelayFollowMotion() => DelayFollowMotion.Mode != ValueMode.Constant || DelayFollowMotion.Constant != 0f
             || DelayFollowMotion.Time.Value != 0f;
@@ -525,8 +540,36 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            var amount = PadStepAmount * (_padFine ? FineStepMultiplier : 1f);
-            SetValueInternal(_value + sign * amount, notify: true, commit: true);
+            SetValueInternal(StepTarget(sign, PadStepAmount * (_padFine ? FineStepMultiplier : 1f)), notify: true, commit: true);
+        }
+
+        // 1 回分(パッド / 押しっぱなしのリピート / ホイール / 溝クリックのページ送り)の移動先(2026-09-14)。
+        // 以前は移動量が刻み(Step)より小さいと丸めで元の値に戻り、目盛り(Notches)があると吸い付き幅に入って
+        // 元の目盛りへ吸い戻されて、何度押しても動かなかった(ユーザー報告: スタミナ設定で「Commit: 100」のまま)。
+        // 移動量は刻みより小さくしない。それでも吸い付きで元の値に戻る場合は、隣の目盛りまで進める。
+        // 整数のみ(WholeNumbers)も同じ理由で 1 より小さくしない。目盛りの番号は正規化値(Min→Max)で数えるため、
+        // Min > Max のときは値の向きと逆になる(レビュー対応 2026-09-14)。
+        private float StepTarget(int sign, float amount)
+        {
+            if (Step > 0f)
+            {
+                amount = Mathf.Max(amount, Step);
+            }
+
+            if (WholeNumbers)
+            {
+                amount = Mathf.Max(amount, 1f);
+            }
+
+            var target = Clamp(_value + sign * amount);
+            if (Notches > 0 && Mathf.Approximately(SnapValue(target), _value))
+            {
+                var notchSign = Max >= Min ? sign : -sign;
+                var index = Mathf.Clamp(NotchIndexFor(_value) + notchSign, 0, Notches);
+                target = ValueFromNormalized((float)index / Notches);
+            }
+
+            return target;
         }
 
         // Codex レビュー対応(2026-09-11): 方針決定 — 十字キー/パッドの Right/Up は Direction(見た目の
@@ -708,6 +751,13 @@ namespace DDrive.Runtime.Ui
         {
             ApplyFillAndHandle(FillRect, HandleRect, _displayedFraction);
             ApplyFillAndHandle(DelayFillRect, null, _delayDisplayedFraction);
+
+            _appliedFraction = _displayedFraction;
+            _appliedDelayFraction = _delayDisplayedFraction;
+            _appliedDirection = Direction;
+            _appliedFillRect = FillRect;
+            _appliedHandleRect = HandleRect;
+            _appliedDelayFillRect = DelayFillRect;
         }
 
         private void ApplyFillAndHandle(RectTransform fillRect, RectTransform handleRect, float displayedFraction)
@@ -797,9 +847,16 @@ namespace DDrive.Runtime.Ui
         // パーツは長らく未接続で、Override Sprite 等を入れても実行時に何も変わらなかった(ユーザー報告)。
         protected override void OnSkinApplied(in StateVisual v)
         {
+            // Prefab で手設定した padding を基準に、Skin の広げ幅を足す(Skin を当てても手設定を消さない)。
             if (HandleRect != null && HandleRect.TryGetComponent<Graphic>(out var handleGraphic))
             {
-                handleGraphic.raycastPadding = -(SliderSkin != null ? SliderSkin.HandleHitAreaExpand : Vector4.zero);
+                if (_handlePaddingOwner != handleGraphic)
+                {
+                    _handlePaddingOwner = handleGraphic;
+                    _handleBasePadding = handleGraphic.raycastPadding;
+                }
+
+                handleGraphic.raycastPadding = _handleBasePadding - (SliderSkin != null ? SliderSkin.HandleHitAreaExpand : Vector4.zero);
             }
 
             var skin = SliderSkin;
@@ -819,6 +876,9 @@ namespace DDrive.Runtime.Ui
             public bool Overridden;
             public Sprite Before;
         }
+
+        private Graphic _handlePaddingOwner;
+        private Vector4 _handleBasePadding;
 
         private PartSprite _trackPart;
         private PartSprite _fillPart;
@@ -887,15 +947,9 @@ namespace DDrive.Runtime.Ui
             TrackClickAt(ComputePointerFraction(eventData));
         }
 
-        public override void OnPointerUp(PointerEventData eventData)
-        {
-            if (!PointerInput)
-            {
-                return;
-            }
-
-            base.OnPointerUp(eventData);
-        }
+        // 離す・出る・ドラッグ終了は PointerInput が OFF でも必ず処理する(操作の途中で OFF にされたとき、
+        // 押下 / ホバー / ドラッグ中のまま残らないように。止めるのは始まり側だけ。レビュー対応 2026-09-14)。
+        public override void OnPointerUp(PointerEventData eventData) => base.OnPointerUp(eventData);
 
         public override void OnPointerEnter(PointerEventData eventData)
         {
@@ -905,13 +959,7 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        public override void OnPointerExit(PointerEventData eventData)
-        {
-            if (PointerInput)
-            {
-                base.OnPointerExit(eventData);
-            }
-        }
+        public override void OnPointerExit(PointerEventData eventData) => base.OnPointerExit(eventData);
 
         public void OnBeginDrag(PointerEventData eventData)
         {
@@ -929,13 +977,7 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        public void OnEndDrag(PointerEventData eventData)
-        {
-            if (PointerInput)
-            {
-                EndDrag();
-            }
-        }
+        public void OnEndDrag(PointerEventData eventData) => EndDrag();
 
         public void OnScroll(PointerEventData eventData)
         {

@@ -39,6 +39,20 @@ namespace DDrive.Editor.Ui
         private readonly List<string> _eventLog = new();
         private bool _fineAdjust;
 
+        // Slider Skin の「Slider Editor で開く」から開いたときのスキン(サンプルは Skin Id を持たないため、
+        // 「全状態を並べる」と SE はこれを使う。2026-09-14)。
+        // (レビュー対応 2026-09-14) ドメインリロードで失われないよう保存し、OnEnable でサンプルに当て直す。
+        [SerializeField] private SliderSkinData _explicitSkin;
+
+        // Editor では Audio が未 Bind で UiSlider 自身の SE は鳴らないため、同じタイミングのイベントで
+        // プレビュー用の実 AudioManager から鳴らす(2026-09-14、docs/23 の確認項目どおりに鳴るように)。
+        // (レビュー対応 2026-09-14) イベント → SE の対応・目盛りの間引き・SeData の検索(キャッシュ付き)は SliderSePreview。
+        private PreviewService _audio;
+        private readonly SliderSePreview _sePreview = new();
+
+        // イベントを購読している UiSlider(_target が差し替わった・破棄された後でも確実に解除するため別に持つ)。
+        private UiSlider _subscribedTarget;
+
         // 追従比較(d)・Skin プレビュー(e)の DontSave 実体。
         private UiSlider _compareSlider;
         private readonly List<UiSlider> _skinPreviewSliders = new();
@@ -78,6 +92,19 @@ namespace DDrive.Editor.Ui
             SceneView.duringSceneGui += OnSceneGui;
             EditorApplication.update += OnEditorUpdate;
             _lastEditorTime = EditorApplication.timeSinceStartup;
+
+            // (レビュー対応 2026-09-14) ドメインリロード後は _target([SerializeField])だけが戻り、イベントの購読と
+            // サンプルに当てた Skin(UiInteractable 側の参照はシリアライズされない)が失われて、SE とイベントログが
+            // 黙って止まっていた。購読し直し、サンプル(プレビュー)なら Skin も当て直す(実物には触らない)。
+            if (_target != null)
+            {
+                if (_explicitSkin != null && IsPreviewObject(_target))
+                {
+                    _target.SetVisual(_explicitSkin);
+                }
+
+                SubscribeEvents();
+            }
         }
 
         private void OnFocus() => SceneGuiOwner.Claim(this);
@@ -86,7 +113,10 @@ namespace DDrive.Editor.Ui
         {
             SceneView.duringSceneGui -= OnSceneGui;
             EditorApplication.update -= OnEditorUpdate;
+            UnsubscribeEvents();
             SceneGuiOwner.Release(this);
+            _audio?.Dispose();
+            _audio = null;
         }
 
         private void OnDestroy() => RemoveFromScene();
@@ -202,6 +232,14 @@ namespace DDrive.Editor.Ui
         private void SetTarget(UiSlider target)
         {
             UnsubscribeEvents();
+
+            // (レビュー対応 2026-09-14) 別のスライダーに変わったときだけ明示 Skin を捨てる
+            // (以前は同じサンプルを「選択から取得」し直しただけで Skin を失い、SE と全状態プレビューが無地になっていた)。
+            if (target != _target)
+            {
+                _explicitSkin = null;
+            }
+
             _target = target;
             _targetField?.SetValueWithoutNotify(_target);
             SubscribeEvents();
@@ -225,34 +263,78 @@ namespace DDrive.Editor.Ui
 
         private void SubscribeEvents()
         {
+            UnsubscribeEvents(); // 二重購読しない
             if (_target == null)
             {
                 return;
             }
 
+            _subscribedTarget = _target;
             _target.OnValueChanged += OnTargetValueChanged;
             _target.OnCommit += OnTargetCommit;
             _target.OnNotchPassed += OnTargetNotch;
             _target.OnLimitReached += OnTargetLimit;
+            _target.OnDragBegin += OnTargetDragBegin;
+            _target.OnDragEnd += OnTargetDragEnd;
+            _target.OnDenied += OnTargetDenied;
         }
 
         private void UnsubscribeEvents()
         {
-            if (_target == null)
+            // 破棄済み(Unity の null)でも C# のイベントは外せるので、参照そのもので判定する。
+            if (ReferenceEquals(_subscribedTarget, null))
             {
                 return;
             }
 
-            _target.OnValueChanged -= OnTargetValueChanged;
-            _target.OnCommit -= OnTargetCommit;
-            _target.OnNotchPassed -= OnTargetNotch;
-            _target.OnLimitReached -= OnTargetLimit;
+            _subscribedTarget.OnValueChanged -= OnTargetValueChanged;
+            _subscribedTarget.OnCommit -= OnTargetCommit;
+            _subscribedTarget.OnNotchPassed -= OnTargetNotch;
+            _subscribedTarget.OnLimitReached -= OnTargetLimit;
+            _subscribedTarget.OnDragBegin -= OnTargetDragBegin;
+            _subscribedTarget.OnDragEnd -= OnTargetDragEnd;
+            _subscribedTarget.OnDenied -= OnTargetDenied;
+            _subscribedTarget = null;
         }
 
         private void OnTargetValueChanged(float v) => AppendLog($"Changed: {v:0.###}");
         private void OnTargetCommit(float v) => AppendLog($"Commit: {v:0.###}");
-        private void OnTargetNotch(int index) => AppendLog($"NotchPassed: {index}");
-        private void OnTargetLimit(bool isMax) => AppendLog($"LimitReached: {(isMax ? "Max" : "Min")}");
+
+        private void OnTargetNotch(int index)
+        {
+            AppendLog($"NotchPassed: {index}");
+            PlaySkinSe(SliderSeEvent.Notch);
+        }
+
+        private void OnTargetLimit(bool isMax)
+        {
+            AppendLog($"LimitReached: {(isMax ? "Max" : "Min")}");
+            PlaySkinSe(SliderSeEvent.Limit);
+        }
+
+        private void OnTargetDragBegin() => PlaySkinSe(SliderSeEvent.Grab);
+
+        private void OnTargetDragEnd() => PlaySkinSe(SliderSeEvent.Release);
+
+        private void OnTargetDenied()
+        {
+            AppendLog("Denied(Disabled / Locked)");
+            PlaySkinSe(SliderSeEvent.Denied);
+        }
+
+        // (レビュー対応 2026-09-14) 以前は 1 ノッチごとに全 SeData をロードして探していた。SliderSePreview(DataIdLookup)で引く。
+        private void PlaySkinSe(SliderSeEvent e)
+        {
+            var data = _sePreview.Resolve(GetTargetSkin(), e);
+            if (data == null)
+            {
+                return;
+            }
+
+            _audio ??= new PreviewService();
+            _audio.Initialize();
+            _audio.PlaySe(data);
+        }
 
         private void AppendLog(string line)
         {
@@ -401,15 +483,39 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            Undo.RecordObject(_target, "UiSlider: パッド操作");
+            // (レビュー対応 2026-09-14, docs/11 4-R) Move は UiSlider だけでなく子(Handle / Fill)の RectTransform も
+            // 書き換えるため、実物は階層ごと Undo に積む(以前は UiSlider だけ RecordObject していて、Undo で値だけが戻り
+            // 見た目が戻らなかった)。確認用シーンのサンプル(DontSave)は保存されないので Undo に積まない。
+            var isPreview = IsPreviewObject(_target);
+            if (!isPreview)
+            {
+                Undo.RegisterFullObjectHierarchyUndo(_target.gameObject, "UiSlider: パッド操作");
+            }
+
             _target.Move(dir, _fineAdjust);
-            EditorUtility.SetDirty(_target);
+            if (!isPreview)
+            {
+                EditorUtility.SetDirty(_target);
+            }
         }
 
         private void StartDragSimulate(bool includeCompare)
         {
             if (_target == null)
             {
+                return;
+            }
+
+            // (レビュー対応 2026-09-14, docs/11 4-R) ドラッグ模擬は 20 フレームかけて値と見た目を書き換える。シーン上の
+            // 実物に Undo 無しで掛かっていたため、Advance と同じく確認用シーンのサンプルだけに限る。
+            if (!IsPreviewObject(_target))
+            {
+                if (_statusLabel != null)
+                {
+                    _statusLabel.text = "ドラッグ模擬は「確認用シーンにサンプルを配置」したスライダーでのみ動きます(シーン上の実物は書き換えません)";
+                }
+
+                AppendLog("ドラッグ模擬: 実物のため実行しません");
                 return;
             }
 
@@ -469,10 +575,11 @@ namespace DDrive.Editor.Ui
             }
 
             var canvas = EnsurePreviewCanvas();
-            var (_, slider) = CreateSliderGameObject(canvas.transform, "CompareSlider", new Vector2(320f, 0f));
+            var slider = PreviewSliderFactory.Create(canvas.transform, "CompareSlider", new Vector2(320f, 0f));
             slider.Response = _target.Response;
             slider.FollowMotion = new ValueDef { Mode = ValueMode.Parametric, Parametric = EaseDef.Named(DDrive.Foundation.Easing.Ease.OutBack), Time = TimeDef.Duration(0.4f), Loop = LoopMode.Once };
             slider.SetRange(_target.Min, _target.Max);
+            EditorPreviewRoots.MarkDontSaveRecursive(canvas);
             _compareSlider = slider;
 
             RebuildCompareSection();
@@ -524,7 +631,7 @@ namespace DDrive.Editor.Ui
             var states = new[] { ControlState.Normal, ControlState.Hover, ControlState.Pressed, ControlState.Selected, ControlState.Disabled, ControlState.Locked };
             for (var i = 0; i < states.Length; i++)
             {
-                var (_, slider) = CreateSliderGameObject(canvas.transform, $"SkinPreview_{states[i]}", new Vector2(i * 340f, -80f));
+                var slider = PreviewSliderFactory.Create(canvas.transform, $"SkinPreview_{states[i]}", new Vector2(i * 340f, -80f));
                 if (skin != null)
                 {
                     slider.SetVisual(skin);
@@ -534,6 +641,7 @@ namespace DDrive.Editor.Ui
                 _skinPreviewSliders.Add(slider);
             }
 
+            EditorPreviewRoots.MarkDontSaveRecursive(canvas);
             AppendLog("6 状態を並べました");
         }
 
@@ -542,21 +650,18 @@ namespace DDrive.Editor.Ui
             // ResolvedSkin は protected のため、実行時の見た目を再現するには SkinId 解決結果を直接は読めない。
             // SliderEditor では「明示的に SetVisual した Skin」を優先し、無ければ SkinId 経由の解決は
             // UiSkins.Resolver に依存する実行時専用の仕組みなので、エディタでは AssetDatabase から探す。
-            if (_target == null || !_target.SkinId.IsValid)
+            if (_target == null)
             {
                 return null;
             }
 
-            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(SliderSkinData)))
+            if (!_target.SkinId.IsValid)
             {
-                var asset = AssetDatabase.LoadAssetAtPath<SliderSkinData>(AssetDatabase.GUIDToAssetPath(guid));
-                if (asset != null && asset.Id == _target.SkinId.Value)
-                {
-                    return asset;
-                }
+                return _explicitSkin;
             }
 
-            return null;
+            // (レビュー対応 2026-09-14) 全件走査をやめ、Id ごとにキャッシュする DataIdLookup で引く。
+            return DataIdLookup.Find<SliderSkinData>(_target.SkinId.Value);
         }
 
         // ── (f) プリセット ──
@@ -608,74 +713,39 @@ namespace DDrive.Editor.Ui
 
         // ── 確認用シーン配置 ──
 
+        // (レビュー対応 2026-09-14) 生の new GameObject + GameObject.Find をやめ、他のエディタと同じ EditorPreviewRoots を使う
+        // (Find は非アクティブも見つかり、同名の本物のオブジェクト(DontSave でない)は拾わない)。
         private GameObject EnsurePreviewCanvas()
         {
-            var existing = GameObject.Find(PreviewRootName);
-            if (existing != null)
-            {
-                return existing;
-            }
-
-            var canvasGo = new GameObject(PreviewRootName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster))
-            {
-                hideFlags = HideFlags.DontSave,
-            };
-            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            return canvasGo;
+            var existing = EditorPreviewRoots.Find(PreviewRootName);
+            return existing != null ? existing : EditorPreviewRoots.CreateOverlayCanvas(PreviewRootName);
         }
 
-        private static (GameObject trackGo, UiSlider slider) CreateSliderGameObject(Transform parent, string name, Vector2 anchoredPosition)
-        {
-            var trackGo = new GameObject(name, typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UiSlider));
-            trackGo.transform.SetParent(parent, false);
-            var trackRect = (RectTransform)trackGo.transform;
-            trackRect.sizeDelta = new Vector2(300f, 24f);
-            trackRect.anchoredPosition = anchoredPosition;
-
-            var fillGo = new GameObject("Fill", typeof(RectTransform), typeof(UnityEngine.UI.Image));
-            fillGo.transform.SetParent(trackGo.transform, false);
-            var fillRect = (RectTransform)fillGo.transform;
-            fillRect.anchorMin = new Vector2(0f, 0f);
-            fillRect.anchorMax = new Vector2(0f, 1f);
-            fillRect.offsetMin = Vector2.zero;
-            fillRect.offsetMax = Vector2.zero;
-
-            var handleGo = new GameObject("Handle", typeof(RectTransform), typeof(UnityEngine.UI.Image));
-            handleGo.transform.SetParent(trackGo.transform, false);
-            var handleRect = (RectTransform)handleGo.transform;
-            handleRect.sizeDelta = new Vector2(20f, 24f);
-
-            var slider = trackGo.GetComponent<UiSlider>();
-            slider.TargetGraphic = trackGo.GetComponent<UnityEngine.UI.Image>();
-            slider.TrackRect = trackRect;
-            slider.FillRect = fillRect;
-            slider.HandleRect = handleRect;
-            return (trackGo, slider);
-        }
-
+        // (レビュー対応 2026-09-14) 組み立ては SliderSkinEditorWindow と共通の PreviewSliderFactory(子も DontSave。
+        // 以前は子が HideFlags.None で、プレビューを置いたままシーンを保存すると子だけ親無しで保存されていた)。
         private void PlaceSampleInScene(SliderSkinData skin)
         {
             var canvas = EnsurePreviewCanvas();
-            var (trackGo, slider) = CreateSliderGameObject(canvas.transform, "SampleSlider", Vector2.zero);
+            var slider = PreviewSliderFactory.Create(canvas.transform, "SampleSlider", Vector2.zero);
             if (skin != null)
             {
                 slider.SetVisual(skin);
             }
 
+            EditorPreviewRoots.MarkDontSaveRecursive(canvas);
             SetTarget(slider);
-            Selection.activeGameObject = trackGo;
+            _explicitSkin = skin;
+            Selection.activeGameObject = slider.gameObject;
         }
 
         private void RemoveFromScene()
         {
             UnsubscribeEvents();
-            var existing = GameObject.Find(PreviewRootName);
-            if (existing != null)
-            {
-                Object.DestroyImmediate(existing);
-            }
+            _dragSimActive = false;
+            EditorPreviewRoots.DestroyAll(PreviewRootName);
 
             _target = null;
+            _explicitSkin = null;
             _compareSlider = null;
             _skinPreviewSliders.Clear();
         }
@@ -724,8 +794,10 @@ namespace DDrive.Editor.Ui
                 return false;
             }
 
+            // (レビュー対応 2026-09-14) 名前に加えて「[D-Drive] で始まる DontSave のルート」であることも見る
+            // (同じ名前を付けた本物のオブジェクトを駆動しない)。このウィンドウが作ったサンプルは従来どおり true。
             var root = target.transform.root;
-            return root != null && root.name == PreviewRootName;
+            return root != null && root.name == PreviewRootName && EditorPreviewSweeper.IsPreviewRoot(root.gameObject);
         }
     }
 }

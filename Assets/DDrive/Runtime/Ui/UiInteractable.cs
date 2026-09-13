@@ -66,10 +66,28 @@ namespace DDrive.Runtime.Ui
         private bool _materialOverridden;
         private UnityEngine.Material _materialBeforeScroll; // 名前空間 DDrive.Runtime.Material と衝突するため完全修飾
         private bool _scrollWarned;
+        private bool _scrollAcquired;
+        private (UnityEngine.Material template, Vector2 speed) _scrollKey;
+        private UnityEngine.Material _scrollMaterial;
 
-        // 同じ(元マテリアル, 速度)のボタン同士はマテリアルを共有する(描画をまとめられるように)。
-        private static readonly Dictionary<(UnityEngine.Material template, Vector2 speed), UnityEngine.Material> ScrollMaterials = new();
+        // Skin を当てる前の当たり判定(Prefab での手設定)。Skin の広げ幅はこれに足し、Skin が外れたらこれに戻す(レビュー対応 2026-09-14)。
+        private Graphic _hitBaseOwner;
+        private Vector4 _hitBasePadding;
+        private float _hitBaseThreshold;
+
+        // 同じ(元マテリアル, 速度)のボタン同士はマテリアルを共有する(描画をまとめられるように)。使っている数を数え、
+        // 誰も使わなくなったら破棄する(Skin Editor で速度をドラッグ編集しても溜まり続けないように。レビュー対応 2026-09-14)。
+        private sealed class ScrollEntry
+        {
+            public UnityEngine.Material Material;
+            public int Refs;
+        }
+
+        private static readonly Dictionary<(UnityEngine.Material template, Vector2 speed), ScrollEntry> ScrollMaterials = new();
         private static readonly int ScrollSpeedId = Shader.PropertyToID("_ScrollSpeed");
+
+        // スクロールの時計。シェーダー標準の _Time は timeScale=0(ポーズ中)で止まるため、止まらない時間を配る。
+        private static readonly int ScrollTimeId = Shader.PropertyToID("_DDriveUiUnscaledTime");
 
         // 今の状態でスプライトアニメ / スクロールが動いているか(エディタのプレビューが描き直し続ける判定に使う)。
         public bool HasVisualAnimation => _animFrames != null || _materialOverridden;
@@ -379,10 +397,12 @@ namespace DDrive.Runtime.Ui
             var skin = ResolvedSkin;
             if (skin == null)
             {
+                RestoreVisuals();
                 return;
             }
 
             ref readonly var v = ref skin.Get(State);
+            ReleaseAlphaHitBeforeSpriteChange();
             ApplyVisual(skin, in v);
             ApplyHitArea(skin);
             PlayStateTween(in v);
@@ -422,13 +442,27 @@ namespace DDrive.Runtime.Ui
         // 定常経路なので割り当て無し(コマ番号の計算と、変わったときだけ sprite を差し替える)。
         public void TickVisuals(float dt)
         {
-            if (_animFrames == null || !(TargetGraphic is Image image))
+            if (_materialOverridden)
+            {
+                Shader.SetGlobalFloat(ScrollTimeId, Time.realtimeSinceStartup);
+            }
+
+            // `is Image` の型判定は破棄済みを通してしまうため、as + Unity の null 判定で見る(レビュー対応 2026-09-14)。
+            var image = TargetGraphic as Image;
+            if (_animFrames == null || image == null)
             {
                 return;
             }
 
-            _animTime += dt;
             var count = _animFrames.Length;
+            var cycle = count / _animFps;
+            _animTime += dt;
+            if (_animTime >= cycle)
+            {
+                // ループは 1 周ぶん巻き戻す(時間が増え続けて float の精度でコマ送りがぶれないように)。
+                _animTime = _animLoop ? _animTime % cycle : cycle;
+            }
+
             var index = (int)(_animTime * _animFps);
             index = _animLoop ? index % count : Mathf.Min(index, count - 1);
             if (index == _animFrameIndex)
@@ -458,13 +492,7 @@ namespace DDrive.Runtime.Ui
                     Debug.LogWarning($"[DDrive] '{name}': Scroll Speed が設定されていますが、Skin の Scroll Material が空のためスクロールしません。", this);
                 }
 
-                if (_materialOverridden)
-                {
-                    graphic.material = _materialBeforeScroll;
-                    _materialOverridden = false;
-                    _materialBeforeScroll = null;
-                }
-
+                RestoreMaterial(graphic);
                 return;
             }
 
@@ -474,28 +502,145 @@ namespace DDrive.Runtime.Ui
                 _materialOverridden = true;
             }
 
-            graphic.material = GetScrollMaterial(template, speed);
-        }
-
-        private static UnityEngine.Material GetScrollMaterial(UnityEngine.Material template, Vector2 speed)
-        {
             var key = (template, speed);
-            if (!ScrollMaterials.TryGetValue(key, out var material) || material == null)
+            if (!_scrollAcquired || _scrollKey != key || _scrollMaterial == null)
             {
-                material = new UnityEngine.Material(template)
-                {
-                    name = $"{template.name} (Scroll {speed.x}, {speed.y})",
-                    hideFlags = HideFlags.DontSave,
-                };
-                material.SetVector(ScrollSpeedId, new Vector4(speed.x, speed.y, 0f, 0f));
-                ScrollMaterials[key] = material;
+                ReleaseScrollMaterial();
+                _scrollMaterial = AcquireScrollMaterial(key);
+                _scrollKey = key;
+                _scrollAcquired = true;
             }
 
-            return material;
+            graphic.material = _scrollMaterial;
+            Shader.SetGlobalFloat(ScrollTimeId, Time.realtimeSinceStartup);
+        }
+
+        private void RestoreMaterial(Graphic graphic)
+        {
+            if (_materialOverridden && graphic != null)
+            {
+                graphic.material = _materialBeforeScroll;
+            }
+
+            _materialOverridden = false;
+            _materialBeforeScroll = null;
+            ReleaseScrollMaterial();
+        }
+
+        private static UnityEngine.Material AcquireScrollMaterial((UnityEngine.Material template, Vector2 speed) key)
+        {
+            if (!ScrollMaterials.TryGetValue(key, out var entry))
+            {
+                entry = new ScrollEntry();
+                ScrollMaterials[key] = entry;
+            }
+
+            if (entry.Material == null)
+            {
+                entry.Material = new UnityEngine.Material(key.template)
+                {
+                    name = $"{key.template.name} (Scroll {key.speed.x}, {key.speed.y})",
+                    hideFlags = HideFlags.DontSave,
+                };
+                entry.Material.SetVector(ScrollSpeedId, new Vector4(key.speed.x, key.speed.y, 0f, 0f));
+            }
+
+            entry.Refs++;
+            return entry.Material;
+        }
+
+        private void ReleaseScrollMaterial()
+        {
+            if (!_scrollAcquired)
+            {
+                return;
+            }
+
+            _scrollAcquired = false;
+            _scrollMaterial = null;
+            if (!ScrollMaterials.TryGetValue(_scrollKey, out var entry) || --entry.Refs > 0)
+            {
+                return;
+            }
+
+            ScrollMaterials.Remove(_scrollKey);
+            if (entry.Material == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(entry.Material);
+            }
+            else
+            {
+                DestroyImmediate(entry.Material);
+            }
+        }
+
+        // 今ある共有スクロールマテリアルの数(テスト用)。
+        public static int ScrollMaterialCountForTests => ScrollMaterials.Count;
+
+        protected virtual void OnDestroy() => ReleaseScrollMaterial();
+
+        // Skin が外れた(SetVisual(null) / Resolver が null)ときに、Skin が変えた見た目と当たり判定を全部元に戻す。
+        private void RestoreVisuals()
+        {
+            _animFrames = null;
+            _animFrameIndex = -1;
+
+            var graphic = TargetGraphic;
+            if (_spriteOverridden && graphic is Image image && image != null)
+            {
+                image.sprite = _spriteBeforeOverride;
+            }
+
+            _spriteOverridden = false;
+            RestoreMaterial(graphic);
+
+            if (graphic != null && _hitBaseOwner == graphic)
+            {
+                graphic.raycastPadding = _hitBasePadding;
+                if (graphic is Image hitImage)
+                {
+                    SetAlphaHitThreshold(hitImage, _hitBaseThreshold);
+                }
+            }
         }
 
         // 当たり判定(2026-09-14)。Graphic.raycastPadding は「内側へ縮める量」が正なので、広げ幅の符号を反転して渡す。
         // 透明判定は Sprite の Texture が読めないと Image が毎回エラーを出すため、読めないときは警告 1 回 + 無効で続行する。
+        // 手設定(Prefab)の padding / 透明判定を、最初に Skin を当てる前に 1 回だけ覚える。
+        private void EnsureHitBase(Graphic graphic)
+        {
+            if (_hitBaseOwner == graphic)
+            {
+                return;
+            }
+
+            _hitBaseOwner = graphic;
+            _hitBasePadding = graphic.raycastPadding;
+            _hitBaseThreshold = graphic is Image image ? image.alphaHitTestMinimumThreshold : 0f;
+        }
+
+        // 透明判定が有効なまま読めない画像へ差し替えると、setter が例外を投げて 0 に戻せなくなる(以後ポインタが動くたびに
+        // Image がエラーを出す)。まだ読める今の画像のうちに 0 にしておき、差し替え後に ApplyHitArea で付け直す(レビュー対応 2026-09-14)。
+        private void ReleaseAlphaHitBeforeSpriteChange()
+        {
+            var image = TargetGraphic as Image;
+            if (image == null)
+            {
+                return;
+            }
+
+            EnsureHitBase(image);
+            if (image.alphaHitTestMinimumThreshold > 0f)
+            {
+                SetAlphaHitThreshold(image, 0f);
+            }
+        }
+
         private void ApplyHitArea(ControlSkinData skin)
         {
             var graphic = TargetGraphic;
@@ -504,30 +649,53 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            graphic.raycastPadding = -skin.EffectiveHitAreaExpand;
+            EnsureHitBase(graphic);
+            graphic.raycastPadding = _hitBasePadding - skin.EffectiveHitAreaExpand;
 
-            if (graphic is Image image)
+            var image = graphic as Image;
+            if (image == null)
             {
-                var threshold = skin.AlphaHitThreshold;
-                if (threshold > 0f)
-                {
-                    var sprite = image.overrideSprite;
-                    var texture = sprite != null ? sprite.texture : null;
-                    if (texture == null || !texture.isReadable)
-                    {
-                        if (!_alphaHitWarned)
-                        {
-                            _alphaHitWarned = true;
-                            Debug.LogWarning($"[DDrive] '{name}': AlphaHitThreshold が有効ですが、画像の Read/Write が無効(または画像が無い)ため透明部分の判定を行いません。画像のインポート設定で Read/Write を ON にしてください。", this);
-                        }
+                return;
+            }
 
-                        threshold = 0f;
-                    }
+            var threshold = skin.AlphaHitThreshold > 0f ? skin.AlphaHitThreshold : _hitBaseThreshold;
+            if (threshold > 0f && !AllSpritesReadable(image))
+            {
+                if (!_alphaHitWarned)
+                {
+                    _alphaHitWarned = true;
+                    Debug.LogWarning($"[DDrive] '{name}': AlphaHitThreshold が有効ですが、画像(またはスプライトアニメのコマ)の Read/Write が無効(または画像が無い)ため透明部分の判定を行いません。画像のインポート設定で Read/Write を ON にしてください。", this);
                 }
 
-                SetAlphaHitThreshold(image, threshold);
+                threshold = 0f;
             }
+
+            SetAlphaHitThreshold(image, threshold);
         }
+
+        // 今の画像と、この状態のコマが全部読めるか(コマ送りのたびに読めない画像へ替わらないよう、コマも見る)。
+        private bool AllSpritesReadable(Image image)
+        {
+            if (!IsReadable(image.overrideSprite))
+            {
+                return false;
+            }
+
+            if (_animFrames != null)
+            {
+                for (var i = 0; i < _animFrames.Length; i++)
+                {
+                    if (_animFrames[i] != null && !IsReadable(_animFrames[i]))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsReadable(Sprite sprite) => sprite != null && sprite.texture != null && sprite.texture.isReadable;
 
         // Image.alphaHitTestMinimumThreshold の setter は、画像が読めない(Read/Write 無効)と値に関係なく
         // InvalidOperationException を投げる(0 を書いても投げる)。多くのボタンの画像は読めないため、値が変わる

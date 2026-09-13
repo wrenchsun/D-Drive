@@ -193,5 +193,54 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(0, SliderEditorMath.NotchPositions(0).Length);
             Assert.AreEqual(0, SliderEditorMath.NotchPositions(-1).Length);
         }
+
+        // ── PreviewSliderFactory(レビュー対応 2026-09-14) ──
+
+        [Test]
+        public void PreviewSliderFactory_AllPartsAreDontSave_And_Wired()
+        {
+            var parent = new GameObject("[D-Drive] Slider Factory Test", typeof(RectTransform)) { hideFlags = HideFlags.DontSave };
+            try
+            {
+                var slider = PreviewSliderFactory.Create(parent.transform, "PreviewSlider", Vector2.zero);
+
+                Assert.AreSame(parent.transform, slider.transform.parent);
+                Assert.IsNotNull(slider.TrackRect);
+                Assert.IsNotNull(slider.FillRect);
+                Assert.IsNotNull(slider.HandleRect);
+                Assert.IsNotNull(slider.TargetGraphic);
+                foreach (var t in slider.GetComponentsInChildren<Transform>(true))
+                {
+                    Assert.AreNotEqual((HideFlags)0, t.gameObject.hideFlags & HideFlags.DontSave, $"'{t.name}' が DontSave でない(シーン保存時に親無しで書き出される)");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(parent);
+            }
+        }
+
+        // ── SliderSePreview(レビュー対応 2026-09-14) ──
+
+        [Test]
+        public void SliderSePreview_NotchIsThrottled_OtherEventsAreNot()
+        {
+            var skin = ScriptableObject.CreateInstance<SliderSkinData>();
+            try
+            {
+                skin.NotchSeMinIntervalSec = 10f;
+                var se = new SliderSePreview();
+
+                Assert.IsTrue(se.ShouldPlay(skin, SliderSeEvent.Notch), "1 回目は鳴る");
+                Assert.IsFalse(se.ShouldPlay(skin, SliderSeEvent.Notch), "間隔内の 2 回目は鳴らない");
+                Assert.IsTrue(se.ShouldPlay(skin, SliderSeEvent.Limit), "目盛り以外は間引かない");
+                Assert.AreEqual(nameof(SliderSkinData.GrabSe), SliderSePreview.PropertyName(SliderSeEvent.Grab));
+                Assert.IsFalse(SliderSePreview.GetId(null, SliderSeEvent.Grab).IsValid, "Skin 無しは無効な Id");
+            }
+            finally
+            {
+                Object.DestroyImmediate(skin);
+            }
+        }
     }
 }

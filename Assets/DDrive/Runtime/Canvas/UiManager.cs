@@ -148,10 +148,10 @@ namespace DDrive.Runtime.Ui
         private readonly HashSet<CanvasData> _placeholderWarned = new();
         private readonly HashSet<(CanvasData data, string path)> _elementPathWarned = new();
 
-        // Codex レビュー対応(2026-09-11): PlayPreset のたびに new TweenTrack[MaxTracksPerTween] していた
-        // (定常経路での alloc、[12_review.md] §3)。UiTweenManager.PlayTracks が OwnedTracks へコピーする
-        // ため、この呼び出し内でしか使わないスクラッチは使い回せる。
-        private static readonly TweenTrack[] PresetScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+        // MoveFocusFrom の候補集め用(呼び出しごとに配列・イテレータを作らない。docs/24 整理項目 2、2026-09-14)。
+        private readonly List<Selectable> _focusSelectables = new();
+        private readonly List<UiInteractable> _focusInteractables = new();
+        private static readonly Vector3[] CornerBuffer = new Vector3[4];
 
         private GameObject _root;
         private readonly LayerRoot[] _layerRoots = new LayerRoot[5];
@@ -261,6 +261,26 @@ namespace DDrive.Runtime.Ui
                 _eventSystemWarned = true;
                 Debug.LogWarning("[DDrive] UiManager: シーンに EventSystem がありません。UI の入力(選択/ナビゲーション)が動作しません。");
             }
+        }
+
+        // Edit Mode 専用: エディタのプレビューを閉じるときに、このインスタンスが作った UI Root(レイヤー 5 枚と、その下に
+        // 付け替えた Canvas 実体を含む)を破棄する。以前はウィンドウを閉じても次にシーンを閉じるまで残っていた。
+        // 呼ぶ前に StopAll で開いている Canvas を閉じておくこと。破棄後にこのインスタンスを使い続けると、次の Open で
+        // ルートを作り直す(レビュー対応 2026-09-14)。
+        public void DestroyEditorRoot()
+        {
+            if (Application.isPlaying)
+            {
+                return;
+            }
+
+            if (_root != null)
+            {
+                UnityEngine.Object.DestroyImmediate(_root);
+            }
+
+            _root = null;
+            Array.Clear(_layerRoots, 0, _layerRoots.Length);
         }
 
         // Edit Mode 専用: 過去の(参照を失った)UiManager インスタンスが遺した、どのシーンにも属さない
@@ -608,7 +628,15 @@ namespace DDrive.Runtime.Ui
             {
                 if (instance.Root != null)
                 {
-                    UnityEngine.Object.Destroy(instance.Root);
+                    // Edit Mode(エディタのプレビュー)では Destroy が使えずエラーになるため DestroyImmediate(レビュー対応 2026-09-14)。
+                    if (Application.isPlaying)
+                    {
+                        UnityEngine.Object.Destroy(instance.Root);
+                    }
+                    else
+                    {
+                        UnityEngine.Object.DestroyImmediate(instance.Root);
+                    }
                 }
             }
             else if (instance.IsPooled)
@@ -794,7 +822,7 @@ namespace DDrive.Runtime.Ui
                     continue;
                 }
 
-                return MoveFocusFrom(_stack[i], GetRelativePath(root, current), dir, out _);
+                return MoveFocusFrom(_stack[i], TransformPath.GetRelative(root, current), dir, out _);
             }
 
             return false;
@@ -901,35 +929,35 @@ namespace DDrive.Runtime.Ui
             Transform best = null;
             var bestScore = float.MaxValue;
 
-            foreach (var candidate in CollectFocusableTransforms(root))
+            root.GetComponentsInChildren(true, _focusSelectables);
+            for (var i = 0; i < _focusSelectables.Count; i++)
             {
-                if (candidate == currentT || candidate is not RectTransform rt)
+                var s = _focusSelectables[i];
+                if (s.interactable)
                 {
-                    continue;
-                }
-
-                var delta = RectCenter(rt) - currentCenter;
-                if (!IsInDirection(delta, dir))
-                {
-                    continue;
-                }
-
-                var primary = Mathf.Abs(Vector2.Dot(delta, dir));
-                var lateral = Mathf.Abs(Vector2.Dot(delta, new Vector2(-dir.y, dir.x)));
-                var score = primary + lateral * 2f;
-                if (score < bestScore)
-                {
-                    bestScore = score;
-                    best = candidate;
+                    ConsiderFocusCandidate(s.transform, currentT, currentCenter, dir, ref best, ref bestScore);
                 }
             }
+
+            root.GetComponentsInChildren(true, _focusInteractables);
+            for (var i = 0; i < _focusInteractables.Count; i++)
+            {
+                var ui = _focusInteractables[i];
+                if (ui.CanFocus)
+                {
+                    ConsiderFocusCandidate(ui.transform, currentT, currentCenter, dir, ref best, ref bestScore);
+                }
+            }
+
+            _focusSelectables.Clear();
+            _focusInteractables.Clear();
 
             if (best == null)
             {
                 return false;
             }
 
-            nextPath = GetRelativePath(root, best);
+            nextPath = TransformPath.GetRelative(root, best);
             ApplyFocusPath(root, nextPath);
             return true;
         }
@@ -969,30 +997,35 @@ namespace DDrive.Runtime.Ui
             return Vector2.Dot(delta.normalized, dir.normalized) > 0.2f;
         }
 
-        private static Vector2 RectCenter(RectTransform rt)
+        // 指定方向にある候補のうち、進む向きの距離 + 横ずれ×2 が最も小さいものを残す(Unity の自動ナビゲーションに近い基準)。
+        private static void ConsiderFocusCandidate(Transform candidate, Transform currentT, Vector2 currentCenter, Vector2 dir,
+            ref Transform best, ref float bestScore)
         {
-            var corners = new Vector3[4];
-            rt.GetWorldCorners(corners);
-            return (corners[0] + corners[2]) * 0.5f;
+            if (candidate == currentT || candidate is not RectTransform rt)
+            {
+                return;
+            }
+
+            var delta = RectCenter(rt) - currentCenter;
+            if (!IsInDirection(delta, dir))
+            {
+                return;
+            }
+
+            var primary = Mathf.Abs(Vector2.Dot(delta, dir));
+            var lateral = Mathf.Abs(Vector2.Dot(delta, new Vector2(-dir.y, dir.x)));
+            var score = primary + lateral * 2f;
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = candidate;
+            }
         }
 
-        private static IEnumerable<Transform> CollectFocusableTransforms(Transform root)
+        private static Vector2 RectCenter(RectTransform rt)
         {
-            foreach (var s in root.GetComponentsInChildren<Selectable>(true))
-            {
-                if (s.interactable)
-                {
-                    yield return s.transform;
-                }
-            }
-
-            foreach (var ui in root.GetComponentsInChildren<UiInteractable>(true))
-            {
-                if (ui.CanFocus)
-                {
-                    yield return ui.transform;
-                }
-            }
+            rt.GetWorldCorners(CornerBuffer);
+            return (CornerBuffer[0] + CornerBuffer[2]) * 0.5f;
         }
 
         // EventSystem があるときだけ実際に選択を反映する(無ければ呼び出し元が nextPath を保持するだけでよい)。
@@ -1015,25 +1048,6 @@ namespace DDrive.Runtime.Ui
             {
                 EventSystem.current.SetSelectedGameObject(t.gameObject);
             }
-        }
-
-        private static string GetRelativePath(Transform root, Transform target)
-        {
-            if (target == root)
-            {
-                return string.Empty;
-            }
-
-            var names = new List<string>();
-            var cur = target;
-            while (cur != null && cur != root)
-            {
-                names.Add(cur.name);
-                cur = cur.parent;
-            }
-
-            names.Reverse();
-            return string.Join("/", names);
         }
 
         // ── ボタン配線(ButtonWire, 4-2/4-6) ──
@@ -1510,28 +1524,10 @@ namespace DDrive.Runtime.Ui
             instance.PendingDisappearCount = 0;
         }
 
-        // UiPresetRef → TweenTrack[] へ展開して再生する(UiFx.Play と同じ手順。静的ファサードに依存せず
-        // このインスタンスの _tweens を直接使う)。
+        // 展開と再生は UiTweenManager.PlayPreset(UiFx.Play と共通。docs/24 整理項目 1)。静的ファサードに依存せず
+        // このインスタンスの _tweens を直接使う。
         private Handle<UiTweenMarker> PlayPreset(in UiPresetRef p, RectTransform target)
-        {
-            if (_tweens == null || target == null || p.Preset == UiPreset.None)
-            {
-                return Handle<UiTweenMarker>.Invalid;
-            }
-
-            var count = UiPresetFactory.Build(in p, target, PresetScratch);
-            if (count <= 0)
-            {
-                return Handle<UiTweenMarker>.Invalid;
-            }
-
-            if (p.Se.IsValid)
-            {
-                Runtime.Audio.Audio.PlaySe(p.Se);
-            }
-
-            return _tweens.PlayTracks(PresetScratch, count, target);
-        }
+            => _tweens != null ? _tweens.PlayPreset(in p, target) : Handle<UiTweenMarker>.Invalid;
 
         private bool IsTweenPlaying(Handle<UiTweenMarker> handle) => _tweens != null && _tweens.IsPlaying(handle);
 

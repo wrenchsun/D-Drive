@@ -289,7 +289,7 @@ namespace DDrive.Editor.CanvasTool
                 tooltip = "ドラッグで移動 / ダブルクリックで Hierarchy を Ping",
             };
 
-            var label = new Label(string.IsNullOrEmpty(node.DisplayName) ? "(ルート)" : node.DisplayName)
+            var label = new Label(string.IsNullOrEmpty(node.DisplayName) ? DDrive.Editor.Ui.UiTweenEditorWindow.RootElementLabel : node.DisplayName) // 共有定数(レビュー対応 2026-09-14)
             {
                 style = { fontSize = 10, unityTextAlign = TextAnchor.MiddleCenter, whiteSpace = WhiteSpace.Normal },
                 pickingMode = PickingMode.Ignore,
@@ -568,6 +568,54 @@ namespace DDrive.Editor.CanvasTool
             return points;
         }
 
+        // 画面に実際に描く形の折れ線(DrawArrows と当たり判定 TryFindWireNear / FindEdgesCrossingCutPath で共有)。
+        // 2026-09-12 レビュー対応(ユーザー報告「配線後、矢印の向きが分かりづらい」):
+        // 矢印レイヤーはノードの箱より後ろに描画されるため、従来は線・矢頭とも箱の中心まで
+        // 引いていて、肝心の矢頭(向きを示す三角形)が丸ごと箱の下に隠れて見えなかった。
+        // 箱の境界の手前で止め、さらに A→B と B→A が両方あるとき(同じ 2 点を結ぶ直線が完全に
+        // 重なって色でしか区別できなかった)は進行方向と垂直にずらして 2 本の平行線にする。
+        // (レビュー対応 2026-09-14) ノードの箱同士が重なっていると、両端を箱の手前で止めた結果
+        // 始点と終点が入れ替わり矢印が逆向きに描かれていた。止めた後の向きが元の向きと逆(内積 <= 0)に
+        // なる端は止めずに中心のまま使う。当たり判定も以前はずらし・止めを行わない線で計算していて、
+        // 見た目の線とずれていたため、同じ形を使う。区間の数は BuildEdgePolyline と同じ(Reroute point の
+        // 挿入位置 hitSegmentIndex はそのまま使える)。
+        private List<Vector2> BuildDisplayPolyline(NavEdge edge, NavNodeInfo from, NavNodeInfo to)
+        {
+            var points = BuildEdgePolyline(edge, from, to);
+            if (points.Count < 2)
+            {
+                return points;
+            }
+
+            var lastIdx = points.Count - 1;
+            var offset = ComputeParallelOffset(edge, points[0], points[lastIdx]);
+            for (var i = 1; i < lastIdx; i++)
+            {
+                points[i] += offset;
+            }
+
+            var shiftedStart = points[0] + offset;
+            var shiftedEnd = points[lastIdx] + offset;
+            var clippedStart = ClipToBoxEdge(points.Count > 2 ? points[1] : shiftedEnd, shiftedStart);
+            var clippedEnd = ClipToBoxEdge(points.Count > 2 ? points[lastIdx - 1] : shiftedStart, shiftedEnd);
+
+            if (points.Count == 2)
+            {
+                var keepClip = Vector2.Dot(clippedEnd - clippedStart, shiftedEnd - shiftedStart) > 0f;
+                points[0] = keepClip ? clippedStart : shiftedStart;
+                points[1] = keepClip ? clippedEnd : shiftedEnd;
+            }
+            else
+            {
+                var firstWaypoint = points[1];
+                var lastWaypoint = points[lastIdx - 1];
+                points[0] = Vector2.Dot(firstWaypoint - clippedStart, firstWaypoint - shiftedStart) > 0f ? clippedStart : shiftedStart;
+                points[lastIdx] = Vector2.Dot(clippedEnd - lastWaypoint, shiftedEnd - lastWaypoint) > 0f ? clippedEnd : shiftedEnd;
+            }
+
+            return points;
+        }
+
         private static Vector2 CenterOf(NavNodeInfo n) => new(n.Position.x + NodeWidth / 2f, n.Position.y + NodeHeight / 2f);
 
         // A→B と B→A が両方あると、ノード中心同士を結ぶ直線が完全に重なって色でしか区別できない
@@ -619,7 +667,7 @@ namespace DDrive.Editor.CanvasTool
                     continue;
                 }
 
-                var points = BuildEdgePolyline(edge, from, to);
+                var points = BuildDisplayPolyline(edge, from, to); // 見た目の線と同じ形で判定する(レビュー対応 2026-09-14)
                 for (var i = 0; i < points.Count - 1; i++)
                 {
                     if (DistancePointToSegment(worldPos, points[i], points[i + 1]) <= tolerance)
@@ -769,7 +817,7 @@ namespace DDrive.Editor.CanvasTool
                     continue;
                 }
 
-                var points = BuildEdgePolyline(edge, from, to);
+                var points = BuildDisplayPolyline(edge, from, to); // 見た目の線と同じ形で判定する(レビュー対応 2026-09-14)
                 var crossed = false;
                 for (var w = 0; w < points.Count - 1 && !crossed; w++)
                 {
@@ -937,27 +985,8 @@ namespace DDrive.Editor.CanvasTool
                 }
 
                 // Reroute point があれば、そこを経由する折れ線として描く(矢頭は最後の区間だけ)。
-                var points = BuildEdgePolyline(edge, from, to);
-
-                // 2026-09-12 レビュー対応(ユーザー報告「配線後、矢印の向きが分かりづらい」):
-                // 矢印レイヤーはノードの箱より後ろに描画されるため、従来は線・矢頭とも箱の中心まで
-                // 引いていて、肝心の矢頭(向きを示す三角形)が丸ごと箱の下に隠れて見えなかった。
-                // 箱の境界の手前で止め、さらに A→B と B→A が両方あるとき(同じ 2 点を結ぶ直線が完全に
-                // 重なって色でしか区別できなかった)は進行方向と垂直にずらして 2 本の平行線にする。
-                if (points.Count >= 2)
-                {
-                    var lastIdx = points.Count - 1;
-                    var offset = ComputeParallelOffset(edge, points[0], points[lastIdx]);
-                    for (var i = 1; i < lastIdx; i++)
-                    {
-                        points[i] += offset;
-                    }
-
-                    var shiftedStart = points[0] + offset;
-                    var shiftedEnd = points[lastIdx] + offset;
-                    points[0] = ClipToBoxEdge(points.Count > 2 ? points[1] : shiftedEnd, shiftedStart);
-                    points[lastIdx] = ClipToBoxEdge(points.Count > 2 ? points[lastIdx - 1] : shiftedStart, shiftedEnd);
-                }
+                // 平行ずらし・箱の手前で止める処理は BuildDisplayPolyline に集約(当たり判定と共有。レビュー対応 2026-09-14)。
+                var points = BuildDisplayPolyline(edge, from, to);
 
                 var color = DirectionColor(edge.Direction);
                 for (var i = 0; i < points.Count - 2; i++)
