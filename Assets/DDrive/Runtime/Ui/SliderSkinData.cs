@@ -24,6 +24,8 @@ namespace DDrive.Runtime.Ui
         public bool HideHandleOnGamepad;
         [Tooltip("タッチ用ヒット領域拡張(ハンドル外を押しても掴める)。X=左右、Y=上下に広げる幅で、共通の Hit Area Expand に足される")]
         public Vector2 ExtraHitPadding;
+        [Tooltip("つまみ(Handle)の押せる範囲を四辺ごとに広げる(+)/狭める(-)。単位は UI のピクセル(X=左, Y=下, Z=右, W=上)。UiSlider の Handle Rect の画像に掛かる")]
+        public Vector4 HandleHitAreaExpand;
 
         // 2026-09-14: ExtraHitPadding は長らく未接続だった。共通の当たり判定(HitAreaExpand)に足して効かせる。
         public override Vector4 EffectiveHitAreaExpand

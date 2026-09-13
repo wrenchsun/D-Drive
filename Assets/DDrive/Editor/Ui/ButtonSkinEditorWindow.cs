@@ -15,7 +15,8 @@ namespace DDrive.Editor.Ui
     [DDrive.Editor.Inspector.DataEditor(typeof(ButtonSkinData), "Skin Editor で開く")]
     public sealed class ButtonSkinEditorWindow : EditorWindow
     {
-        private const string PreviewCanvasName = "[D-Drive] Ui Preview";
+        // エディタ固有の名前(2026-09-14。以前は Slider Skin / UI Tween と共有していて、互いのプレビューを消していた)。
+        private const string PreviewCanvasName = "[D-Drive] Button Skin Preview";
 
         [SerializeField] private ButtonSkinData _target;
 
@@ -35,6 +36,12 @@ namespace DDrive.Editor.Ui
                 window.SetTarget(target);
             }
         }
+
+        // 前回閉じ損ねた残骸を消し、閉じる(ドメインリロード含む)ときは自分のプレビューを必ず片付ける
+        // (以前は閉じてもシーンに残っていた。2026-09-14 ユーザー報告)。
+        private void OnEnable() => DDrive.Editor.Preview.EditorPreviewRoots.DestroyAll(PreviewCanvasName);
+
+        private void OnDisable() => RemoveFromScene();
 
         private void CreateGUI()
         {
@@ -135,10 +142,7 @@ namespace DDrive.Editor.Ui
 
             RemoveFromScene();
 
-            var canvasGo = new GameObject(PreviewCanvasName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster))
-            {
-                hideFlags = HideFlags.DontSave,
-            };
+            var canvasGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateRoot(PreviewCanvasName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
 
             var buttonGo = new GameObject("PreviewButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UiButton));
@@ -155,12 +159,7 @@ namespace DDrive.Editor.Ui
 
         private void RemoveFromScene()
         {
-            var existing = GameObject.Find(PreviewCanvasName);
-            if (existing != null)
-            {
-                DestroyImmediate(existing);
-            }
-
+            DDrive.Editor.Preview.EditorPreviewRoots.DestroyAll(PreviewCanvasName);
             _previewButton = null;
         }
     }

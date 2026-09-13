@@ -30,7 +30,7 @@
 <h3>はじめの一歩（滑り込みながらフェードイン）</h3>
 <ol>
 <li>UI Tween を新規作成して UI Tween Editor で開く</li>
-<li>「確認用シーンに配置」→ 開いているシーンに <code>[D-Drive] Ui Preview</code> という Canvas と 200×80 の画像が置かれます（シーンには保存されません）</li>
+<li>「確認用シーンに配置」→ 開いているシーンに <code>[D-Drive] UI Tween Preview</code> という Canvas と 200×80 の画像が置かれます（シーンには保存されず、エディタを閉じたとき・別のシーンに移ったときに自動で片付きます）</li>
 <li>「プリセット / カタログ」で <strong>SlideFadeInLeft</strong> を選び「プリセットから Tracks を生成」→ カーブ一覧に位置と透明度の 2 行が並びます</li>
 <li>「▶ 再生」→ Game / Scene ビューで画像が左から滑り込みながら現れます</li>
 <li>カーブ一覧の行をクリックして「選択中 Track」で秒数（Motion の Time）や移動量（From Value）を直し、もう一度 ▶ 再生</li>
@@ -58,7 +58,7 @@
 <tr><td>プレビュー対象(収集元 / 要素を自動収集 / 要素)</td><td>上の「プレビュー対象」を参照</td></tr>
 <tr><td>プリセット / カタログ + プリセットから Tracks を生成</td><td>組み込みプリセット全種と、プロジェクトのカタログに登録した演出（「[Catalog] 名前」）から選んで Tracks を作ります。<strong>いまの Tracks は丸ごと上書き</strong>（Ctrl+Z 可）。カタログ側の Tween に Tracks が無いと「カタログの Tween に Tracks がありません」</td></tr>
 <tr><td>＋ プリセットを追加</td><td>上と違い<strong>いまの Tracks を残したまま</strong>、選んだプリセットの Track を末尾に足します。スライドイン + フェードインのように、複数のプリセットや手動 Track を組み合わせたいときに使います。1 つの Tween の Track 上限（8 本）に達すると「Track が上限(8 本)に達しているため追加できません」</td></tr>
-<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] Ui Preview</code> Canvas と 200×80 の画像を置く / 消す（実要素で試したいときは上の「プレビュー対象」を使う）</td></tr>
+<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] UI Tween Preview</code> Canvas と 200×80 の画像を置く / 消す（実要素で試したいときは上の「プレビュー対象」を使う）</td></tr>
 <tr><td>▶ 再生 / ■ 停止</td><td>実際の仕組み（UiTweenManager）で本当に動かします。プレビュー対象が無いと「プレビュー対象がありません(…)」。再生中は「再生中」、終わると「完了」</td></tr>
 <tr><td>カーブ一覧</td><td>Track 1 本につき 1 行。「[0] Scale / Ease:OutBack / 0.3s / Once / delay 0s」のように「何を / どんな形で / 何秒 / 繰り返し / 遅れ」が読めます。右に曲線の小さな絵。クリックで選択。無ければ「Tracks がありません(…)」</td></tr>
 <tr><td>選択中 Track [n] / － 選択中の Track を削除</td><td>選んだ Track の全項目（下の「設定項目」）と、その Track だけを削除するボタン</td></tr>
@@ -120,7 +120,7 @@
 
 <h3>注意点</h3>
 <ul>
-<li>プレビュー用 Canvas <code>[D-Drive] Ui Preview</code> は Button Skin / Slider Skin のエディタと<strong>共用</strong>です。「撤去」は自分で置いた仮画像だけを消すので、他のエディタのプレビューを巻き込みません</li>
+<li>プレビュー用 Canvas <code>[D-Drive] UI Tween Preview</code> はこのエディタ専用です（Button Skin / Slider Skin はそれぞれ別の名前）。「撤去」は自分で置いた仮画像だけを消し、エディタを閉じたとき・別のシーンに移ったときは自動で片付きます。万一画面に消えないプレビューが残ったら <code>Tools &gt; D-Drive &gt; Debug &gt; 確認用プレビューの残骸を掃除</code></li>
 <li>「プリセットから Tracks を生成」は Tracks を丸ごと上書きします（Ctrl+Z で戻せます）。組み合わせたいときは「＋ プリセットを追加」を使う</li>
 <li>プレビュー対象が無いまま生成すると、仮の 200×80 の大きさを基準に From / To が計算されます。実物の大きさに合わせたいときは先に「プレビュー対象」で実要素を選ぶ</li>
 <li>カーブ一覧の曲線は「形」だけです。軸の数字や、途中で止めて見る操作はありません</li>

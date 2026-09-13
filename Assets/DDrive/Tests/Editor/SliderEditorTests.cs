@@ -60,6 +60,21 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(0, slider.Notches);
             Assert.AreEqual(ValueMode.Parametric, slider.FollowMotion.Mode);
             Assert.Greater(slider.FollowMotion.Time.Value, 0f);
+            Assert.IsFalse(slider.PointerInput, "HP バーは表示専用(マウス / タッチ操作 OFF)");
+            Assert.IsFalse(slider.NavigationInput, "HP バーは表示専用(キーボード / パッド操作 OFF)");
+
+            Object.DestroyImmediate(slider.gameObject);
+        }
+
+        [Test]
+        public void Apply_OtherPreset_AfterHPバー_ReenablesInput()
+        {
+            var slider = CreateSlider();
+            SliderPresets.Apply(slider, SliderPresets.SliderPreset.HPバー);
+            SliderPresets.Apply(slider, SliderPresets.SliderPreset.音量);
+
+            Assert.IsTrue(slider.PointerInput);
+            Assert.IsTrue(slider.NavigationInput);
 
             Object.DestroyImmediate(slider.gameObject);
         }

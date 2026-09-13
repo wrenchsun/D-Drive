@@ -53,6 +53,14 @@ namespace DDrive.Runtime.Ui
         [Tooltip("左右 NavNode 設定時、端に到達したときだけフォーカスを抜けさせる")]
         public bool EscapeOnLimit = false;
 
+        // 2026-09-14 追加(ユーザー要望: HP バー等に流用するとき操作させない)。部品ごとの性質なので Skin ではなくここに持つ。
+        // エディタのプレビュー(BeginDragAt / Move / Value 等の API 直呼び)は制限しない。
+        [Header("入力の許可")]
+        [Tooltip("マウス / タッチ(ドラッグ・溝のクリック・ホイール・ホバー)で操作できるか。HP バーなど表示専用なら OFF")]
+        public bool PointerInput = true;
+        [Tooltip("キーボード / パッド(十字キー・スティック)で値を操作できるか。OFF のときはフォーカスも受けない(パッドの移動で飛ばされる)")]
+        public bool NavigationInput = true;
+
         [Header("応答・追従")]
         [Tooltip("入力位置(0..1) → 正規化値(0..1)。Mode=Constant(未設定既定)は線形")]
         public ValueDef Response;
@@ -732,26 +740,37 @@ namespace DDrive.Runtime.Ui
                 fillRect.anchorMax = max;
             }
 
-            if (handleRect != null && TrackRect != null)
+            if (handleRect != null)
             {
-                var trackRect = TrackRect.rect;
+                // 2026-09-14 修正: つまみはアンカーを値の位置へ動かして置く(Unity 標準 Slider と同じ)。以前は「つまみの
+                // アンカーが溝の左端にある」前提で anchoredPosition = 溝の幅 × 値 にしていたため、既定(中央アンカー)の
+                // つまみだと値 0 で溝の中央・値 1 で右端より幅の半分はみ出していた。つまみの中心が親(溝、または
+                // スライド領域)の中の値の位置に乗る。
+                var min = handleRect.anchorMin;
+                var max = handleRect.anchorMax;
                 var pos = handleRect.anchoredPosition;
                 switch (Direction)
                 {
                     case SliderDirection.LeftToRight:
-                        pos.x = Mathf.Lerp(0f, trackRect.width, p);
+                        min.x = max.x = p;
+                        pos.x = 0f;
                         break;
                     case SliderDirection.RightToLeft:
-                        pos.x = Mathf.Lerp(trackRect.width, 0f, p);
+                        min.x = max.x = 1f - p;
+                        pos.x = 0f;
                         break;
                     case SliderDirection.BottomToTop:
-                        pos.y = Mathf.Lerp(0f, trackRect.height, p);
+                        min.y = max.y = p;
+                        pos.y = 0f;
                         break;
                     case SliderDirection.TopToBottom:
-                        pos.y = Mathf.Lerp(trackRect.height, 0f, p);
+                        min.y = max.y = 1f - p;
+                        pos.y = 0f;
                         break;
                 }
 
+                handleRect.anchorMin = min;
+                handleRect.anchorMax = max;
                 handleRect.anchoredPosition = pos;
             }
         }
@@ -772,32 +791,84 @@ namespace DDrive.Runtime.Ui
             }
         }
 
+        // 2026-09-14: つまみ(Handle)の当たり判定。Skin 全体の当たり判定(本体 = TargetGraphic)は基底が適用済み。
         protected override void OnSkinApplied(in StateVisual v)
         {
+            if (HandleRect != null && HandleRect.TryGetComponent<Graphic>(out var handleGraphic))
+            {
+                handleGraphic.raycastPadding = -(SliderSkin != null ? SliderSkin.HandleHitAreaExpand : Vector4.zero);
+            }
         }
+
+        // キーボード / パッド操作を許可しない部品はフォーカス対象にしない(HP バーにパッドのフォーカスが止まらないように)。
+        public override bool CanFocus => base.CanFocus && NavigationInput;
 
         // ── EventSystem 連携 ──
 
         public override void OnPointerDown(PointerEventData eventData)
         {
+            if (!PointerInput)
+            {
+                return;
+            }
+
             base.OnPointerDown(eventData);
             TrackClickAt(ComputePointerFraction(eventData));
         }
 
         public override void OnPointerUp(PointerEventData eventData)
         {
+            if (!PointerInput)
+            {
+                return;
+            }
+
             base.OnPointerUp(eventData);
         }
 
-        public void OnBeginDrag(PointerEventData eventData) => BeginDragAt(ComputePointerFraction(eventData));
+        public override void OnPointerEnter(PointerEventData eventData)
+        {
+            if (PointerInput)
+            {
+                base.OnPointerEnter(eventData);
+            }
+        }
 
-        public void OnDrag(PointerEventData eventData) => DragTo(ComputePointerFraction(eventData));
+        public override void OnPointerExit(PointerEventData eventData)
+        {
+            if (PointerInput)
+            {
+                base.OnPointerExit(eventData);
+            }
+        }
 
-        public void OnEndDrag(PointerEventData eventData) => EndDrag();
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            if (PointerInput)
+            {
+                BeginDragAt(ComputePointerFraction(eventData));
+            }
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (PointerInput)
+            {
+                DragTo(ComputePointerFraction(eventData));
+            }
+        }
+
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (PointerInput)
+            {
+                EndDrag();
+            }
+        }
 
         public void OnScroll(PointerEventData eventData)
         {
-            if (WheelEnabled)
+            if (PointerInput && WheelEnabled)
             {
                 Wheel(eventData.scrollDelta.y);
             }
@@ -808,6 +879,13 @@ namespace DDrive.Runtime.Ui
         // 実行時に効いていなかった。「Direction と直交する方向は値を変えずにフォーカス移動」は未対応(既存の SignFor 仕様を維持)。
         public override void OnMove(AxisEventData eventData)
         {
+            // キーボード / パッド操作を許可しないときは値を触らず、フォーカス移動だけ基底に任せる。
+            if (!NavigationInput)
+            {
+                base.OnMove(eventData);
+                return;
+            }
+
             if (eventData != null && Move(eventData.moveDir))
             {
                 base.OnMove(eventData);

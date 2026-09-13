@@ -30,6 +30,10 @@ namespace DDrive.Editor.Ui
 
             Undo.RecordObject(slider, $"UiSlider: プリセット '{preset}' を適用");
 
+            // 2026-09-14: 入力の許可は HP バー(表示専用)だけが OFF にする。他のプリセットに切り替えたら ON に戻す。
+            slider.PointerInput = true;
+            slider.NavigationInput = true;
+
             switch (preset)
             {
                 case SliderPreset.音量:
@@ -53,6 +57,8 @@ namespace DDrive.Editor.Ui
                     slider.Notches = 0;
                     slider.Response = default;
                     slider.FollowMotion = new ValueDef { Mode = ValueMode.Parametric, Parametric = EaseDef.Named(Ease.OutCubic), Time = TimeDef.Duration(0.25f), Loop = LoopMode.Once };
+                    slider.PointerInput = false;
+                    slider.NavigationInput = false;
                     break;
 
                 case SliderPreset.スタミナ:

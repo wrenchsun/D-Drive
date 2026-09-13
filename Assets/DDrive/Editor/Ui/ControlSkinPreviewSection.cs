@@ -64,8 +64,25 @@ namespace DDrive.Editor.Ui
             }
         }
 
+        // 本体以外の当たり判定(SliderSkin のつまみ等)。「当たり判定を表示」で本体と一緒に枠とハンドルを出す。
+        public readonly struct HitAreaTarget
+        {
+            public readonly Func<RectTransform> Target;
+            public readonly Func<ControlSkinData, Vector4> Get;
+            public readonly Action<ControlSkinData, Vector4> AddDelta;
+
+            public HitAreaTarget(Func<RectTransform> target, Func<ControlSkinData, Vector4> get, Action<ControlSkinData, Vector4> addDelta)
+            {
+                Target = target;
+                Get = get;
+                AddDelta = addDelta;
+            }
+        }
+
         public sealed class Options
         {
+            public HitAreaTarget[] ExtraHitAreas = Array.Empty<HitAreaTarget>();
+
             // 確認用シーンのプレビュー部品(未配置なら配置してから返す)。
             public Func<UiInteractable> EnsurePreview;
 
@@ -517,6 +534,38 @@ namespace DDrive.Editor.Ui
             return row;
         }
 
+        private static readonly Color MainHitColor = new(1f, 0.25f, 0.25f, 0.35f);
+        private static readonly Color ExtraHitColor = new(0.25f, 0.6f, 1f, 0.4f);
+
+        // 本体(プレビュー部品 = Target Graphic)の当たり判定 + 追加分(つまみ等)。
+        private List<(RectTransform rt, Vector4 expand, Action<Vector4> addDelta, Color color)> CollectHitAreas()
+        {
+            var list = new List<(RectTransform, Vector4, Action<Vector4>, Color)>();
+            var control = _options.CurrentPreview?.Invoke();
+            if (control == null || _skin == null)
+            {
+                return list;
+            }
+
+            var skin = _skin;
+            if (control.transform is RectTransform main)
+            {
+                // 派生 Skin の上乗せ分(SliderSkin.ExtraHitPadding)はそのままに、差分だけ HitAreaExpand へ反映する。
+                list.Add((main, skin.EffectiveHitAreaExpand, d => skin.HitAreaExpand += d, MainHitColor));
+            }
+
+            foreach (var extra in _options.ExtraHitAreas)
+            {
+                var rt = extra.Target?.Invoke();
+                if (rt != null)
+                {
+                    list.Add((rt, extra.Get(skin), d => extra.AddDelta(skin, d), ExtraHitColor));
+                }
+            }
+
+            return list;
+        }
+
         private void UpdateHitOverlay()
         {
             var control = _options.CurrentPreview?.Invoke();
@@ -525,24 +574,35 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            var existing = control.transform.Find(HitOverlayName);
             if (!_showHitArea || _skin == null)
             {
-                if (existing != null)
+                foreach (var t in control.GetComponentsInChildren<Transform>(true))
                 {
-                    Object.DestroyImmediate(existing.gameObject);
+                    if (t != null && t.name == HitOverlayName)
+                    {
+                        Object.DestroyImmediate(t.gameObject);
+                    }
                 }
 
                 return;
             }
 
+            foreach (var (rt, expand, _, color) in CollectHitAreas())
+            {
+                ApplyOverlay(rt, expand, color);
+            }
+        }
+
+        private static void ApplyOverlay(RectTransform parent, Vector4 e, Color color)
+        {
+            var existing = parent.Find(HitOverlayName);
             RectTransform overlay;
             if (existing == null)
             {
                 var go = new GameObject(HitOverlayName, typeof(RectTransform), typeof(Image)) { hideFlags = HideFlags.DontSave };
-                go.transform.SetParent(control.transform, false);
+                go.transform.SetParent(parent, false);
                 var image = go.GetComponent<Image>();
-                image.color = new Color(1f, 0.25f, 0.25f, 0.35f);
+                image.color = color;
                 image.raycastTarget = false;
                 overlay = (RectTransform)go.transform;
                 overlay.anchorMin = Vector2.zero;
@@ -554,7 +614,6 @@ namespace DDrive.Editor.Ui
                 overlay = (RectTransform)existing;
             }
 
-            var e = _skin.EffectiveHitAreaExpand;
             overlay.offsetMin = new Vector2(-e.x, -e.y);
             overlay.offsetMax = new Vector2(e.z, e.w);
         }
@@ -566,41 +625,65 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            var control = _options.CurrentPreview?.Invoke();
-            if (control == null || !(control.transform is RectTransform rt))
+            var prevColor = Handles.color;
+            var changedAny = false;
+            foreach (var (rt, e, addDelta, color) in CollectHitAreas())
+            {
+                var r = rt.rect;
+                var min = new Vector2(r.xMin - e.x, r.yMin - e.y);
+                var max = new Vector2(r.xMax + e.z, r.yMax + e.w);
+                var mid = (min + max) * 0.5f;
+
+                Handles.color = new Color(color.r, color.g, color.b, 1f);
+                Handles.DrawPolyLine(
+                    rt.TransformPoint(new Vector3(min.x, min.y)), rt.TransformPoint(new Vector3(min.x, max.y)),
+                    rt.TransformPoint(new Vector3(max.x, max.y)), rt.TransformPoint(new Vector3(max.x, min.y)),
+                    rt.TransformPoint(new Vector3(min.x, min.y)));
+
+                var changed = false;
+                var next = e;
+                next.x = DragEdge(rt, new Vector3(min.x, mid.y), Vector3.left, e.x, ref changed);
+                next.y = DragEdge(rt, new Vector3(mid.x, min.y), Vector3.down, e.y, ref changed);
+                next.z = DragEdge(rt, new Vector3(max.x, mid.y), Vector3.right, e.z, ref changed);
+                next.w = DragEdge(rt, new Vector3(mid.x, max.y), Vector3.up, e.w, ref changed);
+
+                if (changed)
+                {
+                    Undo.RecordObject(_skin, "当たり判定の調整");
+                    addDelta(next - e);
+                    EditorUtility.SetDirty(_skin);
+                    changedAny = true;
+                }
+            }
+
+            Handles.color = prevColor;
+            if (changedAny)
+            {
+                UpdateHitOverlay();
+                InternalEditorUtility.RepaintAllViews();
+            }
+        }
+
+        // エディタ側の操作プレビュー(スライダーを動かしたとき等)から SE 欄を名前で鳴らす。
+        public void PlaySeField(string propertyName)
+        {
+            if (_skin == null)
             {
                 return;
             }
 
-            var e = _skin.EffectiveHitAreaExpand;
-            var r = rt.rect;
-            var min = new Vector2(r.xMin - e.x, r.yMin - e.y);
-            var max = new Vector2(r.xMax + e.z, r.yMax + e.w);
-            var mid = (min + max) * 0.5f;
-
-            var prevColor = Handles.color;
-            Handles.color = new Color(1f, 0.3f, 0.3f, 1f);
-            Handles.DrawPolyLine(
-                rt.TransformPoint(new Vector3(min.x, min.y)), rt.TransformPoint(new Vector3(min.x, max.y)),
-                rt.TransformPoint(new Vector3(max.x, max.y)), rt.TransformPoint(new Vector3(max.x, min.y)),
-                rt.TransformPoint(new Vector3(min.x, min.y)));
-
-            var changed = false;
-            var next = e;
-            next.x = DragEdge(rt, new Vector3(min.x, mid.y), Vector3.left, e.x, ref changed);
-            next.y = DragEdge(rt, new Vector3(mid.x, min.y), Vector3.down, e.y, ref changed);
-            next.z = DragEdge(rt, new Vector3(max.x, mid.y), Vector3.right, e.z, ref changed);
-            next.w = DragEdge(rt, new Vector3(mid.x, max.y), Vector3.up, e.w, ref changed);
-            Handles.color = prevColor;
-
-            if (changed)
+            foreach (var field in _options.SeFields)
             {
-                // 派生 Skin の上乗せ分(SliderSkin.ExtraHitPadding)はそのままに、差分だけ HitAreaExpand へ反映する。
-                Undo.RecordObject(_skin, "当たり判定の調整");
-                _skin.HitAreaExpand += next - e;
-                EditorUtility.SetDirty(_skin);
-                UpdateHitOverlay();
-                InternalEditorUtility.RepaintAllViews();
+                if (field.PropertyName == propertyName)
+                {
+                    var id = field.Get(_skin);
+                    if (id.IsValid)
+                    {
+                        PlaySe(id, propertyName, stopPrevious: false);
+                    }
+
+                    return;
+                }
             }
         }
 
@@ -731,7 +814,8 @@ namespace DDrive.Editor.Ui
         }
 
         // propertyName=null はプリセット付属 SE(行に対応するボタンが無い)。
-        private void PlaySe(AssetId<SeMarker> id, string propertyName)
+        // stopPrevious=false はスライダー操作など実行時に重なって鳴る SE 用(掴む音が端の音に切られない等)。
+        private void PlaySe(AssetId<SeMarker> id, string propertyName, bool stopPrevious = true)
         {
             var label = propertyName != null ? ObjectNames.NicifyVariableName(propertyName) : "プリセットの SE";
             var data = id.IsValid ? FindData<SeData>(id.Value) : null;
@@ -743,7 +827,11 @@ namespace DDrive.Editor.Ui
 
             _audio ??= new PreviewService();
             _audio.Initialize();
-            StopSe();
+            if (stopPrevious)
+            {
+                StopSe();
+            }
+
             _seHandle = _audio.PlaySe(data);
             _sePropertyName = propertyName;
 

@@ -22,7 +22,8 @@ namespace DDrive.Editor.Ui
     [DDrive.Editor.Inspector.DataEditor(typeof(UiTweenData), "UI Tween Editor で開く")]
     public sealed class UiTweenEditorWindow : EditorWindow
     {
-        private const string PreviewRootName = "[D-Drive] Ui Preview";
+        // エディタ固有の名前(2026-09-14。以前は Button Skin / Slider Skin と共有していて、互いのプレビューを消していた)。
+        private const string PreviewRootName = "[D-Drive] UI Tween Preview";
         private const int SplinePreviewSamples = 32;
         private const string NoElementChoice = "(なし)";
         private const string RootElementLabel = "(ルート)";
@@ -112,6 +113,9 @@ namespace DDrive.Editor.Ui
             // 解除は OnDestroy でしか行っていなかったため、購読が重複する余地があった。
             // OnEnable/OnDisable(必ず対になる)へ移す。
             EditorApplication.update += OnEditorUpdate;
+
+            // 前回閉じ損ねた・ドメインリロードで参照を失った仮画像の残骸を消す(2026-09-14)。
+            DDrive.Editor.Preview.EditorPreviewRoots.DestroyAll(PreviewRootName);
         }
 
         private void OnFocus()
@@ -127,6 +131,10 @@ namespace DDrive.Editor.Ui
             SceneView.duringSceneGui -= OnSceneGui;
             SceneGuiOwner.Release(this);
             EditorApplication.update -= OnEditorUpdate;
+
+            // 閉じる / ドメインリロードの前に自分の仮画像を片付ける(参照を失うと残骸になるため。2026-09-14)。
+            // 収集・自動割り当てで指している「よその実要素」は所有していないので触らない(RemoveFromScene の仕様)。
+            RemoveFromScene();
         }
 
         private void CreateGUI()

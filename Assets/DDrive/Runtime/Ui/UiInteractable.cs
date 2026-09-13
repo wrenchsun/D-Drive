@@ -83,7 +83,7 @@ namespace DDrive.Runtime.Ui
 
         // IUiNavigable
         public Transform Transform => transform;
-        public bool CanFocus => Interactable && !_locked;
+        public virtual bool CanFocus => Interactable && !_locked;
         public void SetFocused(bool focused) => SetFocusedState(focused);
 
         // [07_canvas_prefab.md] NavNode / [18_ui_controls.md] A-1 — EventSystem の Navigate(十字キー / スティック)。

@@ -48,8 +48,8 @@
 <table>
 <tr><th>要素</th><th>説明</th></tr>
 <tr><td>対象 Skin</td><td>編集する Button Skin</td></tr>
-<tr><td>確認用シーンに配置</td><td>開いているシーンに <code>[D-Drive] Ui Preview</code> という Canvas を作り、その下に 200×60 のボタンを置いてこの Skin を当てます。シーンには保存されません。すでに置いてあれば作り直します</td></tr>
-<tr><td>撤去</td><td><code>[D-Drive] Ui Preview</code> を消します</td></tr>
+<tr><td>確認用シーンに配置</td><td>開いているシーンに <code>[D-Drive] Button Skin Preview</code> という Canvas を作り、その下に 200×60 のボタンを置いてこの Skin を当てます。シーンには保存されません。すでに置いてあれば作り直します。エディタを閉じたとき・別のシーンに移ったときは自動で片付きます</td></tr>
+<tr><td>撤去</td><td><code>[D-Drive] Button Skin Preview</code> を消します（他のエディタのプレビューは消しません）</td></tr>
 <tr><td>設定欄</td><td>Skin の全項目を編集（Ctrl+Z 可）。対象が無いと「Skin を選択してください」。確認用のボタンは、その設定のすぐ横に付いています（下の 2 行）</td></tr>
 <tr><td>状態ごとの箱（Normal〜Locked）</td><td>見出しの行に、その状態で再生される演出（「Tween: 名前」/「Preset: 名前」/「演出なし」）と「<strong>▶ 再生</strong>」「<strong>⏸ 一時停止</strong>」（再開）「<strong>■ 停止</strong>」。すぐ下が演出の設定欄（Enter Tween / Enter Preset）で、Enter Tween の右に「<strong>✎ Tween Editor</strong>」があります。色・拡大率・画像は「見た目(Tint / Scale / 画像)」を開くと出ます。<br>「▶ 再生」= プレビューのボタンをその状態にし（色・拡大率・差し替え画像）、状態に入ったときの演出を実際に再生します。未配置なら自動で「確認用シーンに配置」します。動きは <strong>Game ビュー</strong>で見ます。<br>「⏸」「■」は再生中の箱だけ押せます。「✎ Tween Editor」は Enter Tween を指定しているときだけ押せ、<a href="ui-tween.html">UI Tween Editor</a> がプレビューのボタンを対象にした状態で開きます</td></tr>
 <tr><td>SE の欄</td><td>Hover / Click / Long Press / Denied の各欄の右に「<strong>▶</strong>」（試聴）「<strong>■</strong>」（停止）。未設定の欄は押せません。SE データに音（Clip）が 1 つも入っていないと「再生できませんでした(Clip 未設定など…)」と出ます。Enter Preset に SE を付けている場合は、状態の「▶ 再生」でもその SE が鳴ります</td></tr>
@@ -131,8 +131,9 @@
 <tr><th>要素</th><th>説明</th></tr>
 <tr><td>案内ラベル / SliderEditor で開く</td><td>グラフや目盛りの確認は Slider Editor の担当です。ボタンで対象 Skin を渡して開けます</td></tr>
 <tr><td>対象 Skin</td><td>編集する Slider Skin</td></tr>
-<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] Ui Preview</code> Canvas の下に 300×24 のスライダー（Fill と 20×24 の Handle 付き）を置いて Skin を当てます</td></tr>
+<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] Slider Skin Preview</code> Canvas の下に 300×24 のスライダー（Fill と 20×24 の Handle 付き）を置いて Skin を当てます。エディタを閉じたとき・別のシーンに移ったときは自動で片付きます</td></tr>
 <tr><td>プリセット</td><td>音量 / 感度 / HPバー / スタミナ / キャラメイク。選んだ瞬間に<strong>配置中のプレビュースライダー</strong>の動き方が変わります（Skin 自体は変わりません）。<strong>先に「確認用シーンに配置」していないと何も起きません</strong></td></tr>
+<tr><td>動かしてみる（緑の線の箱）</td><td>プレビューのスライダーを実際に動かして確かめます（未配置なら自動で配置）。「◀」「▶」= キーボード / パッド 1 回分、「ドラッグ 0 → 1 / 1 → 0」= マウスで端から端まで掴んで動かす操作、「値(0〜1)」= ゲームのコードから値を変えたとき（HP の増減など）と同じ動き。<strong>つまみ・バーの動き、表示が追いつく動き（Follow Motion）、掴む・離す・目盛り・端・拒否の SE</strong> が確認できます。下に現在の値と直前の出来事（「目盛り 2」「端(Max)」など）が出ます。入力の許可を OFF にした部品でも、ここからは動かせます</td></tr>
 <tr><td>設定欄（状態ごとの箱 / SE の欄）</td><td>Button Skin と同じです（状態ごとの箱の「▶ 再生」「⏸」「■」、Enter Tween の右の「✎ Tween Editor」、SE は Grab / Release / Notch / Limit / Denied の各欄の右に「▶」「■」）。演出はスライダー本体に掛かります。パーツ（Track / Fill / Handle / Delay Fill）の見た目はまだ実行時に反映されないため、再生ボタンは付いていません。「状態遷移」（マウスで掴んで離す / パッドで選ぶ / 押せないスライダーを触る / 全状態を順に）と「当たり判定を表示」も Button Skin と同じです。対象が無いと「Skin を選択してください」</td></tr>
 </table>
 
@@ -145,6 +146,7 @@
 <tr><td>Hide Handle On Gamepad</td><td>パッド操作時につまみを隠す。<strong>まだ効きません</strong></td></tr>
 <tr><td>Hit Area Expand / Alpha Hit Threshold</td><td>Button Skin と同じ（上の「設定項目（当たり判定）」）。スライダー本体（Track）の画像に掛かります</td></tr>
 <tr><td>Extra Hit Padding</td><td>タッチ用に掴める範囲を広げる。X = 左右、Y = 上下の幅で、<strong>Hit Area Expand に足されて</strong>効きます（2026-09-14 から有効）</td></tr>
+<tr><td>Handle Hit Area Expand</td><td><strong>つまみ（Handle）</strong>の押せる範囲を四辺ごとに広げる（+）/ 狭める（−）。X = 左、Y = 下、Z = 右、W = 上（ピクセル）。スライダーの Handle Rect の画像に掛かります。小さいつまみを掴みやすくしたいときに。「当たり判定を表示」で<strong>青い枠</strong>として見え、Scene ビューでドラッグ調整できます</td></tr>
 <tr><td>Grab Se / Release Se</td><td>掴んだ瞬間 / 離した瞬間の音</td></tr>
 <tr><td>Notch Se</td><td>目盛り（ノッチ = 刻み）を越えたときの「カチッ」</td></tr>
 <tr><td>Notch Se Min Interval Sec</td><td>速くドラッグしても Notch Se が詰まらないようにする最小間隔（既定 0.04 秒）</td></tr>
@@ -192,7 +194,7 @@
 <tr><th>名前</th><th>範囲 / Step / Notches</th><th>応答 / 追従</th><th>見え方</th></tr>
 <tr><td>音量</td><td>0〜1 / 0 / 0</td><td>InQuad / 即時</td><td>つまみの下側で細かく動く（聴こえ方に合う）</td></tr>
 <tr><td>感度</td><td>0.1〜5 / 0 / 0</td><td>OutQuad / 変更なし</td><td>低い側を細かく</td></tr>
-<tr><td>HPバー</td><td>0〜100 / 1 / 0</td><td>線形 / OutCubic 0.25 秒 Once</td><td>表示が 0.25 秒かけて滑らかに減る</td></tr>
+<tr><td>HPバー</td><td>0〜100 / 1 / 0</td><td>線形 / OutCubic 0.25 秒 Once</td><td>表示が 0.25 秒かけて滑らかに減る。<strong>入力の許可が 2 つとも OFF</strong>（プレイヤーは触れない表示専用）。他のプリセットに切り替えると ON に戻ります</td></tr>
 <tr><td>スタミナ</td><td>0〜100 / 1 / 4（Snap Threshold 0.03）</td><td>線形 / 変更なし</td><td>4 分割の目盛りに吸い付く</td></tr>
 <tr><td>キャラメイク</td><td>0〜10 / 1 / 10（Whole Numbers ON）</td><td>線形 / 変更なし</td><td>0〜10 の整数 11 段階</td></tr>
 </table>
@@ -216,6 +218,8 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <tr><td>入力: Fine Step Multiplier</td><td>微調整の修飾キー中の倍率（既定 0.2 = 5 分の 1 の速さ）</td></tr>
 <tr><td>入力: Wheel Enabled</td><td>マウスホイールで 1 Step 動かせるか</td></tr>
 <tr><td>入力: Escape On Limit</td><td>ON = 端に到達したときだけ左右キーでフォーカスが隣へ抜ける。OFF だと左右キーはスライダーに吸われ続けます</td></tr>
+<tr><td>入力の許可: Pointer Input</td><td>マウス / タッチ（ドラッグ・溝のクリック・ホイール・ホバー）で操作できるか（既定 ON）。<strong>HP バーなど表示専用なら OFF</strong>。OFF でもゲームのコードから値を変えるのは効きます。クリックを後ろへ通したいときは、画像側の Raycast Target も OFF にしてください</td></tr>
+<tr><td>入力の許可: Navigation Input</td><td>キーボード / パッド（十字キー・スティック）で値を操作できるか（既定 ON）。OFF にするとフォーカスも受けず、パッドのフォーカス移動で飛ばされます</td></tr>
 <tr><td>応答: Response</td><td>つまみの位置（0〜1）と値（0〜1）の関係。未設定 = まっすぐ。<strong>右肩上がりでないと Error</strong></td></tr>
 <tr><td>追従: Follow Motion</td><td>表示が実際の値に追いつく動き。未設定 = 即時。HP バーの「じわっと減る」に</td></tr>
 <tr><td>追従: Delay Follow Motion</td><td>白い遅延バー（Delay Fill）専用の追従。未設定なら Follow Motion と同じ</td></tr>
@@ -240,7 +244,8 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
 <tr><td>音量スライダー</td><td>「音量」プリセット → Canvas データの Sliders で Action = SetOption、Option = MasterVolume（<a href="ui-tween.html">標準オプション</a>）</td></tr>
-<tr><td>HP バー</td><td>「HPバー」プリセット + Delay Fill Rect に白いバー + Delay Follow Motion をさらに遅く。Skin の Delay Fill は未反映なので色はバーの画像側で</td></tr>
+<tr><td>HP バー</td><td>「HPバー」プリセット（入力の許可が OFF になり、プレイヤーは触れません）+ Delay Fill Rect に白いバー + Delay Follow Motion をさらに遅く。Skin の Delay Fill は未反映なので色はバーの画像側で</td></tr>
+<tr><td>つまみを掴みやすく</td><td>Slider Skin の Handle Hit Area Expand を 4 辺とも 8〜12 程度に（「当たり判定を表示」の青い枠で確認）</td></tr>
 <tr><td>画質 低 / 中 / 高 / 最高 の 4 段階</td><td>Notches = 3 にして Step を合わせ、Skin の Notch Se で「カチッ」</td></tr>
 <tr><td>重い処理につなぐ（読み込みなど）</td><td>Notify Only On Commit ON、または Change Throttle Sec = 0.1</td></tr>
 <tr><td>縦ゲージ</td><td>Direction = BottomToTop、Fill Rect を縦に伸びるアンカーに</td></tr>
@@ -250,7 +255,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 
 <h2>注意点</h2>
 <ul>
-<li>プレビュー用の Canvas <code>[D-Drive] Ui Preview</code> は Button Skin / Slider Skin / UI Tween の 3 つのエディタで<strong>共用</strong>です。複数開いていると、片方の「撤去」がもう片方のプレビューも消します</li>
+<li>確認用のプレビューはエディタごとに別の名前（<code>[D-Drive] Button Skin Preview</code> / <code>[D-Drive] Slider Skin Preview</code> / <code>[D-Drive] UI Tween Preview</code>）で置かれ、<strong>エディタを閉じたとき・別のシーンに移ったときに自動で片付きます</strong>。シーンには保存されません。万一画面に消えないプレビューが残ったら <code>Tools &gt; D-Drive &gt; Debug &gt; 確認用プレビューの残骸を掃除</code></li>
 <li>Tint と Override Sprite はボタン / スライダー側の Target Graphic が空だと効きません</li>
 <li>Slider Skin のパーツ別の見た目・Notch Sprite・Hide Handle On Gamepad・触覚 ID はまだ効きません（上の「既知の制限」）</li>
 <li>Bgm / Se / Voice の個別音量はまだ音に接続されていません（Master Volume と Ui Speed Scale は効きます）</li>
