@@ -52,6 +52,27 @@ function createFakeDom() {
     this._listeners[type].push(handler);
   };
 
+  // 緊急修正（2026-09-14、コピーメニューの外側クリック/Esc で閉じる対応）:
+  // buildCopyLinkControl() が開いている間だけ document に click/keydown を張り、
+  // 閉じるときに外す。addEventListener の対になる最小実装。
+  FakeNode.prototype.removeEventListener = function (type, handler) {
+    var handlers = this._listeners[type];
+    if (!handlers) return;
+    var index = handlers.indexOf(handler);
+    if (index !== -1) handlers.splice(index, 1);
+  };
+
+  // 同上: 「クリックされた場所がこの要素の中かどうか」の判定に使う（outside-click 判定）。
+  FakeNode.prototype.contains = function (node) {
+    if (node === this) return true;
+    for (var i = 0; i < this.children.length; i++) {
+      var child = this.children[i];
+      if (child === node) return true;
+      if (child.contains && child.contains(node)) return true;
+    }
+    return false;
+  };
+
   // Assets.html は querySelector を「ナビゲーションに既にリンクが有るか」の確認にしか
   // 使っておらず、getElementById が null を返す限り呼ばれない。念のため空実装だけ用意する。
   FakeNode.prototype.querySelector = function () {
@@ -104,8 +125,23 @@ function createFakeDom() {
   // undefined、呼び出し側は typeof でガードしている）ので、成功させたいテストは
   // dom.document.execCommand = function () { return true; }; のように上書きする。
   var body = new FakeNode('body');
+  // 緊急修正（2026-09-14）: buildCopyLinkControl() の外側クリック/Esc 判定が
+  // document.addEventListener('click'|'keydown', ...) を張る/外すため、document 自身にも
+  // FakeNode と同じ最小限のリスナー機構を持たせる（document は FakeNode を継承しないため複製）。
+  var documentListeners = {};
   var document = {
     body: body,
+    _listeners: documentListeners,
+    addEventListener: function (type, handler) {
+      if (!this._listeners[type]) this._listeners[type] = [];
+      this._listeners[type].push(handler);
+    },
+    removeEventListener: function (type, handler) {
+      var handlers = this._listeners[type];
+      if (!handlers) return;
+      var index = handlers.indexOf(handler);
+      if (index !== -1) handlers.splice(index, 1);
+    },
     createElement: function (tag) {
       return new FakeNode(tag);
     },

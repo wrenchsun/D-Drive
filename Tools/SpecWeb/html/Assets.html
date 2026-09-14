@@ -158,6 +158,14 @@
     padding: 0.2rem;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   }
+  /* 緊急修正（2026-09-14）: このページには [hidden]{display:none!important} のような
+     グローバルなリセットが無いため、上の `.sw-copylink-menu{display:flex}`（author 由来）が
+     UA スタイルシートの `[hidden]{display:none}` より優先されてしまい、`menu.hidden = true`
+     にしても実際には隠れず、行ごとに開いたまま重なって表示されていた。
+     同じクラスに対する [hidden] 付きの上書きを明示することで、hidden 属性を確実に効かせる。 */
+  .sw-copylink-menu[hidden] {
+    display: none;
+  }
   .sw-copylink-menu button {
     text-align: left;
     background: none;
@@ -298,6 +306,30 @@
       menu.hidden = true;
       var fallback = null;
 
+      // 緊急修正（2026-09-14）: 既定で閉じ、▼ を押したときだけ開く・外側クリック/Esc/
+      // 項目選択で閉じる。以前は開いた状態のまま CSS の display:flex が [hidden] に勝ってしまい、
+      // 一覧の全行でメニューが常時展開して画面を埋め尽くしていた（CSS 側の修正と対）。
+      function handleOutsideClick(ev) {
+        var target = ev && ev.target;
+        if (target && wrap.contains && wrap.contains(target)) return;
+        closeMenu();
+      }
+      function handleKeydown(ev) {
+        if (ev && (ev.key === 'Escape' || ev.keyCode === 27)) closeMenu();
+      }
+      function openMenu() {
+        if (!menu.hidden) return;
+        menu.hidden = false;
+        document.addEventListener('click', handleOutsideClick);
+        document.addEventListener('keydown', handleKeydown);
+      }
+      function closeMenu() {
+        if (menu.hidden) return;
+        menu.hidden = true;
+        document.removeEventListener('click', handleOutsideClick);
+        document.removeEventListener('keydown', handleKeydown);
+      }
+
       function clearFallback() {
         if (fallback) {
           wrap.removeChild(fallback);
@@ -306,7 +338,7 @@
       }
 
       function doCopy(mode) {
-        menu.hidden = true;
+        closeMenu();
         var url = getUrl();
         if (!url) {
           status.textContent = 'URL を取得できませんでした（execUrl 未取得）';
@@ -340,7 +372,7 @@
         text: '▼',
         onclick: function (ev) {
           if (ev && ev.stopPropagation) ev.stopPropagation();
-          menu.hidden = !menu.hidden;
+          if (menu.hidden) openMenu(); else closeMenu();
         }
       });
       [['url', 'URL のみ'], ['named', '名前付き（表示名 - URL）'], ['markdown', 'Markdown']].forEach(function (pair) {
@@ -383,7 +415,10 @@
         orderGroups: [],
         members: [],
         currentUser: { role: null },
-        filters: { query: '', assetType: '', status: '', orderer: '', contractor: '', fileFormat: '', parentId: '' },
+        // includeArchived（緊急修正 2026-09-14）: 「削除機能はありますか？」への回答として、
+        // アーカイブ済み（論理削除済み）の発注を一覧に表示するトグル + 詳細の「元に戻す」を追加した
+        // （既存の assets.restore API はあったが呼び出す画面が無かった）。
+        filters: { query: '', assetType: '', status: '', orderer: '', contractor: '', fileFormat: '', parentId: '', includeArchived: false },
         sort: { key: 'identifier', direction: 'asc' },
         grouped: false,
         // O-13: `?page=order&id=...` で開かれた場合に一度だけ自動で開く対象の id
@@ -508,6 +543,19 @@
         groupLabel.appendChild(document.createTextNode('種類でグループ化'));
         toolbar.appendChild(groupLabel);
 
+        // 緊急修正（2026-09-14）: 「削除機能はありますか？」への回答。既定では隠す
+        // （アーカイブ済みは論理削除なので誤って編集対象に見えないようにする）。
+        var archivedLabel = el('label');
+        var archivedCheckbox = el('input', { type: 'checkbox' });
+        archivedCheckbox.checked = state.filters.includeArchived;
+        archivedCheckbox.addEventListener('change', function () {
+          state.filters.includeArchived = archivedCheckbox.checked;
+          renderTable();
+        });
+        archivedLabel.appendChild(archivedCheckbox);
+        archivedLabel.appendChild(document.createTextNode('アーカイブ済みを表示'));
+        toolbar.appendChild(archivedLabel);
+
         if (canEdit()) {
           var newButton = el('button', {
             text: '+ 新規発注',
@@ -575,7 +623,7 @@
           el('td', { text: item.contractor || '—' }),
           el('td', { text: item.orderDate || '—' }),
           el('td', { text: item.dueDate || '—' }),
-          el('td', { text: item.status }),
+          el('td', { text: item.status + (item.archived ? '（アーカイブ済み）' : '') }),
           el('td', { text: item.fileFormat || '—' }),
           el('td', { text: badge.icon + ' ' + badge.label }),
           copyCell
@@ -617,9 +665,15 @@
       }
 
       function reload() {
+        // 緊急修正（2026-09-14）: 「読み込み中」と「該当なし（空）」を区別できるよう、
+        // 取得中は一覧本体を消さずに statusLine だけ「読み込み中...」にする
+        // （renderTable() 呼び出し前は table がまだ前回内容のまま残る＝空表示と混同しない）。
         statusLine.textContent = '読み込み中...';
         return Promise.all([
-          window.SpecWebClient.callApi('assets.list', { includeArchived: '0' }),
+          // includeArchived: アーカイブ済みトグル（state.filters.includeArchived）を切り替える
+          // たびに再取得しなくて済むよう、常に全件（アーカイブ済み含む）を取得し、表示は
+          // AssetsLogic.filterAssets のクライアント側フィルタに任せる。
+          window.SpecWebClient.callApi('assets.list', { includeArchived: '1' }),
           window.SpecWebClient.callApi('orderGroups.list', {}),
           window.SpecWebClient.callApi('members.list', {})
         ]).then(function (results) {
@@ -634,6 +688,25 @@
           renderAll();
           maybeOpenPending();
         });
+      }
+
+      /**
+       * 緊急修正（2026-09-14）: 作成・更新・状態変更・削除・復元の成功後に一覧全体を
+       * 再取得（reload、3 API 呼び出し）せず、応答に含まれる最新データで state.items の
+       * 該当行だけを差し替える（体感速度の改善・往復削減。コーディネーター指摘の
+       * 「応答に含まれる作成済みデータで該当行だけ差し込む」対応）。
+       */
+      function applyItemLocally(item) {
+        var replaced = false;
+        state.items = state.items.map(function (existing) {
+          if (existing.id === item.id) {
+            replaced = true;
+            return item;
+          }
+          return existing;
+        });
+        if (!replaced) state.items = state.items.concat([item]);
+        renderTable();
       }
 
       /**
@@ -693,6 +766,18 @@
         detail.errors = {};
         detail.showMdPreview = false;
         detail.paramSchemas = [];
+        // 緊急修正（2026-09-14）: 1文字入力するごとにフォーカスが外れる不具合の対策。
+        // renderDetail() を毎キー入力で呼ぶと overlayHost.innerHTML='' で input 要素ごと
+        // 作り直されてしまう（DOM 上は別ノードになりフォーカスが外れる）。
+        // fieldWraps は fieldRow() が key ごとに保持する「フィールドの囲み div」の参照。
+        // 入力ハンドラは要素を作り直さず、この参照越しにエラー表示だけを差し替える
+        // （refreshFieldErrorUI/refreshAllFieldErrorsUI）。fileName の推奨名・警告表示も同様に
+        // 専用のコールバック（_refreshFileNameHint、fileNameField() が実体を設定する）だけを
+        // 呼び直し、input 自体は再生成しない。renderDetail() が呼ばれるのは「パネルを開く/閉じる」
+        // 「非テキスト系フィールドの change（assetType/priority 等、1文字ずつではないため
+        // フォーカス外れの実害が無い）」「409 再取得」のときだけに限定する。
+        detail.fieldWraps = {};
+        detail._refreshFileNameHint = null;
 
         if (detail.mode === 'edit') {
           // 一覧のキャッシュではなく、コメント・最新 revision・params を含む全項目を取得し直す（§10.3.4）。
@@ -712,15 +797,51 @@
         renderDetail();
       }
 
+      /**
+       * key ごとの「フィールドの囲み div」を state.detail.fieldWraps に登録し、現在の
+       * state.detail.errors[key] を反映する。エラー表示の更新はここと refreshFieldErrorUI の
+       * 2箇所だけで行う（input を作り直さずに済ませるための唯一の入口）。
+       */
       function fieldRow(key, label, inputEl) {
         var wrap = el('div', { class: 'assets-field' });
         wrap.appendChild(el('label', { text: label }));
         wrap.appendChild(inputEl);
-        if (state.detail.errors[key]) {
-          wrap.className += ' sw-field-error';
-          wrap.appendChild(el('div', { class: 'sw-field-error-message', text: state.detail.errors[key] }));
-        }
+        wrap._errorMsgNode = null;
+        state.detail.fieldWraps[key] = wrap;
+        refreshFieldErrorUI(key);
         return wrap;
+      }
+
+      /**
+       * 緊急修正（2026-09-14）: fieldRow が保持する wrap 参照だけを使ってエラー表示を
+       * 差し替える（wrap 自体・inputEl はここでは触らない＝フォーカスが外れない）。
+       */
+      function refreshFieldErrorUI(key) {
+        var wrap = state.detail.fieldWraps[key];
+        if (!wrap) return;
+        var message = state.detail.errors[key];
+        wrap.className = 'assets-field' + (message ? ' sw-field-error' : '');
+        if (message) {
+          if (wrap._errorMsgNode) {
+            wrap._errorMsgNode.textContent = message;
+          } else {
+            wrap._errorMsgNode = el('div', { class: 'sw-field-error-message', text: message });
+            wrap.appendChild(wrap._errorMsgNode);
+          }
+        } else if (wrap._errorMsgNode) {
+          wrap.removeChild(wrap._errorMsgNode);
+          wrap._errorMsgNode = null;
+        }
+      }
+
+      /** runValidation() の後に呼び、登録済みの全フィールドのエラー表示だけを更新する。 */
+      function refreshAllFieldErrorsUI() {
+        Object.keys(state.detail.fieldWraps).forEach(refreshFieldErrorUI);
+      }
+
+      /** identifier/category の変更は納品ファイル名の推奨表示にも影響するため呼び直す。 */
+      function refreshFileNameHintIfPresent() {
+        if (state.detail._refreshFileNameHint) state.detail._refreshFileNameHint();
       }
 
       function runValidation() {
@@ -739,9 +860,11 @@
         var readOnly = !canEdit();
         input.disabled = readOnly || (key === 'identifier' || key === 'assetType') && state.detail.mode === 'edit';
         input.addEventListener('input', function () {
+          // 緊急修正（2026-09-14）: renderDetail() を呼ばない（フォーカス外れの原因だった）。
           state.detail.fields[key] = input.value;
           runValidation();
-          renderDetail();
+          refreshAllFieldErrorsUI();
+          if (key === 'identifier' || key === 'category') refreshFileNameHintIfPresent();
         });
         return fieldRow(key, label, input);
       }
@@ -753,8 +876,9 @@
         input.value = state.detail.fields[key];
         input.disabled = !canEdit();
         input.addEventListener('input', function () {
+          // 緊急修正（2026-09-14）: orderer/contractor は検証・他フィールドへの影響が無いため、
+          // 値を state に反映するだけでよい（renderDetail() は不要＝フォーカスも外れない）。
           state.detail.fields[key] = input.value;
-          renderDetail();
         });
         var datalist = el('datalist', { id: listId });
         state.members.forEach(function (m) {
@@ -783,15 +907,21 @@
         input.value = state.detail.fields.fileFormat;
         input.disabled = !canEdit();
         input.addEventListener('input', function () {
+          // 緊急修正（2026-09-14）: renderDetail() を呼ばない。fileName の推奨名/警告表示は
+          // fileFormat にも依存するため refreshFileNameHintIfPresent() だけ呼び直す。
           state.detail.fields.fileFormat = input.value;
           runValidation();
-          renderDetail();
+          refreshAllFieldErrorsUI();
+          refreshFileNameHintIfPresent();
         });
         input.addEventListener('blur', function () {
           var normalized = logic.normalizeFileFormat(state.detail.fields.fileFormat);
           if (normalized !== state.detail.fields.fileFormat) {
             state.detail.fields.fileFormat = normalized;
-            renderDetail();
+            input.value = normalized; // フォーカスを外れた後の正規化なので直接書き換えてよい
+            runValidation();
+            refreshAllFieldErrorsUI();
+            refreshFileNameHintIfPresent();
           }
         });
         var datalist = el('datalist', { id: listId });
@@ -807,6 +937,11 @@
        * O-12: 納品ファイル名。空欄時のプレースホルダーとして、種別・カテゴリ・識別子・ファイル形式
        * から D-Drive の命名規約に沿った推奨名を表示し、ボタンで入力欄へコピーできる（§10.2.1 追補）。
        * 不正文字・拡張子の食い違いはブロックしない警告として表示するだけ（例外で止めない）。
+       *
+       * 緊急修正（2026-09-14）: 推奨名/警告表示は identifier・category・assetType・fileFormat・
+       * fileName 自身に依存するため、それらが変わるたびに再計算する必要がある。ただし fileName の
+       * <input> 自体は作り直さない。専用の hintBox（子要素だけ）を差し替える updateHint() を
+       * state.detail._refreshFileNameHint に登録し、他フィールドの input ハンドラから呼び直す。
        */
       function fileNameField() {
         var input = el('input', { type: 'text', placeholder: '例: SE_Slash.wav' });
@@ -815,35 +950,47 @@
         input.addEventListener('input', function () {
           state.detail.fields.fileName = input.value;
           runValidation();
-          renderDetail();
+          refreshAllFieldErrorsUI();
+          updateHint();
         });
         var wrap = fieldRow('fileName', '納品ファイル名', input);
 
-        var suggested = logic.suggestFileName(
-          state.detail.fields.assetType,
-          state.detail.fields.category,
-          state.detail.fields.identifier,
-          state.detail.fields.fileFormat
-        );
-        if (suggested) {
-          var hint = el('div', { class: 'sw-field-hint' }, [el('span', { text: '推奨: ' + suggested })]);
-          if (canEdit()) {
-            hint.appendChild(el('button', {
-              class: 'secondary',
-              text: '推奨名を使う',
-              onclick: function () {
-                state.detail.fields.fileName = suggested;
-                runValidation();
-                renderDetail();
-              }
-            }));
+        var hintBox = el('div');
+        wrap.appendChild(hintBox);
+
+        function updateHint() {
+          hintBox.innerHTML = '';
+          var suggested = logic.suggestFileName(
+            state.detail.fields.assetType,
+            state.detail.fields.category,
+            state.detail.fields.identifier,
+            state.detail.fields.fileFormat
+          );
+          if (suggested) {
+            var hint = el('div', { class: 'sw-field-hint' }, [el('span', { text: '推奨: ' + suggested })]);
+            if (canEdit()) {
+              hint.appendChild(el('button', {
+                class: 'secondary',
+                text: '推奨名を使う',
+                onclick: function () {
+                  state.detail.fields.fileName = suggested;
+                  input.value = suggested;
+                  runValidation();
+                  refreshAllFieldErrorsUI();
+                  updateHint();
+                }
+              }));
+            }
+            hintBox.appendChild(hint);
           }
-          wrap.appendChild(hint);
+
+          logic.fileNameWarnings(state.detail.fields).forEach(function (message) {
+            hintBox.appendChild(el('div', { class: 'sw-field-warning-message', text: message }));
+          });
         }
 
-        logic.fileNameWarnings(state.detail.fields).forEach(function (message) {
-          wrap.appendChild(el('div', { class: 'sw-field-warning-message', text: message }));
-        });
+        state.detail._refreshFileNameHint = updateHint;
+        updateHint();
 
         return wrap;
       }
@@ -877,16 +1024,13 @@
         if (canEdit() && item.status !== logic.ASSET_STATUS_IMPORTED) {
           var actions = el('div', { class: 'assets-detail-actions' });
           if (item.status === '発注済') {
-            actions.appendChild(el('button', {
-              text: '納品済にする',
-              onclick: function () { advanceStatus(item, '納品済'); }
-            }));
+            var advanceButton = el('button', { text: '納品済にする' });
+            advanceButton.addEventListener('click', function () { advanceStatus(item, '納品済', advanceButton); });
+            actions.appendChild(advanceButton);
           } else if (item.status === '納品済') {
-            actions.appendChild(el('button', {
-              class: 'secondary',
-              text: '発注済に戻す',
-              onclick: function () { advanceStatus(item, '発注済'); }
-            }));
+            var revertButton = el('button', { class: 'secondary', text: '発注済に戻す' });
+            revertButton.addEventListener('click', function () { advanceStatus(item, '発注済', revertButton); });
+            actions.appendChild(revertButton);
           }
           wrap.appendChild(actions);
         } else if (item.status === logic.ASSET_STATUS_IMPORTED) {
@@ -895,18 +1039,31 @@
         return wrap;
       }
 
-      function advanceStatus(item, nextStatus) {
-        window.SpecWebClient
-          .callApi('assets.update', { id: item.id, expectedRevision: item.revision, patch: JSON.stringify({ status: nextStatus }) }, { method: 'POST' })
+      /**
+       * 緊急修正（2026-09-14）: 連打での二重送信防止（runBusy）+ 結果のトースト表示。
+       * 成功後は reload()（3 API 往復）をせず、応答の item で state.items/state.detail を
+       * その場で更新するだけにする（体感速度の改善）。
+       */
+      function advanceStatus(item, nextStatus, button) {
+        window.SpecWebUi
+          .runBusy('assets.update:' + item.id, button, function () {
+            return window.SpecWebClient.callApi(
+              'assets.update',
+              { id: item.id, expectedRevision: item.revision, patch: JSON.stringify({ status: nextStatus }) },
+              { method: 'POST' }
+            );
+          })
           .then(function (res) {
+            if (res.busy) return;
             if (!res.ok) {
-              window.alert('状態の変更に失敗しました: ' + (res.error || ''));
+              window.SpecWebUi.toastError('状態の変更に失敗しました: ' + (res.error || ''));
               return;
             }
             state.detail.item = res.item;
             state.detail.fields = fieldsFromItem(res.item);
             renderDetail();
-            reload();
+            applyItemLocally(res.item);
+            window.SpecWebUi.toastSuccess('状態を変更しました: ' + res.item.status);
           });
       }
 
@@ -1002,21 +1159,24 @@
 
         if (canEdit()) {
           var textarea = el('textarea', { rows: '2', placeholder: 'コメントを入力...' });
-          var postButton = el('button', {
-            class: 'secondary',
-            text: 'コメントを投稿',
-            onclick: function () {
-              var body = textarea.value.trim();
-              if (!body) return;
-              window.SpecWebClient.callApi('assets.comments.add', { id: item.id, body: body }, { method: 'POST' }).then(function (res) {
+          var postButton = el('button', { class: 'secondary', text: 'コメントを投稿' });
+          postButton.addEventListener('click', function () {
+            var body = textarea.value.trim();
+            if (!body) return;
+            window.SpecWebUi
+              .runBusy('assets.comments.add:' + item.id, postButton, function () {
+                return window.SpecWebClient.callApi('assets.comments.add', { id: item.id, body: body }, { method: 'POST' });
+              })
+              .then(function (res) {
+                if (res.busy) return;
                 if (!res.ok) {
-                  window.alert('コメントの投稿に失敗しました: ' + (res.error || ''));
+                  window.SpecWebUi.toastError('コメントの投稿に失敗しました: ' + (res.error || ''));
                   return;
                 }
                 state.detail.item = res.item;
                 renderDetail();
+                window.SpecWebUi.toastSuccess('コメントを投稿しました');
               });
-            }
           });
           wrap.appendChild(textarea);
           wrap.appendChild(postButton);
@@ -1024,63 +1184,105 @@
         return wrap;
       }
 
-      function submitDetail() {
+      /**
+       * 緊急修正（2026-09-14）: 「発注ツリーや新規発注のときレスポンスが遅く、連打して
+       * 大量に作ってしまった」への対策。SpecWebUi.runBusy で同一操作の二重実行を弾き、
+       * 押したボタンを「送信中...」にする（保存・削除・復元・状態変更・コメント投稿すべて共通）。
+       * 成功時はトーストで結果を伝え、一覧全体を再取得（reload）せず応答の item だけを
+       * その場に反映する（体感速度の改善・往復削減）。
+       */
+      function submitDetail(button) {
         var detail = state.detail;
         if (!runValidation()) {
-          renderDetail();
+          refreshAllFieldErrorsUI();
           return;
         }
         var patch = Object.assign({}, detail.fields);
 
         if (detail.mode === 'create') {
-          window.SpecWebClient.callApi('assets.create', { patch: JSON.stringify(patch) }, { method: 'POST' }).then(function (res) {
-            if (!res.ok) {
-              window.alert('作成に失敗しました: ' + (res.error || ''));
-              return;
-            }
-            closeDetail();
-            reload();
-          });
+          window.SpecWebUi
+            .runBusy('assets.create', button, function () {
+              return window.SpecWebClient.callApi('assets.create', { patch: JSON.stringify(patch) }, { method: 'POST' });
+            })
+            .then(function (res) {
+              if (res.busy) return;
+              if (!res.ok) {
+                window.SpecWebUi.toastError('作成に失敗しました: ' + (res.error || ''));
+                return;
+              }
+              closeDetail();
+              applyItemLocally(res.item);
+              window.SpecWebUi.toastSuccess('作成しました: ' + (res.item.displayName || res.item.identifier));
+            });
         } else {
           // 種別・識別子はサーバー側でも更新できないため送らない（誤ってロックされたフィールドを
           // 送っても現在値と同じなら弾かれないが、意図を明確にするため除外する）。
           delete patch.assetType;
           delete patch.identifier;
-          window.SpecWebClient
-            .callApi(
-              'assets.update',
-              { id: detail.item.id, expectedRevision: detail.item.revision, patch: JSON.stringify(patch) },
-              { method: 'POST' }
-            )
+          window.SpecWebUi
+            .runBusy('assets.update:' + detail.item.id, button, function () {
+              return window.SpecWebClient.callApi(
+                'assets.update',
+                { id: detail.item.id, expectedRevision: detail.item.revision, patch: JSON.stringify(patch) },
+                { method: 'POST' }
+              );
+            })
             .then(function (res) {
+              if (res.busy) return;
               if (!res.ok) {
                 if (res.status === 409) {
-                  window.alert('他の人が先に更新しました。最新の内容を再読込します。');
+                  window.SpecWebUi.toastError('他の人が先に更新しました。最新の内容を再読込します。');
                   openDetail({ mode: 'edit', item: detail.item });
                   reload();
                   return;
                 }
-                window.alert('更新に失敗しました: ' + (res.error || ''));
+                window.SpecWebUi.toastError('更新に失敗しました: ' + (res.error || ''));
                 return;
               }
               closeDetail();
-              reload();
+              applyItemLocally(res.item);
+              window.SpecWebUi.toastSuccess('保存しました');
             });
         }
       }
 
-      function deleteDetail() {
+      function deleteDetail(button) {
         var detail = state.detail;
         if (!window.confirm('この発注をアーカイブ（論理削除）します。よろしいですか？')) return;
-        window.SpecWebClient
-          .callApi('assets.delete', { id: detail.item.id, expectedRevision: detail.item.revision }, { method: 'POST' })
+        window.SpecWebUi
+          .runBusy('assets.delete:' + detail.item.id, button, function () {
+            return window.SpecWebClient.callApi('assets.delete', { id: detail.item.id, expectedRevision: detail.item.revision }, { method: 'POST' });
+          })
           .then(function (res) {
+            if (res.busy) return;
             if (!res.ok) {
-              window.alert('削除に失敗しました: ' + (res.error || ''));
+              window.SpecWebUi.toastError('削除に失敗しました: ' + (res.error || ''));
               return;
             }
             closeDetail();
-            reload();
+            applyItemLocally(res.item);
+            window.SpecWebUi.toastSuccess('削除しました（アーカイブ済み）');
+          });
+      }
+
+      /** 緊急修正（2026-09-14）: 「削除機能はありますか？」への回答（アーカイブ済みの「元に戻す」）。 */
+      function restoreDetail(button) {
+        var detail = state.detail;
+        window.SpecWebUi
+          .runBusy('assets.restore:' + detail.item.id, button, function () {
+            return window.SpecWebClient.callApi('assets.restore', { id: detail.item.id, expectedRevision: detail.item.revision }, { method: 'POST' });
+          })
+          .then(function (res) {
+            if (res.busy) return;
+            if (!res.ok) {
+              window.SpecWebUi.toastError('復元に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            state.detail.item = res.item;
+            state.detail.fields = fieldsFromItem(res.item);
+            renderDetail();
+            applyItemLocally(res.item);
+            window.SpecWebUi.toastSuccess('元に戻しました');
           });
       }
 
@@ -1088,6 +1290,10 @@
         overlayHost.innerHTML = '';
         var detail = state.detail;
         if (!detail) return;
+        // このパネル自体を作り直すときは fieldWraps/_refreshFileNameHint も作り直す
+        // （fieldRow()/fileNameField() が呼ばれ直すたびに再登録される）。
+        detail.fieldWraps = {};
+        detail._refreshFileNameHint = null;
 
         var panel = el('div', { class: 'assets-detail' });
         panel.appendChild(el('h2', { text: detail.mode === 'create' ? '新規発注' : (detail.item.assetType + ' :: ' + detail.item.identifier) }));
@@ -1121,9 +1327,19 @@
 
         if (canEdit()) {
           var actions = el('div', { class: 'assets-detail-actions' });
-          actions.appendChild(el('button', { text: '保存', onclick: submitDetail }));
+          var saveButton = el('button', { text: '保存' });
+          saveButton.addEventListener('click', function () { submitDetail(saveButton); });
+          actions.appendChild(saveButton);
           if (detail.mode === 'edit') {
-            actions.appendChild(el('button', { class: 'secondary', text: '削除（アーカイブ）', onclick: deleteDetail }));
+            if (detail.item.archived) {
+              var restoreButton = el('button', { class: 'secondary', text: '元に戻す' });
+              restoreButton.addEventListener('click', function () { restoreDetail(restoreButton); });
+              actions.appendChild(restoreButton);
+            } else {
+              var deleteButton = el('button', { class: 'secondary', text: '削除（アーカイブ）' });
+              deleteButton.addEventListener('click', function () { deleteDetail(deleteButton); });
+              actions.appendChild(deleteButton);
+            }
           }
           actions.appendChild(el('button', { class: 'secondary', text: '閉じる', onclick: closeDetail }));
           panel.appendChild(actions);

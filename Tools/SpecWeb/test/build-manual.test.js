@@ -52,16 +52,22 @@ test('scopeCss: コメントを除去する', () => {
   assert.doesNotMatch(scoped, /comment/);
 });
 
-test('rewriteLinks: 内部ページリンク（xxx.html）を ?page=manual&p=xxx に書き換え、data-manual-page を付ける', () => {
+test('rewriteLinks: 内部ページリンク（xxx.html）を href="#" + data-manual-page に書き換える（緊急修正 2026-09-14）', () => {
+  // 以前は href="?page=manual&p=xxx" にしていたが、iframe サンドボックスで既定動作が走ると
+  // トップフレームが iframe 自身の URL 基準で解決した絶対 URL（白画面）に遷移してしまうため、
+  // ビルド時点では安全な "#" に留め、実際の絶対 URL は実行時に html/Manual.html が
+  // window.SpecWebExecUrl から組み立てる（OrderLinkLogic.buildManualUrl）。
   const { html, warnings } = rewriteLinks('<a href="other-page.html">次へ</a>', { knownPages: ['other-page'] });
-  assert.match(html, /href="\?page=manual&p=other-page"/);
+  assert.match(html, /href="#"/);
+  assert.doesNotMatch(html, /href="\?page=/);
   assert.match(html, /data-manual-page="other-page"/);
   assert.equal(warnings.length, 0);
 });
 
-test('rewriteLinks: 内部ページリンク + アンカー（xxx.html#anchor）を書き換え、data-manual-anchor も付ける', () => {
+test('rewriteLinks: 内部ページリンク + アンカー（xxx.html#anchor）も href="#" にし、data-manual-anchor を付ける', () => {
   const { html, warnings } = rewriteLinks('<a href="other-page.html#section">節へ</a>', { knownPages: ['other-page'] });
-  assert.match(html, /href="\?page=manual&p=other-page#section"/);
+  assert.match(html, /href="#"/);
+  assert.doesNotMatch(html, /href="\?page=/);
   assert.match(html, /data-manual-page="other-page"/);
   assert.match(html, /data-manual-anchor="section"/);
   assert.equal(warnings.length, 0);
@@ -139,6 +145,28 @@ test('buildManualPageHtml: style を <style> でインライン化し、発注�
   assert.match(result.html, new RegExp('data-manual-page="' + TOP_PAGE_NAME + '"'));
   assert.match(result.html, new RegExp('class="' + SCOPE_CLASS + '"'));
   assert.equal(result.warnings.length, 0);
+});
+
+test('buildManualPageHtml: ナビバーのリンクは href="#"（相対 URL を残さない、緊急修正 2026-09-14）', () => {
+  // 実デプロイで href="?"（← 発注ツールへ）/ href="?page=manual&p=..."（マニュアル目次）を
+  // クリックしたときに白画面になった不具合の再発防止。生成物には安全な "#" だけを残し、
+  // 絶対 URL への差し替えは実行時（html/Manual.html）に行う。
+  const result = buildManualPageHtml({
+    pageName: 'sample',
+    rawHtml: '<html><body><h1>Sample</h1></body></html>',
+    scopedCss: '.' + SCOPE_CLASS + ' { color: red; }',
+    knownPages: ['sample'],
+    resolveImage: () => null,
+    onWarning: () => {}
+  });
+  assert.doesNotMatch(result.html, /href="\?/);
+  const navbarMatch = result.html.match(/<div class="sw-manual-navbar">[\s\S]*?<\/div>/);
+  assert.ok(navbarMatch, 'ナビバーが見つかる');
+  const exitLink = navbarMatch[0].match(/<a[^>]*data-manual-exit="orders"[^>]*>/)[0];
+  assert.match(exitLink, /href="#"/);
+  const topLinkMatch = navbarMatch[0].match(new RegExp('<a[^>]*data-manual-page="' + TOP_PAGE_NAME + '"[^>]*>'));
+  assert.ok(topLinkMatch);
+  assert.match(topLinkMatch[0], /href="#"/);
 });
 
 test('buildAll（フィクスチャ）: 一連の変換（リンク・画像・CSS スコープ）が一括で実行され、write:false ではディスクに書き出さない', () => {

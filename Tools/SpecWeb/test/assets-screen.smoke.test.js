@@ -69,16 +69,19 @@ function setup(role, options) {
     };
   }
 
-  const asset = sampleAsset();
+  // 緊急修正（2026-09-14）: assets.get/list が「delete/restore 後の最新状態」を返せるよう、
+  // 固定値ではなく可変の currentAsset を持たせる（元は固定の asset を常に返していたため、
+  // 削除→アーカイブ済みトグル→再度開く、のような一連の流れをテストできなかった）。
+  let currentAsset = sampleAsset();
   const fakeClient = createFakeSpecWebClient({
     whoami: function () {
       return { ok: true, role: role, email: role + '@example.com', displayName: role };
     },
     'assets.list': function () {
-      return { ok: true, items: [asset], total: 1 };
+      return { ok: true, items: [currentAsset], total: 1 };
     },
     'assets.get': function () {
-      return { ok: true, item: asset };
+      return { ok: true, item: currentAsset };
     },
     'orderGroups.list': function () {
       return { ok: true, items: [] };
@@ -90,24 +93,35 @@ function setup(role, options) {
       return { ok: true, items: [] };
     },
     'assets.comments.add': function (params) {
-      const updated = Object.assign({}, asset, {
-        comments: asset.comments.concat([{ id: 'c2', author: role + '@example.com', body: params.body, createdAt: '2026-09-14T01:00:00Z', resolved: false }])
+      currentAsset = Object.assign({}, currentAsset, {
+        comments: currentAsset.comments.concat([{ id: 'c2', author: role + '@example.com', body: params.body, createdAt: '2026-09-14T01:00:00Z', resolved: false }])
       });
-      return { ok: true, item: updated };
+      return { ok: true, item: currentAsset };
     },
-    'assets.create': function () {
+    'assets.create': options.createHandler || function () {
       return { ok: true, item: sampleAsset({ id: 'Vfx::FireBall', assetType: 'Vfx', identifier: 'FireBall', revision: 1 }) };
     },
-    'assets.update': function (params) {
+    'assets.update': options.updateHandler || function (params) {
       const patch = JSON.parse(params.patch);
-      return { ok: true, item: Object.assign({}, asset, patch, { revision: asset.revision + 1 }) };
+      currentAsset = Object.assign({}, currentAsset, patch, { revision: currentAsset.revision + 1 });
+      return { ok: true, item: currentAsset };
+    },
+    'assets.delete': options.deleteHandler || function () {
+      currentAsset = Object.assign({}, currentAsset, { archived: true, revision: currentAsset.revision + 1 });
+      return { ok: true, item: currentAsset };
+    },
+    'assets.restore': options.restoreHandler || function () {
+      currentAsset = Object.assign({}, currentAsset, { archived: false, revision: currentAsset.revision + 1 });
+      return { ok: true, item: currentAsset };
     }
   });
   sandbox.window.SpecWebClient = fakeClient;
 
   // O-13: OrderLinkLogic/ClipboardCopy も実 Index.html と同じ順序で読み込む
   // （Assets.html の buildCopyLinkControl が window.OrderLinkLogic/window.SpecWebClipboard を使う）。
-  const ctx = loadHtmlScripts(['OrderLinkLogic', 'ClipboardCopy', 'AssetsLogic', 'Assets'], sandbox);
+  // 緊急修正（2026-09-14）: UiFeedback（window.SpecWebUi の runBusy/toast）も、実 Index.html と
+  // 同じ順序（ClipboardCopy の後・AssetsLogic の前）で読み込む。
+  const ctx = loadHtmlScripts(['OrderLinkLogic', 'ClipboardCopy', 'UiFeedback', 'AssetsLogic', 'Assets'], sandbox);
   assert.ok(capturedRender, 'registerScreen("assets", ...) が呼ばれていること');
   return { ctx, dom, render: capturedRender };
 }
@@ -148,12 +162,18 @@ test('editor: 「+ 新規発注」を押すと新規作成パネルが開き、�
   input.value = 'not-pascal';
   assert.doesNotThrow(() => dom.fire(input, 'input'));
 
-  // input イベントのハンドラが renderDetail() でパネルを再構築するため、root から再検索する。
+  // 緊急修正（2026-09-14）: 以前は input イベントのハンドラが renderDetail() でパネル全体を
+  // 再構築していたため、この時点で input は「別の新しいノード」に置き換わっていた
+  // （実ブラウザでは DOM 要素が作り直されるためフォーカスが外れる不具合の原因）。
+  // 修正後は renderDetail() を呼ばずエラー表示だけを差し替えるので、
+  // wrap（フィールドの囲み div）・input（実際の <input>）のどちらも同一ノードのまま残る。
   var reRenderedField = dom.findNode(root, (n) => {
     if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
     var label = (n.children || [])[0];
     return label && label.textContent === 'インポート名: 識別子（PascalCase）';
   });
+  assert.equal(reRenderedField, identifierInput, '入力しても同じフィールド囲み div のまま（作り直されない）');
+  assert.equal(reRenderedField.children[1], input, '入力しても同じ <input> のまま（作り直されない＝フォーカスが外れない）');
   assert.ok(reRenderedField.className.indexOf('sw-field-error') !== -1, '不正な識別子は赤表示（sw-field-error）になる');
 });
 
@@ -308,6 +328,75 @@ test('execUrl が未取得（空文字）の場合は「URL を取得できま�
   assert.match(status.textContent, /取得できませんでした/);
 });
 
+// ---- 緊急修正（2026-09-14）: コピーメニューが全行ぶん開いた状態で表示され続ける不具合 ----
+
+test('一覧の行の「リンクをコピー」メニュー（▼）は既定で非表示で、▼ を押すと開閉できる', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const menu = dom.findNode(root, (n) => n.className === 'sw-copylink-menu');
+  assert.ok(menu, 'コピーメニューが存在する');
+  assert.equal(menu.hidden, true, '既定では非表示（hidden）');
+
+  const menuButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '▼');
+  assert.ok(menuButton);
+  dom.fire(menuButton, 'click');
+  assert.equal(menu.hidden, false, '▼ を押すと開く');
+
+  dom.fire(menuButton, 'click');
+  assert.equal(menu.hidden, true, '再度押すと閉じる');
+});
+
+test('コピーメニュー: 外側クリックで閉じる', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const menu = dom.findNode(root, (n) => n.className === 'sw-copylink-menu');
+  const menuButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '▼');
+  dom.fire(menuButton, 'click');
+  assert.equal(menu.hidden, false);
+
+  const outside = dom.document.createElement('div');
+  dom.fire(dom.document, 'click', { target: outside });
+  assert.equal(menu.hidden, true, '外側クリックで閉じる');
+});
+
+test('コピーメニュー: Esc キーで閉じる', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const menu = dom.findNode(root, (n) => n.className === 'sw-copylink-menu');
+  const menuButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '▼');
+  dom.fire(menuButton, 'click');
+  assert.equal(menu.hidden, false);
+
+  dom.fire(dom.document, 'keydown', { key: 'Escape' });
+  assert.equal(menu.hidden, true, 'Esc で閉じる');
+});
+
+test('コピーメニュー: 項目（URL のみ 等）を選ぶと閉じる', async () => {
+  const { dom, render } = setup('editor', { execCommand: true });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const menu = dom.findNode(root, (n) => n.className === 'sw-copylink-menu');
+  const menuButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '▼');
+  dom.fire(menuButton, 'click');
+  assert.equal(menu.hidden, false);
+
+  const urlOnlyItem = dom.findNode(menu, (n) => n.tagName === 'button' && n.textContent === 'URL のみ');
+  assert.ok(urlOnlyItem);
+  dom.fire(urlOnlyItem, 'click');
+  assert.equal(menu.hidden, true, '項目を選ぶと閉じる');
+});
+
 test('詳細パネル（編集）のヘッダーにも「リンクをコピー」ボタンが出る（新規作成モードには出ない）', async () => {
   const { dom, render } = setup('editor');
   const root = dom.document.createElement('div');
@@ -383,4 +472,231 @@ test('詳細パネル: fileName に使えない文字が入っていると非ブ
 
   const saveButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '保存');
   assert.ok(saveButton, '警告だけでは保存ボタンは無くならない（例外で止めない・ブロックしない方針）');
+});
+
+// ---- 緊急修正（2026-09-14）: 1文字入力するごとにフォーカスが外れる不具合（各フィールド網羅） ----
+
+test('詳細パネル: 表示名・カテゴリ・発注者（datalist 付き）・ファイル形式に入力しても、それぞれの <input> ノードは作り直されない', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  function findFieldInput(label) {
+    const field = dom.findNode(root, (n) => {
+      if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+      const l = (n.children || [])[0];
+      return l && l.textContent === label;
+    });
+    return field.children[1];
+  }
+
+  const displayNameInput = findFieldInput('表示名');
+  const categoryInput = findFieldInput('カテゴリ');
+  const ordererInput = findFieldInput('発注者');
+  const fileFormatInput = findFieldInput('ファイル形式');
+
+  displayNameInput.value = '斬撃音２';
+  categoryInput.value = 'Boss';
+  ordererInput.value = 'すずき';
+  fileFormatInput.value = '.ogg';
+  assert.doesNotThrow(() => dom.fire(displayNameInput, 'input'));
+  assert.doesNotThrow(() => dom.fire(categoryInput, 'input'));
+  assert.doesNotThrow(() => dom.fire(ordererInput, 'input'));
+  assert.doesNotThrow(() => dom.fire(fileFormatInput, 'input'));
+
+  assert.equal(findFieldInput('表示名'), displayNameInput, '表示名の <input> は同じノードのまま');
+  assert.equal(findFieldInput('カテゴリ'), categoryInput, 'カテゴリの <input> は同じノードのまま');
+  assert.equal(findFieldInput('発注者'), ordererInput, '発注者の <input> は同じノードのまま');
+  assert.equal(findFieldInput('ファイル形式'), fileFormatInput, 'ファイル形式の <input> は同じノードのまま');
+});
+
+test('詳細パネル: 識別子・カテゴリを変更すると、fileName の <input> は作り直されずに推奨名の表示だけ更新される', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  function findFieldWrap(label) {
+    return dom.findNode(root, (n) => {
+      if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+      const l = (n.children || [])[0];
+      return l && l.textContent === label;
+    });
+  }
+
+  const identifierInput = findFieldWrap('インポート名: 識別子（PascalCase）').children[1];
+  const fileNameWrap = findFieldWrap('納品ファイル名');
+  const fileNameInput = fileNameWrap.children[1];
+
+  identifierInput.value = 'SlashHeavy';
+  dom.fire(identifierInput, 'input');
+
+  // fileName の <input> ノードは同じまま。
+  const fileNameWrapAfter = findFieldWrap('納品ファイル名');
+  assert.equal(fileNameWrapAfter, fileNameWrap);
+  assert.equal(fileNameWrapAfter.children[1], fileNameInput);
+
+  // 推奨名の表示（category=Player を含む SE_Player_Slash.wav → SE_Player_SlashHeavy.wav）は
+  // 更新されている。
+  const hint = dom.findNode(fileNameWrap, (n) => (n.textContent || '').indexOf('推奨: ') !== -1);
+  assert.ok(hint);
+  assert.match(hint.textContent, /SE_Player_SlashHeavy\.wav/);
+});
+
+// ---- 緊急修正（2026-09-14）: 送信中のボタン無効化・二重送信防止・トースト通知 ----
+
+test('新規発注の保存: 応答が返るまで保存ボタンが「送信中...」になり無効化され、連打しても assets.create は1回だけ呼ばれる', async () => {
+  let createCalls = 0;
+  let resolveCreate;
+  const { dom, render } = setup('editor', {
+    createHandler: function () {
+      createCalls += 1;
+      return new Promise((resolve) => {
+        resolveCreate = resolve;
+      });
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const newButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 新規発注');
+  dom.fire(newButton, 'click');
+
+  function fillField(label, value) {
+    const field = dom.findNode(root, (n) => {
+      if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+      const l = (n.children || [])[0];
+      return l && l.textContent === label;
+    });
+    const input = field.children[1];
+    input.value = value;
+    dom.fire(input, 'input');
+  }
+
+  // assetType（種類）は <select>（change イベント）なので value を直接設定して change を発火する。
+  const assetTypeField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    const l = (n.children || [])[0];
+    return l && l.textContent === '種類';
+  });
+  assetTypeField.children[1].value = 'Vfx';
+  dom.fire(assetTypeField.children[1], 'change');
+
+  fillField('インポート名: 識別子（PascalCase）', 'FireBall');
+  fillField('表示名', '火球');
+
+  const saveButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '保存');
+  dom.fire(saveButton, 'click');
+  dom.fire(saveButton, 'click'); // 連打
+  dom.fire(saveButton, 'click');
+
+  assert.equal(createCalls, 1, 'assets.create は1回だけ呼ばれる（連打しても重複作成しない）');
+  assert.equal(saveButton.disabled, true);
+  assert.equal(saveButton.textContent, '送信中...');
+
+  resolveCreate({ ok: true, item: sampleAsset({ id: 'Vfx::FireBall', assetType: 'Vfx', identifier: 'FireBall', revision: 1 }) });
+  await flush();
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('作成しました') !== -1);
+  assert.ok(toast, '成功トーストが表示される');
+});
+
+// ---- 緊急修正（2026-09-14）: 削除機能はあるか？（アーカイブ済みトグル + 元に戻す） ----
+
+test('editor: 詳細の「削除（アーカイブ）」を押すと assets.delete を呼び、一覧からその場で消える（reload なし）。トグルで再表示できる', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除（アーカイブ）');
+  assert.ok(deleteButton);
+  dom.fire(deleteButton, 'click');
+  await flush();
+
+  const rowAfter = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  assert.equal(rowAfter, null, '既定（アーカイブ済みを表示しない）では一覧から消える');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('削除しました') !== -1);
+  assert.ok(toast);
+
+  // 「アーカイブ済みを表示」トグルを有効にすると、アーカイブ済みでも一覧に出る
+  // （トグルは「種類でグループ化」の次に追加しているため、チェックボックスの2番目）。
+  const checkboxes = dom.findAllNodes(root, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('type') === 'checkbox');
+  const archivedCheckbox = checkboxes[checkboxes.length - 1];
+  archivedCheckbox.checked = true;
+  dom.fire(archivedCheckbox, 'change');
+
+  const rowAfterToggle = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  assert.ok(rowAfterToggle, 'アーカイブ済みを表示トグルを有効にすれば一覧に出る');
+  assert.ok(
+    dom.findNode(rowAfterToggle, (n) => (n.textContent || '').indexOf('アーカイブ済み') !== -1),
+    'アーカイブ済みであることが状態列に表示される'
+  );
+});
+
+test('editor: アーカイブ済みの発注の詳細には「元に戻す」ボタンが出て、押すと assets.restore を呼ぶ', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  // 詳細を開いて削除 → アーカイブ済みトグルを有効化 → 再度詳細を開くと「元に戻す」が出る。
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+  const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除（アーカイブ）');
+  dom.fire(deleteButton, 'click');
+  await flush();
+
+  const checkboxes = dom.findAllNodes(root, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('type') === 'checkbox');
+  const archivedCheckbox = checkboxes[checkboxes.length - 1];
+  archivedCheckbox.checked = true;
+  dom.fire(archivedCheckbox, 'change');
+
+  const archivedRow = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  assert.ok(archivedRow, 'アーカイブ済みでも一覧に出ている');
+  dom.fire(archivedRow, 'click');
+  await flush();
+
+  const restoreButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '元に戻す');
+  assert.ok(restoreButton, 'アーカイブ済みの詳細には「元に戻す」ボタンが出る');
+  const deleteButtonShouldBeGone = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除（アーカイブ）');
+  assert.equal(deleteButtonShouldBeGone, null, 'アーカイブ済みのときは「削除（アーカイブ）」ではなく「元に戻す」だけ出る');
+
+  dom.fire(restoreButton, 'click');
+  await flush();
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('元に戻しました') !== -1);
+  assert.ok(toast);
+});
+
+test('viewer: アーカイブ済みを表示トグルはあるが、削除・元に戻すボタンは出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除（アーカイブ）');
+  const restoreButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '元に戻す');
+  assert.equal(deleteButton, null);
+  assert.equal(restoreButton, null);
 });

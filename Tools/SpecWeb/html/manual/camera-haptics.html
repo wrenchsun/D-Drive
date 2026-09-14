@@ -42,11 +42,11 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › 画面の揺れ・コントローラーの振動</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › 画面の揺れ・コントローラーの振動</nav>
 
 <h1>画面の揺れ・コントローラーの振動</h1>
 
-<p>攻撃が当たった・爆発が起きた、といった「手応え」を出す 2 つの仕組みです。どちらも <strong>ID(番号札)で管理するデータ</strong>で、<a href="?page=manual&p=presentation" data-manual-page="presentation">演出(Presentation)</a> の中の 1 トラックとして使うことも、プログラム側から直接鳴らすこともできます。</p>
+<p>攻撃が当たった・爆発が起きた、といった「手応え」を出す 2 つの仕組みです。どちらも <strong>ID(番号札)で管理するデータ</strong>で、<a href="#" data-manual-page="presentation">演出(Presentation)</a> の中の 1 トラックとして使うことも、プログラム側から直接鳴らすこともできます。</p>
 <ul>
 <li><strong>カメラシェイク(Camera Shake)</strong>: 画面をガクガク揺らす</li>
 <li><strong>ハプティクス(Haptics)</strong>: コントローラー(パッド)をブルブル振動させる</li>
@@ -63,7 +63,7 @@
 <tr><td>Pos Amplitude(位置の揺れ幅)</td><td>上下・左右・前後にどれだけ動くか(メートル)。X/Y/Z を別々に設定できます</td></tr>
 <tr><td>Rot Amplitude(回転の揺れ幅)</td><td>どれだけ傾く・回るか(度)。Z だけ入れると「首をかしげる」ような揺れになります</td></tr>
 <tr><td>Frequency(周波数)</td><td>Perlin Noise / Decay Sine で使う、揺れの速さ(Hz)。数字が大きいほど細かく速く揺れます</td></tr>
-<tr><td>Envelope(減衰)</td><td>揺れの強さが時間とともにどう弱まっていくか。既定は 0.3 秒でスッと収まる設定。<a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a>にもある「形+速さ」の共通の編集項目(ValueDef)で調整します</td></tr>
+<tr><td>Envelope(減衰)</td><td>揺れの強さが時間とともにどう弱まっていくか。既定は 0.3 秒でスッと収まる設定。<a href="#" data-manual-page="glossary">用語集</a>にもある「形+速さ」の共通の編集項目(ValueDef)で調整します</td></tr>
 <tr><td>Space(基準の向き)</td><td><strong>Camera Local</strong>(既定): カメラ自身の向きを基準に揺れる。<strong>World</strong>: カメラの向きに関係なく、いつも同じ方向に揺れる。<strong>From Source</strong>: 発生位置(爆発の場所など)からカメラへ向かって「奥から手前に押される」揺れになる</td></tr>
 <tr><td>Trauma Weight(合成の重み)</td><td>複数のシェイクが同時に起きたときの寄与度。既定 1。大きくすると、他のシェイクと重なったときにより強く効きます</td></tr>
 <tr><td>Max Stack(同時再生数の上限)</td><td>同じシェイクが同時に何個まで積み重なれるか。既定 3。これを超えて呼ばれた分は静かに無視されます(連打しても壊れないための安全弁)</td></tr>
@@ -91,13 +91,13 @@
 <p>デザイナーが直接書く場面は少ないですが、演出(Presentation)を経由しない単発の揺れ・振動はプログラム側がこう書きます。<code>CameraFx.Shake(シェイクの ID)</code> / <code>Haptics.Play(振動の ID)</code>。中身の調整はこのページの手順のとおり、データ側だけで完結します。</p>
 
 <h2>演出(Presentation)から使う</h2>
-<p><a href="?page=manual&p=presentation" data-manual-page="presentation">演出のページ</a>にあるとおり、Tracks の Kind に <strong>Camera Shake</strong> / <strong>Haptic</strong> を選び、Asset 欄にこのページで作ったデータの ID を入れるだけで、他の SE・VFX と同じタイミングで揺れ・振動が鳴らせます。剣攻撃デモ(<code>PresentationSkillSlashPreviewScene</code>)では、当たった合図(<code>hit</code>)で画面停止(ヒットストップ)・SE と同時に、画面が揺れてパッドが振動するようになっています。</p>
+<p><a href="#" data-manual-page="presentation">演出のページ</a>にあるとおり、Tracks の Kind に <strong>Camera Shake</strong> / <strong>Haptic</strong> を選び、Asset 欄にこのページで作ったデータの ID を入れるだけで、他の SE・VFX と同じタイミングで揺れ・振動が鳴らせます。剣攻撃デモ(<code>PresentationSkillSlashPreviewScene</code>)では、当たった合図(<code>hit</code>)で画面停止(ヒットストップ)・SE と同時に、画面が揺れてパッドが振動するようになっています。</p>
 
 <h2>オプション画面との連動</h2>
-<p>設定画面の「画面揺れ」「振動」のスライダー(0〜100%)は、コード不要でこの仕組みに直結しています。<strong>0% にすると完全に揺れ・振動が止まります</strong>(酔いやすい人・振動が苦手な人向けのアクセシビリティ対応)。詳しくは <a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween のページ</a>の標準オプションの節を参照してください。</p>
+<p>設定画面の「画面揺れ」「振動」のスライダー(0〜100%)は、コード不要でこの仕組みに直結しています。<strong>0% にすると完全に揺れ・振動が止まります</strong>(酔いやすい人・振動が苦手な人向けのアクセシビリティ対応)。詳しくは <a href="#" data-manual-page="ui-tween">UI Tween のページ</a>の標準オプションの節を参照してください。</p>
 
 <h2>スライダーのノッチ・端での振動</h2>
-<p><a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">スライダーの見た目(Skin)</a>にある「Notch Haptic Id」「Limit Haptic Id」にこのページで作った振動データの ID を入れると、目盛りを越えた・端に当たったときにパッドが振動します(2026-09-14 から対応)。</p>
+<p><a href="#" data-manual-page="ui-skin">スライダーの見た目(Skin)</a>にある「Notch Haptic Id」「Limit Haptic Id」にこのページで作った振動データの ID を入れると、目盛りを越えた・端に当たったときにパッドが振動します(2026-09-14 から対応)。</p>
 
 <h2>よくある警告と直し方</h2>
 <table>
@@ -111,7 +111,7 @@
 </table>
 
 <h2>専用エディタ(Shake / Haptics Editor)の使い方</h2>
-<p><code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code> で開きます。1 つのウィンドウで Camera Shake Data / Haptics Data の両方を編集でき、上の「対象アセット」欄に開きたいデータを入れると、それぞれの項目が出てきます(Asset Browser や Project ウィンドウで選ぶと自動で追従します)。まだデータが無ければ、ツールバーの「＋ 新規作成」から Camera Shake / Haptics のどちらを作るか選んで、その場で新規作成できます(<a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser の使い方</a>参照)。</p>
+<p><code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code> で開きます。1 つのウィンドウで Camera Shake Data / Haptics Data の両方を編集でき、上の「対象アセット」欄に開きたいデータを入れると、それぞれの項目が出てきます(Asset Browser や Project ウィンドウで選ぶと自動で追従します)。まだデータが無ければ、ツールバーの「＋ 新規作成」から Camera Shake / Haptics のどちらを作るか選んで、その場で新規作成できます(<a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a>参照)。</p>
 <!-- TODO: スクショ（Shake / Haptics Editor の波形プレビュー） -->
 <ul>
 <li><strong>確認用シーンを開く</strong>: ツールバーのボタンで、カメラ・ライト・目印になる箱を置いた専用の確認用シーンを開きます(無ければ自動で作られます)。揺れの確認はこのシーン(または今開いているシーン)の SceneView / Game ビューで行います(ウィンドウの中に絵は出ません)</li>
@@ -123,10 +123,10 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="?page=manual&p=presentation" data-manual-page="presentation">演出(Presentation)の設定項目</a></li>
-<li><a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">ボタン / スライダーの見た目(Skin)</a> — スライダーのノッチ・端の振動</li>
-<li><a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI の動き(UI Tween)</a> — 音量・画面揺れ・振動などの標準オプション</li>
-<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-page="presentation">演出(Presentation)の設定項目</a></li>
+<li><a href="#" data-manual-page="ui-skin">ボタン / スライダーの見た目(Skin)</a> — スライダーのノッチ・端の振動</li>
+<li><a href="#" data-manual-page="ui-tween">UI の動き(UI Tween)</a> — 音量・画面揺れ・振動などの標準オプション</li>
+<li><a href="#" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>

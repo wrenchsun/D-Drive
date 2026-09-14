@@ -11,8 +11,17 @@
    * トップフレームを動かそうとしてしまう）: build-manual.js が本文中の内部リンクに
    * `data-manual-page`（ページ間）・`data-manual-anchor`（同一/他ページ内アンカー）・
    * `data-manual-exit`（発注ツールへ戻る）を付けている。ここではクリックを 1 箇所で
-   * イベント委譲して window.SpecWebNavigate で iframe 内遷移する。href 自体は
-   * JS が動かなかったときの素朴なフォールバック（`?page=manual&p=...` への通常のリンク）。
+   * イベント委譲して window.SpecWebNavigate で iframe 内遷移する。
+   *
+   * 緊急修正（2026-09-14）: href 自体は「JS が動かなかったときの素朴なフォールバック」だが、
+   * 以前はここに直接 `?page=manual&p=...` のような相対 URL を入れていたため、クリック時に
+   * 既定動作が走ると iframe 自身の URL（*-script.googleusercontent.com/userCodeAppPanel）基準で
+   * 解決した絶対 URL にトップフレームが遷移し、白画面になる不具合が実デプロイで起きた。
+   * ビルド時点では実際の exec URL が分からないため、生成物の href は "#" のプレースホルダーの
+   * ままにしてもらい（tools/build-manual.js 参照）、ここ（実行時、window.SpecWebExecUrl が
+   * 既に埋め込まれている）で data 属性から絶対 URL を組み立てて href に設定し直す
+   * （applyAbsoluteHrefs_）。これで JS ハンドラが万一効かなくても、トップは正しい exec URL
+   * （未取得なら "#" のまま＝画面が動かないだけ）に遷移する。
    */
   (function () {
     'use strict';
@@ -20,7 +29,9 @@
     var navHost = document.getElementById('app-nav');
     if (navHost && !navHost.querySelector('a[data-screen="manual"]')) {
       var navLink = document.createElement('a');
-      navLink.href = '?page=manual&p=Readme';
+      // 緊急修正（2026-09-14）: 相対 href '?page=manual&p=Readme' が白画面の原因だったため、
+      // window.SpecWebExecUrl から絶対 URL を組み立てる（未取得なら '#'）。
+      navLink.href = window.OrderLinkLogic.buildManualUrl(window.SpecWebExecUrl, 'Readme') || '#';
       navLink.textContent = 'マニュアル';
       navLink.setAttribute('data-screen', 'manual');
       navLink.addEventListener('click', function (ev) {
@@ -28,6 +39,37 @@
         window.SpecWebNavigate('manual', { params: { p: 'Readme' } });
       });
       navHost.appendChild(navLink);
+    }
+
+    /**
+     * 緊急修正（2026-09-14）: build-manual.js が生成する本文中のリンク（data-manual-page/
+     * data-manual-exit）は href="#" のプレースホルダーのままなので、挿入後にここで
+     * window.SpecWebExecUrl から絶対 URL を組み立てて href を実際の値に差し替える
+     * （JS のクリックハンドラが効かなかった場合の素朴なフォールバックを機能させるため）。
+     * execUrl が未取得のときは '#' のまま（画面は動かないだけで、白画面には遷移しない）。
+     */
+    function forEachAnchor_(node, visit) {
+      (node.children || []).forEach(function (child) {
+        if (child.tagName && String(child.tagName).toUpperCase() === 'A') visit(child);
+        forEachAnchor_(child, visit);
+      });
+    }
+
+    function applyAbsoluteHrefs_(container) {
+      var execUrl = window.SpecWebExecUrl || '';
+      forEachAnchor_(container, function (anchor) {
+        if (!anchor.getAttribute || !anchor.setAttribute) return;
+        var exitScreen = anchor.getAttribute('data-manual-exit');
+        if (exitScreen) {
+          anchor.setAttribute('href', window.OrderLinkLogic.buildExitUrl(execUrl) || '#');
+          return;
+        }
+        var page = anchor.getAttribute('data-manual-page');
+        if (page) {
+          var anchorId = anchor.getAttribute('data-manual-anchor') || '';
+          anchor.setAttribute('href', window.OrderLinkLogic.buildManualUrl(execUrl, page, anchorId) || '#');
+        }
+      });
     }
 
     function findAnchorAncestor(node, container) {
@@ -78,6 +120,12 @@
       if (target && target.scrollIntoView) target.scrollIntoView();
     }
 
+    // テスト用の内部フック（緊急修正 2026-09-14）。test/dom-stub.js の FakeNode は
+    // innerHTML=文字列 を子要素へパースしない（コメント参照）ため、applyAbsoluteHrefs_ の
+    // 走査ロジック自体は test/manual-screen.smoke.test.js から el.appendChild で組んだ
+    // ノードに対して直接呼んで検証する。本番の挙動には影響しない（読み取りのみ公開）。
+    window.SpecWebManualTestHooks_ = { applyAbsoluteHrefs: applyAbsoluteHrefs_ };
+
     registerScreen('manual', function (root, params) {
       params = params || {};
       var pageName = params.p || 'Readme';
@@ -99,6 +147,7 @@
         var wrap = document.createElement('div');
         wrap.innerHTML = result.html;
         root.appendChild(wrap);
+        applyAbsoluteHrefs_(wrap);
         bindManualLinks(wrap);
 
         if (params.anchor) {

@@ -1,0 +1,184 @@
+<style>
+  /* 緊急修正（2026-09-14）: 「レスポンスが遅く、連打して重複作成してしまった」対策の一部。
+     ボタンの「送信中…」表示と、右下（狭い画面では下部いっぱい）のトースト通知の見た目。
+     Assets.html 同様、このファイル専用の見た目はここに置く（共通 Styles.html は編集しない）。 */
+  .sw-toast-container {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(360px, calc(100vw - 2rem));
+  }
+  .sw-toast {
+    background: #1f2328;
+    color: #fff;
+    padding: 0.6rem 0.9rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    opacity: 0.96;
+  }
+  .sw-toast.sw-toast-error {
+    background: #cf222e;
+  }
+  @media (max-width: 480px) {
+    .sw-toast-container {
+      left: 1rem;
+      right: 1rem;
+      bottom: 0.75rem;
+      max-width: none;
+    }
+  }
+</style>
+
+<script>
+  /**
+   * 緊急修正（2026-09-14）: 実デプロイで判明した2つの不具合の共通対策。
+   *   1. 発注ツリー・一覧の書き込み系ボタン（作成・更新・削除・状態変更・コメント投稿）は
+   *      押した直後に何も見た目が変わらず、レスポンスが遅い（google.script.run 1往復が
+   *      1〜2秒かかる）ため連打され、同じ操作が何度も送信されて重複データができていた
+   *      （例: 「aaa」という名前の Presentation 発注グループが空のまま10件近くできていた）。
+   *   2. 操作が終わったのかどうかが画面のどこにも出ない。
+   *
+   * このファイルは Assets.html/OrderTree.html などの書き込み系呼び出しをラップする
+   * 共通ヘルパー（window.SpecWebUi）を提供する。DOM に触れるため AssetsLogic.html のような
+   * 純粋関数モジュールとは分けている（テストは test/uiFeedback.test.js が
+   * test/dom-stub.js の最小限フェイク DOM 上で確認する）。
+   *
+   * 使い方（画面側）:
+   *   window.SpecWebUi.runBusy('orderGroups.create', button, function () {
+   *     return window.SpecWebClient.callApi('orderGroups.create', {...}, { method: 'POST' });
+   *   }).then(function (res) {
+   *     if (res.busy) return; // 既に処理中だった（無視してよい。ボタン側は disabled で守られている）
+   *     if (!res.ok) { window.SpecWebUi.toastError('作成に失敗しました: ' + (res.error||'')); return; }
+   *     window.SpecWebUi.toastSuccess('作成しました');
+   *   });
+   */
+  (function () {
+    'use strict';
+
+    // ---- トースト通知 ----
+
+    var toastContainer = null;
+
+    function ensureToastContainer_() {
+      // document.body が無い/読み込み途中でも例外にしない（CLAUDE.md §0-4「例外で止めない」）。
+      if (toastContainer && toastContainer.parentNode) return toastContainer;
+      if (!document || !document.body) return null;
+      toastContainer = document.createElement('div');
+      toastContainer.className = 'sw-toast-container';
+      document.body.appendChild(toastContainer);
+      return toastContainer;
+    }
+
+    /**
+     * @param {string} message
+     * @param {'success'|'error'} [kind] 既定は 'success'
+     * @param {number} [durationMs] 既定 4000ms
+     */
+    function toast(message, kind, durationMs) {
+      var host = ensureToastContainer_();
+      if (!host) return null;
+      var node = document.createElement('div');
+      node.className = 'sw-toast' + (kind === 'error' ? ' sw-toast-error' : '');
+      node.textContent = message;
+      host.appendChild(node);
+      // node.parentNode ではなく host（作った時点の親）を直接使って外す。テスト用の
+      // 最小 DOM フェイク（test/dom-stub.js）は parentNode を追跡しないため
+      // （実 DOM では parentNode 経由でも host.removeChild(node) でも同じ結果になる）。
+      var timer = setTimeout(function () {
+        host.removeChild(node);
+      }, durationMs || (kind === 'error' ? 6000 : 3500));
+      // テストがタイマーを待たずに消えたことを確認できるように、id だけ返しておく。
+      node._swToastTimer = timer;
+      return node;
+    }
+
+    function toastSuccess(message) {
+      return toast(message, 'success');
+    }
+
+    function toastError(message) {
+      return toast(message, 'error');
+    }
+
+    // ---- 送信中ガード + ボタン無効化 ----
+
+    // key ごとに「今処理中かどうか」を持つ。同じ key の呼び出しはボタンのクリックだけでなく
+    // どの経路から来ても弾く（コーディネーター指摘の「ボタン以外の Enter 送信も含む」対策）。
+    var inFlightKeys_ = {};
+
+    /**
+     * 書き込み系 API 呼び出しを「二重実行防止 + ボタン無効化/『送信中…』表示」でラップする。
+     * @param {string} key 同じ操作を識別するキー（例: 'orderGroups.create'、
+     *   1件ずつ区別したい更新/削除は 'assets.update:' + id のように id を含めるとよい）。
+     * @param {HTMLButtonElement|null} button 押されたボタン（無効化 + テキスト変更の対象。
+     *   無ければボタン操作はスキップし、二重実行防止だけ行う）。
+     * @param {function(): Promise<object>} run 実行する処理（callApi の呼び出しを返す関数）。
+     * @param {object} [options]
+     * @param {string} [options.busyText] ボタンに表示する文言（既定 '送信中...'）。
+     * @return {Promise<object>} run() の結果。すでに処理中だった場合は
+     *   { ok: false, busy: true, error: '処理中です...' } を run() を呼ばずに返す。
+     */
+    function runBusy(key, button, run, options) {
+      options = options || {};
+      if (inFlightKeys_[key]) {
+        return Promise.resolve({ ok: false, busy: true, error: '処理中です。少し待ってから再度お試しください。' });
+      }
+      inFlightKeys_[key] = true;
+
+      var originalText = null;
+      var originalDisabled = null;
+      if (button) {
+        originalText = button.textContent;
+        originalDisabled = !!button.disabled;
+        button.disabled = true;
+        button.textContent = options.busyText || '送信中...';
+      }
+
+      function restore() {
+        delete inFlightKeys_[key];
+        if (button) {
+          button.disabled = originalDisabled;
+          button.textContent = originalText;
+        }
+      }
+
+      var result;
+      try {
+        result = run();
+      } catch (err) {
+        restore();
+        return Promise.resolve({ ok: false, error: String(err && err.message ? err.message : err) });
+      }
+      // run() は SpecWebClient.callApi の Promise を返す前提（例外にせず {ok:false} で resolve する
+      // 契約、html/App.html 参照）だが、念のため reject にも対応しておく。
+      return Promise.resolve(result).then(
+        function (res) {
+          restore();
+          return res;
+        },
+        function (err) {
+          restore();
+          return { ok: false, error: String(err && err.message ? err.message : err) };
+        }
+      );
+    }
+
+    /** テスト/画面遷移時に in-flight 状態をリセットする（通常は不要）。 */
+    function resetBusyState_() {
+      inFlightKeys_ = {};
+    }
+
+    window.SpecWebUi = {
+      toast: toast,
+      toastSuccess: toastSuccess,
+      toastError: toastError,
+      runBusy: runBusy,
+      resetBusyState_: resetBusyState_
+    };
+  })();
+</script>

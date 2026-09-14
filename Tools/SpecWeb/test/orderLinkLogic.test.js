@@ -39,6 +39,40 @@ test('buildGroupUrl: execUrl + ?page=group&id=<id> を組み立てる', () => {
   );
 });
 
+// ---- 緊急修正（2026-09-14）: buildManualUrl/buildExitUrl（Manual.html の白画面対策） ----
+
+test('buildManualUrl: execUrl + ?page=manual&p=<page> を組み立てる（末尾スラッシュは除去）', () => {
+  const logic = loadLogic();
+  assert.equal(
+    logic.buildManualUrl('https://script.google.com/macros/s/abc/exec', 'Readme'),
+    'https://script.google.com/macros/s/abc/exec?page=manual&p=Readme'
+  );
+  assert.equal(
+    logic.buildManualUrl('https://script.google.com/macros/s/abc/exec/', 'Readme'),
+    'https://script.google.com/macros/s/abc/exec?page=manual&p=Readme'
+  );
+});
+
+test('buildManualUrl: anchor があれば #anchor を付ける', () => {
+  const logic = loadLogic();
+  assert.equal(
+    logic.buildManualUrl('https://example.com/exec', 'Readme', 'section'),
+    'https://example.com/exec?page=manual&p=Readme#section'
+  );
+});
+
+test('buildManualUrl: execUrl か page が空なら空文字（呼び出し側が "#" にフォールバックする）', () => {
+  const logic = loadLogic();
+  assert.equal(logic.buildManualUrl('', 'Readme'), '');
+  assert.equal(logic.buildManualUrl('https://example.com/exec', ''), '');
+});
+
+test('buildExitUrl: execUrl をそのまま（末尾スラッシュ除去のみ）返す。空なら空文字', () => {
+  const logic = loadLogic();
+  assert.equal(logic.buildExitUrl('https://example.com/exec/'), 'https://example.com/exec');
+  assert.equal(logic.buildExitUrl(''), '');
+});
+
 test('formatLinkText: url のみ（既定）/ 名前付き / Markdown の3形式を組み立てる', () => {
   const logic = loadLogic();
   const url = 'https://example.com/exec?page=order&id=Se%3A%3ASlash';

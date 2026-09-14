@@ -106,6 +106,29 @@
       menu.hidden = true;
       var fallback = null;
 
+      // 緊急修正（2026-09-14）: html/Assets.html の同名関数と同じ対策（既定で閉じ、外側クリック/
+      // Esc/項目選択で閉じる。CSS 側の `.sw-copylink-menu[hidden]{display:none}` と対）。
+      function handleOutsideClick(ev) {
+        var target = ev && ev.target;
+        if (target && wrap.contains && wrap.contains(target)) return;
+        closeMenu();
+      }
+      function handleKeydown(ev) {
+        if (ev && (ev.key === 'Escape' || ev.keyCode === 27)) closeMenu();
+      }
+      function openMenu() {
+        if (!menu.hidden) return;
+        menu.hidden = false;
+        document.addEventListener('click', handleOutsideClick);
+        document.addEventListener('keydown', handleKeydown);
+      }
+      function closeMenu() {
+        if (menu.hidden) return;
+        menu.hidden = true;
+        document.removeEventListener('click', handleOutsideClick);
+        document.removeEventListener('keydown', handleKeydown);
+      }
+
       function clearFallback() {
         if (fallback) {
           wrap.removeChild(fallback);
@@ -114,7 +137,7 @@
       }
 
       function doCopy(mode) {
-        menu.hidden = true;
+        closeMenu();
         var url = getUrl();
         if (!url) {
           status.textContent = 'URL を取得できませんでした（execUrl 未取得）';
@@ -146,7 +169,7 @@
         text: '▼',
         onclick: function (ev) {
           if (ev && ev.stopPropagation) ev.stopPropagation();
-          menu.hidden = !menu.hidden;
+          if (menu.hidden) openMenu(); else closeMenu();
         }
       });
       [['url', 'URL のみ'], ['named', '名前付き（表示名 - URL）'], ['markdown', 'Markdown']].forEach(function (pair) {
@@ -248,20 +271,72 @@
         var button = el('button', {
           text: '+ 発注グループを作成',
           onclick: function () {
-            var name = nameInput.value.trim();
-            if (!name) return;
-            window.SpecWebClient.callApi('orderGroups.create', { patch: JSON.stringify({ name: name }) }, { method: 'POST' }).then(function (res) {
-              if (!res.ok) {
-                window.alert('作成に失敗しました: ' + (res.error || ''));
-                return;
-              }
-              nameInput.value = '';
-              reload();
-            });
+            submitCreateGroup(button, nameInput);
+          }
+        });
+        // 緊急修正（2026-09-14）: このバーには <form> は無いため Enter で既定の送信は起きないが、
+        // 一部のブラウザ/環境差に備えて明示的にハンドラを付け、runBusy の二重実行防止に乗せる
+        // （ボタンの click だけに依存しない）。
+        nameInput.addEventListener('keydown', function (ev) {
+          if (ev && (ev.key === 'Enter' || ev.keyCode === 13)) {
+            if (ev.preventDefault) ev.preventDefault();
+            submitCreateGroup(button, nameInput);
           }
         });
         newGroupBar.appendChild(nameInput);
         newGroupBar.appendChild(button);
+      }
+
+      /**
+       * 緊急修正（2026-09-14）: 「発注ツリーで応答が遅く、連打して『aaa』という空の発注グループが
+       * 10件近くできた」への対策。SpecWebUi.runBusy で同一操作（'orderGroups.create'）の
+       * 二重実行を弾き、ボタンを「送信中...」にして押し続けられないようにする。
+       * 成功後は一覧全体を再取得（reload、4 API 呼び出し）せず、応答に含まれる作成済みの
+       * グループをその場で state.groups に差し込むだけにする（体感速度の改善・往復削減）。
+       */
+      function submitCreateGroup(button, nameInput) {
+        var name = nameInput.value.trim();
+        if (!name) return;
+        window.SpecWebUi
+          .runBusy('orderGroups.create', button, function () {
+            return window.SpecWebClient.callApi('orderGroups.create', { patch: JSON.stringify({ name: name }) }, { method: 'POST' });
+          })
+          .then(function (res) {
+            if (res.busy) return; // 既に送信中（ボタンは disabled なので通常はここに来ない）
+            if (!res.ok) {
+              window.SpecWebUi.toastError('作成に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            nameInput.value = '';
+            state.groups = state.groups.concat([res.item]);
+            renderBody();
+            window.SpecWebUi.toastSuccess('発注グループを作成しました: ' + res.item.name);
+          });
+      }
+
+      /**
+       * 緊急修正（2026-09-14）: 発注グループの削除。confirm 付き。expectedRevision は
+       * node（buildOrderTree の集計結果）に revision を持たせていないため送らず、
+       * サーバー側の既定（現在の revision を使う）に任せる（orderGroups.update の
+       * 発注グループ名変更等と違い、削除は取り違えても実害が小さい単純な操作のため）。
+       * 成功後は一覧全体を再取得せず、その場で state.groups から取り除くだけにする。
+       */
+      function deleteGroup(node, button) {
+        if (!window.confirm('発注グループ「' + node.name + '」を削除します。配下に発注が残っている場合は削除できません。よろしいですか？')) return;
+        window.SpecWebUi
+          .runBusy('orderGroups.delete:' + node.id, button, function () {
+            return window.SpecWebClient.callApi('orderGroups.delete', { id: node.id }, { method: 'POST' });
+          })
+          .then(function (res) {
+            if (res.busy) return;
+            if (!res.ok) {
+              window.SpecWebUi.toastError('削除に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            state.groups = state.groups.filter(function (g) { return g.id !== node.id; });
+            renderBody();
+            window.SpecWebUi.toastSuccess('発注グループを削除しました: ' + node.name);
+          });
       }
 
       function renderGroup(node) {
@@ -277,6 +352,16 @@
             function () { return window.OrderLinkLogic.buildGroupUrl(window.SpecWebExecUrl, node.id); },
             function () { return node.name; }
           ));
+        }
+        if (node.id && canEdit()) {
+          // 緊急修正（2026-09-14）: 「削除機能はありますか？」への回答。既存 API
+          // orderGroups.delete（src/OrderGroups.js）は配下の発注（parentId で参照するもの）が
+          // 1件でも残っていると 400 で拒否する仕様（配下 0 件なら即削除できる）。付け替え・
+          // 「単体」への移動は用意していない（拒否メッセージにその旨が入っている）。
+          // 「単体」バケット（node.id === null）はグループが存在しないため対象外。
+          var deleteGroupButton = el('button', { class: 'secondary', text: '削除' });
+          deleteGroupButton.addEventListener('click', function () { deleteGroup(node, deleteGroupButton); });
+          header.appendChild(deleteGroupButton);
         }
         if (node.wbsNo && state.ganttUrl) {
           header.appendChild(el('a', {

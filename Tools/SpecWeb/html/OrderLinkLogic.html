@@ -36,6 +36,29 @@
     }
 
     /**
+     * 緊急修正（2026-09-14）: html/Manual.html・tools/build-manual.js の生成物（`data-manual-page`）
+     * が使う「マニュアルページへの絶対 URL」の組み立て。buildOrderUrl/buildGroupUrl と同じ形
+     * （execUrl が無ければ空文字。呼び出し側は '#' 等にフォールバックする）。
+     * @param {string} execUrl
+     * @param {string} page ページ名（拡張子無し）
+     * @param {string} [anchor] 同一ページ内アンカー（無ければ省略）
+     */
+    function buildManualUrl(execUrl, page, anchor) {
+      if (!execUrl || !page) return '';
+      var base = trimTrailingSlash_(execUrl) + '?page=manual&p=' + encodeURIComponent(page);
+      return anchor ? base + '#' + anchor : base;
+    }
+
+    /**
+     * 緊急修正（2026-09-14）: マニュアルの「← 発注ツールへ」リンク（`data-manual-exit`）が使う、
+     * 発注ツールのトップ（既定画面）への絶対 URL。
+     */
+    function buildExitUrl(execUrl) {
+      if (!execUrl) return '';
+      return trimTrailingSlash_(execUrl);
+    }
+
+    /**
      * コピーするテキストの整形。mode: 'url'（既定・URL のみ）/ 'named'（`表示名 - URL`）/
      * 'markdown'（`[表示名](URL)`）。url が空なら空文字（呼び出し側は「URL を取得できません」表示）。
      */
@@ -49,6 +72,8 @@
     window.OrderLinkLogic = {
       buildOrderUrl: buildOrderUrl,
       buildGroupUrl: buildGroupUrl,
+      buildManualUrl: buildManualUrl,
+      buildExitUrl: buildExitUrl,
       formatLinkText: formatLinkText
     };
   })();

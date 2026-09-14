@@ -42,22 +42,22 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › SE（効果音）の設定項目</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › SE（効果音）の設定項目</nav>
 
 <h1>SE（効果音）の設定項目</h1>
 
-<p><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> で SE を選ぶと、Unity 右側の Inspector（インスペクター）に設定項目が表示されます。ここではその<strong>すべての項目</strong>を説明します。各項目はエディタ上でマウスを乗せても説明（ツールチップ）が出ます。</p>
+<p><a href="#" data-manual-page="asset-browser">Asset Browser</a> で SE を選ぶと、Unity 右側の Inspector（インスペクター）に設定項目が表示されます。ここではその<strong>すべての項目</strong>を説明します。各項目はエディタ上でマウスを乗せても説明（ツールチップ）が出ます。</p>
 
-<div class="tip">音を聞きながら調整したいときは <a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor</a> を開いたまま作業するのがおすすめです。</div>
+<div class="tip">音を聞きながら調整したいときは <a href="#" data-manual-page="audio-editor">Audio Editor</a> を開いたまま作業するのがおすすめです。</div>
 
 <h2>Clips（クリップ）まわり</h2>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Clips</td><td>実際に再生される音声ファイル。<strong>複数入れると、鳴らすたびに違う音を選べます</strong>（足音のバリエーションなどに便利）。どう選ぶかは下の Select Mode で決めます。</td></tr>
-<tr><td>Sources</td><td>「音の切り出し（トリミング）」用の元データ置き場。ここに元ファイルを入れて切り出し範囲を指定し、「トリミングを適用」すると Clips に切り出し済みの音が入ります。<strong>元ファイルは一切変更されない</strong>ので、何度でもやり直せます。詳しくは <a href="?page=manual&p=audio-editor#trim" data-manual-page="audio-editor" data-manual-anchor="trim">Audio Editor のトリミング</a> へ。</td></tr>
+<tr><td>Sources</td><td>「音の切り出し（トリミング）」用の元データ置き場。ここに元ファイルを入れて切り出し範囲を指定し、「トリミングを適用」すると Clips に切り出し済みの音が入ります。<strong>元ファイルは一切変更されない</strong>ので、何度でもやり直せます。詳しくは <a href="#" data-manual-page="audio-editor" data-manual-anchor="trim">Audio Editor のトリミング</a> へ。</td></tr>
 <tr><td>Start Offset Sec</td><td>再生を何秒目から始めるか。「頭の無音をスキップしたい」ときに手軽に使えます（0 = 先頭から）。</td></tr>
 <tr><td>Select Mode</td><td>Clips が複数あるときの選び方。<br><strong>Random</strong>: 毎回ランダム（足音など自然なばらつきに）<br><strong>RoundRobin</strong>: 順番に1つずつ（1→2→3→1→…）<br><strong>First</strong>: 常に先頭の1つだけ</td></tr>
-<tr><td>Mixer</td><td>音の出力先グループ。通常はサウンド担当が指定したもの（SE 用グループなど）を設定します。未設定だと警告が出ます。→ <a href="?page=manual&p=glossary#mixer" data-manual-page="glossary" data-manual-anchor="mixer">用語集: Mixer</a></td></tr>
+<tr><td>Mixer</td><td>音の出力先グループ。通常はサウンド担当が指定したもの（SE 用グループなど）を設定します。未設定だと警告が出ます。→ <a href="#" data-manual-page="glossary" data-manual-anchor="mixer">用語集: Mixer</a></td></tr>
 <tr><td>Volume</td><td>基準の音量（0〜1）。1 が元のファイルどおりの大きさ。</td></tr>
 <tr><td>Pitch Range</td><td>再生するたびに音の高さをランダムに揺らす範囲。X が最小、Y が最大。<strong>両方 1 のままなら揺らしなし。</strong>例: (0.95, 1.05) にすると毎回わずかに高さが変わり、連続で鳴っても機械っぽさが減ります。</td></tr>
 <tr><td>Loop</td><td>チェックすると鳴りっぱなしになります（環境音向け）。通常の効果音はオフ。</td></tr>
@@ -93,7 +93,7 @@
 <tr><td>Icon</td><td>Inspector に出る小さな画像。効果音は絵の元が無いので「自動生成」は使えません。必要なら「フォルダから選択」で画像を指定します。</td></tr>
 <tr><td>Version / Author / Updated At</td><td>更新履歴（自動記録されるようになる予定の欄。手入力不要）。</td></tr>
 <tr><td>Flags</td><td>ポーズ中に止まるか等の細かい挙動設定。<strong>迷ったら初期値のまま</strong>でOK。変更が必要な場面ではプログラマーから指示があります。</td></tr>
-<tr><td>Events</td><td>「この音が鳴り始めた時（OnSpawn）に別の何かを起こす」等の連携設定。各行の <strong>Repeat（繰り返し）</strong>は「毎周回（EveryLoop）/ 1 回（Once）/ 再生中は維持（KeepWhilePlaying）」で、「1 回」「再生中は維持」は再生ごとに 1 回だけ発火します（<a href="?page=manual&p=glossary#repeat" data-manual-page="glossary" data-manual-anchor="repeat">用語集: 繰り返し</a>）。普段は使いません。</td></tr>
+<tr><td>Events</td><td>「この音が鳴り始めた時（OnSpawn）に別の何かを起こす」等の連携設定。各行の <strong>Repeat（繰り返し）</strong>は「毎周回（EveryLoop）/ 1 回（Once）/ 再生中は維持（KeepWhilePlaying）」で、「1 回」「再生中は維持」は再生ごとに 1 回だけ発火します（<a href="#" data-manual-page="glossary" data-manual-anchor="repeat">用語集: 繰り返し</a>）。普段は使いません。</td></tr>
 </table>
 
 <h2>よくある警告と直し方</h2>
@@ -108,10 +108,10 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor の使い方</a> — 波形を見ながらトリミング・3D確認</li>
-<li><a href="?page=manual&p=scene-sound" data-manual-page="scene-sound">シーンに環境音を置く</a> — ループ SE の配置</li>
-<li><a href="?page=manual&p=bgm-data" data-manual-page="bgm-data">BGM の設定項目</a></li>
-<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-page="audio-editor">Audio Editor の使い方</a> — 波形を見ながらトリミング・3D確認</li>
+<li><a href="#" data-manual-page="scene-sound">シーンに環境音を置く</a> — ループ SE の配置</li>
+<li><a href="#" data-manual-page="bgm-data">BGM の設定項目</a></li>
+<li><a href="#" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>

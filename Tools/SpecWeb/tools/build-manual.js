@@ -113,6 +113,19 @@ function scopeCss(css, scopeClass) {
  * （html/App.html の説明コメント参照）。そのため実際のナビゲーションは
  * html/Manual.html 側のクリックハンドラ（`data-manual-page`/`data-manual-anchor`）に
  * 任せ、href 自体は「JS が動かなかったとき用の素朴なフォールバック」として残す。
+ *
+ * 緊急修正（2026-09-14）: ページ間リンクの href に以前は `?page=manual&p=xxx` を
+ * 直接入れていたが、これは相対 URL のためクリック時に既定動作が走ると
+ * 「iframe 自身の URL（*-script.googleusercontent.com/userCodeAppPanel）基準で解決した
+ * 絶対 URL」にトップフレームが遷移してしまい、真っ白な画面になる不具合があった
+ * （実デプロイで発生。html/App.html の「iframe サンドボックスでは素の `<a>` の既定動作が
+ * 想定と異なる」という既知の注意と同種の問題）。ビルド時点では実際の exec URL
+ * （デプロイごとに変わりうる）が分からないため、href はここでは安全な `#` のプレースホルダーに
+ * とどめ、実際のジャンプ先は data-manual-page/data-manual-anchor/data-manual-exit を見て
+ * html/Manual.html が実行時に window.SpecWebExecUrl から絶対 URL を組み立てて設定する
+ * （OrderLinkLogic.buildManualUrl/buildExitUrl、O-13 の buildOrderUrl と同じ形）。
+ * これにより、万一 JS のクリックハンドラが効かなかった場合でも、トップフレームは
+ * 正しい exec URL（execUrl が未取得なら `#`、現在の画面から動かないだけ）に遷移する。
  */
 function rewriteLinks(html, options) {
   options = options || {};
@@ -130,9 +143,8 @@ function rewriteLinks(html, options) {
         warnings.push(message);
         onWarning(message);
       }
-      const newHref = '?page=manual&p=' + encodeURIComponent(page) + (anchor ? '#' + anchor : '');
       const anchorAttr = anchor ? ' data-manual-anchor="' + anchor + '"' : '';
-      return '<a' + before + 'href="' + newHref + '" data-manual-page="' + page + '"' + anchorAttr + after + '>';
+      return '<a' + before + 'href="#" data-manual-page="' + page + '"' + anchorAttr + after + '>';
     }
 
     m = SAME_PAGE_ANCHOR_RE.exec(href);
@@ -184,12 +196,13 @@ function inlineImages(html, options) {
 }
 
 function buildNavBarHtml() {
+  // \u7dca\u6025\u4fee\u6b63\uff082026-09-14\uff09: href="?" / href="?page=..." \u306f rewriteLinks() \u3068\u540c\u3058\u7406\u7531\u3067
+  // \u30c8\u30c3\u30d7\u30d5\u30ec\u30fc\u30e0\u306e\u65e2\u5b9a\u52d5\u4f5c\u304c\u8d70\u308b\u3068\u767d\u753b\u9762\u306b\u306a\u308b\u305f\u3081\u3001\u3053\u3053\u3082 "#" + data \u5c5e\u6027\u306b\u3059\u308b
+  // \uff08html/Manual.html \u304c window.SpecWebExecUrl \u304b\u3089\u5b9f\u969b\u306e href \u3092\u8a2d\u5b9a\u3059\u308b\uff09\u3002
   return (
     '<div class="sw-manual-navbar">' +
-    '<a href="?" data-manual-exit="orders">\u2190 \u767a\u6ce8\u30c4\u30fc\u30eb\u3078</a>' +
-    ' <a href="?page=manual&p=' +
-    encodeURIComponent(TOP_PAGE_NAME) +
-    '" data-manual-page="' +
+    '<a href="#" data-manual-exit="orders">\u2190 \u767a\u6ce8\u30c4\u30fc\u30eb\u3078</a>' +
+    ' <a href="#" data-manual-page="' +
     TOP_PAGE_NAME +
     '">\u30de\u30cb\u30e5\u30a2\u30eb\u76ee\u6b21</a>' +
     '</div>'
