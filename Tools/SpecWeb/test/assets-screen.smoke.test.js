@@ -572,6 +572,36 @@ test('render(root, {openId}): 存在しない id なら例外にせず一覧の�
   assert.ok(notice, '「見つかりません」の案内が出る');
 });
 
+// ---- 2026-09-15: 発注ツリー/私の発注の「一覧で開く」が渡す q で検索欄を絞り込む ----
+
+test('render(root, {q}): 検索欄に q の値が入り、一覧がその発注1件だけに絞り込まれる', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root, { q: 'Slash' });
+  await flush();
+
+  const searchInput = dom.findNode(root, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('placeholder') === '検索（識別子・表示名・リファレンス）');
+  assert.ok(searchInput, '検索欄が見つかる');
+  assert.equal(searchInput.value, 'Slash', '検索欄の初期値が q になる');
+
+  const statusLine = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('件を表示') !== -1);
+  assert.ok(statusLine);
+  assert.match(statusLine.textContent, /全 1 件中 1 件を表示/, '一覧はその1件だけに絞り込まれる（既定サンプルは1件のみ）');
+});
+
+test('render(root, {}): q も openId も無い通常表示は一覧が正常に表示される（絞り込みは掛からない）', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  assert.doesNotThrow(() => render(root, {}));
+  await flush();
+
+  const searchInput = dom.findNode(root, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('placeholder') === '検索（識別子・表示名・リファレンス）');
+  assert.equal(searchInput.value, '', '検索欄は空のまま');
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  assert.ok(row, '一覧はいつも通り表示される');
+});
+
 // ---- O-13: 「リンクをコピー」ボタン ----
 
 test('一覧の行の「リンクをコピー」を押すと execCommand フォールバックで成功し「コピーしました」になる', async () => {
@@ -992,6 +1022,42 @@ test('viewer: アーカイブ済みを表示トグルはあるが、削除・元
 });
 
 // ---- 緊急修正（2026-09-14 追補）: 一覧の行から直接削除・複数選択して一括削除 ----
+
+// ---- 2026-09-15: 一覧の行に直接「編集」ボタン（削除ボタンの隣。画面をまたぐ自動オープンが
+// 実デプロイで不安定だったため、発注ツリー/私の発注の「編集」ボタンを廃止した代わりに、
+// 一覧の各行から直接編集できるようにした） ----
+
+test('editor: 一覧の行に「編集」ボタンが「削除」ボタンの隣に出て、押すと画面遷移せずにその場で詳細パネルが開く', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  const rowEditButton = dom.findNode(row, (n) => n.tagName === 'button' && n.textContent === '編集');
+  const rowDeleteButton = dom.findNode(row, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.ok(rowEditButton, '一覧の行に「編集」ボタンが出る');
+  assert.ok(rowDeleteButton, '一覧の行に「削除」ボタンが出る');
+  assert.equal(rowEditButton.parentNode, rowDeleteButton.parentNode, '「編集」ボタンは「削除」ボタンと同じラッパー（隣）に入っている');
+
+  assert.doesNotThrow(() => dom.fire(rowEditButton, 'click'));
+  await flush();
+
+  const heading = dom.findNode(root, (n) => n.tagName === 'h2');
+  assert.ok(heading, '画面遷移（SpecWebNavigate 等）を経由せず、その場で詳細パネルが開く');
+  assert.equal(heading.textContent, 'Se :: Slash');
+});
+
+test('viewer: 一覧の行に「編集」ボタンが出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  const rowEditButton = dom.findNode(row, (n) => n.tagName === 'button' && n.textContent === '編集');
+  assert.equal(rowEditButton, null, 'viewer には一覧の行の「編集」ボタンが出ない');
+});
 
 test('editor: 一覧の行に直接「削除」ボタンが出て、押すと詳細を開かずに assets.delete を呼び、その場で行が消える', async () => {
   const { dom, render } = setup('editor');

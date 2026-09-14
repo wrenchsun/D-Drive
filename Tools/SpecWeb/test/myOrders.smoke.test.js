@@ -70,15 +70,16 @@ test('私が発注/私が受けたの両方が例外なくレンダリングさ�
   assert.ok(contractedItem, '私が受けたものに Trail が出る');
 });
 
-// ---- O-15: 各行への「編集」導線 ----
+// ---- O-15: 各行への「一覧で開く」導線（2026-09-15 三度目の修正で「編集」から改名し、
+// 識別子で一覧を絞り込む q を追加した） ----
 
-test('editor: 各行に「編集」ボタンが出て、押すと SpecWebNavigate("assets", {params:{openId}}) が呼ばれる', async () => {
+test('editor: 各行に「一覧で開く」ボタンが出て、押すと SpecWebNavigate("assets", {params:{q, openId, backTo}}) が呼ばれる', async () => {
   const { dom, render, navigateCalls } = setup();
   const root = dom.document.createElement('div');
   render(root);
   await flush();
 
-  const editButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === '編集');
+  const editButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === '一覧で開く');
   assert.equal(editButtons.length, 2, '発注したもの・受けたものの各1行ぶん出る');
   dom.fire(editButtons[0], 'click');
   // 2026-09-15 二度目の修正: 画面遷移は setTimeout(…, 0) でこのクリックの処理が完全に
@@ -87,20 +88,44 @@ test('editor: 各行に「編集」ボタンが出て、押すと SpecWebNavigat
 
   assert.equal(navigateCalls.length, 1);
   assert.equal(navigateCalls[0].id, 'assets');
+  // 2026-09-15 三度目の修正: 検索欄をその発注の識別子で絞り込むための q を渡す。
+  assert.equal(navigateCalls[0].options.params.q, 'Hit');
   assert.equal(navigateCalls[0].options.params.openId, 'Se::Hit');
   // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡す
   // （一覧画面の詳細パネルに「← 私の発注へ戻る」を出すため）。
   assert.equal(navigateCalls[0].options.params.backTo, 'my-orders');
 });
 
-test('viewer: 「編集」ボタンが出ない', async () => {
+test('viewer: 「一覧で開く」ボタンが出ない', async () => {
   const { dom, render } = setup({ role: 'viewer' });
   const root = dom.document.createElement('div');
   render(root);
   await flush();
 
-  const editButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === '編集');
+  const editButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === '一覧で開く');
   assert.equal(editButtons.length, 0);
+});
+
+// ---- 2026-09-15 三度目の修正: 「編集は一覧の各行の『編集』から」の案内 ----
+
+test('editor: 「編集は一覧の各行の『編集』から行えます。」という案内が出る', async () => {
+  const { dom, render } = setup();
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const hint = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('編集は一覧の各行の「編集」から') !== -1);
+  assert.ok(hint, 'editor には編集導線の案内が出る');
+});
+
+test('viewer: 編集導線の案内が出ない', async () => {
+  const { dom, render } = setup({ role: 'viewer' });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const hint = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('編集は一覧の各行の「編集」から') !== -1);
+  assert.equal(hint, null, 'viewer には案内が出ない');
 });
 
 // ---- 緊急修正（2026-09-14 追補）: 各行から直接削除（アーカイブ） ----

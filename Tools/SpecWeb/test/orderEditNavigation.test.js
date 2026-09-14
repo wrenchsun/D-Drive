@@ -44,8 +44,10 @@ function loadHtmlScriptsWithRealWindow(fileBaseNames, sandbox) {
  * （このファイルの目的そのもの）。
  *
  * ここでは html/App.html を含む実際の <script> をすべて 1 つの vm コンテキストに読み込み、
- * OrderTree.html の「編集」ボタンのクリック→window.SpecWebNavigate→Assets.html の詳細パネルが
- * 開くところまでを、本物の関数を通して確認する。
+ * OrderTree.html の「一覧で開く」ボタン（2026-09-15 三度目の修正で「編集」から改名。
+ * 画面をまたぐ自動オープンが実デプロイで不安定だったため、識別子で一覧を絞り込む方式に
+ * 変更した）のクリック→window.SpecWebNavigate→Assets.html の検索欄の絞り込み・詳細パネルが
+ * （できたら）開くところまでを、本物の関数を通して確認する。
  */
 
 /**
@@ -226,7 +228,7 @@ function setup(role, googleOptions) {
   };
 }
 
-test('発注ツリーの「編集」を押すと、画面を離れずに一覧画面へ遷移し詳細パネルが開く（実際の画面遷移経由）', async () => {
+test('発注ツリーの「一覧で開く」を押すと、画面を離れずに一覧画面へ遷移し、検索欄が識別子で絞り込まれ、詳細パネルが開く（実際の画面遷移経由）', async () => {
   const { dom, appRoot, fireDomContentLoaded } = setup('editor');
 
   // DEFAULT_SCREEN_ID は 'orders'（発注ツリー）。
@@ -234,11 +236,13 @@ test('発注ツリーの「編集」を押すと、画面を離れずに一覧�
   await flush();
   await flush();
 
-  // '編集' ボタンは発注グループ自体の編集(renderGroupEditForm)と、各発注の編集(renderOrderItem)の
-  // 2種類がある。このテストのサンプルはグループ1件・発注1件なので、renderOrderItem が
-  // 描画する（発注の行の）ものは DOM 構築順で最後の '編集' ボタンになる。
-  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '編集');
-  assert.ok(editButtons.length >= 1, '発注ツリーに「編集」ボタンが表示される');
+  // 2026-09-15 三度目の修正: 画面をまたぐ自動オープンが実デプロイで不安定だったため、
+  // 発注ツリーの各発注のボタンは「編集」から「一覧で開く」に改名した（発注グループ自体の
+  // 編集(renderGroupEditForm)は引き続き「編集」のまま）。このテストのサンプルは
+  // グループ1件・発注1件なので、renderOrderItem が描画する（発注の行の）ものだけが
+  // 「一覧で開く」になる。
+  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '一覧で開く');
+  assert.ok(editButtons.length >= 1, '発注ツリーに「一覧で開く」ボタンが表示される');
   const editButton = editButtons[editButtons.length - 1];
 
   assert.doesNotThrow(() => dom.fire(editButton, 'click'));
@@ -250,9 +254,15 @@ test('発注ツリーの「編集」を押すと、画面を離れずに一覧�
   await flush();
   await flush();
 
+  // 2026-09-15 三度目の修正: q パラメータで検索欄がその発注の識別子に絞り込まれる
+  // （params が正しく届いた通常経路の確認。一覧の一番上にその1件だけが出る保険の本体）。
+  const searchInput = dom.findNode(appRoot, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('placeholder') === '検索（識別子・表示名・リファレンス）');
+  assert.ok(searchInput, '一覧の検索欄が見つかる');
+  assert.equal(searchInput.value, 'Hit', '検索欄がその発注の識別子で絞り込まれている');
+
   const heading = dom.findNode(appRoot, (n) => n.tagName === 'h2');
   assert.ok(heading, '詳細パネルの見出し(h2)が表示される');
-  assert.equal(heading.textContent, 'Se :: Hit', '編集ボタンを押した発注の詳細パネルが開く');
+  assert.equal(heading.textContent, 'Se :: Hit', '「一覧で開く」を押した発注の詳細パネルが（できたら開く保険で）開く');
 
   // 緊急修正（2026-09-14 追補）: 発注ツリーから来た場合は「← 発注ツリーへ戻る」ボタンが出て、
   // 押すと（画面遷移を経由して）発注ツリーの画面に戻る。
@@ -265,8 +275,8 @@ test('発注ツリーの「編集」を押すと、画面を離れずに一覧�
 
   const headingAfterBack = dom.findNode(appRoot, (n) => n.tagName === 'h2');
   assert.equal(headingAfterBack, null, '発注ツリーに戻ると詳細パネルの見出しは無くなる');
-  const editButtonsAfterBack = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '編集');
-  assert.ok(editButtonsAfterBack.length >= 1, '発注ツリーの画面に戻っている（編集ボタンが再度見える）');
+  const editButtonsAfterBack = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '一覧で開く');
+  assert.ok(editButtonsAfterBack.length >= 1, '発注ツリーの画面に戻っている（「一覧で開く」ボタンが再度見える）');
 });
 
 /**
@@ -286,15 +296,15 @@ test('発注ツリーの「編集」を押すと、画面を離れずに一覧�
  *      は id は一致するが params が食い違うためガードされず、openId 無しで assets 画面が
  *      丸ごと再 render される → pendingOpenId が最初から null → 詳細が開かず一覧だけになる。
  */
-test('（再現・二度目の修正）history 往復で params が失われても、編集ボタンを押した発注の詳細が開く', async () => {
+test('（再現・二度目の修正）history 往復で params が失われても、「一覧で開く」を押した発注の詳細が開く。検索欄も pendingOpen だけを頼りに絞り込まれる', async () => {
   const { dom, appRoot, fireDomContentLoaded } = setup('editor', { lossyHistory: true });
 
   fireDomContentLoaded();
   await flush();
   await flush();
 
-  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '編集');
-  assert.ok(editButtons.length >= 1, '発注ツリーに「編集」ボタンが表示される');
+  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '一覧で開く');
+  assert.ok(editButtons.length >= 1, '発注ツリーに「一覧で開く」ボタンが表示される');
   const editButton = editButtons[editButtons.length - 1];
 
   assert.doesNotThrow(() => dom.fire(editButton, 'click'));
@@ -310,7 +320,13 @@ test('（再現・二度目の修正）history 往復で params が失われて�
 
   const heading = dom.findNode(appRoot, (n) => n.tagName === 'h2');
   assert.ok(heading, '詳細パネルの見出し(h2)が表示される（history 往復で params が失われても開く）');
-  assert.equal(heading.textContent, 'Se :: Hit', '編集ボタンを押した発注の詳細パネルが開く');
+  assert.equal(heading.textContent, 'Se :: Hit', '「一覧で開く」を押した発注の詳細パネルが開く');
+
+  // 2026-09-15 三度目の修正: q パラメータ自体は lossyHistory で失われるが、maybeOpenPending が
+  // window.SpecWebPendingOpen（openId のみ）から見つけた発注の識別子で検索欄を絞り込む保険が働く。
+  const searchInput = dom.findNode(appRoot, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('placeholder') === '検索（識別子・表示名・リファレンス）');
+  assert.ok(searchInput, '一覧の検索欄が見つかる');
+  assert.equal(searchInput.value, 'Hit', 'params が失われても pendingOpen だけを頼りに検索欄が絞り込まれる');
 
   const notFoundMessage = dom.findNode(appRoot, (n) => n.tagName === 'p' && /見つかりません/.test(n.textContent || ''));
   assert.equal(notFoundMessage, null, '「指定された発注が見つかりません」は出ない（実際に開けている）');
@@ -324,7 +340,7 @@ test('（再現・二度目の修正）history 往復で params が失われて�
  * 外れないままだと、別の画面に切り替えた後の無関係なクリックにまでこの古いリスナーが
  * 反応し続けてしまう（実際に document.addEventListener が積みっぱなしになる不具合）。
  */
-test('発注ツリーで「リンクをコピー ▼」メニューを開いたまま「編集」で画面を離れても、document に張られた古いリスナーは残らない', async () => {
+test('発注ツリーで「リンクをコピー ▼」メニューを開いたまま「一覧で開く」で画面を離れても、document に張られた古いリスナーは残らない', async () => {
   const { dom, appRoot, fireDomContentLoaded } = setup('editor');
 
   fireDomContentLoaded();
@@ -343,7 +359,7 @@ test('発注ツリーで「リンクをコピー ▼」メニューを開いた�
     'メニューを開くと document に外側クリック判定用の click リスナーが1つ増える'
   );
 
-  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '編集');
+  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '一覧で開く');
   const editButton = editButtons[editButtons.length - 1];
   dom.fire(editButton, 'click');
 
@@ -353,7 +369,7 @@ test('発注ツリーで「リンクをコピー ▼」メニューを開いた�
   await flush();
 
   const heading = dom.findNode(appRoot, (n) => n.tagName === 'h2');
-  assert.ok(heading, '編集ボタンを押した発注の詳細パネルが（メニューを開いたままでも）開く');
+  assert.ok(heading, '「一覧で開く」を押した発注の詳細パネルが（メニューを開いたままでも）開く');
 
   const afterNavigateClickListeners = (dom.document._listeners.click || []).length;
   assert.equal(

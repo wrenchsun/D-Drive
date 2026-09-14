@@ -266,8 +266,13 @@
       var newGroupBar = el('div', { class: 'order-tree-new-group' });
       var body = el('div');
       var statusLine = el('p', { class: 'sw-muted' });
+      // 2026-09-15: 「一覧で開く」に改名した各発注のボタンでは編集できないため、編集は一覧の
+      // 各行の「編集」から行う案内を出す（canEdit() が判明する reload() 完了後に文言を入れる。
+      // viewer は編集できないので出さない）。
+      var editHintLine = el('p', { class: 'sw-muted' });
 
       root.appendChild(statusLine);
+      root.appendChild(editHintLine);
       root.appendChild(toolbar);
       root.appendChild(newGroupBar);
       root.appendChild(body);
@@ -483,8 +488,17 @@
       }
 
       /**
-       * O-15: 一覧・「私が発注／私が受けた」と同様、発注ツリーの各発注にも編集への導線を付ける
+       * O-15: 一覧・「私が発注／私が受けた」と同様、発注ツリーの各発注にも一覧への導線を付ける
        * （viewer には出さない）。O-16: メモが入力済みなら 📝 アイコンで整形表示を展開できる。
+       *
+       * 2026-09-15 三度目の修正: 画面をまたぐ自動オープン（旧「編集」ボタン、一覧画面へ遷移して
+       * その場で詳細パネルが開くことを期待する方式）が実デプロイで繰り返し不安定だったため、
+       * 「一覧で開く」に改名し、一覧画面を検索欄がその発注の識別子で絞り込まれた状態
+       * （params.q）で開くだけにした。自動オープン自体は「できたら開く」保険として
+       * params.openId/backTo も併せて渡す（既存の pendingOpen 機構をそのまま再利用）が、
+       * 開かなくても一覧の一番上にその1件だけが出るので、その行の「編集」を押せば確実に開ける
+       * （docs/32_spec_web.md 参照）。編集そのものは一覧の各行の「編集」ボタンで行う
+       * （html/Assets.html 参照、この画面には案内メッセージを出す。renderNewGroupBar 内）。
        */
       function renderOrderItem(item) {
         var li = el('li');
@@ -505,7 +519,7 @@
         if (canEdit()) {
           li.appendChild(el('button', {
             class: 'secondary',
-            text: '編集',
+            text: '一覧で開く',
             onclick: function (ev) {
               // 2026-09-15 二度目の修正: この click はまだ document まで bubble する途中
               // （stopPropagation していなかった）。離れる直前の画面が document に張ったままの
@@ -519,9 +533,11 @@
               // 存在確認してから呼ぶ。実アプリでは常に存在する）。
               if (typeof window.SpecWebNavigate !== 'function') return;
               setTimeout(function () {
-                // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡し、
-                // 一覧画面（Assets.html）の詳細パネルに「← 発注ツリーへ戻る」を出せるようにする。
-                window.SpecWebNavigate('assets', { params: { openId: item.id, backTo: 'orders' } });
+                // 2026-09-15 三度目の修正: q（識別子）で一覧の検索欄を絞り込み、openId/backTo は
+                // 「できたら自動で開く」ための保険として併せて渡す（見つからない/開けなくても
+                // 一覧の一番上にその1件だけが出る。緊急修正（2026-09-14 追補）で渡していた
+                // backTo により、一覧画面の詳細パネルに「← 発注ツリーへ戻る」が出る）。
+                window.SpecWebNavigate('assets', { params: { q: item.identifier, openId: item.id, backTo: 'orders' } });
               }, 0);
             }
           }));
@@ -663,6 +679,8 @@
           state.ganttUrl = settingsRes.ok ? settingsRes.ganttUrl || '' : '';
           if (whoamiRes.ok) state.currentUser = whoamiRes;
           statusLine.textContent = '';
+          // 2026-09-15: 「編集は一覧の各行の『編集』から」の案内（canEdit() でないなら出さない）。
+          editHintLine.textContent = canEdit() ? '編集は一覧の各行の「編集」から行えます。' : '';
           renderToolbar();
           renderNewGroupBar();
           renderBody();
