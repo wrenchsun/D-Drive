@@ -35,6 +35,9 @@ namespace DDrive.Tests.Runtime
         [TearDown]
         public void TearDown()
         {
+            // P5 レビュー対応(2026-09-14) tests P2-3: Facade_UnboundAnim_... が Anim.Bind(null) を
+            // テスト本体でしか呼んでいなかった(ScenePreloadTests/TuningTests の流儀に揃える)。
+            Anim.Bind(null);
             _manager.StopAll(StopReason.Manual);
             Object.DestroyImmediate(_actor);
         }

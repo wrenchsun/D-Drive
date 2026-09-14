@@ -18,6 +18,16 @@ namespace DDrive.Editor.Dependencies
     {
         private const int MaxHits = 5;
 
+        // P5 レビュー対応(2026-09-14): 削除のたびに Assets 配下の全 .cs を同期で全文読み込んでいた
+        // (安全な削除・依存ツリーからの一括削除で件数が増えるほど重くなる)。対策 2 点:
+        //   - 走査対象を「自前コード」(Assets/DDrive・Assets/Generated)に限定する(TextMesh Pro 等の
+        //     同梱サンプルコードは対象外。生成された ID 定数の利用箇所はこの 2 フォルダにしか無い前提)。
+        //   - ファイル内容をこのクラスの static キャッシュ(更新時刻キー)に保持し、同じ Editor セッション内で
+        //     複数回呼ばれても変更が無いファイルは再読み込みしない(Library を再構築しても消える程度の
+        //     エディタ限定キャッシュなので Undo/永続化は不要)。
+        private static readonly string[] ScanRoots = { "DDrive", "Generated" };
+        private static readonly Dictionary<string, (DateTime writeTimeUtc, string text)> FileCache = new();
+
         // 見つからない/判定できない場合は null。見つかった場合は確認ダイアログにそのまま載せられる文言を返す。
         public static string FindPossibleReferences(AssetDataBase asset, string assetPath)
         {
@@ -31,32 +41,42 @@ namespace DDrive.Editor.Dependencies
 
                 var hits = new List<string>();
                 var dataPath = Application.dataPath.Replace('\\', '/');
-                foreach (var file in Directory.GetFiles(Application.dataPath, "*.cs", SearchOption.AllDirectories))
+
+                foreach (var root in ScanRoots)
                 {
-                    var normalized = file.Replace('\\', '/');
-                    if (normalized.EndsWith("/Generated/AssetIds.g.cs", StringComparison.Ordinal))
+                    var rootPath = Path.Combine(Application.dataPath, root);
+                    if (!Directory.Exists(rootPath))
                     {
-                        continue; // 生成ファイル自身に定数が並ぶのは当然なので除外
+                        continue;
                     }
 
-                    string text;
-                    try
+                    foreach (var file in Directory.GetFiles(rootPath, "*.cs", SearchOption.AllDirectories))
                     {
-                        text = File.ReadAllText(normalized);
-                    }
-                    catch (Exception)
-                    {
-                        continue; // 読めないファイルはスキップ(CLAUDE.md §0-4)
-                    }
-
-                    if (text.IndexOf(pattern, StringComparison.Ordinal) >= 0)
-                    {
-                        var relative = "Assets" + normalized.Substring(dataPath.Length);
-                        hits.Add(relative);
-                        if (hits.Count >= MaxHits)
+                        var normalized = file.Replace('\\', '/');
+                        if (normalized.EndsWith("/Generated/AssetIds.g.cs", StringComparison.Ordinal))
                         {
-                            break;
+                            continue; // 生成ファイル自身に定数が並ぶのは当然なので除外
                         }
+
+                        if (!TryReadCached(normalized, out var text))
+                        {
+                            continue; // 読めないファイルはスキップ(CLAUDE.md §0-4)
+                        }
+
+                        if (text.IndexOf(pattern, StringComparison.Ordinal) >= 0)
+                        {
+                            var relative = "Assets" + normalized.Substring(dataPath.Length);
+                            hits.Add(relative);
+                            if (hits.Count >= MaxHits)
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (hits.Count >= MaxHits)
+                    {
+                        break;
                     }
                 }
 
@@ -72,6 +92,28 @@ namespace DDrive.Editor.Dependencies
             {
                 Debug.LogWarning($"[DDrive] CodeReferenceScan: 走査に失敗しました: {e.Message}");
                 return null;
+            }
+        }
+
+        private static bool TryReadCached(string normalizedPath, out string text)
+        {
+            try
+            {
+                var writeTime = File.GetLastWriteTimeUtc(normalizedPath);
+                if (FileCache.TryGetValue(normalizedPath, out var cached) && cached.writeTimeUtc == writeTime)
+                {
+                    text = cached.text;
+                    return true;
+                }
+
+                text = File.ReadAllText(normalizedPath);
+                FileCache[normalizedPath] = (writeTime, text);
+                return true;
+            }
+            catch (Exception)
+            {
+                text = null;
+                return false;
             }
         }
 

@@ -34,6 +34,11 @@ namespace DDrive.Runtime.Haptics
         private bool _extensionsWarned;
         private bool _paused;
 
+        // P5 レビュー対応(2026-09-14): フォーカス喪失中は出力 0 を固定するフラグ。ResetOutput() は
+        // その場で 1 回 0 を出すだけなので、runInBackground=true でフォーカス喪失後も Tick が回り続けると
+        // 次の Tick で ComposeAndOutput が振動を復活させてしまっていた(要修正の指摘)。
+        private bool _focusLost;
+
         private float _globalScale = 1f;
 
         public AssetType Type => AssetType.Haptics;
@@ -106,8 +111,20 @@ namespace DDrive.Runtime.Haptics
 
         public void SetGlobalScale(float scale) => _globalScale = Mathf.Max(0f, scale);
 
-        // アプリ終了・フォーカス喪失時など、再生中インスタンスは残したままモーターだけ即座に 0 に戻す。
+        // アプリ終了時など、再生中インスタンスは残したままモーターだけ即座に 0 に戻す(1 回だけ)。
         public void ResetOutput() => _output.SetMotors(0f, 0f);
+
+        // P5 レビュー対応(2026-09-14): フォーカス喪失/復帰の通知(DDriveRuntimeBootstrap.OnApplicationFocus)。
+        // 喪失中は Tick(ComposeAndOutput)の結果を無視して出力を 0 に固定し続ける。再生中の Instance 自体は
+        // 止めない(復帰後に自然な減衰で終わる、という既存方針は変えない)。
+        public void SetFocusLost(bool lost)
+        {
+            _focusLost = lost;
+            if (lost)
+            {
+                _output.SetMotors(0f, 0f);
+            }
+        }
 
         private void Remove(Handle<HapticMarker> handle)
         {
@@ -138,6 +155,13 @@ namespace DDrive.Runtime.Haptics
                 {
                     Remove(handle);
                 }
+            }
+
+            if (_focusLost)
+            {
+                // フォーカス喪失中は出力を 0 に固定する(Instance の進行/失効は止めない)。
+                _output.SetMotors(0f, 0f);
+                return;
             }
 
             ComposeAndOutput();
