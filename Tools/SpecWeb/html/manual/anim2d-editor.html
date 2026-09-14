@@ -1,0 +1,229 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › 2D アニメーション(スプライト)の作成と Anim2D Editor</nav>
+
+<h1>2D アニメーション(スプライト)の作成と Anim2D Editor</h1>
+
+<p>2D アニメーションデータ（Anim2DData）は「<strong>このパラパラ絵（スプライトの Clip）を、どのステート・レイヤーで、方向ありなら 4 方向 / 8 方向のどれとして再生するか</strong>」をまとめた再生単位です。3D のアニメーションデータ（AnimData）の仲間なので、再生の仕組み・Frame/Time イベント・切り替え時の混ざり（CrossFade）はすべて 3D と共通です。</p>
+<p><strong>スプライトシート</strong>（コマ絵を 1 枚の画像に並べたもの）を渡すと、Anim2D Editor が次をまとめて行います。</p>
+<ol>
+<li><strong>スライス</strong>: 画像をコマごとに切り分ける（等分割 / 透明部分から自動検出 / 切り分け済みをそのまま使う）</li>
+<li><strong>命名</strong>: コマの名前と Clip 名を規約どおりに付ける（<code>Anim_{Name}_{State}</code>、方向ありは末尾に角度）</li>
+<li><strong>AnimationClip 生成</strong>: コマを順に差し替える Clip（<code>.anim</code>）を保存する。保存先フォルダも自動で作られます</li>
+<li><strong>Animator 登録（任意）</strong>: 方向ありなら、ステート名と同名の「2D Freeform Directional」BlendTree（向きに応じてコマを切り替える仕組み）に角度ごとの Clip を登録し、無ければ BlendTree を新規作成、向き用の <code>x</code> / <code>y</code> パラメータも自動追加</li>
+<li><strong>Anim2DData 作成</strong>: ID 発行・ファイル名・カタログ登録・Addressables 登録まで一括</li>
+</ol>
+<div class="tip">
+<strong>3D の Anim Editor との関係:</strong> イベントの編集・タイムライン・マーカーのドラッグ・SE / VFX の同時プレビュー・ブレンド確認は、2D 用に作り直しておらず <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">Anim Editor</a> をそのまま使います。Anim2D Editor が担当するのは「作成モード一式（スライス・命名・方向セット一括・BlendTree 登録）」「リタイミング（コマ間隔の焼き込み）」「2D 用プレビュー物」の 3 つです。Anim2DData を Project で選ぶと Inspector の一番上に「▶ Anim2D Editor で開く」と「▶ Anim Editor で開く」の両方が出ます。
+</div>
+
+<h2>開き方</h2>
+<ol>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Animation (2D)</code>（ウィンドウ名は「Anim2D Editor」）。Project で Anim2DData を選んでいれば、そのまま編集モードで読み込まれます</li>
+<li>既にある Anim2DData を Project で選び、<strong>Inspector の一番上の「▶ Anim2D Editor で開く」</strong>を押す</li>
+<li><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>Anim2D (Anim2DData)</strong> を選んで空のデータを作ることもできます（Clip は入っていないので、あとから Anim2D Editor の作成モードで生成するか手で入れます）。種別フィルタでも <strong>Anim2D</strong> で絞り込めます</li>
+</ol>
+<div class="warn">Asset Browser に画像をドラッグ&amp;ドロップしても Anim2DData は作れません（ドラッグ&amp;ドロップで作れるのは音源 → SE だけです）。画像からの作成は必ず Anim2D Editor の作成モードで行います。</div>
+
+<h2>はじめの一歩（4 コマ横並びのシートから待機アニメを作る）</h2>
+<ol>
+<li><code>Tools &gt; D-Drive &gt; Editors &gt; Animation (2D)</code> を開き、上部のトグルを「<strong>作成</strong>」にする</li>
+<li>「入力」の「入力モード」を <strong>Grid</strong>、「Columns」= 4、「Rows」= 1、「Sprite Count」= 4 にし、「Texture(単一)」に 4 コマ横並びのシートを入れる（「方向セット(BlendTree)」は <strong>None</strong> のまま）</li>
+<li>「命名」の「Name」にキャラ名（例: Player）、「State」にステート名（例: Idle）を入れる。Import Profile に登録済みなら「プロファイルから選択」で選ぶだけで両方入ります</li>
+<li>「アニメーション」で「Frame Rate」= 12、「Loop」ON、「Length Mode」= Frames、「Length」= 4 にする（12 fps で 4 コマ = 1 周 1/3 秒）</li>
+<li>「<strong>生成</strong>」→ Clip <code>Anim_Player_Idle</code> と Anim2DData <code>Player Idle</code> ができ、そのまま編集モードの「編集対象」に入ります</li>
+<li>編集モードの「プレビュー(SceneView で確認)」で「<strong>確認用シーンを開く</strong>」→「<strong>▶ 再生</strong>」→ SceneView でコマが切り替わるのを確認。終わったら「<strong>撤去</strong>」</li>
+<li>足音や効果音を付けたいときは「<strong>Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)</strong>」→ <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">Anim Editor</a> のタイムラインで「＋ 現在位置に SE」（手順はそちらのページ）</li>
+</ol>
+<div class="tip">プログラマーは 3D と同じく <code>Anim.Play(ID, animator)</code> を呼ぶだけです。カタログも 3D と共通（AnimCatalog）です。</div>
+
+<h2>画面の説明</h2>
+<h3>共通ヘッダ（どちらのモードでも表示）</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>作成 / 編集</td><td>モードの切り替え（どちらか一方）。<strong>作成</strong> = 画像から Clip と Anim2DData を作る。<strong>編集</strong> = できた Anim2DData をシーンで確認・イベントへ橋渡し・コマ間隔の調整・検証。作成モードの入力欄はウィンドウを開き直すと消えます（編集対象だけは残ります）</td></tr>
+<tr><td>Import Profile</td><td>命名候補（Name と State の組み合わせ）と Clip の保存先を持つ設定ファイル。空にするとプロジェクト内の既定プロファイルを自動で探し直し、無ければ保存されない組み込みの既定が使われます</td></tr>
+<tr><td>検証</td><td>折りたたみ。読み込んだ Anim2DData の問題を表示します（下の「よくある警告」）</td></tr>
+</table>
+
+<h3>作成モード</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>入力モード</td><td><strong>Grid</strong> = 画像を Columns × Rows で等分割する（コマの大きさが揃ったシート向け）。<strong>Automatic</strong> = 透明な背景からコマの矩形を自動検出する（隙間が不揃いなシート向け）。<strong>Existing</strong>（既存スプライト）= 既に Sprite Editor などで切り分け済みの画像から、そのコマを拾うだけ</td></tr>
+<tr><td>Columns / Rows / Sprite Count</td><td>Grid 用。列数・行数と、左上から行順に使うコマ数（Columns × Rows を超えると切り詰め）。既定 4 / 1 / 4。Columns の 1 未満は 1 になります</td></tr>
+<tr><td>Min Sprite Size / Extrude</td><td>Automatic 用。検出する矩形の最小サイズ（既定 16。小さいゴミを拾わないため）と、矩形の外側に足す余白（既定 0）</td></tr>
+<tr><td>方向セット(BlendTree)</td><td><strong>None</strong> = 方向なし（1 枚の画像から 1 本の Clip）。<strong>Four</strong> = 0 / 90 / 180 / 270 度。<strong>Eight</strong> = 45 度刻み。None 以外にすると「方向ごとの Texture(4|8 方向。空欄は無視されます)」の欄が角度名（「0°」「45°」…「315°」）で並び、角度ごとに画像を入れます</td></tr>
+<tr><td>Texture(単一)</td><td>方向なしのときの元画像</td></tr>
+<tr><td>検出プレビュー(Automatic)</td><td>自動検出を実行し、画像の上に結果を重ねて表示します。<strong>緑の枠 = 生成に使う矩形、枠の番号 = コマの順番</strong>。結果は「検出: N 枚 / 推定 R 行 x C 列(規則的グリッド|不規則)…」のように出ます。押した時点で入力モードが自動的に Automatic に切り替わります。表示の縮尺は元画像のサイズ基準なので、Max Size で縮小される大きな画像でも枠はずれません</td></tr>
+<tr><td>Sprite Editor で手動補正</td><td>検出した矩形を画像の Importer に書き込んでから Unity の Sprite Editor を開きます（検出前は押せません）。Sprite Editor で直して Apply したら、入力モードは「既存スプライト」に切り替わっているので「生成」を押すだけです。<strong>2D Sprite パッケージ（com.unity.2d.sprite）が無いと開けません</strong>（案内メッセージが出ます。現状は未導入）</td></tr>
+<tr><td>プロファイルから選択</td><td>Import Profile の Entry 一覧。選ぶと「Name」と最初の State が入ります。Entry が無いと「(プロファイルに Entry がありません)」だけが出ます</td></tr>
+<tr><td>Name / State</td><td>どちらも必須。Clip 名・Anim2DData の名前・カテゴリ（フォルダ分け）に使われます。空のまま「生成」すると Console に「Name / State を入力してください。」が出て何も作られません</td></tr>
+<tr><td>方向(単一クリップの命名/登録用)</td><td>方向セットが None のときに、この 1 本を何度の Clip として扱うか。<strong>FromName</strong> = 画像名の末尾から自動判定（下の「命名規約」）/ None / Deg0…Deg315。角度があると BlendTree にその角度で登録されます</td></tr>
+<tr><td>Frame Rate / Loop</td><td>1 秒あたりのコマ数（既定 12）とループ再生（既定 ON）</td></tr>
+<tr><td>Length Mode / Length</td><td>Clip の長さ。<strong>Frames</strong> なら「Length フレーム分」（既定 8 = 8 ÷ Frame Rate 秒）、<strong>Seconds</strong> なら秒</td></tr>
+<tr><td>Animator(任意): AnimatorController / Layer</td><td>入れると BlendTree 登録まで行います。空のままなら登録は飛ばされ、Clip と Anim2DData だけができます（あとから Controller に手で組み込む前提）</td></tr>
+<tr><td>生成</td><td>方向なし: スライス → Clip 生成 → 角度があれば BlendTree 登録 → Anim2DData 作成。方向セットあり: 角度ごとの画像を順に処理し、角度順に Direction Clips を組み立てます（一番小さい角度、通常 0° の Clip が主 Clip になります）。同じ角度に既に Clip が登録されていると「BlendTree 登録」ダイアログ「角度 N には既にクリップが登録されています。上書きしますか?」が出るので「上書き」か「スキップ」を選びます。生成後は編集モードの対象欄に自動で入ります</td></tr>
+</table>
+
+<h3>編集モード</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>編集対象</td><td>「Anim2DData」欄と「読み込み」ボタン。読み込むと「Clip 名: N 枚 / 秒 / fps」の要約が出ます。「Clip が未設定、または Sprite キーフレームを読み込めませんでした。」なら Clip が無いか、コマ差し替えの Clip ではありません</td></tr>
+<tr><td>プレビュー(SceneView で確認)</td><td>ウィンドウ内には絵を出さず、シーンに <code>[D-Drive] Anim2D Preview</code>（SpriteRenderer + Animator。<strong>シーンには保存されません</strong>）を置いて実際の再生経路で動かします。「<strong>確認用シーンを開く</strong>」= VFX と共通の確認用シーンを開き（無ければ生成）プレビュー物を配置 / 「<strong>今のシーンに配置</strong>」= 開いているシーンやプレハブモードに置く / 「<strong>▶ 再生</strong>」= 未配置なら自動配置してから再生 / 「<strong>■ 停止</strong>」/ 「<strong>撤去</strong>」= プレビュー物を消す。状態は「プレビュー物は未配置」「プレビュー物を配置済み(SceneView を確認)」「● 再生中 N%(周回 N)」「■ 停止」「Anim Editor に引き渡し済み」などと表示されます</td></tr>
+<tr><td>Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)</td><td>イベント編集は共通の <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">Anim Editor</a> で行うため、そちらへ橋渡しします。押すと再生を止め、<strong>プレビュー物はシーンに残したまま</strong> Anim Editor に引き渡します（絵が消えないようにするため）。Anim Editor 側が同じプレビュー物をそのまま引き取ります</td></tr>
+<tr><td>イベント要約</td><td>読み取り専用。「イベント: なし。「Anim Editor で開く」から追加できます。」または「イベント: N 件(Frame a / Time b / PlayAsset(SE・VFX 等) c)」。Anim Editor から戻ってウィンドウをクリックすると自動更新されます</td></tr>
+<tr><td>リタイミング</td><td>コマの間隔（各コマを何秒目に出すか）を Clip に書き込みます。「<strong>配置モード</strong>」= <strong>Uniform</strong>（等間隔に戻す）/ <strong>Retiming</strong>（下の「Retiming」のカーブで不均等に配置）。「<strong>Retiming</strong>」= 共通の ValueDef 欄（「モード」「定数」「Parametric種別」「Ease」「Bezier P1 / P2」「From」「To」「カーブ」「Normalized」など）。「<strong>適用(Clip に焼き込む)</strong>」= 主 Clip を書き換え、さらに<strong>同じコマ数の方向 Clip すべてに同じ配置をまとめて適用</strong>します。Ctrl+Z で戻せます</td></tr>
+<tr><td>検証 / 修正</td><td>読み込んだデータの問題を並べます。自動で直せる行にだけ「<strong>修正</strong>」ボタンが付きます（例: BlendTree の x / y パラメータ不足）。未読み込みなら「対象を読み込むと検証結果が出ます。」、問題無しなら「Validation に問題はありません。」</td></tr>
+</table>
+
+<h2>設定項目</h2>
+<h3>Anim2DData 固有</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Directions（方向）</td><td>None = 方向なし / Four = 0・90・180・270 / Eight = 45 度刻み。Four / Eight のときは State Name の BlendTree に Direction Clips が登録されている前提で動きます</td></tr>
+<tr><td>Direction Clips</td><td>角度順（0 / 45 / … / 315、Four なら 0 / 90 / 180 / 270）の Clip。ツールが自動で登録します（Four は 4 本、Eight は 8 本必要）</td></tr>
+<tr><td>Param X Name / Param Y Name</td><td>BlendTree の向きパラメータ名。既定は <code>x</code> / <code>y</code>（ツールの規約）。方向ありで空だと Error</td></tr>
+<tr><td>Retiming</td><td>コマ配置のカーブ。編集モードの「適用」で Clip のキー時刻に焼き込むためのもので、<strong>ゲーム中には参照されません</strong>。初期値は Constant(1)</td></tr>
+</table>
+<h3>3D のアニメーションデータと共通の項目</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Clip</td><td>再生する Clip。長さ・フレームレートはイベント（Frame/Time）と終了判定に使います。Frame Rate は Clip から読まれます（未設定なら 30 扱い）</td></tr>
+<tr><td>State Name / Layer</td><td>Animator Controller 上のステート名（CrossFade の対象。空なら Clip の名前）とレイヤー</td></tr>
+<tr><td>Loop</td><td>ON なら周回ごとに OnLoop が出て、止める指示があるまで続きます</td></tr>
+<tr><td>Default Cross Fade</td><td>切り替え時の混ざり秒数（既定 0.1）</td></tr>
+<tr><td>Mask / Ik / Blend Shapes</td><td>3D 向け。2D では通常使いません</td></tr>
+<tr><td>Display Name / Description / Category / Tags / Icon / Events</td><td>表示名・説明・フォルダ分け・タグ・アイコン・イベント一覧。Events（Frame/Time で SE・VFX を出す本体）の編集は <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">Anim Editor</a> で行います</td></tr>
+</table>
+<h3>Import Profile（Anim2D Import Profile）</h3>
+<p>Project の右クリック <code>Create &gt; D-Drive &gt; Anim &gt; Anim2D Import Profile</code> で作ります（既定ファイル名 <code>Anim2DImportProfile</code>）。プロジェクト内の 1 つが自動で使われます。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Entries（Name / States）</td><td>名称（例: Player）と、その名称で使えるステート一覧（例: Idle, Run, Attack）。作成モードの「プロファイルから選択」に出ます</td></tr>
+<tr><td>Default Clip Folder</td><td>生成した Clip の保存先（既定 <code>Assets/GameData/Anim2D/Clips</code>）</td></tr>
+<tr><td>Default Frame Rate / Default Directions</td><td>ツールチップ上は「既定」ですが、<strong>現状はウィンドウの初期値（12 / None）に反映されません</strong>。実際に効くのは Entries と Default Clip Folder です</td></tr>
+</table>
+<h3>Anim2DFacing（向きを自動で切り替える部品）</h3>
+<p>8 方向 BlendTree の向きを移動方向から自動で決めるコンポーネント。キャラの GameObject に付けて使います。<strong>Target</strong>（向きを書き込む Animator。空なら自身）/ <strong>Camera Relative</strong>（既定 ON。カメラの向き基準。Camera.main が無ければワールド基準）/ <strong>Smoothing</strong>（向きの平滑化秒。既定 0.08、0 で即時）/ <strong>Param X / Param Y</strong>（BlendTree のパラメータ名）/ <strong>Initial Direction</strong>（開始時の向き。上 = (0,1)）。プログラム側は移動ベクトルを渡すだけです。</p>
+
+<h2>命名規約（ツールが自動で付けるもの）</h2>
+<table>
+<tr><th>対象</th><th>規則</th></tr>
+<tr><td>Clip 名</td><td>方向なし: <code>Anim_{Name}_{State}</code> / 方向あり: <code>Anim_{Name}_{State}_{角度}</code>（角度は 0 / 45 / 90 / 135 / 180 / 225 / 270 / 315）</td></tr>
+<tr><td>画像名の末尾の角度</td><td>「方向」を FromName にしたとき、画像名が <code>_0</code> <code>_45</code> … <code>_315</code> で終わっていればその角度になります（例: <code>player_run_90.png</code> → 90°）。それ以外は方向なし扱い</td></tr>
+<tr><td>Sprite（コマ）の名前</td><td><code>{画像名}_{連番}</code>（0 始まり）。Grid / Automatic 共通</td></tr>
+<tr><td>コマの順番</td><td>Grid: 左上から右へ、行ごとに下へ。Automatic: コマの中心の高さで行に分け、行の中は左から右、行は上から下。Existing: Sprite Editor の並び（左上 → 右下）に揃えます</td></tr>
+<tr><td>Clip の保存先</td><td>Import Profile の Default Clip Folder（未設定なら <code>Assets/GameData/Anim2D/Clips</code>）。フォルダが無ければ作られます。同名があると <code>Anim_X_Y 1.anim</code> のように連番が付きます（上書きではありません）</td></tr>
+<tr><td>Anim2DData の保存先と名前</td><td><code>Assets/GameData/Anim2D/{カテゴリ}/ANIM2D_{カテゴリ}_{識別子}.asset</code>。カテゴリ = Name、識別子 = Name + State を英数字にしたもの、表示名は「{Name} {State}」。ID の頭は <code>ANIM2DID</code></td></tr>
+</table>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>4 コマ横並びのシートから待機アニメ</td><td>入力モード Grid、Columns=4 / Rows=1 / Sprite Count=4、Name / State を入力、Frame Rate=12、Loop ON、Length Mode=Frames / Length=4 →「生成」</td></tr>
+<tr><td>隙間が不揃いなシートを切る</td><td>Texture を入れて「検出プレビュー(Automatic)」→ 緑枠と番号を確認 →「生成」（入力モードは自動で Automatic になります）</td></tr>
+<tr><td>自動検出がずれたので手で直す</td><td>「検出プレビュー」→「Sprite Editor で手動補正」→ Sprite Editor で直して Apply → 入力モードが「既存スプライト」になっているので「生成」（2D Sprite パッケージが必要）</td></tr>
+<tr><td>8 方向キャラの歩きを一括で作る</td><td>方向セット=Eight、「0°」〜「315°」に各画像、AnimatorController と Layer を指定 →「生成」で 8 本の Clip + BlendTree 登録 + Direction Clips が一度にできます</td></tr>
+<tr><td>攻撃の当たるコマで SE / VFX</td><td>編集モード →「Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)」→ タイムラインで「＋ 現在位置に SE」（<a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">Anim Editor</a> 参照）</td></tr>
+<tr><td>ためて素早く振る（コマ間隔を不均等に）</td><td>編集モード → 配置モード=Retiming → Retiming の「モード」を Parametric にして Ease（EaseInOut など）を選ぶ →「適用(Clip に焼き込む)」。方向 Clip も同時に揃います</td></tr>
+<tr><td>コマ間隔を等間隔に戻す</td><td>配置モード=Uniform で「適用(Clip に焼き込む)」</td></tr>
+<tr><td>シーンで動きを確認する</td><td>編集モード →「確認用シーンを開く」（または「今のシーンに配置」）→「▶ 再生」。終わったら「撤去」</td></tr>
+<tr><td>移動方向に合わせて自動で向きを変える</td><td>キャラに Anim2DFacing を付け、Camera Relative / Smoothing を調整。向きの計算はプログラム側が移動ベクトルを渡します</td></tr>
+</table>
+
+<h2>よくある警告</h2>
+<p>「検証」パネルに出るもの（3D と共通の警告は <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">Anim Editor</a> のページも参照）。</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Clip が未生成(または Missing)です。Anim2DEditor で生成してください</td><td>作成モードで生成し直すか、Clip を手で入れる</td></tr>
+<tr><td>Directions=Four|Eight ですが DirectionClips が N 本です(M 本必要)</td><td>足りない角度の画像を入れて生成し直す（生成時に Console にも「方向クリップが不足しています」と出ます）</td></tr>
+<tr><td>DirectionClips[i] が未設定(または Missing)です</td><td>その角度の Clip を入れ直す</td></tr>
+<tr><td>方向付きなのに BlendTree のパラメータ名(ParamXName / ParamYName)が空です</td><td>Param X Name に <code>x</code>、Param Y Name に <code>y</code> を入れる</td></tr>
+<tr><td>Directions=None ですが DirectionClips が設定されています(使われません)</td><td>方向セットにするか、Direction Clips を空にする</td></tr>
+<tr><td>Controller に StateName '…' が見つかりません(BlendTree のパラメータ検査をスキップしました)</td><td>Controller にステートを作るか State Name を合わせる（Controller の配線は任意なので警告止まり）</td></tr>
+<tr><td>'…' の BlendTree に x,y パラメータ … がありません</td><td>「修正」ボタンで Float パラメータが自動追加されます</td></tr>
+<tr><td>'…' のスライス済みスプライトの参照が N 件切れています(元テクスチャの再インポート等で消失した可能性があります)</td><td>元画像を再スライスして Clip を作り直す</td></tr>
+<tr><td>Frame イベント(…)が Clip 長(… フレーム)を超えています / Time イベント(…s)が Clip 長(…s)を超えています</td><td>Anim Editor でマーカーを Clip の長さより手前に動かす</td></tr>
+<tr><td>Loop=false ですが OnLoop イベントがあります(発火しません)</td><td>Loop を ON にするか行を消す</td></tr>
+</table>
+<p>Console（ログ）に出る主なもの:</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>[Anim2D] リタイミングのカーブが 0 → 1 へ単調増加していないため適用しませんでした。…</td><td>Retiming が初期値 Constant(1) のまま。Ease かカーブを設定してから「適用」（下の注意点）</td></tr>
+<tr><td>[AutomaticSpriteSlicer] 検出された矩形が 0 件です。背景が透明でない / minSpriteSize が大きすぎる可能性があります。</td><td>背景が透明な画像か確認する。Min Sprite Size を小さくする</td></tr>
+<tr><td>[ExistingSpriteCollector] … 内に Sprite が見つかりません。TextureImporter が Sprite/Multiple になっているか確認してください。</td><td>Existing は切り分け済みの画像専用。画像の Inspector で Texture Type = Sprite、Sprite Mode = Multiple にしてスライスしておく</td></tr>
+<tr><td>[Anim2DEditorWindow] 有効な方向クリップが 1 枚もありません。Anim2DData を作成しませんでした。</td><td>方向ごとの Texture 欄がすべて空か失敗。少なくとも 1 つ画像を入れる</td></tr>
+<tr><td>[BlendTreeRegistrar] ステート "…" が存在しますが、Motion が BlendTree ではありません。/ BlendTree "…" の BlendType が FreeformDirectional2D ではありません。</td><td>Controller に同名のステートが別の形で既にあります。ステート名を変えるか、Controller 側を 2D Freeform Directional の BlendTree にする</td></tr>
+</table>
+
+<h2>注意点</h2>
+<div class="warn">
+<strong>リタイミングの初期値では何も起きません。</strong> Retiming の初期値は Constant(1) で、そのまま配置モード=Retiming で「適用」しても警告が出るだけで Clip は変わりません（全コマが最後に潰れるのを防ぐため、0 → 1 に増えていくカーブだけを受け付けます）。Retiming の「モード」を Parametric にして Ease を選ぶか、カーブを描いてから適用してください。
+</div>
+<ul>
+<li><strong>プレビュー物は「撤去」でしか消えません。</strong> <code>[D-Drive] Anim2D Preview</code> はウィンドウを閉じてもスクリプトの再コンパイルでも残ります（Anim2D Editor と Anim Editor で 1 つを共有）。消えるのは「撤去」を押したとき、Anim Editor 側で確認用モデルを設定・変更したとき、3D のアニメーションデータに切り替えたときだけです</li>
+<li><strong>Anim Editor の「確認用モデル(ModelData)」は 2D では使えません。</strong> 入れても None に戻り、ログに「⚠ Anim2DData では確認用モデル(3D)は使いません(None に戻しました)…」と出ます。2D のプレビュー物をそのまま使ってください</li>
+<li><strong>「Sprite Editor で手動補正」は 2D Sprite パッケージ（com.unity.2d.sprite）が必要です。</strong> 無いと案内メッセージが出て開けません（現状は未導入。導入は Package Manager から、プログラマーに相談）</li>
+<li><strong>生成は画像の Import 設定を書き換えます。</strong> Texture Type = Sprite / Multiple、Mipmap OFF、Filter = Point、圧縮なし、NPOT なしになります。さらに Automatic での生成と「Sprite Editor で手動補正」は Max Size を 16384 に変えたままにします（Grid は Max Size を触りません。「検出プレビュー」だけなら検出後に元に戻ります）</li>
+<li><strong>方向 Clip のリタイミングは飛ばされることがあります。</strong> 主 Clip と同じコマ数の方向 Clip だけが対象で、枚数が違うものはスキップされ、Console に「適用 A / スキップ B」と件数が出ます</li>
+<li><strong>同じ名前で生成し直すと Clip が増えます。</strong> 上書きではなく <code>Anim_X_Y 1.anim</code> のように連番付きで別に保存されます。古い方は手で消してください</li>
+<li><strong>BlendTree 登録の前提。</strong> State と同名のステートが対象レイヤーに無ければ 2D Freeform Directional の BlendTree を新規作成します。既にあるが BlendTree でない / 種類が違うとエラー・警告になります。Layer が Controller のレイヤー数を超えているとエラーです</li>
+<li><strong>Import Profile の Default Frame Rate / Default Directions は初期値に反映されません。</strong> 作成モードは毎回 12 / None から始まります</li>
+<li>「検出プレビュー」を押した時点で入力モードが Automatic に切り替わります（Grid のまま「生成」して 4 × 1 で切られる事故を防ぐため）</li>
+<li>作成モードの入力はウィンドウを開き直すと消えます（編集対象だけ残ります）</li>
+<li>旧ツールの「Sequence Preview」「Sound」モードは廃止されました。イベントは共通の Events、遷移の確認は Anim Editor の「ブレンド確認」で行います</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">アニメーション（3D）の設定と Anim Editor</a> — イベント（SE / VFX）の付け方・タイムライン・ブレンド確認は 2D も共通</li>
+<li><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> — Anim2D の新規作成・絞り込み</li>
+<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE（効果音）の設定項目</a> / <a href="?page=manual&p=vfx-data" data-manual-page="vfx-data">VFX の設定項目</a> — イベントで鳴らす・出すもの</li>
+<li><a href="?page=manual&p=model-editor" data-manual-page="model-editor">モデルの設定と Model Editor</a> — 3D モデル側（2D では確認用モデルは使いません）</li>
+<li><a href="?page=manual&p=validation" data-manual-page="validation">検証（Validation）</a> — 検証の見方とまとめて実行</li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

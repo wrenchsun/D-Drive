@@ -1,0 +1,136 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › 演出（Presentation）の設定項目</nav>
+
+<h1>演出（Presentation）の設定項目</h1>
+
+<p>「剣攻撃」のように、<strong>アニメ・効果音・エフェクト・カメラ揺れ・振動・画面停止（ヒットストップ）</strong>などを 1 つにまとめたものが「演出（PresentationData）」です。プログラマーは <code>Presentation.Play(演出のID, ...)</code> と 1 行書くだけで、中身（何を・いつ・どう鳴らすか）はすべてこのデータで決まります。あとから演出の中身を差し替えても、プログラムの修正は不要です。</p>
+
+<div class="tip">
+<strong>専用エディタ</strong>: <code>Tools &gt; D-Drive &gt; Presentation Editor</code>（目玉機能につき Tools メニュー最上段）でトラックをタイムライン形式で編集し、実際にアニメ・SE・エフェクト・画面揺れ・振動を<strong>同時に再生して確認</strong>しながら作れます。使い方は下の「専用エディタの使い方」を参照してください。
+</div>
+
+<h2>基本の考え方: トラック（Tracks）</h2>
+<p>演出は「トラック」という短い指示の集まりでできています。1 本のトラックは「いつ」「何を」の 2 つを決めます。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Trigger（いつ）</td><td><strong>At Time</strong>: 再生開始から何秒後に鳴らすか(Time 欄に秒数)。0 秒は「開始と同時」。<br><strong>On Signal</strong>: プログラム側が「合図（例: 攻撃が当たった）」を送ってきたら鳴らす。Signal Key 欄に合図の名前(例: <code>hit</code>)を入れる。</td></tr>
+<tr><td>Kind（何を）</td><td>下記「トラックの種類」参照。</td></tr>
+<tr><td>Asset（何のデータを）</td><td>Kind に応じた ID(例: Kind=Vfx なら VfxData の ID)。Marker/Signal/HitStop は不要。</td></tr>
+<tr><td>Target（基準になる場所）</td><td><strong>Self</strong>: 演出を出した本人(例: 攻撃した本人)。<strong>Context Target</strong>: 相手(例: 攻撃を受けた敵)。<strong>World</strong> / <strong>Anchor</strong>: 場所を固定したい据え置きの演出向け(下の Anchor 欄の位置をそのまま使う)。</td></tr>
+<tr><td>Anchor</td><td>VFX・SE を出す細かい位置(ボーン名や右手・足元など)。<a href="?page=manual&p=anchor-data" data-manual-page="anchor-data">Anchor のページ</a>と同じ形式。</td></tr>
+<tr><td>Params</td><td>Kind ごとの追加パラメータ(例: Kind=HitStop なら「何秒止めるか」を 1 つ目に入れる)。<strong>Kind=Vfx</strong> のときは、そのエフェクト側(<a href="?page=manual&p=vfx-data#params" data-manual-page="vfx-data" data-manual-anchor="params">VfxData の Params</a>)と同じ並び順(ラベル名の順番=インデックス)の値を上書きします(色を差し替える、など)。<strong>Kind=Se の音量上書きにはまだ対応していません</strong>(値を入れても音量には反映されません)。他の Kind では今のところ使われません。</td></tr>
+<tr><td>Stop On Cancel</td><td>途中で演出が中断された(Cancel された)とき、このトラックで出した物(VFX・SE 等)も一緒に止めるか。オフなら鳴らし切る。</td></tr>
+</table>
+
+<h2>トラックの種類（Kind）</h2>
+<table>
+<tr><th>Kind</th><th>内容</th><th>今の対応状況</th></tr>
+<tr><td>Anim / Anim2D</td><td>アニメーションを再生する</td><td>対応済み</td></tr>
+<tr><td>Se / Bgm</td><td>効果音 / BGM を鳴らす</td><td>対応済み</td></tr>
+<tr><td>Vfx</td><td>エフェクトを出す</td><td>対応済み</td></tr>
+<tr><td>Canvas</td><td>UI 画面(ポップアップ等)を開く</td><td>対応済み</td></tr>
+<tr><td>UiTween</td><td>UI の動き(<a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween</a>)を再生する</td><td>対応済み</td></tr>
+<tr><td>HitStop</td><td>一瞬だけゲーム全体の時間を止める(「ヒットストップ」演出)。Params の 1 つ目に止める秒数を入れる</td><td>対応済み</td></tr>
+<tr><td>Marker</td><td>プログラム側に「ここまで来た」を知らせるだけの目印(見た目には何も起きない)。Signal Key 欄が目印の名前になる</td><td>対応済み</td></tr>
+<tr><td>Signal</td><td>プログラム側の処理を直接呼び出すための合図(Marker と似ているが、コード側の受け取り方が違う)。Signal Key 欄が合図の名前になる</td><td>対応済み</td></tr>
+<tr><td>CameraShake</td><td>画面を揺らす。Asset 欄に<a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">カメラシェイクのデータ</a>の ID を入れる</td><td>対応済み</td></tr>
+<tr><td>Haptic</td><td>コントローラーを振動させる。Asset 欄に<a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">振動データ</a>の ID を入れる</td><td>対応済み</td></tr>
+<tr><td>Timeline</td><td>Unity Timeline を再生する(カットシーン向け)</td><td class="warn">未対応(近日実装予定)</td></tr>
+</table>
+
+<h2>共通項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Total Duration</td><td>演出全体の長さ(秒)。<strong>0 のままにすると、At Time トラックの一番遅い時刻から自動で決まります。</strong>「On Signal のトラックだけ」で組んだ演出は、この自動計算だと 0 秒扱いになりすぐ終わってしまうため、必ず秒数を入れてください。</td></tr>
+<tr><td>Interruptible</td><td>途中で中断(Cancel)できるか。オフにすると、プログラム側が止めようとしても無視されます(最後まで再生し切る前提の演出向け)。</td></tr>
+</table>
+
+<h2>専用エディタの使い方（剣攻撃を作る流れ）</h2>
+<p><code>Tools &gt; D-Drive &gt; Presentation Editor</code> を開き、対象アセット欄に演出データ（新規なら「＋ 新規作成」）を選びます。</p>
+<!-- TODO: スクショ（Presentation Editor のタイムライン全体） -->
+<ol>
+<li><strong>トラックを置く</strong>: 画面中央のタイムラインへ、Asset Browser や Project ウィンドウから SE・VFX・アニメ等のデータをドラッグ＆ドロップすると、種類に応じたレーン（Anim/Anim2D・Se/Bgm・Vfx・CameraShake/Haptic・HitStop/Marker・Signal・Canvas/UiTween）へ自動でトラックが追加されます。時刻は落とした位置がそのまま入ります（後から左右にドラッグして直せます）。手入力したい場合は下の「＋ トラックを追加」から Kind を選んで空のトラックを足せます。<strong>Kind を後から変えると Asset 欄は空にリセットされます</strong>（別の種類のデータが誤って残らないようにするための安全策です。差し替え後にもう一度 Asset を選んでください）</li>
+<li><strong>トラックを直す</strong>: タイムラインの色つきマーカーをクリックすると下の一覧でそのトラックが開きます。Trigger（At Time / On Signal）・時刻・Signal Key・Asset・Target・Anchor（出す位置）・Params（上書きパラメータ）・Stop On Cancel を編集できます。「複製」「削除」ボタンも各トラックにあります</li>
+<li><strong>モデルを置いて統合プレビュー</strong>: 「モデル選択」でモデルを選び「配置」を押すと確認用シーンにモデルが出ます（Animator が無いモデルでも VFX/SE/揺れ/振動の基準点として使えます）。「▶ 再生」を押すと、そのモデルを起点に <strong>アニメ・SE・エフェクト・カメラの揺れ・コントローラーの振動が実際に同時に再生されます</strong>（SceneView / Game ビューで確認、パッドを接続していれば実機振動も確認できます）</li>
+<li><strong>Signal を手動で送る</strong>: 「onHit」のような Kind=Signal のトラックは、タイムラインの Signal 用レーンにも表示されるようになり、さらに再生中は「Signal レーン」にボタンが並びます。再生中にボタンを押すと、コード側から「当たった」等の合図が来たのと同じ動きを試せます</li>
+<li><strong>速度・シーク・ループ</strong>: 「速度」スライダー（0.1x〜2x）でスロー再生、「シーク」で好きな時刻へ飛べます（通過したトラックはまとめて発火）。「ループ」を ON にすると完了後に自動でもう一度再生します</li>
+<li><strong>環境切替</strong>: 「環境切替」を開くと確認用シーンの既存のライトの強さ・カメラの背景色を調整できます（新しい部屋を作るのではなく、今開いているシーンの見た目を変えるだけです）</li>
+<li><strong>保存すれば即反映</strong>: ウィンドウを閉じても配置したモデル・揺れ・振動の後片付けは自動で行われます（シーンには保存されません）。保存すれば <strong>コード変更なしで</strong> ゲーム内の演出に反映されます</li>
+</ol>
+
+<h2>剣攻撃デモで確認する</h2>
+<p><code>Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity</code> を開いて Play すると、剣攻撃の演出(アニメ相当の代わりに VFX+SE を Self に配置、当たった合図で画面停止+SE+画面揺れ+振動)が自動で再生されます。P キーでもう一度再生、Space キーで「当たった」合図(Signal)、C キーで中断(Cancel)を試せます。</p>
+
+<h2>通信対戦（オンライン対戦）での演出</h2>
+<p>演出データの <strong>Flags &gt; Net</strong> を <strong>Cosmetic</strong>(「見た目だけで勝敗には影響しない」の意味)にしておくと、通信対戦時にプログラム側の特別な配線なしで<strong>自分が再生した演出が相手の画面にも自動で配られ、同じタイミングで再生されます</strong>。既定値は Local(自分の画面だけ)なので、<strong>相手にも見せたい演出は Flags.Net を Cosmetic に変える必要があります</strong>(通常の攻撃演出などは Cosmetic にしておくのが基本です)。</p>
+<ul>
+<li><strong>Cosmetic（勝敗に影響しない見た目の演出）</strong>: 攻撃を当てた側だけでなく、<strong>相手の画面にも同じ演出（アニメ・SE・VFX・カメラ揺れなど）が出ます</strong>（<a href="?page=manual&p=glossary#cosmetic" data-manual-page="glossary" data-manual-anchor="cosmetic">用語集: Cosmetic</a>）</li>
+<li><strong>コントローラーの振動だけは鳴らし分けられます</strong>: <a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">振動データ</a>の「Local Player Only」が ON（既定）のときは、<strong>その事象を起こした本人（当事者）のコントローラーだけ</strong>が振動します。相手の画面にも見た目・音は出ますが、相手のパッドは振動しません</li>
+</ul>
+<div class="tip">
+2026-09-14 時点では、実際のオンライン対戦の配線（NGO）自体は次の開発段階（Phase 6）で接続される予定です。上記の Cosmetic の振り分けの仕組みそのものは既に用意されており（テストで確認済み）、接続が済めばデータ側の設定変更なしでそのまま動く想定です。
+</div>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>警告</th><th>意味と直し方</th></tr>
+<tr><td>トラック N(Kind)の Asset が未設定です</td><td>そのトラックが使う ID(VfxData など)を設定してください。Marker/Signal/HitStop は対象外です。</td></tr>
+<tr><td>SignalKey が空です</td><td>On Signal トラック、または Marker/Signal の名前欄が空です。半角英数字などで名前を入れてください。</td></tr>
+<tr><td>Time が Total Duration を超過しています</td><td>そのトラックが鳴る前に演出全体が終わってしまいます。Total Duration を伸ばすか、Time を短くしてください。</td></tr>
+<tr><td>Interruptible=false ですが尺が長すぎます</td><td>10 秒を超える演出を「中断不可」にすると、プレイヤーを長時間拘束してしまいます。本当に中断不可でよいか見直してください。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=anchor-data" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a></li>
+<li><a href="?page=manual&p=vfx-data" data-manual-page="vfx-data">VFX（エフェクト）の設定項目</a></li>
+<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE（効果音）の設定項目</a></li>
+<li><a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI の動き（UI Tween）</a></li>
+<li><a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">画面の揺れ・コントローラーの振動</a></li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

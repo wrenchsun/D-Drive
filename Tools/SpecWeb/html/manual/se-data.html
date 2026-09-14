@@ -1,0 +1,117 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › SE（効果音）の設定項目</nav>
+
+<h1>SE（効果音）の設定項目</h1>
+
+<p><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> で SE を選ぶと、Unity 右側の Inspector（インスペクター）に設定項目が表示されます。ここではその<strong>すべての項目</strong>を説明します。各項目はエディタ上でマウスを乗せても説明（ツールチップ）が出ます。</p>
+
+<div class="tip">音を聞きながら調整したいときは <a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor</a> を開いたまま作業するのがおすすめです。</div>
+
+<h2>Clips（クリップ）まわり</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Clips</td><td>実際に再生される音声ファイル。<strong>複数入れると、鳴らすたびに違う音を選べます</strong>（足音のバリエーションなどに便利）。どう選ぶかは下の Select Mode で決めます。</td></tr>
+<tr><td>Sources</td><td>「音の切り出し（トリミング）」用の元データ置き場。ここに元ファイルを入れて切り出し範囲を指定し、「トリミングを適用」すると Clips に切り出し済みの音が入ります。<strong>元ファイルは一切変更されない</strong>ので、何度でもやり直せます。詳しくは <a href="?page=manual&p=audio-editor#trim" data-manual-page="audio-editor" data-manual-anchor="trim">Audio Editor のトリミング</a> へ。</td></tr>
+<tr><td>Start Offset Sec</td><td>再生を何秒目から始めるか。「頭の無音をスキップしたい」ときに手軽に使えます（0 = 先頭から）。</td></tr>
+<tr><td>Select Mode</td><td>Clips が複数あるときの選び方。<br><strong>Random</strong>: 毎回ランダム（足音など自然なばらつきに）<br><strong>RoundRobin</strong>: 順番に1つずつ（1→2→3→1→…）<br><strong>First</strong>: 常に先頭の1つだけ</td></tr>
+<tr><td>Mixer</td><td>音の出力先グループ。通常はサウンド担当が指定したもの（SE 用グループなど）を設定します。未設定だと警告が出ます。→ <a href="?page=manual&p=glossary#mixer" data-manual-page="glossary" data-manual-anchor="mixer">用語集: Mixer</a></td></tr>
+<tr><td>Volume</td><td>基準の音量（0〜1）。1 が元のファイルどおりの大きさ。</td></tr>
+<tr><td>Pitch Range</td><td>再生するたびに音の高さをランダムに揺らす範囲。X が最小、Y が最大。<strong>両方 1 のままなら揺らしなし。</strong>例: (0.95, 1.05) にすると毎回わずかに高さが変わり、連続で鳴っても機械っぽさが減ります。</td></tr>
+<tr><td>Loop</td><td>チェックすると鳴りっぱなしになります（環境音向け）。通常の効果音はオフ。</td></tr>
+</table>
+
+<h2>3D（立体音響）の設定</h2>
+<p>「音源が遠いと小さく聞こえる」「右にあると右から聞こえる」という立体的な鳴らし方の設定です。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Spatial</td><td>この音を 3D で鳴らすかどうかの大元のスイッチ。<br><strong>None</strong>: 2D 再生。どこで鳴らしても同じ聞こえ方（UI 音・システム音向け）<br><strong>Anchor</strong>: キャラの手元など「何かにくっつけて」鳴らす<br><strong>At Position</strong>: プログラムが指定した座標で鳴らす<br><span class="warn" style="display:block; margin-top:6px;">None のままだと下の距離設定はすべて無効です。Audio Editor の 3D 確認パッドにも「無効」と理由が表示されます。</span></td></tr>
+<tr><td>Anchor</td><td>Spatial=Anchor のときの「くっつけ先」の指定。Path にボーン名（例: RightHand）を書くとそのボーンに追従します。Local Offset でくっつけ先からのズレを指定。<br>Detach On Stop にチェックすると、くっつけ先が消えても鳴り終わりまでその場に残ります（爆発音などに）。</td></tr>
+<tr><td>Min Distance</td><td>この距離（メートル）までは<strong>最大音量のまま</strong>。近づいてもこれ以上大きくなりません。</td></tr>
+<tr><td>Max Distance</td><td>この距離を超えると<strong>聞こえなくなります</strong>。Min より大きい値にしてください（逆だとエラー表示）。</td></tr>
+<tr><td>Rolloff</td><td>距離と音量の減り方をカーブで細かく指定したい場合だけ設定（空でOK。空なら標準の減り方）。</td></tr>
+<tr><td>Spread</td><td>音の「広がり」。0 = 一点から鳴る（方向がはっきり）、180 = 全方向から鳴る（方向感なし）。BGM 的な環境音は大きめが自然です。</td></tr>
+<tr><td>Doppler Enabled</td><td>救急車が通り過ぎるときの「ピーポー」の音程変化（ドップラー効果）を有効にするか。通常はオフ推奨。</td></tr>
+</table>
+
+<h2>制御（鳴らしすぎ防止）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Max Concurrent</td><td>同じ音を同時に鳴らせる数の上限。超えると一番古いものが止まります。連打される攻撃音などで音が団子にならないための設定。</td></tr>
+<tr><td>Cooldown Sec</td><td>一度鳴ってから次に鳴れるまでの最短時間（秒）。0.03 なら 1 秒間に最大 33 回まで。連打対策。</td></tr>
+</table>
+
+<h2>共通項目（すべてのアセットにあるもの）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Id</td><td>システムが自動で付ける管理番号。<strong>絶対に手で変更しないでください。</strong></td></tr>
+<tr><td>Display Name</td><td>一覧・検索で使われる表示名。日本語OK、いつでも変更可。</td></tr>
+<tr><td>Description</td><td>メモ欄。用途などを自由に書けます。</td></tr>
+<tr><td>Category / Tags</td><td>整理・検索用の分類。</td></tr>
+<tr><td>Icon</td><td>Inspector に出る小さな画像。効果音は絵の元が無いので「自動生成」は使えません。必要なら「フォルダから選択」で画像を指定します。</td></tr>
+<tr><td>Version / Author / Updated At</td><td>更新履歴（自動記録されるようになる予定の欄。手入力不要）。</td></tr>
+<tr><td>Flags</td><td>ポーズ中に止まるか等の細かい挙動設定。<strong>迷ったら初期値のまま</strong>でOK。変更が必要な場面ではプログラマーから指示があります。</td></tr>
+<tr><td>Events</td><td>「この音が鳴り始めた時（OnSpawn）に別の何かを起こす」等の連携設定。各行の <strong>Repeat（繰り返し）</strong>は「毎周回（EveryLoop）/ 1 回（Once）/ 再生中は維持（KeepWhilePlaying）」で、「1 回」「再生中は維持」は再生ごとに 1 回だけ発火します（<a href="?page=manual&p=glossary#repeat" data-manual-page="glossary" data-manual-anchor="repeat">用語集: 繰り返し</a>）。普段は使いません。</td></tr>
+</table>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>警告</th><th>意味と直し方</th></tr>
+<tr><td>Clip が未設定</td><td>Clips が空です。音声ファイルを設定してください。</td></tr>
+<tr><td>Mixer が未割当</td><td>出力先グループが未設定。サウンド担当指定のグループを設定。</td></tr>
+<tr><td>MaxDistance が MinDistance 以下</td><td>Max は Min より大きく。</td></tr>
+<tr><td>Volume が 0</td><td>音量 0 のため鳴りません。意図的でなければ上げてください。</td></tr>
+<tr><td>StartOffsetSec がクリップ長以上</td><td>開始位置が音の長さを超えていて無音になります。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor の使い方</a> — 波形を見ながらトリミング・3D確認</li>
+<li><a href="?page=manual&p=scene-sound" data-manual-page="scene-sound">シーンに環境音を置く</a> — ループ SE の配置</li>
+<li><a href="?page=manual&p=bgm-data" data-manual-page="bgm-data">BGM の設定項目</a></li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

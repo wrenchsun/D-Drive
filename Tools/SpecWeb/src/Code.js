@@ -35,7 +35,24 @@ function handleSpecWebRequest_(e, method) {
   if (params.api === '1') {
     return handleApiRequest_(e, method);
   }
-  return renderUi_();
+  return renderUi_(params);
+}
+
+/**
+ * `?page=manual&p=<ページ名>` を人向け SPA の初期画面へ変換する（2026-09-14 追加）。
+ * Unity の「マニュアル」ボタン（Assets/DDrive/Editor/Manual/ManualUrlBuilder.cs）が
+ * 開く URL 契約: `<人向けURL>?page=manual&p=<ページ名（拡張子なし、トップは Readme）>`。
+ * `p` が不正・未知でもトップ（SPEC_WEB_MANUAL_TOP_PAGE）へフォールバックする（例外で止めない）。
+ * `page` パラメータが無い（通常のアクセス）場合は既定画面（html/App.html の DEFAULT_SCREEN_ID）
+ * のままにする（screen: null）。
+ */
+function resolveInitialScreen_(params) {
+  if (params && params.page === 'manual') {
+    var requested = String(params.p || '');
+    var page = SPEC_WEB_MANUAL_PAGE_NAMES.indexOf(requested) !== -1 ? requested : SPEC_WEB_MANUAL_TOP_PAGE;
+    return { screen: 'manual', params: { p: page } };
+  }
+  return { screen: null, params: {} };
 }
 
 /**
@@ -149,8 +166,11 @@ function specWebUiCall(name, params) {
   return specWebInvokeApi_(name, params, auth);
 }
 
-/** ① SPA 本体を返す。許可リスト外なら「メンバーのみ利用できます」ページを返す。 */
-function renderUi_() {
+/**
+ * ① SPA 本体を返す。許可リスト外なら「メンバーのみ利用できます」ページを返す。
+ * @param {Object} [params] e.parameter（`?page=manual&p=...` 等、初期画面の解決に使う。§resolveInitialScreen_）
+ */
+function renderUi_(params) {
   var auth = authenticateSession();
   if (!auth.ok) {
     return HtmlService.createHtmlOutput(
@@ -160,8 +180,11 @@ function renderUi_() {
         '</body></html>'
     );
   }
+  var initial = resolveInitialScreen_(params || {});
   var template = HtmlService.createTemplateFromFile('html/Index');
   template.currentUser = auth;
+  template.initialScreen = initial.screen;
+  template.initialParams = initial.params;
   return template
     .evaluate()
     .setTitle('D-Drive 仕様書')

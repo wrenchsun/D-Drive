@@ -10,6 +10,11 @@
 .claspignore
 .gitignore
 
-# ドキュメント・Node テスト（GAS 側では実行できない CommonJS のため送らない）
+# ドキュメント・Node テスト・Node 専用ビルドスクリプト（GAS 側では実行できない CommonJS の
+# require/module.exports や Node 標準モジュール(fs/path)を使っているため送らない。
+# tools/build-manual.js が誤って .gs として GAS プロジェクトに送られると、
+# doGet 実行時に "require is not defined" 等で全体が壊れる。2026-09-14 追加）
 *.md
 test/**
+tools/**
+push.ps1

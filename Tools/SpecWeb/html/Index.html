@@ -6,8 +6,15 @@
     <title>D-Drive 仕様書</title>
     <?!= include('html/Styles'); ?>
     <!-- currentUser（Auth.js の authenticateSession 結果）をクライアント JS へ渡す。
-         W-8 の調整値編集 SPA が role（editor/admin）によって編集可否を切り替えるのに使う。 -->
-    <script>window.SpecWebCurrentUser = <?!= JSON.stringify(currentUser) ?>;</script>
+         W-8 の調整値編集 SPA が role（editor/admin）によって編集可否を切り替えるのに使う。
+         initialScreen/initialParams（2026-09-14 追加）: `?page=manual&p=...`（Unity の
+         「マニュアル」ボタン）等、初回ロード時に既定画面（DEFAULT_SCREEN_ID）以外を開きたい
+         場合に src/Code.js の resolveInitialScreen_ が設定する。無ければ null/{}。 -->
+    <script>
+      window.SpecWebCurrentUser = <?!= JSON.stringify(currentUser) ?>;
+      window.SpecWebInitialScreen = <?!= JSON.stringify(initialScreen || null) ?>;
+      window.SpecWebInitialParams = <?!= JSON.stringify(initialParams || {}) ?>;
+    </script>
   </head>
   <body>
     <div id="app-shell">
@@ -43,5 +50,8 @@
          新しいナビゲーションからも変わらず開けることを確認済み。 -->
     <?!= include('html/TuningGrid'); ?>
     <?!= include('html/Tuning'); ?>
+    <!-- 2026-09-14: デザイナーマニュアル配信画面（Unity の「マニュアル」ボタンから
+         `?page=manual&p=...` で開かれる。src/Manual.js の manualGet を呼ぶ）。 -->
+    <?!= include('html/Manual'); ?>
   </body>
 </html>

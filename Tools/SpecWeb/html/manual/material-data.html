@@ -1,0 +1,253 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › マテリアル / テクスチャの設定項目</nav>
+
+<h1>マテリアル / テクスチャの設定項目</h1>
+
+<p>マテリアルデータ（MaterialData）は、<strong>Unity の Material の代わりに D-Drive で編集する「素材」のデータ</strong>です。色・テクスチャ・光り方・透け方をここに書いておくと、Unity の Material 実体は D-Drive が自動で作って共有します。デザイナーが Unity の Material を直接作る必要はありません。</p>
+<ul>
+<li>シェーダーごとにバラバラなプロパティ名（<code>_BaseMap</code> と <code>_MainTex</code> など）を意識せず、「アルベド」「ノーマル」「マスク」「エミッション」「ブレンド」という<strong>共通チャンネル</strong>で編集できます。どのシェーダーに流し込むかは D-Drive が自動で探します</li>
+<li>シェーダーを乗り換えても共通チャンネルはそのまま残り、シェーダー固有の設定（Specific）だけを付け替えます（<a href="?page=manual&p=material-editor" data-manual-page="material-editor">Material Editor</a> の「シェーダー変換」）</li>
+<li>Maya の FBX や Substance Painter のテクスチャは、決まったフォルダに置くだけでマテリアルデータ・テクスチャデータが自動で作られます</li>
+<li>一覧では球のサムネイルが自動でアイコンになるので、見分けやすくなります</li>
+</ul>
+
+<p>テクスチャデータ（TextureData）は、<strong>1 枚の画像に「用途（UI 用 / モデル用）」と「チャンネル（アルベド / ノーマル / マスク / エミッション / その他）」のラベルを付けるデータ</strong>です。マテリアルデータは画像を直接参照せず、このテクスチャデータの ID で参照します。用途とチャンネルを決めると、Unity 側の画像の読み込み設定（Texture Type / sRGB / Sprite / 9-slice）が自動で追従します。</p>
+
+<div class="tip">
+<strong>用語:</strong> アルベド = 素の色（ベースカラー）/ ノーマル = 凹凸の向きを記録した画像（法線マップ）/ マスク = 金属っぽさ・遮蔽・なめらかさを 1 枚にまとめた画像 / エミッション = 自分で光る色 / ブレンド = 不透明・アルファ抜き・半透明のどれか。詳しくは <a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a>。
+</div>
+
+<h2>作り方</h2>
+<ol>
+<li><strong>Project の右クリック</strong>: <code>Create &gt; D-Drive &gt; Material &gt; Material Data</code>（ファイル名 <code>MAT_NewMaterial</code>）/ <code>Create &gt; D-Drive &gt; Material &gt; Texture Data</code>（<code>TEX_NewTexture</code>）</li>
+<li><strong><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a></strong>: ツールバーの「新規」で種別に <strong>Material</strong> または <strong>Texture</strong> を選ぶ。ID の発行・カタログ登録・Addressables 登録・初期アイコンの生成まで自動で行われ、<code>Assets/GameData/Material/&lt;カテゴリ&gt;/MAT_&lt;カテゴリ&gt;_&lt;識別子&gt;.asset</code>（テクスチャは <code>Assets/GameData/Texture/…/TEX_….asset</code>）に置かれます</li>
+<li><strong>Maya の FBX から自動生成</strong>: FBX を <code>Assets/SourceAssets/&lt;カテゴリ&gt;/</code> に置くだけ（下の「Maya からの受け渡し」）</li>
+<li><strong>既存の Unity Material から変換</strong>: Material（または Renderer を持つ Prefab / モデル）を Project で選んで <code>Tools &gt; D-Drive &gt; Generate &gt; 選択した Material を D-Drive/Lit・Unlit の MaterialData に変換</code></li>
+</ol>
+<div class="warn">
+Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だけ</strong>に対応しています。画像や .mat をドロップしてもマテリアルデータ / テクスチャデータは作られません。上の 1〜4 のどれかで作ってください。
+</div>
+
+<h2>設定項目（マテリアルデータ）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Shader</td><td>使うシェーダー。未設定なら D-Drive がプロジェクト既定の Lit（URP Lit）で生成しますが、<code>DDrive/Lit</code> ではないので、<strong>明示的に設定しておくのが安全</strong>です（未設定は検証で Warning）。通常は <code>DDrive/Lit</code>（陰影あり）か <code>DDrive/Unlit</code>（陰影なし、そのままの色）</td></tr>
+<tr><td>Common</td><td>どのシェーダーでも意味が共通するチャンネル。下の「共通チャンネル（Common）」を参照</td></tr>
+<tr><td>Specific</td><td>シェーダー固有のパラメータ。Common に無いものだけを入れます。要素は <code>Property</code>（シェーダープロパティ名。例 <code>_SpecColor</code>）と <code>Value</code>（値。Float / Int / Bool / Color / Vector / Object（テクスチャ等）のうち型に合うものを使う）。<strong>手で埋める必要はほとんどありません</strong> — Shader を設定すると Material Editor が自動で既定値を登録します</td></tr>
+<tr><td>RenderQueueOffset</td><td>描画順のずらし量。Blend から決まる基準（Opaque=2000 / Cutout=2450 / Transparent=3000）に足されます。普段は 0 のまま</td></tr>
+<tr><td>RenderingLayerMask</td><td>Rendering Layer Mask。0 なら Renderer 側の設定を変えません。ライトレイヤーは Renderer 単位の設定なので、モデル側の LightLayerMask（<a href="?page=manual&p=model-editor" data-manual-page="model-editor">モデルの設定</a>）も参照</td></tr>
+<tr><td>Anims</td><td>常時アニメ（UV スクロール等）。D-Drive が共有 Material に対して一括で動かします。下の「Anims の使い方」を参照</td></tr>
+<tr><td>SourceMaterial</td><td>Maya FBX 自動生成の由来（どの FBX のどのマテリアルから作られたか）。再インポート時の同定に使います。手動で作ったデータは空。<strong>手で編集しない項目</strong>です</td></tr>
+</table>
+
+<h3>共通チャンネル（Common）</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Albedo</td><td>ベースカラー（アルベド = 素の色）テクスチャの TextureData ID。未設定は検証で Warning（Tint だけで塗るなら無視して構いません）</td></tr>
+<tr><td>AlbedoTint</td><td>アルベドに掛ける色（既定: 白 = そのまま）。半透明にするときはここのアルファも使います</td></tr>
+<tr><td>Normal</td><td>ノーマルマップの TextureData ID</td></tr>
+<tr><td>NormalScale</td><td>ノーマルの強度（既定 1）。凹凸を強くしたいときに上げる</td></tr>
+<tr><td>Mask</td><td>マスクテクスチャ（R: Metallic、G: Occlusion、B: Detail、A: Smoothness）の TextureData ID</td></tr>
+<tr><td>Metallic</td><td>Mask が無いときの金属っぽさ（0〜1、既定 0）</td></tr>
+<tr><td>Smoothness</td><td>Mask が無いときのなめらかさ（0〜1、既定 0.5）。上げるとツヤが出ます</td></tr>
+<tr><td>Emission</td><td>エミッション（自分で光る）テクスチャの TextureData ID</td></tr>
+<tr><td>EmissionColor</td><td>エミッションの色（既定: 黒）。EmissionIntensity を掛けた色で光ります</td></tr>
+<tr><td>EmissionIntensity</td><td>エミッションの強さ（0 で無効、既定 0）。Emission テクスチャも EmissionColor（黒以外）も無いと光らないので、検証で Warning</td></tr>
+<tr><td>Blend</td><td><strong>Opaque</strong>（不透明）/ <strong>Cutout</strong>（アルファ抜き。Cutoff を使う）/ <strong>Transparent</strong>（半透明）。既定 Opaque</td></tr>
+<tr><td>Cutoff</td><td>Cutout のときのアルファしきい値（0〜1、既定 0.5）。これより薄い部分が抜けます</td></tr>
+<tr><td>DoubleSided</td><td>ON で裏面も描画（Cull Off）。布や葉など</td></tr>
+</table>
+
+<h3>Anims の使い方（常時アニメ）</h3>
+<p>Anims の 1 要素は「どのプロパティ（<code>Property</code>）を、どう動かすか（<code>Channel</code>）を、どんな形で（<code>Value</code>）」の 3 つです。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Property</td><td>対象のシェーダープロパティ名。Channel が Float なら数値プロパティ、OffsetU / OffsetV ならテクスチャプロパティ（例 <code>_BaseMap</code>）</td></tr>
+<tr><td>Channel</td><td><strong>Float</strong> = 数値をそのまま動かす / <strong>OffsetU</strong> = テクスチャの UV オフセット X（横スクロール）/ <strong>OffsetV</strong> = UV オフセット Y（縦スクロール）</td></tr>
+<tr><td>Value</td><td>形とスピード（ValueDef）。<code>Mode</code>（Parametric / Curve）、<code>Parametric</code>（Ease の種類）、<code>Curve</code>、<code>From</code> / <code>To</code>、<code>Time</code>、<code>Loop</code>、<code>LoopCount</code>。Mode が Constant だと動かないので検証で Warning</td></tr>
+</table>
+<ul>
+<li><strong>UV スクロール</strong>: Channel = OffsetU、Parametric（Linear）、From 0 → To 1、Time = Rate、Loop = Loop</li>
+<li><strong>サイン波で揺らす</strong>: Channel = Float、Parametric（InOutSine）+ PingPong</li>
+<li><strong>好きな波形</strong>: Channel = Float、Curve</li>
+</ul>
+
+<h2>設定項目（テクスチャデータ）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Texture</td><td>実体の画像（Texture2D）。未設定は検証で Error</td></tr>
+<tr><td>Usage</td><td><strong>Model</strong>（3D モデル用、既定）/ <strong>UI</strong>（UI 用）。UI にすると Texture Type が Sprite になり、Sprite が未設定なら自動で割り当てられます</td></tr>
+<tr><td>Sprite</td><td>Usage = UI のときの Sprite。自動で入るので通常は触りません</td></tr>
+<tr><td>AllowScale</td><td>拡縮してよいか。ON なのに 9-slice（SliceBorder）が未設定だと検証で Warning</td></tr>
+<tr><td>SliceBorder</td><td>9-slice のボーダー（L, B, R, T の順、単位は元画像のピクセル）。<strong>切り抜き（トリミング）ではなく、伸ばしても崩れない「枠」の幅</strong>です。そのまま Unity の Sprite Border に書き込まれます</td></tr>
+<tr><td>Channel</td><td>この画像をマテリアルのどの共通チャンネルに使うか。<strong>Albedo</strong>（素の色。sRGB on）/ <strong>Normal</strong>（Texture Type が NormalMap になる）/ <strong>Mask</strong>（sRGB off）/ <strong>Emission</strong>（sRGB on）/ <strong>Other</strong>（設定を変えない。Mask に詰め直す前の単チャンネル画像など、共通チャンネルに直接載せないもの）</td></tr>
+</table>
+<div class="tip">
+<strong>9-slice とは:</strong> ボタンやウィンドウ枠のように、大きさを変えても角と縁が伸びてほしくない画像を、9 分割して「四隅は固定・辺は一方向だけ伸ばす・中央だけ両方向に伸ばす」仕組みです。SliceBorder に四隅の幅を入れるだけで、Unity 側の設定が自動で追従します。
+</div>
+
+<h2>テクスチャのファイル名規約（自動設定）</h2>
+<p><code>Assets/SourceAssets</code> か <code>Assets/GameData</code> の下に画像を置くと、<strong>ファイル名の末尾</strong>を見て Unity の読み込み設定と、テクスチャデータを作るときのチャンネル / 用途が自動で決まります。大文字小文字は区別しません。上から順に最初に一致したルールだけが使われます。</p>
+<table>
+<tr><th>ファイル名の末尾</th><th>自動で決まる設定</th><th>Channel / Usage</th></tr>
+<tr><td><code>_Normal_DirectX</code></td><td>NormalMap、<strong>緑（Y）を反転</strong>（DirectX 形式 → Unity 形式）</td><td>Normal / Model</td></tr>
+<tr><td><code>_Normal_OpenGL</code> / <code>_NormalMap</code> / <code>_Normal</code> / <code>_N</code></td><td>NormalMap</td><td>Normal / Model</td></tr>
+<tr><td><code>_MaskMap</code> / <code>_M</code></td><td>Default、sRGB off、高品質圧縮</td><td>Mask / Model</td></tr>
+<tr><td><code>_MetallicSmoothness</code> / <code>_SpecularSmoothness</code></td><td>Default、sRGB off、高品質圧縮</td><td><strong>Other</strong> / Model（Mask ではありません。下の注意点）</td></tr>
+<tr><td><code>_Metallic</code> / <code>_Roughness</code> / <code>_Smoothness</code> / <code>_AmbientOcclusion</code> / <code>_Ambient_occlusion</code> / <code>_Occlusion</code> / <code>_AO</code> / <code>_Height</code> / <code>_Opacity</code></td><td>Default、sRGB off</td><td>Other / Model</td></tr>
+<tr><td><code>_BaseMap</code> / <code>_BaseColor</code> / <code>_Base_Color</code> / <code>_AlbedoTransparency</code> / <code>_Albedo</code> / <code>_Diffuse</code></td><td>Default、sRGB on</td><td>Albedo / Model</td></tr>
+<tr><td><code>_Emission</code> / <code>_Emissive</code> / <code>_E</code></td><td>Default、sRGB on</td><td>Emission / Model</td></tr>
+<tr><td><code>_UI</code></td><td><strong>Sprite</strong>（FullRect）、sRGB on、<strong>Mipmap off</strong></td><td>Other / <strong>UI</strong></td></tr>
+<tr><td><code>T_</code> で始まる（先頭）</td><td>Default、sRGB on</td><td>Albedo / Model</td></tr>
+</table>
+<p>Model 用はすべて Mipmap on。UI 用だけ Mipmap off です。<code>_Normal</code> は <code>_N</code> より前に判定されるので、<code>Xxx_Normal.png</code> は Substance 用のルールに当たります。</p>
+<div class="tip">
+ルールはプロジェクトの <code>Texture Import Profile</code>（<code>Create &gt; D-Drive &gt; Material &gt; Texture Import Profile</code>）で変えられます。各ルールは「Name（ルール名）/ Match（末尾・先頭・部分一致）/ Pattern（照合する文字列）/ Type / SRgb / Mipmaps / Compression / MaxSize / SpriteFullRect / Channel / Usage / FlipGreenChannel」。プロファイル全体には Enabled、IncludePathContains（対象フォルダ）、ModelMaxSize（既定 2048。超えると検証で Warning）があります。<strong>既にプロファイルを作ってある場合、後から組み込みに追加されたルールは自動では入りません</strong>（Rules を作り直す必要があります）。
+</div>
+
+<h2>Substance Painter からの受け渡し</h2>
+<ol>
+<li>書き出し先を <code>Assets/SourceAssets/&lt;キャラ名&gt;/</code> にする</li>
+<li>テンプレートは <strong>Unity URP / HDRP</strong>（<code>_BaseMap</code> / <code>_MaskMap</code> / <code>_Normal</code> / <code>_Emission</code>）が最も素直。Unity 5（<code>_AlbedoTransparency</code> / <code>_MetallicSmoothness</code> / <code>_SpecularSmoothness</code>）や PBR Metal Rough（<code>_BaseColor</code> / <code>_Roughness</code> / <code>_Metallic</code> / <code>_Emissive</code> / <code>_Height</code> / <code>_AO</code>）の標準名もそのまま上の表に当たります</li>
+<li>法線は <strong>OpenGL 形式</strong>で書き出す。DirectX 形式で出すなら <code>_Normal_DirectX</code> の名前にすれば緑反転が自動でかかります</li>
+<li>インポートするだけで Texture Type・sRGB・圧縮が決まります。あとはテクスチャデータを作って（またはマテリアルデータの自動生成で）チャンネルに載せます</li>
+</ol>
+<div class="warn">
+<code>_MetallicSmoothness</code> / <code>_SpecularSmoothness</code>（Unity 5 テンプレート）は <strong>Mask ではなく Other</strong> になります。この 2 枚は G（遮蔽）が 0 なので、そのまま Mask として使うと遮蔽 0 = 間接光が消えてしまいます。Mask として使うときは R: Metallic、G: Occlusion、B: Detail、A: Smoothness に詰め直した 1 枚を <code>_MaskMap</code> か <code>_M</code> の名前で用意してください。
+</div>
+
+<h2>Maya からの受け渡し（FBX → 自動生成）</h2>
+<ol>
+<li>FBX を <code>Assets/SourceAssets/&lt;カテゴリ&gt;/</code> に置く。カテゴリは FBX の親フォルダ名になります（例: <code>SourceAssets/Player/Body.fbx</code> → Player）</li>
+<li>インポートが終わると自動で走り、Console に <code>[DDrive] Maya インポート: &lt;パス&gt;</code> のレポートが出ます（末尾に「MaterialData 新規 N / 更新 N / 変更なし N、TextureData 新規 N」）。生成物は <code>Assets/GameData/Material/&lt;カテゴリ&gt;/</code> と <code>Assets/GameData/Texture/&lt;カテゴリ&gt;/</code></li>
+<li>手動でやり直すときは FBX を選んで <code>Tools &gt; D-Drive &gt; Generate &gt; 選択したモデルから MaterialData を生成</code>（FBX 以外を選んでいると「[DDrive] モデル(FBX 等)を Project で選択してから実行してください。」）</li>
+<li>Material Editor で Specific（Coat / Sheen 等）を調整。以後 FBX を差し替えても <strong>Common だけ更新され、Specific / Anims / Render 設定は保持</strong>されます（Console に「更新: &lt;名前&gt;(Common: …。Specific / Anims / Render は保持)」）</li>
+</ol>
+<ul>
+<li>写される内容: テクスチャは <code>_BaseMap</code> / <code>_MainTex</code> → Albedo、<code>_BumpMap</code> → Normal、<code>_MetallicGlossMap</code> / <code>_MaskMap</code> / <code>_OcclusionMap</code> → Mask、<code>_EmissionMap</code> → Emission。決まらないものはファイル名規約で分類。色は AlbedoTint、Metallic / Smoothness、EmissionColor、Cutoff、両面、半透明 / アルファ抜きも写されます。チャンネルが決まらない画像は「  スキップ: …(チャンネル未対応)」</li>
+<li>シェーダーの決まり方: Maya Import Profile の TargetShader → 元が <code>DDrive/</code> ならそのまま → それ以外は <code>DDrive/Lit</code></li>
+<li><strong>aiStandardSurface</strong>（Arnold）を割り当てた FBX は、そのまま <code>DDrive/AiStandardSurface</code> のマテリアルデータになり、Coat / SpecularIOR などの固有も写されます。lambert / phong は <code>DDrive/Lit</code>。シェーダーが未インポートのときに FBX が入ると警告が出ますが、シェーダーが入った時点で自動再インポートされます</li>
+<li>Maya Import Profile（<code>Create &gt; D-Drive &gt; Material &gt; Maya Import Profile</code>）で AutoImport（OFF で自動生成しない）、IncludePathContains、TargetShader、CategoryFromFolder / FixedCategory（既定 Imported）、PropertyChannels、ClassifyByTextureName、PreserveSpecificOnReimport を変えられます</li>
+</ul>
+
+<h2>既存の Unity Material を D-Drive 化する</h2>
+<ol>
+<li>Project で Material（または Renderer を持つ Prefab / モデル。複数選択可）を選ぶ</li>
+<li><code>Tools &gt; D-Drive &gt; Generate &gt; 選択した Material を D-Drive/Lit・Unlit の MaterialData に変換</code></li>
+<li>Console に「[DDrive] Unity Material → D-Drive MaterialData: N 件」と出て、最後の 1 件が Project で選択されます</li>
+</ol>
+<ul>
+<li>URP Lit / Simple Lit / Complex Lit / Baked Lit / Standard / Standard (Specular setup) → <code>DDrive/Lit</code>。URP Unlit / Unlit/Texture / Unlit/Color / Unlit/Transparent / Unlit/Transparent Cutout → <code>DDrive/Unlit</code>。それ以外は「警告: … 未対応のため DDrive/Lit として変換します」</li>
+<li>カテゴリはアセットの親フォルダ名（取れなければ Migrated）。元 Material に同名の固有プロパティがあれば値もコピーされます</li>
+<li>もう一度実行しても増えず、Common だけ更新されます（固有の調整は残る）。別フォルダの同名 .mat は別々のマテリアルデータになります</li>
+</ul>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>新しいマテリアルを 1 から作る</td><td>Create メニューで Material Data → Inspector の「Material Editor で開く」→ Shader に <code>DDrive/Lit</code> → Common の Albedo にテクスチャデータの ID、Metallic / Smoothness を調整 → サムネイルで確認</td></tr>
+<tr><td>半透明にする</td><td>Common の Blend を Transparent。必要なら AlbedoTint のアルファを下げる。RenderQueueOffset は 0 のまま（基準 3000 が自動）</td></tr>
+<tr><td>アルファ抜き（葉・フェンス）</td><td>Blend を Cutout、Cutoff で抜ける濃さを調整。裏も見せるなら DoubleSided ON</td></tr>
+<tr><td>光らせる</td><td>EmissionColor を黒以外にして EmissionIntensity を 1 以上に。模様で光らせるなら Emission に <code>_E</code> のテクスチャデータ</td></tr>
+<tr><td>UV スクロール（川・ベルトコンベア）</td><td>Anims に 1 要素: Property = <code>_BaseMap</code>、Channel = OffsetU、Value = Parametric（Linear）From 0 To 1 / Time = Rate / Loop = Loop</td></tr>
+<tr><td>UI 用の 9-slice 画像を登録する</td><td>画像を <code>Xxx_UI.png</code> の名前で <code>Assets/SourceAssets</code> に置く → Texture Data を作って Texture を設定 → Usage = UI、AllowScale = ON、SliceBorder に L, B, R, T を入力。Sprite Border と Sprite が自動で追従</td></tr>
+<tr><td>Substance の出力を取り込む</td><td>Unity URP テンプレートで <code>Assets/SourceAssets/&lt;キャラ名&gt;/</code> に書き出す。Unity 5 テンプレートなら Mask を詰め直した <code>_MaskMap</code> を別途用意</td></tr>
+</table>
+
+<h2>よくある警告（<code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code>）</h2>
+<p>マテリアルデータの警告です。<strong>いずれも「修正」ボタンはありません</strong>。手で直すか、Material Editor のボタンを使います。</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Shader が未設定です(既定の Lit で生成されます。意図した見た目か確認してください)</td><td>Shader を設定する</td></tr>
+<tr><td>シェーダー '…' は … 用ですが、プロジェクトは … です。正しく描画されません</td><td>同じレンダーパイプライン用のシェーダーに差し替える（Error）</td></tr>
+<tr><td>Common.Albedo(ベースカラー)が未設定です</td><td>テクスチャデータを割り当てる。AlbedoTint だけで塗るなら無視して可</td></tr>
+<tr><td>Transparent なのに RenderQueue(…)が Opaque 帯です / 不透明なのに RenderQueue(…)が Transparent 帯です</td><td>RenderQueueOffset を 0 に戻す</td></tr>
+<tr><td>EmissionIntensity &gt; 0 ですが Emission テクスチャも EmissionColor も無いため発光しません</td><td>EmissionColor を黒以外にするか、Intensity を 0 に</td></tr>
+<tr><td>Specific にプロパティ名が空の項目があります / Anims にプロパティ名が空の項目があります</td><td>空の要素を削除</td></tr>
+<tr><td>Specific '…' はシェーダー '…' にありません(無視されます)</td><td>別シェーダー由来の残り。消しても放置しても可（値は失われません）</td></tr>
+<tr><td>Specific '…' は共通チャンネル名です。Common の値を上書きします(…)</td><td><strong>Material Editor の「共通チャンネルの重複を削除」を押す</strong>。「共通チャンネル」の部分は「描画ステート」「Unity 予約」などに変わることがあります</td></tr>
+<tr><td>シェーダー '…' の固有プロパティが Specific に未登録です(既定値で描画): …（Info）</td><td>必要なら Material Editor の「シェーダーから固有を同期」。放置してもシェーダーの既定値で描かれます</td></tr>
+<tr><td>Anims '…' の Value が Constant です(動きません)</td><td>Mode を Parametric か Curve に</td></tr>
+<tr><td>Anims '…' の Time(Duration / Rate)が 0 です(動きません)</td><td>Time を設定</td></tr>
+</table>
+<p>テクスチャデータの警告です。「修正」ボタンが付くものは押すだけで直ります。</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Texture が未設定(または Missing)です</td><td>Texture を設定（Error。これ以降の検査は打ち切り）</td></tr>
+<tr><td>Usage=UI ですが Sprite が未生成です</td><td>「修正」あり: Sprite(Single) にして再インポートし、Sprite を割り当て</td></tr>
+<tr><td>AllowScale=true ですが SliceBorder(9-slice)が未設定です</td><td>SliceBorder を入れるか、AllowScale を OFF に（修正ボタンなし）</td></tr>
+<tr><td>Channel=Normal ですが Texture Type が NormalMap になっていません</td><td>「修正」あり: NormalMap にして再インポート</td></tr>
+<tr><td>Channel=Mask ですが sRGB が on になっています</td><td>「修正」あり: sRGB off にして再インポート</td></tr>
+<tr><td>サイズが 2 のべき乗ではありません(…)</td><td>元画像を 512 / 1024 / 2048 などのサイズに直す（Model 用のみ。修正ボタンなし）</td></tr>
+<tr><td>Max Size(…)がプロファイル規定(…)を超えています</td><td>Importer の Max Size を下げる（修正ボタンなし）</td></tr>
+<tr><td>インポート規約 '…' と食い違っています: …</td><td>「修正」あり: 規約を適用して再インポート（Material Editor の「命名規約を適用して再インポート」と同じ）</td></tr>
+</table>
+<div class="warn">
+Console に「[DDrive] TextureData '…': Usage/Channel から求まる Texture Type(…)がファイル名規約 '…'(…)と食い違うため適用しません。ファイル名か Data のどちらかを合わせてください」と出たら、<strong>ファイル名の規約とテクスチャデータの設定が矛盾</strong>しています。この状態ではデータ側の設定は書き込まれません（次のインポートで規約に戻されて打ち消し合うため）。ファイル名を変えるか、Channel / Usage を規約に合わせてください。
+</div>
+
+<h2>注意点</h2>
+<ul>
+<li><strong>Specific に共通チャンネル名（<code>_BaseMap</code> や <code>_Metallic</code> など）が入ると、Common の値が黙って上書きされます</strong>。値は消えませんが、Common を変えても見た目が変わらなくなります。検証の Warning を見たら Material Editor の「共通チャンネルの重複を削除」で取り除いてください</li>
+<li>プレビューが<strong>真っピンク（マゼンタ）</strong>なら、テクスチャデータの ID 参照が切れているか未登録です</li>
+<li>Shader 未設定のときの既定は URP Lit で、<code>DDrive/Lit</code> ではありません。<code>DDrive/Lit</code> の固有は <code>_OcclusionStrength</code> のみ、<code>DDrive/Unlit</code> は固有なしです</li>
+<li>半透明マテリアルのサムネイル / アイコンに穴が開く問題は 2026-09-11 に修正済みですが、<strong>それ以前に作った古いアイコン PNG は作り直し</strong>が必要です（<code>Tools &gt; D-Drive &gt; Generate &gt; 初期アイコンを生成(未設定の Data のみ)</code> は未設定のものだけが対象）</li>
+<li>2026-09-11 より前に作られた aiStandardSurface 由来のマテリアルは Metalness / Roughness / SpecColor / Opacity マップが効きません。<strong>FBX を再インポートすれば直ります</strong>。Shader が None のままの Maya 由来データも、再インポートで自動設定されます</li>
+<li>Maya インポート直後にプレビューが灰色（テクスチャ無し）になったら、Material Editor を開き直すか「再生成」を押してください</li>
+<li>UsedInCanvas / UsedInModels（どこで使われているかの一覧）、Skybox の切替は未実装です</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=material-editor" data-manual-page="material-editor">Material Editor の使い方（プレビュー・シェーダー変換）</a> — サムネイルで確認する、シーンに置く、シェーダーを乗り換える</li>
+<li><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> — 新規作成と一覧</li>
+<li><a href="?page=manual&p=model-editor" data-manual-page="model-editor">モデルの設定と Model Editor</a> — マテリアルを割り当てるモデル、LightLayerMask</li>
+<li><a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">UI スキン</a> / <a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas の設定項目</a> — UI 用テクスチャデータの使い先</li>
+<li><a href="?page=manual&p=validation" data-manual-page="validation">検証（Validation）</a> — 警告一覧の見方</li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

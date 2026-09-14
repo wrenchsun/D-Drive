@@ -1649,3 +1649,135 @@ O-1〜O-5・O-7〜O-10（GAS 側）と O-6 の Web 側の受け皿（D-Drive か
     `compile_status`/`run_tests`（EditMode）で確認する。
 - **未検証事項**: 上記の Unity 上の動作確認（コンパイル・EditMode テスト実行）。実際の Web アプリへの
   デプロイでの `assetParams` 疎通確認（§9-4 と同様、実デプロイ URL が必要）も未実施。
+
+---
+
+## 実装メモ（2026-09-14、マニュアル配信）
+
+ユーザー要望「デザイナー向けマニュアルも AppScript 側に置いて相互アクセスできるようにしたい」への対応。
+真実は引き続き `docs/DesignerManual/*.html`（25 ページ + `style.css` + `images/*.png` 6 枚）に置き、
+GAS（Tools/SpecWeb）側は**生成物**として配信する。Unity 側の「マニュアル」ボタン（PR #45、
+`Assets/DDrive/Editor/Manual/*`、main にマージ済み）が開く URL 契約
+`<人向けURL>?page=manual&p=<ページ名（拡張子なし、トップは Readme）>`（`ManualUrlBuilder.BuildWebUrl`）
+を GAS 側の受け口として実装した。
+
+### 方式の選択と理由
+
+1. **生成物の単位: 1 ページ = 1 GAS html ファイル**（`Tools/SpecWeb/html/manual/<page>.html`）。
+   1 つの JSON にまとめる方式は不採用。理由:
+   - 既存の `include(filename)`（src/Code.js、`HtmlService.createHtmlOutputFromFile(...).getContent()`
+     のラッパー）がそのまま使え、サーバー側の実装が 1 行で済む
+   - 生成後の最終形（style インライン化済み・リンク書き換え済み）のまま git 上で読めるため
+     レビュー・差分確認がしやすい。1 つの巨大 JSON にまとめると 1 ページの更新でも
+     ファイル全体の diff になり、レビューしにくい
+   - サイズは最大のページ（`vfx-editor.html`、119KB の画像込み）でも約 177KB。GAS の 1 ファイルの
+     実務上の上限（MB 単位）に対して十分小さい（25 ページ合計で約 820KB）
+2. **生成物は git にコミットする**（`.gitignore` して毎回生成する方式は不採用）。理由:
+   - このリポジトリの既存の慣習（`Assets/Generated/*.g.cs` 等、ビルド再現性のためにコミットする
+     生成物がある）と一致させる
+   - `clasp push` はローカルファイルをそのまま送るだけで、push 時にビルドステップを挟む仕組みが
+     無いため、コミットしておけば Node が無い環境でも `clasp push` だけで最新化できる
+   - ドリフト（docs/DesignerManual を更新して生成物の再生成を忘れる）のリスクには、
+     `test/build-manual.test.js` の「コミット済みファイルは現在の生成結果と一致する」テスト
+     （drift チェック）で対応する。加えて `Tools/SpecWeb/push.ps1` が `clasp push` の前に
+     必ず再生成する（README §9 に手順を追記）
+3. **CSS のスコープ化**: `style.css` をそのまま `<style>` としてインラインすると、
+   `body`/`h1`/`table` 等の広いセレクタが SPA 全体（ヘッダー・ナビ・他の画面）に漏れる
+   （`<style>` はサブツリーにスコープされないため）。`build-manual.js` の `scopeCss` が
+   すべてのセレクタに `.sw-manual-page` を前置し（`body` はスコープクラス自身に置き換える）、
+   生成した断片も本文を `<div class="sw-manual-page">` で包む。前提として style.css が
+   フラットな CSS（`@media` 等のネストが無い）であることに依存している（現状の style.css は
+   この前提を満たす。ネストが増えたら `scopeCss` の見直しが必要）
+4. **ページ間リンク・同一ページ内アンカーの扱い**: `html/App.html` が既に踏んだ教訓
+   （§2.4 訂正・「実装メモ（実デプロイで判明した誤りと修正）」参照）どおり、① 人向け SPA は
+   `<base target="_top">` を持つため、素の `<a href="xxx.html">` や `<a href="#foo">` は
+   クリック時にトップフレーム（`/exec`）を動かそうとしてしまい、iframe 内のナビゲーションとして
+   機能しない。そのため `build-manual.js` が本文中の `<a>` を機械的に 3 種類に分類し、
+   href はフォールバック用に残したまま、クリック時の実際の遷移先をデータ属性で示す:
+   - `xxx.html`（+`#anchor`）→ `href="?page=manual&p=xxx"`（+`#anchor`）+ `data-manual-page="xxx"`
+     （+`data-manual-anchor="anchor"`）
+   - `#foo`（同一ページ内アンカー）→ href は変更せず `data-manual-anchor="foo"` を付与
+   - `http(s)://...`（外部）→ `target="_blank" rel="noopener"` を付与、href は変更しない
+   - 上記のどれにも当たらない形式は変更せずそのまま残し、ビルド時に警告する（例外にしない）
+   - リンク先が生成対象のページ一覧に無い場合（typo 等）もビルド時に警告する
+   `html/Manual.html`（新規画面）はこれらのデータ属性をイベント委譲で 1 箇所だけ処理し、
+   `window.SpecWebNavigate('manual', { params: { p, anchor } })` または同一ページ内スクロール
+   （`scrollIntoView`）を行う
+5. **マニュアルを「SPA の 1 画面」として統合**（本文を独立した `doGet` レスポンスとして返す方式は
+   不採用）。理由: `html/App.html` の既存ナビゲーション方式（`google.script.run`+
+   `google.script.history`、iframe 内で完結）と一貫させるため。具体的には:
+   - `src/Code.js`: `doGet`/`doPost` の振り分け（`handleSpecWebRequest_`）に変更は無いが、
+     `?api=1` が無い通常の SPA 表示（`renderUi_`）が `e.parameter` を受け取り、新設
+     `resolveInitialScreen_(params)` で `page=manual&p=<p>` を `{ screen: 'manual', params: { p } }`
+     に変換して `HtmlTemplate`（`template.initialScreen`/`template.initialParams`）へ渡す。
+     `p` が不正・未知でも `SPEC_WEB_MANUAL_TOP_PAGE`（Readme、`src/ManualPages.js` 生成）へ
+     フォールバックする（例外にしない）。`page` パラメータ自体が無い通常アクセスは
+     `screen: null`（既定画面 `orders` のまま、動作を変えない）
+   - `html/Index.html`: `window.SpecWebCurrentUser` と同じ形で
+     `window.SpecWebInitialScreen`/`window.SpecWebInitialParams` をクライアントへ渡す
+   - `html/App.html`: `DOMContentLoaded` 時に既定画面（`DEFAULT_SCREEN_ID`）ではなく
+     `window.SpecWebInitialScreen || DEFAULT_SCREEN_ID` を初期画面にする。また
+     `registerScreen`/`SpecWebNavigate` の第 2 引数として画面ごとの `params` を渡せるように
+     `renderScreen`/`navigateTo`/`history` の state を拡張した（既存の画面は
+     `render(root)`（第 2 引数を無視）のままで良く、この変更による既存画面への影響は無い）
+   - `html/Manual.html`（新規）: `registerScreen('manual', function (root, params) {...})`。
+     本文は自前で組み立てず、サーバーの `manualGet`（`src/Manual.js`、`google.script.run` 経由）
+     から取得した断片 HTML を `innerHTML` に差し込むだけ（コンテンツの正は docs/DesignerManual 側）
+   - `src/Manual.js`（新規）: `registerApi('manualGet', ...)`。`params.p` を
+     `SPEC_WEB_MANUAL_PAGE_NAMES`（`src/ManualPages.js`、build-manual.js 生成）で検証し、
+     `include('html/manual/' + page)` を返すだけ。無効な `p` はトップへフォールバックする
+   - `DDRIVE_WRITE_TOKEN_ALLOWED_APIS`（D-Drive の書き込みトークンで呼べる API の許可リスト）には
+     `manualGet` を追加していない（状態を変更しない読み取り専用の API であり、書き込みトークンの
+     許可リストに載せる必要が無いため。読み取りトークンでは元々の仕組みにより呼べる）
+
+### 変更・追加ファイル
+
+| ファイル | 内容 |
+|---|---|
+| `Tools/SpecWeb/tools/build-manual.js`（新規） | 生成スクリプト本体。fs I/O をする `buildAll` と、テスト可能な純粋関数（`scopeCss`/`rewriteLinks`/`inlineImages`/`extractBodyInnerHtml`/`buildManualPageHtml` 等）を分離した |
+| `Tools/SpecWeb/html/manual/*.html`（新規、25 ファイル、生成物） | 1 ページ 1 ファイル。style インライン化・画像 data URI 化・リンク書き換え済み |
+| `Tools/SpecWeb/src/ManualPages.js`（新規、生成物） | `SPEC_WEB_MANUAL_PAGE_NAMES`（許可リスト）・`SPEC_WEB_MANUAL_TOP_PAGE`（`"Readme"`） |
+| `Tools/SpecWeb/src/Manual.js`（新規） | `manualGet` API |
+| `Tools/SpecWeb/html/Manual.html`（新規） | マニュアル画面（ナビへの「マニュアル」リンク追加 + 本文の差し込み + リンク処理） |
+| `Tools/SpecWeb/src/Code.js` | `handleSpecWebRequest_`/`renderUi_` が `params` を受け取るように変更、`resolveInitialScreen_` を新設 |
+| `Tools/SpecWeb/html/Index.html` | `window.SpecWebInitialScreen`/`Params` を渡す + `html/Manual` を include |
+| `Tools/SpecWeb/html/App.html` | `renderScreen`/`navigateTo`/history state に `params` を追加、初期画面を `window.SpecWebInitialScreen` から決めるように変更 |
+| `Tools/SpecWeb/push.ps1`（新規） | `build-manual.js` を実行してから `clasp push` する（README §9 参照） |
+| `Tools/SpecWeb/test/build-manual.test.js`（新規） | 生成スクリプトの単体テスト（リンク書き換え・画像 data URI・未知リンク警告・CSS スコープ）+ ドリフト検出テスト |
+| `Tools/SpecWeb/test/manual.test.js`（新規） | `resolveInitialScreen_`・`doGet`（`page=manual`）・`manualGet`（`specWebUiCall`/token 経由）のテスト |
+| `Tools/SpecWeb/test/app.test.js` | 初期画面（`window.SpecWebInitialScreen`/`Params`）・`params` 付き `SpecWebNavigate` のテストを追加 |
+
+### テスト結果
+
+`& "C:\Program Files\nodejs\node.exe" --test "Tools/SpecWeb/test/*.test.js"` で実行。
+**251 件全て green**（既存 218 件 + 本チケット追加 33 件）。ドリフト検出テスト（実際の
+docs/DesignerManual から今生成した内容とコミット済みファイルの一致確認）も green。
+
+### 目視確認（実デプロイでの確認が必須。Node テストでは iframe の挙動を検証できない）
+
+Node テストは GAS ホストグローバル（`HtmlService`/`google.script.run` 等）をフェイクに
+差し替えているため、`<base target="_top">` の実際の挙動・iframe サンドボックスの制約・
+`google.script.history` の実際の戻る/進む挙動は確認できない（§2.4「実デプロイで判明した誤り」で
+実際に踏んだ問題もすべて Node テストでは検出できなかった）。**次の手順を人が実デプロイで確認する
+まで、この機能は「未検証」として扱う**（docs/28 §0 の運用に合わせる）:
+
+1. `cd Tools/SpecWeb && ./push.ps1`（`build-manual.js` を再実行してから `clasp push`）
+2. README §7「コードを更新した後の再デプロイ手順」で①②両方のデプロイを新バージョンに更新する
+3. Unity の「マニュアル」ボタン（メインツールバー、再生ボタンの右）→ Web を優先する設定になっていれば
+   ブラウザで①のデプロイ URL が `?page=manual&p=Readme` 付きで開き、発注ツリー画面ではなく
+   マニュアルのトップページが表示されることを確認する
+4. マニュアル内のページ間リンク（例: 「Asset Browser の使い方」）をクリックし、フルページ
+   リロードにならずに iframe 内で別ページに切り替わることを確認する
+5. 画像を含むページ（例: audio-editor.html 相当）で画像が表示されることを確認する
+   （data URI 化済みのため外部リクエストは発生しないはず）
+6. 「← 発注ツールへ」で発注ツリー画面に戻れること、ヘッダーの「マニュアル」リンクで
+   再度マニュアルを開けることを確認する
+7. ブラウザの戻る/進むボタンで、マニュアル内の画面遷移・発注ツールとの往復が
+   `google.script.history` 経由で正しく動くことを確認する（うまく戻れない場合は
+   §2.4 の iframe サンドボックスの制約を再確認する）
+8. docs/DesignerManual の内容を 1 箇所編集し、`build-manual.test.js` のドリフト検出テストが
+   red になること（コミットし忘れの検出）→ `push.ps1` 実行 → green に戻ることを確認する
+   （運用の確認。必須ではないが推奨）
+
+上記 3〜7 はユーザー本人が確認する（Claude はブラウザで実際の Google アカウントにログインした
+デプロイを開けないため代行できない）。docs/28 に同じ手順への参照を追記した。

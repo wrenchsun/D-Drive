@@ -1,0 +1,110 @@
+<script>
+  /**
+   * デザイナーマニュアル画面（2026-09-14 追加）。docs/32_spec_web.md「マニュアル配信」節。
+   *
+   * 本文は Tools/SpecWeb/tools/build-manual.js が docs/DesignerManual/*.html から事前生成した
+   * 断片 HTML（style インライン化・画像 data URI 化・リンク書き換え済み）を、サーバー側の
+   * `manualGet`（src/Manual.js）から取得して innerHTML に差し込むだけ。DOM を自前で組み立てない
+   * （他の画面と違い、コンテンツは docs/DesignerManual 側が正）。
+   *
+   * ナビゲーション（html/App.html の説明どおり、`<base target="_top">` があるため素の <a> は
+   * トップフレームを動かそうとしてしまう）: build-manual.js が本文中の内部リンクに
+   * `data-manual-page`（ページ間）・`data-manual-anchor`（同一/他ページ内アンカー）・
+   * `data-manual-exit`（発注ツールへ戻る）を付けている。ここではクリックを 1 箇所で
+   * イベント委譲して window.SpecWebNavigate で iframe 内遷移する。href 自体は
+   * JS が動かなかったときの素朴なフォールバック（`?page=manual&p=...` への通常のリンク）。
+   */
+  (function () {
+    'use strict';
+
+    var navHost = document.getElementById('app-nav');
+    if (navHost && !navHost.querySelector('a[data-screen="manual"]')) {
+      var navLink = document.createElement('a');
+      navLink.href = '?page=manual&p=Readme';
+      navLink.textContent = 'マニュアル';
+      navLink.setAttribute('data-screen', 'manual');
+      navLink.addEventListener('click', function (ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        window.SpecWebNavigate('manual', { params: { p: 'Readme' } });
+      });
+      navHost.appendChild(navLink);
+    }
+
+    function findAnchorAncestor(node, container) {
+      while (node && node !== container) {
+        if (node.tagName === 'A') return node;
+        node = node.parentNode;
+      }
+      return null;
+    }
+
+    /** 本文中の内部リンクへのクリックを 1 箇所で処理する（イベント委譲）。 */
+    function bindManualLinks(container) {
+      container.addEventListener('click', function (ev) {
+        var anchor = findAnchorAncestor(ev.target, container);
+        if (!anchor) return;
+
+        var exitScreen = anchor.getAttribute('data-manual-exit');
+        if (exitScreen) {
+          if (ev.preventDefault) ev.preventDefault();
+          window.SpecWebNavigate(exitScreen);
+          return;
+        }
+
+        var page = anchor.getAttribute('data-manual-page');
+        if (page) {
+          if (ev.preventDefault) ev.preventDefault();
+          var anchorId = anchor.getAttribute('data-manual-anchor') || '';
+          window.SpecWebNavigate('manual', { params: { p: page, anchor: anchorId } });
+          return;
+        }
+
+        var sameAnchor = anchor.getAttribute('data-manual-anchor');
+        if (sameAnchor) {
+          if (ev.preventDefault) ev.preventDefault();
+          scrollToAnchor(container, sameAnchor);
+        }
+      });
+    }
+
+    function scrollToAnchor(container, anchorId) {
+      if (!anchorId || !container.querySelector) return;
+      var target = null;
+      try {
+        target = container.querySelector('#' + anchorId);
+      } catch (err) {
+        target = null; // anchorId に CSS セレクタとして不正な文字が来ても例外にしない。
+      }
+      if (target && target.scrollIntoView) target.scrollIntoView();
+    }
+
+    registerScreen('manual', function (root, params) {
+      params = params || {};
+      var pageName = params.p || 'Readme';
+
+      var status = document.createElement('p');
+      status.className = 'sw-muted';
+      status.textContent = 'マニュアルを読み込み中...';
+      root.appendChild(status);
+
+      window.SpecWebClient.callApi('manualGet', { p: pageName }).then(function (result) {
+        root.innerHTML = '';
+        if (!result || !result.ok) {
+          var errorEl = document.createElement('p');
+          errorEl.textContent = 'マニュアルを読み込めませんでした: ' + ((result && result.error) || '不明なエラー');
+          root.appendChild(errorEl);
+          return;
+        }
+
+        var wrap = document.createElement('div');
+        wrap.innerHTML = result.html;
+        root.appendChild(wrap);
+        bindManualLinks(wrap);
+
+        if (params.anchor) {
+          scrollToAnchor(wrap, params.anchor);
+        }
+      });
+    });
+  })();
+</script>

@@ -46,6 +46,12 @@
 - [ ] 取得 → 差分プレビュー → Placeholder 作成（アセット・調整値〔スカラー・テーブル・enum〕） — [28 W-9〜W-12節](28_manual_verification_phase5.md) — 20分 — ②のデプロイ済み Web アプリ
 - [ ] `Specs/assets.json`/`Specs/tuning.json` の diff 確認 — [28 W-9〜W-12節](28_manual_verification_phase5.md) — 5分 — 特になし（同期後でよい）
 - [ ] D-Drive → Web 送信（選択肢・実状態・調整値使用状況）+ Web の実状態バッジ確認 — [28 W-9〜W-12節](28_manual_verification_phase5.md) — 10分 — 書き込みトークン
+- [ ] マニュアル配信（デザイナーマニュアルを Web からも開ける・Unity の「マニュアル」ボタンから
+  `?page=manual&p=...` で開く、2026-09-14 追加） — [32_spec_web.md「実装メモ（マニュアル配信）」の
+  「目視確認」節](32_spec_web.md#実装メモ2026-09-14マニュアル配信) — 15分 — ①のデプロイ済み Web アプリ、
+  `Tools/SpecWeb/push.ps1` 実行済み（`html/manual/*.html` を最新化してから `clasp push`）。
+  Node テストでは iframe のナビゲーション（`google.script.history`・`<base target="_top">` 回避）を
+  検証できないため、この目視確認が唯一の検証手段
 - [ ] （旧方式・参考）仕様書テンプレート — [28 5-12節](28_manual_verification_phase5.md) — 実施不要
 - [ ] （旧方式・参考）仕様書同期（スプレッドシート） — [28 5-13節](28_manual_verification_phase5.md) — 実施不要
 - [ ] （旧方式・参考）仕様書リンク — [28 5-14節](28_manual_verification_phase5.md) — 実施不要
