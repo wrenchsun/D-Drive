@@ -42,6 +42,19 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 32 | [仕様書 Web 化（Google Apps Script、ドラフト）](32_spec_web.md) | 27 を置き換える新方式。GAS Web アプリに人向け機能仕様 + ツール向けアセット一覧・調整値を統合、正本は Web 側、D-Drive は `Specs/*.json` へスナップショット同期（2026-09-14） |
 | 28/31 | [Phase 5 実装確認手順書](28_manual_verification_phase5.md#0-確認の進め方2026-09-14-まとめ) / [Phase 5 要判断一覧](31_phase5_decisions.md) | P5 のユーザー確認の進め方チェックリスト（§0）と、決めていない事項の一覧（A/B/C 優先度付き）（2026-09-14） |
 | 33 | [CI セットアップ](33_ci_setup.md) | 6-1: セルフホストランナー登録・ブランチ保護・public/private 別の注意・ローカル実行スクリプトの使い方（2026-09-15） |
+| 25 | [Phase 3 後半コードレビュー結果（2026-09-11）](25_phase3_material_anim2d_review_2026-09-11.md) | Codex 未レビュー分（3-14〜3-21、Material/Anim2D）の自前レビュー: 実バグ 8 件 + P2 大半の対応状況 |
+| 29 | [実機ネットワーク確認手順](29_network_device_test.md) | 6-0: PC-A Host + PC-B Client の実機 2 台確認手順・実施記録（遅延 0ms/200ms・Late Join・偽造メッセージ破棄・切断） |
+| 30 | [Phase 5 コードレビュー結果（2026-09-14）](30_phase5_review_2026-09-14.md) | 5-1〜5-16 の自前レビュー結果と対応状況 |
+| 34 | [オンボーディング（プログラマー・新メンバー向け）](34_onboarding.md) | 6-4: 環境構築・リポジトリの地図・「ID だけでモックを作る」流れ・検証ループ・CI・AI エージェント・発注ツールとの関わり方（2026-09-15） |
+| 35 | [チュートリアル動画の台本](35_tutorial_video_scripts.md) | 6-4: 5 本分の収録台本（目的・事前準備・カットごとの操作/ナレーション）+ 収録時の注意（個人情報・URL 非表示）。収録自体は人の作業（2026-09-15） |
+
+## デザイナー向けマニュアル
+
+Unity を操作しながら使う人向けの HTML マニュアルは [DesignerManual/Readme.html](DesignerManual/Readme.html)。プログラム知識は不要。新規メンバーの最初の一歩は [DesignerManual/getting-started.html](DesignerManual/getting-started.html)（所要時間つきの「はじめての15分」）。
+
+## AI エージェント向けの入口（再掲）
+
+Claude Code 用のスキルは [.claude/skills/ddrive-agent-workflow/SKILL.md](../.claude/skills/ddrive-agent-workflow/SKILL.md)、Codex 等その他のエージェント用の自己完結した要約は [AGENTS.md](../AGENTS.md)（リポジトリ直下）。プログラマー・新メンバー向けの入口は [34_onboarding.md](34_onboarding.md) §7 にまとめてある。
 
 ## 全体像 1 枚図
 

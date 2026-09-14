@@ -86,6 +86,7 @@
 - 表現方針: パラメータの詳細を丁寧に、専門用語はかみ砕く（用語集ページを設ける）、ウィンドウの開き方から記述する
 - スクリーンショット: `docs/DesignerManual/images/` に配置。**画像の加工は矩形切り取りのみ**を前提とし、矢印・注釈の書き込みが必要な説明は文章側で行う
 - 更新履歴: 2026-09-12 に Phase 3 後半〜Phase 4 分を追加（`anim2d-editor` / `material-data` / `material-editor` / `prefab-data` / `canvas-data` / `canvas-editor` / `ui-skin` / `ui-tween` / `validation` の 9 ページ新設、Readme・用語集・既存 8 ページを現行コードに合わせて修正）。ページ構成は「概要 / 開き方 / はじめの一歩 / 画面の説明 / 設定項目 / よくある使い方 / よくある警告 / 注意点 / 関連ページ」で統一し、画面文言・警告文言はコードの原文をそのまま載せる
+- **2026-09-15 追記（6-4）**: 新規メンバー向けオンボーディングページ `getting-started.html` を新設（「はじめての15分」を所要時間つきで説明、既存ページの再掲ではなく手順の順序と時間配分に特化）。Readme のページ一覧・「はじめの一歩」から誘導を追加。プログラマー向けの同種入口は `docs/34_onboarding.md`（Unity マニュアルの対象外のため `DesignerManual/` には置かない）。チュートリアル動画の台本は `docs/35_tutorial_video_scripts.md`（収録自体は人の作業）
 
 ## 3.5 Inspector 規約
 

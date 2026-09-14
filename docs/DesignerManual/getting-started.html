@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>はじめての15分（新規メンバー向け） | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › はじめての15分（新規メンバー向け）</nav>
+
+<h1>はじめての15分（新規メンバー向け）</h1>
+
+<p>このページは、D-Drive を初めて触る人が<strong>効果音（SE）を1つ登録してゲームに反映させる</strong>までを、実際にかかる時間の目安つきで説明します。<a href="Readme.html">トップページの「はじめの一歩」</a>より詳しく、つまずきやすい点も先に案内します。プログラムの知識は不要です。</p>
+
+<div class="tip">
+<strong>目標:</strong> 「効果音を1つ登録し、鳴らせる状態にする」までをおよそ<strong>15分</strong>で一巡できます。慣れれば数分で終わる作業ですが、最初は各手順の意味を確認しながら進めてください。
+</div>
+
+<h2>全体の流れ（所要時間の目安）</h2>
+<table>
+<tr><th>#</th><th>手順</th><th>目安時間</th></tr>
+<tr><td>1</td><td>Unity を開く（前提。すでに開いていれば 0 分）</td><td>—</td></tr>
+<tr><td>2</td><td><a href="#step2">「？ マニュアル」ボタンの場所を確認する</a></td><td>1 分</td></tr>
+<tr><td>3</td><td><a href="#step3">Asset Browser を開く</a></td><td>1 分</td></tr>
+<tr><td>4</td><td><a href="#step4">SE を登録する（フォルダに置く、または D&amp;D）</a></td><td>3 分</td></tr>
+<tr><td>5</td><td><a href="#step5">試聴する</a></td><td>1 分</td></tr>
+<tr><td>6</td><td><a href="#step6">音量を調整する</a></td><td>2 分</td></tr>
+<tr><td>7</td><td><a href="#step7">Validation で確認する</a></td><td>2 分</td></tr>
+<tr><td>8</td><td><a href="#step8">保存する</a></td><td>1 分</td></tr>
+<tr><td>9</td><td><a href="#step9">（発注に対応している場合）発注ツールで「インポート済」を確認する</a></td><td>2 分</td></tr>
+<tr><td colspan="2">合計</td><td>約 13 分（つまずいても+数分で 15 分以内）</td></tr>
+</table>
+
+<h2 id="step2">手順2: 「？ マニュアル」ボタンの場所を確認する</h2>
+<p>Unity 画面上部、再生ボタン（▶）のすぐ右にある<strong>「？ マニュアル」ボタン</strong>から、このマニュアルをいつでもブラウザで開けます。困ったときはまずここに戻ってきてください。</p>
+<div class="warn">
+<strong>つまずきポイント: ボタンが最初は隠れています。</strong> 見当たらない場合は、画面上部のツールバーの何もない場所を右クリックし、「D-Drive/Manual」にチェックを入れてください（1 回だけで OK。以後は常に表示されます）。メニューの <code>Tools &gt; D-Drive &gt; マニュアルを開く</code> からも同じページを開けます。
+</div>
+
+<h2 id="step3">手順3: Asset Browser を開く</h2>
+<p>メニューバーの <code>Tools &gt; D-Drive &gt; Asset Browser</code> を開きます。これが D-Drive のすべての素材の入口です。詳しくは <a href="asset-browser.html">Asset Browser の使い方</a>。</p>
+
+<h2 id="step4">手順4: SE を登録する</h2>
+<p>やり方は2つあります。どちらでも構いません。</p>
+<table>
+<tr><th>方法</th><th>手順</th></tr>
+<tr><td>A. フォルダに置く（自動検知）</td><td><code>Assets/SourceAssets/Se/&lt;カテゴリ&gt;/</code>（例: <code>Assets/SourceAssets/Se/Player/</code>）に音声ファイル（.wav 等）を置くと、数秒後に自動で SeData が作られます。</td></tr>
+<tr><td>B. Asset Browser にドラッグ＆ドロップ</td><td>Project ウィンドウの音声ファイルを Asset Browser のウィンドウ上へドラッグ＆ドロップ → ダイアログで表示名・識別子を入力 → 「作成」。</td></tr>
+</table>
+<div class="warn">
+<strong>つまずきポイント: 種別フォルダは「SourceAssets の直下1階層目」でなければなりません。</strong> <code>Assets/SourceAssets/Se/Player/Slash.wav</code> は検知されますが、<code>Assets/SourceAssets/Slash.wav</code>（直下に直置き）や <code>Assets/SourceAssets/Check/Se/Slash.wav</code>（Se の上に別フォルダを挟む）は検知されません。フォルダ名の大文字・小文字（<code>Se</code>）も一致させてください。置き方を間違えると Console に案内の警告が出ます。詳しくは <a href="asset-browser.html">Asset Browser の使い方 §方法3</a>。
+</div>
+<p>方法 A で作った場合、表示名は最初はファイル名のままです。Asset Browser の一覧でその SE を選び、Inspector の「Display Name」を分かりやすい日本語名に変えておきましょう（例:「剣の斬撃音」）。</p>
+
+<h2 id="step5">手順5: 試聴する</h2>
+<p>Asset Browser の一覧でその SE をクリックして選び、下のプレビューバーの<strong>▶ 再生</strong>を押します。ゲームを実行しなくてもその場で鳴ります。詳しくは <a href="se-data.html">SE の設定項目</a>。</p>
+
+<h2 id="step6">手順6: 音量を調整する</h2>
+<p>Inspector の <code>Volume</code>（0〜1）を変更し、プレビューバーの▶で鳴らし直して確認します。細かく波形を見ながら調整したい場合は <a href="audio-editor.html">Audio Editor</a> を開いたまま作業すると効率的です。</p>
+
+<h2 id="step7">手順7: Validation で確認する</h2>
+<p>メニューの <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> を実行します。この SE に関する赤い表示（Error）が無いことを確認してください。よくあるのは「Mixer が未割当」「Clip が未設定」です。詳しくは <a href="validation.html">Validation の使い方</a>。</p>
+<div class="tip">
+自動で直せる項目には「修正」ボタンが出ます。押すだけで直り、Ctrl+Z で戻せます。
+</div>
+
+<h2 id="step8">手順8: 保存する</h2>
+<p><kbd>Ctrl+S</kbd>（Unity のシーン保存ではなく、Inspector 上のアセット自体は選択を変えた時点や Unity の自動保存で反映されます。明示的に保存したい場合は Project ウィンドウでそのアセットを選び直すか、メニューの <code>File &gt; Save Project</code> を使っても構いません）。</p>
+<div class="tip">
+Inspector の「Version」「Author」「Updated At」欄は、保存のたびに自動更新される予定の項目です（6-3）。<strong>現時点で空欄・古い値のままでも、手で入力する必要はありません。</strong>気にせず次に進んでください。
+</div>
+
+<h2 id="step9">手順9（該当する場合）: 発注ツールで「インポート済」になるのを見る</h2>
+<p>この SE が<a href="spec-sync.html">アセット発注ツール</a>の発注に対応している場合（企画から「このIDで作ってほしい」と発注されていた場合）は、この手順も試してみましょう。</p>
+<ol>
+<li>手順3〜8を終えた状態で、メニューの <code>Tools &gt; D-Drive &gt; 仕様書と同期</code> を開き「取得」を押す</li>
+<li>発注ツール（ブラウザ）側でその発注の詳細を開く</li>
+<li>状態が<strong>「インポート済」</strong>に自動で進んでいることを確認する（Validation の Error が無いことが条件。手動で状態を進める操作は無い）</li>
+</ol>
+<p>発注に対応していない（自分の練習用に作った）SE の場合は、この手順はスキップして構いません。</p>
+
+<h2>お疲れさまでした</h2>
+<p>これで「ID で管理された効果音を1つ、登録から確認まで一巡させる」という D-Drive の基本フローは完了です。他の種類（VFX・アニメーション・Canvas 等）も、Asset Browser から開く専用エディタで同じような流れ（登録 → 調整 → 試聴/プレビュー → Validation → 保存）になっています。<a href="Readme.html">トップページのページ一覧</a>から気になる種類のページへ進んでください。</p>
+
+<h2>困ったときは（再掲）</h2>
+<ul>
+<li>ウィンドウが見つからない → <code>Tools &gt; D-Drive</code> の下にすべてまとまっています</li>
+<li>赤い表示が出ている → <a href="validation.html">Validation の使い方</a></li>
+<li>言葉が分からない → <a href="glossary.html">用語集</a></li>
+<li>Unity 操作以前の疑問（環境構築・リポジトリ構成など、プログラマー/新メンバー向け）→ リポジトリ直下 <code>docs/34_onboarding.md</code></li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ（ページ一覧・共通の入口）</a></li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a></li>
+<li><a href="se-data.html">SE（効果音）の設定項目</a> / <a href="audio-editor.html">Audio Editor の使い方</a></li>
+<li><a href="validation.html">Validation の使い方</a></li>
+<li><a href="spec-sync.html">アセット発注ツールとの同期</a></li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>
