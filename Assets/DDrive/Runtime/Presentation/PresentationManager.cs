@@ -76,6 +76,17 @@ namespace DDrive.Runtime.Presentation
             public bool PlayedViaNetworkReceive;
         }
 
+        // Host のみが保持する「アクティブな Cosmetic Presentation」台帳(5-9, Late Join 用)。
+        // ワンショット演出は尺が短いため Cleanup() で即座にここから外れ、自然に復元対象から漏れる
+        // (専用の判定フィールドを増やさず、既存の Elapsed/Duration の仕組みに委ねた設計)。
+        private struct ActiveNetworkedEntry
+        {
+            public PresentationData Data;
+            public PlayContext Ctx;
+            public double StartNetTime;
+            public ushort Seed;
+        }
+
         private readonly IAssetRegistry _registry;
         private readonly TimeService _time;
         private readonly AudioManager _audio;
@@ -93,10 +104,11 @@ namespace DDrive.Runtime.Presentation
         private readonly HashSet<TrackKind> _unimplementedWarned = new();
         private readonly HashSet<TrackKind> _missingManagerWarned = new();
 
-        // [14_networking.md] §5(5-8) — null(既定)ならシングルプレイ相当で今までどおり完全ローカル
+        // [14_networking.md] §5(5-8/5-9) — null(既定)ならシングルプレイ相当で今までどおり完全ローカル
         // (Audio/Vfx/Prefabs と同じ「netBridge==null は通信の有無で挙動を変えない」原則、[14] §1)。
         private readonly INetBridge _netBridge;
         private readonly Dictionary<uint, Handle<PresentationMarker>> _networkedHandles = new();
+        private readonly Dictionary<uint, ActiveNetworkedEntry> _activeNetworked = new();
         private readonly uint _instanceSalt;
         private uint _nextLocalSeq;
 
@@ -135,6 +147,7 @@ namespace DDrive.Runtime.Presentation
                 _netBridge.Subscribe<PresentationPlayMsg>(OnReceivePlayMsg);
                 _netBridge.Subscribe<PresentationSignalMsg>(OnReceiveSignalMsg);
                 _netBridge.Subscribe<PresentationCancelMsg>(OnReceiveCancelMsg);
+                _netBridge.ClientConnected += OnClientConnected;
             }
         }
 
@@ -260,8 +273,9 @@ namespace DDrive.Runtime.Presentation
         private void OnReceivePlayMsg(ulong senderId, PresentationPlayMsg msg)
         {
             // 予測再生済み(または既にこの受信ハンドラで生成済み)の確定通知。二重生成しない([14] §5)。
-            if (_networkedHandles.TryGetValue(msg.HandleNetKey, out var existingHandle) && _instances.TryGet(existingHandle, out _))
+            if (_networkedHandles.TryGetValue(msg.HandleNetKey, out var existingHandle) && _instances.TryGet(existingHandle, out var existingInstance))
             {
+                RegisterActiveIfServer(msg.HandleNetKey, existingInstance.Data, existingInstance.Ctx, msg.StartNetTime, msg.Seed);
                 return;
             }
 
@@ -294,7 +308,54 @@ namespace DDrive.Runtime.Presentation
                 }
             }
 
-            PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true);
+            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true);
+
+            if (_instances.TryGet(handle, out var instance))
+            {
+                RegisterActiveIfServer(msg.HandleNetKey, instance.Data, instance.Ctx, msg.StartNetTime, msg.Seed);
+            }
+        }
+
+        private void RegisterActiveIfServer(uint handleNetKey, PresentationData data, PlayContext ctx, double startNetTime, ushort seed)
+        {
+            if (_netBridge == null || !_netBridge.IsServer || handleNetKey == 0)
+            {
+                return;
+            }
+
+            _activeNetworked[handleNetKey] = new ActiveNetworkedEntry
+            {
+                Data = data,
+                Ctx = ctx,
+                StartNetTime = startNetTime,
+                Seed = seed,
+            };
+        }
+
+        // [14_networking.md] §5(5-9) — 新規接続をホストだけが処理する。アクティブな Cosmetic Presentation を
+        // それぞれ元の StartNetTime のまま SendTo する(OnReceivePlayMsg が既存のシーク/ワンショットスキップ
+        // ロジックを再利用して復元する。専用の Late Join メッセージは用意しない)。
+        private void OnClientConnected(ulong clientId)
+        {
+            if (_netBridge == null || !_netBridge.IsServer)
+            {
+                return;
+            }
+
+            foreach (var kv in _activeNetworked)
+            {
+                var entry = kv.Value;
+                _netBridge.SendTo(clientId, new PresentationPlayMsg
+                {
+                    PresId = entry.Data.Id,
+                    SelfNetId = 0,
+                    TargetNetId = 0,
+                    Position = entry.Ctx.Position,
+                    StartNetTime = entry.StartNetTime,
+                    Seed = entry.Seed,
+                    HandleNetKey = kv.Key,
+                }, NetChannel.ReliableOrdered);
+            }
         }
 
         private uint NextHandleNetKey()
@@ -661,6 +722,12 @@ namespace DDrive.Runtime.Presentation
             if (instance.HandleNetKey != 0)
             {
                 _networkedHandles.Remove(instance.HandleNetKey);
+                if (_netBridge != null && _netBridge.IsServer)
+                {
+                    // [14_networking.md] §5(5-9) — 完了/Cancel された Presentation は Late Join の
+                    // 復元対象台帳から外す(ワンショットは尺が短いためここで即座に外れ、自然に復元されない)。
+                    _activeNetworked.Remove(instance.HandleNetKey);
+                }
             }
 
             instance.CompletedSubject.Dispose();

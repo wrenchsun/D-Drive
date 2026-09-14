@@ -105,6 +105,7 @@ namespace DDrive.Tests.Runtime
         public bool IsServer { get; }
         public bool IsClient => true;
         public double NetworkTime => _relay.NetworkTime;
+        public event Action<ulong> ClientConnected;
 
         public DelayedNetBridge(DelayedNetworkRelay relay, ulong selfClientId, bool isServer)
         {
@@ -113,6 +114,9 @@ namespace DDrive.Tests.Runtime
             IsServer = isServer;
             relay.Register(selfClientId, this);
         }
+
+        // 5-9: 実 NGO の OnClientConnectedCallback を模した手動発火(テスト専用)。
+        public void RaiseClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage
             => _relay.EnqueueBroadcast(_selfClientId, msg);

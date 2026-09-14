@@ -383,3 +383,26 @@
 - **観戦者の HitStop**: 1v1 前提のため「Signal を受け取った全ピアが HitStop する」を既定にした。3 人以上の構成になった場合は観戦者を除外する仕組みが必要(オーケストレーターの追加指示への対応、[14] §5 実装メモにも記載)
 - **Seed の実消費経路が無い**: `PresentationPlayMsg.Seed` は生成・伝搬するだけで、SE のランダム選択・PitchRange への接続は行っていない(5-8 のスコープ外と判断)。実際に必要になった時点で `AudioManager` 側に Seed を渡す口を追加すること
 - **Anim 以外の位相同期は近似**: `Bgm` トラックは頭から再生するだけで、`BgmManager` に再生位置を指定する API が無いため厳密な位相合わせは未実装(`Anim`/`Anim2D` のみ `AnimManager.Seek` で実際に位相を合わせている)
+
+## 5-9 Late Join 復元（PR #25）
+
+対象: `Foundation/Net/INetBridge.cs`(`ClientConnected` イベント追加)、`Foundation/Net/LocalLoopbackBridge.cs`/`Runtime/Net/NgoNetBridge.cs`/`Tests/Runtime/{FakeNetBridge,CountingNetBridge}.cs`(同イベント実装)、`Runtime/Presentation/PresentationManager.cs`(アクティブ演出台帳 + Late Join 送信)、`Tests/Runtime/PresentationLateJoinTests.cs`(新規)。設計・実装メモは [14_networking.md](14_networking.md) §5 実装メモを参照。5-8 と同じ前提(`NgoNetBridge` は Bootstrap 未配線)のため、こちらも見出しを分ける。
+
+### 今確認できること(PlayMode 自動テスト)
+
+1. **自動テストで代替**: `Tests/Runtime/PresentationLateJoinTests.cs` の以下が green であること
+   - `LateJoin_LoopingVfx_RestoredWithSeek_ForNewlyConnectedClient`: 常駐 VFX を模した長尺 Cosmetic Presentation(`VfxData.LifeMode=Loop`)を Host が再生 → 5 秒後に新しいクライアントが接続 → 途中参加クライアントの `VfxManager.ActiveCount` が 1(シーク状態で復元される。AC「途中参加でループ VFX/BGM が復元」の VFX 側を自動検証)
+   - `LateJoin_OneShotPresentation_IsNotRestored_AfterItCompletes`: 短命なワンショット Presentation が尺を超えて `Complete()` した後に新規クライアントが接続 → 何も復元されない(`DebugActiveHandles()` が空)
+   - **注**: BGM のループ復元(AC 文言の「BGM」側)は専用テストを書いていない(`BgmManager` に位置シーク API が無く、`Anim`/`Anim2D`/`Vfx` と同じ仕組み(`IsContinuousAtSeek` で `TrackKind.Bgm` は常に continuous 扱い)で理論上は復元されるはずだが、実際に鳴り始めることの検証は未実施。要判断参照)
+2. **`INetBridge.ClientConnected` の手動発火確認**: `LocalLoopbackBridge.RaiseClientConnected(clientId)` / `FakeNetBridge.RaiseClientConnected(clientId)` はテスト専用の手動発火 API(シングルプレイでは通常誰も接続してこないため、本番コードから呼ばれることはない)
+
+### NGO 配線後(Phase 6 待ち)に確認すること
+
+3. **MPPM で途中参加**: Phase 6 で `NgoNetBridge` が配線されたら、Host を先に起動して常駐 VFX/BGM を含む Presentation を再生した状態で、後から Virtual Player(Client)を接続 → 接続直後に途中参加側の画面でも VFX が(途中の見た目から)再生され、BGM が鳴り始めること。ワンショットの演出(既に終わっている攻撃演出等)は再現されないこと
+4. **切断・再接続**: 途中参加した Client が切断して再接続した場合の挙動(MS2026 Networking.md §4 のチェック観点「途中で切断したときに固まらないか」)は本チケットのスコープ外だが、Phase 6 で合わせて確認すること
+
+要判断:
+- **BGM のループ復元は理論上のみ**: 上記のとおり `IsContinuousAtSeek` は `TrackKind.Bgm` を継続系として扱うため、Late Join でも「頭から再生される」形で復元されるが、`BgmManager` は Seek API を持たないため厳密な位相合わせはしない(5-8 実装メモの要判断と同じ)。実際に BGM を含む常駐演出を作る際は、この「頭から再生される」挙動で十分かデザイナーに確認してもらうこと
+- **専用の Late Join メッセージを用意しなかった**: `PresentationPlayMsg` をそのまま `SendTo` するだけにしたため、Late Join で復元される演出は「Broadcast で送られたときと全く同じ形」でしか復元できない(将来、Late Join 専用の追加情報(例: 現在の Signal 発火済み状態)が必要になったら別メッセージの追加を検討すること)
+- **アクティブ演出台帳はメモリ上のみ**: `_activeNetworked` は Host の `PresentationManager` インスタンスが保持するだけで、Host が再起動すると消える(想定どおり。永続化の要件は無い)
+- **常駐 VFX/BGM を「Presentation でラップする」運用が前提**: 5-9 は `PresentationManager` 経由の Late Join のみ対応する。`Vfx.Spawn`/`Bgm.PlayBgm` を Presentation を介さず直接呼んだ Cosmetic な常駐エフェクトは、この台帳に乗らないため Late Join で復元されない(別途 `VfxManager`/`BgmManager` 自身に台帳を持たせる改修が必要。Phase 6 以降の課題として明記する)

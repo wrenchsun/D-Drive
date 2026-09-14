@@ -129,6 +129,12 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
 - **DDriveRuntimeBootstrap**: `Presentation = new PresentationManager(..., NetBridge)` に変更。現状 `NetBridge` は常に `LocalLoopbackBridge`(NGO 統合は Phase 6)のため、この変更自体はランタイムの挙動を変えない(Audio/Vfx/Prefabs と同じ配線パターンに揃えただけ)。
 - **見送り(Phase 6 へ)**: `NgoNetBridge` の実配線(Bootstrap への差し込み)、`SelfNetId`/`TargetNetId`/`LocalClientId` の実解決、SE のランダム選択(`Seed` の実消費)、`PresentationSignalMsg`/`PresentationCancelMsg` へのクライアント別レート制限の追加検証(現状は `NgoNetBridge` の汎用レート制限のみに依存)。
 
+## 実装メモ（2026-09-14、5-9）
+
+実装: `Foundation/Net/INetBridge.cs`（`event Action<ulong> ClientConnected` 追加）、`Foundation/Net/LocalLoopbackBridge.cs` / `Runtime/Net/NgoNetBridge.cs` / `Tests/Runtime/{FakeNetBridge,CountingNetBridge}.cs`（同イベントの実装を追加）、`Runtime/Presentation/PresentationManager.cs`（アクティブ演出台帳 + Late Join 送信、5-8 で追加した基盤の上に積む）。テストは `Tests/Runtime/PresentationLateJoinTests.cs`（新規）。
+
+- **Late Join**: `INetBridge` に `event Action<ulong> ClientConnected` を追加した(最小限の新規接続通知)。`LocalLoopbackBridge`/`Tests/Runtime/{FakeNetBridge,CountingNetBridge}` は手動発火用の `RaiseClientConnected(clientId)` を持つ(シングルプレイでは通常発火しない)。`NgoNetBridge` は `OnNetworkSpawn`/`OnNetworkDespawn` で `NetworkManager.OnClientConnectedCallback` を中継する。`PresentationManager` は Host(`_netBridge.IsServer`)のときだけ「アクティブ演出台帳」(`_activeNetworked: Dictionary<HandleNetKey, {Data, Ctx, StartNetTime, Seed}>`)を保持し、`OnClientConnected` で台帳の全エントリを新規クライアントへ `SendTo`(専用の Late Join メッセージは用意せず、既存の `PresentationPlayMsg` をそのまま送ることで `OnReceivePlayMsg` の開始時刻シーク/ワンショットスキップ・LocalPlayerOnly 判定をそのまま再利用する)。台帳への登録・削除は Instance の生成(`OnReceivePlayMsg`/予測確定)・消滅(`Cleanup`、Complete/Cancel 双方)に同期させているため、**ワンショットは尺が短いため自然に台帳から外れて復元されない**(専用の「これは復元しない」フラグを増やさない設計判断)。
+
 ## 6. 時刻・乱数・決定性
 
 - 演出のスケジュール（AtTime トラック、Frame イベント）は `NetworkTime` 基準に統一。`Time.time` を Foundation で直接使わない（`ITimeSource` 注入。ローカル時は Time.time 実装）
