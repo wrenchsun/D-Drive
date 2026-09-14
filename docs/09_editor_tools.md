@@ -182,6 +182,34 @@ Tools/
         └─ Missing Asset Report（発注リスト）
 ```
 
+### 6.1 メインツールバーの「マニュアル」ボタン（2026-09-14 追加）
+
+**再生ボタンの近くからデザイナーマニュアルをブラウザで開けるようにする。** Unity 6.3 の公式 API `UnityEditor.Toolbars` の
+`[MainToolbarElement]` を使う（旧 `Toolbar` への VisualElement 差し込み・リフレクションによる内部 API 利用は行わない）。
+実シグネチャは isuzu-unity MCP の `reflect_find_type` / `execute_code` で `UnityEditor.CoreModule` /
+`UnityEditor.EditorToolbarModule` から確認済み。再生ボタン自体（`UnityEditor.Toolbars.PlayModeButtons.Create`）は
+`path="Play Mode Controls"` / `defaultDockPosition=Middle` / `defaultDockIndex=0` で、Middle ドックの唯一の要素だったため、
+`ManualToolbarButtons`（`Editor/Manual/ManualToolbarButtons.cs`）は同じ Middle ドックの `defaultDockIndex=1` に置いて
+再生ボタンの右隣に表示する。1 つの `[MainToolbarElement]` メソッドが複数の `MainToolbarElement`（ボタン + ドロップダウン）を
+返す構成は `PlayModeButtons` / `SubToolbarZone` と同じ形を踏襲したもの。
+
+- ボタン（アイコン `EditorGUIUtility.IconContent("_Help")`、ツールチップ「デザイナーマニュアルをブラウザで開く」）: クリックでマニュアルのトップ（`Readme`）を開く
+- 横のドロップダウン（アイコン `"icon dropdown"`）: `docs/DesignerManual/*.html` のページ一覧（表示名は各 HTML の `<title>` から動的に取得。`ManualPages.DiscoverPages`）+ 「Web 版を優先」トグル + 「ローカルのマニュアルを開く」
+- 開く先の決定（契約）:
+  1. `DDriveSpecSettings.Load()?.HumanAppUrl` が空でなく、かつ `ManualPrefs.PreferWeb`（EditorPrefs、既定 ON）が ON なら
+     `<HumanAppUrl>?page=manual&p=<ページ名(拡張子なし)>`（既にクエリがあれば `&` で連結）を `Application.OpenURL`
+     （`ManualUrlBuilder.BuildWebUrl` / `ResolveUseWeb`）
+  2. それ以外はローカルの `docs/DesignerManual/<page>.html` を `file:///` URI で開く（`ManualUrlBuilder.BuildLocalFileUrl`）。
+     ファイルが無ければ `Debug.LogWarning` のみ（例外で止めない）
+- 実装: `Editor/Manual/`（`ManualUrlBuilder` = URL 組み立ての純粋関数、`ManualPages` = ページ一覧・表示名解決、
+  `ManualPrefs` = EditorPrefs トグル、`ManualLauncher` = 副作用側、`ManualToolbarButtons` = ツールバー要素、
+  `ManualMenu` = 同じ処理を呼ぶメニュー項目）
+- メニューからも開ける: `Tools/D-Drive/マニュアルを開く`（`DDriveMenu.Root` 経由。単発アクションのため既存の
+  「Asset Browser」等と同様に専用の定数は追加していない）
+- テスト: `Tests/Editor/ManualUrlBuilderTests.cs`（URL 組み立ての純粋関数。空 URL / 既存クエリあり / ページ名エスケープ）、
+  `Tests/Editor/ManualPagesTests.cs`（`docs/DesignerManual/*.html` の実ファイルと `DiscoverPages` の結果を照合、
+  `<title>` からの表示名解決）
+
 ## 7. ウィンドウレイアウト規約（拡縮前提）
 
 **すべての `EditorWindow`（AssetBrowser 本体を除く各専用エディタ）は、ウィンドウが最小サイズまで縮小されてもコンテンツの下端まで到達できなければならない。**
