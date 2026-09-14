@@ -32,6 +32,12 @@ namespace DDrive.Runtime.Loading
 
         private IProgress<float> _progressReporter;
 
+        // P5 レビュー対応(2026-09-14): RunAsync が実際に ScenePreload.RunAsync を呼んだ(= 参照を確保した)
+        // ときだけ立てる。OnDisable で無条件に Release すると、RunAsync が一度も走っていない
+        // (autoStartOnEnable=false で手動呼び出しも無い等)場合に他インスタンスの参照カウントを
+        // 誤って減らしてしまう。
+        private bool _preloadStarted;
+
         private void Awake()
         {
             _progressReporter = new Progress<float>(OnProgressChanged);
@@ -48,7 +54,12 @@ namespace DDrive.Runtime.Loading
         private void OnDisable()
         {
             // 例外で止めない(CLAUDE.md §0-4): 破棄済みシーンで参照を握りっぱなしにしない後始末。
-            ScenePreload.Release(preloadList);
+            // RunAsync が実行されていない場合は Release しない(上記フィールドの説明参照)。
+            if (_preloadStarted)
+            {
+                ScenePreload.Release(preloadList);
+                _preloadStarted = false;
+            }
         }
 
         public async UniTaskVoid RunAsync()
@@ -56,6 +67,7 @@ namespace DDrive.Runtime.Loading
             IsDone = false;
             Progress = 0f;
             OnProgressChanged(0f);
+            _preloadStarted = true;
 
             await ScenePreload.RunAsync(preloadList, _progressReporter);
 

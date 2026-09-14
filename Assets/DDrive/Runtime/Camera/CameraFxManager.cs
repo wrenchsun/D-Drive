@@ -52,6 +52,10 @@ namespace DDrive.Runtime.CameraShake
         private Quaternion _baseLocalRot = Quaternion.identity;
         private bool _cameraMissingWarned;
 
+        // P5 レビュー対応(2026-09-14): Camera.main 差し替え検知時に旧カメラを本来の親へ戻すための記録。
+        private Transform _cameraOriginalParent;
+        private int _cameraOriginalSiblingIndex;
+
         private float _globalScale = 1f;
 
         public AssetType Type => AssetType.Shake;
@@ -97,9 +101,12 @@ namespace DDrive.Runtime.CameraShake
                 return Handle<ShakeMarker>.Invalid;
             }
 
-            if (data.MaxStack > 0 && CountActive(data) >= data.MaxStack)
+            // P5 レビュー対応(2026-09-14): MaxStack<=0 は CameraShakeDataValidator の警告文言
+            // (「MaxStack が 0 以下です(Shake() が常に無視されます)」)に Manager の挙動を揃える
+            // (以前は 0 以下を「無制限」と誤って解釈していた。Validator の意図を正とする)。
+            if (data.MaxStack <= 0 || CountActive(data) >= data.MaxStack)
             {
-                // 上限超過は「多重発火で破綻しない」ための意図的な無視(警告なし。連打は普通に起きる)。
+                // 上限超過(または MaxStack<=0)は「多重発火で破綻しない」ための意図的な無視(警告なし。連打は普通に起きる)。
                 return Handle<ShakeMarker>.Invalid;
             }
 
@@ -248,11 +255,10 @@ namespace DDrive.Runtime.CameraShake
                 Remove(_active[i]);
             }
 
-            if (_shakeNode != null)
-            {
-                _shakeNode.localPosition = _baseLocalPos;
-                _shakeNode.localRotation = _baseLocalRot;
-            }
+            // P5 レビュー対応(2026-09-14): SceneUnload / Bootstrap の Teardown はここを通る
+            // (loop.StopAll → UnscaledCameraFxAdapter.StopAll → ここ)。カメラを本来の親へ戻し、
+            // 揺れ用ノードを破棄する(残したままだと次のシーンで孤児ノードとして残る)。
+            DetachCurrentCamera();
         }
 
         public void OnSceneUnload() => StopAll(StopReason.SceneUnload);
@@ -272,8 +278,9 @@ namespace DDrive.Runtime.CameraShake
 #endif
                 }
 
-                _camera = null;
-                _shakeNode = null;
+                // P5 レビュー対応(2026-09-14): Camera.main が消えた(シーン切替等)ときも、旧カメラを
+                // 本来の親へ戻してノードを破棄する(無条件で参照を捨てるとノードが孤立して残っていた)。
+                DetachCurrentCamera();
                 return;
             }
 
@@ -289,8 +296,14 @@ namespace DDrive.Runtime.CameraShake
 
         private void AttachNode(Transform camTransform)
         {
+            // P5 レビュー対応(2026-09-14): Camera.main の差し替え(A→B等)を検知した時点で、
+            // 直前のカメラを本来の親子構造へ戻し、旧ノードを破棄してから新しいノードを作る
+            // (戻さないと旧ノードが孤児のまま残り、A→B→A のように戻ってきたときに入れ子で積み上がる)。
+            DetachCurrentCamera();
+
             var node = new GameObject("DDriveCameraShakeNode").transform;
             var origParent = camTransform.parent;
+            var origSiblingIndex = camTransform.GetSiblingIndex();
             node.SetParent(origParent, false);
             node.SetPositionAndRotation(camTransform.position, camTransform.rotation);
 
@@ -307,6 +320,57 @@ namespace DDrive.Runtime.CameraShake
             _shakeNode = node;
             _baseLocalPos = node.localPosition;
             _baseLocalRot = node.localRotation;
+            _cameraOriginalParent = origParent;
+            _cameraOriginalSiblingIndex = origSiblingIndex;
+        }
+
+        // P5 レビュー対応(2026-09-14): 現在保持しているカメラを本来の親子構造(親 + Sibling Index)へ
+        // 戻し、揺れ用ノードを破棄する。Camera.main の差し替え検知(AttachNode)・Camera.main が
+        // 見つからなくなったとき(EnsureCameraNode)・StopAll(SceneUnload を含む。Bootstrap の
+        // Teardown はここを経由する)の 3 箇所から呼ぶことで、旧ノードが孤児のまま残らないようにする。
+        private void DetachCurrentCamera()
+        {
+            if (_camera == null)
+            {
+                // カメラ自体が破棄されている(シーンアンロード等)場合、ノードも一緒に消えているはず。
+                _shakeNode = null;
+                _cameraOriginalParent = null;
+                _cameraOriginalSiblingIndex = 0;
+                return;
+            }
+
+            if (_shakeNode != null)
+            {
+                // 復元前に揺れオフセットを打ち消す(worldPositionStays=true で戻した先に
+                // 揺れ分のズレが混ざらないようにする)。
+                _shakeNode.localPosition = _baseLocalPos;
+                _shakeNode.localRotation = _baseLocalRot;
+            }
+
+            var camera = _camera;
+            var node = _shakeNode;
+
+            camera.SetParent(_cameraOriginalParent, true);
+            camera.SetSiblingIndex(_cameraOriginalSiblingIndex);
+
+            if (node != null)
+            {
+                // Editor プレビュー(SceneCameraShakePreviewDriver 等)は Edit Mode で Tick を回すため、
+                // Object.Destroy は使えない(Edit Mode では例外/エラーになる)。Application.isPlaying で分岐する。
+                if (Application.isPlaying)
+                {
+                    Object.Destroy(node.gameObject);
+                }
+                else
+                {
+                    Object.DestroyImmediate(node.gameObject);
+                }
+            }
+
+            _camera = null;
+            _shakeNode = null;
+            _cameraOriginalParent = null;
+            _cameraOriginalSiblingIndex = 0;
         }
 
         // ── 合成・出力 ──
