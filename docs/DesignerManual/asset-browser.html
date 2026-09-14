@@ -87,9 +87,11 @@
 
 <div class="tip">
 <strong>「仕様書から選ぶ」（2026-09-14 追加）:</strong> <a href="spec-sync.html">仕様書</a>と同期している場合、ダイアログの一番上に「仕様書から選ぶ」という一覧が出ます。企画が仕様書の「アセット」タブに書いたのに、まだ D-Drive 側で作られていないものだけが並びます。検索欄で表示名や識別子を絞り込めます。<br>
-一覧から選ぶと、種別・カテゴリ・識別子・表示名・備考・仕様リンクが自動で入力されます（入力された内容は書き換えてもOK）。あとは「作成」を押すだけで、名前を1文字も打たずにアセットが作れます。作成すると、その行は一覧から消えます（もう一度同じものを間違って作ってしまう心配がありません）。<br>
+一覧から行を選ぶと、種別・カテゴリ・識別子・表示名・備考・仕様リンクが自動で入力され、<strong>「選択中の行: ○○」という表示と「解除」ボタン</strong>が出ます。あとは「作成」を押すだけで、名前を1文字も打たずにアセットが作れます。作成すると、その行は一覧から消えます（もう一度同じものを間違って作ってしまう心配がありません）。<br>
+選んだ後で<strong>識別子欄を手で書き換えると、行の選択は自動で解除されます</strong>（表示名・カテゴリなどをそのまま流用しつつ、識別子だけ別物にしたい場合の事故防止です）。手動で選択を外したいときは「解除」ボタンを押してください。<br>
 一覧が出ない・古そうなときは「仕様書を再取得」ボタンで最新の状態にできます。仕様書の URL がまだ設定されていない場合は、この一覧自体が出ません（案内文だけ表示されます）。
 </div>
+<!-- TODO: スクショ（新規ダイアログの「仕様書から選ぶ」一覧） -->
 
 <h3>方法3: SourceAssets フォルダに置くだけ（自動生成、2026-09-14 追加）</h3>
 <p>Asset Browser を開かずに、<strong>決められたフォルダにファイルを置くだけ</strong>で下記 9 種類の Data が自動的にできます（数秒後に Console にログが出ます）。</p>
@@ -218,12 +220,25 @@ A → B → A のように<strong>ぐるっと参照が輪になっている（�
 <li>最後に確認ダイアログが出ます。ここで内容（何が消えるか）をよく読んでから「削除する」を押してください</li>
 <li>削除すると、管理台帳（カタログ）・Addressables への登録・アイコン画像・アセット本体がまとめて片付き、アセット本体とアイコンは<strong>OS のゴミ箱</strong>（Windows なら「ごみ箱」）に移動します</li>
 </ol>
+<!-- TODO: スクショ（削除確認ダイアログ） -->
+<div class="warn">
+<strong>確認ダイアログでキャンセルしても、Archived タグは付いたまま残ります。</strong>「アーカイブ済みの印を付ける」までは確認前に実行される処理のため、最後の確認で「キャンセル」を選んでも元の未アーカイブ状態には戻りません。誤ってキャンセルしただけのつもりでも一覧の見え方（未使用一覧に出続ける等）は変わらないので、印を外したい場合は Inspector の Tags から <code>Archived</code> を手で消してください。
+</div>
 <div class="warn">
 <strong>ゴミ箱から復元しても、管理台帳（カタログ）や Addressables への登録は自動では戻りません。</strong>ファイル自体は元の場所に戻せますが、登録し直す・Validation の指摘に従って直す等の作業が別途必要です。「消しすぎた」と思ったら、まずゴミ箱からファイルを戻してからチームのリーダーに相談してください。
 </div>
 <div class="warn">
 削除の確認画面に「生成された ID 定数 '...' を参照しているコードが見つかりました」という注意が出ることがあります。これは<strong>プログラマーのコードがまだこの ID を使っているかもしれない</strong>という警告です（完全ではない簡易チェックなので、出ない場合でも絶対安全とは限りません）。この注意が出たら、削除する前に一度プログラマーに確認してください。
 </div>
+
+<h2>読み込みを速くする（Preload リスト、2026-09-14 追加）</h2>
+<p>シーンを開いたとき、そのシーンで使う音・エフェクトなどを<strong>先読み（Preload）</strong>しておくと、実際に鳴らす・出す瞬間の一瞬の遅れが減ります。これはプログラマー / レベル担当が行う作業ですが、デザイナーが意識しておくとよい点をまとめます。</p>
+<ul>
+<li>シーンで使う ID の一覧（<code>ScenePreloadList</code>、<code>Assets/GameData/Preload/</code>）は、<code>Tools &gt; D-Drive &gt; Generate &gt; Preload リストを再集計(現在のシーン)</code>（または「ビルド設定の全シーン」）で<strong>自動的に集計</strong>されます。デザイナーが手で ID を書き足すことはありません</li>
+<li><strong>新しく Anchor・SeEmitter・配置セットなどをシーンに置いた（新しい ID 参照を増やした）ときは、誰かがこの再集計メニューを実行し直す必要があります。</strong>置いただけでは古いシーンの Preload リストには反映されません（保存時に自動では再集計されない設計です）</li>
+<li>ビルド時には自動で全シーン分が再集計されるため、通常のビルドでは意識しなくても最新の状態になります。エディタで確認しているときに「ロードが速くならない」と感じたら、上記メニューを実行し忘れていないかを確認してください</li>
+<li>ロード画面（進捗バー）はまだ確認用の最小実装（<code>SceneLoadingScreen</code>）です。デザイナー向けの本格的な Canvas ベースのロード画面は今後の別チケットで用意される予定です</li>
+</ul>
 
 <h2>よくある質問</h2>
 <ul>
@@ -239,7 +254,8 @@ A → B → A のように<strong>ぐるっと参照が輪になっている（�
 <li><a href="bgm-data.html">BGM の設定項目</a></li>
 <li><a href="audio-editor.html">Audio Editor の使い方</a> — 波形を見ながらの編集・試聴</li>
 <li><a href="validation.html">Validation の使い方</a> — 登録漏れ・設定ミスの一括チェック</li>
-<li>種類ごとの設定: <a href="vfx-data.html">VFX</a> / <a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a> / <a href="anim2d-editor.html">2D アニメーション</a> / <a href="material-data.html">マテリアル・テクスチャ</a> / <a href="prefab-data.html">Prefab</a> / <a href="canvas-data.html">Canvas</a> / <a href="ui-skin.html">Skin</a> / <a href="ui-tween.html">UI Tween</a></li>
+<li><a href="spec-sync.html">仕様書との同期</a> — 「仕様書から選ぶ」の元データ</li>
+<li>種類ごとの設定: <a href="vfx-data.html">VFX</a> / <a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a> / <a href="anim2d-editor.html">2D アニメーション</a> / <a href="material-data.html">マテリアル・テクスチャ</a> / <a href="prefab-data.html">Prefab</a> / <a href="canvas-data.html">Canvas</a> / <a href="ui-skin.html">Skin</a> / <a href="ui-tween.html">UI Tween</a> / <a href="presentation.html">演出（Presentation）</a> / <a href="camera-haptics.html">画面の揺れ・振動</a></li>
 <li><a href="glossary.html">用語集</a></li>
 </ul>
 

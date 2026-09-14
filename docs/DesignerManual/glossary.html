@@ -22,12 +22,15 @@
 <tr><td>アセットブラウザ<br>(Asset Browser)</td><td>D-Drive の素材を一覧・検索・登録するウィンドウ。<a href="asset-browser.html">使い方はこちら</a>。</td></tr>
 <tr><td id="inspector">インスペクター<br>(Inspector)</td><td>Unity 画面の右側にある、選択中のものの詳細設定を表示する場所。項目にマウスを乗せると説明が表示されます。</td></tr>
 <tr><td id="id">ID（アイディー）</td><td>アセット1つ1つに付く「番号札」。プログラムはこの番号で音を呼び出すので、<strong>中身を差し替えてもプログラム修正は不要</strong>になります。番号はツールが自動で管理するため、手で触ることはありません。</td></tr>
+<tr><td id="placeholder">Placeholder（プレースホルダー）</td><td>まだ中身（音・見た目）が入っていない、<strong>ID だけ確保された空のデータ</strong>。プログラマーは中身が無くてもこの ID でコードを書き進められます。<a href="spec-sync.html">仕様書と同期</a>で新規行から自動的に作られるのもこれです。デザイナーが後から中身を作り込むと Placeholder ではなくなります。</td></tr>
+<tr><td id="archive">Archive（アーカイブ）/ Archived タグ</td><td>「もう使っていないかもしれない」印を付けるだけの操作で、<strong>削除ではありません</strong>。ファイルはそのまま残ります。<a href="asset-browser.html">Asset Browser</a> の「未使用...」一覧から一括で付けられます。実際に消すかどうかは人が別途「削除...」で判断します。</td></tr>
 <tr><td id="catalog">カタログ (AssetCatalog)</td><td>どの ID がどのアセットかを書いた管理台帳。Asset Browser で作れば自動で載るので、普段は意識しません。</td></tr>
 <tr><td id="previewscene">確認用シーン</td><td>ライト・カメラ・床がそろった、見た目チェック専用のシーン。各エディタの「確認用シーンを開く」で開きます（無ければ自動で作られます）。D-Drive のエディタは<strong>ウィンドウの中に絵を出さず、必ずシーンに置いて SceneView / Game ビューで確認</strong>します。</td></tr>
 <tr><td>識別子</td><td>アセット登録時に入力する英語の名前（例: SwordSlash）。プログラマーがコードで使う名前になります。英字大文字始まり・英数字のみ。</td></tr>
 <tr><td id="fix">修正ボタン (FixAction)</td><td><a href="validation.html">Validation</a> の警告の横に出る、その場で自動修正するボタン。付いていない警告は手で直します。</td></tr>
 <tr><td id="spawn">Spawn / Despawn<br>（スポーン / デスポーン）</td><td>シーンに出すこと / 消すこと。モデル・Prefab・VFX で使う言葉。</td></tr>
 <tr><td id="pool">プール (Pool)</td><td>出したものを捨てずに取っておいて使い回す仕組み。連射する弾やエフェクトを軽くするために使います。データの Flags の Pool で「使い回す（Pooled）」か「毎回捨てる（None、既定）」かを選びます。Pooled のときは同時に出せる上限（MaxCount）と、上限を超えたときにどれを回収するかの優先度（Priority）が効きます。</td></tr>
+<tr><td id="preload">Preload（プリロード）/ Preload リスト</td><td>シーンを開く前に、そのシーンで使う音・エフェクトなどを<strong>先読みしておく</strong>仕組み。シーンが参照している ID を自動で集めた一覧（<code>ScenePreloadList</code>）を <code>Tools &gt; D-Drive &gt; Generate &gt; Preload リストを再集計</code> で作り、ロード画面（<code>SceneLoadingScreen</code>）が進捗を見せながら読み込みます。デザイナーが個別に何か設定する項目はなく、<strong>シーンに新しい ID 参照を増やしたら、プログラマーに「Preload リストを再集計してほしい」と伝える</strong>のが唯一の注意点です（<a href="prefab-data.html">Prefab</a> の Pool の「温め」(<code>Prefabs.PreloadAsync</code>) とは別の仕組みです。あちらは同時に出せる個体をあらかじめ用意しておくもの）。</td></tr>
 <tr><td id="pausemode">ポーズ時の扱い (Pause)</td><td>ゲームを一時停止したとき、この音・エフェクトも一緒に止まるかどうかの設定（Flags の中）。PauseWithGame = 一緒に止まる / IgnorePause = 止まらない / UIOnly = UI 操作系だけ追従。</td></tr>
 <tr><td id="handle">ハンドル (Handle)</td><td>「いま再生しているこの 1 本」を指す一時的な番号。プログラム側が使うもので、デザイナーが直接触ることはありません。</td></tr>
 <tr><td id="hierarchy">ヒエラルキー<br>(Hierarchy)</td><td>Unity 画面の左側にある、シーン内に存在するモノの一覧。</td></tr>
@@ -108,6 +111,15 @@
 <tr><td id="notch">ノッチ / SnapThreshold</td><td>スライダーの目盛り / そこへ吸い付く距離。「カチカチ」と段階的に動くスライダーを作るときに使います。</td></tr>
 </table>
 
+<h2>演出・カメラ・振動・仕様書連携</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="presentation">演出 (Presentation / PresentationData)</td><td>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れ・振動・画面停止(ヒットストップ)などを 1 つにまとめたデータ。プログラマーは <code>Presentation.Play(…)</code> の 1 行で呼び出せます。<a href="presentation.html">設定項目・専用エディタの使い方はこちら</a>。</td></tr>
+<tr><td id="trauma">トラウマ (Trauma) 方式</td><td>画面の揺れ（<a href="camera-haptics.html">カメラシェイク</a>）を複数同時に鳴らしたときの合成方法。単純な足し算にせず、最終的な揺れの強さを 0〜100% の範囲に収める仕組みで、連打しても画面が異常に揺れすぎることがありません。振動（ハプティクス）は別方式（チャンネルごとに一番強い値だけを採用）で、こちらも加算で振り切れないようにしています。</td></tr>
+<tr><td id="cosmetic">Cosmetic（コズメティック）</td><td>通信対戦で「見た目だけの演出で、勝敗や当たり判定そのものには影響しない」再生の扱い。<a href="presentation.html">演出</a>の Flags.Net が Cosmetic だと、当たった側だけでなく<strong>両方の画面に自動で同じ演出が出ます</strong>（振動はコントローラーを持つ本人だけ、というように鳴らし分けられるものもあります）。デザイナーが演出データを作るときの操作は通信対戦でもシングルプレイと同じで、特別な設定は基本的に不要です。</td></tr>
+<tr><td id="specsync">仕様書同期</td><td>企画が Google スプレッドシート（仕様書）の「アセット」タブに書いた行を、D-Drive の<a href="#placeholder">Placeholder</a>（空のデータ）に変換する機能。<code>Tools &gt; D-Drive &gt; 仕様書と同期</code>で行う。詳しくは<a href="spec-sync.html">仕様書との同期のページ</a>。</td></tr>
+</table>
+
 <h2>関連ページ</h2>
 <ul>
 <li><a href="Readme.html">トップへ戻る</a></li>
@@ -117,6 +129,7 @@
 <li><a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a> / <a href="anim2d-editor.html">2D アニメーション</a></li>
 <li><a href="material-data.html">マテリアル / テクスチャ</a> / <a href="material-editor.html">Material Editor</a></li>
 <li><a href="prefab-data.html">Prefab</a> / <a href="canvas-data.html">Canvas</a> / <a href="canvas-editor.html">Canvas Editor</a> / <a href="ui-skin.html">Skin</a> / <a href="ui-tween.html">UI Tween</a></li>
+<li><a href="presentation.html">演出（Presentation）</a> / <a href="camera-haptics.html">画面の揺れ・振動</a> / <a href="spec-sync.html">仕様書との同期</a></li>
 </ul>
 
 <footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
