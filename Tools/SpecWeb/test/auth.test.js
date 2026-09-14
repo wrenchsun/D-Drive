@@ -89,6 +89,33 @@ test('authenticateRequest: トークン無し・かつログインもしてい�
   assert.equal(result.status, 401);
 });
 
+// 2026-09-14 追補（オーケストレーター指示）: api=1 経路でトークン無し/間違いのときの文言を、
+// 人向けの「ログインが必要です」から D-Drive 向けの案内に分ける。
+
+test('authenticateRequest: api=1 でトークン無し・未ログインは「API トークンがありません」の案内文になる', () => {
+  const ctx = loadGas({ activeUserEmail: '' });
+  const result = ctx.authenticateRequest({ parameter: { api: '1' } });
+  assert.equal(result.status, 401);
+  assert.match(result.message, /API トークンがありません/);
+  assert.match(result.message, /仕様書と同期/);
+});
+
+test('authenticateRequest: api=1 でトークンが間違っていると「API トークンが正しくありません」の案内文になる', () => {
+  const ctx = loadGas();
+  ctx.issueApiToken('write');
+  const result = ctx.authenticateRequest({ parameter: { api: '1', token: 'not-the-right-token' } });
+  assert.equal(result.status, 401);
+  assert.match(result.message, /API トークンが正しくありません/);
+  assert.match(result.message, /仕様書と同期/);
+});
+
+test('authenticateRequest: 許可リスト外の Google ログイン（403）は人向けメッセージのまま変わらない', () => {
+  const ctx = loadGas({ activeUserEmail: 'outsider@example.com' });
+  const result = ctx.authenticateRequest({ parameter: { api: '1' } });
+  assert.equal(result.status, 403);
+  assert.match(result.message, /メンバーのみ利用できます/);
+});
+
 test('authenticateRequest: トークン無しでも許可リストに載った Google ログインならセッション経路で認証できる', () => {
   const ctx = loadGas({
     activeUserEmail: 'editor@example.com',

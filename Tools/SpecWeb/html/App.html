@@ -1,19 +1,44 @@
 <script>
   /**
-   * SPA の枠（ルーター + 画面登録の拡張点 + サーバー API 呼び出しの小さなラッパー）。
+   * SPA の枠（ルーター + 画面登録の拡張点 + サーバー呼び出しの小さなラッパー）。
    * docs/32_spec_web.md「登録式の拡張点」規約のクライアント側実装。
    *
-   * 後続チケット（W-4/5・W-6〜8・W-16 等）は、自分の画面を追加する
-   * html ファイルの中で `registerScreen('assets', function (root) { ... })`
-   * のように呼ぶだけで、この App.html や Index.html を編集せずに
-   * 画面を追加できる。画面 html は Index.html から
-   * `<?!= include('html/Assets'); ?>` のように、この App.html より後に
-   * include すること（スクリプトはドキュメント順に実行されるため、
-   * registerScreen が先に定義済みである必要がある）。
+   * 後続チケット（各画面 html）は、自分の画面を追加する html ファイルの中で
+   * `registerScreen('assets', function (root) { ... })` のように呼ぶだけで、この App.html や
+   * Index.html を編集せずに画面を追加できる。画面 html は Index.html から
+   * `<?!= include('html/Assets'); ?>` のように、この App.html より後に include すること
+   * （スクリプトはドキュメント順に実行されるため、registerScreen が先に定義済みである必要がある）。
+   *
+   * 2026-09-14 追補（実デプロイで判明した誤りの修正、docs/32_spec_web.md §2.4 訂正）:
+   * ① 人向け SPA は HtmlService の IFRAME サンドボックス（*.googleusercontent.com）で動くため、
+   * 以下の2点が当初の想定と異なっていた:
+   *
+   *   1. `fetch(window.location.href + '?api=1&...')` はサーバー（/exec）を呼べない
+   *      （iframe 自身の URL はサンドボックス側であり、`/exec` とは別オリジンになる。
+   *      `allow-same-origin` があっても「/exec への同一オリジン fetch」にはならない）。
+   *      → GAS 公式の方法である `google.script.run`（サーバー関数 `specWebUiCall`、
+   *      Code.js 参照）に置き換えた。呼び出し側（Assets.html・Tuning.html 等）の
+   *      `SpecWebClient.callApi(name, params, options)` の形は変えていない
+   *      （`options.method` は google.script.run では意味を持たないため無視するだけ）。
+   *
+   *   2. `location.hash` / `hashchange` によるルーティングは機能しない
+   *      （`html/Index.html` の `<base target="_top">` により、`<a href="#/xxx">` の既定動作は
+   *      iframe の外（script.google.com 側）の URL を変えるだけで、iframe 内の
+   *      `hashchange` は発火しない）。
+   *      → ナビゲーションは iframe 内で完結させる。各画面は `#app-nav`/`#app-root` に
+   *      `<a href="#/xxx">` を作る際、クリックで `ev.preventDefault()` した上で
+   *      `window.SpecWebNavigate('xxx')` を呼ぶ（既存の画面ファイルもこの形に合わせて修正した）。
+   *      URL の状態保持・戻る/進むボタン対応には `google.script.history`
+   *      （https://developers.google.com/apps-script/guides/html/reference/history）を使う。
+   *      外部リンク（ガント・Markdown 内のリンク）は従来どおり `target="_top"` + `rel="noopener"`
+   *      のまま（これらは iframe 内ルーティングの対象ではない）。
+   *
+   * ② D-Drive API（doGet/doPost + token）はこの変更の影響を受けない。
    */
   (function () {
     'use strict';
 
+    var DEFAULT_SCREEN_ID = 'orders'; // 発注ツリー（O-2）。まだ無ければ 'assets'（一覧）。
     var screens = {};
 
     function registerScreen(id, render) {
@@ -23,72 +48,70 @@
       screens[id] = render;
     }
 
-    function currentScreenId() {
-      var hash = window.location.hash.replace(/^#\/?/, '');
-      return hash || 'home';
-    }
-
-    function renderCurrentScreen() {
+    function renderScreen(id) {
       var root = document.getElementById('app-root');
-      var id = currentScreenId();
-      var render = screens[id] || screens.home;
+      var render = screens[id] || screens[DEFAULT_SCREEN_ID];
+      var resolvedId = screens[id] ? id : DEFAULT_SCREEN_ID;
       root.innerHTML = '';
       if (!render) {
         root.textContent = '画面が登録されていません: ' + id;
         return;
       }
       render(root);
+      return resolvedId;
     }
 
-    window.addEventListener('hashchange', renderCurrentScreen);
-    window.addEventListener('DOMContentLoaded', renderCurrentScreen);
+    /**
+     * 画面を切り替える（iframe 内で完結。history.push 相当を google.script.history 経由で行う）。
+     * 各画面のナビゲーションリンクはこれを呼ぶ（window.SpecWebNavigate として公開）。
+     */
+    function navigateTo(id, options) {
+      options = options || {};
+      var resolvedId = renderScreen(id);
+      if (window.google && window.google.script && window.google.script.history && !options.skipHistory) {
+        var method = options.replace ? 'replace' : 'push';
+        window.google.script.history[method]({ screen: resolvedId }, {}, resolvedId);
+      }
+    }
 
-    // 最小限のホーム画面（雛形の動作確認用。後続チケットが自分の画面を追加する）。
-    registerScreen('home', function (root) {
-      var p = document.createElement('p');
-      p.className = 'sw-muted';
-      p.textContent = 'D-Drive 仕様書の雛形です。まだ画面は登録されていません。';
-      root.appendChild(p);
+    if (window.google && window.google.script && window.google.script.history) {
+      window.google.script.history.setChangeHandler(function (e) {
+        var id = (e && e.state && e.state.screen) || DEFAULT_SCREEN_ID;
+        navigateTo(id, { skipHistory: true });
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', function () {
+      navigateTo(DEFAULT_SCREEN_ID, { skipHistory: true });
     });
 
-    // サーバー API 呼び出しの小さなラッパー（後続チケットが使う拡張点）。
-    // 同一オリジンの doGet/doPost(?api=1&name=...) を fetch で呼ぶ
-    // （HtmlService の iframe サンドボックスは allow-same-origin を許可しているため
-    // 同一オリジンへの fetch は可能。docs/32_spec_web.md §2.4 参照）。
-    //
-    // options.method='POST' を渡すと doPost 経由になる（W-4/W-5 で追加。既定は GET のままな
-    // ので既存呼び出しの挙動は変わらない）。書き込み系（create/update/delete 等）は patch の
-    // JSON 文字列が長くなり得るため、URL クエリではなく POST 本文（application/x-www-form-urlencoded）
-    // で送る。api/name は変わらず URL クエリのまま（GAS の e.parameter は doPost でも
-    // URL クエリと POST 本文の両方を合成するため、混在させて問題ない）。
+    /**
+     * サーバー API 呼び出しの小さなラッパー（後続チケットが使う拡張点）。
+     * google.script.run.withSuccessHandler/withFailureHandler で
+     * サーバー側の `specWebUiCall(name, params)`（Code.js）を呼ぶ。
+     * options は互換性のためだけに残す（method 等は google.script.run では意味を持たない）。
+     */
     window.SpecWebClient = {
-      callApi: function (name, params, options) {
+      callApi: function (name, params) {
         params = params || {};
-        options = options || {};
-        var method = (options.method || 'GET').toUpperCase();
-        var url = new URL(window.location.href);
-        url.searchParams.set('api', '1');
-        url.searchParams.set('name', name);
-
-        if (method !== 'POST') {
-          Object.keys(params).forEach(function (key) {
-            url.searchParams.set(key, params[key]);
-          });
-          return fetch(url.toString()).then(function (res) {
-            return res.json();
-          });
-        }
-
-        var body = new URLSearchParams();
-        Object.keys(params).forEach(function (key) {
-          body.set(key, params[key]);
-        });
-        return fetch(url.toString(), { method: 'POST', body: body }).then(function (res) {
-          return res.json();
+        return new Promise(function (resolve) {
+          if (!(window.google && window.google.script && window.google.script.run)) {
+            resolve({ ok: false, status: 500, error: 'google.script.run が利用できない環境です（Apps Script の外で開いていませんか？）' });
+            return;
+          }
+          window.google.script.run
+            .withSuccessHandler(function (result) {
+              resolve(result);
+            })
+            .withFailureHandler(function (err) {
+              resolve({ ok: false, status: 500, error: (err && err.message) || String(err) });
+            })
+            .specWebUiCall(name, params);
         });
       }
     };
 
     window.registerScreen = registerScreen;
+    window.SpecWebNavigate = navigateTo;
   })();
 </script>

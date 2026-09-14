@@ -715,7 +715,17 @@
     // （html/Index.html/App.html 自体は編集しない）。
     var nav = document.getElementById('app-nav');
     if (nav && !nav.querySelector('[href="#/tuning"]')) {
-      nav.appendChild(el('a', { href: '#/tuning', text: '調整値' }));
+      // 2026-09-14 追補: iframe サンドボックス内では既定のハッシュ遷移が効かないため、
+      // クリックを preventDefault して window.SpecWebNavigate で画面内遷移する
+      // （App.html 冒頭のコメント・docs/32 §2.4 訂正参照）。
+      nav.appendChild(el('a', {
+        href: '#/tuning',
+        text: '調整値',
+        onclick: function (ev) {
+          if (ev && ev.preventDefault) ev.preventDefault();
+          window.SpecWebNavigate('tuning');
+        }
+      }));
     }
   })();
 </script>

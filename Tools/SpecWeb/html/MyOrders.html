@@ -1,0 +1,143 @@
+<style>
+  .my-orders-columns {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .my-orders-column {
+    flex: 1;
+    min-width: 260px;
+  }
+  .my-orders-column h3 {
+    font-size: 1rem;
+  }
+  ul.my-orders-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  ul.my-orders-list li {
+    padding: 0.35rem 0;
+    border-bottom: 1px dashed var(--sw-border);
+    font-size: 0.9rem;
+  }
+  .my-orders-badge {
+    display: inline-block;
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.78rem;
+    margin-right: 0.3rem;
+    background: #eaeef2;
+  }
+  .my-orders-badge.sw-overdue {
+    background: #ffe3e3;
+    color: #cf222e;
+  }
+</style>
+
+<script>
+  /**
+   * 「私が発注」「私が受けた」個人ビュー（O-4）。docs/32_spec_web.md §10.3.3 を実装する。
+   * 絞り込みロジックは html/AssetsLogic.html（myOrderedItems/myContractedItems、単体テスト済み）。
+   * ログイン中のユーザー（whoami の email）を orderer/contractor と照合するだけで、
+   * 一覧（Assets.html）に対する固定フィルタ2種として実装する（新しい集計ロジックは持たない）。
+   */
+  (function () {
+    'use strict';
+
+    var logic = window.AssetsLogic;
+
+    function el(tag, attrs, children) {
+      var node = document.createElement(tag);
+      attrs = attrs || {};
+      Object.keys(attrs).forEach(function (key) {
+        if (key === 'class') node.className = attrs[key];
+        else if (key === 'text') node.textContent = attrs[key];
+        else if (key.indexOf('on') === 0 && typeof attrs[key] === 'function') node.addEventListener(key.slice(2), attrs[key]);
+        else node.setAttribute(key, attrs[key]);
+      });
+      (children || []).forEach(function (child) {
+        if (child) node.appendChild(child);
+      });
+      return node;
+    }
+
+    var navHost = document.getElementById('app-nav');
+    if (navHost && !navHost.querySelector('a[href="#/my-orders"]')) {
+      navHost.appendChild(el('a', {
+        href: '#/my-orders',
+        text: '私の発注',
+        onclick: function (ev) {
+          if (ev && ev.preventDefault) ev.preventDefault();
+          window.SpecWebNavigate('my-orders');
+        }
+      }));
+    }
+
+    function todayString() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function renderOrderedList(items) {
+      var list = el('ul', { class: 'my-orders-list' });
+      if (items.length === 0) list.appendChild(el('li', { class: 'sw-muted', text: '該当する発注はありません' }));
+      items.forEach(function (item) {
+        var li = el('li');
+        if (item._overdue) li.appendChild(el('span', { class: 'my-orders-badge sw-overdue', text: '期限切れ' }));
+        else if (item._unfulfilled) li.appendChild(el('span', { class: 'my-orders-badge', text: '未納品' }));
+        li.appendChild(el('span', { text:
+          item.assetType + ' : ' + item.identifier + '  受注:' + (item.contractor || '—') +
+          '  期限:' + (item.dueDate || '—') + '  [' + item.status + ']'
+        }));
+        list.appendChild(li);
+      });
+      return list;
+    }
+
+    function renderContractedList(items) {
+      var list = el('ul', { class: 'my-orders-list' });
+      if (items.length === 0) list.appendChild(el('li', { class: 'sw-muted', text: '該当する発注はありません' }));
+      items.forEach(function (item) {
+        var li = el('li');
+        if (item._overdue) li.appendChild(el('span', { class: 'my-orders-badge sw-overdue', text: '期限切れ' }));
+        li.appendChild(el('span', { text:
+          item.assetType + ' : ' + item.identifier + '  発注:' + (item.orderer || '—') +
+          '  期限:' + (item.dueDate || '—') + '  [' + item.status + ']'
+        }));
+        list.appendChild(li);
+      });
+      return list;
+    }
+
+    registerScreen('my-orders', function (root) {
+      var statusLine = el('p', { class: 'sw-muted', text: '読み込み中...' });
+      var columns = el('div', { class: 'my-orders-columns' });
+      root.appendChild(statusLine);
+      root.appendChild(columns);
+
+      Promise.all([
+        window.SpecWebClient.callApi('assets.list', { includeArchived: '0' }),
+        window.SpecWebClient.callApi('whoami', {})
+      ]).then(function (results) {
+        var assetsRes = results[0], whoamiRes = results[1];
+        if (!assetsRes.ok || !whoamiRes.ok || !whoamiRes.email) {
+          statusLine.textContent = '取得に失敗しました（ログイン状態を確認してください）。';
+          return;
+        }
+        statusLine.textContent = '';
+        var today = todayString();
+        var ordered = logic.myOrderedItems(assetsRes.items, whoamiRes.email, today);
+        var contracted = logic.myContractedItems(assetsRes.items, whoamiRes.email, today);
+
+        columns.appendChild(el('div', { class: 'my-orders-column' }, [
+          el('h3', { text: '私が発注したもの' }),
+          renderOrderedList(ordered)
+        ]));
+        columns.appendChild(el('div', { class: 'my-orders-column' }, [
+          el('h3', { text: '私が受けたもの（期限順）' }),
+          renderContractedList(contracted)
+        ]));
+      });
+    });
+  })();
+</script>

@@ -74,18 +74,37 @@ function handleApiRequest_(e, method) {
       403
     );
   }
+  var body = specWebInvokeApi_(name, params, auth);
+  return ContentAdapter.json(body, body.status || (body.ok ? 200 : 500));
+}
+
+/**
+ * 登録済み API（registerApi）を 1 件呼び出し、呼び出し元（handleApiRequest_・specWebUiCall）
+ * 共通の応答形（{ok:true, ...} または {ok:false, status, error, currentRevision?}）に整える。
+ *
+ * 2026-09-14 追補（実デプロイで判明した誤りの修正、docs/32_spec_web.md §2.4 訂正）:
+ * 人向け SPA（① デプロイ）は HtmlService の iframe サンドボックス内で動くため、
+ * `fetch(window.location.href + ...)` は `/exec` ではなく別オリジンの
+ * サンドボックス URL を指すだけで機能しない（`allow-same-origin` があっても `/exec` への
+ * 同一オリジン fetch にはならない）。GAS 公式の方法は `google.script.run`
+ * （https://developers.google.com/apps-script/guides/html/communication）であり、
+ * これはクエリパラメータ・POST 本文を経由しない（HTTP リクエストではない）ため、
+ * `specWebUiCall`（下記）という google.script.run 専用の入口を新設した。
+ * `doGet`/`doPost`（② D-Drive API、token 認証）はこの変更の影響を受けない。
+ */
+function specWebInvokeApi_(name, params, auth) {
   var handler = getApi(name);
   if (!handler) {
-    return ContentAdapter.json({ ok: false, error: '未登録の API です: ' + name }, 404);
+    return { ok: false, status: 404, error: '未登録の API です: ' + name };
   }
   try {
-    var result = handler({ e: e, params: params, auth: auth }) || {};
+    var result = handler({ e: { parameter: params }, params: params, auth: auth }) || {};
     var body = {};
     for (var key in result) {
       if (Object.prototype.hasOwnProperty.call(result, key)) body[key] = result[key];
     }
     body.ok = true;
-    return ContentAdapter.json(body, 200);
+    return body;
   } catch (err) {
     // RevisionConflictError（409・currentRevision 付き）専用の分岐を、
     // 「err.status を持つ任意のエラー」を汎用的に本文の status へ変換する形に一般化した
@@ -94,12 +113,40 @@ function handleApiRequest_(e, method) {
     // すれば同じ throw new Error() + err.status で表現できる。RevisionConflictError の挙動・
     // 既存テストは変えていない）。
     var status = err && typeof err.status === 'number' ? err.status : 500;
-    var body = { ok: false, error: String((err && err.message) || err) };
+    var body = { ok: false, status: status, error: String((err && err.message) || err) };
     if (err && err.currentRevision !== undefined) {
       body.currentRevision = err.currentRevision;
     }
-    return ContentAdapter.json(body, status);
+    return body;
   }
+}
+
+/**
+ * 人向け SPA（① デプロイ）専用の入口。`html/App.html` の `SpecWebClient.callApi` が
+ * `google.script.run.withSuccessHandler(...).specWebUiCall(name, params)` として呼ぶ
+ * （上記 specWebInvokeApi_ のコメント参照）。トークンは使わず、常に
+ * `authenticateSession()`（Google ログイン + users.json 許可リスト）で認証する。
+ * D-Drive の書き込みトークン kind 許可リスト（DDRIVE_WRITE_TOKEN_ALLOWED_APIS）はここには
+ * 適用しない（token を使わない経路のため無関係。企画側の人がログインして呼ぶ操作は、
+ * 各 API 自身の role チェック（hasRole 等）でのみ制御する）。
+ * @param {string} name `registerApi` で登録された API 名
+ * @param {Object} params プレーンな JSON 互換オブジェクト（google.script.run の制約）
+ * @return {Object} { ok:true, ... } または { ok:false, status, error, currentRevision? }
+ */
+function specWebUiCall(name, params) {
+  params = params || {};
+  var session = authenticateSession();
+  if (!session.ok) {
+    return { ok: false, status: session.status, error: session.message };
+  }
+  var auth = {
+    ok: true,
+    principal: session.email,
+    email: session.email,
+    role: session.role,
+    displayName: session.displayName
+  };
+  return specWebInvokeApi_(name, params, auth);
 }
 
 /** ① SPA 本体を返す。許可リスト外なら「メンバーのみ利用できます」ページを返す。 */

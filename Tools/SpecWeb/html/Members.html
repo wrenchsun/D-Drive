@@ -1,0 +1,237 @@
+<style>
+  .members-section {
+    margin-bottom: 1.25rem;
+  }
+  .members-section textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+  .members-section button {
+    margin-top: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--sw-accent);
+    background: var(--sw-accent);
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  table.members-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  table.members-table th,
+  table.members-table td {
+    border-bottom: 1px solid var(--sw-border);
+    padding: 0.3rem 0.5rem;
+    text-align: left;
+  }
+  .members-settings input[type='text'] {
+    width: min(420px, 100%);
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+</style>
+
+<script>
+  /**
+   * メンバー管理（O-9）+ ガント URL の設定（O-10。設定保存の仕組みを共用）。
+   * docs/32_spec_web.md §10.3.6・§10.5 を実装する。
+   *
+   * ガントのスプレッドシートには一切アクセスしない（案A、§10.7 要判断7）。人がガントの
+   * 担当者マスタ範囲をコピー&ペーストするだけで、発注者/受注者の選択肢（Assets.html の
+   * memberField が使う datalist）に反映される。
+   */
+  (function () {
+    'use strict';
+
+    var logic = window.AssetsLogic;
+
+    function el(tag, attrs, children) {
+      var node = document.createElement(tag);
+      attrs = attrs || {};
+      Object.keys(attrs).forEach(function (key) {
+        if (key === 'class') node.className = attrs[key];
+        else if (key === 'text') node.textContent = attrs[key];
+        else if (key.indexOf('on') === 0 && typeof attrs[key] === 'function') node.addEventListener(key.slice(2), attrs[key]);
+        else node.setAttribute(key, attrs[key]);
+      });
+      (children || []).forEach(function (child) {
+        if (child) node.appendChild(child);
+      });
+      return node;
+    }
+
+    var navHost = document.getElementById('app-nav');
+    if (navHost && !navHost.querySelector('a[href="#/members"]')) {
+      navHost.appendChild(el('a', {
+        href: '#/members',
+        text: 'メンバー',
+        onclick: function (ev) {
+          if (ev && ev.preventDefault) ev.preventDefault();
+          window.SpecWebNavigate('members');
+        }
+      }));
+    }
+
+    registerScreen('members', function (root) {
+      var state = { members: [], currentUser: { role: null }, ganttUrl: '' };
+
+      var statusLine = el('p', { class: 'sw-muted', text: '読み込み中...' });
+      var importSection = el('div', { class: 'members-section' });
+      var tableSection = el('div', { class: 'members-section' });
+      var settingsSection = el('div', { class: 'members-section members-settings' });
+
+      root.appendChild(statusLine);
+      root.appendChild(importSection);
+      root.appendChild(tableSection);
+      root.appendChild(settingsSection);
+
+      function canEdit() {
+        return logic.roleAtLeast(state.currentUser.role, 'editor');
+      }
+      function isAdmin() {
+        return logic.roleAtLeast(state.currentUser.role, 'admin');
+      }
+
+      function renderImportSection() {
+        importSection.innerHTML = '';
+        importSection.appendChild(el('h3', { text: 'ガントの担当者マスタを貼り付けて取り込み' }));
+        importSection.appendChild(el('p', { class: 'sw-muted', text: '1行1名（表記は「名前(職種)」のまま。既に登録済みの表記は email 対応付けを保ったまま更新されます）' }));
+        if (!canEdit()) return;
+        var textarea = el('textarea', { rows: '5', placeholder: '吉田(PLN)\n山口(PRG)\n...' });
+        var button = el('button', {
+          text: '取り込む',
+          onclick: function () {
+            var text = textarea.value;
+            if (!text.trim()) return;
+            window.SpecWebClient.callApi('members.importPaste', { text: text }, { method: 'POST' }).then(function (res) {
+              if (!res.ok) {
+                window.alert('取り込みに失敗しました: ' + (res.error || ''));
+                return;
+              }
+              textarea.value = '';
+              reload();
+            });
+          }
+        });
+        importSection.appendChild(textarea);
+        importSection.appendChild(button);
+      }
+
+      function renderTableSection() {
+        tableSection.innerHTML = '';
+        tableSection.appendChild(el('h3', { text: 'メンバー一覧' }));
+        var table = el('table', { class: 'members-table' });
+        table.appendChild(el('thead', {}, [
+          el('tr', {}, [
+            el('th', { text: '表記（名前(職種)）' }),
+            el('th', { text: '出典' }),
+            el('th', { text: 'メールアドレス（任意）' }),
+            el('th', { text: '' })
+          ])
+        ]));
+        var tbody = el('tbody');
+        state.members.forEach(function (m) {
+          var emailInput = el('input', { type: 'text', value: m.email || '' });
+          emailInput.value = m.email || '';
+          emailInput.disabled = !canEdit();
+          var saveEmailButton = canEdit() ? el('button', {
+            text: '保存',
+            onclick: function () {
+              window.SpecWebClient.callApi('members.upsert', { label: m.label, email: emailInput.value, source: m.source }, { method: 'POST' }).then(function (res) {
+                if (!res.ok) window.alert('保存に失敗しました: ' + (res.error || ''));
+              });
+            }
+          }) : null;
+          var removeButton = canEdit() ? el('button', {
+            text: '削除',
+            onclick: function () {
+              window.SpecWebClient.callApi('members.remove', { label: m.label }, { method: 'POST' }).then(function (res) {
+                if (!res.ok) { window.alert('削除に失敗しました: ' + (res.error || '')); return; }
+                reload();
+              });
+            }
+          }) : null;
+          tbody.appendChild(el('tr', {}, [
+            el('td', { text: m.label }),
+            el('td', { text: m.source === 'gantt' ? 'ガント' : '手動追加' }),
+            el('td', {}, [emailInput]),
+            el('td', {}, [saveEmailButton, removeButton].filter(Boolean))
+          ]));
+        });
+        table.appendChild(tbody);
+        tableSection.appendChild(table);
+
+        if (canEdit()) {
+          var labelInput = el('input', { type: 'text', placeholder: '表記（例: ゲスト外注(社外)）' });
+          var addButton = el('button', {
+            text: '手動追加',
+            onclick: function () {
+              var label = labelInput.value.trim();
+              if (!label) return;
+              window.SpecWebClient.callApi('members.upsert', { label: label, source: 'manual' }, { method: 'POST' }).then(function (res) {
+                if (!res.ok) { window.alert('追加に失敗しました: ' + (res.error || '')); return; }
+                labelInput.value = '';
+                reload();
+              });
+            }
+          });
+          tableSection.appendChild(labelInput);
+          tableSection.appendChild(addButton);
+        }
+      }
+
+      /** O-10: ガント URL の設定（admin のみ変更可。設定保存の仕組みを O-9 と共用）。 */
+      function renderSettingsSection() {
+        settingsSection.innerHTML = '';
+        settingsSection.appendChild(el('h3', { text: 'ガントの URL の設定' }));
+        settingsSection.appendChild(el('p', { class: 'sw-muted', text: '発注ツリー画面の WBS 番号リンクに使われます（admin のみ変更できます）。' }));
+        var input = el('input', { type: 'text', placeholder: 'https://docs.google.com/spreadsheets/d/...' });
+        input.value = state.ganttUrl;
+        input.disabled = !isAdmin();
+        settingsSection.appendChild(input);
+        if (isAdmin()) {
+          var saveButton = el('button', {
+            text: '保存',
+            onclick: function () {
+              window.SpecWebClient.callApi('settings.setGanttUrl', { url: input.value }, { method: 'POST' }).then(function (res) {
+                if (!res.ok) { window.alert('保存に失敗しました: ' + (res.error || '')); return; }
+                state.ganttUrl = res.ganttUrl;
+                window.alert('保存しました。');
+              });
+            }
+          });
+          settingsSection.appendChild(saveButton);
+        }
+      }
+
+      function reload() {
+        statusLine.textContent = '読み込み中...';
+        return Promise.all([
+          window.SpecWebClient.callApi('members.list', {}),
+          window.SpecWebClient.callApi('whoami', {}),
+          window.SpecWebClient.callApi('settings.get', {})
+        ]).then(function (results) {
+          var membersRes = results[0], whoamiRes = results[1], settingsRes = results[2];
+          state.members = membersRes.ok ? membersRes.items || [] : [];
+          if (whoamiRes.ok) state.currentUser = whoamiRes;
+          state.ganttUrl = settingsRes.ok ? settingsRes.ganttUrl || '' : '';
+          statusLine.textContent = '';
+          renderImportSection();
+          renderTableSection();
+          renderSettingsSection();
+        });
+      }
+
+      reload();
+    });
+  })();
+</script>

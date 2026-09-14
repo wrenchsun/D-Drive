@@ -115,7 +115,15 @@ function authenticateRequest(e) {
   if (params.token) {
     var tokenInfo = verifyApiToken_(params.token);
     if (!tokenInfo) {
-      return { ok: false, status: 401, message: 'トークンが無効です' };
+      // 2026-09-14 追補（オーケストレーター指示）: D-Drive がトークンを入れ忘れた/間違えた
+      // ケースで気付きやすいよう、api=1 経路専用の文言にする（authenticateRequest は
+      // Code.js の handleApiRequest_ からしか呼ばれない=常に api=1 経路であるため、
+      // ここでの拒否は常に「② D-Drive API」宛のリクエストに対するものである）。
+      return {
+        ok: false,
+        status: 401,
+        message: 'API トークンが正しくありません（D-Drive の「仕様書と同期」の設定を確認してください）'
+      };
     }
     return {
       ok: true,
@@ -129,7 +137,22 @@ function authenticateRequest(e) {
     };
   }
   var session = authenticateSession();
-  if (!session.ok) return session;
+  if (!session.ok) {
+    // session.status===401（Google ログインもしていない）は、token も session も無い
+    // ＝ D-Drive がトークンを設定し忘れている可能性が高いケース（authenticateRequest は
+    // api=1 経路専用のため）。人向け SPA は必ずログイン後にしか api=1 を呼ばない
+    // （html/Index.html の renderUi_ が先にログインを要求する）ため、この分岐に
+    // 人間の正当な操作が迷い込むことは通常無い。session.status===403（許可リスト外の
+    // Google ログイン）は元の人向けメッセージのままにする。
+    if (session.status === 401) {
+      return {
+        ok: false,
+        status: 401,
+        message: 'API トークンがありません（D-Drive の「仕様書と同期」の設定を確認してください）'
+      };
+    }
+    return session;
+  }
   return {
     ok: true,
     principal: session.email,

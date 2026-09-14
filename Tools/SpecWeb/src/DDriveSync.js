@@ -84,7 +84,37 @@ registerApi('choices', function (ctx) {
 });
 
 /**
- * assetState: 各アセットの ddriveState だけを patch する(§3.1「D-Drive → Web」)。
+ * O-7（2026-09-14 追加）: assetState 受信時に「インポート済」へ自動で進める・戻す規則。
+ * docs/32_spec_web.md §10.4.1「インポート済の自動判定規則」を実装したもの。
+ *
+ * - `created && !isPlaceholder` かつ現在の状態が「インポート済」でなければ「インポート済」へ進める
+ *   （発注済からでも納品済からでも、D-Drive 側の Validation が通っていればインポート済へ進める。
+ *   deliveredDate が未設定なら合わせて記録する＝納品ボタンを踏まずに直接インポートされた場合の保険）
+ * - 逆に「インポート済」なのに Placeholder に戻った（`isPlaceholder===true` または
+ *   `created===false`）場合は「納品済」へ戻す（オーケストレーター決定。docs/32 §10.7 要判断4は
+ *   本来 (a)「戻さない」を推奨していたが、実際の運用判断として (b)「納品済へ戻す」を採用した。
+ *   コメントで履歴を残す）
+ * - すでに正しい状態ならなにもしない（無駄な revision 消費・コメント追加をしない）
+ *
+ * @return {?{status:string, deliveredDate?:(string|null), revertComment?:boolean}} 変更が無ければ null
+ */
+function specWebComputeOrderStatusPatchForAssetState_(currentStatus, currentDeliveredDate, created, isPlaceholder) {
+  var isImported = !!created && !isPlaceholder;
+  if (isImported) {
+    if (currentStatus === 'インポート済') return null;
+    var patch = { status: 'インポート済' };
+    if (!currentDeliveredDate) patch.deliveredDate = specWebTodayDateString_();
+    return patch;
+  }
+  if (currentStatus === 'インポート済') {
+    return { status: '納品済', revertComment: true };
+  }
+  return null;
+}
+
+/**
+ * assetState: 各アセットの ddriveState を patch し、O-7 の自動判定規則で発注の状態
+ * （発注済/納品済/インポート済）も合わせて進める・戻す(§3.1・§10.4.1「D-Drive → Web」)。
  * assets コレクションに存在しない id は静かにスキップする(D-Drive 側が把握している id が
  * Web 側にまだ存在しない状況は通常起きないはずだが、例外にはしない。CLAUDE.md §0-4)。
  */
@@ -95,6 +125,7 @@ registerApi('assetState', function (ctx) {
   var items = Array.isArray(payload.items) ? payload.items : [];
   var updatedIds = [];
   var skippedIds = [];
+  var statusChangedIds = [];
   items.forEach(function (entry) {
     if (!entry || !entry.id) return;
     var existing = Storage.getItem(DDRIVE_SYNC_ASSETS_COLLECTION, entry.id);
@@ -114,10 +145,31 @@ registerApi('assetState', function (ctx) {
       usageCount: typeof entry.usageCount === 'number' ? entry.usageCount : 0,
       lastSyncedAt: entry.lastSyncedAt || new Date().toISOString()
     };
-    Storage.putItem(DDRIVE_SYNC_ASSETS_COLLECTION, entry.id, { ddriveState: ddriveState }, { actor: ctx.auth.principal });
+    var statusPatch = specWebComputeOrderStatusPatchForAssetState_(existing.status, existing.deliveredDate, entry.created, entry.isPlaceholder);
+    var patch = Object.assign({ ddriveState: ddriveState }, statusPatch ? { status: statusPatch.status, deliveredDate: statusPatch.deliveredDate } : {});
+    // deliveredDate を明示的に変えないケース（statusPatch が無い、または deliveredDate 未指定）では
+    // patch に含めない（undefined を Storage.putItem に渡すと既存値を undefined で上書きしてしまうため）。
+    if (!statusPatch || statusPatch.deliveredDate === undefined) delete patch.deliveredDate;
+
+    var saved = Storage.putItem(DDRIVE_SYNC_ASSETS_COLLECTION, entry.id, patch, { actor: ctx.auth.principal });
     updatedIds.push(entry.id);
+
+    if (statusPatch && statusPatch.revertComment) {
+      var comments = Array.isArray(saved.comments) ? saved.comments.slice() : [];
+      comments.push({
+        id: UtilitiesAdapter.newUuid(),
+        author: 'ddrive:sync',
+        body: '(自動) D-Drive で Placeholder に戻ったため、インポート済から納品済へ戻しました。',
+        createdAt: new Date().toISOString(),
+        resolved: false
+      });
+      Storage.putItem(DDRIVE_SYNC_ASSETS_COLLECTION, entry.id, { comments: comments }, { actor: 'ddrive:sync' });
+      statusChangedIds.push(entry.id);
+    } else if (statusPatch) {
+      statusChangedIds.push(entry.id);
+    }
   });
-  return { updatedIds: updatedIds, skippedIds: skippedIds };
+  return { updatedIds: updatedIds, skippedIds: skippedIds, statusChangedIds: statusChangedIds };
 });
 
 /** tuningUsage: TUNING 定数へのコード参照が無いキーの一覧([32] §3.2.4「コード未使用の検出」)。 */

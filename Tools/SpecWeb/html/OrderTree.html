@@ -1,0 +1,254 @@
+<style>
+  .order-tree-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .order-tree-toolbar select {
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+  }
+  .order-tree-toolbar button {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--sw-accent);
+    background: var(--sw-accent);
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .order-tree-group {
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+    padding: 0.6rem 0.8rem;
+  }
+  .order-tree-group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: bold;
+  }
+  .order-tree-group-counts {
+    font-weight: normal;
+    color: var(--sw-muted);
+    font-size: 0.85rem;
+  }
+  .order-tree-wbs-link {
+    font-size: 0.85rem;
+    color: var(--sw-accent);
+    text-decoration: none;
+  }
+  ul.order-tree-items {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+  }
+  ul.order-tree-items li {
+    padding: 0.2rem 0;
+    font-size: 0.9rem;
+    border-bottom: 1px dashed var(--sw-border);
+  }
+  .order-tree-new-group {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .order-tree-new-group input {
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+  }
+</style>
+
+<script>
+  /**
+   * 発注ツリー画面（O-2）。docs/32_spec_web.md §10.3.1 を実装する。
+   * 集計ロジックは html/OrderTreeLogic.html（window.OrderTreeLogic、DOM 非依存で単体テスト済み）。
+   * WBS 番号からガントを開くリンクは O-10（settings.get の ganttUrl。未設定なら非表示）。
+   */
+  (function () {
+    'use strict';
+
+    var logic = window.AssetsLogic;
+    var treeLogic = window.OrderTreeLogic;
+
+    function el(tag, attrs, children) {
+      var node = document.createElement(tag);
+      attrs = attrs || {};
+      Object.keys(attrs).forEach(function (key) {
+        if (key === 'class') node.className = attrs[key];
+        else if (key === 'text') node.textContent = attrs[key];
+        else if (key.indexOf('on') === 0 && typeof attrs[key] === 'function') node.addEventListener(key.slice(2), attrs[key]);
+        else node.setAttribute(key, attrs[key]);
+      });
+      (children || []).forEach(function (child) {
+        if (child) node.appendChild(child);
+      });
+      return node;
+    }
+
+    var navHost = document.getElementById('app-nav');
+    if (navHost && !navHost.querySelector('a[href="#/orders"]')) {
+      navHost.appendChild(el('a', {
+        href: '#/orders',
+        text: '発注ツリー',
+        onclick: function (ev) {
+          if (ev && ev.preventDefault) ev.preventDefault();
+          window.SpecWebNavigate('orders');
+        }
+      }));
+    }
+
+    registerScreen('orders', function (root) {
+      var state = {
+        groups: [],
+        assets: [],
+        currentUser: { role: null },
+        ganttUrl: '',
+        filters: { assetType: '', contractor: '', orderer: '' }
+      };
+
+      var toolbar = el('div', { class: 'order-tree-toolbar' });
+      var newGroupBar = el('div', { class: 'order-tree-new-group' });
+      var body = el('div');
+      var statusLine = el('p', { class: 'sw-muted' });
+
+      root.appendChild(statusLine);
+      root.appendChild(toolbar);
+      root.appendChild(newGroupBar);
+      root.appendChild(body);
+
+      function canEdit() {
+        return logic.roleAtLeast(state.currentUser.role, 'editor');
+      }
+
+      function optionValuesFrom(key) {
+        var set = {};
+        state.assets.forEach(function (a) {
+          if (a[key]) set[a[key]] = true;
+        });
+        return Object.keys(set).sort();
+      }
+
+      function buildSelect(options, current, includeAllLabel) {
+        var select = el('select');
+        select.appendChild(el('option', { value: '', text: includeAllLabel }));
+        options.forEach(function (opt) {
+          var optionEl = el('option', { value: opt, text: opt });
+          if (opt === current) optionEl.selected = true;
+          select.appendChild(optionEl);
+        });
+        return select;
+      }
+
+      function filteredAssets() {
+        return logic.filterAssets(state.assets, state.filters);
+      }
+
+      function renderToolbar() {
+        toolbar.innerHTML = '';
+        var typeSelect = buildSelect(logic.ASSET_TYPES, state.filters.assetType, '種類: 全て');
+        typeSelect.addEventListener('change', function () { state.filters.assetType = typeSelect.value; renderBody(); });
+        toolbar.appendChild(typeSelect);
+
+        var contractorSelect = buildSelect(optionValuesFrom('contractor'), state.filters.contractor, '受注者: 全て');
+        contractorSelect.addEventListener('change', function () { state.filters.contractor = contractorSelect.value; renderBody(); });
+        toolbar.appendChild(contractorSelect);
+
+        var ordererSelect = buildSelect(optionValuesFrom('orderer'), state.filters.orderer, '発注者: 全て');
+        ordererSelect.addEventListener('change', function () { state.filters.orderer = ordererSelect.value; renderBody(); });
+        toolbar.appendChild(ordererSelect);
+      }
+
+      function renderNewGroupBar() {
+        newGroupBar.innerHTML = '';
+        if (!canEdit()) return;
+        var nameInput = el('input', { type: 'text', placeholder: 'Presentation 発注グループ名（例: スキル: 斬撃）' });
+        var button = el('button', {
+          text: '+ 発注グループを作成',
+          onclick: function () {
+            var name = nameInput.value.trim();
+            if (!name) return;
+            window.SpecWebClient.callApi('orderGroups.create', { patch: JSON.stringify({ name: name }) }, { method: 'POST' }).then(function (res) {
+              if (!res.ok) {
+                window.alert('作成に失敗しました: ' + (res.error || ''));
+                return;
+              }
+              nameInput.value = '';
+              reload();
+            });
+          }
+        });
+        newGroupBar.appendChild(nameInput);
+        newGroupBar.appendChild(button);
+      }
+
+      function renderGroup(node) {
+        var box = el('div', { class: 'order-tree-group' });
+        var header = el('div', { class: 'order-tree-group-header' });
+        header.appendChild(el('span', { text: node.name }));
+        if (node.wbsNo && state.ganttUrl) {
+          header.appendChild(el('a', {
+            class: 'order-tree-wbs-link',
+            href: state.ganttUrl,
+            target: '_top',
+            rel: 'noopener',
+            text: 'WBS ' + node.wbsNo + ' ↗'
+          }));
+        } else if (node.wbsNo) {
+          header.appendChild(el('span', { class: 'sw-muted', text: 'WBS ' + node.wbsNo }));
+        }
+        header.appendChild(el('span', {
+          class: 'order-tree-group-counts',
+          text: '（' + node.counts.total + '件中 納品済' + node.counts.delivered + '・インポート済' + node.counts.imported + '）'
+        }));
+        box.appendChild(header);
+        if (node.orderer) box.appendChild(el('div', { class: 'sw-muted', text: '発注: ' + node.orderer + (node.dueDate ? ' 期限: ' + node.dueDate : '') }));
+
+        var list = el('ul', { class: 'order-tree-items' });
+        node.items.forEach(function (item) {
+          list.appendChild(el('li', { text: item.assetType + ' : ' + item.identifier + '  受注:' + (item.contractor || '—') + '  [' + item.status + ']' }));
+        });
+        if (node.items.length === 0) {
+          list.appendChild(el('li', { class: 'sw-muted', text: '（発注がありません）' }));
+        }
+        box.appendChild(list);
+        return box;
+      }
+
+      function renderBody() {
+        body.innerHTML = '';
+        var tree = treeLogic.buildOrderTree(state.groups, filteredAssets());
+        tree.forEach(function (node) {
+          body.appendChild(renderGroup(node));
+        });
+      }
+
+      function reload() {
+        statusLine.textContent = '読み込み中...';
+        return Promise.all([
+          window.SpecWebClient.callApi('orderGroups.list', {}),
+          window.SpecWebClient.callApi('assets.list', { includeArchived: '0' }),
+          window.SpecWebClient.callApi('settings.get', {}),
+          window.SpecWebClient.callApi('whoami', {})
+        ]).then(function (results) {
+          var groupsRes = results[0], assetsRes = results[1], settingsRes = results[2], whoamiRes = results[3];
+          state.groups = groupsRes.ok ? groupsRes.items || [] : [];
+          state.assets = assetsRes.ok ? assetsRes.items || [] : [];
+          state.ganttUrl = settingsRes.ok ? settingsRes.ganttUrl || '' : '';
+          if (whoamiRes.ok) state.currentUser = whoamiRes;
+          statusLine.textContent = '';
+          renderToolbar();
+          renderNewGroupBar();
+          renderBody();
+        });
+      }
+
+      reload();
+    });
+  })();
+</script>
