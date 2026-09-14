@@ -167,9 +167,9 @@
 | W-3 | 認証（Google 許可リスト `users.json` + API トークン 2 種 + ロール） | W-1, W-2 | 2 | 許可リスト外のアカウントで①にアクセスすると拒否される。トークン無しで②にアクセスすると拒否される → ✅ 2026-09-14 実装（要約）: `src/Auth.js`（`authenticateSession`=①許可リスト照合、`authenticateRequest`=①②統合、`hasRole`）+ `src/Api/TokenAdmin.js`/`UserAdmin.js`（admin がエディタから手動実行するトークン発行・失効・ローテーション、`users.json` CRUD）。Node テストで許可リスト外拒否・トークン無し/間違い拒否・ロール階層を確認 |
 | W-4 | アセット仕様 CRUD API + 一覧 SPA（検索・絞り込み・並べ替え・新規作成） | W-2, W-3 | 3 | [docs/32] §4.1 の一覧が実データで動く |
 | W-5 | アセット詳細画面（全項目編集・コメント・D-Drive 実状態の表示） | W-4 | 2 | [docs/32] §4.5 のとおり編集・コメント投稿ができる |
-| W-6 | 調整値 API（スカラー: float/int/bool/string/enum、ロック、範囲/型検証） | W-2, W-3 | 3 | 範囲外・型違いの書き込みが 400 相当で拒否される。`locked` は `editor` ロールから拒否される |
-| W-7 | 調整値: テーブル型 API（列定義 CRUD、行 CRUD、セル検証） | W-6 | 3 | 列追加・削除、行追加・削除、セル編集が一貫して保存される。列削除で該当セルも消える |
-| W-8 | 調整値編集 SPA（スカラー一覧 + テーブル編集グリッド + コメント） | W-6, W-7 | 4 | [docs/32] §4.4 の画面が実データで動く。範囲外セルが即時に赤表示される |
+| W-6 | 調整値 API（スカラー: float/int/bool/string/enum、ロック、範囲/型検証） | W-2, W-3 | 3 | 範囲外・型違いの書き込みが 400 相当で拒否される。`locked` は `editor` ロールから拒否される → ✅ 2026-09-14 実装（要約）: `src/TuningCommon.js`（検証・エラー型・ロールチェック共通）+ `src/Tuning.js`（`tuningScalarList/Get/Create/Update/Delete`、collection="tuning"）。キー書式 `<機能>/<名前>` を新規に確定・検証。`locked` は対象または `locked` 自体の変更で admin 必須。詳細・確定 JSON スキーマは [docs/32](32_spec_web.md) 実装メモ（W-6〜W-8） |
+| W-7 | 調整値: テーブル型 API（列定義 CRUD、行 CRUD、セル検証） | W-6 | 3 | 列追加・削除、行追加・削除、セル編集が一貫して保存される。列削除で該当セルも消える → ✅ 2026-09-14 実装（要約）: `src/TuningTable.js`（collection="tuningTables"、列/行/セルの CRUD + `tuningTableUpdateCells` の all-or-nothing 一括更新）。列の型変更は既定値へ完全リセット、min/max/enum の変更のみなら既存セルをクランプ/自動修復（[docs/32] 実装メモに確定として記載） |
+| W-8 | 調整値編集 SPA（スカラー一覧 + テーブル編集グリッド + コメント） | W-6, W-7 | 4 | [docs/32] §4.4 の画面が実データで動く。範囲外セルが即時に赤表示される → ✅ 2026-09-14 実装（要約）: `html/Tuning.html`（スカラー一覧タブ + テーブル編集グリッドタブ、`#/tuning`）+ `html/TuningGrid.html`（貼り付け解析・セル移動・型変換・即時検証の純粋関数、DOM 非依存で Node テスト可）+ `src/TuningComments.js`（スカラー/テーブル全体/テーブル行のコメント投稿・一覧、revision 不要の原子的追記）。テスト = `node --test` で **56 件追加、既存 29 件と合わせて全 85 件 green** |
 | W-9 | `SpecWebFetcher` / `SpecWebParser`（D-Drive 側、既存 `SpecFetcher`/`SpecSheetParser` を置き換え） | W-4, W-6, W-7 | 3 | 既存 `SpecDiffService`/`SpecSyncService` のテストが入力元差し替え後も green |
 | W-10 | `TuningTable` 拡張（`Enum`・`Tables`）+ `SpecSyncService.ApplyTuningTable` + `TuningCodegen` 拡張 | W-9 | 3 | **確認済み（案 A、[docs/32] §5.3・§9-7）**。テーブル型調整値が `Tuning.GetTableFloat` 等で読める |
 | W-11 | `Specs/*.json` 書き出し（`SpecSnapshotWriter`）+ 同期フロー結線 | W-9 | 2 | 同期実行後、`Specs/assets.json`/`Specs/tuning.json` が更新され、通常の git diff で変更内容が読める |
