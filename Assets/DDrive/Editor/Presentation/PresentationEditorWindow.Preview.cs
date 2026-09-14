@@ -15,6 +15,15 @@ namespace DDrive.Editor.Presentation
     {
         private bool _paused;
         private Slider _seekSlider;
+        private Button _pauseButton;
+
+        // ユーザーがシークスライダーをドラッグ中は OnEditorUpdate からの追従(SetValueWithoutNotify)を止める
+        // (5-4 追補 2026-09-14。ドラッグ中に再生位置へ巻き戻されて操作できなくなるのを防ぐ)。
+        private bool _seekSliderDragging;
+
+        // 巻き戻し(過去への Seek)では発火済みトラックが再発火しない([08] Runtime 実装メモ)ことの注意書きを、
+        // 1 回の再生につき最初の巻き戻しだけログへ出す(要望: ツールチップだけでは気づかれにくい)。
+        private bool _rewindNoticeShown;
 
         private void BuildPreviewSection(VisualElement root)
         {
@@ -41,9 +50,11 @@ namespace DDrive.Editor.Presentation
             foldout.Add(modelRow);
 
             var playRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 4 } };
-            playRow.Add(new Button(Play) { text = "▶ 再生" });
-            playRow.Add(new Button(TogglePause) { text = "⏸ 一時停止" });
+            playRow.Add(new Button(Play) { text = "▶ 再生", tooltip = "一時停止中は再開します。最初からやり直すには「⏮ 最初から」か「■ 停止」→「▶ 再生」" });
+            _pauseButton = new Button(TogglePause) { text = "⏸ 一時停止" };
+            playRow.Add(_pauseButton);
             playRow.Add(new Button(Stop) { text = "■ 停止" });
+            playRow.Add(new Button(Restart) { text = "⏮ 最初から", tooltip = "一時停止中でも最初から再生し直します" });
             var loopToggle = new Toggle("ループ") { value = _loopPreview, tooltip = "完了したら自動でもう一度再生する" };
             loopToggle.RegisterValueChangedCallback(evt => _loopPreview = evt.newValue);
             playRow.Add(loopToggle);
@@ -59,7 +70,10 @@ namespace DDrive.Editor.Presentation
             });
             foldout.Add(speed);
 
-            _seekSlider = new Slider("シーク", 0f, 1f) { showInputField = true, tooltip = "デバッグ用。通過したトラックはまとめて発火する(巻き戻しでは既発火のトラックを再発火しない)" };
+            _seekSlider = new Slider("シーク", 0f, 1f) { showInputField = true, tooltip = "デバッグ用。通過したトラックはまとめて発火する(巻き戻しでは既発火のトラックを再発火しない)。再生中・一時停止中は現在位置に追従します" };
+            // ドラッグ中は OnEditorUpdate の追従(SetValueWithoutNotify)を止める(5-4 追補)。
+            _seekSlider.RegisterCallback<PointerDownEvent>(_ => _seekSliderDragging = true, TrickleDown.TrickleDown);
+            _seekSlider.RegisterCallback<PointerUpEvent>(_ => _seekSliderDragging = false, TrickleDown.TrickleDown);
             _seekSlider.RegisterValueChangedCallback(evt =>
             {
                 if (_target == null || _preview == null)
@@ -68,7 +82,7 @@ namespace DDrive.Editor.Presentation
                 }
 
                 var duration = PresentationTiming.EffectiveDuration(_target);
-                _preview.Seek(evt.newValue * duration);
+                SeekToTime(evt.newValue * duration);
             });
             foldout.Add(_seekSlider);
 
@@ -131,6 +145,10 @@ namespace DDrive.Editor.Presentation
                 : $"確認用モデル '{_model.DisplayName ?? _model.name}' を配置(Animator なし。VFX/SE/Shake/Haptic の基準点として使用)");
         }
 
+        // 5-4 追補(2026-09-14) — ユーザー報告「一時停止から再生すると最初から再生になっている」対応:
+        // 一時停止中(handle が有効なまま _paused=true)の「▶ 再生」は再開にする。最初からやり直したい場合は
+        // 「⏮ 最初から」(Restart)か「■ 停止」→「▶ 再生」を使う。判断自体は PresentationPreviewPlayback
+        // (ウィンドウを起動せずテスト可能な純粋関数)に切り出した。
         private void Play()
         {
             if (_target == null)
@@ -144,17 +162,52 @@ namespace DDrive.Editor.Presentation
                 return;
             }
 
+            if (PresentationPreviewPlayback.DecideOnPlay(_preview.IsPlaying, _paused) == PresentationPreviewPlayback.PlayAction.Resume)
+            {
+                Resume();
+                return;
+            }
+
+            StartFresh("▶");
+        }
+
+        // 一時停止中でも最初から再生し直す(「▶ 再生」が再開になったため、明示的なやり直し手段として追加)。
+        private void Restart()
+        {
+            if (_target == null || _preview == null)
+            {
+                return;
+            }
+
+            StartFresh("⏮");
+        }
+
+        private void StartFresh(string logPrefix)
+        {
             DisposeSubscriptions();
             _paused = false;
+            _rewindNoticeShown = false;
             _preview.Play(_target);
             SubscribeToCurrent();
-            AppendLog($"▶ '{_target.DisplayName ?? _target.name}' を再生" + (_preview.HasSelf ? string.Empty : "(モデル未配置。Self 基準のトラックは対象が見つからず警告のうえ no-op になります)"));
+            _seekSlider?.SetValueWithoutNotify(0f);
+            UpdatePauseButtonLabel();
+            AppendLog($"{logPrefix} '{_target.DisplayName ?? _target.name}' を再生" + (_preview.HasSelf ? string.Empty : "(モデル未配置。Self 基準のトラックは対象が見つからず警告のうえ no-op になります)"));
+        }
+
+        private void Resume()
+        {
+            _paused = false;
+            _preview.SetPaused(false);
+            UpdatePauseButtonLabel();
+            AppendLog("▶ 再開");
         }
 
         private void Stop()
         {
             _preview?.StopCurrent();
             _paused = false;
+            _rewindNoticeShown = false;
+            UpdatePauseButtonLabel();
             AppendLog("■ 停止");
         }
 
@@ -173,13 +226,49 @@ namespace DDrive.Editor.Presentation
 
             _paused = !_paused;
             _preview.SetPaused(_paused);
+            UpdatePauseButtonLabel();
             AppendLog(_paused ? "⏸ 一時停止" : "▶ 再開");
+        }
+
+        // 一時停止中は「▶ 再開」に表示を切り替える(要望: ボタンの見た目で状態が分かるように)。
+        private void UpdatePauseButtonLabel()
+        {
+            if (_pauseButton != null)
+            {
+                _pauseButton.text = _paused ? "▶ 再開" : "⏸ 一時停止";
+            }
+        }
+
+        // タイムライン(ルーラーのクリック/ドラッグ)とシークスライダーの両方から呼ぶ共通のシーク処理。
+        // 実際の再生時間(EffectiveDuration。表示用の DisplayDuration ではない)にクランプし、シークスライダーも
+        // 同じ値へ同期する(要望: 両方の UI が同じ値を共有する)。巻き戻し(過去への Seek)を検出したら、
+        // その再生の最初の 1 回だけログへ注意書きを出す。
+        private void SeekToTime(float absoluteSeconds)
+        {
+            if (_target == null || _preview == null)
+            {
+                return;
+            }
+
+            var duration = PresentationTiming.EffectiveDuration(_target);
+            var clamped = Mathf.Clamp(absoluteSeconds, 0f, Mathf.Max(0f, duration));
+            var previous = duration > 0f ? Mathf.Clamp01(_preview.NormalizedTime) * duration : 0f;
+
+            if (!_rewindNoticeShown && PresentationPreviewPlayback.IsRewind(previous, clamped))
+            {
+                _rewindNoticeShown = true;
+                AppendLog("⚠ 巻き戻しでは発火済みのトラックは再発火しません。最初から確認するには ⏮");
+            }
+
+            _preview.Seek(clamped);
+            _seekSlider?.SetValueWithoutNotify(duration > 0f ? clamped / duration : 0f);
         }
 
         private void StopPreview()
         {
             _preview?.StopCurrent();
             _paused = false;
+            _rewindNoticeShown = false;
             DisposeSubscriptions();
         }
 

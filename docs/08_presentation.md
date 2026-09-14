@@ -177,6 +177,37 @@ Timeline 風の複数トラック UI。
 - **Kind 変更時の Asset 不整合(P2-1)**: `PresentationEditorWindow.Tracks.cs` の `Kind` フィールドを専用コールバックにし、変更時に `Asset` を Undo 付きでクリアして行を再構築(`RefreshTracksList`)するようにした(以前は `Asset` の `ObjectField.objectType` が古い Kind のまま残り、`Kind=Se, Asset.Type=Vfx` のような不整合データが保存され得た)。
 - **Signal レーンが無かった(整理)**: `Lanes` に `TrackKind.Signal` がどこにも属していなかったため `LaneIndexFor` のフォールバック(最後のレーン)に落ちていた。`HitStop / Marker` レーンに `Signal` を加え、ラベルも `HitStop / Marker / Signal` に変えた。
 
+## 追補（2026-09-14、タイムラインのズーム・尺 0 対応・一時停止からの再開)
+
+デザイナーが実際に PresentationEditor を使って確認した結果の 2 件のフィードバックに対応した。人による確認手順は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-4 追補」節。
+
+**(A) タイムラインのズーム(報告: 「シークバーでどこにいるか分からない。目盛りの表示範囲が狭すぎる」)**:
+
+- **`PresentationTimelineZoom`(`Editor/Presentation/PresentationTimelineZoom.cs`、新規)**: ズーム/パン/目盛り間隔選択をすべて純粋関数(Unity オブジェクト非依存)にした静的クラス。`Fit`/`ClampRange`/`ZoomAroundPivot`(ホイールの相対倍率)/`WithZoomFactor`(スライダーの絶対倍率)/`ZoomFactor`/`Pan`/`FollowPlayhead`/`TimeToX`/`XToTime`/`ChooseTickStep`/`LabelStride` を持つ。表示範囲の最小幅(`MinVisibleRange`=0.1s)とズームスライダーの上限倍率(`MaxZoomFactor`=50)もここで定義する。
+- **目盛り間隔の自動選択**: `TickStepCandidatesFineToCoarse = { 1/60s, 0.1s, 0.5s, 1s }` から、1 目盛りが `MinPxPerTick`(6px)以上になる最も細かい候補を選ぶ(無ければ最も粗い 1s で妥協し、ラベルは `LabelStride`(目標 46px 間隔)で間引く)。**`TimelineRulerGui`(`Editor/Common/TimelineRulerGui.cs`、AnimEditorWindow と共用)は一切改修していない** — Presentation は独立した `DrawTimeRuler`(`PresentationEditorWindow.Tracks.cs` 内 private static)を新設し、目盛りの描画ロジックを完全に分離した(Anim Editor の見た目・挙動への影響ゼロを優先し、要望にあった「引数を増やしたオーバーロード」より安全な方を選んだ)。
+- **表示範囲(`_viewStart`/`_viewEnd`)はウィンドウの `[SerializeField]` フィールドで持ち、`PresentationData` にはシリアライズしない**(要求どおり)。`0,0` を「未初期化」の目印にし、`DrawTimeline` の毎フレームの先頭で `_viewEnd<=_viewStart` なら `Fit`、それ以外は現在の尺(`PresentationTimelineRange.DisplayDuration`、後述)に対して `ClampRange` するだけにした(TotalDuration を編集中でも表示が暴れない)。対象アセットを `SetTarget` で切り替えたときと、共通設定の「トラックの最後に合わせる」ボタンを押したときは明示的に `ResetViewToFit()` を呼ぶ。
+- **操作**: ツールバー行(`BuildTimelineControlsRow`)の ± ボタン/ズームスライダー/「全体表示」ボタン/「再生ヘッドに追従」トグル(既定 ON)。タイムライン内の Ctrl(Cmd)+ホイールでカーソル位置を中心にズーム、単独ホイールでパン、下部の横スクロールバー(`DrawMiniScrollbar`。演出全体のミニマップ + 現在の表示範囲を示すつまみ。ドラッグ/空き領域クリックでパン)。ルーラー(タイムライン上段、`RulerHeight` 以内)のクリック/ドラッグはシーク(後述 `SeekToTime` 経由)にし、トラックマーカーのドラッグ(レーン側、`RulerHeight` 以降)とは Y 座標で完全に分離しているため競合しない。
+- **再生ヘッド**: 目立つ黄色(`(1, 0.85, 0.15)`)の縦線を全レーン(ルーラー+レーン、ミニスクロールバーは除く)に描く。表示範囲の外に出たら描かない(「再生ヘッドに追従」OFF でスクロールしていない場合)。上部に現在時刻(秒、小数 2 桁)とフレーム数(**60fps を仮定した表示専用の値**。Presentation には固有フレームレートの概念が無いため。ランタイムの完了判定には無関係)を表示する。
+
+**(B) 尺(TotalDuration)が 0 のときの表示範囲(実際の原因)**: ユーザーの追加報告により、「分からなかった」根本原因は目盛りの粗さではなく **`TotalDuration` 未設定のときにタイムラインの表示範囲そのものが潰れる**ことだったと判明した(`PresentationTiming.EffectiveDuration` が AtTime トラックの最大 `Time` を余白無しで返す、あるいはトラックが無ければ 0 を返すため、`Mathf.Max(0.01f, …)` で無理にクランプしていた旧実装では実質「幅 0.01 秒」の目盛りしか描けなかった)。
+
+- **`PresentationTimelineRange`(`Editor/Presentation/PresentationTimelineRange.cs`、新規)**: **ランタイムの `PresentationTiming.EffectiveDuration` は変更していない**(完了判定の契約を維持する、というチケットの制約どおり)。表示専用に別関数を用意した。
+  - `DisplayDuration(data)`: `TotalDuration>0` ならそのまま、`0` なら「AtTime トラックの最大時刻 + `AutoMargin`(0.5秒)」、AtTime トラックが 1 つも無ければ `FallbackNoTracksDuration`(1秒)。タイムラインの描画・ズームの「全体表示」・下部スクロールバーのミニマップ全長に使う。
+  - `SuggestedTotalDuration(data)`: 「トラックの最後に合わせる」ボタンが設定する値。各 AtTime トラックの「終了時刻」(`Time` + 分かる場合はアセットの長さ、分からなければ `AutoMargin`)の最大値。アセットの長さは `EstimateAssetTailSeconds` がベストエフォートで見積もる(**Anim/Anim2D は `AnimData.LengthSec`、SE は `Clips` の最長 `AudioClip.length` − `StartOffsetSec`** だけ対応。VFX/BGM/CameraShake/Haptic はループ/曲線ベースで固定長を持たないため「分からない」扱いのまま — 要判断、将来各 Data 型に明示的な長さの概念が増えたら拡張する)。アセット解決(`AssetDatabase` 検索)を伴う無引数版と、テストでリゾルバを差し替えられる `SuggestedTotalDuration(data, Func<TrackKind,ulong,AssetDataBase>)` の 2 つを公開している。
+  - シーク(`SeekToTime`、後述)は表示専用の `DisplayDuration` ではなく、**実際の再生時間 `PresentationTiming.EffectiveDuration` にクランプする**(表示上の余白部分へはシークできない、という仕様)。
+- **`PresentationTrackKindMapping.FindAssetById`(`public` 化)**: 元は `PresentationEditorWindow.Tracks.cs` の private メソッドだったアセット ID→実体解決を、`PresentationTimelineRange`(アセットの長さ見積り)とウィンドウ側(Asset 欄の表示)の両方から共用するために `PresentationTrackKindMapping` へ移設した(コピペ禁止対応)。
+- **`PresentationTrackEditOps.FitTotalDurationToTracks`(新規)**: 「共通設定」の尺 0 警告(HelpBox)にある「トラックの最後に合わせる」ボタンの実体。`Undo.RecordObject` 付きで `TotalDuration` を `PresentationTimelineRange.SuggestedTotalDuration` の値に設定するだけの薄いラッパー(既存の `AddTrack`/`RemoveTrack` 等と同じ「ウィンドウを起動せずにテストできる」設計)。タイムライン上部にも `TotalDuration<=0` のとき小さく「⚠ 尺が未設定です」を表示する。
+
+**(C) 一時停止からの再開(報告: 「一時停止から再生するとシークバーで最初から再生になっている」)**: 原因は `PresentationEditorWindow.Preview.cs` の `Play()` が常に `_preview.Play(_target)`(最初から再生)を呼んでいたこと(一時停止中の「▶ 再生」はリスタートであり、再開は「⏸ 一時停止」をもう一度押す `TogglePause` しか経路が無かった)。加えて `OnEditorUpdate` がステータスラベルしか更新せず、シークスライダーが再生位置に追従しないため「今どこか」も分からなかった。
+
+- **`PresentationPreviewPlayback`(`Editor/Presentation/PresentationPreviewPlayback.cs`、新規)**: 「▶ 再生」の挙動判定・シークスライダーの追従値・巻き戻し検出を純粋関数にした(`PresentationTrackEditOps` と同じ「ウィンドウを起動せずテストできる」設計)。
+  - `DecideOnPlay(previewIsPlaying, windowPaused)`: 一時停止中(両方 true)だけ `Resume`、それ以外(停止中、または再生中に連打された場合)は従来どおり `StartFresh`。
+  - `ComputeSeekSliderValue(isPlaying, normalizedTime)` / `IsRewind(previousElapsed, targetElapsed, epsilon)`。
+- **`Play()`**: `PresentationPreviewPlayback.DecideOnPlay` が `Resume` を返したら `_preview.SetPaused(false)` だけ行う(最初から再生し直さない)。最初からやり直す手段として **「⏮ 最初から」ボタン(`Restart`)を追加**した(「▶ 再生」の意味が変わったための代替)。
+- **「⏸ 一時停止」ボタンは一時停止中「▶ 再開」に表示が切り替わる**(`_pauseButton.text` を都度更新)。ステータス欄も「⏸ 一時停止中 42% (1.26s)」のように時刻(秒、小数 2 桁)を出すようにした。
+- **シークスライダーは再生中・一時停止中とも現在位置へ `SetValueWithoutNotify` で追従する**(`OnEditorUpdate`)。ユーザーがスライダーをドラッグ中は上書きしない(`PointerDownEvent`/`PointerUpEvent` を `TrickleDown` で監視する `_seekSliderDragging` フラグ)。
+- **`SeekToTime(absoluteSeconds)`(Preview.cs、新規の共通処理)**: シークスライダーとタイムラインのルーラー(上記 (A) の `_seekDragging`)の両方がこれを呼ぶ(値を共有する)。実際の再生時間にクランプし、シークスライダーも同じ値に同期する。巻き戻し(過去へのシーク)を検出したら、**その再生の最初の 1 回だけ**ログへ「巻き戻しでは発火済みのトラックは再発火しません。最初から確認するには ⏮」を出す(`_rewindNoticeShown`。`StartFresh`/`Stop` でリセットする)。既存のツールチップ(「巻き戻しでは既発火のトラックを再発火しない」)を消してはいない — ログはそれに追加する形。
+
 ## 実装メモ（2026-09-14、5-8）
 
 `PresentationManager` に `INetBridge netBridge = null` を追加し、`Flags.Net == NetMode.Cosmetic` かつ `netBridge != null` のときだけネット経路(開始時刻シーク / Signal 中継 / 予測再生 / Late Join 復元)に乗るようにした。`PresentationData` に `PredictLocal` フィールドを追加した(シリアライズ追加のみ)。**詳細な設計・メッセージ定義・シーク規則・Late Join の接続通知の口は [14_networking.md](14_networking.md) §5「実装メモ（2026-09-14、5-8）」に集約した**(Presentation 固有の話だが、ネットワーク方針全体との整合を保つため §5 に一本化し、ここでは重複させない)。§3(実行モデル)・§3.5(Handle API)の契約(`Signal`/`Cancel` の意味、`AtTime(0)` の即時発火等)は変更していない — ネット経路でも「行為者から見た挙動」は同じ形を保ち、内部で Broadcast/受信シークに委譲しているだけである。
