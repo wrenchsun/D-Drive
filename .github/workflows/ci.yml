@@ -1,15 +1,164 @@
 name: D-Drive CI
 
+# 6-1(docs/11_tasks.md): Validation / ID 差分 / テストを PR ゲートにする。
+# 実行場所はこの PC(Windows)に常駐させるセルフホストランナー(ラベル self-hosted / windows /
+# unity-6000.3.13f1)。ランナーの登録・ブランチ保護の設定は docs/33_ci_setup.md の手順書を参照
+# (ユーザー作業。このワークフロー自体はランナーが登録されるまで「待ち」のままになる)。
+#
+# セキュリティ注意(docs/33_ci_setup.md も参照):
+#   このリポジトリが public だと、fork からの pull_request でもこのワークフローが起動でき、
+#   セルフホストランナー = このユーザーの実 PC 上で任意コードが動く経路になる。
+#   下の `if:` でリポジトリ本体からの PR 以外(= fork からの PR)を弾いている。
+#   private の間はリポジトリの Collaborator しか PR を出せないためリスクは低いが、
+#   将来 public に変えるときはこのガードを外さないこと。
+
 on:
   pull_request:
+    branches: [main]
   push:
     branches: [main]
 
+concurrency:
+  # 同じ PR(または同じ push 先ブランチ)の古い実行は新しい push が来たらキャンセルする。
+  # セルフホストランナーが 1 台(= この PC)しかない前提のため、キューの詰まりを防ぐ意味もある。
+  group: ddrive-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  placeholder:
-    # Phase 0 (0-1): CI 空ジョブ。
-    # 実処理は 0-11 (Validation Core / batchmode 実行) と 6-1 (PR ゲート化) で追加する。
-    runs-on: ubuntu-latest
+  ci:
+    # fork からの pull_request(= github.repository と head リポジトリが不一致)は実行しない。
+    # push イベント(main への直push)や、このリポジトリ自身のブランチからの PR は実行する。
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    # ラベルは docs/33_ci_setup.md の手順で登録したセルフホストランナーに合わせる。
+    # 複数 PC で回す予定が無いため 1 ジョブに集約(Unity は同一プロジェクトを多重起動できないため、
+    # 複数ジョブに分けても実質的に直列にしかならず、チェックアウトの受け渡しが増えるだけ)。
+    runs-on: [self-hosted, windows, unity-6000.3.13f1]
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+
     steps:
-      - uses: actions/checkout@v4
-      - run: echo "D-Drive CI scaffold — validation/tests wired in 0-11 / 6-1"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Unity executable path
+        run: |
+          $unityExe = $env:UNITY_EXE
+          if ([string]::IsNullOrWhiteSpace($unityExe)) {
+            # ランナーの環境変数 UNITY_EXE で上書きしなかった場合の既定値(CLAUDE.md 記載のバージョン)。
+            $unityExe = "C:\Program Files\Unity\Hub\Editor\6000.3.13f1\Editor\Unity.exe"
+          }
+          if (-not (Test-Path $unityExe)) {
+            Write-Host "::error::Unity実行ファイルが見つかりません: $unityExe (ランナーの環境変数 UNITY_EXE で上書きできます。docs/33_ci_setup.md 参照)"
+            exit 1
+          }
+          Write-Host "Using Unity: $unityExe"
+          Add-Content -Path $env:GITHUB_ENV -Value "UNITY_EXE=$unityExe"
+          New-Item -ItemType Directory -Force -Path "TestResults" | Out-Null
+
+      # Library/ はランナー作業フォルダに残る前提(actions/cache は正直あまり効かないことがあるため
+      # 保険として両方: cache が当たればより速く、当たらなくても作業フォルダの Library がそのまま使われる)。
+      - name: Cache Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: ddrive-library-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'Packages/packages-lock.json') }}
+          restore-keys: |
+            ddrive-library-${{ runner.os }}-
+
+      # ① Validation(CI.ValidateAll): 全 IValidator + ForbiddenApiScanner。Error があれば exit 1。
+      - name: Validation (CI.ValidateAll)
+        run: |
+          & $env:UNITY_EXE -batchmode -nographics -quit -projectPath "$PWD" `
+            -executeMethod DDrive.Editor.CI.ValidateAll `
+            -ddriveOutput "TestResults/ddrive-validation.junit.xml" `
+            -logFile "TestResults/validate.log"
+          $exitCode = $LASTEXITCODE
+          Get-Content -Path "TestResults/validate.log" -ErrorAction SilentlyContinue | Select-Object -Last 300
+          if ($exitCode -ne 0) {
+            Write-Host "::error::Validation failed (exit $exitCode). ログ: TestResults/validate.log"
+            exit $exitCode
+          }
+
+      # ② ID 差分検出: 再生成して git diff。生成物にずれがあれば fail(コミット漏れ検出)。
+      - name: Regenerate Asset IDs & check diff (CI.RegenerateIds)
+        run: |
+          & $env:UNITY_EXE -batchmode -nographics -quit -projectPath "$PWD" `
+            -executeMethod DDrive.Editor.CI.RegenerateIds `
+            -logFile "TestResults/regenerate-ids.log"
+          $exitCode = $LASTEXITCODE
+          Get-Content -Path "TestResults/regenerate-ids.log" -ErrorAction SilentlyContinue | Select-Object -Last 300
+          if ($exitCode -ne 0) {
+            Write-Host "::error::Asset ID regeneration failed (重複 ID の疑い)。ログ: TestResults/regenerate-ids.log"
+            exit $exitCode
+          }
+
+          # Assets/Generated だけでなく、再生成で Id を新規割当された Data アセット自体の .asset も
+          # 変更され得るため、スコープを絞らずリポジトリ全体の diff で検出する(git diff は追跡対象
+          # ファイルのみを見るため、Library/TestResults 等の gitignore 対象が誤検出することはない)。
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::ID 再生成でコミットされていない差分が出ました(下の diff --stat 参照)。ローカルで『Tools/D-Drive/Generate/Regenerate Asset IDs』を実行してからコミットしてください。"
+            git diff --stat
+            exit 1
+          }
+
+      # ③ EditMode テスト
+      - name: EditMode tests
+        run: |
+          & $env:UNITY_EXE -batchmode -nographics -projectPath "$PWD" `
+            -runTests -testPlatform EditMode `
+            -testResults "TestResults/editmode-results.xml" `
+            -logFile "TestResults/editmode.log"
+          $exitCode = $LASTEXITCODE
+          Get-Content -Path "TestResults/editmode.log" -ErrorAction SilentlyContinue | Select-Object -Last 300
+          if ($exitCode -ne 0) {
+            Write-Host "::error::EditMode tests failed (exit $exitCode)。ログ: TestResults/editmode.log"
+            exit $exitCode
+          }
+
+      # ④ PlayMode テスト(CLAUDE.md §3: Tests/Runtime は PlayMode でしか走らない asmdef 構成のため必須)
+      - name: PlayMode tests
+        run: |
+          & $env:UNITY_EXE -batchmode -nographics -projectPath "$PWD" `
+            -runTests -testPlatform PlayMode `
+            -testResults "TestResults/playmode-results.xml" `
+            -logFile "TestResults/playmode.log"
+          $exitCode = $LASTEXITCODE
+          Get-Content -Path "TestResults/playmode.log" -ErrorAction SilentlyContinue | Select-Object -Last 300
+          if ($exitCode -ne 0) {
+            Write-Host "::error::PlayMode tests failed (exit $exitCode)。ログ: TestResults/playmode.log"
+            exit $exitCode
+          }
+
+      # --- 6-2(パフォーマンス計測・0 alloc 検証)用のプレースホルダー ---
+      # 6-2 チケットで実装する担当は、ここに Unity -executeMethod での実行ステップを追加する。
+      # 「PR ごとに実行」の決定(2026-09-15)に沿って、このジョブ内(同じ Unity セッション/チェックアウト)に
+      # 差し込む前提で場所を空けている。現時点では何もしないので CI は落ちない。
+      - name: Performance tests (6-2, placeholder)
+        run: |
+          Write-Host "6-2 未実装: パフォーマンス計測/0 alloc 検証はまだこのワークフローに追加されていません。"
+          Write-Host "実装するときはこのステップを置き換える(直前のステップと同じ形で -executeMethod を呼び、"
+          Write-Host "失敗時は非ゼロ終了、結果は Tools/CI/Summarize-Results.ps1 と同様に `$env:GITHUB_STEP_SUMMARY へ)。"
+
+      # ⑤ 結果を PR に分かる形で出す。失敗があれば非ゼロ終了(このステップ自体がゲートにもなる)。
+      - name: Summarize results
+        if: always()
+        run: |
+          pwsh -NoProfile -File "Tools/CI/Summarize-Results.ps1" `
+            -ValidationJUnitPath "TestResults/ddrive-validation.junit.xml" `
+            -EditModeResultsPath "TestResults/editmode-results.xml" `
+            -PlayModeResultsPath "TestResults/playmode-results.xml"
+
+      - name: Upload TestResults artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddrive-ci-results-${{ github.run_id }}
+          path: TestResults/**
+          retention-days: 14
+          if-no-files-found: ignore

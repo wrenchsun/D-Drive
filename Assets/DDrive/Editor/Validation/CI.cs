@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using DDrive.Editor.Codegen;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Validation;
 using DDrive.Foundation.Data;
@@ -46,6 +47,32 @@ namespace DDrive.Editor
             if (Application.isBatchMode)
             {
                 EditorApplication.Exit(hasError ? 1 : 0);
+            }
+        }
+
+        // Unity -batchmode -executeMethod DDrive.Editor.CI.RegenerateIds から呼ばれる、6-1 の CI 用エントリポイント。
+        // ID 定数(Assets/Generated/AssetIds.g.cs)を再生成するだけの単体メソッド。
+        // 「生成漏れ」の検出自体は呼び出し側(CI ワークフロー / ローカルスクリプト)が
+        // この実行後に `git diff --exit-code` で行う(このメソッド自体は重複 ID があるときだけ fail する)。
+        public static void RegenerateIds()
+        {
+            var result = AssetIdGenerator.Regenerate();
+
+            if (result.Success)
+            {
+                Debug.Log($"[DDrive] AssetIds regenerated: {result.TotalCount} entries, {result.AssignedCount} newly assigned.");
+            }
+            else
+            {
+                foreach (var d in result.Duplicates)
+                {
+                    Debug.LogError($"[DDrive] Duplicate AssetId 0x{d.Id:X} between '{d.PathA}' and '{d.PathB}'. Fix before regenerating.");
+                }
+            }
+
+            if (Application.isBatchMode)
+            {
+                EditorApplication.Exit(result.Success ? 0 : 1);
             }
         }
 
