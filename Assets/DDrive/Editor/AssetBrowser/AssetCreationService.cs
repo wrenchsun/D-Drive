@@ -72,6 +72,10 @@ namespace DDrive.Editor.AssetBrowser
 
             configure?.Invoke(asset);
 
+            // 6-3(2026-09-15): 新規作成は v1・作成者・作成日時で記録する。CreateAsset 直後のアセットは dirty に
+            // ならず保存フック(VersionStampProcessor.OnWillSaveAssets)では 0→1 にならないため、ここで付ける。
+            DDrive.Editor.Versioning.VersionStampProcessor.StampNew(asset);
+
             AssetDatabase.CreateAsset(asset, path);
             AssetSearch.Invalidate(); // 同じフレームで続けて検索する呼び出し元(Maya インポート等)が作りたてを見落とさないように([09] §9)
 

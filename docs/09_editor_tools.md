@@ -123,7 +123,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
   - 対象ごとに `Undo.RecordObject`（バージョン表示行も含めて Ctrl+Z で戻せるようにする）→ `Version++` / `Author = Environment.UserName` / `UpdatedAt = 保存時刻`（ISO 8601、秒まで、ローカル時刻。`yyyy-MM-ddTHH:mm:ss`）→ `EditorUtility.SetDirty`。
   - フィールドを書き換えるだけで、ここから `AssetDatabase.SaveAssets()` 等を呼び直すことはしない（`OnWillSaveAssets` はこの直後にそのまま物理書き込みされるため、二重加算や無限ループにならない。1 回の保存につき 1 回だけ加算される）。
   - `ChangeNote` は触らない（手入力のまま、自動では消さない）。
-  - **新規作成時に Version=1 になる理由**: `Version` の C# 既定値は `0`。`AssetCreationService.Create` 等で特別に `1` を代入しているわけではなく、新規アセットの初回保存（`AssetDatabase.CreateAsset` 直後の `SaveAssetIfDirty`）でこのフックが `0→1` にするだけ（他の生成経路でも自動的に同じ挙動になる）。
+  - **新規作成時の v1（2026-09-15 修正）**: `AssetDatabase.CreateAsset` は作成と同時に書き込み、作成直後のアセットは dirty にならないため、保存フックでは `0→1` にならない（EditMode テストで判明）。そこで `AssetCreationService.Create` が `CreateAsset` の直前に `VersionStampProcessor.StampNew(asset)` を呼び、v1・作成者・作成日時を記録する（抑止スコープ中でも付ける。初版の記録はノイズではないため）。この経路を通らない作成（Project ウィンドウの Create メニュー等）は v0 のままで、最初の編集 + 保存で v1 になる。
 
 - **抑止スコープ（`VersionStampSuppression`）**: `using (VersionStampSuppression.Scope())` で囲むと、その間に走る保存では版数を上げない（参照カウント方式で入れ子安全）。**ツールによる一括処理（大量のアセットの版数が機械的に上がってノイズになるのを防ぐ）専用**で、以下の 5 箇所にだけ差し込んでいる（最小限の変更方針。他のツールに広げる場合はここに追記する）:
   1. `AssetCreationService.Create` の初期アイコン自動生成（`delayCall` 内、[09] §8.1）— 作成直後に Icon が自動で入って Version が 1→2 にならないようにする

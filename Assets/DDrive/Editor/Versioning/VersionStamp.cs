@@ -95,6 +95,28 @@ namespace DDrive.Editor.Versioning
             return paths;
         }
 
+        // 新規作成時の初期記録(2026-09-15 修正)。AssetDatabase.CreateAsset は作成と同時に書き込み、
+        // 作成直後のアセットは dirty にならないため、OnWillSaveAssets では 0→1 にならない(テストで判明)。
+        // そのため作成経路(AssetCreationService.Create)が CreateAsset の直前にこれを呼んで v1 を付ける。
+        // Undo は記録しない(作成そのものが Undo の単位であり、作成前の状態は存在しない)。
+        // 抑止スコープ中(仕様書同期での Placeholder 一括作成など)でも付ける: 新規作成の v1 は「機械的な
+        // 書き換えによる版数のノイズ」ではなく、アセットの初版そのものの記録であるため。
+        public static void StampNew(AssetDataBase asset)
+        {
+            if (asset == null)
+            {
+                return;
+            }
+
+            if (asset.Version < 1)
+            {
+                asset.Version = 1;
+            }
+
+            asset.Author = Environment.UserName;
+            asset.UpdatedAt = FormatTimestamp(DateTime.Now);
+        }
+
         // ISO 8601(秒まで、タイムゾーン無し = ローカル時刻)。VersionStampGui.FormatForDisplay と対応。
         public static string FormatTimestamp(DateTime time) => time.ToString("yyyy-MM-ddTHH:mm:ss");
     }

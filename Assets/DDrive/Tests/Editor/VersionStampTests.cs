@@ -36,9 +36,12 @@ namespace DDrive.Tests.Editor
             }
         }
 
+        // 作成経路(AssetCreationService.Create)と同じく、CreateAsset の直前に StampNew で v1 を付ける
+        // (CreateAsset 直後のアセットは dirty にならず、保存フックでは 0→1 にならないため)。
         private static TestAssetData CreateAndSave()
         {
             var data = ScriptableObject.CreateInstance<TestAssetData>();
+            VersionStampProcessor.StampNew(data);
             AssetDatabase.CreateAsset(data, AssetPath);
             AssetDatabase.SaveAssets();
             return AssetDatabase.LoadAssetAtPath<TestAssetData>(AssetPath);
@@ -54,6 +57,25 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(
                 DateTime.TryParseExact(data.UpdatedAt, "yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
                 $"UpdatedAt は ISO 8601(秒まで)で保存される: '{data.UpdatedAt}'");
+        }
+
+        [Test]
+        public void CreatedWithoutStamp_FirstEditAndSave_SetsVersionToOne()
+        {
+            // StampNew を通らない作成経路(Project ウィンドウの Create メニュー等)でも、最初の編集 + 保存で v1 になる。
+            var data = ScriptableObject.CreateInstance<TestAssetData>();
+            AssetDatabase.CreateAsset(data, AssetPath);
+            AssetDatabase.SaveAssets();
+            data = AssetDatabase.LoadAssetAtPath<TestAssetData>(AssetPath);
+            Assert.AreEqual(0, data.Version, "CreateAsset 直後は dirty ではないため保存フックは動かない");
+
+            Undo.RecordObject(data, "Edit DisplayName");
+            data.DisplayName = "Edited";
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssets();
+
+            Assert.AreEqual(1, data.Version);
+            Assert.AreEqual(Environment.UserName, data.Author);
         }
 
         [Test]
