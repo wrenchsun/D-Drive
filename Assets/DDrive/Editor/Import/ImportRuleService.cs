@@ -77,10 +77,13 @@ namespace DDrive.Editor.Import
         // 「案内ログ」(下記)の対象からも除外する。新しく増やす場合はここに 1 行足す。
         // Shaders: [06_material_texture.md] Maya→Material の AiStandardSurface シェーダー置き場(AiStandardSurfacePreprocessor.ShaderPath)。
         // Data: サンプル/テスト用の元アセット置き場(UnityChan 一式・ImportRuleServiceTests が参照する fbx 等)。
+        // Samples: サンプル素材の退避先([10_workflow.md] §3.3、2026-09-14。SourceAssets/model(shizuku)が
+        // 種別フォルダ "Model" と大文字小文字違いで衝突したため Samples/Shizuku へ退避した。ImportRule の対象外)。
         private static readonly HashSet<string> KnownNonTargetTypeFolders = new(StringComparer.Ordinal)
         {
             "Shaders",
             "Data",
+            "Samples",
         };
 
         private static string _allowedTypeFolderList;

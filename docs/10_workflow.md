@@ -76,6 +76,7 @@
 - フォルダのセグメントはファイル名と同じ正規化（英数字のみ）。日本語のみのカテゴリはフォルダ化されず種別直下に置かれる
 - **`SourceAssets/<種別>/<カテゴリ>/` は Se/Bgm/Texture/Model/Anim/Anim2D/Prefab/Canvas/Vfx の 9 種別だけ意味を持つ**（2026-09-14、チケット 5-11）。この 9 種別は `<種別>`(英語表記。`Se`/`Bgm`/`Texture`/`Model`/`Anim`/`Anim2D`/`Prefab`/`Canvas`/`Vfx`)を頭にしたフォルダへ元ファイルを置くと `ImportRule`（[09_editor_tools.md](09_editor_tools.md) §1.1）が自動検知して Data・ID・カタログ/Addressables 登録まで行う。他の種別（元ファイルの無い Presentation/Shake/Haptics/UiTween/Anchor/AnchorGroup/ControlSkin）はこのフォルダを監視しない
 - **`<種別>` は `SourceAssets/` の直下 1 階層目でなければならない**（大文字小文字も区別）。直下に直接置いたファイルや、種別フォルダの上に別のフォルダを挟んだ配置は認識されない（置き方を間違えると Console に案内の警告が出る。[09_editor_tools.md](09_editor_tools.md) §1.1）。9 種別のフォルダが無い場合は `Tools/D-Drive/Generate/SourceAssets の既定フォルダを作成` で作れる（各フォルダに置き方を説明する `README.md` が入る。既存のフォルダ・README には触れない）
+- **サンプル素材は `SourceAssets/Samples/<出典名>/` に置く**（2026-09-14）。`ImportRule` の対象外（`ImportRuleService.KnownNonTargetTypeFolders`。案内ログも出ない）。Windows 等の大文字小文字を区別しないファイルシステムでは種別フォルダ（`Model` 等)と衝突する綴りは避けること。元は `SourceAssets/model`（shizuku 一式）だったが `Model` 種別フォルダと大文字小文字違いで衝突したため `SourceAssets/Samples/Shizuku/` へ退避した
 
 ## 3.4 デザイナー向けマニュアル（Readme.html）
 
