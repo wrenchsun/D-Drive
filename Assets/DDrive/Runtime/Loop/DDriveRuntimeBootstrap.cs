@@ -150,12 +150,12 @@ namespace DDrive.Runtime.Loop
 
         // フォーカス喪失時(Alt+Tab 等)もモーターを 0 に戻す([16] Part B)。再生中の Instance 自体は
         // 止めない(フォーカス復帰後に自然な減衰で終わる)。
+        // P5 レビュー対応(2026-09-14): ResetOutput() は 1 回だけ 0 を出すため、runInBackground=true で
+        // フォーカス喪失後も Tick が回り続けると次の Tick で振動が復活してしまっていた。
+        // フォーカス喪失中は出力 0 を固定するフラグ(SetFocusLost)に切り替える。
         private void OnApplicationFocus(bool hasFocus)
         {
-            if (!hasFocus)
-            {
-                Haptics?.ResetOutput();
-            }
+            Haptics?.SetFocusLost(!hasFocus);
         }
 
         // ── 組み立て ──

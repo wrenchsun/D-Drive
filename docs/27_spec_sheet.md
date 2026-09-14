@@ -134,8 +134,10 @@
   最小限の `SpecAssetRow` を組み立てて渡すだけで、同期の「新規 → Placeholder 作成」(`SpecSyncService.ApplyNew`)と
   全く同じ反映ロジックを通る
 - **「備考」「仕様リンク」欄を新設**: 既存の 表示名/カテゴリ/識別子 の下に追加した(手入力でも使える。空でも作成可)。
-  Status/Assignee は選んだ行から引くだけで、ダイアログには専用の入力欄を置いていない(選んだ後に他の項目を
-  手で書き換えても、選択時の Status/Assignee は保持したまま作成される。§9 の要判断を参照)
+  Status/Assignee は選んだ行から引くだけで、ダイアログには専用の入力欄を置いていない。
+  **2026-09-14 対応済み(P5 レビュー第 1 弾 5-R。§9.1 の要判断だった項目)**: 識別子/表示名/カテゴリの
+  いずれかを手で書き換えたら選択を解除するようにした(下記「レビュー対応」参照)。備考/仕様リンクは
+  対象外(自由記述として保持してよいと判断)
 - **一覧のフィルタ**: `SpecCache.GetUncreatedRows(null)` で全「未作成」行を取得し、ダイアログの `_definitions`
   (種別ロック時はロック対象だけ)に含まれる `AssetType` だけへローカルに絞り込む。`GetUncreatedRows` 自体の
   `filterType` 引数(単一 `AssetType`)は使わず、複数種別ロック(Audio = Se/Bgm)に対応するため呼び出し側で絞る
@@ -279,6 +281,18 @@
 未登録キーは警告を1回だけ出し、呼び出し側が渡した `defaultValue` を返す(例外で止めない)。`Tuning.Bind`/`GetFloat`/
 `GetInt`/`GetBool`/`GetString` は `Options.cs` と同じ静的ファサード設計(ADR#3)。
 
+#### レビュー対応(2026-09-14、P5 レビュー第 1 弾)
+
+- **P2: `GetBool`/`GetString` が型不一致を検出しなかった(review1_runtime.md #6)**: `TuningEntry.Type` と
+  呼び出した `Get*` が一致しない場合(例: 実体が `Float` の値を `GetBool` で読む)、以前は既定値のフィールド
+  (`ValueBool`/`ValueString` 等、未設定なら `false`/`""`)をそのまま返すだけで何も警告しなかった。
+  `Tuning.Get*` すべてで型比較を行い、不一致なら 1 キー 1 回だけ警告する(未登録キーの警告
+  `WarnedKeys` とは別の `WarnedTypeMismatchKeys` を使う。`GetFloat`/`GetInt` は互換として扱う従来どおり
+  `Float`⇄`Int` の相互変換のみ許容し、`Bool`/`String` との不一致だけ警告する)。
+- **整理: 未登録キー警告に `#if DEVELOPMENT_BUILD || UNITY_EDITOR` が無かった**: `Tuning.Get*` は定常経路
+  (毎フレーム呼ばれうる)なので、製品ビルドでのログ汚染・コストを避けるため他の警告と同じガードを付けた
+  (新設の型不一致警告も同じガード)。
+
 ### 8.5 自動取得と通知
 
 `SpecAutoSync`(`[InitializeOnLoad]`)が起動時・ドメインリロード後に `delayCall` 経由で取得+差分検出だけを行う。
@@ -306,7 +320,7 @@
 
 ### 9.1 2026-09-14 追加(5-16 実装時)
 
-8. **選択後に他の欄を手で書き換えても Status/Assignee は選択時のまま**: ダイアログには Status/Assignee 専用の入力欄が無いため、行を選んだ後にカテゴリ・識別子・表示名・備考・仕様リンクを手で書き換えても、作成時に反映される Status/Assignee は「選んだ時点の行」のものになる(選び直さない限り変わらない)。誤解を招く場合は選択中の行を画面に明示する UI(現状は一覧の対象行が太字+「選択中」表示になるだけ)を強化すべきかもしれない
+8. ~~選択後に他の欄を手で書き換えても Status/Assignee は選択時のまま~~ → **2026-09-14 対応済み(P5 レビュー第 1 弾 5-R、review1_editor.md #4)**: 識別子/表示名/カテゴリのいずれかを手で書き換えたら `_selectedSpecRow` を解除する(`NewAssetDialog.OnManuallyEditedField`)ようにした。選択中の行は「仕様書から選ぶ」欄の上部に常に表示し(検索で一覧から外れても分かる)、「解除」ボタンでも明示的に外せる(`RefreshSelectedSpecRowIndicator`/`ClearSelectedSpecRow`)。備考/仕様リンクは自由記述として保持してよいと判断し、解除の対象にしていない。`OnSpecRowSelected` 自身が各欄へ値を代入する間は `_applyingSpecRowValues` フラグでこの自動解除を無効化する(選んだ直後に自分で解除してしまわないようにするガード)。テスト: `NewAssetDialogSpecPickerTests.ManuallyEditingIdentifierAfterSelectingSpecRow_ClearsSelection_AndCreateDoesNotApplyExtraFields` / `ClearSelectedSpecRow_Button_RemovesIndicator_AndUnboldsListRow`
 9. **キャッシュの古さの閾値は 1 時間**: 起動時自動同期はドメインリロードごとに 1 回しか走らないため、ドメインリロード無しで長時間 Editor を開き続けた場合に「古い可能性があります」を出す目安として 1 時間にした(根拠は無く暫定)。長すぎる/短すぎるかは運用してみて判断してほしい
 10. **`NewAssetDialog` に `gameDataRoot` のテスト用オーバーライドが無い**: 既存の `Open(...)` はどちらも `AssetCreationService.DefaultGameDataRoot`(`Assets/GameData`)固定で作成する。5-16 の統合テスト(`CreateFromSelectedSpecRow_AppliesExtraFields_AndRemovesRowFromCache`)は実際に `Assets/GameData` 配下にアセットを作り、カタログ(`AudioCatalog.asset`)・Addressables エントリを含めてテスト側で後始末している。他の Spec 系テストのように `gameDataRoot: TestRoot` で隔離できないため、今後同種のテストを増やすなら `NewAssetDialog` にテスト用の差し替え口を用意することを検討してほしい
 11. **設定 URL 未設定時に `DDriveSpecSettings` を自動生成しない**: ダイアログを開くたびに設定 SO ができてしまうのを避けるため、`Load()` のみを呼び `GetOrCreate()` は呼ばない(既存の `SpecSyncWindow` の「設定を保存」だけが生成する)。ダイアログからは案内文のみで、設定自体はできない

@@ -17,7 +17,14 @@ namespace DDrive.Foundation.Registry
         private readonly Dictionary<ulong, CatalogEntry> _index = new();
         private readonly Dictionary<AssetType, List<CatalogEntry>> _byType = new();
         private readonly Dictionary<ulong, AssetDataBase> _loaded = new();
-        private readonly HashSet<ulong> _warnedIds = new();
+
+        // P5 レビュー対応(2026-09-14): IAssetRegistry の PreloadIdsAsync のコメント
+        // 「未登録 ID は警告(1 ID につき 1 回、OnPlaceholderUsed とは独立)」を守るため、
+        // Preload 経路(_preloadWarnedIds)と Placeholder 経路(_placeholderWarnedIds)の
+        // 警告済み集合を分離する(以前は 1 つの HashSet を共有し、どちらかで先に警告した ID は
+        // もう一方の経路で二度と警告されなかった)。
+        private readonly HashSet<ulong> _preloadWarnedIds = new();
+        private readonly HashSet<ulong> _placeholderWarnedIds = new();
 
         public event Action<ulong, AssetType> OnPlaceholderUsed;
 
@@ -138,7 +145,7 @@ namespace DDrive.Foundation.Registry
                 {
                     addresses.Add(entry.Address);
                 }
-                else if (_warnedIds.Add(id))
+                else if (_preloadWarnedIds.Add(id))
                 {
                     // 例外にしない(CLAUDE.md §0-4): 未登録 ID はスキップし、ロード画面は残りだけで完了させる。
                     Debug.LogWarning($"[DDrive] ScenePreload: Unregistered AssetId 0x{id:X} was skipped.");
@@ -174,7 +181,7 @@ namespace DDrive.Foundation.Registry
         {
             OnPlaceholderUsed?.Invoke(id, type);
 
-            if (_warnedIds.Add(id))
+            if (_placeholderWarnedIds.Add(id))
             {
                 Debug.LogWarning($"[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.");
             }

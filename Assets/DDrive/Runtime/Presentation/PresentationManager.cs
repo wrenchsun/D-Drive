@@ -942,9 +942,30 @@ namespace DDrive.Runtime.Presentation
             var spec = AnchorSpawnSpec.FromDef(track.Anchor);
             var h = _vfx.SpawnData(data, in spec, root);
 
+            ApplyVfxTrackParams(h, data, in track);
+
             if (track.StopOnCancel && _vfx.IsPlaying(h))
             {
                 instance.FiredVfx.Add((trackIndex, h));
+            }
+        }
+
+        // [08_presentation.md] §4 実装メモ(5-4 追補、2026-09-14) — パラメータ上書き。
+        // PresentationTrack.Params(ParamValue[]、キー無し)を「Params[i] ↔ 参照先 VfxData.Params[i].Label」
+        // のインデックス対応で既存の VfxManager.SetParam(Label 解決)へそのまま渡す。PresentationTrack
+        // にラベル用フィールドを追加しない(シリアライズ追加を避ける。要判断はインデックス対応で
+        // 表現できない場合のみ)。VfxData.Params の要素数を超える分は無視する(範囲外アクセスにしない)。
+        private void ApplyVfxTrackParams(Handle<VfxMarker> handle, VfxData data, in PresentationTrack track)
+        {
+            if (track.Params == null || track.Params.Length == 0 || data?.Params == null || data.Params.Length == 0)
+            {
+                return;
+            }
+
+            var count = Mathf.Min(track.Params.Length, data.Params.Length);
+            for (var i = 0; i < count; i++)
+            {
+                _vfx.SetParam(handle, data.Params[i].Label, track.Params[i]);
             }
         }
 

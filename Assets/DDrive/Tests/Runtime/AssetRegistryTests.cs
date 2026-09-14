@@ -124,8 +124,29 @@ namespace DDrive.Tests.Runtime
 
             CollectionAssert.AreEquivalent(new[] { "addr/a" }, loader.PreloadedAddresses);
 
-            // 2 回目は同じ未登録 ID でも警告が増えない(1 ID につき 1 回。ResolveAsync 系と共通の _warnedIds)。
+            // 2 回目は同じ未登録 ID でも警告が増えない(Preload 経路専用の警告集合で 1 ID につき 1 回)。
             await registry.PreloadIdsAsync(new ulong[] { 999 }, null);
+        }
+
+        // P5 レビュー対応(2026-09-14): PreloadIdsAsync と ResolveOrPlaceholder/ResolveAsync の
+        // 警告済み集合は独立している(IAssetRegistry.PreloadIdsAsync のコメントどおり)。
+        // 以前は 1 つの HashSet を共有していたため、片方の経路で先に警告した ID はもう片方で
+        // 二度と警告されなかった(コメントと矛盾する動作だった)。
+        [Test]
+        public async Task PreloadIdsAsync_And_ResolveOrPlaceholder_WarnIndependently_ForSameUnregisteredId()
+        {
+            var registry = new AssetRegistry(new FakeAssetLoader());
+
+            // Preload 経路で先に 1 回警告させる。
+            LogAssert.Expect(LogType.Warning, new Regex(".*"));
+            await registry.PreloadIdsAsync(new ulong[] { 4242 }, null);
+
+            // 同じ未登録 ID でも Placeholder 経路(ResolveOrPlaceholder)は独立して 1 回警告するはず。
+            LogAssert.Expect(LogType.Warning, new Regex(".*"));
+            var placeholder = registry.ResolveOrPlaceholder<DummyData>(4242);
+            LogAssert.NoUnexpectedReceived();
+
+            Assert.IsNotNull(placeholder);
         }
 
         [Test]

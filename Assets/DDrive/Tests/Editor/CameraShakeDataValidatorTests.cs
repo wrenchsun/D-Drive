@@ -11,9 +11,28 @@ namespace DDrive.Tests.Editor
     // [16_camera_haptics.md] Part A / C-4。
     public class CameraShakeDataValidatorTests
     {
-        private static CameraShakeData ValidShake()
+        // P5 レビュー第 1 弾 整理-4(2026-09-14): ValidShake() の ScriptableObject.CreateInstance が
+        // DestroyImmediate されずリークしていた。TearDown でまとめて破棄する。
+        private readonly List<CameraShakeData> _created = new();
+
+        [TearDown]
+        public void TearDown()
+        {
+            foreach (var data in _created)
+            {
+                if (data != null)
+                {
+                    Object.DestroyImmediate(data);
+                }
+            }
+
+            _created.Clear();
+        }
+
+        private CameraShakeData ValidShake()
         {
             var data = ScriptableObject.CreateInstance<CameraShakeData>();
+            _created.Add(data);
             data.PosAmplitude = new Vector3(0.1f, 0.1f, 0f);
             data.RotAmplitude = Vector3.zero;
             data.MaxStack = 3;

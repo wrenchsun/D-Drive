@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using DDrive.Editor.Common;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Presentation;
+using DDrive.Runtime.Vfx;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -24,7 +25,10 @@ namespace DDrive.Editor.Presentation
             (new[] { TrackKind.Se, TrackKind.Bgm }, "Se / Bgm"),
             (new[] { TrackKind.Vfx }, "Vfx"),
             (new[] { TrackKind.CameraShake, TrackKind.Haptic }, "CameraShake / Haptic"),
-            (new[] { TrackKind.HitStop, TrackKind.Marker }, "HitStop / Marker"),
+            // P5 レビュー対応(2026-09-14) 整理項目: TrackKind.Signal がどのレーンにも属していなかったため
+            // LaneIndexFor のフォールバック(最後のレーン)に落ちていた。Marker(コード→データ通知)と対を成す
+            // Signal(データ→コード通知。Trigger=AtTime で使う。OnSignal の一致キーとは別物)なので同じレーンにする。
+            (new[] { TrackKind.HitStop, TrackKind.Marker, TrackKind.Signal }, "HitStop / Marker / Signal"),
             (new[] { TrackKind.Canvas, TrackKind.UiTween, TrackKind.Timeline }, "Canvas / UiTween / Timeline"),
         };
 
@@ -334,7 +338,33 @@ namespace DDrive.Editor.Presentation
             AddField("Trigger");
             AddField("Time");
             AddField("SignalKey");
-            AddField("Kind");
+
+            // P5 レビュー対応(2026-09-14): Kind 変更は他フィールドと違い、以下 2 点の追従が必要なため
+            // 汎用の AddField(RefreshAfterEdit だけを呼ぶ)ではなく専用のコールバックにする。
+            //   - Asset の ObjectField.objectType は BuildTrackRow 実行時の Kind で固定されるため、
+            //     Kind を変えても古い型のまま(かつ AssetRef.Type も古いまま)残ってしまう
+            //     → Asset を Undo 付きでクリアし、行を再構築(RefreshTracksList)して objectType を
+            //        新しい Kind に合わせ直す。
+            var kindProp = prop.FindPropertyRelative("Kind");
+            if (kindProp != null)
+            {
+                var kindField = new PropertyField(kindProp, "Kind");
+                kindField.Bind(_serializedTarget);
+                kindField.RegisterCallback<SerializedPropertyChangeEvent>(_ =>
+                {
+                    Undo.RecordObject(_target, "Change Presentation Track Kind");
+                    var t = _target.Tracks[index];
+                    t.Asset = default;
+                    _target.Tracks[index] = t;
+                    EditorUtility.SetDirty(_target);
+                    _serializedTarget?.Update();
+                    RefreshValidation();
+                    RefreshSignalButtons();
+                    _timelineContainer?.MarkDirtyRepaint();
+                    RefreshTracksList(); // objectType が古い Kind のまま残らないよう行ごと再構築する
+                });
+                foldout.Add(kindField);
+            }
 
             var assetType = PresentationTrackKindMapping.AssetTypeFor(track.Kind);
             if (assetType != null)
@@ -370,6 +400,16 @@ namespace DDrive.Editor.Presentation
             foldout.Add(anchorFoldout);
 
             var paramsFoldout = new Foldout { text = "Params(パラメータ上書き)", value = false };
+
+            // P5 レビュー対応(2026-09-14) 5-4 追補(a): Params[i] は参照先 VfxData.Params[i].Label に
+            // インデックス対応で渡される(PresentationManager.ApplyVfxTrackParams。[08] 実装メモ参照)。
+            // デザイナーが対応関係を見て分かるよう、Vfx トラックのときだけ Label 一覧をヒント表示する
+            // (PresentationTrack にラベル用フィールドを増やさない = シリアライズ追加を避けるため)。
+            if (track.Kind == TrackKind.Vfx)
+            {
+                paramsFoldout.Add(BuildVfxParamsHintLabel(track));
+            }
+
             var paramsProp = prop.FindPropertyRelative("Params");
             if (paramsProp != null)
             {
@@ -389,6 +429,32 @@ namespace DDrive.Editor.Presentation
             foldout.Add(buttonRow);
 
             return foldout;
+        }
+
+        // P5 レビュー対応(2026-09-14) 5-4 追補(a): 「Params[i] ↔ 参照先 VfxData.Params[i].Label」の
+        // インデックス対応をデザイナーに見せるためのヒント文言。
+        private static Label BuildVfxParamsHintLabel(PresentationTrack track)
+        {
+            var vfxAsset = FindAssetById(typeof(VfxData), track.Asset.Id) as VfxData;
+            if (vfxAsset == null || vfxAsset.Params == null || vfxAsset.Params.Length == 0)
+            {
+                return new Label("(参照先 VFX に Params が未設定のため、ここへ追加しても反映されません)")
+                {
+                    style = { opacity = 0.6f, whiteSpace = WhiteSpace.Normal },
+                };
+            }
+
+            var labels = new string[vfxAsset.Params.Length];
+            for (var i = 0; i < vfxAsset.Params.Length; i++)
+            {
+                var label = vfxAsset.Params[i].Label;
+                labels[i] = $"[{i}]={(string.IsNullOrEmpty(label) ? "(無名)" : label)}";
+            }
+
+            return new Label($"インデックス対応(この下の要素は上から順に参照先 VFX の Params と対応): {string.Join(", ", labels)}")
+            {
+                style = { opacity = 0.8f, whiteSpace = WhiteSpace.Normal },
+            };
         }
 
         private string TrackFoldoutTitle(int index)

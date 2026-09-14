@@ -61,9 +61,13 @@ namespace DDrive.Editor.Presentation
         public ScenePresentationPreviewDriver(AssetRegistry registry = null)
         {
             Registry = registry ?? EditorAnchorRegistry.Build();
-            AnimDriver = new SceneAnimPreviewDriver(Registry);
+            // P5 レビュー対応(2026-09-14) 5-4 追補(b): AnimDriver(内部の Vfx を含む)/HapticsDriver に
+            // この Time(TimeService)を共有させ、HitStop 中は自前の Unscaled dt へ ScaledDeltaTime を
+            // 掛けて止まるようにする。ShakeDriver には渡さない(ランタイムの CameraFx は HitStop 中も
+            // 揺れを止めない仕様のままにする。[16] Part A / docs/08 実装メモ参照)。
+            AnimDriver = new SceneAnimPreviewDriver(Registry, Time);
             ShakeDriver = new SceneCameraShakePreviewDriver(Registry);
-            HapticsDriver = new EditorHapticsPreviewDriver(Registry);
+            HapticsDriver = new EditorHapticsPreviewDriver(Registry, timeService: Time);
             EnsureAudio();
 
             EditorSceneManager.activeSceneChangedInEditMode += OnStageChanged;
@@ -170,9 +174,13 @@ namespace DDrive.Editor.Presentation
 
         // テストからも直接呼べる公開 Tick(他の Scene*PreviewDriver と同じ形)。
         // Time.ScaledDeltaTime を渡す点は GameLoopDriver と同じ(HitStop トラックの TimeScale が
-        // PresentationManager.Tick(AtTime の進行)に反映される。ただし AnimDriver/Vfx/Shake/Haptics は
-        // それぞれ自分の Unscaled dt で自走しているため、HitStop 中もそれらは止まらない。要判断は
-        // docs/28 参照)。
+        // PresentationManager.Tick(AtTime の進行)に反映される)。
+        // P5 レビュー対応(2026-09-14) 5-4 追補(b): AnimDriver/Vfx/Haptics はそれぞれ自分の
+        // EditorApplication.update フックで自走しているが、コンストラクタでこの Time を共有させたため、
+        // 各ドライバの EditorTick が Time.ScaledDeltaTime(現在の TimeScale を読むだけの純関数)を
+        // 掛けてから Tick するようになり、HitStop 中は AtTime の進行と同様にそれらも止まる
+        // (Time.Tick(...) 自体はここで 1 回だけ呼び、他ドライバ側では呼ばない。二重減算を避ける)。
+        // ShakeDriver(CameraFx)だけはランタイム仕様どおり Unscaled のまま(HitStop 中も揺れを止めない)。
         public void Tick(float dt)
         {
             Time.Tick(dt);

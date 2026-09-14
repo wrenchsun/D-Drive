@@ -119,6 +119,17 @@ public interface IAssetRegistry
 - **`ResolveOrPlaceholder<T>` は同期解決専用**（`TryResolveSync` と同じく `_loaded` キャッシュしか見ない）: Play/Spawn を同期 API にしている Manager（Audio/Vfx/Anim/Presentation 等、ほぼ全種別）は、対象 Data が `Flags.Load = Preload` でカタログ登録時に一括ロードされているか、事前に誰かが `ResolveAsync` を呼んでいない限り、**初回参照時は必ず Placeholder になる**（LazyLoad は「遅延ロードされる」のではなく「明示的に ResolveAsync しない限りロードされない」という意味に近い）。`AssetCreationService.Create` は同期解決でしか使われない種別（Canvas/ControlSkin/Presentation、2026-09-12・2026-09-14 順に対応）の既定を Preload にしてこれを避けている。新しい種別を追加する場合、その Manager が同期 API のみなら同様に Preload をデフォルトにするか、`ScenePreload`（5-7、§14 参照）等で事前ロードする運用にすること
 - 解決失敗 → `PlaceholderProvider.Get<T>()` + 警告（モック動作保証）
 
+### レビュー対応（2026-09-14、P5 レビュー第 1 弾）
+
+- **P2: `PreloadIdsAsync`(5-7)と `ResolveOrPlaceholder`/`ResolveAsync`(Placeholder 経路)の
+  未登録 ID 警告が 1 つの `HashSet<ulong>` を共有していた（review1_runtime.md #4）**:
+  `IAssetRegistry.PreloadIdsAsync` のコメントには「未登録 ID は警告(1 ID につき 1 回、
+  `OnPlaceholderUsed` とは独立)」と書かれていたが、実装は `_warnedIds` を両経路で共有していたため、
+  どちらかの経路で先に警告した ID はもう一方の経路で二度と警告されなかった。`AssetRegistry` の
+  `_warnedIds` を `_preloadWarnedIds`/`_placeholderWarnedIds` の 2 つに分離し、コメントどおり
+  独立に「1 ID につき 1 回」警告するようにした。テスト:
+  `AssetRegistryTests.PreloadIdsAsync_And_ResolveOrPlaceholder_WarnIndependently_ForSameUnregisteredId`。
+
 ## 5. AssetLoader（Addressables ラッパ）
 
 ```csharp

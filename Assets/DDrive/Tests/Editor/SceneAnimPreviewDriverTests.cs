@@ -8,6 +8,7 @@ using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Loader;
+using DDrive.Foundation.Pause;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Model;
@@ -127,6 +128,81 @@ namespace DDrive.Tests.Editor
             _driver.ReleaseTarget();
             Assert.IsTrue(_target.GetComponent<AnimatorProxy>() == null, "対象解除で付けた Proxy を外す");
             Assert.IsNull(_driver.Current);
+        }
+
+        // P5 レビュー第 1 弾 5-4 追補(b、2026-09-14) — ScenePresentationPreviewDriver 経由で
+        // TimeService(HitStop 中は TimeScale=0)を渡された場合、自前の Unscaled dt(EditorApplication.update
+        // 由来)にも ScaledDeltaTime を掛けてから Tick する。SceneVfxPreviewDriverTests と同じ手法
+        // (private の _lastTickTime を「十分前」に書き換え、Mathf.Clamp で dt を 0.25s に確定させる)で検証する。
+        [Test]
+        public void HitStop_ScalesEditorTick_ToZero_PreventsShortClipFromFinishing()
+        {
+            var time = new TimeService();
+            time.HitStop(10f, scale: 0f);
+
+            var driver = new SceneAnimPreviewDriver(_registry, time);
+            AnimationClip clip = null;
+            AnimData data = null;
+            try
+            {
+                clip = new AnimationClip { legacy = true, frameRate = 30f };
+                clip.SetCurve("Bone", typeof(Transform), "localPosition.x", AnimationCurve.Linear(0f, 0f, 0.1f, 1f));
+                data = ScriptableObject.CreateInstance<AnimData>();
+                data.Clip = clip;
+
+                var animator = _target.GetComponent<Animator>();
+                var handle = driver.Play(data, animator);
+                Assert.IsTrue(driver.Manager.IsPlaying(handle));
+
+                SetLastTickSecondsAgo(driver, 10.0); // dt は Mathf.Clamp で 0.25s に確定する
+
+                InvokePrivateVoid(driver, "EditorTick");
+
+                Assert.IsTrue(driver.Manager.IsPlaying(handle),
+                    "HitStop(TimeScale=0)中は 0.25s 分の Unscaled dt もスケールされて 0 になるため、" +
+                    "0.1s の短い Clip でも再生が終わらない");
+            }
+            finally
+            {
+                driver.Dispose();
+                if (data != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(data);
+                }
+            }
+        }
+
+        [Test]
+        public void WithoutTimeService_EditorTick_UsesRawDt_FinishesShortClip()
+        {
+            var clip = new AnimationClip { legacy = true, frameRate = 30f };
+            clip.SetCurve("Bone", typeof(Transform), "localPosition.x", AnimationCurve.Linear(0f, 0f, 0.1f, 1f));
+            var data = ScriptableObject.CreateInstance<AnimData>();
+            data.Clip = clip;
+
+            var animator = _target.GetComponent<Animator>();
+            var handle = _driver.Play(data, animator);
+            Assert.IsTrue(_driver.Manager.IsPlaying(handle));
+
+            SetLastTickSecondsAgo(_driver, 10.0);
+            InvokePrivateVoid(_driver, "EditorTick");
+
+            Assert.IsFalse(_driver.Manager.IsPlaying(handle), "timeService 無しは従来どおり Unscaled なので 0.1s の Clip は終わる");
+            UnityEngine.Object.DestroyImmediate(data);
+        }
+
+        private static void SetLastTickSecondsAgo(SceneAnimPreviewDriver driver, double secondsAgo)
+        {
+            var field = typeof(SceneAnimPreviewDriver).GetField("_lastTickTime", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.IsNotNull(field, "SceneAnimPreviewDriver._lastTickTime が見つかりません(実装が変わった場合はテストを追従させてください)");
+            field.SetValue(driver, UnityEditor.EditorApplication.timeSinceStartup - secondsAgo);
+        }
+
+        private static void InvokePrivateVoid(object instance, string methodName)
+        {
+            var method = instance.GetType().GetMethod(methodName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.IsNotNull(method, $"{instance.GetType().Name}.{methodName} が見つかりません(実装が変わった場合はテストを追従させてください)");
+            method.Invoke(instance, null);
         }
 
         [Test]

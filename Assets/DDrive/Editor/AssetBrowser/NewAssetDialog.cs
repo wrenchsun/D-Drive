@@ -44,12 +44,21 @@ namespace DDrive.Editor.AssetBrowser
         private Action<AssetDataBase> _onCreated;
 
         // 5-16: 「仕様書から選ぶ」で選択中の行(未選択なら null)。作成時に Status/Assignee を
-        // (UI に専用欄が無いため)ここから引く。選択後に他の欄を手で書き換えても保持したままにする
-        // (ユーザーが選んだうえで微調整するケースを妨げない。要判断は docs/28 参照)。
+        // (UI に専用欄が無いため)ここから引く。
+        // P5 レビュー対応(2026-09-14): 以前は選択後に識別子/表示名/カテゴリを手で書き換えても保持したままに
+        // していたが、それだと書き換え後に「作成」すると別アセットに仕様書行の Status/Assignee が付いてしまう
+        // (著者認識済みの要判断だった)。識別子/表示名/カテゴリを手で書き換えたら選択を解除する
+        // (OnManuallyEditedField)。選択中の行は UI に明示し、明示的に外せる「解除」ボタンも用意する
+        // (ClearSelectedSpecRow / RefreshSelectedSpecRowIndicator)。
         private SpecAssetRow _selectedSpecRow;
         private VisualElement _specSection;
         private VisualElement _specListContainer;
+        private VisualElement _selectedSpecRowIndicator;
         private TextField _specSearchField;
+
+        // OnSpecRowSelected が各フィールドへ値を代入している間は、その ValueChangedCallback から
+        // OnManuallyEditedField を呼んで選択を即座に解除してしまわないようにするガード。
+        private bool _applyingSpecRowValues;
 
         // CreateGUI は GetWindow<T>() が新規ウィンドウを生成した瞬間に走るため、Open() の呼び出し側から
         // インスタンスフィールドへ値を渡すより前に実行されてしまう。static の受け渡し用領域を経由する。
@@ -162,14 +171,23 @@ namespace DDrive.Editor.AssetBrowser
             }
 
             _displayNameField = new TextField("表示名(日本語可)") { tooltip = "AssetBrowser での表示・検索に使う名前。例:「剣の斬撃音」" };
+            _displayNameField.RegisterValueChangedCallback(_ => OnManuallyEditedField());
             root.Add(_displayNameField);
 
             _categoryField = new TextField("カテゴリ") { tooltip = "例: Player, UI, Battle。階層表記(Audio/SE/Player)も可。ファイル名には最終セグメントのみ使われる。" };
-            _categoryField.RegisterValueChangedCallback(_ => RefreshPreview());
+            _categoryField.RegisterValueChangedCallback(_ =>
+            {
+                OnManuallyEditedField();
+                RefreshPreview();
+            });
             root.Add(_categoryField);
 
             _identifierField = new TextField("識別子(英語)") { tooltip = "ID 定数名になる。PascalCase 英数字。例: PlayerSlash → SEID.PlayerSlash" };
-            _identifierField.RegisterValueChangedCallback(_ => RefreshPreview());
+            _identifierField.RegisterValueChangedCallback(_ =>
+            {
+                OnManuallyEditedField();
+                RefreshPreview();
+            });
             root.Add(_identifierField);
 
             // 5-16: 仕様書から選ぶと備考・仕様リンクも入力済みになる(手入力も可)。
@@ -334,10 +352,63 @@ namespace DDrive.Editor.AssetBrowser
             _specSearchField.RegisterValueChangedCallback(_ => RenderSpecList());
             _specSection.Add(_specSearchField);
 
+            // P5 レビュー対応(2026-09-14): 選択中の行を(検索で一覧から外れても分かるよう)常に明示し、
+            // 「解除」で手動でも選択を外せるようにする。
+            _selectedSpecRowIndicator = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2, marginBottom = 2 } };
+            _specSection.Add(_selectedSpecRowIndicator);
+
             _specListContainer = new VisualElement { style = { marginTop = 2 } };
             _specSection.Add(_specListContainer);
 
             RenderSpecList();
+            RefreshSelectedSpecRowIndicator();
+        }
+
+        private void RefreshSelectedSpecRowIndicator()
+        {
+            if (_selectedSpecRowIndicator == null)
+            {
+                return;
+            }
+
+            _selectedSpecRowIndicator.Clear();
+
+            if (_selectedSpecRow == null)
+            {
+                return;
+            }
+
+            var label = new Label($"選択中の仕様書行: {_selectedSpecRow.Type} / {_selectedSpecRow.Category} / {_selectedSpecRow.Identifier} — {_selectedSpecRow.DisplayName}")
+            {
+                style = { flexGrow = 1, unityFontStyleAndWeight = FontStyle.Bold },
+            };
+            _selectedSpecRowIndicator.Add(label);
+            _selectedSpecRowIndicator.Add(new Button(ClearSelectedSpecRow) { text = "解除" });
+        }
+
+        // P5 レビュー対応(2026-09-14): 識別子/表示名/カテゴリを手で書き換えたら仕様書行の選択を解除する
+        // (書き換え後に「作成」すると別アセットに Status/Assignee が付いてしまう問題への対応)。
+        // OnSpecRowSelected が値を代入している最中(_applyingSpecRowValues)は無視する。
+        private void OnManuallyEditedField()
+        {
+            if (_applyingSpecRowValues || _selectedSpecRow == null)
+            {
+                return;
+            }
+
+            ClearSelectedSpecRow();
+        }
+
+        private void ClearSelectedSpecRow()
+        {
+            if (_selectedSpecRow == null)
+            {
+                return;
+            }
+
+            _selectedSpecRow = null;
+            RenderSpecList();
+            RefreshSelectedSpecRowIndicator();
         }
 
         // このダイアログで選べる種別(ロック時はロック対象だけ)に絞って「未作成」行を出す。
@@ -394,22 +465,34 @@ namespace DDrive.Editor.AssetBrowser
         {
             _selectedSpecRow = row;
 
-            // 種別: ロック済みならそのまま。そうでなければ row.Type に一致する最初の選択肢に切り替える
-            // (ControlSkin のように 1 AssetType に複数の具象 Data 型がある場合、どちらを作るかは
-            // ドロップダウンで人が選ぶ。ここでは最初の候補を仮に選ぶだけで、必要なら手で変更できる)。
-            var index = _definitions.FindIndex(d => d.assetType == row.Type);
-            if (index >= 0 && index < _typeField.choices.Count)
+            // P5 レビュー対応(2026-09-14): ここでの各 TextField への代入は ValueChangedCallback
+            // (OnManuallyEditedField)を経由して「手で書き換えた」と誤判定され、直後に選択を解除して
+            // しまう。代入中だけそのガードを効かせる。
+            _applyingSpecRowValues = true;
+            try
             {
-                _typeField.value = _typeField.choices[index];
+                // 種別: ロック済みならそのまま。そうでなければ row.Type に一致する最初の選択肢に切り替える
+                // (ControlSkin のように 1 AssetType に複数の具象 Data 型がある場合、どちらを作るかは
+                // ドロップダウンで人が選ぶ。ここでは最初の候補を仮に選ぶだけで、必要なら手で変更できる)。
+                var index = _definitions.FindIndex(d => d.assetType == row.Type);
+                if (index >= 0 && index < _typeField.choices.Count)
+                {
+                    _typeField.value = _typeField.choices[index];
+                }
+
+                _categoryField.value = row.Category ?? string.Empty;
+                _identifierField.value = row.Identifier ?? string.Empty;
+                _displayNameField.value = row.DisplayName ?? string.Empty;
+                _noteField.value = row.Note ?? string.Empty;
+                _specLinkField.value = row.SpecLink ?? string.Empty;
+            }
+            finally
+            {
+                _applyingSpecRowValues = false;
             }
 
-            _categoryField.value = row.Category ?? string.Empty;
-            _identifierField.value = row.Identifier ?? string.Empty;
-            _displayNameField.value = row.DisplayName ?? string.Empty;
-            _noteField.value = row.Note ?? string.Empty;
-            _specLinkField.value = row.SpecLink ?? string.Empty;
-
             RenderSpecList(); // 選択中の行の見た目(太字/ボタン)を更新
+            RefreshSelectedSpecRowIndicator();
             RefreshPreview();
         }
 

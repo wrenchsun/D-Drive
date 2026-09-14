@@ -277,3 +277,35 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
   `CreateGUI`)は、既存の VFX/Anim/Model 系エディタと同様にウィンドウ単体のテストは書いていない
   （このプロジェクトに EditorWindow の `CreateGUI` を直接テストする既存パターンが無く、実体である Driver /
   Presets 側のテストで代替する方針にした）
+
+## レビュー対応（2026-09-14、P5 レビュー第 1 弾）
+
+- **P1: `CameraFxManager` が Camera.main 差し替え時に旧ノードを破棄せず、カメラも元の親へ戻さない
+  （review1_runtime.md #2）**: 上の§実装メモ（5-2c）で「ランタイムでは永続する前提の実オブジェクト」と
+  書いていた `DDriveCameraShakeNode` について、A→B→A のようにランタイム中に `Camera.main` が差し替わる
+  ケース（マルチカメラの切替演出等）で、旧ノードが孤児のまま残り、旧カメラも `DDriveCameraShakeNode` の
+  子に入ったまま戻らない問題があった。`CameraFxManager` にカメラごとの「本来の親 + Sibling Index」を
+  記録するフィールドを追加し、`DetachCurrentCamera()`(新規 private メソッド)で
+  ①Camera.main 差し替え検知時(`AttachNode` の先頭)②Camera.main が見つからなくなったとき
+  (`EnsureCameraNode`)③`StopAll(StopReason)`(`SceneUnload` を含む。`DDriveRuntimeBootstrap.Teardown` の
+  `loop.StopAll(StopReason.SceneUnload)` はここを経由する)の 3 箇所すべてから、旧カメラを本来の親へ
+  `SetParent(parent, true)`(worldPositionStays)+ `SetSiblingIndex` で戻し、旧ノードを破棄するようにした。
+  Edit Mode(`SceneCameraShakePreviewDriver` 等が Tick を回す場合)では `Object.Destroy` が使えないため
+  `Application.isPlaying` で `Destroy`/`DestroyImmediate` を分岐する。§実装メモ(5-2c)の
+  `SceneCameraShakePreviewDriver` 側の独自復元ロジック(DontSave 付与・シーン保存前の復元)はこの修正と
+  独立に動作し続けるため変更していない(`Manager.StopAll` が先に復元しても、ドライバ側の
+  `RestoreCameraNow` は破棄済みノードを検出して二重破棄しないだけで動く)。回帰テスト:
+  `CameraFxManagerTests.EnsureCameraNode_SwapAtoBtoA_RestoresBothCameras_AndLeavesNoOrphanNode`。
+- **P2: `MaxStack<=0` の解釈が Manager と Validator で正反対だった（review1_runtime.md #3）**:
+  `CameraShakeDataValidator` は「MaxStack が 0 以下です(Shake() が常に無視されます)」と警告するが、
+  `CameraFxManager.ShakeData` は `MaxStack > 0` のときだけ上限チェックを行い、`MaxStack<=0` は
+  「無制限」と誤って解釈していた。Validator の意図(0 以下は常に無視)を正として `ShakeData` を
+  `data.MaxStack <= 0 || CountActive(data) >= data.MaxStack` に変更した(既存のプリセット・デモは
+  いずれも 1 以上のため影響なし)。テスト: `CameraFxManagerTests.ShakeData_MaxStackZeroOrNegative_AlwaysIgnored`。
+- **P2: フォーカス喪失中に `runInBackground=true` だと振動が復活する（review1_runtime.md #5）**:
+  `DDriveRuntimeBootstrap.OnApplicationFocus` は `Haptics.ResetOutput()` を 1 回呼ぶだけだったため、
+  フォーカス喪失後も Tick が回り続ける設定では次の Tick で `ComposeAndOutput` が出力を上書きしていた。
+  `HapticsManager` に `SetFocusLost(bool)` を追加し、`Tick` は `_focusLost` の間は
+  `ComposeAndOutput` を呼ばず出力を 0 に固定するようにした(再生中の Instance の進行・失効は止めない。
+  復帰後の自然な減衰という既存方針は変えない)。`OnApplicationFocus` は `Haptics.SetFocusLost(!hasFocus)`
+  を呼ぶ形に変更した。テスト: `HapticsManagerTests.SetFocusLost_True_KeepsOutputZero_AcrossMultipleTicks_UntilRestored`。

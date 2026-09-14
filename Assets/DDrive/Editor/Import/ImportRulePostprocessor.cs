@@ -15,6 +15,11 @@ namespace DDrive.Editor.Import
 
         private static readonly List<string> Pending = new();
 
+        // P5 レビュー対応(2026-09-14): AddPending の重複チェックが List.Contains(O(n))で、
+        // 大量ファイルの一括インポート/移動時に O(n^2) になっていた。順序は Pending(List)のまま保ち、
+        // 重複判定だけ HashSet で O(1) にする。
+        private static readonly HashSet<string> PendingSet = new();
+
         private static void OnPostprocessAllAssets(
             string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
         {
@@ -45,7 +50,7 @@ namespace DDrive.Editor.Import
 
             foreach (var path in paths)
             {
-                if (!string.IsNullOrEmpty(path) && !Pending.Contains(path))
+                if (!string.IsNullOrEmpty(path) && PendingSet.Add(path))
                 {
                     Pending.Add(path);
                 }
@@ -56,6 +61,7 @@ namespace DDrive.Editor.Import
         {
             var paths = Pending.ToArray();
             Pending.Clear();
+            PendingSet.Clear();
             if (paths.Length == 0)
             {
                 return;

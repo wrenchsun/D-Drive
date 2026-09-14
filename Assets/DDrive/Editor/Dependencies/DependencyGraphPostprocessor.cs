@@ -15,6 +15,12 @@ namespace DDrive.Editor.Dependencies
 
         private static readonly List<string> PendingChanged = new();
         private static readonly List<string> PendingDeleted = new();
+
+        // P5 レビュー対応(2026-09-14): AddPending の重複チェックが List.Contains(O(n))で、
+        // 大量ファイルの一括インポート/移動/削除時に O(n^2) になっていた。順序は List のまま保ち、
+        // 重複判定だけ対になる HashSet で O(1) にする。
+        private static readonly HashSet<string> PendingChangedSet = new();
+        private static readonly HashSet<string> PendingDeletedSet = new();
         private static bool _retryHooked;
 
         private static void OnPostprocessAllAssets(
@@ -25,10 +31,10 @@ namespace DDrive.Editor.Dependencies
                 return;
             }
 
-            AddPending(PendingChanged, importedAssets);
-            AddPending(PendingChanged, movedAssets);
-            AddPending(PendingDeleted, deletedAssets);
-            AddPending(PendingDeleted, movedFromAssetPaths);
+            AddPending(PendingChanged, PendingChangedSet, importedAssets);
+            AddPending(PendingChanged, PendingChangedSet, movedAssets);
+            AddPending(PendingDeleted, PendingDeletedSet, deletedAssets);
+            AddPending(PendingDeleted, PendingDeletedSet, movedFromAssetPaths);
 
             if (PendingChanged.Count == 0 && PendingDeleted.Count == 0)
             {
@@ -38,7 +44,7 @@ namespace DDrive.Editor.Dependencies
             ScheduleFlush();
         }
 
-        private static void AddPending(List<string> list, string[] paths)
+        private static void AddPending(List<string> list, HashSet<string> set, string[] paths)
         {
             if (paths == null)
             {
@@ -47,7 +53,7 @@ namespace DDrive.Editor.Dependencies
 
             foreach (var path in paths)
             {
-                if (!string.IsNullOrEmpty(path) && !list.Contains(path))
+                if (!string.IsNullOrEmpty(path) && set.Add(path))
                 {
                     list.Add(path);
                 }
@@ -79,6 +85,8 @@ namespace DDrive.Editor.Dependencies
             var deleted = PendingDeleted.ToArray();
             PendingChanged.Clear();
             PendingDeleted.Clear();
+            PendingChangedSet.Clear();
+            PendingDeletedSet.Clear();
 
             if (changed.Length == 0 && deleted.Length == 0)
             {

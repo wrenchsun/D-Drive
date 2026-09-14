@@ -147,6 +147,10 @@ namespace DDrive.Editor.Dependencies
             var name = DependencyAssetResolver.DisplayNameOrFileName(asset, assetPath);
             sb.AppendLine($"'{name}' ({assetPath}) を削除します。");
             sb.AppendLine("カタログ登録・Addressables エントリを外し、アイコン画像ごと OS のゴミ箱へ移動します(ゴミ箱からの復元は可能ですが、カタログ/Addressables 登録は自動では戻りません)。");
+            // P5 レビュー対応(2026-09-14) 整理項目: このダイアログより前に Archived タグを付けている
+            // (TryDelete の②)ため、ここでキャンセルしてもタグは残る(設計判断。「未使用・削除候補」の
+            // 印として有用なため意図的に戻さない)。誤解が無いよう文言で明記する。
+            sb.AppendLine("キャンセルしても、削除候補として付けた Archived タグは残ります。");
 
             if (!string.IsNullOrEmpty(codeWarning))
             {
