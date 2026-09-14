@@ -67,6 +67,12 @@ function resolveInitialScreen_(params) {
  * 残っていた。docs/32_spec_web.md「既知の未対応・引き継ぎ事項」参照）ため、
  * API 名そのものをここで固定する。ping/whoami は状態を変更しない（動作確認・トークン検証用）
  * ため許可リストに含めている。
+ *
+ * O-14（2026-09-14）: `users.list`/`users.upsert`/`users.remove`（ログイン許可の管理、
+ * `Api/UserAdmin.js`）は意図的にこの許可リストへ加えない。write トークンの role は
+ * editor 相当にしかならず、これらの API は `specWebRequireRole_(auth, SPEC_WEB_ROLES.ADMIN, ...)`
+ * を要求するため、このリストに載せなくてもトークンからは常に 403 になる
+ * （二重の防御。トークンで admin 相当のロールを持たせる予定も無い）。
  */
 var DDRIVE_WRITE_TOKEN_ALLOWED_APIS = ['ping', 'whoami', 'choices', 'assetState', 'tuningUsage', 'assetParams'];
 
@@ -173,10 +179,17 @@ function specWebUiCall(name, params) {
 function renderUi_(params) {
   var auth = authenticateSession();
   if (!auth.ok) {
+    // 2026-09-14 追補（O-14）: 本人が管理者に伝えやすいよう、ログイン中のアカウントを表示する
+    // （Google ログイン済みだが許可リスト外＝ auth.email がある場合のみ。未ログイン=401 では出せない）。
+    var emailBlock = auth.email
+      ? '<p>ログイン中のアカウント: ' + specWebEscapeHtml_(auth.email) + '</p>' +
+        '<p>このメールアドレスを管理者に伝えてください。</p>'
+      : '';
     return HtmlService.createHtmlOutput(
       '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
         '<body style="font-family:sans-serif;padding:2rem;">' +
-        '<p>メンバーのみ利用できます。管理者に users.json への追加を依頼してください。</p>' +
+        '<p>' + specWebEscapeHtml_(auth.message) + '</p>' +
+        emailBlock +
         '</body></html>'
     );
   }
@@ -195,4 +208,14 @@ function renderUi_(params) {
 /** html/*.html から include するためのヘルパー（HtmlTemplate のスクリプトレット内で使う）。 */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/** HTML への埋め込み用にエスケープする（拒否ページに表示するメールアドレス用、O-14）。 */
+function specWebEscapeHtml_(text) {
+  return String(text === null || text === undefined ? '' : text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

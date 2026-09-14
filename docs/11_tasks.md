@@ -229,8 +229,9 @@ W-1〜W-12（実装済み）を拡張元として「アセット仕様」を「�
 | O-9 | メンバー管理（ガント担当者マスタの貼り付け取り込み + 発注者/受注者選択肢への反映） | O-1 | 2 | 貼り付けたメンバーが選択肢に表記どおり出る（[docs/32] §10.5） → ✅ 2026-09-14 実装（要約）: `src/Members.js`（`members` コレクション、`members.importPaste`/`upsert`/`remove`/`list`。表記=doc id、貼り付けは1行1名・重複行1件化・既存の email 対応付けを保持）+ `html/Members.html`（貼り付け取り込みフォーム・一覧・手動追加）+ `html/Assets.html` の発注者/受注者欄が members.list を datalist として提示（自由入力も可） |
 | O-10 | Presentation 発注グループへの WBS 番号欄 + ガントを開くリンク | O-2, O-9 | 1 | WBS 番号を入れたグループからガントの URL が新規タブで開く（[docs/32] §10.5②。URL は設定値、docs には書かない） → ✅ 2026-09-14 実装（要約）: `src/Settings.js`（`settings.get`/`settings.setGanttUrl`、admin のみ変更可、`PropertiesService` 保存）+ `html/Members.html` に設定 UI（O-9 と設定保存の仕組みを共用）+ `html/OrderTree.html` が `wbsNo` 設定済みかつ `ganttUrl` 設定済みのときだけ `target="_top"`+`rel="noopener"` のリンクを表示 |
 | O-11（任意・要判断） | Presentation 発注グループから `PresentationData` を Placeholder で作る連携 | O-1, O-6 | 3 | 発注グループ作成後の同期で対応する `PresentationData` が（無ければ）Placeholder として作られる（[docs/32] §10.4.3・§10.7 要判断6） → 見送り（[docs/32] §10.7 要判断6 決定（(b) を採用）。§10.4.3 のリスクのため当面実装しない） |
+| O-14 | admin が Web 画面からログイン許可（`users.json`）を管理できるようにする（一覧・追加・ロール変更・削除 + Drive フォルダ共有の同時操作） | W-3（既存の認証基盤） | 2 | admin 専用の管理 UI から追加・削除ができ、editor/viewer/API トークンからは呼べない。自分自身・最後の admin の削除・降格は拒否される（[docs/32] §10.7 要判断15） → ✅ 2026-09-14 実装（要約）: `src/Api/UserAdmin.js`（`users.list`/`users.upsert`/`users.remove`、admin ロール限定）+ `src/adapters/DriveAdapter.js`（`addFolderEditor`/`removeFolderEditor`、失敗しても users.json 側は成功扱い）+ `html/Members.html` の admin 専用セクション + `src/Auth.js`/`src/Code.js` の拒否画面文言改善（ログイン中のメールアドレスを表示）。詳細は [docs/32] 実装メモ（O-14）参照 |
 
-**O チケット合計: 25 人日（O-1〜O-10）。O-11 を含める場合 28 人日**。既存 W-1〜W-12（実装済み）のコストとは別枠（拡張元として再利用する）。O-1〜O-10（O-6 は Web 側の受け皿 + D-Drive 側の実送信の両方）は 2026-09-14 に実装済み（Node テスト 219 件 green。詳細は [docs/32] 実装メモ参照）。O-11 は見送り。
+**O チケット合計: 25 人日（O-1〜O-10）。O-11 を含める場合 28 人日**。既存 W-1〜W-12（実装済み）のコストとは別枠（拡張元として再利用する）。O-1〜O-10（O-6 は Web 側の受け皿 + D-Drive 側の実送信の両方）は 2026-09-14 に実装済み（Node テスト 219 件 green。詳細は [docs/32] 実装メモ参照）。O-11 は見送り。O-14 は MVP 後の追加チケット（別枠、2026-09-14 実装済み）。
 
 ## Phase 6: 仕上げ・運用化 (M6)  約 2 週 + Timeline 対応 約 2.5 週（運用開始後）
 

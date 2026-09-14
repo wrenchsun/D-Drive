@@ -39,7 +39,15 @@ function authenticateSession() {
   }
   var user = findSpecWebUserByEmail_(email);
   if (!user) {
-    return { ok: false, status: 403, message: 'メンバーのみ利用できます。管理者に users.json への追加を依頼してください。' };
+    // 2026-09-14 追補（O-14）: 本人が管理者に伝えやすいよう、ログイン中のメールアドレスを
+    // message とは別に email フィールドでも返す（呼び出し元の Code.js の拒否ページ・
+    // authenticateRequest の 403 分岐がそのまま使う）。本人自身のメールなので表示してよい。
+    return {
+      ok: false,
+      status: 403,
+      message: 'メンバーのみ利用できます。管理者にこのメールアドレスを伝えて users.json への追加を依頼してください。',
+      email: email
+    };
   }
   return { ok: true, email: email, role: user.role, displayName: user.displayName || email };
 }

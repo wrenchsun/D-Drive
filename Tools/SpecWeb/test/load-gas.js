@@ -40,12 +40,20 @@ function listJsFilesSorted_(dir) {
   return files.sort();
 }
 
-function createFakeDriveApp_(initialFiles) {
+function createFakeDriveApp_(initialFiles, options) {
+  options = options || {};
   const folders = new Map();
+  // O-14: フォルダの編集者共有（addEditor/removeEditor）を folder id ごとに追跡する。
+  // `options.shareShouldFail` を渡すと、共有・共有解除の呼び出しが常に例外を投げる
+  // （「Drive での共有に失敗しても users.json への追加自体は成功する」ケースの検証用）。
+  const editorsByFolder = new Map();
 
   function getOrCreateFolder(id) {
     if (!folders.has(id)) {
       folders.set(id, new Map());
+    }
+    if (!editorsByFolder.has(id)) {
+      editorsByFolder.set(id, new Set());
     }
     return folders.get(id);
   }
@@ -74,6 +82,7 @@ function createFakeDriveApp_(initialFiles) {
   const DriveApp = {
     getFolderById(id) {
       const filesMap = getOrCreateFolder(id);
+      const editors = editorsByFolder.get(id);
       return {
         getFilesByName(name) {
           let handed = false;
@@ -90,12 +99,24 @@ function createFakeDriveApp_(initialFiles) {
         createFile(name, content) {
           filesMap.set(name, content);
           return fileWrapper(filesMap, name);
+        },
+        addEditor(email) {
+          if (options.shareShouldFail) {
+            throw new Error('フェイク DriveApp: 共有に失敗しました（テスト用）');
+          }
+          editors.add(String(email || '').toLowerCase());
+        },
+        removeEditor(email) {
+          if (options.shareShouldFail) {
+            throw new Error('フェイク DriveApp: 共有解除に失敗しました（テスト用）');
+          }
+          editors.delete(String(email || '').toLowerCase());
         }
       };
     }
   };
 
-  return { DriveApp, defaultFolderId: DEFAULT_FOLDER_ID, files: defaultFolder, folders };
+  return { DriveApp, defaultFolderId: DEFAULT_FOLDER_ID, files: defaultFolder, folders, editorsByFolder };
 }
 
 function createFakePropertiesService_(initial) {
@@ -237,12 +258,14 @@ function createFakeLogger_() {
  * @param {string} [options.activeUserEmail] Session.getActiveUser().getEmail() の初期値
  * @param {Object<string,string>} [options.driveFiles] 既定フォルダに置く初期ファイル { "users.json": "..." }
  * @param {Object<string,string>} [options.scriptProperties] PropertiesService の初期値
+ * @param {boolean} [options.driveShareShouldFail] true にすると DriveApp の addEditor/removeEditor
+ *   （O-14、フォルダ共有）が常に例外を投げる（失敗時の警告動作を検証するためのフェイク）
  * @return {vm.Context} 読み込んだ src の全グローバル（doGet 等）+ `__fakes`（フェイクの操作用ハンドル）
  */
 function loadGas(options) {
   options = options || {};
 
-  const drive = createFakeDriveApp_(options.driveFiles);
+  const drive = createFakeDriveApp_(options.driveFiles, { shareShouldFail: options.driveShareShouldFail });
   const properties = createFakePropertiesService_(options.scriptProperties);
   const session = createFakeSession_(options.activeUserEmail);
   const lock = createFakeLockService_();
