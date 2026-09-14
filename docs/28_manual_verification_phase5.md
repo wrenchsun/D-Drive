@@ -299,3 +299,30 @@
 - **HapticsManager は Scaled dt のまま(CameraFx とは異なる決定)**: HitStop 中に振動を止めるべきか止めないべきかが仕様書に明記されていなかったため、他の全 Manager と同じ既定(HitStop で一緒に止まる)にした。要望があれば CameraFx と同じ Unscaled 駆動に変更を検討してほしい
 - **Addressables グループへの追加**: `HAPTIC_Demo_DemoHitPunch`(`DDrive_GameData.asset`)の 1 行が追加されたが、ユーザーの未コミット変更と同じファイルのためコミットしていない(ワーキングツリー上に残る)
 - **実機での動作確認は未実施**: 本セッションはヘッドレスな isuzu MCP 経由の自動テストのみで検証しており、実際にゲームパッドを接続した目視確認は行っていない(「未検証」と明記)。上記確認手順1〜7は人が実機で確認すること
+
+## 5-2c 揺れ・振動エディタ（PR #23）
+
+対象: `Editor/Camera/{CameraFxEditorWindow,SceneCameraShakePreviewDriver,EditorHapticsPreviewDriver,CameraFxPresets,WaveformGraphGui}.cs`(新規、namespace `DDrive.Editor.CameraFx`)、`Editor/Preview/CameraShakePreviewSceneSetup.cs`(新規、確認用シーン)、`Editor/DDrive.Editor.asmdef`(`Unity.InputSystem` 参照追加、`GamepadHapticOutput` を Test on Pad が直接使うため)、`Tests/Editor/DataEditorRegistryTests.cs`(Exempt から `CameraShakeData`/`HapticsData` を除去 + `KnownPairs` に追記)。設計は [16_camera_haptics.md](16_camera_haptics.md) §C-2、実装メモは同ファイルの「実装メモ（2026-09-14、5-2c）」を参照。合わせて 5-2 で発生した `DDrive.Runtime.Camera` ⇄ `UnityEngine.Camera` の名前空間衝突を `DDrive.Runtime.CameraShake` への改名で整理した(別コミット。docs/16 の「実装メモ（2026-09-14、5-2 整理）」参照)。
+
+事前準備: ゲームパッド(Xbox/PlayStation 系)を PC に接続しておくと Test on Pad が確認できる。無い環境では「波形のみ確認できます」の案内が出ることを確認すればよい。
+
+確認手順:
+
+1. **専用エディタを開く**: `Tools > D-Drive > Editors > Shake / Haptics` を開く → `Assets/GameData/Camera/Demo/SHAKE_Demo_DemoHitSmall.asset` を対象アセット欄にドラッグ(または Asset Browser の「Shake Editor で開く」)→ Shake 用の項目(Pattern/PosAmplitude/…)と波形プレビューが表示されること
+2. **確認用シーンで実際に揺らす(AC)**: ツールバー「確認用シーンを開く」→ `CameraShakePreviewScene` が開く(無ければ生成される)→ ウィンドウの「▶ Shake 再生(連打可)」を押す → **SceneView / Game ビューでカメラが実際に揺れる**こと(ウィンドウ内には何も描かれないこと)
+3. **連打テスト(AC)**: 手順2のボタンを素早く連打する → 例外が出ず、揺れが異常に大きくなったりカクついたりしないこと(Trauma 合成の効果)。「合成中の Instance」の数が連打に応じて増減すること
+4. **閉じるとカメラが元の位置に戻る(AC)**: 手順2で揺れているままウィンドウを閉じる → Hierarchy 上でカメラの親が元に戻り(`DDriveCameraShakeNode` が残らない)、カメラの位置・回転が揺らす前と同じであること
+5. **プリセット 10 種(AC)**: 「プリセット(10種)」を開き、Pulse/Rumble/Heartbeat/Explosion/Hit_Small/Hit_Large/Landing/Earthquake/Alarm/Engine を順に押す → そのたびに波形プレビューとパラメータ欄の数値が変わり、Ctrl+Z で直前の値に戻ること
+6. **Haptics Editor に切り替える**: 対象アセット欄に `Assets/GameData/Haptics/Demo/HAPTIC_Demo_DemoHitPunch.asset` を入れる → Low/High の波形プレビューと「Test on Pad」ボタンが出ること
+7. **Test on Pad で実際に振動させる(AC)**: パッドを接続した状態で「▶ Test on Pad」を押す → パッドが振動すること。「■ 停止」を押すと即座に止まること
+8. **止め忘れ防止(AC)**: 手順7の直後にウィンドウを閉じる/エディタからフォーカスを外す(Alt+Tab)/Play ボタンを押す、のいずれかを行う → いずれの場合もパッドの振動が確実に止まること
+9. **パッド未接続時の案内**: パッドを外した状態でウィンドウを開く → 「パッド未接続です」の案内が出て、波形の確認だけができること(エラーは出ない)
+10. **Haptics のプリセット 10 種**: Shake と同様にプリセットボタンを押して数値・波形が変わり、Undo で戻ることを確認する
+11. **自動テストの確認(代替可)**: 目視確認が難しい場合、`SceneCameraShakePreviewDriverTests`(カメラの姿勢復元・DontSave 付与・連打)/ `EditorHapticsPreviewDriverTests`(Fake 出力での 0 復帰)/ `CameraFxPresetsTests`(10 種 × Undo)で代替できる
+
+要判断:
+- **プリセットの具体的な数値は暫定値**: `CameraFxPresets` の 10 種(Shake/Haptics 各)は「こういう性格の揺れ・振動」という設計意図を反映したたたき台で、デザイナーによる実プレイでの調整前提。特に Earthquake/Alarm/Engine は Loop(無限)にしているため、実際に使う際は `CameraFx.Shake`/`Haptics.Play` の呼び出し側で明示的に `Stop` する運用になる点に注意
+- **波形プレビューは近似表示**: `WaveformGraphGui` の pos/rot 波形は `CameraFxManager.SampleWave` の乱数位相(`Random.value` によるインスタンスごとのシード)を再現しておらず、Pattern ごとの疑似オシレーションで「だいたいこんな感じ」を示す参考表示にとどめた(§C-2 に明記の「編集 UI は ValueDefDrawer を使い、専用のカーブエディタは作らない」という方針を踏まえ、波形表示に工数をかけすぎない判断をした)。より正確な波形が必要になったら `CameraFxManager` 側の乱数シードを外部から注入できるようにする等の見直しが要る
+- **PresentationEditor(5-4)内の同時プレビューは対象外**: チケット文面どおり、Shake + Haptic + SE + VFX の統合プレビューは 5-4 で実装する。5-2c で用意した `SceneCameraShakePreviewDriver`/`EditorHapticsPreviewDriver` はそのまま 5-4 から呼べる設計にしてある(コンストラクタで `AssetRegistry` を外部から差し替え可能)
+- **`CameraFxEditorWindow` 自体の UI テストは書いていない**: 既存の VFX/Anim/Model 系エディタと同じく、このプロジェクトには EditorWindow の `CreateGUI` を直接テストする前例が無いため、実体である Driver / Presets 側のテストで代替した(詳細は docs/16 実装メモ)
+- **Test on Pad のフォーカス喪失判定はエディタアプリ全体が対象**: `EditorApplication.focusChanged` を使っているため、Unity エディタの別ウィンドウ(Scene/Game/Inspector 等)に切り替えるだけでは止まらず、**Unity エディタ自体から他のアプリへ切り替えたとき**に止まる。ウィンドウ単位のフォーカス喪失(`EditorWindow.OnLostFocus`)で止めるべきという意見があれば見直すこと

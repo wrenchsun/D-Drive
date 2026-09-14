@@ -223,3 +223,54 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
   `DDrive_Catalogs.asset`）への追記はユーザーの未コミット変更と同じファイルのためコミットしていない
   （追加された行は `docs/28_manual_verification_phase5.md` の要判断に列挙）。
 
+## 実装メモ（2026-09-14、5-2c）
+
+`Editor/Camera/`（namespace `DDrive.Editor.CameraFx`。Runtime 側の改名と同じ理由で `Editor.Camera` は
+`UnityEngine.Camera` と衝突するため避けた）に実装。
+
+- **1 ウィンドウで両方を扱う**: `CameraFxEditorWindow` に `[DataEditor(typeof(CameraShakeData), …)]` /
+  `[DataEditor(typeof(HapticsData), …)]` の 2 つを付け、`AudioEditorWindow`(SeData/BgmData)と同じ設計で
+  1 ウィンドウに集約した。対象の型に応じて Shake セクション / Haptics セクションの表示を切り替える
+- **波形編集は ValueDefDrawer のまま**: §C-2 に明記のとおりシェイク専用・振動専用のカーブエディタは作らず、
+  `SerializedObject` + `PropertyField`(`ValueDefDrawer` が自動で効く)で `Frequency`/`Envelope`/`LowFreq`/
+  `HighFreq` 等を編集する。読み取り専用の波形プレビュー(pos/rot の時系列 + Envelope、Low/High の 2 本)は
+  `WaveformGraphGui`(`Handles.DrawAAPolyLine` によるシンプルな重ね描き)を追加で用意した。Shake 側の
+  pos/rot 波形は `CameraFxManager.SampleWave` と同じ乱数位相を再現していない参考表示（Pattern ごとに
+  PerlinNoise≈`Mathf.PerlinNoise` の疑似オシレーション、DecaySine≈`Sin`、Impulse/CustomCurve≈定数、を
+  Envelope で包絡線を掛けたもの）であり、実際の見た目の目安として使う想定
+- **Shake の実カメラプレビュー**: `SceneCameraShakePreviewDriver` が実 `CameraFxManager` を保持し、
+  `Play()` で `EditorApplication.update` によるティックを開始する。`CameraFxManager.Tick` は
+  `Camera.main` の直上に `DDriveCameraShakeNode`(ランタイムでは永続する前提の実オブジェクト)を挿入して
+  カメラをその子にする仕様のため、エディタでそのまま使うと確認後にシーンを保存したとき揺れた親子構造が
+  焼き込まれてしまう。そのため本ドライバは (1) 初回ティック前にカメラの元の親・Sibling Index・ローカル
+  姿勢を記録し、(2) 毎ティック後に生成されたノードを見つけ次第 `HideFlags.DontSave` を付け、
+  (3) シーン保存の直前（`EditorSceneManager.sceneSaving`）・シーン切替・プレハブモード切替・
+  ウィンドウを閉じる（`Dispose`）・Play Mode 突入直前のいずれでもカメラを元の親子構造・ローカル姿勢へ
+  完全に戻してノードを破棄する、という後始末を行う（`SceneAnimPreviewDriver.OnSceneSaving` と同じ
+  「保存を優先し、再生中なら次のティックで再度反映される」方針）。連打(複数回 `Play`)は
+  `CameraFxManager` 自体の Trauma 合成にそのまま乗るため、ドライバ側で多重発火のガードは行っていない
+  （既存の `MaxStack` がそのまま効く）
+- **Haptics の Test on Pad**: `EditorHapticsPreviewDriver` が実 `HapticsManager`(既定
+  `GamepadHapticOutput`)を保持し、`Play()` で `EditorApplication.update` のティックを開始する。
+  「止め忘れ防止」（AC）のため、明示的な停止・ウィンドウを閉じる・ドメインリロード直前
+  （`AssemblyReloadEvents.beforeAssemblyReload`）・Play Mode 突入直前
+  （`EditorApplication.playModeStateChanged`）・エディタ(アプリ)のフォーカス喪失
+  （`EditorApplication.focusChanged`）のいずれでも `ResetAndStop()`(ティック停止 +
+  `Manager.StopAll(StopReason.Manual)` で台帳クリア + `SetMotors(0,0)`)を呼ぶ。ティックそのものを止める
+  ことで、フォーカスが無い間に残っている Instance が次のフレームで出力を上書きし続けることも防いでいる
+- **確認用シーン**: `CameraShakePreviewSceneSetup`(`Assets/GameData/PreviewScenes/
+  CameraShakePreviewScene.unity`)を `VfxPreviewSceneSetup` と同じ流儀で追加した(床・目印の立方体 3 個・
+  ライト・カメラ・Volume)
+- **プリセット 10 種**: `CameraFxPresets`(Pulse/Rumble/Heartbeat/Explosion/Hit_Small/Hit_Large/Landing/
+  Earthquake/Alarm/Engine、Shake/Haptics それぞれに実装)。適用は `Undo.RecordObject` +
+  `EditorUtility.SetDirty` で対象アセットへ直接書き込む（新規アセットは作らない）。**数値は暫定値**
+  （要判断: 実プレイでのバランス調整前のたたき台。`docs/28_manual_verification_phase5.md` 5-2c 節参照）
+- **`DataEditorRegistryTests` の Exempt から `CameraShakeData`/`HapticsData` を外した**（専用エディタが
+  揃ったため）
+- **テスト**: `SceneCameraShakePreviewDriverTests`(ノード挿入 + DontSave 付与・連打での Trauma 合成・
+  `StopAndRestore`/`Dispose` でのカメラ姿勢復元とノード破棄)、`EditorHapticsPreviewDriverTests`(Fake
+  `IHapticOutput` で Play → 非ゼロ出力、`ResetAndStop`/`Dispose` での 0 出力を検証。実パッドに依存しない)、
+  `CameraFxPresetsTests`(10 種それぞれの適用 + Undo 復元)。`CameraFxEditorWindow` 自体（UI Toolkit の
+  `CreateGUI`)は、既存の VFX/Anim/Model 系エディタと同様にウィンドウ単体のテストは書いていない
+  （このプロジェクトに EditorWindow の `CreateGUI` を直接テストする既存パターンが無く、実体である Driver /
+  Presets 側のテストで代替する方針にした）
