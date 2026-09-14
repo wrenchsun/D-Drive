@@ -41,6 +41,9 @@ Claude が代行することはできません。
   ここにもコードにも書きません**。運用担当者が実際のガントの URL を貼り付けてください）
 - **調整値**（`#/tuning`）: 既存どおり（下記「調整値編集画面」参照。ナビゲーションが増えても
   独立タブとして変わらず開けることを O-8 で確認済み）
+- **マニュアル**（2026-09-14 追加。ナビの「マニュアル」リンク、または Unity の「マニュアル」ボタンが
+  開く `?page=manual&p=<ページ名>`）: `docs/DesignerManual/*.html`（デザイナーマニュアル、真実は
+  そちら）を配信する。下記「13. デザイナーマニュアルの配信」参照
 
 種類・識別子の重複チェックは入力中に即時検証され、不正な項目は赤枠で表示されます
 （サーバー側でも同じ検証を行うため、クライアント側の検証はあくまで UX 用です）。
@@ -247,7 +250,10 @@ node --test Tools/SpecWeb/test
 ## 9. `clasp push`/`clasp pull` の運用
 
 - コード変更後は `cd Tools/SpecWeb && clasp push` で反映する（→ 上記「7. デプロイの作成」の
-  再デプロイ手順で実際の URL に反映されるまで有効にならない点に注意）
+  再デプロイ手順で実際の URL に反映されるまで有効にならない点に注意）。
+  **`docs/DesignerManual/*.html` を編集した場合は、`clasp push` の前に必ず
+  `./push.ps1`（`Tools/SpecWeb` 内で実行）を使うこと**（下記「13. デザイナーマニュアルの配信」参照。
+  素の `clasp push` だけだとマニュアルの生成物が古いままになる）
 - Apps Script エディタ上で直接編集した場合は `clasp pull` でローカルに取り込んでから git にコミットする
   （ソースの正本はこの repo 側。エディタでの直接編集は緊急時のみに留めることを推奨）
 
@@ -293,6 +299,41 @@ node --test Tools/SpecWeb/test
 - ロールは Google ログインの許可リスト（`users.json`）から決まる（`window.SpecWebCurrentUser`、
   `html/Index.html` が `currentUser` をクライアントへ渡す）
 
+## 13. デザイナーマニュアルの配信（2026-09-14 追加）
+
+`docs/DesignerManual/*.html`（デザイナーマニュアル、真実はそちら）を、この Web アプリからも
+開けるようにしている。設計は [docs/32_spec_web.md「実装メモ（マニュアル配信）」](../../docs/32_spec_web.md)。
+
+- Unity の「マニュアル」ボタン（メインツールバー、再生ボタンの右）が
+  `<①のデプロイURL>?page=manual&p=<ページ名（拡張子なし、トップは Readme）>` を開く
+- ① 人向け SPA のナビにも「マニュアル」リンクが表示される（`#/orders` 等と同じ画面切り替え）
+- 本文は `docs/DesignerManual/*.html` から `Tools/SpecWeb/tools/build-manual.js`（Node 標準の
+  fs/path のみ、依存ゼロ）が事前生成した断片 HTML（`Tools/SpecWeb/html/manual/<page>.html`。
+  style インライン化・画像 data URI 化・ページ間リンク書き換え済み）を配信するだけで、
+  この GAS プロジェクト側では本文を直接編集しない
+
+**`docs/DesignerManual/*.html`/`style.css`/`images/*.png` を編集したら、必ず次のいずれかを行う**
+（忘れると Web 側のマニュアルが古いままになり、`Tools/SpecWeb/test/build-manual.test.js` の
+ドリフト検出テストが red になる）:
+
+```powershell
+cd Tools/SpecWeb
+./push.ps1              # build-manual.js を実行 → clasp push（推奨。デプロイの更新は別途「7.」の手順が必要）
+```
+
+または手動で:
+
+```powershell
+& "C:\Program Files\nodejs\node.exe" Tools/SpecWeb/tools/build-manual.js
+git add Tools/SpecWeb/html/manual Tools/SpecWeb/src/ManualPages.js
+git commit -m "..."
+cd Tools/SpecWeb && clasp push
+```
+
+再生成される生成物（`Tools/SpecWeb/html/manual/*.html`・`Tools/SpecWeb/src/ManualPages.js`）は
+git にコミットする方針（Node が無い環境でも `clasp push` だけで最新化できるようにするため。
+ドリフトのリスクは上記のテストで検出する）。
+
 ## 実装ファイル一覧
 
 | ファイル | 内容 |
@@ -315,3 +356,9 @@ node --test Tools/SpecWeb/test
 | `html/MyOrders.html` | 私の発注画面（O-4） |
 | `html/Members.html` | メンバー管理 + ガント URL 設定画面（O-9・O-10） |
 | `html/TuningGrid.html`/`Tuning.html` | 調整値編集画面 |
+| `src/Manual.js` | マニュアル配信 API（`manualGet`） |
+| `src/ManualPages.js`（生成物） | マニュアルのページ名許可リスト（`tools/build-manual.js` が生成） |
+| `html/Manual.html` | マニュアル画面（ナビ「マニュアル」リンク + 本文差し込み + リンク処理） |
+| `html/manual/*.html`（生成物） | ページごとの断片 HTML（`tools/build-manual.js` が生成） |
+| `tools/build-manual.js` | `docs/DesignerManual/*.html` → 上記 2 つの生成物を作るスクリプト |
+| `push.ps1` | `build-manual.js` を実行してから `clasp push` する |

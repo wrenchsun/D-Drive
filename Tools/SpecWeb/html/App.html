@@ -48,41 +48,54 @@
       screens[id] = render;
     }
 
-    function renderScreen(id) {
+    /**
+     * @param {string} id 画面 id
+     * @param {Object} [params] 画面ごとの初期パラメータ（2026-09-14 追加。例: manual 画面の { p: 'Readme' }）。
+     *   既存の画面（render(root) しか受け取らないもの）は第 2 引数を無視するだけで動く。
+     */
+    function renderScreen(id, params) {
       var root = document.getElementById('app-root');
       var render = screens[id] || screens[DEFAULT_SCREEN_ID];
       var resolvedId = screens[id] ? id : DEFAULT_SCREEN_ID;
       root.innerHTML = '';
       if (!render) {
         root.textContent = '画面が登録されていません: ' + id;
-        return;
+        return resolvedId;
       }
-      render(root);
+      render(root, params || {});
       return resolvedId;
     }
 
     /**
      * 画面を切り替える（iframe 内で完結。history.push 相当を google.script.history 経由で行う）。
      * 各画面のナビゲーションリンクはこれを呼ぶ（window.SpecWebNavigate として公開）。
+     * @param {Object} [options.params] renderScreen に渡す初期パラメータ（2026-09-14 追加）。
      */
     function navigateTo(id, options) {
       options = options || {};
-      var resolvedId = renderScreen(id);
+      var params = options.params || {};
+      var resolvedId = renderScreen(id, params);
       if (window.google && window.google.script && window.google.script.history && !options.skipHistory) {
         var method = options.replace ? 'replace' : 'push';
-        window.google.script.history[method]({ screen: resolvedId }, {}, resolvedId);
+        window.google.script.history[method]({ screen: resolvedId, params: params }, {}, resolvedId);
       }
     }
 
     if (window.google && window.google.script && window.google.script.history) {
       window.google.script.history.setChangeHandler(function (e) {
         var id = (e && e.state && e.state.screen) || DEFAULT_SCREEN_ID;
-        navigateTo(id, { skipHistory: true });
+        var params = (e && e.state && e.state.params) || {};
+        navigateTo(id, { skipHistory: true, params: params });
       });
     }
 
     window.addEventListener('DOMContentLoaded', function () {
-      navigateTo(DEFAULT_SCREEN_ID, { skipHistory: true });
+      // 2026-09-14 追加: `?page=manual&p=...`（Unity の「マニュアル」ボタン等）で開かれた場合、
+      // src/Code.js の resolveInitialScreen_ が設定した window.SpecWebInitialScreen/Params から
+      // 初期画面を決める。無ければ既定画面（DEFAULT_SCREEN_ID）のまま（従来どおり）。
+      var initialScreen = window.SpecWebInitialScreen || DEFAULT_SCREEN_ID;
+      var initialParams = window.SpecWebInitialParams || {};
+      navigateTo(initialScreen, { skipHistory: true, params: initialParams });
     });
 
     /**

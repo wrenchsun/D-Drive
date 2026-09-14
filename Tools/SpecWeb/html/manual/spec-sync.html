@@ -1,0 +1,146 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › 仕様書との同期</nav>
+
+<h1>アセット発注ツールとの同期</h1>
+
+<p>企画がアセット発注ツール（ブラウザで開く HTML のアプリ。学内・自宅どちらからでも入力できます）の「一覧」または「発注ツリー」に発注を 1 件登録するだけで、D-Drive 側に <span class="term" title="まだ中身が入っていない空のデータ。IDだけ確保された状態">Placeholder（空のデータ）</span> が自動でできる機能です。プログラマーはその場でコードから ID を参照できるようになり、デザイナーは後から中身（音・エフェクト・見た目）を作り込みます。</p>
+
+<div class="tip">
+<strong>2026-09-14 更新: 「仕様書」Web アプリは「アセット発注ツール」に目的を絞り直しました。</strong> 以前は仕様書全般（アセット一覧・調整値・機能仕様）を扱う想定でしたが、実際に運用する範囲を「誰が・何を・いつまでに作るか」というアセットの発注管理に絞り、進行管理（スケジュール・担当者マスタ等）は既存のガントチャート（別のスプレッドシート）に任せる形に整理しました。企画側の入力先・使い方はアプリのページ上の説明を見てください。このページは「D-Drive 側でどう同期するか」の説明です（同期の仕組み自体は変わっていません）。
+</div>
+
+<h2>できること</h2>
+<ul>
+<li>発注ツールの「一覧」に新しい発注を登録する → 同期すると、その種別・カテゴリ・識別子で <strong>ID 付きの空データ</strong> が自動的にできる</li>
+<li>表示名・カテゴリ・受注者・備考（リファレンス）を書き換える → 同期すると、その項目だけが上書きされる（<strong>デザイナーが作り込んだ音やエフェクトの中身には触れません</strong>）</li>
+<li>発注ツール側で「削除（アーカイブ）」にする → データ自体は消えず、「Web から消えた（Archive 候補）」という一覧に表示されるだけ（実際に消すのは人の判断）</li>
+<li>「調整値」ページに書いた数値（スカラー・表形式のどちらも）をプログラムのコードから読める（プログラマー向け）</li>
+<li>D-Drive で作成・使用している状況（作成済みか・使用箇所数など）が発注ツールのアセット詳細に自動で反映される</li>
+<li><strong>（2026-09-14 追加）</strong> Placeholder が解消された（必須項目を設定し、Validation の Error が無くなった）アセットを同期すると、発注ツール側の状態が自動的に「<strong>納品済 → インポート済</strong>」に進みます。デザイナーが手動で状態を変える必要はありません（下記「発注の状態」参照）</li>
+</ul>
+
+<h2>同期のやりかた</h2>
+<ol>
+<li><code>Tools</code> → <code>D-Drive</code> → <code>仕様書と同期</code> を開く</li>
+<li>「Web API URL」に発注ツールの URL（D-Drive 連携用の URL。人が見る URL とは別）、「人向け SPA URL」に人がブラウザで見る URL を貼り、「読み取りトークン」「書き込みトークン」を入力して「設定を保存」（最初の 1 回だけ。トークンは管理者に発行してもらう）</li>
+<li>「取得」ボタンを押す（少し待つと発注ツールの内容を読み込みます）</li>
+<li>「新規」「変更」に出てきた行を確認する。チェックが付いている行が対象。外したい行はチェックを外す</li>
+<li>「適用」を押す</li>
+<li>（企画向けに補足情報を返したい時だけ）「Web に送信」を押すと、種別・カテゴリの選択肢や、D-Drive 側の作成状況・使用箇所数が Web 仕様書に反映されます</li>
+</ol>
+
+<div class="tip">
+<strong>起動時に自動でチェックされます。</strong> Unity を開いたときに仕様書に変更があると、Asset Browser のツールバーに「仕様書に変更 n 件」というボタンが出ます。押すとこの同期ウィンドウが開きます。<strong>自動では作成・上書きはしません</strong>（見つけるだけ）。
+</div>
+
+<div class="tip">
+同期のたびに、repo 直下の <code>Specs/assets.json</code>・<code>Specs/tuning.json</code> というファイルが更新されます。これは Web 仕様書の内容をそのまま git にコミットする記録用ファイルで、「いつ・何がどう変わったか」を <code>git log</code> で追えるようにするためのものです（仕様書 Web アプリ自体には変更履歴の機能がないため、その代わりを git に持たせています）。このファイルを手で編集する必要はありません。
+</div>
+
+<h2>画面の見かた</h2>
+<table>
+<tr><th>区分</th><th>意味</th></tr>
+<tr><td>新規</td><td>Web 仕様書にあるが D-Drive にまだ無い行。チェックを付けたまま「適用」すると Placeholder が作られる</td></tr>
+<tr><td>変更</td><td>D-Drive に既にあるデータと、表示名・カテゴリ・状態・担当・備考のいずれかが違う行。「適用」すると違う項目だけ書き換わる</td></tr>
+<tr><td>Web から消えた（Archive 候補・表示のみ）</td><td>以前 D-Drive にあるものとして同期されたのに、今回の Web 仕様書に見当たらない行（Web 側で削除・アーカイブされた等）。<strong>ここに出ても何も自動では起きません。</strong>削除するかどうかは人が判断してください</td></tr>
+<tr><td>衝突（適用不可）</td><td>同じ「種別＋識別子」が 2 件ある、識別子が英語 PascalCase になっていない、種別が不明、などの理由で読み込めなかった行。Web 仕様書側を直してから再度「取得」してください</td></tr>
+</table>
+
+<div class="warn">
+<strong>「衝突」に出た行は絶対に無視しないでください。</strong>その行だけ同期されず、コードから参照できるようになりません。よくある原因は「識別子が <code>sword_slash</code>（小文字・アンダーバー）になっている」「同じ識別子を別の行にも登録してしまった」です。
+</div>
+
+<h2>「受注者」「発注の状態」はどこに反映される？</h2>
+<p>同期されたデータの Inspector を見ると、「Assignee（担当）」欄に発注ツールの<strong>受注者</strong>（実際に作る人）がそのまま入ります。「発注の状態」は Tags 欄に <code>State/発注済</code> のような形で入ります（専用の欄ではなく、既存の Tags を使っています）。</p>
+
+<div class="tip">
+<strong>発注の状態は3段階（発注済 → 納品済 → インポート済）です。</strong> 「納品済」までは発注ツール側で発注者・受注者が手動で進めますが、「インポート済」への進行は<strong>手動では選べません</strong>。D-Drive の同期で Validation の Error が無いことが確認できたときに、発注ツール側が自動的に「インポート済」へ進めます。逆に、一度インポート済になったアセットが何らかの理由で Placeholder に戻った（必須参照が外れた等）場合は、次の同期で自動的に「納品済」へ戻り、発注ツール側にその旨のコメントが自動で残ります。
+</div>
+
+<h2>発注の詳細を開くボタン（Inspector）</h2>
+<p>同期すると、そのデータの <code>SpecUrl</code> に発注ツールの発注の詳細ページの URL が自動的に設定され、Inspector 最上部に <strong>「📄 仕様書を開く」</strong> ボタンが出ます。押すとブラウザで該当ページが開きます（「人向け SPA URL」が設定されていない場合はボタンは出ません）。</p>
+
+<h2>調整値（プログラマー向け）</h2>
+<p>「調整値」ページに書いた数値（ヒットストップの秒数、影響力の係数など）は、同期すると D-Drive の内部データに取り込まれ、プログラムのコードから次のように読めます。</p>
+<pre><code>using DDrive.Generated; // TUNING.キー定数 / TUNING_TABLE / TUNING_COLUMN
+using DDrive.Runtime.Tuning;
+
+// スカラー
+float hitStopSec = Tuning.GetFloat(TUNING.CombatHitStopSec, defaultValue: 0.05f);
+
+// テーブル型（2026-09-14 追加。行×列の表を丸ごと Web 仕様書で編集できる）
+int slimeHp = Tuning.GetTableInt(TUNING_TABLE.EnemyParams, "Slime", TUNING_COLUMN.EnemyParamsHp, defaultValue: 10);
+</code></pre>
+<p>企画が「調整値」ページの数字を変えて同期するだけで、次にゲームを実行したときからその値が反映されます（コードの書き換え不要）。キーが仕様書に無い場合は既定値が使われ、ゲームは止まりません。</p>
+
+<h2>新規作成ダイアログから 1 件だけ選んで作る（2026-09-14 追加）</h2>
+<p>まとめて同期する以外に、<a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser の「新規」ダイアログ</a>の「仕様書から選ぶ」から、仕様書にあるけどまだ D-Drive に無いものを 1 件だけ選んで作ることもできます。急いで 1 つだけ欲しい時に便利です。詳しくは Asset Browser のページを参照してください。</p>
+
+<h2>選択肢・実状態を Web 仕様書へ送る（2026-09-14 更新）</h2>
+<p>「Web に送信」ボタンを押すと、次の 3 種類だけが Web 仕様書へ送られます。企画側が入力した本文や調整値の値そのものが D-Drive から書き換わることはありません（安全のため送信できる内容がサーバー側で固定されています）。</p>
+<table>
+<tr><th>送るもの</th><th>内容</th></tr>
+<tr><td>選択肢</td><td>種別（AssetType）一覧・既存アセットから収集したカテゴリ一覧。Web 側の入力プルダウンが D-Drive の最新一覧と揃う</td></tr>
+<tr><td>アセットの実状態</td><td>作成済みか・使用箇所数・最終同期時刻（読み取り専用としてアセット詳細に表示される）</td></tr>
+<tr><td>調整値の使用状況</td><td>コードから参照されていない調整値キーの一覧（「未使用」の目印として使う）</td></tr>
+</table>
+
+<h2>よくある質問</h2>
+<ul>
+<li><strong>Q. 中身を作り込んだ後に発注ツールの表示名を変えたら、上書きされて消える？</strong> → 表示名・カテゴリ・受注者・リファレンス等の発注情報だけが書き換わります。音源・カーブ・Prefab など実際の中身は同期では一切触りません。</li>
+<li><strong>Q. Web 側で削除したら本当に消える？</strong> → 消えません。「Web から消えた」一覧に出るだけで、実際に削除するかは人が判断します。</li>
+<li><strong>Q. 種別を「ControlSkin」にしたのに新規作成されない</strong> → ControlSkin は「ボタン用」「スライダー用」の 2 種類があり、どちらを作るかを D-Drive 側で決められないため自動作成をスキップします（Console に警告が出ます）。Asset Browser の「新規」から手動で作成してください。</li>
+<li><strong>Q. トークンはどこでもらう？</strong> → Web 仕様書の管理者（admin ロール）が発行します。読み取り用・書き込み用の 2 種類があり、両方をこの同期ウィンドウの設定に貼ります。トークンは Unity のこの PC だけに保存され、git には入りません。</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser の使い方</a></li>
+<li><a href="?page=manual&p=validation" data-manual-page="validation">Validation の使い方</a></li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

@@ -1,0 +1,132 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › 画面の揺れ・コントローラーの振動</nav>
+
+<h1>画面の揺れ・コントローラーの振動</h1>
+
+<p>攻撃が当たった・爆発が起きた、といった「手応え」を出す 2 つの仕組みです。どちらも <strong>ID(番号札)で管理するデータ</strong>で、<a href="?page=manual&p=presentation" data-manual-page="presentation">演出(Presentation)</a> の中の 1 トラックとして使うことも、プログラム側から直接鳴らすこともできます。</p>
+<ul>
+<li><strong>カメラシェイク(Camera Shake)</strong>: 画面をガクガク揺らす</li>
+<li><strong>ハプティクス(Haptics)</strong>: コントローラー(パッド)をブルブル振動させる</li>
+</ul>
+
+<div class="tip">
+<strong>専用エディタがあります</strong>: <code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code>(または Asset Browser でデータを開く)から、波形を見ながらの調整・「実際にカメラを揺らす」「パッドを実際に振動させて試す(Test on Pad)」・プリセット 10 種からの適用ができます。使い方は下の「専用エディタ(Shake / Haptics Editor)の使い方」を参照してください。
+</div>
+
+<h2>カメラシェイクの設定項目(Camera Shake Data)</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Pattern(波形)</td><td><strong>Perlin Noise</strong>: 手ブレ・地響きのようなランダムな揺れ(既定)。<strong>Decay Sine</strong>: 一定のリズムで震える揺れ。<strong>Impulse</strong>: 振動せず、一方向に「グッ」と押される一撃。<strong>Custom Curve</strong>: 今のところ Impulse と同じ動きです</td></tr>
+<tr><td>Pos Amplitude(位置の揺れ幅)</td><td>上下・左右・前後にどれだけ動くか(メートル)。X/Y/Z を別々に設定できます</td></tr>
+<tr><td>Rot Amplitude(回転の揺れ幅)</td><td>どれだけ傾く・回るか(度)。Z だけ入れると「首をかしげる」ような揺れになります</td></tr>
+<tr><td>Frequency(周波数)</td><td>Perlin Noise / Decay Sine で使う、揺れの速さ(Hz)。数字が大きいほど細かく速く揺れます</td></tr>
+<tr><td>Envelope(減衰)</td><td>揺れの強さが時間とともにどう弱まっていくか。既定は 0.3 秒でスッと収まる設定。<a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a>にもある「形+速さ」の共通の編集項目(ValueDef)で調整します</td></tr>
+<tr><td>Space(基準の向き)</td><td><strong>Camera Local</strong>(既定): カメラ自身の向きを基準に揺れる。<strong>World</strong>: カメラの向きに関係なく、いつも同じ方向に揺れる。<strong>From Source</strong>: 発生位置(爆発の場所など)からカメラへ向かって「奥から手前に押される」揺れになる</td></tr>
+<tr><td>Trauma Weight(合成の重み)</td><td>複数のシェイクが同時に起きたときの寄与度。既定 1。大きくすると、他のシェイクと重なったときにより強く効きます</td></tr>
+<tr><td>Max Stack(同時再生数の上限)</td><td>同じシェイクが同時に何個まで積み重なれるか。既定 3。これを超えて呼ばれた分は静かに無視されます(連打しても壊れないための安全弁)</td></tr>
+</table>
+
+<div class="tip">
+<strong>連打しても大丈夫な理由</strong>: 複数のシェイクが同時に起きても、単純に足し算はしません(トラウマ方式という合成をしていて、最終的な揺れの強さは 0〜100% の範囲に収まります)。何度連打しても、画面が異常に揺れすぎることはありません。
+</div>
+
+<h2>振動の設定項目(Haptics Data)</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Low Freq(低周波モーター)</td><td>「ドスン」という低い振動。強さが時間とともにどう変わるかを ValueDef(形+速さ)で決める。既定は 0.2 秒で収まる設定</td></tr>
+<tr><td>High Freq(高周波モーター)</td><td>「ビリビリ」という高い振動。Low Freq と同じ形式</td></tr>
+<tr><td>Priority(優先度)</td><td>今のところ参考情報のみ(下記「複数の振動が重なったら」を参照)</td></tr>
+<tr><td>Local Player Only</td><td>自分に起きた事象のときだけ振動させるか(既定 ON)。マルチプレイ対応前の現状は常にこの動きです</td></tr>
+<tr><td>Extensions(拡張)</td><td>DualSense のアダプティブトリガー等、機種別の特殊な振動。<strong>まだ未対応</strong>で、設定しても警告が出るだけです</td></tr>
+</table>
+
+<div class="tip">
+<strong>複数の振動が重なったら</strong>: 足し算(2 つ重なると 2 倍の強さ)にはしません。<strong>チャンネルごとに一番強い値だけ</strong>を採用します(Low は Low どうし、High は High どうしで比較)。手元のパッドが振り切れて壊れたように感じることはありません。
+</div>
+
+<h2>プログラムから鳴らす(参考)</h2>
+<p>デザイナーが直接書く場面は少ないですが、演出(Presentation)を経由しない単発の揺れ・振動はプログラム側がこう書きます。<code>CameraFx.Shake(シェイクの ID)</code> / <code>Haptics.Play(振動の ID)</code>。中身の調整はこのページの手順のとおり、データ側だけで完結します。</p>
+
+<h2>演出(Presentation)から使う</h2>
+<p><a href="?page=manual&p=presentation" data-manual-page="presentation">演出のページ</a>にあるとおり、Tracks の Kind に <strong>Camera Shake</strong> / <strong>Haptic</strong> を選び、Asset 欄にこのページで作ったデータの ID を入れるだけで、他の SE・VFX と同じタイミングで揺れ・振動が鳴らせます。剣攻撃デモ(<code>PresentationSkillSlashPreviewScene</code>)では、当たった合図(<code>hit</code>)で画面停止(ヒットストップ)・SE と同時に、画面が揺れてパッドが振動するようになっています。</p>
+
+<h2>オプション画面との連動</h2>
+<p>設定画面の「画面揺れ」「振動」のスライダー(0〜100%)は、コード不要でこの仕組みに直結しています。<strong>0% にすると完全に揺れ・振動が止まります</strong>(酔いやすい人・振動が苦手な人向けのアクセシビリティ対応)。詳しくは <a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween のページ</a>の標準オプションの節を参照してください。</p>
+
+<h2>スライダーのノッチ・端での振動</h2>
+<p><a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">スライダーの見た目(Skin)</a>にある「Notch Haptic Id」「Limit Haptic Id」にこのページで作った振動データの ID を入れると、目盛りを越えた・端に当たったときにパッドが振動します(2026-09-14 から対応)。</p>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>警告</th><th>意味と直し方</th></tr>
+<tr><td>PosAmplitude / RotAmplitude が両方ゼロです</td><td>このままでは何も揺れません。どちらかに値を入れてください</td></tr>
+<tr><td>PosAmplitude / RotAmplitude が大きすぎる可能性があります(酔いのリスク)</td><td>揺れが強すぎるとプレイヤーが酔いやすくなります。数値を小さくするか、本当に必要な演出か見直してください</td></tr>
+<tr><td>MaxStack が 0 以下です</td><td>このままでは Shake() を呼んでも常に無視されます。1 以上にしてください</td></tr>
+<tr><td>TraumaWeight が 0 以下です</td><td>このままでは合成に一切寄与しません(揺れません)。1 前後にしてください</td></tr>
+<tr><td>振動の尺が 2 秒を超えています</td><td>長すぎる振動は不快に感じやすいです。短くすることを検討してください</td></tr>
+<tr><td>Extensions は未実装です</td><td>プラットフォーム別の特殊な振動はまだ使えません。基本の 2 モーターカーブだけで表現してください</td></tr>
+</table>
+
+<h2>専用エディタ(Shake / Haptics Editor)の使い方</h2>
+<p><code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code> で開きます。1 つのウィンドウで Camera Shake Data / Haptics Data の両方を編集でき、上の「対象アセット」欄に開きたいデータを入れると、それぞれの項目が出てきます(Asset Browser や Project ウィンドウで選ぶと自動で追従します)。まだデータが無ければ、ツールバーの「＋ 新規作成」から Camera Shake / Haptics のどちらを作るか選んで、その場で新規作成できます(<a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser の使い方</a>参照)。</p>
+<!-- TODO: スクショ（Shake / Haptics Editor の波形プレビュー） -->
+<ul>
+<li><strong>確認用シーンを開く</strong>: ツールバーのボタンで、カメラ・ライト・目印になる箱を置いた専用の確認用シーンを開きます(無ければ自動で作られます)。揺れの確認はこのシーン(または今開いているシーン)の SceneView / Game ビューで行います(ウィンドウの中に絵は出ません)</li>
+<li><strong>波形プレビュー</strong>: Envelope(減衰)や Low/High の強さが時間とともにどう変わるかを見た目で確認できます(数値を直接編集するのはこのグラフの下にある「パラメータ」欄です)。あくまで参考表示で、実際の揺れ方(ランダムな位相のずれ等)を完全に再現するものではありません</li>
+<li><strong>Shake 再生(連打可)</strong>: 押すたびに実際のカメラが揺れます。連打すると、複数のシェイクが重なったときの合成(揺れすぎない仕組み)を確認できます。ウィンドウを閉じる・シーンを保存する・Play ボタンを押す、いずれのタイミングでもカメラは必ず揺れる前の位置に戻ります(揺れたままシーンに保存されることはありません)</li>
+<li><strong>Test on Pad</strong>: パッドを接続した状態で押すと、実際にパッドが振動します。停止ボタンを押す・ウィンドウを閉じる・別の画面に切り替える(フォーカスが外れる)・Play ボタンを押す、いずれの場合も振動は必ず止まります。パッドが未接続のときは波形の確認だけができます</li>
+<li><strong>プリセット(10種)</strong>: Pulse(軽い一撃) / Rumble(持続する揺れ) / Heartbeat(心拍のような二拍) / Explosion(爆発) / Hit_Small・Hit_Large(被弾小・大) / Landing(着地) / Earthquake(地震・持続) / Alarm(警報・持続) / Engine(エンジンのアイドリング・持続)。ボタン 1 つで数値一式を書き換えます(Undo で元に戻せます)。数値はたたき台なので、実際のプレイ感に合わせて調整してください</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=presentation" data-manual-page="presentation">演出(Presentation)の設定項目</a></li>
+<li><a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">ボタン / スライダーの見た目(Skin)</a> — スライダーのノッチ・端の振動</li>
+<li><a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI の動き(UI Tween)</a> — 音量・画面揺れ・振動などの標準オプション</li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

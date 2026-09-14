@@ -1,0 +1,99 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › BGM の設定項目</nav>
+
+<h1>BGM の設定項目</h1>
+
+<p>BGM データ（BgmData）の設定項目の説明です。BGM は SE と違い、<strong>「イントロ→ループ」の2部構成</strong>と<strong>曲の切り替え（クロスフェード）</strong>に対応しています。</p>
+
+<h2>Clips（曲データ）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Intro</td><td>曲の導入部分（任意）。設定すると「Intro を1回再生 → Loop Body を繰り返し」という構成になります。導入のない曲は空のままでOK。<br><span class="warn" style="display:block; margin-top:6px;">注意: イントロが再生されるのは「無音の状態から曲を開始した時」だけです。別の曲からの切り替え（クロスフェード）ではイントロは飛ばされ、ループ部分から始まります。</span></td></tr>
+<tr><td>Loop Body</td><td>繰り返し再生される曲の本体。<strong>必須。</strong></td></tr>
+<tr><td>Loop Start Sec / Loop End Sec</td><td>Loop Body の中の一部分だけを繰り返したい場合に、その範囲を秒で指定。両方 0 のままなら曲全体をループします。<a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor</a> なら波形を見ながらドラッグで設定できます。</td></tr>
+<tr><td>Mixer</td><td>出力先グループ（BGM 用グループを設定）。→ <a href="?page=manual&p=glossary#mixer" data-manual-page="glossary" data-manual-anchor="mixer">用語集: Mixer</a></td></tr>
+<tr><td>Volume</td><td>基準音量（0〜1）。</td></tr>
+</table>
+
+<h2>Fade（フェード）</h2>
+<p>曲の切り替わりを滑らかにする設定です。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Fade In</td><td>この曲に切り替わってくるときの音量の上がり方。「何秒かけて」「どんなカーブで」上がるかを指定できます（初期値: 0.5 秒で直線的に）。</td></tr>
+<tr><td>Fade Out</td><td>この曲が止まる・別の曲に切り替わるときの音量の下がり方（初期値: 1 秒）。</td></tr>
+</table>
+
+<div class="tip">
+Fade In / Fade Out の編集欄は「モード」を選ぶ形式です。<br>
+<strong>定数</strong>: 使いません（フェードでは実質無効）/ <strong>曲線</strong>: 定番の変化カーブから選ぶ（おすすめ。Linear=直線、OutQuad=最初速く後ゆっくり等）/ <strong>カーブ</strong>: 自分でカーブを描く<br>
+「Time Mode: Duration」の「Value」が<strong>フェードにかかる秒数</strong>です。
+</div>
+
+<h2>Beat（ビート同期・上級者向け）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Bpm</td><td>曲のテンポ（1分あたりの拍数）。曲に合わせた演出を作る際に使われます。分からなければ空(0)でOK。</td></tr>
+</table>
+
+<h2>共通項目</h2>
+<p>Id / Display Name / Category などの共通項目は <a href="?page=manual&p=se-data" data-manual-page="se-data">SE のページの「共通項目」</a>と同じです。</p>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>警告</th><th>意味と直し方</th></tr>
+<tr><td>LoopBody が未設定</td><td>曲本体がありません。必ず設定してください。</td></tr>
+<tr><td>LoopEnd ≤ LoopStart</td><td>ループ範囲の終わりが始まりより前になっています。</td></tr>
+<tr><td>Mixer が未割当</td><td>出力先グループを設定してください。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor の使い方</a> — 波形を見ながらループ範囲を設定</li>
+<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE（効果音）の設定項目</a></li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

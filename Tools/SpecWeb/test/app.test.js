@@ -59,7 +59,7 @@ function createFakeGoogleScript(overrides) {
   };
 }
 
-function setup(googleOverrides) {
+function setup(googleOverrides, initial) {
   const dom = createFakeDom();
   var appRoot = dom.document.createElement('div');
   var appNav = dom.document.createElement('nav');
@@ -71,16 +71,25 @@ function setup(googleOverrides) {
 
   const fakeGoogle = createFakeGoogleScript(googleOverrides);
   var domContentLoadedHandlers = [];
+  const windowObj = {
+    google: fakeGoogle.google,
+    addEventListener: function (type, handler) {
+      if (type === 'DOMContentLoaded') domContentLoadedHandlers.push(handler);
+    }
+  };
+  // 2026-09-14 追加: src/Code.js の resolveInitialScreen_ が設定する
+  // window.SpecWebInitialScreen/Params（`?page=manual&p=...` 等）の再現。
+  if (initial && Object.prototype.hasOwnProperty.call(initial, 'screen')) {
+    windowObj.SpecWebInitialScreen = initial.screen;
+  }
+  if (initial && Object.prototype.hasOwnProperty.call(initial, 'params')) {
+    windowObj.SpecWebInitialParams = initial.params;
+  }
   const sandbox = {
     console: console,
     document: dom.document,
     google: fakeGoogle.google,
-    window: {
-      google: fakeGoogle.google,
-      addEventListener: function (type, handler) {
-        if (type === 'DOMContentLoaded') domContentLoadedHandlers.push(handler);
-      }
-    }
+    window: windowObj
   };
 
   const ctx = loadHtmlScript('App', sandbox);
@@ -132,6 +141,39 @@ test('DOMContentLoaded で既定画面（orders）が初期表示される', () 
   });
   fireDomContentLoaded();
   assert.equal(appRoot.textContent, 'orders-screen');
+});
+
+test('DOMContentLoaded: window.SpecWebInitialScreen/Params があれば既定画面ではなくそれを開き、params が渡る（2026-09-14 追加、manual 画面向け）', () => {
+  const { ctx, appRoot, fireDomContentLoaded } = setup(null, { screen: 'manual', params: { p: 'asset-browser' } });
+  var receivedParams = null;
+  ctx.window.registerScreen('orders', function (root) { root.textContent = 'orders-screen'; });
+  ctx.window.registerScreen('manual', function (root, params) {
+    receivedParams = params;
+    root.textContent = 'manual-screen:' + params.p;
+  });
+  fireDomContentLoaded();
+  assert.equal(appRoot.textContent, 'manual-screen:asset-browser');
+  assert.deepEqual(receivedParams, { p: 'asset-browser' });
+});
+
+test('DOMContentLoaded: window.SpecWebInitialScreen が無ければ従来どおり既定画面（orders）を開く', () => {
+  const { ctx, appRoot, fireDomContentLoaded } = setup(null, {});
+  ctx.window.registerScreen('orders', function (root) { root.textContent = 'orders-screen'; });
+  fireDomContentLoaded();
+  assert.equal(appRoot.textContent, 'orders-screen');
+});
+
+test('SpecWebNavigate: params を渡すと画面の render(root, params) にそのまま渡り、history.push の state にも積まれる', () => {
+  const { ctx, appRoot, fakeGoogle } = setup();
+  var receivedParams = null;
+  ctx.window.registerScreen('manual', function (root, params) {
+    receivedParams = params;
+    root.textContent = 'manual:' + params.p;
+  });
+  ctx.window.SpecWebNavigate('manual', { params: { p: 'glossary' } });
+  assert.equal(appRoot.textContent, 'manual:glossary');
+  assert.deepEqual(receivedParams, { p: 'glossary' });
+  assert.deepEqual(fakeGoogle.historyCalls[0].state.params, { p: 'glossary' });
 });
 
 test('google.script.history.setChangeHandler（戻る/進む相当）で画面が切り替わり、push は呼ばれない', () => {

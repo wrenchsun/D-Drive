@@ -1,0 +1,322 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › Asset Browser の使い方</nav>
+
+<h1>Asset Browser の使い方</h1>
+
+<p>Asset Browser は D-Drive の<strong>入口になるウィンドウ</strong>です。登録済みの素材（<span class="term" title="ゲームで使う音・エフェクトなどの素材データのこと">アセット</span>）を一覧で見たり、検索したり、新しく登録したりできます。</p>
+
+<h2>開き方</h2>
+<ol>
+<li>Unity 画面の一番上のメニューバーを見る</li>
+<li><code>Tools</code> をクリック → <code>D-Drive</code> → <code>Asset Browser</code> をクリック</li>
+</ol>
+
+<figure>
+<img src="data:image/png;base64,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CE8BAAAAAAAAwALhKQAAAAAAAABYIDwFAAAAAAAAAAuEpwAAAAAAAABggfAUAAAAAAAAACwQngIAAAAAAACABcJTAAAAAAAAALBAeAoAAAAAAAAAFghPAQAAAAAAAMAC4SkAAAAAAAAAWCA8BQAAAAAAAAALhKcAAAAAAAAAYIHwFAAAAAAAAAAsEJ4CAAAAAAAAgAXCUwAAAAAAAACwQHgKAAAAAAAAABYITwEAAAAAAADAAuEpAAAAAAAAAFggPAUAAAAAAAAAC4SnAAAAAAAAAGCB8BQAAAAAAAAALBCeAgAAAAAAAIAFwlMAAAAAAAAAsEB4CgAAAAAAAAAWCE8BAAAAAAAAwALhKQAAAAAAAABYIDwFAAAAAAAAAAuEpwAAAAAAAABggfAUAAAAAAAAACwQngIAAAAAAACABcJTAAAAAAAAALBAeAoAAAAAAAAAFghPAQAAAAAAAMAC4SkAAAAAAAAAWCA8BQAAAAAAAAALhKcAAAAAAAAAYIHwFAAAAAAAAAAsEJ4CAAAAAAAAgAXCUwAAAAAAAACwQHgKAAAAAAAAABYITwEAAAAAAADAAuEpAAAAAAAAAFggPAUAAAAAAAAAC4SnAAAAAAAAAGCB8BQAAAAAAAAALBCeAgAAAAAAAIAFwlMAAAAAAAAAsEB4CgAAAAAAAAAWCE8BAAAAAAAAwALhKQAAAAAAAABYIDwFAAAAAAAAAAuEpwAAAAAAAABggfAUAAAAAAAAACwQngIAAAAAAACABcJTAAAAAAAAALBAeAoAAAAAAAAAFghPAQAAAAAAAMAC4SkAAAAAAAAAWCA8BQAAAAAAAAALhKcAAAAAAAAAYIHwFAAAAAAAAAAsEJ4CAAAAAAAAgAXCUwAAAAAAAACwQHgKAAAAAAAAABYITwEAAAAAAADAAuEpAAAAAAAAAFggPAUAAAAAAAAAC4SnAAAAAAAAAGCB8BQAAAAAAAAALBCeAgAAAAAAAIAFwlMAAAAAAAAAsEB4CgAAAAAAAAAWCE8BAAAAAAAAwALhKQAAAAAAAABYIDwFAAAAAAAAAAuEpwAAAAAAAABggfAUAAAAAAAAACwQngIAAAAAAACABcJTAAAAAAAAALBAeAoAAAAAAAAAFghPAQAAAAAAAMAC4SkAAAAAAAAAWCA8BQAAAAAAAAALhKcAAAAAAAAAYIHwFAAAAAAAAAAsEJ4CAAAAAAAAgAXCUwAAAAAAAACwQHgKAAAAAAAAABYITwEAAAAAAADAAuEpAAAAAAAAAFggPAUAAAAAAAAAC4SnAAAAAAAAAGCB8BQAAAAAAAAALBCeAgAAAAAAAIAFwlMAAAAAAAAAsEB4CgAAAAAAAAAWCE8BAAAAAAAAwALhKQAAAAAAAABYIDwFAAAAAAAAAAuEpwAAAAAAAABggfAUAAAAAAAAACwQngIAAAAAAACABcJTAAAAAAAAALBAeAoAAAAAAAAAFghPAQAAAAAAAMAC4SkAAAAAAAAAWCA8BQAAAAAAAAALhKcAAAAAAAAAYIHwFAAAAAAAAAAsEJ4CAAAAAAAAgAXCUwAAAAAAAACwQHgKAAAAAAAAABYITwEAAAAAAADAAuEpAAAAAAAAAFggPAUAAAAAAAAAC4SnAAAAAAAAAGCB8BQAAAAAAAAALBCeAgAAAAAAAIAFwlMAAAAAAAAAsEB4CgAAAAAAAAAWCE8BAAAAAAAAwALhKQAAAAAAAABYIDwFAAAAAAAAAAuEpwAAAAAAAABggfAUAAAAAAAAACwQngIAAAAAAACABcJTAAAAAAAAALBAeAoAAAAAAAAAFghPAQAAAAAAAMAC4SkAAAAAAAAAWCA8BQAAAAAAAAALhKcAAAAAAAAAYIHwFAAAAAAAAAAsEJ4CAAAAAAAAgAXCUwAAAAAAAACwQHgKAAAAAAAAABYITwEAAAAAAADAAuEpAAAAAAAAAFggPAUAAAAAAAAAC4SnAAAAAAAAAGCB8BQAAAAAAAAALBCeAgAAAAAAAIAFwlMAAAAAAAAAsEB4CgAAAAAAAAAWCE8BAAAAAAAAwALhKQAAAAAAAABYIDwFAAAAAAAAAAuEpwAAAAAAAABggfAUAAAAAAAAACwQngIAAAAAAACABcJTAAAAAAAAALBAeAoAAAAAAAAAFghPAQAAAAAAAMAC4SkAAAAAAAAAWCA8BQAAAAAAAAALhKcAAAAAAAAAYIHwFAAAAAAAAAAsEJ4CAAAAAAAAgAXCUwAAAAAAAACwQHgKAAAAAAAAABYITwEAAAAAAADAAuEpAAAAAAAAAFggPAUAAAAAAAAAC4SnAAAAAAAAAGCB8BQAAAAAAAAALBCeAgAAAAAAAIAFwlMAAAAAAAAAsEB4CgAAAAAAAAAWCE8BAAAAAAAAwALhKQAA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" alt="Asset Browser ウィンドウ">
+<figcaption>Asset Browser。上から「検索欄・種別フィルタ・ボタン類」「一覧」「プレビューバー」</figcaption>
+</figure>
+
+<h2>画面の見かた</h2>
+<table>
+<tr><th>場所</th><th>説明</th></tr>
+<tr><td>検索欄（左上）</td><td>文字を入れると、その場で一覧が絞り込まれます。<strong>日本語の表示名でも検索できます</strong>（例:「斬撃」と入れると「剣の斬撃音」がヒット）。カテゴリ・タグ・説明文も検索対象です。</td></tr>
+<tr><td>種別メニュー（検索欄の右）</td><td>「All」のままなら全部表示。「Se」を選ぶと効果音だけ、「Bgm」を選ぶと BGM だけに絞れます。種別は Se / Bgm / Vfx / Anim / Anim2D / Material / Texture / Canvas / Prefab / Model / Anchor / AnchorGroup / ControlSkin（ボタン・スライダーの Skin）/ UiTween など。「Presentation」「Shake」「Haptics」はまだ中身が無いので選んでも 0 件です。</td></tr>
+<tr><td>「新規」ボタン</td><td>新しいアセットを登録するダイアログを開きます（下で説明）。</td></tr>
+<tr><td>「更新」ボタン</td><td>一覧を最新の状態に読み直します。（普段は自動で更新されるので、表示がおかしいと感じた時だけ押せばOK）</td></tr>
+<tr><td>「未使用...」ボタン（2026-09-14 追加）</td><td>どこからも使われていないアセットの一覧を開きます。詳しくは下の「使用箇所を調べる / 使っていないアセットを片付ける / 安全に削除する」を参照。</td></tr>
+<tr><td>一覧</td><td>登録済みのアセットが並びます。クリックすると右の Inspector に詳細が表示されます。<strong>Ctrl/Shift クリックで複数選択できます</strong>（2026-09-14 から。「削除...」で複数まとめて削除対象にできます）。<strong>ダブルクリック（または選んで Enter キー）すると、そのアセットの専用エディタが開いて対象になります</strong>（2026-09-14 追加。専用エディタが無い種類のアセットは、これまでどおり Project ウィンドウの実ファイルがハイライトされるだけです）。<strong>右クリック</strong>すると「エディターで開く」（専用エディタが1つに決まらない種類は候補が並びます）・「使用箇所を表示」「依存ツリーを表示」「アーカイブする」「削除...」のメニューが出ます（2026-09-14 追加。「削除...」は専用ウィンドウが開きます。詳しくは下の節を参照）。</td></tr>
+<tr><td>プレビューバー（一番下）</td><td>選択中の音をその場で試聴できます。▶再生 / ■停止 / ループ / 速度。音以外（VFX やモデルなど）を選んでいるときは押せません。</td></tr>
+<tr><td>件数表示（一覧の下）</td><td>「12 / 48 件」のように「いま表示している件数 / 全件数」が出ます。検索や種別で絞っているときの目安に。</td></tr>
+</table>
+<div class="tip">
+一覧の行の先頭にもアイコン画像が出ます（Inspector で設定したものと同じ）。アイコン未設定のアセットは Unity の既定サムネイルが出ます。アイコンの作り方は Inspector を参照してください。
+</div>
+
+<h2>検索の詳しい仕様</h2>
+
+<p>検索欄は<strong>1文字打つたびにその場で絞り込まれます</strong>（Enter キーを押す必要はありません）。</p>
+
+<h3>検索でヒットする項目</h3>
+<p>入力した文字は、そのアセットの以下の項目のうち<strong>どれか1つにでも含まれていれば</strong>ヒットします（大文字・小文字は区別しません）。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>表示名</td><td>「剣の斬撃音」のような、人が入力した名前</td></tr>
+<tr><td>ファイル名・保存場所</td><td>ツールが自動生成したファイル名(例: <code>SE_Player_SwordSlash</code>)や、保存されているフォルダのパス</td></tr>
+<tr><td>カテゴリ</td><td>登録時に入力した分類</td></tr>
+<tr><td>説明文</td><td>Inspector の「Description」に書いた内容</td></tr>
+<tr><td>作成者</td><td>Inspector の「Author」に入力した名前</td></tr>
+<tr><td>タグ</td><td>Inspector の「Tags」に登録した各キーワード</td></tr>
+</table>
+
+<div class="tip">
+<strong>例:</strong> 表示名が「剣の斬撃音」なら「斬撃」と打つだけでヒットします。ファイル名やカテゴリで検索したい時も、同じ検索欄にそのまま打ち込めば大丈夫です。
+</div>
+
+<h3>種別メニューとの組み合わせ</h3>
+<p>種別メニュー（All/Se/Bgm/…）を絞った状態で検索すると、<strong>「その種別に該当する」かつ「検索文字にヒットする」</strong>ものだけが表示されます。両方の条件を同時に満たす必要があります。</p>
+
+<h3>できないこと（現状の制限）</h3>
+<ul>
+<li>ID(管理番号)そのものを打ち込んでの検索はできません(表示名・ファイル名・カテゴリ・説明・作成者・タグのみが対象)</li>
+<li>「これを含み、あれは含まない」といった複雑な絞り込み条件は使えません。1つの言葉での単純な部分一致のみです</li>
+<li>タイプミスを自動で補正する機能はありません。文字が完全に一致している部分だけがヒットします</li>
+</ul>
+
+<h2>新しいアセットを登録する</h2>
+
+<h3>方法1: 音声ファイルをドラッグ＆ドロップ（効果音だけ）</h3>
+<ol>
+<li>Project ウィンドウにある音声ファイル（.wav / .mp3 / .ogg）を、Asset Browser のウィンドウの上へドラッグ＆ドロップ</li>
+<li>登録ダイアログが開くので、下の表の項目を入力</li>
+<li>「作成」を押す</li>
+</ol>
+<div class="warn">
+ドラッグ＆ドロップで作れるのは<strong>効果音（Se）だけ</strong>です。Prefab・画像・マテリアルなどを落としても何も起きません。それ以外の種類はすべて「新規」ボタンから作ります。
+</div>
+
+<h3>方法2: 「新規」ボタン（効果音以外はこちら）</h3>
+<p>ファイルを後から設定したい場合や、効果音以外の種類はこちら。開くダイアログは同じで、「種別」で作るものを選びます。</p>
+
+<div class="tip">
+<strong>「仕様書から選ぶ」（2026-09-14 追加）:</strong> <a href="?page=manual&p=spec-sync" data-manual-page="spec-sync">仕様書</a>と同期している場合、ダイアログの一番上に「仕様書から選ぶ」という一覧が出ます。企画が仕様書の「アセット」タブに書いたのに、まだ D-Drive 側で作られていないものだけが並びます。検索欄で表示名や識別子を絞り込めます。<br>
+一覧から行を選ぶと、種別・カテゴリ・識別子・表示名・備考・仕様リンクが自動で入力され、<strong>「選択中の行: ○○」という表示と「解除」ボタン</strong>が出ます。あとは「作成」を押すだけで、名前を1文字も打たずにアセットが作れます。作成すると、その行は一覧から消えます（もう一度同じものを間違って作ってしまう心配がありません）。<br>
+選んだ後で<strong>識別子欄を手で書き換えると、行の選択は自動で解除されます</strong>（表示名・カテゴリなどをそのまま流用しつつ、識別子だけ別物にしたい場合の事故防止です）。手動で選択を外したいときは「解除」ボタンを押してください。<br>
+一覧が出ない・古そうなときは「仕様書を再取得」ボタンで最新の状態にできます。仕様書の URL がまだ設定されていない場合は、この一覧自体が出ません（案内文だけ表示されます）。
+</div>
+<!-- TODO: スクショ（新規ダイアログの「仕様書から選ぶ」一覧） -->
+
+<h3>方法3: SourceAssets フォルダに置くだけ（自動生成、2026-09-14 追加）</h3>
+<p>Asset Browser を開かずに、<strong>決められたフォルダにファイルを置くだけ</strong>で下記 9 種類の Data が自動的にできます（数秒後に Console にログが出ます）。</p>
+<table>
+<tr><th>置く場所</th><th>置くファイル</th><th>できる Data</th></tr>
+<tr><td><code>Assets/SourceAssets/Se/&lt;カテゴリ&gt;/</code></td><td>.wav / .mp3 / .ogg</td><td>SeData</td></tr>
+<tr><td><code>Assets/SourceAssets/Bgm/&lt;カテゴリ&gt;/</code></td><td>.wav / .mp3 / .ogg</td><td>BgmData</td></tr>
+<tr><td><code>Assets/SourceAssets/Texture/&lt;カテゴリ&gt;/</code></td><td>.png / .jpg / .tga 等</td><td>TextureData</td></tr>
+<tr><td><code>Assets/SourceAssets/Model/&lt;カテゴリ&gt;/</code></td><td>.fbx</td><td>ModelData</td></tr>
+<tr><td><code>Assets/SourceAssets/Anim/&lt;カテゴリ&gt;/</code></td><td>.anim / .fbx</td><td>AnimData</td></tr>
+<tr><td><code>Assets/SourceAssets/Anim2D/&lt;カテゴリ&gt;/</code></td><td>.anim / .fbx</td><td>Anim2DData</td></tr>
+<tr><td><code>Assets/SourceAssets/Prefab/&lt;カテゴリ&gt;/</code></td><td>.prefab</td><td>PrefabData</td></tr>
+<tr><td><code>Assets/SourceAssets/Canvas/&lt;カテゴリ&gt;/</code></td><td>.prefab</td><td>CanvasData</td></tr>
+<tr><td><code>Assets/SourceAssets/Vfx/&lt;カテゴリ&gt;/</code></td><td>.prefab</td><td>VfxData</td></tr>
+</table>
+<div class="tip">
+<code>&lt;カテゴリ&gt;</code> のフォルダ名がそのまま Data の「カテゴリ」になり、ファイル名がそのまま識別子(英語 PascalCase になっていない場合は自動で整形)になります。例えば <code>Assets/SourceAssets/Se/Player/Slash.wav</code> を置くと、カテゴリ「Player」・識別子「Slash」の <code>SE_Player_Slash</code> ができます。表示名は後から Inspector で日本語に変えられます。
+</div>
+<div class="warn">
+<strong><code>SourceAssets</code> の直下や、上の表にある種別名(<code>Se</code>/<code>Bgm</code>/<code>Texture</code>/<code>Model</code>/<code>Anim</code>/<code>Anim2D</code>/<code>Prefab</code>/<code>Canvas</code>/<code>Vfx</code>)以外のフォルダに置いても反応しません。</strong>「1階層目」が種別フォルダである必要があります(大文字・小文字も一致させてください)。例えば <code>Assets/SourceAssets/Slash.wav</code>(直下)や <code>Assets/SourceAssets/Check/Se/Slash.wav</code>(種別フォルダの上に別フォルダがある)は無視されます。置き方を間違えた場合は Console に案内の警告ログが出ます。フォルダが用意されていない場合は <code>Tools &gt; D-Drive &gt; Generate &gt; SourceAssets の既定フォルダを作成</code> で作れます。
+</div>
+<div class="warn">
+<strong>元ファイルを削除しても Data は消えません。</strong>音や見た目が「未設定(または Missing)」の警告付きで残るだけです（<a href="?page=manual&p=validation" data-manual-page="validation">Validation</a> の一覧に出ます）。うっかりファイルを消してしまっても、AssetBrowser 側のデータは安全です。逆に言うと、Data を完全に消したいときはこの方法では消えないので、通常のアセット削除手順を使ってください。<br>
+また、同じファイルを再インポートしても Data が二重にできることはありません。
+</div>
+<div class="tip">
+この機能で作られた Data は、ファイルへの参照（Clip / Texture / Prefab のいずれか）以外の項目は初期値のままです。細かい調整（3D 設定・Layer・Params 等）は作られた後に Asset Browser や各専用エディタで行ってください。
+</div>
+
+<h3>方法4: 各専用エディタの「＋ 新規作成」ボタン（2026-09-14 追加）</h3>
+<p>Audio Editor・VFX Editor・Canvas Editor・UI Tween Editor など、各専用エディタのツールバー（上部）にも同じ「＋ 新規作成」ボタンがあります。Asset Browser を開かずに、いま作業しているエディタからその場で新しいアセットを作れます。</p>
+<ol>
+<li>専用エディタを開く（<code>Tools &gt; D-Drive &gt; Editors &gt; …</code>）</li>
+<li>ツールバーの「＋ 新規作成」を押す</li>
+<li>ダイアログが開く。<strong>種別はそのエディタで扱える種類だけに絞られています</strong>（例: Audio Editor なら Se か Bgm の 2 択、他のほとんどのエディタは 1 種類に固定）</li>
+<li>表示名・カテゴリ・識別子を入力して「作成」</li>
+</ol>
+<div class="tip">
+作成が終わると、ダイアログが閉じて<strong>そのままいま開いているエディタの対象がこの新しいアセットに切り替わります</strong>。作った直後から続けて調整を始められます。
+</div>
+
+<h3>ダイアログの入力項目</h3>
+<table>
+<tr><th>項目</th><th>入力するもの</th><th>例</th></tr>
+<tr><td>種別</td><td>作りたいアセットの種類。効果音なら「Se (SeData)」、BGM なら「Bgm (BgmData)」。ほかに Vfx / Anim / Anim2D / Material / Texture / Canvas / Prefab / Model / Anchor / AnchorGroup / UiTween があり、ボタン用とスライダー用の Skin は「ControlSkin (ButtonSkinData)」「ControlSkin (SliderSkinData)」の 2 行に分かれています。</td><td>Se (SeData)</td></tr>
+<tr><td>表示名</td><td><strong>日本語でOK。</strong>一覧や検索で使われる名前。後から変えても大丈夫。</td><td>剣の斬撃音</td></tr>
+<tr><td>カテゴリ</td><td>整理用の分類。空欄でもOK。</td><td>Player</td></tr>
+<tr><td>識別子</td><td><strong>英語で、先頭大文字・スペースなし。</strong>プログラマーがコードから呼ぶときの名前になります。迷ったら英単語をつなげて各単語の頭を大文字に。</td><td>SwordSlash</td></tr>
+<tr><td>備考</td><td>空欄でもOK。「仕様書から選ぶ」で行を選ぶと自動で入りますが、手入力もできます。</td><td>3段階で音程を変える</td></tr>
+<tr><td>仕様リンク</td><td>空欄でもOK。仕様書のセルへのリンクなど。設定すると Inspector に「仕様書を開く」ボタンが出ます。</td><td>（仕様書のURL）</td></tr>
+</table>
+
+<div class="tip">
+<strong>ファイル名と保存フォルダは自動で付きます。</strong>上の例なら <code>SE_Player_SwordSlash</code> というファイルが <code>Assets/GameData/Audio/SE/Player/</code> フォルダに自動で作られ、管理台帳への登録もすべてツールがやります。ダイアログの下に「生成先」がプレビュー表示されるので確認できます。<br>
+カテゴリを英語で入れておくと（例: <code>Player</code>、<code>Enemy/Attack</code> のように <code>/</code> で階層も可）、<strong>カテゴリごとのフォルダに自動で仕分けられる</strong>ので、Project ウィンドウから直接探すときも見つけやすくなります。
+</div>
+
+<h3>種別ごとの保存先</h3>
+<table>
+<tr><th>種別</th><th>ファイル名の頭</th><th>保存フォルダ（<code>Assets/GameData/</code> の下）</th></tr>
+<tr><td>Se / Bgm</td><td>SE_ / BGM_</td><td>Audio/SE / Audio/BGM</td></tr>
+<tr><td>Vfx</td><td>VFX_</td><td>Vfx</td></tr>
+<tr><td>Anim / Anim2D</td><td>ANIM_ / ANIM2D_</td><td>Anim / Anim2D</td></tr>
+<tr><td>Material / Texture</td><td>MAT_ / TEX_</td><td>Material / Texture</td></tr>
+<tr><td>Model / Prefab</td><td>MODEL_ / PREFAB_</td><td>Model / Prefab</td></tr>
+<tr><td>Canvas</td><td>CANVAS_</td><td>Canvas</td></tr>
+<tr><td>Anchor / AnchorGroup</td><td>ANC_ / ANCG_</td><td>Anchor / AnchorGroup</td></tr>
+<tr><td>ControlSkin（Skin）</td><td>SKIN_</td><td>Ui/Skin</td></tr>
+<tr><td>UiTween</td><td>UITWEEN_</td><td>UiTween</td></tr>
+</table>
+
+<div class="tip">
+<strong>カテゴリを後から変えたら:</strong> ファイルの場所と名前がカテゴリと合わなくなりますが、手で動かす必要はありません。メニューの <code>Tools</code> → <code>D-Drive</code> → <code>Generate</code> → <code>GameData をカテゴリ配置に整理</code> を実行すると、ツールが正しいフォルダへ移動して名前も直してくれます（移動してもゲーム側の参照は壊れない仕組みになっています）。アイコン画像（<code>GameData/Icons</code>）は移動・改名されませんが、そのまま使われ続けるので問題ありません。
+</div>
+
+<div class="warn">
+<strong>識別子が赤くなって「作成」が押せない時:</strong> 識別子は「英字の大文字で始まり、英数字のみ」というルールがあります。日本語・小文字始まり・記号（アンダーバー含む）・数字始まりは使えません。<br>
+NG: <code>sword_slash</code> / <code>剣斬撃</code> / <code>1Slash</code> → OK: <code>SwordSlash</code>
+</div>
+
+<h2>試聴する（プレビューバー）</h2>
+<ol>
+<li>一覧で音を1つクリックして選ぶ</li>
+<li>下のプレビューバーの <strong>▶ 再生</strong> を押す（ゲームを実行しなくても鳴ります）</li>
+<li>「ループ」にチェックを入れて再生すると繰り返し再生（データ自体は変更されません）</li>
+<li>「速度」スライダーで再生スピードを変えて聞き比べ（0.1倍〜2倍）</li>
+</ol>
+<p>もっと細かく確認したい場合（波形を見る・3D の聞こえ方を確かめる等）は <a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor</a> を使います。</p>
+
+<h2>使用箇所を調べる / 使っていないアセットを片付ける / 安全に削除する（2026-09-14 追加）</h2>
+
+<p>アセットは他のアセットやシーンから「ID」で参照されます。見た目だけでは「これ、どこかで使われているんだっけ？」が分からないので、D-Drive が自動で調べてくれます。</p>
+
+<h3>使用箇所を調べる</h3>
+<ol>
+<li>一覧の行を<strong>右クリック</strong> →「使用箇所を表示」</li>
+<li>そのアセットを使っている場所（アセット・シーン）が一覧で出ます</li>
+<li><strong>一覧の行をダブルクリックすると、その場所へジャンプします。</strong>
+  <ul>
+  <li>アセット（データ）や Prefab の場合: Project ウィンドウでその項目が選ばれてハイライトされます</li>
+  <li>シーンの場合: 「開きますか？」の確認が出ます（今のシーンに保存していない変更があれば、先に保存するか聞かれます）。開くと該当のオブジェクトが選ばれます</li>
+  </ul>
+</li>
+</ol>
+<p>「どこからも参照されていません（未使用）」と出たら、そのアセットは今のところ誰にも使われていません。</p>
+
+<h3>依存ツリーを見る</h3>
+<p>右クリック →「依存ツリーを表示」で、選んだアセットが<strong>さらに何を使っているか</strong>をツリー（木構造）で確認できます。例えば Prefab がマテリアルを使い、マテリアルがテクスチャを使い…という連なりが一目で分かります。</p>
+<div class="tip">
+A → B → A のように<strong>ぐるっと参照が輪になっている（循環）</strong>場合は、輪になった箇所で表示が止まり、色を変えて示します（無限にツリーが伸び続けることはありません）。ID が削除済みなどで見つからない参照先も赤字で表示されます。
+</div>
+
+<h3>使っていないアセットをまとめて片付ける（未使用検出 + 一括アーカイブ）</h3>
+<ol>
+<li>ツールバーの「未使用...」ボタンを押す</li>
+<li>どこからも参照されていないアセットが一覧で出ます</li>
+<li>片付けたいものにチェックを入れる（「全選択」「選択解除」ボタンあり）</li>
+<li>「選択項目を一括Archive」を押す</li>
+</ol>
+<div class="tip">
+「Archive（アーカイブ）」は<strong>削除ではありません。</strong>「もう使っていない印」を付けるだけで、ファイルはそのまま残ります。実際に消すかどうかは後で改めて判断できます（一覧の行をダブルクリックすれば、いつでもそのアセットを選んで確認できます）。
+</div>
+
+<h3>安全に削除する（2026-09-14 更新: 削除の確認画面を Unreal Engine 風に一新）</h3>
+<p>本当に消してよいアセットは、一覧の行を右クリック →「削除...」から削除できます（<strong>複数選択して右クリックすれば、まとめて削除対象にできます</strong>）。以前は小さな確認ダイアログでしたが、今は<strong>専用の「アセットを削除」ウィンドウ</strong>が開き、依存関係と削除後にどうなるかが一目でわかるようになりました。</p>
+<!-- TODO: スクショ（削除の確認ウィンドウ 全体） -->
+
+<h4>① 分析画面（何が消えて、何に影響するか）</h4>
+<ol>
+<li><strong>削除するアセット一覧</strong>: アイコン・種別・名前・ID・パスが並びます。ここに、生成された ID 定数がコードから使われているかもしれない場合は警告が出ます（削除する前に一度プログラマーに確認してください。完全な保証はできない簡易チェックです）</li>
+<li><strong>このアセットを使っている場所（参照元）</strong>: Data・Prefab・Scene に分けて一覧が出ます。「ジャンプ」ボタンでその場所へ移動できます。<strong>削除対象どうしの参照</strong>（まとめて消すなら問題ない参照）は別枠で表示されるので、身構える必要はありません</li>
+<li><strong>このアセットが使っているもの（依存先）</strong>: このアセットを消すとどこからも使われなくなる依存先には<strong>チェックボックス</strong>が付き、チェックを入れると<strong>一緒に削除</strong>できます（既定はチェックなし。他でも使われている依存先はチェックできません）</li>
+</ol>
+<!-- TODO: スクショ（参照元一覧・依存先一覧） -->
+
+<h4>② 削除方法を選ぶ</h4>
+<p>参照元が1つもない場合はそのまま「削除する」だけで済みますが、参照が残っている場合は次の4つから選びます。</p>
+<ul>
+<li><strong>参照を差し替えてから削除</strong>: 同じ種別の別のアセットを置き換え先として選ぶと、参照元の Data・Prefab の中身を自動で書き換えてから削除します。<strong>Scene 内の参照だけは自動で書き換えません</strong>（開いているシーンを勝手に保存しないための仕組みです）。Scene から参照が残っている間は削除せず、「アーカイブ済み」の印だけ付けて保留します</li>
+<li><strong>強制削除</strong>: 参照を残したまま削除します。「参照が残ることを理解した」チェックを入れないと実行できません。実行時にはその参照が Placeholder（空の代役）になり、Validation でエラーとして検出されます</li>
+<li><strong>アーカイブのみ</strong>: 削除せず「もう使っていない印」だけ付けます</li>
+<li><strong>キャンセル</strong>: 何もせずウィンドウを閉じます（アーカイブの印も付きません）</li>
+</ul>
+<!-- TODO: スクショ（削除方法の選択、参照の差し替え先を選ぶ欄） -->
+<div class="warn">
+<strong>参照の差し替えは、Data と Prefab では戻せる範囲が違います。</strong>Data 側の書き換えは通常の操作と同じく Ctrl+Z で戻せますが、<strong>Prefab 側の書き換えは Ctrl+Z では戻せません。</strong>差し替えを間違えたと思ったら、もう一度「参照を差し替え」を実行して元の ID に戻してください。
+</div>
+
+<h4>③ 結果画面（削除した後どうするか）</h4>
+<p>「実行」を押すと、同じウィンドウがそのまま結果画面に切り替わります。</p>
+<ul>
+<li>削除したアセットは管理台帳（カタログ）・Addressables への登録・アイコン画像がまとめて片付き、アセット本体とアイコンは<strong>OS のゴミ箱</strong>（Windows なら「ごみ箱」）に移動します</li>
+<li><strong>元に戻す手順</strong>: ごみ箱からファイルを復元したら、画面に出ている「Addressables 登録を同期」ボタンを押し、カタログへの再登録と Validation の確認を行ってください（自動では戻りません）</li>
+<li><strong>コードで使っている ID 定数</strong>: 「生成された ID 定数 '...' を参照しているコードが見つかりました」という警告とファイル名・行番号が並び、クリックするとそのコードがエディタで開きます。「ID 定数を再生成」ボタンも用意されています</li>
+<li>差し替えた参照の一覧、Scene 参照が残っていて<strong>手動で直す必要があるもの</strong>（ジャンプボタン付き）もここに出ます</li>
+</ul>
+<!-- TODO: スクショ（結果画面） -->
+<div class="warn">
+削除の確認画面（分析画面・結果画面の両方）に「生成された ID 定数 '...' を参照しているコードが見つかりました」という注意が出ることがあります。これは<strong>プログラマーのコードがまだこの ID を使っているかもしれない</strong>という警告です（完全ではない簡易チェックなので、出ない場合でも絶対安全とは限りません）。この注意が出たら、削除する前に一度プログラマーに確認してください。<strong>この警告は削除を止めません</strong>（分析画面で見た時点で自分でキャンセルする必要があります）。
+</div>
+<div class="warn">
+<strong>「一緒に削除」でチェックした依存先は、さらにその先が使っているものまでは自動で片付きません。</strong>孫にあたる依存先まで片付けたい場合は、削除が終わってからもう一度「未使用...」やこの削除の手順を実行してください。
+</div>
+
+<h2>読み込みを速くする（Preload リスト、2026-09-14 追加）</h2>
+<p>シーンを開いたとき、そのシーンで使う音・エフェクトなどを<strong>先読み（Preload）</strong>しておくと、実際に鳴らす・出す瞬間の一瞬の遅れが減ります。これはプログラマー / レベル担当が行う作業ですが、デザイナーが意識しておくとよい点をまとめます。</p>
+<ul>
+<li>シーンで使う ID の一覧（<code>ScenePreloadList</code>、<code>Assets/GameData/Preload/</code>）は、<code>Tools &gt; D-Drive &gt; Generate &gt; Preload リストを再集計(現在のシーン)</code>（または「ビルド設定の全シーン」）で<strong>自動的に集計</strong>されます。デザイナーが手で ID を書き足すことはありません</li>
+<li><strong>新しく Anchor・SeEmitter・配置セットなどをシーンに置いた（新しい ID 参照を増やした）ときは、誰かがこの再集計メニューを実行し直す必要があります。</strong>置いただけでは古いシーンの Preload リストには反映されません（保存時に自動では再集計されない設計です）</li>
+<li>ビルド時には自動で全シーン分が再集計されるため、通常のビルドでは意識しなくても最新の状態になります。エディタで確認しているときに「ロードが速くならない」と感じたら、上記メニューを実行し忘れていないかを確認してください</li>
+<li>ロード画面（進捗バー）はまだ確認用の最小実装（<code>SceneLoadingScreen</code>）です。デザイナー向けの本格的な Canvas ベースのロード画面は今後の別チケットで用意される予定です</li>
+</ul>
+
+<h2>よくある質問</h2>
+<ul>
+<li><strong>Q. 表示名を変えたい</strong> → 一覧で選んで Inspector の「Display Name」を書き換えれば OK です。</li>
+<li><strong>Q. 間違えて作ってしまった</strong> → 右クリック →「使用箇所を表示」でまだどこにも使われていないことを確認してから、「削除...」で削除してください。参照が残っている場合、削除ウィンドウでは既定で「アーカイブのみ」に誘導されます（「強制削除」を選べば消せますが、参照が残ったままになるので通常は避けてください）。迷ったらチームのリーダーに相談してください。</li>
+<li><strong>Q. 一覧に出てこない</strong> → 「更新」ボタンを押してみてください。種別フィルタが絞られたままになっていないかも確認。</li>
+<li><strong>Q. 「使用箇所を表示」や「削除」を押しても何も反応がない / 「依存関係グラフが未構築です」と出る</strong> → <code>Tools</code> → <code>D-Drive</code> → <code>Generate</code> → <code>依存関係グラフを再構築</code> を一度実行してください（プロジェクトを最初に開いた直後などは索引が空のことがあります）。</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE（効果音）の設定項目</a> — 登録した後の細かい調整</li>
+<li><a href="?page=manual&p=bgm-data" data-manual-page="bgm-data">BGM の設定項目</a></li>
+<li><a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor の使い方</a> — 波形を見ながらの編集・試聴</li>
+<li><a href="?page=manual&p=validation" data-manual-page="validation">Validation の使い方</a> — 登録漏れ・設定ミスの一括チェック</li>
+<li><a href="?page=manual&p=spec-sync" data-manual-page="spec-sync">仕様書との同期</a> — 「仕様書から選ぶ」の元データ</li>
+<li>種類ごとの設定: <a href="?page=manual&p=vfx-data" data-manual-page="vfx-data">VFX</a> / <a href="?page=manual&p=model-editor" data-manual-page="model-editor">モデル</a> / <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">アニメーション（3D）</a> / <a href="?page=manual&p=anim2d-editor" data-manual-page="anim2d-editor">2D アニメーション</a> / <a href="?page=manual&p=material-data" data-manual-page="material-data">マテリアル・テクスチャ</a> / <a href="?page=manual&p=prefab-data" data-manual-page="prefab-data">Prefab</a> / <a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas</a> / <a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">Skin</a> / <a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween</a> / <a href="?page=manual&p=presentation" data-manual-page="presentation">演出（Presentation）</a> / <a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">画面の揺れ・振動</a></li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

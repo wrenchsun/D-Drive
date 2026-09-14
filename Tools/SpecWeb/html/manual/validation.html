@@ -1,0 +1,105 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › Validation（自動チェック）の使い方</nav>
+
+<h1>Validation（自動チェック）の使い方</h1>
+
+<p>Validation は、D-Drive のデータの<strong>設定ミス・矛盾・登録漏れを自動で見つける仕組み</strong>です。「Prefab が入っていない」「フォーカスの行き先が無い」「カタログに載っていないのでゲームで出てこない」といった問題を、ゲームを実行する前に一覧で教えてくれます。</p>
+<ul>
+<li>各専用エディタ（VFX / Anim / Canvas など）の下の方にある「検証」「Validation」欄には、<strong>いま開いているデータ 1 件分</strong>の結果がその場で出ます</li>
+<li>プロジェクト全体をまとめて調べるときは、メニューの <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code></li>
+</ul>
+
+<h2>重要度の見かた</h2>
+<table>
+<tr><th>表示</th><th>意味</th><th>対応</th></tr>
+<tr><td>Error（赤）</td><td>そのままだと動かない / 出てこない</td><td>必ず直す</td></tr>
+<tr><td>Warning（黄）</td><td>動くが、意図と違う結果になりやすい</td><td>内容を読んで判断。意図的ならそのままでよい</td></tr>
+<tr><td>Info（青）</td><td>お知らせ。設定の確認用</td><td>読んでおくだけでよい</td></tr>
+</table>
+
+<h2>「修正」ボタン</h2>
+<p>自動で直せる項目には、メッセージの横に<strong>「修正」ボタン</strong>が出ます。押すとその場で直り、Ctrl+Z で戻せます。すべての項目に付いているわけではなく、付いていないものは各ページの「よくある警告」を見て手で直します。</p>
+
+<h2>登録漏れ（全種類共通のチェック）</h2>
+<p>D-Drive のデータは、<strong>「カタログ（管理台帳）」と「Addressables（ゲーム実行時に読み込む仕組み）」の両方に登録</strong>されていないと、ゲームでは出てこず、代わりの仮の物（Placeholder）になります。Asset Browser の「新規」で作ったものは自動で登録されますが、Project で複製した・別のフォルダから持ってきた、などのときに漏れることがあります。</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>カタログ未登録: '…'(ID 0x…)がどのカタログにもありません。実行時に解決できず Placeholder になります。</td><td>「修正」を押す（カタログに追加されます）</td></tr>
+<tr><td>Addressables 未登録: '…' がグループに入っていません(カタログの Address '…')。実行時にロードできません。</td><td>「修正」を押す</td></tr>
+<tr><td>Address 不一致: '…' のカタログ '…' と Addressables '…' が違います。実行時にロードできません。</td><td>「修正」を押す</td></tr>
+<tr><td>Addressables の設定(AddressableAssetSettings)がありません。…</td><td>プログラマーに相談（プロジェクトの初期設定が必要です）</td></tr>
+</table>
+<div class="tip">
+まとめて登録し直したいときは <code>Tools &gt; D-Drive &gt; Generate &gt; Addressables 登録を同期(カタログ → グループ)</code>。実行後の Console に「カタログ未登録の Data N 件」と出たら、続けて Run All で「修正」を押してください。
+</div>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>手順</th></tr>
+<tr><td>作業の区切りに全体を確認する</td><td><code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> → 赤（Error）が 0 になるまで直す</td></tr>
+<tr><td>ゲームで出てこない原因を探す</td><td>Run All で「未登録」「Placeholder」の文字を探す → 「修正」</td></tr>
+<tr><td>1 つのデータだけ確認する</td><td>Inspector の「▶ 〜 Editor で開く」→ ウィンドウ下部の「検証」/「Validation」欄</td></tr>
+</table>
+
+<h2>種類ごとのメッセージ</h2>
+<p>データの種類ごとの具体的なメッセージと直し方は、各ページの「よくある警告」にまとめてあります。</p>
+<ul>
+<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE</a> / <a href="?page=manual&p=bgm-data" data-manual-page="bgm-data">BGM</a></li>
+<li><a href="?page=manual&p=vfx-data" data-manual-page="vfx-data">VFX</a> / <a href="?page=manual&p=anchor-data" data-manual-page="anchor-data">Anchor</a> / <a href="?page=manual&p=anchor-group" data-manual-page="anchor-group">配置セット</a></li>
+<li><a href="?page=manual&p=model-editor" data-manual-page="model-editor">モデル</a> / <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">アニメーション（3D）</a> / <a href="?page=manual&p=anim2d-editor" data-manual-page="anim2d-editor">2D アニメーション</a></li>
+<li><a href="?page=manual&p=material-data" data-manual-page="material-data">マテリアル / テクスチャ</a></li>
+<li><a href="?page=manual&p=prefab-data" data-manual-page="prefab-data">Prefab</a> / <a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas</a></li>
+<li><a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">Skin / スライダー</a> / <a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween</a></li>
+<li><a href="?page=manual&p=presentation" data-manual-page="presentation">演出（Presentation）</a> / <a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">画面の揺れ・振動</a></li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser の使い方</a> — 正しい作り方（自動で登録される）</li>
+<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>

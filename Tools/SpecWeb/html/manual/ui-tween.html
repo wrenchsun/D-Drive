@@ -1,0 +1,265 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › UI の動き(UI Tween)・プリセットギャラリー・要素演出(ElementFx)</nav>
+
+<h1>UI の動き(UI Tween)・プリセットギャラリー・要素演出(ElementFx)</h1>
+
+<p>UI の「出る・消える・ふわふわ揺れる・押したら跳ねる」といった動きを、プログラムを書かずに付けるための 3 つの道具です。</p>
+<ul>
+<li><strong>プリセットギャラリー</strong>: 組み込みの 59 種類の定番演出（出現・常時・消滅・強調）をカードで選び、Canvas の要素に割り当てる窓口。<strong>まずはここから</strong></li>
+<li><strong>UI Tween Editor</strong>: プリセットで足りない凝った動きを、自分でデータ（UI Tween）として作るウィンドウ。Tween（トゥイーン）= 「ある値からある値まで、決めた形で何秒かけて変える」動きのこと</li>
+<li><strong>要素演出（ElementFx）</strong>: Canvas を開いたとき（Appear）・表示中（Idle）・閉じるとき（Disappear）に、要素ごとにどの動きを使うかの割り当て</li>
+</ul>
+<div class="tip">ボタンを押した瞬間の演出は <a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">Skin</a> の Enter Tween / Enter Preset に指します。このページの演出は「画面（Canvas）の開閉と表示中」のものです。</div>
+
+<h2>UI Tween Editor</h2>
+<h3>開き方</h3>
+<ol>
+<li><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>UiTween</strong> を選んで作る（接頭辞 <code>UITWEEN</code>、<code>UiTween</code> フォルダに置かれます）</li>
+<li>Project で UI Tween を選び、Inspector の一番上の「<strong>▶ UI Tween Editor で開く</strong>」</li>
+<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween</code></li>
+</ol>
+
+<h3>はじめの一歩（滑り込みながらフェードイン）</h3>
+<ol>
+<li>UI Tween を新規作成して UI Tween Editor で開く</li>
+<li>「確認用シーンに配置」→ 開いているシーンに <code>[D-Drive] UI Tween Preview</code> という Canvas と 200×80 の画像が置かれます（シーンには保存されず、エディタを閉じたとき・別のシーンに移ったときに自動で片付きます）</li>
+<li>「プリセット / カタログ」で <strong>SlideFadeInLeft</strong> を選び「プリセットから Tracks を生成」→ カーブ一覧に位置と透明度の 2 行が並びます</li>
+<li>「▶ 再生」→ Game / Scene ビューで画像が左から滑り込みながら現れます</li>
+<li>カーブ一覧の行をクリックして「選択中 Track」で秒数（Motion の Time）や移動量（From Value）を直し、もう一度 ▶ 再生</li>
+<li>気に入ったら、<a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a> かプリセットギャラリーで要素の Appear に割り当てます</li>
+</ol>
+
+<div class="tip">
+<strong>実際に動かしたいボタンやパネルで試したいときは、無関係な仮画像ではなく実物を選べます。</strong> 下の「プレビュー対象」を参照。<a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a> の ElementFx 行にある「▶」から開いた場合は、その要素が自動で選ばれた状態で開きます。
+</div>
+
+<h3>プレビュー対象</h3>
+<p>「確認用シーンに配置」の仮画像ではなく、シーン上にある実際の要素（Canvas のパネルやボタンなど）を対象にして確認できます。</p>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>収集元</td><td>要素を集めたいシーン上のオブジェクト（例: Canvas Editor の「確認用シーンで開く」で出た <code>[D-Drive] Canvas Preview</code> の中身）。<a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a> の ElementFx 行の「▶」から開いたときは自動で入ります</td></tr>
+<tr><td>要素を自動収集</td><td>収集元の下にある RectTransform をすべて一覧にします（ルート自身も「(ルート)」として候補に入ります）。パスの表記は CanvasData の ElementPath と同じ形式です</td></tr>
+<tr><td>要素</td><td>収集した中から実際にプレビューしたいものを選びます。選ぶと即座にプレビュー対象になります（「プレビュー対象: パス名」と表示）</td></tr>
+</table>
+<div class="tip">収集元にドラッグできるのはシーン上のオブジェクトだけです（Prefab アセットは不可）。「▶ 再生」やスプラインのハンドル編集は、ここで選んだ実要素・「確認用シーンに配置」の仮画像のどちらに対しても同じように動きます。「撤去」は自分で置いた仮画像だけを消し、収集・自動割り当てで得た実要素には触れません。実要素で再生しても、止めたとき・再生し終わったとき・対象を切り替えたとき・ウィンドウを閉じたときに<strong>位置・大きさ・拡大率・回転・透明度・色・Fill の量が再生前に戻ります</strong>（再生のために自動で付いた CanvasGroup も外れます）。シーンに変更は残らないので Undo も不要です（2026-09-14）。</div>
+
+<h3>画面の説明</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>対象 UiTweenData</td><td>編集する UI Tween</td></tr>
+<tr><td>プレビュー対象(収集元 / 要素を自動収集 / 要素)</td><td>上の「プレビュー対象」を参照</td></tr>
+<tr><td>プリセット / カタログ + プリセットから Tracks を生成</td><td>組み込みプリセット全種と、プロジェクトのカタログに登録した演出（「[Catalog] 名前」）から選んで Tracks を作ります。<strong>いまの Tracks は丸ごと上書き</strong>（Ctrl+Z 可）。カタログ側の Tween に Tracks が無いと「カタログの Tween に Tracks がありません」</td></tr>
+<tr><td>＋ プリセットを追加</td><td>上と違い<strong>いまの Tracks を残したまま</strong>、選んだプリセットの Track を末尾に足します。スライドイン + フェードインのように、複数のプリセットや手動 Track を組み合わせたいときに使います。1 つの Tween の Track 上限（8 本）に達すると「Track が上限(8 本)に達しているため追加できません」</td></tr>
+<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] UI Tween Preview</code> Canvas と 200×80 の画像を置く / 消す（実要素で試したいときは上の「プレビュー対象」を使う）</td></tr>
+<tr><td>▶ 再生 / ■ 停止</td><td>実際の仕組み（UiTweenManager）で本当に動かします。プレビュー対象が無いと「プレビュー対象がありません(…)」。再生中は「再生中」、終わると「完了」。再生中にもう一度「▶ 再生」を押すと、前の再生を止めて最初からやり直します</td></tr>
+<tr><td>カーブ一覧</td><td>Track 1 本につき 1 行。「[0] Scale / Ease:OutBack / 0.3s / Once / delay 0s」のように「何を / どんな形で / 何秒 / 繰り返し / 遅れ」が読めます。右に曲線の小さな絵。クリックで選択。無ければ「Tracks がありません(…)」</td></tr>
+<tr><td>選択中 Track [n] / － 選択中の Track を削除</td><td>選んだ Track の全項目（下の「設定項目」）と、その Track だけを削除するボタン</td></tr>
+<tr><td>＋点を追加 / −最後の点を削除</td><td>Property = PathMove のときだけ出ます。このウィンドウがフォーカス中は、SceneView 上の P0 / P1 … のハンドルをドラッグして経路を描けます（2 点以上で水色の線。Ctrl+Z 可）</td></tr>
+<tr><td>描画権ラベル</td><td>いまどのウィンドウが SceneView に描いているか。他の D-Drive ウィンドウと同時に開いていると、最後にクリックしたウィンドウだけがハンドルを出します</td></tr>
+<tr><td>Inspector(全フィールド)</td><td>対象が無いと「UiTweenData を選択してください」</td></tr>
+<tr><td>Validation</td><td>下の「よくある警告」。無ければ「問題なし」</td></tr>
+</table>
+
+<h3>設定項目</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Tracks</td><td>同時に走る Track の一覧（1 つの Tween に最大 8 本）。Track 1 本 = 「どのプロパティを・どんな形で・何秒で・どこからどこまで」</td></tr>
+<tr><td>Total Duration</td><td>全体の長さ。0 = 自動（いちばん遅く終わる Track に合わせる）。手で入れると、最長 Track とのズレを警告します</td></tr>
+<tr><td>Track: Property</td><td>動かすもの。AnchoredPosition（位置）/ Scale（拡大率）/ Rotation（Z 回転）/ Alpha（透明度。CanvasGroup が無ければ自動で付く）/ Color（画像や文字の色）/ FillAmount（Image の Filled の量）/ SizeDelta（大きさ）/ PathMove（経路に沿って移動）/ RotationX・RotationY（縦 / 横のめくり）/ ColorHue（色相を虹色に巡回）</td></tr>
+<tr><td>Track: Motion</td><td>形 + 秒数 + 繰り返し（下の「Motion の読み方」）</td></tr>
+<tr><td>Track: Delay</td><td>再生開始からこの秒数だけ遅らせて始める</td></tr>
+<tr><td>Track: From</td><td>開始値の決め方。Current = いまの値から / Absolute = From Value そのまま / Relative = いまの値 + From Value / OffScreen = 画面外から（位置のみ）</td></tr>
+<tr><td>Track: Off Screen</td><td>From = OffScreen のときの方向（Left / Right / Top / Bottom）</td></tr>
+<tr><td>Track: From Value / To Value</td><td>開始値 / 終了値。From = OffScreen のときは To Value は無視され、開始前の位置に戻ります</td></tr>
+<tr><td>Track: Path</td><td>Property = PathMove のときの経路の点（要素のローカル座標）</td></tr>
+</table>
+
+<h3>Motion の読み方</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Mode</td><td><strong>Constant</strong> = 動かない（即時）/ <strong>Parametric</strong> = 名前付きのイージングか自由なベジェ / <strong>Curve</strong> = AnimationCurve で自分で描く</td></tr>
+<tr><td>Parametric: Kind / Ease</td><td>Kind = NamedEase なら 31 種のイージング（Ease）から選ぶ。イージング = 「最初ゆっくり後で速く（In）」「最初速く後でゆっくり（Out）」「行き過ぎて戻る（Back）」「弾む（Bounce）」「ぷるんと震える（Elastic）」など<strong>動きの緩急の型</strong>。Kind = CustomBezier なら CSS と同じ 2 つの制御点で自由に</td></tr>
+<tr><td>Curve</td><td>Mode = Curve のときの自分で描いた形</td></tr>
+<tr><td>From / To</td><td>Tween では使いません（Track 側の From Value / To Value が実際の値）</td></tr>
+<tr><td>Time: Mode / Value</td><td>Duration = 何秒で終わるか / Speed = 基準の何倍速か / Rate = 1 秒に何周するか（回転ループなど）</td></tr>
+<tr><td>Time: Ignore Time Scale</td><td>ON でゲーム内のスロー・ポーズの影響を受けない</td></tr>
+<tr><td>Loop</td><td>Once = 1 回だけ / Loop = 頭から繰り返す / PingPong = 行って戻るを繰り返す</td></tr>
+<tr><td>Loop Count</td><td>繰り返す回数。0 = 無限（Idle 用）。2 なら 2 周で止まる</td></tr>
+</table>
+<div class="warn"><strong>PingPong の癖:</strong> Loop Count が<strong>偶数</strong>のときは From 側の姿勢で止まります。「揺れて元に戻る」動きを作るときは、<strong>From を静止した姿勢に</strong>してください。</div>
+
+<h3>よくある警告</h3>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Tracks が空です(再生しても何も起こりません)</td><td>プリセットから生成するか、Track を追加</td></tr>
+<tr><td>Motion.Duration が 0 以下のまま Loop/PingPong に設定されています(進行しない無限ループ)</td><td>Time の Value を 0 より大きく</td></tr>
+<tr><td>Property=PathMove ですが Path の制御点が 2 点未満です</td><td>「＋点を追加」で 2 点以上に</td></tr>
+<tr><td>Property=FillAmount は Image を持つ対象でのみ反映されます</td><td>情報のみ。当てる要素に Image（Type = Filled）があるか確認</td></tr>
+<tr><td>Property=Color は Graphic(Image/Text 等)を持つ対象でのみ反映されます</td><td>情報のみ。当てる要素が画像か文字か確認</td></tr>
+<tr><td>TotalDuration が最長 Track の終了時刻より短く設定されています</td><td>Total Duration を 0（自動）に戻す</td></tr>
+</table>
+
+<h3>よくある使い方</h3>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>プリセットを少しだけ変えたい</td><td>「プリセットから Tracks を生成」→ 秒数と移動量だけ直す</td></tr>
+<tr><td>滑り込みながらフェードイン</td><td>AnchoredPosition の Track と Alpha の Track を 2 本並べる（同時に走ります）</td></tr>
+<tr><td>跳ねてから戻る、など 1 つの型では書けない動き</td><td>Delay をずらした 2 本の Track</td></tr>
+<tr><td>アイテムがインベントリへ飛んでいく</td><td>Property = PathMove。SceneView のハンドルで経路を描く</td></tr>
+<tr><td>常時ふわふわ（Idle 用）</td><td>Loop = PingPong、Loop Count = 0</td></tr>
+<tr><td>作った動きをチーム全員の選択肢に</td><td>プリセットギャラリーの「独自プリセットとして登録」</td></tr>
+</table>
+
+<h3>注意点</h3>
+<ul>
+<li>プレビュー用 Canvas <code>[D-Drive] UI Tween Preview</code> はこのエディタ専用です（Button Skin / Slider Skin はそれぞれ別の名前）。「撤去」は自分で置いた仮画像だけを消し、エディタを閉じたとき・別のシーンに移ったときは自動で片付きます。万一画面に消えないプレビューが残ったら <code>Tools &gt; D-Drive &gt; Debug &gt; 確認用プレビューの残骸を掃除</code></li>
+<li>「プリセットから Tracks を生成」は Tracks を丸ごと上書きします（Ctrl+Z で戻せます）。組み合わせたいときは「＋ プリセットを追加」を使う</li>
+<li>プレビュー対象が無いまま生成すると、仮の 200×80 の大きさを基準に From / To が計算されます。実物の大きさに合わせたいときは先に「プレビュー対象」で実要素を選ぶ</li>
+<li>カーブ一覧の曲線は「形」だけです。軸の数字や、途中で止めて見る操作はありません</li>
+<li>SceneView の経路ハンドルはプレビュー対象が基準。プレビュー対象が無いとハンドルは出ません</li>
+<li>プリセット参照（UiPresetRef）の Ease Override で CustomBezier を指定しても、まだ効きません</li>
+</ul>
+
+<h2>プリセットギャラリー（Preset Gallery）</h2>
+<h3>開き方</h3>
+<ol>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>（Inspector からの入口はありません）</li>
+<li>「適用先」の CanvasData に、演出を付けたい <a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas データ</a>を入れる</li>
+</ol>
+
+<h3>画面の説明</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>先頭の案内</td><td>カードは<strong>静止画</strong>です。動きは「選択中のシーン要素で再生」で開いているシーン上に出します</td></tr>
+<tr><td>適用先: CanvasData / 要素 / 適用フェーズ</td><td>どの Canvas の、どの要素（Prefab から集めた要素の一覧。Prefab そのものは「(ルート)」）の、どのタイミング（Appear / Idle / Disappear）に付けるか</td></tr>
+<tr><td>選択中のシーン要素のパスを使う</td><td>Hierarchy で選んだオブジェクトから要素パスを入れます。Prefab アセットを選んでいると「シーン上のオブジェクトを選択してください(Prefab アセットは不可)」。入ったパスが Prefab の根元からのものと一致するとは限らないので「手動確認してください」と出ます</td></tr>
+<tr><td>タブ: 出現 / 常時 / 消滅 / 強調 / カタログ</td><td>組み込みプリセットの 4 分類 + プロジェクト独自の登録分。検索欄で名前の部分一致</td></tr>
+<tr><td>カード</td><td>名前、★ / ☆（お気に入り。<strong>一覧の先頭に寄せるだけで絞り込みではありません</strong>。自分の PC にだけ記憶）、分類、曲線の絵（1 本目の Track のみ）、4 つのボタン</td></tr>
+<tr><td>この要素に適用</td><td>選んだ要素・フェーズにこのカードを割り当て。「'名前' を要素 '…' の … に適用しました」</td></tr>
+<tr><td>Canvas 内一括適用(全ボタン)</td><td>Canvas 内の全ボタンの<strong>Appear</strong>に一括設定（<strong>Appear 固定</strong>。組み込みプリセットのみ）</td></tr>
+<tr><td>選択中のシーン要素で再生</td><td>Hierarchy で選んだシーン上の要素で<strong>実際に動かす</strong>。止めると位置・拡大率・回転・透明度は元に戻ります。Prefab アセットは不可</td></tr>
+<tr><td>この設定を他の要素へコピー</td><td>選んだ要素の Appear / Idle / Disappear の設定を他の要素へ写す。先に「この要素に適用」していないと「選択中の要素の ElementFx 行が見つかりません(…)」</td></tr>
+<tr><td>独自プリセットとして登録</td><td>登録先カタログ / 元になる UiTweenData / 表示名 / カテゴリ(任意) を入れて「登録する」。同じ名前なら上書き。未入力だと「カタログ・UiTweenData・表示名を指定してください」</td></tr>
+</table>
+<div class="tip"><strong>カタログ（UiPresetCatalog）</strong>は「デザイナーが選ぶための一覧」でしかなく、ゲーム実行時には使われません。<code>Create &gt; D-Drive/Ui/Ui Preset Catalog</code> で作ります（ID を持たないので Asset Browser には出ません）。カタログの各行は Name（表示名）/ Tween（実体の UI Tween）/ Category（分類、任意）です。</div>
+
+<h3>プリセット一覧（既定の秒数 / 緩急）</h3>
+<table>
+<tr><th>タブ</th><th>名前と見え方</th></tr>
+<tr><td>出現（20）</td><td>FadeIn（0.25s、じわっと現れる）/ SlideInLeft・Right・Top・Bottom（0.3s、画面外から定位置へ）/ ScaleIn（0.25s、0 から等倍。少し行き過ぎて戻る）/ PopIn（0.3s、跳ねて出る）/ BounceIn（0.5s、弾む）/ ElasticIn（0.6s、ぷるんと）/ FlipInX・FlipInY（0.35s、90° から起き上がりつつフェードイン）/ RotateIn（0.35s、180° 回り込みながら）/ ZoomInFade（0.3s、1.4 倍から等倍 + フェードイン）/ SlideFadeInLeft・Right・Top・Bottom（0.3s、滑り込み + フェード）/ ExpandWidth・ExpandHeight（0.3s、幅 / 高さ 0 から開く）/ TypeFillIn（0.6s、FillAmount 0→1。Image が Filled でないと警告）</td></tr>
+<tr><td>消滅（19）</td><td>出現の逆。FadeOut（0.25s）/ SlideOutLeft・Right・Top・Bottom（0.25s）/ ScaleOut（0.2s）/ PopOut（0.2s）/ BounceOut（0.4s）/ ElasticOut（0.4s）/ FlipOutX・FlipOutY（0.25s）/ RotateOut（0.25s）/ ZoomOutFade（0.25s）/ SlideFadeOutLeft・Right・Top・Bottom（0.25s）/ CollapseWidth・CollapseHeight（0.25s）</td></tr>
+<tr><td>常時（9）</td><td>Pulse（1.2s、1.06 倍まで拡縮）/ Blink（0.6s、透明度 1↔0.2）/ Float（1.6s、上下 10px）/ Sway（1.4s、±8°）/ Breathe（1.8s、1.08 倍まで）/ RotateLoop（2s で 360° 回り続ける）/ ShimmerAlpha（1.2s、透明度 0.4↔1）/ RainbowTint（2s、虹色に巡回）/ WobbleLoop（0.6s、±6°）。いずれも止めるまで繰り返します</td></tr>
+<tr><td>強調（11）</td><td>PunchScale（0.35s、1.2 倍から戻る）/ PunchRotation（0.35s、15° から 0°）/ Shake（0.4s、横 8px を 6 往復）/ ShakeHard（0.5s、16px を 10 往復）/ Flash（0.3s、透明度を 2 往復）/ ColorFlash（0.3s、いまの色↔白）/ HeartBeat（0.6s、1.15 倍の鼓動）/ Jelly（0.5s、横に伸びて縦に縮む）/ Tada（0.6s、拡縮 + 回転）/ RubberBand（0.6s、横 1.3 倍・縦 0.7 倍から等倍）/ AttentionJump（0.4s、上へ 20px 跳ねて戻る）</td></tr>
+</table>
+<p>カードを要素に適用すると、要素側には「どのプリセットか（Preset）/ Duration（0 = 既定の秒数）/ Distance（Slide 系の移動量や Punch・Shake 系の強さ。0 = 既定。Slide 系は要素の大きさから自動）/ Ease Override（緩急の上書き）/ Se（同時に鳴らす音）」が入ります。秒数や距離を変えたいときは <a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a> でこの値を直します。</p>
+
+<h3>よくある警告</h3>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>CanvasData を選択してください</td><td>「適用先」の CanvasData を入れる</td></tr>
+<tr><td>CanvasData(Prefab 設定済み)を選択してください</td><td>一括適用には Canvas データに Prefab が設定されている必要があります</td></tr>
+<tr><td>この Tween は Id が未採番のため割り当てできません(AssetBrowser で採番してください)</td><td>カタログの UI Tween を Asset Browser で採番する</td></tr>
+<tr><td>シーン上の RectTransform を選択してください(Prefab アセットは不可)</td><td>Project ではなく Hierarchy でシーン上の要素を選ぶ</td></tr>
+<tr><td>[n] Name が空です / [n] Tween が未設定です / [n] '…' の Tween('…') は Id が未採番です</td><td>カタログの検証。その行の表示名・Tween・採番を直す</td></tr>
+<tr><td>該当するプリセットがありません</td><td>検索欄の文字を消すか変える</td></tr>
+</table>
+
+<h3>よくある使い方</h3>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>画面全体の出現演出を一気に揃える</td><td>「出現」タブで SlideFadeInLeft →「Canvas 内一括適用(全ボタン)」</td></tr>
+<tr><td>「はじめる」ボタンだけ常時ふわふわ</td><td>要素 = そのボタン、適用フェーズ = Idle、「常時」タブの Pulse →「この要素に適用」</td></tr>
+<tr><td>閉じるときにフェードアウト</td><td>適用フェーズ = Disappear、FadeOut</td></tr>
+<tr><td>速さを実物で確かめてから決める</td><td>Hierarchy で要素を選び「選択中のシーン要素で再生」→ 良ければ「この要素に適用」</td></tr>
+<tr><td>1 要素で決めた 3 フェーズをリスト全体に</td><td>「この設定を他の要素へコピー」</td></tr>
+<tr><td>方向違いを見比べる</td><td>検索欄に「Slide」</td></tr>
+<tr><td>よく使う 5〜6 個を先頭に</td><td>☆ を押して ★ に</td></tr>
+</table>
+
+<h3>注意点</h3>
+<ul>
+<li>カードは静止画です。動きは「選択中のシーン要素で再生」で見ます</li>
+<li>「Canvas 内一括適用(全ボタン)」は Appear 固定です。Idle / Disappear は要素ごとに「この要素に適用」</li>
+<li>お気に入り（★）は並び替えであって絞り込みではありません</li>
+<li>カードの曲線は Tracks の 1 本目だけ。2 本ある演出は片方しか見えません</li>
+</ul>
+
+<h2>要素演出（ElementFx: Appear / Idle / Disappear）</h2>
+<p>Canvas データの ElementEffects に、要素パスごとに「開くとき（Appear）/ 表示中（Idle）/ 閉じるとき（Disappear）」の演出を持たせる仕組みです。プリセットギャラリーの「この要素に適用」か <a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a> で設定します。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>解決順</td><td>各フェーズについて、UI Tween の Id（Appear / Idle / Disappear）→ プリセット（Appear Preset など）→ <strong>レイヤー既定</strong>（UiLayerSettings の Default Appear / Default Disappear）の順で最初に見つかったものを使います。<strong>Idle にレイヤー既定はありません</strong></td></tr>
+<tr><td>開くとき</td><td>Appear Delay の小さい要素から順に Appear が始まり、<strong>全部の Appear が終わるまで操作はブロック</strong>されます</td></tr>
+<tr><td>表示中</td><td>Idle は Appear が終わった直後から繰り返し、閉じ始めたらその場で止まります</td></tr>
+<tr><td>閉じるとき</td><td>全要素の Disappear と Canvas 自体の閉じ演出（CloseTransition）の両方が終わるまで待ちます</td></tr>
+</table>
+<h3>よくある警告</h3>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Element Path が見つからない（実行時に 1 回だけ警告）</td><td>その行は飛ばされます。Prefab の階層名とパスを合わせる</td></tr>
+</table>
+<div class="warn"><strong>Disappear に無限ループの演出（常時タブのものや Loop Count = 0）を入れてはいけません。</strong>閉じる処理が終わらず、画面が閉じられなくなります。</div>
+
+<h2>標準オプション（音量設定などをスクリプト 0 行で）</h2>
+<p><a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas データ</a>の Sliders（SliderWire）で、スライダーの Action を <strong>SetOption</strong> にして Option を選ぶだけで、標準の設定値に直結します。Canvas を開いたときに、いまの設定値でスライダーが自動で初期化されます。値は 0〜1、既定は 1、PlayerPrefs に自動保存されます。</p>
+<table>
+<tr><th>Option</th><th>いま効くか</th><th>説明</th></tr>
+<tr><td>MasterVolume</td><td><strong>効く</strong></td><td>全体音量</td></tr>
+<tr><td>BgmVolume / SeVolume / VoiceVolume</td><td>値を保持するだけ</td><td>種類別の音量。音への接続は Phase 5 の予定</td></tr>
+<tr><td>ShakeScale / HapticScale</td><td>値を保持するだけ</td><td>画面揺れ / 振動の強さ。接続は Phase 6 の予定</td></tr>
+<tr><td>UiSpeedScale</td><td><strong>効く</strong></td><td>UI 演出全体の速さ（0.01 が下限）</td></tr>
+</table>
+<div class="tip">実行中にコンソールへ「[DDrive] OptionStore: Audio バス別音量(…)は Phase 5 で実装予定のため、値は保持のみです」と 1 回出ますが、仕様なので気にしなくて構いません。スライダー側の作り方は <a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">Slider Editor</a> のページを参照。</div>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">ボタン / スライダーの見た目(Skin)と Slider Editor</a> — Enter Tween / Enter Preset、音量スライダーの作り方</li>
+<li><a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas データ</a> / <a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a> — ElementEffects と Sliders の配線</li>
+<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE の設定項目</a> — 演出と同時に鳴らす音</li>
+<li><a href="?page=manual&p=validation" data-manual-page="validation">検証（Validation）</a> / <a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> / <a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>
