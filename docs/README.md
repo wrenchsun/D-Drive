@@ -6,6 +6,8 @@
 Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.13.2（[MS2026](14_networking.md) §12 へ移植する前提で統一）。AI エージェント向けの入口はルートの [CLAUDE.md](../CLAUDE.md)。
 コンセプト: **プログラマーは ID だけでモックを完成させ、デザイナーが専用エディタで中身を作る。**
 
+**AI エージェント向けの実務手順**（新しい AssetType の追加チェックリスト・Unity MCP 検証ループ・ワークツリー運用・コミット慣習・SpecWeb 検証の注意）は Claude Code 用が [`.claude/skills/ddrive-agent-workflow/SKILL.md`](../.claude/skills/ddrive-agent-workflow/SKILL.md)、Codex 等その他のエージェント用の自己完結した要約が [`AGENTS.md`](../AGENTS.md)（リポジトリ直下）にある。2026-09-14 追加、[11_tasks.md](11_tasks.md) 6-9b。
+
 ## 読む順番
 
 | # | ドキュメント | 内容 |
