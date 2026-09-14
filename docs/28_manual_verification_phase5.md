@@ -153,9 +153,10 @@
 8. いずれかの専用エディタ(例: Audio Editor)の「＋ 新規作成」から同じダイアログを開き、「仕様書から選ぶ」の一覧がそのエディタの対応種別だけに絞られていること(例: Audio Editor なら Se/Bgm の行だけ、他の種別の未作成行は出ない)
 9. `Tools > D-Drive > 仕様書と同期` を開いたまま設定の「スプレッドシート URL」を空にして保存し、ダイアログを開き直す → 「仕様書から選ぶ」が案内文だけになり、一覧・検索欄が出ないこと。確認後は URL を戻しておく
 10. 確認が終わったら、手順6で作った `SE_Player_Check5016.asset` を削除する(Addressables のエントリも合わせて外す)
+11. **（2026-09-14 追加、P5 レビュー第 1 弾 5-R）識別子を手で書き換えると選択が解除される**: 手順5で行を選んだ後、「選択中の仕様書行: …」という表示が出ることを確認する → 識別子欄を(例)`Check5016` から `Check5016X` のように手で書き換える → 「選択中の仕様書行」の表示が消え、一覧の該当行も太字/「選択中」表示ではなくなること。この状態で「作成」を押す → Status/Assignee が付かない(空の)Placeholder が作られること(元の仕様書行の Status/Assignee が誤って別アセットに付かないことの確認)。「解除」ボタンでも同様に選択が外れることを確認する
 
 要判断:
-- **選択後に他の欄を手で書き換えても Status/Assignee は選択時のまま**: ダイアログに Status/Assignee 専用の入力欄が無いため、行を選んだ後に他の欄を書き換えても、作成時の Status/Assignee は「選んだ時点の行」のものになる([27] §9.1-8 参照)
+- ~~選択後に他の欄を手で書き換えても Status/Assignee は選択時のまま~~ → **2026-09-14 対応済み(5-R、上記手順11参照)**: 識別子/表示名/カテゴリを手で書き換えたら選択を解除するようにした([27] §9.1-8 参照)。備考/仕様リンクは自由記述として保持してよいと判断し、解除の対象にしていない
 - **キャッシュの古さの閾値(1 時間)は暫定**: 根拠のある値ではない。運用してみて長すぎる/短すぎるかを判断してほしい([27] §9.1-9 参照)
 - ~~**`NewAssetDialog` に `gameDataRoot` のテスト用オーバーライドが無い**~~ → **2026-09-14 対応済み(PR #17、P5 テスト隔離)**: `NewAssetDialog.TestGameDataRootOverride` / `TestSpecSettingsOverride` を追加し、`NewAssetDialogSpecPickerTests` は実 `Assets/GameData`・実カタログ・実 Addressables・実 `DDriveSpecSettings.asset` に一切触れなくなった
 - **「備考」「仕様リンク」欄はダイアログの全ケース(手入力のみの作成も含む)に常時表示**: 仕様書から選ばない通常の手入力作成でも入力できるようにした(空でも作成可、既存動作に影響なし)。専用エディタからのロック付き作成でも同じ欄が出る。UI が煩雑に見える場合は「仕様書から選ぶ」を使っている時だけ表示する等の整理を検討してほしい
@@ -198,11 +199,12 @@
 10. **ゴミ箱からの復元**: 手順9で削除した Data とアイコン画像を OS のゴミ箱(Windows のごみ箱)から元の場所へ復元する → Unity がファイルを再インポートし、Project ウィンドウにアセットとして戻ってくることを確認する。ただし **カタログ・Addressables の登録は自動では戻らない**こと(AssetBrowser の一覧には出ない・Validation で登録漏れとして検出される)も合わせて確認する
 11. **コード参照の警告**: 生成済み ID 定数(`Assets/Generated/AssetIds.g.cs`)がコードから実際に参照されている Data を1つ選び、右クリック →「削除...」の確認ダイアログに「生成された ID 定数 '...' を参照しているコードが見つかりました」という注意が出ること(**そのまま削除は実行せずキャンセルする** — 実際に削除するとコンパイルエラーになるため)
 12. 確認で作った一時 Data・Archive 済みタグはテスト後に元に戻す(Archive を解除する、または実際に不要なら安全な削除の手順で片付ける)
+13. **（2026-09-14 追加、P5 レビュー第 1 弾 5-R）削除確認ダイアログの文言**: 手順9の確認ダイアログの本文に「キャンセルしても、削除候補として付けた Archived タグは残ります。」という一文が出ていることを確認する(実際に「キャンセル」を押して、対象アセットの Tags に `Archived` が残っていることも合わせて確認する)
 
 要判断:
 - **グラフ未構築の判定は `CachedFileCount == 0` のみ**: 「古いが空ではない」状態は検出できない(5-5 の要判断を引き継ぐ)。手順1を飛ばして削除した場合の実際の挙動(「先に再構築してください」と出て中止されること)も合わせて確認してほしい
 - **依存ツリーは事前に全展開**: 巨大な依存グラフ(1 アセットが数百件を再帰的に参照する等)での表示速度は未計測。実際に触ってみて重いと感じたら [09] §10 の要判断を参照して遅延展開への切り替えを検討する
-- **コード参照チェックは grep ベースの簡易実装**: 誤検知(コメント中の文字列等にヒット)・見逃し(リフレクション経由の参照等)があり得る。実運用でノイズが多い/少なすぎると感じたら精度改善を検討する
+- **コード参照チェックは grep ベースの簡易実装**: 誤検知(コメント中の文字列等にヒット)・見逃し(リフレクション経由の参照等)があり得る。実運用でノイズが多い/少なすぎると感じたら精度改善を検討する(**2026-09-14 対応(5-R)**: 走査対象を `Assets/DDrive`・`Assets/Generated` に限定 + 更新時刻キーのキャッシュを追加したが、grep ベースであること自体は変えていない)
 - **Scene ジャンプの自動テストは無し**: `EditorSceneManager.OpenScene(Single)` がアクティブシーンを差し替える副作用があるため、自動テストは `.asset`/`.prefab` 分岐のみ(`DependencyJumpServiceTests`)。手順5の手動確認で代替している
 - **Archived タグは `AssetDataBase.Tags` への予約語追加**: TagCatalog(選択制の辞書。未実装)が将来入る場合、`"Archived"` を予約語として除外するか、専用フィールドへの移行を検討する必要がある
 - **「1 リリース後に削除」の自動化はしていない**: Archived タグが付いてからどれくらい経過したら安全に削除してよいかの判断・催促は今回自動化せず、人が未使用一覧を見て判断する運用のまま
@@ -223,13 +225,14 @@
 6. **未登録 ID のスキップ**: 手順2の `Entries` のどれか1件の ID を Inspector で書き換えて(存在しない値にする)保存し、再度 Play Mode で `SceneLoadingScreen` を走らせる → その ID については `[DDrive] ScenePreload: Unregistered AssetId 0x... was skipped.` という警告が出るだけで、Preload 全体は止まらず完了すること。確認後は書き換えた値を元に戻す(または `.asset` ごと破棄する)
 7. **ビルド前フック**: 実際の開発ビルドを1回実行する(時間があれば。Development Build で可) → Console に `[DDrive] ビルド前処理: Preload リストを N シーン分更新しました。` のログが出て、ビルドが正常に完了すること
 8. 確認で作った `SceneLoadingScreen` 付き GameObject・`DDriveRuntimeBootstrap`・テスト用に書き換えた `.asset` の中身は元に戻す(または確認用シーンごと破棄する)
+9. **（2026-09-14 追加、P5 レビュー第 1 弾 5-R）ロード画面を手動開始にしたとき**: 手順5の `SceneLoadingScreen` の `Auto Start On Enable` チェックを外す(手動開始運用)→ Play Mode に入っても Preload が始まらないこと(`IsDone` が false のまま)を確認したうえで、`RunAsync()` を一度も呼ばずにその GameObject を非アクティブ化する(または Destroy する)→ Console にエラー/警告が出ず、他の Preload 呼び出し元の参照カウントに影響が無いこと(自動テストは `SceneLoadingScreenTests.OnDisable_WithoutRunAsyncEverStarted_DoesNotReleaseAnything` で代替済み)
 
 要判断:
 - **シーン→Preload リストの対応付けが「シーンに置いたコンポーネントの直参照」のみ**: `AssetCatalog`/`Catalogs[]` のような中央インデックスは作っていない。複数シーンをまとめて Preload するタイトル画面等が要る場合は `DDriveRuntimeBootstrap` に `ScenePreloadList[]` を足す拡張を検討してほしい([09] §10 5-7 節参照)
 - **`GenerateForAllBuildScenes` とビルド前フックは自動テスト対象外**: `EditorBuildSettings.scenes`(git 管理下の `ProjectSettings/EditorBuildSettings.asset`)を書き換えるため、実プロジェクトの設定を汚すリスクを避けて自動テストにしなかった。上記手順4・7で手動確認する
 - **Preload の粒度は Data(.asset)単位**: Data 内部の AudioClip/Texture/Prefab 等のサブアセットを個別に先読みする経路は無い(Addressables の依存バンドルとして一緒にロードされる前提)。体感のロード時間短縮効果は未実測
 - **ロード画面 UI は最小実装**: `SceneLoadingScreen` は uGUI の `Slider`/`Text` を任意で受けるだけの確認用コンポーネントで、デザイナー向けの正式なロード画面(Canvas/UiManager ベース)は未実装。実運用では置き換えを検討してほしい
-- **参照カウントの解放漏れリスク**: `ScenePreload.RunAsync` で確保した参照は対応する `ScenePreload.Release` を呼ぶまで解放されない。`SceneLoadingScreen.OnDisable` では解放するが、独自に `ScenePreload.RunAsync` を呼ぶコードを書く場合は解放を呼び忘れないよう注意が要る
+- **参照カウントの解放漏れリスク**: `ScenePreload.RunAsync` で確保した参照は対応する `ScenePreload.Release` を呼ぶまで解放されない。`SceneLoadingScreen.OnDisable` では解放するが、独自に `ScenePreload.RunAsync` を呼ぶコードを書く場合は解放を呼び忘れないよう注意が要る。→ **2026-09-14 対応済み(5-R)**: 逆方向の事故(`RunAsync` を一度も呼んでいないのに `OnDisable` が `Release` してしまい、他インスタンスの参照カウントを誤って減らす)を修正した。`_preloadStarted` フラグで「実際に確保したときだけ解放する」ようにしている(上記手順9)
 
 ## 5-1 Presentation（PR #21）
 
@@ -268,6 +271,7 @@
 4. **カメラが後から現れても揺れる**: `Camera.main` がまだ無いシーンで `Presentation.Play` 等を呼んでシェイクを発火させる → Console に `Camera.main が見つからないため、シェイクは no-op です` の警告が(1 回だけ)出ること。その後カメラを配置する(タグ MainCamera)と、次のシェイクから正常に揺れること
 5. **HitStop 中も揺れが止まらない**: 手順1のヒットストップ中(約 0.08 秒)にも画面の揺れが進行していること(スロー再生や連続スクリーンショットで確認するか、`CameraFxManagerTests` の自動テストで代替可)
 6. **Inspector から調整**: `Assets/GameData/Camera/Demo/SHAKE_Demo_DemoHitSmall.asset` を選び、Pattern を Decay Sine や Impulse に変えて保存 → 再生し直した結果に反映されること(専用エディタ(5-2c)が無いため、現状はこれが唯一の編集手段)
+7. **（2026-09-14 追加、P5 レビュー第 1 弾 5-R）カメラ切替中の揺れ**: シェイクを発火させたまま(揺れが収まる前に)`Camera.main` を別のカメラへ切り替える(2 台目の `MainCamera` タグ付きカメラを有効化して 1 台目を無効化する等)→ 元のカメラが `DDriveCameraShakeNode` の子から外れて元の位置(親)へ戻り、孤児ノードがヒエラルキーに残らないこと。切り替え後、新しいカメラでもシェイクが発火すること。さらに A→B→A と往復させても同様に孤児が残らないことを確認する(自動テストは `CameraFxManagerTests.EnsureCameraNode_SwapAtoBtoA_RestoresBothCameras_AndLeavesNoOrphanNode` で代替済みだが、実際のマルチカメラ演出(カメラ切替カットシーン等)で見た目に違和感が無いかは人の目で確認してほしい)
 
 要判断:
 - **Space/Pattern の簡略化**: `World`/`FromSource` の位置変換、`CustomCurve`(現状 Impulse と同じ)、回転(Rot)は常に CameraLocal 相当で適用、など複数の簡略化を行った。詳細と理由は [16_camera_haptics.md] 実装メモを参照。5-2c(専用エディタ)で波形プレビューを作る際に、これらの挙動で十分か判断してほしい
@@ -340,15 +344,17 @@
 5. **モデルを配置して統合プレビュー(AC ★目玉機能)**: ツールバー「確認用シーンを開く」→ 確認用シーンが開く。「モデル選択」に Animator 付きの `ModelData` を選び「配置」→ シーン原点にモデルが出る。「▶ 再生」を押す → **Vfx・Se・CameraShake・Haptic(パッド接続時は実機振動込み)が SceneView / Game ビューで同時に再生される**こと。ウィンドウ内には何も描かれないこと
 6. **Signal 手動発火(AC)**: `onHit`(SignalKey="hit")のような On Signal トラックがあるデータで再生中、「Signal レーン」の「Signal: hit」ボタンを押す → CameraShake/Haptic/SE 等の onHit 側トラックがその場で発火すること。ログ欄に `Fired: ...` が追加されること
 7. **速度・シーク・ループ**: 「速度」スライダーを 0.5x 程度にしてから再生 → 通常よりゆっくり進むこと。「シーク」を動かす → 再生ヘッドがその位置に飛び、通過済みのトラックがまとめて発火すること。「ループ」を ON にして再生 → 完了後に自動で最初から再生し直すこと
-8. **パラメータ上書き**: いずれかのトラックの「Params(パラメータ上書き)」を開き、要素を追加して値を変える → 保存されること(**要判断**: 5-4 時点では VFX/SE の実際の見た目・音量への反映経路が無いため、見た目には反映されない。docs/08 実装メモ参照)
-9. **環境切替**: 「環境切替」を開き、ライト強度スライダーと背景色を変える → 確認用シーンの実際のライト・カメラの背景色がその場で変わること(ウィンドウを閉じても戻らない = 通常の SceneView 操作と同じ、揺れ/振動のような自動復元はしない)
-10. **閉じると残骸が消え、カメラが元の位置に戻る(AC)**: 手順5で再生中(特に CameraShake が効いている状態)にウィンドウを閉じる → Hierarchy に `[D-Drive] Presentation Preview` や `[D-Drive] Anim Preview` 等の残骸が残らないこと、`DDriveCameraShakeNode` が無くカメラが元の親子構造・位置・回転に戻っていること(`SceneCameraShakePreviewDriver` 側の既存動作をそのまま利用)
-11. **Validation バナー**: Tracks の Asset を意図的に空にする、または OnSignal の SignalKey を空にする → ウィンドウ上部の「検証(Validation)」に Error/Warning が表示されること
-12. **自動テストの確認(代替可)**: 目視確認が難しい部分は `PresentationTrackKindMappingTests`(D&D の Kind 判定)/`PresentationTrackEditOpsTests`(追加・移動・削除・複製の Undo 往復)/`ScenePresentationPreviewDriverTests`(Play/Signal/Tick/Cancel/モデル配置、Fake Registry で実プロジェクトに触れない)で代替できる
+8. **パラメータ上書き**: いずれかの Vfx トラックの「Params(パラメータ上書き)」を開く → **2026-09-14 対応済み(5-R)**: 参照先 VFX に `Params`(`VfxParam[]`)が設定済みなら、その `Label` 一覧(`[0]=Alpha, [1]=Size, …`)がヒント表示されること。要素を追加してインデックス順に値を変え(例: `[0]` に Color、`[1]` に Float)、再生し直す → その VFX の見た目(色・サイズ等、参照先 `VfxParam.TargetProperty` に対応するマテリアルプロパティ)に実際に反映されること。**SE トラックは要判断のまま**(音量等への反映経路が無いため、値を入れても音には反映されない)
+9. **（2026-09-14 追加、P5 レビュー第 1 弾 5-R）Kind 変更時の Asset 整合**: いずれかのトラックの折りたたみを開き、「Kind」を(例)Vfx → Se に変更する → その場で行が再構築され、「Asset」欄が Se 用(SeData を受け付ける `ObjectField`)に切り替わり、直前まで入っていた Vfx の参照が空にクリアされること(Undo 1 回で Kind 変更前に戻ること)。以前は Asset 欄の型が古い Kind のまま残り、`Kind=Se, Asset.Type=Vfx` のような不整合データが保存され得た
+10. **（2026-09-14 追加、P5 レビュー第 1 弾 5-4 追補 b）プレビュー中の HitStop で全体が止まる**: HitStop トラック(または `handle.Signal`/デバッグ経由で HitStop を発火)を含むデータを再生する → HitStop 中は AtTime トラックの進行だけでなく、**Anim/Vfx/Haptic の見た目・振動も一緒に止まる**こと(以前はこれらが独立した Unscaled dt で自走しており、AtTime だけが止まって見た目が止まらなかった)。**CameraShake(揺れ)だけは HitStop 中も揺れ続けること**(ランタイム仕様どおりの意図的な挙動。バグではない)
+11. **環境切替**: 「環境切替」を開き、ライト強度スライダーと背景色を変える → 確認用シーンの実際のライト・カメラの背景色がその場で変わること(ウィンドウを閉じても戻らない = 通常の SceneView 操作と同じ、揺れ/振動のような自動復元はしない)
+12. **閉じると残骸が消え、カメラが元の位置に戻る(AC)**: 手順5で再生中(特に CameraShake が効いている状態)にウィンドウを閉じる → Hierarchy に `[D-Drive] Presentation Preview` や `[D-Drive] Anim Preview` 等の残骸が残らないこと、`DDriveCameraShakeNode` が無くカメラが元の親子構造・位置・回転に戻っていること(`SceneCameraShakePreviewDriver` 側の既存動作をそのまま利用)
+13. **Validation バナー**: Tracks の Asset を意図的に空にする、または OnSignal の SignalKey を空にする → ウィンドウ上部の「検証(Validation)」に Error/Warning が表示されること
+14. **自動テストの確認(代替可)**: 目視確認が難しい部分は `PresentationTrackKindMappingTests`(D&D の Kind 判定)/`PresentationTrackEditOpsTests`(追加・移動・削除・複製の Undo 往復)/`ScenePresentationPreviewDriverTests`(Play/Signal/Tick/Cancel/モデル配置、Fake Registry で実プロジェクトに触れない)/`EditorHapticsPreviewDriverTests`・`SceneVfxPreviewDriverTests`・`SceneAnimPreviewDriverTests`(HitStop スケーリング)で代替できる
 
 要判断:
-- **Params(パラメータ上書き)の実消費経路が無い**: `PresentationManager` は現状 VFX の色や SE の音量として `Params` を読んでいない。デザイナーが値を入れても見た目・音には反映されない。実際に使う演出が出てきた時点で `FireVfx`/`FireSe` 側に反映処理を足す必要がある
-- **HitStop がプレビュー内の Anim/Vfx/Shake/Haptic の Tick を止めない**: `ScenePresentationPreviewDriver` 自身の Tick(AtTime の進行)は HitStop で正しく止まるが、束ねている `SceneAnimPreviewDriver`/`SceneCameraShakePreviewDriver`/`EditorHapticsPreviewDriver` はそれぞれ独立した Unscaled dt で自走しているため、エディタプレビュー内では Anim/Vfx の見た目が HitStop で止まらない(ランタイムでは全 Manager が共通の `GameLoop.Tick` を共有するため発生しない、プレビュー限定の差異)
+- ~~Params(パラメータ上書き)の実消費経路が無い~~ → **2026-09-14 対応済み(5-R、VFX のみ。上記手順8参照)**。SE(音量等)は `AudioManager` に `SetVolume`/`SetPitch` はあるが、`VfxData.Params` に相当する「ラベル付き配列」が `SeData` に無く、同じインデックス↔Label 方式を機械的に適用できないため要判断のまま
+- ~~HitStop がプレビュー内の Anim/Vfx/Shake/Haptic の Tick を止めない~~ → **2026-09-14 対応済み(5-R、上記手順10参照)**。CameraShake だけは仕様どおり対象外
 - **LazyLoad アセットの事前解決は未対応**: `EditorAnchorRegistry.Build()` が起動時に一括解決した ID しか実体が見えない。ウィンドウを開いたまま新しく作成した Data を参照する場合は、ウィンドウを閉じて開き直す(Registry を作り直す)必要がある
 - **Bgm/Canvas/UiTween トラックはプレビュー未配線**: `PresentationManager` の「Manager 未設定」警告 + no-op で継続する(Se/Vfx/Anim/Anim2D/CameraShake/Haptic/HitStop/Marker/Signal のみプレビューで実際に動く)
 - **タイムラインのレーンは 6 グループにまとめた固定行**: Kind ごとに 1 行(13 行)ではなく関連 Kind をまとめた 6 行にしたため、同じレーンに近い時刻のトラックが並ぶと視覚的に重なることがある。演出が複雑になってきたら個別レーン化や横方向のズームを検討する

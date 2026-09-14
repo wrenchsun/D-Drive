@@ -73,6 +73,11 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 - **対象外の種別**(元ファイルが無い): Presentation / Shake / Haptics / UiTween / Anchor / AnchorGroup / ControlSkin(5-13 で別枠)。Cutscene は 6-10c で `IImportRuleHandler` を 1 つ追加する形で拡張する想定
 - 要判断は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-11」節末尾を参照(Anim2D の元ファイル解釈・複数テイク FBX 等)
 - テスト: `Tests/Editor/ImportRuleServiceTests.cs`(ルーティング/カテゴリ抽出/9 種別の生成/再取り込みでの二重生成防止/元ファイル削除後も Data が残ることの確認、14 件)
+- **レビュー対応(2026-09-14、P5 レビュー第 1 弾、整理)**: `ImportRulePostprocessor.AddPending` の重複チェックが
+  `List<string>.Contains`(O(n))で、大量ファイルの一括インポート/移動時に O(n²) になっていた
+  (review1_editor.md #2)。順序を保つ `Pending`(List)はそのまま残し、重複判定だけ対になる
+  `HashSet<string> PendingSet` で O(1) にした。`DependencyGraphPostprocessor.AddPending` も同じ問題
+  (`PendingChanged`/`PendingDeleted` それぞれに対応する `PendingChangedSet`/`PendingDeletedSet` を追加)。
 
 ## 2. プレビュー基盤（PreviewService）
 
@@ -320,9 +325,21 @@ Tools/
 - **ダブルクリックジャンプ**: `DependencyJumpService.RevealAt(sourcePath, objectPath)`。`.asset` は Data を選択+Ping。`.prefab` は `GameObject.transform.Find(objectPath)`(空なら Prefab ルート自身)を選択+Ping。`.unity` はまず確認ダイアログ→`EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()`→`OpenScene(Single)`(既に開いていればそのまま使う)→ ルート名(`objectPath` の先頭セグメント。5-5 の Scene 収集がオブジェクトパスの先頭にルート名を含める仕様と対応)から `GetRootGameObjects()` で探し、残りを `Transform.Find` で辿って選択+Ping。ダイアログ2箇所(`ConfirmOpenSceneOverride`/`SaveModifiedScenesOverride`)・削除確認(`SafeDeleteService.ConfirmDialogOverride`/`InfoDialogOverride`)はすべてテストから差し替え可能な `public static` デリゲート(`NewAssetDialog.TestGameDataRootOverride` と同じ流儀)
 - **AssetBrowser 側の配線**: 行の `VisualElement` に `ContextualMenuManipulator` を1つだけ付け(仮想化 `ListView` で使い回されるため)、対象は `BindRowElement` が差し替える `element.userData` から読む。ツールバーに「未使用...」ボタンを追加
 
+**レビュー対応(2026-09-14、P5 レビュー第 1 弾)**:
+- **P2: `CodeReferenceScan` が削除のたびに全 .cs を同期で全文読み込んでいた(review1_editor.md #3)**:
+  走査対象を「自前コード」(`Assets/DDrive`・`Assets/Generated`)に限定した(`Assets/TextMesh Pro` 等の
+  同梱サンプルコードは対象外。生成された ID 定数の利用箇所はこの 2 フォルダにしか無い前提)。加えて、
+  ファイル内容を static な `Dictionary<string,(DateTime writeTimeUtc, string text)>` キャッシュに保持し、
+  同じ Editor セッション内で複数回呼ばれても更新時刻が変わっていないファイルは再読み込みしないようにした
+  (「一括削除で件数が増えるほど重くなる」問題への対応)。
+- **整理: 削除確認でキャンセルしても Archived タグは残る旨をダイアログ文言に明記(review1_editor.md #8)**:
+  下記の要判断(3番目の項目)自体は設計判断として変更していないが、`SafeDeleteService.BuildConfirmMessage`
+  の確認ダイアログ本文に「キャンセルしても、削除候補として付けた Archived タグは残ります。」を追加した
+  (これまでは docs のコメントにしか書かれておらず、実際のダイアログを見るデザイナーには伝わらなかった)。
+
 要判断:
 - **依存ツリーは事前に全展開**(遅延展開・仮想化 TreeView にしていない)。1個のアセットが数百件を再帰的に参照するような極端なケースでは初回表示が重くなり得るが、5-5 のコメント同様このプロジェクト規模(Scene 17・Data 数百件)では実測上問題にならなかった。将来重くなったら `TreeView` の遅延展開(`IsExpanded` に応じてその場で `FindReferencesIn` する)に切り替える
-- **コード参照チェック(`CodeReferenceScan`)は grep ベースの best-effort**: 生成定数名(`ToConstantName` と同じ規則で組み立てた文字列)を `Assets/**/*.cs` から単純文字列検索するだけで、コメント内・文字列内・別名 using・部分一致等での誤検知/見逃しがあり得る。削除を止める判定には使わず、確認ダイアログの注意書きに留めた
+- **コード参照チェック(`CodeReferenceScan`)は grep ベースの best-effort**: 生成定数名(`ToConstantName` と同じ規則で組み立てた文字列)を `Assets/DDrive`・`Assets/Generated` 配下の .cs から単純文字列検索するだけで、コメント内・文字列内・別名 using・部分一致等での誤検知/見逃しがあり得る。削除を止める判定には使わず、確認ダイアログの注意書きに留めた
 - **「グラフ未構築」の判定は `CachedFileCount == 0` のみ**: 「古いかもしれない(Library はあるが最新の変更を反映していない)」ケースは検出できない(5-5 の要判断と同じ制約を引き継ぐ)
 - **Scene ジャンプは自動テスト対象外**: `EditorSceneManager.OpenScene(Single)` はアクティブシーンを差し替える副作用があり、共有の Test Runner セッションを不安定にし得るため、`DependencyJumpServiceTests` は `.asset`/`.prefab` 分岐のみを自動テストし、Scene 分岐は手動検証([28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-6」節)に委ねた
 - **Archived というタグ名の予約語化**: `AssetDataBase.Tags` は本来 TagCatalog(未実装)からの選択制だが、`"Archived"` という文字列を予約語にした。将来 TagCatalog を実装する際はこの文字列を辞書から除外する(またはタグでなく専用の bool フィールドに移行する)必要がある

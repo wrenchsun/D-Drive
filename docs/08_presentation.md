@@ -161,10 +161,21 @@ Timeline 風の複数トラック UI。
 - **モデル未配置でも再生できる**: `Play()` は `ctx.Self` が null でも呼べる(World/Anchor 基準のトラックや、Kind=Marker/Signal/HitStop だけの演出はモデル不要)。Self 基準のトラック(Vfx/Se の Target=Self、Anim/Anim2D)は「Animator が見つかりません」等の既存の警告 1 回 + no-op で継続する(`PresentationManager` の既存動作のまま)。
 
 要判断のまとめ(詳細は上記各項目):
-- Params(パラメータ上書き)の実消費経路が無い
-- HitStop がプレビュー内の Anim/Vfx/Shake/Haptic の Tick を止めない
+- ~~Params(パラメータ上書き)の実消費経路が無い~~ → **2026-09-14 対応済み(5-R、下記「レビュー対応」参照。VFX のみ)**
+- ~~HitStop がプレビュー内の Anim/Vfx/Shake/Haptic の Tick を止めない~~ → **2026-09-14 対応済み(5-R。Shake は仕様どおり対象外)**
 - LazyLoad アセットはプレビュー開始時に事前解決していない(新規作成直後の Data はウィンドウの開き直しが必要)
 - Bgm/Canvas/UiTween トラックは 5-4 時点でプレビュー未配線(警告 + no-op)
+
+## レビュー対応（2026-09-14、P5 レビュー第 1 弾・5-4 追補）
+
+5-4 の 2 つの要判断のうち、パラメータ上書き(VFX)と HitStop の対象範囲を対応した(SE のパラメータ上書きと LazyLoad 事前解決・Bgm/Canvas/UiTween 未配線は引き続き要判断/未対応のまま)。
+
+- **(a) パラメータ上書き(VFX)**: `PresentationManager.ApplyVfxTrackParams`(`Runtime/Presentation/PresentationManager.cs`)を追加し、`FireVfx` が `_vfx.SpawnData` した直後に呼ぶ。対応付けは「`PresentationTrack.Params[i]` ↔ 参照先 `VfxData.Params[i].Label`」の**インデックス対応**(`PresentationTrack` にラベル用フィールドを追加しない = シリアライズ変更を避ける決定を維持)。既存の `VfxManager.SetParam(handle, label, value)`(Label 解決)へそのまま渡すだけで、新しい消費経路は作っていない。`track.Params` が参照先 `VfxData.Params` より長い場合は超過分を無視する(例外にしない)。`PresentationEditorWindow.Tracks.cs` の Params 折りたたみに、Vfx トラックのときだけ `[0]=Alpha, [1]=Size, …` 形式のインデックス対応ヒントを表示するようにした。HitStop トラックの `Params[0]`(秒数)の既存意味は変更していない。**SE(音量等)は対象外のまま(要判断)**: `AudioManager.SetVolume`/`SetPitch` という個別 API は存在するが、`SeData` には `VfxData.Params` に相当する「ラベル付き配列」が無く、同じ「インデックス↔Label」方式を機械的に適用できない。`Params[0]=音量` のような決め打ちの対応を新たに定義するのは要判断とし、今回は実装していない(新しい API も作らない、というチケットの制約どおり)。
+- **(b) プレビュー中の HitStop**: `ScenePresentationPreviewDriver`/`SceneAnimPreviewDriver`/`SceneVfxPreviewDriver`/`EditorHapticsPreviewDriver` に任意の `TimeService timeService = null` を追加した(既定 null = 従来どおり Unscaled で単体使用可能。`AnimEditorWindow`/`ModelEditorWindow`/`Anim2DEditorWindow`/`AnchorEditorWindow`/`AnchorGroupEditorWindow`/`CameraFxEditorWindow`(HapticsEditor の「Test on Pad」)は今回一切変更していない)。`ScenePresentationPreviewDriver` は自分の `Time`(`TimeService`)を `AnimDriver`(内部の `Vfx` にも伝播)と `HapticsDriver` にだけ渡す。各ドライバの private `EditorTick` は、`EditorApplication.update` 由来の Unscaled dt に `timeService?.ScaledDeltaTime(dt)` を掛けてから自分の `Tick(dt)` を呼ぶようになった(`TimeService.Tick(unscaledDt)` 自体は呼ばない。呼ぶと HitStop の残り時間を複数箇所で減算してしまうため、状態を進めるのは `ScenePresentationPreviewDriver.Tick` が 1 フレームに 1 回だけ行い、他ドライバ側は `ScaledDeltaTime`(現在の `TimeScale` を読むだけの純関数)しか呼ばない)。**`ShakeDriver`(CameraFx)には渡していない**: ランタイムの `CameraFxManager` は HitStop 中も揺れを止めない仕様(Part A)のままであり、プレビューもそれに合わせて Unscaled のままにする(意図的。バグではない)。
+
+このほか、レビュー第 1 弾(review1_editor.md)の指摘のうち PresentationEditor 自体に関わる 2 件も同時に直した:
+- **Kind 変更時の Asset 不整合(P2-1)**: `PresentationEditorWindow.Tracks.cs` の `Kind` フィールドを専用コールバックにし、変更時に `Asset` を Undo 付きでクリアして行を再構築(`RefreshTracksList`)するようにした(以前は `Asset` の `ObjectField.objectType` が古い Kind のまま残り、`Kind=Se, Asset.Type=Vfx` のような不整合データが保存され得た)。
+- **Signal レーンが無かった(整理)**: `Lanes` に `TrackKind.Signal` がどこにも属していなかったため `LaneIndexFor` のフォールバック(最後のレーン)に落ちていた。`HitStop / Marker` レーンに `Signal` を加え、ラベルも `HitStop / Marker / Signal` に変えた。
 
 ## 実装メモ（2026-09-14、5-8）
 
