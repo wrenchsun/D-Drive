@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Manual;
 using DDrive.Foundation.Identity;
 using Newtonsoft.Json.Linq;
 
@@ -15,8 +16,11 @@ namespace DDrive.Editor.Spec
     public static class SpecWebParser
     {
         // assets.list の応答({ items: [...] , ok:true, status:200 })。
-        // humanAppUrl を渡すと、各行の SpecLink を「人向け SPA の URL + #/assets/<id>」で組み立てる
-        // (docs/32 §6: 5-14 の SpecUrl を Web アプリのアセット詳細ページの URL に変える)。
+        // humanAppUrl を渡すと、各行の SpecLink を「人向け SPA の URL + ?page=order&id=<種別::識別子>」
+        // で組み立てる(docs/32 §6/§10.8: 5-14 の SpecUrl を Web アプリのアセット詳細ページの URL に
+        // 変える。2026-09-14: PR #50(O-13)で Web 側が実装した `?page=order&id=...` ディープリンクに
+        // 合わせた。旧 `#/assets/<id>` ハッシュ形式は Web の SPA が location.hash に依存しないため
+        // 機能しなかった)。
         // 省略/null なら SpecLink は空のままにする(SpecDiffService/SpecSyncService は
         // 「シート側が空なら既存の SpecUrl を消さない」ため、安全側に倒れる)。
         public static SpecParseResult<SpecAssetRow> ParseAssets(string json, string humanAppUrl = null)
@@ -229,6 +233,10 @@ namespace DDrive.Editor.Spec
             return true;
         }
 
+        // Web 側(Tools/SpecWeb/src/Code.js の resolveInitialScreen_、html/OrderLinkLogic.html の
+        // buildOrderUrl)と同じ `?page=order&id=<種別::識別子>` 形式(assetId は assets.list の
+        // "id" フィールド=種別::識別子。§10 参照)。末尾スラッシュの扱いは ManualUrlBuilder.BuildWebUrl と
+        // 揃えるため、共通の AppendQuery(トリムしない)に寄せる。
         private static string BuildSpecLink(string humanAppUrl, string assetId)
         {
             if (string.IsNullOrEmpty(humanAppUrl) || string.IsNullOrEmpty(assetId))
@@ -236,7 +244,7 @@ namespace DDrive.Editor.Spec
                 return string.Empty;
             }
 
-            return humanAppUrl.TrimEnd('/') + "#/assets/" + Uri.EscapeDataString(assetId);
+            return ManualUrlBuilder.AppendQuery(humanAppUrl, "page=order&id=" + Uri.EscapeDataString(assetId));
         }
 
         private static string[] ToStringArray(JArray array)
