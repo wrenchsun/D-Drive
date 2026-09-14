@@ -187,6 +187,80 @@ test('google.script.history.setChangeHandler（戻る/進む相当）で画面�
   assert.equal(fakeGoogle.historyCalls.length, beforeCalls, 'setChangeHandler からの遷移は履歴を積み直さない');
 });
 
+// ---- 2026-09-15 二度目の修正（docs/32_spec_web.md 参照）----
+
+test('navigateTo: params.openId があると window.SpecWebPendingOpen に控える（history 往復で params が失われても Assets.html 側の保険で開けるようにする）', () => {
+  const { ctx } = setup();
+  ctx.window.registerScreen('assets', function (root) { root.textContent = 'assets-screen'; });
+
+  const before = Date.now();
+  ctx.window.SpecWebNavigate('assets', { params: { openId: 'Se::Hit', backTo: 'orders' } });
+
+  const pending = ctx.window.SpecWebPendingOpen;
+  assert.ok(pending, 'window.SpecWebPendingOpen が設定される');
+  assert.equal(pending.id, 'Se::Hit');
+  assert.equal(pending.backTo, 'orders');
+  assert.ok(typeof pending.at === 'number' && pending.at >= before, 'at にタイムスタンプが入る');
+});
+
+test('history 往復で params が失われても（push 直後・同一画面への skipHistory 再遷移）、再 render せず直前の描画を保持する', () => {
+  const { ctx, appRoot, fakeGoogle } = setup();
+  var renderCount = 0;
+  ctx.window.registerScreen('assets', function (root, params) {
+    renderCount++;
+    root.textContent = 'assets-screen:' + renderCount + ':' + JSON.stringify(params || {});
+  });
+
+  ctx.window.SpecWebNavigate('assets', { params: { openId: 'Se::Hit', backTo: 'orders' } });
+  assert.equal(renderCount, 1);
+  const renderedAfterRealNav = appRoot.textContent;
+
+  // google.script.history.push/replace が iframe 境界を越える postMessage 往復のせいで、
+  // 自分自身の push に対して setChangeHandler を呼び直し、その際 params（openId・backTo）が
+  // 失われることがある（URL に実際に載るのは hash＝画面 id だけのため）。
+  fakeGoogle.fireHistoryChange({ screen: 'assets', params: {} });
+
+  assert.equal(renderCount, 1, '直後の同一画面・params 抜けの skipHistory 再遷移は無視され、再 render されない');
+  assert.equal(appRoot.textContent, renderedAfterRealNav, 'DOM は直前の描画のまま（詳細パネルが消えない）');
+});
+
+test('history 往復: 同一画面でも params が実際に異なる正当な戻る/進む操作（push 直後でなければ）は普通に再 render する', () => {
+  const { ctx, appRoot, fakeGoogle } = setup();
+  var renderCount = 0;
+  ctx.window.registerScreen('manual', function (root, params) {
+    renderCount++;
+    root.textContent = 'manual:' + (params && params.p);
+  });
+
+  ctx.window.SpecWebNavigate('manual', { params: { p: 'glossary' } });
+  assert.equal(renderCount, 1);
+
+  // push を経由していない画面 id への通常の戻る/進む（ECHO_GUARD の対象外）。
+  fakeGoogle.fireHistoryChange({ screen: 'manual', params: { p: 'asset-browser' } });
+  assert.equal(renderCount, 2, 'params が実際に異なる setChangeHandler 由来の遷移は再 render される');
+  assert.equal(appRoot.textContent, 'manual:asset-browser');
+});
+
+test('renderScreen: 画面を切り替える前に、前の画面の cleanup（render の戻り値）を呼ぶ', () => {
+  const { ctx } = setup();
+  var cleanedUp = false;
+  ctx.window.registerScreen('orders', function (root) {
+    root.textContent = 'orders-screen';
+    return function cleanup() {
+      cleanedUp = true;
+    };
+  });
+  ctx.window.registerScreen('assets', function (root) {
+    root.textContent = 'assets-screen';
+  });
+
+  ctx.window.SpecWebNavigate('orders');
+  assert.equal(cleanedUp, false, 'まだ画面を離れていないので cleanup は呼ばれない');
+
+  ctx.window.SpecWebNavigate('assets');
+  assert.equal(cleanedUp, true, '画面を離れる際に前の画面の cleanup が呼ばれる（document への登録済みリスナー等の解除用）');
+});
+
 test('SpecWebClient.callApi: google.script.run.specWebUiCall を呼び、成功結果で resolve する', async () => {
   const { ctx } = setup({
     uiCall: function (name, params) {

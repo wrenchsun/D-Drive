@@ -134,14 +134,20 @@
         li.appendChild(el('button', {
           class: 'secondary',
           text: '編集',
-          onclick: function () {
+          onclick: function (ev) {
+            // 2026-09-15 二度目の修正: html/OrderTree.html の同名ボタンと同じ対策
+            // （docs/32_spec_web.md 参照）。この click はまだ document まで bubble する
+            // 途中のため打ち切り、画面遷移自体は setTimeout(…, 0) でこのクリックの処理が
+            // 完全に終わった後に行う。
+            if (ev && ev.stopPropagation) ev.stopPropagation();
             // 実アプリでは html/App.html が常に定義する。この画面単体のスモークテストの
             // sandbox には無いことがあるため存在確認してから呼ぶ。
-            if (typeof window.SpecWebNavigate === 'function') {
+            if (typeof window.SpecWebNavigate !== 'function') return;
+            setTimeout(function () {
               // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡し、
               // 一覧画面（Assets.html）の詳細パネルに「← 私の発注へ戻る」を出せるようにする。
               window.SpecWebNavigate('assets', { params: { openId: item.id, backTo: 'my-orders' } });
-            }
+            }, 0);
           }
         }));
         var deleteButton = el('button', { class: 'secondary', text: '削除' });

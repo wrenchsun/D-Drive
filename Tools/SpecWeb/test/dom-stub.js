@@ -36,14 +36,20 @@ function createFakeDom() {
   // （見た目の選択自体は検証しない。呼んでも例外にならないことが目的）。
   FakeNode.prototype.select = function () {};
 
+  // 実イベント伝播の再現（下記 fire 参照）に親を辿れる必要があるため、appendChild/removeChild/
+  // innerHTML='' のどれでも parentNode を維持する（実 DOM の Node.parentNode と同じ役割）。
   FakeNode.prototype.appendChild = function (child) {
-    if (child) this.children.push(child);
+    if (child) {
+      this.children.push(child);
+      child.parentNode = this;
+    }
     return child;
   };
 
   FakeNode.prototype.removeChild = function (child) {
     var index = this.children.indexOf(child);
     if (index !== -1) this.children.splice(index, 1);
+    if (child) child.parentNode = null;
     return child;
   };
 
@@ -87,16 +93,64 @@ function createFakeDom() {
       this._innerHTML = value;
       // Assets.html は innerHTML = '' を「子要素をクリアする」意図でしか使っていない。
       if (value === '') {
+        // 実 DOM 同様、取り除かれた子の parentNode も外す（イベント伝播の経路には残さない）。
+        this.children.forEach(function (child) { if (child) child.parentNode = null; });
         this.children = [];
       }
     }
   });
 
+  /**
+   * 緊急修正（2026-09-14 二度目、docs/32_spec_web.md 参照）: 実ブラウザのクリックイベントは
+   * target から document まで bubble し、bubble の途中で document に登録された listener
+   * （リンクコピー▼メニューの外側クリック判定等）も同じクリックで呼ばれる。
+   * 以前の実装は node 自身の listener しか呼んでおらず、この伝播が再現できていなかった
+   * （「編集」ボタン→画面遷移→document リスナーが同じクリックで発火し得る、という
+   * 実際の不具合の型をテストが見逃していた原因）。
+   *
+   * ここでは伝播経路（target→…→parentNode…→document）を dispatch 開始時点で確定してから
+   * 各ノードの「その時点で登録されている」listener を順に呼ぶ（stopPropagation で打ち切る）。
+   * 実 DOM も伝播経路はディスパッチ開始時に確定するため、ハンドラの中で要素を DOM から
+   * 取り除いても（root.innerHTML = '' 等）、既に確定した経路への伝播は止まらない
+   * （実際に起きていた不具合の型 = 古い画面の document リスナーが残っていると誤発火し得る、
+   * を再現するために重要な挙動）。
+   */
+  function composedPath(node) {
+    var path = [];
+    var cur = node;
+    while (cur) {
+      path.push(cur);
+      cur = cur.parentNode || null;
+    }
+    path.push(document); // 実 DOM の body/html を経て最終的に document まで bubble する分の代表。
+    return path;
+  }
+
   function fire(node, type, event) {
-    var handlers = (node._listeners && node._listeners[type]) || [];
-    handlers.forEach(function (handler) {
-      handler(event || {});
-    });
+    event = event || {};
+    var stopped = false;
+    if (typeof event.stopPropagation !== 'function') {
+      event.stopPropagation = function () { stopped = true; };
+    } else {
+      var original = event.stopPropagation;
+      event.stopPropagation = function () {
+        stopped = true;
+        original.call(event);
+      };
+    }
+    if (typeof event.preventDefault !== 'function') {
+      event.preventDefault = function () {};
+    }
+    if (event.target === undefined) event.target = node;
+
+    var path = composedPath(node);
+    for (var i = 0; i < path.length && !stopped; i++) {
+      var current = path[i];
+      var handlers = ((current._listeners && current._listeners[type]) || []).slice();
+      for (var j = 0; j < handlers.length && !stopped; j++) {
+        handlers[j](event);
+      }
+    }
   }
 
   /** children を再帰的に辿って、条件に合う最初のノードを返す（テストのアサート用）。 */

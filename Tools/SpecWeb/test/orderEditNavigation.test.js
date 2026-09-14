@@ -48,9 +48,21 @@ function loadHtmlScriptsWithRealWindow(fileBaseNames, sandbox) {
  * 開くところまでを、本物の関数を通して確認する。
  */
 
-function createFakeGoogleScript(apiHandlers) {
+/**
+ * @param {Object} apiHandlers
+ * @param {Object} [options]
+ * @param {boolean} [options.lossyHistory] 実デプロイで疑われる GAS 側の挙動
+ *   （google.script.history.push/replace は iframe サンドボックス境界を越えて親フレームに
+ *   postMessage するため、その応答として setChangeHandler の登録済みハンドラが「自分自身の
+ *   push に対しても」非同期に呼び直されることがある。その際、URL に実際に載るのは hash
+ *   （画面 id）だけで、state.params のような入れ子オブジェクトは往復で失われる場合がある
+ *   ＝ e.state.params が {} になって渡ってくる）。true にすると push/replace の直後に
+ *   その形（params 抜け）で changeHandler を非同期に呼び直す。
+ */
+function createFakeGoogleScript(apiHandlers, options) {
   var historyCalls = [];
   var changeHandler = null;
+  var lossyHistory = !!(options && options.lossyHistory);
 
   var run = {
     _successHandler: null,
@@ -96,12 +108,27 @@ function createFakeGoogleScript(apiHandlers) {
     }
   };
 
+  function maybeReplayLossy(state) {
+    if (!lossyHistory) return;
+    // 実際の postMessage 往復を模した非同期（同一クリックの同期処理が終わった後に効く）。
+    setTimeout(function () {
+      if (changeHandler) {
+        changeHandler({
+          state: { screen: state && state.screen, params: {} },
+          location: { parameters: {}, hash: (state && state.screen) || '' }
+        });
+      }
+    }, 0);
+  }
+
   var history = {
     push: function (state, urlParams, hash) {
       historyCalls.push({ method: 'push', state: state, hash: hash });
+      maybeReplayLossy(state);
     },
     replace: function (state, urlParams, hash) {
       historyCalls.push({ method: 'replace', state: state, hash: hash });
+      maybeReplayLossy(state);
     },
     setChangeHandler: function (fn) {
       changeHandler = fn;
@@ -117,7 +144,7 @@ function createFakeGoogleScript(apiHandlers) {
   };
 }
 
-function setup(role) {
+function setup(role, googleOptions) {
   const dom = createFakeDom();
   const appRoot = dom.document.createElement('div');
   const appNav = dom.document.createElement('nav');
@@ -160,7 +187,7 @@ function setup(role) {
     }
   };
 
-  const fakeGoogle = createFakeGoogleScript(apiHandlers);
+  const fakeGoogle = createFakeGoogleScript(apiHandlers, googleOptions);
   const domContentLoadedHandlers = [];
 
   // 重要: 実ブラウザでは `window === globalThis` であり、html/Assets.html・html/OrderTree.html は
@@ -240,4 +267,97 @@ test('発注ツリーの「編集」を押すと、画面を離れずに一覧�
   assert.equal(headingAfterBack, null, '発注ツリーに戻ると詳細パネルの見出しは無くなる');
   const editButtonsAfterBack = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '編集');
   assert.ok(editButtonsAfterBack.length >= 1, '発注ツリーの画面に戻っている（編集ボタンが再度見える）');
+});
+
+/**
+ * 2026-09-15 二度目の修正: PR #56（この上のテスト・skipHistory 一致ガード）の後も、
+ * 実デプロイでは「編集」→ 一覧が出るだけで詳細が開かない症状が再現していた。
+ *
+ * このテストは、それを再現していた 2 つの実要因を model 化する:
+ *   1) 「編集」ボタンの click は ev.stopPropagation() しておらず、そのまま document まで
+ *      bubble する（このテストが使う dom.fire は実際に bubble する。これまでの
+ *      dom-stub.js は target のリスナーしか呼ばず、この経路自体を検出できなかった）。
+ *   2) google.script.history.push/replace は iframe 境界を越えるため、setChangeHandler の
+ *      登録済みハンドラが「自分自身の push に対しても」非同期に呼び直されることがあり、
+ *      その際 URL に実際に載る hash（画面 id）しか復元できず、state.params のような
+ *      入れ子オブジェクトが失われる（e.state.params が {} になって渡ってくる）ことがある
+ *      （createFakeGoogleScript の lossyHistory オプションで再現）。
+ *      App.html の skipHistory ガード（id と params の両方が一致した時だけ再遷移を無視する）
+ *      は id は一致するが params が食い違うためガードされず、openId 無しで assets 画面が
+ *      丸ごと再 render される → pendingOpenId が最初から null → 詳細が開かず一覧だけになる。
+ */
+test('（再現・二度目の修正）history 往復で params が失われても、編集ボタンを押した発注の詳細が開く', async () => {
+  const { dom, appRoot, fireDomContentLoaded } = setup('editor', { lossyHistory: true });
+
+  fireDomContentLoaded();
+  await flush();
+  await flush();
+
+  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '編集');
+  assert.ok(editButtons.length >= 1, '発注ツリーに「編集」ボタンが表示される');
+  const editButton = editButtons[editButtons.length - 1];
+
+  assert.doesNotThrow(() => dom.fire(editButton, 'click'));
+
+  // reload()（3 API）→ maybeOpenPending → openDetail の assets.get 再取得、
+  // さらに lossyHistory の非同期リプレイ分も含めて十分に flush する。
+  await flush();
+  await flush();
+  await flush();
+  await flush();
+  await flush();
+  await flush();
+
+  const heading = dom.findNode(appRoot, (n) => n.tagName === 'h2');
+  assert.ok(heading, '詳細パネルの見出し(h2)が表示される（history 往復で params が失われても開く）');
+  assert.equal(heading.textContent, 'Se :: Hit', '編集ボタンを押した発注の詳細パネルが開く');
+
+  const notFoundMessage = dom.findNode(appRoot, (n) => n.tagName === 'p' && /見つかりません/.test(n.textContent || ''));
+  assert.equal(notFoundMessage, null, '「指定された発注が見つかりません」は出ない（実際に開けている）');
+});
+
+/**
+ * 2026-09-15 二度目の修正: 「発注ツリーの『リンクをコピー ▼』メニューを開いたまま画面を
+ * 離れると、そのメニューが document に張った click/keydown リスナーが外れないまま残る」を
+ * 直接確認する（App.html の renderScreen が画面切り替え前に呼ぶ cleanup、
+ * html/OrderTree.html・html/Assets.html の buildCopyLinkControl の menuClosers 対応）。
+ * 外れないままだと、別の画面に切り替えた後の無関係なクリックにまでこの古いリスナーが
+ * 反応し続けてしまう（実際に document.addEventListener が積みっぱなしになる不具合）。
+ */
+test('発注ツリーで「リンクをコピー ▼」メニューを開いたまま「編集」で画面を離れても、document に張られた古いリスナーは残らない', async () => {
+  const { dom, appRoot, fireDomContentLoaded } = setup('editor');
+
+  fireDomContentLoaded();
+  await flush();
+  await flush();
+
+  const baselineClickListeners = (dom.document._listeners.click || []).length;
+
+  const menuButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '▼');
+  assert.ok(menuButtons.length >= 1, '発注グループヘッダーに「リンクをコピー ▼」ボタンが出る');
+  dom.fire(menuButtons[0], 'click');
+
+  const afterOpenClickListeners = (dom.document._listeners.click || []).length;
+  assert.equal(
+    afterOpenClickListeners, baselineClickListeners + 1,
+    'メニューを開くと document に外側クリック判定用の click リスナーが1つ増える'
+  );
+
+  const editButtons = dom.findAllNodes(appRoot, (n) => n.tagName === 'button' && n.textContent === '編集');
+  const editButton = editButtons[editButtons.length - 1];
+  dom.fire(editButton, 'click');
+
+  await flush();
+  await flush();
+  await flush();
+  await flush();
+
+  const heading = dom.findNode(appRoot, (n) => n.tagName === 'h2');
+  assert.ok(heading, '編集ボタンを押した発注の詳細パネルが（メニューを開いたままでも）開く');
+
+  const afterNavigateClickListeners = (dom.document._listeners.click || []).length;
+  assert.equal(
+    afterNavigateClickListeners, baselineClickListeners,
+    '発注ツリーを離れたら、開いたままだったメニューの document click リスナーも解除される（残骸が残らない）'
+  );
 });

@@ -51,7 +51,28 @@
     // ため、無視しても実害はない）。
     var currentRenderId_ = null;
     var currentRenderParamsJson_ = null;
+    // 2026-09-15 二度目の修正（docs/32_spec_web.md 参照）: 上のガードだけでは実デプロイの
+    // 症状が直らなかった。google.script.history.push/replace は iframe サンドボックスの
+    // 境界を postMessage で越えるため、setChangeHandler が「自分自身の push」に対しても
+    // 非同期に呼び直されることがあり、その際 URL に実際に載る hash（画面 id）だけしか
+    // 復元できず、state.params のような入れ子オブジェクトが失われて渡ってくることがある
+    // （id は一致するが params が空になる＝上のガードの paramsJson 一致条件に引っかからない）。
+    // push/replace を呼んだ直後の一定時間内に「同じ画面 id・params 不一致」の skipHistory な
+    // 再遷移が来た場合は、そのこだまである可能性が高いとみなし、再 render せず直前の描画を
+    // 保持する（本物の戻る/進むボタン操作が push した直後の同じ画面にちょうど当たることは
+    // 実運用上ほぼ無いため、この時間窓で誤って本物の戻る操作を無視するリスクは小さい）。
+    var lastOwnHistoryWriteAt_ = null;
+    var ECHO_GUARD_MS = 3000;
+    // 画面を離れるときに後始末したい画面（document へのイベント登録等）向けに、
+    // 現在の画面の render() が返した cleanup 関数を保持する（無ければ null）。
+    var currentCleanup_ = null;
 
+    /**
+     * @param {function(root, params): (function()|void)} render 画面の描画関数。
+     *   画面を離れる際に後始末（document のイベント登録解除等）が必要な場合は、
+     *   その後始末を行う関数を返す（renderScreen が次の画面に切り替える直前に呼ぶ）。
+     *   何も返さなければ後始末は無し（既存の画面はこの戻り値を無視するだけで動く）。
+     */
     function registerScreen(id, render) {
       if (screens[id]) {
         console.warn('画面は既に登録されています: ' + id);
@@ -65,15 +86,29 @@
      *   既存の画面（render(root) しか受け取らないもの）は第 2 引数を無視するだけで動く。
      */
     function renderScreen(id, params) {
+      // 2026-09-15: 前の画面が document 等に張ったままのリスナーを、次の画面に切り替える前に
+      // 必ず解除する（画面を離れても解除されない listener が、別の画面に切り替わった後の
+      // クリックで誤発火する事故を防ぐ）。
+      if (typeof currentCleanup_ === 'function') {
+        try {
+          currentCleanup_();
+        } catch (e) {
+          console.warn('前の画面の後始末（cleanup）で例外が発生しました', e);
+        }
+      }
+      currentCleanup_ = null;
+
       var root = document.getElementById('app-root');
       var render = screens[id] || screens[DEFAULT_SCREEN_ID];
       var resolvedId = screens[id] ? id : DEFAULT_SCREEN_ID;
+      console.info('[SpecWeb nav] renderScreen', { id: id, resolvedId: resolvedId, params: params });
       root.innerHTML = '';
       if (!render) {
         root.textContent = '画面が登録されていません: ' + id;
         return resolvedId;
       }
-      render(root, params || {});
+      var cleanup = render(root, params || {});
+      if (typeof cleanup === 'function') currentCleanup_ = cleanup;
       return resolvedId;
     }
 
@@ -86,16 +121,45 @@
       options = options || {};
       var params = options.params || {};
       var paramsJson = JSON.stringify(params);
-      // 上のコメント参照: skipHistory な再遷移が、直前と同じ画面・同じ params であれば
-      // 何もしない（push/replace が引き起こす再帰的な setChangeHandler 呼び出しを無害化する）。
-      if (options.skipHistory && id === currentRenderId_ && paramsJson === currentRenderParamsJson_) {
-        return currentRenderId_;
+      console.info('[SpecWeb nav] navigateTo', { id: id, params: params, skipHistory: !!options.skipHistory });
+
+      if (options.skipHistory && id === currentRenderId_) {
+        // 上のコメント参照: skipHistory な再遷移が、直前と同じ画面・同じ params であれば
+        // 何もしない（push/replace が引き起こす再帰的な setChangeHandler 呼び出しを無害化する）。
+        if (paramsJson === currentRenderParamsJson_) {
+          return currentRenderId_;
+        }
+        // 2026-09-15 二度目の修正: 「params が丸ごと消えている」場合に限り、直前に自分自身が
+        // push/replace した直後（ECHO_GUARD_MS 以内）なら iframe 境界を越える往復で params が
+        // 失われたこだまとみなして無視する（直前の描画を保持する）。params が単に「別の値」に
+        // 変わっている場合（例: 同じ画面 id で別の manual ページへの本物の戻る/進む）は、
+        // こだまではなく正当な履歴操作の可能性があるため、ここでは無視しない
+        // （画面 id が同じだけで抑制すると、本物の戻る/進むが直後に来たときに効かなくなる）。
+        var incomingIsEmpty = Object.keys(params).length === 0;
+        var currentHadParams = currentRenderParamsJson_ && currentRenderParamsJson_ !== '{}';
+        if (incomingIsEmpty && currentHadParams &&
+          lastOwnHistoryWriteAt_ !== null && (Date.now() - lastOwnHistoryWriteAt_) < ECHO_GUARD_MS) {
+          console.info('[SpecWeb nav] ignoring likely lossy history echo (same screen, params dropped)', {
+            id: id, currentParamsJson: currentRenderParamsJson_
+          });
+          return currentRenderId_;
+        }
       }
+
+      // 2026-09-15 二度目の修正: どの経路であれ openId 付きで発注ツリー/私の発注から
+      // 遷移する場合は、renderScreen の params だけに頼らず window.SpecWebPendingOpen にも
+      // 同じ内容を控えておく（Assets.html の maybeOpenPending が params 経路が壊れていても
+      // 拾えるようにする最後の保険。10 秒より古いものは無視・使ったら消す）。
+      if (params && params.openId) {
+        window.SpecWebPendingOpen = { id: params.openId, backTo: params.backTo || null, at: Date.now() };
+      }
+
       var resolvedId = renderScreen(id, params);
       currentRenderId_ = resolvedId;
       currentRenderParamsJson_ = paramsJson;
       if (window.google && window.google.script && window.google.script.history && !options.skipHistory) {
         var method = options.replace ? 'replace' : 'push';
+        lastOwnHistoryWriteAt_ = Date.now();
         window.google.script.history[method]({ screen: resolvedId, params: params }, {}, resolvedId);
       }
       return resolvedId;

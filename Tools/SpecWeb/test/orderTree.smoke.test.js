@@ -332,6 +332,9 @@ test('editor: 発注の行に「編集」ボタンが出て、押すと SpecWebN
   assert.ok(editButton, '発注の行に「編集」ボタンが出る');
   const button = dom.findNode(editButton, (n) => n.tagName === 'button' && n.textContent === '編集');
   dom.fire(button, 'click');
+  // 2026-09-15 二度目の修正: 画面遷移は setTimeout(…, 0) でこのクリックの処理が完全に
+  // 終わった後に行うようにした（docs/32_spec_web.md 参照）。
+  await flush();
 
   assert.equal(navigateCalls.length, 1);
   assert.equal(navigateCalls[0].id, 'assets');

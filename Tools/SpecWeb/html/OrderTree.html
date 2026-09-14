@@ -126,8 +126,16 @@
     /**
      * O-13: 「リンクをコピー」ボタン + ▼ メニュー。html/Assets.html の同名関数と同じ実装
      * （画面ごとに小さく複製する既存方針。el() 自体も両ファイルで複製されている）。
+     *
+     * @param {Array<function()>} [menuClosers] 2026-09-15 追加: この画面が今開いている
+     *   メニューの closeMenu をまとめて把握するための共有配列（呼び出し側=registerScreen の
+     *   render が保持する）。開いたら push、閉じたら取り除く。画面を離れる際、この配列に
+     *   残っている closeMenu を呼べば document の click/keydown リスナーを確実に外せる
+     *   （renderBody() が再描画で DOM を作り直しても、開いていたメニューの document
+     *   リスナーは自動では外れない＝そのままでは別の画面に切り替えた後のクリックにも
+     *   反応し続けてしまうため）。
      */
-    function buildCopyLinkControl(getUrl, getLabel) {
+    function buildCopyLinkControl(getUrl, getLabel, menuClosers) {
       var wrap = el('span', { class: 'sw-copylink' });
       var status = el('span', { class: 'sw-copylink-status' });
       var menu = el('div', { class: 'sw-copylink-menu' });
@@ -149,12 +157,17 @@
         menu.hidden = false;
         document.addEventListener('click', handleOutsideClick);
         document.addEventListener('keydown', handleKeydown);
+        if (menuClosers) menuClosers.push(closeMenu);
       }
       function closeMenu() {
         if (menu.hidden) return;
         menu.hidden = true;
         document.removeEventListener('click', handleOutsideClick);
         document.removeEventListener('keydown', handleKeydown);
+        if (menuClosers) {
+          var idx = menuClosers.indexOf(closeMenu);
+          if (idx !== -1) menuClosers.splice(idx, 1);
+        }
       }
 
       function clearFallback() {
@@ -243,6 +256,11 @@
         // O-15: 「編集」を押して編集フォームを表示中の発注グループ id（無ければ null）。
         editingGroupId: null
       };
+
+      // 2026-09-15 追加: この画面で今開いている「リンクをコピー」メニューの closeMenu 一覧
+      // （buildCopyLinkControl 参照）。画面を離れる際にまとめて閉じ、document の
+      // click/keydown リスナーを外す（下の cleanup 参照）。
+      var menuClosers = [];
 
       var toolbar = el('div', { class: 'order-tree-toolbar' });
       var newGroupBar = el('div', { class: 'order-tree-new-group' });
@@ -382,7 +400,8 @@
           // （node.id === null）はグループそのものが存在しないため対象外。
           header.appendChild(buildCopyLinkControl(
             function () { return window.OrderLinkLogic.buildGroupUrl(window.SpecWebExecUrl, node.id); },
-            function () { return node.name; }
+            function () { return node.name; },
+            menuClosers
           ));
         }
         if (node.id && canEdit()) {
@@ -487,14 +506,23 @@
           li.appendChild(el('button', {
             class: 'secondary',
             text: '編集',
-            onclick: function () {
+            onclick: function (ev) {
+              // 2026-09-15 二度目の修正: この click はまだ document まで bubble する途中
+              // （stopPropagation していなかった）。離れる直前の画面が document に張ったままの
+              // リスナー（リンクコピー▼メニューの外側クリック判定等）が同じクリックで
+              // 誤発火し得たため、ここで打ち切る。加えて画面遷移自体は setTimeout(…, 0) で
+              // 「このクリックの処理が完全に終わった後」に行う（同期的な遷移中に document へ
+              // 新しく登録されるリスナーが、同じクリックの残り bubble に反応してしまう経路も
+              // 塞ぐ）。
+              if (ev && ev.stopPropagation) ev.stopPropagation();
               // App.html が定義する画面遷移（このファイルの smoke テストの sandbox には無いため
               // 存在確認してから呼ぶ。実アプリでは常に存在する）。
-              if (typeof window.SpecWebNavigate === 'function') {
+              if (typeof window.SpecWebNavigate !== 'function') return;
+              setTimeout(function () {
                 // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡し、
                 // 一覧画面（Assets.html）の詳細パネルに「← 発注ツリーへ戻る」を出せるようにする。
                 window.SpecWebNavigate('assets', { params: { openId: item.id, backTo: 'orders' } });
-              }
+              }, 0);
             }
           }));
           var deleteButton = el('button', { class: 'secondary', text: '削除' });
@@ -643,6 +671,16 @@
       }
 
       reload();
+
+      // 2026-09-15 追加: この画面を離れる際、App.html の renderScreen が呼ぶ後始末。
+      // 開いたままの「リンクをコピー」メニューを閉じ、document の click/keydown リスナーを
+      // 確実に外す（外さないと、別の画面に切り替えた後のクリックにまで反応してしまう）。
+      // 2026-09-15 追加: この画面を離れる際、App.html の renderScreen が呼ぶ後始末。
+      // 開いたままの「リンクをコピー」メニューを閉じ、document の click/keydown リスナーを
+      // 確実に外す（外さないと、別の画面に切り替えた後のクリックにまで反応してしまう）。
+      return function cleanup() {
+        menuClosers.slice().forEach(function (close) { close(); });
+      };
     });
   })();
 </script>
