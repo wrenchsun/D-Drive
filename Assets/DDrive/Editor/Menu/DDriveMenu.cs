@@ -10,5 +10,7 @@ namespace DDrive.Editor.Menu
         public const string Validation = Root + "Validation/";
         public const string Generate = Root + "Generate/";
         public const string Debug = Root + "Debug/";
+        // [11_tasks.md] 6-0(E) — 実機確認用ビルド一式。
+        public const string Build = Root + "Build/";
     }
 }
