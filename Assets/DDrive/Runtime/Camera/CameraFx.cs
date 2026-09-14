@@ -1,8 +1,8 @@
 using DDrive.Foundation.Handle;
 using UnityEngine;
-using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Camera.ShakeMarker>;
+using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker>;
 
-namespace DDrive.Runtime.Camera
+namespace DDrive.Runtime.CameraShake
 {
     // デザイナー/プログラマー向けの薄い静的ファサード(Vfx.cs / Audio.cs と同じ設計。ADR#3)。
     // Bind 前 / 未 Bind の呼び出しは全て no-op(Invalid Handle)で継続する(例外で止めない)。

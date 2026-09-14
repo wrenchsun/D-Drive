@@ -122,6 +122,23 @@ public static class Haptics
 | Haptic Duration > 2s | Warning（長すぎる振動） |
 | Presentation の CameraShake/Haptic トラックが直値（ID なし） | Error（ID 参照に統一） |
 
+## 実装メモ（2026-09-14、5-2 整理）
+
+下記「名前空間の衝突（要修正）」を解消した: `Runtime/Camera/*.cs` の名前空間を `DDrive.Runtime.Camera` から
+**`DDrive.Runtime.CameraShake`** に改名した（フォルダ名 `Runtime/Camera/` はそのまま。衝突しない別名にする
+だけで済み、フォルダをファイル名に揃える必要はないと判断した）。これに伴い、衝突回避のために入っていた
+`Runtime/Anim2D/Anim2DFacing.cs` の `UnityEngine.Camera` 完全修飾、`CameraFxManager.cs` 内の
+`UnityEngine.Camera.main` 完全修飾は不要になったため、どちらも `Camera` / `Camera.main` の非修飾に戻した。
+`DDriveRuntimeBootstrap.cs` の `Runtime.Camera.CameraFx.Bind(...)`（こちらは名前空間衝突とは別に、同クラス内の
+`CameraFxManager CameraFx` プロパティと静的ファサード `CameraFx` を区別するための完全修飾）は
+`Runtime.CameraShake.CameraFx.Bind(...)` に更新した。参照側（`PresentationManager.cs` / `OptionStore.cs` /
+関連テスト 3 本の `using` と `ShakeId` エイリアス）もすべて追従した。
+`CameraShakeData` はアセットとして保存済みだが、ScriptableObject のスクリプト参照は `.meta` の GUID で結ばれる
+ため名前空間変更では壊れない。`ShakeId`(`AssetId<ShakeMarker>`)や `ShakePattern`/`ShakeSpace` 列挙体は
+`[SerializeReference]` を使う多態フィールドではなく普通の struct/enum フィールドなので、シリアライズされた
+YAML に型名文字列は書き込まれない(フィールド順で復元される) — したがって `[MovedFromAttribute]` は不要と
+判断した。
+
 ## 実装メモ（2026-09-14、5-2 / 5-2b）
 
 実装: `Runtime/Camera/{CameraShakeData,CameraFxManager,CameraFx,CameraShakeDataValidator}.cs`、
@@ -205,3 +222,4 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
   不要、既に対応表にあった）。デモアセット作成に伴う Addressables グループ（`DDrive_GameData.asset` /
   `DDrive_Catalogs.asset`）への追記はユーザーの未コミット変更と同じファイルのためコミットしていない
   （追加された行は `docs/28_manual_verification_phase5.md` の要判断に列挙）。
+

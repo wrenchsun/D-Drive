@@ -7,9 +7,9 @@ using DDrive.Foundation.Pause;
 using DDrive.Foundation.Registry;
 using DDrive.Foundation.Values;
 using UnityEngine;
-using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Camera.ShakeMarker>;
+using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker>;
 
-namespace DDrive.Runtime.Camera
+namespace DDrive.Runtime.CameraShake
 {
     // [16_camera_haptics.md] Part A — カメラシェイクの中核。Trauma 方式で合成する(多重発火で破綻しない)。
     //
@@ -261,7 +261,7 @@ namespace DDrive.Runtime.Camera
 
         private void EnsureCameraNode()
         {
-            var cam = UnityEngine.Camera.main;
+            var cam = Camera.main;
             if (cam == null)
             {
                 if (!_cameraMissingWarned)

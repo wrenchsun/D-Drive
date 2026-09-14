@@ -8,7 +8,7 @@ using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
-using DDrive.Runtime.Camera;
+using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Loading;
 using DDrive.Runtime.Material;
@@ -240,7 +240,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.UiSkins.Bind(Registry);
                 Runtime.Ui.UiFx.Bind(UiTweens);
                 Runtime.Ui.Options.Bind(Options);
-                Runtime.Camera.CameraFx.Bind(CameraFx);
+                Runtime.CameraShake.CameraFx.Bind(CameraFx);
                 Runtime.Haptics.Haptics.Bind(Haptics);
                 Anchors.Bind(Groups);
                 Runtime.Tuning.Tuning.Bind(TuningTable);
@@ -305,7 +305,7 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.UiSkins.Bind((IAssetRegistry)null);
                 Runtime.Ui.UiFx.Bind(null);
                 Runtime.Ui.Options.Bind(null);
-                Runtime.Camera.CameraFx.Bind(null);
+                Runtime.CameraShake.CameraFx.Bind(null);
                 Runtime.Haptics.Haptics.Bind(null);
                 Anchors.Bind(null);
                 Runtime.Tuning.Tuning.Bind(null);

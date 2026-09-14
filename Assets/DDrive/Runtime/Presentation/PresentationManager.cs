@@ -10,7 +10,7 @@ using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
-using DDrive.Runtime.Camera;
+using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Ui;
 using DDrive.Runtime.Vfx;

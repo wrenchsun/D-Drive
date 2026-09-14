@@ -8,7 +8,7 @@ using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
-using DDrive.Runtime.Camera;
+using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
@@ -16,7 +16,7 @@ using NUnit.Framework;
 using R3;
 using UnityEngine;
 using VfxId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>;
-using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Camera.ShakeMarker>;
+using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker>;
 using HapticId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker>;
 
 namespace DDrive.Tests.Runtime
