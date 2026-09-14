@@ -40,12 +40,14 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 | ID 定数再生成 | ツールバーから 1 クリック。保存フックでの自動生成も設定可 |
 | Validation | ⚠ボタンで全体検査 → 結果一覧（Error/Warning、FixAction ボタン付き）。行クリックで該当 Data へ |
 | 一括操作 | 複数選択 → タグ付与 / カテゴリ移動 / Addressable グループ変更 |
+| ダブルクリックで専用エディタを開く（2026-09-14） | 行をダブルクリック（or 選択中に Enter）→ その Data の専用エディタ（§8 の `[DataEditor]`）があれば主エディタを開いて対象にセット（Inspector の「エディターで開く」列の先頭ボタンと同じ）。専用エディタが無い種別は従来どおり Inspector で選択 + Ping。右クリックメニューにも同じ経路の「エディターで開く」（候補が複数ある種別はサブメニューで全候補）を追加 |
 
 ### 実装メモ
 
 - 一覧のデータソースは AssetRegistry の Entries + 依存グラフキャッシュ。`AssetPostprocessor` で差分更新
 - 検索インデックスは起動時に構築し EditorPrefs でなく `Library/DDrive/` にキャッシュ
 - 大量アセット対応: ListView の仮想化（1 万件でスクロール 60fps）
+- **ダブルクリックで専用エディタを開く（2026-09-14）**: `AssetBrowserWindow.OnItemsChosen`（`ListView.itemsChosen`。ダブルクリックと Enter キーの両方を通す）が `DataEditorRegistry.OpenDefault(AssetDataBase)` に委譲するだけで、§8 の「エディターで開く」ボタン列と全く同じ経路を通る（新しい開き方は増やしていない）。1 つの Data 型に複数の `[DataEditor]` が付いている種別（`MaterialData`＝Material Editor / Material 変換 / プレビューをポップアップ、`SliderSkinData`＝Skin Editor / Slider Editor）の**優先順位は既存の `Order` 昇順**（`DataEditorRegistry.GetEntries` が既に返している順）の先頭で、これを `DataEditorRegistry.TryGetPrimary` として公開した。既定の `Order`（未指定＝0）が「主エディタ」（`MaterialEditorWindow` / `SliderSkinEditorWindow`）に付き、変換・プレビュー等の副次ツールだけが明示的に大きい `Order` を付ける既存の運用にそのまま合致するため、この機能のために優先順位ルールを新設していない。対応する `[DataEditor]` が無い種別（例: 現状すべての Data 型に専用エディタがあるため無いが、将来増えた場合)はダブルクリックしても何も開かず、選択 + Ping のみ行う
 
 ### 1.1 インポート検知による Data 自動生成（ImportRule、チケット 5-11、2026-09-14）
 
