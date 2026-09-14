@@ -17,6 +17,7 @@ var SPEC_WEB_MANUAL_PAGE_NAMES = [
   "camera-haptics",
   "canvas-data",
   "canvas-editor",
+  "getting-started",
   "glossary",
   "material-data",
   "material-editor",

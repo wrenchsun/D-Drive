@@ -1,0 +1,139 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › はじめての15分（新規メンバー向け）</nav>
+
+<h1>はじめての15分（新規メンバー向け）</h1>
+
+<p>このページは、D-Drive を初めて触る人が<strong>効果音（SE）を1つ登録してゲームに反映させる</strong>までを、実際にかかる時間の目安つきで説明します。<a href="#" data-manual-page="Readme">トップページの「はじめの一歩」</a>より詳しく、つまずきやすい点も先に案内します。プログラムの知識は不要です。</p>
+
+<div class="tip">
+<strong>目標:</strong> 「効果音を1つ登録し、鳴らせる状態にする」までをおよそ<strong>15分</strong>で一巡できます。慣れれば数分で終わる作業ですが、最初は各手順の意味を確認しながら進めてください。
+</div>
+
+<h2>全体の流れ（所要時間の目安）</h2>
+<table>
+<tr><th>#</th><th>手順</th><th>目安時間</th></tr>
+<tr><td>1</td><td>Unity を開く（前提。すでに開いていれば 0 分）</td><td>—</td></tr>
+<tr><td>2</td><td><a href="#step2" data-manual-anchor="step2">「？ マニュアル」ボタンの場所を確認する</a></td><td>1 分</td></tr>
+<tr><td>3</td><td><a href="#step3" data-manual-anchor="step3">Asset Browser を開く</a></td><td>1 分</td></tr>
+<tr><td>4</td><td><a href="#step4" data-manual-anchor="step4">SE を登録する（フォルダに置く、または D&amp;D）</a></td><td>3 分</td></tr>
+<tr><td>5</td><td><a href="#step5" data-manual-anchor="step5">試聴する</a></td><td>1 分</td></tr>
+<tr><td>6</td><td><a href="#step6" data-manual-anchor="step6">音量を調整する</a></td><td>2 分</td></tr>
+<tr><td>7</td><td><a href="#step7" data-manual-anchor="step7">Validation で確認する</a></td><td>2 分</td></tr>
+<tr><td>8</td><td><a href="#step8" data-manual-anchor="step8">保存する</a></td><td>1 分</td></tr>
+<tr><td>9</td><td><a href="#step9" data-manual-anchor="step9">（発注に対応している場合）発注ツールで「インポート済」を確認する</a></td><td>2 分</td></tr>
+<tr><td colspan="2">合計</td><td>約 13 分（つまずいても+数分で 15 分以内）</td></tr>
+</table>
+
+<h2 id="step2">手順2: 「？ マニュアル」ボタンの場所を確認する</h2>
+<p>Unity 画面上部、再生ボタン（▶）のすぐ右にある<strong>「？ マニュアル」ボタン</strong>から、このマニュアルをいつでもブラウザで開けます。困ったときはまずここに戻ってきてください。</p>
+<div class="warn">
+<strong>つまずきポイント: ボタンが最初は隠れています。</strong> 見当たらない場合は、画面上部のツールバーの何もない場所を右クリックし、「D-Drive/Manual」にチェックを入れてください（1 回だけで OK。以後は常に表示されます）。メニューの <code>Tools &gt; D-Drive &gt; マニュアルを開く</code> からも同じページを開けます。
+</div>
+
+<h2 id="step3">手順3: Asset Browser を開く</h2>
+<p>メニューバーの <code>Tools &gt; D-Drive &gt; Asset Browser</code> を開きます。これが D-Drive のすべての素材の入口です。詳しくは <a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a>。</p>
+
+<h2 id="step4">手順4: SE を登録する</h2>
+<p>やり方は2つあります。どちらでも構いません。</p>
+<table>
+<tr><th>方法</th><th>手順</th></tr>
+<tr><td>A. フォルダに置く（自動検知）</td><td><code>Assets/SourceAssets/Se/&lt;カテゴリ&gt;/</code>（例: <code>Assets/SourceAssets/Se/Player/</code>）に音声ファイル（.wav 等）を置くと、数秒後に自動で SeData が作られます。</td></tr>
+<tr><td>B. Asset Browser にドラッグ＆ドロップ</td><td>Project ウィンドウの音声ファイルを Asset Browser のウィンドウ上へドラッグ＆ドロップ → ダイアログで表示名・識別子を入力 → 「作成」。</td></tr>
+</table>
+<div class="warn">
+<strong>つまずきポイント: 種別フォルダは「SourceAssets の直下1階層目」でなければなりません。</strong> <code>Assets/SourceAssets/Se/Player/Slash.wav</code> は検知されますが、<code>Assets/SourceAssets/Slash.wav</code>（直下に直置き）や <code>Assets/SourceAssets/Check/Se/Slash.wav</code>（Se の上に別フォルダを挟む）は検知されません。フォルダ名の大文字・小文字（<code>Se</code>）も一致させてください。置き方を間違えると Console に案内の警告が出ます。詳しくは <a href="#" data-manual-page="asset-browser">Asset Browser の使い方 §方法3</a>。
+</div>
+<p>方法 A で作った場合、表示名は最初はファイル名のままです。Asset Browser の一覧でその SE を選び、Inspector の「Display Name」を分かりやすい日本語名に変えておきましょう（例:「剣の斬撃音」）。</p>
+
+<h2 id="step5">手順5: 試聴する</h2>
+<p>Asset Browser の一覧でその SE をクリックして選び、下のプレビューバーの<strong>▶ 再生</strong>を押します。ゲームを実行しなくてもその場で鳴ります。詳しくは <a href="#" data-manual-page="se-data">SE の設定項目</a>。</p>
+
+<h2 id="step6">手順6: 音量を調整する</h2>
+<p>Inspector の <code>Volume</code>（0〜1）を変更し、プレビューバーの▶で鳴らし直して確認します。細かく波形を見ながら調整したい場合は <a href="#" data-manual-page="audio-editor">Audio Editor</a> を開いたまま作業すると効率的です。</p>
+
+<h2 id="step7">手順7: Validation で確認する</h2>
+<p>メニューの <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> を実行します。この SE に関する赤い表示（Error）が無いことを確認してください。よくあるのは「Mixer が未割当」「Clip が未設定」です。詳しくは <a href="#" data-manual-page="validation">Validation の使い方</a>。</p>
+<div class="tip">
+自動で直せる項目には「修正」ボタンが出ます。押すだけで直り、Ctrl+Z で戻せます。
+</div>
+
+<h2 id="step8">手順8: 保存する</h2>
+<p><kbd>Ctrl+S</kbd>（Unity のシーン保存ではなく、Inspector 上のアセット自体は選択を変えた時点や Unity の自動保存で反映されます。明示的に保存したい場合は Project ウィンドウでそのアセットを選び直すか、メニューの <code>File &gt; Save Project</code> を使っても構いません）。</p>
+<div class="tip">
+保存すると、Inspector の「エディターで開く」ボタンの下に版数（Version）・更新者（Author）・更新日時（Updated At）が<strong>自動で</strong>記録されます。手で入力する必要はありません。詳しくは <a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a>の「バージョン表示」。
+</div>
+
+<h2 id="step9">手順9（該当する場合）: 発注ツールで「インポート済」になるのを見る</h2>
+<p>この SE が<a href="#" data-manual-page="spec-sync">アセット発注ツール</a>の発注に対応している場合（企画から「このIDで作ってほしい」と発注されていた場合）は、この手順も試してみましょう。</p>
+<ol>
+<li>手順3〜8を終えた状態で、メニューの <code>Tools &gt; D-Drive &gt; 仕様書と同期</code> を開き「取得」を押す</li>
+<li>発注ツール（ブラウザ）側でその発注の詳細を開く</li>
+<li>状態が<strong>「インポート済」</strong>に自動で進んでいることを確認する（Validation の Error が無いことが条件。手動で状態を進める操作は無い）</li>
+</ol>
+<p>発注に対応していない（自分の練習用に作った）SE の場合は、この手順はスキップして構いません。</p>
+
+<h2>お疲れさまでした</h2>
+<p>これで「ID で管理された効果音を1つ、登録から確認まで一巡させる」という D-Drive の基本フローは完了です。他の種類（VFX・アニメーション・Canvas 等）も、Asset Browser から開く専用エディタで同じような流れ（登録 → 調整 → 試聴/プレビュー → Validation → 保存）になっています。<a href="#" data-manual-page="Readme">トップページのページ一覧</a>から気になる種類のページへ進んでください。</p>
+
+<h2>困ったときは（再掲）</h2>
+<ul>
+<li>ウィンドウが見つからない → <code>Tools &gt; D-Drive</code> の下にすべてまとまっています</li>
+<li>赤い表示が出ている → <a href="#" data-manual-page="validation">Validation の使い方</a></li>
+<li>言葉が分からない → <a href="#" data-manual-page="glossary">用語集</a></li>
+<li>Unity 操作以前の疑問（環境構築・リポジトリ構成など、プログラマー/新メンバー向け）→ リポジトリ直下 <code>docs/34_onboarding.md</code></li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="#" data-manual-page="Readme">トップ（ページ一覧・共通の入口）</a></li>
+<li><a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a></li>
+<li><a href="#" data-manual-page="se-data">SE（効果音）の設定項目</a> / <a href="#" data-manual-page="audio-editor">Audio Editor の使い方</a></li>
+<li><a href="#" data-manual-page="validation">Validation の使い方</a></li>
+<li><a href="#" data-manual-page="spec-sync">アセット発注ツールとの同期</a></li>
+<li><a href="#" data-manual-page="glossary">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
