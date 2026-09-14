@@ -162,9 +162,9 @@
 
 | # | チケット | 依存 | 日数 | AC |
 |---|---|---|---|---|
-| W-1 | GAS プロジェクト雛形（`Tools/SpecWeb/`、clasp、`appsscript.json`、2 デプロイの構成） | — | 1 | `clasp push`/`pull` が通る。空の `doGet` が 2 つの URL で応答する |
-| W-2 | Drive JSON ストレージ層（読み書き + `LockService` + `revision` 楽観ロック） | W-1 | 2 | 同時に 2 リクエストが書き込んでも片方が revision 不一致で拒否される（手動テストで確認） |
-| W-3 | 認証（Google 許可リスト `users.json` + API トークン 2 種 + ロール） | W-1, W-2 | 2 | 許可リスト外のアカウントで①にアクセスすると拒否される。トークン無しで②にアクセスすると拒否される |
+| W-1 | GAS プロジェクト雛形（`Tools/SpecWeb/`、clasp、`appsscript.json`、2 デプロイの構成） | — | 1 | `clasp push`/`pull` が通る。空の `doGet` が 2 つの URL で応答する → ✅ 2026-09-14 実装（要約）: `Tools/SpecWeb/`（`appsscript.json`/`.clasp.json.example`/`.claspignore`/`README.md`）+ `src/Code.js`（doGet/doPost の唯一の入口、`?api=1` の有無で①UI/②API を振り分け）+ `html/`（Index/Styles/App の SPA シェル、`registerScreen` 拡張点）+ `src/Api/Registry.js`（`registerApi` 拡張点 + 組み込み `ping`）。テストは `node --test Tools/SpecWeb/test` で **green（29 件、W-1〜3 合算）**。実デプロイ・clasp login はユーザー作業（README 参照）。詳細は [docs/32](32_spec_web.md) 実装メモ |
+| W-2 | Drive JSON ストレージ層（読み書き + `LockService` + `revision` 楽観ロック） | W-1 | 2 | 同時に 2 リクエストが書き込んでも片方が revision 不一致で拒否される（手動テストで確認） → ✅ 2026-09-14 実装（要約）: `src/Storage.js`（Drive JSON コレクション = `<name>.json`、`DriveAdapter`/`LockAdapter` 経由、`putItem`/`deleteItem` の `expectedRevision` 不一致で `RevisionConflictError`(409相当)）。Node テスト（フェイク `LockService`/`DriveApp`）で revision 不一致拒否・ロック解放を確認 |
+| W-3 | 認証（Google 許可リスト `users.json` + API トークン 2 種 + ロール） | W-1, W-2 | 2 | 許可リスト外のアカウントで①にアクセスすると拒否される。トークン無しで②にアクセスすると拒否される → ✅ 2026-09-14 実装（要約）: `src/Auth.js`（`authenticateSession`=①許可リスト照合、`authenticateRequest`=①②統合、`hasRole`）+ `src/Api/TokenAdmin.js`/`UserAdmin.js`（admin がエディタから手動実行するトークン発行・失効・ローテーション、`users.json` CRUD）。Node テストで許可リスト外拒否・トークン無し/間違い拒否・ロール階層を確認 |
 | W-4 | アセット仕様 CRUD API + 一覧 SPA（検索・絞り込み・並べ替え・新規作成） | W-2, W-3 | 3 | [docs/32] §4.1 の一覧が実データで動く |
 | W-5 | アセット詳細画面（全項目編集・コメント・D-Drive 実状態の表示） | W-4 | 2 | [docs/32] §4.5 のとおり編集・コメント投稿ができる |
 | W-6 | 調整値 API（スカラー: float/int/bool/string/enum、ロック、範囲/型検証） | W-2, W-3 | 3 | 範囲外・型違いの書き込みが 400 相当で拒否される。`locked` は `editor` ロールから拒否される |

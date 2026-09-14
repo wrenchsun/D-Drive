@@ -574,3 +574,104 @@ public sealed class TuningTable : ScriptableObject
 5. **調整値コメントの粒度**: セル単位のコメントは見送り、行単位 + テーブル全体のみとした（列ごとの意味を跨いだやり取りが多いと想定したため）。セル単位が要る場合は v2 で追加する（実装後の使い勝手で判断）
 8. **旧シート凍結のタイミング**: 移行期間中の二重入力を避けるため、Web アプリの MVP がひとまず動いた時点で旧スプレッドシートを「閲覧のみ」に切り替える運用としたい。具体的な切替日は実装スケジュール確定後に運用で決める
 10. **Drive 共有の運用**: デプロイ①が「実行者=アクセスした人」であるため、各メンバー個人に Drive 上の JSON ファイル・画像フォルダへの編集権限を配る必要がある。人数が増えたときにメンバー個別共有ではなく Google グループ共有に切り替えるかどうかは、実際の人数が増えた時点で運用で決める
+
+---
+
+## 実装メモ（2026-09-14、W-1〜W-3）
+
+W-1（GAS プロジェクト雛形）・W-2（Drive JSON ストレージ層）・W-3（認証）を実装した。
+ソースは `Tools/SpecWeb/`（README = セットアップ手順、実際のデプロイ・Google ログイン・トークン発行はユーザー本人が行う）。
+
+### ファイル構成
+
+```
+Tools/SpecWeb/
+  appsscript.json         timeZone=Asia/Tokyo、webapp(既定値。実際のデプロイ①/②は個別に上書きする、後述)、oauthScopes 最小
+  .clasp.json.example     scriptId はダミー。実物の .clasp.json は .gitignore 対象
+  .claspignore            test/・*.md・.clasp.json 等を push 対象から除外
+  README.md               Node/clasp インストール・デプロイ作成・トークン発行の手順（ユーザー向け）
+  src/
+    Code.js                doGet/doPost の唯一の入口。?api=1 の有無で ①UI / ②API を振り分ける
+    Storage.js              Drive JSON コレクションの読み書き + LockService + revision 楽観ロック
+    Auth.js                 ① Google 許可リスト照合 + ② API トークン検証 + ロール判定(hasRole)
+    adapters/               DriveAdapter / LockAdapter / PropertiesAdapter / SessionAdapter /
+                            ContentAdapter / UtilitiesAdapter（GAS ホストグローバルを薄く包む境界）
+    Api/
+      Registry.js           registerApi(name, handler) 拡張点 + 組み込み ping API
+      TokenAdmin.js          issueApiToken/revokeApiToken/rotateApiToken/revokeAllApiTokens/countApiTokens
+                            （Web API 経由では呼べない。admin がエディタから手動実行する想定）
+      UserAdmin.js           upsertSpecWebUser/removeSpecWebUser/listSpecWebUsers（同上、users.json 許可リスト管理）
+  html/
+    Index.html              SPA のシェル（<base target="_top">、Styles/App を include）
+    Styles.html              共通 CSS
+    App.html                 registerScreen(id, render) 拡張点 + ルーター(location.hash) + SpecWebClient.callApi
+  test/
+    load-gas.js              GAS の複数ファイル連結を Node の vm で再現するローダー。DriveApp 等の
+                            ホストグローバルだけをフェイクに差し替え、Storage/Auth/Code は本物のまま検証する
+    storage.test.js / auth.test.js / routing.test.js   node:test + node:assert のみ（npm install 不要）
+```
+
+### 拡張点の規約（後続チケットが足す場所）
+
+- **サーバー API を増やす（W-4/5 アセット・W-6/7 調整値・W-16 機能ページ 等）**: 自分のファイル
+  （例 `src/Assets.js`）を追加し、そのファイルの中で `registerApi('assets', function ({e, params, auth}) {...})`
+  のようにトップレベルで呼ぶだけでよい。`Code.js`/`Api/Registry.js` は編集不要。
+  ハンドラは `{ ok: true, ... }` 相当のオブジェクトを返すか、revision 不一致では
+  `throw new RevisionConflictError(message, currentRevision)`（`Storage.js`）を投げればよい
+  （`Code.js` の `handleApiRequest_` が本文の `status` フィールドに変換する）
+- **画面を増やす**: `html/Assets.html` のような新しい画面 html を追加し、その中の `<script>` で
+  `registerScreen('assets', function (root) {...})` を呼ぶ。`html/Index.html` に
+  `<?!= include('html/Assets'); ?>` を追記する（**`html/App.html` の include より後に**書くこと。
+  ブラウザは `<script>` をドキュメント順に実行するため、`registerScreen` が未定義だとエラーになる）
+- **GAS の複数ファイル連結順序について**: GAS は 1 プロジェクトの全ファイルを 1 つのグローバルスコープに
+  連結するが、トップレベルの実行順序はファイル名に依存し保証されない。このため
+  `registerApi`/`getApi`（`Api/Registry.js`）は状態を関数オブジェクト自身のプロパティに遅延初期化して持ち、
+  トップレベルの `var` には持たない。他ファイルが自分のトップレベルで `registerApi(...)` を呼んでも、
+  連結順序に関係なく必ず動作する。**新しい登録式の拡張点を増やす場合もこの形を踏襲すること**
+  （`Storage`/`Auth` のような「関数の中でだけ他ファイルの値を読む」オブジェクトは、トップレベルで
+  他ファイルから参照されない限り `var` 代入でも問題ない）
+
+### テストの流儀
+
+- Node 組み込みの `node:test`/`node:assert` のみ。**npm install しない・依存ゼロ**
+- `test/load-gas.js` が `src/**/*.js` を `vm.createContext` 上の 1 つの共有コンテキストへ読み込み、
+  `DriveApp`/`LockService`/`PropertiesService`/`Session`/`ContentService`/`HtmlService`/`Utilities`/`Logger`
+  という GAS ホストグローバルだけをインメモリのフェイクに差し替える（`loadGas(options)` の
+  `activeUserEmail`/`driveFiles`/`scriptProperties` で初期状態を注入し、`context.__fakes` で実行後も操作できる）。
+  アダプタより上の層（`Storage`/`Auth`/`Code`）は本物のコードのまま検証される
+- vm コンテキストはテスト実行プロセスとは別の実現域（realm）になるため、`ctx.Storage.listItems(...)` が
+  返す `{}` を Node 側の `assert.deepEqual/strict` でオブジェクトリテラルの `{}` と直接比較すると
+  prototype 不一致で失敗する。**`Object.keys(...)` の配列同士で比較する**などで避ける
+  （`storage.test.js` 参照）
+- 実行結果（2026-09-14、`node --test Tools/SpecWeb/test`。Node は PATH には無かったが
+  `C:\Program Files\nodejs\node.exe` v24.19.0 が導入済みだったためフルパス指定で実行できた）:
+  **29 件全て green**（storage.test.js 7 件・auth.test.js 13 件・routing.test.js 9 件）
+
+### 公式ドキュメントで確認した注意点（推測せず developers.google.com を確認）
+
+- `LockService.getScriptLock()`: `tryLock`/`waitLock` を呼ぶまで実際には取得されない。書き込みの直列化に使う
+- `Session.getActiveUser().getEmail()`: デプロイの実行者設定が `USER_ACCESSING`（アクセスした人）のときに
+  意味のある値が返る。`USER_DEPLOYING`（Me）や未ログイン・スコープ未許可では空文字列になりうる
+  （§2.3 の設計どおり、デプロイ①でのみ許可リスト判定に使う）
+- HtmlService の iframe サンドボックスは `allow-same-origin`/`allow-scripts` 等を許可するが、
+  トップレベルナビゲーションは不可。外部リンクは `target="_top"`（`html/Index.html` で `<base target="_top">`
+  を設定済み）。アクティブコンテンツ（script 等）は HTTPS 必須（デプロイ URL は元から HTTPS）
+- GAS のクォータ（実行時間 6 分/実行、同時実行 30/user、PropertiesService 500KB 総量・9KB/値、
+  URL Fetch 上限は個人 20,000/日）は本設計の想定データ量・チーム規模には十分な余裕がある
+- Apps Script API の `deployments.create`（`WebAppConfig`）は `access`（`MYSELF`/`DOMAIN`/`ANYONE`/
+  `ANYONE_ANONYMOUS`）・`executeAs`（`USER_ACCESSING`/`USER_DEPLOYING`）をマニフェスト（`appsscript.json`
+  の `webapp` フィールド）とは**独立して**デプロイごとに持てる。そのため `appsscript.json` には
+  デプロイ①相当の値（`access: ANYONE`, `executeAs: USER_ACCESSING`）を既定値として置き、
+  デプロイ②（実行者=Me、ログイン不要）は Apps Script エディタの「新しいデプロイ」ダイアログで
+  個別に設定する（README §7）。**clasp の CLI 自体がこの個別設定をコマンドラインから直接指定できるかは
+  未確認**（今回は確認できなかったため、エディタ UI での作成を手順として案内している。要判断として残す）
+- Content Service（`ContentService.createTextOutput`）には HTTP ステータスコードを設定する API が
+  存在しない（`setMimeType` に相当する `setStatusCode` の記載が無い）。そのため本実装は
+  「40x/50x 相当」を常に本文の `status` フィールドで表現する方式にした（`ContentAdapter.json`）
+
+### 未確認のまま残っている項目（実装時に確認する、既存の要判断に合流）
+
+- §9-4「302 リダイレクトの実機確認」は今回 W-1〜W-3 の範囲では確認していない（`UnityWebRequest` からの
+  実アクセスが必要なため、W-9 着手時に確認する）
+- デプロイ②（実行者=Me）を `clasp` の CLI から直接作成できるか（Apps Script エディタでの手動作成を
+  前提に手順化した。上記参照）

@@ -1,0 +1,75 @@
+<script>
+  /**
+   * SPA の枠（ルーター + 画面登録の拡張点 + サーバー API 呼び出しの小さなラッパー）。
+   * docs/32_spec_web.md「登録式の拡張点」規約のクライアント側実装。
+   *
+   * 後続チケット（W-4/5・W-6〜8・W-16 等）は、自分の画面を追加する
+   * html ファイルの中で `registerScreen('assets', function (root) { ... })`
+   * のように呼ぶだけで、この App.html や Index.html を編集せずに
+   * 画面を追加できる。画面 html は Index.html から
+   * `<?!= include('html/Assets'); ?>` のように、この App.html より後に
+   * include すること（スクリプトはドキュメント順に実行されるため、
+   * registerScreen が先に定義済みである必要がある）。
+   */
+  (function () {
+    'use strict';
+
+    var screens = {};
+
+    function registerScreen(id, render) {
+      if (screens[id]) {
+        console.warn('画面は既に登録されています: ' + id);
+      }
+      screens[id] = render;
+    }
+
+    function currentScreenId() {
+      var hash = window.location.hash.replace(/^#\/?/, '');
+      return hash || 'home';
+    }
+
+    function renderCurrentScreen() {
+      var root = document.getElementById('app-root');
+      var id = currentScreenId();
+      var render = screens[id] || screens.home;
+      root.innerHTML = '';
+      if (!render) {
+        root.textContent = '画面が登録されていません: ' + id;
+        return;
+      }
+      render(root);
+    }
+
+    window.addEventListener('hashchange', renderCurrentScreen);
+    window.addEventListener('DOMContentLoaded', renderCurrentScreen);
+
+    // 最小限のホーム画面（雛形の動作確認用。後続チケットが自分の画面を追加する）。
+    registerScreen('home', function (root) {
+      var p = document.createElement('p');
+      p.className = 'sw-muted';
+      p.textContent = 'D-Drive 仕様書の雛形です。まだ画面は登録されていません。';
+      root.appendChild(p);
+    });
+
+    // サーバー API 呼び出しの小さなラッパー（後続チケットが使う拡張点）。
+    // 同一オリジンの doGet(?api=1&name=...) を fetch で呼ぶ
+    // （HtmlService の iframe サンドボックスは allow-same-origin を許可しているため
+    // 同一オリジンへの fetch は可能。docs/32_spec_web.md §2.4 参照）。
+    window.SpecWebClient = {
+      callApi: function (name, params) {
+        params = params || {};
+        var url = new URL(window.location.href);
+        url.searchParams.set('api', '1');
+        url.searchParams.set('name', name);
+        Object.keys(params).forEach(function (key) {
+          url.searchParams.set(key, params[key]);
+        });
+        return fetch(url.toString()).then(function (res) {
+          return res.json();
+        });
+      }
+    };
+
+    window.registerScreen = registerScreen;
+  })();
+</script>

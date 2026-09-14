@@ -117,3 +117,7 @@ codexreview/
 
 # Office のロックファイル(例: docs/SpecSheetTemplate/~$DDrive_仕様書テンプレート.xlsx)
 ~$*
+
+# HTML 仕様書(GAS、docs/32_spec_web.md §2.5・§7、W-1)。scriptId・トークン等の実値を含むため clasp のローカル設定はコミットしない。
+# テンプレートは Tools/SpecWeb/.clasp.json.example を参照。
+/Tools/SpecWeb/.clasp.json

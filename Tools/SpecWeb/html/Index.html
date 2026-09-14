@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+    <title>D-Drive 仕様書</title>
+    <?!= include('html/Styles'); ?>
+  </head>
+  <body>
+    <div id="app-shell">
+      <header class="app-header">
+        <h1>D-Drive 仕様書</h1>
+        <nav id="app-nav"></nav>
+      </header>
+      <main id="app-root">読み込み中...</main>
+    </div>
+    <!--
+      html/App.html が registerScreen / SpecWebClient を定義する。
+      後続チケット（W-4/5 アセット、W-6〜8 調整値、W-16 機能ページ 等）が
+      自分の画面を追加する html を include するときは、
+      必ずこの App.html より後に include すること
+      （ブラウザは <script> をドキュメント順に実行するため）。
+    -->
+    <?!= include('html/App'); ?>
+  </body>
+</html>
