@@ -439,6 +439,31 @@
       }
 
       /**
+       * 緊急修正（2026-09-14 追補）: 「一覧から発注を削除することはできないの？」への対応。
+       * 発注ツリーの各発注の行にも削除（アーカイブ）ボタンを付ける（html/Assets.html の
+       * deleteItemRow と同じ API・確認・runBusy・トーストだが、対象は state.assets の項目）。
+       * 元に戻す操作は一覧画面（Assets.html、「アーカイブ済みを表示」トグル）から行う
+       * （この画面は reload() で includeArchived: '0' しか取得しないため）。
+       */
+      function deleteAssetRow(item, button) {
+        if (!window.confirm('この発注をアーカイブ（論理削除）します。よろしいですか？')) return;
+        window.SpecWebUi
+          .runBusy('assets.delete:' + item.id, button, function () {
+            return window.SpecWebClient.callApi('assets.delete', { id: item.id, expectedRevision: item.revision }, { method: 'POST' });
+          })
+          .then(function (res) {
+            if (res.busy) return;
+            if (!res.ok) {
+              window.SpecWebUi.toastError('削除に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            state.assets = state.assets.filter(function (a) { return a.id !== item.id; });
+            renderBody();
+            window.SpecWebUi.toastSuccess('削除しました（アーカイブ済み。一覧画面の「アーカイブ済みを表示」で元に戻せます）');
+          });
+      }
+
+      /**
        * O-15: 一覧・「私が発注／私が受けた」と同様、発注ツリーの各発注にも編集への導線を付ける
        * （viewer には出さない）。O-16: メモが入力済みなら 📝 アイコンで整形表示を展開できる。
        */
@@ -466,10 +491,15 @@
               // App.html が定義する画面遷移（このファイルの smoke テストの sandbox には無いため
               // 存在確認してから呼ぶ。実アプリでは常に存在する）。
               if (typeof window.SpecWebNavigate === 'function') {
-                window.SpecWebNavigate('assets', { params: { openId: item.id } });
+                // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡し、
+                // 一覧画面（Assets.html）の詳細パネルに「← 発注ツリーへ戻る」を出せるようにする。
+                window.SpecWebNavigate('assets', { params: { openId: item.id, backTo: 'orders' } });
               }
             }
           }));
+          var deleteButton = el('button', { class: 'secondary', text: '削除' });
+          deleteButton.addEventListener('click', function () { deleteAssetRow(item, deleteButton); });
+          li.appendChild(deleteButton);
         }
         if (state.expandedMemoIds[item.id] && logic.hasReferenceMd(item)) {
           var box = el('div', { class: 'assets-md-preview assets-memo-clip' });

@@ -75,12 +75,15 @@ function setup(role, options) {
   // O-15: assetOverrides でサンプルの ddriveState/status 等を差し替えられるようにする
   // （リネーム可否のテストに、既定サンプル（ddriveState.created=true）とは別の状態が必要なため）。
   let currentAsset = sampleAsset(options.assetOverrides);
+  // 緊急修正（2026-09-14 追補）: 「複数選択して一括削除」のテスト用に、2件目以降の
+  // サンプルを追加できるようにする（既定は無し＝既存テストの挙動に影響しない）。
+  let extraAssetsState = (options.extraAssets || []).map(function (a) { return Object.assign({}, a); });
   const fakeClient = createFakeSpecWebClient({
     whoami: function () {
       return { ok: true, role: role, email: role + '@example.com', displayName: role };
     },
     'assets.list': function () {
-      return { ok: true, items: [currentAsset], total: 1 };
+      return { ok: true, items: [currentAsset].concat(extraAssetsState), total: 1 + extraAssetsState.length };
     },
     'assets.get': function () {
       return { ok: true, item: currentAsset };
@@ -120,7 +123,14 @@ function setup(role, options) {
       });
       return { ok: true, item: currentAsset, warnings: [] };
     },
-    'assets.delete': options.deleteHandler || function () {
+    'assets.delete': options.deleteHandler || function (params) {
+      if (params && params.id && params.id !== currentAsset.id) {
+        var idx = extraAssetsState.findIndex(function (a) { return a.id === params.id; });
+        if (idx !== -1) {
+          extraAssetsState[idx] = Object.assign({}, extraAssetsState[idx], { archived: true, revision: (extraAssetsState[idx].revision || 1) + 1 });
+          return { ok: true, item: extraAssetsState[idx] };
+        }
+      }
       currentAsset = Object.assign({}, currentAsset, { archived: true, revision: currentAsset.revision + 1 });
       return { ok: true, item: currentAsset };
     },
@@ -914,10 +924,10 @@ test('editor: 詳細の「削除（アーカイブ）」を押すと assets.dele
   const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('削除しました') !== -1);
   assert.ok(toast);
 
-  // 「アーカイブ済みを表示」トグルを有効にすると、アーカイブ済みでも一覧に出る
-  // （トグルは「種類でグループ化」の次に追加しているため、チェックボックスの2番目）。
-  const checkboxes = dom.findAllNodes(root, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('type') === 'checkbox');
-  const archivedCheckbox = checkboxes[checkboxes.length - 1];
+  // 「アーカイブ済みを表示」トグルを有効にする。緊急修正（2026-09-14 追補）で一覧に
+  // 選択チェックボックス列（editor 以上）が増えたため、位置ではなくラベルの文言で探す。
+  const archivedLabel = dom.findNode(root, (n) => n.tagName === 'label' && (n.children || []).some((c) => (c.textContent || '').indexOf('アーカイブ済みを表示') !== -1));
+  const archivedCheckbox = archivedLabel.children[0];
   archivedCheckbox.checked = true;
   dom.fire(archivedCheckbox, 'change');
 
@@ -943,8 +953,8 @@ test('editor: アーカイブ済みの発注の詳細には「元に戻す」ボ
   dom.fire(deleteButton, 'click');
   await flush();
 
-  const checkboxes = dom.findAllNodes(root, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('type') === 'checkbox');
-  const archivedCheckbox = checkboxes[checkboxes.length - 1];
+  const archivedLabel = dom.findNode(root, (n) => n.tagName === 'label' && (n.children || []).some((c) => (c.textContent || '').indexOf('アーカイブ済みを表示') !== -1));
+  const archivedCheckbox = archivedLabel.children[0];
   archivedCheckbox.checked = true;
   dom.fire(archivedCheckbox, 'change');
 
@@ -979,4 +989,88 @@ test('viewer: アーカイブ済みを表示トグルはあるが、削除・元
   const restoreButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '元に戻す');
   assert.equal(deleteButton, null);
   assert.equal(restoreButton, null);
+});
+
+// ---- 緊急修正（2026-09-14 追補）: 一覧の行から直接削除・複数選択して一括削除 ----
+
+test('editor: 一覧の行に直接「削除」ボタンが出て、押すと詳細を開かずに assets.delete を呼び、その場で行が消える', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  const rowDeleteButton = dom.findNode(row, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.ok(rowDeleteButton, '一覧の行に「削除」ボタンが出る');
+
+  dom.fire(rowDeleteButton, 'click');
+  await flush();
+
+  const heading = dom.findNode(root, (n) => n.tagName === 'h2');
+  assert.equal(heading, null, '詳細パネルは開かない（行から直接削除できる）');
+
+  const rowAfter = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  assert.equal(rowAfter, null, '削除（アーカイブ）後は既定の一覧から消える');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('削除しました') !== -1);
+  assert.ok(toast);
+});
+
+test('viewer: 一覧の行に選択チェックボックス・削除ボタンは出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  const checkbox = dom.findNode(row, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('type') === 'checkbox');
+  const rowDeleteButton = dom.findNode(row, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.equal(checkbox, null, 'viewer には選択チェックボックスが出ない');
+  assert.equal(rowDeleteButton, null, 'viewer には行の削除ボタンが出ない');
+});
+
+test('editor: 複数選択して「選択した発注を削除」を押すと、選択した分だけ一括で削除される', async () => {
+  const { dom, render } = setup('editor', {
+    extraAssets: [{
+      id: 'Vfx::FireBall', assetType: 'Vfx', identifier: 'FireBall', displayName: '火球',
+      category: '', status: '発注済', orderer: 'よしだ', contractor: 'たなか',
+      orderDate: '', dueDate: '', deliveredDate: '', priority: '', referenceMd: '',
+      parentId: null, fileFormat: '', fileName: '', archived: false, revision: 1,
+      comments: [], ddriveState: null, params: null
+    }]
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  function rowFor(text) {
+    return dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === text));
+  }
+
+  const slashRow = rowFor('Slash');
+  const fireBallRow = rowFor('FireBall');
+  assert.ok(slashRow && fireBallRow, '2件とも一覧に出ている');
+
+  [slashRow, fireBallRow].forEach((row) => {
+    const checkbox = dom.findNode(row, (n) => n.tagName === 'input' && n.getAttribute && n.getAttribute('type') === 'checkbox');
+    checkbox.checked = true;
+    dom.fire(checkbox, 'change');
+  });
+
+  const bulkButton = dom.findNode(root, (n) => n.tagName === 'button' && (n.textContent || '').indexOf('選択した発注を削除') !== -1);
+  assert.ok(bulkButton, '選択すると「選択した発注を削除」ボタンが出る');
+  assert.match(bulkButton.textContent, /2件/);
+
+  dom.fire(bulkButton, 'click');
+  await flush();
+  await flush();
+
+  assert.equal(rowFor('Slash'), null, 'Slash は削除される');
+  assert.equal(rowFor('FireBall'), null, 'FireBall も削除される');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('2 件を削除しました') !== -1);
+  assert.ok(toast);
+
+  const bulkButtonAfter = dom.findNode(root, (n) => n.tagName === 'button' && (n.textContent || '').indexOf('選択した発注を削除') !== -1);
+  assert.equal(bulkButtonAfter, null, '選択が空になったのでボタンは消える');
 });

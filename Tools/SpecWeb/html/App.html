@@ -40,6 +40,17 @@
 
     var DEFAULT_SCREEN_ID = 'orders'; // 発注ツリー（O-2）。まだ無ければ 'assets'（一覧）。
     var screens = {};
+    // 緊急修正（2026-09-14、O-15 追補）: 「発注ツリー/私の発注の『編集』を押しても一覧が
+    // 表示されるだけで詳細が開かない」への対応。google.script.history.push()/replace() は
+    // 環境によって setChangeHandler の登録済みハンドラを（自分自身の呼び出しに対しても）
+    // 直後に呼び直すことがあり、その場合 navigateTo が { skipHistory: true } で同じ画面・
+    // 同じ params にもう一度呼ばれて render() が丸ごと再実行される。これは「まさに今開けた
+    // 詳細パネル（openId 付き遷移の結果）」を含む DOM を破棄して素の一覧を作り直す動きになり、
+    // 症状として「一覧は出るが詳細が開かない」に一致する。同一画面・同一 params への
+    // skipHistory な再遷移は無視して直前の描画を保持する（history.push 自体は一度しか呼ばない
+    // ため、無視しても実害はない）。
+    var currentRenderId_ = null;
+    var currentRenderParamsJson_ = null;
 
     function registerScreen(id, render) {
       if (screens[id]) {
@@ -74,11 +85,20 @@
     function navigateTo(id, options) {
       options = options || {};
       var params = options.params || {};
+      var paramsJson = JSON.stringify(params);
+      // 上のコメント参照: skipHistory な再遷移が、直前と同じ画面・同じ params であれば
+      // 何もしない（push/replace が引き起こす再帰的な setChangeHandler 呼び出しを無害化する）。
+      if (options.skipHistory && id === currentRenderId_ && paramsJson === currentRenderParamsJson_) {
+        return currentRenderId_;
+      }
       var resolvedId = renderScreen(id, params);
+      currentRenderId_ = resolvedId;
+      currentRenderParamsJson_ = paramsJson;
       if (window.google && window.google.script && window.google.script.history && !options.skipHistory) {
         var method = options.replace ? 'replace' : 'push';
         window.google.script.history[method]({ screen: resolvedId, params: params }, {}, resolvedId);
       }
+      return resolvedId;
     }
 
     if (window.google && window.google.script && window.google.script.history) {

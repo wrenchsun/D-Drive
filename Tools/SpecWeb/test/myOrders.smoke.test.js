@@ -32,9 +32,16 @@ function setup(options) {
     },
     'assets.list': function () {
       return { ok: true, items: items };
+    },
+    // 緊急修正（2026-09-14 追補）: 各行から直接削除（アーカイブ）するテスト用。
+    'assets.delete': options.deleteHandler || function (params) {
+      return { ok: true, item: Object.assign({}, items.filter(function (i) { return i.id === params.id; })[0], { archived: true }) };
     }
   });
   sandbox.window.SpecWebClient = fakeClient;
+  // 緊急修正（2026-09-14 追補）: window.SpecWebUi（送信中表示・トースト・二重送信防止）と
+  // window.confirm（削除の確認）。実 Index.html と同じ順序で UiFeedback を読み込む必要がある。
+  sandbox.window.confirm = options.confirm !== undefined ? options.confirm : function () { return true; };
 
   // O-15: 「編集」ボタンが呼ぶ画面遷移のスパイ（orderTree.smoke.test.js と同じ考え方）。
   const navigateCalls = [];
@@ -42,7 +49,7 @@ function setup(options) {
     navigateCalls.push({ id: id, options: navOptions });
   };
 
-  const ctx = loadHtmlScripts(['AssetsLogic', 'MyOrders'], sandbox);
+  const ctx = loadHtmlScripts(['UiFeedback', 'AssetsLogic', 'MyOrders'], sandbox);
   assert.ok(capturedRender, 'registerScreen("my-orders", ...) が呼ばれていること');
   return { ctx, dom, render: capturedRender, navigateCalls: navigateCalls };
 }
@@ -78,6 +85,9 @@ test('editor: 各行に「編集」ボタンが出て、押すと SpecWebNavigat
   assert.equal(navigateCalls.length, 1);
   assert.equal(navigateCalls[0].id, 'assets');
   assert.equal(navigateCalls[0].options.params.openId, 'Se::Hit');
+  // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡す
+  // （一覧画面の詳細パネルに「← 私の発注へ戻る」を出すため）。
+  assert.equal(navigateCalls[0].options.params.backTo, 'my-orders');
 });
 
 test('viewer: 「編集」ボタンが出ない', async () => {
@@ -88,6 +98,46 @@ test('viewer: 「編集」ボタンが出ない', async () => {
 
   const editButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === '編集');
   assert.equal(editButtons.length, 0);
+});
+
+// ---- 緊急修正（2026-09-14 追補）: 各行から直接削除（アーカイブ） ----
+
+test('editor: 各行に「削除」ボタンが出て、押すと確認→assets.delete→その場で（発注/受注どちらの列からも）消える', async () => {
+  const deleteCalls = [];
+  const { dom, render } = setup({
+    deleteHandler: function (params) {
+      deleteCalls.push(params);
+      return { ok: true, item: { id: params.id, archived: true } };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const deleteButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.equal(deleteButtons.length, 2, '発注したもの・受けたものの各1行ぶん出る');
+
+  dom.fire(deleteButtons[0], 'click');
+  await flush();
+
+  assert.equal(deleteCalls.length, 1, 'assets.delete が呼ばれる');
+  assert.equal(deleteCalls[0].id, 'Se::Hit');
+
+  const hitItem = dom.findNode(root, (n) => (n.textContent || '').indexOf('Hit') !== -1 && n.tagName === 'span');
+  assert.equal(hitItem, null, '削除した行はその場で消える');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('削除しました') !== -1);
+  assert.ok(toast);
+});
+
+test('viewer: 「削除」ボタンが出ない', async () => {
+  const { dom, render } = setup({ role: 'viewer' });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const deleteButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.equal(deleteButtons.length, 0);
 });
 
 // ---- O-16: 「メモあり」アイコン + 展開表示 ----
