@@ -2586,6 +2586,71 @@ docs/28 の O-15 節の手順（前回追補と同じ「一覧が表示される
 `google.script.history` の「こだま」自体が発生しない環境では、このログは出ないまま
 正常に開く）。
 
+## 実装メモ（2026-09-15 三度目の修正: 発注ツリー/私の発注の「編集」ボタンを廃止し、一覧の行から直接編集する方式に変更）
+
+上の「二度目の修正」（PR #56 の追補。`google.script.history` の「こだま」対策 + `window.SpecWebPendingOpen`
+の保険）を反映した版でも、ユーザーが 2 回の実デプロイ確認（PR #56・#62）で同じ症状
+（発注ツリー/私の発注の「編集」→一覧が表示されるだけで詳細が開かない）を再現した。
+親セッションがデプロイ済みバージョンに #62 の修正が入っていることを確認済みのため、
+**画面をまたぐ自動オープンという方式自体が実デプロイ環境（HtmlService の iframe サンドボックス +
+`google.script.history`）で構造的に不安定**と判断し、ユーザー提案（「発注ツリーではなく一覧から
+編集できるようにした方がいい」）どおり、遷移に頼らない方式へ切り替えた（`fix/order-edit-from-list`
+ブランチ）。
+
+### 変更
+
+1. **`html/Assets.html`: 一覧の各行に「編集」ボタンを追加**（`buildRowActionCell`。「削除」/
+   「元に戻す」ボタンの隣、`canEdit()` のときだけ＝viewer には出さない）。押すと画面遷移せずに
+   その場で既存の `openDetail({ mode: 'edit', item })` を呼ぶだけ（行クリックで開く既存動作は
+   そのまま残す）。狭い画面でも押しやすいタップ領域を確保するため、`.assets-row-actions`
+   （flex・`flex-wrap`・十分な padding/`min-height`）でラップした
+2. **`html/OrderTree.html`・`html/MyOrders.html`: 各発注の「編集」ボタンを廃止し「一覧で開く」に
+   改名**。押すと一覧画面（`assets`）へ遷移するが、渡す `params` を
+   `{ q: item.identifier, openId: item.id, backTo: '...' }` に変更した:
+   - `q`（発注の識別子）は一覧画面の検索欄の初期値になり（`html/Assets.html` の
+     `state.filters.query`、既存の `AssetsLogic.filterAssets` がそのまま使う）、一覧の一番上に
+     その発注 1 件だけが出るようにする。これが今回の**主な保証**（`google.script.history` の
+     こだまで `params` 自体が失われても、後述の `pendingOpen` フォールバックが効く）
+   - `openId`/`backTo` は既存の O-13/O-15 の仕組み（`window.SpecWebPendingOpen`・
+     `maybeOpenPending`）をそのまま使った「できたら自動で開く」保険として引き続き渡す。開けば
+     従来どおり詳細パネルが（`backTo` があれば「← 戻る」ボタン付きで）開くが、**開かなくても
+     一覧の一番上のその行の「編集」を押せば確実に開ける**ようにしたことが今回の設計の核心
+   - 発注ツリー・私の発注には「編集は一覧の各行の『編集』から行えます。」という案内
+     （`editHintLine`、`canEdit()` のときだけ）を追加した
+3. **`html/Assets.html` の `maybeOpenPending`**: `params.q` 自体が往復のどこかで失われても
+   （`window.SpecWebPendingOpen` の `id` だけが届いた場合）、見つかった発注の `identifier` で
+   `state.filters.query` を絞り込む保険を追加した（既に一致していれば何もしない）。これにより
+   「`q` は失われたが `pendingOpen` は届いた」場合でも一覧は絞り込まれ、「両方失われた」場合は
+   単に絞り込みが掛からないだけで一覧は正常に表示される（例外にしない）
+4. **`html/Assets.html` の `state.filters.query` の初期値**: `registerScreen('assets', function
+   (root, initialParams) {...})` の `initialParams.q` から初期化するようにした（無ければ従来どおり
+   空文字）
+
+D-Drive 側の C# は変更していない。`src/Code.js` の `resolveInitialScreen_`（`?page=order&id=...`
+深いリンク → `{ screen: 'assets', params: { openId } }`）はこの変更の対象外（O-13 のコピーリンク
+機能はサーバー往復を伴う別経路で、今回の client-side navigate とは無関係）。
+
+### テスト（`node --test Tools/SpecWeb/test`）
+
+- `test/assets-screen.smoke.test.js`（追加）: 一覧の行に「編集」ボタンが「削除」ボタンの隣に出て
+  押すと画面遷移せずその場で詳細パネルが開くこと、viewer には出ないこと、
+  `render(root, { q })` で検索欄に q が入り一覧がその1件に絞り込まれること、
+  `render(root, {})`（q も openId も無い通常表示）で一覧が正常に表示されること
+- `test/orderTree.smoke.test.js` / `test/myOrders.smoke.test.js`（更新）: 各発注の「編集」ボタンの
+  文言・アサーションを「一覧で開く」に更新し、渡す `params` に `q`（識別子）が含まれることを追加で
+  確認する。「編集は一覧の各行の『編集』から」の案内が editor には出て viewer には出ないことを追加
+- `test/orderEditNavigation.test.js`（更新）: 3件のテストで「編集」ボタンの検索・アサーションを
+  「一覧で開く」に更新し、通常経路・`lossyHistory`（params 消失）経路の両方で一覧の検索欄が
+  その発注の識別子に絞り込まれることを追加で確認する
+
+### 目視確認
+
+未検証（このセッションは実デプロイへの push を行っていない）。docs/28 の O-15 節末尾の
+「追補3」の手順を実デプロイで確認すること。特に、これまで2回（#56・#62）実デプロイで
+再現し直された症状のため、**「一覧で開く」を押した直後に自動で詳細が開くかどうかにかかわらず、
+検索欄がその発注の識別子で絞り込まれ、一覧の一番上にその1件だけが出ていて、その行の
+「編集」を押せば確実に開けること**を重点的に確認する。
+
 ## 実装メモ（2026-09-15、6-9: D-Drive 側 Validation / CI 組込み）
 
 [11_tasks.md](11_tasks.md) 6-9（[27_spec_sheet.md](27_spec_sheet.md) §6 の検査を CI に組み込む）を実装した。

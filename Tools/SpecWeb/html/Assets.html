@@ -275,6 +275,20 @@
     margin-top: -0.5rem;
     margin-bottom: 0.85rem;
   }
+  /* 2026-09-15: 一覧の行の「編集」+「削除/元に戻す」ボタンを並べるラッパー。画面をまたぐ
+     自動オープン（発注ツリー等の旧「編集」ボタン）が実デプロイで不安定だったため、一覧の
+     行から直接編集できるボタンを追加した（docs/32_spec_web.md 参照）。狭い画面でも押しやすい
+     タップ領域を確保する。 */
+  .assets-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .assets-row-actions button {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+    min-height: 1.9em;
+  }
 </style>
 
 <script>
@@ -455,13 +469,20 @@
         // includeArchived（緊急修正 2026-09-14）: 「削除機能はありますか？」への回答として、
         // アーカイブ済み（論理削除済み）の発注を一覧に表示するトグル + 詳細の「元に戻す」を追加した
         // （既存の assets.restore API はあったが呼び出す画面が無かった）。
-        filters: { query: '', assetType: '', status: '', orderer: '', contractor: '', fileFormat: '', parentId: '', includeArchived: false },
+        // 2026-09-15: 発注ツリー・私の発注の「一覧で開く」（旧「編集」ボタン）が q パラメータで
+        // 渡す識別子を検索欄の初期値にする（画面をまたぐ自動オープンが実デプロイで不安定だった
+        // ため、一覧の一番上にその1件だけを絞り込んで表示する方式に変更した。docs/32 参照）。
+        // q が届かなくても（params 消失時）query は単に空のままになるだけで一覧は正常に動く。
+        filters: { query: (initialParams && initialParams.q) || '', assetType: '', status: '', orderer: '', contractor: '', fileFormat: '', parentId: '', includeArchived: false },
         sort: { key: 'identifier', direction: 'asc' },
         grouped: false,
         // O-13: `?page=order&id=...` で開かれた場合に一度だけ自動で開く対象の id
         // （src/Code.js の resolveInitialScreen_ → App.html の render(root, params) 経由）。
-        // 緊急修正（2026-09-14 追補）: 発注ツリー・私の発注の「編集」ボタンからの画面内遷移
-        // （window.SpecWebNavigate('assets', { params: { openId, backTo } })）でも同じ仕組みで開く。
+        // 緊急修正（2026-09-14 追補）: 発注ツリー・私の発注の「一覧で開く」ボタン（旧「編集」
+        // ボタン、2026-09-15 に改名・q 併用に変更）からの画面内遷移
+        // （window.SpecWebNavigate('assets', { params: { q, openId, backTo } })）でも同じ仕組みで
+        // 開く（「できたら開く」程度の保険。開かなくても filters.query の絞り込みで一覧の一番上に
+        // 出ているので、その行の「編集」を押せば確実に開ける）。
         // backTo はその場合の「戻り先」画面 id（例: 'orders'/'my-orders'）。一覧の行から直接
         // 開いた場合は backTo が無いので「戻る」導線は出さない。
         pendingOpenId: (initialParams && initialParams.openId) || null,
@@ -736,8 +757,21 @@
        * 緊急修正（2026-09-14 追補）: 一覧の行から直接削除（アーカイブ）/元に戻すできるボタン。
        * 詳細パネルを開かずに済むため、行の onclick（詳細を開く）に伝播させない。
        */
+      /**
+       * 2026-09-15: 発注ツリー/私の発注の「編集」ボタン廃止（画面をまたぐ自動オープンが実
+       * デプロイで不安定だったため）に伴い、一覧の行に直接「編集」ボタンを追加した
+       * （削除/元に戻すボタンの隣。行クリックでも同じ openDetail が開くので既存動作は残す）。
+       * viewer には出さない（このセル自体が canEdit() のときだけ buildRow から呼ばれる）。
+       */
       function buildRowActionCell(item) {
         var cell = el('td');
+        var wrap = el('div', { class: 'assets-row-actions' });
+        var editButton = el('button', { class: 'secondary', text: '編集' });
+        editButton.addEventListener('click', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          openDetail({ mode: 'edit', item: item });
+        });
+        wrap.appendChild(editButton);
         var button = item.archived
           ? el('button', { class: 'secondary', text: '元に戻す' })
           : el('button', { class: 'secondary', text: '削除' });
@@ -746,7 +780,8 @@
           if (item.archived) restoreItemRow(item, button);
           else deleteItemRow(item, button);
         });
-        cell.appendChild(button);
+        wrap.appendChild(button);
+        cell.appendChild(wrap);
         return cell;
       }
 
@@ -923,6 +958,13 @@
         console.info('[SpecWeb nav] maybeOpenPending', pending);
         var found = state.items.filter(function (i) { return i.id === pending.id; })[0];
         if (found) {
+          // 2026-09-15: q パラメータが往復のどこかで失われても（pendingOpen だけが届いた場合）、
+          // 見つかった発注の識別子で検索欄を絞り込み、一覧の一番上にその1件だけが出るようにする
+          // （自動オープンに失敗しても、その行の「編集」を押せば確実に開けるようにする保険）。
+          if (state.filters.query !== found.identifier) {
+            state.filters.query = found.identifier;
+            renderAll();
+          }
           openDetail({ mode: 'edit', item: found, backTo: pending.backTo });
         } else {
           statusLine.textContent = '指定された発注が見つかりません（' + pending.id + '）。一覧を表示しています。';

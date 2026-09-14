@@ -108,9 +108,16 @@
     }
 
     /**
-     * O-15/O-16: 各行に「編集」（editor 以上のみ、一覧画面〈assets〉の詳細パネルへ遷移する）・
+     * O-15/O-16: 各行に「一覧で開く」（editor 以上のみ、一覧画面〈assets〉へ遷移する）・
      * 「メモあり」アイコン（押すと整形表示を展開）を付ける。行本体の組み立て方は
      * renderOrderedList/renderContractedList で共通化する（元の書式文言だけが違う）。
+     *
+     * 2026-09-15 三度目の修正: 画面をまたぐ自動オープン（旧「編集」ボタン）が実デプロイで
+     * 繰り返し不安定だったため、「一覧で開く」に改名し、一覧画面を検索欄がその発注の識別子で
+     * 絞り込まれた状態（params.q）で開くだけにした。自動オープン自体は「できたら開く」保険と
+     * して params.openId/backTo も併せて渡す（既存の pendingOpen 機構を再利用）が、開かなくても
+     * 一覧の一番上にその1件だけが出るので、その行の「編集」を押せば確実に開ける
+     * （docs/32_spec_web.md 参照）。編集そのものは一覧の各行の「編集」ボタンで行う。
      * @param {object} item
      * @param {string} lineText 行本体の表示文言（呼び出し側が組み立てる）
      * @param {{canEdit: boolean, expandedMemoIds: Object, toggleMemo: function(string):void,
@@ -133,7 +140,7 @@
       if (state.canEdit) {
         li.appendChild(el('button', {
           class: 'secondary',
-          text: '編集',
+          text: '一覧で開く',
           onclick: function (ev) {
             // 2026-09-15 二度目の修正: html/OrderTree.html の同名ボタンと同じ対策
             // （docs/32_spec_web.md 参照）。この click はまだ document まで bubble する
@@ -144,9 +151,10 @@
             // sandbox には無いことがあるため存在確認してから呼ぶ。
             if (typeof window.SpecWebNavigate !== 'function') return;
             setTimeout(function () {
-              // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡し、
-              // 一覧画面（Assets.html）の詳細パネルに「← 私の発注へ戻る」を出せるようにする。
-              window.SpecWebNavigate('assets', { params: { openId: item.id, backTo: 'my-orders' } });
+              // 2026-09-15 三度目の修正: q（識別子）で一覧の検索欄を絞り込み、openId/backTo は
+              // 「できたら自動で開く」ための保険として併せて渡す（緊急修正 2026-09-14 追補の
+              // backTo により、一覧画面の詳細パネルに「← 私の発注へ戻る」が出る）。
+              window.SpecWebNavigate('assets', { params: { q: item.identifier, openId: item.id, backTo: 'my-orders' } });
             }, 0);
           }
         }));
@@ -186,8 +194,13 @@
 
     registerScreen('my-orders', function (root) {
       var statusLine = el('p', { class: 'sw-muted', text: '読み込み中...' });
+      // 2026-09-15: 「一覧で開く」に改名した各行のボタンでは編集できないため、編集は一覧の
+      // 各行の「編集」から行う案内を出す（canEdit が判明してから文言を入れる。viewer には
+      // 出さない。html/OrderTree.html の editHintLine と同じ考え方）。
+      var editHintLine = el('p', { class: 'sw-muted' });
       var columns = el('div', { class: 'my-orders-columns' });
       root.appendChild(statusLine);
+      root.appendChild(editHintLine);
       root.appendChild(columns);
 
       // O-16: 「メモあり」アイコンで展開表示した項目の id 集合。
@@ -207,6 +220,7 @@
         var ordered = logic.myOrderedItems(assetsRes.items, whoamiRes.email, today);
         var contracted = logic.myContractedItems(assetsRes.items, whoamiRes.email, today);
         var canEdit = logic.roleAtLeast(whoamiRes.role, 'editor');
+        editHintLine.textContent = canEdit ? '編集は一覧の各行の「編集」から行えます。' : '';
 
         function renderColumns() {
           columns.innerHTML = '';

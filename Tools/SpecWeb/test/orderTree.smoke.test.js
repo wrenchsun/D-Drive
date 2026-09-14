@@ -320,17 +320,18 @@ test('viewer: 発注グループヘッダーに「削除」ボタンが出ない
   assert.equal(deleteButton, null);
 });
 
-// ---- O-15: 各発注への「編集」導線（発注ツリーには詳細パネルが無いため、一覧画面へ遷移する） ----
+// ---- O-15: 各発注への「一覧で開く」導線（発注ツリーには詳細パネルが無いため、一覧画面へ
+// 遷移する。2026-09-15 三度目の修正で「編集」から改名し、識別子で一覧を絞り込む q を追加した） ----
 
-test('editor: 発注の行に「編集」ボタンが出て、押すと SpecWebNavigate("assets", {params:{openId}}) が呼ばれる', async () => {
+test('editor: 発注の行に「一覧で開く」ボタンが出て、押すと SpecWebNavigate("assets", {params:{q, openId, backTo}}) が呼ばれる', async () => {
   const { dom, render, navigateCalls } = setup('editor');
   const root = dom.document.createElement('div');
   render(root);
   await flush();
 
-  const editButton = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => c.tagName === 'button' && c.textContent === '編集'));
-  assert.ok(editButton, '発注の行に「編集」ボタンが出る');
-  const button = dom.findNode(editButton, (n) => n.tagName === 'button' && n.textContent === '編集');
+  const editButton = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => c.tagName === 'button' && c.textContent === '一覧で開く'));
+  assert.ok(editButton, '発注の行に「一覧で開く」ボタンが出る');
+  const button = dom.findNode(editButton, (n) => n.tagName === 'button' && n.textContent === '一覧で開く');
   dom.fire(button, 'click');
   // 2026-09-15 二度目の修正: 画面遷移は setTimeout(…, 0) でこのクリックの処理が完全に
   // 終わった後に行うようにした（docs/32_spec_web.md 参照）。
@@ -338,20 +339,46 @@ test('editor: 発注の行に「編集」ボタンが出て、押すと SpecWebN
 
   assert.equal(navigateCalls.length, 1);
   assert.equal(navigateCalls[0].id, 'assets');
+  // 2026-09-15 三度目の修正: 検索欄をその発注の識別子で絞り込むための q を渡す
+  // （画面をまたぐ自動オープンが実デプロイで不安定だったための変更、docs/32_spec_web.md 参照）。
+  assert.equal(navigateCalls[0].options.params.q, 'Hit');
+  // openId/backTo は「できたら自動で開く」ための保険として引き続き渡す。
   assert.equal(navigateCalls[0].options.params.openId, 'Se::Hit');
   // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡す
   // （一覧画面の詳細パネルに「← 発注ツリーへ戻る」を出すため）。
   assert.equal(navigateCalls[0].options.params.backTo, 'orders');
 });
 
-test('viewer: 発注の行に「編集」ボタンが出ない', async () => {
+test('viewer: 発注の行に「一覧で開く」ボタンが出ない', async () => {
   const { dom, render } = setup('viewer');
   const root = dom.document.createElement('div');
   render(root);
   await flush();
 
-  const editButton = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => c.tagName === 'button' && c.textContent === '編集'));
-  assert.equal(editButton, null, 'viewer には編集ボタンが出ない');
+  const editButton = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => c.tagName === 'button' && c.textContent === '一覧で開く'));
+  assert.equal(editButton, null, 'viewer には「一覧で開く」ボタンが出ない');
+});
+
+// ---- 2026-09-15 三度目の修正: 「編集は一覧の各行の『編集』から」の案内 ----
+
+test('editor: 「編集は一覧の各行の『編集』から行えます。」という案内が出る', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const hint = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('編集は一覧の各行の「編集」から') !== -1);
+  assert.ok(hint, 'editor には編集導線の案内が出る');
+});
+
+test('viewer: 編集導線の案内が出ない（viewer は編集できないため）', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const hint = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('編集は一覧の各行の「編集」から') !== -1);
+  assert.equal(hint, null, 'viewer には案内が出ない');
 });
 
 // ---- 緊急修正（2026-09-14 追補）: 発注ツリーの行から直接削除（アーカイブ） ----
