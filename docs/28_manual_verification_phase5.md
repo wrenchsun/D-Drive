@@ -34,12 +34,21 @@
 - [ ] 使用箇所検索 / 未使用検出 / 安全な削除(2026-09-14 から UE 風の削除確認ウィンドウに変更。複数選択・参照の差し替え・強制削除・結果画面を含む) — [28 5-6節](28_manual_verification_phase5.md) — 35分 — OS のゴミ箱からの復元手順を試すため一時的に削除して良い Data、置き換え先に使える同種別の Data 2種類以上
 - [ ] 一覧のダブルクリックで専用エディタを開く（2026-09-14） — [09_editor_tools.md §1](09_editor_tools.md) — 10分 — VfxData 等(単一候補)・MaterialData/SliderSkinData 等(複数候補)・専用エディタの無い種別が混在する一覧。① ダブルクリック(または選択して Enter)で専用エディタが開き、対象アセットがセットされている(Inspector の「エディターで開く」ボタンを押したときと同じ状態になる) ② 専用エディタが無い種類は従来どおり Inspector で選択され、Project ウィンドウの実ファイルがハイライトされるだけ ③ 複数候補がある種類(Material/Slider Skin)は右クリックメニューの「エディターで開く」がサブメニューになり、全候補(Material Editor / 変換 / プレビュー等)を選べる。ダブルクリックでは既定(サブメニューの一番上と同じ)が開くことを確認
 
-**② 仕様書系（Google スプレッドシート）**
+**② 仕様書系（2026-09-14 追記: HTML 仕様書 Web アプリへ移行。[32_spec_web.md](32_spec_web.md)）**
 
-- [ ] 仕様書テンプレート（アップロード・共有・プルダウン・タブ複製） — [28 5-12節](28_manual_verification_phase5.md) — 15分 — Google アカウント
-- [ ] 仕様書同期（取得・適用・調整値・Tuning コード生成・自動同期バッジ） — [28 5-13節](28_manual_verification_phase5.md) — 30分 — ②のシート、Unity 再起動 1 回
-- [ ] 仕様書リンク（SpecUrl ボタンの表示/非表示） — [28 5-14節](28_manual_verification_phase5.md) — 5分 — 特になし（5-13 の続きでよい）
-- [ ] 新規作成ダイアログ「仕様書から選ぶ」 — [28 5-16節](28_manual_verification_phase5.md) — 15分 — ②のシート（5-13 と同じ）
+> 旧方式（Google スプレッドシート、5-12〜5-16）の確認手順は本節の下（歴史的経緯として残す）。
+> **これから確認する場合は下記の「W-9〜W-12 仕様書 Web 化(HTML)の確認」を先に読むこと**。
+> 旧方式のシート運用は行っていないため、5-12〜5-16 の手順は実施不要（Web アプリのデプロイが
+> 済んでいない現状は W-9〜W-12 の節にある「未確認」項目を確認できないところまでで一巡とする）。
+
+- [ ] 仕様書 Web アプリのデプロイ・トークン発行・D-Drive 側の設定（`WebAppUrl`/`HumanAppUrl`/トークン） — [28 W-9〜W-12節](28_manual_verification_phase5.md) — 30分 — Google アカウント、`clasp`（`Tools/SpecWeb/README.md`）
+- [ ] 取得 → 差分プレビュー → Placeholder 作成（アセット・調整値〔スカラー・テーブル・enum〕） — [28 W-9〜W-12節](28_manual_verification_phase5.md) — 20分 — ②のデプロイ済み Web アプリ
+- [ ] `Specs/assets.json`/`Specs/tuning.json` の diff 確認 — [28 W-9〜W-12節](28_manual_verification_phase5.md) — 5分 — 特になし（同期後でよい）
+- [ ] D-Drive → Web 送信（選択肢・実状態・調整値使用状況）+ Web の実状態バッジ確認 — [28 W-9〜W-12節](28_manual_verification_phase5.md) — 10分 — 書き込みトークン
+- [ ] （旧方式・参考）仕様書テンプレート — [28 5-12節](28_manual_verification_phase5.md) — 実施不要
+- [ ] （旧方式・参考）仕様書同期（スプレッドシート） — [28 5-13節](28_manual_verification_phase5.md) — 実施不要
+- [ ] （旧方式・参考）仕様書リンク — [28 5-14節](28_manual_verification_phase5.md) — 実施不要
+- [ ] （旧方式・参考）新規作成ダイアログ「仕様書から選ぶ」 — [28 5-16節](28_manual_verification_phase5.md) — 実施不要
 
 **③ 演出系（揺れ・振動 → Presentation 基盤 → Presentation エディタ）**
 
@@ -124,6 +133,46 @@
 - **Texture の Usage/Channel 既定値**: `TextureImportProfile` の命名規約(`_N`/`_M`/`_UI` 等)に一致すればその既定値、一致しなければ `TextureData` のクラス既定値(Model/Albedo)のまま。UI 用テクスチャを規約に合わない名前で置いた場合は手動で Usage を直す必要がある
 - **既存 Data と同名衝突時の挙動は未検証**: 手動で同じ識別子の Data を先に作っていた場合、`AssetCreationService.Create` が別ファイルとして作成する(既存の重複回避ロジックに委ねている)。運用上どちらが優先されるべきかは今回判断していない
 - `AssetDataBase` に `[HideInInspector] string ImportSourceGuid` を追加した(シリアライズ形式の変更＝フィールド追加のみ。既存 Data は空文字で読み込まれ互換性に問題なし)。CLAUDE.md §0-9 の事前確認を自律作業中のため省略したので、問題があれば指摘してほしい
+
+## W-9〜W-12 仕様書 Web 化(HTML)の確認（2026-09-14 実装）
+
+対象: [32_spec_web.md](32_spec_web.md)（詳細設計・実装メモ）、`Assets/DDrive/Editor/Spec/SpecWebFetcher.cs`/
+`SpecWebParser.cs`/`SpecSnapshotWriter.cs`/`SpecWebSender.cs`/`SpecSyncWindow.cs`、
+`Assets/DDrive/Runtime/Tuning/TuningTable.cs`/`Tuning.cs`、`Tools/SpecWeb/`（GAS ソース）。
+旧方式（5-12〜5-16、Google スプレッドシート）はこの方式に置き換わったため実施不要。
+
+**前提（デプロイはユーザー作業）**: `Tools/SpecWeb/README.md` の手順で GAS プロジェクトを
+デプロイし、①（人向け SPA）・②（D-Drive API）の 2 つの URL と、読み取り/書き込みトークンを
+発行しておく。**この手順は本チケットでは未実施・未確認のまま引き継いでいる**（§9-4 の実機での
+302 リダイレクト確認も含む）。
+
+1. Unity で `Tools > D-Drive > 仕様書と同期` を開く。「Web API URL」に②の URL、
+   「人向け SPA URL」に①の URL を貼り、「読み取りトークン」「書き込みトークン」を入力して
+   「設定を保存」。トークンは伏せ字で入力されること
+2. 「取得」を押す。① の Web アプリでアセット・調整値(スカラー・テーブル・enum)をいくつか
+   登録してから取得すると、「新規」「変更」に反映されること
+3. 「適用」を押す。選択した行が Placeholder として作成され、`調整値も同期する` が ON なら
+   `TuningTable`(スカラー + テーブル)が更新されること。`Tools > D-Drive > Generate >
+   Regenerate Tuning Keys` を実行し、`Assets/Generated/Tuning.g.cs` に `TUNING`/`TUNING_TABLE`/
+   `TUNING_COLUMN` の定数が生成されること
+4. repo ルートの `Specs/assets.json`・`Specs/tuning.json` が更新されていること。
+   `git diff Specs/` で内容が読めること(キーがアルファベット順に整形されているため、
+   実質的な変更が無い再取得では diff が空になることも確認する)
+5. 「Web に送信」を押す。① の Web アプリのアセット詳細画面で「D-Drive 実状態」
+   （作成済み/使用箇所数/最終同期時刻）が更新されて表示されること(v2 のダッシュボード表示は
+   本チケットの範囲外のため、アセット詳細の実状態表示のみで確認する)
+6. （要判断・引き継ぎ）`isPlaceholder`/`iconAssetId`/`tags` は常に既定値（false/null/空配列）を
+   送るため、Web 側の表示もそれに応じたものになる。実際の運用でこれらが必要になった場合は
+   [32_spec_web.md] §9 の要判断 13〜14 を参照して拡張する
+
+### 要判断（W-9〜W-12、2026-09-14）
+
+- 上記「前提」のとおり、実デプロイでの動作確認(302 リダイレクト・トークンでの疎通)は
+  本チケットの範囲内では実施できなかった。ユーザーがデプロイ URL・トークンを用意した後、
+  最初にこの手順を通しで実行して確認してほしい
+- `SpecFetcher`/`SpecCsv`/`SpecSheetParser`（旧・CSV 方式）は物理削除せず残っている
+  （既存テストの CSV フィクスチャがそのまま使えるため。本番の同期経路からは呼ばれない）。
+  削除してよいか、削除する場合はテストの移行が必要になる点はユーザー判断を仰ぎたい
 
 ## 5-12 仕様書テンプレート（PR #13）
 
