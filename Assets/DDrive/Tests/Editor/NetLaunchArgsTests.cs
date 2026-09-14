@@ -17,6 +17,7 @@ namespace DDrive.Tests.Editor
             Assert.IsNull(result.SimLatencyMs);
             Assert.IsNull(result.SimLossPercent);
             Assert.IsNull(result.AutoTestName);
+            Assert.IsNull(result.AutoTestSeconds);
         }
 
         [Test]
@@ -60,6 +61,21 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("smoke", result.AutoTestName);
         }
 
+        // [11_tasks.md] 6-7 — run-netcheck.cmd がシナリオごとに実行時間を明示するための引数。
+        [Test]
+        public void Parse_AutoTestSeconds()
+        {
+            var result = NetLaunchArgs.Parse(new[] { "-ddrive-autotest-seconds", "30" });
+            Assert.AreEqual(30f, result.AutoTestSeconds.Value, 0.001f);
+        }
+
+        [Test]
+        public void Parse_AutoTestSeconds_InvalidValue_LeavesNull()
+        {
+            var result = NetLaunchArgs.Parse(new[] { "-ddrive-autotest-seconds", "not-a-number" });
+            Assert.IsNull(result.AutoTestSeconds);
+        }
+
         [Test]
         public void Parse_AllFlagsTogether_InAnyOrder()
         {
@@ -71,6 +87,7 @@ namespace DDrive.Tests.Editor
                 "-ddrive-sim-latency", "50",
                 "-ddrive-sim-loss", "1",
                 "-ddrive-autotest", "netcheck",
+                "-ddrive-autotest-seconds", "30",
             };
 
             var result = NetLaunchArgs.Parse(args);
@@ -80,6 +97,7 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(50, result.SimLatencyMs);
             Assert.AreEqual(1f, result.SimLossPercent.Value, 0.001f);
             Assert.AreEqual("netcheck", result.AutoTestName);
+            Assert.AreEqual(30f, result.AutoTestSeconds.Value, 0.001f);
         }
 
         [Test]

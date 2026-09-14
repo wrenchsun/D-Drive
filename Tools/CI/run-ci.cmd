@@ -41,7 +41,7 @@ echo.
 
 set "OVERALL_EXIT=0"
 
-echo [1/5] Validation (CI.ValidateAll) を実行します...
+echo [1/6] Validation (CI.ValidateAll) を実行します...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.ValidateAll -ddriveOutput "%RESULTS_DIR%\ddrive-validation.junit.xml" -logFile "%RESULTS_DIR%\validate.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Validation で Error が見つかりました。ログ: %RESULTS_DIR%\validate.log
@@ -51,7 +51,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [2/5] Asset ID 再生成 ^(CI.RegenerateIds^) + git diff 確認 を実行します...
+echo [2/6] Asset ID 再生成 ^(CI.RegenerateIds^) + git diff 確認 を実行します...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.RegenerateIds -logFile "%RESULTS_DIR%\regenerate-ids.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Asset ID 再生成に失敗しました^(重複 ID 等^)。ログ: %RESULTS_DIR%\regenerate-ids.log
@@ -69,7 +69,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [3/5] EditMode テストを実行します...
+echo [3/6] EditMode テストを実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform EditMode -testResults "%RESULTS_DIR%\editmode-results.xml" -logFile "%RESULTS_DIR%\editmode.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] EditMode テスト。ログ: %RESULTS_DIR%\editmode.log
@@ -79,7 +79,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [4/5] PlayMode テストを実行します...
+echo [4/6] PlayMode テストを実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testResults "%RESULTS_DIR%\playmode-results.xml" -logFile "%RESULTS_DIR%\playmode.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] PlayMode テスト。ログ: %RESULTS_DIR%\playmode.log
@@ -93,13 +93,32 @@ REM 6-2(パフォーマンス計測・0 alloc 検証): DDrive.Tests.Performance(
 REM PlayMode で実行する。GitHub Actions 側の CI(.github\workflows\ci.yml)は P7 末の CI 導入まで
 REM このステップを実処理化しない(2026-09-15 ユーザー決定)ため、当面はローカル実行がこの一式の
 REM 唯一の実行経路になる。
-echo [5/5] Performance テスト(0 alloc 検証、DDrive.Tests.Performance)を実行します...
+echo [5/6] Performance テスト(0 alloc 検証、DDrive.Tests.Performance)を実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testCategory "Performance" -testResults "%RESULTS_DIR%\performance-results.xml" -logFile "%RESULTS_DIR%\performance.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Performance テスト。ログ: %RESULTS_DIR%\performance.log
     set "OVERALL_EXIT=1"
 ) else (
     echo [OK] Performance テスト
+)
+echo.
+
+REM 6-7(任意ステップ): ビルド済みの Builds\DDriveNetCheck\DDriveNetCheck.exe があるときだけ、
+REM 2 クライアント自動テスト(Tools\CI\run-netcheck.cmd)を実行する。ビルドが無い場合は
+REM(このステップは Unity Editor でのビルドを前提にしており、run-ci.cmd 自体はビルドしないため)
+REM スキップするだけで CI 全体を失敗させない([11_tasks.md] 6-7、CI 本稼働は P7 末のため任意ステップ扱い)。
+if exist "%PROJECT_PATH%\Builds\DDriveNetCheck\DDriveNetCheck.exe" (
+    echo [6/6] NetCheck^(6-7、2 クライアント自動テスト^)を実行します...
+    call "%~dp0run-netcheck.cmd"
+    if not "%ERRORLEVEL%"=="0" (
+        echo [FAIL] NetCheck。ログ: %RESULTS_DIR%\NetCheck\summary.md
+        set "OVERALL_EXIT=1"
+    ) else (
+        echo [OK] NetCheck
+    )
+) else (
+    echo [6/6] NetCheck: ビルド済み exe が無いためスキップします
+    echo        ^(Tools ^> D-Drive ^> Build ^> 実機確認用 Windows 開発ビルド の後に Tools\CI\run-netcheck.cmd を単体実行できます^)
 )
 echo.
 
@@ -110,7 +129,8 @@ if "%ERRORLEVEL%"=="0" (
         -ValidationJUnitPath "%RESULTS_DIR%\ddrive-validation.junit.xml" ^
         -EditModeResultsPath "%RESULTS_DIR%\editmode-results.xml" ^
         -PlayModeResultsPath "%RESULTS_DIR%\playmode-results.xml" ^
-        -PerformanceResultsPath "%RESULTS_DIR%\performance-results.xml"
+        -PerformanceResultsPath "%RESULTS_DIR%\performance-results.xml" ^
+        -NetCheckResultsPath "%RESULTS_DIR%\NetCheck\results.json"
 ) else (
     echo [注意] pwsh が見つからないため、結果サマリの整形はスキップしました。
     echo         %RESULTS_DIR% 配下の XML / ログを直接確認してください。
@@ -120,7 +140,7 @@ echo.
 if "%OVERALL_EXIT%"=="0" (
     echo === すべて green です ===
 ) else (
-    echo === 失敗があります(上のログを確認してください) ===
+    echo === 失敗があります^(上のログを確認してください^) ===
 )
 
 exit /b %OVERALL_EXIT%

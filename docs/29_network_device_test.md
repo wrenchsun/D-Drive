@@ -548,3 +548,71 @@ Unity の `Build Settings` で `Development Build` のチェックを外した�
 手動でリリース相当のビルドを作った場合は、上記手順 3〜4 と同じ操作で
 「Host が該当 Client を切断し、Client 側に `NetworkManager.DisconnectReason`(「カタログの ContentHash
 が一致しません…」)を含む切断が表示されること」を確認する。
+
+## 15. 自動判定つきローカル 2 プロセス確認(6-7)
+
+[11_tasks.md] 6-7。§7/§9〜§13 の「ローカル 2 プロセス確認」を毎回手動でログを読んで判定するのではなく、
+`DDrive.Runtime.Net.NetCheckJudge`(純関数、Unity API 非依存。`NetLaunchArgs` と同じ方針で EditMode
+テスト済み)による自動判定 + `Tools/CI/run-netcheck.cmd` による起動・集計へ置き換えたもの。CI(GitHub
+Actions)への組込みは P7 末まで延期のため([33_ci_setup.md] §8 と同じ理由)、当面はこの手順がローカル
+実行の唯一の経路になる。
+
+### 使い方
+
+1. Unity Editor で `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド`(`NetCheckBuilder.Build()`)
+   を実行し、`Builds\DDriveNetCheck\DDriveNetCheck.exe` を最新化する
+2. リポジトリ直下で `Tools\CI\run-netcheck.cmd`(1 シナリオだけなら `Tools\CI\run-netcheck.cmd pair0`)を
+   実行する。Unity Editor を開いたままでもよい(ビルド済み exe を別プロセスとして起動するだけで、
+   Unity 側のバッチ処理は行わない)
+3. `Tools\CI\Run-NetCheck.ps1` が Host/Client を 127.0.0.1 上に起動し、両方のプロセスが自然終了するまで
+   待って `TestResults\NetCheck\` にログとサマリを書き出す
+
+### シナリオ
+
+| シナリオ | 遅延 | Host 実行時間 | Client 実行時間 | 目的 |
+|---|---|---|---|---|
+| `pair0` | 0ms | 35秒 | 30秒 | 接続・Signal 中継・偽造 Cancel 破棄・ContentHash 一致の基本確認 |
+| `pair200` | 200ms | 35秒 | 30秒 | 同上を A7 の猶予(0.5秒)下で確認(`track_fired`/`track_skipped` の境界判定含む) |
+| `latejoin` | 0ms | 35秒 | 20秒(Host 起動 12 秒後に接続) | Late Join 直後の activeCount 復元・Placeholder 0 |
+| `disconnect` | 0ms | 10秒(先に終了) | 25秒 | Host の正常終了を Client が検知し、演出(activeCount/vfx_active)が 0 になることを確認 |
+
+`disconnect` は実機確認 v4 の「ラウンド A: 切断(Host をウィンドウを閉じて正常終了)」(§12)と同じ経路を、
+`Stop-Process` 等でプロセスを外部から殺すのではなく **Host の `-ddrive-autotest-seconds` を Client より
+短くする**ことで再現している(`NetCheckRunner.RunAutoTestAndQuit` が自分の判定を済ませてから
+`Application.Quit()` で正常終了する。タイムアウト切断=ラウンド C の経路はこの自動テストの対象外)。
+
+### 判定条件と担当箇所
+
+各シナリオは次の 3 つがすべて PASS のときだけ PASS になる:
+
+1. **Host 自身の `[DDriveNetCheck] RESULT=PASS|FAIL scenario=... reason=...`**(`NetCheckJudge.Evaluate`
+   が Host 自身のログ/イベント購読だけで判定: Exception/Error 0・接続・Placeholder 0・A7 猶予の逆側
+   チェック(`track_fired_over_grace`/`track_skipped_within_grace`)・切断後の演出 0(発生した場合)・
+   ContentHash 一致)
+2. **Client 自身の同じ RESULT 行**(同じ判定に加えて、`latejoin` シナリオでは Late Join 復元
+   (`late_join_not_restored`)、偽造 Cancel の全件破棄(`forged_cancel_mismatch`。Client 発の Broadcast は
+   Host 経由で ClientsAndHost へ中継され送信元自身にも同じ破棄ログが返るため、Client 自身のログだけで
+   送信数=破棄数を検証できる)も判定する)
+3. **`Tools/CI/Run-NetCheck.ps1` によるクロスログ判定**(Signal 中継の位相差。Host の `signal_fire` と
+   Client の `signal_recv` を `HandleNetKey` で対にして `networkTime` 差を計算し、§4 の「数ティック以内
+   (目安 100ms 以内)」に対してノイズ耐性を持たせた 150ms を機械判定のしきい値にする。単一プロセスの
+   ログだけでは分からない項目のため、両方の `Player.log` を突き合わせるここだけで判定する)
+
+K3(6-6、Signal が Play より先に届いた場合の保留→適用)が実際に効いたかどうかは、`PresentationManager.
+FlushPendingUnknownKey` が開発ビルドで `pending_applied=1` を含む 1 行をログに出すようにした(6-7 で追加)
+ため、ローカル実行(遅延が小さく揺らぎも小さい)では通常出ないが、出ていれば K3 が機能した直接的な証拠に
+なる。この行の有無は現時点では PASS/FAIL 条件には含めていない(発生が任意のため。§13 の実機/ローカル
+結合での v5 確認で意図的に再現する場合に活用する)。
+
+6-5(ContentHash)は 2026-09-15 に main へマージ済み(PR #70)のため、`NetCheckJudge` は Host/Client が
+`CatalogContentHashGate.LastStatusText` で `OK` になっていることも判定に含める。Host/Client が同じビルド
+(同じ GameData)を使うこの自動テストでは常に一致するはずなので、`content_hash_not_ok` で FAIL する場合は
+ビルドの取り違え等の環境要因を疑う(意図的な不一致確認は §14 の手動手順を使う)。
+
+要判断:
+- Signal 中継の位相差 150ms は §4 の「目安 100ms 以内」に自動判定用の余裕を乗せた値であり、docs 側の
+  目安自体は変えていない。ローカル実行環境の負荷次第で調整が必要になれば `Run-NetCheck.ps1` の
+  `$PhaseDiffThresholdMs` を変更する
+- K1(通信の数秒停止)・K2(rtt_app_ms 固着からの復旧)・K3(保留→適用)を実際に再現する不安定な回線状態は
+  ローカルループバックでは作れないため、この自動テストでは(K3 の `pending_applied` ログが偶然出ない限り)
+  直接は検証していない。§13 の実機/ローカル結合での v5 確認が引き続き必要

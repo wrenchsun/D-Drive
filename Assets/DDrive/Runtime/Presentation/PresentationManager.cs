@@ -574,6 +574,15 @@ namespace DDrive.Runtime.Presentation
                     continue;
                 }
 
+                // [11_tasks.md] 6-7 — K3(保留→適用)が実際に効いたことを、開発ビルドのみログで残す
+                // ([docs/29] §13 の「保留していた Signal を適用したことが間接的に確認できること」への
+                // 対応。効果自体〔HitStop/CameraShake 等の再発火〕は既存の signal_recv/track_fired 経路で
+                // 分かるが、明示的な 1 行があると NetCheckRunner/外部スクリプトが機械的に検出しやすい)。
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                var prefix = _netBridge != null && _netBridge.IsServer ? "[Net/Host]" : "[Net/Client]";
+                Debug.Log($"{prefix} Presentation: 保留していた HandleNetKey=0x{handleNetKey:X8} の{(isCancel ? "Cancel" : "Signal")}を Play 到着後に適用しました。(pending_applied=1)");
+#endif
+
                 if (isCancel)
                 {
                     if (!instance.Done)

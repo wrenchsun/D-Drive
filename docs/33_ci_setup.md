@@ -116,13 +116,14 @@ Tools\CI\run-ci.cmd
 Tools\CI\run-ci.cmd "C:\Program Files\Unity\Hub\Editor\6000.3.13f1\Editor\Unity.exe"
 ```
 
-CI ワークフローと同じ 4 ステップ（Validation → ID 再生成+diff → EditMode → PlayMode）を順番に実行し、最後に `Tools/CI/Summarize-Results.ps1`（`pwsh` があれば）で結果を要約表示する。結果ファイルは `TestResults/`（gitignore 済み）に出る。
+CI ワークフローと同じ 4 ステップ（Validation → ID 再生成+diff → EditMode → PlayMode）に加え、6-2（性能テスト、§8）・6-7（2 クライアント自動テスト、§9。ビルド済み exe が無ければ自動でスキップ）の計 6 ステップを順番に実行し、最後に `Tools/CI/Summarize-Results.ps1`（`pwsh` があれば）で結果を要約表示する。結果ファイルは `TestResults/`（gitignore 済み）に出る。
 
 **注意**:
 
 - **このプロジェクトを Unity Editor で開いている間は使えない**（同一プロジェクトの多重起動不可のため、途中のステップで Unity がエラー終了する）。使う前に Unity を閉じること
 - `.ps1` を主経路にしなかった理由: この PC の `powershell.exe`（Windows PowerShell 5.1）は既定の実行ポリシーで `.ps1` の直接実行がブロックされたり、BOM 無し UTF-8 のコメント（日本語）が化けたりすることがある。`run-ci.cmd` は内部で `pwsh -ExecutionPolicy Bypass -File ...` の形で明示的に呼ぶことでこれを避けている。`pwsh`（PowerShell 7+）自体が入っていない場合、テスト実行自体は`.cmd` だけで完走するが、結果サマリの整形だけスキップされる（`TestResults/` の XML を直接見る）
 - git の作業ツリーが汚れている状態（未コミットの変更がある状態）で実行すると、②の `git diff --exit-code` がその既存の差分も検出して fail する（CI 由来の差分と区別できない）。実行前に `git status` で作業ツリーがきれいであることを確認しておくと結果が分かりやすい
+- **`.cmd` ファイルを編集する人向け（2026-09-15、6-7 実装中に発見）**: この PC の `cmd.exe` は、日本語テキストと半角の丸括弧が同じ行に混在し、かつその行が `if (...)`/`for (...)` のような括弧ブロックの内側にあるとき、ファイルの改行が LF のみ（CRLF ではない）だと丸括弧の対応関係を誤認し、行の一部が別コマンドとして実行されようとして `... was unexpected at this time.` 等で壊れることがある（トップレベルの `REM`/`echo` 単体では発生しない。ブロック内でのみ再現）。対策は 2 つ: ①ファイル全体を **CRLF** で保存する（`git diff` や多くのエディタでは見えない差分なので明示する） ②それでもブロック内の日本語+半角括弧が不安な場合は `^(`/`^)` でエスケープするか、全角（）に置き換える。`Tools/CI/run-ci.cmd`・`Tools/CI/run-netcheck.cmd` は両方 CRLF 化済み・ブロック内の丸括弧はエスケープ済み
 
 ---
 
@@ -130,8 +131,20 @@ CI ワークフローと同じ 4 ステップ（Validation → ID 再生成+diff
 
 **2026-09-15 に方針変更**: GitHub Actions のセルフホストランナー導入（本書 §1〜§2）は**P7 の最後に回す**ことになった（MS2026 側に既に CI があるため、D-Drive 側でランナーを別途用意しない）。そのため `.github/workflows/ci.yml` の `Performance tests (6-2, placeholder)` ステップは**このチケットでは実処理化していない**（placeholder のまま）。6-1/6-7 を含め、GitHub Actions での自動実行は P7 末の CI 導入まで保留（トリガーを `workflow_dispatch`（手動実行）のみに変更するのは親セッションの作業）。「PR ごとに実行」というユーザー決定自体は変わっていないが、**発効するのは CI 導入時**になる。
 
-**この間の実行経路**: 6-2 で追加した性能テスト（新規 asmdef `DDrive.Tests.Performance`、`Assets/DDrive/Tests/Performance/`、カテゴリ `Performance`）は、Unity Editor の Test Runner（Window > General > Test Runner、PlayMode タブ、`Performance` カテゴリで絞り込み）と、ローカル一括実行の `Tools/CI/run-ci.cmd`（本書 §7）で回す。`run-ci.cmd` は 2026-09-15 に **[5/5] Performance テスト**ステップを追加し、`-testPlatform PlayMode -testCategory "Performance"` で絞り込んで実行、結果は `TestResults/performance-results.xml` に出力、`Tools/CI/Summarize-Results.ps1` が Validation/EditMode/PlayMode と同じ表に追加する（`-PerformanceResultsPath` パラメータ、省略可）。
+**この間の実行経路**: 6-2 で追加した性能テスト（新規 asmdef `DDrive.Tests.Performance`、`Assets/DDrive/Tests/Performance/`、カテゴリ `Performance`）は、Unity Editor の Test Runner（Window > General > Test Runner、PlayMode タブ、`Performance` カテゴリで絞り込み）と、ローカル一括実行の `Tools/CI/run-ci.cmd`（本書 §7）で回す。`run-ci.cmd` は 2026-09-15 に **Performance テスト**ステップを追加し（6-7 追加後の番号は **[5/6]**）、`-testPlatform PlayMode -testCategory "Performance"` で絞り込んで実行、結果は `TestResults/performance-results.xml` に出力、`Tools/CI/Summarize-Results.ps1` が Validation/EditMode/PlayMode と同じ表に追加する（`-PerformanceResultsPath` パラメータ、省略可）。
 
 **テストの内容・既知課題**: Pool の Rent/Return・各 Manager の Tick（+Presentation の Signal）・GameLoopDriver の 1 フレームは 0 alloc を hard assert する。Spawn/Play 系（1 アクションにつき 1 回呼ばれる経路）は Instance クラスを 1 個 new する既存設計のため厳密な 0 alloc ではなく、Performance レポートへの記録のみ（assert しない）。詳細は [12_review.md](12_review.md) §3 と [11_tasks.md](11_tasks.md) 6-2 の実装メモを参照。
 
-**将来、CI 導入時に実処理化する人向け**: `.github/workflows/ci.yml` の `Performance tests (6-2, placeholder)` ステップに、`run-ci.cmd` の [5/5] と同じ `-runTests -testPlatform PlayMode -testCategory "Performance"` 呼び出しを追加し、結果 XML を `Summarize results` ステップの `Summarize-Results.ps1` 呼び出しに `-PerformanceResultsPath` として渡す（既にパラメータ対応済み）。失敗時は非ゼロ終了で他のステップと同じ扱いにする。
+**将来、CI 導入時に実処理化する人向け**: `.github/workflows/ci.yml` の `Performance tests (6-2, placeholder)` ステップに、`run-ci.cmd` の Performance テストステップと同じ `-runTests -testPlatform PlayMode -testCategory "Performance"` 呼び出しを追加し、結果 XML を `Summarize results` ステップの `Summarize-Results.ps1` 呼び出しに `-PerformanceResultsPath` として渡す（既にパラメータ対応済み）。失敗時は非ゼロ終了で他のステップと同じ扱いにする。
+
+---
+
+## 9. 6-7（2 クライアント自動テスト）の現状（2026-09-15 実装）
+
+6-1/6-2 と同じ理由（CI 本稼働は P7 末に延期）で、6-7「2 クライアント自動テスト」もローカル実行に置き換えている。`.github/workflows/ci.yml` に 6-7 用のステップは追加していない（GitHub-hosted/セルフホストいずれのランナーでも UDP ループバック通信を伴うプレイヤー実行は不安定になりやすく、P7 末の本稼働時にまとめて検討する）。
+
+**実行経路**: `Tools/CI/run-netcheck.cmd`（本体は `Tools/CI/Run-NetCheck.ps1`）が、Unity Editor で事前にビルドした `Builds/DDriveNetCheck/DDriveNetCheck.exe`（`Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド`）を Host/Client の 2 プロセスとして 127.0.0.1 上に起動し、`pair0`/`pair200`/`latejoin`/`disconnect` の 4 シナリオを順に実行する。判定はプロセス自身の `[DDriveNetCheck] RESULT=PASS|FAIL` 行（`DDrive.Runtime.Net.NetCheckJudge`）と、両プロセスの `Player.log` を突き合わせる Signal 中継の位相差チェックの組み合わせ。詳細な判定条件・シナリオ表は [29_network_device_test.md](29_network_device_test.md) §15、人による確認手順は [37_manual_verification_phase6.md](37_manual_verification_phase6.md)「6-7」節。
+
+`run-ci.cmd` はビルド済み exe があるときだけ `[6/6] NetCheck` ステップとしてこれを任意実行し（無ければスキップしても CI 全体は失敗しない）、結果は `Tools/CI/Summarize-Results.ps1` の `-NetCheckResultsPath`（`TestResults/NetCheck/results.json`）で他のステップと同じ表に統合される。**pwsh（PowerShell 7+）が必須**（`run-ci.cmd`/`run-netcheck.cmd` の他ステップは pwsh 無しでも動くが、6-7 の判定ロジック一式は `Run-NetCheck.ps1` に実装されているため pwsh 無しではこのステップ自体が実行できない）。
+
+**将来、CI 導入時に実処理化する人向け**: セルフホストランナー上でも `Tools\CI\run-netcheck.cmd` がそのまま動く想定(同じ PC 上の 127.0.0.1 ループバックのみを使うため、ネットワーク環境の追加設定は不要)。追加するとすれば `.github/workflows/ci.yml` に「実機確認用ビルド」ステップ(`NetCheckBuilder.Build()` を `-executeMethod` で呼ぶ)と、`run-netcheck.cmd` 相当の呼び出しステップを追加し、`results.json` を Artifact に含める。ランナーが 1 台しかない前提(本書冒頭)と同じ制約で、Unity のバッチ実行と NetCheck のプレイヤー実行が同時に走らないよう順序を保つこと。
