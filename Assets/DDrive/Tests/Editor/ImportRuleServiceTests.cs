@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Import;
 using DDrive.Foundation.Data;
@@ -13,6 +14,7 @@ using DDrive.Runtime.Vfx;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace DDrive.Tests.Editor
 {
@@ -34,6 +36,10 @@ namespace DDrive.Tests.Editor
             // このテストは ProcessPaths を直接呼ぶため、実運用の AssetPostprocessor 経由の自動実行は止めておく
             // (delayCall のタイミングでテストと競合し、二重生成やテスト後の残骸を生む事故を避ける)。
             ImportRulePostprocessor.Suppress = true;
+
+            // 案内ログの「パスごとに1回だけ」は static な HashSet で持っているため、テスト間で残ると
+            // 後続のテストで警告が出なくなってしまう。テストごとにリセットする。
+            ImportRuleService.ResetImportHintStateForTests();
         }
 
         [TearDown]
@@ -165,8 +171,70 @@ namespace DDrive.Tests.Editor
             File.WriteAllText(Path.GetFullPath(relative), "memo");
             AssetDatabase.ImportAsset(relative, ImportAssetOptions.ForceSynchronousImport);
 
+            LogAssert.Expect(LogType.Warning, new Regex(@"\[DDrive\] ImportRule 案内:.*'Se'.*対象拡張子"));
             var report = ImportRuleService.ProcessPaths(new[] { relative }, SourceRoot, GameDataRoot);
             Assert.AreEqual(0, report.Created);
+        }
+
+        // ── 案内ログ(2026-09-14 追加): 置き方を間違えたときに Console へ 1 回だけ警告する ──
+
+        [Test]
+        public void ProcessPaths_DirectlyUnderRoot_LogsHintOnce()
+        {
+            var relative = $"{SourceRoot}/Foo.wav";
+            var path = WriteWav(relative);
+
+            LogAssert.Expect(LogType.Warning, new Regex(@"\[DDrive\] ImportRule 案内:.*種別フォルダの下に置いてください"));
+            var report = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(0, report.Created);
+
+            // 同じパスをもう一度渡しても、このセッションでは 2 度目の警告は出ない。
+            var second = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(0, second.Created);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
+        public void ProcessPaths_UnknownTypeFolder_LogsHintOnce()
+        {
+            var path = WriteWav($"{SourceRoot}/NotARule/Foo.wav");
+
+            LogAssert.Expect(LogType.Warning, new Regex(@"\[DDrive\] ImportRule 案内:.*'NotARule'.*種別フォルダではありません"));
+            var report = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(0, report.Created);
+
+            ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
+        public void ProcessPaths_KnownNonTargetFolder_NoHint()
+        {
+            // Shaders / Data は Maya→Material 経路・サンプル資産が既に使っている既知の非対象フォルダのため、
+            // 種別フォルダとして不明でも警告しない。
+            var path = WriteWav($"{SourceRoot}/Data/Foo.wav");
+
+            var report = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(0, report.Created);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
+        public void ProcessPaths_HiddenOrMetaOrFolder_NoHint()
+        {
+            // 隠しファイル・フォルダ自体は案内の対象外(実運用では OnPostprocessAllAssets が
+            // フォルダの作成・移動もまとめて渡してくるため、ここで無視しておく必要がある)。
+            var folder = $"{SourceRoot}/Se/_Check";
+            EnsureDiskFolder(folder);
+            AssetDatabase.Refresh();
+
+            var hidden = $"{SourceRoot}/Se/.DS_Store";
+            EnsureDiskFolder(Path.GetDirectoryName(hidden));
+            File.WriteAllText(Path.GetFullPath(hidden), string.Empty);
+
+            var report = ImportRuleService.ProcessPaths(new[] { folder, hidden }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(0, report.Created);
+            LogAssert.NoUnexpectedReceived();
         }
 
         // ── Se / Bgm(AudioClip) ──
