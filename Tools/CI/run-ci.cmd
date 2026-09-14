@@ -41,7 +41,7 @@ echo.
 
 set "OVERALL_EXIT=0"
 
-echo [1/4] Validation (CI.ValidateAll) を実行します...
+echo [1/5] Validation (CI.ValidateAll) を実行します...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.ValidateAll -ddriveOutput "%RESULTS_DIR%\ddrive-validation.junit.xml" -logFile "%RESULTS_DIR%\validate.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Validation で Error が見つかりました。ログ: %RESULTS_DIR%\validate.log
@@ -51,7 +51,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [2/4] Asset ID 再生成 ^(CI.RegenerateIds^) + git diff 確認 を実行します...
+echo [2/5] Asset ID 再生成 ^(CI.RegenerateIds^) + git diff 確認 を実行します...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.RegenerateIds -logFile "%RESULTS_DIR%\regenerate-ids.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Asset ID 再生成に失敗しました^(重複 ID 等^)。ログ: %RESULTS_DIR%\regenerate-ids.log
@@ -69,7 +69,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [3/4] EditMode テストを実行します...
+echo [3/5] EditMode テストを実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform EditMode -testResults "%RESULTS_DIR%\editmode-results.xml" -logFile "%RESULTS_DIR%\editmode.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] EditMode テスト。ログ: %RESULTS_DIR%\editmode.log
@@ -79,7 +79,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [4/4] PlayMode テストを実行します...
+echo [4/5] PlayMode テストを実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testResults "%RESULTS_DIR%\playmode-results.xml" -logFile "%RESULTS_DIR%\playmode.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] PlayMode テスト。ログ: %RESULTS_DIR%\playmode.log
@@ -89,13 +89,28 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
+REM 6-2(パフォーマンス計測・0 alloc 検証): DDrive.Tests.Performance(category=Performance)のみを
+REM PlayMode で実行する。GitHub Actions 側の CI(.github\workflows\ci.yml)は P7 末の CI 導入まで
+REM このステップを実処理化しない(2026-09-15 ユーザー決定)ため、当面はローカル実行がこの一式の
+REM 唯一の実行経路になる。
+echo [5/5] Performance テスト(0 alloc 検証、DDrive.Tests.Performance)を実行します...
+"%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testCategory "Performance" -testResults "%RESULTS_DIR%\performance-results.xml" -logFile "%RESULTS_DIR%\performance.log"
+if not "%ERRORLEVEL%"=="0" (
+    echo [FAIL] Performance テスト。ログ: %RESULTS_DIR%\performance.log
+    set "OVERALL_EXIT=1"
+) else (
+    echo [OK] Performance テスト
+)
+echo.
+
 where pwsh >nul 2>nul
 if "%ERRORLEVEL%"=="0" (
     echo === 結果サマリ ===
     pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0Summarize-Results.ps1" ^
         -ValidationJUnitPath "%RESULTS_DIR%\ddrive-validation.junit.xml" ^
         -EditModeResultsPath "%RESULTS_DIR%\editmode-results.xml" ^
-        -PlayModeResultsPath "%RESULTS_DIR%\playmode-results.xml"
+        -PlayModeResultsPath "%RESULTS_DIR%\playmode-results.xml" ^
+        -PerformanceResultsPath "%RESULTS_DIR%\performance-results.xml"
 ) else (
     echo [注意] pwsh が見つからないため、結果サマリの整形はスキップしました。
     echo         %RESULTS_DIR% 配下の XML / ログを直接確認してください。

@@ -96,6 +96,8 @@ Game.*                 … ゲーム本体。DDrive.Runtime のみ参照（Edito
 - `DDrive.Runtime.asmdef` / `DDrive.Samples.asmdef`(`overrideReferences: false`)は R3.dll が自動参照されるため無編集。`overrideReferences: true` の asmdef(`DDrive.Tests.Runtime.asmdef` 等)は `precompiledReferences` に `"R3.dll"` を明示追加する必要がある
 - DLL 重複の懸念(`org.nuget.system.runtime.compilerservices.unsafe` と isuzu MCP 側の同名 DLL)があったが、導入後も「Multiple precompiled assemblies」等のエラーは発生せず、isuzu MCP 自体も問題なく動作を継続した(詳細: [08_presentation.md] 実装メモ)
 
+**2026-09-15 追記(6-2)**: `com.unity.test-framework.performance`(**3.4.0**)を `Packages/manifest.json` に正式追加した。`com.unity.test-framework`(EditMode/PlayMode テスト本体)の依存として `Library/PackageCache` に既に transitive で解決されていたバージョンにそのまま固定している(依存関係の版ズレを避けるため)。新規 asmdef `DDrive.Tests.Performance`(`Assets/DDrive/Tests/Performance/`、`Unity.PerformanceTesting` を参照)で 0 alloc 検証([12_review.md] §3、[11_tasks.md] 6-2)に使用。既存 asmdef(`DDrive.Runtime`/`DDrive.Editor`/`DDrive.Tests.Runtime`/`DDrive.Tests.Editor`)は変更していない(この用途は新規テスト asmdef 側だけで閉じている)。
+
 ### R3 の asmdef 明示参照 — 調査結果(2026-09-15 追記、[31] A6、P6)
 
 **決定は「(c) asmdef に R3 の明示参照を追加する」だったが、調査の結果 `DDrive.Runtime.asmdef`/`DDrive.Editor.asmdef` 自体は変更しなかった。理由と調査結果を以下に記録する(CLAUDE.md §0-9: asmdef 構成は迷ったら聞く、に該当するため実施を見送り、要判断として残す)。**
