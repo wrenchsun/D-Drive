@@ -63,8 +63,20 @@ MonoBehaviour:
     m_SerializedLabels:
     - DDriveCatalog
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a84aa3e2e8ac41146817e60c3a1cd3d5
+    m_Address: CameraFxCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: afae82ac11ab03944865aebd0e54cbb7
     m_Address: AnimCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ca1228d883921e04aafc8230c3116613
+    m_Address: PresentationCatalog
     m_ReadOnly: 0
     m_SerializedLabels:
     - DDriveCatalog

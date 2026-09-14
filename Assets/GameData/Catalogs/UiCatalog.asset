@@ -13,9 +13,37 @@ MonoBehaviour:
   m_Name: UiCatalog
   m_EditorClassIdentifier: DDrive.Foundation::DDrive.Foundation.Registry.AssetCatalog
   entries:
+  - Id: 475640689560065645
+    Type: 17
+    Address: SKIN_Skider_Test
+    Flags:
+      Pause: 0
+      Load: 1
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 3473947914985043658
     Type: 17
     Address: SKIN_test_Default
+    Flags:
+      Pause: 0
+      Load: 1
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 4621800824308432940
+    Type: 17
+    Address: SKIN_Button_Skin
     Flags:
       Pause: 0
       Load: 1

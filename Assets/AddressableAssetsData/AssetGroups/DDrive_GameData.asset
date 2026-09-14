@@ -115,6 +115,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6ce6b2260eed10742a669b6034ba9e30
+    m_Address: HAPTIC_Demo_DemoHitPunch
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 70beab92a744bad4e84b9e4f3f5ad122
     m_Address: ANIM2D_Anim2D_Anim2DTest
     m_ReadOnly: 0
@@ -195,6 +200,16 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d28a6ad01a1f49d409bc30274c3be886
+    m_Address: SHAKE_Demo_DemoHitSmall
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d74c1a0133c023d4cae4170eeef54ee7
+    m_Address: SKIN_Button_Skin
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: d7f9265ffc9ff0f41b743644daf1ac5f
     m_Address: VFX_Player_Slash
     m_ReadOnly: 0
@@ -202,6 +217,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dbcb06836a48c644a970c4a59252d9b6
     m_Address: TEX_FBX_Wear02N
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e148ebb0832e2d84a92945cfe22097be
+    m_Address: SKIN_Skider_Test
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -222,6 +242,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ecb3243253c227148a3de1f837ff59bd
     m_Address: ANC_Player_VFXPlayerSlashAnchor
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f674e10812223d944afba30f6193d179
+    m_Address: PRES_Demo_SkillSlash
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

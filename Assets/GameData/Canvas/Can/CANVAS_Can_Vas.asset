@@ -157,7 +157,7 @@ MonoBehaviour:
         value: 0
         type: 0
     DisappearPreset:
-      Preset: 21
+      Preset: 0
       Duration: 0
       Distance: 0
       EaseOverride:
