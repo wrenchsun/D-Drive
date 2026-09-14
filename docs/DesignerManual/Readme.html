@@ -24,8 +24,8 @@
 </div>
 
 <div class="tip">
-<strong>共通の入口:</strong> Project で D-Drive のデータ（効果音・BGM・VFX・モデル・アニメーション・Anchor・配置セット・マテリアル・テクスチャ・Prefab・Canvas・Skin・UI Tween）を選ぶと、<strong>Inspector の一番上に「▶ 〜 Editor で開く」ボタン</strong>が出ます。迷ったらこれを押せば、そのデータ用の専用エディタが開きます（マテリアルのように、ボタンが 2〜3 個並ぶものもあります）。<br>
-<strong>アイコン:</strong> 同じ場所に「自動生成」「フォルダから選択」「シーンから作成」「クリア」があります。Prefab や画像を持つデータ（モデル・VFX・Prefab・Canvas・テクスチャ・Skin）とマテリアルは、<strong>「自動生成」を押すだけ</strong>で見た目からアイコンが作られます（作成直後にも自動で試みます）。効果音・BGM・アニメーション・Anchor のように絵の元が無い種類ではこのボタンは押せません。SceneView で良い角度に映してから「シーンから作成」を押すと、シーン全体の写真からドラッグで四角く切り取ってアイコンにできます。画像は <code>Assets/GameData/Icons/&lt;種別&gt;/</code> に自動で保存され、アイコンは Inspector に表示されます（Asset Browser の一覧には出ません）。
+<strong>共通の入口:</strong> Project で D-Drive のデータ（効果音・BGM・VFX・モデル・アニメーション・Anchor・配置セット・マテリアル・テクスチャ・Prefab・Canvas・Skin・UI Tween・演出・画面の揺れ・振動）を選ぶと、<strong>Inspector の一番上に「▶ 〜 Editor で開く」ボタン</strong>が出ます。迷ったらこれを押せば、そのデータ用の専用エディタが開きます（マテリアルのように、ボタンが 2〜3 個並ぶものもあります）。多くの専用エディタのツールバーには <strong>「＋ 新規作成」</strong> ボタンもあり、Asset Browser を開かずにその場で新しいデータを作れます（詳しくは<a href="asset-browser.html">Asset Browser の使い方</a>）。<br>
+<strong>アイコン:</strong> 同じ場所に「自動生成」「フォルダから選択」「シーンから作成」「クリア」があります。Prefab や画像を持つデータ（モデル・VFX・Prefab・Canvas・テクスチャ・Skin）とマテリアルは、<strong>「自動生成」を押すだけ</strong>で見た目からアイコンが作られます（作成直後にも自動で試みます）。効果音・BGM・アニメーション・Anchor のように絵の元が無い種類ではこのボタンは押せません。SceneView で良い角度に映してから「シーンから作成」を押すと、シーン全体の写真からドラッグで四角く切り取ってアイコンにできます。画像は <code>Assets/GameData/Icons/&lt;種別&gt;/</code> に自動で保存され、<strong>Inspector に加えて Asset Browser の一覧行・Project ウィンドウのサムネイル（グリッド表示）にも同じ画像が出ます</strong>（2026-09-14 から。未設定のアセットは Unity 既定のサムネイルのままです）。
 </div>
 
 <h2>ページ一覧</h2>
@@ -71,9 +71,9 @@
 <li><a href="ui-tween.html">UI の動き（UI Tween）・プリセットギャラリー・要素演出（ElementFx）</a>
 <p>フェード・スライド・跳ねるなどの動きを作る、59 種類のプリセットから選んで当てる、音量などの標準オプションと直結。</p></li>
 <li><a href="presentation.html">演出（Presentation）の設定項目</a>
-<p>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れなどをまとめて 1 つの演出にする機能。専用エディタが来るまでは Inspector から編集します。</p></li>
+<p>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れなどをまとめて 1 つの演出にする機能。専用の Presentation Editor でタイムライン編集 + 統合プレビューができます。</p></li>
 <li><a href="camera-haptics.html">画面の揺れ・コントローラーの振動</a>
-<p>画面をガクガク揺らす（カメラシェイク）・パッドをブルブル振動させる（ハプティクス）データの作り方。専用エディタが来るまでは Inspector から編集します。</p></li>
+<p>画面をガクガク揺らす（カメラシェイク）・パッドをブルブル振動させる（ハプティクス）データの作り方。専用の Shake / Haptics Editor で波形を見ながら調整・実際に揺らして/振動させて確認できます。</p></li>
 <li><a href="spec-sync.html">仕様書との同期</a>
 <p>企画がスプレッドシートに書いた行を D-Drive の空データに変換する。担当・状態の反映、調整値のコード連携、仕様書リンクも。</p></li>
 <li><a href="glossary.html">用語集</a>
