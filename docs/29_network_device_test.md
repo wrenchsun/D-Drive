@@ -47,7 +47,7 @@
 | `-ddrive-net host\|client\|off` | Inspector の `DefaultNetBridge`（NetCheckScene では `Ngo`=Host 相当） | Host/Client/シングルプレイ（Loopback）を選ぶ |
 | `-ddrive-host <ip>` | `192.168.137.1`（PC-A） | 接続先 IP（Client のとき）/ Listen IP（Host のとき、UnityTransport の実装依存） |
 | `-ddrive-port <n>` | `7777` | UDP ポート |
-| `-ddrive-sim-latency <ms>` | 未指定 = 0 | UnityTransport の Network Simulator の遅延(ms)。`SetDebugSimulatorParameters` の `packetDelay` 引数 |
+| `-ddrive-sim-latency <ms>` | 未指定 = 0 | 遅延(ms)。**2026-09-14 修正(課題1)**: `UnityTransport.SetDebugSimulatorParameters` は導入済みバージョンで `[Obsolete("... is no longer supported and has no effect.")]` であり実際には何もしない(§6 参照)ため、`NgoNetBridge` のアプリ層送受信キューで遅延を代替する(開発ビルドのみ有効) |
 | `-ddrive-sim-loss <%>` | 未指定 = 0 | パケットロス率(0-100) |
 | `-ddrive-autotest <name>` | 未指定 = 常駐 | `NetCheckRunner` が一定時間チェックを回してから自動終了する(ヘッドレス確認用。`name` はログに残すだけの識別ラベル) |
 
@@ -70,9 +70,11 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
 `NetCheckRunner`（`Assets/DDrive/Samples/NetCheckRunner.cs`）が `Player.log` に出す行:
 
 - `[DDriveNetCheck] ready=1 role=host|client|server|off` — 起動直後 1 回
-- `[DDriveNetCheck] heartbeat=1 role=... clientId=... networkTime=... activeCount=N` — 1 秒おき(または activeCount が変化した時)。**Late Join の判定**: 新規接続したクライアントの `activeCount` が `0` → `1` に変わる行が出れば復元成功
+- `[DDriveNetCheck] heartbeat=1 role=... clientId=... networkTime=... activeCount=N connected=0|1 rtt_app_ms=...` — 1 秒おき(または activeCount が変化した時)。**Late Join の判定**: 新規接続したクライアントの `activeCount` が `0` → `1` に変わる行が出れば復元成功。**2026-09-14 修正で `connected`/`rtt_app_ms` を追加**(6-0 修正1/5)。`connected` は Client が Host との接続を保っているか(Host は常に 1)。`rtt_app_ms` は `NgoNetBridge` が Ping/Pong で計測したアプリ層の往復時間(ms。Loopback や計測前は `n/a`)。**トランスポートの RTT(`NetDebugOverlay` の `RTT:`)は `-ddrive-sim-latency` を反映しない**(課題1、下記参照)ため、遅延シミュレーターが効いているかどうかは `rtt_app_ms` で判定する
+- `[DDriveNetCheck] disconnected=1 role=... reason=...` — **2026-09-14 修正(6-0 修正5)で追加**。Client が Host との接続を失ったときに 1 回だけ出る(`NetworkManager.OnClientDisconnectCallback`/`DisconnectReason` を中継)
 - `[DDriveNetCheck] play=<回数> startNetTime=...` — Host が剣攻撃デモ(`PRES_Demo_SkillSlash`)を Play したとき(Host 側のみ)
-- `[DDriveNetCheck] signal=hit` — Signal("hit") を発火したとき(Play から `signalDelaySeconds`(既定 0.5s)後、全ピア)
+- `[DDriveNetCheck] signal_fire=hit key=<HandleNetKey> networkTime=...` — 行為者(Host)が `handle.Signal("hit")` を呼んだ(意図表明した)とき(Play から `signalDelaySeconds`(既定 0.5s)後)。**2026-09-14 修正前は `signal=hit`(key/networkTime 無し)で、「全ピア」という記述が誤りだった**(実際は Host が呼んだ直後にしか出ず、Client 側は一切出さなかった。→ 6-0 修正2)
+- `[DDriveNetCheck] signal_recv=hit key=<HandleNetKey> networkTime=...` — **2026-09-14 修正(6-0 修正2)で追加**。各ピア(Host 自身の予測 Instance も含む)で実際に `OnSignal` トラックがネット経由で発火したときに出る(`PresentationManager.OnTrackFired`/`OnNetworkReceivedPlay` を使う)。`signal_fire` と `signal_recv` の `networkTime` を突き合わせることで位相差を判定できる
 - `[DDriveNetCheck] forged_cancel_sent=<key>` — Client が偽造 Cancel を送信したとき(既定 5 秒おき、Client のみ)。**偽造メッセージ破棄の判定**: この行の直後(同じフレーム〜数フレーム以内)に **Host または他クライアントの `Player.log` に `[Net/Host]` または `[Net/Client]` の警告(「送信元 ClientId(...) が発行者と一致しないため破棄しました」)が出て、`heartbeat` の `activeCount` が変化しない**ことを確認する
 - `[Net/Host]` / `[Net/Client]` — `NgoNetBridge`/`PresentationManager` のログ全般(接続・レート制限・発行者検証の破棄など)
 
@@ -119,9 +121,15 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
 ### 実機確認で見つかった課題（2026-09-14、修正チケットへ）
 
 1. **遅延シミュレーターが効いていない疑い**: `-ddrive-sim-latency 200` でも RTT が 6 ms。`NgoTransportConfigurator` が `SetDebugSimulatorParameters` を `StartClient`/`StartHost` の後（ドライバ生成後）に呼んでいる、または UnityTransport 2.x で当該 API が無効、の可能性。RTT の値（`GetCurrentRtt`）がシミュレーター遅延を含まない可能性もあるので、アプリ層の往復時間（Ping の往復）も併記して判定できるようにする
+   → **2026-09-14 修正**: 原因を特定した。呼び出し順序の問題ではなく、`Library/PackageCache/com.unity.netcode.gameobjects@.../Runtime/Transports/UTP/UnityTransport.cs` の `SetDebugSimulatorParameters`/`DebugSimulator` が `[Obsolete("... is no longer supported and has no effect. Use Network Simulator from the Multiplayer Tools package.")]` であり、`DebugSimulator` フィールドはドライバ生成時に一切参照されない(呼んでも何も起きない、真の no-op)。`NgoNetBridge` にアプリ層の送受信キュー遅延(`ConfigureAppLayerSimLatency`、開発ビルド+本引数指定時のみ)を実装して代替した。あわせて `NgoNetBridge` が Ping/Pong でアプリ層の往復時間を計測し(`AppRoundTripMs`)、`NetDebugOverlay` に「App RTT」として併記、`NetCheckRunner` の heartbeat に `rtt_app_ms` を追加した(トランスポート RTT に依存せず判定できるように)。
 2. **Client 側で Signal 中継を観測できない（計測の穴）**: `NetCheckRunner` の `signal=hit` は Host が `handle.Signal("hit")` を呼んだ直後にだけ出す実装（Host 179 件 / Client 0 件）。§4 の「全ピア」は誤り。Client で OnSignal トラックがネット経由で発火したことをログに出す仕組みが無く、**Signal 中継は実機で未検証**
+   → **2026-09-14 修正**: `PresentationManager` に「ネット受信で新規生成された Instance」を通知する開発用イベント `OnNetworkReceivedPlay` を追加し(定常経路では未使用のため 0 alloc)、`NetCheckRunner` が各ピアで `OnTrackFired` を購読して実際に OnSignal が発火した瞬間に `signal_recv=hit key=<HandleNetKey> networkTime=...` を出すようにした。Host 側も(PredictLocal でも自分の Broadcast が返ってくるまで実際には発火しないため)意図表明の `signal_fire` と実発火の `signal_recv` を両方出すようにし、§4 の「全ピア」表記を修正した。
 3. **Late Join 直後に Presentation が Placeholder で解決される**: Client に `[DDrive] Unregistered AssetId 0xCD2986D134D20E66 resolved to Placeholder.` が 1 件（= `PRES_Demo_SkillSlash` 自身、Host 側には無し）。接続直後のスナップショット受信がカタログのロード完了より先に処理される順序の問題と推測。接続直後の `activeCount` 5 → 0 もこれが原因の可能性
+   → **2026-09-14 修正**: 推測どおりだった。`PresentationManager.SetRegistryReady(bool)` を追加し、`DDriveRuntimeBootstrap` が構築直後に `false`、`RegisterCatalogsAsync()` 完了後に `true` を呼ぶようにした。`false` の間に受信した `PresentationPlayMsg`/`PresentationSignalMsg`/`PresentationCancelMsg` は到着順にキューへ保留し、`true` になった時点でまとめて処理する(ローカルの `Play()` API 呼び出しは影響を受けない)。回帰テスト `PresentationNetDeviceFixTests.OnReceivePlayMsg_BeforeRegistryReady_IsQueued_AndFlushedWithoutPlaceholder_AfterReady` を追加。`activeCount` 5→0 がこれで直るかは PC-B での再確認待ち(ローカル結合確認(§7)では再現しない条件だったため未確認、要判断として残す)。
 4. **偽造 Cancel の破棄ログが 1 件欠落**（0ms、35 送信 / 34 破棄、`HandleNetKey 0x01047DA3` は Host ログに出現なし）: 対象の演出が完了済みで未知キーとして黙って破棄された可能性。未知キーの破棄も判定できるようログを出す（開発ビルドのみ）
+   → **2026-09-14 修正**: `PresentationManager.OnReceiveSignalMsg`/`OnReceiveCancelMsg` が、`HandleNetKey` が発行者検証を通過した後も台帳に見つからない(未知、または対象の演出が既に完了して台帳から外れた)場合に `[Net/Host]`/`[Net/Client]` で「未知のキー、または対象の演出が既に完了しているため破棄しました」を開発ビルドでキーごとに 1 回出すようにした(`#if DEVELOPMENT_BUILD || UNITY_EDITOR`)。`NetCheckRunner.SendForgedCancel` も、可能なら「実在するが自分が発行していない」キーを狙うよう改修した(発行者不一致の経路を安定して踏ませつつ、対象が無ければ従来どおり完全ランダムにフォールバックして未知キー経路も踏む)。回帰テスト `PresentationNetDeviceFixTests.UnknownHandleNetKey_Cancel/Signal_LogsDiscardWarning` を追加。
+5. **Host を停止しても Client が切断を検知しない**（オーケストレーターが PC-B の再実行で発見した追加課題）: 接続中の最後の heartbeat の次が `clientId=0 networkTime=0.00` に戻り、`[Net/Client]` の切断通知・Exception が 0 件のまま heartbeat 92 件が続いた。
+   → **2026-09-14 修正**: `NgoNetBridge` が `NetworkManager.OnClientDisconnectCallback`/`OnTransportFailure` を購読し、`[Net/Host] Client <id> が切断しました(reason=...)`/`[Net/Client] Host から切断されました(reason=...)` をログに出す(`NetworkManager.DisconnectReason` を含む)。`ClientDisconnected` イベント(`(ulong clientId, string reason)`)を新設し、`NetCheckRunner` の heartbeat に `connected=0|1` を追加、切断時に `disconnected=1 role=... reason=...` を 1 回出す。自動再接続は MS2026 の規約に無いため実装しない(要判断: 将来必要になれば追加)。切断後の Presentation 側台帳(`_networkedHandles`/`_activeNetworked`)は、進行中の Cosmetic 演出が通常の Elapsed/Duration 経由で Complete/Cancel されるのに任せる設計のままにした(相手の接続状態に関わらず一定時間で自然に台帳から外れるため、切断によって新たに残留エントリが生じるわけではないと判断。専用のクリーンアップは追加していない)。
 - 遅延 200ms（PC-B の Client を `-ddrive-sim-latency 200` で再起動、ログ `C:\DDriveTest\Player_200ms.log`）: **Host 側で再接続を確認**（新しい Client = ClientId 2 からの偽造 Cancel を 7 件破棄、Host は応答継続、`networkTime=383.73 activeCount=5`）。Host 側の破棄件数の合計は ClientId 1 = 34 件 / ClientId 2 = 7 件。PC-B 側の RTT・Signal 件数・位相は報告待ち（追記予定）
 
 ## 7. ローカル(このPC・ループバック)での結合確認結果
@@ -193,3 +201,66 @@ DDriveNetCheck.exe -ddrive-net client -ddrive-host 127.0.0.1 -ddrive-port 7777 -
 同一フレームで一致するため)。
 
 `Builds/`(ビルド出力・ログ)は `.gitignore` 済みのため、このセクションのログ抜粋以外はコミットしていない。
+
+## 9. 修正版のローカル結合確認結果（2026-09-14、実機確認で見つかった課題1〜5の修正後）
+
+`NetCheckBuilder.Build()` で再ビルド(`Builds/DDriveNetCheck/DDriveNetCheck.exe`、development build、zip
+`Builds/DDriveNetCheck.zip` 109,171,666 bytes ≒ 104 MB)し、このPC上でループバック(127.0.0.1)2 プロセスを
+2 ラウンド実行して確認した(§7 と同じ `-batchmode -nographics -ddrive-autotest`、`-ddrive-host 127.0.0.1`
+を両方に明示)。
+
+**ラウンド1(0ms、`host_fix1.log`/`client_fix1.log`)**:
+
+```
+[host_fix1.log]
+[DDriveNetCheck] play=1 startNetTime=3.18
+[DDriveNetCheck] heartbeat=1 role=host clientId=0 networkTime=3.21 activeCount=1 connected=1 rtt_app_ms=n/a
+[DDriveNetCheck] signal_recv=hit key=0x008ED8B7 networkTime=3.68   ← 4 回(デモに OnSignal("hit") トラックが 4 本あるため。正常)
+[DDriveNetCheck] signal_fire=hit key=0x008ED8B7 networkTime=3.68
+[Net/Host] Presentation: PresentationCancelMsg(HandleNetKey=0x008ED8B7) の送信元 ClientId(1) が発行者と一致しないため破棄しました。
+
+[client_fix1.log]
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=3.10 activeCount=1 connected=1 rtt_app_ms=10
+[DDriveNetCheck] signal_recv=hit key=0x008ED8B7 networkTime=3.59   ← Host の signal_fire(3.68)とほぼ同時刻(位相差 <0.1s、ループバックのため妥当)
+[DDriveNetCheck] forged_cancel_sent=9361591   ← 0x008ED8B7 の 10 進数(実在する Host のキーを狙い撃ち)
+[Net/Client] Presentation: PresentationCancelMsg(HandleNetKey=0x008ED8B7) の送信元 ClientId(1) が発行者と一致しないため破棄しました。
+[DDriveNetCheck] disconnected=1 role=client reason=[Disconnect Event][Client-1][TransportClientId-4294967296][ClosedByRemote] Connection was closed by remote endpoint.
+[DDriveNetCheck] heartbeat=1 role=client clientId=0 networkTime=0.00 activeCount=3 connected=0 rtt_app_ms=1
+```
+
+確認できたこと: ①`signal_fire`(Host)と`signal_recv`(Host自身+Client)が両方出て位相差が小さい(課題2解消)
+②`rtt_app_ms` が実測 0〜10ms 台(ループバックなので妥当。ここでは未設定なので課題1の直接確認は次のラウンド)
+③偽造 Cancel(既に稼働中の実在キーを狙い撃ち)が発行者不一致として Host/Client 双方で正しく破棄される
+④**Host の autotest 終了(11秒後)で Client が切断を検知**(`disconnected=1` + `[Net/Client] NgoNetBridge: Host
+から切断されました`。課題5解消、実際に発生した切断イベントで確認できた)。Placeholder 警告・Exception は
+0 件(課題3は再現条件が異なる(後述)ため直接確認はできず)。
+
+**ラウンド2(Client のみ `-ddrive-sim-latency 200`、`host_fix2_200ms.log`/`client_fix2_200ms.log`)**:
+
+```
+[client_fix2_200ms.log]
+[Net] NgoTransportConfigurator: シミュレータ設定を適用しました(latency=200ms, loss=0%)。   ← 相変わらず出るが no-op(実効果なし)
+[Net/Client] NgoNetBridge: UnityTransport のシミュレーターは無効化されている(SetDebugSimulatorParameters が Obsolete/no-op)ため、アプリ層の送受信キューで遅延(200ms)を代替します。
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=3.30 activeCount=1 connected=1 rtt_app_ms=211
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=4.31 activeCount=1 connected=1 rtt_app_ms=202
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=5.32 activeCount=1 connected=1 rtt_app_ms=202
+[DDriveNetCheck] disconnected=1 role=client reason=[Disconnect Event]...ClosedByRemote...
+```
+
+**課題1が直接確認できた**: `rtt_app_ms` が 0ms 台(ラウンド1)→ 202〜211ms(`-ddrive-sim-latency 200`)に明確に増加した。
+今回のケースでは Client→Host の Ping 送信は Client 側の送信キューを経由しない経路(`RequestBroadcastRpc` を
+直接呼ぶ)だったため、実測は設定値とほぼ 1:1 になった([14_networking.md] 実装メモに詳細と、Host 側にも
+遅延を設定した場合や中継経路によっては倍数になり得るという要判断を記載)。Placeholder・Exception は
+0 件、偽造 Cancel の破棄・切断検知(課題5)もラウンド1と同様に確認できた。
+
+**課題3(Late Join 直後の Placeholder)がローカル結合確認では再現しない理由(要判断)**: Editor でビルドした
+このマシンのローカル Addressables カタログはロードがほぼ瞬時に終わるため、`DDriveRuntimeBootstrap.
+RegisterCatalogsAsync()` の完了と NGO の接続確立(`StartClient()`)の間に実機ほどの遅延窓が生まれず、
+競合状態を再現できなかった。回帰テスト(`PresentationNetDeviceFixTests.
+OnReceivePlayMsg_BeforeRegistryReady_IsQueued_AndFlushedWithoutPlaceholder_AfterReady`)で修正自体は
+確認済みだが、実機(PC-B、モバイルホットスポット経由でネットワークが実機より低速)での再確認をオーケスト
+レーターに依頼する。
+
+起動した 4 プロセス(ラウンド1のホスト/クライアント、ラウンド2のホスト/クライアント)は各ラウンドの
+`-ddrive-autotest` によりすべて自動終了した(確認後、`tasklist` で `DDriveNetCheck.exe` が残っていないことを
+確認済み)。
