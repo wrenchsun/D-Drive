@@ -4,10 +4,15 @@ using UnityEngine;
 
 namespace DDrive.Editor.Spec
 {
-    // [27_spec_sheet.md] §4.2 — Unity 起動時・ドメインリロード後に「取得と差分検出だけ」を行う。
-    // 自動では適用しない(例外: 設定で ON にした「未着手の新規行→Placeholder 自動作成」のみ)。
-    // テスト実行中(バッチモードでの CI テスト実行)やバッチモードでは走らせない([27] §4.2)。
+    // [32_spec_web.md] §4.2(旧 [27_spec_sheet.md])— Unity 起動時・ドメインリロード後に「取得と差分検出だけ」
+    // を行う。自動では適用しない(例外: 設定で ON にした「未着手の新規行→Placeholder 自動作成」のみ)。
+    // テスト実行中(バッチモードでの CI テスト実行)やバッチモードでは走らせない。
     // ネットワーク待ちで Editor を止めないよう、delayCall 経由・完全非同期(コールバック)で行う。
+    //
+    // W-9(2026-09-14): 取得元を Google スプレッドシート(gviz CSV, SpecFetcher/SpecSheetParser)から
+    // Web アプリ(GAS)の API(SpecWebFetcher/SpecWebParser)に差し替えた。3 種類の取得
+    // (assets.list・tuningScalarList・tuningTableList)を順に行い、最後に W-11 の
+    // SpecSnapshotWriter で Specs/*.json へスナップショットを書き出す。
     [InitializeOnLoad]
     public static class SpecAutoSync
     {
@@ -33,9 +38,9 @@ namespace DDrive.Editor.Spec
             }
 
             var settings = DDriveSpecSettings.Load();
-            if (settings == null || !settings.AutoFetchOnStartup || string.IsNullOrEmpty(settings.SpreadsheetUrl))
+            if (settings == null || !settings.AutoFetchOnStartup || string.IsNullOrEmpty(settings.WebAppUrl))
             {
-                return; // URL 未設定なら何もしない([27] §5)
+                return; // URL 未設定なら何もしない([32] §5)
             }
 
             Run(settings, applyAutoPlaceholders: true);
@@ -67,58 +72,73 @@ namespace DDrive.Editor.Spec
         // 起動時自動実行のときだけ true にする(手動「取得」では常に差分プレビューを見せるだけにする)。
         public static void Run(DDriveSpecSettings settings, bool applyAutoPlaceholders, Action onComplete = null)
         {
-            if (settings == null || string.IsNullOrEmpty(settings.SpreadsheetUrl))
+            if (settings == null || string.IsNullOrEmpty(settings.WebAppUrl))
             {
                 onComplete?.Invoke();
                 return;
             }
 
-            var assetUrl = SpecCsv.BuildGvizCsvUrl(settings.SpreadsheetUrl, settings.AssetSheetName);
-            SpecFetcher.Fetch(assetUrl, settings.AssetSheetName, assetResult =>
+            var readToken = DDriveSpecSettings.ReadToken;
+
+            SpecWebFetcher.FetchGet(settings.WebAppUrl, "assets.list", readToken, "includeArchived=1", assetResult =>
             {
                 if (!assetResult.Success)
                 {
-                    Debug.LogWarning($"[DDrive] 仕様書の取得に失敗しました: {assetResult.Error}");
+                    Debug.LogWarning($"[DDrive] 仕様書(Web)の取得に失敗しました: {assetResult.Error}");
                     onComplete?.Invoke();
                     return;
                 }
 
-                var parsedAssets = SpecSheetParser.ParseAssetSheet(assetResult.Csv);
+                var parsedAssets = SpecWebParser.ParseAssets(assetResult.Json, settings.HumanAppUrl);
                 var diff = SpecDiffService.ComputeDiff(parsedAssets);
 
-                var tuningUrl = SpecCsv.BuildGvizCsvUrl(settings.SpreadsheetUrl, settings.TuningSheetName);
-                SpecFetcher.Fetch(tuningUrl, settings.TuningSheetName, tuningResult =>
+                SpecWebFetcher.FetchGet(settings.WebAppUrl, "tuningScalarList", readToken, null, tuningResult =>
                 {
                     var parsedTuning = tuningResult.Success
-                        ? SpecSheetParser.ParseTuningSheet(tuningResult.Csv)
+                        ? SpecWebParser.ParseTuningScalars(tuningResult.Json)
                         : new SpecParseResult<SpecTuningRow>();
 
-                    if (applyAutoPlaceholders && settings.AutoApplyNewPlaceholders && diff.New.Count > 0)
+                    SpecWebFetcher.FetchGet(settings.WebAppUrl, "tuningTableList", readToken, null, tuningTableResult =>
                     {
-                        var applied = 0;
-                        foreach (var change in diff.New)
+                        var parsedTuningTables = tuningTableResult.Success
+                            ? SpecWebParser.ParseTuningTables(tuningTableResult.Json)
+                            : new SpecParseResult<SpecTuningTableRow>();
+
+                        if (applyAutoPlaceholders && settings.AutoApplyNewPlaceholders && diff.New.Count > 0)
                         {
-                            if (SpecSyncService.ApplyNew(change, settings.GameDataRoot) != null)
+                            var applied = 0;
+                            foreach (var change in diff.New)
                             {
-                                applied++;
+                                if (SpecSyncService.ApplyNew(change, settings.GameDataRoot) != null)
+                                {
+                                    applied++;
+                                }
+                            }
+
+                            if (applied > 0)
+                            {
+                                Debug.Log($"[DDrive] 仕様書同期: 新規行 {applied} 件を自動で Placeholder 作成しました。");
+                                diff = SpecDiffService.ComputeDiff(SpecWebParser.ParseAssets(assetResult.Json, settings.HumanAppUrl));
                             }
                         }
-
-                        if (applied > 0)
+                        else if (diff.New.Count + diff.Changed.Count > 0)
                         {
-                            Debug.Log($"[DDrive] 仕様書同期: 新規行 {applied} 件を自動で Placeholder 作成しました。");
-                            diff = SpecDiffService.ComputeDiff(SpecSheetParser.ParseAssetSheet(assetResult.Csv));
+                            Debug.Log($"[DDrive] 仕様書に変更 {diff.New.Count + diff.Changed.Count} 件があります(Tools > D-Drive > 仕様書と同期で確認できます)。");
                         }
-                    }
-                    else if (diff.New.Count + diff.Changed.Count > 0)
-                    {
-                        Debug.Log($"[DDrive] 仕様書に変更 {diff.New.Count + diff.Changed.Count} 件があります(Tools > D-Drive > 仕様書と同期で確認できます)。");
-                    }
 
-                    var warning = assetResult.Warning ?? tuningResult.Warning;
-                    var error = tuningResult.Success ? null : tuningResult.Error;
-                    SpecCache.Set(parsedAssets, parsedTuning, diff, warning, error);
-                    onComplete?.Invoke();
+                        // W-11: 取得できた分だけ Specs/*.json へスナップショットを書き出す(git 履歴の代用、[32] §1.4)。
+                        var snapshot = SpecSnapshotWriter.Write(assetResult.Json, tuningResult.Json, tuningTableResult.Json);
+                        if (!string.IsNullOrEmpty(snapshot.Warning))
+                        {
+                            Debug.LogWarning($"[DDrive] Specs/*.json の書き出しで警告: {snapshot.Warning}");
+                        }
+
+                        var warning = assetResult.Warning ?? tuningResult.Warning ?? tuningTableResult.Warning;
+                        var error = tuningResult.Success ? null : tuningResult.Error;
+                        SpecCache.Set(parsedAssets, parsedTuning, diff, warning, error);
+                        SpecCache.SetTuningTables(parsedTuningTables);
+                        onComplete?.Invoke();
+                    });
                 });
             });
         }
