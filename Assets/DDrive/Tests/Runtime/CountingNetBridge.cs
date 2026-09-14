@@ -35,6 +35,10 @@ namespace DDrive.Tests.Runtime
         {
         }
 
+        public void DisconnectClient(ulong clientId, string reason)
+        {
+        }
+
         public event Action<ulong> ClientConnected;
 
         private sealed class NoopSubscription : IDisposable

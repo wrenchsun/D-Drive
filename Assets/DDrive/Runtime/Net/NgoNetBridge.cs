@@ -478,6 +478,21 @@ namespace DDrive.Runtime.Net
             }
         }
 
+        // [14_networking.md] §7(6-5) — ContentHash 不一致(リリースビルド)時に Host が該当 Client を
+        // 切断する。NetworkManager.DisconnectClient は Client 側に DisconnectReasonMessage を送ってから
+        // 切断するため、Client の NetworkManager.DisconnectReason に reason がそのまま届く
+        // (既存の HandleClientDisconnected と同じ仕組み)。
+        public void DisconnectClient(ulong clientId, string reason)
+        {
+            if (!IsServer || NetworkManager == null)
+            {
+                Debug.LogWarning($"{LogTag} NgoNetBridge.DisconnectClient は Host からのみ呼べます(Client からの呼び出しは無視しました)。");
+                return;
+            }
+
+            NetworkManager.DisconnectClient(clientId, reason);
+        }
+
         // ── 送信(Host 側) ──
 
         private void SendToAll(string key, string json, NetChannel channel, ulong originClientId)

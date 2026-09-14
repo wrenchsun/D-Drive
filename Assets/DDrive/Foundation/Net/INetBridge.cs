@@ -41,5 +41,11 @@ namespace DDrive.Foundation.Net
         // [14_networking.md] §5(5-9) — 新規接続通知(Host 視点)。Late Join でアクティブな演出リストを
         // スナップショット送信するための最小限の口。シングルプレイ(LocalLoopbackBridge)では通常発火しない。
         event Action<ulong> ClientConnected;
+
+        // [14_networking.md] §7(6-5) — カタログ ContentHash 不一致(リリースビルド)時に Host が該当
+        // Client を切断するための primitive。Host からのみ意味を持つ(Client/Loopback からの呼び出しは
+        // no-op または警告)。reason は null 可(NGO では NetworkManager.DisconnectReason 経由で Client 側に
+        // 伝わる)。
+        void DisconnectClient(ulong clientId, string reason);
     }
 }

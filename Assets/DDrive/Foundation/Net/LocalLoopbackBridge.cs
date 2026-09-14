@@ -79,6 +79,11 @@ namespace DDrive.Foundation.Net
             // no-op。ローカルの Despawn(Pool.Return/Discard)は呼び出し元(PrefabsManager)が別途行う。
         }
 
+        // [14_networking.md] §7(6-5) — シングルプレイには切断すべき他クライアントが存在しないため no-op。
+        public void DisconnectClient(ulong clientId, string reason)
+        {
+        }
+
         private void Dispatch<T>(ulong senderId, T msg) where T : INetMessage
         {
             ReceivedMessageCount++;

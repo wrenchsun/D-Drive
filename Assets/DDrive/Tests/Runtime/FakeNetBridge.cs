@@ -170,6 +170,18 @@ namespace DDrive.Tests.Runtime
             LastDespawnNetworkedDestroy = destroy;
         }
 
+        // 6-5(ContentHash) — 呼び出し記録のみ(実際の切断は模擬しない。テストは呼び出しの有無/引数を見る)。
+        public int DisconnectClientCallCount { get; private set; }
+        public ulong LastDisconnectedClientId { get; private set; }
+        public string LastDisconnectReason { get; private set; }
+
+        public void DisconnectClient(ulong clientId, string reason)
+        {
+            DisconnectClientCallCount++;
+            LastDisconnectedClientId = clientId;
+            LastDisconnectReason = reason;
+        }
+
         private void Dispatch<T>(ulong senderId, T msg) where T : INetMessage
         {
             if (!_handlers.TryGetValue(typeof(T), out var list))
