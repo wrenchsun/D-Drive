@@ -32,12 +32,107 @@
     var IDENTIFIER_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
     var ROLE_RANK = { viewer: 0, editor: 1, admin: 2 };
 
+    // O-12（docs/32 §10.2.1 追補、2026-09-14）: 種別ごとのファイル形式候補（datalist 用）。
+    // Tools/SpecWeb/src/Assets.js の SPEC_WEB_FILE_FORMAT_CHOICES_BY_TYPE と同じ値を複製する
+    // （このファイル冒頭のコメントにある既存の複製方針、choices.json 経由の同期が無い間の既定値）。
+    var FILE_FORMAT_CHOICES_BY_TYPE = {
+      Se: ['.wav', '.ogg', '.mp3'],
+      Bgm: ['.wav', '.ogg', '.mp3'],
+      Texture: ['.png', '.psd', '.tga'],
+      Anim2D: ['.png', '.psd', '.tga'],
+      Model: ['.fbx'],
+      Anim: ['.fbx'],
+      Vfx: ['.prefab', '.unitypackage'],
+      Prefab: ['.prefab', '.unitypackage'],
+      Canvas: ['.prefab', '.unitypackage'],
+      Material: ['.mat']
+    };
+    var FILE_FORMAT_MAX_LENGTH = 20;
+    var FILE_NAME_MAX_LENGTH = 255;
+    var FILE_NAME_ILLEGAL_CHARS_PATTERN = /[\\/:*?"<>|]/g;
+
+    // Assets/DDrive/Editor/AssetBrowser/AssetNamingService.cs の GetTypePrefix と同じ対応表
+    // （suggestFileName の「命名規約に沿った推奨名」の元。§10.2.1 例「SE_Slash.wav」の根拠）。
+    var ASSET_TYPE_PREFIX = {
+      Se: 'SE', Bgm: 'BGM', Vfx: 'VFX', Anim: 'ANIM', Anim2D: 'ANIM2D', Material: 'MAT',
+      Texture: 'TEX', Canvas: 'CANVAS', Prefab: 'PREFAB', Model: 'MODEL', Presentation: 'PRES',
+      Shake: 'SHAKE', Haptics: 'HAPTIC', UiTween: 'UITWEEN', Anchor: 'ANC', AnchorGroup: 'ANCG',
+      ControlSkin: 'SKIN'
+    };
+
     function validateIdentifier(identifier) {
       return IDENTIFIER_PATTERN.test(String(identifier || ''));
     }
 
     function buildAssetId(assetType, identifier) {
       return assetType + '::' + identifier;
+    }
+
+    /** O-12: 種別ごとのファイル形式候補（無ければ空配列 = 自由入力のみ）。 */
+    function fileFormatChoicesFor(assetType) {
+      return FILE_FORMAT_CHOICES_BY_TYPE[assetType] || [];
+    }
+
+    /** O-12: `fileFormat` を先頭ドット付きに正規化する（`png` → `.png`）。空欄はそのまま空文字。 */
+    function normalizeFileFormat(raw) {
+      var trimmed = String(raw === undefined || raw === null ? '' : raw).trim();
+      if (trimmed === '') return '';
+      return trimmed.charAt(0) === '.' ? trimmed : '.' + trimmed;
+    }
+
+    // Assets/DDrive/Editor/AssetBrowser/AssetNamingService.cs の CategorySegmentForFileName と同じ
+    // ロジック（カテゴリの最終セグメントのみ・英数字以外は除去）。
+    function categorySegmentForFileName_(category) {
+      if (!category) return '';
+      var segments = String(category).split('/');
+      var last = segments[segments.length - 1].trim();
+      return last.replace(/[^A-Za-z0-9]/g, '');
+    }
+
+    /**
+     * O-12「D-Drive の命名規約に沿った推奨ファイル名」（§10.2.1 例: 種別 Se・識別子 Slash・
+     * ファイル形式 .wav → `SE_Slash.wav`）。AssetNamingService.BuildFileName と同じ組み立て方
+     * （<接頭辞>_<カテゴリ>_<識別子> または カテゴリ無しなら <接頭辞>_<識別子>）に拡張子を足すだけ。
+     * identifier が無ければ推奨できないため空文字を返す。
+     */
+    function suggestFileName(assetType, category, identifier, fileFormat) {
+      if (!identifier) return '';
+      var prefix = ASSET_TYPE_PREFIX[assetType] || 'ASSET';
+      var categorySegment = categorySegmentForFileName_(category);
+      var base = categorySegment ? (prefix + '_' + categorySegment + '_' + identifier) : (prefix + '_' + identifier);
+      var ext = fileFormat ? normalizeFileFormat(fileFormat) : '';
+      return base + ext;
+    }
+
+    /** O-12: ファイル名に含まれる禁止文字（重複を除いた配列）。無ければ空配列。 */
+    function fileNameIllegalChars(fileName) {
+      if (!fileName) return [];
+      var matches = String(fileName).match(FILE_NAME_ILLEGAL_CHARS_PATTERN) || [];
+      var unique = [];
+      matches.forEach(function (c) {
+        if (unique.indexOf(c) === -1) unique.push(c);
+      });
+      return unique;
+    }
+
+    /**
+     * O-12「ファイル名に使えない文字・拡張子の食い違いは警告のみ（保存はブロックしない、
+     * 例外で止めない）」。validateAssetFields の errors とは別の、非ブロッキングな配列を返す。
+     */
+    function fileNameWarnings(fields) {
+      fields = fields || {};
+      var warnings = [];
+      var illegal = fileNameIllegalChars(fields.fileName);
+      if (illegal.length > 0) {
+        warnings.push('ファイル名に使えない文字が含まれています: ' + illegal.join(' '));
+      }
+      if (fields.fileName && fields.fileFormat) {
+        var match = /\.[A-Za-z0-9]+$/.exec(String(fields.fileName).trim());
+        if (match && match[0].toLowerCase() !== String(fields.fileFormat).toLowerCase()) {
+          warnings.push('ファイル名の拡張子（' + match[0] + '）がファイル形式（' + fields.fileFormat + '）と一致していません');
+        }
+      }
+      return warnings;
     }
 
     /** 「インポート済」は一覧の選択肢には出すが、フォームからは選べない（D-Drive 同期専用）。 */
@@ -103,6 +198,15 @@
         }
       });
 
+      // O-12: 長さ上限のみブロックする（サーバー側 specWebValidateAssetFields_ と同じ規則）。
+      // 不正文字・拡張子の食い違いはここでは検証しない（fileNameWarnings が非ブロッキングで返す）。
+      if (fields.fileFormat && String(fields.fileFormat).length > FILE_FORMAT_MAX_LENGTH) {
+        errors.fileFormat = 'ファイル形式は' + FILE_FORMAT_MAX_LENGTH + '文字以内にしてください';
+      }
+      if (fields.fileName && String(fields.fileName).length > FILE_NAME_MAX_LENGTH) {
+        errors.fileName = 'ファイル名は' + FILE_NAME_MAX_LENGTH + '文字以内にしてください';
+      }
+
       return { valid: Object.keys(errors).length === 0, errors: errors };
     }
 
@@ -117,6 +221,7 @@
         if (filters.orderer && item.orderer !== filters.orderer) return false;
         if (filters.contractor && item.contractor !== filters.contractor) return false;
         if (filters.category && item.category !== filters.category) return false;
+        if (filters.fileFormat && item.fileFormat !== filters.fileFormat) return false;
         if (filters.parentId) {
           var wantUnassigned = filters.parentId === '__none__';
           if (wantUnassigned && item.parentId) return false;
@@ -321,7 +426,15 @@
       roleAtLeast: roleAtLeast,
       myOrderedItems: myOrderedItems,
       myContractedItems: myContractedItems,
-      renderMarkdownSafe: renderMarkdownSafe
+      renderMarkdownSafe: renderMarkdownSafe,
+      // O-12（ファイル形式・ファイル名）
+      FILE_FORMAT_MAX_LENGTH: FILE_FORMAT_MAX_LENGTH,
+      FILE_NAME_MAX_LENGTH: FILE_NAME_MAX_LENGTH,
+      fileFormatChoicesFor: fileFormatChoicesFor,
+      normalizeFileFormat: normalizeFileFormat,
+      suggestFileName: suggestFileName,
+      fileNameIllegalChars: fileNameIllegalChars,
+      fileNameWarnings: fileNameWarnings
     };
   })();
 </script>

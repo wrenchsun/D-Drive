@@ -8,12 +8,18 @@
     <!-- currentUser（Auth.js の authenticateSession 結果）をクライアント JS へ渡す。
          W-8 の調整値編集 SPA が role（editor/admin）によって編集可否を切り替えるのに使う。
          initialScreen/initialParams（2026-09-14 追加）: `?page=manual&p=...`（Unity の
-         「マニュアル」ボタン）等、初回ロード時に既定画面（DEFAULT_SCREEN_ID）以外を開きたい
-         場合に src/Code.js の resolveInitialScreen_ が設定する。無ければ null/{}。 -->
+         「マニュアル」ボタン）・`?page=order&id=...`/`?page=group&id=...`（O-13 発注リンク）等、
+         初回ロード時に既定画面（DEFAULT_SCREEN_ID）以外を開きたい場合に src/Code.js の
+         resolveInitialScreen_ が設定する。無ければ null/{}。
+         execUrl（O-13 追加）: トップの exec URL（src/Code.js の specWebExecUrl_、
+         ScriptApp.getService().getUrl()）。iframe サンドボックス内では window.location が
+         script.googleusercontent.com を指すため使えず、発注リンクのコピー機能はこの値を使う。
+         取得できない場合は空文字（html/OrderLinkLogic.html 側が空なら何もしない）。 -->
     <script>
       window.SpecWebCurrentUser = <?!= JSON.stringify(currentUser) ?>;
       window.SpecWebInitialScreen = <?!= JSON.stringify(initialScreen || null) ?>;
       window.SpecWebInitialParams = <?!= JSON.stringify(initialParams || {}) ?>;
+      window.SpecWebExecUrl = <?!= JSON.stringify(execUrl || '') ?>;
     </script>
   </head>
   <body>
@@ -32,6 +38,10 @@
       （ブラウザは <script> をドキュメント順に実行するため）。
     -->
     <?!= include('html/App'); ?>
+    <!-- O-13: 発注リンクのコピー（純粋な URL 組み立て・クリップボード fallback）。
+         Assets/OrderTree の両方が使うため、それらより先に include する。 -->
+    <?!= include('html/OrderLinkLogic'); ?>
+    <?!= include('html/ClipboardCopy'); ?>
     <!--
       O-1〜O-5: アセット発注 一覧・詳細画面。AssetsLogic（純粋関数）→ Assets（registerScreen）の順。
       include() は入れ子のスクリプトレットを評価しないため、AssetsLogic の include は

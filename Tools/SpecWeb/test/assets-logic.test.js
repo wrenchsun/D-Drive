@@ -239,3 +239,92 @@ test('renderMarkdownSafe: HTML タグ・属性は先にエスケープされ、�
   assert.match(html, /&lt;script&gt;/);
   assert.match(html, /&lt;img/);
 });
+
+// ---- O-12: ファイル形式・ファイル名 ----
+
+test('fileFormatChoicesFor: 種別ごとの候補を返す（候補が無い種別は空配列 = 自由入力のみ）', () => {
+  const logic = load();
+  assert.deepEqual(Array.from(logic.fileFormatChoicesFor('Se')), ['.wav', '.ogg', '.mp3']);
+  assert.deepEqual(Array.from(logic.fileFormatChoicesFor('Texture')), ['.png', '.psd', '.tga']);
+  assert.deepEqual(Array.from(logic.fileFormatChoicesFor('Model')), ['.fbx']);
+  assert.deepEqual(Array.from(logic.fileFormatChoicesFor('Vfx')), ['.prefab', '.unitypackage']);
+  assert.deepEqual(Array.from(logic.fileFormatChoicesFor('Presentation')), []);
+});
+
+test('normalizeFileFormat: 先頭ドット無しでも .xxx に揃える。空欄はそのまま空文字', () => {
+  const logic = load();
+  assert.equal(logic.normalizeFileFormat('png'), '.png');
+  assert.equal(logic.normalizeFileFormat('.png'), '.png');
+  assert.equal(logic.normalizeFileFormat('  wav  '), '.wav');
+  assert.equal(logic.normalizeFileFormat(''), '');
+  assert.equal(logic.normalizeFileFormat(undefined), '');
+});
+
+test('suggestFileName: 種別・カテゴリ無し・識別子・ファイル形式から命名規約に沿った推奨名を作る（§10.2.1 例）', () => {
+  const logic = load();
+  assert.equal(logic.suggestFileName('Se', '', 'Slash', '.wav'), 'SE_Slash.wav');
+  assert.equal(logic.suggestFileName('Se', '', 'Slash', 'wav'), 'SE_Slash.wav'); // 正規化してから付ける
+});
+
+test('suggestFileName: カテゴリがあれば <接頭辞>_<カテゴリ>_<識別子> になる（AssetNamingService.BuildFileName と同じ組み立て）', () => {
+  const logic = load();
+  assert.equal(logic.suggestFileName('Vfx', 'Skill', 'FireBall', '.prefab'), 'VFX_Skill_FireBall.prefab');
+  assert.equal(logic.suggestFileName('Vfx', 'Skill/Fire', 'FireBall', '.prefab'), 'VFX_Fire_FireBall.prefab'); // 最終セグメントのみ
+});
+
+test('suggestFileName: ファイル形式が未設定なら拡張子無しの名前になる。識別子が無ければ空文字', () => {
+  const logic = load();
+  assert.equal(logic.suggestFileName('Se', '', 'Slash', ''), 'SE_Slash');
+  assert.equal(logic.suggestFileName('Se', '', '', '.wav'), '');
+});
+
+test('suggestFileName: 未知の種別接頭辞は ASSET_ にフォールバックする', () => {
+  const logic = load();
+  assert.equal(logic.suggestFileName('NotAType', '', 'X', '.dat'), 'ASSET_X.dat');
+});
+
+test('fileNameIllegalChars: Windows のファイル名禁止文字を検出する（重複は1つにまとめる）', () => {
+  const logic = load();
+  assert.deepEqual(Array.from(logic.fileNameIllegalChars('SE_Slash.wav')), []);
+  assert.deepEqual(Array.from(logic.fileNameIllegalChars('a/b\\c:d*e?f"g<h>i|j/k')), ['/', '\\', ':', '*', '?', '"', '<', '>', '|']);
+});
+
+test('fileNameWarnings: 不正文字・拡張子の食い違いを警告として返す（保存はブロックしない）', () => {
+  const logic = load();
+  const illegal = logic.fileNameWarnings({ fileName: 'bad/name.wav', fileFormat: '.wav' });
+  assert.equal(illegal.length, 1);
+  assert.match(illegal[0], /使えない文字/);
+
+  const mismatch = logic.fileNameWarnings({ fileName: 'SE_Slash.ogg', fileFormat: '.wav' });
+  assert.equal(mismatch.length, 1);
+  assert.match(mismatch[0], /一致していません/);
+
+  const clean = logic.fileNameWarnings({ fileName: 'SE_Slash.wav', fileFormat: '.wav' });
+  assert.equal(clean.length, 0);
+
+  const noFormat = logic.fileNameWarnings({ fileName: 'SE_Slash.wav', fileFormat: '' });
+  assert.equal(noFormat.length, 0); // fileFormat 未設定なら食い違い判定はしない
+});
+
+test('validateAssetFields: fileFormat/fileName の長さ上限を検証する（不正文字はここではブロックしない）', () => {
+  const logic = load();
+  const tooLongFormat = logic.validateAssetFields({
+    assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
+    fileFormat: '.' + 'a'.repeat(30)
+  });
+  assert.equal(tooLongFormat.valid, false);
+  assert.match(tooLongFormat.errors.fileFormat, /文字以内/);
+
+  const tooLongName = logic.validateAssetFields({
+    assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
+    fileName: 'a'.repeat(300) + '.wav'
+  });
+  assert.equal(tooLongName.valid, false);
+  assert.match(tooLongName.errors.fileName, /文字以内/);
+
+  const illegalCharsOnly = logic.validateAssetFields({
+    assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
+    fileName: 'bad/name.wav'
+  });
+  assert.equal(illegalCharsOnly.valid, true, '不正文字は errors に入れない（fileNameWarnings 側の警告のみ）');
+});

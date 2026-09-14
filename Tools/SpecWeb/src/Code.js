@@ -39,10 +39,20 @@ function handleSpecWebRequest_(e, method) {
 }
 
 /**
- * `?page=manual&p=<ページ名>` を人向け SPA の初期画面へ変換する（2026-09-14 追加）。
+ * `?page=manual&p=<ページ名>` / `?page=order&id=<id>` / `?page=group&id=<id>` を
+ * 人向け SPA の初期画面へ変換する（2026-09-14 追加、O-13 で order/group を追加）。
  * Unity の「マニュアル」ボタン（Assets/DDrive/Editor/Manual/ManualUrlBuilder.cs）が
  * 開く URL 契約: `<人向けURL>?page=manual&p=<ページ名（拡張子なし、トップは Readme）>`。
  * `p` が不正・未知でもトップ（SPEC_WEB_MANUAL_TOP_PAGE）へフォールバックする（例外で止めない）。
+ *
+ * O-13「発注リンクをコピー」が生成する URL 契約:
+ *   - `<人向けURL>?page=order&id=<種別::識別子>` → 一覧画面（assets）をその発注の詳細パネルが
+ *     開いた状態で表示する（html/Assets.html 側が `openId` を見て assets.get する）
+ *   - `<人向けURL>?page=group&id=<og_...>` → 発注ツリー画面（orders）をその発注グループへ
+ *     スクロールした状態で表示する（html/OrderTree.html 側が `openGroupId` を見る）
+ * `id` が空でもここでは検証しない（存在確認にはサーバー往復が要るため、「見つかりません」表示は
+ * 画面側が assets.get/orderGroups.get の結果を見て行う。例外で止めない）。
+ *
  * `page` パラメータが無い（通常のアクセス）場合は既定画面（html/App.html の DEFAULT_SCREEN_ID）
  * のままにする（screen: null）。
  */
@@ -52,7 +62,32 @@ function resolveInitialScreen_(params) {
     var page = SPEC_WEB_MANUAL_PAGE_NAMES.indexOf(requested) !== -1 ? requested : SPEC_WEB_MANUAL_TOP_PAGE;
     return { screen: 'manual', params: { p: page } };
   }
+  if (params && params.page === 'order') {
+    var orderId = String(params.id || '');
+    if (!orderId) return { screen: null, params: {} };
+    return { screen: 'assets', params: { openId: orderId } };
+  }
+  if (params && params.page === 'group') {
+    var groupId = String(params.id || '');
+    if (!groupId) return { screen: null, params: {} };
+    return { screen: 'orders', params: { openGroupId: groupId } };
+  }
   return { screen: null, params: {} };
+}
+
+/**
+ * O-13: トップの exec URL（`.../exec`）。iframe サンドボックス内の `window.location` は
+ * `script.googleusercontent.com` を指すため使えず（docs/32 §2.4 訂正）、コピー用リンクは
+ * サーバー側の `ScriptApp.getService().getUrl()` をテンプレート経由で埋め込む必要がある
+ * （html/Index.html の `window.SpecWebExecUrl`）。ScriptApp が使えない状況（テスト等）でも
+ * 例外で止めず空文字にフォールバックする。
+ */
+function specWebExecUrl_() {
+  try {
+    return ScriptApp.getService().getUrl() || '';
+  } catch (e) {
+    return '';
+  }
 }
 
 /**
@@ -198,6 +233,7 @@ function renderUi_(params) {
   template.currentUser = auth;
   template.initialScreen = initial.screen;
   template.initialParams = initial.params;
+  template.execUrl = specWebExecUrl_(); // O-13: 発注リンクのコピー用（html/Index.html 参照）
   return template
     .evaluate()
     .setTitle('D-Drive 仕様書')

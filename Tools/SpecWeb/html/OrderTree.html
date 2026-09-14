@@ -62,6 +62,10 @@
     border: 1px solid var(--sw-border);
     border-radius: 4px;
   }
+  .order-tree-group.sw-highlight {
+    border-color: var(--sw-accent);
+    box-shadow: 0 0 0 2px var(--sw-accent);
+  }
 </style>
 
 <script>
@@ -91,6 +95,77 @@
       return node;
     }
 
+    /**
+     * O-13: 「リンクをコピー」ボタン + ▼ メニュー。html/Assets.html の同名関数と同じ実装
+     * （画面ごとに小さく複製する既存方針。el() 自体も両ファイルで複製されている）。
+     */
+    function buildCopyLinkControl(getUrl, getLabel) {
+      var wrap = el('span', { class: 'sw-copylink' });
+      var status = el('span', { class: 'sw-copylink-status' });
+      var menu = el('div', { class: 'sw-copylink-menu' });
+      menu.hidden = true;
+      var fallback = null;
+
+      function clearFallback() {
+        if (fallback) {
+          wrap.removeChild(fallback);
+          fallback = null;
+        }
+      }
+
+      function doCopy(mode) {
+        menu.hidden = true;
+        var url = getUrl();
+        if (!url) {
+          status.textContent = 'URL を取得できませんでした（execUrl 未取得）';
+          return;
+        }
+        var text = window.OrderLinkLogic.formatLinkText(mode, getLabel ? getLabel() : '', url);
+        window.SpecWebClipboard.copyText(text).then(function (ok) {
+          clearFallback();
+          if (ok) {
+            status.textContent = 'コピーしました';
+            return;
+          }
+          status.textContent = 'Ctrl+C でコピーしてください';
+          fallback = el('input', { type: 'text', readonly: 'readonly', class: 'sw-copylink-fallback' });
+          fallback.value = text;
+          wrap.appendChild(fallback);
+          if (fallback.select) fallback.select();
+        });
+      }
+
+      var mainButton = el('button', {
+        text: 'リンクをコピー',
+        onclick: function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          doCopy('url');
+        }
+      });
+      var menuButton = el('button', {
+        text: '▼',
+        onclick: function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          menu.hidden = !menu.hidden;
+        }
+      });
+      [['url', 'URL のみ'], ['named', '名前付き（表示名 - URL）'], ['markdown', 'Markdown']].forEach(function (pair) {
+        menu.appendChild(el('button', {
+          text: pair[1],
+          onclick: function (ev) {
+            if (ev && ev.stopPropagation) ev.stopPropagation();
+            doCopy(pair[0]);
+          }
+        }));
+      });
+
+      wrap.appendChild(mainButton);
+      wrap.appendChild(menuButton);
+      wrap.appendChild(menu);
+      wrap.appendChild(status);
+      return wrap;
+    }
+
     var navHost = document.getElementById('app-nav');
     if (navHost && !navHost.querySelector('a[href="#/orders"]')) {
       navHost.appendChild(el('a', {
@@ -103,13 +178,15 @@
       }));
     }
 
-    registerScreen('orders', function (root) {
+    registerScreen('orders', function (root, initialParams) {
       var state = {
         groups: [],
         assets: [],
         currentUser: { role: null },
         ganttUrl: '',
-        filters: { assetType: '', contractor: '', orderer: '' }
+        filters: { assetType: '', contractor: '', orderer: '' },
+        // O-13: `?page=group&id=...` で開かれた場合に一度だけスクロール+ハイライトする対象の id。
+        pendingOpenGroupId: (initialParams && initialParams.openGroupId) || null
       };
 
       var toolbar = el('div', { class: 'order-tree-toolbar' });
@@ -189,8 +266,18 @@
 
       function renderGroup(node) {
         var box = el('div', { class: 'order-tree-group' });
+        if (node.id) box.setAttribute('data-order-group-id', node.id);
         var header = el('div', { class: 'order-tree-group-header' });
         header.appendChild(el('span', { text: node.name }));
+        if (node.id) {
+          // O-13: 発注グループには専用の詳細画面が無いため、この一覧上のグループヘッダーを
+          // 「詳細」相当としてコピーボタンを付ける（docs/32 §10.8 参照）。「単体」バケット
+          // （node.id === null）はグループそのものが存在しないため対象外。
+          header.appendChild(buildCopyLinkControl(
+            function () { return window.OrderLinkLogic.buildGroupUrl(window.SpecWebExecUrl, node.id); },
+            function () { return node.name; }
+          ));
+        }
         if (node.wbsNo && state.ganttUrl) {
           header.appendChild(el('a', {
             class: 'order-tree-wbs-link',
@@ -220,12 +307,39 @@
         return box;
       }
 
+      // O-13: renderBody で作った各グループボックスを id で引けるようにする
+      // （real DOM の Element.children は Array ではなく HTMLCollection のため
+      // .filter が使えない。querySelector に頼らず自前で持つ）。
+      var groupBoxesById_ = {};
+
       function renderBody() {
         body.innerHTML = '';
+        groupBoxesById_ = {};
         var tree = treeLogic.buildOrderTree(state.groups, filteredAssets());
         tree.forEach(function (node) {
-          body.appendChild(renderGroup(node));
+          var box = renderGroup(node);
+          if (node.id) groupBoxesById_[node.id] = box;
+          body.appendChild(box);
         });
+      }
+
+      /**
+       * O-13: `?page=group&id=...` で開かれた場合、読み込み後に一度だけ対象のグループへ
+       * スクロール + 一時的なハイライトを行う。この画面には発注グループ専用の詳細パネルが
+       * 無いため、一覧上のグループボックス自体を「詳細」相当として扱う（renderGroup 参照）。
+       * 見つからなければ例外にせず案内だけ出す（トップ表示は既に renderBody 済み）。
+       */
+      function maybeOpenPendingGroup() {
+        if (!state.pendingOpenGroupId) return;
+        var pendingId = state.pendingOpenGroupId;
+        state.pendingOpenGroupId = null;
+        var box = groupBoxesById_[pendingId];
+        if (!box) {
+          statusLine.textContent = '指定された発注グループが見つかりません（' + pendingId + '）。発注ツリーを表示しています。';
+          return;
+        }
+        box.className += ' sw-highlight';
+        if (box.scrollIntoView) box.scrollIntoView();
       }
 
       function reload() {
@@ -245,6 +359,7 @@
           renderToolbar();
           renderNewGroupBar();
           renderBody();
+          maybeOpenPendingGroup();
         });
       }
 

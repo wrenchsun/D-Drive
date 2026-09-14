@@ -1,0 +1,51 @@
+<script>
+  /**
+   * O-13: クリップボードへのコピー（フォールバック付き）。
+   * `navigator.clipboard.writeText` は HtmlService の iframe サンドボックス内では拒否される
+   * 可能性がある（許可されるかは環境依存）ため、失敗したら非表示 textarea + execCommand('copy')
+   * を試し、それも失敗したら呼び出し側が「Ctrl+C でコピーしてください」を表示できるよう false を返す。
+   *
+   * DOM に触れるため AssetsLogic/OrderLinkLogic のような純粋関数モジュールとは分けている
+   * （テストは test/clipboardCopy.test.js が fake navigator/document で分岐を確認する）。
+   */
+  (function () {
+    'use strict';
+
+    function copyViaExecCommand_(text) {
+      try {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', 'readonly');
+        if (textarea.style) {
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+        }
+        document.body.appendChild(textarea);
+        if (textarea.select) textarea.select();
+        var ok = typeof document.execCommand === 'function' && document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return !!ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    /**
+     * @param {string} text コピーするテキスト。
+     * @return {Promise<boolean>} true ならコピーできた。false なら呼び出し側が
+     *   「選択済みの読み取り専用テキスト欄 + Ctrl+C でコピーしてください」を表示する。
+     */
+    function copyText(text) {
+      if (!text) return Promise.resolve(false);
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        return navigator.clipboard.writeText(text).then(
+          function () { return true; },
+          function () { return copyViaExecCommand_(text); }
+        );
+      }
+      return Promise.resolve(copyViaExecCommand_(text));
+    }
+
+    window.SpecWebClipboard = { copyText: copyText };
+  })();
+</script>

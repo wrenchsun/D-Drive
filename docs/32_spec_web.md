@@ -1249,6 +1249,10 @@ Google スプレッドシート製ガントチャート（WBS1〜3・タスク�
 | `comments` | array\<Comment\> | 変更なし |
 | **`ddriveState`** | object | 構造は変更なし（`{created, isPlaceholder, iconAssetId, usageCount, lastSyncedAt}`）だが、**`isPlaceholder` を実際に計算する**（§10.4。現状は常に `false` の既定値送信、§9-14 の引き継ぎ事項） |
 | **`params`**（アセット種別のパラメータ、D-Drive → Web） | object | **新規**（ユーザー要件 6）。`{ schema: [...], currentValues: {...} | null }`。詳細は §10.4 |
+| **`fileFormat`**（ファイル形式、2026-09-14 追記・O-12） | string | **新規**。自由入力の拡張子。先頭ドット付きで正規化する（`png` と入力されても `.png` に揃える。`specWebNormalizeFileFormat_`/`AssetsLogic.normalizeFileFormat`）。種別ごとの候補は `SPEC_WEB_FILE_FORMAT_CHOICES_BY_TYPE`（`Assets.js`、1 か所の定数。datalist で提示、候補外も自由入力可）。必須にはしない（空文字許容） |
+| **`fileName`**（納品ファイル名、2026-09-14 追記・O-12） | string | **新規**。自由入力。空欄時は種別・カテゴリ・識別子・`fileFormat` から [10_workflow.md](10_workflow.md) の命名規約（`AssetNamingService.BuildFileName` と同じ組み立て）に沿った推奨名（例 `SE_Slash.wav`）を画面側で表示し、ボタンで入力欄へコピーできる（`AssetsLogic.suggestFileName`）。必須にはしない |
+
+**O-12 の検証方針**: 長さ上限（`fileFormat` 20 文字・`fileName` 255 文字）のみ他の文字列フィールドと同じ「`errors` に追記して 400 で拒否する」流儀でブロックする（既存フィールドに長さ上限の先例は無かったため今回新設）。**ファイル名に使えない文字**（`\ / : * ? " < > |`）**・`fileName` の拡張子と `fileFormat` の食い違いはブロックしない**（CLAUDE.md §0-4「例外で止めない」と同じ考え方。`assets.create`/`assets.update`/`assets.get` の応答に `warnings`（文字列配列、保存はされない都度計算値）として返し、画面側は非ブロッキングな注意表示にとどめる）。
 
 **旧 `assets.json` フィールドの削除**: `assignee` は物理的に削除せず**残置**し `contractor` の別名として同じ意味で読める間だけ残す案と、`orderer`/`contractor` 追加時に `assignee` を廃止して移行スクリプトで置き換える案があるが、**§10.7 の要判断 1 として実装時に決める**（このプロジェクトの CLAUDE.md §0-9・docs/32 §9-11/12 と同じ「シリアライズ形式変更は保守的に」の方針を Web 側の JSON にも適用するかどうかの判断）。
 
@@ -1498,8 +1502,11 @@ Placeholder の `PresentationData` を先に作る、という連携。**メリ�
 | O-10 | Presentation 発注グループへの WBS 番号欄 + ガントを開くリンク（URL は設定値、§10.5②） | O-2, O-9（設定保存の仕組みを共用） | 1 | WBS 番号を入れたグループからガントの URL が新規タブで開く |
 | O-11（任意・要判断） | Presentation 発注グループから `PresentationData` を Placeholder で作る連携（§10.4.3） | O-1, O-6 | 3 | 発注グループ作成後の同期で対応する `PresentationData` が（無ければ）Placeholder として作られる |
 | O-14 | admin が Web 画面からログイン許可（`users.json`）を管理できるようにする（一覧・追加・ロール変更・削除 + Drive フォルダ共有の同時操作） | W-3（既存の認証基盤） | 2 | admin 専用の管理 UI から追加・削除ができ、editor/viewer/API トークンからは呼べない。自分自身・最後の admin の削除・降格は拒否される |
+| O-12（2026-09-14 追加） | `fileFormat`（ファイル形式）・`fileName`（納品ファイル名）の追加（§10.2.1 追記）。種別ごとの候補・命名規約に沿った推奨名・長さ上限検証・不正文字/拡張子食い違いの警告（ブロックしない） | O-1 | 2 | 新規作成・編集・一覧（列 + 絞り込み/並べ替え）で入出力できる。既存データは空文字で非破壊に読める |
+| O-13（2026-09-14 追加） | 発注リンクのコピー（一覧の行・詳細・Presentation 発注グループのヘッダーに「リンクをコピー」。URL のみ/名前付き/Markdown。クリップボード API 失敗時のフォールバック付き）。§10.8 参照 | O-1, O-2 | 2 | 一覧・詳細・発注グループの各ボタンでコピーでき、コピーした URL を別タブで開くと該当の発注/発注グループが開く |
 
-**MVP（O-1〜O-10）合計: 25 人日**。O-11 を含める場合 **28 人日**。O-14 は MVP 後の追加チケット（別枠）。既存 W-1〜W-12（すでに実装済み）の
+**MVP（O-1〜O-10）合計: 25 人日**。O-11 を含める場合 **28 人日**。O-14 は MVP 後の追加チケット（別枠）。
+O-12〜O-13 も MVP 後の追加要望（合計 4 人日、別枠）。既存 W-1〜W-12（すでに実装済み）の
 コストとは別枠（拡張元として再利用する）。
 
 #### 置き換わる・不要になる v2 チケット（W-13〜W-22 の再確認）
@@ -1890,3 +1897,162 @@ Node テストはサーバー側のロジック・クライアント側の純粋
 アクセス確認は Node テストの範囲外。**docs/28 に確認手順を追記した**（別アカウントを
 `users.upsert` で追加 → そのアカウントで①（人向け SPA）を開けること、削除後に拒否されること、
 共有チェックを ON にした場合に相手に共有通知メールが届くこと）。この節はユーザー本人が確認する。
+
+---
+
+## 実装メモ（2026-09-14、O-12 ファイル形式・ファイル名 + O-13 発注リンクのコピー）
+
+ユーザー追加要望2件。「発注ツールとして一つ忘れたこと（納品形式とファイル名が欲しい）」→
+コーディネーター訂正により **`fileFormat`（ファイル形式。値は拡張子）** に確定（O-12）。
+「人間が見る仕様書に貼り付ける用の発注リンクをコピーする機能」（O-13）。§10.6 に O-12/O-13 として
+チケット化した（依存: O-1, O-2）。
+
+### O-12: `fileFormat`/`fileName`
+
+データモデルは §10.2.1 の追記のとおり。実装のポイント:
+
+- **候補表は 1 か所の定数**（`Tools/SpecWeb/src/Assets.js` の `SPEC_WEB_FILE_FORMAT_CHOICES_BY_TYPE`）
+  にまとめ、`html/AssetsLogic.html` 側は既存の `ASSET_TYPES`/`ASSET_STATUSES` と同じ複製方針で
+  同じ値を持つ（choices.json 経由の同期が無い間の既定値。将来 D-Drive から選択肢を同期する場合は
+  ここを差し替える）。候補: `Se`/`Bgm` → `.wav`/`.ogg`/`.mp3`、`Texture`/`Anim2D` → `.png`/`.psd`/`.tga`、
+  `Model`/`Anim` → `.fbx`、`Vfx`/`Prefab`/`Canvas` → `.prefab`/`.unitypackage`、`Material` → `.mat`。
+  候補が無い種別（`Presentation`/`Shake`/`Haptics`/`UiTween`/`Anchor`/`AnchorGroup`/`ControlSkin`）は
+  自由入力のみ（datalist に候補を出さない）
+- **正規化**: `specWebNormalizeFileFormat_`/`AssetsLogic.normalizeFileFormat` が先頭ドット無しの
+  入力（`png`）を `.png` に揃える。サーバー側は `specWebSanitizeAssetPatch_`（保存前の唯一の入口）で
+  必ず1回通す。クライアント側は入力中の即時反映を避けるため `blur` イベントで正規化する（`input`
+  イベントごとに正規化すると「p」と打った瞬間に「.p」になってしまい打ちにくいため）
+- **推奨ファイル名**: [10_workflow.md](10_workflow.md) §3 の命名規約は「Data ファイル名 =
+  `<種別接頭辞>_<カテゴリ>_<識別子>`（`AssetNamingService.BuildFileName`、
+  `Assets/DDrive/Editor/AssetBrowser/AssetNamingService.cs`）」と確証があったため、
+  「identifier + 拡張子」程度への簡略化はせず、**この規約をそのまま拡張子付きで転用**した
+  （`AssetsLogic.suggestFileName`。種別接頭辞の対応表 `ASSET_TYPE_PREFIX` は
+  `AssetNamingService.GetTypePrefix` と同じ値を複製）。例: 種別 `Se`・識別子 `Slash`・
+  ファイル形式 `.wav` → `SE_Slash.wav`。カテゴリがあれば `<接頭辞>_<カテゴリ最終セグメント>_<識別子>`
+  （`AssetNamingService.CategorySegmentForFileName` と同じ、日本語等の非英数字は除去）。
+  画面には「推奨: `<名前>`」+「推奨名を使う」ボタンを出し、押すと入力欄へコピーする
+  （クリップボードではなく直接値を書き込むだけなので O-13 のフォールバックは不要）
+- **検証**: 長さ上限（`fileFormat` 20 文字・`fileName` 255 文字。既存フィールドに先例が無かったため
+  新設だが、他フィールドと同じ「`errors` に追記して 400 拒否」の流儀は踏襲した）はブロックする。
+  **ファイル名に使えない文字**（`\ / : * ? " < > |`。Windows のファイル名禁止文字と同じ集合）と
+  **拡張子と `fileFormat` の食い違い**はブロックしない警告のみとし（CLAUDE.md §0-4「例外で止めない」）、
+  `assets.create`/`assets.update`/`assets.get` の応答に `warnings`（文字列配列、保存はしない都度計算値）
+  として返す。画面側は同じロジックのクライアント側ミラー（`AssetsLogic.fileNameWarnings`）を
+  `.sw-field-warning-message`（オレンジ系）で表示し、保存ボタンは無効化しない
+- **一覧の並べ替え/絞り込みはファイル形式のみ**（コーディネーター訂正どおり。`fileName` は対象外。
+  値がまちまちで絞り込みの実用性が低いため列にも出さない設計判断）。列は「ファイル形式」を追加、
+  狭い画面向けの省略は行っていない（既存の他の列と同様、CSS でのレスポンシブ対応は今回のスコープ外）
+- **D-Drive 側への影響**: `Assets/DDrive/Editor/Spec/SpecWebParser.cs`（`ParseAssets`）は
+  `assetType`/`category`/`identifier`/`displayName`/`status`/`assignee`/`note` など名前で指定した
+  フィールドだけを読み、未知フィールドは無視する実装（`(string)item["assetType"]` のように
+  個別にアクセスするだけで `JObject` の他のプロパティを列挙しない）なので、**`fileFormat`/`fileName`
+  を追加しても壊れない**（確認済み、C# は変更していない）。一方 `Assets/DDrive/Editor/Spec/
+  SpecSnapshotWriter.cs`（`TryBuildAssetsSnapshot`）は `assets.list` の生応答（`items` 配列の各
+  要素）を丸ごとキー順に整列して `Specs/assets.json` に書き出す実装のため、**`fileFormat`/`fileName`
+  は C# を変更しなくても自動的に `Specs/assets.json` に出る**（当初の想定「出したいなら C# 側変更が
+  必要」は誤りだったことをコード確認で判明。既存の同期パイプラインが素通しで運んでいるため）。
+  D-Drive 側でのファイル名照合（インポート検知との突き合わせ。実際に納品されたファイル名が
+  `fileName` と一致するかのチェック等）は今回のスコープ外の**後続候補**として残す
+
+### O-13: 発注リンクのコピー
+
+**目的**: 発注（アセット）・Presentation 発注グループの URL を、人間が読む別の仕様書
+（Google スプレッドシートのガント等、docs/32 の対象外のドキュメント）に貼り付けられるようにする。
+
+**URL 契約（新設、`?page=manual&p=...` と同じクエリパラメータ方式）**:
+
+| リンク種別 | URL | 初期画面への変換（`src/Code.js` の `resolveInitialScreen_`） |
+|---|---|---|
+| 発注（アセット） | `<execUrl>?page=order&id=<種別::識別子>` | `{ screen: 'assets', params: { openId: id } }` |
+| Presentation 発注グループ | `<execUrl>?page=group&id=<og_...>` | `{ screen: 'orders', params: { openGroupId: id } }` |
+
+`execUrl` は `ScriptApp.getService().getUrl()`（新設 `specWebExecUrl_`、失敗しても例外にせず
+空文字にフォールバック）を `renderUi_` が `HtmlTemplate.execUrl` として渡し、`html/Index.html` が
+`window.SpecWebExecUrl` として埋め込む（`window.SpecWebCurrentUser` 等と同じ形）。
+
+**既知の食い違い（要判断・後続候補として記録）**: 当初の依頼は「D-Drive の `SpecUrl`
+（§6、`AssetDataBase.SpecUrl`。`SpecWebParser.BuildSpecLink` が `humanAppUrl + "#/assets/" + id`
+というハッシュ形式で組み立てる）と一致していればそれに合わせる」だったが、コードを確認した結果
+**`SpecUrl` のハッシュ形式は現状のこのアプリでは機能しない**ことが分かった:
+`html/App.html` の 2026-09-14 追補コメント（§2.4 訂正）のとおり、この SPA は
+`location.hash`/`hashchange` に一切依存しない設計に直した経緯があり、`window.SpecWebInitialScreen`/
+`Params`（サーバーの `resolveInitialScreen_` が `e.parameter` から作る）だけが初期画面を決める。
+ブラウザの URL フラグメント（`#...`）はブラウザから外へは送られず、サーバーにも渡らないため、
+`SpecUrl` を新しいタブに直接開いても「発注ツリー」の既定画面が開くだけで、意図した詳細は開かない。
+このチケットは **C# を変更しない**方針のため `SpecWebParser.BuildSpecLink`/`SpecUrl` の形式には
+手を付けず、O-13 の「リンクをコピー」は独自に動作確認済みの `?page=order&id=...` 方式を使う
+（`SpecUrl` とは別の URL になる）。**後続候補**: `SpecWebParser.BuildSpecLink` も
+`?page=order&id=...` 形式に揃える別チケット（C# 側の変更を伴うため要判断・別枠）。
+
+**クリップボードコピーの3段フォールバック**（`html/ClipboardCopy.html`、
+`window.SpecWebClipboard.copyText(text)`）:
+
+1. `navigator.clipboard.writeText`（成功すれば true）
+2. 失敗 or 非対応なら、非表示 `<textarea readonly>` を `document.body` に追加して `select()` + `document.execCommand('copy')`（成功すれば true、textarea は直後に取り除く）
+3. それも失敗すれば false を返し、呼び出し側（`buildCopyLinkControl`）が「Ctrl+C でコピーしてください」+ コピー対象のテキストが入った読み取り専用 `<input readonly>` を表示する（ユーザーが手動で選択してコピーできる）
+
+**「リンクをコピー」ボタン**（`buildCopyLinkControl`、`html/Assets.html`・`html/OrderTree.html` に
+同じ実装を複製。`el()` 自体も両ファイルで複製する既存方針を踏襲）: 既定はワンクリックで
+URL のみをコピー。横の「▼」でメニューを開き、「URL のみ」「名前付き（`表示名 - URL`）」
+「Markdown（`[表示名](URL)`）」を選べる（`html/OrderLinkLogic.html` の `formatLinkText` が整形）。
+配置:
+
+- 一覧（`assets` 画面）の各行（末尾の見出し無し列）・詳細パネルのヘッダー（編集モードのみ、
+  新規作成モードには id が無いため出さない）
+- 発注ツリー（`orders` 画面）の各 Presentation 発注グループのヘッダー。**Presentation 発注グループ
+  専用の詳細画面は存在しない**（発注ツリー画面がグループの一覧表示を兼ねているだけ）ため、
+  一覧上のグループボックス自体を「詳細」相当として扱った（「単体」バケット、`node.id === null`
+  には付けない。グループそのものが存在しないため）
+
+**深いリンクで開いた場合の挙動**（`openId`/`openGroupId`。いずれも一度だけ処理し、以後の
+再読み込みでは再オープンしない）:
+
+- `assets` 画面: `reload()` 完了後に対象の id を探し、見つかれば `openDetail({mode:'edit', item})`
+  で詳細パネルを開く。見つからなければ例外にせず「指定された発注が見つかりません（id）。
+  一覧を表示しています。」を一覧の上に表示する（トップ＝一覧自体は変わらず表示される）
+- `orders` 画面: `reload()` 完了後に対象の発注グループを `sw-highlight`（アクセントカラーの枠線）
+  でハイライトし `scrollIntoView()` する。見つからなければ同様に案内を出す（発注ツリー自体は
+  変わらず表示される）
+
+**テスト**:
+
+- 純粋関数（`Tools/SpecWeb/test/orderLinkLogic.test.js`）: `buildOrderUrl`/`buildGroupUrl`
+  （execUrl・id 欠如時の空文字フォールバック含む）・`formatLinkText`（3形式）・
+  `resolveInitialScreen_` の `page=order`/`page=group` 追加分（id 欠如時のフォールバック含む）・
+  `specWebExecUrl_`・既存 `page=manual` の回帰確認
+- クリップボード（`Tools/SpecWeb/test/clipboardCopy.test.js`）: 3段フォールバックの各分岐
+  （成功/拒否→execCommand成功/execCommand失敗/execCommand無し/空文字）
+- スモーク（`assets-screen.smoke.test.js`・`orderTree.smoke.test.js` 追加分）: 深いリンクでの
+  自動オープン・見つからない場合の案内・コピーボタンのクリック（成功/フォールバック/execUrl 未取得）・
+  新規作成モードでは出ないことを確認
+- `Tools/SpecWeb/test/load-gas.js`: `ScriptApp.getService().getUrl()` のフェイクを新設
+  （既存の `renderUi_` 経路のテスト（`routing.test.js`・`manual.test.js` 等）が
+  `ScriptApp` 未定義で壊れないようにするため必須の変更）
+- `Tools/SpecWeb/test/dom-stub.js`: `FakeNode` に `style`/`select()`/`removeChild`、
+  `document.body`/`document.execCommand`（既定は未定義。テストごとに上書き可能）を追加
+  （`ClipboardCopy.html` の execCommand フォールバックを smoke テストできるようにするため）
+
+### テスト結果
+
+`node --test Tools/SpecWeb/test` で実行。**302 件全て green**（既存分 + 本チケット追加分:
+`orderLinkLogic.test.js`（新規 19 件）・`clipboardCopy.test.js`（新規 6 件）・
+`assets-logic.test.js`（O-12 追加 8 件）・`assets.api.test.js`（O-12 追加 9 件）・
+`migration.test.js`（O-12 追加のアサーション）・`assets-screen.smoke.test.js`（O-12/O-13 追加 8 件）・
+`orderTree.smoke.test.js`（O-13 追加 4 件））。
+
+### 目視確認（実デプロイでの確認が必須。§2.4 と同じ理由で Node テストでは iframe の実挙動を検証できない）
+
+1. `push.ps1` で①②を再デプロイする
+2. ①の発注一覧・発注ツリーで、種別ごとの候補（datalist）・推奨ファイル名ボタン・
+   ファイル形式列での絞り込み/並べ替えが実際に動くことを確認する
+3. 発注の詳細・一覧の行・発注グループのヘッダーで「リンクをコピー」を押し、実際に
+   クリップボードにコピーされる（またはフォールバックの読み取り専用欄が出る）ことを確認する
+   （ブラウザの権限設定によって `navigator.clipboard` の許可/拒否が変わるため、両方の経路を
+   実機で確認する）
+4. **コピーした URL を別タブ（新しいシークレットウィンドウ等）で開くと、その発注/発注グループの
+   詳細が表示されることを確認する**（コーディネーター指定の確認項目。docs/28 にも同じ項目を追記）
+5. 存在しない id で `?page=order&id=NotExist` を直接開き、例外にならず「見つかりません」の案内が
+   一覧の上に出ることを確認する
+
+上記はユーザー本人が確認する（Claude は実際の Google アカウントにログインしたデプロイを開けないため
+代行できない）。

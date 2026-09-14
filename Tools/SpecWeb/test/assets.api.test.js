@@ -394,6 +394,99 @@ test('handleApiRequest_ 経由（doGet 実リクエスト相当）: 検証エラ
   assert.equal(body.status, 400);
 });
 
+// ---- O-12: ファイル形式・ファイル名 ----
+
+test('assets.create: fileFormat は先頭ドット無しでも正規化されて保存される（png → .png）', () => {
+  const ctx = loadGas();
+  const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileFormat: 'wav' })) });
+  assert.equal(result.item.fileFormat, '.wav');
+});
+
+test('assets.create: fileFormat/fileName を省略すると空文字で保存される（必須にしない）', () => {
+  const ctx = loadGas();
+  const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) });
+  assert.equal(result.item.fileFormat, '');
+  assert.equal(result.item.fileName, '');
+});
+
+test('assets.create: fileName を保存できる（推奨名を使っても自由入力でも可）', () => {
+  const ctx = loadGas();
+  const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileFormat: '.wav', fileName: 'SE_Slash.wav' })) });
+  assert.equal(result.item.fileFormat, '.wav');
+  assert.equal(result.item.fileName, 'SE_Slash.wav');
+});
+
+test('assets.create: fileFormat が長さ上限（20文字）を超えると 400 で拒否される', () => {
+  const ctx = loadGas();
+  assert.throws(
+    () => call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileFormat: '.' + 'a'.repeat(30) })) }),
+    (err) => {
+      assert.equal(err.status, 400);
+      assert.match(err.message, /ファイル形式/);
+      return true;
+    }
+  );
+});
+
+test('assets.create: fileName が長さ上限（255文字）を超えると 400 で拒否される', () => {
+  const ctx = loadGas();
+  assert.throws(
+    () => call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileName: 'a'.repeat(300) + '.wav' })) }),
+    (err) => {
+      assert.equal(err.status, 400);
+      assert.match(err.message, /ファイル名/);
+      return true;
+    }
+  );
+});
+
+test('assets.create/get: fileName に使えない文字が含まれていても保存はブロックされず（例外で止めない）、warnings に含まれる', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileName: 'bad/name.wav' })) });
+  assert.equal(created.item.fileName, 'bad/name.wav'); // 保存はそのまま通る
+  assert.equal(created.warnings.length, 1);
+  assert.match(created.warnings[0], /使えない文字/);
+
+  const fetched = call(ctx, 'assets.get', { id: created.item.id });
+  assert.equal(fetched.warnings.length, 1);
+});
+
+test('assets.create: fileName の拡張子が fileFormat と食い違うと warnings に含まれる（保存はブロックしない）', () => {
+  const ctx = loadGas();
+  const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileFormat: '.wav', fileName: 'SE_Slash.ogg' })) });
+  assert.equal(result.item.fileName, 'SE_Slash.ogg');
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /一致していません/);
+});
+
+test('assets.create: fileFormat/fileName に問題が無ければ warnings は空配列', () => {
+  const ctx = loadGas();
+  const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileFormat: '.wav', fileName: 'SE_Slash.wav' })) });
+  assert.equal(result.warnings.length, 0);
+});
+
+test('assets.update: fileFormat/fileName を更新でき、正規化・warnings も update 応答に反映される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  const updated = call(ctx, 'assets.update', {
+    id: created.id, expectedRevision: created.revision,
+    patch: JSON.stringify({ fileFormat: 'ogg', fileName: 'weird*name.ogg' })
+  });
+  assert.equal(updated.item.fileFormat, '.ogg');
+  assert.equal(updated.warnings.length, 1);
+  assert.match(updated.warnings[0], /使えない文字/);
+});
+
+test('assets.list: fileFormat で絞り込める', () => {
+  const ctx = loadGas();
+  call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ fileFormat: '.wav' })) });
+  call(ctx, 'assets.create', { patch: JSON.stringify({ assetType: 'Vfx', identifier: 'FireBall', displayName: '火球', fileFormat: '.prefab' }) });
+
+  assert.equal(call(ctx, 'assets.list', { fileFormat: '.wav' }).items.length, 1);
+  assert.equal(call(ctx, 'assets.list', { fileFormat: '.prefab' }).items.length, 1);
+  assert.equal(call(ctx, 'assets.list', {}).items.length, 2);
+});
+
 test('handleApiRequest_ 経由: viewer の書き込みは 403 相当で本文に返る', () => {
   const ctx = loadGas({
     activeUserEmail: 'viewer@example.com',

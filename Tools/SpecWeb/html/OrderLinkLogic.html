@@ -1,0 +1,55 @@
+<script>
+  /**
+   * O-13「人間が見る仕様書に貼り付ける用の発注リンクをコピーする機能」。
+   * URL の組み立て・コピー用テキストの整形だけを行う純粋関数（DOM に触れない。
+   * html/AssetsLogic.html 冒頭の注意と同じ理由で Node から単体テストできるようにする）。
+   *
+   * URL 契約（src/Code.js の resolveInitialScreen_ 参照）:
+   *   - 発注（アセット）: `<execUrl>?page=order&id=<種別::識別子>`
+   *   - Presentation 発注グループ: `<execUrl>?page=group&id=<og_...>`
+   *
+   * 2026-09-14 時点の既知の食い違い（docs/32_spec_web.md §10.8 参照）: D-Drive 側
+   * （Assets/DDrive/Editor/Spec/SpecWebParser.cs の BuildSpecLink）が組み立てる `SpecUrl` は
+   * `#/assets/<id>`（ハッシュ）形式だが、html/App.html の 2026-09-14 追補コメントのとおり
+   * このアプリの SPA は `location.hash`/`hashchange` に一切依存しない設計になっており、
+   * ハッシュ部分はサーバー（doGet）にも届かないため実際には機能しない。この O-13 チケットは
+   * C# 側を変更しない方針のため、SpecUrl の形式はそのままにし、コピー機能は
+   * `?page=order&id=...`（`?page=manual&p=...` と同じ、動作確認済みのクエリパラメータ方式）
+   * を独自に使う。将来 D-Drive 側の SpecUrl もこの形式に合わせる別チケットを検討する。
+   */
+  (function () {
+    'use strict';
+
+    function trimTrailingSlash_(url) {
+      return String(url || '').replace(/\/+$/, '');
+    }
+
+    /** execUrl・id が無ければ組み立てられない（空文字を返す。呼び出し側はボタンを無効化するなり判断する）。 */
+    function buildOrderUrl(execUrl, id) {
+      if (!execUrl || !id) return '';
+      return trimTrailingSlash_(execUrl) + '?page=order&id=' + encodeURIComponent(id);
+    }
+
+    function buildGroupUrl(execUrl, id) {
+      if (!execUrl || !id) return '';
+      return trimTrailingSlash_(execUrl) + '?page=group&id=' + encodeURIComponent(id);
+    }
+
+    /**
+     * コピーするテキストの整形。mode: 'url'（既定・URL のみ）/ 'named'（`表示名 - URL`）/
+     * 'markdown'（`[表示名](URL)`）。url が空なら空文字（呼び出し側は「URL を取得できません」表示）。
+     */
+    function formatLinkText(mode, label, url) {
+      if (!url) return '';
+      if (mode === 'named') return String(label || '') + ' - ' + url;
+      if (mode === 'markdown') return '[' + String(label || url) + '](' + url + ')';
+      return url;
+    }
+
+    window.OrderLinkLogic = {
+      buildOrderUrl: buildOrderUrl,
+      buildGroupUrl: buildGroupUrl,
+      formatLinkText: formatLinkText
+    };
+  })();
+</script>
