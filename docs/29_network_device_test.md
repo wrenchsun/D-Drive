@@ -594,9 +594,12 @@ Actions)への組込みは P7 末まで延期のため([33_ci_setup.md] §8 と�
    Host 経由で ClientsAndHost へ中継され送信元自身にも同じ破棄ログが返るため、Client 自身のログだけで
    送信数=破棄数を検証できる)も判定する)
 3. **`Tools/CI/Run-NetCheck.ps1` によるクロスログ判定**(Signal 中継の位相差。Host の `signal_fire` と
-   Client の `signal_recv` を `HandleNetKey` で対にして `networkTime` 差を計算し、§4 の「数ティック以内
-   (目安 100ms 以内)」に対してノイズ耐性を持たせた 150ms を機械判定のしきい値にする。単一プロセスの
-   ログだけでは分からない項目のため、両方の `Player.log` を突き合わせるここだけで判定する)
+   Client の `signal_recv` を `HandleNetKey` で対にして `networkTime` 差を計算する。しきい値は
+   「シナリオのシミュレート遅延(片道 ms、`$scenario.LatencyMs`)+ ノイズ耐性マージン 150ms
+   (`$PhaseDiffMarginMs`)」。2026-09-15 修正、下記「初回実行結果と判定バグ修正」参照。分母(Host の
+   `signal_fire` 件数)は Client が接続した時刻(Client 自身の最初の `heartbeat=1 role=client` 行の
+   `networkTime`)以降の発火だけに絞る。単一プロセスのログだけでは分からない項目のため、両方の
+   `Player.log` を突き合わせるここだけで判定する)
 
 K3(6-6、Signal が Play より先に届いた場合の保留→適用)が実際に効いたかどうかは、`PresentationManager.
 FlushPendingUnknownKey` が開発ビルドで `pending_applied=1` を含む 1 行をログに出すようにした(6-7 で追加)
@@ -610,9 +613,86 @@ FlushPendingUnknownKey` が開発ビルドで `pending_applied=1` を含む 1 �
 ビルドの取り違え等の環境要因を疑う(意図的な不一致確認は §14 の手動手順を使う)。
 
 要判断:
-- Signal 中継の位相差 150ms は §4 の「目安 100ms 以内」に自動判定用の余裕を乗せた値であり、docs 側の
-  目安自体は変えていない。ローカル実行環境の負荷次第で調整が必要になれば `Run-NetCheck.ps1` の
-  `$PhaseDiffThresholdMs` を変更する
+- Signal 中継の位相差のノイズ耐性マージン(150ms、`$PhaseDiffMarginMs`)は §4 の「目安 100ms 以内」に
+  自動判定用の余裕を乗せた値であり、docs 側の目安自体は変えていない。ローカル実行環境の負荷次第で
+  調整が必要になれば `Run-NetCheck.ps1` の `$PhaseDiffMarginMs` を変更する
 - K1(通信の数秒停止)・K2(rtt_app_ms 固着からの復旧)・K3(保留→適用)を実際に再現する不安定な回線状態は
   ローカルループバックでは作れないため、この自動テストでは(K3 の `pending_applied` ログが偶然出ない限り)
   直接は検証していない。§13 の実機/ローカル結合での v5 確認が引き続き必要
+
+### 初回実行結果と判定バグ修正(2026-09-15)
+
+`Tools\CI\run-netcheck.cmd` を実際にビルド済み exe で初めて通したところ、4 シナリオ全てが FAIL した
+(`TestResults\NetCheck\summary.md`)。原因を各ログ(`*_host.log`/`*_client.log`)で確認したところ、
+**ネット機能そのものの新規バグは 1 件**(下記 a)、残りは判定条件・シナリオ設定側の不備だった。
+
+**a. `CatalogContentHashGate` の実バグ(修正済み)**: NGO の `OnClientConnectedCallback` は Host が
+`StartHost()` する際、Host 自身の自己接続でも発火する([14_networking.md] §2/§12 のコメントに既存の
+既知事項として記載あり)。`CatalogContentHashGate.OnClientConnected` はこれを素通りさせており、
+Host が自分の `clientId`(=`LocalClientId`)に対しても `_pendingHostSideDeadlines` へ保留期限を
+登録していた。Host は自分にハッシュを送る必要が無く(`TrySendOwnHash` が `IsServer` を弾いて no-op)、
+この自己分のエントリは誰からも解決されないため、**実クライアントの有無・一致に関わらず必ず
+`_timeoutSeconds`(既定 5 秒)後にタイムアウトし、`LastStatusText` が一度 `"OK"` になっていても
+`"ContentHash 未受信(Client 0): (タイムアウト: ContentHash が届きませんでした)"` に戻ってしまう**
+実バグだった(pair0/pair200/latejoin/disconnect の全 Host ログで、接続後 5 秒強のタイミングで再現)。
+`OnClientConnected` で `clientId == _netBridge.LocalClientId` を早期 return するよう修正し、
+`CatalogContentHashGateTests` に自己接続イベント単体・実クライアント接続後の 2 パターンの回帰テストを
+追加した。
+
+**b. ⑤(切断後の演出 0)を Host にも要求していた(NetCheckRunner の判定バグ)**: `NgoNetBridge.
+ClientDisconnected` は「Host が他 Client の切断を観測した」場合にも発火する(既存コメントに記載済みの
+仕様どおり)。`NetCheckRunner.OnBridgeDisconnected` は役割を見ずに `_disconnectLogged` をそのまま
+判定用フラグとして使っていたため、Host 側は「(他 Client の)切断を検知したのに、自分が周期再生している
+デモの `activeCount`/`vfx_active` が 0 にならない」という偽陽性 FAIL になっていた(pair0/pair200/
+latejoin の 3 シナリオで Host が `vfx_or_active_not_cleared_after_disconnect` で FAIL)。Host は他
+Client の 1 人が抜けても自分のデモ演出を止めない設計であり、`CancelAllNetworked()` も Client 視点の
+切断時にだけ呼ばれる(§8)。判定用フラグ(`_selfDisconnectedObserved`)は `_role == "client"` の場合
+だけ立てるように修正した。
+
+**c. `disconnect` シナリオで `ConnectedAtEnd=false` を無条件に FAIL にしていた(NetCheckJudge の判定
+バグ)**: `disconnect` シナリオは Host が先に(正常終了で)いなくなり、Client は再接続しない設計のまま
+自分の自動テスト時間を使い切って終了する。つまり Client の `ConnectedAtEnd=false` は「切断を正しく
+検知して後片付けできたこと」の結果であり、それ自体を `not_connected` として即 FAIL にしてはならない
+(修正前は Client が `RESULT=FAIL reason=not_connected` になっていた)。`NetCheckJudge.Evaluate` の
+先頭チェックを `!ConnectedAtEnd && !DisconnectedObserved` に変更し、自分で切断を検知済みの場合は
+後段の実質的なチェック(⑤ `vfx_or_active_not_cleared_after_disconnect`)に判定を委ねるようにした。
+`NetCheckJudgeTests` に「切断検知+後片付け済みなら PASS」「切断検知したが後片付けが機能していなければ
+`not_connected` ではなく実質的な理由で FAIL」「切断イベントに気づかず静かに切断された場合は従来どおり
+`not_connected`」の 3 ケースを追加した。
+
+**d. ③(偽造 Cancel の全件破棄)がシナリオ終了間際の in-flight 分で食い違っていた(`pair200`、レイテンシ
+シナリオ限定)**: `-ddrive-sim-latency 200` の下では、Client 発の偽造 Cancel(`ReliableOrdered`、
+Client→Host→ClientsAndHost の 2 ホップ中継)が Host を経由して自分に戻ってくるまでに実測で 700ms 前後
+掛かる。シナリオ終了直前(残り時間がこの往復時間より短いタイミング)に送信した最後の 1 件は、破棄ログが
+届く前に `Application.Quit()` が呼ばれてしまい、`forged_cancel_sent`(6件)と `forged_cancel_discarded`
+(5件)が食い違う偽陽性 FAIL になっていた(ネット機能自体は正しく動いている。届く前にプロセスが
+終了しただけ)。`NetCheckRunner` に `HasTimeForForgedCancelRoundTrip()` を追加し、残り時間が
+`2 秒 + シミュレート遅延(片道 ms)× 4 / 1000` 未満になったら新規送信を止めるようにした。
+
+**e. Signal 中継の位相差しきい値が遅延シナリオを考慮していなかった(`pair200`)**: 旧しきい値は
+固定 150ms で、`-ddrive-sim-latency 200` では Host→Client の 1 ホップ分の遅延(実測 maxDiffMs=350ms)
+がそのまま乗るため機械的に FAIL していた。しきい値を「シミュレート遅延(片道 ms)+ ノイズ耐性マージン
+150ms」に変更した(§4/上記「判定条件と担当箇所」参照。比較前に整数 ms へ丸めて浮動小数の丸め誤差による
+境界値の偽陽性も避けている)。
+
+**f. Signal 中継の分母に Client 接続前の `signal_fire` が入っていた(`latejoin`)**: `latejoin` は
+Client が Host 起動 12 秒後に接続するため、それ以前に Host が単独で発火させた 3 件の `signal_fire` は
+Client からは原理的に受信できない(受信して当然の対象ではない)。これを分母に含めていたため中継率
+(`ratio`)が実態より低く出て機械的に FAIL していた(実測 `ratio=0.64`。接続前 3 件を除くと
+`7/8=0.875` で閾値 0.7 を超える)。`Run-NetCheck.ps1` に `Get-ClientConnectNetworkTime` を追加し、
+Client の最初の `heartbeat=1 role=client` 行の `networkTime` 以降の `signal_fire` だけを分母にする
+ように修正した。
+
+**g. `Tools\CI\run-netcheck.cmd` の文字化け**: このファイルは UTF-8(BOM 無し)で保存されているため、
+既定のコードページ(日本語 Windows では通常 932 = Shift-JIS)の `cmd.exe` から実行すると日本語の
+`echo`/`REM` 行が文字化けする(cmd 側が UTF-8 のバイト列を Shift-JIS として誤読するため。実際に
+`chcp 932` を強制した状態で再現し、`chcp 65001 >nul` で解消することを確認した)。`.gitattributes` の
+CRLF 指定はそのまま維持し、ファイル先頭(`@echo off` の直後)に `chcp 65001 >nul` を追加して対応した。
+
+これらの修正はいずれも判定条件・シナリオ設定・この自動テスト専用コード(`NetCheckRunner`)側の不備で、
+Host/Client 間の実プレゼンテーション同期・偽造メッセージ検証・Late Join 復元・切断検知そのものは
+(a を除き)正しく動いていた。a の `CatalogContentHashGate` の修正は 6-5(ContentHash)本体の実装
+バグであり、実機確認(§8〜§12)では 1 対 1 構成の実機テストがこの自己接続タイムアウトを踏む前に
+`LastStatusText` が最初の `"OK"` のまま画面キャプチャ・ログ確認を終えていたため見つからなかったと
+推測される(要判断: 次回の実機確認では `content_hash` の値が長時間 `"OK"` を維持することも確認項目に
+加えるとよい)。

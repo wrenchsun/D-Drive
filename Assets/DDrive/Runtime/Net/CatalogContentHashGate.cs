@@ -91,6 +91,18 @@ namespace DDrive.Runtime.Net
         {
             if (_netBridge.IsServer)
             {
+                // 2026-09-15 修正(6-7 の自動テストで発覚した実バグ) — NGO の OnClientConnectedCallback は
+                // Host 自身の自己接続(StartHost 時に Host が自分自身に対しても発火させる)でも呼ばれる
+                // ([14_networking.md] §2/§12、NgoNetBridge.HandleClientConnected のコメント参照)。
+                // Host は自分にハッシュを送る必要が無く(TrySendOwnHash が IsServer を弾いて no-op)、
+                // 自己分の保留期限をここで登録してしまうと、実クライアントの有無に関わらず
+                // `_timeoutSeconds` 後に必ずタイムアウトして LastStatusText が "OK" → "ContentHash 未受信"
+                // に戻ってしまう(実機・自動テストの全シナリオで再現。Host 自身の clientId は無視する)。
+                if (clientId == _netBridge.LocalClientId)
+                {
+                    return;
+                }
+
                 // 1v1(MS2026)想定だが Dictionary なので複数クライアントでも自然に扱える。
                 _pendingHostSideDeadlines[clientId] = _netBridge.NetworkTime + _timeoutSeconds;
                 return;

@@ -143,6 +143,53 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(0, bridge.DisconnectClientCallCount);
         }
 
+        [Test]
+        public void HostSide_SelfConnectEvent_DoesNotCreatePendingDeadline_AndNeverTimesOut()
+        {
+            // 2026-09-15 修正(6-7 の自動テストで発覚した実バグ) — NGO の OnClientConnectedCallback は
+            // Host 自身の自己接続(StartHost)でも発火する(clientId == Host の LocalClientId)。修正前は
+            // この自己分にも保留期限を登録してしまい、Host は自分にハッシュを送らない(TrySendOwnHash が
+            // IsServer を弾く)ため、実クライアントの有無に関わらず必ずタイムアウトして LastStatusText が
+            // "OK" → "ContentHash 未受信" に戻っていた(実機・run-netcheck.cmd の全シナリオで再現)。
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            // Host 自身の自己接続イベント(clientId == LocalClientId)。
+            bridge.RaiseClientConnected(0);
+
+            // 実クライアント(id=5)が接続し、ハッシュも一致して即座に解決する。
+            bridge.RaiseClientConnected(5);
+            bridge.RequestBroadcastFromClient(5, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            Assert.AreEqual("OK", gate.LastStatusText);
+
+            // タイムアウト期限をはるかに過ぎても、自己分の保留エントリが残っていなければ何も起きない
+            // (修正前はここで自己分がタイムアウトし、LastStatusText が "ContentHash 未受信" に戻っていた)。
+            bridge.NetworkTime = 10d;
+            gate.Tick(bridge.NetworkTime);
+
+            Assert.AreEqual("OK", gate.LastStatusText);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+        }
+
+        [Test]
+        public void HostSide_SelfConnectEvent_AloneWithNoRealClient_NeverTimesOut()
+        {
+            // 実クライアントが 1 人も居ない(Loopback/シングルプレイ相当)場合でも、自己接続イベントだけで
+            // タイムアウト扱いにならないことを確認する。
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(0);
+
+            bridge.NetworkTime = 10d;
+            gate.Tick(bridge.NetworkTime);
+
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+            StringAssert.DoesNotContain("未受信", gate.LastStatusText);
+        }
+
         // ── Client 側 ──
 
         [Test]

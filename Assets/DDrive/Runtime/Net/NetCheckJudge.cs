@@ -10,11 +10,16 @@ namespace DDrive.Runtime.Net
     // 責務にしている([docs/29] §4「両方のログを外部スクリプトが判定」)。
     //
     // 各条件は [11_tasks.md] 6-7 の PASS 条件(①〜⑥)に対応する:
-    //   ① 接続成立                       → Connected
+    //   ① 接続成立                       → ConnectedAtEnd(ただし DisconnectedObserved が true の場合は
+    //                                       "disconnect" シナリオの想定どおりの終了なので不接続を許容し、
+    //                                       ⑤ の実質チェックに委ねる。2026-09-15 修正、下記 Evaluate 参照)
     //   ② Signal 中継(自プロセス側の下限)  → RequireSignalActivity + SignalRecvCount
     //   ③ 偽造 Cancel の全件破棄           → ForgedCancelSentCount == ForgedCancelDiscardedCount
     //   ④ Late Join 復元                  → RequireLateJoinRestore + LateJoinRestoreObserved(+PlaceholderObserved==false)
-    //   ⑤ 切断検知 + 演出 0                → DisconnectedObserved のときだけ ActiveAndVfxZeroedAfterDisconnect を要求
+    //   ⑤ 切断検知 + 演出 0                → DisconnectedObserved(=自分(Client)が Host との接続を失った)の
+    //                                       ときだけ ActiveAndVfxZeroedAfterDisconnect を要求。Host が他
+    //                                       Client の切断を観測しただけのケースは対象外(NetCheckRunner 側
+    //                                       で役割ごとに絞り込む。2026-09-15 修正)
     //   ⑥ Exception/Error 0               → ExceptionOrErrorCount
     // 加えて 6-5(ContentHash)・A7(遅延猶予 0.5 秒)の判定も同じ関数に含める。
     public struct NetCheckCounters
@@ -82,7 +87,14 @@ namespace DDrive.Runtime.Net
                 return NetCheckResult.PassResult("off_role_no_net_checks");
             }
 
-            if (!c.ConnectedAtEnd)
+            // 2026-09-15 修正(6-7 判定バグ) — "disconnect" シナリオは Host が先に終了し、Client は
+            // Host との接続を失ったまま(再接続はしない設計)で自分の自動テスト時間を使い切って終了する。
+            // つまり ConnectedAtEnd=false は「切断シナリオが正しく動いた証拠」であり、それ自体は FAIL 材料
+            // ではない。DisconnectedObserved(=自分が切断を検知した)なら、この場では失敗にせず、後段の
+            // 「切断後に演出が 0 になったか」(⑤)の実質的なチェックに委ねる。逆に DisconnectedObserved が
+            // false のまま未接続で終わった場合(切断イベントに気づかずに接続が切れた)は、従来どおり
+            // "not_connected" として扱う。
+            if (!c.ConnectedAtEnd && !c.DisconnectedObserved)
             {
                 return NetCheckResult.FailResult("not_connected");
             }

@@ -155,7 +155,18 @@
 
 ## 6-7 2 クライアント自動テスト（Loopback ⇔ NGO 両ブリッジ、2026-09-15）
 
-対象: `DDrive.Runtime.Net.NetCheckJudge`(判定の純関数、`Assets/DDrive/Runtime/Net/NetCheckJudge.cs`)、`Assets/DDrive/Samples/NetCheckRunner.cs`(自動判定の組込み)、`Assets/DDrive/Runtime/Net/NetLaunchArgs.cs`(`-ddrive-autotest-seconds` 追加)、`Tools/CI/Run-NetCheck.ps1` + `Tools/CI/run-netcheck.cmd`(ローカル 2 プロセス起動・両ログ突き合わせ)、`Tools/CI/Summarize-Results.ps1`(`-NetCheckResultsPath` 追加)、`Tools/CI/run-ci.cmd`(任意ステップ `[6/6]`)。判定条件・実装の詳細は [11_tasks.md] 6-7 と [29_network_device_test.md]「自動判定つきローカル2プロセス確認(6-7)」節。EditMode テスト `NetCheckJudgeTests`(19件)・`NetLaunchArgsTests` 追記(3件)で判定ロジック自体は確認済み。**Unity Editor 上でのコンパイル・実プロセスでの動作は未検証**(ワークツリーで実装したため。以下の手順で確認する)。
+対象: `DDrive.Runtime.Net.NetCheckJudge`(判定の純関数、`Assets/DDrive/Runtime/Net/NetCheckJudge.cs`)、`Assets/DDrive/Samples/NetCheckRunner.cs`(自動判定の組込み)、`Assets/DDrive/Runtime/Net/NetLaunchArgs.cs`(`-ddrive-autotest-seconds` 追加)、`Tools/CI/Run-NetCheck.ps1` + `Tools/CI/run-netcheck.cmd`(ローカル 2 プロセス起動・両ログ突き合わせ)、`Tools/CI/Summarize-Results.ps1`(`-NetCheckResultsPath` 追加)、`Tools/CI/run-ci.cmd`(任意ステップ `[6/6]`)。判定条件・実装の詳細は [11_tasks.md] 6-7 と [29_network_device_test.md]「自動判定つきローカル2プロセス確認(6-7)」節。EditMode テスト `NetCheckJudgeTests`(19件→2026-09-15 修正で 23件)・`NetLaunchArgsTests` 追記(3件)で判定ロジック自体は確認済み。
+
+**2026-09-15 追記**: `NetCheckBuilder.Build()` → `run-netcheck.cmd` を実際にビルド済み exe で初めて
+通したところ、4 シナリオ全てが FAIL した。ログで原因を確認し、判定条件・シナリオ設定側の不備(⑤の
+判定対象が Host にも掛かっていた、`disconnect` シナリオで `ConnectedAtEnd=false` を無条件 FAIL に
+していた、遅延シナリオの位相しきい値・偽造 Cancel の in-flight 除外、`latejoin` の分母、`.cmd` の
+文字化け)と、`CatalogContentHashGate`(6-5)の実バグ(Host が自分自身の `OnClientConnectedCallback`
+にも保留期限を登録してしまい、5 秒後に必ずタイムアウトして `LastStatusText` が `"OK"` から
+`ContentHash 未受信` に戻る)を修正した。詳細は [29_network_device_test.md]「初回実行結果と判定バグ
+修正(2026-09-15)」節。**以下の手順は Unity Editor 上でのコンパイル・実プロセスでの動作が未検証
+のまま(ワークツリーで実装)。次回このチェックリストを実施するときに、上記修正が反映されたビルドで
+4 シナリオ全て PASS することを確認する。**
 
 1. Unity Editor で `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド` を実行し、`Builds\DDriveNetCheck\DDriveNetCheck.exe` が最新のコードでビルドされていることを確認する(コンパイルエラー 0件も併せて確認)
 2. Unity Editor を閉じずに実行してよい(この exe は別プロセスとして起動する)。リポジトリ直下で `Tools\CI\run-netcheck.cmd` を実行する
@@ -166,7 +177,7 @@
 7. (任意)`Tools\CI\run-ci.cmd` を実行し、ビルド済み exe がある状態で `[6/6] NetCheck` ステップが走り、結果サマリ(Validation/EditMode/PlayMode/Performance と同じ表)に "NetCheck (6-7、2 クライアント自動テスト)" の行が載ることを確認する
 
 要判断:
-- Signal 中継の位相差のしきい値は [docs/29] §4 の「目安100ms以内」に対し、ローカル実行のノイズ耐性として `Tools/CI/Run-NetCheck.ps1` 側で 150ms を機械判定に使っている(目安そのものは変えていない)。実測してしきい値が厳しすぎる/緩すぎると分かった場合は同スクリプトの `$PhaseDiffThresholdMs` を調整する
+- Signal 中継の位相差のしきい値は [docs/29] §4 の「目安100ms以内」に対し、ローカル実行のノイズ耐性として `Tools/CI/Run-NetCheck.ps1` 側で「シナリオのシミュレート遅延(片道 ms)+ 150ms」を機械判定に使っている(2026-09-15 修正。目安そのものは変えていない)。実測してマージンが厳しすぎる/緩すぎると分かった場合は同スクリプトの `$PhaseDiffMarginMs` を調整する
 - 6-5(ContentHash)は 2026-09-15 に main へマージ済み(PR #70)のため、`NetCheckJudge` の判定に「ContentHash 一致(開発ビルドでは不一致でも警告のみで継続)」を含めている。Host/Client で同じビルドを使う本手順では常に一致するはずなので、`content_hash_not_ok` で FAIL する場合は実際の不整合(カタログの取り違え等)を疑う
 - 初回起動時に Windows ファイアウォールの許可ダイアログが出る場合、`run-netcheck.cmd` は無人実行のため応答できずタイムアウトする。[29_network_device_test.md] §2 の通り、この PC では `ddrivenetcheck.exe` の受信許可ルールが既に作成済みのため通常は出ない想定だが、実行パス(`Builds\DDriveNetCheck\DDriveNetCheck.exe`)が変わった場合は再度出ることがある
 

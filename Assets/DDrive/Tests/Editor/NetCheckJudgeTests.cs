@@ -232,5 +232,67 @@ namespace DDrive.Tests.Editor
             Assert.IsFalse(result.Pass);
             StringAssert.Contains("exception_or_error_count", result.Reason);
         }
+
+        // ── 2026-09-15 修正(6-7 判定バグ、run-netcheck.cmd 初回実行の "disconnect" シナリオで発覚) ──
+        // "disconnect" シナリオは Host が先に(正常終了で)いなくなり、Client は再接続しない設計のまま
+        // 自分の自動テスト時間を使い切って終了する。つまり Client の ConnectedAtEnd=false は「切断を
+        // 正しく検知して後片付けできたこと」の結果であり、それ自体を "not_connected" として即 FAIL にしては
+        // ならない。DisconnectedObserved(自分が切断を検知した)が true のときは、後段の実質的な
+        // チェック(⑤ vfx_or_active_not_cleared_after_disconnect)に判定を委ねる。
+
+        [Test]
+        public void Evaluate_NotConnected_ButSelfDisconnectObserved_AndCleanedUp_Passes()
+        {
+            // "disconnect" シナリオの Client 側で期待される成功パターン。
+            var c = Healthy();
+            c.ConnectedAtEnd = false;
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = true;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_NotConnected_ButSelfDisconnectObserved_NotCleanedUp_FailsOnVfxCheck_NotNotConnected()
+        {
+            // 切断は検知したが後片付け(演出 0)が機能していない場合は、"not_connected" ではなく
+            // 実質的な理由(vfx_or_active_not_cleared_after_disconnect)で FAIL する。
+            var c = Healthy();
+            c.ConnectedAtEnd = false;
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = false;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsFalse(result.Pass);
+            Assert.AreEqual("vfx_or_active_not_cleared_after_disconnect", result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_NotConnected_AndDisconnectNeverObserved_StillFailsAsNotConnected()
+        {
+            // 回帰確認: 切断イベントに気づかずに接続だけが切れたケース(pair0/pair200/latejoin のように
+            // 接続を保ち続けるはずのシナリオで、静かに切断された場合)は、従来どおり "not_connected"。
+            var c = Healthy();
+            c.ConnectedAtEnd = false;
+            c.DisconnectedObserved = false;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsFalse(result.Pass);
+            Assert.AreEqual("not_connected", result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_HostObservingOtherClientDisconnect_DoesNotRequireOwnVfxZeroed()
+        {
+            // Host は自分の周期デモを止めないため ActiveAndVfxZeroedAfterDisconnect は false のままだが、
+            // NetCheckRunner 側で Host の場合は DisconnectedObserved を立てない(役割で絞り込む、
+            // NetCheckRunner.OnBridgeDisconnected 参照)。ここでは NetCheckJudge 単体として、
+            // DisconnectedObserved=false のまま ConnectedAtEnd=true(Host は継続して接続済み)なら
+            // 無関係に PASS することを確認する。
+            var c = Healthy();
+            c.ConnectedAtEnd = true;
+            c.DisconnectedObserved = false;
+            c.ActiveAndVfxZeroedAfterDisconnect = false;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
     }
 }
