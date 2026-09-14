@@ -54,12 +54,12 @@ test('choices: 2 回送信すると revision が積まれる(前回の内容を�
   assert.equal(second.item.assetTypes.length, 2);
 });
 
-test('assetState: 存在する assets の ddriveState だけを patch する(他フィールドは変わらない)', () => {
+test('assetState: 存在する assets の ddriveState を patch する(displayName 等の他フィールドは変わらない)', () => {
   const ctx = loadGas({
     driveFiles: assetsFixture({
       'Se::Slash': {
         id: 'Se::Slash', assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
-        category: 'Player', status: '仮', comments: [], archived: false,
+        category: 'Player', status: '納品済', comments: [], archived: false,
         ddriveState: { created: false, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null },
         revision: 1, updatedBy: 'x', updatedAt: 'x'
       }
@@ -79,7 +79,95 @@ test('assetState: 存在する assets の ddriveState だけを patch する(他
   assert.equal(reread.ddriveState.created, true);
   assert.equal(reread.ddriveState.usageCount, 3);
   assert.equal(reread.ddriveState.hasIcon, true, 'hasIcon(2026-09-14 追補)も patch される');
-  assert.equal(reread.displayName, '斬撃音', 'ddriveState 以外のフィールドは変更されない');
+  assert.equal(reread.displayName, '斬撃音', 'displayName 等の入力項目は変更されない');
+});
+
+// O-7 AC: 「インポート済」自動判定（docs/32_spec_web.md §10.4.1）。
+// created && !isPlaceholder で自動的にインポート済へ進み、Placeholder に戻ったら納品済へ戻る。
+
+test('assetState(O-7): created かつ isPlaceholder=false なら発注の状態がインポート済へ進む', () => {
+  const ctx = loadGas({
+    driveFiles: assetsFixture({
+      'Se::Slash': {
+        id: 'Se::Slash', assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
+        status: '納品済', deliveredDate: '2026-09-10', comments: [], archived: false,
+        ddriveState: { created: false, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null },
+        revision: 1, updatedBy: 'x', updatedAt: 'x'
+      }
+    })
+  });
+
+  const result = call(ctx, 'assetState', {
+    payload: JSON.stringify({ items: [{ id: 'Se::Slash', created: true, isPlaceholder: false }] })
+  });
+  assert.deepEqual(Array.from(result.statusChangedIds), ['Se::Slash']);
+
+  const reread = ctx.Storage.getItem('assets', 'Se::Slash');
+  assert.equal(reread.status, 'インポート済');
+  assert.equal(reread.deliveredDate, '2026-09-10', '既に記録済みの納品日は変更しない');
+});
+
+test('assetState(O-7): 納品ボタンを踏まずに直接インポートされた場合は deliveredDate を自動記録する', () => {
+  const ctx = loadGas({
+    driveFiles: assetsFixture({
+      'Se::Slash': {
+        id: 'Se::Slash', assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
+        status: '発注済', deliveredDate: null, comments: [], archived: false,
+        ddriveState: { created: false, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null },
+        revision: 1, updatedBy: 'x', updatedAt: 'x'
+      }
+    })
+  });
+
+  call(ctx, 'assetState', { payload: JSON.stringify({ items: [{ id: 'Se::Slash', created: true, isPlaceholder: false }] }) });
+
+  const reread = ctx.Storage.getItem('assets', 'Se::Slash');
+  assert.equal(reread.status, 'インポート済');
+  assert.equal(typeof reread.deliveredDate, 'string');
+});
+
+test('assetState(O-7): インポート済が Placeholder に戻ったら納品済へ戻り、コメントが残る', () => {
+  const ctx = loadGas({
+    driveFiles: assetsFixture({
+      'Se::Slash': {
+        id: 'Se::Slash', assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
+        status: 'インポート済', deliveredDate: '2026-09-10', comments: [], archived: false,
+        ddriveState: { created: true, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null },
+        revision: 1, updatedBy: 'x', updatedAt: 'x'
+      }
+    })
+  });
+
+  const result = call(ctx, 'assetState', {
+    payload: JSON.stringify({ items: [{ id: 'Se::Slash', created: true, isPlaceholder: true }] })
+  });
+  assert.deepEqual(Array.from(result.statusChangedIds), ['Se::Slash']);
+
+  const reread = ctx.Storage.getItem('assets', 'Se::Slash');
+  assert.equal(reread.status, '納品済');
+  assert.equal(reread.comments.length, 1);
+  assert.match(reread.comments[0].body, /Placeholder/);
+});
+
+test('assetState(O-7): すでに正しい状態なら status は変更されず statusChangedIds に入らない', () => {
+  const ctx = loadGas({
+    driveFiles: assetsFixture({
+      'Se::Slash': {
+        id: 'Se::Slash', assetType: 'Se', identifier: 'Slash', displayName: '斬撃音',
+        status: 'インポート済', deliveredDate: '2026-09-10', comments: [], archived: false,
+        ddriveState: { created: true, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null },
+        revision: 1, updatedBy: 'x', updatedAt: 'x'
+      }
+    })
+  });
+
+  const result = call(ctx, 'assetState', {
+    payload: JSON.stringify({ items: [{ id: 'Se::Slash', created: true, isPlaceholder: false }] })
+  });
+  assert.equal(result.statusChangedIds.length, 0);
+  const reread = ctx.Storage.getItem('assets', 'Se::Slash');
+  assert.equal(reread.status, 'インポート済');
+  assert.equal(reread.revision, 2, 'ddriveState 自体は毎回書き込むため revision は進む');
 });
 
 test('assetState: Web 側に存在しない id は例外にせず skippedIds に積む', () => {
