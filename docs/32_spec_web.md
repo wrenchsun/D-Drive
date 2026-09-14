@@ -144,7 +144,7 @@ graph TB
 | トリガーの合計実行時間 | 90 分/日（個人）、6 時間/日（Workspace） | 同上 | v3 の「通知」（§8）で時間主導トリガーを使う場合のみ関係。1 日 1〜2 回の軽いチェックなら十分収まる |
 | トリガー数 | 20 / user / script | 同上 | 通知用に 1〜2 個で足りる |
 | PropertiesService | 500KB（総量）/ 9KB（1 値） | 同上 | トークン・許可リストの**キャッシュ**用途のみに使う（正データは Drive JSON 側）。9KB 制限に収まる小さな値のみ格納 |
-| HtmlService の iframe サンドボックス | トップレベルナビゲーション不可・外部リンクは `target="_top"` 必須・アクティブコンテンツは HTTPS のみ | [HTML Service restrictions](https://developers.google.com/apps-script/guides/html/restrictions) | SPA 内のリンク（機能ページ間の遷移等）はすべて `<a target="_top">` か `history.pushState` 相当の SPA 内ルーティングで実装。外部 CDN は使わず、コードはすべてインライン（同一オリジンなので HTTPS 要件は自然に満たす） |
+| HtmlService の iframe サンドボックス | トップレベルナビゲーション不可・外部リンクは `target="_top"` 必須・アクティブコンテンツは HTTPS のみ | [HTML Service restrictions](https://developers.google.com/apps-script/guides/html/restrictions) | SPA 内のリンク（画面間の遷移）はすべて `<a>` のクリックを `preventDefault` した上で iframe 内の JS 状態で切り替える。外部リンク（ガント・Markdown 内のリンク）だけ `<a target="_top">`。外部 CDN は使わず、コードはすべてインライン。**2026-09-14 訂正**: 当初「同一オリジンなので `fetch`/`location.hash` が使える」としていたのは誤りだった（下記追補・実装メモ参照）。クライアント→サーバー通信は `google.script.run`、画面遷移の履歴管理は `google.script.history` を使う（[HTML Service: Communicate with Server Functions](https://developers.google.com/apps-script/guides/html/communication)・[Class google.script.history](https://developers.google.com/apps-script/guides/html/reference/history)） |
 | 個人アカウントでのアクセス制限 | 「特定のドメイン」オプションは Workspace アカウント限定 | [clasp/deployment 関連スレッド](https://groups.google.com/g/google-apps-script-community/c/owFeX5fTcyo) | §2.3 のとおりコード側の許可リストで代替 |
 | doGet/doPost レスポンスの 302 リダイレクト | Content Service のレスポンスは一度 `script.googleusercontent.com` へリダイレクトされる。外部クライアントはリダイレクト追従が必要 | [Content Service ガイド](https://developers.google.com/apps-script/guides/content) / [flow 解説](https://medium.com/google-cloud/understanding-flow-of-request-to-web-apps-created-by-google-apps-script-ac49e80f7c6b) | `UnityWebRequest` は既定でリダイレクトに追従する（`redirectLimit` 既定 32）。**実装時に実機で疑似トークン込みの `doPost` 呼び出しを確認すること**（§9-4、POST → 302 → GET の経路で本文が正しく処理されるかは Google 側フロントエンドで先に処理済みのため通常は問題にならないが、クライアント実装依存の既知の落とし穴として明記） |
 | 実行者=アクセスした人での `getActiveUser` | 実行者が「Me」固定のときはアクセスした人のメールが取れない/信頼できない。「User accessing the web app」なら取得できる | [Session クラス](https://developers.google.com/apps-script/reference/base/session) / [getActiveUser が空になる条件の解説](https://bulldo.gs/get-the-active-users-email-in-apps-script/) | §2.3 のデプロイ①でこの制約を踏まえた設計にしている |
@@ -613,7 +613,15 @@ token を送っていた（送信系 `FetchPost` は元から POST 本文）。G
 
 ### 実装時・運用で確認する項目（残り）
 
-4. **302 リダイレクトの実機確認**: `UnityWebRequest` から GAS の `doPost`（トークン付き）を呼ぶ経路を、W-9 着手時に実機で確認する（§2.4）。問題があれば `doGet` + クエリパラメータのみに寄せる代替も検討する
+4. **302 リダイレクトの実機確認**: **確認済み（2026-09-14、実デプロイでの確認）**。ユーザーが①人向け・
+   ② API の 2 デプロイを実際に作成し、② へトークン無しで `POST`（本文 `api=1&name=ping`）した結果、
+   302 を 1 回経由して GET → 本文に JSON `{"ok":false,...,"status":401}` が返ることを確認した
+   （`doPost` が本文の `e.postData`/`e.parameter` を受け取って実行され、応答が
+   `script.googleusercontent.com` 経由で届く。GET `?api=1&name=ping` も同様に 401 の JSON）。
+   ① は未ログインで `accounts.google.com` へ 302 することも確認した。**トークン付きの正常系
+   （D-Drive からの実同期）はまだ確認していない**（W-9 の `SpecWebFetcher` を実際に実行する回で
+   確認予定）。`UnityWebRequest` からの疑似トークン込み `doPost` 呼び出しの再現は
+   `SpecWebFetcherTests`（D-Drive 側、ローカル `HttpListener`）で別途確認済み（§7 追補参照）
 5. **調整値コメントの粒度**: セル単位のコメントは見送り、行単位 + テーブル全体のみとした（列ごとの意味を跨いだやり取りが多いと想定したため）。セル単位が要る場合は v2 で追加する（実装後の使い勝手で判断）
 8. **旧シート凍結のタイミング**: 移行期間中の二重入力を避けるため、Web アプリの MVP がひとまず動いた時点で旧スプレッドシートを「閲覧のみ」に切り替える運用としたい。具体的な切替日は実装スケジュール確定後に運用で決める
 10. **Drive 共有の運用**: デプロイ①が「実行者=アクセスした人」であるため、各メンバー個人に Drive 上の JSON ファイル・画像フォルダへの編集権限を配る必要がある。人数が増えたときにメンバー個別共有ではなく Google グループ共有に切り替えるかどうかは、実際の人数が増えた時点で運用で決める
@@ -725,7 +733,16 @@ Tools/SpecWeb/
   （§2.3 の設計どおり、デプロイ①でのみ許可リスト判定に使う）
 - HtmlService の iframe サンドボックスは `allow-same-origin`/`allow-scripts` 等を許可するが、
   トップレベルナビゲーションは不可。外部リンクは `target="_top"`（`html/Index.html` で `<base target="_top">`
-  を設定済み）。アクティブコンテンツ（script 等）は HTTPS 必須（デプロイ URL は元から HTTPS）
+  を設定済み）。アクティブコンテンツ（script 等）は HTTPS 必須（デプロイ URL は元から HTTPS）。
+  **2026-09-14 訂正（実デプロイで判明）**: `allow-same-origin` は「iframe 自身のオリジンからの
+  fetch」を許すだけで、iframe のコンテンツは `*.googleusercontent.com` のサンドボックス URL で
+  配信される（Web アプリ自体の `/exec` URL とは別オリジン）。そのため `fetch(window.location.href + ...)`
+  で `/exec` の `doGet`/`doPost` を呼ぶことはできない（W-1〜W-12 実装時点の誤り。下記「実装メモ
+  （2026-09-14 実デプロイで判明した誤りと修正）」で修正した）。GAS 公式の方法は `google.script.run`
+  であり、これは HTTP リクエストではなく Google 側の内部チャネルを使う。同様に `<base target="_top">`
+  がある状態で `<a href="#/x">` をクリックすると、iframe の外（script.google.com 側）のハッシュが
+  変わるだけで iframe 内の `hashchange` は発火しない。ナビゲーションは iframe 内で完結させ、
+  `google.script.history` で履歴・戻る/進むを扱う
 - GAS のクォータ（実行時間 6 分/実行、同時実行 30/user、PropertiesService 500KB 総量・9KB/値、
   URL Fetch 上限は個人 20,000/日）は本設計の想定データ量・チーム規模には十分な余裕がある
 - Apps Script API の `deployments.create`（`WebAppConfig`）は `access`（`MYSELF`/`DOMAIN`/`ANYONE`/
@@ -741,10 +758,97 @@ Tools/SpecWeb/
 
 ### 未確認のまま残っている項目（実装時に確認する、既存の要判断に合流）
 
-- §9-4「302 リダイレクトの実機確認」は今回 W-1〜W-3 の範囲では確認していない（`UnityWebRequest` からの
-  実アクセスが必要なため、W-9 着手時に確認する）
+- §9-4「302 リダイレクトの実機確認」は**2026-09-14 に確認済み**（トークン無しの拒否応答での確認。
+  トークン付きの正常系は D-Drive からの実同期で確認予定。上記§9-4参照）
 - デプロイ②（実行者=Me）を `clasp` の CLI から直接作成できるか（Apps Script エディタでの手動作成を
   前提に手順化した。上記参照）
+
+---
+
+## 実装メモ（2026-09-14、実デプロイで判明した誤りと修正）
+
+O-1〜O-10（アセット発注ツールへの再定義）の実装中に、ユーザーが実際に①人向け SPA のデプロイを開いて
+確認したところ、「D-Drive 仕様書の雛形です。まだ画面は登録されていません。」という W-1 時点の仮画面が
+表示され、新規作成等の操作が一切できない状態だった。原因は W-1〜W-12 時点の `html/App.html` の設計に
+あった 2 つの誤りで、O チケットの実装より先に修正した。
+
+### 誤り1: `fetch` によるサーバー呼び出しが本番で動かない
+
+`SpecWebClient.callApi` は `fetch(new URL(window.location.href) + '?api=1&name=...')` でサーバーを
+呼んでいたが、HtmlService の①デプロイのコンテンツは `*.googleusercontent.com` の**サンドボックス
+iframe**（userCodeAppPanel）で配信されるため、`window.location` は Web アプリの `/exec` URL ではなく
+サンドボックス側の URL になる。そこへ `/exec` を指定して fetch しても別オリジンになり CORS で失敗する
+か、ログインへのリダイレクトになる。§2.4 の「`allow-same-origin` なので同一オリジンへの fetch が
+可能」という記述は誤りだった（§2.4 の表・実装メモ既存節を訂正済み）。
+
+**修正**: GAS 公式の方法である `google.script.run`
+（[HTML Service: Communicate with Server Functions](https://developers.google.com/apps-script/guides/html/communication)）
+に置き換えた。サーバー側に UI 専用の入口 `specWebUiCall(name, params)`（`src/Code.js`）を新設し、
+`Session.getActiveUser()` によるセッション認証（`authenticateSession()`、既存の許可リスト・ロール
+判定をそのまま再利用）→ `registerApi` のハンドラを呼ぶ、という経路にした。token は使わない
+（① は元々 token を使わない設計だったため無関係）。既存の `handleApiRequest_`（② D-Drive API、
+token 認証）と共通のディスパッチ処理（`specWebInvokeApi_`）に括り出し、応答の形（
+`{ok:true,...}`/`{ok:false,status,error,currentRevision?}`）は変えていないため、`html/App.html` の
+`SpecWebClient.callApi(name, params, options)` を呼ぶ側（Assets.html・Tuning.html 等）は無修正で動く
+（`options.method` は google.script.run では意味を持たないため単に無視する）。② D-Drive API
+（`doGet`/`doPost` + token）はこの変更の影響を受けない。
+
+### 誤り2: ハッシュベースのルーティングが本番で動かない
+
+`location.hash`/`hashchange` でルーティングしていたが、`html/Index.html` の `<base target="_top">`
+により `<a href="#/assets">` のクリックは iframe の**外側**（script.google.com 側）の URL のハッシュを
+変えるだけで、iframe 内の `hashchange` は発火しない。
+
+**修正**: ナビゲーションを iframe 内で完結させた。各画面（Assets.html・Tuning.html・OrderTree.html・
+MyOrders.html・Members.html）がナビゲーションリンクを作る際、クリックを `preventDefault` した上で
+`window.SpecWebNavigate('画面id')`（`html/App.html` が公開する関数）を呼ぶ形に統一した。外部リンク
+（ガントの URL・Markdown 内のリンク）は従来どおり `target="_top"` + `rel="noopener"` のまま
+（iframe 内ルーティングの対象ではないため）。ブラウザの戻る/進む・URL の状態保持には
+`google.script.history.push`/`.replace`/`.setChangeHandler`
+（[Class google.script.history](https://developers.google.com/apps-script/guides/html/reference/history)）
+を使う。
+
+### 誤り3（設計判断）: 最初の画面が仮画面だった
+
+`registerScreen('home', ...)` という W-1 時点の動作確認用の仮画面が既定画面のままだったため修正した。
+既定画面は発注ツリー（`#/orders`、O-2）にした（`html/App.html` の `DEFAULT_SCREEN_ID`）。仮の `home`
+画面は削除した。
+
+### テスト
+
+`test/app.test.js`（新規）が `google.script.run`/`google.script.history` のフェイクを使って、
+「`SpecWebClient.callApi` が `specWebUiCall` を呼ぶ（成功/失敗の両経路）」「`SpecWebNavigate` で
+画面が切り替わり `history.push` が呼ばれる」「未登録画面は既定画面へフォールバックする」
+「`setChangeHandler`（戻る/進む相当）で画面が切り替わり、履歴を積み直さない」を確認する。
+`test/uiCall.test.js`（新規）が `specWebUiCall` 自体（許可リスト外・未ログイン・role 不足・
+RevisionConflictError・D-Drive の書き込みトークン kind 許可リストの対象外であること）を確認する。
+`grep -rn "window.location\|fetch(" Tools/SpecWeb/html` で `fetch`/`window.location` を使った
+サーバー呼び出しが残っていないことを確認済み（コメント中の言及のみ）。
+
+### エラーメッセージの改善（同時対応）
+
+API リクエスト（`api=1`、② D-Drive API 相当）で token が無いとき、`authenticateRequest` が
+`authenticateSession()` にフォールバックしていたため、応答が人向けの「ログインが必要です
+（Google アカウントでアクセスしてください）」になっていた。拒否自体は正しいが、D-Drive で
+トークンを設定し忘れた人に誤解を与えるため、`api=1` 経路（`authenticateRequest` は常に `api=1` 経路
+専用。① の画面自体は上記のとおり `google.script.run`/`specWebUiCall` を使うため token を使わない）で
+token が無い/間違っている場合は「API トークンがありません／正しくありません（D-Drive の
+『仕様書と同期』の設定を確認してください）」を 401 で返すようにした（`src/Auth.js`
+`authenticateRequest`）。許可リスト外の Google ログイン（403）はそのまま人向けの文言を返す
+（`test/auth.test.js` に確認テストを追加）。
+
+### ユーザー向け: 修正の反映手順
+
+この修正を実機で確認するには、`clasp push` の後、①②両方のデプロイを**同じ URL のまま新しいバージョン**
+に更新する必要がある（新しいデプロイを作ると URL が変わってしまう）。
+
+1. Apps Script エディタ右上「デプロイ」→「デプロイを管理」
+2. 更新したいデプロイ（① 人向け SPA）の鉛筆（編集）アイコンをクリック
+3. 「バージョン」を「新バージョン」に変更 → 「デプロイ」（URL は変わらない）
+4. ② D-Drive API のデプロイも同様に更新する（token 検証部分のメッセージ改善が反映されるため）
+5. ① のデプロイ URL を再度開き、発注ツリー画面が表示され、新規作成等の操作ができることを確認する
+
+（README.md §7「コードを更新した後の再デプロイ手順」にも同じ手順を記載した）
 
 ---
 
@@ -1411,14 +1515,94 @@ Placeholder の `PresentationData` を先に作る、という連携。**メリ�
 
 ### 10.7 要判断
 
-| # | 論点 | 選択肢 | 推奨 |
-|---|---|---|---|
-| 1 | 旧 `status:保留` の情報の残し方 | (a) コメントに退避（本節の既定案） (b) 新モデルにも「保留」に相当する4番目の状態を残す | **(a)**。ユーザー要件5「単純な3段階」を素直に守る。保留の理由はコメントで追跡できれば十分 |
-| 2 | 移行時の `orderer` 既定値 | (a) 空にして人に後から入れてもらう (b) 何らかの既定（例: admin）を入れる | **(a)**。誤った発注者を自動で入れるより、空欄で気付いてもらう方が安全 |
-| 3 | 旧 `assignee` フィールドの物理削除の是非 | (a) 削除せず残置（`contractor` と重複するが安全） (b) 削除して `contractor` に統一 | **(a)**（実装時に確認。docs/32 §9-11/12 の既存判断と同じ保守的姿勢） |
-| 4 | インポート済 → Placeholder に戻った場合の扱い | (a) 状態を戻さず「インポート済のまま」（履歴的な扱い） (b) 「納品済」へ戻す (c) 別の警告状態を作る | 現状は **(a)** を既定にするが、実運用で頻発するなら (b) を検討（3段階固定の原則を崩さない範囲で） |
-| 5 | `Tooltip` が無いフィールドの扱い（パラメータ一覧の説明欄） | (a) 空欄のまま許容 (b) O-6 着手時にコード側の `[Tooltip]` 未設定箇所を洗い出して先に埋める | **(a)** で MVP は進め、著しく分かりにくい型だけ (b) を個別対応 |
-| 6 | Presentation 発注グループから `PresentationData` を自動作成する連携（O-11） | (a) 実装する (b) 当面見送り、発注グループはあくまで Web 側だけの整理単位に留める | **(b)**（§10.4.3 のリスクのため）。ユーザーが必要と判断した時点で O-11 に着手 |
-| 7 | メンバー取り込み方式 | (a) 貼り付け（案A、O-9） (b) ガントを直接読む（案B、v2） | **(a)** を MVP。共有設定の懸念が無く実装コストも低い |
-| 8 | 既存データへの移行スクリプト（O-1 の一部）の必要性 | (a) 必要（実データがすでに投入されている） (b) 不要（まだ実データが無いため新スキーマで作り直せば済む） | 実装時にユーザー/運用担当に確認（**本書では判断できない**。W-1〜W-12 は実装済みだが実運用開始の有無は未確認） |
-| 9 | `wbsNo` の入力形式 | (a) 自由文字列（本節の既定案） (b) ガント側の実際の書式（`3.2.1` のような階層番号）に対する検証を追加 | **(a)** で MVP。ガント側の書式が変わっても発注ツール側の変更が要らない |
+すべて 2026-09-14 にオーケストレーターが決定した（O-1〜O-10 実装と同じ回で判断済み）。
+
+| # | 論点 | 選択肢 | 推奨 | 決定 |
+|---|---|---|---|---|
+| 1 | 旧 `status:保留` の情報の残し方 | (a) コメントに退避（本節の既定案） (b) 新モデルにも「保留」に相当する4番目の状態を残す | **(a)**。ユーザー要件5「単純な3段階」を素直に守る。保留の理由はコメントで追跡できれば十分 | **決定（(a) を採用）**。`Migration.js`（`migrateLegacyOrdersToNewSchema`）が旧「保留」を「発注済」+ コメント「(旧: 保留)」に変換する |
+| 2 | 移行時の `orderer` 既定値 | (a) 空にして人に後から入れてもらう (b) 何らかの既定（例: admin）を入れる | **(a)**。誤った発注者を自動で入れるより、空欄で気付いてもらう方が安全 | **決定（(a) を採用）**。`Migration.js`/`specWebNormalizeLegacyOrderItem_` は `orderer` を空文字のまま返す |
+| 3 | 旧 `assignee` フィールドの物理削除の是非 | (a) 削除せず残置（`contractor` と重複するが安全） (b) 削除して `contractor` に統一 | **(a)**（実装時に確認。docs/32 §9-11/12 の既存判断と同じ保守的姿勢） | **決定（(a) を採用）**。`assets.json` の既存項目に `assignee`/`note` が残っていても物理削除しない（読み込み時に `contractor`/`referenceMd` へ変換するだけ、§10.2.2） |
+| 4 | インポート済 → Placeholder に戻った場合の扱い | (a) 状態を戻さず「インポート済のまま」（履歴的な扱い） (b) 「納品済」へ戻す (c) 別の警告状態を作る | 現状は **(a)** を既定にするが、実運用で頻発するなら (b) を検討（3段階固定の原則を崩さない範囲で） | **決定（推奨(a)から変更し(b)を採用）**。オーケストレーターの判断により「Placeholder に戻ったら納品済へ戻す（コメントで履歴を残す）」に決定した（インポート済のまま残すと D-Drive 側で Placeholder に戻った事実が発注ツール側から見えなくなり、受注者に再対応を促せなくなるため）。`DDriveSync.js` の `specWebComputeOrderStatusPatchForAssetState_` が実装（§10.4.1、O-7） |
+| 5 | `Tooltip` が無いフィールドの扱い（パラメータ一覧の説明欄） | (a) 空欄のまま許容 (b) O-6 着手時にコード側の `[Tooltip]` 未設定箇所を洗い出して先に埋める | **(a)** で MVP は進め、著しく分かりにくい型だけ (b) を個別対応 | **決定（(a) を採用）**。`AssetParams.js`（Web 側の受け皿）は `tooltip` が空文字でもそのまま表示する。D-Drive 側の反射実装（O-6 の別チケット）が送る値をそのまま使う |
+| 6 | Presentation 発注グループから `PresentationData` を自動作成する連携（O-11） | (a) 実装する (b) 当面見送り、発注グループはあくまで Web 側だけの整理単位に留める | **(b)**（§10.4.3 のリスクのため）。ユーザーが必要と判断した時点で O-11 に着手 | **決定（(b) を採用）**。O-11 は今回実装しない。`orderGroups.create` は D-Drive への書き込みを一切行わない |
+| 7 | メンバー取り込み方式 | (a) 貼り付け（案A、O-9） (b) ガントを直接読む（案B、v2） | **(a)** を MVP。共有設定の懸念が無く実装コストも低い | **決定（(a) を採用）**。`Members.js` の `members.importPaste` を実装。ガントのスプレッドシートへは一切アクセスしない |
+| 8 | 既存データへの移行スクリプト（O-1 の一部）の必要性 | (a) 必要（実データがすでに投入されている） (b) 不要（まだ実データが無いため新スキーマで作り直せば済む） | 実装時にユーザー/運用担当に確認（**本書では判断できない**。W-1〜W-12 は実装済みだが実運用開始の有無は未確認） | **決定（最小限の(a)を採用）**。実運用データはまだ無いという前提のもと、移行スクリプトは最小限にした: 旧 `assignee`→`contractor`、旧 `status`（未着手/仮/本番→発注済/納品済/インポート済、保留→発注済+コメント退避）を読み込み時に変換する `specWebNormalizeLegacyOrderItem_`（副作用なし）+ 一度だけ実データを物理変換する `migrateLegacyOrdersToNewSchema`（`Migration.js`、admin のみ、冪等）を実装した。旧フィールドは書き込み時には一切使わない |
+| 9 | `wbsNo` の入力形式 | (a) 自由文字列（本節の既定案） (b) ガント側の実際の書式（`3.2.1` のような階層番号）に対する検証を追加 | **(a)** で MVP。ガント側の書式が変わっても発注ツール側の変更が要らない | **決定（(a) を採用）**。`orderGroups.js` の `wbsNo` は自由入力の文字列のまま検証を加えない。ガントの URL は `Settings.js`（`settings.setGanttUrl`、admin のみ）で設定し、WBS 番号でシート内を自動スクロールする機能は実装しない（最低限「ガントを開く」だけで要件を満たす、§10.5②の記載どおり） |
+
+---
+
+## 実装メモ（2026-09-14、O-1〜O-5・O-7〜O-10 + O-6 の Web 側の受け皿）
+
+O-1〜O-5・O-7〜O-10（GAS 側）と O-6 の Web 側の受け皿（D-Drive からの実送信は別チケット）を実装した。
+既存 W-1〜W-12 のコード（`Assets.js`・`DDriveSync.js`・`Code.js`・`Auth.js` 等）を拡張元として再利用し、
+「アセット仕様」を「アセットの発注」へ作り直した（§10 の設計どおり）。実デプロイで発覚した ①人向け SPA
+の基盤バグ（`google.script.run`/`google.script.history` への置き換え）の修正は本節の直前の
+「実装メモ（2026-09-14、実デプロイで判明した誤りと修正）」に記載した。
+
+### 新しいデータの形
+
+- **`assets`**（既存コレクション。O-1 でフィールド追加・改称、コレクション自体は変えない）:
+  `orderer`/`contractor`/`orderDate`/`deliveredDate`/`referenceMd`/`parentId` を追加。`status` は
+  `発注済`/`納品済`/`インポート済` の3値（旧 `未着手`/`仮`/`本番`/`保留` は廃止、旧フィールド
+  `assignee`/`note` は残置し読み込み時にのみ変換）。`params`（`{concreteType, currentValues}` または
+  `null`。O-6 の受け皿）を追加
+- **`orderGroups`**（新規コレクション、O-2）: `{id, name, presentationIdentifier?, wbsNo?, orderer?,
+  dueDate?, referenceMd?, comments[], revision, updatedBy, updatedAt}`。子（`assets` の `parentId`）の
+  集計は保存しない（都度計算、`html/OrderTreeLogic.html`）
+- **`members`**（新規コレクション、O-9）: `{label, source: 'gantt'|'manual', email}`。doc id は `label`
+  そのもの（例: `"吉田(PLN)"`）。`users.json`（ログイン許可リスト）とは別
+- **`paramSchemas`**（新規コレクション、O-6 の受け皿）: `{assetType, concreteType, fields[]}`。doc id は
+  `concreteType`（`ControlSkin` のみ `ButtonSkinData`/`SliderSkinData` の2件）
+- スクリプトプロパティ `SPEC_WEB_SETTINGS_GANTT_URL`（O-10）: ガントの URL（実値はコード・docs・テストに
+  一切書かない。ダミー `https://example.com/...` をテストで使用）
+
+### 状態遷移の規則（O-1・O-7）
+
+- 新規作成の既定値は `発注済`。`インポート済` への直接設定は API で 400 拒否（`assets.create`/`update`）
+- `発注済`⇄`納品済` は `assets.update` の `status` パッチで手動遷移でき、`deliveredDate` を
+  明示しなければ自動記録/自動クリアする（`specWebApplyOrderStatusSideEffects_`、Assets.js）
+- `納品済`→`インポート済` は D-Drive の `assetState`（O-7、DDriveSync.js）で自動遷移する
+  （`created && !isPlaceholder`。`発注済` からでも直接インポート済へ進める。`deliveredDate` 未記録なら
+  合わせて記録する）
+- `インポート済`→`納品済` は `isPlaceholder` が再び true になったとき自動的に戻る（オーケストレーター
+  決定。§10.7 要判断4、当初の推奨(a)から変更して(b)を採用）。戻ったときはコメントを自動追記する
+
+### 画面一覧
+
+`docs/32 §10.3` のワイヤーフレームに対応する画面を実装した（`html/Index.html` に登録順で include）。
+
+| 画面 id | ファイル | 内容 |
+|---|---|---|
+| `orders`（既定画面） | `OrderTreeLogic.html`+`OrderTree.html` | 発注ツリー（O-2）。Presentation 発注グループごとの子の集計・「単体」バケット・発注グループ作成・WBS リンク |
+| `assets` | `AssetsLogic.html`+`Assets.html` | 一覧（O-3）+ 発注の詳細（O-5。Markdown プレビュー・状態進行ボタン・パラメータ一覧・D-Drive 実状態・コメント） |
+| `my-orders` | `MyOrders.html` | 私が発注/私が受けた（O-4） |
+| `members` | `Members.html` | メンバー管理（O-9）+ ガント URL 設定（O-10） |
+| `tuning` | `TuningGrid.html`+`Tuning.html` | 調整値（既存、変更なし。O-8 で配線確認済み） |
+
+### Node テスト
+
+`node --test Tools/SpecWeb/test` で実行。**218 件全て green**（既存 140 件 + 本チケット追加 78 件:
+`migration.test.js`・`orderGroups.test.js`・`members.test.js`・`settings.test.js`・`assetParams.test.js`・
+`orderTreeLogic.test.js`・`orderTree.smoke.test.js`・`myOrders.smoke.test.js`・`members.smoke.test.js`・
+`app.test.js`・`uiCall.test.js`（新規）+ `assets.api.test.js`・`assets-logic.test.js`・
+`assets-screen.smoke.test.js`・`ddriveSync.test.js`・`auth.test.js`（新スキーマ・O-7・エラー文言改善に
+合わせて更新）。実際の内訳・件数は実装時のテスト実行結果を参照（本メモは実装完了時点のスナップショット）。
+
+### D-Drive 側 O-6 への引き継ぎ事項
+
+このチケットは Web 側の受け皿のみを実装した。D-Drive 側（別チケット）が実装する内容:
+
+1. `Assets/DDrive/Editor/Spec/` 相当の場所に、`SerializedObject`+`TooltipAttribute`/`RangeAttribute`
+   反射で16種類（`ControlSkin` は2型）のスキーマを組み立て、`assetParams` API（`kind`）へ
+   `{ schemas: [{assetType, concreteType, fields: [{name, type, tooltip, min?, max?, unit?}]}],
+   items: [{id, concreteType, currentValues}] }` の形で送信する処理を実装する（§10.4.2）
+2. `items` は `isPlaceholder===false` のアセットのみ対象にし、`currentValues` は
+   `ObjectReference` 型のフィールドを**表示名の文字列**に変換して送る（実体は送らない）
+3. **`Tools/SpecWeb/src/Code.js` の `DDRIVE_WRITE_TOKEN_ALLOWED_APIS`（現在
+   `['ping','whoami','choices','assetState','tuningUsage']`）に `'assetParams'` を追加するのは
+   この D-Drive 側チケットで行う**（本チケットでは意図的に追加していない。追加するまでは
+   書き込みトークンで `assetParams` を呼んでも 403 になる。動作確認は Google ログイン
+   （admin/editor）で直接呼ぶか、`specWebUiCall('assetParams', ...)` で行える）
+4. API 名は既存の `choices`/`assetState`/`tuningUsage` と同じ「1 API 名 = 1 kind」の形に揃えて
+   `assetParams` とした（§10.4.2 のドラフトにあった `{kind:"...", payload:[...]}` という汎用エンベロープ
+   ではなく、実装済みの W-12 の形に合わせた。Web 側のハンドラは `src/AssetParams.js`）
