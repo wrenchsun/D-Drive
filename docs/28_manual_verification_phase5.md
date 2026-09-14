@@ -7,6 +7,73 @@
 > 不具合を見つけたら、該当チケット行（[11_tasks.md](11_tasks.md)）と該当設計書の「実装メモ」を参照して修正する。
 > 各節の見出しは「チケット番号 + 名前（PR / コミット）」。自律作業中に判断を保留した事項は各節末尾の「要判断」に書く。
 
+## 0. 確認の進め方（2026-09-14 まとめ）
+
+> この節はオーケストレーターが後から追加した「一巡できる順番」の索引。各節本文（1〜13 の内容）は変更していない。
+> 要判断の一覧（対応済みを除いた全件・優先度 A/B/C）は [31_phase5_decisions.md](31_phase5_decisions.md) にまとめた。確認しながら「これは要判断だったはず」と思ったら、まずそちらを見る。
+
+### 事前準備（Unity を開く前に）
+
+- `git pull` して最新の main を取得する（このドキュメント自体もその一部）
+- `Library/` 配下の依存グラフキャッシュ（`Library/DDriveDeps/`）は Unity 起動後に手動で作り直す必要がある（5-5 の要判断どおり、起動時の自動再構築は無い）。①か⑤の最初に「依存関係グラフを再構築」を 1 回実行しておけば以降の節で使い回せる
+- ゲームパッド（Xbox/PlayStation 系、USB か Bluetooth）を PC に接続しておく（③の 5-2b/5-2c、④は不要）。無い場合は「パッド未接続時に no-op / 案内が出ること」だけ確認すればよい（各節に明記済み）
+- Google アカウント（自分の Google ドライブにテンプレートをアップロードできること）を②で使う
+- 確認用シーンの場所: `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity`（5-1/5-2/5-2b/5-4 で使用）。5-2c/5-4 の確認用シーン（`CameraShakePreviewScene` 等）は各エディタのツールバー「確認用シーンを開く」から自動生成される
+- ⑤のネット確認（実機 2 台）は基本的にオーケストレーターが担当する（[29_network_device_test.md](29_network_device_test.md)）。ユーザーが Unity 単体でできるのは自動テストの実行と、ローカル(127.0.0.1)結合確認の結果（[29] §7）を読むことだけ
+
+### 確認順チェックリスト
+
+エディターで自然に一巡できる順（チケット番号順ではない）。所要時間は目安（人による確認作業のみ。自動テスト実行時間は含まない）。
+
+**① アセットブラウザ系**
+
+- [ ] 依存関係グラフの再構築 — [28 5-5節](28_manual_verification_phase5.md) — 5分 — 特になし（事前準備で済んでいれば省略可）
+- [ ] アイコン表示（AssetBrowser・Project ウィンドウ・Inspector の整合） — [28 5-10節](28_manual_verification_phase5.md) — 10分 — アイコンを割り当てた Data 数種類
+- [ ] 各エディタの「＋ 新規作成」（16 か所） — [28 5-15節](28_manual_verification_phase5.md) — 20分 — 特になし
+- [ ] インポート検知による Data 自動生成（9 種別 + 二重生成なし + 欠落表示 + 手動フォールバック） — [28 5-11節](28_manual_verification_phase5.md) — 30分 — 確認用の音声/画像/FBX/anim/Prefab 素材一式（無ければ既存アセットの複製で代用可）
+- [ ] 使用箇所検索 / 未使用検出 / 安全な削除 — [28 5-6節](28_manual_verification_phase5.md) — 25分 — OS のゴミ箱からの復元手順を試すため一時的に削除して良い Data
+
+**② 仕様書系（Google スプレッドシート）**
+
+- [ ] 仕様書テンプレート（アップロード・共有・プルダウン・タブ複製） — [28 5-12節](28_manual_verification_phase5.md) — 15分 — Google アカウント
+- [ ] 仕様書同期（取得・適用・調整値・Tuning コード生成・自動同期バッジ） — [28 5-13節](28_manual_verification_phase5.md) — 30分 — ②のシート、Unity 再起動 1 回
+- [ ] 仕様書リンク（SpecUrl ボタンの表示/非表示） — [28 5-14節](28_manual_verification_phase5.md) — 5分 — 特になし（5-13 の続きでよい）
+- [ ] 新規作成ダイアログ「仕様書から選ぶ」 — [28 5-16節](28_manual_verification_phase5.md) — 15分 — ②のシート（5-13 と同じ）
+
+**③ 演出系（揺れ・振動 → Presentation 基盤 → Presentation エディタ）**
+
+- [ ] 揺れ・振動エディタ（5-2c、プリセット・波形・Test on Pad） — [28 5-2c節](28_manual_verification_phase5.md) — 20分 — ゲームパッド
+- [ ] Presentation 基盤（5-1、剣攻撃デモの Play/Signal/Cancel/再実行） — [28 5-1節](28_manual_verification_phase5.md) — 10分 — 特になし
+- [ ] カメラシェイク（5-2、剣攻撃デモでの揺れ・オプション 0%・カメラ切替） — [28 5-2節](28_manual_verification_phase5.md) — 10分 — 特になし
+- [ ] コントローラー振動（5-2b、剣攻撃デモ・スライダーのノッチ/端） — [28 5-2b節](28_manual_verification_phase5.md) — 15分 — ゲームパッド
+- [ ] Presentation エディタ（5-4、★目玉機能。D&D・統合プレビュー・Signal 発火・HitStop 連動） — [28 5-4節](28_manual_verification_phase5.md) — 25分 — ゲームパッド（Haptic トラックがあるデータを再生する場合）
+
+**④ ロード画面**
+
+- [ ] Preload 自動集計 + シーンロード統合（5-7、集計・重複なし・ロード画面・未登録 ID スキップ・ビルド前フック） — [28 5-7節](28_manual_verification_phase5.md) — 20分 — 開発ビルドを 1 回試す場合は時間に余裕を
+
+**⑤ ネット（今確認できる範囲）**
+
+- [ ] Presentation ネット再生・Late Join の PlayMode 自動テスト（5-8/5-9。Test Runner または isuzu MCP の `test_run`） — [28 5-8節](28_manual_verification_phase5.md) / [28 5-9節](28_manual_verification_phase5.md) — 10分 — 特になし
+- [ ] ローカル(127.0.0.1)2 プロセス結合確認の結果を読む（6-0、既にオーケストレーターが実施済み） — [29 §7](29_network_device_test.md) — 5分 — 特になし（結果を読むだけ）
+- [ ] 実機 2 台での確認（6-0 のチェックリスト本体） — [28 6-0節](28_manual_verification_phase5.md) / [29 §1〜§5](29_network_device_test.md) — オーケストレーターが担当中 — PC-B・モバイルホットスポット等（[29] §1〜§2）
+
+合計 17 項目、人による作業の所要時間の目安合計は **約 4〜5 時間**（⑤の実機 2 台確認を除く。ゲームパッド・Google アカウントの準備込み）。1 回で終わらせる必要はなく、①→②→③→④→⑤ の単位で分割してよい。
+
+### 確認後の後片付け（まとめ）
+
+各節に散らばっている「確認が終わったら削除する/元に戻す」対象を一覧にする。**チェックが済んだ節の後片付けは、その場で（次の節に進む前に）行うことを推奨**（後回しにすると何が確認用の一時データだったか分からなくなる）。
+
+| 節 | 片付ける対象 |
+|---|---|
+| 5-11 | `Assets/SourceAssets/_ImportRuleCheck/` フォルダと `Assets/GameData/*/Check/` 配下の生成された Data 一式（Addressables エントリも含めて削除） |
+| 5-6 | 手順7で Archive したタグを解除する（または実際に不要なら安全な削除の手順で片付ける）。手順9で削除確認に使った一時 Data（ゴミ箱からの復元テストが済んでいれば復元後のファイルも含む） |
+| 5-13 | 作成した `Assets/GameData/Audio/SE/Player/SE_Player_Check1.asset`（存在すれば）と `Assets/GameData/Settings/DDriveSpecSettings.asset` / `DDriveTuningTable.asset`（コミットするかは [31_phase5_decisions.md](31_phase5_decisions.md) A5 を参照） |
+| 5-16 | 作成した `SE_Player_Check5016.asset`（Addressables エントリも含めて削除）。手順9で空にした「スプレッドシート URL」設定は元に戻す |
+| 5-7 | 確認で作った `SceneLoadingScreen` 付き GameObject・`DDriveRuntimeBootstrap`・手順6でテスト用に書き換えた `.asset` の中身（または確認用シーンごと破棄） |
+| 5-2c | 特になし（確認用シーン `CameraShakePreviewScene` は残しておいて問題ない想定。気になる場合は削除してよい） |
+| 5-4 | 確認用シーンに配置したモデル・Presentation Preview の残骸は「④閉じると残骸が消える」の確認項目自体が後片付け（手動で消す必要は無いはず） |
+
 ## 5-10 アイコン表示の拡張（PR #11）
 
 対象: `Editor/AssetBrowser/AssetBrowserWindow.cs`（一覧行のアイコン）、`Editor/Inspector/AssetDataInspector.cs`（`RenderStaticPreview`）、`Editor/Inspector/AssetIconService.cs`（`ScaleForPreview`）。設計は [09_editor_tools.md](09_editor_tools.md) §8.2。
