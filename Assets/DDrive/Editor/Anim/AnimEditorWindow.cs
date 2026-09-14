@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using DDrive.Editor.Anim2D;
+using DDrive.Editor.Common;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
@@ -810,25 +811,9 @@ namespace DDrive.Editor.Anim
             EditorGUI.DrawRect(bar, new Color(0.3f, 0.3f, 0.3f));
 
             // 目盛り: フレームごと(細)+ ラベル付き(太)。ラベル間隔は幅に応じて間引く(OH_CASE2026_ITAMI の SE タイムライン相当、2026-09-11)。
+            // 2026-09-14(5-4): PresentationEditor と共用するため TimelineRulerGui へ切り出し(見た目は不変)。
             var totalFrames = Mathf.Max(1, Mathf.RoundToInt(length * frameRate));
-            var labelEvery = Mathf.Max(1, Mathf.CeilToInt(totalFrames / Mathf.Max(1f, bar.width / 40f)));
-            // 細目盛りも 2px 未満に詰まると潰れて描画負荷だけ増えるので同じように間引く(2026-09-11 レビュー対応)。
-            var tickEvery = Mathf.Max(1, Mathf.CeilToInt(totalFrames / Mathf.Max(1f, bar.width / 2f)));
-            for (var f = 0; f <= totalFrames; f++)
-            {
-                var labeled = f % labelEvery == 0 || f == totalFrames;
-                if (!labeled && f % tickEvery != 0)
-                {
-                    continue;
-                }
-
-                var x = bar.x + bar.width * (f / (float)totalFrames);
-                EditorGUI.DrawRect(new Rect(x, bar.y - (labeled ? 4f : 2f), 1f, bar.height + (labeled ? 8f : 4f)), new Color(1f, 1f, 1f, labeled ? 0.35f : 0.12f));
-                if (labeled)
-                {
-                    GUI.Label(new Rect(x - 14f, bar.yMax + 22f, 28f, 12f), f.ToString(), EditorStyles.centeredGreyMiniLabel);
-                }
-            }
+            TimelineRulerGui.DrawTicks(bar, totalFrames, f => f.ToString());
 
             GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, rect.width - 12f, 14f),
                 $"0s  —  {length:0.##}s ({length * frameRate:0} フレーム @ {frameRate:0}fps)   クリック: シーク / マーカーをドラッグ: イベント時刻の変更",
