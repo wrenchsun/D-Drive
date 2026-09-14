@@ -87,6 +87,18 @@ namespace DDrive.Tests.Runtime
                 }
             }
         }
+
+        // [11_tasks.md] 6-0 修正6(オーケストレーター追加指示) — まだ配送されていないキュー中の全メッセージを
+        // 破棄する(NgoNetBridge が切断時にアプリ層遅延キューの CancellationTokenSource を Cancel する挙動を
+        // 抽象化した相当品。実際の NgoNetBridge/NetworkManager は本テストダブルの対象外だが、
+        // 「切断後は古い Play が処理されない」という PresentationManager 側から見た契約はここで検証できる)。
+        public void DiscardAllPending() => _queue.Clear();
+
+        // [11_tasks.md] 6-0 修正6 — 切断で NgoNetBridge.NetworkTime が 0 に巻き戻る(NetworkManager.
+        // ServerTime が未接続時に 0 を返すため)ことを模す。DiscardAllPending と組み合わせて、
+        // 「配送前に破棄されたメッセージは、巻き戻った NetworkTime のもとで再計算されても復活しない」を
+        // 検証するために使う。
+        public void RewindNetworkTimeToZero() => NetworkTime = 0d;
     }
 
     internal sealed class DelayedNetBridge : INetBridge
@@ -215,13 +227,15 @@ namespace DDrive.Tests.Runtime
             Registry.ResolveAsync<PresentationData>(id).GetAwaiter().GetResult();
         }
 
-        public void RegisterVfx(ulong id, GameObject prefab)
+        // lifeMode の既定は Loop(既存の Late Join テストが常駐 VFX を想定しているため、既存呼び出し元の
+        // 挙動を変えない)。6-0 修正6 のテスト(RemoteOneShotGraceTests)は明示的に OneShot を渡す。
+        public void RegisterVfx(ulong id, GameObject prefab, VfxLifeMode lifeMode = VfxLifeMode.Loop)
         {
             var address = "vfx/" + id;
             var data = ScriptableObject.CreateInstance<VfxData>();
             data.Id = id;
             data.Prefab = prefab;
-            data.LifeMode = VfxLifeMode.Loop;
+            data.LifeMode = lifeMode;
 
             Loader.Assets[address] = data;
             var catalog = ScriptableObject.CreateInstance<AssetCatalog>();

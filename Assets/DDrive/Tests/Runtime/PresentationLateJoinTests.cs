@@ -121,6 +121,54 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(1, late.Manager.DebugActiveHandles().Count);
         }
 
+        // [11_tasks.md] 6-0 修正6 — Late Join のスナップショットは OnReceivePlayMsg と同じ経路
+        // (SeekInitialTracks)を通るため、猶予(既定 0.5s)ロジックもそのまま適用される。5 秒後(猶予を
+        // 大幅に超える)に途中参加したクライアントでは、常駐ループ Vfx はシーク復元されるが、同じ
+        // Presentation 内の Time=0 のワンショット Marker は(遠い過去のため)発火しない、という
+        // 両立を確認する回帰テスト。
+        [Test]
+        public void LateJoin_LoopingVfx_IsRestored_ButOldOneShotMarker_IsNotFired_EvenThoughStillWithinDuration()
+        {
+            var relay = new DelayedNetworkRelay { LatencySeconds = 0.2 };
+            var host = NewPeer(relay, HostId, isServer: true);
+            var hostVfx = new VfxManager(host.Pool, host.Registry);
+            host.AttachManager(vfx: hostVfx);
+
+            var vfxPrefab = CreateVfxPrefab();
+            var vfxId = _nextId++;
+            host.RegisterVfx(vfxId, vfxPrefab);
+
+            var loopTrack = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Vfx, Asset = AssetRef.From(new AssetId<VfxMarker>(vfxId, AssetType.Vfx)) };
+            var markerTrack = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Marker, SignalKey = "once" };
+            var presId = _nextId++;
+            var hostData = CreateData(loopTrack, markerTrack);
+            hostData.TotalDuration = 100f; // 常駐 VFX を模した長尺(まだ尺は残っている)
+            host.RegisterPresentation(presId, hostData);
+
+            host.Manager.PlayData(host.Resolve(presId), new PlayContext());
+            relay.Advance(0.25);
+            Assert.AreEqual(1, hostVfx.ActiveCount);
+
+            // 5 秒後(猶予 0.5s を大幅に超える)に新しいクライアントが接続してくる。
+            relay.Advance(5.0);
+
+            var late = NewPeer(relay, LateClientId, isServer: false);
+            var lateVfx = new VfxManager(late.Pool, late.Registry);
+            late.AttachManager(vfx: lateVfx);
+            late.RegisterVfx(vfxId, vfxPrefab);
+            late.RegisterPresentation(presId, CloneForClient(hostData));
+
+            var skippedCount = 0;
+            late.Manager.OnRemoteOneShotSkipped += (track, key, lateSec) => skippedCount++;
+
+            host.Bridge.RaiseClientConnected(LateClientId);
+            relay.Advance(0.25);
+
+            Assert.AreEqual(1, lateVfx.ActiveCount, "ループ Vfx は猶予に関わらずシーク状態で復元される(continuous 系は常に対象)");
+            Assert.AreEqual(1, late.Manager.DebugActiveHandles().Count, "Presentation 自体は(尺がまだ残っているため)復元される");
+            Assert.AreEqual(1, skippedCount, "同じ Presentation 内の Time=0 のワンショット Marker は猶予を大幅に超えるためスキップされる(OnRemoteOneShotSkipped が発火)");
+        }
+
         [Test]
         public void LateJoin_OneShotPresentation_IsNotRestored_AfterItCompletes()
         {

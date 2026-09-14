@@ -41,7 +41,6 @@ namespace DDrive.Samples
         private float _heartbeatTimer;
         private int _playCount;
         private int _lastActiveCount = -1;
-        private bool _connected = true;
         private bool _disconnectLogged;
         private PresentationHandle _handle;
         private NgoNetBridge _ngoBridge;
@@ -56,11 +55,14 @@ namespace DDrive.Samples
             var bootstrap = DDriveRuntimeBootstrap.Instance;
             if (bootstrap != null)
             {
-                // [11_tasks.md] 6-0 修正2/修正5 — WhenReady を待つ前に配線する(Late Join のスナップショットは
-                // 起動直後に届く可能性があるため。Presentation/NetBridge 自体は Awake 時点で既に存在する)。
+                // [11_tasks.md] 6-0 修正2/修正5/修正6 — WhenReady を待つ前に配線する(Late Join のスナップ
+                // ショットは起動直後に届く可能性があるため。Presentation/NetBridge 自体は Awake 時点で
+                // 既に存在する)。
                 if (bootstrap.Presentation != null)
                 {
                     bootstrap.Presentation.OnNetworkReceivedPlay += OnNetworkReceivedPlay;
+                    bootstrap.Presentation.OnRemoteOneShotSkipped += OnRemoteOneShotSkipped;
+                    bootstrap.Presentation.OnAtTimeTrackFired += OnAtTimeTrackFired;
                 }
 
                 if (bootstrap.NetBridge is NgoNetBridge ngo)
@@ -87,6 +89,8 @@ namespace DDrive.Samples
             if (bootstrap != null && bootstrap.Presentation != null)
             {
                 bootstrap.Presentation.OnNetworkReceivedPlay -= OnNetworkReceivedPlay;
+                bootstrap.Presentation.OnRemoteOneShotSkipped -= OnRemoteOneShotSkipped;
+                bootstrap.Presentation.OnAtTimeTrackFired -= OnAtTimeTrackFired;
             }
 
             if (_ngoBridge != null)
@@ -114,7 +118,9 @@ namespace DDrive.Samples
                     PlayAndSignal(bootstrap);
                 }
             }
-            else if (sendForgedCancelPeriodically)
+            // [11_tasks.md] 6-0 修正6(オーケストレーター追加指示) — 切断中は偽造 Cancel を送らない
+            // (Broadcast 側が毎回「未接続のため送信できません」警告を出し続けるだけになるため)。
+            else if (sendForgedCancelPeriodically && Connected(bootstrap))
             {
                 _forgedTimer += Time.deltaTime;
                 if (_forgedTimer >= forgedMessageIntervalSeconds)
@@ -123,6 +129,31 @@ namespace DDrive.Samples
                     SendForgedCancel(bootstrap);
                 }
             }
+        }
+
+        // [11_tasks.md] 6-0 修正5/修正6 — Host/Loopback は常に接続中扱い(Host は自分自身に対して
+        // 切断しない)。Client は NgoNetBridge.IsConnected(切断で false になる)を見る。
+        // role=off(NetBridgeMode=Ngo で -ddrive-net off 相当。IsServer/IsClient どちらも false)では
+        // 未接続として connected=0 を返す(以前は既定値のまま connected=1 と紛らわしく出ていた)。
+        private bool Connected(DDriveRuntimeBootstrap bootstrap)
+        {
+            var bridge = bootstrap.NetBridge;
+            if (bridge == null)
+            {
+                return false;
+            }
+
+            if (bridge.IsServer)
+            {
+                return true;
+            }
+
+            if (!bridge.IsClient)
+            {
+                return false;
+            }
+
+            return _ngoBridge == null || _ngoBridge.IsConnected;
         }
 
         // [14_networking.md] §5 — 両端末とも「今アクティブな Presentation の数」「NetworkTime」を定期的に
@@ -150,7 +181,7 @@ namespace DDrive.Samples
                 "clientId", bootstrap.NetBridge.LocalClientId.ToString(),
                 "networkTime", bootstrap.NetBridge.NetworkTime.ToString("F2"),
                 "activeCount", activeCount.ToString(),
-                "connected", _connected ? "1" : "0",
+                "connected", Connected(bootstrap) ? "1" : "0",
                 "rtt_app_ms", rttAppMs);
         }
 
@@ -201,8 +232,15 @@ namespace DDrive.Samples
                 return;
             }
 
+            var presentation = bootstrap.Presentation;
+
             // TrackFiredSubject は Instance の Cleanup 時に Dispose されるため、購読はワンショットの
             // ローカル関数でよい(明示的な IDisposable の保持・破棄は行わない。確認用サンプル専用)。
+            // AtTime トラックの発火ログ(track_fired)はここでは扱わない: OnSignal トラックは
+            // handle.Signal(...)/受信より後にしか発火しないため Play() の戻り後に購読しても間に合うが、
+            // AtTime(Time=0)のトラックは Play() 呼び出し自体の中で同期的に発火してしまうため、ここで
+            // 購読する前に発火が終わっているタイミング問題がある(実際に踏んだ)。そのため AtTime は
+            // Manager 全体で 1 つの `OnAtTimeTrackFired` イベント(Start() で一度だけ購読)を使う。
             void OnFired(PresentationTrack track)
             {
                 if (track.Trigger != TrackTrigger.OnSignal)
@@ -212,13 +250,38 @@ namespace DDrive.Samples
 
                 var bs = DDriveRuntimeBootstrap.Instance;
                 var networkTime = bs != null && bs.NetBridge != null ? bs.NetBridge.NetworkTime.ToString("F2") : "n/a";
-                LogCheck("signal_recv", track.SignalKey, "key", KeyText(handleNetKey), "networkTime", networkTime);
+
+                // [11_tasks.md] 6-0 修正2/修正6 — kind を足す(同じ key で OnSignal トラック数ぶん出るのが
+                // 分かるようにする。軽微な要判断だった②の対応)。
+                LogCheck("signal_recv", track.SignalKey, "key", KeyText(handleNetKey), "networkTime", networkTime, "kind", track.Kind.ToString());
             }
 
             // Subscribe(Action<T>) は拡張メソッド(R3.ObservableExtensions)なので `using R3;` が無いと
             // 見えず、Observable<T> 本体の Subscribe(Observer<T>) だけが候補になって型エラーになる
             // (実際に試して確認した。DDrive.Runtime.Presentation の他ファイルはこの using を持つ)。
-            bootstrap.Presentation.OnTrackFired(handle).Subscribe(OnFired);
+            presentation.OnTrackFired(handle).Subscribe(OnFired);
+        }
+
+        // [11_tasks.md] 6-0 修正6 — 実機確認 v2 で見つかった「遅延があると開始直後のワンショット演出が
+        // リモートで一切発火しない」実バグの判定用ログ。スクリーンショットに頼らず、AtTime トラックが
+        // 実際に発火したことをログだけで確認できるようにする(late_ms = (elapsed - track.Time) を ms に
+        // したもの。通常再生・予測再生では 0 に近い)。Manager 全体で 1 つの event を Start() で一度だけ
+        // 購読するため、Play() 内の同期的な初回発火にも間に合う(SubscribeSignalRecvLogging のコメント参照)。
+        private void OnAtTimeTrackFired(PresentationTrack track, uint handleNetKey, float elapsed)
+        {
+            var bootstrap = DDriveRuntimeBootstrap.Instance;
+            var networkTime = bootstrap != null && bootstrap.NetBridge != null ? bootstrap.NetBridge.NetworkTime.ToString("F2") : "n/a";
+            var lateMs = ((elapsed - track.Time) * 1000f).ToString("F0");
+            LogCheck("track_fired", "1", "kind", track.Kind.ToString(), "time", track.Time.ToString("F2"), "key", KeyText(handleNetKey), "late_ms", lateMs, "networkTime", networkTime);
+        }
+
+        // [11_tasks.md] 6-0 修正6 — 猶予を超えて実際にスキップされたワンショットトラックを開発ビルドのみ
+        // ログに出す(製品ビルドでのログ汚染・コストを避ける。他の Warn* 系と同じ既存の慣習)。
+        private void OnRemoteOneShotSkipped(PresentationTrack track, uint handleNetKey, float lateSec)
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            LogCheck("track_skipped", "1", "kind", track.Kind.ToString(), "time", track.Time.ToString("F2"), "key", KeyText(handleNetKey), "late_ms", (lateSec * 1000f).ToString("F0"));
+#endif
         }
 
         // [11_tasks.md] 6-0 修正4 — 偽造 Cancel は毎回まったくのランダムな(存在しない)キーではなく、
@@ -251,22 +314,18 @@ namespace DDrive.Samples
             LogCheck("forged_cancel_sent", forgedKey.ToString());
         }
 
-        // [11_tasks.md] 6-0 修正5(オーケストレーター追加指示、実機確認で発見した課題5) — Host を止めても
-        // Client が切断を一切ログに出さなかった。NgoNetBridge.ClientDisconnected(NetworkManager の
-        // OnClientDisconnectCallback を中継)を購読し、自分(Client)が Host との接続を失ったときだけ
-        // heartbeat の connected を 0 にし、disconnected 行を 1 回だけ出す。個々の Client の切断を Host が
-        // 観測したケースは、Host 自身は動作を継続するため connected には影響させない。
+        // [11_tasks.md] 6-0 修正5(実機確認で発見した課題5)/修正6 — Host を止めても Client が切断を一切
+        // ログに出さなかった。NgoNetBridge.ClientDisconnected(NetworkManager の OnClientDisconnectCallback
+        // を中継)を購読し、disconnected 行を 1 回だけ出す。heartbeat の connected は NgoNetBridge.
+        // IsConnected(6-0 修正6 で追加。自分が切断されたときだけ false になる)を Connected() 経由で
+        // 直接見るため、ここで別途状態を持たない(単一の情報源に一本化)。個々の Client の切断を Host が
+        // 観測したケースは、Host 自身は動作を継続するため connected には影響しない。
         private void OnBridgeDisconnected(ulong clientId, string reason)
         {
             var bootstrap = DDriveRuntimeBootstrap.Instance;
             if (bootstrap == null || bootstrap.NetBridge == null)
             {
                 return;
-            }
-
-            if (!bootstrap.NetBridge.IsServer)
-            {
-                _connected = false;
             }
 
             if (_disconnectLogged)
