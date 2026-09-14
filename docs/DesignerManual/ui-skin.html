@@ -156,7 +156,7 @@
 <tr><td>Notch Se Min Interval Sec</td><td>速くドラッグしても Notch Se が詰まらないようにする最小間隔（既定 0.04 秒）</td></tr>
 <tr><td>Limit Se</td><td>端に当たったときの音</td></tr>
 <tr><td>Denied Se</td><td>Disabled / Locked のときに触ったときの拒否音</td></tr>
-<tr><td>Notch Haptic Id / Limit Haptic Id</td><td>振動（触覚）の ID。<strong>仮の項目で、いまは何も起きません</strong></td></tr>
+<tr><td>Notch Haptic Id / Limit Haptic Id</td><td>振動（触覚）の ID（数値）。<a href="camera-haptics.html">振動データ</a>を選び、Inspector 上部の Identity 欄にある Id の数値をコピーしてここへ貼り付けると、目盛りを越えた・端に当たったときにパッドが振動する（2026-09-14 から対応。ID 選択用のドロップダウンはまだ無く、数値を直接入力する）</td></tr>
 </table>
 
 <h3>よくある警告</h3>
@@ -168,7 +168,7 @@
 </table>
 
 <div class="warn">
-<strong>既知の制限:</strong> Notch Sprite、Hide Handle On Gamepad、触覚 ID は<strong>まだ実行時に効きません</strong>。パーツ（Track / Fill / Handle / Delay Fill）の画像・色・拡大率は 2026-09-14 から反映されます（状態ごとの切り替えはありません）。音（SE）は効きます。
+<strong>既知の制限:</strong> Notch Sprite、Hide Handle On Gamepad は<strong>まだ実行時に効きません</strong>。パーツ（Track / Fill / Handle / Delay Fill）の画像・色・拡大率は 2026-09-14 から反映されます（状態ごとの切り替えはありません）。音（SE）と触覚 ID（振動）は効きます。
 </div>
 
 <h2>Slider Editor（スライダーの動き方を見る）</h2>
@@ -261,7 +261,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <ul>
 <li>確認用のプレビューはエディタごとに別の名前（<code>[D-Drive] Button Skin Preview</code> / <code>[D-Drive] Slider Skin Preview</code> / <code>[D-Drive] UI Tween Preview</code>）で置かれ、<strong>エディタを閉じたとき・別のシーンに移ったときに自動で片付きます</strong>。シーンには保存されません。万一画面に消えないプレビューが残ったら <code>Tools &gt; D-Drive &gt; Debug &gt; 確認用プレビューの残骸を掃除</code></li>
 <li>Tint と Override Sprite はボタン / スライダー側の Target Graphic が空だと効きません</li>
-<li>Slider Skin の Notch Sprite・Hide Handle On Gamepad・触覚 ID はまだ効きません（パーツの画像・色・拡大率は効きます）（上の「既知の制限」）</li>
+<li>Slider Skin の Notch Sprite・Hide Handle On Gamepad はまだ効きません（パーツの画像・色・拡大率・触覚 ID は効きます）（上の「既知の制限」）</li>
 <li>Bgm / Se / Voice の個別音量はまだ音に接続されていません（Master Volume と Ui Speed Scale は効きます）</li>
 <li>「全状態を並べる」の見た目は、対象の Skin Id、無ければ「Slider Editor で開く」で開いたときの Slider Skin を使います。メニューからサンプルを置いただけだと 6 本とも同じに見えます</li>
 </ul>
@@ -271,6 +271,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <li><a href="ui-tween.html">UI の動き(UI Tween)・プリセットギャラリー・要素演出</a> — Enter Tween / Enter Preset に指す演出、標準オプション</li>
 <li><a href="canvas-data.html">Canvas データ</a> / <a href="canvas-editor.html">Canvas Editor</a> — Skin Id の設定、Sliders の配線</li>
 <li><a href="se-data.html">SE の設定項目</a> — クリック音・ノッチ音の作り方</li>
+<li><a href="camera-haptics.html">画面の揺れ・コントローラーの振動</a> — Notch Haptic Id / Limit Haptic Id に指す振動データの作り方</li>
 <li><a href="validation.html">検証（Validation）</a> / <a href="asset-browser.html">Asset Browser</a> / <a href="glossary.html">用語集</a></li>
 </ul>
 

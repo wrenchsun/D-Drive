@@ -41,8 +41,8 @@
 <tr><td>HitStop</td><td>一瞬だけゲーム全体の時間を止める(「ヒットストップ」演出)。Params の 1 つ目に止める秒数を入れる</td><td>対応済み</td></tr>
 <tr><td>Marker</td><td>プログラム側に「ここまで来た」を知らせるだけの目印(見た目には何も起きない)。Signal Key 欄が目印の名前になる</td><td>対応済み</td></tr>
 <tr><td>Signal</td><td>プログラム側の処理を直接呼び出すための合図(Marker と似ているが、コード側の受け取り方が違う)。Signal Key 欄が合図の名前になる</td><td>対応済み</td></tr>
-<tr><td>CameraShake</td><td>画面を揺らす</td><td class="warn">未対応(近日実装予定)。設定しても警告が出るだけで何も起きません</td></tr>
-<tr><td>Haptic</td><td>コントローラーを振動させる</td><td class="warn">未対応(近日実装予定)。設定しても警告が出るだけで何も起きません</td></tr>
+<tr><td>CameraShake</td><td>画面を揺らす。Asset 欄に<a href="camera-haptics.html">カメラシェイクのデータ</a>の ID を入れる</td><td>対応済み</td></tr>
+<tr><td>Haptic</td><td>コントローラーを振動させる。Asset 欄に<a href="camera-haptics.html">振動データ</a>の ID を入れる</td><td>対応済み</td></tr>
 <tr><td>Timeline</td><td>Unity Timeline を再生する(カットシーン向け)</td><td class="warn">未対応(近日実装予定)</td></tr>
 </table>
 
@@ -54,7 +54,7 @@
 </table>
 
 <h2>剣攻撃デモで確認する</h2>
-<p><code>Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity</code> を開いて Play すると、剣攻撃の演出(アニメ相当の代わりに VFX+SE を Self に配置、当たった合図で画面停止+SE)が自動で再生されます。P キーでもう一度再生、Space キーで「当たった」合図(Signal)、C キーで中断(Cancel)を試せます。</p>
+<p><code>Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity</code> を開いて Play すると、剣攻撃の演出(アニメ相当の代わりに VFX+SE を Self に配置、当たった合図で画面停止+SE+画面揺れ+振動)が自動で再生されます。P キーでもう一度再生、Space キーで「当たった」合図(Signal)、C キーで中断(Cancel)を試せます。</p>
 
 <h2>よくある警告と直し方</h2>
 <table>
@@ -71,6 +71,7 @@
 <li><a href="vfx-data.html">VFX（エフェクト）の設定項目</a></li>
 <li><a href="se-data.html">SE（効果音）の設定項目</a></li>
 <li><a href="ui-tween.html">UI の動き（UI Tween）</a></li>
+<li><a href="camera-haptics.html">画面の揺れ・コントローラーの振動</a></li>
 <li><a href="glossary.html">用語集</a></li>
 </ul>
 

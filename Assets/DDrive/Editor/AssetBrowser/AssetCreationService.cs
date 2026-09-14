@@ -59,7 +59,10 @@ namespace DDrive.Editor.AssetBrowser
             // 2026-09-12: 実際にこの理由で配線済みの CanvasData が動かない不具合を確認したため、既定を Preload にする。
             // 2026-09-14(5-1): Presentation も PresentationManager.Play が同じく同期解決のみで引くため、
             // 同じ理由で追加(剣攻撃デモ PRES_Demo_SkillSlash が Placeholder になる不具合で発見)。
-            if (assetType == AssetType.Canvas || assetType == AssetType.ControlSkin || assetType == AssetType.Presentation)
+            // 2026-09-14(5-2/5-2b): CameraFxManager.Shake / HapticsManager.Play も ResolveOrPlaceholder の
+            // みで同期解決するため、同じ理由で Shake / Haptics を追加(要判断: [16_camera_haptics.md] 実装メモ参照)。
+            if (assetType == AssetType.Canvas || assetType == AssetType.ControlSkin || assetType == AssetType.Presentation
+                || assetType == AssetType.Shake || assetType == AssetType.Haptics)
             {
                 var flags = asset.Flags;
                 flags.Load = LoadMode.Preload;

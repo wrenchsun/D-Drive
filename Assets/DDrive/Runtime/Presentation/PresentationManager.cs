@@ -10,6 +10,8 @@ using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.Camera;
+using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Ui;
 using DDrive.Runtime.Vfx;
 using R3;
@@ -19,11 +21,13 @@ using PresentationId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Present
 namespace DDrive.Runtime.Presentation
 {
     // [08_presentation.md] §3 / [01_architecture.md] §8 — 「剣攻撃」等の演出データを 1 API で再生する
-    // オーケストレータ(5-1)。自身は何も再生せず、Tracks を各 Manager(Audio/Vfx/Anim/Anim2D/Canvas/UiTween)
-    // へ委譲するだけ。CameraShake/Haptic/Timeline は 5-2/5-2b/6-10 待ちのため警告 1 回 + no-op。
+    // オーケストレータ(5-1)。自身は何も再生せず、Tracks を各 Manager(Audio/Vfx/Anim/Anim2D/Canvas/UiTween/
+    // CameraFx/Haptics)へ委譲するだけ。Timeline のみ 6-10 待ちのため警告 1 回 + no-op。
     //
     // Tick は GameLoop 経由で TimeService.ScaledDeltaTime(unscaledDt) を受け取るため、HitStop 中は
     // (他の全 Manager 同様)AtTime の進行も自動的に止まる([16_camera_haptics.md] 参照。特別な配線は不要)。
+    // CameraFxManager 自体は(このトラックの発火とは別に)Unscaled dt で駆動されるため、HitStop 中も
+    // 揺れ自体は止まらない([16] Part A 実装メモ / DDriveRuntimeBootstrap の UnscaledCameraFxAdapter 参照)。
     public sealed class PresentationManager : IAssetManager
     {
         private sealed class PresentationInstance
@@ -52,6 +56,8 @@ namespace DDrive.Runtime.Presentation
             public List<(int track, Handle<AnimMarker> handle)> FiredAnim;
             public List<(int track, Handle<UiTweenMarker> handle)> FiredUiTween;
             public List<(int track, Handle<CanvasMarker> handle)> FiredCanvas;
+            public List<(int track, Handle<ShakeMarker> handle)> FiredShake;
+            public List<(int track, Handle<HapticMarker> handle)> FiredHaptic;
         }
 
         private readonly IAssetRegistry _registry;
@@ -62,6 +68,8 @@ namespace DDrive.Runtime.Presentation
         private readonly AnimManager _anim;
         private readonly UiManager _ui;
         private readonly UiTweenManager _uiTween;
+        private readonly CameraFxManager _cameraFx;
+        private readonly HapticsManager _haptics;
 
         private readonly InstanceStore<PresentationMarker, PresentationInstance> _instances = new();
         private readonly List<Handle<PresentationMarker>> _active = new();
@@ -81,7 +89,9 @@ namespace DDrive.Runtime.Presentation
             VfxManager vfx = null,
             AnimManager anim = null,
             UiManager ui = null,
-            UiTweenManager uiTween = null)
+            UiTweenManager uiTween = null,
+            CameraFxManager cameraFx = null,
+            HapticsManager haptics = null)
         {
             _registry = registry;
             _time = timeService;
@@ -91,6 +101,8 @@ namespace DDrive.Runtime.Presentation
             _anim = anim;
             _ui = ui;
             _uiTween = uiTween;
+            _cameraFx = cameraFx;
+            _haptics = haptics;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -136,6 +148,8 @@ namespace DDrive.Runtime.Presentation
                 FiredAnim = new List<(int, Handle<AnimMarker>)>(),
                 FiredUiTween = new List<(int, Handle<UiTweenMarker>)>(),
                 FiredCanvas = new List<(int, Handle<CanvasMarker>)>(),
+                FiredShake = new List<(int, Handle<ShakeMarker>)>(),
+                FiredHaptic = new List<(int, Handle<HapticMarker>)>(),
             };
 
             var handle = _instances.Add(instance);
@@ -247,6 +261,24 @@ namespace DDrive.Runtime.Presentation
                 if (_ui != null && _ui.IsOpen(h))
                 {
                     _ui.Close(h);
+                }
+            }
+
+            for (var i = 0; i < instance.FiredShake.Count; i++)
+            {
+                var h = instance.FiredShake[i].handle;
+                if (_cameraFx != null && _cameraFx.IsPlaying(h))
+                {
+                    _cameraFx.Stop(h, 0f);
+                }
+            }
+
+            for (var i = 0; i < instance.FiredHaptic.Count; i++)
+            {
+                var h = instance.FiredHaptic[i].handle;
+                if (_haptics != null && _haptics.IsPlaying(h))
+                {
+                    _haptics.Stop(h);
                 }
             }
         }
@@ -503,7 +535,13 @@ namespace DDrive.Runtime.Presentation
                     break;
 
                 case TrackKind.CameraShake:
+                    FireCameraShake(instance, trackIndex, in track);
+                    break;
+
                 case TrackKind.Haptic:
+                    FireHaptic(instance, trackIndex, in track);
+                    break;
+
                 case TrackKind.Timeline:
                     WarnUnimplemented(track.Kind);
                     break;
@@ -636,6 +674,41 @@ namespace DDrive.Runtime.Presentation
             if (track.StopOnCancel && _uiTween.IsPlaying(h))
             {
                 instance.FiredUiTween.Add((trackIndex, h));
+            }
+        }
+
+        // sourcePos には ctx.Position を渡す(ShakeSpace.FromSource 用。CameraLocal/World は無視するので常に渡してよい)。
+        private void FireCameraShake(PresentationInstance instance, int trackIndex, in PresentationTrack track)
+        {
+            if (_cameraFx == null)
+            {
+                WarnMissingManager(TrackKind.CameraShake);
+                return;
+            }
+
+            var data = _registry.ResolveOrPlaceholder<CameraShakeData>(track.Asset.Id);
+            var h = _cameraFx.ShakeData(data, instance.Ctx.Position);
+
+            if (track.StopOnCancel && _cameraFx.IsPlaying(h))
+            {
+                instance.FiredShake.Add((trackIndex, h));
+            }
+        }
+
+        private void FireHaptic(PresentationInstance instance, int trackIndex, in PresentationTrack track)
+        {
+            if (_haptics == null)
+            {
+                WarnMissingManager(TrackKind.Haptic);
+                return;
+            }
+
+            var data = _registry.ResolveOrPlaceholder<HapticsData>(track.Asset.Id);
+            var h = _haptics.PlayData(data);
+
+            if (track.StopOnCancel && _haptics.IsPlaying(h))
+            {
+                instance.FiredHaptic.Add((trackIndex, h));
             }
         }
 

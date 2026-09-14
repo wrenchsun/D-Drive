@@ -1,4 +1,6 @@
 using System;
+using DDrive.Runtime.Camera;
+using DDrive.Runtime.Haptics;
 using UnityEngine;
 
 namespace DDrive.Runtime.Ui
@@ -67,6 +69,10 @@ namespace DDrive.Runtime.Ui
 
         // UiSpeedScale の反映先(未設定なら値の保持のみ)。
         public UiTweenManager UiTweens;
+
+        // ShakeScale / HapticScale の反映先(未設定なら値の保持のみ。[16_camera_haptics.md] Part A/B、5-2/5-2b)。
+        public CameraFxManager CameraFx;
+        public HapticsManager Haptics;
 
         // Codex レビュー対応(2026-09-11): Set() のたびに毎回 Write すると PlayerPrefs I/O が頻発するため、
         // 変更があったことだけ記録して SaveIfDirty() でまとめて書く(Bootstrap の OnDestroy/OnApplicationQuit から呼ぶ)。
@@ -142,8 +148,19 @@ namespace DDrive.Runtime.Ui
                     break;
 
                 case OptionKey.ShakeScale:
+                    if (CameraFx != null)
+                    {
+                        CameraFx.SetGlobalScale(value);
+                    }
+
+                    break;
+
                 case OptionKey.HapticScale:
-                    // Phase 6([16] Part B)の消費先が未実装のため値の保持のみ。
+                    if (Haptics != null)
+                    {
+                        Haptics.SetGlobalScale(value);
+                    }
+
                     break;
             }
         }

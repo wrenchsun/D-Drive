@@ -8,6 +8,8 @@ using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.Camera;
+using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Loading;
 using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
@@ -68,6 +70,9 @@ namespace DDrive.Runtime.Loop
         public PrefabsManager Prefabs { get; private set; }
         public UiManager Ui { get; private set; }
         public UiTweenManager UiTweens { get; private set; }
+        // [16_camera_haptics.md] Part A/B / [11_tasks.md] 5-2 / 5-2b。
+        public CameraFxManager CameraFx { get; private set; }
+        public HapticsManager Haptics { get; private set; }
         // [08_presentation.md] / [11_tasks.md] 5-1 — 演出統合(Presentation)のオーケストレータ。
         public PresentationManager Presentation { get; private set; }
         // [18_ui_controls.md] B-4(4-16) — 音量/アクセシビリティ/UI 速度の永続化ストア。起動時に PlayerPrefs から読み込む。
@@ -87,6 +92,7 @@ namespace DDrive.Runtime.Loop
 
         private readonly UniTaskCompletionSource _ready = new();
         private AnchorGroupLoopAdapter _groupAdapter;
+        private UnscaledCameraFxAdapter _cameraFxAdapter;
         private bool _built;
 
         public UniTask WhenReady => _ready.Task;
@@ -137,6 +143,19 @@ namespace DDrive.Runtime.Loop
         private void OnApplicationQuit()
         {
             Options?.SaveIfDirty();
+            // [16_camera_haptics.md] Part B — アプリ終了時は必ずモーターを 0 に戻す(繋いだままのパッドが
+            // 振動し続けるのを防ぐ)。
+            Haptics?.ResetOutput();
+        }
+
+        // フォーカス喪失時(Alt+Tab 等)もモーターを 0 に戻す([16] Part B)。再生中の Instance 自体は
+        // 止めない(フォーカス復帰後に自然な減衰で終わる)。
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus)
+            {
+                Haptics?.ResetOutput();
+            }
         }
 
         // ── 組み立て ──
@@ -171,17 +190,19 @@ namespace DDrive.Runtime.Loop
             UiTweens = new UiTweenManager(Registry);
             Ui = new UiManager(Pool, Registry, Loop.PauseService, tweens: UiTweens);
             Ui.SetLayerSettings(LayerSettings);
+            CameraFx = new CameraFxManager(Registry);
+            Haptics = new HapticsManager(Registry);
             // Codex レビュー対応(2026-09-11): Storage を保持しておき、OnDestroy/OnApplicationQuit で
             // SaveIfDirty() を呼べるようにする(これまでは Load するだけで一度も保存していなかった)。
             var optionStorage = new PlayerPrefsOptionStorage();
-            Options = new OptionStore { UiTweens = UiTweens, Storage = optionStorage };
+            Options = new OptionStore { UiTweens = UiTweens, CameraFx = CameraFx, Haptics = Haptics, Storage = optionStorage };
             Options.Load(optionStorage);
             Ui.SetOptionStore(Options);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
             // [11_tasks.md] 5-1 — Loop.TimeService を渡すことで、HitStop トラックが TimeService.HitStop を
             // 呼ぶだけで AtTime の進行も(他の全 Manager と同じく)自動的に止まる(GameLoopDriver が
             // ScaledDeltaTime を配るため、Presentation 側で特別な配線は不要)。
-            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens);
+            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
             UiDispatcher = new AssetEventDispatcher(Ui.Events, Registry, Audio, Vfx, Ui.GetContextTransform, Groups);
@@ -196,9 +217,14 @@ namespace DDrive.Runtime.Loop
             loop.Register(Prefabs);
             loop.Register(Ui);
             loop.Register(UiTweens);
+            loop.Register(Haptics);
             loop.Register(Presentation);
             _groupAdapter = new AnchorGroupLoopAdapter(Groups);
             loop.Register(_groupAdapter);
+            // [16_camera_haptics.md] Part A 実装メモ — CameraFx は HitStop 中も揺れを止めないため、
+            // 他 Manager と同じ TimeService.ScaledDeltaTime ではなく Unscaled dt で駆動する(アダプタ経由)。
+            _cameraFxAdapter = new UnscaledCameraFxAdapter(CameraFx);
+            loop.Register(_cameraFxAdapter);
 
             if (BindFacades)
             {
@@ -214,6 +240,8 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.UiSkins.Bind(Registry);
                 Runtime.Ui.UiFx.Bind(UiTweens);
                 Runtime.Ui.Options.Bind(Options);
+                Runtime.Camera.CameraFx.Bind(CameraFx);
+                Runtime.Haptics.Haptics.Bind(Haptics);
                 Anchors.Bind(Groups);
                 Runtime.Tuning.Tuning.Bind(TuningTable);
                 Runtime.Loading.ScenePreload.Bind(Registry); // [11_tasks.md] 5-7
@@ -250,8 +278,10 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Prefabs);
                 loop.Unregister(Ui);
                 loop.Unregister(UiTweens);
+                loop.Unregister(Haptics);
                 loop.Unregister(Presentation);
                 loop.Unregister(_groupAdapter);
+                loop.Unregister(_cameraFxAdapter);
             }
 
             Dispatcher?.Dispose();
@@ -275,6 +305,8 @@ namespace DDrive.Runtime.Loop
                 Runtime.Ui.UiSkins.Bind((IAssetRegistry)null);
                 Runtime.Ui.UiFx.Bind(null);
                 Runtime.Ui.Options.Bind(null);
+                Runtime.Camera.CameraFx.Bind(null);
+                Runtime.Haptics.Haptics.Bind(null);
                 Anchors.Bind(null);
                 Runtime.Tuning.Tuning.Bind(null);
                 Runtime.Loading.ScenePreload.Bind(null); // [11_tasks.md] 5-7
@@ -401,6 +433,27 @@ namespace DDrive.Runtime.Loop
             public void StopAll(StopReason reason) => _player.StopAll();
 
             public void OnSceneUnload() => _player.StopAll();
+        }
+
+        // [16_camera_haptics.md] Part A 実装メモ — CameraFxManager だけは GameLoop 共有の
+        // TimeService.ScaledDeltaTime ではなく Time.unscaledDeltaTime で駆動する(HitStop 中も揺れを
+        // 止めないため)。CameraFxManager 自身の Tick(dt) は渡された dt をそのまま使う純関数のままにして
+        // テスト容易性を保ち、実配線だけをこのアダプタで差し替える(AnchorGroupLoopAdapter と同じ考え方)。
+        private sealed class UnscaledCameraFxAdapter : IAssetManager
+        {
+            private readonly CameraFxManager _cameraFx;
+
+            public UnscaledCameraFxAdapter(CameraFxManager cameraFx) => _cameraFx = cameraFx;
+
+            public Foundation.Identity.AssetType Type => Foundation.Identity.AssetType.Shake;
+
+            public void Tick(float dt) => _cameraFx.Tick(Time.unscaledDeltaTime);
+
+            public void OnPause(PauseChannel channel, bool paused) => _cameraFx.OnPause(channel, paused);
+
+            public void StopAll(StopReason reason) => _cameraFx.StopAll(reason);
+
+            public void OnSceneUnload() => _cameraFx.OnSceneUnload();
         }
     }
 }

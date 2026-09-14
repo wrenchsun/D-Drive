@@ -154,5 +154,41 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 0
+  - Trigger: 1
+    Time: 0
+    SignalKey: hit
+    Kind: 5
+    Asset:
+      Type: 11
+      Id: 14596341457834809416
+    Target: 0
+    Anchor:
+      Space: 0
+      Path: 
+      LocalOffset: {x: 0, y: 0, z: 0}
+      LocalEuler: {x: 0, y: 0, z: 0}
+      LocalScale: {x: 1, y: 1, z: 1}
+      FollowRotation: 0
+      DetachOnStop: 0
+    Params: []
+    StopOnCancel: 1
+  - Trigger: 1
+    Time: 0
+    SignalKey: hit
+    Kind: 6
+    Asset:
+      Type: 12
+      Id: 1901865361473864870
+    Target: 0
+    Anchor:
+      Space: 0
+      Path: 
+      LocalOffset: {x: 0, y: 0, z: 0}
+      LocalEuler: {x: 0, y: 0, z: 0}
+      LocalScale: {x: 1, y: 1, z: 1}
+      FollowRotation: 0
+      DetachOnStop: 0
+    Params: []
+    StopOnCancel: 1
   TotalDuration: 15
   Interruptible: 1

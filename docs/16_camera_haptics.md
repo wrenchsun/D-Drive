@@ -121,3 +121,87 @@ public static class Haptics
 | 振幅が規定値超（酔いリスク、BudgetProfile で閾値定義） | Warning |
 | Haptic Duration > 2s | Warning（長すぎる振動） |
 | Presentation の CameraShake/Haptic トラックが直値（ID なし） | Error（ID 参照に統一） |
+
+## 実装メモ（2026-09-14、5-2 / 5-2b）
+
+実装: `Runtime/Camera/{CameraShakeData,CameraFxManager,CameraFx,CameraShakeDataValidator}.cs`、
+`Runtime/Haptics/{HapticsData,IHapticOutput,GamepadHapticOutput,HapticsManager,Haptics,HapticsDataValidator}.cs`。
+専用エディタ（§C-2 ShakeEditor / HapticsEditor）は 5-2c でまだ未実装のため、`DataEditorRegistryTests` の
+Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から直接編集する）。
+
+- **名前空間の衝突（要修正）**: `DDrive.Runtime.Camera` という名前空間を作ると、`DDrive.Runtime.*` 配下の
+  ファイルから `Camera`（`UnityEngine.Camera`）を非修飾で参照している箇所が `CS0118`（namespace が type
+  として使われている）でコンパイルエラーになる（C# の非修飾名解決は `using` より先に「囲む名前空間の直下
+  にある入れ子の名前空間/型」を優先するため）。影響したのは `Runtime/Anim2D/Anim2DFacing.cs`（[05] C-4、
+  CLAUDE.md が明記していた唯一の `Camera.main` 使用箇所）のみで、`UnityEngine.Camera` とフル修飾して解消
+  した。新たに `DDrive.Runtime.*` 配下で `Camera`（`UnityEngine.Camera`）を使うコードを書くときは、同様に
+  フル修飾すること。
+- **Trauma 合成の実装**（AC「多重発火で破綻しない」）: 各 ShakeInstance の重み
+  `w_i = clamp(Envelope.EvaluateAt(elapsed)) × TraumaWeight × StrengthScale`（Stop() 後はフェード用の
+  線形減衰に切り替える）を求め、`rawSum = Σw_i`・`totalTrauma = clamp01(rawSum)`・
+  `shakeAmount = totalTrauma²` を計算する。各 Instance の波形ベクトル（Pattern 別。§SampleWave）を `w_i` で
+  加重平均し（`Σ(w_i × wave_i) / rawSum`）、最後に `shakeAmount` を掛けて最終オフセットにする。加重平均は
+  個々のベクトルの最大値を超えないため、何個 Shake を積んでも最終オフセットが単体の振幅を大きく超えることが
+  ない（`CameraFxManagerTests.ShakeData_ManyOverlappingInstances_DoesNotExceedMaxAmplitude` で検証）。
+  MaxStack は「同一 ShakeData の同時 Instance 数」の上限として実装し、超過分は `Handle.Invalid` を返して
+  無視する（警告なし。連打は想定内の使い方のため）。
+- **Space の扱い（簡略化。要判断）**: `CameraLocal` はノードのローカル空間にそのまま適用する（既定）。
+  `World` はノードの親の回転を打ち消して変換し、親の向きに関わらず同じワールド方向に揺れるようにする。
+  `FromSource` は Pattern が算出した振幅の大きさ（`magnitude`）だけを流用し、方向は
+  `(Camera.position - sourcePos).normalized` で「奥から手前」を再現する。Rot（回転）は Space を見ず常に
+  ノードのローカル空間に適用する（ワールド回転の意味付けが曖昧なため v1 では簡略化）。5-2c でカーブ
+  プレビューを作る際に、World/FromSource の回転版が必要かどうかを判断してほしい。
+- **Pattern の実装（簡略化。要判断）**: `PerlinNoise`＝軸ごとに乱数位相をずらした `Mathf.PerlinNoise`、
+  `DecaySine`＝`Frequency` で振動する正弦波（減衰そのものは Envelope 側が担う）、`Impulse`＝振動せず
+  `PosAmplitude`/`RotAmplitude` をそのまま定数として返す（方向性のある一撃）。`CustomCurve` は
+  専用の波形カーブ入力をデータ構造に追加していないため、現状は `Impulse` と同じ実装にフォールバックして
+  いる（要判断: 5-2c で専用カーブが要るか判断してほしい）。
+- **unscaled/scaled の決定**: CameraFxManager 自身の `Tick(float dt)` は渡された `dt` をそのまま使う
+  純関数のまま（テスト容易性のため、`Time` に直接依存しない）。実配線だけ
+  `DDriveRuntimeBootstrap.UnscaledCameraFxAdapter`（`AnchorGroupLoopAdapter` と同じ「非 IAssetManager/
+  別 dt 系列を IAssetManager でラップする」パターン）が `Time.unscaledDeltaTime` を渡す形にし、
+  `GameLoop.Register` にはこのアダプタを登録する（`CameraFxManager` 自体は登録しない）。これにより
+  HitStop（`TimeService.TimeScale=0`）中も CameraFx は止まらず揺れ続ける（推奨仕様どおり）。一方
+  **HapticsManager は他の全 Manager と同じ ScaledDeltaTime のまま**（Part B にはこの要件が明記されて
+  いないため、既定に合わせた。要判断: HitStop 中に振動を止めたい/止めたくない、の意図が固まったら見直す）。
+- **CameraFxManager のカメラノード挿入**: `Camera.main` が見つかったら、その直上に
+  `DDriveCameraShakeNode` という空 GameObject を作り、カメラの直前の親（無ければ null=シーンルート）配下
+  に同じワールド姿勢で置いてから、カメラをその子にする（カメラ自身の localPosition/localRotation は
+  以後 (0,0,0)/identity のまま触らない）。揺れはこのノードの localPosition/localRotation にだけ適用する。
+  カメラが差し替わった場合（`Camera.main` の参照先 Transform が変わった、またはカメラの親がノードでなく
+  なった）は `Tick` 内で自動的に付け直す。`Camera.main` が存在しない間は警告 1 回 + no-op（カメラが現れたら
+  自動的に有効化される）。シーン跨ぎで残す必要がある場合（カメラが DontDestroyOnLoad シーンにいる）は
+  ノードも `DontDestroyOnLoad` にする。
+- **Haptics の Max 合成**: 毎 Tick、再生中の全 HapticInstance について
+  `LowFreq.EvaluateAt(elapsed) × StrengthScale` / `HighFreq.EvaluateAt(elapsed) × StrengthScale` を求め、
+  チャンネルごとに `Mathf.Max` で合成する（加算しない。`HapticsManagerTests.PlayData_OverlappingInstances_
+  ComposeWithMax_NotSum` で検証）。最後に `GlobalScale` を掛けて `IHapticOutput.SetMotors` へ渡す。
+  `HapticPriority` は現状ロジックに未使用（Max 合成自体が「強い方が勝つ」を実現しているため。要判断:
+  将来 MaxStack 的な上限を導入する場合の淘汰基準として使う想定）。`LocalPlayerOnly` も NGO 統合前の v1
+  では判定先が無いため常にローカル再生扱い（要判断: NGO 統合時に PlayContext/送信元から誰の操作かを判定
+  する経路を追加すること）。
+- **Pause と実機モーターの安全側設計（要判断）**: AC「Pause で出力 0」を確実に満たすため、HapticsManager
+  は Vfx/CameraFx のように per-instance の `Flags.Pause`（`IgnorePause` で継続させる等）を見ず、Pause
+  チャンネルが立った瞬間に一律で `SetMotors(0,0)` にし、Pause 中は `Tick` 自体を早期リターンする（進行も
+  再合成もしない）。実機のモーターを鳴らし続ける事故を避けるための安全側の判断で、`Flags.Pause` フィールド
+  自体は残っている（将来 per-instance 制御が必要になったら見直すこと）。アプリ終了時
+  （`OnApplicationQuit`）・フォーカス喪失時（`OnApplicationFocus(false)`）にも
+  `DDriveRuntimeBootstrap` から `HapticsManager.ResetOutput()`（Instance は止めずモーターだけ 0 に戻す）
+  を呼ぶ。
+- **Preload 既定への追加**: `AssetCreationService.Create` は `CameraFxManager.ShakeData` /
+  `HapticsManager.PlayData` もこれまでの Vfx/Audio 等と同じく `ResolveOrPlaceholder`（同期解決のみ、
+  ロードを開始しない）で引くため、Canvas/ControlSkin/Presentation と同じ理由で `AssetType.Shake` /
+  `AssetType.Haptics` を Preload 既定に追加した（さもないと新規作成した Shake/Haptics は常に
+  Placeholder になる）。
+- **確認用デモ**: `Assets/GameData/Camera/Demo/SHAKE_Demo_DemoHitSmall.asset`
+  （PerlinNoise、PosAmplitude=(0.12, 0.08, 0)、RotAmplitude=(0,0,1.5)、MaxStack=3）と
+  `Assets/GameData/Haptics/Demo/HAPTIC_Demo_DemoHitPunch.asset`（既定の LowFreq/HighFreq カーブのまま）
+  を作成し、5-1 の剣攻撃デモ `Assets/GameData/Presentation/Demo/PRES_Demo_SkillSlash.asset` の
+  `onHit`（`SignalKey="hit"`）トラックに `CameraShake` / `Haptic` トラックを追記した
+  （`StopOnCancel=true`）。確認用シーンは 5-1 と同じ
+  `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity`。
+- **Addressables**: `AssetType.Shake`/`AssetType.Haptics` の新規カタログ `CameraFxCatalog.asset` を
+  `Editor/AssetBrowser/AssetCreationService.GetCatalogName` の既存マッピングどおり作成した（コード変更
+  不要、既に対応表にあった）。デモアセット作成に伴う Addressables グループ（`DDrive_GameData.asset` /
+  `DDrive_Catalogs.asset`）への追記はユーザーの未コミット変更と同じファイルのためコミットしていない
+  （追加された行は `docs/28_manual_verification_phase5.md` の要判断に列挙）。
