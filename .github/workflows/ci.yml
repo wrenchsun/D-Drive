@@ -12,11 +12,12 @@ name: D-Drive CI
 #   private の間はリポジトリの Collaborator しか PR を出せないためリスクは低いが、
 #   将来 public に変えるときはこのガードを外さないこと。
 
+# 2026-09-15 ユーザー決定: CI の本稼働（セルフホストランナー登録・PR ゲート化）は P7 の最後に回す
+# （MS2026 側に CI が既にあり、移植先でそちらに合わせるため）。それまでは PR/push で自動起動させず
+# （ランナー未登録だとチェックが「待ち」のまま残るため）、手動実行（Actions タブの Run workflow）だけにする。
+# 本稼働時は下の workflow_dispatch に pull_request / push（branches: [main]）を戻す。
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   # 同じ PR(または同じ push 先ブランチ)の古い実行は新しい push が来たらキャンセルする。
