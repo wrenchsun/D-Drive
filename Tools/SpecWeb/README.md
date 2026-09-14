@@ -344,7 +344,10 @@ push.cmd                # build-manual.js を実行 → clasp push（推奨。�
 ```
 
 `push.ps1` も同じ処理だが、Windows 標準の PowerShell 5.1 は実行ポリシー（署名なしスクリプトの拒否）で止まることがあるため、
-`push.cmd` を推奨する（2026-09-14）。`push.ps1` を使う場合は `powershell -ExecutionPolicy Bypass -File .\push.ps1`。
+`push.cmd` を推奨する（2026-09-14）。
+**push の前に、ブラウザで開いている Apps Script エディタのタブを閉じる（または再読み込みする）こと。** 古い内容を表示したままのエディタが
+自動保存すると、push した最新コードが古い内容で上書きされ、その後の「新バージョン」も古いコードになる（2026-09-14 実際に発生:
+①は新しい版、②は上書き後の古い版でデプロイされた）。一時関数の追加などでエディタを使った後は、閉じてから push → デプロイの順にする。`push.ps1` を使う場合は `powershell -ExecutionPolicy Bypass -File .\push.ps1`。
 なお `push.ps1` は PowerShell 5.1 が BOM 無し UTF-8 を Shift-JIS として読んで日本語で構文エラーになるため、**BOM 付き UTF-8 で保存する**（編集時に BOM を落とさないこと）。
 
 または手動で:
