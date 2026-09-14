@@ -51,7 +51,7 @@ function handleSpecWebRequest_(e, method) {
  * API 名そのものをここで固定する。ping/whoami は状態を変更しない（動作確認・トークン検証用）
  * ため許可リストに含めている。
  */
-var DDRIVE_WRITE_TOKEN_ALLOWED_APIS = ['ping', 'whoami', 'choices', 'assetState', 'tuningUsage'];
+var DDRIVE_WRITE_TOKEN_ALLOWED_APIS = ['ping', 'whoami', 'choices', 'assetState', 'tuningUsage', 'assetParams'];
 
 function handleApiRequest_(e, method) {
   var params = e.parameter || {};
@@ -70,7 +70,7 @@ function handleApiRequest_(e, method) {
   var name = params.name;
   if (auth.tokenKind === 'write' && DDRIVE_WRITE_TOKEN_ALLOWED_APIS.indexOf(name) === -1) {
     return ContentAdapter.json(
-      { ok: false, error: '書き込みトークンで呼べる API ではありません（choices/assetState/tuningUsage のみ許可）: ' + name },
+      { ok: false, error: '書き込みトークンで呼べる API ではありません（choices/assetState/tuningUsage/assetParams のみ許可）: ' + name },
       403
     );
   }

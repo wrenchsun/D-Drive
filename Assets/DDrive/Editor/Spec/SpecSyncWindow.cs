@@ -73,9 +73,9 @@ namespace DDrive.Editor.Spec
             _statusLabel.style.whiteSpace = WhiteSpace.Normal;
             scrollView.Add(_statusLabel);
 
-            // W-12: D-Drive → Web 送信(選択肢・アセット実状態・TUNING コード参照)。
-            scrollView.Add(new Label("D-Drive → Web 送信(W-12)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 10 } });
-            scrollView.Add(new Button(OnSendToWebClicked) { text = "Web に送信(選択肢 / 実状態 / 調整値使用状況)" });
+            // W-12/O-6: D-Drive → Web 送信(選択肢・アセット実状態・TUNING コード参照・パラメータ)。
+            scrollView.Add(new Label("D-Drive → Web 送信(W-12/O-6)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 10 } });
+            scrollView.Add(new Button(OnSendToWebClicked) { text = "Web に送信(選択肢 / 実状態 / 調整値使用状況 / パラメータ)" });
             _sendStatusLabel = new Label { style = { whiteSpace = WhiteSpace.Normal } };
             scrollView.Add(_sendStatusLabel);
 
@@ -240,10 +240,15 @@ namespace DDrive.Editor.Spec
                     var table = settings.GetOrCreateTuningTable();
                     SpecWebSender.SendTuningUsage(settings.WebAppUrl, writeToken, table, tuningUsageResult =>
                     {
-                        var ok = choicesResult.Success && assetStateResult.Success && tuningUsageResult.Success;
-                        _sendStatusLabel.text = ok
-                            ? "送信しました(選択肢 / 実状態 / 調整値使用状況)。"
-                            : $"送信に失敗しました: {choicesResult.Error ?? assetStateResult.Error ?? tuningUsageResult.Error}";
+                        // O-6([32] §10.4.2): パラメータのスキーマ + 現在値の送信を同じ経路に追加。
+                        SpecWebSender.SendAssetParams(settings.WebAppUrl, writeToken, assetParamsResult =>
+                        {
+                            var ok = choicesResult.Success && assetStateResult.Success
+                                     && tuningUsageResult.Success && assetParamsResult.Success;
+                            _sendStatusLabel.text = ok
+                                ? "送信しました(選択肢 / 実状態 / 調整値使用状況 / パラメータ)。"
+                                : $"送信に失敗しました: {choicesResult.Error ?? assetStateResult.Error ?? tuningUsageResult.Error ?? assetParamsResult.Error}";
+                        });
                     });
                 });
             });

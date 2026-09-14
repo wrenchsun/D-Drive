@@ -240,6 +240,22 @@ test('書き込みトークンで choices/assetState/tuningUsage は呼べる', 
   assert.equal(body.ok, true);
 });
 
+// O-6（D-Drive 側、2026-09-14）: assetParams を許可表に追加した。
+test('書き込みトークンで assetParams は呼べる（O-6、パラメータスキーマ + 現在値の一方向送信）', () => {
+  const ctx = loadGas();
+  const token = ctx.issueApiToken('write');
+  const payload = {
+    schemas: [{ assetType: 'Se', concreteType: 'SeData', fields: [{ name: 'Volume', type: 'float', tooltip: '', min: 0, max: 1 }] }],
+    items: []
+  };
+  const output = ctx.doPost({
+    parameter: { api: '1', name: 'assetParams', token: token, payload: JSON.stringify(payload) }
+  });
+  const body = JSON.parse(output.getContent());
+  assert.equal(body.ok, true);
+  assert.deepEqual(Array.from(body.updatedSchemaTypes), ['SeData']);
+});
+
 test('書き込みトークンで tuningScalarUpdate を呼ぶと 403 で拒否される(値そのものは書き換えられない)', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('write');
