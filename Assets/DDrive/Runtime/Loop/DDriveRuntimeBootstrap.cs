@@ -283,6 +283,15 @@ namespace DDrive.Runtime.Loop
             // キューに保留し(SetRegistryReady(false))、完了後に登録順で処理する(SetRegistryReady(true) が
             // まとめて flush する)。ローカル(手で Play() を呼ぶ)経路は影響を受けない([14_networking.md] §5)。
             Presentation.SetRegistryReady(false);
+            // [14_networking.md] §5(6-0 修正7、実機確認 v3 で発見した実バグの修正) — Client 視点で
+            // Host との接続を失ったときに、ネット経由で開始した Presentation(StopOnCancel=true の
+            // Vfx/Se 等を含む)を強制終了する。NgoBridgeRef は Ngo モードのときだけ非 null(Loopback は
+            // ClientDisconnected を持たない=既存のシングルプレイ挙動を変えない、[14] §1)。
+            if (NgoBridgeRef != null)
+            {
+                NgoBridgeRef.ClientDisconnected += OnNetClientDisconnected;
+            }
+
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
             UiDispatcher = new AssetEventDispatcher(Ui.Events, Registry, Audio, Vfx, Ui.GetContextTransform, Groups);
@@ -397,11 +406,27 @@ namespace DDrive.Runtime.Loop
             return go.AddComponent<AudioSource>();
         }
 
+        // [14_networking.md] §5(6-0 修正7) — 自分(Client)が Host との接続を失ったときだけ、ネット経由の
+        // Presentation を強制終了する。Host 視点(相手が抜けた)は自分の接続は継続しているため対象外
+        // (NgoNetBridge.IsConnected が Client 側でだけ false になる既存の仕様と対になる判定)。
+        private void OnNetClientDisconnected(ulong clientId, string reason)
+        {
+            if (NgoBridgeRef != null && !NgoBridgeRef.IsServer)
+            {
+                Presentation?.CancelAllNetworked();
+            }
+        }
+
         private void Teardown()
         {
             if (!_built)
             {
                 return;
+            }
+
+            if (NgoBridgeRef != null)
+            {
+                NgoBridgeRef.ClientDisconnected -= OnNetClientDisconnected;
             }
 
             var loop = Loop != null ? Loop.GameLoop : null;

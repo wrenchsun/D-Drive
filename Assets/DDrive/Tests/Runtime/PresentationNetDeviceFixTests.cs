@@ -83,6 +83,23 @@ namespace DDrive.Tests.Runtime
             return go;
         }
 
+        // 6-0 修正7 の回帰テスト用: 実機確認 v3 で見つかった実バグ(VFX_Player_Slash / vfx_sample.prefab、
+        // docs/29 §8)と同じ「looping=true の ParticleSystem」を模す。VfxManager.IsLifetimeExpired は
+        // OneShot でも ps.IsAlive(true) が常に true のままだと自然終了しない(ps.main.loop=true だと
+        // 放出が続く限り IsAlive のまま)ため、Stop() を明示的に呼ばない限りいつまでも再生され続ける。
+        private GameObject CreateLoopingVfxPrefab()
+        {
+            var go = new GameObject("PresentationNetDeviceFixTestLoopingVfxPrefab");
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var main = ps.main;
+            main.duration = 5f;
+            main.loop = true;
+            main.startLifetime = 5f;
+            _spawnedGameObjects.Add(go);
+            return go;
+        }
+
         private static PresentationData CreateData(params PresentationTrack[] tracks)
         {
             var data = ScriptableObject.CreateInstance<PresentationData>();
@@ -319,6 +336,81 @@ namespace DDrive.Tests.Runtime
             relay.Advance(1.0);
 
             Assert.IsEmpty(client.Manager.DebugActiveHandles(), "配送前に破棄された PlayMsg は NetworkTime が変化しても処理されない(切断後の誤発火を防ぐ)");
+        }
+
+        // ── 6-0 修正7(実機確認 v3 で発見した実バグ): 切断後も VFX が消えずに描画し続ける ──
+        // docs/29 §8「修正版 v3 での再確認」参照。ネット受信で開始した Presentation が再生中に
+        // (Client 視点で)切断されたとき、PresentationManager.CancelAllNetworked() が StopOnCancel=true の
+        // Loop VFX を強制停止することを検証する(Interruptible=false でも止まることも合わせて確認)。
+
+        [Test]
+        public void CancelAllNetworked_StopsLoopingFiredVfx_EvenWhenNotInterruptible()
+        {
+            var relay = new DelayedNetworkRelay { LatencySeconds = 0.1 };
+            var host = NewNetPeer(relay, 0UL, isServer: true);
+            var client = NewNetPeer(relay, 1UL, isServer: false);
+            var hostVfx = new VfxManager(host.Pool, host.Registry);
+            var clientVfx = new VfxManager(client.Pool, client.Registry);
+            host.AttachManager(vfx: hostVfx);
+            client.AttachManager(vfx: clientVfx);
+
+            var vfxPrefab = CreateLoopingVfxPrefab();
+            var vfxId = _nextId++;
+            host.RegisterVfx(vfxId, vfxPrefab, VfxLifeMode.Loop);
+            client.RegisterVfx(vfxId, vfxPrefab, VfxLifeMode.Loop);
+
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(new AssetId<VfxMarker>(vfxId, AssetType.Vfx)),
+                StopOnCancel = true,
+            };
+            var presId = _nextId++;
+            var hostData = CreateData(track);
+            hostData.TotalDuration = 30f; // 「切断」の時点でまだ Presentation 自体は完了していない
+            hostData.Interruptible = false; // 切断は Interruptible に関係なく強制終了することを確認する
+            host.RegisterPresentation(presId, hostData);
+            client.RegisterPresentation(presId, CloneForNetPeerClient(hostData));
+
+            host.Manager.PlayData(host.Resolve(presId), new PlayContext());
+            relay.Advance(0.15);
+
+            Assert.AreEqual(1, clientVfx.ActiveCount, "受信側で Loop VFX が再生中(修正前の実バグ再現条件: looping な ParticleSystem は自然終了しない)");
+            Assert.AreEqual(1, client.Manager.DebugActiveHandles().Count);
+
+            // Client 自身が Host との接続を失った(NgoNetBridge.HandleClientDisconnected の Client 分岐 →
+            // DDriveRuntimeBootstrap.OnNetClientDisconnected 相当)。
+            client.Manager.CancelAllNetworked();
+
+            Assert.AreEqual(0, clientVfx.ActiveCount, "6-0 修正7: 切断で StopOnCancel=true の Loop VFX が停止する(生存数 0)");
+            Assert.IsEmpty(client.Manager.DebugActiveHandles(), "Presentation Instance 自体も Cancel され台帳から外れる(Interruptible=false でも強制終了)");
+
+            // Host 側は「自分が切断された」わけではない(この API 自体はどちら側からでも呼べば効くが、
+            // 呼ぶかどうかの判断は DDriveRuntimeBootstrap 側の責務であることをここでも明示しておく)。
+            Assert.AreEqual(1, hostVfx.ActiveCount, "Host 側は CancelAllNetworked を呼んでいないため影響を受けない");
+        }
+
+        [Test]
+        public void CancelAllNetworked_DoesNotAffect_NonNetworkedPresentation()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var manager = new PresentationManager(registry, new TimeService());
+
+            var track = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Marker, SignalKey = "m" };
+            var data = ScriptableObject.CreateInstance<PresentationData>();
+            data.Tracks = new[] { track };
+            data.TotalDuration = 30f;
+            data.Interruptible = true;
+
+            var handle = manager.PlayData(data, new PlayContext());
+            Assert.IsTrue(manager.IsPlaying(handle), "netBridge 無しの通常再生(ネット非経由)");
+
+            manager.CancelAllNetworked();
+
+            Assert.IsTrue(manager.IsPlaying(handle), "IsNetworked=false の Instance は CancelAllNetworked の対象外");
         }
     }
 }
