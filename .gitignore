@@ -108,3 +108,9 @@ InitTestScene*.unity*
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
 codexreview/
+
+# エージェントの作業コピー(.claude/ 自体は無視しない。中に共有設定が入る可能性があるため)
+.claude/worktrees/
+
+# Office のロックファイル(例: docs/SpecSheetTemplate/~$DDrive_仕様書テンプレート.xlsx)
+~$*
