@@ -71,11 +71,13 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
 
 - `[DDriveNetCheck] ready=1 role=host|client|server|off` — 起動直後 1 回
 - `[DDriveNetCheck] heartbeat=1 role=... clientId=... networkTime=... activeCount=N connected=0|1 rtt_app_ms=...` — 1 秒おき(または activeCount が変化した時)。**Late Join の判定**: 新規接続したクライアントの `activeCount` が `0` → `1` に変わる行が出れば復元成功。**2026-09-14 修正で `connected`/`rtt_app_ms` を追加**(6-0 修正1/5)。`connected` は Client が Host との接続を保っているか(Host は常に 1)。`rtt_app_ms` は `NgoNetBridge` が Ping/Pong で計測したアプリ層の往復時間(ms。Loopback や計測前は `n/a`)。**トランスポートの RTT(`NetDebugOverlay` の `RTT:`)は `-ddrive-sim-latency` を反映しない**(課題1、下記参照)ため、遅延シミュレーターが効いているかどうかは `rtt_app_ms` で判定する
-- `[DDriveNetCheck] disconnected=1 role=... reason=...` — **2026-09-14 修正(6-0 修正5)で追加**。Client が Host との接続を失ったときに 1 回だけ出る(`NetworkManager.OnClientDisconnectCallback`/`DisconnectReason` を中継)
+- `[DDriveNetCheck] disconnected=1 role=... reason=...` — **2026-09-14 修正(6-0 修正5)で追加**。Client が Host との接続を失ったときに 1 回だけ出る(`NetworkManager.OnClientDisconnectCallback`/`DisconnectReason` を中継)。**2026-09-14 追加修正(6-0 修正6、切断確認で発見)**: 切断後は `heartbeat` の `rtt_app_ms` が最後の値を表示し続けず `n/a` に戻る(`NgoNetBridge.AppRoundTripMs` を切断時にリセットする)。デバッグ表示(`NetDebugOverlay`)にも `State: 接続中/切断` の行を追加した
 - `[DDriveNetCheck] play=<回数> startNetTime=...` — Host が剣攻撃デモ(`PRES_Demo_SkillSlash`)を Play したとき(Host 側のみ)
 - `[DDriveNetCheck] signal_fire=hit key=<HandleNetKey> networkTime=...` — 行為者(Host)が `handle.Signal("hit")` を呼んだ(意図表明した)とき(Play から `signalDelaySeconds`(既定 0.5s)後)。**2026-09-14 修正前は `signal=hit`(key/networkTime 無し)で、「全ピア」という記述が誤りだった**(実際は Host が呼んだ直後にしか出ず、Client 側は一切出さなかった。→ 6-0 修正2)
 - `[DDriveNetCheck] signal_recv=hit key=<HandleNetKey> networkTime=...` — **2026-09-14 修正(6-0 修正2)で追加**。各ピア(Host 自身の予測 Instance も含む)で実際に `OnSignal` トラックがネット経由で発火したときに出る(`PresentationManager.OnTrackFired`/`OnNetworkReceivedPlay` を使う)。`signal_fire` と `signal_recv` の `networkTime` を突き合わせることで位相差を判定できる
-- `[DDriveNetCheck] forged_cancel_sent=<key>` — Client が偽造 Cancel を送信したとき(既定 5 秒おき、Client のみ)。**偽造メッセージ破棄の判定**: この行の直後(同じフレーム〜数フレーム以内)に **Host または他クライアントの `Player.log` に `[Net/Host]` または `[Net/Client]` の警告(「送信元 ClientId(...) が発行者と一致しないため破棄しました」)が出て、`heartbeat` の `activeCount` が変化しない**ことを確認する
+- `[DDriveNetCheck] forged_cancel_sent=<key>` — Client が偽造 Cancel を送信したとき(既定 5 秒おき、Client のみ)。**偽造メッセージ破棄の判定**: この行の直後(同じフレーム〜数フレーム以内)に **Host または他クライアントの `Player.log` に `[Net/Host]` または `[Net/Client]` の警告(「送信元 ClientId(...) が発行者と一致しないため破棄しました」)が出て、`heartbeat` の `activeCount` が変化しない**ことを確認する。**2026-09-14 修正(6-0 修正6)**: `sendForgedCancelPeriodically` は切断中(`connected=0`)は送らない(以前は切断後も 5 秒おきに `NgoNetBridge.Broadcast` の「未接続のため送信できません」警告が出続けていた)
+- `[DDriveNetCheck] track_fired=1 kind=<Kind> time=<Time> key=<HandleNetKey> late_ms=<ms> networkTime=...` — **2026-09-14 修正(6-0 修正6)で追加**。各ピアで `TrackTrigger.AtTime` のトラック(Vfx/Se/Anim 等)が実際に発火した瞬間に出る(`PresentationManager.OnAtTimeTrackFired`、Manager 全体の event。Handle 単位の `OnTrackFired(handle)` だと Play() 内の同期発火に購読が追いつかないため専用の event にした)。`late_ms`(= `(elapsed - Time) * 1000`)が判定の主眼: 通常再生・予測再生では 0 に近く、遅延受信では猶予(既定 0.5 秒 = 500ms)以内の正の値になる。**遅延がある環境で VFX/SE が実際に描画/再生されたかをスクリーンショットに頼らず判定できる**(修正前に見つかった実バグ: 遅延 200ms で `late_ms` に相当する猶予が無かったため、開始直後のワンショット演出がリモートで一切発火しなかった)
+- `[DDriveNetCheck] track_skipped=1 kind=<Kind> time=<Time> key=<HandleNetKey> late_ms=<ms>` — **2026-09-14 修正(6-0 修正6)で追加、開発ビルドのみ**。`late_ms` が猶予(既定 500ms)を超えていてワンショットの発火をスキップしたとき(Late Join で大幅に古い演出を復元しようとした場合など)に出る
 - `[Net/Host]` / `[Net/Client]` — `NgoNetBridge`/`PresentationManager` のログ全般(接続・レート制限・発行者検証の破棄など)
 
 **位相差の判定**: Host/Client 双方の `heartbeat` 行を `play` の直後(数秒間)で突き合わせ、`networkTime` の差が概ね RTT/2 以内(数十 ms 以内、`-ddrive-sim-latency` を上げた場合はその分)であれば OK(`NetDebugOverlay` の RTT 表示も併用)。
@@ -130,7 +132,13 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
   - **⚠ 新しい実バグ: 遅延 200ms では剣攻撃デモのエフェクト（VFX）が Client の画面に一切描画されない**（PC-B のスクリーンショット 5 枚すべてで中央の粒子が 0 画素。v2 0ms と v1 200ms では描画されていた）。ログ上は `activeCount` 5〜6・`signal_recv` も届いている
   - **原因（オーケストレーターがコードで確認）**: `PresentationManager.OnReceivePlayMsg` が `elapsed = Max(0, NetworkTime - StartNetTime)`（443 行付近）でシーク開始し、`FireInitialTracks` が `elapsed > 0` なら連続系でないワンショット（Time=0 の VFX / SE）を**すべてスキップ**する（1086 行付近）。遅延 0ms では Client の ServerTime が約 80 ms 遅れて推定されるため差が負 → 0 にクランプされて発火していたが、遅延があると差が正になり、**開始直後のワンショット演出がリモートでは必ず見えない**。v1 の 200ms はシミュレーターが no-op で実際には遅延が無かったため顕在化しなかった
   - 修正方針: 「少し遅れて届いただけ」のワンショットは遅れて発火する猶予（例 0.5 秒）を設け、それより古いもの（Late Join 等）だけスキップする
-- 切断: 確認中（PC-A の Host v2 を 14:04:34 に停止、PC-B の報告待ち）
+    → **2026-09-14 修正(6-0 修正6)**。`PresentationManager` に猶予(既定 0.5 秒)を追加し、`lateBySec`(= `elapsed - track.Time`)が猶予以内ならワンショットを遅れて発火させ、それを超える場合だけ従来どおりスキップするようにした。判定用ログ(`track_fired`/`track_skipped`)も追加した。詳細は [14_networking.md](14_networking.md) の「実装メモ（2026-09-14、6-0 修正6）」、回帰テストは `PresentationNetDeviceFixTests.RemoteOneShotVfx_WithinGrace_FiresLate_OnBothPeers`/`RemoteOneShotVfx_ExceedsGrace_IsSkipped_AndRaisesOnRemoteOneShotSkipped`、`PresentationLateJoinTests.LateJoin_LoopingVfx_IsRestored_ButOldOneShotMarker_IsNotFired_...`。ローカル結合確認は本ドキュメント §9 の「ラウンド3」に追記。
+- **切断: 成功**（オーケストレーターが PC-B で再確認。PC-A の Host v2 を 14:04:34 に停止 → PC-B の Client に `[Net/Client] NgoNetBridge: Host から切断されました(reason=...[ProtocolTimeout] Connection closed due to timed out.)` と `[DDriveNetCheck] disconnected=1 role=client reason=...` が 1 回ずつ、以後 `connected=0`、Exception/Error/再接続 0 件。課題5(切断検知)は実機でも解消を再確認できた）
+  - この再確認で追加で見つかった課題 4 件（オーケストレーターからの追加指示）は全て 6-0 修正6 として同じ PR で対応した。詳細は [14_networking.md](14_networking.md) の同節を参照:
+    1. 切断後も `rtt_app_ms` が最後の値(212)を表示し続ける → `AppRoundTripMs` を切断時にリセット
+    2. 切断後も 5 秒おきに偽造 Cancel を送ろうとして「未接続のため送信できません」警告が出続ける → 切断中は送らない
+    3. **切断直後に Client の画面へ粒子エフェクトが薄く出る**(接続中の 200ms では出ていなかった VFX が、切断の瞬間だけ描画された)。原因はアプリ層遅延キューに残っていた `PlayMsg` が、切断で `NetworkTime` が 0 に巻き戻った状態で処理され `elapsed=0` と誤認されたこと → `NgoNetBridge` に切断時にキューを破棄する `CancellationTokenSource` を追加
+    4. デバッグ表示に接続状態(「接続中/切断」)の行が無い → `NetDebugOverlay` に追加
 
 ### 実機確認で見つかった課題（2026-09-14、修正チケットへ）
 
@@ -278,3 +286,78 @@ OnReceivePlayMsg_BeforeRegistryReady_IsQueued_AndFlushedWithoutPlaceholder_After
 起動した 4 プロセス(ラウンド1のホスト/クライアント、ラウンド2のホスト/クライアント)は各ラウンドの
 `-ddrive-autotest` によりすべて自動終了した(確認後、`tasklist` で `DDriveNetCheck.exe` が残っていないことを
 確認済み)。
+
+## 10. 6-0 修正6 のローカル結合確認結果(2026-09-14)
+
+`NetCheckBuilder.Build()` で再ビルド(`Builds/DDriveNetCheck.zip`、109,173,079 bytes)し、このPC上で
+ループバック(127.0.0.1)2 プロセスを 4 ラウンド実行して確認した(`-batchmode -nographics`、
+`-ddrive-host 127.0.0.1` を両方に明示)。
+
+**ラウンド1(0ms、`host_grace_r2.log`/`client_grace_r2.log`)**:
+
+```
+[client_grace_r2.log]
+[DDriveNetCheck] track_fired=1 kind=Vfx time=0.00 key=0x00AEA992 late_ms=0 networkTime=3.09
+[DDriveNetCheck] track_fired=1 kind=Se time=0.00 key=0x00AEA992 late_ms=0 networkTime=3.09
+```
+
+**ラウンド2(Client のみ `-ddrive-sim-latency 200`、`host_grace_r3_200ms.log`/`client_grace_r3_200ms.log`)** —
+6-0 修正6 の本題(修正版 v2 で見つかった実バグ)の直接確認:
+
+```
+[client_grace_r3_200ms.log]
+[DDriveNetCheck] track_fired=1 kind=Vfx time=0.00 key=0x0059C254 late_ms=138 networkTime=3.30
+[DDriveNetCheck] track_fired=1 kind=Se time=0.00 key=0x0059C254 late_ms=138 networkTime=3.30
+[DDriveNetCheck] track_fired=1 kind=Vfx time=0.00 key=0x00E6D9CE late_ms=145 networkTime=6.31
+[DDriveNetCheck] track_fired=1 kind=Se time=0.00 key=0x00E6D9CE late_ms=145 networkTime=6.31
+
+[host_grace_r3_200ms.log]
+[DDriveNetCheck] track_fired=1 kind=Vfx time=0.00 key=0x0059C254 late_ms=0 networkTime=3.16
+[DDriveNetCheck] track_fired=1 kind=Se time=0.00 key=0x0059C254 late_ms=0 networkTime=3.16
+```
+
+**修正版で `late_ms≒140` の遅れで確実に発火する**(修正前は 200ms 級の遅延で一切発火しなかった実バグが
+解消)。`late_ms` が厳密に 200 ではなく 138〜145 なのは、[14_networking.md] 実装メモに記載のとおり
+Client→Host のアプリ層遅延経路(送信キュー/受信キューのどちらを経由するか)による(§4 判定基準の
+`rtt_app_ms` は同じラウンドで 200 台を計測済み、docs 未転記だが実測は別途 §4 の記述と整合)。
+Exception/Error は 0 件。
+
+**ラウンド3(猶予超え、Client `-ddrive-sim-latency 700`、`client_grace_r4_700ms.log`)** — 猶予(0.5秒 = 500ms)
+を超えた場合に正しくスキップされることの確認:
+
+```
+[client_grace_r4_700ms.log]
+[DDriveNetCheck] track_skipped=1 kind=Vfx time=0.00 key=0x00E7B834 late_ms=636
+[DDriveNetCheck] track_skipped=1 kind=Se time=0.00 key=0x00E7B834 late_ms=636
+```
+
+`track_fired` は 0 件、`track_skipped` のみ(`late_ms=636`>500)。猶予の境界判定が意図どおり機能している。
+
+**ラウンド4(切断、Client `-ddrive-sim-latency 200` 常駐 + Host 通常終了、`host_disc_r7.log`/
+`client_disc_r7.log`)** — オーケストレーター追加指示(1)〜(3)の直接確認。Host を `-ddrive-autotest` で
+自動終了させ(グレースフルシャットダウン)、Client は `-ddrive-autotest` を付けずに常駐させて切断後も
+長時間観測した(`Stop-Process` で最後に停止):
+
+```
+[client_disc_r7.log]
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=11.33 activeCount=3 connected=1 rtt_app_ms=200
+[DDriveNetCheck] disconnected=1 role=client reason=[Disconnect Event][Client-1][TransportClientId-4294967296][ClosedByRemote] Connection was closed by remote endpoint.
+[DDriveNetCheck] heartbeat=1 role=client clientId=0 networkTime=0.00 activeCount=3 connected=0 rtt_app_ms=n/a
+  … (以後 14 回以上 connected=0 rtt_app_ms=n/a が続く。切断後 14 秒以上観測)
+```
+
+確認できたこと:
+- **(1) 解消**: 切断後は `rtt_app_ms` が最後の値(200)を表示し続けず、直後から一貫して `n/a`
+- **(2) 解消**: 切断後 14 秒以上(forgedMessageIntervalSeconds=5s を 2 回以上跨ぐ時間)観測しても
+  `forged_cancel_sent` は 1 件も出ず、`未接続のため送信できません` 警告もログ全体で 0 件
+  (`grep -c` で確認)
+- **(3) 解消**: 切断前後を通じて `track_fired`/`track_skipped` は切断直前(networkTime=9.33)が最後で、
+  切断後は 1 件も出ない(=切断で NetworkTime が巻き戻った状態で古い PlayMsg が処理される実バグは
+  再発していない)。Exception/Error は全体で 0 件
+- 参考: `Stop-Process -Force`(強制終了、グレースフルシャットダウンなし)で Host を落とした別ラウンドでは、
+  Client 側の固定実行時間(約 8 秒)内に切断検知(ProtocolTimeout、実機確認と同種)に至らなかった。
+  グレースフルシャットダウン(`Application.Quit()`)は `ClosedByRemote` として即座に検知される一方、
+  強制終了はタイムアウト検知のため数秒〜数十秒かかる(実機確認 v1/v2 で観測した `[ProtocolTimeout]` と
+  同じ性質)。この非対称性自体は既知の NGO の挙動であり、6-0 修正6 のスコープ外として扱う
+
+起動した全プロセスは確認後に `tasklist`/`Stop-Process` で残っていないことを確認済み。

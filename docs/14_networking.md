@@ -121,7 +121,7 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
 - **NetChannel**: Play/Signal/Cancel はいずれも `NetChannel.ReliableOrdered` で送る（§8 のバッチ化・Unreliable は VFX/SE 単位の高頻度イベント向けであり、Presentation の Play/Signal/Cancel は頻度が低く、欠落してよい類のイベントでもないため）。SE/VFX のような同一 Tick 内バッチ化も行わない(Presentation の呼び出し頻度は VFX/SE ほど高くないと想定した設計判断)。
 - **配送経路**: `PresentationManager` は `AudioManager`/`VfxManager`/`PrefabsManager` と同じ形で `INetBridge netBridge = null` を受け取る（null=シングルプレイ相当で常にローカル、既存の原則どおり）。`Flags.Net == NetMode.Cosmetic` かつ `netBridge != null` のときだけネット経路に乗る。`NetMode.Simulated` は Presentation には意味を持たせず(Info 検査で警告)、通常のローカル再生にフォールバックする。
 - **予測再生と重複抑制**: `PresentationData.PredictLocal=true` のとき、`Play()` 呼び出し元(行為者)は即座にローカル Instance を生成して `Handle` を返す(`FireDueTracks` 相当が同期的に走る)と同時に Broadcast する。Broadcast は Host/Client 問わず(NGO では Client→Host→全員の中継を `NgoNetBridge` が既存のとおり行う。Loopback/テストでは直接)、送信元自身にも `ClientsAndHost` 経由で返ってくる。受信側は `HandleNetKey` を `_networkedHandles` で引き、既に自分の Instance(予測済みまたは受信生成済み)があれば**新規生成せず**、Host なら「アクティブ演出リスト」への登録だけ行う(二重発火・二重生成を防ぐ)。`PredictLocal=false` の Presentation は SE/VFX の既存 Cosmetic と同じく、自分の Broadcast を受信して初めて再生する。
-- **開始時刻シーク（`PlayRemote` = `OnReceivePlayMsg`）**: `elapsed = max(0, NetworkTime - StartNetTime)`。`duration > 0 && elapsed >= duration` なら「到着時点で既に終わっている演出」として復元しない（Late Join のワンショット非復元と同じロジックを再利用）。それ以外は `Elapsed = elapsed` で Instance を作り、`Time <= elapsed` の AtTime トラックのうち **one-shot は鳴らさずスキップ**（`Fired` だけ立てる）、**continuous(ループ)系だけ今から再生開始**する。判定は `PresentationManager.IsContinuousAtSeek`: Anim/Anim2D/Bgm は常に continuous、**Vfx/Se はデータ側のループ設定（`VfxData.LifeMode==Loop` / `SeData.Loop`）を見て判定**する（一撃 VFX・単発 SE はワンショットのままスキップし、常駐 VFX・ループ SE だけ復元対象にする。5-9 の「途中参加でループ VFX/BGM が復元」AC に必要な判定で、当初は Kind 単位の固定分類だけだったが Vfx を一律ワンショット扱いにしていたため late-join の VFX 復元テストが失敗し、この形に修正した)。Anim/Anim2D はさらに `AnimManager.Seek(handle, normalizedTime)` で位相を合わせる（`AnimData.LengthSec` から算出。**要判断**: Bgm は `BgmManager` に Seek API が無いため頭から再生するだけで位相は合わせていない。厳密な同期が必要になったら `BgmManager` 側に再生位置指定 API を追加すること）。
+- **開始時刻シーク（`PlayRemote` = `OnReceivePlayMsg`）**: `elapsed = max(0, NetworkTime - StartNetTime)`。`duration > 0 && elapsed >= duration` なら「到着時点で既に終わっている演出」として復元しない（Late Join のワンショット非復元と同じロジックを再利用）。それ以外は `Elapsed = elapsed` で Instance を作り、`Time <= elapsed` の AtTime トラックのうち **one-shot は(2026-09-14 修正、下記「6-0 修正6」参照)猶予以内なら遅れて発火・猶予より古ければスキップ**（`Fired` だけ立てる）、**continuous(ループ)系だけ今から再生開始**する。判定は `PresentationManager.IsContinuousAtSeek`: Anim/Anim2D/Bgm は常に continuous、**Vfx/Se はデータ側のループ設定（`VfxData.LifeMode==Loop` / `SeData.Loop`）を見て判定**する（一撃 VFX・単発 SE はワンショットのままスキップし、常駐 VFX・ループ SE だけ復元対象にする。5-9 の「途中参加でループ VFX/BGM が復元」AC に必要な判定で、当初は Kind 単位の固定分類だけだったが Vfx を一律ワンショット扱いにしていたため late-join の VFX 復元テストが失敗し、この形に修正した)。Anim/Anim2D はさらに `AnimManager.Seek(handle, normalizedTime)` で位相を合わせる（`AnimData.LengthSec` から算出。**要判断**: Bgm は `BgmManager` に Seek API が無いため頭から再生するだけで位相は合わせていない。厳密な同期が必要になったら `BgmManager` 側に再生位置指定 API を追加すること）。
 - **Signal 中継**: `handle.Signal(key)` は Instance が `IsNetworked` なら直接発火せず `PresentationSignalMsg` を Broadcast する（Host 権威。Client 発は `NgoNetBridge` が既存の「Client→Host 依頼→レート制限検証→全員へ配る」経路を通るため、Presentation 側で追加の検証コードは書いていない。受信側で `HandleNetKey` が未知なら何もしない、というのが ID 未検証時の安全側フォールバックになっている）。受信側 `OnReceiveSignalMsg` は `SignalKeyHash` が一致する未発火の OnSignal トラックを発火する。
 - **Cancel 中継**: 同様に `PresentationCancelMsg` を Broadcast してから、自分を含む全員が受信して初めて `CancelInternal` する（直接 Cancel すると Broadcast 前に自分だけ止まってしまうため）。
 - **HitStop は全員が実行する（観戦者を区別しない、既定）**: §6 の「HitStop はローカル演出として各自実行」を、MS2026 の 1v1 前提（当事者は必ず 2 人だけ）ではそのまま「Signal を受け取った全ピアが同じように HitStop する」でよいと判断した。**要判断**: 将来 3 人以上の観戦者が入る構成になった場合、観戦者は HitStop すべきでない可能性があるため、その時点で PlayContext 側に「当事者かどうか」を判定する仕組みを追加すること。
@@ -237,6 +237,77 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
   ため。UnityTransport の `SetDebugSimulatorParameters` が no-op である以上、同じ問題を抱えているはずだが、
   実機確認で明示的に指摘されなかったため見送った。要判断: 必要になれば `NgoNetBridge` の送信キューで
   `UnityEngine.Random` によるドロップ判定を追加する形で同じ枠組みに乗せられる)。
+
+## 実装メモ（2026-09-14、6-0 修正6: 実機確認 v2 で発見した「遅延時にワンショットが一切発火しない」実バグの修正）
+
+[docs/29](29_network_device_test.md) §8「修正版 v2 での再確認」で見つかった、遅延 200ms 環境で剣攻撃デモの
+VFX が Client に一切描画されない実バグの修正。加えて、その後の切断確認で見つかった 4 件の小さな課題も
+同じ PR で対応した。
+
+- **原因**: `PresentationManager.OnReceivePlayMsgInternal` が `elapsed = Max(0, NetworkTime - StartNetTime)`
+  でシーク開始し、`SeekInitialTracks`(旧称。実装は変わらず本節でリネームはしていない)が `elapsed > 0` かつ
+  `IsContinuousAtSeek` でないワンショット(Time=0 の VFX/SE 等)を無条件にスキップしていた。遅延 0ms では
+  Client の ServerTime 推定が Host より約 80ms 遅れて見える([docs/29](29_network_device_test.md) §8 の
+  気になる点①)ため差が負になり `Max(0, ...)` で 0 にクランプされて偶然発火していたが、実際に遅延がある
+  と差が正の値になり、開始直後のワンショット演出がリモートでは常にスキップされていた。
+- **修正**: `SeekInitialTracks` のワンショットスキップ判定に猶予(`_remoteOneShotGraceSec`)を追加した。
+  `lateBySec = elapsed - track.Time` を計算し、`lateBySec <= 猶予` なら「単に遅れて届いただけ」として
+  そのまま `FireTrack` を呼んで遅れて発火させる(VFX はシーク相当ではなく頭から再生になるが、要判断: 秒数が
+  短いワンショットでは実用上問題ないと判断した。厳密なシーク再生が必要になったら見直すこと)。`lateBySec` が
+  猶予を超えるものだけ従来どおり `Fired[t]=true` にしてスキップする(Late Join で大幅に古い演出を復元する
+  ケースなど)。**猶予の既定値は 0.5 秒**とした(要判断の詳細は [docs/31](31_phase5_decisions.md) 参照)。
+  シリアライズフィールドは増やさず、`PresentationManager` のコンストラクタの任意引数
+  `remoteOneShotGraceSec = 0.5f` として渡す(`DDriveRuntimeBootstrap` は明示せず既定値のまま使う)。
+  Late Join のスナップショット再送(5-9)は `OnReceivePlayMsg` と全く同じコード経路(`SeekInitialTracks`)を
+  通るため、この猶予ロジックは追加の分岐なしで両方に一律適用される(回帰テスト
+  `PresentationLateJoinTests.LateJoin_LoopingVfx_IsRestored_ButOldOneShotMarker_IsNotFired_...` で
+  「ループ系は復元されるが、同じ Presentation 内の遠い過去のワンショットはスキップされる」の両立を確認)。
+- **判定用ログ**: 確認ツール専用に `PresentationManager` へ Manager 全体で 1 つの event を 2 つ追加した:
+  `OnAtTimeTrackFired(PresentationTrack, uint handleNetKey, float elapsed)`(`TrackTrigger.AtTime` のトラックが
+  `FireTrack` へ実際に委譲された=発火した瞬間に発火。`elapsed` はその時点の `Instance.Elapsed`)と
+  `OnRemoteOneShotSkipped(PresentationTrack, uint handleNetKey, float lateSec)`(猶予を超えてスキップした
+  ときに発火)。**要判断ではなく実装上の必然**: 当初は Handle 単位の既存 `OnTrackFired(handle)`
+  (R3 Observable)を `Play()` の戻り値を受け取った後に購読する設計にしていたが、`Play()` 自身が
+  `Time<=elapsed` のトラックを同期的に発火させてしまうため、Host の予測再生や Client の受信生成
+  (`OnNetworkReceivedPlay` 経由)いずれも「購読する前に最初の発火が終わっている」タイミング問題があり、
+  実機確認前のローカル結合確認で `track_fired` が一件も出ないことに気付いて発見した。Manager 全体の
+  event(`OnNetworkReceivedPlay`/`OnRemoteOneShotSkipped` と同じ設計)を `NetCheckRunner.Start()` で
+  一度だけ購読する形に直し、Play() 内の同期発火にも間に合うようにした。`NetCheckRunner` は
+  `OnAtTimeTrackFired` から `track_fired kind=<Kind> time=<Time> key=<HandleNetKey>
+  late_ms=<(elapsed-Time)*1000> networkTime=...` を、`OnRemoteOneShotSkipped` から(開発ビルドのみ)
+  `track_skipped kind=<Kind> time=<Time> key=<HandleNetKey> late_ms=...` を出す
+  ([docs/29](29_network_device_test.md) §4 参照)。OnSignal トラック(`signal_recv`)は元々 `Play()` の
+  戻り後にしか発火しないため、この問題の影響を受けず既存の Handle 単位購読のままでよい。
+- **切断確認(オーケストレーター追加指示)で見つかった追加課題 4 件**:
+  1. 切断後も `rtt_app_ms` が最後の値を表示し続ける → `NgoNetBridge.HandleClientDisconnected` が
+     (自分=Client が切断された場合だけ)`AppRoundTripMs = null` にリセットする。`NetCheckRunner`/
+     `NetDebugOverlay` は元から `HasValue` を見て `n/a` 表示するため、この一箇所のリセットだけで済んだ。
+  2. 切断後も `NetCheckRunner` が 5 秒おきに偽造 Cancel を送ろうとして `NgoNetBridge.Broadcast` の
+     「未接続のため送信できません」警告が出続ける → `NetCheckRunner.Update()` の偽造 Cancel 送信を、
+     新設した `Connected(bootstrap)` ヘルパー(Host/Loopback は常に true、Client は
+     `NgoNetBridge.IsConnected` を見る)でガードした。
+  3. **切断直後に Client の画面へ VFX が薄く出る**: アプリ層遅延キュー(`NgoNetBridge` の
+     `DelayedDispatch`/`DelayedSendTo`/`DelayedSendToAll`、`ConfigureAppLayerSimLatency` 参照)に積まれた
+     `UniTask.Delay` が切断後も生き続け、`NetworkTime` が 0 に巻き戻った状態(`NetworkManager.ServerTime`
+     が未接続時に返す値)で `Dispatch`/`SendTo` を実行してしまい、`elapsed = Max(0, 0 - StartNetTime) = 0`
+     と再計算されて「今始まった正常な Play」と誤認されていた。→ `NgoNetBridge` に
+     `CancellationTokenSource _appLayerQueueCts` を追加し、切断時(自分=Client が切断された場合。
+     `OnNetworkDespawn` でも Cancel する)に `Cancel()` する。`Delayed*` の各メソッドはスケジュール時点で
+     トークンを捕まえておき、`UniTask.Delay(..., cancellationToken: ct).SuppressCancellationThrow()` の後に
+     `ct.IsCancellationRequested` を確認してから実行する(`PingLoopAsync` と同じ既存パターン)。**実際の
+     NGO 接続が必要なため単体テストの対象外**(既存の慣習どおり)で、`docs/29` §7/§9 のローカル結合確認で
+     検証する。PresentationManager 側から見た契約(「配送前に破棄されたメッセージは NetworkTime が
+     巻き戻っても処理されない」)は回帰テスト
+     `PresentationNetDeviceFixTests.RemotePlay_DiscardedBeforeDelivery_IsNeverProcessed_EvenIfNetworkTimeRewinds`
+     で(`DelayedNetworkRelay.DiscardAllPending`/`RewindNetworkTimeToZero` を使い)検証する。
+  4. デバッグ表示に接続状態が無い → `NgoNetBridge.IsConnected`(公開プロパティ、既定 true、Client が
+     切断されたときだけ false)を追加し、`NetDebugOverlay` に `State: 接続中/切断` の行を追加した。
+- **軽微(元の実機確認 v2 の気になる点②)**: 起動直後(`role=off`)の heartbeat が `connected=1` と紛らわしく
+  出る問題も同じ修正で解消した。`NetCheckRunner.Connected(bootstrap)` は
+  `IsServer || (IsClient && (Ngo なら IsConnected))` を返すため、`role=off`(`IsServer`/`IsClient` 双方
+  false)では `connected=0` になる。
+- **軽微(気になる点③)**: `signal_recv` に `kind=<Kind>` を追加した(同じ `key` で OnSignal トラック数ぶん
+  行が出ることが分かるようにする)。
 
 ## 6. 時刻・乱数・決定性
 
