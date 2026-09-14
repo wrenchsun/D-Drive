@@ -45,6 +45,9 @@
     <!-- 緊急修正（2026-09-14）: 送信中表示（ボタン無効化 + 二重実行防止）とトースト通知の共通ヘルパー。
          Assets/OrderTree 等の書き込み系ボタンより先に include する。 -->
     <?!= include('html/UiFeedback'); ?>
+    <!-- O-16: 発注メモ（referenceMd）の書式ツールバー挿入ロジック（純粋関数）。
+         Assets.html より先に include する（buildMarkdownToolbar が window.MarkdownToolbar を使う）。 -->
+    <?!= include('html/MarkdownToolbar'); ?>
     <!--
       O-1〜O-5: アセット発注 一覧・詳細画面。AssetsLogic（純粋関数）→ Assets（registerScreen）の順。
       include() は入れ子のスクリプトレットを評価しないため、AssetsLogic の include は

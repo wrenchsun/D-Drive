@@ -66,6 +66,34 @@
     border-color: var(--sw-accent);
     box-shadow: 0 0 0 2px var(--sw-accent);
   }
+  /* O-15/O-16: 各発注の「編集」・メモアイコン、発注グループの編集フォーム。 */
+  ul.order-tree-items li button {
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.78rem;
+  }
+  .order-tree-group-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    border-top: 1px dashed var(--sw-border);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+  }
+  .order-tree-group-edit label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--sw-muted);
+    margin-bottom: 0.15rem;
+  }
+  .order-tree-group-edit input,
+  .order-tree-group-edit textarea {
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
 </style>
 
 <script>
@@ -209,7 +237,11 @@
         ganttUrl: '',
         filters: { assetType: '', contractor: '', orderer: '' },
         // O-13: `?page=group&id=...` で開かれた場合に一度だけスクロール+ハイライトする対象の id。
-        pendingOpenGroupId: (initialParams && initialParams.openGroupId) || null
+        pendingOpenGroupId: (initialParams && initialParams.openGroupId) || null,
+        // O-16: 各発注の「メモあり」アイコンで展開表示した項目の id 集合。
+        expandedMemoIds: {},
+        // O-15: 「編集」を押して編集フォームを表示中の発注グループ id（無ければ null）。
+        editingGroupId: null
       };
 
       var toolbar = el('div', { class: 'order-tree-toolbar' });
@@ -354,6 +386,15 @@
           ));
         }
         if (node.id && canEdit()) {
+          // O-15: 発注グループにも専用の詳細画面が無いため（O-13 と同じ理由）、このヘッダーに
+          // 直接「編集」を付ける。押すと下に編集フォーム（renderGroupEditForm）が開く。
+          var editGroupButton = el('button', { class: 'secondary', text: '編集' });
+          editGroupButton.addEventListener('click', function () {
+            state.editingGroupId = state.editingGroupId === node.id ? null : node.id;
+            renderBody();
+          });
+          header.appendChild(editGroupButton);
+
           // 緊急修正（2026-09-14）: 「削除機能はありますか？」への回答。既存 API
           // orderGroups.delete（src/OrderGroups.js）は配下の発注（parentId で参照するもの）が
           // 1件でも残っていると 400 で拒否する仕様（配下 0 件なら即削除できる）。付け替え・
@@ -381,15 +422,138 @@
         box.appendChild(header);
         if (node.orderer) box.appendChild(el('div', { class: 'sw-muted', text: '発注: ' + node.orderer + (node.dueDate ? ' 期限: ' + node.dueDate : '') }));
 
+        if (node.id && state.editingGroupId === node.id) {
+          var form = renderGroupEditForm(node);
+          if (form) box.appendChild(form);
+        }
+
         var list = el('ul', { class: 'order-tree-items' });
         node.items.forEach(function (item) {
-          list.appendChild(el('li', { text: item.assetType + ' : ' + item.identifier + '  受注:' + (item.contractor || '—') + '  [' + item.status + ']' }));
+          list.appendChild(renderOrderItem(item));
         });
         if (node.items.length === 0) {
           list.appendChild(el('li', { class: 'sw-muted', text: '（発注がありません）' }));
         }
         box.appendChild(list);
         return box;
+      }
+
+      /**
+       * O-15: 一覧・「私が発注／私が受けた」と同様、発注ツリーの各発注にも編集への導線を付ける
+       * （viewer には出さない）。O-16: メモが入力済みなら 📝 アイコンで整形表示を展開できる。
+       */
+      function renderOrderItem(item) {
+        var li = el('li');
+        li.appendChild(el('span', {
+          text: item.assetType + ' : ' + item.identifier + '  受注:' + (item.contractor || '—') + '  [' + item.status + ']'
+        }));
+        if (logic.hasReferenceMd(item)) {
+          var expanded = !!state.expandedMemoIds[item.id];
+          li.appendChild(el('button', {
+            class: 'secondary',
+            text: expanded ? '📝 ▲' : '📝',
+            onclick: function () {
+              state.expandedMemoIds[item.id] = !expanded;
+              renderBody();
+            }
+          }));
+        }
+        if (canEdit()) {
+          li.appendChild(el('button', {
+            class: 'secondary',
+            text: '編集',
+            onclick: function () {
+              // App.html が定義する画面遷移（このファイルの smoke テストの sandbox には無いため
+              // 存在確認してから呼ぶ。実アプリでは常に存在する）。
+              if (typeof window.SpecWebNavigate === 'function') {
+                window.SpecWebNavigate('assets', { params: { openId: item.id } });
+              }
+            }
+          }));
+        }
+        if (state.expandedMemoIds[item.id] && logic.hasReferenceMd(item)) {
+          var box = el('div', { class: 'assets-md-preview assets-memo-clip' });
+          box.innerHTML = logic.renderMarkdownSafe(item.referenceMd);
+          li.appendChild(box);
+        }
+        return li;
+      }
+
+      /**
+       * O-15: 発注グループの編集フォーム（orderGroups.update、既存 API）。集計済みの node
+       * ではなく state.groups の生データ（revision・presentationIdentifier・referenceMd 等を
+       * 持つ）を編集対象にする（OrderTreeLogic.buildOrderTree の node は表示用の集計値だけ）。
+       */
+      function renderGroupEditForm(node) {
+        var group = state.groups.filter(function (g) { return g.id === node.id; })[0];
+        if (!group) return null;
+
+        var fields = {
+          name: group.name || '',
+          presentationIdentifier: group.presentationIdentifier || '',
+          wbsNo: group.wbsNo || '',
+          orderer: group.orderer || '',
+          dueDate: group.dueDate || '',
+          referenceMd: group.referenceMd || ''
+        };
+
+        var wrap = el('div', { class: 'order-tree-group-edit' });
+
+        function fieldRow(key, label, type) {
+          var row = el('div');
+          row.appendChild(el('label', { text: label }));
+          var input = type === 'textarea' ? el('textarea', { rows: '3' }) : el('input', { type: type || 'text' });
+          input.value = fields[key];
+          input.addEventListener('input', function () { fields[key] = input.value; });
+          row.appendChild(input);
+          return row;
+        }
+
+        wrap.appendChild(fieldRow('name', '名前'));
+        wrap.appendChild(fieldRow('presentationIdentifier', 'Presentation 識別子'));
+        wrap.appendChild(fieldRow('wbsNo', 'WBS 番号'));
+        wrap.appendChild(fieldRow('orderer', '発注者'));
+        wrap.appendChild(fieldRow('dueDate', '目安期限', 'date'));
+        wrap.appendChild(fieldRow('referenceMd', '説明（Markdown）', 'textarea'));
+
+        var actions = el('div');
+        var saveButton = el('button', { text: '保存' });
+        saveButton.addEventListener('click', function () {
+          window.SpecWebUi
+            .runBusy('orderGroups.update:' + group.id, saveButton, function () {
+              return window.SpecWebClient.callApi('orderGroups.update', {
+                id: group.id, expectedRevision: group.revision, patch: JSON.stringify(fields)
+              }, { method: 'POST' });
+            })
+            .then(function (res) {
+              if (res.busy) return;
+              if (!res.ok) {
+                if (res.status === 409) {
+                  window.SpecWebUi.toastError('他の人が先に更新しました。最新の内容を再読込します。');
+                  reload();
+                  return;
+                }
+                window.SpecWebUi.toastError('保存に失敗しました: ' + (res.error || ''));
+                return;
+              }
+              state.groups = state.groups.map(function (g) { return g.id === res.item.id ? res.item : g; });
+              state.editingGroupId = null;
+              renderBody();
+              window.SpecWebUi.toastSuccess('保存しました');
+            });
+        });
+        var cancelButton = el('button', {
+          class: 'secondary',
+          text: 'キャンセル',
+          onclick: function () {
+            state.editingGroupId = null;
+            renderBody();
+          }
+        });
+        actions.appendChild(saveButton);
+        actions.appendChild(cancelButton);
+        wrap.appendChild(actions);
+        return wrap;
       }
 
       // O-13: renderBody で作った各グループボックスを id で引けるようにする

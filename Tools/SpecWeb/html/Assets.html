@@ -251,6 +251,30 @@
     font-size: 0.8rem;
     background: #eaeef2;
   }
+  /* O-16: 発注メモ（referenceMd）の書式ツールバー。html/OrderTree.html・html/MyOrders.html の
+     メモの折りたたみ表示（.assets-memo-clip）もこのページの <style> を共用する
+     （既存の sw-muted・sw-badge 等と同じ、include() で 1 ページに連結される前提の既存方針）。 */
+  .assets-md-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.3rem;
+  }
+  .assets-md-toolbar button {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.78rem;
+  }
+  .assets-memo-row td {
+    background: #fbfbfb;
+  }
+  .assets-memo-clip {
+    max-height: 6.5em;
+    overflow: hidden;
+  }
+  .assets-rename-hint {
+    margin-top: -0.5rem;
+    margin-bottom: 0.85rem;
+  }
 </style>
 
 <script>
@@ -424,7 +448,9 @@
         // O-13: `?page=order&id=...` で開かれた場合に一度だけ自動で開く対象の id
         // （src/Code.js の resolveInitialScreen_ → App.html の render(root, params) 経由）。
         pendingOpenId: (initialParams && initialParams.openId) || null,
-        detail: null // { mode: 'create'|'edit', item, fields, errors, paramSchemas, showMdPreview }
+        detail: null, // { mode: 'create'|'edit', item, fields, errors, paramSchemas, memoEditing }
+        // O-16: 一覧の行で「メモあり」アイコンを押して展開した項目の id 集合。
+        expandedMemoIds: {}
       };
 
       var toolbar = el('div', { class: 'assets-toolbar' });
@@ -599,10 +625,50 @@
           });
           headerRow.appendChild(th);
         });
+        headerRow.appendChild(el('th', { text: 'メモ' })); // O-16: 「メモあり」アイコン列（見出しはあるが並べ替え非対応）
         headerRow.appendChild(el('th', { text: 'D-Drive状態' }));
         headerRow.appendChild(el('th', { text: '' })); // O-13: リンクをコピー列（見出しなし）
         thead.appendChild(headerRow);
         return thead;
+      }
+
+      var ASSETS_TABLE_COLSPAN = 11; // O-16 でメモ列を追加した分、見出し数に合わせて更新する
+
+      /** O-16: 「メモあり」アイコン（押すと行の下にメモを展開表示する）。メモが無ければ「—」。 */
+      function buildMemoCell(item) {
+        var cell = el('td');
+        if (!logic.hasReferenceMd(item)) {
+          cell.appendChild(el('span', { class: 'sw-muted', text: '—' }));
+          return cell;
+        }
+        var expanded = !!state.expandedMemoIds[item.id];
+        cell.appendChild(el('button', {
+          class: 'secondary',
+          text: expanded ? '📝 ▲' : '📝',
+          onclick: function (ev) {
+            if (ev && ev.stopPropagation) ev.stopPropagation();
+            state.expandedMemoIds[item.id] = !expanded;
+            renderTable();
+          }
+        }));
+        return cell;
+      }
+
+      /** O-16: メモ展開行。長いメモは CSS でクリップし、「続きを読む」は詳細パネルを開く。 */
+      function buildMemoExpansionRow(item) {
+        var td = el('td', { colspan: String(ASSETS_TABLE_COLSPAN) });
+        var box = el('div', { class: 'assets-md-preview assets-memo-clip' });
+        box.innerHTML = logic.renderMarkdownSafe(item.referenceMd);
+        td.appendChild(box);
+        td.appendChild(el('button', {
+          class: 'secondary',
+          text: '続きを読む（詳細を開く）',
+          onclick: function (ev) {
+            if (ev && ev.stopPropagation) ev.stopPropagation();
+            openDetail({ mode: 'edit', item: item });
+          }
+        }));
+        return el('tr', { class: 'assets-memo-row' }, [td]);
       }
 
       function buildRow(item) {
@@ -625,10 +691,19 @@
           el('td', { text: item.dueDate || '—' }),
           el('td', { text: item.status + (item.archived ? '（アーカイブ済み）' : '') }),
           el('td', { text: item.fileFormat || '—' }),
+          buildMemoCell(item),
           el('td', { text: badge.icon + ' ' + badge.label }),
           copyCell
         ]);
         return row;
+      }
+
+      /** O-16: 行本体 + （展開中なら）メモ展開行を tbody に追加する。 */
+      function appendItemRow(tbody, item) {
+        tbody.appendChild(buildRow(item));
+        if (state.expandedMemoIds[item.id] && logic.hasReferenceMd(item)) {
+          tbody.appendChild(buildMemoExpansionRow(item));
+        }
       }
 
       function renderTable() {
@@ -638,21 +713,21 @@
         var items = visibleItems();
 
         if (items.length === 0) {
-          newTbody.appendChild(el('tr', {}, [el('td', { text: '該当する発注がありません', colspan: '10' })]));
+          newTbody.appendChild(el('tr', {}, [el('td', { text: '該当する発注がありません', colspan: String(ASSETS_TABLE_COLSPAN) })]));
         } else if (state.grouped) {
           logic.groupAssetsByType(items).forEach(function (group) {
             newTbody.appendChild(
               el('tr', { class: 'assets-group-row' }, [
-                el('td', { text: group.assetType + '（' + group.items.length + '件）', colspan: '10' })
+                el('td', { text: group.assetType + '（' + group.items.length + '件）', colspan: String(ASSETS_TABLE_COLSPAN) })
               ])
             );
             group.items.forEach(function (item) {
-              newTbody.appendChild(buildRow(item));
+              appendItemRow(newTbody, item);
             });
           });
         } else {
           items.forEach(function (item) {
-            newTbody.appendChild(buildRow(item));
+            appendItemRow(newTbody, item);
           });
         }
         table.appendChild(newTbody);
@@ -760,11 +835,39 @@
         state.detail = null;
       }
 
+      /**
+       * O-15 の3「未保存の変更があるまま閉じようとしたら確認」: openDetail() が記録した
+       * _originalFieldsJson（フィールドの初期スナップショット）と現在の fields を比較する。
+       * 保存・削除成功後の closeDetail() 呼び出しはこの確認を経由しない
+       * （その時点で「保存済み」なので確認する意味が無い）。
+       */
+      function hasUnsavedChanges() {
+        var detail = state.detail;
+        if (!detail || detail._originalFieldsJson === undefined) return false;
+        try {
+          return JSON.stringify(detail.fields) !== detail._originalFieldsJson;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function requestCloseDetail() {
+        if (hasUnsavedChanges() && !window.confirm('未保存の変更があります。閉じてもよいですか？')) return;
+        closeDetail();
+      }
+
       function openDetail(detail) {
         state.detail = detail;
         detail.fields = detail.mode === 'create' ? emptyFields() : fieldsFromItem(detail.item);
         detail.errors = {};
-        detail.showMdPreview = false;
+        // O-16: メモ（referenceMd）が空、または新規作成モードのときは最初から編集用の
+        // textarea を表示する（表示できる内容が無いため）。既存の内容があれば既定で
+        // 整形済みの読み取り表示にする（「発注メモを確認する方法がない」への対応）。
+        // viewer は編集できないため、常に読み取り表示（空なら「メモはまだありません」）にする。
+        detail.memoEditing = canEdit() && (detail.mode === 'create' || !detail.fields.referenceMd);
+        // O-15 の3: 未保存の変更があるかどうかの判定に使う初期スナップショット。
+        // edit モードは assets.get の再取得後に取り直す（下記 .then 参照）。
+        detail._originalFieldsJson = JSON.stringify(detail.fields);
         detail.paramSchemas = [];
         // 緊急修正（2026-09-14）: 1文字入力するごとにフォーカスが外れる不具合の対策。
         // renderDetail() を毎キー入力で呼ぶと overlayHost.innerHTML='' で input 要素ごと
@@ -789,6 +892,8 @@
             if (itemRes.ok) {
               detail.item = itemRes.item;
               detail.fields = fieldsFromItem(itemRes.item);
+              detail.memoEditing = canEdit() && !detail.fields.referenceMd;
+              detail._originalFieldsJson = JSON.stringify(detail.fields);
             }
             if (schemaRes.ok) detail.paramSchemas = schemaRes.items || [];
             renderDetail();
@@ -854,11 +959,19 @@
         return result.valid;
       }
 
+      /**
+       * O-15: 識別子・種別は「D-Drive がまだ作っていない間だけ」変更できる
+       * （logic.canRenameAsset、AssetsLogic.html。作成モードでは制約なし）。
+       */
+      function identifierLockedForRename() {
+        return state.detail.mode === 'edit' && !logic.canRenameAsset(state.detail.item);
+      }
+
       function textField(key, label, type) {
         var input = el('input', { type: type || 'text' });
         input.value = state.detail.fields[key];
         var readOnly = !canEdit();
-        input.disabled = readOnly || (key === 'identifier' || key === 'assetType') && state.detail.mode === 'edit';
+        input.disabled = readOnly || (key === 'identifier' && identifierLockedForRename());
         input.addEventListener('input', function () {
           // 緊急修正（2026-09-14）: renderDetail() を呼ばない（フォーカス外れの原因だった）。
           state.detail.fields[key] = input.value;
@@ -891,7 +1004,7 @@
 
       function selectField(key, label, options) {
         var select = buildSelect(options, state.detail.fields[key], key === 'status' ? null : '（未設定）');
-        select.disabled = !canEdit() || (key === 'assetType' && state.detail.mode === 'edit');
+        select.disabled = !canEdit() || (key === 'assetType' && identifierLockedForRename());
         select.addEventListener('change', function () {
           state.detail.fields[key] = select.value;
           runValidation();
@@ -1067,32 +1180,115 @@
           });
       }
 
+      /**
+       * O-16（2026-09-14 追加要望）「発注メモを確認する方法がない」への対応。
+       * 書式ツールバー（window.MarkdownToolbar、html/MarkdownToolbar.html）のボタンを押すと、
+       * textarea の選択範囲に対応する書式を適用する。選択範囲があればそれを囲み、無ければ
+       * テンプレートを挿入して置き換えるべき部分を選択状態にする（詳細は MarkdownToolbar.html）。
+       * @param {HTMLTextAreaElement} textarea
+       * @param {function():void} onChanged 適用後に呼ぶ（fields への反映・プレビュー更新用）
+       */
+      function applyMarkdownToolbarAction(actionId, textarea, onChanged) {
+        var selStart = typeof textarea.selectionStart === 'number' ? textarea.selectionStart : textarea.value.length;
+        var selEnd = typeof textarea.selectionEnd === 'number' ? textarea.selectionEnd : textarea.value.length;
+        var options = { fileFormat: state.detail.fields.fileFormat, fileName: state.detail.fields.fileName };
+        var result = window.MarkdownToolbar.applyAction(textarea.value, selStart, selEnd, actionId, options);
+        textarea.value = result.text;
+        if (typeof textarea.setSelectionRange === 'function') {
+          textarea.focus();
+          textarea.setSelectionRange(result.selStart, result.selEnd);
+        }
+        onChanged();
+      }
+
+      /** O-16: textarea の上に置く書式ツールバー（ボタン列）。 */
+      function buildMarkdownToolbar(textarea, onChanged) {
+        var bar = el('div', { class: 'assets-md-toolbar' });
+        window.MarkdownToolbar.ACTIONS.forEach(function (action) {
+          bar.appendChild(el('button', {
+            class: 'secondary',
+            type: 'button',
+            text: action.label,
+            title: action.title || action.label,
+            onclick: function (ev) {
+              if (ev && ev.preventDefault) ev.preventDefault();
+              applyMarkdownToolbarAction(action.id, textarea, onChanged);
+            }
+          }));
+        });
+        return bar;
+      }
+
+      /**
+       * O-16: 発注メモ（referenceMd）。既定は整形済み（Markdown レンダリング、
+       * logic.renderMarkdownSafe）の読み取り表示（viewer でも読める。リンクは新しいタブで開く）。
+       * 内容が無い/新規作成モードでは最初から編集用の textarea（書式ツールバー付き + ライブ
+       * プレビュー）を表示する。editor は「メモを編集」で切り替えられる。
+       */
       function renderReferenceMd() {
         var detail = state.detail;
         var wrap = el('div', { class: 'assets-field' });
-        wrap.appendChild(el('label', { text: 'リファレンス（Markdown）' }));
-        var textarea = el('textarea', { rows: '5' });
+        wrap.appendChild(el('label', { text: 'リファレンス（メモ、Markdown）' }));
+
+        if (!detail.memoEditing) {
+          var viewBox = el('div', { class: 'assets-md-preview' });
+          viewBox.innerHTML = detail.fields.referenceMd
+            ? logic.renderMarkdownSafe(detail.fields.referenceMd)
+            : '<span class="sw-muted">（メモはまだありません）</span>';
+          wrap.appendChild(viewBox);
+          if (canEdit()) {
+            wrap.appendChild(el('button', {
+              class: 'secondary',
+              text: 'メモを編集',
+              onclick: function () {
+                detail.memoEditing = true;
+                renderDetail();
+              }
+            }));
+          }
+          return wrap;
+        }
+
+        var textarea = el('textarea', { rows: '6' });
         textarea.value = detail.fields.referenceMd;
         textarea.disabled = !canEdit();
-        textarea.addEventListener('input', function () {
+
+        var livePreview = el('div', { class: 'assets-md-preview' });
+        function updateLivePreview() {
+          livePreview.innerHTML = detail.fields.referenceMd ? logic.renderMarkdownSafe(detail.fields.referenceMd) : '';
+        }
+
+        function onChanged() {
           detail.fields.referenceMd = textarea.value;
+          updateLivePreview();
+        }
+
+        if (canEdit()) wrap.appendChild(buildMarkdownToolbar(textarea, onChanged));
+        textarea.addEventListener('input', onChanged);
+        // O-16「ショートカット: Ctrl+B（太字）、Ctrl+K（リンク）」。
+        textarea.addEventListener('keydown', function (ev) {
+          if (!ev || !(ev.ctrlKey || ev.metaKey)) return;
+          var key = String(ev.key || '').toLowerCase();
+          if (key !== 'b' && key !== 'k') return;
+          if (ev.preventDefault) ev.preventDefault();
+          applyMarkdownToolbarAction(key === 'b' ? 'bold' : 'link', textarea, onChanged);
         });
         wrap.appendChild(textarea);
 
-        var toggle = el('button', {
-          class: 'secondary',
-          text: detail.showMdPreview ? 'プレビューを隠す' : 'プレビュー',
-          onclick: function () {
-            detail.showMdPreview = !detail.showMdPreview;
-            renderDetail();
-          }
-        });
-        wrap.appendChild(toggle);
+        updateLivePreview();
+        wrap.appendChild(livePreview);
 
-        if (detail.showMdPreview) {
-          var preview = el('div', { class: 'assets-md-preview' });
-          preview.innerHTML = logic.renderMarkdownSafe(detail.fields.referenceMd);
-          wrap.appendChild(preview);
+        // 新規作成モード・メモが空のときは「表示に戻す」を出す意味が薄いが、
+        // 一度でも入力していれば editor が読み取り表示に戻せるようにしておく。
+        if (canEdit() && detail.mode === 'edit') {
+          wrap.appendChild(el('button', {
+            class: 'secondary',
+            text: '表示に戻す',
+            onclick: function () {
+              detail.memoEditing = false;
+              renderDetail();
+            }
+          }));
         }
         return wrap;
       }
@@ -1191,18 +1387,28 @@
        * 成功時はトーストで結果を伝え、一覧全体を再取得（reload）せず応答の item だけを
        * その場に反映する（体感速度の改善・往復削減）。
        */
+      /**
+       * O-15: リネーム（assets.rename）成功時に一覧をその場で更新する。applyItemLocally は
+       * id が一致する行を差し替えるだけなので、id 自体が変わるリネームでは旧 id の行が
+       * 残ってしまう（新 id の行が別に増える）。旧 id を取り除いてから新項目を差し込む。
+       */
+      function applyRenamedItemLocally(oldId, newItem) {
+        state.items = state.items.filter(function (existing) { return existing.id !== oldId; }).concat([newItem]);
+        renderTable();
+      }
+
       function submitDetail(button) {
         var detail = state.detail;
         if (!runValidation()) {
           refreshAllFieldErrorsUI();
           return;
         }
-        var patch = Object.assign({}, detail.fields);
 
         if (detail.mode === 'create') {
+          var createPatch = Object.assign({}, detail.fields);
           window.SpecWebUi
             .runBusy('assets.create', button, function () {
-              return window.SpecWebClient.callApi('assets.create', { patch: JSON.stringify(patch) }, { method: 'POST' });
+              return window.SpecWebClient.callApi('assets.create', { patch: JSON.stringify(createPatch) }, { method: 'POST' });
             })
             .then(function (res) {
               if (res.busy) return;
@@ -1214,16 +1420,22 @@
               applyItemLocally(res.item);
               window.SpecWebUi.toastSuccess('作成しました: ' + (res.item.displayName || res.item.identifier));
             });
-        } else {
-          // 種別・識別子はサーバー側でも更新できないため送らない（誤ってロックされたフィールドを
-          // 送っても現在値と同じなら弾かれないが、意図を明確にするため除外する）。
-          delete patch.assetType;
-          delete patch.identifier;
+          return;
+        }
+
+        // 種別・識別子以外のフィールド（assets.update が受け付けるもの）。
+        var restPatch = Object.assign({}, detail.fields);
+        delete restPatch.assetType;
+        delete restPatch.identifier;
+
+        var identityChanged = detail.fields.assetType !== detail.item.assetType || detail.fields.identifier !== detail.item.identifier;
+
+        if (!identityChanged) {
           window.SpecWebUi
             .runBusy('assets.update:' + detail.item.id, button, function () {
               return window.SpecWebClient.callApi(
                 'assets.update',
-                { id: detail.item.id, expectedRevision: detail.item.revision, patch: JSON.stringify(patch) },
+                { id: detail.item.id, expectedRevision: detail.item.revision, patch: JSON.stringify(restPatch) },
                 { method: 'POST' }
               );
             })
@@ -1243,7 +1455,50 @@
               applyItemLocally(res.item);
               window.SpecWebUi.toastSuccess('保存しました');
             });
+          return;
         }
+
+        // O-15: 識別子・種別が変わった（かつ入力欄が有効＝logic.canRenameAsset が true の
+        // はず）場合は assets.rename を先に呼び、id を新しいキーへ置き換えたうえで、
+        // 他のフィールドの変更が残っていれば続けて assets.update で反映する。
+        var oldId = detail.item.id;
+        window.SpecWebUi
+          .runBusy('assets.rename:' + oldId, button, function () {
+            return window.SpecWebClient.callApi('assets.rename', {
+              id: oldId,
+              assetType: detail.fields.assetType,
+              identifier: detail.fields.identifier,
+              expectedRevision: detail.item.revision
+            }, { method: 'POST' });
+          })
+          .then(function (renameRes) {
+            if (renameRes.busy) return;
+            if (!renameRes.ok) {
+              if (renameRes.status === 409) {
+                window.SpecWebUi.toastError('他の人が先に更新しました。最新の内容を再読込します。');
+                openDetail({ mode: 'edit', item: detail.item });
+                reload();
+                return;
+              }
+              window.SpecWebUi.toastError('識別子・種別の変更に失敗しました: ' + (renameRes.error || ''));
+              return;
+            }
+            var renamedItem = renameRes.item;
+            return window.SpecWebClient.callApi('assets.update', {
+              id: renamedItem.id,
+              expectedRevision: renamedItem.revision,
+              patch: JSON.stringify(restPatch)
+            }, { method: 'POST' }).then(function (updateRes) {
+              var finalItem = updateRes.ok ? updateRes.item : renamedItem;
+              closeDetail();
+              applyRenamedItemLocally(oldId, finalItem);
+              if (!updateRes.ok) {
+                window.SpecWebUi.toastError('識別子/種別は変更できましたが、他の変更の保存には失敗しました: ' + (updateRes.error || ''));
+              } else {
+                window.SpecWebUi.toastSuccess('保存しました（識別子/種別を ' + finalItem.id + ' に変更しました）');
+              }
+            });
+          });
       }
 
       function deleteDetail(button) {
@@ -1306,12 +1561,21 @@
           ));
           panel.appendChild(renderStatusProgress(detail.item));
         }
-        if (!canEdit()) {
+        if (canEdit()) {
+          panel.appendChild(el('p', { class: 'sw-muted', text: detail.mode === 'create' ? '新規発注を作成します。' : '編集モード（保存で変更を確定します）' }));
+        } else {
           panel.appendChild(el('p', { class: 'sw-muted', text: '閲覧のみ（viewer ロールのため編集できません）' }));
         }
 
         panel.appendChild(selectField('assetType', '種類', logic.ASSET_TYPES));
         panel.appendChild(textField('identifier', 'インポート名: 識別子（PascalCase）'));
+        // O-15: 識別子・種別が変更不可のときは理由を明示する。
+        if (identifierLockedForRename()) {
+          panel.appendChild(el('p', {
+            class: 'assets-rename-hint sw-muted',
+            text: 'D-Drive で作成済みのため変更できません（変更すると D-Drive 側との対応が切れます）'
+          }));
+        }
         panel.appendChild(textField('displayName', '表示名'));
         panel.appendChild(textField('category', 'カテゴリ'));
         panel.appendChild(parentIdField());
@@ -1341,11 +1605,11 @@
               actions.appendChild(deleteButton);
             }
           }
-          actions.appendChild(el('button', { class: 'secondary', text: '閉じる', onclick: closeDetail }));
+          actions.appendChild(el('button', { class: 'secondary', text: '閉じる', onclick: requestCloseDetail }));
           panel.appendChild(actions);
         } else {
           panel.appendChild(el('div', { class: 'assets-detail-actions' }, [
-            el('button', { class: 'secondary', text: '閉じる', onclick: closeDetail })
+            el('button', { class: 'secondary', text: '閉じる', onclick: requestCloseDetail })
           ]));
         }
 
@@ -1358,7 +1622,7 @@
         var overlay = el('div', {
           class: 'assets-detail-overlay',
           onclick: function (ev) {
-            if (ev.target === overlay) closeDetail();
+            if (ev.target === overlay) requestCloseDetail();
           }
         }, [panel]);
         overlayHost.appendChild(overlay);

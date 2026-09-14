@@ -121,6 +121,58 @@ var Storage = {
   },
 
   /**
+   * O-15: 1 件を別の id（キー）へ改名する。種別・識別子が id そのものを構成するアセット発注の
+   * リネーム向けに新設した（putItem→deleteItem のように 2 回に分けて呼ぶと、その間に別の
+   * リクエストが割り込む余地が残るため、旧 id の revision 楽観ロック + 新 id の重複チェック +
+   * 旧 id の削除・新 id での保存を 1 回の withStorageLock_ 内で原子的に行う）。
+   * @param {string} collectionName
+   * @param {string} oldId
+   * @param {string} newId
+   * @param {Object} patch 新 id へ反映する差分（呼び出し側が「旧アイテムの全フィールドのうち
+   *   変更したいものだけ」を渡す。Object.assign({}, existing, patch, {...}) の順で適用するため、
+   *   コメント・orderGroup への所属（parentId）等、patch に含めないフィールドは旧アイテムから
+   *   そのまま引き継がれる）。
+   * @param {Object} options { expectedRevision, actor }
+   * @return {Object} 新 id で保存された項目
+   */
+  renameItem: function (collectionName, oldId, newId, patch, options) {
+    options = options || {};
+    var expectedRevision = options.expectedRevision;
+    var actor = options.actor || 'unknown';
+    return withStorageLock_(function () {
+      var data = specWebReadCollectionRaw_(collectionName);
+      var existing = data.items[oldId] || null;
+      if (!existing) {
+        var notFound = new Error(collectionName + '/' + oldId + ' が見つかりません');
+        notFound.status = 404;
+        throw notFound;
+      }
+      var currentRevision = existing.revision;
+      if (expectedRevision !== undefined && expectedRevision !== null && currentRevision !== expectedRevision) {
+        throw new RevisionConflictError(
+          collectionName + '/' + oldId + ' の revision が一致しません（現在: ' + currentRevision + '、要求: ' + expectedRevision + '）',
+          currentRevision
+        );
+      }
+      if (data.items[newId]) {
+        var duplicate = new Error(collectionName + '/' + newId + ' は既に存在します');
+        duplicate.status = 409;
+        throw duplicate;
+      }
+      var next = Object.assign({}, existing, patch, {
+        id: newId,
+        revision: currentRevision + 1,
+        updatedBy: actor,
+        updatedAt: specWebNowIso_()
+      });
+      delete data.items[oldId];
+      data.items[newId] = next;
+      specWebWriteCollectionRaw_(collectionName, data);
+      return next;
+    });
+  },
+
+  /**
    * 1 件を削除する。存在しなければ false を返す（エラーにしない）。
    * options.expectedRevision を渡すと revision 不一致時に RevisionConflictError。
    */

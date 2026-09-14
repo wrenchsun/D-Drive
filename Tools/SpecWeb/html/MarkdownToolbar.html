@@ -1,0 +1,270 @@
+<script>
+  /**
+   * O-16（2026-09-14 追加要望）: 発注メモ（referenceMd）の textarea 上に置く書式ツールバーの
+   * 挿入ロジック（DOM に触れない純粋関数だけ。html/AssetsLogic.html 冒頭の注意と同じ理由で
+   * Node から単体テストできるようにする。実際に textarea へ書き込む処理は html/Assets.html 側）。
+   *
+   * 契約: `applyAction(text, selStart, selEnd, action, options)` は
+   * `{ text, selStart, selEnd }`（適用後の全文 + 適用後に選択状態にするべき範囲）を返す。
+   * 呼び出し側（Assets.html）は返ってきた selStart/selEnd を textarea.setSelectionRange に渡すだけで、
+   * 「選択範囲があればそれを囲む・無ければテンプレートを挿入して置き換えるべき部分を選択状態にする」
+   * 挙動が実現できる（ドキュメント: docs/32_spec_web.md「実装メモ（O-16）」§書式ツールバー）。
+   *
+   * 行頭系（見出し・箇条書き・番号付き・チェックリスト・引用）は選択範囲にかかる行すべてを対象に
+   * トグルする（すべての行が既にその書式を持っていれば外す・そうでなければ持っていない行にだけ
+   * 付ける）。適用後の選択範囲は「書き換えた行の範囲全体」にする（複数行を素早く確認できるように。
+   * カーソル位置の厳密な保持は行わない簡略化）。
+   */
+  (function () {
+    'use strict';
+
+    function clamp_(n, min, max) {
+      n = typeof n === 'number' && !isNaN(n) ? n : min;
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function normalizeSelection_(text, selStart, selEnd) {
+      var start = clamp_(selStart, 0, text.length);
+      var end = clamp_(selEnd, start, text.length);
+      return { start: start, end: end };
+    }
+
+    /** selStart を含む行の先頭 〜 selEnd を含む行の末尾（改行は含まない）の範囲を返す。 */
+    function lineBounds_(text, start, end) {
+      var lineStart = text.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+      var nextNewline = text.indexOf('\n', end);
+      var lineEnd = nextNewline === -1 ? text.length : nextNewline;
+      return { lineStart: lineStart, lineEnd: lineEnd };
+    }
+
+    // ---- インライン装飾（選択範囲を記号で囲む。選択が無ければプレースホルダーを挿入して選択状態にする） ----
+
+    function wrapSelection_(text, start, end, markerStart, markerEnd, placeholder) {
+      var selected = text.slice(start, end);
+      if (selected.length > 0) {
+        var newText = text.slice(0, start) + markerStart + selected + markerEnd + text.slice(end);
+        var s = start + markerStart.length;
+        return { text: newText, selStart: s, selEnd: s + selected.length };
+      }
+      var newText2 = text.slice(0, start) + markerStart + placeholder + markerEnd + text.slice(end);
+      var s2 = start + markerStart.length;
+      return { text: newText2, selStart: s2, selEnd: s2 + placeholder.length };
+    }
+
+    /**
+     * リンク: 選択があれば `[選択](https://)` にして URL 部分（`https://`）を選択状態にする
+     * （すぐに URL を貼り付け/入力できるように）。選択が無ければ `[リンクの文字](https://)` を
+     * 挿入し、ラベル側（`リンクの文字`）を選択状態にする（先に名前を決めてから URL を入れる想定）。
+     */
+    function applyLink_(text, start, end) {
+      var selected = text.slice(start, end);
+      var urlPlaceholder = 'https://';
+      if (selected.length > 0) {
+        var newText = text.slice(0, start) + '[' + selected + '](' + urlPlaceholder + ')' + text.slice(end);
+        var urlStart = start + 1 + selected.length + 2;
+        return { text: newText, selStart: urlStart, selEnd: urlStart + urlPlaceholder.length };
+      }
+      var label = 'リンクの文字';
+      var newText2 = text.slice(0, start) + '[' + label + '](' + urlPlaceholder + ')' + text.slice(end);
+      var labelStart = start + 1;
+      return { text: newText2, selStart: labelStart, selEnd: labelStart + label.length };
+    }
+
+    /** 画像: applyLink_ と同じ考え方（`![alt](https://)`）。 */
+    function applyImage_(text, start, end) {
+      var selected = text.slice(start, end);
+      var urlPlaceholder = 'https://';
+      if (selected.length > 0) {
+        var newText = text.slice(0, start) + '![' + selected + '](' + urlPlaceholder + ')' + text.slice(end);
+        var urlStart = start + 2 + selected.length + 2;
+        return { text: newText, selStart: urlStart, selEnd: urlStart + urlPlaceholder.length };
+      }
+      var alt = '画像の説明';
+      var newText2 = text.slice(0, start) + '![' + alt + '](' + urlPlaceholder + ')' + text.slice(end);
+      var altStart = start + 2;
+      return { text: newText2, selStart: altStart, selEnd: altStart + alt.length };
+    }
+
+    // ---- 行頭系のトグル（見出し・箇条書き・番号付き・チェックリスト・引用） ----
+
+    /** その行が既に対象の書式を持っているか。持っていれば取り除くべき先頭文字数を返す（無ければ 0）。 */
+    function detectLinePrefix_(line, kind) {
+      if (kind === 'h2') return /^## /.test(line) ? 3 : 0;
+      if (kind === 'h3') return /^### /.test(line) ? 4 : 0;
+      if (kind === 'quote') return /^> /.test(line) ? 2 : 0;
+      if (kind === 'checklist') {
+        var m = /^- \[[ x]\] /.exec(line);
+        return m ? m[0].length : 0;
+      }
+      if (kind === 'ul') {
+        // チェックリストは箇条書きの一種の見た目だが、別のトグル対象として扱う
+        // （"- " だけで判定すると "- [ ] " も箇条書き扱いになってしまうため除外する）。
+        return /^- /.test(line) && !/^- \[[ x]\] /.test(line) ? 2 : 0;
+      }
+      if (kind === 'ol') {
+        var m2 = /^\d+\. /.exec(line);
+        return m2 ? m2[0].length : 0;
+      }
+      return 0;
+    }
+
+    var LINE_PREFIX_TEXT_ = { h2: '## ', h3: '### ', quote: '> ', ul: '- ', checklist: '- [ ] ' };
+
+    /**
+     * 行頭系のトグル本体。選択範囲にかかる行すべて（選択が無ければカーソル行のみ）を対象に、
+     * 「すべての行が既に対象の書式を持っていれば外す・そうでなければ持っていない行にだけ付ける」。
+     * 適用後の選択範囲は書き換えた行のブロック全体にする。
+     */
+    /**
+     * 'ul'（箇条書き）だけの特別扱い: チェックリスト行（"- [ ] "/"- [x] "）は別の書式として
+     * 一切変更しない（"- " を重ねて "- - [ ] ..." になったり、チェックリストが壊れたりしないように）。
+     */
+    function isLineUntouchableForKind_(line, kind) {
+      return kind === 'ul' && detectLinePrefix_(line, 'checklist') > 0;
+    }
+
+    function toggleLinePrefix_(text, start, end, kind) {
+      var bounds = lineBounds_(text, start, end);
+      var block = text.slice(bounds.lineStart, bounds.lineEnd);
+      var lines = block.split('\n');
+
+      var relevantLines = lines.filter(function (line) {
+        return line.length > 0 && !isLineUntouchableForKind_(line, kind);
+      });
+      var allHavePrefix = relevantLines.length > 0 && relevantLines.every(function (line) {
+        return detectLinePrefix_(line, kind) > 0;
+      });
+
+      var newLines;
+      if (allHavePrefix) {
+        newLines = lines.map(function (line) {
+          if (isLineUntouchableForKind_(line, kind)) return line;
+          var n = detectLinePrefix_(line, kind);
+          return n > 0 ? line.slice(n) : line;
+        });
+      } else {
+        newLines = lines.map(function (line, index) {
+          if (isLineUntouchableForKind_(line, kind)) return line;
+          if (detectLinePrefix_(line, kind) > 0) return line; // すでに付いている行はそのまま
+          if (kind === 'ol') return (index + 1) + '. ' + line;
+          return LINE_PREFIX_TEXT_[kind] + line;
+        });
+      }
+
+      var newBlock = newLines.join('\n');
+      var newText = text.slice(0, bounds.lineStart) + newBlock + text.slice(bounds.lineEnd);
+      return { text: newText, selStart: bounds.lineStart, selEnd: bounds.lineStart + newBlock.length };
+    }
+
+    // ---- ブロック挿入（選択範囲は無視し、カーソル位置に挿入する） ----
+
+    /** 挿入位置が行頭でなければ改行を1つ足す（既存の行の途中に割り込まないようにする）。 */
+    function leadingNewlineIfNeeded_(before) {
+      return before.length > 0 && before.charAt(before.length - 1) !== '\n' ? '\n' : '';
+    }
+
+    function applyHr_(text, start, end) {
+      var before = text.slice(0, start);
+      var after = text.slice(end);
+      var insert = leadingNewlineIfNeeded_(before) + '---\n';
+      var newText = before + insert + after;
+      var cursor = before.length + insert.length;
+      return { text: newText, selStart: cursor, selEnd: cursor };
+    }
+
+    /** 「参考リンク」の定型ブロック。ラベル部分（`リンクの文字`）を選択状態にする。 */
+    function applyReferenceLinkBlock_(text, start, end) {
+      var before = text.slice(0, start);
+      var after = text.slice(end);
+      var label = 'リンクの文字';
+      var block = leadingNewlineIfNeeded_(before) + '\n### 参考リンク\n- [' + label + '](https://)\n';
+      var newText = before + block + after;
+      var labelStart = before.length + block.indexOf('[' + label) + 1;
+      return { text: newText, selStart: labelStart, selEnd: labelStart + label.length };
+    }
+
+    /**
+     * 「納品物チェックリスト」の定型ブロック。発注のファイル形式・ファイル名欄の値
+     * （options.fileFormat/options.fileName）を差し込む（未設定なら「（未設定）」）。
+     * カーソルは「枚数: 」の直後（入力すればすぐ数値を書ける位置）に置く。
+     */
+    function applyDeliverableChecklist_(text, start, end, options) {
+      options = options || {};
+      var fileFormat = options.fileFormat || '（未設定）';
+      var fileName = options.fileName || '（未設定）';
+      var before = text.slice(0, start);
+      var after = text.slice(end);
+      var countLabel = '- [ ] 枚数: ';
+      var block = leadingNewlineIfNeeded_(before) +
+        '\n### 納品物チェックリスト\n' +
+        '- [ ] ファイル形式: ' + fileFormat + '\n' +
+        '- [ ] ファイル名: ' + fileName + '\n' +
+        countLabel + '\n';
+      var newText = before + block + after;
+      var cursor = before.length + block.lastIndexOf(countLabel) + countLabel.length;
+      return { text: newText, selStart: cursor, selEnd: cursor };
+    }
+
+    /**
+     * @param {string} text 適用前の全文
+     * @param {number} selStart 適用前の選択開始位置
+     * @param {number} selEnd 適用前の選択終了位置
+     * @param {string} action ACTIONS の id のいずれか
+     * @param {object} [options] 'deliverableChecklist' 用の { fileFormat, fileName }
+     * @return {{text: string, selStart: number, selEnd: number}}
+     */
+    function applyAction(text, selStart, selEnd, action, options) {
+      text = String(text === undefined || text === null ? '' : text);
+      var sel = normalizeSelection_(text, selStart, selEnd);
+      var start = sel.start, end = sel.end;
+
+      switch (action) {
+        case 'bold':
+          return wrapSelection_(text, start, end, '**', '**', '太字');
+        case 'code':
+          return wrapSelection_(text, start, end, '`', '`', 'コード');
+        case 'link':
+          return applyLink_(text, start, end);
+        case 'image':
+          return applyImage_(text, start, end);
+        case 'hr':
+          return applyHr_(text, start, end);
+        case 'h2':
+        case 'h3':
+        case 'quote':
+        case 'ul':
+        case 'ol':
+        case 'checklist':
+          return toggleLinePrefix_(text, start, end, action);
+        case 'referenceLinkBlock':
+          return applyReferenceLinkBlock_(text, start, end);
+        case 'deliverableChecklist':
+          return applyDeliverableChecklist_(text, start, end, options);
+        default:
+          return { text: text, selStart: start, selEnd: end };
+      }
+    }
+
+    // ボタン UI 組み立て用のメタ情報（ラベル・任意のショートカット表示）。
+    var ACTIONS = [
+      { id: 'h2', label: 'H2', title: '見出し(H2)' },
+      { id: 'h3', label: 'H3', title: '見出し(H3)' },
+      { id: 'bold', label: '太字', title: '太字（Ctrl+B）' },
+      { id: 'ul', label: '箇条書き', title: '箇条書き' },
+      { id: 'ol', label: '番号付き', title: '番号付きリスト' },
+      { id: 'checklist', label: 'チェック', title: 'チェックリスト' },
+      { id: 'link', label: 'リンク', title: 'リンク（Ctrl+K）' },
+      { id: 'image', label: '画像', title: '画像' },
+      { id: 'hr', label: '区切り線', title: '区切り線' },
+      { id: 'quote', label: '引用', title: '引用' },
+      { id: 'code', label: 'コード', title: 'インラインコード' },
+      { id: 'referenceLinkBlock', label: '参考リンク', title: '「参考リンク」の定型ブロックを挿入' },
+      { id: 'deliverableChecklist', label: '納品物チェックリスト', title: '「納品物チェックリスト」の定型ブロックを挿入' }
+    ];
+
+    window.MarkdownToolbar = {
+      ACTIONS: ACTIONS,
+      applyAction: applyAction
+    };
+  })();
+</script>

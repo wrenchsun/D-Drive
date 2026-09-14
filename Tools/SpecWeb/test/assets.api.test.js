@@ -499,3 +499,172 @@ test('handleApiRequest_ 経由: viewer の書き込みは 403 相当で本文に
   assert.equal(body.ok, false);
   assert.equal(body.status, 403);
 });
+
+// ---- O-15: assets.rename（発注後の識別子・種別の変更） ----
+
+test('assets.rename: D-Drive 未作成・インポート済でなければ識別子を変更でき、全フィールド・コメント・orderGroup 所属を引き継ぎ、旧 id は削除される', () => {
+  const ctx = loadGas();
+  const group = call(ctx, 'orderGroups.create', { patch: JSON.stringify({ name: 'スキル: 斬撃' }) }).item;
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ parentId: group.id })) }).item;
+  call(ctx, 'assets.comments.add', { id: created.id, body: '既存コメント' });
+  const beforeRename = call(ctx, 'assets.get', { id: created.id }).item;
+
+  const renamed = call(ctx, 'assets.rename', {
+    id: created.id, identifier: 'SlashHeavy', expectedRevision: beforeRename.revision
+  }).item;
+
+  assert.equal(renamed.id, 'Se::SlashHeavy');
+  assert.equal(renamed.identifier, 'SlashHeavy');
+  assert.equal(renamed.assetType, 'Se');
+  assert.equal(renamed.displayName, '斬撃音');
+  assert.equal(renamed.parentId, group.id);
+  assert.equal(renamed.comments.length, 1);
+  assert.equal(renamed.comments[0].body, '既存コメント');
+
+  assert.throws(() => call(ctx, 'assets.get', { id: 'Se::Slash' }), (err) => {
+    assert.equal(err.status, 404);
+    return true;
+  });
+  const reread = call(ctx, 'assets.get', { id: 'Se::SlashHeavy' }).item;
+  assert.equal(reread.id, 'Se::SlashHeavy');
+});
+
+test('assets.rename: 種別も変更できる（種別+識別子を同時に変更）', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  const renamed = call(ctx, 'assets.rename', {
+    id: created.id, assetType: 'Vfx', identifier: 'SlashFx', expectedRevision: created.revision
+  }).item;
+  assert.equal(renamed.id, 'Vfx::SlashFx');
+  assert.equal(renamed.assetType, 'Vfx');
+  assert.equal(renamed.identifier, 'SlashFx');
+});
+
+test('assets.rename: D-Drive で作成済み（ddriveState.created。Placeholder のままで status はまだ発注済でも）だと 400 で拒否される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  // isPlaceholder: true にすることで、status は「発注済」のまま（O-7 の自動判定はまだ
+  // インポート済へ進めない）で ddriveState.created だけが true の状態を作る
+  // （status===imported の分岐とは独立に、ddriveState.created の分岐だけを検証する）。
+  call(ctx, 'assetState', {
+    payload: JSON.stringify({ items: [{ id: created.id, created: true, isPlaceholder: true }] })
+  }, { ok: true, principal: 'ddrive:write', role: 'editor' });
+  const afterSync = call(ctx, 'assets.get', { id: created.id }).item;
+  assert.equal(afterSync.status, '発注済');
+  assert.equal(afterSync.ddriveState.created, true);
+
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: created.id, identifier: 'SlashHeavy' }),
+    (err) => {
+      assert.equal(err.status, 400);
+      assert.match(err.message, /D-Drive で作成済み/);
+      return true;
+    }
+  );
+});
+
+test('assets.rename: status が「インポート済」だと 400 で拒否される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  call(ctx, 'assetState', {
+    payload: JSON.stringify({ items: [{ id: created.id, created: true, isPlaceholder: false }] })
+  }, { ok: true, principal: 'ddrive:write', role: 'editor' });
+  const imported = call(ctx, 'assets.get', { id: created.id }).item;
+  assert.equal(imported.status, 'インポート済');
+
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: created.id, identifier: 'SlashHeavy' }),
+    (err) => {
+      assert.equal(err.status, 400);
+      return true;
+    }
+  );
+});
+
+test('assets.rename: 変更後の種別+識別子が既存の別アセットと重複すると 409 で拒否される', () => {
+  const ctx = loadGas();
+  const a = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ identifier: 'Heavy' })) });
+
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: a.id, identifier: 'Heavy', expectedRevision: a.revision }),
+    (err) => {
+      assert.equal(err.status, 409);
+      return true;
+    }
+  );
+});
+
+test('assets.rename: 種別・識別子のどちらも変わっていなければ 400 で拒否される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: created.id, identifier: 'Slash' }),
+    (err) => {
+      assert.equal(err.status, 400);
+      return true;
+    }
+  );
+});
+
+test('assets.rename: 識別子が PascalCase でなければ 400 で拒否される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: created.id, identifier: 'slash-heavy' }),
+    (err) => {
+      assert.equal(err.status, 400);
+      return true;
+    }
+  );
+});
+
+test('assets.rename: revision 不一致は 409（currentRevision 付き）で拒否される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  call(ctx, 'assets.update', { id: created.id, expectedRevision: created.revision, patch: JSON.stringify({ contractor: '別の人' }) });
+
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: created.id, identifier: 'SlashHeavy', expectedRevision: created.revision }),
+    (err) => {
+      assert.equal(err.status, 409);
+      assert.equal(err.currentRevision, 2);
+      return true;
+    }
+  );
+});
+
+test('assets.rename: viewer は 403 で拒否される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: created.id, identifier: 'SlashHeavy' }, viewerAuth()),
+    (err) => {
+      assert.equal(err.status, 403);
+      return true;
+    }
+  );
+});
+
+test('assets.rename: 存在しない id は 404 で拒否される', () => {
+  const ctx = loadGas();
+  assert.throws(
+    () => call(ctx, 'assets.rename', { id: 'Se::NotExist', identifier: 'X' }),
+    (err) => {
+      assert.equal(err.status, 404);
+      return true;
+    }
+  );
+});
+
+test('handleApiRequest_ 経由: D-Drive の書き込みトークンから assets.rename は呼べない（許可リスト外）', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  const token = ctx.issueApiToken('write');
+  const output = ctx.doPost({
+    parameter: { api: '1', name: 'assets.rename', token: token, id: created.id, identifier: 'SlashHeavy' }
+  });
+  const body = JSON.parse(output.getContent());
+  assert.equal(body.ok, false);
+  assert.equal(body.status, 403);
+});

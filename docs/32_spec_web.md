@@ -1504,9 +1504,12 @@ Placeholder の `PresentationData` を先に作る、という連携。**メリ�
 | O-14 | admin が Web 画面からログイン許可（`users.json`）を管理できるようにする（一覧・追加・ロール変更・削除 + Drive フォルダ共有の同時操作） | W-3（既存の認証基盤） | 2 | admin 専用の管理 UI から追加・削除ができ、editor/viewer/API トークンからは呼べない。自分自身・最後の admin の削除・降格は拒否される |
 | O-12（2026-09-14 追加） | `fileFormat`（ファイル形式）・`fileName`（納品ファイル名）の追加（§10.2.1 追記）。種別ごとの候補・命名規約に沿った推奨名・長さ上限検証・不正文字/拡張子食い違いの警告（ブロックしない） | O-1 | 2 | 新規作成・編集・一覧（列 + 絞り込み/並べ替え）で入出力できる。既存データは空文字で非破壊に読める |
 | O-13（2026-09-14 追加） | 発注リンクのコピー（一覧の行・詳細・Presentation 発注グループのヘッダーに「リンクをコピー」。URL のみ/名前付き/Markdown。クリップボード API 失敗時のフォールバック付き）。§10.8 参照 | O-1, O-2 | 2 | 一覧・詳細・発注グループの各ボタンでコピーでき、コピーした URL を別タブで開くと該当の発注/発注グループが開く |
+| O-15（2026-09-14 追加要望） | 発注後に編集できるようにする: 一覧・発注ツリー・私が発注／私が受けたの各行に編集への導線、発注グループの編集 UI（既存 `orderGroups.update` を使う）、識別子・種別のリネーム（D-Drive 未作成・非インポート済のみ、`assets.rename` 新設）、旧リンクの振り替え（`assetRenames` コレクション）、未保存の変更があるまま閉じようとしたら確認 | O-1〜O-3 | 3 | 各画面から発注の詳細（編集）を開ける。D-Drive 未作成・発注済/納品済なら識別子・種別を変更でき、変更後は旧 `?page=order&id=旧id` でも新 id の詳細が開く。D-Drive で作成済み・インポート済の発注は識別子・種別の入力欄が無効化され理由が表示される |
+| O-16（2026-09-14 追加要望） | 発注メモ（`referenceMd`）の可読性向上: 既定で整形済み表示（viewer も読める）+「メモを編集」で textarea 切替（リンクは新しいタブで開く）、一覧・発注ツリー・私の発注の各行に「メモあり」アイコン＋展開表示、textarea 上の書式ツールバー（見出し/太字/箇条書き/番号付き/チェック/リンク/画像/区切り線/引用/コード + 「参考リンク」「納品物チェックリスト」の定型ブロック） | O-1, O-5 | 2 | メモが入力済みの発注は既定で整形表示になり、各画面の行からもその場で読める。textarea のボタンで書式を挿入できる（選択あり/なし・複数行トグルに対応） |
 
 **MVP（O-1〜O-10）合計: 25 人日**。O-11 を含める場合 **28 人日**。O-14 は MVP 後の追加チケット（別枠）。
-O-12〜O-13 も MVP 後の追加要望（合計 4 人日、別枠）。既存 W-1〜W-12（すでに実装済み）の
+O-12〜O-13 も MVP 後の追加要望（合計 4 人日、別枠）。O-15〜O-16 も MVP 後の追加要望（合計 5 人日、別枠）。
+既存 W-1〜W-12（すでに実装済み）の
 コストとは別枠（拡張元として再利用する）。
 
 #### 置き換わる・不要になる v2 チケット（W-13〜W-22 の再確認）
@@ -2250,3 +2253,157 @@ docs/28 の該当節に同じ内容を追記した（O-12〜O-14 節の直後）
    再表示される → 詳細を開くと「元に戻す」ボタンが出て、押すと元の一覧に戻ることを確認する
 6. 上部メニューの「マニュアル」、各マニュアルページ上部の「← 発注ツールへ」「マニュアル目次」
    バー、本文中のリンクのどれを押しても白画面にならないことを確認する
+
+## 実装メモ（2026-09-14、O-15: 発注後に編集できるようにする）
+
+ユーザー要望「発注後に編集できるようにしたい」への対応（`feat/order-edit-rename` ブランチ）。
+
+**編集の導線**（既存の `html/Assets.html` 詳細パネルは編集モード・保存ボタンをすでに持っていたため、
+「導線」自体は主に発注ツリー・私の発注に追加した）:
+
+- 一覧（`assets` 画面）: 行クリックで詳細パネルが開き（既存どおり）、パネル上部に
+  「編集モード（保存で変更を確定します）」の案内を追加した（`renderDetail()`）
+- 発注ツリー（`orders` 画面）: 各発注の行（`renderOrderItem`）に「編集」ボタンを追加。
+  発注ツリーには発注の詳細パネルが無いため、`window.SpecWebNavigate('assets', { params: { openId } })`
+  で一覧画面へ遷移し、そのまま詳細が開く（O-13 の `openId` 機構を再利用）。viewer には出さない
+- 私の発注（`my-orders` 画面）: 「私が発注」「私が受けた」の各行（`renderItemLi`）にも同じ「編集」
+  ボタンを追加（`html/MyOrders.html`）。viewer には出さない
+- 発注グループの編集可否: `orderGroups.update` API は O-2 の時点で既に実装済みだった（新設不要）。
+  UI が無かったため `html/OrderTree.html` にグループヘッダー「編集」ボタン + インラインの編集フォーム
+  （`renderGroupEditForm`。名前・Presentation 識別子・WBS 番号・発注者・目安期限・説明）を追加した。
+  viewer には出さない
+
+**識別子・種別のリネーム**（`assets.rename`、`Tools/SpecWeb/src/Assets.js`）:
+
+- 条件（`specWebAssetCanRename_`）: `ddriveState.created` が真、または `status==='インポート済'`
+  のいずれかに当たれば拒否（400、「D-Drive で作成済みのため変更できません（変更すると D-Drive
+  側との対応が切れます）」）。それ以外（未作成・Placeholder・発注済/納品済）は変更可
+- 新 id（種別::識別子）の重複は 409。識別子の書式検証は既存 `specWebValidateAssetFields_` を再利用
+- 全フィールド・コメント・`parentId`（orderGroup への所属）を新 id に引き継ぎ、旧 id は削除する。
+  `Storage.js` に新設した `Storage.renameItem(collection, oldId, newId, patch, options)` が
+  「旧 id の revision 楽観ロック + 新 id の重複チェック + 削除 + 新規保存」を 1 回の
+  `withStorageLock_` 内で原子的に行う（`putItem`→`deleteItem` を別々に呼ぶと、その間に別の
+  リクエストが割り込む余地が残るため）
+- D-Drive の書き込みトークンからは呼べない（`Code.js` の `DDRIVE_WRITE_TOKEN_ALLOWED_APIS` に
+  意図的に含めていない。トークン経由で呼ぶと `handleApiRequest_` が 403 で拒否する）
+- **旧リンクの振り替え**: O-13 のコピー済みリンク（`?page=order&id=旧id`）が引き続き開けるよう、
+  新設した `assetRenames` コレクション（doc id = 旧 id、`{ newId }`）に付け替えを記録する。
+  `resolveInitialScreen_`（`Code.js`）が `specWebResolveAssetRenameChain_`（`Assets.js`）で
+  複数回のリネームも辿り（上限10ホップ、循環しても例外にしない）、最終的な id を `openId` にする
+- クライアント側（`html/Assets.html`）: `logic.canRenameAsset(item)`（`AssetsLogic.html`、サーバー
+  側と同じ判定のミラー）で識別子・種別の入力欄の有効/無効を切り替え、無効時は理由のヒントを表示する。
+  保存時（`submitDetail`）は識別子/種別が変わっていれば `assets.rename` を先に呼び、その他の
+  フィールドも変わっていれば続けて新 id に対して `assets.update` を呼ぶ（2 段階）。一覧の該当行は
+  旧 id を取り除いてから新項目を差し込む（`applyRenamedItemLocally`）
+
+**未保存の変更の確認**: `openDetail()` がフィールドの初期スナップショット（`_originalFieldsJson`）を
+記録し、「閉じる」ボタン・オーバーレイの外側クリックは `requestCloseDetail()`（変更があれば
+`window.confirm` で確認）を経由する。保存・削除・復元成功後の `closeDetail()` はこの確認を経由しない
+（保存済みなので確認不要）。
+
+**テスト**（`node --test Tools/SpecWeb/test`）: `assets.api.test.js`（`assets.rename` の成否条件・
+重複・revision 不一致・viewer 拒否・書き込みトークン拒否・コメント/orderGroup 所属の引き継ぎ）・
+`orderLinkLogic.test.js`（`resolveInitialScreen_` のリネーム連鎖解決・循環時のフォールバック）・
+`assets-logic.test.js`（`canRenameAsset`）・`assets-screen.smoke.test.js`（識別子欄の有効/無効・
+ヒント表示・保存時の `assets.rename`→`assets.update` 呼び出し・未保存確認）・
+`orderTree.smoke.test.js`（「編集」ボタンの遷移・グループ編集フォーム）・`myOrders.smoke.test.js`
+（「編集」ボタンの遷移）。詳細は下記「O-16」節末尾の合計件数を参照（O-15/O-16 は同じ PR のため
+まとめて記載）。
+
+### 要判断・引き継ぎ（O-15）
+
+- リネーム後の `revision` は「1 から作り直す」のではなく「旧アイテムの revision + 1」を採用した
+  （id は変わるが同じ発注の続きという考え方。`Storage.renameItem`）。実運用で違和感があれば見直す
+- 複数回リネームされた場合、`assetRenames` の各エントリは「その時点の直接の付け替え」しか記録せず、
+  最終到達点への一括更新はしない（`specWebResolveAssetRenameChain_` が呼び出し時に毎回連鎖を辿る）。
+  リネームが頻発する運用になった場合はエントリの経路長が伸びるが、上限10ホップで打ち切るため実害は
+  無い想定（そもそも「D-Drive 未作成の間だけ」という制約でリネーム自体が稀なはず）
+
+## 実装メモ（2026-09-14、O-16: 発注メモを確認する方法がない）
+
+ユーザー要望「発注メモを確認する方法がない」+ 追加要望「Markdown を打つのが面倒なので、ボタンで
+カーソル位置に各種書式を挿入できるように」への対応（O-15 と同じ `feat/order-edit-rename` ブランチ・
+同じ PR）。
+
+**既定で整形済み表示**（`html/Assets.html` の `renderReferenceMd`）:
+
+- 発注メモ（`referenceMd`）が入力済み、かつ mode が編集（新規作成ではない）なら既定で
+  `logic.renderMarkdownSafe` による読み取り表示にする。editor は「メモを編集」ボタンで
+  textarea（書式ツールバー付き + ライブプレビュー）に切り替えられる。メモが空、または新規作成
+  モードのときは最初から textarea を表示する（表示できる内容が無いため）
+- **viewer は常に読み取り表示**（`canEdit() && ...` を `detail.memoEditing` の判定に含める）。
+  メモが空でも「メモを編集」ボタンも textarea も出さず、「（メモはまだありません）」と表示する
+- **リンクは新しいタブで開く**: `AssetsLogic.renderMarkdownSafe` が生成するリンクの `target` を
+  `_top`（旧仕様） → `_blank`（変更）にした。`html/Index.html` は `<base target="_top">` のため、
+  従来の `target="_top"` だとメモ内の外部リンクをクリックするとこの発注ツール自身の iframe が
+  差し替わってしまう（O-5 実装時点では想定していなかった実害）。既存の `rel="noopener"` は継続
+
+**一覧・発注ツリー・私の発注の「メモあり」アイコン + 展開表示**:
+
+- `logic.hasReferenceMd(item)`（`AssetsLogic.html`）が true の行にだけ 📝 アイコンを出す
+  （`html/Assets.html` の一覧テーブルに列を追加、`html/OrderTree.html`/`html/MyOrders.html` は
+  各行の末尾にボタンを追加）。押すと `logic.renderMarkdownSafe` で整形した内容を展開表示する
+  （CSS `max-height` + `overflow:hidden` で長いメモをクリップする簡易実装。「続きを読む」相当は
+  一覧のみ実装し、押すと詳細パネルを開く。発注ツリー・私の発注は展開表示のみで、詳細への遷移は
+  別途「編集」ボタンから行う）
+- 画像サムネイル（要望3「メモ内の画像リンクは小さなサムネイル表示」）は **見送った**。
+  `renderMarkdownSafe` は既に `![alt](url)` を `<img>` タグに変換しており（O-5 実装済み）、展開
+  表示・詳細パネルのどちらでも `<img>` はそのまま表示される（HtmlService の iframe から外部画像
+  URL への `<img src>` は通常のブラウザの画像読み込みと同じ経路のため、追加実装は不要と判断した）。
+  「小さく」する専用のサムネイル化（固定サイズへの縮小 CSS 等）は本チケットでは行っていない
+  （`.assets-md-preview img { max-width: 100% }` 相当のみ。要判断として引き継ぐ）
+
+**書式ツールバー**（新設 `html/MarkdownToolbar.html`、`window.MarkdownToolbar`）:
+
+- 選択範囲を受け取り、適用後の全文と「適用後に選択状態にすべき範囲」を返す純粋関数
+  `applyAction(text, selStart, selEnd, action, options)` として実装した（DOM に触れない。
+  `html/AssetsLogic.html` 冒頭の既存方針と同じ理由で Node から単体テストできる）
+- ボタン: 見出し(H2/H3)・太字・箇条書き・番号付きリスト・チェックリスト・リンク・画像・区切り線・
+  引用・コード・「参考リンク」定型ブロック・「納品物チェックリスト」定型ブロック（発注の
+  `fileFormat`/`fileName` の現在値を差し込む。未設定なら「（未設定）」）
+- 挙動: インライン装飾（太字・コード・リンク・画像）は選択範囲があればそれを囲み（リンク/画像は
+  選択をラベル/alt にして URL 部分 `https://` を選択状態にする）、選択が無ければテンプレートを
+  挿入して置き換えるべき部分を選択状態にする。行頭系（見出し・箇条書き・番号付き・チェック・
+  引用）は選択範囲にかかる行すべてをトグル対象にする（すべての行が既に持っていれば外す・
+  そうでなければ持っていない行にだけ付ける。適用後の選択範囲は書き換えたブロック全体）。
+  箇条書き（`ul`）はチェックリスト行（`- [ ] `/`- [x] `）を別の書式として一切変更しない
+  （二重に `- ` が付いたりチェックリストが壊れたりしないようにするための特別扱い）
+- ショートカット: Ctrl+B（太字）・Ctrl+K（リンク）を textarea の `keydown` で処理する
+- 呼び出し側（`html/Assets.html` の `applyMarkdownToolbarAction`）は、ボタン押下時に
+  `textarea.value`/`selectionStart`/`selectionEnd` を読んで `applyAction` に渡し、結果を
+  `textarea.value`/`setSelectionRange` に書き戻してから `onChanged()`（fields への反映・ライブ
+  プレビュー更新）を直接呼ぶ（`dispatchEvent` によるイベントの模擬は行わない。緊急修正
+  2026-09-14 の「renderDetail() を呼ばずに済ませる」方針と同じ理由でフォーカスを外さない）
+
+**テスト**（`node --test Tools/SpecWeb/test`、O-15 と合わせて **436 件全て green**（既存 370 件 +
+本チケット追加分 66 件））:
+
+- `test/markdownToolbar.test.js`（新規、27 件）: 全アクションの選択あり/なし・複数行トグル・
+  行頭/行末・空文字・範囲外 selStart/selEnd・未知の action
+- `test/assets-logic.test.js`（追加）: `renderMarkdownSafe` のリンク `target` が `_blank` に
+  変わったことの回帰確認、`hasReferenceMd`
+- `test/assets-screen.smoke.test.js`（追加): メモが空/入力済みでの既定表示の切り替え・
+  「メモを編集」/「表示に戻す」・viewer は常に読み取り表示・書式ツールバーのボタンから
+  textarea へ反映される・一覧行の 📝 アイコンと展開表示
+- `test/orderTree.smoke.test.js` / `test/myOrders.smoke.test.js`（追加）: 各行の 📝 アイコンと
+  展開表示（メモが無い行には出ない）
+
+### 目視確認（実デプロイでの確認が必須。iframe サンドボックス内の実際の `textarea.selectionStart`/
+`setSelectionRange` の挙動は Node テスト（`test/dom-stub.js`）では再現できないため）
+
+docs/28 の該当節に同じ内容を追記した。
+
+1. 発注を1件作る → 詳細を開いて担当・期限・メモを変えて保存する（メモは textarea に入力し、
+   書式ツールバーの各ボタン（見出し・太字・箇条書き・リンク・画像・区切り線・参考リンク・
+   納品物チェックリスト等）を選択あり/なしの両方で試し、期待どおりの Markdown が入ることを
+   確認する）→ 保存後、詳細を開き直すとメモが整形済み表示になっていることを確認する
+2. 同じ発注の識別子を「間違えたので直す」→ D-Drive でまだ作成していないので識別子欄が編集でき、
+   保存すると新しい識別子で一覧に反映され、旧識別子の `?page=order&id=旧id` リンクを別タブで
+   開いても新しい詳細が表示されることを確認する
+3. D-Drive で作成済みの発注（同期後）を開き、識別子・種別の入力欄が無効化され「D-Drive で作成済み
+   のため変更できません」のヒントが表示されることを確認する
+4. 発注ツリー・私の発注の各行から「編集」ボタンで一覧の詳細が開けること、メモが入力済みの行に
+   📝 アイコンが出て押すと整形表示が展開されることを確認する
+5. 発注グループのヘッダーの「編集」で名前・WBS 番号等を変更し保存できることを確認する
+6. 詳細パネルで何か変更してから「閉じる」を押すと確認ダイアログが出て、キャンセルすれば閉じない
+   ことを確認する（変更が無ければ確認せずに閉じる）

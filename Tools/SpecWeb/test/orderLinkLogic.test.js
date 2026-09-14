@@ -137,6 +137,37 @@ test('specWebExecUrl_: ScriptApp.getService().getUrl() をそのまま返す', (
   assert.equal(ctx.specWebExecUrl_(), 'https://script.google.com/macros/s/fake/exec');
 });
 
+// ---- O-15: resolveInitialScreen_ が旧 id → 新 id のリネーム連鎖を解決する ----
+
+test('resolveInitialScreen_: page=order の id がリネーム済みなら、新 id を openId として返す（assetRenames を解決）', () => {
+  const ctx = loadGas();
+  ctx.Storage.putItem('assetRenames', 'Se::Slash', { newId: 'Se::SlashHeavy' });
+  const result = ctx.resolveInitialScreen_({ page: 'order', id: 'Se::Slash' });
+  assert.equal(result.screen, 'assets');
+  assert.equal(result.params.openId, 'Se::SlashHeavy');
+});
+
+test('resolveInitialScreen_: 複数回リネームされていても最終的な id まで辿る', () => {
+  const ctx = loadGas();
+  ctx.Storage.putItem('assetRenames', 'Se::Slash', { newId: 'Se::SlashHeavy' });
+  ctx.Storage.putItem('assetRenames', 'Se::SlashHeavy', { newId: 'Vfx::SlashFx' });
+  const result = ctx.resolveInitialScreen_({ page: 'order', id: 'Se::Slash' });
+  assert.equal(result.params.openId, 'Vfx::SlashFx');
+});
+
+test('resolveInitialScreen_: リネームされていない id はそのまま openId として返る', () => {
+  const ctx = loadGas();
+  const result = ctx.resolveInitialScreen_({ page: 'order', id: 'Se::NeverRenamed' });
+  assert.equal(result.params.openId, 'Se::NeverRenamed');
+});
+
+test('specWebResolveAssetRenameChain_: 循環していても例外にせず途中の id で止まる', () => {
+  const ctx = loadGas();
+  ctx.Storage.putItem('assetRenames', 'A::X', { newId: 'B::Y' });
+  ctx.Storage.putItem('assetRenames', 'B::Y', { newId: 'A::X' });
+  assert.doesNotThrow(() => ctx.specWebResolveAssetRenameChain_('A::X'));
+});
+
 test('doGet: ?page=order&id=... でも許可リスト済みユーザーなら例外にならず SPA テンプレートを返す（回帰: ScriptApp 追加後も renderUi_ が動く）', () => {
   const usersFixture = { 'users.json': JSON.stringify({ items: { 'member@example.com': { id: 'member@example.com', email: 'member@example.com', displayName: 'メンバー', role: 'editor', revision: 1 } } }) };
   const ctx = loadGas({ activeUserEmail: 'member@example.com', driveFiles: usersFixture });
