@@ -145,12 +145,67 @@
 | 5-9 | Late Join 復元（アクティブ演出スナップショット） | 基盤 | 2 | 5-8 | ✅ 2026-09-14 実装(要約)。`INetBridge` に `event Action<ulong> ClientConnected` を追加(`LocalLoopbackBridge`/`NgoNetBridge`(`OnClientConnectedCallback` 中継)/テスト用 Fake に実装)。Host のみ「アクティブ演出台帳」を保持し、新規接続時に台帳の全エントリを `PresentationPlayMsg` として `SendTo`(専用メッセージは追加せず既存の開始時刻シーク経路を再利用)。台帳は Instance の生成/消滅に同期するため、ワンショットは尺の短さで自然に台帳から外れ復元されない。PlayMode テストで「途中参加でループ VFX が復元される」「完了済みワンショットは復元されない」を検証(AC 達成。BGM は Anim と同じ扱いで理論上復元されるが専用テストは書いていない、要判断参照)。詳細は [14_networking.md](14_networking.md) §5 実装メモ |
 | 5-10 | アイコン表示の拡張（2026-09-13 追加）: AssetBrowser の行にアイコン、Project ウィンドウのサムネ（Data 用 Inspector の `RenderStaticPreview`） | ED | 1 | 1-6 | ✅ 2026-09-14 実装（`AssetBrowserWindow` の各行に `Image`(Icon、無ければ既定サムネイルにフォールバック)。全 Data 共通 `AssetDataInspector` に `RenderStaticPreview` を追加し `AssetIconService.ScaleForPreview` で Icon を要求サイズに縮小。詳細は [09] §8.2、テストは `AssetDataInspectorPreviewTests`） |
 | 5-11 | インポート検知による Data 自動生成を全種別へ（2026-09-13 追加）: `ImportRule`（監視フォルダ `SourceAssets/<種別>/<カテゴリ>/` → 種別・拡張子）で Se/Bgm/Texture/Model/Anim/Anim2D/Prefab/Canvas/Vfx を自動生成（Cutscene は 6-10c で追加）。元ファイル削除時は Data を消さず「欠落」表示。元ファイルの無い種別（Presentation/Shake/Haptics/UiTween/Anchor/AnchorGroup/ControlSkin）は対象外（5-13 で作る） | 基盤+ED | 3 | 1-5, 3-14 | ✅ 2026-09-14 実装（`Editor/Import/ImportRuleService`(+`ImportRulePostprocessor`、`IImportRuleHandler` 9 種)。`SourceAssets/<Se\|Bgm\|Texture\|Model\|Anim\|Anim2D\|Prefab\|Canvas\|Vfx>/<カテゴリ.../>` の元ファイルを検知し `AssetCreationService.Create` へ橋渡し(ID/カタログ/Addressables 登録は既存経路を再利用、Maya→Material と共存)。二重生成防止は新設の `AssetDataBase.ImportSourceGuid`(元ファイルGUID)で同定、再取り込みでは既存 Data に触らない。元ファイル削除時は各種別の既存 Validator の「未設定(または Missing)です」がそのまま欠落表示を担う(新規 Validator 追加なし)。AutoImport=OFF 時や導入前の既存ファイル用に手動メニュー `Generate/SourceAssets からインポートルールを再実行` も追加。詳細は [09] §1.1、テストは `ImportRuleServiceTests` 14 件） |
-| 5-12 | 仕様書テンプレート（2026-09-13 追加）: 新規 Google スプレッドシート（README / 概要 / 機能_* 人向け + `アセット`・`調整値` ツール向け + `_選択肢`）+ 記入ガイド | 全員 | 1 | — | ✅ 2026-09-14 実装（PR #13）: xlsx テンプレート（README/概要/機能_サンプル/アセット/調整値/_選択肢）+ 記入ガイド（`docs/SpecSheetTemplate/`）。Google ドライブへはユーザーがアップロード。種別列は AssetType の enum 名。取得方法・調整値取り込み・テンプレート運用は [27](27_spec_sheet.md) §7.1 の暫定既定（ユーザー未確認） |
-| 5-13 | 仕様書同期（2026-09-13 追加）: CSV 取得（リンク共有 gviz / 将来サービスアカウント）→ 差分プレビュー → 新規行は Placeholder Data 作成・表示名/カテゴリ/状態/担当/備考を反映・消えた行は Archive 候補表示のみ。起動時の自動取得 + 通知、`TuningTable`（調整値）取り込み | 基盤+ED | 4 | 5-12, 1-5 | ✅ 2026-09-14 実装（PR #15）: `Editor/Spec/*`（`SpecCsv`/`SpecSheetParser`/`SpecDiffService`/`SpecSyncService`/`SpecFetcher`/`SpecAutoSync`/`SpecCache`/`SpecSyncWindow`）+ `Runtime/Tuning/*`（`TuningTable`/`Tuning`）+ `Editor/Codegen/TuningCodegen`。`Tools > D-Drive > 仕様書と同期` で差分プレビュー→行ごとに適用。既存アセットとの結び付けは新フィールドを増やさずファイル名から識別子を逆算（[27] §8.3）。詳細・要判断は [27_spec_sheet.md](27_spec_sheet.md) §8-9 |
-| 5-14 | 仕様書リンク（2026-09-13 追加）: `AssetDataBase.SpecUrl` 追加（シリアライズ追加のため着手前に確認）+ Inspector「仕様書を開く」+ 同期時に自動設定 | ED | 1 | 5-13 | ✅ 2026-09-14 実装（PR #15）: `AssetDataBase.SpecUrl`（+ `Assignee`、5-13 の「担当」列用に追加）を追加し、`AssetDataInspector` から `SpecUrlGui.Draw` を呼んで空でなければ「仕様書を開く」ボタンを表示（`Application.OpenURL`）。同期時に「仕様」列から自動設定 |
+| 5-12 | 仕様書テンプレート（2026-09-13 追加）: 新規 Google スプレッドシート（README / 概要 / 機能_* 人向け + `アセット`・`調整値` ツール向け + `_選択肢`）+ 記入ガイド | 全員 | 1 | — | ✅ 2026-09-14 実装（PR #13）: xlsx テンプレート（README/概要/機能_サンプル/アセット/調整値/_選択肢）+ 記入ガイド（`docs/SpecSheetTemplate/`）。Google ドライブへはユーザーがアップロード。種別列は AssetType の enum 名。取得方法・調整値取り込み・テンプレート運用は [27](27_spec_sheet.md) §7.1 の暫定既定（ユーザー未確認）。→ 2026-09-14: [docs/32](32_spec_web.md)（HTML 仕様書）で置き換え予定。5-13 の差分・同期・TuningTable は W-9〜W-11 で再利用 |
+| 5-13 | 仕様書同期（2026-09-13 追加）: CSV 取得（リンク共有 gviz / 将来サービスアカウント）→ 差分プレビュー → 新規行は Placeholder Data 作成・表示名/カテゴリ/状態/担当/備考を反映・消えた行は Archive 候補表示のみ。起動時の自動取得 + 通知、`TuningTable`（調整値）取り込み | 基盤+ED | 4 | 5-12, 1-5 | ✅ 2026-09-14 実装（PR #15）: `Editor/Spec/*`（`SpecCsv`/`SpecSheetParser`/`SpecDiffService`/`SpecSyncService`/`SpecFetcher`/`SpecAutoSync`/`SpecCache`/`SpecSyncWindow`）+ `Runtime/Tuning/*`（`TuningTable`/`Tuning`）+ `Editor/Codegen/TuningCodegen`。`Tools > D-Drive > 仕様書と同期` で差分プレビュー→行ごとに適用。既存アセットとの結び付けは新フィールドを増やさずファイル名から識別子を逆算（[27] §8.3）。詳細・要判断は [27_spec_sheet.md](27_spec_sheet.md) §8-9。→ 2026-09-14: [docs/32](32_spec_web.md)（HTML 仕様書）で置き換え予定。5-13 の差分・同期・TuningTable は W-9〜W-11 で再利用 |
+| 5-14 | 仕様書リンク（2026-09-13 追加）: `AssetDataBase.SpecUrl` 追加（シリアライズ追加のため着手前に確認）+ Inspector「仕様書を開く」+ 同期時に自動設定 | ED | 1 | 5-13 | ✅ 2026-09-14 実装（PR #15）: `AssetDataBase.SpecUrl`（+ `Assignee`、5-13 の「担当」列用に追加）を追加し、`AssetDataInspector` から `SpecUrlGui.Draw` を呼んで空でなければ「仕様書を開く」ボタンを表示（`Application.OpenURL`）。同期時に「仕様」列から自動設定。→ 2026-09-14: [docs/32](32_spec_web.md)（HTML 仕様書）で置き換え予定。5-13 の差分・同期・TuningTable は W-9〜W-11 で再利用 |
 | 5-15 | 各エディタ上部に「＋ 新規作成」ボタン（2026-09-13 追加）: `[DataEditor]` 付きの全専用エディタのツールバーに共通ボタンを置き、押すと `NewAssetDialog`（命名規則の画面）をそのエディタの種別で固定して開く（`NewAssetDialog.Open` に種別指定のオーバーロードを追加）。作成後はそのエディタの対象に自動で切り替える | ED | 1 | 1-5 | ✅ 2026-09-14 実装（`Editor/Inspector/NewAssetToolbarButton.cs` が共通ヘルパー。`[DataEditor]` 属性を windowType 側から直接読んで対応 Data 型を求め、`NewAssetDialog.Open(Type[], Action<AssetDataBase>)` を新設して種別ロック付きで開く。作成後は `DataEditorRegistry.GetEntries` から windowType 自身のエントリを探して `Open(created)` を呼び、既存の「エディターで開く」と同じ経路でそのエディタへ切り替える。Audio/VFX/Model/Anim/Anim2D/Prefab/Canvas/Material/Material 変換/Material プレビュー/Anchor/Anchor Group/Button Skin/Slider/Slider Skin/UI Tween の全 16 `[DataEditor]` 宣言に適用。詳細は [09] §8.3、テストは `NewAssetToolbarButtonTests`） |
-| 5-16 | 新規作成ダイアログに「仕様書から選ぶ」（2026-09-13 追加）: 仕様書の `アセット` タブのうち、まだ Data が無い行を一覧（種別固定で開いたときはその種別だけ・検索可）。選ぶと種別・カテゴリ・識別子・表示名・備考・仕様リンクが入力済みになり、そのまま作成できる（手入力も従来どおり可）。一覧は 5-13 の取得キャッシュを使う（ダイアログを開くたびにネットへ行かない） | ED | 1 | 5-13, 5-15 | ✅ 2026-09-14 実装（PR #16）: `NewAssetDialog` 先頭に「仕様書から選ぶ」を追加。`SpecCache.GetUncreatedRows` から種別・検索で絞った一覧を出し、選ぶと種別/カテゴリ/識別子/表示名/備考(新設欄)/仕様リンク(新設欄)が入力済みになる。「作成」時は `SpecSyncService.ApplyExtraFields`(同期の新規作成と同じロジック、公開化)で状態タグ/Assignee/Description/SpecUrl も設定し、作成後は `SpecCache.RecomputeDiff()`(ネット非依存)で一覧から消える |
+| 5-16 | 新規作成ダイアログに「仕様書から選ぶ」（2026-09-13 追加）: 仕様書の `アセット` タブのうち、まだ Data が無い行を一覧（種別固定で開いたときはその種別だけ・検索可）。選ぶと種別・カテゴリ・識別子・表示名・備考・仕様リンクが入力済みになり、そのまま作成できる（手入力も従来どおり可）。一覧は 5-13 の取得キャッシュを使う（ダイアログを開くたびにネットへ行かない） | ED | 1 | 5-13, 5-15 | ✅ 2026-09-14 実装（PR #16）: `NewAssetDialog` 先頭に「仕様書から選ぶ」を追加。`SpecCache.GetUncreatedRows` から種別・検索で絞った一覧を出し、選ぶと種別/カテゴリ/識別子/表示名/備考(新設欄)/仕様リンク(新設欄)が入力済みになる。「作成」時は `SpecSyncService.ApplyExtraFields`(同期の新規作成と同じロジック、公開化)で状態タグ/Assignee/Description/SpecUrl も設定し、作成後は `SpecCache.RecomputeDiff()`(ネット非依存)で一覧から消える。→ 2026-09-14: [docs/32](32_spec_web.md)（HTML 仕様書）で置き換え予定。5-13 の差分・同期・TuningTable は W-9〜W-11 で再利用 |
 | 5-R | Phase 5 自前レビュー対応（第 1 弾: 73c6bed..8e4eb42、PR #11〜#24 が対象。Codex レビューは 2026-09-11 にクレジット切れで終了したため自前で実施） | 全員 | — | 1〜16 | ✅ 2026-09-14 対応（第 1 弾）。P1(2件): `SceneLoadingScreen.OnDisable` が `RunAsync` 未実行でも `ScenePreload.Release` していた問題 / `CameraFxManager` が `Camera.main` 差し替え時に旧ノードを破棄せずカメラを元の親に戻さない問題、をそれぞれ修正 + 回帰テスト。P2(8件): `CameraFxManager` の `MaxStack<=0` 解釈を Validator と一致させる、`AssetRegistry` の未登録警告 HashSet を Preload/Placeholder で分離、`HapticsManager` にフォーカス喪失中出力 0 固定フラグ、`Tuning` の全 `Get*` で型不一致 1 キー 1 回警告、`PresentationEditorWindow` の Kind 変更で Asset 不整合が残る問題、`ImportRulePostprocessor`/`DependencyGraphPostprocessor` の重複チェックを HashSet 化、`CodeReferenceScan` をキャッシュ + 対象を自前コードに限定、`NewAssetDialog` の識別子手動編集で仕様書行の選択を解除。整理 4 件・テスト整理 1 件・追加テスト多数。誤検知 1 件(R3 asmdef)。詳細・第 2 弾(ネット/5-8・5-9、6-0)の予定は [30_phase5_review_2026-09-14.md](30_phase5_review_2026-09-14.md) 参照 |
+
+## P5 追補: HTML 仕様書（Google Apps Script、[docs/32](32_spec_web.md)）
+
+2026-09-14 追加。docs/27（スプレッドシート方式、5-12〜5-16）を Web アプリへ置き換える新方式のチケット。粒度・書式は他 Phase と同じ。
+詳細設計は [docs/32_spec_web.md](32_spec_web.md)、要判断への回答は同書 §9 参照。5-12〜5-16 の扱いは上記表の各行の追記どおり
+（5-13 の差分・同期・`TuningTable` 系ロジックは W-9〜W-11 でそのまま再利用する）。
+
+### MVP（アセット一覧 + 調整値〔スカラー全型・テーブル型・ロック・検証・コメント〕+ D-Drive 取得同期）
+
+| # | チケット | 依存 | 日数 | AC |
+|---|---|---|---|---|
+| W-1 | GAS プロジェクト雛形（`Tools/SpecWeb/`、clasp、`appsscript.json`、2 デプロイの構成） | — | 1 | `clasp push`/`pull` が通る。空の `doGet` が 2 つの URL で応答する |
+| W-2 | Drive JSON ストレージ層（読み書き + `LockService` + `revision` 楽観ロック） | W-1 | 2 | 同時に 2 リクエストが書き込んでも片方が revision 不一致で拒否される（手動テストで確認） |
+| W-3 | 認証（Google 許可リスト `users.json` + API トークン 2 種 + ロール） | W-1, W-2 | 2 | 許可リスト外のアカウントで①にアクセスすると拒否される。トークン無しで②にアクセスすると拒否される |
+| W-4 | アセット仕様 CRUD API + 一覧 SPA（検索・絞り込み・並べ替え・新規作成） | W-2, W-3 | 3 | [docs/32] §4.1 の一覧が実データで動く |
+| W-5 | アセット詳細画面（全項目編集・コメント・D-Drive 実状態の表示） | W-4 | 2 | [docs/32] §4.5 のとおり編集・コメント投稿ができる |
+| W-6 | 調整値 API（スカラー: float/int/bool/string/enum、ロック、範囲/型検証） | W-2, W-3 | 3 | 範囲外・型違いの書き込みが 400 相当で拒否される。`locked` は `editor` ロールから拒否される |
+| W-7 | 調整値: テーブル型 API（列定義 CRUD、行 CRUD、セル検証） | W-6 | 3 | 列追加・削除、行追加・削除、セル編集が一貫して保存される。列削除で該当セルも消える |
+| W-8 | 調整値編集 SPA（スカラー一覧 + テーブル編集グリッド + コメント） | W-6, W-7 | 4 | [docs/32] §4.4 の画面が実データで動く。範囲外セルが即時に赤表示される |
+| W-9 | `SpecWebFetcher` / `SpecWebParser`（D-Drive 側、既存 `SpecFetcher`/`SpecSheetParser` を置き換え） | W-4, W-6, W-7 | 3 | 既存 `SpecDiffService`/`SpecSyncService` のテストが入力元差し替え後も green |
+| W-10 | `TuningTable` 拡張（`Enum`・`Tables`）+ `SpecSyncService.ApplyTuningTable` + `TuningCodegen` 拡張 | W-9 | 3 | **確認済み（案 A、[docs/32] §5.3・§9-7）**。テーブル型調整値が `Tuning.GetTableFloat` 等で読める |
+| W-11 | `Specs/*.json` 書き出し（`SpecSnapshotWriter`）+ 同期フロー結線 | W-9 | 2 | 同期実行後、`Specs/assets.json`/`Specs/tuning.json` が更新され、通常の git diff で変更内容が読める |
+| W-12 | D-Drive → Web 送信 API（選択肢・実状態・アイコン・使用箇所数） | W-4, W-6 | 2 | 同期実行後、Web の選択肢・アセット実状態バッジが更新される。送信内容は選択肢/実状態/アイコン/使用箇所数のみ（[docs/32] §5.2・§7） |
+
+**MVP 合計: 30 人日**
+
+### v2（テーブル型調整値以外の強化・機能仕様ページ・埋め込み・ダッシュボード・書き出し等）
+
+| # | チケット | 依存 | 日数 | AC |
+|---|---|---|---|---|
+| W-13 | プリセット / バリアント（スカラー・テーブルへの上書き差分） | W-8 | 3 | Easy/Normal/Hard を切り替えて差分だけが表示・編集できる |
+| W-14 | カーブ型調整値（ブラウザ上のグラフ編集、`ValueDef` 互換キー列） | W-8 | 4 | カーブを編集・保存・D-Drive で `ValueDef` に取り込める |
+| W-15 | ベクトル・色型調整値 | W-8 | 2 | vector3/color の入力・保存ができる |
+| W-16 | 機能仕様ページ CRUD + Markdown エディタ | W-3 | 3 | 見出し・本文・画像を編集・閲覧できる（Markdown + プレビュー、[docs/32] §9-6 決定） |
+| W-17 | 埋め込み（`{{asset:...}}`/`{{tuning:...}}`）の解決・表示 | W-16, W-4, W-6 | 2 | 埋め込みが最新値で表示される |
+| W-18 | ダッシュボード（種別×状態、担当別、期限切れ、未作成） | W-4 | 2 | [docs/32] §4.3 の集計が実データで出る |
+| W-19 | カンバン（状態別ドラッグ変更） | W-4 | 2 | ドラッグで状態が変わり API に反映される |
+| W-20 | 横断検索 | W-4, W-6, W-16 | 2 | アセット・調整値・機能ページ・コメントを 1 つの検索窓で見つけられる |
+| W-21 | 一括編集・保存できるビュー・CSV 入出力（旧シートからの初期取り込み含む） | W-4 | 3 | CSV から旧テンプレートの内容を 1 回で流し込める |
+| W-22 | 書き出し（静的 HTML/印刷用、機能ページの「アセットリンク一覧」、緊急用スプレッドシート書き出し） | W-16, W-17 | 2 | 印刷 CSS での表示確認、スプレッドシート書き出しが目視できる内容で出る |
+| W-23 | 変更履歴機能 | — | — | **作らない**（[docs/32] §1.4・§9-2 決定。git の `Specs/*.json` 履歴で代用）。チケット化しない。必要になった場合のみ再提案する |
+
+**v2 合計: 30 人日（W-23 除く）**
+
+### v3（ライブ調整・派生値・通知）
+
+| # | チケット | 依存 | 日数 | AC |
+|---|---|---|---|---|
+| W-24 | ライブ調整（Editor Play Mode / 開発ビルドから読み取り専用トークンで最新値を取得し `Tuning` を差し替え） | W-6, W-9 | 3 | Play Mode 中に Web で値を変えると次の Tick で反映される（[13_extensions.md](13_extensions.md) の Live Tuning 相当） |
+| W-25 | 派生値（式評価、循環参照検出） | W-8 | 3 | `A*B+1` 形式の式が評価され、循環参照はエラー表示される |
+| W-26 | 通知（D-Drive 未同期・担当変更、時間主導トリガー + メール） | W-3 | 2 | しきい値超えでメールが飛ぶ（[docs/32] §2.4 のクォータ内で動作） |
+
+**v3 合計: 8 人日**
+
+**総合計: 68 人日（MVP 30 / v2 30 / v3 8）**。既存 5-12〜5-16・6-9 の実装コスト（すでに投入済み）とは別枠。
 
 ## Phase 6: 仕上げ・運用化 (M6)  約 2 週 + Timeline 対応 約 2.5 週（運用開始後）
 
