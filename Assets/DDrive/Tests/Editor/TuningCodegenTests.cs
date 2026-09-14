@@ -59,6 +59,39 @@ namespace DDrive.Tests.Editor
 
             Assert.AreEqual(0, result.TotalCount);
             StringAssert.Contains("public static class TUNING", File.ReadAllText(OutputPath));
+            StringAssert.Contains("public static class TUNING_TABLE", File.ReadAllText(OutputPath));
+            StringAssert.Contains("public static class TUNING_COLUMN", File.ReadAllText(OutputPath));
+        }
+
+        // W-10(2026-09-14) 追加: テーブルキー・列キーの定数生成([32_spec_web.md] §5.1)。
+        [Test]
+        public void Regenerate_WithTables_WritesTableAndColumnConstants()
+        {
+            AssetDatabase.CreateFolder("Assets/DDrive/Tests/Editor", "TempTuningCodegen");
+            var table = ScriptableObject.CreateInstance<TuningTable>();
+            table.Tables = new[]
+            {
+                new TuningTableEntry
+                {
+                    Key = "Enemy/Params",
+                    Columns = new[]
+                    {
+                        new TuningTableColumn { Key = "Hp", Type = TuningValueType.Int },
+                        new TuningTableColumn { Key = "Speed", Type = TuningValueType.Float },
+                    },
+                    Rows = System.Array.Empty<TuningTableRow>(),
+                },
+            };
+            AssetDatabase.CreateAsset(table, TablePath);
+
+            var result = TuningCodegen.Regenerate(table, OutputPath);
+
+            Assert.AreEqual(1, result.TableCount);
+            Assert.AreEqual(2, result.ColumnCount);
+            var content = File.ReadAllText(OutputPath);
+            StringAssert.Contains("public const string EnemyParams = \"Enemy/Params\";", content);
+            StringAssert.Contains("public const string EnemyParamsHp = \"Hp\";", content);
+            StringAssert.Contains("public const string EnemyParamsSpeed = \"Speed\";", content);
         }
     }
 }

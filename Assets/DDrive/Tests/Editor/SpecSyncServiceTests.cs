@@ -4,6 +4,7 @@ using DDrive.Editor.Spec;
 using DDrive.Foundation.Identity;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.Tuning;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -83,6 +84,100 @@ namespace DDrive.Tests.Editor
             SpecSyncService.ApplyTuning(parsed, table);
 
             Assert.AreEqual(0, table.Entries.Length);
+        }
+
+        [Test]
+        public void ApplyTuning_EnumRow_PopulatesEnumOptions()
+        {
+            var table = CreateTuningTable();
+            var parsed = new SpecParseResult<SpecTuningRow>();
+            parsed.Rows.Add(new SpecTuningRow
+            {
+                RowNumber = 1,
+                Key = "Difficulty/Level",
+                RawValue = "Normal",
+                RawType = "enum",
+                RawEnumOptions = new[] { "Easy", "Normal", "Hard" },
+            });
+
+            SpecSyncService.ApplyTuning(parsed, table);
+
+            var entry = table.Entries.Single();
+            Assert.AreEqual(TuningValueType.Enum, entry.Type);
+            Assert.AreEqual("Normal", entry.ValueString);
+            CollectionAssert.AreEqual(new[] { "Easy", "Normal", "Hard" }, entry.EnumOptions);
+        }
+
+        [Test]
+        public void ApplyTuning_EnumRow_ValueNotInOptions_SkipsRowAndWarns()
+        {
+            var table = CreateTuningTable();
+            var parsed = new SpecParseResult<SpecTuningRow>();
+            parsed.Rows.Add(new SpecTuningRow
+            {
+                RowNumber = 1,
+                Key = "Difficulty/Level",
+                RawValue = "Impossible",
+                RawType = "enum",
+                RawEnumOptions = new[] { "Easy", "Normal", "Hard" },
+            });
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*Difficulty/Level.*"));
+            SpecSyncService.ApplyTuning(parsed, table);
+
+            Assert.AreEqual(0, table.Entries.Length);
+        }
+
+        [Test]
+        public void ApplyTuningTable_ValidRow_PopulatesTables()
+        {
+            var table = CreateTuningTable();
+            var raw = JObject.Parse(
+                "{\"kind\":\"table\"," +
+                "\"columns\":[" +
+                "{\"key\":\"Hp\",\"valueType\":\"int\",\"min\":1,\"max\":9999,\"unit\":\"\",\"enumOptions\":[]}," +
+                "{\"key\":\"Type\",\"valueType\":\"enum\",\"min\":null,\"max\":null,\"unit\":\"\",\"enumOptions\":[\"Melee\",\"Ranged\"]}" +
+                "]," +
+                "\"rows\":[" +
+                "{\"rowId\":\"Slime\",\"cells\":{\"Hp\":10,\"Type\":\"Melee\"},\"comments\":[]}," +
+                "{\"rowId\":\"Archer\",\"cells\":{\"Hp\":20,\"Type\":\"Ranged\"},\"comments\":[]}" +
+                "]," +
+                "\"locked\":false}");
+
+            var parsed = new SpecParseResult<SpecTuningTableRow>();
+            parsed.Rows.Add(new SpecTuningTableRow { RowNumber = 1, Key = "Enemy/Params", Raw = raw });
+
+            SpecSyncService.ApplyTuningTable(parsed, table);
+
+            Assert.AreEqual(1, table.Tables.Length);
+            var entry = table.Tables[0];
+            Assert.AreEqual("Enemy/Params", entry.Key);
+            Assert.AreEqual(2, entry.Columns.Length);
+            Assert.AreEqual(2, entry.Rows.Length);
+
+            var slime = entry.Rows.Single(r => r.RowId == "Slime");
+            var hpCell = slime.Cells.Single(c => c.ColumnKey == "Hp");
+            Assert.AreEqual(10, hpCell.I);
+            var typeCell = slime.Cells.Single(c => c.ColumnKey == "Type");
+            Assert.AreEqual("Melee", typeCell.S);
+
+            Assert.IsTrue(table.TryFindTableIndex("Enemy/Params", out _));
+        }
+
+        [Test]
+        public void ApplyTuningTable_DoesNotAffectExistingScalarEntries()
+        {
+            var table = CreateTuningTable();
+            table.Entries = new[] { new TuningEntry { Key = "Combat/HitStopSec", Type = TuningValueType.Float, ValueFloat = 0.1f } };
+
+            var raw = JObject.Parse("{\"kind\":\"table\",\"columns\":[],\"rows\":[],\"locked\":false}");
+            var parsed = new SpecParseResult<SpecTuningTableRow>();
+            parsed.Rows.Add(new SpecTuningTableRow { RowNumber = 1, Key = "Empty/Table", Raw = raw });
+
+            SpecSyncService.ApplyTuningTable(parsed, table);
+
+            Assert.AreEqual(1, table.Entries.Length, "ApplyTuningTable はスカラーの Entries に触れないはず");
+            Assert.AreEqual(1, table.Tables.Length);
         }
 
         [Test]

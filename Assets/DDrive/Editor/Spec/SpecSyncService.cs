@@ -8,6 +8,7 @@ using DDrive.Editor.Inspectors;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Runtime.Tuning;
+using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -158,11 +159,188 @@ namespace DDrive.Editor.Spec
                 case TuningValueType.String:
                     entry.ValueString = row.RawValue;
                     break;
+
+                case TuningValueType.Enum:
+                    // W-10(案A): Enum は選択肢(RawEnumOptions)必須。値はその中に含まれること。
+                    if (row.RawEnumOptions == null || row.RawEnumOptions.Length == 0)
+                    {
+                        Debug.LogWarning($"[DDrive] 調整値 '{row.Key}'(行 {row.RowNumber}): enum の選択肢が空です。この行はスキップします。");
+                        return false;
+                    }
+
+                    if (Array.IndexOf(row.RawEnumOptions, row.RawValue) < 0)
+                    {
+                        Debug.LogWarning($"[DDrive] 調整値 '{row.Key}'(行 {row.RowNumber}): 値 '{row.RawValue}' が enum の選択肢に含まれません。この行はスキップします。");
+                        return false;
+                    }
+
+                    entry.ValueString = row.RawValue;
+                    entry.EnumOptions = row.RawEnumOptions;
+                    break;
             }
 
             TryParseFloat(row.RawMin, out entry.Min);
             TryParseFloat(row.RawMax, out entry.Max);
             return true;
+        }
+
+        // ── 調整値タブ(テーブル型) → TuningTable.Tables(W-10、案A) ──
+        // 既存の Entries(スカラー)には触れない(ApplyTuning とは独立に呼べる)。
+        public static void ApplyTuningTable(SpecParseResult<SpecTuningTableRow> parsed, TuningTable table)
+        {
+            if (table == null)
+            {
+                return;
+            }
+
+            var entries = new List<TuningTableEntry>(parsed.Rows.Count);
+            foreach (var row in parsed.Rows)
+            {
+                if (TryBuildTableEntry(row, out var entry))
+                {
+                    entries.Add(entry);
+                }
+            }
+
+            Undo.RecordObject(table, "仕様書のテーブル調整値を同期");
+            table.Tables = entries.ToArray();
+            table.RebuildIndex();
+            EditorUtility.SetDirty(table);
+            AssetDatabase.SaveAssets();
+        }
+
+        private static bool TryBuildTableEntry(SpecTuningTableRow row, out TuningTableEntry entry)
+        {
+            entry = default;
+            var raw = row.Raw;
+            if (raw == null)
+            {
+                Debug.LogWarning($"[DDrive] 調整値テーブル '{row.Key}': 本体が空です。この行はスキップします。");
+                return false;
+            }
+
+            var columnsRaw = raw["columns"] as JArray;
+            if (columnsRaw == null)
+            {
+                Debug.LogWarning($"[DDrive] 調整値テーブル '{row.Key}': columns がありません。この行はスキップします。");
+                return false;
+            }
+
+            var columns = new List<TuningTableColumn>(columnsRaw.Count);
+            foreach (var columnToken in columnsRaw)
+            {
+                if (columnToken is not JObject columnObj)
+                {
+                    continue;
+                }
+
+                var columnKey = (string)columnObj["key"];
+                if (string.IsNullOrEmpty(columnKey))
+                {
+                    Debug.LogWarning($"[DDrive] 調整値テーブル '{row.Key}': key の無い列があります。スキップします。");
+                    continue;
+                }
+
+                if (!TryParseValueType((string)columnObj["valueType"], out var columnType))
+                {
+                    Debug.LogWarning($"[DDrive] 調整値テーブル '{row.Key}' の列 '{columnKey}': valueType '{columnObj["valueType"]}' を解釈できません。スキップします。");
+                    continue;
+                }
+
+                columns.Add(new TuningTableColumn
+                {
+                    Key = columnKey,
+                    Type = columnType,
+                    Min = ToFloatOrZero(columnObj["min"]),
+                    Max = ToFloatOrZero(columnObj["max"]),
+                    Unit = (string)columnObj["unit"] ?? string.Empty,
+                    EnumOptions = ToStringArray(columnObj["enumOptions"] as JArray),
+                });
+            }
+
+            var rowsRaw = raw["rows"] as JArray ?? new JArray();
+            var rows = new List<TuningTableRow>(rowsRaw.Count);
+            foreach (var rowToken in rowsRaw)
+            {
+                if (rowToken is not JObject rowObj)
+                {
+                    continue;
+                }
+
+                var rowId = (string)rowObj["rowId"];
+                if (string.IsNullOrEmpty(rowId))
+                {
+                    Debug.LogWarning($"[DDrive] 調整値テーブル '{row.Key}': rowId の無い行があります。スキップします。");
+                    continue;
+                }
+
+                var cellsObj = rowObj["cells"] as JObject;
+                var cells = new List<TuningCellValue>(columns.Count);
+                foreach (var column in columns)
+                {
+                    var cellToken = cellsObj?[column.Key];
+                    cells.Add(BuildCellValue(column, cellToken));
+                }
+
+                rows.Add(new TuningTableRow { RowId = rowId, Cells = cells.ToArray() });
+            }
+
+            entry = new TuningTableEntry
+            {
+                Key = row.Key,
+                Columns = columns.ToArray(),
+                Rows = rows.ToArray(),
+            };
+            return true;
+        }
+
+        private static TuningCellValue BuildCellValue(TuningTableColumn column, JToken cellToken)
+        {
+            var cell = new TuningCellValue { ColumnKey = column.Key };
+            switch (column.Type)
+            {
+                case TuningValueType.Float:
+                    cell.F = cellToken?.Type == JTokenType.Float || cellToken?.Type == JTokenType.Integer
+                        ? cellToken.ToObject<float>()
+                        : 0f;
+                    break;
+                case TuningValueType.Int:
+                    cell.I = cellToken?.Type == JTokenType.Integer || cellToken?.Type == JTokenType.Float
+                        ? cellToken.ToObject<int>()
+                        : 0;
+                    break;
+                case TuningValueType.Bool:
+                    cell.B = cellToken?.Type == JTokenType.Boolean && cellToken.ToObject<bool>();
+                    break;
+                case TuningValueType.String:
+                case TuningValueType.Enum:
+                    cell.S = cellToken?.Type == JTokenType.String ? cellToken.ToObject<string>() : string.Empty;
+                    break;
+            }
+
+            return cell;
+        }
+
+        private static bool TryParseValueType(string raw, out TuningValueType type)
+            => Enum.TryParse(raw, ignoreCase: true, out type) && Enum.IsDefined(typeof(TuningValueType), type);
+
+        private static float ToFloatOrZero(JToken token)
+            => token != null && (token.Type == JTokenType.Float || token.Type == JTokenType.Integer) ? token.ToObject<float>() : 0f;
+
+        private static string[] ToStringArray(JArray array)
+        {
+            if (array == null || array.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var result = new string[array.Count];
+            for (var i = 0; i < array.Count; i++)
+            {
+                result[i] = (string)array[i] ?? string.Empty;
+            }
+
+            return result;
         }
 
         private static bool TryParseFloat(string raw, out float value)
