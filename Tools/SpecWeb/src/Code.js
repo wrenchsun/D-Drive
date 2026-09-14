@@ -32,6 +32,21 @@ function handleSpecWebRequest_(e) {
   return renderUi_();
 }
 
+/**
+ * D-Drive の書き込みトークン（principal が 'ddrive:write'）で呼べる API 名の許可リスト
+ * （docs/32_spec_web.md §5.2・§7、W-12）。
+ *
+ * 書き込みトークンはチーム全員の D-Drive に配る（同期担当者だけに限定しない、§9-9 決定）ため、
+ * 「持っている人が増えても、企画が Web で入力した内容（アセット仕様の本文・調整値の値・
+ * 機能仕様ページ・コメント）を D-Drive から上書きできない」ことをコード側で強制する必要がある。
+ * auth.role（write トークンは editor 相当）による権限チェックだけでは
+ * tuningScalarUpdate/assets.update 等も通ってしまう（実際に W-6〜W-8 実装時点でこの穴が
+ * 残っていた。docs/32_spec_web.md「既知の未対応・引き継ぎ事項」参照）ため、
+ * API 名そのものをここで固定する。ping/whoami は状態を変更しない（動作確認・トークン検証用）
+ * ため許可リストに含めている。
+ */
+var DDRIVE_WRITE_TOKEN_ALLOWED_APIS = ['ping', 'whoami', 'choices', 'assetState', 'tuningUsage'];
+
 function handleApiRequest_(e) {
   var params = e.parameter || {};
   var auth = authenticateRequest(e);
@@ -39,6 +54,12 @@ function handleApiRequest_(e) {
     return ContentAdapter.json({ ok: false, error: auth.message }, auth.status);
   }
   var name = params.name;
+  if (auth.tokenKind === 'write' && DDRIVE_WRITE_TOKEN_ALLOWED_APIS.indexOf(name) === -1) {
+    return ContentAdapter.json(
+      { ok: false, error: '書き込みトークンで呼べる API ではありません（choices/assetState/tuningUsage のみ許可）: ' + name },
+      403
+    );
+  }
   var handler = getApi(name);
   if (!handler) {
     return ContentAdapter.json({ ok: false, error: '未登録の API です: ' + name }, 404);

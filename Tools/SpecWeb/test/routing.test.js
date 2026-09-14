@@ -79,7 +79,10 @@ test('doPost: doGet と同じルーティング関数を使い、token 付きで
 
 test('handleApiRequest_: RevisionConflictError を投げる登録 API は 409 相当に変換される', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('write');
+  // read トークンを使う(write トークンは W-12 の kind 許可リストで choices/assetState/tuningUsage
+  // 以外の API を呼べないため、この動的登録の __test_conflict は通らない。この test は
+  // 「RevisionConflictError → 409」への変換ロジック自体の確認であり、W-12 のゲートとは無関係)。
+  const token = ctx.issueApiToken('read');
   ctx.registerApi('__test_conflict', function () {
     throw new ctx.RevisionConflictError('revision が一致しません', 3);
   });
