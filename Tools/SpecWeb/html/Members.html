@@ -38,6 +38,18 @@
     border-radius: 4px;
     box-sizing: border-box;
   }
+  .users-section input[type='text'],
+  .users-section input[type='email'] {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-right: 0.3rem;
+  }
+  .users-section .sw-note {
+    font-size: 0.8rem;
+    color: var(--sw-muted, #666);
+  }
 </style>
 
 <script>
@@ -82,17 +94,19 @@
     }
 
     registerScreen('members', function (root) {
-      var state = { members: [], currentUser: { role: null }, ganttUrl: '' };
+      var state = { members: [], currentUser: { role: null }, ganttUrl: '', users: [] };
 
       var statusLine = el('p', { class: 'sw-muted', text: '読み込み中...' });
       var importSection = el('div', { class: 'members-section' });
       var tableSection = el('div', { class: 'members-section' });
       var settingsSection = el('div', { class: 'members-section members-settings' });
+      var usersSection = el('div', { class: 'members-section users-section' });
 
       root.appendChild(statusLine);
       root.appendChild(importSection);
       root.appendChild(tableSection);
       root.appendChild(settingsSection);
+      root.appendChild(usersSection);
 
       function canEdit() {
         return logic.roleAtLeast(state.currentUser.role, 'editor');
@@ -213,6 +227,138 @@
         }
       }
 
+      /**
+       * O-14: ログイン許可（users.json）の管理。admin ロールのときだけ表示・操作できる
+       * （サーバー側も `specWebUsersRequireAdmin_` で強制するため、クライアント側の非表示は
+       * UX 用にすぎない。docs/32_spec_web.md §11）。
+       */
+      function renderUsersSection() {
+        usersSection.innerHTML = '';
+        if (!isAdmin()) return;
+
+        usersSection.appendChild(el('h3', { text: 'ログイン許可（users.json）' }));
+        usersSection.appendChild(el('p', {
+          class: 'sw-muted',
+          text: 'この Web アプリにログインできる Google アカウントの一覧です。admin のみ追加・変更・削除できます。'
+        }));
+
+        var table = el('table', { class: 'members-table' });
+        table.appendChild(el('thead', {}, [
+          el('tr', {}, [
+            el('th', { text: 'メールアドレス' }),
+            el('th', { text: '表示名' }),
+            el('th', { text: 'ロール' }),
+            el('th', { text: '' })
+          ])
+        ]));
+        var tbody = el('tbody');
+        var selfEmail = (state.currentUser.email || '').toLowerCase();
+
+        state.users.forEach(function (u) {
+          var isSelfRow = !!selfEmail && selfEmail === String(u.email || '').toLowerCase();
+
+          var roleSelect = el('select');
+          ['viewer', 'editor', 'admin'].forEach(function (r) {
+            var opt = el('option', { text: r });
+            opt.value = r;
+            if (r === u.role) opt.selected = true;
+            roleSelect.appendChild(opt);
+          });
+          roleSelect.disabled = isSelfRow;
+
+          var saveRoleButton = el('button', {
+            text: 'ロールを保存',
+            onclick: function () {
+              window.SpecWebClient.callApi('users.upsert', {
+                email: u.email,
+                displayName: u.displayName,
+                role: roleSelect.value
+              }, { method: 'POST' }).then(function (res) {
+                if (!res.ok) { window.alert('保存に失敗しました: ' + (res.error || '')); return; }
+                if (res.driveShareWarning) window.alert(res.driveShareWarning);
+                reload();
+              });
+            }
+          });
+          saveRoleButton.disabled = isSelfRow;
+
+          var removeShareCheckbox = el('input', { type: 'checkbox' });
+          removeShareCheckbox.disabled = isSelfRow;
+
+          var removeButton = el('button', {
+            text: '削除',
+            onclick: function () {
+              if (!window.confirm(u.email + ' を削除しますか？')) return;
+              window.SpecWebClient.callApi('users.remove', {
+                email: u.email,
+                shareFolderRemove: removeShareCheckbox.checked
+              }, { method: 'POST' }).then(function (res) {
+                if (!res.ok) { window.alert('削除に失敗しました: ' + (res.error || '')); return; }
+                if (res.driveShareWarning) window.alert(res.driveShareWarning);
+                reload();
+              });
+            }
+          });
+          removeButton.disabled = isSelfRow;
+
+          tbody.appendChild(el('tr', {}, [
+            el('td', { text: u.email }),
+            el('td', { text: u.displayName || '' }),
+            el('td', {}, [roleSelect, saveRoleButton]),
+            el('td', {}, [
+              removeShareCheckbox,
+              el('span', { class: 'sw-note', text: ' 共有も解除' }),
+              removeButton
+            ])
+          ]));
+        });
+        table.appendChild(tbody);
+        usersSection.appendChild(table);
+        usersSection.appendChild(el('p', { class: 'sw-note', text: '（自分自身の行はロックアウト防止のため変更・削除できません）' }));
+
+        usersSection.appendChild(el('h4', { text: 'メンバーを追加' }));
+        var emailInput = el('input', { type: 'email', placeholder: 'you@example.com' });
+        var nameInput = el('input', { type: 'text', placeholder: '表示名' });
+        var roleSelectNew = el('select');
+        ['viewer', 'editor', 'admin'].forEach(function (r) {
+          var opt = el('option', { text: r });
+          opt.value = r;
+          if (r === 'editor') opt.selected = true;
+          roleSelectNew.appendChild(opt);
+        });
+        var shareCheckbox = el('input', { type: 'checkbox' });
+        shareCheckbox.checked = true;
+        var addButton = el('button', {
+          text: '追加',
+          onclick: function () {
+            var email = emailInput.value.trim();
+            if (!email) return;
+            window.SpecWebClient.callApi('users.upsert', {
+              email: email,
+              displayName: nameInput.value,
+              role: roleSelectNew.value,
+              shareFolder: shareCheckbox.checked
+            }, { method: 'POST' }).then(function (res) {
+              if (!res.ok) { window.alert('追加に失敗しました: ' + (res.error || '')); return; }
+              if (res.driveShareWarning) window.alert(res.driveShareWarning);
+              emailInput.value = '';
+              nameInput.value = '';
+              reload();
+            });
+          }
+        });
+        usersSection.appendChild(emailInput);
+        usersSection.appendChild(nameInput);
+        usersSection.appendChild(roleSelectNew);
+        usersSection.appendChild(shareCheckbox);
+        usersSection.appendChild(el('span', { class: 'sw-note', text: ' データフォルダを編集者として共有する' }));
+        usersSection.appendChild(addButton);
+        usersSection.appendChild(el('p', {
+          class: 'sw-note',
+          text: '共有すると Google から相手に共有通知メールが送られます。'
+        }));
+      }
+
       function reload() {
         statusLine.textContent = '読み込み中...';
         return Promise.all([
@@ -228,6 +374,15 @@
           renderImportSection();
           renderTableSection();
           renderSettingsSection();
+          if (!isAdmin()) {
+            state.users = [];
+            renderUsersSection();
+            return;
+          }
+          return window.SpecWebClient.callApi('users.list', {}).then(function (usersRes) {
+            state.users = usersRes.ok ? usersRes.items || [] : [];
+            renderUsersSection();
+          });
         });
       }
 

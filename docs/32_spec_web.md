@@ -624,7 +624,9 @@ token を送っていた（送信系 `FetchPost` は元から POST 本文）。G
    `SpecWebFetcherTests`（D-Drive 側、ローカル `HttpListener`）で別途確認済み（§7 追補参照）
 5. **調整値コメントの粒度**: セル単位のコメントは見送り、行単位 + テーブル全体のみとした（列ごとの意味を跨いだやり取りが多いと想定したため）。セル単位が要る場合は v2 で追加する（実装後の使い勝手で判断）
 8. **旧シート凍結のタイミング**: 移行期間中の二重入力を避けるため、Web アプリの MVP がひとまず動いた時点で旧スプレッドシートを「閲覧のみ」に切り替える運用としたい。具体的な切替日は実装スケジュール確定後に運用で決める
-10. **Drive 共有の運用**: デプロイ①が「実行者=アクセスした人」であるため、各メンバー個人に Drive 上の JSON ファイル・画像フォルダへの編集権限を配る必要がある。人数が増えたときにメンバー個別共有ではなく Google グループ共有に切り替えるかどうかは、実際の人数が増えた時点で運用で決める
+10. **Drive 共有の運用**: デプロイ①が「実行者=アクセスした人」であるため、各メンバー個人に Drive 上の JSON ファイル・画像フォルダへの編集権限を配る必要がある。人数が増えたときにメンバー個別共有ではなく Google グループ共有に切り替えるかどうかは、実際の人数が増えた時点で運用で決める。**O-14（2026-09-14）でこの手動共有を Web の管理画面（`users.upsert` の `shareFolder`）から行えるようにした**。詳細は下記「実装メモ（O-14）」参照
+
+15. **O-14: ロックアウト防止のガード条件（実装時に確定）**: 「自分自身の admin 権限の削除・降格は拒否」と「admin が 1 人だけのときはその人の削除・降格を拒否」を別々の独立したガードとして両方実装した（`Api/UserAdmin.js`）。通常運用では admin だけがこの API を呼べるため、後者は前者に包含されるケースが大半だが、将来の拡張（例: admin 権限を持つ別の principal からの操作）に備えて両方を明示的にチェックする防御的な実装にした
 
 ### 実装時に判断した項目（2026-09-14、W-9〜W-12。ユーザー確認できないため保守的な既定を選んだ）
 
@@ -1495,8 +1497,9 @@ Placeholder の `PresentationData` を先に作る、という連携。**メリ�
 | O-9 | メンバー管理: ガント担当者マスタの貼り付け取り込み（§10.5 案A）+ 発注者/受注者選択肢への反映（§10.3.6） | O-1 | 2 | 貼り付けたメンバーが発注者/受注者のドロップダウンに表記どおり出る |
 | O-10 | Presentation 発注グループへの WBS 番号欄 + ガントを開くリンク（URL は設定値、§10.5②） | O-2, O-9（設定保存の仕組みを共用） | 1 | WBS 番号を入れたグループからガントの URL が新規タブで開く |
 | O-11（任意・要判断） | Presentation 発注グループから `PresentationData` を Placeholder で作る連携（§10.4.3） | O-1, O-6 | 3 | 発注グループ作成後の同期で対応する `PresentationData` が（無ければ）Placeholder として作られる |
+| O-14 | admin が Web 画面からログイン許可（`users.json`）を管理できるようにする（一覧・追加・ロール変更・削除 + Drive フォルダ共有の同時操作） | W-3（既存の認証基盤） | 2 | admin 専用の管理 UI から追加・削除ができ、editor/viewer/API トークンからは呼べない。自分自身・最後の admin の削除・降格は拒否される |
 
-**MVP（O-1〜O-10）合計: 25 人日**。O-11 を含める場合 **28 人日**。既存 W-1〜W-12（すでに実装済み）の
+**MVP（O-1〜O-10）合計: 25 人日**。O-11 を含める場合 **28 人日**。O-14 は MVP 後の追加チケット（別枠）。既存 W-1〜W-12（すでに実装済み）の
 コストとは別枠（拡張元として再利用する）。
 
 #### 置き換わる・不要になる v2 チケット（W-13〜W-22 の再確認）
@@ -1576,7 +1579,7 @@ O-1〜O-5・O-7〜O-10（GAS 側）と O-6 の Web 側の受け皿（D-Drive か
 | `orders`（既定画面） | `OrderTreeLogic.html`+`OrderTree.html` | 発注ツリー（O-2）。Presentation 発注グループごとの子の集計・「単体」バケット・発注グループ作成・WBS リンク |
 | `assets` | `AssetsLogic.html`+`Assets.html` | 一覧（O-3）+ 発注の詳細（O-5。Markdown プレビュー・状態進行ボタン・パラメータ一覧・D-Drive 実状態・コメント） |
 | `my-orders` | `MyOrders.html` | 私が発注/私が受けた（O-4） |
-| `members` | `Members.html` | メンバー管理（O-9）+ ガント URL 設定（O-10） |
+| `members` | `Members.html` | メンバー管理（O-9）+ ガント URL 設定（O-10）+ ログイン許可管理（O-14、admin のみ表示） |
 | `tuning` | `TuningGrid.html`+`Tuning.html` | 調整値（既存、変更なし。O-8 で配線確認済み） |
 
 ### Node テスト
@@ -1781,3 +1784,109 @@ Node テストは GAS ホストグローバル（`HtmlService`/`google.script.ru
 
 上記 3〜7 はユーザー本人が確認する（Claude はブラウザで実際の Google アカウントにログインした
 デプロイを開けないため代行できない）。docs/28 に同じ手順への参照を追記した。
+
+---
+
+## 実装メモ（2026-09-14、O-14: ログイン許可の Web 管理）
+
+### 背景
+
+admin が別アカウントでテストしたところ「メンバーのみ利用できます。管理者に users.json への追加を
+依頼してください。」と出た。従来、`users.json` 許可リストの追加は Apps Script エディタから
+`src/Api/UserAdmin.js` の `upsertSpecWebUser` を一時関数で実行するしかなかった（README §5）。
+チームメンバーが増えるたびにこれを繰り返すのは非現実的なため、Web の画面から admin が
+ログイン許可を管理できるようにした。
+
+### サーバー側: `users.list`/`users.upsert`/`users.remove`（`src/Api/UserAdmin.js`）
+
+- 最初の admin をエディタから登録する既存の `upsertSpecWebUser`/`removeSpecWebUser`/`listSpecWebUsers`
+  （Web API 未登録）はそのまま残し、**2 人目以降はこの 3 つの Web API から操作する**方式にした
+  （README §5 を「最初の admin だけエディタから、以降は Web のメンバー画面から」に更新）
+- 3 つとも `specWebRequireRole_(auth, SPEC_WEB_ROLES.ADMIN, ...)` で **admin ロールのみ**を許可する。
+  D-Drive の API トークン（read/write）は `authenticateRequest`（Auth.js）により
+  role が viewer/editor 相当にしかならないため、これらの API はトークンからは常に 403 になる
+  （`Code.js` の `DDRIVE_WRITE_TOKEN_ALLOWED_APIS` にも意図的に追加していない。二重の防御）
+- メールアドレスは既存の `specWebNormalizeEmail_`（小文字化）で正規化し、簡単な形式チェック
+  （`/^[^\s@]+@[^\s@]+\.[^\s@]+$/`）を行う。既に存在するメールアドレスへの `users.upsert` は
+  更新（`displayName`/`role` の変更）として扱う（`Storage.putItem` の upsert 挙動をそのまま使う。
+  重複エントリは作られない）
+- **ロックアウト防止のガード**（§9 要判断 15 参照）: 「自分自身の admin 権限の降格・削除は拒否」
+  「admin が 1 人だけのときはその人の降格・削除を拒否」を別々の独立したチェックとして
+  `users.upsert`（`role` を admin から変える＝降格）・`users.remove` の両方に実装した
+- `role` を省略した `users.upsert`（新規追加時）は既定 `editor` になる（Web フォームの初期値と一致）
+
+### Drive フォルダ共有の同時操作（`src/adapters/DriveAdapter.js`）
+
+- `DriveAdapter.addFolderEditor(email)`/`removeFolderEditor(email)` を新設した。
+  データフォルダ（`SPEC_WEB_DRIVE_FOLDER_ID`）に対する `DriveApp` の `Folder#addEditor`/`removeEditor`
+  を薄く包むだけ（既に共有済みでもエラーにしない、`DriveApp` の既定動作のまま）
+- `users.upsert` の `shareFolder`（追加フォームの既定 ON チェックボックス）・`users.remove` の
+  `shareFolderRemove`（既定 OFF）が truthy のときだけ呼ぶ。**try/catch で囲み、失敗しても
+  users.json への追加・削除自体は成功扱いにする**（CLAUDE.md §0-4「例外で止めない」。
+  失敗時は応答に `driveShareWarning` を積み、クライアントがアラートで
+  「フォルダの共有に失敗しました。Drive で手動共有してください」を表示する）
+- `oauthScopes` は既存の Drive 権限（`appsscript.json`、既存の JSON 読み書きに使っている範囲）で
+  足りるはずと判断し、**`appsscript.json` は変更していない**（今回変更していないため未検証。
+  実デプロイで `addEditor`/`removeEditor` が権限エラーになった場合はスコープの見直しが必要になる。
+  要判断として引き継ぐ）
+- Google はフォルダ共有時に相手へ共有通知メールを自動送信する。この挙動を止める設定は無いため、
+  画面上の注記でユーザーに伝えるのみ（README §5・画面の注記を参照）
+
+### クライアント側: `html/Members.html` に admin 専用セクションを追加
+
+- 別画面（`registerScreen('users', ...)`）にはせず、**既存の `members` 画面（メンバー管理）に
+  4 番目のセクションとして追加**した。O-9/O-10 の時点で既に「メンバー」画面が
+  `members.json`（発注者/受注者候補）とは無関係な「ガント URL 設定」（admin 専用サブセクション）を
+  同じ画面に持っていた（設定系機能を admin セクションとして相乗りさせる既存の構成）ため、
+  そのパターンを踏襲する方が新しいナビ項目・新しい画面登録を増やさずに済むと判断した
+  （`users.json`＝ログイン許可と `members.json`＝発注者/受注者候補は別物である点は
+  見出し文言「ログイン許可（users.json）」で明示した）
+- `isAdmin()` のときだけ `renderUsersSection()` が内容を描画する（`viewer`/`editor` には
+  見出し自体が出ない）。ただしこれは UX 用の表示制御であり、**実際の権限判定は上記のとおり
+  サーバー側の `specWebRequireRole_` が行う**
+- 一覧・追加（メール・表示名・ロール既定 `editor`・データフォルダ共有チェック既定 ON）・
+  ロール変更（行ごとのドロップダウン + 保存ボタン）・削除（行ごとの「共有も解除」チェック既定 OFF +
+  削除ボタン、`window.confirm` で確認）を実装した。**自分自身の行はロール変更・削除ボタンを
+  無効化**する（クライアント側の追加防御。サーバー側のロックアウト防止ガードと合わせて二重）
+
+### 拒否画面の文言改善（`src/Code.js`・`src/Auth.js`）
+
+- `authenticateSession()`（Auth.js）は許可リスト外（403）のとき、`message` に加えて
+  ログイン中のメールアドレスを `email` フィールドでも返すようにした（本人自身のメールなので
+  表示してよい。他人のメールを晒すものではない）
+- `renderUi_()`（Code.js）の拒否ページに「ログイン中のアカウント: `<メール>`」
+  「このメールアドレスを管理者に伝えてください」を追加した（`auth.email` があるときのみ。
+  未ログイン=401 のときはメールアドレス自体が無いため表示しない）。埋め込みには新設の
+  `specWebEscapeHtml_`（HTML エスケープ）を使う
+- `authenticateRequest()`（②D-Drive API 経路）は文言を変えていない（D-Drive 向けの案内文は
+  そのまま）。403（許可リスト外の Google ログイン）の分岐は `authenticateSession()` の戻り値を
+  そのまま返すため、`email` フィールドは自動的に付与される（現時点でこの経路を使う画面は無いが、
+  将来 API 経由でも同じ情報が必要になった場合に備えて自然に一貫する）
+
+### 変更・追加ファイル
+
+| ファイル | 内容 |
+|---|---|
+| `Tools/SpecWeb/src/Api/UserAdmin.js` | `users.list`/`users.upsert`/`users.remove` を追加（既存のエディタ専用関数はそのまま残す） |
+| `Tools/SpecWeb/src/adapters/DriveAdapter.js` | `addFolderEditor`/`removeFolderEditor` を追加 |
+| `Tools/SpecWeb/src/Auth.js` | `authenticateSession()` の 403 応答に `email` を追加 |
+| `Tools/SpecWeb/src/Code.js` | `renderUi_()` の拒否ページにログイン中のメールアドレスを表示、`specWebEscapeHtml_` を新設、`DDRIVE_WRITE_TOKEN_ALLOWED_APIS` のコメントに O-14 の除外理由を追記 |
+| `Tools/SpecWeb/html/Members.html` | admin 専用の「ログイン許可（users.json）」セクションを追加 |
+| `Tools/SpecWeb/test/usersAdmin.test.js`（新規） | `users.list`/`users.upsert`/`users.remove` のテスト |
+| `Tools/SpecWeb/test/load-gas.js` | フェイク `DriveApp` に `addEditor`/`removeEditor`（`driveShareShouldFail` オプション込み）を追加 |
+| `Tools/SpecWeb/test/auth.test.js` | 403 応答に `email` が付くことのテストを追加 |
+| `Tools/SpecWeb/test/routing.test.js` | 拒否ページにメールアドレスが表示されることのテストを追加 |
+| `Tools/SpecWeb/test/members.smoke.test.js` | admin 専用セクションの表示・追加・削除のスモークテストを追加 |
+
+### テスト結果
+
+`& "C:\Program Files\nodejs\node.exe" --test "Tools/SpecWeb/test/*.test.js"` で実行。
+**280 件全て green**（既存 251 件 + 本チケット追加 29 件）。
+
+### 目視確認（実デプロイでの確認が必須）
+
+Node テストはサーバー側のロジック・クライアント側の純粋な DOM 操作を検証できるが、
+実際の Google アカウントでのログイン・Drive フォルダの共有通知メール送信・別アカウントからの
+アクセス確認は Node テストの範囲外。**docs/28 に確認手順を追記した**（別アカウントを
+`users.upsert` で追加 → そのアカウントで①（人向け SPA）を開けること、削除後に拒否されること、
+共有チェックを ON にした場合に相手に共有通知メールが届くこと）。この節はユーザー本人が確認する。

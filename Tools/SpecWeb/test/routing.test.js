@@ -38,6 +38,15 @@ test('doGet: api パラメータが無く許可リスト外なら「メンバー
   assert.match(output.getContent(), /メンバーのみ利用できます/);
 });
 
+// O-14 AC: 拒否画面に本人のメールアドレスを表示し、管理者へ伝えやすくする。
+test('doGet: 許可リスト外のページに「ログイン中のアカウント」とメールアドレスが表示される', () => {
+  const ctx = loadGas({ activeUserEmail: 'outsider@example.com' });
+  const output = ctx.doGet({ parameter: {} });
+  assert.match(output.getContent(), /ログイン中のアカウント/);
+  assert.match(output.getContent(), /outsider@example\.com/);
+  assert.match(output.getContent(), /このメールアドレスを管理者に伝えてください/);
+});
+
 test('doPost: ?api=1（② 相当、token を POST 本文で送る）は JSON で応答する', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('read');

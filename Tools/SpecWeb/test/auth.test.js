@@ -36,6 +36,15 @@ test('authenticateSession: 許可リスト外の Google アカウントは 403 �
   assert.equal(result.status, 403);
 });
 
+// O-14 AC: 拒否理由が 403（許可リスト外）のときは、本人が管理者に伝えやすいよう email も返す。
+test('authenticateSession: 許可リスト外の Google アカウントは 403 に加えて email も返す（本人が管理者に伝える用）', () => {
+  const ctx = loadGas({ activeUserEmail: 'outsider@example.com' });
+  const result = ctx.authenticateSession();
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 403);
+  assert.equal(result.email, 'outsider@example.com');
+});
+
 test('authenticateSession: ログインしていない（getActiveUser がメール無し）場合は 401 で拒否される', () => {
   const ctx = loadGas({ activeUserEmail: '' });
   const result = ctx.authenticateSession();

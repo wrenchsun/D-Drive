@@ -47,5 +47,22 @@ var DriveAdapter = {
       return;
     }
     folder.createFile(fileName, content, 'application/json');
+  },
+
+  /**
+   * O-14: データフォルダ（`SPEC_WEB_DRIVE_FOLDER_ID`）を編集者として共有する。
+   * 既に共有済みでもエラーにしない（`DriveApp`/`Folder.addEditor` の既定動作）。
+   * 呼び出し元（`Api/UserAdmin.js`）が try/catch で失敗を warning に変換する
+   * （CLAUDE.md §0-4「例外で止めない」。docs/32_spec_web.md §11）。
+   */
+  addFolderEditor: function (email) {
+    var folder = driveAdapterGetRootFolder_();
+    folder.addEditor(email);
+  },
+
+  /** 上記の共有解除（既定では呼ばれない。docs/32_spec_web.md §11 の「共有も解除する」チェック時のみ）。 */
+  removeFolderEditor: function (email) {
+    var folder = driveAdapterGetRootFolder_();
+    folder.removeEditor(email);
   }
 };
