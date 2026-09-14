@@ -95,7 +95,12 @@ D-Drive の一番大事な考え方は、**プログラマーは中身（音・�
 
 ## 6. CI（6-1、docs/33）
 
-`.github/workflows/ci.yml` が PR（main 向け）・main への push で Validation → ID 差分検出 → EditMode → PlayMode を自動実行し、結果を PR の Summary に出す。セルフホストランナー（この Windows PC 常駐）で動く前提のため、**ランナー登録・ブランチ保護の設定はユーザー作業**として別途必要（[33_ci_setup.md](33_ci_setup.md) §1-2）。ローカルで同じ検査をしたい場合は `Tools/CI/run-ci.cmd`。
+`.github/workflows/ci.yml` は Validation → ID 差分検出 → EditMode → PlayMode を実行できる状態まで作られているが、**2026-09-15 のユーザー決定で本稼働は Phase 7 末に延期されている**（MS2026 側に CI が既にあるため）。現在は PR/push では起動せず、Actions タブからの手動実行（`workflow_dispatch`）のみ（[33_ci_setup.md](33_ci_setup.md) 冒頭の注記）。それまでの検査は次の方法で行う:
+
+- ローカルでの同一検査: `Tools/CI/run-ci.cmd`（+ `Tools/CI/Summarize-Results.ps1`）
+- Unity の Test Runner、または Unity MCP 経由の `test_run`/`test_results`（§5 参照）
+
+セルフホストランナーの登録・ブランチ保護の設定は Phase 7 末に行う作業として [33_ci_setup.md](33_ci_setup.md) §1-2 に手順がまとめてある。
 
 ---
 
