@@ -150,6 +150,49 @@ namespace DDrive.Runtime.Presentation
         // 1 回だけログに出す(NetCheck の判定で「送信数 == 破棄数」を数えられるようにするため)。
         private readonly HashSet<uint> _unknownKeyDiscardWarned = new();
 
+        // [14_networking.md] §9(6-6, K3 修正) — 実機確認 v4([docs/29] §12)で「通信が数秒止まってまとめて
+        // 届いた区間で PresentationSignalMsg が対応する PresentationPlayMsg より先に処理され、未知のキーと
+        // して破棄される」実バグが見つかった。真因は NgoNetBridge のアプリ層遅延キューが FIFO を保証して
+        // いなかったこと(NgoNetBridge.cs 側の Queue<T> 化で修正済み)だが、Late Join・再送・将来の他
+        // INetBridge 実装でも同種の順序崩れは起こりうるため、受信側にも防波堤を置く: 未知キーの
+        // Signal/Cancel は即座に破棄せず、固定長リングバッファへ短時間(_pendingUnknownKeyHoldSec、既定
+        // remoteOneShotGraceSec の 2 倍 = 1.0 秒)保留し、同じ key の Play が到着したら Play の生成直後に
+        // 適用する。保留期限が切れたものは Tick() で従来どおりの破棄ログを出す。定常経路(Tick)での
+        // alloc を避けるため、固定長 struct 配列を事前確保して使う(Queue<T> ではなく配列 + InUse フラグ)。
+        private const int PendingUnknownKeyCapacity = 16;
+
+        private struct PendingUnknownKeyEntry
+        {
+            public bool InUse;
+            public bool IsCancel; // false=Signal, true=Cancel
+            public ulong SenderId;
+            public uint HandleNetKey;
+            public ushort SignalKeyHash; // Signal のみ使用
+            public uint InsertSeq; // 到着順の復元用(配列インデックスは再利用されるため挿入順とは限らない)
+            public double ExpireAtNetworkTime;
+        }
+
+        private readonly PendingUnknownKeyEntry[] _pendingUnknownKeyMessages = new PendingUnknownKeyEntry[PendingUnknownKeyCapacity];
+        private int _pendingUnknownKeyCount;
+        private uint _pendingUnknownKeySeq;
+        private readonly float _pendingUnknownKeyHoldSec;
+
+        // [14_networking.md] §9/§10(6-6) — PresentationSignalMsg/PresentationCancelMsg のクライアント別
+        // レート制限。NgoNetBridge.RequestBroadcastRpc の中継レート制限(60/秒/クライアント、[14] §9)は
+        // 「Broadcast() 経由の全メッセージ種別の合算」であり、Presentation の Signal/Cancel だけを狙った
+        // 高頻度送信を個別に制限できない。トランスポート実装(INetBridge)に依存せず Presentation 側でも
+        // 同じ既定値(60/秒/クライアント)で受信検証する(§9「クライアント発の中継は無条件に行わない」の
+        // 受信側版)。Host(TrustedRelayClientId)自身が発行した Signal/Cancel は対象外(権威側の操作)。
+        private const int SignalCancelRateLimitPerSecond = 60;
+
+        private struct RateBudget
+        {
+            public double WindowStart;
+            public int Count;
+        }
+
+        private readonly Dictionary<ulong, RateBudget> _signalCancelBudgets = new();
+
         // [14_networking.md] §5(6-0 修正6、実機確認 v2 で発見した実バグの修正) — 遅延のある環境では
         // Client の ServerTime 推定が Host より遅れて見える(実機確認で約 80ms 観測)ため、
         // `elapsed = NetworkTime - StartNetTime` が正の値になり、Time=0 のワンショット(Vfx/Se 等)が
@@ -215,6 +258,10 @@ namespace DDrive.Runtime.Presentation
             _haptics = haptics;
             _netBridge = netBridge;
             _remoteOneShotGraceSec = Mathf.Max(0f, remoteOneShotGraceSec);
+            // 6-6(K3 修正) — 「例 1 秒、または remoteOneShotGraceSec の 2 倍」(要求どおり)。既定の
+            // remoteOneShotGraceSec=0.5s なら 1.0s になる。シリアライズフィールドは増やさない
+            // (_remoteOneShotGraceSec と同じ方針)。
+            _pendingUnknownKeyHoldSec = _remoteOneShotGraceSec * 2f;
             _instanceSalt = (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
 
             if (_netBridge != null)
@@ -311,6 +358,18 @@ namespace DDrive.Runtime.Presentation
             SeekInitialTracks(handle, instance);
 
             _active.Add(handle);
+
+            // [14_networking.md] §9(6-6, K3 修正) — この Play より先に届いていた同じ key の Signal/Cancel
+            // (保留中)を、Instance が完全に(_active/_instances 両方に)登録された直後に適用する。
+            // SeekInitialTracks/_active.Add より前に適用すると、保留中の Cancel が CancelInternal→Cleanup
+            // で _instances/_active から即座に取り除いてしまい、その後の SeekInitialTracks/_active.Add が
+            // 矛盾した状態(Cleanup 済みの handle を _active に追加してしまう等)を作ってしまうため、
+            // 順序を厳守する。
+            if (handleNetKey != 0 && _pendingUnknownKeyCount > 0)
+            {
+                FlushPendingUnknownKey(handleNetKey, handle, instance);
+            }
+
             return handle;
         }
 
@@ -394,6 +453,163 @@ namespace DDrive.Runtime.Presentation
 #endif
         }
 
+        // [14_networking.md] §9(6-6) — PresentationSignalMsg/PresentationCancelMsg 専用のクライアント別
+        // レート制限(既定 60/秒/クライアント、NgoNetBridge.ConsumeRelayBudget と同じ考え方)。Host
+        // (TrustedRelayClientId)自身は対象外。
+        private bool ConsumeSignalCancelBudget(ulong senderId)
+        {
+            if (senderId == TrustedRelayClientId)
+            {
+                return true;
+            }
+
+            var now = _netBridge != null ? _netBridge.NetworkTime : 0d;
+            _signalCancelBudgets.TryGetValue(senderId, out var budget);
+
+            if (now - budget.WindowStart >= 1d)
+            {
+                budget.WindowStart = now;
+                budget.Count = 0;
+            }
+
+            budget.Count++;
+            _signalCancelBudgets[senderId] = budget;
+            return budget.Count <= SignalCancelRateLimitPerSecond;
+        }
+
+        // [14_networking.md] §9(6-6, K3 修正) — 未知の HandleNetKey の Signal/Cancel を固定長リングバッファへ
+        // 保留する(_pendingUnknownKeyHoldSec 経過で Tick() が期限切れとして従来どおりの破棄ログを出す)。
+        // 定常経路(受信は Tick 相当の頻度になりうる)での alloc を避けるため、事前確保した配列を使い回す
+        // (満杯のときは最も古いエントリ(ExpireAtNetworkTime が最小)を上書きする。無制限に貯め込まない
+        // ための上限であり、フラッド対策としては ConsumeSignalCancelBudget の方が主防波堤)。
+        private void HoldUnknownKeyMessage(ulong senderId, uint handleNetKey, bool isCancel, ushort signalKeyHash)
+        {
+            var netTime = _netBridge != null ? _netBridge.NetworkTime : 0d;
+            var slot = -1;
+
+            for (var i = 0; i < _pendingUnknownKeyMessages.Length; i++)
+            {
+                if (!_pendingUnknownKeyMessages[i].InUse)
+                {
+                    slot = i;
+                    break;
+                }
+            }
+
+            if (slot == -1)
+            {
+                // 満杯: 最も期限が近い(=最も古い)エントリを退避させて上書きする。
+                var oldestIndex = 0;
+                var oldestExpire = _pendingUnknownKeyMessages[0].ExpireAtNetworkTime;
+                for (var i = 1; i < _pendingUnknownKeyMessages.Length; i++)
+                {
+                    if (_pendingUnknownKeyMessages[i].ExpireAtNetworkTime < oldestExpire)
+                    {
+                        oldestExpire = _pendingUnknownKeyMessages[i].ExpireAtNetworkTime;
+                        oldestIndex = i;
+                    }
+                }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                var prefix = _netBridge != null && _netBridge.IsServer ? "[Net/Host]" : "[Net/Client]";
+                Debug.LogWarning($"{prefix} Presentation: 未知キーの保留バッファ({PendingUnknownKeyCapacity}件)が満杯のため、最も古い HandleNetKey=0x{_pendingUnknownKeyMessages[oldestIndex].HandleNetKey:X8} を破棄しました。");
+#endif
+                slot = oldestIndex;
+                _pendingUnknownKeyCount--; // 直後に ++ するため相殺(上書きなので総数は変わらない)
+            }
+
+            _pendingUnknownKeyMessages[slot] = new PendingUnknownKeyEntry
+            {
+                InUse = true,
+                IsCancel = isCancel,
+                SenderId = senderId,
+                HandleNetKey = handleNetKey,
+                SignalKeyHash = signalKeyHash,
+                InsertSeq = _pendingUnknownKeySeq++,
+                ExpireAtNetworkTime = netTime + _pendingUnknownKeyHoldSec,
+            };
+            _pendingUnknownKeyCount++;
+        }
+
+        // [14_networking.md] §9(6-6, K3 修正) — 対応する Play が到着した直後(PlayLocalInternal 内)に
+        // 呼ばれる。保留中の同じ HandleNetKey のエントリを到着順(InsertSeq 昇順)に適用してから解放する。
+        // Tick() 同様に定常経路(Play() 呼び出し)からのクロージャ/alloc を避けるため、配列を直接走査する
+        // 単純な選択方式(容量 16 なので O(n^2) でも無視できるコスト)にした。
+        private void FlushPendingUnknownKey(uint handleNetKey, Handle<PresentationMarker> handle, PresentationInstance instance)
+        {
+            while (true)
+            {
+                var bestIndex = -1;
+                var bestSeq = 0u;
+
+                for (var i = 0; i < _pendingUnknownKeyMessages.Length; i++)
+                {
+                    if (!_pendingUnknownKeyMessages[i].InUse || _pendingUnknownKeyMessages[i].HandleNetKey != handleNetKey)
+                    {
+                        continue;
+                    }
+
+                    if (bestIndex == -1 || _pendingUnknownKeyMessages[i].InsertSeq < bestSeq)
+                    {
+                        bestIndex = i;
+                        bestSeq = _pendingUnknownKeyMessages[i].InsertSeq;
+                    }
+                }
+
+                if (bestIndex == -1)
+                {
+                    break;
+                }
+
+                var senderId = _pendingUnknownKeyMessages[bestIndex].SenderId;
+                var isCancel = _pendingUnknownKeyMessages[bestIndex].IsCancel;
+                var signalKeyHash = _pendingUnknownKeyMessages[bestIndex].SignalKeyHash;
+                _pendingUnknownKeyMessages[bestIndex].InUse = false;
+                _pendingUnknownKeyCount--;
+
+                // 要求どおり、保留解除時にも発行者検証を再実施する(静的なビット演算なので受信時と結果は
+                // 変わらないはずだが、防御的に再チェックする)。
+                if (!IsAuthorizedSender(senderId, handleNetKey))
+                {
+                    continue;
+                }
+
+                if (isCancel)
+                {
+                    if (!instance.Done)
+                    {
+                        ApplyCancelIfInterruptible(handle, instance);
+                    }
+                }
+                else if (!instance.Done)
+                {
+                    ApplySignal(handle, instance, signalKeyHash);
+                }
+            }
+        }
+
+        // [14_networking.md] §9(6-6, K3 修正) — Tick() から呼ばれる期限切れの掃除。期限切れになった
+        // エントリは従来どおりの破棄ログ(WarnUnknownKeyDiscardedOnce)を出す。
+        private void SweepExpiredPendingUnknownKey()
+        {
+            var netTime = _netBridge != null ? _netBridge.NetworkTime : 0d;
+
+            for (var i = 0; i < _pendingUnknownKeyMessages.Length; i++)
+            {
+                if (!_pendingUnknownKeyMessages[i].InUse || _pendingUnknownKeyMessages[i].ExpireAtNetworkTime > netTime)
+                {
+                    continue;
+                }
+
+                var handleNetKey = _pendingUnknownKeyMessages[i].HandleNetKey;
+                var isCancel = _pendingUnknownKeyMessages[i].IsCancel;
+                _pendingUnknownKeyMessages[i].InUse = false;
+                _pendingUnknownKeyCount--;
+
+                WarnUnknownKeyDiscardedOnce(handleNetKey, isCancel ? "PresentationCancelMsg" : "PresentationSignalMsg");
+            }
+        }
+
         // [11_tasks.md] 6-0 修正3 — Registry が ready になるまで受信順にキューへ保留する。
         public void SetRegistryReady(bool ready)
         {
@@ -459,6 +675,17 @@ namespace DDrive.Runtime.Presentation
                 }
 
                 RegisterActiveIfServer(msg.HandleNetKey, existingInstance.Data, existingInstance.Ctx, msg.StartNetTime, msg.Seed);
+                return;
+            }
+
+            // [14_networking.md] §9(6-6) — 「ID 存在検証: 受信 ID が Registry に無い → 破棄 + ログ
+            // (Placeholder はローカル開発時のみ。ネット受信では出さない)」を実装する。以前は
+            // ResolveOrPlaceholder を無条件に呼んでいたため、未登録(または種別が Presentation でない
+            // =範囲外)PresId でも Placeholder(尺 0 秒)の Instance が実際に生成されていた。IsRegistered は
+            // OnPlaceholderUsed を発火しない副作用なしの確認なので、ここで先に判定してから破棄する。
+            if (!_registry.IsRegistered(msg.PresId, AssetType.Presentation))
+            {
+                Debug.LogWarning($"[Net/{(_netBridge != null && _netBridge.IsServer ? "Host" : "Client")}] Presentation: PresentationPlayMsg(PresId=0x{msg.PresId:X}) は未登録、または種別が Presentation ではないため破棄しました。");
                 return;
             }
 
@@ -676,12 +903,29 @@ namespace DDrive.Runtime.Presentation
                 return;
             }
 
-            if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance))
+            // [14_networking.md] §9(6-6) — Broadcast() 経由の中継レート制限(NgoNetBridge、全種別合算)とは
+            // 別に、Signal/Cancel 単体でも同じ既定値(60/秒/クライアント)で受信検証する。
+            if (!ConsumeSignalCancelBudget(senderId))
             {
-                WarnUnknownKeyDiscardedOnce(msg.HandleNetKey, "PresentationSignalMsg");
+                Debug.LogWarning($"[Net/{(_netBridge != null && _netBridge.IsServer ? "Host" : "Client")}] Presentation: Client {senderId} からの PresentationSignalMsg がレート制限({SignalCancelRateLimitPerSecond}/秒)を超えたため破棄しました。");
                 return;
             }
 
+            if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance))
+            {
+                // [14_networking.md] §9(6-6, K3 修正) — Play より先に届いた可能性があるため即座に破棄せず
+                // 短時間保留する(Tick() で期限切れになったら従来どおり破棄ログを出す)。
+                HoldUnknownKeyMessage(senderId, msg.HandleNetKey, isCancel: false, msg.SignalKeyHash);
+                return;
+            }
+
+            ApplySignal(handle, instance, msg.SignalKeyHash);
+        }
+
+        // OnReceiveSignalMsgInternal と FlushPendingUnknownKey(K3 修正、Play 後着で保留分を適用する経路)の
+        // 両方から呼ばれる共通処理。
+        private void ApplySignal(Handle<PresentationMarker> handle, PresentationInstance instance, ushort signalKeyHash)
+        {
             var tracks = instance.Data.Tracks;
             if (tracks == null)
             {
@@ -690,7 +934,7 @@ namespace DDrive.Runtime.Presentation
 
             for (var t = 0; t < tracks.Length; t++)
             {
-                if (instance.Fired[t] || tracks[t].Trigger != TrackTrigger.OnSignal || HashSignalKey(tracks[t].SignalKey) != msg.SignalKeyHash)
+                if (instance.Fired[t] || tracks[t].Trigger != TrackTrigger.OnSignal || HashSignalKey(tracks[t].SignalKey) != signalKeyHash)
                 {
                     continue;
                 }
@@ -719,18 +963,35 @@ namespace DDrive.Runtime.Presentation
                 return;
             }
 
+            // [14_networking.md] §9(6-6) — Signal と同じ既定値(60/秒/クライアント)で受信検証する。
+            if (!ConsumeSignalCancelBudget(senderId))
+            {
+                Debug.LogWarning($"[Net/{(_netBridge != null && _netBridge.IsServer ? "Host" : "Client")}] Presentation: Client {senderId} からの PresentationCancelMsg がレート制限({SignalCancelRateLimitPerSecond}/秒)を超えたため破棄しました。");
+                return;
+            }
+
             // 6-0 修正4(実機確認で発見した課題4) — 対象が見つからない(未知のキー、または対象の演出が
             // 既に完了して台帳から外れた)場合も、発行者不一致と同様に「破棄した」ことをログへ残す
             // (開発ビルドのみ、キーごとに1回)。NetCheck の判定で「送信数 == 破棄数」を数えられるようにする。
             if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance) || instance.Done)
             {
-                WarnUnknownKeyDiscardedOnce(msg.HandleNetKey, "PresentationCancelMsg");
+                // [14_networking.md] §9(6-6, K3 修正) — Play より先に届いた可能性があるため即座に破棄せず
+                // 短時間保留する(Tick() で期限切れになったら従来どおり破棄ログを出す)。対象が既に完了済み
+                // (instance.Done)のケースは、Play() 直後の Flush(まだ Done になっていない)には引っかからず、
+                // 保留期限切れで従来どおり破棄される(誤って生き返らせない、意図した挙動)。
+                HoldUnknownKeyMessage(senderId, msg.HandleNetKey, isCancel: true, signalKeyHash: 0);
                 return;
             }
 
-            // P1-1(レビュー指摘の残り) — 公開 API Cancel() の入口(481 行付近)は Interruptible=false を
-            // 見て無視するが、受信 → CancelInternal 経路にはこのチェックが無かった。発行者検証を回避できない
-            // 偽造 Cancel でも、Interruptible=false な演出は依然止められないようにする。
+            ApplyCancelIfInterruptible(handle, instance);
+        }
+
+        // OnReceiveCancelMsgInternal と FlushPendingUnknownKey(K3 修正)の両方から呼ばれる共通処理。
+        private void ApplyCancelIfInterruptible(Handle<PresentationMarker> handle, PresentationInstance instance)
+        {
+            // P1-1(レビュー指摘の残り) — 公開 API Cancel() の入口は Interruptible=false を見て無視するが、
+            // 受信 → CancelInternal 経路にはこのチェックが無かった。発行者検証を回避できない偽造 Cancel
+            // でも、Interruptible=false な演出は依然止められないようにする。
             if (!instance.Data.Interruptible)
             {
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -977,6 +1238,13 @@ namespace DDrive.Runtime.Presentation
 
         public void Tick(float dt)
         {
+            // [14_networking.md] §9(6-6, K3 修正) — 未知キー保留の期限切れ掃除。カウンタが 0 のときは
+            // 配列を走査しない(0 alloc・実質 0 cost)。
+            if (_pendingUnknownKeyCount > 0)
+            {
+                SweepExpiredPendingUnknownKey();
+            }
+
             for (var i = _active.Count - 1; i >= 0; i--)
             {
                 var handle = _active[i];

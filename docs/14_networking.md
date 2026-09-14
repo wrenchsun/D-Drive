@@ -387,17 +387,94 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
 ## 9. セキュリティ / チート耐性
 
 - クライアント発の `PlayMsg` をサーバーは無条件中継しない: Simulated は必ずサーバー生成。Cosmetic の中継もレート制限 + 発信者の状態検証（死亡中に攻撃演出を送っていないか等はゲームロジック側フック）
-- ID 存在検証: 受信 ID が Registry に無い → 破棄 + ログ（Placeholder は**ローカル開発時のみ**。ネット受信では出さない）
+- ID 存在検証: 受信 ID が Registry に無い → 破棄 + ログ（Placeholder は**ローカル開発時のみ**。ネット受信では出さない）→ **2026-09-15 実装(6-6)**: `PresentationManager.OnReceivePlayMsgInternal` が `IAssetRegistry.IsRegistered(id, type)`（新規、副作用なしの存在確認。`ResolveOrPlaceholder`/`OnPlaceholderUsed` を経由しない）で未登録・種別不一致（範囲外）を先に検出し、破棄 + ログしてから初めて `ResolveOrPlaceholder` を呼ぶ。以前は無条件に `ResolveOrPlaceholder` を呼んでいたため、ネット受信でも Placeholder(尺 0 秒)の Instance が実際に生成されてしまっていた。`VfxManager`/`AudioManager` の `OnReceiveCosmeticBatch`（VfxNetMsg/SeNetMsg）は同じ特性（`ResolveOrPlaceholder` を無条件に呼ぶ）を持つが、6-6 のスコープ外として見送った(要判断: 同じ理由で直す価値がある。次のネット関連チケットで対応候補)。
 
 ## 10. Validation（ネットワーク関連）
 
-| 検査 | 重度 |
-|---|---|
-| NetMode=Simulated の Prefab に NetworkObject 相当が無い | Error |
-| Presentation 内に Simulated トラックと PredictLocal の競合 | Error |
-| Cosmetic なのに Reliable 大容量パラメータ（Texture 等）をイベント送信 | Warning |
-| NetMode 未設定（既定値のまま大量放置） | Info（レポート） |
-| ContentHash 生成対象外のカタログ | Error（CI） |
+| 検査 | 重度 | 状態 |
+|---|---|---|
+| NetMode=Simulated の Prefab に NetworkObject 相当が無い | Error | ✅ 4-13(`PrefabDataValidator`) |
+| Presentation 内に Simulated トラックと PredictLocal の競合 | Error | ✅ 2026-09-15(6-6、`PresentationDataValidator`) |
+| Cosmetic なのに Reliable 大容量パラメータ（Texture 等）をイベント送信 | Warning | ✅ 2026-09-15(6-6、`PresentationDataValidator`) |
+| NetMode 未設定（既定値のまま大量放置） | Info（レポート） | ✅ 2026-09-15(6-6、`NetModeUnsetValidator`) |
+| ContentHash 生成対象外のカタログ | Error（CI） | 6-5（ContentHash）で実装予定。6-6 のスコープ外 |
+
+### 実装メモ（2026-09-15、6-6: 受信検証・レート制限 + ネット Validator）
+
+実装: `Foundation/Registry/{IAssetRegistry,AssetRegistry}.cs`（`IsRegistered(id, type)` 追加）、
+`Runtime/Presentation/PresentationManager.cs`（ID 存在検証・Signal/Cancel レート制限・K3 未知キー保留）、
+`Runtime/Presentation/PresentationDataValidator.cs`（Simulated+PredictLocal 競合 Error・大容量 Params
+Warning）、`Runtime/Net/NetModeUnsetValidator.cs`（新規、NetMode 未設定 Info）、`Runtime/Net/NgoNetBridge.cs`
+（K3: アプリ層遅延キューの FIFO 化、K2: App RTT の経過時間フォールバック）、`Runtime/Net/NetDebugOverlay.cs`
+/`Samples/NetCheckRunner.cs`（K2 の `(stale)`/`rtt_app_stale` 表示）。テストは
+`Tests/Runtime/{PresentationNetValidationTests.cs（新規）,PresentationNetDeviceFixTests.cs（追記）}`。
+
+- **PredictLocal と Simulated トラックの競合(Error)**: `PresentationDataValidator` に
+  `TryFindTrackAssetNetMode(ctx, track.Asset, out netMode)`（`AnchorDataValidator.FindAnchor` と同じ
+  `ctx.AllAssets` の線形走査、LINQ 不使用）を追加した。`presentation.PredictLocal==true` かつトラックの
+  参照先アセット(Vfx/Se/Prefab 等)の `Flags.Net==NetMode.Simulated` の場合に Error にする(行為者クライアントの
+  予測再生がサーバー権威の生成と矛盾するため)。
+- **Cosmetic の大容量 Params(Warning)**: しきい値は docs に定めが無かったため定数で置いた
+  (`PresentationDataValidator.LargeParamKeyCountWarnThreshold = 8`)。`ParamValueType.Object`(Texture/Mesh
+  等の `UnityEngine.Object` 参照)は件数を問わず常に対象、`Curve`/`Gradient` はキー数がこの値を超えたときだけ
+  対象にする。現状 Params はどの Manager もネットワーク越しに同期しない(§4 実装メモ「paramOverrides の
+  同期も未実装」)ため、これは「将来 Params 同期を実装したら帯域を圧迫する/今は各クライアントのローカル
+  デフォルト値で再生されて見た目が食い違う」という予防的な警告になる。
+- **NetMode 未設定の大量放置(Info)**: `NetModeUnsetValidator`(新規、`IUniversalValidator`)を追加した。
+  意味を持つ種別(§4 の表: Se/Bgm/Vfx/Prefab/Material/Presentation)に限定し、`Flags.Net==NetMode.Local`
+  (既定値)のアセットごとに Info を 1 件出す。**要判断**: `ValidatorRegistry`(Foundation/Validation)の
+  `RunAll` は 1 アセットにつき 1 回 `Validate` を呼ぶ設計で、全アセット走査後にまとめて 1 件の「集計」を
+  出すフックが無い。専用の集計 API を追加するのは `ValidatorRegistry` 自体の設計変更を伴うため 6-6 の
+  スコープ外と判断し、Validation ウィンドウの一覧に並ぶ件数自体を集計として使う方針にした。
+- **Signal/Cancel のクライアント別レート制限**: `NgoNetBridge.RequestBroadcastRpc` の中継レート制限
+  (60/秒/クライアント、[14] §9)は Broadcast() 経由の全メッセージ種別を合算したものであり、Presentation の
+  Signal/Cancel だけを狙った高頻度送信を個別に制限できない。`PresentationManager` に
+  `ConsumeSignalCancelBudget(senderId)`(同じ既定値 60/秒/クライアント、`NgoNetBridge.ConsumeRelayBudget`
+  と同じロジックをトランスポート実装に依存しない形で複製)を追加し、`OnReceiveSignalMsgInternal`/
+  `OnReceiveCancelMsgInternal` の入口(発行者検証の直後)で消費する。Host(`TrustedRelayClientId`)は対象外。
+- **K3(Signal/Cancel が Play より先に届く)の真因**: `NgoNetBridge` のアプリ層遅延キュー
+  (`-ddrive-sim-latency` 用、6-0 修正1)が、メッセージ 1 件ごとに独立した `UniTask.Delay(...).Forget()` を
+  fire-and-forget していたため、ほぼ同時に複数メッセージが積まれた場合に「実際に送信/配送される順序」が
+  実装上保証されていなかった(同一長さの Delay が同一フレームで満了する場合、UniTask の内部スケジューラが
+  どの順で継続処理するかは未規定)。実機確認 v4(200ms 遅延・ホットスポットが数秒止まってまとめて届いた
+  区間)で `PresentationSignalMsg` が対応する `PresentationPlayMsg` より先に処理され「未知のキー」として
+  破棄される実バグとして観測された([docs/29] §12)。**修正**: 3 つの遅延経路(`SendToAll`/`SendTo`/
+  `Dispatch`)それぞれを `Queue<AppLayerQueueEntry>` による本物の FIFO に置き換えた。`Update()`(毎フレーム)
+  が各キューの先頭から「解放予定時刻(`Time.time` 基準)を過ぎたものだけ」取り出す。3 キューとも同じ
+  `_appLayerSimLatencyMs` を使うため、先頭が未到達ならそれより後ろも必ず未到達であり、早期 break しながら
+  厳密な送信/受信順を保てる。切断時のキュー破棄も `CancellationTokenSource.Cancel()` から `Queue<T>.Clear()`
+  に変えた(実装が簡潔になった副産物。挙動は変わらない)。
+- **K3 の受信側防波堤(保留)**: 上記の真因修正に加え、Late Join・再送・将来の他 `INetBridge` 実装でも
+  同種の順序崩れが起こりうるため、`PresentationManager` 側にも防波堤を置いた。`OnReceiveSignalMsgInternal`/
+  `OnReceiveCancelMsgInternal` は対象の `HandleNetKey` が `_networkedHandles` に見つからない場合、即座に
+  破棄せず固定長リングバッファ(`PendingUnknownKeyCapacity=16`、事前確保した `struct` 配列。Tick/Play の
+  定常経路での alloc を避ける)へ `_pendingUnknownKeyHoldSec`(既定 `remoteOneShotGraceSec` の 2 倍 = 1.0 秒、
+  要求どおり)秒だけ保留する。対応する `PresentationPlayMsg` が到着し `PlayLocalInternal` が
+  `_networkedHandles[handleNetKey]` を登録した直後に `FlushPendingUnknownKey` を呼び、保留中の同じキーの
+  エントリを到着順(`InsertSeq` 昇順)に適用する(発行者検証は保留解除時にも再実施する。要求どおり)。
+  期限切れ(対応する Play が来なかった場合)は `Tick()` が掃除し、従来どおりの破棄ログ(`WarnUnknownKeyDiscardedOnce`)
+  を出す。バッファが満杯(16件)のときは最も古い(期限が最も近い)エントリを退避させて上書きし、開発ビルドで
+  1 回警告する(無制限に貯め込まない上限。フラッド対策の主防波堤は `ConsumeSignalCancelBudget` の方)。
+- **既存テストの調整**: `PresentationNetDeviceFixTests.UnknownHandleNetKey_{Cancel,Signal}_LogsDiscardWarning`
+  は「即座に破棄ログが出る」前提だったが、K3 の保留により破棄ログは期限切れ時(`Tick()`)まで遅延するため、
+  `bridge.NetworkTime` を保留期限の先まで進めてから `Tick()` を呼ぶように修正した(挙動の変更を反映した
+  意図的なテスト更新。回帰ではない)。
+- **K2(通信停止中、`rtt_app_ms` が固着する)**: `NgoNetBridge.AppRoundTripMs` は Pong を受信した時点の値を
+  保持するだけだったため、Pong が途絶えている間は最後の実測値を表示・ログし続けていた(実機確認 v4、
+  200ms ラウンドでホットスポットが数秒止まった区間で観測)。`AppRoundTripMs` を計算プロパティに変更し、
+  直近の Ping 送信(`_lastPingSentRealtime`、`Time.unscaledTimeAsDouble`)から Pong 未応答のまま
+  (`_awaitingPong`)の間は「最後の Ping 送信からの経過時間」を、それが最後の実測値を上回っている場合に
+  限り返す(下回っている間はまだ正常な RTT 範囲内なので実測値をそのまま返す)。Pong を受け取ると
+  `_awaitingPong=false` に戻り実測値表示に戻る。新設の `IsAppRoundTripMsStale`(true の間は上記の下限推定
+  であることを示す)を `NetDebugOverlay`(`App RTT: … ms (stale)`)と `NetCheckRunner`(heartbeat に
+  `rtt_app_stale=0|1` を追加)の両方に反映した。切断時(`HandleClientDisconnected` の Client 分岐)は
+  `_awaitingPong`/`_lastPingSentRealtime` も明示的にリセットする(既存の `AppRoundTripMs=null` だけでは
+  新しい計算プロパティのゲッターが古い `_lastPingSentRealtime` を使って経過時間を返し続けてしまうため)。
+- **未検証(Unity 未接続)**: 本チケットはワークツリー内で実装し、Unity Editor が開いているメイン
+  リポジトリでのコンパイル・テスト確認はできていない(ワークツリーでは Unity MCP を使わない運用、
+  [ddrive-agent-workflow スキル] §3)。マージ後に親セッションが EditMode/PlayMode 両方の green を確認する。
+  K2/K3 とも NgoNetBridge(実 NGO 接続)に閉じた変更を含むため、既存の慣習([docs/29] §7/§9/§11)に合わせて
+  ユニットテストだけでなく実機/ローカル結合確認が必要(下記 v5 手順参照)。
 
 ## 11. 導入方針（マルチプレイは最初から対応）
 

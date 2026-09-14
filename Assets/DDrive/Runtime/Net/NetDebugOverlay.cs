@@ -45,8 +45,13 @@ namespace DDrive.Runtime.Net
             // 反映しない(NgoTransportConfigurator.cs 参照。UnityTransport.SetDebugSimulatorParameters が
             // Obsolete/no-op のため)。アプリ層で計測した往復時間(NgoNetBridge.AppRoundTripMs、Ping/Pong)を
             // 併記し、シミュレーター遅延が実際に効いているかをこちらで判定できるようにする。
-            var appRtt = Bridge is NgoNetBridge ngoForRtt ? ngoForRtt.AppRoundTripMs : null;
-            var appRttText = appRtt.HasValue ? $"{appRtt.Value:F0} ms" : "n/a";
+            // 6-6(K2 修正) — 通信停止中は最後の実測値のまま固着させず、IsAppRoundTripMsStale=true の間は
+            // 「経過時間による下限推定」であることを (stale) で明示する。
+            var ngoForRtt = Bridge as NgoNetBridge;
+            var appRtt = ngoForRtt?.AppRoundTripMs;
+            var appRttText = appRtt.HasValue
+                ? $"{appRtt.Value:F0} ms{(ngoForRtt != null && ngoForRtt.IsAppRoundTripMsStale ? " (stale)" : string.Empty)}"
+                : "n/a";
 
             var text =
                 $"[DDrive Net]\n" +

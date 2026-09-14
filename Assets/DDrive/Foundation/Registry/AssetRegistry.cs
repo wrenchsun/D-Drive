@@ -126,6 +126,12 @@ namespace DDrive.Foundation.Registry
         public IReadOnlyList<CatalogEntry> Entries(AssetType type)
             => _byType.TryGetValue(type, out var list) ? list : Array.Empty<CatalogEntry>();
 
+        // [14_networking.md] §9/§10(6-6) — ResolveOrPlaceholder/NotifyPlaceholderUsed を経由しない
+        // (副作用なしの)存在確認。ネット受信ハンドラが「未登録 AssetId・範囲外(種別不一致)」を Placeholder
+        // 経由の再生に落とす前に検出し、破棄 + ログできるようにする。
+        public bool IsRegistered(ulong id, AssetType type)
+            => _index.TryGetValue(id, out var entry) && entry.Type == type;
+
         // [11_tasks.md] 5-7 — ScenePreloadList(Editor が依存グラフから集計)を実行するランタイム側の入口。
         // 既存の CatalogEntry.Address 解決 + IAssetLoader.PreloadAsync(参照カウント式)をそのまま再利用する
         // (新しいロード経路を増やさない)。
