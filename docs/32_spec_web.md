@@ -488,7 +488,7 @@ public sealed class TuningTable : ScriptableObject
 |---|---|
 | 5-12（`.xlsx` テンプレート） | **廃止**。Web アプリの入力フォームに統合されるため、テンプレート配布は不要になる |
 | 5-13（gviz CSV 取得・差分・Placeholder 作成・`TuningTable` 取り込み） | **§5.1 のとおり部分的に置き換え**（取得・パース層のみ差し替え、差分・適用層は再利用） |
-| 5-14（`AssetDataBase.SpecUrl` + Inspector「仕様書を開く」） | **そのまま活用**。`SpecUrl` の値を「Web アプリのアセット詳細ページの URL」に変える（同期時に自動設定、値の意味が変わるだけでフィールド自体は変更不要） |
+| 5-14（`AssetDataBase.SpecUrl` + Inspector「仕様書を開く」） | **そのまま活用**。`SpecUrl` の値を「Web アプリのアセット詳細ページの URL」に変える（同期時に自動設定、値の意味が変わるだけでフィールド自体は変更不要）。2026-09-14: `SpecWebParser.BuildSpecLink` を `?page=order&id=<種別::識別子>` 形式（§10.8 の O-13 ディープリンクと同じ）に変更した。旧形式（`#/assets/<id>`）は同期（取得→適用）を1回通せば `SpecSyncService.ApplyExtraFields`/`SpecDiffService` が「仕様リンク変更あり」として検出し、新形式で上書きされる |
 | 5-16（新規作成ダイアログ「仕様書から選ぶ」= `SpecCache.GetUncreatedRows`） | **そのまま活用**。`SpecCache` の入力元が Web API に変わるだけで、`NewAssetDialog` 側のロジックは変更不要 |
 | `DDriveSpecSettings` / `SpecCache` | **再利用**（§5.1 のとおりフィールドのみ変更） |
 | docs/27 本体 | **削除しない。冒頭に「旧方式」の注記を追加**し、実装が新方式へ移行し終えるまでの参照として残す（本 PR で対応、§0） |
@@ -1970,19 +1970,34 @@ Node テストはサーバー側のロジック・クライアント側の純粋
 空文字にフォールバック）を `renderUi_` が `HtmlTemplate.execUrl` として渡し、`html/Index.html` が
 `window.SpecWebExecUrl` として埋め込む（`window.SpecWebCurrentUser` 等と同じ形）。
 
-**既知の食い違い（要判断・後続候補として記録）**: 当初の依頼は「D-Drive の `SpecUrl`
-（§6、`AssetDataBase.SpecUrl`。`SpecWebParser.BuildSpecLink` が `humanAppUrl + "#/assets/" + id`
-というハッシュ形式で組み立てる）と一致していればそれに合わせる」だったが、コードを確認した結果
-**`SpecUrl` のハッシュ形式は現状のこのアプリでは機能しない**ことが分かった:
+**既知の食い違い（2026-09-14 解消）**: 当初の依頼は「D-Drive の `SpecUrl`
+（§6、`AssetDataBase.SpecUrl`。当時の `SpecWebParser.BuildSpecLink` は `humanAppUrl + "#/assets/" + id`
+というハッシュ形式で組み立てていた）と一致していればそれに合わせる」だったが、コードを確認した結果
+**`SpecUrl` のハッシュ形式は当時のこのアプリでは機能しない**ことが分かった:
 `html/App.html` の 2026-09-14 追補コメント（§2.4 訂正）のとおり、この SPA は
 `location.hash`/`hashchange` に一切依存しない設計に直した経緯があり、`window.SpecWebInitialScreen`/
 `Params`（サーバーの `resolveInitialScreen_` が `e.parameter` から作る）だけが初期画面を決める。
 ブラウザの URL フラグメント（`#...`）はブラウザから外へは送られず、サーバーにも渡らないため、
 `SpecUrl` を新しいタブに直接開いても「発注ツリー」の既定画面が開くだけで、意図した詳細は開かない。
-このチケットは **C# を変更しない**方針のため `SpecWebParser.BuildSpecLink`/`SpecUrl` の形式には
-手を付けず、O-13 の「リンクをコピー」は独自に動作確認済みの `?page=order&id=...` 方式を使う
-（`SpecUrl` とは別の URL になる）。**後続候補**: `SpecWebParser.BuildSpecLink` も
-`?page=order&id=...` 形式に揃える別チケット（C# 側の変更を伴うため要判断・別枠）。
+PR #50（O-13）の時点では **C# を変更しない**方針のため `SpecWebParser.BuildSpecLink`/`SpecUrl` の
+形式には手を付けず、「リンクをコピー」は独自に動作確認済みの `?page=order&id=...` 方式を使っていた
+（`SpecUrl` とは別の URL になっていた）。
+
+**2026-09-14 追記（後続候補を実施）**: `SpecWebParser.BuildSpecLink`
+（`Assets/DDrive/Editor/Spec/SpecWebParser.cs`）を `?page=order&id=<種別::識別子>` 形式（O-13 の
+ディープリンクと同じ。`assetId` は `assets.list` の `id` フィールド=種別::識別子をそのまま
+`Uri.EscapeDataString` する）に変更した。クエリの連結（既存クエリがあれば `&`、無ければ `?`）は
+`ManualUrlBuilder.AppendQuery`（`Assets/DDrive/Editor/Manual/ManualUrlBuilder.cs`。`BuildWebUrl` と
+共有する共通の純粋関数、末尾スラッシュはトリムしない）に寄せた。これにより `SpecUrl` と
+「リンクをコピー」が同じ URL 形式になった（末尾スラッシュの扱いだけ、`OrderLinkLogic.buildOrderUrl`
+は事前にトリムする点で異なるが、生成される URL はどちらも `doGet` 側で同じ結果になる）。
+既存アセットに保存済みの旧形式 `SpecUrl` は、次回の仕様書同期（取得→適用）を1回通せば
+`SpecDiffService`（差分検出。§行 125 付近）が新旧の文字列不一致から「仕様リンク変更あり」と
+判定し、`SpecSyncService.ApplyExtraFields`（新規作成・既存更新の両経路が通る）が
+`asset.SpecUrl = row.SpecLink` で新形式に上書きする（シート/Web 側が空でない限り。既存の
+「空なら消さない」保護はそのまま維持）。テストは `SpecWebParserTests`
+（`Assets/DDrive/Tests/Editor/SpecWebParserTests.cs`）に新形式のアサート・既存クエリあり・
+id エスケープの3ケースを追加した。
 
 **クリップボードコピーの3段フォールバック**（`html/ClipboardCopy.html`、
 `window.SpecWebClipboard.copyText(text)`）:

@@ -12,6 +12,16 @@ namespace DDrive.Editor.Manual
     //   HumanAppUrl に既にクエリがあれば "&" で連結する。
     public static class ManualUrlBuilder
     {
+        // 共通の小さな純粋関数: baseUrl に "key=value[&key=value...]" 形式のクエリ片を追加する。
+        // 既にクエリ(?)があれば "&" で連結し、無ければ "?" で始める。末尾スラッシュはトリムしない
+        // (呼び出し側の humanAppUrl がそのまま使われる。2026-09-14: SpecWebParser.BuildSpecLink も
+        // これに揃えた。docs/32_spec_web.md §6)。
+        public static string AppendQuery(string baseUrl, string query)
+        {
+            var separator = baseUrl.IndexOf('?') >= 0 ? "&" : "?";
+            return baseUrl + separator + query;
+        }
+
         // settings.HumanAppUrl が空なら Web は使えない(呼び出し側でローカルにフォールバックする)。
         public static string BuildWebUrl(string humanAppUrl, string pageName)
         {
@@ -20,8 +30,7 @@ namespace DDrive.Editor.Manual
                 return null;
             }
 
-            var separator = humanAppUrl.IndexOf('?') >= 0 ? "&" : "?";
-            return humanAppUrl + separator + "page=manual&p=" + Uri.EscapeDataString(pageName);
+            return AppendQuery(humanAppUrl, "page=manual&p=" + Uri.EscapeDataString(pageName));
         }
 
         // ローカルの docs/DesignerManual/<pageName>.html を file:// URI にする。

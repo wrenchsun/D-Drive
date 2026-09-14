@@ -222,12 +222,15 @@ D-Drive 側の C# は変更していない）。前提は W-9〜W-12 と同じ�
 
 ### 要判断・引き継ぎ（O-12〜O-13、2026-09-14）
 
-- O-13 の「リンクをコピー」は独自の URL 方式（`?page=order&id=...`/`?page=group&id=...`）を使う。
-  既存の `AssetDataBase.SpecUrl`（`SpecWebParser.BuildSpecLink` が組み立てるハッシュ形式
-  `#/assets/<id>`）は、この SPA が `location.hash` に依存しない設計であるため実際には機能しない
-  （コードを読んで判明。C# は今回変更していない）。Unity Inspector の「仕様書を開く」ボタン
-  （`SpecUrl` を使う既存機能）で実際にどう見えるかも合わせて確認し、`SpecWebParser.BuildSpecLink`
-  を O-13 と同じ形式に揃える別チケットが必要か判断してほしい
+- **2026-09-14 対応済み**: O-13 の「リンクをコピー」は独自の URL 方式
+  （`?page=order&id=...`/`?page=group&id=...`）を使っていたが、既存の `AssetDataBase.SpecUrl`
+  （`SpecWebParser.BuildSpecLink` が組み立てるハッシュ形式 `#/assets/<id>`）はこの SPA が
+  `location.hash` に依存しない設計であるため実際には機能しないと判明していた。別チケットで
+  `SpecWebParser.BuildSpecLink`（`Assets/DDrive/Editor/Spec/SpecWebParser.cs`）を
+  `?page=order&id=<種別::識別子>` 形式（O-13 と同じ）に揃えた（docs/32_spec_web.md §10.8 参照）。
+  既存アセットの旧形式 `SpecUrl` は次回の仕様書同期で新形式に上書きされる（消えるのではなく
+  更新される）。Unity Inspector の「仕様書を開く」ボタンで実際にリンクが開くかは、この対応は
+  Unity 未検証のため人による確認が必要
 - 上記「前提」（W-9〜W-12）と同じく、実デプロイでの動作確認は本チケットの範囲内では
   実施できなかった（Node テストのみ。302 件 green）
 

@@ -28,8 +28,9 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("仮", row.Status);
             Assert.AreEqual("よしだ", row.Assignee);
             Assert.AreEqual("備考", row.Note);
-            StringAssert.StartsWith("https://example.com/spec#/assets/", row.SpecLink);
-            StringAssert.Contains("Se", row.SpecLink);
+            // 2026-09-14: PR #50(O-13)の Web 側ディープリンク(`?page=order&id=...`)に合わせた形式
+            // (旧 `#/assets/<id>` ハッシュ形式は Web の SPA が location.hash に依存しないため機能しなかった)。
+            Assert.AreEqual("https://example.com/spec?page=order&id=Se%3A%3ASlash", row.SpecLink);
         }
 
         [Test]
@@ -40,6 +41,29 @@ namespace DDrive.Tests.Editor
             var result = SpecWebParser.ParseAssets(json);
 
             Assert.AreEqual(string.Empty, result.Rows[0].SpecLink);
+        }
+
+        [Test]
+        public void ParseAssets_HumanAppUrlHasExistingQuery_AppendsWithAmpersand()
+        {
+            // ManualUrlBuilder.BuildWebUrl と同じ挙動(AppendQuery 共有): 既にクエリがあれば "&" で連結する。
+            const string json = "{\"ok\":true,\"items\":[{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"斬撃音\"}]}";
+
+            var result = SpecWebParser.ParseAssets(json, "https://example.com/spec?foo=1");
+
+            Assert.AreEqual("https://example.com/spec?foo=1&page=order&id=Se%3A%3ASlash", result.Rows[0].SpecLink);
+        }
+
+        [Test]
+        public void ParseAssets_IdIsEscaped()
+        {
+            // Uri.EscapeDataString で "::" 等が正しくエスケープされることを確認する
+            // (OrderLinkLogic.buildOrderUrl の encodeURIComponent と同じ値になる想定。テストの %3A 参照)。
+            const string json = "{\"ok\":true,\"items\":[{\"id\":\"Se::Slash Sound\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"斬撃音\"}]}";
+
+            var result = SpecWebParser.ParseAssets(json, "https://example.com/spec");
+
+            Assert.AreEqual("https://example.com/spec?page=order&id=Se%3A%3ASlash%20Sound", result.Rows[0].SpecLink);
         }
 
         [Test]
