@@ -63,6 +63,25 @@ namespace DDrive.Samples
         private bool _maxActiveCountObservedPositive;
         private bool _vfxAndActiveZeroedAfterDisconnect;
 
+        // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — ⑤(切断後の演出 0)の判定対象は「自分(Client)が
+        // Host との接続を失った」場合だけにする。`_ngoBridge.ClientDisconnected` は Host 側でも「他 Client が
+        // 切断した」ときに発火する(OnBridgeDisconnected のコメント参照)が、Host は他 Client の 1 人が
+        // 抜けても自分のデモ演出(この Runner が周期再生している分)を止めない設計であり、
+        // `CancelAllNetworked()` も Client 視点の切断時にだけ呼ばれる([docs/29_network_device_test.md] §8)。
+        // 旧実装は role を見ずに `_disconnectLogged` をそのまま判定に使っていたため、実機の 1 対 1 構成でも
+        // Host 側が「切断を検知したのに自分の演出が 0 にならない」という偽陽性 FAIL になっていた
+        // (run-netcheck.cmd 初回実行、pair0/pair200/latejoin の 3 シナリオ全てで再現)。
+        private bool _selfDisconnectedObserved;
+
+        // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — ②(偽造 Cancel 全件破棄)の in-flight 除外。
+        // 遅延シナリオ(pair200 等)では、シナリオ終了間際に送った偽造 Cancel の破棄ログが届く前に
+        // プロセスが終了してしまい、sent と discarded の数が食い違う偽陽性 FAIL になっていた
+        // (`-ddrive-sim-latency 200` で forged_cancel_sent の最後の 1 件が該当)。往復に掛かる時間の
+        // 見積り分だけ、シナリオ終了間際は新規送信を止める。
+        private float _autoTestDurationSeconds = -1f;
+        private float _autoTestStartRealTime;
+        private float _forgedCancelStopMarginSeconds = 2f;
+
         // remoteOneShotGraceSec の既定値([31] A7)と同じ。PresentationManager 側の定数を公開していないため、
         // 判定専用にここで複製する(値を変える場合は両方直す。ズレても判定が保守的になる方向〔猶予短縮〕なら
         // 実害は小さいが、要判断として残す)。
@@ -113,6 +132,14 @@ namespace DDrive.Samples
                 // 待つだけで、自分の activeCount が 0→復元 になるわけではない)。
                 _requireLateJoinRestore = _role == "client" && autoTestName.IndexOf("latejoin", System.StringComparison.OrdinalIgnoreCase) >= 0;
                 var autoTestSeconds = bootstrap != null ? bootstrap.LaunchOptions.AutoTestSeconds : null;
+
+                // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — 偽造 Cancel の in-flight 除外マージン。
+                // Client 発の Broadcast は Host 経由で全員に中継されるため、往復には少なくとも
+                // (Client→Host→ClientsAndHost の 2 ホップ分の遅延)が掛かる。`-ddrive-sim-latency` は
+                // 片道分(ms)なので 4 倍(送信 2 ホップ×行き来)+固定バッファ 2 秒を見込む。
+                var simLatencyMs = bootstrap != null ? bootstrap.LaunchOptions.SimLatencyMs : null;
+                _forgedCancelStopMarginSeconds = 2f + (simLatencyMs ?? 0) / 1000f * 4f;
+
                 RunAutoTestAndQuit(autoTestName, autoTestSeconds).Forget();
             }
         }
@@ -191,7 +218,9 @@ namespace DDrive.Samples
             }
             // [11_tasks.md] 6-0 修正6(オーケストレーター追加指示) — 切断中は偽造 Cancel を送らない
             // (Broadcast 側が毎回「未接続のため送信できません」警告を出し続けるだけになるため)。
-            else if (sendForgedCancelPeriodically && Connected(bootstrap))
+            // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — シナリオ終了間際も送らない(in-flight 除外。
+            // HasTimeForForgedCancelRoundTrip 参照)。
+            else if (sendForgedCancelPeriodically && Connected(bootstrap) && HasTimeForForgedCancelRoundTrip())
             {
                 _forgedTimer += Time.deltaTime;
                 if (_forgedTimer >= forgedMessageIntervalSeconds)
@@ -200,6 +229,20 @@ namespace DDrive.Samples
                     SendForgedCancel(bootstrap);
                 }
             }
+        }
+
+        // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — シナリオ終了(Application.Quit)までの残り時間が
+        // 偽造 Cancel の破棄ログを受け取るのに十分無ければ新規送信を止める。`-ddrive-autotest` 未指定
+        // (手動実行)時は `_autoTestDurationSeconds` が設定されないため常に true(従来どおり無制限)。
+        private bool HasTimeForForgedCancelRoundTrip()
+        {
+            if (_autoTestDurationSeconds < 0f)
+            {
+                return true;
+            }
+
+            var remaining = _autoTestDurationSeconds - (Time.time - _autoTestStartRealTime);
+            return remaining > _forgedCancelStopMarginSeconds;
         }
 
         // [11_tasks.md] 6-0 修正5/修正6 — Host/Loopback は常に接続中扱い(Host は自分自身に対して
@@ -279,10 +322,13 @@ namespace DDrive.Samples
                 _maxActiveCountObservedPositive = true;
             }
 
-            // 条件⑤(切断検知 + 演出 0): 切断が観測された後、activeCount/vfx_active が両方 0 になった
-            // 瞬間があれば、ネット経由の演出が強制終了されたと判定する(以後に再度 >0 になっても、
-            // 一度でも 0 になった実績自体が「後片付けが機能した」証拠として残す。sticky)。
-            if (_disconnectLogged && activeCount == 0 && vfxActive == 0)
+            // 条件⑤(切断検知 + 演出 0): 自分(Client)が Host との接続を失ったことが観測された後、
+            // activeCount/vfx_active が両方 0 になった瞬間があれば、ネット経由の演出が強制終了されたと
+            // 判定する(以後に再度 >0 になっても、一度でも 0 になった実績自体が「後片付けが機能した」
+            // 証拠として残す。sticky)。2026-09-15 修正: `_disconnectLogged` は Host が他 Client の切断を
+            // 観測した場合にも true になる(ログの dedupe フラグ)ため、判定には使わない
+            // (`_selfDisconnectedObserved` の定義を参照)。
+            if (_selfDisconnectedObserved && activeCount == 0 && vfxActive == 0)
             {
                 _vfxAndActiveZeroedAfterDisconnect = true;
             }
@@ -452,6 +498,12 @@ namespace DDrive.Samples
                 return;
             }
 
+            // 判定用フラグ(⑤)は「自分(Client)が Host との接続を失った」場合だけ立てる。2026-09-15 修正。
+            if (_role == "client")
+            {
+                _selfDisconnectedObserved = true;
+            }
+
             if (_disconnectLogged)
             {
                 return;
@@ -470,6 +522,11 @@ namespace DDrive.Samples
         {
             LogCheck("autotest_start", name);
             var durationSeconds = autoTestSeconds ?? (playIntervalSeconds * 3 + 2f);
+
+            // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — HasTimeForForgedCancelRoundTrip が使う基準時刻。
+            _autoTestDurationSeconds = durationSeconds;
+            _autoTestStartRealTime = Time.time;
+
             await UniTask.Delay(System.TimeSpan.FromSeconds(durationSeconds));
             LogCheck("autotest_done", name);
 
@@ -511,7 +568,7 @@ namespace DDrive.Samples
                 PlaceholderObserved = _placeholderObserved,
                 TrackFiredOverGraceCount = _trackFiredOverGraceCount,
                 TrackSkippedWithinGraceCount = _trackSkippedWithinGraceCount,
-                DisconnectedObserved = _disconnectLogged,
+                DisconnectedObserved = _selfDisconnectedObserved,
                 ActiveAndVfxZeroedAfterDisconnect = _vfxAndActiveZeroedAfterDisconnect,
                 ContentHashApplicable = contentHashApplicable,
                 ContentHashStatus = contentHashStatus,

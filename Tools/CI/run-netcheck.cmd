@@ -1,4 +1,9 @@
 @echo off
+REM 2026-09-15 修正(6-7): このファイルは UTF-8(BOM 無し)で保存されている。cmd.exe は既定のコード
+REM ページ(日本語 Windows では通常 932 = Shift-JIS)でバッチファイルを読むため、コードページが 65001
+REM (UTF-8)以外だと以下の日本語コメント・echo 行が文字化けし、稀に「コマンドとして認識されない」
+REM エラーになる(実行時に確認済み)。ファイル先頭でコードページを揃えることで回避する。
+chcp 65001 >nul
 setlocal EnableDelayedExpansion
 REM D-Drive: 6-7 の 2 クライアント自動テスト。ローカル 2 プロセスで Loopback から差し替えた NGO ブリッジを確認する。
 REM

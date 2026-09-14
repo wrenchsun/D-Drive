@@ -81,9 +81,12 @@ function Build-Args {
 }
 
 # [docs/29] §4 の判定基準(2026-09-15 改訂、[31] A8): 数ティック以内(目安 100ms 以内)。ローカル 2 プロセス
-# 実行では負荷でぶれることがあるため、少し余裕を持たせて 150ms を機械判定のしきい値にする(目安そのものは
-# docs を優先し、ここでの 150ms は「自動判定のノイズ耐性」として明記する)。
-$PhaseDiffThresholdMs = 150.0
+# 実行では負荷でぶれることがあるため、少し余裕を持たせて 150ms を機械判定の「ノイズ耐性マージン」にする
+# (目安そのものは docs を優先する)。2026-09-15 追加修正(6-7 判定バグ): `-ddrive-sim-latency` を使う
+# シナリオ(pair200 等)では Host→Client の 1 ホップ分の遅延がそのまま位相差に乗るため、マージン単体では
+# 遅延シナリオが機械的に FAIL してしまっていた(pair200 実測 maxDiffMs=350、旧しきい値 150ms)。しきい値は
+# 「シミュレート遅延(片道 ms)+ ノイズ耐性マージン」にする(Test-SignalPhase の $LatencyMs 引数)。
+$PhaseDiffMarginMs = 150.0
 $PhaseMatchRatioThreshold = 0.7
 
 function Parse-ResultLine {
@@ -131,11 +134,46 @@ function Get-SignalEvents {
     return $events
 }
 
+# 2026-09-15 追加(6-7 判定バグ) — Client の Player.log から「自分が Host に接続した」最初の heartbeat の
+# networkTime を読む。"latejoin" シナリオでは Client 接続前に Host が単独で発火させた signal_fire が
+# 何件もあり、Client からは原理的に受信できない(受信して当然の対象ではない)。これを分母に含めると
+# 中継率(ratio)が実態より低く出て機械的に FAIL する(latejoin 実測 ratio=0.64。接続前 3 件を除くと
+# 7/8=0.875 で閾値 0.7 を超える)。
+function Get-ClientConnectNetworkTime {
+    param([string]$ClientLogPath)
+
+    if (-not (Test-Path $ClientLogPath)) {
+        return $null
+    }
+
+    foreach ($line in Get-Content -Path $ClientLogPath -ErrorAction SilentlyContinue) {
+        if ($line -match '\[DDriveNetCheck\]\s+heartbeat=1\s+role=client\s+.*networkTime=([\d.]+)') {
+            return [double]$Matches[1]
+        }
+    }
+
+    return $null
+}
+
 function Test-SignalPhase {
-    param([string]$HostLogPath, [string]$ClientLogPath)
+    param([string]$HostLogPath, [string]$ClientLogPath, [double]$LatencyMs = 0.0)
 
     $fireEvents = Get-SignalEvents -LogPath $HostLogPath -Kind "fire"
     $recvEvents = Get-SignalEvents -LogPath $ClientLogPath -Kind "recv"
+
+    # Client が接続する前に Host が単独で発火させた signal_fire は、Client からは受信不可能なので分母から
+    # 除外する(late-join シナリオ用。他シナリオは Client 接続が最初の Play より早いため実質無害)。
+    $clientConnectNetworkTime = Get-ClientConnectNetworkTime -ClientLogPath $ClientLogPath
+    if ($null -ne $clientConnectNetworkTime) {
+        $filtered = @{}
+        foreach ($key in $fireEvents.Keys) {
+            if ($fireEvents[$key] -ge $clientConnectNetworkTime) {
+                $filtered[$key] = $fireEvents[$key]
+            }
+        }
+
+        $fireEvents = $filtered
+    }
 
     if ($fireEvents.Count -eq 0) {
         return [pscustomobject]@{ Pass = $false; Reason = "no_signal_fire_in_host_log"; FireCount = 0; MatchedCount = 0; MaxDiffMs = -1 }
@@ -163,8 +201,15 @@ function Test-SignalPhase {
         return [pscustomobject]@{ Pass = $false; Reason = "signal_relay_ratio_low ratio=$([Math]::Round($ratio,2))"; FireCount = $fireEvents.Count; MatchedCount = $matched; MaxDiffMs = $maxDiffMs; MeanDiffMs = $meanDiffMs }
     }
 
-    if ($maxDiffMs -gt $PhaseDiffThresholdMs) {
-        return [pscustomobject]@{ Pass = $false; Reason = "signal_phase_diff_too_large max_ms=$([Math]::Round($maxDiffMs,0))"; FireCount = $fireEvents.Count; MatchedCount = $matched; MaxDiffMs = $maxDiffMs; MeanDiffMs = $meanDiffMs }
+    # 2026-09-15 修正(6-7 判定バグ): しきい値は「シミュレート遅延(片道 ms)+ ノイズ耐性マージン」。
+    # Host→Client の 1 ホップなので片道分がそのまま位相差に乗る([docs/29] §4/§15 参照)。
+    # 比較前に整数 ms へ丸める(ログの文字列 "12.66"/"12.54" 等を double 減算するため、しきい値ちょうど
+    # (例: 遅延 200ms のとき 350ms)の実測値が浮動小数の丸め誤差で 350.0000000000014 のようにわずかに
+    # 超え、機械判定だけ FAIL するのを避ける。ログ表示も同じ丸めなので基準を合わせる)。
+    $phaseDiffThresholdMs = $LatencyMs + $PhaseDiffMarginMs
+    $maxDiffMsRounded = [Math]::Round($maxDiffMs, 0)
+    if ($maxDiffMsRounded -gt $phaseDiffThresholdMs) {
+        return [pscustomobject]@{ Pass = $false; Reason = "signal_phase_diff_too_large max_ms=$([Math]::Round($maxDiffMs,0)) threshold_ms=$([Math]::Round($phaseDiffThresholdMs,0))"; FireCount = $fireEvents.Count; MatchedCount = $matched; MaxDiffMs = $maxDiffMs; MeanDiffMs = $meanDiffMs }
     }
 
     return [pscustomobject]@{ Pass = $true; Reason = "ok"; FireCount = $fireEvents.Count; MatchedCount = $matched; MaxDiffMs = $maxDiffMs; MeanDiffMs = $meanDiffMs }
@@ -214,7 +259,7 @@ foreach ($scenario in $scenarios) {
 
     $hostResult = Parse-ResultLine -LogPath $hostLog
     $clientResult = Parse-ResultLine -LogPath $clientLog
-    $phase = Test-SignalPhase -HostLogPath $hostLog -ClientLogPath $clientLog
+    $phase = Test-SignalPhase -HostLogPath $hostLog -ClientLogPath $clientLog -LatencyMs $scenario.LatencyMs
 
     $scenarioPass = $hostResult.Pass -and $clientResult.Pass -and $phase.Pass
     if (-not $scenarioPass) { $overallPass = $false }
