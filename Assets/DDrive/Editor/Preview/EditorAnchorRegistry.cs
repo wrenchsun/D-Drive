@@ -53,8 +53,14 @@ namespace DDrive.Editor.Preview
             Collect<AnchorGroupData>(AssetType.AnchorGroup, entries, loads);
             Collect<DDrive.Runtime.Vfx.VfxData>(AssetType.Vfx, entries, loads);
             Collect<DDrive.Runtime.Audio.SeData>(AssetType.Se, entries, loads);
+            Collect<DDrive.Runtime.Audio.BgmData>(AssetType.Bgm, entries, loads);
             Collect<DDrive.Runtime.Anim.AnimData>(AssetType.Anim, entries, loads);
             Collect<DDrive.Runtime.Model.ModelData>(AssetType.Model, entries, loads);
+            // 2026-09-14(5-4): PresentationEditor の統合プレビューが CameraShake/Haptic トラックを ID 解決
+            // (ResolveOrPlaceholder)できるように登録を追加(ShakeEditor/HapticsEditor 単体は ID を経由しないため
+            // 未登録でも動いていたが、Presentation 経由では登録が無いと必ず Placeholder になっていた)。
+            Collect<DDrive.Runtime.CameraShake.CameraShakeData>(AssetType.Shake, entries, loads);
+            Collect<DDrive.Runtime.Haptics.HapticsData>(AssetType.Haptics, entries, loads);
             Collect<DDrive.Runtime.Material.MaterialData>(AssetType.Material, entries, loads);
             Collect<DDrive.Runtime.Material.TextureData>(AssetType.Texture, entries, loads);
             Collect<DDrive.Runtime.Prefab.PrefabData>(AssetType.Prefab, entries, loads);
@@ -71,8 +77,11 @@ namespace DDrive.Editor.Preview
                 if (type == typeof(AnchorData)) registry.ResolveAsync<AnchorData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(AnchorGroupData)) registry.ResolveAsync<AnchorGroupData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Vfx.VfxData)) registry.ResolveAsync<DDrive.Runtime.Vfx.VfxData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Audio.BgmData)) registry.ResolveAsync<DDrive.Runtime.Audio.BgmData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Anim.AnimData)) registry.ResolveAsync<DDrive.Runtime.Anim.AnimData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Model.ModelData)) registry.ResolveAsync<DDrive.Runtime.Model.ModelData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.CameraShake.CameraShakeData)) registry.ResolveAsync<DDrive.Runtime.CameraShake.CameraShakeData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Haptics.HapticsData)) registry.ResolveAsync<DDrive.Runtime.Haptics.HapticsData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Material.MaterialData)) registry.ResolveAsync<DDrive.Runtime.Material.MaterialData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Material.TextureData)) registry.ResolveAsync<DDrive.Runtime.Material.TextureData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Prefab.PrefabData)) registry.ResolveAsync<DDrive.Runtime.Prefab.PrefabData>(id).GetAwaiter().GetResult();

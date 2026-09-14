@@ -6,6 +6,7 @@ using DDrive.Editor.Audio;
 using DDrive.Editor.CameraFx;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Model;
+using DDrive.Editor.Presentation;
 using DDrive.Editor.Vfx;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Anchoring;
@@ -14,6 +15,7 @@ using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Model;
+using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
 using NUnit.Framework;
 using UnityEditor;
@@ -25,11 +27,8 @@ namespace DDrive.Tests.Editor
     public class DataEditorRegistryTests
     {
         // 専用エディタを持たない Data 種別はここに明示する(理由をコメントで残す)。
-        // PresentationData: 専用エディタ(マルチトラック UI + 統合プレビュー)は 5-4(PresentationEditor)で
-        // 実装予定([08_presentation.md] §4)。5-1 時点では Inspector から Tracks を直接編集する。
-        // CameraShakeData / HapticsData: 専用エディタ(CameraFxEditorWindow = ShakeEditor / HapticsEditor)は
-        // 5-2c で実装済み([16_camera_haptics.md] §C-2)。
-        private static readonly HashSet<string> Exempt = new() { "PresentationData" };
+        // 2026-09-14(5-4): PresentationEditorWindow を実装したため PresentationData を Exempt から外した。
+        private static readonly HashSet<string> Exempt = new();
 
         private sealed class DerivedVfxData : VfxData
         {
@@ -68,6 +67,7 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(AnchorGroupData), typeof(AnchorGroupEditorWindow));
             AssertWindow(typeof(CameraShakeData), typeof(CameraFxEditorWindow));
             AssertWindow(typeof(HapticsData), typeof(CameraFxEditorWindow));
+            AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow));
         }
 
         [Test]

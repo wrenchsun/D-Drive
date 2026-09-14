@@ -481,20 +481,11 @@ namespace DDrive.Editor.Anim
             _root = new GameObject(PreviewRootName) { hideFlags = HideFlags.DontSave };
             StageUtility.PlaceGameObjectInCurrentStage(_root);
 
+            // AudioManager 生成の定型手順(PoolService + テンプレ AudioSource + AudioListener 確認)は
+            // ScenePresentationPreviewDriver(5-4)と共用する EditorAudioFactory に切り出した(2026-09-14)。
             _pool = new PoolService();
             _pool.SetInstanceParent(_root.transform);
-
-            var template = new GameObject("SeSourceTemplate");
-            template.transform.SetParent(_root.transform);
-            template.AddComponent<AudioSource>();
-            template.SetActive(false);
-
-            if (UnityEngine.Object.FindFirstObjectByType<AudioListener>() == null)
-            {
-                _root.AddComponent<AudioListener>();
-            }
-
-            Audio = new AudioManager(_pool, Registry, template);
+            Audio = EditorAudioFactory.Create(_pool, _root.transform, Registry);
             _materials = new MaterialManager(Registry);
             Models = new ModelsManager(_pool, Registry, Manager, _materials);
 

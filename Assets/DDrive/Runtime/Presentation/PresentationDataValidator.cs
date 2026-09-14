@@ -61,7 +61,9 @@ namespace DDrive.Runtime.Presentation
             }
         }
 
-        private static bool RequiresAsset(TrackKind kind) => kind switch
+        // internal ではなく public: PresentationEditorWindow(5-4)が「Asset 未設定」の Kind をトラック追加時の
+        // 初期値判定や D&D の可否判定に再利用する(同じ判定をエディタ側に複製しない)。
+        public static bool RequiresAsset(TrackKind kind) => kind switch
         {
             TrackKind.Marker => false,
             TrackKind.Signal => false,
