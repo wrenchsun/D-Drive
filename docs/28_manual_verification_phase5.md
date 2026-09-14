@@ -326,3 +326,30 @@
 - **PresentationEditor(5-4)内の同時プレビューは対象外**: チケット文面どおり、Shake + Haptic + SE + VFX の統合プレビューは 5-4 で実装する。5-2c で用意した `SceneCameraShakePreviewDriver`/`EditorHapticsPreviewDriver` はそのまま 5-4 から呼べる設計にしてある(コンストラクタで `AssetRegistry` を外部から差し替え可能)
 - **`CameraFxEditorWindow` 自体の UI テストは書いていない**: 既存の VFX/Anim/Model 系エディタと同じく、このプロジェクトには EditorWindow の `CreateGUI` を直接テストする前例が無いため、実体である Driver / Presets 側のテストで代替した(詳細は docs/16 実装メモ)
 - **Test on Pad のフォーカス喪失判定はエディタアプリ全体が対象**: `EditorApplication.focusChanged` を使っているため、Unity エディタの別ウィンドウ(Scene/Game/Inspector 等)に切り替えるだけでは止まらず、**Unity エディタ自体から他のアプリへ切り替えたとき**に止まる。ウィンドウ単位のフォーカス喪失(`EditorWindow.OnLostFocus`)で止めるべきという意見があれば見直すこと
+
+## 5-4 Presentation エディタ（PR #24）
+
+対象: `Editor/Presentation/{PresentationEditorWindow,PresentationEditorWindow.Tracks,PresentationEditorWindow.Preview,ScenePresentationPreviewDriver,PresentationTrackEditOps,PresentationTrackKindMapping}.cs`(新規)、`Editor/Preview/EditorAudioFactory.cs`(新規、`SceneAnimPreviewDriver` と共用)、`Editor/Common/TimelineRulerGui.cs`(新規、`AnimEditorWindow` と共用)、`Editor/Preview/EditorAnchorRegistry.cs`(`BgmData`/`CameraShakeData`/`HapticsData` を登録に追加)、`Runtime/Presentation/PresentationDataValidator.cs`(`RequiresAsset` を `public` 化)、`Tests/Editor/DataEditorRegistryTests.cs`(Exempt から `PresentationData` を除去 + `KnownPairs` に追記)。設計は [08_presentation.md](08_presentation.md) §4、実装メモは同ファイルの「実装メモ（2026-09-14、5-4）」を参照。
+
+確認手順:
+
+1. **専用エディタを開く**: `Tools > D-Drive > Presentation Editor`(Tools メニュー最上段)を開く → 対象アセット欄に `Assets/GameData/Presentation/Demo/PRES_Demo_SkillSlash.asset` をドラッグ(または Asset Browser の「Presentation エディタで開く」)→ 既存の Tracks がタイムライン(レーンごとに色つきマーカー)と下の一覧に表示されること
+2. **D&D でトラック追加(AC)**: Asset Browser または Project ウィンドウから任意の `VfxData`/`SeData` をタイムラインへドラッグ＆ドロップする → 落とした位置の時刻・対応する Kind のレーンに新しいトラックが追加されること。Undo(Ctrl+Z)1 回で追加前に戻ること
+3. **時間ドラッグ(AC)**: 追加したトラックのマーカーを左右にドラッグする → 一覧側の Time も連動して変わること。ドラッグを離した後に Undo 1 回でドラッグ前の時刻に戻ること(ドラッグ中の細かい移動がまとめて 1 回になっていること)
+4. **複製・削除(AC)**: 一覧のいずれかのトラックで「複製」→ 直後に同じ内容のトラックが増えること、Undo 1 回で戻ること。「削除」→ そのトラックが消えること、Undo 1 回で戻ること
+5. **モデルを配置して統合プレビュー(AC ★目玉機能)**: ツールバー「確認用シーンを開く」→ 確認用シーンが開く。「モデル選択」に Animator 付きの `ModelData` を選び「配置」→ シーン原点にモデルが出る。「▶ 再生」を押す → **Vfx・Se・CameraShake・Haptic(パッド接続時は実機振動込み)が SceneView / Game ビューで同時に再生される**こと。ウィンドウ内には何も描かれないこと
+6. **Signal 手動発火(AC)**: `onHit`(SignalKey="hit")のような On Signal トラックがあるデータで再生中、「Signal レーン」の「Signal: hit」ボタンを押す → CameraShake/Haptic/SE 等の onHit 側トラックがその場で発火すること。ログ欄に `Fired: ...` が追加されること
+7. **速度・シーク・ループ**: 「速度」スライダーを 0.5x 程度にしてから再生 → 通常よりゆっくり進むこと。「シーク」を動かす → 再生ヘッドがその位置に飛び、通過済みのトラックがまとめて発火すること。「ループ」を ON にして再生 → 完了後に自動で最初から再生し直すこと
+8. **パラメータ上書き**: いずれかのトラックの「Params(パラメータ上書き)」を開き、要素を追加して値を変える → 保存されること(**要判断**: 5-4 時点では VFX/SE の実際の見た目・音量への反映経路が無いため、見た目には反映されない。docs/08 実装メモ参照)
+9. **環境切替**: 「環境切替」を開き、ライト強度スライダーと背景色を変える → 確認用シーンの実際のライト・カメラの背景色がその場で変わること(ウィンドウを閉じても戻らない = 通常の SceneView 操作と同じ、揺れ/振動のような自動復元はしない)
+10. **閉じると残骸が消え、カメラが元の位置に戻る(AC)**: 手順5で再生中(特に CameraShake が効いている状態)にウィンドウを閉じる → Hierarchy に `[D-Drive] Presentation Preview` や `[D-Drive] Anim Preview` 等の残骸が残らないこと、`DDriveCameraShakeNode` が無くカメラが元の親子構造・位置・回転に戻っていること(`SceneCameraShakePreviewDriver` 側の既存動作をそのまま利用)
+11. **Validation バナー**: Tracks の Asset を意図的に空にする、または OnSignal の SignalKey を空にする → ウィンドウ上部の「検証(Validation)」に Error/Warning が表示されること
+12. **自動テストの確認(代替可)**: 目視確認が難しい部分は `PresentationTrackKindMappingTests`(D&D の Kind 判定)/`PresentationTrackEditOpsTests`(追加・移動・削除・複製の Undo 往復)/`ScenePresentationPreviewDriverTests`(Play/Signal/Tick/Cancel/モデル配置、Fake Registry で実プロジェクトに触れない)で代替できる
+
+要判断:
+- **Params(パラメータ上書き)の実消費経路が無い**: `PresentationManager` は現状 VFX の色や SE の音量として `Params` を読んでいない。デザイナーが値を入れても見た目・音には反映されない。実際に使う演出が出てきた時点で `FireVfx`/`FireSe` 側に反映処理を足す必要がある
+- **HitStop がプレビュー内の Anim/Vfx/Shake/Haptic の Tick を止めない**: `ScenePresentationPreviewDriver` 自身の Tick(AtTime の進行)は HitStop で正しく止まるが、束ねている `SceneAnimPreviewDriver`/`SceneCameraShakePreviewDriver`/`EditorHapticsPreviewDriver` はそれぞれ独立した Unscaled dt で自走しているため、エディタプレビュー内では Anim/Vfx の見た目が HitStop で止まらない(ランタイムでは全 Manager が共通の `GameLoop.Tick` を共有するため発生しない、プレビュー限定の差異)
+- **LazyLoad アセットの事前解決は未対応**: `EditorAnchorRegistry.Build()` が起動時に一括解決した ID しか実体が見えない。ウィンドウを開いたまま新しく作成した Data を参照する場合は、ウィンドウを閉じて開き直す(Registry を作り直す)必要がある
+- **Bgm/Canvas/UiTween トラックはプレビュー未配線**: `PresentationManager` の「Manager 未設定」警告 + no-op で継続する(Se/Vfx/Anim/Anim2D/CameraShake/Haptic/HitStop/Marker/Signal のみプレビューで実際に動く)
+- **タイムラインのレーンは 6 グループにまとめた固定行**: Kind ごとに 1 行(13 行)ではなく関連 Kind をまとめた 6 行にしたため、同じレーンに近い時刻のトラックが並ぶと視覚的に重なることがある。演出が複雑になってきたら個別レーン化や横方向のズームを検討する
+- **環境切替(ライト強度・背景色)は自動復元しない**: Shake/Haptic のような「閉じたら必ず元に戻る」プレビュー専用の仕組みとは異なり、確認用シーンの実オブジェクトを直接書き換えるだけの薄い UI にした(ユーザーが手動で SceneView を触るのと同じ扱い)。誤操作で確認用シーンの見た目が変わったままになりうる点は許容した
