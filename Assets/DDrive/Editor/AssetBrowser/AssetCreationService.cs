@@ -1,6 +1,7 @@
 using System;
 using DDrive.Editor.Codegen;
 using DDrive.Editor.Inspector;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Registry;
@@ -101,7 +102,13 @@ namespace DDrive.Editor.AssetBrowser
                     {
                         // 作成自体が Undo 対象でないので、ここで Undo を積まない(積むと Ctrl+Z が
                         // 「アイコン割り当て」だけを取り消してアセットが残る。2026-09-11 レビュー対応)。
-                        AssetIconService.TryCreateDefaultIcon(created, recordUndo: false);
+                        // [11_tasks.md] 6-3: 作成直後の機械的なアイコン自動割り当てで Version が
+                        // 1→2 に上がってしまわないよう抑止する(この Save は次のフレームに走るため、
+                        // Create 本体を包むより内側でここだけ包む)。
+                        using (VersionStampSuppression.Scope())
+                        {
+                            AssetIconService.TryCreateDefaultIcon(created, recordUndo: false);
+                        }
                     }
                 };
             }
@@ -128,6 +135,7 @@ namespace DDrive.Editor.AssetBrowser
         };
 
         // 既存アセットのカタログ登録漏れを直す(Validation の FixAction 用)。address はファイル名(拡張子なし)。
+        // [11_tasks.md] 6-3: カタログ・Addressables 同期の一種なので、機械的な登録直しで Version を上げない。
         public static AssetCatalog RegisterExisting(AssetDataBase asset, AssetType assetType, string gameDataRoot = DefaultGameDataRoot)
         {
             var path = AssetDatabase.GetAssetPath(asset);
@@ -136,12 +144,15 @@ namespace DDrive.Editor.AssetBrowser
                 return null;
             }
 
-            var address = System.IO.Path.GetFileNameWithoutExtension(path);
-            var catalog = RegisterToCatalog(asset, assetType, address, gameDataRoot);
-            AddressablesSync.EnsureEntry(asset, address);
-            AddressablesSync.EnsureCatalogEntry(catalog);
-            AssetDatabase.SaveAssets();
-            return catalog;
+            using (VersionStampSuppression.Scope())
+            {
+                var address = System.IO.Path.GetFileNameWithoutExtension(path);
+                var catalog = RegisterToCatalog(asset, assetType, address, gameDataRoot);
+                AddressablesSync.EnsureEntry(asset, address);
+                AddressablesSync.EnsureCatalogEntry(catalog);
+                AssetDatabase.SaveAssets();
+                return catalog;
+            }
         }
 
         private static AssetCatalog RegisterToCatalog(AssetDataBase asset, AssetType assetType, string address, string gameDataRoot)

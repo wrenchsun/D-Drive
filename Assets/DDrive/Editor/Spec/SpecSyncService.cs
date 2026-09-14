@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Inspectors;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Runtime.Tuning;
@@ -37,6 +38,8 @@ namespace DDrive.Editor.Spec
         }
 
         // ── アセットタブ: 変更 → 上書きしてよい項目だけ反映(Undo.RecordObject + SetDirty) ──
+        // [11_tasks.md] 6-3: 仕様書同期の適用は「一括処理」なので Version を上げない
+        // (シート側の変更をまとめて反映するたびに版数が機械的に増えるとノイズになるため)。
 
         public static void ApplyChanged(SpecAssetChange change)
         {
@@ -46,11 +49,18 @@ namespace DDrive.Editor.Spec
                 return;
             }
 
-            Undo.RecordObject(asset, "仕様書と同期(変更を反映)");
-            asset.DisplayName = change.Row.DisplayName;
-            asset.Category = change.Row.Category;
-            ApplyExtraFields(asset, change.Row);
-            EditorUtility.SetDirty(asset);
+            using (VersionStampSuppression.Scope())
+            {
+                Undo.RecordObject(asset, "仕様書と同期(変更を反映)");
+                asset.DisplayName = change.Row.DisplayName;
+                asset.Category = change.Row.Category;
+                ApplyExtraFields(asset, change.Row);
+                EditorUtility.SetDirty(asset);
+                // 抑止スコープはこの呼び出しの間だけ有効なので、実際の書き込み(OnWillSaveAssets の発火)も
+                // ここで済ませる。呼び出し元(SpecSyncWindow)でまとめて SaveAssets するのを待つと、
+                // その時点では抑止スコープが外れていて Version が上がってしまう。
+                AssetDatabase.SaveAssetIfDirty(asset);
+            }
         }
 
         // public: NewAssetDialog の「仕様書から選ぶ」(5-16)もここを呼ぶ。ダイアログ経由で作った結果と

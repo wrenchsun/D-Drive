@@ -17,12 +17,13 @@ namespace DDrive.Editor.Inspector
             DrawDefaultInspector();
         }
 
-        // 「〜で開く」ボタン列 + アイコン行(フォルダから選択 / シーンから作成)。
+        // 「〜で開く」ボタン列 + バージョン表示行(6-3) + アイコン行(フォルダから選択 / シーンから作成)。
         protected void DrawOpenEditorHeader()
         {
             if (targets.Length == 1)
             {
                 DataEditorHeader.Draw(target as AssetDataBase);
+                VersionStampGui.Draw(target as AssetDataBase);
                 AssetIconGui.Draw(target as AssetDataBase);
                 SpecUrlGui.Draw(target as AssetDataBase);
             }

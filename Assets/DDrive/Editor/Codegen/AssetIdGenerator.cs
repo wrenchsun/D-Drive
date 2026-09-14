@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using UnityEditor;
@@ -63,6 +64,10 @@ namespace DDrive.Editor.Codegen
         // AssetIdGeneratorTests はテスト用の型で検証するため true で呼ぶ。
         public static Result Regenerate(string outputPath = DefaultOutputPath, bool includeTestAssemblies = false)
         {
+            // [11_tasks.md] 6-3: ID 再生成は「一括処理」の一種なので、未発行だった ID を確定させるだけで
+            // Version を上げない(対象になり得る全 Data が一度に対象になり、ノイズになるため)。
+            using var _versionStampScope = VersionStampSuppression.Scope();
+
             var result = new Result();
             var definitions = FindDefinitions(includeTestAssemblies);
             var seenIds = new Dictionary<ulong, string>();
