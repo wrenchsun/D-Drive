@@ -51,15 +51,25 @@ function setup(role, options) {
     'settings.get': function () {
       return { ok: true, ganttUrl: 'https://example.com/gantt-dummy' };
     },
-    'orderGroups.create': function () {
+    'orderGroups.create': options.createHandler || function () {
       return { ok: true, item: { id: 'og_2', name: '新規グループ', revision: 1 } };
+    },
+    'orderGroups.delete': options.deleteHandler || function () {
+      return { ok: true, deleted: true };
     }
   });
   sandbox.window.SpecWebClient = fakeClient;
+  sandbox.window.confirm = options.confirm !== undefined ? options.confirm : function () { return true; };
 
   // O-13: OrderLinkLogic/ClipboardCopy も実 Index.html と同じ順序で読み込む
   // （OrderTree.html の buildCopyLinkControl が window.OrderLinkLogic/window.SpecWebClipboard を使う）。
-  const ctx = loadHtmlScripts(['OrderLinkLogic', 'ClipboardCopy', 'AssetsLogic', 'OrderTreeLogic', 'OrderTree'], sandbox);
+  // 緊急修正（2026-09-14）: UiFeedback（window.SpecWebUi の runBusy/toast）も、実 Index.html と
+  // 同じ順序（ClipboardCopy の後・AssetsLogic の前）で読み込む
+  // （+発注グループを作成ボタンの二重送信防止・削除ボタンが使う）。
+  const ctx = loadHtmlScripts(
+    ['OrderLinkLogic', 'ClipboardCopy', 'UiFeedback', 'AssetsLogic', 'OrderTreeLogic', 'OrderTree'],
+    sandbox
+  );
   assert.ok(capturedRender, 'registerScreen("orders", ...) が呼ばれていること');
   return { ctx, dom, render: capturedRender };
 }
@@ -147,4 +157,147 @@ test('render(root, {openGroupId}): 存在しないグループ id なら例外�
 
   const notice = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('見つかりません') !== -1);
   assert.ok(notice);
+});
+
+// ---- 緊急修正（2026-09-14）: 連打での重複作成対策（「aaa」という空のグループが10件近く
+// できた不具合の原因は、応答が遅い間に連打しても何も見た目が変わらなかったこと）。 ----
+
+test('「+ 発注グループを作成」: 応答が返るまでボタンが無効化され「送信中...」になり、連打しても2回目は API を呼ばない', async () => {
+  let createCalls = 0;
+  let resolveCreate;
+  const { dom, render } = setup('editor', {
+    createHandler: function () {
+      createCalls += 1;
+      return new Promise((resolve) => {
+        resolveCreate = resolve;
+      });
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const nameInput = dom.findNode(root, (n) => n.tagName === 'input' && n.getAttribute('placeholder') === 'Presentation 発注グループ名（例: スキル: 斬撃）');
+  const button = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 発注グループを作成');
+  nameInput.value = 'aaa';
+
+  dom.fire(button, 'click');
+  dom.fire(button, 'click'); // 連打
+  dom.fire(button, 'click');
+
+  assert.equal(createCalls, 1, 'orderGroups.create は1回だけ呼ばれる（連打しても重複作成しない）');
+  assert.equal(button.disabled, true, '送信中はボタンが無効化される');
+  assert.equal(button.textContent, '送信中...');
+
+  resolveCreate({ ok: true, item: { id: 'og_aaa', name: 'aaa', revision: 1 } });
+  await flush();
+
+  assert.equal(button.disabled, false, '完了後はボタンが元に戻る');
+  assert.equal(button.textContent, '+ 発注グループを作成');
+  assert.equal(nameInput.value, '', '成功後は入力欄がクリアされる');
+
+  // 体感速度の改善: 成功後は一覧全体の再取得（reload）をせず、その場で1件だけ追加する。
+  const newGroupHeading = dom.findNode(root, (n) => n.tagName === 'span' && n.textContent === 'aaa');
+  assert.ok(newGroupHeading, '作成したグループがその場で一覧に反映される（reload なし）');
+});
+
+test('「+ 発注グループを作成」: 失敗時はトーストでエラーを表示し、ボタンは元に戻る', async () => {
+  const { dom, render } = setup('editor', {
+    createHandler: function () {
+      return { ok: false, error: '権限がありません' };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const nameInput = dom.findNode(root, (n) => n.tagName === 'input' && n.getAttribute('placeholder') === 'Presentation 発注グループ名（例: スキル: 斬撃）');
+  const button = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 発注グループを作成');
+  nameInput.value = 'bbb';
+  dom.fire(button, 'click');
+  await flush();
+
+  assert.equal(button.disabled, false);
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('作成に失敗しました') !== -1);
+  assert.ok(toast, '失敗トーストが表示される');
+});
+
+// ---- 緊急修正（2026-09-14）: 発注グループの削除（「削除機能はありますか？」への回答） ----
+
+test('editor: 発注グループヘッダーに「削除」ボタンが出て、confirm 後に orderGroups.delete を呼び、その場で一覧から消える', async () => {
+  let deleteCalledWith = null;
+  const { dom, render } = setup('editor', {
+    deleteHandler: function (params) {
+      deleteCalledWith = params;
+      return { ok: true, deleted: true };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.ok(deleteButton, 'editor には削除ボタンが出る');
+  dom.fire(deleteButton, 'click');
+  await flush();
+
+  assert.ok(deleteCalledWith, 'orderGroups.delete が呼ばれる');
+  assert.equal(deleteCalledWith.id, 'og_1');
+
+  const groupHeading = dom.findNode(root, (n) => n.tagName === 'span' && n.textContent === 'スキル: 斬撃');
+  assert.equal(groupHeading, null, '削除成功後は一覧からその場で取り除かれる（reload なし）');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('発注グループを削除しました') !== -1);
+  assert.ok(toast);
+});
+
+test('editor: confirm でキャンセルすると orderGroups.delete は呼ばれない', async () => {
+  let called = false;
+  const { dom, render } = setup('editor', {
+    confirm: function () { return false; },
+    deleteHandler: function () {
+      called = true;
+      return { ok: true, deleted: true };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除');
+  dom.fire(deleteButton, 'click');
+  await flush();
+
+  assert.equal(called, false);
+});
+
+test('editor: 配下に発注が残っている場合の 400 拒否はトーストでサーバーのメッセージを表示する（配下0件なら即削除できる仕様の裏返し）', async () => {
+  const { dom, render } = setup('editor', {
+    deleteHandler: function () {
+      return { ok: false, status: 400, error: 'この発注グループには子の発注が残っています。先に付け替えてから削除してください。' };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除');
+  dom.fire(deleteButton, 'click');
+  await flush();
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('子の発注が残っています') !== -1);
+  assert.ok(toast);
+  // 拒否されただけで削除はしていないので、一覧にはまだグループが残る。
+  const groupHeading = dom.findNode(root, (n) => n.tagName === 'span' && n.textContent === 'スキル: 斬撃');
+  assert.ok(groupHeading);
+});
+
+test('viewer: 発注グループヘッダーに「削除」ボタンが出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.equal(deleteButton, null);
 });

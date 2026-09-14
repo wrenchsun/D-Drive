@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › ボタン / スライダーの見た目(Skin)と Slider Editor</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › ボタン / スライダーの見た目(Skin)と Slider Editor</nav>
 
 <h1>ボタン / スライダーの見た目(Skin)と Slider Editor</h1>
 
@@ -67,8 +67,8 @@
 
 <h2>Canvas への当て方</h2>
 <ol>
-<li><a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>ControlSkin (ButtonSkinData)</strong> または <strong>ControlSkin (SliderSkinData)</strong> を選んで作る（接頭辞 <code>SKIN</code>、<code>Ui/Skin</code> フォルダに置かれます）</li>
-<li>Canvas の Prefab の中にある UiButton / UiSlider の「<strong>SkinId</strong>」にその Skin を設定する（<a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a>）</li>
+<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>ControlSkin (ButtonSkinData)</strong> または <strong>ControlSkin (SliderSkinData)</strong> を選んで作る（接頭辞 <code>SKIN</code>、<code>Ui/Skin</code> フォルダに置かれます）</li>
+<li>Canvas の Prefab の中にある UiButton / UiSlider の「<strong>SkinId</strong>」にその Skin を設定する（<a href="#" data-manual-page="canvas-editor">Canvas Editor</a>）</li>
 <li>SkinId が空のボタンは、レイヤーの既定 Skin（UiLayerSettings）が自動で使われます。プロジェクト共通の Skin はここに入れておくと楽です</li>
 </ol>
 
@@ -87,7 +87,7 @@
 <tr><td>確認用シーンに配置</td><td>開いているシーンに <code>[D-Drive] Button Skin Preview</code> という Canvas を作り、その下に 200×60 のボタンを置いてこの Skin を当てます。シーンには保存されません。すでに置いてあれば作り直します。エディタを閉じたとき・別のシーンに移ったときは自動で片付きます</td></tr>
 <tr><td>撤去</td><td><code>[D-Drive] Button Skin Preview</code> を消します（他のエディタのプレビューは消しません）</td></tr>
 <tr><td>設定欄</td><td>Skin の全項目を編集（Ctrl+Z 可）。対象が無いと「Skin を選択してください」。確認用のボタンは、その設定のすぐ横に付いています（下の 2 行）</td></tr>
-<tr><td>状態ごとの箱（Normal〜Locked）</td><td>見出しの行に、その状態で再生される演出（「Tween: 名前」/「Preset: 名前」/「演出なし」）と「<strong>▶ 再生</strong>」「<strong>⏸ 一時停止</strong>」（再開）「<strong>■ 停止</strong>」。すぐ下が演出の設定欄（Enter Tween / Enter Preset）で、Enter Tween の右に「<strong>✎ Tween Editor</strong>」があります。色・拡大率・画像は「見た目(Tint / Scale / 画像)」を開くと出ます。<br>「▶ 再生」= プレビューのボタンをその状態にし（色・拡大率・差し替え画像）、状態に入ったときの演出を実際に再生します。未配置なら自動で「確認用シーンに配置」します。動きは <strong>Game ビュー</strong>で見ます。<br>「⏸」「■」は再生中の箱だけ押せます。「✎ Tween Editor」は Enter Tween を指定しているときだけ押せ、<a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween Editor</a> がプレビューのボタンを対象にした状態で開きます</td></tr>
+<tr><td>状態ごとの箱（Normal〜Locked）</td><td>見出しの行に、その状態で再生される演出（「Tween: 名前」/「Preset: 名前」/「演出なし」）と「<strong>▶ 再生</strong>」「<strong>⏸ 一時停止</strong>」（再開）「<strong>■ 停止</strong>」。すぐ下が演出の設定欄（Enter Tween / Enter Preset）で、Enter Tween の右に「<strong>✎ Tween Editor</strong>」があります。色・拡大率・画像は「見た目(Tint / Scale / 画像)」を開くと出ます。<br>「▶ 再生」= プレビューのボタンをその状態にし（色・拡大率・差し替え画像）、状態に入ったときの演出を実際に再生します。未配置なら自動で「確認用シーンに配置」します。動きは <strong>Game ビュー</strong>で見ます。<br>「⏸」「■」は再生中の箱だけ押せます。「✎ Tween Editor」は Enter Tween を指定しているときだけ押せ、<a href="#" data-manual-page="ui-tween">UI Tween Editor</a> がプレビューのボタンを対象にした状態で開きます</td></tr>
 <tr><td>SE の欄</td><td>Hover / Click / Long Press / Denied の各欄の右に「<strong>▶</strong>」（試聴）「<strong>■</strong>」（停止）。未設定の欄は押せません。SE データに音（Clip）が 1 つも入っていないと「再生できませんでした(Clip 未設定など…)」と出ます。Enter Preset に SE を付けている場合は、状態の「▶ 再生」でもその SE が鳴ります</td></tr>
 <tr><td>状態遷移（オレンジの線の箱）</td><td>「状態別ビジュアル」の先頭にあります。遷移の種類（マウスでクリック / パッドで選んで決定 / 押せないボタンを押す / ロック中のボタンを押す / 全状態を順に）を選んで「<strong>▶ 遷移を再生</strong>」を押すと、プレビューのボタンが順に状態を切り替えます。<strong>画像の差し替え・色・演出・SE が実際の操作と同じ順で</strong>確認できます（例: Hover に入ると Hover Se、押して離すと Click Se）。「1 状態の長さ(秒)」で 1 段の時間、「ループ」で繰り返し、「SE も鳴らす」で音の有無。下に今の段（例「● マウスでクリック: 3/5 Pressed」）が出ます</td></tr>
 <tr><td>当たり判定を表示</td><td>「Hit Area Expand」の下にあります。ON にすると、プレビューのボタンに<strong>押せる範囲が赤い半透明</strong>で重なります（Game / Scene ビュー）。Scene ビューでは赤い枠の四辺の小さな四角を<strong>ドラッグして広げ / 狭め</strong>られます（Ctrl+Z 可）</td></tr>
@@ -100,7 +100,7 @@
 <tr><td>Tint</td><td>その状態のときの色。ボタン側の「TargetGraphic」に掛かります</td></tr>
 <tr><td>Scale</td><td>拡大率。「Mode = Constant」で数字を入れるのが基本（押したとき 0.95 など）</td></tr>
 <tr><td>Override Sprite</td><td>その状態で差し替える画像。Normal に入れると Asset Browser のアイコンにもなります</td></tr>
-<tr><td>Enter Tween</td><td>この状態に入った瞬間に再生する演出（<a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween</a> のデータ）。設定があれば Enter Preset より優先</td></tr>
+<tr><td>Enter Tween</td><td>この状態に入った瞬間に再生する演出（<a href="#" data-manual-page="ui-tween">UI Tween</a> のデータ）。設定があれば Enter Preset より優先</td></tr>
 <tr><td>Enter Preset</td><td>Enter Tween が空のときに使う既成の演出。Preset = None なら何も再生しません（例: Pressed に PunchScale）</td></tr>
 <tr><td>Anim Frames / Anim Fps / Anim Loop</td><td><strong>スプライトアニメ</strong>。その状態のあいだ、コマ画像を順に切り替えます（Override Sprite より優先）。Anim Fps = 1 秒あたりのコマ数（0 以下は 12）、Anim Loop = 最後のコマから最初に戻る（OFF なら最後のコマで止まる）。「見た目」の中の「Anim2D から読み込む」に Anim2D データを入れて「コマを読み込む」を押すと、コマ・コマ数/秒・ループをまとめて取り込めます（コマ数/秒はクリップの長さとコマの並びから求めます。コマの間隔が不揃いなクリップは、平均の速さになる旨の警告が出ます）</td></tr>
 <tr><td>Scroll Speed</td><td><strong>スクロールアニメ</strong>。画像を流す速さ（X = 横、Y = 縦。1 秒あたりに画像の何枚分動くか。0 = 無効）。縞模様が流れるボタンなどに。画像のインポート設定で <strong>Wrap Mode を Repeat</strong> にし、<strong>Sprite Atlas には入れない</strong>でください。スクロールに必要な Scroll Material が空だと、Skin Editor の上に警告と「<strong>既定のマテリアルを設定</strong>」ボタンが出るので押してください（Ctrl+Z で戻せます）。ゲームがポーズ中（時間停止中）でもスクロールは止まりません</td></tr>
@@ -114,7 +114,7 @@
 <tr><td>Long Press Se</td><td>長押しが成立したときの音</td></tr>
 <tr><td>Denied Se</td><td>Disabled / Locked のボタンを押したときの「ブッ」という拒否音</td></tr>
 </table>
-<p>SE が空のボタンは、レイヤーの既定 SE（UiLayerSettings）が鳴ります。SE の作り方は <a href="?page=manual&p=se-data" data-manual-page="se-data">SE の設定項目</a>。</p>
+<p>SE が空のボタンは、レイヤーの既定 SE（UiLayerSettings）が鳴ります。SE の作り方は <a href="#" data-manual-page="se-data">SE の設定項目</a>。</p>
 
 <h3>設定項目（当たり判定）</h3>
 <table>
@@ -193,7 +193,7 @@
 <tr><td>Notch Se Min Interval Sec</td><td>速くドラッグしても Notch Se が詰まらないようにする最小間隔（既定 0.04 秒）</td></tr>
 <tr><td>Limit Se</td><td>端に当たったときの音</td></tr>
 <tr><td>Denied Se</td><td>Disabled / Locked のときに触ったときの拒否音</td></tr>
-<tr><td>Notch Haptic Id / Limit Haptic Id</td><td>振動（触覚）の ID（数値）。<a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">振動データ</a>を選び、Inspector 上部の Identity 欄にある Id の数値をコピーしてここへ貼り付けると、目盛りを越えた・端に当たったときにパッドが振動する（2026-09-14 から対応。ID 選択用のドロップダウンはまだ無く、数値を直接入力する）</td></tr>
+<tr><td>Notch Haptic Id / Limit Haptic Id</td><td>振動（触覚）の ID（数値）。<a href="#" data-manual-page="camera-haptics">振動データ</a>を選び、Inspector 上部の Identity 欄にある Id の数値をコピーしてここへ貼り付けると、目盛りを越えた・端に当たったときにパッドが振動する（2026-09-14 から対応。ID 選択用のドロップダウンはまだ無く、数値を直接入力する）</td></tr>
 </table>
 
 <h3>よくある警告</h3>
@@ -218,7 +218,7 @@
 <div class="tip">
 ツールバーの<strong>「＋ 新規作成」</strong>ボタンを押すと、新しい Slider Skin データが作られ、その Skin を当てたサンプルスライダーが確認用シーンに自動で配置されます（対象はアセットではなくシーン上の UiSlider なので、「作成」の結果は「新しい Skin のサンプルが目の前に出る」という形になります）。
 </div>
-<div class="tip">対象はアセットではなく<strong>シーン上の UiSlider</strong>です。実際のスライダーは Canvas の Prefab の中に置き、<a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas データ</a>の Sliders で配線します。</div>
+<div class="tip">対象はアセットではなく<strong>シーン上の UiSlider</strong>です。実際のスライダーは Canvas の Prefab の中に置き、<a href="#" data-manual-page="canvas-data">Canvas データ</a>の Sliders で配線します。</div>
 
 <h3>画面の説明</h3>
 <table>
@@ -287,7 +287,7 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 <h2>よくある使い方</h2>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>音量スライダー</td><td>「音量」プリセット → Canvas データの Sliders で Action = SetOption、Option = MasterVolume（<a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">標準オプション</a>）</td></tr>
+<tr><td>音量スライダー</td><td>「音量」プリセット → Canvas データの Sliders で Action = SetOption、Option = MasterVolume（<a href="#" data-manual-page="ui-tween">標準オプション</a>）</td></tr>
 <tr><td>HP バー</td><td>「HPバー」プリセット（入力の許可が OFF になり、プレイヤーは触れません）+ Delay Fill Rect に白いバー + Delay Follow Motion をさらに遅く。白いバーの色・画像は Slider Skin の Delay Fill（Tint / Override Sprite）で</td></tr>
 <tr><td>つまみを掴みやすく</td><td>Slider Skin の Handle Hit Area Expand を 4 辺とも 8〜12 程度に（「当たり判定を表示」の青い枠で確認）</td></tr>
 <tr><td>画質 低 / 中 / 高 / 最高 の 4 段階</td><td>Notches = 3 にして Step を合わせ、Skin の Notch Se で「カチッ」</td></tr>
@@ -308,11 +308,11 @@ Slider Editor は<strong>シーン上の実物を動かしません</strong>。�
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI の動き(UI Tween)・プリセットギャラリー・要素演出</a> — Enter Tween / Enter Preset に指す演出、標準オプション</li>
-<li><a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas データ</a> / <a href="?page=manual&p=canvas-editor" data-manual-page="canvas-editor">Canvas Editor</a> — Skin Id の設定、Sliders の配線</li>
-<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE の設定項目</a> — クリック音・ノッチ音の作り方</li>
-<li><a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">画面の揺れ・コントローラーの振動</a> — Notch Haptic Id / Limit Haptic Id に指す振動データの作り方</li>
-<li><a href="?page=manual&p=validation" data-manual-page="validation">検証（Validation）</a> / <a href="?page=manual&p=asset-browser" data-manual-page="asset-browser">Asset Browser</a> / <a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-page="ui-tween">UI の動き(UI Tween)・プリセットギャラリー・要素演出</a> — Enter Tween / Enter Preset に指す演出、標準オプション</li>
+<li><a href="#" data-manual-page="canvas-data">Canvas データ</a> / <a href="#" data-manual-page="canvas-editor">Canvas Editor</a> — Skin Id の設定、Sliders の配線</li>
+<li><a href="#" data-manual-page="se-data">SE の設定項目</a> — クリック音・ノッチ音の作り方</li>
+<li><a href="#" data-manual-page="camera-haptics">画面の揺れ・コントローラーの振動</a> — Notch Haptic Id / Limit Haptic Id に指す振動データの作り方</li>
+<li><a href="#" data-manual-page="validation">検証（Validation）</a> / <a href="#" data-manual-page="asset-browser">Asset Browser</a> / <a href="#" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>

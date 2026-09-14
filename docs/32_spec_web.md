@@ -2071,3 +2071,182 @@ URL のみをコピー。横の「▼」でメニューを開き、「URL のみ
 
 上記はユーザー本人が確認する（Claude は実際の Google アカウントにログインしたデプロイを開けないため
 代行できない）。
+
+## 実装メモ（2026-09-14、緊急修正: 実デプロイで見つかった不具合4件）
+
+O-12/O-13 を反映した実デプロイ①で、ユーザーが実際に操作して見つけた不具合の緊急修正
+（`fix/order-ui-focus-copy-delete` ブランチ）。原因と対策のみここに記録する（挙動の変更は
+上の O-12/O-13 の説明を上書きしない、追補として読む）。
+
+### 不具合1: 新規発注などの入力で1文字ごとにフォーカスが外れる
+
+**原因**: `html/Assets.html` の詳細パネルの各入力欄（識別子・表示名・カテゴリ・ファイル形式・
+ファイル名 等）が、`input` イベントのたびに `renderDetail()`（`overlayHost.innerHTML = ''` から
+パネル全体を作り直す関数）を呼んでいた。O-12 でファイル名の推奨表示・警告を反映するために
+この呼び出しを増やしたことで、既存の他フィールドも含めて「1文字打つたびに DOM 要素そのものが
+作り直される」状態になっていた。ブラウザは要素が別ノードに置き換わるとフォーカスを保持できない。
+
+**対策**: `fieldRow()` が key ごとに「フィールドの囲み div」を `state.detail.fieldWraps` に
+記録するようにし、`input` ハンドラは `renderDetail()` を呼ばずに次のことだけを行う。
+
+- 値を `state.detail.fields` に反映する
+- 検証（`runValidation()`）→ `refreshAllFieldErrorsUI()` でエラー表示（クラス・メッセージ）
+  だけを既存ノードの上で差し替える（input 自体は触らない）
+- 識別子・カテゴリ・ファイル形式が変わったときだけ、`fileNameField()` が登録した
+  `state.detail._refreshFileNameHint` を呼び直し、推奨ファイル名・警告表示のブロック
+  （`hintBox`）だけを再構築する（`fileName` の `<input>` 自体は作り直さない）
+- 発注者/受注者（`memberField`）は検証や他フィールドへの影響が無いため、値の反映だけでよい
+  （`renderDetail()` 呼び出し自体を削除）
+
+`renderDetail()` を呼ぶのは「パネルを開く/閉じる」「`assetType`/優先度等の `<select>` の
+`change`（1文字ずつ入力するものではなくフォーカス外れの実害が無い）」「409競合での再取得」
+だけに限定した。
+
+### 不具合2: 「リンクをコピー」のメニュー（▼）が全行ぶん開いた状態で表示される
+
+**原因**: `html/Assets.html`/`html/OrderTree.html` の `.sw-copylink-menu` に
+`display: flex` を指定していたが、このページには artifact 環境のような
+`[hidden]{display:none!important}` のグローバルリセットが無い。CSS のカスケードでは
+author スタイル（`.sw-copylink-menu{display:flex}`）が user-agent スタイル
+（`[hidden]{display:none}`）より常に優先されるため、`menu.hidden = true` を設定しても
+実際には非表示にならず、初期状態から全行のメニューが開いたまま重なって表示されていた。
+
+**対策**:
+
+- CSS に `.sw-copylink-menu[hidden] { display: none; }` を追加し、`hidden` 属性のときは
+  確実に非表示になるようにした
+- 既定で閉じ、▼ クリックで開閉するよう `openMenu()`/`closeMenu()` を明示化し、
+  外側クリック（`document` への `click` リスナー、対象がメニューの外なら閉じる）・
+  Esc キー・項目選択（`doCopy()` の先頭で `closeMenu()`）のいずれでも閉じるようにした
+  （`buildCopyLinkControl` は `html/Assets.html`・`html/OrderTree.html` に同じ実装を複製する
+  既存方針のまま、両方に同じ修正を入れた）
+
+### 不具合3: 同名の「aaa」という Presentation 発注グループが空のまま10件近くできていた
+
+**確認結果**: 再描画や入力のたびに作成が走る不具合ではなかった。原因は
+「`google.script.run` の応答（1操作 1〜2秒）が遅く、何も見た目が変わらないため
+ユーザーが連打した」こと（コーディネーターが実際に確認して報告した内容）。
+`orderGroups.create`（`html/OrderTree.html` の「+ 発注グループを作成」ボタン）は
+押すたびに新しい `og_...` id で新規作成する設計であり、連打すれば連打した回数だけ
+作成されるのは実装として想定どおりの挙動だった（バリデーションで重複名を拒否する仕様も
+無い）。ボタンを無効化する・処理中を表示する対策が無かったことが実質的な不具合。
+
+**対策（共通ヘルパー `html/UiFeedback.html`、`window.SpecWebUi`）**:
+
+- `runBusy(key, button, run)`: 同じ `key` の呼び出しが処理中の間は `run()` を呼ばず
+  `{ok:false, busy:true}` を即座に返す（ボタンの `click` 経路に限らず、どこから呼ばれても
+  同じ `key` なら二重実行を弾く）。ボタンがあれば `disabled = true` + テキストを
+  「送信中...」に変え、完了後に元へ戻す
+- `toast(message, kind)`/`toastSuccess`/`toastError`: 画面右下（狭い画面では下部いっぱい、
+  `@media (max-width: 480px)`）に数秒表示して自動で消える通知
+- `html/OrderTree.html`（発注グループの作成・削除）・`html/Assets.html`（発注の作成・更新・
+  削除・復元・状態変更・コメント投稿）の書き込み系ボタンをすべて `runBusy` でラップし、
+  成功/失敗をトーストで表示するようにした
+
+**体感速度・往復数**: 上記の書き込み操作は、成功後に一覧全体を再取得（`reload()`。
+`orderGroups.list`+`assets.list`+`settings.get`+`whoami` 等、複数 API の再往復）していたのを
+やめ、応答に含まれる最新の1件（作成した item・更新後の item 等）だけを `state.groups`/
+`state.items` に反映して該当箇所だけ再描画するようにした（`applyItemLocally`（Assets.html）・
+`state.groups.concat(...)`/`filter(...)`（OrderTree.html））。詳細パネルを開くときの
+`assets.get`+`paramSchemas.list` は元から `Promise.all` で並列実行しており、直列の多重往復には
+なっていなかったためそのまま。
+
+**削除機能の追加**（「削除機能はありますか？」への回答。連打対策と同じ PR で対応）:
+
+- 発注グループ: 発注ツリーの各グループヘッダーに「削除」ボタンを追加（`confirm` 付き）。
+  既存 API `orderGroups.delete`（`src/OrderGroups.js`）をそのまま使う。**配下（`parentId` で
+  参照する未アーカイブの発注）が1件でも残っていると 400 で拒否される**（付け替え・「単体」への
+  自動移動は行わない。拒否時のサーバーのメッセージ「先に付け替えてから削除してください」を
+  そのままトーストに出す）。**配下が0件なら即削除できる**。「単体」バケット（`node.id===null`）
+  はグループ自体が存在しないため削除ボタンは出さない
+- 発注: 既存の詳細パネルの「削除（アーカイブ）」＝論理削除（既存 API `assets.delete` が
+  `archived:true` を立てるだけ）はそのまま。**アーカイブ済みを表示する一覧トグル**と
+  **詳細の「元に戻す」ボタン**が無かったため追加した（サーバー側の `assets.restore` API
+  自体は既に存在していたが、呼び出す画面が無かった）。一覧の状態列にはアーカイブ済みである旨
+  （「（アーカイブ済み）」）を表示する。トグルを切り替えても再取得はしない
+  （`assets.list` は既定で `includeArchived: '1'`（全件）を取得し、表示だけ
+  `AssetsLogic.filterAssets` のクライアント側フィルタで絞る）
+
+### 不具合4: 上部メニューの「マニュアル」を押すとトップが白画面になる
+
+**原因**: `html/Manual.html` のトップナビリンクの `href`、および
+`tools/build-manual.js` が生成する本文中のリンク・ナビバーの `href` に、
+`?page=manual&p=...`（や `?`）という相対 URL を直接入れていた。`html/Index.html` の
+`<base target="_top">` はリンクの既定の遷移先フレームを変えるだけで、href の解決基準
+（ベース URL）は変えない。そのため、クリックの JS ハンドラ（`preventDefault` + iframe 内
+遷移）が何らかの理由で効かず既定動作が走ると、href は **iframe 自身の文書
+（`*-script.googleusercontent.com/userCodeAppPanel`）を基準に解決された絶対 URL**になり、
+トップフレームがその（本来アクセスすべきではない）内部パネル URL に遷移して白画面になった。
+実デプロイで発生を確認済み。
+
+**対策**: 生成物・初期リンクの `href` を安全な `#` のプレースホルダーに変更し、
+実際の絶対 URL は実行時（`window.SpecWebExecUrl` が既に埋め込まれた後）に組み立てて
+`href` 属性へ設定し直す方式にした。
+
+- `html/OrderLinkLogic.html` に `buildManualUrl(execUrl, page, anchor)`・
+  `buildExitUrl(execUrl)` を追加（`buildOrderUrl`/`buildGroupUrl` と同じ「execUrl が無ければ
+  空文字、呼び出し側が `#` にフォールバックする」形）
+- `tools/build-manual.js`: `rewriteLinks()`（本文中のページ間リンク）・`buildNavBarHtml()`
+  （各ページ先頭の「← 発注ツールへ」「マニュアル目次」バー）が出す `href` を、
+  `?page=manual&p=...`/`?` から `#` に変更（`data-manual-page`/`data-manual-exit` 属性は
+  そのまま）。生成物（`html/manual/*.html`・`src/ManualPages.js`）を再生成してコミットした
+- `html/Manual.html`: トップナビリンクの `href` を
+  `OrderLinkLogic.buildManualUrl(window.SpecWebExecUrl, 'Readme') || '#'` に変更。
+  さらに、`manualGet` の応答本文を挿入した直後に `applyAbsoluteHrefs_(wrap)` を呼び、
+  `data-manual-page`/`data-manual-exit` を持つ `<a>` を（ネストしていても）すべて見つけて
+  `href` を絶対 URL（execUrl 未取得なら `#` のまま）に差し替える。JS のクリックハンドラ
+  （`bindManualLinks`、イベント委譲）はそのまま機能し続けるため、通常はこの `href` が使われる
+  ことは無いが、万一クリックハンドラが効かなかった場合でも白画面には遷移しない
+- `.gitattributes` に `Tools/SpecWeb/html/manual/*.html`・`Tools/SpecWeb/src/ManualPages.js`
+  の `text eol=lf` を追加（Windows の `core.autocrlf=true` チェックアウトで再生成時に
+  無関係な改行コードの diff ノイズが出るのを防ぐ）
+- 併せて `href="?`・`location.href =`・`target="_top"`（絶対 URL への外部リンク以外）が
+  他に残っていないかリポジトリ全体を grep で確認した（残存なし）
+
+### テスト（緊急修正分）
+
+- `test/dom-stub.js`: `FakeNode` に `removeEventListener`/`contains` を追加（コピーメニューの
+  外側クリック/Esc 判定用）。`document` フェイクにも `addEventListener`/`removeEventListener`
+  を追加
+- `test/load-html-script.js`: 既定の sandbox に `setTimeout`/`clearTimeout` を追加
+  （`UiFeedback.html` のトースト自動消去用。V8 の生コンテキストには無いため）
+- `test/uiFeedback.test.js`（新規）: `runBusy` の二重実行防止・ボタンの無効化/復帰・
+  例外時のフォールバック、`toast`/`toastSuccess`/`toastError` の表示・自動消去
+- `test/assets-screen.smoke.test.js`（追加）: 各入力欄で `<input>` ノードが同一のまま残る
+  （識別子・表示名・カテゴリ・発注者・ファイル形式）・識別子/カテゴリ変更で fileName の
+  ヒントだけが更新される・コピーメニューの既定非表示/外側クリック/Esc/項目選択で閉じる・
+  保存の連打防止 + トースト・削除（アーカイブ）→トグルで再表示→元に戻す、の一連の流れ・
+  viewer には削除/復元ボタンが出ない
+- `test/orderTree.smoke.test.js`（追加）: 「+ 発注グループを作成」の連打防止（1回だけ
+  API を呼ぶ）+ ボタンの無効化/復帰 + 成功後にその場で反映（reload なし）、失敗時のトースト、
+  発注グループの削除（成功/confirm キャンセル/配下が残っている場合の400拒否をトーストで表示）、
+  viewer には削除ボタンが出ない
+- `test/orderLinkLogic.test.js`（追加）: `buildManualUrl`/`buildExitUrl`
+- `test/manual-screen.smoke.test.js`（新規）: `manualGet` 成功/失敗時に例外なく描画すること、
+  `applyAbsoluteHrefs_`（`data-manual-page`/`data-manual-exit` を持つ `<a>` の href を
+  execUrl の有無に応じて絶対 URL/`#` に書き換える。ネストした子要素内の `<a>` も含む）
+- `test/build-manual.test.js`（更新）: 内部ページリンク・ナビバーの `href` が `#`
+  になり `?page=` を含まないことを確認するよう既存アサートを更新
+
+`"/c/Program Files/nodejs/node.exe" --test "Tools/SpecWeb/test/"*.test.js` で実行。
+**367 件全て green**（既存 330 件 + 本チケット追加分 37 件）。
+
+### 目視確認（実デプロイでの確認が必須。iframe サンドボックス内の実際のクリック挙動・
+`navigator.clipboard` 許可状態・レイテンシは Node テストでは再現できないため）
+
+docs/28 の該当節に同じ内容を追記した（O-12〜O-14 節の直後）。
+
+1. 新規発注・発注グループ作成・詳細編集の各入力欄に日本語・英数字を続けて入力し、
+   1文字ごとにフォーカスが外れないことを確認する
+2. 一覧・発注ツリーで「リンクをコピー」の ▼ を押し、メニューが1つだけ開くこと、
+   別の行の ▼ を押すと前のメニューが閉じること、メニュー外をクリック/Esc で閉じることを
+   確認する（複数行が同時に開いた状態で埋め尽くされないこと）
+3. わざと応答が遅い状態を想定し、「+ 発注グループを作成」・詳細の「保存」を連打しても
+   ボタンが「送信中...」のまま無効化され、完了後に1件だけ作成/更新されること、
+   成功/失敗のトーストが出ることを確認する
+4. 配下が空の Presentation 発注グループの「削除」が即座にでき、配下に発注が残っている
+   グループの「削除」は拒否メッセージがトーストで表示されることを確認する
+5. 発注の詳細で「削除（アーカイブ）」→ 一覧の「アーカイブ済みを表示」をオンにすると
+   再表示される → 詳細を開くと「元に戻す」ボタンが出て、押すと元の一覧に戻ることを確認する
+6. 上部メニューの「マニュアル」、各マニュアルページ上部の「← 発注ツールへ」「マニュアル目次」
+   バー、本文中のリンクのどれを押しても白画面にならないことを確認する

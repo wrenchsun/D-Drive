@@ -45,9 +45,14 @@ function extractScripts_(fileBaseName) {
  * @return {vm.Context} 評価後のコンテキスト（トップレベルの var、または sandbox.window 経由で
  *   公開された名前空間を読める）
  */
+// 緊急修正（2026-09-14）: html/UiFeedback.html のトースト自動消去が setTimeout/clearTimeout を
+// 使うため、vm.createContext には無い（V8 の生コンテキストには Node/ブラウザの Timer API が無い）
+// これらを既定で注入する（console/window と同じ扱い）。
+const DEFAULT_SANDBOX_EXTRAS = { setTimeout: setTimeout, clearTimeout: clearTimeout };
+
 function loadHtmlScript(fileBaseName, globals) {
   const { filePath, scripts } = extractScripts_(fileBaseName);
-  const sandbox = Object.assign({ console: console, window: {} }, globals || {});
+  const sandbox = Object.assign({ console: console, window: {} }, DEFAULT_SANDBOX_EXTRAS, globals || {});
   const context = vm.createContext(sandbox);
   for (const code of scripts) {
     vm.runInContext(code, context, { filename: filePath });
@@ -63,7 +68,7 @@ function loadHtmlScript(fileBaseName, globals) {
  * @param {object} [globals]
  */
 function loadHtmlScripts(fileBaseNames, globals) {
-  const sandbox = Object.assign({ console: console, window: {} }, globals || {});
+  const sandbox = Object.assign({ console: console, window: {} }, DEFAULT_SANDBOX_EXTRAS, globals || {});
   const context = vm.createContext(sandbox);
   fileBaseNames.forEach(function (fileBaseName) {
     const { filePath, scripts } = extractScripts_(fileBaseName);

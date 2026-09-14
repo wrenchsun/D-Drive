@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="?" data-manual-exit="orders">← 発注ツールへ</a> <a href="?page=manual&p=Readme" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="?page=manual&p=Readme" data-manual-page="Readme">🏠 トップ</a> › Asset Browser の使い方</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › Asset Browser の使い方</nav>
 
 <h1>Asset Browser の使い方</h1>
 
@@ -121,7 +121,7 @@
 <p>ファイルを後から設定したい場合や、効果音以外の種類はこちら。開くダイアログは同じで、「種別」で作るものを選びます。</p>
 
 <div class="tip">
-<strong>「仕様書から選ぶ」（2026-09-14 追加）:</strong> <a href="?page=manual&p=spec-sync" data-manual-page="spec-sync">仕様書</a>と同期している場合、ダイアログの一番上に「仕様書から選ぶ」という一覧が出ます。企画が仕様書の「アセット」タブに書いたのに、まだ D-Drive 側で作られていないものだけが並びます。検索欄で表示名や識別子を絞り込めます。<br>
+<strong>「仕様書から選ぶ」（2026-09-14 追加）:</strong> <a href="#" data-manual-page="spec-sync">仕様書</a>と同期している場合、ダイアログの一番上に「仕様書から選ぶ」という一覧が出ます。企画が仕様書の「アセット」タブに書いたのに、まだ D-Drive 側で作られていないものだけが並びます。検索欄で表示名や識別子を絞り込めます。<br>
 一覧から行を選ぶと、種別・カテゴリ・識別子・表示名・備考・仕様リンクが自動で入力され、<strong>「選択中の行: ○○」という表示と「解除」ボタン</strong>が出ます。あとは「作成」を押すだけで、名前を1文字も打たずにアセットが作れます。作成すると、その行は一覧から消えます（もう一度同じものを間違って作ってしまう心配がありません）。<br>
 選んだ後で<strong>識別子欄を手で書き換えると、行の選択は自動で解除されます</strong>（表示名・カテゴリなどをそのまま流用しつつ、識別子だけ別物にしたい場合の事故防止です）。手動で選択を外したいときは「解除」ボタンを押してください。<br>
 一覧が出ない・古そうなときは「仕様書を再取得」ボタンで最新の状態にできます。仕様書の URL がまだ設定されていない場合は、この一覧自体が出ません（案内文だけ表示されます）。
@@ -149,7 +149,7 @@
 <strong><code>SourceAssets</code> の直下や、上の表にある種別名(<code>Se</code>/<code>Bgm</code>/<code>Texture</code>/<code>Model</code>/<code>Anim</code>/<code>Anim2D</code>/<code>Prefab</code>/<code>Canvas</code>/<code>Vfx</code>)以外のフォルダに置いても反応しません。</strong>「1階層目」が種別フォルダである必要があります(大文字・小文字も一致させてください)。例えば <code>Assets/SourceAssets/Slash.wav</code>(直下)や <code>Assets/SourceAssets/Check/Se/Slash.wav</code>(種別フォルダの上に別フォルダがある)は無視されます。置き方を間違えた場合は Console に案内の警告ログが出ます。フォルダが用意されていない場合は <code>Tools &gt; D-Drive &gt; Generate &gt; SourceAssets の既定フォルダを作成</code> で作れます。
 </div>
 <div class="warn">
-<strong>元ファイルを削除しても Data は消えません。</strong>音や見た目が「未設定(または Missing)」の警告付きで残るだけです（<a href="?page=manual&p=validation" data-manual-page="validation">Validation</a> の一覧に出ます）。うっかりファイルを消してしまっても、AssetBrowser 側のデータは安全です。逆に言うと、Data を完全に消したいときはこの方法では消えないので、通常のアセット削除手順を使ってください。<br>
+<strong>元ファイルを削除しても Data は消えません。</strong>音や見た目が「未設定(または Missing)」の警告付きで残るだけです（<a href="#" data-manual-page="validation">Validation</a> の一覧に出ます）。うっかりファイルを消してしまっても、AssetBrowser 側のデータは安全です。逆に言うと、Data を完全に消したいときはこの方法では消えないので、通常のアセット削除手順を使ってください。<br>
 また、同じファイルを再インポートしても Data が二重にできることはありません。
 </div>
 <div class="tip">
@@ -214,7 +214,7 @@ NG: <code>sword_slash</code> / <code>剣斬撃</code> / <code>1Slash</code> → 
 <li>「ループ」にチェックを入れて再生すると繰り返し再生（データ自体は変更されません）</li>
 <li>「速度」スライダーで再生スピードを変えて聞き比べ（0.1倍〜2倍）</li>
 </ol>
-<p>もっと細かく確認したい場合（波形を見る・3D の聞こえ方を確かめる等）は <a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor</a> を使います。</p>
+<p>もっと細かく確認したい場合（波形を見る・3D の聞こえ方を確かめる等）は <a href="#" data-manual-page="audio-editor">Audio Editor</a> を使います。</p>
 
 <h2>使用箇所を調べる / 使っていないアセットを片付ける / 安全に削除する（2026-09-14 追加）</h2>
 
@@ -310,13 +310,13 @@ A → B → A のように<strong>ぐるっと参照が輪になっている（�
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="?page=manual&p=se-data" data-manual-page="se-data">SE（効果音）の設定項目</a> — 登録した後の細かい調整</li>
-<li><a href="?page=manual&p=bgm-data" data-manual-page="bgm-data">BGM の設定項目</a></li>
-<li><a href="?page=manual&p=audio-editor" data-manual-page="audio-editor">Audio Editor の使い方</a> — 波形を見ながらの編集・試聴</li>
-<li><a href="?page=manual&p=validation" data-manual-page="validation">Validation の使い方</a> — 登録漏れ・設定ミスの一括チェック</li>
-<li><a href="?page=manual&p=spec-sync" data-manual-page="spec-sync">仕様書との同期</a> — 「仕様書から選ぶ」の元データ</li>
-<li>種類ごとの設定: <a href="?page=manual&p=vfx-data" data-manual-page="vfx-data">VFX</a> / <a href="?page=manual&p=model-editor" data-manual-page="model-editor">モデル</a> / <a href="?page=manual&p=anim-editor" data-manual-page="anim-editor">アニメーション（3D）</a> / <a href="?page=manual&p=anim2d-editor" data-manual-page="anim2d-editor">2D アニメーション</a> / <a href="?page=manual&p=material-data" data-manual-page="material-data">マテリアル・テクスチャ</a> / <a href="?page=manual&p=prefab-data" data-manual-page="prefab-data">Prefab</a> / <a href="?page=manual&p=canvas-data" data-manual-page="canvas-data">Canvas</a> / <a href="?page=manual&p=ui-skin" data-manual-page="ui-skin">Skin</a> / <a href="?page=manual&p=ui-tween" data-manual-page="ui-tween">UI Tween</a> / <a href="?page=manual&p=presentation" data-manual-page="presentation">演出（Presentation）</a> / <a href="?page=manual&p=camera-haptics" data-manual-page="camera-haptics">画面の揺れ・振動</a></li>
-<li><a href="?page=manual&p=glossary" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-page="se-data">SE（効果音）の設定項目</a> — 登録した後の細かい調整</li>
+<li><a href="#" data-manual-page="bgm-data">BGM の設定項目</a></li>
+<li><a href="#" data-manual-page="audio-editor">Audio Editor の使い方</a> — 波形を見ながらの編集・試聴</li>
+<li><a href="#" data-manual-page="validation">Validation の使い方</a> — 登録漏れ・設定ミスの一括チェック</li>
+<li><a href="#" data-manual-page="spec-sync">仕様書との同期</a> — 「仕様書から選ぶ」の元データ</li>
+<li>種類ごとの設定: <a href="#" data-manual-page="vfx-data">VFX</a> / <a href="#" data-manual-page="model-editor">モデル</a> / <a href="#" data-manual-page="anim-editor">アニメーション（3D）</a> / <a href="#" data-manual-page="anim2d-editor">2D アニメーション</a> / <a href="#" data-manual-page="material-data">マテリアル・テクスチャ</a> / <a href="#" data-manual-page="prefab-data">Prefab</a> / <a href="#" data-manual-page="canvas-data">Canvas</a> / <a href="#" data-manual-page="ui-skin">Skin</a> / <a href="#" data-manual-page="ui-tween">UI Tween</a> / <a href="#" data-manual-page="presentation">演出（Presentation）</a> / <a href="#" data-manual-page="camera-haptics">画面の揺れ・振動</a></li>
+<li><a href="#" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="?page=manual&p=Readme" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
