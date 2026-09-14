@@ -243,6 +243,18 @@ function createFakeUtilities_() {
   return { Utilities };
 }
 
+// O-13: ScriptApp.getService().getUrl()（トップの exec URL、src/Code.js の specWebExecUrl_）の
+// フェイク。実際の値は関係ない（発注リンクの組み立てテストは固定の execUrl を直接渡す方式のため）。
+function createFakeScriptApp_(execUrl) {
+  var url = execUrl || 'https://script.google.com/macros/s/fake-script-id/exec';
+  var ScriptApp = {
+    getService: function () {
+      return { getUrl: function () { return url; } };
+    }
+  };
+  return { ScriptApp: ScriptApp, url: url };
+}
+
 function createFakeLogger_() {
   const lines = [];
   const Logger = {
@@ -260,6 +272,7 @@ function createFakeLogger_() {
  * @param {Object<string,string>} [options.scriptProperties] PropertiesService の初期値
  * @param {boolean} [options.driveShareShouldFail] true にすると DriveApp の addEditor/removeEditor
  *   （O-14、フォルダ共有）が常に例外を投げる（失敗時の警告動作を検証するためのフェイク）
+ * @param {string} [options.scriptExecUrl] ScriptApp.getService().getUrl() のフェイク値（O-13）
  * @return {vm.Context} 読み込んだ src の全グローバル（doGet 等）+ `__fakes`（フェイクの操作用ハンドル）
  */
 function loadGas(options) {
@@ -273,6 +286,7 @@ function loadGas(options) {
   const html = createFakeHtmlService_();
   const utilities = createFakeUtilities_();
   const logger = createFakeLogger_();
+  const script = createFakeScriptApp_(options.scriptExecUrl);
 
   if (!properties.store.has('SPEC_WEB_DRIVE_FOLDER_ID')) {
     properties.store.set('SPEC_WEB_DRIVE_FOLDER_ID', drive.defaultFolderId);
@@ -287,7 +301,8 @@ function loadGas(options) {
     ContentService: content.ContentService,
     HtmlService: html.HtmlService,
     Utilities: utilities.Utilities,
-    Logger: logger.Logger
+    Logger: logger.Logger,
+    ScriptApp: script.ScriptApp
   };
 
   const context = vm.createContext(sandbox);
@@ -297,7 +312,7 @@ function loadGas(options) {
     vm.runInContext(code, context, { filename: file });
   }
 
-  context.__fakes = { drive, properties, session, lock, content, html, utilities, logger };
+  context.__fakes = { drive, properties, session, lock, content, html, utilities, logger, script };
   return context;
 }
 

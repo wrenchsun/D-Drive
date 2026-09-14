@@ -63,6 +63,38 @@ var SPEC_WEB_ASSET_PRIORITIES = ['高', '中', '低'];
 // （先頭大文字・英数字のみの PascalCase）。
 var SPEC_WEB_IDENTIFIER_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
 
+// O-12（docs/32_spec_web.md §10.2.1 追補、2026-09-14。ユーザー訂正: 「納品形式」ではなく
+// 「ファイル形式」）: `fileFormat`（拡張子。先頭ドット付きで正規化）・`fileName`（納品ファイル名）
+// を追加する。既存データは undefined のまま（Migration.js の specWebNormalizeLegacyOrderItem_ が
+// 読み込み時に空文字として補う。非破壊）。
+//
+// 候補（datalist、種別ごと）は 1 か所（この定数）にまとめ、html/AssetsLogic.html 側は
+// choices.json 経由の同期が無い間の既定値として同じ値を複製する（ASSET_TYPES 等と同じ既存の
+// 複製方針、AssetsLogic.html 冒頭のコメント参照）。ここに無い種別は候補なし（自由入力のみ）。
+var SPEC_WEB_FILE_FORMAT_CHOICES_BY_TYPE = {
+  Se: ['.wav', '.ogg', '.mp3'],
+  Bgm: ['.wav', '.ogg', '.mp3'],
+  Texture: ['.png', '.psd', '.tga'],
+  Anim2D: ['.png', '.psd', '.tga'],
+  Model: ['.fbx'],
+  Anim: ['.fbx'],
+  Vfx: ['.prefab', '.unitypackage'],
+  Prefab: ['.prefab', '.unitypackage'],
+  Canvas: ['.prefab', '.unitypackage'],
+  Material: ['.mat']
+};
+
+// 既存フィールドに長さ上限の先例は無い（2026-09-14 時点、grep で確認済み）ため、他の文字列
+// フィールドと同じ検証の流儀（`errors` オブジェクトに追記してブロックする）だけを踏襲し、
+// 妥当な上限をここで新設する。
+var SPEC_WEB_FILE_FORMAT_MAX_LENGTH = 20;
+var SPEC_WEB_FILE_NAME_MAX_LENGTH = 255;
+
+// ファイル名に使えない文字（Windows のファイル名禁止文字と同じ集合）。CLAUDE.md §0-4「例外で
+// 止めない」の考え方を Web 側の検証にも適用し、これらは `errors`（保存を止める）ではなく
+// 呼び出し側が別途 specWebComputeFileWarnings_ で「警告」として扱う。
+var SPEC_WEB_FILE_NAME_ILLEGAL_CHARS_PATTERN = /[\\/:*?"<>|]/g;
+
 // このファイルの書き込み系 API が受け付けるフィールドのみを patch から抜き出す。
 // ddriveState・params・comments・archived・revision 等の管理用フィールドは意図的に含めない
 // （ddriveState は D-Drive → Web 専用(DDriveSync.js)、params は O-6(AssetParams.js) 専用、
@@ -72,8 +104,54 @@ var SPEC_WEB_IDENTIFIER_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
 var SPEC_WEB_ASSET_WRITABLE_FIELDS = [
   'assetType', 'category', 'identifier', 'displayName', 'status',
   'orderer', 'contractor', 'orderDate', 'dueDate', 'deliveredDate',
-  'priority', 'referenceMd', 'referenceImages', 'relatedFeaturePages', 'parentId'
+  'priority', 'referenceMd', 'referenceImages', 'relatedFeaturePages', 'parentId',
+  'fileFormat', 'fileName'
 ];
+
+/**
+ * `fileFormat` を先頭ドット付きに正規化する（O-12。`png` と入力されても `.png` に揃える）。
+ * 空欄はそのまま空文字を返す（未設定を表す。必須にはしない）。
+ */
+function specWebNormalizeFileFormat_(raw) {
+  var trimmed = String(raw === undefined || raw === null ? '' : raw).trim();
+  if (trimmed === '') return '';
+  return trimmed.charAt(0) === '.' ? trimmed : '.' + trimmed;
+}
+
+/** ファイル名に含まれる禁止文字（重複を除いた配列）を返す。無ければ空配列。 */
+function specWebFileNameIllegalChars_(fileName) {
+  if (!fileName) return [];
+  var matches = String(fileName).match(SPEC_WEB_FILE_NAME_ILLEGAL_CHARS_PATTERN) || [];
+  var unique = [];
+  matches.forEach(function (c) {
+    if (unique.indexOf(c) === -1) unique.push(c);
+  });
+  return unique;
+}
+
+/** fileName の拡張子が fileFormat と食い違う場合の警告文（一致 or 判定不能なら null）。 */
+function specWebFileNameExtensionMismatchWarning_(fileName, fileFormat) {
+  if (!fileName || !fileFormat) return null;
+  var match = /\.[A-Za-z0-9]+$/.exec(String(fileName).trim());
+  if (!match) return null;
+  if (match[0].toLowerCase() === String(fileFormat).toLowerCase()) return null;
+  return 'ファイル名の拡張子（' + match[0] + '）がファイル形式（' + fileFormat + '）と一致していません';
+}
+
+/**
+ * O-12「ファイル名に使えない文字・拡張子の食い違いは警告のみ（例外で止めない）」。
+ * 保存をブロックしない non-blocking な警告文の配列を返す（呼び出し側が API 応答に含める）。
+ */
+function specWebComputeFileWarnings_(fields) {
+  var warnings = [];
+  var illegal = specWebFileNameIllegalChars_(fields && fields.fileName);
+  if (illegal.length > 0) {
+    warnings.push('ファイル名に使えない文字が含まれています: ' + illegal.join(' '));
+  }
+  var mismatch = specWebFileNameExtensionMismatchWarning_(fields && fields.fileName, fields && fields.fileFormat);
+  if (mismatch) warnings.push(mismatch);
+  return warnings;
+}
 
 /** RevisionConflictError と同じ「name/status を持つ Error」規約に沿った汎用エラー。 */
 function specWebAssetsError_(message, status) {
@@ -127,7 +205,11 @@ function specWebParseAssetPatch_(params) {
   return parsed;
 }
 
-/** 書き込み可能フィールドだけを取り出す（ddriveState・params 等の混入を防ぐ）。 */
+/**
+ * 書き込み可能フィールドだけを取り出す（ddriveState・params 等の混入を防ぐ）。
+ * O-12: `fileFormat` はここで先頭ドット付きに正規化する（`png` → `.png`。保存前に必ず1回だけ
+ * 通る場所のため、create/update 両方の入口をここに集約する）。
+ */
 function specWebSanitizeAssetPatch_(rawPatch) {
   var sanitized = {};
   SPEC_WEB_ASSET_WRITABLE_FIELDS.forEach(function (key) {
@@ -135,6 +217,9 @@ function specWebSanitizeAssetPatch_(rawPatch) {
       sanitized[key] = rawPatch[key];
     }
   });
+  if (Object.prototype.hasOwnProperty.call(sanitized, 'fileFormat')) {
+    sanitized.fileFormat = specWebNormalizeFileFormat_(sanitized.fileFormat);
+  }
   return sanitized;
 }
 
@@ -215,6 +300,16 @@ function specWebValidateAssetFields_(fields, options) {
     }
   }
 
+  // O-12: 長さ上限（既存フィールドに先例が無いため新設。他の文字列フィールドと同じ「errors に
+  // 追記してブロックする」流儀のみ踏襲する）。ファイル名に使えない文字・拡張子の食い違いは
+  // ここでは検証しない（警告のみ・例外で止めない方針のため specWebComputeFileWarnings_ に分離）。
+  if (fields.fileFormat !== undefined && String(fields.fileFormat).length > SPEC_WEB_FILE_FORMAT_MAX_LENGTH) {
+    errors.fileFormat = 'ファイル形式は' + SPEC_WEB_FILE_FORMAT_MAX_LENGTH + '文字以内にしてください';
+  }
+  if (fields.fileName !== undefined && String(fields.fileName).length > SPEC_WEB_FILE_NAME_MAX_LENGTH) {
+    errors.fileName = 'ファイル名は' + SPEC_WEB_FILE_NAME_MAX_LENGTH + '文字以内にしてください';
+  }
+
   return errors;
 }
 
@@ -259,6 +354,7 @@ function specWebFilterAssetItems_(items, filters) {
     if (filters.orderer && item.orderer !== filters.orderer) return false;
     if (filters.contractor && item.contractor !== filters.contractor) return false;
     if (filters.category && item.category !== filters.category) return false;
+    if (filters.fileFormat && item.fileFormat !== filters.fileFormat) return false;
     if (filters.parentId !== undefined && filters.parentId !== '') {
       var wantUnassigned = filters.parentId === '__none__';
       if (wantUnassigned && item.parentId) return false;
@@ -300,6 +396,7 @@ registerApi('assets.list', function (ctx) {
     orderer: params.orderer,
     contractor: params.contractor,
     category: params.category,
+    fileFormat: params.fileFormat,
     parentId: params.parentId,
     query: params.query,
     includeArchived: includeArchived
@@ -318,7 +415,9 @@ registerApi('assets.get', function (ctx) {
   if (!id) throw specWebAssetsError_('id は必須です', 400);
   var item = Storage.getItem(SPEC_WEB_ASSETS_COLLECTION, id);
   if (!item) throw specWebAssetsError_('アセットが見つかりません: ' + id, 404);
-  return { item: specWebNormalizeLegacyOrderItem_(item) };
+  var normalized = specWebNormalizeLegacyOrderItem_(item);
+  // O-12: 保存はしない non-blocking な警告（不正文字・拡張子の食い違い）を都度計算して返す。
+  return { item: normalized, warnings: specWebComputeFileWarnings_(normalized) };
 });
 
 registerApi('assets.create', function (ctx) {
@@ -345,9 +444,11 @@ registerApi('assets.create', function (ctx) {
   toSave.archived = false;
   toSave.ddriveState = specWebDefaultDdriveState_();
   toSave.params = null; // O-6: D-Drive からの同期でのみ入る（AssetParams.js）
+  if (toSave.fileFormat === undefined) toSave.fileFormat = '';
+  if (toSave.fileName === undefined) toSave.fileName = '';
 
   var saved = Storage.putItem(SPEC_WEB_ASSETS_COLLECTION, id, toSave, { actor: specWebActor_(auth) });
-  return { item: saved };
+  return { item: saved, warnings: specWebComputeFileWarnings_(saved) };
 });
 
 registerApi('assets.update', function (ctx) {
@@ -387,7 +488,7 @@ registerApi('assets.update', function (ctx) {
     actor: specWebActor_(auth),
     expectedRevision: expectedRevision
   });
-  return { item: saved };
+  return { item: saved, warnings: specWebComputeFileWarnings_(saved) };
 });
 
 registerApi('assets.delete', function (ctx) {

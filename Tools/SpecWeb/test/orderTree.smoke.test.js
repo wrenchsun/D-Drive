@@ -8,18 +8,29 @@ const { createFakeDom, createFakeSpecWebClient, flush } = require('./dom-stub.js
 // O-2 スモークテスト: 発注ツリー画面（OrderTree.html）が例外を投げずに一通り実行できることを確認する
 // （集計ロジック自体は test/orderTreeLogic.test.js で別途検証済み）。
 
-function setup(role) {
+function setup(role, options) {
+  options = options || {};
   const dom = createFakeDom();
   let capturedRender = null;
 
   const sandbox = {
     console,
     document: dom.document,
+    navigator: options.navigator,
     registerScreen: function (id, render) {
       if (id === 'orders') capturedRender = render;
     },
-    window: { alert: function () {} }
+    window: {
+      alert: function () {},
+      // O-13: 発注リンクのコピー用（src/Code.js の specWebExecUrl_ → html/Index.html）。
+      SpecWebExecUrl: options.execUrl !== undefined ? options.execUrl : 'https://script.google.com/macros/s/fake/exec'
+    }
   };
+  if (options.execCommand !== undefined) {
+    dom.document.execCommand = function () {
+      return options.execCommand;
+    };
+  }
 
   const group = { id: 'og_1', name: 'スキル: 斬撃', wbsNo: '3.2.1', revision: 1 };
   const asset = {
@@ -46,7 +57,9 @@ function setup(role) {
   });
   sandbox.window.SpecWebClient = fakeClient;
 
-  const ctx = loadHtmlScripts(['AssetsLogic', 'OrderTreeLogic', 'OrderTree'], sandbox);
+  // O-13: OrderLinkLogic/ClipboardCopy も実 Index.html と同じ順序で読み込む
+  // （OrderTree.html の buildCopyLinkControl が window.OrderLinkLogic/window.SpecWebClipboard を使う）。
+  const ctx = loadHtmlScripts(['OrderLinkLogic', 'ClipboardCopy', 'AssetsLogic', 'OrderTreeLogic', 'OrderTree'], sandbox);
   assert.ok(capturedRender, 'registerScreen("orders", ...) が呼ばれていること');
   return { ctx, dom, render: capturedRender };
 }
@@ -78,4 +91,60 @@ test('viewer: 発注グループ作成ボタンが表示されない', async () 
 
   const newGroupButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 発注グループを作成');
   assert.equal(newGroupButton, null);
+});
+
+// ---- O-13: 発注グループにも「リンクをコピー」を付ける（専用の詳細画面が無いため、
+// 一覧上のグループヘッダーを「詳細」相当として扱う。docs/32 §10.8 参照） ----
+
+test('グループヘッダーに「リンクをコピー」ボタンが出て、押すと execCommand フォールバックでコピーできる', async () => {
+  const { dom, render } = setup('editor', { execCommand: true });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const copyButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'リンクをコピー');
+  assert.ok(copyButton, 'グループヘッダーにリンクをコピーボタンが出る');
+  assert.doesNotThrow(() => dom.fire(copyButton, 'click'));
+  await flush();
+
+  const status = dom.findNode(root, (n) => n.className === 'sw-copylink-status' && n.textContent === 'コピーしました');
+  assert.ok(status);
+});
+
+test('execCommand も失敗する環境では読み取り専用の入力欄（?page=group&id=... の URL 入り）を出す', async () => {
+  const { dom, render } = setup('editor', { execCommand: false });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const copyButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'リンクをコピー');
+  dom.fire(copyButton, 'click');
+  await flush();
+
+  const fallback = dom.findNode(root, (n) => n.className === 'sw-copylink-fallback');
+  assert.ok(fallback);
+  assert.equal(fallback.value, 'https://script.google.com/macros/s/fake/exec?page=group&id=og_1');
+});
+
+// ---- O-13: `?page=group&id=...` 深いリンクで開いた場合のスクロール+ハイライト ----
+
+test('render(root, {openGroupId}): 対象のグループボックスに sw-highlight が付く', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root, { openGroupId: 'og_1' });
+  await flush();
+
+  const box = dom.findNode(root, (n) => n.className && n.className.indexOf('order-tree-group') !== -1);
+  assert.ok(box);
+  assert.match(box.className, /sw-highlight/);
+});
+
+test('render(root, {openGroupId}): 存在しないグループ id なら例外にせず案内を出す', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  assert.doesNotThrow(() => render(root, { openGroupId: 'og_notexist' }));
+  await flush();
+
+  const notice = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('見つかりません') !== -1);
+  assert.ok(notice);
 });

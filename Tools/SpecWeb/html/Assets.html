@@ -118,6 +118,61 @@
     font-size: 0.78rem;
     margin-top: 0.2rem;
   }
+  .assets-field .sw-field-warning-message {
+    color: #9a6700;
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+  }
+  .assets-field .sw-field-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--sw-muted);
+    margin-top: 0.2rem;
+  }
+  .assets-field .sw-field-hint button {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.75rem;
+  }
+  .sw-copylink {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .sw-copylink button {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  .sw-copylink-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 5;
+    background: var(--sw-bg);
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    padding: 0.2rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  }
+  .sw-copylink-menu button {
+    text-align: left;
+    background: none;
+    border: none;
+    color: inherit;
+  }
+  .sw-copylink-status {
+    font-size: 0.75rem;
+    color: var(--sw-muted);
+  }
+  .sw-copylink-fallback {
+    width: 100%;
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+  }
   .assets-ddrive-state,
   .assets-params {
     border: 1px solid var(--sw-border);
@@ -230,6 +285,81 @@
       return node;
     }
 
+    /**
+     * O-13: 「リンクをコピー」ボタン + ▼ メニュー（URL のみ / 名前付き / Markdown）。
+     * html/OrderTree.html にも同じ形の関数がある（el() 同様、画面ごとに小さく複製する既存方針）。
+     * @param {function():string} getUrl 呼び出し時点の URL を返す（execUrl が未取得なら空文字を返してよい）
+     * @param {function():string} [getLabel] 「名前付き」「Markdown」で使う表示名
+     */
+    function buildCopyLinkControl(getUrl, getLabel) {
+      var wrap = el('span', { class: 'sw-copylink' });
+      var status = el('span', { class: 'sw-copylink-status' });
+      var menu = el('div', { class: 'sw-copylink-menu' });
+      menu.hidden = true;
+      var fallback = null;
+
+      function clearFallback() {
+        if (fallback) {
+          wrap.removeChild(fallback);
+          fallback = null;
+        }
+      }
+
+      function doCopy(mode) {
+        menu.hidden = true;
+        var url = getUrl();
+        if (!url) {
+          status.textContent = 'URL を取得できませんでした（execUrl 未取得）';
+          return;
+        }
+        var text = window.OrderLinkLogic.formatLinkText(mode, getLabel ? getLabel() : '', url);
+        window.SpecWebClipboard.copyText(text).then(function (ok) {
+          clearFallback();
+          if (ok) {
+            status.textContent = 'コピーしました';
+            return;
+          }
+          status.textContent = 'Ctrl+C でコピーしてください';
+          fallback = el('input', { type: 'text', readonly: 'readonly', class: 'sw-copylink-fallback' });
+          fallback.value = text;
+          wrap.appendChild(fallback);
+          if (fallback.select) fallback.select();
+        });
+      }
+
+      var mainButton = el('button', {
+        class: 'secondary',
+        text: 'リンクをコピー',
+        onclick: function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          doCopy('url');
+        }
+      });
+      var menuButton = el('button', {
+        class: 'secondary',
+        text: '▼',
+        onclick: function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          menu.hidden = !menu.hidden;
+        }
+      });
+      [['url', 'URL のみ'], ['named', '名前付き（表示名 - URL）'], ['markdown', 'Markdown']].forEach(function (pair) {
+        menu.appendChild(el('button', {
+          text: pair[1],
+          onclick: function (ev) {
+            if (ev && ev.stopPropagation) ev.stopPropagation();
+            doCopy(pair[0]);
+          }
+        }));
+      });
+
+      wrap.appendChild(mainButton);
+      wrap.appendChild(menuButton);
+      wrap.appendChild(menu);
+      wrap.appendChild(status);
+      return wrap;
+    }
+
     // ナビゲーションに自分でリンクを追加する（html/Index.html の #app-nav は空のままにし、
     // 画面ごとに自分でリンクを足す設計にすることで、共通ファイルを編集せずに増やせるようにする）。
     var navHost = document.getElementById('app-nav');
@@ -247,15 +377,18 @@
       }));
     }
 
-    registerScreen('assets', function (root) {
+    registerScreen('assets', function (root, initialParams) {
       var state = {
         items: [],
         orderGroups: [],
         members: [],
         currentUser: { role: null },
-        filters: { query: '', assetType: '', status: '', orderer: '', contractor: '', parentId: '' },
+        filters: { query: '', assetType: '', status: '', orderer: '', contractor: '', fileFormat: '', parentId: '' },
         sort: { key: 'identifier', direction: 'asc' },
         grouped: false,
+        // O-13: `?page=order&id=...` で開かれた場合に一度だけ自動で開く対象の id
+        // （src/Code.js の resolveInitialScreen_ → App.html の render(root, params) 経由）。
+        pendingOpenId: (initialParams && initialParams.openId) || null,
         detail: null // { mode: 'create'|'edit', item, fields, errors, paramSchemas, showMdPreview }
       };
 
@@ -346,6 +479,14 @@
         });
         toolbar.appendChild(contractorSelect);
 
+        // O-12: 並べ替え/絞り込みの追加対象はファイル形式のみ（fileName は対象外、§10.2.1 追補）。
+        var fileFormatSelect = buildSelect(optionValuesFrom('fileFormat'), state.filters.fileFormat, 'ファイル形式: 全て');
+        fileFormatSelect.addEventListener('change', function () {
+          state.filters.fileFormat = fileFormatSelect.value;
+          renderTable();
+        });
+        toolbar.appendChild(fileFormatSelect);
+
         var groupOptions = [{ value: '__none__', label: '単体' }].concat(
           state.orderGroups.map(function (g) { return { value: g.id, label: g.name }; })
         );
@@ -393,7 +534,8 @@
           { key: 'contractor', label: '受注者' },
           { key: 'orderDate', label: '発注日' },
           { key: 'dueDate', label: '納品期限' },
-          { key: 'status', label: '状態' }
+          { key: 'status', label: '状態' },
+          { key: 'fileFormat', label: 'ファイル形式' } // O-12（狭い画面では CSS 側で省略してよい）
         ];
         columns.forEach(function (col) {
           var th = el('th', { text: col.label + sortIndicator(col.key) });
@@ -410,12 +552,18 @@
           headerRow.appendChild(th);
         });
         headerRow.appendChild(el('th', { text: 'D-Drive状態' }));
+        headerRow.appendChild(el('th', { text: '' })); // O-13: リンクをコピー列（見出しなし）
         thead.appendChild(headerRow);
         return thead;
       }
 
       function buildRow(item) {
         var badge = logic.formatDdriveStateBadge(item.ddriveState);
+        var copyCell = el('td');
+        copyCell.appendChild(buildCopyLinkControl(
+          function () { return window.OrderLinkLogic.buildOrderUrl(window.SpecWebExecUrl, item.id); },
+          function () { return item.displayName || item.identifier; }
+        ));
         var row = el('tr', {
           onclick: function () {
             openDetail({ mode: 'edit', item: item });
@@ -428,7 +576,9 @@
           el('td', { text: item.orderDate || '—' }),
           el('td', { text: item.dueDate || '—' }),
           el('td', { text: item.status }),
-          el('td', { text: badge.icon + ' ' + badge.label })
+          el('td', { text: item.fileFormat || '—' }),
+          el('td', { text: badge.icon + ' ' + badge.label }),
+          copyCell
         ]);
         return row;
       }
@@ -440,12 +590,12 @@
         var items = visibleItems();
 
         if (items.length === 0) {
-          newTbody.appendChild(el('tr', {}, [el('td', { text: '該当する発注がありません', colspan: '8' })]));
+          newTbody.appendChild(el('tr', {}, [el('td', { text: '該当する発注がありません', colspan: '10' })]));
         } else if (state.grouped) {
           logic.groupAssetsByType(items).forEach(function (group) {
             newTbody.appendChild(
               el('tr', { class: 'assets-group-row' }, [
-                el('td', { text: group.assetType + '（' + group.items.length + '件）', colspan: '8' })
+                el('td', { text: group.assetType + '（' + group.items.length + '件）', colspan: '10' })
               ])
             );
             group.items.forEach(function (item) {
@@ -482,7 +632,24 @@
           state.orderGroups = groupsRes.ok ? groupsRes.items || [] : [];
           state.members = membersRes.ok ? membersRes.items || [] : [];
           renderAll();
+          maybeOpenPending();
         });
+      }
+
+      /**
+       * O-13: `?page=order&id=...` で開かれた場合、一覧の読み込み後に一度だけ対象の詳細を開く。
+       * 見つからなければ例外にせず一覧の上に案内を出すだけにする（トップ表示は既に renderAll 済み）。
+       */
+      function maybeOpenPending() {
+        if (!state.pendingOpenId) return;
+        var pendingId = state.pendingOpenId;
+        state.pendingOpenId = null;
+        var found = state.items.filter(function (i) { return i.id === pendingId; })[0];
+        if (found) {
+          openDetail({ mode: 'edit', item: found });
+        } else {
+          statusLine.textContent = '指定された発注が見つかりません（' + pendingId + '）。一覧を表示しています。';
+        }
       }
 
       // ---- 詳細パネル（§10.3.4） ----
@@ -491,7 +658,7 @@
         return {
           assetType: '', category: '', identifier: '', displayName: '', status: '発注済',
           orderer: '', contractor: '', orderDate: '', dueDate: '', deliveredDate: '',
-          priority: '', referenceMd: '', parentId: ''
+          priority: '', referenceMd: '', parentId: '', fileFormat: '', fileName: ''
         };
       }
 
@@ -509,7 +676,9 @@
           deliveredDate: item.deliveredDate || '',
           priority: item.priority || '',
           referenceMd: item.referenceMd || '',
-          parentId: item.parentId || ''
+          parentId: item.parentId || '',
+          fileFormat: item.fileFormat || '',
+          fileName: item.fileName || ''
         };
       }
 
@@ -605,6 +774,78 @@
           renderDetail();
         });
         return fieldRow(key, label, select);
+      }
+
+      /** O-12: ファイル形式（種別ごとの候補を datalist で提示、候補外の自由入力も可）。 */
+      function fileFormatField() {
+        var listId = 'assets-fileformat-choices';
+        var input = el('input', { type: 'text', list: listId, placeholder: '例: .wav' });
+        input.value = state.detail.fields.fileFormat;
+        input.disabled = !canEdit();
+        input.addEventListener('input', function () {
+          state.detail.fields.fileFormat = input.value;
+          runValidation();
+          renderDetail();
+        });
+        input.addEventListener('blur', function () {
+          var normalized = logic.normalizeFileFormat(state.detail.fields.fileFormat);
+          if (normalized !== state.detail.fields.fileFormat) {
+            state.detail.fields.fileFormat = normalized;
+            renderDetail();
+          }
+        });
+        var datalist = el('datalist', { id: listId });
+        logic.fileFormatChoicesFor(state.detail.fields.assetType).forEach(function (choice) {
+          datalist.appendChild(el('option', { value: choice }));
+        });
+        var wrap = fieldRow('fileFormat', 'ファイル形式', input);
+        wrap.appendChild(datalist);
+        return wrap;
+      }
+
+      /**
+       * O-12: 納品ファイル名。空欄時のプレースホルダーとして、種別・カテゴリ・識別子・ファイル形式
+       * から D-Drive の命名規約に沿った推奨名を表示し、ボタンで入力欄へコピーできる（§10.2.1 追補）。
+       * 不正文字・拡張子の食い違いはブロックしない警告として表示するだけ（例外で止めない）。
+       */
+      function fileNameField() {
+        var input = el('input', { type: 'text', placeholder: '例: SE_Slash.wav' });
+        input.value = state.detail.fields.fileName;
+        input.disabled = !canEdit();
+        input.addEventListener('input', function () {
+          state.detail.fields.fileName = input.value;
+          runValidation();
+          renderDetail();
+        });
+        var wrap = fieldRow('fileName', '納品ファイル名', input);
+
+        var suggested = logic.suggestFileName(
+          state.detail.fields.assetType,
+          state.detail.fields.category,
+          state.detail.fields.identifier,
+          state.detail.fields.fileFormat
+        );
+        if (suggested) {
+          var hint = el('div', { class: 'sw-field-hint' }, [el('span', { text: '推奨: ' + suggested })]);
+          if (canEdit()) {
+            hint.appendChild(el('button', {
+              class: 'secondary',
+              text: '推奨名を使う',
+              onclick: function () {
+                state.detail.fields.fileName = suggested;
+                runValidation();
+                renderDetail();
+              }
+            }));
+          }
+          wrap.appendChild(hint);
+        }
+
+        logic.fileNameWarnings(state.detail.fields).forEach(function (message) {
+          wrap.appendChild(el('div', { class: 'sw-field-warning-message', text: message }));
+        });
+
+        return wrap;
       }
 
       function parentIdField() {
@@ -852,6 +1093,11 @@
         panel.appendChild(el('h2', { text: detail.mode === 'create' ? '新規発注' : (detail.item.assetType + ' :: ' + detail.item.identifier) }));
 
         if (detail.mode === 'edit') {
+          // O-13: 発注リンクのコピー（このアプリの外＝人が読む仕様書に貼り付ける用）。
+          panel.appendChild(buildCopyLinkControl(
+            function () { return window.OrderLinkLogic.buildOrderUrl(window.SpecWebExecUrl, detail.item.id); },
+            function () { return detail.item.displayName || detail.item.identifier; }
+          ));
           panel.appendChild(renderStatusProgress(detail.item));
         }
         if (!canEdit()) {
@@ -869,6 +1115,8 @@
         panel.appendChild(textField('dueDate', '納品期限', 'date'));
         panel.appendChild(textField('deliveredDate', '納品日', 'date'));
         panel.appendChild(selectField('priority', '優先度', logic.ASSET_PRIORITIES));
+        panel.appendChild(fileFormatField());
+        panel.appendChild(fileNameField());
         panel.appendChild(renderReferenceMd());
 
         if (canEdit()) {

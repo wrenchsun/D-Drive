@@ -38,6 +38,9 @@ test('specWebNormalizeLegacyOrderItem_（読み込み時変換）: 旧 assignee/
   assert.equal(result.item.status, '納品済'); // 旧「仮」→ 新「納品済」
   assert.equal(result.item.orderer, '');
   assert.equal(result.item.parentId, null);
+  // O-12（docs/32 §10.2.1 追補）: 既存データに fileFormat/fileName が無くても空文字で読める。
+  assert.equal(result.item.fileFormat, '');
+  assert.equal(result.item.fileName, '');
 
   // 副作用が無いこと（Storage 上の生データは変換されていない）。
   const raw = ctx.Storage.getItem('assets', 'Se::Slash');

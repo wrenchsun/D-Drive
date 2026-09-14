@@ -48,6 +48,10 @@ function specWebNormalizeLegacyOrderItem_(item) {
   normalized.referenceMd = item.referenceMd !== undefined ? item.referenceMd : (item.note || '');
   normalized.parentId = item.parentId !== undefined ? item.parentId : null;
   normalized.params = item.params !== undefined ? item.params : null;
+  // O-12（docs/32 §10.2.1 追補）: 既存データは fileFormat/fileName を持たないため、非破壊に
+  // 空文字で読める既定値を補う（他の新規フィールドと同じ流儀）。
+  normalized.fileFormat = item.fileFormat !== undefined ? item.fileFormat : '';
+  normalized.fileName = item.fileName !== undefined ? item.fileName : '';
   if (isLegacyStatus) {
     normalized.status = SPEC_WEB_LEGACY_STATUS_MAP[item.status];
   }

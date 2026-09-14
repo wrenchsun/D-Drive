@@ -30,6 +30,8 @@ function sampleAsset(overrides) {
       priority: '',
       referenceMd: '',
       parentId: null,
+      fileFormat: '.wav',
+      fileName: 'SE_Slash.wav',
       archived: false,
       revision: 3,
       comments: [{ id: 'c1', author: 'a@example.com', body: '既存コメント', createdAt: '2026-09-01T00:00:00Z', resolved: false }],
@@ -40,13 +42,15 @@ function sampleAsset(overrides) {
   );
 }
 
-function setup(role) {
+function setup(role, options) {
+  options = options || {};
   const dom = createFakeDom();
   let capturedRender = null;
 
   const sandbox = {
     console,
     document: dom.document,
+    navigator: options.navigator,
     registerScreen: function (id, render) {
       if (id === 'assets') capturedRender = render;
     },
@@ -54,9 +58,16 @@ function setup(role) {
       alert: function () {},
       confirm: function () {
         return true;
-      }
+      },
+      // O-13: 発注リンクのコピー用（src/Code.js の specWebExecUrl_ → html/Index.html）。
+      SpecWebExecUrl: options.execUrl !== undefined ? options.execUrl : 'https://script.google.com/macros/s/fake/exec'
     }
   };
+  if (options.execCommand !== undefined) {
+    dom.document.execCommand = function () {
+      return options.execCommand;
+    };
+  }
 
   const asset = sampleAsset();
   const fakeClient = createFakeSpecWebClient({
@@ -94,7 +105,9 @@ function setup(role) {
   });
   sandbox.window.SpecWebClient = fakeClient;
 
-  const ctx = loadHtmlScripts(['AssetsLogic', 'Assets'], sandbox);
+  // O-13: OrderLinkLogic/ClipboardCopy も実 Index.html と同じ順序で読み込む
+  // （Assets.html の buildCopyLinkControl が window.OrderLinkLogic/window.SpecWebClipboard を使う）。
+  const ctx = loadHtmlScripts(['OrderLinkLogic', 'ClipboardCopy', 'AssetsLogic', 'Assets'], sandbox);
   assert.ok(capturedRender, 'registerScreen("assets", ...) が呼ばれていること');
   return { ctx, dom, render: capturedRender };
 }
@@ -222,4 +235,152 @@ test('viewer: 「+ 新規発注」ボタンが無く、詳細パネルは読み�
 
   const commentTextarea = dom.findNode(root, (n) => n.tagName === 'textarea' && n !== undefined && n.getAttribute && n.getAttribute('placeholder') === 'コメントを入力...');
   assert.equal(commentTextarea, null, 'viewer にはコメント投稿欄が表示されない');
+});
+
+// ---- O-13: `?page=order&id=...` 深いリンクで開いた場合の自動オープン ----
+
+test('render(root, {openId}): 一覧の読み込み後に対象の詳細が自動で開く', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root, { openId: 'Se::Slash' });
+  await flush();
+  await flush(); // openDetail 内の assets.get / paramSchemas.list 再取得も待つ
+
+  const heading = dom.findNode(root, (n) => n.tagName === 'h2');
+  assert.equal(heading.textContent, 'Se :: Slash');
+});
+
+test('render(root, {openId}): 存在しない id なら例外にせず一覧の上に案内を出す', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  assert.doesNotThrow(() => render(root, { openId: 'Se::NotExist' }));
+  await flush();
+
+  const heading = dom.findNode(root, (n) => n.tagName === 'h2');
+  assert.equal(heading, null, '見つからない場合は詳細パネルを開かない');
+  const notice = dom.findNode(root, (n) => n.tagName === 'p' && (n.textContent || '').indexOf('見つかりません') !== -1);
+  assert.ok(notice, '「見つかりません」の案内が出る');
+});
+
+// ---- O-13: 「リンクをコピー」ボタン ----
+
+test('一覧の行の「リンクをコピー」を押すと execCommand フォールバックで成功し「コピーしました」になる', async () => {
+  const { dom, render } = setup('editor', { execCommand: true });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const copyButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'リンクをコピー');
+  assert.ok(copyButton, '一覧の行にリンクをコピーボタンが出る');
+  assert.doesNotThrow(() => dom.fire(copyButton, 'click'));
+  await flush();
+
+  const status = dom.findNode(root, (n) => n.className === 'sw-copylink-status' && n.textContent === 'コピーしました');
+  assert.ok(status);
+});
+
+test('execCommand も失敗する環境では「Ctrl+C でコピーしてください」+ 読み取り専用の入力欄（URL 入り）を出す', async () => {
+  const { dom, render } = setup('editor', { execCommand: false });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const copyButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'リンクをコピー');
+  dom.fire(copyButton, 'click');
+  await flush();
+
+  const status = dom.findNode(root, (n) => n.className === 'sw-copylink-status' && n.textContent === 'Ctrl+C でコピーしてください');
+  assert.ok(status);
+  const fallback = dom.findNode(root, (n) => n.className === 'sw-copylink-fallback');
+  assert.ok(fallback);
+  assert.equal(fallback.value, 'https://script.google.com/macros/s/fake/exec?page=order&id=Se%3A%3ASlash');
+});
+
+test('execUrl が未取得（空文字）の場合は「URL を取得できませんでした」を出す（クリックしても例外にしない）', async () => {
+  const { dom, render } = setup('editor', { execCommand: true, execUrl: '' });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const copyButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'リンクをコピー');
+  assert.doesNotThrow(() => dom.fire(copyButton, 'click'));
+  const status = dom.findNode(root, (n) => n.className === 'sw-copylink-status');
+  assert.match(status.textContent, /取得できませんでした/);
+});
+
+test('詳細パネル（編集）のヘッダーにも「リンクをコピー」ボタンが出る（新規作成モードには出ない）', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+  const copyButtons = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === 'リンクをコピー');
+  assert.equal(copyButtons.length, 2, '一覧の行 + 詳細ヘッダーの2つ');
+
+  const newButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 新規発注');
+  dom.fire(newButton, 'click');
+  const copyButtonsInCreate = dom.findAllNodes(root, (n) => n.tagName === 'button' && n.textContent === 'リンクをコピー');
+  assert.equal(copyButtonsInCreate.length, 1, '新規作成パネルには出ない（一覧の行の分だけ残る）');
+});
+
+// ---- O-12: ファイル形式・ファイル名の画面表示 ----
+
+test('詳細パネル: fileFormat/fileName の値が表示され、推奨名ボタンで入力欄に入る', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const fileFormatField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    var label = (n.children || [])[0];
+    return label && label.textContent === 'ファイル形式';
+  });
+  assert.ok(fileFormatField, 'ファイル形式欄が見つかる');
+  assert.equal(fileFormatField.children[1].value, '.wav');
+
+  const fileNameField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    var label = (n.children || [])[0];
+    return label && label.textContent === '納品ファイル名';
+  });
+  assert.ok(fileNameField, '納品ファイル名欄が見つかる');
+  assert.equal(fileNameField.children[1].value, 'SE_Slash.wav');
+
+  const useSuggestedButton = dom.findNode(fileNameField, (n) => n.tagName === 'button' && n.textContent === '推奨名を使う');
+  assert.ok(useSuggestedButton, '推奨名（identifier=Slash・fileFormat=.wav → SE_Slash.wav と一致するため既に同じ値だが）ボタンは常に出る');
+});
+
+test('詳細パネル: fileName に使えない文字が入っていると非ブロッキングな警告が表示され、保存ボタンは無効化されない', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const fileNameField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    var label = (n.children || [])[0];
+    return label && label.textContent === '納品ファイル名';
+  });
+  var input = fileNameField.children[1];
+  input.value = 'bad/name.wav';
+  assert.doesNotThrow(() => dom.fire(input, 'input'));
+
+  const rerendered = dom.findNode(root, (n) => n.className && n.className.indexOf('sw-field-warning-message') !== -1);
+  assert.ok(rerendered, '非ブロッキングな警告が表示される');
+  assert.match(rerendered.textContent, /使えない文字/);
+
+  const saveButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '保存');
+  assert.ok(saveButton, '警告だけでは保存ボタンは無くならない（例外で止めない・ブロックしない方針）');
 });

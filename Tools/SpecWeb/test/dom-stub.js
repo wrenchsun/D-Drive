@@ -18,6 +18,10 @@ function createFakeDom() {
     this.children = [];
     this._attrs = {};
     this._listeners = {};
+    this.style = {};
+    this.value = '';
+    this.disabled = false;
+    this.hidden = false;
   }
 
   FakeNode.prototype.setAttribute = function (name, value) {
@@ -28,8 +32,18 @@ function createFakeDom() {
     return Object.prototype.hasOwnProperty.call(this._attrs, name) ? this._attrs[name] : null;
   };
 
+  // O-13: ClipboardCopy.html の execCommand フォールバックが textarea.select() を呼ぶ
+  // （見た目の選択自体は検証しない。呼んでも例外にならないことが目的）。
+  FakeNode.prototype.select = function () {};
+
   FakeNode.prototype.appendChild = function (child) {
     if (child) this.children.push(child);
+    return child;
+  };
+
+  FakeNode.prototype.removeChild = function (child) {
+    var index = this.children.indexOf(child);
+    if (index !== -1) this.children.splice(index, 1);
     return child;
   };
 
@@ -85,7 +99,13 @@ function createFakeDom() {
     return result;
   }
 
+  // O-13: ClipboardCopy.html の execCommand フォールバックが document.body.appendChild/removeChild と
+  // document.execCommand('copy') を呼ぶ。既定では execCommand は無い（未対応環境と同じ =
+  // undefined、呼び出し側は typeof でガードしている）ので、成功させたいテストは
+  // dom.document.execCommand = function () { return true; }; のように上書きする。
+  var body = new FakeNode('body');
   var document = {
+    body: body,
     createElement: function (tag) {
       return new FakeNode(tag);
     },
