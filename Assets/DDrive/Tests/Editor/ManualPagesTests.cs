@@ -48,7 +48,8 @@ namespace DDrive.Tests.Editor
 
             Assert.AreEqual("用語集", ManualPages.ResolveDisplayName(folder, "glossary"));
             Assert.AreEqual("Asset Browser の使い方", ManualPages.ResolveDisplayName(folder, "asset-browser"));
-            Assert.AreEqual("仕様書との同期", ManualPages.ResolveDisplayName(folder, "spec-sync"));
+            // spec-sync は 2026-09-15 のマニュアル改訂でタイトルが「発注ツール（Web）と仕様書同期」に変わり、
+            // 括弧を含むためこのテスト（括弧なしのページ）の対象から外した。
         }
 
         [Test]
