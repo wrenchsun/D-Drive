@@ -268,14 +268,16 @@ function buildAll(options) {
   const write = options.write !== false;
 
   const pageNames = listManualPageNames(sourceDir);
-  const rawCss = fs.readFileSync(cssPath, 'utf8');
+  // Windows では docs/DesignerManual が CRLF でチェックアウトされるため、そのまま通すと生成物が CRLF になり
+  // 毎回の再生成（push.cmd）で改行コードだけの差分が出る。生成物は LF に揃える（.gitattributes と同じ）。
+  const rawCss = fs.readFileSync(cssPath, 'utf8').replace(/\r\n/g, '\n');
   const scopedCss = scopeCss(rawCss, SCOPE_CLASS);
 
   const warnings = [];
   const pages = {};
 
   for (const name of pageNames) {
-    const rawHtml = fs.readFileSync(path.join(sourceDir, name + '.html'), 'utf8');
+    const rawHtml = fs.readFileSync(path.join(sourceDir, name + '.html'), 'utf8').replace(/\r\n/g, '\n');
     const resolveImage = (src) => {
       const imgPath = path.join(imagesDir, path.basename(src));
       try {
