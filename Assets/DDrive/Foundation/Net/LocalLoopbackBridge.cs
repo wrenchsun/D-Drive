@@ -17,14 +17,22 @@ namespace DDrive.Foundation.Net
 
         private readonly Dictionary<Type, List<Delegate>> _handlers = new();
         private readonly Dictionary<ulong, Transform> _netObjects = new();
+        private readonly Dictionary<Transform, ulong> _netObjectsReverse = new();
 
         public bool IsServer => true;
         public bool IsClient => true;
         public double NetworkTime { get; private set; }
 
+        // シングルプレイでは自分が Host 相当。NGO の ServerClientId/LocalClientId と揃えて 0 とする([14] §12)。
+        public ulong LocalClientId => 0UL;
+
         // シングルプレイでは他クライアントが存在しないため通常は発火しない。テスト/将来の
         // マルチウィンドウ運用向けに RaiseClientConnected で手動発火できる([14] §5、5-9)。
         public event Action<ulong> ClientConnected;
+
+        // [11_tasks.md] 6-0(B) — NetDebugOverlay 用の受信メッセージ数(INetBridge のインタフェースには
+        // 含めない。オーバーレイ側は型チェックで見る)。
+        public int ReceivedMessageCount { get; private set; }
 
         public void Tick(double deltaTime) => NetworkTime += deltaTime;
 
@@ -46,12 +54,34 @@ namespace DDrive.Foundation.Net
             return new Subscription(() => list.Remove(handler));
         }
 
-        public void RegisterNetObject(ulong netId, Transform transform) => _netObjects[netId] = transform;
+        public void RegisterNetObject(ulong netId, Transform transform)
+        {
+            _netObjects[netId] = transform;
+            if (transform != null)
+            {
+                _netObjectsReverse[transform] = netId;
+            }
+        }
 
         public Transform ResolveNetObject(ulong netId) => _netObjects.TryGetValue(netId, out var t) ? t : null;
 
+        public ulong ResolveNetId(Transform transform)
+            => transform != null && _netObjectsReverse.TryGetValue(transform, out var id) ? id : 0UL;
+
+        // シングルプレイは全オブジェクトが自分のもの(誤爆防止の判定自体が不要)。
+        public bool IsLocalPlayerObject(Transform transform) => transform != null;
+
+        // シングルプレイに NetworkObject の概念は無い。呼び出し元は 0 のまま(ローカル専用インスタンス)として扱う。
+        public ulong SpawnNetworked(GameObject root) => 0UL;
+
+        public void DespawnNetworked(ulong netId, bool destroy)
+        {
+            // no-op。ローカルの Despawn(Pool.Return/Discard)は呼び出し元(PrefabsManager)が別途行う。
+        }
+
         private void Dispatch<T>(ulong senderId, T msg) where T : INetMessage
         {
+            ReceivedMessageCount++;
             if (!_handlers.TryGetValue(typeof(T), out var list))
             {
                 return;
