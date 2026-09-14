@@ -56,6 +56,10 @@ namespace DDrive.Editor.AssetBrowser
         }
 
         // フォルダ配下(テスト用の一時 GameData 等)のエントリをまとめて外す。
+        // 2026-09-14: AssetSearch(キャッシュ付き)経由だと、フォルダ内で新規作成したばかりのアセット
+        // (カタログ等)がまだキャッシュに反映されておらず取り漏らす可能性がある(理論上。ImportWatcher が
+        // 同期的に無効化するはずだが、テストの後始末だけに使う経路なのでコストを気にせず確実性を優先する)。
+        // ここだけ AssetDatabase.FindAssets を直接呼び、キャッシュの有無に依存しないようにする。
         public static int RemoveEntriesUnder(string folder)
         {
             if (!IsAvailable || string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder))
@@ -65,8 +69,7 @@ namespace DDrive.Editor.AssetBrowser
 
             var settings = AddressableAssetSettingsDefaultObject.Settings;
             var removed = 0;
-            // [09] §9: FindAssets は AssetSearch 経由。削除直後に呼ばれることがあるので結果は常に最新(ImportWatcher が無効化する)。
-            foreach (var guid in AssetSearch.FindAssets(string.Empty, new[] { folder }))
+            foreach (var guid in AssetDatabase.FindAssets(string.Empty, new[] { folder }))
             {
                 if (settings.RemoveAssetEntry(guid, false))
                 {
