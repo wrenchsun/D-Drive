@@ -36,7 +36,7 @@
 - PC-A で一時 HTTP サーバー（`scratchpad/serve_build.py`、`192.168.137.1:8765` のみで待ち受け、`Builds/` のみ公開・ディレクトリ一覧無効）を起動し、`Builds/ping.txt` を置いた
 - PC-B の Claude が `Invoke-WebRequest -UseBasicParsing -Uri http://192.168.137.1:8765/ping.txt -OutFile C:\DDriveTest\ping.txt` で取得 → **成功（108 bytes、内容一致）**。`Test-NetConnection 192.168.137.1 -Port 8765` → `TcpTestSucceeded: True`（送信元 192.168.137.74、Wi-Fi）
 - PC-A の Python は Windows ファイアウォールのプライベート ネットワークで受信許可済み。確認後サーバーは停止
-- 未確認: Unity プレイヤー（`DDriveNetCheck.exe`）の UDP 7777 受信許可（別プログラムなので初回起動時に改めて許可ダイアログが出る）
+- ~~未確認: Unity プレイヤー（`DDriveNetCheck.exe`）の UDP 7777 受信許可~~ → 2026-09-14 実機確認時点で PC-A に `ddrivenetcheck.exe` の受信許可ルール（Inbound / Allow / **Public** プロファイル）が作成済み。python の受信許可も Public プロファイルのみで、ホットスポット経由の取得が成功しているため、ホットスポット側インターフェイス（`ローカル エリア接続* 10`）は Public 扱いと判断（PC-A の有線 LAN も Public）。Host 起動時 `192.168.137.1:7777/UDP` で待ち受けを確認
 
 ## 3. コマンドライン引数（6-0 実装）
 
@@ -105,6 +105,24 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
 - Unity プレイヤー(`DDriveNetCheck.exe`)の UDP 7777 受信は初回起動時にファイアウォールの許可ダイアログが出る想定(§2 参照)。ダイアログはこの会話からは操作できないため、出た旨をこのドキュメントと最終報告に明記する運用にする
 - `-ddrive-sim-latency`/`-ddrive-sim-loss` は `UnityTransport.SetDebugSimulatorParameters` をリフレクション経由で呼ぶ実装(`NgoTransportConfigurator`、asmdef 変更を避けたため。[14_networking.md] §12)。UnityTransport 以外の Transport に差し替えた場合は警告 1 回で無視される
 - 6-0 時点でこの PC 上のループバック(127.0.0.1)2 プロセスでの結合確認は実施済み(下記§7)。PC-B での実機確認はオーケストレーターが実施予定
+
+## 8. 実機 2 台での確認結果（2026-09-14、PC-A Host + PC-B Client）
+
+- ビルド受け渡し: PC-B が `http://192.168.137.1:8765/DDriveNetCheck.zip`（104 MB）を取得（serve_build のログ `192.168.137.74 - "GET /DDriveNetCheck.zip HTTP/1.1" 200`）
+- PC-A Host: `DDriveNetCheck.exe -ddrive-net host -ddrive-host 192.168.137.1 -ddrive-port 7777`（ウィンドウ表示）→ `[Net/Host] DDriveRuntimeBootstrap: Host として起動しました(port=7777)`、`192.168.137.1:7777/UDP` で待ち受け、剣攻撃デモを約 3 秒ごとに Play / Signal
+- **接続: 成功**。PC-B の Client（ClientId 1）が接続し、PC-B が 5 秒おきに送る偽造 Cancel を Host が `[Net/Host] Presentation: PresentationCancelMsg(HandleNetKey=…) の送信元 ClientId(1) が発行者と一致しないため破棄しました。` として**毎回破棄**（`activeCount` は変化せず）→ ホットスポット越しの Client→Host 依頼経路と、P5 レビュー第 2 弾 P1（発行者検証）の修正が実機で機能
+- PC-B 側（Client、遅延なし）: zip 109,164,993 bytes を約 30 秒で取得・展開、13:12:14 起動。**SmartScreen・ファイアウォールのダイアログは出なかった**。`[Net/Client] DDriveRuntimeBootstrap: Client として起動しました(host=192.168.137.1:7777)`、`clientId=1`。**Exception / Error / Disconnect / timeout 0 件**。偽造 Cancel `forged_cancel_sent` 13 件に対し Client 側でも「破棄しました」13 件（全件破棄）
+- **Late Join 復元: 成功**。Client の接続直後の heartbeat が `networkTime=159.51 activeCount=5`（Host で再生中の 5 件を受信）→ `activeCount=0` → 以降 1〜6 で推移。接続直後に 5→0 になるのは、シーク後に残り尺の無いワンショット演出が即完了したためと推測（要確認: 次回、復元直後の Presentation ごとの経過時刻をログに出すと判定しやすい）
+- デバッグ表示（PC-B、起動 55 秒後）: `Role: Client (ClientId=1) / NetworkTime: 209.81 / RTT: 6 ms / Received: 74 (2.0/s)`。画面中央に VFX（白い粒子の球）、スクリーンショットは PC-B の `C:\DDriveTest\netcheck_client_0ms.png`
+- PC-B 側（Client、遅延 200ms、13:15:30 起動、ClientId 2）: `[Net] NgoTransportConfigurator: シミュレータ設定を適用しました(latency=200ms, loss=0%)。` は出るが、**デバッグ表示の RTT は 6 ms のまま**（受信レートは 2.0/s → 1.0/s）。接続・Late Join（`activeCount` 5 → 0 → 1…5）・偽造 Cancel 破棄・Exception/Error/Disconnect 0 件は 0ms と同じ
+
+### 実機確認で見つかった課題（2026-09-14、修正チケットへ）
+
+1. **遅延シミュレーターが効いていない疑い**: `-ddrive-sim-latency 200` でも RTT が 6 ms。`NgoTransportConfigurator` が `SetDebugSimulatorParameters` を `StartClient`/`StartHost` の後（ドライバ生成後）に呼んでいる、または UnityTransport 2.x で当該 API が無効、の可能性。RTT の値（`GetCurrentRtt`）がシミュレーター遅延を含まない可能性もあるので、アプリ層の往復時間（Ping の往復）も併記して判定できるようにする
+2. **Client 側で Signal 中継を観測できない（計測の穴）**: `NetCheckRunner` の `signal=hit` は Host が `handle.Signal("hit")` を呼んだ直後にだけ出す実装（Host 179 件 / Client 0 件）。§4 の「全ピア」は誤り。Client で OnSignal トラックがネット経由で発火したことをログに出す仕組みが無く、**Signal 中継は実機で未検証**
+3. **Late Join 直後に Presentation が Placeholder で解決される**: Client に `[DDrive] Unregistered AssetId 0xCD2986D134D20E66 resolved to Placeholder.` が 1 件（= `PRES_Demo_SkillSlash` 自身、Host 側には無し）。接続直後のスナップショット受信がカタログのロード完了より先に処理される順序の問題と推測。接続直後の `activeCount` 5 → 0 もこれが原因の可能性
+4. **偽造 Cancel の破棄ログが 1 件欠落**（0ms、35 送信 / 34 破棄、`HandleNetKey 0x01047DA3` は Host ログに出現なし）: 対象の演出が完了済みで未知キーとして黙って破棄された可能性。未知キーの破棄も判定できるようログを出す（開発ビルドのみ）
+- 遅延 200ms（PC-B の Client を `-ddrive-sim-latency 200` で再起動、ログ `C:\DDriveTest\Player_200ms.log`）: **Host 側で再接続を確認**（新しい Client = ClientId 2 からの偽造 Cancel を 7 件破棄、Host は応答継続、`networkTime=383.73 activeCount=5`）。Host 側の破棄件数の合計は ClientId 1 = 34 件 / ClientId 2 = 7 件。PC-B 側の RTT・Signal 件数・位相は報告待ち（追記予定）
 
 ## 7. ローカル(このPC・ループバック)での結合確認結果
 
