@@ -353,3 +353,56 @@
 - **Bgm/Canvas/UiTween トラックはプレビュー未配線**: `PresentationManager` の「Manager 未設定」警告 + no-op で継続する(Se/Vfx/Anim/Anim2D/CameraShake/Haptic/HitStop/Marker/Signal のみプレビューで実際に動く)
 - **タイムラインのレーンは 6 グループにまとめた固定行**: Kind ごとに 1 行(13 行)ではなく関連 Kind をまとめた 6 行にしたため、同じレーンに近い時刻のトラックが並ぶと視覚的に重なることがある。演出が複雑になってきたら個別レーン化や横方向のズームを検討する
 - **環境切替(ライト強度・背景色)は自動復元しない**: Shake/Haptic のような「閉じたら必ず元に戻る」プレビュー専用の仕組みとは異なり、確認用シーンの実オブジェクトを直接書き換えるだけの薄い UI にした(ユーザーが手動で SceneView を触るのと同じ扱い)。誤操作で確認用シーンの見た目が変わったままになりうる点は許容した
+
+## 5-8 Presentation ネット再生（PR #25）
+
+対象: `Runtime/Net/PresentationMessages.cs`(新規)、`Runtime/Presentation/{PresentationManager,PresentationData,PresentationDataValidator}.cs`、`Runtime/Loop/DDriveRuntimeBootstrap.cs`、`Tests/Runtime/PresentationNetTests.cs`(新規)。設計・実装メモは [14_networking.md](14_networking.md) §5「実装メモ（2026-09-14、5-8）」を参照。
+
+**重要な前提**: `DDriveRuntimeBootstrap` の `NetBridge` は本チケットでも変更せず **常に `LocalLoopbackBridge`** のままにした(NGO 実配線は Phase 6 の範囲、`docs/11_tasks.md` 0-14 行にも「実機 2 クライアントでの再確認が必要」と明記されている)。つまり現時点で **MPPM(Multiplayer Play Mode)で Host + Client を実際に立てても、Presentation のネット再生は起動しない**(`NgoNetBridge` が Bootstrap に繋がっていないため)。以下、**今確認できること**と**NGO 配線後(Phase 6 待ち)に確認すること**を見出しで分ける。
+
+### 今確認できること(PlayMode 自動テスト / Loopback 単体)
+
+1. **自動テストで代替**: `Tests/Runtime/PresentationNetTests.cs`(PlayMode)を実行する(Test Runner または isuzu MCP の `test_run mode=play filter=DDrive.Tests.Runtime.PresentationNetTests`)→ 以下がすべて green であること
+   - `NonPredicted_200msLatency_BothPeers_ReachSameNormalizedTime`: 200ms 遅延を模擬した 2 つの Fake ブリッジ越しに Host が Cosmetic Presentation を再生 → Host/Client 双方の `NormalizedTime` が一致する(AC「遅延 200ms 環境で 2 クライアントの位相が揃う」の自動検証)
+   - `PredictLocal_ActorPlaysImmediately_AndDoesNotDoubleFireOnConfirm`: `PredictLocal=true` の演出は `Play()` の戻り値が即座に有効になり、確定 Broadcast 受信後も Marker が再発火しない(二重発火しない)
+   - `Signal_RelaysThroughHost_BothPeers_ApplyHitStop`: Host が `Signal("hit")` を発行 → Host/Client 双方の `TimeService.TimeScale` が 0 になる(Signal 中継で両方 HitStop する AC の自動検証)
+   - `Haptic_LocalPlayerOnly_DoesNotFire_OnRemoteReceivedInstance_ButFiresOnPredictedLocal`: 予測再生した行為者自身では `LocalPlayerOnly` の Haptic が鳴り、ネット受信した Instance では鳴らない(誤爆防止、オーケストレーターの追加指示分)
+   - `NoNetBridge_CosmeticPresentation_PlaysFullyLocally`: netBridge が無ければ Cosmetic でも常にローカル再生する回帰確認
+2. **単体シーンでの目視確認(Loopback、参考程度)**: `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity` を開き Play Mode に入る → `DDriveRuntimeBootstrap` は `LocalLoopbackBridge` なので、`PRES_Demo_SkillSlash` の `Flags.Net` を `Cosmetic` に変更すれば「自分の Broadcast を自分が受信して再生する」経路を通ることを Console ログ・見た目で確認できる(2 クライアントの位相は確認できない。1 台だけの動作確認)。**要判断**: このデモアセットの `Flags.Net` は 5-1〜5-4 時点では `Local`(既定)のままのため、ネット経路を通したい場合はデモ側の変更が必要(今回は変更していない。テストのみで検証)
+
+### NGO 配線後(Phase 6 待ち)に確認すること
+
+3. **MPPM で Host+Client を立てて 200ms 遅延を模擬**: Phase 6 で `NgoNetBridge` が `DDriveRuntimeBootstrap` に配線されたら、Multiplayer Play Mode + Unity Transport の Simulate Latency 設定(または Network Simulator パッケージ)で 200ms を模擬し、剣攻撃デモ(`PRES_Demo_SkillSlash`、`Flags.Net=Cosmetic` に変更)を再生 → Host/Client 両方の Game ビューで Vfx/Se/CameraShake の見た目のタイミングが揃うこと
+4. **Signal で両方揺れる**: 上記構成で当たり判定側(Host)が `Signal("hit")` を発行 → Host/Client 両方の画面で CameraShake が揺れ、パッド接続時は両方(または LocalPlayerOnly の設計に応じて行為者のみ)で振動すること
+5. **実機 2 台 + 実 LAN**: [14_networking.md] §12 の MS2026 統一ルールに従い、最終的には実機 2 台 + 実 LAN で確認する(このセッションでは未実施)
+
+要判断:
+- **relay の簡略化**: `PresentationNetTests` の `DelayedNetworkRelay`/`DelayedNetBridge` は「Broadcast は送信者が Host/Client のどちらでも単一ホップの遅延で全員に届く」という簡略化をしている(実際の NGO は Client→Host→全員の 2 ホップ)。Manager 側のシーク/重複抑制ロジックの検証には影響しないと判断したが、正確な往復遅延を検証したい場合は 6-7(NGO 実接続の CI テスト)で見直すこと
+- **HandleNetKey の一意性**: `NextHandleNetKey()` はインスタンスごとの乱数 salt と NetworkTime のビット・ローカル連番を混ぜて生成しており、`INetBridge` に `LocalClientId` が無いため厳密な一意性(clientId を上位ビットに埋める等)は保証していない。衝突確率は十分低いと判断したが、Phase 6 で `LocalClientId` 相当が手に入ったら見直すこと
+- **Haptic の LocalPlayerOnly 誤爆防止の副作用**: `PredictLocal=false` の Presentation では、行為者自身も「自分の Broadcast を受信して初めて再生する」経路(`PlayedViaNetworkReceive=true`)を通るため、`LocalPlayerOnly=true` な Haptic は行為者自身にも鳴らなくなる。行為者に確実に振動させたい演出は `PredictLocal=true` にする運用で回避できるが、本来は `SelfNetId` の実解決で解決すべき問題(Phase 6)
+- **観戦者の HitStop**: 1v1 前提のため「Signal を受け取った全ピアが HitStop する」を既定にした。3 人以上の構成になった場合は観戦者を除外する仕組みが必要(オーケストレーターの追加指示への対応、[14] §5 実装メモにも記載)
+- **Seed の実消費経路が無い**: `PresentationPlayMsg.Seed` は生成・伝搬するだけで、SE のランダム選択・PitchRange への接続は行っていない(5-8 のスコープ外と判断)。実際に必要になった時点で `AudioManager` 側に Seed を渡す口を追加すること
+- **Anim 以外の位相同期は近似**: `Bgm` トラックは頭から再生するだけで、`BgmManager` に再生位置を指定する API が無いため厳密な位相合わせは未実装(`Anim`/`Anim2D` のみ `AnimManager.Seek` で実際に位相を合わせている)
+
+## 5-9 Late Join 復元（PR #25）
+
+対象: `Foundation/Net/INetBridge.cs`(`ClientConnected` イベント追加)、`Foundation/Net/LocalLoopbackBridge.cs`/`Runtime/Net/NgoNetBridge.cs`/`Tests/Runtime/{FakeNetBridge,CountingNetBridge}.cs`(同イベント実装)、`Runtime/Presentation/PresentationManager.cs`(アクティブ演出台帳 + Late Join 送信)、`Tests/Runtime/PresentationLateJoinTests.cs`(新規)。設計・実装メモは [14_networking.md](14_networking.md) §5 実装メモを参照。5-8 と同じ前提(`NgoNetBridge` は Bootstrap 未配線)のため、こちらも見出しを分ける。
+
+### 今確認できること(PlayMode 自動テスト)
+
+1. **自動テストで代替**: `Tests/Runtime/PresentationLateJoinTests.cs` の以下が green であること
+   - `LateJoin_LoopingVfx_RestoredWithSeek_ForNewlyConnectedClient`: 常駐 VFX を模した長尺 Cosmetic Presentation(`VfxData.LifeMode=Loop`)を Host が再生 → 5 秒後に新しいクライアントが接続 → 途中参加クライアントの `VfxManager.ActiveCount` が 1(シーク状態で復元される。AC「途中参加でループ VFX/BGM が復元」の VFX 側を自動検証)
+   - `LateJoin_OneShotPresentation_IsNotRestored_AfterItCompletes`: 短命なワンショット Presentation が尺を超えて `Complete()` した後に新規クライアントが接続 → 何も復元されない(`DebugActiveHandles()` が空)
+   - **注**: BGM のループ復元(AC 文言の「BGM」側)は専用テストを書いていない(`BgmManager` に位置シーク API が無く、`Anim`/`Anim2D`/`Vfx` と同じ仕組み(`IsContinuousAtSeek` で `TrackKind.Bgm` は常に continuous 扱い)で理論上は復元されるはずだが、実際に鳴り始めることの検証は未実施。要判断参照)
+2. **`INetBridge.ClientConnected` の手動発火確認**: `LocalLoopbackBridge.RaiseClientConnected(clientId)` / `FakeNetBridge.RaiseClientConnected(clientId)` はテスト専用の手動発火 API(シングルプレイでは通常誰も接続してこないため、本番コードから呼ばれることはない)
+
+### NGO 配線後(Phase 6 待ち)に確認すること
+
+3. **MPPM で途中参加**: Phase 6 で `NgoNetBridge` が配線されたら、Host を先に起動して常駐 VFX/BGM を含む Presentation を再生した状態で、後から Virtual Player(Client)を接続 → 接続直後に途中参加側の画面でも VFX が(途中の見た目から)再生され、BGM が鳴り始めること。ワンショットの演出(既に終わっている攻撃演出等)は再現されないこと
+4. **切断・再接続**: 途中参加した Client が切断して再接続した場合の挙動(MS2026 Networking.md §4 のチェック観点「途中で切断したときに固まらないか」)は本チケットのスコープ外だが、Phase 6 で合わせて確認すること
+
+要判断:
+- **BGM のループ復元は理論上のみ**: 上記のとおり `IsContinuousAtSeek` は `TrackKind.Bgm` を継続系として扱うため、Late Join でも「頭から再生される」形で復元されるが、`BgmManager` は Seek API を持たないため厳密な位相合わせはしない(5-8 実装メモの要判断と同じ)。実際に BGM を含む常駐演出を作る際は、この「頭から再生される」挙動で十分かデザイナーに確認してもらうこと
+- **専用の Late Join メッセージを用意しなかった**: `PresentationPlayMsg` をそのまま `SendTo` するだけにしたため、Late Join で復元される演出は「Broadcast で送られたときと全く同じ形」でしか復元できない(将来、Late Join 専用の追加情報(例: 現在の Signal 発火済み状態)が必要になったら別メッセージの追加を検討すること)
+- **アクティブ演出台帳はメモリ上のみ**: `_activeNetworked` は Host の `PresentationManager` インスタンスが保持するだけで、Host が再起動すると消える(想定どおり。永続化の要件は無い)
+- **常駐 VFX/BGM を「Presentation でラップする」運用が前提**: 5-9 は `PresentationManager` 経由の Late Join のみ対応する。`Vfx.Spawn`/`Bgm.PlayBgm` を Presentation を介さず直接呼んだ Cosmetic な常駐エフェクトは、この台帳に乗らないため Late Join で復元されない(別途 `VfxManager`/`BgmManager` 自身に台帳を持たせる改修が必要。Phase 6 以降の課題として明記する)

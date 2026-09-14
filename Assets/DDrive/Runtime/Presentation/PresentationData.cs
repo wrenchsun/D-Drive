@@ -23,5 +23,10 @@ namespace DDrive.Runtime.Presentation
 
         [Tooltip("true のときだけ Cancel() で中断できる。false の Cancel() は警告 1 回のうえ no-op。")]
         public bool Interruptible = true;
+
+        [Tooltip("Flags.Net=Cosmetic のときのみ有効。true = 行為者は Host 確定の Broadcast を待たず即ローカル再生する" +
+                 "(予測再生。[14_networking.md] §5)。false(既定) = SE/VFX 等の既存 Cosmetic と同じく、自分の Broadcast を" +
+                 "受信して初めて再生する。")]
+        public bool PredictLocal;
     }
 }

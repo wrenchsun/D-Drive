@@ -5,6 +5,7 @@ using DDrive.Foundation.Data;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Manager;
+using DDrive.Foundation.Net;
 using DDrive.Foundation.Pause;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
@@ -12,6 +13,7 @@ using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Haptics;
+using DDrive.Runtime.Net;
 using DDrive.Runtime.Ui;
 using DDrive.Runtime.Vfx;
 using R3;
@@ -58,6 +60,31 @@ namespace DDrive.Runtime.Presentation
             public List<(int track, Handle<CanvasMarker> handle)> FiredCanvas;
             public List<(int track, Handle<ShakeMarker> handle)> FiredShake;
             public List<(int track, Handle<HapticMarker> handle)> FiredHaptic;
+
+            // ── [14_networking.md] §5(5-8/5-9) ネット関連の付帯情報 ──
+            // HandleNetKey!=0 のとき「ネットワーク経路(Cosmetic)を通った Instance」であることを示す
+            // (予測再生・確定受信・単純な自分の Broadcast 待ちのいずれも含む)。0 は完全ローカル。
+            public uint HandleNetKey;
+            public bool IsNetworked;
+            public ushort Seed;
+
+            // true は「PresentationPlayMsg を受信して生成した(=予測再生によるローカル直接生成ではない)」
+            // Instance であることを示す。SelfNetId/TargetNetId を常に 0 で送る既知の制約(§4 実装メモ)により、
+            // 受信側は「この事象が自分に起きたことか」を判定できない。HapticsData.LocalPlayerOnly=true な
+            // Haptic トラックは誤発火(自分に関係ない振動)を避けるため、この Instance では安全側に倒して
+            // 再生しない(オーケストレーターの追加指示、2026-09-14。要判断は docs/28 参照)。
+            public bool PlayedViaNetworkReceive;
+        }
+
+        // Host のみが保持する「アクティブな Cosmetic Presentation」台帳(5-9, Late Join 用)。
+        // ワンショット演出は尺が短いため Cleanup() で即座にここから外れ、自然に復元対象から漏れる
+        // (専用の判定フィールドを増やさず、既存の Elapsed/Duration の仕組みに委ねた設計)。
+        private struct ActiveNetworkedEntry
+        {
+            public PresentationData Data;
+            public PlayContext Ctx;
+            public double StartNetTime;
+            public ushort Seed;
         }
 
         private readonly IAssetRegistry _registry;
@@ -77,6 +104,14 @@ namespace DDrive.Runtime.Presentation
         private readonly HashSet<TrackKind> _unimplementedWarned = new();
         private readonly HashSet<TrackKind> _missingManagerWarned = new();
 
+        // [14_networking.md] §5(5-8/5-9) — null(既定)ならシングルプレイ相当で今までどおり完全ローカル
+        // (Audio/Vfx/Prefabs と同じ「netBridge==null は通信の有無で挙動を変えない」原則、[14] §1)。
+        private readonly INetBridge _netBridge;
+        private readonly Dictionary<uint, Handle<PresentationMarker>> _networkedHandles = new();
+        private readonly Dictionary<uint, ActiveNetworkedEntry> _activeNetworked = new();
+        private readonly uint _instanceSalt;
+        private uint _nextLocalSeq;
+
         public AssetType Type => AssetType.Presentation;
 
         // audio/bgm/vfx/anim/ui/uiTween は null 許容(未配線の種別トラックは警告 1 回 + no-op で継続する。
@@ -91,7 +126,8 @@ namespace DDrive.Runtime.Presentation
             UiManager ui = null,
             UiTweenManager uiTween = null,
             CameraFxManager cameraFx = null,
-            HapticsManager haptics = null)
+            HapticsManager haptics = null,
+            INetBridge netBridge = null)
         {
             _registry = registry;
             _time = timeService;
@@ -103,6 +139,16 @@ namespace DDrive.Runtime.Presentation
             _uiTween = uiTween;
             _cameraFx = cameraFx;
             _haptics = haptics;
+            _netBridge = netBridge;
+            _instanceSalt = (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+
+            if (_netBridge != null)
+            {
+                _netBridge.Subscribe<PresentationPlayMsg>(OnReceivePlayMsg);
+                _netBridge.Subscribe<PresentationSignalMsg>(OnReceiveSignalMsg);
+                _netBridge.Subscribe<PresentationCancelMsg>(OnReceiveCancelMsg);
+                _netBridge.ClientConnected += OnClientConnected;
+            }
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -134,10 +180,31 @@ namespace DDrive.Runtime.Presentation
                 return Handle<PresentationMarker>.Invalid;
             }
 
+            // [14_networking.md] §5 — Flags.Net=Cosmetic かつ netBridge が居るときだけネット経路に乗る
+            // (null は今までどおり常にローカル、[14] §1 の原則)。Local/Simulated はここでは通常再生する
+            // (Presentation に Simulated の意味付けは無い。Validator で Info 警告する。実装メモ参照)。
+            if (_netBridge != null && data.Flags.Net == NetMode.Cosmetic)
+            {
+                return PlayCosmeticNetworked(data, in ctx);
+            }
+
+            return PlayLocalInternal(data, in ctx, elapsedSeek: 0f, seed: 0, handleNetKey: 0, isNetworked: false, playedViaNetworkReceive: false);
+        }
+
+        private Handle<PresentationMarker> PlayLocalInternal(
+            PresentationData data,
+            in PlayContext ctx,
+            float elapsedSeek,
+            ushort seed,
+            uint handleNetKey,
+            bool isNetworked,
+            bool playedViaNetworkReceive)
+        {
             var instance = new PresentationInstance
             {
                 Data = data,
                 Ctx = ctx,
+                Elapsed = Mathf.Max(0f, elapsedSeek),
                 Fired = data.Tracks != null ? new bool[data.Tracks.Length] : System.Array.Empty<bool>(),
                 CompletedSubject = new Subject<Unit>(),
                 CancelledSubject = new Subject<Unit>(),
@@ -150,15 +217,179 @@ namespace DDrive.Runtime.Presentation
                 FiredCanvas = new List<(int, Handle<CanvasMarker>)>(),
                 FiredShake = new List<(int, Handle<ShakeMarker>)>(),
                 FiredHaptic = new List<(int, Handle<HapticMarker>)>(),
+                HandleNetKey = handleNetKey,
+                IsNetworked = isNetworked,
+                PlayedViaNetworkReceive = playedViaNetworkReceive,
+                Seed = seed,
             };
 
             var handle = _instances.Add(instance);
 
-            // AtTime(0.00) は Play() 呼び出し時に即時委譲する([08] §3)。
-            FireDueTracks(handle, instance);
+            if (handleNetKey != 0)
+            {
+                _networkedHandles[handleNetKey] = handle;
+            }
+
+            // AtTime(0.00) は Play() 呼び出し時に即時委譲する([08] §3)。elapsedSeek==0 のときは従来どおり
+            // 全トラックを普通に発火する。elapsedSeek>0(ネット受信でのシーク開始)のときだけ、既に過ぎた
+            // ワンショットトラックを鳴らさずスキップする([14] §5 実装メモ)。
+            SeekInitialTracks(handle, instance);
 
             _active.Add(handle);
             return handle;
+        }
+
+        // ── ネットワーク再生(5-8) ──
+
+        private Handle<PresentationMarker> PlayCosmeticNetworked(PresentationData data, in PlayContext ctx)
+        {
+            var handleNetKey = NextHandleNetKey();
+            // [14_networking.md] §6: 乱数は「行為者が 1 回だけ引いて結果(Seed)を送る」。ホスト・クライアントの
+            // どちらが行為者でも、受け取った側は同じ Seed から決定的に選ぶ想定であれば各自で Random を呼ばない
+            // (実際の SE 選択への接続は 5-8 のスコープ外。要判断は docs/28 参照)。
+            var seed = (ushort)UnityEngine.Random.Range(0, ushort.MaxValue + 1);
+            var startNetTime = _netBridge.NetworkTime;
+
+            var predicted = Handle<PresentationMarker>.Invalid;
+            if (data.PredictLocal)
+            {
+                predicted = PlayLocalInternal(data, in ctx, elapsedSeek: 0f, seed: seed, handleNetKey: handleNetKey, isNetworked: true, playedViaNetworkReceive: false);
+            }
+
+            _netBridge.Broadcast(new PresentationPlayMsg
+            {
+                PresId = data.Id,
+                SelfNetId = 0,
+                TargetNetId = 0,
+                Position = ctx.Position,
+                StartNetTime = startNetTime,
+                Seed = seed,
+                HandleNetKey = handleNetKey,
+            }, NetChannel.ReliableOrdered);
+
+            return predicted;
+        }
+
+        private void OnReceivePlayMsg(ulong senderId, PresentationPlayMsg msg)
+        {
+            // 予測再生済み(または既にこの受信ハンドラで生成済み)の確定通知。二重生成しない([14] §5)。
+            if (_networkedHandles.TryGetValue(msg.HandleNetKey, out var existingHandle) && _instances.TryGet(existingHandle, out var existingInstance))
+            {
+                RegisterActiveIfServer(msg.HandleNetKey, existingInstance.Data, existingInstance.Ctx, msg.StartNetTime, msg.Seed);
+                return;
+            }
+
+            var data = _registry.ResolveOrPlaceholder<PresentationData>(msg.PresId);
+            var duration = PresentationTiming.EffectiveDuration(data);
+            var elapsed = (float)System.Math.Max(0d, _netBridge.NetworkTime - msg.StartNetTime);
+
+            // 到着時点で既に尺を超えている演出は復元しない(ワンショットを復元しないのと同じ考え方。[14] §5)。
+            if (duration > 0f && elapsed >= duration)
+            {
+                return;
+            }
+
+            var ctx = new PlayContext { Position = msg.Position };
+            if (msg.SelfNetId != 0)
+            {
+                var self = _netBridge.ResolveNetObject(msg.SelfNetId);
+                if (self != null)
+                {
+                    ctx.Self = self;
+                }
+            }
+
+            if (msg.TargetNetId != 0)
+            {
+                var target = _netBridge.ResolveNetObject(msg.TargetNetId);
+                if (target != null)
+                {
+                    ctx.Target = target;
+                }
+            }
+
+            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true);
+
+            if (_instances.TryGet(handle, out var instance))
+            {
+                RegisterActiveIfServer(msg.HandleNetKey, instance.Data, instance.Ctx, msg.StartNetTime, msg.Seed);
+            }
+        }
+
+        private void RegisterActiveIfServer(uint handleNetKey, PresentationData data, PlayContext ctx, double startNetTime, ushort seed)
+        {
+            if (_netBridge == null || !_netBridge.IsServer || handleNetKey == 0)
+            {
+                return;
+            }
+
+            _activeNetworked[handleNetKey] = new ActiveNetworkedEntry
+            {
+                Data = data,
+                Ctx = ctx,
+                StartNetTime = startNetTime,
+                Seed = seed,
+            };
+        }
+
+        // [14_networking.md] §5(5-9) — 新規接続をホストだけが処理する。アクティブな Cosmetic Presentation を
+        // それぞれ元の StartNetTime のまま SendTo する(OnReceivePlayMsg が既存のシーク/ワンショットスキップ
+        // ロジックを再利用して復元する。専用の Late Join メッセージは用意しない)。
+        private void OnClientConnected(ulong clientId)
+        {
+            if (_netBridge == null || !_netBridge.IsServer)
+            {
+                return;
+            }
+
+            foreach (var kv in _activeNetworked)
+            {
+                var entry = kv.Value;
+                _netBridge.SendTo(clientId, new PresentationPlayMsg
+                {
+                    PresId = entry.Data.Id,
+                    SelfNetId = 0,
+                    TargetNetId = 0,
+                    Position = entry.Ctx.Position,
+                    StartNetTime = entry.StartNetTime,
+                    Seed = entry.Seed,
+                    HandleNetKey = kv.Key,
+                }, NetChannel.ReliableOrdered);
+            }
+        }
+
+        private uint NextHandleNetKey()
+        {
+            unchecked
+            {
+                _nextLocalSeq++;
+                var timeBits = _netBridge != null ? System.BitConverter.DoubleToInt64Bits(_netBridge.NetworkTime) : 0L;
+                var mixed = (uint)(timeBits ^ (timeBits >> 32));
+                var key = (mixed ^ _instanceSalt) + _nextLocalSeq;
+                return key == 0 ? 1u : key;
+            }
+        }
+
+        // SignalKey を毎回文字列で送らないための 16bit FNV-1a(帯域節約。[14] §8)。0 alloc・純関数。
+        private static ushort HashSignalKey(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return 0;
+            }
+
+            unchecked
+            {
+                const uint fnvPrime = 16777619u;
+                var hash = 2166136261u;
+                for (var i = 0; i < key.Length; i++)
+                {
+                    hash ^= key[i];
+                    hash *= fnvPrime;
+                }
+
+                return (ushort)((hash ^ (hash >> 16)) & 0xFFFFu);
+            }
         }
 
         // ── Signal / Cancel / Pause など ──
@@ -170,6 +401,25 @@ namespace DDrive.Runtime.Presentation
                 return;
             }
 
+            // [14_networking.md] §5/§9 — Signal は Host 権威。ネットワーク経路の Instance はローカルで
+            // 即座に発火せず Broadcast する(Client 発は NgoNetBridge が Host へ中継 → Host がレート制限を
+            // 検証してから全員へ配る。既存の Cosmetic 中継と同じ経路、無条件中継はしない)。自分の Broadcast を
+            // 受信して初めて発火するため、ここで直接発火すると二重発火になる。
+            if (instance.IsNetworked && _netBridge != null)
+            {
+                _netBridge.Broadcast(new PresentationSignalMsg
+                {
+                    HandleNetKey = instance.HandleNetKey,
+                    SignalKeyHash = HashSignalKey(key),
+                }, NetChannel.ReliableOrdered);
+                return;
+            }
+
+            SignalLocal(handle, instance, key);
+        }
+
+        private void SignalLocal(Handle<PresentationMarker> handle, PresentationInstance instance, string key)
+        {
             var tracks = instance.Data.Tracks;
             if (tracks == null)
             {
@@ -187,6 +437,40 @@ namespace DDrive.Runtime.Presentation
             }
         }
 
+        private void OnReceiveSignalMsg(ulong senderId, PresentationSignalMsg msg)
+        {
+            if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance))
+            {
+                return;
+            }
+
+            var tracks = instance.Data.Tracks;
+            if (tracks == null)
+            {
+                return;
+            }
+
+            for (var t = 0; t < tracks.Length; t++)
+            {
+                if (instance.Fired[t] || tracks[t].Trigger != TrackTrigger.OnSignal || HashSignalKey(tracks[t].SignalKey) != msg.SignalKeyHash)
+                {
+                    continue;
+                }
+
+                FireTrack(handle, instance, t, in tracks[t]);
+            }
+        }
+
+        private void OnReceiveCancelMsg(ulong senderId, PresentationCancelMsg msg)
+        {
+            if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance) || instance.Done)
+            {
+                return;
+            }
+
+            CancelInternal(handle, instance);
+        }
+
         public void Cancel(Handle<PresentationMarker> handle)
         {
             if (!_instances.TryGet(handle, out var instance) || instance.Done)
@@ -202,6 +486,14 @@ namespace DDrive.Runtime.Presentation
                     Debug.LogWarning($"[DDrive] Presentation '{instance.Data.DisplayName}' は Interruptible=false のため Cancel() を無視しました。");
                 }
 #endif
+                return;
+            }
+
+            // [14_networking.md] §5 — ネットワーク経路の Instance は Broadcast 経由で全員(自分含む)を
+            // 揃えて止める(直接 CancelInternal を呼ぶと自分だけ先に止まってしまう)。
+            if (instance.IsNetworked && _netBridge != null)
+            {
+                _netBridge.Broadcast(new PresentationCancelMsg { HandleNetKey = instance.HandleNetKey }, NetChannel.ReliableOrdered);
                 return;
             }
 
@@ -312,6 +604,21 @@ namespace DDrive.Runtime.Presentation
             FireDueTracks(handle, instance);
         }
 
+        // テスト/デバッグ専用: 現在再生中の Handle を列挙する。ネットワーク受信で生成された Instance
+        // (PresentationPlayMsg 受信側)は呼び出し元に Handle を返さないため、5-8/5-9 のテストが
+        // 「受信側で何が再生中か」を観測する手段として使う(ゲームコードは通常 Play() の戻り値だけを
+        // 使うため、本番経路から呼ぶ想定はない)。0 alloc ではないため定常経路(Tick 等)からは呼ばない。
+        public List<Handle<PresentationMarker>> DebugActiveHandles()
+        {
+            var copy = new List<Handle<PresentationMarker>>(_active.Count);
+            for (var i = 0; i < _active.Count; i++)
+            {
+                copy.Add(_active[i]);
+            }
+
+            return copy;
+        }
+
         // ── 問い合わせ ──
 
         // 終了済み Handle の問い合わせは正常系(ポーリング/WaitAsync)なので警告を出さない。
@@ -411,6 +718,18 @@ namespace DDrive.Runtime.Presentation
         {
             _active.Remove(handle);
             _instances.Remove(handle);
+
+            if (instance.HandleNetKey != 0)
+            {
+                _networkedHandles.Remove(instance.HandleNetKey);
+                if (_netBridge != null && _netBridge.IsServer)
+                {
+                    // [14_networking.md] §5(5-9) — 完了/Cancel された Presentation は Late Join の
+                    // 復元対象台帳から外す(ワンショットは尺が短いためここで即座に外れ、自然に復元されない)。
+                    _activeNetworked.Remove(instance.HandleNetKey);
+                }
+            }
+
             instance.CompletedSubject.Dispose();
             instance.CancelledSubject.Dispose();
             instance.MarkerSubject.Dispose();
@@ -488,6 +807,66 @@ namespace DDrive.Runtime.Presentation
                 }
 
                 FireTrack(handle, instance, t, in tracks[t]);
+            }
+        }
+
+        // [14_networking.md] §5 実装メモ(5-8) — Play() 直後の初回発火専用。Tick()/デバッグ用 Seek() では
+        // 使わない(そちらは常に FireDueTracks で通常発火する。挙動を変えない)。elapsedSeek==0(通常再生・
+        // 予測再生・自分の Broadcast 待ち後の再生)のときは FireDueTracks と完全に同じ結果になる。
+        // elapsedSeek>0(ネット越しに遅れて届いた Play。§5「開始時刻シーク」)のときだけ、既に過ぎた
+        // ワンショットトラックは鳴らさずに Fired 済みとしてスキップし、継続(ループ)系だけは今から
+        // 再生を開始する(位相の厳密な同期は Anim のみ実装。Bgm は BgmManager に Seek API が無いため
+        // 頭から再生する。要判断は docs/28)。
+        private void SeekInitialTracks(Handle<PresentationMarker> handle, PresentationInstance instance)
+        {
+            var tracks = instance.Data.Tracks;
+            if (tracks == null)
+            {
+                return;
+            }
+
+            var elapsed = instance.Elapsed;
+            for (var t = 0; t < tracks.Length; t++)
+            {
+                if (instance.Fired[t] || tracks[t].Trigger != TrackTrigger.AtTime || tracks[t].Time > elapsed)
+                {
+                    continue;
+                }
+
+                if (elapsed > 0f && !IsContinuousAtSeek(in tracks[t]))
+                {
+                    instance.Fired[t] = true;
+                    continue;
+                }
+
+                FireTrack(handle, instance, t, in tracks[t]);
+            }
+        }
+
+        // continuous(ループ)系だけ「今から再生開始」してよい。Anim/Anim2D/Bgm は常に継続系扱い。
+        // Vfx/Se は「常駐 VFX/BGM が復元される」AC(5-9)を満たすため、データ側のループ設定
+        // (VfxLifeMode.Loop / SeData.Loop)を見て判定する(一撃 VFX・単発 SE は依然ワンショットとして
+        // スキップする)。それ以外(CameraShake/Haptic/HitStop/UiTween/Canvas/Marker/Signal/Timeline)は
+        // 常にワンショット扱い。
+        private bool IsContinuousAtSeek(in PresentationTrack track)
+        {
+            switch (track.Kind)
+            {
+                case TrackKind.Anim:
+                case TrackKind.Anim2D:
+                case TrackKind.Bgm:
+                    return true;
+
+                case TrackKind.Vfx:
+                    var vfxData = _registry.ResolveOrPlaceholder<VfxData>(track.Asset.Id);
+                    return vfxData != null && vfxData.LifeMode == VfxLifeMode.Loop;
+
+                case TrackKind.Se:
+                    var seData = _registry.ResolveOrPlaceholder<SeData>(track.Asset.Id);
+                    return seData != null && seData.Loop;
+
+                default:
+                    return false;
             }
         }
 
@@ -622,6 +1001,16 @@ namespace DDrive.Runtime.Presentation
             var data = _registry.ResolveOrPlaceholder<AnimData>(track.Asset.Id);
             var h = _anim.PlayData(data, animator);
 
+            // [14_networking.md] §5 実装メモ(5-8) — ネット越しのシークで「このトラックの開始時刻より後」から
+            // 始まった場合は、Anim の再生位置を追いつかせる(ループ系の位相合わせ。§5「ループ系は位相を合わせる」)。
+            // elapsed==track.Time(通常再生)のときは 0 のままで無害。
+            var lateBy = instance.Elapsed - track.Time;
+            if (lateBy > 0f && data != null && data.LengthSec > 0f && _anim.IsPlaying(h))
+            {
+                var normalized = Mathf.Repeat(lateBy / data.LengthSec, 1f);
+                _anim.Seek(h, normalized);
+            }
+
             if (track.StopOnCancel && _anim.IsPlaying(h))
             {
                 instance.FiredAnim.Add((trackIndex, h));
@@ -704,6 +1093,17 @@ namespace DDrive.Runtime.Presentation
             }
 
             var data = _registry.ResolveOrPlaceholder<HapticsData>(track.Asset.Id);
+
+            // [14_networking.md] §5 追加指示(2026-09-14) — SelfNetId/TargetNetId を常に 0 で送るため、
+            // 受信側は「この事象が自分に起きたことか」を判定できない。LocalPlayerOnly=true な Haptic は
+            // 誤爆(自分に関係ない振動)を避けるため、ネット受信で生成した Instance(PlayedViaNetworkReceive)
+            // では安全側に倒して再生しない(要判断: NGO 統合で SelfNetId が解決できるようになったら見直す。
+            // 予測再生した行為者自身の Instance はこのフラグが false のため影響を受けない)。
+            if (instance.PlayedViaNetworkReceive && data.LocalPlayerOnly)
+            {
+                return;
+            }
+
             var h = _haptics.PlayData(data);
 
             if (track.StopOnCancel && _haptics.IsPlaying(h))

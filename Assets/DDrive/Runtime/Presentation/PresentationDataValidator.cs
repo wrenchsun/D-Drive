@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
+using DDrive.Foundation.Net;
 using DDrive.Foundation.Validation;
 
 namespace DDrive.Runtime.Presentation
@@ -58,6 +59,18 @@ namespace DDrive.Runtime.Presentation
             if (!presentation.Interruptible && PresentationTiming.EffectiveDuration(presentation) > 10f)
             {
                 yield return ValidationResult.Warning("Interruptible=false ですが尺が 10 秒を超えています(中断できない長尺演出)");
+            }
+
+            // [14_networking.md] §10(5-8/5-9) — PredictLocal は Flags.Net=Cosmetic のときのみ意味を持つ。
+            if (presentation.PredictLocal && presentation.Flags.Net != NetMode.Cosmetic)
+            {
+                yield return ValidationResult.Info("PredictLocal=true ですが Flags.Net が Cosmetic ではないため無効です(常にローカル再生のみ行われます)");
+            }
+
+            // Presentation 自体に Simulated の意味付けは無い(§5 参照。ネットは Local/Cosmetic の 2 値運用)。
+            if (presentation.Flags.Net == NetMode.Simulated)
+            {
+                yield return ValidationResult.Info("Presentation の Flags.Net=Simulated は未対応です(Cosmetic として Host 権威の生成は行われません。Local または Cosmetic を使ってください)");
             }
         }
 

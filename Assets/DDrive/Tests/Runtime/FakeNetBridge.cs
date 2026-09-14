@@ -29,6 +29,10 @@ namespace DDrive.Tests.Runtime
         public ulong LastSendToClientId { get; private set; }
         public object LastMessage { get; private set; }
 
+        // [14_networking.md] §5(5-9) — Late Join 通知テスト用(手動発火)。
+        public event Action<ulong> ClientConnected;
+        public void RaiseClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
+
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage
         {
             BroadcastCount++;

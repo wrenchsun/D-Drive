@@ -22,7 +22,13 @@ namespace DDrive.Foundation.Net
         public bool IsClient => true;
         public double NetworkTime { get; private set; }
 
+        // シングルプレイでは他クライアントが存在しないため通常は発火しない。テスト/将来の
+        // マルチウィンドウ運用向けに RaiseClientConnected で手動発火できる([14] §5、5-9)。
+        public event Action<ulong> ClientConnected;
+
         public void Tick(double deltaTime) => NetworkTime += deltaTime;
+
+        public void RaiseClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage => Dispatch(0, msg);
 

@@ -48,7 +48,30 @@ namespace DDrive.Runtime.Net
 
         public double NetworkTime => NetworkManager != null ? NetworkManager.ServerTime.Time : 0d;
 
+        // [14_networking.md] §5(5-9) — Late Join のアクティブ演出スナップショット送信に使う新規接続通知。
+        // NGO の OnClientConnectedCallback は Host/Client 双方で発火する(自分自身の接続も含む)ため、
+        // 実際に「Host として送るかどうか」の判定は購読側(PresentationManager)が IsServer を見て行う。
+        public event Action<ulong> ClientConnected;
+
         private string LogTag => IsServer ? "[Net/Host]" : "[Net/Client]";
+
+        public override void OnNetworkSpawn()
+        {
+            if (NetworkManager != null)
+            {
+                NetworkManager.OnClientConnectedCallback += HandleClientConnected;
+            }
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            if (NetworkManager != null)
+            {
+                NetworkManager.OnClientConnectedCallback -= HandleClientConnected;
+            }
+        }
+
+        private void HandleClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage
         {

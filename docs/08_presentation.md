@@ -165,3 +165,10 @@ Timeline 風の複数トラック UI。
 - HitStop がプレビュー内の Anim/Vfx/Shake/Haptic の Tick を止めない
 - LazyLoad アセットはプレビュー開始時に事前解決していない(新規作成直後の Data はウィンドウの開き直しが必要)
 - Bgm/Canvas/UiTween トラックは 5-4 時点でプレビュー未配線(警告 + no-op)
+
+## 実装メモ（2026-09-14、5-8）
+
+`PresentationManager` に `INetBridge netBridge = null` を追加し、`Flags.Net == NetMode.Cosmetic` かつ `netBridge != null` のときだけネット経路(開始時刻シーク / Signal 中継 / 予測再生 / Late Join 復元)に乗るようにした。`PresentationData` に `PredictLocal` フィールドを追加した(シリアライズ追加のみ)。**詳細な設計・メッセージ定義・シーク規則・Late Join の接続通知の口は [14_networking.md](14_networking.md) §5「実装メモ（2026-09-14、5-8）」に集約した**(Presentation 固有の話だが、ネットワーク方針全体との整合を保つため §5 に一本化し、ここでは重複させない)。§3(実行モデル)・§3.5(Handle API)の契約(`Signal`/`Cancel` の意味、`AtTime(0)` の即時発火等)は変更していない — ネット経路でも「行為者から見た挙動」は同じ形を保ち、内部で Broadcast/受信シークに委譲しているだけである。
+
+- **Cancel Interruptible=false のチェックは Broadcast より前**: [14] のとおり Cancel はネット経路の Instance では Broadcast してから自分を含む全員が受信して初めて止まるが、`Interruptible=false` の警告・no-op 判定自体はローカルで即座に行う(ネットワークを介さない。Broadcast 前に弾くので不要な通信をしない)。
+- **Haptic の LocalPlayerOnly 誤爆防止**は Presentation 側(`PresentationInstance.PlayedViaNetworkReceive`)で吸収しており、`HapticsManager`/`HapticsData` 自体は無改修([16_camera_haptics.md] の既存「NGO 統合前は常にローカル再生扱い」という要判断を、Presentation 経由の再生に限って解消した形。Haptics を直接呼ぶ既存 API(`Haptics.Play`)は今回のスコープ外で未対応のまま)。

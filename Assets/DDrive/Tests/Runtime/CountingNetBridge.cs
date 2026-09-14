@@ -24,6 +24,8 @@ namespace DDrive.Tests.Runtime
 
         public Transform ResolveNetObject(ulong netId) => null;
 
+        public event Action<ulong> ClientConnected;
+
         private sealed class NoopSubscription : IDisposable
         {
             public void Dispose()
