@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using DDrive.Editor.Preview;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Manager;
+using DDrive.Foundation.Pause;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Vfx;
@@ -40,6 +41,11 @@ namespace DDrive.Editor.Vfx
         private double _lastTickTime;
         private float _speed = 1f;
         private GameObject _previewRoot;
+
+        // P5 レビュー対応(2026-09-14) 5-4 追補(b): PresentationEditor の統合プレビュー(AnimDriver 経由)
+        // から渡された場合だけ、自前の Unscaled dt に TimeService.ScaledDeltaTime を掛けて HitStop に
+        // 追従する。AnchorEditor/AnchorGroupEditor から単体で使う場合は null のままで Unscaled(従来どおり)。
+        private readonly TimeService _timeService;
 
         // プレハブモードでの「その場再生」状態。ステージの prefabContentsRoot 配下の ParticleSystem を直接進める。
         private struct InPlaceState
@@ -112,10 +118,12 @@ namespace DDrive.Editor.Vfx
         }
 
         // registry: 省略時はプロジェクト内の Anchor / VFX / SE を登録した EditorAnchorRegistry(AnimEditor のシーン再生やテストは共有 Registry を渡す)。
-        public SceneVfxPreviewDriver(AssetRegistry registry = null)
+        // timeService: 省略時は Unscaled(従来どおり)。SceneAnimPreviewDriver 経由で共有 TimeService を受け取る。
+        public SceneVfxPreviewDriver(AssetRegistry registry = null, TimeService timeService = null)
         {
             Registry = registry ?? EditorAnchorRegistry.Build();
             Manager = new VfxManager(_pool, Registry);
+            _timeService = timeService;
             _lastTickTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += EditorTick;
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
@@ -430,7 +438,10 @@ namespace DDrive.Editor.Vfx
             var now = EditorApplication.timeSinceStartup;
             var dt = Mathf.Clamp((float)(now - _lastTickTime), 0f, 0.25f);
             _lastTickTime = now;
-            Tick(dt);
+            // _timeService.Tick(...) はここでは呼ばない(ScenePresentationPreviewDriver.Tick が
+            // 1 フレームに 1 回だけ HitStop の残り時間を進める。ScaledDeltaTime は現在の TimeScale を
+            // 読むだけの純関数なので、複数箇所から呼んでも二重にはならない)。
+            Tick(_timeService != null ? _timeService.ScaledDeltaTime(dt) : dt);
         }
 
         // テストからも直接呼べる公開 Tick(EditorApplication.update の実体)。

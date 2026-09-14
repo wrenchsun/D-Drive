@@ -77,6 +77,10 @@ namespace DDrive.Tests.Runtime
         [TearDown]
         public void TearDown()
         {
+            // P5 レビュー対応(2026-09-14) tests P2-3: Facade_UnboundPresentation_... が Presentation.Bind(null)
+            // を呼ぶが、それをテスト本体でしか呼んでいなかった(ScenePreloadTests/TuningTests の
+            // 「static facade は毎テスト後に必ず Bind(null) で戻す」流儀に揃える)。
+            Presentation.Bind(null);
             _pool.Clear(PoolScope.Global);
             Object.DestroyImmediate(_vfxPrefab);
             Object.DestroyImmediate(_seSourcePrefab);
@@ -96,7 +100,7 @@ namespace DDrive.Tests.Runtime
 
         // カタログ登録 + ResolveAsync まで済ませ、Presentation 内部の ResolveOrPlaceholder が
         // 実データを引けるようにする(EventRepeatTests 等と同じ idiom)。
-        private VfxId RegisterVfx()
+        private VfxId RegisterVfx(VfxParam[] parms = null)
         {
             var id = _nextVfxId++;
             var address = $"vfx/{id}";
@@ -104,6 +108,7 @@ namespace DDrive.Tests.Runtime
             data.Id = id;
             data.Prefab = _vfxPrefab;
             data.LifeMode = VfxLifeMode.Loop;
+            data.Params = parms;
 
             _loader.Assets[address] = data;
             var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
@@ -327,6 +332,84 @@ namespace DDrive.Tests.Runtime
             Assert.IsFalse(_manager.IsPlaying(handle));
         }
 
+        // ── 5-4 追補(2026-09-14)(a): パラメータ上書き ──
+        // PresentationTrack.Params[i] を、参照先 VfxData.Params[i].Label のインデックス対応で
+        // 既存の VfxManager.SetParam(Label 解決)へ渡す([08] 実装メモ参照)。TearDown で _pool.Clear
+        // するため、このテストの時点でアクティブな VFX インスタンス(ParticleSystemRenderer)は 1 つだけ。
+        [Test]
+        public void VfxTrack_ParamsAppliedByIndex_ToVfxDataParamsLabel_ViaPropertyBlock()
+        {
+            var vfxId = RegisterVfx(new[]
+            {
+                new VfxParam { Label = "Alpha", Type = VfxParamType.Float, TargetProperty = "_Alpha", Default = ParamValue.Of(0f) },
+                new VfxParam { Label = "Size", Type = VfxParamType.Float, TargetProperty = "_Size", Default = ParamValue.Of(0f) },
+            });
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(vfxId),
+                Params = new[] { ParamValue.Of(0.25f), ParamValue.Of(9f) },
+            };
+            var data = CreateData(112, track);
+
+            // VfxManager.Materialize は Rent した実体を `SetParent(null)` で切り離す(プール置き場から
+            // 独立させて自由に配置するため)ため、専用コンテナへ Spawn 先を限定する手は使えない。
+            // このテストクラスは PlayMode(Tests/Runtime)で走り、Object.Destroy はフレーム末まで実際の
+            // 破棄が遅延される(TearDown の _pool.Clear が Destroy を呼ぶだけで、次のテストまでに
+            // 1 フレーム経過するとは限らない)ため、他のテストの残骸がシーンに残っていることがある。
+            // そこで PlayData の前後で ParticleSystemRenderer の InstanceID 集合を比較し、新規に
+            // 現れた 1 つだけを「自分が Spawn したクローン」として特定する(親子関係・active 状態に依存しない)。
+            var before = new HashSet<int>();
+            foreach (var r in Object.FindObjectsByType<ParticleSystemRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                before.Add(r.GetInstanceID());
+            }
+
+            _manager.PlayData(data, new PlayContext());
+
+            Assert.AreEqual(1, _vfx.ActiveCount);
+
+            ParticleSystemRenderer spawnedRenderer = null;
+            foreach (var r in Object.FindObjectsByType<ParticleSystemRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (!before.Contains(r.GetInstanceID()))
+                {
+                    spawnedRenderer = r;
+                    break;
+                }
+            }
+
+            Assert.IsNotNull(spawnedRenderer, "Spawn されたクローンの ParticleSystemRenderer が見つかりません(新規出現分)");
+
+            var block = new MaterialPropertyBlock();
+            spawnedRenderer.GetPropertyBlock(block);
+            Assert.AreEqual(0.25f, block.GetFloat(Shader.PropertyToID("_Alpha")), 1e-4f, "track.Params[0] は VfxData.Params[0](Alpha)に対応する");
+            Assert.AreEqual(9f, block.GetFloat(Shader.PropertyToID("_Size")), 1e-4f, "track.Params[1] は VfxData.Params[1](Size)に対応する");
+        }
+
+        [Test]
+        public void VfxTrack_ParamsLongerThanVfxDataParams_IgnoresExtra_DoesNotThrow()
+        {
+            var vfxId = RegisterVfx(new[]
+            {
+                new VfxParam { Label = "Alpha", Type = VfxParamType.Float, TargetProperty = "_Alpha", Default = ParamValue.Of(0f) },
+            });
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(vfxId),
+                Params = new[] { ParamValue.Of(0.5f), ParamValue.Of(1f), ParamValue.Of(2f) }, // VfxData.Params は 1 個しかない
+            };
+            var data = CreateData(113, track);
+
+            Assert.DoesNotThrow(() => _manager.PlayData(data, new PlayContext()));
+            Assert.AreEqual(1, _vfx.ActiveCount, "Params 個数が VfxData.Params を超えても VFX 自体は発火する");
+        }
+
         // ── CameraShake / Haptic トラック(5-2 / 5-2b) ──
 
         [Test]
@@ -418,6 +501,58 @@ namespace DDrive.Tests.Runtime
 
             _manager.Tick(0.1f);
             Assert.IsFalse(_manager.IsPlaying(handle), "尺 0(Time=0 のみ)なので直後の Tick で完了する");
+        }
+
+        // ── P5 レビュー第 1 弾 追加テスト ── (review1_tests.md「追加すべきテスト」①)
+        // Fired フラグは Seek で前後に跳んでも保持される(review1_runtime.md「問題なし」節で確認済みの
+        // 挙動を回帰テストとして固定する): 通過済みトラックを Seek で通り過ぎても、後方 Seek で戻っても、
+        // 再度前方へ Seek しても二重発火しない。
+        [Test]
+        public void Seek_JumpForwardThenBackwardThenForward_DoesNotRefireMarkerTrack()
+        {
+            var order = new List<string>();
+            var track = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0.5f, Kind = TrackKind.Marker, SignalKey = "m" };
+            var data = CreateData(110, track);
+            data.TotalDuration = 5f;
+
+            var handle = _manager.PlayData(data, new PlayContext());
+            _manager.OnMarker(handle).Subscribe(name => order.Add(name));
+
+            _manager.Seek(handle, 1f); // 前方へジャンプ(0.5s を通過)
+            CollectionAssert.AreEqual(new[] { "m" }, order, "通過したトラックが 1 回発火する");
+
+            _manager.Seek(handle, 0.1f); // 後方へジャンプ(0.5s より前へ戻る)
+            CollectionAssert.AreEqual(new[] { "m" }, order, "後方 Seek では Fired が保持されるため再発火しない");
+
+            _manager.Seek(handle, 2f); // 再度前方へジャンプ(0.5s を再び「通過」する形になる)
+            CollectionAssert.AreEqual(new[] { "m" }, order, "同じトラックを再度通過しても二重発火しない");
+
+            _manager.Tick(0.01f);
+            CollectionAssert.AreEqual(new[] { "m" }, order, "Tick でも再発火しない");
+        }
+
+        // ── P5 レビュー第 1 弾 追加テスト ── (review1_tests.md「追加すべきテスト」⑦)
+        // StopOnCancel=false(既定値)のトラックは、Presentation 自体が Cancel された後も委譲先の実体
+        // (ここでは VFX)を止めない(Cancel_Interruptible_StopsStopOnCancelTracks_AndRaisesOnCancelled の
+        // StopOnCancel=true と対になる回帰テスト)。
+        [Test]
+        public void Cancel_StopOnCancelFalseTrack_ContinuesPlayingAfterCancel()
+        {
+            var vfxId = RegisterVfx();
+            var cancelled = 0;
+            var track = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Vfx, Asset = AssetRef.From(vfxId), StopOnCancel = false };
+            var data = CreateData(111, track);
+            data.TotalDuration = 5f;
+
+            var handle = _manager.PlayData(data, new PlayContext());
+            _manager.OnCancelled(handle).Subscribe(_ => cancelled++);
+            Assert.AreEqual(1, _vfx.ActiveCount);
+
+            _manager.Cancel(handle);
+
+            Assert.IsFalse(_manager.IsPlaying(handle), "Presentation 自体は Cancel される");
+            Assert.AreEqual(1, cancelled);
+            Assert.AreEqual(1, _vfx.ActiveCount, "StopOnCancel=false の VFX は Cancel 後も再生を継続する");
         }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using DDrive.Editor.Preview;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Manager;
+using DDrive.Foundation.Pause;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Haptics;
 using UnityEditor;
@@ -21,17 +22,23 @@ namespace DDrive.Editor.CameraFx
     {
         private readonly AssetRegistry _registry;
         private readonly IHapticOutput _output;
+
+        // P5 レビュー対応(2026-09-14) 5-4 追補(b): PresentationEditor の統合プレビューから渡された場合、
+        // 自前の Unscaled dt に TimeService.ScaledDeltaTime を掛けてから Tick する(HitStop で止まるように
+        // する)。単体の HapticsEditor「Test on Pad」から使う場合は null のままで、従来どおり Unscaled。
+        private readonly TimeService _timeService;
         private double _lastTick;
         private bool _ticking;
 
         public HapticsManager Manager { get; }
 
         // registry/output: 省略時はそれぞれ EditorAnchorRegistry.Build() / GamepadHapticOutput(実パッド)。
-        // テストは Fake を注入する。
-        public EditorHapticsPreviewDriver(AssetRegistry registry = null, IHapticOutput output = null)
+        // テストは Fake を注入する。timeService: 省略時は Unscaled(従来どおり)。
+        public EditorHapticsPreviewDriver(AssetRegistry registry = null, IHapticOutput output = null, TimeService timeService = null)
         {
             _registry = registry ?? EditorAnchorRegistry.Build();
             _output = output ?? new GamepadHapticOutput();
+            _timeService = timeService;
             Manager = new HapticsManager(_registry, _output);
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             EditorApplication.focusChanged += OnFocusChanged;
@@ -66,7 +73,10 @@ namespace DDrive.Editor.CameraFx
             var now = EditorApplication.timeSinceStartup;
             var dt = Mathf.Clamp((float)(now - _lastTick), 0f, 0.25f);
             _lastTick = now;
-            Tick(dt);
+            // _timeService.Tick(...) はここでは呼ばない(HitStop の残り時間を進めるのは
+            // ScenePresentationPreviewDriver.Tick が 1 フレームに 1 回だけ行う。ScaledDeltaTime は
+            // 現在の TimeScale を読むだけの純関数なので、複数箇所から呼んでも二重にはならない)。
+            Tick(_timeService != null ? _timeService.ScaledDeltaTime(dt) : dt);
         }
 
         // テストからも直接呼べる公開 Tick(EditorApplication.update の実体。SceneVfxPreviewDriver と同じ形)。

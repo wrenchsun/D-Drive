@@ -1,4 +1,6 @@
+using System.Reflection;
 using DDrive.Editor.Vfx;
+using DDrive.Foundation.Pause;
 using DDrive.Runtime.Vfx;
 using NUnit.Framework;
 using UnityEditor;
@@ -62,6 +64,71 @@ namespace DDrive.Tests.Editor
             _driver.Manager.Kill(handle);
             _driver.Tick(0.016f);
             Assert.IsFalse(_driver.HasActive);
+        }
+
+        // P5 レビュー第 1 弾 5-4 追補(b、2026-09-14) — ScenePresentationPreviewDriver 経由で
+        // TimeService(HitStop 中は TimeScale=0)を渡された場合、自前の Unscaled dt(EditorApplication.update
+        // 由来)にも ScaledDeltaTime を掛けてから Tick する。EditorHapticsPreviewDriverTests と同じ手法
+        // (private の _lastTickTime を「十分前」に書き換え、Mathf.Clamp で dt を 0.25s に確定させる)で検証する。
+        [Test]
+        public void HitStop_ScalesEditorTick_ToZero_PreventsShortDurationVfxFromExpiring()
+        {
+            var time = new TimeService();
+            time.HitStop(10f, scale: 0f);
+
+            var driver = new SceneVfxPreviewDriver(timeService: time);
+            try
+            {
+                var data = CreateVfxData();
+                data.LifeMode = VfxLifeMode.Duration;
+                data.Duration = 0.1f;
+                data.FadeOutSec = 0f;
+
+                var handle = driver.Play(data);
+                Assert.IsTrue(driver.Manager.IsPlaying(handle));
+
+                SetLastTickSecondsAgo(driver, 10.0);
+                InvokePrivateVoid(driver, "EditorTick");
+
+                Assert.IsTrue(driver.Manager.IsPlaying(handle),
+                    "HitStop(TimeScale=0)中は 0.25s 分の Unscaled dt もスケールされて 0 になるため、" +
+                    "Duration=0.1s の VFX でも失効しない");
+            }
+            finally
+            {
+                driver.Dispose();
+            }
+        }
+
+        [Test]
+        public void WithoutTimeService_EditorTick_UsesRawDt_ExpiresShortDurationVfx()
+        {
+            var data = CreateVfxData();
+            data.LifeMode = VfxLifeMode.Duration;
+            data.Duration = 0.1f;
+            data.FadeOutSec = 0f;
+
+            var handle = _driver.Play(data);
+            Assert.IsTrue(_driver.Manager.IsPlaying(handle));
+
+            SetLastTickSecondsAgo(_driver, 10.0);
+            InvokePrivateVoid(_driver, "EditorTick");
+
+            Assert.IsFalse(_driver.Manager.IsPlaying(handle), "timeService 無しは従来どおり Unscaled なので失効する");
+        }
+
+        private static void SetLastTickSecondsAgo(SceneVfxPreviewDriver driver, double secondsAgo)
+        {
+            var field = typeof(SceneVfxPreviewDriver).GetField("_lastTickTime", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(field, "SceneVfxPreviewDriver._lastTickTime が見つかりません(実装が変わった場合はテストを追従させてください)");
+            field.SetValue(driver, EditorApplication.timeSinceStartup - secondsAgo);
+        }
+
+        private static void InvokePrivateVoid(object instance, string methodName)
+        {
+            var method = instance.GetType().GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(method, $"{instance.GetType().Name}.{methodName} が見つかりません(実装が変わった場合はテストを追従させてください)");
+            method.Invoke(instance, null);
         }
 
         [Test]

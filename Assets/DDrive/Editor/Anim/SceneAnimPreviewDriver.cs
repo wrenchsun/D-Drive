@@ -4,6 +4,7 @@ using DDrive.Editor.Preview;
 using DDrive.Editor.Vfx;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Manager;
+using DDrive.Foundation.Pause;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
@@ -67,6 +68,12 @@ namespace DDrive.Editor.Anim
         private double _lastTickTime;
         private float _speed = 1f;
 
+        // P5 レビュー対応(2026-09-14) 5-4 追補(b): PresentationEditor の統合プレビュー
+        // (ScenePresentationPreviewDriver)から渡された場合だけ、自前の Unscaled dt に
+        // TimeService.ScaledDeltaTime を掛けて HitStop に追従する。AnimEditor/Anim2DEditor/ModelEditor から
+        // 単体で使う場合は null のままで Unscaled(従来どおり)。
+        private readonly TimeService _timeService;
+
         public AssetRegistry Registry { get; }
 
         // 再生・イベント発火の実体。ウィンドウはこの Events を購読してログを出す(ステージ切替でも作り直さない)。
@@ -104,11 +111,14 @@ namespace DDrive.Editor.Anim
         }
 
         // registry: 省略時はプロジェクト内の Anchor / VFX / SE を登録した EditorAnchorRegistry(テストからは差し替える)。
-        public SceneAnimPreviewDriver(AssetRegistry registry = null)
+        // timeService: 省略時は Unscaled(従来どおり)。ScenePresentationPreviewDriver から共有 TimeService を受け取り、
+        // 自身の Vfx(SceneVfxPreviewDriver)にもそのまま渡す(二重実装しない)。
+        public SceneAnimPreviewDriver(AssetRegistry registry = null, TimeService timeService = null)
         {
             Registry = registry ?? EditorAnchorRegistry.Build();
             Manager = new AnimManager(Registry);
-            Vfx = new SceneVfxPreviewDriver(Registry);
+            _timeService = timeService;
+            Vfx = new SceneVfxPreviewDriver(Registry, timeService);
             _lastTickTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += EditorTick;
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
@@ -582,7 +592,10 @@ namespace DDrive.Editor.Anim
             var now = EditorApplication.timeSinceStartup;
             var dt = Mathf.Clamp((float)(now - _lastTickTime), 0f, 0.25f);
             _lastTickTime = now;
-            Tick(dt);
+            // _timeService.Tick(...) はここでは呼ばない(ScenePresentationPreviewDriver.Tick が
+            // 1 フレームに 1 回だけ HitStop の残り時間を進める。ScaledDeltaTime は現在の TimeScale を
+            // 読むだけの純関数なので、複数箇所(Vfx にも渡している)から呼んでも二重にはならない)。
+            Tick(_timeService != null ? _timeService.ScaledDeltaTime(dt) : dt);
         }
 
         private void OnActiveSceneChanged(UnityEngine.SceneManagement.Scene previous, UnityEngine.SceneManagement.Scene current) => ResetForStageChange();
