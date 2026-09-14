@@ -1,0 +1,15 @@
+# clasp push/pull の対象から除外するファイル。
+# GAS プロジェクトには src/**/*.js と html/**/*.html だけを送る。
+
+**/node_modules/**
+**/.git/**
+
+# ローカル専用・秘密情報
+.clasp.json
+.clasp.json.example
+.claspignore
+.gitignore
+
+# ドキュメント・Node テスト（GAS 側では実行できない CommonJS のため送らない）
+*.md
+test/**

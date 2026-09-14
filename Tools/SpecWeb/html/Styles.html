@@ -1,0 +1,63 @@
+<style>
+  /* 共通 CSS（雛形）。画面ごとの見た目は各画面の html 側で追加する。 */
+  :root {
+    color-scheme: light;
+    --sw-fg: #1f2328;
+    --sw-bg: #ffffff;
+    --sw-border: #d0d7de;
+    --sw-accent: #0969da;
+    --sw-muted: #57606a;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--sw-bg);
+    color: var(--sw-fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  #app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--sw-border);
+  }
+
+  .app-header h1 {
+    font-size: 1rem;
+    margin: 0;
+  }
+
+  #app-nav {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  #app-nav a {
+    color: var(--sw-accent);
+    text-decoration: none;
+  }
+
+  #app-root {
+    flex: 1;
+    padding: 1.25rem;
+  }
+
+  .sw-muted {
+    color: var(--sw-muted);
+  }
+</style>
