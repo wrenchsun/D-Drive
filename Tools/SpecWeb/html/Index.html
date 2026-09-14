@@ -26,13 +26,21 @@
     -->
     <?!= include('html/App'); ?>
     <!--
-      W-4/W-5: アセット一覧・詳細画面。AssetsLogic（純粋関数）→ Assets（registerScreen）の順。
+      O-1〜O-5: アセット発注 一覧・詳細画面。AssetsLogic（純粋関数）→ Assets（registerScreen）の順。
       include() は入れ子のスクリプトレットを評価しないため、AssetsLogic の include は
       Assets.html の中からではなくここに直接書く（Assets.html 側の注意コメント参照）。
     -->
     <?!= include('html/AssetsLogic'); ?>
     <?!= include('html/Assets'); ?>
-    <!-- W-6〜W-8: 調整値編集画面（純粋関数 = TuningGrid を先に、DOM 登録 = Tuning を後に）。 -->
+    <!-- O-2: Presentation 発注グループ + 発注ツリー画面（OrderTreeLogic → OrderTree の順）。 -->
+    <?!= include('html/OrderTreeLogic'); ?>
+    <?!= include('html/OrderTree'); ?>
+    <!-- O-4: 私が発注/私が受けた（AssetsLogic の myOrderedItems/myContractedItems を使う）。 -->
+    <?!= include('html/MyOrders'); ?>
+    <!-- O-9/O-10: メンバー管理 + ガント URL の設定。 -->
+    <?!= include('html/Members'); ?>
+    <!-- W-6〜W-8: 調整値編集画面（純粋関数 = TuningGrid を先に、DOM 登録 = Tuning を後に）。O-8 でこのタブが
+         新しいナビゲーションからも変わらず開けることを確認済み。 -->
     <?!= include('html/TuningGrid'); ?>
     <?!= include('html/Tuning'); ?>
   </body>
