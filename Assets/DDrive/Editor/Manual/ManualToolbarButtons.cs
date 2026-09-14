@@ -28,7 +28,8 @@ namespace DDrive.Editor.Manual
         private static MainToolbarElement CreateOpenButton()
         {
             var icon = EditorGUIUtility.IconContent("_Help").image as Texture2D;
-            var content = new MainToolbarContent(icon, "デザイナーマニュアルをブラウザで開く");
+            // アイコンだけだと何のボタンか分かりにくいので文字も出す(MainToolbarContent(string, Texture2D, string) は実在確認済み)。
+            var content = new MainToolbarContent("マニュアル", icon, "デザイナーマニュアルをブラウザで開く");
             return new MainToolbarButton(content, ManualLauncher.OpenTop);
         }
 
