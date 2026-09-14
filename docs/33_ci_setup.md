@@ -2,6 +2,10 @@
 
 関連: [11_tasks.md](11_tasks.md) 6-1 / [12_review.md](12_review.md) / [09_editor_tools.md](09_editor_tools.md) §5 / ルートの [CLAUDE.md](../CLAUDE.md) / ワークフロー本体 `.github/workflows/ci.yml`
 
+> **2026-09-15 ユーザー決定: CI の本稼働は P7 の最後に回す**（MS2026 側に CI が実装済みのため、D-Drive 側ではランナーを運用しない）。
+> 現在の `ci.yml` は PR/push では起動せず、手動実行（Actions タブの Run workflow）のみ。以下の手順（ランナー登録・ブランチ保護）は P7 末に行う。
+> それまでの検査は §7 のローカル実行スクリプト `Tools/CI/run-ci.cmd` と Unity の Test Runner で行う。本稼働時は `ci.yml` の `on:` に `pull_request` / `push`（branches: [main]）を戻す。
+
 ## 0. 何ができるようになったか
 
 `.github/workflows/ci.yml` が PR（main 向け）と main への push で以下を自動実行する。
