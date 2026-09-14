@@ -11,6 +11,11 @@ namespace DDrive.Editor.Spec
     {
         public static SpecParseResult<SpecAssetRow> LastAssetRows { get; private set; }
         public static SpecParseResult<SpecTuningRow> LastTuningRows { get; private set; }
+
+        // W-9(2026-09-14) 追加: テーブル型調整値(tuningTableList)の最終取得結果。
+        // スカラーとは独立に保持する(Set() の呼び出しタイミングが違うため。SpecAutoSync.Run 参照)。
+        public static SpecParseResult<SpecTuningTableRow> LastTuningTableRows { get; private set; }
+
         public static SpecDiffResult LastDiff { get; private set; }
         public static DateTime LastFetchUtc { get; private set; }
         public static string LastWarning { get; private set; }
@@ -32,6 +37,13 @@ namespace DDrive.Editor.Spec
             LastWarning = warning;
             LastError = error;
             LastFetchUtc = DateTime.UtcNow;
+            Updated?.Invoke();
+        }
+
+        // W-9(2026-09-14) 追加: テーブル型調整値の取得結果だけを更新する(Set() とは独立、上記コメント参照)。
+        public static void SetTuningTables(SpecParseResult<SpecTuningTableRow> tuningTableRows)
+        {
+            LastTuningTableRows = tuningTableRows;
             Updated?.Invoke();
         }
 

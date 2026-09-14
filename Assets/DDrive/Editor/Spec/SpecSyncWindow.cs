@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DDrive.Editor.Codegen;
 using DDrive.Editor.Menu;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -8,18 +9,24 @@ using Button = UnityEngine.UIElements.Button;
 
 namespace DDrive.Editor.Spec
 {
-    // [27_spec_sheet.md] §4.3/§4.4 — 仕様書スプレッドシートとの差分プレビュー + 適用画面。
+    // [32_spec_web.md] §4.1/§5(旧 [27_spec_sheet.md] §4.3/§4.4)— 仕様書 Web アプリ(GAS)との
+    // 差分プレビュー + 適用画面 + D-Drive → Web 送信(W-12)。
     // [09_editor_tools.md] §6-7: ScrollView ルート必須の新規 EditorWindow。
+    //
+    // W-9(2026-09-14): スプレッドシート URL/タブ名の入力欄を Web API URL・人向け URL・
+    // 読み取り/書き込みトークン(EditorPrefs、伏せ字)の入力欄に差し替えた。
     public sealed class SpecSyncWindow : EditorWindow
     {
         private DDriveSpecSettings _settings;
-        private TextField _urlField;
-        private TextField _assetSheetField;
-        private TextField _tuningSheetField;
+        private TextField _webAppUrlField;
+        private TextField _humanAppUrlField;
+        private TextField _readTokenField;
+        private TextField _writeTokenField;
         private Toggle _autoFetchToggle;
         private Toggle _autoApplyToggle;
         private Toggle _applyTuningToggle;
         private Label _statusLabel;
+        private Label _sendStatusLabel;
 
         private VisualElement _newContainer;
         private VisualElement _changedContainer;
@@ -54,7 +61,7 @@ namespace DDrive.Editor.Spec
             actionRow.Add(new Button(OnApplySelectedClicked) { text = "適用", style = { flexGrow = 1 } });
             scrollView.Add(actionRow);
 
-            _applyTuningToggle = new Toggle("調整値も同期する(適用時)") { value = true };
+            _applyTuningToggle = new Toggle("調整値も同期する(適用時、スカラー+テーブル)") { value = true };
             scrollView.Add(_applyTuningToggle);
 
             var copyRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 6 } };
@@ -66,6 +73,12 @@ namespace DDrive.Editor.Spec
             _statusLabel.style.whiteSpace = WhiteSpace.Normal;
             scrollView.Add(_statusLabel);
 
+            // W-12: D-Drive → Web 送信(選択肢・アセット実状態・TUNING コード参照)。
+            scrollView.Add(new Label("D-Drive → Web 送信(W-12)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 10 } });
+            scrollView.Add(new Button(OnSendToWebClicked) { text = "Web に送信(選択肢 / 実状態 / 調整値使用状況)" });
+            _sendStatusLabel = new Label { style = { whiteSpace = WhiteSpace.Normal } };
+            scrollView.Add(_sendStatusLabel);
+
             scrollView.Add(new Label("新規") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
             _newContainer = new VisualElement();
             scrollView.Add(_newContainer);
@@ -74,11 +87,11 @@ namespace DDrive.Editor.Spec
             _changedContainer = new VisualElement();
             scrollView.Add(_changedContainer);
 
-            scrollView.Add(new Label("シートから消えた(Archive 候補・表示のみ)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            scrollView.Add(new Label("Web から消えた(Archive 候補・表示のみ)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
             _archivedContainer = new VisualElement();
             scrollView.Add(_archivedContainer);
 
-            scrollView.Add(new Label("衝突(行番号付き。適用不可)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            scrollView.Add(new Label("衝突(適用不可)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
             _conflictContainer = new VisualElement();
             scrollView.Add(_conflictContainer);
 
@@ -89,14 +102,17 @@ namespace DDrive.Editor.Spec
         {
             var box = new VisualElement();
 
-            _urlField = new TextField("スプレッドシート URL") { value = _settings != null ? _settings.SpreadsheetUrl : string.Empty };
-            box.Add(_urlField);
+            _webAppUrlField = new TextField("Web API URL(デプロイ②)") { value = _settings != null ? _settings.WebAppUrl : string.Empty };
+            box.Add(_webAppUrlField);
 
-            _assetSheetField = new TextField("アセットタブ名") { value = _settings != null ? _settings.AssetSheetName : DDriveSpecSettings.DefaultAssetSheetName };
-            box.Add(_assetSheetField);
+            _humanAppUrlField = new TextField("人向け SPA URL(デプロイ①、SpecUrl 組み立て用)") { value = _settings != null ? _settings.HumanAppUrl : string.Empty };
+            box.Add(_humanAppUrlField);
 
-            _tuningSheetField = new TextField("調整値タブ名") { value = _settings != null ? _settings.TuningSheetName : DDriveSpecSettings.DefaultTuningSheetName };
-            box.Add(_tuningSheetField);
+            _readTokenField = new TextField("読み取りトークン") { value = DDriveSpecSettings.ReadToken, isPasswordField = true };
+            box.Add(_readTokenField);
+
+            _writeTokenField = new TextField("書き込みトークン") { value = DDriveSpecSettings.WriteToken, isPasswordField = true };
+            box.Add(_writeTokenField);
 
             _autoFetchToggle = new Toggle("起動時に自動取得(通知のみ)") { value = _settings == null || _settings.AutoFetchOnStartup };
             box.Add(_autoFetchToggle);
@@ -113,24 +129,29 @@ namespace DDrive.Editor.Spec
         {
             var settings = DDriveSpecSettings.GetOrCreate();
             Undo.RecordObject(settings, "仕様書設定を保存");
-            settings.SpreadsheetUrl = _urlField.value;
-            settings.AssetSheetName = string.IsNullOrEmpty(_assetSheetField.value) ? DDriveSpecSettings.DefaultAssetSheetName : _assetSheetField.value;
-            settings.TuningSheetName = string.IsNullOrEmpty(_tuningSheetField.value) ? DDriveSpecSettings.DefaultTuningSheetName : _tuningSheetField.value;
+            settings.WebAppUrl = _webAppUrlField.value;
+            settings.HumanAppUrl = _humanAppUrlField.value;
             settings.AutoFetchOnStartup = _autoFetchToggle.value;
             settings.AutoApplyNewPlaceholders = _autoApplyToggle.value;
             EditorUtility.SetDirty(settings);
             AssetDatabase.SaveAssets();
             _settings = settings;
+
+            // トークンは .asset(git 管理)には書かない。EditorPrefs(マシンごと)へ保存する([32] §7)。
+            DDriveSpecSettings.ReadToken = _readTokenField.value;
+            DDriveSpecSettings.WriteToken = _writeTokenField.value;
+
             _statusLabel.text = "設定を保存しました。";
         }
 
         private void OnFetchClicked()
         {
             var settings = DDriveSpecSettings.GetOrCreate();
-            settings.SpreadsheetUrl = _urlField.value;
-            if (string.IsNullOrEmpty(settings.SpreadsheetUrl))
+            settings.WebAppUrl = _webAppUrlField.value;
+            settings.HumanAppUrl = _humanAppUrlField.value;
+            if (string.IsNullOrEmpty(settings.WebAppUrl))
             {
-                _statusLabel.text = "URL が未設定です。先に「設定を保存」してください。";
+                _statusLabel.text = "Web API URL が未設定です。先に「設定を保存」してください。";
                 return;
             }
 
@@ -175,26 +196,69 @@ namespace DDrive.Editor.Spec
                 changedCount++;
             }
 
-            if (_applyTuningToggle != null && _applyTuningToggle.value && SpecCache.LastTuningRows != null)
+            if (_applyTuningToggle != null && _applyTuningToggle.value)
             {
                 var table = settings.GetOrCreateTuningTable();
-                SpecSyncService.ApplyTuning(SpecCache.LastTuningRows, table);
+                if (SpecCache.LastTuningRows != null)
+                {
+                    SpecSyncService.ApplyTuning(SpecCache.LastTuningRows, table);
+                }
+
+                if (SpecCache.LastTuningTableRows != null)
+                {
+                    SpecSyncService.ApplyTuningTable(SpecCache.LastTuningTableRows, table);
+                }
+
+                TuningCodegen.Regenerate(table);
             }
 
             _statusLabel.text = $"適用しました: 新規 {createdCount} 件 / 変更 {changedCount} 件。";
             OnFetchClicked(); // 適用後の状態で差分を再計算する
         }
 
+        private void OnSendToWebClicked()
+        {
+            var settings = _settings ?? DDriveSpecSettings.Load();
+            if (settings == null || string.IsNullOrEmpty(settings.WebAppUrl))
+            {
+                _sendStatusLabel.text = "Web API URL が未設定です。先に「設定を保存」してください。";
+                return;
+            }
+
+            var writeToken = DDriveSpecSettings.WriteToken;
+            if (string.IsNullOrEmpty(writeToken))
+            {
+                _sendStatusLabel.text = "書き込みトークンが未設定です。";
+                return;
+            }
+
+            _sendStatusLabel.text = "送信中...";
+            SpecWebSender.SendChoices(settings.WebAppUrl, writeToken, choicesResult =>
+            {
+                SpecWebSender.SendAssetState(settings.WebAppUrl, writeToken, assetStateResult =>
+                {
+                    var table = settings.GetOrCreateTuningTable();
+                    SpecWebSender.SendTuningUsage(settings.WebAppUrl, writeToken, table, tuningUsageResult =>
+                    {
+                        var ok = choicesResult.Success && assetStateResult.Success && tuningUsageResult.Success;
+                        _sendStatusLabel.text = ok
+                            ? "送信しました(選択肢 / 実状態 / 調整値使用状況)。"
+                            : $"送信に失敗しました: {choicesResult.Error ?? assetStateResult.Error ?? tuningUsageResult.Error}";
+                    });
+                });
+            });
+        }
+
         private void OnCopyChoicesClicked()
         {
             EditorGUIUtility.systemCopyBuffer = SpecSyncService.BuildChoicesTsv();
-            _statusLabel.text = "選択肢一覧をクリップボードにコピーしました(「_選択肢」タブへ貼り付けてください)。";
+            _statusLabel.text = "選択肢一覧をクリップボードにコピーしました。";
         }
 
         private void OnCopyExistingClicked()
         {
             EditorGUIUtility.systemCopyBuffer = SpecSyncService.BuildExistingAssetsTsv();
-            _statusLabel.text = "既存アセット一覧をクリップボードにコピーしました(「アセット」タブへ貼り付けてください)。";
+            _statusLabel.text = "既存アセット一覧をクリップボードにコピーしました。";
         }
 
         private bool IsSelected(string key) => !_selected.TryGetValue(key, out var value) || value;

@@ -20,6 +20,8 @@ namespace DDrive.Editor.Codegen
         public sealed class Result
         {
             public int TotalCount;
+            public int TableCount;
+            public int ColumnCount;
             public bool Success = true;
         }
 
@@ -71,6 +73,84 @@ namespace DDrive.Editor.Codegen
                     sb.AppendLine($"        public const string {constName} = \"{key}\";");
                     result.TotalCount++;
                 }
+            }
+
+            sb.AppendLine("    }");
+            sb.AppendLine();
+
+            // W-10(2026-09-14) 追加: テーブル型調整値のキー・列キー定数([32_spec_web.md] §5.1「TuningCodegen
+            // を拡張: テーブルキーも TUNING 定数として出力する」)。列キーは複数テーブルで同じ名前
+            // (例: "Hp")が使われ得るため、テーブル名を頭に付けて一意にする(TUNING_COLUMN.EnemyParamsHp)。
+            sb.AppendLine("    public static class TUNING_TABLE");
+            sb.AppendLine("    {");
+            var tableConstNames = new HashSet<string>();
+            var sortedTableKeys = new List<string>();
+            if (table != null && table.Tables != null)
+            {
+                foreach (var tableEntry in table.Tables)
+                {
+                    if (!string.IsNullOrEmpty(tableEntry.Key))
+                    {
+                        sortedTableKeys.Add(tableEntry.Key);
+                    }
+                }
+            }
+
+            sortedTableKeys.Sort(StringComparer.Ordinal);
+            foreach (var key in sortedTableKeys)
+            {
+                var constName = ToConstantName(key);
+                if (!tableConstNames.Add(constName))
+                {
+                    continue;
+                }
+
+                sb.AppendLine($"        public const string {constName} = \"{key}\";");
+                result.TableCount++;
+            }
+
+            sb.AppendLine("    }");
+            sb.AppendLine();
+
+            sb.AppendLine("    public static class TUNING_COLUMN");
+            sb.AppendLine("    {");
+            var columnConstNames = new HashSet<string>();
+            var sortedColumnEntries = new List<(string tableKey, string columnKey)>();
+            if (table != null && table.Tables != null)
+            {
+                foreach (var tableEntry in table.Tables)
+                {
+                    if (string.IsNullOrEmpty(tableEntry.Key) || tableEntry.Columns == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var column in tableEntry.Columns)
+                    {
+                        if (!string.IsNullOrEmpty(column.Key))
+                        {
+                            sortedColumnEntries.Add((tableEntry.Key, column.Key));
+                        }
+                    }
+                }
+            }
+
+            sortedColumnEntries.Sort((a, b) =>
+            {
+                var byTable = string.CompareOrdinal(a.tableKey, b.tableKey);
+                return byTable != 0 ? byTable : string.CompareOrdinal(a.columnKey, b.columnKey);
+            });
+
+            foreach (var (tableKey, columnKey) in sortedColumnEntries)
+            {
+                var constName = ToConstantName(tableKey) + ToConstantName(columnKey);
+                if (!columnConstNames.Add(constName))
+                {
+                    continue;
+                }
+
+                sb.AppendLine($"        public const string {constName} = \"{columnKey}\";");
+                result.ColumnCount++;
             }
 
             sb.AppendLine("    }");

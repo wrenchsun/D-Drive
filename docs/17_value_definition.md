@@ -2,6 +2,12 @@
 
 関連: [02_core_framework.md](02_core_framework.md) / [15_ui_interaction.md](15_ui_interaction.md) / [16_camera_haptics.md](16_camera_haptics.md) / [18_ui_controls.md](18_ui_controls.md)
 
+> **`ValueDef` と `Tuning`(調整値)の違い**: `ValueDef` はアセットのフィールドに埋め込む
+> カーブ・イージング(1 つの値の「時間による変化の形」)。`Tuning`(`Runtime/Tuning/Tuning.cs`、
+> [32_spec_web.md](32_spec_web.md) §5.3)は仕様書 Web アプリから同期する文字列キー→スカラー値/
+> テーブルのフラットな辞書で、カーブは持たない(v2 以降で `ValueDef` 互換のキー列を持つ
+> `curve` 型を検討中、[32_spec_web.md] §3.2.3)。両者は別物として使い分ける。
+
 対象: 全種別横断（Foundation 層） / 対応要件: [00] FR-19
 
 ---

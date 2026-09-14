@@ -578,6 +578,26 @@ public sealed class TuningTable : ScriptableObject
 8. **旧シート凍結のタイミング**: 移行期間中の二重入力を避けるため、Web アプリの MVP がひとまず動いた時点で旧スプレッドシートを「閲覧のみ」に切り替える運用としたい。具体的な切替日は実装スケジュール確定後に運用で決める
 10. **Drive 共有の運用**: デプロイ①が「実行者=アクセスした人」であるため、各メンバー個人に Drive 上の JSON ファイル・画像フォルダへの編集権限を配る必要がある。人数が増えたときにメンバー個別共有ではなく Google グループ共有に切り替えるかどうかは、実際の人数が増えた時点で運用で決める
 
+### 実装時に判断した項目（2026-09-14、W-9〜W-12。ユーザー確認できないため保守的な既定を選んだ）
+
+11. **`SpecFetcher`/`SpecCsv`/`SpecSheetParser` の物理削除の是非**: §5.1 の表では「置き換え」
+    「廃止」としていたが、既存テスト（`SpecCacheTests`/`SpecDiffServiceTests`/
+    `SpecSyncServiceTests`/`NewAssetDialogSpecPickerTests`）が CSV パース経由でテストフィクスチャを
+    作る使い方をしていたため、**物理削除せず残置**（本番の同期経路からは呼ばれなくする）を選んだ。
+    完全削除する場合は、これらのテストを JSON フィクスチャ（`SpecWebParser` 経由）へ移行してから
+    行うこと
+12. **`DDriveSpecSettings` 旧フィールド（`SpreadsheetUrl`/`AssetSheetName`/`TuningSheetName`）の
+    削除の是非**: CLAUDE.md §0-9「シリアライズ形式の変更は着手前に確認」への保守的な既定として
+    **削除せず残置**した（既存 `.asset` の値を壊さないため）。実データが入っている `.asset` が
+    存在しない、またはユーザーが削除を許可した場合は次のチケットで削除してよい
+13. **`choices` の `tags`**: D-Drive 側にタグの統制語彙（TagCatalog 相当）が実装されていないため
+    常に空配列を送っている。TagCatalog 実装後に候補を収集して送るよう拡張する
+14. **`assetState` の `isPlaceholder`/`iconAssetId`**: 前者は D-Drive 側に「Placeholder かどうか」
+    を表す専用フラグが無いため常に `false`、後者は Web(Drive)側へアイコンをアップロードする実装が
+    本チケットの範囲外（Drive API への書き込みが必要）のため常に `null` を送っている。より正確な
+    値が必要になった場合、`isPlaceholder` の判定方法（例: 種別ごとの「未設定判定」を追加する）と
+    アイコンの Drive アップロード経路を別チケットで検討する
+
 ---
 
 ## 実装メモ（2026-09-14、W-1〜W-3）
@@ -895,3 +915,107 @@ comments 7・grid 11）。
 
 統合後、`"C:\Program Files\nodejs\node.exe" --test "Tools/SpecWeb/test/*.test.js"` で
 **123 件全て green**（既存 29 + W-4/W-5 追加 38 + W-6〜W-8 追加 56）。
+
+---
+
+## 実装メモ（2026-09-14、W-9〜W-12）
+
+D-Drive 側の取得・取り込み・送信（W-9〜W-12）を実装した。§5（D-Drive との連携）の設計どおりに
+進めたが、実装時に決めた事項・引き継ぐ要判断があるため本節に記録する。
+
+### 置き換えたクラス・置き換えなかったクラス
+
+§5.1 の表で「置き換え」「廃止」としていた `SpecFetcher`/`SpecCsv`/`SpecSheetParser` について、
+**物理削除はせず残置し、本番の同期経路（`SpecAutoSync`/`SpecSyncWindow`）からだけ呼ばれなくする**
+方針に変更した（実装時の判断、要判断として下記§9に追記）。理由:
+
+- `SpecCacheTests`/`SpecDiffServiceTests`/`SpecSyncServiceTests`/`NewAssetDialogSpecPickerTests` の
+  複数のテストが、CSV 文字列を `SpecSheetParser.ParseAssetSheet`/`ParseTuningSheet` に通して
+  `SpecAssetRow`/`SpecTuningRow` のテストフィクスチャを作る、という使い方をしていた
+  （`SpecDiffService`/`SpecSyncService`/`SpecCache` はどちらの取得方式でも同じ `SpecAssetRow`/
+  `SpecTuningRow` を受け取るだけの入力形式に依存しないロジックのため、CSV 経由で作ったフィクスチャ
+  でも検証として問題ない）
+- これらのテストを JSON フィクスチャへ移行する作業は、今回のチケットの本質（取得元の差し替え）
+  とは別の作業量になるため、影響範囲を最小にする目的で見送った
+
+新設したのは `SpecWebFetcher`（取得、GET/POST）・`SpecWebParser`（パース）・
+新規追加した `SpecTuningTableRow`（`SpecSheetRow.cs`。テーブル型調整値の生 JSON を運ぶ型。
+列・行の実際の変換は `SpecSyncService.ApplyTuningTable` の 1 箇所に閉じ込めた）。
+`SpecIdentifierCodec`（ファイル名からの識別子逆算）は §5.1 の表のとおり変更していない。
+
+### 設定・トークンの置き場所
+
+`DDriveSpecSettings` に `WebAppUrl`（デプロイ②、`?api=1` エンドポイント）・`HumanAppUrl`
+（デプロイ①、`AssetDataBase.SpecUrl` の組み立て元）を追加した。旧フィールド
+（`SpreadsheetUrl`/`AssetSheetName`/`TuningSheetName`）は CLAUDE.md §0-9「シリアライズ形式の変更は
+着手前に確認」への保守的な既定として **削除せず残した**（実データが入っている既存 `.asset` が
+壊れないようにするため。使われなくなった旨をコメントに明記した。要判断として下記§9に追記）。
+
+API トークン（読み取り用・書き込み用）は `.asset`（git 管理）には一切書かず、
+`DDriveSpecSettings.ReadToken`/`WriteToken`（静的プロパティ）経由で `EditorPrefs` に保存する。
+キーは `"DDrive.SpecWeb.ReadToken:" + Application.dataPath` のようにプロジェクトの絶対パスで
+スコープしている（同じマシンに複数の Unity プロジェクトがあっても衝突しないため）。
+設定 UI は `SpecSyncWindow` に伏せ字（`TextField.isPasswordField`）の入力欄として追加した。
+
+### `Specs/*.json` の形式（W-11）
+
+`SpecSnapshotWriter.Write(assetsJson, tuningScalarJson, tuningTableJson, repoRoot)` が
+Web の生応答（`items` 配列 or マップ）を取り、
+
+- **`Specs/assets.json`**: `{ "items": [ ...id でソート済み... ] }`。各要素は Web の
+  `assets.json` の 1 件そのまま（`ddriveState`/`comments`/`revision` 等も含むフルフィデリティな
+  スナップショット。既存の `SpecAssetRow` は同期に必要な項目しか持たないため、スナップショットには
+  生 JSON を使う）
+- **`Specs/tuning.json`**: `{ "scalars": [ ...キーでソート済み... ], "tables": [ ...同... ] }`
+
+いずれも **オブジェクトのキーを再帰的にアルファベット順へ並べ替えてから** `Formatting.Indented`
+で整形して書き出す。理由: Web(GAS)側の `Object.keys()` の順序は保証されない（Storage.js の
+`Object.assign` の挙動に依存する）ため、並べ替えないと「値は変わっていないのに JSON のキー順だけ
+違う」という実質的な変更が無い diff が同期のたびに発生してしまう。並べ替えることで、
+**同じ内容の同期なら常に同じバイト列になり、git diff が実際の変更だけを示す**（§1.4 の「git 履歴で
+変更履歴を代用する」という設計の前提を成立させるための実装）。
+
+失敗（`ok:false` の応答）した部分は書き込まず警告を返す（同期全体を止めない。CLAUDE.md §0-4）。
+
+### 送信 payload（W-12）と write トークンの許可表
+
+`SpecWebSender` が組み立てる 3 種類の payload（GAS 側の `src/DDriveSync.js` が受け取る）:
+
+| kind | 内容 | 備考 |
+|---|---|---|
+| `choices` | `{ assetTypes: string[], categories: string[], tags: string[] }` | `assetTypes` は `AssetType` enum、`categories` は既存アセットから収集。`tags` は D-Drive 側に統制語彙（TagCatalog 相当）が無いため常に空配列（下記§9に要判断として追記） |
+| `assetState` | `{ items: [{ id, created, isPlaceholder, iconAssetId, usageCount, lastSyncedAt }] }` | `usageCount` は既存 `DependencyGraphService.FindUsages` を再利用。`isPlaceholder` は常に `false`、`iconAssetId` は常に `null`（下記§9に要判断として追記） |
+| `tuningUsage` | `{ unusedKeys: string[] }` | `TUNING.<定数名>` という文字列パターンを `Assets/DDrive`・`Assets/Generated`（`Tuning.g.cs` 自身は除外）の `.cs` から grep して判定 |
+
+書き込みトークンで呼べる API の許可表（`Tools/SpecWeb/src/Code.js` の
+`DDRIVE_WRITE_TOKEN_ALLOWED_APIS`）:
+
+| principal | 呼べる API | それ以外 |
+|---|---|---|
+| `ddrive:write`（書き込みトークン） | `ping` / `whoami` / `choices` / `assetState` / `tuningUsage` | 403 で拒否（`tuningScalarUpdate`/`assets.update`/`tuningTableUpdateCell` 等も含む） |
+| `ddrive:read`（読み取りトークン） | 上記 5 kind を含む、`role=viewer` で読める全 API | `role=viewer` では書き込み系 API 自体が 403（既存の `hasRole` チェックで拒否される） |
+| Google ログイン（① 相当） | `role` に応じた全 API | 許可リストの対象外（トークンを使わないため） |
+
+`assetState`/`choices`/`tuningUsage` の書き込みは `revision` 楽観ロックを使わない
+（`Storage.putItem` は呼び出し時点の最新状態から `revision` を進めるため lost update にはならず、
+これらは「D-Drive 側が把握している最新の補助情報」を都度上書きするだけの用途のため、他の人の
+同期と競合しても問題にならない）。レート制限は principal + API 名の組で直近 60 秒に 10 回まで
+（`PropertiesService` に呼び出し時刻の配列を保存、超過は 429 相当）。
+
+### 302 リダイレクトの扱い（§9-4）
+
+`UnityWebRequest` は既定で 302 リダイレクトに追従する（`redirectLimit` 既定 32）ため、
+`SpecWebFetcher` 側に追加のコードは書いていない。この既定動作が実際に機能することは
+`SpecWebFetcherTests`（ローカルの `System.Net.HttpListener` で「302 → 本文」を再現するテスト）で
+確認した。**実デプロイ（`script.googleusercontent.com` への実際の 302）での確認はしていない**
+（デプロイ URL の用意はユーザー作業のため。§9-4 は未確認のまま引き継ぐ）。
+
+### テスト結果（2026-09-14）
+
+- D-Drive 側（Unity）: **EditMode 588 件 / PlayMode 620 件、全て green**（着手前の基準は
+  EditMode 556 / PlayMode 610 だったため、EditMode +32・PlayMode +10）
+- GAS 側（Node）: `"C:\Program Files\nodejs\node.exe" --test "Tools/SpecWeb/test/*.test.js"` で
+  **138 件全て green**（既存 123 + 本チケット追加 15）
+- テスト前後で `git status --porcelain` の差分・`Assets/AddressableAssetsData/AssetGroups/*.asset`
+  の `git diff` に増加が無いことを確認した（テストは一時フォルダ・`Library/DDriveSpec/` にのみ
+  書き込み、実プロジェクトの `Assets/GameData`・実カタログ・repo の `Specs/` には書き込まない）
