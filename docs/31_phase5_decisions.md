@@ -106,5 +106,6 @@
 | [30] 第2弾 P2 | 4 件 | PredictLocal の late-join 復元漏れ / `OnClientConnected` の再入 / Client→Host 経路のテスト不足 / 200ms テストの NetworkTime 完全一致 |
 | [30] 第2弾 整理(Seed 未消費) | 1 件 | 6-0 で `AudioManager.PlaySeData` に seed 引数を追加して解消 |
 | [11_tasks.md]/[28] 6-0 冒頭 | 2 件 | 5-8 要判断の「HandleNetKey の一意性」(LocalClientId 埋め込みで実質解消) / 「Haptic の LocalPlayerOnly 誤爆防止の副作用」(SelfNetId/TargetNetId 実解決で解消) — いずれも 6-0 冒頭で「このチケットで解消した」と明記 |
+| 5-11(整理、2026-09-14) | 1 件 | `SourceAssets/model`(shizuku サンプル)が Windows 等の大文字小文字を区別しないファイルシステムで種別フォルダ `Model` と衝突していた件。`SourceAssets/Samples/Shizuku/` へ退避(GUID 維持)し `Samples` を `ImportRule` の対象外フォルダに追加して解消 |
 
-**対応済み合計: 約 29 件**（上記の合算。数え方によって前後する可能性がある — 正確な件数が必要な場合は各出典を直接参照すること）。
+**対応済み合計: 約 30 件**（上記の合算。数え方によって前後する可能性がある — 正確な件数が必要な場合は各出典を直接参照すること）。

@@ -220,6 +220,18 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        public void ProcessPaths_SamplesFolder_NoHint()
+        {
+            // Samples はサンプル素材の退避先([10_workflow.md] §3.3、2026-09-14)で、ImportRule の対象外。
+            // Shaders / Data と同様に警告しない。
+            var path = WriteWav($"{SourceRoot}/Samples/Shizuku/FBX/Foo.wav");
+
+            var report = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(0, report.Created);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
         public void ProcessPaths_HiddenOrMetaOrFolder_NoHint()
         {
             // 隠しファイル・フォルダ自体は案内の対象外(実運用では OnPostprocessAllAssets が

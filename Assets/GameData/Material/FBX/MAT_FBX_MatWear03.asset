@@ -18,6 +18,8 @@ MonoBehaviour:
   Category: FBX
   Tags: []
   Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
   Version: 0
   Author: 
   UpdatedAt: 
@@ -34,6 +36,7 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Shader: {fileID: 0}
   Common:
     Albedo:
@@ -61,4 +64,4 @@ MonoBehaviour:
   RenderQueueOffset: 0
   RenderingLayerMask: 0
   Anims: []
-  SourceMaterial: shizuku/mat_wear03
+  SourceMaterial: shizuku/8eec6fc01b2caec4595018fb246ff973/mat_wear03

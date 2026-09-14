@@ -20,3 +20,8 @@
 - `Vfx/` — 詳細は `Vfx/README.md` を参照
 
 詳しい仕様は `docs/09_editor_tools.md` §1.1 / `docs/10_workflow.md` §3.3 を参照してください。
+
+## サンプル素材
+
+`Samples/<出典名>/` はサンプル素材の置き場です(2026-09-14)。`ImportRule` の対象外(上記の種別フォルダには含まれません)。
+
