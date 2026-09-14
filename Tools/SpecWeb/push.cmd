@@ -8,7 +8,11 @@ cd /d "%~dp0"
 
 set "NODE_EXE=node"
 where node >nul 2>nul
-if errorlevel 1 set "NODE_EXE=C:\Program Files\nodejs\node.exe"
+if errorlevel 1 (
+  set "NODE_EXE=C:\Program Files\nodejs\node.exe"
+  rem clasp.cmd itself calls "node", so put Node on PATH for this window too.
+  set "PATH=C:\Program Files\nodejs;%PATH%"
+)
 
 echo [push.cmd] Regenerating manual pages...
 "%NODE_EXE%" tools\build-manual.js
