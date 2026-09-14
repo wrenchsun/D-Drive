@@ -181,6 +181,10 @@ namespace DDrive.Samples
 
             var rttAppMs = _ngoBridge != null && _ngoBridge.AppRoundTripMs.HasValue ? _ngoBridge.AppRoundTripMs.Value.ToString("F0") : "n/a";
 
+            // 6-6(K2 修正) — 通信停止中に rtt_app_ms が前回値のまま固着していないことをログだけで判定
+            // できるよう、「経過時間による下限推定」中かどうかを併記する(NgoNetBridge.IsAppRoundTripMsStale)。
+            var rttAppStale = _ngoBridge != null && _ngoBridge.IsAppRoundTripMsStale ? "1" : "0";
+
             LogCheck(
                 "heartbeat", "1",
                 "role", RoleOf(bootstrap),
@@ -189,6 +193,7 @@ namespace DDrive.Samples
                 "activeCount", activeCount.ToString(),
                 "connected", Connected(bootstrap) ? "1" : "0",
                 "rtt_app_ms", rttAppMs,
+                "rtt_app_stale", rttAppStale,
                 "vfx_active", vfxActive.ToString());
         }
 

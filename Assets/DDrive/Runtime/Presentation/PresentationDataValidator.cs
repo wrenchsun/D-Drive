@@ -3,12 +3,23 @@ using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Net;
 using DDrive.Foundation.Validation;
+using DDrive.Runtime.Audio;
+using DDrive.Runtime.Material;
+using DDrive.Runtime.Prefab;
+using DDrive.Runtime.Vfx;
 
 namespace DDrive.Runtime.Presentation
 {
     // [08_presentation.md] §6。
     public sealed class PresentationDataValidator : IValidator
     {
+        // [14_networking.md] §10(6-6) — 「Cosmetic なのに Reliable 大容量パラメータ(Texture 等)をイベント
+        // 送信」の検査しきい値。docs に具体的なバイト数の定めが無いため、ここで定数として置く
+        // (docs/14 §10 実装メモに転記済み)。Object(Texture/Mesh 等の UnityEngine.Object 参照。実サイズが
+        // 数百 KB〜数 MB になりうる)は件数を問わず常に対象、Curve/Gradient はキー数がこの値を超えたら対象
+        // (数キー程度なら数十バイトで実害が薄いと判断した)。
+        public const int LargeParamKeyCountWarnThreshold = 8;
+
         public AssetType Target => AssetType.Presentation;
 
         public IEnumerable<ValidationResult> Validate(AssetDataBase data, ValidationContext ctx)
@@ -54,6 +65,32 @@ namespace DDrive.Runtime.Presentation
                 {
                     yield return ValidationResult.Error($"トラック {i} が自身({presentation.DisplayName})を参照する循環になっています");
                 }
+
+                // [14_networking.md] §10(6-6) — 「Presentation 内に Simulated トラックと PredictLocal の
+                // 競合」Error。PredictLocal=true は行為者クライアントが Broadcast を待たずローカルで即時
+                // 再生する予測再生([14] §5)。参照先アセット(Vfx/Se/Prefab 等)自体が NetMode=Simulated
+                // (サーバー権威の生成、[14] §3)の場合、クライアントが予測でローカル生成してしまうのは
+                // 権威モデルと矛盾する。
+                if (presentation.PredictLocal && track.Asset.IsAssigned && TryFindTrackAssetNetMode(ctx, track.Asset, out var trackNetMode) && trackNetMode == NetMode.Simulated)
+                {
+                    yield return ValidationResult.Error($"トラック {i}({track.Kind}) の参照先アセットは Flags.Net=Simulated ですが、この Presentation は PredictLocal=true です(クライアントの予測再生がサーバー権威の生成と競合します)");
+                }
+
+                // [14_networking.md] §10(6-6) — 「Cosmetic なのに Reliable 大容量パラメータ(Texture 等)を
+                // イベント送信」Warning。Params は現状どの Manager もネットワーク越しに同期しない
+                // ([14] §4 実装メモ「paramOverrides の同期も未実装」)。Cosmetic な Presentation で大容量
+                // Params を上書きしていても、各クライアントはローカルのデフォルト値で再生するため見た目が
+                // 食い違う(将来 Params 同期を実装する場合は、そのまま送ると帯域を圧迫する)。
+                if (presentation.Flags.Net == NetMode.Cosmetic && track.Params != null)
+                {
+                    for (var p = 0; p < track.Params.Length; p++)
+                    {
+                        if (IsLargeParam(in track.Params[p]))
+                        {
+                            yield return ValidationResult.Warning($"トラック {i}({track.Kind}) の Params[{p}]({track.Params[p].Type}) は大容量パラメータです。Cosmetic 配送では Params は同期されないため、各クライアントの見た目が食い違う可能性があります");
+                        }
+                    }
+                }
             }
 
             if (!presentation.Interruptible && PresentationTiming.EffectiveDuration(presentation) > 10f)
@@ -82,6 +119,49 @@ namespace DDrive.Runtime.Presentation
             TrackKind.Signal => false,
             TrackKind.HitStop => false,
             _ => true,
+        };
+
+        // [14_networking.md] §10(6-6) — AnchorDataValidator.FindAnchor と同じ慣習(ctx.AllAssets の
+        // 単純な線形走査、LINQ 不使用)。track が参照する先のアセットが見つかれば、その Flags.Net を返す。
+        // 種別を問わず Id だけで一致させる(D-Drive の AssetId は種別ごとに独立した値域を持つ想定だが、
+        // AssetRef.Type も一致させて誤爆を避ける)。
+        private static bool TryFindTrackAssetNetMode(ValidationContext ctx, in AssetRef assetRef, out NetMode netMode)
+        {
+            netMode = NetMode.Local;
+            var all = ctx.AllAssets;
+            for (var i = 0; i < all.Count; i++)
+            {
+                var candidate = all[i];
+                if (candidate != null && candidate.Id == assetRef.Id && AssetTypeOf(candidate) == assetRef.Type)
+                {
+                    netMode = candidate.Flags.Net;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static AssetType AssetTypeOf(AssetDataBase data) => data switch
+        {
+            SeData => AssetType.Se,
+            BgmData => AssetType.Bgm,
+            VfxData => AssetType.Vfx,
+            PrefabData => AssetType.Prefab,
+            MaterialData => AssetType.Material,
+            PresentationData => AssetType.Presentation,
+            _ => AssetType.None,
+        };
+
+        // [14_networking.md] §10(6-6) — Object(Texture/Mesh 等)は件数を問わず常に「大容量の疑いあり」、
+        // Curve/Gradient はキー数が LargeParamKeyCountWarnThreshold を超えたときだけ対象にする。
+        private static bool IsLargeParam(in ParamValue param) => param.Type switch
+        {
+            ParamValueType.Object => param.ObjectValue != null,
+            ParamValueType.Curve => param.CurveValue != null && param.CurveValue.length > LargeParamKeyCountWarnThreshold,
+            ParamValueType.Gradient => param.GradientValue != null &&
+                param.GradientValue.colorKeys.Length + param.GradientValue.alphaKeys.Length > LargeParamKeyCountWarnThreshold,
+            _ => false,
         };
     }
 }

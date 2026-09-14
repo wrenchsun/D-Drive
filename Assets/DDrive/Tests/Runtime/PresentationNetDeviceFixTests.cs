@@ -198,6 +198,8 @@ namespace DDrive.Tests.Runtime
         }
 
         // ── 課題4: 未知の HandleNetKey(または対象が完了済み)の Cancel/Signal は開発ビルドで破棄ログを出す ──
+        // 6-6(K3 修正) — 未知キーは即座に破棄されず、短時間(既定 1.0 秒)保留されるようになった。
+        // 対応する Play が来なければ保留期限切れで従来どおりの破棄ログが出る(Tick() が掃除する)。
 
         [Test]
         public void UnknownHandleNetKey_Cancel_LogsDiscardWarning()
@@ -205,10 +207,14 @@ namespace DDrive.Tests.Runtime
             var loader = new FakeAssetLoader();
             var registry = new AssetRegistry(loader);
             var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
-            _ = new PresentationManager(registry, new TimeService(), netBridge: bridge);
+            var manager = new PresentationManager(registry, new TimeService(), netBridge: bridge);
 
-            LogAssert.Expect(LogType.Warning, new Regex(@"PresentationCancelMsg.*未知のキー"));
             bridge.InjectReceive(0UL, new PresentationCancelMsg { HandleNetKey = 0x33333333u });
+
+            // 保留期限(既定 remoteOneShotGraceSec の 2 倍 = 1.0 秒)を過ぎさせてから Tick() で掃除させる。
+            bridge.NetworkTime += 2.0;
+            LogAssert.Expect(LogType.Warning, new Regex(@"PresentationCancelMsg.*未知のキー"));
+            manager.Tick(0f);
         }
 
         [Test]
@@ -217,10 +223,106 @@ namespace DDrive.Tests.Runtime
             var loader = new FakeAssetLoader();
             var registry = new AssetRegistry(loader);
             var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
+            var manager = new PresentationManager(registry, new TimeService(), netBridge: bridge);
+
+            bridge.InjectReceive(0UL, new PresentationSignalMsg { HandleNetKey = 0x44444444u, SignalKeyHash = 1 });
+
+            bridge.NetworkTime += 2.0;
+            LogAssert.Expect(LogType.Warning, new Regex(@"PresentationSignalMsg.*未知のキー"));
+            manager.Tick(0f);
+        }
+
+        // ── 6-6(K3): Signal が対応する Play より先に届いた場合、保留して Play 到着時に適用する ──
+
+        [Test]
+        public void UnknownHandleNetKey_Signal_AppliedLater_WhenMatchingPlayArrives()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
+            var time = new TimeService();
+            var manager = new PresentationManager(registry, time, netBridge: bridge);
+
+            var presId = _nextId++;
+            // HitStop は _time.TimeScale という「発火後も残る」状態を持つため、Marker/Signal(R3 の Subject。
+            // 誰も Subscribe していない間の OnNext は再生されない)より後から検証しやすい
+            // (PresentationNetSecurityTests.cs の HitStop 検証と同じ手法)。
+            var onHit = new PresentationTrack { Trigger = TrackTrigger.OnSignal, SignalKey = "hit", Kind = TrackKind.HitStop, Params = new[] { ParamValue.Of(0.1f) } };
+            var data = CreateData(onHit);
+            data.TotalDuration = 5f;
+            RegisterPresentation(registry, loader, presId, data);
+
+            const uint handleNetKey = 0x55555555u;
+
+            // Signal が Play より先に届く(K3 が観測された順序崩れそのもの)。
+            bridge.InjectReceive(0UL, new PresentationSignalMsg { HandleNetKey = handleNetKey, SignalKeyHash = HashSignalKeyForTest("hit") });
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count, "Signal だけでは何も生成されない(保留されるだけ)");
+            Assert.AreEqual(1f, time.TimeScale, "保留中はまだ HitStop が発火していない");
+
+            bridge.InjectReceive(0UL, new PresentationPlayMsg { PresId = presId, HandleNetKey = handleNetKey, StartNetTime = 0d });
+
+            Assert.AreEqual(1, manager.DebugActiveHandles().Count, "Play が届いて Instance が生成される");
+            Assert.AreEqual(0f, time.TimeScale, "保留されていた Signal が Play 到着直後に適用され、OnSignal(HitStop)トラックが発火する");
+        }
+
+        [Test]
+        public void UnknownHandleNetKey_Signal_ExpiresWithoutMatchingPlay()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
+            var manager = new PresentationManager(registry, new TimeService(), netBridge: bridge);
+
+            const uint handleNetKey = 0x66666666u;
+            bridge.InjectReceive(0UL, new PresentationSignalMsg { HandleNetKey = handleNetKey, SignalKeyHash = HashSignalKeyForTest("hit") });
+
+            // 期限内(0.5 秒)は何も起きない(まだ保留中)。
+            bridge.NetworkTime += 0.5;
+            manager.Tick(0f);
+
+            // 期限(既定 1.0 秒)を過ぎると従来どおりの破棄ログが出る。
+            bridge.NetworkTime += 1.0;
+            LogAssert.Expect(LogType.Warning, new Regex(@"PresentationSignalMsg.*未知のキー"));
+            manager.Tick(0f);
+        }
+
+        // 6-6(K3): 保留バッファには上限(16件)があり、満杯時は最も古いエントリを退避させて上書きする
+        // (無制限に貯め込まない。フラッド対策の主防波堤は ConsumeSignalCancelBudget の方だが、こちらは
+        // 「正当なレートの範囲内でも同時に大量の異なる未知キーが来た」場合のメモリ上限として働く)。
+        [Test]
+        public void UnknownHandleNetKey_HoldBuffer_EvictsOldestWhenFull()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
             _ = new PresentationManager(registry, new TimeService(), netBridge: bridge);
 
-            LogAssert.Expect(LogType.Warning, new Regex(@"PresentationSignalMsg.*未知のキー"));
-            bridge.InjectReceive(0UL, new PresentationSignalMsg { HandleNetKey = 0x44444444u, SignalKeyHash = 1 });
+            // NetworkTime を進めないため 16 件とも同じ期限になり、最初(0x70000000)が最も古いまま残る。
+            for (var i = 0; i < 16; i++)
+            {
+                bridge.InjectReceive(0UL, new PresentationCancelMsg { HandleNetKey = 0x70000000u + (uint)i });
+            }
+
+            LogAssert.Expect(LogType.Warning, new Regex(@"保留バッファ\(16件\)が満杯.*0x70000000"));
+            bridge.InjectReceive(0UL, new PresentationCancelMsg { HandleNetKey = 0x70000010u });
+        }
+
+        // FNV-1a 16bit(PresentationManager.HashSignalKey と同じアルゴリズム)。private のためテスト側で
+        // 複製する(PresentationNetTests.cs の HashSignalKeyForTest と同じ慣習)。
+        private static ushort HashSignalKeyForTest(string key)
+        {
+            unchecked
+            {
+                const uint fnvPrime = 16777619u;
+                var hash = 2166136261u;
+                for (var i = 0; i < key.Length; i++)
+                {
+                    hash ^= key[i];
+                    hash *= fnvPrime;
+                }
+
+                return (ushort)((hash ^ (hash >> 16)) & 0xFFFFu);
+            }
         }
 
         // ── 6-0 修正6(実機確認 v2 で発見): 遅延があるとリモートの開始直後ワンショットが一切発火しない ──
