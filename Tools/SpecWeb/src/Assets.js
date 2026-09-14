@@ -40,6 +40,11 @@
 
 var SPEC_WEB_ASSETS_COLLECTION = 'assets';
 
+// O-15（2026-09-14 追加）: 発注後に識別子・種別をリネームできた場合、旧 id → 新 id への
+// 付け替えを記録する専用コレクション（O-13 のコピー済みリンク `?page=order&id=旧id` を
+// 引き続き開けるようにするため。src/Code.js の resolveInitialScreen_ が解決する）。
+var SPEC_WEB_ASSET_RENAMES_COLLECTION = 'assetRenames';
+
 // docs/32_spec_web.md §10 前提調査: 種別は AssetType の enum 名（Assets/DDrive/Foundation/Identity/AssetType.cs）。
 // choices.json（D-Drive から同期される予定）が無い間の既定値としてここに列挙する。
 // AssetType.cs を変更した場合はここも合わせて更新すること（None は選択肢に含めない）。
@@ -488,6 +493,108 @@ registerApi('assets.update', function (ctx) {
     actor: specWebActor_(auth),
     expectedRevision: expectedRevision
   });
+  return { item: saved, warnings: specWebComputeFileWarnings_(saved) };
+});
+
+/**
+ * O-15（2026-09-14 追加）: 発注後に識別子・種別を直せる条件（ユーザー要件）。
+ * D-Drive 側がまだそのアセットを作っていない間だけ（`ddriveState` が「未作成」相当）、
+ * かつ status が「インポート済」でないこと。どちらか一方でも満たさなければ false
+ * （呼び出し側は 400 で拒否し、「D-Drive で作成済みのため変更できません」を表示する）。
+ * @param {?Object} item specWebNormalizeLegacyOrderItem_ 済みの項目（status/ddriveState を見る）
+ */
+function specWebAssetCanRename_(item) {
+  if (!item) return false;
+  if (item.status === SPEC_WEB_ASSET_STATUS_IMPORTED) return false;
+  var ddriveState = item.ddriveState;
+  if (ddriveState && ddriveState.created) return false;
+  return true;
+}
+
+/**
+ * O-15: 旧 id → 新 id の付け替えを解決する（複数回リネームされていても最終的な id まで辿る）。
+ * `assetRenames`（上記）に記録が無ければ id をそのまま返す。循環・異常に長い連鎖に備えて
+ * 上限を設ける（例外にはせず、そこまで辿れた id を返す。CLAUDE.md §0-4「例外で止めない」）。
+ * @param {string} id
+ * @return {string}
+ */
+function specWebResolveAssetRenameChain_(id) {
+  var current = String(id || '');
+  var visited = {};
+  for (var i = 0; i < 10 && current; i++) {
+    if (visited[current]) break;
+    visited[current] = true;
+    var redirect = Storage.getItem(SPEC_WEB_ASSET_RENAMES_COLLECTION, current);
+    if (!redirect || !redirect.newId) break;
+    current = redirect.newId;
+  }
+  return current;
+}
+
+/**
+ * O-15: 発注後に識別子・種別を直す（リネーム）。docs/32_spec_web.md「実装メモ（O-15）」参照。
+ * `assets.update` は id（種別::識別子）そのものの変更を拒否するため、この専用 API を新設した
+ * （id を新しいキーへ置き換える必要があり、単純な patch では表現できないため）。
+ *
+ * - editor 以上のみ（viewer は 403）
+ * - `specWebAssetCanRename_` の条件を満たさない（D-Drive で作成済み or インポート済）場合は 400
+ * - 新しい id（種別::識別子）が既に存在する場合は 409
+ * - 全フィールド・コメント・orderGroup への所属（parentId）は新 id に引き継ぎ、旧 id は削除する
+ * - 旧 id → 新 id の付け替えを `assetRenames` に記録する（O-13 のコピー済みリンク対策）
+ *
+ * D-Drive の書き込みトークンからは呼べない（Code.js の DDRIVE_WRITE_TOKEN_ALLOWED_APIS に
+ * 含めていないため、handleApiRequest_ が 403 で拒否する）。
+ */
+registerApi('assets.rename', function (ctx) {
+  var auth = ctx.auth;
+  specWebRequireEditor_(auth);
+
+  var params = ctx.params;
+  var id = params.id;
+  if (!id) throw specWebAssetsError_('id は必須です', 400);
+  var current = Storage.getItem(SPEC_WEB_ASSETS_COLLECTION, id);
+  if (!current) throw specWebAssetsError_('アセットが見つかりません: ' + id, 404);
+
+  var normalizedCurrent = specWebNormalizeLegacyOrderItem_(current);
+  if (!specWebAssetCanRename_(normalizedCurrent)) {
+    throw specWebAssetsError_(
+      'D-Drive で作成済みのため変更できません（変更すると D-Drive 側との対応が切れます）',
+      400
+    );
+  }
+
+  var newAssetType = params.assetType !== undefined && params.assetType !== '' ? params.assetType : current.assetType;
+  var newIdentifier = params.identifier !== undefined && params.identifier !== '' ? params.identifier : current.identifier;
+
+  var errors = specWebValidateAssetFields_({ assetType: newAssetType, identifier: newIdentifier }, { partial: true });
+  if (Object.keys(errors).length > 0) {
+    throw specWebAssetsError_(specWebJoinErrors_(errors), 400);
+  }
+
+  var newId = specWebBuildAssetId_(newAssetType, newIdentifier);
+  if (newId === id) {
+    throw specWebAssetsError_('種別・識別子が変わっていません', 400);
+  }
+  if (Storage.getItem(SPEC_WEB_ASSETS_COLLECTION, newId)) {
+    throw specWebAssetsError_('種別+識別子が既に存在します: ' + newId, 409);
+  }
+
+  var expectedRevision = params.expectedRevision !== undefined && params.expectedRevision !== ''
+    ? Number(params.expectedRevision)
+    : current.revision;
+
+  var saved = Storage.renameItem(SPEC_WEB_ASSETS_COLLECTION, id, newId, {
+    assetType: newAssetType,
+    identifier: newIdentifier
+  }, {
+    actor: specWebActor_(auth),
+    expectedRevision: expectedRevision
+  });
+
+  // O-13 のコピー済みリンク（?page=order&id=旧id）が引き続き開けるよう、旧 id → 新 id の
+  // 付け替えを記録する（resolveInitialScreen_ が specWebResolveAssetRenameChain_ で解決する）。
+  Storage.putItem(SPEC_WEB_ASSET_RENAMES_COLLECTION, id, { newId: newId }, { actor: specWebActor_(auth) });
+
   return { item: saved, warnings: specWebComputeFileWarnings_(saved) };
 });
 

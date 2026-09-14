@@ -65,7 +65,9 @@ function resolveInitialScreen_(params) {
   if (params && params.page === 'order') {
     var orderId = String(params.id || '');
     if (!orderId) return { screen: null, params: {} };
-    return { screen: 'assets', params: { openId: orderId } };
+    // O-15: リネーム済みの発注は旧 id のリンクのままでも新 id へ振り替える
+    // （specWebResolveAssetRenameChain_、src/Assets.js。記録が無ければ orderId をそのまま返す）。
+    return { screen: 'assets', params: { openId: specWebResolveAssetRenameChain_(orderId) } };
   }
   if (params && params.page === 'group') {
     var groupId = String(params.id || '');

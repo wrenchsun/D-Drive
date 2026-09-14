@@ -33,6 +33,12 @@
     background: #ffe3e3;
     color: #cf222e;
   }
+  /* O-15/O-16: 各行の「編集」・メモアイコンのボタン。 */
+  ul.my-orders-list li button {
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.78rem;
+  }
 </style>
 
 <script>
@@ -78,33 +84,67 @@
       return new Date().toISOString().slice(0, 10);
     }
 
-    function renderOrderedList(items) {
+    /**
+     * O-15/O-16: 各行に「編集」（editor 以上のみ、一覧画面〈assets〉の詳細パネルへ遷移する）・
+     * 「メモあり」アイコン（押すと整形表示を展開）を付ける。行本体の組み立て方は
+     * renderOrderedList/renderContractedList で共通化する（元の書式文言だけが違う）。
+     * @param {object} item
+     * @param {string} lineText 行本体の表示文言（呼び出し側が組み立てる）
+     * @param {{canEdit: boolean, expandedMemoIds: Object, toggleMemo: function(string):void}} state
+     */
+    function renderItemLi(item, lineText, state) {
+      var li = el('li');
+      if (item._overdue) li.appendChild(el('span', { class: 'my-orders-badge sw-overdue', text: '期限切れ' }));
+      else if (item._unfulfilled) li.appendChild(el('span', { class: 'my-orders-badge', text: '未納品' }));
+      li.appendChild(el('span', { text: lineText }));
+
+      if (logic.hasReferenceMd(item)) {
+        var expanded = !!state.expandedMemoIds[item.id];
+        li.appendChild(el('button', {
+          class: 'secondary',
+          text: expanded ? '📝 ▲' : '📝',
+          onclick: function () { state.toggleMemo(item.id); }
+        }));
+      }
+      if (state.canEdit) {
+        li.appendChild(el('button', {
+          class: 'secondary',
+          text: '編集',
+          onclick: function () {
+            // 実アプリでは html/App.html が常に定義する。この画面単体のスモークテストの
+            // sandbox には無いことがあるため存在確認してから呼ぶ。
+            if (typeof window.SpecWebNavigate === 'function') {
+              window.SpecWebNavigate('assets', { params: { openId: item.id } });
+            }
+          }
+        }));
+      }
+      if (state.expandedMemoIds[item.id] && logic.hasReferenceMd(item)) {
+        var box = el('div', { class: 'assets-md-preview assets-memo-clip' });
+        box.innerHTML = logic.renderMarkdownSafe(item.referenceMd);
+        li.appendChild(box);
+      }
+      return li;
+    }
+
+    function renderOrderedList(items, state) {
       var list = el('ul', { class: 'my-orders-list' });
       if (items.length === 0) list.appendChild(el('li', { class: 'sw-muted', text: '該当する発注はありません' }));
       items.forEach(function (item) {
-        var li = el('li');
-        if (item._overdue) li.appendChild(el('span', { class: 'my-orders-badge sw-overdue', text: '期限切れ' }));
-        else if (item._unfulfilled) li.appendChild(el('span', { class: 'my-orders-badge', text: '未納品' }));
-        li.appendChild(el('span', { text:
-          item.assetType + ' : ' + item.identifier + '  受注:' + (item.contractor || '—') +
-          '  期限:' + (item.dueDate || '—') + '  [' + item.status + ']'
-        }));
-        list.appendChild(li);
+        var lineText = item.assetType + ' : ' + item.identifier + '  受注:' + (item.contractor || '—') +
+          '  期限:' + (item.dueDate || '—') + '  [' + item.status + ']';
+        list.appendChild(renderItemLi(item, lineText, state));
       });
       return list;
     }
 
-    function renderContractedList(items) {
+    function renderContractedList(items, state) {
       var list = el('ul', { class: 'my-orders-list' });
       if (items.length === 0) list.appendChild(el('li', { class: 'sw-muted', text: '該当する発注はありません' }));
       items.forEach(function (item) {
-        var li = el('li');
-        if (item._overdue) li.appendChild(el('span', { class: 'my-orders-badge sw-overdue', text: '期限切れ' }));
-        li.appendChild(el('span', { text:
-          item.assetType + ' : ' + item.identifier + '  発注:' + (item.orderer || '—') +
-          '  期限:' + (item.dueDate || '—') + '  [' + item.status + ']'
-        }));
-        list.appendChild(li);
+        var lineText = item.assetType + ' : ' + item.identifier + '  発注:' + (item.orderer || '—') +
+          '  期限:' + (item.dueDate || '—') + '  [' + item.status + ']';
+        list.appendChild(renderItemLi(item, lineText, state));
       });
       return list;
     }
@@ -114,6 +154,9 @@
       var columns = el('div', { class: 'my-orders-columns' });
       root.appendChild(statusLine);
       root.appendChild(columns);
+
+      // O-16: 「メモあり」アイコンで展開表示した項目の id 集合。
+      var expandedMemoIds = {};
 
       Promise.all([
         window.SpecWebClient.callApi('assets.list', { includeArchived: '0' }),
@@ -128,15 +171,28 @@
         var today = todayString();
         var ordered = logic.myOrderedItems(assetsRes.items, whoamiRes.email, today);
         var contracted = logic.myContractedItems(assetsRes.items, whoamiRes.email, today);
+        var canEdit = logic.roleAtLeast(whoamiRes.role, 'editor');
 
-        columns.appendChild(el('div', { class: 'my-orders-column' }, [
-          el('h3', { text: '私が発注したもの' }),
-          renderOrderedList(ordered)
-        ]));
-        columns.appendChild(el('div', { class: 'my-orders-column' }, [
-          el('h3', { text: '私が受けたもの（期限順）' }),
-          renderContractedList(contracted)
-        ]));
+        function renderColumns() {
+          columns.innerHTML = '';
+          var itemState = {
+            canEdit: canEdit,
+            expandedMemoIds: expandedMemoIds,
+            toggleMemo: function (id) {
+              expandedMemoIds[id] = !expandedMemoIds[id];
+              renderColumns();
+            }
+          };
+          columns.appendChild(el('div', { class: 'my-orders-column' }, [
+            el('h3', { text: '私が発注したもの' }),
+            renderOrderedList(ordered, itemState)
+          ]));
+          columns.appendChild(el('div', { class: 'my-orders-column' }, [
+            el('h3', { text: '私が受けたもの（期限順）' }),
+            renderContractedList(contracted, itemState)
+          ]));
+        }
+        renderColumns();
       });
     });
   })();

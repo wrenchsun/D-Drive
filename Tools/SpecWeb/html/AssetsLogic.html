@@ -141,6 +141,26 @@
     }
 
     /**
+     * O-15（2026-09-14 追加）: 発注後に識別子・種別を直せる条件のクライアント側ミラー
+     * （サーバー側 specWebAssetCanRename_、src/Assets.js と同じ判定）。
+     * D-Drive 側がまだそのアセットを作っていない間だけ（`ddriveState` が「未作成」相当）、
+     * かつ status が「インポート済」でないこと。html/Assets.html が識別子・種別欄の
+     * 入力可否とヒント表示の切り替えに使う（サーバー側の検証を置き換えるものではない）。
+     */
+    function canRenameAsset(item) {
+      if (!item) return false;
+      if (item.status === ASSET_STATUS_IMPORTED) return false;
+      var ddriveState = item.ddriveState;
+      if (ddriveState && ddriveState.created) return false;
+      return true;
+    }
+
+    /** O-16（2026-09-14 追加要望）: 発注メモ（referenceMd）が入力済みかどうか。 */
+    function hasReferenceMd(item) {
+      return !!(item && item.referenceMd && String(item.referenceMd).trim() !== '');
+    }
+
+    /**
      * 新規作成・編集フォームの即時検証（サーバー側 specWebValidateAssetFields_ と同じ規則の
      * クライアント側ミラー。§10.2.1「識別子の書式・重複・状態3値・インポート済は直接選べない」）。
      * サーバー側の検証を置き換えるものではなく、送信前にユーザーへ即時フィードバックするためのもの。
@@ -394,7 +414,10 @@
 
       escaped = escaped.replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, function (whole, label, url) {
         if (!isSafeUrl_(url)) return escapeHtml_(label);
-        return '<a href="' + url + '" target="_top" rel="noopener">' + label + '</a>';
+        // O-16（2026-09-14 追加要望）: `<base target="_top">` の環境だとリンクは既定でこのアプリ
+        // 自身の iframe を差し替えてしまう（外部リンクのつもりが発注ツールの画面が消える）ため、
+        // 発注メモのリンクは明示的に別タブ（target="_blank"）で開く（rel="noopener" は継続）。
+        return '<a href="' + url + '" target="_blank" rel="noopener">' + label + '</a>';
       });
 
       escaped = escaped
@@ -414,6 +437,8 @@
       ASSET_STATUS_IMPORTED: ASSET_STATUS_IMPORTED,
       ASSET_PRIORITIES: ASSET_PRIORITIES,
       isStatusManuallySelectable: isStatusManuallySelectable,
+      canRenameAsset: canRenameAsset,
+      hasReferenceMd: hasReferenceMd,
       validateIdentifier: validateIdentifier,
       buildAssetId: buildAssetId,
       validateAssetFields: validateAssetFields,

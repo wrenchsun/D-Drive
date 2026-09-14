@@ -56,7 +56,7 @@ function setup(role, options) {
     },
     window: {
       alert: function () {},
-      confirm: function () {
+      confirm: options.confirm || function () {
         return true;
       },
       // O-13: 発注リンクのコピー用（src/Code.js の specWebExecUrl_ → html/Index.html）。
@@ -72,7 +72,9 @@ function setup(role, options) {
   // 緊急修正（2026-09-14）: assets.get/list が「delete/restore 後の最新状態」を返せるよう、
   // 固定値ではなく可変の currentAsset を持たせる（元は固定の asset を常に返していたため、
   // 削除→アーカイブ済みトグル→再度開く、のような一連の流れをテストできなかった）。
-  let currentAsset = sampleAsset();
+  // O-15: assetOverrides でサンプルの ddriveState/status 等を差し替えられるようにする
+  // （リネーム可否のテストに、既定サンプル（ddriveState.created=true）とは別の状態が必要なため）。
+  let currentAsset = sampleAsset(options.assetOverrides);
   const fakeClient = createFakeSpecWebClient({
     whoami: function () {
       return { ok: true, role: role, email: role + '@example.com', displayName: role };
@@ -106,6 +108,18 @@ function setup(role, options) {
       currentAsset = Object.assign({}, currentAsset, patch, { revision: currentAsset.revision + 1 });
       return { ok: true, item: currentAsset };
     },
+    // O-15: assets.rename の既定フェイク（identifier/assetType を差し替えて id を作り直す）。
+    'assets.rename': options.renameHandler || function (params) {
+      const newAssetType = params.assetType !== undefined && params.assetType !== '' ? params.assetType : currentAsset.assetType;
+      const newIdentifier = params.identifier !== undefined && params.identifier !== '' ? params.identifier : currentAsset.identifier;
+      currentAsset = Object.assign({}, currentAsset, {
+        id: newAssetType + '::' + newIdentifier,
+        assetType: newAssetType,
+        identifier: newIdentifier,
+        revision: currentAsset.revision + 1
+      });
+      return { ok: true, item: currentAsset, warnings: [] };
+    },
     'assets.delete': options.deleteHandler || function () {
       currentAsset = Object.assign({}, currentAsset, { archived: true, revision: currentAsset.revision + 1 });
       return { ok: true, item: currentAsset };
@@ -121,7 +135,7 @@ function setup(role, options) {
   // （Assets.html の buildCopyLinkControl が window.OrderLinkLogic/window.SpecWebClipboard を使う）。
   // 緊急修正（2026-09-14）: UiFeedback（window.SpecWebUi の runBusy/toast）も、実 Index.html と
   // 同じ順序（ClipboardCopy の後・AssetsLogic の前）で読み込む。
-  const ctx = loadHtmlScripts(['OrderLinkLogic', 'ClipboardCopy', 'UiFeedback', 'AssetsLogic', 'Assets'], sandbox);
+  const ctx = loadHtmlScripts(['OrderLinkLogic', 'ClipboardCopy', 'UiFeedback', 'MarkdownToolbar', 'AssetsLogic', 'Assets'], sandbox);
   assert.ok(capturedRender, 'registerScreen("assets", ...) が呼ばれていること');
   return { ctx, dom, render: capturedRender };
 }
@@ -213,7 +227,9 @@ test('editor: 既存発注の行を押すと詳細パネルが開き、コメン
   assert.equal(commentsAfterPost.length, 2, 'コメント投稿後は 2 件になる');
 });
 
-test('editor: リファレンスの Markdown プレビューを開閉できる', async () => {
+// ---- O-16: 発注メモ（referenceMd）は既定で整形済み表示、「メモを編集」で textarea に切り替え ----
+
+test('editor: メモが空のときは既定で編集用 textarea が出る（「メモを編集」ボタンは出ない）', async () => {
   const { dom, render } = setup('editor');
   const root = dom.document.createElement('div');
   render(root);
@@ -223,12 +239,276 @@ test('editor: リファレンスの Markdown プレビューを開閉できる',
   dom.fire(row, 'click');
   await flush();
 
-  const previewButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'プレビュー');
-  assert.ok(previewButton);
-  assert.doesNotThrow(() => dom.fire(previewButton, 'click'));
+  const editButtonWhenEmpty = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'メモを編集');
+  assert.equal(editButtonWhenEmpty, null, 'メモが空のときは最初から編集用 textarea（「メモを編集」ボタンは出ない）');
+  const textareaWhenEmpty = dom.findNode(root, (n) => n.tagName === 'textarea' && n.getAttribute && n.getAttribute('rows') === '6');
+  assert.ok(textareaWhenEmpty, 'メモが空のときは編集用 textarea が最初から出る');
+});
 
-  const hideButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'プレビューを隠す');
-  assert.ok(hideButton, 'プレビュー表示中は「プレビューを隠す」に切り替わる');
+test('editor: メモを保存して開き直すと既定で整形済み表示（target="_blank" のリンク）になり、「メモを編集」でtextareaに切り替わる', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const referenceTextarea = dom.findNode(root, (n) => n.tagName === 'textarea' && n.getAttribute && n.getAttribute('rows') === '6');
+  referenceTextarea.value = '参考: [動画](https://example.com/video)';
+  dom.fire(referenceTextarea, 'input');
+
+  const saveButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '保存');
+  dom.fire(saveButton, 'click');
+  await flush();
+
+  const rowAfter = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(rowAfter, 'click');
+  await flush();
+
+  const editButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'メモを編集');
+  assert.ok(editButton, 'メモが入力済みなら既定で「メモを編集」ボタンが出る（＝読み取り表示になっている）');
+  // dom-stub の innerHTML setter は HTML を子要素へパースしない（生の文字列を保持するだけ）ため、
+  // 埋め込まれた <a> を子要素として検索することはできない。innerHTML 文字列そのものを見る。
+  const viewBox = dom.findNode(root, (n) => n.className === 'assets-md-preview');
+  assert.ok(viewBox, '読み取り表示（assets-md-preview）が出ている');
+  assert.match(viewBox.innerHTML, /target="_blank"/, '既定の読み取り表示は Markdown を整形したリンク（target="_blank"）になっている');
+
+  dom.fire(editButton, 'click');
+  const backButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '表示に戻す');
+  assert.ok(backButton, '「メモを編集」を押すと textarea に切り替わり「表示に戻す」ボタンが出る');
+});
+
+test('viewer: メモは読み取り表示のみで「メモを編集」ボタンも編集用 textarea も出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const editButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === 'メモを編集');
+  assert.equal(editButton, null, 'viewer には「メモを編集」ボタンが出ない');
+  const textarea = dom.findNode(root, (n) => n.tagName === 'textarea' && n.getAttribute && n.getAttribute('rows') === '6');
+  assert.equal(textarea, null, 'viewer には編集用 textarea も出ない（メモが空の既定サンプルのため「（メモはまだありません）」の表示になる）');
+});
+
+// ---- O-16: 書式ツールバー ----
+
+test('editor: メモの編集 textarea 上に書式ツールバーが出て、ボタンを押すと textarea に書式が挿入される', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const boldButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '太字');
+  assert.ok(boldButton, '書式ツールバーに「太字」ボタンが出る');
+
+  const textarea = dom.findNode(root, (n) => n.tagName === 'textarea' && n.getAttribute && n.getAttribute('rows') === '6');
+  textarea.value = '';
+  assert.doesNotThrow(() => dom.fire(boldButton, 'click'));
+  assert.equal(textarea.value, '**太字**', '選択が無い状態で「太字」を押すとテンプレートが挿入される（dom-stub は selectionStart 未対応のため常に末尾扱い）');
+});
+
+test('editor: 「参考リンク」ボタンで定型ブロックが挿入される', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const button = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '参考リンク');
+  assert.ok(button);
+  dom.fire(button, 'click');
+
+  const textarea = dom.findNode(root, (n) => n.tagName === 'textarea' && n.getAttribute && n.getAttribute('rows') === '6');
+  assert.match(textarea.value, /### 参考リンク/);
+});
+
+// ---- O-15: 発注後の識別子・種別のリネーム ----
+
+test('editor: D-Drive 未作成・インポート済でなければ識別子欄が編集できる。保存で assets.rename が呼ばれ一覧の id が新しくなる', async () => {
+  let renameCalledWith = null;
+  const { dom, render } = setup('editor', {
+    assetOverrides: { ddriveState: { created: false, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null } },
+    renameHandler: function (params) {
+      renameCalledWith = params;
+      return {
+        ok: true,
+        item: {
+          id: params.assetType + '::' + params.identifier,
+          assetType: params.assetType,
+          identifier: params.identifier,
+          displayName: '斬撃音',
+          status: '発注済',
+          revision: 4,
+          comments: [],
+          ddriveState: { created: false, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null },
+          params: null
+        }
+      };
+    },
+    updateHandler: function (params) {
+      return { ok: true, item: Object.assign({ id: 'Se::SlashHeavy', revision: 5 }, JSON.parse(params.patch)) };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const lockedHint = dom.findNode(root, (n) => (n.textContent || '').indexOf('D-Drive で作成済みのため変更できません') !== -1);
+  assert.equal(lockedHint, null, 'このテストのサンプルは D-Drive 未作成・発注済のため、ロックのヒントは出ない');
+
+  const identifierField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    const label = (n.children || [])[0];
+    return label && label.textContent === 'インポート名: 識別子（PascalCase）';
+  });
+  const identifierInput = identifierField.children[1];
+
+  identifierInput.value = 'SlashHeavy';
+  dom.fire(identifierInput, 'input');
+
+  const saveButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '保存');
+  dom.fire(saveButton, 'click');
+  await flush();
+
+  assert.ok(renameCalledWith, 'assets.rename が呼ばれる');
+  assert.equal(renameCalledWith.identifier, 'SlashHeavy');
+  assert.equal(renameCalledWith.id, 'Se::Slash');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('保存しました') !== -1);
+  assert.ok(toast);
+});
+
+test('editor: D-Drive で作成済み（ddriveState.created、既定サンプル）の発注は識別子・種別の入力欄が無効化され、理由のヒントが出る', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const identifierField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    const label = (n.children || [])[0];
+    return label && label.textContent === 'インポート名: 識別子（PascalCase）';
+  });
+  const identifierInput = identifierField.children[1];
+  assert.equal(identifierInput.disabled, true, 'ddriveState.created=true（既定サンプル）のため識別子欄は無効化される');
+
+  const lockedHint = dom.findNode(root, (n) => (n.textContent || '').indexOf('D-Drive で作成済みのため変更できません') !== -1);
+  assert.ok(lockedHint, '変更不可の理由のヒントが表示される');
+});
+
+// ---- O-15 の3: 未保存の変更があるまま閉じようとしたら確認 ----
+
+test('editor: 未保存の変更がある状態で「閉じる」を押すと確認し、キャンセルすれば閉じない', async () => {
+  let confirmCalled = false;
+  const { dom, render } = setup('editor', {
+    confirm: function () {
+      confirmCalled = true;
+      return false;
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const displayNameField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    const label = (n.children || [])[0];
+    return label && label.textContent === '表示名';
+  });
+  const input = displayNameField.children[1];
+  input.value = '斬撃音（変更後）';
+  dom.fire(input, 'input');
+
+  const closeButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '閉じる');
+  dom.fire(closeButton, 'click');
+
+  assert.equal(confirmCalled, true, '未保存の変更があるときは confirm を呼ぶ');
+  const headingStillOpen = dom.findNode(root, (n) => n.tagName === 'h2');
+  assert.ok(headingStillOpen, 'confirm でキャンセルすると閉じない');
+});
+
+test('editor: 変更が無い状態で「閉じる」を押しても確認せずに閉じる', async () => {
+  let confirmCalled = false;
+  const { dom, render } = setup('editor', {
+    confirm: function () {
+      confirmCalled = true;
+      return true;
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const closeButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '閉じる');
+  dom.fire(closeButton, 'click');
+
+  assert.equal(confirmCalled, false, '変更が無ければ confirm を呼ばない');
+  const headingClosed = dom.findNode(root, (n) => n.tagName === 'h2');
+  assert.equal(headingClosed, null, '確認不要のときは閉じる');
+});
+
+// ---- O-16: 一覧行の「メモあり」アイコン + 展開表示 ----
+
+test('一覧: メモが無い行は 📝 アイコンが出ず、メモを保存すると一覧行に 📝 が出て押すと展開表示できる', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const memoButtonWhenEmpty = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '📝');
+  assert.equal(memoButtonWhenEmpty, null, 'メモが無い既定サンプルでは 📝 アイコンが出ない');
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+  const referenceTextarea = dom.findNode(root, (n) => n.tagName === 'textarea' && n.getAttribute && n.getAttribute('rows') === '6');
+  referenceTextarea.value = 'メモの内容';
+  dom.fire(referenceTextarea, 'input');
+  const saveButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '保存');
+  dom.fire(saveButton, 'click');
+  await flush();
+
+  const memoButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '📝');
+  assert.ok(memoButton, 'メモが入力済みになると一覧行に 📝 アイコンが出る');
+  dom.fire(memoButton, 'click');
+
+  const expandedRow = dom.findNode(root, (n) => n.className === 'assets-memo-row');
+  assert.ok(expandedRow, '押すと展開行が出る');
+  const memoBox = dom.findNode(expandedRow, (n) => n.className === 'assets-md-preview assets-memo-clip');
+  assert.ok(memoBox, 'メモの整形表示ボックスが展開行に入っている');
+  assert.match(memoBox.innerHTML, /メモの内容/);
+
+  const moreButton = dom.findNode(expandedRow, (n) => n.tagName === 'button' && n.textContent === '続きを読む（詳細を開く）');
+  assert.ok(moreButton, '「続きを読む」で詳細パネルを開ける');
 });
 
 test('viewer: 「+ 新規発注」ボタンが無く、詳細パネルは読み取り専用になり、状態進行ボタンも出ない', async () => {

@@ -214,10 +214,10 @@ test('renderMarkdownSafe: 見出し・強調・コード・改行を変換する
   assert.match(html, /<code>コード<\/code>/);
 });
 
-test('renderMarkdownSafe: リンクは target="_top" rel="noopener" で開き、画像は img タグになる', () => {
+test('renderMarkdownSafe: リンクは target="_blank" rel="noopener" で開き（O-16: <base target="_top"> 環境で外部リンクが自アプリを差し替えないように別タブに変更）、画像は img タグになる', () => {
   const logic = load();
   const html = logic.renderMarkdownSafe('[参考動画](https://example.com/video) ![説明](https://example.com/a.png)');
-  assert.match(html, /<a href="https:\/\/example\.com\/video" target="_top" rel="noopener">参考動画<\/a>/);
+  assert.match(html, /<a href="https:\/\/example\.com\/video" target="_blank" rel="noopener">参考動画<\/a>/);
   assert.match(html, /<img[^>]*src="https:\/\/example\.com\/a\.png"/);
 });
 
@@ -327,4 +327,47 @@ test('validateAssetFields: fileFormat/fileName の長さ上限を検証する（
     fileName: 'bad/name.wav'
   });
   assert.equal(illegalCharsOnly.valid, true, '不正文字は errors に入れない（fileNameWarnings 側の警告のみ）');
+});
+
+// ---- O-15: canRenameAsset（発注後の識別子・種別の変更可否のクライアント側ミラー） ----
+
+test('canRenameAsset: ddriveState が無い/未作成・status がインポート済でなければ true', () => {
+  const logic = load();
+  assert.equal(logic.canRenameAsset({ status: '発注済' }), true);
+  assert.equal(logic.canRenameAsset({ status: '納品済', ddriveState: { created: false } }), true);
+  assert.equal(logic.canRenameAsset({ status: '発注済', ddriveState: null }), true);
+});
+
+test('canRenameAsset: ddriveState.created が true なら false（D-Drive で作成済み）', () => {
+  const logic = load();
+  assert.equal(logic.canRenameAsset({ status: '発注済', ddriveState: { created: true } }), false);
+  // Placeholder のままでも created=true なら変更不可（status はまだインポート済でなくても）。
+  assert.equal(logic.canRenameAsset({ status: '発注済', ddriveState: { created: true, isPlaceholder: true } }), false);
+});
+
+test('canRenameAsset: status が「インポート済」なら false', () => {
+  const logic = load();
+  assert.equal(logic.canRenameAsset({ status: 'インポート済', ddriveState: { created: false } }), false);
+});
+
+test('canRenameAsset: item が無ければ false（安全側）', () => {
+  const logic = load();
+  assert.equal(logic.canRenameAsset(null), false);
+  assert.equal(logic.canRenameAsset(undefined), false);
+});
+
+// ---- O-16: hasReferenceMd（メモが入力済みかどうか） ----
+
+test('hasReferenceMd: 空文字・空白のみ・undefined・null は false', () => {
+  const logic = load();
+  assert.equal(logic.hasReferenceMd({ referenceMd: '' }), false);
+  assert.equal(logic.hasReferenceMd({ referenceMd: '   ' }), false);
+  assert.equal(logic.hasReferenceMd({ referenceMd: undefined }), false);
+  assert.equal(logic.hasReferenceMd({}), false);
+  assert.equal(logic.hasReferenceMd(null), false);
+});
+
+test('hasReferenceMd: 内容があれば true', () => {
+  const logic = load();
+  assert.equal(logic.hasReferenceMd({ referenceMd: '参考: https://example.com' }), true);
 });

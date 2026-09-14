@@ -32,11 +32,11 @@ function setup(role, options) {
     };
   }
 
-  const group = { id: 'og_1', name: 'スキル: 斬撃', wbsNo: '3.2.1', revision: 1 };
-  const asset = {
+  const group = Object.assign({ id: 'og_1', name: 'スキル: 斬撃', wbsNo: '3.2.1', revision: 1 }, options.groupOverrides);
+  const asset = Object.assign({
     id: 'Se::Hit', assetType: 'Se', identifier: 'Hit', displayName: '斬撃音',
     status: '納品済', orderer: 'よしだ', contractor: 'たなか', parentId: 'og_1', archived: false
-  };
+  }, options.assetOverrides);
 
   const fakeClient = createFakeSpecWebClient({
     whoami: function () {
@@ -56,10 +56,23 @@ function setup(role, options) {
     },
     'orderGroups.delete': options.deleteHandler || function () {
       return { ok: true, deleted: true };
+    },
+    // O-15: orderGroups.update の既定フェイク（patch をそのまま反映して revision を進める）。
+    'orderGroups.update': options.updateGroupHandler || function (params) {
+      const patch = JSON.parse(params.patch);
+      return { ok: true, item: Object.assign({}, group, patch, { revision: group.revision + 1 }) };
     }
   });
   sandbox.window.SpecWebClient = fakeClient;
   sandbox.window.confirm = options.confirm !== undefined ? options.confirm : function () { return true; };
+
+  // O-15: 「編集」ボタンが呼ぶ画面遷移（html/App.html の window.SpecWebNavigate）のスパイ。
+  // 実アプリでは常に存在するが、この画面コード単体のスモークテストの sandbox には無いため、
+  // OrderTree.html 側は typeof で存在確認してから呼ぶ（このテストでは呼び出しを記録する）。
+  const navigateCalls = [];
+  sandbox.window.SpecWebNavigate = function (id, navOptions) {
+    navigateCalls.push({ id: id, options: navOptions });
+  };
 
   // O-13: OrderLinkLogic/ClipboardCopy も実 Index.html と同じ順序で読み込む
   // （OrderTree.html の buildCopyLinkControl が window.OrderLinkLogic/window.SpecWebClipboard を使う）。
@@ -71,7 +84,7 @@ function setup(role, options) {
     sandbox
   );
   assert.ok(capturedRender, 'registerScreen("orders", ...) が呼ばれていること');
-  return { ctx, dom, render: capturedRender };
+  return { ctx, dom, render: capturedRender, navigateCalls: navigateCalls };
 }
 
 test('editor: 発注グループ・子の集計・WBS リンクが例外なくレンダリングされる', async () => {
@@ -86,7 +99,8 @@ test('editor: 発注グループ・子の集計・WBS リンクが例外なく�
   const wbsLink = dom.findNode(root, (n) => n.tagName === 'a' && (n.textContent || '').indexOf('WBS 3.2.1') !== -1);
   assert.ok(wbsLink, 'ganttUrl 設定済みなら WBS リンクが表示される');
 
-  const item = dom.findNode(root, (n) => n.tagName === 'li' && (n.textContent || '').indexOf('Hit') !== -1);
+  // O-15: 発注名は li 直下の span に入る（li 自体には「編集」ボタン等も並ぶため）。
+  const item = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => (c.textContent || '').indexOf('Hit') !== -1));
   assert.ok(item, '子の発注が一覧に出る');
 
   const newGroupButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 発注グループを作成');
@@ -300,4 +314,115 @@ test('viewer: 発注グループヘッダーに「削除」ボタンが出ない
 
   const deleteButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '削除');
   assert.equal(deleteButton, null);
+});
+
+// ---- O-15: 各発注への「編集」導線（発注ツリーには詳細パネルが無いため、一覧画面へ遷移する） ----
+
+test('editor: 発注の行に「編集」ボタンが出て、押すと SpecWebNavigate("assets", {params:{openId}}) が呼ばれる', async () => {
+  const { dom, render, navigateCalls } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const editButton = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => c.tagName === 'button' && c.textContent === '編集'));
+  assert.ok(editButton, '発注の行に「編集」ボタンが出る');
+  const button = dom.findNode(editButton, (n) => n.tagName === 'button' && n.textContent === '編集');
+  dom.fire(button, 'click');
+
+  assert.equal(navigateCalls.length, 1);
+  assert.equal(navigateCalls[0].id, 'assets');
+  assert.equal(navigateCalls[0].options.params.openId, 'Se::Hit');
+});
+
+test('viewer: 発注の行に「編集」ボタンが出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const editButton = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => c.tagName === 'button' && c.textContent === '編集'));
+  assert.equal(editButton, null, 'viewer には編集ボタンが出ない');
+});
+
+// ---- O-16: 発注ツリーの各発注にも「メモあり」アイコン + 展開表示 ----
+
+test('メモが入力済みの発注には 📝 アイコンが出て、押すと整形表示が展開される（メモが無ければ出ない）', async () => {
+  const { dom, render } = setup('editor', {
+    assetOverrides: { referenceMd: '参考: [動画](https://example.com/video)' }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const memoButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '📝');
+  assert.ok(memoButton, 'メモが入力済みの発注には 📝 アイコンが出る');
+  dom.fire(memoButton, 'click');
+
+  const memoBox = dom.findNode(root, (n) => n.className === 'assets-md-preview assets-memo-clip');
+  assert.ok(memoBox, '押すと整形表示が展開される');
+  assert.match(memoBox.innerHTML, /example\.com\/video/);
+});
+
+test('メモが無い発注には 📝 アイコンが出ない', async () => {
+  const { dom, render } = setup('editor');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const memoButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '📝');
+  assert.equal(memoButton, null);
+});
+
+// ---- O-15: 発注グループの編集（orderGroups.update、既存 API を使う） ----
+
+test('editor: グループヘッダーの「編集」を押すと編集フォームが開き、保存すると orderGroups.update が呼ばれて反映される', async () => {
+  let updateCalledWith = null;
+  const { dom, render } = setup('editor', {
+    updateGroupHandler: function (params) {
+      updateCalledWith = params;
+      const patch = JSON.parse(params.patch);
+      return { ok: true, item: Object.assign({ id: 'og_1', revision: 2 }, patch) };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const editGroupButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '編集');
+  assert.ok(editGroupButton, 'グループヘッダーに「編集」ボタンが出る');
+  dom.fire(editGroupButton, 'click');
+
+  const nameField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div') return false;
+    const label = (n.children || [])[0];
+    return label && label.tagName === 'label' && label.textContent === '名前';
+  });
+  assert.ok(nameField, '編集フォームの「名前」欄が出る');
+  const nameInput = nameField.children[1];
+  nameInput.value = 'スキル: 斬撃（改）';
+  dom.fire(nameInput, 'input');
+
+  const saveButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '保存');
+  dom.fire(saveButton, 'click');
+  await flush();
+
+  assert.ok(updateCalledWith, 'orderGroups.update が呼ばれる');
+  assert.equal(updateCalledWith.id, 'og_1');
+  assert.equal(JSON.parse(updateCalledWith.patch).name, 'スキル: 斬撃（改）');
+
+  const heading = dom.findNode(root, (n) => n.tagName === 'span' && n.textContent === 'スキル: 斬撃（改）');
+  assert.ok(heading, '保存後は一覧のヘッダーがその場で更新される');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('保存しました') !== -1);
+  assert.ok(toast);
+});
+
+test('viewer: グループヘッダーに「編集」ボタンが出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const editGroupButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '編集');
+  assert.equal(editGroupButton, null);
 });
