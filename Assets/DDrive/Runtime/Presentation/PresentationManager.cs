@@ -69,10 +69,10 @@ namespace DDrive.Runtime.Presentation
             public ushort Seed;
 
             // true は「PresentationPlayMsg を受信して生成した(=予測再生によるローカル直接生成ではない)」
-            // Instance であることを示す。SelfNetId/TargetNetId を常に 0 で送る既知の制約(§4 実装メモ)により、
-            // 受信側は「この事象が自分に起きたことか」を判定できない。HapticsData.LocalPlayerOnly=true な
-            // Haptic トラックは誤発火(自分に関係ない振動)を避けるため、この Instance では安全側に倒して
-            // 再生しない(オーケストレーターの追加指示、2026-09-14。要判断は docs/28 参照)。
+            // Instance であることを示す。SelfNetId/TargetNetId は解決できたときだけ実値で送られる(6-0、[14] §4)。
+            // HapticsData.LocalPlayerOnly=true な Haptic トラックは、解決できて「自分の Self/Target」と判定できた
+            // 場合だけ再生し、それ以外(未解決 or 自分ではない)は誤発火防止のため安全側に倒して再生しない
+            // (オーケストレーターの追加指示、2026-09-14 → 6-0 で NetId 解決を実装)。
             public bool PlayedViaNetworkReceive;
         }
 
@@ -111,6 +111,19 @@ namespace DDrive.Runtime.Presentation
         private readonly Dictionary<uint, ActiveNetworkedEntry> _activeNetworked = new();
         private readonly uint _instanceSalt;
         private uint _nextLocalSeq;
+
+        // [14_networking.md] §9(6-0, P1-1/P1-2 レビュー対応) — HandleNetKey の上位 8bit に発行者(LocalClientId
+        // の下位 8bit)を埋め込む。MS2026/NGO の LAN 1v1 前提(実クライアント数は極少数)では 8bit(256 通り)で
+        // 十分。下位 24bit は従来どおりの salt/連番/NetworkTime 混合。
+        private const int HandleNetKeyIssuerBits = 8;
+        private const uint HandleNetKeyIssuerMask = 0xFFu;
+        private const uint HandleNetKeyLowerMask = 0x00FFFFFFu;
+
+        // NGO の NetworkManager.ServerClientId は常に 0(PrefabsManager.ServerClientId と同じ規約、[14] §12)。
+        // Host は「発行者に関わらず中継/上書きしてよい」信頼された送信元として扱う(Host からの Signal/Cancel/
+        // Late-Join 再送は元の行為者が誰であっても正規の権威操作のため)。NGO の SenderClientId はトランスポートが
+        // 付与する値でクライアントが偽装できない([14] §2)ため、この定数と一致するには実際に Host である必要がある。
+        private const ulong TrustedRelayClientId = 0UL;
 
         public AssetType Type => AssetType.Presentation;
 
@@ -254,13 +267,27 @@ namespace DDrive.Runtime.Presentation
             if (data.PredictLocal)
             {
                 predicted = PlayLocalInternal(data, in ctx, elapsedSeek: 0f, seed: seed, handleNetKey: handleNetKey, isNetworked: true, playedViaNetworkReceive: false);
+
+                // P2-3(6-0 レビュー対応) — Host が PredictLocal で行為者になった場合、自分の Broadcast の
+                // 確定エコーを待たずに即座に台帳へ登録する。エコー到着前に別クライアントが接続してくると
+                // Late Join のスナップショット送信対象から漏れていた(OnClientConnected は台帳しか見ないため)。
+                if (_netBridge.IsServer)
+                {
+                    RegisterActiveIfServer(handleNetKey, data, ctx, startNetTime, seed);
+                }
             }
+
+            // [14_networking.md] §4/§5(6-0, C) — SelfNetId/TargetNetId を実際に解決できる場合は実値で送る
+            // (NGO の NetworkObject を持つ Transform のみ。解決できなければ 0 を送り、受信側は既存のとおり
+            // Position にフォールバックする)。
+            var selfNetId = _netBridge.ResolveNetId(ctx.Self);
+            var targetNetId = _netBridge.ResolveNetId(ctx.Target);
 
             _netBridge.Broadcast(new PresentationPlayMsg
             {
                 PresId = data.Id,
-                SelfNetId = 0,
-                TargetNetId = 0,
+                SelfNetId = selfNetId,
+                TargetNetId = targetNetId,
                 Position = ctx.Position,
                 StartNetTime = startNetTime,
                 Seed = seed,
@@ -270,11 +297,47 @@ namespace DDrive.Runtime.Presentation
             return predicted;
         }
 
+        // [14_networking.md] §9(6-0) — HandleNetKey の上位 8bit(発行者)を取り出す。
+        private static uint IssuerOf(uint handleNetKey) => (handleNetKey >> (32 - HandleNetKeyIssuerBits)) & HandleNetKeyIssuerMask;
+
+        // senderId(トランスポートが付与する実際の送信元。NGO ではクライアントが偽装不能)が、HandleNetKey の
+        // 発行者と一致するか、あるいは Host(TrustedRelayClientId)からの正規の中継/再送かを検証する([14] §9)。
+        private bool IsAuthorizedSender(ulong senderId, uint handleNetKey)
+        {
+            if (handleNetKey == 0)
+            {
+                return false;
+            }
+
+            if (senderId == TrustedRelayClientId)
+            {
+                return true;
+            }
+
+            return (senderId & HandleNetKeyIssuerMask) == IssuerOf(handleNetKey);
+        }
+
         private void OnReceivePlayMsg(ulong senderId, PresentationPlayMsg msg)
         {
+            // P1-1/P1-2(6-0 レビュー対応) — 発行者検証。不一致・(0 の HandleNetKey は元々発生しないが)未知の
+            // 発行者は破棄する。これにより改造 Client が他人の HandleNetKey を騙って PresId/StartNetTime/Seed を
+            // 上書きする攻撃(A の台帳エントリが B の値で上書きされる)を防ぐ。
+            if (!IsAuthorizedSender(senderId, msg.HandleNetKey))
+            {
+                Debug.LogWarning($"[Net/{(_netBridge != null && _netBridge.IsServer ? "Host" : "Client")}] Presentation: PresentationPlayMsg(HandleNetKey=0x{msg.HandleNetKey:X8}) の送信元 ClientId({senderId}) が発行者と一致しないため破棄しました。");
+                return;
+            }
+
             // 予測再生済み(または既にこの受信ハンドラで生成済み)の確定通知。二重生成しない([14] §5)。
             if (_networkedHandles.TryGetValue(msg.HandleNetKey, out var existingHandle) && _instances.TryGet(existingHandle, out var existingInstance))
             {
+                // P1-2: 既存エントリと PresId が異なる = 同じ HandleNetKey を騙った別演出の上書き試行。破棄する。
+                if (existingInstance.Data.Id != msg.PresId)
+                {
+                    Debug.LogWarning($"[Net/{(_netBridge != null && _netBridge.IsServer ? "Host" : "Client")}] Presentation: PresentationPlayMsg(HandleNetKey=0x{msg.HandleNetKey:X8}) の PresId が既存エントリと一致しないため破棄しました。");
+                    return;
+                }
+
                 RegisterActiveIfServer(msg.HandleNetKey, existingInstance.Data, existingInstance.Ctx, msg.StartNetTime, msg.Seed);
                 return;
             }
@@ -342,9 +405,35 @@ namespace DDrive.Runtime.Presentation
                 return;
             }
 
+            // P2-4(6-0 レビュー対応) — 自分自身の接続(Host が自分の OnClientConnectedCallback を受け取る
+            // ケース)は早期 return する(自分に送っても意味がない)。
+            if (clientId == _netBridge.LocalClientId)
+            {
+                return;
+            }
+
+            // P2-4 — 台帳をスナップショット(配列)してから送る。SendTo が LocalLoopback 経由で同期的に
+            // 配送される場合、送信先の受信処理が(理論上)台帳を書き換える可能性があるため、foreach 中の
+            // Dictionary を直接列挙しない。
+            var count = _activeNetworked.Count;
+            if (count == 0)
+            {
+                return;
+            }
+
+            var keys = new uint[count];
+            var entries = new ActiveNetworkedEntry[count];
+            var i = 0;
             foreach (var kv in _activeNetworked)
             {
-                var entry = kv.Value;
+                keys[i] = kv.Key;
+                entries[i] = kv.Value;
+                i++;
+            }
+
+            for (var j = 0; j < count; j++)
+            {
+                var entry = entries[j];
                 _netBridge.SendTo(clientId, new PresentationPlayMsg
                 {
                     PresId = entry.Data.Id,
@@ -353,7 +442,7 @@ namespace DDrive.Runtime.Presentation
                     Position = entry.Ctx.Position,
                     StartNetTime = entry.StartNetTime,
                     Seed = entry.Seed,
-                    HandleNetKey = kv.Key,
+                    HandleNetKey = keys[j],
                 }, NetChannel.ReliableOrdered);
             }
         }
@@ -365,7 +454,13 @@ namespace DDrive.Runtime.Presentation
                 _nextLocalSeq++;
                 var timeBits = _netBridge != null ? System.BitConverter.DoubleToInt64Bits(_netBridge.NetworkTime) : 0L;
                 var mixed = (uint)(timeBits ^ (timeBits >> 32));
-                var key = (mixed ^ _instanceSalt) + _nextLocalSeq;
+                var lower = ((mixed ^ _instanceSalt) + _nextLocalSeq) & HandleNetKeyLowerMask;
+
+                // [14_networking.md] §9(6-0, P1-2 対応) — 上位 8bit に発行者(LocalClientId の下位 8bit)を
+                // 埋め込む。以後の Signal/Cancel/Play 受信検証(IsAuthorizedSender)がこれを使う。
+                var clientId = _netBridge != null ? _netBridge.LocalClientId : 0UL;
+                var issuerBits = ((uint)clientId & HandleNetKeyIssuerMask) << (32 - HandleNetKeyIssuerBits);
+                var key = issuerBits | lower;
                 return key == 0 ? 1u : key;
             }
         }
@@ -439,6 +534,14 @@ namespace DDrive.Runtime.Presentation
 
         private void OnReceiveSignalMsg(ulong senderId, PresentationSignalMsg msg)
         {
+            // P1-1(6-0 レビュー対応) — 発行者(または Host)以外からの Signal は破棄する
+            // (改造 Client が他人の演出の HandleNetKey を騙って Signal できないようにする)。
+            if (!IsAuthorizedSender(senderId, msg.HandleNetKey))
+            {
+                Debug.LogWarning($"[Net/{(_netBridge != null && _netBridge.IsServer ? "Host" : "Client")}] Presentation: PresentationSignalMsg(HandleNetKey=0x{msg.HandleNetKey:X8}) の送信元 ClientId({senderId}) が発行者と一致しないため破棄しました。");
+                return;
+            }
+
             if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance))
             {
                 return;
@@ -463,8 +566,29 @@ namespace DDrive.Runtime.Presentation
 
         private void OnReceiveCancelMsg(ulong senderId, PresentationCancelMsg msg)
         {
+            // P1-1(6-0 レビュー対応) — 発行者(または Host)以外からの Cancel は破棄する。
+            if (!IsAuthorizedSender(senderId, msg.HandleNetKey))
+            {
+                Debug.LogWarning($"[Net/{(_netBridge != null && _netBridge.IsServer ? "Host" : "Client")}] Presentation: PresentationCancelMsg(HandleNetKey=0x{msg.HandleNetKey:X8}) の送信元 ClientId({senderId}) が発行者と一致しないため破棄しました。");
+                return;
+            }
+
             if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance) || instance.Done)
             {
+                return;
+            }
+
+            // P1-1(レビュー指摘の残り) — 公開 API Cancel() の入口(481 行付近)は Interruptible=false を
+            // 見て無視するが、受信 → CancelInternal 経路にはこのチェックが無かった。発行者検証を回避できない
+            // 偽造 Cancel でも、Interruptible=false な演出は依然止められないようにする。
+            if (!instance.Data.Interruptible)
+            {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                if (_nonInterruptibleWarned.Add(instance.Data))
+                {
+                    Debug.LogWarning($"[DDrive] Presentation '{instance.Data.DisplayName}' は Interruptible=false のため受信した Cancel を無視しました。");
+                }
+#endif
                 return;
             }
 
@@ -980,7 +1104,9 @@ namespace DDrive.Runtime.Presentation
             var data = _registry.ResolveOrPlaceholder<SeData>(track.Asset.Id);
             var root = ResolveContextRoot(instance.Ctx, track.Target);
             var spec = AnchorSpawnSpec.FromDef(track.Anchor);
-            var h = _audio.PlaySeData(data, in spec, root);
+            // [14_networking.md] §6(6-0、Seed の実消費) — ネットワーク経路の Instance は Seed を渡し、
+            // 全クライアントで同じ Clip/Pitch が選ばれるようにする(ローカル再生は今までどおり未指定)。
+            var h = _audio.PlaySeData(data, in spec, root, seed: instance.IsNetworked ? instance.Seed : (ushort?)null);
 
             if (track.StopOnCancel && _audio.IsPlaying(h))
             {
@@ -1115,14 +1241,21 @@ namespace DDrive.Runtime.Presentation
 
             var data = _registry.ResolveOrPlaceholder<HapticsData>(track.Asset.Id);
 
-            // [14_networking.md] §5 追加指示(2026-09-14) — SelfNetId/TargetNetId を常に 0 で送るため、
-            // 受信側は「この事象が自分に起きたことか」を判定できない。LocalPlayerOnly=true な Haptic は
-            // 誤爆(自分に関係ない振動)を避けるため、ネット受信で生成した Instance(PlayedViaNetworkReceive)
-            // では安全側に倒して再生しない(要判断: NGO 統合で SelfNetId が解決できるようになったら見直す。
-            // 予測再生した行為者自身の Instance はこのフラグが false のため影響を受けない)。
+            // [14_networking.md] §5(6-0, C 対応) — SelfNetId/TargetNetId が実際に解決できていれば
+            // 「自分の Self/Target か」で誤爆防止を判定する(NetworkObject の所有者比較)。解決できない場合
+            // (SelfNetId/TargetNetId が 0、または対象が Spawn されていない等)は 5-8 の安全側デフォルトのまま
+            // (ネット受信 Instance では LocalPlayerOnly を鳴らさない)。予測再生した行為者自身の Instance は
+            // PlayedViaNetworkReceive=false のため、そもそもこの判定に入らず影響を受けない。
             if (instance.PlayedViaNetworkReceive && data.LocalPlayerOnly)
             {
-                return;
+                var isSelf = _netBridge != null &&
+                    ((instance.Ctx.Self != null && _netBridge.IsLocalPlayerObject(instance.Ctx.Self)) ||
+                     (instance.Ctx.Target != null && _netBridge.IsLocalPlayerObject(instance.Ctx.Target)));
+
+                if (!isSelf)
+                {
+                    return;
+                }
             }
 
             var h = _haptics.PlayData(data);
