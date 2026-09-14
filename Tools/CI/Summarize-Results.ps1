@@ -5,13 +5,17 @@
 # 入力:
 #   -ValidationJUnitPath : CI.ValidateAll が書き出す独自 JUnit 形式(testsuite/testcase)
 #   -EditModeResultsPath / -PlayModeResultsPath : Unity Test Framework が書き出す NUnit3 形式(test-run/test-suite/test-case)
+#   -PerformanceResultsPath : 6-2(DDrive.Tests.Performance、-testCategory Performance で絞った PlayMode 実行)の結果。同じ NUnit3 形式
 #
 # どのファイルも「無ければスキップ」(そのステップ自体が実行されなかった/失敗した場合でも、このスクリプトは落ちない)。
 
 param(
     [string]$ValidationJUnitPath = "TestResults/ddrive-validation.junit.xml",
     [string]$EditModeResultsPath = "TestResults/editmode-results.xml",
-    [string]$PlayModeResultsPath = "TestResults/playmode-results.xml"
+    [string]$PlayModeResultsPath = "TestResults/playmode-results.xml",
+    # 6-2: DDrive.Tests.Performance(category=Performance)の結果。省略時はスキップ(そのステップ自体を
+    # 実行しない run-ci.cmd の古い呼び出し・CI 側でも壊れないようにする)。
+    [string]$PerformanceResultsPath = "TestResults/performance-results.xml"
 )
 
 $ErrorActionPreference = "Stop"
@@ -76,6 +80,7 @@ function Read-DDriveValidationSummary {
 $validation = Read-DDriveValidationSummary -Path $ValidationJUnitPath
 $editMode = Read-NUnitSummary -Path $EditModeResultsPath -Label "EditMode"
 $playMode = Read-NUnitSummary -Path $PlayModeResultsPath -Label "PlayMode"
+$performance = Read-NUnitSummary -Path $PerformanceResultsPath -Label "Performance"
 
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add("## D-Drive CI 結果")
@@ -89,7 +94,7 @@ if ($validation.Found) {
     $lines.Add("| Validation | 結果ファイルなし(ステップ未実行/失敗) |")
 }
 
-foreach ($r in @($editMode, $playMode)) {
+foreach ($r in @($editMode, $playMode, $performance)) {
     if ($r.Found) {
         $lines.Add("| $($r.Label) テスト | 全 $($r.Total) 件 / Passed $($r.Passed) / Failed $($r.Failed) |")
     } else {
@@ -105,7 +110,7 @@ if ($validation.FailedEntries.Count -gt 0) {
     $lines.Add("")
 }
 
-foreach ($r in @($editMode, $playMode)) {
+foreach ($r in @($editMode, $playMode, $performance)) {
     if ($r.Found -and $r.FailedNames.Count -gt 0) {
         $lines.Add("### $($r.Label) 失敗テスト")
         foreach ($n in $r.FailedNames) { $lines.Add("- $n") }
@@ -122,7 +127,8 @@ if ($env:GITHUB_STEP_SUMMARY) {
 
 $hasFailure = ($validation.Found -and $validation.Failures -ne 0) -or
               ($editMode.Found -and $editMode.Failed -ne 0) -or
-              ($playMode.Found -and $playMode.Failed -ne 0)
+              ($playMode.Found -and $playMode.Failed -ne 0) -or
+              ($performance.Found -and $performance.Failed -ne 0)
 
 if ($hasFailure) {
     exit 1
