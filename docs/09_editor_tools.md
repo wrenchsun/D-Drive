@@ -68,6 +68,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
   | `Vfx/<カテゴリ>/` | Vfx | .prefab | `VfxData.Prefab` |
 
 - **識別子・カテゴリ**: 識別子は元ファイル名(`AssetNamingService.ToIdentifier`)、カテゴリはフォルダの `<種別>/` から先の階層パス(`Player/Attack` のように複数階層可、空でも可)。FBX のルート名やプレハブのルート GameObject 名はデザイナーが揃えているとは限らないため使わない
+- **1 階層目が種別フォルダであること(重要)**: `ImportRuleService.TryMatchRule` は `SourceAssets/` の**直下 1 階層目のフォルダ名**(`Ordinal`、大文字小文字も区別)だけを種別として見る。`SourceAssets/` の直下に置いたファイル・種別フォルダの**上**に別のフォルダを挟んだ場合(例: `SourceAssets/_Check/Se/...`)・綴りや大文字小文字が違うフォルダ(例: `SourceAssets/se/...`)は、どれも「種別フォルダではない」として無視される。カテゴリは種別フォルダの**下**に階層を作って表現する(例: `SourceAssets/Se/Player/Slash.wav`)
 - **二重生成防止**: 新設の `AssetDataBase.ImportSourceGuid`(元ファイルの GUID。`[HideInInspector]`)で同定する。`ImportRuleService` は種別(DataType)ごとに `ImportSourceGuid → Data` の索引を 1 回だけ作って使い回す([06] A-2 実装メモの `MayaMaterialImporter.BeginBatch/EndBatch` と同じ狙い)。既に見つかった場合は何もしない(デザイナーの調整を上書きしない)
 - **入口**: `ImportRulePostprocessor`(`AssetPostprocessor.OnPostprocessAllAssets`。`MayaModelPostprocessor` と同じく delayCall でまとめて `ImportRuleService.ProcessPaths` へ渡す。`deletedAssets` は見ない = 元ファイル削除時に Data を消さない)。テスト等からの抑止は `ImportRulePostprocessor.Suppress` / `ImportRuleService.AutoImport`
 - **手動フォールバック**: `Tools/D-Drive/Generate/SourceAssets からインポートルールを再実行`(`ImportRuleService.ScanAll`)。AutoImport=OFF だった期間や機能導入前から置かれていたファイルを一括で取り込む
