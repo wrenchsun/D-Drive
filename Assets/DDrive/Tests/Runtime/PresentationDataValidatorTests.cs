@@ -13,9 +13,29 @@ namespace DDrive.Tests.Runtime
     // [08_presentation.md] §6。
     public class PresentationDataValidatorTests
     {
-        private static PresentationData ValidData()
+        // P5 レビュー第 1 弾 整理-4(2026-09-14): ValidData() が作る ScriptableObject.CreateInstance が
+        // どのテストでも DestroyImmediate されず、テスト実行ごとにリークしていた。生成した分をここに集め、
+        // TearDown でまとめて破棄する。
+        private readonly List<PresentationData> _created = new();
+
+        [TearDown]
+        public void TearDown()
+        {
+            foreach (var data in _created)
+            {
+                if (data != null)
+                {
+                    Object.DestroyImmediate(data);
+                }
+            }
+
+            _created.Clear();
+        }
+
+        private PresentationData ValidData()
         {
             var data = ScriptableObject.CreateInstance<PresentationData>();
+            _created.Add(data);
             data.Tracks = new[]
             {
                 new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Vfx, Asset = AssetRef.From(new VfxId(1, AssetType.Vfx)) },

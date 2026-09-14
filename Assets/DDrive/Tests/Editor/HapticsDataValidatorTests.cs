@@ -12,10 +12,30 @@ namespace DDrive.Tests.Editor
     // [16_camera_haptics.md] Part B / C-4。
     public class HapticsDataValidatorTests
     {
-        private static HapticsData ValidHaptic()
+        // P5 レビュー第 1 弾 整理-4(2026-09-14): ValidHaptic() の ScriptableObject.CreateInstance が
+        // DestroyImmediate されずリークしていた。TearDown でまとめて破棄する。
+        private readonly List<HapticsData> _created = new();
+
+        [TearDown]
+        public void TearDown()
+        {
+            foreach (var data in _created)
+            {
+                if (data != null)
+                {
+                    Object.DestroyImmediate(data);
+                }
+            }
+
+            _created.Clear();
+        }
+
+        private HapticsData ValidHaptic()
         {
             // クラスのフィールド初期化子(既定 0.2s)をそのまま使う。
-            return ScriptableObject.CreateInstance<HapticsData>();
+            var data = ScriptableObject.CreateInstance<HapticsData>();
+            _created.Add(data);
+            return data;
         }
 
         private static List<ValidationResult> Validate(HapticsData data)
