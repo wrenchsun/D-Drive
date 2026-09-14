@@ -38,6 +38,7 @@
 </ol>
 
 <h2>Button Skin</h2>
+<!-- screenshot: 36-#45 -->
 <h3>開き方</h3>
 <ol>
 <li>Project で Button Skin を選び、Inspector の一番上の「<strong>▶ Skin Editor で開く</strong>」を押す</li>
@@ -56,6 +57,7 @@
 <tr><td>SE の欄</td><td>Hover / Click / Long Press / Denied の各欄の右に「<strong>▶</strong>」（試聴）「<strong>■</strong>」（停止）。未設定の欄は押せません。SE データに音（Clip）が 1 つも入っていないと「再生できませんでした(Clip 未設定など…)」と出ます。Enter Preset に SE を付けている場合は、状態の「▶ 再生」でもその SE が鳴ります</td></tr>
 <tr><td>状態遷移（オレンジの線の箱）</td><td>「状態別ビジュアル」の先頭にあります。遷移の種類（マウスでクリック / パッドで選んで決定 / 押せないボタンを押す / ロック中のボタンを押す / 全状態を順に）を選んで「<strong>▶ 遷移を再生</strong>」を押すと、プレビューのボタンが順に状態を切り替えます。<strong>画像の差し替え・色・演出・SE が実際の操作と同じ順で</strong>確認できます（例: Hover に入ると Hover Se、押して離すと Click Se）。「1 状態の長さ(秒)」で 1 段の時間、「ループ」で繰り返し、「SE も鳴らす」で音の有無。下に今の段（例「● マウスでクリック: 3/5 Pressed」）が出ます</td></tr>
 <tr><td>当たり判定を表示</td><td>「Hit Area Expand」の下にあります。ON にすると、プレビューのボタンに<strong>押せる範囲が赤い半透明</strong>で重なります（Game / Scene ビュー）。Scene ビューでは赤い枠の四辺の小さな四角を<strong>ドラッグして広げ / 狭め</strong>られます（Ctrl+Z 可）</td></tr>
+<!-- screenshot: 36-#46 -->
 </table>
 <div class="tip">「▶ 再生」は 1 つの状態を強制的に見せる確認用です。状態の切り替わり（マウスを乗せる→押す→離す）の流れは、Game ビューで実際に操作して確かめてください。</div>
 
@@ -125,6 +127,7 @@
 </table>
 
 <h2>Slider Skin</h2>
+<!-- screenshot: 36-#48 -->
 <h3>開き方</h3>
 <ol>
 <li>Project で Slider Skin を選び、Inspector の「<strong>▶ Skin Editor で開く</strong>」（見た目と音）または「<strong>▶ Slider Editor で開く</strong>」（動き方。下記）</li>
@@ -175,6 +178,7 @@
 
 <h2>Slider Editor（スライダーの動き方を見る）</h2>
 <p>音量・感度・HP バー・スタミナ・キャラメイクなど「連続した値を触らせる」部品が UiSlider です。パッド操作・長押しリピート・微調整・目盛り吸着・応答曲線をはじめから持っています。Slider Editor は、その設定を<strong>グラフと帯で見ながら</strong>試すウィンドウです。</p>
+<!-- screenshot: 36-#47 -->
 <h3>開き方</h3>
 <ol>
 <li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Slider</code>。Hierarchy で UiSlider の付いたオブジェクトを選んでいればそれが対象</li>
