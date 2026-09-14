@@ -507,3 +507,44 @@ PC-A 側の配布用 HTTP サーバーは停止済み、両 PC とも `DDriveNet
 2. **既存の判定項目の再確認（回帰していないこと）**: 接続・Late Join・偽造 Cancel 破棄・切断検知・
    VFX の蓄積なし・切断後の VFX 残留なし（v4 で解消した項目、§12 参照）が引き続き成立すること
 3. ログ取得後、`docs/28_manual_verification_phase5.md` と本ドキュメントの該当節に結果を追記する
+
+## 14. ハッシュ不一致の実機確認手順（6-5、次回の実機/ローカル結合確認で行う）
+
+6-5（[11_tasks.md] / [14_networking.md] §7）で追加したカタログ ContentHash 照合は、`Tests/Runtime/
+CatalogContentHashGateTests.cs`（`FakeNetBridge` を使った Host/Client 双方の match/mismatch/timeout の
+純粋ロジック検証）でユニットテスト済みだが、実際の `NgoNetBridge`（`Broadcast`/`SendTo` の中継経路・
+`NetworkManager.DisconnectClient` の実挙動）は未確認。既存の慣習（`docs/12_review.md` §5）どおり、
+実機 2 台またはローカル 2 プロセスでの結合確認が必要。
+
+### 手順（片方だけ Data を変えたビルドで接続）
+
+1. PC-A（Host）用と PC-B（Client）用、2 つの `DDriveNetCheck` ビルドを用意する。うち片方だけ、GameData
+   の内容を変える（例: `Assets/GameData/Catalogs/*.asset` のどれかに含まれる既存の Data の `Category`
+   や `Tags` 等、カタログの Entry 自体には影響しない値を変えても ContentHash は変わらない — **ハッシュに
+   含まれるのは CatalogEntry の Id/Type/Address/NetMode だけ**（[14_networking.md] §7 実装メモ）ので、
+   確実に差を作るには次のいずれかを行う: ①新しい Se/Vfx 等の Data を 1 件追加してカタログに登録する
+   ②既存 Data の `AssetFlags.Net`(NetMode)を変える ③一時的にカタログからどれかの Entry を削除する)。
+2. `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド`（`NetCheckBuilder.Build()`）で変更前・変更後
+   それぞれをビルドし、フォルダを分けて両 PC に配る（このビルドは常に development build。§注参照）。
+3. PC-A で変更前のビルド、PC-B で変更後のビルドを起動し、通常どおり Host/Client で接続する（§3 の
+   起動コマンド）。
+4. `Player.log`（または画面左上の `NetDebugOverlay`）で以下を確認する:
+   - Host 側: `[Net/Host] CatalogContentHashGate: ContentHash 不一致(Client <id>): <カタログ名>: entries
+     local=N remote=M — 開発ビルド/エディタのため接続は継続します。` という警告が出る（`Debug.LogWarning`）。
+     どのカタログが違うかが**カタログ名 + Entry 数**だけで分かること(実データが出力されないこと)
+   - Client 側: 同様に `[Net/Client] CatalogContentHashGate: 不一致: ...` の警告が出ること（双方に警告が
+     出ることの確認）
+   - `NetDebugOverlay` の `ContentHash:` 行が両 PC とも "OK" ではなく不一致の詳細を表示すること
+   - **接続が切断されずに継続すること**（開発ビルドでの方針）。剣攻撃デモ等の他の Presentation/VFX/SE が
+     引き続き同期再生できることも合わせて確認する
+5. 変更を元に戻し、通常のビルドで再接続 → `ContentHash: OK` に戻ることを確認する
+
+### リリースビルド相当（切断）の確認について
+
+`NetCheckBuilder.Build()` は `BuildOptions.Development` 固定でビルドするため、`Debug.isDebugBuild` が
+常に `true` になり、この経路では「リリースビルドでは切断」側の実機確認ができない（要判断: 確認するには
+Unity の `Build Settings` で `Development Build` のチェックを外した手動ビルドを別途作るか、
+`NetCheckBuilder` にリリース向けオプションを追加する必要がある。6-5 のスコープでは追加していない）。
+手動でリリース相当のビルドを作った場合は、上記手順 3〜4 と同じ操作で
+「Host が該当 Client を切断し、Client 側に `NetworkManager.DisconnectReason`(「カタログの ContentHash
+が一致しません…」)を含む切断が表示されること」を確認する。

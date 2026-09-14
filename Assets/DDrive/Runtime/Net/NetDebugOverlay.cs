@@ -13,6 +13,10 @@ namespace DDrive.Runtime.Net
         public INetBridge Bridge;
         public NetworkManager NetworkManagerRef;
 
+        // [14_networking.md] §7(6-5) — カタログ ContentHash 照合の状態("検証中..."/"OK"/不一致の詳細)。
+        // DDriveRuntimeBootstrap が NetHashGate 生成後に割り当てる(未設定なら行を出さない)。
+        public CatalogContentHashGate ContentHashGate;
+
         [Tooltip("OFF にすると OnGUI を描画しない(実機確認が終わったら切る用)")]
         public bool Visible = true;
 
@@ -53,15 +57,18 @@ namespace DDrive.Runtime.Net
                 ? $"{appRtt.Value:F0} ms{(ngoForRtt != null && ngoForRtt.IsAppRoundTripMsStale ? " (stale)" : string.Empty)}"
                 : "n/a";
 
+            var contentHashText = ContentHashGate != null ? $"\nContentHash: {ContentHashGate.LastStatusText}" : string.Empty;
+
             var text =
                 $"[DDrive Net]\n" +
                 $"Role: {role} (ClientId={Bridge.LocalClientId})\n" +
                 $"State: {connectedText}\n" +
                 $"NetworkTime: {Bridge.NetworkTime:F2}\n" +
                 $"RTT: {rttText} / App RTT: {appRttText}\n" +
-                $"Received: {ReceivedCount()} ({_lastRatePerSecond:F1}/s)";
+                $"Received: {ReceivedCount()} ({_lastRatePerSecond:F1}/s)" +
+                contentHashText;
 
-            GUI.Box(new Rect(8, 8, 260, 126), text, _style);
+            GUI.Box(new Rect(8, 8, 260, 144), text, _style);
         }
 
         private int ReceivedCount()

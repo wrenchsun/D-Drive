@@ -166,6 +166,16 @@ namespace DDrive.Tests.Runtime
         {
         }
 
+        // 6-5(ContentHash) — 呼び出し記録のみ(このテストダブルの既存利用箇所は切断挙動を検証しないため)。
+        public int DisconnectClientCallCount { get; private set; }
+        public ulong LastDisconnectedClientId { get; private set; }
+
+        public void DisconnectClient(ulong clientId, string reason)
+        {
+            DisconnectClientCallCount++;
+            LastDisconnectedClientId = clientId;
+        }
+
         // 6-0(P2-5) — 偽造メッセージのテスト用: 実際の Broadcast() 経路を経由せず、任意の(偽の)senderId で
         // 直接この Bridge の Subscribe ハンドラへ配送する(NGO の RequestBroadcastRpc が中継してしまった後、
         // かつ HandleNetKey の発行者検証だけが最後の防波堤になるケースを模擬する)。

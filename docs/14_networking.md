@@ -378,6 +378,78 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
 - 接続ハンドシェイクで照合: 不一致 → 切断 or 互換モード（ID 存在チェックのみ）をプロジェクト方針で選択
 - Addressables Remote 更新時はカタログバージョンを合わせて配信。`MinCompatibleVersion` で下位互換範囲を宣言
 
+### 実装メモ（2026-09-15、6-5: カタログ ContentHash 生成 + 接続時照合）
+
+実装: `Foundation/Registry/CatalogContentHasher.cs`（新規、64bit FNV-1a 風の決定的ハッシュ）、
+`Runtime/Net/CatalogContentHashMessages.cs`（新規、`CatalogContentHashMsg`/`CatalogContentHashResultMsg`）、
+`Runtime/Net/CatalogContentHashPolicy.cs`（新規、不一致/タイムアウト時の方針決定 + 差分説明の純関数）、
+`Runtime/Net/CatalogContentHashGate.cs`（新規、接続時照合のオーケストレーション）、
+`Foundation/Net/INetBridge.cs`（`DisconnectClient(ulong,string)` 追加。`LocalLoopbackBridge`/`NgoNetBridge`/
+テスト用 `FakeNetBridge`/`CountingNetBridge`/`DelayedNetBridge`(Tests/Runtime/PresentationNetTests.cs) に実装追加）、
+`Runtime/Loop/DDriveRuntimeBootstrap.cs`（`NetHashGate` 生成・`RegisterCatalogsAsync` 完了時の
+`SetLocalSummary` 呼び出し・`Update()` での `Tick`）、`Runtime/Net/NetDebugOverlay.cs`（ContentHash 状態の表示）、
+`Editor/Validation/ContentHashCatalogCoverageValidator.cs`（新規、CI Error）。テストは
+`Tests/Runtime/{CatalogContentHasherTests,CatalogContentHashPolicyTests,CatalogContentHashGateTests}.cs`
+（新規）+ `Tests/Editor/ContentHashCatalogCoverageValidatorTests.cs`（新規）。
+
+- **何をハッシュに含めるか**: 本節冒頭は「全 Entry の ID + Data ハッシュ」とだけ定めており、Data 本体の
+  どのフィールドまで含めるかは規定していなかった。Data 本体(ScriptableObject の全フィールド)を
+  リフレクションで走査する案は、①Unity Object 参照・浮動小数点・配列順序等が絡み決定性の保証コストが
+  高い ②「Host/Client の資産定義が食い違っていないか」の検出という目的には、通常カタログの
+  Entry(登録されている ID・種別・Address・NetMode)自体が変わることで表面化する、という 2 点から見送った。
+  チケット指示にある既定方針(無ければ「ID・種別・アドレス・NetMode 等ネット同期に効くフィールドに絞る」)を
+  採用し、`CatalogEntry`(Id/Type/Address/Flags.Net)だけを対象にした。Data 本体の内容(調整値等)まで
+  含めたい場合は、将来 `AssetDataBase.Version`(6-3 の保存カウンタ)を Entry 側に持たせてから混ぜる拡張が
+  考えられる(要判断)。
+- **決定性・順序非依存**: 64bit FNV-1a 風にミックスした Entry 単体のハッシュを、カタログ内・カタログ間の
+  両方で **XOR 合成**する。XOR は可換・結合的なため、Entry の列挙順・カタログをどう分けて登録したかに
+  一切依存せず、複数カタログの結果を XOR したものは全 Entry を 1 つに flatten して計算した結果と必ず一致する
+  (`CatalogContentHasherTests.CombineCatalogHashes_OrderIndependent_AndMatchesFlattenedSingleCatalog` で検証)。
+  暗号学的な強度は無い(コンテンツのズレ検出が目的であり、悪意ある偽装への耐性は要求していない。下記
+  「セキュリティ上の限界」参照)。
+- **生成タイミング(ビルド前処理を追加しなかった判断)**: このハッシュは `CatalogEntry` の構造的フィールドの
+  みに基づき Data 本体のロードを要さないため、`DDriveRuntimeBootstrap.RegisterCatalogsAsync()` 完了時点
+  (Editor Play Mode・実ビルドいずれも同じコードパス)で毎回同一の結果を計算できる。Host/Client が同一
+  ビルドを実行する限り、ビルド前処理(`IPreprocessBuildWithReport`)で別ファイル(ScriptableObject /
+  StreamingAssets)へ事前計算・embed する追加のパイプラインは不要と判断し、実装しなかった。チケットが
+  提示した「既存の Preload 集計と同じ `IPreprocessBuildWithReport` 系」からの意図的な逸脱であり、理由は
+  上記のとおり(要判断: 将来 Data 本体まで含める設計に広げ、かつ計算コストが問題になった場合はビルド前処理
+  での事前計算を検討すること)。
+- **接続時照合の流れ(Host 権威、非対称)**: Client は接続確立(`INetBridge.ClientConnected` — NGO の
+  `OnClientConnectedCallback` は自分自身の接続でも発火する。[14] §5(5-9) と同じ)かつ自分のカタログ登録
+  完了の両方が揃った時点で、`CatalogContentHashMsg{ CombinedHash, Catalogs[](カタログ名+Hash+Entry数) }` を
+  1 回だけ `Broadcast`(Client 発は既存の Client→Host 依頼経路に乗る)する。**Host は自分のハッシュを
+  送り返さない**(比較・不一致判定は必ず Host 側で行う。Host 権威の他機構(PrefabSpawnRequestMsg 等)と
+  同じ非対称設計)。Host は比較結果(`CatalogContentHashResultMsg{ Matched, Descriptions[] }`)を該当
+  Client へ `SendTo` する(一致時も送る。Client 側の状態表示が「検証中」のまま止まらないようにするため)。
+- **タイムアウト(偽装対策)**: Host は `ClientConnected` ごとに `NetworkTime + タイムアウト秒`(既定 5 秒、
+  `DDriveRuntimeBootstrap.ContentHashTimeoutSeconds`)の期限を記録し、その期限内に
+  `CatalogContentHashMsg` を受信できなければ「不一致」と同じ方針分岐にかける(ハッシュを送らない/遅延させる
+  クライアントへの対処)。`DDriveRuntimeBootstrap.Update()` から毎フレーム `NetHashGate.Tick(NetworkTime)`
+  を呼ぶ(Dictionary が空なら即 return するだけで実質無害)。
+- **開発ビルド/エディタは継続、リリースビルドは切断(2026-09-15 ユーザー決定)**: 判定は
+  `CatalogContentHashPolicy.Decide(bool isDevelopmentOrEditor)`(純関数、テスト容易)に集約し、
+  呼び出し側(`DDriveRuntimeBootstrap`)が `Debug.isDebugBuild`(Editor 実行時、または Development Build を
+  付けたプレイヤーで true。`NgoNetBridge.ConfigureAppLayerSimLatency` と同じ判定基準)を渡す。不一致・
+  タイムアウトのどちらでも同じ方針を適用する(「一定時間内に届かなければ不一致扱い」の要求どおり)。
+  継続時は Host が `Debug.LogWarning` + `NetDebugOverlay`(`CatalogContentHashGate.LastStatusText`)に
+  「どのカタログが違うか」を **カタログ名 + Entry 数だけ**(実データは送らない)で表示し、`SendTo` で
+  該当 Client にも同じ情報を返す(Client 側も `Debug.LogWarning` + 同じ `LastStatusText` を更新。
+  「双方に警告ログ」の要求)。切断時は `NetworkManager.DisconnectClient(clientId, reason)` を呼ぶ
+  (Client の `NetworkManager.DisconnectReason` に reason がそのまま届く。既存の `HandleClientDisconnected`
+  と同じ仕組み)。切断が決まった場合、`CatalogContentHashResultMsg` は送らない(切断済み Client への送信は
+  無意味なため)。
+- **セキュリティ上の限界(要判断)**: Host は Client から届いた `CombinedHash` を信じて比較するだけであり、
+  改造 Client が「期待される値」を知っていれば偽装できる(暗号学的な検証機構は無い)。これは
+  `HandleNetKey` の発行者検証(§9、実際のゲーム進行の整合性を守る)とは目的が異なり、本チケットの
+  ContentHash は「デザイナー/プログラマーが GameData の更新を反映し忘れた」等の**正直な版ズレの検出**が
+  目的であり、悪意あるクライアントへの耐性は要求されていないと判断した(MS2026 の実際の対人戦
+  1v1・LAN 内という前提とも整合する)。
+- **見送り**: `NetChannel.Unreliable` は使わない(ハンドシェイクは接続時 1 回だけで頻度が低く、欠落してよい
+  類のイベントでもないため、Presentation の Play/Signal/Cancel と同じ判断で `ReliableOrdered` にした)。
+  複数 Client(1v1 を超える構成)は `Dictionary<ulong,double>` で自然に扱える設計にしてあるが、実機確認は
+  MS2026 の 1v1 前提のまま(6-0/6-6 の既存確認環境を再利用)。
+
 ## 8. 帯域・最適化
 
 - ID は ulong(8B) だが、接続時に「セッション ID テーブル」（登場しうる ID → u16 インデックス）を交換し **2B に圧縮**（オプション。v1 は ulong 直送で可）
@@ -397,7 +469,7 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
 | Presentation 内に Simulated トラックと PredictLocal の競合 | Error | ✅ 2026-09-15(6-6、`PresentationDataValidator`) |
 | Cosmetic なのに Reliable 大容量パラメータ（Texture 等）をイベント送信 | Warning | ✅ 2026-09-15(6-6、`PresentationDataValidator`) |
 | NetMode 未設定（既定値のまま大量放置） | Info（レポート） | ✅ 2026-09-15(6-6、`NetModeUnsetValidator`) |
-| ContentHash 生成対象外のカタログ | Error（CI） | 6-5（ContentHash）で実装予定。6-6 のスコープ外 |
+| ContentHash 生成対象外のカタログ | Error（CI） | ✅ 2026-09-15(6-5、`ContentHashCatalogCoverageValidator`)。「種別」側は生成器が `CatalogEntry` の構造的フィールドのみを対象にし種別ごとの登録リストを持たないため、構造的に発生しない(§7 実装メモ参照) |
 
 ### 実装メモ（2026-09-15、6-6: 受信検証・レート制限 + ネット Validator）
 
@@ -475,6 +547,22 @@ Warning）、`Runtime/Net/NetModeUnsetValidator.cs`（新規、NetMode 未設定
   [ddrive-agent-workflow スキル] §3)。マージ後に親セッションが EditMode/PlayMode 両方の green を確認する。
   K2/K3 とも NgoNetBridge(実 NGO 接続)に閉じた変更を含むため、既存の慣習([docs/29] §7/§9/§11)に合わせて
   ユニットテストだけでなく実機/ローカル結合確認が必要(下記 v5 手順参照)。
+
+### 実装メモ（2026-09-15、6-5: ContentHash 生成対象外のカタログ Validator）
+
+`ContentHashCatalogCoverageValidator`(`Editor/Validation/`)は `AssetCatalog` が `AssetDataBase` を
+継承しないため、`ValidatorRegistry.RunAll`(`AssetDataBase` だけを列挙)には自然に乗らない。
+`IUniversalValidator` として登録しつつ渡された `data` は無視し、`ValidationContext` ごとに 1 回だけ
+プロジェクト内の全カタログ(`AddressablesSync.FindCatalogs`)を走査する
+(`AddressablesRegistrationValidator._noSettingsReported` と同じ「1 回だけ実行」ガード手法)。
+判定基準は「Addressables に登録され、かつ `DDriveCatalog` ラベルを持つか」— これは
+`AddressablesSync.SyncAll()`/`EnsureCatalogEntry` が全カタログに一律付与することを前提にした既存の
+システム不変条件([02_core_framework.md] §5「カタログ自体もグループ DDrive_Catalogs にラベル
+DDriveCatalog で登録され、起動オブジェクトがラベルから集められる」)をそのまま検査するものであり、
+新しいルールを追加したわけではない。「新しい AssetType が生成器に未登録」という失敗モードは、
+ContentHash 生成器(`CatalogContentHasher`)が種別ごとの登録リストを持たない設計のため構造的に
+発生しない(§7 実装メモ参照)。詳細は §7 実装メモ、テストは
+`Tests/Editor/ContentHashCatalogCoverageValidatorTests.cs`。
 
 ## 11. 導入方針（マルチプレイは最初から対応）
 

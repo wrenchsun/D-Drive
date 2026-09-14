@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Manager;
 using DDrive.Foundation.Net;
@@ -68,6 +69,9 @@ namespace DDrive.Runtime.Loop
         [Tooltip("Ngo モードのとき、画面左上にデバッグオーバーレイ(役割/接続状態/RTT/NetworkTime/受信数)を出す")]
         public bool ShowNetDebugOverlay = true;
 
+        [Tooltip("カタログ ContentHash 照合(6-5)の待ち時間。この秒数内に相手のハッシュが届かなければタイムアウト扱い(不一致と同じ方針を適用する。[14_networking.md] §7)")]
+        public double ContentHashTimeoutSeconds = 5d;
+
         [Tooltip("起動時に Registry へ登録するカタログ(GameData/Catalogs)。Generate メニュー / Inspector の「カタログを再収集」で自動設定される")]
         public AssetCatalog[] Catalogs;
 
@@ -92,6 +96,9 @@ namespace DDrive.Runtime.Loop
         public AssetRegistry Registry { get; private set; }
         public PoolService Pool { get; private set; }
         public INetBridge NetBridge { get; private set; }
+        // [14_networking.md] §7(6-5) — カタログ ContentHash の接続時照合。Loopback でも生成する
+        // (ClientConnected が通常発火しないため実質 no-op。他 Manager と同じ「通信の有無で挙動を変えない」原則)。
+        public CatalogContentHashGate NetHashGate { get; private set; }
         public AudioManager Audio { get; private set; }
         public BgmManager Bgm { get; private set; }
         public VfxManager Vfx { get; private set; }
@@ -124,6 +131,7 @@ namespace DDrive.Runtime.Loop
         private readonly UniTaskCompletionSource _ready = new();
         private AnchorGroupLoopAdapter _groupAdapter;
         private UnscaledCameraFxAdapter _cameraFxAdapter;
+        private NetDebugOverlay _netDebugOverlay;
         private bool _built;
 
         // [14_networking.md] §12(6-0) — StartHost/StartClient は Awake() ではなく Start() まで遅延する
@@ -163,6 +171,17 @@ namespace DDrive.Runtime.Loop
         {
             RegisterCatalogsAsync().Forget();
             StartNetworkingIfPending();
+        }
+
+        // [14_networking.md] §7(6-5) — ContentHash 照合のタイムアウト検出(偽装: ハッシュを送らない/
+        // 遅延させる Client への対処)。GameLoop(TimeService.ScaledDeltaTime)には乗せず、NetBridge.NetworkTime
+        // を直接見る(HitStop 等でゲーム内時間が止まってもタイムアウト判定自体は進む必要があるため。
+        // AnchorGroupLoopAdapter 等と同じ「専用の薄いアダプタ」パターンをここでは Bootstrap 自身の
+        // Update() で済ませている。呼び出し頻度は 1 秒未満で十分だが、フレームごとでも
+        // Dictionary が空なら早期 return するだけなので実質無害)。
+        private void Update()
+        {
+            NetHashGate?.Tick(NetBridge.NetworkTime);
         }
 
         // [14_networking.md] §12(6-0) — NetworkManager.StartHost()/StartClient() は NetworkManager 自身の
@@ -245,6 +264,13 @@ namespace DDrive.Runtime.Loop
             Pool.SetInstanceParent(instances.transform);
             Registry = new AssetRegistry(new AddressablesAssetLoader());
             NetBridge = ResolveNetBridge(); // [14_networking.md] §12(6-0) — Loopback/Ngo の選択点
+            // [14_networking.md] §7(6-5) — Debug.isDebugBuild は Editor 実行時、または「Development Build」を
+            // 付けたプレイヤーで true になる(NgoNetBridge.ConfigureAppLayerSimLatency と同じ判定基準)。
+            NetHashGate = new CatalogContentHashGate(NetBridge, ContentHashTimeoutSeconds, Debug.isDebugBuild);
+            if (_netDebugOverlay != null)
+            {
+                _netDebugOverlay.ContentHashGate = NetHashGate;
+            }
 
             var seTemplate = new GameObject("SeSourceTemplate");
             seTemplate.transform.SetParent(transform, false);
@@ -394,6 +420,10 @@ namespace DDrive.Runtime.Loop
                 var overlay = overlayGo.AddComponent<NetDebugOverlay>();
                 overlay.Bridge = bridge;
                 overlay.NetworkManagerRef = nm;
+                // NetHashGate はこの時点(ResolveNetBridge 呼び出し中)ではまだ作られていない
+                // (Build() 側で NetBridge = ResolveNetBridge() の直後に生成する)。参照を控えておき、
+                // 生成後に Build() 側で割り当てる。
+                _netDebugOverlay = overlay;
             }
 
             return bridge;
@@ -428,6 +458,10 @@ namespace DDrive.Runtime.Loop
             {
                 NgoBridgeRef.ClientDisconnected -= OnNetClientDisconnected;
             }
+
+            NetHashGate?.Dispose();
+            NetHashGate = null;
+            _netDebugOverlay = null;
 
             var loop = Loop != null ? Loop.GameLoop : null;
             if (loop != null)
@@ -491,6 +525,10 @@ namespace DDrive.Runtime.Loop
             }
 
             var count = 0;
+            // [14_networking.md] §7(6-5) — ContentHash はこの回で実際に Registry へ登録したカタログ
+            // (Catalogs[] + ラベル集め分)から計算する。Editor Play Mode でもビルド実行でも同じ
+            // コードパスを通るため、生成タイミングを分ける必要が無い(CatalogContentHasher.cs 冒頭コメント参照)。
+            var allCatalogs = new List<AssetCatalog>();
             if (Catalogs != null)
             {
                 foreach (var catalog in Catalogs)
@@ -501,17 +539,27 @@ namespace DDrive.Runtime.Loop
                     }
 
                     await Registry.RegisterCatalogAsync(catalog);
+                    allCatalogs.Add(catalog);
                     count++;
                 }
             }
 
-            count += await RegisterLabeledCatalogsAsync();
+            count += await RegisterLabeledCatalogsAsync(allCatalogs);
 
             RegisteredCatalogCount = count;
             IsReady = true;
             // [11_tasks.md] 6-0 修正3 — カタログ登録完了後にネット受信の保留分(Play/Signal/Cancel)を
             // 受信順に処理する。Presentation は Build() で常に生成されるため null チェックは不要。
             Presentation.SetRegistryReady(true);
+
+            var catalogHashes = new CatalogContentHasher.CatalogHashEntry[allCatalogs.Count];
+            for (var i = 0; i < allCatalogs.Count; i++)
+            {
+                catalogHashes[i] = CatalogContentHasher.HashCatalog(allCatalogs[i]);
+            }
+
+            NetHashGate?.SetLocalSummary(CatalogContentHasher.CombineCatalogHashes(catalogHashes), catalogHashes);
+
             _ready.TrySetResult();
             OnReady?.Invoke();
             if (count == 0)
@@ -520,7 +568,7 @@ namespace DDrive.Runtime.Loop
             }
         }
 
-        private async UniTask<int> RegisterLabeledCatalogsAsync()
+        private async UniTask<int> RegisterLabeledCatalogsAsync(List<AssetCatalog> collected)
         {
             if (string.IsNullOrEmpty(CatalogLabel))
             {
@@ -550,6 +598,7 @@ namespace DDrive.Runtime.Loop
                         }
 
                         await Registry.RegisterCatalogAsync(catalog);
+                        collected.Add(catalog);
                         count++;
                     }
                 }
