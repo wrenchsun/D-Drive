@@ -86,7 +86,7 @@
 <p>ファイルを後から設定したい場合や、効果音以外の種類はこちら。開くダイアログは同じで、「種別」で作るものを選びます。</p>
 
 <div class="tip">
-<strong>「仕様書から選ぶ」（2026-09-14 追加）:</strong> <a href="spec-sync.html">仕様書</a>と同期している場合、ダイアログの一番上に「仕様書から選ぶ」という一覧が出ます。企画が仕様書の「アセット」タブに書いたのに、まだ D-Drive 側で作られていないものだけが並びます。検索欄で表示名や識別子を絞り込めます。<br>
+<strong>「仕様書から選ぶ」（2026-09-14 追加）:</strong> <a href="spec-sync.html">アセット発注ツール</a>と同期している場合、ダイアログの一番上に「仕様書から選ぶ」という一覧が出ます。企画が発注ツールに登録した発注のうち、まだ D-Drive 側で作られていないものだけが並びます。検索欄で表示名や識別子を絞り込めます。<br>
 一覧から行を選ぶと、種別・カテゴリ・識別子・表示名・備考・仕様リンクが自動で入力され、<strong>「選択中の行: ○○」という表示と「解除」ボタン</strong>が出ます。あとは「作成」を押すだけで、名前を1文字も打たずにアセットが作れます。作成すると、その行は一覧から消えます（もう一度同じものを間違って作ってしまう心配がありません）。<br>
 選んだ後で<strong>識別子欄を手で書き換えると、行の選択は自動で解除されます</strong>（表示名・カテゴリなどをそのまま流用しつつ、識別子だけ別物にしたい場合の事故防止です）。手動で選択を外したいときは「解除」ボタンを押してください。<br>
 一覧が出ない・古そうなときは「仕様書を再取得」ボタンで最新の状態にできます。仕様書の URL がまだ設定されていない場合は、この一覧自体が出ません（案内文だけ表示されます）。
@@ -141,7 +141,7 @@
 <tr><td>カテゴリ</td><td>整理用の分類。空欄でもOK。</td><td>Player</td></tr>
 <tr><td>識別子</td><td><strong>英語で、先頭大文字・スペースなし。</strong>プログラマーがコードから呼ぶときの名前になります。迷ったら英単語をつなげて各単語の頭を大文字に。</td><td>SwordSlash</td></tr>
 <tr><td>備考</td><td>空欄でもOK。「仕様書から選ぶ」で行を選ぶと自動で入りますが、手入力もできます。</td><td>3段階で音程を変える</td></tr>
-<tr><td>仕様リンク</td><td>空欄でもOK。仕様書のセルへのリンクなど。設定すると Inspector に「仕様書を開く」ボタンが出ます。</td><td>（仕様書のURL）</td></tr>
+<tr><td>仕様リンク</td><td>空欄でもOK。<a href="spec-sync.html">アセット発注ツール</a>の発注ページへのリンクなど。設定すると Inspector に「仕様書を開く」ボタンが出ます。</td><td>（発注ページのURL）</td></tr>
 </table>
 
 <div class="tip">
@@ -279,7 +279,7 @@ A → B → A のように<strong>ぐるっと参照が輪になっている（�
 <li><a href="bgm-data.html">BGM の設定項目</a></li>
 <li><a href="audio-editor.html">Audio Editor の使い方</a> — 波形を見ながらの編集・試聴</li>
 <li><a href="validation.html">Validation の使い方</a> — 登録漏れ・設定ミスの一括チェック</li>
-<li><a href="spec-sync.html">仕様書との同期</a> — 「仕様書から選ぶ」の元データ</li>
+<li><a href="spec-sync.html">アセット発注ツールとの同期</a> — 「仕様書から選ぶ」の元データ</li>
 <li>種類ごとの設定: <a href="vfx-data.html">VFX</a> / <a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a> / <a href="anim2d-editor.html">2D アニメーション</a> / <a href="material-data.html">マテリアル・テクスチャ</a> / <a href="prefab-data.html">Prefab</a> / <a href="canvas-data.html">Canvas</a> / <a href="ui-skin.html">Skin</a> / <a href="ui-tween.html">UI Tween</a> / <a href="presentation.html">演出（Presentation）</a> / <a href="camera-haptics.html">画面の揺れ・振動</a></li>
 <li><a href="glossary.html">用語集</a></li>
 </ul>
