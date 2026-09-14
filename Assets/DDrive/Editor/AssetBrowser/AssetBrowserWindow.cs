@@ -79,7 +79,9 @@ namespace DDrive.Editor.AssetBrowser
             _listView = new ListView
             {
                 fixedItemHeight = 22,
-                selectionType = SelectionType.Single,
+                // 削除の確認画面(2026-09-14)が複数選択に対応するため Multiple に変更。
+                // 単一選択のときの挙動(Inspector連動・ダブルクリックでエディタを開く等)は変わらない。
+                selectionType = SelectionType.Multiple,
                 makeItem = MakeRowElement,
                 bindItem = BindRowElement,
                 itemsSource = _visibleRows,
@@ -219,18 +221,28 @@ namespace DDrive.Editor.AssetBrowser
             });
 
             evt.menu.AppendSeparator();
-            evt.menu.AppendAction("削除...", _ => DeleteRow(row));
+            evt.menu.AppendAction("削除...", _ => DeleteRows(row));
         }
 
-        // [11_tasks.md] 5-6 — 安全な削除の入口。参照チェック→(Archive)→確認ダイアログ→
-        // カタログ/Addressables 登録解除+アイコンごと MoveAssetToTrash は SafeDeleteService に委譲する。
-        private void DeleteRow(Row row)
+        // [削除の確認画面(2026-09-14、UE の Delete Assets 相当)] — 右クリックした行が現在の選択に含まれていれば
+        // 選択中の全行を対象にする(複数選択対応)。含まれていなければ右クリックした行だけを対象にする
+        // (選択していない行を右クリックしたときに選択全部が対象になると驚かせてしまうため)。
+        private void DeleteRows(Row clickedRow)
         {
-            var report = SafeDeleteService.TryDelete(row.Asset, row.Type);
-            if (report.Outcome == SafeDeleteService.DeleteOutcome.Deleted)
+            var selected = _listView?.selectedItems?.OfType<Row>().ToList() ?? new List<Row>();
+            var rows = selected.Contains(clickedRow) && selected.Count > 1 ? selected : new List<Row> { clickedRow };
+
+            var targets = rows
+                .Where(r => r.Asset != null)
+                .Select(r => new DeleteTarget(r.Asset, r.Type, r.Path))
+                .ToList();
+
+            if (targets.Count == 0)
             {
-                Refresh();
+                return;
             }
+
+            AssetDeleteWindow.Open(targets, Refresh);
         }
 
         private void OnSelectionChanged(IEnumerable<object> selection)

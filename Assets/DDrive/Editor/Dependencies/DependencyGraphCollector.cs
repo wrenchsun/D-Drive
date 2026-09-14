@@ -15,8 +15,33 @@ namespace DDrive.Editor.Dependencies
     {
         // AssetId<TMarker> の SerializedProperty.type は総称引数を含まない "AssetId`1" になる
         // (AssetIdDrawer と同じ実測値。2026-09-14 確認)。
-        private const string AssetIdPropertyType = "AssetId`1";
-        private const string AssetRefPropertyType = "AssetRef";
+        // internal(削除の確認画面、2026-09-14): ReferenceReplaceService が「参照差し替え」で同じ判定を
+        // 使い回すために公開した(判定ロジックを2箇所に重複させない)。
+        internal const string AssetIdPropertyType = "AssetId`1";
+        internal const string AssetRefPropertyType = "AssetRef";
+
+        // 削除の確認画面(2026-09-14)の参照差し替えが使う: SerializedProperty(AssetId<T> または AssetRef の
+        // コンテナ側プロパティ)から、id/type の子プロパティ名を判定する。判定できなければ false。
+        internal static bool TryGetIdTypeFieldNames(SerializedProperty prop, out string idField, out string typeField)
+        {
+            if (prop.propertyType == SerializedPropertyType.Generic && prop.type == AssetIdPropertyType)
+            {
+                idField = "value";
+                typeField = "type";
+                return true;
+            }
+
+            if (prop.propertyType == SerializedPropertyType.Generic && prop.type == AssetRefPropertyType)
+            {
+                idField = "Id";
+                typeField = "Type";
+                return true;
+            }
+
+            idField = null;
+            typeField = null;
+            return false;
+        }
 
         public static List<DependencyEdgeRecord> CollectFromDataAsset(AssetDataBase asset)
         {
