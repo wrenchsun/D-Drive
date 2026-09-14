@@ -165,10 +165,15 @@ namespace DDrive.Editor.Spec
         {
             switch (property.propertyType)
             {
+                // 注意: `cond ? "文字列" : null` は string 型の null になり、JToken への暗黙変換で
+                // JValue(String, null) が作られて「空文字の値」として送られてしまう。null は JToken として返す。
                 case SerializedPropertyType.ObjectReference:
-                    return property.objectReferenceValue != null
-                        ? property.objectReferenceValue.name
-                        : null;
+                    if (property.objectReferenceValue == null)
+                    {
+                        return null;
+                    }
+
+                    return property.objectReferenceValue.name;
                 case SerializedPropertyType.Boolean:
                     return property.boolValue;
                 case SerializedPropertyType.Integer:
@@ -188,7 +193,12 @@ namespace DDrive.Editor.Spec
                     return property.enumValueIndex.ToString();
                 default:
                     // 配列(AudioClip[] 等)は件数のみ([32] §10.2.4 の例「Clips: "2 件"」)。
-                    return property.isArray ? $"{property.arraySize} 件" : null;
+                    if (!property.isArray)
+                    {
+                        return null;
+                    }
+
+                    return $"{property.arraySize} 件";
             }
         }
 
