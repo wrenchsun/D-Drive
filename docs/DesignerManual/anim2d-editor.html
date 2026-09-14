@@ -42,6 +42,7 @@
 <li>編集モードの「プレビュー(SceneView で確認)」で「<strong>確認用シーンを開く</strong>」→「<strong>▶ 再生</strong>」→ SceneView でコマが切り替わるのを確認。終わったら「<strong>撤去</strong>」</li>
 <li>足音や効果音を付けたいときは「<strong>Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)</strong>」→ <a href="anim-editor.html">Anim Editor</a> のタイムラインで「＋ 現在位置に SE」（手順はそちらのページ）</li>
 </ol>
+<!-- screenshot: 36-#32 -->
 <div class="tip">プログラマーは 3D と同じく <code>Anim.Play(ID, animator)</code> を呼ぶだけです。カタログも 3D と共通（AnimCatalog）です。</div>
 
 <h2>画面の説明</h2>
@@ -62,6 +63,7 @@
 <tr><td>方向セット(BlendTree)</td><td><strong>None</strong> = 方向なし（1 枚の画像から 1 本の Clip）。<strong>Four</strong> = 0 / 90 / 180 / 270 度。<strong>Eight</strong> = 45 度刻み。None 以外にすると「方向ごとの Texture(4|8 方向。空欄は無視されます)」の欄が角度名（「0°」「45°」…「315°」）で並び、角度ごとに画像を入れます</td></tr>
 <tr><td>Texture(単一)</td><td>方向なしのときの元画像</td></tr>
 <tr><td>検出プレビュー(Automatic)</td><td>自動検出を実行し、画像の上に結果を重ねて表示します。<strong>緑の枠 = 生成に使う矩形、枠の番号 = コマの順番</strong>。結果は「検出: N 枚 / 推定 R 行 x C 列(規則的グリッド|不規則)…」のように出ます。押した時点で入力モードが自動的に Automatic に切り替わります。表示の縮尺は元画像のサイズ基準なので、Max Size で縮小される大きな画像でも枠はずれません</td></tr>
+<!-- screenshot: 36-#33 -->
 <tr><td>Sprite Editor で手動補正</td><td>検出した矩形を画像の Importer に書き込んでから Unity の Sprite Editor を開きます（検出前は押せません）。Sprite Editor で直して Apply したら、入力モードは「既存スプライト」に切り替わっているので「生成」を押すだけです。<strong>2D Sprite パッケージ（com.unity.2d.sprite）が無いと開けません</strong>（案内メッセージが出ます。現状は未導入）</td></tr>
 <tr><td>プロファイルから選択</td><td>Import Profile の Entry 一覧。選ぶと「Name」と最初の State が入ります。Entry が無いと「(プロファイルに Entry がありません)」だけが出ます</td></tr>
 <tr><td>Name / State</td><td>どちらも必須。Clip 名・Anim2DData の名前・カテゴリ（フォルダ分け）に使われます。空のまま「生成」すると Console に「Name / State を入力してください。」が出て何も作られません</td></tr>
@@ -73,6 +75,7 @@
 </table>
 
 <h3>編集モード</h3>
+<!-- screenshot: 36-#34 -->
 <table>
 <tr><th>要素</th><th>説明</th></tr>
 <tr><td>編集対象</td><td>「Anim2DData」欄と「読み込み」ボタン。読み込むと「Clip 名: N 枚 / 秒 / fps」の要約が出ます。「Clip が未設定、または Sprite キーフレームを読み込めませんでした。」なら Clip が無いか、コマ差し替えの Clip ではありません</td></tr>

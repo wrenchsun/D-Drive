@@ -46,6 +46,7 @@
 <li>見た目・大きさ・レイヤーを SceneView / Game ビューで確認。直したら「撤去」→ もう一度「確認用シーンに配置」</li>
 <li>使いたい場面(ID は <code>PREFABID.BreakableBox</code>)をプログラマーに伝える</li>
 </ol>
+<!-- screenshot: 36-#39 -->
 
 <h2>画面の説明(Prefab Editor)</h2>
 <p>ウィンドウの中に 3D の絵は出ません。<strong>確認は必ず SceneView / Game ビューで行います</strong>。プレビューはゲーム実行時とまったく同じ仕組み(PrefabsManager)で出すので、Pool 設定・レイヤーの強制・LOD の上書きもそのまま再現されます。</p>
@@ -54,6 +55,7 @@
 <tr><td>対象</td><td>編集する Prefab データ。Prefab データ以外(シーン上の物など)は入りません</td></tr>
 <tr><td>🔒</td><td>「選択に追従しない」。OFF のときは Project で別の Prefab データを選ぶとウィンドウの中身も切り替わります</td></tr>
 <tr><td>確認用シーンに配置</td><td>開いているシーン(またはプレハブモード)に、実際のゲームと同じ仕組みで Prefab を出します。Hierarchy に <code>[D-Drive] Prefab Preview</code> が出ますが<strong>シーンには保存されません</strong>。押すたびに前のプレビューは消えて置き直されます</td></tr>
+<!-- screenshot: 36-#40 -->
 <tr><td>撤去</td><td>プレビューを消します。撤去せずにシーンを切り替えても残骸は残りません</td></tr>
 <tr><td>ステータス</td><td>「PrefabData を選択してください」→「「確認用シーンに配置」で確認できます」→「プレビュー配置中」。「配置に失敗しました」が出たらコンソールを確認</td></tr>
 <tr><td>設定(Inspector)</td><td>Prefab データの全項目をそのまま編集。Ctrl+Z で戻せます</td></tr>

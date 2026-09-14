@@ -34,6 +34,7 @@
 <li>一番上のボタンを右クリック →「<strong>FirstSelected にする</strong>」→ 緑の枠になる</li>
 <li>「<strong>要素を自動収集(Image / UiButton / パネル)</strong>」→ ElementFx の行が増える。「プリセット」で PopIn を選び「一括適用: 全ボタンに反映」</li>
 <li>「<strong>確認用シーンを開く</strong>」→ Game ビューに画面が出て、ボタンが跳ねて現れる</li>
+<!-- screenshot: 36-#44 -->
 <li>「パッド操作シミュレーション」の「▼」「▲」を押してフォーカスが移ることを確認、「決定」でボタンが押される</li>
 <li>「Validation」に赤(Error)が無いことを確認 →「閉じる」</li>
 </ol>
@@ -54,6 +55,7 @@
 <tr><td>プリセットギャラリーとの行き来</td><td>ギャラリー(<code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>)で「適用先」に同じ Canvas データを選び、カードの「この要素に適用」を押すと、Canvas Editor の ElementFx の行に反映されます。逆にギャラリーには Canvas Editor から飛ぶボタンはありません</td></tr>
 </table>
 
+<!-- screenshot: 36-#43 -->
 <h3>ElementFx 割当セクションの行の読み方</h3>
 <p>見出し「ElementFx 割当(Appear / Idle / Disappear)」の下に、要素ごとの折りたたみ箱が並びます(初期状態は畳んだまま。要素のパスをクリックすると展開)。箱の見出しが要素のパス(Prefab ルート自身は「(ルート)」)で、展開すると中に 3 行あります。</p>
 <table>
@@ -80,6 +82,7 @@
 実機(Play)でも、EventSystem がシーンにあれば十字キー / スティックで同じ順にフォーカスが移ります(uGUI の Button も D-Drive の UiButton / UiSlider も同じ扱い。リンクが無い方向は、開いている画面の中でその方向に一番近い要素へ移ります)。スライダーは十字キーを値の操作に使い(右・上で増、左・下で減)、端まで行ったときだけ隣へ抜けます(<code>EscapeOnLimit</code> が ON のとき)。
 </div>
 
+<!-- screenshot: 36-#42 -->
 <h2>Navigation グラフの操作</h2>
 <p>「Navigation グラフ」の折りたたみ(最初は開いています)。Prefab 内の全ボタン・スライダーが、画面上の位置とだいたい同じ配置でノード(四角)として出ます(位置情報が無いものは 4 列に並びます)。<strong>これは配線を編集するための図であり、UI の見た目のプレビューではありません</strong>。</p>
 <table>
