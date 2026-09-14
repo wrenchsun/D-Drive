@@ -69,7 +69,10 @@ function specWebActor_(auth) {
 }
 
 function specWebDefaultDdriveState_() {
-  return { created: false, isPlaceholder: false, iconAssetId: null, usageCount: 0, lastSyncedAt: null };
+  // hasIcon(2026-09-14 追補): D-Drive 側にアイコン(AssetDataBase.Icon)が割り当て済みかの bool。
+  // iconAssetId(Drive へのアップロード)は本チケットの範囲外のため常に null のまま
+  // (docs/32_spec_web.md §9 の要判断参照)。
+  return { created: false, isPlaceholder: false, iconAssetId: null, hasIcon: false, usageCount: 0, lastSyncedAt: null };
 }
 
 function specWebBuildAssetId_(assetType, identifier) {

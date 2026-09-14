@@ -58,6 +58,51 @@ namespace DDrive.Tests.Editor
             Assert.IsNotNull(item["lastSyncedAt"]);
         }
 
+        // 追補(2026-09-14): isPlaceholder / hasIcon を実値にした([32] §9 の要判断 14 への対応)。
+        // isPlaceholder は既存の SeDataValidator の「Clip が未設定(または Missing)です」(Error)を
+        // そのまま再利用する(CI.RunValidation() 経由)。Clips 未設定の Data はデフォルトでこの
+        // Error が出るため、作っただけの Data は isPlaceholder=true になる。
+        [Test]
+        public void BuildAssetStatePayload_ClipsUnset_IsPlaceholderTrue_AndHasIconFalse()
+        {
+            AssetCreationService.Create(typeof(SeData), AssetType.Se, "テスト", "Player", TestIdentifier, gameDataRoot: TestRoot);
+
+            var payload = SpecWebSender.BuildAssetStatePayload();
+            var items = (Newtonsoft.Json.Linq.JArray)payload["items"];
+            var item = items.Single(i => (string)i["id"] == "Se::" + TestIdentifier);
+
+            Assert.AreEqual(true, (bool)item["isPlaceholder"], "Clips 未設定(Validator の Error 対象)なので Placeholder 扱いのはず");
+            Assert.AreEqual(false, (bool)item["hasIcon"], "Icon 未設定なので hasIcon=false のはず");
+            Assert.IsNull((string)item["iconAssetId"], "iconAssetId は Drive アップロード未実装のため常に null(要判断として docs に記載)");
+        }
+
+        [Test]
+        public void BuildAssetStatePayload_ClipsSetAndIconAssigned_IsPlaceholderFalse_AndHasIconTrue()
+        {
+            // Validator/CI.RunValidation()・BuildExistingIndex() は同一ドメイン内では同じインスタンスを
+            // 読むため、ディスクへの保存(SetDirty/SaveAssets)は不要(このテストの狙いは payload の
+            // 組み立てロジックの確認であり、Icon の永続化そのものは対象外)。
+            var asset = (SeData)AssetCreationService.Create(typeof(SeData), AssetType.Se, "テスト", "Player", TestIdentifier, gameDataRoot: TestRoot);
+            asset.Clips = new[] { AudioClip.Create("SpecWebSenderTestClip", 100, 1, 44100, false) };
+            var icon = new Texture2D(4, 4);
+            asset.Icon = icon;
+
+            try
+            {
+                var payload = SpecWebSender.BuildAssetStatePayload();
+                var items = (Newtonsoft.Json.Linq.JArray)payload["items"];
+                var item = items.Single(i => (string)i["id"] == "Se::" + TestIdentifier);
+
+                Assert.AreEqual(false, (bool)item["isPlaceholder"], "必須参照(Clips)が入っていれば Placeholder 扱いにならないはず");
+                Assert.AreEqual(true, (bool)item["hasIcon"], "Icon が割り当て済みなので hasIcon=true のはず");
+            }
+            finally
+            {
+                asset.Icon = null;
+                Object.DestroyImmediate(icon);
+            }
+        }
+
         [Test]
         public void BuildTuningUsagePayload_KeyNotReferencedInCode_IsUnused()
         {

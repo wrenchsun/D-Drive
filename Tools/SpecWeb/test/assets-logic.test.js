@@ -132,6 +132,14 @@ test('formatDdriveStateBadge: 未作成/Placeholder/作成済を判定する', (
   assertBadge(logic.formatDdriveStateBadge({ created: true, isPlaceholder: false }), '✅', '作成済');
 });
 
+test('formatDdriveIconLabel: hasIcon(2026-09-14 追補)の有無でラベルを切り替える', () => {
+  const logic = load();
+  assert.equal(logic.formatDdriveIconLabel(null), 'アイコン: なし');
+  assert.equal(logic.formatDdriveIconLabel({}), 'アイコン: なし');
+  assert.equal(logic.formatDdriveIconLabel({ hasIcon: false }), 'アイコン: なし');
+  assert.equal(logic.formatDdriveIconLabel({ hasIcon: true }), 'アイコン: あり');
+});
+
 test('sortCommentsNewestFirst: createdAt の新しい順に並べ替える（元配列は変更しない）', () => {
   const logic = load();
   const comments = [

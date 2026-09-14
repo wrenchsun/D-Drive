@@ -68,7 +68,7 @@ test('assetState: 存在する assets の ddriveState だけを patch する(他
 
   const result = call(ctx, 'assetState', {
     payload: JSON.stringify({
-      items: [{ id: 'Se::Slash', created: true, isPlaceholder: false, usageCount: 3, lastSyncedAt: '2026-09-14T00:00:00Z' }]
+      items: [{ id: 'Se::Slash', created: true, isPlaceholder: false, hasIcon: true, usageCount: 3, lastSyncedAt: '2026-09-14T00:00:00Z' }]
     })
   });
 
@@ -78,6 +78,7 @@ test('assetState: 存在する assets の ddriveState だけを patch する(他
   const reread = ctx.Storage.getItem('assets', 'Se::Slash');
   assert.equal(reread.ddriveState.created, true);
   assert.equal(reread.ddriveState.usageCount, 3);
+  assert.equal(reread.ddriveState.hasIcon, true, 'hasIcon(2026-09-14 追補)も patch される');
   assert.equal(reread.displayName, '斬撃音', 'ddriveState 以外のフィールドは変更されない');
 });
 
@@ -137,11 +138,14 @@ test('レート制限: 別の principal は上限の影響を受けない', () =
 });
 
 // ── W-12 の中心的なセキュリティ要件: 書き込みトークンの kind 許可リスト(Code.js) ──
+//
+// 2026-09-14 追補: token は POST(doPost)の本文でのみ受け付ける(§7、routing.test.js の
+// 「doGet に token を付けると拒否される」を参照)。以下は doPost で呼ぶ。
 
 test('書き込みトークンで choices/assetState/tuningUsage は呼べる', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('write');
-  const output = ctx.doGet({
+  const output = ctx.doPost({
     parameter: { api: '1', name: 'tuningUsage', token: token, payload: JSON.stringify({ unusedKeys: [] }) }
   });
   const body = JSON.parse(output.getContent());
@@ -151,7 +155,7 @@ test('書き込みトークンで choices/assetState/tuningUsage は呼べる', 
 test('書き込みトークンで tuningScalarUpdate を呼ぶと 403 で拒否される(値そのものは書き換えられない)', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('write');
-  const output = ctx.doGet({
+  const output = ctx.doPost({
     parameter: {
       api: '1',
       name: 'tuningScalarUpdate',
@@ -167,7 +171,7 @@ test('書き込みトークンで tuningScalarUpdate を呼ぶと 403 で拒否�
 test('書き込みトークンで assets.update を呼ぶと 403 で拒否される(企画が入力した内容は書き換えられない)', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('write');
-  const output = ctx.doGet({
+  const output = ctx.doPost({
     parameter: {
       api: '1',
       name: 'assets.update',
@@ -184,7 +188,7 @@ test('書き込みトークンで assets.update を呼ぶと 403 で拒否され
 test('書き込みトークンで tuningTableUpdateCell を呼ぶと 403 で拒否される', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('write');
-  const output = ctx.doGet({
+  const output = ctx.doPost({
     parameter: { api: '1', name: 'tuningTableUpdateCell', token: token, payload: JSON.stringify({ key: 'Enemy/Params' }) }
   });
   const body = JSON.parse(output.getContent());
@@ -195,7 +199,7 @@ test('書き込みトークンで tuningTableUpdateCell を呼ぶと 403 で拒�
 test('読み取りトークンで choices を呼ぶと editor 未満のため 403 で拒否される(role チェックの方で拒否)', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('read');
-  const output = ctx.doGet({
+  const output = ctx.doPost({
     parameter: { api: '1', name: 'choices', token: token, payload: JSON.stringify({ assetTypes: [] }) }
   });
   const body = JSON.parse(output.getContent());

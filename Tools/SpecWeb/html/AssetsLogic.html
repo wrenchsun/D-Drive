@@ -154,6 +154,12 @@
       return { icon: '✅', label: '作成済' };
     }
 
+    // hasIcon(2026-09-14 追補)の表示補助。アイコン画像そのものは送られてこない(§9 の要判断)ため、
+    // あり/なしの短いラベルだけを返す。
+    function formatDdriveIconLabel(ddriveState) {
+      return ddriveState && ddriveState.hasIcon ? 'アイコン: あり' : 'アイコン: なし';
+    }
+
     /** §3.6 コメント: 新しい順に並べ替える（表示用。元データは変更しない）。 */
     function sortCommentsNewestFirst(comments) {
       return (comments || [])
@@ -186,6 +192,7 @@
       sortAssets: sortAssets,
       groupAssetsByType: groupAssetsByType,
       formatDdriveStateBadge: formatDdriveStateBadge,
+      formatDdriveIconLabel: formatDdriveIconLabel,
       sortCommentsNewestFirst: sortCommentsNewestFirst,
       roleAtLeast: roleAtLeast
     };
