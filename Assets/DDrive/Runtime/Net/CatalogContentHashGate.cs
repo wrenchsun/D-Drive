@@ -161,6 +161,13 @@ namespace DDrive.Runtime.Net
                 ? Array.Empty<string>()
                 : CatalogContentHashPolicy.DescribeDifferences(_localCatalogs, msg.Catalogs).ToArray();
 
+            // 合成ハッシュは違うのにカタログ単位の差分が見つからない(理論上は起こらない)ときも、
+            // 例外で止めずに最低限の説明を残す(CLAUDE.md §0-4。以前は DescribeDifferences 側で付けていた)。
+            if (!matched && descriptions.Length == 0)
+            {
+                descriptions = new[] { "(詳細不明: カタログ名の突き合わせでは差分が見つかりませんでした)" };
+            }
+
             if (matched)
             {
                 LastStatusText = "OK";
