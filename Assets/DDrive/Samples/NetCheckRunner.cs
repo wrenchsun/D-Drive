@@ -41,6 +41,7 @@ namespace DDrive.Samples
         private float _heartbeatTimer;
         private int _playCount;
         private int _lastActiveCount = -1;
+        private int _lastVfxActive = -1;
         private bool _disconnectLogged;
         private PresentationHandle _handle;
         private NgoNetBridge _ngoBridge;
@@ -160,18 +161,23 @@ namespace DDrive.Samples
         // ログへ出す。Late Join の確認は「新規クライアントの activeCount が 0→1 に変わる行」を見ればよい。
         // [11_tasks.md] 6-0 修正1/修正5 — rtt_app_ms(アプリ層の Ping/Pong 往復)と connected(Client が
         // Host との接続を保っているか)も併記する。
+        // [11_tasks.md] 6-0 修正7(実機確認 v3 で発見した「切断後もVFXが残り続ける」実バグの判定用) —
+        // vfx_active(VfxManager.ActiveCount = 生存中の VFX インスタンス数)も併記する。スクリーンショットの
+        // 白画素カウントに頼らず、切断前後で 0 に落ちることをログだけで確認できるようにする(docs/29 §8)。
         private void Heartbeat(DDriveRuntimeBootstrap bootstrap)
         {
             _heartbeatTimer += Time.deltaTime;
             var activeCount = bootstrap.Presentation != null ? bootstrap.Presentation.DebugActiveHandles().Count : -1;
+            var vfxActive = bootstrap.Vfx != null ? bootstrap.Vfx.ActiveCount : -1;
 
-            if (_heartbeatTimer < 1f && activeCount == _lastActiveCount)
+            if (_heartbeatTimer < 1f && activeCount == _lastActiveCount && vfxActive == _lastVfxActive)
             {
                 return;
             }
 
             _heartbeatTimer = 0f;
             _lastActiveCount = activeCount;
+            _lastVfxActive = vfxActive;
 
             var rttAppMs = _ngoBridge != null && _ngoBridge.AppRoundTripMs.HasValue ? _ngoBridge.AppRoundTripMs.Value.ToString("F0") : "n/a";
 
@@ -182,7 +188,8 @@ namespace DDrive.Samples
                 "networkTime", bootstrap.NetBridge.NetworkTime.ToString("F2"),
                 "activeCount", activeCount.ToString(),
                 "connected", Connected(bootstrap) ? "1" : "0",
-                "rtt_app_ms", rttAppMs);
+                "rtt_app_ms", rttAppMs,
+                "vfx_active", vfxActive.ToString());
         }
 
         private void PlayAndSignal(DDriveRuntimeBootstrap bootstrap)

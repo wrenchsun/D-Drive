@@ -55,7 +55,7 @@ MonoBehaviour:
       FollowRotation: 0
       DetachOnStop: 0
     Params: []
-    StopOnCancel: 0
+    StopOnCancel: 1
   - Trigger: 0
     Time: 0
     SignalKey: 

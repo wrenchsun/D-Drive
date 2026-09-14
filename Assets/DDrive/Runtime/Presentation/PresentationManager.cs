@@ -849,6 +849,27 @@ namespace DDrive.Runtime.Presentation
             }
         }
 
+        // [14_networking.md] §5(6-0 修正7、実機確認 v3 で発見した実バグの修正) — 自分の接続が切れた
+        // (Host との接続を失った)ときに、ネット経由で開始した Presentation を Interruptible に関係なく
+        // 強制終了する(StopAll と同じ「Interruptible=false でも止める」扱い)。StopFiredForCancel が
+        // StopOnCancel=true の Fired Vfx/Se/Anim 等を止める(通常の Cancel() と同じ規則。StopOnCancel=false
+        // のトラックは対象外のまま。「それでもループ系 VFX が残る」設計上の広い論点は docs/31 の要判断に残す)。
+        // ネット非経由(IsNetworked=false)の Instance には触れない([14] §1「netBridge==null は挙動を変えない」
+        // 原則と対になる、通信していない演出は切断の影響を受けないという原則)。
+        // 呼び出し元は DDriveRuntimeBootstrap(NgoNetBridge.ClientDisconnected を購読し、"自分視点の切断"
+        // ─ Client が Host との接続を失った ─ のときだけ呼ぶ。Host 視点の「相手が抜けた」は対象外)。
+        public void CancelAllNetworked()
+        {
+            for (var i = _active.Count - 1; i >= 0; i--)
+            {
+                var handle = _active[i];
+                if (_instances.TryGet(handle, out var instance) && !instance.Done && instance.IsNetworked)
+                {
+                    CancelInternal(handle, instance);
+                }
+            }
+        }
+
         public void SetPaused(Handle<PresentationMarker> handle, bool paused)
         {
             if (_instances.TryGet(handle, out var instance))

@@ -232,7 +232,10 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
   (`_networkedHandles`/`_activeNetworked`)は、進行中の Cosmetic 演出が通常の Elapsed/Duration 経由で
   Complete/Cancel されるのに任せる設計のままにした(相手の接続状態に関わらず一定時間で自然に台帳から
   外れるため、切断によって新たに残留エントリが生じるわけではないと判断した。専用のクリーンアップは
-  追加していない)。
+  追加していない)。**→ 2026-09-14 追記(6-0 修正7)**: この判断は誤りだった。実機確認 v3(docs/29 §8)で
+  「切断後も VFX が消えずに描画し続ける」実バグが見つかり、Elapsed/Duration に任せるだけでは不十分
+  (下記「実装メモ(6-0 修正7)」参照。専用のクリーンアップ `PresentationManager.CancelAllNetworked()` を
+  追加した)。
 - **見送り**: `-ddrive-sim-loss`(パケットロス)の代替実装は今回のスコープ外(課題として報告されていない
   ため。UnityTransport の `SetDebugSimulatorParameters` が no-op である以上、同じ問題を抱えているはずだが、
   実機確認で明示的に指摘されなかったため見送った。要判断: 必要になれば `NgoNetBridge` の送信キューで
@@ -308,6 +311,58 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
   false)では `connected=0` になる。
 - **軽微(気になる点③)**: `signal_recv` に `kind=<Kind>` を追加した(同じ `key` で OnSignal トラック数ぶん
   行が出ることが分かるようにする)。
+
+## 実装メモ（2026-09-14、6-0 修正7: 実機確認 v3 で発見した「切断後も VFX が消えずに描画し続ける」実バグの修正）
+
+[docs/29](29_network_device_test.md) §8「修正版 v3 での再確認」の「切断」で見つかった実バグの修正。
+
+- **原因(2 つが重なって発生)**:
+  1. **切断時に何もクリーンアップしていなかった**: `ClientDisconnected` イベント自体は 6-0 修正5 で
+     追加済みだったが、購読して実際にネット経由の Presentation を止めるコードが無かった(上の課題5の節に
+     あった「Elapsed/Duration に任せる」という判断がそもそも誤りだった)。切断した時点で `TotalDuration`
+     の途中(=まだ `_active` に残っている)ネット経由 Presentation は、切断後もタイマーが進み続けて
+     普通に `Complete()` するだけで、`FiredVfx`/`FiredSe` 等は一切止められない
+     (`Complete()` は `Cancel()` 経由の `StopFiredForCancel` を通らない。この「通常完了時に Fired 済みの
+     ものを止めない」設計自体は本チケットのスコープ外の広い論点として [docs/31](31_phase5_decisions.md) に
+     残した)。
+  2. **デモアセット側の見落とし**: `PRES_Demo_SkillSlash.asset` の Vfx トラック(`VFX_Player_Slash` を
+     再生する Time=0 のトラック)が `StopOnCancel=false` のままだった。`StopOnCancel=true` の他トラック
+     (CameraShake/Haptic)と非対称で、そもそも `Cancel()` 経路が通っても止まらない状態だった。加えて
+     `VFX_Player_Slash` が参照する Prefab(`Assets/SourceAssets/Data/vfx_sample.prefab`)の
+     `ParticleSystem` は `looping=true`(`VfxData.LifeMode=OneShot` の意図=「自然終了で自動返却」と矛盾する
+     設定)で、`VfxManager.IsLifetimeExpired` の OneShot 判定(`ps.IsAlive(true)` が false になるまで待つ)が
+     エミッションが続く限り真になり続けるため自然終了しない。**この 2 点目は接続の有無に関係なく発生する
+     (切断しなくても、Cancel されない限り永遠に再生され続ける)**。実機確認 v3 で「接続中の 5 枚は白画素
+     76〜82 で安定」していたのは、Host が 3 秒おきに Play する `PRES_Demo_SkillSlash` それぞれの VFX が
+     ループしたまま溜まり続けている状態(単純に短時間の観測窓では大きな変化として見えなかった)と考えられる
+     (要判断として残した点は [docs/31](31_phase5_decisions.md) 参照)。
+- **修正**:
+  1. `PresentationManager.CancelAllNetworked()` を追加。`_active` のうち `IsNetworked=true` かつ未完了の
+     Instance だけを `CancelInternal()` で強制終了する(既存の `StopAll()` と同じく `Interruptible` を見ない。
+     `StopFiredForCancel` が既存の規則どおり `StopOnCancel=true` の Fired Vfx/Se/Anim 等を止める)。
+     ネット非経由(`IsNetworked=false`)の Instance には触れない。
+  2. `DDriveRuntimeBootstrap` が `NgoBridgeRef.ClientDisconnected` を購読し(`Ngo` モードのときだけ。
+     `Loopback` は既存どおり無関係)、**Client 視点で自分が切断されたとき**(`!NgoBridgeRef.IsServer`)だけ
+     `Presentation.CancelAllNetworked()` を呼ぶ。Host 視点(相手が抜けた)は自分の接続は継続しているため
+     対象外(`NgoNetBridge.IsConnected` が Client 側でだけ false になる既存の仕様と対になる判定)。
+  3. `PRES_Demo_SkillSlash.asset` の Vfx トラックを `StopOnCancel=true` に変更(Unity Editor 経由、
+     `Undo.RecordObject`+`EditorUtility.SetDirty`+`AssetDatabase.SaveAssets`)。これが無いと上の 1./2. の
+     コード修正だけでは(このデモに限っては)`StopFiredForCancel` が対象を見つけられず無意味になるため、
+     コード修正と対にして直した(`vfx_sample.prefab` の `looping=true` 自体は直していない。要判断は
+     [docs/31](31_phase5_decisions.md) 参照)。
+  4. **判定用ログ**: `NetCheckRunner` の heartbeat に `vfx_active=<VfxManager.ActiveCount>`(生存中の VFX
+     インスタンス数。既存の公開プロパティで、新規 API 追加は不要だった)を追加した。`activeCount`
+     (Presentation)だけが変化したときだけでなく `vfx_active` だけが変化したときも heartbeat を出すよう
+     `_lastVfxActive` の比較を足した。
+- **スコープの限界(要判断)**: `CancelAllNetworked()` は「切断した時点でまだ `_active` に残っている
+  (=`TotalDuration` 未満の)ネット経由 Presentation」だけを対象にする。すでに `Complete()` して台帳から
+  外れた Presentation から Spawn した Vfx/Se(`StopOnCancel` の有無に関係なく、そもそも `Complete()` が
+  `StopFiredForCancel` を呼ばないため)は対象外で、切断以前から残っていた分は切断後も残り続ける
+  (このケース自体は「通常完了時の設計」の問題であり切断固有ではないため、本チケットでは直していない)。
+  ローカル結合確認(docs/29 §11)は、この限界を踏まえて「切断直前に再生を始めた分がまだ `_active` に
+  残っている短い接続窓」で確認した。回帰テストは
+  `PresentationNetDeviceFixTests.CancelAllNetworked_StopsLoopingFiredVfx_EvenWhenNotInterruptible`/
+  `CancelAllNetworked_DoesNotAffect_NonNetworkedPresentation`。
 
 ## 6. 時刻・乱数・決定性
 

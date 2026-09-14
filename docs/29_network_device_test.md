@@ -70,7 +70,7 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
 `NetCheckRunner`（`Assets/DDrive/Samples/NetCheckRunner.cs`）が `Player.log` に出す行:
 
 - `[DDriveNetCheck] ready=1 role=host|client|server|off` — 起動直後 1 回
-- `[DDriveNetCheck] heartbeat=1 role=... clientId=... networkTime=... activeCount=N connected=0|1 rtt_app_ms=...` — 1 秒おき(または activeCount が変化した時)。**Late Join の判定**: 新規接続したクライアントの `activeCount` が `0` → `1` に変わる行が出れば復元成功。**2026-09-14 修正で `connected`/`rtt_app_ms` を追加**(6-0 修正1/5)。`connected` は Client が Host との接続を保っているか(Host は常に 1)。`rtt_app_ms` は `NgoNetBridge` が Ping/Pong で計測したアプリ層の往復時間(ms。Loopback や計測前は `n/a`)。**トランスポートの RTT(`NetDebugOverlay` の `RTT:`)は `-ddrive-sim-latency` を反映しない**(課題1、下記参照)ため、遅延シミュレーターが効いているかどうかは `rtt_app_ms` で判定する
+- `[DDriveNetCheck] heartbeat=1 role=... clientId=... networkTime=... activeCount=N connected=0|1 rtt_app_ms=... vfx_active=M` — 1 秒おき(または activeCount/vfx_active のいずれかが変化した時)。**Late Join の判定**: 新規接続したクライアントの `activeCount` が `0` → `1` に変わる行が出れば復元成功。**2026-09-14 修正で `connected`/`rtt_app_ms` を追加**(6-0 修正1/5)。`connected` は Client が Host との接続を保っているか(Host は常に 1)。`rtt_app_ms` は `NgoNetBridge` が Ping/Pong で計測したアプリ層の往復時間(ms。Loopback や計測前は `n/a`)。**トランスポートの RTT(`NetDebugOverlay` の `RTT:`)は `-ddrive-sim-latency` を反映しない**(課題1、下記参照)ため、遅延シミュレーターが効いているかどうかは `rtt_app_ms` で判定する。**2026-09-14 追加修正(6-0 修正7)**: `vfx_active`(`VfxManager.ActiveCount` = 生存中の VFX インスタンス数)を追加。「切断後も VFX が消えずに描画し続ける」実バグ(§8)をスクリーンショットの白画素カウントに頼らず判定するためのログ。切断直前に `vfx_active>0` → `disconnected=1` の直後に `vfx_active=0` になれば、ネット経由で開始した演出の強制終了(`PresentationManager.CancelAllNetworked()`)が機能している(§11 参照。**すでに完了済みの演出から Spawn した VFX は対象外**なので、切断より十分前に完了していた分は `vfx_active` に残り続ける。これは既知のスコープの限界であり実バグの再発ではない)
 - `[DDriveNetCheck] disconnected=1 role=... reason=...` — **2026-09-14 修正(6-0 修正5)で追加**。Client が Host との接続を失ったときに 1 回だけ出る(`NetworkManager.OnClientDisconnectCallback`/`DisconnectReason` を中継)。**2026-09-14 追加修正(6-0 修正6、切断確認で発見)**: 切断後は `heartbeat` の `rtt_app_ms` が最後の値を表示し続けず `n/a` に戻る(`NgoNetBridge.AppRoundTripMs` を切断時にリセットする)。デバッグ表示(`NetDebugOverlay`)にも `State: 接続中/切断` の行を追加した
 - `[DDriveNetCheck] play=<回数> startNetTime=...` — Host が剣攻撃デモ(`PRES_Demo_SkillSlash`)を Play したとき(Host 側のみ)
 - `[DDriveNetCheck] signal_fire=hit key=<HandleNetKey> networkTime=...` — 行為者(Host)が `handle.Signal("hit")` を呼んだ(意図表明した)とき(Play から `signalDelaySeconds`(既定 0.5s)後)。**2026-09-14 修正前は `signal=hit`(key/networkTime 無し)で、「全ピア」という記述が誤りだった**(実際は Host が呼んだ直後にしか出ず、Client 側は一切出さなかった。→ 6-0 修正2)
@@ -151,6 +151,16 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
   - `signal_recv` の同一 key 4 行は onHit の OnSignal トラック 4 本分（仕様）
 - **切断（PC-A の Host v3 を 14:49:51 に停止）: ログは期待どおり**。`[Net/Client] NgoNetBridge: Host から切断されました(...ProtocolTimeout...)` と `disconnected=1` が 1 回ずつ。切断後の `track_fired` / `track_skipped` / `forged_cancel_sent` / 「未接続のため送信できません」/ `signal_recv` はすべて 0 件、heartbeat は `connected=0 rtt_app_ms=n/a`（v2 の残留は解消）、デバッグ表示 `State: 切断`。Exception / Error 0 件、再接続の試行なし
   - **⚠ 新しい実バグ: 切断後も粒子エフェクト（VFX）が消えずに描画・アニメーションし続ける**（PC-B のスクリーンショット 4 枚、切断から約 40 秒後も白画素 87〜100 で変動。接続中より密）。`activeCount` は 0 なので Presentation の後片付けは済んでいるが、そこから Spawn した VFX インスタンスが Stop / Despawn されずに残っている疑い（VFX がループ系の場合に顕在化）。切断時にアクティブなネット演出を Cancel 相当（`StopOnCancel` に従って VFX を止める）で終了させる修正が必要。判定用に heartbeat へ `vfx_active=<VfxManager の生存数>` を足すと、スクリーンショットに頼らず確認できる
+    → **修正（6-0 修正7、PR #32）**。原因は 2 点: (1) `NgoNetBridge.ClientDisconnected` を購読して実際に演出を
+    止めるコードが無かった(2) `PRES_Demo_SkillSlash` の Vfx トラックが `StopOnCancel=false` のままで、かつ
+    参照先 `VFX_Player_Slash` の実体(`vfx_sample.prefab`)の `ParticleSystem` が `looping=true` のため
+    `LifeMode=OneShot` でも自然終了しない。`PresentationManager.CancelAllNetworked()` を追加し、
+    `DDriveRuntimeBootstrap` が Client 視点の切断時にだけ呼ぶようにした上で、デモの Vfx トラックを
+    `StopOnCancel=true` に修正した。詳細は [14_networking.md](14_networking.md) の「実装メモ(6-0 修正7)」、
+    ローカル結合確認は本ドキュメント §11。**スコープの限界**: この修正は「切断時点でまだアクティブな
+    (`TotalDuration` 未満の)演出」だけを対象にする。すでに `Complete()` して台帳から外れていた演出の
+    VFX は対象外(`Complete()` 自体が Fired 済みの Vfx/Se を止めない設計のため、切断固有ではない広い論点。
+    [docs/31](31_phase5_decisions.md) に残した)
 
 ### 実機確認で見つかった課題（2026-09-14、修正チケットへ）
 
@@ -373,3 +383,52 @@ Exception/Error は 0 件。
   同じ性質)。この非対称性自体は既知の NGO の挙動であり、6-0 修正6 のスコープ外として扱う
 
 起動した全プロセスは確認後に `tasklist`/`Stop-Process` で残っていないことを確認済み。
+
+## 11. 6-0 修正7 のローカル結合確認結果(2026-09-14)
+
+`NetCheckBuilder.Build()` で再ビルド(`Builds/DDriveNetCheck.zip`、109,173,145 bytes)し、このPC上で
+ループバック(127.0.0.1)2 プロセスを 3 ラウンド実行して確認した(`-batchmode -nographics`、
+`-ddrive-host 127.0.0.1`)。
+
+**ラウンド1(強制終了、`host_v7.log`/`client_v7.log`、ポート 7777)** — 「切断より前に自然完了した演出の
+VFX は対象外」という修正のスコープの限界を確認する意図せぬ収穫:
+
+```
+[client_v7.log]
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=21.34 activeCount=5 connected=1 rtt_app_ms=204 vfx_active=2
+...(Host が 3 秒おきに Play を続け、VFX が Complete() で放置されたまま溜まり続ける)...
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=74.26 activeCount=0 connected=1 rtt_app_ms=200 vfx_active=13
+[DDriveNetCheck] disconnected=1 role=client reason=...[ProtocolTimeout] Connection closed due to timed out.
+[DDriveNetCheck] heartbeat=1 role=client clientId=0 networkTime=0.00 activeCount=0 connected=0 rtt_app_ms=n/a vfx_active=13
+```
+
+`Stop-Process -Force` で Host を強制終了すると `ProtocolTimeout` の検知に 40 秒以上かかった(既知の非対称性、
+docs §10 ラウンド4参照)。その間に Host が送り続けた Play で `vfx_active` が最大 13 まで蓄積し、`activeCount`
+は(各演出が `TotalDuration`=15 秒で自然完了するため)0 まで下がった。**disconnected=1 の時点では対象の
+演出がすべて `Complete()` 済みで `_active` から外れていたため、`CancelAllNetworked()` が何も見つけられず
+`vfx_active` は 13 のまま変化しなかった**。これは実装メモに書いた「スコープの限界」どおりの挙動であり、
+今回のバグ修正が対象にしていない既知の別論点(通常完了時に Fired 済み VFX を止めない設計、[docs/31](31_phase5_decisions.md))が単独で顕在化したもの。
+
+**ラウンド2(`-ddrive-autotest`、`host_v7c.log`/`client_v7c.log`、ポート 7779)** — 切断時点でまだアクティブな
+演出がある状態を狙って確認(Client を先に起動して Host の初回 Play(3 秒後)より前に接続を完了させた):
+
+```
+[client_v7c.log]
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=3.32 activeCount=1 connected=1 rtt_app_ms=203 vfx_active=1
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=6.32 activeCount=2 connected=1 rtt_app_ms=202 vfx_active=2
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=9.32 activeCount=3 connected=1 rtt_app_ms=200 vfx_active=3
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=11.32 activeCount=3 connected=1 rtt_app_ms=200 vfx_active=3
+[DDriveNetCheck] disconnected=1 role=client reason=...[ClosedByRemote] Connection was closed by remote endpoint.
+[DDriveNetCheck] heartbeat=1 role=client clientId=1 networkTime=11.40 activeCount=0 connected=0 rtt_app_ms=n/a vfx_active=0
+```
+
+**修正の確認: 成功**。Host の `-ddrive-autotest`(グレースフルシャットダウン、`Application.Quit()`)により
+`disconnected=1` が即座に検知され(`ClosedByRemote`、強制終了時の `ProtocolTimeout` と異なり数十ms〜数百ms
+で検知)、切断直前は `activeCount=3 vfx_active=3`(3 件ともまだ `TotalDuration`(15秒)未満でアクティブ、
+それぞれ VFX が 1 個ずつ再生中)だったのが、**同じ heartbeat の直後(0.08 秒後)に `activeCount=0
+vfx_active=0` へ落ちた**。`CancelAllNetworked()` が切断時点でまだアクティブな 3 件のネット経由 Presentation
+をすべて強制終了し、`StopOnCancel=true` にした Vfx トラックの Fired VFX を止めたことを確認できた
+(`VFX_Player_Slash` の `FadeOutSec=0` のため即時 0 になる)。Exception / Error は両ラウンドとも 0 件。
+
+起動した全プロセス(host/client、各ラウンド)は確認後に `Stop-Process -Force` で終了し、残っていないことを
+確認済み。
