@@ -196,7 +196,10 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
   `HapticPriority` は現状ロジックに未使用（Max 合成自体が「強い方が勝つ」を実現しているため。要判断:
   将来 MaxStack 的な上限を導入する場合の淘汰基準として使う想定）。`LocalPlayerOnly` も NGO 統合前の v1
   では判定先が無いため常にローカル再生扱い（要判断: NGO 統合時に PlayContext/送信元から誰の操作かを判定
-  する経路を追加すること）。
+  する経路を追加すること）。**2026-09-14(5-8)追記**: Presentation のトラック経由で Haptic を再生する場合に
+  限り、`PresentationManager` 側で誤爆防止の安全策(ネット受信した Instance では `LocalPlayerOnly=true` を
+  再生しない)を追加した。`HapticsManager`/`Haptics` 静的ファサードを直接呼ぶ経路は今回のスコープ外のため、
+  この判定は依然入っていない。詳細は [14_networking.md] §5 実装メモ(5-8)。
 - **Pause と実機モーターの安全側設計（要判断）**: AC「Pause で出力 0」を確実に満たすため、HapticsManager
   は Vfx/CameraFx のように per-instance の `Flags.Pause`（`IgnorePause` で継続させる等）を見ず、Pause
   チャンネルが立った瞬間に一律で `SetMotors(0,0)` にし、Pause 中は `Tick` 自体を早期リターンする（進行も

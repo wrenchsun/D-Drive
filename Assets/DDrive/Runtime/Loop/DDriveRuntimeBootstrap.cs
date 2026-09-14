@@ -202,7 +202,9 @@ namespace DDrive.Runtime.Loop
             // [11_tasks.md] 5-1 — Loop.TimeService を渡すことで、HitStop トラックが TimeService.HitStop を
             // 呼ぶだけで AtTime の進行も(他の全 Manager と同じく)自動的に止まる(GameLoopDriver が
             // ScaledDeltaTime を配るため、Presentation 側で特別な配線は不要)。
-            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics);
+            // [14_networking.md] §5(5-8/5-9) — Audio/Vfx/Prefabs と同じく NetBridge を渡す(現状は
+            // LocalLoopbackBridge のため常に完全ローカル。NGO 統合は Phase 6 でここを差し替える)。
+            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics, NetBridge);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
             UiDispatcher = new AssetEventDispatcher(Ui.Events, Registry, Audio, Vfx, Ui.GetContextTransform, Groups);

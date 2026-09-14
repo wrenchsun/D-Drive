@@ -353,3 +353,33 @@
 - **Bgm/Canvas/UiTween トラックはプレビュー未配線**: `PresentationManager` の「Manager 未設定」警告 + no-op で継続する(Se/Vfx/Anim/Anim2D/CameraShake/Haptic/HitStop/Marker/Signal のみプレビューで実際に動く)
 - **タイムラインのレーンは 6 グループにまとめた固定行**: Kind ごとに 1 行(13 行)ではなく関連 Kind をまとめた 6 行にしたため、同じレーンに近い時刻のトラックが並ぶと視覚的に重なることがある。演出が複雑になってきたら個別レーン化や横方向のズームを検討する
 - **環境切替(ライト強度・背景色)は自動復元しない**: Shake/Haptic のような「閉じたら必ず元に戻る」プレビュー専用の仕組みとは異なり、確認用シーンの実オブジェクトを直接書き換えるだけの薄い UI にした(ユーザーが手動で SceneView を触るのと同じ扱い)。誤操作で確認用シーンの見た目が変わったままになりうる点は許容した
+
+## 5-8 Presentation ネット再生（PR #25）
+
+対象: `Runtime/Net/PresentationMessages.cs`(新規)、`Runtime/Presentation/{PresentationManager,PresentationData,PresentationDataValidator}.cs`、`Runtime/Loop/DDriveRuntimeBootstrap.cs`、`Tests/Runtime/PresentationNetTests.cs`(新規)。設計・実装メモは [14_networking.md](14_networking.md) §5「実装メモ（2026-09-14、5-8）」を参照。
+
+**重要な前提**: `DDriveRuntimeBootstrap` の `NetBridge` は本チケットでも変更せず **常に `LocalLoopbackBridge`** のままにした(NGO 実配線は Phase 6 の範囲、`docs/11_tasks.md` 0-14 行にも「実機 2 クライアントでの再確認が必要」と明記されている)。つまり現時点で **MPPM(Multiplayer Play Mode)で Host + Client を実際に立てても、Presentation のネット再生は起動しない**(`NgoNetBridge` が Bootstrap に繋がっていないため)。以下、**今確認できること**と**NGO 配線後(Phase 6 待ち)に確認すること**を見出しで分ける。
+
+### 今確認できること(PlayMode 自動テスト / Loopback 単体)
+
+1. **自動テストで代替**: `Tests/Runtime/PresentationNetTests.cs`(PlayMode)を実行する(Test Runner または isuzu MCP の `test_run mode=play filter=DDrive.Tests.Runtime.PresentationNetTests`)→ 以下がすべて green であること
+   - `NonPredicted_200msLatency_BothPeers_ReachSameNormalizedTime`: 200ms 遅延を模擬した 2 つの Fake ブリッジ越しに Host が Cosmetic Presentation を再生 → Host/Client 双方の `NormalizedTime` が一致する(AC「遅延 200ms 環境で 2 クライアントの位相が揃う」の自動検証)
+   - `PredictLocal_ActorPlaysImmediately_AndDoesNotDoubleFireOnConfirm`: `PredictLocal=true` の演出は `Play()` の戻り値が即座に有効になり、確定 Broadcast 受信後も Marker が再発火しない(二重発火しない)
+   - `Signal_RelaysThroughHost_BothPeers_ApplyHitStop`: Host が `Signal("hit")` を発行 → Host/Client 双方の `TimeService.TimeScale` が 0 になる(Signal 中継で両方 HitStop する AC の自動検証)
+   - `Haptic_LocalPlayerOnly_DoesNotFire_OnRemoteReceivedInstance_ButFiresOnPredictedLocal`: 予測再生した行為者自身では `LocalPlayerOnly` の Haptic が鳴り、ネット受信した Instance では鳴らない(誤爆防止、オーケストレーターの追加指示分)
+   - `NoNetBridge_CosmeticPresentation_PlaysFullyLocally`: netBridge が無ければ Cosmetic でも常にローカル再生する回帰確認
+2. **単体シーンでの目視確認(Loopback、参考程度)**: `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity` を開き Play Mode に入る → `DDriveRuntimeBootstrap` は `LocalLoopbackBridge` なので、`PRES_Demo_SkillSlash` の `Flags.Net` を `Cosmetic` に変更すれば「自分の Broadcast を自分が受信して再生する」経路を通ることを Console ログ・見た目で確認できる(2 クライアントの位相は確認できない。1 台だけの動作確認)。**要判断**: このデモアセットの `Flags.Net` は 5-1〜5-4 時点では `Local`(既定)のままのため、ネット経路を通したい場合はデモ側の変更が必要(今回は変更していない。テストのみで検証)
+
+### NGO 配線後(Phase 6 待ち)に確認すること
+
+3. **MPPM で Host+Client を立てて 200ms 遅延を模擬**: Phase 6 で `NgoNetBridge` が `DDriveRuntimeBootstrap` に配線されたら、Multiplayer Play Mode + Unity Transport の Simulate Latency 設定(または Network Simulator パッケージ)で 200ms を模擬し、剣攻撃デモ(`PRES_Demo_SkillSlash`、`Flags.Net=Cosmetic` に変更)を再生 → Host/Client 両方の Game ビューで Vfx/Se/CameraShake の見た目のタイミングが揃うこと
+4. **Signal で両方揺れる**: 上記構成で当たり判定側(Host)が `Signal("hit")` を発行 → Host/Client 両方の画面で CameraShake が揺れ、パッド接続時は両方(または LocalPlayerOnly の設計に応じて行為者のみ)で振動すること
+5. **実機 2 台 + 実 LAN**: [14_networking.md] §12 の MS2026 統一ルールに従い、最終的には実機 2 台 + 実 LAN で確認する(このセッションでは未実施)
+
+要判断:
+- **relay の簡略化**: `PresentationNetTests` の `DelayedNetworkRelay`/`DelayedNetBridge` は「Broadcast は送信者が Host/Client のどちらでも単一ホップの遅延で全員に届く」という簡略化をしている(実際の NGO は Client→Host→全員の 2 ホップ)。Manager 側のシーク/重複抑制ロジックの検証には影響しないと判断したが、正確な往復遅延を検証したい場合は 6-7(NGO 実接続の CI テスト)で見直すこと
+- **HandleNetKey の一意性**: `NextHandleNetKey()` はインスタンスごとの乱数 salt と NetworkTime のビット・ローカル連番を混ぜて生成しており、`INetBridge` に `LocalClientId` が無いため厳密な一意性(clientId を上位ビットに埋める等)は保証していない。衝突確率は十分低いと判断したが、Phase 6 で `LocalClientId` 相当が手に入ったら見直すこと
+- **Haptic の LocalPlayerOnly 誤爆防止の副作用**: `PredictLocal=false` の Presentation では、行為者自身も「自分の Broadcast を受信して初めて再生する」経路(`PlayedViaNetworkReceive=true`)を通るため、`LocalPlayerOnly=true` な Haptic は行為者自身にも鳴らなくなる。行為者に確実に振動させたい演出は `PredictLocal=true` にする運用で回避できるが、本来は `SelfNetId` の実解決で解決すべき問題(Phase 6)
+- **観戦者の HitStop**: 1v1 前提のため「Signal を受け取った全ピアが HitStop する」を既定にした。3 人以上の構成になった場合は観戦者を除外する仕組みが必要(オーケストレーターの追加指示への対応、[14] §5 実装メモにも記載)
+- **Seed の実消費経路が無い**: `PresentationPlayMsg.Seed` は生成・伝搬するだけで、SE のランダム選択・PitchRange への接続は行っていない(5-8 のスコープ外と判断)。実際に必要になった時点で `AudioManager` 側に Seed を渡す口を追加すること
+- **Anim 以外の位相同期は近似**: `Bgm` トラックは頭から再生するだけで、`BgmManager` に再生位置を指定する API が無いため厳密な位相合わせは未実装(`Anim`/`Anim2D` のみ `AnimManager.Seek` で実際に位相を合わせている)
