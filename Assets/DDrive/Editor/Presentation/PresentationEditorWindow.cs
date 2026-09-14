@@ -29,6 +29,12 @@ namespace DDrive.Editor.Presentation
         [SerializeField] private float _speed = 1f;
         [SerializeField] private bool _loopPreview;
 
+        // タイムラインの表示範囲(ズーム/パン、5-4 追補 2026-09-14)。PresentationData にはシリアライズしない
+        // (ウィンドウの状態のみ)。0,0 は「未初期化」の目印で、DrawTimeline が最初の描画で全体表示に直す。
+        [SerializeField] private float _viewStart;
+        [SerializeField] private float _viewEnd;
+        [SerializeField] private bool _followPlayhead = true;
+
         private ScenePresentationPreviewDriver _preview;
         private SerializedObject _serializedTarget;
         private SerializedProperty _tracksProp;
@@ -114,15 +120,31 @@ namespace DDrive.Editor.Presentation
                 playing = true;
             }
 
+            var normalized = PresentationPreviewPlayback.ComputeSeekSliderValue(playing, _preview.NormalizedTime);
             if (playing)
             {
                 _timelineContainer?.MarkDirtyRepaint();
                 Repaint();
+
+                // シークスライダーは再生中(一時停止中も含む)は現在位置に追従する。ユーザーがドラッグ中は
+                // 上書きしない(5-4 追補 2026-09-14。ユーザー報告: 一時停止から再生すると最初からに見える問題の一部)。
+                if (!_seekSliderDragging)
+                {
+                    _seekSlider?.SetValueWithoutNotify(normalized);
+                }
+
+                // 「再生ヘッドに追従」(既定 ON): 表示範囲の外に再生ヘッドが出ないよう自動スクロールする。
+                if (_followPlayhead)
+                {
+                    var duration = PresentationTiming.EffectiveDuration(_target);
+                    var elapsed = normalized * Mathf.Max(0f, duration);
+                    SetView(PresentationTimelineZoom.FollowPlayhead(_viewStart, _viewEnd, elapsed, DisplayDuration));
+                }
             }
 
-            var t = _preview.NormalizedTime;
+            var elapsedSec = normalized * Mathf.Max(0f, PresentationTiming.EffectiveDuration(_target));
             _statusLabel.text = playing
-                ? $"● 再生中  {t:P0}"
+                ? (_paused ? $"⏸ 一時停止中  {normalized:P0} ({elapsedSec:0.00}s)" : $"● 再生中  {normalized:P0} ({elapsedSec:0.00}s)")
                 : (_loopPreview ? "↻ ループ待機" : "■ 停止中");
         }
 
@@ -149,6 +171,7 @@ namespace DDrive.Editor.Presentation
             BuildCommonFieldsSection(root);
             BuildPreviewSection(root);
 
+            BuildTimelineControlsRow(root);
             _timelineContainer = new IMGUIContainer(DrawTimeline);
             _timelineContainer.style.height = TimelineTotalHeight + 24f;
             root.Add(_timelineContainer);
@@ -237,7 +260,29 @@ namespace DDrive.Editor.Presentation
                 _commonFieldsFoldout.Add(new HelpBox(
                     "尺が 0 です。OnSignal のみで構成された演出は Total Duration を明示しないと最初の Tick で即完了します([08] 実装メモ参照)。",
                     HelpBoxMessageType.Warning));
+                _commonFieldsFoldout.Add(new Button(FitTotalDurationToTracks)
+                {
+                    text = "トラックの最後に合わせる",
+                    tooltip = "TotalDuration を各トラックの終了時刻(分かる場合はアセットの長さを加味、分からなければ最大時刻+0.5秒)の最大値に設定します",
+                });
             }
+        }
+
+        // [08_presentation.md] 5-4 追補(2026-09-14) — 上の HelpBox にある「トラックの最後に合わせる」ボタン。
+        // 実際の計算 + Undo は PresentationTrackEditOps.FitTotalDurationToTracks(ウィンドウを起動せずテスト可能)。
+        private void FitTotalDurationToTracks()
+        {
+            if (_target == null)
+            {
+                return;
+            }
+
+            PresentationTrackEditOps.FitTotalDurationToTracks(_target);
+            _serializedTarget?.Update();
+            RebuildCommonFields();
+            RefreshValidation();
+            ResetViewToFit();
+            _timelineContainer?.MarkDirtyRepaint();
         }
 
         // ── 対象アセット ──
@@ -247,6 +292,7 @@ namespace DDrive.Editor.Presentation
             StopPreview();
             _target = data;
             _targetField?.SetValueWithoutNotify(data);
+            ResetViewToFit(); // 対象を切り替えたら表示範囲(ズーム/パン)は全体表示に戻す(5-4 追補 2026-09-14)。
             RefreshTargetUi();
         }
 

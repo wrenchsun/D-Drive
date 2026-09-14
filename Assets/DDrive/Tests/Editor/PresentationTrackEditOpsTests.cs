@@ -120,5 +120,28 @@ namespace DDrive.Tests.Editor
         {
             Assert.AreEqual(-1, PresentationTrackEditOps.AddTrack(null, TrackKind.Vfx, 0f, null));
         }
+
+        // [08_presentation.md] 5-4 追補(2026-09-14) — 「共通設定」の尺 0 警告にある
+        // 「トラックの最後に合わせる」ボタン(PresentationTrackEditOps.FitTotalDurationToTracks)。
+        [Test]
+        public void FitTotalDurationToTracks_SetsSuggestedValue_AndUndoRestoresZero()
+        {
+            _data.TotalDuration = 0f;
+            PresentationTrackEditOps.AddTrack(_data, TrackKind.Vfx, 2f, null); // AtTime, アセット不明 → +AutoMargin(0.5)
+
+            Undo.IncrementCurrentGroup();
+            PresentationTrackEditOps.FitTotalDurationToTracks(_data);
+
+            Assert.AreEqual(2.5f, _data.TotalDuration, 0.001f);
+
+            Undo.PerformUndo();
+            Assert.AreEqual(0f, _data.TotalDuration, 0.001f, "Undo 1 回で TotalDuration が戻る");
+        }
+
+        [Test]
+        public void FitTotalDurationToTracks_NullData_NoThrow()
+        {
+            Assert.DoesNotThrow(() => PresentationTrackEditOps.FitTotalDurationToTracks(null));
+        }
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using DDrive.Editor.Common;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
@@ -12,11 +11,20 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Presentation
 {
     // [08_presentation.md] §4 の「トラック編集」— Kind ごとのレーンに AtTime トラックを D&D 配置・時間ドラッグ・
-    // 削除・複製する(Undo 1 回)。目盛りの描画は AnimEditorWindow(3-3)と共通の TimelineRulerGui を使う。
+    // 削除・複製する(Undo 1 回)。ルーラーの目盛りは Presentation 専用(ズーム対応、PresentationTimelineZoom +
+    // DrawTimeRuler)。AnimEditorWindow(3-3)と共用の TimelineRulerGui は 5-4 追補(2026-09-14、ズーム機能追加)
+    // でも一切改修していない(Anim Editor の見た目・挙動を壊さない方針)。
     public sealed partial class PresentationEditorWindow
     {
         private const float RulerHeight = 34f;
         private const float LaneHeight = 20f;
+        private const float MiniScrollbarGap = 4f;
+        private const float MiniScrollbarHeight = 14f;
+
+        // Presentation にはアニメーションのような固有フレームレートが無いため、フレーム数表示(要件3)と
+        // 目盛りの最も細かい候補(1/60s、PresentationTimelineZoom)は 60fps を仮定する(表示専用。ランタイムの
+        // 完了判定には無関係)。
+        private const float PlayheadFrameRate = 60f;
 
         // レーンをまとめる粒度(Kind 単位で 13 行あると縦に長くなりすぎるため、関連する Kind をまとめる)。
         private static readonly (TrackKind[] kinds, string label)[] Lanes =
@@ -33,12 +41,23 @@ namespace DDrive.Editor.Presentation
         };
 
         // IMGUIContainer の style.height は固定値が必要なため、PresentationEditorWindow.cs の CreateGUI から参照する。
-        internal static float TimelineTotalHeight => RulerHeight + LaneHeight * Lanes.Length;
+        // 5-4 追補(2026-09-14): 下部の横スクロールバー(ミニマップ)の分だけ高さを追加した。
+        internal static float TimelineTotalHeight => RulerHeight + LaneHeight * Lanes.Length + MiniScrollbarGap + MiniScrollbarHeight;
 
         private int _selectedTrack = -1;
         private int _draggingTrack = -1;
         private int _dragUndoGroup;
         private EnumField _addKindField;
+
+        // ルーラー上のクリック/ドラッグでシーク(要件4)。
+        private bool _seekDragging;
+
+        // 下部の横スクロールバー(ミニマップ)のドラッグ状態。
+        private bool _scrollDragging;
+        private float _scrollDragStartMouseX;
+        private float _scrollDragStartViewStart;
+
+        private Slider _zoomSlider;
 
         private static int LaneIndexFor(TrackKind kind)
         {
@@ -56,11 +75,67 @@ namespace DDrive.Editor.Presentation
             return Lanes.Length - 1;
         }
 
-        // ── タイムライン(ルーラー + レーン + D&D + 時間ドラッグ) ──
+        // タイムラインの表示範囲(秒)。PresentationData には保存しない([08] 実装メモ、5-4 追補)。
+        private float DisplayDuration => PresentationTimelineRange.DisplayDuration(_target);
+
+        // ── ズーム/パン用のツールバー行 ──
+
+        private void BuildTimelineControlsRow(VisualElement root)
+        {
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 6 } };
+            row.Add(new Button(() => ZoomBy(1f / 1.5f, (_viewStart + _viewEnd) * 0.5f)) { text = "－", tooltip = "ズームアウト(表示範囲の中心を基準)" });
+
+            _zoomSlider = new Slider(1f, PresentationTimelineZoom.MaxZoomFactor) { value = 1f, showInputField = true, style = { flexGrow = 1f }, tooltip = "タイムラインのズーム倍率(1x = 全体表示)" };
+            _zoomSlider.RegisterValueChangedCallback(evt => SetZoomFactor(evt.newValue, (_viewStart + _viewEnd) * 0.5f));
+            row.Add(_zoomSlider);
+
+            row.Add(new Button(() => ZoomBy(1.5f, (_viewStart + _viewEnd) * 0.5f)) { text = "＋", tooltip = "ズームイン(表示範囲の中心を基準)" });
+            row.Add(new Button(ResetViewToFit) { text = "全体表示", tooltip = "演出の尺全体が幅に収まるようにズーム・スクロールをリセットします" });
+
+            var followToggle = new Toggle("再生ヘッドに追従") { value = _followPlayhead, tooltip = "再生中に再生ヘッドが画面外に出ないよう、表示範囲を自動でスクロールします" };
+            followToggle.RegisterValueChangedCallback(evt => _followPlayhead = evt.newValue);
+            row.Add(followToggle);
+
+            root.Add(row);
+        }
+
+        // 対象アセットの切替時(要件5)と、初回描画で表示範囲が未初期化(0,0)のときに呼ぶ。
+        private void ResetViewToFit()
+        {
+            (_viewStart, _viewEnd) = PresentationTimelineZoom.Fit(DisplayDuration);
+            RefreshZoomUi();
+            _timelineContainer?.MarkDirtyRepaint();
+        }
+
+        private void SetView(float start, float end)
+        {
+            (_viewStart, _viewEnd) = PresentationTimelineZoom.ClampRange(start, end, DisplayDuration);
+            RefreshZoomUi();
+            _timelineContainer?.MarkDirtyRepaint();
+        }
+
+        // PresentationTimelineZoom の各操作(ZoomAroundPivot/WithZoomFactor/Pan/FollowPlayhead)は
+        // (start, end) のタプルを返すため、そのまま渡せるオーバーロード。
+        private void SetView((float start, float end) range) => SetView(range.start, range.end);
+
+        private void ZoomBy(float relativeFactor, float pivotTime) => SetView(PresentationTimelineZoom.ZoomAroundPivot(_viewStart, _viewEnd, pivotTime, relativeFactor, DisplayDuration));
+
+        private void SetZoomFactor(float factor, float pivotTime) => SetView(PresentationTimelineZoom.WithZoomFactor(_viewStart, _viewEnd, pivotTime, factor, DisplayDuration));
+
+        private void PanView(float deltaNotches)
+        {
+            var width = _viewEnd - _viewStart;
+            SetView(PresentationTimelineZoom.Pan(_viewStart, _viewEnd, deltaNotches * width * 0.05f, DisplayDuration));
+        }
+
+        private void RefreshZoomUi()
+            => _zoomSlider?.SetValueWithoutNotify(Mathf.Clamp(PresentationTimelineZoom.ZoomFactor(_viewStart, _viewEnd, DisplayDuration), 1f, PresentationTimelineZoom.MaxZoomFactor));
+
+        // ── タイムライン(ルーラー + レーン + D&D + 時間ドラッグ + ズーム/パン/ミニスクロールバー) ──
 
         private void DrawTimeline()
         {
-            var totalHeight = RulerHeight + LaneHeight * Lanes.Length;
+            var totalHeight = TimelineTotalHeight;
             var rect = GUILayoutUtility.GetRect(100, totalHeight, GUILayout.ExpandWidth(true));
             EditorGUI.DrawRect(rect, new Color(0.16f, 0.16f, 0.16f));
 
@@ -72,15 +147,41 @@ namespace DDrive.Editor.Presentation
                 return;
             }
 
-            var duration = Mathf.Max(0.01f, PresentationTiming.EffectiveDuration(_target));
+            var displayDuration = DisplayDuration;
+
+            // 表示範囲(0,0)は未初期化の目印(5-4 追補)。それ以外は現在の尺に合わせてクランプするだけで、
+            // ユーザーのズーム/パンはそのまま保つ(TotalDuration をタイプ中に変えても暴れないように毎フレーム行う)。
+            if (_viewEnd <= _viewStart)
+            {
+                (_viewStart, _viewEnd) = PresentationTimelineZoom.Fit(displayDuration);
+            }
+            else
+            {
+                (_viewStart, _viewEnd) = PresentationTimelineZoom.ClampRange(_viewStart, _viewEnd, displayDuration);
+            }
+
             var bar = new Rect(rect.x + 8f, rect.y + 6f, rect.width - 16f, 6f);
             EditorGUI.DrawRect(bar, new Color(0.3f, 0.3f, 0.3f));
 
-            // ルーラー: 10 分割 + 秒表示(AnimEditorWindow と共通の TimelineRulerGui、幅に応じたラベル間引き)。
-            TimelineRulerGui.DrawTicks(bar, 10, i => $"{i / 10f * duration:0.##}s");
+            DrawTimeRuler(bar, _viewStart, _viewEnd);
+
+            // 上部の読み取り行: 再生中は現在時刻/フレーム(要件3)、TotalDuration 未設定なら小さく注記(追加要望)。
+            if (_preview != null && _preview.IsPlaying)
+            {
+                var runtimeDuration = PresentationTiming.EffectiveDuration(_target);
+                var normalized = Mathf.Clamp01(_preview.NormalizedTime);
+                var elapsed = normalized * Mathf.Max(0f, runtimeDuration);
+                var frame = Mathf.RoundToInt(elapsed * PlayheadFrameRate);
+                GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, 170f, 14f), $"⏱ {elapsed:0.00}s (Frame {frame})", EditorStyles.miniBoldLabel);
+            }
+
+            if (_target.TotalDuration <= 0f)
+            {
+                GUI.Label(new Rect(rect.xMax - 132f, rect.y + 2f, 128f, 14f), "⚠ 尺が未設定です", EditorStyles.miniLabel);
+            }
 
             GUI.Label(new Rect(rect.x + 6f, rect.y + RulerHeight - 14f, rect.width - 12f, 14f),
-                "上段クリック: シーク / マーカーをドラッグ: 時刻変更 / Data を D&D: トラック追加",
+                "上段クリック/ドラッグ: シーク / マーカーをドラッグ: 時刻変更 / Data を D&D: トラック追加 / Ctrl+ホイール: ズーム / ホイール: スクロール",
                 EditorStyles.miniLabel);
 
             // レーン背景 + ラベル
@@ -107,7 +208,7 @@ namespace DDrive.Editor.Presentation
                     }
 
                     var laneY = rect.y + RulerHeight + LaneIndexFor(track.Kind) * LaneHeight;
-                    var x = bar.x + bar.width * Mathf.Clamp01(track.Time / duration);
+                    var x = PresentationTimelineZoom.TimeToX(bar, _viewStart, _viewEnd, track.Time);
                     var marker = new Rect(x - 5f, laneY + 2f, 10f, LaneHeight - 4f);
                     var color = PresentationTrackKindMapping.LaneColor(track.Kind);
                     EditorGUI.DrawRect(marker, i == _selectedTrack ? Color.white : color);
@@ -123,16 +224,21 @@ namespace DDrive.Editor.Presentation
                 }
             }
 
-            // 再生ヘッド
+            // 再生ヘッド(全レーンを貫く目立つ色。要件3)。表示範囲の外に出ているときは描かない
+            // (「再生ヘッドに追従」OFF でスクロールしていない場合。下部のミニスクロールバーで位置は分かる)。
             if (_preview != null && _preview.IsPlaying)
             {
-                var normalized = _preview.NormalizedTime;
-                if (normalized >= 0f)
+                var runtimeDuration = PresentationTiming.EffectiveDuration(_target);
+                var elapsed = Mathf.Clamp01(_preview.NormalizedTime) * Mathf.Max(0f, runtimeDuration);
+                if (elapsed >= _viewStart - 1e-3f && elapsed <= _viewEnd + 1e-3f)
                 {
-                    var px = bar.x + bar.width * normalized;
-                    EditorGUI.DrawRect(new Rect(px - 1f, rect.y, 2f, rect.height), Color.white);
+                    var px = PresentationTimelineZoom.TimeToX(bar, _viewStart, _viewEnd, elapsed);
+                    EditorGUI.DrawRect(new Rect(px - 1f, rect.y, 2f, RulerHeight + LaneHeight * Lanes.Length), new Color(1f, 0.85f, 0.15f));
                 }
             }
+
+            var scrollbarRect = new Rect(rect.x, rect.yMax - MiniScrollbarHeight, rect.width, MiniScrollbarHeight);
+            DrawMiniScrollbar(scrollbarRect, displayDuration, evt);
 
             switch (evt.type)
             {
@@ -140,12 +246,16 @@ namespace DDrive.Editor.Presentation
                 {
                     // MouseDown だけの RecordObject は変更前に記録が終わって Undo が効かないため、
                     // ドラッグごとに記録し MouseUp で 1 つにまとめる(AnimEditorWindow.DrawTimeline と同じ手法)。
-                    var t = Mathf.Clamp01((evt.mousePosition.x - bar.x) / bar.width) * duration;
+                    var t = PresentationTimelineZoom.XToTime(bar, _viewStart, _viewEnd, evt.mousePosition.x);
                     PresentationTrackEditOps.SetTrackTime(_target, _draggingTrack, t);
                     _serializedTarget?.Update();
                     evt.Use();
                     break;
                 }
+                case EventType.MouseDrag when _seekDragging:
+                    SeekToTime(PresentationTimelineZoom.XToTime(bar, _viewStart, _viewEnd, evt.mousePosition.x));
+                    evt.Use();
+                    break;
                 case EventType.MouseUp when _draggingTrack >= 0:
                     _draggingTrack = -1;
                     Undo.CollapseUndoOperations(_dragUndoGroup);
@@ -153,11 +263,34 @@ namespace DDrive.Editor.Presentation
                     RefreshTracksList();
                     evt.Use();
                     break;
+                case EventType.MouseUp when _seekDragging:
+                    _seekDragging = false;
+                    evt.Use();
+                    break;
                 case EventType.MouseDown when rect.Contains(evt.mousePosition) && evt.mousePosition.y < rect.y + RulerHeight:
                 {
-                    var t = Mathf.Clamp01((evt.mousePosition.x - bar.x) / bar.width);
-                    _seekSlider?.SetValueWithoutNotify(t);
-                    _preview?.Seek(t * duration);
+                    // ルーラー部分のクリック/ドラッグでシーク(要件4)。トラックマーカーはレーン側(y >= RulerHeight)
+                    // にしかないため、ここで競合しない。
+                    _seekDragging = true;
+                    SeekToTime(PresentationTimelineZoom.XToTime(bar, _viewStart, _viewEnd, evt.mousePosition.x));
+                    evt.Use();
+                    break;
+                }
+                case EventType.ScrollWheel when rect.Contains(evt.mousePosition):
+                {
+                    // Ctrl(Win)/Cmd(Mac)+ホイール: カーソル位置を中心にズーム。それ以外(単独 / Shift 併用)は
+                    // 横スクロール(要件1(a)(c))。
+                    if (evt.control || evt.command)
+                    {
+                        var pivot = PresentationTimelineZoom.XToTime(bar, _viewStart, _viewEnd, evt.mousePosition.x);
+                        ZoomBy(Mathf.Pow(1.12f, -evt.delta.y), pivot);
+                    }
+                    else
+                    {
+                        var notches = Mathf.Abs(evt.delta.x) > Mathf.Abs(evt.delta.y) ? evt.delta.x : evt.delta.y;
+                        PanView(notches);
+                    }
+
                     evt.Use();
                     break;
                 }
@@ -171,8 +304,8 @@ namespace DDrive.Editor.Presentation
                     break;
                 case EventType.DragPerform when rect.Contains(evt.mousePosition):
                 {
-                    var t = Mathf.Clamp01((evt.mousePosition.x - bar.x) / bar.width) * duration;
-                    if (AddTracksFromDrag(t))
+                    var t = PresentationTimelineZoom.XToTime(bar, _viewStart, _viewEnd, evt.mousePosition.x);
+                    if (AddTracksFromDrag(Mathf.Max(0f, t)))
                     {
                         DragAndDrop.AcceptDrag();
                     }
@@ -180,6 +313,78 @@ namespace DDrive.Editor.Presentation
                     evt.Use();
                     break;
                 }
+            }
+        }
+
+        // 時刻ベースの目盛り(ズーム倍率に応じて 1s/0.5s/0.1s/1フレーム(1/60s)を自動選択、要件2)。
+        // AnimEditorWindow が使う TimelineRulerGui(フレーム数固定の目盛り)とは独立させ、Anim 側の見た目・
+        // 挙動には一切触れないようにした([08] 実装メモ参照)。
+        private static void DrawTimeRuler(Rect bar, float viewStart, float viewEnd)
+        {
+            var range = Mathf.Max(1e-4f, viewEnd - viewStart);
+            var step = PresentationTimelineZoom.ChooseTickStep(range, bar.width);
+            var pxPerTick = bar.width * (step / range);
+            var labelStride = PresentationTimelineZoom.LabelStride(pxPerTick);
+
+            var first = Mathf.Ceil(viewStart / step) * step;
+            var index = Mathf.RoundToInt(first / step);
+            for (var t = first; t <= viewEnd + step * 0.5f; t += step, index++)
+            {
+                var x = bar.x + bar.width * ((t - viewStart) / range);
+                var labeled = index % labelStride == 0;
+                EditorGUI.DrawRect(new Rect(x, bar.y - (labeled ? 4f : 2f), 1f, bar.height + (labeled ? 8f : 4f)), new Color(1f, 1f, 1f, labeled ? 0.35f : 0.12f));
+                if (labeled)
+                {
+                    GUI.Label(new Rect(x - 20f, bar.yMax + 22f, 40f, 12f), step < 0.2f ? $"{t:0.###}s" : $"{t:0.##}s", EditorStyles.centeredGreyMiniLabel);
+                }
+            }
+        }
+
+        // 下部の横スクロールバー(演出全体を縮小したミニマップ + 現在の表示範囲を示すつまみ)。
+        // つまみのドラッグ/空いている場所のクリックでパンする(要件1(c))。
+        private void DrawMiniScrollbar(Rect stripRect, float displayDuration, Event evt)
+        {
+            EditorGUI.DrawRect(stripRect, new Color(0.1f, 0.1f, 0.1f));
+            var track = new Rect(stripRect.x + 8f, stripRect.y + 2f, stripRect.width - 16f, stripRect.height - 4f);
+            EditorGUI.DrawRect(track, new Color(0.25f, 0.25f, 0.25f));
+
+            var totalWidth = Mathf.Max(displayDuration, PresentationTimelineZoom.MinVisibleRange);
+            var thumbX0 = track.x + track.width * Mathf.Clamp01(_viewStart / totalWidth);
+            var thumbX1 = track.x + track.width * Mathf.Clamp01(_viewEnd / totalWidth);
+            var thumb = new Rect(thumbX0, track.y, Mathf.Max(4f, thumbX1 - thumbX0), track.height);
+            EditorGUI.DrawRect(thumb, new Color(0.6f, 0.6f, 0.65f, 0.9f));
+
+            switch (evt.type)
+            {
+                case EventType.MouseDown when thumb.Contains(evt.mousePosition):
+                    _scrollDragging = true;
+                    _scrollDragStartMouseX = evt.mousePosition.x;
+                    _scrollDragStartViewStart = _viewStart;
+                    evt.Use();
+                    break;
+                case EventType.MouseDown when track.Contains(evt.mousePosition):
+                {
+                    // つまみの外(空いている場所)をクリック: そこが中心になるようにスクロールする。
+                    var trackWidth = Mathf.Max(1e-4f, track.width);
+                    var t = totalWidth * Mathf.Clamp01((evt.mousePosition.x - track.x) / trackWidth);
+                    var width = _viewEnd - _viewStart;
+                    SetView(t - width * 0.5f, t + width * 0.5f);
+                    evt.Use();
+                    break;
+                }
+                case EventType.MouseDrag when _scrollDragging:
+                {
+                    var trackWidth = Mathf.Max(1e-4f, track.width);
+                    var deltaSeconds = (evt.mousePosition.x - _scrollDragStartMouseX) / trackWidth * totalWidth;
+                    var width = _viewEnd - _viewStart;
+                    SetView(_scrollDragStartViewStart + deltaSeconds, _scrollDragStartViewStart + deltaSeconds + width);
+                    evt.Use();
+                    break;
+                }
+                case EventType.MouseUp when _scrollDragging:
+                    _scrollDragging = false;
+                    evt.Use();
+                    break;
             }
         }
 
@@ -381,7 +586,7 @@ namespace DDrive.Editor.Presentation
             var assetType = PresentationTrackKindMapping.AssetTypeFor(track.Kind);
             if (assetType != null)
             {
-                var current = FindAssetById(assetType, track.Asset.Id);
+                var current = PresentationTrackKindMapping.FindAssetById(assetType, track.Asset.Id);
                 var assetField = new ObjectField("Asset") { objectType = assetType };
                 assetField.SetValueWithoutNotify(current);
                 assetField.RegisterValueChangedCallback(evt =>
@@ -447,7 +652,7 @@ namespace DDrive.Editor.Presentation
         // インデックス対応をデザイナーに見せるためのヒント文言。
         private static Label BuildVfxParamsHintLabel(PresentationTrack track)
         {
-            var vfxAsset = FindAssetById(typeof(VfxData), track.Asset.Id) as VfxData;
+            var vfxAsset = PresentationTrackKindMapping.FindAssetById(typeof(VfxData), track.Asset.Id) as VfxData;
             if (vfxAsset == null || vfxAsset.Params == null || vfxAsset.Params.Length == 0)
             {
                 return new Label("(参照先 VFX に Params が未設定のため、ここへ追加しても反映されません)")
@@ -479,7 +684,7 @@ namespace DDrive.Editor.Presentation
             var assetType = PresentationTrackKindMapping.AssetTypeFor(track.Kind);
             if (assetType != null && track.Asset.IsAssigned)
             {
-                var asset = FindAssetById(assetType, track.Asset.Id);
+                var asset = PresentationTrackKindMapping.FindAssetById(assetType, track.Asset.Id);
                 if (asset != null)
                 {
                     assetName = $" {asset.DisplayName ?? asset.name}";
@@ -487,25 +692,6 @@ namespace DDrive.Editor.Presentation
             }
 
             return $"[{index}] {track.Kind}{assetName} ({when})";
-        }
-
-        private static AssetDataBase FindAssetById(Type dataType, ulong id)
-        {
-            if (id == 0 || dataType == null)
-            {
-                return null;
-            }
-
-            foreach (var guid in AssetSearch.FindAssets("t:" + dataType.Name))
-            {
-                var asset = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(guid), dataType) as AssetDataBase;
-                if (asset != null && asset.Id == id)
-                {
-                    return asset;
-                }
-            }
-
-            return null;
         }
     }
 }

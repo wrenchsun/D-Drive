@@ -9,6 +9,7 @@ using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Ui;
 using DDrive.Runtime.Vfx;
+using UnityEditor;
 using UnityEngine;
 
 namespace DDrive.Editor.Presentation
@@ -103,5 +104,27 @@ namespace DDrive.Editor.Presentation
             TrackKind.Timeline => new Color(0.6f, 0.6f, 0.6f),
             _ => Color.gray,
         };
+
+        // トラックの Asset(AssetRef.Id)から実際の AssetDataBase を解決する(Inspector 表示 / 5-4 追補の
+        // 「トラックの最後に合わせる」の長さ見積りで共用。PresentationEditorWindow.Tracks.cs から移設 — 2 箇所に
+        // 同じ検索コードを置かない、[12_review.md] のコピペ禁止に対応)。
+        public static AssetDataBase FindAssetById(Type dataType, ulong id)
+        {
+            if (id == 0 || dataType == null)
+            {
+                return null;
+            }
+
+            foreach (var guid in DDrive.Editor.AssetSearch.FindAssets("t:" + dataType.Name))
+            {
+                var asset = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(guid), dataType) as AssetDataBase;
+                if (asset != null && asset.Id == id)
+                {
+                    return asset;
+                }
+            }
+
+            return null;
+        }
     }
 }

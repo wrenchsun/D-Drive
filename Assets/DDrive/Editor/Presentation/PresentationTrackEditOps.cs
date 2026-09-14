@@ -90,5 +90,20 @@ namespace DDrive.Editor.Presentation
             data.Tracks[index] = track;
             EditorUtility.SetDirty(data);
         }
+
+        // [08_presentation.md] 5-4 追補(2026-09-14) — 「共通設定」の尺 0 警告にある
+        // 「トラックの最後に合わせる」ボタン。TotalDuration を PresentationTimelineRange.SuggestedTotalDuration
+        // (各トラックの終了時刻。分かる場合はアセットの長さを加味、分からなければ AutoMargin)に設定する。
+        public static void FitTotalDurationToTracks(PresentationData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(data, "Fit Presentation TotalDuration To Tracks");
+            data.TotalDuration = PresentationTimelineRange.SuggestedTotalDuration(data);
+            EditorUtility.SetDirty(data);
+        }
     }
 }
