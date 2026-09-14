@@ -150,9 +150,17 @@
 <table>
 <tr><th>用語</th><th>説明</th></tr>
 <tr><td id="presentation">演出 (Presentation / PresentationData)</td><td>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れ・振動・画面停止(ヒットストップ)などを 1 つにまとめたデータ。プログラマーは <code>Presentation.Play(…)</code> の 1 行で呼び出せます。<a href="#" data-manual-page="presentation">設定項目・専用エディタの使い方はこちら</a>。</td></tr>
+<tr><td id="hitstop">HitStop（ヒットストップ）</td><td>一瞬だけゲーム全体の時間を止めて「打撃が重い」感触を出す演出。<a href="#" data-manual-page="presentation">演出（Presentation）</a>の Kind の 1 つで、Params の 1 つ目に止める秒数を入れます。</td></tr>
+<tr><td id="totalduration">Total Duration（演出全体の長さ）</td><td><a href="#" data-manual-page="presentation">演出（Presentation）</a>1 つ分の長さ(秒)。0 のままだと At Time トラックの一番遅い時刻から自動で決まりますが、On Signal のトラックだけで組んだ演出は 0 秒扱いになりすぐ終わってしまうため、忘れずに秒数を入れる必要があります。</td></tr>
 <tr><td id="trauma">トラウマ (Trauma) 方式</td><td>画面の揺れ（<a href="#" data-manual-page="camera-haptics">カメラシェイク</a>）を複数同時に鳴らしたときの合成方法。単純な足し算にせず、最終的な揺れの強さを 0〜100% の範囲に収める仕組みで、連打しても画面が異常に揺れすぎることがありません。振動（ハプティクス）は別方式（チャンネルごとに一番強い値だけを採用）で、こちらも加算で振り切れないようにしています。</td></tr>
 <tr><td id="cosmetic">Cosmetic（コズメティック）</td><td>通信対戦で「見た目だけの演出で、勝敗や当たり判定そのものには影響しない」再生の扱い。<a href="#" data-manual-page="presentation">演出</a>の Flags.Net が Cosmetic だと、当たった側だけでなく<strong>両方の画面に自動で同じ演出が出ます</strong>（振動はコントローラーを持つ本人だけ、というように鳴らし分けられるものもあります）。デザイナーが演出データを作るときの操作は通信対戦でもシングルプレイと同じで、特別な設定は基本的に不要です。</td></tr>
-<tr><td id="specsync">仕様書同期</td><td>企画が Google スプレッドシート（仕様書）の「アセット」タブに書いた行を、D-Drive の<a href="#placeholder" data-manual-anchor="placeholder">Placeholder</a>（空のデータ）に変換する機能。<code>Tools &gt; D-Drive &gt; 仕様書と同期</code>で行う。詳しくは<a href="#" data-manual-page="spec-sync">仕様書との同期のページ</a>。</td></tr>
+<tr><td id="order">発注（アセット発注ツール）</td><td>「誰が・何を・いつまでに作るか」を1件まとめたもの。<a href="#" data-manual-page="spec-sync">アセット発注ツール</a>（ブラウザで動く Web アプリ）に登録すると、D-Drive 側に<a href="#placeholder" data-manual-anchor="placeholder">Placeholder</a>（空のデータ）が自動でできます。<a href="#orderstatus" data-manual-anchor="orderstatus">状態</a>は発注済/納品済/インポート済の3段階。</td></tr>
+<tr><td id="orderer">発注者 / 受注者</td><td><a href="#" data-manual-page="spec-sync">アセット発注ツール</a>における 2 つの役割。発注者は依頼する側（企画など）、受注者は実際に中身を作る側（デザイナーなど）。どちらもガントの担当者マスタから取り込んだ表記（例:「山口(PRG)」）で選びます。</td></tr>
+<tr><td id="ordergroup">Presentation 発注グループ</td><td><a href="#" data-manual-page="presentation">演出（Presentation）</a>1 つを親にして、その演出に必要な SE・VFX・カメラ揺れなどの<a href="#order" data-manual-anchor="order">発注</a>を子としてまとめる仕組み。親を持たない発注は「単体」として扱われます。<a href="#" data-manual-page="spec-sync">アセット発注ツール</a>の「発注ツリー」画面で確認できます。</td></tr>
+<tr><td id="orderstatus">発注の状態（発注済 / 納品済 / インポート済）</td><td><a href="#order" data-manual-anchor="order">発注</a>が進む3段階。発注済→納品済は受注者が手動で進めますが、<strong>納品済→インポート済は手動では選べず</strong>、D-Drive 側で <a href="#placeholder" data-manual-anchor="placeholder">Placeholder</a> が解消された(Validation の Error が無い)ことが同期で確認できたときに自動で進みます。詳しくは<a href="#" data-manual-page="spec-sync" data-manual-anchor="status">仕様書との同期のページ</a>。</td></tr>
+<tr><td>アーカイブ（発注ツール）</td><td><a href="#archive" data-manual-anchor="archive">Archive</a> と同じ「削除ではない」考え方を、<a href="#" data-manual-page="spec-sync">アセット発注ツール</a>側の発注・Presentation 発注グループにも適用したもの。一覧の「アーカイブ済みを表示」で再表示でき、詳細画面の「元に戻す」でいつでも戻せます。</td></tr>
+<tr><td id="markdown">Markdown（マークダウン）</td><td>見出し・太字・箇条書き・リンクなどを簡単な記号（<code>##</code>・<code>**太字**</code>・<code>- 項目</code>・<code>[文言](URL)</code> 等）で書ける文書形式。<a href="#" data-manual-page="spec-sync">アセット発注ツール</a>の発注メモ（リファレンス）で使われ、専用の書式ボタン(Ctrl+B・Ctrl+K のショートカットつき)で記号を覚えなくても入力できます。</td></tr>
+<tr><td id="specsync">仕様書同期</td><td>企画が<a href="#" data-manual-page="spec-sync">アセット発注ツール</a>（ブラウザで動く Web アプリ）に登録した<a href="#order" data-manual-anchor="order">発注</a>を、D-Drive の<a href="#placeholder" data-manual-anchor="placeholder">Placeholder</a>（空のデータ）に変換する機能。<code>Tools &gt; D-Drive &gt; 仕様書と同期</code>で行う。詳しくは<a href="#" data-manual-page="spec-sync">仕様書との同期のページ</a>。</td></tr>
 </table>
 
 <h2>関連ページ</h2>
@@ -164,7 +172,7 @@
 <li><a href="#" data-manual-page="model-editor">モデル</a> / <a href="#" data-manual-page="anim-editor">アニメーション（3D）</a> / <a href="#" data-manual-page="anim2d-editor">2D アニメーション</a></li>
 <li><a href="#" data-manual-page="material-data">マテリアル / テクスチャ</a> / <a href="#" data-manual-page="material-editor">Material Editor</a></li>
 <li><a href="#" data-manual-page="prefab-data">Prefab</a> / <a href="#" data-manual-page="canvas-data">Canvas</a> / <a href="#" data-manual-page="canvas-editor">Canvas Editor</a> / <a href="#" data-manual-page="ui-skin">Skin</a> / <a href="#" data-manual-page="ui-tween">UI Tween</a></li>
-<li><a href="#" data-manual-page="presentation">演出（Presentation）</a> / <a href="#" data-manual-page="camera-haptics">画面の揺れ・振動</a> / <a href="#" data-manual-page="spec-sync">仕様書との同期</a></li>
+<li><a href="#" data-manual-page="presentation">演出（Presentation）</a> / <a href="#" data-manual-page="camera-haptics">画面の揺れ・振動</a> / <a href="#" data-manual-page="spec-sync">アセット発注ツールとの同期</a></li>
 </ul>
 
 <footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
