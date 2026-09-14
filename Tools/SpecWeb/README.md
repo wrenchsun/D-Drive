@@ -1,6 +1,7 @@
 # D-Drive 仕様書 Web（Google Apps Script） — セットアップ手順
 
-設計: [docs/32_spec_web.md](../../docs/32_spec_web.md)。このディレクトリは W-1〜W-3（雛形・ストレージ層・認証）の実装。
+設計: [docs/32_spec_web.md](../../docs/32_spec_web.md)。このディレクトリは W-1〜W-3（雛形・ストレージ層・認証）+
+W-6〜W-8（調整値: スカラー API・テーブル型 API・編集 SPA・コメント）の実装。
 ここから先の手順（デプロイ作成・Google ログイン・トークン発行）は**すべてユーザー本人が行う**もので、
 Claude が代行することはできません。
 
@@ -160,3 +161,33 @@ node --test Tools/SpecWeb/test
 - コード変更後は `cd Tools/SpecWeb && clasp push` で反映する
 - Apps Script エディタ上で直接編集した場合は `clasp pull` でローカルに取り込んでから git にコミットする
   （ソースの正本はこの repo 側。エディタでの直接編集は緊急時のみに留めることを推奨）
+
+## 10. 調整値編集画面（W-6〜W-8）
+
+デプロイ①（人向け SPA）にログインすると、ヘッダーのナビに「調整値」リンクが表示される
+（`#/tuning`）。画面は 2 つのタブに分かれる（docs/32 §4.4）。
+
+- **スカラー一覧タブ**: キー・グループ・型・値・範囲（または enum の選択肢）・単位・説明・ロックの
+  一覧を表示する。値は `valueType` に応じて数値入力/チェックボックス/テキスト/ドロップダウンに
+  自動で切り替わる。編集するとその場でサーバーに保存され（`tuningScalarUpdate`）、範囲外・型違いなら
+  入力欄が赤くなる（クライアント側の即時検証、サーバー側でも同じ検証を行う）。上部の検索欄で
+  キー・グループを絞り込める。`🔒` はロック中の調整値（`admin` ロールでログインしたときだけ編集可）。
+  「+ 新規スカラー」から作成できる（`editor` 以上）
+- **テーブルタブ**: 上部のドロップダウンでテーブルを選び、列（ヘッダーの `×` で削除）・行
+  （「行削除」ボタン）を編集する。セルは矢印キー/Tab/Enter で移動でき、Excel やスプレッドシートから
+  タブ区切りテキストを貼り付けると複数セルへ一括反映される（`tuningTableUpdateCells`、1 件でも
+  検証に落ちれば貼り付け全体を中断し何も保存しない）。行・テーブル全体にコメント欄がある
+- 各コメント欄（スカラー・テーブル全体・テーブルの行）は `editor` 以上が投稿でき、`viewer` は一覧のみ
+- ロールは Google ログインの許可リスト（`users.json`）から決まる（`window.SpecWebCurrentUser`、
+  `html/Index.html` が `currentUser` をクライアントへ渡す）
+
+### 実装ファイル
+
+| ファイル | 内容 |
+|---|---|
+| `src/TuningCommon.js` | 検証・エラー型・ロールチェック・コメント原子的追記等の共通ヘルパー |
+| `src/Tuning.js` | スカラー調整値 CRUD API（`tuningScalar*`、W-6） |
+| `src/TuningTable.js` | テーブル型調整値 CRUD API（`tuningTable*`、W-7） |
+| `src/TuningComments.js` | コメント投稿・一覧 API（`tuningComment*`、スカラー/テーブル全体/行 共通） |
+| `html/TuningGrid.html` | グリッドの純粋関数（貼り付け解析・セル移動・型変換・即時検証。DOM 非依存、Node でテスト可） |
+| `html/Tuning.html` | 調整値編集画面本体（DOM。`registerScreen('tuning', ...)`） |

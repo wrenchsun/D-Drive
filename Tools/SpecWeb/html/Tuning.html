@@ -1,0 +1,721 @@
+<style>
+  .tuning-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .tuning-toolbar input[type='search'] {
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+  }
+  .tuning-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .tuning-tabs button {
+    border: 1px solid var(--sw-border);
+    background: var(--sw-bg);
+    color: var(--sw-fg);
+    border-radius: 4px;
+    padding: 0.3rem 0.75rem;
+    cursor: pointer;
+  }
+  .tuning-tabs button.active {
+    background: var(--sw-accent);
+    color: white;
+    border-color: var(--sw-accent);
+  }
+  table.tuning-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+  }
+  table.tuning-table th,
+  table.tuning-table td {
+    border: 1px solid var(--sw-border);
+    padding: 0.25rem 0.4rem;
+    text-align: left;
+    vertical-align: middle;
+  }
+  table.tuning-table th {
+    background: #f6f8fa;
+  }
+  .tuning-group-heading {
+    font-weight: bold;
+    margin: 0.75rem 0 0.25rem;
+  }
+  .tuning-cell-invalid {
+    background: #ffe3e3 !important;
+    outline: 2px solid #d1242f;
+  }
+  .tuning-lock-badge {
+    color: #d1242f;
+    font-size: 0.85em;
+    margin-left: 0.3rem;
+  }
+  .tuning-comment-box {
+    margin-top: 0.25rem;
+    font-size: 0.9em;
+  }
+  .tuning-comment-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.25rem 0;
+  }
+  .tuning-comment-list li {
+    padding: 0.15rem 0;
+    border-bottom: 1px dashed var(--sw-border);
+  }
+  .tuning-error {
+    color: #d1242f;
+    font-size: 0.9em;
+  }
+  input.tuning-num {
+    width: 6rem;
+  }
+</style>
+<script>
+  /**
+   * 調整値編集 SPA（W-8、docs/32_spec_web.md §4.4）。
+   * スカラー一覧（グループ別・検索・インライン編集・範囲外の即時赤表示・ロック表示）と
+   * テーブル編集グリッド（行・列の追加削除・セル編集・貼り付け・コメント）を 1 画面で提供する。
+   *
+   * DOM を直接操作する素の JS（依存ゼロ、HtmlService のサンドボックスで動く範囲）。
+   * 純粋関数（セル移動・貼り付け解析・検証）は html/TuningGrid.html の
+   * SpecWebTuningGrid を使う（そちらは Node でも単体テストできる）。
+   */
+  (function () {
+    'use strict';
+
+    function currentRole() {
+      var user = window.SpecWebCurrentUser;
+      return user && user.ok ? user.role : 'viewer';
+    }
+
+    function isAtLeast(role, required) {
+      var rank = { viewer: 0, editor: 1, admin: 2 };
+      return (rank[role] || 0) >= (rank[required] || 0);
+    }
+
+    function el(tag, attrs, children) {
+      var node = document.createElement(tag);
+      attrs = attrs || {};
+      Object.keys(attrs).forEach(function (key) {
+        if (key === 'class') node.className = attrs[key];
+        else if (key === 'text') node.textContent = attrs[key];
+        else if (key.indexOf('on') === 0 && typeof attrs[key] === 'function') node.addEventListener(key.slice(2), attrs[key]);
+        else node.setAttribute(key, attrs[key]);
+      });
+      (children || []).forEach(function (child) {
+        if (child) node.appendChild(child);
+      });
+      return node;
+    }
+
+    function callApi(name, params) {
+      return window.SpecWebClient.callApi(name, params);
+    }
+
+    function callWriteApi(name, payloadObj) {
+      return callApi(name, { payload: JSON.stringify(payloadObj) });
+    }
+
+    function showError(container, body) {
+      var msg = (body && body.error) || '不明なエラー';
+      var box = container.querySelector('.tuning-inline-error') || el('div', { class: 'tuning-error tuning-inline-error' });
+      box.textContent = msg;
+      if (!box.parentNode) container.insertBefore(box, container.firstChild);
+    }
+
+    // ---------- スカラー一覧 ----------
+
+    function renderScalarValueInput(item, onCommit) {
+      var col = { valueType: item.valueType, min: item.min, max: item.max, enumOptions: item.enumOptions };
+      var input;
+      if (item.valueType === 'bool') {
+        input = el('input', { type: 'checkbox' });
+        input.checked = !!item.value;
+        input.addEventListener('change', function () {
+          onCommit(input.checked);
+        });
+      } else if (item.valueType === 'enum') {
+        input = el(
+          'select',
+          {},
+          (item.enumOptions || []).map(function (opt) {
+            var o = el('option', { value: opt, text: opt });
+            if (opt === item.value) o.selected = true;
+            return o;
+          })
+        );
+        input.addEventListener('change', function () {
+          onCommit(input.value);
+        });
+      } else if (item.valueType === 'float' || item.valueType === 'int') {
+        input = el('input', {
+          type: 'number',
+          class: 'tuning-num',
+          value: String(item.value),
+          step: item.valueType === 'int' ? '1' : String(item.step || 0.1),
+          min: item.min === null || item.min === undefined ? '' : String(item.min),
+          max: item.max === null || item.max === undefined ? '' : String(item.max)
+        });
+        input.addEventListener('change', function () {
+          var raw = window.SpecWebTuningGrid.coerceInputForColumn(input.value, col);
+          onCommit(raw === null ? input.valueAsNumber : raw);
+        });
+      } else {
+        input = el('input', { type: 'text', value: item.value });
+        input.addEventListener('change', function () {
+          onCommit(input.value);
+        });
+      }
+      var check = window.SpecWebTuningGrid.validateCellClient(item.value, col);
+      if (!check.ok) input.classList.add('tuning-cell-invalid');
+      var locked = item.locked && !isAtLeast(currentRole(), 'admin');
+      if (locked) input.disabled = true;
+      return input;
+    }
+
+    function renderScalarRow(root, key, item, refresh) {
+      var tr = el('tr');
+      tr.appendChild(el('td', { text: key }));
+      tr.appendChild(el('td', { text: item.group || '' }));
+      tr.appendChild(el('td', { text: item.valueType }));
+
+      var valueTd = el('td');
+      var input = renderScalarValueInput(item, function (newValue) {
+        callWriteApi('tuningScalarUpdate', { key: key, value: newValue, revision: item.revision })
+          .then(function (body) {
+            if (!body.ok) {
+              showError(root, body);
+              return;
+            }
+            refresh();
+          })
+          .catch(function (err) {
+            showError(root, { error: String(err) });
+          });
+      });
+      valueTd.appendChild(input);
+      tr.appendChild(valueTd);
+
+      tr.appendChild(el('td', { text: item.valueType === 'enum' ? (item.enumOptions || []).join(' / ') : [item.min, item.max].filter(function (v) { return v !== null && v !== undefined; }).join(' 〜 ') }));
+      tr.appendChild(el('td', { text: item.unit || '' }));
+      tr.appendChild(el('td', { text: item.description || '' }));
+      tr.appendChild(el('td', { text: item.locked ? '🔒' : '' }));
+
+      var actionsTd = el('td');
+      if (isAtLeast(currentRole(), 'editor')) {
+        var deleteBtn = el('button', {
+          text: '削除',
+          onclick: function () {
+            if (!window.confirm('削除しますか: ' + key)) return;
+            callWriteApi('tuningScalarDelete', { key: key, revision: item.revision }).then(function (body) {
+              if (!body.ok) {
+                showError(root, body);
+                return;
+              }
+              refresh();
+            });
+          }
+        });
+        actionsTd.appendChild(deleteBtn);
+      }
+      tr.appendChild(actionsTd);
+
+      var commentTr = el('tr');
+      var commentTd = el('td', { colspan: '8' });
+      commentTd.appendChild(renderCommentBox('scalar', key, null));
+      commentTr.appendChild(commentTd);
+
+      var wrap = document.createDocumentFragment();
+      wrap.appendChild(tr);
+      wrap.appendChild(commentTr);
+      return wrap;
+    }
+
+    function renderScalarList(root) {
+      root.innerHTML = '';
+      var toolbar = el('div', { class: 'tuning-toolbar' });
+      var search = el('input', { type: 'search', placeholder: 'キー・グループで検索' });
+      toolbar.appendChild(search);
+
+      if (isAtLeast(currentRole(), 'editor')) {
+        toolbar.appendChild(
+          el('button', {
+            text: '+ 新規スカラー',
+            onclick: function () {
+              openNewScalarForm(root);
+            }
+          })
+        );
+      }
+      root.appendChild(toolbar);
+
+      var listContainer = el('div');
+      root.appendChild(listContainer);
+
+      function refresh() {
+        callApi('tuningScalarList', {}).then(function (body) {
+          if (!body.ok) {
+            showError(root, body);
+            return;
+          }
+          renderList(body.items);
+        });
+      }
+
+      function renderList(items) {
+        listContainer.innerHTML = '';
+        var query = search.value.trim().toLowerCase();
+        var byGroup = {};
+        Object.keys(items)
+          .sort()
+          .forEach(function (key) {
+            var item = items[key];
+            if (query && key.toLowerCase().indexOf(query) === -1 && (item.group || '').toLowerCase().indexOf(query) === -1) {
+              return;
+            }
+            var group = item.group || '(グループ無し)';
+            byGroup[group] = byGroup[group] || [];
+            byGroup[group].push([key, item]);
+          });
+
+        Object.keys(byGroup)
+          .sort()
+          .forEach(function (group) {
+            listContainer.appendChild(el('div', { class: 'tuning-group-heading', text: group }));
+            var table = el('table', { class: 'tuning-table' });
+            var thead = el(
+              'tr',
+              {},
+              ['キー', 'グループ', '型', '値', '範囲/選択肢', '単位', '説明', 'ロック', ''].map(function (h) {
+                return el('th', { text: h });
+              })
+            );
+            table.appendChild(el('thead', {}, [thead]));
+            var tbody = el('tbody');
+            byGroup[group].forEach(function (pair) {
+              tbody.appendChild(renderScalarRow(root, pair[0], pair[1], refresh));
+            });
+            table.appendChild(tbody);
+            listContainer.appendChild(table);
+          });
+
+        if (Object.keys(byGroup).length === 0) {
+          listContainer.appendChild(el('p', { class: 'sw-muted', text: '調整値がありません。' }));
+        }
+      }
+
+      search.addEventListener('input', refresh);
+      refresh();
+    }
+
+    function openNewScalarForm(root) {
+      var key = window.prompt('キー（<機能>/<名前>、例: Influence/FanBase）');
+      if (!key) return;
+      var valueType = window.prompt('valueType（float/int/bool/string/enum）', 'float');
+      if (!valueType) return;
+      var value;
+      var enumOptions = [];
+      if (valueType === 'enum') {
+        var raw = window.prompt('選択肢をカンマ区切りで（例: Easy,Normal,Hard）') || '';
+        enumOptions = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+        value = enumOptions[0];
+      } else if (valueType === 'bool') {
+        value = window.confirm('初期値は true にしますか？');
+      } else if (valueType === 'string') {
+        value = window.prompt('初期値', '') || '';
+      } else {
+        value = parseFloat(window.prompt('初期値', '0') || '0');
+      }
+      callWriteApi('tuningScalarCreate', { key: key, valueType: valueType, value: value, enumOptions: enumOptions }).then(function (body) {
+        if (!body.ok) {
+          window.alert(body.error);
+          return;
+        }
+        renderScalarList(root.querySelector('#tuning-scalar-pane'));
+      });
+    }
+
+    // ---------- コメント ----------
+
+    function renderCommentBox(targetKind, key, rowId) {
+      var box = el('div', { class: 'tuning-comment-box' });
+      var list = el('ul', { class: 'tuning-comment-list' });
+      box.appendChild(list);
+
+      function refresh() {
+        callApi('tuningCommentList', { targetKind: targetKind, key: key, rowId: rowId || '' }).then(function (body) {
+          if (!body.ok) return;
+          list.innerHTML = '';
+          body.comments.forEach(function (c) {
+            list.appendChild(el('li', { text: '[' + c.author + '] ' + c.body }));
+          });
+        });
+      }
+
+      if (isAtLeast(currentRole(), 'editor')) {
+        var input = el('input', { type: 'text', placeholder: 'コメントを追加' });
+        var button = el('button', {
+          text: '投稿',
+          onclick: function () {
+            if (!input.value.trim()) return;
+            callWriteApi('tuningCommentAdd', { targetKind: targetKind, key: key, rowId: rowId, body: input.value }).then(function (body) {
+              if (!body.ok) {
+                window.alert(body.error);
+                return;
+              }
+              input.value = '';
+              refresh();
+            });
+          }
+        });
+        box.appendChild(input);
+        box.appendChild(button);
+      }
+      refresh();
+      return box;
+    }
+
+    // ---------- テーブル編集グリッド ----------
+
+    function renderTablePane(root) {
+      root.innerHTML = '';
+      var toolbar = el('div', { class: 'tuning-toolbar' });
+      var select = el('select');
+      toolbar.appendChild(select);
+      if (isAtLeast(currentRole(), 'editor')) {
+        toolbar.appendChild(
+          el('button', {
+            text: '+ 新規テーブル',
+            onclick: function () {
+              openNewTableForm(root);
+            }
+          })
+        );
+      }
+      root.appendChild(toolbar);
+      var gridContainer = el('div');
+      root.appendChild(gridContainer);
+
+      function refreshList() {
+        callApi('tuningTableList', {}).then(function (body) {
+          if (!body.ok) {
+            showError(root, body);
+            return;
+          }
+          var keys = Object.keys(body.items).sort();
+          select.innerHTML = '';
+          keys.forEach(function (k) {
+            select.appendChild(el('option', { value: k, text: k }));
+          });
+          if (keys.length > 0) {
+            renderGrid(gridContainer, keys[0]);
+          } else {
+            gridContainer.innerHTML = '';
+            gridContainer.appendChild(el('p', { class: 'sw-muted', text: 'テーブル型調整値がありません。' }));
+          }
+        });
+      }
+
+      select.addEventListener('change', function () {
+        renderGrid(gridContainer, select.value);
+      });
+
+      refreshList();
+    }
+
+    function openNewTableForm(root) {
+      var key = window.prompt('キー（<機能>/<名前>、例: Enemy/Params）');
+      if (!key) return;
+      callWriteApi('tuningTableCreate', { key: key, columns: [], rows: [] }).then(function (body) {
+        if (!body.ok) {
+          window.alert(body.error);
+          return;
+        }
+        renderTablePane(root.querySelector('#tuning-table-pane'));
+      });
+    }
+
+    function renderGrid(container, tableKey) {
+      container.innerHTML = '';
+      var state = { table: null, cursor: { row: 0, col: 0 } };
+
+      function load() {
+        callApi('tuningTableGet', { key: tableKey }).then(function (body) {
+          if (!body.ok) {
+            showError(container, body);
+            return;
+          }
+          state.table = body.item;
+          draw();
+        });
+      }
+
+      function bounds() {
+        return { rows: state.table.rows.length, cols: state.table.columns.length };
+      }
+
+      function updateCell(rowId, columnKey, value) {
+        return callWriteApi('tuningTableUpdateCell', {
+          key: tableKey,
+          revision: state.table.revision,
+          rowId: rowId,
+          columnKey: columnKey,
+          value: value
+        });
+      }
+
+      function draw() {
+        container.innerHTML = '';
+        var table = state.table;
+        var lockedForMe = table.locked && !isAtLeast(currentRole(), 'admin');
+
+        var head = el('div', { class: 'tuning-toolbar' });
+        head.appendChild(el('span', { text: table.locked ? '🔒 ロック中' : '未ロック' }));
+        if (isAtLeast(currentRole(), 'admin')) {
+          head.appendChild(
+            el('button', {
+              text: table.locked ? 'ロック解除' : 'ロック',
+              onclick: function () {
+                callWriteApi('tuningTableSetLocked', { key: tableKey, revision: table.revision, locked: !table.locked }).then(function (body) {
+                  if (!body.ok) return window.alert(body.error);
+                  state.table = body.item;
+                  draw();
+                });
+              }
+            })
+          );
+        }
+        if (!lockedForMe && isAtLeast(currentRole(), 'editor')) {
+          head.appendChild(
+            el('button', {
+              text: '+ 列',
+              onclick: function () {
+                addColumn();
+              }
+            })
+          );
+          head.appendChild(
+            el('button', {
+              text: '+ 行',
+              onclick: function () {
+                addRow();
+              }
+            })
+          );
+        }
+        container.appendChild(head);
+
+        var grid = el('table', { class: 'tuning-table' });
+        var headerRow = el('tr', {}, [el('th', { text: 'rowId' })]);
+        table.columns.forEach(function (col) {
+          var th = el('th', { text: col.key + ' (' + col.valueType + ')' });
+          if (!lockedForMe && isAtLeast(currentRole(), 'editor')) {
+            var removeBtn = el('button', {
+              text: '×',
+              title: '列を削除',
+              onclick: function () {
+                if (!window.confirm('列を削除しますか（該当セルも消えます）: ' + col.key)) return;
+                callWriteApi('tuningTableRemoveColumn', { key: tableKey, revision: state.table.revision, columnKey: col.key }).then(function (body) {
+                  if (!body.ok) return window.alert(body.error);
+                  state.table = body.item;
+                  draw();
+                });
+              }
+            });
+            th.appendChild(removeBtn);
+          }
+          headerRow.appendChild(th);
+        });
+        headerRow.appendChild(el('th', { text: 'コメント' }));
+        if (!lockedForMe && isAtLeast(currentRole(), 'editor')) headerRow.appendChild(el('th', { text: '' }));
+        grid.appendChild(el('thead', {}, [headerRow]));
+
+        var tbody = el('tbody');
+        table.rows.forEach(function (row, rowIndex) {
+          var tr = el('tr');
+          tr.appendChild(el('td', { text: row.rowId }));
+          table.columns.forEach(function (col, colIndex) {
+            var td = el('td');
+            var value = row.cells[col.key];
+            var input = el('input', {
+              type: col.valueType === 'bool' ? 'checkbox' : 'text',
+              value: col.valueType === 'bool' ? '' : String(value),
+              'data-row': String(rowIndex),
+              'data-col': String(colIndex)
+            });
+            if (col.valueType === 'bool') input.checked = !!value;
+            if (lockedForMe || !isAtLeast(currentRole(), 'editor')) input.disabled = true;
+
+            var check = window.SpecWebTuningGrid.validateCellClient(value, col);
+            if (!check.ok) input.classList.add('tuning-cell-invalid');
+
+            input.addEventListener('change', function () {
+              var raw = col.valueType === 'bool' ? input.checked : input.value;
+              var coerced = col.valueType === 'bool' ? raw : window.SpecWebTuningGrid.coerceInputForColumn(raw, col);
+              var check2 = window.SpecWebTuningGrid.validateCellClient(coerced, col);
+              input.classList.toggle('tuning-cell-invalid', !check2.ok);
+              if (!check2.ok) return; // サーバーには送らず、赤表示だけする
+              updateCell(row.rowId, col.key, coerced).then(function (body) {
+                if (!body.ok) {
+                  window.alert(body.error);
+                  load();
+                  return;
+                }
+                state.table = body.item;
+              });
+            });
+            input.addEventListener('keydown', function (evt) {
+              var key = evt.key;
+              if (evt.shiftKey && key === 'Tab') key = 'ShiftTab';
+              if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'ShiftTab', 'Enter'].indexOf(key) === -1) return;
+              evt.preventDefault();
+              var next = window.SpecWebTuningGrid.moveCursor({ row: rowIndex, col: colIndex }, key, bounds());
+              var nextInput = grid.querySelector('input[data-row="' + next.row + '"][data-col="' + next.col + '"]');
+              if (nextInput) nextInput.focus();
+            });
+            input.addEventListener('paste', function (evt) {
+              var text = (evt.clipboardData || window.clipboardData).getData('text');
+              if (!text || text.indexOf('\t') === -1 && text.indexOf('\n') === -1) return; // 単一セルは通常入力に任せる
+              evt.preventDefault();
+              var grid2D = window.SpecWebTuningGrid.parsePastedText(text);
+              var rowIds = table.rows.map(function (r) {
+                return r.rowId;
+              });
+              var updates = window.SpecWebTuningGrid.buildCellUpdatesFromPaste(grid2D, rowIndex, colIndex, rowIds, table.columns);
+              var invalid = updates.filter(function (u) {
+                return !u.valid;
+              });
+              if (invalid.length > 0) {
+                window.alert('貼り付け中に解釈できないセルがあります（' + invalid.length + ' 件）。修正してから貼り付け直してください。');
+                return;
+              }
+              callWriteApi('tuningTableUpdateCells', {
+                key: tableKey,
+                revision: state.table.revision,
+                updates: updates.map(function (u) {
+                  return { rowId: u.rowId, columnKey: u.columnKey, value: u.value };
+                })
+              }).then(function (body) {
+                if (!body.ok) {
+                  window.alert(body.error);
+                  return;
+                }
+                state.table = body.item;
+                draw();
+              });
+            });
+            td.appendChild(input);
+            tr.appendChild(td);
+          });
+          tr.appendChild(el('td', {}, [renderCommentBox('tableRow', tableKey, row.rowId)]));
+          if (!lockedForMe && isAtLeast(currentRole(), 'editor')) {
+            var actionsTd = el('td');
+            actionsTd.appendChild(
+              el('button', {
+                text: '行削除',
+                onclick: function () {
+                  if (!window.confirm('行を削除しますか: ' + row.rowId)) return;
+                  callWriteApi('tuningTableRemoveRow', { key: tableKey, revision: state.table.revision, rowId: row.rowId }).then(function (body) {
+                    if (!body.ok) return window.alert(body.error);
+                    state.table = body.item;
+                    draw();
+                  });
+                }
+              })
+            );
+            tr.appendChild(actionsTd);
+          }
+          tbody.appendChild(tr);
+        });
+        grid.appendChild(tbody);
+        container.appendChild(grid);
+        container.appendChild(el('div', {}, [renderCommentBox('table', tableKey, null)]));
+      }
+
+      function addColumn() {
+        var key = window.prompt('列名');
+        if (!key) return;
+        var valueType = window.prompt('valueType（float/int/bool/string/enum）', 'float');
+        if (!valueType) return;
+        var enumOptions = [];
+        if (valueType === 'enum') {
+          var raw = window.prompt('選択肢をカンマ区切りで') || '';
+          enumOptions = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+        }
+        callWriteApi('tuningTableAddColumn', {
+          key: tableKey,
+          revision: state.table.revision,
+          column: { key: key, valueType: valueType, enumOptions: enumOptions }
+        }).then(function (body) {
+          if (!body.ok) return window.alert(body.error);
+          state.table = body.item;
+          draw();
+        });
+      }
+
+      function addRow() {
+        var rowId = window.prompt('rowId');
+        if (!rowId) return;
+        callWriteApi('tuningTableAddRow', { key: tableKey, revision: state.table.revision, rowId: rowId, cells: {} }).then(function (body) {
+          if (!body.ok) return window.alert(body.error);
+          state.table = body.item;
+          draw();
+        });
+      }
+
+      load();
+    }
+
+    // ---------- 画面登録 ----------
+
+    registerScreen('tuning', function (root) {
+      var tabs = el('div', { class: 'tuning-tabs' });
+      var scalarBtn = el('button', { text: 'スカラー一覧', class: 'active' });
+      var tableBtn = el('button', { text: 'テーブル' });
+      tabs.appendChild(scalarBtn);
+      tabs.appendChild(tableBtn);
+      root.appendChild(tabs);
+
+      var scalarPane = el('div', { id: 'tuning-scalar-pane' });
+      var tablePane = el('div', { id: 'tuning-table-pane' });
+      tablePane.style.display = 'none';
+      root.appendChild(scalarPane);
+      root.appendChild(tablePane);
+
+      scalarBtn.addEventListener('click', function () {
+        scalarBtn.classList.add('active');
+        tableBtn.classList.remove('active');
+        scalarPane.style.display = '';
+        tablePane.style.display = 'none';
+      });
+      tableBtn.addEventListener('click', function () {
+        tableBtn.classList.add('active');
+        scalarBtn.classList.remove('active');
+        tablePane.style.display = '';
+        scalarPane.style.display = 'none';
+        if (!tablePane.dataset.loaded) {
+          tablePane.dataset.loaded = '1';
+          renderTablePane(tablePane);
+        }
+      });
+
+      renderScalarList(scalarPane);
+    });
+
+    // #app-nav（html/Index.html に既にある空の <nav>）へのリンク追加。
+    // 他の画面（W-4/5 アセット等）も同じ #app-nav に自分のリンクを足す想定
+    // （html/Index.html/App.html 自体は編集しない）。
+    var nav = document.getElementById('app-nav');
+    if (nav && !nav.querySelector('[href="#/tuning"]')) {
+      nav.appendChild(el('a', { href: '#/tuning', text: '調整値' }));
+    }
+  })();
+</script>

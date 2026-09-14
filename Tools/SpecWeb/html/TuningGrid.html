@@ -1,0 +1,194 @@
+<script>
+  /**
+   * テーブル編集グリッドの純粋関数（W-8、docs/32_spec_web.md §4.4・§8 W-8 の
+   * 「グリッドの純粋関数（貼り付けの解析・セル移動・検証表示）も単体テスト」に対応）。
+   *
+   * DOM に一切触らない（document/window を参照しない）ため、Node の vm で
+   * このファイルの <script> の中身だけを実行してテストできる
+   * （test/load-html-script.js + test/tuningGrid.test.js）。
+   * DOM を操作する画面本体は html/Tuning.html 側に置く。
+   */
+  var SpecWebTuningGrid = {
+    /**
+     * クリップボードから貼り付けたタブ区切りテキスト（Excel/スプレッドシート形式）を
+     * 2 次元配列にする。末尾の空行は捨てる。
+     */
+    parsePastedText: function (text) {
+      if (!text) return [];
+      var normalized = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      var lines = normalized.split('\n');
+      while (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+      return lines.map(function (line) {
+        return line.split('\t');
+      });
+    },
+
+    clampIndex: function (i, length) {
+      if (length <= 0) return 0;
+      if (i < 0) return 0;
+      if (i > length - 1) return length - 1;
+      return i;
+    },
+
+    /**
+     * キー入力によるセル移動。cursor = {row, col}、bounds = {rows, cols}。
+     * 対応キー: ArrowUp/Down/Left/Right、Enter（下へ）、Tab（右へ）、ShiftTab（左へ）。
+     * 未対応キーはそのままの cursor を返す。
+     */
+    moveCursor: function (cursor, key, bounds) {
+      var row = cursor.row;
+      var col = cursor.col;
+      switch (key) {
+        case 'ArrowUp':
+          row -= 1;
+          break;
+        case 'ArrowDown':
+        case 'Enter':
+          row += 1;
+          break;
+        case 'ArrowLeft':
+          col -= 1;
+          break;
+        case 'ArrowRight':
+          col += 1;
+          break;
+        case 'Tab':
+          col += 1;
+          break;
+        case 'ShiftTab':
+          col -= 1;
+          break;
+        default:
+          return { row: cursor.row, col: cursor.col };
+      }
+      return {
+        row: SpecWebTuningGrid.clampIndex(row, bounds.rows),
+        col: SpecWebTuningGrid.clampIndex(col, bounds.cols)
+      };
+    },
+
+    /**
+     * セル編集・貼り付けの生テキストを列定義の valueType に応じて型変換する。
+     * 解釈できなければ null を返す（呼び出し側は null を「検証エラー」として扱う）。
+     */
+    coerceInputForColumn: function (raw, column) {
+      if (raw === null || raw === undefined) raw = '';
+      raw = String(raw).trim();
+      switch (column.valueType) {
+        case 'float': {
+          if (raw === '') return null;
+          var f = parseFloat(raw);
+          return isNaN(f) ? null : f;
+        }
+        case 'int': {
+          if (raw === '') return null;
+          var f2 = parseFloat(raw);
+          if (isNaN(f2) || Math.floor(f2) !== f2) return null;
+          return f2;
+        }
+        case 'bool':
+          if (/^(true|1|yes|on)$/i.test(raw)) return true;
+          if (/^(false|0|no|off)$/i.test(raw)) return false;
+          return null;
+        case 'string':
+          return raw;
+        case 'enum': {
+          var options = column.enumOptions || [];
+          for (var k = 0; k < options.length; k++) {
+            if (String(options[k]).toLowerCase() === raw.toLowerCase()) return options[k];
+          }
+          return null;
+        }
+        default:
+          return null;
+      }
+    },
+
+    /**
+     * クライアント側の即時検証（docs/32 §3.2.4「範囲外・型違いの即時検証」の UX 前倒し）。
+     * サーバー側の検証（TuningCommon.js の specWebValidateScalarValue_）を軽量に再実装したもの。
+     * ここで ok になってもサーバーが最終的に拒否することはあり得る（サーバー側が正）。
+     */
+    validateCellClient: function (value, column) {
+      if (value === null || value === undefined) {
+        return { ok: false, message: '入力を解釈できません' };
+      }
+      switch (column.valueType) {
+        case 'float':
+          if (typeof value !== 'number' || isNaN(value)) return { ok: false, message: '数値ではありません' };
+          break;
+        case 'int':
+          if (typeof value !== 'number' || isNaN(value) || Math.floor(value) !== value) {
+            return { ok: false, message: '整数ではありません' };
+          }
+          break;
+        case 'bool':
+          if (typeof value !== 'boolean') return { ok: false, message: '真偽値ではありません' };
+          return { ok: true };
+        case 'string':
+          if (typeof value !== 'string') return { ok: false, message: '文字列ではありません' };
+          return { ok: true };
+        case 'enum': {
+          var options = column.enumOptions || [];
+          var found = false;
+          for (var k = 0; k < options.length; k++) {
+            if (options[k] === value) found = true;
+          }
+          return found ? { ok: true } : { ok: false, message: '選択肢の値ではありません' };
+        }
+        default:
+          return { ok: false, message: '不明な valueType です' };
+      }
+      if (column.min !== undefined && column.min !== null && value < column.min) {
+        return { ok: false, message: '最小値（' + column.min + '）未満です' };
+      }
+      if (column.max !== undefined && column.max !== null && value > column.max) {
+        return { ok: false, message: '最大値（' + column.max + '）超過です' };
+      }
+      return { ok: true };
+    },
+
+    /**
+     * 貼り付けた 2 次元配列（parsePastedText の結果）を、開始位置（startRow/startCol、
+     * 現在フォーカス中のセルの行・列インデックス）から rowIds/columns に当てはめて
+     * tuningTableUpdateCells 用の updates 配列を作る。表の範囲を超えた分は捨てる
+     * （Excel からの貼り付けで表より大きい範囲を貼っても安全なように）。
+     * 戻り値の各要素は { rowId, columnKey, value, raw, valid } を持つ
+     * （valid=false は coerceInputForColumn が解釈できなかったセル。
+     * 呼び出し側はこれを使って赤表示し、サーバーへは送らないか、送って 400 を受ける）。
+     */
+    buildCellUpdatesFromPaste: function (grid2D, startRow, startCol, rowIds, columns) {
+      var updates = [];
+      for (var r = 0; r < grid2D.length; r++) {
+        var targetRowIndex = startRow + r;
+        if (targetRowIndex >= rowIds.length) break;
+        var rowId = rowIds[targetRowIndex];
+        var line = grid2D[r];
+        for (var c = 0; c < line.length; c++) {
+          var targetColIndex = startCol + c;
+          if (targetColIndex >= columns.length) break;
+          var column = columns[targetColIndex];
+          var value = SpecWebTuningGrid.coerceInputForColumn(line[c], column);
+          var check = SpecWebTuningGrid.validateCellClient(value, column);
+          updates.push({
+            rowId: rowId,
+            columnKey: column.key,
+            value: value,
+            raw: line[c],
+            valid: check.ok
+          });
+        }
+      }
+      return updates;
+    }
+  };
+
+  // ブラウザでは window にも生やす（他の <script> から window.SpecWebTuningGrid でも
+  // グローバル var 直接参照でもどちらでも読めるようにする。Node の vm テストでは
+  // window が無いので typeof で守る）。
+  if (typeof window !== 'undefined') {
+    window.SpecWebTuningGrid = SpecWebTuningGrid;
+  }
+</script>

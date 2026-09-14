@@ -232,15 +232,18 @@ graph TB
     { "key": "Type",  "valueType": "enum",  "enumOptions": ["Melee", "Ranged", "Boss"] }
   ],
   "rows": [
-    { "rowId": "Slime",   "cells": { "Hp": 10,  "Speed": 1.2, "Type": "Melee" },  "comment": "初期敵" },
-    { "rowId": "Archer",  "cells": { "Hp": 20,  "Speed": 2.0, "Type": "Ranged" }, "comment": null }
+    { "rowId": "Slime",   "cells": { "Hp": 10,  "Speed": 1.2, "Type": "Melee" },  "comments": [] },
+    { "rowId": "Archer",  "cells": { "Hp": 20,  "Speed": 2.0, "Type": "Ranged" }, "comments": [] }
   ],
   "locked": false,
   "comments": [ /* テーブル全体へのコメント */ ]
 }
 ```
 
-- コメントの粒度は **行単位 + テーブル全体**とする（セル単位のコメントは見送り。§9-5）
+- コメントの粒度は **行単位 + テーブル全体**とする（セル単位のコメントは見送り。§9-5）。
+  行の `comments` は §3.6 の `Comment[]` と同じ構造の配列（**2026-09-14 W-6〜W-8 実装で確定**。
+  当初のドラフトにあった `"comment": "初期敵"`（単一文字列）は §3.6 の「同じ構造で付けられる」との
+  記述と矛盾していたため、行にも他のエンティティと同じ `Comment[]` を持たせる形に統一した）
 - 行の追加・削除・列の追加・削除は Web 側の編集グリッドから行う（§4.4）。列を削除すると既存行の該当セルも削除される（確認ダイアログを出す）
 
 #### 3.2.3 v2 以降（本チケットでは設計のみ、実装しない）
@@ -675,3 +678,156 @@ Tools/SpecWeb/
   実アクセスが必要なため、W-9 着手時に確認する）
 - デプロイ②（実行者=Me）を `clasp` の CLI から直接作成できるか（Apps Script エディタでの手動作成を
   前提に手順化した。上記参照）
+
+---
+
+## 実装メモ（2026-09-14、W-6〜W-8）
+
+W-6（調整値: スカラー API）・W-7（調整値: テーブル型 API）・W-8（調整値編集 SPA + コメント）を実装した。
+W-4/W-5（アセット仕様、`feat/specweb-assets`）と並行実装のため、共通ファイル
+（`html/App.html`・`src/Code.js`・`src/Api/Registry.js`）は極力触らず、自分のファイルを
+追加する形にした（唯一 `src/Code.js` の汎用化と `html/Index.html` への 2 行追加は必要だったため、
+下記「共通ファイルへの変更」に理由を書く）。
+
+### ファイル構成（追加分）
+
+```
+Tools/SpecWeb/
+  src/
+    TuningCommon.js     エラー型（400/403/404 相当）・スカラー値検証・ロールチェック・
+                        コメント原子的追記（specWebMutateItemAtomic_）等の共通ヘルパー
+    Tuning.js            スカラー調整値 CRUD（collection="tuning"、W-6）
+    TuningTable.js       テーブル型調整値 CRUD（collection="tuningTables"、W-7）
+    TuningComments.js    コメント投稿・一覧（スカラー/テーブル全体/テーブル行 共通）
+  html/
+    TuningGrid.html      グリッドの純粋関数（貼り付け解析・セル移動・型変換・即時検証）。
+                        DOM に一切触らないため Node の vm でそのまま単体テストできる
+    Tuning.html          調整値編集画面本体（`registerScreen('tuning', ...)`）
+  test/
+    tuningScalar.test.js / tuningTable.test.js / tuningComments.test.js
+                        node:test + node:assert のみ。ctx.getApi(name)(...) で
+                        ハンドラを直接呼ぶ形を中心に、doGet 経由の統合テストも数件持つ
+    tuningGrid.test.js   TuningGrid.html の純粋関数のテスト
+    load-html-script.js  html/*.html の <script> 本体だけを vm で実行する小さなローダー
+                        （load-gas.js のクライアント側版）
+```
+
+### API 一覧
+
+| API 名 | 権限 | 概要 |
+|---|---|---|
+| `tuningScalarList` / `tuningScalarGet` | viewer 以上 | スカラー調整値の一覧・取得 |
+| `tuningScalarCreate` | editor 以上（`locked:true` は admin） | 作成。キー書式・重複・型/範囲/enum を検証 |
+| `tuningScalarUpdate` | editor 以上（対象が `locked` または `locked` 自体を変更する場合は admin） | revision 楽観ロック必須 |
+| `tuningScalarDelete` | editor 以上（`locked` は admin） | revision 楽観ロック必須 |
+| `tuningTableList` / `tuningTableGet` | viewer 以上 | テーブル型調整値の一覧・取得 |
+| `tuningTableCreate` | editor 以上（`locked:true` は admin） | 列定義・初期行を検証して作成 |
+| `tuningTableDelete` | editor 以上（`locked` は admin） | |
+| `tuningTableSetLocked` | **常に admin** | `locked` フラグそのものの変更専用エンドポイント |
+| `tuningTableAddColumn` / `tuningTableRemoveColumn` / `tuningTableUpdateColumn` | editor 以上（`locked` は admin） | 列削除で該当セルも全行から削除。型変更・範囲変更時の既存セルの扱いは下記 |
+| `tuningTableAddRow` / `tuningTableRemoveRow` / `tuningTableReorderRows` | editor 以上（`locked` は admin） | |
+| `tuningTableUpdateCell` / `tuningTableUpdateCells` | editor 以上（`locked` は admin） | 後者は貼り付け相当の一括更新。**all-or-nothing**（1 件でも検証に落ちれば何も保存しない） |
+| `tuningCommentAdd` | editor 以上 | `targetKind: "scalar"\|"table"\|"tableRow"` + `key`（+ `tableRow` のみ `rowId`） |
+| `tuningCommentList` | viewer 以上 | 同上のターゲット指定で一覧を返す |
+
+書き込み系（create/update/delete 系すべて）は `params.payload` に JSON 文字列で本体を渡す規約にした
+（`html/App.html` の `SpecWebClient.callApi` は GET のみでクエリパラメータしか送れないため、
+複雑な構造はこの 1 パラメータに詰める。共通ファイルは変更していない）。
+
+### 確定した JSON スキーマ（`Specs/tuning.json` にそのまま書き出せる形、W-9/W-10 向け）
+
+サーバー側の実データ形状（`Storage` の `tuning`/`tuningTables` コレクション）をそのまま
+`Specs/tuning.json`（W-11）の入力として使えることを確認した。W-9/W-10 が読む最終形:
+
+```jsonc
+// スカラー（tuning コレクションの 1 アイテム）
+{
+  "id": "Influence/FanBase",       // <機能>/<名前>。TUNING_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*\/[A-Za-z][A-Za-z0-9]*$/
+  "kind": "scalar",
+  "valueType": "float",             // float | int | bool | string | enum
+  "value": 1.0,
+  "enumOptions": [],                 // enum 以外は常に []
+  "min": 0, "max": 10, "step": 0.1,  // 対象外の型は null
+  "unit": "%",
+  "description": "...",
+  "group": "Influence",
+  "tags": ["Balance"],
+  "locked": false,
+  "comments": [ { "id": "...", "author": "...", "body": "...", "createdAt": "...", "resolved": false } ],
+  "revision": 3, "updatedBy": "user@example.com", "updatedAt": "2026-09-14T09:00:00Z"
+}
+
+// テーブル型（tuningTables コレクションの 1 アイテム）
+{
+  "id": "Enemy/Params",
+  "kind": "table",
+  "columns": [
+    { "key": "Hp", "valueType": "int", "min": 1, "max": 9999, "unit": "", "enumOptions": [] },
+    { "key": "Type", "valueType": "enum", "min": null, "max": null, "unit": "", "enumOptions": ["Melee","Ranged","Boss"] }
+  ],
+  "rows": [
+    { "rowId": "Slime", "cells": { "Hp": 10, "Type": "Melee" }, "comments": [] }
+  ],
+  "locked": false,
+  "comments": [],
+  "revision": 1, "updatedBy": "...", "updatedAt": "..."
+}
+```
+
+W-10（`TuningTable` 拡張、案 A）へのマッピング補足: `columns[].min/max` は D-Drive 側の
+`TuningTableColumn.Min/Max`（`float`）に対応するため、`valueType` が `bool`/`string`/`enum` の列は
+Web 側で `min`/`max` を `null` のまま送る（D-Drive 側で未使用の値として無視される想定。W-10 側で
+「int/float 以外は Min/Max を読まない」ことを確認する必要がある。要判断として引き継ぐ）。
+
+### 実装上の決定（要判断への回答）
+
+- **列の型変更で既存セルが検証に通らない場合の扱い**（依頼文にあった要判断）:
+  **型そのものが変わる場合は、その列の全セルを新しい型の既定値へ完全リセットする**
+  （`TuningCommon.js` の `specWebCoerceCellForColumn_`。型が変わると値の意味を保証できないため、
+  中途半端な変換をするより、全部リセットして「後で入れ直してもらう」方を選んだ）。
+  **型は変えず min/max/enumOptions だけが変わる場合は、数値は新しい範囲にクランプ、enum は
+  選択肢から外れたら先頭の選択肢へ自動修復する**（例外にして作業を止めない、CLAUDE.md §0-4 と同じ方針）。
+  いずれの場合も列削除と同じ確認ダイアログ（クライアント側）を推奨するが、サーバー側は無条件で実行する
+  （デザイナーの作業を止めない。取り消しは git 履歴でしか追えない点は §1.4 のとおり）
+- **行/テーブルのコメント構造**: §3.2.2 のドラフトにあった行の `"comment": "初期敵"`（単一文字列）は
+  §3.6 の「同じ構造で付けられる」という記述と矛盾していたため、行にも `comments: Comment[]` を
+  持たせる形に統一した（上記スキーマ参照）
+- **コメント投稿は revision を要求しない**: 値の編集（revision 楽観ロック必須）とは別に、コメント追記は
+  `TuningCommon.js` の `specWebMutateItemAtomic_`（`Storage.js` の内部関数 `withStorageLock_` 等を
+  そのまま使い、ロックの中で読み直してから追記する）で「他の人の値の編集と競合しない」ようにした。
+  これにより、値を編集中の人がいてもコメントは即座に投稿できる
+- **貼り付け（複数セル入力）**: `tuningTableUpdateCells` で all-or-nothing の一括更新 API を用意し、
+  クライアント側（`TuningGrid.html`）でタブ区切りテキストを解析して updates 配列を作る形にした
+  （1 件でも解釈できない/検証に落ちるセルがあれば、クライアント側で送信前に警告して止める設計）
+
+### 既知の未対応・引き継ぎ事項
+
+- **D-Drive 書き込みトークンの `kind` 許可リスト（W-12 予定）が未実装のため、現状は write トークンでも
+  `tuningScalar*`/`tuningTable*` を呼べてしまう**。`src/Auth.js`（W-3 実装済み）のコメントに
+  「D-Drive → Web の書き込みトークンで呼べる内容自体は…ハンドラ側で choices/assetState/tuningUsage の
+  kind 許可リストに固定する（実装は W-12）」とあり、この分離は W-12 のスコープとして明示的に残っている
+  ものであり、本チケット（W-6〜W-8）で対応する範囲ではない。**W-12 実装時に、`tuningScalar*`/`tuningTable*`
+  等の値書き換え系 API を write トークン（`principal` が `ddrive:write`）から呼べないようにする
+  ゲートを追加すること**（docs/32 §5.2・§7 のセキュリティ設計を実際に満たすための必須対応）
+- §9-4「302 リダイレクトの実機確認」は本チケットでも未確認（Node テストのみのため。W-9 着手時に確認）
+
+### 共通ファイルへの変更
+
+- `src/Code.js`（+3/-6 行）: `handleApiRequest_` のエラー処理を、`RevisionConflictError` 専用の
+  名前チェックから `err.status` を汎用的に見る形に一般化した。W-6〜W-8 で追加した
+  `SpecWebValidationError`（400）・`SpecWebNotFoundError`（404）・`SpecWebForbiddenError`（403）を
+  既存の `RevisionConflictError`（409）と同じ仕組みで返せるようにするための必須の一般化で、
+  既存の動作（`RevisionConflictError` → 409 + `currentRevision`）は変えていない
+  （`routing.test.js` の既存テストは無変更で green）
+- `html/Index.html`（+2 行）: `window.SpecWebCurrentUser`（Auth.js の認証結果）をクライアント JS に
+  渡す `<script>` を 1 行追加、`html/App.html` の後に `TuningGrid`/`Tuning` の include を 2 行追加。
+  いずれも既存の `template.currentUser`（元々テンプレートに束縛済みだったが未使用だった変数）を
+  使うだけで、既存の構造は変えていない
+
+### テスト結果
+
+`"/c/Program Files/nodejs/node.exe" --test Tools/SpecWeb/test/*.test.js`（この環境では `node --test <dir>`
+がディレクトリを直接引数にすると `MODULE_NOT_FOUND` になったため、README §8 に既にある glob 形式
+`Tools/SpecWeb/test/*.test.js` で実行した）で **85 件全て green**
+（既存 29 件（W-1〜W-3・PR #39 マージ時点） + 本チケット追加 56 件（API: scalar 18・table 20・
+comments 7・grid 11）。

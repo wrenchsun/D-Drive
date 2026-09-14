@@ -5,6 +5,9 @@
     <meta charset="utf-8" />
     <title>D-Drive 仕様書</title>
     <?!= include('html/Styles'); ?>
+    <!-- currentUser（Auth.js の authenticateSession 結果）をクライアント JS へ渡す。
+         W-8 の調整値編集 SPA が role（editor/admin）によって編集可否を切り替えるのに使う。 -->
+    <script>window.SpecWebCurrentUser = <?!= JSON.stringify(currentUser) ?>;</script>
   </head>
   <body>
     <div id="app-shell">
@@ -22,5 +25,8 @@
       （ブラウザは <script> をドキュメント順に実行するため）。
     -->
     <?!= include('html/App'); ?>
+    <!-- W-6〜W-8: 調整値編集画面（純粋関数 = TuningGrid を先に、DOM 登録 = Tuning を後に）。 -->
+    <?!= include('html/TuningGrid'); ?>
+    <?!= include('html/Tuning'); ?>
   </body>
 </html>
