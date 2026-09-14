@@ -118,6 +118,20 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
 - デバッグ表示（PC-B、起動 55 秒後）: `Role: Client (ClientId=1) / NetworkTime: 209.81 / RTT: 6 ms / Received: 74 (2.0/s)`。画面中央に VFX（白い粒子の球）、スクリーンショットは PC-B の `C:\DDriveTest\netcheck_client_0ms.png`
 - PC-B 側（Client、遅延 200ms、13:15:30 起動、ClientId 2）: `[Net] NgoTransportConfigurator: シミュレータ設定を適用しました(latency=200ms, loss=0%)。` は出るが、**デバッグ表示の RTT は 6 ms のまま**（受信レートは 2.0/s → 1.0/s）。接続・Late Join（`activeCount` 5 → 0 → 1…5）・偽造 Cancel 破棄・Exception/Error/Disconnect 0 件は 0ms と同じ
 
+### 修正版 v2（PR #30）での再確認（2026-09-14、PC-A Host v2 + PC-B Client v2）
+
+- **遅延なし（`Player_v2.log`、13:59:14 起動、ClientId 1）**: ダイアログ無し、Exception / Error / Disconnect 0 件
+  - **Late Join 直後の Placeholder: 解消**（`Unregistered AssetId` / `Placeholder` 0 件、接続直後の `activeCount` は 5 → 0 に落ちず 5〜6 を維持）
+  - **Signal 中継: 確認**。Client に `signal_recv=hit` が届く（例 key=0x0058D6E6: Host `signal_fire` networkTime=172.95 / Client `signal_recv` networkTime=172.87）。同じ key の `signal_recv` が 4 行ずつ出るのは、剣攻撃デモの onHit に OnSignal トラックが 4 本（HitStop / SE / CameraShake / Haptic）あり、トラックごとに 1 行出すため（Host 側も同じく 4 行 = 仕様どおり）
+  - **偽造 Cancel: 送信 14 件 = 破棄 14 件**（キーの並びも一致）。最初の 1 件だけ同じ key に 2 回送られた（狙うキーの更新前の重複、実害なし）
+  - アプリ層 RTT `rtt_app_ms`: 60 サンプルで最小 1 / 最大 34 / 平均 6.4 ms。デバッグ表示 `RTT: 4 ms / App RTT: 4 ms / Received: 177 (5.0/s)`（PC-B `netcheck_v2_0ms.png`）
+  - 気になる点（要判断）: ①Host の `signal_fire` と Client の `signal_recv` の networkTime 差が約 80 ms（RTT/2 ≒ 3 ms より大きい）。NGO の Client 側 ServerTime はティック単位のバッファで遅れて推定されるためと推測（未検証）。§4 の位相差の判定基準（「RTT/2 以内」）を「±数ティック以内」に改めるか要判断 ②起動直後（`role=off`）の heartbeat が `connected=1` と出る（未接続の表示が紛らわしい、軽微）③ログを見やすくするなら `signal_recv` にトラックの Kind を足す（軽微）
+- **遅延 200ms（`Player_v2_200ms.log`、14:01:28 起動、ClientId 2）**: `[Net/Client] NgoNetBridge: UnityTransport のシミュレーターは無効化されている(...)ため、アプリ層の送受信キューで遅延(200ms)を代替します。` → **`rtt_app_ms` 74 サンプルすべて 200 以上（最小 205 / 最大 228 / 平均 208）**。デバッグ表示 `RTT: 6 ms / App RTT: 208 ms`（トランスポート RTT は遅延を含まない）。Placeholder 0 件、`activeCount` 4〜6、偽造 Cancel 送信 11 = 破棄 11、Exception / Error / Disconnect 0 件
+  - **⚠ 新しい実バグ: 遅延 200ms では剣攻撃デモのエフェクト（VFX）が Client の画面に一切描画されない**（PC-B のスクリーンショット 5 枚すべてで中央の粒子が 0 画素。v2 0ms と v1 200ms では描画されていた）。ログ上は `activeCount` 5〜6・`signal_recv` も届いている
+  - **原因（オーケストレーターがコードで確認）**: `PresentationManager.OnReceivePlayMsg` が `elapsed = Max(0, NetworkTime - StartNetTime)`（443 行付近）でシーク開始し、`FireInitialTracks` が `elapsed > 0` なら連続系でないワンショット（Time=0 の VFX / SE）を**すべてスキップ**する（1086 行付近）。遅延 0ms では Client の ServerTime が約 80 ms 遅れて推定されるため差が負 → 0 にクランプされて発火していたが、遅延があると差が正になり、**開始直後のワンショット演出がリモートでは必ず見えない**。v1 の 200ms はシミュレーターが no-op で実際には遅延が無かったため顕在化しなかった
+  - 修正方針: 「少し遅れて届いただけ」のワンショットは遅れて発火する猶予（例 0.5 秒）を設け、それより古いもの（Late Join 等）だけスキップする
+- 切断: 確認中（PC-A の Host v2 を 14:04:34 に停止、PC-B の報告待ち）
+
 ### 実機確認で見つかった課題（2026-09-14、修正チケットへ）
 
 1. **遅延シミュレーターが効いていない疑い**: `-ddrive-sim-latency 200` でも RTT が 6 ms。`NgoTransportConfigurator` が `SetDebugSimulatorParameters` を `StartClient`/`StartHost` の後（ドライバ生成後）に呼んでいる、または UnityTransport 2.x で当該 API が無効、の可能性。RTT の値（`GetCurrentRtt`）がシミュレーター遅延を含まない可能性もあるので、アプリ層の往復時間（Ping の往復）も併記して判定できるようにする
