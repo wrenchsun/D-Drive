@@ -1,17 +1,22 @@
 <script>
   /**
-   * アセット一覧・詳細画面（Assets.html）が使う純粋関数（DOM に触らないロジックだけ）。
-   * docs/32_spec_web.md §8 W-4 の「HTML を生成するロジック（行のレンダリング・並べ替え・
-   * 絞り込み関数）を純粋関数に分けて単体テスト」に対応するファイル。
+   * アセット発注 一覧・詳細画面（Assets.html）・私が発注/私が受けた画面（MyOrders.html）が使う
+   * 純粋関数（DOM に触らないロジックだけ）。docs/32_spec_web.md §10.3.2（一覧）・§10.3.3（個人ビュー）・
+   * §10.3.4（詳細）に対応するファイル。
    *
    * ここに書く関数は入力から出力を計算するだけで、document/window の DOM API には触れない
    * （触れると test/load-html-script.js の vm 経由テストが書けなくなる）。
-   * DOM を実際に組み立てる処理は Assets.html 側に置く。
+   * DOM を実際に組み立てる処理は Assets.html/MyOrders.html 側に置く。
    *
    * ASSET_TYPES 等の定数は Tools/SpecWeb/src/Assets.js の
    * SPEC_WEB_ASSET_TYPES/STATUSES/PRIORITIES と同じ値を手元に複製している
-   * （choices.json 経由の同期は W-12 で追加予定。それまではここが唯一の場所なので、
+   * （choices.json 経由の同期は将来追加予定。それまではここが唯一の場所なので、
    * AssetType.cs を変更したときはサーバー側と両方を更新すること）。
+   *
+   * O-1（2026-09-14）: 状態を 未着手/仮/本番/保留 → 発注済/納品済/インポート済 の3値に、
+   * 担当（assignee）を 発注者(orderer)/受注者(contractor) の2列に置き換えた
+   * （docs/32 §10.2.1）。「インポート済」は選択肢に出すが直接は選べない（disabled 用の
+   * 判定は isStatusManuallySelectable で提供する）。
    */
   (function () {
     'use strict';
@@ -21,7 +26,8 @@
       'Prefab', 'Presentation', 'Shake', 'Haptics', 'UiTween', 'Model',
       'Anchor', 'AnchorGroup', 'ControlSkin'
     ];
-    var ASSET_STATUSES = ['未着手', '仮', '本番', '保留'];
+    var ASSET_STATUSES = ['発注済', '納品済', 'インポート済'];
+    var ASSET_STATUS_IMPORTED = 'インポート済';
     var ASSET_PRIORITIES = ['高', '中', '低'];
     var IDENTIFIER_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
     var ROLE_RANK = { viewer: 0, editor: 1, admin: 2 };
@@ -34,9 +40,14 @@
       return assetType + '::' + identifier;
     }
 
+    /** 「インポート済」は一覧の選択肢には出すが、フォームからは選べない（D-Drive 同期専用）。 */
+    function isStatusManuallySelectable(status) {
+      return status !== ASSET_STATUS_IMPORTED;
+    }
+
     /**
      * 新規作成・編集フォームの即時検証（サーバー側 specWebValidateAssetFields_ と同じ規則の
-     * クライアント側ミラー。§8 W-4 AC「識別子の書式・重複を即時に赤表示」)。
+     * クライアント側ミラー。§10.2.1「識別子の書式・重複・状態3値・インポート済は直接選べない」）。
      * サーバー側の検証を置き換えるものではなく、送信前にユーザーへ即時フィードバックするためのもの。
      *
      * @param {object} fields 入力中のフィールド
@@ -74,22 +85,28 @@
         errors.displayName = '表示名は必須です';
       }
 
-      if (fields.status && ASSET_STATUSES.indexOf(fields.status) === -1) {
-        errors.status = '状態は次のいずれかにしてください: ' + ASSET_STATUSES.join('/');
+      if (fields.status) {
+        if (ASSET_STATUSES.indexOf(fields.status) === -1) {
+          errors.status = '状態は次のいずれかにしてください: ' + ASSET_STATUSES.join('/');
+        } else if (!isStatusManuallySelectable(fields.status)) {
+          errors.status = '「インポート済」は手動で設定できません（D-Drive の同期でのみ切り替わります）';
+        }
       }
 
       if (fields.priority && ASSET_PRIORITIES.indexOf(fields.priority) === -1) {
         errors.priority = '優先度は次のいずれかにしてください: ' + ASSET_PRIORITIES.join('/');
       }
 
-      if (fields.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(fields.dueDate))) {
-        errors.dueDate = '期限は YYYY-MM-DD 形式にしてください';
-      }
+      ['orderDate', 'dueDate', 'deliveredDate'].forEach(function (key) {
+        if (fields[key] && !/^\d{4}-\d{2}-\d{2}$/.test(String(fields[key]))) {
+          errors[key] = '日付は YYYY-MM-DD 形式にしてください';
+        }
+      });
 
       return { valid: Object.keys(errors).length === 0, errors: errors };
     }
 
-    /** §4.1 の検索・絞り込み（種別/状態/担当/カテゴリ + キーワード）。 */
+    /** §10.3.2 の検索・絞り込み（種別/状態/発注者/受注者/Presentation + キーワード）。 */
     function filterAssets(items, filters) {
       filters = filters || {};
       var query = String(filters.query || '').trim().toLowerCase();
@@ -97,17 +114,27 @@
         if (!filters.includeArchived && item.archived) return false;
         if (filters.assetType && item.assetType !== filters.assetType) return false;
         if (filters.status && item.status !== filters.status) return false;
-        if (filters.assignee && item.assignee !== filters.assignee) return false;
+        if (filters.orderer && item.orderer !== filters.orderer) return false;
+        if (filters.contractor && item.contractor !== filters.contractor) return false;
         if (filters.category && item.category !== filters.category) return false;
+        if (filters.parentId) {
+          var wantUnassigned = filters.parentId === '__none__';
+          if (wantUnassigned && item.parentId) return false;
+          if (!wantUnassigned && item.parentId !== filters.parentId) return false;
+        }
         if (query) {
-          var hay = (String(item.identifier || '') + ' ' + String(item.displayName || '') + ' ' + String(item.note || '')).toLowerCase();
+          var hay = (String(item.identifier || '') + ' ' + String(item.displayName || '') + ' ' + String(item.referenceMd || '')).toLowerCase();
           if (hay.indexOf(query) === -1) return false;
         }
         return true;
       });
     }
 
-    /** §4.1 の「列をクリックして並べ替え」。入力配列は変更せず新しい配列を返す（安定ソート）。 */
+    /**
+     * §10.3.2「並べ替え: 発注日 / 納品期限 / 種類 / 受注者」。入力配列は変更せず新しい配列を返す
+     * （安定ソート）。sortKey は識別子等の任意フィールド名も受け付ける（識別子列クリックでの
+     * 並べ替えは既存どおり）。
+     */
     function sortAssets(items, sortKey, direction) {
       sortKey = sortKey || 'identifier';
       var sign = direction === 'desc' ? -1 : 1;
@@ -181,10 +208,107 @@
       return rank >= requiredRank;
     }
 
+    // ---- O-4: 私が発注 / 私が受けた（docs/32 §10.3.3） ----
+
+    function isOverdue(item, todayStr) {
+      if (!item.dueDate) return false;
+      if (item.status === ASSET_STATUS_IMPORTED) return false;
+      return item.dueDate < todayStr;
+    }
+
+    /**
+     * 「私が発注したもの」: orderer===email の発注。未納品（インポート済でない）・期限切れで
+     * フラグを付ける。並び順は入力順を保つ（呼び出し側で sortAssets と組み合わせてよい）。
+     */
+    function myOrderedItems(items, email, todayStr) {
+      return (items || [])
+        .filter(function (item) {
+          return !item.archived && item.orderer === email;
+        })
+        .map(function (item) {
+          return Object.assign({}, item, {
+            _unfulfilled: item.status !== ASSET_STATUS_IMPORTED,
+            _overdue: isOverdue(item, todayStr)
+          });
+        });
+    }
+
+    /** 「私が受けたもの」: contractor===email の発注。期限順（昇順、未設定は最後）に並べる。 */
+    function myContractedItems(items, email, todayStr) {
+      var filtered = (items || [])
+        .filter(function (item) {
+          return !item.archived && item.contractor === email;
+        })
+        .map(function (item) {
+          return Object.assign({}, item, { _overdue: isOverdue(item, todayStr) });
+        });
+      return sortAssets(filtered, 'dueDate', 'asc').sort(function (a, b) {
+        // dueDate 未設定（''）は末尾へ（sortAssets の文字列比較では '' が先頭に来てしまうため）。
+        var aEmpty = !a.dueDate;
+        var bEmpty = !b.dueDate;
+        if (aEmpty === bEmpty) return 0;
+        return aEmpty ? 1 : -1;
+      });
+    }
+
+    // ---- O-5: リファレンス Markdown プレビュー（XSS 対策付きの限定記法） ----
+
+    function escapeHtml_(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    /** http(s): 以外（javascript: 等）のリンクは無効化する。 */
+    function isSafeUrl_(url) {
+      return /^https?:\/\//i.test(String(url || '').trim());
+    }
+
+    /**
+     * 限られた Markdown 記法だけを HTML へ変換する（docs/32 §10.2.1「referenceMd」・
+     * テスト要求「XSS 対策: HTML をエスケープしてから限られた記法だけ変換、javascript: リンクを
+     * 無効化、外部リンクは target="_top" + rel="noopener"」）。
+     *
+     * 対応記法: # 見出し(1〜3段)・**強調**・`コード`・[文言](URL)・![説明](URL)・改行。
+     * 常に「まず全体を HTML エスケープしてから」記法を変換するため、入力に <script> や
+     * onerror= のような文字列が含まれていてもタグとして解釈されない。
+     * @return {string} HTML 文字列（Assets.html 側が innerHTML に設定する）
+     */
+    function renderMarkdownSafe(markdown) {
+      var escaped = escapeHtml_(markdown || '');
+
+      // 画像は先に処理する（リンク記法と構文が似ているため、! の有無で先取りする）。
+      escaped = escaped.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (whole, alt, url) {
+        if (!isSafeUrl_(url)) return escapeHtml_(alt);
+        // url は escapeHtml_ 済みの文字列の一部（&quot; 等を含み得る）なのでそのまま属性値に使う。
+        return '<img alt="' + url.replace(/"/g, '') + '" src="' + url + '" />'.replace('alt="' + url.replace(/"/g, '') + '"', 'alt="' + alt + '"');
+      });
+
+      escaped = escaped.replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, function (whole, label, url) {
+        if (!isSafeUrl_(url)) return escapeHtml_(label);
+        return '<a href="' + url + '" target="_top" rel="noopener">' + label + '</a>';
+      });
+
+      escaped = escaped
+        .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.*)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\r\n|\r|\n/g, '<br />');
+
+      return escaped;
+    }
+
     window.AssetsLogic = {
       ASSET_TYPES: ASSET_TYPES,
       ASSET_STATUSES: ASSET_STATUSES,
+      ASSET_STATUS_IMPORTED: ASSET_STATUS_IMPORTED,
       ASSET_PRIORITIES: ASSET_PRIORITIES,
+      isStatusManuallySelectable: isStatusManuallySelectable,
       validateIdentifier: validateIdentifier,
       buildAssetId: buildAssetId,
       validateAssetFields: validateAssetFields,
@@ -194,7 +318,10 @@
       formatDdriveStateBadge: formatDdriveStateBadge,
       formatDdriveIconLabel: formatDdriveIconLabel,
       sortCommentsNewestFirst: sortCommentsNewestFirst,
-      roleAtLeast: roleAtLeast
+      roleAtLeast: roleAtLeast,
+      myOrderedItems: myOrderedItems,
+      myContractedItems: myContractedItems,
+      renderMarkdownSafe: renderMarkdownSafe
     };
   })();
 </script>

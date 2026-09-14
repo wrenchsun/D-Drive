@@ -4,9 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadHtmlScript } = require('./load-html-script.js');
 
-// W-4/W-5 AC: 一覧の絞り込み・並べ替え・グルーピング・インライン検証・D-Drive 状態バッジ・
-// コメント表示順・ロール判定を、DOM に依存しない純粋関数として単体テストする。
-// (docs/32_spec_web.md §8 W-4/W-5, §4.1, §4.5 / Tools/SpecWeb/html/AssetsLogic.html)
+// O-1/O-3/O-4/O-5 AC: 一覧の絞り込み・並べ替え・グルーピング・インライン検証・D-Drive 状態バッジ・
+// コメント表示順・ロール判定・私が発注/私が受けた・Markdown プレビューを、DOM に依存しない
+// 純粋関数として単体テストする。
+// (docs/32_spec_web.md §10.3.2, §10.3.3, §10.3.4 / Tools/SpecWeb/html/AssetsLogic.html)
 
 function load() {
   return loadHtmlScript('AssetsLogic').window.AssetsLogic;
@@ -24,6 +25,13 @@ test('validateIdentifier: 先頭大文字の英数字のみを PascalCase とし
 test('buildAssetId: 種別::識別子 を組み立てる', () => {
   const logic = load();
   assert.equal(logic.buildAssetId('Se', 'Slash'), 'Se::Slash');
+});
+
+test('isStatusManuallySelectable: インポート済だけ選べない', () => {
+  const logic = load();
+  assert.equal(logic.isStatusManuallySelectable('発注済'), true);
+  assert.equal(logic.isStatusManuallySelectable('納品済'), true);
+  assert.equal(logic.isStatusManuallySelectable('インポート済'), false);
 });
 
 test('validateAssetFields: 必須項目・書式・選択肢を検証する', () => {
@@ -53,7 +61,7 @@ test('validateAssetFields: 種別+識別子の重複は既存一覧を見て即�
   assert.equal(selfEdit.valid, true);
 });
 
-test('validateAssetFields: 状態・優先度・期限の書式も検証する', () => {
+test('validateAssetFields: 状態・優先度・日付の書式も検証する', () => {
   const logic = load();
   const result = logic.validateAssetFields({
     assetType: 'Se',
@@ -69,20 +77,29 @@ test('validateAssetFields: 状態・優先度・期限の書式も検証する',
   assert.ok(result.errors.dueDate);
 });
 
-test('filterAssets: 種別・状態・担当・カテゴリ・キーワードで絞り込み、既定でアーカイブを除外する', () => {
+test('validateAssetFields: 状態に「インポート済」を直接指定すると拒否される', () => {
+  const logic = load();
+  const result = logic.validateAssetFields({ assetType: 'Se', identifier: 'Slash', displayName: '斬撃音', status: 'インポート済' });
+  assert.equal(result.valid, false);
+  assert.match(result.errors.status, /インポート済/);
+});
+
+test('filterAssets: 種別・状態・発注者・受注者・Presentation・キーワードで絞り込み、既定でアーカイブを除外する', () => {
   const logic = load();
   const items = [
-    { id: 'Se::Slash', assetType: 'Se', identifier: 'Slash', displayName: '斬撃音', status: '仮', assignee: 'よしだ', category: 'Player', archived: false },
-    { id: 'Vfx::FireBall', assetType: 'Vfx', identifier: 'FireBall', displayName: '火球', status: '未着手', assignee: 'たなか', category: 'Skill', archived: false },
-    { id: 'Se::Old', assetType: 'Se', identifier: 'Old', displayName: '廃止音', status: '保留', assignee: 'よしだ', category: 'Player', archived: true }
+    { id: 'Se::Slash', assetType: 'Se', identifier: 'Slash', displayName: '斬撃音', status: '納品済', orderer: 'よしだ', contractor: 'たなか', category: 'Player', parentId: 'og_1', archived: false, referenceMd: '' },
+    { id: 'Vfx::FireBall', assetType: 'Vfx', identifier: 'FireBall', displayName: '火球', status: '発注済', orderer: '佐々木', contractor: 'さとう', category: 'Skill', parentId: null, archived: false, referenceMd: '' },
+    { id: 'Se::Old', assetType: 'Se', identifier: 'Old', displayName: '廃止音', status: '発注済', orderer: 'よしだ', contractor: 'たなか', category: 'Player', parentId: null, archived: true, referenceMd: '' }
   ];
 
   assert.equal(logic.filterAssets(items, {}).length, 2); // アーカイブは既定で除外
   assert.equal(logic.filterAssets(items, { includeArchived: true }).length, 3);
   assert.equal(logic.filterAssets(items, { assetType: 'Vfx' }).length, 1);
-  assert.equal(logic.filterAssets(items, { assignee: 'よしだ' }).length, 1);
+  assert.equal(logic.filterAssets(items, { orderer: 'よしだ' }).length, 1);
+  assert.equal(logic.filterAssets(items, { contractor: 'さとう' }).length, 1);
   assert.equal(logic.filterAssets(items, { query: 'fire' }).length, 1);
-  assert.equal(logic.filterAssets(items, { query: '火球' }).length, 1);
+  assert.equal(logic.filterAssets(items, { parentId: 'og_1' }).length, 1);
+  assert.equal(logic.filterAssets(items, { parentId: '__none__' }).length, 1);
 });
 
 test('sortAssets: 指定フィールド・方向で安定ソートする（元配列は変更しない）', () => {
@@ -109,9 +126,6 @@ test('groupAssetsByType: 種別ごとにグループ化し、種別名の辞書�
     { id: '2', assetType: 'Se' },
     { id: '3', assetType: 'Se' }
   ];
-  // groupAssetsByType の戻り値は vm コンテキスト（別の実現域）のオブジェクトのため、
-  // assert.deepEqual は Array/Object のプロトタイプ不一致で失敗する
-  // （storage.test.js の既存の注意点と同じ）。素の値だけを取り出して比較する。
   const grouped = logic.groupAssetsByType(items);
   assert.deepEqual(Array.from(grouped, (g) => g.assetType), ['Se', 'Vfx']);
   assert.equal(grouped[0].items.length, 2);
@@ -120,8 +134,6 @@ test('groupAssetsByType: 種別ごとにグループ化し、種別名の辞書�
 
 test('formatDdriveStateBadge: 未作成/Placeholder/作成済を判定する', () => {
   const logic = load();
-  // 戻り値は vm コンテキスト（別の実現域）のオブジェクトリテラルのため、
-  // assert.deepEqual はプロトタイプ不一致で失敗する。プロパティを個別に比較する。
   function assertBadge(badge, icon, label) {
     assert.equal(badge.icon, icon);
     assert.equal(badge.label, label);
@@ -158,4 +170,72 @@ test('roleAtLeast: viewer < editor < admin の階層で判定する', () => {
   assert.equal(logic.roleAtLeast('editor', 'editor'), true);
   assert.equal(logic.roleAtLeast('admin', 'editor'), true);
   assert.equal(logic.roleAtLeast(null, 'viewer'), false);
+});
+
+// ---- O-4: 私が発注 / 私が受けた ----
+
+test('myOrderedItems: orderer===email の発注だけを返し、未納品・期限切れのフラグを付ける', () => {
+  const logic = load();
+  const items = [
+    { id: 'A', orderer: 'yoshida@example.com', status: '発注済', dueDate: '2026-09-10', archived: false },
+    { id: 'B', orderer: 'yoshida@example.com', status: 'インポート済', dueDate: '2026-09-01', archived: false },
+    { id: 'C', orderer: 'sasaki@example.com', status: '発注済', dueDate: '2026-09-10', archived: false },
+    { id: 'D', orderer: 'yoshida@example.com', status: '発注済', dueDate: '2026-09-10', archived: true }
+  ];
+  const result = logic.myOrderedItems(items, 'yoshida@example.com', '2026-09-14');
+  assert.deepEqual(Array.from(result, (i) => i.id), ['A', 'B']);
+  assert.equal(result[0]._unfulfilled, true);
+  assert.equal(result[0]._overdue, true); // 2026-09-10 < 2026-09-14
+  assert.equal(result[1]._unfulfilled, false); // インポート済
+  assert.equal(result[1]._overdue, false); // インポート済は期限切れ扱いにしない
+});
+
+test('myContractedItems: contractor===email の発注を期限の昇順（未設定は末尾）で返す', () => {
+  const logic = load();
+  const items = [
+    { id: 'A', contractor: 'tanaka@example.com', dueDate: '2026-09-30', archived: false },
+    { id: 'B', contractor: 'tanaka@example.com', dueDate: '2026-09-10', archived: false },
+    { id: 'C', contractor: 'tanaka@example.com', dueDate: '', archived: false },
+    { id: 'D', contractor: 'other@example.com', dueDate: '2026-09-01', archived: false }
+  ];
+  const result = logic.myContractedItems(items, 'tanaka@example.com', '2026-09-14');
+  assert.deepEqual(Array.from(result, (i) => i.id), ['B', 'A', 'C']);
+  assert.equal(result[0]._overdue, true);
+  assert.equal(result[1]._overdue, false);
+});
+
+// ---- O-5: Markdown プレビュー（XSS 対策） ----
+
+test('renderMarkdownSafe: 見出し・強調・コード・改行を変換する', () => {
+  const logic = load();
+  const html = logic.renderMarkdownSafe('# 見出し\n**強調** と `コード`');
+  assert.match(html, /<h1>見出し<\/h1>/);
+  assert.match(html, /<strong>強調<\/strong>/);
+  assert.match(html, /<code>コード<\/code>/);
+});
+
+test('renderMarkdownSafe: リンクは target="_top" rel="noopener" で開き、画像は img タグになる', () => {
+  const logic = load();
+  const html = logic.renderMarkdownSafe('[参考動画](https://example.com/video) ![説明](https://example.com/a.png)');
+  assert.match(html, /<a href="https:\/\/example\.com\/video" target="_top" rel="noopener">参考動画<\/a>/);
+  assert.match(html, /<img[^>]*src="https:\/\/example\.com\/a\.png"/);
+});
+
+test('renderMarkdownSafe: javascript: リンクは無効化され、テキストだけが残る', () => {
+  const logic = load();
+  const html = logic.renderMarkdownSafe('[クリック](javascript:alert(1))');
+  assert.doesNotMatch(html, /javascript:/);
+  assert.doesNotMatch(html, /<a /);
+  assert.match(html, /クリック/);
+});
+
+test('renderMarkdownSafe: HTML タグ・属性は先にエスケープされ、そのままでは解釈されない（XSS 対策）', () => {
+  const logic = load();
+  const html = logic.renderMarkdownSafe('<script>alert(1)</script><img src=x onerror=alert(1)>');
+  // <, > が実体参照化されているため、"onerror=" という文字列自体は残っても
+  // ブラウザが実タグ・実属性として解釈することはない（隠れた <script> や <img> タグが無い）。
+  assert.doesNotMatch(html, /<script[\s>]/);
+  assert.doesNotMatch(html, /<img[\s>]/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.match(html, /&lt;img/);
 });

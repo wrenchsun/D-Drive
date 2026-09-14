@@ -4,8 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas } = require('./load-gas.js');
 
-// W-4/W-5 AC: アセット仕様 CRUD API（一覧・取得・作成・更新・削除・コメント）。
-// (docs/32_spec_web.md §8 W-4/W-5, §3.1, §4.1, §4.5 / Tools/SpecWeb/src/Assets.js)
+// O-1/O-5/O-7 AC: アセット発注 CRUD API（一覧・取得・作成・更新・削除・コメント）。
+// (docs/32_spec_web.md §10.2.1, §10.3.2, §10.3.4 / Tools/SpecWeb/src/Assets.js)
+// 旧 W-4/W-5（未着手/仮/本番/保留・assignee/note）からの移行テストは migration.test.js 参照。
 
 function usersFixture(list) {
   const items = {};
@@ -29,18 +30,21 @@ function call(ctx, name, params, auth) {
 
 function validSePatch(overrides) {
   return Object.assign(
-    { assetType: 'Se', identifier: 'Slash', displayName: '斬撃音', category: 'Player', status: '仮' },
+    { assetType: 'Se', identifier: 'Slash', displayName: '斬撃音', category: 'Player', orderer: 'よしだ', contractor: 'たなか' },
     overrides
   );
 }
 
-test('assets.create: editor は新規作成できる（revision=1・comments=[]・archived=false・ddriveState 既定値）', () => {
+test('assets.create: editor は新規作成できる（revision=1・status=発注済・orderDate 自動設定・comments=[]・archived=false・ddriveState 既定値）', () => {
   const ctx = loadGas();
   const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) });
 
   assert.equal(result.item.id, 'Se::Slash');
   assert.equal(result.item.revision, 1);
   assert.equal(result.item.displayName, '斬撃音');
+  assert.equal(result.item.status, '発注済');
+  assert.equal(typeof result.item.orderDate, 'string');
+  assert.match(result.item.orderDate, /^\d{4}-\d{2}-\d{2}$/);
   // result.item は vm コンテキスト（別の実現域）で作られたオブジェクトのため、
   // assert.deepEqual(..., []) は Array のプロトタイプ不一致で失敗する
   // （storage.test.js の既存の注意点と同じ）。length で比較する。
@@ -48,17 +52,37 @@ test('assets.create: editor は新規作成できる（revision=1・comments=[]�
   assert.equal(result.item.archived, false);
   assert.equal(result.item.ddriveState.created, false);
   assert.equal(result.item.ddriveState.isPlaceholder, false);
+  assert.equal(result.item.params, null);
 
   const reread = ctx.Storage.getItem('assets', 'Se::Slash');
   assert.equal(reread.id, 'Se::Slash');
 });
 
-test('assets.create: status を省略すると既定値「未着手」になる', () => {
+test('assets.create: status を省略すると既定値「発注済」になる', () => {
   const ctx = loadGas();
   const result = call(ctx, 'assets.create', {
     patch: JSON.stringify({ assetType: 'Vfx', identifier: 'FireBall', displayName: '火球' })
   });
-  assert.equal(result.item.status, '未着手');
+  assert.equal(result.item.status, '発注済');
+});
+
+test('assets.create: status に「インポート済」を直接指定すると 400 で拒否される', () => {
+  const ctx = loadGas();
+  assert.throws(
+    () => call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ status: 'インポート済' })) }),
+    (err) => {
+      assert.equal(err.status, 400);
+      assert.match(err.message, /インポート済/);
+      return true;
+    }
+  );
+});
+
+test('assets.create: status=納品済 を直接指定すると deliveredDate が自動記録される', () => {
+  const ctx = loadGas();
+  const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ status: '納品済' })) });
+  assert.equal(result.item.status, '納品済');
+  assert.match(result.item.deliveredDate, /^\d{4}-\d{2}-\d{2}$/);
 });
 
 test('assets.create: viewer は 403 で拒否される', () => {
@@ -120,13 +144,36 @@ test('assets.create: 表示名が無ければ 400 で拒否される', () => {
   );
 });
 
-test('assets.create: patch に ddriveState を混ぜても無視される（D-Drive 専用フィールド）', () => {
+test('assets.create: 存在しない parentId（発注グループ）を指定すると 400 で拒否される', () => {
+  const ctx = loadGas();
+  assert.throws(
+    () => call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ parentId: 'og_notexist' })) }),
+    (err) => {
+      assert.equal(err.status, 400);
+      assert.match(err.message, /発注グループ/);
+      return true;
+    }
+  );
+});
+
+test('assets.create: 実在する parentId（発注グループ）を指定できる', () => {
+  const ctx = loadGas();
+  const group = call(ctx, 'orderGroups.create', { patch: JSON.stringify({ name: 'スキル: 斬撃' }) }).item;
+  const result = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ parentId: group.id })) });
+  assert.equal(result.item.parentId, group.id);
+});
+
+test('assets.create: patch に ddriveState・params を混ぜても無視される（D-Drive 専用フィールド）', () => {
   const ctx = loadGas();
   const result = call(ctx, 'assets.create', {
-    patch: JSON.stringify(validSePatch({ ddriveState: { created: true, isPlaceholder: false, iconAssetId: 'x', usageCount: 99, lastSyncedAt: 'now' } }))
+    patch: JSON.stringify(validSePatch({
+      ddriveState: { created: true, isPlaceholder: false, iconAssetId: 'x', usageCount: 99, lastSyncedAt: 'now' },
+      params: { concreteType: 'SeData', currentValues: { Volume: 1 } }
+    }))
   });
   assert.equal(result.item.ddriveState.created, false);
   assert.equal(result.item.ddriveState.usageCount, 0);
+  assert.equal(result.item.params, null);
 });
 
 test('assets.get: 存在しない id は 404', () => {
@@ -143,21 +190,49 @@ test('assets.update: editor は編集でき revision が進む', () => {
   const updated = call(ctx, 'assets.update', {
     id: created.id,
     expectedRevision: created.revision,
-    patch: JSON.stringify({ status: '本番', note: '調整済み' })
+    patch: JSON.stringify({ contractor: '山口', referenceMd: '## 参考\n[動画](https://example.com)' })
   }).item;
   assert.equal(updated.revision, 2);
-  assert.equal(updated.status, '本番');
-  assert.equal(updated.note, '調整済み');
+  assert.equal(updated.contractor, '山口');
+  assert.equal(updated.referenceMd, '## 参考\n[動画](https://example.com)');
   assert.equal(updated.displayName, '斬撃音'); // 更新していないフィールドは残る
+});
+
+test('assets.update: 発注済 → 納品済 に進めると納品日が自動記録され、戻すと消える', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  const delivered = call(ctx, 'assets.update', {
+    id: created.id, expectedRevision: created.revision, patch: JSON.stringify({ status: '納品済' })
+  }).item;
+  assert.equal(delivered.status, '納品済');
+  assert.match(delivered.deliveredDate, /^\d{4}-\d{2}-\d{2}$/);
+
+  const reverted = call(ctx, 'assets.update', {
+    id: delivered.id, expectedRevision: delivered.revision, patch: JSON.stringify({ status: '発注済' })
+  }).item;
+  assert.equal(reverted.status, '発注済');
+  assert.equal(reverted.deliveredDate, null);
+});
+
+test('assets.update: status に「インポート済」を直接指定すると 400 で拒否される（D-Drive 同期専用）', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  assert.throws(
+    () => call(ctx, 'assets.update', { id: created.id, expectedRevision: created.revision, patch: JSON.stringify({ status: 'インポート済' }) }),
+    (err) => {
+      assert.equal(err.status, 400);
+      return true;
+    }
+  );
 });
 
 test('assets.update: revision 不一致は 409（currentRevision 付き）で拒否される', () => {
   const ctx = loadGas();
   const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
-  call(ctx, 'assets.update', { id: created.id, expectedRevision: created.revision, patch: JSON.stringify({ status: '本番' }) });
+  call(ctx, 'assets.update', { id: created.id, expectedRevision: created.revision, patch: JSON.stringify({ status: '納品済' }) });
 
   assert.throws(
-    () => call(ctx, 'assets.update', { id: created.id, expectedRevision: created.revision, patch: JSON.stringify({ status: '保留' }) }),
+    () => call(ctx, 'assets.update', { id: created.id, expectedRevision: created.revision, patch: JSON.stringify({ contractor: '別の人' }) }),
     (err) => {
       assert.equal(err.status, 409);
       assert.equal(err.currentRevision, 2);
@@ -170,7 +245,7 @@ test('assets.update: viewer は 403 で拒否される', () => {
   const ctx = loadGas();
   const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
   assert.throws(
-    () => call(ctx, 'assets.update', { id: created.id, patch: JSON.stringify({ status: '本番' }) }, viewerAuth()),
+    () => call(ctx, 'assets.update', { id: created.id, patch: JSON.stringify({ status: '納品済' }) }, viewerAuth()),
     (err) => {
       assert.equal(err.status, 403);
       return true;
@@ -197,20 +272,24 @@ test('assets.update: 種別・識別子の変更は拒否される（id=同期�
   );
 });
 
-test('assets.update: ddriveState は patch に含めても書き換えられない', () => {
+test('assets.update: ddriveState・params は patch に含めても書き換えられない', () => {
   const ctx = loadGas();
   const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
   const updated = call(ctx, 'assets.update', {
     id: created.id,
     expectedRevision: created.revision,
-    patch: JSON.stringify({ ddriveState: { created: true, isPlaceholder: true, iconAssetId: 'x', usageCount: 5, lastSyncedAt: 'now' } })
+    patch: JSON.stringify({
+      ddriveState: { created: true, isPlaceholder: true, iconAssetId: 'x', usageCount: 5, lastSyncedAt: 'now' },
+      params: { concreteType: 'SeData', currentValues: { Volume: 1 } }
+    })
   }).item;
   assert.equal(updated.ddriveState.created, false);
+  assert.equal(updated.params, null);
 });
 
 test('assets.delete → assets.list: 論理削除された項目は既定の一覧から除外され、includeArchived で表示できる', () => {
   const ctx = loadGas();
-  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ status: '納品済' })) }).item;
   call(ctx, 'assets.delete', { id: created.id, expectedRevision: created.revision });
 
   const defaultList = call(ctx, 'assets.list', {}).items;
@@ -220,7 +299,7 @@ test('assets.delete → assets.list: 論理削除された項目は既定の一�
   assert.equal(withArchived.length, 1);
   assert.equal(withArchived[0].archived, true);
   // status は削除操作で変更されない（アーカイブは独立したフラグという設計決定）。
-  assert.equal(withArchived[0].status, '仮');
+  assert.equal(withArchived[0].status, '納品済');
 });
 
 test('assets.restore: 論理削除を取り消せる', () => {
@@ -243,15 +322,19 @@ test('assets.delete: viewer は 403 で拒否される', () => {
   });
 });
 
-test('assets.list: 種別・状態・担当・キーワードで絞り込める', () => {
+test('assets.list: 種別・状態・発注者・受注者・Presentation・キーワードで絞り込める', () => {
   const ctx = loadGas();
-  call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ assignee: 'よしだ' })) });
-  call(ctx, 'assets.create', { patch: JSON.stringify({ assetType: 'Vfx', identifier: 'FireBall', displayName: '火球', status: '未着手', assignee: 'たなか' }) });
+  const group = call(ctx, 'orderGroups.create', { patch: JSON.stringify({ name: 'スキル: 斬撃' }) }).item;
+  call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch({ orderer: 'よしだ', contractor: 'たなか', parentId: group.id })) });
+  call(ctx, 'assets.create', { patch: JSON.stringify({ assetType: 'Vfx', identifier: 'FireBall', displayName: '火球', orderer: '佐々木', contractor: 'さとう' }) });
 
   assert.equal(call(ctx, 'assets.list', { assetType: 'Vfx' }).items.length, 1);
-  assert.equal(call(ctx, 'assets.list', { status: '仮' }).items.length, 1);
-  assert.equal(call(ctx, 'assets.list', { assignee: 'たなか' }).items.length, 1);
+  assert.equal(call(ctx, 'assets.list', { status: '発注済' }).items.length, 2);
+  assert.equal(call(ctx, 'assets.list', { orderer: 'よしだ' }).items.length, 1);
+  assert.equal(call(ctx, 'assets.list', { contractor: 'さとう' }).items.length, 1);
   assert.equal(call(ctx, 'assets.list', { query: 'fire' }).items.length, 1);
+  assert.equal(call(ctx, 'assets.list', { parentId: group.id }).items.length, 1);
+  assert.equal(call(ctx, 'assets.list', { parentId: '__none__' }).items.length, 1);
   assert.equal(call(ctx, 'assets.list', {}).items.length, 2);
 });
 
