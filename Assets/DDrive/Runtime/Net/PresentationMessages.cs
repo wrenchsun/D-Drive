@@ -4,11 +4,10 @@ using UnityEngine;
 
 namespace DDrive.Runtime.Net
 {
-    // [14_networking.md] §5(5-8/5-9) — PresentationData.Flags.Net == NetMode.Cosmetic のときに配送する
-    // メッセージ。SE/VFX の Cosmetic メッセージ(CosmeticMessages.cs)と同じ既知の制約を持つ:
-    // SelfNetId/TargetNetId は将来の NGO アダプタ向けの予約フィールドで、現状は常に 0(INetBridge に
-    // Transform→NetId の逆引きが無いため)。受信側は Position のみを使い、ResolveNetObject が解決できる
-    // 場合(0 でない値が来た場合)だけそれを使う。
+    // [14_networking.md] §5(5-8/5-9、6-0) — PresentationData.Flags.Net == NetMode.Cosmetic のときに配送する
+    // メッセージ。SelfNetId/TargetNetId は INetBridge.ResolveNetId(6-0 で追加)で解決できた場合は実値、
+    // 解決できない場合は 0 で送る。受信側は 0 でない値のときだけ ResolveNetObject で解決し、それ以外は
+    // Position にフォールバックする。
     //
     // HandleNetKey: 送信者(行為者)が 1 回だけ生成し、以後の Signal/Cancel/Late-Join スナップショットの
     // 突き合わせキーとして使う(PrefabSpawnRequestMsg.RequestKey と同じ考え方)。0 は「無効」を意味する

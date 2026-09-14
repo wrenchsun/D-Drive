@@ -86,7 +86,18 @@ namespace DDrive.Runtime.Audio
             foreach (var item in batch.Items)
             {
                 var data = _registry.ResolveOrPlaceholder<SeData>(item.SeId);
-                PlaySeDataLocal(data, item.Position);
+
+                // [14_networking.md] §4(6-0, C) — AnchorNetId が解決できればそこへ追従再生する
+                // (解決できなければ既存のとおり送信時点の Position 固定)。
+                var anchorRoot = item.AnchorNetId != 0 ? _netBridge.ResolveNetObject(item.AnchorNetId) : null;
+                if (anchorRoot != null)
+                {
+                    PlaySeDataLocal(data, contextRoot: anchorRoot);
+                }
+                else
+                {
+                    PlaySeDataLocal(data, item.Position);
+                }
             }
         }
 
@@ -157,6 +168,7 @@ namespace DDrive.Runtime.Audio
                 _pendingCosmeticBatch.Add(new SeNetMsg
                 {
                     SeId = data.Id,
+                    AnchorNetId = _netBridge.ResolveNetId(contextRoot),
                     Position = ResolveWorldPositionForBroadcast(data, explicitPosition, contextRoot, anchorOverride),
                 });
                 return Handle<SeMarker>.Invalid;
@@ -166,7 +178,11 @@ namespace DDrive.Runtime.Audio
         }
 
         // 配置セット(AnchorGroup)など、呼び出し側が合成済みの姿勢(spec)を持っている場合の経路([22] §3.5)。
-        public Handle<SeMarker> PlaySeData(SeData data, in AnchorSpawnSpec spec, Transform contextRoot = null)
+        // [14_networking.md] §6/§5 実装メモ(6-0、Seed の実消費) — seed が指定されると、Clip 選択(SelectMode
+        // が Random のとき)とピッチのランダム幅を UnityEngine.Random ではなく seed から決定的に引く
+        // (PresentationManager が networked な Se トラックでのみ instance.Seed を渡す。既存の呼び出し元は
+        // seed を渡さないため挙動は変わらない)。
+        public Handle<SeMarker> PlaySeData(SeData data, in AnchorSpawnSpec spec, Transform contextRoot = null, ushort? seed = null)
         {
             if (data == null)
             {
@@ -179,12 +195,13 @@ namespace DDrive.Runtime.Audio
                 _pendingCosmeticBatch.Add(new SeNetMsg
                 {
                     SeId = data.Id,
+                    AnchorNetId = _netBridge.ResolveNetId(contextRoot),
                     Position = resolved != null ? resolved.TransformPoint(spec.Def.LocalOffset + spec.ExtraOffset) : spec.Def.LocalOffset + spec.ExtraOffset,
                 });
                 return Handle<SeMarker>.Invalid;
             }
 
-            return PlaySeDataLocal(data, null, contextRoot, default, spec);
+            return PlaySeDataLocal(data, null, contextRoot, default, spec, seed);
         }
 
         // 優先順位: 引数 anchorOverride > Data.AnchorId > Data.Anchor(埋め込み)([21_anchor_spec.md] §3.3)。
@@ -215,7 +232,7 @@ namespace DDrive.Runtime.Audio
             return resolved != null ? resolved.TransformPoint(def.LocalOffset) : def.LocalOffset;
         }
 
-        private Handle<SeMarker> PlaySeDataLocal(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null, AnchorId anchorOverride = default, AnchorSpawnSpec? presolved = null)
+        private Handle<SeMarker> PlaySeDataLocal(SeData data, Vector3? explicitPosition = null, Transform contextRoot = null, AnchorId anchorOverride = default, AnchorSpawnSpec? presolved = null, ushort? seed = null)
         {
             if (IsOnCooldown(data))
             {
@@ -251,7 +268,7 @@ namespace DDrive.Runtime.Audio
                 source = pooled.GameObject.AddComponent<AudioSource>();
             }
 
-            ConfigureSource(source, data);
+            ConfigureSource(source, data, seed);
 
             Transform followTarget = null;
             var hasFollowTarget = false;
@@ -587,7 +604,7 @@ namespace DDrive.Runtime.Audio
             }
         }
 
-        private AudioClip SelectClip(SeData data)
+        private AudioClip SelectClip(SeData data, ushort? seed)
         {
             if (data.Clips == null || data.Clips.Length == 0)
             {
@@ -608,16 +625,24 @@ namespace DDrive.Runtime.Audio
                 }
 
                 default:
-                    return data.Clips[Random.Range(0, data.Clips.Length)];
+                    // [14_networking.md] §6(6-0) — seed が指定されているとき(networked な Se トラック)は
+                    // 全クライアントで同じ Clip が選ばれるよう、UnityEngine.Random ではなく seed から
+                    // 決定的に選ぶ。未指定(通常のローカル再生)は既存どおり UnityEngine.Random を使う。
+                    return seed.HasValue
+                        ? data.Clips[new System.Random(seed.Value).Next(0, data.Clips.Length)]
+                        : data.Clips[Random.Range(0, data.Clips.Length)];
             }
         }
 
-        private void ConfigureSource(AudioSource source, SeData data)
+        private void ConfigureSource(AudioSource source, SeData data, ushort? seed = null)
         {
-            source.clip = SelectClip(data);
+            source.clip = SelectClip(data, seed);
             source.outputAudioMixerGroup = data.Mixer;
             source.volume = data.Volume;
-            source.pitch = Random.Range(data.PitchRange.x, data.PitchRange.y);
+            // ピッチも同じ seed から決定的に引く(clip 選択とは異なる値になるよう +1 で分ける)。
+            source.pitch = seed.HasValue
+                ? Mathf.Lerp(data.PitchRange.x, data.PitchRange.y, (float)new System.Random(seed.Value + 1).NextDouble())
+                : Random.Range(data.PitchRange.x, data.PitchRange.y);
             source.loop = data.Loop;
             source.spatialBlend = data.Spatial == SpatialMode.None ? 0f : 1f;
             source.minDistance = data.MinDistance;

@@ -125,7 +125,19 @@ namespace DDrive.Runtime.Vfx
             foreach (var item in batch.Items)
             {
                 var data = _registry.ResolveOrPlaceholder<VfxData>(item.VfxId);
-                SpawnDataLocal(data, explicitPose: (item.Position, Quaternion.identity));
+
+                // [14_networking.md] §4(6-0, C) — AnchorNetId が解決できればそこへ追従再生する。
+                // 解決できない(0、または NGO 未接続/対象が既に Despawn 済み)場合は既存のとおり
+                // 送信時点のワールド座標(Position)固定で再生する。
+                var anchorRoot = item.AnchorNetId != 0 ? _netBridge.ResolveNetObject(item.AnchorNetId) : null;
+                if (anchorRoot != null)
+                {
+                    SpawnDataLocal(data, contextRoot: anchorRoot);
+                }
+                else
+                {
+                    SpawnDataLocal(data, explicitPose: (item.Position, Quaternion.identity));
+                }
             }
         }
 
@@ -162,6 +174,9 @@ namespace DDrive.Runtime.Vfx
                 _pendingCosmeticBatch.Add(new VfxNetMsg
                 {
                     VfxId = data.Id,
+                    // [14_networking.md] §4(6-0, C) — contextRoot に NetworkObject が付いていて解決できる
+                    // 場合は実値、それ以外は 0(受信側は既存のとおり Position にフォールバック)。
+                    AnchorNetId = _netBridge.ResolveNetId(contextRoot),
                     Position = ResolveWorldPositionForBroadcast(data, explicitPose, contextRoot, anchorOverride),
                 });
                 return Handle<VfxMarker>.Invalid;
@@ -184,6 +199,7 @@ namespace DDrive.Runtime.Vfx
                 _pendingCosmeticBatch.Add(new VfxNetMsg
                 {
                     VfxId = data.Id,
+                    AnchorNetId = _netBridge.ResolveNetId(contextRoot),
                     Position = AnchorPose.WorldPosition(spec.Def, resolved, spec.ExtraOffset),
                 });
                 return Handle<VfxMarker>.Invalid;
