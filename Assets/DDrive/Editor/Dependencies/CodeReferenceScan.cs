@@ -95,6 +95,84 @@ namespace DDrive.Editor.Dependencies
             }
         }
 
+        // 削除の確認画面(2026-09-14)の結果画面向け: ファイル:行 単位のヒット一覧(クリックでエディタを開く用)。
+        // FindPossibleReferences と同じ走査(キャッシュ・対象フォルダ)を共有し、行番号だけ追加で数える。
+        public readonly struct Hit
+        {
+            public readonly string RelativePath;
+            public readonly int Line; // 1-based
+
+            public Hit(string relativePath, int line)
+            {
+                RelativePath = relativePath;
+                Line = line;
+            }
+        }
+
+        public static List<Hit> FindPossibleReferenceHits(AssetDataBase asset, string assetPath)
+        {
+            var result = new List<Hit>();
+
+            try
+            {
+                var pattern = BuildConstantReference(asset, assetPath);
+                if (string.IsNullOrEmpty(pattern))
+                {
+                    return result;
+                }
+
+                var dataPath = Application.dataPath.Replace('\\', '/');
+
+                foreach (var root in ScanRoots)
+                {
+                    var rootPath = Path.Combine(Application.dataPath, root);
+                    if (!Directory.Exists(rootPath))
+                    {
+                        continue;
+                    }
+
+                    foreach (var file in Directory.GetFiles(rootPath, "*.cs", SearchOption.AllDirectories))
+                    {
+                        var normalized = file.Replace('\\', '/');
+                        if (normalized.EndsWith("/Generated/AssetIds.g.cs", StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        if (!TryReadCached(normalized, out var text))
+                        {
+                            continue;
+                        }
+
+                        if (text.IndexOf(pattern, StringComparison.Ordinal) < 0)
+                        {
+                            continue;
+                        }
+
+                        var relative = "Assets" + normalized.Substring(dataPath.Length);
+                        var lines = text.Split('\n');
+                        for (var i = 0; i < lines.Length; i++)
+                        {
+                            if (lines[i].IndexOf(pattern, StringComparison.Ordinal) >= 0)
+                            {
+                                result.Add(new Hit(relative, i + 1));
+                                if (result.Count >= MaxHits)
+                                {
+                                    return result;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] CodeReferenceScan: 走査に失敗しました: {e.Message}");
+            }
+
+            return result;
+        }
+
         private static bool TryReadCached(string normalizedPath, out string text)
         {
             try

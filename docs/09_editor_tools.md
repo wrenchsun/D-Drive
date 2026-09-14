@@ -35,7 +35,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 | 使用箇所検索 | 選択アセットを参照する Data / Scene / Prefab を一覧表示（依存グラフ逆引き）。ダブルクリックでジャンプ |
 | 依存関係ツリー | Player.prefab → Fire.mat → Fire.shader → FireVFX → FireSE をツリー/グラフ表示。深さ切替 |
 | 未使用検出 | どこからも参照されない Data の一覧。一括アーカイブ（削除でなく Archived タグ付与 → 次リリースで削除） |
-| 安全な削除（2026-09-14、5-6） | 行の右クリックメニュー「削除...」。参照チェック（1件でもあれば一覧を出して中止）→ Archived タグ付与 → 確認ダイアログ → カタログ登録解除 + Addressables エントリ削除 + アイコン PNG ごと `MoveAssetToTrash`（OS のゴミ箱、復元可能）。実装は §10 の実装メモ参照 |
+| 安全な削除（2026-09-14、5-6。UE 風の確認画面に置き換え、同日追加） | 行の右クリックメニュー「削除...」（**複数選択にも対応**）。旧: `EditorUtility.DisplayDialog` ベースの確認ダイアログ → 新: `AssetDeleteWindow`(依存関係と削除後の扱いが分かる専用ウィンドウ、Unreal Engine の Delete Assets 相当)。参照元(Data/Prefab/Scene)・依存先(一緒に削除できるもの)を表示し、「参照を差し替えてから削除」「強制削除」「アーカイブのみ」「キャンセル」から選ぶ → 実行後は同じウィンドウが結果画面(ゴミ箱からの復元手順・コード参照・差し替え一覧)に切り替わる。実装は §10 の実装メモ参照 |
 | お気に入り/最近 | ユーザーローカル（EditorPrefs）に保存 |
 | ID 定数再生成 | ツールバーから 1 クリック。保存フックでの自動生成も設定可 |
 | Validation | ⚠ボタンで全体検査 → 結果一覧（Error/Warning、FixAction ボタン付き）。行クリックで該当 Data へ |
@@ -345,6 +345,25 @@ Tools/
 - **「グラフ未構築」の判定は `CachedFileCount == 0` のみ**: 「古いかもしれない(Library はあるが最新の変更を反映していない)」ケースは検出できない(5-5 の要判断と同じ制約を引き継ぐ)
 - **Scene ジャンプは自動テスト対象外**: `EditorSceneManager.OpenScene(Single)` はアクティブシーンを差し替える副作用があり、共有の Test Runner セッションを不安定にし得るため、`DependencyJumpServiceTests` は `.asset`/`.prefab` 分岐のみを自動テストし、Scene 分岐は手動検証([28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-6」節)に委ねた
 - **Archived というタグ名の予約語化**: `AssetDataBase.Tags` は本来 TagCatalog(未実装)からの選択制だが、`"Archived"` という文字列を予約語にした。将来 TagCatalog を実装する際はこの文字列を辞書から除外する(またはタグでなく専用の bool フィールドに移行する)必要がある
+
+### 実装メモ(2026-09-14、削除の確認画面: Unreal Engine の Delete Assets 相当)
+
+ユーザー要望「削除するときに UnrealEngine のように依存関係などわかりやすく、消した後どうするかも」に対応。5-6 の `EditorUtility.DisplayDialog` ベースの確認(`SafeDeleteService.TryDelete`)を、`AssetBrowserWindow` の行コンテキストメニュー「削除...」の入口では専用ウィンドウ `AssetDeleteWindow` に置き換えた(`SafeDeleteService.TryDelete` 自体はテストとの後方互換のため削除していないが、新しい入口からは呼ばない)。すべて `Assets/DDrive/Editor/Dependencies/` に追加。
+
+- **複数選択に対応**: `AssetBrowserWindow` の一覧の `ListView.selectionType` を `Single` → `Multiple` に変更。右クリックした行が現在の選択に含まれていれば選択中の全行、含まれていなければ右クリックした行だけを削除対象にする(`AssetBrowserWindow.DeleteRows`)。
+- **分析ロジックと UI を分離**: 削除の判断ロジック(参照元の分類・依存先の判定・実際の削除/差し替え/アーカイブの実行)を UI(`AssetDeleteWindow`)から独立した static サービスに切り出した。EditMode テストはウィンドウを開かずにこれらのサービスだけを呼ぶ(既存の `UsagesWindow`/`DependencyTreeWindow`/`UnusedAssetsWindow` と同じく、この種の `EditorWindow` 自体は自動テスト対象外という前例に合わせた。要判断参照)。
+  - `AssetDeleteAnalysisService.Analyze(IReadOnlyList<DeleteTarget>)` → `AssetDeleteAnalysis`(`AssetDeleteAnalysis.cs`): 削除対象一覧から (1) 参照元一覧(`Usages`。`FindUsages` を対象ごとに集めて `.unity`/`.prefab`/`.asset` の拡張子で `ReferenceFileKind` に分類し、参照元自身が削除対象のどれかなら `IsFromDeleteTarget=true` にする。UI はこれで「外部からの参照」と「削除対象どうしの参照(まとめて消すなら問題ない)」を分けて表示する) (2) 依存先一覧(`Dependencies`。削除対象全部の `FindReferencesIn` を (Type,Id) で重複排除しつつ集め、削除対象自身が依存先なら `IsAlsoDeleteTarget=true`、削除後にその依存先を使う場所が削除対象以外に一つも無ければ `WouldBecomeUnused=true`。「この削除でどこからも使われなくなるもの」の判定はこのフラグで、`FindUnusedIds` を呼び直すのではなく `FindUsages` の結果を削除対象パスで除外するだけで済ませている)
+  - `ReferenceReplaceService.Replace(IReadOnlyList<ReplacementPlan>)` → `ReferenceReplaceResult`(`ReferenceReplaceService.cs`): (Type,OldId) への参照を (Type,NewId) に書き換える。対象は **Data と Prefab のみ**。Data は `SerializedObject` + `Undo.RecordObject` + `SetDirty`(Ctrl+Z で戻せる)。Prefab は `PrefabUtility.LoadPrefabContents` → 対象コンポーネントの `SerializedProperty` を書き換え → `SaveAsPrefabAsset` → `UnloadPrefabContents`(**通常の Undo スタックには乗らない**。要判断参照)。プロパティが `AssetId<T>`/`AssetRef` のどちらかを判定する処理は `DependencyGraphCollector.TryGetIdTypeFieldNames`(収集ロジックと共有。二重実装しない)に切り出した。**Scene 内の参照は書き換えない**(開いているシーンを勝手に保存しない方針、[08_data_import_mock.md] 系の既存方針と同じ)。書き換えられなかった Scene 側の使用箇所は `RemainingSceneUsages` として返す
+  - `AssetDeleteExecutionService.Execute(DeleteExecutionRequest)` → `DeleteExecutionResult`(`AssetDeleteExecutionService.cs`): `DeleteAction`(`ArchiveOnly`/`ForceDelete`/`ReplaceThenDelete`。`Cancel` は何もしない)に応じて実処理を行う。`ArchiveOnly` は対象全部を `ArchiveTagService.SetArchived` するだけ。`ForceDelete` は参照の有無を無視して `SafeDeleteService.PerformDelete`(旧 `TryDelete` の非公開メソッドを `internal` に変更して再利用。カタログ/Addressables 登録解除 + `MoveAssetToTrash` + 依存グラフ更新の低レベル処理だけを取り出したもの)を呼ぶ。`ReplaceThenDelete` は `ReferenceReplaceService.Replace` を実行した後、削除対象ごとに(差し替え後も)`FindUsages` を取り直して**削除対象以外からまだ使われていれば削除せず Archive のみに留める**(Scene 参照が残っている場合はここで必ず引っかかる)。「一緒に削除」で選んだ依存先(`CascadeTargets`)も同様に、実際に削除された対象以外から使われていないかを実行結果を見てから判定する(`SkippedCascadeStillUsed` に残る)
+  - `CodeReferenceScan.FindPossibleReferenceHits`(新設): 既存の `FindPossibleReferences`(確認文言用、ファイル一覧のみ)と同じ走査・キャッシュを共有しつつ、結果画面で「クリックでエディタを開く」ためのファイル:行(`Hit.RelativePath`/`Hit.Line`)を返す。`AssetDatabase.OpenAsset(obj, line)` で開く
+- **UI(`AssetDeleteWindow.cs`)**: `ScrollView` ルート(CLAUDE.md §0-6)。分析画面(削除対象一覧(対象ごとに `CodeReferenceScan.FindPossibleReferences` の警告文言もここで表示。旧ダイアログ版と同じ「削除前に気づける」タイミングを維持) → 参照元一覧(Foldout で Data/Prefab/Scene ごと、ダブルクリック相当は「ジャンプ」ボタン→`DependencyJumpService`) → 依存先一覧(チェックボックス。`WouldBecomeUnused && !IsAlsoDeleteTarget && !IsUnresolved` のときだけ有効) → 削除方法(`RadioButtonGroup`。参照が無ければ「削除する」ボタン1つに簡略化)) → 実行後は同じウィンドウの内容を結果画面に差し替える(対象ごとの結果・コード参照ヒット(ファイル:行、クリックでエディタを開く)・差し替え一覧・手動で直す Scene 参照一覧・「依存関係グラフを再構築」/「Addressables 登録を同期」/「ID 定数を再生成」ボタン)。**モーダルダイアログは一切使わない**(このウィンドウ自体が確認画面のため。強制削除は専用チェックボックスで「実行」ボタンを有効化する方式にして `EditorUtility.DisplayDialog` を避けた。テストからダイアログ差し替えを気にする必要が無い)
+- **依存グラフが未構築なら削除させない既存ガードを継承**: `AssetDeleteWindow` も `DependencyGraphService.CachedFileCount == 0` を見て、警告 + 「再構築」ボタンだけを出し、それ以外のセクションを組み立てない(`SafeDeleteService.TryDelete` の `requireGraphBuilt` と同じ考え方)
+
+要判断:
+- **「一緒に削除」はカスケードが1段のみ**: `WouldBecomeUnused` のチェックで選んだ依存先を削除しても、その依存先がさらに使っていたもの(孫依存先)の未使用判定は再計算しない。孫依存先も片付けたい場合は削除後にもう一度「未使用アセット」または安全な削除を実行する運用になる
+- **Prefab の参照差し替えは Ctrl+Z で戻せない**: `PrefabUtility.LoadPrefabContents`→`SaveAsPrefabAsset` は通常の Undo スタックに乗らないため、Data 側(戻せる)と非対称になっている。結果画面ではその旨を明記するだけに留め、Prefab 用の独自 Undo 機構は実装していない(スコープ超過と判断)
+- **`AssetDeleteWindow` 自体は自動テスト対象外**: `UsagesWindow`/`DependencyTreeWindow`/`UnusedAssetsWindow` と同じ前例に合わせ、EditMode テストは `AssetDeleteAnalysisService`/`ReferenceReplaceService`/`AssetDeleteExecutionService` のみを対象にした。ウィンドウの実際の見た目・操作感は [28_manual_verification_phase5.md] の手動確認に委ねる
+- **複数選択の削除で置き換え先の候補選択 UI は「対象ごとに 1 つの `ObjectField`」**: 一括で同じ置き換え先を割り当てる UI(例: 「全部同じ置き換え先にする」チェックボックス)は無い。対象が多い場合は 1 件ずつ選ぶ必要がある
 
 ### 実装メモ(2026-09-14、5-7: Preload リスト自動集計 + シーンロード統合)
 

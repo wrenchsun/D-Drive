@@ -88,7 +88,11 @@ namespace DDrive.Editor.Dependencies
             return new DeleteReport(DeleteOutcome.Deleted, null);
         }
 
-        private static void PerformDelete(AssetDataBase asset, string assetPath)
+        // internal(削除の確認画面、2026-09-14): AssetDeleteWindow が「差し替えてから削除」「強制削除」の
+        // 実行段で、この低レベル操作(カタログ/Addressables 登録解除 + ゴミ箱移動 + 依存グラフ更新)だけを
+        // 再利用する(確認ダイアログ・参照ブロック判定は AssetDeleteWindow 側の画面が担うため、
+        // TryDelete の EditorUtility.DisplayDialog 経路は通さない)。
+        internal static void PerformDelete(AssetDataBase asset, string assetPath)
         {
             var iconPath = asset.Icon != null ? AssetDatabase.GetAssetPath(asset.Icon) : null;
 
