@@ -24,6 +24,7 @@ namespace DDrive.Runtime.Net
         public int? SimLatencyMs;     // -ddrive-sim-latency
         public float? SimLossPercent; // -ddrive-sim-loss(0-100)
         public string AutoTestName;   // -ddrive-autotest
+        public float? AutoTestSeconds; // -ddrive-autotest-seconds([11_tasks.md] 6-7。未指定は NetCheckRunner の既定式にフォールバック)
     }
 
     // [11_tasks.md] 6-0(B) — コマンドライン引数パーサ。Unity API に依存しない純関数のため、
@@ -36,6 +37,7 @@ namespace DDrive.Runtime.Net
         public const string SimLatencyFlag = "-ddrive-sim-latency";
         public const string SimLossFlag = "-ddrive-sim-loss";
         public const string AutoTestFlag = "-ddrive-autotest";
+        public const string AutoTestSecondsFlag = "-ddrive-autotest-seconds"; // [11_tasks.md] 6-7
 
         public static NetLaunchOptions Parse(string[] args)
         {
@@ -83,6 +85,14 @@ namespace DDrive.Runtime.Net
 
                     case AutoTestFlag:
                         result.AutoTestName = NextValue(args, ref i);
+                        break;
+
+                    case AutoTestSecondsFlag:
+                        if (float.TryParse(NextValue(args, ref i), NumberStyles.Float, CultureInfo.InvariantCulture, out var autoTestSeconds))
+                        {
+                            result.AutoTestSeconds = autoTestSeconds;
+                        }
+
                         break;
                 }
             }

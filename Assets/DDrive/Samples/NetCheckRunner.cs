@@ -46,6 +46,28 @@ namespace DDrive.Samples
         private PresentationHandle _handle;
         private NgoNetBridge _ngoBridge;
 
+        // [11_tasks.md] 6-7 — `-ddrive-autotest` 実行時の自動判定用カウンタ。役割・シナリオ名は Start() で
+        // 一度だけ確定させる(Update()/ログコールバックからは読むだけ)。判定ロジック自体は
+        // `DDrive.Runtime.Net.NetCheckJudge`(Unity API 非依存の純関数、EditMode テスト済み)に分離してある。
+        private string _role = "unknown";
+        private string _scenarioName;
+        private bool _requireLateJoinRestore;
+        private int _exceptionOrErrorCount;
+        private int _signalFireCount;
+        private int _signalRecvCount;
+        private int _forgedCancelSentCount;
+        private int _forgedCancelDiscardedCount;
+        private bool _placeholderObserved;
+        private int _trackFiredOverGraceCount;
+        private int _trackSkippedWithinGraceCount;
+        private bool _maxActiveCountObservedPositive;
+        private bool _vfxAndActiveZeroedAfterDisconnect;
+
+        // remoteOneShotGraceSec の既定値([31] A7)と同じ。PresentationManager 側の定数を公開していないため、
+        // 判定専用にここで複製する(値を変える場合は両方直す。ズレても判定が保守的になる方向〔猶予短縮〕なら
+        // 実害は小さいが、要判断として残す)。
+        private const float RemoteOneShotGraceMs = 500f;
+
         private async void Start()
         {
             if (actor == null)
@@ -75,12 +97,23 @@ namespace DDrive.Samples
                 await bootstrap.WhenReady;
             }
 
-            LogCheck("ready", "1", "role", RoleOf(bootstrap));
+            _role = RoleOf(bootstrap);
+            LogCheck("ready", "1", "role", _role);
+
+            // [11_tasks.md] 6-7 — Exception/Error(PASS 条件⑥)と偽造 Cancel の破棄(条件③)・Late Join の
+            // Placeholder 誤解決(条件④)は、この Runner 自身のイベント購読では観測できない箇所(Presentation/
+            // NgoNetBridge 内部の Debug.Log*)で発生するため、標準ログを直接フックして数える。
+            Application.logMessageReceived += OnLogMessageReceived;
 
             var autoTestName = bootstrap != null ? bootstrap.LaunchOptions.AutoTestName : null;
             if (!string.IsNullOrEmpty(autoTestName))
             {
-                RunAutoTestAndQuit(autoTestName).Forget();
+                _scenarioName = autoTestName;
+                // "latejoin" シナリオは Client 側でだけ意味を持つ判定(Host は「後から接続してくる相手」を
+                // 待つだけで、自分の activeCount が 0→復元 になるわけではない)。
+                _requireLateJoinRestore = _role == "client" && autoTestName.IndexOf("latejoin", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                var autoTestSeconds = bootstrap != null ? bootstrap.LaunchOptions.AutoTestSeconds : null;
+                RunAutoTestAndQuit(autoTestName, autoTestSeconds).Forget();
             }
         }
 
@@ -97,6 +130,43 @@ namespace DDrive.Samples
             if (_ngoBridge != null)
             {
                 _ngoBridge.ClientDisconnected -= OnBridgeDisconnected;
+            }
+
+            Application.logMessageReceived -= OnLogMessageReceived;
+        }
+
+        // [11_tasks.md] 6-7 — 標準ログをフックして、この Runner のイベント購読では観測できない箇所
+        // (PresentationManager/NgoNetBridge 内部の Debug.Log*)のカウントを行う。この確認用シーン専用の
+        // サンプルコードのため、定常経路(Tick/Spawn/Play)の LINQ・クロージャ・boxing 禁止の対象外
+        // (CLAUDE.md §0-3 は Runtime の本体コードが対象。Debug.unityLogger の呼び出し頻度は低く、
+        // ここでの文字列比較コストは実プレイに影響しない)。
+        private void OnLogMessageReceived(string condition, string stackTrace, LogType type)
+        {
+            if (type == LogType.Exception || type == LogType.Error)
+            {
+                _exceptionOrErrorCount++;
+                return;
+            }
+
+            if (type != LogType.Warning && type != LogType.Log)
+            {
+                return;
+            }
+
+            // 条件③: 偽造 Cancel の破棄。Client 発の Broadcast は Host 経由で ClientsAndHost へ中継され、
+            // 送信元自身にも同じ破棄ログが返ってくるため、単一プロセスのログだけで送信数と破棄数を突き合わせられる
+            // ([14_networking.md] §9、NgoNetBridge.Broadcast のコメント参照)。このシーンでは Cancel を明示的に
+            // 送るのは SendForgedCancel だけなので、"PresentationCancelMsg" の破棄ログは全て偽造分だと判定できる。
+            if (condition.Contains("PresentationCancelMsg") && condition.Contains("破棄しました"))
+            {
+                _forgedCancelDiscardedCount++;
+                return;
+            }
+
+            // 条件④: Late Join 直後の Placeholder 誤解決(修正済みのはずの回帰)。
+            if (condition.Contains("resolved to Placeholder"))
+            {
+                _placeholderObserved = true;
             }
         }
 
@@ -185,6 +255,10 @@ namespace DDrive.Samples
             // できるよう、「経過時間による下限推定」中かどうかを併記する(NgoNetBridge.IsAppRoundTripMsStale)。
             var rttAppStale = _ngoBridge != null && _ngoBridge.IsAppRoundTripMsStale ? "1" : "0";
 
+            // 6-5(ContentHash)/6-7 — NetDebugOverlay と同じ状態文字列("検証中..."/"OK"/"不一致: ...")を
+            // ログにも出す(自動判定は末尾の RESULT 行に反映する。CatalogContentHashGate.LastStatusText)。
+            var contentHash = bootstrap.NetHashGate != null ? bootstrap.NetHashGate.LastStatusText : "n/a";
+
             LogCheck(
                 "heartbeat", "1",
                 "role", RoleOf(bootstrap),
@@ -194,7 +268,24 @@ namespace DDrive.Samples
                 "connected", Connected(bootstrap) ? "1" : "0",
                 "rtt_app_ms", rttAppMs,
                 "rtt_app_stale", rttAppStale,
-                "vfx_active", vfxActive.ToString());
+                "vfx_active", vfxActive.ToString(),
+                "content_hash", contentHash);
+
+            // [11_tasks.md] 6-7 — 条件④(Late Join 復元)の下限確認: 接続中に activeCount>0 を一度でも
+            // 観測できれば、Late Join のスナップショットが Placeholder に落ちず反映されたと判定する
+            // (`_placeholderObserved` が false のままであることと合わせて判定する。RunAutoTestAndQuit 参照)。
+            if (Connected(bootstrap) && activeCount > 0)
+            {
+                _maxActiveCountObservedPositive = true;
+            }
+
+            // 条件⑤(切断検知 + 演出 0): 切断が観測された後、activeCount/vfx_active が両方 0 になった
+            // 瞬間があれば、ネット経由の演出が強制終了されたと判定する(以後に再度 >0 になっても、
+            // 一度でも 0 になった実績自体が「後片付けが機能した」証拠として残す。sticky)。
+            if (_disconnectLogged && activeCount == 0 && vfxActive == 0)
+            {
+                _vfxAndActiveZeroedAfterDisconnect = true;
+            }
         }
 
         private void PlayAndSignal(DDriveRuntimeBootstrap bootstrap)
@@ -218,6 +309,7 @@ namespace DDrive.Samples
         {
             await UniTask.Delay(System.TimeSpan.FromSeconds(signalDelaySeconds));
             handle.Signal("hit");
+            _signalFireCount++;
             LogCheck("signal_fire", "hit", "key", KeyText(handleNetKey), "networkTime", bootstrap.NetBridge.NetworkTime.ToString("F2"));
         }
 
@@ -263,6 +355,8 @@ namespace DDrive.Samples
                 var bs = DDriveRuntimeBootstrap.Instance;
                 var networkTime = bs != null && bs.NetBridge != null ? bs.NetBridge.NetworkTime.ToString("F2") : "n/a";
 
+                _signalRecvCount++;
+
                 // [11_tasks.md] 6-0 修正2/修正6 — kind を足す(同じ key で OnSignal トラック数ぶん出るのが
                 // 分かるようにする。軽微な要判断だった②の対応)。
                 LogCheck("signal_recv", track.SignalKey, "key", KeyText(handleNetKey), "networkTime", networkTime, "kind", track.Kind.ToString());
@@ -283,8 +377,16 @@ namespace DDrive.Samples
         {
             var bootstrap = DDriveRuntimeBootstrap.Instance;
             var networkTime = bootstrap != null && bootstrap.NetBridge != null ? bootstrap.NetBridge.NetworkTime.ToString("F2") : "n/a";
-            var lateMs = ((elapsed - track.Time) * 1000f).ToString("F0");
+            var lateMsValue = (elapsed - track.Time) * 1000f;
+            var lateMs = lateMsValue.ToString("F0");
             LogCheck("track_fired", "1", "kind", track.Kind.ToString(), "time", track.Time.ToString("F2"), "key", KeyText(handleNetKey), "late_ms", lateMs, "networkTime", networkTime);
+
+            // [11_tasks.md] 6-7(A7 の猶予 0.5 秒の逆側チェック) — 猶予を超えて遅れたのに発火してしまった
+            // 場合は、PresentationManager 側の猶予判定にバグがある(本来 track_skipped になるはず)。
+            if (lateMsValue > RemoteOneShotGraceMs)
+            {
+                _trackFiredOverGraceCount++;
+            }
         }
 
         // [11_tasks.md] 6-0 修正6 — 猶予を超えて実際にスキップされたワンショットトラックを開発ビルドのみ
@@ -292,7 +394,16 @@ namespace DDrive.Samples
         private void OnRemoteOneShotSkipped(PresentationTrack track, uint handleNetKey, float lateSec)
         {
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            LogCheck("track_skipped", "1", "kind", track.Kind.ToString(), "time", track.Time.ToString("F2"), "key", KeyText(handleNetKey), "late_ms", (lateSec * 1000f).ToString("F0"));
+            var lateMsValue = lateSec * 1000f;
+            LogCheck("track_skipped", "1", "kind", track.Kind.ToString(), "time", track.Time.ToString("F2"), "key", KeyText(handleNetKey), "late_ms", lateMsValue.ToString("F0"));
+
+            // [11_tasks.md] 6-7(A7 の猶予 0.5 秒チェック) — 猶予以内なのにスキップされた場合は実バグ
+            // (Late Join 直後の大幅に古い演出だけがここに来るはずで、猶予以内のものは track_fired の
+            // はず)。
+            if (lateMsValue <= RemoteOneShotGraceMs)
+            {
+                _trackSkippedWithinGraceCount++;
+            }
 #endif
         }
 
@@ -323,6 +434,7 @@ namespace DDrive.Samples
             }
 
             bootstrap.NetBridge.Broadcast(new PresentationCancelMsg { HandleNetKey = forgedKey }, NetChannel.ReliableOrdered);
+            _forgedCancelSentCount++;
             LogCheck("forged_cancel_sent", forgedKey.ToString());
         }
 
@@ -349,19 +461,63 @@ namespace DDrive.Samples
             LogCheck("disconnected", "1", "role", RoleOf(bootstrap), "reason", string.IsNullOrEmpty(reason) ? "unknown" : reason);
         }
 
-        // -ddrive-autotest <name> 用。ヘッドレスで一定時間チェックを走らせてからアプリを終了する
-        // (実行結果は Player.log の [DDriveNetCheck] 行をオーケストレーター/人が確認する)。
-        private async UniTaskVoid RunAutoTestAndQuit(string name)
+        // -ddrive-autotest <name> 用。ヘッドレスで一定時間チェックを走らせてから、この Runner 自身が
+        // 観測した結果を DDrive.Runtime.Net.NetCheckJudge(純関数)で判定し、`RESULT=PASS|FAIL` を
+        // 1 行ログしてから終了する([11_tasks.md] 6-7)。Host/Client 2 プロセスを跨る判定(Signal 中継の
+        // 位相差など)はここでは行わない(単一プロセスのログだけでは分からないため。`Tools/CI/
+        // NetCheckAnalyze.ps1` が両方の Player.log を読んで追加で判定する。[docs/29] §4)。
+        private async UniTaskVoid RunAutoTestAndQuit(string name, float? autoTestSeconds)
         {
             LogCheck("autotest_start", name);
-            await UniTask.Delay(System.TimeSpan.FromSeconds(playIntervalSeconds * 3 + 2f));
+            var durationSeconds = autoTestSeconds ?? (playIntervalSeconds * 3 + 2f);
+            await UniTask.Delay(System.TimeSpan.FromSeconds(durationSeconds));
             LogCheck("autotest_done", name);
+
+            var result = EvaluateResult();
+            LogCheck("RESULT", result.Pass ? "PASS" : "FAIL", "scenario", name, "reason", result.Reason ?? "n/a");
+
+            var exitCode = result.Pass ? 0 : 1;
 
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
-            Application.Quit();
+            Application.Quit(exitCode);
 #endif
+        }
+
+        // [11_tasks.md] 6-7 — この Runner が自分自身のログ/イベント購読から集められた観測値を
+        // `NetCheckCounters` にまとめ、`NetCheckJudge.Evaluate`(Unity API 非依存、EditMode テスト済み)に
+        // 渡すだけの薄いアダプタ。判定の条件そのものは NetCheckJudge 側に集約してある。
+        private NetCheckResult EvaluateResult()
+        {
+            var bootstrap = DDriveRuntimeBootstrap.Instance;
+            var isOffRole = _role != "host" && _role != "client" && _role != "server";
+
+            var contentHashStatus = bootstrap != null && bootstrap.NetHashGate != null ? bootstrap.NetHashGate.LastStatusText : null;
+            var contentHashApplicable = !isOffRole && contentHashStatus != null && contentHashStatus != "検証中...";
+
+            var counters = new NetCheckCounters
+            {
+                ConnectedAtEnd = bootstrap != null && Connected(bootstrap),
+                IsOffRole = isOffRole,
+                ExceptionOrErrorCount = _exceptionOrErrorCount,
+                RequireSignalActivity = !isOffRole,
+                SignalFireCount = _signalFireCount,
+                SignalRecvCount = _signalRecvCount,
+                ForgedCancelSentCount = _forgedCancelSentCount,
+                ForgedCancelDiscardedCount = _forgedCancelDiscardedCount,
+                RequireLateJoinRestore = _requireLateJoinRestore,
+                LateJoinRestoreObserved = _maxActiveCountObservedPositive,
+                PlaceholderObserved = _placeholderObserved,
+                TrackFiredOverGraceCount = _trackFiredOverGraceCount,
+                TrackSkippedWithinGraceCount = _trackSkippedWithinGraceCount,
+                DisconnectedObserved = _disconnectLogged,
+                ActiveAndVfxZeroedAfterDisconnect = _vfxAndActiveZeroedAfterDisconnect,
+                ContentHashApplicable = contentHashApplicable,
+                ContentHashStatus = contentHashStatus,
+            };
+
+            return NetCheckJudge.Evaluate(counters);
         }
 
         private static string RoleOf(DDriveRuntimeBootstrap bootstrap)

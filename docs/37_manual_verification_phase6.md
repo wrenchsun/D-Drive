@@ -40,7 +40,7 @@
 
 - [ ] 6-0 実機 v4 確認結果を読む — 本書「6-0」節 / [29_network_device_test.md] §12 — 10分 — 特になし
 - [ ] 6-6 / K3 の v5 実機（またはローカル結合）確認 — 本書「実装中・これから」6-6 節 — 未定（実装後に追記） — 特になし
-- [ ] 6-7 2 クライアント自動テスト — 本書「実装中・これから」6-7 節 — 未定（実装後に追記） — 特になし
+- [ ] 6-7 2 クライアント自動テスト — 本書「6-7」節 — 約5分（`Tools\CI\run-netcheck.cmd`） — ビルド済み `Builds\DDriveNetCheck\DDriveNetCheck.exe`・pwsh(PowerShell 7+)
 
 （6-1 CI 完全化は P7 末へ延期のため確認不要。本書「6-1」節 / [33_ci_setup.md] 参照）
 
@@ -52,7 +52,7 @@
 
 - [ ] Web 発注ツール（反映後の目視） — [28_manual_verification_phase5.md#0-確認の進め方2026-09-14-まとめ] の「②仕様書系」内 O-12〜O-16 および各追補 — [28] の既存の時間表を参照（本書では重複計上しない） — [28] と同じ準備（デプロイ済み Web アプリ・`push.ps1` 実行済み等）
 
-合計 **12 項目**（Web 発注ツールの内訳を除く）。判明している所要時間の合計は **約1時間55分（115分）+ 6-8 デモ約115分**（6-8 は手順書 [38_acceptance_demo.md] が用意済みのため所要時間が判明したが、実施自体はまだ行っていないため上記合計には含めていない）。うち 2 項目（6-6/K3 の v5 確認・6-7）は未実装のため「実装後に追記」、Web 発注ツールの確認は [28_manual_verification_phase5.md] の既存の時間表（O-12〜O-16 で目安 85分程度）を参照（本書の合計には含めていない）。①→②→③→④ の単位で分割してよい。
+合計 **12 項目**（Web 発注ツールの内訳を除く）。判明している所要時間の合計は **約2時間（120分）+ 6-8 デモ約115分**（6-7 の約5分を追加。6-8 は手順書 [38_acceptance_demo.md] が用意済みのため所要時間が判明したが、実施自体はまだ行っていないため上記合計には含めていない）。うち 1 項目（6-6/K3 の v5 確認）は未実装のため「実装後に追記」、Web 発注ツールの確認は [28_manual_verification_phase5.md] の既存の時間表（O-12〜O-16 で目安 85分程度）を参照（本書の合計には含めていない）。①→②→③→④ の単位で分割してよい。
 
 ### 確認後の後片付け（まとめ）
 
@@ -153,6 +153,23 @@
 
 要判断: 特になし（GitHub Actions での CI 組込みは P7 末に延期。詳細は [33_ci_setup.md] §8）
 
+## 6-7 2 クライアント自動テスト（Loopback ⇔ NGO 両ブリッジ、2026-09-15）
+
+対象: `DDrive.Runtime.Net.NetCheckJudge`(判定の純関数、`Assets/DDrive/Runtime/Net/NetCheckJudge.cs`)、`Assets/DDrive/Samples/NetCheckRunner.cs`(自動判定の組込み)、`Assets/DDrive/Runtime/Net/NetLaunchArgs.cs`(`-ddrive-autotest-seconds` 追加)、`Tools/CI/Run-NetCheck.ps1` + `Tools/CI/run-netcheck.cmd`(ローカル 2 プロセス起動・両ログ突き合わせ)、`Tools/CI/Summarize-Results.ps1`(`-NetCheckResultsPath` 追加)、`Tools/CI/run-ci.cmd`(任意ステップ `[6/6]`)。判定条件・実装の詳細は [11_tasks.md] 6-7 と [29_network_device_test.md]「自動判定つきローカル2プロセス確認(6-7)」節。EditMode テスト `NetCheckJudgeTests`(19件)・`NetLaunchArgsTests` 追記(3件)で判定ロジック自体は確認済み。**Unity Editor 上でのコンパイル・実プロセスでの動作は未検証**(ワークツリーで実装したため。以下の手順で確認する)。
+
+1. Unity Editor で `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド` を実行し、`Builds\DDriveNetCheck\DDriveNetCheck.exe` が最新のコードでビルドされていることを確認する(コンパイルエラー 0件も併せて確認)
+2. Unity Editor を閉じずに実行してよい(この exe は別プロセスとして起動する)。リポジトリ直下で `Tools\CI\run-netcheck.cmd` を実行する
+3. `pair0`(遅延0ms)→`pair200`(遅延200ms)→`latejoin`(Host起動12秒後にClient接続)→`disconnect`(Hostが先に終了し、Clientが切断を検知)の4シナリオが順に走ることを確認する(所要時間の目安: 各シナリオ25〜35秒、合計で**約5分程度**)
+4. 各シナリオで `Host : PASS (...)` / `Client : PASS (...)` / `Signal 中継(位相差): PASS (...)` の3行が出て、最後に `=== すべてのシナリオが PASS です ===` と表示され、終了コード 0 になることを確認する
+5. FAIL が出た場合は `TestResults\NetCheck\<シナリオ名>_host.log` / `_client.log` を開き、`[DDriveNetCheck] RESULT=FAIL scenario=... reason=...` の行(自プロセス側の判定理由)と、`Host`/`Client`/`Signal 中継` のどれが FAIL したかを確認する。`TestResults\NetCheck\summary.md` にも同じ内容がまとまっている
+6. (任意)`Tools\CI\run-netcheck.cmd pair0` のように1シナリオだけ指定して再実行できることを確認する
+7. (任意)`Tools\CI\run-ci.cmd` を実行し、ビルド済み exe がある状態で `[6/6] NetCheck` ステップが走り、結果サマリ(Validation/EditMode/PlayMode/Performance と同じ表)に "NetCheck (6-7、2 クライアント自動テスト)" の行が載ることを確認する
+
+要判断:
+- Signal 中継の位相差のしきい値は [docs/29] §4 の「目安100ms以内」に対し、ローカル実行のノイズ耐性として `Tools/CI/Run-NetCheck.ps1` 側で 150ms を機械判定に使っている(目安そのものは変えていない)。実測してしきい値が厳しすぎる/緩すぎると分かった場合は同スクリプトの `$PhaseDiffThresholdMs` を調整する
+- 6-5(ContentHash)は 2026-09-15 に main へマージ済み(PR #70)のため、`NetCheckJudge` の判定に「ContentHash 一致(開発ビルドでは不一致でも警告のみで継続)」を含めている。Host/Client で同じビルドを使う本手順では常に一致するはずなので、`content_hash_not_ok` で FAIL する場合は実際の不整合(カタログの取り違え等)を疑う
+- 初回起動時に Windows ファイアウォールの許可ダイアログが出る場合、`run-netcheck.cmd` は無人実行のため応答できずタイムアウトする。[29_network_device_test.md] §2 の通り、この PC では `ddrivenetcheck.exe` の受信許可ルールが既に作成済みのため通常は出ない想定だが、実行パス(`Builds\DDriveNetCheck\DDriveNetCheck.exe`)が変わった場合は再度出ることがある
+
 ---
 
 ## 実装中・これから（実装後に追記）
@@ -176,13 +193,6 @@
 - 意図的に不一致を作った場合、開発ビルド・エディタでは警告のみで継続し、Play/Presentation 等の再生が壊れないこと（ユーザー決定どおり）
 - リリースビルドでは不一致時に切断されること、切断理由がログ等で分かること
 - Validation に「ContentHash 生成対象外」等の CI 用検査が追加されるならその表示
-
-### 6-7 2 クライアント自動テスト（Loopback ⇔ NGO 両ブリッジ）
-
-未着手。実装後、以下の観点を確認する想定:
-
-- ローカルで `Tools\CI\run-ci.cmd` または Test Runner（PlayMode）から実行し、Loopback/NGO 両ブリッジで同期再生テストが green になること
-- GitHub Actions での CI 組込みは P7 末まで延期のため、ローカル実行での確認で十分であること
 
 ### 6-8 受け入れデモ（要件 §7 成功基準の5項目）
 
