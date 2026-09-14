@@ -149,7 +149,8 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
   - `rtt_app_ms` 100 サンプル: 最小 203 / 最大 230 / 平均 208.3（100/100 が 200 以上）。偽造 Cancel 送信 9 = 破棄 9（並び一致、v2 の「最初の key を 2 回送る」は解消）。Unregistered AssetId / Placeholder / Exception / Error / Disconnect 0 件。未接続時（`role=off`）の heartbeat は `connected=0`（v2 の指摘は解消）
   - デバッグ表示: `Role: Client (ClientId=1) / State: 接続中 / NetworkTime: 231.38 / RTT: 5 ms / App RTT: 206 ms / Received: 197 (4.0/s)`（PC-B `netcheck_v3_200ms.png` ほか burst 4 枚）
   - `signal_recv` の同一 key 4 行は onHit の OnSignal トラック 4 本分（仕様）
-- 切断: 確認中（PC-A の Host v3 を停止、PC-B の報告待ち）
+- **切断（PC-A の Host v3 を 14:49:51 に停止）: ログは期待どおり**。`[Net/Client] NgoNetBridge: Host から切断されました(...ProtocolTimeout...)` と `disconnected=1` が 1 回ずつ。切断後の `track_fired` / `track_skipped` / `forged_cancel_sent` / 「未接続のため送信できません」/ `signal_recv` はすべて 0 件、heartbeat は `connected=0 rtt_app_ms=n/a`（v2 の残留は解消）、デバッグ表示 `State: 切断`。Exception / Error 0 件、再接続の試行なし
+  - **⚠ 新しい実バグ: 切断後も粒子エフェクト（VFX）が消えずに描画・アニメーションし続ける**（PC-B のスクリーンショット 4 枚、切断から約 40 秒後も白画素 87〜100 で変動。接続中より密）。`activeCount` は 0 なので Presentation の後片付けは済んでいるが、そこから Spawn した VFX インスタンスが Stop / Despawn されずに残っている疑い（VFX がループ系の場合に顕在化）。切断時にアクティブなネット演出を Cancel 相当（`StopOnCancel` に従って VFX を止める）で終了させる修正が必要。判定用に heartbeat へ `vfx_active=<VfxManager の生存数>` を足すと、スクリーンショットに頼らず確認できる
 
 ### 実機確認で見つかった課題（2026-09-14、修正チケットへ）
 
