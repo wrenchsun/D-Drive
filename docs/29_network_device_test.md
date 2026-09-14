@@ -432,3 +432,46 @@ vfx_active=0` へ落ちた**。`CancelAllNetworked()` が切断時点でまだ�
 
 起動した全プロセス(host/client、各ラウンド)は確認後に `Stop-Process -Force` で終了し、残っていないことを
 確認済み。
+
+## 12. v4 実機確認（2026-09-15、A10 修正後。PC-A Host v4 + PC-B Client v4）
+
+**対象ビルド**: `NetCheckBuilder.Build()`（2026-09-14 23:59、`Builds/DDriveNetCheck.zip` 109,217,804 bytes）。
+P5 完了時点の main（A10 = `vfx_sample.prefab` の `looping=false`、6-0 修正6/7、Presentation エディタ改修を含む）。
+PC-B は hotspot 経由で zip を取得（約 19 秒、サイズ一致）。
+
+**ラウンド A（遅延 0ms、`Player_v4.log`）: 合格**
+- `[Net/Client] DDriveRuntimeBootstrap: Client として起動しました(host=192.168.137.1:7777)`、clientId=1。Exception / Error / NullReference 0 件
+- **Late Join**: Placeholder / Unregistered AssetId 0 件。接続直後の `track_skipped` 10 件は Late Join 時点で既に古い演出（late_ms 2523〜14524）の Vfx/Se のみ（仕様どおり）
+- **偽造 Cancel**: Client 送信 19 件 = 破棄 19 件（HandleNetKey の並びも完全一致）。Host 側合計 35 件破棄
+- **VFX の蓄積（A10 の確認）**: vfx_active は Client で 3〜4、Host で 3〜4（126 秒観察）で頭打ち。v3 の強制終了ラウンドでは 13 まで蓄積していた。
+  定常 3〜4 は VFX の寿命（放出 5 秒 + 粒子寿命）と 3 秒周期の重なりによるもので、溜まり続けない（合格）。見た目は v3 までの「密な球」から、ワンショット放出の「まばらに散って消える粒子」に変わった（ループ解除の結果）
+- RTT 3〜4ms（App RTT 平均 3.8ms、最大 17ms）、Received 2.0/s
+
+**切断（Host をウィンドウを閉じて正常終了）: 合格**
+- `[Net/Client] NgoNetBridge: Host から切断されました(reason=...[ClosedByRemote]...)` → `disconnected=1`。切断前最後の heartbeat から 0.1 秒で検知
+- 切断直後の最初の heartbeat で `activeCount 5→0`、`vfx_active 3→0`。切断後の画面に VFX は残らない（地平線下の白画素 0、3 枚）。**v3 の「切断後に VFX が残る」は解消**
+- 切断後の track_fired / signal_recv / 送信はすべて 0。Exception / Error 0 件（前後とも）
+
+**ラウンド B（遅延 200ms、`-ddrive-sim-latency 200`、`Player_v4_200ms.log`）: 合格（課題 3 件を記録）**
+- `NgoTransportConfigurator: シミュレータ設定を適用しました(latency=200ms)` → `NgoNetBridge` がアプリ層の送受信キューで 200ms 遅延を代替
+- 定常時の rtt_app_ms 204〜208（✅ 200 前後）。track_fired 62 件（Vfx 31 / Se 31）、late_ms 最小 0・最大 156・平均 135.5、**500ms 超 0 件**（猶予 0.5 秒内で遅れて発火）。画面に VFX 表示あり
+- vfx_active は定常 3〜4 で頭打ち（最大 4）。Placeholder / Unregistered / Exception / Error / NullReference 0 件
+- 偽造 Cancel: 送信 30 = 破棄 30（並び一致）
+- **課題 K1（環境）: ホットスポットの無線が数秒単位で止まる時間帯が数回あった**。その区間で rtt_app_ms が 1193〜2712 に跳ね、Ping 番号が飛び（#36→#40 等）、受信がまとめて届いた。ICMP ping は 10 発中 3 発落ち → 直後 30/30 成功（平均 2.4ms）。
+  このため接続中にも track_skipped が 5 組（late_ms 675〜2671）出た。猶予 0.5 秒（A7）どおりの挙動だが、**通信状態が悪いと接続中でも演出が抜ける**。A7 は運用開始後に実回線で見直す（決定済み）
+- **課題 K2（計測）: 通信停止中、rtt_app_ms が前回値のまま更新されない**（1713 が 12 行続いた）。デバッグ表示・ログの値が実態とずれる。Ping/Pong の未応答時間を反映する形に直す（P6 で対応）
+- **課題 K3（要修正）: Signal が Play より先に届き「未知のキー」として破棄された**（`PresentationSignalMsg(HandleNetKey=0x00FFD6CE) は未知のキー…破棄しました` の直後に同じ key の Play が late_ms=675 で到着）。通信が止まってまとめて届いた区間で、Play と Signal の到着順が入れ替わった。
+  ヒット時の演出（Signal("hit") の CameraShake/Haptic/SE）が悪い回線で抜けうる。候補: 未知キーの Signal を短時間（例 1 秒）保留し、同じ key の Play 到着時に適用する / アプリ層遅延キューとメッセージ種別ごとのチャネルで順序が保たれているか確認（P6 で対応）
+- Host 側（`PlayerHost_v4_200ms.log`）も Exception 0 件
+
+**ラウンド C（Host を `Stop-Process -Force` で強制終了 = タイムアウト切断）: 合格**
+- 検知: `[Net/Client] NgoNetBridge: Host から切断されました(...[ProtocolTimeout]...)` → `disconnected=1`。最後の受信から約 30 秒（ProtocolTimeout の既定どおり）
+- **切断を検知する前に VFX が自然に消える（A10 の確認）**: 最後の受信（nt≈319.2）から約 8.3 秒で `vfx_active=0`、約 13 秒で `activeCount=0`。切断検知（nt≈349）の約 22 秒前に 0 になった。
+  v3（`looping=true`）では同じ状況で vfx_active が 13 のまま残っていた。スクリーンショット（強制終了から約 45〜59 秒後、2 枚）にも VFX は残っていない
+- 未検知の間（connected=1 のまま）は NetCheckRunner が偽造 Cancel を送り続けた（6 回、送信先なし）。検知後は送信停止。想定どおり
+- Exception / Error / NullReference 0 件
+
+**v4 のまとめ**: A10（ループ解除）と 6-0 修正6/7 により、v3 までの「VFX の蓄積」「切断後の VFX 残留」は正常切断・タイムアウト切断の両方で解消。
+残課題は K2（通信停止中の rtt_app_ms 固着）と K3（Signal が Play より先に届くと破棄）で、P6 の 6-6（受信検証）で対応する。
+K1（ホットスポットの数秒停止）は環境要因で、A7（猶予 0.5 秒）の見直しは運用開始後に実回線で行う。
+PC-A 側の配布用 HTTP サーバーは停止済み、両 PC とも `DDriveNetCheck` のプロセスは残っていない。
