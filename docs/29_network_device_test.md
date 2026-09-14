@@ -140,6 +140,17 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
     3. **切断直後に Client の画面へ粒子エフェクトが薄く出る**(接続中の 200ms では出ていなかった VFX が、切断の瞬間だけ描画された)。原因はアプリ層遅延キューに残っていた `PlayMsg` が、切断で `NetworkTime` が 0 に巻き戻った状態で処理され `elapsed=0` と誤認されたこと → `NgoNetBridge` に切断時にキューを破棄する `CancellationTokenSource` を追加
     4. デバッグ表示に接続状態(「接続中/切断」)の行が無い → `NetDebugOverlay` に追加
 
+### 修正版 v3（PR #31、遅れて届いたワンショットの猶予 0.5 秒）での再確認（2026-09-14 14:47〜、PC-A Host v3 + PC-B Client v3）
+
+- **遅延 200ms（`Player_v3_200ms.log`、ClientId 1）: エフェクト描画の実バグは解消**
+  - `track_fired kind=Vfx` 26 件（Se と 1 対 1）、`late_ms` 最小 107 / 最大 158 / 平均 151（3 件目以降 151〜158 で安定）。例 `track_fired=1 kind=Vfx time=0.00 key=0x00E7D818 late_ms=107 networkTime=175.37`
+  - **画面**: PC-B のスクリーンショット 5 枚すべてで中央の粒子エフェクトを確認（白画素 76〜82。v2 200ms は 0、v2 0ms は 69）
+  - `track_skipped` 10 件（Vfx / Se × 5 key）はすべて接続直後の Late Join で受け取った 2〜14 秒前の古い演出（`late_ms` 2069〜14072）だけ。以後増えない = 猶予の設計どおり
+  - `rtt_app_ms` 100 サンプル: 最小 203 / 最大 230 / 平均 208.3（100/100 が 200 以上）。偽造 Cancel 送信 9 = 破棄 9（並び一致、v2 の「最初の key を 2 回送る」は解消）。Unregistered AssetId / Placeholder / Exception / Error / Disconnect 0 件。未接続時（`role=off`）の heartbeat は `connected=0`（v2 の指摘は解消）
+  - デバッグ表示: `Role: Client (ClientId=1) / State: 接続中 / NetworkTime: 231.38 / RTT: 5 ms / App RTT: 206 ms / Received: 197 (4.0/s)`（PC-B `netcheck_v3_200ms.png` ほか burst 4 枚）
+  - `signal_recv` の同一 key 4 行は onHit の OnSignal トラック 4 本分（仕様）
+- 切断: 確認中（PC-A の Host v3 を停止、PC-B の報告待ち）
+
 ### 実機確認で見つかった課題（2026-09-14、修正チケットへ）
 
 1. **遅延シミュレーターが効いていない疑い**: `-ddrive-sim-latency 200` でも RTT が 6 ms。`NgoTransportConfigurator` が `SetDebugSimulatorParameters` を `StartClient`/`StartHost` の後（ドライバ生成後）に呼んでいる、または UnityTransport 2.x で当該 API が無効、の可能性。RTT の値（`GetCurrentRtt`）がシミュレーター遅延を含まない可能性もあるので、アプリ層の往復時間（Ping の往復）も併記して判定できるようにする
