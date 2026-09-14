@@ -1,0 +1,66 @@
+<script>
+  /**
+   * 発注ツリー画面（OrderTree.html）が使う純粋関数。docs/32_spec_web.md §10.2.3（発注グループ）・
+   * §10.3.1（発注ツリー画面）を実装する。
+   *
+   * 集計（件数・納品済数・インポート済数）は保存せず、この関数が子（アセット発注）を
+   * 都度集計して返す（docs/27 §2.1「値そのものは二重に書かない」の原則を継承）。
+   *
+   * DOM に触れない純粋関数だけをここに置く（test/load-html-script.js で Node から直接テストする）。
+   */
+  (function () {
+    'use strict';
+
+    /**
+     * @param {Array} groups orderGroups.list の結果（{id, name, wbsNo, ...}[]）
+     * @param {Array} assets assets.list の結果（{id, parentId, status, archived, ...}[]、
+     *   archived は既に除外済みの前提で渡してよい）
+     * @return {Array<{id: ?string, name: string, wbsNo: ?string, items: Array, counts: {total:number, delivered:number, imported:number}}>}
+     *   Presentation 発注グループ（名前の辞書順）→ 最後に「単体」（parentId が無い発注）。
+     */
+    function buildOrderTree(groups, assets) {
+      var liveAssets = (assets || []).filter(function (a) { return !a.archived; });
+
+      function countsFor(items) {
+        var delivered = items.filter(function (i) { return i.status === '納品済'; }).length;
+        var imported = items.filter(function (i) { return i.status === 'インポート済'; }).length;
+        return { total: items.length, delivered: delivered, imported: imported };
+      }
+
+      var groupNodes = (groups || [])
+        .slice()
+        .sort(function (a, b) {
+          return String(a.name || '').localeCompare(String(b.name || ''));
+        })
+        .map(function (group) {
+          var items = liveAssets.filter(function (a) { return a.parentId === group.id; });
+          return {
+            id: group.id,
+            name: group.name,
+            wbsNo: group.wbsNo || null,
+            orderer: group.orderer || '',
+            dueDate: group.dueDate || '',
+            items: items,
+            counts: countsFor(items)
+          };
+        });
+
+      var unassigned = liveAssets.filter(function (a) { return !a.parentId; });
+      groupNodes.push({
+        id: null,
+        name: '単体',
+        wbsNo: null,
+        orderer: '',
+        dueDate: '',
+        items: unassigned,
+        counts: countsFor(unassigned)
+      });
+
+      return groupNodes;
+    }
+
+    window.OrderTreeLogic = {
+      buildOrderTree: buildOrderTree
+    };
+  })();
+</script>
