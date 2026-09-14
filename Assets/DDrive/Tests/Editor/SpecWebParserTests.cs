@@ -1,0 +1,163 @@
+using System.Linq;
+using DDrive.Editor.Spec;
+using DDrive.Foundation.Identity;
+using NUnit.Framework;
+
+namespace DDrive.Tests.Editor
+{
+    // [32_spec_web.md] §3.1/§3.2/§5.1 W-9 — Web API(GAS)の JSON 応答のパース。
+    // ネットワークに出ず、JSON 文字列を直接注入して検証する(5-13 の要件を継承)。
+    public class SpecWebParserTests
+    {
+        [Test]
+        public void ParseAssets_ValidItem_ReturnsRowWithSpecLink()
+        {
+            const string json = "{\"ok\":true,\"status\":200,\"items\":[" +
+                "{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"category\":\"Player\",\"identifier\":\"Slash\"," +
+                "\"displayName\":\"斬撃音\",\"status\":\"仮\",\"assignee\":\"よしだ\",\"note\":\"備考\",\"archived\":false}" +
+                "]}";
+
+            var result = SpecWebParser.ParseAssets(json, "https://example.com/spec");
+
+            Assert.AreEqual(1, result.Rows.Count);
+            var row = result.Rows[0];
+            Assert.AreEqual(AssetType.Se, row.Type);
+            Assert.AreEqual("Slash", row.Identifier);
+            Assert.AreEqual("Player", row.Category);
+            Assert.AreEqual("斬撃音", row.DisplayName);
+            Assert.AreEqual("仮", row.Status);
+            Assert.AreEqual("よしだ", row.Assignee);
+            Assert.AreEqual("備考", row.Note);
+            StringAssert.StartsWith("https://example.com/spec#/assets/", row.SpecLink);
+            StringAssert.Contains("Se", row.SpecLink);
+        }
+
+        [Test]
+        public void ParseAssets_NoHumanAppUrl_SpecLinkIsEmpty()
+        {
+            const string json = "{\"ok\":true,\"items\":[{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"斬撃音\"}]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual(string.Empty, result.Rows[0].SpecLink);
+        }
+
+        [Test]
+        public void ParseAssets_ArchivedItem_IsSkipped()
+        {
+            const string json = "{\"ok\":true,\"items\":[{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"斬撃音\",\"archived\":true}]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual(0, result.Rows.Count);
+        }
+
+        [Test]
+        public void ParseAssets_UnknownAssetType_IsIssue()
+        {
+            const string json = "{\"ok\":true,\"items\":[{\"id\":\"x\",\"assetType\":\"NoSuchType\",\"identifier\":\"Slash\",\"displayName\":\"x\"}]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual(0, result.Rows.Count);
+            Assert.IsTrue(result.Issues.Any(i => i.Message.Contains("NoSuchType")));
+        }
+
+        [Test]
+        public void ParseAssets_DuplicateKey_IsIssue()
+        {
+            const string json = "{\"ok\":true,\"items\":[" +
+                "{\"id\":\"a\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"a\"}," +
+                "{\"id\":\"b\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"b\"}" +
+                "]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual(1, result.Rows.Count);
+            Assert.IsTrue(result.Issues.Any(i => i.Message.Contains("重複")));
+        }
+
+        [Test]
+        public void ParseAssets_ErrorEnvelope_ReturnsNoRowsWithIssue()
+        {
+            const string json = "{\"ok\":false,\"status\":401,\"error\":\"トークンが無効です\"}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual(0, result.Rows.Count);
+            Assert.IsTrue(result.Issues.Any(i => i.Message.Contains("401")));
+        }
+
+        [Test]
+        public void ParseAssets_InvalidJson_DoesNotThrow()
+        {
+            SpecParseResult<SpecAssetRow> result = null;
+            Assert.DoesNotThrow(() => result = SpecWebParser.ParseAssets("not json"));
+            Assert.AreEqual(0, result.Rows.Count);
+            Assert.IsTrue(result.Issues.Count > 0);
+        }
+
+        [Test]
+        public void ParseTuningScalars_FloatEntry_ReturnsRow()
+        {
+            const string json = "{\"ok\":true,\"items\":{\"Combat/HitStopSec\":{" +
+                "\"kind\":\"scalar\",\"valueType\":\"float\",\"value\":0.05,\"enumOptions\":[]," +
+                "\"min\":0,\"max\":0.3,\"unit\":\"秒\",\"description\":\"ヒットストップ\"}}}";
+
+            var result = SpecWebParser.ParseTuningScalars(json);
+
+            Assert.AreEqual(1, result.Rows.Count);
+            var row = result.Rows[0];
+            Assert.AreEqual("Combat/HitStopSec", row.Key);
+            Assert.AreEqual("float", row.RawType);
+            Assert.AreEqual("0.05", row.RawValue);
+            Assert.AreEqual("0", row.RawMin);
+            Assert.AreEqual("0.3", row.RawMax);
+            Assert.AreEqual("秒", row.Unit);
+        }
+
+        [Test]
+        public void ParseTuningScalars_EnumEntry_ReturnsEnumOptions()
+        {
+            const string json = "{\"ok\":true,\"items\":{\"Difficulty/Level\":{" +
+                "\"kind\":\"scalar\",\"valueType\":\"enum\",\"value\":\"Normal\"," +
+                "\"enumOptions\":[\"Easy\",\"Normal\",\"Hard\"]}}}";
+
+            var result = SpecWebParser.ParseTuningScalars(json);
+
+            var row = result.Rows.Single();
+            Assert.AreEqual("enum", row.RawType);
+            Assert.AreEqual("Normal", row.RawValue);
+            CollectionAssert.AreEqual(new[] { "Easy", "Normal", "Hard" }, row.RawEnumOptions);
+        }
+
+        [Test]
+        public void ParseTuningScalars_TableKindEntry_IsSkipped()
+        {
+            const string json = "{\"ok\":true,\"items\":{\"Enemy/Params\":{\"kind\":\"table\",\"columns\":[],\"rows\":[]}}}";
+
+            var result = SpecWebParser.ParseTuningScalars(json);
+
+            Assert.AreEqual(0, result.Rows.Count);
+        }
+
+        [Test]
+        public void ParseTuningTables_ValidEntry_ReturnsRawJObject()
+        {
+            const string json = "{\"ok\":true,\"items\":{\"Enemy/Params\":{" +
+                "\"kind\":\"table\"," +
+                "\"columns\":[{\"key\":\"Hp\",\"valueType\":\"int\",\"min\":1,\"max\":9999,\"unit\":\"\",\"enumOptions\":[]}]," +
+                "\"rows\":[{\"rowId\":\"Slime\",\"cells\":{\"Hp\":10},\"comments\":[]}]," +
+                "\"locked\":false}}}";
+
+            var result = SpecWebParser.ParseTuningTables(json);
+
+            Assert.AreEqual(1, result.Rows.Count);
+            var row = result.Rows[0];
+            Assert.AreEqual("Enemy/Params", row.Key);
+            Assert.IsNotNull(row.Raw);
+            Assert.AreEqual("table", (string)row.Raw["kind"]);
+            Assert.AreEqual(1, ((Newtonsoft.Json.Linq.JArray)row.Raw["columns"]).Count);
+        }
+    }
+}
