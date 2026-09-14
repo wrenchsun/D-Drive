@@ -4,9 +4,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas } = require('./load-gas.js');
 
-// O-6（Web 側の受け皿のみ）AC: パラメータスキーマ + 現在値の保存・表示用 API。
-// docs/32_spec_web.md §10.2.4・§10.4.2。D-Drive からの実際の送信は別チケット
-// （書き込みトークンの許可表への追加も別チケット。ここでは Google ログイン相当で直接呼ぶ）。
+// O-6 AC: パラメータスキーマ + 現在値の保存・表示用 API。docs/32_spec_web.md §10.2.4・§10.4.2。
+// 受け皿（paramSchemas コレクション・assetParams API）は Web 側チケットで実装済み。
+// D-Drive からの実際の送信（SerializedObject+Tooltip 反射）と、書き込みトークンの許可表
+// （Code.js の DDRIVE_WRITE_TOKEN_ALLOWED_APIS）への 'assetParams' 追加は D-Drive 側チケットで
+// 2026-09-14 に対応した（Assets/DDrive/Editor/Spec/SpecWebSender.cs・SpecParamSchemaBuilder.cs）。
+// ここの多くのテストは Google ログイン相当（editor/viewer 権限）で直接 API を呼んで確認する。
 
 function editorAuth() {
   return { ok: true, principal: 'editor@example.com', email: 'editor@example.com', role: 'editor', displayName: '編集者' };
@@ -76,15 +79,19 @@ test('assetParams: viewer は 403 で拒否される', () => {
   });
 });
 
-test('assetParams: 書き込みトークンの許可表には含まれていない（別チケット O-6 が D-Drive 側実装時に追加する）', () => {
+// 2026-09-14 更新（O-6 D-Drive 側実装）: Code.js の DDRIVE_WRITE_TOKEN_ALLOWED_APIS に
+// 'assetParams' を追加したため、書き込みトークンで呼べるようになった。
+// 他の書き込み API が引き続き拒否されることは ddriveSync.test.js
+// （'書き込みトークンで assets.update を呼ぶと 403 で拒否される' 等）で確認している。
+test('assetParams: 書き込みトークンで呼べる（O-6 D-Drive 側で許可表に追加済み）', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('write');
   const output = ctx.doPost({
     parameter: { api: '1', name: 'assetParams', token: token, payload: JSON.stringify(schemaPayload()) }
   });
   const body = JSON.parse(output.getContent());
-  assert.equal(body.ok, false);
-  assert.equal(body.status, 403, 'Code.js の DDRIVE_WRITE_TOKEN_ALLOWED_APIS に未追加のため拒否される');
+  assert.equal(body.ok, true);
+  assert.deepEqual(Array.from(body.updatedSchemaTypes).sort(), ['ButtonSkinData', 'SeData', 'SliderSkinData']);
 });
 
 test('assets.create/update: params フィールドは書き込み系 API から設定できない（assetParams 専用）', () => {

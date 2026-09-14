@@ -103,6 +103,63 @@ namespace DDrive.Tests.Editor
             }
         }
 
+        // O-6([32] §10.4.2): assetParams payload の組み立て(schemas + items)。
+        // schemas は SpecParamSchemaBuilderTests でメモリ上のインスタンスのみを使って検証済みのため、
+        // ここでは items の絞り込み(isPlaceholder)と現在値の反映だけを、既存の
+        // BuildAssetStatePayload テストと同じ TestRoot パターンで確認する。
+
+        [Test]
+        public void BuildAssetParamsPayload_ContainsSchemasForKnownConcreteTypes()
+        {
+            var payload = SpecWebSender.BuildAssetParamsPayload();
+            var schemas = (Newtonsoft.Json.Linq.JArray)payload["schemas"];
+            var concreteTypes = schemas.Select(s => (string)s["concreteType"]).ToArray();
+
+            CollectionAssert.Contains(concreteTypes, "SeData");
+            CollectionAssert.Contains(concreteTypes, "ButtonSkinData");
+            CollectionAssert.Contains(concreteTypes, "SliderSkinData");
+        }
+
+        [Test]
+        public void BuildAssetParamsPayload_PlaceholderAsset_IsExcludedFromItems()
+        {
+            // Clips 未設定 -> SeDataValidator の Error -> isPlaceholder=true(§10.4.1 と同じ判定)。
+            AssetCreationService.Create(typeof(SeData), AssetType.Se, "テスト", "Player", TestIdentifier, gameDataRoot: TestRoot);
+
+            var payload = SpecWebSender.BuildAssetParamsPayload();
+            var items = (Newtonsoft.Json.Linq.JArray)payload["items"];
+
+            Assert.IsFalse(
+                items.Any(i => (string)i["id"] == "Se::" + TestIdentifier),
+                "Placeholder のアセットは現在値を送らない([32] §10.4.2)");
+        }
+
+        [Test]
+        public void BuildAssetParamsPayload_ImportedAsset_IncludedWithConcreteTypeAndCurrentValues()
+        {
+            var asset = (SeData)AssetCreationService.Create(typeof(SeData), AssetType.Se, "テスト", "Player", TestIdentifier, gameDataRoot: TestRoot);
+            var clip = AudioClip.Create("SpecWebSenderTestParamsClip", 100, 1, 44100, false);
+            asset.Clips = new[] { clip };
+            asset.Volume = 0.8f;
+
+            try
+            {
+                var payload = SpecWebSender.BuildAssetParamsPayload();
+                var items = (Newtonsoft.Json.Linq.JArray)payload["items"];
+                var item = items.Single(i => (string)i["id"] == "Se::" + TestIdentifier);
+
+                Assert.AreEqual("SeData", (string)item["concreteType"]);
+                var currentValues = (Newtonsoft.Json.Linq.JObject)item["currentValues"];
+                Assert.AreEqual(0.8f, (float)currentValues["Volume"], 0.0001f);
+                Assert.AreEqual("1 件", (string)currentValues["Clips"]);
+            }
+            finally
+            {
+                asset.Clips = null;
+                Object.DestroyImmediate(clip);
+            }
+        }
+
         [Test]
         public void BuildTuningUsagePayload_KeyNotReferencedInCode_IsUnused()
         {

@@ -1606,3 +1606,46 @@ O-1〜O-5・O-7〜O-10（GAS 側）と O-6 の Web 側の受け皿（D-Drive か
 4. API 名は既存の `choices`/`assetState`/`tuningUsage` と同じ「1 API 名 = 1 kind」の形に揃えて
    `assetParams` とした（§10.4.2 のドラフトにあった `{kind:"...", payload:[...]}` という汎用エンベロープ
    ではなく、実装済みの W-12 の形に合わせた。Web 側のハンドラは `src/AssetParams.js`）
+
+## 実装メモ（2026-09-14、O-6 の D-Drive 側実装）
+
+上記「D-Drive 側 O-6 への引き継ぎ事項」1〜4 をすべて実装した（別チケット・別 PR）。
+
+- **`Assets/DDrive/Editor/Spec/SpecParamSchemaBuilder.cs`（新規）**: `AssetType` → 具象 `Data` 型
+  （16 種類、`ControlSkin` だけ `ButtonSkinData`/`SliderSkinData` の 2 件、[27_spec_sheet.md] §7.2 の
+  対応表どおり）の `TypeMap` を持ち、各具象型を `ScriptableObject.CreateInstance` で一時生成して
+  `SerializedObject`/`SerializedProperty.NextVisible` で列挙する（トップレベル=depth 0 の可視プロパティ
+  のみ。`enterChildren=false` にすることで struct/配列の内部フィールドへは降りず、「ネストは表示名+型名
+  で1行に畏める」を自然に満たす）。`SerializedProperty.tooltip`（Unity が `[Tooltip]` を解決済みの文字列）
+  をそのまま使い、`FieldInfo` から `[Range]`/`[Min]` を読んで `min`/`max` を付ける。`m_Script` と、
+  `FieldInfo.DeclaringType == typeof(AssetDataBase)` のフィールド（Id/DisplayName/Category/Tags/Icon/
+  Assignee/SpecUrl 等、全種共通の管理項目で Web 側の発注が別欄として持っている）は除外する。
+  `ControlSkinData` のような中間基底クラス（`ButtonSkinData`/`SliderSkinData` の親）のフィールドは
+  種別固有パラメータとして含める。現在値（`BuildCurrentValues`）は同じ反射を使い、`ObjectReference` は
+  参照先の `name` のみ、配列は `"{件数} 件"` のみを返す（値の実体・要素は送らない、[32] §10.4.2）。
+  Vector/Color/AnimationCurve 等の複合型は現在値を送らない（スキーマ側の型名表示で足りる、過剰実装を避けた）。
+- **`Assets/DDrive/Editor/Spec/SpecWebSender.cs`**: `SendAssetParams`/`BuildAssetParamsPayload` を追加。
+  `payload = { schemas: SpecParamSchemaBuilder.BuildSchemas(), items: [...] }`。`items` は既存の
+  `assetState` と同じ Validation Error 判定（`FindAssetPathsWithValidationErrors`、CI.RunValidation の
+  再利用）で `isPlaceholder=false` のアセットだけを対象にする。
+- **`Assets/DDrive/Editor/Spec/SpecSyncWindow.cs`**: 既存の「Web に送信」ボタン（`OnSendToWebClicked`、
+  choices→assetState→tuningUsage の順にチェイン）の末尾に `SendAssetParams` を追加した（このプロジェクトには
+  「同期時に自動送信」の別経路は無く、既存 W-12 もこの手動ボタン 1 箇所だけだったため、そこに追加するのが
+  「既存 W-12 送信と同じ経路」にあたる）。
+- **`Tools/SpecWeb/src/Code.js`**: `DDRIVE_WRITE_TOKEN_ALLOWED_APIS` に `'assetParams'` を追加（1 行）。
+  エラーメッセージの許可リスト表記も合わせて更新した。
+- **テスト**:
+  - Node（`Tools/SpecWeb/test`）: `ddriveSync.test.js` に「書き込みトークンで `assetParams` は呼べる」を
+    追加。`assetParams.test.js` の「許可表に含まれていない」テストを「呼べる」に更新した（既存の
+    `tuningScalarUpdate`/`assets.update`/`tuningTableUpdateCell` が書き込みトークンで引き続き 403 に
+    なることを確認するテストは変更不要、既存のまま green）。**219 件 green**（既存 218 件 + 追加 1 件）。
+  - Unity EditMode（`Assets/DDrive/Tests/Editor`）: 新規 `SpecParamSchemaBuilderTests.cs`（スキーマの
+    フィールド一覧・Tooltip/Range・AssetDataBase 除外・現在値の ObjectReference/配列/enum 変換を、
+    すべて `ScriptableObject.CreateInstance` のメモリ上インスタンスだけで検証。アセットファイルを
+    作らない）+ 既存 `SpecWebSenderTests.cs` への追加（`BuildAssetParamsPayload` が既存の
+    `TestRoot`/`AssetCreationService.Create` パターンで isPlaceholder による絞り込みと現在値を検証）。
+    **Unity Editor 上での実行（コンパイル確認・EditMode/PlayMode テスト実行）はこのチケットの作業が
+    git worktree 内で行われたため未検証**。メインリポジトリでの取り込み後、親セッションが
+    `compile_status`/`run_tests`（EditMode）で確認する。
+- **未検証事項**: 上記の Unity 上の動作確認（コンパイル・EditMode テスト実行）。実際の Web アプリへの
+  デプロイでの `assetParams` 疎通確認（§9-4 と同様、実デプロイ URL が必要）も未実施。

@@ -16,10 +16,12 @@ using UnityEngine;
 
 namespace DDrive.Editor.Spec
 {
-    // [32_spec_web.md] §5.2/§7/§8 W-12 — D-Drive → Web(GAS) への送信(選択肢・アセット実状態・
-    // TUNING 定数のコード参照)。企画側が Web で入力した内容(本文・調整値の値・機能仕様ページ・
-    // コメント)には一切触れない(送信するのは §5.2 の 3 kind: choices/assetState/tuningUsage のみ)。
-    // 書き込みトークンで呼べる API をこの 3 kind に固定するサーバー側のゲートは
+    // [32_spec_web.md] §5.2/§7/§8 W-12・§10.4.2 O-6 — D-Drive → Web(GAS) への送信(選択肢・
+    // アセット実状態・TUNING 定数のコード参照・パラメータスキーマ/現在値)。企画側が Web で
+    // 入力した内容(本文・調整値の値・機能仕様ページ・コメント)には一切触れない(送信するのは
+    // choices/assetState/tuningUsage/assetParams の 4 kind のみ)。assetParams も一方向
+    // (D-Drive → Web)専用で、対応する書き込み API(Web 側が値を書き換える経路)は存在しない([32] §10.4.2)。
+    // 書き込みトークンで呼べる API をこの 4 kind に固定するサーバー側のゲートは
     // Tools/SpecWeb/src/Code.js(handleApiRequest_)と Tools/SpecWeb/src/DDriveSync.js を参照。
     public static class SpecWebSender
     {
@@ -157,6 +159,59 @@ namespace DDrive.Editor.Spec
             }
 
             return result;
+        }
+
+        // ── assetParams ──
+
+        // [32] §10.4.2(O-6) — パラメータのスキーマ(16種類分、ControlSkin は2件)+ インポート済
+        // アセットの現在値を1回で送る。書き込みトークンの許可表(Tools/SpecWeb/src/Code.js の
+        // DDRIVE_WRITE_TOKEN_ALLOWED_APIS)に 'assetParams' を追加したのも本チケット(O-6 D-Drive 側)。
+        public static void SendAssetParams(string webAppUrl, string writeToken, Action<SpecWebFetchResult> onComplete)
+        {
+            var payload = BuildAssetParamsPayload();
+            SpecWebFetcher.FetchPost(webAppUrl, "assetParams", writeToken, payload.ToString(Formatting.None), onComplete);
+        }
+
+        // { schemas: [...], items: [...] }([32] §10.4.2)。items は isPlaceholder=false
+        // (assetState と同じ Validation Error 判定、§10.4.1)のアセットだけを対象にする。
+        public static JObject BuildAssetParamsPayload()
+        {
+            var schemas = SpecParamSchemaBuilder.BuildSchemas();
+            var items = new JArray();
+            var assetsWithErrors = FindAssetPathsWithValidationErrors();
+
+            foreach (var kv in SpecDiffService.BuildExistingIndex())
+            {
+                var asset = kv.Value;
+                if (asset == null)
+                {
+                    continue;
+                }
+
+                var assetPath = AssetDatabase.GetAssetPath(asset);
+                var isPlaceholder = !string.IsNullOrEmpty(assetPath) && assetsWithErrors.Contains(assetPath);
+                if (isPlaceholder)
+                {
+                    continue; // [32] §10.4.2: インポート済(isPlaceholder=false)のみ現在値を送る
+                }
+
+                try
+                {
+                    items.Add(new JObject
+                    {
+                        ["id"] = kv.Key,
+                        ["concreteType"] = asset.GetType().Name,
+                        ["currentValues"] = SpecParamSchemaBuilder.BuildCurrentValues(asset),
+                    });
+                }
+                catch (Exception e)
+                {
+                    // CLAUDE.md §0-4: 1 件失敗しても送信全体は止めない。
+                    Debug.LogWarning($"[DDrive] '{kv.Key}' のパラメータ現在値の取得に失敗しました: {e.Message}");
+                }
+            }
+
+            return new JObject { ["schemas"] = schemas, ["items"] = items };
         }
 
         // ── tuningUsage ──
