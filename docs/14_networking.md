@@ -149,6 +149,95 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
 - **見送り(6-0 のスコープ外)**: カタログ ContentHash 照合(Phase 6-5)、Simulated Prefab のプール再利用時の再 Spawn、`NetworkPrefabsList` への D-Drive 側 Prefab の実登録(NetCheckScene では既存の空リストを割り当てただけ)、`-ddrive-autotest` の詳細な成否判定(現状はログ出力のみで pass/fail の自動判定はしない)。
 - **ローカル結合確認で見つかった実バグ 2 件(重要)**: (1) `NetworkManager.StartHost()`/`StartClient()` を `DDriveRuntimeBootstrap.Awake()`(`DefaultExecutionOrder(-1000)`)から直接呼ぶと、`NetworkManager` 自身の `Awake()`/`OnEnable()` が済む前に呼ばれてしまい `NullReferenceException` になる。→ `ResolveNetBridge()`(Awake 内)は役割決定・Transport 設定のみを行い、実際の `StartHost()`/`StartClient()` 呼び出しは `Start()`(全オブジェクトの Awake 完了が保証される)まで遅延させる(`StartNetworkingIfPending()`)。(2) `NetworkManager` と `NetworkObject` を同じ GameObject に置くと NGO が `[OnValidate] NetworkManager cannot be a NetworkObject` を警告し機能しない → `NgoNetBridge`(`NetworkObject` が必要)は別 GameObject(`NgoBridge`)に置く。いずれもユニットテスト(Fake/Delayed ブリッジ)では検出できず、実プレイヤー2プロセスでのローカル結合確認で初めて見つかった。詳細・ログ抜粋は [docs/29](29_network_device_test.md) §7。
 
+## 実装メモ（2026-09-14、6-0 実機確認で見つかった課題の修正）
+
+実機 2 台（PC-A Host + PC-B Client、[docs/29](29_network_device_test.md) §8）で見つかった課題 5 件を修正した。
+実装: `Runtime/Net/NgoNetBridge.cs`（アプリ層送受信キュー遅延・Ping/Pong による App RTT 計測・切断通知）、
+`Runtime/Net/NetPingMessages.cs`（新規、`NetPingMsg`/`NetPongMsg`）、`Runtime/Net/NgoTransportConfigurator.cs`
+（コメント更新のみ）、`Runtime/Net/NetDebugOverlay.cs`（App RTT 併記）、`Runtime/Loop/DDriveRuntimeBootstrap.cs`
+（`ConfigureAppLayerSimLatency` 配線 / `Presentation.SetRegistryReady`）、`Runtime/Presentation/PresentationManager.cs`
+（Registry ready キュー・`OnNetworkReceivedPlay` イベント・未知キー破棄ログ）、`Samples/NetCheckRunner.cs`
+（signal_fire/signal_recv・rtt_app_ms・connected/disconnected ログ、偽造 Cancel の狙い撃ち改善）。テストは
+`Tests/Runtime/PresentationNetDeviceFixTests.cs`（新規）。
+
+- **課題1(遅延シミュレーターが効かない)の原因**: `NgoTransportConfigurator` の呼び出し順序(`StartHost`/
+  `StartClient` より前)は正しかった。真因は導入済みバージョンの UnityTransport(`Library/PackageCache/
+  com.unity.netcode.gameobjects@.../Runtime/Transports/UTP/UnityTransport.cs`)側で
+  `SetDebugSimulatorParameters`/`DebugSimulator` が `[Obsolete("... is no longer supported and has no
+  effect. Use Network Simulator from the Multiplayer Tools package.")]` になっており、`DebugSimulator`
+  フィールドはドライバ生成(`WithNetworkSimulatorParameters()` を引数無しで呼ぶ実装)時に一切参照されない
+  ため、呼び出し自体が完全な no-op だったこと。**代替実装**: `NgoNetBridge` に送信キュー(`SendToAll`/
+  `SendTo<T>`)と受信キュー(`Dispatch`)それぞれに `UniTask.Delay(ms)` を挟むアプリ層の遅延機構
+  (`ConfigureAppLayerSimLatency(int)`)を追加した。`Debug.isDebugBuild`(Editor またはビルド設定で
+  Development Build を付けた場合のみ true)かつ `-ddrive-sim-latency` 指定時のみ有効(既定は無効で挙動
+  不変)。`DDriveRuntimeBootstrap.ResolveNetBridge()` が `NgoTransportConfigurator.TryConfigure` と並行して
+  `bridge.ConfigureAppLayerSimLatency(...)` を呼ぶ(UnityTransport 側の呼び出しは将来 API が復活する場合に
+  備えて残した。現状は無害な no-op)。**送信・受信の両方に遅延ロジックを持たせているが、実際に加算される
+  箇所は経路によって変わる**: Ping/Pong の実測(§7 のローカル結合確認)では、Client の Ping 送信(`Broadcast`)
+  は `RequestBroadcastRpc` を直接呼ぶだけで Client 側の送信キュー遅延を経由せず(`SendToAll`/`SendTo` は
+  Host 側専用のため)、Host も遅延未設定だったので Host→Client の Pong 送信も遅延なし。**Client の受信
+  (`Dispatch`)だけが 200ms 遅延した**ため、計測された `rtt_app_ms` は設定値とほぼ 1:1(実測 202〜211ms、
+  `-ddrive-sim-latency 200` に対して)になった。Host 側にも `-ddrive-sim-latency` を指定した場合や、Client が
+  Cosmetic を中継依頼する経路(`RequestBroadcastRpc` → Host の `SendToAll`)を使う場合は、送信・受信それぞれの
+  遅延が積み重なるため設定値の倍数になり得る。「設定した ms 分だけ確実に増える方向に効く」ことの確認が目的
+  であり、正確に 1:1 になることを保証する仕組みではない。
+- **App RTT の計測**: `NgoNetBridge` が(Host ではない)Client のときだけ 1 秒おきに `NetPingMsg{
+  SentAtNetworkTime }` を Broadcast し、Host が受信したら `SendTo` で `NetPongMsg{
+  OriginalSentAtNetworkTime }` を送り返す。Client が Pong を受け取った時点で
+  `(NetworkTime - OriginalSentAtNetworkTime) * 1000` を `AppRoundTripMs`(`double?`)として保持する。
+  Ping/Pong 自体は既存の `Subscribe`/`Broadcast`/`SendTo` 経路(型登録・中継・レート制限)に相乗りするだけの
+  最小実装で、専用の RPC は増やしていない。`NetDebugOverlay` は `Bridge is NgoNetBridge` パターン
+  (`ReceivedMessageCount` と同じ既存の書き方)で `AppRoundTripMs` を読み、「RTT: … / App RTT: …」と並記する。
+  `NetCheckRunner` の heartbeat にも `rtt_app_ms` を追加した。
+- **課題2(Client 側で Signal 中継を観測できない)の対応**: `PresentationManager` に開発/確認ツール専用の
+  `event Action<Handle<PresentationMarker>, uint> OnNetworkReceivedPlay`(ネット受信で新規生成された
+  Instance の通知。既存の「確定エコー」分岐(二重生成防止)では発火しない)を追加した。`NetCheckRunner` は
+  Host 自身の予測 Instance(`PlayAndSignal` 直後)とこのイベントの両方から `PresentationManager.OnTrackFired
+  (handle)`(既存の R3 Observable)を購読し、実際に `TrackTrigger.OnSignal` が発火した瞬間に
+  `signal_recv=hit key=<HandleNetKey> networkTime=...` を出す。Host が `handle.Signal("hit")` を呼んだ
+  意図表明の瞬間は `signal_fire`(旧 `signal`)に改名し、`key`/`networkTime` を追加した。`HandleNetKey` は
+  新設の `PresentationManager.DebugHandleNetKeyOf(handle)`(テスト/デバッグ専用、`DebugActiveHandles` と同じ
+  位置付け)で取得する。
+- **課題3(Late Join 直後の Placeholder)の原因**: 推測どおり、接続直後に届く Late-Join スナップショット
+  (`PresentationPlayMsg`)が、Client 自身のカタログ登録(`DDriveRuntimeBootstrap.RegisterCatalogsAsync()`、
+  `Start()` 内で `await` される非同期処理)完了より先に処理される順序の問題だった。**対応**:
+  `PresentationManager.SetRegistryReady(bool)` を追加し、受信した `PresentationPlayMsg`/
+  `PresentationSignalMsg`/`PresentationCancelMsg` は `_registryReady==false` の間、到着順序を保つ
+  `Queue<PendingNetMessage>`(構造体、判別用の `Kind` + 3 種のメッセージを直接持つ。クロージャ/boxing を
+  避けるため`Action` のキューにはしていない)へ保留し、`SetRegistryReady(true)` が呼ばれた時点でまとめて
+  受信順に処理する。`DDriveRuntimeBootstrap.Build()` が `PresentationManager` 構築直後に `SetRegistryReady
+  (false)` を呼び、`RegisterCatalogsAsync()` が `IsReady=true` にした直後に `SetRegistryReady(true)` を呼ぶ。
+  ローカルの `Play()`/`PlayData()` API(ゲームコードが直接呼ぶ経路)はこのフラグの影響を受けない(ネット
+  受信の 3 ハンドラだけがゲートされる)。既定値は `true`(Bootstrap を経由しない既存の全テスト/シングル
+  プレイは今までどおり即時処理される)。回帰テストは
+  `PresentationNetDeviceFixTests.OnReceivePlayMsg_BeforeRegistryReady_IsQueued_AndFlushedWithoutPlaceholder_AfterReady`。
+  **要判断**: 接続直後の `activeCount` 5→0 がこの修正で直るかどうかは、ローカル(ループバック)結合確認では
+  再現条件が異なる(カタログ登録がほぼ即時に終わるため実機ほどの遅延窓が無い)ため未確認。PC-B での再確認
+  待ち。
+- **課題4(未知キー Cancel の破棄ログ欠落)の対応**: `OnReceiveSignalMsg`/`OnReceiveCancelMsg` が発行者検証
+  を通過した後、`_networkedHandles` に見つからない(未知のキー、または対象の演出が既に完了して
+  `Cleanup()` で台帳から外れた)場合に、開発ビルドでは(`#if DEVELOPMENT_BUILD || UNITY_EDITOR`)
+  `_unknownKeyDiscardWarned`(`HashSet<uint>`)でキーごとに 1 回だけ「未知のキー、または対象の演出が既に
+  完了しているため破棄しました」と警告する。`NetCheckRunner.SendForgedCancel` は、Host が今アクティブな
+  Presentation(`DebugActiveHandles()`)を持っていれば、その `HandleNetKey`(自分が発行していないキー)を
+  最初に狙い、無ければ従来どおり完全ランダムな(未知の)キーにフォールバックする(発行者不一致・未知キーの
+  両方の破棄経路を安定して踏ませる狙い)。
+- **課題5(オーケストレーター追加指示。Host 停止時に Client が切断を検知しない)の対応**: `NgoNetBridge` が
+  `NetworkManager.OnClientDisconnectCallback`/`OnTransportFailure` を購読し、`[Net/Host] Client <id> が
+  切断しました(reason=...)`/`[Net/Client] Host から切断されました(reason=...)`(`NetworkManager.
+  DisconnectReason` を含む)をログに出す。新設の `event Action<ulong, string> ClientDisconnected` を
+  `NetCheckRunner` が購読し、heartbeat に `connected=0|1`(Client が Host との接続を保っているか。Host は
+  常に 1)を追加、切断時に一度だけ `disconnected=1 role=... reason=...` を出す。自動再接続は MS2026 の
+  規約に存在しないため実装しない(要判断: 将来必要になれば別チケットで追加)。切断後の Presentation 側台帳
+  (`_networkedHandles`/`_activeNetworked`)は、進行中の Cosmetic 演出が通常の Elapsed/Duration 経由で
+  Complete/Cancel されるのに任せる設計のままにした(相手の接続状態に関わらず一定時間で自然に台帳から
+  外れるため、切断によって新たに残留エントリが生じるわけではないと判断した。専用のクリーンアップは
+  追加していない)。
+- **見送り**: `-ddrive-sim-loss`(パケットロス)の代替実装は今回のスコープ外(課題として報告されていない
+  ため。UnityTransport の `SetDebugSimulatorParameters` が no-op である以上、同じ問題を抱えているはずだが、
+  実機確認で明示的に指摘されなかったため見送った。要判断: 必要になれば `NgoNetBridge` の送信キューで
+  `UnityEngine.Random` によるドロップ判定を追加する形で同じ枠組みに乗せられる)。
+
 ## 6. 時刻・乱数・決定性
 
 - 演出のスケジュール（AtTime トラック、Frame イベント）は `NetworkTime` 基準に統一。`Time.time` を Foundation で直接使わない（`ITimeSource` 注入。ローカル時は Time.time 実装）

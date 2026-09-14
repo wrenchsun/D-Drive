@@ -1,9 +1,11 @@
 using Cysharp.Threading.Tasks;
+using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Net;
 using DDrive.Runtime.Loop;
 using DDrive.Runtime.Net;
 using DDrive.Runtime.Presentation;
+using R3;
 using UnityEngine;
 
 namespace DDrive.Samples
@@ -39,7 +41,10 @@ namespace DDrive.Samples
         private float _heartbeatTimer;
         private int _playCount;
         private int _lastActiveCount = -1;
+        private bool _connected = true;
+        private bool _disconnectLogged;
         private PresentationHandle _handle;
+        private NgoNetBridge _ngoBridge;
 
         private async void Start()
         {
@@ -51,6 +56,19 @@ namespace DDrive.Samples
             var bootstrap = DDriveRuntimeBootstrap.Instance;
             if (bootstrap != null)
             {
+                // [11_tasks.md] 6-0 修正2/修正5 — WhenReady を待つ前に配線する(Late Join のスナップショットは
+                // 起動直後に届く可能性があるため。Presentation/NetBridge 自体は Awake 時点で既に存在する)。
+                if (bootstrap.Presentation != null)
+                {
+                    bootstrap.Presentation.OnNetworkReceivedPlay += OnNetworkReceivedPlay;
+                }
+
+                if (bootstrap.NetBridge is NgoNetBridge ngo)
+                {
+                    _ngoBridge = ngo;
+                    _ngoBridge.ClientDisconnected += OnBridgeDisconnected;
+                }
+
                 await bootstrap.WhenReady;
             }
 
@@ -60,6 +78,20 @@ namespace DDrive.Samples
             if (!string.IsNullOrEmpty(autoTestName))
             {
                 RunAutoTestAndQuit(autoTestName).Forget();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            var bootstrap = DDriveRuntimeBootstrap.Instance;
+            if (bootstrap != null && bootstrap.Presentation != null)
+            {
+                bootstrap.Presentation.OnNetworkReceivedPlay -= OnNetworkReceivedPlay;
+            }
+
+            if (_ngoBridge != null)
+            {
+                _ngoBridge.ClientDisconnected -= OnBridgeDisconnected;
             }
         }
 
@@ -95,6 +127,8 @@ namespace DDrive.Samples
 
         // [14_networking.md] §5 — 両端末とも「今アクティブな Presentation の数」「NetworkTime」を定期的に
         // ログへ出す。Late Join の確認は「新規クライアントの activeCount が 0→1 に変わる行」を見ればよい。
+        // [11_tasks.md] 6-0 修正1/修正5 — rtt_app_ms(アプリ層の Ping/Pong 往復)と connected(Client が
+        // Host との接続を保っているか)も併記する。
         private void Heartbeat(DDriveRuntimeBootstrap bootstrap)
         {
             _heartbeatTimer += Time.deltaTime;
@@ -108,12 +142,16 @@ namespace DDrive.Samples
             _heartbeatTimer = 0f;
             _lastActiveCount = activeCount;
 
+            var rttAppMs = _ngoBridge != null && _ngoBridge.AppRoundTripMs.HasValue ? _ngoBridge.AppRoundTripMs.Value.ToString("F0") : "n/a";
+
             LogCheck(
                 "heartbeat", "1",
                 "role", RoleOf(bootstrap),
                 "clientId", bootstrap.NetBridge.LocalClientId.ToString(),
                 "networkTime", bootstrap.NetBridge.NetworkTime.ToString("F2"),
-                "activeCount", activeCount.ToString());
+                "activeCount", activeCount.ToString(),
+                "connected", _connected ? "1" : "0",
+                "rtt_app_ms", rttAppMs);
         }
 
         private void PlayAndSignal(DDriveRuntimeBootstrap bootstrap)
@@ -122,24 +160,122 @@ namespace DDrive.Samples
             var startTime = bootstrap.NetBridge.NetworkTime;
             _handle = Presentation.Play(SkillSlashId, new PlayContext { Self = actor, Position = actor.position });
             LogCheck("play", _playCount.ToString(), "startNetTime", startTime.ToString("F2"));
-            SignalAfterDelay(_handle).Forget();
+
+            // [11_tasks.md] 6-0 修正2 — Host(行為者)自身の OnSignal トラック発火も、Client と全く同じ
+            // OnTrackFired 経路(自分の Broadcast が ClientsAndHost 経由で戻ってきて初めて発火する)で
+            // 観測できる。signal_fire(意図表明)と signal_recv(実際の発火)を両方ログに出すことで、
+            // Host 自身の位相差(≒ループバック分のごく小さな遅延)も確認できるようにする。
+            var handleNetKey = bootstrap.Presentation != null ? bootstrap.Presentation.DebugHandleNetKeyOf(_handle.Raw) : 0u;
+            SubscribeSignalRecvLogging(bootstrap, _handle.Raw, handleNetKey);
+
+            SignalAfterDelay(bootstrap, _handle, handleNetKey).Forget();
         }
 
-        private async UniTaskVoid SignalAfterDelay(PresentationHandle handle)
+        private async UniTaskVoid SignalAfterDelay(DDriveRuntimeBootstrap bootstrap, PresentationHandle handle, uint handleNetKey)
         {
             await UniTask.Delay(System.TimeSpan.FromSeconds(signalDelaySeconds));
             handle.Signal("hit");
-            LogCheck("signal", "hit");
+            LogCheck("signal_fire", "hit", "key", KeyText(handleNetKey), "networkTime", bootstrap.NetBridge.NetworkTime.ToString("F2"));
         }
 
-        // [11_tasks.md] 6-0(D/F) — 偽造メッセージが破棄されることをログで確認するための故意の攻撃。
-        // 実在しない(または他人の)HandleNetKey を騙って Cancel を送る。IsAuthorizedSender の検証により
-        // 全ピアで無視され、[Net/Host] または [Net/Client] の警告ログが 1 行出るはずである。
+        // [11_tasks.md] 6-0 修正2(実機確認で発見した課題2) — 「Client 側で Signal 中継を観測できない」対応。
+        // PresentationManager.OnNetworkReceivedPlay(ネット受信で新規生成された Instance の通知)経由で
+        // 各ピアが自分の見ている Instance の OnTrackFired を購読し、実際に OnSignal トラックが発火した
+        // タイミングで signal_recv をログに出す(Host 自身の予測 Instance にも同じ仕組みを使う。上の
+        // PlayAndSignal 参照)。
+        private void OnNetworkReceivedPlay(Handle<PresentationMarker> handle, uint handleNetKey)
+        {
+            var bootstrap = DDriveRuntimeBootstrap.Instance;
+            if (bootstrap == null)
+            {
+                return;
+            }
+
+            SubscribeSignalRecvLogging(bootstrap, handle, handleNetKey);
+        }
+
+        private void SubscribeSignalRecvLogging(DDriveRuntimeBootstrap bootstrap, Handle<PresentationMarker> handle, uint handleNetKey)
+        {
+            if (bootstrap.Presentation == null)
+            {
+                return;
+            }
+
+            // TrackFiredSubject は Instance の Cleanup 時に Dispose されるため、購読はワンショットの
+            // ローカル関数でよい(明示的な IDisposable の保持・破棄は行わない。確認用サンプル専用)。
+            void OnFired(PresentationTrack track)
+            {
+                if (track.Trigger != TrackTrigger.OnSignal)
+                {
+                    return;
+                }
+
+                var bs = DDriveRuntimeBootstrap.Instance;
+                var networkTime = bs != null && bs.NetBridge != null ? bs.NetBridge.NetworkTime.ToString("F2") : "n/a";
+                LogCheck("signal_recv", track.SignalKey, "key", KeyText(handleNetKey), "networkTime", networkTime);
+            }
+
+            // Subscribe(Action<T>) は拡張メソッド(R3.ObservableExtensions)なので `using R3;` が無いと
+            // 見えず、Observable<T> 本体の Subscribe(Observer<T>) だけが候補になって型エラーになる
+            // (実際に試して確認した。DDrive.Runtime.Presentation の他ファイルはこの using を持つ)。
+            bootstrap.Presentation.OnTrackFired(handle).Subscribe(OnFired);
+        }
+
+        // [11_tasks.md] 6-0 修正4 — 偽造 Cancel は毎回まったくのランダムな(存在しない)キーではなく、
+        // 半分程度は「実在するが自分が発行していない」キーを狙う(IsAuthorizedSender の発行者不一致の
+        // 経路を安定して踏ませる)。相手が居ない/対象が見当たらない場合は従来どおり完全ランダムにフォール
+        // バックする(その場合は未知キー破棄の経路を踏む)。
         private void SendForgedCancel(DDriveRuntimeBootstrap bootstrap)
         {
-            var forgedKey = (uint)UnityEngine.Random.Range(1, int.MaxValue);
+            uint forgedKey = 0;
+            if (bootstrap.Presentation != null)
+            {
+                var active = bootstrap.Presentation.DebugActiveHandles();
+                for (var i = 0; i < active.Count; i++)
+                {
+                    var key = bootstrap.Presentation.DebugHandleNetKeyOf(active[i]);
+                    if (key != 0)
+                    {
+                        forgedKey = key;
+                        break;
+                    }
+                }
+            }
+
+            if (forgedKey == 0)
+            {
+                forgedKey = (uint)UnityEngine.Random.Range(1, int.MaxValue);
+            }
+
             bootstrap.NetBridge.Broadcast(new PresentationCancelMsg { HandleNetKey = forgedKey }, NetChannel.ReliableOrdered);
             LogCheck("forged_cancel_sent", forgedKey.ToString());
+        }
+
+        // [11_tasks.md] 6-0 修正5(オーケストレーター追加指示、実機確認で発見した課題5) — Host を止めても
+        // Client が切断を一切ログに出さなかった。NgoNetBridge.ClientDisconnected(NetworkManager の
+        // OnClientDisconnectCallback を中継)を購読し、自分(Client)が Host との接続を失ったときだけ
+        // heartbeat の connected を 0 にし、disconnected 行を 1 回だけ出す。個々の Client の切断を Host が
+        // 観測したケースは、Host 自身は動作を継続するため connected には影響させない。
+        private void OnBridgeDisconnected(ulong clientId, string reason)
+        {
+            var bootstrap = DDriveRuntimeBootstrap.Instance;
+            if (bootstrap == null || bootstrap.NetBridge == null)
+            {
+                return;
+            }
+
+            if (!bootstrap.NetBridge.IsServer)
+            {
+                _connected = false;
+            }
+
+            if (_disconnectLogged)
+            {
+                return;
+            }
+
+            _disconnectLogged = true;
+            LogCheck("disconnected", "1", "role", RoleOf(bootstrap), "reason", string.IsNullOrEmpty(reason) ? "unknown" : reason);
         }
 
         // -ddrive-autotest <name> 用。ヘッドレスで一定時間チェックを走らせてからアプリを終了する
@@ -171,6 +307,8 @@ namespace DDrive.Samples
 
             return bootstrap.NetBridge.IsClient ? "client" : "off";
         }
+
+        private static string KeyText(uint handleNetKey) => $"0x{handleNetKey:X8}";
 
         // [DDriveNetCheck] key=value ... 形式(機械的に読める行。docs/29 参照)。
         private static void LogCheck(params string[] keyValues)

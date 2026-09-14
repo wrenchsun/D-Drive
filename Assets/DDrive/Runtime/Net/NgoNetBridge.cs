@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Net;
 using Unity.Netcode;
 using UnityEngine;
@@ -60,6 +62,24 @@ namespace DDrive.Runtime.Net
         // [11_tasks.md] 6-0(B) — NetDebugOverlay 用の受信メッセージ数。
         public int ReceivedMessageCount { get; private set; }
 
+        // [11_tasks.md] 6-0 修正5(オーケストレーター追加指示、実機確認で発見) — 切断通知。
+        // (clientId, reason)。Host 視点は「どの Client が切断したか」、Client 視点は「自分(=Host との接続)が
+        // 切れた」ことを表す(切断時の clientId は NGO の実装上 Client 自身の LocalClientId になる)。
+        public event Action<ulong, string> ClientDisconnected;
+
+        // [11_tasks.md] 6-0 修正1 — UnityTransport.SetDebugSimulatorParameters は Obsolete化されており
+        // 実際には何の効果も持たない(NetgoTransportConfigurator.cs 冒頭コメント参照)。D-Drive 側の
+        // アプリ層で送信/受信キューに遅延を入れて代替する。0 = 無効(既定。既存挙動を変えない)。
+        // 開発ビルドのみ有効(ConfigureAppLayerSimLatency 側で強制する)。
+        private int _appLayerSimLatencyMs;
+
+        // [11_tasks.md] 6-0 修正1 — トランスポートの RTT(NetworkTransport.GetCurrentRtt)はシミュレーター
+        // 遅延を反映しないため、Client→Host→Client の Ping/Pong 往復で計測した「アプリ層の RTT」を別途持つ
+        // (null = まだ計測できていない。Host 自身は計測しない=常に null)。
+        public double? AppRoundTripMs { get; private set; }
+
+        private CancellationTokenSource _pingLoopCts;
+
         private string LogTag => IsServer ? "[Net/Host]" : "[Net/Client]";
 
         public override void OnNetworkSpawn()
@@ -67,6 +87,20 @@ namespace DDrive.Runtime.Net
             if (NetworkManager != null)
             {
                 NetworkManager.OnClientConnectedCallback += HandleClientConnected;
+                NetworkManager.OnClientDisconnectCallback += HandleClientDisconnected;
+                NetworkManager.OnTransportFailure += HandleTransportFailure;
+            }
+
+            // Ping/Pong は通常の Subscribe 経路(Dispatch)に相乗りする(NgoNetBridge 自身が
+            // 自分の Broadcast/SendTo を購読する。Client→Host は既存の中継経路を、Host→Client は
+            // SendTo をそのまま使う。既存の型登録([_keyToType])に乗るため特別扱いは不要)。
+            Subscribe<NetPingMsg>(OnPingMsgReceived);
+            Subscribe<NetPongMsg>(OnPongMsgReceived);
+
+            if (IsClient && !IsServer)
+            {
+                _pingLoopCts = new CancellationTokenSource();
+                PingLoopAsync(_pingLoopCts.Token).Forget();
             }
         }
 
@@ -75,10 +109,84 @@ namespace DDrive.Runtime.Net
             if (NetworkManager != null)
             {
                 NetworkManager.OnClientConnectedCallback -= HandleClientConnected;
+                NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+                NetworkManager.OnTransportFailure -= HandleTransportFailure;
             }
+
+            _pingLoopCts?.Cancel();
+            _pingLoopCts?.Dispose();
+            _pingLoopCts = null;
         }
 
         private void HandleClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
+
+        // [11_tasks.md] 6-0 修正5 — 実機確認(PC-B)で「Host を止めても Client が切断を一切ログに出さない」
+        // ことが発見された。NetworkManager.OnClientDisconnectCallback/OnTransportFailure を購読して
+        // ログに残す(自動再接続は MS2026 の規約に無いため実装しない。要判断: 将来必要になったら追加)。
+        private void HandleClientDisconnected(ulong clientId)
+        {
+            var reason = NetworkManager != null ? NetworkManager.DisconnectReason : null;
+            var reasonText = string.IsNullOrEmpty(reason) ? "unknown" : reason;
+
+            if (IsServer)
+            {
+                Debug.Log($"[Net/Host] NgoNetBridge: Client {clientId} が切断しました(reason={reasonText})。");
+            }
+            else
+            {
+                Debug.Log($"[Net/Client] NgoNetBridge: Host から切断されました(reason={reasonText})。");
+            }
+
+            ClientDisconnected?.Invoke(clientId, reasonText);
+        }
+
+        private void HandleTransportFailure()
+        {
+            Debug.LogWarning($"{LogTag} NgoNetBridge: トランスポート層で失敗が発生しました(NetworkManager.OnTransportFailure)。");
+        }
+
+        // [11_tasks.md] 6-0 修正1(B) — 開発ビルド + 明示指定時だけ有効にする。Debug.isDebugBuild は
+        // Editor 実行時、または「Development Build」を付けたプレイヤーで true になる([CLAUDE.md] 例外で
+        // 止めない: 未指定(0 以下)なら常に無効で既存挙動を変えない)。
+        public void ConfigureAppLayerSimLatency(int simLatencyMs)
+        {
+            _appLayerSimLatencyMs = Debug.isDebugBuild && simLatencyMs > 0 ? simLatencyMs : 0;
+            if (_appLayerSimLatencyMs > 0)
+            {
+                Debug.Log($"{LogTag} NgoNetBridge: UnityTransport のシミュレーターは無効化されている(SetDebugSimulatorParameters が Obsolete/no-op)ため、アプリ層の送受信キューで遅延({_appLayerSimLatencyMs}ms)を代替します。");
+            }
+        }
+
+        // [11_tasks.md] 6-0 修正1 — Client のみ、1 秒おきに Host へ Ping を送り Pong の往復時間を測る。
+        private async UniTaskVoid PingLoopAsync(CancellationToken ct)
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await UniTask.Delay(TimeSpan.FromSeconds(1d), cancellationToken: ct).SuppressCancellationThrow();
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                Broadcast(new NetPingMsg { SentAtNetworkTime = NetworkTime }, NetChannel.Unreliable);
+            }
+        }
+
+        private void OnPingMsgReceived(ulong senderId, NetPingMsg msg)
+        {
+            // Host だけが Pong を返す(Client 同士は直接通信できないため。[14_networking.md] §2)。
+            if (!IsServer)
+            {
+                return;
+            }
+
+            SendTo(senderId, new NetPongMsg { OriginalSentAtNetworkTime = msg.SentAtNetworkTime }, NetChannel.Unreliable);
+        }
+
+        private void OnPongMsgReceived(ulong senderId, NetPongMsg msg)
+        {
+            AppRoundTripMs = Math.Max(0d, (NetworkTime - msg.OriginalSentAtNetworkTime) * 1000d);
+        }
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage
         {
@@ -112,16 +220,36 @@ namespace DDrive.Runtime.Net
             }
 
             var json = JsonUtility.ToJson(msg);
-            var target = RpcTarget.Single(clientId, RpcTargetUse.Temp);
+            var key = KeyOf<T>();
             var originClientId = LocalClientId; // 直接送信は常に Host が発行者
 
+            if (_appLayerSimLatencyMs > 0)
+            {
+                DelayedSendTo(key, json, clientId, channel, originClientId).Forget();
+                return;
+            }
+
+            SendToImmediate(key, json, clientId, channel, originClientId);
+        }
+
+        // [11_tasks.md] 6-0 修正1 — 送信キュー側の遅延。RpcTarget(RpcTargetUse.Temp)は遅延後に作り直す
+        // (遅延前に作って保持すると Temp な内部リソースが先に解放される可能性があるため)。
+        private async UniTaskVoid DelayedSendTo(string key, string json, ulong clientId, NetChannel channel, ulong originClientId)
+        {
+            await UniTask.Delay(_appLayerSimLatencyMs);
+            SendToImmediate(key, json, clientId, channel, originClientId);
+        }
+
+        private void SendToImmediate(string key, string json, ulong clientId, NetChannel channel, ulong originClientId)
+        {
+            var target = RpcTarget.Single(clientId, RpcTargetUse.Temp);
             if (channel == NetChannel.Unreliable && FitsUnreliable(json))
             {
-                ReceiveUnreliableToRpc(KeyOf<T>(), json, originClientId, target);
+                ReceiveUnreliableToRpc(key, json, originClientId, target);
             }
             else
             {
-                ReceiveToRpc(KeyOf<T>(), json, originClientId, target);
+                ReceiveToRpc(key, json, originClientId, target);
             }
         }
 
@@ -222,6 +350,24 @@ namespace DDrive.Runtime.Net
 
         private void SendToAll(string key, string json, NetChannel channel, ulong originClientId)
         {
+            if (_appLayerSimLatencyMs > 0)
+            {
+                DelayedSendToAll(key, json, channel, originClientId).Forget();
+                return;
+            }
+
+            SendToAllImmediate(key, json, channel, originClientId);
+        }
+
+        // [11_tasks.md] 6-0 修正1 — 送信キュー側の遅延(ConfigureAppLayerSimLatency 参照)。
+        private async UniTaskVoid DelayedSendToAll(string key, string json, NetChannel channel, ulong originClientId)
+        {
+            await UniTask.Delay(_appLayerSimLatencyMs);
+            SendToAllImmediate(key, json, channel, originClientId);
+        }
+
+        private void SendToAllImmediate(string key, string json, NetChannel channel, ulong originClientId)
+        {
             if (channel == NetChannel.Unreliable && FitsUnreliable(json))
             {
                 ReceiveUnreliableRpc(key, json, originClientId);
@@ -309,6 +455,25 @@ namespace DDrive.Runtime.Net
         // ── 受信 ──
 
         private void Dispatch(string key, string json, ulong senderId)
+        {
+            if (_appLayerSimLatencyMs > 0)
+            {
+                DelayedDispatch(key, json, senderId).Forget();
+                return;
+            }
+
+            DispatchImmediate(key, json, senderId);
+        }
+
+        // [11_tasks.md] 6-0 修正1 — 受信キュー側の遅延。ReceivedMessageCount は「実際に処理した時点」で
+        // 増やす(NetDebugOverlay の受信レート表示が遅延込みの実感と一致するようにする)。
+        private async UniTaskVoid DelayedDispatch(string key, string json, ulong senderId)
+        {
+            await UniTask.Delay(_appLayerSimLatencyMs);
+            DispatchImmediate(key, json, senderId);
+        }
+
+        private void DispatchImmediate(string key, string json, ulong senderId)
         {
             ReceivedMessageCount++;
             if (!_keyToType.TryGetValue(key, out var type) || !_handlers.TryGetValue(key, out var list))
