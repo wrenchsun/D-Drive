@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
@@ -111,6 +112,43 @@ namespace DDrive.Runtime.Presentation
         private readonly Dictionary<uint, ActiveNetworkedEntry> _activeNetworked = new();
         private readonly uint _instanceSalt;
         private uint _nextLocalSeq;
+
+        // [14_networking.md] §5(6-0 修正3、実機確認で発見した課題3) — 接続直後のスナップショット受信が
+        // Registry のカタログ登録完了より先に処理されると、まだ登録されていない PresId が Placeholder に
+        // 解決されてしまう。既定は true(既存の全テスト/シングルプレイは Bootstrap を経由しないため常に
+        // ready のまま今までどおり即時処理される)。DDriveRuntimeBootstrap だけが構築直後に false → カタログ
+        // 登録完了後に true を明示的に呼ぶ。false の間は受信した Play/Signal/Cancel を到着順にキューへ保留する。
+        private bool _registryReady = true;
+
+        private enum PendingNetMessageKind
+        {
+            Play,
+            Signal,
+            Cancel,
+        }
+
+        private struct PendingNetMessage
+        {
+            public PendingNetMessageKind Kind;
+            public ulong SenderId;
+            public PresentationPlayMsg Play;
+            public PresentationSignalMsg Signal;
+            public PresentationCancelMsg Cancel;
+        }
+
+        private readonly Queue<PendingNetMessage> _pendingNetMessages = new();
+
+        // [11_tasks.md] 6-0 修正2(実機確認で発見した課題2) — NetCheck 等の確認ツールが「ネットワーク受信で
+        // 新規生成された Instance」の OnTrackFired を購読できるようにする最小限のフック。ゲームコードは
+        // 通常 Play() の戻り値の Handle を使うため、このイベントは開発/確認ツール専用(定常経路のゲーム
+        // ロジックからは購読しない想定。誰も購読していなければ delegate 呼び出し自体が発生しないため
+        // 0 alloc を保つ)。
+        public event Action<Handle<PresentationMarker>, uint> OnNetworkReceivedPlay;
+
+        // [11_tasks.md] 6-0 修正4(実機確認で発見した課題4) — 未知の HandleNetKey(対象の演出が既に完了して
+        // 台帳から外れた場合を含む)で Signal/Cancel を受信して破棄したことを、開発ビルドでは 1 キーにつき
+        // 1 回だけログに出す(NetCheck の判定で「送信数 == 破棄数」を数えられるようにするため)。
+        private readonly HashSet<uint> _unknownKeyDiscardWarned = new();
 
         // [14_networking.md] §9(6-0, P1-1/P1-2 レビュー対応) — HandleNetKey の上位 8bit に発行者(LocalClientId
         // の下位 8bit)を埋め込む。MS2026/NGO の LAN 1v1 前提(実クライアント数は極少数)では 8bit(256 通り)で
@@ -317,7 +355,65 @@ namespace DDrive.Runtime.Presentation
             return (senderId & HandleNetKeyIssuerMask) == IssuerOf(handleNetKey);
         }
 
+        // 6-0 修正4 — 開発ビルドのみ。同じ HandleNetKey での重複ログを避けるため 1 回だけ出す
+        // (NetCheckRunner が forged_cancel_sent と同じ回数だけこれを数えられるようにする狙い)。
+        private void WarnUnknownKeyDiscardedOnce(uint handleNetKey, string messageTypeName)
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (!_unknownKeyDiscardWarned.Add(handleNetKey))
+            {
+                return;
+            }
+
+            var prefix = _netBridge != null && _netBridge.IsServer ? "[Net/Host]" : "[Net/Client]";
+            Debug.LogWarning($"{prefix} Presentation: {messageTypeName}(HandleNetKey=0x{handleNetKey:X8}) は未知のキー、または対象の演出が既に完了しているため破棄しました。");
+#endif
+        }
+
+        // [11_tasks.md] 6-0 修正3 — Registry が ready になるまで受信順にキューへ保留する。
+        public void SetRegistryReady(bool ready)
+        {
+            _registryReady = ready;
+            if (!ready)
+            {
+                return;
+            }
+
+            while (_pendingNetMessages.Count > 0)
+            {
+                var pending = _pendingNetMessages.Dequeue();
+                switch (pending.Kind)
+                {
+                    case PendingNetMessageKind.Play:
+                        OnReceivePlayMsgInternal(pending.SenderId, pending.Play);
+                        break;
+                    case PendingNetMessageKind.Signal:
+                        OnReceiveSignalMsgInternal(pending.SenderId, pending.Signal);
+                        break;
+                    case PendingNetMessageKind.Cancel:
+                        OnReceiveCancelMsgInternal(pending.SenderId, pending.Cancel);
+                        break;
+                }
+            }
+        }
+
+        // テスト/デバッグ専用: 指定 Handle の HandleNetKey を返す(0 = ネット非経由、または無効な Handle)。
+        // NetCheckRunner が signal_fire/signal_recv ログの識別子として使う(6-0 修正2)。
+        public uint DebugHandleNetKeyOf(Handle<PresentationMarker> handle)
+            => TryGetInstanceSilent(handle, out var instance) ? instance.HandleNetKey : 0u;
+
         private void OnReceivePlayMsg(ulong senderId, PresentationPlayMsg msg)
+        {
+            if (!_registryReady)
+            {
+                _pendingNetMessages.Enqueue(new PendingNetMessage { Kind = PendingNetMessageKind.Play, SenderId = senderId, Play = msg });
+                return;
+            }
+
+            OnReceivePlayMsgInternal(senderId, msg);
+        }
+
+        private void OnReceivePlayMsgInternal(ulong senderId, PresentationPlayMsg msg)
         {
             // P1-1/P1-2(6-0 レビュー対応) — 発行者検証。不一致・(0 の HandleNetKey は元々発生しないが)未知の
             // 発行者は破棄する。これにより改造 Client が他人の HandleNetKey を騙って PresId/StartNetTime/Seed を
@@ -376,6 +472,9 @@ namespace DDrive.Runtime.Presentation
             if (_instances.TryGet(handle, out var instance))
             {
                 RegisterActiveIfServer(msg.HandleNetKey, instance.Data, instance.Ctx, msg.StartNetTime, msg.Seed);
+                // 6-0 修正2 — このブランチは「ネット受信で新規に生成された Instance」の場合だけ通る
+                // (既に予測再生/受信済みだった場合は上の existingHandle 分岐で早期 return している)。
+                OnNetworkReceivedPlay?.Invoke(handle, msg.HandleNetKey);
             }
         }
 
@@ -534,6 +633,17 @@ namespace DDrive.Runtime.Presentation
 
         private void OnReceiveSignalMsg(ulong senderId, PresentationSignalMsg msg)
         {
+            if (!_registryReady)
+            {
+                _pendingNetMessages.Enqueue(new PendingNetMessage { Kind = PendingNetMessageKind.Signal, SenderId = senderId, Signal = msg });
+                return;
+            }
+
+            OnReceiveSignalMsgInternal(senderId, msg);
+        }
+
+        private void OnReceiveSignalMsgInternal(ulong senderId, PresentationSignalMsg msg)
+        {
             // P1-1(6-0 レビュー対応) — 発行者(または Host)以外からの Signal は破棄する
             // (改造 Client が他人の演出の HandleNetKey を騙って Signal できないようにする)。
             if (!IsAuthorizedSender(senderId, msg.HandleNetKey))
@@ -544,6 +654,7 @@ namespace DDrive.Runtime.Presentation
 
             if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance))
             {
+                WarnUnknownKeyDiscardedOnce(msg.HandleNetKey, "PresentationSignalMsg");
                 return;
             }
 
@@ -566,6 +677,17 @@ namespace DDrive.Runtime.Presentation
 
         private void OnReceiveCancelMsg(ulong senderId, PresentationCancelMsg msg)
         {
+            if (!_registryReady)
+            {
+                _pendingNetMessages.Enqueue(new PendingNetMessage { Kind = PendingNetMessageKind.Cancel, SenderId = senderId, Cancel = msg });
+                return;
+            }
+
+            OnReceiveCancelMsgInternal(senderId, msg);
+        }
+
+        private void OnReceiveCancelMsgInternal(ulong senderId, PresentationCancelMsg msg)
+        {
             // P1-1(6-0 レビュー対応) — 発行者(または Host)以外からの Cancel は破棄する。
             if (!IsAuthorizedSender(senderId, msg.HandleNetKey))
             {
@@ -573,8 +695,12 @@ namespace DDrive.Runtime.Presentation
                 return;
             }
 
+            // 6-0 修正4(実機確認で発見した課題4) — 対象が見つからない(未知のキー、または対象の演出が
+            // 既に完了して台帳から外れた)場合も、発行者不一致と同様に「破棄した」ことをログへ残す
+            // (開発ビルドのみ、キーごとに1回)。NetCheck の判定で「送信数 == 破棄数」を数えられるようにする。
             if (!_networkedHandles.TryGetValue(msg.HandleNetKey, out var handle) || !_instances.TryGet(handle, out var instance) || instance.Done)
             {
+                WarnUnknownKeyDiscardedOnce(msg.HandleNetKey, "PresentationCancelMsg");
                 return;
             }
 

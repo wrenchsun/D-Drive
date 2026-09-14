@@ -35,14 +35,21 @@ namespace DDrive.Runtime.Net
             var rtt = NetworkManagerRef != null ? NgoTransportConfigurator.TryGetRoundTripTimeMs(NetworkManagerRef, NetworkManager.ServerClientId) : null;
             var rttText = rtt.HasValue ? $"{rtt.Value:F0} ms" : "n/a";
 
+            // [11_tasks.md] 6-0 修正1 — トランスポートの RTT はシミュレーター遅延(-ddrive-sim-latency)を
+            // 反映しない(NgoTransportConfigurator.cs 参照。UnityTransport.SetDebugSimulatorParameters が
+            // Obsolete/no-op のため)。アプリ層で計測した往復時間(NgoNetBridge.AppRoundTripMs、Ping/Pong)を
+            // 併記し、シミュレーター遅延が実際に効いているかをこちらで判定できるようにする。
+            var appRtt = Bridge is NgoNetBridge ngoForRtt ? ngoForRtt.AppRoundTripMs : null;
+            var appRttText = appRtt.HasValue ? $"{appRtt.Value:F0} ms" : "n/a";
+
             var text =
                 $"[DDrive Net]\n" +
                 $"Role: {role} (ClientId={Bridge.LocalClientId})\n" +
                 $"NetworkTime: {Bridge.NetworkTime:F2}\n" +
-                $"RTT: {rttText}\n" +
+                $"RTT: {rttText} / App RTT: {appRttText}\n" +
                 $"Received: {ReceivedCount()} ({_lastRatePerSecond:F1}/s)";
 
-            GUI.Box(new Rect(8, 8, 260, 100), text, _style);
+            GUI.Box(new Rect(8, 8, 260, 110), text, _style);
         }
 
         private int ReceivedCount()

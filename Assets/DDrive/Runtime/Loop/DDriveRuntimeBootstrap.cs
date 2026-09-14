@@ -276,6 +276,13 @@ namespace DDrive.Runtime.Loop
             // [14_networking.md] §5(5-8/5-9) — Audio/Vfx/Prefabs と同じく NetBridge を渡す(現状は
             // LocalLoopbackBridge のため常に完全ローカル。NGO 統合は Phase 6 でここを差し替える)。
             Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics, NetBridge);
+            // [11_tasks.md] 6-0 修正3(実機確認で発見した課題3) — カタログ登録(RegisterCatalogsAsync、Start())が
+            // 完了する前に接続直後のスナップショット(PresentationPlayMsg)を受信すると、Registry にまだ
+            // 存在しない PresId が Unregistered として Placeholder に解決されてしまう(Late Join 直後の実機確認で
+            // 発見)。RegisterCatalogsAsync 完了までネット受信の Play/Signal/Cancel を PresentationManager 内部で
+            // キューに保留し(SetRegistryReady(false))、完了後に登録順で処理する(SetRegistryReady(true) が
+            // まとめて flush する)。ローカル(手で Play() を呼ぶ)経路は影響を受けない([14_networking.md] §5)。
+            Presentation.SetRegistryReady(false);
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
             UiDispatcher = new AssetEventDispatcher(Ui.Events, Registry, Audio, Vfx, Ui.GetContextTransform, Groups);
@@ -359,6 +366,11 @@ namespace DDrive.Runtime.Loop
             var host = LaunchOptions.Host ?? DefaultHostAddress;
             var port = (ushort)(LaunchOptions.Port ?? DefaultPort);
             NgoTransportConfigurator.TryConfigure(nm, host, port, LaunchOptions.SimLatencyMs, LaunchOptions.SimLossPercent);
+
+            // [11_tasks.md] 6-0 修正1 — UnityTransport.SetDebugSimulatorParameters は Obsolete/no-op
+            // (NgoTransportConfigurator.cs 参照)なので、アプリ層の送受信キュー遅延で代替する
+            // (開発ビルド + 明示指定時のみ。NgoNetBridge.ConfigureAppLayerSimLatency 側で強制する)。
+            bridge.ConfigureAppLayerSimLatency(LaunchOptions.SimLatencyMs ?? 0);
 
             // StartHost/StartClient は Start() まで遅延する(上記 StartNetworkingIfPending 参照)。
             _pendingNetRole = role;
@@ -472,6 +484,9 @@ namespace DDrive.Runtime.Loop
 
             RegisteredCatalogCount = count;
             IsReady = true;
+            // [11_tasks.md] 6-0 修正3 — カタログ登録完了後にネット受信の保留分(Play/Signal/Cancel)を
+            // 受信順に処理する。Presentation は Build() で常に生成されるため null チェックは不要。
+            Presentation.SetRegistryReady(true);
             _ready.TrySetResult();
             OnReady?.Invoke();
             if (count == 0)

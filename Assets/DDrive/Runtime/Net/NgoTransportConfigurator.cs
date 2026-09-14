@@ -76,10 +76,24 @@ namespace DDrive.Runtime.Net
             return true;
         }
 
+        // [11_tasks.md] 6-0 修正1(実機確認で発見した課題 1) — 2026-09-14 の実機確認で
+        // -ddrive-sim-latency 200 を指定しても RTT 表示が変化しない不具合が見つかった。原因を特定した:
+        // Library/PackageCache/com.unity.netcode.gameobjects@.../Runtime/Transports/UTP/UnityTransport.cs の
+        // SetDebugSimulatorParameters は [Obsolete("... is no longer supported and has no effect. Use
+        // Network Simulator from the Multiplayer Tools package.")] であり、実装は DebugSimulator フィールドに
+        // 値を保存するだけで、そのフィールドはドライバ生成時(InitDriver 相当。settings.WithNetworkSimulatorParameters()
+        // が引数無しで呼ばれている)に一切参照されない。つまりここでリフレクション経由で呼んでいた呼び出しは
+        // 「呼び出し前後で例外は出ないが実際には何も起きない」完全な no-op だった(呼ぶ場所の前後関係=
+        // StartHost/StartClient より前かどうかは無関係)。
+        // → 代替として NgoNetBridge にアプリ層の送受信キュー遅延(ConfigureAppLayerSimLatency、開発ビルド +
+        // 本引数指定時のみ)を実装した。DDriveRuntimeBootstrap.ResolveNetBridge がこの TryConfigure と並行して
+        // bridge.ConfigureAppLayerSimLatency(...) を呼ぶ。以下のリフレクション呼び出し自体は将来 UTP が
+        // 別 API を復活させた場合に備えて残す(現状は何もしないため無害)。
         private static void ApplySimulatorParams(object transport, Type type, int simLatencyMs, float simLossPercent)
         {
             // UnityTransport.SetDebugSimulatorParameters(int packetDelay, int packetJitter, int dropRate)。
             // dropRate は 0-100 のドロップ率(%)そのもの(実行時にリフレクションで確認済み)。
+            // 2026-09-14 時点でこの API 自体が Obsolete/no-op であることを確認済み(上のコメント参照)。
             var method = type.GetMethod("SetDebugSimulatorParameters", BindingFlags.Public | BindingFlags.Instance);
             if (method == null)
             {
