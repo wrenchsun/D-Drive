@@ -195,7 +195,7 @@ graph TB
 | `referenceImages` | array\<driveFileId\> | 参考画像（Drive 上のファイル ID） |
 | `relatedFeaturePages` | array\<featurePageId\> | 関連する機能ページへの参照 |
 | `comments` | array\<Comment\> | §3.5 |
-| **`ddriveState`**（D-Drive → Web、§5.2） | object | `{ created: bool, isPlaceholder: bool, iconAssetId: driveFileId, usageCount: int, lastSyncedAt: string }` |
+| **`ddriveState`**（D-Drive → Web、§5.2） | object | `{ created: bool, isPlaceholder: bool, iconAssetId: driveFileId, hasIcon: bool, usageCount: int, lastSyncedAt: string }`(`hasIcon` は 2026-09-14 追補。`iconAssetId` は Drive アップロード未実装のため常に `null`、下記§9参照) |
 
 ### 3.2 調整値（大幅に強化、MVP 範囲は §8 参照）
 
@@ -501,6 +501,40 @@ public sealed class TuningTable : ScriptableObject
 - **Drive の共有設定**: 画像フォルダ・JSON ファイルは「特定のユーザー（チームメンバーの Google アカウント）」に共有する。デプロイ①（実行者=アクセスした人）で Drive へアクセスするため、**各メンバー個人にも Drive 上のファイルへの編集権限が必要**（実行者がアクセスした人自身になるため、スクリプト所有者の権限を代理できない。§9-10）
 - **個人情報を置かない**: `users.json` にはメールアドレスと表示名のみを持ち、それ以外の個人情報（電話番号・所属等）は置かない
 
+### 追補（2026-09-14）: token を POST 本文へ統一（URL に出さない）
+
+W-9〜W-12 実装時点では、D-Drive → Web の**取得系**（`SpecWebFetcher.FetchGet`、`assets.list`・
+`tuningScalarList`・`tuningTableList` 等）だけが `?api=1&name=<api>&token=<token>` の **GET クエリ**で
+token を送っていた（送信系 `FetchPost` は元から POST 本文）。GET のクエリ文字列は GAS の実行ログ・
+中継プロキシ・Unity 側の例外メッセージ・ブラウザ履歴に残る経路があるため、デプロイ前の必須対応として
+次のように変更した:
+
+- **D-Drive 側**（`Assets/DDrive/Editor/Spec/SpecWebFetcher.cs`）: `FetchGet` も `FetchPost` と同じ
+  `WWWForm`(POST 本文)で `api`/`name`/`token`/追加フィールドを送るよう統一した。token が URL 文字列に
+  一切現れないため、`request.error` 等をログに出しても token が漏れることはない
+  （実際にログへ出している箇所も無いことを確認済み）
+- **GAS 側**（`Tools/SpecWeb/src/Code.js`）: `handleApiRequest_` に **`token` は GET(`doGet`)のクエリ
+  パラメータでは受け付けない**ゲートを追加した(有効な token であっても 400 相当で拒否。有効性の検証
+  より前に拒否するため、無効な token を試したログを積む必要も無い)。人向け SPA(①)は token を使わない
+  (セッション認証のみ)ため、SPA 自身の `?api=1` の GET 呼び出し(`html/App.html` の
+  `SpecWebClient.callApi`)は影響を受けない
+- **`doPost` も 302 を経由する経路の確認**: GAS の Content Service は、①元の URL への POST で
+  `doPost` を実行し `e.parameter`/`e.postData` から token を含む全パラメータを読んで結果を確定させ、
+  ②確定済みの結果を `script.googleusercontent.com` の一意な URL から取得する、という 2 段構成になっている
+  （出典: [Content Service](https://developers.google.com/apps-script/guides/content)、
+  [Understanding Flow of Request to Web Apps Created by Google Apps Script](https://medium.com/google-cloud/understanding-flow-of-request-to-web-apps-created-by-google-apps-script-ac49e80f7c6b)）。
+  一方 `UnityWebRequest`(および大半の HTTP クライアント)は、POST への 302 リダイレクトへ追従する際に
+  **メソッドを GET へ切り替え、本文を引き継がない**という標準的な挙動を持つ
+  （[MDN: 302 Found](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/302)）。この 2 つを
+  組み合わせると、① の段階で token を使い切っているため ② で本文が失われても問題ない、という結論になる。
+  `SpecWebFetcherTests`(`FetchPost_FollowsRedirect_EvenThoughMethodBecomesGet_AndReturnsFinalBody` 等)が
+  ローカルの `HttpListener` で「POST → 302 → GET → 本文」を再現して確認した。**ただし実際の GAS
+  デプロイでの確認はまだ行っていない**(§9-4 と同様、ユーザーがデプロイ URL を用意してから確認する)
+- **ログへの token 出力**: D-Drive 側のコード内を確認した限り、URL・token を `Debug.Log`/例外メッセージへ
+  出している箇所は無かった(トークン入力欄も `SpecSyncWindow` で `isPasswordField = true`、保存先も
+  `.asset` ではなく `EditorPrefs`)。`SpecWebFetcherTests` に「token が `Debug.Log` に出ない」ことを
+  確認するテストを追加した
+
 ---
 
 ## 8. チケット分割
@@ -592,11 +626,18 @@ public sealed class TuningTable : ScriptableObject
     存在しない、またはユーザーが削除を許可した場合は次のチケットで削除してよい
 13. **`choices` の `tags`**: D-Drive 側にタグの統制語彙（TagCatalog 相当）が実装されていないため
     常に空配列を送っている。TagCatalog 実装後に候補を収集して送るよう拡張する
-14. **`assetState` の `isPlaceholder`/`iconAssetId`**: 前者は D-Drive 側に「Placeholder かどうか」
-    を表す専用フラグが無いため常に `false`、後者は Web(Drive)側へアイコンをアップロードする実装が
-    本チケットの範囲外（Drive API への書き込みが必要）のため常に `null` を送っている。より正確な
-    値が必要になった場合、`isPlaceholder` の判定方法（例: 種別ごとの「未設定判定」を追加する）と
-    アイコンの Drive アップロード経路を別チケットで検討する
+14. **`assetState` の `isPlaceholder`/`iconAssetId`**（**2026-09-14 追補で isPlaceholder は解決、
+    iconAssetId は方針を確定**）: `isPlaceholder` は「その Data の必須参照が未設定」を表す専用フラグは
+    無いが、既存の各 `IValidator`(種別ごとに実装済み。例: `SeDataValidator` の「Clip が未設定
+    (または Missing)です」)がまさに同じ判定を Error として持っていたため、これを再利用した
+    (`SpecWebSender.FindAssetPathsWithValidationErrors()` が `CI.RunValidation()`(`Validation > Run All`
+    と同じ全 Validator 実行)を呼び、対象アセットに Error が 1 件以上あれば `isPlaceholder = true`。
+    Warning は許容)。`iconAssetId`(Drive へのアップロード)は Drive API への書き込みが必要で
+    本チケットの範囲外のため、引き続き常に `null` のまま送る方針に決定した。代わりに、
+    アップロードなしで得られる情報として `hasIcon: bool`(`AssetDataBase.Icon != null`)を新設した
+    (GAS の ContentService/doPost の応答で base64 画像を都度送るのは応答サイズ・実行時間の余裕を
+    消費するため避けた。§7 追補にも記載)。将来 Drive アップロードを実装する場合は `iconAssetId`
+    をそのアップロード結果の `driveFileId` に置き換える
 
 ---
 
@@ -984,7 +1025,7 @@ Web の生応答（`items` 配列 or マップ）を取り、
 | kind | 内容 | 備考 |
 |---|---|---|
 | `choices` | `{ assetTypes: string[], categories: string[], tags: string[] }` | `assetTypes` は `AssetType` enum、`categories` は既存アセットから収集。`tags` は D-Drive 側に統制語彙（TagCatalog 相当）が無いため常に空配列（下記§9に要判断として追記） |
-| `assetState` | `{ items: [{ id, created, isPlaceholder, iconAssetId, usageCount, lastSyncedAt }] }` | `usageCount` は既存 `DependencyGraphService.FindUsages` を再利用。`isPlaceholder` は常に `false`、`iconAssetId` は常に `null`（下記§9に要判断として追記） |
+| `assetState` | `{ items: [{ id, created, isPlaceholder, iconAssetId, hasIcon, usageCount, lastSyncedAt }] }` | `usageCount` は既存 `DependencyGraphService.FindUsages` を再利用。**2026-09-14 追補**: `isPlaceholder` は既存の各 `IValidator`（`CI.RunValidation()`）の Error 有無を再利用した実値、`hasIcon` は `AssetDataBase.Icon != null` の実値。`iconAssetId` は Drive アップロード未実装のため常に `null`（下記§9に記載） |
 | `tuningUsage` | `{ unusedKeys: string[] }` | `TUNING.<定数名>` という文字列パターンを `Assets/DDrive`・`Assets/Generated`（`Tuning.g.cs` 自身は除外）の `.cs` から grep して判定 |
 
 書き込みトークンで呼べる API の許可表（`Tools/SpecWeb/src/Code.js` の
