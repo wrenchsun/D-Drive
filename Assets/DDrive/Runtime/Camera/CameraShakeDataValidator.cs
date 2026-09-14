@@ -4,7 +4,7 @@ using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
 using UnityEngine;
 
-namespace DDrive.Runtime.Camera
+namespace DDrive.Runtime.CameraShake
 {
     // [16_camera_haptics.md] Part A / C-4。ValueDef 共通検査(Curve未設定・Duration<=0 等)は
     // ValueDefValidator([17] §6)に委譲済みのため、ここでは Shake 固有の検査のみ行う。

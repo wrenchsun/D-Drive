@@ -4,7 +4,7 @@ using DDrive.Foundation.Identity;
 using DDrive.Foundation.Values;
 using UnityEngine;
 
-namespace DDrive.Runtime.Camera
+namespace DDrive.Runtime.CameraShake
 {
     public readonly struct ShakeMarker
     {

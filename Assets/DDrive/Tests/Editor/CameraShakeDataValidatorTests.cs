@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Validation;
-using DDrive.Runtime.Camera;
+using DDrive.Runtime.CameraShake;
 using NUnit.Framework;
 using UnityEngine;
 

@@ -5,10 +5,10 @@ using DDrive.Foundation.Manager;
 using DDrive.Foundation.Pause;
 using DDrive.Foundation.Registry;
 using DDrive.Foundation.Values;
-using DDrive.Runtime.Camera;
+using DDrive.Runtime.CameraShake;
 using NUnit.Framework;
 using UnityEngine;
-using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Camera.ShakeMarker>;
+using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker>;
 
 namespace DDrive.Tests.Runtime
 {

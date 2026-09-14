@@ -1,5 +1,5 @@
 using System;
-using DDrive.Runtime.Camera;
+using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Haptics;
 using UnityEngine;
 
