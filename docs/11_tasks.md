@@ -260,7 +260,7 @@ W-1〜W-12（実装済み）を拡張元として「アセット仕様」を「�
 | 6-6 | 受信検証・レート制限 + ネット Validator（NetMode 整合 / NetworkObject 欠落） | 基盤 | 2 | 2-8, 0-11 | 不正 ID 送信が破棄・ログ。14§10 の全検査 |
 | 6-7 | 2 クライアント自動テスト（Loopback ⇔ NGO 両ブリッジで PlayMode CI） | 基盤 | 2 | 6-1, 5-8 | CI で同期再生テスト green |
 | 6-8 | 受け入れデモ（要件 §7 成功基準の 5 項目） | 全員 | 2 | 全 | リード承認 |
-| 6-9 | 仕様書差分の Validation / CI 組込み（2026-09-13 追加）: 未作成・本番なのに Placeholder・調整値の範囲外を検出（[27] §6） | 基盤 | 1 | 5-13, 6-1 | CI で仕様書との食い違いが Warning/Error として出る |
+| 6-9 | 仕様書差分の Validation / CI 組込み（2026-09-13 追加）: 未作成・本番なのに Placeholder・調整値の範囲外を検出（[27] §6） | 基盤 | 1 | 5-13, 6-1 | CI で仕様書との食い違いが Warning/Error として出る → ✅ 実装（2026-09-15）: 旧シート方式ではなく Web 発注ツール前提の読み替え表（[32] §「実装メモ(2026-09-15、6-9)」）で `SpecDiffValidator`(`Assets/DDrive/Editor/Validation/SpecDiffValidator.cs`) を実装。`Run All`/`CI.ValidateAll` に自動組込み(既存の Validator 自動発見のため CI.cs は無変更)。EditMode テスト 17 件追加。Unity 未検証(ワークツリー実装のため) |
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|

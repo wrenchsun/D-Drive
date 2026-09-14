@@ -2585,3 +2585,67 @@ docs/28 の O-15 節の手順（前回追補と同じ「一覧が表示される
 ガードが実際に発火したことが分かる（出なくても詳細が開けば問題無い。前回想定していた
 `google.script.history` の「こだま」自体が発生しない環境では、このログは出ないまま
 正常に開く）。
+
+## 実装メモ（2026-09-15、6-9: D-Drive 側 Validation / CI 組込み）
+
+[11_tasks.md](11_tasks.md) 6-9（[27_spec_sheet.md](27_spec_sheet.md) §6 の検査を CI に組み込む）を実装した。
+6-9 の元の設計は旧スプレッドシート方式（[27] §6）を前提にしていたが、実装時点では本書 §10 の
+アセット発注ツールへ再定義済みのため、次の読み替え表で進めた（推奨案として採用）。
+
+| 旧検査（[27] §6） | 新（Web 発注ツール前提、6-9 実装） | 重度 |
+|---|---|---|
+| シートにあって Data が無い | 発注はあるが D-Drive に Data が無い（「未作成」） | Info |
+| Data が「本番」なのに Placeholder | 発注の `status` が「インポート済」なのに Data が Placeholder | Warning |
+| シートから消えたが Data 残存 | スナップショットに無い（削除・アーカイブ・リネーム済み）発注由来の Data が残っている | Info |
+| 調整値が範囲外 | `TuningTable` の値が Web 側定義（`Specs/tuning.json` の `min`/`max`）の範囲外 | Error |
+| 必須列空 / 識別子書式違反（Web 側で検証済みのため対象外） | `Specs/*.json` スナップショットの形式が壊れている（読めない・必須キー欠落） | Warning |
+
+### 実装
+
+- **`Assets/DDrive/Editor/Validation/SpecDiffValidator.cs`（新規）**: `IUniversalValidator`
+  として実装（[02_core_framework.md](02_core_framework.md) の `ValidatorRegistry` 登録制に
+  ちょうど乗る。`CI.DiscoverValidators` が `public` 引数無しコンストラクタを持つ `IValidator`
+  実装を自動発見するため、`CI.cs` 自体は 1 行も変更していない）。これにより
+  `Tools > D-Drive > Validation > Run All` と `CI.ValidateAll`（batchmode・JUnit）の両方に
+  自動的に組み込まれる（既存の仕組みどおり、Error は CI を fail させる）
+- リポジトリ直下の `Specs/assets.json`・`Specs/tuning.json`（[W-11](#5-d-drive-との連携) の
+  `SpecSnapshotWriter` が書き出すスナップショット。`SpecSnapshotWriter.DefaultRepoRoot`/
+  `DefaultRelativeAssetsPath`/`DefaultRelativeTuningPath` をそのまま再利用）を読むだけで、
+  ネットワークには一切出ない。CI（ネットワーク接続の無いセルフホストランナー）でも動く
+- **スナップショットが無いプロジェクト**（仕様書同期を使っていない）では Info 1 件
+  「仕様書のスナップショットが見つかりません」だけを出し、他の検査はしない。ファイルが
+  壊れている（JSON を解釈できない・`items`/`scalars`/`tables` が無い・個々の要素に
+  `id`/`assetType`/`identifier` が無い）場合も例外を投げず Warning に変換して継続する
+  （CLAUDE.md §0-4）
+- **「本番なのに Placeholder」の判定**は本書 §10.4.1 の決定（既存 `IValidator` 実行結果の
+  再利用）をそのまま踏襲した。ただし `SpecWebSender.FindAssetPathsWithValidationErrors` や
+  `CI.RunValidation()` を直接呼ぶと、`SpecDiffValidator` 自身が `CI.DiscoverValidators` に
+  再発見されて無限再帰するため、`SpecDiffValidator` 内に自分自身を除外した簡易版の
+  Validator 発見処理（`DiscoverValidatorsExceptSelf`）を持ち、対象アセット 1 件だけに対して
+  実行して Error の有無を見る（発見結果はプロセス内でキャッシュし、「インポート済」の
+  発注ごとにリフレクション走査し直さない）
+- **調整値の範囲外エラー**は `TuningTable.Entries`/`Tables`（実データ側の現在値）と
+  `Specs/tuning.json` の `min`/`max`（Web 側の定義。実データ側の `TuningEntry.Min`/`Max` では
+  なく、常にスナップショット側を正とする）を比較する。既存の約束（`Min==Max` は範囲チェック
+  無効、[27] §3.2）を継承した
+- `AssetDatabase.FindAssets` を直接呼ばず `AssetSearch.FindAssets` 経由にした（[12_review.md]
+  §3 の既存ルール）。既存アセットとの紐付けは `SpecDiffService.BuildExistingIndex()`
+  （「種別+識別子」索引、[27] §4.3・§8.3 の仕組みをそのまま再利用）を使う
+- テスト用に `RepoRootOverride`（`Specs/*.json` の探索元を差し替える）・
+  `TuningTableOverride`（対象 `TuningTable` を差し替える）を公開している。既定（`null`）では
+  本番と同じ経路（`SpecSnapshotWriter.DefaultRepoRoot`・`DDriveSpecSettings.TuningTable`・
+  プロジェクト内の `TuningTable` 検索）を使う
+
+### テスト（EditMode、`Assets/DDrive/Tests/Editor/SpecDiffValidatorTests.cs`、新規 17 件）
+
+読み替え表の各ケース（未作成・インポート済+Placeholder・インポート済+実データあり・
+スナップショットに無い残存(SpecUrl 有無で分岐)・調整値範囲外(スカラー/テーブル、Min==Max で
+無効化される)）、スナップショット無し、スナップショット破損（JSON 自体が壊れている・
+必須キーが無い・要素が不正）を確認した。**実 `Specs/`・実 `Assets/GameData/`・実
+Addressables には一切書き込まない**（`RepoRootOverride` で OS の一時フォルダへスナップショットを
+書き出し、`TuningTableOverride` でメモリ上の `TuningTable`（`ScriptableObject.CreateInstance`）を
+差し替え、Data アセットが必要なテストだけ既存の `SpecDiffServiceTests` と同じ手法で
+`Assets/DDrive/Tests/Editor/TempSpecDiffValidator/` に作成し `TearDown` で削除する）。
+
+**Unity 未検証**（ワークツリーでの実装のため。マージ後に親セッションが isuzu-unity 経由で
+EditMode/PlayMode の両方のテスト実行とコンパイル確認を行う想定）。
