@@ -34,7 +34,7 @@
 ### 全 PR 共通
 - [ ] 禁止 API 不使用（`Instantiate`/`Resources.Load`/`AudioSource.Play` の直接呼び出し — Roslyn Analyzer でも機械検出）
 - [ ] ランタイムコードに `UnityEditor` 参照なし
-- [ ] 定常経路（Tick/Play/Spawn）に GC alloc なし（LINQ / クロージャ / boxing 禁止）
+- [ ] 定常経路（Tick/Play/Spawn）に GC alloc なし（LINQ / クロージャ / boxing 禁止）。**2026-09-15(6-2)から自動検証あり**: `Assets/DDrive/Tests/Performance/`(asmdef `DDrive.Tests.Performance`、`com.unity.test-framework.performance` 使用)が Tick 系の定常経路(Pool の Rent/Return・Vfx/Se/CameraFx/Haptics の Tick・Presentation の Tick+Signal・GameLoopDriver の 1 フレーム)を `GC.GetAllocatedBytesForCurrentThread()` の差分で hard assert する(`-testCategory Performance` で実行、Unity Test Runner または `Tools/CI/run-ci.cmd`。GitHub Actions での自動実行は P7 末の CI 導入まで保留、[33] §8 参照)。**既知の未解決 alloc(このチェックでは検出されるが対象外)**: Spawn/Play 系(`VfxManager.SpawnDataLocal`・`AudioManager.PlaySeData`・`PresentationManager.PlayLocalInternal`)は呼び出しごとに Instance(class)を 1 個 new する既存設計(`PresentationInstance` は List×7 + R3 Subject×4 も new する)。Instance プーリングという大きな設計変更が必要なため、対応するテスト(`*_RecordsAllocForKnownIssue`)は Performance レポートに記録するだけで assert しない。新しい Tick/Spawn/Play コードを書くときは、この既知課題を新たな LINQ/クロージャ追加の免罪符にしないこと(既存の allocation を増やさない・可能なら減らす)
 - [ ] 例外でなく警告 + no-op / Placeholder で継続する（デザイナーの作業を止めない）
 - [ ] public API に XML doc コメント
 

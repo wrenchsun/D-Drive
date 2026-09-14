@@ -126,6 +126,12 @@ CI ワークフローと同じ 4 ステップ（Validation → ID 再生成+diff
 
 ---
 
-## 8. 6-2（性能テスト）を後から追加する人向け
+## 8. 6-2（性能テスト）の現状（2026-09-15 実装 / 方針変更）
 
-`.github/workflows/ci.yml` の `Performance tests (6-2, placeholder)` ステップがそのための差し込み場所。2026-09-15 のユーザー決定で「PR ごとに実行」なので、別ジョブに分けず、この同じ job 内（Unity が既に起動・`Library/` がロードされた状態を使い回せる）にステップを追加/置換する想定。失敗時は非ゼロ終了で他のステップと同じ扱いにし、結果は `Summarize results` ステップと同じパターンで `$env:GITHUB_STEP_SUMMARY` に出すと PR から見やすい。
+**2026-09-15 に方針変更**: GitHub Actions のセルフホストランナー導入（本書 §1〜§2）は**P7 の最後に回す**ことになった（MS2026 側に既に CI があるため、D-Drive 側でランナーを別途用意しない）。そのため `.github/workflows/ci.yml` の `Performance tests (6-2, placeholder)` ステップは**このチケットでは実処理化していない**（placeholder のまま）。6-1/6-7 を含め、GitHub Actions での自動実行は P7 末の CI 導入まで保留（トリガーを `workflow_dispatch`（手動実行）のみに変更するのは親セッションの作業）。「PR ごとに実行」というユーザー決定自体は変わっていないが、**発効するのは CI 導入時**になる。
+
+**この間の実行経路**: 6-2 で追加した性能テスト（新規 asmdef `DDrive.Tests.Performance`、`Assets/DDrive/Tests/Performance/`、カテゴリ `Performance`）は、Unity Editor の Test Runner（Window > General > Test Runner、PlayMode タブ、`Performance` カテゴリで絞り込み）と、ローカル一括実行の `Tools/CI/run-ci.cmd`（本書 §7）で回す。`run-ci.cmd` は 2026-09-15 に **[5/5] Performance テスト**ステップを追加し、`-testPlatform PlayMode -testCategory "Performance"` で絞り込んで実行、結果は `TestResults/performance-results.xml` に出力、`Tools/CI/Summarize-Results.ps1` が Validation/EditMode/PlayMode と同じ表に追加する（`-PerformanceResultsPath` パラメータ、省略可）。
+
+**テストの内容・既知課題**: Pool の Rent/Return・各 Manager の Tick（+Presentation の Signal）・GameLoopDriver の 1 フレームは 0 alloc を hard assert する。Spawn/Play 系（1 アクションにつき 1 回呼ばれる経路）は Instance クラスを 1 個 new する既存設計のため厳密な 0 alloc ではなく、Performance レポートへの記録のみ（assert しない）。詳細は [12_review.md](12_review.md) §3 と [11_tasks.md](11_tasks.md) 6-2 の実装メモを参照。
+
+**将来、CI 導入時に実処理化する人向け**: `.github/workflows/ci.yml` の `Performance tests (6-2, placeholder)` ステップに、`run-ci.cmd` の [5/5] と同じ `-runTests -testPlatform PlayMode -testCategory "Performance"` 呼び出しを追加し、結果 XML を `Summarize results` ステップの `Summarize-Results.ps1` 呼び出しに `-PerformanceResultsPath` として渡す（既にパラメータ対応済み）。失敗時は非ゼロ終了で他のステップと同じ扱いにする。

@@ -8,7 +8,13 @@ namespace DDrive.Foundation.Pool
     {
         private sealed class Pool
         {
-            public readonly Stack<GameObject> Free = new();
+            // 6-2(0 alloc 検証)で判明: 以前は Free に GameObject だけを積んでおり、Rent の度に
+            // "new PooledObject(...)" していたため、定常経路(Stop→Return→次の Play→Rent)で
+            // 毎回クラスインスタンスが 1 つ増えていた([12_review.md] §3、定常経路 0 alloc 方針に反する)。
+            // Free に PooledObject 自体(GameObject を積んだラッパー)を積んでおき、Rent 時に
+            // ラッパーごと再利用することで、通常の Rent/Return サイクルでは Instantiate 済みの GameObject
+            // だけでなく PooledObject ラッパーも再利用し、追加 alloc を無くす。
+            public readonly Stack<PooledObject> Free = new();
             public readonly List<PooledObject> Active = new();
             public int MaxCount = int.MaxValue;
             public bool Persistent = true;
@@ -38,7 +44,7 @@ namespace DDrive.Foundation.Pool
             {
                 var go = Object.Instantiate(prefab, _instanceParent);
                 go.SetActive(false);
-                pool.Free.Push(go);
+                pool.Free.Push(new PooledObject(go, prefab));
             }
         }
 
@@ -46,15 +52,20 @@ namespace DDrive.Foundation.Pool
         {
             var pool = GetOrCreatePool(prefab);
 
-            GameObject go = null;
+            PooledObject pooled = null;
 
-            // シーン破棄等で死んだ GO が Free に残っている可能性があるため、生きているものが出るまで捨てる。
-            while (pool.Free.Count > 0 && go == null)
+            // シーン破棄等で死んだ GO を持つラッパーが Free に残っている可能性があるため、
+            // 生きているものが出るまで捨てる(ラッパー自体は使い回すため new PooledObject しない)。
+            while (pool.Free.Count > 0 && pooled == null)
             {
-                go = pool.Free.Pop();
+                var candidate = pool.Free.Pop();
+                if (candidate.GameObject != null)
+                {
+                    pooled = candidate;
+                }
             }
 
-            if (go == null)
+            if (pooled == null)
             {
                 // シーン破棄等で GO が死んだ Active エントリは上限に数えない(回収対象にもしない)。
                 // 死んだエントリを ForceReturn すると Free に何も積まれず、直後の Pop で例外になる。
@@ -65,29 +76,28 @@ namespace DDrive.Foundation.Pool
                     var evicted = FindLowestPriority(pool.Active);
                     if (evicted != null)
                     {
-                        // 回収した GO を直接使い回す。ForceReturn は Free に積むため、
+                        // 回収した Instance のラッパーをそのまま使い回す。ForceReturn は Free に積むため、
                         // 積んだままにすると同じ GO が二重に貸し出される(必ず取り除く)。
                         ForceReturn(pool, evicted);
                         if (pool.Free.Count > 0)
                         {
-                            go = pool.Free.Pop();
+                            pooled = pool.Free.Pop();
                         }
                     }
 
-                    if (go == null)
+                    if (pooled == null)
                     {
                         Debug.LogWarning("[DDrive] Pool at capacity with nothing to reclaim; instantiating over limit.");
-                        go = Object.Instantiate(prefab, _instanceParent);
+                        pooled = new PooledObject(Object.Instantiate(prefab, _instanceParent), prefab);
                     }
                 }
                 else
                 {
-                    go = Object.Instantiate(prefab, _instanceParent);
+                    pooled = new PooledObject(Object.Instantiate(prefab, _instanceParent), prefab);
                 }
             }
 
-            go.SetActive(true);
-            var pooled = new PooledObject(go, prefab);
+            pooled.GameObject.SetActive(true);
             pool.Active.Add(pooled);
             return pooled;
         }
@@ -159,10 +169,10 @@ namespace DDrive.Foundation.Pool
 
                 while (pool.Free.Count > 0)
                 {
-                    var go = pool.Free.Pop();
-                    if (go != null)
+                    var pooled = pool.Free.Pop();
+                    if (pooled.GameObject != null)
                     {
-                        Object.Destroy(go);
+                        Object.Destroy(pooled.GameObject);
                     }
                 }
             }
@@ -188,7 +198,10 @@ namespace DDrive.Foundation.Pool
             }
 
             obj.GameObject.SetActive(false);
-            pool.Free.Push(obj.GameObject);
+            // 6-2: ラッパー(obj)自体を Free に積んで次の Rent で再利用する(Priority は次の貸出に
+            // 影響しないようクリアしておく。呼び出し側は Rent 直後に必要なら明示的に設定し直す)。
+            obj.Priority = 0;
+            pool.Free.Push(obj);
         }
 
         private static void PruneDeadActive(List<PooledObject> active)
