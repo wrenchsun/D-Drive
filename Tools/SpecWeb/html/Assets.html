@@ -328,8 +328,10 @@
      * html/OrderTree.html にも同じ形の関数がある（el() 同様、画面ごとに小さく複製する既存方針）。
      * @param {function():string} getUrl 呼び出し時点の URL を返す（execUrl が未取得なら空文字を返してよい）
      * @param {function():string} [getLabel] 「名前付き」「Markdown」で使う表示名
+     * @param {Array<function()>} [menuClosers] 2026-09-15 追加: html/OrderTree.html の同名
+     *   引数と同じ役割（この画面が今開いているメニューの closeMenu をまとめて把握する共有配列）。
      */
-    function buildCopyLinkControl(getUrl, getLabel) {
+    function buildCopyLinkControl(getUrl, getLabel, menuClosers) {
       var wrap = el('span', { class: 'sw-copylink' });
       var status = el('span', { class: 'sw-copylink-status' });
       var menu = el('div', { class: 'sw-copylink-menu' });
@@ -352,12 +354,17 @@
         menu.hidden = false;
         document.addEventListener('click', handleOutsideClick);
         document.addEventListener('keydown', handleKeydown);
+        if (menuClosers) menuClosers.push(closeMenu);
       }
       function closeMenu() {
         if (menu.hidden) return;
         menu.hidden = true;
         document.removeEventListener('click', handleOutsideClick);
         document.removeEventListener('keydown', handleKeydown);
+        if (menuClosers) {
+          var idx = menuClosers.indexOf(closeMenu);
+          if (idx !== -1) menuClosers.splice(idx, 1);
+        }
       }
 
       function clearFallback() {
@@ -465,6 +472,11 @@
         // 緊急修正（2026-09-14 追補）: 「一覧から複数選択して一括削除」用に選択中の id 集合。
         selectedIds: {}
       };
+
+      // 2026-09-15 追加: この画面で今開いている「リンクをコピー」メニューの closeMenu 一覧
+      // （buildCopyLinkControl 参照）。画面を離れる際にまとめて閉じ、document の
+      // click/keydown リスナーを外す（下の cleanup 参照）。
+      var menuClosers = [];
 
       var toolbar = el('div', { class: 'assets-toolbar' });
       var table = el('table', { class: 'assets-table' });
@@ -760,7 +772,8 @@
         var copyCell = el('td');
         copyCell.appendChild(buildCopyLinkControl(
           function () { return window.OrderLinkLogic.buildOrderUrl(window.SpecWebExecUrl, item.id); },
-          function () { return item.displayName || item.identifier; }
+          function () { return item.displayName || item.identifier; },
+          menuClosers
         ));
         var cells = [];
         if (canEdit()) cells.push(buildRowSelectCell(item));
@@ -873,20 +886,46 @@
       }
 
       /**
+       * 2026-09-15 二度目の修正（docs/32_spec_web.md 参照）: 発注ツリー/私の発注の「編集」から
+       * 遷移した直後、google.script.history の push/replace が iframe 境界を越える往復で
+       * setChangeHandler を「自分自身の push に対しても」呼び直すことがあり、その際 params
+       * （openId・backTo）が失われて render(root, {}) が呼ばれることがある（App.html 側にも
+       * 時間窓によるガードを追加したが、それでも取り切れない場合の最後の保険）。
+       * その場合 state.pendingOpenId は最初から null になるため、window.SpecWebNavigate が
+       * 遷移の直前に控えておいた window.SpecWebPendingOpen（App.html の navigateTo 参照）を
+       * ここで拾う。10 秒より古いものは（別の操作の残骸とみなして）無視し、一度読んだら
+       * 見つかった/見つからなかったに関わらず消費する（毎回の再訪で開き直さないため）。
+       */
+      function resolvePendingOpen() {
+        if (state.pendingOpenId) {
+          var id = state.pendingOpenId;
+          var backTo = state.pendingBackTo;
+          state.pendingOpenId = null;
+          state.pendingBackTo = null;
+          return { id: id, backTo: backTo, source: 'params' };
+        }
+        var fallback = window.SpecWebPendingOpen;
+        if (fallback && fallback.id && typeof fallback.at === 'number' && (Date.now() - fallback.at) < 10000) {
+          delete window.SpecWebPendingOpen;
+          return { id: fallback.id, backTo: fallback.backTo || null, source: 'pendingOpenFallback' };
+        }
+        if (fallback) delete window.SpecWebPendingOpen; // 古い/不完全なものは残さない
+        return null;
+      }
+
+      /**
        * O-13: `?page=order&id=...` で開かれた場合、一覧の読み込み後に一度だけ対象の詳細を開く。
        * 見つからなければ例外にせず一覧の上に案内を出すだけにする（トップ表示は既に renderAll 済み）。
        */
       function maybeOpenPending() {
-        if (!state.pendingOpenId) return;
-        var pendingId = state.pendingOpenId;
-        var pendingBackTo = state.pendingBackTo;
-        state.pendingOpenId = null;
-        state.pendingBackTo = null;
-        var found = state.items.filter(function (i) { return i.id === pendingId; })[0];
+        var pending = resolvePendingOpen();
+        if (!pending) return;
+        console.info('[SpecWeb nav] maybeOpenPending', pending);
+        var found = state.items.filter(function (i) { return i.id === pending.id; })[0];
         if (found) {
-          openDetail({ mode: 'edit', item: found, backTo: pendingBackTo });
+          openDetail({ mode: 'edit', item: found, backTo: pending.backTo });
         } else {
-          statusLine.textContent = '指定された発注が見つかりません（' + pendingId + '）。一覧を表示しています。';
+          statusLine.textContent = '指定された発注が見つかりません（' + pending.id + '）。一覧を表示しています。';
         }
       }
 
@@ -1746,7 +1785,8 @@
           // O-13: 発注リンクのコピー（このアプリの外＝人が読む仕様書に貼り付ける用）。
           panel.appendChild(buildCopyLinkControl(
             function () { return window.OrderLinkLogic.buildOrderUrl(window.SpecWebExecUrl, detail.item.id); },
-            function () { return detail.item.displayName || detail.item.identifier; }
+            function () { return detail.item.displayName || detail.item.identifier; },
+            menuClosers
           ));
           panel.appendChild(renderStatusProgress(detail.item));
         }
@@ -1822,6 +1862,14 @@
         renderAll();
       });
       reload();
+
+      // 2026-09-15 追加: この画面を離れる際、App.html の renderScreen が呼ぶ後始末。
+      // 開いたままの「リンクをコピー」メニューを閉じ、document の click/keydown リスナーを
+      // 確実に外す（外さないと、別の画面に切り替えた後のクリックにまで反応してしまう。
+      // html/OrderTree.html の同じ仕組みと対）。
+      return function cleanup() {
+        menuClosers.slice().forEach(function (close) { close(); });
+      };
     });
   })();
 </script>

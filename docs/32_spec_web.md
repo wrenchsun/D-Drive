@@ -2492,3 +2492,96 @@ docs/28 の O-15 節に同じ内容を追記した。
    「削除」ボタンも同様に確認する
 3. 一覧で複数行のチェックボックスを選択すると「選択した発注を削除（n件）」ボタンが出て、押すと
    確認ダイアログに件数が出て、OK すると選択した分だけまとめて削除されることを確認する
+
+## 実装メモ（2026-09-15 二度目の修正: 「編集」を押しても詳細が開かない不具合の真因と修正）
+
+上の 2026-09-14 追補の対応（`currentRenderId_`/`currentRenderParamsJson_` による
+`skipHistory` 再遷移の完全一致ガード。PR #56）を反映した版でも、ユーザーが実デプロイで
+同じ症状（発注ツリー/私の発注の「編集」→「読み込み中」→一覧画面が表示されるだけで詳細が
+開かない。ステータス行は「全 n 件中 m 件を表示」で「指定された発注が見つかりません」も
+出ない）を再現した。`fix/order-edit-nav-2` ブランチでの再調査・修正。
+
+### 真因（再現できた）
+
+前回の調査では既存の `test/orderEditNavigation.test.js` が green のままだったため
+「コード上の結線に欠陥は再現できなかった」としていたが、その統合テストにも見逃しがあった:
+
+1. **`test/dom-stub.js` の `fire()` がクリックイベントの bubble を再現していなかった**
+   （クリックした要素自身の listener しか呼んでおらず、`document` まで bubble する経路が
+   テストに存在しなかった）。実ブラウザでは、発注ツリー/私の発注の「編集」ボタンの click は
+   `ev.stopPropagation()` していないため `li → ul → …→ document` まで bubble する。今回
+   `dom-stub.js` に `parentNode` の追跡と、target → 祖先 → `document` の順で「その時点で
+   登録されている」listener を呼ぶ実際の bubble 実装を追加した
+2. **`google.script.history.push()`/`replace()` は iframe サンドボックスの境界を postMessage で
+   越えるため、`setChangeHandler` の登録済みハンドラが「自分自身の push に対しても」非同期に
+   呼び直されることがある。その際、実際に URL に載るのは `hash`（画面 id）だけで、
+   `state.params` のような入れ子オブジェクトは往復で失われ、`e.state.params` が `{}` になって
+   渡ってくることがある。** 前回追加した完全一致ガード（`id` と `paramsJson` の両方が一致した
+   ときだけ無視する）は `id` は一致するが `params` が食い違うケースを弾けず、
+   `navigateTo('assets', { skipHistory: true, params: {} })` が実行されて `render(root, {})` が
+   丸ごと再実行される。この2回目の render は `pendingOpenId` が最初から `null`（`params.openId`
+   が無いため）なので `maybeOpenPending()` は何もせず、素の一覧のまま `renderTable()` の
+   ステータス行（「全 n 件中 m 件を表示」）だけが残る＝報告された症状そのもの
+
+`test/orderEditNavigation.test.js` の `createFakeGoogleScript` に `lossyHistory` オプション
+（`push`/`replace` の直後に、`params` が空になった状態で `setChangeHandler` を非同期に
+呼び直す）を追加してこの2番目の挙動を model 化したところ、（1のbubble修正だけを先に入れた
+状態でも）このテストは実際に red になり、真因を再現できた。
+
+### 修正
+
+1. **`html/App.html`**: `navigateTo` に「同一画面 id への `skipHistory` な再遷移で、
+   渡ってきた `params` が空（`{}`）なのに直前の描画は `params` を持っていた場合、かつ
+   直前に自分自身が `history.push`/`replace` を呼んだ直後（`ECHO_GUARD_MS` = 3000ms 以内）
+   であれば、iframe 境界を越える往復で params が失われた「こだま」とみなして無視する
+   （直前の描画を保持する）」ガードを追加した（`lastOwnHistoryWriteAt_`）。既存の完全一致
+   ガードとは別に判定するため、`params` が実際に別の値へ変わっている本物の戻る/進む操作
+   （例: 同じ画面 id で別の manual ページへ移動した直後に戻る）は対象にせず、通常どおり
+   再 render される
+2. **`html/App.html` + `html/Assets.html`**: 上のガードだけでは取り切れない場合の最後の保険
+   として、`navigateTo` が `params.openId` を受け取ったら `window.SpecWebPendingOpen =
+   { id, backTo, at }` にも同じ内容を控える。`html/Assets.html` の `maybeOpenPending`
+   （`resolvePendingOpen` に分離）は `state.pendingOpenId` が無ければこれを見に行き、
+   10 秒より古いものは無視し、読んだら（見つかった/見つからなかったに関わらず）消費する
+3. **`html/OrderTree.html`・`html/MyOrders.html`**: 「編集」ボタンの click ハンドラで
+   `ev.stopPropagation()` を呼び、画面遷移自体は `setTimeout(fn, 0)` でこのクリックの
+   イベント処理が完全に終わった後に行うようにした（bubble の途中で、離れる直前の画面が
+   `document` に張ったままのリスナー（後述4）が同じクリックに反応する経路を塞ぐ）
+4. **画面を離れる際の後始末（cleanup）の仕組みを追加**: `html/App.html` の
+   `registerScreen(id, render)` の `render` は、後始末が必要なら関数を返せるようにした
+   （`renderScreen` が次の画面に切り替える直前に、前の画面の cleanup を呼ぶ）。
+   `html/OrderTree.html`・`html/Assets.html` の `buildCopyLinkControl`（「リンクをコピー ▼」
+   メニューの外側クリック判定用に `document` へ `click`/`keydown` を張る）は、開いている
+   メニューの `closeMenu` を画面ごとの共有配列 `menuClosers` に登録するようにし、各画面の
+   `render` はその配列に残っている `closeMenu` をまとめて呼ぶ cleanup を返す。これにより、
+   メニューを開いたまま別の画面に切り替えても `document` のリスナーが残り続けない
+5. **診断ログ**: `navigateTo`・`renderScreen`・`maybeOpenPending` に
+   `console.info('[SpecWeb nav]', …)` を追加した（画面 id・params・pendingOpenId 等のみで、
+   個人情報は出さない）。実デプロイで再発した場合はブラウザの開発者ツールの Console で
+   経路を追える
+
+### テスト（`node --test Tools/SpecWeb/test`、**447 件全て green**（既存 441 件 + 本修正分 6 件））
+
+- `test/dom-stub.js`: `fire()` を実際の bubble（target → 祖先 → `document`、`stopPropagation`
+  で打ち切り）を再現する実装に変更（`FakeNode` に `parentNode` の追跡を追加）
+- `test/orderEditNavigation.test.js`: `createFakeGoogleScript` に `lossyHistory` オプションを
+  追加し、「history 往復で params が失われても、編集ボタンを押した発注の詳細が開く」
+  （このオプション無しでは red になることを確認済み＝真因の再現）と、「『リンクをコピー ▼』
+  メニューを開いたまま『編集』で画面を離れても、`document` に張られた古いリスナーは残らない」
+  （cleanup を外すと red になることを確認済み）の2件を追加
+- `test/app.test.js`: `navigateTo` が `params.openId` を `window.SpecWebPendingOpen` に控える
+  こと、push 直後の同一画面・params 抜けの `skipHistory` 再遷移を無視すること、`params` が
+  実際に異なる正当な戻る/進む操作は無視しないこと、`renderScreen` が前の画面の cleanup を
+  呼ぶことを追加
+- `test/orderTree.smoke.test.js` / `test/myOrders.smoke.test.js`: 「編集」ボタンの遷移が
+  `setTimeout` で遅延するようになったため、クリック後に `await flush()` を追加
+
+### 目視確認
+
+未検証（このセッションは Unity MCP 非接続・実デプロイへの push も行っていないため）。
+docs/28 の O-15 節の手順（前回追補と同じ「一覧が表示されるだけで終わらないこと」の確認）を
+実デプロイで再度なぞって確認すること。ブラウザの開発者ツールの Console を開いた状態で
+「編集」を押し、`[SpecWeb nav] ignoring likely lossy history echo …` が出れば、今回追加した
+ガードが実際に発火したことが分かる（出なくても詳細が開けば問題無い。前回想定していた
+`google.script.history` の「こだま」自体が発生しない環境では、このログは出ないまま
+正常に開く）。
