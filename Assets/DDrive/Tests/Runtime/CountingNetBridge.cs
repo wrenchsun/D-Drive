@@ -13,6 +13,7 @@ namespace DDrive.Tests.Runtime
         public bool IsServer => true;
         public bool IsClient => true;
         public double NetworkTime => 0d;
+        public ulong LocalClientId => 0UL;
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage => BroadcastCount++;
 
@@ -23,6 +24,16 @@ namespace DDrive.Tests.Runtime
         public IDisposable Subscribe<T>(Action<ulong, T> handler) where T : INetMessage => new NoopSubscription();
 
         public Transform ResolveNetObject(ulong netId) => null;
+
+        public ulong ResolveNetId(Transform transform) => 0UL;
+
+        public bool IsLocalPlayerObject(Transform transform) => false;
+
+        public ulong SpawnNetworked(GameObject root) => 0UL;
+
+        public void DespawnNetworked(ulong netId, bool destroy)
+        {
+        }
 
         public event Action<ulong> ClientConnected;
 

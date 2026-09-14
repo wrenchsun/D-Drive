@@ -34,7 +34,7 @@ MonoBehaviour:
     Priority: 0
     Persistent: 0
     Domain: 0
-    Net: 0
+    Net: 1
   Events: []
   ImportSourceGuid: 
   Tracks:
@@ -192,3 +192,4 @@ MonoBehaviour:
     StopOnCancel: 1
   TotalDuration: 15
   Interruptible: 1
+  PredictLocal: 1

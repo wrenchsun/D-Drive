@@ -80,6 +80,9 @@ mono_crash.*
 *.unitypackage.meta
 *.app
 
+# [11_tasks.md] 6-0(E) — 実機確認用ビルドの出力先(プロジェクト直下、Assets 配下ではない)。
+/Builds/
+
 # Crashlytics generated file
 crashlytics-build.properties
 

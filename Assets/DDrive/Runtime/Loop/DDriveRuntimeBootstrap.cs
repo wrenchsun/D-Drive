@@ -13,10 +13,12 @@ using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Loading;
 using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
+using DDrive.Runtime.Net;
 using DDrive.Runtime.Prefab;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Ui;
 using DDrive.Runtime.Vfx;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
@@ -36,6 +38,35 @@ namespace DDrive.Runtime.Loop
     public sealed class DDriveRuntimeBootstrap : MonoBehaviour
     {
         public const string DefaultCatalogLabel = "DDriveCatalog";
+
+        // [14_networking.md] §12 / [11_tasks.md] 6-0(A) — LocalLoopbackBridge(シングルプレイ相当。既定)
+        // と NgoNetBridge(NGO 2.13.2)のどちらを NetBridge として使うか。コマンドライン引数
+        // (-ddrive-net host|client|off、[docs/29])で上書きできる。既定は Loopback のため、6-0 適用前と
+        // 挙動は変わらない([14] §1 の原則どおり)。
+        public enum NetBridgeMode
+        {
+            Loopback,
+            Ngo,
+        }
+
+        [Header("ネットワーク(6-0)")]
+        [Tooltip("既定のネットブリッジ。コマンドライン引数 -ddrive-net host|client|off で上書きできる(未指定時はこの値を使う)。既定は Loopback(シングルプレイ、既存の挙動を変えない)")]
+        public NetBridgeMode DefaultNetBridge = NetBridgeMode.Loopback;
+
+        [Tooltip("Ngo モードのとき使う NetworkManager。シーンに置いておく(Host が NetworkObject を生成する MS2026 規約。[14] §12)。未設定ならシーンから自動検索する")]
+        public NetworkManager NetworkManagerRef;
+
+        [Tooltip("Ngo モードのとき使う NgoNetBridge(NetworkManager と同じ NetworkObject に付ける想定)。未設定ならシーンから自動検索する")]
+        public NgoNetBridge NgoBridgeRef;
+
+        [Tooltip("コマンドライン引数 -ddrive-host が無いときに使う既定 IP(PC-A=Host、[docs/29])")]
+        public string DefaultHostAddress = "192.168.137.1";
+
+        [Tooltip("コマンドライン引数 -ddrive-port が無いときに使う既定 Port")]
+        public ushort DefaultPort = 7777;
+
+        [Tooltip("Ngo モードのとき、画面左上にデバッグオーバーレイ(役割/接続状態/RTT/NetworkTime/受信数)を出す")]
+        public bool ShowNetDebugOverlay = true;
 
         [Tooltip("起動時に Registry へ登録するカタログ(GameData/Catalogs)。Generate メニュー / Inspector の「カタログを再収集」で自動設定される")]
         public AssetCatalog[] Catalogs;
@@ -95,6 +126,13 @@ namespace DDrive.Runtime.Loop
         private UnscaledCameraFxAdapter _cameraFxAdapter;
         private bool _built;
 
+        // [14_networking.md] §12(6-0) — StartHost/StartClient は Awake() ではなく Start() まで遅延する
+        // (下記 StartNetworkingIfPending 参照)。
+        private NetLaunchRole _pendingNetRole;
+        private NetworkManager _pendingNetworkManager;
+        private ushort _pendingNetPort;
+        private string _pendingNetHost;
+
         public UniTask WhenReady => _ready.Task;
 
         private void Awake()
@@ -124,6 +162,39 @@ namespace DDrive.Runtime.Loop
         private void Start()
         {
             RegisterCatalogsAsync().Forget();
+            StartNetworkingIfPending();
+        }
+
+        // [14_networking.md] §12(6-0) — NetworkManager.StartHost()/StartClient() は NetworkManager 自身の
+        // Awake()/OnEnable()(内部状態の初期化)が済んでいないと NullReferenceException になる
+        // (実機確認で発見。DDriveRuntimeBootstrap は DefaultExecutionOrder(-1000) で他の全 Awake より先に
+        // 走るため、Awake() 内から直接 StartHost/StartClient を呼ぶと NetworkManager がまだ初期化されて
+        // いない)。そのため ResolveNetBridge()(Awake 内、Build() 経由)では役割の決定・ブリッジの選定・
+        // Transport の設定だけを行い、実際の StartHost/StartClient 呼び出しは全オブジェクトの Awake が
+        // 終わった後の Start() まで遅延する。
+        private void StartNetworkingIfPending()
+        {
+            if (_pendingNetworkManager == null || _pendingNetRole == NetLaunchRole.Unspecified || _pendingNetRole == NetLaunchRole.Off)
+            {
+                return;
+            }
+
+            var nm = _pendingNetworkManager;
+            if (nm.IsListening)
+            {
+                return;
+            }
+
+            if (_pendingNetRole == NetLaunchRole.Host)
+            {
+                nm.StartHost();
+                Debug.Log($"[Net/Host] DDriveRuntimeBootstrap: Host として起動しました(port={_pendingNetPort})。");
+            }
+            else
+            {
+                nm.StartClient();
+                Debug.Log($"[Net/Client] DDriveRuntimeBootstrap: Client として起動しました(host={_pendingNetHost}:{_pendingNetPort})。");
+            }
         }
 
         private void OnDestroy()
@@ -173,7 +244,7 @@ namespace DDrive.Runtime.Loop
             Pool = new PoolService();
             Pool.SetInstanceParent(instances.transform);
             Registry = new AssetRegistry(new AddressablesAssetLoader());
-            NetBridge = new LocalLoopbackBridge(); // NGO 統合([14])時に差し替える注入点
+            NetBridge = ResolveNetBridge(); // [14_networking.md] §12(6-0) — Loopback/Ngo の選択点
 
             var seTemplate = new GameObject("SeSourceTemplate");
             seTemplate.transform.SetParent(transform, false);
@@ -251,6 +322,60 @@ namespace DDrive.Runtime.Loop
             }
 
             _built = true;
+        }
+
+        // 実際に解決されたネットワーク起動オプション(コマンドライン引数 + Inspector 既定値)。
+        // NetCheckRunner(6-0, D)等が -ddrive-autotest / シミュレータ設定を参照するために公開する。
+        public NetLaunchOptions LaunchOptions { get; private set; }
+
+        // [14_networking.md] §12(6-0, A) — コマンドライン引数(未指定なら Inspector の既定値)に従って
+        // LocalLoopbackBridge か NgoNetBridge を選ぶ。Ngo を要求されたのにシーンに NetworkManager/
+        // NgoNetBridge が無い場合は警告して Loopback にフォールバックする(例外で止めない、[CLAUDE.md] TL;DR 4)。
+        private INetBridge ResolveNetBridge()
+        {
+            LaunchOptions = NetLaunchArgs.Parse(Environment.GetCommandLineArgs());
+
+            var role = LaunchOptions.Role != NetLaunchRole.Unspecified
+                ? LaunchOptions.Role
+                : (DefaultNetBridge == NetBridgeMode.Ngo ? NetLaunchRole.Host : NetLaunchRole.Off);
+
+            if (role == NetLaunchRole.Off)
+            {
+                return new LocalLoopbackBridge();
+            }
+
+            var nm = NetworkManagerRef ?? FindAnyObjectByType<NetworkManager>();
+            var bridge = NgoBridgeRef ?? (nm != null ? nm.GetComponent<NgoNetBridge>() : null);
+
+            if (nm == null || bridge == null)
+            {
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap: -ddrive-net で Host/Client が要求されましたが、シーンに NetworkManager + NgoNetBridge が見つかりません。LocalLoopbackBridge にフォールバックします([docs/29] のセットアップ手順を確認してください)。");
+                return new LocalLoopbackBridge();
+            }
+
+            NetworkManagerRef = nm;
+            NgoBridgeRef = bridge;
+
+            var host = LaunchOptions.Host ?? DefaultHostAddress;
+            var port = (ushort)(LaunchOptions.Port ?? DefaultPort);
+            NgoTransportConfigurator.TryConfigure(nm, host, port, LaunchOptions.SimLatencyMs, LaunchOptions.SimLossPercent);
+
+            // StartHost/StartClient は Start() まで遅延する(上記 StartNetworkingIfPending 参照)。
+            _pendingNetRole = role;
+            _pendingNetworkManager = nm;
+            _pendingNetHost = host;
+            _pendingNetPort = port;
+
+            if (ShowNetDebugOverlay)
+            {
+                var overlayGo = new GameObject("NetDebugOverlay");
+                overlayGo.transform.SetParent(transform, false);
+                var overlay = overlayGo.AddComponent<NetDebugOverlay>();
+                overlay.Bridge = bridge;
+                overlay.NetworkManagerRef = nm;
+            }
+
+            return bridge;
         }
 
         private AudioSource CreateAudioChannel(string channelName)

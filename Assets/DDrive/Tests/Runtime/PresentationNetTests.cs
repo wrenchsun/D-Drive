@@ -100,18 +100,24 @@ namespace DDrive.Tests.Runtime
 
         private readonly DelayedNetworkRelay _relay;
         private readonly ulong _selfClientId;
+        private readonly double _clockJitterSeconds;
         private readonly Dictionary<Type, List<Delegate>> _handlers = new();
 
         public bool IsServer { get; }
         public bool IsClient => true;
-        public double NetworkTime => _relay.NetworkTime;
+
+        // P2-6(6-0 レビュー対応) — Host/Client の NetworkTime を完全に同一の値にせず、小さなジッターを
+        // 乗せて実態(各ピアが独立した NetworkTime を持つ)に近づける。既定 0(既存テストは影響を受けない)。
+        public double NetworkTime => _relay.NetworkTime + _clockJitterSeconds;
+        public ulong LocalClientId => _selfClientId;
         public event Action<ulong> ClientConnected;
 
-        public DelayedNetBridge(DelayedNetworkRelay relay, ulong selfClientId, bool isServer)
+        public DelayedNetBridge(DelayedNetworkRelay relay, ulong selfClientId, bool isServer, double clockJitterSeconds = 0d)
         {
             _relay = relay;
             _selfClientId = selfClientId;
             IsServer = isServer;
+            _clockJitterSeconds = clockJitterSeconds;
             relay.Register(selfClientId, this);
         }
 
@@ -137,6 +143,21 @@ namespace DDrive.Tests.Runtime
         }
 
         public Transform ResolveNetObject(ulong netId) => null;
+
+        public ulong ResolveNetId(Transform transform) => 0UL;
+
+        public bool IsLocalPlayerObject(Transform transform) => false;
+
+        public ulong SpawnNetworked(GameObject root) => 0UL;
+
+        public void DespawnNetworked(ulong netId, bool destroy)
+        {
+        }
+
+        // 6-0(P2-5) — 偽造メッセージのテスト用: 実際の Broadcast() 経路を経由せず、任意の(偽の)senderId で
+        // 直接この Bridge の Subscribe ハンドラへ配送する(NGO の RequestBroadcastRpc が中継してしまった後、
+        // かつ HandleNetKey の発行者検証だけが最後の防波堤になるケースを模擬する)。
+        public void InjectForged<T>(ulong forgedSenderId, T msg) where T : INetMessage => Receive(forgedSenderId, msg);
 
         internal void Receive<T>(ulong senderId, T msg) where T : INetMessage
         {
@@ -166,13 +187,13 @@ namespace DDrive.Tests.Runtime
         public DelayedNetBridge Bridge;
         public PresentationManager Manager;
 
-        public static NetPeer Create(DelayedNetworkRelay relay, ulong clientId, bool isServer)
+        public static NetPeer Create(DelayedNetworkRelay relay, ulong clientId, bool isServer, double clockJitterSeconds = 0d)
         {
             var pool = new PoolService();
             var loader = new FakeAssetLoader();
             var registry = new AssetRegistry(loader);
             var time = new TimeService();
-            var bridge = new DelayedNetBridge(relay, clientId, isServer);
+            var bridge = new DelayedNetBridge(relay, clientId, isServer, clockJitterSeconds);
 
             return new NetPeer { Pool = pool, Loader = loader, Registry = registry, Time = time, Bridge = bridge };
         }
@@ -247,9 +268,9 @@ namespace DDrive.Tests.Runtime
             _peers.Clear();
         }
 
-        private NetPeer NewPeer(DelayedNetworkRelay relay, ulong clientId, bool isServer)
+        private NetPeer NewPeer(DelayedNetworkRelay relay, ulong clientId, bool isServer, double clockJitterSeconds = 0d)
         {
-            var peer = NetPeer.Create(relay, clientId, isServer);
+            var peer = NetPeer.Create(relay, clientId, isServer, clockJitterSeconds);
             _peers.Add(peer);
             return peer;
         }
@@ -280,8 +301,11 @@ namespace DDrive.Tests.Runtime
         public void NonPredicted_200msLatency_BothPeers_ReachSameNormalizedTime()
         {
             var relay = new DelayedNetworkRelay { LatencySeconds = 0.2 };
-            var host = NewPeer(relay, HostId, isServer: true);
-            var client = NewPeer(relay, ClientId, isServer: false);
+            // P2-6(6-0 レビュー対応) — Host/Client の NetworkTime を完全に同一の値にしない(実際の NGO では
+            // 各ピアが独立した NetworkTime を持つ)。数 ms の小さなジッターを乗せ、許容誤差(0.001 → 0.02)を
+            // 実態に合わせて緩める(以前は「同一計算の一致」を見ているだけだった)。
+            var host = NewPeer(relay, HostId, isServer: true, clockJitterSeconds: 0.003);
+            var client = NewPeer(relay, ClientId, isServer: false, clockJitterSeconds: -0.004);
             host.AttachManager();
             client.AttachManager();
 
@@ -306,7 +330,7 @@ namespace DDrive.Tests.Runtime
 
             var hostNorm0 = host.Manager.GetNormalizedTime(hostHandles[0]);
             var clientNorm0 = client.Manager.GetNormalizedTime(clientHandles[0]);
-            Assert.AreEqual(hostNorm0, clientNorm0, 0.001f, "200ms 遅延環境でも Host/Client の開始シーク位置(NormalizedTime)が一致する");
+            Assert.AreEqual(hostNorm0, clientNorm0, 0.02f, "200ms 遅延環境でも Host/Client の開始シーク位置(NormalizedTime)がほぼ一致する(数msのクロックジッターは許容)");
             Assert.Greater(hostNorm0, 0f, "遅延分だけ既にシークされて開始している");
 
             // 以後も同じだけ進行させれば位相が揃ったまま進む。
@@ -315,7 +339,7 @@ namespace DDrive.Tests.Runtime
 
             var hostNorm1 = host.Manager.GetNormalizedTime(hostHandles[0]);
             var clientNorm1 = client.Manager.GetNormalizedTime(clientHandles[0]);
-            Assert.AreEqual(hostNorm1, clientNorm1, 0.001f, "以後の進行も位相が揃ったまま進む");
+            Assert.AreEqual(hostNorm1, clientNorm1, 0.02f, "以後の進行も位相がほぼ揃ったまま進む(数msのクロックジッターは許容)");
             Assert.Greater(hostNorm1, hostNorm0);
         }
 

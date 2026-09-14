@@ -30,6 +30,7 @@ namespace DDrive.Runtime.Prefab
             public bool IsPlaceholder;
             public bool IsPooled; // Flags.Pool.Kind == Pooled のとき true。false(None)は Despawn で Discard する
             public bool IsSimulated; // NetMode.Simulated かつサーバー権威で実際に生成したインスタンスか([14] §3/§10、4-13)
+            public ulong NetObjectId; // 6-0: NgoNetBridge.SpawnNetworked が発行した NetworkObjectId(未接続/Loopback は 0)
         }
 
         // クライアント→サーバーの Spawn 要求(PrefabSpawnRequestMsg)のレート制限窓([14] §9 と同じ考え方。NgoNetBridge.ConsumeRelayBudget 相当)。
@@ -173,6 +174,13 @@ namespace DDrive.Runtime.Prefab
                 IsSimulated = !isPlaceholder && data.Flags.Net == NetMode.Simulated,
             };
 
+            // [14_networking.md] §3/§10(6-0) — Simulated かつ Host のときだけ NetworkObject として
+            // Spawn する(Loopback/未接続では SpawnNetworked が常に 0 を返し、今までどおりローカル専用)。
+            if (_netBridge != null && instance.IsSimulated && _netBridge.IsServer)
+            {
+                instance.NetObjectId = _netBridge.SpawnNetworked(root);
+            }
+
             var handle = _instances.Add(instance);
             instance.Context = new InstanceContext(handle.Index, handle.Generation);
             _allActive.Add(handle);
@@ -181,13 +189,13 @@ namespace DDrive.Runtime.Prefab
             _events.Fire(instance.Context, EventTrigger.OnSpawn);
 
             // ここに到達するのはサーバー(またはシングルプレイの netBridge==null)のときだけ。今生成したのが
-            // 権威インスタンスであることを全員へ通知する(情報提供のみ。NGO の NetworkObject 複製は Phase 6)。
+            // 権威インスタンスであることを全員へ通知する(NetObjectId は実解決できたときだけ非 0。6-0)。
             if (_netBridge != null && instance.IsSimulated && _netBridge.IsServer)
             {
                 _netBridge.Broadcast(new PrefabSpawnedMsg
                 {
                     PrefabId = data.Id,
-                    NetObjectId = 0,
+                    NetObjectId = instance.NetObjectId,
                     Position = pos,
                     Rotation = rot,
                     RequestKey = 0,
@@ -251,10 +259,17 @@ namespace DDrive.Runtime.Prefab
             _events.Fire(instance.Context, EventTrigger.OnDestroy);
             _events.End(instance.Context);
 
-            // サーバー権威インスタンスの消滅を通知する(NetObjectId は NGO 統合前は常に 0。4-13)。
+            // サーバー権威インスタンスの消滅を通知する(NetObjectId は実解決できていれば非 0。6-0)。
+            // Pool へ戻す(IsPooled)場合は destroy=false(NGO 側で Despawn(false)。GameObject 自体は残す)、
+            // それ以外(Discard)は destroy=true で NetworkObject ごと破棄する。
             if (_netBridge != null && instance.IsSimulated && _netBridge.IsServer)
             {
-                _netBridge.Broadcast(new PrefabDespawnedMsg { NetObjectId = 0 }, NetChannel.ReliableOrdered);
+                if (instance.NetObjectId != 0)
+                {
+                    _netBridge.DespawnNetworked(instance.NetObjectId, destroy: !instance.IsPooled);
+                }
+
+                _netBridge.Broadcast(new PrefabDespawnedMsg { NetObjectId = instance.NetObjectId }, NetChannel.ReliableOrdered);
             }
 
             _allActive.Remove(handle);

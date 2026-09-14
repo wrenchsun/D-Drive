@@ -48,10 +48,17 @@ namespace DDrive.Runtime.Net
 
         public double NetworkTime => NetworkManager != null ? NetworkManager.ServerTime.Time : 0d;
 
+        // [14_networking.md] §2/§12(6-0) — NetworkManager.LocalClientId を橋渡しする。HandleNetKey の発行者
+        // 埋め込み・検証([14] §9)に使う。未接続時は 0(ServerClientId と同じ扱い)。
+        public ulong LocalClientId => NetworkManager != null ? NetworkManager.LocalClientId : 0UL;
+
         // [14_networking.md] §5(5-9) — Late Join のアクティブ演出スナップショット送信に使う新規接続通知。
         // NGO の OnClientConnectedCallback は Host/Client 双方で発火する(自分自身の接続も含む)ため、
         // 実際に「Host として送るかどうか」の判定は購読側(PresentationManager)が IsServer を見て行う。
         public event Action<ulong> ClientConnected;
+
+        // [11_tasks.md] 6-0(B) — NetDebugOverlay 用の受信メッセージ数。
+        public int ReceivedMessageCount { get; private set; }
 
         private string LogTag => IsServer ? "[Net/Host]" : "[Net/Client]";
 
@@ -80,7 +87,9 @@ namespace DDrive.Runtime.Net
 
             if (IsServer)
             {
-                SendToAll(key, json, channel);
+                // Host 自身が行為者。発行者は Host の LocalClientId(P1-2 対応: 6-0 まで全員に常に
+                // ServerClientId として配送されていたため、Client 行為者の HandleNetKey 検証が機能しなかった)。
+                SendToAll(key, json, channel, LocalClientId);
                 return;
             }
 
@@ -104,14 +113,15 @@ namespace DDrive.Runtime.Net
 
             var json = JsonUtility.ToJson(msg);
             var target = RpcTarget.Single(clientId, RpcTargetUse.Temp);
+            var originClientId = LocalClientId; // 直接送信は常に Host が発行者
 
             if (channel == NetChannel.Unreliable && FitsUnreliable(json))
             {
-                ReceiveUnreliableToRpc(KeyOf<T>(), json, target);
+                ReceiveUnreliableToRpc(KeyOf<T>(), json, originClientId, target);
             }
             else
             {
-                ReceiveToRpc(KeyOf<T>(), json, target);
+                ReceiveToRpc(KeyOf<T>(), json, originClientId, target);
             }
         }
 
@@ -141,17 +151,84 @@ namespace DDrive.Runtime.Net
             return null;
         }
 
+        // [14_networking.md] §4/§5(6-0) — ResolveNetObject の逆方向。渡された Transform(またはその親)に
+        // NetworkObject が付いていて Spawn 済みなら NetworkObjectId を返す。それ以外は 0(呼び出し元は
+        // 既存のとおり Position 等にフォールバックする)。
+        public ulong ResolveNetId(Transform transform)
+        {
+            if (transform == null)
+            {
+                return 0UL;
+            }
+
+            var netObj = transform.GetComponentInParent<NetworkObject>();
+            return netObj != null && netObj.IsSpawned ? netObj.NetworkObjectId : 0UL;
+        }
+
+        // [14_networking.md] §5 追加指示(2026-09-14, 6-0) — HapticsData.LocalPlayerOnly の誤爆防止に使う。
+        // NetworkObject の所有者(OwnerClientId)がローカルクライアントと一致するかどうかを見る。
+        public bool IsLocalPlayerObject(Transform transform)
+        {
+            if (transform == null)
+            {
+                return false;
+            }
+
+            var netObj = transform.GetComponentInParent<NetworkObject>();
+            return netObj != null && netObj.IsSpawned && netObj.OwnerClientId == LocalClientId;
+        }
+
+        // [14_networking.md] §3/§10(6-0) — NetMode.Simulated な Prefab の Host 権威生成。root は既に
+        // ローカルへ Instantiate 済み(PrefabsManager.SpawnData の Pool.Rent 結果)であることを前提にする
+        // (NetworkObject を Spawn するだけで、生成そのものは既存の Pool 経路に任せる)。
+        public ulong SpawnNetworked(GameObject root)
+        {
+            if (!IsServer || root == null)
+            {
+                return 0UL;
+            }
+
+            var netObj = root.GetComponent<NetworkObject>();
+            if (netObj == null)
+            {
+                // Validator(PrefabDataValidator)が Error として検出する組み合わせ([14] §10)。
+                // ランタイムは例外で止めず、NetObjectId=0 のローカル専用インスタンスとして継続する。
+                Debug.LogWarning($"{LogTag} NgoNetBridge.SpawnNetworked: '{root.name}' に NetworkObject が無いため NetworkObjectId を発行できません。");
+                return 0UL;
+            }
+
+            if (!netObj.IsSpawned)
+            {
+                netObj.Spawn();
+            }
+
+            return netObj.NetworkObjectId;
+        }
+
+        public void DespawnNetworked(ulong netId, bool destroy)
+        {
+            if (!IsServer || NetworkManager == null || NetworkManager.SpawnManager == null)
+            {
+                return;
+            }
+
+            if (NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(netId, out var netObj) && netObj.IsSpawned)
+            {
+                netObj.Despawn(destroy);
+            }
+        }
+
         // ── 送信(Host 側) ──
 
-        private void SendToAll(string key, string json, NetChannel channel)
+        private void SendToAll(string key, string json, NetChannel channel, ulong originClientId)
         {
             if (channel == NetChannel.Unreliable && FitsUnreliable(json))
             {
-                ReceiveUnreliableRpc(key, json);
+                ReceiveUnreliableRpc(key, json, originClientId);
             }
             else
             {
-                ReceiveRpc(key, json);
+                ReceiveRpc(key, json, originClientId);
             }
         }
 
@@ -159,31 +236,34 @@ namespace DDrive.Runtime.Net
 
         // ── RPC(Host → 全員。ホスト自身も含む) ──
     // 注: enum Unity.Netcode.SendTo は本クラスの SendTo<T>() メソッドと名前が衝突するため完全修飾する。
+        // originClientId: 本来の発行者(Host 自身、または Client→Host 依頼の送信元)。P1-2 対応(6-0):
+        // 以前は Dispatch が常に NetworkManager.ServerClientId を使っていたため、中継された Client 発の
+        // メッセージが全ピアで「Host から来た」ものとして扱われ、HandleNetKey の発行者検証が機能しなかった。
 
         [Rpc(Unity.Netcode.SendTo.ClientsAndHost)]
-        private void ReceiveRpc(string typeKey, string json)
+        private void ReceiveRpc(string typeKey, string json, ulong originClientId)
         {
-            Dispatch(typeKey, json);
+            Dispatch(typeKey, json, originClientId);
         }
 
         [Rpc(Unity.Netcode.SendTo.ClientsAndHost, Delivery = RpcDelivery.Unreliable)]
-        private void ReceiveUnreliableRpc(string typeKey, string json)
+        private void ReceiveUnreliableRpc(string typeKey, string json, ulong originClientId)
         {
-            Dispatch(typeKey, json);
+            Dispatch(typeKey, json, originClientId);
         }
 
         // ── RPC(Host → 特定クライアント) ──
 
         [Rpc(Unity.Netcode.SendTo.SpecifiedInParams)]
-        private void ReceiveToRpc(string typeKey, string json, RpcParams rpcParams)
+        private void ReceiveToRpc(string typeKey, string json, ulong originClientId, RpcParams rpcParams)
         {
-            Dispatch(typeKey, json);
+            Dispatch(typeKey, json, originClientId);
         }
 
         [Rpc(Unity.Netcode.SendTo.SpecifiedInParams, Delivery = RpcDelivery.Unreliable)]
-        private void ReceiveUnreliableToRpc(string typeKey, string json, RpcParams rpcParams)
+        private void ReceiveUnreliableToRpc(string typeKey, string json, ulong originClientId, RpcParams rpcParams)
         {
-            Dispatch(typeKey, json);
+            Dispatch(typeKey, json, originClientId);
         }
 
         // ── RPC(Client → Host の依頼) ──
@@ -205,7 +285,9 @@ namespace DDrive.Runtime.Net
                 return;
             }
 
-            SendToAll(typeKey, json, unreliable ? NetChannel.Unreliable : NetChannel.ReliableOrdered);
+            // 真の発行者(sender)を全ピアへ伝える。以後の Presentation 側の発行者検証([14] §9、6-0)が
+            // これを使って偽造 Signal/Cancel/Play を破棄できるようにする。
+            SendToAll(typeKey, json, unreliable ? NetChannel.Unreliable : NetChannel.ReliableOrdered, sender);
         }
 
         private bool ConsumeRelayBudget(ulong clientId)
@@ -226,15 +308,15 @@ namespace DDrive.Runtime.Net
 
         // ── 受信 ──
 
-        private void Dispatch(string key, string json)
+        private void Dispatch(string key, string json, ulong senderId)
         {
+            ReceivedMessageCount++;
             if (!_keyToType.TryGetValue(key, out var type) || !_handlers.TryGetValue(key, out var list))
             {
                 return;
             }
 
             var msg = JsonUtility.FromJson(json, type);
-            var senderId = NetworkManager != null ? NetworkManager.ServerClientId : 0UL;
 
             foreach (var d in list)
             {

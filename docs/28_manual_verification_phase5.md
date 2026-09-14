@@ -412,3 +412,26 @@
 - **専用の Late Join メッセージを用意しなかった**: `PresentationPlayMsg` をそのまま `SendTo` するだけにしたため、Late Join で復元される演出は「Broadcast で送られたときと全く同じ形」でしか復元できない(将来、Late Join 専用の追加情報(例: 現在の Signal 発火済み状態)が必要になったら別メッセージの追加を検討すること)
 - **アクティブ演出台帳はメモリ上のみ**: `_activeNetworked` は Host の `PresentationManager` インスタンスが保持するだけで、Host が再起動すると消える(想定どおり。永続化の要件は無い)
 - **常駐 VFX/BGM を「Presentation でラップする」運用が前提**: 5-9 は `PresentationManager` 経由の Late Join のみ対応する。`Vfx.Spawn`/`Bgm.PlayBgm` を Presentation を介さず直接呼んだ Cosmetic な常駐エフェクトは、この台帳に乗らないため Late Join で復元されない(別途 `VfxManager`/`BgmManager` 自身に台帳を持たせる改修が必要。Phase 6 以降の課題として明記する)
+
+## 6-0 NGO 統合 + 実機 2 台確認環境
+
+対象: [11_tasks.md](11_tasks.md) Phase 6 の 6-0 行、[14_networking.md](14_networking.md) 実装メモ（2026-09-14、6-0）。
+5-8/5-9 が「NGO 未配線」を前提に書いた要判断のうち、NGO 実配線・実機 2 台確認に関わる部分はこのチケットで
+解消した(発行者検証・SelfNetId/TargetNetId 実解決・LocalClientId・Client 行為者テスト等)。
+
+**実機 2 台(PC-A=Host / PC-B=Client)での確認手順・コマンドライン引数・ログの判定基準は
+[29_network_device_test.md](29_network_device_test.md) に一本化した(§3〜§5)。** ここでは確認項目の
+チェックリストだけを示す(PC-B での実施はオーケストレーターが担当。2026-09-14 時点で未実施)。
+
+- [ ] 2 台での接続(`heartbeat` ログが両端末に出る、`NetDebugOverlay` の Role/ClientId 表示)
+- [ ] Presentation の位相(Host/Client の `heartbeat.networkTime` が RTT 相応の差に収まる)
+- [ ] Signal 中継(`signal=hit` が両端末に出て、HitStop が両端末で発生する)
+- [ ] Late Join(Client を後から起動 → `activeCount` が 0→1 に変わる行が出る)
+- [ ] 遅延 200ms(`-ddrive-sim-latency 200` を付けても接続・再生が成立する)
+- [ ] 偽造メッセージ破棄(`forged_cancel_sent` の直後に `[Net/Host]`/`[Net/Client]` の破棄警告が出て、`activeCount` が変化しない)
+- [ ] ファイアウォールの許可ダイアログ(初回起動時に出た場合、PC-B 側で「プライベート ネットワーク」を許可した旨を記録する。Claude からは操作できない)
+- [ ] (このセッションで実施済み)ローカル(127.0.0.1)2 プロセスでの結合確認 — 結果は [29] §7 参照
+
+要判断:
+- **`-ddrive-autotest` は成否を自動判定しない**: ログ出力のみで、CI 的な pass/fail 判定は将来必要になったときに追加する
+- **NetworkManager をシーンに置く前提**: `DDriveRuntimeBootstrap` は NetworkManager を動的生成しない(6-0 の設計判断、[14_networking.md] 実装メモ参照)。ゲーム側シーンにも同様の配置が必要になる
