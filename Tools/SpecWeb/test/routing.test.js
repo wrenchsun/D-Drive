@@ -10,6 +10,10 @@ const { loadGas } = require('./load-gas.js');
 // 「token 無し（① 相当）」「token 有り（② 相当）」の両方の呼び出しが
 // 例外を投げずに応答することを確認する。
 // (docs/32_spec_web.md §8 W-1)
+//
+// 追補（2026-09-14）: token は POST（doPost）の本文でのみ受け付ける（§7）。
+// token 付きの呼び出しは doGet ではなく doPost で検証し、「doGet に token を
+// 付けると（有効/無効に関わらず）拒否される」ことも別途確認する。
 
 function usersFixture(list) {
   const items = {};
@@ -34,13 +38,25 @@ test('doGet: api パラメータが無く許可リスト外なら「メンバー
   assert.match(output.getContent(), /メンバーのみ利用できます/);
 });
 
-test('doGet: ?api=1（② 相当、token 付き）は同じ doGet から JSON で応答する', () => {
+test('doPost: ?api=1（② 相当、token を POST 本文で送る）は JSON で応答する', () => {
+  const ctx = loadGas();
+  const token = ctx.issueApiToken('read');
+  const output = ctx.doPost({ parameter: { api: '1', name: 'ping', token: token } });
+  const body = JSON.parse(output.getContent());
+  assert.equal(body.ok, true);
+  assert.equal(body.pong, true);
+});
+
+// 2026-09-14 追補: token は GET（doGet）のクエリパラメータでは受け付けない
+// （token が GAS の実行ログ・中継プロキシ・ブラウザ履歴に残る経路を塞ぐため。§7）。
+// 有効な token であっても、GET に付いているだけで即時に拒否される。
+test('doGet: token 付きの ?api=1 は（有効な token であっても）拒否される。POST でのみ受け付ける', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('read');
   const output = ctx.doGet({ parameter: { api: '1', name: 'ping', token: token } });
   const body = JSON.parse(output.getContent());
-  assert.equal(body.ok, true);
-  assert.equal(body.pong, true);
+  assert.equal(body.ok, false);
+  assert.equal(body.status, 400);
 });
 
 test('doGet: ?api=1 で token が無く未ログインの呼び出し（② への無認証アクセス）は拒否される', () => {
@@ -51,19 +67,19 @@ test('doGet: ?api=1 で token が無く未ログインの呼び出し（② へ�
   assert.equal(body.status, 401);
 });
 
-test('doGet: ?api=1 で token が間違っていれば拒否される', () => {
+test('doPost: token が間違っていれば拒否される', () => {
   const ctx = loadGas();
   ctx.issueApiToken('read');
-  const output = ctx.doGet({ parameter: { api: '1', name: 'ping', token: 'wrong' } });
+  const output = ctx.doPost({ parameter: { api: '1', name: 'ping', token: 'wrong' } });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, false);
   assert.equal(body.status, 401);
 });
 
-test('doGet: 未登録の API 名は 404 相当で拒否される', () => {
+test('doPost: 未登録の API 名は 404 相当で拒否される', () => {
   const ctx = loadGas();
   const token = ctx.issueApiToken('read');
-  const output = ctx.doGet({ parameter: { api: '1', name: 'no-such-api', token: token } });
+  const output = ctx.doPost({ parameter: { api: '1', name: 'no-such-api', token: token } });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, false);
   assert.equal(body.status, 404);
@@ -86,7 +102,7 @@ test('handleApiRequest_: RevisionConflictError を投げる登録 API は 409 �
   ctx.registerApi('__test_conflict', function () {
     throw new ctx.RevisionConflictError('revision が一致しません', 3);
   });
-  const output = ctx.doGet({ parameter: { api: '1', name: '__test_conflict', token: token } });
+  const output = ctx.doPost({ parameter: { api: '1', name: '__test_conflict', token: token } });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, false);
   assert.equal(body.status, 409);

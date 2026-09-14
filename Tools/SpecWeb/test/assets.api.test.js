@@ -291,10 +291,11 @@ test('whoami: 認証情報（role 等）を返す', () => {
     driveFiles: usersFixture([{ email: 'member@example.com', displayName: 'メンバー', role: 'editor' }])
   });
   const token = ctx.issueApiToken('read');
-  const output = ctx.doGet({ parameter: { api: '1', name: 'whoami', token: token } });
+  // 2026-09-14 追補: token は POST（doPost）の本文でのみ受け付ける（§7、routing.test.js 参照)。
+  const output = ctx.doPost({ parameter: { api: '1', name: 'whoami', token: token } });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, true);
-  assert.equal(body.role, 'viewer'); // read トークンは viewer 相当（Auth.js の既存仕様）
+  assert.equal(body.role, 'viewer'); // read トークンは viewer 相当(Auth.js の既存仕様)
 });
 
 test('handleApiRequest_ 経由（doGet 実リクエスト相当）: 検証エラーが 400 相当で本文に返る', () => {

@@ -14,20 +14,26 @@
  * 実際の API（アセット CRUD・調整値 等）はこのファイルを編集せず、
  * 各チケットが自分のファイルで `registerApi(name, handler)` するだけで追加できる
  * （Api/Registry.js）。
+ *
+ * 追補（2026-09-14）: `token` は GET（doGet）のクエリパラメータでは受け付けない
+ * （handleApiRequest_ 参照）。GET のクエリ文字列は GAS の実行ログ・中継プロキシ・
+ * ブラウザ履歴に残るため、token を運ぶリクエストは必ず POST（doPost）の本文で送らせる
+ * （docs/32_spec_web.md §7）。人向け SPA（①）は token を使わない（セッション認証のみ）ため、
+ * SPA 自身の `?api=1` の GET 呼び出し（html/App.html の SpecWebClient.callApi）は影響を受けない。
  */
 
 function doGet(e) {
-  return handleSpecWebRequest_(e || {});
+  return handleSpecWebRequest_(e || {}, 'GET');
 }
 
 function doPost(e) {
-  return handleSpecWebRequest_(e || {});
+  return handleSpecWebRequest_(e || {}, 'POST');
 }
 
-function handleSpecWebRequest_(e) {
+function handleSpecWebRequest_(e, method) {
   var params = e.parameter || {};
   if (params.api === '1') {
-    return handleApiRequest_(e);
+    return handleApiRequest_(e, method);
   }
   return renderUi_();
 }
@@ -47,8 +53,16 @@ function handleSpecWebRequest_(e) {
  */
 var DDRIVE_WRITE_TOKEN_ALLOWED_APIS = ['ping', 'whoami', 'choices', 'assetState', 'tuningUsage'];
 
-function handleApiRequest_(e) {
+function handleApiRequest_(e, method) {
   var params = e.parameter || {};
+  // token は POST（doPost）の本文でのみ受け付ける（上記ファイルコメント参照）。GET に token が
+  // 付いていたら、有効/無効を検証する前に拒否する（無効な token を試したログを積む必要も無い）。
+  if (method === 'GET' && params.token) {
+    return ContentAdapter.json(
+      { ok: false, error: 'token は GET のクエリパラメータでは受け付けません。POST の本文で送ってください。' },
+      400
+    );
+  }
   var auth = authenticateRequest(e);
   if (!auth.ok) {
     return ContentAdapter.json({ ok: false, error: auth.message }, auth.status);
