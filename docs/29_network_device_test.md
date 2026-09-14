@@ -476,12 +476,12 @@ PC-B は hotspot 経由で zip を取得（約 19 秒、サイズ一致）。
 K1（ホットスポットの数秒停止）は環境要因で、A7（猶予 0.5 秒）の見直しは運用開始後に実回線で行う。
 PC-A 側の配布用 HTTP サーバーは停止済み、両 PC とも `DDriveNetCheck` のプロセスは残っていない。
 
-- **K2（対応: 6-6）**: `NgoNetBridge.AppRoundTripMs` を計算プロパティ化し、未応答 Ping からの経過時間を
+- **K2（対応: 6-6、PR #64）**: `NgoNetBridge.AppRoundTripMs` を計算プロパティ化し、未応答 Ping からの経過時間を
   下限として返すよう修正した（`IsAppRoundTripMsStale` を `NetDebugOverlay`/`NetCheckRunner` に反映）。
   詳細は [14_networking.md] §10「実装メモ（2026-09-15、6-6）」。ユニットテストでは NGO 実接続が必要な
   `NgoNetBridge` 内部のタイマー挙動を直接検証できないため（既存の慣習どおり、§7/§9/§11 参照）、v5 の
   実機/ローカル結合確認で直接確認する。
-- **K3（対応: 6-6）**: 真因（`NgoNetBridge` のアプリ層遅延キューが FIFO を保証していなかった）を
+- **K3（対応: 6-6、PR #64）**: 真因（`NgoNetBridge` のアプリ層遅延キューが FIFO を保証していなかった）を
   `Queue<T>` 化で修正し、加えて `PresentationManager` 側にも未知キーの短時間保留（既定 1.0 秒、Play 到着時に
   適用・期限切れで従来どおり破棄）を防波堤として追加した。詳細は [14_networking.md] §9/§10「実装メモ
   （2026-09-15、6-6）」。PresentationManager 側のロジックは `Tests/Runtime/PresentationNetDeviceFixTests.cs`
