@@ -1,0 +1,693 @@
+<style>
+  /* Assets.html 専用の見た目（共通 Styles.html は編集していない）。 */
+  .assets-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  .assets-toolbar input[type='text'],
+  .assets-toolbar select {
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+  .assets-toolbar button,
+  .assets-detail button {
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--sw-accent);
+    background: var(--sw-accent);
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .assets-toolbar button.secondary,
+  .assets-detail button.secondary {
+    background: #fff;
+    color: var(--sw-accent);
+  }
+  .assets-toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    color: var(--sw-muted);
+  }
+  table.assets-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  table.assets-table th,
+  table.assets-table td {
+    border-bottom: 1px solid var(--sw-border);
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+  }
+  table.assets-table th {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  table.assets-table th.sw-sort-active {
+    color: var(--sw-accent);
+  }
+  table.assets-table tbody tr {
+    cursor: pointer;
+  }
+  table.assets-table tbody tr:hover {
+    background: #f6f8fa;
+  }
+  tr.assets-group-row td {
+    background: #f6f8fa;
+    font-weight: bold;
+    color: var(--sw-muted);
+    cursor: default;
+  }
+  .assets-detail-overlay {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: rgba(0, 0, 0, 0.25);
+    display: flex;
+    justify-content: flex-end;
+  }
+  .assets-detail {
+    width: min(480px, 100%);
+    background: var(--sw-bg);
+    height: 100%;
+    overflow-y: auto;
+    padding: 1.25rem;
+    box-sizing: border-box;
+  }
+  .assets-detail h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+  }
+  .assets-field {
+    margin-bottom: 0.85rem;
+  }
+  .assets-field label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--sw-muted);
+    margin-bottom: 0.2rem;
+  }
+  .assets-field input,
+  .assets-field select,
+  .assets-field textarea {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
+  .assets-field.sw-field-error input,
+  .assets-field.sw-field-error select,
+  .assets-field.sw-field-error textarea {
+    border-color: #cf222e;
+  }
+  .assets-field .sw-field-error-message {
+    color: #cf222e;
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+  }
+  .assets-ddrive-state {
+    border: 1px solid var(--sw-border);
+    border-radius: 4px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+    background: #f6f8fa;
+  }
+  .assets-comment {
+    border-top: 1px solid var(--sw-border);
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+  }
+  .assets-comment .sw-comment-meta {
+    color: var(--sw-muted);
+    font-size: 0.75rem;
+  }
+  .assets-detail-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+  .sw-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    background: #eaeef2;
+  }
+</style>
+
+<script>
+  /**
+   * アセット一覧・詳細画面（W-4/W-5）。docs/32_spec_web.md §4.1（一覧）・§4.5（詳細）を実装する。
+   *
+   * 注意: この画面が使う window.AssetsLogic は html/AssetsLogic.html が定義する。
+   * include() は HtmlService.createHtmlOutputFromFile の薄いラッパーで、include 先の
+   * ファイルに書かれた `<?!= include(...) ?>` のような入れ子のスクリプトレットは評価されない
+   * （Index.html の評価パスは 1 回だけで、include が返した文字列を再度テンプレートとして
+   * 解釈することはない）。そのため html/AssetsLogic の include は Assets.html の中からではなく、
+   * html/Index.html から App.html の後・Assets.html の前に直接書く必要がある。
+   *
+   * §4.1 のモックのとおり、詳細は「一覧の行を選ぶと右側にスライドインする」設計にしたため、
+   * ルーター上は 1 画面（'assets'）として登録し、一覧テーブルと詳細パネルを同じ screen の中で
+   * 出し分ける（別ルートを作ると App.html のハッシュルーターがサブパスを解釈できないため）。
+   *
+   * DOM を組み立てる処理はここに書き、絞り込み・並べ替え・検証等の純粋関数は
+   * AssetsLogic.html（window.AssetsLogic）に分けてある（そちらは Node でも単体テストできる）。
+   */
+  (function () {
+    'use strict';
+
+    var logic = window.AssetsLogic;
+
+    function el(tag, attrs, children) {
+      var node = document.createElement(tag);
+      attrs = attrs || {};
+      Object.keys(attrs).forEach(function (key) {
+        if (key === 'class') {
+          node.className = attrs[key];
+        } else if (key === 'text') {
+          node.textContent = attrs[key];
+        } else if (key.indexOf('on') === 0 && typeof attrs[key] === 'function') {
+          node.addEventListener(key.slice(2), attrs[key]);
+        } else {
+          node.setAttribute(key, attrs[key]);
+        }
+      });
+      (children || []).forEach(function (child) {
+        if (child) node.appendChild(child);
+      });
+      return node;
+    }
+
+    // ナビゲーションに自分でリンクを追加する（html/Index.html の #app-nav は空のままにし、
+    // 画面ごとに自分でリンクを足す設計にすることで、共通ファイルを編集せずに増やせるようにする）。
+    var navHost = document.getElementById('app-nav');
+    if (navHost && !navHost.querySelector('a[href="#/assets"]')) {
+      navHost.appendChild(el('a', { href: '#/assets', text: 'アセット一覧' }));
+    }
+
+    registerScreen('assets', function (root) {
+      var state = {
+        items: [],
+        currentUser: { role: null },
+        filters: { query: '', assetType: '', status: '', assignee: '', category: '' },
+        sort: { key: 'identifier', direction: 'asc' },
+        grouped: false,
+        detail: null // { mode: 'create'|'edit', item, fields, errors }
+      };
+
+      var toolbar = el('div', { class: 'assets-toolbar' });
+      var table = el('table', { class: 'assets-table' });
+      var tbody = el('tbody');
+      var statusLine = el('p', { class: 'sw-muted' });
+      var overlayHost = el('div');
+
+      root.appendChild(statusLine);
+      root.appendChild(toolbar);
+      root.appendChild(table);
+      root.appendChild(overlayHost);
+
+      function canEdit() {
+        return logic.roleAtLeast(state.currentUser.role, 'editor');
+      }
+
+      function visibleItems() {
+        var filtered = logic.filterAssets(state.items, state.filters);
+        return logic.sortAssets(filtered, state.sort.key, state.sort.direction);
+      }
+
+      function assigneeOptions() {
+        var set = {};
+        state.items.forEach(function (item) {
+          if (item.assignee) set[item.assignee] = true;
+        });
+        return Object.keys(set).sort();
+      }
+
+      function categoryOptions() {
+        var set = {};
+        state.items.forEach(function (item) {
+          if (item.category) set[item.category] = true;
+        });
+        return Object.keys(set).sort();
+      }
+
+      function buildSelect(options, current, includeAllLabel) {
+        var select = el('select');
+        if (includeAllLabel) {
+          select.appendChild(el('option', { value: '', text: includeAllLabel }));
+        }
+        options.forEach(function (opt) {
+          var optionEl = el('option', { value: opt, text: opt });
+          if (opt === current) optionEl.selected = true;
+          select.appendChild(optionEl);
+        });
+        return select;
+      }
+
+      function renderToolbar() {
+        toolbar.innerHTML = '';
+
+        var search = el('input', { type: 'text', placeholder: '検索（識別子・表示名・備考）' });
+        search.value = state.filters.query;
+        search.addEventListener('input', function () {
+          state.filters.query = search.value;
+          renderTable();
+        });
+        toolbar.appendChild(search);
+
+        var typeSelect = buildSelect(logic.ASSET_TYPES, state.filters.assetType, '種別: 全て');
+        typeSelect.addEventListener('change', function () {
+          state.filters.assetType = typeSelect.value;
+          renderTable();
+        });
+        toolbar.appendChild(typeSelect);
+
+        var statusSelect = buildSelect(logic.ASSET_STATUSES, state.filters.status, '状態: 全て');
+        statusSelect.addEventListener('change', function () {
+          state.filters.status = statusSelect.value;
+          renderTable();
+        });
+        toolbar.appendChild(statusSelect);
+
+        var assigneeSelect = buildSelect(assigneeOptions(), state.filters.assignee, '担当: 全て');
+        assigneeSelect.addEventListener('change', function () {
+          state.filters.assignee = assigneeSelect.value;
+          renderTable();
+        });
+        toolbar.appendChild(assigneeSelect);
+
+        var categorySelect = buildSelect(categoryOptions(), state.filters.category, 'カテゴリ: 全て');
+        categorySelect.addEventListener('change', function () {
+          state.filters.category = categorySelect.value;
+          renderTable();
+        });
+        toolbar.appendChild(categorySelect);
+
+        var groupLabel = el('label');
+        var groupCheckbox = el('input', { type: 'checkbox' });
+        groupCheckbox.checked = state.grouped;
+        groupCheckbox.addEventListener('change', function () {
+          state.grouped = groupCheckbox.checked;
+          renderTable();
+        });
+        groupLabel.appendChild(groupCheckbox);
+        groupLabel.appendChild(document.createTextNode('種別でグループ化'));
+        toolbar.appendChild(groupLabel);
+
+        if (canEdit()) {
+          var newButton = el('button', {
+            text: '+ 新規',
+            onclick: function () {
+              openDetail({ mode: 'create' });
+            }
+          });
+          toolbar.appendChild(newButton);
+        }
+      }
+
+      function sortIndicator(key) {
+        if (state.sort.key !== key) return '';
+        return state.sort.direction === 'asc' ? ' ▲' : ' ▼';
+      }
+
+      function renderHeader() {
+        var thead = el('thead');
+        var headerRow = el('tr');
+        var columns = [
+          { key: 'assetType', label: '種別' },
+          { key: 'identifier', label: '識別子' },
+          { key: 'displayName', label: '表示名' },
+          { key: 'status', label: '状態' },
+          { key: 'assignee', label: '担当' }
+        ];
+        columns.forEach(function (col) {
+          var th = el('th', { text: col.label + sortIndicator(col.key) });
+          if (state.sort.key === col.key) th.className = 'sw-sort-active';
+          th.addEventListener('click', function () {
+            if (state.sort.key === col.key) {
+              state.sort.direction = state.sort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+              state.sort.key = col.key;
+              state.sort.direction = 'asc';
+            }
+            renderTable();
+          });
+          headerRow.appendChild(th);
+        });
+        headerRow.appendChild(el('th', { text: 'D-Drive状態' }));
+        thead.appendChild(headerRow);
+        return thead;
+      }
+
+      function buildRow(item) {
+        var badge = logic.formatDdriveStateBadge(item.ddriveState);
+        var row = el('tr', {
+          onclick: function () {
+            openDetail({ mode: 'edit', item: item });
+          }
+        }, [
+          el('td', { text: item.assetType }),
+          el('td', { text: item.identifier }),
+          el('td', { text: item.displayName }),
+          el('td', { text: item.status }),
+          el('td', { text: item.assignee || '—' }),
+          el('td', { text: badge.icon + ' ' + badge.label })
+        ]);
+        return row;
+      }
+
+      function renderTable() {
+        table.innerHTML = '';
+        table.appendChild(renderHeader());
+        var newTbody = el('tbody');
+        var items = visibleItems();
+
+        if (items.length === 0) {
+          newTbody.appendChild(el('tr', {}, [el('td', { text: '該当するアセットがありません', colspan: '6' })]));
+        } else if (state.grouped) {
+          logic.groupAssetsByType(items).forEach(function (group) {
+            newTbody.appendChild(
+              el('tr', { class: 'assets-group-row' }, [
+                el('td', { text: group.assetType + '（' + group.items.length + '件）', colspan: '6' })
+              ])
+            );
+            group.items.forEach(function (item) {
+              newTbody.appendChild(buildRow(item));
+            });
+          });
+        } else {
+          items.forEach(function (item) {
+            newTbody.appendChild(buildRow(item));
+          });
+        }
+        table.appendChild(newTbody);
+        tbody = newTbody;
+        statusLine.textContent = '全 ' + state.items.length + ' 件中 ' + items.length + ' 件を表示';
+      }
+
+      function renderAll() {
+        renderToolbar();
+        renderTable();
+      }
+
+      function reload() {
+        statusLine.textContent = '読み込み中...';
+        return window.SpecWebClient.callApi('assets.list', { includeArchived: '0' }).then(function (res) {
+          if (!res.ok) {
+            statusLine.textContent = '一覧の取得に失敗しました: ' + (res.error || '');
+            return;
+          }
+          state.items = res.items || [];
+          renderAll();
+        });
+      }
+
+      // ---- 詳細パネル（§4.5） ----
+
+      function emptyFields() {
+        return {
+          assetType: '', category: '', identifier: '', displayName: '', status: '未着手',
+          assignee: '', dueDate: '', priority: '', note: ''
+        };
+      }
+
+      function fieldsFromItem(item) {
+        return {
+          assetType: item.assetType || '',
+          category: item.category || '',
+          identifier: item.identifier || '',
+          displayName: item.displayName || '',
+          status: item.status || '',
+          assignee: item.assignee || '',
+          dueDate: item.dueDate || '',
+          priority: item.priority || '',
+          note: item.note || ''
+        };
+      }
+
+      function closeDetail() {
+        overlayHost.innerHTML = '';
+        state.detail = null;
+      }
+
+      function openDetail(detail) {
+        state.detail = detail;
+        detail.fields = detail.mode === 'create' ? emptyFields() : fieldsFromItem(detail.item);
+        detail.errors = {};
+
+        if (detail.mode === 'edit') {
+          // 一覧のキャッシュではなく、コメント・最新 revision を含む全項目を取得し直す（§4.5）。
+          window.SpecWebClient.callApi('assets.get', { id: detail.item.id }).then(function (res) {
+            if (res.ok) {
+              detail.item = res.item;
+              detail.fields = fieldsFromItem(res.item);
+              renderDetail();
+            }
+          });
+        }
+        renderDetail();
+      }
+
+      function fieldRow(key, label, inputEl) {
+        var wrap = el('div', { class: 'assets-field' });
+        wrap.appendChild(el('label', { text: label }));
+        wrap.appendChild(inputEl);
+        if (state.detail.errors[key]) {
+          wrap.className += ' sw-field-error';
+          wrap.appendChild(el('div', { class: 'sw-field-error-message', text: state.detail.errors[key] }));
+        }
+        return wrap;
+      }
+
+      function runValidation() {
+        var detail = state.detail;
+        var result = logic.validateAssetFields(detail.fields, {
+          existingItems: state.items,
+          excludeId: detail.mode === 'edit' ? detail.item.id : null
+        });
+        detail.errors = result.errors;
+        return result.valid;
+      }
+
+      function textField(key, label, type) {
+        var input = el('input', { type: type || 'text' });
+        input.value = state.detail.fields[key];
+        var readOnly = !canEdit();
+        input.disabled = readOnly || (key === 'identifier' || key === 'assetType') && state.detail.mode === 'edit';
+        input.addEventListener('input', function () {
+          state.detail.fields[key] = input.value;
+          runValidation();
+          renderDetail();
+        });
+        return fieldRow(key, label, input);
+      }
+
+      function selectField(key, label, options) {
+        var select = buildSelect(options, state.detail.fields[key], key === 'status' ? null : '（未設定）');
+        select.disabled = !canEdit() || (key === 'assetType' && state.detail.mode === 'edit');
+        select.addEventListener('change', function () {
+          state.detail.fields[key] = select.value;
+          runValidation();
+          renderDetail();
+        });
+        return fieldRow(key, label, select);
+      }
+
+      function textAreaField(key, label) {
+        var textarea = el('textarea', { rows: '3' });
+        textarea.value = state.detail.fields[key];
+        textarea.disabled = !canEdit();
+        textarea.addEventListener('input', function () {
+          state.detail.fields[key] = textarea.value;
+          renderDetail();
+        });
+        return fieldRow(key, label, textarea);
+      }
+
+      function renderDdriveState(item) {
+        var ddriveState = item && item.ddriveState;
+        var badge = logic.formatDdriveStateBadge(ddriveState);
+        var box = el('div', { class: 'assets-ddrive-state' });
+        box.appendChild(el('div', {}, [el('span', { class: 'sw-badge', text: badge.icon + ' ' + badge.label })]));
+        if (ddriveState) {
+          box.appendChild(el('div', { text: '使用箇所数: ' + (ddriveState.usageCount || 0) }));
+          box.appendChild(el('div', { text: '最終同期: ' + (ddriveState.lastSyncedAt || '未同期') }));
+        }
+        box.appendChild(el('div', { class: 'sw-muted', text: '（D-Drive からの同期専用。この画面からは編集できません）' }));
+        return box;
+      }
+
+      function renderComments(item) {
+        var wrap = el('div');
+        wrap.appendChild(el('h3', { text: 'コメント' }));
+        var comments = logic.sortCommentsNewestFirst((item && item.comments) || []);
+        if (comments.length === 0) {
+          wrap.appendChild(el('p', { class: 'sw-muted', text: 'コメントはまだありません' }));
+        }
+        comments.forEach(function (comment) {
+          wrap.appendChild(
+            el('div', { class: 'assets-comment' }, [
+              el('div', { text: comment.body }),
+              el('div', { class: 'sw-comment-meta', text: comment.author + ' ・ ' + comment.createdAt })
+            ])
+          );
+        });
+
+        if (canEdit()) {
+          var textarea = el('textarea', { rows: '2', placeholder: 'コメントを入力...' });
+          var postButton = el('button', {
+            class: 'secondary',
+            text: 'コメントを投稿',
+            onclick: function () {
+              var body = textarea.value.trim();
+              if (!body) return;
+              window.SpecWebClient.callApi('assets.comments.add', { id: item.id, body: body }, { method: 'POST' }).then(function (res) {
+                if (!res.ok) {
+                  window.alert('コメントの投稿に失敗しました: ' + (res.error || ''));
+                  return;
+                }
+                state.detail.item = res.item;
+                renderDetail();
+              });
+            }
+          });
+          wrap.appendChild(textarea);
+          wrap.appendChild(postButton);
+        }
+        return wrap;
+      }
+
+      function submitDetail() {
+        var detail = state.detail;
+        if (!runValidation()) {
+          renderDetail();
+          return;
+        }
+        var patch = Object.assign({}, detail.fields);
+
+        if (detail.mode === 'create') {
+          window.SpecWebClient.callApi('assets.create', { patch: JSON.stringify(patch) }, { method: 'POST' }).then(function (res) {
+            if (!res.ok) {
+              window.alert('作成に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            closeDetail();
+            reload();
+          });
+        } else {
+          // 種別・識別子はサーバー側でも更新できないため送らない（誤ってロックされたフィールドを
+          // 送っても現在値と同じなら弾かれないが、意図を明確にするため除外する）。
+          delete patch.assetType;
+          delete patch.identifier;
+          window.SpecWebClient
+            .callApi(
+              'assets.update',
+              { id: detail.item.id, expectedRevision: detail.item.revision, patch: JSON.stringify(patch) },
+              { method: 'POST' }
+            )
+            .then(function (res) {
+              if (!res.ok) {
+                if (res.status === 409) {
+                  window.alert('他の人が先に更新しました。最新の内容を再読込します。');
+                  openDetail({ mode: 'edit', item: detail.item });
+                  reload();
+                  return;
+                }
+                window.alert('更新に失敗しました: ' + (res.error || ''));
+                return;
+              }
+              closeDetail();
+              reload();
+            });
+        }
+      }
+
+      function deleteDetail() {
+        var detail = state.detail;
+        if (!window.confirm('このアセットをアーカイブ（論理削除）します。よろしいですか？')) return;
+        window.SpecWebClient
+          .callApi('assets.delete', { id: detail.item.id, expectedRevision: detail.item.revision }, { method: 'POST' })
+          .then(function (res) {
+            if (!res.ok) {
+              window.alert('削除に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            closeDetail();
+            reload();
+          });
+      }
+
+      function renderDetail() {
+        overlayHost.innerHTML = '';
+        var detail = state.detail;
+        if (!detail) return;
+
+        var panel = el('div', { class: 'assets-detail' });
+        panel.appendChild(el('h2', { text: detail.mode === 'create' ? '新規アセット' : (detail.item.assetType + ' :: ' + detail.item.identifier) }));
+
+        if (detail.mode === 'edit') {
+          panel.appendChild(renderDdriveState(detail.item));
+        }
+        if (!canEdit()) {
+          panel.appendChild(el('p', { class: 'sw-muted', text: '閲覧のみ（viewer ロールのため編集できません）' }));
+        }
+
+        panel.appendChild(selectField('assetType', '種別', logic.ASSET_TYPES));
+        panel.appendChild(textField('identifier', '識別子（PascalCase）'));
+        panel.appendChild(textField('displayName', '表示名'));
+        panel.appendChild(textField('category', 'カテゴリ'));
+        panel.appendChild(selectField('status', '状態', logic.ASSET_STATUSES));
+        panel.appendChild(textField('assignee', '担当'));
+        panel.appendChild(textField('dueDate', '期限', 'date'));
+        panel.appendChild(selectField('priority', '優先度', logic.ASSET_PRIORITIES));
+        panel.appendChild(textAreaField('note', '備考'));
+
+        if (canEdit()) {
+          var actions = el('div', { class: 'assets-detail-actions' });
+          actions.appendChild(el('button', { text: '保存', onclick: submitDetail }));
+          if (detail.mode === 'edit') {
+            actions.appendChild(el('button', { class: 'secondary', text: '削除（アーカイブ）', onclick: deleteDetail }));
+          }
+          actions.appendChild(el('button', { class: 'secondary', text: '閉じる', onclick: closeDetail }));
+          panel.appendChild(actions);
+        } else {
+          panel.appendChild(el('div', { class: 'assets-detail-actions' }, [
+            el('button', { class: 'secondary', text: '閉じる', onclick: closeDetail })
+          ]));
+        }
+
+        if (detail.mode === 'edit') {
+          panel.appendChild(renderComments(detail.item));
+        }
+
+        var overlay = el('div', {
+          class: 'assets-detail-overlay',
+          onclick: function (ev) {
+            if (ev.target === overlay) closeDetail();
+          }
+        }, [panel]);
+        overlayHost.appendChild(overlay);
+      }
+
+      window.SpecWebClient.callApi('whoami', {}).then(function (res) {
+        if (res.ok) state.currentUser = res;
+        renderAll();
+      });
+      reload();
+    });
+  })();
+</script>

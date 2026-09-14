@@ -681,6 +681,38 @@ Tools/SpecWeb/
 
 ---
 
+## 実装メモ（2026-09-14、W-4〜W-5）
+
+W-4（アセット仕様 CRUD API + 一覧 SPA）・W-5（アセット詳細画面）を実装した。
+W-6〜W-8（調整値）は別ブランチ（`feat/specweb-tuning`）で並行実装中のため、共通ファイル
+（`html/App.html`・`src/Code.js`・`src/Api/Registry.js`）への変更は最小限にとどめた（詳細は下記）。
+両ブランチが独立に `src/Code.js`（エラーハンドリングの一般化）と `test/load-html-script.js`
+（クライアント側 html の純粋関数ローダー）に同じ動機で似た変更を加えたため、`main` へのマージ時に
+両方を活かす形で統合した（詳細は本メモの後にある「マージ時のメモ」）。
+
+### 追加したファイル
+
+```
+Tools/SpecWeb/
+  src/
+    Assets.js               アセット CRUD・削除（論理削除）・コメント・whoami の API（registerApi）
+  html/
+    AssetsLogic.html         DOM に依存しない純粋関数（絞り込み・並べ替え・グルーピング・
+                             即時検証・D-Drive状態バッジ・コメント整列・ロール判定）。window.AssetsLogic
+    Assets.html              一覧テーブル + 詳細スライドインパネル（registerScreen('assets', ...)）。
+                             DOM 組み立て本体はこちらに置き、AssetsLogic の純粋関数を呼ぶだけにした
+  test/
+    load-html-script.js      html/*.html の <script> だけを取り出して vm で評価するローダー
+                             （test/load-gas.js のクライアント側版。W-6〜W-8 も同じ役割のファイルを
+                             追加していたため、マージ時に両方の使い方を満たす形へ統合した）
+    dom-stub.js              Assets.html を動かすための最小限のフェイク DOM（jsdom 不使用）
+    assets.api.test.js       Assets.js の API テスト（loadGas 経由）
+    assets-logic.test.js     AssetsLogic.html の純粋関数テスト
+    assets-screen.smoke.test.js  Assets.html のスモークテスト（フェイク DOM + フェイク SpecWebClient）
+```
+
+---
+
 ## 実装メモ（2026-09-14、W-6〜W-8）
 
 W-6（調整値: スカラー API）・W-7（調整値: テーブル型 API）・W-8（調整値編集 SPA + コメント）を実装した。
@@ -709,7 +741,9 @@ Tools/SpecWeb/
                         ハンドラを直接呼ぶ形を中心に、doGet 経由の統合テストも数件持つ
     tuningGrid.test.js   TuningGrid.html の純粋関数のテスト
     load-html-script.js  html/*.html の <script> 本体だけを vm で実行する小さなローダー
-                        （load-gas.js のクライアント側版）
+                        （load-gas.js のクライアント側版。W-4/W-5 も同じ役割のファイルを
+                        追加していたため、マージ時に両方の使い方を満たす形へ統合した。
+                        「マージ時のメモ」参照）
 ```
 
 ### API 一覧
@@ -831,3 +865,33 @@ Web 側で `min`/`max` を `null` のまま送る（D-Drive 側で未使用の�
 `Tools/SpecWeb/test/*.test.js` で実行した）で **85 件全て green**
 （既存 29 件（W-1〜W-3・PR #39 マージ時点） + 本チケット追加 56 件（API: scalar 18・table 20・
 comments 7・grid 11）。
+
+---
+
+## マージ時のメモ（2026-09-14、W-4〜W-5 と W-6〜W-8 の統合）
+
+`feat/specweb-assets`（W-4〜W-5、本ページの前半の実装メモ）と `feat/specweb-tuning`（W-6〜W-8、
+このすぐ上の実装メモ）は同じ日に並行実装され、`feat/specweb-tuning` 側（PR #40）が先に `main` へ
+マージされた。本チケット（W-4〜W-5、PR #41）は `main` へのマージ前に `git rebase origin/main` で
+両方の変更を統合する必要があった。共通ファイルでの衝突と解決方針は次のとおり:
+
+- **`src/Code.js`**: 両ブランチが独立に「`RevisionConflictError` 専用のエラー処理を `err.status`
+  汎用に一般化する」という**全く同じ内容の変更**を行っていた（動機・実装がほぼ同一）。
+  片方をそのまま採用し、コメントで両チケットの事情（W-4/W-5 の入力検証エラー・W-6/W-7 の
+  `SpecWebValidationError` 等）を両方書き足した
+- **`html/Index.html`**: 両ブランチが `<?!= include('html/App'); ?>` の後に自分の画面の include を
+  追加していた。衝突を解決して**両方の include（`AssetsLogic`→`Assets`、`TuningGrid`→`Tuning`）を
+  残した**（順序はどちらが先でも問題ない設計のため、アセット側を先に置いた）
+- **`test/load-html-script.js`**: 両ブランチが「html の `<script>` だけを vm で評価する」という
+  同じ役割のファイルを**別々の実装で追加**していた（add/add 衝突）。W-6〜W-8 側は単一ファイル・
+  トップレベル変数の公開のみに対応する版、W-4/W-5 側は複数ファイルを同じコンテキストへ順番に
+  読み込む `loadHtmlScripts` と `window` 経由の公開にも対応する版だった。**W-4/W-5 側（後方互換の
+  superset）を採用**した。`TuningGrid.html` はトップレベル変数と `window.SpecWebTuningGrid` の
+  両方に公開する防御的な書き方（`typeof window !== 'undefined'` チェック）をしていたため、
+  この統合で `tuningGrid.test.js` の既存の呼び方（`loadHtmlScript('TuningGrid').SpecWebTuningGrid`）
+  も無変更で動くことを確認した
+- **`docs/11_tasks.md` / `docs/32_spec_web.md`**: 表の行・実装メモの節が競合したため、
+  両方の内容を残す形で手動マージした（このメモもその一部）
+
+統合後、`"C:\Program Files\nodejs\node.exe" --test "Tools/SpecWeb/test/*.test.js"` で
+**123 件全て green**（既存 29 + W-4/W-5 追加 38 + W-6〜W-8 追加 56）。

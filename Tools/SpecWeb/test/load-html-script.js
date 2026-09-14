@@ -1,13 +1,19 @@
 'use strict';
 
 /**
- * html/*.html の <script>...</script> の中身だけを Node の vm で実行するローダー。
- * load-gas.js（GAS 側）と同じ考え方の、クライアント側 html 用の版。
+ * html/*.html に書かれた <script>...</script> の中身だけを取り出し、Node の vm で評価する
+ * ローダー（test/load-gas.js の「本物のコードをそのまま検証する」方針をクライアント側にも適用したもの）。
  *
- * DOM に依存しない純粋関数（html/TuningGrid.html）だけを対象にする。
- * DOM を触る画面本体（html/Tuning.html）はここでは検証しない
- * （document 等の重いフェイクを作らずに済ませるため、TuningGrid.html 側を
- * 「DOM に触らない」設計にして純粋関数だけをテスト可能にしている）。
+ * SPA の画面 html（Assets.html/Tuning.html 等）は DOM 操作を含むため Node では直接動かせないが、
+ * 「行のレンダリング・並べ替え・絞り込み関数」「貼り付け解析・セル移動」のような純粋関数だけを
+ * 1 つの `<script>` に分けておけば（TuningGrid.html/AssetsLogic.html の規約）、ここで vm に
+ * 読み込んで直接テストできる（docs/32_spec_web.md §8 W-4/W-7 の
+ * 「HTML を生成するロジックを純粋関数に分けて単体テスト」の実装）。
+ *
+ * 公開の仕方は 2 通りどちらでもよい: トップレベルの `var Foo = {...}`（vm コンテキスト自身が
+ * グローバルオブジェクトになるため `context.Foo` で読める）でも、`window.Foo = {...}`
+ * （`context.window.Foo` で読める）でもよい。デフォルトの sandbox には空の `window` オブジェクトを
+ * 用意してあるので、`typeof window !== 'undefined'` を見て両方に生やすファイルでも動く。
  */
 
 const fs = require('node:fs');
@@ -15,23 +21,57 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const HTML_ROOT = path.join(__dirname, '..', 'html');
+const SCRIPT_TAG_PATTERN = /<script>([\s\S]*?)<\/script>/g;
+
+function extractScripts_(fileBaseName) {
+  const filePath = path.join(HTML_ROOT, fileBaseName + '.html');
+  const html = fs.readFileSync(filePath, 'utf8');
+
+  const scripts = [];
+  let match;
+  SCRIPT_TAG_PATTERN.lastIndex = 0;
+  while ((match = SCRIPT_TAG_PATTERN.exec(html))) {
+    scripts.push(match[1]);
+  }
+  if (scripts.length === 0) {
+    throw new Error('<script> タグが見つかりません: ' + filePath);
+  }
+  return { filePath, scripts };
+}
 
 /**
- * @param {string} fileName 例: "TuningGrid" ("html/TuningGrid.html" を読む)
- * @return {vm.Context} <script> の中身を実行した後のコンテキスト
+ * @param {string} fileBaseName 拡張子無しのファイル名（例: "TuningGrid" → html/TuningGrid.html）
+ * @param {object} [globals] sandbox に追加で注入するグローバル（未使用時は空でよい）
+ * @return {vm.Context} 評価後のコンテキスト（トップレベルの var、または sandbox.window 経由で
+ *   公開された名前空間を読める）
  */
-function loadHtmlScript(fileName) {
-  const full = path.join(HTML_ROOT, fileName + '.html');
-  const html = fs.readFileSync(full, 'utf8');
-  const match = html.match(/<script>([\s\S]*?)<\/script>/);
-  if (!match) {
-    throw new Error('<script> タグが見つかりません: ' + full);
-  }
-  const code = match[1];
-  const sandbox = { console: console };
+function loadHtmlScript(fileBaseName, globals) {
+  const { filePath, scripts } = extractScripts_(fileBaseName);
+  const sandbox = Object.assign({ console: console, window: {} }, globals || {});
   const context = vm.createContext(sandbox);
-  vm.runInContext(code, context, { filename: full });
+  for (const code of scripts) {
+    vm.runInContext(code, context, { filename: filePath });
+  }
   return context;
 }
 
-module.exports = { loadHtmlScript };
+/**
+ * 複数の html ファイルの <script> を「同じ vm コンテキスト」に順番に読み込む。
+ * Assets.html が window.AssetsLogic（AssetsLogic.html で定義）に依存しているような、
+ * 実際の Index.html の include 順序（App → AssetsLogic → Assets）を再現したいときに使う。
+ * @param {string[]} fileBaseNames
+ * @param {object} [globals]
+ */
+function loadHtmlScripts(fileBaseNames, globals) {
+  const sandbox = Object.assign({ console: console, window: {} }, globals || {});
+  const context = vm.createContext(sandbox);
+  fileBaseNames.forEach(function (fileBaseName) {
+    const { filePath, scripts } = extractScripts_(fileBaseName);
+    scripts.forEach(function (code) {
+      vm.runInContext(code, context, { filename: filePath });
+    });
+  });
+  return context;
+}
+
+module.exports = { loadHtmlScript, loadHtmlScripts };
