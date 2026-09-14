@@ -85,12 +85,36 @@
     }
 
     /**
+     * 緊急修正（2026-09-14 追補）: 「一覧から発注を削除することはできないの？」への対応。
+     * html/Assets.html の deleteItemRow・html/OrderTree.html の deleteAssetRow と同じ
+     * API・確認・runBusy・トーストだが、削除後は ordered/contracted 両方の配列から
+     * 取り除いて再描画する（呼び出し側が state.onDeleted で渡す）。
+     */
+    function deleteAssetRow(item, button, onDeleted) {
+      if (!window.confirm('この発注をアーカイブ（論理削除）します。よろしいですか？')) return;
+      window.SpecWebUi
+        .runBusy('assets.delete:' + item.id, button, function () {
+          return window.SpecWebClient.callApi('assets.delete', { id: item.id, expectedRevision: item.revision }, { method: 'POST' });
+        })
+        .then(function (res) {
+          if (res.busy) return;
+          if (!res.ok) {
+            window.SpecWebUi.toastError('削除に失敗しました: ' + (res.error || ''));
+            return;
+          }
+          onDeleted(item.id);
+          window.SpecWebUi.toastSuccess('削除しました（アーカイブ済み。一覧画面の「アーカイブ済みを表示」で元に戻せます）');
+        });
+    }
+
+    /**
      * O-15/O-16: 各行に「編集」（editor 以上のみ、一覧画面〈assets〉の詳細パネルへ遷移する）・
      * 「メモあり」アイコン（押すと整形表示を展開）を付ける。行本体の組み立て方は
      * renderOrderedList/renderContractedList で共通化する（元の書式文言だけが違う）。
      * @param {object} item
      * @param {string} lineText 行本体の表示文言（呼び出し側が組み立てる）
-     * @param {{canEdit: boolean, expandedMemoIds: Object, toggleMemo: function(string):void}} state
+     * @param {{canEdit: boolean, expandedMemoIds: Object, toggleMemo: function(string):void,
+     *   onDeleted: function(string):void}} state
      */
     function renderItemLi(item, lineText, state) {
       var li = el('li');
@@ -114,10 +138,15 @@
             // 実アプリでは html/App.html が常に定義する。この画面単体のスモークテストの
             // sandbox には無いことがあるため存在確認してから呼ぶ。
             if (typeof window.SpecWebNavigate === 'function') {
-              window.SpecWebNavigate('assets', { params: { openId: item.id } });
+              // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡し、
+              // 一覧画面（Assets.html）の詳細パネルに「← 私の発注へ戻る」を出せるようにする。
+              window.SpecWebNavigate('assets', { params: { openId: item.id, backTo: 'my-orders' } });
             }
           }
         }));
+        var deleteButton = el('button', { class: 'secondary', text: '削除' });
+        deleteButton.addEventListener('click', function () { deleteAssetRow(item, deleteButton, state.onDeleted); });
+        li.appendChild(deleteButton);
       }
       if (state.expandedMemoIds[item.id] && logic.hasReferenceMd(item)) {
         var box = el('div', { class: 'assets-md-preview assets-memo-clip' });
@@ -180,6 +209,13 @@
             expandedMemoIds: expandedMemoIds,
             toggleMemo: function (id) {
               expandedMemoIds[id] = !expandedMemoIds[id];
+              renderColumns();
+            },
+            // 緊急修正（2026-09-14 追補）: 削除（アーカイブ）成功後、この画面は reload() を
+            // 持たない（初回取得のみ）ため、両方の派生配列からその場で取り除いて再描画する。
+            onDeleted: function (id) {
+              ordered = ordered.filter(function (i) { return i.id !== id; });
+              contracted = contracted.filter(function (i) { return i.id !== id; });
               renderColumns();
             }
           };

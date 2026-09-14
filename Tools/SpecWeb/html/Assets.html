@@ -295,6 +295,12 @@
 
     var logic = window.AssetsLogic;
 
+    // 緊急修正（2026-09-14 追補）: 詳細パネルの「戻る」ボタンの文言（backTo の画面 id ごと）。
+    var BACK_TO_LABELS = {
+      orders: '← 発注ツリーへ戻る',
+      'my-orders': '← 私の発注へ戻る'
+    };
+
     function el(tag, attrs, children) {
       var node = document.createElement(tag);
       attrs = attrs || {};
@@ -447,10 +453,17 @@
         grouped: false,
         // O-13: `?page=order&id=...` で開かれた場合に一度だけ自動で開く対象の id
         // （src/Code.js の resolveInitialScreen_ → App.html の render(root, params) 経由）。
+        // 緊急修正（2026-09-14 追補）: 発注ツリー・私の発注の「編集」ボタンからの画面内遷移
+        // （window.SpecWebNavigate('assets', { params: { openId, backTo } })）でも同じ仕組みで開く。
+        // backTo はその場合の「戻り先」画面 id（例: 'orders'/'my-orders'）。一覧の行から直接
+        // 開いた場合は backTo が無いので「戻る」導線は出さない。
         pendingOpenId: (initialParams && initialParams.openId) || null,
-        detail: null, // { mode: 'create'|'edit', item, fields, errors, paramSchemas, memoEditing }
+        pendingBackTo: (initialParams && initialParams.backTo) || null,
+        detail: null, // { mode: 'create'|'edit', item, fields, errors, paramSchemas, memoEditing, backTo }
         // O-16: 一覧の行で「メモあり」アイコンを押して展開した項目の id 集合。
-        expandedMemoIds: {}
+        expandedMemoIds: {},
+        // 緊急修正（2026-09-14 追補）: 「一覧から複数選択して一括削除」用に選択中の id 集合。
+        selectedIds: {}
       };
 
       var toolbar = el('div', { class: 'assets-toolbar' });
@@ -590,6 +603,19 @@
             }
           });
           toolbar.appendChild(newButton);
+
+          // 緊急修正（2026-09-14 追補）: 複数選択して一括削除。選択が無いときは出さない。
+          var selectedCount = Object.keys(state.selectedIds).length;
+          if (selectedCount > 0) {
+            var bulkDeleteButton = el('button', {
+              class: 'secondary',
+              text: '選択した発注を削除（' + selectedCount + '件）'
+            });
+            bulkDeleteButton.addEventListener('click', function () {
+              bulkDeleteSelected(bulkDeleteButton);
+            });
+            toolbar.appendChild(bulkDeleteButton);
+          }
         }
       }
 
@@ -601,6 +627,22 @@
       function renderHeader() {
         var thead = el('thead');
         var headerRow = el('tr');
+        // 緊急修正（2026-09-14 追補）: 複数選択して一括削除するためのチェックボックス列（editor 以上のみ）。
+        // ヘッダーのチェックボックスは「表示中の行を全選択/全解除」。
+        if (canEdit()) {
+          var selectAll = el('input', { type: 'checkbox' });
+          var visible = visibleItems();
+          selectAll.checked = visible.length > 0 && visible.every(function (i) { return !!state.selectedIds[i.id]; });
+          selectAll.addEventListener('change', function () {
+            visible.forEach(function (i) {
+              if (selectAll.checked) state.selectedIds[i.id] = true;
+              else delete state.selectedIds[i.id];
+            });
+            renderToolbar();
+            renderTable();
+          });
+          headerRow.appendChild(el('th', {}, [selectAll]));
+        }
         var columns = [
           { key: 'assetType', label: '種類' },
           { key: 'identifier', label: 'インポート名' },
@@ -628,11 +670,18 @@
         headerRow.appendChild(el('th', { text: 'メモ' })); // O-16: 「メモあり」アイコン列（見出しはあるが並べ替え非対応）
         headerRow.appendChild(el('th', { text: 'D-Drive状態' }));
         headerRow.appendChild(el('th', { text: '' })); // O-13: リンクをコピー列（見出しなし）
+        if (canEdit()) {
+          headerRow.appendChild(el('th', { text: '' })); // 緊急修正（2026-09-14 追補）: 削除列（見出しなし）
+        }
         thead.appendChild(headerRow);
         return thead;
       }
 
-      var ASSETS_TABLE_COLSPAN = 11; // O-16 でメモ列を追加した分、見出し数に合わせて更新する
+      // 緊急修正（2026-09-14 追補）: editor 以上には選択チェックボックス列 + 削除列を追加する
+      // ため、colspan は canEdit() で変わる（viewer には出さない＝列数が少ない）。
+      function assetsTableColspan() {
+        return canEdit() ? 13 : 11;
+      }
 
       /** O-16: 「メモあり」アイコン（押すと行の下にメモを展開表示する）。メモが無ければ「—」。 */
       function buildMemoCell(item) {
@@ -656,7 +705,7 @@
 
       /** O-16: メモ展開行。長いメモは CSS でクリップし、「続きを読む」は詳細パネルを開く。 */
       function buildMemoExpansionRow(item) {
-        var td = el('td', { colspan: String(ASSETS_TABLE_COLSPAN) });
+        var td = el('td', { colspan: String(assetsTableColspan()) });
         var box = el('div', { class: 'assets-md-preview assets-memo-clip' });
         box.innerHTML = logic.renderMarkdownSafe(item.referenceMd);
         td.appendChild(box);
@@ -671,6 +720,41 @@
         return el('tr', { class: 'assets-memo-row' }, [td]);
       }
 
+      /**
+       * 緊急修正（2026-09-14 追補）: 一覧の行から直接削除（アーカイブ）/元に戻すできるボタン。
+       * 詳細パネルを開かずに済むため、行の onclick（詳細を開く）に伝播させない。
+       */
+      function buildRowActionCell(item) {
+        var cell = el('td');
+        var button = item.archived
+          ? el('button', { class: 'secondary', text: '元に戻す' })
+          : el('button', { class: 'secondary', text: '削除' });
+        button.addEventListener('click', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          if (item.archived) restoreItemRow(item, button);
+          else deleteItemRow(item, button);
+        });
+        cell.appendChild(button);
+        return cell;
+      }
+
+      /** 緊急修正（2026-09-14 追補）: 複数選択して一括削除するための行チェックボックス。 */
+      function buildRowSelectCell(item) {
+        var cell = el('td');
+        var checkbox = el('input', { type: 'checkbox' });
+        checkbox.checked = !!state.selectedIds[item.id];
+        checkbox.addEventListener('click', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+        });
+        checkbox.addEventListener('change', function () {
+          if (checkbox.checked) state.selectedIds[item.id] = true;
+          else delete state.selectedIds[item.id];
+          renderToolbar();
+        });
+        cell.appendChild(checkbox);
+        return cell;
+      }
+
       function buildRow(item) {
         var badge = logic.formatDdriveStateBadge(item.ddriveState);
         var copyCell = el('td');
@@ -678,11 +762,9 @@
           function () { return window.OrderLinkLogic.buildOrderUrl(window.SpecWebExecUrl, item.id); },
           function () { return item.displayName || item.identifier; }
         ));
-        var row = el('tr', {
-          onclick: function () {
-            openDetail({ mode: 'edit', item: item });
-          }
-        }, [
+        var cells = [];
+        if (canEdit()) cells.push(buildRowSelectCell(item));
+        cells.push(
           el('td', { text: item.assetType }),
           el('td', { text: item.identifier }),
           el('td', { text: item.orderer || '—' }),
@@ -694,7 +776,13 @@
           buildMemoCell(item),
           el('td', { text: badge.icon + ' ' + badge.label }),
           copyCell
-        ]);
+        );
+        if (canEdit()) cells.push(buildRowActionCell(item));
+        var row = el('tr', {
+          onclick: function () {
+            openDetail({ mode: 'edit', item: item });
+          }
+        }, cells);
         return row;
       }
 
@@ -713,12 +801,12 @@
         var items = visibleItems();
 
         if (items.length === 0) {
-          newTbody.appendChild(el('tr', {}, [el('td', { text: '該当する発注がありません', colspan: String(ASSETS_TABLE_COLSPAN) })]));
+          newTbody.appendChild(el('tr', {}, [el('td', { text: '該当する発注がありません', colspan: String(assetsTableColspan()) })]));
         } else if (state.grouped) {
           logic.groupAssetsByType(items).forEach(function (group) {
             newTbody.appendChild(
               el('tr', { class: 'assets-group-row' }, [
-                el('td', { text: group.assetType + '（' + group.items.length + '件）', colspan: String(ASSETS_TABLE_COLSPAN) })
+                el('td', { text: group.assetType + '（' + group.items.length + '件）', colspan: String(assetsTableColspan()) })
               ])
             );
             group.items.forEach(function (item) {
@@ -791,10 +879,12 @@
       function maybeOpenPending() {
         if (!state.pendingOpenId) return;
         var pendingId = state.pendingOpenId;
+        var pendingBackTo = state.pendingBackTo;
         state.pendingOpenId = null;
+        state.pendingBackTo = null;
         var found = state.items.filter(function (i) { return i.id === pendingId; })[0];
         if (found) {
-          openDetail({ mode: 'edit', item: found });
+          openDetail({ mode: 'edit', item: found, backTo: pendingBackTo });
         } else {
           statusLine.textContent = '指定された発注が見つかりません（' + pendingId + '）。一覧を表示しています。';
         }
@@ -1541,6 +1631,92 @@
           });
       }
 
+      /**
+       * 緊急修正（2026-09-14 追補）: 「一覧から発注を削除することはできないの？」への対応。
+       * 詳細パネルを開かずに一覧の行から直接アーカイブする（deleteDetail と同じ API・確認・
+       * runBusy・トーストだが、対象は state.detail ではなく行の item そのもの）。
+       */
+      function deleteItemRow(item, button) {
+        if (!window.confirm('この発注をアーカイブ（論理削除）します。よろしいですか？')) return;
+        window.SpecWebUi
+          .runBusy('assets.delete:' + item.id, button, function () {
+            return window.SpecWebClient.callApi('assets.delete', { id: item.id, expectedRevision: item.revision }, { method: 'POST' });
+          })
+          .then(function (res) {
+            if (res.busy) return;
+            if (!res.ok) {
+              window.SpecWebUi.toastError('削除に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            delete state.selectedIds[item.id];
+            applyItemLocally(res.item);
+            window.SpecWebUi.toastSuccess('削除しました（アーカイブ済み。「アーカイブ済みを表示」で元に戻せます）');
+          });
+      }
+
+      /** 緊急修正（2026-09-14 追補）: 一覧の行から直接「元に戻す」。 */
+      function restoreItemRow(item, button) {
+        window.SpecWebUi
+          .runBusy('assets.restore:' + item.id, button, function () {
+            return window.SpecWebClient.callApi('assets.restore', { id: item.id, expectedRevision: item.revision }, { method: 'POST' });
+          })
+          .then(function (res) {
+            if (res.busy) return;
+            if (!res.ok) {
+              window.SpecWebUi.toastError('復元に失敗しました: ' + (res.error || ''));
+              return;
+            }
+            applyItemLocally(res.item);
+            window.SpecWebUi.toastSuccess('元に戻しました');
+          });
+      }
+
+      /**
+       * 緊急修正（2026-09-14 追補）: 「複数選択して一括削除できると尚良い」への対応。
+       * 選択中の各 id に対して順に assets.delete を呼ぶ（1回の runBusy キーで多重送信を防ぎ、
+       * 成功した分だけ一覧からその場で消す。失敗した分は選択を残してトーストで件数を知らせる）。
+       */
+      function bulkDeleteSelected(button) {
+        var ids = Object.keys(state.selectedIds);
+        if (ids.length === 0) return;
+        if (!window.confirm('選択した ' + ids.length + ' 件の発注をアーカイブ（論理削除）します。よろしいですか？')) return;
+        window.SpecWebUi
+          .runBusy('assets.bulkDelete', button, function () {
+            return Promise.all(ids.map(function (id) {
+              var target = state.items.filter(function (i) { return i.id === id; })[0];
+              if (!target) return Promise.resolve({ ok: false, id: id, error: '一覧に見つかりません' });
+              return window.SpecWebClient
+                .callApi('assets.delete', { id: id, expectedRevision: target.revision }, { method: 'POST' })
+                .then(function (res) {
+                  res.id = id;
+                  return res;
+                });
+            })).then(function (results) {
+              return { ok: true, results: results };
+            });
+          })
+          .then(function (outcome) {
+            if (outcome.busy) return;
+            var results = outcome.results || [];
+            var succeeded = 0, failed = 0;
+            results.forEach(function (res) {
+              if (res.ok) {
+                succeeded += 1;
+                delete state.selectedIds[res.id];
+                applyItemLocally(res.item);
+              } else {
+                failed += 1;
+              }
+            });
+            renderToolbar();
+            if (failed === 0) {
+              window.SpecWebUi.toastSuccess(succeeded + ' 件を削除しました（アーカイブ済み）');
+            } else {
+              window.SpecWebUi.toastError(succeeded + ' 件を削除しました。' + failed + ' 件は失敗しました（選択したままにしています）');
+            }
+          });
+      }
+
       function renderDetail() {
         overlayHost.innerHTML = '';
         var detail = state.detail;
@@ -1551,6 +1727,19 @@
         detail._refreshFileNameHint = null;
 
         var panel = el('div', { class: 'assets-detail' });
+        // 緊急修正（2026-09-14 追補）: 発注ツリー・私の発注の「編集」から画面内遷移してきた場合、
+        // 一覧画面（この画面）に残ったままでは元の画面に戻る手段が無い（ブラウザの「戻る」は
+        // iframe サンドボックス内では機能しない、App.html 冒頭のコメント参照）。backTo が
+        // あれば、元の画面へ戻るボタンを見出しの上に出す。
+        if (detail.backTo) {
+          panel.appendChild(el('button', {
+            class: 'secondary',
+            text: BACK_TO_LABELS[detail.backTo] || '← 戻る',
+            onclick: function () {
+              if (typeof window.SpecWebNavigate === 'function') window.SpecWebNavigate(detail.backTo);
+            }
+          }));
+        }
         panel.appendChild(el('h2', { text: detail.mode === 'create' ? '新規発注' : (detail.item.assetType + ' :: ' + detail.item.identifier) }));
 
         if (detail.mode === 'edit') {

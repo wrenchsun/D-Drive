@@ -2407,3 +2407,88 @@ docs/28 の該当節に同じ内容を追記した。
 5. 発注グループのヘッダーの「編集」で名前・WBS 番号等を変更し保存できることを確認する
 6. 詳細パネルで何か変更してから「閉じる」を押すと確認ダイアログが出て、キャンセルすれば閉じない
    ことを確認する（変更が無ければ確認せずに閉じる）
+
+## 実装メモ（2026-09-14 追補: 実デプロイで判明した不具合の修正 — O-15 導線の再修正 + 削除機能の追加）
+
+ユーザーが実デプロイ（PR #54 まで反映済み）で見つけた2点への対応（`fix/order-edit-nav-list-delete` ブランチ）。
+
+### 1. 「発注ツリー・私の発注の『編集』を押しても一覧が表示されるだけで詳細が開かない」
+
+**調査**: `html/Assets.html` の O-13 由来の自動オープン処理（`maybeOpenPending`）・
+`html/App.html` の `navigateTo`/`renderScreen`・`html/OrderTree.html`/`html/MyOrders.html` の
+「編集」ボタンのコードをすべて読み直したが、コード上は正しく繋がっていた（`state` は
+`registerScreen` のコールバックが呼ばれるたびに作り直されるため、画面内遷移でも
+`pendingOpenId` は毎回正しく渡る）。
+
+**再現方法の見直し**: 既存の `*.smoke.test.js` は各画面モジュールを `registerScreen` を
+スタブして単体で呼ぶだけで、`html/App.html` が持つ実際の画面遷移（`window.SpecWebNavigate`
+→ `renderScreen` → `render(root, params)`）を経由していなかった。「ノードのテストは通るのに
+実画面では動かない」を検出できるよう、`test/orderEditNavigation.test.js`（新規）で
+`html/App.html`・`html/OrderTree.html`・`html/Assets.html` の実際の `<script>` を1つの
+vm コンテキストに読み込み、「編集」ボタンのクリックから詳細パネルが開くところまでを
+本物の関数を通して確認するテストを追加した。このテストは現状のコードに対して green になり、
+コード自体の結線に欠陥は再現できなかった。
+
+**対応**: 実 Apps Script（HtmlService の iframe サンドボックス）環境固有の可能性が高い
+`google.script.history.push()`/`replace()` が（環境によっては）直後に `setChangeHandler` の
+ハンドラを呼び直すことがある、という既知の挙動に備え、`html/App.html` の `navigateTo` に
+「直前と同一画面・同一 params への `skipHistory` な再遷移は無視する」防御を追加した
+（`currentRenderId_`/`currentRenderParamsJson_`）。これにより、`history.push()` が
+自分自身の遷移を再度 `navigateTo(..., {skipHistory:true, params})` として呼び直しても、
+直前に開いた詳細パネルの描画が巻き戻されることはない。加えて、根本原因が完全には
+再現しきれなかったことを踏まえ、UX 面でも次の改善を行った。
+
+- 発注ツリー・私の発注の「編集」から遷移した場合、`window.SpecWebNavigate('assets', {
+  params: { openId, backTo } })` の `backTo`（`'orders'`/`'my-orders'`）を新設し、一覧画面の
+  詳細パネルの見出しの上に「← 発注ツリーへ戻る」/「← 私の発注へ戻る」ボタンを出す
+  （一覧の行から直接開いた場合は `backTo` が無いのでこのボタンは出ない）。iframe サンドボックス
+  内ではブラウザの「戻る」が使えない制約（§2.4）への対応として、画面遷移経由で来た場合に
+  必ず戻れる導線を用意した
+- 詳細パネルを共通化してその場（発注ツリー・私の発注の画面）で開く案も検討したが、
+  `html/Assets.html` の詳細パネルは一覧の `state`（`items`/`orderGroups`/`members`/`canEdit` 等）
+  に強く依存しており、切り離すには一覧側の内部状態をモジュールスコープへ持ち上げる大きな
+  リファクタが必要（工数が大きい）と判断し、今回は「遷移方式の修正 + 戻る導線」までとした
+  （ユーザー了承の「工数が大きければ遷移方式の修正だけでよい」の範囲）
+
+### 2. 「一覧から発注を削除することはできないの？」（一覧・発注ツリー・私の発注の行から直接）
+
+既存の `assets.delete`（論理削除）・`assets.restore` API と `html/Assets.html` の詳細パネルの
+「削除（アーカイブ）」/「元に戻す」ボタンはすでにあったが、**一覧の行から直接削除する手段が
+無かった**（詳細を開いてから削除する必要があった）。
+
+- `html/Assets.html`: 一覧の各行に「削除」（未アーカイブ時）/「元に戻す」（アーカイブ済み時）
+  ボタンを追加（`buildRowActionCell`。詳細パネルを開かずにその場で `assets.delete`/
+  `assets.restore` を呼ぶ）。`confirm` 付き・`SpecWebUi.runBusy` で二重送信防止・成功後は
+  トーストを出し、その行だけを `applyItemLocally` でその場から消す/更新する（一覧全体の
+  再取得はしない）。加えて、行の選択チェックボックス（`buildRowSelectCell`）+ ヘッダーの
+  「全選択/全解除」+ ツールバーの「選択した発注を削除（n件）」ボタン（`bulkDeleteSelected`）で
+  複数選択して一括削除できるようにした（選択が無いときはボタンを出さない。1件でも失敗すれば
+  トーストで件数を知らせ、失敗分は選択を残す）
+- `html/OrderTree.html`（`deleteAssetRow`）・`html/MyOrders.html`（`deleteAssetRow`）: 各発注の
+  行にも同じ「削除」ボタンを追加。この2画面は `includeArchived: '0'` でしか取得しないため
+  「元に戻す」はここには置かず、一覧画面（`html/Assets.html`）の「アーカイブ済みを表示」トグル
+  から行う運用にした
+- viewer には出さない（既存の「削除（アーカイブ）」/「元に戻す」と同じ方針）
+
+### テスト（`node --test Tools/SpecWeb/test`、**441 件全て green**（既存 434 件 + 本追補分 7 件））
+
+- `test/orderEditNavigation.test.js`（新規）: `html/App.html`・`html/OrderTree.html`・
+  `html/Assets.html` の実際の画面遷移を通して「編集」→詳細パネルが開く→「← 発注ツリーへ戻る」で
+  戻ることを確認する（画面モジュール単体のスタブ呼び出しではない統合テスト）
+- `test/assets-screen.smoke.test.js`（追加）: 一覧の行の「削除」ボタン（詳細を開かずに削除）・
+  viewer には選択チェックボックス/削除ボタンが出ない・複数選択して一括削除
+- `test/orderTree.smoke.test.js` / `test/myOrders.smoke.test.js`（追加）: 各行の「削除」ボタン・
+  「編集」ボタンが渡す `backTo` パラメータ・viewer には削除ボタンが出ない
+
+### 目視確認
+
+docs/28 の O-15 節に同じ内容を追記した。
+
+1. 発注ツリー・私の発注の各行の「編集」を押すと、その場で一覧画面の詳細パネルが開くこと
+   （一覧が表示されるだけで終わらないこと）を確認する。詳細パネルの見出しの上に
+   「← 発注ツリーへ戻る」/「← 私の発注へ戻る」ボタンが出て、押すと元の画面に戻ることを確認する
+2. 一覧の行の「削除」ボタンを押すと確認ダイアログが出て、OK すると詳細を開かずにその場で
+   行が消えることを確認する（「アーカイブ済みを表示」で戻せる）。発注ツリー・私の発注の各行の
+   「削除」ボタンも同様に確認する
+3. 一覧で複数行のチェックボックスを選択すると「選択した発注を削除（n件）」ボタンが出て、押すと
+   確認ダイアログに件数が出て、OK すると選択した分だけまとめて削除されることを確認する

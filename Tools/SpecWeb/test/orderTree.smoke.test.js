@@ -61,6 +61,10 @@ function setup(role, options) {
     'orderGroups.update': options.updateGroupHandler || function (params) {
       const patch = JSON.parse(params.patch);
       return { ok: true, item: Object.assign({}, group, patch, { revision: group.revision + 1 }) };
+    },
+    // 緊急修正（2026-09-14 追補）: 発注ツリーの行から直接削除（アーカイブ）するテスト用。
+    'assets.delete': options.assetDeleteHandler || function (params) {
+      return { ok: true, item: Object.assign({}, asset, { id: params.id, archived: true, revision: (asset.revision || 1) + 1 }) };
     }
   });
   sandbox.window.SpecWebClient = fakeClient;
@@ -332,6 +336,9 @@ test('editor: 発注の行に「編集」ボタンが出て、押すと SpecWebN
   assert.equal(navigateCalls.length, 1);
   assert.equal(navigateCalls[0].id, 'assets');
   assert.equal(navigateCalls[0].options.params.openId, 'Se::Hit');
+  // 緊急修正（2026-09-14 追補）: 戻り先（この画面）を backTo として渡す
+  // （一覧画面の詳細パネルに「← 発注ツリーへ戻る」を出すため）。
+  assert.equal(navigateCalls[0].options.params.backTo, 'orders');
 });
 
 test('viewer: 発注の行に「編集」ボタンが出ない', async () => {
@@ -342,6 +349,49 @@ test('viewer: 発注の行に「編集」ボタンが出ない', async () => {
 
   const editButton = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => c.tagName === 'button' && c.textContent === '編集'));
   assert.equal(editButton, null, 'viewer には編集ボタンが出ない');
+});
+
+// ---- 緊急修正（2026-09-14 追補）: 発注ツリーの行から直接削除（アーカイブ） ----
+
+test('editor: 発注の行に「削除」ボタンが出て、押すと確認→assets.delete→その場でツリーから消える', async () => {
+  const deleteCalls = [];
+  const { dom, render } = setup('editor', {
+    assetDeleteHandler: function (params) {
+      deleteCalls.push(params);
+      return { ok: true, item: Object.assign({}, params, { archived: true }) };
+    }
+  });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const itemLi = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => (c.textContent || '').indexOf('Hit') !== -1));
+  assert.ok(itemLi);
+  const deleteButton = dom.findNode(itemLi, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.ok(deleteButton, '発注の行に「削除」ボタンが出る');
+
+  dom.fire(deleteButton, 'click');
+  await flush();
+
+  assert.equal(deleteCalls.length, 1, 'assets.delete が呼ばれる');
+  assert.equal(deleteCalls[0].id, 'Se::Hit');
+
+  const itemLiAfter = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => (c.textContent || '').indexOf('Hit') !== -1));
+  assert.equal(itemLiAfter, null, '削除後はツリーからその場で消える');
+
+  const toast = dom.findNode(dom.document.body, (n) => (n.textContent || '').indexOf('削除しました') !== -1);
+  assert.ok(toast);
+});
+
+test('viewer: 発注の行に「削除」ボタンが出ない', async () => {
+  const { dom, render } = setup('viewer');
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const itemLi = dom.findNode(root, (n) => n.tagName === 'li' && dom.findNode(n, (c) => (c.textContent || '').indexOf('Hit') !== -1));
+  const deleteButton = dom.findNode(itemLi, (n) => n.tagName === 'button' && n.textContent === '削除');
+  assert.equal(deleteButton, null, 'viewer には削除ボタンが出ない');
 });
 
 // ---- O-16: 発注ツリーの各発注にも「メモあり」アイコン + 展開表示 ----
