@@ -25,6 +25,13 @@
       （ブラウザは <script> をドキュメント順に実行するため）。
     -->
     <?!= include('html/App'); ?>
+    <!--
+      W-4/W-5: アセット一覧・詳細画面。AssetsLogic（純粋関数）→ Assets（registerScreen）の順。
+      include() は入れ子のスクリプトレットを評価しないため、AssetsLogic の include は
+      Assets.html の中からではなくここに直接書く（Assets.html 側の注意コメント参照）。
+    -->
+    <?!= include('html/AssetsLogic'); ?>
+    <?!= include('html/Assets'); ?>
     <!-- W-6〜W-8: 調整値編集画面（純粋関数 = TuningGrid を先に、DOM 登録 = Tuning を後に）。 -->
     <?!= include('html/TuningGrid'); ?>
     <?!= include('html/Tuning'); ?>

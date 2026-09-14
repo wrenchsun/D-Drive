@@ -52,19 +52,38 @@
     });
 
     // サーバー API 呼び出しの小さなラッパー（後続チケットが使う拡張点）。
-    // 同一オリジンの doGet(?api=1&name=...) を fetch で呼ぶ
+    // 同一オリジンの doGet/doPost(?api=1&name=...) を fetch で呼ぶ
     // （HtmlService の iframe サンドボックスは allow-same-origin を許可しているため
     // 同一オリジンへの fetch は可能。docs/32_spec_web.md §2.4 参照）。
+    //
+    // options.method='POST' を渡すと doPost 経由になる（W-4/W-5 で追加。既定は GET のままな
+    // ので既存呼び出しの挙動は変わらない）。書き込み系（create/update/delete 等）は patch の
+    // JSON 文字列が長くなり得るため、URL クエリではなく POST 本文（application/x-www-form-urlencoded）
+    // で送る。api/name は変わらず URL クエリのまま（GAS の e.parameter は doPost でも
+    // URL クエリと POST 本文の両方を合成するため、混在させて問題ない）。
     window.SpecWebClient = {
-      callApi: function (name, params) {
+      callApi: function (name, params, options) {
         params = params || {};
+        options = options || {};
+        var method = (options.method || 'GET').toUpperCase();
         var url = new URL(window.location.href);
         url.searchParams.set('api', '1');
         url.searchParams.set('name', name);
+
+        if (method !== 'POST') {
+          Object.keys(params).forEach(function (key) {
+            url.searchParams.set(key, params[key]);
+          });
+          return fetch(url.toString()).then(function (res) {
+            return res.json();
+          });
+        }
+
+        var body = new URLSearchParams();
         Object.keys(params).forEach(function (key) {
-          url.searchParams.set(key, params[key]);
+          body.set(key, params[key]);
         });
-        return fetch(url.toString()).then(function (res) {
+        return fetch(url.toString(), { method: 'POST', body: body }).then(function (res) {
           return res.json();
         });
       }

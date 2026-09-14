@@ -1,0 +1,193 @@
+<script>
+  /**
+   * アセット一覧・詳細画面（Assets.html）が使う純粋関数（DOM に触らないロジックだけ）。
+   * docs/32_spec_web.md §8 W-4 の「HTML を生成するロジック（行のレンダリング・並べ替え・
+   * 絞り込み関数）を純粋関数に分けて単体テスト」に対応するファイル。
+   *
+   * ここに書く関数は入力から出力を計算するだけで、document/window の DOM API には触れない
+   * （触れると test/load-html-script.js の vm 経由テストが書けなくなる）。
+   * DOM を実際に組み立てる処理は Assets.html 側に置く。
+   *
+   * ASSET_TYPES 等の定数は Tools/SpecWeb/src/Assets.js の
+   * SPEC_WEB_ASSET_TYPES/STATUSES/PRIORITIES と同じ値を手元に複製している
+   * （choices.json 経由の同期は W-12 で追加予定。それまではここが唯一の場所なので、
+   * AssetType.cs を変更したときはサーバー側と両方を更新すること）。
+   */
+  (function () {
+    'use strict';
+
+    var ASSET_TYPES = [
+      'Se', 'Bgm', 'Vfx', 'Anim', 'Anim2D', 'Material', 'Texture', 'Canvas',
+      'Prefab', 'Presentation', 'Shake', 'Haptics', 'UiTween', 'Model',
+      'Anchor', 'AnchorGroup', 'ControlSkin'
+    ];
+    var ASSET_STATUSES = ['未着手', '仮', '本番', '保留'];
+    var ASSET_PRIORITIES = ['高', '中', '低'];
+    var IDENTIFIER_PATTERN = /^[A-Z][A-Za-z0-9]*$/;
+    var ROLE_RANK = { viewer: 0, editor: 1, admin: 2 };
+
+    function validateIdentifier(identifier) {
+      return IDENTIFIER_PATTERN.test(String(identifier || ''));
+    }
+
+    function buildAssetId(assetType, identifier) {
+      return assetType + '::' + identifier;
+    }
+
+    /**
+     * 新規作成・編集フォームの即時検証（サーバー側 specWebValidateAssetFields_ と同じ規則の
+     * クライアント側ミラー。§8 W-4 AC「識別子の書式・重複を即時に赤表示」)。
+     * サーバー側の検証を置き換えるものではなく、送信前にユーザーへ即時フィードバックするためのもの。
+     *
+     * @param {object} fields 入力中のフィールド
+     * @param {object} [options]
+     * @param {Array}  [options.existingItems] 重複チェック対象の既存アセット一覧
+     * @param {string} [options.excludeId] 編集中の自分自身の id（重複チェックから除外）
+     * @return {{valid: boolean, errors: Object<string,string>}}
+     */
+    function validateAssetFields(fields, options) {
+      options = options || {};
+      fields = fields || {};
+      var errors = {};
+
+      if (!fields.assetType) {
+        errors.assetType = '種別は必須です';
+      } else if (ASSET_TYPES.indexOf(fields.assetType) === -1) {
+        errors.assetType = '種別は選択肢から選んでください';
+      }
+
+      if (!fields.identifier) {
+        errors.identifier = '識別子は必須です';
+      } else if (!validateIdentifier(fields.identifier)) {
+        errors.identifier = '識別子は英語 PascalCase（先頭大文字・英数字のみ）にしてください';
+      } else if (fields.assetType && Array.isArray(options.existingItems)) {
+        var candidateId = buildAssetId(fields.assetType, fields.identifier);
+        var duplicate = options.existingItems.some(function (item) {
+          return item && item.id === candidateId && item.id !== options.excludeId;
+        });
+        if (duplicate) {
+          errors.identifier = '種別+識別子が既に存在します: ' + candidateId;
+        }
+      }
+
+      if (!fields.displayName || String(fields.displayName).trim() === '') {
+        errors.displayName = '表示名は必須です';
+      }
+
+      if (fields.status && ASSET_STATUSES.indexOf(fields.status) === -1) {
+        errors.status = '状態は次のいずれかにしてください: ' + ASSET_STATUSES.join('/');
+      }
+
+      if (fields.priority && ASSET_PRIORITIES.indexOf(fields.priority) === -1) {
+        errors.priority = '優先度は次のいずれかにしてください: ' + ASSET_PRIORITIES.join('/');
+      }
+
+      if (fields.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(fields.dueDate))) {
+        errors.dueDate = '期限は YYYY-MM-DD 形式にしてください';
+      }
+
+      return { valid: Object.keys(errors).length === 0, errors: errors };
+    }
+
+    /** §4.1 の検索・絞り込み（種別/状態/担当/カテゴリ + キーワード）。 */
+    function filterAssets(items, filters) {
+      filters = filters || {};
+      var query = String(filters.query || '').trim().toLowerCase();
+      return (items || []).filter(function (item) {
+        if (!filters.includeArchived && item.archived) return false;
+        if (filters.assetType && item.assetType !== filters.assetType) return false;
+        if (filters.status && item.status !== filters.status) return false;
+        if (filters.assignee && item.assignee !== filters.assignee) return false;
+        if (filters.category && item.category !== filters.category) return false;
+        if (query) {
+          var hay = (String(item.identifier || '') + ' ' + String(item.displayName || '') + ' ' + String(item.note || '')).toLowerCase();
+          if (hay.indexOf(query) === -1) return false;
+        }
+        return true;
+      });
+    }
+
+    /** §4.1 の「列をクリックして並べ替え」。入力配列は変更せず新しい配列を返す（安定ソート）。 */
+    function sortAssets(items, sortKey, direction) {
+      sortKey = sortKey || 'identifier';
+      var sign = direction === 'desc' ? -1 : 1;
+      var withIndex = (items || []).map(function (item, index) {
+        return { item: item, index: index };
+      });
+      withIndex.sort(function (a, b) {
+        var av = a.item ? a.item[sortKey] : undefined;
+        var bv = b.item ? b.item[sortKey] : undefined;
+        av = av === undefined || av === null ? '' : av;
+        bv = bv === undefined || bv === null ? '' : bv;
+        if (av < bv) return -1 * sign;
+        if (av > bv) return 1 * sign;
+        return a.index - b.index; // 安定ソート
+      });
+      return withIndex.map(function (entry) {
+        return entry.item;
+      });
+    }
+
+    /** §4.1「種別ごとのグループ化」。種別名（辞書順）→ その種別の項目配列。 */
+    function groupAssetsByType(items) {
+      var groups = {};
+      (items || []).forEach(function (item) {
+        var key = item.assetType || '(不明)';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(item);
+      });
+      return Object.keys(groups)
+        .sort()
+        .map(function (type) {
+          return { assetType: type, items: groups[type] };
+        });
+    }
+
+    /** §4.1 の「D-Drive 状態」バッジ表示（読み取り専用）。 */
+    function formatDdriveStateBadge(ddriveState) {
+      if (!ddriveState || !ddriveState.created) {
+        return { icon: '⬜', label: '未作成' };
+      }
+      if (ddriveState.isPlaceholder) {
+        return { icon: '🟡', label: '作成済（Placeholder）' };
+      }
+      return { icon: '✅', label: '作成済' };
+    }
+
+    /** §3.6 コメント: 新しい順に並べ替える（表示用。元データは変更しない）。 */
+    function sortCommentsNewestFirst(comments) {
+      return (comments || [])
+        .slice()
+        .sort(function (a, b) {
+          var at = a && a.createdAt ? a.createdAt : '';
+          var bt = b && b.createdAt ? b.createdAt : '';
+          if (at < bt) return 1;
+          if (at > bt) return -1;
+          return 0;
+        });
+    }
+
+    /** ロール階層（viewer < editor < admin）。Auth.js の hasRole と同じ判定をクライアント側でも使う。 */
+    function roleAtLeast(role, required) {
+      var rank = ROLE_RANK[role];
+      var requiredRank = ROLE_RANK[required];
+      if (rank === undefined || requiredRank === undefined) return false;
+      return rank >= requiredRank;
+    }
+
+    window.AssetsLogic = {
+      ASSET_TYPES: ASSET_TYPES,
+      ASSET_STATUSES: ASSET_STATUSES,
+      ASSET_PRIORITIES: ASSET_PRIORITIES,
+      validateIdentifier: validateIdentifier,
+      buildAssetId: buildAssetId,
+      validateAssetFields: validateAssetFields,
+      filterAssets: filterAssets,
+      sortAssets: sortAssets,
+      groupAssetsByType: groupAssetsByType,
+      formatDdriveStateBadge: formatDdriveStateBadge,
+      sortCommentsNewestFirst: sortCommentsNewestFirst,
+      roleAtLeast: roleAtLeast
+    };
+  })();
+</script>

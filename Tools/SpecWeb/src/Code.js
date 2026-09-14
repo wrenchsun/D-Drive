@@ -52,13 +52,18 @@ function handleApiRequest_(e) {
     body.ok = true;
     return ContentAdapter.json(body, 200);
   } catch (err) {
-    // W-6/W-7 で SpecWebValidationError(400)/SpecWebNotFoundError(404)/
-    // SpecWebForbiddenError(403) 等、status を持つエラー型が増えたため、
-    // 個別の err.name チェックではなく err.status を汎用的に見る
-    // （RevisionConflictError の currentRevision はそのまま維持する）。
+    // RevisionConflictError（409・currentRevision 付き）専用の分岐を、
+    // 「err.status を持つ任意のエラー」を汎用的に本文の status へ変換する形に一般化した
+    // （W-4/W-5 の入力検証エラー、W-6/W-7 の SpecWebValidationError(400)/SpecWebNotFoundError(404)/
+    // SpecWebForbiddenError(403) 等、個別の err.name チェックではなく err.status を汎用的に見る形に
+    // すれば同じ throw new Error() + err.status で表現できる。RevisionConflictError の挙動・
+    // 既存テストは変えていない）。
+    var status = err && typeof err.status === 'number' ? err.status : 500;
     var body = { ok: false, error: String((err && err.message) || err) };
-    if (err && err.currentRevision !== undefined) body.currentRevision = err.currentRevision;
-    return ContentAdapter.json(body, (err && err.status) || 500);
+    if (err && err.currentRevision !== undefined) {
+      body.currentRevision = err.currentRevision;
+    }
+    return ContentAdapter.json(body, status);
   }
 }
 
