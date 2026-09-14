@@ -193,6 +193,12 @@ Tools/
 再生ボタンの右隣に表示する。1 つの `[MainToolbarElement]` メソッドが複数の `MainToolbarElement`（ボタン + ドロップダウン）を
 返す構成は `PlayModeButtons` / `SubToolbarZone` と同じ形を踏襲したもの。
 
+**初回は非表示（2026-09-14 実機で判明）**: Unity 6.3 はユーザー定義の `[MainToolbarElement]` を登録はするが既定で非表示にする
+（`MainToolbar.GetAllElementDefinitions` に `CreateManualElements` が載っていることは確認済み）。表示を切り替える
+`MainToolbar.ShowAll` / `SetDisplayedAll` は internal のため、コードからは強制表示しない。各自がメインツールバーの空いている所を
+右クリックして「D-Drive/Manual」を表示にする（設定は各自の Editor レイアウトに保存される）。見つからなくても
+メニュー `Tools/D-Drive/マニュアルを開く` で同じ処理を呼べる。
+
 - ボタン（アイコン `EditorGUIUtility.IconContent("_Help")`、ツールチップ「デザイナーマニュアルをブラウザで開く」）: クリックでマニュアルのトップ（`Readme`）を開く
 - 横のドロップダウン（アイコン `"icon dropdown"`）: `docs/DesignerManual/*.html` のページ一覧（表示名は各 HTML の `<title>` から動的に取得。`ManualPages.DiscoverPages`）+ 「Web 版を優先」トグル + 「ローカルのマニュアルを開く」
 - 開く先の決定（契約）:
