@@ -350,8 +350,18 @@ namespace DDrive.Editor.Presentation
             {
                 var kindField = new PropertyField(kindProp, "Kind");
                 kindField.Bind(_serializedTarget);
-                kindField.RegisterCallback<SerializedPropertyChangeEvent>(_ =>
+                // 2026-09-14 修正: PropertyField は Bind 直後にも SerializedPropertyChangeEvent を送るため、
+                // 値が変わっていなくても「Asset クリア + 行の再構築」が走り、再構築 → 再 Bind → 再通知の
+                // 無限ループ(表示が定期的に切り替わって荒ぶる + Asset が毎回消える)になっていた。
+                // 行を作った時点の Kind と比べ、実際に変わったときだけ処理する。
+                var builtKind = track.Kind;
+                kindField.RegisterCallback<SerializedPropertyChangeEvent>(evt =>
                 {
+                    if ((TrackKind)evt.changedProperty.intValue == builtKind)
+                    {
+                        return;
+                    }
+
                     Undo.RecordObject(_target, "Change Presentation Track Kind");
                     var t = _target.Tracks[index];
                     t.Asset = default;
@@ -361,7 +371,9 @@ namespace DDrive.Editor.Presentation
                     RefreshValidation();
                     RefreshSignalButtons();
                     _timelineContainer?.MarkDirtyRepaint();
-                    RefreshTracksList(); // objectType が古い Kind のまま残らないよう行ごと再構築する
+                    // objectType が古い Kind のまま残らないよう行ごと再構築する。自分を含む行をイベント処理中に
+                    // 破棄しないよう、次のフレームへ回す。
+                    rootVisualElement.schedule.Execute(RefreshTracksList);
                 });
                 foldout.Add(kindField);
             }
