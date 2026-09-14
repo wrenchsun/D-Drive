@@ -36,7 +36,8 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 22 | [配置セット（AnchorGroup）](22_anchor_group.md) | 複数の位置にまとめて出す: 原点 + Grid/Circle/Line/Random/手置き + 全点共通/点ごとのアセット + 入れ子。`Anchors.Play(groupId, ctx)`（2026-09-08 実装済み） |
 | 20 | [MCP セットアップ](20_mcp_setup.md) | AI ⇄ Unity Editor 連携（MCP for Unity）の導入手順・運用ルール・バージョン管理 |
 | 26 | [Timeline 連携（ドラフト）](26_timeline.md) | Timeline の基礎・CutsceneData・D-Drive トラック（SE/VFX/イベント）・Maya FBX 自動取り込みと命名規則・未決事項（2026-09-13） |
-| 27 | [仕様書スプレッドシート連携（ドラフト）](27_spec_sheet.md) | 人向け + ツール向けタブのテンプレート・一方向同期・差分プレビュー・仕様書リンク（2026-09-13） |
+| 27 | [仕様書スプレッドシート連携（ドラフト）](27_spec_sheet.md) | 人向け + ツール向けタブのテンプレート・一方向同期・差分プレビュー・仕様書リンク（2026-09-13）。**32 へ置き換え予定（旧方式）** |
+| 32 | [仕様書 Web 化（Google Apps Script、ドラフト）](32_spec_web.md) | 27 を置き換える新方式。GAS Web アプリに人向け機能仕様 + ツール向けアセット一覧・調整値を統合、正本は Web 側、D-Drive は `Specs/*.json` へスナップショット同期（2026-09-14） |
 | 28/31 | [Phase 5 実装確認手順書](28_manual_verification_phase5.md#0-確認の進め方2026-09-14-まとめ) / [Phase 5 要判断一覧](31_phase5_decisions.md) | P5 のユーザー確認の進め方チェックリスト（§0）と、決めていない事項の一覧（A/B/C 優先度付き）（2026-09-14） |
 
 ## 全体像 1 枚図
