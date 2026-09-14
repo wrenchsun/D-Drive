@@ -30,7 +30,7 @@
 - [ ] 依存関係グラフの再構築 — [28 5-5節](28_manual_verification_phase5.md) — 5分 — 特になし（事前準備で済んでいれば省略可）
 - [ ] アイコン表示（AssetBrowser・Project ウィンドウ・Inspector の整合） — [28 5-10節](28_manual_verification_phase5.md) — 10分 — アイコンを割り当てた Data 数種類
 - [ ] 各エディタの「＋ 新規作成」（16 か所） — [28 5-15節](28_manual_verification_phase5.md) — 20分 — 特になし
-- [ ] インポート検知による Data 自動生成（9 種別 + 二重生成なし + 欠落表示 + 手動フォールバック） — [28 5-11節](28_manual_verification_phase5.md) — 30分 — 確認用の音声/画像/FBX/anim/Prefab 素材一式（無ければ既存アセットの複製で代用可）
+- [ ] インポート検知による Data 自動生成（9 種別 + 二重生成なし + 欠落表示 + 手動フォールバック） — [28 5-11節](28_manual_verification_phase5.md) — 30分 — 確認用の音声/画像/FBX/anim/Prefab 素材一式（無ければ既存アセットの複製で代用可）。**種別フォルダ（`Se`/`Bgm`/…）の下に置く。`SourceAssets` の直下や、種別フォルダの上に別フォルダを挟むと対象外**
 - [ ] 使用箇所検索 / 未使用検出 / 安全な削除(2026-09-14 から UE 風の削除確認ウィンドウに変更。複数選択・参照の差し替え・強制削除・結果画面を含む) — [28 5-6節](28_manual_verification_phase5.md) — 35分 — OS のゴミ箱からの復元手順を試すため一時的に削除して良い Data、置き換え先に使える同種別の Data 2種類以上
 - [ ] 一覧のダブルクリックで専用エディタを開く（2026-09-14） — [09_editor_tools.md §1](09_editor_tools.md) — 10分 — VfxData 等(単一候補)・MaterialData/SliderSkinData 等(複数候補)・専用エディタの無い種別が混在する一覧。① ダブルクリック(または選択して Enter)で専用エディタが開き、対象アセットがセットされている(Inspector の「エディターで開く」ボタンを押したときと同じ状態になる) ② 専用エディタが無い種類は従来どおり Inspector で選択され、Project ウィンドウの実ファイルがハイライトされるだけ ③ 複数候補がある種類(Material/Slider Skin)は右クリックメニューの「エディターで開く」がサブメニューになり、全候補(Material Editor / 変換 / プレビュー等)を選べる。ダブルクリックでは既定(サブメニューの一番上と同じ)が開くことを確認
 
@@ -67,7 +67,7 @@
 
 | 節 | 片付ける対象 |
 |---|---|
-| 5-11 | `Assets/SourceAssets/_ImportRuleCheck/` フォルダと `Assets/GameData/*/Check/` 配下の生成された Data 一式（Addressables エントリも含めて削除） |
+| 5-11 | 確認用に各種別フォルダの下に作った `_Check` フォルダ（例: `Assets/SourceAssets/Se/_Check/`）と、`Assets/GameData/*/Check/` 配下の生成された Data 一式（Addressables エントリも含めて削除） |
 | 5-6 | 手順7で Archive したタグを解除する（または実際に不要なら安全な削除の手順で片付ける）。手順9〜17で作った一時 Data・置き換え先用の Data・Scene 参照確認用の `SeEmitter`（ゴミ箱からの復元テストが済んでいれば復元後のファイルも含む）。手順17の後は Validation を再実行してコード参照エラーが実際に出ていないか（出ている場合は誤って本当に使われている ID を削除していないか）を確認する |
 | 5-13 | 作成した `Assets/GameData/Audio/SE/Player/SE_Player_Check1.asset`（存在すれば）と `Assets/GameData/Settings/DDriveSpecSettings.asset` / `DDriveTuningTable.asset`（コミットするかは [31_phase5_decisions.md](31_phase5_decisions.md) A5 を参照） |
 | 5-16 | 作成した `SE_Player_Check5016.asset`（Addressables エントリも含めて削除）。手順9で空にした「スプレッドシート URL」設定は元に戻す |
@@ -98,21 +98,24 @@
 
 対象: `Editor/Import/ImportRuleService.cs`（+`ImportRulePostprocessor.cs` / `IImportRuleHandler.cs` / `ImportRuleHandlers.cs`）、`Foundation/Data/AssetDataBase.cs`（`ImportSourceGuid` 追加）。設計は [09_editor_tools.md](09_editor_tools.md) §1.1 / [10_workflow.md](10_workflow.md) §3.3。
 
-事前準備: Unity Editor で `Assets/SourceAssets/` 配下に、確認用の一時サブフォルダ（例 `Assets/SourceAssets/_ImportRuleCheck/`）を作っておく（確認後にまとめて削除できるように、実運用フォルダと混ぜない）。
+> **重要（2026-09-14 訂正）**: `ImportRuleService` は `Assets/SourceAssets/` の**直下 1 階層目のフォルダ名**だけを種別として見る（例: `Assets/SourceAssets/Se/...`）。種別フォルダの**上**に別のフォルダを挟む（例: 旧手順にあった `Assets/SourceAssets/_ImportRuleCheck/Se/...`）と 1 階層目が `_ImportRuleCheck` になってしまい、種別と一致せず**ログも出さずに何も起きない**。同様に `SourceAssets` の直下（1 階層目が無い）や、種別フォルダ名の綴り・大文字小文字が違う場合も対象外。以下は種別フォルダ（`Se`/`Bgm`/`Texture`/`Model`/`Anim`/`Anim2D`/`Prefab`/`Canvas`/`Vfx`）を `SourceAssets` の直下に置き、その下にカテゴリとして `_Check` フォルダを作る手順に直した（`_` はカテゴリのファイル名変換で除去されるため、生成される Data 側は `Check` という名前になる。詳細は [09_editor_tools.md](09_editor_tools.md) §1.1）。
 
-1. **Se**: `Assets/SourceAssets/_ImportRuleCheck/Se/Check/` に音声ファイル（.wav 等）を 1 つドラッグ＆ドロップで置く → 数秒後（Console に `[DDrive] ImportRule: ...` のログが出る）に `Assets/GameData/Audio/SE/Check/SE_Check_<ファイル名>.asset` が自動生成されていること。AssetBrowser で開き、Clips に置いた音声が入っていること
-2. **Bgm**: 同様に `.../Bgm/Check/` に音声ファイルを置く → `Assets/GameData/Audio/BGM/Check/BGM_Check_<ファイル名>.asset` が生成され、LoopBody に音声が入っていること
-3. **Texture**: `.../Texture/Check/` に画像ファイル（.png 等）を置く → `Assets/GameData/Texture/Check/TEX_Check_<ファイル名>.asset` が生成され、Texture に画像が入っていること
-4. **Model**: `.../Model/Check/` に FBX を置く → `Assets/GameData/Model/Check/MODEL_Check_<ファイル名>.asset` が生成され、Prefab に FBX のルートが入っていること（同時に Maya→Material 経路で MaterialData/TextureData も生成されていれば正常な共存)
-5. **Anim**: `.../Anim/Check/` に `.anim` ファイル（既存の AnimationClip をコピーするか、AnimEditor で作った物を配置）を置く → `Assets/GameData/Anim/Check/ANIM_Check_<ファイル名>.asset` が生成され、Clip が入っていること
-6. **Anim2D**: `.../Anim2D/Check/` に `.anim` ファイルを置く → `Assets/GameData/Anim2D/Check/ANIM2D_Check_<ファイル名>.asset` が生成され、Clip が入っていること（Directions=None のまま。方向づけは Anim2DEditor で追加する）
-7. **Prefab**: `.../Prefab/Check/` に Prefab を置く → `Assets/GameData/Prefab/Check/PREFAB_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
-8. **Canvas**: `.../Canvas/Check/` に UI Prefab を置く → `Assets/GameData/Canvas/Check/CANVAS_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
-9. **Vfx**: `.../Vfx/Check/` に ParticleSystem/VFX Graph の Prefab を置く → `Assets/GameData/Vfx/Check/VFX_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
+事前準備: 種別フォルダ自体は `Assets/SourceAssets/` 直下に既定で用意されている（無ければ `Tools > D-Drive > Generate > SourceAssets の既定フォルダを作成` を実行する）。確認用ファイルは各種別フォルダの下に `_Check` サブフォルダを作って置く（実運用のカテゴリフォルダと混ざらないように）。
+
+1. **Se**: `Assets/SourceAssets/Se/_Check/` に音声ファイル（.wav 等）を 1 つドラッグ＆ドロップで置く → 数秒後（Console に `[DDrive] ImportRule: ...` のログが出る）に `Assets/GameData/Audio/SE/Check/SE_Check_<ファイル名>.asset` が自動生成されていること。AssetBrowser で開き、Clips に置いた音声が入っていること
+2. **Bgm**: 同様に `Assets/SourceAssets/Bgm/_Check/` に音声ファイルを置く → `Assets/GameData/Audio/BGM/Check/BGM_Check_<ファイル名>.asset` が生成され、LoopBody に音声が入っていること
+3. **Texture**: `Assets/SourceAssets/Texture/_Check/` に画像ファイル（.png 等）を置く → `Assets/GameData/Texture/Check/TEX_Check_<ファイル名>.asset` が生成され、Texture に画像が入っていること
+4. **Model**: `Assets/SourceAssets/Model/_Check/` に FBX を置く → `Assets/GameData/Model/Check/MODEL_Check_<ファイル名>.asset` が生成され、Prefab に FBX のルートが入っていること（同時に Maya→Material 経路で MaterialData/TextureData も生成されていれば正常な共存)
+5. **Anim**: `Assets/SourceAssets/Anim/_Check/` に `.anim` ファイル（既存の AnimationClip をコピーするか、AnimEditor で作った物を配置）を置く → `Assets/GameData/Anim/Check/ANIM_Check_<ファイル名>.asset` が生成され、Clip が入っていること
+6. **Anim2D**: `Assets/SourceAssets/Anim2D/_Check/` に `.anim` ファイルを置く → `Assets/GameData/Anim2D/Check/ANIM2D_Check_<ファイル名>.asset` が生成され、Clip が入っていること（Directions=None のまま。方向づけは Anim2DEditor で追加する）
+7. **Prefab**: `Assets/SourceAssets/Prefab/_Check/` に Prefab を置く → `Assets/GameData/Prefab/Check/PREFAB_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
+8. **Canvas**: `Assets/SourceAssets/Canvas/_Check/` に UI Prefab を置く → `Assets/GameData/Canvas/Check/CANVAS_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
+9. **Vfx**: `Assets/SourceAssets/Vfx/_Check/` に ParticleSystem/VFX Graph の Prefab を置く → `Assets/GameData/Vfx/Check/VFX_Check_<ファイル名>.asset` が生成され、Prefab が入っていること
 10. **二重生成しないこと**: 上記のいずれか 1 つを選び、そのファイルを右クリック →「Reimport」（または一度別プロジェクトへコピーして戻す）を行っても、対応する Data が増えず 1 個のままであること
 11. **欠落表示**: 手順 1〜9 のいずれかで作った元ファイルを 1 つ削除する → 対応する Data 自体は消えずに残ること、AssetBrowser の ⚠ Validation（または `Tools > D-Drive > Validation > Run All`）でその Data が Error（「未設定(または Missing)です」）として表示されること
-12. **AutoImport=OFF 相当の手動フォールバック**: 上記の一時フォルダ全体を一度削除し、別の場所に同じ構成のファイル一式を用意した状態で `Tools > D-Drive > Generate > SourceAssets からインポートルールを再実行` を実行 → Console にまとめて生成ログが出て、対応する Data が一括生成されること
-13. 確認が終わったら、`Assets/SourceAssets/_ImportRuleCheck/` と生成された `Assets/GameData/**/Check/` 配下の Data 一式を Unity Editor から削除する（AssetBrowser の削除機能、または Project ウィンドウで `Assets/SourceAssets/_ImportRuleCheck` フォルダと `Assets/GameData/*/Check` フォルダを削除して Addressables のエントリも合わせて外す）
+12. **ルールに合わない置き方をした場合の案内ログ**（2026-09-14 追加）: 種別フォルダの**直下**（例: `Assets/SourceAssets/Foo.wav`）や、種別フォルダ名を間違えた場合（例: `Assets/SourceAssets/se/...`）、対応外の拡張子（例: `Assets/SourceAssets/Se/_Check/memo.txt`）のファイルを置くと、Data は生成されないが Console に `[DDrive] ImportRule: ...` の警告ログが 1 回だけ出て、正しい置き場所を案内すること。同じファイルで何度もインポートが走っても警告が繰り返し出ないこと（セッション内でパスごとに 1 回）。`Assets/SourceAssets/Shaders/...` や `Assets/SourceAssets/Data/...`（Maya→Material 経路やサンプル資産が置かれている既知の非対象フォルダ）には警告が出ないこと
+13. **AutoImport=OFF 相当の手動フォールバック**: 上記の確認用ファイル一式を一度削除し、別の場所に同じ構成のファイル一式を用意した状態で `Tools > D-Drive > Generate > SourceAssets からインポートルールを再実行` を実行 → Console にまとめて生成ログが出て、対応する Data が一括生成されること
+14. 確認が終わったら、各種別フォルダの下に作った `_Check` フォルダ（`Assets/SourceAssets/<種別>/_Check/`）と生成された `Assets/GameData/**/Check/` 配下の Data 一式を Unity Editor から削除する（AssetBrowser の削除機能、または Project ウィンドウでフォルダを削除して Addressables のエントリも合わせて外す）
 
 要判断:
 - **Anim2D の元ファイルの解釈**: スプライトシート/Texture からの自動スライス(既存 Anim2DEditor のワークフローと重複)ではなく、`AnimData` と同じ「単一の `.anim`/`.fbx` を `Clip` に設定するだけの Placeholder」を採用した。方向づけ(`DirectionClips`)は既存の Anim2DEditor(3-11/3-12)で追加する運用。デザイナーの実際のワークフロー(スプライトから作ることが多いのか、既存クリップの流用が多いのか)によって、Texture フォルダ起点にすべきかどうかは要判断

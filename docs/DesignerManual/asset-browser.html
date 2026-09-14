@@ -111,6 +111,9 @@
 <code>&lt;カテゴリ&gt;</code> のフォルダ名がそのまま Data の「カテゴリ」になり、ファイル名がそのまま識別子(英語 PascalCase になっていない場合は自動で整形)になります。例えば <code>Assets/SourceAssets/Se/Player/Slash.wav</code> を置くと、カテゴリ「Player」・識別子「Slash」の <code>SE_Player_Slash</code> ができます。表示名は後から Inspector で日本語に変えられます。
 </div>
 <div class="warn">
+<strong><code>SourceAssets</code> の直下や、上の表にある種別名(<code>Se</code>/<code>Bgm</code>/<code>Texture</code>/<code>Model</code>/<code>Anim</code>/<code>Anim2D</code>/<code>Prefab</code>/<code>Canvas</code>/<code>Vfx</code>)以外のフォルダに置いても反応しません。</strong>「1階層目」が種別フォルダである必要があります(大文字・小文字も一致させてください)。例えば <code>Assets/SourceAssets/Slash.wav</code>(直下)や <code>Assets/SourceAssets/Check/Se/Slash.wav</code>(種別フォルダの上に別フォルダがある)は無視されます。置き方を間違えた場合は Console に案内の警告ログが出ます。フォルダが用意されていない場合は <code>Tools &gt; D-Drive &gt; Generate &gt; SourceAssets の既定フォルダを作成</code> で作れます。
+</div>
+<div class="warn">
 <strong>元ファイルを削除しても Data は消えません。</strong>音や見た目が「未設定(または Missing)」の警告付きで残るだけです（<a href="validation.html">Validation</a> の一覧に出ます）。うっかりファイルを消してしまっても、AssetBrowser 側のデータは安全です。逆に言うと、Data を完全に消したいときはこの方法では消えないので、通常のアセット削除手順を使ってください。<br>
 また、同じファイルを再インポートしても Data が二重にできることはありません。
 </div>
