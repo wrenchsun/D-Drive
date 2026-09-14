@@ -106,6 +106,11 @@ registerApi('assetState', function (ctx) {
       created: !!entry.created,
       isPlaceholder: !!entry.isPlaceholder,
       iconAssetId: entry.iconAssetId || null,
+      // hasIcon(2026-09-14 追補): [32] §9 の要判断「isPlaceholder/iconAssetId」対応の一部。
+      // アイコン画像そのもの(base64)は Drive アップロード実装が無いため送らず、
+      // 「割り当て済みかどうか」の bool だけを受け取る(下記 Assets.js の既定値・
+      // html/AssetsLogic.html の表示側と対にする)。
+      hasIcon: !!entry.hasIcon,
       usageCount: typeof entry.usageCount === 'number' ? entry.usageCount : 0,
       lastSyncedAt: entry.lastSyncedAt || new Date().toISOString()
     };

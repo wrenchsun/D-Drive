@@ -52,6 +52,10 @@ clasp login
 `clasp login` はブラウザが開くので、**あなた自身の Google アカウントでログイン**してください
 （Claude が代わりにログインすることはできません）。個人の Gmail アカウントで構いません（docs/32 §2.3）。
 
+**先に** https://script.google.com/home/usersettings で「Google Apps Script API」をオン（`clasp login`
+と同じアカウントで）にしてください。オフのままだと `clasp create`/`clasp push` が権限エラーになります。
+オンにしてから反映まで数分かかることがあります。
+
 ## 3. Apps Script プロジェクトの作成
 
 `Tools/SpecWeb/` に移動してから実行します。
@@ -64,6 +68,13 @@ clasp create --type webapp --title "D-Drive 仕様書"
 - 既に Apps Script プロジェクトがある場合は `clasp clone <scriptId>` を使ってください
 - 実行すると `.clasp.json`（scriptId が入る）が生成されます。**このファイルは `.gitignore` 対象なので
   コミットされません**（`.clasp.json.example` を参考にした雛形）
+- **注意**: `clasp create` は `Tools/SpecWeb/appsscript.json` をこのプロジェクトの既定値（`timeZone`
+  `Asia/Tokyo`・`webapp` 設定・最小の `oauthScopes` 等)ではなく、新規プロジェクトの初期値
+  (`timeZone` `America/New_York`、`webapp`/`oauthScopes` 無し等)で**上書き**します。
+  `clasp create` の直後に `git diff Tools/SpecWeb/appsscript.json` で確認し、上書きされていたら
+  `git checkout -- Tools/SpecWeb/appsscript.json` でコミット済みの内容に戻してから `clasp push`
+  してください(戻さずに push すると、デプロイ②のタイムゾーンや oauth スコープの設定が意図しない
+  ものになります)
 - `clasp push` でこのディレクトリの `src/**/*.js` と `html/**/*.html` を Apps Script プロジェクトへ送ります
   （`.claspignore` で `test/`・`*.md`・`.clasp.json` 等は除外済み）
 

@@ -526,6 +526,7 @@
         if (ddriveState) {
           box.appendChild(el('div', { text: '使用箇所数: ' + (ddriveState.usageCount || 0) }));
           box.appendChild(el('div', { text: '最終同期: ' + (ddriveState.lastSyncedAt || '未同期') }));
+          box.appendChild(el('div', { text: logic.formatDdriveIconLabel(ddriveState) }));
         }
         box.appendChild(el('div', { class: 'sw-muted', text: '（D-Drive からの同期専用。この画面からは編集できません）' }));
         return box;

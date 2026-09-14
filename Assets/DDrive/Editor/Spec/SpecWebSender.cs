@@ -7,6 +7,7 @@ using DDrive.Editor.Codegen;
 using DDrive.Editor.Dependencies;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
+using DDrive.Foundation.Validation;
 using DDrive.Runtime.Tuning;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -64,12 +65,26 @@ namespace DDrive.Editor.Spec
         }
 
         // 作成済みか・使用箇所数・最終同期時刻等([32] §5.2「アセットの実状態」)。
-        // isPlaceholder / iconAssetId は現状信頼できる取得手段が無いため既定値を送る
-        // (docs/32_spec_web.md §9 の要判断に引き継ぎ。下記コメント参照)。
+        //
+        // 追補(2026-09-14): isPlaceholder / hasIcon を実値にした(旧: 常に false/null。
+        // docs/32_spec_web.md §9 の要判断 14 に記載していた内容への対応)。
+        //   isPlaceholder: 「その Data の必須参照が未設定」を表す専用フラグは D-Drive 側に無いが、
+        //     既存の各 Validator(IValidator、種別ごとに実装済み。例: SeDataValidator の
+        //     「Clip が未設定(または Missing)です」)がまさに同じ判定を Error として持っている。
+        //     これを再利用し、「その Data に対する Validator の結果に 1 件以上 Error があるか」を
+        //     isPlaceholder とする(CI.RunValidation() が全 Validator を発見して実行する既存の
+        //     エントリポイント。Validation > Run All と同じもの)。Warning は許容(Placeholder 扱いしない)。
+        //   iconAssetId: Web(Drive)側にアイコンをアップロードする実装は本チケットの範囲外
+        //     (Drive API への書き込みが必要になるため)。常に null のまま送る(要判断として引き継ぐ)。
+        //   hasIcon(新設): アイコンを Drive にアップロードせずに「D-Drive 側にアイコンが割り当て済みか」
+        //     だけを bool で伝える。GAS の ContentService/doPost の応答は大きな base64 画像を都度
+        //     送るには不向き(応答サイズ・実行時間の余裕を消費する)なため、実装コストと得られる
+        //     情報量を比べて「あり/なし」の bool だけを追加する方を選んだ(要判断として docs に記載)。
         public static JObject BuildAssetStatePayload()
         {
             var lastSyncedAt = DateTime.UtcNow.ToString("o");
             var items = new JArray();
+            var assetsWithErrors = FindAssetPathsWithValidationErrors();
 
             foreach (var kv in SpecDiffService.BuildExistingIndex())
             {
@@ -97,23 +112,51 @@ namespace DDrive.Editor.Spec
                     Debug.LogWarning($"[DDrive] '{kv.Key}' の使用箇所数を取得できませんでした: {e.Message}");
                 }
 
+                var assetPath = AssetDatabase.GetAssetPath(asset);
                 items.Add(new JObject
                 {
                     ["id"] = kv.Key,
                     ["created"] = true,
-                    // isPlaceholder: D-Drive 側に「Placeholder かどうか」を表す専用フラグが無いため
-                    // 常に false を送る(実際にはコンテンツが空の Placeholder のままの場合もある。
-                    // 要判断として docs/32_spec_web.md §9 に引き継ぐ)。
-                    ["isPlaceholder"] = false,
-                    // iconAssetId: Web(Drive)側にアイコンをアップロードする実装は本チケットの範囲外
-                    // (Drive API への書き込みが必要になるため)。常に null を送る(要判断として引き継ぐ)。
+                    ["isPlaceholder"] = !string.IsNullOrEmpty(assetPath) && assetsWithErrors.Contains(assetPath),
                     ["iconAssetId"] = null,
+                    ["hasIcon"] = asset.Icon != null,
                     ["usageCount"] = usageCount,
                     ["lastSyncedAt"] = lastSyncedAt,
                 });
             }
 
             return new JObject { ["items"] = items };
+        }
+
+        // Validation(CI.RunValidation、[Editor > Validation > Run All]と同じ全 Validator 実行)の
+        // 結果から、Error severity が 1 件以上ある AssetDataBase のアセットパス集合を作る。
+        // 例外を投げず(CLAUDE.md §0-4)、失敗時は「Error 無し」扱い(isPlaceholder は false 側へ倒す
+        // 保守的な既定)にする。
+        private static HashSet<string> FindAssetPathsWithValidationErrors()
+        {
+            var result = new HashSet<string>(StringComparer.Ordinal);
+            try
+            {
+                foreach (var report in DDrive.Editor.CI.RunValidation())
+                {
+                    if (report.Result.Severity != ValidationSeverity.Error || report.Asset == null)
+                    {
+                        continue;
+                    }
+
+                    var path = AssetDatabase.GetAssetPath(report.Asset);
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        result.Add(path);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] isPlaceholder 判定用の Validation 実行に失敗しました(isPlaceholder は false 扱いになります): {e.Message}");
+            }
+
+            return result;
         }
 
         // ── tuningUsage ──
