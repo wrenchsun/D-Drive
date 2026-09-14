@@ -696,3 +696,19 @@ Host/Client 間の実プレゼンテーション同期・偽造メッセージ�
 `LastStatusText` が最初の `"OK"` のまま画面キャプチャ・ログ確認を終えていたため見つからなかったと
 推測される(要判断: 次回の実機確認では `content_hash` の値が長時間 `"OK"` を維持することも確認項目に
 加えるとよい)。
+
+### 2 回目（判定修正後）の実行結果（2026-09-15、PR #72 取り込み後）
+
+メインで `compile`(エラー 0)→ EditMode `NetCheckJudge|NetLaunchArgs|ContentHash` 44 件 green → PlayMode
+`ContentHash|Net` 58 件 green → `NetCheckBuilder.Build()` で再ビルド → `Tools\CI\run-netcheck.cmd` を実行し、
+**4 シナリオ全て PASS**（終了コード 0、`=== すべてのシナリオが PASS です ===`）。起動した全プロセスは終了済み。
+
+| シナリオ | Host | Client | Signal 中継（位相差） |
+|---|---|---|---|
+| pair0（0ms） | PASS（signal_fire 11、偽造 Cancel 破棄 5、content_hash=OK） | PASS（signal_recv 36、偽造 Cancel 送信 5 = 破棄 5、Late Join 復元、content_hash=OK） | PASS |
+| pair200（200ms） | PASS | PASS（偽造 Cancel 5 = 5） | PASS（maxDiffMs=350、しきい値 = 遅延 200 + 150） |
+| latejoin（Client を 12 秒後に接続） | PASS | PASS（signal_recv 28、Late Join 復元） | PASS（接続後の fire 8 件中 7 件、maxDiffMs=100） |
+| disconnect（Host が先に終了） | PASS | PASS（切断検知、切断後の演出 0） | PASS（3/3、maxDiffMs=70） |
+
+すべてのシナリオで `content_hash=OK` が最後まで維持された（上記 a の自己接続タイムアウトが解消したことの確認）。
+初回実行のログは比較用に保存してある（リポジトリ外）。

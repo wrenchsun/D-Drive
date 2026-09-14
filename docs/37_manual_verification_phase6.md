@@ -164,9 +164,9 @@
 文字化け)と、`CatalogContentHashGate`(6-5)の実バグ(Host が自分自身の `OnClientConnectedCallback`
 にも保留期限を登録してしまい、5 秒後に必ずタイムアウトして `LastStatusText` が `"OK"` から
 `ContentHash 未受信` に戻る)を修正した。詳細は [29_network_device_test.md]「初回実行結果と判定バグ
-修正(2026-09-15)」節。**以下の手順は Unity Editor 上でのコンパイル・実プロセスでの動作が未検証
-のまま(ワークツリーで実装)。次回このチェックリストを実施するときに、上記修正が反映されたビルドで
-4 シナリオ全て PASS することを確認する。**
+修正(2026-09-15)」節。**→ 2026-09-15 修正後にエージェントがメインで再ビルドして実行し、4 シナリオ全て
+PASS を確認済み**([29_network_device_test.md]「2 回目(判定修正後)の実行結果」節)。人の確認は、下の手順で
+同じ結果になることを見るだけでよい。
 
 1. Unity Editor で `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド` を実行し、`Builds\DDriveNetCheck\DDriveNetCheck.exe` が最新のコードでビルドされていることを確認する(コンパイルエラー 0件も併せて確認)
 2. Unity Editor を閉じずに実行してよい(この exe は別プロセスとして起動する)。リポジトリ直下で `Tools\CI\run-netcheck.cmd` を実行する
