@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DDrive.Editor.Dependencies;
+using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Spec;
@@ -189,6 +190,23 @@ namespace DDrive.Editor.AssetBrowser
 
             var displayName = !string.IsNullOrEmpty(row.Asset.DisplayName) ? row.Asset.DisplayName : row.Asset.name;
 
+            // ダブルクリックと同じ経路([09] §1)。候補が複数ある種別(MaterialData 等)は
+            // サブメニューで全候補(Order 昇順、Inspector の「エディターで開く」列と同じ順)を出す。
+            var editorEntries = DataEditorRegistry.GetEntries(row.Asset.GetType());
+            if (editorEntries.Count == 1)
+            {
+                var only = editorEntries[0];
+                evt.menu.AppendAction("エディターで開く", _ => only.Open(row.Asset));
+            }
+            else if (editorEntries.Count > 1)
+            {
+                foreach (var entry in editorEntries)
+                {
+                    var captured = entry;
+                    evt.menu.AppendAction($"エディターで開く/{captured.Label}", _ => captured.Open(row.Asset));
+                }
+            }
+
             evt.menu.AppendAction("使用箇所を表示", _ => UsagesWindow.Open(row.Type, row.Asset.Id, displayName));
             evt.menu.AppendAction("依存ツリーを表示", _ => DependencyTreeWindow.Open(row.Path, displayName));
 
@@ -228,12 +246,24 @@ namespace DDrive.Editor.AssetBrowser
             }
         }
 
+        // ダブルクリック(または選択中に Enter。ListView.itemsChosen は両方を通す)。
+        // [09_editor_tools.md] §1 — 対応する専用エディタがあれば主エディタ(DataEditorRegistry.OpenDefault、
+        // Order 最小=Inspector の「エディターで開く」列の先頭と同じ)を開いて対象にする。
+        // 対応エディタが無い種別は従来どおり Inspector で選択(Ping で一覧内の位置も分かるようにする)。
         private void OnItemsChosen(IEnumerable<object> items)
         {
-            if (items.FirstOrDefault() is Row row && row.Asset != null)
+            if (items.FirstOrDefault() is not Row row || row.Asset == null)
             {
-                EditorGUIUtility.PingObject(row.Asset);
+                return;
             }
+
+            if (DataEditorRegistry.OpenDefault(row.Asset))
+            {
+                return;
+            }
+
+            Selection.activeObject = row.Asset;
+            EditorGUIUtility.PingObject(row.Asset);
         }
 
         public void Refresh()

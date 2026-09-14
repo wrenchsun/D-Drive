@@ -62,6 +62,37 @@ namespace DDrive.Editor.Inspector
 
         public static bool HasEditor(Type dataType) => GetEntries(dataType).Count > 0;
 
+        // AssetBrowser のダブルクリック([09_editor_tools.md] §1)用 — Data 型に対応する専用エディタが
+        // 複数ある場合(MaterialData / SliderSkinData 等)は Order が最小のもの(既定 Order=0 の「主エディタ」、
+        // 変換・プレビュー等の副次ツールは明示的に大きい Order を付ける既存の運用)を主エディタとする。
+        // GetEntries は既に Order 昇順で返すため、先頭を返すだけでよい。
+        public static bool TryGetPrimary(Type dataType, out Entry primary)
+        {
+            var entries = GetEntries(dataType);
+            if (entries.Count == 0)
+            {
+                primary = null;
+                return false;
+            }
+
+            primary = entries[0];
+            return true;
+        }
+
+        // dataType の主エディタ(Order 最小)を開く。Inspector の「エディターで開く」ボタン列の先頭を
+        // 押したのと同じ効果。対応するエディタが無い場合は何もせず false を返す(呼び出し側は
+        // Selection/Ping 等の従来動作へフォールバックする)。
+        public static bool OpenDefault(AssetDataBase data)
+        {
+            if (data == null || !TryGetPrimary(data.GetType(), out var primary))
+            {
+                return false;
+            }
+
+            primary.Open(data);
+            return true;
+        }
+
         // dataType とその基底型(AssetDataBase 手前まで)に宣言されたエントリを、派生側優先・Order 昇順で返す。
         public static IReadOnlyList<Entry> GetEntries(Type dataType)
         {
