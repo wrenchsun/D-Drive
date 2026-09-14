@@ -1,3 +1,4 @@
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Event;
 using DDrive.Foundation.Identity;
@@ -64,8 +65,14 @@ namespace DDrive.Tests.Editor
                 },
             };
 
-            AssetDatabase.CreateAsset(data, TempAssetPath);
-            AssetDatabase.SaveAssets();
+            // [11_tasks.md] 6-3: 保存フック(VersionStampProcessor)が Version/Author/UpdatedAt を書き換えて
+            // しまうと、このテストが検証したい「設定した値がそのまま往復するか」が壊れるため抑止する。
+            using (VersionStampSuppression.Scope())
+            {
+                AssetDatabase.CreateAsset(data, TempAssetPath);
+                AssetDatabase.SaveAssets();
+            }
+
             AssetDatabase.Refresh();
 
             var reloaded = AssetDatabase.LoadAssetAtPath<TestAssetData>(TempAssetPath);

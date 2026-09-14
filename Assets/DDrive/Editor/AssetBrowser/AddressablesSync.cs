@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Registry;
 using UnityEditor;
@@ -125,6 +126,9 @@ namespace DDrive.Editor.AssetBrowser
         public static void SyncAllMenuItem() => SyncAll(log: true);
 
         // 全カタログと全 Data アセットについて Addressables 登録を揃える。戻り値: (直した Data 数, 登録したカタログ数, カタログ未登録の Data 数)。
+        // [11_tasks.md] 6-3: カタログ・Addressables 同期は「一括処理」の一種なので、機械的な登録直しで
+        // Data 側の Version を上げない(EnsureEntry は Addressables 設定側だけを dirty にし、Data 自体は
+        // 触らないため実害は無いはずだが、将来の変更で Data を dirty にしても安全なように囲んでおく)。
         public static (int fixedAssets, int catalogs, int missingCatalog) SyncAll(bool log)
         {
             if (!IsAvailable)
@@ -133,56 +137,59 @@ namespace DDrive.Editor.AssetBrowser
                 return (0, 0, 0);
             }
 
-            var byId = new Dictionary<ulong, string>();
-            var catalogs = 0;
-            foreach (var catalog in FindCatalogs(includeTestFolders: false))
+            using (VersionStampSuppression.Scope())
             {
-                EnsureCatalogEntry(catalog);
-                catalogs++;
-                var entries = catalog.Entries;
-                for (var i = 0; i < entries.Count; i++)
+                var byId = new Dictionary<ulong, string>();
+                var catalogs = 0;
+                foreach (var catalog in FindCatalogs(includeTestFolders: false))
                 {
-                    byId[entries[i].Id] = entries[i].Address;
+                    EnsureCatalogEntry(catalog);
+                    catalogs++;
+                    var entries = catalog.Entries;
+                    for (var i = 0; i < entries.Count; i++)
+                    {
+                        byId[entries[i].Id] = entries[i].Address;
+                    }
                 }
+
+                var fixedAssets = 0;
+                var missing = 0;
+                foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
+                {
+                    var path = AssetDatabase.GUIDToAssetPath(guid);
+                    if (path.Contains("/Tests/"))
+                    {
+                        continue;
+                    }
+
+                    var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
+                    if (asset == null || asset.Id == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!byId.TryGetValue(asset.Id, out var address))
+                    {
+                        missing++;
+                        continue;
+                    }
+
+                    var entry = FindEntry(asset);
+                    if (entry == null || entry.address != address)
+                    {
+                        EnsureEntry(asset, address);
+                        fixedAssets++;
+                    }
+                }
+
+                AssetDatabase.SaveAssets();
+                if (log)
+                {
+                    Debug.Log($"[DDrive] Addressables 同期: Data {fixedAssets} 件を登録/修正、カタログ {catalogs} 件をラベル '{CatalogLabel}' で登録。カタログ未登録の Data {missing} 件(Validation > Run All で FixAction を実行してください)。");
+                }
+
+                return (fixedAssets, catalogs, missing);
             }
-
-            var fixedAssets = 0;
-            var missing = 0;
-            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
-            {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.Contains("/Tests/"))
-                {
-                    continue;
-                }
-
-                var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
-                if (asset == null || asset.Id == 0)
-                {
-                    continue;
-                }
-
-                if (!byId.TryGetValue(asset.Id, out var address))
-                {
-                    missing++;
-                    continue;
-                }
-
-                var entry = FindEntry(asset);
-                if (entry == null || entry.address != address)
-                {
-                    EnsureEntry(asset, address);
-                    fixedAssets++;
-                }
-            }
-
-            AssetDatabase.SaveAssets();
-            if (log)
-            {
-                Debug.Log($"[DDrive] Addressables 同期: Data {fixedAssets} 件を登録/修正、カタログ {catalogs} 件をラベル '{CatalogLabel}' で登録。カタログ未登録の Data {missing} 件(Validation > Run All で FixAction を実行してください)。");
-            }
-
-            return (fixedAssets, catalogs, missing);
         }
 
         private static AddressableAssetEntry EnsureEntry(Object asset, string address, string groupName, string label)

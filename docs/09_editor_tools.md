@@ -111,7 +111,33 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 
 ## 4. 保存フック（AssetDataBase 共通）
 
-保存時に自動実行: Version+1 / Author・UpdatedAt 記録 / 該当種別の Validator 実行（結果を Inspector 上部にバナー表示）/ 依存グラフ差分更新 / （設定時）ID 定数再生成
+保存時に自動実行（構想）: Version+1 / Author・UpdatedAt 記録 / 該当種別の Validator 実行（結果を Inspector 上部にバナー表示）/ 依存グラフ差分更新 / （設定時）ID 定数再生成。
+**現時点で実装済みなのは Version+1 / Author・UpdatedAt 記録のみ**（チケット 6-3、2026-09-15）。Validator 実行・依存グラフ差分更新・ID 定数再生成の保存時自動化は別チケット（現状はメニュー手動実行、[11_tasks.md] 参照）で、この節の記述は将来の統合先を示す構想のまま残す。
+
+### 4.1 バージョン記録（`VersionStampProcessor`、チケット 6-3、2026-09-15）
+
+**ユーザー決定**: 保存時に自動更新・今の値だけ表示する。過去の履歴は git に任せる。データ形式（シリアライズ）は変えない（`AssetDataBase.Version`/`Author`/`UpdatedAt`/`ChangeNote` は既存フィールドのまま、フィールド追加・型変更はしない、[02_core_framework.md] §2）。
+
+- **保存フック本体**: `Editor/Versioning/VersionStamp.cs` の `VersionStampProcessor`（`UnityEditor.AssetModificationProcessor` を継承し、Unity が名前で拾う `static string[] OnWillSaveAssets(string[] paths)` を実装）。
+  - `paths` の各パスを `AssetDatabase.LoadMainAssetAtPath` で読み、`AssetDataBase` かつ `EditorUtility.IsDirty` な**実際に変更されたものだけ**を対象にする（未変更アセットは対象外）。
+  - 対象ごとに `Undo.RecordObject`（バージョン表示行も含めて Ctrl+Z で戻せるようにする）→ `Version++` / `Author = Environment.UserName` / `UpdatedAt = 保存時刻`（ISO 8601、秒まで、ローカル時刻。`yyyy-MM-ddTHH:mm:ss`）→ `EditorUtility.SetDirty`。
+  - フィールドを書き換えるだけで、ここから `AssetDatabase.SaveAssets()` 等を呼び直すことはしない（`OnWillSaveAssets` はこの直後にそのまま物理書き込みされるため、二重加算や無限ループにならない。1 回の保存につき 1 回だけ加算される）。
+  - `ChangeNote` は触らない（手入力のまま、自動では消さない）。
+  - **新規作成時に Version=1 になる理由**: `Version` の C# 既定値は `0`。`AssetCreationService.Create` 等で特別に `1` を代入しているわけではなく、新規アセットの初回保存（`AssetDatabase.CreateAsset` 直後の `SaveAssetIfDirty`）でこのフックが `0→1` にするだけ（他の生成経路でも自動的に同じ挙動になる）。
+
+- **抑止スコープ（`VersionStampSuppression`）**: `using (VersionStampSuppression.Scope())` で囲むと、その間に走る保存では版数を上げない（参照カウント方式で入れ子安全）。**ツールによる一括処理（大量のアセットの版数が機械的に上がってノイズになるのを防ぐ）専用**で、以下の 5 箇所にだけ差し込んでいる（最小限の変更方針。他のツールに広げる場合はここに追記する）:
+  1. `AssetCreationService.Create` の初期アイコン自動生成（`delayCall` 内、[09] §8.1）— 作成直後に Icon が自動で入って Version が 1→2 にならないようにする
+  2. `AssetCreationService.RegisterExisting`（Validation の FixAction からのカタログ登録漏れ修正）
+  3. `AddressablesSync.SyncAll`（Addressables 登録の一括同期。実際には Data 自体を dirty にしないので現状は保険）
+  4. `SpecSyncService.ApplyChanged`（仕様書同期の「変更を反映」。抑止スコープの間に `AssetDatabase.SaveAssetIfDirty` も済ませている — 呼び出し元(`SpecSyncWindow`)がまとめて保存するのを待つと、その時点では抑止スコープが外れてしまうため）
+  5. `AssetIdGenerator.Regenerate`（ID 定数再生成に伴う、未発行 ID の一括確定）
+  - **既知の制約**: `AssetDatabase.SaveAssets()`（グローバル版）はパスの呼び出し元を区別しないため、上記のスコープ内で偶然「他の dirty な `AssetDataBase`」が同じ保存に乗ると、それも一時的に加算対象から外れる。実運用では上記 5 箇所はほぼ単発 or 同種アセットの一括処理でしか呼ばないため実害は小さいと判断し、パス単位の判定は行っていない（要判断: 将来問題になれば、抑止対象パスの集合を明示的に渡す設計に変える）。
+  - `ImportRuleService`（インポート検知による自動生成）と Maya→Material 経由の新規作成は、上記 1 経由（`AssetCreationService.Create` を再利用している）でカバーされるため個別の抑止は不要。既存アセットを機械的に上書きする Maya 再インポート（`MayaMaterialImporter`）は対象外（Maya 側の実データ変更を反映するものなので、版数が上がるのは意図した挙動として扱う）。
+
+- **表示（今の値だけ、履歴は持たない）**: `Editor/Inspector/VersionStampGui.cs`。`AssetDataInspector.DrawOpenEditorHeader()`（[09] §8）が `DataEditorHeader.Draw` の直後に `VersionStampGui.Draw(target)` を呼び、「エディターで開く」ボタンの直下に `v12 ・ yamag ・ 2026-09-15 14:03` の形式で 1 行表示する（`UpdatedAt` の ISO 8601 を `yyyy-MM-dd HH:mm` に整形。パースできなければ生の文字列をそのまま出す）。`ChangeNote` が入っていればその下にもう 1 行表示する。未保存（`Version <= 0`）なら「未保存(保存すると v1 になります)」と出す。UI Toolkit 製の専用エディタから使う場合向けに `VersionStampGui.Build(target)`（`VisualElement` 版、`DataEditorHeader.Build` と同じ位置付け）も用意している（現時点でどの専用エディタからも未使用。IMGUI の `AssetDataInspector` だけが実際に呼んでいる）。
+- **AssetBrowser の一覧**（要望: 更新日時・更新者列、できれば並べ替え可能）: `AssetBrowserWindow` の各行に「更新者」「更新日時」の 2 ラベルを追加した(`MakeRowElement`/`BindRowElement`)。**並べ替えは未実装**——現状の一覧は単一列の仮想化 `ListView`（[09] §1）であり、列ヘッダーでのソートには `MultiColumnListView` への切り替えが必要。今回は最小限の変更で表示のみ足すに留め、ソート対応は次回チケットに回す。
+- **テスト**: `Tests/Editor/VersionStampTests.cs`。保存で 1 回だけ加算 / 未変更アセットは加算しない / 抑止スコープ中は加算しない(入れ子安全) / Author・UpdatedAt の形式(ISO 8601、`VersionStampGui.FormatForDisplay` との対応) / Undo で戻せる、を検証。`Assets/DDrive/Tests/Editor/TempVersionStamp/` の一時アセットのみ使い、実 GameData・カタログ・Addressables には触れない(`AssetCreationService` を経由しないため Addressables 登録も発生しない)。
+- **デザイナー向け表記**: [DesignerManual/asset-browser.html](DesignerManual/asset-browser.html) に「保存すると版数・更新者・日時が自動で入る」旨を追記（`Tools/SpecWeb/tools/build-manual.js` で HTML 本体を再生成）。
 
 ## 5. CI 連携
 

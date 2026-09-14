@@ -160,6 +160,19 @@ namespace DDrive.Editor.AssetBrowser
             categoryLabel.style.opacity = 0.6f;
             row.Add(categoryLabel);
 
+            // [11_tasks.md] 6-3 — 保存フックが記録した更新者・更新日時(今の値だけ)。
+            // 現状の ListView は単一列の仮想化リストで、ソート可能な複数列ヘッダーは持っていない
+            // (MultiColumnListView への切り替えが必要)。並べ替えは次回に回し、[09_editor_tools.md] §4 に記録する。
+            var authorLabel = new Label { name = "author" };
+            authorLabel.style.width = 70;
+            authorLabel.style.opacity = 0.6f;
+            row.Add(authorLabel);
+
+            var updatedAtLabel = new Label { name = "updatedAt" };
+            updatedAtLabel.style.width = 110;
+            updatedAtLabel.style.opacity = 0.6f;
+            row.Add(updatedAtLabel);
+
             // 5-6: 右クリックメニュー(使用箇所検索 / 依存ツリー / Archive / 安全な削除)。行は ListView に
             // よって使い回されるため、対象は毎回 element.userData(BindRowElement が差し替える)から読む。
             row.AddManipulator(new ContextualMenuManipulator(evt => PopulateRowContextMenu(evt, row)));
@@ -181,6 +194,8 @@ namespace DDrive.Editor.AssetBrowser
                 ? row.Asset.DisplayName
                 : System.IO.Path.GetFileNameWithoutExtension(row.Path);
             element.Q<Label>("category").text = row.Asset != null ? row.Asset.Category : string.Empty;
+            element.Q<Label>("author").text = row.Asset != null ? row.Asset.Author : string.Empty;
+            element.Q<Label>("updatedAt").text = row.Asset != null ? VersionStampGui.FormatForDisplay(row.Asset.UpdatedAt) : string.Empty;
         }
 
         private void PopulateRowContextMenu(ContextualMenuPopulateEvent evt, VisualElement rowElement)
