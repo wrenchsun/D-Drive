@@ -338,10 +338,14 @@ node --test Tools/SpecWeb/test
 （忘れると Web 側のマニュアルが古いままになり、`Tools/SpecWeb/test/build-manual.test.js` の
 ドリフト検出テストが red になる）:
 
-```powershell
-cd Tools/SpecWeb
-./push.ps1              # build-manual.js を実行 → clasp push（推奨。デプロイの更新は別途「7.」の手順が必要）
+```bat
+cd Tools\SpecWeb
+push.cmd                # build-manual.js を実行 → clasp push（推奨。エクスプローラーからダブルクリックでも可。デプロイの更新は別途「7.」の手順が必要）
 ```
+
+`push.ps1` も同じ処理だが、Windows 標準の PowerShell 5.1 は実行ポリシー（署名なしスクリプトの拒否）で止まることがあるため、
+`push.cmd` を推奨する（2026-09-14）。`push.ps1` を使う場合は `powershell -ExecutionPolicy Bypass -File .\push.ps1`。
+なお `push.ps1` は PowerShell 5.1 が BOM 無し UTF-8 を Shift-JIS として読んで日本語で構文エラーになるため、**BOM 付き UTF-8 で保存する**（編集時に BOM を落とさないこと）。
 
 または手動で:
 
@@ -384,4 +388,4 @@ git にコミットする方針（Node が無い環境でも `clasp push` だけ
 | `html/Manual.html` | マニュアル画面（ナビ「マニュアル」リンク + 本文差し込み + リンク処理） |
 | `html/manual/*.html`（生成物） | ページごとの断片 HTML（`tools/build-manual.js` が生成） |
 | `tools/build-manual.js` | `docs/DesignerManual/*.html` → 上記 2 つの生成物を作るスクリプト |
-| `push.ps1` | `build-manual.js` を実行してから `clasp push` する |
+| `push.cmd`（推奨） / `push.ps1` | `build-manual.js` を実行してから `clasp push` する（`.cmd` は実行ポリシーの影響を受けない。`.ps1` は BOM 付き UTF-8 必須） |

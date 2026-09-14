@@ -18,3 +18,4 @@
 test/**
 tools/**
 push.ps1
+push.cmd

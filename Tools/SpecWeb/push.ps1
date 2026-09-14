@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   デザイナーマニュアル（docs/DesignerManual）を Tools/SpecWeb/html/manual へ再生成してから
   `clasp push` する。
