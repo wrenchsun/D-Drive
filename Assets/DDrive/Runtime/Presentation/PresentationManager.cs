@@ -150,6 +150,28 @@ namespace DDrive.Runtime.Presentation
         // 1 回だけログに出す(NetCheck の判定で「送信数 == 破棄数」を数えられるようにするため)。
         private readonly HashSet<uint> _unknownKeyDiscardWarned = new();
 
+        // [14_networking.md] §5(6-0 修正6、実機確認 v2 で発見した実バグの修正) — 遅延のある環境では
+        // Client の ServerTime 推定が Host より遅れて見える(実機確認で約 80ms 観測)ため、
+        // `elapsed = NetworkTime - StartNetTime` が正の値になり、Time=0 のワンショット(Vfx/Se 等)が
+        // 「もう過ぎたトラック」としてリモートでは常にスキップされ、一切描画/再生されなかった。
+        // 猶予秒(既定 0.5s)以内の遅れなら「遅れて届いただけ」として鳴らし、それより古い(Late Join で
+        // 復元しようとしている等)ものだけ従来どおりスキップする。シリアライズフィールドは増やさず、
+        // コンストラクタの任意引数として渡す(既定値 0.5f。要判断: 具体的な秒数は docs/31 参照)。
+        private readonly float _remoteOneShotGraceSec;
+
+        // [14_networking.md] §5(6-0 修正6) — 確認ツール(NetCheckRunner)専用。猶予を超えて実際にスキップした
+        // ワンショットトラックを通知する(誰も購読していなければ delegate 呼び出し自体発生しないため
+        // 定常経路への 0 alloc の原則は保たれる)。
+        public event Action<PresentationTrack, uint, float> OnRemoteOneShotSkipped;
+
+        // [14_networking.md] §5(6-0 修正6) — 確認ツール(NetCheckRunner)専用。TrackTrigger.AtTime のトラックが
+        // 実際に FireTrack へ委譲された(=発火した)瞬間に、その時点の Elapsed とともに通知する(0 alloc の
+        // 原則は上と同じ)。Manager 全体で 1 つの event にしているのは、Handle 単位の `OnTrackFired(handle)`
+        // (既存の R3 Observable)を Play() 呼び出し後に購読する方式だと、Play() 自身が同期的に
+        // Time=0 のトラックを発火させてしまうため「購読する前に発火が終わっている」タイミング問題が
+        // あるため(実際に NetCheckRunner で踏んだ。要判断ではなく実装上の必然)。
+        public event Action<PresentationTrack, uint, float> OnAtTimeTrackFired;
+
         // [14_networking.md] §9(6-0, P1-1/P1-2 レビュー対応) — HandleNetKey の上位 8bit に発行者(LocalClientId
         // の下位 8bit)を埋め込む。MS2026/NGO の LAN 1v1 前提(実クライアント数は極少数)では 8bit(256 通り)で
         // 十分。下位 24bit は従来どおりの salt/連番/NetworkTime 混合。
@@ -178,7 +200,8 @@ namespace DDrive.Runtime.Presentation
             UiTweenManager uiTween = null,
             CameraFxManager cameraFx = null,
             HapticsManager haptics = null,
-            INetBridge netBridge = null)
+            INetBridge netBridge = null,
+            float remoteOneShotGraceSec = 0.5f)
         {
             _registry = registry;
             _time = timeService;
@@ -191,6 +214,7 @@ namespace DDrive.Runtime.Presentation
             _cameraFx = cameraFx;
             _haptics = haptics;
             _netBridge = netBridge;
+            _remoteOneShotGraceSec = Mathf.Max(0f, remoteOneShotGraceSec);
             _instanceSalt = (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
 
             if (_netBridge != null)
@@ -1060,13 +1084,18 @@ namespace DDrive.Runtime.Presentation
             }
         }
 
-        // [14_networking.md] §5 実装メモ(5-8) — Play() 直後の初回発火専用。Tick()/デバッグ用 Seek() では
-        // 使わない(そちらは常に FireDueTracks で通常発火する。挙動を変えない)。elapsedSeek==0(通常再生・
-        // 予測再生・自分の Broadcast 待ち後の再生)のときは FireDueTracks と完全に同じ結果になる。
-        // elapsedSeek>0(ネット越しに遅れて届いた Play。§5「開始時刻シーク」)のときだけ、既に過ぎた
-        // ワンショットトラックは鳴らさずに Fired 済みとしてスキップし、継続(ループ)系だけは今から
-        // 再生を開始する(位相の厳密な同期は Anim のみ実装。Bgm は BgmManager に Seek API が無いため
-        // 頭から再生する。要判断は docs/28)。
+        // [14_networking.md] §5 実装メモ(5-8/6-0 修正6) — Play() 直後の初回発火専用。Tick()/デバッグ用
+        // Seek() では使わない(そちらは常に FireDueTracks で通常発火する。挙動を変えない)。
+        // elapsedSeek==0(通常再生・予測再生・自分の Broadcast 待ち後の再生)のときは FireDueTracks と
+        // 完全に同じ結果になる。elapsedSeek>0(ネット越しに遅れて届いた Play。§5「開始時刻シーク」、
+        // Late Join のスナップショット再送も同じ経路を通る)のときは、継続(ループ)系は今から再生を
+        // 開始する(位相の厳密な同期は Anim のみ実装。Bgm は BgmManager に Seek API が無いため頭から
+        // 再生する。要判断は docs/28)。ワンショット(continuous でない AtTime トラック)は、
+        // 「過ぎてからの遅れ」(elapsed - track.Time)が猶予(_remoteOneShotGraceSec、既定 0.5s)以内なら
+        // 遅れて発火し(単に遅延ネットワークで少し遅れて届いただけと判断)、それより古い(Late Join で
+        // 途中から復元しようとしている等、明らかに再生し直す意味が無い)ものだけ従来どおりスキップする
+        // (6-0 実機確認 v2 で発見: 猶予が無かったため、遅延のある環境では開始直後のワンショット演出
+        // 〈VFX/SE 等〉がリモートで一切発火しなかった)。
         private void SeekInitialTracks(Handle<PresentationMarker> handle, PresentationInstance instance)
         {
             var tracks = instance.Data.Tracks;
@@ -1085,8 +1114,15 @@ namespace DDrive.Runtime.Presentation
 
                 if (elapsed > 0f && !IsContinuousAtSeek(in tracks[t]))
                 {
-                    instance.Fired[t] = true;
-                    continue;
+                    var lateBySec = elapsed - tracks[t].Time;
+                    if (lateBySec > _remoteOneShotGraceSec)
+                    {
+                        instance.Fired[t] = true;
+                        OnRemoteOneShotSkipped?.Invoke(tracks[t], instance.HandleNetKey, lateBySec);
+                        continue;
+                    }
+
+                    // 猶予以内 — 「遅れて届いただけ」として下の FireTrack でそのまま発火する。
                 }
 
                 FireTrack(handle, instance, t, in tracks[t]);
@@ -1177,6 +1213,13 @@ namespace DDrive.Runtime.Presentation
             }
 
             instance.TrackFiredSubject.OnNext(track);
+
+            // [14_networking.md] §5(6-0 修正6) — 確認ツール専用の通知(0 alloc、購読者が無ければ何もしない)。
+            // AtTime のみ(OnSignal/Marker 発火は元から即時観測できるため対象外)。
+            if (track.Trigger == TrackTrigger.AtTime)
+            {
+                OnAtTimeTrackFired?.Invoke(track, instance.HandleNetKey, instance.Elapsed);
+            }
         }
 
         private void FireVfx(PresentationInstance instance, int trackIndex, in PresentationTrack track)

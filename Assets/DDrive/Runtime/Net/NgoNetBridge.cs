@@ -67,11 +67,24 @@ namespace DDrive.Runtime.Net
         // 切れた」ことを表す(切断時の clientId は NGO の実装上 Client 自身の LocalClientId になる)。
         public event Action<ulong, string> ClientDisconnected;
 
+        // [11_tasks.md] 6-0 修正6(オーケストレーター追加指示、実機確認 v2 の切断確認で発見) — Client 自身が
+        // Host との接続を失った(切断された)ことを表す(既定 true。Host は常に true のまま)。
+        // NetCheckRunner/NetDebugOverlay の「接続中/切断」表示・rtt_app_ms のリセット判定に使う。
+        public bool IsConnected { get; private set; } = true;
+
         // [11_tasks.md] 6-0 修正1 — UnityTransport.SetDebugSimulatorParameters は Obsolete化されており
         // 実際には何の効果も持たない(NetgoTransportConfigurator.cs 冒頭コメント参照)。D-Drive 側の
         // アプリ層で送信/受信キューに遅延を入れて代替する。0 = 無効(既定。既存挙動を変えない)。
         // 開発ビルドのみ有効(ConfigureAppLayerSimLatency 側で強制する)。
         private int _appLayerSimLatencyMs;
+
+        // [11_tasks.md] 6-0 修正6(オーケストレーター追加指示、実機確認 v2 の切断確認で発見) — 切断直後に
+        // Client の画面へ VFX が薄く出る実バグの原因: アプリ層遅延キュー(Delayed*)に積まれた
+        // UniTask.Delay が切断後も生き続け、NetworkTime が 0 に巻き戻った状態で Dispatch/SendTo を
+        // 実行してしまう(PresentationManager 側は elapsed=Max(0, 0-StartNetTime)=0 を「今始まった正常な
+        // Play」と区別できない)。切断時にこの CancellationTokenSource を Cancel し、以後キューに残って
+        // いた送受信を実行させない(実行前に IsCancellationRequested を確認する)。
+        private CancellationTokenSource _appLayerQueueCts = new();
 
         // [11_tasks.md] 6-0 修正1 — トランスポートの RTT(NetworkTransport.GetCurrentRtt)はシミュレーター
         // 遅延を反映しないため、Client→Host→Client の Ping/Pong 往復で計測した「アプリ層の RTT」を別途持つ
@@ -84,6 +97,11 @@ namespace DDrive.Runtime.Net
 
         public override void OnNetworkSpawn()
         {
+            // 6-0 修正6 — Spawn ごとに作り直す(既に切断で Cancel 済みの古いトークンを引き継がない)。
+            _appLayerQueueCts?.Dispose();
+            _appLayerQueueCts = new CancellationTokenSource();
+            IsConnected = true;
+
             if (NetworkManager != null)
             {
                 NetworkManager.OnClientConnectedCallback += HandleClientConnected;
@@ -116,6 +134,9 @@ namespace DDrive.Runtime.Net
             _pingLoopCts?.Cancel();
             _pingLoopCts?.Dispose();
             _pingLoopCts = null;
+
+            // 6-0 修正6 — オブジェクト自体の Despawn(シーン破棄等)でもキューを破棄する。
+            _appLayerQueueCts?.Cancel();
         }
 
         private void HandleClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
@@ -135,6 +156,14 @@ namespace DDrive.Runtime.Net
             else
             {
                 Debug.Log($"[Net/Client] NgoNetBridge: Host から切断されました(reason={reasonText})。");
+
+                // 6-0 修正6(オーケストレーター追加指示) — 自分(Client)が Host との接続を失った場合だけ、
+                // (1)最後の値を表示し続けないよう App RTT をリセットし、(2)アプリ層遅延キューに残っている
+                // 送受信を破棄する(§ 上のコメント参照。Host 視点でどれか 1 Client が抜けたケースは、
+                // MS2026 の 1v1 前提では他に対象が居ないため対象外)。
+                IsConnected = false;
+                AppRoundTripMs = null;
+                _appLayerQueueCts?.Cancel();
             }
 
             ClientDisconnected?.Invoke(clientId, reasonText);
@@ -234,9 +263,17 @@ namespace DDrive.Runtime.Net
 
         // [11_tasks.md] 6-0 修正1 — 送信キュー側の遅延。RpcTarget(RpcTargetUse.Temp)は遅延後に作り直す
         // (遅延前に作って保持すると Temp な内部リソースが先に解放される可能性があるため)。
+        // 6-0 修正6 — スケジュール時点のトークンを捕まえておき、待機後に切断で Cancel 済みなら実行しない
+        // (切断後に NetworkTime が巻き戻った状態で古いメッセージを送ってしまうのを防ぐ)。
         private async UniTaskVoid DelayedSendTo(string key, string json, ulong clientId, NetChannel channel, ulong originClientId)
         {
-            await UniTask.Delay(_appLayerSimLatencyMs);
+            var ct = _appLayerQueueCts.Token;
+            await UniTask.Delay(_appLayerSimLatencyMs, cancellationToken: ct).SuppressCancellationThrow();
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
+
             SendToImmediate(key, json, clientId, channel, originClientId);
         }
 
@@ -360,9 +397,16 @@ namespace DDrive.Runtime.Net
         }
 
         // [11_tasks.md] 6-0 修正1 — 送信キュー側の遅延(ConfigureAppLayerSimLatency 参照)。
+        // 6-0 修正6 — DelayedSendTo と同じくスケジュール時点のトークンで切断後の実行を防ぐ。
         private async UniTaskVoid DelayedSendToAll(string key, string json, NetChannel channel, ulong originClientId)
         {
-            await UniTask.Delay(_appLayerSimLatencyMs);
+            var ct = _appLayerQueueCts.Token;
+            await UniTask.Delay(_appLayerSimLatencyMs, cancellationToken: ct).SuppressCancellationThrow();
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
+
             SendToAllImmediate(key, json, channel, originClientId);
         }
 
@@ -467,9 +511,18 @@ namespace DDrive.Runtime.Net
 
         // [11_tasks.md] 6-0 修正1 — 受信キュー側の遅延。ReceivedMessageCount は「実際に処理した時点」で
         // 増やす(NetDebugOverlay の受信レート表示が遅延込みの実感と一致するようにする)。
+        // 6-0 修正6 — スケジュール時点のトークンを捕まえておき、待機中に切断された(Cancel された)場合は
+        // 処理しない(実機確認 v2 で見つかった「切断直後に古い PlayMsg が NetworkTime=0 で処理されて
+        // ワンショットが誤って発火する」実バグの修正)。
         private async UniTaskVoid DelayedDispatch(string key, string json, ulong senderId)
         {
-            await UniTask.Delay(_appLayerSimLatencyMs);
+            var ct = _appLayerQueueCts.Token;
+            await UniTask.Delay(_appLayerSimLatencyMs, cancellationToken: ct).SuppressCancellationThrow();
+            if (ct.IsCancellationRequested)
+            {
+                return;
+            }
+
             DispatchImmediate(key, json, senderId);
         }
 

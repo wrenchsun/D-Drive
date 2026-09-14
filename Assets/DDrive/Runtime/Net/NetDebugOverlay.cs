@@ -32,6 +32,12 @@ namespace DDrive.Runtime.Net
             _style ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 14, wordWrap = false };
 
             var role = Bridge.IsServer ? (Bridge.IsClient ? "Host" : "Server") : (Bridge.IsClient ? "Client" : "-");
+
+            // [11_tasks.md] 6-0 修正6(オーケストレーター追加指示) — 接続状態を 1 行表示する。Host/Loopback は
+            // 常に接続中扱い(NgoNetBridge.IsConnected は Client が切断されたときだけ false になる)。
+            var connected = Bridge.IsServer || (Bridge.IsClient && (Bridge is not NgoNetBridge ngoForConn || ngoForConn.IsConnected));
+            var connectedText = connected ? "接続中" : "切断";
+
             var rtt = NetworkManagerRef != null ? NgoTransportConfigurator.TryGetRoundTripTimeMs(NetworkManagerRef, NetworkManager.ServerClientId) : null;
             var rttText = rtt.HasValue ? $"{rtt.Value:F0} ms" : "n/a";
 
@@ -45,11 +51,12 @@ namespace DDrive.Runtime.Net
             var text =
                 $"[DDrive Net]\n" +
                 $"Role: {role} (ClientId={Bridge.LocalClientId})\n" +
+                $"State: {connectedText}\n" +
                 $"NetworkTime: {Bridge.NetworkTime:F2}\n" +
                 $"RTT: {rttText} / App RTT: {appRttText}\n" +
                 $"Received: {ReceivedCount()} ({_lastRatePerSecond:F1}/s)";
 
-            GUI.Box(new Rect(8, 8, 260, 110), text, _style);
+            GUI.Box(new Rect(8, 8, 260, 126), text, _style);
         }
 
         private int ReceivedCount()
