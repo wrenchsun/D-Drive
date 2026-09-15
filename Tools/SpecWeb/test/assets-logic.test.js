@@ -4,10 +4,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadHtmlScript } = require('./load-html-script.js');
 
-// O-1/O-3/O-4/O-5 AC: 一覧の絞り込み・並べ替え・グルーピング・インライン検証・D-Drive 状態バッジ・
-// コメント表示順・ロール判定・私が発注/私が受けた・Markdown プレビューを、DOM に依存しない
-// 純粋関数として単体テストする。
-// (docs/32_spec_web.md §10.3.2, §10.3.3, §10.3.4 / Tools/SpecWeb/html/AssetsLogic.html)
+// O-1/O-3/O-5 AC: 一覧の絞り込み・並べ替え・グルーピング・インライン検証・D-Drive 状態バッジ・
+// コメント表示順・ロール判定・発注者/受注者プルダウン（2026-09-15）・Markdown プレビューを、
+// DOM に依存しない純粋関数として単体テストする。
+// (docs/32_spec_web.md §10.3.2, §10.3.4 / Tools/SpecWeb/html/AssetsLogic.html)
+// 旧 O-4「私が発注/私が受けた」（myOrderedItems/myContractedItems）は 2026-09-15 に
+// html/MyOrders.html の廃止に伴い削除した。
 
 function load() {
   return loadHtmlScript('AssetsLogic').window.AssetsLogic;
@@ -172,36 +174,80 @@ test('roleAtLeast: viewer < editor < admin の階層で判定する', () => {
   assert.equal(logic.roleAtLeast(null, 'viewer'), false);
 });
 
-// ---- O-4: 私が発注 / 私が受けた ----
+// ---- 発注者/受注者プルダウン（2026-09-15、ユーザー要望） ----
 
-test('myOrderedItems: orderer===email の発注だけを返し、未納品・期限切れのフラグを付ける', () => {
+// load() が vm 別コンテキストで AssetsLogic.html を評価するため、戻り値のオブジェクトは
+// このテストファイルの Object と異なるプロトタイプを持つ（assert.deepEqual/deepStrictEqual は
+// 構造が同じでも「reference-equal でない」として red になる。既存の formatDdriveStateBadge の
+// テストが個々のプロパティを比較しているのと同じ理由）。plain() でこのファイルの realm 上の
+// 素のオブジェクトに写し取ってから比較する。
+function plain(options) {
+  // Array.from（このファイルの realm の Array）を使う。options.map(...) だと species creation
+  // により結果の配列自体が vm 側の Array のままになり、要素を写し取っても配列自体の比較で
+  // 上と同じ理由で red になる。
+  return Array.from(options, (o) => ({ value: o.value, label: o.label }));
+}
+
+test('buildMemberSelectOptions: 先頭に（未設定）、続けてメンバーを表示名順で返す', () => {
   const logic = load();
-  const items = [
-    { id: 'A', orderer: 'yoshida@example.com', status: '発注済', dueDate: '2026-09-10', archived: false },
-    { id: 'B', orderer: 'yoshida@example.com', status: 'インポート済', dueDate: '2026-09-01', archived: false },
-    { id: 'C', orderer: 'sasaki@example.com', status: '発注済', dueDate: '2026-09-10', archived: false },
-    { id: 'D', orderer: 'yoshida@example.com', status: '発注済', dueDate: '2026-09-10', archived: true }
+  const members = [
+    { label: 'Yamada(PLN)' },
+    { label: 'Aoki(PRG)' },
+    { label: 'Sasaki(DZN)' }
   ];
-  const result = logic.myOrderedItems(items, 'yoshida@example.com', '2026-09-14');
-  assert.deepEqual(Array.from(result, (i) => i.id), ['A', 'B']);
-  assert.equal(result[0]._unfulfilled, true);
-  assert.equal(result[0]._overdue, true); // 2026-09-10 < 2026-09-14
-  assert.equal(result[1]._unfulfilled, false); // インポート済
-  assert.equal(result[1]._overdue, false); // インポート済は期限切れ扱いにしない
+  const options = logic.buildMemberSelectOptions(members, '');
+  assert.deepEqual(plain(options), [
+    { value: '', label: '（未設定）' },
+    { value: 'Aoki(PRG)', label: 'Aoki(PRG)' },
+    { value: 'Sasaki(DZN)', label: 'Sasaki(DZN)' },
+    { value: 'Yamada(PLN)', label: 'Yamada(PLN)' }
+  ]);
 });
 
-test('myContractedItems: contractor===email の発注を期限の昇順（未設定は末尾）で返す', () => {
+test('buildMemberSelectOptions: 現在値がメンバー一覧に無ければ「（一覧にない: ○○）」を末尾に追加し選択状態を保つ', () => {
   const logic = load();
-  const items = [
-    { id: 'A', contractor: 'tanaka@example.com', dueDate: '2026-09-30', archived: false },
-    { id: 'B', contractor: 'tanaka@example.com', dueDate: '2026-09-10', archived: false },
-    { id: 'C', contractor: 'tanaka@example.com', dueDate: '', archived: false },
-    { id: 'D', contractor: 'other@example.com', dueDate: '2026-09-01', archived: false }
+  const members = [{ label: 'Yamada(PLN)' }];
+  const options = logic.buildMemberSelectOptions(members, '削除済みメンバー');
+  assert.deepEqual(plain(options)[options.length - 1], { value: '削除済みメンバー', label: '（一覧にない: 削除済みメンバー）' });
+});
+
+test('buildMemberSelectOptions: 現在値がメンバー一覧に存在すれば「一覧にない」は追加しない', () => {
+  const logic = load();
+  const members = [{ label: 'Yamada(PLN)' }];
+  const options = logic.buildMemberSelectOptions(members, 'Yamada(PLN)');
+  assert.equal(options.length, 2);
+  assert.deepEqual(plain(options)[1], { value: 'Yamada(PLN)', label: 'Yamada(PLN)' });
+});
+
+test('buildMemberSelectOptions: 現在値が空文字なら「一覧にない」は追加しない（未設定のまま）', () => {
+  const logic = load();
+  const options = logic.buildMemberSelectOptions([], '');
+  assert.deepEqual(plain(options), [{ value: '', label: '（未設定）' }]);
+});
+
+test('findMemberLabelForCurrentUser: email が一致するメンバーを優先して返す', () => {
+  const logic = load();
+  const members = [
+    { label: 'Yamada(PLN)', email: 'yamada@example.com' },
+    { label: 'Yamada(PLN)代役', email: '' }
   ];
-  const result = logic.myContractedItems(items, 'tanaka@example.com', '2026-09-14');
-  assert.deepEqual(Array.from(result, (i) => i.id), ['B', 'A', 'C']);
-  assert.equal(result[0]._overdue, true);
-  assert.equal(result[1]._overdue, false);
+  const result = logic.findMemberLabelForCurrentUser(members, { email: 'YAMADA@example.com', displayName: '山田太郎' });
+  assert.equal(result, 'Yamada(PLN)', 'email は大文字小文字を無視して一致する');
+});
+
+test('findMemberLabelForCurrentUser: email 一致が無ければ displayName とメンバー表記の一致を見る', () => {
+  const logic = load();
+  const members = [{ label: '山田太郎', email: '' }];
+  const result = logic.findMemberLabelForCurrentUser(members, { email: 'unknown@example.com', displayName: '山田太郎' });
+  assert.equal(result, '山田太郎');
+});
+
+test('findMemberLabelForCurrentUser: どちらも一致しなければ空文字を返す（未設定として扱われる）', () => {
+  const logic = load();
+  const members = [{ label: 'Yamada(PLN)', email: 'yamada@example.com' }];
+  const result = logic.findMemberLabelForCurrentUser(members, { email: 'other@example.com', displayName: '別人' });
+  assert.equal(result, '');
+  assert.equal(logic.findMemberLabelForCurrentUser(members, null), '', 'currentUser が無くても例外にしない');
 });
 
 // ---- O-5: Markdown プレビュー（XSS 対策） ----

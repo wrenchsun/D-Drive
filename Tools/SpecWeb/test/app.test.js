@@ -134,6 +134,28 @@ test('未登録の画面 id に遷移しようとすると既定画面（orders�
   assert.equal(appRoot.textContent, 'orders-screen');
 });
 
+// 2026-09-15: 「私の発注」画面（旧 'my-orders'、html/MyOrders.html）はユーザー要望で廃止した。
+// registerScreen('my-orders', ...) はもう呼ばれない（Index.html が MyOrders.html を include
+// しなくなった）ため、直リンク・履歴で 'my-orders' が来ても例外にせず既定画面へ落ちることを
+// 明示的に確認する。
+test('廃止済みの画面 id（my-orders）に遷移しようとしても例外にならず既定画面（orders）にフォールバックする', () => {
+  const { ctx, appRoot } = setup();
+  ctx.window.registerScreen('orders', function (root) {
+    root.textContent = 'orders-screen';
+  });
+  assert.doesNotThrow(() => ctx.window.SpecWebNavigate('my-orders'));
+  assert.equal(appRoot.textContent, 'orders-screen');
+});
+
+test('廃止済みの画面 id（my-orders）への history 往復（戻る/進む）でも例外にならず既定画面（orders）にフォールバックする', () => {
+  const { ctx, appRoot, fakeGoogle } = setup();
+  ctx.window.registerScreen('orders', function (root) {
+    root.textContent = 'orders-screen';
+  });
+  assert.doesNotThrow(() => fakeGoogle.fireHistoryChange({ screen: 'my-orders' }));
+  assert.equal(appRoot.textContent, 'orders-screen');
+});
+
 test('DOMContentLoaded で既定画面（orders）が初期表示される', () => {
   const { ctx, appRoot, fireDomContentLoaded } = setup();
   ctx.window.registerScreen('orders', function (root) {

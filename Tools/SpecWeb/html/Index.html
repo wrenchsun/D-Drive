@@ -58,8 +58,8 @@
     <!-- O-2: Presentation 発注グループ + 発注ツリー画面（OrderTreeLogic → OrderTree の順）。 -->
     <?!= include('html/OrderTreeLogic'); ?>
     <?!= include('html/OrderTree'); ?>
-    <!-- O-4: 私が発注/私が受けた（AssetsLogic の myOrderedItems/myContractedItems を使う）。 -->
-    <?!= include('html/MyOrders'); ?>
+    <!-- 旧 O-4「私が発注/私が受けた」（html/MyOrders.html）は 2026-09-15 にユーザー要望で廃止した
+         （一覧画面の絞り込み・並べ替え + 「自分」フィルタで代替。docs/32_spec_web.md 変更メモ参照）。 -->
     <!-- O-9/O-10: メンバー管理 + ガント URL の設定。 -->
     <?!= include('html/Members'); ?>
     <!-- W-6〜W-8: 調整値編集画面（純粋関数 = TuningGrid を先に、DOM 登録 = Tuning を後に）。O-8 でこのタブが

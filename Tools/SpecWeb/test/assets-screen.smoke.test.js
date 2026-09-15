@@ -92,7 +92,9 @@ function setup(role, options) {
       return { ok: true, items: [] };
     },
     'members.list': function () {
-      return { ok: true, items: [] };
+      // 2026-09-15（プルダウン化）: options.members でテストごとに差し替えられるようにする
+      // （既定は既存テストの挙動を変えない空配列）。
+      return { ok: true, items: options.members || [] };
     },
     'paramSchemas.list': function () {
       return { ok: true, items: [] };
@@ -796,7 +798,7 @@ test('詳細パネル: fileName に使えない文字が入っていると非ブ
 
 // ---- 緊急修正（2026-09-14）: 1文字入力するごとにフォーカスが外れる不具合（各フィールド網羅） ----
 
-test('詳細パネル: 表示名・カテゴリ・発注者（datalist 付き）・ファイル形式に入力しても、それぞれの <input> ノードは作り直されない', async () => {
+test('詳細パネル: 表示名・カテゴリ・ファイル形式に入力しても、それぞれの <input> ノードは作り直されない', async () => {
   const { dom, render } = setup('editor');
   const root = dom.document.createElement('div');
   render(root);
@@ -817,22 +819,132 @@ test('詳細パネル: 表示名・カテゴリ・発注者（datalist 付き）
 
   const displayNameInput = findFieldInput('表示名');
   const categoryInput = findFieldInput('カテゴリ');
-  const ordererInput = findFieldInput('発注者');
   const fileFormatInput = findFieldInput('ファイル形式');
 
   displayNameInput.value = '斬撃音２';
   categoryInput.value = 'Boss';
-  ordererInput.value = 'すずき';
   fileFormatInput.value = '.ogg';
   assert.doesNotThrow(() => dom.fire(displayNameInput, 'input'));
   assert.doesNotThrow(() => dom.fire(categoryInput, 'input'));
-  assert.doesNotThrow(() => dom.fire(ordererInput, 'input'));
   assert.doesNotThrow(() => dom.fire(fileFormatInput, 'input'));
 
   assert.equal(findFieldInput('表示名'), displayNameInput, '表示名の <input> は同じノードのまま');
   assert.equal(findFieldInput('カテゴリ'), categoryInput, 'カテゴリの <input> は同じノードのまま');
-  assert.equal(findFieldInput('発注者'), ordererInput, '発注者の <input> は同じノードのまま');
   assert.equal(findFieldInput('ファイル形式'), fileFormatInput, 'ファイル形式の <input> は同じノードのまま');
+});
+
+// ---- 発注者/受注者プルダウン化（2026-09-15、ユーザー要望） ----
+
+test('詳細パネル: 発注者/受注者はメンバー一覧のプルダウン（<select>）になっており、選択肢は（未設定）+ メンバー表示名順', async () => {
+  const members = [{ label: 'Yamada(PLN)' }, { label: 'Aoki(PRG)' }];
+  const { dom, render } = setup('editor', { members: members });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  function findFieldSelect(label) {
+    const field = dom.findNode(root, (n) => {
+      if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+      const l = (n.children || [])[0];
+      return l && l.textContent === label;
+    });
+    return field.children[1];
+  }
+
+  const ordererSelect = findFieldSelect('発注者');
+  assert.equal(ordererSelect.tagName, 'select', '発注者はプルダウンになっている');
+  // サンプル発注の orderer は 'よしだ'（members には含まれない既存データ）なので、
+  // 「（一覧にない: よしだ）」が末尾に追加され選択状態のまま消えない。
+  const optionTexts = ordererSelect.children.map((o) => o.textContent);
+  assert.deepEqual(optionTexts, ['（未設定）', 'Aoki(PRG)', 'Yamada(PLN)', '（一覧にない: よしだ）']);
+
+  // change イベントで select 自体・フィールドの囲みが作り直されないこと（既存の fieldWraps 方針）。
+  ordererSelect.value = 'Aoki(PRG)';
+  assert.doesNotThrow(() => dom.fire(ordererSelect, 'change'));
+  assert.equal(findFieldSelect('発注者'), ordererSelect, '変更しても同じ <select> ノードのまま（画面全体を作り直さない）');
+});
+
+test('新規発注パネル: 発注者の既定値はログイン中の本人に一致するメンバー、無ければ（未設定）', async () => {
+  const members = [{ label: 'よしだ(PLN)', email: 'editor@example.com' }, { label: 'たなか(DZN)', email: '' }];
+  const { dom, render } = setup('editor', { members: members });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const newButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 新規発注');
+  dom.fire(newButton, 'click');
+
+  const ordererField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    const l = (n.children || [])[0];
+    return l && l.textContent === '発注者';
+  });
+  const select = ordererField.children[1];
+  assert.equal(select.value, 'よしだ(PLN)', 'whoami の email（editor@example.com）に一致するメンバーが既定値になる');
+});
+
+test('新規発注パネル: ログイン中の本人に一致するメンバーが無ければ発注者は（未設定）のまま', async () => {
+  const members = [{ label: 'たなか(DZN)', email: 'someone-else@example.com' }];
+  const { dom, render } = setup('editor', { members: members });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const newButton = dom.findNode(root, (n) => n.tagName === 'button' && n.textContent === '+ 新規発注');
+  dom.fire(newButton, 'click');
+
+  const ordererField = dom.findNode(root, (n) => {
+    if (n.tagName !== 'div' || n.className.indexOf('assets-field') === -1) return false;
+    const l = (n.children || [])[0];
+    return l && l.textContent === '発注者';
+  });
+  const select = ordererField.children[1];
+  assert.equal(select.value, '', '一致するメンバーが無ければ未設定（空文字）のまま');
+});
+
+test('詳細パネル: メンバーが1人も登録されていないと、発注者/受注者の欄に登録を促す案内が出る', async () => {
+  const { dom, render } = setup('editor', { members: [] });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const row = dom.findNode(root, (n) => n.tagName === 'tr' && n.className !== 'assets-group-row' && (n.children || []).some((td) => td.textContent === 'Slash'));
+  dom.fire(row, 'click');
+  await flush();
+
+  const hints = dom.findAllNodes(root, (n) => n.tagName === 'p' && n.textContent === 'メンバー画面でメンバーを登録してください');
+  assert.equal(hints.length, 2, '発注者・受注者の両方の欄に案内が出る');
+});
+
+test('一覧ツールバー: 発注者/受注者の絞り込みに、ログイン中の本人に一致するメンバーがいれば「自分」が先頭に出る', async () => {
+  const members = [{ label: 'よしだ(PLN)', email: 'editor@example.com' }];
+  const { dom, render } = setup('editor', { members: members });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const ordererSelect = dom.findNode(root, (n) => n.tagName === 'select' && (n.children || []).some((o) => o.textContent === '発注者: 全て'));
+  assert.ok(ordererSelect, '発注者の絞り込みセレクトが見つかる');
+  assert.equal(ordererSelect.children[1].textContent, '自分', '「全て」の次に「自分」が来る');
+
+  const contractorSelect = dom.findNode(root, (n) => n.tagName === 'select' && (n.children || []).some((o) => o.textContent === '受注者: 全て'));
+  assert.ok(contractorSelect, '受注者の絞り込みセレクトが見つかる');
+  assert.equal(contractorSelect.children[1].textContent, '自分', '受注者側にも「自分」が先頭に出る');
+});
+
+test('一覧ツールバー: ログイン中の本人に一致するメンバーがいなければ「自分」は追加されない', async () => {
+  const { dom, render } = setup('editor', { members: [] });
+  const root = dom.document.createElement('div');
+  render(root);
+  await flush();
+
+  const ordererSelect = dom.findNode(root, (n) => n.tagName === 'select' && (n.children || []).some((o) => o.textContent === '発注者: 全て'));
+  const optionTexts = ordererSelect.children.map((o) => o.textContent);
+  assert.ok(optionTexts.indexOf('自分') === -1, '一致するメンバーが無いときは「自分」は出ない');
 });
 
 test('詳細パネル: 識別子・カテゴリを変更すると、fileName の <input> は作り直されずに推奨名の表示だけ更新される', async () => {

@@ -1256,6 +1256,11 @@ Google スプレッドシート製ガントチャート（WBS1〜3・タスク�
 
 **旧 `assets.json` フィールドの削除**: `assignee` は物理的に削除せず**残置**し `contractor` の別名として同じ意味で読める間だけ残す案と、`orderer`/`contractor` 追加時に `assignee` を廃止して移行スクリプトで置き換える案があるが、**§10.7 の要判断 1 として実装時に決める**（このプロジェクトの CLAUDE.md §0-9・docs/32 §9-11/12 と同じ「シリアライズ形式変更は保守的に」の方針を Web 側の JSON にも適用するかどうかの判断）。
 
+**`orderer`/`contractor` の入力 UI（2026-09-15 追記）**: 保存形式（`members.list` のメンバー表記＝
+`label` 文字列そのもの）は変更していない。クライアント側の入力欄だけを、datalist 付きの自由入力
+（O-9）からメンバー一覧のプルダウン（`<select>`）に変更した（ユーザー要望）。詳細は末尾の実装メモ
+「2026-09-15: 発注者/受注者のプルダウン化 + 私の発注の廃止」を参照。
+
 #### 10.2.2 既存データの移行方法（O-1 で実施）
 
 MVP（W-4〜W-12）はすでに実装・マージ済みだが、実データ投入（本番運用開始）はまだのため、移行の要否自体を
@@ -1356,7 +1361,13 @@ MVP（W-4〜W-12）はすでに実装・マージ済みだが、実データ投�
 旧「状態」列の選択肢（未着手/仮/本番/保留）・「担当」列（単一）はここで終わり、上記の3段階状態・発注者/受注者の
 2列に統一する。
 
-#### 10.3.3 私が発注 / 私が受けた（新規、ユーザー要件 4）
+#### 10.3.3 私が発注 / 私が受けた（新規、ユーザー要件 4） — **2026-09-15 廃止**
+
+> **2026-09-15 廃止（ユーザー判断）**: 実際にデプロイして使ってみたところ「一覧のソート機能だけで
+> 十分」との要望があり、この個人ビュー（`html/MyOrders.html`、画面 id `my-orders`）は削除した。
+> 代わりに一覧画面（§10.3.2）の発注者/受注者の絞り込みに「自分」の選択肢を追加して代替している
+> （末尾の実装メモ「2026-09-15: 発注者/受注者のプルダウン化 + 私の発注の廃止」参照）。以下は当時の
+> 設計の記録として残す。
 
 ```
 ┌ 私が発注したもの ──────────────────────┐      ┌ 私が受けたもの（期限順） ──────────────┐
@@ -1493,7 +1504,7 @@ Placeholder の `PresentationData` を先に作る、という連携。**メリ�
 | O-1 | データモデル移行: §10.2.1 のフィールド追加・改称（`orderer`/`contractor`/`orderDate`/`deliveredDate`/`referenceMd`/`parentId`、`status` を3値化）+ `Storage.js` のコレクション定義更新 + 既存データ移行スクリプト（§10.2.2） | W-4（既存） | 3 | 新規作成で新フィールドが入力できる。移行スクリプト実行後、旧 `assignee`/`note`/4値`status` が新フィールドに変換されている（実データが無い場合は移行スクリプト自体を要判断8で見送ってよい） |
 | O-2 | Presentation 発注グループ（`orderGroups.json`）CRUD API + 発注ツリー画面（§10.2.3・§10.3.1） | O-1 | 4 | 発注ツリーで子の件数・納品済/インポート済集計が表示される。「単体」グループに親なし発注がまとまる |
 | O-3 | 一覧画面の並べ替え・絞り込み軸を発注者/受注者/発注日/納品期限/Presentation に更新（§10.3.2） | O-1, O-2 | 2 | §10.3.2 のとおり並べ替え・絞り込みができる |
-| O-4 | 「私が発注」「私が受けた」個人ビュー（§10.3.3） | O-3 | 2 | 未納品・期限切れ・期限順の絞り込みが実データで動く |
+| O-4 | 「私が発注」「私が受けた」個人ビュー（§10.3.3） | O-3 | 2 | 未納品・期限切れ・期限順の絞り込みが実データで動く → **2026-09-15 廃止（ユーザー判断）**: 実運用してみて「一覧のソート機能だけで十分」との要望があり、`html/MyOrders.html` を削除した。代わりに一覧画面（`assets`）の発注者/受注者の絞り込みに「自分」の選択肢を追加（下部の実装メモ参照） |
 | O-5 | 発注の詳細画面の再定義: Markdown プレビュー・状態進行ボタン（発注済→納品済のみ手動）・パラメータ一覧表示欄の受け皿（§10.3.4） | O-1 | 3 | §10.3.4 の画面が実データで動く（パラメータの値自体は O-6 待ち） |
 | O-6 | D-Drive → Web: パラメータスキーマ + 現在値送信（`assetParams` kind 新設、`SerializedObject`+`Tooltip` 反射、§10.4.2） | O-1, O-2（既存 W-12 送信基盤を拡張） | 4 | 同期後、詳細画面にパラメータ一覧（名前・型・説明・単位/範囲）と、インポート済アセットの現在値が表示される |
 | O-7 | 「インポート済」自動判定: 既存 `IValidator` 実行結果の再利用で `isPlaceholder` を実値化 + `assetState` 判定ロジック（§10.4.1） | O-1（既存 W-12 を拡張） | 3 | Placeholder のままの Data は「インポート済」にならず、Error が解消され同期すると自動でインポート済に切り替わる |
@@ -2714,3 +2725,99 @@ Addressables には一切書き込まない**（`RepoRootOverride` で OS の一
 
 **Unity 未検証**（ワークツリーでの実装のため。マージ後に親セッションが isuzu-unity 経由で
 EditMode/PlayMode の両方のテスト実行とコンパイル確認を行う想定）。
+
+## 実装メモ（2026-09-15: 発注者/受注者のプルダウン化 + 私の発注の廃止）
+
+実デプロイで使ってみたユーザーからの2つの要望を反映した（Unity は使わない、`Tools/SpecWeb` のみの
+変更。`feat/order-member-select` ブランチ）。
+
+### 変更1: 発注者・受注者をプルダウン（メンバー一覧から選ぶ形式）に変更
+
+以前（O-9）は `members.list` を datalist で候補表示する自由入力欄だった。ユーザー要望
+「新規発注で発注者と受注者をプルダウン形式にして」を受け、`<select>` に変更した。
+
+- **選択肢の組み立て**は純粋関数 `AssetsLogic.buildMemberSelectOptions(members, currentValue)`
+  （新規、`html/AssetsLogic.html`）に切り出した: 先頭に「（未設定）」、続けてメンバー一覧を表示名
+  （`label`）の辞書順（`localeCompare('ja')`）で並べる。**既存データの値がメンバー一覧に無い場合**
+  （削除されたメンバー・O-9 以前の自由入力データ）は、その値を「（一覧にない: ○○）」として末尾に
+  追加し選択状態にする（値そのものは書き換えない＝消えない）
+- **保存される値の形式は変更していない**（`members.list` の `label` 文字列そのもの）。既存データ・
+  一覧の絞り込み（`AssetsLogic.filterAssets` の `orderer`/`contractor`）・並べ替え
+  （`AssetsLogic.sortAssets`）はそのままの値で動作するため互換
+- **新規作成時の発注者の既定値**は `AssetsLogic.findMemberLabelForCurrentUser(members, currentUser)`
+  （新規）で決める: `whoami` の `email` に一致するメンバー（`members.upsert` で対応付け済み）を優先し、
+  無ければ `displayName` がメンバーの表記そのものと一致するかを見る。どちらも一致しなければ
+  「（未設定）」のまま（`html/Assets.html` の `emptyFields()` がここを呼ぶ）
+- **メンバーが1人も登録されていない場合**は、`memberField()` が select の下に「メンバー画面で
+  メンバーを登録してください」という案内を出す（select 自体は「（未設定）」だけになる）
+- **select の change で画面全体を作り直さない**: 以前の「1文字ごとにフォーカスが外れる」不具合
+  （2026-09-14 緊急修正）の修正方針と同じく、`memberField()` は既存の `fieldRow()`/`fieldWraps`
+  の仕組みに乗せ、change ハンドラは `state.detail.fields[key] = select.value` を代入するだけで
+  `renderDetail()` を呼ばない（select 自体を作り直さない）
+- 副次的な修正: `html/Assets.html` の共通 `buildSelect()` が、選択済みの `<option>` の `selected`
+  だけでなく `select.value` 自体も明示的に設定するようにした（実 DOM の `<select>.value` は選択中の
+  `<option>` から自動導出されるが、`test/dom-stub.js` の `FakeNode` は素の `value` プロパティしか
+  持たないため、テストから初期選択値を読むにはこの代入が必要だった。挙動は実 DOM と同じまま）
+
+### 変更2: 「私の発注」画面（`html/MyOrders.html`）を廃止
+
+ユーザー要望「自分の発注がかなり不便、正直一覧のソート機能だけで十分」を受け、O-4 個人ビュー
+（画面 id `my-orders`）を削除した。
+
+- `html/MyOrders.html` を削除し、`html/Index.html` の `include('html/MyOrders')` を外した
+  （ナビゲーションの「私の発注」リンクは `MyOrders.html` 自身が追加していたコードのため、
+  ファイル削除だけで自然に消える）
+- `html/App.html` の既定フォールバック（`screens[id] || screens[DEFAULT_SCREEN_ID]`）は
+  変更していない。直リンク・`google.script.history` の戻る/進むで画面 id `my-orders` が来ても、
+  `registerScreen('my-orders', ...)` が無いため既定画面（`orders`）へ落ち、例外にならないことを
+  `test/app.test.js` に明示的なテストを追加して確認した
+- `html/Assets.html` の `BACK_TO_LABELS`（詳細パネルの「← 戻る」ボタンの文言）から
+  `'my-orders'` エントリを削除した（`backTo: 'my-orders'` は `MyOrders.html` 自身しか渡していな
+  かったため、画面削除に伴い到達しなくなった）
+- `html/AssetsLogic.html` から `isOverdue`/`myOrderedItems`/`myContractedItems`（O-4 専用の
+  純粋関数、他に使っている場所が無いことを確認済み）を削除した
+- **代替**: 一覧画面（`assets`）の発注者/受注者の絞り込みセレクトの先頭に「自分」を追加した
+  （`memberFilterOptions()`、新規。`findMemberLabelForCurrentUser` を再利用）。ログイン中の本人に
+  一致するメンバーが見つからない場合は追加しない（値 `''` の「自分」が「◯◯者: 全て」と重複表示
+  されるのを避けるため）。列見出しクリックでの並べ替え（発注者・受注者・発注日・納品期限・状態・
+  種類）は既存のまま変更していない（O-3 で実装済み）ため、「自分」を選んで「納品期限」の見出しを
+  押せば旧「私が受けたもの（期限順）」と同じ結果が得られる
+
+### テスト（`node --test Tools/SpecWeb/test`、**460 件全て green**（既存 455 件 - 旧 O-4 専用 2 件
++ 本変更分 7 件、`myOrders.smoke.test.js` の削除分を含む差分））
+
+- `test/assets-logic.test.js`: `myOrderedItems`/`myContractedItems` のテストを削除し、
+  `buildMemberSelectOptions`（未設定+表示名順・一覧にない値の保持・現在値が一覧内/空文字のときは
+  追加しない）・`findMemberLabelForCurrentUser`（email 優先・displayName フォールバック・どちらも
+  不一致で空文字）を追加した。**vm 別コンテキストで評価した戻り値のオブジェクト/配列を
+  `assert.deepEqual` で比較する際は、host 側の `Array.from`/リテラルで写し取ってから比較する**
+  （`Object`/`Array` の実体が vm 側のものだと「構造は同じだが reference-equal でない」で red に
+  なる。既存の `formatDdriveStateBadge` テストが個々のプロパティを比較していたのと同じ理由の
+  ハマりどころとして明記した）
+- `test/assets-screen.smoke.test.js`: `setup()` に `options.members` を追加（既定は空配列、既存
+  テストの挙動を変えない）。発注者/受注者が `<select>` になっていること・選択肢の内容・change で
+  ノードが作り直されないこと・新規作成時の既定値（本人一致/不一致）・メンバー0人の案内・一覧
+  ツールバーの「自分」フィルタ（一致あり/なし）を追加した
+- `test/app.test.js`: 画面 id `my-orders` への `SpecWebNavigate`/`google.script.history` の
+  戻る・進むの両方で、例外にならず既定画面（`orders`）へフォールバックすることを明示的に確認する
+  テストを追加した（既存の「未登録の画面 id」テストの具体例として）
+- `test/myOrders.smoke.test.js` を削除した（対象の画面ファイル自体を削除したため）
+
+### docs（このセッションで更新したファイル）
+
+- `docs/32_spec_web.md`（このファイル）: §10.2.1 に `orderer`/`contractor` の入力 UI 変更を追記、
+  §10.3.3 に廃止の注記を追加、§10.6 のチケット一覧 O-4 行に廃止の注記を追加、本節を追加
+- `docs/28_manual_verification_phase5.md`: O-4（私の発注）関連の目視確認手順を「廃止（一覧の
+  絞り込み・並べ替えで代替）」に更新
+- `docs/DesignerManual/spec-sync.html`（デザイナーマニュアル、真実はこちら）を更新し、
+  `node Tools/SpecWeb/tools/build-manual.js` で `Tools/SpecWeb/html/manual/spec-sync.html`・
+  `src/ManualPages.js` を再生成した（`<!-- screenshot: 36-#N -->` コメントは既存のまま維持。
+  「私の発注」画面固有の撮影項目は docs/36 に無かったため削除対象は無かった）
+- `docs/11_tasks.md`: O-4 の行に「2026-09-15 廃止（ユーザー判断）」を追記
+
+### 目視確認
+
+**未検証**（このセッションは Unity を使わず、`Tools/SpecWeb` の Node テストのみで検証した。
+[docs/20_mcp_setup.md] 上の運用と同じく、iframe サンドボックス内の実際の挙動
+（プルダウンの見た目・選択操作・画面遷移）は Node テストでは検証できないため、
+`push.cmd`/`push.ps1` で実デプロイした上での目視確認が必須）。
