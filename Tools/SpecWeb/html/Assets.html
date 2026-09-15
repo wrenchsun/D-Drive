@@ -251,9 +251,10 @@
     font-size: 0.8rem;
     background: #eaeef2;
   }
-  /* O-16: 発注メモ（referenceMd）の書式ツールバー。html/OrderTree.html・html/MyOrders.html の
+  /* O-16: 発注メモ（referenceMd）の書式ツールバー。html/OrderTree.html の
      メモの折りたたみ表示（.assets-memo-clip）もこのページの <style> を共用する
-     （既存の sw-muted・sw-badge 等と同じ、include() で 1 ページに連結される前提の既存方針）。 */
+     （既存の sw-muted・sw-badge 等と同じ、include() で 1 ページに連結される前提の既存方針。
+     2026-09-15: html/MyOrders.html はユーザー要望で廃止した）。 */
   .assets-md-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -310,9 +311,10 @@
     var logic = window.AssetsLogic;
 
     // 緊急修正（2026-09-14 追補）: 詳細パネルの「戻る」ボタンの文言（backTo の画面 id ごと）。
+    // 2026-09-15: 「私の発注」画面（旧 'my-orders'、html/MyOrders.html）はユーザー要望で廃止した
+    // ため、その戻り先は無くなった（発注ツリーから来た場合の 'orders' のみ残す）。
     var BACK_TO_LABELS = {
-      orders: '← 発注ツリーへ戻る',
-      'my-orders': '← 私の発注へ戻る'
+      orders: '← 発注ツリーへ戻る'
     };
 
     function el(tag, attrs, children) {
@@ -483,7 +485,7 @@
         // （window.SpecWebNavigate('assets', { params: { q, openId, backTo } })）でも同じ仕組みで
         // 開く（「できたら開く」程度の保険。開かなくても filters.query の絞り込みで一覧の一番上に
         // 出ているので、その行の「編集」を押せば確実に開ける）。
-        // backTo はその場合の「戻り先」画面 id（例: 'orders'/'my-orders'）。一覧の行から直接
+        // backTo はその場合の「戻り先」画面 id（例: 'orders'）。一覧の行から直接
         // 開いた場合は backTo が無いので「戻る」導線は出さない。
         pendingOpenId: (initialParams && initialParams.openId) || null,
         pendingBackTo: (initialParams && initialParams.backTo) || null,
@@ -532,6 +534,20 @@
         return Object.keys(set).sort();
       }
 
+      /**
+       * 2026-09-15（ユーザー要望「自分の発注」の代替）: 発注者/受注者の絞り込みに、ログイン中の
+       * 本人へすぐ絞り込める「自分」を先頭に追加する（廃止した私の発注画面〔html/MyOrders.html〕の
+       * 代わり）。ログイン中の本人に一致するメンバーが見つからない場合は追加しない
+       * （見つからない場合に値 '' の「自分」を追加すると「◯◯者: 全て」と選択肢が重複するため）。
+       */
+      function memberFilterOptions(key) {
+        var mine = logic.findMemberLabelForCurrentUser(state.members, state.currentUser);
+        var options = [];
+        if (mine) options.push({ value: mine, label: '自分' });
+        optionValuesFrom(key).forEach(function (v) { options.push(v); });
+        return options;
+      }
+
       function buildSelect(options, current, includeAllLabel) {
         var select = el('select');
         if (includeAllLabel) {
@@ -544,6 +560,11 @@
           if (value === current) optionEl.selected = true;
           select.appendChild(optionEl);
         });
+        // 2026-09-15（プルダウン化）: 実 DOM の <select>.value は選択中の <option> から自動で
+        // 導出されるが、test/dom-stub.js の FakeNode は素の value プロパティしか持たない
+        // （テストで select.value を読む前に明示的な代入が必要になってしまう）。実 DOM と同じ
+        // 見え方にするため、選択済みの現在値をここで明示的に反映しておく。
+        select.value = current;
         return select;
       }
 
@@ -572,14 +593,14 @@
         });
         toolbar.appendChild(statusSelect);
 
-        var ordererSelect = buildSelect(optionValuesFrom('orderer'), state.filters.orderer, '発注者: 全て');
+        var ordererSelect = buildSelect(memberFilterOptions('orderer'), state.filters.orderer, '発注者: 全て');
         ordererSelect.addEventListener('change', function () {
           state.filters.orderer = ordererSelect.value;
           renderTable();
         });
         toolbar.appendChild(ordererSelect);
 
-        var contractorSelect = buildSelect(optionValuesFrom('contractor'), state.filters.contractor, '受注者: 全て');
+        var contractorSelect = buildSelect(memberFilterOptions('contractor'), state.filters.contractor, '受注者: 全て');
         contractorSelect.addEventListener('change', function () {
           state.filters.contractor = contractorSelect.value;
           renderTable();
@@ -973,10 +994,18 @@
 
       // ---- 詳細パネル（§10.3.4） ----
 
+      /**
+       * 2026-09-15（プルダウン化、ユーザー要望）: 新規発注の発注者の既定値はログイン中の本人
+       * （`whoami` の表示名/メールがメンバー一覧と一致すればそのメンバー、無ければ未設定＝空文字）
+       * にする。`state.members`/`state.currentUser` は screen 読み込み時（reload/whoami）に
+       * 非同期で入る値のため、この関数は呼ばれた時点の最新の state を見るだけでよい
+       * （+新規発注ボタンを押す時点では通常どちらも読み込み済み）。
+       */
       function emptyFields() {
         return {
           assetType: '', category: '', identifier: '', displayName: '', status: '発注済',
-          orderer: '', contractor: '', orderDate: '', dueDate: '', deliveredDate: '',
+          orderer: logic.findMemberLabelForCurrentUser(state.members, state.currentUser),
+          contractor: '', orderDate: '', dueDate: '', deliveredDate: '',
           priority: '', referenceMd: '', parentId: '', fileFormat: '', fileName: ''
         };
       }
@@ -1153,23 +1182,29 @@
         return fieldRow(key, label, input);
       }
 
-      /** 発注者/受注者はメンバー一覧を datalist で候補表示しつつ自由入力も許可する（O-9）。 */
+      /**
+       * 発注者/受注者のプルダウン（2026-09-15、ユーザー要望「発注者と受注者をプルダウン形式に」）。
+       * 以前はメンバー一覧を datalist で候補表示する自由入力欄だった（O-9、2026-09-14）。
+       * 選択肢の組み立ては純粋関数 `logic.buildMemberSelectOptions`（単体テスト済み）に委譲する:
+       * 先頭に「（未設定）」、続けてメンバー一覧を表示名順、現在値がメンバー一覧に無い既存データ
+       * （削除されたメンバー・旧手入力データ）は「（一覧にない: ○○）」として末尾に追加し
+       * 選択状態を保つ（値そのものは変えない＝保存形式・既存の絞り込み/並べ替えとの互換を維持）。
+       *
+       * change イベントで renderDetail() を呼ばない（select 自体を作り直さない）。以前の
+       * 「1文字ごとにフォーカスが外れる」不具合の修正方針（既存の fieldWraps の仕組み）を
+       * select にも適用し、選び直すたびに画面全体が再構築されないようにする。
+       */
       function memberField(key, label) {
-        var listId = 'assets-members-' + key;
-        var input = el('input', { type: 'text', list: listId });
-        input.value = state.detail.fields[key];
-        input.disabled = !canEdit();
-        input.addEventListener('input', function () {
-          // 緊急修正（2026-09-14）: orderer/contractor は検証・他フィールドへの影響が無いため、
-          // 値を state に反映するだけでよい（renderDetail() は不要＝フォーカスも外れない）。
-          state.detail.fields[key] = input.value;
+        var options = logic.buildMemberSelectOptions(state.members, state.detail.fields[key]);
+        var select = buildSelect(options, state.detail.fields[key], null);
+        select.disabled = !canEdit();
+        select.addEventListener('change', function () {
+          state.detail.fields[key] = select.value;
         });
-        var datalist = el('datalist', { id: listId });
-        state.members.forEach(function (m) {
-          datalist.appendChild(el('option', { value: m.label }));
-        });
-        var wrap = fieldRow(key, label, input);
-        wrap.appendChild(datalist);
+        var wrap = fieldRow(key, label, select);
+        if (state.members.length === 0) {
+          wrap.appendChild(el('p', { class: 'sw-muted', text: 'メンバー画面でメンバーを登録してください' }));
+        }
         return wrap;
       }
 

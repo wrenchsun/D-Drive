@@ -1,12 +1,13 @@
 <script>
   /**
-   * アセット発注 一覧・詳細画面（Assets.html）・私が発注/私が受けた画面（MyOrders.html）が使う
-   * 純粋関数（DOM に触らないロジックだけ）。docs/32_spec_web.md §10.3.2（一覧）・§10.3.3（個人ビュー）・
-   * §10.3.4（詳細）に対応するファイル。
+   * アセット発注 一覧・詳細画面（Assets.html）が使う純粋関数（DOM に触らないロジックだけ）。
+   * docs/32_spec_web.md §10.3.2（一覧）・§10.3.4（詳細）に対応するファイル。
+   * 旧 §10.3.3「私が発注/私が受けた」個人ビュー（`MyOrders.html`）は 2026-09-15 にユーザー要望で
+   * 廃止した（一覧の絞り込み・並べ替え + 「自分」フィルタで代替。docs/32_spec_web.md 変更メモ参照）。
    *
    * ここに書く関数は入力から出力を計算するだけで、document/window の DOM API には触れない
    * （触れると test/load-html-script.js の vm 経由テストが書けなくなる）。
-   * DOM を実際に組み立てる処理は Assets.html/MyOrders.html 側に置く。
+   * DOM を実際に組み立てる処理は Assets.html 側に置く。
    *
    * ASSET_TYPES 等の定数は Tools/SpecWeb/src/Assets.js の
    * SPEC_WEB_ASSET_TYPES/STATUSES/PRIORITIES と同じ値を手元に複製している
@@ -333,47 +334,65 @@
       return rank >= requiredRank;
     }
 
-    // ---- O-4: 私が発注 / 私が受けた（docs/32 §10.3.3） ----
+    // ---- 発注者/受注者プルダウン化（2026-09-15、ユーザー要望）----
+    // 旧 O-4「私が発注/私が受けた」個人ビュー（`html/MyOrders.html`）はユーザー要望により廃止した
+    // （「自分の発注」は一覧画面〈`html/Assets.html`〉の絞り込み・並べ替えで代替する。下の
+    // `findMemberLabelForCurrentUser` は一覧の発注者/受注者絞り込みに「自分」の選択肢を
+    // 追加するためにも使う）。ここにあった `isOverdue`/`myOrderedItems`/`myContractedItems`
+    // は廃止に伴い削除した（他に使っている場所が無いことを確認済み）。
 
-    function isOverdue(item, todayStr) {
-      if (!item.dueDate) return false;
-      if (item.status === ASSET_STATUS_IMPORTED) return false;
-      return item.dueDate < todayStr;
+    /**
+     * 発注者/受注者のプルダウン（`<select>`）選択肢を組み立てる純粋関数（`html/Assets.html` の
+     * `memberField` が使う）。メンバー一覧（`members.list`、ガント担当者マスタ由来）を表示名
+     * （`label`）順に並べ、先頭に「（未設定）」を置く。現在の値（既存データ）がメンバー一覧に
+     * 無い場合（削除されたメンバー・自由入力だった旧データ）は末尾に「（一覧にない: ○○）」を
+     * 追加し、その値が選択状態のまま消えないようにする（`html/Assets.html` の `buildSelect` が
+     * value 一致で選択状態にする）。
+     * @param {Array<{label:string}>} members
+     * @param {string} currentValue 現在のフィールド値（保存されているメンバー表記そのもの）
+     * @return {Array<{value:string, label:string}>}
+     */
+    function buildMemberSelectOptions(members, currentValue) {
+      var sorted = (members || []).slice().sort(function (a, b) {
+        return String((a && a.label) || '').localeCompare(String((b && b.label) || ''), 'ja');
+      });
+      var options = [{ value: '', label: '（未設定）' }];
+      sorted.forEach(function (m) {
+        if (m && m.label) options.push({ value: m.label, label: m.label });
+      });
+      var value = currentValue || '';
+      if (value && !sorted.some(function (m) { return m && m.label === value; })) {
+        options.push({ value: value, label: '（一覧にない: ' + value + '）' });
+      }
+      return options;
     }
 
     /**
-     * 「私が発注したもの」: orderer===email の発注。未納品（インポート済でない）・期限切れで
-     * フラグを付ける。並び順は入力順を保つ（呼び出し側で sortAssets と組み合わせてよい）。
+     * ログイン中のユーザー（`whoami` の `email`/`displayName`）に一致するメンバーの表記
+     * （`label`）を返す。一致しなければ空文字（呼び出し側は「未設定」/「該当なし」として扱う）。
+     * `members.upsert` で `email` を対応付け済みのメンバーを優先し、無ければ Google の
+     * セッション表示名がメンバーの表記そのものと一致するかを見る（簡易フォールバック）。
+     * 新規発注の発注者の既定値・一覧の発注者/受注者絞り込みの「自分」選択肢の両方で使う。
+     * @param {Array<{label:string, email?:string}>} members
+     * @param {{email?:string, displayName?:string}} currentUser `whoami` の結果
+     * @return {string}
      */
-    function myOrderedItems(items, email, todayStr) {
-      return (items || [])
-        .filter(function (item) {
-          return !item.archived && item.orderer === email;
-        })
-        .map(function (item) {
-          return Object.assign({}, item, {
-            _unfulfilled: item.status !== ASSET_STATUS_IMPORTED,
-            _overdue: isOverdue(item, todayStr)
-          });
-        });
-    }
-
-    /** 「私が受けたもの」: contractor===email の発注。期限順（昇順、未設定は最後）に並べる。 */
-    function myContractedItems(items, email, todayStr) {
-      var filtered = (items || [])
-        .filter(function (item) {
-          return !item.archived && item.contractor === email;
-        })
-        .map(function (item) {
-          return Object.assign({}, item, { _overdue: isOverdue(item, todayStr) });
-        });
-      return sortAssets(filtered, 'dueDate', 'asc').sort(function (a, b) {
-        // dueDate 未設定（''）は末尾へ（sortAssets の文字列比較では '' が先頭に来てしまうため）。
-        var aEmpty = !a.dueDate;
-        var bEmpty = !b.dueDate;
-        if (aEmpty === bEmpty) return 0;
-        return aEmpty ? 1 : -1;
-      });
+    function findMemberLabelForCurrentUser(members, currentUser) {
+      if (!currentUser) return '';
+      var list = members || [];
+      var email = String(currentUser.email || '').trim().toLowerCase();
+      if (email) {
+        var byEmail = list.filter(function (m) {
+          return m && m.email && String(m.email).trim().toLowerCase() === email;
+        })[0];
+        if (byEmail) return byEmail.label;
+      }
+      var displayName = String(currentUser.displayName || '').trim();
+      if (displayName) {
+        var byName = list.filter(function (m) { return m && m.label === displayName; })[0];
+        if (byName) return byName.label;
+      }
+      return '';
     }
 
     // ---- O-5: リファレンス Markdown プレビュー（XSS 対策付きの限定記法） ----
@@ -449,8 +468,8 @@
       formatDdriveIconLabel: formatDdriveIconLabel,
       sortCommentsNewestFirst: sortCommentsNewestFirst,
       roleAtLeast: roleAtLeast,
-      myOrderedItems: myOrderedItems,
-      myContractedItems: myContractedItems,
+      buildMemberSelectOptions: buildMemberSelectOptions,
+      findMemberLabelForCurrentUser: findMemberLabelForCurrentUser,
       renderMarkdownSafe: renderMarkdownSafe,
       // O-12（ファイル形式・ファイル名）
       FILE_FORMAT_MAX_LENGTH: FILE_FORMAT_MAX_LENGTH,
