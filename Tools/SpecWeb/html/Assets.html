@@ -1885,7 +1885,12 @@
         }
 
         if (detail.mode === 'edit') {
-          panel.appendChild(renderParams(detail.item, detail.paramSchemas));
+          // 2026-09-15 修正（ユーザーが実デプロイで特定）: renderParams はパラメータ定義が空だと null を返す。
+          // openDetail は最初 paramSchemas=[] で描画するため appendChild(null) で例外になり、詳細パネルが
+          // 画面に追加される前に処理が止まっていた（「編集」「行クリック」で何も開かない不具合の真因。
+          // GAS の iframe 内のエラーのため通常のコンソールでは見えにくかった）。
+          var paramsBox = renderParams(detail.item, detail.paramSchemas);
+          if (paramsBox) panel.appendChild(paramsBox);
           panel.appendChild(renderDdriveState(detail.item));
           panel.appendChild(renderComments(detail.item));
         }

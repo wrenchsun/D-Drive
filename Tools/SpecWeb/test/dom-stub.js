@@ -38,11 +38,16 @@ function createFakeDom() {
 
   // 実イベント伝播の再現（下記 fire 参照）に親を辿れる必要があるため、appendChild/removeChild/
   // innerHTML='' のどれでも parentNode を維持する（実 DOM の Node.parentNode と同じ役割）。
+  // 2026-09-15 修正: 以前は null/undefined を黙って無視していたため、実ブラウザでは
+  // 「TypeError: Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'」で
+  // 詳細パネルが開かなかった不具合（Assets.html の renderParams が null を返す）を見逃した。
+  // 実 DOM と同じく Node 以外を渡したら例外にする。
   FakeNode.prototype.appendChild = function (child) {
-    if (child) {
-      this.children.push(child);
-      child.parentNode = this;
+    if (!child || typeof child !== 'object') {
+      throw new TypeError("Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'.");
     }
+    this.children.push(child);
+    child.parentNode = this;
     return child;
   };
 
