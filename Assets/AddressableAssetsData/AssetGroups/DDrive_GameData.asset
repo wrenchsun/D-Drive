@@ -100,6 +100,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6227bb2053cb4e34cb6b8776b0f6b414
+    m_Address: PRES_Attack_Presentation
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 646370b61f6b06d408e3aa447eda79e5
     m_Address: BGM_Title_Test
     m_ReadOnly: 0
@@ -177,6 +182,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: aa8128847b5885947a20d53dc2a711d3
     m_Address: MAT_FBX_MatHair01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ac684c16a6849644ba0fef5fd16ae0dd
+    m_Address: TEX_Tex20240822124521
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

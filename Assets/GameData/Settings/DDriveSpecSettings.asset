@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2964f9f69a843c41b8b59096ccef6dd, type: 3}
+  m_Name: DDriveSpecSettings
+  m_EditorClassIdentifier: DDrive.Editor::DDrive.Editor.Spec.DDriveSpecSettings
+  WebAppUrl: https://script.google.com/macros/s/AKfycby6dG4oegzXCkOtlgzTh71-W4PJV6yAr83kN-LQDCZQWmpysuZsFlyAeWA08wSR9gE/exec
+  HumanAppUrl: https://script.google.com/macros/s/AKfycbzsT6zZJBABSWVraYAgOLElkL6qTrtcEW_LZDJj8P5ad4cWpP4AYDX5SchQhwczMWJT/exec
+  SpreadsheetUrl: 
+  AssetSheetName: "\u30A2\u30BB\u30C3\u30C8"
+  TuningSheetName: "\u8ABF\u6574\u5024"
+  AutoFetchOnStartup: 1
+  AutoApplyNewPlaceholders: 0
+  GameDataRoot: Assets/GameData
+  TuningTable: {fileID: 11400000, guid: 4206236ecd0ef7445ac026854609079c, type: 2}

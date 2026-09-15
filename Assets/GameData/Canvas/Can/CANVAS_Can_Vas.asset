@@ -18,9 +18,11 @@ MonoBehaviour:
   Category: Can
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-15T12:51:16
   ChangeNote: 
   Flags:
     Pause: 0
@@ -34,6 +36,7 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Prefab: {fileID: 2144447545384852608, guid: 4798eed72fcd8984fb28572c7c203dbc, type: 3}
   Layer: 1
   SortOffset: 0
@@ -239,7 +242,7 @@ MonoBehaviour:
       type: 0
   - ElementPath: BtnStart
     AppearPreset:
-      Preset: 0
+      Preset: 2
       Duration: 0
       Distance: 0
       EaseOverride:
@@ -345,7 +348,7 @@ MonoBehaviour:
       type: 0
   - ElementPath: BtnOption
     AppearPreset:
-      Preset: 0
+      Preset: 2
       Duration: 0
       Distance: 0
       EaseOverride:

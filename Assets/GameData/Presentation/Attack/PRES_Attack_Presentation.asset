@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ec338f44d8cf3245b8a66093f0209ed, type: 3}
+  m_Name: PRES_Attack_Presentation
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Presentation.PresentationData
+  Id: 17591533449861972841
+  DisplayName: "\u653B\u6483\uFF01"
+  Description: 
+  Category: Attack
+  Tags: []
+  Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
+  Version: 3
+  Author: yamag
+  UpdatedAt: 2026-09-15T12:51:16
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 1
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  ImportSourceGuid: 
+  Tracks:
+  - Trigger: 0
+    Time: -0.03
+    SignalKey: 
+    Kind: 4
+    Asset:
+      Type: 3
+      Id: 7393815273046077722
+    Target: 0
+    Anchor:
+      Space: 0
+      Path: 
+      LocalOffset: {x: 0, y: 0, z: 0}
+      LocalEuler: {x: 0, y: 0, z: 0}
+      LocalScale: {x: 1, y: 1, z: 1}
+      FollowRotation: 0
+      DetachOnStop: 0
+    Params: []
+    StopOnCancel: 1
+  TotalDuration: 5
+  Interruptible: 1
+  PredictLocal: 0

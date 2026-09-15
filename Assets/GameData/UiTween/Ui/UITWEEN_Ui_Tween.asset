@@ -18,9 +18,11 @@ MonoBehaviour:
   Category: Ui
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-15T12:51:16
   ChangeNote: 
   Flags:
     Pause: 0
@@ -34,14 +36,15 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Tracks:
-  - Property: 3
+  - Property: 0
     Motion:
       Mode: 1
       Constant: 0
       Parametric:
         Kind: 0
-        Ease: 2
+        Ease: 8
         BezierP1: {x: 0, y: 0}
         BezierP2: {x: 0, y: 0}
       Curve:
@@ -55,7 +58,249 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0.25
+        Value: 0.3
+        SpeedScale: 1
+        IgnoreTimeScale: 0
+      Loop: 0
+      LoopCount: 0
+    Delay: 0
+    From: 1
+    OffScreen: 0
+    FromValue:
+      Type: 4
+      FloatValue: 0
+      IntValue: 0
+      BoolValue: 0
+      ColorValue: {r: 0, g: 0, b: 0, a: 0}
+      VectorValue: {x: -1005, y: -30, z: 0, w: 0}
+      CurveValue:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      GradientValue:
+        serializedVersion: 2
+        key0: {r: 1, g: 1, b: 1, a: 1}
+        key1: {r: 1, g: 1, b: 1, a: 1}
+        key2: {r: 0, g: 0, b: 0, a: 0}
+        key3: {r: 0, g: 0, b: 0, a: 0}
+        key4: {r: 0, g: 0, b: 0, a: 0}
+        key5: {r: 0, g: 0, b: 0, a: 0}
+        key6: {r: 0, g: 0, b: 0, a: 0}
+        key7: {r: 0, g: 0, b: 0, a: 0}
+        ctime0: 0
+        ctime1: 65535
+        ctime2: 0
+        ctime3: 0
+        ctime4: 0
+        ctime5: 0
+        ctime6: 0
+        ctime7: 0
+        atime0: 0
+        atime1: 65535
+        atime2: 0
+        atime3: 0
+        atime4: 0
+        atime5: 0
+        atime6: 0
+        atime7: 0
+        m_Mode: 0
+        m_ColorSpace: -1
+        m_NumColorKeys: 2
+        m_NumAlphaKeys: 2
+      StringValue: 
+      ObjectValue: {fileID: 0}
+    ToValue:
+      Type: 4
+      FloatValue: 0
+      IntValue: 0
+      BoolValue: 0
+      ColorValue: {r: 0, g: 0, b: 0, a: 0}
+      VectorValue: {x: 35, y: -30, z: 0, w: 0}
+      CurveValue:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      GradientValue:
+        serializedVersion: 2
+        key0: {r: 1, g: 1, b: 1, a: 1}
+        key1: {r: 1, g: 1, b: 1, a: 1}
+        key2: {r: 0, g: 0, b: 0, a: 0}
+        key3: {r: 0, g: 0, b: 0, a: 0}
+        key4: {r: 0, g: 0, b: 0, a: 0}
+        key5: {r: 0, g: 0, b: 0, a: 0}
+        key6: {r: 0, g: 0, b: 0, a: 0}
+        key7: {r: 0, g: 0, b: 0, a: 0}
+        ctime0: 0
+        ctime1: 65535
+        ctime2: 0
+        ctime3: 0
+        ctime4: 0
+        ctime5: 0
+        ctime6: 0
+        ctime7: 0
+        atime0: 0
+        atime1: 65535
+        atime2: 0
+        atime3: 0
+        atime4: 0
+        atime5: 0
+        atime6: 0
+        atime7: 0
+        m_Mode: 0
+        m_ColorSpace: -1
+        m_NumColorKeys: 2
+        m_NumAlphaKeys: 2
+      StringValue: 
+      ObjectValue: {fileID: 0}
+    Path:
+      Type: 0
+      Points: []
+  - Property: 2
+    Motion:
+      Mode: 1
+      Constant: 0
+      Parametric:
+        Kind: 0
+        Ease: 23
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Curve:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      From: 0
+      To: 0
+      Normalized: 0
+      Time:
+        Mode: 0
+        Value: 0.35
+        SpeedScale: 1
+        IgnoreTimeScale: 0
+      Loop: 0
+      LoopCount: 0
+    Delay: 0
+    From: 1
+    OffScreen: 0
+    FromValue:
+      Type: 0
+      FloatValue: 180
+      IntValue: 0
+      BoolValue: 0
+      ColorValue: {r: 0, g: 0, b: 0, a: 0}
+      VectorValue: {x: 0, y: 0, z: 0, w: 0}
+      CurveValue:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      GradientValue:
+        serializedVersion: 2
+        key0: {r: 1, g: 1, b: 1, a: 1}
+        key1: {r: 1, g: 1, b: 1, a: 1}
+        key2: {r: 0, g: 0, b: 0, a: 0}
+        key3: {r: 0, g: 0, b: 0, a: 0}
+        key4: {r: 0, g: 0, b: 0, a: 0}
+        key5: {r: 0, g: 0, b: 0, a: 0}
+        key6: {r: 0, g: 0, b: 0, a: 0}
+        key7: {r: 0, g: 0, b: 0, a: 0}
+        ctime0: 0
+        ctime1: 65535
+        ctime2: 0
+        ctime3: 0
+        ctime4: 0
+        ctime5: 0
+        ctime6: 0
+        ctime7: 0
+        atime0: 0
+        atime1: 65535
+        atime2: 0
+        atime3: 0
+        atime4: 0
+        atime5: 0
+        atime6: 0
+        atime7: 0
+        m_Mode: 0
+        m_ColorSpace: -1
+        m_NumColorKeys: 2
+        m_NumAlphaKeys: 2
+      StringValue: 
+      ObjectValue: {fileID: 0}
+    ToValue:
+      Type: 0
+      FloatValue: 0
+      IntValue: 0
+      BoolValue: 0
+      ColorValue: {r: 0, g: 0, b: 0, a: 0}
+      VectorValue: {x: 0, y: 0, z: 0, w: 0}
+      CurveValue:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      GradientValue:
+        serializedVersion: 2
+        key0: {r: 1, g: 1, b: 1, a: 1}
+        key1: {r: 1, g: 1, b: 1, a: 1}
+        key2: {r: 0, g: 0, b: 0, a: 0}
+        key3: {r: 0, g: 0, b: 0, a: 0}
+        key4: {r: 0, g: 0, b: 0, a: 0}
+        key5: {r: 0, g: 0, b: 0, a: 0}
+        key6: {r: 0, g: 0, b: 0, a: 0}
+        key7: {r: 0, g: 0, b: 0, a: 0}
+        ctime0: 0
+        ctime1: 65535
+        ctime2: 0
+        ctime3: 0
+        ctime4: 0
+        ctime5: 0
+        ctime6: 0
+        ctime7: 0
+        atime0: 0
+        atime1: 65535
+        atime2: 0
+        atime3: 0
+        atime4: 0
+        atime5: 0
+        atime6: 0
+        atime7: 0
+        m_Mode: 0
+        m_ColorSpace: -1
+        m_NumColorKeys: 2
+        m_NumAlphaKeys: 2
+      StringValue: 
+      ObjectValue: {fileID: 0}
+    Path:
+      Type: 0
+      Points: []
+  - Property: 3
+    Motion:
+      Mode: 1
+      Constant: 0
+      Parametric:
+        Kind: 0
+        Ease: 23
+        BezierP1: {x: 0, y: 0}
+        BezierP2: {x: 0, y: 0}
+      Curve:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      From: 0
+      To: 0
+      Normalized: 0
+      Time:
+        Mode: 0
+        Value: 0.35
         SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0

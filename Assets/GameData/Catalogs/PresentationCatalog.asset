@@ -27,3 +27,17 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 17591533449861972841
+    Type: 10
+    Address: PRES_Attack_Presentation
+    Flags:
+      Pause: 0
+      Load: 1
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0

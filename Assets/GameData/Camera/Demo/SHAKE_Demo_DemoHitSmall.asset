@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-15T12:51:16
   ChangeNote: 
   Flags:
     Pause: 0
@@ -38,11 +38,11 @@ MonoBehaviour:
   Events: []
   ImportSourceGuid: 
   Pattern: 0
-  PosAmplitude: {x: 0.12, y: 0.08, z: 0}
+  PosAmplitude: {x: 0.18, y: 0.14, z: 0.05}
   RotAmplitude: {x: 0, y: 0, z: 1.5}
   Frequency:
     Mode: 0
-    Constant: 20
+    Constant: 18
     Parametric:
       Kind: 0
       Ease: 0
@@ -83,11 +83,11 @@ MonoBehaviour:
     Normalized: 0
     Time:
       Mode: 0
-      Value: 0.3
+      Value: 0.25
       SpeedScale: 1
       IgnoreTimeScale: 0
     Loop: 0
     LoopCount: 0
   Space: 0
-  TraumaWeight: 1
-  MaxStack: 3
+  TraumaWeight: 1.3
+  MaxStack: 2

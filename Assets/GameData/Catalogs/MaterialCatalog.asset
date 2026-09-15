@@ -69,6 +69,20 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 3121197050784157073
+    Type: 7
+    Address: TEX_Tex20240822124521
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 3730150700295365579
     Type: 6
     Address: MAT_FBX_MatWear03
