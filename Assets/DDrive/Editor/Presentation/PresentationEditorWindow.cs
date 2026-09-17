@@ -120,6 +120,8 @@ namespace DDrive.Editor.Presentation
                 playing = true;
             }
 
+            UpdateSignalButtonsEnabledState(playing); // U-25: Signal ボタンの有効/無効を再生状態に追従させる
+
             var normalized = PresentationPreviewPlayback.ComputeSeekSliderValue(playing, _preview.NormalizedTime);
             if (playing)
             {

@@ -82,7 +82,15 @@ namespace DDrive.Editor.Presentation
             };
             foldout.Add(_seekBarContainer);
 
+            // U-25(2026-09-17): Signal を手動で送る導線が「あることに気づけない」「押しても反応が
+            // 分からない」という報告だったため、(1) 手順を明文化したラベルを追加、(2) 再生中でないと
+            // 押しても何も起きない(Manager.Signal は無効な Handle に no-op)ことが伝わるよう、停止中は
+            // ボタンを無効化 + ツールチップで理由を出す、の 2 点を補強した。
             var signalFoldout = new Foldout { text = "Signal レーン(手動発火)", value = true };
+            signalFoldout.Add(new Label(
+                "上の「▶ 再生」で演出を再生中に、ここのボタンを押すとコード側の Signal(合図。例: 攻撃が当たった)を" +
+                "手動で送れます。停止中はボタンが無効(グレーアウト)になります。")
+            { style = { whiteSpace = WhiteSpace.Normal, opacity = 0.8f, marginBottom = 2 } });
             _signalRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap } };
             signalFoldout.Add(_signalRow);
             foldout.Add(signalFoldout);
@@ -357,6 +365,7 @@ namespace DDrive.Editor.Presentation
             }
 
             var seen = new System.Collections.Generic.HashSet<string>();
+            var playing = _preview?.IsPlaying ?? false;
             foreach (var track in _target.Tracks)
             {
                 if (track.Trigger != TrackTrigger.OnSignal || string.IsNullOrEmpty(track.SignalKey) || !seen.Add(track.SignalKey))
@@ -370,14 +379,36 @@ namespace DDrive.Editor.Presentation
                     _preview?.Signal(key);
                     AppendLog($"手動発火: Signal(\"{key}\")");
                 })
-                { text = $"Signal: {key}" };
+                {
+                    text = $"Signal: {key}",
+                    tooltip = "再生中のみ有効です。まず上の「▶ 再生」を押してください。",
+                };
                 button.style.marginRight = 2;
+                button.SetEnabled(playing); // U-25: 停止中は無効化し、押しても無反応に見える状態を避ける
                 _signalRow.Add(button);
             }
 
             if (_signalRow.childCount == 0)
             {
-                _signalRow.Add(new Label("(OnSignal トラックがありません)") { style = { opacity = 0.6f } });
+                _signalRow.Add(new Label("(On Signal のトラックがありません。Trigger=On Signal のトラックを追加するとここにボタンが出ます)") { style = { opacity = 0.6f } });
+            }
+        }
+
+        // U-25: 再生状態が変わるたびに(OnEditorUpdate から毎フレーム)ボタンの有効/無効を追従させる。
+        // ボタン自体は RefreshSignalButtons が Track 変更時に作り直すため、ここでは既存ボタンの状態だけ触る。
+        private void UpdateSignalButtonsEnabledState(bool playing)
+        {
+            if (_signalRow == null)
+            {
+                return;
+            }
+
+            foreach (var child in _signalRow.Children())
+            {
+                if (child is Button button)
+                {
+                    button.SetEnabled(playing);
+                }
             }
         }
     }

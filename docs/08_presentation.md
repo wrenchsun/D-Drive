@@ -218,6 +218,21 @@ Timeline 風の複数トラック UI。
 - Presentation にはトラック編集用の詳細タイムライン(`PresentationEditorWindow.Tracks.cs`。ズーム/パン/複数レーン、上記 (A))が別に存在する。**これは今回の対象外**(ズーム対応の `DrawTimeRuler` は Anim 側の見た目に影響しないよう独立させる方針を継続。上記「(A) タイムラインのズーム」参照)。新しいシークバーは、再生位置の確認・簡易シークに絞った単純な 1 本のバーとして統合プレビュー欄に残す。
 - `PresentationPreviewPlayback.ComputeSeekSliderValue` は関数名・シグネチャとも変更していない(EditMode テスト `PresentationPreviewPlaybackTests` が参照する純粋関数。「シークバーに表示する正規化位置」を返す意味は変わっていない)。
 
+## 追補（2026-09-17、U-25 — Signal を手動で送る導線を分かりやすくする）
+
+要望([39_usability_fixes_2026-09-17.md](39_usability_fixes_2026-09-17.md) U-25、[36_manual_screenshot_list.md](36_manual_screenshot_list.md) #53)「Presentation の Signal を手動で送る操作のやり方が分からない」対応。§4 の「Signal レーン」自体(`PresentationEditorWindow.Preview.cs` の `RefreshSignalButtons`)は既に実装済みで、Trigger=On Signal のトラックがあれば統合プレビュー内に `Signal Key` ごとのボタンが並んでいたが、次の 2 点が伝わりづらかった。
+
+- 再生していない間にボタンを押しても `Manager.Signal(Current, key)` が無効な Handle への no-op になるだけで、見た目には何も起きない(ボタン自体は押せる状態のまま、成功したのか失敗したのか区別がつかない)
+- ボタンが出る場所(「統合プレビュー」フォールドアウトの中の、さらに「Signal レーン(手動発火)」フォールドアウトの中)へたどり着く手順がマニュアルの文章だけでは分かりにくかった
+
+対応(コードのみ。新しい再生経路は作らず、既存の `ScenePresentationPreviewDriver.Signal`/`RefreshSignalButtons` に手を入れた):
+
+- **`PresentationEditorWindow.Preview.cs`**: 「Signal レーン(手動発火)」フォールドアウトの先頭に、手順(①上の「▶ 再生」を押す → ②再生中に Signal ボタンを押す)を明文化した `Label` を追加した
+- 各 Signal ボタンに `tooltip = "再生中のみ有効です。まず上の「▶ 再生」を押してください。"` を追加し、**再生中でなければボタンを `SetEnabled(false)` でグレーアウト**するようにした(`RefreshSignalButtons` が構築時点の再生状態を反映し、`UpdateSignalButtonsEnabledState(bool playing)` を新設して `PresentationEditorWindow.OnEditorUpdate`(既存の毎フレーム更新ループ、ステータスラベルやシークバーの追従と同じ場所)から呼び、再生開始/停止のたびに追従させる)
+- OnSignal トラックが 1 つも無いときの案内文を「(OnSignal トラックがありません)」→「(On Signal のトラックがありません。Trigger=On Signal のトラックを追加するとここにボタンが出ます)」に変更し、そもそも表示条件が何かも分かるようにした
+- **`docs/DesignerManual/presentation.html`**: 「Signal を手動で送る」の段落を 2 段階の手順(①再生 ②Signal ボタン)として書き直し、停止中はグレーアウトすることも明記した。スクリーンショット #53 のプレースホルダを撮影可能な `<figure>` に差し替えた(実際の撮影はユーザー作業。[36_manual_screenshot_list.md] 側の該当行から「U-25 が未着手」の但し書きを外した)
+- ランタイム API(`Presentation.Signal`/`PresentationHandle.Signal`)・`ScenePresentationPreviewDriver.Signal` 自体の挙動は変更していない(UI 側の分かりやすさのみの改善)
+
 ## 実装メモ（2026-09-14、5-8）
 
 `PresentationManager` に `INetBridge netBridge = null` を追加し、`Flags.Net == NetMode.Cosmetic` かつ `netBridge != null` のときだけネット経路(開始時刻シーク / Signal 中継 / 予測再生 / Late Join 復元)に乗るようにした。`PresentationData` に `PredictLocal` フィールドを追加した(シリアライズ追加のみ)。**詳細な設計・メッセージ定義・シーク規則・Late Join の接続通知の口は [14_networking.md](14_networking.md) §5「実装メモ（2026-09-14、5-8）」に集約した**(Presentation 固有の話だが、ネットワーク方針全体との整合を保つため §5 に一本化し、ここでは重複させない)。§3(実行モデル)・§3.5(Handle API)の契約(`Signal`/`Cancel` の意味、`AtTime(0)` の即時発火等)は変更していない — ネット経路でも「行為者から見た挙動」は同じ形を保ち、内部で Broadcast/受信シークに委譲しているだけである。

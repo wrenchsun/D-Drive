@@ -35,9 +35,9 @@ Phase 6 まで実装した後、**デザイナーマニュアル用のスクリ�
 | U-20 | 不具合 | Animation2D の Anim Editor から SE・VFX を**設定はできるが再生されない** | 要望 | 実装済み |
 | U-21 | 追加 | Canvas Editor で要素の移動などができるように | 要望 | 実装済み |
 | U-22 | 追加 | Anchor Group で 3×3 などを自動配置した後、**手置きの点に変換する**ボタン | 要望 | 実装済み（[22 §3.7](22_anchor_group.md)） |
-| U-23 | 不具合 | ElementFx で SlideIn などを設定して再生ボタンを連打すると位置ずれが起きる（開き直すと戻る） | 要望 | 未着手 |
+| U-23 | 不具合 | ElementFx で SlideIn などを設定して再生ボタンを連打すると位置ずれが起きる（開き直すと戻る） | 要望 | 実装済み |
 | U-24 | 追加 | Anchor の SceneView 表示で基準が分からない。LocalOffset だけでなく**基準（原点）の座標も SceneView に描画**する | [36](36_manual_screenshot_list.md) #19・#23 | 実装済み（[21 §3.10](21_anchor_spec.md) / [09 §2.2](09_editor_tools.md)）。#19 / #20 / #23 は撮影待ち |
-| U-25 | 改善 | Presentation の Signal を手動で送る操作のやり方が分からない。導線・説明を分かりやすくする | [36](36_manual_screenshot_list.md) #53 | 未着手 |
+| U-25 | 改善 | Presentation の Signal を手動で送る操作のやり方が分からない。導線・説明を分かりやすくする | [36](36_manual_screenshot_list.md) #53 | 実装済み |
 | U-27 | 改善 | **全エディタ共通の条件**: Windows の拡大/縮小 100%・ウィンドウ横幅 500px で要素が見切れないこと（[09 §7.1](09_editor_tools.md)）。U-10 は個別の 1 件で、これはその全体点検 | 要望 | 未着手 |
 | U-26 | 確認 | ~~実機テスト（PC 2 台での通し確認）~~ **不要**（2026-09-17 にユーザー判断。[29](29_network_device_test.md) で PC-A Host + PC-B Client の確認は済んでいるため） | 要望 | 対応不要 |
 
@@ -124,6 +124,28 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
   `ArgumentNullException`（破棄済み `SerializedObject` に対する `FindProperty` が null）が原因で、
   その手前で処理が止まって `RefreshValidation()` に到達していなかった（Editor.log に記録あり）
 
+### U-23（ElementFx の連打で位置ずれ）
+
+**2026-09-17 実装済み（不具合）。** 症状は「ElementFx(Canvas Editor)の SlideIn などを再生ボタンで連打すると要素の最終着地位置が本来の位置からずれていく。ウィンドウを開き直すと戻る」。**対症療法（try/catch や位置の補正処理を足す等）ではなく真因を特定して直した。**
+
+- **切り分け**: ユーザーの推測（「Tween の開始位置を『現在位置』から取っているため」）は方向性としては近いが、実際には `TweenFromMode.Current` の経路が壊れているわけではなかった。SlideIn 系プリセット自体は `UiPresetFactory.Build` が `Absolute` From/To を組み立てる設計で、そこは正しく動いていた
+- **真因**: Canvas Editor の ElementFx「▶ 再生」(`CanvasEditorWindow.PlayPhasePreview`)は連打時、`UiTweenManager.StopAll(elementTarget)` で前の Tween を止めてから `UiPresetFactory.Build` で同じプリセットを取り直す、という手順を踏む。`UiPresetFactory.Build` の SlideIn 系は呼び出し時点の `target.anchoredPosition`(= "現在位置")を新しい Tween の**静止位置(To)**としてそのまま採用する設計だが、修正前の `UiTweenManager.StopAll(RectTransform target)` には `Stop(handle, complete)` にある「最終値へ進めてから終わる」ための `complete` 引数が無く、中断された Tween の Instance を**完了させずに**取り除くだけだった。そのため、連打で割り込まれた瞬間の(オフスクリーンと本来の静止位置の中間の)位置がそのまま次の Tween の "静止位置" として採用されてしまい、連打するたびに本来の位置からずれていった。ウィンドウを開き直すと戻るのは、確認用シーンを作り直すことで Prefab に保存された正しい位置から Instance が再生成されるため
+- **対応**: `UiTweenManager.StopAll(RectTransform target, bool complete = false)` に `Stop(handle, complete)` と同じ規約の `complete` 引数を追加し(内部実装も `Stop` を呼ぶよう統一)、`UiFx.StopAll(RectTransform, bool)` にも同じ引数を追加した。`CanvasEditorWindow.PlayPhasePreview` の呼び出しを `StopAll(elementTarget, complete: true)` に変更し、連打で中断された Tween を必ず最終値へスナップしてから次の "静止位置" を読み直すようにした。既定値 `false` は既存の呼び出し元(他に無いが将来のゲームコード利用も想定)との互換性のため据え置いた
+- **テスト**: `Assets/DDrive/Tests/Runtime/UiTweenTests.cs` に `RapidReplay_SlideInPreset_WithStopAllComplete_SettlesAtRestPosition` を追加。**修正前は当時の唯一のシグネチャ `StopAll(rt)` で連打すると、本来の静止位置 `restX=0` に対して実測 `-328.05` に着地しており、赤であることを確認済み**(このテスト自体は修正後の `complete:true` 呼び出しに書き換えてある)。あわせて `StopAll_WithoutComplete_LeavesTargetAtInterruptedPosition`(complete=false の既定動作を固定)も追加した
+- 詳細・実装ファイルは [07_canvas_prefab.md](07_canvas_prefab.md) の「バグ修正（2026-09-17、U-23）」と [15_ui_interaction.md](15_ui_interaction.md) の「バグ修正（2026-09-17、U-23）」を参照
+- 未確認(Unity MCP 接続状況次第。本セッションでは接続できたため EditMode/PlayMode 双方 green を確認済み): 実際に Canvas Editor で ElementFx を連打して位置がずれないことの目視確認
+
+### U-25（Signal を手動で送る導線）
+
+**2026-09-17 実装済み（改善）。** 「Presentation の Signal を手動で送る操作のやり方が分からない」という報告について、機能自体（統合プレビュー内の「Signal レーン(手動発火)」に Signal Key ごとのボタンが並ぶ仕組み）は既に実装済みだったため、**分かりにくさの原因を特定してから直した**。
+
+- **原因**: (1) 再生していない間に Signal ボタンを押しても `Manager.Signal(Current, key)` が無効な Handle への no-op になるだけで見た目に変化が無く、ボタンは常に押せる状態のままだったため「押しても反応がない=使い方を間違えている」と誤解しやすかった。(2) マニュアル(`docs/DesignerManual/presentation.html`)の説明が1文で簡潔すぎ、「まず再生してから」という前提条件が明示されていなかった
+- **対応**: `PresentationEditorWindow.Preview.cs` の「Signal レーン(手動発火)」フォールドアウトに手順(①「▶ 再生」→②再生中に Signal ボタン)を明文化したラベルを追加し、各 Signal ボタンに「再生中のみ有効です」というツールチップを付けた上で、**再生中でなければボタンをグレーアウト**するようにした(`PresentationEditorWindow.OnEditorUpdate` の既存の毎フレーム更新ループから `UpdateSignalButtonsEnabledState` を呼び、再生状態の変化に追従させる)。OnSignal トラックが無いときの案内文も具体的にした
+- `docs/DesignerManual/presentation.html` の該当段落を 2 段階の手順として書き直し、スクリーンショット #53 のプレースホルダを撮影可能な `<figure>` に差し替えた
+- ランタイム API(`Presentation.Signal`/`PresentationHandle.Signal`/`ScenePresentationPreviewDriver.Signal`)の挙動自体は変更していない(UI の分かりやすさのみの改善)
+- 詳細は [08_presentation.md](08_presentation.md) の「追補（2026-09-17、U-25）」を参照
+- 未確認(Unity MCP 接続状況次第。本セッションでは接続できたためコンパイル・テストは確認済みだが、実際のウィンドウ表示は確認していない): Signal ボタンが再生中のみ有効になること、停止するとグレーアウトすること、ツールチップの表示、U-27 の 500px 基準での見切れが無いこと
+
 ### U-24（Anchor の原点描画）
 [36](36_manual_screenshot_list.md) の #19 / #23 に加えて **#20（`vfx-editor-anchor-handle.png`）もこれ待ち**。直ったら 3 枚まとめて撮影する。
 
@@ -134,6 +156,8 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 
 ## 2. 変更履歴
 
+- 2026-09-17: U-25（Presentation の Signal を手動で送る導線を分かりやすくする）を実装。統合プレビューの「Signal レーン(手動発火)」に手順を明文化したラベルを追加し、再生中でなければ Signal ボタンをグレーアウトするようにした(`PresentationEditorWindow.Preview.cs`/`PresentationEditorWindow.cs`)。`docs/DesignerManual/presentation.html` を更新し、スクリーンショット #53 を撮影可能にした([36](36_manual_screenshot_list.md))。
+- 2026-09-17: U-23（ElementFx の「▶ 再生」連打で位置ずれ）を実装。真因は `UiTweenManager.StopAll(RectTransform)` が中断された Tween を完了させずに取り除いていたこと(`Stop(handle, complete)` と違い complete 引数が無かった)。`StopAll` に `complete` 引数を追加し、`CanvasEditorWindow.PlayPhasePreview` を `complete: true` で呼ぶよう変更。再現テスト(`UiTweenTests.RapidReplay_SlideInPreset_WithStopAllComplete_SettlesAtRestPosition`)を先に書いて修正前に赤(実測 -328.05 vs 期待 0)であることを確認してから直した。
 - 2026-09-17: U-21（Canvas Editor で要素の移動）を実装。ツールバーに「Prefab を開く(要素の移動)」、ElementFx の各要素に「選択して移動(Prefab を開く)」ボタンを追加し、`ModelEditorWindow.OpenPrefab`/`VfxEditorWindow.OpenPrefab` と同じ導線でプレハブモードを開いて Unity 標準ツールで移動・回転・リサイズできるようにした。
 - 2026-09-17: U-7（Presentation Editor のシークバーを Anim Editor と同じ形に）を実装。共通部品 `Editor/Common/SeekBarGui.cs` を追加し、`AnimEditorWindow.DrawTimeline` もこれを使うようリファクタリング（見た目は不変）。詳細は [08_presentation.md](08_presentation.md) の「追補（2026-09-17、U-7）」。
 - 2026-09-17: U-9 / U-10 / U-12 / U-13 / U-14 / U-15 を実装。共通部品として `Editor/Validation/DataValidationSection.cs`（個別検証、[09 §11](09_editor_tools.md)）と `Editor/Common/CompactFieldLayout.cs`（横並び行のラベル幅、[09 §7.1](09_editor_tools.md)）を追加。`AssetDataInspector` を UI Toolkit 化（U-14、[09 §8](09_editor_tools.md)）。`NewAssetDialog` の仕様書 URL 判定を `WebAppUrl` に統一（U-15、[32 §6](32_spec_web.md)）。**Unity MCP に接続できなかったため、実際の描画・Test Runner での実行は未確認**（`dotnet build` で全 asmdef のコンパイルのみ確認）。
