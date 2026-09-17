@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using DDrive.Foundation.Data;
 using UnityEditor;
@@ -44,13 +45,91 @@ namespace DDrive.Editor.Inspector
             root.Add(new IMGUIContainer(DrawOpenEditorHeader));
 
             InspectorElement.FillDefaultInspector(root, serializedObject, this);
+            ApplyReadOnlyFields(root, target as AssetDataBase);
             return root;
         }
 
         public override void OnInspectorGUI()
         {
             DrawOpenEditorHeader();
-            DrawDefaultInspector();
+
+            // U-11(2026-09-17、[39_usability_fixes_2026-09-17.md]) — [InspectorReadOnly] を付けたフィールド
+            // (Id/Version/Author/UpdatedAt 等)は DrawDefaultInspector() 相当の描画をそのまま使わず、
+            // 1 プロパティずつ disabled 判定して描く(UI Toolkit 側の ApplyReadOnlyFields と同じ判定基準)。
+            var readOnlyNames = GetReadOnlyFieldNames(target?.GetType());
+            serializedObject.Update();
+
+            var property = serializedObject.GetIterator();
+            var enterChildren = true;
+            while (property.NextVisible(enterChildren))
+            {
+                enterChildren = false;
+                var disabled = property.propertyPath == "m_Script" || readOnlyNames.Contains(property.name);
+                using (new EditorGUI.DisabledScope(disabled))
+                {
+                    EditorGUILayout.PropertyField(property, true);
+                }
+            }
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        // U-11 — [InspectorReadOnly] を付けたフィールドを UI Toolkit の PropertyField 側で無効化する。
+        // FillDefaultInspector が作った PropertyField は bindingPath == フィールド名になる(通常の public
+        // フィールドはバッキングフィールド名を持たないため)。
+        private static void ApplyReadOnlyFields(VisualElement root, AssetDataBase data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            var readOnlyNames = GetReadOnlyFieldNames(data.GetType());
+            if (readOnlyNames.Count == 0)
+            {
+                return;
+            }
+
+            root.Query<PropertyField>().ForEach(field =>
+            {
+                if (!string.IsNullOrEmpty(field.bindingPath) && readOnlyNames.Contains(field.bindingPath))
+                {
+                    field.SetEnabled(false);
+                }
+            });
+        }
+
+        // dataType(派生を含む、AssetDataBase まで遡る)に [InspectorReadOnly] が付いたフィールド名の集合。
+        // TypeCache 相当の使い切りではないので型ごとにキャッシュする(Inspector は選択が変わるたびに再構築されるため)。
+        private static readonly Dictionary<System.Type, HashSet<string>> ReadOnlyFieldNamesByType = new();
+        private static readonly HashSet<string> EmptyFieldNames = new();
+
+        private static HashSet<string> GetReadOnlyFieldNames(System.Type dataType)
+        {
+            if (dataType == null || !typeof(AssetDataBase).IsAssignableFrom(dataType))
+            {
+                return EmptyFieldNames;
+            }
+
+            if (ReadOnlyFieldNamesByType.TryGetValue(dataType, out var cached))
+            {
+                return cached;
+            }
+
+            var names = new HashSet<string>();
+            for (var t = dataType; t != null && typeof(AssetDataBase).IsAssignableFrom(t); t = t.BaseType)
+            {
+                foreach (var field in t.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                {
+                    if (field.GetCustomAttribute<InspectorReadOnlyAttribute>() != null)
+                    {
+                        names.Add(field.Name);
+                    }
+                }
+            }
+
+            ReadOnlyFieldNamesByType[dataType] = names;
+            return names;
         }
 
         // 「〜で開く」ボタン列 + バージョン表示行(6-3) + アイコン行(フォルダから選択 / シーンから作成)。

@@ -564,6 +564,53 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
 「仕様書の URL が未設定です」の案内文を出し続けていた。判定を `WebAppUrl` に統一した（`NewAssetDialog.RebuildSpecSection`。
 旧フィールドは [32] §9 の要判断が済むまで残置）。テストも `NewAssetDialogSpecPickerTests` で `WebAppUrl` を使うよう更新。
 
+### 8.6 Inspector の編集可否を分離（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-11）
+
+**課題**: `AssetDataInspector`（§8）の本文は「全部出す」だけで、`AssetDataBase` の `Id` / `Version` / `Author` / `UpdatedAt` のように
+コメントで「手編集しないこと」と書いてあるだけの項目も、実際には普通のテキストフィールドとして編集できてしまっていた。
+`Version`/`Author`/`UpdatedAt` は §4.1 の保存フック（`VersionStampProcessor`）が保存ごとに書き換える値で、`VersionStampGui`
+（ヘッダー、§8 直下の「v12・名前・日時」の行）に読み取り専用の要約が既に出ているにもかかわらず、本文側でも同じ値が
+（別の見た目で）二重に、しかも編集可能な形で出ていたのが実害（うっかり書き換えると保存フックの記録と食い違う・
+`Id` は `AssetIdGenerator` 等が前提にしている安定 ID なので書き換えると参照が壊れる）。
+
+**方針**: 「全部出す/全部隠す」ではなく、**フィールド単位で編集可 / 読み取り専用（グレーアウト表示、値は見える）を宣言する**。
+新設の `[InspectorReadOnly]`（`Foundation/Data/InspectorReadOnlyAttribute.cs`、`AssetDataBase` 派生型のフィールドに付ける）を
+`AssetDataInspector` が反射で収集し、UI Toolkit 本文（`CreateInspectorGUI`）では対応する `PropertyField` を `SetEnabled(false)`、
+IMGUI 本文（`OnInspectorGUI`、派生クラスが `OnInspectorGUI` を上書きしていない場合のフォールバック経路）では
+`EditorGUI.DisabledScope` で同じ判定を使う。型は基底 `AssetDataBase` まで遡って収集するので、派生型のフィールドに
+付けても効く。**Data クラス側にこの属性を付けるだけで反映され、Editor コード側の変更は不要。**
+
+- `UiTweenEditorWindow` / `CanvasEditorWindow` / `MaterialEditorWindow` / `PrefabEditorWindow` が埋め込んでいる
+  「Inspector(全フィールド)」セクション（`new InspectorElement(so)`）も、内部的に同じ `AssetDataInspector`
+  （`editorForChildClasses=true` で拾われる）を経由するため、**この修正だけで自動的に反映される**（専用エディタ側の
+  コード変更は不要）。これが「自作エディタに『Inspector（全フィールド）』があるものと無いものがある」の実体だった
+  （無い側 = Audio/Vfx/Anim/Anchor 等は元々このセクションを持たず、種別独自の GUI か §8 の共通 Inspector そのままで
+  十分という判断はそのまま変えていない）
+- 種別独自の Inspector（`SeDataEditor` のように `OnInspectorGUI` を上書きしているもの）は自前で `DrawPropertiesExcluding`
+  等を呼んでいるため、この機構の対象外（`CreateInspectorGUI` が `null` を返すのでそもそも通らない）。これらは
+  そもそも `Id`/`Version`/`Author`/`UpdatedAt` を自前 GUI で表に出していない（`DrawOpenEditorHeader()` の
+  `VersionStampGui` が読み取り専用の要約を出すのみ）ので、現状は追加対応不要
+
+**現時点の割り当て（`AssetDataBase` 共通フィールド）**:
+
+| フィールド | 分類 | 理由 |
+|---|---|---|
+| `Id` | 読み取り専用 | 安定 ID。`AssetIdGenerator`/ID 定数生成・参照解決の前提。書き換えると参照が壊れる |
+| `Version` | 読み取り専用 | §4.1 の保存フックが保存ごとに +1 する。ヘッダーの `VersionStampGui` に同じ値の要約表示がある |
+| `Author` | 読み取り専用 | 保存フックが保存ごとに記録する。同上 |
+| `UpdatedAt` | 読み取り専用 | 保存フックが保存ごとに記録する。同上 |
+| `ImportSourceGuid` | （対象外、既に `[HideInInspector]`） | ImportRule（§1.1）が二重生成防止に使う内部値。本文にそもそも出ない |
+| `DisplayName` / `Description` / `Category` / `Tags` / `Icon` / `Assignee` / `SpecUrl` / `ChangeNote` / `Flags` / `Events` | 編集可能 | 人が入力・調整する項目（`Icon`/`SpecUrl` はヘッダーにも専用 GUI があるが、本文側の直接編集も残す） |
+
+種別ごとの固有フィールド（`MaterialData.SourceMaterial` のような「インポート由来を記録するだけの値」等）は今回は対象にしていない
+（**要判断**: `Id` ほど「編集すると即壊れる」わけではなく、種別ごとに判断が割れるため、今回は `AssetDataBase` 共通フィールドのみを
+対象にした。今後、種別固有のフィールドを読み取り専用にしたい場合は、その Data クラスのフィールドに `[InspectorReadOnly]` を
+付けるだけでよい。決めたら本表に追記する）。
+
+テスト: `Tests/Editor/AssetDataInspectorReadOnlyFieldsTests.cs`（`Id`/`Version`/`Author`/`UpdatedAt` の `PropertyField` が
+disabled になること、`DisplayName` 等の通常フィールドは有効なまま、`SeDataEditor` のように上書きされている場合は
+`CreateInspectorGUI` が `null` を返すこと）。
+
 ## 9. AssetDatabase.FindAssets のキャッシュ（2026-09-11）
 
 - **`AssetDatabase.FindAssets` を直接呼ばない。** 必ず `DDrive.Editor.AssetSearch.FindAssets(filter[, folders])` を通す（既定の検索範囲は `Assets` 配下）

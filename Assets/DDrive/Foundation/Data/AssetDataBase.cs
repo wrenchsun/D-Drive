@@ -9,6 +9,7 @@ namespace DDrive.Foundation.Data
     {
         [Header("Identity")]
         [Tooltip("安定ID(内部用)。初回生成後は名前を変えても変化しない。手編集しないこと。")]
+        [InspectorReadOnly]
         public ulong Id;
 
         [Tooltip("AssetBrowser 等での表示名・ID定数生成時の名前解決に使う(未設定ならファイル名を使う)。")]
@@ -35,12 +36,15 @@ namespace DDrive.Foundation.Data
 
         [Header("Meta")]
         [Tooltip("保存フックで自動的に+1される。手編集しないこと。")]
+        [InspectorReadOnly]
         public int Version;
 
         [Tooltip("最終更新者(保存フックで自動記録)。")]
+        [InspectorReadOnly]
         public string Author;
 
         [Tooltip("最終更新日時(保存フックで自動記録)。")]
+        [InspectorReadOnly]
         public string UpdatedAt;
 
         [TextArea]

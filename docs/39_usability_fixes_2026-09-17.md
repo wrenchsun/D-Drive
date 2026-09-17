@@ -23,7 +23,7 @@ Phase 6 まで実装した後、**デザイナーマニュアル用のスクリ�
 | U-8 | 改善 | Anim2D Editor の「作成」はタブに分ける必要がない。新規作成から作成画面をポップアップで出す | 要望 | 実装済み |
 | U-9 | 追加 | UI Tween Editor に Preset Gallery を開くボタンを追加 | 要望 | 実装済み |
 | U-10 | 不具合 | Button Skin Editor の「SE も鳴らす」が見切れている（→ 全体の点検は U-27） | 要望 | 実装済み |
-| U-11 | 改善 | 自作エディタに「Inspector（全フィールド）」があるものと無いものがある。ID など編集させたくない項目もあるため、**編集させるもの / させないものを選び分けて分離**する（無い側は「Inspector に移動」程度で十分） | 要望 | 未着手 |
+| U-11 | 改善 | 自作エディタに「Inspector（全フィールド）」があるものと無いものがある。ID など編集させたくない項目もあるため、**編集させるもの / させないものを選び分けて分離**する（無い側は「Inspector に移動」程度で十分） | 要望 | 実装済み |
 | U-12 | 不具合 | Asset Browser 下部のサウンドのプレビューバーの UI が崩れている | [36](36_manual_screenshot_list.md) #14 | 実装済み |
 | U-13 | 不具合 | 個別検証があるものと無いものがある。VFX Editor では「検証」を展開しても何も表示されない | [36](36_manual_screenshot_list.md) #15 | 実装済み |
 | U-14 | 不具合 | BgmData の Fade 欄が `No GUI Implementation` と表示される | [36](36_manual_screenshot_list.md) #17 | 実装済み |
@@ -63,6 +63,17 @@ U-1 は U-2 が原因である可能性が高いが、**確定させてから直
 
 ### U-11（Inspector 全フィールド）
 「全部出す / 全部隠す」の二択ではなく、**種別ごとに編集させる項目と読み取り専用にする項目を決める**のが本題。ID のように編集されると壊れるものは読み取り専用にし、どうしても触る必要があるときは Inspector 側で行う。どの項目をどちら側にするかを決めたら [09_editor_tools.md](09_editor_tools.md) に表として残すこと。
+
+**2026-09-17 実装済み。** 詳細・割り当て表は [09_editor_tools.md §8.6](09_editor_tools.md#86-inspector-の編集可否を分離2026-09-17-39-u-11) を参照。
+新設の `[InspectorReadOnly]`（`Foundation/Data/InspectorReadOnlyAttribute.cs`）をフィールドに付けると、`AssetDataInspector`
+（§8 の全 Data 共通 Inspector）が UI Toolkit / IMGUI どちらの経路でも対応する `PropertyField`/プロパティを disabled（グレーアウト、
+値は見えるが編集不可）にする。今回は `AssetDataBase` 共通フィールドの `Id`/`Version`/`Author`/`UpdatedAt` に付けた
+（保存フックが自動更新する値・安定 ID で、いずれも既存のコメントで「手編集しないこと」と書かれていたのに実際には
+編集可能なテキストフィールドのままだったもの）。`UiTweenEditorWindow`/`CanvasEditorWindow`/`MaterialEditorWindow`/
+`PrefabEditorWindow` が埋め込む「Inspector(全フィールド)」セクションも同じ `AssetDataInspector` を内部で経由しているため、
+**個別に直さず自動的に反映される**。種別固有フィールド（`MaterialData.SourceMaterial` 等）は今回対象にしていない
+（**要判断として残した点**: `Id` ほど明確に「壊れる」わけではなく種別ごとに判断が割れるため、対象を `AssetDataBase` 共通
+フィールドのみに絞った。今後決めた分は同じ属性を付けて §8.6 の表に追記する運用)。
 
 ### U-27（横幅 500px で見切れない）
 2026-09-17 にユーザーが出した**全エディタ共通の条件**。基準環境は Windows の拡大/縮小 **100%**、ウィンドウ横幅の下限は **500px**。規約本体は [09_editor_tools.md §7.1](09_editor_tools.md) に書いた（縦方向の §7「ScrollView ルート必須」と対になる）。
