@@ -371,6 +371,33 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
   `Tests/Editor/ManualPagesTests.cs`（`docs/DesignerManual/*.html` の実ファイルと `DiscoverPages` の結果を照合、
   `<title>` からの表示名解決）
 
+**2026-09-17 追記 — プログラマーマニュアル（`docs/ProgrammerManual/`）の配線を追加**: `docs/ProgrammerManual/` に
+13 ページ + `style.css`（`Readme` / `getting-started` / `concepts` / `bootstrap` / `audio-api` / `vfx-api` /
+`model-anim-api` / `presentation-api` / `ui-api` / `handle` / `net-api` / `rules` / `extending`）が新設されたのに合わせ、
+`ManualPages` をデザイナー/プログラマーの 2 マニュアルで共通化した。
+
+- `ManualPages` に `ManualKind { Designer, Programmer }` を追加し、`GetManualFolder` / `DiscoverPages` /
+  `ResolveDisplayName` / `StripManualSuffix` に `ManualKind kind = ManualKind.Designer` 引数を追加した
+  （既定値をデザイナーにしているため、既存の呼び出し側はソース変更なしで従来どおり動く）。
+  フォルダ相対パスと `<title>` 接尾辞（`" | D-Drive プログラマーマニュアル"`）を `ManualKind` ごとに切り替える。
+  トップページ名は両マニュアルとも共通で `Readme`（`ManualPages.TopPageName`）
+- **プログラマーマニュアルは Tools/SpecWeb（発注ツール）に配信されていない**ため、`ManualLauncher` に
+  Web/ローカルの分岐を持つ `OpenPage` 系とは別に、常にローカル HTML を開く専用の
+  `OpenProgrammerTop` / `OpenProgrammerPage(pageName)` を追加した（内部的には既存の
+  `OpenLocal(pageName, kind)` に `ManualKind` 引数を足したものを呼ぶだけで、デザイナー側の
+  Web-優先の分岐（`ManualUrlBuilder.ResolveUseWeb` / `ManualPrefs.PreferWeb`）には影響しない）
+- メニュー: `Tools/D-Drive/プログラマーマニュアルを開く`（`DDriveMenu.Root` 経由、`ManualMenu` に追加。
+  デザイナー側の「マニュアルを開く」はそのまま）
+- メインツールバーの「マニュアル」ドロップダウン（`ManualToolbarButtons.CreatePagesDropdown`）に区切り線を挟んで
+  「プログラマーマニュアル/…」サブメニュー（トップ + 各ページ）を追加した。デザイナー側の既存項目
+  （ページ一覧 / 「Web 版を優先」/ 「ローカルのマニュアルを開く」）は変更していない。プログラマーマニュアルは
+  常にローカルのため「Web 版を優先」に相当する項目は無い
+- テスト: `Tests/Editor/ManualPagesTests.cs` に `ManualKind.Programmer` を渡す対の照合テストを追加
+  （`docs/ProgrammerManual/*.html` の実ファイルと `DiscoverPages` の結果、`<title>` からの表示名解決）。
+  デザイナー側の既存テストはそのまま残している
+- `Tools/SpecWeb/tools/build-manual.js` はこの変更の対象外（`docs/DesignerManual` のみを正本として扱う既存の
+  ドリフト検出のまま。`docs/ProgrammerManual/Readme.html` 冒頭の運用メモにも「SpecWeb への配信対応は範囲外」と明記している）
+
 ### 6.2 Hierarchy の右クリックから基本オブジェクトを置く（U-18、2026-09-17）
 
 **`GameObject > D-Drive > …`（= Hierarchy の右クリック）から、D-Drive の基本オブジェクトをシーンに置く。** 実装は `Editor/Creation/GameObjectMenu.cs`。
@@ -510,7 +537,7 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
   - `CreateToolbarButton(windowType)` / `CreateButton(windowType)`: 押すと `NewAssetDialog.Open(lockedTypes, onCreated)` を呼ぶ `ToolbarButton`(`UnityEditor.UIElements.Toolbar` の子用) / `Button`(単独配置用) を返す
   - `SwitchToCreated(windowType, created)`: 作成された Data を、`DataEditorRegistry.GetEntries(created.GetType())` から windowType 自身のエントリを探して `Open(created)` で開く。既存の Inspector の「エディターで開く」ボタン(§8)と全く同じ経路を通るため、専用の切り替えロジックを別に持たない。エントリが見つからない場合は警告ログのみで例外にしない([00] §0-4)
 - **`NewAssetDialog.Open(Type[] lockedTypes, Action<AssetDataBase> onCreated)`**(新設オーバーロード。既存の `Open(AudioClip[] pendingClips = null)` はそのまま維持): 種別ドロップダウンの選択肢を `lockedTypes` に含まれる型だけへ絞る(候補が 1 つならドロップダウン自体を無効化)。作成が成功したら既存の Ping/Selection/AssetBrowser 更新のあとに `onCreated(asset)` を呼んでから閉じる。`GetWindow<T>()` は既存インスタンスがあると `CreateGUI` を呼び直さないため、ロック対象を static な受け渡し領域(`_pendingLockedTypes`/`_pendingOnCreated`)に置き、既存ウィンドウは一度 `Close()` してから開き直して確実に反映する
-- **配置**: 既存の `BuildToolbar`(`Toolbar`)を持つエディタ(Anchor / Anchor Group / Anim / Model / VFX)はそこに追加。`CreateGUI` 内で直接 `Toolbar` を組んでいるエディタ(Canvas / Material / Material プレビュー / Prefab)も同様。トップレベルの `Toolbar` を持たなかったエディタ(Audio / Anim2D(既存の作成/編集モードトグルの Toolbar に相乗り) / Button Skin / Slider / Slider Skin / UI Tween / Material 変換)は新しく 1 行だけの `Toolbar`(または `MaterialConvertWindow` のみ `Toolbar` 1 個だけの行)を `CreateGUI` の先頭(スクロールしても隠れない `rootVisualElement` 直下)に追加した
+- **配置**: 既存の `BuildToolbar`(`Toolbar`)を持つエディタ(Anchor / Anchor Group / Anim / Model / VFX)はそこに追加。`CreateGUI` 内で直接 `Toolbar` を組んでいるエディタ(Canvas / Material / Material プレビュー / Prefab)も同様。トップレベルの `Toolbar` を持たなかったエディタ(Audio / Anim2D(当時は既存の作成/編集モードトグルの Toolbar に相乗り。U-8(2026-09-17)でその作成タブ自体を `Anim2DCreateWindow` ポップアップへ分離したため、現在はトグルの無い `Toolbar` に「スプライトから新規作成…」と並んで乗っている) / Button Skin / Slider / Slider Skin / UI Tween / Material 変換)は新しく 1 行だけの `Toolbar`(または `MaterialConvertWindow` のみ `Toolbar` 1 個だけの行)を `CreateGUI` の先頭(スクロールしても隠れない `rootVisualElement` 直下)に追加した
 - **対応済みの全 16 宣言**: AudioEditorWindow(SeData/BgmData)、VfxEditorWindow、ModelEditorWindow、AnimEditorWindow、Anim2DEditorWindow、PrefabEditorWindow、CanvasEditorWindow、MaterialEditorWindow(MaterialData/TextureData)、MaterialConvertWindow、MaterialThumbnailWindow、AnchorEditorWindow、AnchorGroupEditorWindow、ButtonSkinEditorWindow、SliderEditorWindow、SliderSkinEditorWindow、UiTweenEditorWindow
 - テスト: `Tests/Editor/NewAssetToolbarButtonTests.cs`(`GetDataTypes` が既存の全 `[DataEditor]` ウィンドウで 1 つ以上の `AssetDataBase` 派生型を返すこと、既知の対応(Audio/Material 等)、`SwitchToCreated` が実際にウィンドウを開いて対象を切り替えること・対応が無くても例外にしないこと、`NewAssetDialog.Open(Type[], ...)` が種別ロックを内部状態に反映すること)
 - 要判断: [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-15」節末尾を参照(MaterialConvertWindow / MaterialThumbnailWindow / SliderEditorWindow のような二次的な専用エディタにまで同じボタンを付けるべきか)

@@ -60,7 +60,34 @@ namespace DDrive.Editor.Manual
             menu.AddSeparator(string.Empty);
             menu.AddItem(new GUIContent("Web 版を優先"), ManualPrefs.PreferWeb, () => ManualPrefs.PreferWeb = !ManualPrefs.PreferWeb);
             menu.AddItem(new GUIContent("ローカルのマニュアルを開く"), false, ManualLauncher.OpenLocalTop);
+
+            menu.AddSeparator(string.Empty);
+            AddProgrammerManualItems(menu, projectRoot);
+
             menu.DropDown(rect);
+        }
+
+        // プログラマーマニュアル(2026-09-17 追加)はデザイナーマニュアルと別のサブメニューにぶら下げる
+        // (既存のデザイナーマニュアル側の項目は変更しない)。常にローカル HTML を開く
+        // (ManualLauncher.OpenProgrammerPage、SpecWeb への配信は範囲外のため「Web 版を優先」は無い)。
+        private static void AddProgrammerManualItems(GenericMenu menu, string projectRoot)
+        {
+            const string SubMenuPrefix = "プログラマーマニュアル/";
+
+            menu.AddItem(new GUIContent(SubMenuPrefix + "トップを開く"), false, ManualLauncher.OpenProgrammerTop);
+
+            var pages = ManualPages.DiscoverPages(projectRoot, ManualKind.Programmer);
+            if (pages.Length == 0)
+            {
+                menu.AddDisabledItem(new GUIContent(SubMenuPrefix + "(ページが見つかりません)"));
+                return;
+            }
+
+            foreach (var page in pages)
+            {
+                var fileName = page.FileName;
+                menu.AddItem(new GUIContent(SubMenuPrefix + page.DisplayName), false, () => ManualLauncher.OpenProgrammerPage(fileName));
+            }
         }
     }
 }

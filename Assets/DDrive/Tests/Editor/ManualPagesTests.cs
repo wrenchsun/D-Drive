@@ -97,5 +97,85 @@ namespace DDrive.Tests.Editor
         {
             Assert.AreEqual("D-Drive デザイナーマニュアル", ManualPages.StripManualSuffix("D-Drive デザイナーマニュアル"));
         }
+
+        // 2026-09-17 追記 — プログラマーマニュアル(docs/ProgrammerManual)側。
+        // デザイナーマニュアル側のテストは変更せず、同じ照合を ManualKind.Programmer で行う。
+        [Test]
+        public void DiscoverPages_MatchesActualFilesOnDisk_Programmer()
+        {
+            var projectRoot = ManualPages.GetProjectRoot();
+            var folder = ManualPages.GetManualFolder(projectRoot, ManualKind.Programmer);
+            Assert.IsTrue(Directory.Exists(folder), "docs/ProgrammerManual が見つからない: " + folder);
+
+            var actualFileNames = Directory.GetFiles(folder, "*.html")
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(name => !string.Equals(name, ManualPages.TopPageName, StringComparison.Ordinal))
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var pages = ManualPages.DiscoverPages(projectRoot, ManualKind.Programmer);
+
+            Assert.AreEqual(actualFileNames, pages.Select(p => p.FileName).ToArray());
+            Assert.IsTrue(pages.All(p => !string.IsNullOrEmpty(p.DisplayName)));
+            CollectionAssert.Contains(actualFileNames, "concepts");
+            CollectionAssert.Contains(actualFileNames, "extending");
+        }
+
+        [Test]
+        public void DiscoverPages_ExcludesTopPage_Programmer()
+        {
+            var projectRoot = ManualPages.GetProjectRoot();
+            var pages = ManualPages.DiscoverPages(projectRoot, ManualKind.Programmer);
+
+            Assert.IsFalse(pages.Any(p => p.FileName == ManualPages.TopPageName));
+        }
+
+        [Test]
+        public void ResolveDisplayName_KnownPagesWithoutParens_MatchesActualTitle_Programmer()
+        {
+            var projectRoot = ManualPages.GetProjectRoot();
+            var folder = ManualPages.GetManualFolder(projectRoot, ManualKind.Programmer);
+
+            Assert.AreEqual("基本概念", ManualPages.ResolveDisplayName(folder, "concepts", ManualKind.Programmer));
+            Assert.AreEqual("VFX API", ManualPages.ResolveDisplayName(folder, "vfx-api", ManualKind.Programmer));
+        }
+
+        [Test]
+        public void ResolveDisplayName_TopPage_MatchesReadmeTitle_Programmer()
+        {
+            var projectRoot = ManualPages.GetProjectRoot();
+            var folder = ManualPages.GetManualFolder(projectRoot, ManualKind.Programmer);
+
+            Assert.AreEqual("D-Drive プログラマーマニュアル", ManualPages.ResolveDisplayName(folder, ManualPages.TopPageName, ManualKind.Programmer));
+        }
+
+        [Test]
+        public void ResolveDisplayName_MissingFile_FallsBackToFileName_Programmer()
+        {
+            var projectRoot = ManualPages.GetProjectRoot();
+            var folder = ManualPages.GetManualFolder(projectRoot, ManualKind.Programmer);
+
+            Assert.AreEqual("no-such-page", ManualPages.ResolveDisplayName(folder, "no-such-page", ManualKind.Programmer));
+        }
+
+        [Test]
+        public void StripManualSuffix_RemovesKnownSuffix_Programmer()
+        {
+            Assert.AreEqual("基本概念", ManualPages.StripManualSuffix("基本概念 | D-Drive プログラマーマニュアル", ManualKind.Programmer));
+        }
+
+        [Test]
+        public void StripManualSuffix_NoSuffix_ReturnsAsIs_Programmer()
+        {
+            Assert.AreEqual("D-Drive プログラマーマニュアル", ManualPages.StripManualSuffix("D-Drive プログラマーマニュアル", ManualKind.Programmer));
+        }
+
+        [Test]
+        public void StripManualSuffix_DoesNotStripOtherKindSuffix()
+        {
+            // デザイナー側の接尾辞はプログラマー側の StripManualSuffix では剥がれない(種別の取り違え防止)。
+            const string title = "用語集 | D-Drive デザイナーマニュアル";
+            Assert.AreEqual(title, ManualPages.StripManualSuffix(title, ManualKind.Programmer));
+        }
     }
 }
