@@ -9,6 +9,7 @@ const {
   scopeCss,
   rewriteLinks,
   inlineImages,
+  findUnprocessedLinkTags,
   toDataUri,
   extractBodyInnerHtml,
   buildManualPageHtml,
@@ -248,4 +249,57 @@ test('ドリフト検出: 実際の docs/DesignerManual からの生成結果は
     normalizeNewlines_(committedPagesJs),
     'src/ManualPages.js が生成結果と一致しません。node Tools/SpecWeb/tools/build-manual.js を実行してコミットしてください。'
   );
+});
+
+// ── 2026-09-17（docs/41 整理項目）: 書き換え漏れの検出 ──
+//
+// rewriteLinks / inlineImages の正規表現は `href="…"` / `src="…"`（ダブルクォート）にしか
+// 掛からないため、`href='…'` や `srcset` は書き換わらないまま**警告も出ずに**通っていた。
+
+test('findUnprocessedLinkTags: 書き換え済みの形（href="#" / 外部リンク / data URI）は警告しない', () => {
+  const html =
+    '<a href="#" data-manual-page="Readme">目次</a>' +
+    '<a href="#section" data-manual-anchor="section">節へ</a>' +
+    '<a href="https://example.com/x" target="_blank" rel="noopener">外部</a>' +
+    '<a href="mailto:x@example.com">メール</a>' +
+    '<a name="anchor-only">アンカーだけ</a>' +
+    '<img alt="x" src="data:image/png;base64,AAAA" />' +
+    '<img src="https://example.com/a.png">';
+  assert.deepEqual(findUnprocessedLinkTags(html), []);
+});
+
+test('findUnprocessedLinkTags: シングルクォートの href/src は警告になる', () => {
+  const warnings = findUnprocessedLinkTags("<a href='other.html'>次へ</a><img src='images/pic.png'>");
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0], /シングルクォート/);
+  assert.match(warnings[1], /シングルクォート/);
+});
+
+test('findUnprocessedLinkTags: srcset・相対 src・相対 href は警告になる', () => {
+  const srcset = findUnprocessedLinkTags('<img src="data:image/png;base64,AAAA" srcset="images/pic@2x.png 2x">');
+  assert.equal(srcset.length, 1);
+  assert.match(srcset[0], /srcset/);
+
+  const relSrc = findUnprocessedLinkTags('<img src="images/pic.png">');
+  assert.equal(relSrc.length, 1);
+  assert.match(relSrc[0], /data URI 化されずに残って/);
+
+  const relHref = findUnprocessedLinkTags('<a href="other.html">次へ</a>');
+  assert.equal(relHref.length, 1);
+  assert.match(relHref[0], /書き換えられずに残って/);
+});
+
+test('buildManualPageHtml: 書き換え漏れは warnings と onWarning の両方に載る', () => {
+  const warnings = [];
+  const result = buildManualPageHtml({
+    pageName: 'sample',
+    rawHtml: "<html><body><h1>Sample</h1><a href='other.html'>次へ</a></body></html>",
+    scopedCss: '.' + SCOPE_CLASS + ' { color: red; }',
+    knownPages: ['sample', 'other'],
+    resolveImage: () => null,
+    onWarning: (message) => warnings.push(message)
+  });
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /シングルクォート/);
+  assert.deepEqual(warnings, result.warnings);
 });

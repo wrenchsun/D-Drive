@@ -17,19 +17,19 @@
  * それ自体を制限する必要は無い）。
  */
 
-registerApi('manualGet', function (ctx) {
+registerApi_('manualGet', function (ctx) {
   var params = ctx.params || {};
   var requested = String(params.p || '');
   var page = SPEC_WEB_MANUAL_PAGE_NAMES.indexOf(requested) !== -1 ? requested : SPEC_WEB_MANUAL_TOP_PAGE;
   var html;
   try {
-    html = include('html/manual/' + page);
+    html = include_('html/manual/' + page);
   } catch (err) {
     // ファイルが読めない等の予期しない状態でも例外で止めない（CLAUDE.md §0-4）。
     // トップページ自体が読めない場合はそのまま例外を伝播させる（配布物が壊れているため
     // no-op で隠すよりログに残る方が良い判断のため）。
     page = SPEC_WEB_MANUAL_TOP_PAGE;
-    html = include('html/manual/' + page);
+    html = include_('html/manual/' + page);
   }
   return { page: page, html: html };
 });

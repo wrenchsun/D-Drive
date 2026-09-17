@@ -4,6 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas } = require('./load-gas.js');
 
+// 2026-09-17 追補（docs/41 P1-3 の修正に追随）: `issueApiToken` 等の**公開名**の運用関数は
+// admin セッション必須になった（`specWebAssertAdminSession_`）。ここでのトークン発行・移行・
+// ユーザー登録は「テストの前提を組み立てる」ためのものなので、内部実装（末尾 `_`）を直接呼ぶ。
+// 公開名の関数が admin セッション無しで必ず失敗することは test/globals.test.js が固定している。
+
 // マニュアル配信（2026-09-14 追加、docs/32_spec_web.md「マニュアル配信」節）の AC:
 //  - Unity の「マニュアル」ボタンが開く `?page=manual&p=<ページ名>` を doGet が受け取り、
 //    人向け SPA の初期画面を 'manual' + { p } に解決する（resolveInitialScreen_、src/Code.js）
@@ -104,7 +109,7 @@ test('specWebUiCall: ログインしていない場合は manualGet も 401 で�
 
 test('doPost: D-Drive の読み取りトークンでも manualGet を呼べる（状態を変更しないため）', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('read');
+  const token = ctx.specWebIssueApiToken_('read');
   const output = ctx.doPost({ parameter: { api: '1', name: 'manualGet', token: token, p: 'Readme' } });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, true);
@@ -113,7 +118,7 @@ test('doPost: D-Drive の読み取りトークンでも manualGet を呼べる�
 
 test('doPost: D-Drive の書き込みトークンは manualGet を呼べない（kind 許可リストの対象外、§5.2）', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   const output = ctx.doPost({ parameter: { api: '1', name: 'manualGet', token: token, p: 'Readme' } });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, false);

@@ -18,7 +18,7 @@ function viewerAuth() {
   return { ok: true, principal: 'viewer@example.com', email: 'viewer@example.com', role: 'viewer', displayName: '閲覧者' };
 }
 function call(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth || editorAuth() });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth || editorAuth() });
 }
 
 test('settings.get: 未設定なら空文字を返す', () => {

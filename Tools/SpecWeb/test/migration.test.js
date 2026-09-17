@@ -4,6 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas } = require('./load-gas.js');
 
+// 2026-09-17 追補（docs/41 P1-3 の修正に追随）: `issueApiToken` 等の**公開名**の運用関数は
+// admin セッション必須になった（`specWebAssertAdminSession_`）。ここでのトークン発行・移行・
+// ユーザー登録は「テストの前提を組み立てる」ためのものなので、内部実装（末尾 `_`）を直接呼ぶ。
+// 公開名の関数が admin セッション無しで必ず失敗することは test/globals.test.js が固定している。
+
 // O-1 AC: 既存データ（旧スキーマ）の移行。docs/32_spec_web.md §10.2.2。
 
 function adminAuth() {
@@ -32,7 +37,7 @@ function legacyItem(overrides) {
 
 test('specWebNormalizeLegacyOrderItem_（読み込み時変換）: 旧 assignee/note/旧status を新スキーマとして返す（副作用なし）', () => {
   const ctx = loadGas({ driveFiles: legacyAssetsFixture({ 'Se::Slash': legacyItem() }) });
-  const result = ctx.getApi('assets.get')({ params: { id: 'Se::Slash' }, auth: editorAuth() });
+  const result = ctx.getApi_('assets.get')({ params: { id: 'Se::Slash' }, auth: editorAuth() });
   assert.equal(result.item.contractor, 'よしだ');
   assert.equal(result.item.referenceMd, '旧メモ');
   assert.equal(result.item.status, '納品済'); // 旧「仮」→ 新「納品済」
@@ -50,7 +55,7 @@ test('specWebNormalizeLegacyOrderItem_（読み込み時変換）: 旧 assignee/
 
 test('assets.list も読み込み時に正規化する（旧データが新スキーマの形で一覧に出る）', () => {
   const ctx = loadGas({ driveFiles: legacyAssetsFixture({ 'Se::Slash': legacyItem({ status: '未着手' }) }) });
-  const result = ctx.getApi('assets.list')({ params: {}, auth: editorAuth() });
+  const result = ctx.getApi_('assets.list')({ params: {}, auth: editorAuth() });
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0].status, '発注済'); // 旧「未着手」→ 新「発注済」
   assert.equal(result.items[0].contractor, 'よしだ');
@@ -64,7 +69,7 @@ test('migrateLegacyOrdersToNewSchema: 未着手/仮/本番はそのまま対応�
       'Se::C': legacyItem({ id: 'Se::C', identifier: 'C', status: '本番' })
     })
   });
-  const result = ctx.migrateLegacyOrdersToNewSchema();
+  const result = ctx.specWebMigrateLegacyOrders_();
   assert.deepEqual(Array.from(result.migratedIds).sort(), ['Se::A', 'Se::B', 'Se::C']);
 
   assert.equal(ctx.Storage.getItem('assets', 'Se::A').status, '発注済');
@@ -77,7 +82,7 @@ test('migrateLegacyOrdersToNewSchema: 未着手/仮/本番はそのまま対応�
 
 test('migrateLegacyOrdersToNewSchema: 保留は発注済に変換し、コメントに「(旧: 保留)」を追記する', () => {
   const ctx = loadGas({ driveFiles: legacyAssetsFixture({ 'Se::Slash': legacyItem({ status: '保留' }) }) });
-  ctx.migrateLegacyOrdersToNewSchema();
+  ctx.specWebMigrateLegacyOrders_();
   const reread = ctx.Storage.getItem('assets', 'Se::Slash');
   assert.equal(reread.status, '発注済');
   assert.equal(reread.comments.length, 1);
@@ -86,8 +91,8 @@ test('migrateLegacyOrdersToNewSchema: 保留は発注済に変換し、コメン
 
 test('migrateLegacyOrdersToNewSchema: 冪等（2回実行しても2回目は何も変わらない）', () => {
   const ctx = loadGas({ driveFiles: legacyAssetsFixture({ 'Se::Slash': legacyItem({ status: '保留' }) }) });
-  ctx.migrateLegacyOrdersToNewSchema();
-  const second = ctx.migrateLegacyOrdersToNewSchema();
+  ctx.specWebMigrateLegacyOrders_();
+  const second = ctx.specWebMigrateLegacyOrders_();
   assert.equal(second.migratedIds.length, 0);
   const reread = ctx.Storage.getItem('assets', 'Se::Slash');
   assert.equal(reread.comments.length, 1, '2回目の実行でコメントが重複しない');
@@ -99,16 +104,16 @@ test('migrateLegacyOrdersToNewSchema: 既に新スキーマの項目はスキッ
       'Se::New': legacyItem({ id: 'Se::New', identifier: 'New', status: '発注済', contractor: '山口', orderer: '吉田' })
     })
   });
-  const result = ctx.migrateLegacyOrdersToNewSchema();
+  const result = ctx.specWebMigrateLegacyOrders_();
   assert.equal(result.migratedIds.length, 0);
 });
 
 test('migration.runLegacyOrders API: admin のみ実行できる', () => {
   const ctx = loadGas({ driveFiles: legacyAssetsFixture({ 'Se::Slash': legacyItem({ status: '保留' }) }) });
-  assert.throws(() => ctx.getApi('migration.runLegacyOrders')({ params: {}, auth: editorAuth() }), (err) => {
+  assert.throws(() => ctx.getApi_('migration.runLegacyOrders')({ params: {}, auth: editorAuth() }), (err) => {
     assert.equal(err.status, 403);
     return true;
   });
-  const result = ctx.getApi('migration.runLegacyOrders')({ params: {}, auth: adminAuth() });
+  const result = ctx.getApi_('migration.runLegacyOrders')({ params: {}, auth: adminAuth() });
   assert.equal(result.migratedIds.length, 1);
 });

@@ -20,11 +20,11 @@ function specWebSettingsError_(message, status) {
   return err;
 }
 
-registerApi('settings.get', function () {
+registerApi_('settings.get', function () {
   return { ganttUrl: PropertiesAdapter.getScriptProperty(SPEC_WEB_SETTINGS_GANTT_URL_PROPERTY_KEY) || '' };
 });
 
-registerApi('settings.setGanttUrl', function (ctx) {
+registerApi_('settings.setGanttUrl', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.ADMIN, 'ガント URL の設定には admin 権限が必要です');
   var url = String(ctx.params.url || '').trim();
   if (url && !/^https?:\/\//.test(url)) {

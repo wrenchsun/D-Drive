@@ -59,9 +59,9 @@ function SpecWebForbiddenError(message) {
 SpecWebForbiddenError.prototype = Object.create(Error.prototype);
 SpecWebForbiddenError.prototype.constructor = SpecWebForbiddenError;
 
-/** auth が role 未満なら SpecWebForbiddenError を投げる（Auth.js の hasRole をそのまま使う）。 */
+/** auth が role 未満なら SpecWebForbiddenError を投げる（Auth.js の hasRole_ をそのまま使う）。 */
 function specWebRequireRole_(auth, role, message) {
-  if (!hasRole(auth, role)) {
+  if (!hasRole_(auth, role)) {
     throw new SpecWebForbiddenError(message || (role + ' 以上の権限が必要です'));
   }
 }
@@ -222,7 +222,9 @@ function specWebMakeComment_(author, body) {
 function specWebMutateItemAtomic_(collectionName, itemId, mutateFn, actor) {
   return withStorageLock_(function () {
     var data = specWebReadCollectionRaw_(collectionName);
-    var existing = data.items[itemId] || null;
+    // 2026-09-17（[41] P2-15）: 継承プロパティ（`constructor` 等の id）を掴まないよう
+    // Storage.js の specWebOwnItem_ を通す。
+    var existing = specWebOwnItem_(data.items, itemId);
     if (!existing) {
       throw new SpecWebNotFoundError('存在しません: ' + collectionName + '/' + itemId);
     }

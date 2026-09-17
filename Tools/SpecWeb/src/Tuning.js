@@ -50,18 +50,18 @@ function specWebBuildScalarEntry_(payload, existing) {
   };
 }
 
-registerApi('tuningScalarList', function () {
+registerApi_('tuningScalarList', function () {
   return { items: Storage.listItems(TUNING_SCALAR_COLLECTION) };
 });
 
-registerApi('tuningScalarGet', function (ctx) {
+registerApi_('tuningScalarGet', function (ctx) {
   var key = ctx.params.key;
   var item = Storage.getItem(TUNING_SCALAR_COLLECTION, key);
   if (!item) throw new SpecWebNotFoundError('存在しません: ' + key);
   return { item: item };
 });
 
-registerApi('tuningScalarCreate', function (ctx) {
+registerApi_('tuningScalarCreate', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.EDITOR, '調整値の作成には editor 以上の権限が必要です');
   var payload = specWebParsePayload_(ctx.params);
   var key = payload.key;
@@ -73,11 +73,17 @@ registerApi('tuningScalarCreate', function (ctx) {
   if (entry.locked) {
     specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.ADMIN, 'locked な調整値の作成には admin 権限が必要です');
   }
-  var saved = Storage.putItem(TUNING_SCALAR_COLLECTION, key, entry, { actor: ctx.auth.principal });
+  // 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-13）: 上の重複チェックは
+  // ロックの外なので、`expectedRevision: 0`（=「まだ存在しないこと」）をロックの中で
+  // 原子的に要求する。同時に同じキーを作った 2 件目は 409 になり、静かな上書きが起きない。
+  var saved = Storage.putItem(TUNING_SCALAR_COLLECTION, key, entry, {
+    actor: ctx.auth.principal,
+    expectedRevision: 0
+  });
   return { item: saved };
 });
 
-registerApi('tuningScalarUpdate', function (ctx) {
+registerApi_('tuningScalarUpdate', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var key = payload.key;
   if (!key) throw new SpecWebValidationError('key が必要です');
@@ -105,7 +111,7 @@ registerApi('tuningScalarUpdate', function (ctx) {
   return { item: saved };
 });
 
-registerApi('tuningScalarDelete', function (ctx) {
+registerApi_('tuningScalarDelete', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var key = payload.key;
   if (!key) throw new SpecWebValidationError('key が必要です');

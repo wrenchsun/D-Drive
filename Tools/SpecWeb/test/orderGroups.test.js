@@ -13,7 +13,7 @@ function viewerAuth() {
   return { ok: true, principal: 'viewer@example.com', email: 'viewer@example.com', role: 'viewer', displayName: '閲覧者' };
 }
 function call(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth || editorAuth() });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth || editorAuth() });
 }
 
 test('orderGroups.create: name は必須。作成すると id が発行され revision=1', () => {

@@ -165,6 +165,57 @@ function rewriteLinks(html, options) {
   return { html: rewritten, warnings };
 }
 
+/**
+ * 2026-09-17（docs/41 整理項目）: rewriteLinks / inlineImages を通した**後**の HTML に、
+ * 書き換え・インライン化から漏れた `<a>` / `<img>` が残っていないかを見る。
+ *
+ * 両関数の正規表現は `href="…"` / `src="…"`（ダブルクォート）にしか掛からないため、
+ * `href='…'`（シングルクォート）や `srcset` はヒットせず、**警告も出ないまま素通りしていた**。
+ * 素通りした相対リンク・相対画像は、GAS 配信後に `script.googleusercontent.com` 基準で
+ * 解決されて 404 になる（画面は白くならないが、リンクと画像が壊れる）。
+ * ここで気付けるよう、最後にもう一度走査して警告にする。
+ *
+ * @param {string} html rewriteLinks / inlineImages を通した後の HTML
+ * @return {string[]} 警告メッセージ（空なら漏れ無し）
+ */
+function findUnprocessedLinkTags(html) {
+  const warnings = [];
+  const tagRe = /<(a|img)\b([^>]*)>/gi;
+  let m;
+  while ((m = tagRe.exec(html)) !== null) {
+    const tag = m[1].toLowerCase();
+    const attrs = m[2];
+
+    if (/(?:^|\s)(?:href|src|srcset)\s*=\s*'/i.test(attrs)) {
+      warnings.push(
+        '属性がシングルクォートで書かれているため書き換え・data URI 化されていません' +
+          '（docs/DesignerManual 側を href="…" / src="…" に直してください）: <' + tag + attrs + '>'
+      );
+      continue;
+    }
+
+    if (tag === 'img') {
+      if (/(?:^|\s)srcset\s*=/i.test(attrs)) {
+        warnings.push('img の srcset は data URI 化されません（配信後に読み込めません）: <img' + attrs + '>');
+      }
+      const srcMatch = /(?:^|\s)src\s*=\s*"([^"]*)"/i.exec(attrs);
+      if (srcMatch && !/^(?:data:|https?:\/\/)/i.test(srcMatch[1])) {
+        warnings.push('img の src が data URI 化されずに残っています: ' + srcMatch[1]);
+      }
+      continue;
+    }
+
+    const hrefMatch = /(?:^|\s)href\s*=\s*"([^"]*)"/i.exec(attrs);
+    if (!hrefMatch) continue;
+    const href = hrefMatch[1];
+    const handled = href.charAt(0) === '#' || /^(?:https?:\/\/|mailto:)/i.test(href);
+    if (!handled) {
+      warnings.push('a の href が書き換えられずに残っています（配信後に解決できません）: ' + href);
+    }
+  }
+  return warnings;
+}
+
 function toDataUri(buffer, mimeType) {
   return 'data:' + mimeType + ';base64,' + buffer.toString('base64');
 }
@@ -217,7 +268,14 @@ function buildManualPageHtml(opts) {
   const bodyInner = extractBodyInnerHtml(opts.rawHtml);
   const imaged = inlineImages(bodyInner, { resolveImage: opts.resolveImage, onWarning: opts.onWarning });
   const linked = rewriteLinks(imaged.html, { knownPages: opts.knownPages, onWarning: opts.onWarning });
-  const warnings = imaged.warnings.concat(linked.warnings);
+  // 2026-09-17（docs/41 整理項目）: 書き換え漏れ（シングルクォート・srcset・相対リンク）が
+  // 残っていないかを最後に確認する。onWarning を通すので buildAll の警告出力にも載る。
+  const leftovers = findUnprocessedLinkTags(linked.html);
+  const onWarning = opts.onWarning || function () {};
+  leftovers.forEach(function (message) {
+    onWarning(message);
+  });
+  const warnings = imaged.warnings.concat(linked.warnings, leftovers);
 
   const html =
     '<style>' +
@@ -335,6 +393,7 @@ module.exports = {
   scopeCss,
   rewriteLinks,
   inlineImages,
+  findUnprocessedLinkTags,
   toDataUri,
   buildNavBarHtml,
   buildManualPageHtml,

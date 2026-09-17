@@ -29,7 +29,7 @@ function specWebMembersError_(message, status) {
 }
 
 function specWebMembersRequireEditor_(auth) {
-  if (!hasRole(auth, SPEC_WEB_ROLES.EDITOR)) {
+  if (!hasRole_(auth, SPEC_WEB_ROLES.EDITOR)) {
     throw specWebMembersError_('この操作には編集権限が必要です（viewer は読み取りのみ）', 403);
   }
 }
@@ -44,7 +44,10 @@ function specWebMembersRequireEditor_(auth) {
 function specWebParseMembersPasteText_(text) {
   if (!text) return [];
   var lines = String(text).split(/\r\n|\r|\n/);
-  var seen = {};
+  // 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-15 と同根）:
+  // 表記そのものがキーになるため、素の `{}` だと `constructor` / `toString` のような表記が
+  // 「既に見た」と判定されて 1 件も取り込めない。prototype を持たないマップを使う。
+  var seen = Object.create(null);
   var result = [];
   lines.forEach(function (line) {
     var trimmed = line.trim();
@@ -63,30 +66,31 @@ function specWebMembersArray_() {
   });
 }
 
-registerApi('members.list', function () {
+registerApi_('members.list', function () {
   return { items: specWebMembersArray_() };
 });
 
-registerApi('members.importPaste', function (ctx) {
+registerApi_('members.importPaste', function (ctx) {
   specWebMembersRequireEditor_(ctx.auth);
   var text = ctx.params.text || '';
   var labels = specWebParseMembersPasteText_(text);
   if (labels.length === 0) {
     throw specWebMembersError_('貼り付けテキストが空です（1行1名の形式で貼り付けてください）', 400);
   }
-  var imported = labels.map(function (label) {
-    var existing = Storage.getItem(SPEC_WEB_MEMBERS_COLLECTION, label);
-    return Storage.putItem(
-      SPEC_WEB_MEMBERS_COLLECTION,
-      label,
-      { label: label, source: 'gantt', email: (existing && existing.email) || '' },
-      { actor: specWebActor_(ctx.auth) }
-    );
-  });
+  // 2026-09-17（[41] P2-11）: 貼り付けは数十名ぶんが一度に来るため、1 件ごとの
+  // getItem + putItem（= members.json の全文シリアライズを人数ぶん）をやめ、
+  // 1 回のロック内で「1 読み・N 件更新・1 書き」にする（Storage.mutateMany）。
+  var imported = Storage.mutateMany(SPEC_WEB_MEMBERS_COLLECTION, function (tx) {
+    return labels.map(function (label) {
+      var existing = tx.get(label);
+      // 既存の email 対応付け（members.upsert で人が入れたもの）は再取り込みでも保持する。
+      return tx.put(label, { label: label, source: 'gantt', email: (existing && existing.email) || '' });
+    });
+  }, { actor: specWebActor_(ctx.auth) });
   return { imported: imported, importedCount: imported.length };
 });
 
-registerApi('members.upsert', function (ctx) {
+registerApi_('members.upsert', function (ctx) {
   specWebMembersRequireEditor_(ctx.auth);
   var params = ctx.params;
   var label = String(params.label || '').trim();
@@ -105,7 +109,7 @@ registerApi('members.upsert', function (ctx) {
   return { item: saved };
 });
 
-registerApi('members.remove', function (ctx) {
+registerApi_('members.remove', function (ctx) {
   specWebMembersRequireEditor_(ctx.auth);
   var label = ctx.params.label;
   if (!label) throw specWebMembersError_('表記（名前(職種)）は必須です', 400);

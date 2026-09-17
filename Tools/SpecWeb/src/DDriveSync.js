@@ -70,7 +70,7 @@ function specWebCheckRateLimit_(principal, apiName) {
 }
 
 /** choices: AssetType 一覧・カテゴリ一覧・タグ候補([32] §3.3・§5.2)。 */
-registerApi('choices', function (ctx) {
+registerApi_('choices', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.EDITOR, '選択肢の送信には editor 以上の権限が必要です');
   specWebCheckRateLimit_(ctx.auth.principal, 'choices');
   var payload = specWebParsePayload_(ctx.params);
@@ -118,7 +118,7 @@ function specWebComputeOrderStatusPatchForAssetState_(currentStatus, currentDeli
  * assets コレクションに存在しない id は静かにスキップする(D-Drive 側が把握している id が
  * Web 側にまだ存在しない状況は通常起きないはずだが、例外にはしない。CLAUDE.md §0-4)。
  */
-registerApi('assetState', function (ctx) {
+registerApi_('assetState', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.EDITOR, 'アセット実状態の送信には editor 以上の権限が必要です');
   specWebCheckRateLimit_(ctx.auth.principal, 'assetState');
   var payload = specWebParsePayload_(ctx.params);
@@ -126,54 +126,65 @@ registerApi('assetState', function (ctx) {
   var updatedIds = [];
   var skippedIds = [];
   var statusChangedIds = [];
-  items.forEach(function (entry) {
-    if (!entry || !entry.id) return;
-    var existing = Storage.getItem(DDRIVE_SYNC_ASSETS_COLLECTION, entry.id);
-    if (!existing) {
-      skippedIds.push(entry.id);
-      return;
-    }
-    var ddriveState = {
-      created: !!entry.created,
-      isPlaceholder: !!entry.isPlaceholder,
-      iconAssetId: entry.iconAssetId || null,
-      // hasIcon(2026-09-14 追補): [32] §9 の要判断「isPlaceholder/iconAssetId」対応の一部。
-      // アイコン画像そのもの(base64)は Drive アップロード実装が無いため送らず、
-      // 「割り当て済みかどうか」の bool だけを受け取る(下記 Assets.js の既定値・
-      // html/AssetsLogic.html の表示側と対にする)。
-      hasIcon: !!entry.hasIcon,
-      usageCount: typeof entry.usageCount === 'number' ? entry.usageCount : 0,
-      lastSyncedAt: entry.lastSyncedAt || new Date().toISOString()
-    };
-    var statusPatch = specWebComputeOrderStatusPatchForAssetState_(existing.status, existing.deliveredDate, entry.created, entry.isPlaceholder);
-    var patch = Object.assign({ ddriveState: ddriveState }, statusPatch ? { status: statusPatch.status, deliveredDate: statusPatch.deliveredDate } : {});
-    // deliveredDate を明示的に変えないケース（statusPatch が無い、または deliveredDate 未指定）では
-    // patch に含めない（undefined を Storage.putItem に渡すと既存値を undefined で上書きしてしまうため）。
-    if (!statusPatch || statusPatch.deliveredDate === undefined) delete patch.deliveredDate;
+  if (items.length === 0) {
+    return { updatedIds: updatedIds, skippedIds: skippedIds, statusChangedIds: statusChangedIds };
+  }
+  // 2026-09-17（[41] P2-11）: 1 件ごとに getItem + putItem（= Drive 読み書き 3〜5 回 +
+  // assets.json 全文シリアライズ）を繰り返すと、D-Drive は毎回プロジェクト内の全アセットを
+  // 送るため（SpecWebSender.cs）数百件で GAS の 6 分上限に近づき、途中で切れると部分反映になる。
+  // Storage.mutateMany で「1 回のロック内で 1 読み・N 件更新・1 書き」にする（docs/32 §2.4）。
+  Storage.mutateMany(DDRIVE_SYNC_ASSETS_COLLECTION, function (tx) {
+    items.forEach(function (entry) {
+      if (!entry || !entry.id) return;
+      var existing = tx.get(entry.id);
+      if (!existing) {
+        skippedIds.push(entry.id);
+        return;
+      }
+      var ddriveState = {
+        created: !!entry.created,
+        isPlaceholder: !!entry.isPlaceholder,
+        iconAssetId: entry.iconAssetId || null,
+        // hasIcon(2026-09-14 追補): [32] §9 の要判断「isPlaceholder/iconAssetId」対応の一部。
+        // アイコン画像そのもの(base64)は Drive アップロード実装が無いため送らず、
+        // 「割り当て済みかどうか」の bool だけを受け取る(下記 Assets.js の既定値・
+        // html/AssetsLogic.html の表示側と対にする)。
+        hasIcon: !!entry.hasIcon,
+        usageCount: typeof entry.usageCount === 'number' ? entry.usageCount : 0,
+        lastSyncedAt: entry.lastSyncedAt || new Date().toISOString()
+      };
+      var statusPatch = specWebComputeOrderStatusPatchForAssetState_(existing.status, existing.deliveredDate, entry.created, entry.isPlaceholder);
+      var patch = Object.assign({ ddriveState: ddriveState }, statusPatch ? { status: statusPatch.status, deliveredDate: statusPatch.deliveredDate } : {});
+      // deliveredDate を明示的に変えないケース（statusPatch が無い、または deliveredDate 未指定）では
+      // patch に含めない（undefined を Storage.putItem に渡すと既存値を undefined で上書きしてしまうため）。
+      if (!statusPatch || statusPatch.deliveredDate === undefined) delete patch.deliveredDate;
 
-    var saved = Storage.putItem(DDRIVE_SYNC_ASSETS_COLLECTION, entry.id, patch, { actor: ctx.auth.principal });
-    updatedIds.push(entry.id);
+      var saved = tx.put(entry.id, patch);
+      updatedIds.push(entry.id);
 
-    if (statusPatch && statusPatch.revertComment) {
-      var comments = Array.isArray(saved.comments) ? saved.comments.slice() : [];
-      comments.push({
-        id: UtilitiesAdapter.newUuid(),
-        author: 'ddrive:sync',
-        body: '(自動) D-Drive で Placeholder に戻ったため、インポート済から納品済へ戻しました。',
-        createdAt: new Date().toISOString(),
-        resolved: false
-      });
-      Storage.putItem(DDRIVE_SYNC_ASSETS_COLLECTION, entry.id, { comments: comments }, { actor: 'ddrive:sync' });
-      statusChangedIds.push(entry.id);
-    } else if (statusPatch) {
-      statusChangedIds.push(entry.id);
-    }
-  });
+      if (statusPatch && statusPatch.revertComment) {
+        var comments = Array.isArray(saved.comments) ? saved.comments.slice() : [];
+        comments.push({
+          id: UtilitiesAdapter.newUuid(),
+          author: 'ddrive:sync',
+          body: '(自動) D-Drive で Placeholder に戻ったため、インポート済から納品済へ戻しました。',
+          createdAt: new Date().toISOString(),
+          resolved: false
+        });
+        // 1 件ずつ putItem していたときと同じく、コメント追記は別の書き込み扱い
+        // （revision がもう 1 つ進み updatedBy が 'ddrive:sync' になる）にする。
+        tx.put(entry.id, { comments: comments }, { actor: 'ddrive:sync' });
+        statusChangedIds.push(entry.id);
+      } else if (statusPatch) {
+        statusChangedIds.push(entry.id);
+      }
+    });
+  }, { actor: ctx.auth.principal });
   return { updatedIds: updatedIds, skippedIds: skippedIds, statusChangedIds: statusChangedIds };
 });
 
 /** tuningUsage: TUNING 定数へのコード参照が無いキーの一覧([32] §3.2.4「コード未使用の検出」)。 */
-registerApi('tuningUsage', function (ctx) {
+registerApi_('tuningUsage', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.EDITOR, '調整値使用状況の送信には editor 以上の権限が必要です');
   specWebCheckRateLimit_(ctx.auth.principal, 'tuningUsage');
   var payload = specWebParsePayload_(ctx.params);

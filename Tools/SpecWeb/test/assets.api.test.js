@@ -4,6 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas } = require('./load-gas.js');
 
+// 2026-09-17 追補（docs/41 P1-3 の修正に追随）: `issueApiToken` 等の**公開名**の運用関数は
+// admin セッション必須になった（`specWebAssertAdminSession_`）。ここでのトークン発行・移行・
+// ユーザー登録は「テストの前提を組み立てる」ためのものなので、内部実装（末尾 `_`）を直接呼ぶ。
+// 公開名の関数が admin セッション無しで必ず失敗することは test/globals.test.js が固定している。
+
 // O-1/O-5/O-7 AC: アセット発注 CRUD API（一覧・取得・作成・更新・削除・コメント）。
 // (docs/32_spec_web.md §10.2.1, §10.3.2, §10.3.4 / Tools/SpecWeb/src/Assets.js)
 // 旧 W-4/W-5（未着手/仮/本番/保留・assignee/note）からの移行テストは migration.test.js 参照。
@@ -25,7 +30,7 @@ function viewerAuth() {
 }
 
 function call(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth || editorAuth() });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth || editorAuth() });
 }
 
 function validSePatch(overrides) {
@@ -226,6 +231,48 @@ test('assets.update: status に「インポート済」を直接指定すると 
   );
 });
 
+// 2026-09-17 修正の回帰テスト（docs/41_phase6_review_2026-09-17.md P1-6）。
+// 「status が現在値と同じ」patch は検証から外す。以前は、D-Drive の同期で
+// 「インポート済」になった発注の表示名やメモを直そうとすると、patch に載っていた
+// status（=インポート済、変更なし）が「手動で設定できません」に引っかかり 400 になり、
+// クライアント側も status の表示先が無いため保存ボタンが無反応になっていた。
+test('assets.update: status が現在値と同じなら検証されない（他フィールドだけ更新できる）', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  const updated = call(ctx, 'assets.update', {
+    id: created.id,
+    expectedRevision: created.revision,
+    patch: JSON.stringify({ status: created.status, displayName: '斬撃音（改）' })
+  }).item;
+  assert.equal(updated.displayName, '斬撃音（改）');
+  assert.equal(updated.status, created.status);
+});
+
+test('assets.update: インポート済の発注も、status を据え置いたまま他フィールドを保存できる', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+
+  // D-Drive の同期（assetState）でのみ「インポート済」へ進む（O-7）。
+  ctx.getApi_('assetState')({
+    params: {
+      payload: JSON.stringify({
+        items: [{ id: created.id, created: true, isPlaceholder: false, hasIcon: false, usageCount: 1, lastSyncedAt: '2026-09-17T00:00:00Z' }]
+      })
+    },
+    auth: { ok: true, principal: 'ddrive', email: 'ddrive', role: 'editor', displayName: 'D-Drive' }
+  });
+  const imported = call(ctx, 'assets.get', { id: created.id }).item;
+  assert.equal(imported.status, 'インポート済');
+
+  const updated = call(ctx, 'assets.update', {
+    id: imported.id,
+    expectedRevision: imported.revision,
+    patch: JSON.stringify({ status: 'インポート済', displayName: '斬撃音（納品後に改名）' })
+  }).item;
+  assert.equal(updated.displayName, '斬撃音（納品後に改名）');
+  assert.equal(updated.status, 'インポート済');
+});
+
 test('assets.update: revision 不一致は 409（currentRevision 付き）で拒否される', () => {
   const ctx = loadGas();
   const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
@@ -373,7 +420,7 @@ test('whoami: 認証情報（role 等）を返す', () => {
     activeUserEmail: 'member@example.com',
     driveFiles: usersFixture([{ email: 'member@example.com', displayName: 'メンバー', role: 'editor' }])
   });
-  const token = ctx.issueApiToken('read');
+  const token = ctx.specWebIssueApiToken_('read');
   // 2026-09-14 追補: token は POST（doPost）の本文でのみ受け付ける（§7、routing.test.js 参照)。
   const output = ctx.doPost({ parameter: { api: '1', name: 'whoami', token: token } });
   const body = JSON.parse(output.getContent());
@@ -381,17 +428,34 @@ test('whoami: 認証情報（role 等）を返す', () => {
   assert.equal(body.role, 'viewer'); // read トークンは viewer 相当(Auth.js の既存仕様)
 });
 
-test('handleApiRequest_ 経由（doGet 実リクエスト相当）: 検証エラーが 400 相当で本文に返る', () => {
+// 2026-09-17 更新（docs/41 P1-4 / docs/32 §2.3.1(2)）: `?api=1` は API トークン必須になり、
+// Google セッションでは通らなくなった（`assets.create` は書き込みトークンの許可リスト外でもある）。
+// 人向けの実リクエスト経路は `google.script.run` → `specWebUiCall` なので、そちらで
+// 「検証エラーが本文の status 400 で返る」ことを確認する（例外を投げず本文に載せる形は同じ）。
+test('specWebUiCall 経由（人向け SPA の実リクエスト相当）: 検証エラーが 400 相当で本文に返る', () => {
+  const ctx = loadGas({
+    activeUserEmail: 'editor@example.com',
+    driveFiles: usersFixture([{ email: 'editor@example.com', displayName: '編集者', role: 'editor' }])
+  });
+  const body = ctx.specWebUiCall('assets.create', {
+    patch: JSON.stringify(validSePatch({ identifier: 'not-pascal' }))
+  });
+  assert.equal(body.ok, false);
+  assert.equal(body.status, 400);
+});
+
+test('?api=1 は Google ログインでは通らない（トークン必須。docs/32 §2.3.1(2)）', () => {
   const ctx = loadGas({
     activeUserEmail: 'editor@example.com',
     driveFiles: usersFixture([{ email: 'editor@example.com', displayName: '編集者', role: 'editor' }])
   });
   const output = ctx.doGet({
-    parameter: { api: '1', name: 'assets.create', patch: JSON.stringify(validSePatch({ identifier: 'not-pascal' })) }
+    parameter: { api: '1', name: 'assets.create', patch: JSON.stringify(validSePatch()) }
   });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, false);
-  assert.equal(body.status, 400);
+  assert.equal(body.status, 401);
+  assert.equal(ctx.Storage.getItem('assets', 'Se::Slash'), null, 'CSRF で作成されない');
 });
 
 // ---- O-12: ファイル形式・ファイル名 ----
@@ -487,15 +551,13 @@ test('assets.list: fileFormat で絞り込める', () => {
   assert.equal(call(ctx, 'assets.list', {}).items.length, 2);
 });
 
-test('handleApiRequest_ 経由: viewer の書き込みは 403 相当で本文に返る', () => {
+// 2026-09-17 更新（docs/41 P1-4）: 上と同じ理由で `?api=1` ではなく specWebUiCall 経由にした。
+test('specWebUiCall 経由: viewer の書き込みは 403 相当で本文に返る', () => {
   const ctx = loadGas({
     activeUserEmail: 'viewer@example.com',
     driveFiles: usersFixture([{ email: 'viewer@example.com', displayName: '閲覧者', role: 'viewer' }])
   });
-  const output = ctx.doGet({
-    parameter: { api: '1', name: 'assets.create', patch: JSON.stringify(validSePatch()) }
-  });
-  const body = JSON.parse(output.getContent());
+  const body = ctx.specWebUiCall('assets.create', { patch: JSON.stringify(validSePatch()) });
   assert.equal(body.ok, false);
   assert.equal(body.status, 403);
 });
@@ -660,11 +722,64 @@ test('assets.rename: 存在しない id は 404 で拒否される', () => {
 test('handleApiRequest_ 経由: D-Drive の書き込みトークンから assets.rename は呼べない（許可リスト外）', () => {
   const ctx = loadGas();
   const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   const output = ctx.doPost({
     parameter: { api: '1', name: 'assets.rename', token: token, id: created.id, identifier: 'SlashHeavy' }
   });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, false);
   assert.equal(body.status, 403);
+});
+
+// ── 2026-09-17（docs/41 P2-14）: リネーム記録（assetRenames）の解決 ──
+//
+// `assetRenames[X] = {newId}` は「X という発注はもう存在せず newId に移った」という意味しか
+// 持たないため、X が再び実在する id になった瞬間に記録は嘘になる。書き込み側（create / rename）で
+// 「assetRenames のキーは今は実在しない id だけ」という不変条件を保つ。
+
+test('assets.rename: 旧 id のリンク（?page=order&id=旧id）は新 id へ解決される', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  call(ctx, 'assets.rename', { id: created.id, identifier: 'SlashHeavy', expectedRevision: created.revision });
+
+  assert.equal(ctx.specWebResolveAssetRenameChain_('Se::Slash'), 'Se::SlashHeavy');
+  const initial = ctx.resolveInitialScreen_({ page: 'order', id: 'Se::Slash' });
+  assert.equal(initial.screen, 'assets');
+  assert.equal(initial.params.openId, 'Se::SlashHeavy');
+});
+
+test('assets.create: 同じ識別子を作り直すと、その id の古いリネーム記録は消える（別の発注へ飛ばさない）', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item;
+  call(ctx, 'assets.rename', { id: created.id, identifier: 'SlashHeavy', expectedRevision: created.revision });
+  assert.equal(ctx.specWebResolveAssetRenameChain_('Se::Slash'), 'Se::SlashHeavy');
+
+  // 改めて Se::Slash という発注を新規作成する（Se::SlashHeavy とは別物）。
+  const recreated = call(ctx, 'assets.create', {
+    patch: JSON.stringify(validSePatch({ displayName: '作り直した斬撃音' }))
+  }).item;
+  assert.equal(recreated.id, 'Se::Slash');
+
+  assert.equal(
+    ctx.specWebResolveAssetRenameChain_('Se::Slash'),
+    'Se::Slash',
+    'コピー済みリンクが Se::SlashHeavy（別の発注）へ飛んでしまわない'
+  );
+  const initial = ctx.resolveInitialScreen_({ page: 'order', id: 'Se::Slash' });
+  assert.equal(initial.params.openId, 'Se::Slash');
+});
+
+test('assets.rename: リネーム先が以前の旧 id だった場合も記録が残らない（A→B→A と戻す）', () => {
+  const ctx = loadGas();
+  const created = call(ctx, 'assets.create', { patch: JSON.stringify(validSePatch()) }).item; // Se::Slash
+  const renamed = call(ctx, 'assets.rename', {
+    id: created.id, identifier: 'SlashHeavy', expectedRevision: created.revision
+  }).item;
+  const back = call(ctx, 'assets.rename', {
+    id: renamed.id, identifier: 'Slash', expectedRevision: renamed.revision
+  }).item;
+
+  assert.equal(back.id, 'Se::Slash');
+  assert.equal(ctx.specWebResolveAssetRenameChain_('Se::Slash'), 'Se::Slash', '自分自身へ戻った id は素通し');
+  assert.equal(ctx.specWebResolveAssetRenameChain_('Se::SlashHeavy'), 'Se::Slash');
 });

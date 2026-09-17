@@ -188,6 +188,13 @@ function bootstrapTokens() {
 `EditorPrefs`（マシンごと）に保存する設定画面（既存の `DDriveSpecSettings` 相当）に貼り付けます。
 **トークンは git や Slack の履歴に残る形で共有しない**（既存の連絡手段でも、後で消せるチャンネル等を推奨）。
 
+> **2026-09-17 変更（docs/41 整理項目）**: `issueApiToken` / `rotateApiToken` が発行したトークンを
+> **自分でログに出すのをやめました**（戻り値だけを返します）。V8 ランタイムの `Logger` 出力は
+> Cloud Logging に一定期間保持されるため、発行するたびにトークンの実値がログに溜まっていました。
+> 上の `bootstrapTokens` のように**運用者が明示的に `Logger.log` したぶんだけ**ログに残ります。
+> コピーし終わったら、この一時的な関数は消してください（実値を残したくない場合は、発行後に
+> `countApiTokens('write')` で件数だけ確認する運用にできます）。
+
 ### トークンのローテーション（推奨 3 か月ごと、または漏洩時は即時）
 
 ```js
@@ -250,10 +257,44 @@ clasp open-logs      # Apps Script の実行ログ（Stackdriver）をブラウ�
   確認予定。docs/32 §9-4 参照）
 - 個人の Gmail アカウントでは Web アプリのアクセス権に「特定のドメインに限定」オプションが無いため、
   本実装はコード側の許可リスト（`users.json`）で代替しています
-- ① 人向け SPA から `api=1` を token 無しで呼んだとき、Google ログインもしていない場合は
-  「API トークンがありません」という D-Drive 向けの文言が返ります。これは② D-Drive API 宛の
-  エラーメッセージであり、① の画面自体は `google.script.run`（token 不要）を使うため、この文言が
-  ①の画面に出ることは通常ありません（もし出た場合は D-Drive 側のトークン設定を確認してください）
+- **`?api=1` は API トークンが必須です**（2026-09-17 変更。docs/32 §2.3.1、CSRF 対策）。
+  以前は token が無いとき Google ログイン + 許可リストへフォールバックしていましたが、
+  `/exec` への通常のブラウザ遷移はアクセスした人の Google セッションで実行されるため、
+  `.../exec?api=1&name=users.upsert&email=…&role=admin` のようなリンクを管理者に踏ませるだけで
+  管理者権限の操作が走る状態でした。**`?api=1` を人が直接叩いて動作確認したいときは read トークンを
+  付けてください。** ① の画面自体は `google.script.run`（token 不要）を使うので影響はありません
+
+### セキュリティ上の約束（2026-09-17、docs/32 §2.3.1）
+
+コードを触るときは次の 3 つを守ってください。いずれも実際に穴が開いていたものです。
+
+1. **内部ヘルパーの名前は必ず末尾 `_`**。GAS では末尾 `_` の無いグローバル関数は
+   `google.script.run.<名前>()` で**誰でも直接呼べます**（`?api=1` の API 登録の有無は無関係で、
+   許可リスト外に返す拒否ページ上でも呼べます）。`test/globals.test.js` が機械的に検査します
+2. **公開名のまま残す運用関数は、先頭で `specWebAssertAdminSession_()` を呼ぶ**
+   （例外は `upsertSpecWebUser` の最初の 1 人のブートストラップだけ）
+3. **`html/Index.html` で `<script>` の中に値を埋めるときは `specWebJsonForScript_()` を通す**。
+   `<?!= JSON.stringify(x) ?>` の直書きは `</script>` を作れてしまい XSS になります
+
+### データの扱いの約束（2026-09-17、docs/41 P2-11〜P2-17 の修正で決めたこと）
+
+`Storage`（`src/Storage.js`）を使うときの約束です。守らないと壊れ方が分かりにくい不具合になります。
+
+4. **N 件をまとめて反映する API は `Storage.mutateMany(collection, fn, { actor })` を使う**。
+   1 件ごとに `getItem` + `putItem` を繰り返すと、1 件あたり Drive の読み書きが 3〜5 回・
+   `<collection>.json` 全文のシリアライズが複数回発生し、数百件で GAS の実行時間 6 分上限に
+   近づきます（途中で切れると部分反映）。`mutateMany` は**1 回のロックで 1 読み・N 件更新・1 書き**です
+5. **「検査してから書く」処理も `mutateMany` の中で行う**（例: `users.upsert` の「admin は何人いるか」）。
+   ロックの外で数えて中で書くと、同時実行で両方が検査を通ります（admin 0 人 = 全員ロックアウト）
+6. **新規作成は `putItem(..., { expectedRevision: 0 })`**。`getItem` での重複チェックはロックの外なので、
+   同じ id を同時に作ると 2 件目が静かに上書きします。`expectedRevision: 0` は「まだ存在しないこと」の
+   原子的な要求になります（保存される revision は必ず 1 以上）
+7. **ドキュメント id をキーにしたマップは `Object.create(null)` か `hasOwnProperty` 経由で読む**。
+   id は自由入力（メンバーの表記・メールアドレス・調整値のキー）なので、`constructor` / `toString` /
+   `__proto__` のような値が来ます。素の `{}` だと継承プロパティを掴んだり 1 件消えたりします
+   （`Storage` 側は `specWebOwnItem_` / prototype を外した items マップで対策済み）
+8. **ソース・コメントに生の U+2028 / U+2029（行区切り文字）を書かない**。正規表現リテラルの中に
+   入れると `SyntaxError` になり、**GAS ではプロジェクト全体が読み込めなくなります**。` ` と書きます
 
 ## 8. ローカルテストの実行
 
@@ -267,6 +308,14 @@ node --test Tools/SpecWeb/test
 
 ```powershell
 & "C:\Program Files\nodejs\node.exe" --test "Tools/SpecWeb/test/*.test.js"
+```
+
+Node.js がインストールされていないマシンでも、**VS Code 同梱の Electron を Node として使えば実行できます**
+（2026-09-17 に実際にこの方法で全件実行した。ディレクトリ指定は効かないのでファイル glob を渡すこと）:
+
+```powershell
+$env:ELECTRON_RUN_AS_NODE = "1"
+& "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" --test (Get-ChildItem Tools/SpecWeb/test/*.test.js).FullName
 ```
 
 `test/load-gas.js` が `src/**/*.js` を Node の `vm` モジュールで 1 つの共有コンテキストに読み込み、

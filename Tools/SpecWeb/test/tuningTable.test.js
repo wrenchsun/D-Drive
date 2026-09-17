@@ -12,7 +12,7 @@ const VIEWER = { principal: 'viewer@example.com', role: 'viewer' };
 const ADMIN = { principal: 'admin@example.com', role: 'admin' };
 
 function callApi(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth });
 }
 
 function createEnemyTable(ctx) {

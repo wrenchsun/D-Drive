@@ -6,7 +6,7 @@
    * 後続チケット（各画面 html）は、自分の画面を追加する html ファイルの中で
    * `registerScreen('assets', function (root) { ... })` のように呼ぶだけで、この App.html や
    * Index.html を編集せずに画面を追加できる。画面 html は Index.html から
-   * `<?!= include('html/Assets'); ?>` のように、この App.html より後に include すること
+   * `<?!= include_('html/Assets'); ?>` のように、この App.html より後に include すること
    * （スクリプトはドキュメント順に実行されるため、registerScreen が先に定義済みである必要がある）。
    *
    * 2026-09-14 追補（実デプロイで判明した誤りの修正、docs/32_spec_web.md §2.4 訂正）:

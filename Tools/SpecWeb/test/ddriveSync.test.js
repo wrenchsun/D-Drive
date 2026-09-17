@@ -4,6 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas } = require('./load-gas.js');
 
+// 2026-09-17 追補（docs/41 P1-3 の修正に追随）: `issueApiToken` 等の**公開名**の運用関数は
+// admin セッション必須になった（`specWebAssertAdminSession_`）。ここでのトークン発行・移行・
+// ユーザー登録は「テストの前提を組み立てる」ためのものなので、内部実装（末尾 `_`）を直接呼ぶ。
+// 公開名の関数が admin セッション無しで必ず失敗することは test/globals.test.js が固定している。
+
 // W-12 AC: choices/assetState/tuningUsage の送信 API + レート制限 +
 // 「書き込みトークンで choices/assetState/tuningUsage 以外を呼ぶと拒否される」ゲート。
 // (docs/32_spec_web.md §8 W-12, §5.2, §7 / Tools/SpecWeb/src/DDriveSync.js, src/Code.js)
@@ -17,7 +22,7 @@ function viewerAuth() {
 }
 
 function call(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth || editorAuth() });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth || editorAuth() });
 }
 
 function assetsFixture(items) {
@@ -232,7 +237,7 @@ test('レート制限: 別の principal は上限の影響を受けない', () =
 
 test('書き込みトークンで choices/assetState/tuningUsage は呼べる', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   const output = ctx.doPost({
     parameter: { api: '1', name: 'tuningUsage', token: token, payload: JSON.stringify({ unusedKeys: [] }) }
   });
@@ -243,7 +248,7 @@ test('書き込みトークンで choices/assetState/tuningUsage は呼べる', 
 // O-6（D-Drive 側、2026-09-14）: assetParams を許可表に追加した。
 test('書き込みトークンで assetParams は呼べる（O-6、パラメータスキーマ + 現在値の一方向送信）', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   const payload = {
     schemas: [{ assetType: 'Se', concreteType: 'SeData', fields: [{ name: 'Volume', type: 'float', tooltip: '', min: 0, max: 1 }] }],
     items: []
@@ -258,7 +263,7 @@ test('書き込みトークンで assetParams は呼べる（O-6、パラメー�
 
 test('書き込みトークンで tuningScalarUpdate を呼ぶと 403 で拒否される(値そのものは書き換えられない)', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   const output = ctx.doPost({
     parameter: {
       api: '1',
@@ -274,7 +279,7 @@ test('書き込みトークンで tuningScalarUpdate を呼ぶと 403 で拒否�
 
 test('書き込みトークンで assets.update を呼ぶと 403 で拒否される(企画が入力した内容は書き換えられない)', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   const output = ctx.doPost({
     parameter: {
       api: '1',
@@ -291,7 +296,7 @@ test('書き込みトークンで assets.update を呼ぶと 403 で拒否され
 
 test('書き込みトークンで tuningTableUpdateCell を呼ぶと 403 で拒否される', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   const output = ctx.doPost({
     parameter: { api: '1', name: 'tuningTableUpdateCell', token: token, payload: JSON.stringify({ key: 'Enemy/Params' }) }
   });
@@ -302,7 +307,7 @@ test('書き込みトークンで tuningTableUpdateCell を呼ぶと 403 で拒�
 
 test('読み取りトークンで choices を呼ぶと editor 未満のため 403 で拒否される(role チェックの方で拒否)', () => {
   const ctx = loadGas();
-  const token = ctx.issueApiToken('read');
+  const token = ctx.specWebIssueApiToken_('read');
   const output = ctx.doPost({
     parameter: { api: '1', name: 'choices', token: token, payload: JSON.stringify({ assetTypes: [] }) }
   });
@@ -311,7 +316,11 @@ test('読み取りトークンで choices を呼ぶと editor 未満のため 40
   assert.equal(body.status, 403);
 });
 
-test('Google ログイン(① 相当、admin)は許可リストの制約を受けず tuningScalarUpdate を呼べる', () => {
+// 2026-09-17（docs/41 P1-4 の仕様変更に追随）: `?api=1` は API トークン必須になり、Google
+// セッションへのフォールバックは廃止された（docs/32 §2.3.1(2)）。admin でログインしていても
+// token 無しの `?api=1` は 401 になる。「kind 許可リストは token の種別で決まり、
+// 読み取りトークンでは choices すら呼べない」ことは上の 403 のテストで担保している。
+test('?api=1 は admin でログインしていても token が無ければ 401（セッションフォールバック廃止）', () => {
   const ctx = loadGas({
     activeUserEmail: 'admin@example.com',
     driveFiles: {
@@ -320,8 +329,62 @@ test('Google ログイン(① 相当、admin)は許可リストの制約を受�
       })
     }
   });
-  // 存在しないキーなので 404 になるが、403(kind 許可リスト)には引っかからないことを確認する。
   const output = ctx.doGet({ parameter: { api: '1', name: 'tuningScalarUpdate', payload: JSON.stringify({ key: 'No/Such', revision: 1 }) } });
   const body = JSON.parse(output.getContent());
-  assert.equal(body.status, 404);
+  assert.equal(body.ok, false);
+  assert.equal(body.status, 401);
+});
+
+// ── 2026-09-17（docs/41 P2-11）: 一括反映の書き込み回数 ──
+
+test('assetState: 複数件を送っても assets.json への書き込みは 1 回だけ（Storage.mutateMany）', () => {
+  const ctx = loadGas({
+    driveFiles: assetsFixture({
+      'Se::A': {
+        id: 'Se::A', assetType: 'Se', identifier: 'A', displayName: 'A', status: '発注済',
+        comments: [], archived: false, revision: 1, updatedBy: 'x', updatedAt: 'x'
+      },
+      'Se::B': {
+        id: 'Se::B', assetType: 'Se', identifier: 'B', displayName: 'B', status: '発注済',
+        comments: [], archived: false, revision: 1, updatedBy: 'x', updatedAt: 'x'
+      },
+      'Se::C': {
+        id: 'Se::C', assetType: 'Se', identifier: 'C', displayName: 'C', status: '発注済',
+        comments: [], archived: false, revision: 1, updatedBy: 'x', updatedAt: 'x'
+      }
+    })
+  });
+  const writesBefore = ctx.__fakes.drive.writeCount('assets.json');
+
+  const result = call(ctx, 'assetState', {
+    payload: JSON.stringify({
+      items: [
+        { id: 'Se::A', created: true, isPlaceholder: false },
+        { id: 'Se::B', created: false, isPlaceholder: false },
+        { id: 'Se::C', created: true, isPlaceholder: true },
+        { id: 'Se::NotExist', created: true, isPlaceholder: false }
+      ]
+    })
+  });
+
+  assert.deepEqual(Array.from(result.updatedIds), ['Se::A', 'Se::B', 'Se::C']);
+  assert.deepEqual(Array.from(result.skippedIds), ['Se::NotExist']);
+  assert.equal(
+    ctx.__fakes.drive.writeCount('assets.json') - writesBefore,
+    1,
+    '1 件ごとに putItem していた頃は件数ぶん（+状態変更分）書き込んでいた'
+  );
+
+  // 反映内容は 1 件ずつ書いていたときと同じ。
+  assert.equal(ctx.Storage.getItem('assets', 'Se::A').status, 'インポート済');
+  assert.equal(ctx.Storage.getItem('assets', 'Se::B').ddriveState.created, false);
+  assert.equal(ctx.Storage.getItem('assets', 'Se::C').ddriveState.isPlaceholder, true);
+});
+
+test('assetState: items が空なら Drive への書き込みも読み込みも起きない', () => {
+  const ctx = loadGas();
+  const writesBefore = ctx.__fakes.drive.writeCount('assets.json');
+  const result = call(ctx, 'assetState', { payload: JSON.stringify({ items: [] }) });
+  assert.equal(result.updatedIds.length, 0);
+  assert.equal(ctx.__fakes.drive.writeCount('assets.json'), writesBefore);
 });

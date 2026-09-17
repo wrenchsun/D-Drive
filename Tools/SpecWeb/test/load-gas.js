@@ -47,6 +47,14 @@ function createFakeDriveApp_(initialFiles, options) {
   // `options.shareShouldFail` を渡すと、共有・共有解除の呼び出しが常に例外を投げる
   // （「Drive での共有に失敗しても users.json への追加自体は成功する」ケースの検証用）。
   const editorsByFolder = new Map();
+  // 2026-09-17（docs/41 P2-11）: ファイル名ごとの書き込み回数。
+  // 「N 件の一括反映で <collection>.json への書き込みが 1 回だけ」を検証するために数える
+  // （`Storage.mutateMany` が 1 ロック内で 1 読み・N 件更新・1 書きになっていること）。
+  const writeCounts = new Map();
+
+  function countWrite(name) {
+    writeCounts.set(name, (writeCounts.get(name) || 0) + 1);
+  }
 
   function getOrCreateFolder(id) {
     if (!folders.has(id)) {
@@ -75,6 +83,7 @@ function createFakeDriveApp_(initialFiles, options) {
       },
       setContent(content) {
         filesMap.set(name, content);
+        countWrite(name);
       }
     };
   }
@@ -98,6 +107,7 @@ function createFakeDriveApp_(initialFiles, options) {
         },
         createFile(name, content) {
           filesMap.set(name, content);
+          countWrite(name);
           return fileWrapper(filesMap, name);
         },
         addEditor(email) {
@@ -116,7 +126,18 @@ function createFakeDriveApp_(initialFiles, options) {
     }
   };
 
-  return { DriveApp, defaultFolderId: DEFAULT_FOLDER_ID, files: defaultFolder, folders, editorsByFolder };
+  return {
+    DriveApp,
+    defaultFolderId: DEFAULT_FOLDER_ID,
+    files: defaultFolder,
+    folders,
+    editorsByFolder,
+    writeCounts,
+    /** `<collection>.json` が書かれた回数（docs/41 P2-11 の回帰テスト用）。 */
+    writeCount(fileName) {
+      return writeCounts.get(fileName) || 0;
+    }
+  };
 }
 
 function createFakePropertiesService_(initial) {
@@ -214,7 +235,9 @@ function createFakeHtmlService_() {
     return output;
   }
   const HtmlService = {
-    XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
+    // DEFAULT は 2026-09-17（docs/41 整理項目）で renderUi_ が使うようになった値。
+    // ALLOWALL も §4.6（埋め込み、v2）で戻す可能性があるため残す。
+    XFrameOptionsMode: { ALLOWALL: 'ALLOWALL', DEFAULT: 'DEFAULT' },
     createHtmlOutput(content) {
       return fakeOutput(content);
     },

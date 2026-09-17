@@ -110,7 +110,12 @@ REM スキップするだけで CI 全体を失敗させない([11_tasks.md] 6-7
 if exist "%PROJECT_PATH%\Builds\DDriveNetCheck\DDriveNetCheck.exe" (
     echo [6/6] NetCheck^(6-7、2 クライアント自動テスト^)を実行します...
     call "%~dp0run-netcheck.cmd"
-    if not "%ERRORLEVEL%"=="0" (
+    REM 2026-09-17 修正: 括弧ブロックの中では %ERRORLEVEL% はブロックに入る前の値
+    REM ＝ここでは [5/6] Performance の結果 に展開されるため、call の結果は
+    REM !ERRORLEVEL!＝遅延展開 で読む。さらに call 先の chcp 等で ERRORLEVEL が
+    REM 上書きされる余地を潰すため、直後に NETCHECK_EXIT へ退避してから判定する。
+    set "NETCHECK_EXIT=!ERRORLEVEL!"
+    if not "!NETCHECK_EXIT!"=="0" (
         echo [FAIL] NetCheck。ログ: %RESULTS_DIR%\NetCheck\summary.md
         set "OVERALL_EXIT=1"
     ) else (

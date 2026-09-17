@@ -13,7 +13,7 @@ const VIEWER = { principal: 'viewer@example.com', role: 'viewer' };
 const ADMIN = { principal: 'admin@example.com', role: 'admin' };
 
 function callApi(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth });
 }
 
 function createFloatEntry(ctx, overrides) {
@@ -263,7 +263,11 @@ test('tuningScalarGet: 存在しないキーは 404 相当', () => {
   });
 });
 
-test('doGet 経由でも同じ検証が働く（token 無しの Google セッションでも 400 が返る）', () => {
+// 2026-09-17（docs/41 P1-4 の仕様変更に追随、docs/32 §2.3.1(2)）: `?api=1` は API トークン
+// 必須になり、Google セッションへのフォールバックは廃止された。**認証は入力検証より先**に
+// 行われるため、token 無しではキーの形が不正でも 400 ではなく 401 になる。
+// 入力検証そのものは上の（getApi_ 直呼びの）テストが担保している。
+test('doGet 経由: token 無しの ?api=1 は Google セッションがあっても 401（入力検証より先に拒否）', () => {
   const ctx = loadGas({
     activeUserEmail: 'editor@example.com',
     driveFiles: { 'users.json': JSON.stringify({ items: { 'editor@example.com': { id: 'editor@example.com', email: 'editor@example.com', displayName: 'E', role: 'editor', revision: 1 } } }) }
@@ -273,5 +277,18 @@ test('doGet 経由でも同じ検証が働く（token 無しの Google セッシ
   });
   const body = JSON.parse(output.getContent());
   assert.equal(body.ok, false);
-  assert.equal(body.status, 400);
+  assert.equal(body.status, 401);
+});
+
+// 2026-09-17（docs/41 P2-13）: 作成系は expectedRevision:0 で「まだ存在しないこと」を
+// ロックの中で要求する。既存キーに対する作成が（メッセージはそのままで）拒否されることを固定する。
+test('tuningScalarCreate: 既存キーへの作成は拒否される（重複チェック + expectedRevision:0 の二重防御）', () => {
+  const ctx = loadGas();
+  const created = createFloatEntry(ctx).item;
+  assert.throws(() => createFloatEntry(ctx), (err) => {
+    assert.match(err.message, /既に存在します|revision/);
+    return true;
+  });
+  const reread = ctx.Storage.getItem('tuning', created.id);
+  assert.equal(reread.revision, 1, '2 件目に静かに上書きされない');
 });

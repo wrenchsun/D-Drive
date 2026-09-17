@@ -11,7 +11,7 @@ const EDITOR = { principal: 'editor@example.com', role: 'editor' };
 const VIEWER = { principal: 'viewer@example.com', role: 'viewer' };
 
 function callApi(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth });
 }
 
 function createScalar(ctx) {

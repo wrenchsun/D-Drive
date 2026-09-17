@@ -4,6 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas } = require('./load-gas.js');
 
+// 2026-09-17 追補（docs/41 P1-3 の修正に追随）: `issueApiToken` 等の**公開名**の運用関数は
+// admin セッション必須になった（`specWebAssertAdminSession_`）。ここでのトークン発行・移行・
+// ユーザー登録は「テストの前提を組み立てる」ためのものなので、内部実装（末尾 `_`）を直接呼ぶ。
+// 公開名の関数が admin セッション無しで必ず失敗することは test/globals.test.js が固定している。
+
 // O-14 AC: ログイン許可（users.json）の Web 管理 API。
 // admin のみ許可 / editor・viewer・トークンは拒否 / 最後の admin・自分自身の削除・降格拒否 /
 // 正規化・重複（更新扱い） / Drive 共有失敗時も追加・削除自体は成功する。
@@ -40,7 +45,7 @@ function ddriveReadAuth() {
 }
 
 function call(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth });
 }
 
 function twoAdminsFixture() {
@@ -235,7 +240,7 @@ test('users.remove: shareFolderRemove=true でも Drive 共有解除が失敗し
 
 test('D-Drive の write トークンで users.upsert/users.remove/users.list は呼べない（許可リスト外の API）', () => {
   const ctx = loadGas({ driveFiles: usersFixture([{ email: 'admin@example.com', displayName: '管理者', role: 'admin' }]) });
-  const token = ctx.issueApiToken('write');
+  const token = ctx.specWebIssueApiToken_('write');
   ['users.list', 'users.upsert', 'users.remove'].forEach((name) => {
     const output = ctx.doPost({ parameter: { api: '1', name: name, token: token, email: 'x@example.com' } });
     const body = JSON.parse(output.getContent());
@@ -243,4 +248,19 @@ test('D-Drive の write トークンで users.upsert/users.remove/users.list は
     assert.equal(body.status, 403);
     assert.match(body.error, /書き込みトークンで呼べる API ではありません/);
   });
+});
+
+// ── 2026-09-17（docs/41 整理項目）: role 省略時の既定 ──
+
+test('users.upsert: role を省略しても既存のロールは保たれる（表示名だけの更新で admin が降格しない）', () => {
+  const ctx = loadGas({ driveFiles: twoAdminsFixture() });
+  const result = call(ctx, 'users.upsert', { email: 'admin2@example.com', displayName: '管理者2（改名）' }, adminAuth('admin@example.com'));
+  assert.equal(result.item.role, 'admin', 'role 省略 = 変更しない（以前は無条件に editor へ降格していた）');
+  assert.equal(result.item.displayName, '管理者2（改名）');
+});
+
+test('users.upsert: 新規追加で role を省略した場合は従来どおり editor', () => {
+  const ctx = loadGas({ driveFiles: usersFixture([{ email: 'admin@example.com', displayName: '管理者', role: 'admin' }]) });
+  const result = call(ctx, 'users.upsert', { email: 'new@example.com', displayName: '新人' }, adminAuth());
+  assert.equal(result.item.role, 'editor');
 });

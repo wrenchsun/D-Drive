@@ -27,7 +27,7 @@ function specWebOrderGroupsError_(message, status) {
 }
 
 function specWebOrderGroupsRequireEditor_(auth) {
-  if (!hasRole(auth, SPEC_WEB_ROLES.EDITOR)) {
+  if (!hasRole_(auth, SPEC_WEB_ROLES.EDITOR)) {
     throw specWebOrderGroupsError_('この操作には編集権限が必要です（viewer は読み取りのみ）', 403);
   }
 }
@@ -60,6 +60,18 @@ function specWebParseOrderGroupPatch_(params) {
 function specWebValidateOrderGroupFields_(fields, options) {
   options = options || {};
   var errors = {};
+  // 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) 整理項目）:
+  // `specWebUiCall`（google.script.run）はプレーン JSON をそのまま渡すため、`e.parameter` 経由と
+  // 違って数値・オブジェクト・配列が届き得る。書き込み可能フィールドは全て文字列なので型を先に弾く
+  // （null / undefined は「未設定」として従来どおり許容）。
+  SPEC_WEB_ORDER_GROUP_WRITABLE_FIELDS.forEach(function (key) {
+    if (!Object.prototype.hasOwnProperty.call(fields, key)) return;
+    var value = fields[key];
+    if (value === undefined || value === null) return;
+    if (typeof value !== 'string') {
+      errors[key] = key + ' は文字列で渡してください';
+    }
+  });
   if (!options.partial && (fields.name === undefined || String(fields.name).trim() === '')) {
     errors.name = '名前は必須です';
   }
@@ -76,11 +88,11 @@ function specWebOrderGroupItemsArray_() {
   });
 }
 
-registerApi('orderGroups.list', function () {
+registerApi_('orderGroups.list', function () {
   return { items: specWebOrderGroupItemsArray_() };
 });
 
-registerApi('orderGroups.get', function (ctx) {
+registerApi_('orderGroups.get', function (ctx) {
   var id = ctx.params.id;
   if (!id) throw specWebOrderGroupsError_('id は必須です', 400);
   var item = Storage.getItem(SPEC_WEB_ORDER_GROUPS_COLLECTION, id);
@@ -88,7 +100,7 @@ registerApi('orderGroups.get', function (ctx) {
   return { item: item };
 });
 
-registerApi('orderGroups.create', function (ctx) {
+registerApi_('orderGroups.create', function (ctx) {
   specWebOrderGroupsRequireEditor_(ctx.auth);
   var fields = specWebParseOrderGroupPatch_(ctx.params);
   var errors = specWebValidateOrderGroupFields_(fields, { partial: false });
@@ -102,7 +114,7 @@ registerApi('orderGroups.create', function (ctx) {
   return { item: saved };
 });
 
-registerApi('orderGroups.update', function (ctx) {
+registerApi_('orderGroups.update', function (ctx) {
   specWebOrderGroupsRequireEditor_(ctx.auth);
   var params = ctx.params;
   var id = params.id;
@@ -127,7 +139,7 @@ registerApi('orderGroups.update', function (ctx) {
   return { item: saved };
 });
 
-registerApi('orderGroups.delete', function (ctx) {
+registerApi_('orderGroups.delete', function (ctx) {
   specWebOrderGroupsRequireEditor_(ctx.auth);
   var params = ctx.params;
   var id = params.id;
@@ -151,7 +163,7 @@ registerApi('orderGroups.delete', function (ctx) {
   return { deleted: true };
 });
 
-registerApi('orderGroups.comments.add', function (ctx) {
+registerApi_('orderGroups.comments.add', function (ctx) {
   specWebOrderGroupsRequireEditor_(ctx.auth);
   var params = ctx.params;
   var id = params.id;

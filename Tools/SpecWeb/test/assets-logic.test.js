@@ -265,6 +265,24 @@ test('renderMarkdownSafe: リンクは target="_blank" rel="noopener" で開き�
   const html = logic.renderMarkdownSafe('[参考動画](https://example.com/video) ![説明](https://example.com/a.png)');
   assert.match(html, /<a href="https:\/\/example\.com\/video" target="_blank" rel="noopener">参考動画<\/a>/);
   assert.match(html, /<img[^>]*src="https:\/\/example\.com\/a\.png"/);
+  // 2026-09-17（docs/41 P2-16）: alt に「説明」が入る（以前は演算子の優先順位ミスで
+  // `.replace` が最後の文字列リテラルにしか掛からず、alt に URL がそのまま入っていた）。
+  assert.match(html, /<img alt="説明"/);
+  assert.doesNotMatch(html, /alt="https:/);
+});
+
+test('renderMarkdownSafe: 画像の alt は属性としてエスケープ済みのまま入る（P2-16、XSS にしない）', () => {
+  const logic = load();
+  const html = logic.renderMarkdownSafe('![" onerror="alert(1)](https://example.com/a.png)');
+  // 入力全体を先に escapeHtml_ しているため、alt 内の " は &quot; になっており属性を閉じられない。
+  assert.match(html, /<img alt="&quot; onerror=&quot;alert\(1\)" src="https:\/\/example\.com\/a\.png" \/>/);
+  assert.doesNotMatch(html, /onerror="/);
+});
+
+test('renderMarkdownSafe: 画像の alt が空でも img タグになる', () => {
+  const logic = load();
+  const html = logic.renderMarkdownSafe('![](https://example.com/a.png)');
+  assert.match(html, /<img alt="" src="https:\/\/example\.com\/a\.png" \/>/);
 });
 
 test('renderMarkdownSafe: javascript: リンクは無効化され、テキストだけが残る', () => {

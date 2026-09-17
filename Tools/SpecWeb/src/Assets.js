@@ -181,7 +181,7 @@ function specWebBuildAssetId_(assetType, identifier) {
 }
 
 function specWebRequireEditor_(auth) {
-  if (!hasRole(auth, SPEC_WEB_ROLES.EDITOR)) {
+  if (!hasRole_(auth, SPEC_WEB_ROLES.EDITOR)) {
     throw specWebAssetsError_('この操作には編集権限が必要です（viewer は読み取りのみ）', 403);
   }
 }
@@ -234,10 +234,34 @@ function specWebSanitizeAssetPatch_(rawPatch) {
  * options.partial=true のときは「フィールドが存在する場合だけ検証する」（更新の部分パッチ用）。
  * @return {Object<string,string>} フィールド名 → エラーメッセージ。空オブジェクトなら検証 OK。
  */
+/**
+ * 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) 整理項目）:
+ * 「文字列で入るはずのフィールド」の一覧。`specWebUiCall`（google.script.run）は
+ * プレーン JSON をそのまま渡すため、`e.parameter` 経由（必ず文字列になる）と違って
+ * 数値・真偽値・オブジェクト・配列がそのまま届き得る。型だけを先に弾く。
+ * `referenceImages` / `relatedFeaturePages` は配列なのでここには含めない（別に検証済み）。
+ */
+var SPEC_WEB_ASSET_STRING_FIELDS = [
+  'assetType', 'category', 'identifier', 'displayName', 'status',
+  'orderer', 'contractor', 'orderDate', 'dueDate', 'deliveredDate',
+  'priority', 'referenceMd', 'parentId', 'fileFormat', 'fileName'
+];
+
 function specWebValidateAssetFields_(fields, options) {
   options = options || {};
   var partial = !!options.partial;
   var errors = {};
+
+  // 型（文字列かどうか）を最初に見る。null / undefined は「未設定」として従来どおり許容し、
+  // 以降の検証（選択肢・PascalCase・日付形式・長さ）はこれを通ったものだけが対象になる。
+  SPEC_WEB_ASSET_STRING_FIELDS.forEach(function (key) {
+    if (!Object.prototype.hasOwnProperty.call(fields, key)) return;
+    var value = fields[key];
+    if (value === undefined || value === null) return;
+    if (typeof value !== 'string') {
+      errors[key] = key + ' は文字列で渡してください';
+    }
+  });
 
   function isBlank(v) {
     return v === undefined || v === null || String(v).trim() === '';
@@ -382,7 +406,7 @@ function specWebAssetItemsArray_() {
   });
 }
 
-registerApi('whoami', function (ctx) {
+registerApi_('whoami', function (ctx) {
   var auth = ctx.auth;
   return {
     email: auth.email || null,
@@ -392,7 +416,7 @@ registerApi('whoami', function (ctx) {
   };
 });
 
-registerApi('assets.list', function (ctx) {
+registerApi_('assets.list', function (ctx) {
   var params = ctx.params;
   var includeArchived = params.includeArchived === '1' || params.includeArchived === 'true';
   var items = specWebFilterAssetItems_(specWebAssetItemsArray_(), {
@@ -415,7 +439,7 @@ registerApi('assets.list', function (ctx) {
   };
 });
 
-registerApi('assets.get', function (ctx) {
+registerApi_('assets.get', function (ctx) {
   var id = ctx.params.id;
   if (!id) throw specWebAssetsError_('id は必須です', 400);
   var item = Storage.getItem(SPEC_WEB_ASSETS_COLLECTION, id);
@@ -425,7 +449,7 @@ registerApi('assets.get', function (ctx) {
   return { item: normalized, warnings: specWebComputeFileWarnings_(normalized) };
 });
 
-registerApi('assets.create', function (ctx) {
+registerApi_('assets.create', function (ctx) {
   var auth = ctx.auth;
   specWebRequireEditor_(auth);
 
@@ -452,11 +476,25 @@ registerApi('assets.create', function (ctx) {
   if (toSave.fileFormat === undefined) toSave.fileFormat = '';
   if (toSave.fileName === undefined) toSave.fileName = '';
 
-  var saved = Storage.putItem(SPEC_WEB_ASSETS_COLLECTION, id, toSave, { actor: specWebActor_(auth) });
+  // 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-13）:
+  // 上の重複チェックはロックの外なので、同じ id を同時に作ると 2 件目が revision=2 で
+  // 静かに上書きしてしまう（後勝ち）。`expectedRevision: 0` =「まだ存在しないこと」を
+  // ロックの中で原子的に要求し、負けた側は 409（RevisionConflictError）で落とす。
+  var saved = Storage.putItem(SPEC_WEB_ASSETS_COLLECTION, id, toSave, {
+    actor: specWebActor_(auth),
+    expectedRevision: 0
+  });
+
+  // 2026-09-17（[41] P2-14）: この id が「リネームで消えた旧 id」として `assetRenames` に
+  // 残っていた場合、その記録はもう嘘になる（A→B→C とリネームした後に改めて B を新規作成すると、
+  // `?page=order&id=B` のリンクが新しい B ではなく C に飛んでしまう）。`assetRenames` のキーは
+  // 「今は実在しない id」だけである、という不変条件をここで回復する。
+  specWebForgetAssetRename_(id);
+
   return { item: saved, warnings: specWebComputeFileWarnings_(saved) };
 });
 
-registerApi('assets.update', function (ctx) {
+registerApi_('assets.update', function (ctx) {
   var auth = ctx.auth;
   specWebRequireEditor_(auth);
 
@@ -477,7 +515,17 @@ registerApi('assets.update', function (ctx) {
     throw specWebAssetsError_('識別子は更新できません（削除して作り直してください）', 400);
   }
 
-  var errors = specWebValidateAssetFields_(fields, { partial: true });
+  // 2026-09-17（P1-4）: status が現在値と同じなら「変更なし」として検証から外す。
+  // 「インポート済」は手動設定を禁じているため、その状態の発注を patch に status を
+  // 含めて更新しようとすると（古いクライアントや手動の API 呼び出し）400 になっていた。
+  // 変更を伴わない値で拒否はしない。状態を進めるのは advanceStatus の役目。
+  var validated = fields;
+  if (fields.status !== undefined && fields.status === current.status) {
+    validated = Object.assign({}, fields);
+    delete validated.status;
+  }
+
+  var errors = specWebValidateAssetFields_(validated, { partial: true });
   if (Object.keys(errors).length > 0) {
     throw specWebAssetsError_(specWebJoinErrors_(errors), 400);
   }
@@ -518,9 +566,29 @@ function specWebAssetCanRename_(item) {
  * @param {string} id
  * @return {string}
  */
+/**
+ * 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-14）:
+ * 「その id はもう実在しない」という `assetRenames` の記録を消す。
+ *
+ * `assetRenames[X] = {newId}` は「X という発注は今は存在せず newId に移った」という意味しか
+ * 持たないため、X が再び実在する id になった瞬間（新規作成された・リネーム先になった）に
+ * 記録は嘘になる。解決時（`specWebResolveAssetRenameChain_`）に毎ステップ `assets` の実在を
+ * 確認する方法もあるが、1 リンクを開くたびに `assets.json` 全文の読み込みが最大 10 回増え、
+ * かつ嘘の記録が残り続ける。**書き込み側（create / rename、どちらも人の操作で頻度が低い）で
+ * 不変条件を保つ方を選んだ。**
+ *
+ * @param {string} id これから実在するようになる id
+ */
+function specWebForgetAssetRename_(id) {
+  // 存在しなければ deleteItem は false を返すだけで書き込みもしない（例外にしない）。
+  Storage.deleteItem(SPEC_WEB_ASSET_RENAMES_COLLECTION, id, {});
+}
+
 function specWebResolveAssetRenameChain_(id) {
   var current = String(id || '');
-  var visited = {};
+  // 素の {} だと `constructor` 等の id で「既に訪れた」と誤判定するため prototype 無しにする
+  // （2026-09-17、[41] P2-15 と同根）。
+  var visited = Object.create(null);
   for (var i = 0; i < 10 && current; i++) {
     if (visited[current]) break;
     visited[current] = true;
@@ -545,7 +613,7 @@ function specWebResolveAssetRenameChain_(id) {
  * D-Drive の書き込みトークンからは呼べない（Code.js の DDRIVE_WRITE_TOKEN_ALLOWED_APIS に
  * 含めていないため、handleApiRequest_ が 403 で拒否する）。
  */
-registerApi('assets.rename', function (ctx) {
+registerApi_('assets.rename', function (ctx) {
   var auth = ctx.auth;
   specWebRequireEditor_(auth);
 
@@ -591,6 +659,12 @@ registerApi('assets.rename', function (ctx) {
     expectedRevision: expectedRevision
   });
 
+  // 2026-09-17（[41] P2-14）: newId は今この瞬間から実在する id になったので、
+  // 「newId はもう存在しない」という古い記録が残っていたら先に消す（不変条件の回復。
+  // 例: A→B→C の後に C→B と戻した場合、assetRenames[B]=C が残っていると B のリンクが
+  // 自分自身を指した先（C）へ飛んでしまう）。
+  specWebForgetAssetRename_(newId);
+
   // O-13 のコピー済みリンク（?page=order&id=旧id）が引き続き開けるよう、旧 id → 新 id の
   // 付け替えを記録する（resolveInitialScreen_ が specWebResolveAssetRenameChain_ で解決する）。
   Storage.putItem(SPEC_WEB_ASSET_RENAMES_COLLECTION, id, { newId: newId }, { actor: specWebActor_(auth) });
@@ -598,7 +672,7 @@ registerApi('assets.rename', function (ctx) {
   return { item: saved, warnings: specWebComputeFileWarnings_(saved) };
 });
 
-registerApi('assets.delete', function (ctx) {
+registerApi_('assets.delete', function (ctx) {
   var auth = ctx.auth;
   specWebRequireEditor_(auth);
 
@@ -619,7 +693,7 @@ registerApi('assets.delete', function (ctx) {
   return { item: saved };
 });
 
-registerApi('assets.restore', function (ctx) {
+registerApi_('assets.restore', function (ctx) {
   var auth = ctx.auth;
   specWebRequireEditor_(auth);
 
@@ -640,7 +714,7 @@ registerApi('assets.restore', function (ctx) {
   return { item: saved };
 });
 
-registerApi('assets.comments.add', function (ctx) {
+registerApi_('assets.comments.add', function (ctx) {
   var auth = ctx.auth;
   specWebRequireEditor_(auth);
 

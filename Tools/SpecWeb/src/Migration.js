@@ -16,7 +16,7 @@
  *     未移行データでも assets.list/assets.get は常に新スキーマの形で返す（この関数を経由するのは
  *     Assets.js の specWebAssetItemsArray_/assets.get のみ）。
  *   - migrateLegacyOrdersToNewSchema は「実データを一度だけ物理的に書き換える」移行スクリプト
- *     （admin が Apps Script エディタから直接実行するか、registerApi('migration.runLegacyOrders')
+ *     （admin が Apps Script エディタから直接実行するか、registerApi_('migration.runLegacyOrders')
  *     経由で叩く）。二重実行しても安全（すでに新3値の status を持つ項目はスキップする＝冪等）。
  */
 
@@ -61,9 +61,13 @@ function specWebNormalizeLegacyOrderItem_(item) {
 /**
  * 実データの一度だけの物理移行（docs/32 §10.2.2）。すでに新3値の status を持つ項目は
  * スキップする（冪等。何度実行しても安全）。
+ *
+ * 2026-09-17（P1-1）: 実処理はこの末尾 `_` の内部関数に置き、公開名
+ * `migrateLegacyOrdersToNewSchema`（google.script.run から到達できる）は admin セッションを
+ * 要求する薄いラッパーにした。
  * @return {{migratedIds: string[]}}
  */
-function migrateLegacyOrdersToNewSchema() {
+function specWebMigrateLegacyOrders_() {
   var itemsMap = Storage.listItems(SPEC_WEB_ASSETS_COLLECTION);
   var migratedIds = [];
   Object.keys(itemsMap).forEach(function (id) {
@@ -95,9 +99,18 @@ function migrateLegacyOrdersToNewSchema() {
   return { migratedIds: migratedIds };
 }
 
+/**
+ * Apps Script エディタから手で実行する用の公開名。admin セッション必須
+ * （2026-09-17 P1-1。エディタ実行時の Session.getActiveUser() は所有者なので運用は変わらない）。
+ */
+function migrateLegacyOrdersToNewSchema() {
+  specWebAssertAdminSession_('旧スキーマの移行（migrateLegacyOrdersToNewSchema）');
+  return specWebMigrateLegacyOrders_();
+}
+
 // Web API 経由（admin ロールのみ）でも実行できるようにする（Apps Script エディタから
 // 直接 migrateLegacyOrdersToNewSchema() を呼ぶ運用と両方に対応）。
-registerApi('migration.runLegacyOrders', function (ctx) {
+registerApi_('migration.runLegacyOrders', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.ADMIN, 'この移行操作には admin 権限が必要です');
-  return migrateLegacyOrdersToNewSchema();
+  return specWebMigrateLegacyOrders_();
 });

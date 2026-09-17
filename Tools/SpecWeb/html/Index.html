@@ -4,8 +4,8 @@
     <base target="_top" />
     <meta charset="utf-8" />
     <title>D-Drive 仕様書</title>
-    <?!= include('html/Styles'); ?>
-    <!-- currentUser（Auth.js の authenticateSession 結果）をクライアント JS へ渡す。
+    <?!= include_('html/Styles'); ?>
+    <!-- currentUser（Auth.js の authenticateSession_ 結果）をクライアント JS へ渡す。
          W-8 の調整値編集 SPA が role（editor/admin）によって編集可否を切り替えるのに使う。
          initialScreen/initialParams（2026-09-14 追加）: `?page=manual&p=...`（Unity の
          「マニュアル」ボタン）・`?page=order&id=...`/`?page=group&id=...`（O-13 発注リンク）等、
@@ -14,12 +14,17 @@
          execUrl（O-13 追加）: トップの exec URL（src/Code.js の specWebExecUrl_、
          ScriptApp.getService().getUrl()）。iframe サンドボックス内では window.location が
          script.googleusercontent.com を指すため使えず、発注リンクのコピー機能はこの値を使う。
-         取得できない場合は空文字（html/OrderLinkLogic.html 側が空なら何もしない）。 -->
+         取得できない場合は空文字（html/OrderLinkLogic.html 側が空なら何もしない）。
+
+         2026-09-17（P1-3）: 4 つとも `JSON.stringify` の直書きから src/Code.js の
+         specWebJsonForScript_ 経由に変えた。`<?!= ?>` は非エスケープ出力で JSON.stringify は
+         `<` を素通しするため、値に `</script>` を含められると任意 JS が実行できた。
+         **ここに新しい値を足すときも必ず specWebJsonForScript_ を通すこと。** -->
     <script>
-      window.SpecWebCurrentUser = <?!= JSON.stringify(currentUser) ?>;
-      window.SpecWebInitialScreen = <?!= JSON.stringify(initialScreen || null) ?>;
-      window.SpecWebInitialParams = <?!= JSON.stringify(initialParams || {}) ?>;
-      window.SpecWebExecUrl = <?!= JSON.stringify(execUrl || '') ?>;
+      window.SpecWebCurrentUser = <?!= specWebJsonForScript_(currentUser) ?>;
+      window.SpecWebInitialScreen = <?!= specWebJsonForScript_(initialScreen || null) ?>;
+      window.SpecWebInitialParams = <?!= specWebJsonForScript_(initialParams || {}) ?>;
+      window.SpecWebExecUrl = <?!= specWebJsonForScript_(execUrl || '') ?>;
     </script>
   </head>
   <body>
@@ -37,37 +42,37 @@
       必ずこの App.html より後に include すること
       （ブラウザは <script> をドキュメント順に実行するため）。
     -->
-    <?!= include('html/App'); ?>
+    <?!= include_('html/App'); ?>
     <!-- O-13: 発注リンクのコピー（純粋な URL 組み立て・クリップボード fallback）。
          Assets/OrderTree の両方が使うため、それらより先に include する。 -->
-    <?!= include('html/OrderLinkLogic'); ?>
-    <?!= include('html/ClipboardCopy'); ?>
+    <?!= include_('html/OrderLinkLogic'); ?>
+    <?!= include_('html/ClipboardCopy'); ?>
     <!-- 緊急修正（2026-09-14）: 送信中表示（ボタン無効化 + 二重実行防止）とトースト通知の共通ヘルパー。
          Assets/OrderTree 等の書き込み系ボタンより先に include する。 -->
-    <?!= include('html/UiFeedback'); ?>
+    <?!= include_('html/UiFeedback'); ?>
     <!-- O-16: 発注メモ（referenceMd）の書式ツールバー挿入ロジック（純粋関数）。
          Assets.html より先に include する（buildMarkdownToolbar が window.MarkdownToolbar を使う）。 -->
-    <?!= include('html/MarkdownToolbar'); ?>
+    <?!= include_('html/MarkdownToolbar'); ?>
     <!--
       O-1〜O-5: アセット発注 一覧・詳細画面。AssetsLogic（純粋関数）→ Assets（registerScreen）の順。
-      include() は入れ子のスクリプトレットを評価しないため、AssetsLogic の include は
+      include_() は入れ子のスクリプトレットを評価しないため、AssetsLogic の include は
       Assets.html の中からではなくここに直接書く（Assets.html 側の注意コメント参照）。
     -->
-    <?!= include('html/AssetsLogic'); ?>
-    <?!= include('html/Assets'); ?>
+    <?!= include_('html/AssetsLogic'); ?>
+    <?!= include_('html/Assets'); ?>
     <!-- O-2: Presentation 発注グループ + 発注ツリー画面（OrderTreeLogic → OrderTree の順）。 -->
-    <?!= include('html/OrderTreeLogic'); ?>
-    <?!= include('html/OrderTree'); ?>
+    <?!= include_('html/OrderTreeLogic'); ?>
+    <?!= include_('html/OrderTree'); ?>
     <!-- 旧 O-4「私が発注/私が受けた」（html/MyOrders.html）は 2026-09-15 にユーザー要望で廃止した
          （一覧画面の絞り込み・並べ替え + 「自分」フィルタで代替。docs/32_spec_web.md 変更メモ参照）。 -->
     <!-- O-9/O-10: メンバー管理 + ガント URL の設定。 -->
-    <?!= include('html/Members'); ?>
+    <?!= include_('html/Members'); ?>
     <!-- W-6〜W-8: 調整値編集画面（純粋関数 = TuningGrid を先に、DOM 登録 = Tuning を後に）。O-8 でこのタブが
          新しいナビゲーションからも変わらず開けることを確認済み。 -->
-    <?!= include('html/TuningGrid'); ?>
-    <?!= include('html/Tuning'); ?>
+    <?!= include_('html/TuningGrid'); ?>
+    <?!= include_('html/Tuning'); ?>
     <!-- 2026-09-14: デザイナーマニュアル配信画面（Unity の「マニュアル」ボタンから
          `?page=manual&p=...` で開かれる。src/Manual.js の manualGet を呼ぶ）。 -->
-    <?!= include('html/Manual'); ?>
+    <?!= include_('html/Manual'); ?>
   </body>
 </html>

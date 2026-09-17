@@ -326,7 +326,7 @@
         });
     }
 
-    /** ロール階層（viewer < editor < admin）。Auth.js の hasRole と同じ判定をクライアント側でも使う。 */
+    /** ロール階層（viewer < editor < admin）。Auth.js の hasRole_ と同じ判定をクライアント側でも使う。 */
     function roleAtLeast(role, required) {
       var rank = ROLE_RANK[role];
       var requiredRank = ROLE_RANK[required];
@@ -427,8 +427,15 @@
       // 画像は先に処理する（リンク記法と構文が似ているため、! の有無で先取りする）。
       escaped = escaped.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (whole, alt, url) {
         if (!isSafeUrl_(url)) return escapeHtml_(alt);
-        // url は escapeHtml_ 済みの文字列の一部（&quot; 等を含み得る）なのでそのまま属性値に使う。
-        return '<img alt="' + url.replace(/"/g, '') + '" src="' + url + '" />'.replace('alt="' + url.replace(/"/g, '') + '"', 'alt="' + alt + '"');
+        // alt・url はどちらも「入力全体を escapeHtml_ した後の文字列」の一部なので、
+        // " は既に &quot; になっている＝属性値としてそのまま使って安全。
+        //
+        // 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-16）:
+        // 以前はここが
+        //   '<img alt="' + url.replace(...) + '" src="' + url + '" />'.replace('alt="…"', 'alt="' + alt + '"')
+        // と書かれていた。`.replace` は**直前の文字列リテラル `'" />'` にしか掛からない**
+        // （+ より . の方が優先される）ため置換は常に不発で、alt に URL が入ったままだった。
+        return '<img alt="' + alt + '" src="' + url + '" />';
       });
 
       escaped = escaped.replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, function (whole, label, url) {

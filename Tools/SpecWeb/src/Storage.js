@@ -46,8 +46,60 @@ function withStorageLock_(fn) {
   }
 }
 
+/**
+ * 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-15）:
+ * items マップの prototype を外す。
+ *
+ * ドキュメント id は自由入力が入口になり得る（`members` の id は貼り付けた表記そのもの、
+ * `users` はメールアドレス、`tuning` はキー）。素の `{}` は `Object.prototype` を継承するため、
+ * id が `constructor` / `toString` / `hasOwnProperty` だと `items[id]` が**継承した関数**を返し、
+ * 呼び出し側の `existing.revision` が `undefined`（→ `revision: NaN`）になってしまう。
+ * さらに id が `__proto__` の場合、素のオブジェクトへの `items['__proto__'] = item` は
+ * own property を作らず prototype の差し替えになるため、書いたはずの 1 件が消える。
+ * prototype を null にすれば、どの id も普通のキーとして扱える
+ * （読み取り側は `specWebOwnItem_` でも二重に守る）。
+ */
+function specWebAdoptItemsMap_(items) {
+  return Object.setPrototypeOf(items, null);
+}
+
+/**
+ * items マップから「own property として存在する 1 件」だけを返す（無ければ null）。
+ * P2-15 の二重防御。`specWebAdoptItemsMap_` を通っていないマップ（他ファイルが組んだもの）でも
+ * 継承プロパティを掴まないようにする。
+ */
+function specWebOwnItem_(items, itemId) {
+  if (!items) return null;
+  if (!Object.prototype.hasOwnProperty.call(items, itemId)) return null;
+  return items[itemId] || null;
+}
+
+/**
+ * items マップを「普通の prototype を持つオブジェクト」へ浅くコピーする（`Storage.listItems` 用）。
+ *
+ * `specWebAdoptItemsMap_` でプロトタイプを外したマップをそのまま API の戻り値にすると、
+ * `google.script.run` / `JSON.stringify` のシリアライズ挙動に依存してしまうため、外へ渡す分は
+ * 素のオブジェクトに戻す（`tuningScalarList` / `tuningTableList` は listItems の結果を
+ * そのまま返している）。
+ *
+ * `Object.assign` を使わないのは、キーが `__proto__` のとき `[[Set]]` 経由で
+ * prototype の差し替えになり 1 件消えるため（`defineProperty` なら own property になる）。
+ */
+function specWebPlainItemsCopy_(items) {
+  var copy = {};
+  Object.keys(items).forEach(function (key) {
+    Object.defineProperty(copy, key, {
+      value: items[key],
+      enumerable: true,
+      writable: true,
+      configurable: true
+    });
+  });
+  return copy;
+}
+
 function specWebEmptyCollection_() {
-  return { items: {} };
+  return { items: specWebAdoptItemsMap_({}) };
 }
 
 function specWebReadCollectionRaw_(name) {
@@ -64,6 +116,7 @@ function specWebReadCollectionRaw_(name) {
   if (!data || typeof data !== 'object' || typeof data.items !== 'object' || data.items === null) {
     return specWebEmptyCollection_();
   }
+  specWebAdoptItemsMap_(data.items);
   return data;
 }
 
@@ -75,17 +128,46 @@ function specWebNowIso_() {
   return new Date().toISOString();
 }
 
+/**
+ * 読み込み済みのコレクション（`data`）に対して 1 件を作成/更新する共通処理。
+ * `Storage.putItem`（1 件 = 1 ロック）と `Storage.mutateMany`（N 件 = 1 ロック）の**両方**が
+ * これを呼ぶため、件数によって意味が変わることが構造的に起きない
+ * （revision 検査・revision 加算・updatedBy / updatedAt の付与はここだけにある）。
+ *
+ * 呼び出し側は必ず `withStorageLock_` の中から呼ぶこと（書き込みは呼び出し側が行う）。
+ */
+function specWebPutItemInto_(data, collectionName, itemId, patch, options) {
+  options = options || {};
+  var expectedRevision = options.expectedRevision;
+  var existing = specWebOwnItem_(data.items, itemId);
+  var currentRevision = existing ? existing.revision : 0;
+  if (expectedRevision !== undefined && expectedRevision !== null && currentRevision !== expectedRevision) {
+    throw new RevisionConflictError(
+      collectionName + '/' + itemId + ' の revision が一致しません（現在: ' + currentRevision + '、要求: ' + expectedRevision + '）',
+      currentRevision
+    );
+  }
+  var next = Object.assign({}, existing, patch, {
+    id: itemId,
+    revision: currentRevision + 1,
+    updatedBy: options.actor || 'unknown',
+    updatedAt: specWebNowIso_()
+  });
+  data.items[itemId] = next;
+  return next;
+}
+
 var Storage = {
   /** 1 件取得。無ければ null。 */
   getItem: function (collectionName, itemId) {
     var data = specWebReadCollectionRaw_(collectionName);
-    return data.items[itemId] || null;
+    return specWebOwnItem_(data.items, itemId);
   },
 
   /** コレクション全件を { id: item } の形で返す。 */
   listItems: function (collectionName) {
     var data = specWebReadCollectionRaw_(collectionName);
-    return data.items;
+    return specWebPlainItemsCopy_(data.items);
   },
 
   /**
@@ -93,30 +175,92 @@ var Storage = {
    * options.expectedRevision を渡すと、現在の revision と一致しない場合に
    * RevisionConflictError を throw する（省略時は無条件で上書き＝新規作成）。
    * options.actor は updatedBy に入れる識別子（メールアドレス or トークン種別）。
+   *
+   * **`expectedRevision: 0` は「まだ存在しないこと」の原子的な要求**になる
+   * （putItem が保存する revision は必ず 1 以上なので、revision 0 = 未作成と同義）。
+   * 作成系 API（`assets.create` / `tuningScalarCreate` / `tuningTableCreate`）は、
+   * ロック外の `getItem` による重複チェックだけでは同時作成を防げないため、これを必ず渡す
+   * （2026-09-17、[41](../../docs/41_phase6_review_2026-09-17.md) P2-13）。
    */
   putItem: function (collectionName, itemId, patch, options) {
-    options = options || {};
-    var expectedRevision = options.expectedRevision;
-    var actor = options.actor || 'unknown';
     return withStorageLock_(function () {
       var data = specWebReadCollectionRaw_(collectionName);
-      var existing = data.items[itemId] || null;
-      var currentRevision = existing ? existing.revision : 0;
-      if (expectedRevision !== undefined && expectedRevision !== null && currentRevision !== expectedRevision) {
-        throw new RevisionConflictError(
-          collectionName + '/' + itemId + ' の revision が一致しません（現在: ' + currentRevision + '、要求: ' + expectedRevision + '）',
-          currentRevision
-        );
-      }
-      var next = Object.assign({}, existing, patch, {
-        id: itemId,
-        revision: currentRevision + 1,
-        updatedBy: actor,
-        updatedAt: specWebNowIso_()
-      });
-      data.items[itemId] = next;
+      var next = specWebPutItemInto_(data, collectionName, itemId, patch, options);
       specWebWriteCollectionRaw_(collectionName, data);
       return next;
+    });
+  },
+
+  /**
+   * 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-11）:
+   * **1 回のロックの中で「1 読み・N 件更新・1 書き」**を行う。
+   *
+   * `assetState` / `assetParams` / `members.importPaste` のように「D-Drive / 貼り付けから
+   * 送られてきた N 件をまとめて反映する」API のために足した。1 件ごとに `getItem` + `putItem` を
+   * 呼ぶと、1 件あたり Drive の読み書きが 3〜5 回・`<collection>.json` 全文のシリアライズが
+   * 2 回以上発生し、数百件で GAS の実行時間 6 分上限（docs/32 §2.4）に近づく。途中で切れると
+   * 部分反映にもなる（各 `putItem` は原子的なので壊れはしないが、反映済みと未反映が混ざる）。
+   *
+   * `fn(tx)` の中で使える操作（**1 件ずつ呼んだときと意味を変えない**。実体は `putItem` と
+   * 同じ `specWebPutItemInto_`）:
+   *   - `tx.get(itemId)`   現在の 1 件（同じ `fn` の中で既に put した内容も反映済み）。無ければ null
+   *   - `tx.list()`        全件の { id: item }（件数の検査等に使う。内部のマップそのものなので
+   *                        書き換えない・API の戻り値にそのまま入れない。外へ返すなら listItems）
+   *   - `tx.put(itemId, patch, { expectedRevision, actor })`  patch を merge して revision を進める
+   *   - `tx.remove(itemId, { expectedRevision })`             1 件削除（無ければ false）
+   *
+   * 書き込みは `fn` が正常に返った後に**最大 1 回**だけ行う（1 件も変更が無ければ書かない）。
+   * `fn` が例外を投げた場合は**何も書かない**（ロックは finally で解放される）ので、
+   * 「検査 → 書き込み」をまとめて原子的に行う用途にも使える（P2-17 の `users.upsert`）。
+   *
+   * @param {string} collectionName
+   * @param {function(Object):*} fn
+   * @param {{actor?: string}} [options] actor は tx.put で個別に指定しなかった場合の既定値
+   * @return {*} fn の戻り値
+   */
+  mutateMany: function (collectionName, fn, options) {
+    options = options || {};
+    var defaultActor = options.actor;
+    return withStorageLock_(function () {
+      var data = specWebReadCollectionRaw_(collectionName);
+      var dirty = false;
+      var tx = {
+        get: function (itemId) {
+          return specWebOwnItem_(data.items, itemId);
+        },
+        list: function () {
+          return data.items;
+        },
+        put: function (itemId, patch, putOptions) {
+          putOptions = putOptions || {};
+          var next = specWebPutItemInto_(data, collectionName, itemId, patch, {
+            expectedRevision: putOptions.expectedRevision,
+            actor: putOptions.actor || defaultActor
+          });
+          dirty = true;
+          return next;
+        },
+        remove: function (itemId, removeOptions) {
+          removeOptions = removeOptions || {};
+          var expectedRevision = removeOptions.expectedRevision;
+          var existing = specWebOwnItem_(data.items, itemId);
+          if (!existing) return false;
+          if (expectedRevision !== undefined && expectedRevision !== null && existing.revision !== expectedRevision) {
+            throw new RevisionConflictError(
+              collectionName + '/' + itemId + ' の revision が一致しません（現在: ' + existing.revision + '、要求: ' + expectedRevision + '）',
+              existing.revision
+            );
+          }
+          delete data.items[itemId];
+          dirty = true;
+          return true;
+        }
+      };
+      var result = fn(tx);
+      if (dirty) {
+        specWebWriteCollectionRaw_(collectionName, data);
+      }
+      return result;
     });
   },
 
@@ -141,7 +285,7 @@ var Storage = {
     var actor = options.actor || 'unknown';
     return withStorageLock_(function () {
       var data = specWebReadCollectionRaw_(collectionName);
-      var existing = data.items[oldId] || null;
+      var existing = specWebOwnItem_(data.items, oldId);
       if (!existing) {
         var notFound = new Error(collectionName + '/' + oldId + ' が見つかりません');
         notFound.status = 404;
@@ -154,7 +298,7 @@ var Storage = {
           currentRevision
         );
       }
-      if (data.items[newId]) {
+      if (specWebOwnItem_(data.items, newId)) {
         var duplicate = new Error(collectionName + '/' + newId + ' は既に存在します');
         duplicate.status = 409;
         throw duplicate;
@@ -181,7 +325,7 @@ var Storage = {
     var expectedRevision = options.expectedRevision;
     return withStorageLock_(function () {
       var data = specWebReadCollectionRaw_(collectionName);
-      var existing = data.items[itemId] || null;
+      var existing = specWebOwnItem_(data.items, itemId);
       if (!existing) return false;
       if (expectedRevision !== undefined && expectedRevision !== null && existing.revision !== expectedRevision) {
         throw new RevisionConflictError(

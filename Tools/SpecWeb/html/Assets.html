@@ -253,7 +253,7 @@
   }
   /* O-16: 発注メモ（referenceMd）の書式ツールバー。html/OrderTree.html の
      メモの折りたたみ表示（.assets-memo-clip）もこのページの <style> を共用する
-     （既存の sw-muted・sw-badge 等と同じ、include() で 1 ページに連結される前提の既存方針。
+     （既存の sw-muted・sw-badge 等と同じ、include_() で 1 ページに連結される前提の既存方針。
      2026-09-15: html/MyOrders.html はユーザー要望で廃止した）。 */
   .assets-md-toolbar {
     display: flex;
@@ -299,7 +299,7 @@
    * 発注向けに作り直したもの（画面の骨格・DOM 組み立て方針は継承）。
    *
    * 注意: この画面が使う window.AssetsLogic は html/AssetsLogic.html が定義する。
-   * include() は入れ子のスクリプトレットを評価しないため、Index.html から
+   * include_() は入れ子のスクリプトレットを評価しないため、Index.html から
    * App.html の後・Assets.html の前に直接 include する（既存の注意を継承）。
    *
    * DOM を組み立てる処理はここに書き、絞り込み・並べ替え・検証・Markdown 変換等の純粋関数は
@@ -1633,6 +1633,13 @@
         var restPatch = Object.assign({}, detail.fields);
         delete restPatch.assetType;
         delete restPatch.identifier;
+        // 2026-09-17（P1-4）: 状態は「次へ進める」（advanceStatus）専用にし、保存では送らない。
+        // 以前は fieldsFromItem が status を含んでいたため、D-Drive の同期で「インポート済」に
+        // なった発注を開いて表示名などを直して保存しようとすると、validateAssetFields が
+        // 「インポート済は手動で設定できません」を立てていた。status は fieldRow() を通して
+        // いない（renderStatusProgress で別描画）ので refreshAllFieldErrorsUI に表示先が無く、
+        // ボタンを押しても何も起きない状態になっていた（運用でいちばん多い最終状態で必ず踏む）。
+        delete restPatch.status;
 
         var identityChanged = detail.fields.assetType !== detail.item.assetType || detail.fields.identifier !== detail.item.identifier;
 

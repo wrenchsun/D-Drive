@@ -34,7 +34,7 @@ function specWebAssetParamsError_(message, status) {
   return err;
 }
 
-registerApi('paramSchemas.list', function (ctx) {
+registerApi_('paramSchemas.list', function (ctx) {
   var assetType = ctx.params.assetType;
   var itemsMap = Storage.listItems(SPEC_WEB_PARAM_SCHEMAS_COLLECTION);
   var items = Object.keys(itemsMap)
@@ -54,40 +54,55 @@ registerApi('paramSchemas.list', function (ctx) {
  * items は Assets.js のコレクション（assets）に存在する id だけを patch する
  * （assetState と同じ「存在しない id は静かにスキップ」方式。例外にしない）。
  */
-registerApi('assetParams', function (ctx) {
+registerApi_('assetParams', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.EDITOR, 'パラメータの送信には editor 以上の権限が必要です');
+  // 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-12）: 他の 3 kind
+  // （choices / assetState / tuningUsage、DDriveSync.js）と docs/32 §7「送信 API にはレート制限を
+  // 設ける」に合わせる。これが無いと、書き込みトークンを持っている人が連打するだけで
+  // Drive のクォータを食い潰せてしまう（書き込みトークンはチーム全員に配る、§9-9 決定）。
+  specWebCheckRateLimit_(ctx.auth.principal, 'assetParams');
   var payload = specWebParsePayload_(ctx.params);
   var schemas = Array.isArray(payload.schemas) ? payload.schemas : [];
   var items = Array.isArray(payload.items) ? payload.items : [];
 
+  // 2026-09-17（[41] P2-11）: 1 件ごとの getItem + putItem をやめ、コレクション単位で
+  // 「1 回のロック内で 1 読み・N 件更新・1 書き」にする（Storage.mutateMany。docs/32 §2.4）。
   var updatedSchemaTypes = [];
-  schemas.forEach(function (schema) {
-    if (!schema || !schema.concreteType) return;
-    var doc = {
-      assetType: schema.assetType || '',
-      concreteType: schema.concreteType,
-      fields: Array.isArray(schema.fields) ? schema.fields : []
-    };
-    Storage.putItem(SPEC_WEB_PARAM_SCHEMAS_COLLECTION, schema.concreteType, doc, { actor: ctx.auth.principal });
-    updatedSchemaTypes.push(schema.concreteType);
-  });
+  if (schemas.length > 0) {
+    Storage.mutateMany(SPEC_WEB_PARAM_SCHEMAS_COLLECTION, function (tx) {
+      schemas.forEach(function (schema) {
+        if (!schema || !schema.concreteType) return;
+        var doc = {
+          assetType: schema.assetType || '',
+          concreteType: schema.concreteType,
+          fields: Array.isArray(schema.fields) ? schema.fields : []
+        };
+        tx.put(schema.concreteType, doc);
+        updatedSchemaTypes.push(schema.concreteType);
+      });
+    }, { actor: ctx.auth.principal });
+  }
 
   var updatedIds = [];
   var skippedIds = [];
-  items.forEach(function (entry) {
-    if (!entry || !entry.id) return;
-    var existing = Storage.getItem(SPEC_WEB_ASSETS_COLLECTION, entry.id);
-    if (!existing) {
-      skippedIds.push(entry.id);
-      return;
-    }
-    var params = {
-      concreteType: entry.concreteType || null,
-      currentValues: entry.currentValues && typeof entry.currentValues === 'object' ? entry.currentValues : {}
-    };
-    Storage.putItem(SPEC_WEB_ASSETS_COLLECTION, entry.id, { params: params }, { actor: ctx.auth.principal });
-    updatedIds.push(entry.id);
-  });
+  if (items.length > 0) {
+    Storage.mutateMany(SPEC_WEB_ASSETS_COLLECTION, function (tx) {
+      items.forEach(function (entry) {
+        if (!entry || !entry.id) return;
+        var existing = tx.get(entry.id);
+        if (!existing) {
+          skippedIds.push(entry.id);
+          return;
+        }
+        var params = {
+          concreteType: entry.concreteType || null,
+          currentValues: entry.currentValues && typeof entry.currentValues === 'object' ? entry.currentValues : {}
+        };
+        tx.put(entry.id, { params: params });
+        updatedIds.push(entry.id);
+      });
+    }, { actor: ctx.auth.principal });
+  }
 
   return { updatedSchemaTypes: updatedSchemaTypes, updatedIds: updatedIds, skippedIds: skippedIds };
 });

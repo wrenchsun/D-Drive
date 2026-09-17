@@ -7,7 +7,7 @@
  * 未ログイン・スコープ未許可の状況では空文字列になる
  * （developers.google.com/apps-script/reference/base/session で確認済み）。
  * 呼び出し側はこの「空文字列 = 認証できない」を前提に許可リスト判定を行う
- * （Auth.js の authenticateSession）。
+ * （Auth.js の authenticateSession_）。
  */
 
 var SessionAdapter = {

@@ -85,15 +85,15 @@ function specWebRequireRevision_(payload) {
   return payload.revision;
 }
 
-registerApi('tuningTableList', function () {
+registerApi_('tuningTableList', function () {
   return { items: Storage.listItems(TUNING_TABLE_COLLECTION) };
 });
 
-registerApi('tuningTableGet', function (ctx) {
+registerApi_('tuningTableGet', function (ctx) {
   return { item: specWebGetTableOrThrow_(ctx.params.key) };
 });
 
-registerApi('tuningTableCreate', function (ctx) {
+registerApi_('tuningTableCreate', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.EDITOR, 'テーブルの作成には editor 以上の権限が必要です');
   var payload = specWebParsePayload_(ctx.params);
   var key = payload.key;
@@ -102,7 +102,7 @@ registerApi('tuningTableCreate', function (ctx) {
     throw new SpecWebValidationError('キーが既に存在します: ' + key);
   }
   var columns = Array.isArray(payload.columns) ? payload.columns.map(specWebNormalizeColumnDef_) : [];
-  var seenColumnKeys = {};
+  var seenColumnKeys = Object.create(null); // prototype 無し（[41] P2-15 と同根: `constructor` 等の key で誤検知しないため）
   columns.forEach(function (c) {
     if (seenColumnKeys[c.key]) throw new SpecWebValidationError('列 key が重複しています: ' + c.key);
     seenColumnKeys[c.key] = true;
@@ -113,7 +113,7 @@ registerApi('tuningTableCreate', function (ctx) {
         return { rowId: r.rowId, cells: specWebNormalizeRowCells_(columns, r.cells), comments: [] };
       })
     : [];
-  var seenRowIds = {};
+  var seenRowIds = Object.create(null); // prototype 無し（[41] P2-15 と同根）
   rows.forEach(function (r) {
     if (seenRowIds[r.rowId]) throw new SpecWebValidationError('rowId が重複しています: ' + r.rowId);
     seenRowIds[r.rowId] = true;
@@ -123,11 +123,17 @@ registerApi('tuningTableCreate', function (ctx) {
     specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.ADMIN, 'locked なテーブルの作成には admin 権限が必要です');
   }
   var entry = { kind: 'table', columns: columns, rows: rows, locked: locked, comments: [] };
-  var saved = Storage.putItem(TUNING_TABLE_COLLECTION, key, entry, { actor: ctx.auth.principal });
+  // 2026-09-17（[41](../../docs/41_phase6_review_2026-09-17.md) P2-13）: 上の重複チェックは
+  // ロックの外なので、`expectedRevision: 0`（=「まだ存在しないこと」）をロックの中で
+  // 原子的に要求する（同時作成の 2 件目は 409）。
+  var saved = Storage.putItem(TUNING_TABLE_COLLECTION, key, entry, {
+    actor: ctx.auth.principal,
+    expectedRevision: 0
+  });
   return { item: saved };
 });
 
-registerApi('tuningTableDelete', function (ctx) {
+registerApi_('tuningTableDelete', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, 'テーブルの削除には editor 以上の権限が必要です');
@@ -137,7 +143,7 @@ registerApi('tuningTableDelete', function (ctx) {
 });
 
 /** locked フラグそのものの変更（常に admin 以上）。 */
-registerApi('tuningTableSetLocked', function (ctx) {
+registerApi_('tuningTableSetLocked', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.ADMIN, 'locked の変更には admin 権限が必要です');
@@ -151,7 +157,7 @@ registerApi('tuningTableSetLocked', function (ctx) {
   return { item: saved };
 });
 
-registerApi('tuningTableAddColumn', function (ctx) {
+registerApi_('tuningTableAddColumn', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, '列の追加には editor 以上の権限が必要です');
@@ -177,7 +183,7 @@ registerApi('tuningTableAddColumn', function (ctx) {
 });
 
 /** 列削除。docs/32 §4.4 のとおり、該当セルも全行から削除する。 */
-registerApi('tuningTableRemoveColumn', function (ctx) {
+registerApi_('tuningTableRemoveColumn', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, '列の削除には editor 以上の権限が必要です');
@@ -210,7 +216,7 @@ registerApi('tuningTableRemoveColumn', function (ctx) {
  * クランプ・enum 外の値は選択肢の先頭へ自動修復する（例外にしない）。
  * 実装メモ = docs/32_spec_web.md 参照（要判断だった「型変更時の既存セルの扱い」への回答）。
  */
-registerApi('tuningTableUpdateColumn', function (ctx) {
+registerApi_('tuningTableUpdateColumn', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, '列の変更には editor 以上の権限が必要です');
@@ -238,7 +244,7 @@ registerApi('tuningTableUpdateColumn', function (ctx) {
   return { item: saved };
 });
 
-registerApi('tuningTableAddRow', function (ctx) {
+registerApi_('tuningTableAddRow', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, '行の追加には editor 以上の権限が必要です');
@@ -263,7 +269,7 @@ registerApi('tuningTableAddRow', function (ctx) {
   return { item: saved };
 });
 
-registerApi('tuningTableRemoveRow', function (ctx) {
+registerApi_('tuningTableRemoveRow', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, '行の削除には editor 以上の権限が必要です');
@@ -284,7 +290,7 @@ registerApi('tuningTableRemoveRow', function (ctx) {
   return { item: saved };
 });
 
-registerApi('tuningTableReorderRows', function (ctx) {
+registerApi_('tuningTableReorderRows', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, '行の並べ替えには editor 以上の権限が必要です');
@@ -297,7 +303,7 @@ registerApi('tuningTableReorderRows', function (ctx) {
   existing.rows.forEach(function (r) {
     byId[r.rowId] = r;
   });
-  var seenRowIds = {};
+  var seenRowIds = Object.create(null); // prototype 無し（[41] P2-15 と同根）
   var nextRows = order.map(function (rowId) {
     if (!byId[rowId]) throw new SpecWebValidationError('order に存在しない rowId があります: ' + rowId);
     if (seenRowIds[rowId]) throw new SpecWebValidationError('order に重複した rowId があります: ' + rowId);
@@ -313,7 +319,7 @@ registerApi('tuningTableReorderRows', function (ctx) {
   return { item: saved };
 });
 
-registerApi('tuningTableUpdateCell', function (ctx) {
+registerApi_('tuningTableUpdateCell', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, 'セルの編集には editor 以上の権限が必要です');
@@ -332,7 +338,7 @@ registerApi('tuningTableUpdateCell', function (ctx) {
  * 複数セルの一括更新（スプレッドシートからの貼り付け対応、docs/32 §4.4）。
  * 全セルを検証してから 1 回だけ書き込む（一部だけ保存される事故を避ける = all-or-nothing）。
  */
-registerApi('tuningTableUpdateCells', function (ctx) {
+registerApi_('tuningTableUpdateCells', function (ctx) {
   var payload = specWebParsePayload_(ctx.params);
   var existing = specWebGetTableOrThrow_(payload.key);
   specWebRequireTableRole_(ctx.auth, existing, 'セルの編集には editor 以上の権限が必要です');

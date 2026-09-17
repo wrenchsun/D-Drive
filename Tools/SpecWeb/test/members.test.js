@@ -13,7 +13,7 @@ function viewerAuth() {
   return { ok: true, principal: 'viewer@example.com', email: 'viewer@example.com', role: 'viewer', displayName: '閲覧者' };
 }
 function call(ctx, name, params, auth) {
-  return ctx.getApi(name)({ params: params || {}, auth: auth || editorAuth() });
+  return ctx.getApi_(name)({ params: params || {}, auth: auth || editorAuth() });
 }
 
 test('members.importPaste: 1行1名で貼り付けて取り込める（表記はそのまま・空行は無視・重複行は1件）', () => {
@@ -82,4 +82,31 @@ test('members.upsert / members.remove: viewer は 403 で拒否される', () =>
     assert.equal(err.status, 403);
     return true;
   });
+});
+
+// ── 2026-09-17（docs/41 P2-11 / P2-15） ──
+
+test('members.importPaste: 人数ぶん繰り返さず members.json への書き込みは 1 回だけ', () => {
+  const ctx = loadGas();
+  const writesBefore = ctx.__fakes.drive.writeCount('members.json');
+  const result = call(ctx, 'members.importPaste', { text: '吉田(PLN)\n山口(PRG)\n岸本(DZN)\n中村(PRG)' });
+  assert.equal(result.importedCount, 4);
+  assert.equal(
+    ctx.__fakes.drive.writeCount('members.json') - writesBefore,
+    1,
+    '1 件ずつ putItem していた頃は人数ぶん members.json を書き直していた'
+  );
+  assert.equal(call(ctx, 'members.list', {}).items.length, 4);
+});
+
+test('members.importPaste: 表記が "constructor" でも取り込める（Object.prototype を透過しない）', () => {
+  const ctx = loadGas();
+  const result = call(ctx, 'members.importPaste', { text: 'constructor\ntoString\n吉田(PLN)' });
+  assert.equal(result.importedCount, 3, '重複判定で継承プロパティを掴んで捨てられてしまわない');
+  const labels = Array.from(call(ctx, 'members.list', {}).items, (m) => m.label).sort();
+  assert.deepEqual(labels, ['constructor', 'toString', '吉田(PLN)'].sort());
+
+  // 再取り込みでも同一人物として upsert され、件数は増えない。
+  call(ctx, 'members.importPaste', { text: 'constructor' });
+  assert.equal(call(ctx, 'members.list', {}).items.length, 3);
 });

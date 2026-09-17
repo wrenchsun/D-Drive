@@ -33,7 +33,7 @@ function specWebReadCommentsFor_(item, targetKind, rowId) {
   return item.comments || [];
 }
 
-registerApi('tuningCommentList', function (ctx) {
+registerApi_('tuningCommentList', function (ctx) {
   var params = ctx.params;
   var targetKind = params.targetKind;
   if (TUNING_COMMENT_TARGET_KINDS.indexOf(targetKind) === -1) {
@@ -45,7 +45,7 @@ registerApi('tuningCommentList', function (ctx) {
   return { comments: specWebReadCommentsFor_(item, targetKind, params.rowId) };
 });
 
-registerApi('tuningCommentAdd', function (ctx) {
+registerApi_('tuningCommentAdd', function (ctx) {
   specWebRequireRole_(ctx.auth, SPEC_WEB_ROLES.EDITOR, 'コメントの投稿には editor 以上の権限が必要です');
   var payload = specWebParsePayload_(ctx.params);
   var targetKind = payload.targetKind;
