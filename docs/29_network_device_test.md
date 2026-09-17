@@ -925,3 +925,94 @@ Placeholder 0 件）。つまり v7 のビルドは健全で、残るのはフ�
 
 `heartbeat` の `content_hash` 欄に不一致の文字列が毎行出続けるため、長時間の実機確認でログが膨らむ。
 判定には影響しない。要否はユーザー判断。
+
+## 21. リリースビルド相当の切断確認 — 実施手順（PC-B = Host / PC-C = Client）
+
+**まだ実施していない。** PC-C が PC-A のホットスポットに繋がった時点で、この節のとおり行えば 10 分程度で終わる。
+
+### 21.0 前提と役割
+
+| 役割 | 機材 | やること |
+|---|---|---|
+| ネットワークの親 | **PC-A** | モバイルホットスポットと配布用 HTTP サーバー（`192.168.137.1:8765`）を動かすだけ。**ゲームには参加しない** |
+| Host | **PC-B**（`192.168.137.74`） | `v8_release_normal` を Host として起動 |
+| Client | **PC-C** | `v8_release_mismatch` を Client として起動。**カタログの内容だけ違う** |
+
+**確認したいこと**: 開発ビルドでは「警告して継続」が正しい挙動（§20 で確認済み）。
+**リリースビルドでは切断する**という設計側を、実機で確かめる。
+
+### 21.1 ユーザーの操作が要るところ（Claude は行わない）
+
+- **PC-B と PC-C の両方で、初回起動時に Windows ファイアウォールの確認ダイアログが出る。**
+  「プライベート ネットワーク」を許可すること。**放置すると Block 規則が作られ、無言で繋がらなくなる**
+  （2026-09-18 に PC-A でこれが起き、一晩止まった。§19）。
+- ファイアウォール設定の変更は Claude が行わない（システム／セキュリティ設定の変更にあたるため）。
+
+### 21.2 PC-C の手順（Claude が居なくても人が手で実行できる形）
+
+PC-C を PC-A のホットスポット（SSID `WRENCH 7080`）に接続してから、PowerShell で上から順に実行する。
+
+```
+New-Item -ItemType Directory -Force C:\DDriveTest | Out-Null
+Invoke-WebRequest -UseBasicParsing -Uri http://192.168.137.1:8765/v8_release_mismatch.zip -OutFile C:\DDriveTest\v8_release_mismatch.zip
+Expand-Archive -Path C:\DDriveTest\v8_release_mismatch.zip -DestinationPath C:\DDriveTest\v8_release_mismatch -Force
+```
+
+**PC-B の Host が起動していることを確認してから**、Client を起動する（`<PC-B の IP>` は PC-B が知らせる。
+既定では `192.168.137.74`）:
+
+```
+C:\DDriveTest\v8_release_mismatch\DDriveNetCheck.exe -ddrive-net client -ddrive-host 192.168.137.74 -ddrive-port 7777 -logFile C:\DDriveTest\client_release.log
+```
+
+40 秒ほど待ってから、次の 3 つを実行して**出力をそのまま貼る**:
+
+```
+Select-String -Path C:\DDriveTest\client_release.log -Pattern 'ContentHash|一致しません|DisconnectReason' | Select-Object -First 10
+Select-String -Path C:\DDriveTest\client_release.log -Pattern 'disconnect|切断|Shutdown' | Select-Object -First 10
+Select-String -Path C:\DDriveTest\client_release.log -Pattern 'heartbeat=' | Select-Object -Last 6
+```
+
+### 21.3 PC-B（Host）の手順
+
+```
+Invoke-WebRequest -UseBasicParsing -Uri http://192.168.137.1:8765/v8_release_normal.zip -OutFile C:\DDriveTest\v8_release_normal.zip
+Expand-Archive -Path C:\DDriveTest\v8_release_normal.zip -DestinationPath C:\DDriveTest\v8_release_normal -Force
+C:\DDriveTest\v8_release_normal\DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\host_release.log
+```
+
+Client が繋いできたあと:
+
+```
+Select-String -Path C:\DDriveTest\host_release.log -Pattern 'ContentHash|切断|Disconnect' | Select-Object -First 10
+Select-String -Path C:\DDriveTest\host_release.log -Pattern 'heartbeat=' | Select-Object -Last 6
+```
+
+### 21.4 判定基準
+
+| # | 基準 | 開発ビルド（§20、参考） |
+|---|---|---|
+| 1 | **Host が該当 Client を切断すること** | 開発ビルドでは切断せず継続していた |
+| 2 | Client 側に **`NetworkManager.DisconnectReason`**（「カタログの ContentHash が一致しません…」）を含む切断が出ること | — |
+| 3 | 表示は**カタログ名 + Entry 数だけ**で、ハッシュ値や AssetId などの実データが出ないこと | 合格済み |
+| 4 | Host 側の `heartbeat` で、切断後に当該 Client が居なくなること | — |
+
+### 21.5 うまくいかないときの切り分け
+
+| 症状 | 原因の候補 |
+|---|---|
+| Client が `role=off` / `connected=0` のまま | **ファイアウォール**（§19）。PC-B で 7777/UDP の受信が許可されているか |
+| ログが空、または `[DDriveNetCheck]` の行が 1 つも無い | **リリースビルドで `Debug.Log` が出ていない**（§21.6） |
+| `content_hash=OK` と出る | **カタログが読めていない可能性**（§18）。`InvalidKeyException` と `Placeholder` の行を先に確認すること。`OK` は「一致した」とは限らず「比較対象が無くて素通りした」ことがある |
+| 不一致は出るが切断しない | リリースビルドになっていない（`Debug.isDebugBuild` が true のまま）。ビルドの作り方を確認 |
+
+### 21.6 リリースビルドでログが残るか（**実施前に必ず確認する**）
+
+リリースビルドでは `Debug.Log` の扱いが開発ビルドと異なるため、**`NetCheckRunner` のログが残らないと何も判定できない**。
+PC-C を呼ぶ前に、**PC-A で単体起動してログが出ることを確認してから**配ること（`-ddrive-net off` で短時間起動し、
+`[DDriveNetCheck]` の行が `-logFile` の出力に含まれるかを見る）。
+
+残らない場合の代替案:
+- **Host 側（PC-B）のログだけで判定する** — 切断は Host が行うので、Host 側に警告と切断の記録が残れば基準 1 と 4 は満たせる。
+  基準 2（Client 側の `DisconnectReason`）は Client の画面表示（`NetDebugOverlay`）で目視する
+- `NetCheckRunner` のログを `Debug.Log` ではなくプレイヤーログへ直接書く経路を用意する（コード変更。別チケット）
