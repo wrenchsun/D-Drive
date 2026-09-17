@@ -224,9 +224,13 @@ namespace DDrive.Editor.Codegen
             return list;
         }
 
+        // 2026-09-18(P-1, docs/42 §5.13/§7 A-6): 1.0.0 発効前の一度きりの例外として
+        // MODEL/ANC/ANCG/SKIN を追加し、KnownPrefixes の不整合(定数名に接頭辞が残る)を解消した。
+        // 発効後は本セットへの追加は禁止(追加すると既存の定数名が変わり互換性を破壊するため)。
         private static readonly HashSet<string> KnownPrefixes = new(StringComparer.OrdinalIgnoreCase)
         {
             "SE", "BGM", "VFX", "ANIM", "ANIM2D", "MAT", "TEX", "CANVAS", "PREFAB", "PRES", "SHAKE", "HAPTIC", "HAPTICS", "UITWEEN",
+            "MODEL", "ANC", "ANCG", "SKIN",
         };
 
         // internal(同一 asmdef): 5-6 の CodeReferenceScan が「削除しようとしている ID の生成済み定数名」を

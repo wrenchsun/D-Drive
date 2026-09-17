@@ -9,10 +9,12 @@ namespace DDrive.Generated
     public static class VFXID
     {
         public static readonly AssetId<DDrive.Runtime.Vfx.VfxMarker> PlayerSlash = new(0x669C1BD114C4F11AUL, AssetType.Vfx);
+        public static readonly AssetId<DDrive.Runtime.Vfx.VfxMarker> PlayerSlash2 = new(0x8626A1B2CC1C8F94UL, AssetType.Vfx);
     }
 
     public static class PRESENTID
     {
+        public static readonly AssetId<DDrive.Runtime.Presentation.PresentationMarker> AttackPresentation = new(0xF421AE77FD6CC369UL, AssetType.Presentation);
         public static readonly AssetId<DDrive.Runtime.Presentation.PresentationMarker> DemoSkillSlash = new(0xCD2986D134D20E66UL, AssetType.Presentation);
     }
 
@@ -22,7 +24,7 @@ namespace DDrive.Generated
 
     public static class MODELID
     {
-        public static readonly AssetId<DDrive.Runtime.Model.ModelMarker> MODELPlayerModel = new(0x20B05B0609A6025DUL, AssetType.Model);
+        public static readonly AssetId<DDrive.Runtime.Model.ModelMarker> PlayerModel = new(0x20B05B0609A6025DUL, AssetType.Model);
     }
 
     public static class MATID
@@ -56,6 +58,12 @@ namespace DDrive.Generated
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear03N = new(0xC0E0194AC75452EFUL, AssetType.Texture);
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> JamHouse = new(0x871FDB26A93D923BUL, AssetType.Texture);
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> TestTexture = new(0x60F4B3A28C81F893UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> Tex20240822124521 = new(0x2B50B82E4DFC8D91UL, AssetType.Texture);
+    }
+
+    public static class HAPTICID
+    {
+        public static readonly AssetId<DDrive.Runtime.Haptics.HapticMarker> DemoDemoHitPunch = new(0x1A64C878414504A6UL, AssetType.Haptics);
     }
 
     public static class CANVASID
@@ -66,18 +74,23 @@ namespace DDrive.Generated
 
     public static class SKINID
     {
-        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SKINButtonSkin = new(0x4023EF5CC383002CUL, AssetType.ControlSkin);
-        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SKINTestDefault = new(0x3035F13910E476CAUL, AssetType.ControlSkin);
+        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> ButtonSkin = new(0x4023EF5CC383002CUL, AssetType.ControlSkin);
+        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> TestDefault = new(0x3035F13910E476CAUL, AssetType.ControlSkin);
     }
 
     public static class SLIDERSKINID
     {
-        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SKINSkiderTest = new(0x699D0AFE5F3166DUL, AssetType.ControlSkin);
+        public static readonly AssetId<DDrive.Runtime.Ui.ControlSkinMarker> SkiderTest = new(0x699D0AFE5F3166DUL, AssetType.ControlSkin);
     }
 
     public static class UITWEENID
     {
         public static readonly AssetId<DDrive.Runtime.Ui.UiTweenMarker> UiTween = new(0x9A1DBA5A1034B8ADUL, AssetType.UiTween);
+    }
+
+    public static class SHAKEID
+    {
+        public static readonly AssetId<DDrive.Runtime.CameraShake.ShakeMarker> DemoDemoHitSmall = new(0xCA909F389E8D1848UL, AssetType.Shake);
     }
 
     public static class BGMID
@@ -107,13 +120,13 @@ namespace DDrive.Generated
 
     public static class ANCHORID
     {
-        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorMarker> ANCAnimJump = new(0xF9D43148AA70B61CUL, AssetType.Anchor);
-        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorMarker> ANCPlayerVFXPlayerSlashAnchor = new(0xC7469048615C5C60UL, AssetType.Anchor);
+        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorMarker> AnimJump = new(0xF9D43148AA70B61CUL, AssetType.Anchor);
+        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorMarker> PlayerVFXPlayerSlashAnchor = new(0xC7469048615C5C60UL, AssetType.Anchor);
     }
 
     public static class ANCHORGROUPID
     {
-        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker> ANCG1PlayerSlash = new(0xAA1D726D57FCC93EUL, AssetType.AnchorGroup);
+        public static readonly AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker> _1PlayerSlash = new(0xAA1D726D57FCC93EUL, AssetType.AnchorGroup);
     }
 
 }
