@@ -18,9 +18,11 @@ MonoBehaviour:
   Category: Player
   Tags: []
   Icon: {fileID: 2800000, guid: 6c15d837e6cc4224a912d5ef0003d6fc, type: 3}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-16T12:34:03
   ChangeNote: 
   Flags:
     Pause: 0
@@ -34,6 +36,7 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Parent:
     value: 0
     type: 0

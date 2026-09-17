@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 2
   Author: yamag
-  UpdatedAt: 2026-09-15T12:51:16
+  UpdatedAt: 2026-09-17T16:15:04
   ChangeNote: 
   Flags:
     Pause: 0
@@ -37,12 +37,12 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
-  Pattern: 0
-  PosAmplitude: {x: 0.18, y: 0.14, z: 0.05}
-  RotAmplitude: {x: 0, y: 0, z: 1.5}
+  Pattern: 1
+  PosAmplitude: {x: 0.02, y: 0.02, z: 0}
+  RotAmplitude: {x: 0, y: 0, z: 0.3}
   Frequency:
     Mode: 0
-    Constant: 18
+    Constant: 3
     Parametric:
       Kind: 0
       Ease: 0
@@ -69,7 +69,7 @@ MonoBehaviour:
     Constant: 0
     Parametric:
       Kind: 0
-      Ease: 5
+      Ease: 0
       BezierP1: {x: 0, y: 0}
       BezierP2: {x: 0, y: 0}
     Curve:
@@ -79,15 +79,15 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     From: 1
-    To: 0
+    To: 1
     Normalized: 0
     Time:
       Mode: 0
-      Value: 0.25
+      Value: 2
       SpeedScale: 1
       IgnoreTimeScale: 0
-    Loop: 0
+    Loop: 1
     LoopCount: 0
   Space: 0
-  TraumaWeight: 1.3
-  MaxStack: 2
+  TraumaWeight: 0.5
+  MaxStack: 1

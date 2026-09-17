@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 2
   Author: yamag
-  UpdatedAt: 2026-09-15T12:51:16
+  UpdatedAt: 2026-09-15T15:50:31
   ChangeNote: 
   Flags:
     Pause: 0
@@ -81,7 +81,7 @@ MonoBehaviour:
   FirstSelected: Button2
   NavigationNodeLayout:
   - Element: Button1
-    Position: {x: 72.96, y: 139.6}
+    Position: {x: 50.86384, y: 164.06361}
   - Element: Button2
     Position: {x: -47.559998, y: -15.08}
   - Element: BtnStart
@@ -148,7 +148,7 @@ MonoBehaviour:
         value: 0
         type: 0
     IdlePreset:
-      Preset: 0
+      Preset: 16
       Duration: 0
       Distance: 0
       EaseOverride:

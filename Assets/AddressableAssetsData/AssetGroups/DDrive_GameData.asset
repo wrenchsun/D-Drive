@@ -190,6 +190,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c21319e87221abf4ea996d0cc47f6779
+    m_Address: VFX_Player_Slash2
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c5e7b25c2bee2d84981d13a13b559500
     m_Address: ANIM2D_2DAnim_Anim2D2DAnimWalk
     m_ReadOnly: 0
@@ -217,11 +222,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: d74c1a0133c023d4cae4170eeef54ee7
     m_Address: SKIN_Button_Skin
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: d7f9265ffc9ff0f41b743644daf1ac5f
-    m_Address: VFX_Player_Slash
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

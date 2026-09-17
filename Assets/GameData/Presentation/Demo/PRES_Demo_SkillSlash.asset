@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Version: 3
+  Author: yamag
+  UpdatedAt: 2026-09-16T10:33:21
   ChangeNote: 
   Flags:
     Pause: 0

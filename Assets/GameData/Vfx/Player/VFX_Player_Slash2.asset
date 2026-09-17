@@ -9,24 +9,24 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bde4918bc0c27404bbd509ad885a2853, type: 3}
-  m_Name: SE_Player_Slash
-  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Audio.SeData
-  Id: 1253036813875978544
-  DisplayName: "\u65AC\u64831"
+  m_Script: {fileID: 11500000, guid: d4015dd925fd84944a6b81371d5d7807, type: 3}
+  m_Name: VFX_Player_Slash2
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Vfx.VfxData
+  Id: 9666591439498022804
+  DisplayName: "\u65AC\u64832"
   Description: 
   Category: Player
   Tags: []
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 2
   Author: yamag
   UpdatedAt: 2026-09-16T10:33:21
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 1
+    Load: 0
     Pool:
       Kind: 0
       InitialCount: 0
@@ -37,15 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
-  Clips: []
-  Sources: []
-  StartOffsetSec: 0
-  SelectMode: 0
-  Mixer: {fileID: 0}
-  Volume: 1
-  PitchRange: {x: 1, y: 1}
-  Loop: 0
-  Spatial: 0
+  Prefab: {fileID: 0}
   AnchorId:
     value: 0
     type: 0
@@ -54,18 +46,13 @@ MonoBehaviour:
     Path: 
     LocalOffset: {x: 0, y: 0, z: 0}
     LocalEuler: {x: 0, y: 0, z: 0}
-    LocalScale: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 1, y: 1, z: 1}
     FollowRotation: 0
     DetachOnStop: 0
-  MinDistance: 1
-  MaxDistance: 30
-  Rolloff:
-    serializedVersion: 2
-    m_Curve: []
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  Spread: 0
-  DopplerEnabled: 0
-  MaxConcurrent: 8
-  CooldownSec: 0.03
+  LifeMode: 0
+  Duration: 1
+  FadeOutSec: 0
+  Render: 0
+  RenderLayer: 0
+  LightLayerMask: 1
+  Params: []

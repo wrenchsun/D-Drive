@@ -18,9 +18,11 @@ MonoBehaviour:
   Category: test
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-16T10:33:21
   ChangeNote: 
   Flags:
     Pause: 0
@@ -104,6 +106,8 @@ MonoBehaviour:
         m_NumAlphaKeys: 2
       StringValue: 
       ObjectValue: {fileID: 0}
+    Repeat: 0
+  ImportSourceGuid: 
   Clips:
   - {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   Sources: []
@@ -113,7 +117,10 @@ MonoBehaviour:
   Volume: 1
   PitchRange: {x: 1, y: 1}
   Loop: 0
-  Spatial: 2
+  Spatial: 1
+  AnchorId:
+    value: 0
+    type: 0
   Anchor:
     Space: 0
     Path: 

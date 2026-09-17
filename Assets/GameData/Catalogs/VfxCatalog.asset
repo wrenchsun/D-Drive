@@ -27,3 +27,17 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 9666591439498022804
+    Type: 3
+    Address: VFX_Player_Slash2
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
