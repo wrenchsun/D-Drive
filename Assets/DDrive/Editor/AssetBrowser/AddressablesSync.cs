@@ -39,6 +39,37 @@ namespace DDrive.Editor.AssetBrowser
             return string.IsNullOrEmpty(path) ? null : AddressableAssetSettingsDefaultObject.Settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(path));
         }
 
+        // 2026-09-18([29_network_device_test.md] §18) — FindEntry(asset) は「その asset 自身の guid」で探すため、
+        // 対象の Data(.asset)がプロジェクトに存在する限りは有効だが、Data ファイル自体が見つからない
+        // (削除・discard 漏れ等)場合は呼び出しようがない。カタログが指す Address が Addressables の
+        // どのエントリ(どの guid)にも存在しないことを、Data 側からではなくカタログ側から独立に確認する用途。
+        public static AddressableAssetEntry FindEntryByAddress(string address)
+        {
+            if (!IsAvailable || string.IsNullOrEmpty(address))
+            {
+                return null;
+            }
+
+            var settings = AddressableAssetSettingsDefaultObject.Settings;
+            foreach (var group in settings.groups)
+            {
+                if (group == null)
+                {
+                    continue;
+                }
+
+                foreach (var entry in group.entries)
+                {
+                    if (entry.address == address)
+                    {
+                        return entry;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         // Data アセットをカタログと同じ address で登録する。設定が無ければ警告(1 回)して null。
         public static AddressableAssetEntry EnsureEntry(AssetDataBase asset, string address) => EnsureEntry(asset, address, GroupName, null);
 

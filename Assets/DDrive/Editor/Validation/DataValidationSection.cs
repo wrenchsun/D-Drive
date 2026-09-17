@@ -163,6 +163,7 @@ namespace DDrive.Editor.Validation
         {
             "SpecDiffValidator",
             "ContentHashCatalogCoverageValidator",
+            "CatalogAddressCoverageValidator",
         };
 
         private static List<IValidator> _validators;

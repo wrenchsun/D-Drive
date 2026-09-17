@@ -257,6 +257,17 @@ public interface IValidator
 - 共通検査: ID 重複 / 参照欠落 / 循環参照 / Addressable 未登録（実装済み 2026-09-09: `Editor/Validation/AddressablesRegistrationValidator.cs`、カタログ未登録も Error）/ 未使用検出
 - `FixAction` があるものは「自動修正」ボタンを出す（例: Addressable 登録漏れ→登録）
 
+### 2026-09-18 追記（[29_network_device_test.md] §18 — 検出漏れの修正: `CatalogAddressCoverageValidator`）
+
+実機確認で「カタログは `VFX_Player_Slash` を指しているのに Addressables 側にその address のエントリが無く、全カタログの登録が中断して全 ID が Placeholder になる」事故が発生した。原因は Data(.asset)を一旦削除→別アセットに置き換え→git で削除だけ discard して復元、という操作で、**Data(.asset)はファイルとして復元されても、別ファイルである Addressables のグループ登録(`Assets/AddressableAssetsData/AssetGroups/*.asset`)は git 操作に追従しない**ため。
+
+- 既存の `AddressablesRegistrationValidator` は「渡された Data 自身が、カタログの Address と同じ address で Addressables に登録されているか」を Data 単位で見る。今回はたまたま Data ファイルが実在したため、この per-Data チェック(`Addressables 未登録` Error)で検出できていた
+- ただし `ValidatorRegistry.RunAll` は「プロジェクト内に実在する Data アセット」を列挙して 1 件ずつ渡す作りのため、**Data(.asset)自体が存在しない場合は Validate() が一度も呼ばれず、上記の per-Data チェックは何も報告できない**という抜けがあった。実際、この抜けに該当する別の孤立カタログエントリ(`AnchorCatalog` の Address `ANC_Can_Vas`。対応する Data ファイルがプロジェクトに存在しない)が本件の調査中に見つかった
+- この抜けを塞ぐため `Editor/Validation/CatalogAddressCoverageValidator.cs` を追加した。`ContentHashCatalogCoverageValidator` と同じ実装パターン(`IUniversalValidator` + `ValidationContext` ごとに 1 回だけプロジェクト全体を走査するガード)で、**カタログ起点**に「カタログの Address が Addressables のどのエントリにも存在しない」ことを検出する。対象の Data が `ValidationContext.AllAssets` に見つかれば `FixAction` で再登録できるが、Data 自体が見つからない場合は自動修正しない(存在しないものを生成しない)
+- そのために `AddressablesSync.FindEntryByAddress(string address)`(address からエントリを逆引き)を追加した
+- テスト: `Tests/Editor/CatalogAddressCoverageValidatorTests.cs`(`ContentHashCatalogCoverageValidatorTests` と同じ baseline 差分方式で、実 GameData の状態に依存しない)
+- `DataValidationSection.ProjectWideValidatorNames` にも追加済み(個別検証には出さず、Run All/CI のみで実行する)
+
 ## 12. 依存関係グラフ
 
 - Editor 時: 各 Data の `SerializedObject` を走査し `AssetRef` / オブジェクト参照を収集 → `DependencyGraph { ulong → ulong[] }` をキャッシュ（保存時に差分更新）

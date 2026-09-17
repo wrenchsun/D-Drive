@@ -827,3 +827,29 @@ UnityEngine.AddressableAssets.InvalidKeyException: No Location found for Key=VFX
 **`content_hash=OK` は「一致した」ではなく「比較対象が無くて素通りした」結果**だったため、気づかなければ §14 が通ったと誤判定するところだった（PC-B 側の指摘で判明）。
 
 後続: 登録を直したうえで **`Validation > Run All`（`AddressablesRegistrationValidator`）がこれを検出できるか確認する**こと。本来これを検出するための Validator なので、検出できていなければそれ自体が別の不具合。
+
+### 経緯の補足（ユーザーからの情報、2026-09-18）
+
+当時の操作は (1) `VFX_Player_Slash` を削除 → (2) 置き換えとして `VFX_Player_Slash2` を作成 → (3) その後 **git から `VFX_Player_Slash` の削除を discard**（差し戻し）、という流れだった。(3) で `VFX_Player_Slash.asset` はファイルとして復元されたが、**Addressables の登録は別ファイル（`Assets/AddressableAssetsData/AssetGroups/DDrive_GameData.asset`）にあるため復元されなかった**。これが「エントリ数は 50 のまま 1 件の address だけ差し替わっていた」理由。
+
+**一般化: git で `.asset` を戻しても、Addressables の登録（別ファイル）は追従しない。** 気づけないまま実機で 2 台繋いで初めて発覚する、という点で再発しやすい事故クラス。
+
+### 対応結果（2026-09-18）
+
+**Validator は検出できていた。** 直す前に `DDrive.Editor.CI.RunValidation()` を直接実行して確認したところ、`AddressablesRegistrationValidator` が `VFX_Player_Slash.asset` に対して `Addressables 未登録: 'VFX_Player_Slash' がグループに入っていません(カタログの Address 'VFX_Player_Slash')。実行時にロードできません。` という Error を正しく報告していた（対象の Data ファイルが実在した限りは、per-Data チェックが機能していたため）。
+
+気づかれなかった理由は「Validation を流していなかった」こと。この時点で `Run All` の結果は 137 件中 69 件が Error という非常にノイズの多い状態で、個別に眺めていても埋もれやすい状況ではあるが、そもそも当時（コミット `c67f81a` 〜 v6 ビルドの間）に `Run All` 自体が実行された記録がない。実機の 2 台接続で `content_hash` を見て初めて発覚した。
+
+**ただし調査の過程で、この Validator 自体の本当の検出漏れも見つけた。** `AddressablesRegistrationValidator` は「渡された Data 自身が Addressables に登録されているか」を Data 単位（`ValidatorRegistry.RunAll` が列挙する、プロジェクトに実在する `AssetDataBase` アセット）で見る作りのため、**Data(.asset) ファイル自体が存在しない場合は Validate() が一度も呼ばれず、何も報告できない**。実際、調査中に `AnchorCatalog` の Address `ANC_Can_Vas`(ID `0x10207FFC96BD812C`)がこれに該当する孤立エントリだと判明した（対応する Data ファイルがプロジェクトに存在しない。おそらく同種の delete/discard 事故）。これは今回の本題とは別件で、**削除するか復元するかの判断が要るため今回は未対応**（ユーザーの朝の判断待ち）。
+
+この抜けを塞ぐため `CatalogAddressCoverageValidator`（`Assets/DDrive/Editor/Validation/CatalogAddressCoverageValidator.cs`）を新設した。カタログ起点で「カタログの Address が Addressables のどのエントリにも存在しない」ことを検出する（`ContentHashCatalogCoverageValidator` と同じ実装パターン）。対応する `AddressablesSync.FindEntryByAddress` も追加。検出できることを確認するテストを `Assets/DDrive/Tests/Editor/CatalogAddressCoverageValidatorTests.cs` に追加した（`ContentHashCatalogCoverageValidatorTests` と同じ baseline 差分方式）。詳細は [02_core_framework.md](02_core_framework.md) §11 の 2026-09-18 追記を参照。
+
+**直した内容**: `AddressablesSync.SyncAll(log: true)`（既存の同期メニュー「Addressables 登録を同期(カタログ → グループ)」と同じ経路）を実行し、`VFX_Player_Slash.asset` を Addressables グループ `DDrive_GameData` に address `VFX_Player_Slash` で再登録した（差分は `DDrive_GameData.asset` へのエントリ追加 1 件のみ）。
+
+**`VFX_Player_Slash2` は削除していない。** `VfxCatalog` に ID `9666591439498022804` / Address `VFX_Player_Slash2` としてエントリがあり、Addressables にも同じ address で正しく登録されている(= カタログにエントリがある正規の登録)。ただし `Prefab` が未設定(Missing)という別の Error が出ており、剣攻撃デモでは使われていない(WIP か、Slash の置き換えを試した残骸の可能性がある)。データアセットの削除は取り消しにくいため、**Slash2 の去就はユーザーの朝の判断に委ねる**（削除するなら `VfxCatalog` からの登録解除も同じ PR で行う必要がある）。
+
+**カタログのロードが成功することの確認**: 修正後、`PresentationSkillSlashPreviewScene`(剣攻撃デモの確認用シーン、`[D-Drive] Runtime` に `DDriveRuntimeBootstrap` あり)を開いて Play Mode に入り、コンソールを確認した。`[PresentationSkillSlashDemo] Play() -> IsPlaying=True` が出力され、`InvalidKeyException` も「カタログを集められませんでした」も出ず、**エラー 0 / 警告 0**。実 Manager 経由でカタログ登録・`VFX_Player_Slash` の解決が成功したことを確認した。
+
+**Run All の残件**: 修正後の `Run All` は 137 件中 Error 69(修正前と同数だが内訳が変わっている: `VFX_Player_Slash` 関連の Error は解消、新設した `CatalogAddressCoverageValidator` が検出する `AnchorCatalog`/`ANC_Can_Vas` の Error が 1 件増えた)。Addressables 登録に関する残件はこの `ANC_Can_Vas` 孤立エントリのみ(前述、朝の判断待ち)。他の 68 件は本件と無関係の既存の Error(シェーダー/Prefab未設定等、うち 1 件は VFX_Player_Slash2 の Prefab 未設定)。
+
+**検証**: `compile_status` でコンパイルエラー 0 を確認。`test_run`(EditMode) 818 passed / 0 failed(基準値 814 + 新規テスト 4 件)、`test_run`(PlayMode) 689 passed / 0 failed(基準値どおり)。テスト前後で `git status` に意図しない差分なし。コミットはしていない。

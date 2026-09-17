@@ -225,6 +225,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d7f9265ffc9ff0f41b743644daf1ac5f
+    m_Address: VFX_Player_Slash
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dbcb06836a48c644a970c4a59252d9b6
     m_Address: TEX_FBX_Wear02N
     m_ReadOnly: 0
