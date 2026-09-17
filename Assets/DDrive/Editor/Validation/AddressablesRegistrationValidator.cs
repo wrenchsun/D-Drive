@@ -75,6 +75,9 @@ namespace DDrive.Editor.Validation
             // 同期解決(ResolveOrPlaceholder/TryResolveSync)しか使わず、これは Flags.Load=Preload でカタログ
             // 登録時にロード済みのものしか引けない(LazyLoad の「初回参照時にロード」は非同期経路専用)。
             // 配線が正しくても Preload を忘れると常に Placeholder になり原因が分かりにくいため、ここで検出する。
+            // 2026-09-17(U-20、[39_usability_fixes_2026-09-17.md]): Anim.Play/Anim2D.Play(ID 版)も
+            // AnimManager.Play → ResolveOrPlaceholder<AnimData> でしか解決しないため同じ穴だった
+            // (`AssetCreationService.cs` の既定 Preload 化とあわせて追加。既存アセットはここで検出・修正する)。
             var resolvedType = ResolveType(data);
             if (NeedsPreload(resolvedType) && data.Flags.Load != LoadMode.Preload)
             {
@@ -85,7 +88,8 @@ namespace DDrive.Editor.Validation
             }
         }
 
-        private static bool NeedsPreload(AssetType type) => type == AssetType.Canvas || type == AssetType.ControlSkin;
+        private static bool NeedsPreload(AssetType type)
+            => type == AssetType.Canvas || type == AssetType.ControlSkin || type == AssetType.Anim || type == AssetType.Anim2D;
 
         private static void Fix(AssetDataBase data, string address)
         {

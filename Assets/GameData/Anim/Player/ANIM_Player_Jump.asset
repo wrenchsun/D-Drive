@@ -18,13 +18,15 @@ MonoBehaviour:
   Category: Player
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-17T22:12:49
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -140,6 +142,7 @@ MonoBehaviour:
       StringValue: 
       ObjectValue: {fileID: 0}
     Repeat: 0
+  ImportSourceGuid: 
   Clip: {fileID: 7400000, guid: ac75d16809dc0054d8e3449e7ba665f2, type: 3}
   StateName: 
   Layer: 0

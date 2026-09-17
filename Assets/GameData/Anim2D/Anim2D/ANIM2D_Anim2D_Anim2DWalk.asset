@@ -18,13 +18,15 @@ MonoBehaviour:
   Category: Anim2D
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-17T22:13:18
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -34,6 +36,7 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Clip: {fileID: 7400000, guid: 6190ea1c04d436545879616c9fb5c0d0, type: 2}
   StateName: Walk
   Layer: 0

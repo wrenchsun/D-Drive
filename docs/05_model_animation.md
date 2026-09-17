@@ -262,6 +262,14 @@ public static class Anim2D
 > - `Anim2DDataValidator`（C-6 の静的検査: Clip 未生成 / FrameRate / DirectionClips 不足・欠損 / パラメータ名空 / 未使用の DirectionClips）。BlendTree の x,y 有無（FixAction=追加）とスライス済みスプライトの参照切れは Editor 側（3-13）
 > - テスト: `Anim2DTests`。3-11（既存ツール移植 + Anim2DData 自動生成）と 3-13（エディタ）は未着手
 
+### バグ修正（2026-09-17、U-20: SE・VFX を設定しても再生されない）
+
+- **症状**: Anim Editor（`AnimEditorWindow`）で Anim2DData に Frame/Time＋`Action=PlayAsset` のイベント（SE/VFX）を設定しても、実行時（Play Mode）にその Anim2DId を直接 `Anim2D.Play` すると SE/VFX が一切鳴らない/出ない。アニメーション自体（見た目）は Animator 自身の状態遷移で動き続けるため気づきにくい。
+- **真因**: `Anim2D.Play`/`Anim.Play`（ID 版）はどちらも `AnimManager.Play` → `AssetRegistry.ResolveOrPlaceholder<AnimData>` という**完全同期**の解決経路しか持たない（Canvas/ControlSkin/Presentation/Shake/Haptics で 2026-09-12〜14 に見つかったのと同じ罠。[07_canvas_prefab.md](07_canvas_prefab.md) の「バグ修正（2026-09-12）」参照）。`ResolveOrPlaceholder` は「既に `_loaded` キャッシュにあるものしか返さない」同期専用の解決で、自らはロードを開始しない。`_loaded` に乗るのは `Flags.Load=Preload`（カタログ登録時に自動ロード）のものだけで、既定値の `LazyLoad`（「初回参照時にロード」）は非同期経路（`ResolveAsync`）専用のため、他の経路（`ModelData.DefaultAnimation` の依存解決等）で先にロードされていない Anim(2D)Id を直接 Play すると、実データではなく `Events` が空の Placeholder（`AnimManager.CreatePlaceholder`）が再生される。`AssetCreationService.cs` の新規作成時デフォルトに `AssetType.Anim`/`AssetType.Anim2D` が含まれていなかったのが漏れの原因（Canvas 等を直した時点でこの 2 種別は対象外のまま残っていた）。2D キャラクターは 3D 専用の `ModelData` を経由しないため「他経路での先行ロード」が起きにくく、3D より顕在化しやすかった。
+- **対応**: `AssetCreationService.Create()`（`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`）の新規作成デフォルトに `AssetType.Anim`/`AssetType.Anim2D` を追加（`Flags.Load=Preload` になる）。既存アセット向けに `AddressablesRegistrationValidator`（`Assets/DDrive/Editor/Validation/AddressablesRegistrationValidator.cs`）の `NeedsPreload` にも同じ 2 種別を追加し、`Validation > Run All` で `Flags.Load != Preload` を Error + FixAction として検出・修正できるようにした（Canvas/ControlSkin と同じ仕組みをそのまま再利用。複製しない）。既存の `Assets/GameData/Anim/Player/ANIM_Player_Jump.asset`（実際に PlayAsset イベントが付いていた）と `Assets/GameData/Anim2D/**/ANIM2D_*.asset` は本対応の中で `Flags.Load=Preload` に修正済み。
+- **注意（要判断ではなく既存の仕様のまま）**: この修正は「同期解決でしか引かれない Anim(2D)Id は Preload にする」という運用を敷いただけで、`ResolveOrPlaceholder` 自体（非同期ロードを自ら開始しない設計）は変更していない。`AnimManager`/`Anim`/`Anim2D` の API・シリアライズ形式に変更はない。
+- テスト: `Anim2DEventDispatchTests`（PlayMode、`Assets/DDrive/Tests/Runtime/`）。`Anim2D_FrameEvent_PlaysSeAndSpawnsVfx_ThroughFacade` が既存経路（Data を先に解決済み）で SE/VFX が発火することを固定し、`Anim2D_IdPlay_WithoutPriorPreload_ResolvesPlaceholder_AndEventsDoNotFire` が真因（LazyLoad のまま ID 直接 Play → Placeholder → イベント発火なし）を再現する。`AddressablesRegistrationValidatorTests.Anim2DAsset_CreatedWithPreload_AndFlagsLoadRegression_IsDetectedAndFixed`（EditMode）が「作成時に既定 Preload になること」と「LazyLoad に戻ったものを Validator が検出・修正できること」を固定する。
+
 ## C-5. エディタ（Anim2DEditor = 既存 ToolWindow の移植 + 拡張）
 
 既存の Create / Edit / Preview の 3 モード構成を維持し、以下を追加:

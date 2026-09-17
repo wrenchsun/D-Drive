@@ -4,6 +4,7 @@ using DDrive.Editor.Validation;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
+using DDrive.Runtime.Anim2D;
 using DDrive.Runtime.Audio;
 using NUnit.Framework;
 using UnityEditor;
@@ -119,6 +120,37 @@ namespace DDrive.Tests.Editor
             var entry = AddressablesSync.FindEntry(catalog);
             Assert.IsNotNull(entry, "カタログも Addressables に登録される");
             Assert.IsTrue(entry.labels.Contains(AddressablesSync.CatalogLabel), "起動時にラベルで集められる");
+        }
+
+        // U-20([39_usability_fixes_2026-09-17.md]) — Anim2D.Play(ID 版)は AnimManager.Play → ResolveOrPlaceholder
+        // でしか解決しないため、Flags.Load が Preload でない既存 Anim2DData(このバグ修正より前に作られた物)は
+        // Placeholder(Events 空)になり SE/VFX が鳴らない/出ない。Validator がそれを検出・修正できることを確認する。
+        [Test]
+        public void Anim2DAsset_CreatedWithPreload_AndFlagsLoadRegression_IsDetectedAndFixed()
+        {
+            if (!AddressablesSync.IsAvailable)
+            {
+                Assert.Ignore("Addressables の設定が無いためスキップ");
+            }
+
+            var asset = (Anim2DData)AssetCreationService.Create(typeof(Anim2DData), AssetType.Anim2D, "検証用", "Test", "AddrAnim2D", gameDataRoot: TestRoot);
+            Assert.IsNotNull(asset);
+            Assert.AreEqual(LoadMode.Preload, asset.Flags.Load, "U-20 修正後は作成時点で既定 Preload になっているはず");
+            Assert.AreEqual(0, Errors(Run(asset)));
+
+            // このバグ修正より前に作られた既存アセット(Flags.Load=LazyLoad のまま)を模す。
+            var flags = asset.Flags;
+            flags.Load = LoadMode.LazyLoad;
+            asset.Flags = flags;
+            EditorUtility.SetDirty(asset);
+
+            var results = Run(asset);
+            Assert.AreEqual(1, Errors(results), "Flags.Load が Preload でない Anim2DData は Error");
+            StringAssert.Contains("Preload", results[0].Message);
+
+            results[0].FixAction();
+            Assert.AreEqual(LoadMode.Preload, asset.Flags.Load, "FixAction で Preload に書き戻る");
+            Assert.AreEqual(0, Errors(Run(asset)));
         }
     }
 }

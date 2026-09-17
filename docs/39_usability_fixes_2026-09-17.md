@@ -32,7 +32,7 @@ Phase 6 まで実装した後、**デザイナーマニュアル用のスクリ�
 | U-17 | 追加 | Project ウィンドウの右クリックメニューを拡充（音源を右クリック → SeData を作成 など、**できるものはすべて**） | 要望 | 実装済み |
 | U-18 | 追加 | Hierarchy の右クリックメニューから AnchorRig・SeEmitter など基本オブジェクトを配置できるように | 要望 | 実装済み |
 | U-19 | 改善 | CanvasData の作成が毎回「Canvas → Panel」の 2 手順になっている。Hierarchy と `Tools > D-Drive` からの一発生成を追加 | 要望 | 実装済み |
-| U-20 | 不具合 | Animation2D の Anim Editor から SE・VFX を**設定はできるが再生されない** | 要望 | 未着手 |
+| U-20 | 不具合 | Animation2D の Anim Editor から SE・VFX を**設定はできるが再生されない** | 要望 | 実装済み |
 | U-21 | 追加 | Canvas Editor で要素の移動などができるように | 要望 | 未着手 |
 | U-22 | 追加 | Anchor Group で 3×3 などを自動配置した後、**手置きの点に変換する**ボタン | 要望 | 実装済み（[22 §3.7](22_anchor_group.md)） |
 | U-23 | 不具合 | ElementFx で SlideIn などを設定して再生ボタンを連打すると位置ずれが起きる（開き直すと戻る） | 要望 | 未着手 |
@@ -60,6 +60,15 @@ U-1 は U-2 が原因である可能性が高いが、**確定させてから直
 ### U-8（Anim2D Editor の「作成」をポップアップに）
 
 **2026-09-17 実装済み。** `Anim2DEditorWindow` は以前「作成」/「編集」を `ToolbarToggle` で切り替える単一ウィンドウだった（`Anim2DEditorWindow.Create.cs` が作成タブの中身）。作成はタブに分ける必要が無いため、作成用の入力・生成ロジックをすべて新設の `Editor/Anim2D/Anim2DCreateWindow.cs` に切り出し、独立したユーティリティウィンドウ（`GetWindow<T>(utility: true, title: "...")`）にした。既存の「新規アセット作成」ダイアログ（`Editor/AssetBrowser/NewAssetDialog.cs`）が同じ作法で開いているため、新しい仕組みを作らずそれを踏襲している。`Anim2DEditorWindow` 本体は常に編集(Edit)画面だけを表示し、ツールバーの「スプライトから新規作成…」から `Anim2DCreateWindow.Open()` を呼ぶ。生成に成功すると `Anim2DCreateWindow` は `Anim2DEditorWindow.Open(created)` で編集用ウィンドウをその対象で開いてから自身を閉じる（従来の「生成後に編集モードの対象欄へ自動で入る」という体験は維持したまま、ウィンドウが分かれるだけ）。生成ロジック自体（スライス・命名・AnimationClip 生成・BlendTree 登録・Anim2DData 作成）は変更していない。デザイナー向け操作は [DesignerManual/anim2d-editor.html](DesignerManual/anim2d-editor.html) を同時に更新した（旧スクリーンショット 2 枚は UI 変更のため要再撮影、[36 §5.4](36_manual_screenshot_list.md) 相当）。
+
+### U-20（Anim2D の SE・VFX が再生されない）
+
+**2026-09-17 実装済み（不具合）。** 症状は「Anim Editor（`AnimEditorWindow`）で Anim2DData に Frame/Time＋`Action=PlayAsset` のイベント（SE/VFX）を設定できるが、実行時に再生されない」。**対症療法（try/catch で握りつぶす等）ではなく真因を特定して直した。**
+
+- **切り分け**: Anim Editor 自身のプレビュー（`SceneAnimPreviewDriver`、Data オブジェクト参照を直接 `PlayData` に渡す経路）は元々問題なかった。壊れていたのは**実行時（Play Mode）に ID から `Anim2D.Play`/`Anim.Play` を呼ぶ経路**。U-8（作成タブのポップアップ分離）の影響ではない（U-8 は生成ロジックに触れておらず、症状はそれ以前から存在する別要因だった）。
+- **真因**: `Anim2D.Play`/`Anim.Play`（ID 版）はどちらも共有の `AnimManager.Play` → `AssetRegistry.ResolveOrPlaceholder<AnimData>` という**完全同期**の解決経路しか持たない。`ResolveOrPlaceholder` は「既に `_loaded` キャッシュにあるものしか返さない」同期専用の解決で、自らロードを開始しない。`_loaded` に乗るのは `Flags.Load=Preload`(カタログ登録時に自動ロード)のものだけで、既定値の `LazyLoad`(「初回参照時にロード」)は非同期経路(`ResolveAsync`)専用。`ModelData.DefaultAnimation` 等「他の Data からの依存解決」で先にロードされていない Anim(2D)Id を直接 Play すると、実データではなく `Events` が空の Placeholder(`AnimManager.CreatePlaceholder`)が再生され、Frame/Time で設定した SE/VFX が一切鳴らない/出ない(見た目のアニメーションは Animator 自身の状態遷移で動き続けるため気づきにくい)。これは Canvas/ControlSkin(2026-09-12)・Presentation/Shake/Haptics(2026-09-14)で見つかったのと**全く同じ罠**([07_canvas_prefab.md](07_canvas_prefab.md)「バグ修正（2026-09-12）」参照)で、`AssetCreationService.cs` の新規作成デフォルトに `AssetType.Anim`/`AssetType.Anim2D` が含まれていなかった見落としが原因。2D キャラクターは 3D 専用の `ModelData` を経由しないため「他経路での先行ロード」が起きにくく、3D 側(`Anim`)より先に顕在化した(3D 側にも同じ穴があったため合わせて直した)。
+- **対応**: `AssetCreationService.Create()`(`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`)の新規作成デフォルトに `AssetType.Anim`/`AssetType.Anim2D` を追加(`Flags.Load=Preload` になる)。既存アセット向けに `AddressablesRegistrationValidator`(`Assets/DDrive/Editor/Validation/AddressablesRegistrationValidator.cs`)の `NeedsPreload` にも同じ 2 種別を追加し、`Validation > Run All` で `Flags.Load != Preload` を Error + FixAction として検出・修正できるようにした(既存の Canvas/ControlSkin 向け仕組みをそのまま再利用)。既存の `ANIM_Player_Jump.asset`(実際に PlayAsset イベント付き)と `Assets/GameData/Anim2D/**/ANIM2D_*.asset` は本対応の中で `Flags.Load=Preload` に修正済み。詳細・実装メモは [05_model_animation.md](05_model_animation.md) C-4「バグ修正（2026-09-17、U-20）」を参照。
+- **テスト**: `Anim2DEventDispatchTests`(PlayMode、新規)で真因を再現するテスト(`Anim2D_IdPlay_WithoutPriorPreload_ResolvesPlaceholder_AndEventsDoNotFire`)を先に書いて赤にしてから直し、既存経路が壊れていないことを確認するテスト(`Anim2D_FrameEvent_PlaysSeAndSpawnsVfx_ThroughFacade`)も追加。`AddressablesRegistrationValidatorTests`(EditMode、新規)で Validator の検出・修正も固定した。
 
 ### U-11（Inspector 全フィールド）
 「全部出す / 全部隠す」の二択ではなく、**種別ごとに編集させる項目と読み取り専用にする項目を決める**のが本題。ID のように編集されると壊れるものは読み取り専用にし、どうしても触る必要があるときは Inspector 側で行う。どの項目をどちら側にするかを決めたら [09_editor_tools.md](09_editor_tools.md) に表として残すこと。

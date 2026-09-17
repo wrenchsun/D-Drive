@@ -62,8 +62,16 @@ namespace DDrive.Editor.AssetBrowser
             // 同じ理由で追加(剣攻撃デモ PRES_Demo_SkillSlash が Placeholder になる不具合で発見)。
             // 2026-09-14(5-2/5-2b): CameraFxManager.Shake / HapticsManager.Play も ResolveOrPlaceholder の
             // みで同期解決するため、同じ理由で Shake / Haptics を追加(要判断: [16_camera_haptics.md] 実装メモ参照)。
+            // 2026-09-17(U-20、[39_usability_fixes_2026-09-17.md]): Anim/Anim2D も同じ穴があった見落とし。
+            // `Anim.Play`/`Anim2D.Play`(ID 版)は `AnimManager.Play` → `ResolveOrPlaceholder<AnimData>` でしか
+            // 解決しないため、ModelData.DefaultAnimation 等の「他経路の依存解決」で先にロードされていない
+            // Anim(2D)Id を直接 Play すると Events が空の Placeholder が再生され、Frame/Time で設定した SE/VFX が
+            // 一切鳴らない/出ない(見た目のアニメーションは Animator 自身の状態遷移で動き続けるため気づきにくい)。
+            // 2D キャラクターは ModelData(3D 専用)を経由しないため他経路の先行ロードが起きにくく、3D より
+            // 顕在化しやすかった(Anim2DEventDispatchTests.Anim2D_IdPlay_WithoutPriorPreload_… で再現・固定)。
             if (assetType == AssetType.Canvas || assetType == AssetType.ControlSkin || assetType == AssetType.Presentation
-                || assetType == AssetType.Shake || assetType == AssetType.Haptics)
+                || assetType == AssetType.Shake || assetType == AssetType.Haptics
+                || assetType == AssetType.Anim || assetType == AssetType.Anim2D)
             {
                 var flags = asset.Flags;
                 flags.Load = LoadMode.Preload;
