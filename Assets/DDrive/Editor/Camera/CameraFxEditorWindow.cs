@@ -54,7 +54,7 @@ namespace DDrive.Editor.CameraFx
         public static void Open(AssetDataBase target)
         {
             var window = GetWindow<CameraFxEditorWindow>("Shake / Haptics Editor");
-            window.minSize = new Vector2(520, 420);
+            window.minSize = new Vector2(500, 420); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target is CameraShakeData or HapticsData)
             {
                 window.SetTarget(target);

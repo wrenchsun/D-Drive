@@ -38,7 +38,7 @@ Phase 6 まで実装した後、**デザイナーマニュアル用のスクリ�
 | U-23 | 不具合 | ElementFx で SlideIn などを設定して再生ボタンを連打すると位置ずれが起きる（開き直すと戻る） | 要望 | 実装済み |
 | U-24 | 追加 | Anchor の SceneView 表示で基準が分からない。LocalOffset だけでなく**基準（原点）の座標も SceneView に描画**する | [36](36_manual_screenshot_list.md) #19・#23 | 実装済み（[21 §3.10](21_anchor_spec.md) / [09 §2.2](09_editor_tools.md)）。#19 / #20 / #23 は撮影待ち |
 | U-25 | 改善 | Presentation の Signal を手動で送る操作のやり方が分からない。導線・説明を分かりやすくする | [36](36_manual_screenshot_list.md) #53 | 実装済み |
-| U-27 | 改善 | **全エディタ共通の条件**: Windows の拡大/縮小 100%・ウィンドウ横幅 500px で要素が見切れないこと（[09 §7.1](09_editor_tools.md)）。U-10 は個別の 1 件で、これはその全体点検 | 要望 | 未着手 |
+| U-27 | 改善 | **全エディタ共通の条件**: Windows の拡大/縮小 100%・ウィンドウ横幅 500px で要素が見切れないこと（[09 §7.1](09_editor_tools.md)）。U-10 は個別の 1 件で、これはその全体点検 | 要望 | 実装済み |
 | U-26 | 確認 | ~~実機テスト（PC 2 台での通し確認）~~ **不要**（2026-09-17 にユーザー判断。[29](29_network_device_test.md) で PC-A Host + PC-B Client の確認は済んでいるため） | 要望 | 対応不要 |
 
 ## 1. 補足
@@ -99,6 +99,29 @@ U-1 は U-2 が原因である可能性が高いが、**確定させてから直
 
 U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条件に引っかかった 1 件目。U-27 は**全エディタを 500px 幅で上から下まで見て、切れている箇所を洗い出して直す**チケット。新規エディタ・レイアウト変更のときは以後この幅で確認する。
 
+**2026-09-17 実装済み。** Unity MCP（`execute_code`）で全 28 EditorWindow を幅 500px のフローティングで開き、
+`resolvedStyle`/`worldBound` を数値比較する機械的な方法で点検した（目視ではない）。点検結果の一覧・検出方法・
+誤検出として除外したもの（GraphView のパン領域、TextField 内部のネイティブスクロール）は
+[09_editor_tools.md §7.1.1](09_editor_tools.md#711-全エディタ横断点検2026-09-17u-273-巡目) の表を参照。
+
+- **実際に破綻していた 10 件**（5 件は横並び行の `flexWrap` 不足、5 件は `minSize` の横幅が 500px を超えていて
+  そもそも 500px まで縮められなかったもの）をすべて直した。詳細・実測値は §7.1.1 の表
+- **優先度最高だったもの**: `AnimEditorWindow.Source.cs`(`BuildEventRow`、Anim2D の Events 編集とも共用)で、
+  Events 行の削除(✕)・アセットを開く(↗)ボタンが最大 92px 画面外に出て**実際に押せなくなっていた**（操作不能 >
+  ラベルが読めない > 見栄えの優先順位どおり最優先で対応）
+- **`minSize` の横幅超過**が実質的に一番多いパターンだった: `AudioEditorWindow`/`CameraFxEditorWindow`/`VfxEditorWindow`
+  (520px)・`AnimEditorWindow`(560px)・`PresentationEditorWindow`(**620px**、最大)の 5 ウィンドウは、`Open()` が
+  設定する `minSize.x` がそもそも 500px を超えていたため、ユーザーが実際にウィンドウを 500px まで縮めることが
+  物理的にできなかった（＝レイアウト自体は壊れていなくても規約違反）。全て 500 に下げた。`ModelEditorWindow` は
+  2026-09-17 の別対応で既に 500 になっていたのが唯一の先例
+- **Toolbar の残課題（「Unity 側が折り返さないため残課題」）は検証の結果、部分的に誤りと判明した。**
+  `flexWrap=Wrap` だけでは `Toolbar` 自身の固定高さのせいで折り返した行が後続要素と重なるが、
+  **`style.height = StyleKeyword.Auto` を併用すれば正しく複数行に伸びる**ことを合成テストで確認した。
+  ただし現状 28 ウィンドウの `Toolbar` はどれも 500px で破綻していなかった（壊れていないものは直さない方針のため
+  未適用）。今後の指針として [09 §7.1.2](09_editor_tools.md#712-toolbar--toolbarbutton-の折り返し残課題の検証2026-09-17) に手順を残した
+- 触っていない（破綻していなかったため予防的に変更しなかった）: 上記以外の 18 ウィンドウ。一覧は §7.1.1 参照
+- コンパイル・EditMode/PlayMode テストは本チケットの完了条件節を参照
+
 ### U-16 / U-17 / U-18 / U-19（アセット作成の導線）— 実装済み（2026-09-17）
 
 4 件はまとめて「作る・置く導線」として実装した。詳細は [09_editor_tools.md](09_editor_tools.md) §1（表の「新規作成した直後に専用エディタで開く」）/ §1.2 / §6.2 / §6.3、[10_workflow.md](10_workflow.md) §6.1、[07_canvas_prefab.md](07_canvas_prefab.md) A-4 実装メモ。
@@ -156,6 +179,17 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 
 ## 2. 変更履歴
 
+- 2026-09-17: U-27（全エディタ 横幅 500px・拡大縮小 100% で見切れない、全体点検）を実装。Unity MCP(`execute_code`)で
+  全 28 EditorWindow を幅 500px で開き `resolvedStyle`/`worldBound` を数値比較する方法で点検し、実際に破綻していた
+  10 件を修正: 横並び行の `flexWrap` 不足 5 件(`AnimEditorWindow.cs` 再生行、`AnimEditorWindow.Source.cs` の Events 行
+  ─ ✕/↗ ボタンが最大 92px 画面外で操作不能だった最優先案件、`PresentationEditorWindow.Preview.cs` 再生行、
+  `VfxEditorWindow.Anchor.cs` の Anchor Toggle 行、`CanvasEditorWindow.cs` の ElementFx 行)と、`minSize` の横幅が
+  500px を超えていて物理的に 500px まで縮められなかった 5 件(`AudioEditorWindow`/`CameraFxEditorWindow`/
+  `VfxEditorWindow`=520px、`AnimEditorWindow`=560px、`PresentationEditorWindow`=**620px**、いずれも 500 に修正)。
+  「Toolbar 内の ToolbarButton は折り返さない」という残課題は合成テストで検証し、`flexWrap=Wrap` +
+  `style.height=StyleKeyword.Auto` の併用で解決できることを確認(ただし現状どの Toolbar も 500px で破綻していない
+  ため未適用、今後の指針として記録)。点検結果の一覧・誤検出として除外した 2 パターン(GraphView のパン領域、
+  TextField 内部のネイティブスクロール)は [09_editor_tools.md §7.1.1/§7.1.2](09_editor_tools.md) を参照。
 - 2026-09-17: U-25（Presentation の Signal を手動で送る導線を分かりやすくする）を実装。統合プレビューの「Signal レーン(手動発火)」に手順を明文化したラベルを追加し、再生中でなければ Signal ボタンをグレーアウトするようにした(`PresentationEditorWindow.Preview.cs`/`PresentationEditorWindow.cs`)。`docs/DesignerManual/presentation.html` を更新し、スクリーンショット #53 を撮影可能にした([36](36_manual_screenshot_list.md))。
 - 2026-09-17: U-23（ElementFx の「▶ 再生」連打で位置ずれ）を実装。真因は `UiTweenManager.StopAll(RectTransform)` が中断された Tween を完了させずに取り除いていたこと(`Stop(handle, complete)` と違い complete 引数が無かった)。`StopAll` に `complete` 引数を追加し、`CanvasEditorWindow.PlayPhasePreview` を `complete: true` で呼ぶよう変更。再現テスト(`UiTweenTests.RapidReplay_SlideInPreset_WithStopAllComplete_SettlesAtRestPosition`)を先に書いて修正前に赤(実測 -328.05 vs 期待 0)であることを確認してから直した。
 - 2026-09-17: U-21（Canvas Editor で要素の移動）を実装。ツールバーに「Prefab を開く(要素の移動)」、ElementFx の各要素に「選択して移動(Prefab を開く)」ボタンを追加し、`ModelEditorWindow.OpenPrefab`/`VfxEditorWindow.OpenPrefab` と同じ導線でプレハブモードを開いて Unity 標準ツールで移動・回転・リサイズできるようにした。

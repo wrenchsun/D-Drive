@@ -447,7 +447,10 @@ namespace DDrive.Editor.Anim
 
         private VisualElement BuildEventRow(int index, AssetEvent e, List<string> labels)
         {
-            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 2 } };
+            // [09] §7.1 — ラベル/Dropdown/Trigger/時刻フィールド/繰り返し/▶↗✕ ボタンを横一列に詰め込むため、
+            // 幅 500px では折り返し(flexWrap)が無いと ↗・✕(アセットを開く・削除)ボタンが画面外に出て
+            // 操作できなくなる(2026-09-17, U-27)。
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginBottom = 2 } };
             row.Add(new Label($"#{index + 1}") { style = { width = 32 } });
 
             var dropdown = new DropdownField { choices = labels, style = { flexGrow = 1f, minWidth = 140 } };

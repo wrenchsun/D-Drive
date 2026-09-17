@@ -73,7 +73,7 @@ namespace DDrive.Editor.Anim
         public static void Open(AnimData target)
         {
             var window = GetWindow<AnimEditorWindow>("Anim Editor");
-            window.minSize = new Vector2(560, 480);
+            window.minSize = new Vector2(500, 480); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target != null)
             {
                 window.SetTarget(target);
@@ -349,7 +349,9 @@ namespace DDrive.Editor.Anim
 
         private void BuildPlaySection(VisualElement root)
         {
-            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 4 } };
+            // [09] §7.1 — ボタン 4 つ + Toggle + ステータスラベルを横一列に詰め込むため、
+            // 幅 500px では折り返し(flexWrap)が無いと右端が見切れる(2026-09-17, U-27)。
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginTop = 4 } };
             _playButton = new Button(Play) { text = "▶ 再生" };
             row.Add(_playButton);
             row.Add(new Button(TogglePause) { text = "⏸ 一時停止", tooltip = "その瞬間で止める(タイムラインをクリックしても止まる)。もう一度押すか ▶ で続き" });
@@ -357,6 +359,7 @@ namespace DDrive.Editor.Anim
             row.Add(new Button(() => _scene?.RestorePoseNow()) { text = "↺ ポーズを戻す", tooltip = "シーン上の対象を再生前のポーズに戻す" });
             var loopToggle = new Toggle("ループ試聴") { value = _loopPreview, tooltip = "終わったら自動でもう一度(データは変更しない)" };
             loopToggle.RegisterValueChangedCallback(evt => _loopPreview = evt.newValue);
+            CompactFieldLayout.ShrinkLabel(loopToggle.labelElement);
             row.Add(loopToggle);
             _statusLabel = new Label("■ 停止中") { style = { marginLeft = 12, opacity = 0.8f } };
             row.Add(_statusLabel);

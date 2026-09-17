@@ -60,7 +60,7 @@ namespace DDrive.Editor.Presentation
         public static void Open(PresentationData target)
         {
             var window = GetWindow<PresentationEditorWindow>("Presentation Editor");
-            window.minSize = new Vector2(620, 560);
+            window.minSize = new Vector2(500, 560); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target != null)
             {
                 window.SetTarget(target);

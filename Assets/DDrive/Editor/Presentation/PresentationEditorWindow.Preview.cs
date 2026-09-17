@@ -54,7 +54,9 @@ namespace DDrive.Editor.Presentation
             { text = "配置解除" });
             foldout.Add(modelRow);
 
-            var playRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 4 } };
+            // [09] §7.1 — ボタン 4 つ + Toggle + ステータスラベルを横一列に詰め込むため、
+            // 幅 500px では折り返し(flexWrap)が無いと右端が見切れる(2026-09-17, U-27)。
+            var playRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginTop = 4 } };
             playRow.Add(new Button(Play) { text = "▶ 再生", tooltip = "一時停止中は再開します。最初からやり直すには「⏮ 最初から」か「■ 停止」→「▶ 再生」" });
             _pauseButton = new Button(TogglePause) { text = "⏸ 一時停止" };
             playRow.Add(_pauseButton);
@@ -62,6 +64,7 @@ namespace DDrive.Editor.Presentation
             playRow.Add(new Button(Restart) { text = "⏮ 最初から", tooltip = "一時停止中でも最初から再生し直します" });
             var loopToggle = new Toggle("ループ") { value = _loopPreview, tooltip = "完了したら自動でもう一度再生する" };
             loopToggle.RegisterValueChangedCallback(evt => _loopPreview = evt.newValue);
+            CompactFieldLayout.ShrinkLabel(loopToggle.labelElement);
             playRow.Add(loopToggle);
             _statusLabel = new Label("■ 停止中") { style = { marginLeft = 12, opacity = 0.8f } };
             playRow.Add(_statusLabel);

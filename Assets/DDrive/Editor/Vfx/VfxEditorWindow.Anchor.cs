@@ -1,5 +1,6 @@
 using DDrive.Editor.Anchor;
 using DDrive.Editor.Audio;
+using DDrive.Editor.Common;
 using DDrive.Editor.Preview;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Data;
@@ -141,13 +142,16 @@ namespace DDrive.Editor.Vfx
             }));
             _embeddedContainer.Add(_anchorScaleField);
 
-            var toggleRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            // [09] §7.1 — Toggle 3 つを横一列に詰め込むため、幅 500px では折り返し(flexWrap)+
+            // ラベル幅の縮小(ShrinkLabel)が無いと右端が見切れる(2026-09-17, U-27)。
+            var toggleRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap } };
             _anchorFollowRotToggle = new Toggle("回転追従") { tooltip = "アタッチ先の回転に追従する(FollowRotation)" };
             _anchorFollowRotToggle.RegisterValueChangedCallback(evt => ApplyAnchorChange(a =>
             {
                 a.FollowRotation = evt.newValue;
                 return a;
             }));
+            CompactFieldLayout.ShrinkLabel(_anchorFollowRotToggle.labelElement);
             toggleRow.Add(_anchorFollowRotToggle);
 
             _anchorDetachToggle = new Toggle("親消滅後も残す") { style = { marginLeft = 12 }, tooltip = "アタッチ先が破棄されてもその場に残って再生完了まで続ける(DetachOnStop)" };
@@ -156,9 +160,11 @@ namespace DDrive.Editor.Vfx
                 a.DetachOnStop = evt.newValue;
                 return a;
             }));
+            CompactFieldLayout.ShrinkLabel(_anchorDetachToggle.labelElement);
             toggleRow.Add(_anchorDetachToggle);
 
             _sceneHandleToggle = new Toggle("SceneView 表示") { style = { marginLeft = 12 }, value = _sceneHandleEnabled, tooltip = "OFF: この VFX の Anchor を SceneView に一切描かない。ON: 目印を描き、このウィンドウを最後に操作していれば移動/回転ハンドルも出す(回転ツール選択時は回転)" };
+            CompactFieldLayout.ShrinkLabel(_sceneHandleToggle.labelElement);
             _sceneHandleToggle.RegisterValueChangedCallback(evt =>
             {
                 _sceneHandleEnabled = evt.newValue;

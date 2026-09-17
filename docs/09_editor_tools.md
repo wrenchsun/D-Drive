@@ -495,6 +495,73 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
     後半が切れていた。ルーラーの高さは固定で 2 行にできないため、**幅 620px 未満では短縮版を出し、
     全文は `tooltip` に逃がす**（§7.1 の「ラベルが長い項目は短くするか tooltip に逃がす」）
 
+#### 7.1.1 全エディタ横断点検（2026-09-17、U-27・3 巡目）
+
+[39](39_usability_fixes_2026-09-17.md) U-27 の本体。`docs/09_editor_tools.md` に載っている**全 28 EditorWindow**を対象に、
+Unity MCP（`execute_code`）でウィンドウを幅 500px のフローティングで開き、`rootVisualElement` を歩いて
+`resolvedStyle` / `worldBound` を数値で比較する方法で機械的に検出した（目視ではない）。まず対象データを割り当てず
+ブランクで 28 件全部を通し、そのあと U-21/U-25/U-8 で増えたボタンを含む主要 15 件は実データ（`Assets/GameData/` の
+既存アセット）を割り当てて Foldout を全展開してから再検査した（ブランクだと表示されない ElementFx 行・Signal 行・
+Events 行はこの 2 段目で見つかっている）。
+
+**検出方法の注意点**（誤検出として除外したもの）:
+- `NavigationGraphView`（Canvas Editor のノードグラフ）の内部要素は `worldBound` が数千 px に達するが、
+  GraphView 自身がパン/ズームでクリップする設計上の意匠であり、見た目には破綻しない。スキャン対象から除外した
+- `TextField` 内部の `TextInput`/`TextElement`（例: Spec Sync の Web API URL 表示）は、値が長いと内部の描画用
+  `TextElement` 自体は全文の幅を持つが、親の `unity-base-text-field__input` が固定幅でクリップ・内部スクロールする
+  ネイティブな挙動であり、500px 固有の問題ではない（どの幅でも同じ挙動)。除外した
+
+**実際に破綻していた箇所（○ = 直した）**:
+
+| # | ウィンドウ | 箇所 | 症状 | 実測（500px 時） | 対応 |
+|---|---|---|---|---|---|
+| 1 | `AnimEditorWindow`（Anim Editor） | `BuildPlaySection` の再生行（▶ 再生/⏸ 一時停止/■ 停止/↺ ポーズを戻す + ループ試聴 + ステータス） | `flexWrap` 無しで右端が見切れる | ステータスラベルが 16px はみ出し | ○ `flexWrap=Wrap` + ループ Toggle に `ShrinkLabel` |
+| 2 | `AnimEditorWindow.Source.cs`（Events 行、Anim2D も共用） | `BuildEventRow`（対象/Trigger/時刻/繰り返し + ▶/↗/✕） | 固定幅フィールドを詰め込みすぎ。**削除(✕)・開く(↗) ボタンが画面外**で操作不能 | ✕ ボタンが最大 92px はみ出し（操作不能) | ○ `flexWrap=Wrap`（優先度最高: 操作不能に該当） |
+| 3 | `PresentationEditorWindow.Preview.cs` | 統合プレビューの再生行（▶ 再生/⏸ 一時停止/■ 停止/⏮ 最初から + ループ + ステータス） | 同上（Anim Editor と同型） | ステータスラベルが 36px はみ出し | ○ `flexWrap=Wrap` + ループ Toggle に `ShrinkLabel` |
+| 4 | `VfxEditorWindow.Anchor.cs` | 埋め込み Anchor の Toggle 行（回転追従/親消滅後も残す/SceneView 表示） | Toggle 3 つ(既定ラベル幅 120px)が折り返さず並ぶ | 3 個目が 7px はみ出し | ○ `flexWrap=Wrap` + 3 Toggle に `ShrinkLabel` |
+| 5 | `CanvasEditorWindow`（ElementFx 行） | `BuildPhaseRow`（プリセット Popup + ObjectField(160px 固定) + 「✎ Tween Editor」ボタン） | 実データ(直接指定 Tween あり)でボタンが押し出される | 58px はみ出し | ○ `flexWrap=Wrap` |
+| 6 | `AudioEditorWindow` | `Open()` の `minSize` | **横幅 520px 下限のため、そもそも 500px まで縮められなかった**（§7.1 違反） | 500px に到達不能 | ○ `minSize.x` を 500 に |
+| 7 | `CameraFxEditorWindow` | 同上 | 同上（520px） | 同上 | ○ 500 に |
+| 8 | `AnimEditorWindow` | 同上 | 同上（560px） | 同上 | ○ 500 に |
+| 9 | `PresentationEditorWindow` | 同上 | 同上（**620px**、最も大きい） | 同上 | ○ 500 に（下げたことでタイムライン操作ヒントの「620px 未満は短縮版」ロジックが初めて実際に働くようになった) |
+| 10 | `VfxEditorWindow` | 同上 | 同上（520px） | 同上 | ○ 500 に |
+
+**500px で確認して破綻していなかったウィンドウ**（ブランク + 該当するものは実データ付きで確認済み。触っていない）:
+`AnchorEditorWindow`・`AnchorGroupEditorWindow`（実データ付き）・`Anim2DCreateWindow`・`Anim2DEditorWindow`・
+`AssetBrowserWindow`・`NewAssetDialog`・`AssetDeleteWindow`・`DependencyTreeWindow`・`UnusedAssetsWindow`・
+`UsagesWindow`（いずれもブランクのみ。依存関係の実データを流し込んだ再検査は未実施、低リスクと判断）・
+`IconCropWindow`（IMGUI。`minSize=(480,400)` は 500px 到達可、`OnGUI` の固定幅ボタン合計は十分小さい。
+UI Toolkit の `resolvedStyle` 走査が効かないため画面キャプチャ等での目視確認は別途推奨）・`MaterialConvertWindow`・
+`MaterialEditorWindow`・`MaterialThumbnailWindow`（いずれも実データ付き）・`ModelEditorWindow`（実データ付き。
+`minSize=500` は既に対応済み)・`PrefabEditorWindow`（ブランクのみ。`PrefabData` の実アセットがプロジェクトに
+存在しなかったため実データ検査は未実施）・`SpecSyncWindow`（実プロジェクト設定の URL/hash 表示は誤検出、上記参照）・
+`ButtonSkinEditorWindow`・`SliderSkinEditorWindow`（実データ付き。U-10 で既に対応済みだったことを再確認）・
+`SliderEditorWindow`（ブランクのみ。対象は `UiSlider` という GameObject でアセットではないため実データ検査は未実施）・
+`UiPresetGalleryWindow`・`UiTweenEditorWindow`（実データ付き）
+
+#### 7.1.2 Toolbar / ToolbarButton の折り返し（残課題の検証、2026-09-17）
+
+U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`UnityEditor.UIElements.Toolbar`）に
+`ToolbarButton` を追加したことで「Toolbar 内の ToolbarButton は Unity 側が折り返さないため残課題」という懸念が
+挙がっていたため、**実際に試して確認した**（推測で残課題にしない）。
+
+- **結論: 半分だけ正しい。`flexWrap = Wrap.Wrap` を `Toolbar` 自身の `style` に設定すれば `ToolbarButton` は
+  実際に複数行へ折り返す**（Yoga レイアウト上は効く）。ただし `Toolbar` は USS 既定で `height` が固定（21px 相当）
+  のため、折り返して増えた 2 行目以降は `Toolbar` の高さの外にはみ出し、直後の要素と重なって見える。
+  **`flexWrap=Wrap` と同時に `style.height = StyleKeyword.Auto` も設定して初めて、`Toolbar` 自身が折り返した行数分
+  縦に伸び、後続要素との重なりも起きない**。`execute_code` で合成 6 ボタン・幅 300px の `Toolbar` を作って検証済み
+  （`flexWrap` のみ: 3 行に折り返すが `Toolbar.resolvedStyle.height` は 21px のまま固定 → 2〜3 行目が後続要素と重なる。
+  `flexWrap` + `height=Auto` 併用: `Toolbar.resolvedStyle.height` が 52px に伸び、後続の `Label` は正しく y=52 に押し
+  下げられる）
+- **現状の判断**: 7.1.1 の点検で実際に確認した通り、**28 ウィンドウの `Toolbar` はどれも 500px で破綻していない**
+  （最も余白が少ない `AnchorEditorWindow` でも右端 452px/500px に収まっている）。§7.1.1 で挙げた実際の破綻箇所は
+  すべて `Toolbar` 以外の通常の横並び行だった。壊れていないものを予防的に直す必要は無い（本チケットの注記どおり）ため、
+  **既存の `Toolbar` には `flexWrap`/`height=Auto` を適用していない**。今後ボタンが増えて 500px を超えそうな
+  `Toolbar` が出た場合は、アイコンのみ化・`ToolbarMenu`（オーバーフローメニュー）への集約より先に、
+  まず `flexWrap = Wrap.Wrap` + `height = StyleKeyword.Auto` の組み合わせを試すこと（検証済みで最も手数が少ない）。
+  それでも狭すぎる場合の次善策はテキストを削って `tooltip` に逃がす（§7.1 既存の指針）、それでも収まらない数の
+  ボタンが並ぶ設計になった場合にのみ `ToolbarMenu` へのオーバーフロー集約を検討する
+
 ## 8. Inspector の「エディターで開く」ボタン（2026-09-09）
 
 **専用エディタを持つ Data アセットは、Inspector の最上部に「〜で開く」ボタンが出る。既存・今後追加する種別すべてに適用する。**

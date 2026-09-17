@@ -60,7 +60,7 @@ namespace DDrive.Editor.Vfx
         public static void Open(VfxData target)
         {
             var window = GetWindow<VfxEditorWindow>("VFX Editor");
-            window.minSize = new Vector2(520, 380);
+            window.minSize = new Vector2(500, 380); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target != null)
             {
                 window.SetTarget(target);

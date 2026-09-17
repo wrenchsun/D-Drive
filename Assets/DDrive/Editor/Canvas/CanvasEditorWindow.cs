@@ -578,7 +578,9 @@ namespace DDrive.Editor.CanvasTool
         {
             var container = new VisualElement();
 
-            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2 } };
+            // [09] §7.1 — ラベル + PopupField + ObjectField(160px 固定) + 「✎ Tween Editor」ボタンを
+            // 横一列に詰め込むため、幅 500px では折り返し(flexWrap)が無いとボタンが見切れる(2026-09-17, U-27)。
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginTop = 2 } };
             row.Add(new Label(label) { style = { width = 70 } });
 
             var choices = new List<string> { NoneChoice };
