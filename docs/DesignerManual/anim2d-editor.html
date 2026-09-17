@@ -43,6 +43,11 @@
 <li>足音や効果音を付けたいときは「<strong>Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)</strong>」→ <a href="anim-editor.html">Anim Editor</a> のタイムラインで「＋ 現在位置に SE」（手順はそちらのページ）</li>
 </ol>
 <!-- screenshot: 36-#32 -->
+<figure>
+<img src="images/anim2d-editor-create-mode.png" alt="Anim2D Editor の作成モード">
+<figcaption>作成モード。入力モード・Texture・Name/State・Frame Rate/Loop を入れて生成する</figcaption>
+</figure>
+
 <div class="tip">プログラマーは 3D と同じく <code>Anim.Play(ID, animator)</code> を呼ぶだけです。カタログも 3D と共通（AnimCatalog）です。</div>
 
 <h2>画面の説明</h2>
@@ -74,8 +79,18 @@
 <tr><td>生成</td><td>方向なし: スライス → Clip 生成 → 角度があれば BlendTree 登録 → Anim2DData 作成。方向セットあり: 角度ごとの画像を順に処理し、角度順に Direction Clips を組み立てます（一番小さい角度、通常 0° の Clip が主 Clip になります）。同じ角度に既に Clip が登録されていると「BlendTree 登録」ダイアログ「角度 N には既にクリップが登録されています。上書きしますか?」が出るので「上書き」か「スキップ」を選びます。生成後は編集モードの対象欄に自動で入ります</td></tr>
 </table>
 
+<figure>
+<img src="images/anim2d-editor-detect-preview.png" alt="検出プレビューの結果">
+<figcaption>検出プレビュー。緑の枠が切り出される範囲、番号がコマの順番</figcaption>
+</figure>
+
 <h3>編集モード</h3>
 <!-- screenshot: 36-#34 -->
+<figure>
+<img src="images/anim2d-editor-edit-mode.png" alt="Anim2D Editor の編集モード">
+<figcaption>編集モード。生成済みの Anim2DData を読み込んで、リタイミングや検証を行う</figcaption>
+</figure>
+
 <table>
 <tr><th>要素</th><th>説明</th></tr>
 <tr><td>編集対象</td><td>「Anim2DData」欄と「読み込み」ボタン。読み込むと「Clip 名: N 枚 / 秒 / fps」の要約が出ます。「Clip が未設定、または Sprite キーフレームを読み込めませんでした。」なら Clip が無いか、コマ差し替えの Clip ではありません</td></tr>

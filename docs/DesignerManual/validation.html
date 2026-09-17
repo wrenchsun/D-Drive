@@ -13,7 +13,7 @@
 
 <p>Validation は、D-Drive のデータの<strong>設定ミス・矛盾・登録漏れを自動で見つける仕組み</strong>です。「Prefab が入っていない」「フォーカスの行き先が無い」「カタログに載っていないのでゲームで出てこない」といった問題を、ゲームを実行する前に一覧で教えてくれます。</p>
 <ul>
-<li>各専用エディタ（VFX / Anim / Canvas など）の下の方にある「検証」「Validation」欄には、<strong>いま開いているデータ 1 件分</strong>の結果がその場で出ます</li>
+<li>各専用エディタ（VFX / Anim / Canvas など）の下の方にある「検証」「Validation」欄には、<strong>いま開いているデータ 1 件分</strong>の結果がその場で出ます。2026-09-17 から<strong>すべての専用エディタに同じ「検証」欄</strong>が付きました（以前は Audio / Shake・Haptics / Material / Model / Prefab / Button Skin / Slider Skin には無く、VFX Editor は開いても中身が出ないことがありました）。見出しに件数（<code>検証: ✓ 問題なし</code> / <code>検証: エラー 1 / 警告 2</code>）が出ます</li>
 <li>プロジェクト全体をまとめて調べるときは、メニューの <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code></li>
 </ul>
 
@@ -24,7 +24,7 @@
 <tr><td>Warning（黄）</td><td>動くが、意図と違う結果になりやすい</td><td>内容を読んで判断。意図的ならそのままでよい</td></tr>
 <tr><td>Info（青）</td><td>お知らせ。設定の確認用</td><td>読んでおくだけでよい</td></tr>
 </table>
-<!-- screenshot: 36-#15 -->
+<!-- screenshot: 36-#15 / 未撮影: （2026-09-17 に原因を修正済み。撮影可能） -->
 
 <h2>「修正」ボタン</h2>
 <p>自動で直せる項目には、メッセージの横に<strong>「修正」ボタン</strong>が出ます。押すとその場で直り、Ctrl+Z で戻せます。すべての項目に付いているわけではなく、付いていないものは各ページの「よくある警告」を見て手で直します。</p>

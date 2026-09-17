@@ -32,6 +32,11 @@ Model Editor を先に開いてしまった場合は、ツールバーの<strong
 <li>「Default Animation」に待機モーションのアニメーションデータを入れて「▶ 配置して DefaultAnimation を再生」→ 出した瞬間からそのモーションで動きます</li>
 </ol>
 <!-- screenshot: 36-#26 -->
+<figure>
+<img src="images/model-editor-window.png" alt="Model Editor ウィンドウ全体">
+<figcaption>Model Editor。ツールバー・配置/撤去・ターンテーブル・Material スロット一覧・Default Animation</figcaption>
+</figure>
+
 <div class="tip">
 見た目は<strong>ウィンドウの中ではなく SceneView で確認します</strong>（VFX Editor / Anim Editor と同じ）。SceneView を好きな角度・大きさにして見てください。
 </div>
@@ -51,7 +56,7 @@ Model Editor を先に開いてしまった場合は、ツールバーの<strong
 <tr><td>▶ シーンに配置 / ■ 撤去</td><td>開いているシーン（またはプレハブモード）の原点に対象を置く / 消す。置いたモデルは Hierarchy で選択された状態になります</td></tr>
 <tr><td>ターンテーブル自動回転</td><td>置いたモデルを Y 軸で回します（速度は度/秒、マイナスで逆回転）。プレハブモードの実体は回しません</td></tr>
 <tr><td>複数モデル並列表示</td><td>最大 4 体を対象の隣に 2m 間隔で並べます。サイズ感や色味の比較に。「配置」/「撤去」で個別に</td></tr>
-<!-- screenshot: 36-#27 -->
+<!-- screenshot: 36-#27 / 未撮影: 3D モデルのプレビューが透明になり、何も写らないため -->
 <tr><td>Material スロット</td><td>「Slot 自動収集」で Prefab の Renderer を走査して一覧化。各スロットに<a href="material-data.html">マテリアル</a>の ID を入れます。ゲーム実行時（Spawn）にはそのマテリアルに差し替わり、配置中のモデルにも「配置中のモデルに反映」で同じ経路で適用して見た目を確かめられます</td></tr>
 <tr><td>Default Animation</td><td>出した瞬間に再生するアニメーションデータ。「▶ 配置して DefaultAnimation を再生」で確認、細かい調整は <a href="anim-editor.html">Anim Editor</a> で</td></tr>
 </table>

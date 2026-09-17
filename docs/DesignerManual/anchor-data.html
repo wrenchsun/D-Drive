@@ -41,6 +41,11 @@
 <li>使いたい VFX を VFX Editor で開き、Anchor 欄の「<strong>Anchor アセット</strong>」に今作った Anchor を選ぶ。これで、その VFX はプログラムから呼ばれたときもこの位置に出ます</li>
 </ol>
 <!-- screenshot: 36-#22 -->
+<figure>
+<img src="images/anchor-editor-window.png" alt="Anchor Editor ウィンドウ全体">
+<figcaption>Anchor Editor。連鎖表示・スポーン先・設定項目・試し出しボタンが縦に並ぶ</figcaption>
+</figure>
+
 <div class="tip">
 効果音も同じです。SE データの Inspector で <code>Spatial</code> を <strong>Anchor</strong> にし、<code>Anchor Id</code> に同じ Anchor を選べば、エフェクトと音が同じ位置から出ます。
 </div>
@@ -65,7 +70,7 @@
 <tr><td>SceneView</td><td>ルートから対象までを点線で結び、ランダム半径を円で表示。移動/回転ハンドルでドラッグして位置を決められます（Ctrl+Z 可）。ツールバーの「SceneView 表示」を OFF にすると何も描きません。VFX Editor など他の D-Drive ウィンドウも開いているときは、<strong>最後にクリックしたウィンドウだけ</strong>が詳細とハンドルを描き、他は薄い目印だけになります（重なって見づらくなるのを防ぐため。ツールバー下の「SceneView: …が描画中」で確認できます）</td></tr>
 <tr><td>検証</td><td>入れ子の循環、親が見つからない、Path が空、などの問題を表示</td></tr>
 </table>
-<!-- screenshot: 36-#23 -->
+<!-- screenshot: 36-#23 / 未撮影: #19 と同じ理由（SceneView に基準が描かれない） -->
 
 <h2>設定項目</h2>
 <table>
