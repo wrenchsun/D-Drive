@@ -52,7 +52,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
 
             MayaModelPostprocessor.Suppress = false;

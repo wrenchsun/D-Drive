@@ -60,7 +60,7 @@ namespace DDrive.Tests.Editor
         public void Regenerate_AssignsStableIdAndIsIdempotent()
         {
             var asset = CreateAsset("SE_Gen_Idempotent");
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             var first = AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             Assert.IsTrue(first.Success);
@@ -83,7 +83,7 @@ namespace DDrive.Tests.Editor
         public void Regenerate_IdSurvivesRename()
         {
             var asset = CreateAsset("SE_Gen_RenameMe");
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             var idBefore = asset.Id;
             Assert.AreNotEqual(0UL, idBefore);
@@ -101,14 +101,14 @@ namespace DDrive.Tests.Editor
         {
             var a = CreateAsset("SE_Gen_DupA");
             var b = CreateAsset("SE_Gen_DupB");
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);
             Assert.AreNotEqual(a.Id, b.Id);
 
             b.Id = a.Id;
             EditorUtility.SetDirty(b);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             LogAssert.Expect(LogType.Error, new Regex(".*Duplicate AssetId.*"));
             var result = AssetIdGenerator.Regenerate(_tempOutputPath, includeTestAssemblies: true);

@@ -48,7 +48,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 
@@ -115,7 +115,7 @@ namespace DDrive.Tests.Editor
                 // DependencyAssetResolver.Find が失敗するだけで、シーンの SerializedProperty はそのまま)。
                 DependencyGraphService.UpdatePaths(null, new[] { targetPath });
                 AssetDatabase.DeleteAsset(targetPath);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
                 DependencyGraphService.UpdatePaths(new[] { scenePath }, null);
 
                 var updated = ScenePreloadGenerator.GenerateForScene(scenePath, TestOutputRoot);

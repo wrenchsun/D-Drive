@@ -22,7 +22,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 
@@ -150,7 +150,7 @@ namespace DDrive.Tests.Editor
             asset.Tags = SpecStatusTag.WithStatus(asset.Tags, "納品済");
             asset.SpecUrl = "https://example/spec?page=order&id=Se%3A%3A" + WebIdentifier;
             EditorUtility.SetDirty(asset);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             return asset;
         }
 
@@ -211,7 +211,7 @@ namespace DDrive.Tests.Editor
             var asset = AssetCreationService.Create(typeof(SeData), AssetType.Se, "旧アセット", "Player", oldIdentifier, gameDataRoot: TestRoot);
             asset.SpecUrl = "https://example/spec"; // 一度でも同期された印
             EditorUtility.SetDirty(asset);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             var csv = AssetHeader + "Se,Player,SpecDiffTestOther,別のアセット,仮,,,\n";
             var parsed = SpecSheetParser.ParseAssetSheet(csv);

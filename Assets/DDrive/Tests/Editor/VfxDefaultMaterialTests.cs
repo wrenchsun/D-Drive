@@ -46,7 +46,7 @@ namespace DDrive.Tests.Editor
             var first = VfxDefaultMaterial.EnsureDefaultMaterial(TestPath);
             first.SetColor("_BaseColor", Color.red);
             EditorUtility.SetDirty(first);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             var second = VfxDefaultMaterial.EnsureDefaultMaterial(TestPath);
 

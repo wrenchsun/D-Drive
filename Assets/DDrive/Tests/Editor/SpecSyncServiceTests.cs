@@ -24,7 +24,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 
@@ -298,7 +298,7 @@ namespace DDrive.Tests.Editor
             var asset = AssetCreationService.Create(typeof(SeData), AssetType.Se, "剣の斬撃音", "Player", identifier, gameDataRoot: TestRoot);
             asset.Assignee = "よしだ";
             EditorUtility.SetDirty(asset);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             var tsv = SpecSyncService.BuildExistingAssetsTsv();
 

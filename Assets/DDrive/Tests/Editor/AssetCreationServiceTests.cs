@@ -23,7 +23,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets(); // Addressables 設定の dirty を後続テストに持ち越さない
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); } // Addressables 設定の dirty を後続テストに持ち越さない
             }
         }
 

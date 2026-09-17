@@ -42,7 +42,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 
@@ -55,7 +55,7 @@ namespace DDrive.Tests.Editor
             anchorId.FindPropertyRelative("value").ulongValue = id;
             anchorId.FindPropertyRelative("type").enumValueIndex = (int)type;
             so.ApplyModifiedProperties();
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
         }
 
         [Test]

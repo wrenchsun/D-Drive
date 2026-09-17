@@ -40,7 +40,7 @@ namespace DDrive.Tests.Editor
             holder.Id = new AssetId<TestAssetMarker>(0x1234_5678, AssetType.Se);
 
             AssetDatabase.CreateAsset(holder, AssetPath);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             AssetDatabase.Refresh();
 
             var reloaded = AssetDatabase.LoadAssetAtPath<IdHolder>(AssetPath);

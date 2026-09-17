@@ -70,7 +70,7 @@ namespace DDrive.Tests.Editor
             using (VersionStampSuppression.Scope())
             {
                 AssetDatabase.CreateAsset(data, TempAssetPath);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
 
             AssetDatabase.Refresh();

@@ -19,7 +19,7 @@ namespace DDrive.Tests.Editor
             if (AssetDatabase.IsValidFolder(TestRoot))
             {
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 

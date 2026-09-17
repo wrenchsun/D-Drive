@@ -43,7 +43,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 
@@ -135,7 +135,7 @@ namespace DDrive.Tests.Editor
             var seData = (SeData)asset;
             seData.Clips = new[] { AudioClip.Create("dummy", 1, 1, 44100, false) };
             EditorUtility.SetDirty(seData);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             WriteAssetsJson($"{{\"items\":[{{\"id\":\"Se::{identifier}\",\"assetType\":\"Se\",\"identifier\":\"{identifier}\",\"status\":\"インポート済\"}}]}}");
 
@@ -151,7 +151,7 @@ namespace DDrive.Tests.Editor
             var asset = AssetCreationService.Create(typeof(SeData), AssetType.Se, "削除済みテスト", "Test", identifier, gameDataRoot: TestRoot);
             asset.SpecUrl = "https://example/spec";
             EditorUtility.SetDirty(asset);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             WriteAssetsJson("{\"items\":[{\"id\":\"Se::SpecDiffValTestOther\",\"assetType\":\"Se\",\"identifier\":\"SpecDiffValTestOther\"}]}");
 

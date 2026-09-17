@@ -39,7 +39,7 @@ namespace DDrive.Tests.Editor
             var data = ScriptableObject.CreateInstance<SeData>();
             data.Sources = sources;
             AssetDatabase.CreateAsset(data, AssetPath);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             return data;
         }
 

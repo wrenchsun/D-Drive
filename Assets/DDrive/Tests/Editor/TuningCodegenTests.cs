@@ -26,7 +26,7 @@ namespace DDrive.Tests.Editor
             if (AssetDatabase.IsValidFolder(TableRoot))
             {
                 AssetDatabase.DeleteAsset(TableRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 

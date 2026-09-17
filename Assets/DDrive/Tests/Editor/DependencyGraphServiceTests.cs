@@ -50,7 +50,7 @@ namespace DDrive.Tests.Editor
             {
                 AddressablesSync.RemoveEntriesUnder(TestRoot);
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 
@@ -76,7 +76,7 @@ namespace DDrive.Tests.Editor
             anchorId.FindPropertyRelative("value").ulongValue = 424242UL;
             anchorId.FindPropertyRelative("type").enumValueIndex = (int)AssetType.Anchor;
             so.ApplyModifiedProperties();
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             DependencyGraphService.UpdatePaths(new[] { path }, null);
 
@@ -104,7 +104,7 @@ namespace DDrive.Tests.Editor
                 },
             };
             EditorUtility.SetDirty(data);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             DependencyGraphService.UpdatePaths(new[] { path }, null);
 
@@ -202,7 +202,7 @@ namespace DDrive.Tests.Editor
             anchorId.FindPropertyRelative("value").ulongValue = 313131UL;
             anchorId.FindPropertyRelative("type").enumValueIndex = (int)AssetType.Anchor;
             so.ApplyModifiedProperties();
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             DependencyGraphService.UpdatePaths(new[] { path }, null);
             Assert.IsTrue(DependencyGraphService.FindUsages(AssetType.Anchor, 313131UL).Any(u => u.SourcePath == path));

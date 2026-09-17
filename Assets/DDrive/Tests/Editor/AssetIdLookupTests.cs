@@ -31,7 +31,7 @@ namespace DDrive.Tests.Editor
             data.Id = 0xABCDEF;
             data.DisplayName = "LookupCandidate";
             AssetDatabase.CreateAsset(data, AssetPath);
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
 
             var candidates = AssetIdLookup.GetCandidates(typeof(TestAssetMarker));
 

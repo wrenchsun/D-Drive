@@ -36,7 +36,7 @@ namespace DDrive.Tests.Editor
             if (AssetDatabase.IsValidFolder(TestRoot))
             {
                 AssetDatabase.DeleteAsset(TestRoot);
-                AssetDatabase.SaveAssets();
+                using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             }
         }
 
@@ -123,7 +123,7 @@ namespace DDrive.Tests.Editor
             var blendTree = new BlendTree { name = "Run", blendType = BlendTreeType.FreeformDirectional2D };
             AssetDatabase.AddObjectToAsset(blendTree, controller);
             state.motion = blendTree;
-            AssetDatabase.SaveAssets();
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }
             AssetDatabase.Refresh();
 
             // コントローラには x, y パラメータを意図的に追加していない。
