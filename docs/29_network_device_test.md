@@ -853,3 +853,39 @@ UnityEngine.AddressableAssets.InvalidKeyException: No Location found for Key=VFX
 **Run All の残件**: 修正後の `Run All` は 137 件中 Error 69(修正前と同数だが内訳が変わっている: `VFX_Player_Slash` 関連の Error は解消、新設した `CatalogAddressCoverageValidator` が検出する `AnchorCatalog`/`ANC_Can_Vas` の Error が 1 件増えた)。Addressables 登録に関する残件はこの `ANC_Can_Vas` 孤立エントリのみ(前述、朝の判断待ち)。他の 68 件は本件と無関係の既存の Error(シェーダー/Prefab未設定等、うち 1 件は VFX_Player_Slash2 の Prefab 未設定)。
 
 **検証**: `compile_status` でコンパイルエラー 0 を確認。`test_run`(EditMode) 818 passed / 0 failed(基準値 814 + 新規テスト 4 件)、`test_run`(PlayMode) 689 passed / 0 failed(基準値どおり)。テスト前後で `git status` に意図しない差分なし。コミットはしていない。
+
+## 19. §14 が実施できなかった理由（2026-09-18 深夜、ファイアウォール）
+
+`9705e2a` でカタログ不良（§18）を直し、`v7_normal` / `v7_mismatch` を作り直して §14 に再挑戦したが、
+**PC-B の Client が Host に接続できず**（`role=off` / `connected=0` のまま、`[Net/Client]` の行は起動時の 1 行だけ）
+判定に入れなかった。
+
+**原因は PC-A の Windows ファイアウォール**。受信規則は実行ファイルの**パスごと**に作られるため、
+`Builds/v7_*/` という新しいフォルダに出力したことで新規プログラム扱いになり、
+**ユーザーが就寝中で確認ダイアログに応答できないまま Block 規則が作られていた**。
+
+```
+builds\ddrivenetcheck\ddrivenetcheck.exe  Inbound  Allow   (v1〜v5)
+builds\v6_normal\ddrivenetcheck.exe       Inbound  Allow   (ユーザーが起きている時に許可)
+builds\v7_normal\ddrivenetcheck.exe       Inbound  Block
+builds\v7_mismatch\ddrivenetcheck.exe     Inbound  Block
+```
+
+Host 自体は正常だった（プロセス生存、`192.168.137.1:7777/UDP` で待ち受け、`vfx_active=3〜4` でカタログも健全）。
+PC-B 側も健全で、**カタログの壊れ（§18）が再発していないことは確認できた**（`InvalidKeyException` 0 件、
+Placeholder 0 件）。つまり v7 のビルドは健全で、残るのはファイアウォールだけ。
+
+**ファイアウォール設定の変更は Claude が行わない**（システム／セキュリティ設定の変更にあたる）。
+許可済みパス（`v6_normal`）に v7 のバイナリを置き換えて回避する手段も取らない（ユーザーがプログラム単位で
+行った許可判断を迂回するため）。**ユーザーが Block 規則を削除するか許可に変えたうえで再実施する。**
+
+### 再発防止（次回のビルドから）
+
+**ビルドの出力先を毎回変えないこと。** `v6_normal` / `v7_normal` のように版ごとにフォルダを分けると、
+その都度ファイアウォールの新規プログラム確認が発生する。**`Builds/DDriveNetCheck/`（Host 用）と
+`Builds/DDriveNetCheck_Alt/`（不一致確認用）のように固定パス 2 つを使い回し**、中身だけ差し替えれば、
+一度許可した規則がそのまま効く。版の区別は zip 名とログ名で行えばよい。
+
+> **注**: ビルド前の健全性確認（プレイヤーを短時間起動してカタログのエラーが無いことを見る、§18 の再発防止）
+> は有効だが、**新しいパスで初めて起動すると、そこでファイアウォール確認が発生する**。上の固定パス運用と
+> 併用すること。
