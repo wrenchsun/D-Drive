@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>起動配線（DDriveRuntimeBootstrap） | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 起動配線（DDriveRuntimeBootstrap）</nav>
+
+<h1>起動配線（DDriveRuntimeBootstrap）</h1>
+
+<p>D-Drive のランタイムは、<code>DDriveRuntimeBootstrap</code> という 1 つの MonoBehaviour が唯一の Composition Root（組み立て場所）です。すべての Manager（<code>AudioManager</code> / <code>VfxManager</code> / <code>AnimManager</code> …）はここで生成され、各静的ファサード（<code>Audio</code> / <code>Vfx</code> / <code>Anim</code> …）へ Bind されます。<code>new AudioManager(...)</code> のようにゲームコード側で Manager を直接 new することはありません。</p>
+
+<div class="tip">
+<strong>Manager を new してよいのは 3 箇所だけ:</strong> <code>DDriveRuntimeBootstrap</code>・自動テスト・Editor プレビューです。ゲームコードは静的ファサード（<code>Audio.PlaySe(...)</code> など）を呼ぶだけにしてください。
+</div>
+
+<h2>シーンへの配置</h2>
+<p>メニュー <code>Tools &gt; D-Drive &gt; Generate &gt; 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置</code>（実装: <code>Assets/DDrive/Editor/Bootstrap/BootstrapSceneSetup.cs:17</code>）を実行すると、<code>[D-Drive] Runtime</code> という名前の GameObject が作られ、<code>DDriveRuntimeBootstrap</code> が付きます。同時にプロジェクト内の <code>AssetCatalog</code>（<code>Tests/</code> 配下を除く）を自動収集して Inspector の <code>Catalogs</code> に設定します。カタログを増やした後は、同じメニューか Inspector の「カタログを再収集」ボタンで更新してください。</p>
+<p>シーンに 1 つだけ置いてください（<code>[DisallowMultipleComponent]</code>。2 個目を置いても既存のものが優先され、新しい方は破棄されます）。<code>KeepAcrossScenes</code>（既定 true）が ON の場合、<code>DontDestroyOnLoad</code> でシーンをまたいで生き続けます。</p>
+
+<h2>クラス宣言</h2>
+<div class="sig">[DefaultExecutionOrder(-1000)]
+[RequireComponent(typeof(GameLoopDriver))]
+[DisallowMultipleComponent]
+public sealed class DDriveRuntimeBootstrap : MonoBehaviour</div>
+<p><code>DefaultExecutionOrder(-1000)</code> により、シーン内の他のどの <code>Awake()</code> よりも先に実行されます。<code>RequireComponent(typeof(GameLoopDriver))</code> のとおり、<code>GameLoopDriver</code>（後述）が自動的に一緒に付きます。</p>
+<p>実装: <code>Assets/DDrive/Runtime/Loop/DDriveRuntimeBootstrap.cs:39</code></p>
+
+<h2>公開メンバー</h2>
+
+<h3>準備状態</h3>
+<table>
+<tr><th>メンバー</th><th>意味</th></tr>
+<tr><td><code>static DDriveRuntimeBootstrap Instance</code></td><td>唯一のインスタンス。<code>Awake()</code> で設定される</td></tr>
+<tr><td><code>UniTask WhenReady</code></td><td>カタログ登録が完了するまで待てる Task。後述</td></tr>
+<tr><td><code>bool IsReady</code></td><td>カタログ登録が完了したか</td></tr>
+<tr><td><code>event Action OnReady</code></td><td><code>IsReady</code> が true になった瞬間に一度だけ発火</td></tr>
+<tr><td><code>int RegisteredCatalogCount</code></td><td>登録済みカタログ数（0 なら全 ID が Placeholder になる旨の警告がログに出る）</td></tr>
+<tr><td><code>const string DefaultCatalogLabel = "DDriveCatalog"</code></td><td>Addressables ラベルの既定値</td></tr>
+<tr><td><code>NetBridgeMode DefaultNetBridge</code></td><td><code>Loopback</code>（既定・シングルプレイ相当）/ <code>Ngo</code>。コマンドライン引数 <code>-ddrive-net host|client|off</code> で上書きできる</td></tr>
+<tr><td><code>async UniTask RegisterCatalogsAsync()</code></td><td>カタログ登録処理そのもの（<code>Start()</code> から自動で呼ばれる。二重呼び出しは <code>IsReady</code> チェックで無害）</td></tr>
+</table>
+
+<h3>各 Manager / サービスへのアクセサ</h3>
+<p>すべて <code>Awake()</code> の <code>Build()</code> 内で生成され、対応する静的ファサードに Bind されます。ゲームコードから直接これらのプロパティを触ることは通常ありません（静的ファサード経由で使う）が、テストやエディタツールからは参照します。</p>
+<table>
+<tr><th>プロパティ</th><th>型</th><th>対応する静的ファサード</th></tr>
+<tr><td><code>Loop</code></td><td><code>GameLoopDriver</code></td><td>—</td></tr>
+<tr><td><code>Registry</code></td><td><code>AssetRegistry</code></td><td>—</td></tr>
+<tr><td><code>Pool</code></td><td><code>PoolService</code></td><td>—</td></tr>
+<tr><td><code>NetBridge</code></td><td><code>INetBridge</code></td><td>— (<a href="net-api.html">net-api.html</a>)</td></tr>
+<tr><td><code>Audio</code></td><td><code>AudioManager</code></td><td><a href="audio-api.html">Audio</a></td></tr>
+<tr><td><code>Bgm</code></td><td><code>BgmManager</code></td><td><a href="audio-api.html">Audio</a>（BGM 側）</td></tr>
+<tr><td><code>Vfx</code></td><td><code>VfxManager</code></td><td><a href="vfx-api.html">Vfx</a></td></tr>
+<tr><td><code>Anim</code></td><td><code>AnimManager</code></td><td><a href="model-anim-api.html">Anim</a> / <a href="model-anim-api.html">Anim2D</a></td></tr>
+<tr><td><code>Models</code></td><td><code>ModelsManager</code></td><td><a href="model-anim-api.html">Models</a></td></tr>
+<tr><td><code>Materials</code></td><td><code>MaterialManager</code></td><td><a href="model-anim-api.html">Mats</a></td></tr>
+<tr><td><code>Prefabs</code></td><td><code>PrefabsManager</code></td><td><a href="model-anim-api.html">Prefabs</a></td></tr>
+<tr><td><code>Ui</code></td><td><code>UiManager</code></td><td><a href="ui-api.html">Ui</a></td></tr>
+<tr><td><code>UiTweens</code></td><td><code>UiTweenManager</code></td><td><a href="ui-api.html">UiFx</a></td></tr>
+<tr><td><code>CameraFx</code></td><td><code>CameraFxManager</code></td><td><a href="vfx-api.html">CameraFx</a></td></tr>
+<tr><td><code>Haptics</code></td><td><code>HapticsManager</code></td><td><a href="vfx-api.html">Haptics</a></td></tr>
+<tr><td><code>Presentation</code></td><td><code>PresentationManager</code></td><td><a href="presentation-api.html">Presentation</a></td></tr>
+<tr><td><code>Options</code></td><td><code>OptionStore</code></td><td><code>Options</code>（後述）</td></tr>
+<tr><td><code>Groups</code></td><td><code>AnchorGroupPlayer</code></td><td><code>Anchors</code></td></tr>
+<tr><td><code>Dispatcher</code> / <code>PrefabDispatcher</code> / <code>UiDispatcher</code></td><td><code>AssetEventDispatcher</code></td><td>（内部配線。Anim / Prefab / Ui それぞれのイベントを SE/VFX/配置セットへつなぐ）</td></tr>
+</table>
+
+<h2>呼び出し順（Awake → Start → 破棄）</h2>
+<ol>
+<li><strong><code>Awake()</code>（<code>DefaultExecutionOrder(-1000)</code> によりシーン内で最初に実行）</strong>
+  <ul>
+    <li><code>Build()</code> がすべての Manager を生成し、<code>GameLoop.Register(...)</code> で <code>GameLoopDriver</code> の Tick ループへ登録する</li>
+    <li><code>BindFacades</code>（既定 true）が ON なら、<code>Audio.Bind(...)</code> / <code>Vfx.Bind(...)</code> など各静的ファサードへ Bind する</li>
+    <li>ネットワーク（NGO）を使う場合、この時点では <strong>役割の決定・ブリッジの選定・Transport の設定だけ</strong>を行い、実際の起動は行わない（下記コラム参照）</li>
+  </ul>
+</li>
+<li><strong><code>Start()</code></strong>
+  <ul>
+    <li><code>RegisterCatalogsAsync()</code> を呼び、Inspector の <code>Catalogs</code> と <code>CatalogLabel</code>（Addressables ラベル）からカタログを <code>Registry</code> へ登録する。完了すると <code>IsReady = true</code>・<code>OnReady</code> 発火・<code>WhenReady</code> が完了する</li>
+    <li>NGO を使う場合、保留していた <code>NetworkManager.StartHost()</code> / <code>StartClient()</code> をここで実行する</li>
+  </ul>
+</li>
+<li><strong>破棄時（<code>OnDestroy</code>）</strong>: <code>Options.SaveIfDirty()</code> → <code>Teardown()</code>（<code>GameLoop.StopAll</code> → 各 Manager を <code>GameLoop</code> から解除 → 各静的ファサードを <code>Bind(null)</code> で Unbind）の順。</li>
+</ol>
+
+<div class="tip">
+<strong>なぜ StartHost/StartClient は Awake ではなく Start まで遅延するのか:</strong> <code>NetworkManager.StartHost()</code> / <code>StartClient()</code> は、<code>NetworkManager</code> 自身の <code>Awake()</code> / <code>OnEnable()</code>（内部状態の初期化）が済んでいないと <code>NullReferenceException</code> になります。これは実機確認で発見された問題で、<code>DDriveRuntimeBootstrap</code> は <code>DefaultExecutionOrder(-1000)</code> で他の全オブジェクトの <code>Awake()</code> より先に走るため、<code>Awake()</code> 内から直接呼ぶと <code>NetworkManager</code> がまだ初期化されていません。そのため <code>Awake()</code>（<code>Build()</code> 経由の <code>ResolveNetBridge()</code>）では起動オプションの決定だけを行い、実際の呼び出しは全オブジェクトの <code>Awake()</code> が終わった後の <code>Start()</code> まで遅延させています。
+</div>
+
+<h2>ゲーム側の作法</h2>
+<p>起動直後は <code>IsReady == false</code> の期間があります。この間に <code>Audio.PlaySe(...)</code> 等を呼んでも<strong>例外にはならず</strong>、未登録 ID として Placeholder（無音 / マゼンタ球）扱いで継続します。狙った ID できちんと再生させたいコード（タイトル画面の BGM 等、起動直後に鳴らす必要があるもの）は、<code>WhenReady</code> を待ってから呼んでください。</p>
+<pre><code>async UniTaskVoid StartAsync()
+{
+    await DDriveRuntimeBootstrap.Instance.WhenReady;
+    Audio.PlayBgm(BGMID.TitleTheme);
+}</code></pre>
+
+<h2>GameLoopDriver</h2>
+<p><code>GameLoopDriver</code>（<code>Assets/DDrive/Runtime/Loop/GameLoopDriver.cs:8</code>）は、シーン内で唯一の <code>Update()</code> 入口です。各 Manager 自身は <code>Update()</code> を持たず、<code>GameLoop.Tick(dt)</code> 経由で駆動されます。通常、ゲームコードから直接触る必要はありません。</p>
+<table>
+<tr><th>プロパティ</th><th>型</th><th>役割</th></tr>
+<tr><td><code>GameLoop</code></td><td><code>GameLoop</code></td><td>登録された各 Manager（<code>IAssetManager</code>）へ Tick / Pause 通知 / StopAll をブロードキャストする</td></tr>
+<tr><td><code>TimeService</code></td><td><code>TimeService</code></td><td>HitStop 等を考慮したスケール済み deltaTime を計算する</td></tr>
+<tr><td><code>PauseService</code></td><td><code>PauseService</code></td><td>下記</td></tr>
+</table>
+<p><code>Update()</code> では、毎フレーム <code>TimeService.Tick(Time.unscaledDeltaTime)</code> → <code>GameLoop.Tick(TimeService.ScaledDeltaTime(...))</code> の順に呼ばれます。</p>
+
+<h2>PauseService</h2>
+<p><code>Assets/DDrive/Foundation/Pause/PauseService.cs:8</code>。チャンネルごとに多重 Push/Pop 可能なスタック式ポーズです。同じチャンネルを 2 回 <code>Push</code> したら <code>Pop</code> も 2 回必要です。</p>
+<div class="sig">void Push(PauseChannel channel)
+void Pop(PauseChannel channel)
+bool IsPaused(PauseChannel channel)
+bool IsAnyPaused()
+event Action&lt;PauseChannel, bool&gt; OnPauseChanged</div>
+<ul>
+<li>深さが 0→1 になった瞬間に <code>OnPauseChanged(channel, true)</code>、1→0 になった瞬間に <code>OnPauseChanged(channel, false)</code> が発火する（深さが 2 以上のままの Push/Pop では発火しない）</li>
+<li>対応する <code>Push</code> の無い <code>Pop</code> は警告ログを出して無視される（例外にはならない）</li>
+<li><code>PauseChannel</code> は <code>Gameplay</code> / <code>UI</code> / <code>System</code> の 3 つ</li>
+</ul>
+<p>取得は <code>DDriveRuntimeBootstrap.Instance.Loop.PauseService</code>。</p>
+
+<h2>Tuning（仕様書「調整値」タブの読み取り）</h2>
+<p><code>Assets/DDrive/Runtime/Tuning/Tuning.cs:11</code>。デザイナー/企画がアセット発注ツールの「調整値」タブで管理する数値をコードから読む静的ファサードです。<a href="../DesignerManual/spec-sync.html">デザイナーマニュアル: アセット発注ツールとの同期</a>で取り込まれた <code>TuningTable</code> の内容を <code>DDriveRuntimeBootstrap.Instance.TuningTable</code>（Inspector）経由で読みます。</p>
+<div class="sig">float  GetFloat(string key, float defaultValue = 0f)
+int    GetInt(string key, int defaultValue = 0)
+bool   GetBool(string key, bool defaultValue = false)
+string GetString(string key, string defaultValue = "")
+string GetEnum(string key, string defaultValue = "")
+
+float  GetTableFloat(string tableKey, string rowId, string columnKey, float defaultValue = 0f)
+int    GetTableInt(string tableKey, string rowId, string columnKey, int defaultValue = 0)
+bool   GetTableBool(string tableKey, string rowId, string columnKey, bool defaultValue = false)
+string GetTableString(string tableKey, string rowId, string columnKey, string defaultValue = "")</div>
+<div class="tip">
+未登録キー、または型が一致しない読み方（例: Bool のキーを <code>GetFloat</code> で読む）は<strong>例外にせず</strong>、開発ビルド/エディタでのみ警告ログを 1 キーにつき 1 回だけ出し、呼び出し側が渡した <code>defaultValue</code> を返します。製品ビルドでは警告ログも出ません（定常経路でのログ汚染を避けるため）。
+</div>
+
+<h2>Options（音量・UI 速度などの永続設定）</h2>
+<p><code>Assets/DDrive/Runtime/Ui/OptionStore.cs:213</code> 付近の静的ファサード。<code>DDriveRuntimeBootstrap</code> が起動時に <code>PlayerPrefs</code> から読み込み、破棄時 / アプリ終了時に変更があれば自動保存します。</p>
+<div class="sig">float Get(OptionKey key)
+void  Set(OptionKey key, float value)
+event Action&lt;OptionKey, float&gt; OnChanged</div>
+<p>未 Bind のときの <code>Get</code> は <code>1f</code> を返します。<code>OnChanged</code> は未 Bind の間に登録しても購読が消えず、後から Bind されたインスタンスへ自動的に付け替わります。</p>
+
+<h2>ScenePreload（シーン読み込み時の一括プリロード）</h2>
+<p><code>Assets/DDrive/Runtime/Loading/ScenePreload.cs:11</code>。ロード画面などから、複数 ID をまとめて先読みするための窓口です。</p>
+<div class="sig">void   Bind(IAssetRegistry registry)
+UniTask RunAsync(ScenePreloadList list, IProgress&lt;float&gt; progress = null)
+void   Release(ScenePreloadList list)</div>
+<p><code>list</code> が <code>null</code>、または未 Bind（起動配線前 / テスト環境）の場合は、<code>progress</code> に 1f を即時報告して<strong>即完了扱い</strong>になります（例外にはなりません）。<code>Release</code> は <code>RunAsync</code> で確保した参照を解放するために、シーンアンロード時などに対で呼びます。</p>
+
+<h2>Addressables とカタログの同期</h2>
+<p><code>Assets/DDrive/Editor/AssetBrowser/AddressablesSync.cs:18</code> が、Asset Browser で作成した Data アセットとカタログを自動的に Addressables へ登録します。</p>
+<ul>
+<li>Data アセット: グループ <code>DDrive_GameData</code> に、カタログ上の Address（＝ファイル名）と同じ address で登録</li>
+<li>カタログ自体: グループ <code>DDrive_Catalogs</code> に、ラベル <code>DDriveCatalog</code>（＝<code>DDriveRuntimeBootstrap.DefaultCatalogLabel</code>）付きで登録。<code>DDriveRuntimeBootstrap.CatalogLabel</code> にこのラベルを設定しておくと、Inspector で直参照していないカタログもこのラベル経由で起動時に自動収集される</li>
+</ul>
+<p>ID 定数（<code>SEID</code> / <code>VFXID</code> / <code>ANIMID</code> など）の再生成は <code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code>。生成先やコード規約は <a href="concepts.html">concepts.html</a> を参照してください。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ</a></li>
+<li><a href="concepts.html">基本概念（Data / Instance / Handle、AssetId）</a></li>
+<li><a href="audio-api.html">Audio / BGM API</a> / <a href="vfx-api.html">VFX API</a> / <a href="model-anim-api.html">Model / Animation API</a></li>
+<li><a href="presentation-api.html">Presentation API</a> / <a href="ui-api.html">UI API</a> / <a href="net-api.html">ネットワーク API</a></li>
+<li><a href="../DesignerManual/spec-sync.html">デザイナーマニュアル: アセット発注ツールとの同期</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

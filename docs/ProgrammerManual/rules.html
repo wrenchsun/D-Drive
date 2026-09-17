@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>コーディング規約・禁止事項 | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › コーディング規約・禁止事項</nav>
+
+<h1>コーディング規約・禁止事項</h1>
+
+<p>このページは「守らないと CI が赤くなる」規約を実用の観点でまとめたものです。設計原則の背景は <a href="concepts.html">基本概念</a>、PR を出す前の全チェック項目は <code>docs/12_review.md</code> を参照してください。</p>
+
+<h2 id="forbidden-api">禁止 API</h2>
+<p><code>Assets/DDrive/Editor/Validation/ForbiddenApiScanner.cs</code> が、<code>Assets/DDrive</code> 配下の全 <code>.cs</code> ファイルをテキストパターン一致（正規表現）で走査します。Roslyn Analyzer ではなく簡易的なテキスト走査です。</p>
+<table>
+<tr><th>#</th><th>禁止パターン（正規表現）</th><th>代わりに使うもの</th><th>許可されているファイル</th></tr>
+<tr><td>1</td><td><code>\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b</code></td><td><code>ITimeSource</code>（<code>docs/02_core_framework.md</code> §9.5）</td><td><code>LocalTimeSource.cs</code> / <code>NetworkTimeSource.cs</code> / <code>GameLoopDriver.cs</code></td></tr>
+<tr><td>2</td><td><code>\bResources\.Load\b</code></td><td>Addressables 経由（<code>IAssetLoader</code>）</td><td>（例外なし）</td></tr>
+<tr><td>3</td><td><code>\bAddressables\.Load\w*\b</code></td><td><code>IAssetLoader</code> 経由</td><td><code>AddressablesAssetLoader.cs</code></td></tr>
+<tr><td>4</td><td><code>\b(?:UnityEngine\.)?Object\.Instantiate\s*\(|(?&lt;![.\w])Instantiate\s*\(</code></td><td><code>PoolService</code> 経由</td><td><code>PoolService.cs</code> / <code>PreviewService.cs</code>（非破壊ループ試聴用の ScriptableObject コピーを許可）</td></tr>
+<tr><td>5</td><td><code>\bAudioSource\.Play\b</code></td><td><code>AudioManager</code> 経由</td><td>（例外なし）</td></tr>
+</table>
+<p>いずれのルールも <code>ForbiddenApiScanner.cs</code> 自身は常に例外扱いです（このファイルの Message 文字列がパターンに一致してしまうため、自己検出を避ける自己参照の除外）。<code>//</code> で始まる行（コメント）はどのルールも対象外です。</p>
+
+<div class="warn">
+<strong>スキャナは <code>Samples/</code> フォルダを走査対象外にしています。</strong> <code>Assets/DDrive/Samples/</code> 配下（<code>NetBridgeSmokeTest.cs</code> 等の手動確認用デモ）はパスに <code>/Samples/</code> を含む場合、ルールに関係なく丸ごとスキップされます。
+</div>
+
+<div class="warn">
+<strong>ゲームコード（<code>Assembly-CSharp</code> 等）はこのスキャナの対象外です。</strong> <code>Editor/Validation/CI.cs</code> は <code>ForbiddenApiScanner.Scan("Assets/DDrive")</code> という固定パスでしか呼んでおらず、D-Drive 本体以外のフォルダは走査しません。それでも <code>CLAUDE.md</code> §0-3 は同じ禁止事項（<code>Instantiate</code> / <code>Resources.Load</code> / <code>AudioSource.Play</code> の直接呼び出し）をゲームコードにも適用すると定めています。<strong>ゲームコードでこれらの API を直接呼んでも CI は検出しません。人が守るしかない</strong>ことを理解したうえでレビューしてください。
+</div>
+
+<h2 id="performance">定常経路（Tick / Spawn / Play）でのパフォーマンス規約</h2>
+<p>毎フレーム、または高頻度に呼ばれる経路（<code>Tick</code> / <code>Spawn</code> / <code>Play</code>）では <strong>LINQ・クロージャ・boxing を禁止</strong>します（<code>docs/12_review.md</code> §3）。</p>
+<p><strong>2026-09-15（6-2）から自動検証があります。</strong> <code>Assets/DDrive/Tests/Performance/</code>（asmdef <code>DDrive.Tests.Performance</code>、<code>com.unity.test-framework.performance</code> 使用）が、Pool の Rent/Return・Vfx/Se/CameraFx/Haptics の Tick・Presentation の Tick+Signal・GameLoopDriver の 1 フレームなど、Tick 系の定常経路を <code>GC.GetAllocatedBytesForCurrentThread()</code> の差分で hard assert します。<code>-testCategory Performance</code> で実行します（Unity Test Runner、または <code>Tools/CI/run-ci.cmd</code> の [5/6]）。GitHub Actions での自動実行は P7 末の CI 導入まで保留されているため、現状はローカル実行が唯一の実行経路です。</p>
+
+<div class="tip">
+<strong>既知の未解決 alloc（このチェックでは検出されるが対象外）</strong>: Spawn/Play 系（<code>VfxManager.SpawnDataLocal</code>・<code>AudioManager.PlaySeData</code>・<code>PresentationManager.PlayLocalInternal</code>）は呼び出しごとに Instance（class）を 1 個 new する既存設計です（<code>PresentationInstance</code> は List×7 + R3 Subject×4 も new します）。Instance プーリングという大きな設計変更が必要なため、対応するテスト（<code>*_RecordsAllocForKnownIssue</code>）は記録するだけで assert しません。<strong>新しい Tick/Spawn/Play コードを書くときは、この既知課題を新たな LINQ/クロージャ追加の免罪符にしないでください</strong>（既存の allocation を増やさない・可能なら減らす）。
+</div>
+
+<p>やってよい書き方 / 悪い書き方の対比例:</p>
+<table>
+<tr><th>悪い例（Tick 内）</th><th>良い例</th></tr>
+<tr><td><code>foreach (var x in list.Where(a =&gt; a.IsActive))</code>（LINQ + クロージャ + IEnumerator の alloc）</td><td><code>for (int i = 0; i &lt; list.Count; i++) { if (!list[i].IsActive) continue; ... }</code></td></tr>
+<tr><td><code>list.Sort((a, b) =&gt; a.Time.CompareTo(b.Time));</code>（ラムダがクロージャでなくても delegate alloc の懸念があるなら <code>IComparer</code> を再利用する）</td><td>再利用可能な <code>static readonly IComparer&lt;T&gt;</code> を渡す</td></tr>
+<tr><td><code>Dictionary&lt;int, T&gt;</code> に <code>enum</code> や <code>int</code> をそのまま key にする（value type → object への暗黙 boxing）</td><td><code>Dictionary&lt;ulong, T&gt;</code> のように boxing を起こさない key 型を使う、または構造体を直接比較する</td></tr>
+</table>
+
+<h2 id="exception-free">例外で止めない設計</h2>
+<p>D-Drive は「例外で止めず、警告 + no-op / Placeholder で継続する」ことを設計原則にしています（CLAUDE.md §0-4）。ゲームコードを書くときは、これは次のことを意味します。</p>
+<ul>
+<li>未登録 ID を <code>Play</code>/<code>Spawn</code> しても例外は飛ばず、警告ログ + <code>Handle&lt;T&gt;.Invalid</code>（または Placeholder 演出）が返る。<strong>戻ってきた Handle が Invalid でも、それを使って <code>Stop</code>/<code>IsPlaying</code> 等を呼び続けて構いません</strong>（no-op として安全に無視される）</li>
+<li><code>Bind</code> 前の静的ファサード（<code>Audio</code>/<code>Vfx</code>/<code>Presentation</code> 等）を呼んでも例外にならず no-op になる（<code>DDriveRuntimeBootstrap</code> が起動する前のコードパスでも壊れない）</li>
+<li>これに甘えて「戻り値を握りつぶす」のではなく、必要であれば <code>Handle.IsValid</code> やログでデザイナーへの「未登録の発注」を可視化する運用（<code>docs/13_extensions.md</code> の A-1）が推奨されます</li>
+</ul>
+
+<h2 id="readonly-data">Data は読み取り専用</h2>
+<p>Manager は Data（<code>AssetDataBase</code> 派生の ScriptableObject）を実行時に書き換えません。Instance ごとに変化する現在値（再生位置、現在のマテリアル値など）は Instance 側に持たせます（例: <code>ModelsManager.Materials</code>）。エディタコードが Data を書き換えるときは必ず <code>Undo.RecordObject</code> + <code>EditorUtility.SetDirty</code> を通してください。</p>
+
+<h2 id="ci">Validation と CI の走らせ方</h2>
+<p><code>Tools/CI/run-ci.cmd</code> が <code>.github/workflows/ci.yml</code> と同じ検査をローカルで実行します（Unity Editor でこのプロジェクトを開いたままだと多重起動になり失敗するので注意）。</p>
+<table>
+<tr><th>ステップ</th><th>内容</th></tr>
+<tr><td>[1/6]</td><td><code>DDrive.Editor.CI.ValidateAll</code>（Validation。Error があれば fail）</td></tr>
+<tr><td>[2/6]</td><td><code>DDrive.Editor.CI.RegenerateIds</code>（ID 定数再生成）実行後、<code>git diff --exit-code</code> でコミットされていない差分が無いことを確認</td></tr>
+<tr><td>[3/6]</td><td>EditMode テスト</td></tr>
+<tr><td>[4/6]</td><td>PlayMode テスト</td></tr>
+<tr><td>[5/6]</td><td>Performance テスト（<code>DDrive.Tests.Performance</code>、<code>-testCategory Performance</code>、0 alloc 検証。前節参照）</td></tr>
+<tr><td>[6/6]</td><td>NetCheck（<code>Builds\DDriveNetCheck\DDriveNetCheck.exe</code> がビルド済みのときだけ実行。無ければスキップするだけで CI 全体は失敗させない任意ステップ）</td></tr>
+</table>
+
+<div class="warn">
+<strong>[6/6] NetCheck の失敗が従来握りつぶされていました。</strong> <code>run-ci.cmd</code> の <code>if exist ... call "%~dp0run-netcheck.cmd"</code> ブロック内では、バッチファイルの遅延展開の仕様上 <code>%ERRORLEVEL%</code> がブロックに入る前の値（直前の [5/6] Performance の結果）に展開されてしまい、NetCheck 自体の成否が正しく判定されていませんでした（2026-09-17 修正、<code>!ERRORLEVEL!</code> の遅延展開 + <code>NETCHECK_EXIT</code> への退避で修正済み）。<strong>修正後の初回実行では、今まで見えていなかった NetCheck の失敗が新たに表面化する可能性があります</strong>。[6/6] が FAIL した場合は <code>%RESULTS_DIR%\NetCheck\summary.md</code> を確認してください。
+</div>
+
+<h2 id="checklist">PR チェックリスト</h2>
+<p>上記はあくまで実用的な抜粋です。Manager/基盤・Data/シリアライズ・Editor/ツールを含む全チェック項目は <code>docs/12_review.md</code> §3 を参照してください。コード PR とデータ PR は分離されており、データ PR は Validation green + プレビュー動画で足ります（コードレビュー不要）。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ（ページ一覧・共通の入口）</a></li>
+<li><a href="concepts.html">基本概念（Data / Instance / Handle、4層、AssetId）</a></li>
+<li><a href="extending.html">新しい種別（AssetType）を追加する</a></li>
+<li><a href="../DesignerManual/validation.html">デザイナーマニュアル: Validation の使い方</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

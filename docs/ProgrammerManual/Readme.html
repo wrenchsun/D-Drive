@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- 運用メモ(2026-09-17 作成): このフォルダ(docs/ProgrammerManual)の *.html/style.css が正本。
+     デザイナーマニュアル(docs/DesignerManual)と違い、2026-09-17 時点では
+     Tools/SpecWeb(発注ツールの Web アプリ)への配信には対応していない(配信対象は
+     DesignerManual のみ。build-manual.js・push.ps1 はこのフォルダを扱わない)。
+     ここを編集しても Tools/SpecWeb 側への反映作業は不要。 -->
+
+<h1>D-Drive プログラマーマニュアル</h1>
+
+<p>このマニュアルは、<strong>D-Drive</strong>（Designer-Driven Re: IDE Visual Environment、このプロジェクトのアセット管理システム）を使ってゲームコードを書く<strong>プログラマー</strong>向けのガイドです。エディタの操作手順（Asset Browser の使い方、専用エディタでの調整、アイコン生成など）は扱いません。それらは <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a>を読んでいる前提で進めます。</p>
+
+<h2>D-Drive とは？（プログラマー視点で30秒）</h2>
+<p>音・エフェクト・モデル・UI 画面・演出などのゲームアセットを、<strong>ID（生成された定数）だけ</strong>で扱える仕組みです。</p>
+<ul>
+<li>プログラマーは「このタイミングでこの ID を再生する」という 1 行だけを書きます（例: <code>Audio.PlaySe(SEID.PlayerSlash)</code>）</li>
+<li>ID の中身（音そのもの、エフェクトの見た目、UI の配線）はデザイナーが専用エディタで作り込みます</li>
+<li>ID が未登録でも警告ログ + Placeholder（無音・マゼンタの球など）で動き続けるため、<strong>アセットが 1 つも無い状態でもゲームロジックを完成させられます</strong>（実装: <a href="concepts.html">Data / Instance / Handle の分離</a>）</li>
+<li>中身の差し替えはデザイナー側の作業だけで完結し、コードの再修正は不要です</li>
+</ul>
+
+<div class="tip">
+<strong>デザイナーマニュアルとの読み分け:</strong> 「このパラメータは何をするか」「エディタのこのボタンは何か」を知りたいときは <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a>。「このクラス・メソッドをどう呼べばよいか」「ID や asmdef はどう構成されているか」を知りたいときは、このプログラマーマニュアルを使ってください。
+</div>
+
+<table>
+<tr><th>知りたいこと</th><th>読む場所</th></tr>
+<tr><td>SE のボリューム・ピッチなど、パラメータ1つ1つの意味</td><td><a href="../DesignerManual/se-data.html">デザイナーマニュアル: SE の設定項目</a></td></tr>
+<tr><td>コードから SE / VFX / 演出を再生する API</td><td>このマニュアルの各 API ページ</td></tr>
+<tr><td>Asset Browser・専用エディタの操作手順</td><td><a href="../DesignerManual/asset-browser.html">デザイナーマニュアル: Asset Browser の使い方</a></td></tr>
+<tr><td>ID 定数の実体・生成規則・型安全性</td><td><a href="concepts.html">concepts.html</a></td></tr>
+<tr><td>プロジェクトへの導入手順・最初の1行</td><td><a href="getting-started.html">getting-started.html</a></td></tr>
+<tr><td>禁止 API・コーディング規約</td><td><a href="rules.html">rules.html</a></td></tr>
+<tr><td>新しい種別（AssetType）を追加する方法</td><td><a href="extending.html">extending.html</a></td></tr>
+</table>
+
+<h2>ページ一覧</h2>
+<ul class="pagelinks">
+<li><a href="getting-started.html">はじめに（導入手順・最初の一本）</a>
+<p>依存パッケージの確認、既存プロジェクトへの持ち込み方、SE を1つ鳴らすまでの最小コード。<strong>初めての人はこちらから。</strong></p></li>
+<li><a href="concepts.html">基本概念（Data / Instance / Handle、4層、AssetId）</a>
+<p>asmdef 構成、Data/Instance/Handle の分離、AssetId・AssetType の読み方。コードを書く前に読んでおく設計の土台。</p></li>
+<li><a href="bootstrap.html">起動配線（DDriveRuntimeBootstrap）</a>
+<p>ランタイムの組み立て方、シーンへの配置、起動完了の待ち方。</p></li>
+<li><a href="audio-api.html">Audio / BGM API</a>
+<p>SE・BGM を再生・停止する静的ファサードの使い方。</p></li>
+<li><a href="vfx-api.html">VFX API</a>
+<p>エフェクトを生成・停止する API。</p></li>
+<li><a href="model-anim-api.html">Model / Animation API</a>
+<p>モデルの出現・3D / 2D アニメーション再生の API。</p></li>
+<li><a href="presentation-api.html">Presentation API</a>
+<p>アニメ・SE・VFX・カメラ揺れなどをまとめた演出を 1 API で再生する。</p></li>
+<li><a href="ui-api.html">UI API（Canvas / UiTween / ControlSkin）</a>
+<p>UI 画面の開閉・要素演出・入力配線をコードから扱う API。</p></li>
+<li><a href="handle.html">Handle の扱い方</a>
+<p>世代付き struct Handle の安全な使い方、無効 Handle への操作、破棄タイミング。</p></li>
+<li><a href="net-api.html">ネットワーク（INetBridge / NGO 統合）</a>
+<p>マルチプレイ時の配線と注意点。</p></li>
+<li><a href="rules.html">コーディング規約・禁止事項</a>
+<p>禁止 API、定常経路での LINQ・クロージャ・boxing 禁止など、レビューで見られる観点。</p></li>
+<li><a href="extending.html">新しい種別（AssetType）を追加する</a>
+<p>AssetType・Data・Manager・Validator・エディタを一式追加する手順。</p></li>
+</ul>
+
+<h2>まず読む順番</h2>
+<ol>
+<li><a href="getting-started.html">はじめに</a> — 環境を確認し、最初の1行を動かす</li>
+<li><a href="concepts.html">基本概念</a> — なぜこの形なのかを理解する</li>
+<li>自分が使う種別の API ページ（<a href="audio-api.html">Audio</a> / <a href="vfx-api.html">VFX</a> / <a href="model-anim-api.html">Model/Anim</a> / <a href="presentation-api.html">Presentation</a> / <a href="ui-api.html">UI</a> など）</li>
+<li><a href="rules.html">rules.html</a> — 書いたコードをレビューに出す前に確認する</li>
+</ol>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>
