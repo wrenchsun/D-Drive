@@ -315,6 +315,70 @@ namespace DDrive.Tests.Runtime
             Assert.Less(rt.anchoredPosition.x, startX - 100f, "SlideInLeft は画面外(左)から始まるはず");
         }
 
+        // U-23(2026-09-17) バグ修正: Canvas Editor の ElementFx「▶ 再生」ボタン(PlayPhasePreview)は、前の
+        // Tween が終わる前に連打されると StopAll(target) → 同じプリセットを取り直して再生、という手順を踏む。
+        // 修正前は StopAll(RectTransform) に complete 引数が無く、「完了させずに」Instance を取り除いていた
+        // ため、取り直し時に UiPresetFactory.Build が読む target.anchoredPosition が Tween 途中の値のままに
+        // なり、それを新しい Tween の "静止位置(To)" として採用してしまっていた(連打するたびに本来の静止
+        // 位置からずれていく。開き直す=Prefab から作り直すと戻る、という報告どおりの症状)。
+        //
+        // このテストは「修正前は赤」だったことを確認済み: StopAll(rt)(complete 引数なし。当時の唯一のシグネチャ)
+        // で連打すると、restX=0 に対して実測 -328.05 に着地していた(中断された Tween の削除位置をそのまま
+        // 次の cur として拾ったため)。修正で StopAll に complete 引数を追加し、CanvasEditorWindow の呼び出しを
+        // complete:true に変更した後は、この手順を complete:true で組んでも本来の位置に着地する(green)。
+        [Test]
+        public void RapidReplay_SlideInPreset_WithStopAllComplete_SettlesAtRestPosition()
+        {
+            var rt = CreateRect();
+            var restX = rt.anchoredPosition.x; // 本来の静止位置(Prefab に保存されている位置)
+
+            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+            var p = new UiPresetRef { Preset = UiPreset.SlideInLeft, Duration = 1f };
+
+            // 1 回目の再生(ElementFx の「▶ 再生」を押した)
+            var count = UiPresetFactory.Build(in p, rt, buffer);
+            _manager.PlayTracks(buffer, count, rt);
+            _manager.Tick(0.1f); // 完了前(まだオフスクリーン寄り)に連打が来る想定
+
+            // 連打を 3 回繰り返しても収束することを確認する(PlayPhasePreview の修正後の手順:
+            // StopAll(target, complete:true) → 同じプリセットを取り直して再生)。
+            for (var i = 0; i < 3; i++)
+            {
+                _manager.StopAll(rt, complete: true);
+                count = UiPresetFactory.Build(in p, rt, buffer);
+                _manager.PlayTracks(buffer, count, rt);
+                _manager.Tick(0.05f); // 毎回、完了前に次の連打が来る想定
+            }
+
+            _manager.Tick(1f); // 最後の 1 回を最後まで進める
+
+            Assert.AreEqual(restX, rt.anchoredPosition.x, 0.01f,
+                "連打しても最終的には本来の静止位置に着地するはず(U-23)");
+        }
+
+        // StopAll(target) の既定(complete=false)は Stop(handle, complete=false) と同じ「中断された時点の
+        // 見た目のまま」で終わる仕様を意図的に保っている。complete:true との違いを固定しておく。
+        [Test]
+        public void StopAll_WithoutComplete_LeavesTargetAtInterruptedPosition()
+        {
+            var rt = CreateRect();
+            var restX = rt.anchoredPosition.x;
+
+            var buffer = new TweenTrack[UiTweenManager.MaxTracksPerTween];
+            var p = new UiPresetRef { Preset = UiPreset.SlideInLeft, Duration = 1f };
+            var count = UiPresetFactory.Build(in p, rt, buffer);
+            _manager.PlayTracks(buffer, count, rt);
+            _manager.Tick(0.1f);
+
+            var interruptedX = rt.anchoredPosition.x;
+            Assert.AreNotEqual(restX, interruptedX, "1回目は完了前(オフスクリーン寄り)で止めるテスト前提が崩れている");
+
+            _manager.StopAll(rt); // complete を渡さない(既定 false)
+
+            Assert.AreEqual(interruptedX, rt.anchoredPosition.x, 0.01f,
+                "complete:false は中断された時点の位置をそのまま残す(Stop(handle, complete:false) と同じ規約)");
+        }
+
         // 2026-09-11(4-11 完了): 全プリセットが実装され、もう近似委譲は残っていない
         // (詳細な全件チェックは UiPresetTests.AllPresets_ProduceFiniteTracks_AndAreNotApproximated 側)。
         [Test]

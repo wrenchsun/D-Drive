@@ -119,7 +119,7 @@ namespace DDrive.Runtime.Ui
 
         public static void Stop(Handle<UiTweenMarker> h, bool complete = false) => _instance?.Stop(h, complete);
 
-        public static void StopAll(RectTransform target) => _instance?.StopAll(target);
+        public static void StopAll(RectTransform target, bool complete = false) => _instance?.StopAll(target, complete);
 
         public static bool IsPlaying(Handle<UiTweenMarker> h) => _instance?.IsPlaying(h) ?? false;
 

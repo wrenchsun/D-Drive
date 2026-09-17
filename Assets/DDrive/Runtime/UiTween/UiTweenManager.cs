@@ -381,13 +381,19 @@ namespace DDrive.Runtime.Ui
             CompleteInstance(handle, inst);
         }
 
-        public void StopAll(RectTransform target)
+        // U-23(2026-09-17) バグ修正: 以前は complete 引数が無く、中断された Tween を最終値へ進めずに
+        // 取り除いていた。呼び出し側(例: CanvasEditorWindow.PlayPhasePreview の ElementFx「▶ 再生」)が
+        // StopAll の直後に UiPresetFactory.Build で target の "現在位置" を新しい Tween の基準(cur)として
+        // 読み直すため、完了前に連打すると毎回「中断された時点の位置」が新しい静止位置として採用されてしまい、
+        // 連打するたびに本来の位置からずれていく不具合があった(Stop(handle, complete:true) と同じ規則に揃える)。
+        // 既存の呼び出し元との互換性のため既定値は false のまま(Stop(handle, complete=false) と同じ規約)。
+        public void StopAll(RectTransform target, bool complete = false)
         {
             for (var i = _active.Count - 1; i >= 0; i--)
             {
                 if (_instances.TryGet(_active[i], out var inst) && inst.Target == target)
                 {
-                    CompleteInstance(_active[i], inst);
+                    Stop(_active[i], complete);
                 }
             }
         }

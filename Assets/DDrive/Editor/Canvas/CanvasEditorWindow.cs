@@ -791,7 +791,11 @@ namespace DDrive.Editor.CanvasTool
             // (レビュー対応 2026-09-14) 同じ要素で UiManager 自身の ElementFx(開いた直後の Appear や自動の Idle ループ)が
             // 走っていると同じプロパティを取り合うため、この要素の Tween を全て止めてから再生する
             // (_tweenManager はこのウィンドウ専用のプレビュー用インスタンスなので、止めてよいのはプレビューの Tween だけ)。
-            _tweenManager.StopAll(elementTarget);
+            // U-23(2026-09-17) バグ修正: complete:true が無いと、中断された Tween が「途中の位置」のまま
+            // 残り、直後に UiPresetFactory.Build が読む target の現在位置(cur)がその中途半端な値になる。
+            // SlideIn 等を連打するたびに本来の静止位置からずれていく不具合の直接原因だったため、
+            // 中断時は必ず最終値へ進めてから(complete:true)次の再生を組み立てる。
+            _tweenManager.StopAll(elementTarget, complete: true);
 
             Handle<UiTweenMarker> handle;
             if (id.IsValid)

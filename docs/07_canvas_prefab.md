@@ -220,6 +220,14 @@ public static class Ui
 - 直接指定を編集する既存の「▶」ボタンは「✎ Tween Editor」に改名(新しい「▶ 再生」と役割が紛らわしくなるため)。挙動は変えていない
 - EditMode 340/340・PlayMode 488/488 green、`execute_code` でプリセット/直接指定の両経路・一時停止トグル・停止時の Handle 破棄を確認済み
 
+### バグ修正（2026-09-17、U-23: ElementFx の「▶ 再生」を連打すると位置がずれる）
+
+- **症状**: SlideIn 系などを割り当てた ElementFx 行の「▶ 再生」を、前の Tween が終わる前に連打すると、要素の最終着地位置が本来の位置から少しずつずれていく。Canvas Editor を閉じて開き直す(=確認用シーンを作り直す)と正しい位置に戻る
+- **真因**: `PlayPhasePreview` は連打時に `UiTweenManager.StopAll(elementTarget)` → `UiPresetFactory.Build` で同じプリセットを取り直す、という手順を踏む。`UiPresetFactory.Build` の SlideIn 系は `target.anchoredPosition`(= 呼び出し時点の "現在位置")を新しい Tween の静止位置(To)としてそのまま採用する設計だが、修正前の `StopAll(RectTransform target)` には `Stop(handle, complete)` のような完了引数が無く、中断された Tween を最終値へ進めずに Instance を取り除くだけだった。そのため連打で割り込まれた瞬間の(オフスクリーンと静止位置の中間の)位置がそのまま次の Tween の "静止位置" として採用されてしまい、連打するたびに本来の位置からずれていった。「開き直すと戻る」のは、確認用シーンを作り直すことで Prefab に保存された正しい位置から Instance が再生成されるため
+- **対応**: `UiTweenManager.StopAll(RectTransform target, bool complete = false)` に `complete` 引数を追加し(`Stop(handle, complete)` と同じ規約。既定 `false` は既存の挙動を維持)、内部実装も `Stop(handle, complete)` を呼ぶように統一した。`UiFx.StopAll(RectTransform, bool)` にも同じ引数を追加。`CanvasEditorWindow.PlayPhasePreview` の呼び出しを `StopAll(elementTarget, complete: true)` に変更し、連打で中断された Tween を必ず最終値へスナップしてから次の `cur` を読み直すようにした
+- **テスト**: `Assets/DDrive/Tests/Runtime/UiTweenTests.cs` に `RapidReplay_SlideInPreset_WithStopAllComplete_SettlesAtRestPosition`(3 回連打しても本来の静止位置に収束することを確認。修正前は `StopAll(rt)`(complete 引数なしの当時の唯一のシグネチャ)で連打すると `restX=0` に対し実測 `-328.05` に着地しており、赤であることを確認済み)と `StopAll_WithoutComplete_LeavesTargetAtInterruptedPosition`(complete=false の既定動作を固定)を追加
+- 実装ファイル: `Assets/DDrive/Runtime/UiTween/UiTweenManager.cs`(`StopAll`)、`Assets/DDrive/Runtime/UiTween/UiFx.cs`(`StopAll`)、`Assets/DDrive/Editor/Canvas/CanvasEditorWindow.cs`(`PlayPhasePreview`)
+
 ### 追記（2026-09-12、ElementFx を全要素まとめて再生 / 各行を折りたたみ表示に）
 
 - **一括再生**: 「▶ 全 Appear」「▶ 全 Idle」「▶ 全 Disappear」「■ 全て停止」を ElementFx 割当セクションの先頭に追加(`PlayAllPhasePreview`/`StopAllPhasePreview`)。登録済みの全要素のうち、その区間に割り当て(プリセット or 直接指定)がある要素だけをそれぞれの設定でまとめて再生する。1 行ずつ「▶ 再生」を押す手間を無くすのが目的で、内部的には既存の行内再生(`PlayPhasePreview`)をループで呼ぶだけ
