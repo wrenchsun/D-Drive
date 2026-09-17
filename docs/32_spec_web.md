@@ -130,7 +130,46 @@ graph TB
   | ①人向け SPA | **User accessing the web app**（アクセスした人自身） | Anyone with Google account（ログイン必須。個人アカウントでも選択可） | ブラウザでの編集・閲覧 | `Session.getActiveUser().getEmail()` を取得できる（実行者=アクセスした人のときのみ信頼できる。[Session の既知の制約](https://developers.google.com/apps-script/reference/base/session)）→ **`users.json` の許可リストと照合**し、無ければ「メンバーのみ利用できます」ページを返す |
   | ② D-Drive API | **Me**（スクリプト所有者） | Anyone（ログイン不要。URL を知っていれば到達できるが中身はトークンで保護） | Unity Editor からの取得・送信 | クエリ/ヘッダの **API トークン**で判定（読み取り用・書き込み用を分ける）。Google 認証は使わない（`UnityWebRequest` から対話ログインはできないため） |
 
-- 両デプロイは**同じ `doGet`/`doPost` 関数**を指す（コードは 1 つ）。リクエストに `token` パラメータがあれば② の経路（トークン検証のみ）、無ければ① の経路（Google アカウント許可リスト）に分岐する
+- 両デプロイは**同じ `doGet`/`doPost` 関数**を指す（コードは 1 つ）。`?api=1` があれば② の経路（**API トークン必須**）、無ければ① の経路（Google アカウント許可リスト → SPA テンプレート）に分岐する
+
+#### 2.3.1 セキュリティ修正（2026-09-17、[41](41_phase6_review_2026-09-17.md) P1-3〜P1-5）
+
+自前レビューで**独立に admin 権限を奪える経路が 3 つ**見つかったため塞いだ。**以後この 3 種類の穴を開けないことが SpecWeb を触るときの前提**になる。
+
+**(1) 公開名のグローバル関数 = 誰でも叩ける入口（P1-3）**
+
+GAS では**末尾 `_` の無いグローバル関数はすべて `google.script.run.<名前>()` でクライアントから直接呼べる**。`?api=1` の `ApiRegistry` に登録していないことは防御にならない。さらに許可リスト外に返す拒否ページも `HtmlService` 出力なので、**そのページ上でも `google.script` ブリッジが載る**。
+
+修正前は `issueApiToken` / `revokeAllApiTokens` / `upsertSpecWebUser` / `include` などが公開名のままで、許可リスト外の第三者が拒否ページから書き込みトークンを発行でき、`viewer` ロールのメンバーが自分を admin に昇格できた。
+
+修正後のルール:
+
+| 種類 | 命名 | 認可 |
+|---|---|---|
+| 内部ヘルパー | **必ず末尾 `_`**（`include_` / `getApi_` / `authenticateSession_` / `hasRole_` …） | クライアントから呼べない |
+| Web アプリの入口 | `doGet` / `doPost`（GAS 仕様で固定） | `?api=1` はトークン、それ以外は許可リスト |
+| SPA の唯一の入口 | `specWebUiCall` | 内部で `authenticateSession_()` → 各 API の `role` 検査 |
+| 運用関数（エディタから手で実行） | 公開名のまま | **先頭で `specWebAssertAdminSession_()` を呼ぶことが必須** |
+| エラー型 | `SpecWeb*Error` 等 | 呼んでも副作用が無い |
+
+例外は `upsertSpecWebUser` だけで、**`users.json` に admin が 1 人も居ないときのみ無条件に許可**する（最初の 1 人のブートストラップ。README §5）。
+
+再発防止は `Tools/SpecWeb/test/globals.test.js`。「公開名のままの関数は許可リストだけ」「運用関数は viewer / 許可リスト外の両方で必ず失敗する」を機械的に固定してある。**内部ヘルパーを `_` 無しで書くとこのテストが落ちる。**
+
+**(2) `?api=1` のセッションフォールバックを廃止（P1-4、CSRF 対策。仕様変更）**
+
+- **変更前**: `?api=1` に `token` が無ければ `authenticateSession_()`（Google ログイン + 許可リスト）へフォールバックしていた
+- **変更後**: `?api=1` は **API トークン必須**。無ければ 401
+- **理由**: `/exec` への通常のブラウザ遷移はアクセスした人の Google セッションで実行されるため、`.../exec?api=1&name=users.upsert&email=…&role=admin` というリンクを admin に踏ませるだけで admin 権限の操作が走った。`google.script.run` には Google 側の CSRF 保護があるが、`doGet` / `doPost` の直叩きには何も無い
+- **影響が無い根拠**: 人向け SPA は 2026-09-14 の修正で `google.script.run` のみを使うようになっており（README §0）、`?api=1` をセッションで叩く正当なクライアントは存在しない。人が動作確認で直接叩きたい場合は read トークンを使う
+
+**(3) `<script>` へ埋め込む値の無害化（P1-5、反射型 XSS）**
+
+`html/Index.html` が `<?!= JSON.stringify(x) ?>` を直書きしていた。`<?!= ?>` は非エスケープ出力で `JSON.stringify` は `<` も `/` も素通しするため、値に `</script><script>…` を含められると script 要素が閉じられて任意 JS が実行できた。経路は `?page=order&id=…` / `?page=group&id=…` の id と、admin が `users.upsert` で設定する `displayName`。
+
+- 埋め込みは **`specWebJsonForScript_()`（`src/Code.js`）経由に統一**（`<` → `<`、U+2028 / U+2029 も退避。JSON としての値は変わらない）。**`Index.html` に新しい値を足すときも必ずこれを通す**
+- 二重防御として `resolveInitialScreen_` が id を `specWebIsSafeOpenId_()`（`^[A-Za-z0-9_:.-]+$`、200 文字以内）で検証し、外れたら既定画面に落とす
+- **テスト基盤の限界**: `test/load-gas.js` のフェイク `HtmlService.createTemplateFromFile` はテンプレートを評価しないため、**テンプレート内の埋め込みミスはテストでは検出できない**。`globals.test.js` は `specWebJsonForScript_` と `resolveInitialScreen_` の側から固定している
 - 初回アクセス時、①のデプロイは「実行者=アクセスした人」のため**各メンバーが個別に OAuth 同意**を求められる（学外からのアクセスでも Google アカウントさえあれば同意できる。人数が少ない社内利用のため [新規ユーザーの認可レート制限](https://developers.google.com/apps-script/guides/services/quotas) の対象にはなるが、チーム規模（数名〜十数名）なら問題にならない）
 - 許可リスト（`users.json`）の追加・削除は管理者のみ（§3.4 ロール）。**個人情報はメールアドレスと表示名のみ**（§7）
 
@@ -138,7 +177,7 @@ graph TB
 
 | 制限 | 値 | 出典 | この設計での扱い |
 |---|---|---|---|
-| スクリプトの実行時間 | 6 分/実行 | [Apps Script quotas](https://developers.google.com/apps-script/guides/services/quotas) | 1 回の `doGet`/`doPost` は JSON 読み込み・パース・書き込みのみ（数百 KB）。数百ミリ秒〜数秒で終わる想定。6 分に到達する余地はない |
+| スクリプトの実行時間 | 6 分/実行 | [Apps Script quotas](https://developers.google.com/apps-script/guides/services/quotas) | 1 回の `doGet`/`doPost` は JSON 読み込み・パース・書き込みのみ（数百 KB）。数百ミリ秒〜数秒で終わる想定。6 分に到達する余地はない。**2026-09-17（[41](41_phase6_review_2026-09-17.md) P2-11）**: `assetState` / `assetParams` / `members.importPaste` は 1 件ごとに読み書きしており、D-Drive が毎回全アセットを送るため数百件でこの前提を破っていた。`Storage.mutateMany`（1 ロック内で 1 読み・N 件更新・1 書き）に直して前提へ戻した（本書末尾の実装メモ参照） |
 | 同時実行数 | 30 / user | 同上 | チーム規模（数名〜十数名）なら 1 人あたり同時に複数タブを開いても上限に達しない |
 | URL Fetch 呼び出し | 20,000/日（個人）、100,000/日（Workspace） | 同上 | **GAS コード自身が外部 URL を `UrlFetchApp` で呼ぶ場合の上限**であり、D-Drive → Web アプリの着信リクエスト数には掛からない（着信は「Web アプリの実行」であり URL Fetch ではない）。本設計は `UrlFetchApp` を使わない（画像は `DriveApp` 直接操作のため） |
 | トリガーの合計実行時間 | 90 分/日（個人）、6 時間/日（Workspace） | 同上 | v3 の「通知」（§8）で時間主導トリガーを使う場合のみ関係。1 日 1〜2 回の軽いチェックなら十分収まる |
@@ -489,7 +528,7 @@ public sealed class TuningTable : ScriptableObject
 | 5-12（`.xlsx` テンプレート） | **廃止**。Web アプリの入力フォームに統合されるため、テンプレート配布は不要になる |
 | 5-13（gviz CSV 取得・差分・Placeholder 作成・`TuningTable` 取り込み） | **§5.1 のとおり部分的に置き換え**（取得・パース層のみ差し替え、差分・適用層は再利用） |
 | 5-14（`AssetDataBase.SpecUrl` + Inspector「仕様書を開く」） | **そのまま活用**。`SpecUrl` の値を「Web アプリのアセット詳細ページの URL」に変える（同期時に自動設定、値の意味が変わるだけでフィールド自体は変更不要）。2026-09-14: `SpecWebParser.BuildSpecLink` を `?page=order&id=<種別::識別子>` 形式（§10.8 の O-13 ディープリンクと同じ）に変更した。旧形式（`#/assets/<id>`）は同期（取得→適用）を1回通せば `SpecSyncService.ApplyExtraFields`/`SpecDiffService` が「仕様リンク変更あり」として検出し、新形式で上書きされる |
-| 5-16（新規作成ダイアログ「仕様書から選ぶ」= `SpecCache.GetUncreatedRows`） | **そのまま活用**。`SpecCache` の入力元が Web API に変わるだけで、`NewAssetDialog` 側のロジックは変更不要 |
+| 5-16（新規作成ダイアログ「仕様書から選ぶ」= `SpecCache.GetUncreatedRows`） | **そのまま活用**。`SpecCache` の入力元が Web API に変わるだけで、`NewAssetDialog` 側のロジックは変更不要。**2026-09-17 修正（[39](39_usability_fixes_2026-09-17.md) U-15）**: 1 箇所だけ移行漏れがあった — 「設定 URL 未設定」の判定が旧 `SpreadsheetUrl` のままで、`WebAppUrl` を設定しても「仕様書の URL が未設定です」と出続けていた。判定を `WebAppUrl` に統一（`NewAssetDialog.RebuildSpecSection`、[09] §8.5） |
 | `DDriveSpecSettings` / `SpecCache` | **再利用**（§5.1 のとおりフィールドのみ変更） |
 | docs/27 本体 | **削除しない。冒頭に「旧方式」の注記を追加**し、実装が新方式へ移行し終えるまでの参照として残す（本 PR で対応、§0） |
 | Google スプレッドシートからの初期データ取り込み | Web アプリに「CSV インポート」機能を用意し、既存スプレッドシートの `アセット`/`調整値` タブから 1 回だけ流し込む（v2、§8）。移行期間中は旧シートと Web アプリが並行稼働しないよう、**移行日を決めてシートを凍結**する運用を推奨（§9-8） |
@@ -501,7 +540,7 @@ public sealed class TuningTable : ScriptableObject
 - **メンバー限定の公開範囲**: §2.3 のとおり、個人アカウントではデプロイ側の「ドメイン限定」が使えないため、**アプリのコードで許可リスト（`users.json`）を照合する**。Web アプリの URL 自体が漏れても、許可リストに無い Google アカウントは「メンバーのみ利用できます」で弾かれる
 - **API トークンの扱い（確定、2026-09-14 ユーザー回答。詳細は §5.2）**:
   - 読み取り用・書き込み用を分ける（§2.3）。**書き込みトークンはチーム全員の D-Drive に配る**（同期担当者だけに限定しない、§9-9 決定）。全員に配っても安全なように、書き込みトークンで呼べる API を `choices`/`assetState`/`tuningUsage` の送信のみに絞り、アセット仕様・調整値の値・機能仕様ページ・コメントの書き換えには使えないようサーバー側で分離する（§5.2）
-  - 送信 API にはレート制限を設ける（§5.2。誤動作による過剰送信の防止）
+  - 送信 API にはレート制限を設ける（§5.2。誤動作による過剰送信の防止）。対象は `choices` / `assetState` / `tuningUsage` / `assetParams` の 4 つ（同一 principal + API 名で 10 回/分。**`assetParams` は 2026-09-17（[41](41_phase6_review_2026-09-17.md) P2-12）で追加**。実装は `src/DDriveSync.js` の `specWebCheckRateLimit_`）
   - トークンは git に入れない。D-Drive 側は既存の `DDriveSpecSettings` と同様の SO に URL だけを持ち、トークンの実値は Unity の `EditorPrefs`（マシンごと）に保持する。配布は Web アプリの管理画面（`admin` ロール）で発行 → 既存の連絡手段でチームへ配布 → 各メンバーが `EditorPrefs` に貼り付ける
   - **定期ローテーション**（推奨 3 か月ごと、または漏洩が疑われた時点で即時。手順は §5.2）: 新トークン発行 → 配布・猶予期間 → 旧トークン失効。漏洩時は猶予期間を設けず即時失効させる
 - **Drive の共有設定**: 画像フォルダ・JSON ファイルは「特定のユーザー（チームメンバーの Google アカウント）」に共有する。デプロイ①（実行者=アクセスした人）で Drive へアクセスするため、**各メンバー個人にも Drive 上のファイルへの編集権限が必要**（実行者がアクセスした人自身になるため、スクリプト所有者の権限を代理できない。§9-10）
@@ -1130,6 +1169,12 @@ Web の生応答（`items` 配列 or マップ）を取り、
 
 失敗（`ok:false` の応答）した部分は書き込まず警告を返す（同期全体を止めない。CLAUDE.md §0-4）。
 
+> **2026-09-17 修正（[41](41_phase6_review_2026-09-17.md) P2-5）**: 実装は「両方失敗したときだけスキップ、
+> 片方だけ失敗したら失敗した側を空配列 `[]` で書き出す」になっていて、この記述と食い違っていた
+> （`Specs/tuning.json` の git diff に「全スカラー削除」が現れ、`SpecDiffValidator` の範囲チェックも
+> 黙って無効になっていた）。**片方だけ失敗したときは既存ファイルの該当配列をそのまま温存する**ようにし、
+> 温存した旨を `Result.Warning` に載せるようにした（`SpecSnapshotWriter.TryBuildTuningSnapshot`）。
+
 ### 送信 payload（W-12）と write トークンの許可表
 
 `SpecWebSender` が組み立てる 3 種類の payload（GAS 側の `src/DDriveSync.js` が受け取る）:
@@ -1255,6 +1300,18 @@ Google スプレッドシート製ガントチャート（WBS1〜3・タスク�
 **O-12 の検証方針**: 長さ上限（`fileFormat` 20 文字・`fileName` 255 文字）のみ他の文字列フィールドと同じ「`errors` に追記して 400 で拒否する」流儀でブロックする（既存フィールドに長さ上限の先例は無かったため今回新設）。**ファイル名に使えない文字**（`\ / : * ? " < > |`）**・`fileName` の拡張子と `fileFormat` の食い違いはブロックしない**（CLAUDE.md §0-4「例外で止めない」と同じ考え方。`assets.create`/`assets.update`/`assets.get` の応答に `warnings`（文字列配列、保存はされない都度計算値）として返し、画面側は非ブロッキングな注意表示にとどめる）。
 
 **旧 `assets.json` フィールドの削除**: `assignee` は物理的に削除せず**残置**し `contractor` の別名として同じ意味で読める間だけ残す案と、`orderer`/`contractor` 追加時に `assignee` を廃止して移行スクリプトで置き換える案があるが、**§10.7 の要判断 1 として実装時に決める**（このプロジェクトの CLAUDE.md §0-9・docs/32 §9-11/12 と同じ「シリアライズ形式変更は保守的に」の方針を Web 側の JSON にも適用するかどうかの判断）。
+
+**D-Drive 側が読むフィールド（2026-09-17 追記、[41](41_phase6_review_2026-09-17.md) P1-7）**:
+`SpecWebParser.ParseAssets` は `contractor` → `Assignee`、`referenceMd` → `Description`（`SpecAssetRow.Note`）
+として読む。どちらも**空のときだけ**旧名（`assignee` / `note`）にフォールバックする（GAS の物理移行
+`migrateLegacyOrdersToNewSchema` を実行していないデータが残っていても読めるようにするため。読み込み時の
+`specWebNormalizeLegacyOrderItem_` と同じ規則を D-Drive 側にも持つ＝取得した JSON を信用しない、
+CLAUDE.md §0-4）。`status` は 3 値をそのままタグ（`State/<値>`）に載せるだけで、D-Drive 側に値の一覧は
+持たない（一覧が必要な貼り付け補助だけ `SpecStatusTag.Statuses` に 1 か所置く。正は `Assets.js` の
+`SPEC_WEB_ASSET_STATUSES`）。**D-Drive が読まないフィールド**（`orderer` / `orderDate` / `dueDate` /
+`deliveredDate` / `priority` / `parentId` / `fileFormat` / `fileName` / `referenceImages` /
+`relatedFeaturePages` / `comments` / `params`）は Web 側だけで使う（D-Drive の `AssetDataBase` に
+対応する入れ物が無いため。将来使うときは `SpecAssetRow` に足す）。
 
 **`orderer`/`contractor` の入力 UI（2026-09-15 追記）**: 保存形式（`members.list` のメンバー表記＝
 `label` 文字列そのもの）は変更していない。クライアント側の入力欄だけを、datalist 付きの自由入力
@@ -1402,6 +1459,18 @@ MVP（W-4〜W-12）はすでに実装・マージ済みだが、実データ投�
 
 「納品済」への進行は**受注者が手動でボタンを押す**（納品日が自動記録される）。「インポート済」への進行は
 **ボタンが無く**、D-Drive の同期結果でのみ進む（§10.4）。
+
+> **2026-09-17 修正（[41](41_phase6_review_2026-09-17.md) P1-6）: 状態は保存の patch に載せない。**
+> 詳細パネルの「保存」は `status` を送らず（`html/Assets.html` の `restPatch` から削除）、状態を動かすのは
+> 「次へ進める」（`advanceStatus`）だけに限定した。サーバー側も `assets.update` で
+> **`status` が現在値と同じなら検証から外す**（`src/Assets.js`）。
+>
+> 修正前は `fieldsFromItem` が `status` を含んでいたため、D-Drive の同期で「インポート済」になった発注を開いて
+> 表示名・納品期限・メモを直して「保存」を押すと、変更していない `status`（=インポート済）が
+> 「インポート済は手動で設定できません」の検証に引っかかっていた。しかも `status` は `fieldRow()` を通して
+> いない（`renderStatusProgress` で別描画）ため `refreshAllFieldErrorsUI` に表示先が無く、
+> **ボタンを押しても何も起きない**状態だった。インポート済は運用上いちばん多い最終状態なので必ず踏む。
+> 回帰テストは `test/assets.api.test.js`（status 据え置きの patch が通ること / インポート済でも通ること）。
 
 #### 10.3.5 調整値タブ（§4.4、変更なし。ユーザー要件 7）
 
@@ -1551,6 +1620,7 @@ O-12〜O-13 も MVP 後の追加要望（合計 4 人日、別枠）。O-15〜O-
 | 6 | Presentation 発注グループから `PresentationData` を自動作成する連携（O-11） | (a) 実装する (b) 当面見送り、発注グループはあくまで Web 側だけの整理単位に留める | **(b)**（§10.4.3 のリスクのため）。ユーザーが必要と判断した時点で O-11 に着手 | **決定（(b) を採用）**。O-11 は今回実装しない。`orderGroups.create` は D-Drive への書き込みを一切行わない |
 | 7 | メンバー取り込み方式 | (a) 貼り付け（案A、O-9） (b) ガントを直接読む（案B、v2） | **(a)** を MVP。共有設定の懸念が無く実装コストも低い | **決定（(a) を採用）**。`Members.js` の `members.importPaste` を実装。ガントのスプレッドシートへは一切アクセスしない |
 | 8 | 既存データへの移行スクリプト（O-1 の一部）の必要性 | (a) 必要（実データがすでに投入されている） (b) 不要（まだ実データが無いため新スキーマで作り直せば済む） | 実装時にユーザー/運用担当に確認（**本書では判断できない**。W-1〜W-12 は実装済みだが実運用開始の有無は未確認） | **決定（最小限の(a)を採用）**。実運用データはまだ無いという前提のもと、移行スクリプトは最小限にした: 旧 `assignee`→`contractor`、旧 `status`（未着手/仮/本番→発注済/納品済/インポート済、保留→発注済+コメント退避）を読み込み時に変換する `specWebNormalizeLegacyOrderItem_`（副作用なし）+ 一度だけ実データを物理変換する `migrateLegacyOrdersToNewSchema`（`Migration.js`、admin のみ、冪等）を実装した。旧フィールドは書き込み時には一切使わない |
+| 10 | D-Drive で削除したアセットの `ddriveState.created` が `true` のまま残る（**2026-09-17 追加、[41](41_phase6_review_2026-09-17.md) 整理項目**） | (a) 現状のまま（`DDriveSync.js` の「`created===false` なら納品済へ戻す」分岐は到達しない。`SpecWebSender.cs` はプロジェクトに存在するアセットしか送らないため、削除されたアセットについては何も送られてこない） (b) D-Drive 側が「削除した（存在しない）アセット」も `created:false` で送るようにする (c) Web 側に「D-Drive から一定期間 assetState が来ていない」を検出する仕組みを足す | **未判断**。影響: 一度 D-Drive で作られたアセットを削除しても Web 側は `created:true` のままなので、その発注は `assets.rename`（O-15）が永久に拒否され、状態も「インポート済」から動かない。(b) は Unity 側の送信契約の変更（`SpecWebSender` が「Web には在るが D-Drive に無い id」を送る）になるため、Web 側だけでは決められない | **要判断（ユーザー / オーケストレーター）**。当面は運用回避（発注を作り直す）で足りるか確認したい |
 | 9 | `wbsNo` の入力形式 | (a) 自由文字列（本節の既定案） (b) ガント側の実際の書式（`3.2.1` のような階層番号）に対する検証を追加 | **(a)** で MVP。ガント側の書式が変わっても発注ツール側の変更が要らない | **決定（(a) を採用）**。`orderGroups.js` の `wbsNo` は自由入力の文字列のまま検証を加えない。ガントの URL は `Settings.js`（`settings.setGanttUrl`、admin のみ）で設定し、WBS 番号でシート内を自動スクロールする機能は実装しない（最低限「ガントを開く」だけで要件を満たす、§10.5②の記載どおり） |
 
 ---
@@ -2821,3 +2891,306 @@ EditMode/PlayMode の両方のテスト実行とコンパイル確認を行う�
 [docs/20_mcp_setup.md] 上の運用と同じく、iframe サンドボックス内の実際の挙動
 （プルダウンの見た目・選択操作・画面遷移）は Node テストでは検証できないため、
 `push.cmd`/`push.ps1` で実デプロイした上での目視確認が必須）。
+
+---
+
+## 実装メモ（2026-09-17、[41](41_phase6_review_2026-09-17.md) editor 系レビュー対応）
+
+2026-09-17 の自前レビュー（[41](41_phase6_review_2026-09-17.md)）で出た editor 系の指摘のうち、
+仕様書 Web 連携にかかわる分（P1-2 / P2-4 / P2-5 / P2-6 / P2-10）の対応。
+**この節の主題は「Web API の失敗を D-Drive 側が失敗として扱い、画面に出す」こと。**
+
+### P1-2: `ok:false` の応答で「適用」すると `TuningTable` が全消えになっていた（最優先）
+
+GAS は HTTP ステータスを設定できず**常に 200 で返す**（`Tools/SpecWeb/src/adapters/ContentAdapter.js`）。
+そのためトークン未設定 / 無効（401）・許可外（403）・レート制限でも `UnityWebRequest` からは成功に見え、
+`SpecWebParser` が `Rows` 0 件 + `Issues` 1 件（行番号 0 = エンベロープ段の失敗）を返す。
+この「空の結果」がそのまま `SpecCache` に載り、「適用」（`_applyTuningToggle` 既定 ON）が
+`TuningTable.Entries = []` / `Tables = []` にして `TuningCodegen.Regenerate` が `TUNING` を空クラスで
+書き出すため、**`TUNING.Xxx` を参照している全コードがコンパイルエラーになる**。しかも画面には何も出なかった。
+
+4 段構えで直した（どこか 1 つが破れても全消しにならないようにする。いずれも例外は投げず警告 + no-op）:
+
+1. **`SpecSyncService.IsUnusableForApply<T>(parsed, out reason)`（新設・public）** — 「行番号 0 の Issue が
+   ある」または「`Rows` が 0 件」なら適用しない。`ApplyTuning` / `ApplyTuningTable` の冒頭で呼び、
+   スキップ時は理由付きの警告を 1 本出して既存の `TuningTable` を変更しない。
+   意図した全削除は `TuningTable` アセットを直接編集する運用（行ごとの Issue は「一部の行が無効」なので止めない）
+2. **`SpecAutoSync.Run`** — 取得失敗・`ok:false` のときは空の結果を `SpecCache` に載せず**前回値を保持**する
+   （スカラーは `SpecCache.LastTuningRows` をそのまま渡し、テーブルは `SetTuningTables` を呼ばない）。
+   失敗の理由は `SpecCache.LastError` に入れる。アセット側（`assets.list`）がエンベロープ段で失敗したときは
+   差分計算もキャッシュ更新も行わず `SpecCache.SetError()`（新設）だけ呼んで抜ける
+3. **`SpecSyncWindow`（失敗を画面に出す — この不具合の本質）** — 次の 3 つを追加した:
+   - ステータス行の直下に `LastError`（`HelpBox` Error）と `LastWarning`（同 Warning）。
+     取得できていない状態（`LastDiff == null`）でも出す
+   - 「調整値の取得状況」セクション（新設）: スカラー / テーブルそれぞれについて
+     「n 件」か「適用しません + 理由」（判定は `IsUnusableForApply` を共用）と、**`Issues` の全件**
+     （`応答全体:` / `行 n:` の接頭辞付き、赤字）。`SpecWebParser` の `Issues` はそれまでどこにも表示されていなかった
+   - 「適用」で調整値をスキップしたときの理由（`HelpBox` Warning）。「適用」直後の再取得で
+     ステータス行が上書きされるため、再描画をまたいで残す（`_lastApplySkipNotes`）
+4. **`TuningCodegen.Regenerate` の安全弁** — 定数が 0 件で、かつ既存の生成ファイルに
+   `public const string` があるときは**上書きせず**警告 + `Result.Success = false` を返す。
+   意図した全削除のときは `Assets/Generated/Tuning.g.cs` を先に消してから再生成する
+
+### P2-4: `SpecWebFetcher` が `ok:false` の応答をキャッシュして正常キャッシュを壊していた
+
+`Library/DDriveSpec/web_*.json` がエラー JSON に置き換わると、その後ネットワーク断でフォールバックしても
+「前回のキャッシュを使用します」と言いながら中身が `{ok:false}`（= 行 0 件）になる（P1-2 の入口）。
+`SendAndHandle` の成功分岐で `WriteCache` の前に `TryDescribeFailure(json)` を通し、
+**`ok:false` / JSON として読めない応答 / 空応答はキャッシュせず `FallbackOrFail` に回す**ようにした
+（前回の正常キャッシュがあればそれを返し、無ければ失敗として返す）。送信系（`FetchPost`）は
+キャッシュを使わないためこの判定を通していない（送信結果の `ok` は呼び出し側で見る）。
+
+### P2-6: Validation の「全体結果」が無関係なアセットに紐付いていた
+
+`ValidatorRegistry.RunAll`（Foundation）は `IUniversalValidator` の結果も「その時渡されたアセット」の
+`ValidationReport` にする。プロジェクト全体を 1 回まとめて見る Validator（`SpecDiffValidator` の調整値の
+範囲チェック・`ContentHashCatalogCoverageValidator` のカタログのラベル未登録）は 1 回だけ結果を出すため、
+その Error が無関係なアセットの結果として現れていた。
+
+- (a) `SpecWebSender.FindAssetPathsWithValidationErrors` — `CI.RunValidation(includeProjectWideValidators: false)`
+  （新しいオーバーロード）に変更。調整値が 1 つでも範囲外 / カタログがラベル未登録のときに
+  無関係なアセットが `isPlaceholder=true` で送られ、`assetParams` からも外れて Web 側で「インポート済」に
+  進めなくなる不具合が直る。1 アセット単位で意味がある検査（種別 Validator + ValueDef / Addressables 登録 /
+  NetMode）は従来どおり `isPlaceholder` に含める
+- (b) `SpecDiffValidator.IsPlaceholder` — 自前で `ValidatorRegistry` を組む実装をやめ、既存の「個別検証」
+  `DataValidationRunner.Run`（[09](09_editor_tools.md) §11）に置き換えた。プロジェクト全体の Error 1 件で
+  「インポート済」アセット全件が「まだ Placeholder のようです」Warning に化ける問題と、内側の `RunAll` が
+  全体系 Validator の「1 回だけ」ガードを書き換えて Report Window / CI に同じ Error が重複する問題が同時に直る
+- 除外対象の定義は `DataValidationRunner.IsProjectWide(IValidator)`（`public` 化）を唯一の定義として共用する。
+  **本筋は「全体結果は `Asset` を持たない別経路（`IsGlobal` 等）にする」**だが、`ValidatorRegistry` は
+  Foundation（今回の担当範囲外）にあるため、呼び出し側で除外する方式に留めた（後続で本筋に寄せる）
+
+### P2-10: `TUNING` 定数名の規則が 2 箇所にあり、初版から食い違っていた
+
+`SpecWebSender.TuningCodegenConstantName`（`char.IsLetterOrDigit` = Unicode なので日本語が残る）を削除し、
+`TuningCodegen.ToConstantName`（`SanitizeToken` で ASCII 英数字以外を落とす）を `internal` にして共用した。
+`敵/HP` のようなキーが `HP`（生成側）と `敵HP`（送信側）に分かれ、実際に使われているキーが
+`tuningUsage.unusedKeys`（「未使用」）として送られていた不具合が直る。
+
+### テスト（EditMode、追加分）
+
+- `SpecSyncServiceTests`: `ok:false` の応答で `ApplyTuning` / `ApplyTuningTable` が既存の
+  Entries / Tables を消さないこと、`ok:true` で 0 件のときも消さないこと、`IsUnusableForApply` の
+  正常系 / 行ごと Issue のみ / null
+- `TuningCodegenTests`: 0 件のとき既存の `Tuning.g.cs`（定数あり）を上書きしないこと、
+  既存ファイルが無ければ 0 件でも従来どおり書き出すこと
+- `SpecWebFetcherTests`: `ok:false` の応答でキャッシュを上書きせず前回のキャッシュへフォールバックすること、
+  キャッシュが無ければ失敗として返すこと
+- `SpecSnapshotWriterTests`: scalars / tables の片方だけ失敗したとき、失敗した側が前回の内容を保つこと（両方向）
+- `SpecWebSenderTests`: 日本語を含むキーで Codegen と同じ定数名を使うこと（P2-10）
+
+**未検証**: Unity MCP の `read_console` でコンパイルエラー 0 を確認した。`run_tests`（EditMode / PlayMode）は
+オーケストレーターがまとめて実行する。
+
+---
+
+## 実装メモ（2026-09-17、[41](41_phase6_review_2026-09-17.md) P2 の修正 = SpecWeb 分）
+
+自前レビュー [41](41_phase6_review_2026-09-17.md) の **P2-11〜P2-17（specweb 節）+ 整理項目**を直した。
+P1（公開名グローバル関数の認可・CSRF・XSS・インポート済の保存不能）は別途対応済み（§2.3.1）。
+
+**このセッションでは `Tools/SpecWeb/` の外（`Assets/DDrive/`・`docs/DesignerManual/`）を触っていない。**
+
+### 1. 一括更新の原子化・高速化（P2-11）— `Storage.mutateMany`
+
+`src/Storage.js` に **`mutateMany(collection, fn, { actor })`** を足した。1 回の `withStorageLock_` の中で
+**1 読み・N 件更新・1 書き**を行う（`fn(tx)` の中で `tx.get` / `tx.list` / `tx.put` / `tx.remove`）。
+
+- `tx.put` の意味は `Storage.putItem` と**完全に同じ**（patch の merge・`expectedRevision` 検査・
+  `revision` 加算・`updatedBy` / `updatedAt`）。両者は同じ内部関数 `specWebPutItemInto_` を呼ぶので、
+  「1 件ずつのとき」と「まとめてのとき」で意味がずれない
+- 書き込みは `fn` が正常に返った後に**最大 1 回**。1 件も変更しなければ書かない。`fn` が例外を投げたら
+  **何も書かない**ので、「検査 → 書き込み」を原子的に行う用途にも使える（下記 P2-17）
+- `tx.list()` は内部のマップそのもの。外（API の戻り値）へ返すときは `Storage.listItems` を使う
+
+書き換えた呼び出し側: `src/DDriveSync.js`（`assetState`）・`src/AssetParams.js`（`assetParams` の
+schemas / items）・`src/Members.js`（`members.importPaste`）。`assetState` は `items` が空なら
+Drive に触らずに返す。**Unity 側（`SpecWebSender.cs`）の送信形式・応答形式は変えていない。**
+
+### 2. `assetParams` のレート制限（P2-12）
+
+他の 3 kind と同じ `specWebCheckRateLimit_(ctx.auth.principal, 'assetParams')` を足した（§7）。
+
+### 3. 作成系 API の同時作成（P2-13）— `expectedRevision: 0`
+
+`Storage.putItem` は `expectedRevision: 0` を渡すと「まだ存在しないこと」を**ロックの中で**要求できる
+（putItem が保存する revision は必ず 1 以上なので、revision 0 = 未作成と同義）。
+`assets.create` / `tuningScalarCreate` / `tuningTableCreate` はこれを渡すようにした。
+**ロック外の重複チェック（分かりやすい 409 メッセージ）はそのまま残し、競合したときの最後の砦として
+`expectedRevision: 0` が 409（`RevisionConflictError`）で落とす**、という二段構えにしてある。
+`orderGroups.create` は id がランダム（`og_` + UUID）で衝突しないため対象外。
+
+### 4. リネーム記録の不変条件（P2-14）
+
+**決定: `assetRenames` のキーは「今は実在しない id」だけである、という不変条件を書き込み側で保つ。**
+
+`assetRenames[X] = {newId}` は「X という発注はもう無く newId に移った」という意味しか持たないため、
+X が再び実在する id になった瞬間（新規作成された / リネーム先になった）に記録は嘘になる。
+`src/Assets.js` に `specWebForgetAssetRename_(id)` を足し、`assets.create` の成功後と
+`assets.rename` の新 id について記録を消す。
+
+- 却下した案: 「`specWebResolveAssetRenameChain_` の各ステップで `assets` の実在を確認する」。
+  リンクを 1 回開くたびに `assets.json` 全文の読み込みが最大 10 回増える（解決は SPA の初期表示で
+  必ず通る経路）うえ、嘘の記録がコレクションに残り続ける。**どちらの案でも「A→B→C とリネームした後に
+  B を作り直した場合、A のリンクは（C ではなく）新しい B に着く」という結果は同じ**なので、
+  安い方・データが綺麗な方を選んだ
+- 既知の割り切り: 上記のとおり、**id を再利用すると、それより前の世代のリンクの追跡は切れる**
+  （id しか記録していないため原理的に区別できない）。着く先は必ず「実在する発注」なので画面は壊れない
+
+### 5. `Object.prototype` 透過（P2-15）
+
+`members` の id は貼り付けた表記そのもの、`users` はメールアドレス、`tuning` はキーで、いずれも自由入力。
+素の `{}` は `Object.prototype` を継承するため、id が `constructor` / `toString` / `hasOwnProperty` だと
+`items[id]` が**継承した関数**を返し `existing.revision` が `undefined`（→ `revision: NaN`）になっていた。
+さらに id が `__proto__` の場合、`items['__proto__'] = item` は own property を作らず prototype の
+差し替えになるため、書いたはずの 1 件が消える。
+
+- `specWebReadCollectionRaw_` / `specWebEmptyCollection_` が items マップの prototype を外す
+  （`specWebAdoptItemsMap_`）
+- 読み取りは `specWebOwnItem_`（`hasOwnProperty` 経由）に統一（`getItem` / `putItem` / `renameItem` /
+  `deleteItem` / `TuningCommon.js` の `specWebMutateItemAtomic_`）
+- **`Storage.listItems` は「普通の prototype を持つオブジェクト」に浅くコピーして返す**
+  （`specWebPlainItemsCopy_`）。`tuningScalarList` /
+  `tuningTableList` は結果をそのまま API の戻り値にしており、prototype 無しのオブジェクトを
+  `google.script.run` のシリアライズに渡す挙動へ依存したくないため。`Object.assign` を使わないのは、
+  キーが `__proto__` のとき `[[Set]]` 経由で prototype 差し替えになり 1 件消えるため
+- 同根の箇所も直した: `Members.js` の重複判定（`seen`）・`Assets.js` のリネーム連鎖の `visited`・
+  `TuningTable.js` の列 key / rowId の重複判定
+
+### 6. Markdown 画像の alt（P2-16）
+
+`html/AssetsLogic.html` の `renderMarkdownSafe` で、`'…' + url + '" />'.replace(…)` と書かれていたため
+**`.replace` が最後の文字列リテラルにしか掛からず**（`.` が `+` より優先）置換は常に不発で、
+`alt` に URL が入っていた。`'<img alt="' + alt + '" src="' + url + '" />'` に直した（`alt` も `url` も
+入力全体を `escapeHtml_` した後の文字列なので、`"` は既に `&quot;` で属性値として安全）。
+
+### 7. `users.upsert` / `users.remove` の排他（P2-17）
+
+「admin の人数を数える → 書き込む」の間に排他が無く、admin が 2 人のときに双方が同時に相手を
+降格 / 削除すると admin が 0 人になった（ロックアウト）。検査と書き込みを 1 回の
+`Storage.mutateMany` の中に入れた（`src/Api/UserAdmin.js`）。
+
+### 8. 整理項目
+
+- `users.upsert` の `role` 省略時の既定を **`existing.role`** にした（以前は無条件に `editor` で、
+  表示名だけ直すつもりで `role` を省くと admin が降格した）。新規追加時の既定は従来どおり `editor`
+- `issueApiToken` が発行トークンを `Logger.log` するのをやめた（V8 の Logger 出力は Cloud Logging に
+  一定期間残る）。**戻り値だけ**を返す。運用手順は README §6
+- `renderUi_` の `setXFrameOptionsMode` を `ALLOWALL` → **`DEFAULT`**（GAS 既定）に戻した。
+  埋め込み用途（§4.6、v2）が無い今は不要で、クリックジャッキングの面だけ縮む。
+  **埋め込みを始めるときは `ALLOWALL` に戻すこと**
+- `specWebValidateAssetFields_` / `specWebValidateOrderGroupFields_` に**文字列フィールドの型検査**を
+  足した（`specWebUiCall` はプレーン JSON をそのまま渡すため、`e.parameter` 経由と違って
+  数値・オブジェクト・配列が届き得る）。`null` / `undefined` は従来どおり「未設定」として許容
+- `tools/build-manual.js` に `findUnprocessedLinkTags()` を足し、`rewriteLinks` / `inlineImages` の
+  後に**書き換え漏れ（`href='…'` のシングルクォート・`srcset`・相対 src/href）**が残っていないかを
+  警告する（両関数の正規表現はダブルクォートにしか掛からず、漏れても警告が出なかった）
+
+### 9. 別途見つけて直した問題（P2 の指摘外）
+
+- **`src/Code.js` の `specWebJsonForScript_` が構文エラーで、GAS プロジェクト全体が読み込めない状態だった**
+  （P1-5 の修正で入ったもの）。正規表現リテラルの中に U+2028 / U+2029 が**生の文字**で書かれており、
+  JS の仕様上そこが行終端子として扱われるため `SyntaxError: Invalid regular expression: missing /` になる。
+  `/\u2028/g` のエスケープ表記に直した。`test/globals.test.js` の同種の箇所も直した。
+  **ソース・テスト・コメントに生の U+2028 / U+2029 を書かないこと**（Node テストを 1 回でも走らせれば
+  即座に分かる種類の問題だった）
+- P1 の仕様変更（`?api=1` のトークン必須化・運用関数の admin セッション必須化）に追随できていなかった
+  既存テストを更新した（下記「テスト」参照）
+
+### テスト（`Tools/SpecWeb/test`、**501 件中 500 件 green**）
+
+この PC には Node.js が入っていないが、VS Code 同梱の Electron を Node として使って実際に実行した
+（`ELECTRON_RUN_AS_NODE=1 "…/Code.exe" --test Tools/SpecWeb/test/*.test.js`、Node v24）。
+**残り 1 件の失敗は本セッションと無関係**: `build-manual.test.js` の「ドリフト検出」で、
+`docs/DesignerManual/images/*.png` が別作業で差し替え中（`git status` で変更・削除あり）なのに
+`Tools/SpecWeb/html/manual/*.html` が再生成されていないため。`node Tools/SpecWeb/tools/build-manual.js`
+（または `push.ps1`）を実行すれば解消する。**マニュアル側の作業が終わってから再生成すること。**
+
+追加・変更したテスト:
+
+- `test/storage.test.js`: `mutateMany`（1 書き・putItem と同じ意味・例外時に書かない・`remove`）、
+  `putItem` の `expectedRevision: 0`、id が `constructor` / `toString` / `hasOwnProperty` / `__proto__`
+  でも壊れないこと（4 パターン）、`renameItem` の新 id が prototype のプロパティ名でも通ること
+- `test/ddriveSync.test.js`: 複数件の `assetState` で `assets.json` の書き込みが 1 回だけ・
+  `items` が空なら Drive に触らない
+- `test/assetParams.test.js`: レート制限（429・principal ごと）、複数件で各コレクション 1 回書き込み
+- `test/members.test.js`: `importPaste` の書き込みが 1 回だけ・表記 `constructor` でも取り込める
+- `test/assets.api.test.js`: 旧 id リンクの解決、作り直しで古いリネーム記録が消えること、
+  A→B→A と戻した場合
+- `test/usersAdmin.test.js`: `role` 省略時に既存ロールが保たれる / 新規は `editor`
+- `test/assets-logic.test.js`: 画像の `alt`（正常・XSS 入力・空 alt）
+- `test/build-manual.test.js`: `findUnprocessedLinkTags`（正常形・シングルクォート・`srcset`・相対）と
+  `buildManualPageHtml` 経由の警告
+- `test/load-gas.js`（フェイク）: ファイルごとの**書き込み回数**を数える `drive.writeCount(name)` を追加、
+  `HtmlService.XFrameOptionsMode.DEFAULT` を追加
+- P1 の仕様変更に追随: `test/auth.test.js`（`?api=1` のセッションフォールバック廃止・人向け 403 は
+  `authenticateSession_` 側の文言）、`test/assets.api.test.js`・`test/tuningScalar.test.js`・
+  `test/ddriveSync.test.js`（`?api=1` の代わりに `specWebUiCall` 経由 / 401 を期待）、
+  各テストの前提組み立てを公開名の運用関数から内部関数（`specWebIssueApiToken_` 等）に変更、
+  `test/globals.test.js` の `deepEqual({}, {})` の realm 違い
+
+### デプロイ
+
+**`clasp push` が必要**（`Tools/SpecWeb/src/**`・`html/AssetsLogic.html` を変更している）。
+`Tools/SpecWeb/push.cmd` / `push.ps1` を使い、その後 §7 の手順で ①② 両デプロイを新バージョンへ更新する。
+とくに次の 3 点は実デプロイでの目視確認が必要（Node テストでは検証できない）:
+
+1. **画面が表示されること**（`setXFrameOptionsMode(DEFAULT)` に変えたため。万一 iframe が表示されない
+   場合は `src/Code.js` の 1 行を `ALLOWALL` に戻す）
+2. 発注メモの Markdown プレビューで、画像の説明（alt）が画像の代わりに表示されること
+3. D-Drive の「Web に送信」で `assetState` / `assetParams` が従来どおり反映されること（P2-11 の書き換え）
+---
+
+## 実装メモ（2026-09-17、[41](41_phase6_review_2026-09-17.md) P1-7: Unity と GAS の契約ずれ）
+
+**症状**: 発注を同期して「変更を反映」を押すたびに、D-Drive 側の `Assignee`（担当）と
+`Description`（説明）が**空で上書きされていた**。差分プレビューにも毎回「担当 / 備考」が変更として出る。
+
+**原因**: `SpecWebParser.ParseAssets` が旧フィールド名 `assignee` / `note` を読んでいた。O-1
+（§10.2.1）で `orderer` / `contractor` / `referenceMd` に置き換わり、O-1 以降に作られた発注には旧キーが
+**存在しない**（`Migration.js` の `specWebNormalizeLegacyOrderItem_` は旧データにしか旧キーを残さない）。
+その結果 `Assignee=""` / `Note=""` として読まれ、`SpecDiffService.CollectChangedFields` が「変わった」と
+判定し、`SpecSyncService.ApplyExtraFields` が空を書き込んでいた。
+
+**直した内容（D-Drive 側のみ。`Tools/SpecWeb/` は変更していない）**:
+
+1. `SpecWebParser.ParseAssets` — `contractor` → `Assignee`、`referenceMd` → `Note`。どちらも
+   **空のときだけ**旧名（`assignee` / `note`）にフォールバックする（移行前のデータ対策。§10.2.1 の
+   「D-Drive 側が読むフィールド」参照）
+2. **防御（追加。今回の原因そのものではないが、同じ事故の被害を最小にするため）** —
+   **Web 側が空の項目は差分に含めず、書き込まない**（既存値を空で消さない）。もともと「仕様リンク」
+   だけに入っていた保護を、人が書く文字列（表示名・状態・担当・備考）に広げた。
+   `SpecDiffService.CollectChangedFields` と `SpecSyncService.ApplyExtraFields` / `ApplyChanged` の
+   **両方**に入れる（片方だけだと「表示名が変わった」等の別の理由で適用が走ったときに空が書かれる）。
+   - Web で発注を作るとき `displayName` は必須・`status` は必ず 3 値のどれかが入る
+     （`specWebValidateAssetFields_` / `assets.create`）ので、「Web 側で意図的に空にする」運用は
+     元から存在しない。空にしたいときは D-Drive 側（Inspector / 専用エディタ）で消す
+   - **カテゴリだけは対象外**（空が正当な値＝カテゴリ無し。GAS も必須にしていない）
+3. **状態の 3 値化** — `SpecStatusTag` のコメントを O-1 の 3 値（発注済 / 納品済 / インポート済）に直し、
+   一覧を `SpecStatusTag.Statuses`（+ `ImportedStatus`）に 1 か所化した。`SpecSyncService.BuildChoicesTsv`
+   の旧 4 値（未着手 / 仮 / 本番 / 保留）を置き換え、`SpecDiffValidator` の `ImportedStatus` も
+   この定数を参照する。正は `Tools/SpecWeb/src/Assets.js` の `SPEC_WEB_ASSET_STATUSES`。
+   旧語彙が残っていた文言（`DDriveSpecSettings.AutoApplyNewPlaceholders` の Tooltip・
+   `SpecSyncWindow` のトグル・`SpecAutoSync` のコメント「未着手の新規行」）も直した
+   （実装は元から状態で絞っていない＝「Web に有って D-Drive に無い行」すべてが対象）
+
+**フィールドの突き合わせ（`ParseAssets` が読む全キー × GAS の `SPEC_WEB_ASSET_WRITABLE_FIELDS` +
+`specWebNormalizeLegacyOrderItem_`）**: `id` / `archived` / `assetType` / `category` / `identifier` /
+`displayName` / `status` は一致。ズレていたのは `assignee`→`contractor` と `note`→`referenceMd` の
+2 つだけで、両方この修正で解消した。調整値側（`ParseTuningScalars` / `ParseTuningTables`: `kind` /
+`valueType` / `value` / `min` / `max` / `unit` / `description` / `enumOptions` / `columns` / `rows` /
+`rowId` / `cells` / `locked`）は `Tuning.js` / `TuningTable.js` と一致している。
+
+**テスト（EditMode、追加・更新分）**:
+
+- `SpecWebParserTests` — フィクスチャを新スキーマ（`contractor` / `referenceMd` / 3 値の `status`）に
+  更新。追加: 旧キーだけの JSON でフォールバックできること / 新キーが空文字なら旧キーを見ること /
+  両方あれば新キーが勝つこと / 新スキーマで受注者・リファレンス未入力なら行は空になること
+- `SpecDiffServiceTests` — **P1-7 の回帰テスト**: Web の JSON（受注者・リファレンス空）で
+  差分に「担当 / 備考」が出ないこと、表示名だけ変わった発注を適用しても
+  `Assignee` / `Description` / 状態タグ / 仕様リンクが残ること、新スキーマの値が入っていれば
+  `contractor` → `Assignee`・`referenceMd` → `Description` として反映されること
+- `SpecSyncServiceTests` — `BuildChoicesTsv` の期待値を 3 値に更新（旧「仮」が出ないことも確認）
+
+**未検証**: Unity MCP に接続できなかったため、コンパイル・テストは未実行（オーケストレーターがまとめて
+`run_tests` を回す前提）。

@@ -107,10 +107,34 @@ Anchors.Stop(h); Anchors.Kill(h); Anchors.IsPlaying(h);  // まとめて操作
 | 状態表示 | 原点の解決（✓/⚠）・点数・共通アセット数・入れ子数・ディレイ/確率 |
 | SceneView | 原点（大きい円）と全点（番号付きの小さい球。上書きあり = 橙、出さない = 灰 ×、選択 = 黄）。**クリックで点を選択**。手置きの点は直接ドラッグ、パターンの点をドラッグすると **Grid の間隔 / Circle の半径 / Line の長さ** が変わる（`ApplyPatternDrag`）。描画権（[04] §5 SceneGuiOwner）と「SceneView 表示」チェックは他のエディタと共通 |
 | 選択点の操作 | 「選択点を Overrides に追加」→ その点だけ別アセット / 出さない、を設定できる行が出来る。「▶ 選択点のみ」で 1 点だけ試し出し |
+| **手置きの点に変換**（2026-09-17 追加、U-22） | §3.7 |
 | 試し出し | 「▶ 全点」で計画どおりに実 Manager 経由（VFX は `SceneVfxPreviewDriver.Play(data, attach, spec)`、SE は `PreviewService.PlaySe(data, ctx, spec)`）。ディレイ・確率・ランダムもそのまま効く |
 | 検証 | `AnchorGroupDataValidator` をその場で表示 |
 
 プレビュー用 Registry（`EditorAnchorRegistry`）は AnchorData に加えて AnchorGroupData / VfxData / SeData も登録する（計画が ID から VFX/SE を引くため）。
+
+### 3.7 自動配置 → 手置きの点に変換（2026-09-17 追加、U-22）
+
+Grid 3×3 などのパターンで並べたあと「この 1 点だけ少しずらしたい」となったときに、**パターンの計算結果をそのまま手置きの点（`Points`）へ焼き付ける**ボタン。実装は `Editor/Anchor/AnchorGroupPointConverter.cs`、UI は Anchor Group Editor の「設定」内、パターンの欄と `Points` の間（パターンのときだけ表示）。
+
+**データ構造の切り替え**:
+
+```
+変換前: Layout = Grid/Circle/Line/Random  +  Points = [手置き分だけ]
+        → 点 = AnchorLayout.GeneratePattern(…) ++ Points
+
+変換後: Layout = Manual                   +  Points = [パターンの計算結果 ++ 元の手置き分]
+        → 点 = Points のみ
+```
+
+- 計算は再実装せず、ランタイムの純粋関数 `AnchorLayout.GeneratePattern` / `AnchorLayout.AppendManualPoints` をそのまま通す（このために従来の `AnchorLayout.Generate` を「パターン生成」と「手置きの追加」に分割した。`Generate` の挙動と既存の呼び出し側は変わらない）。**変換の前後で点の位置は一致する**
+- **並び順（= 点の番号）を保つ**ので、`Overrides.Index` / `Children.AtIndex` が指す点は変換後も同じ。SceneView の番号も変わらない
+- ランダム配置は**エディタ表示と同じ固定シード**（`sampleRandom: false`。`RandomSeed = 0` なら 1）で焼く。「今 SceneView に見えている配置」がそのまま点になる
+- 各点の `Name` は `Grid0` `Circle3` のようにパターン名 + 番号。元からあった手置きの点は名前をそのまま引き継ぐ
+- `Undo.RecordObject` + `EditorUtility.SetDirty` 済みで **Ctrl+Z で元のパターンに戻せる**。実行前に `EditorUtility.DisplayDialog` で点数・番号が変わらないこと・Undo で戻せることを確認する
+- パターンの設定値（間隔・半径・長さなど）は**消さずに残す**ので、`Layout` を戻せばやり直せる（ただし戻すと焼いた点と二重になるため、その場合は `Points` を空にする）
+- `Layout = Manual` のときはボタンを出さない（押しても警告 + no-op）
+- テスト: `Tests/Editor/AnchorGroupPointConverterTests.cs`（Grid の焼き付け・変換前後で位置が一致・手置き分が末尾に残る・Circle の点ごとの回転・Manual で no-op）
 
 ## 4. 実装ファイル
 
@@ -118,11 +142,15 @@ Anchors.Stop(h); Anchors.Kill(h); Anchors.IsPlaying(h);  // まとめて操作
 |---|---|
 | Foundation | `Identity/AssetType.cs`（`AnchorGroup` 追加） |
 | Runtime | `Anchoring/AnchorGroupData.cs` / `AnchorLayout.cs` / `AnchorGroupPlanner.cs` / `AnchorGroupPlayer.cs`（+ `Anchors` ファサード）/ `AnchorGroupDataValidator.cs`、`Vfx/VfxManager.cs` `Audio/AudioManager.cs`（spec 経路） |
-| Editor | `Anchor/AnchorGroupEditorWindow.cs`、`Preview/EditorAnchorRegistry.cs`、`Vfx/SceneVfxPreviewDriver.cs`、`Preview/PreviewService.cs`、`AssetBrowser/AssetNamingService.cs` `AssetCreationService.cs` |
-| Tests | `Tests/Runtime/AnchorGroupTests.cs`（PlayMode 16 件: 各パターン・合成・計画・上書き・入れ子・Player・Validator） |
+| Editor | `Anchor/AnchorGroupEditorWindow.cs`、`Anchor/AnchorGroupPointConverter.cs`（2026-09-17、§3.7）、`Preview/EditorAnchorRegistry.cs`、`Preview/AnchorSceneHandles.cs`（2026-09-17: 基準の描画。[21] §3.10）、`Vfx/SceneVfxPreviewDriver.cs`、`Preview/PreviewService.cs`、`AssetBrowser/AssetNamingService.cs` `AssetCreationService.cs` |
+| Tests | `Tests/Runtime/AnchorGroupTests.cs`（PlayMode 16 件: 各パターン・合成・計画・上書き・入れ子・Player・Validator）、`Tests/Editor/AnchorGroupPointConverterTests.cs`（EditMode 4 件: 手置きへの変換、2026-09-17） |
 
 ## 5. 未対応・今後
 
 - Presentation 統合（トラック種別 AnchorGroup）は Phase 5
 - ネット同期は各点の Cosmetic 配送（位置のみ）に任せる。Group 単位の同期は未対応
 - Spiral / 曲線パターン、点ごとの個別ディレイ表は要望があれば
+
+## 6. 変更履歴
+
+- 2026-09-17: §3.7「自動配置 → 手置きの点に変換」を追加（U-22）。`AnchorLayout.Generate` を `GeneratePattern` + `AppendManualPoints` に分割（挙動は不変）。SceneView に基準（原点）の 3 軸・座標ラベル・基準 → 原点の線を追加（U-24。定義は [21](21_anchor_spec.md) §3.10）

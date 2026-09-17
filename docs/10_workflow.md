@@ -68,7 +68,7 @@
 |---|---|---|
 | `Assets/GameData/<種別>/<カテゴリ階層>/` | 管理データ（各 `*Data` SO）とベイク生成物（トリム済み wav 等は Data の隣） | **ツール**（新規作成時に自動配置、整理メニューで追従） |
 | `Assets/GameData/Catalogs/` | カタログ SO 群 | ツール |
-| `Assets/GameData/Prefabs/<ドメイン>/` | D-Drive 標準プレハブ（`SeEmitter.prefab` 等）。シーンで使う際は AddComponent で組まず**既存の標準プレハブを使うこと推奨**。Phase 4 の Prefab 管理（4-4）もこのルートを基点に拡張する | ツール生成 + 人が既定値調整 |
+| `Assets/GameData/Prefabs/<ドメイン>/` | D-Drive 標準プレハブ（`SeEmitter.prefab` 等）。シーンで使う際は AddComponent で組まず**既存の標準プレハブを使うこと推奨**（2026-09-17 から `GameObject > D-Drive >`（Hierarchy 右クリック）で配置できる。[09 §6.2](09_editor_tools.md)）。Phase 4 の Prefab 管理（4-4）もこのルートを基点に拡張する。`Canvas/` は U-19 の一発生成が作る Canvas + Panel プレハブの置き場（[09 §6.3](09_editor_tools.md)） | ツール生成 + 人が既定値調整 |
 | `Assets/SourceAssets/<ドメイン>/<カテゴリ>/` | 実データ（インポートした音源・モデル・テクスチャ等）。管理データと実データは場所が分かれるが、参照は GUID なので運用上は AssetBrowser 経由で意識しない | **人**（カテゴリ準拠は推奨であり強制しない） |
 
 - カテゴリ `Player/Attack` の SeData → `Assets/GameData/Audio/SE/Player/Attack/SE_Attack_Slash.asset` のように、**カテゴリがそのままフォルダ階層になる**（AssetBrowser を使わなくても Project ウィンドウである程度探せる）
@@ -119,6 +119,19 @@
 4. 必要ならイベント・Duck を設定
 5. 保存 → Validation バナーが緑であること
 6. プログラマーに ID 名（`SEID.PlayerFootstep`）を連絡（または先にプログラマーが仮 ID で実装済みなら、その ID 名で登録するだけ）
+
+### 6.1 Data を作る 4 つの入口（2026-09-17 時点）
+
+どれを使っても通る経路は同じ（`AssetCreationService.Create` = ファイル名・ID・カタログ・Addressables 登録・初期アイコンまで自動）。**作成後はその種別の専用エディタが自動で開く**（U-16。専用エディタが無い種別は Inspector で選択状態になるだけ）。
+
+| 入口 | 使うとき | 参照 |
+|---|---|---|
+| AssetBrowser の「新規」/ 一覧への D&D | 一覧を見ながらまとめて作る。仕様書の未作成行から選ぶのもここ | [09 §1](09_editor_tools.md) / §8.5 |
+| 各専用エディタの「＋ 新規作成」 | そのエディタで作業中に、同じ種別をもう 1 つ作る | [09 §8.3](09_editor_tools.md) |
+| `SourceAssets/<種別>/<カテゴリ>/` にファイルを置く | 大量の元ファイルをまとめて取り込む（自動検知） | [09 §1.1](09_editor_tools.md) / §3.3 |
+| **Project で元ファイルを右クリック →「D-Drive/Data を作成/〜」**（2026-09-17 追加、U-17） | 既にプロジェクトにあるファイルから 1 個だけ作る。`SourceAssets/` 以外の場所にあってもよい | [09 §1.2](09_editor_tools.md) |
+
+シーンに置くもの（SeEmitter・AnchorRig・UiButton・Canvas + Panel・起動オブジェクト）は **Hierarchy の右クリック →「D-Drive/〜」**（2026-09-17 追加、U-18/U-19。[09 §6.2/§6.3](09_editor_tools.md)）から置く。Canvas は「Canvas + Panel(CanvasData も作成)」で Prefab と CanvasData まで一度に揃う。
 
 ## 7. トラブルシューティング規約
 

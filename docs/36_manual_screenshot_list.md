@@ -1,6 +1,8 @@
 # 36. デザイナーマニュアル スクリーンショット撮影リスト（2026-09-15）
 
-関連: [DesignerManual/Readme.html](DesignerManual/Readme.html) / [09_editor_tools.md](09_editor_tools.md)（ウィンドウ名・メニューパス） / [28_manual_verification_phase5.md](28_manual_verification_phase5.md) / [23_manual_verification_2026-09-11.md](23_manual_verification_2026-09-11.md)（実際の操作手順） / [35_tutorial_video_scripts.md](35_tutorial_video_scripts.md)（動画台本、収録ルールを本リストの共通設定にも流用） / [32_spec_web.md](32_spec_web.md) §10（発注ツールの画面構成） / [11_tasks.md](11_tasks.md) 6-4
+関連: [40_manual_screenshot_workflow.md](40_manual_screenshot_workflow.md)（**撮り方と取り込み手順はこちら**。本書は撮る対象のリスト） / [DesignerManual/Readme.html](DesignerManual/Readme.html) / [09_editor_tools.md](09_editor_tools.md)（ウィンドウ名・メニューパス） / [28_manual_verification_phase5.md](28_manual_verification_phase5.md) / [23_manual_verification_2026-09-11.md](23_manual_verification_2026-09-11.md)（実際の操作手順） / [35_tutorial_video_scripts.md](35_tutorial_video_scripts.md)（動画台本、収録ルールを本リストの共通設定にも流用） / [32_spec_web.md](32_spec_web.md) §10（発注ツールの画面構成） / [11_tasks.md](11_tasks.md) 6-4
+
+> **2026-09-17 更新**: 撮影結果を §5 に追記した。45 枚を `docs/DesignerManual/images/` に配置して各 HTML に `<figure>` を挿入済み。Inspector のスクリーンショットは**すべて不要**と判断して取りやめ（既存の `se-emitter-inspector.png` も削除）。残り 10 枚は不具合・手順不明のため未撮影（理由は §5）。**どの番号がどうなったかは §5 の表が最新**（§4 の各表は当初の撮影指示のまま残してある）。
 
 > **このドキュメントは撮影リストのみ**（何を・どこに・どう撮るか）。実際のスクリーンショット撮影・`docs/DesignerManual/images/` への配置・各 HTML への `<img>` 挿入は別作業（人、またはエージェントが Unity 画面キャプチャで行う）。本チケットでは各ページの HTML に挿入位置を示す `<!-- screenshot: 36-#N -->` コメントのみを入れてある（表示には影響しない）。
 
@@ -9,14 +11,17 @@
 | 項目 | 値 |
 |---|---|
 | 対象ページ数 | 26（`docs/DesignerManual/*.html` 全ページ。うち `glossary.html` は撮影不要、`getting-started.html` は最小限） |
-| 既存スクリーンショット | 6 枚（`asset-browser-window` / `audio-editor-3dpad` / `audio-editor-window` / `root-overview` / `se-emitter-inspector` / `vfx-editor-window`） |
+| 既存スクリーンショット | 6 枚（`asset-browser-window` / `audio-editor-3dpad` / `audio-editor-window` / `root-overview` / `se-emitter-inspector` / `vfx-editor-window`）。うち `se-emitter-inspector` は 2026-09-17 に削除 |
 | うち撮り直しが必要 | 2 枚（`root-overview.png` / `asset-browser-window.png`。理由は §2 参照） |
-| うち既存のままで良い | 4 枚（`audio-editor-window` / `audio-editor-3dpad` / `se-emitter-inspector` / `vfx-editor-window`） |
+| うち既存のままで良い | 3 枚（`audio-editor-window` / `audio-editor-3dpad` / `vfx-editor-window`）。`se-emitter-inspector` は Inspector のため削除（2026-09-17） |
 | 新規に撮影するスクリーンショット | 59 枚（上記の撮り直し 2 枚を含む。差分は 57 枚が完全新規） |
 | 優先度 A（無いと操作が分からない） | 23 枚 |
 | 優先度 B（あると理解が早い） | 28 枚 |
 | 優先度 C（補足） | 8 枚 |
 | 撮影順グループ数 | 9 グループ（§1 参照） |
+| 撮影済み（2026-09-17） | 45 枚（うち 3 枚は Inspector のため不採用、配置したのは 42 枚。§5） |
+| 撮影を取りやめ | 7 枚（Inspector 5 枚 + #40 + #59。§5） |
+| 未撮影（不具合・手順不明） | 10 枚（§5） |
 
 番号は本ドキュメント内で `#1`〜`#59` の連番。HTML 側のコメントは `<!-- screenshot: 36-#N -->` の形式（例: `<!-- screenshot: 36-#12 -->`）。
 
@@ -26,15 +31,15 @@
 
 | グループ | 内容 | 含む番号 |
 |---|---|---|
-| ① Asset Browser・関連ウィンドウ（シーン不要） | Asset Browser 本体・新規ダイアログ・使用箇所/依存ツリー/未使用一覧・削除ウィンドウ一式・Validation Run All・仕様書同期(Unity側) | #1, #3〜#14, #55 |
-| ② Inspector 単体（シーン不要） | SeData / BgmData / MaterialData / CanvasData の Inspector 項目だけを映すもの | #15, #16, #34, #40 |
-| ③ Audio・環境音（既存確認シーン） | 既存 2 枚のみで足りるため新規撮影なし。SeEmitter は既存を流用、任意で C 項目を追加 | #17 |
-| ④ VFX・Anchor・配置セット（VFX 確認用シーン） | vfx-data の AnchorPoint、VFX Editor、Anchor Editor、Anchor Group Editor | #18〜#24 |
-| ⑤ モデル・アニメーション（Anim 確認用シーン） | Model Editor、Anim Editor、Anim2D Editor | #25〜#33 |
-| ⑥ マテリアル（現在のシーンに配置） | MaterialData Common、Material Editor、Material 変換 | #35〜#37（#34 は②に含む） |
-| ⑦ Prefab（Prefab 確認用シーン） | Prefab Editor | #38, #39 |
-| ⑧ Canvas・UI（Canvas 確認用シーン / UI Tween 確認用シーン） | Canvas Editor、Button/Slider Skin、Slider Editor、UI Tween Editor、プリセットギャラリー | #41〜#50（#40 は②に含む） |
-| ⑨ 演出・カメラ揺れ・振動（Presentation 確認用シーン） + Web 発注ツール（ブラウザ） | Presentation Editor、剣攻撃デモ、Shake/Haptics Editor、発注ツール Web 画面一式 | #51〜#54, #56〜#59 |
+| ① Asset Browser・関連ウィンドウ（シーン不要） | Asset Browser 本体・新規ダイアログ・使用箇所/依存ツリー/未使用一覧・削除ウィンドウ一式・Validation Run All・仕様書同期(Unity側) | #1, #3〜#15, #56 |
+| ② Inspector 単体（シーン不要） | ~~SeData / BgmData / MaterialData / CanvasData の Inspector 項目だけを映すもの~~ **2026-09-17 に撮影取りやめ**（Inspector は撮らない方針） | ~~#4, #16, #17, #35, #41~~ |
+| ③ Audio・環境音（既存確認シーン） | 既存 2 枚（`audio-editor-window` / `audio-editor-3dpad`）で足りる。SeEmitter へのドラッグのみ新規 | #18 |
+| ④ VFX・Anchor・配置セット（VFX 確認用シーン） | vfx-data の AnchorPoint、VFX Editor、Anchor Editor、Anchor Group Editor | #19〜#25 |
+| ⑤ モデル・アニメーション（Anim 確認用シーン） | Model Editor、Anim Editor、Anim2D Editor | #26〜#34 |
+| ⑥ マテリアル（現在のシーンに配置） | Material Editor、Material 変換（#35 の MaterialData Common は②に含み、撮影取りやめ） | #36〜#38 |
+| ⑦ Prefab（Prefab 確認用シーン） | Prefab Editor | #39, #40 |
+| ⑧ Canvas・UI（Canvas 確認用シーン / UI Tween 確認用シーン） | Canvas Editor、Button/Slider Skin、Slider Editor、UI Tween Editor、プリセットギャラリー（#41 の CanvasData Inspector は②に含み、撮影取りやめ） | #42〜#51 |
+| ⑨ 演出・カメラ揺れ・振動（Presentation 確認用シーン） + Web 発注ツール（ブラウザ） | Presentation Editor、剣攻撃デモ、Shake/Haptics Editor、発注ツール Web 画面一式 | #52〜#55, #57〜#59 |
 
 `getting-started.html`（#2）はどのグループでもよい単発の撮影（メインツールバーのボタン位置だけ）。
 
@@ -46,7 +51,7 @@
 | `asset-browser-window.png` | asset-browser.html | **撮り直し**（#3） | 同上（「未使用...」ボタン・アイコン列・更新者/更新日時列が無い状態で撮影されている） |
 | `audio-editor-window.png` | audio-editor.html | 既存のままでよい | 波形・トリミングボタン・再生コントロール・3D パッドの構成は現行の説明と一致 |
 | `audio-editor-3dpad.png` | audio-editor.html | 既存のままでよい | 3D サウンド確認パッドの構図は現行の説明と一致 |
-| `se-emitter-inspector.png` | scene-sound.html | 既存のままでよい | SeEmitter の Inspector（Se Id 欄）は変更なし |
+| `se-emitter-inspector.png` | scene-sound.html | **削除**（2026-09-17） | Inspector のスクリーンショットは撮らない方針にしたため。scene-sound.html の `<figure>` ごと削除した |
 | `vfx-editor-window.png` | vfx-editor.html | 既存のままでよい | ツールバー・基本設定・Anchor・パラメータ・イベント欄の構成は現行の説明と一致 |
 
 ## 3. 撮影の共通設定
@@ -258,3 +263,107 @@
 ### glossary.html
 
 撮影不要。用語の説明のみのページで、各用語には該当ページへのリンクがあり、そちらのスクリーンショットで説明が足りる。
+
+## 5. 撮影結果（2026-09-17）
+
+45 枚を受領し、Inspector の 3 枚（#4 / #16 / #35）を除く **42 枚を `docs/DesignerManual/images/` に配置**して、各 HTML の `<!-- screenshot: 36-#N -->` の位置に `<figure>` を挿入した。あわせて既存の `se-emitter-inspector.png` を削除した（§2）。
+
+**この表が各番号の最新の状態**。§4 の各表は当初の撮影指示としてそのまま残してある。
+
+### 5.1 方針の変更
+
+| 決定 | 内容 |
+|---|---|
+| Inspector は撮らない | **Inspector のスクリーンショットはすべて不要**と判断（2026-09-17）。該当は #4 / #16 / #17 / #35 / #41 の 5 件と、既存の `se-emitter-inspector.png`。受領済みだった #4 / #16 / #35 の 3 枚も配置せず破棄し、HTML 側の `<!-- screenshot: 36-#N -->` コメントも削除した。Inspector の項目は本文の表で説明できているため、画像が無くても読める |
+| 画像の最適化 | 受領時の合計は約 5.3MB（最大 494KB）で §3 の「1 枚 150KB まで」を超えるものが 8 枚あったため、**256 色パレット化（ディザ無し）で再エンコード**した。合計 約 1.5MB・最大 157KB（`vfx-editor-prefab-mode.png`）まで縮小。UI のスクリーンショットは元の色数が最大でも約 15,000 色のため、文字のにじみ・階調の破綻は生じていない |
+| 機密情報の伏せ字 | #56（仕様書と同期）に GAS のデプロイ URL が写り込んでいたため、§3 のルールに従い **Web API URL / 人向け SPA URL の 2 欄をダミー文字列に差し替えた**（トークン欄は元から `*` 表示）。差し替え前の原本は配置していない |
+
+### 5.2 配置済み（42 枚）
+
+| # | ファイル | 挿入先 |
+|---|---|---|
+| #1 | `root-overview.png`（撮り直し） | Readme.html（既存 `<figure>` を差し替え） |
+| #2 | `getting-started-manual-button.png` | getting-started.html |
+| #3 | `asset-browser-window.png`（撮り直し） | asset-browser.html（既存 `<figure>` を差し替え） |
+| #5 | `asset-browser-new-dialog.png` | asset-browser.html |
+| #7 | `asset-browser-usage-list.png` | asset-browser.html |
+| #8 | `asset-browser-dependency-tree.png` | asset-browser.html |
+| #9 | `asset-browser-unused-list.png` | asset-browser.html |
+| #10 | `asset-browser-delete-overview.png` | asset-browser.html |
+| #12 | `asset-browser-delete-method.png` | asset-browser.html |
+| #13 | `asset-browser-delete-result.png` | asset-browser.html |
+| #18 | `scene-sound-drag-emitter.png` | scene-sound.html |
+| #21 | `vfx-editor-prefab-mode.png` | vfx-editor.html |
+| #22 | `anchor-editor-window.png` | anchor-data.html |
+| #24 | `anchor-group-editor-window.png` | anchor-group.html |
+| #25 | `anchor-group-sceneview-grid.png` | anchor-group.html |
+| #26 | `model-editor-window.png` | model-editor.html |
+| #28 | `anim-editor-timeline.png` | anim-editor.html |
+| #29 | `anim-editor-timeline-zoom.png` | anim-editor.html |
+| #30 | `anim-editor-blend-tools.png` | anim-editor.html |
+| #31 | `anim-editor-sceneview-playback.png` | anim-editor.html |
+| #32 | `anim2d-editor-create-mode.png` | anim2d-editor.html |
+| #33 | `anim2d-editor-detect-preview.png` | anim2d-editor.html |
+| #34 | `anim2d-editor-edit-mode.png` | anim2d-editor.html |
+| #36 | `material-editor-sphere.png` | material-editor.html |
+| #37 | `material-editor-compare.png` | material-editor.html |
+| #38 | `material-editor-conversion.png` | material-editor.html |
+| #39 | `prefab-editor-window.png` | prefab-data.html |
+| #42 | `canvas-editor-nav-graph.png` | canvas-editor.html |
+| #43 | `canvas-editor-elementfx-panel.png` | canvas-editor.html |
+| #44 | `canvas-editor-preview-gameview.png` | canvas-editor.html |
+| #45 | `button-skin-editor-window.png` | ui-skin.html |
+| #46 | `button-skin-state-transition.png` | ui-skin.html |
+| #47 | `slider-editor-response-curve.png` | ui-skin.html |
+| #48 | `slider-skin-editor-window.png` | ui-skin.html |
+| #49 | `ui-tween-editor-window.png` | ui-tween.html |
+| #50 | `ui-tween-preset-gallery.png` | ui-tween.html |
+| #51 | `ui-tween-pathmove-handles.png` | ui-tween.html |
+| #52 | `presentation-editor-timeline.png` | presentation.html |
+| #55 | `shake-haptics-editor-window.png` | camera-haptics.html |
+| #56 | `spec-sync-unity-window.png` | spec-sync.html（URL 2 欄をダミーに差し替え済み） |
+| #57 | `order-tool-tree-view.png` | spec-sync.html（表の中にコメントがあったため、表の直後に置いた） |
+| #58 | `order-tool-detail-panel.png` | spec-sync.html |
+
+`<figure>` の挿入位置について: コメントが表（`<table>`）や箇条書き（`<ol>` / `<ul>`）の内側にある番号（#18 / #29 / #33 / #44 / #46 / #51 / #56 / #57）は、そのまま挿入すると `<tr>` の間・`<li>` の間に `<figure>` が入って HTML として壊れるため、**その表・箇条書きを閉じた直後**に置いた。
+
+### 5.3 撮影を取りやめ（7 枚）
+
+| # | ファイル名案 | 理由 |
+|---|---|---|
+| #4 | `asset-browser-inspector-header.png` | Inspector のため（受領済みだが破棄） |
+| #16 | `se-data-inspector.png` | Inspector のため（受領済みだが破棄） |
+| #17 | `bgm-data-inspector.png` | Inspector のため。あわせて、撮影しようとした時点で Fade 欄が `No GUI Implementation` と表示される不具合を確認している（→ **2026-09-17 に修正済み。[39](39_usability_fixes_2026-09-17.md) U-14 / [09 §8](09_editor_tools.md)**。撮影の取りやめ自体は変更なし） |
+| #35 | `material-data-common-channels.png` | Inspector のため（受領済みだが破棄） |
+| #40 | `prefab-editor-sceneview.png` | 不要と判断 |
+| #41 | `canvas-data-inspector-wires.png` | Inspector のため |
+| #59 | `order-tool-member-list.png` | 不要と判断 |
+
+上記 7 件は HTML 側の `<!-- screenshot: 36-#N -->` コメントも削除した。
+
+### 5.4 未撮影（10 枚）
+
+不具合が理由のものは、直った後に撮影する。HTML 側のコメントは `<!-- screenshot: 36-#N / 未撮影: 理由 -->` の形で残してある。
+
+> **2026-09-17 夕: 10 枚のうち 9 枚は原因が解消し、撮影できる状態になった**（[39](39_usability_fixes_2026-09-17.md) の U-1 / U-12 / U-13 / U-15 / U-24 の修正）。残るのは #53（U-25 が未着手）だけ。
+> ただし **Unity 上での動作確認はまだ**なので、撮影のときに「本当に直っているか」の確認も兼ねることになる。
+
+| # | ファイル名案 | 未撮影の理由 |
+|---|---|---|
+| #6 | `asset-browser-spec-picker.png` | 仕様書 URL を設定しても「仕様書 URL が未設定」と表示される不具合のため → **2026-09-17 に修正済み（[39](39_usability_fixes_2026-09-17.md) U-15）。撮影可能** |
+| #11 | `asset-browser-delete-references.png` | 撮り忘れ。#10 / #12 と同じウィンドウなので、次の撮影でまとめて撮る |
+| #14 | `asset-browser-preview-inline.png` | Asset Browser 下部のサウンドのプレビューバーの UI が崩れているため → **2026-09-17 に修正済み（[39](39_usability_fixes_2026-09-17.md) U-12）。撮影可能** |
+| #15 | `validation-run-all.png` | 個別検証がある種別と無い種別があり、VFX Editor では展開しても何も表示されないため → **2026-09-17 に修正済み（[39](39_usability_fixes_2026-09-17.md) U-13）。撮影可能** |
+| #19 | `vfx-data-anchorpoint-sceneview.png` | SceneView に基準（原点）が描かれず、LocalOffset だけでは位置関係が分からないため → **2026-09-17 に修正済み（[39](39_usability_fixes_2026-09-17.md) U-24、[21 §3.10](21_anchor_spec.md)）。撮影可能** |
+| #20 | `vfx-editor-anchor-handle.png` | 撮り忘れ + U-24 待ちだった → **2026-09-17 に U-24 を修正済み。撮影可能**（#19 / #23 と同じタイミングで撮れる） |
+| #23 | `anchor-editor-sceneview.png` | #19 と同じ（SceneView に基準が描かれない）→ **2026-09-17 に修正済み（U-24）。撮影可能** |
+| #27 | `model-editor-turntable-sceneview.png` | 3D オブジェクトのプレビューが透明になり、何も写らないため → **2026-09-17 に修正済み（[39](39_usability_fixes_2026-09-17.md) U-1）。撮影可能**。真因は Material スロットではなく `ModelsManager` が `renderingLayerMask` に 0 を書いていたこと |
+| #53 | `presentation-editor-signal-lane.png` | Signal を手動で送る操作のやり方が分からないため（手順の整理・UI の改善が必要）→ **U-25 が未着手。これだけまだ撮れない** |
+| #54 | `presentation-demo-sceneview.png` | #27 と同じくモデルが透明になり、何も写らないため → **2026-09-17 に修正済み（U-1）。撮影可能** |
+
+### 5.5 残っている確認事項
+
+- ~~Web 版マニュアルの再生成がまだ~~ → **2026-09-17 に実行済み**。Node は PATH に無かったが、VS Code 同梱の Electron を `ELECTRON_RUN_AS_NODE=1` で Node として使えた（[40](40_manual_screenshot_workflow.md) 手順 9）。`Tools/SpecWeb/html/manual/` は 26 ページ・2.9MB に。drift チェックを含む SpecWeb テスト 501 件が green
+- #58 として受領した `order-tool-detail-panel.png` は、§4 で想定していた「詳細パネル（ファイル形式・納品ファイル名・リファレンス）」ではなく**「新規発注」パネル**が写っている。説明文と合わせるか、撮り直すかを決める
+- #1 / #3（`root-overview.png` / `asset-browser-window.png`）は下端のプレビューバーが途中で切れており、「更新者」列に Windows ユーザー名（`yamag`）が入ったままになっている。§3 の「Windows ユーザー名を映さない」に照らすと、撮影用アカウントで撮り直すか、当該列をぼかすのが望ましい
+- #58 の一覧にも実在の姓（`山口`）が 1 行入っている。§3 のとおりダミー名に置き換えて撮り直すのが望ましい

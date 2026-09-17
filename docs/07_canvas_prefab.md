@@ -258,6 +258,15 @@ public static class Ui
 
 > `Assets/SourceAssets/Canvas/<カテゴリ>/*.prefab` に UI 用 Prefab を置くだけでも `CanvasData`(Prefab のみ設定、Layer/Transition/Wiring 等は既定値)が自動生成される（[09_editor_tools.md](09_editor_tools.md) §1.1）。元ファイル削除時は Data を消さず、A-4 の既存 Validator の「Prefab が未設定(または Missing)です」がそのまま欠落表示を担う。
 
+### 実装メモ（2026-09-17、U-19 Canvas + Panel の一発生成）
+
+**「CanvasData を作るたびに Canvas を作って Panel を足して…」を 1 操作にまとめた。** 入口は `Tools > D-Drive > Generate > Canvas + Panel と CanvasData を作成` と `GameObject > D-Drive > Canvas + Panel(CanvasData も作成)`（Hierarchy 右クリック）の 2 つで、どちらも `CanvasSetupService.CreateCanvasWithPanel`（`Editor/Canvas/CanvasSetupService.cs`）を呼ぶ。
+
+- 命名・カテゴリの入力と CanvasData の作成は既存の `NewAssetDialog`（種別を CanvasData に固定）→ `AssetCreationService.Create` をそのまま通す（並行経路を作らない）。作成後のコールバックで Prefab を組み立てて `CanvasData.Prefab` に入れる（`Undo.RecordObject` + `EditorUtility.SetDirty`）
+- 生成される Prefab: ルート = `RectTransform + Canvas(ScreenSpaceOverlay) + CanvasScaler(1920x1080 / Match 0.5) + GraphicRaycaster`、その子に `Panel`（`RectTransform` 四辺ストレッチ + `Image`）。A-2 の「ルートは RectTransform を持つオブジェクト、Canvas があれば `SortOffset` が `sortingOrder` に加算」に合わせてルートに Canvas を付けている（`UiManager.OpenData` が `overrideSorting = true` にして使う）
+- 保存先は `Assets/GameData/Prefabs/Canvas/<CanvasData のファイル名>.prefab`。`SourceAssets/Canvas/` に置くと上記 5-11 の ImportRule が 2 つ目の CanvasData を作ってしまうため避けている
+- Hierarchy から呼んだ場合のみ、作った Prefab を右クリックしたオブジェクトの子として配置する（`Undo.RegisterCreatedObjectUndo`、`EventSystem` が無ければ作る）。詳細は [09_editor_tools.md](09_editor_tools.md) §6.3
+
 ---
 
 # Part B — 汎用 Prefab
@@ -298,6 +307,8 @@ public static class Prefabs
 - ゲーム固有ロジックは従来通り Prefab 上のコンポーネントに書く（本システムは生成管理とメタ情報のみ担当）
 
 ### 実装メモ（2026-09-10、4-4 / 4-5 Prefab 側）
+
+- **「確認用シーンに配置」の修正と共通化（U-4/U-5、2026-09-17）**: `PrefabEditorWindow` の「確認用シーンに配置」は、名前に反して確認用シーンを開かず、今開いているシーンにしか Spawn していなかった（ユーザー報告）。Model / Anim / Anim2D と同じ「片付ける → `VfxPreviewSceneSetup.TryOpenOrCreate` → 配置 → SceneView をフォーカス」に揃えた。右クリックの「このシーンに配置 / このシーンに本配置」も含め、実装は `Editor/Preview/PreviewPlacement.cs` + `PreviewPlacementButton.cs` の共通部品に集約している（[09_editor_tools.md] §2.1）。`CanvasEditorWindow` の「確認用シーンを開く」も同じ共通部品に載せ替えた（本配置は `CanvasData.Prefab` を `PrefabUtility.InstantiatePrefab` で置く）
 
 - 実装: `Assets/DDrive/Runtime/Prefab/`（`PrefabData.cs` / `PrefabsManager.cs` / `Prefabs.cs` / `PrefabDataValidator.cs`）+ `Assets/DDrive/Editor/Prefab/PrefabEditorWindow.cs`。ModelsManager([05] A-3)と同じ設計で InstanceStore + PoolService の Rent/Return、`AssetFlags.Pool` の `Kind/InitialCount/MaxCount`（疑似コードの `PrewarmCount` ではなく実際のフィールド名 `InitialCount` を使用）、`VfxManager.SetLayerRecursively`、`LodProfile`（`Model.LodProfile` を再利用、複製しない）を踏襲
 - Handle: `Handle<PrefabMarker>`。疑似コードの `PrefabHandle` は型エイリアスではなく実際にはこの Handle。`PrefabHandleExtensions` で `h.Go()` / `h.GetComponent<T>()` / `h.Move(pos, rot)` / `h.HasTag(tag)` / `h.Despawn()` / `h.IsValid()` を提供

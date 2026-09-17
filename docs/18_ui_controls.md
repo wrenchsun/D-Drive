@@ -269,6 +269,9 @@ public struct SliderWire
 
 > `NotchHapticId`/`LimitHapticId` の型置換([16] Part B の `HapticId` 化)は **(a) `ulong` のまま運用**に決定した。代わりに `SliderSkinDataValidator` に、値が非 0(未設定は 0 のまま無視)のとき `ValidationContext.AllAssets` を `AnchorDataValidator`(`FindAnchor`)と同じパターンで走査し、`AssetType.Haptics` の `HapticsData` で `Id` が一致するものが無ければ Warning を出す検査を追加した。`AssetType`(`ControlSkin`)自体は変えていない。
 > テスト: `Assets/DDrive/Tests/Editor/SliderSkinDataHapticValidatorTests.cs`(EditMode、7 件。`ScriptableObject.CreateInstance` のみでメモリ上に `SliderSkinData`/`HapticsData` を作り、実 GameData・カタログ・Addressables には触らない)。Unity 未検証(このセッションは Unity MCP 未接続のため、コンパイル・テスト実行は未確認)。
+- **2026-09-17 追記（[39](39_usability_fixes_2026-09-17.md) U-10 / U-13）**: `SliderSkinEditorWindow` にも共通の「検証」セクション
+  （`DataValidationSection`、[09] §11）を追加した。また `ControlSkinPreviewSection` の「状態遷移」行が横 500px で見切れていた件
+  （U-10、[09] §7.1）は Button Skin と共通のコードなので Slider Skin 側でも同時に直っている（詳細は [15] A-4 実装メモ）
 - **2026-09-13 追記**: `SliderSkinEditorWindow` に ButtonSkin と共通の `ControlSkinPreviewSection`([15] A-4 実装メモの 2026-09-13 追記)を追加。6 状態の演出再生・一時停止・停止・「✎ Tween Editor」と、Grab / Release / Notch / Limit / Denied の SE 試聴ができる。演出はスライダー本体(`UiSlider` の RectTransform)に掛かる。パーツ(`Track`/`Fill`/`Handle`/`DelayFill`)の `StateVisual` は `UiSlider.OnSkinApplied` が空実装で実行時に反映されないため、プレビュー対象にしていない(見た目を偽って見せない。反映は別途)。2026-09-14 に設定欄と一体化(状態の箱に ▶、SE 欄の横に ▶/■)。詳細は [15] 同節の 2026-09-14 改修
 - **2026-09-14 追記**: 当たり判定を ButtonSkin と共通化(`ControlSkinData.HitAreaExpand` / `AlphaHitThreshold`)。**長らく未接続だった `SliderSkinData.ExtraHitPadding` が効くようになった**(`EffectiveHitAreaExpand` で X を左右、Y を上下に加算し、Track の `TargetGraphic.raycastPadding` に反映)。状態遷移の自動再生と当たり判定の表示・ドラッグ調整も SliderSkin エディタで使える([15] 同節)
 - **2026-09-14 追記(ユーザー要望: つまみの当たり判定 / 入力の許可 / 動かしたときのプレビュー)**:

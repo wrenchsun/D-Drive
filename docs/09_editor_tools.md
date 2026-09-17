@@ -40,6 +40,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 | ID 定数再生成 | ツールバーから 1 クリック。保存フックでの自動生成も設定可 |
 | Validation | ⚠ボタンで全体検査 → 結果一覧（Error/Warning、FixAction ボタン付き）。行クリックで該当 Data へ |
 | 一括操作 | 複数選択 → タグ付与 / カテゴリ移動 / Addressable グループ変更 |
+| 新規作成した直後に専用エディタで開く（2026-09-17、U-16） | 「新規」/ D&D / Project の右クリック（§1.2）から作ったアセットは、作成後そのまま**その種別の専用エディタが開いて対象にセットされる**。経路は既存の `[DataEditor]` → `DataEditorRegistry.OpenDefault`（§8）で、ダブルクリックで開くのと同じ。専用エディタが無い種別は Ping + Inspector で選択状態になるだけ（無害なフォールバック）。実装は `Editor/Inspector/CreatedAssetOpener.cs`（`NewAssetDialog.CreateAsset` が呼ぶ。エディタの「＋ 新規作成」（§8.3）から開いた場合は従来どおりそのエディタへ切り替える） |
 | ダブルクリックで専用エディタを開く（2026-09-14） | 行をダブルクリック（or 選択中に Enter）→ その Data の専用エディタ（§8 の `[DataEditor]`）があれば主エディタを開いて対象にセット（Inspector の「エディターで開く」列の先頭ボタンと同じ）。専用エディタが無い種別は従来どおり Inspector で選択 + Ping。右クリックメニューにも同じ経路の「エディターで開く」（候補が複数ある種別はサブメニューで全候補）を追加 |
 
 ### 実装メモ
@@ -60,7 +61,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
   | `Se/<カテゴリ>/` | Se | .wav / .mp3 / .ogg / .aiff / .aif | `SeData.Clips`(先頭 1 本) |
   | `Bgm/<カテゴリ>/` | Bgm | 同上 | `BgmData.LoopBody` |
   | `Texture/<カテゴリ>/` | Texture | .png / .jpg / .jpeg / .tga / .psd / .tif / .tiff / .exr / .bmp | `TextureData.Texture`(Usage/Channel は既存 `TextureImportProfile` の命名規約に一致すればその既定値、無ければ Data の既定値 Model/Albedo のまま) |
-  | `Model/<カテゴリ>/` | Model | .fbx | `ModelData.Prefab`(FBX のインポート直後のルート GameObject を直接参照。ラッパー Prefab を挟む運用なら別途差し替える) |
+  | `Model/<カテゴリ>/` | Model | .fbx | `ModelData.Prefab`(FBX のインポート直後のルート GameObject を直接参照。ラッパー Prefab を挟む運用なら別途差し替える) + `ModelData.Slots`(2026-09-17 追加。`ModelSlotBinder.BuildSlots` が Renderer を走査し、各スロットの Material から作られた `MaterialData` の ID を割り当てる。MaterialData を作るのは同じ delayCall 列で先に走る `MayaModelPostprocessor`。見つからないスロットは None のまま残り、件数を警告に出す) |
   | `Anim/<カテゴリ>/` | Anim | .anim / .fbx | `AnimData.Clip`(.fbx は埋め込みの `AnimationClip` サブアセットの先頭 1 本。Unity が自動生成する `__preview__` は除く) |
   | `Anim2D/<カテゴリ>/` | Anim2D | .anim / .fbx | `Anim2DData.Clip`(Anim と同じ。`Directions`/`DirectionClips` は既存の Anim2DEditor(3-11/3-12)でスプライトから追加する運用) |
   | `Prefab/<カテゴリ>/` | Prefab | .prefab | `PrefabData.Prefab` |
@@ -74,6 +75,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 - **手動フォールバック**: `Tools/D-Drive/Generate/SourceAssets からインポートルールを再実行`(`ImportRuleService.ScanAll`)。AutoImport=OFF だった期間や機能導入前から置かれていたファイルを一括で取り込む
 - **既定フォルダの作成(2026-09-14 追加)**: `Tools/D-Drive/Generate/SourceAssets の既定フォルダを作成`(`ImportRuleDefaultFolders.EnsureDefaultFolders`)が上記 9 種別のフォルダを `SourceAssets/` 直下に作る(既にあれば何もしない、冪等)。各フォルダ(と `SourceAssets/` 自体)に置き方を説明する `README.md` を入れる(git は空フォルダを保存できず `.meta` だけが残ると clone 先で Unity が警告して消してしまうための対策も兼ねる。Unity では TextAsset として読み込まれるだけの内容)。既存の `Shaders`/`Data` 等の他フォルダには触らない。README は既存があれば上書きしない(デザイナーが書き換えている可能性があるため)。種別一覧は `ImportRuleService.Handlers` から取るためハードコードしていない(Cutscene 追加時にここも自動で増える)
 - **置き方を間違えたときの案内ログ(2026-09-14 追加)**: `SourceAssets/` 配下だがルールに合わないファイル(種別フォルダの直下・不明な種別フォルダ・対応外拡張子)を置くと、Data は作らずに Console へ `[DDrive] ImportRule 案内: ...` の `Debug.LogWarning` を出す(例外にはしない)。同じファイルパスはセッション内(ドメインリロードまで)で 1 回だけ警告し、`ProcessPaths` 1 回の呼び出し内ではカテゴリ(直下/不明フォルダ名ごと/種別ごと)にまとめて 1 行にする(`ScanAll` でまとめて大量に流し込んでも Console が荒れない)。`Shaders`/`Data`/`Samples`(Maya→Material 経路・サンプル資産が既に使っている既知の非対象フォルダ、`ImportRuleService.KnownNonTargetTypeFolders`。`Samples` はサンプル素材の退避先 = [10_workflow.md](10_workflow.md) §3.3、2026-09-14)、フォルダ自体、隠しファイル(`.`/`~` 始まり)、`README.md`、`.meta` は警告の対象外
+- **Model の Material スロット自動割当(2026-09-17、U-2。[39](39_usability_fixes_2026-09-17.md))**: FBX 配置で `ModelData` を作るとき、`Slots` も同時に埋める。`MayaModelPostprocessor`(FBX インポート・手動生成の直後)も `ModelSlotBinder.RebindForModelPath` で既存の `ModelData` の Slots を貼り直す。作り直しの導線は Model Editor の「元ファイル再読み込み」(U-3)。詳細は [05 A-4](05_model_animation.md) / [06 A-2](06_material_texture.md) の実装メモ
 - **「欠落」表示**: 元ファイルを削除しても Data は消えない(参照フィールドが null になるだけ)。各種別の既存 Validator(`SeDataValidator`/`BgmDataValidator`/`TextureDataValidator`/`ModelDataValidator`/`AnimDataValidator`/`Anim2DDataValidator`/`PrefabDataValidator`/`CanvasDataValidator`/`VfxDataValidator`)がすでに「未設定(または Missing)です」の Error を出す実装だったため、新規 Validator は追加していない(AssetBrowser の Validation 一覧・⚠に既存のまま出る)
 - **対象外の種別**(元ファイルが無い): Presentation / Shake / Haptics / UiTween / Anchor / AnchorGroup / ControlSkin(5-13 で別枠)。Cutscene は 6-10c で `IImportRuleHandler` を 1 つ追加する形で拡張する想定
 - 要判断は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-11」節末尾を参照(Anim2D の元ファイル解釈・複数テイク FBX 等)
@@ -83,6 +85,29 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
   (review1_editor.md #2)。順序を保つ `Pending`(List)はそのまま残し、重複判定だけ対になる
   `HashSet<string> PendingSet` で O(1) にした。`DependencyGraphPostprocessor.AddPending` も同じ問題
   (`PendingChanged`/`PendingDeleted` それぞれに対応する `PendingChangedSet`/`PendingDeletedSet` を追加)。
+
+### 1.2 Project ウィンドウの右クリックから Data を作る（U-17、2026-09-17）
+
+**Project でソースアセット（音源・画像・FBX・.anim・.prefab・.mat）を右クリック →「D-Drive/Data を作成/〜」で、その種類から作れる Data をその場で作る。** AssetBrowser を開かず、SourceAssets/ のフォルダ規約（§1.1）にも従わずに済む「3 つ目の入口」。
+
+- **対応表は新設していない**。「どの拡張子が、どの Data 型の、どのフィールドに入るか」は §1.1 の `IImportRuleHandler` が既に宣言しているので、`SourceDataCreation`（`Editor/Creation/SourceDataCreation.cs`）が `ImportRuleService.Handlers` をそのまま読んで選択肢を組み立てる。**ImportRule にハンドラを 1 つ足せば（Cutscene 等）、この右クリックメニューの中身も自動で増える**（対応表が二重にならない）
+- ImportRule に無いが元アセットから作れるものだけを `SourceDataCreation.ExtraOptions` に足している:
+
+  | 選択するアセット | 作れる Data | 備考 |
+  |---|---|---|
+  | AudioClip(.wav/.mp3/.ogg/.aiff/.aif) | SeData / BgmData | `Clips[0]` / `LoopBody` |
+  | 画像(.png/.jpg/.jpeg/.tga/.psd/.tif/.tiff/.exr/.bmp) | TextureData / ButtonSkinData / SliderSkinData | Texture は §1.1 と同じ（`TextureImportProfile` の規約に合えば Usage/Channel も入る）。Skin は Sprite を `Normal.OverrideSprite` に入れるだけで、他の状態は Skin Editor で足す |
+  | .fbx | ModelData / AnimData / Anim2DData | Anim 系は埋め込み `AnimationClip` の先頭 1 本 |
+  | .anim | AnimData / Anim2DData | |
+  | .prefab | PrefabData / CanvasData / VfxData | どれにもなり得るので 3 つとも出す |
+  | .mat | MaterialData | 既存の `UnityMaterialMigrator.Migrate`（[06] A 実装メモ。シェーダー変換 + テクスチャの TextureData 化）を呼ぶ。この種別だけ `Option.CreateOverride` 経由 |
+
+- **無効化**: `[MenuItem(..., true)]` の validate で、選択中のアセットの拡張子に合わないメニューを灰色にする（判定は拡張子だけ。選択のたびに重いロードをしない）
+- **カテゴリの推測**（`SourceDataCreation.ResolveCategory`）: `SourceAssets/<種別>/<カテゴリ...>/` にあれば §1.1 と同じ「種別フォルダから先」、それ以外は直上のフォルダ名 1 つ（`Assets/Art/UI/Btn.png` → `UI`）。あくまで推測なので、後から AssetBrowser でカテゴリを変えれば `Generate/GameData をカテゴリ配置に整理` がフォルダごと追従する
+- **二重生成防止**: §1.1 と同じ `AssetDataBase.ImportSourceGuid`。同じ元ファイルから既に作られた Data があれば新しく作らず、警告を出して既存のものを開く
+- **作成経路は 1 本**: 実体は `AssetCreationService.Create`（ファイル名・ID・カタログ・Addressables 登録・初期アイコン）だけを通る。作成後は U-16 と同じ `CreatedAssetOpener.Reveal` で専用エディタが開く
+- `[MenuItem]` のパスは定数でなければならないため `Editor/Creation/AssetContextMenu.cs` に種別ぶんのメソッドが並ぶが、そこにあるのは宣言だけで判断は全て `SourceDataCreation` にある
+- テスト: `Tests/Editor/SourceDataCreationTests.cs`（ImportRule の全ハンドラぶん選択肢ができること・Data 型の重複が無いこと・`AssetContextMenu` が宣言している 12 種別が全て引けること（`[MenuItem]` だけ増えて対応表に無い状態の検出）・`.mat` が専用経路を通ること・`ResolveCategory` のフォルダ規約）。実アセットを作るテストは既存の `AssetCreationServiceTests` / `ImportRuleServiceTests` に任せ、ここは純粋ロジックだけを見る
 
 ## 2. プレビュー基盤（PreviewService）
 
@@ -102,7 +127,79 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 - 共通 UI: 再生 / 停止 / ループ / 速度（0.1x–2x）/ シーク / 背景切替（暗室・グレー・屋外・任意シーン）/ ライト切替 / ポスプロ ON-OFF / **比較表示（2 ペイン同期再生）** / スクリーンショット→PreviewImage 保存
 - 種別固有プレビューは各設計書（03〜08）の仕様に従い、この基盤上に実装
 - **SceneView 方式**（2026-09-08 VFX / 2026-09-09 Anim）: 独自ビューポートではなく、開いているシーン / プレハブモードに直接スポーン（Anim は借用した Animator をその場で駆動）して SceneView で確認する。VFX は `SceneVfxPreviewDriver`、Anim は `SceneAnimPreviewDriver`（`Editor/Anim/`）。どちらも実 Manager を駆動し、配置物は `[D-Drive] … Preview` ルート（`HideFlags.DontSave`）にまとめてシーン / Prefab に保存しない。Anim は再生前のポーズをスナップショットし、停止・対象解除・ステージ切替・Prefab 保存の直前に復元する。VFX / Anim はこの方式のみ（AnimEditor のウィンドウ内ビューポートは 2026-09-09 に廃止）。`PreviewService` のプレビューシーンは Audio / Model / Anchor 系が使う
+- **AssetBrowser 下部のプレビューバー（`AudioPreviewPane`）のレイアウト（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-12）**:
+  「▶ 再生 / ■ 停止 / ループ / 速度」を 1 行に並べるバー。崩れていた原因は (1) `Toggle` / `Slider` は `BaseField` で、
+  ラベル部に USS 既定の `min-width: 120px` が付くため「ループ」「速度」の 2〜3 文字でも 120px を占めてコントロールを
+  右へ押し出す (2) 行が `flex-wrap: nowrap` のうえ速度スライダーが固定幅 180px で、バーが狭いと折り返さず右側が見切れる、の 2 点。
+  ラベル幅を内容なりにし（`CompactFieldLayout.ShrinkLabel`、`Editor/Common/`）、行を `flexWrap` で折り返し可能にし、
+  固定幅をやめた（タイトルは省略記号で縮む）。§7.1 の横幅 500px 下限を満たす
 - **プレビューはウィンドウ内描画ではなく、確認用シーン / Prefab を開いて SceneView で実 Manager を駆動する**（2026-09-10 決定、全エディタ共通。Material = `MaterialPreviewBuilder`、Anim2D = `SceneAnimPreviewDriver` に SpriteRenderer + Animator の DontSave 物を渡す）。静的な補助表示（スライス矩形の輪郭など）はウィンドウ内でよい。**例外: Material（2026-09-11 決定）** — `MaterialThumbnailRenderer`（`PreviewRenderUtility`）で実 `MaterialManager` が生成した共有 Material を球/板/Cube に描くウィンドウ内サムネイルを併用する。時間軸を持たず再生経路を二重化しないため ADR-4 の趣旨は保てる。既定ライトのみで描くので、実シーン照明・ModelData 適用・並列比較は従来どおりシーン配置で確認する
+
+### 2.1 「確認用シーンに配置」ボタンの共通化（U-4/U-5/U-6、2026-09-17）
+
+**ユーザー報告**（そのまま）:
+- 「PrefabEditor が確認用シーンに配置しても確認用シーンではなく現在開いているシーンにしか配置されない」（U-4）
+- 「すべての確認用シーンに配置ボタンについて、右クリックでこのシーンに配置、このシーンに本配置（シーン移動しても消されない）ができるように。配置後シーンのカメラが配置場所から遠いこともあるので、配置後はシーンのカメラが配置したオブジェクトをちゃんと映すようにフォーカスすること」（U-5）
+- 「PresentationEditor ちゃんと確認用シーンで開くこと」（U-6）
+
+#### 共通部品（同じコードを各エディタにコピーしない）
+
+| 置き場所 | 役割 |
+|---|---|
+| `Editor/Preview/PreviewPlacement.cs` | `PreviewPlaceMode`（`CheckScene` / `CurrentScene` / `CurrentScenePersistent`）と、配置の共通処理。`PrepareScene` / `Persist` / `PlacePrefabPersistent` / `Focus` / `IsPersistent` |
+| `Editor/Preview/PreviewPlacementButton.cs` | UI Toolkit のボタン生成。`Create`（`Button`）/ `CreateToolbarButton`（`ToolbarButton`）/ 既存ボタンへの `AttachContextMenu` / 横幅対策の `ApplyNarrowWindowStyle`・`ConfigureRow` |
+
+各エディタは `Action<PreviewPlaceMode>` を 1 つ渡すだけでよい。ボタンの挙動:
+
+1. **左クリック** = `PreviewPlaceMode.CheckScene`。従来どおり「片付ける → 確認用シーンを開く → 配置する」
+2. **右クリック** = コンテキストメニュー
+   - 「このシーンに配置(一時・保存されない)」= `CurrentScene`。シーンを切り替えず、今開いているシーン / プレハブステージに従来どおり `HideFlags.DontSave` で置く
+   - 「このシーンに本配置(シーンを移動しても消えない)」= `CurrentScenePersistent`
+3. **配置後は必ず `PreviewPlacement.Focus`** で `SceneView.lastActiveSceneView.Frame(bounds)` する。SceneView が無い場合は `Debug.LogWarning` のみで落ちない（[CLAUDE.md] §0-4）。バウンズは `Renderer` と `RectTransform`（UI にはレンダラが無いため）の両方から作り、大きさ 0 のときは最低 0.5 の広がりを与える
+
+#### 「一時配置」と「本配置」の区別（既存実装の調査結果）
+
+現状の一時配置の目印は **①ルート名が `[D-Drive]` で始まる ②`HideFlags.DontSave`（子も `EditorPreviewRoots.MarkDontSaveRecursive` で付ける）** の 2 つで、`EditorPreviewSweeper` がこの 2 条件を満たすルートだけを掃除する（§2 の規約）。したがって **本配置 = この 2 条件をどちらも外すこと**であり、専用のフラグや別のクリーンアップ処理は追加していない。
+
+- `PreviewPlacement.Persist(go, displayName)`: 一時プレビューを昇格させる。プレビュールート配下の子なら親から外し（`StageUtility.PlaceGameObjectInCurrentStage`）、**子まで再帰的に `hideFlags = None`**（`MarkDontSaveRecursive` の逆）、名前から `[D-Drive]` 接頭辞を外し（付いたままだと Sweeper に消される）、`Undo.RegisterCreatedObjectUndo` + `EditorSceneManager.MarkSceneDirty` + 選択 + フォーカス。**Manager / Pool が追跡しているインスタンスには使わない**（後で `Despawn` / `StopAll` に巻き込まれて消えるため）
+- `PreviewPlacement.PlacePrefabPersistent(prefab, pos, rot)`: Prefab を持つ種別（Prefab / Model / Vfx / Canvas / Presentation のモデル）の本配置。プレビュー実体を昇格させる代わりに `PrefabUtility.InstantiatePrefab` で置き直す。**Prefab リンクが付くのでデザイナーが後から編集でき**、Manager / Pool の追跡にも入らない。本配置は「確認のための再生」ではなくシーンの作り込みなので、実 Manager を通さなくても ADR-4 の趣旨（Editor 専用の *再生経路* を作らない）には反しない
+- 本配置した後、各エディタは自分の参照（`_previewRoot` / `_previewButton` / `_previewObject` / ハンドル）を手放す。「撤去」や `OnDisable` で本配置したものを消さないため
+- Play Mode 中は本配置しない（シーンに保存されないため警告 + no-op）
+
+#### 確認用シーンを開く関数（戻り値付きに統一）
+
+`VfxPreviewSceneSetup` / `CameraShakePreviewSceneSetup` にも `CanvasPreviewSceneSetup` と同じ `public static bool TryOpenOrCreate()` を追加し、`OpenOrCreate()`（`[MenuItem]` 用）はその void ラッパーにした。3 つとも **既にその確認用シーンが開いていれば開き直さない**（保存ダイアログ・読み直しが無駄で、置いてあるプレビューも消えるため。`CanvasEditorWindow` 側に書かれていた同じ判定はここへ集約した）。ユーザーが保存ダイアログをキャンセルしたら `false` を返し、`PreviewPlacement.PrepareScene` が配置を中止する。
+
+#### 対応したエディタ
+
+| エディタ | 左クリックで開く確認用シーン | 本配置の実体 |
+|---|---|---|
+| Prefab Editor（U-4。**以前は確認用シーンを開かず、今開いているシーンにしか置いていなかった**） | `VfxPreviewScene` | `PrefabData.Prefab` |
+| Presentation Editor（U-6。**「確認用シーンを開く」が開くだけでモデルを置かず、そのままでは確認できなかった**。「配置」ボタンも共通部品に） | `VfxPreviewScene` | `ModelData.Prefab` |
+| Model Editor / Anim Editor / Anim2D Editor | `VfxPreviewScene` | Model/Anim は `ModelData.Prefab`、Anim2D はプレビュー物（`Anim2DPreviewObject`）を昇格 |
+| VFX Editor（左クリックで確認用シーンを開いて **そのまま再生**するようにした） | `VfxPreviewScene` | `VfxData.Prefab` |
+| Canvas Editor | `CanvasPreviewScene` | `CanvasData.Prefab` |
+| Button Skin / Slider Skin / Slider / UI Tween（**以前はどれも確認用シーンを開かず、今開いているシーンに置いていた**） | `CanvasPreviewScene` | プレビュー用 Canvas ごと昇格（UI 要素だけ外すと描画できないため） |
+
+- **対象外**: 「確認用シーンを開く」だけで何も配置しないボタン（`CameraFxEditorWindow` の揺れ・振動確認用シーン、`AnchorEditorWindow` / `AnchorGroupEditorWindow`）。置くものが無く右クリックメニューが意味を成さないため、従来の `ToolbarButton` のまま。揺れ・振動側は `TryOpenOrCreate` の追加だけ行った
+- ▶ などから**暗黙に**呼ばれる配置（`ControlSkinPreviewSection.EnsurePreview` / Slider Skin → Slider Editor の受け渡し）は `CurrentScene` 固定にした。ボタンを押していないのに保存ダイアログが出てシーンが切り替わるのを避けるため
+- 横幅（[09] §7.1）: 共通ボタンは `flexShrink=1` / `minWidth=0` / `whiteSpace=Normal` で、幅 500px でも切れずに折り返す。説明はラベルに足さず tooltip へ逃がす（右クリックの案内も tooltip に自動で付く）。ボタンを並べる行は `flexWrap=Wrap`
+
+### 2.2 Anchor 系の SceneView 表示（基準の描画、U-24、2026-09-17）
+
+**ユーザー報告**（そのまま）: 「Anchor のシーン表示で基準がわからないので LocalOffset だけではなく基準（原点）の座標もシーンに描画する」
+
+SceneView に最終位置しか描かれておらず、そのオフセットが**何を起点にしているか**が読み取れなかった（[36 §5.4](36_manual_screenshot_list.md) の #19 / #20 / #23 がこれ待ちだった）。共通描画 `Editor/Preview/AnchorSceneHandles.cs` に次の 3 つを追加し、**Anchor Editor / VFX Editor（埋め込み Anchor）/ Anchor Group Editor（原点）の 3 か所が同じ経路を通す**。
+
+| メソッド | 描くもの |
+|---|---|
+| `DrawOrigin` | 基準の位置に 3 軸（X=赤 / Y=緑 / Z=青）+ 球 + ラベル「基準: 〜 (x, y, z)」。2 行目に回転の基準（`FollowRotation`）。AnchorPoint の `SpawnOffset` があれば点線で継ぎ足す。戻り値 = `LocalOffset` の起点ワールド位置 |
+| `DrawOffsetLink` | 基準 → 最終位置を実線で結び、中点に `LocalOffset (x, y, z) (距離 m)` |
+| `DrawChain` | 連鎖の各中間段に 3 軸 + 「基準N: <アセット名>」+ 前段からの点線。最終段の手前までを描き、対象の基準位置を返す |
+
+- 基準の定義（何を原点として描くか）は [21 §3.10](21_anchor_spec.md) の表を真とする。解決できなかったときは「⚠ … → ワールド原点」と明示し、「設定が効いていない」のか「そこが基準」なのかを見分けられるようにする
+- 既存の描画（ランダム半径の円・移動/回転ハンドル・`SceneGuiOwner` の描画権）に**足す形**。描画権が他のウィンドウにあるときは従来どおり薄い目印だけで、基準は描かない
+- Anchor Group Editor の「手置きの点に変換」（U-22）は [22 §3.7](22_anchor_group.md)
 
 ## 3. ID 参照 PropertyDrawer
 
@@ -163,6 +260,12 @@ public static class DDriveMenu
     public const string Validation = Root + "Validation/";
     public const string Generate   = Root + "Generate/";
     public const string Debug      = Root + "Debug/";
+    // 2026-09-17(U-17/U-18/U-19): Project / Hierarchy の右クリックメニューもここに集約する。
+    // Unity 標準の "Assets/" "GameObject/" 配下に D-Drive/ を 1 段だけ足す(トップレベルは増やさない)。
+    public const string AssetsRoot       = "Assets/D-Drive/";
+    public const string AssetsCreateData = AssetsRoot + "Data を作成/";
+    public const string GameObjectRoot   = "GameObject/D-Drive/";
+    public const int    GameObjectPriority = 12; // 50 以上にすると Hierarchy 右クリックで別グループへ落ちる
     // 使用例: [MenuItem(DDriveMenu.Root + "Asset Browser")]
 }
 ```
@@ -201,11 +304,37 @@ Tools/
     │   ├─ Regenerate Asset IDs
     │   ├─ Regenerate Tuning Keys       ← 2026-09-14 追加(5-13。TuningTable.Entries から Assets/Generated/Tuning.g.cs の TUNING.キー定数を生成、[27] §8.4)
     │   ├─ Anchor プレハブを生成 / 選択した Transform から Anchor を作成 / 選択した AnchorRig から Anchor を一括生成   ← [21] §3.9
+    │   ├─ Canvas + Panel と CanvasData を作成   ← 2026-09-17 追加(U-19。CanvasSetupService。§6.3)
     │   ├─ Rebuild Dependency Graph
     │   └─ Live Tuning Connect
     └─ Debug/
         ├─ Runtime Overlay
         └─ Missing Asset Report（発注リスト）
+```
+
+Project ウィンドウ（右クリック）と Hierarchy（右クリック）にも 2026-09-17 に入口を足した。
+
+```
+Assets/                         ← Project ウィンドウの右クリック(U-17、§1.2)
+└─ D-Drive/
+    └─ Data を作成/
+        ├─ SeData を作成 / BgmData を作成            ← AudioClip
+        ├─ TextureData を作成 / MaterialData を作成  ← 画像 / .mat
+        ├─ ModelData を作成                          ← .fbx
+        ├─ AnimData を作成 / Anim2DData を作成       ← .anim / .fbx
+        ├─ PrefabData を作成 / CanvasData を作成 / VfxData を作成  ← .prefab
+        └─ ButtonSkinData を作成 / SliderSkinData を作成           ← 画像(Sprite)
+   ※選択中のアセットの拡張子に合わないものは validate で灰色になる
+
+GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6.2)
+└─ D-Drive/
+    ├─ SeEmitter                                ← 標準プレハブ(DefaultPrefabs.EnsureSeEmitterPrefab)
+    ├─ AnchorRig                                ← 標準プレハブ(無ければ DefaultPrefabs.CreateAnchorRigPrefab で生成してから配置)
+    ├─ AnchorPoint(選択中の子に追加)
+    ├─ 標準プレハブ...                          ← Assets/GameData/Prefabs 配下の全プレハブから選ぶ(GenericMenu)
+    ├─ Canvas + Panel(CanvasData も作成)        ← U-19(§6.3)
+    ├─ UiButton / UiSlider
+    └─ 起動オブジェクト(DDriveRuntimeBootstrap) ← Tools 側と同じ BootstrapSceneSetup.PlaceInScene
 ```
 
 ### 6.1 メインツールバーの「マニュアル」ボタン（2026-09-14 追加）
@@ -242,6 +371,44 @@ Tools/
   `Tests/Editor/ManualPagesTests.cs`（`docs/DesignerManual/*.html` の実ファイルと `DiscoverPages` の結果を照合、
   `<title>` からの表示名解決）
 
+### 6.2 Hierarchy の右クリックから基本オブジェクトを置く（U-18、2026-09-17）
+
+**`GameObject > D-Drive > …`（= Hierarchy の右クリック）から、D-Drive の基本オブジェクトをシーンに置く。** 実装は `Editor/Creation/GameObjectMenu.cs`。
+
+- **共通の約束**（全項目で守る）:
+  - 右クリックした GameObject の子として置く（`MenuCommand.context` → `GameObjectUtility.SetParentAndAlign`）
+  - `Undo.RegisterCreatedObjectUndo` で Ctrl+Z 一発で消せる。置いたオブジェクトを選択 + Ping し、シーンを dirty にする
+  - コンポーネントを `AddComponent` で組まず、**標準プレハブ（`Assets/GameData/Prefabs/<ドメイン>/`、[10] §3.3）があるものは `PrefabUtility.InstantiatePrefab`** で置く。無ければ `DefaultPrefabs` が生成してから置く（生成は冪等）
+  - `GameObject/` のメニュー項目は Unity の仕様で**選択中の GameObject の数だけ呼ばれる**ため、`ShouldRun(command)`（`context == Selection.activeGameObject` の呼び出しだけ通す）で 1 クリック 1 個にしている
+- **項目**: SeEmitter / AnchorRig / AnchorPoint(選択中の子に追加) / 標準プレハブ...（`Assets/GameData/Prefabs` 配下の全プレハブを `GenericMenu` で列挙。新しい標準プレハブを足せば自動で出る） / Canvas + Panel(CanvasData も作成)（§6.3） / UiButton / UiSlider / 起動オブジェクト(DDriveRuntimeBootstrap)
+- **置き場所の注意はログで案内する**（例外にしない、[00] §0-4）: AnchorPoint を AnchorRig の外に置いた・UiButton / UiSlider を Canvas の外に置いた場合は `Debug.LogWarning` で正しい置き方を出す
+- **UiSlider の組み立て（Track + Fill + Handle）は `PreviewSliderFactory` と共有**する。配置用に別の組み立てコードを作らないため、同関数に `dontSave` 引数を足した（既定 `true` = 従来のプレビュー用、`false` = シーンに残す実オブジェクト）
+- 起動オブジェクトは `Tools > D-Drive > Generate > 起動オブジェクト…` と同じ `BootstrapSceneSetup.PlaceInScene` を呼ぶだけ（既にあれば選択してカタログを再収集するので、何度押しても増えない）
+
+### 6.3 Canvas + Panel + CanvasData の一発生成（U-19、2026-09-17）
+
+**「Canvas を作る → Panel を足す → Prefab 化する → CanvasData を作る → Prefab 欄に入れる」を 1 操作にまとめる。** 実装は `Editor/Canvas/CanvasSetupService.cs`。入口は 2 つで、どちらも同じメソッド（`CanvasSetupService.CreateCanvasWithPanel`）を呼ぶ:
+
+- `Tools > D-Drive > Generate > Canvas + Panel と CanvasData を作成` — アセットだけ作る（シーンには触らない）
+- `GameObject > D-Drive > Canvas + Panel(CanvasData も作成)`（Hierarchy 右クリック） — 上に加えて、右クリックした GameObject の子として Prefab インスタンスを配置する
+
+**並行経路を作らないための構成**:
+
+1. 命名・カテゴリの入力と CanvasData の作成は既存の `NewAssetDialog.Open(Type[], Action<AssetDataBase>)`（§8.3 のオーバーロード。種別を CanvasData に固定）→ `AssetCreationService.Create`（ファイル名・ID・カタログ・Addressables 登録・`Flags.Load=Preload`）をそのまま通す
+2. その `onCreated` コールバックで Canvas + Panel の Prefab を組み立てて保存し、`CanvasData.Prefab` に入れる（`Undo.RecordObject` + `EditorUtility.SetDirty`、[00] §0-5）
+3. `CreatedAssetOpener.Reveal`（U-16 と同じ）で Canvas Editor を開く。Hierarchy 経由の場合は最後にシーンへ配置して、そのインスタンスを選択状態にする
+
+**生成される Prefab の形**（[07] A-2 / `DesignerManual/canvas-data.html` の「最小構成」に合わせる）:
+
+```
+<CANVAS_カテゴリ_識別子>   RectTransform + Canvas(ScreenSpaceOverlay) + CanvasScaler(1920x1080, Match 0.5) + GraphicRaycaster
+└─ Panel                   RectTransform(四辺ストレッチ) + Image
+```
+
+- ルートの Canvas は `UiManager.OpenData` が `overrideSorting = true` / `sortingOrder = Layer*100 + SortOffset` で使う（Canvas が無い Prefab は兄弟順で並べ替えるだけになる）ため、付けておくほうが `SortOffset` が効く
+- 保存先は **`Assets/GameData/Prefabs/Canvas/<CanvasData のファイル名>.prefab`**（ツール管理、[10] §3.3）。`SourceAssets/Canvas/` に置くと ImportRule（§1.1）が 2 つ目の CanvasData を作ってしまうので使わない
+- シーンへ配置するときは `EventSystem` が無ければ作る（`CanvasPreviewSceneSetup.AddEventSystem` を共有。2026-09-17 に「作った GameObject を返す」形へ変え、呼び出し側で `Undo.RegisterCreatedObjectUndo` を積めるようにした）
+
 ## 7. ウィンドウレイアウト規約（拡縮前提）
 
 **すべての `EditorWindow`（AssetBrowser 本体を除く各専用エディタ）は、ウィンドウが最小サイズまで縮小されてもコンテンツの下端まで到達できなければならない。**
@@ -251,9 +418,53 @@ Tools/
 - 例外: `AssetBrowserWindow` のように `ListView` 自体が仮想化スクロールを持つ場合、その `ListView` に `flexGrow: 1` を与えれば足りる（二重にラップする必要はない）
 - 発見の経緯: VfxEditor/ModelEditor（Phase 2, 2-4/2-6）でこの対応を忘れ、ウィンドウを小さくすると下部のセクション（イベント編集等）に到達できなくなる不具合があった。以後の新規エディタ実装ではこの規約を最初から満たすこと
 
+### 7.1 横幅の下限（2026-09-17 追加）
+
+**Windows の拡大/縮小 100%・ウィンドウ横幅 500px で、どのエディタも要素が見切れないこと。** 縦方向の §7 と対で、横方向の下限を定めたもの。
+
+- **基準環境**: Windows の表示スケール（拡大/縮小）**100%**。`EditorGUIUtility.pixelsPerPoint` に依存したレイアウトを書かない
+- **下限**: ウィンドウ横幅 **500px**。この幅でラベル・チェックボックス・ボタンの文字が切れたり、右端のコントロールが画面外に出たりしてはいけない
+- やること:
+  - 固定幅（`width` の直書き・`EditorGUIUtility.labelWidth` の大きな固定値）を避け、`flexShrink` / `flexWrap` で折り返す。横一列に詰め込む行は、狭いときに 2 段へ折り返す
+  - ラベルが長い項目は短くするか、`tooltip` に逃がす。横に並べる必要のないものは縦に積む
+  - `minSize` を 500px より大きくして回避しない（§7 と同じ理由）
+- 確認のしかた: ウィンドウをフローティングにして横幅 500px まで縮め、上から下まで見て切れている箇所が無いことを見る。新規エディタ・レイアウト変更のときは毎回行う
+- 発見の経緯: Button Skin Editor の「SE も鳴らす」が見切れていた（[39](39_usability_fixes_2026-09-17.md) U-10）。個別の 1 件ではなく全エディタ共通の条件として決めた
+- **共通の小物**: `DDrive.Editor.Common.CompactFieldLayout.ShrinkLabel(field.labelElement)`（2026-09-17 追加）。
+  `BaseField<T>`（`Toggle` / `Slider` / `TextField` …）のラベル部には USS 既定で `min-width: 120px` / `flex-basis: 120px` が付く。
+  Inspector のように縦に積むときは列が揃って都合が良いが、**1 行に複数のフィールドを並べる行では 2 文字のラベルでも 120px を占め、
+  チェックボックスやつまみを右へ押し出して見切れさせる**。横並びの行に入れるフィールドにだけこれを使う（縦に積むものは既定のまま）
+- 2026-09-17 に直した箇所（1 巡目）: Button Skin / Slider Skin Editor の状態遷移行（`ControlSkinPreviewSection.Row()` を
+  `flexWrap` 対応にし、この行のラベルを短縮 + tooltip 化。U-10）、Asset Browser 下部のプレビューバー（`AudioPreviewPane`。U-12）、
+  UI Tween Editor のプリセット行（U-9 でボタンが 1 つ増えるため）。**全エディタの横断点検は U-27** で別途行う
+- 2026-09-17 に直した箇所（2 巡目、[41](41_phase6_review_2026-09-17.md) P2-9）:
+  - **`AssetDeleteWindow`（削除の確認ウィンドウ）**: `minSize` を `(620, 480)` → `(480, 360)` にした
+    （500px を下回れず、そもそも下限を確認できなかった）。説明・パス・結果文言の `Label` は
+    `WrappingLabel()`（`whiteSpace = Normal` + `flexShrink=1` / `minWidth=0`）に通し、
+    横並びの行（対象・参照元・依存先・ボタン列・ヒット行）は `flexWrap = Wrap` にした。
+    ScrollView は縦専用なので、折り返さないと右側が読めなくなる
+  - **`PresentationEditorWindow` のタイムライン操作ヒント**: `rect.width - 12` の 1 行 `GUI.Label` で
+    後半が切れていた。ルーラーの高さは固定で 2 行にできないため、**幅 620px 未満では短縮版を出し、
+    全文は `tooltip` に逃がす**（§7.1 の「ラベルが長い項目は短くするか tooltip に逃がす」）
+
 ## 8. Inspector の「エディターで開く」ボタン（2026-09-09）
 
 **専用エディタを持つ Data アセットは、Inspector の最上部に「〜で開く」ボタンが出る。既存・今後追加する種別すべてに適用する。**
+
+> **Data 共通 Inspector の本文は UI Toolkit（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-14）**
+> `AssetDataInspector` は `OnInspectorGUI` + `DrawDefaultInspector()`（IMGUI）で本文を描いていたが、
+> `ValueDefDrawer`（[17_value_definition.md](17_value_definition.md) §5）は 2026-07-27 に `CreatePropertyGUI`（UI Toolkit）専用へ
+> 書き直されていて `OnGUI` を持たない。IMGUI の Inspector から描かれると Unity は `PropertyDrawer.OnGUI` の既定実装に落ち、
+> **`No GUI Implementation` というラベルだけ**を出す。`BgmData` の Fade In / Fade Out がこれで編集できなくなっていた
+> （同じ理由で `CameraShakeData` / `HapticsData` / `Anim2DData` / `MaterialData` / `UiTweenData` / `ControlSkinData` も同症状）。
+> - 直し方: `ValueDefDrawer` に IMGUI 実装を足し直す案は採らない。手動 Rect + `GetPropertyHeight` の IMGUI 版は
+>   `AnimationCurve` のカーブエディタを開くとクラッシュする既知の不具合があり、それが UI Toolkit へ書き直した理由そのもの。
+>   代わりに描く側を UI Toolkit にする（`AssetDataInspector.CreateInspectorGUI` が
+>   ヘッダー（`IMGUIContainer` で従来の `DrawOpenEditorHeader`）+ `InspectorElement.FillDefaultInspector` を返す）
+> - IMGUI の `PropertyDrawer`（`AssetIdDrawer`）は UI Toolkit の `PropertyField` が自動で `IMGUIContainer` に包むためそのまま動く
+> - **派生クラスが `OnInspectorGUI` を上書きしている場合（`SeDataEditor`）は `CreateInspectorGUI` が `null` を返し、従来の IMGUI 経路に戻す**
+>   （Unity は `CreateInspectorGUI` が null のとき `OnInspectorGUI` にフォールバックする）。判定はリフレクションで
+>   「`OnInspectorGUI` の `DeclaringType` が `AssetDataInspector` か」を見るだけなので、新しい派生 Inspector でも付け忘れが起きない
 
 - 仕組み: `Editor/Inspector/AssetDataInspector.cs`（`[CustomEditor(typeof(AssetDataBase), true)]`）が全 Data 共通の Inspector として、先頭に `DataEditorHeader.Draw` を描いてから既定の描画をする
 - 対応表は属性で宣言する。EditorWindow に `[DataEditor(typeof(XxxData), "Xxx Editor で開く")]` を付けるだけ（`Editor/Inspector/DataEditorAttribute.cs`）。`public static Open(XxxData)`（引数型は基底でも可、名前は `openMethod` で変更可）を `DataEditorRegistry` が TypeCache で拾う。1 ウィンドウが複数種別を扱う場合は属性を複数付ける（AudioEditor = SE / BGM）
@@ -318,6 +529,13 @@ Tools/
 と同じ反映ロジック、コピペしない)で状態タグ/Assignee/Description/SpecUrl も設定され、作成後は `SpecCache.RecomputeDiff()`
 (ネットへ行かず既存キャッシュから差分だけ再計算)でその行が一覧から消える。設定 URL 未設定時は案内文のみ。
 詳細・要判断は [27_spec_sheet.md](27_spec_sheet.md) §4.5.1/§9.1 を参照。
+
+**2026-09-17 修正（[39](39_usability_fixes_2026-09-17.md) U-15「仕様書 URL を設定したのに未設定と出る」）**:
+「設定 URL 未設定」の判定だけが W-9（Web アプリ方式への移行、[32](32_spec_web.md) §5.1）以前の旧フィールド
+`DDriveSpecSettings.SpreadsheetUrl` を見たままだった。取得・同期の実装（`SpecAutoSync` / `SpecSyncWindow`）は
+すべて新フィールド `WebAppUrl` を見ているため、「仕様書と同期」で Web API URL を設定しても、このダイアログだけ
+「仕様書の URL が未設定です」の案内文を出し続けていた。判定を `WebAppUrl` に統一した（`NewAssetDialog.RebuildSpecSection`。
+旧フィールドは [32] §9 の要判断が済むまで残置）。テストも `NewAssetDialogSpecPickerTests` で `WebAppUrl` を使うよう更新。
 
 ## 9. AssetDatabase.FindAssets のキャッシュ（2026-09-11）
 
@@ -428,6 +646,24 @@ Tools/
 - **`AssetDeleteWindow` 自体は自動テスト対象外**: `UsagesWindow`/`DependencyTreeWindow`/`UnusedAssetsWindow` と同じ前例に合わせ、EditMode テストは `AssetDeleteAnalysisService`/`ReferenceReplaceService`/`AssetDeleteExecutionService` のみを対象にした。ウィンドウの実際の見た目・操作感は [28_manual_verification_phase5.md] の手動確認に委ねる
 - **複数選択の削除で置き換え先の候補選択 UI は「対象ごとに 1 つの `ObjectField`」**: 一括で同じ置き換え先を割り当てる UI(例: 「全部同じ置き換え先にする」チェックボックス)は無い。対象が多い場合は 1 件ずつ選ぶ必要がある
 
+#### レビュー対応（2026-09-17、[41](41_phase6_review_2026-09-17.md) P2-7 / P2-8 / P2-9）
+
+- **P2-7: 結果画面の「コード参照のファイル:行（開くボタン）」が絶対に出なかった**。ヒット一覧を削除**後**に
+  `CodeReferenceScan.FindPossibleReferenceHits` で取り直しており、条件の `r.Target.Asset != null` が
+  `MoveAssetToTrash` 済みの fake null で常に false になっていた（上の「クリックでエディタを開く」が不動作）。
+  → `AssetDeleteExecutionService` が `PerformDelete` の**前**に警告文言とヒット一覧をまとめて取り
+  （`CollectCodeReferences`）、`DeleteExecutionResult.PerAssetResult.CodeReferenceHits`（新設）に入れる。
+  ウィンドウはそれを表示するだけにした。これに伴い `CodeReferenceScan` を `internal` → `public` にした
+  （テスト asmdef から結果を検証できるようにするため。`SpecDiffService.BuildExistingIndex` と同じ理由）
+- **P2-8: 結果画面の文言が実際の操作と食い違っていた**。`Deleted=false` が一律
+  「参照が残っているため削除せず、アーカイブ済みの印だけ付けました」で、ユーザーが明示的に
+  「アーカイブのみ」を選んだ場合にも同じ文言が出ていた。→ `DeleteExecutionResult.Action`（新設）を見て
+  `ArchiveOnly` のときは「『アーカイブのみ』を選んだため、削除はせずアーカイブ済みの印だけ付けました。」に出し分ける
+- **P2-9: 横幅 500px で見切れていた**（§7.1 の「2 巡目」を参照）
+- テスト追加（`AssetDeleteExecutionServiceTests`）: `ScanCodeReferences=true` の経路で
+  `CodeReferenceHits` が削除前に取れていること（テストソース中の定数参照でヒットを再現）、
+  実行した `DeleteAction` が結果に載ること
+
 ### 実装メモ(2026-09-14、5-7: Preload リスト自動集計 + シーンロード統合)
 
 [10_workflow.md](10_workflow.md) §5 の設計(`ScenePreloadList` = シーンごとの「使用 ID 一覧」SO、依存グラフから自動集計)をそのまま実装。新規は `Assets/DDrive/Editor/Preload/`(`ScenePreloadAggregator.cs`/`ScenePreloadGenerator.cs`/`ScenePreloadBuildPreprocessor.cs`)と `Assets/DDrive/Runtime/Loading/`(`PreloadEntry.cs`/`ScenePreloadList.cs`/`ScenePreload.cs`/`SceneLoadingScreen.cs`)。詳細は [02_core_framework.md](02_core_framework.md) §5/§14 実装メモ。
@@ -447,3 +683,50 @@ Tools/
 - **`GenerateForAllBuildScenes` / `ScenePreloadBuildPreprocessor` は自動テスト対象外**: `EditorBuildSettings.scenes` は `ProjectSettings/EditorBuildSettings.asset`(git 管理下)を書き換えるため、テストが失敗して復元できなかった場合に実プロジェクトの設定を汚しかねない。自動テストは `ScenePreloadGenerator.GenerateForScene`(パス直接指定)のみとし、全ビルドシーン一括・ビルド前フックの経路は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の手動確認に委ねた
 - **Preload の粒度は「Data(.asset)そのもの」まで**: Data が内部で持つ AudioClip/Texture/Prefab 等のサブアセットを個別に先読みする API は無い(Addressables が Data の依存関係として同じ/依存バンドルに含めてロードする前提)。極端に重いサブアセットを持つ Data がある場合、体感のロード時間短縮効果が薄い可能性がある(要実測)
 - **`PreloadIdsAsync` で確保した参照カウントの解放漏れリスク**: `ScenePreload.Release` を呼び忘れる(例: `SceneLoadingScreen` を使わず `RunAsync` だけ直接呼ぶ)と `IAssetLoader` 内の参照が張られたままになる。`SceneLoadingScreen.OnDisable` では解放するが、他の呼び出し経路を追加する場合は対で `Release` を呼ぶ運用を徹底する必要がある
+
+## 11. 各専用エディタ共通の「検証」セクション（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-13）
+
+**専用エディタを持つ Data 種別には、すべて同じ「検証」セクション（`DataValidationSection`）を出す。**
+それまでは Vfx / Anchor / AnchorGroup / Anim / Anim2D / Canvas / Presentation が「`Foldout` を作って種別の Validator を
+`new` して `HelpBox` を積む」ほぼ同じコードを各自持ち、Audio / Shake · Haptics / Material / Model / Prefab / Button Skin /
+Slider Skin には無い、というばらつきがあった（ユーザー報告「個別検証があるものとないものがある」）。
+
+- **実装**: `Assets/DDrive/Editor/Validation/DataValidationSection.cs`
+  - `DataValidationSection`（`VisualElement`）: 見出し「検証」の `Foldout`。`Bind(AssetDataBase)` で対象を設定、
+    `Refresh()` で引き直す。見出しに件数（`検証: ✓ 問題なし` / `検証: エラー n / 警告 m`）を出し、
+    `FixAction` 付きの結果には「修正」ボタンを付ける（AssetBrowser の Validation 一覧と同じ）
+  - `DataValidationRunner`（UI 無しの実行部。テスト対象）: 対象 1 件に対して Validator を実行する
+- **実行する Validator**: その Data の `AssetType`（`AssetIdDefinitionAttribute`）に一致するもの + 1 アセット単位で意味がある
+  `IUniversalValidator`（`ValueDefValidator` / `AddressablesRegistrationValidator` / `NetModeUnsetValidator`）。
+  **プロジェクト全体を 1 回まとめて見る Validator（`SpecDiffValidator` / `ContentHashCatalogCoverageValidator`）は除外する**
+  （編集のたびに `Specs/*.json` の読み込みとカタログ全走査が走るため。Run All / CI には従来どおり出る）。
+  発見規則は `CI.DiscoverValidators()` を共用する（Validator 発見の実装を二重に持たない。この 1 件のために `public` にした）
+- **`ValidationContext`**: 既定は対象 1 件だけの軽い文脈。`includeSameTypeAssets: true` を渡すと同じ Data 型のアセットを
+  すべて載せる（Anchor / AnchorGroup のように入れ子・循環を見る Validator 用。従来の各エディタの挙動をそのまま引き継いだ）
+- **例外で止めない**（CLAUDE.md §0-4）: 1 つの Validator が例外を投げても `Debug.LogWarning` だけ出して他の結果は表示する
+- **付けたエディタ**: Vfx（独自実装から置き換え）/ Anchor / Anchor Group（同）/ Audio / Shake · Haptics / Material /
+  Model / Prefab / Button Skin / Slider Skin（新規に追加）
+- **まだ独自実装のままのエディタ**: Anim / Anim2D / Canvas / Presentation。いずれも種別 Validator の結果に加えて
+  **エディタ固有の追加検査**（Anim: StateName / BlendShape が対象モデルにあるか、Anim2D: 3 Validator の合成、
+  Canvas: 個別の Fix ボタン）を出しており、そのまま置き換えると情報が減るため今回は触っていない
+  （Presentation は同時に別チケット U-6 で改修中だったため見送り）。移行は後続で行う
+- **VFX Editor で「検証」を展開しても何も出なかった件（同じ U-13 の別不具合）**:
+  原因は検証セクション自体ではなく、その手前で例外が出て `RefreshValidation()` に到達していなかったこと。
+  `VfxEditorWindow.RefreshAnchorUi()` が `_serializedTarget.FindProperty("AnchorId")` の結果をそのまま
+  `BindProperty` に渡しており、対象アセットが破棄済み（削除・再インポート・Undo 後）だと `FindProperty` が `null` を返して
+  `ArgumentNullException` になる（Editor.log に実際の記録あり）。`RefreshTargetUi()` / `OnUndoRedo()` は
+  「Anchor → Params → 検証」の順に呼ぶため、Anchor で落ちると検証セクションが `Clear()` された空のまま残っていた。
+  → (1) `FindProperty` の結果を null チェックしてから `BindProperty` する（null なら `Unbind`）、
+  (2) `OnUndoRedo` は破棄済みの `SerializedObject` を使い回さず `EnsureSerializedTarget()` で作り直す、の 2 点で修正
+- **テスト**: `Tests/Editor/DataValidationRunnerTests.cs`（null で落ちないこと / 種別 Validator が走ること /
+  プロジェクト全体向け Validator が除外されていること / 1 アセット単位の `IUniversalValidator` は含まれること）
+
+> **2026-09-17 追補（[41](41_phase6_review_2026-09-17.md) P2-6）**: 「プロジェクト全体を 1 回まとめて見る
+> Validator か」の判定を `DataValidationRunner.IsProjectWide(IValidator)` として `public` にし、
+> **アセット単位で Validation 結果を見る他の経路からも共用する**ようにした（定義はここ 1 箇所）。
+> `ValidatorRegistry.RunAll`（Foundation）は `IUniversalValidator` の結果も「その時渡されたアセット」の
+> `ValidationReport` にするため、全体結果を混ぜるとアセット単位の判定が壊れる（無関係なアセットが
+> Placeholder 扱いになる）。利用先: `CI.RunValidation(includeProjectWideValidators: false)`
+> → `SpecWebSender` の `isPlaceholder`、および `SpecDiffValidator.IsPlaceholder`（自前の
+> `ValidatorRegistry` 実行をやめて `DataValidationRunner.Run` に寄せた）。詳細は
+> [32](32_spec_web.md) の「実装メモ（2026-09-17、[41] editor 系レビュー対応）」。

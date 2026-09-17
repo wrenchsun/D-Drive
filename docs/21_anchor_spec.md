@@ -118,7 +118,8 @@ public sealed class AnchorData : AssetDataBase
 
 | 機能 | 内容 |
 |---|---|
-| AnchorEditor（新規 `Tools/D-Drive/Editors/Anchor`） | 対象 AnchorData を選択追従 + ロック。**親子の連鎖をパンくずで表示**（ルート → … → 対象）。スポーン先（シーン内オブジェクト / AnchorRig）を指定して解決状態を表示。SceneView に姿勢ギズモ（ルートから対象までの各段を線で結ぶ、ランダム半径の球、Delay の秒数ラベル）。移動/回転ハンドルで LocalOffset/LocalEuler を逆変換して保存（`VfxEditorWindow.Anchor.cs` の SceneView ハンドル部分を `AnchorSceneHandles` として共通化し、両エディタで使う） |
+| AnchorEditor（新規 `Tools/D-Drive/Editors/Anchor`） | 対象 AnchorData を選択追従 + ロック。**親子の連鎖をパンくずで表示**（ルート → … → 対象）。スポーン先（シーン内オブジェクト / AnchorRig）を指定して解決状態を表示。SceneView に姿勢ギズモ（**基準（原点）**、ルートから対象までの各段を線で結ぶ、ランダム半径の球、Delay の秒数ラベル）。移動/回転ハンドルで LocalOffset/LocalEuler を逆変換して保存（`VfxEditorWindow.Anchor.cs` の SceneView ハンドル部分を `AnchorSceneHandles` として共通化し、両エディタで使う） |
+| 基準（原点）の描画（2026-09-17 追加、U-24） | §3.10 |
 | 試し出し | ウィンドウ内で「確認用 VFX」「確認用 SE」を 1 つずつ選び ▶ で実 Manager 経由に再生する（ADR-4。`SceneVfxPreviewDriver` を再利用、SE は既存の AudioEditor プレビュー経路）。Delay/Chance/ランダムの効き方をその場で確認できる。プレハブモード内でも可（2-13 の仕組み） |
 | 専用シーン | 新設しない。VFX 確認用シーン（AnchorRig 配置済み）をそのまま使う（§6-5） |
 | SceneView 描画権（2026-09-08 追加） | 複数ウィンドウの描画が重なる対策として `Editor/Preview/SceneGuiOwner`。最後にフォーカスしたウィンドウだけが連鎖・ランダム半径・ハンドルを描き、他は薄い目印のみ。各ウィンドウの「SceneView 表示」チェックで完全オフ |
@@ -158,6 +159,24 @@ Anchor を新しく「置く」だけでなく、モデルのボーンやシー�
 | 埋め込み → アセット化 | §3.6 の「アセット化」ボタン（VfxData/SeData の埋め込み Anchor から生成） |
 
 命名は `ANC_<Category>_<Identifier>`。一括生成時は Category = スポーン先の名前、Identifier = AnchorPoint 名から `Anchor_` 接頭辞を除いた PascalCase。
+
+### 3.10 SceneView への「基準（原点）」描画（2026-09-17 追加、U-24）
+
+**課題**: SceneView には `LocalOffset` を適用した後の最終位置しか描かれておらず、「どこを基準にしたオフセットなのか」がデザイナーに分からなかった（[36 §5.4](36_manual_screenshot_list.md) #19 / #20 / #23 のスクリーンショットがこれ待ちだった）。
+
+**基準の定義**（この 3 つを描く。すべて `Editor/Preview/AnchorSceneHandles.cs` の追加メソッド）:
+
+| 段 | 何が基準か | 描画 |
+|---|---|---|
+| ルート Anchor | `AnchorResolver.Resolve(rootDef, スポーン先)` で解決した Transform。解決できなければ**ワールド原点**（`(0,0,0)`） | `DrawOrigin`: 解決先の位置に 3 軸（X=赤 / Y=緑 / Z=青。向きは解決先の `rotation`）+ 球 + ラベル「基準: 〜 (x, y, z)」。ラベル 2 行目に回転の基準（`FollowRotation` なら「この向きに追従」、OFF なら「ワールド」）を出す |
+| AnchorPoint の `SpawnOffset` | 解決先 Transform | `DrawOrigin`: `SpawnOffset ≠ 0` のときだけ「解決先 → SpawnOffset 適用後」を点線 + ラベル `★AnchorPoint SpawnOffset (x, y, z)` |
+| 連鎖の各段（`Parent`） | ひとつ上の段の合成姿勢 | `DrawChain`: 各中間段に 3 軸 + ラベル「基準N: <アセット名>」+ 前段からの点線。ランダム半径の球は従来どおり |
+| 対象（最終段） | その手前の段（連鎖が無ければルートの基準） | `DrawOffsetLink`: 基準 → 最終位置を実線で結び、中点に `LocalOffset (x, y, z) (距離 m)` を出す |
+
+- 解決できなかった場合は「⚠ '<Path>' が見つからない → ワールド原点」のように**ワールド原点扱いであることを明示**する（`AnchorSceneHandles.DescribeBase`）。「設定が効いていない」のか「そこが基準」なのかを見分けられるようにするため
+- 既存の描画（点線・ランダム半径の円・移動/回転ハンドル・`SceneGuiOwner` の描画権）に**足す形**で、別経路は作っていない。描画権が他のウィンドウにあるときは従来どおり薄い目印だけ（基準は描かない）
+- 適用先は **AnchorEditor（連鎖あり）/ VfxEditor の埋め込み Anchor（連鎖なし）/ AnchorGroupEditor の原点**の 3 か所。いずれも同じ `AnchorSceneHandles` を通す
+- 併せて、連鎖の描画が `extraOffset`（AnchorPoint の `SpawnOffset`）を無視していて最終段の位置がハンドルとずれていた点を直した（`DrawChain` に `extraOffset` を渡す）
 
 ## 4. 影響範囲（変更予定ファイル）
 

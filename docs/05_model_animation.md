@@ -24,7 +24,7 @@ public class ModelData : AssetDataBase
     public Avatar Avatar;                // Humanoid の場合
     [Header("Render")]
     public int RenderLayer;
-    public uint LightLayerMask;
+    public uint LightLayerMask = 1;      // Rendering Layer Mask。0 = Prefab の設定を上書きしない(2026-09-17 改定)
     public LodProfile Lod;               // 任意
 }
 
@@ -69,9 +69,17 @@ h.SetLayer(int);
 - プレビュー: ターンテーブル回転(自動回転トグル+速度) / 複数モデル並列表示(最大4体、横に並べて配置) / 背景色・ライト強度切替 / Material スロットの ID 差し替え(Slots を PropertyField で編集。実際の見た目反映は Phase 3 完了後) / DefaultAnimation は情報表示のみ(再生確認は Phase 3 の AnimManager 実装後)
 
 > **2026-09-10 改定（SceneView 方式へ統一）**: `Editor/Model/ModelEditorWindow.cs` はウィンドウ内ビューポートと背景色・ライト切替を廃止し、AnimEditor と同じ `SceneAnimPreviewDriver` で **開いているシーン / プレハブモードに配置して SceneView で確認**する。ツールバー「確認用シーンを開く」= 確認用シーン（VFX と共通）を開いて対象を原点に配置、「Prefab を開く」= `ModelData.Prefab` をプレハブモードで開く（Renderer / Material をその場で編集。Ctrl+S で保存）。ターンテーブルは配置したモデルを回す（プレハブモードの実体は回さない）。並列表示は `SpawnExtraModel` で対象の隣に 2m 間隔。DefaultAnimation は配置時に実 AnimManager が自動再生（`EditorAnchorRegistry` に Anim / Model も登録するようにした）。配置物は DontSave で保存されない
-- 運用: モデラーが FBX→Prefab 化 → AssetBrowser で登録 → Slots 自動収集ボタン（Prefab の Renderer を走査して Slot リストを生成、既存の Material 割当は RendererPath+SlotIndex が一致する分だけ保持）→ MaterialId を割当
+- 運用: モデラーが FBX→Prefab 化 → AssetBrowser で登録 → Slots 自動収集ボタン（Prefab の Renderer を走査して Slot リストを生成、既存の Material 割当は RendererPath+SlotIndex が一致する分だけ保持、**未割当のスロットは Renderer が使っている Material から作られた MaterialData を自動で割当**）→ 必要なら MaterialId を差し替え
 - Validation: Prefab Missing (Error)、Animator はあるが Avatar 未設定 (Error。Animator を持たない静的モデルは対象外)、Slot の RendererPath 不整合 (Error)、Material 未割当 Slot (Warning)、Prefab のマテリアルのシェーダーが現在のレンダーパイプラインと非互換 (Error。VfxDataValidator と共通の `ShaderPipelineAnalyzer` を使用、[04] §7参照)
 - Skybox・Post Process 切替は見送り（`RenderSettings` がプロジェクト全体で共有されるため、実シーンへの副作用を避けた）
+
+> **2026-09-17（不具合修正 U-1 / U-2 / U-3。[39](39_usability_fixes_2026-09-17.md)）**
+>
+> - **U-1「3D プレビューが全て透明」の真因は `LightLayerMask` の既定値 0**（Material スロットが None であることとは別の問題）。`ModelsManager.SpawnData` が `renderer.renderingLayerMask = data.LightLayerMask` を**無条件に**全 Renderer へ書いていたため、既定値 0 がそのまま入り、URP（SRP）の描画フィルタ（`FilteringSettings.renderingLayerMask` の既定は全ビット）とのビット積が 0 になってモデルが 1 つも描画されなかった。ライトレイヤーにも一致しないので、仮に描画されてもライトが当たらない。**VFX で 2026-09-08 に直したのと同じ不具合（[19](19_vfx_usability_review.md) B-1）が Model 側に残っていた**。`VfxData` と同じ規約に揃え、`ModelData.LightLayerKeepPrefab = 0`（= Prefab の Renderer 設定を上書きしない）を定義してフィールドの既定値を 1（Default）にした。既存アセットは 0 が保存されているので、そのまま「Prefab の設定を使う」に倒れて直る。テスト: `ModelsManagerTests.LightLayerMask_*`（3 件）
+> - **U-2「Slot がすべて None」**: FBX インポート時に `MayaMaterialImporter` が `MaterialData` を作っても、それを `ModelData.Slots` に結び付ける経路がどこにも無かった（「Slot 自動収集」は `RendererPath` + `SlotIndex` を並べるだけで `Material` は常に None）。`Editor/Model/ModelSlotBinder.cs` を追加し、**Renderer の `sharedMaterials[slotIndex]` → その Material から作られた `MaterialData`** を `MaterialData.SourceMaterial`（既存の同定キー）で引いてスロットに入れる。同定キーは FBX 内蔵 Material なら `<FBX名>/<GUID>/<マテリアル名>`、単体 `.mat` なら `UnityMaterial/<GUID>/<名前>`（[06] A-2）。**既に有効な ID が入っているスロットは上書きしない**
+> - **結び付けの入口は 3 つ**（いずれも既存経路に乗せる。新しい並行経路は作らない）: (1) `ImportRuleHandlers.ModelImportHandler.Configure`（`SourceAssets/Model/` への FBX 配置で `ModelData` を作るとき。MaterialData は同じ delayCall 列で先に走る `MayaModelPostprocessor` が作っているので、ここでは探して結び付けるだけ）(2) `MayaModelPostprocessor`（FBX インポート直後・メニュー `Generate/選択したモデルから MaterialData を生成` の直後に `ModelSlotBinder.RebindForModelPath` で、その FBX を使っている `ModelData` の Slots を貼り直す）(3) Model Editor の「Slot 自動収集」
+> - **U-3「再読み込み」**: Model Editor の Material スロット欄に「元ファイル再読み込み」ボタンを追加。Prefab の Renderer が参照している FBX / `.mat` を洗い出し、`MayaMaterialImporter.ImportModel` / `UnityMaterialMigrator.Migrate`（= 既存の生成経路）で `MaterialData`（+ `TextureData`）を作り直してから Slots を貼り直す。再実行は `Common` だけ更新で `Specific` / `Anims` / `Render` は保持（[06] A-2 の再インポート規約と同じ）。見つからなかったスロットは None のまま残し、件数を Console に警告として出す（例外で止めない）。テスト: `ModelSlotBinderTests`（3 件）
+> - ボタン行は横幅 500px で折り返す（[09] §7.1）。`ModelEditorWindow.minSize` も 520 → 500 に下げた
 
 ---
 

@@ -276,6 +276,36 @@ W-1〜W-12（実装済み）を拡張元として「アセット仕様」を「�
 | 6-10c | Maya FBX → Timeline 自動構築（Maya 側スクリプト無し。カメラは種類で判別、キャラ・小物は名前空間 = Model 識別子で判別・自動バインド、fps 自動設定、再取り込み時は自動生成トラックのみ差し替え）。5-11 の ImportRule に Cutscene を追加。イベント用ロケーター（アニメ付きユーザープロパティ → Signal）は検証の上で採否決定 | TA+基盤 | 3 | 6-10a, 5-11 | `SourceAssets/Cutscene/` に FBX を置くだけで CutsceneData + TimelineAsset ができ、確認用シーンで再生できる |
 | 6-10d | Cutscene 確認用シーン + Inspector 導線（標準 Timeline ウィンドウを編集 UI として開く・バインド検査・CutsceneDataValidator） | ED | 2 | 6-10b, 6-10c | [26] §6/§5.3/§5.4 の検査が Validation に出る |
 
+## P チケット: 移植・更新・互換性（2026-09-17 追加。詳細は [42](42_distribution.md)）
+
+> **Timeline（6-10a〜d）の後に着手する（2026-09-17 ユーザー指定）。** ユーザー要望: 「この環境を Unity の実際の作業環境に簡単に移植する。D-Drive の Update があったらほかの環境に取り込むことができる。これにより、この新規タスクの後はすべて互換性を持たせる必要があります」。
+> - 配布は **UPM パッケージ（git URL、`?path=` + `#vX.Y.Z` タグ）**。開発はこのリポジトリ内の埋め込みパッケージ（`Assets/DDrive/` → `Packages/<name>/` へ移設）で行う（[42] §3）
+> - **P チケット完了後（P-13 発効）は、D-Drive の変更はすべて [42] §5 の互換性ポリシー（シリアライズ形式・enum・ID/定数名・公開 API・ContentHash・ネットメッセージ・生成コード・Validation の重さ）に従い、[42] §5.11 のスナップショットテストが赤なら変更しない**。発効時に CLAUDE.md §0 TL;DR へ昇格させる（それまでは CLAUDE.md §1 の予告）
+> - **最初の 2 チケット（P-1 線引き / P-2 互換性ポリシー）は後戻りが最も高いので先に確定する**。着手前に [42] §7 A 群（パッケージ名・版番号・`SchemaVersion` 追加・`KnownPrefixes` 不整合の扱い 等）のユーザー回答が要る
+> - P-5（パッケージ化 = 1.0.0）より前に、発効後は直せなくなる既知の不整合（[42] §5.13）を片付ける
+
+| # | チケット | 担当 | 日数 | 依存 | AC |
+|---|---|---|---|---|---|
+| P-1 | 線引きの確定: [42] §2.1 の分類表（持っていく / 持っていかない / 持ち込み先で作る）を確定、§2.3 の境界違反 10 件と §5.13 の「最後のチャンス」リストの採否、[14] §12 の「コピーして持ち込む」段落を UPM 参照へ改訂、CLAUDE.md §1 の NGO 表記修正 | 基盤+リード | 1 | 6-10d | 分類表に「?」が残っていない。§5.13 の各項目に「やる/やらない」が付いている |
+| P-2 | 互換性ポリシーの確定: [42] §5 を確定（§7 A-3〜A-6）。[12] §3 に「互換性」チェック節の草案、`CHANGELOG.md` 書式・`docs/migrations/` 雛形。**この時点では発効しない**（発効は P-13） | 基盤+リード | 1 | 6-10d | §5 の各表に「要判断」が残っていない。[12] §3 草案がある |
+| P-3 | 互換性スナップショットテスト群（[42] §5.11 の 1〜10）: 公開 API / シリアライズ形式 + 旧版フィクスチャ / enum / ID・定数名・ContentHash ゴールデン / Net メッセージ / Codegen ゴールデン / Validator 重さ + Editor 契約 / 版一致 / CHANGELOG ガード。`ValidationResult.Code` 追加。**P-5 の移設より先に作る** | 基盤 | 3 | P-2 | 現状で全 green。public メンバ削除 / enum 並べ替え / `KnownPrefixes` 追加 のそれぞれで fail する |
+| P-4 | 境界違反の解消（[42] §2.3 #1〜#6, #8）: `SourceAssets/Shaders` のシステム shader をパッケージ側へ、`CI.cs` の `ForbiddenApiScanner` 走査ルート、`ManualPages` の `docs/` パス、`ControlSkinPreviewSection` の `.mat` パス、`CodeReferenceScan`/`SpecWebSender` の走査範囲を Assets 全体へ、テストのフィクスチャ化（UnityChan 依存除去）、UniTask のタグ固定 | 基盤+ED | 2 | P-1 | `Samples~` 未 import・`SourceAssets` 空でも EditMode/PlayMode green。`ForbiddenApiScanner` が走査 0 ファイルで Error |
+| P-5 | パッケージ化: `Assets/DDrive/` → `Packages/<name>/`（Unity Editor 経由で .meta ごと）、`package.json`（[42] §3.5 の依存、`unity: 6000.3`、`samples`）、`Samples~`（Demo/NetCheck）、`Documentation~`（DesignerManual、AGENTS_CONSUMER 雛形）、開発 manifest に `testables`、`DDriveVersion.cs`、`DDriveProjectSettings`（`ScriptableSingleton`、出力先設定、`IsDevelopmentRepo`）、`Regenerate` の `DDrive.Generated.asmdef` 出力オプション | 基盤 | 3 | P-3, P-4 | EditMode/PlayMode/Performance・`run-ci.cmd` が green。P-3 のスナップショットに差分無し。Package Manager から Samples を import できる |
+| P-6 | セットアップウィザード + `ProjectSetupValidator`（[42] §3.6）: 依存（manifest 検査、git 依存の `Client.Add`、scoped registry の検出/案内）→ URP/Input System/API Level の検査 → Addressables 初期化 → `GameData`/`SourceAssets` 既定フォルダ・`UiLayerSettings`・`DDriveSpecSettings`・カタログ生成 → 起動オブジェクト配置。同じ検査を `Run All` にも | ED | 3 | P-5 | 空プロジェクト + manifest 1 行から「すべて直す」だけで `Run All` Error 0 |
+| P-7 | スキーマ版 + マイグレーション基盤（[42] §4.3）: `AssetDataBase.SchemaVersion`（A-4 承認後）、`VersionStampProcessor` での書き込み、`IDataMigration`/`IProjectMigration`（TypeCache 自動発見）、`DDriveMigrationRunner`（ドライラン・Undo・`VersionStampSuppression`）、`CI.MigrateCheck`、「SchemaVersion が古い」Validator | 基盤 | 2 | P-2, P-5 | ダミー移行が対象だけに 1 回だけ適用され Undo で戻る。`MigrateCheck` が未適用ありで exit 1 |
+| P-8 | 更新ツール + 版の照合（[42] §4.2 手順 5、§5.6）: `Tools > D-Drive > Update`（前回版/現在版/CHANGELOG、「更新を適用」= Migrate → Regenerate IDs/Tuning → Addressables 同期 → Run All → `LastAppliedVersion`）。`CatalogContentHashMsg` に `PackageVersion`/`ProtocolVersion` を追加し先に照合、`NetDebugOverlay` に表示 | 基盤+ED | 2 | P-6, P-7 | 版を進めた直後に「更新を適用」1 回で Error 0。`ProtocolVersion` 不一致が [14] §7 の方針で「D-Drive の版が違う」理由付きで扱われる |
+| P-9 | リリース手順の道具化（[42] §4.1）: `Tools/Release/bump-version.ps1`（`package.json`・`DDriveVersion.cs`・CHANGELOG 見出し・git tag）、リリースチェックリスト（[12] に節追加）、`[Obsolete]` 棚卸し一覧 | 基盤 | 1 | P-2 | 手順どおり `v1.0.0` タグが切れ `PackageVersionConsistencyTests` green |
+| P-10 | 消費側ドキュメント: パッケージ `README.md`（導入 5 ステップ・依存表・制約: URP のみ・NGO 必須）、`Documentation~/AGENTS_CONSUMER.md`、`Tools~/CI/` テンプレ、SpecWeb の持ち込み先デプロイ手順 + `apiVersion`、[34] に「持ち込み先での始め方」、DesignerManual「パッケージを更新する」 | 全員 | 2 | P-5, P-6 | 新メンバーが README だけで導入し SE を 1 件鳴らせる（P-11 で実測） |
+| P-11 | **持ち込み先で実際に動くことの確認**（独立チケット）: 空プロジェクト（`Unity -createProject`）に導入 → ウィザード → SE を 1 件登録・試聴・`Audio.Play(SEID.X)` → `ValidateAll`/テスト相当 green → 版を 1 つ進めて P-8 の更新 → ロールバック（[42] §4.4）。`Tools/CI/run-consumer-smoke.cmd` として自動化し `run-ci.cmd` の任意ステップに。記録は [37] 形式 | 基盤+ED | 2 | P-6, P-8, P-10 | 人手 15 分以内で SE 1 件が鳴る。スモークが `run-ci.cmd` から通る。更新→ロールバックで Data が壊れない |
+| P-12 | MS2026 への実移植（[14] §12。本タスクに含めるかは [42] §7 B-7）: manifest 追加 → ウィザード → 既存 CI に `ValidateAll`/`RegenerateIds` → `Assets/_Project/Scripts` から `SEID` 参照 → NGO 実機 2 台で ContentHash/版照合 | 基盤 | 2 | P-11 | MS2026 で SE/VFX が ID 経由で再生され CI green。判明した障害は [42] §2.3 に追記 |
+| P-13 | 互換性ルールの発効: CLAUDE.md §0 TL;DR に追加（§1 の予告を置き換え）、AGENTS.md・`ddrive-agent-workflow` スキル・[12] §3 を更新、[42] 冒頭を「発効済み」に | 基盤 | 0.5 | P-11（P-12 を含める場合は P-12） | 4 箇所に同じルールが載っている |
+
+合計 約 24.5 人日（基盤 + ED 並行で 3〜3.5 週）。P-1/P-2 は並行可。**P-5（移設）は P-3 のテストが green になってから**。
+
+## U チケット: 使い勝手の修正（2026-09-17 追加。詳細は [39](39_usability_fixes_2026-09-17.md)）
+
+デザイナーマニュアル用のスクリーンショット撮影（[36 §5](36_manual_screenshot_list.md)）と実機での通し確認で見つかった不具合・要望 26 件（U-1〜U-26）。3D プレビューが透明になる件・FBX のマテリアルスロット未割当・「確認用シーンに配置」の挙動・作成導線（Project / Hierarchy 右クリック）などが含まれる。**Phase 7 より先に片付ける**。一覧と状態は [39](39_usability_fixes_2026-09-17.md) §0。
+
 ## Phase 7: 推奨拡張 A 群 (M7)  約 3 週　※詳細は [13_extensions.md](13_extensions.md)
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
