@@ -602,10 +602,11 @@ IMGUI 本文（`OnInspectorGUI`、派生クラスが `OnInspectorGUI` を上書�
 | `ImportSourceGuid` | （対象外、既に `[HideInInspector]`） | ImportRule（§1.1）が二重生成防止に使う内部値。本文にそもそも出ない |
 | `DisplayName` / `Description` / `Category` / `Tags` / `Icon` / `Assignee` / `SpecUrl` / `ChangeNote` / `Flags` / `Events` | 編集可能 | 人が入力・調整する項目（`Icon`/`SpecUrl` はヘッダーにも専用 GUI があるが、本文側の直接編集も残す） |
 
-種別ごとの固有フィールド（`MaterialData.SourceMaterial` のような「インポート由来を記録するだけの値」等）は今回は対象にしていない
-（**要判断**: `Id` ほど「編集すると即壊れる」わけではなく、種別ごとに判断が割れるため、今回は `AssetDataBase` 共通フィールドのみを
-対象にした。今後、種別固有のフィールドを読み取り専用にしたい場合は、その Data クラスのフィールドに `[InspectorReadOnly]` を
-付けるだけでよい。決めたら本表に追記する）。
+種別ごとの固有フィールド（`MaterialData.SourceMaterial` のような「インポート由来を記録するだけの値」等）は**対象にしない**
+（**2026-09-17 決定**: 直接編集させたくないのは上表の `AssetDataBase` 共通 4 フィールドだけでよい、とユーザーが判断した。
+`Id` ほど「編集すると即壊れる」わけではなく、種別ごとに判断が割れるため、種別固有フィールドは編集可能のままとする）。
+将来この判断を変える場合は、その Data クラスのフィールドに `[InspectorReadOnly]` を付けるだけでよく、Editor コード側の
+変更は要らない（変えたら本表に追記すること）。
 
 テスト: `Tests/Editor/AssetDataInspectorReadOnlyFieldsTests.cs`（`Id`/`Version`/`Author`/`UpdatedAt` の `PropertyField` が
 disabled になること、`DisplayName` 等の通常フィールドは有効なまま、`SeDataEditor` のように上書きされている場合は
