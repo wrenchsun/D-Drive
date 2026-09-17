@@ -208,6 +208,12 @@ namespace DDrive.Editor.CanvasTool
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
             toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(CanvasEditorWindow)));
+            // U-21([39_usability_fixes_2026-09-17.md]): Canvas Editor には要素(RectTransform)を移動する手段が
+            // 無かった。プレビュー実体(「確認用シーンを開く」で置く物)は OpenData が Prefab リンク無しで
+            // 生成するため、そこを動かしても Prefab には反映されない。ModelEditorWindow.OpenPrefab /
+            // VfxEditorWindow.OpenPrefab と同じ導線で Prefab 自身をプレハブモードで開き、Unity 標準の
+            // Move/Rotate/Rect ツールで編集できるようにする(Undo はプレハブ編集の標準機構にそのまま乗る)。
+            toolbar.Add(new ToolbarButton(OpenPrefab) { text = "Prefab を開く(要素の移動)", tooltip = "CanvasData.Prefab をプレハブモードで開く。要素を選択して Unity 標準の Move/Rotate/Rect ツールで移動・回転・リサイズできる(Ctrl+Z で戻せる)" });
             _root.Add(toolbar);
 
             var navButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
@@ -343,6 +349,64 @@ namespace DDrive.Editor.CanvasTool
             return true;
         }
 
+        // U-21: CanvasData.Prefab をプレハブモードで開く(ModelEditorWindow.OpenPrefab / VfxEditorWindow.OpenPrefab
+        // と同じ導線)。プレビュー実体はここで片付ける(プレハブモードへ切り替わるとプレビュー実体の所属ステージが
+        // 不定になり、閉じ忘れの残骸になりやすいため)。
+        private void OpenPrefab()
+        {
+            if (_target == null || _target.Prefab == null)
+            {
+                Debug.LogWarning("[DDrive] 対象 CanvasData に Prefab がありません。");
+                return;
+            }
+
+            RemovePreview();
+            AssetDatabase.OpenAsset(_target.Prefab);
+        }
+
+        // U-21: ElementFx の各行から、その要素(RectTransform)を選んで実際に動かせるようにする。プレビュー実体
+        // (「確認用シーンを開く」で置く物、OpenData 生成、Prefab リンク無し)を動かしても Prefab には反映されない
+        // ため、必ず Prefab 自身をプレハブモードで開いてから選択する。プレハブモードは通常のシーン編集と同じ
+        // Undo 機構に乗るため、Move/Rotate/Rect ツールでの移動はそのまま Ctrl+Z で戻せる(CLAUDE.md §0-5 は
+        // 「エディタがコードで書き換えるとき」の規約であり、ここはユーザー自身が Unity 標準ツールで動かす
+        // 経路なので該当しない)。
+        private void SelectElementForMove(string elementPath)
+        {
+            if (_target == null || _target.Prefab == null)
+            {
+                _statusLabel.text = "Prefab を設定してください";
+                return;
+            }
+
+            var prefabPath = AssetDatabase.GetAssetPath(_target.Prefab);
+            var stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage == null || stage.assetPath != prefabPath)
+            {
+                RemovePreview();
+                AssetDatabase.OpenAsset(_target.Prefab);
+                stage = PrefabStageUtility.GetCurrentPrefabStage();
+            }
+
+            if (stage == null || stage.prefabContentsRoot == null)
+            {
+                _statusLabel.text = "Prefab を開けませんでした";
+                return;
+            }
+
+            var rootTransform = stage.prefabContentsRoot.transform;
+            var found = string.IsNullOrEmpty(elementPath) ? rootTransform : rootTransform.Find(elementPath);
+            var label = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
+            if (found == null)
+            {
+                _statusLabel.text = $"要素が見つかりません({label})";
+                return;
+            }
+
+            Selection.activeGameObject = found.gameObject;
+            PreviewPlacement.Focus(found.gameObject);
+            _statusLabel.text = $"'{label}' を選択しました。SceneView の移動/回転/リサイズツールで編集できます(Ctrl+Z で戻せます)";
+        }
+
         // 4-9: Graphic(Image 等)/UiInteractable(UiButton 等)/パネル(RectTransform+Graphic)を持つパスを
         // ElementEffects に追加する(既存の行・値は保持する)。戻り値: データを書き換えたか(レビュー対応 2026-09-14)。
         private bool CollectElementFx()
@@ -456,6 +520,10 @@ namespace DDrive.Editor.CanvasTool
 
                 // (レビュー対応 2026-09-14) getter/setter は GetFx/UpdateFx 経由で範囲チェックする(Undo で行が減った後に
                 // 古い行 UI から呼ばれても例外にしない)。
+                // U-21: この要素を選んで Prefab 上で移動・回転・リサイズできるようにする(選択のみ。実際の
+                // 移動は Unity 標準の Move/Rect ツールで行う。ウィンドウ内に描画しない方針は維持する)。
+                box.Add(new Button(() => SelectElementForMove(elementPath)) { text = "選択して移動(Prefab を開く)", style = { marginBottom = 4 } });
+
                 box.Add(BuildPhaseRow(
                     "Appear",
                     elementPath,

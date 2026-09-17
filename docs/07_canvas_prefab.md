@@ -183,6 +183,12 @@ public static class Ui
 - **対応**: `AssetCreationService.Create()`(`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`)で `AssetType.Canvas`/`AssetType.ControlSkin` を新規作成するときは既定 `Flags.Load=Preload` にする。既存アセット向けに `AddressablesRegistrationValidator`(`Assets/DDrive/Editor/Validation/AddressablesRegistrationValidator.cs`)へ「対象 AssetType で `Flags.Load != Preload`」を Error + FixAction(`Flags.Load=Preload` に書き換えて保存)として追加し、`Validation > Run All` で拾えるようにした
 - 今後 `SliderSkinData`(4-17 で型追加時)等、`UiInteractable`/`UiManager` の同期解決に乗る新しい `ControlSkinData` 派生を増やす場合は、`AssetCreationService` の分岐と `AddressablesRegistrationValidator.NeedsPreload` の両方に追記すること
 
+### 追記（2026-09-17、Validator 側の対象リストに Presentation/Shake/Haptics が抜けていたのを修正）
+
+- **経緯**: U-20(Anim/Anim2D の SE/VFX 不発、上記と同種のバグ)の対応で `AddressablesRegistrationValidator.NeedsPreload` に Anim/Anim2D を追加した際、`AssetCreationService.Create()` の既定 Preload 化には元々入っていた `Presentation`/`Shake`/`Haptics`(2026-09-14、5-1/5-2/5-2b で追加)が Validator 側に反映されていないことが判明した。`PresentationManager.PlayData`/`CameraFxManager.ShakeData`/`HapticsManager.PlayData` はいずれも `ResolveOrPlaceholder` のみで同期解決するため、同じ穴(既存アセットが `Flags.Load=LazyLoad` のままでも Validation で検出できない)が空いていた。実データ(`Assets/GameData/Presentation/**`、`Assets/GameData/Camera/Demo/SHAKE_Demo_DemoHitSmall.asset`、`Assets/GameData/Haptics/Demo/HAPTIC_Demo_DemoHitPunch.asset`)を確認したところ幸い全て `Flags.Load=Preload` 済みで、実害は出ていなかった
+- **原因**: 対象 AssetType の一覧が `AssetCreationService.Create()` と `AddressablesRegistrationValidator.NeedsPreload` の 2 箇所に別々に持たれており、片方だけ更新して追加漏れが起きる事故がこれで 4 回目(Canvas/ControlSkin → Presentation/Shake/Haptics → Anim/Anim2D → 今回の Presentation/Shake/Haptics 検出漏れ)だった
+- **対応**: 判定を `AssetCreationService.NeedsPreloadDefault(AssetType)` という 1 つの public static メソッドに一本化し、`Create()` と `AddressablesRegistrationValidator.Validate()` の両方がこれを呼ぶように変更した(対象種別の追加は今後この 1 箇所で済む)。テストは `Assets/DDrive/Tests/Editor/AddressablesRegistrationValidatorTests.cs` に `PresentationAsset_FlagsLoadRegression_IsDetectedAndFixed` 等を追加
+
 ### 追記（2026-09-12、CanvasEditor に「Disappear を再生」ボタン追加 → 同日中に撤去）
 
 - **経緯**: 「確認用シーンで開く」は実 `UiManager.OpenData` を呼ぶため Appear→Idle は元から Tick で再生されていたが、「閉じる」は `StopAll(Manual)` で演出を待たず即完了させる実装だったため、ElementFx の Disappear / CloseTransition を Editor 上で見る手段が無かった(ADR-4 の「実 Manager を Editor から駆動する」に対し、消える演出だけ確認できない片手落ちだった)
@@ -266,6 +272,17 @@ public static class Ui
 - 生成される Prefab: ルート = `RectTransform + Canvas(ScreenSpaceOverlay) + CanvasScaler(1920x1080 / Match 0.5) + GraphicRaycaster`、その子に `Panel`（`RectTransform` 四辺ストレッチ + `Image`）。A-2 の「ルートは RectTransform を持つオブジェクト、Canvas があれば `SortOffset` が `sortingOrder` に加算」に合わせてルートに Canvas を付けている（`UiManager.OpenData` が `overrideSorting = true` にして使う）
 - 保存先は `Assets/GameData/Prefabs/Canvas/<CanvasData のファイル名>.prefab`。`SourceAssets/Canvas/` に置くと上記 5-11 の ImportRule が 2 つ目の CanvasData を作ってしまうため避けている
 - Hierarchy から呼んだ場合のみ、作った Prefab を右クリックしたオブジェクトの子として配置する（`Undo.RegisterCreatedObjectUndo`、`EventSystem` が無ければ作る）。詳細は [09_editor_tools.md](09_editor_tools.md) §6.3
+
+### 実装メモ（2026-09-17、U-21 Canvas Editor で要素の移動）
+
+**症状**: `CanvasEditorWindow` に要素（RectTransform）を移動する手段が無かった。「確認用シーンを開く」で置くプレビュー実体は `UiManager.OpenData` が生成する Prefab リンク無しの実体（ADR-4 の確認用プレビュー）で、そこを直接動かしても `CanvasData.Prefab` には反映されない。
+
+**対応**: ウィンドウ内に実 UI を描画・編集する専用機構を新設するのは 2026-09-10 の owner instruction（ウィンドウ内描画を避け、確認用シーン / Prefab を開いて SceneView で確認する）に反するため、既存の `ModelEditorWindow.OpenPrefab` / `VfxEditorWindow.OpenPrefab` と同じ導線（`AssetDatabase.OpenAsset(prefab)` でプレハブモードを開く）を Canvas Editor にも追加した。
+
+- ツールバーに「Prefab を開く(要素の移動)」ボタンを追加。押すとプレビュー実体を `RemovePreview()` で片付けてから `CanvasData.Prefab` をプレハブモードで開く
+- ElementFx の各要素の Foldout 先頭に「選択して移動(Prefab を開く)」ボタンを追加。対象 Prefab がプレハブモードで開いていなければ自動で開き、`PrefabStage.prefabContentsRoot.transform.Find(elementPath)` でその要素の GameObject を選択・`PreviewPlacement.Focus` で SceneView へフォーカスする
+- 実際の移動・回転・リサイズは Unity 標準の Move/Rotate/Rect ツールで行う。プレハブモードは通常のシーン編集と同じ Undo 機構に乗るため、Ctrl+Z でそのまま戻せる（独自の Undo コードは不要）
+- 実装: `Assets/DDrive/Editor/Canvas/CanvasEditorWindow.cs`（`OpenPrefab` / `SelectElementForMove`）。新しい共通部品は増やしていない（既存の `RemovePreview` / `PreviewPlacement.Focus` を再利用）
 
 ---
 

@@ -48,7 +48,7 @@
 <p>上から順に並んでいます。ウィンドウの中に UI の絵は出ません。<strong>見た目の確認は「確認用シーンを開く」で Game / Scene ビューを見ます</strong>。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>ツールバー(対象 / 🔒)</td><td>編集する Canvas データ。「🔒」= 選択に追従しない</td></tr>
+<tr><td>ツールバー(対象 / 🔒 / Prefab を開く(要素の移動))</td><td>編集する Canvas データ。「🔒」= 選択に追従しない。「<strong>Prefab を開く(要素の移動)</strong>」を押すと確認用プレビューを片付けてから、この Canvas の Prefab をプレハブモード(編集用の専用画面)で開きます。ここで要素を選んで Unity 標準の移動 / 回転 / リサイズツールで動かせます(Ctrl+Z で戻せます)。確認用シーンのプレビューを動かしても Prefab には反映されないため、実際に配置を変えたいときは必ずこちらを使ってください</td></tr>
 <tr><td>Selectable を自動収集</td><td>Prefab 内の <strong>uGUI の Selectable</strong>(Button / Slider / Toggle など)を探して Navigation に行を足します(既存の行は残ります。4 方向は空 = Unity 自動のまま)。<strong>D-Drive の UiButton / UiSlider は拾いません</strong>。UiButton はグラフにはノードとして出るので、グラフでリンクを張るか、Inspector の Navigation に手で行を足してください。Prefab 未設定なら「Prefab を設定してください」</td></tr>
 <tr><td>要素を自動収集(Image / UiButton / パネル)/ プリセット / 一括適用: 全ボタンに反映</td><td>「要素を自動収集」は Prefab 内の画像・UiButton・パネルから ElementFx の行を作ります(既存の行は保持)。「プリセット」で選んだ演出を「一括適用: 全ボタンに反映」で全 UiButton の Appear にまとめて入れます(「全ボタンの AppearPreset に … を設定しました」)</td></tr>
 <tr><td>ElementFx 割当(Appear / Idle / Disappear)</td><td>要素ごとに 1 箱(折りたたみ、初期状態は畳んだまま)で演出を割り当てます。上部の「▶ 全 Appear」「▶ 全 Idle」「▶ 全 Disappear」「■ 全て停止」で、登録済みの全要素のうち割り当てがあるものだけをまとめて再生・停止できます。読み方は下の「ElementFx 割当セクションの行の読み方」を参照。行が無いときは「ElementFx がありません(上の「要素を自動収集」で追加してください)」</td></tr>
@@ -70,6 +70,7 @@
 <p>見出し「ElementFx 割当(Appear / Idle / Disappear)」の下に、要素ごとの折りたたみ箱が並びます(初期状態は畳んだまま。要素のパスをクリックすると展開)。箱の見出しが要素のパス(Prefab ルート自身は「(ルート)」)で、展開すると中に 3 行あります。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
+<tr><td>「選択して移動(Prefab を開く)」ボタン</td><td>箱の一番上にあります。押すとこの要素の Prefab をプレハブモードで開き(まだ開いていなければ自動で開きます)、この要素そのものを選択して Scene ビューへ寄せます。あとは Unity 標準の移動 / 回転 / リサイズツールでそのまま動かせます(Ctrl+Z で戻せます)</td></tr>
 <tr><td>Appear / Idle / Disappear のラベル</td><td>出現 / 常時(ループ)/ 消滅の 3 区間。Idle は Appear が終わってから始まり、閉じ始めで止まります</td></tr>
 <tr><td>ドロップダウン</td><td>「なし」/ 組み込みプリセット名 / <code>[Catalog] 名前</code>(プロジェクト独自に登録した演出)。「なし」を選ぶとその区間の設定は両方消えます。プリセットを選ぶと右の直接指定は消えます</td></tr>
 <tr><td>直接指定の欄</td><td>UI Tween データをドラッグして入れる欄。入れるとドロップダウン側のプリセットは消えます(どちらか一方だけが有効)</td></tr>

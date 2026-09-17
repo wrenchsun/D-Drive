@@ -33,7 +33,7 @@ Phase 6 まで実装した後、**デザイナーマニュアル用のスクリ�
 | U-18 | 追加 | Hierarchy の右クリックメニューから AnchorRig・SeEmitter など基本オブジェクトを配置できるように | 要望 | 実装済み |
 | U-19 | 改善 | CanvasData の作成が毎回「Canvas → Panel」の 2 手順になっている。Hierarchy と `Tools > D-Drive` からの一発生成を追加 | 要望 | 実装済み |
 | U-20 | 不具合 | Animation2D の Anim Editor から SE・VFX を**設定はできるが再生されない** | 要望 | 実装済み |
-| U-21 | 追加 | Canvas Editor で要素の移動などができるように | 要望 | 未着手 |
+| U-21 | 追加 | Canvas Editor で要素の移動などができるように | 要望 | 実装済み |
 | U-22 | 追加 | Anchor Group で 3×3 などを自動配置した後、**手置きの点に変換する**ボタン | 要望 | 実装済み（[22 §3.7](22_anchor_group.md)） |
 | U-23 | 不具合 | ElementFx で SlideIn などを設定して再生ボタンを連打すると位置ずれが起きる（開き直すと戻る） | 要望 | 未着手 |
 | U-24 | 追加 | Anchor の SceneView 表示で基準が分からない。LocalOffset だけでなく**基準（原点）の座標も SceneView に描画**する | [36](36_manual_screenshot_list.md) #19・#23 | 実装済み（[21 §3.10](21_anchor_spec.md) / [09 §2.2](09_editor_tools.md)）。#19 / #20 / #23 は撮影待ち |
@@ -69,6 +69,16 @@ U-1 は U-2 が原因である可能性が高いが、**確定させてから直
 - **真因**: `Anim2D.Play`/`Anim.Play`（ID 版）はどちらも共有の `AnimManager.Play` → `AssetRegistry.ResolveOrPlaceholder<AnimData>` という**完全同期**の解決経路しか持たない。`ResolveOrPlaceholder` は「既に `_loaded` キャッシュにあるものしか返さない」同期専用の解決で、自らロードを開始しない。`_loaded` に乗るのは `Flags.Load=Preload`(カタログ登録時に自動ロード)のものだけで、既定値の `LazyLoad`(「初回参照時にロード」)は非同期経路(`ResolveAsync`)専用。`ModelData.DefaultAnimation` 等「他の Data からの依存解決」で先にロードされていない Anim(2D)Id を直接 Play すると、実データではなく `Events` が空の Placeholder(`AnimManager.CreatePlaceholder`)が再生され、Frame/Time で設定した SE/VFX が一切鳴らない/出ない(見た目のアニメーションは Animator 自身の状態遷移で動き続けるため気づきにくい)。これは Canvas/ControlSkin(2026-09-12)・Presentation/Shake/Haptics(2026-09-14)で見つかったのと**全く同じ罠**([07_canvas_prefab.md](07_canvas_prefab.md)「バグ修正（2026-09-12）」参照)で、`AssetCreationService.cs` の新規作成デフォルトに `AssetType.Anim`/`AssetType.Anim2D` が含まれていなかった見落としが原因。2D キャラクターは 3D 専用の `ModelData` を経由しないため「他経路での先行ロード」が起きにくく、3D 側(`Anim`)より先に顕在化した(3D 側にも同じ穴があったため合わせて直した)。
 - **対応**: `AssetCreationService.Create()`(`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`)の新規作成デフォルトに `AssetType.Anim`/`AssetType.Anim2D` を追加(`Flags.Load=Preload` になる)。既存アセット向けに `AddressablesRegistrationValidator`(`Assets/DDrive/Editor/Validation/AddressablesRegistrationValidator.cs`)の `NeedsPreload` にも同じ 2 種別を追加し、`Validation > Run All` で `Flags.Load != Preload` を Error + FixAction として検出・修正できるようにした(既存の Canvas/ControlSkin 向け仕組みをそのまま再利用)。既存の `ANIM_Player_Jump.asset`(実際に PlayAsset イベント付き)と `Assets/GameData/Anim2D/**/ANIM2D_*.asset` は本対応の中で `Flags.Load=Preload` に修正済み。詳細・実装メモは [05_model_animation.md](05_model_animation.md) C-4「バグ修正（2026-09-17、U-20）」を参照。
 - **テスト**: `Anim2DEventDispatchTests`(PlayMode、新規)で真因を再現するテスト(`Anim2D_IdPlay_WithoutPriorPreload_ResolvesPlaceholder_AndEventsDoNotFire`)を先に書いて赤にしてから直し、既存経路が壊れていないことを確認するテスト(`Anim2D_FrameEvent_PlaysSeAndSpawnsVfx_ThroughFacade`)も追加。`AddressablesRegistrationValidatorTests`(EditMode、新規)で Validator の検出・修正も固定した。
+
+### U-21（Canvas Editor で要素の移動）
+
+**2026-09-17 実装済み。** `CanvasEditorWindow` には要素(RectTransform)を動かす手段が無かった。「確認用シーンを開く」で置くプレビュー実体は `UiManager.OpenData` が生成する Prefab リンク無しの実体(ADR-4 の確認用プレビュー)なので、そこを直接動かしても `CanvasData.Prefab` には反映されない。ウィンドウ内に実 UI を描画・編集する専用機構を新設するのは 2026-09-10 の owner instruction(ウィンドウ内描画を避ける)に反するため、**既存の `ModelEditorWindow.OpenPrefab`/`VfxEditorWindow.OpenPrefab` と同じ導線**(`AssetDatabase.OpenAsset(prefab)` でプレハブモードを開く)を Canvas Editor にも追加した。
+
+- ツールバーに「Prefab を開く(要素の移動)」ボタンを追加(`OpenPrefab()`)。押すとプレビュー実体を片付けてから `CanvasData.Prefab` をプレハブモードで開く
+- ElementFx の各要素の Foldout 先頭に「選択して移動(Prefab を開く)」ボタンを追加(`SelectElementForMove(elementPath)`)。対象 Prefab がプレハブモードで開いていなければ自動で開き、`PrefabStage.prefabContentsRoot.transform.Find(elementPath)` でその要素の GameObject を選択・SceneView へフォーカスする(`PreviewPlacement.Focus` を再利用)
+- 実際の移動・回転・リサイズは Unity 標準の Move/Rotate/Rect ツールで行う。プレハブモードは通常のシーン編集と同じ Undo 機構に乗るため、Ctrl+Z でそのまま戻せる(独自の Undo コードは不要。CLAUDE.md §0-5 は「エディタがコードでデータを書き換えるとき」の規約で、ここはユーザー自身が Unity 標準ツールで動かす経路のため該当しない)
+- 実装: `Assets/DDrive/Editor/Canvas/CanvasEditorWindow.cs`(`OpenPrefab`/`SelectElementForMove`)。既存の `RemovePreview`/`PreviewPlacement.Focus` をそのまま再利用しており、新しい共通部品は増やしていない
+- 未確認(Unity MCP 未接続時): 実際にプレハブモードが開くこと、要素選択後に Move ツールで動かして Ctrl+Z で戻ること、ツールバーボタンの表示崩れが無いこと(U-27 の 500px 基準)は Unity 上で確認すること
 
 ### U-11（Inspector 全フィールド）
 「全部出す / 全部隠す」の二択ではなく、**種別ごとに編集させる項目と読み取り専用にする項目を決める**のが本題。ID のように編集されると壊れるものは読み取り専用にし、どうしても触る必要があるときは Inspector 側で行う。どの項目をどちら側にするかを決めたら [09_editor_tools.md](09_editor_tools.md) に表として残すこと。
@@ -124,6 +134,7 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 
 ## 2. 変更履歴
 
+- 2026-09-17: U-21（Canvas Editor で要素の移動）を実装。ツールバーに「Prefab を開く(要素の移動)」、ElementFx の各要素に「選択して移動(Prefab を開く)」ボタンを追加し、`ModelEditorWindow.OpenPrefab`/`VfxEditorWindow.OpenPrefab` と同じ導線でプレハブモードを開いて Unity 標準ツールで移動・回転・リサイズできるようにした。
 - 2026-09-17: U-7（Presentation Editor のシークバーを Anim Editor と同じ形に）を実装。共通部品 `Editor/Common/SeekBarGui.cs` を追加し、`AnimEditorWindow.DrawTimeline` もこれを使うようリファクタリング（見た目は不変）。詳細は [08_presentation.md](08_presentation.md) の「追補（2026-09-17、U-7）」。
 - 2026-09-17: U-9 / U-10 / U-12 / U-13 / U-14 / U-15 を実装。共通部品として `Editor/Validation/DataValidationSection.cs`（個別検証、[09 §11](09_editor_tools.md)）と `Editor/Common/CompactFieldLayout.cs`（横並び行のラベル幅、[09 §7.1](09_editor_tools.md)）を追加。`AssetDataInspector` を UI Toolkit 化（U-14、[09 §8](09_editor_tools.md)）。`NewAssetDialog` の仕様書 URL 判定を `WebAppUrl` に統一（U-15、[32 §6](32_spec_web.md)）。**Unity MCP に接続できなかったため、実際の描画・Test Runner での実行は未確認**（`dotnet build` で全 asmdef のコンパイルのみ確認）。
 - 2026-09-17: U-16 / U-17 / U-18 / U-19（アセット作成の導線）を実装済みに。新規メニュー定数（`DDriveMenu.AssetsRoot` / `AssetsCreateData` / `GameObjectRoot`）・`Editor/Creation/`・`Editor/Canvas/CanvasSetupService.cs`・`Editor/Inspector/CreatedAssetOpener.cs` を追加。
