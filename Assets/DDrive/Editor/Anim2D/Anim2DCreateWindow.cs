@@ -11,7 +11,16 @@ using UnityEngine.UIElements;
 
 namespace DDrive.Editor.Anim2D
 {
-    public sealed partial class Anim2DEditorWindow
+    // U-8(2026-09-17) — 旧 Anim2DEditorWindow は「作成」/「編集」をタブ(ToolbarToggle)で切り替えていたが、
+    // 作成は一括操作でエディタ本体を占有し続ける必要が無いため、独立したポップアップに切り出した。
+    // ウィンドウの開き方は NewAssetDialog(Assets/DDrive/Editor/AssetBrowser/NewAssetDialog.cs)と同じ
+    // GetWindow<T>(utility: true, title: "...")のユーティリティウィンドウの作法をそのまま踏襲する
+    // (docs/39_usability_fixes_2026-09-17.md U-8。ddrive-agent-workflow の指示どおり既存の「ポップアップで
+    // 新規作成する」実装パターンを再利用し、別の仕組みを新規に作らない)。
+    // 生成ロジック(スプライト分割 → 命名 → AnimationClip 生成 → BlendTree 登録 → Anim2DData 自動生成)は
+    // 旧 Anim2DEditorWindow.Create.cs から中身を変更せずそのまま移設している。
+    // 生成に成功したら Anim2DEditorWindow.Open(created)で編集用ウィンドウへ切り替え、このポップアップは閉じる。
+    public sealed class Anim2DCreateWindow : EditorWindow
     {
         // 入力モード(前段の Sprite 取得方法)。移植元: Katsuya.Tools.SpriteAnimation.EditorTools.InputMode。
         private enum SliceInputMode
@@ -27,7 +36,9 @@ namespace DDrive.Editor.Anim2D
             public Texture2D Texture;
         }
 
-        // Create モードの入力(EditorWindow 再オープンをまたいで消えても実害が薄いのでフィールドで保持)。
+        private Anim2DImportProfile _profile;
+
+        // Create の入力(EditorWindow 再オープンをまたいで消えても実害が薄いのでフィールドで保持)。
         private SliceInputMode _inputMode = SliceInputMode.Grid;
         private Texture2D _texture;
         private int _gridColumns = 4;
@@ -52,6 +63,29 @@ namespace DDrive.Editor.Anim2D
         private readonly List<DirectionEntry> _directionEntries = new();
         private VisualElement _directionListContainer;
         private Label _resultLabel;
+
+        public static void Open()
+        {
+            var window = GetWindow<Anim2DCreateWindow>(utility: true, title: "Anim2D 新規作成");
+            window.minSize = new Vector2(480, 560);
+            window.Show();
+        }
+
+        private void CreateGUI()
+        {
+            _profile = Anim2DImportProfile.FindOrDefault();
+
+            var scroll = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
+            rootVisualElement.Add(scroll);
+
+            scroll.Add(new Label("Anim2D 新規作成") { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 14, marginBottom = 6 } });
+
+            var profileField = new ObjectField("Import Profile") { objectType = typeof(Anim2DImportProfile), value = _profile };
+            profileField.RegisterValueChangedCallback(evt => _profile = evt.newValue as Anim2DImportProfile ?? Anim2DImportProfile.FindOrDefault());
+            scroll.Add(profileField);
+
+            BuildCreateSection(scroll);
+        }
 
         private void BuildCreateSection(VisualElement root)
         {
@@ -379,7 +413,7 @@ namespace DDrive.Editor.Anim2D
             sprites = null;
             if (texture == null)
             {
-                Debug.LogError("[Anim2DEditorWindow] Texture が未設定です。");
+                Debug.LogError("[Anim2DCreateWindow] Texture が未設定です。");
                 return false;
             }
 
@@ -403,7 +437,7 @@ namespace DDrive.Editor.Anim2D
         {
             if (string.IsNullOrEmpty(_name) || string.IsNullOrEmpty(_state))
             {
-                Debug.LogError("[Anim2DEditorWindow] Name / State を入力してください。");
+                Debug.LogError("[Anim2DCreateWindow] Name / State を入力してください。");
                 return;
             }
 
@@ -427,7 +461,7 @@ namespace DDrive.Editor.Anim2D
 
             if (!TrySlice(_texture, out var sprites))
             {
-                Debug.LogError("[Anim2DEditorWindow] スプライト取得に失敗しました。");
+                Debug.LogError("[Anim2DCreateWindow] スプライト取得に失敗しました。");
                 return;
             }
 
@@ -441,7 +475,7 @@ namespace DDrive.Editor.Anim2D
             var clipName = NamingRuleResolver.BuildClipName(_name, _state, angle);
             if (!AnimationClipBuilder.Build(sprites, folder, clipName, _frameRate, _lengthMode, _length, _loop, out var clip))
             {
-                Debug.LogError("[Anim2DEditorWindow] AnimationClip 生成に失敗しました。");
+                Debug.LogError("[Anim2DCreateWindow] AnimationClip 生成に失敗しました。");
                 return;
             }
 
@@ -470,15 +504,14 @@ namespace DDrive.Editor.Anim2D
                 });
 
             Debug.Log(asset != null
-                ? $"[Anim2DEditorWindow] 生成完了: {clip.name}({sprites.Length} 枚) → {AssetDatabase.GetAssetPath(asset)}"
-                : "[Anim2DEditorWindow] Anim2DData の作成に失敗しました。");
+                ? $"[Anim2DCreateWindow] 生成完了: {clip.name}({sprites.Length} 枚) → {AssetDatabase.GetAssetPath(asset)}"
+                : "[Anim2DCreateWindow] Anim2DData の作成に失敗しました。");
 
+            // U-8: 生成できたら編集用の Anim2DEditorWindow をその対象で開いてから、このポップアップは閉じる。
             if (asset is Anim2DData created)
             {
-                _editTarget = created;
-                _editTargetField?.SetValueWithoutNotify(created);
-                RefreshEventSummary();
-                RefreshValidation();
+                Anim2DEditorWindow.Open(created);
+                Close();
             }
         }
 
@@ -496,14 +529,14 @@ namespace DDrive.Editor.Anim2D
 
                 if (!TrySlice(entry.Texture, out var sprites))
                 {
-                    Debug.LogError($"[Anim2DEditorWindow] 角度 {entry.Angle} のスプライト取得に失敗しました。スキップします。");
+                    Debug.LogError($"[Anim2DCreateWindow] 角度 {entry.Angle} のスプライト取得に失敗しました。スキップします。");
                     continue;
                 }
 
                 var clipName = NamingRuleResolver.BuildClipName(_name, _state, entry.Angle);
                 if (!AnimationClipBuilder.Build(sprites, folder, clipName, _frameRate, _lengthMode, _length, _loop, out var clip))
                 {
-                    Debug.LogError($"[Anim2DEditorWindow] 角度 {entry.Angle} の AnimationClip 生成に失敗しました。スキップします。");
+                    Debug.LogError($"[Anim2DCreateWindow] 角度 {entry.Angle} の AnimationClip 生成に失敗しました。スキップします。");
                     continue;
                 }
 
@@ -517,7 +550,7 @@ namespace DDrive.Editor.Anim2D
 
             if (ordered.Count < required)
             {
-                Debug.LogWarning($"[Anim2DEditorWindow] 方向クリップが不足しています({ordered.Count}/{required})。Anim2DData は生成しますが Validation で検出されます。");
+                Debug.LogWarning($"[Anim2DCreateWindow] 方向クリップが不足しています({ordered.Count}/{required})。Anim2DData は生成しますが Validation で検出されます。");
             }
 
             ordered.Sort((a, b) => a.angle.CompareTo(b.angle));
@@ -530,7 +563,7 @@ namespace DDrive.Editor.Anim2D
             var primaryClip = ordered.Count > 0 ? ordered[0].clip : null;
             if (primaryClip == null)
             {
-                Debug.LogError("[Anim2DEditorWindow] 有効な方向クリップが 1 枚もありません。Anim2DData を作成しませんでした。");
+                Debug.LogError("[Anim2DCreateWindow] 有効な方向クリップが 1 枚もありません。Anim2DData を作成しませんでした。");
                 return;
             }
 
@@ -557,15 +590,14 @@ namespace DDrive.Editor.Anim2D
                 });
 
             Debug.Log(asset != null
-                ? $"[Anim2DEditorWindow] 方向セット生成完了: {ordered.Count} 方向 → {AssetDatabase.GetAssetPath(asset)}"
-                : "[Anim2DEditorWindow] Anim2DData の作成に失敗しました。");
+                ? $"[Anim2DCreateWindow] 方向セット生成完了: {ordered.Count} 方向 → {AssetDatabase.GetAssetPath(asset)}"
+                : "[Anim2DCreateWindow] Anim2DData の作成に失敗しました。");
 
+            // U-8: 生成できたら編集用の Anim2DEditorWindow をその対象で開いてから、このポップアップは閉じる。
             if (asset is Anim2DData created)
             {
-                _editTarget = created;
-                _editTargetField?.SetValueWithoutNotify(created);
-                RefreshEventSummary();
-                RefreshValidation();
+                Anim2DEditorWindow.Open(created);
+                Close();
             }
         }
 

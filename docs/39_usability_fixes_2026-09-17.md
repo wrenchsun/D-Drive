@@ -19,8 +19,8 @@ Phase 6 まで実装した後、**デザイナーマニュアル用のスクリ�
 | U-4 | 不具合 | Prefab Editor の「確認用シーンに配置」が、確認用シーンではなく現在開いているシーンにしか配置しない | 要望 | 着手 |
 | U-5 | 追加 | 「確認用シーンに配置」系ボタンの共通強化: 右クリックで「このシーンに配置」「このシーンに本配置（シーンを移動しても消えない）」/ 配置後に SceneView をフォーカス | 要望 | 着手 |
 | U-6 | 不具合 | Presentation Editor が確認用シーンで開かない | 要望 | 着手 |
-| U-7 | 改善 | Presentation Editor のシークバーを Anim Editor のシークバーと同じ形にする | 要望 | 未着手 |
-| U-8 | 改善 | Anim2D Editor の「作成」はタブに分ける必要がない。新規作成から作成画面をポップアップで出す | 要望 | 未着手 |
+| U-7 | 改善 | Presentation Editor のシークバーを Anim Editor のシークバーと同じ形にする | 要望 | 実装済み |
+| U-8 | 改善 | Anim2D Editor の「作成」はタブに分ける必要がない。新規作成から作成画面をポップアップで出す | 要望 | 実装済み |
 | U-9 | 追加 | UI Tween Editor に Preset Gallery を開くボタンを追加 | 要望 | 実装済み |
 | U-10 | 不具合 | Button Skin Editor の「SE も鳴らす」が見切れている（→ 全体の点検は U-27） | 要望 | 実装済み |
 | U-11 | 改善 | 自作エディタに「Inspector（全フィールド）」があるものと無いものがある。ID など編集させたくない項目もあるため、**編集させるもの / させないものを選び分けて分離**する（無い側は「Inspector に移動」程度で十分） | 要望 | 未着手 |
@@ -52,6 +52,14 @@ U-1 は U-2 が原因である可能性が高いが、**確定させてから直
 
 ### U-5（配置ボタンの共通強化）
 各エディタに同じコードをコピーせず、共通ヘルパー／共通 UI 部品にまとめること。「一時配置」と「本配置」の区別（HideFlags / DontSave / クリーンアップ処理）は既存実装を確認してから設計する。
+
+### U-7（シークバー）
+
+**2026-09-17 実装済み。** Presentation Editor の統合プレビューにあった「シーク」(UI Toolkit の丸ノブ `Slider`)を、Anim Editor(`AnimEditorWindow.DrawTimeline`)と同じ「暗い背景 + 目盛り付きバー + 白い再生ヘッド + クリックでシーク」の形に変更した。共通部品 `Editor/Common/SeekBarGui.cs` に切り出し、Anim 側もこれを使うようリファクタリングした(見た目は既存のピクセル位置を既定値にしたため不変)。詳細は [08_presentation.md](08_presentation.md) の「追補（2026-09-17、U-7）」。Presentation のトラック編集用タイムライン(`PresentationEditorWindow.Tracks.cs`、ズーム/パン/複数レーン)は対象外(既存のまま)。
+
+### U-8（Anim2D Editor の「作成」をポップアップに）
+
+**2026-09-17 実装済み。** `Anim2DEditorWindow` は以前「作成」/「編集」を `ToolbarToggle` で切り替える単一ウィンドウだった（`Anim2DEditorWindow.Create.cs` が作成タブの中身）。作成はタブに分ける必要が無いため、作成用の入力・生成ロジックをすべて新設の `Editor/Anim2D/Anim2DCreateWindow.cs` に切り出し、独立したユーティリティウィンドウ（`GetWindow<T>(utility: true, title: "...")`）にした。既存の「新規アセット作成」ダイアログ（`Editor/AssetBrowser/NewAssetDialog.cs`）が同じ作法で開いているため、新しい仕組みを作らずそれを踏襲している。`Anim2DEditorWindow` 本体は常に編集(Edit)画面だけを表示し、ツールバーの「スプライトから新規作成…」から `Anim2DCreateWindow.Open()` を呼ぶ。生成に成功すると `Anim2DCreateWindow` は `Anim2DEditorWindow.Open(created)` で編集用ウィンドウをその対象で開いてから自身を閉じる（従来の「生成後に編集モードの対象欄へ自動で入る」という体験は維持したまま、ウィンドウが分かれるだけ）。生成ロジック自体（スライス・命名・AnimationClip 生成・BlendTree 登録・Anim2DData 作成）は変更していない。デザイナー向け操作は [DesignerManual/anim2d-editor.html](DesignerManual/anim2d-editor.html) を同時に更新した（旧スクリーンショット 2 枚は UI 変更のため要再撮影、[36 §5.4](36_manual_screenshot_list.md) 相当）。
 
 ### U-11（Inspector 全フィールド）
 「全部出す / 全部隠す」の二択ではなく、**種別ごとに編集させる項目と読み取り専用にする項目を決める**のが本題。ID のように編集されると壊れるものは読み取り専用にし、どうしても触る必要があるときは Inspector 側で行う。どの項目をどちら側にするかを決めたら [09_editor_tools.md](09_editor_tools.md) に表として残すこと。
@@ -96,6 +104,7 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 
 ## 2. 変更履歴
 
+- 2026-09-17: U-7（Presentation Editor のシークバーを Anim Editor と同じ形に）を実装。共通部品 `Editor/Common/SeekBarGui.cs` を追加し、`AnimEditorWindow.DrawTimeline` もこれを使うようリファクタリング（見た目は不変）。詳細は [08_presentation.md](08_presentation.md) の「追補（2026-09-17、U-7）」。
 - 2026-09-17: U-9 / U-10 / U-12 / U-13 / U-14 / U-15 を実装。共通部品として `Editor/Validation/DataValidationSection.cs`（個別検証、[09 §11](09_editor_tools.md)）と `Editor/Common/CompactFieldLayout.cs`（横並び行のラベル幅、[09 §7.1](09_editor_tools.md)）を追加。`AssetDataInspector` を UI Toolkit 化（U-14、[09 §8](09_editor_tools.md)）。`NewAssetDialog` の仕様書 URL 判定を `WebAppUrl` に統一（U-15、[32 §6](32_spec_web.md)）。**Unity MCP に接続できなかったため、実際の描画・Test Runner での実行は未確認**（`dotnet build` で全 asmdef のコンパイルのみ確認）。
 - 2026-09-17: U-16 / U-17 / U-18 / U-19（アセット作成の導線）を実装済みに。新規メニュー定数（`DDriveMenu.AssetsRoot` / `AssetsCreateData` / `GameObjectRoot`）・`Editor/Creation/`・`Editor/Canvas/CanvasSetupService.cs`・`Editor/Inspector/CreatedAssetOpener.cs` を追加。
 - 2026-09-17: U-27（全エディタ 横幅 500px・拡大縮小 100% で見切れない）を追加。規約は [09 §7.1](09_editor_tools.md) に記載。

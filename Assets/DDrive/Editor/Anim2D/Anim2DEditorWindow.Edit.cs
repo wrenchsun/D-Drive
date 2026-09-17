@@ -122,7 +122,8 @@ namespace DDrive.Editor.Anim2D
             RefreshEventSummary();
         }
 
-        // 検証パネル: Create / Edit どちらのモードでも見えるよう、モード切替のトグル対象外(共通ルート)に置く。
+        // 検証パネル。U-8(2026-09-17)以降、Create は Anim2DCreateWindow(ポップアップ)側にあるため、
+        // ここは常に Edit セクションの下に置くだけでよい(以前はモード切替の共通ルートに置く必要があった)。
         private void BuildValidationSection(VisualElement root)
         {
             _validationFoldout = new Foldout { text = "検証", value = true, style = { marginTop = 8 } };

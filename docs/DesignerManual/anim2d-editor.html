@@ -21,47 +21,52 @@
 <li><strong>Anim2DData 作成</strong>: ID 発行・ファイル名・カタログ登録・Addressables 登録まで一括</li>
 </ol>
 <div class="tip">
-<strong>3D の Anim Editor との関係:</strong> イベントの編集・タイムライン・マーカーのドラッグ・SE / VFX の同時プレビュー・ブレンド確認は、2D 用に作り直しておらず <a href="anim-editor.html">Anim Editor</a> をそのまま使います。Anim2D Editor が担当するのは「作成モード一式（スライス・命名・方向セット一括・BlendTree 登録）」「リタイミング（コマ間隔の焼き込み）」「2D 用プレビュー物」の 3 つです。Anim2DData を Project で選ぶと Inspector の一番上に「▶ Anim2D Editor で開く」と「▶ Anim Editor で開く」の両方が出ます。
+<strong>3D の Anim Editor との関係:</strong> イベントの編集・タイムライン・マーカーのドラッグ・SE / VFX の同時プレビュー・ブレンド確認は、2D 用に作り直しておらず <a href="anim-editor.html">Anim Editor</a> をそのまま使います。Anim2D Editor が担当するのは「作成(Anim2D 新規作成ポップアップ)一式（スライス・命名・方向セット一括・BlendTree 登録）」「リタイミング（コマ間隔の焼き込み）」「2D 用プレビュー物」の 3 つです。Anim2DData を Project で選ぶと Inspector の一番上に「▶ Anim2D Editor で開く」と「▶ Anim Editor で開く」の両方が出ます。
 </div>
 
 <h2>開き方</h2>
 <ol>
-<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Animation (2D)</code>（ウィンドウ名は「Anim2D Editor」）。Project で Anim2DData を選んでいれば、そのまま編集モードで読み込まれます</li>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Animation (2D)</code>（ウィンドウ名は「Anim2D Editor」）。Project で Anim2DData を選んでいれば、そのまま編集対象として読み込まれます</li>
 <li>既にある Anim2DData を Project で選び、<strong>Inspector の一番上の「▶ Anim2D Editor で開く」</strong>を押す</li>
-<li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anim2D (Anim2DData)</strong> を選んで空のデータを作ることもできます（Clip は入っていないので、あとから Anim2D Editor の作成モードで生成するか手で入れます）。種別フィルタでも <strong>Anim2D</strong> で絞り込めます</li>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anim2D (Anim2DData)</strong> を選んで空のデータを作ることもできます（Clip は入っていないので、あとから Anim2D Editor の「スプライトから新規作成…」ポップアップで生成するか手で入れます）。種別フィルタでも <strong>Anim2D</strong> で絞り込めます</li>
 </ol>
-<div class="warn">Asset Browser に画像をドラッグ&amp;ドロップしても Anim2DData は作れません（ドラッグ&amp;ドロップで作れるのは音源 → SE だけです）。画像からの作成は必ず Anim2D Editor の作成モードで行います。</div>
+<div class="warn">Asset Browser に画像をドラッグ&amp;ドロップしても Anim2DData は作れません（ドラッグ&amp;ドロップで作れるのは音源 → SE だけです）。画像からの作成は必ず Anim2D Editor の「スプライトから新規作成…」ポップアップで行います。</div>
+
+<div class="tip">
+<strong>2026-09-17 更新:</strong> 以前は Anim2D Editor 本体を「作成」/「編集」のタブで切り替えていましたが、作成はタブに分ける必要が無いため独立したポップアップウィンドウ「Anim2D 新規作成」に分離しました。Anim2D Editor 本体は常に編集(Edit)画面だけを表示します。
+</div>
 
 <h2>はじめの一歩（4 コマ横並びのシートから待機アニメを作る）</h2>
 <ol>
-<li><code>Tools &gt; D-Drive &gt; Editors &gt; Animation (2D)</code> を開き、上部のトグルを「<strong>作成</strong>」にする</li>
+<li><code>Tools &gt; D-Drive &gt; Editors &gt; Animation (2D)</code> を開き、ツールバーの「<strong>スプライトから新規作成…</strong>」を押す(「Anim2D 新規作成」ポップアップが開きます)</li>
 <li>「入力」の「入力モード」を <strong>Grid</strong>、「Columns」= 4、「Rows」= 1、「Sprite Count」= 4 にし、「Texture(単一)」に 4 コマ横並びのシートを入れる（「方向セット(BlendTree)」は <strong>None</strong> のまま）</li>
 <li>「命名」の「Name」にキャラ名（例: Player）、「State」にステート名（例: Idle）を入れる。Import Profile に登録済みなら「プロファイルから選択」で選ぶだけで両方入ります</li>
 <li>「アニメーション」で「Frame Rate」= 12、「Loop」ON、「Length Mode」= Frames、「Length」= 4 にする（12 fps で 4 コマ = 1 周 1/3 秒）</li>
-<li>「<strong>生成</strong>」→ Clip <code>Anim_Player_Idle</code> と Anim2DData <code>Player Idle</code> ができ、そのまま編集モードの「編集対象」に入ります</li>
-<li>編集モードの「プレビュー(SceneView で確認)」で「<strong>確認用シーンを開く</strong>」→「<strong>▶ 再生</strong>」→ SceneView でコマが切り替わるのを確認。終わったら「<strong>撤去</strong>」</li>
+<li>「<strong>生成</strong>」→ Clip <code>Anim_Player_Idle</code> と Anim2DData <code>Player Idle</code> ができ、ポップアップは閉じて Anim2D Editor(編集用)が自動で開き、その「編集対象」に入ります</li>
+<li>「プレビュー(SceneView で確認)」で「<strong>確認用シーンを開く</strong>」→「<strong>▶ 再生</strong>」→ SceneView でコマが切り替わるのを確認。終わったら「<strong>撤去</strong>」</li>
 <li>足音や効果音を付けたいときは「<strong>Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)</strong>」→ <a href="anim-editor.html">Anim Editor</a> のタイムラインで「＋ 現在位置に SE」（手順はそちらのページ）</li>
 </ol>
-<!-- screenshot: 36-#32 -->
+<!-- screenshot: 36-#32 (U-8 で UI がポップアップに変わったため要再撮影) -->
 <figure>
-<img src="images/anim2d-editor-create-mode.png" alt="Anim2D Editor の作成モード">
-<figcaption>作成モード。入力モード・Texture・Name/State・Frame Rate/Loop を入れて生成する</figcaption>
+<img src="images/anim2d-editor-create-mode.png" alt="Anim2D 新規作成ポップアップ">
+<figcaption>「Anim2D 新規作成」ポップアップ(旧: 作成モードのタブ)。入力モード・Texture・Name/State・Frame Rate/Loop を入れて生成する</figcaption>
 </figure>
 
 <div class="tip">プログラマーは 3D と同じく <code>Anim.Play(ID, animator)</code> を呼ぶだけです。カタログも 3D と共通（AnimCatalog）です。</div>
 
 <h2>画面の説明</h2>
-<h3>共通ヘッダ（どちらのモードでも表示）</h3>
+<h3>Anim2D Editor 本体のツールバー</h3>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>作成 / 編集</td><td>モードの切り替え（どちらか一方）。<strong>作成</strong> = 画像から Clip と Anim2DData を作る。<strong>編集</strong> = できた Anim2DData をシーンで確認・イベントへ橋渡し・コマ間隔の調整・検証。作成モードの入力欄はウィンドウを開き直すと消えます（編集対象だけは残ります）</td></tr>
-<tr><td>Import Profile</td><td>命名候補（Name と State の組み合わせ）と Clip の保存先を持つ設定ファイル。空にするとプロジェクト内の既定プロファイルを自動で探し直し、無ければ保存されない組み込みの既定が使われます</td></tr>
-<tr><td>検証</td><td>折りたたみ。読み込んだ Anim2DData の問題を表示します（下の「よくある警告」）</td></tr>
+<tr><td>スプライトから新規作成…</td><td>「Anim2D 新規作成」ポップアップ(次節)を開きます。生成が終わるとポップアップは閉じ、Anim2D Editor 本体がその Anim2DData を編集対象にして開き直されます</td></tr>
+<tr><td>＋ 新規作成</td><td>各専用エディタ共通の簡易作成ダイアログ。ID・表示名・カテゴリだけの空の Anim2DData を作ります(Clip は入っていません)。画像からまとめて作る場合は上の「スプライトから新規作成…」を使ってください</td></tr>
 </table>
 
-<h3>作成モード</h3>
+<h3>Anim2D 新規作成ポップアップ</h3>
+<p><code>Tools &gt; D-Drive &gt; Editors &gt; Animation (2D)</code> の「<strong>スプライトから新規作成…</strong>」から開く独立ウィンドウです。画像から Clip と Anim2DData を作るための入力だけを持ちます。ウィンドウを閉じる/開き直すと入力欄は消えます(生成が終われば Anim2D Editor 本体側に Anim2DData が残ります)。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
+<tr><td>Import Profile</td><td>命名候補（Name と State の組み合わせ）と Clip の保存先を持つ設定ファイル。空にするとプロジェクト内の既定プロファイルを自動で探し直し、無ければ保存されない組み込みの既定が使われます</td></tr>
 <tr><td>入力モード</td><td><strong>Grid</strong> = 画像を Columns × Rows で等分割する（コマの大きさが揃ったシート向け）。<strong>Automatic</strong> = 透明な背景からコマの矩形を自動検出する（隙間が不揃いなシート向け）。<strong>Existing</strong>（既存スプライト）= 既に Sprite Editor などで切り分け済みの画像から、そのコマを拾うだけ</td></tr>
 <tr><td>Columns / Rows / Sprite Count</td><td>Grid 用。列数・行数と、左上から行順に使うコマ数（Columns × Rows を超えると切り詰め）。既定 4 / 1 / 4。Columns の 1 未満は 1 になります</td></tr>
 <tr><td>Min Sprite Size / Extrude</td><td>Automatic 用。検出する矩形の最小サイズ（既定 16。小さいゴミを拾わないため）と、矩形の外側に足す余白（既定 0）</td></tr>
@@ -76,7 +81,7 @@
 <tr><td>Frame Rate / Loop</td><td>1 秒あたりのコマ数（既定 12）とループ再生（既定 ON）</td></tr>
 <tr><td>Length Mode / Length</td><td>Clip の長さ。<strong>Frames</strong> なら「Length フレーム分」（既定 8 = 8 ÷ Frame Rate 秒）、<strong>Seconds</strong> なら秒</td></tr>
 <tr><td>Animator(任意): AnimatorController / Layer</td><td>入れると BlendTree 登録まで行います。空のままなら登録は飛ばされ、Clip と Anim2DData だけができます（あとから Controller に手で組み込む前提）</td></tr>
-<tr><td>生成</td><td>方向なし: スライス → Clip 生成 → 角度があれば BlendTree 登録 → Anim2DData 作成。方向セットあり: 角度ごとの画像を順に処理し、角度順に Direction Clips を組み立てます（一番小さい角度、通常 0° の Clip が主 Clip になります）。同じ角度に既に Clip が登録されていると「BlendTree 登録」ダイアログ「角度 N には既にクリップが登録されています。上書きしますか?」が出るので「上書き」か「スキップ」を選びます。生成後は編集モードの対象欄に自動で入ります</td></tr>
+<tr><td>生成</td><td>方向なし: スライス → Clip 生成 → 角度があれば BlendTree 登録 → Anim2DData 作成。方向セットあり: 角度ごとの画像を順に処理し、角度順に Direction Clips を組み立てます（一番小さい角度、通常 0° の Clip が主 Clip になります）。同じ角度に既に Clip が登録されていると「BlendTree 登録」ダイアログ「角度 N には既にクリップが登録されています。上書きしますか?」が出るので「上書き」か「スキップ」を選びます。生成が終わるとこのポップアップは閉じ、Anim2D Editor 本体がその Anim2DData を編集対象にして自動で開きます</td></tr>
 </table>
 
 <figure>
@@ -84,11 +89,11 @@
 <figcaption>検出プレビュー。緑の枠が切り出される範囲、番号がコマの順番</figcaption>
 </figure>
 
-<h3>編集モード</h3>
-<!-- screenshot: 36-#34 -->
+<h3>Anim2D Editor 本体(編集)</h3>
+<!-- screenshot: 36-#34 (U-8 で UI がポップアップに変わったため要再撮影) -->
 <figure>
-<img src="images/anim2d-editor-edit-mode.png" alt="Anim2D Editor の編集モード">
-<figcaption>編集モード。生成済みの Anim2DData を読み込んで、リタイミングや検証を行う</figcaption>
+<img src="images/anim2d-editor-edit-mode.png" alt="Anim2D Editor 本体(編集)">
+<figcaption>Anim2D Editor 本体。編集対象の読み込み・プレビュー・リタイミング・検証をまとめて行う(作成は「Anim2D 新規作成」ポップアップ側)</figcaption>
 </figure>
 
 <table>
@@ -108,7 +113,7 @@
 <tr><td>Directions（方向）</td><td>None = 方向なし / Four = 0・90・180・270 / Eight = 45 度刻み。Four / Eight のときは State Name の BlendTree に Direction Clips が登録されている前提で動きます</td></tr>
 <tr><td>Direction Clips</td><td>角度順（0 / 45 / … / 315、Four なら 0 / 90 / 180 / 270）の Clip。ツールが自動で登録します（Four は 4 本、Eight は 8 本必要）</td></tr>
 <tr><td>Param X Name / Param Y Name</td><td>BlendTree の向きパラメータ名。既定は <code>x</code> / <code>y</code>（ツールの規約）。方向ありで空だと Error</td></tr>
-<tr><td>Retiming</td><td>コマ配置のカーブ。編集モードの「適用」で Clip のキー時刻に焼き込むためのもので、<strong>ゲーム中には参照されません</strong>。初期値は Constant(1)</td></tr>
+<tr><td>Retiming</td><td>コマ配置のカーブ。Anim2D Editor 本体の「適用」で Clip のキー時刻に焼き込むためのもので、<strong>ゲーム中には参照されません</strong>。初期値は Constant(1)</td></tr>
 </table>
 <h3>3D のアニメーションデータと共通の項目</h3>
 <table>
@@ -124,7 +129,7 @@
 <p>Project の右クリック <code>Create &gt; D-Drive &gt; Anim &gt; Anim2D Import Profile</code> で作ります（既定ファイル名 <code>Anim2DImportProfile</code>）。プロジェクト内の 1 つが自動で使われます。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>Entries（Name / States）</td><td>名称（例: Player）と、その名称で使えるステート一覧（例: Idle, Run, Attack）。作成モードの「プロファイルから選択」に出ます</td></tr>
+<tr><td>Entries（Name / States）</td><td>名称（例: Player）と、その名称で使えるステート一覧（例: Idle, Run, Attack）。「Anim2D 新規作成」ポップアップの「プロファイルから選択」に出ます</td></tr>
 <tr><td>Default Clip Folder</td><td>生成した Clip の保存先（既定 <code>Assets/GameData/Anim2D/Clips</code>）</td></tr>
 <tr><td>Default Frame Rate / Default Directions</td><td>ツールチップ上は「既定」ですが、<strong>現状はウィンドウの初期値（12 / None）に反映されません</strong>。実際に効くのは Entries と Default Clip Folder です</td></tr>
 </table>
@@ -149,10 +154,10 @@
 <tr><td>隙間が不揃いなシートを切る</td><td>Texture を入れて「検出プレビュー(Automatic)」→ 緑枠と番号を確認 →「生成」（入力モードは自動で Automatic になります）</td></tr>
 <tr><td>自動検出がずれたので手で直す</td><td>「検出プレビュー」→「Sprite Editor で手動補正」→ Sprite Editor で直して Apply → 入力モードが「既存スプライト」になっているので「生成」（2D Sprite パッケージが必要）</td></tr>
 <tr><td>8 方向キャラの歩きを一括で作る</td><td>方向セット=Eight、「0°」〜「315°」に各画像、AnimatorController と Layer を指定 →「生成」で 8 本の Clip + BlendTree 登録 + Direction Clips が一度にできます</td></tr>
-<tr><td>攻撃の当たるコマで SE / VFX</td><td>編集モード →「Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)」→ タイムラインで「＋ 現在位置に SE」（<a href="anim-editor.html">Anim Editor</a> 参照）</td></tr>
-<tr><td>ためて素早く振る（コマ間隔を不均等に）</td><td>編集モード → 配置モード=Retiming → Retiming の「モード」を Parametric にして Ease（EaseInOut など）を選ぶ →「適用(Clip に焼き込む)」。方向 Clip も同時に揃います</td></tr>
+<tr><td>攻撃の当たるコマで SE / VFX</td><td>Anim2D Editor 本体 →「Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)」→ タイムラインで「＋ 現在位置に SE」（<a href="anim-editor.html">Anim Editor</a> 参照）</td></tr>
+<tr><td>ためて素早く振る（コマ間隔を不均等に）</td><td>Anim2D Editor 本体 → 配置モード=Retiming → Retiming の「モード」を Parametric にして Ease（EaseInOut など）を選ぶ →「適用(Clip に焼き込む)」。方向 Clip も同時に揃います</td></tr>
 <tr><td>コマ間隔を等間隔に戻す</td><td>配置モード=Uniform で「適用(Clip に焼き込む)」</td></tr>
-<tr><td>シーンで動きを確認する</td><td>編集モード →「確認用シーンを開く」（または「今のシーンに配置」）→「▶ 再生」。終わったら「撤去」</td></tr>
+<tr><td>シーンで動きを確認する</td><td>Anim2D Editor 本体 →「確認用シーンを開く」（または「今のシーンに配置」）→「▶ 再生」。終わったら「撤去」</td></tr>
 <tr><td>移動方向に合わせて自動で向きを変える</td><td>キャラに Anim2DFacing を付け、Camera Relative / Smoothing を調整。向きの計算はプログラム側が移動ベクトルを渡します</td></tr>
 </table>
 
@@ -160,7 +165,7 @@
 <p>「検証」パネルに出るもの（3D と共通の警告は <a href="anim-editor.html">Anim Editor</a> のページも参照）。</p>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
-<tr><td>Clip が未生成(または Missing)です。Anim2DEditor で生成してください</td><td>作成モードで生成し直すか、Clip を手で入れる</td></tr>
+<tr><td>Clip が未生成(または Missing)です。Anim2DEditor で生成してください</td><td>「Anim2D 新規作成」ポップアップで生成し直すか、Clip を手で入れる</td></tr>
 <tr><td>Directions=Four|Eight ですが DirectionClips が N 本です(M 本必要)</td><td>足りない角度の画像を入れて生成し直す（生成時に Console にも「方向クリップが不足しています」と出ます）</td></tr>
 <tr><td>DirectionClips[i] が未設定(または Missing)です</td><td>その角度の Clip を入れ直す</td></tr>
 <tr><td>方向付きなのに BlendTree のパラメータ名(ParamXName / ParamYName)が空です</td><td>Param X Name に <code>x</code>、Param Y Name に <code>y</code> を入れる</td></tr>
@@ -193,9 +198,9 @@
 <li><strong>方向 Clip のリタイミングは飛ばされることがあります。</strong> 主 Clip と同じコマ数の方向 Clip だけが対象で、枚数が違うものはスキップされ、Console に「適用 A / スキップ B」と件数が出ます</li>
 <li><strong>同じ名前で生成し直すと Clip が増えます。</strong> 上書きではなく <code>Anim_X_Y 1.anim</code> のように連番付きで別に保存されます。古い方は手で消してください</li>
 <li><strong>BlendTree 登録の前提。</strong> State と同名のステートが対象レイヤーに無ければ 2D Freeform Directional の BlendTree を新規作成します。既にあるが BlendTree でない / 種類が違うとエラー・警告になります。Layer が Controller のレイヤー数を超えているとエラーです</li>
-<li><strong>Import Profile の Default Frame Rate / Default Directions は初期値に反映されません。</strong> 作成モードは毎回 12 / None から始まります</li>
+<li><strong>Import Profile の Default Frame Rate / Default Directions は初期値に反映されません。</strong> 「Anim2D 新規作成」ポップアップは毎回 12 / None から始まります</li>
 <li>「検出プレビュー」を押した時点で入力モードが Automatic に切り替わります（Grid のまま「生成」して 4 × 1 で切られる事故を防ぐため）</li>
-<li>作成モードの入力はウィンドウを開き直すと消えます（編集対象だけ残ります）</li>
+<li>「Anim2D 新規作成」ポップアップの入力はウィンドウを閉じる/開き直すと消えます（Anim2D Editor 本体側の編集対象は残ります）</li>
 <li>旧ツールの「Sequence Preview」「Sound」モードは廃止されました。イベントは共通の Events、遷移の確認は Anim Editor の「ブレンド確認」で行います</li>
 </ul>
 
