@@ -42,11 +42,11 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › Material Editor の使い方（プレビュー・シェーダー変換）</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Material Editor の使い方（プレビュー・シェーダー変換）</nav>
 
 <h1>Material Editor の使い方（プレビュー・シェーダー変換）</h1>
 
-<p>Material Editor は、<a href="#" data-manual-page="material-data">マテリアルデータ / テクスチャデータ</a>を<strong>球のサムネイルで見ながら編集する</strong>ウィンドウです。値を変えると 0.1 秒ほどでサムネイルが描き直され、開いているシーンにプレビューを置けば実際の照明でも確認できます。</p>
+<p>Material Editor は、<a href="#" data-manual-kind="designer" data-manual-page="material-data">マテリアルデータ / テクスチャデータ</a>を<strong>球のサムネイルで見ながら編集する</strong>ウィンドウです。値を変えると 0.1 秒ほどでサムネイルが描き直され、開いているシーンにプレビューを置けば実際の照明でも確認できます。</p>
 <ul>
 <li>Inspector と同じ内容を編集できるうえ、サムネイル・シーン配置・2 つのマテリアルの見比べができます</li>
 <li>シェーダーを設定すると、そのシェーダー固有のパラメータ（Specific）を既定値で自動登録します</li>
@@ -61,12 +61,12 @@
 
 <h2>はじめの一歩（マテリアルを作ってシーンで確かめる）</h2>
 <ol>
-<li>Project の右クリック <code>Create &gt; D-Drive &gt; Material &gt; Material Data</code>（または <a href="#" data-manual-page="asset-browser">Asset Browser</a> の「新規」で種別 Material）で作る</li>
+<li>Project の右クリック <code>Create &gt; D-Drive &gt; Material &gt; Material Data</code>（または <a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> の「新規」で種別 Material）で作る</li>
 <li>Inspector の「Material Editor で開く」を押す。ウィンドウ上部に灰色の球のサムネイルが出ます</li>
 <li>設定の <code>Shader</code> に <code>DDrive/Lit</code> を入れる。Specific に <code>_OcclusionStrength</code> が既定値で自動追加され、ラベルに「固有: 追加 1 …」と出ます</li>
 <li>Common の <code>Albedo</code> にテクスチャデータの ID、<code>Metallic</code> / <code>Smoothness</code> を動かしてサムネイルで確認。サムネイルを<strong>ドラッグすると回転</strong>します（横 = 回す、縦 = 傾ける）</li>
 <li>「シーンにプレビューを配置」を押す → <strong>今開いているシーン</strong>の SceneView カメラの前に球が置かれ、実際の照明で見えます。Hierarchy に <code>[D-Drive] Material Preview</code> が出ますが、シーンには保存されません</li>
-<li>確認できたら「撤去」。使いたいモデルへの割り当ては <a href="#" data-manual-page="model-editor">Model Editor</a> で行います</li>
+<li>確認できたら「撤去」。使いたいモデルへの割り当ては <a href="#" data-manual-kind="designer" data-manual-page="model-editor">Model Editor</a> で行います</li>
 </ol>
 <!-- screenshot: 36-#36 -->
 <figure>
@@ -94,7 +94,7 @@
 <tr><td>「撤去」</td><td>置いたプレビューを消します。ライト回転で動かした Directional Light も元に戻ります</td></tr>
 <tr><td>ステータス行</td><td>「「シーンにプレビューを配置」で確認できます」「プレビューに適用中」「プレビューに適用中(比較対象あり)」など今の状態。「プレビューの生成に失敗しました(ModelData の Prefab を確認してください)」が出たら、プレビュー用モデルの Prefab を確認</td></tr>
 <tr><td>Specific 操作行</td><td>マテリアルデータのときだけ。下の「Specific 操作行」を参照</td></tr>
-<tr><td>設定</td><td>Inspector と同じ項目。内容は <a href="#" data-manual-page="material-data">マテリアル / テクスチャの設定項目</a></td></tr>
+<tr><td>設定</td><td>Inspector と同じ項目。内容は <a href="#" data-manual-kind="designer" data-manual-page="material-data">マテリアル / テクスチャの設定項目</a></td></tr>
 </table>
 
 <h3>プレビューの設定（「プレビュー」Foldout）</h3>
@@ -126,7 +126,7 @@
 <ul>
 <li>サムネイルの代わりに画像プレビューが出て、ステータス行に「640×640 Channel=Albedo」のようにサイズとチャンネルが出ます（画像が無いときは「Texture が未設定です」）</li>
 <li>Importer の要約ラベル: 「Texture Type: … sRGB: … Mipmap: … 圧縮: … Max Size: …」と、次の行に「規約: &lt;ルール名&gt;」または「規約に該当なし」。Importer が取れない画像は「Importer 情報なし(メモリ上のテクスチャ)」</li>
-<li>「<strong>命名規約を適用して再インポート</strong>」ボタンは、<a href="#" data-manual-page="material-data">ファイル名規約</a>と今の Importer 設定が食い違っているときだけ表示されます。押すと規約どおりに直して再インポートし、「命名規約 '…' を適用しました」と出ます</li>
+<li>「<strong>命名規約を適用して再インポート</strong>」ボタンは、<a href="#" data-manual-kind="designer" data-manual-page="material-data">ファイル名規約</a>と今の Importer 設定が食い違っているときだけ表示されます。押すと規約どおりに直して再インポートし、「命名規約 '…' を適用しました」と出ます</li>
 </ul>
 
 <!-- screenshot: 36-#38 -->
@@ -197,17 +197,17 @@
 <li><strong>Model 形状はサムネイルに出ません</strong>。ポップアップと変換ウィンドウでは Model を選ぶこと自体できません（選ぼうとすると元に戻ります）</li>
 <li>板（Plane）は裏を向かないよう、縦ドラッグで傾きません</li>
 <li>プレビューが<strong>真っピンク</strong>ならテクスチャデータの ID 参照が切れています。灰色（テクスチャ無し）なら開き直すか「再生成」</li>
-<li>Specific に共通チャンネル名が入っていると Common の値が黙って上書きされます。「共通チャンネルの重複を削除」ボタンが出ていたら押してください（<a href="#" data-manual-page="validation">検証</a>側には修正ボタンがありません）</li>
+<li>Specific に共通チャンネル名が入っていると Common の値が黙って上書きされます。「共通チャンネルの重複を削除」ボタンが出ていたら押してください（<a href="#" data-manual-kind="designer" data-manual-page="validation">検証</a>側には修正ボタンがありません）</li>
 <li>半透明マテリアルのサムネイル / アイコンに穴が開く問題は 2026-09-11 に修正済みです。それより前に作ったアイコン PNG は作り直しが必要です</li>
 </ul>
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="material-data">マテリアル / テクスチャの設定項目</a> — 各項目の意味、ファイル名規約、Maya / Substance からの受け渡し、警告一覧</li>
-<li><a href="#" data-manual-page="model-editor">モデルの設定と Model Editor</a> — マテリアルをモデルに割り当てる</li>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> — 新規作成と一覧</li>
-<li><a href="#" data-manual-page="validation">検証（Validation）</a></li>
-<li><a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="material-data">マテリアル / テクスチャの設定項目</a> — 各項目の意味、ファイル名規約、Maya / Substance からの受け渡し、警告一覧</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="model-editor">モデルの設定と Model Editor</a> — マテリアルをモデルに割り当てる</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> — 新規作成と一覧</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">検証（Validation）</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

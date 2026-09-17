@@ -1,0 +1,168 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page pre {
+    background: #2b2b2b;
+    color: #e8e8e8;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: Consolas, monospace;
+    font-size: 0.9em;
+    line-height: 1.6;
+    margin: 1em 0;
+}.sw-manual-page pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+    font-size: 1em;
+}.sw-manual-page .sig {
+    display: block;
+    background: #eef3fb;
+    border: 1px solid #c7d5ec;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 0.8em 0;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+    white-space: pre-wrap;
+}.sw-manual-page .bad, .sw-manual-page .good {
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 1em 0;
+}.sw-manual-page .bad {
+    background: #fdecea;
+    border-left: 5px solid #d9463c;
+}.sw-manual-page .bad::before {
+    content: "✗ やってはいけない例";
+    display: block;
+    font-weight: bold;
+    color: #b3261e;
+    margin-bottom: 6px;
+}.sw-manual-page .good {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+}.sw-manual-page .good::before {
+    content: "◯ 正しい例";
+    display: block;
+    font-weight: bold;
+    color: #2e7d32;
+    margin-bottom: 6px;
+}.sw-manual-page .bad pre, .sw-manual-page .good pre {
+    margin: 0;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="programmer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><!-- 運用メモ(2026-09-17 作成、同日追記): このフォルダ(docs/ProgrammerManual)の *.html/style.css が正本。
+     デザイナーマニュアル(docs/DesignerManual)と同じ仕組みで Tools/SpecWeb(発注ツールの Web アプリ)
+     へも配信される(tools/build-manual.js が docs/DesignerManual・docs/ProgrammerManual の
+     両方から Tools/SpecWeb/html/manual/<kind>/*.html・src/ManualPages.js を生成する。
+     kind="programmer")。ここを編集したら、デザイナーマニュアルと同じく
+     `node Tools/SpecWeb/tools/build-manual.js`(または push.ps1/push.cmd)を実行して
+     生成物を再生成し、コミットすること(忘れると Tools/SpecWeb/test/build-manual.test.js の
+     ドリフト検出テストが red になる)。詳細は docs/32_spec_web.md「マニュアル配信」節。 -->
+
+<h1>D-Drive プログラマーマニュアル</h1>
+
+<p>このマニュアルは、<strong>D-Drive</strong>（Designer-Driven Re: IDE Visual Environment、このプロジェクトのアセット管理システム）を使ってゲームコードを書く<strong>プログラマー</strong>向けのガイドです。エディタの操作手順（Asset Browser の使い方、専用エディタでの調整、アイコン生成など）は扱いません。それらは <a href="#" data-manual-kind="designer" data-manual-page="Readme">デザイナーマニュアル</a>を読んでいる前提で進めます。</p>
+
+<h2>D-Drive とは？（プログラマー視点で30秒）</h2>
+<p>音・エフェクト・モデル・UI 画面・演出などのゲームアセットを、<strong>ID（生成された定数）だけ</strong>で扱える仕組みです。</p>
+<ul>
+<li>プログラマーは「このタイミングでこの ID を再生する」という 1 行だけを書きます（例: <code>Audio.PlaySe(SEID.PlayerSlash)</code>）</li>
+<li>ID の中身（音そのもの、エフェクトの見た目、UI の配線）はデザイナーが専用エディタで作り込みます</li>
+<li>ID が未登録でも警告ログ + Placeholder（無音・マゼンタの球など）で動き続けるため、<strong>アセットが 1 つも無い状態でもゲームロジックを完成させられます</strong>（実装: <a href="#" data-manual-kind="programmer" data-manual-page="concepts">Data / Instance / Handle の分離</a>）</li>
+<li>中身の差し替えはデザイナー側の作業だけで完結し、コードの再修正は不要です</li>
+</ul>
+
+<div class="tip">
+<strong>デザイナーマニュアルとの読み分け:</strong> 「このパラメータは何をするか」「エディタのこのボタンは何か」を知りたいときは <a href="#" data-manual-kind="designer" data-manual-page="Readme">デザイナーマニュアル</a>。「このクラス・メソッドをどう呼べばよいか」「ID や asmdef はどう構成されているか」を知りたいときは、このプログラマーマニュアルを使ってください。
+</div>
+
+<table>
+<tr><th>知りたいこと</th><th>読む場所</th></tr>
+<tr><td>SE のボリューム・ピッチなど、パラメータ1つ1つの意味</td><td><a href="#" data-manual-kind="designer" data-manual-page="se-data">デザイナーマニュアル: SE の設定項目</a></td></tr>
+<tr><td>コードから SE / VFX / 演出を再生する API</td><td>このマニュアルの各 API ページ</td></tr>
+<tr><td>Asset Browser・専用エディタの操作手順</td><td><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">デザイナーマニュアル: Asset Browser の使い方</a></td></tr>
+<tr><td>ID 定数の実体・生成規則・型安全性</td><td><a href="#" data-manual-kind="programmer" data-manual-page="concepts">concepts.html</a></td></tr>
+<tr><td>プロジェクトへの導入手順・最初の1行</td><td><a href="#" data-manual-kind="programmer" data-manual-page="getting-started">getting-started.html</a></td></tr>
+<tr><td>禁止 API・コーディング規約</td><td><a href="#" data-manual-kind="programmer" data-manual-page="rules">rules.html</a></td></tr>
+<tr><td>新しい種別（AssetType）を追加する方法</td><td><a href="#" data-manual-kind="programmer" data-manual-page="extending">extending.html</a></td></tr>
+</table>
+
+<h2>ページ一覧</h2>
+<ul class="pagelinks">
+<li><a href="#" data-manual-kind="programmer" data-manual-page="getting-started">はじめに（導入手順・最初の一本）</a>
+<p>依存パッケージの確認、既存プロジェクトへの持ち込み方、SE を1つ鳴らすまでの最小コード。<strong>初めての人はこちらから。</strong></p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="concepts">基本概念（Data / Instance / Handle、4層、AssetId）</a>
+<p>asmdef 構成、Data/Instance/Handle の分離、AssetId・AssetType の読み方。コードを書く前に読んでおく設計の土台。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="bootstrap">起動配線（DDriveRuntimeBootstrap）</a>
+<p>ランタイムの組み立て方、シーンへの配置、起動完了の待ち方。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="audio-api">Audio / BGM API</a>
+<p>SE・BGM を再生・停止する静的ファサードの使い方。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="vfx-api">VFX API</a>
+<p>エフェクトを生成・停止する API。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="model-anim-api">Model / Animation API</a>
+<p>モデルの出現・3D / 2D アニメーション再生の API。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="presentation-api">Presentation API</a>
+<p>アニメ・SE・VFX・カメラ揺れなどをまとめた演出を 1 API で再生する。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="ui-api">UI API（Canvas / UiTween / ControlSkin）</a>
+<p>UI 画面の開閉・要素演出・入力配線をコードから扱う API。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="handle">Handle の扱い方</a>
+<p>世代付き struct Handle の安全な使い方、無効 Handle への操作、破棄タイミング。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="net-api">ネットワーク（INetBridge / NGO 統合）</a>
+<p>マルチプレイ時の配線と注意点。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="rules">コーディング規約・禁止事項</a>
+<p>禁止 API、定常経路での LINQ・クロージャ・boxing 禁止など、レビューで見られる観点。</p></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="extending">新しい種別（AssetType）を追加する</a>
+<p>AssetType・Data・Manager・Validator・エディタを一式追加する手順。</p></li>
+</ul>
+
+<h2>まず読む順番</h2>
+<ol>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="getting-started">はじめに</a> — 環境を確認し、最初の1行を動かす</li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="concepts">基本概念</a> — なぜこの形なのかを理解する</li>
+<li>自分が使う種別の API ページ（<a href="#" data-manual-kind="programmer" data-manual-page="audio-api">Audio</a> / <a href="#" data-manual-kind="programmer" data-manual-page="vfx-api">VFX</a> / <a href="#" data-manual-kind="programmer" data-manual-page="model-anim-api">Model/Anim</a> / <a href="#" data-manual-kind="programmer" data-manual-page="presentation-api">Presentation</a> / <a href="#" data-manual-kind="programmer" data-manual-page="ui-api">UI</a> など）</li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="rules">rules.html</a> — 書いたコードをレビューに出す前に確認する</li>
+</ol>
+
+<footer>D-Drive プログラマーマニュアル | <a href="#" data-manual-kind="programmer" data-manual-page="Readme">トップ</a> | <a href="#" data-manual-kind="designer" data-manual-page="Readme">デザイナーマニュアル</a></footer></div>

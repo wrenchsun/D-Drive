@@ -42,14 +42,14 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › マテリアル / テクスチャの設定項目</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › マテリアル / テクスチャの設定項目</nav>
 
 <h1>マテリアル / テクスチャの設定項目</h1>
 
 <p>マテリアルデータ（MaterialData）は、<strong>Unity の Material の代わりに D-Drive で編集する「素材」のデータ</strong>です。色・テクスチャ・光り方・透け方をここに書いておくと、Unity の Material 実体は D-Drive が自動で作って共有します。デザイナーが Unity の Material を直接作る必要はありません。</p>
 <ul>
 <li>シェーダーごとにバラバラなプロパティ名（<code>_BaseMap</code> と <code>_MainTex</code> など）を意識せず、「アルベド」「ノーマル」「マスク」「エミッション」「ブレンド」という<strong>共通チャンネル</strong>で編集できます。どのシェーダーに流し込むかは D-Drive が自動で探します</li>
-<li>シェーダーを乗り換えても共通チャンネルはそのまま残り、シェーダー固有の設定（Specific）だけを付け替えます（<a href="#" data-manual-page="material-editor">Material Editor</a> の「シェーダー変換」）</li>
+<li>シェーダーを乗り換えても共通チャンネルはそのまま残り、シェーダー固有の設定（Specific）だけを付け替えます（<a href="#" data-manual-kind="designer" data-manual-page="material-editor">Material Editor</a> の「シェーダー変換」）</li>
 <li>Maya の FBX や Substance Painter のテクスチャは、決まったフォルダに置くだけでマテリアルデータ・テクスチャデータが自動で作られます</li>
 <li>一覧では球のサムネイルが自動でアイコンになるので、見分けやすくなります</li>
 </ul>
@@ -57,13 +57,13 @@
 <p>テクスチャデータ（TextureData）は、<strong>1 枚の画像に「用途（UI 用 / モデル用）」と「チャンネル（アルベド / ノーマル / マスク / エミッション / その他）」のラベルを付けるデータ</strong>です。マテリアルデータは画像を直接参照せず、このテクスチャデータの ID で参照します。用途とチャンネルを決めると、Unity 側の画像の読み込み設定（Texture Type / sRGB / Sprite / 9-slice）が自動で追従します。</p>
 
 <div class="tip">
-<strong>用語:</strong> アルベド = 素の色（ベースカラー）/ ノーマル = 凹凸の向きを記録した画像（法線マップ）/ マスク = 金属っぽさ・遮蔽・なめらかさを 1 枚にまとめた画像 / エミッション = 自分で光る色 / ブレンド = 不透明・アルファ抜き・半透明のどれか。詳しくは <a href="#" data-manual-page="glossary">用語集</a>。
+<strong>用語:</strong> アルベド = 素の色（ベースカラー）/ ノーマル = 凹凸の向きを記録した画像（法線マップ）/ マスク = 金属っぽさ・遮蔽・なめらかさを 1 枚にまとめた画像 / エミッション = 自分で光る色 / ブレンド = 不透明・アルファ抜き・半透明のどれか。詳しくは <a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a>。
 </div>
 
 <h2>作り方</h2>
 <ol>
 <li><strong>Project の右クリック</strong>: <code>Create &gt; D-Drive &gt; Material &gt; Material Data</code>（ファイル名 <code>MAT_NewMaterial</code>）/ <code>Create &gt; D-Drive &gt; Material &gt; Texture Data</code>（<code>TEX_NewTexture</code>）</li>
-<li><strong><a href="#" data-manual-page="asset-browser">Asset Browser</a></strong>: ツールバーの「新規」で種別に <strong>Material</strong> または <strong>Texture</strong> を選ぶ。ID の発行・カタログ登録・Addressables 登録・初期アイコンの生成まで自動で行われ、<code>Assets/GameData/Material/&lt;カテゴリ&gt;/MAT_&lt;カテゴリ&gt;_&lt;識別子&gt;.asset</code>（テクスチャは <code>Assets/GameData/Texture/…/TEX_….asset</code>）に置かれます</li>
+<li><strong><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a></strong>: ツールバーの「新規」で種別に <strong>Material</strong> または <strong>Texture</strong> を選ぶ。ID の発行・カタログ登録・Addressables 登録・初期アイコンの生成まで自動で行われ、<code>Assets/GameData/Material/&lt;カテゴリ&gt;/MAT_&lt;カテゴリ&gt;_&lt;識別子&gt;.asset</code>（テクスチャは <code>Assets/GameData/Texture/…/TEX_….asset</code>）に置かれます</li>
 <li><strong>Maya の FBX から自動生成</strong>: FBX を <code>Assets/SourceAssets/&lt;カテゴリ&gt;/</code> に置くだけ（下の「Maya からの受け渡し」）</li>
 <li><strong>既存の Unity Material から変換</strong>: Material（または Renderer を持つ Prefab / モデル）を Project で選んで <code>Tools &gt; D-Drive &gt; Generate &gt; 選択した Material を D-Drive/Lit・Unlit の MaterialData に変換</code></li>
 </ol>
@@ -78,7 +78,7 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <tr><td>Common</td><td>どのシェーダーでも意味が共通するチャンネル。下の「共通チャンネル（Common）」を参照</td></tr>
 <tr><td>Specific</td><td>シェーダー固有のパラメータ。Common に無いものだけを入れます。要素は <code>Property</code>（シェーダープロパティ名。例 <code>_SpecColor</code>）と <code>Value</code>（値。Float / Int / Bool / Color / Vector / Object（テクスチャ等）のうち型に合うものを使う）。<strong>手で埋める必要はほとんどありません</strong> — Shader を設定すると Material Editor が自動で既定値を登録します</td></tr>
 <tr><td>RenderQueueOffset</td><td>描画順のずらし量。Blend から決まる基準（Opaque=2000 / Cutout=2450 / Transparent=3000）に足されます。普段は 0 のまま</td></tr>
-<tr><td>RenderingLayerMask</td><td>Rendering Layer Mask。0 なら Renderer 側の設定を変えません。ライトレイヤーは Renderer 単位の設定なので、モデル側の LightLayerMask（<a href="#" data-manual-page="model-editor">モデルの設定</a>）も参照</td></tr>
+<tr><td>RenderingLayerMask</td><td>Rendering Layer Mask。0 なら Renderer 側の設定を変えません。ライトレイヤーは Renderer 単位の設定なので、モデル側の LightLayerMask（<a href="#" data-manual-kind="designer" data-manual-page="model-editor">モデルの設定</a>）も参照</td></tr>
 <tr><td>Anims</td><td>常時アニメ（UV スクロール等）。D-Drive が共有 Material に対して一括で動かします。下の「Anims の使い方」を参照</td></tr>
 <tr><td>SourceMaterial</td><td>Maya FBX 自動生成の由来（どの FBX のどのマテリアルから作られたか）。再インポート時の同定に使います。手動で作ったデータは空。<strong>手で編集しない項目</strong>です</td></tr>
 </table>
@@ -242,12 +242,12 @@ Console に「[DDrive] TextureData '…': Usage/Channel から求まる Texture 
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="material-editor">Material Editor の使い方（プレビュー・シェーダー変換）</a> — サムネイルで確認する、シーンに置く、シェーダーを乗り換える</li>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> — 新規作成と一覧</li>
-<li><a href="#" data-manual-page="model-editor">モデルの設定と Model Editor</a> — マテリアルを割り当てるモデル、LightLayerMask</li>
-<li><a href="#" data-manual-page="ui-skin">UI スキン</a> / <a href="#" data-manual-page="canvas-data">Canvas の設定項目</a> — UI 用テクスチャデータの使い先</li>
-<li><a href="#" data-manual-page="validation">検証（Validation）</a> — 警告一覧の見方</li>
-<li><a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="material-editor">Material Editor の使い方（プレビュー・シェーダー変換）</a> — サムネイルで確認する、シーンに置く、シェーダーを乗り換える</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> — 新規作成と一覧</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="model-editor">モデルの設定と Model Editor</a> — マテリアルを割り当てるモデル、LightLayerMask</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-skin">UI スキン</a> / <a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas の設定項目</a> — UI 用テクスチャデータの使い先</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">検証（Validation）</a> — 警告一覧の見方</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

@@ -1,17 +1,18 @@
 <script>
   /**
-   * デザイナーマニュアル画面（2026-09-14 追加）。docs/32_spec_web.md「マニュアル配信」節。
+   * マニュアル画面（2026-09-14 追加）。docs/32_spec_web.md「マニュアル配信」節。
    *
-   * 本文は Tools/SpecWeb/tools/build-manual.js が docs/DesignerManual/*.html から事前生成した
-   * 断片 HTML（style インライン化・画像 data URI 化・リンク書き換え済み）を、サーバー側の
-   * `manualGet`（src/Manual.js）から取得して innerHTML に差し込むだけ。DOM を自前で組み立てない
-   * （他の画面と違い、コンテンツは docs/DesignerManual 側が正）。
+   * 本文は Tools/SpecWeb/tools/build-manual.js が docs/DesignerManual・docs/ProgrammerManual の
+   * *.html から事前生成した断片 HTML（style インライン化・画像 data URI 化・リンク書き換え済み）を、
+   * サーバー側の `manualGet`（src/Manual.js）から取得して innerHTML に差し込むだけ。DOM を
+   * 自前で組み立てない（他の画面と違い、コンテンツは docs/DesignerManual|ProgrammerManual 側が正）。
    *
    * ナビゲーション（html/App.html の説明どおり、`<base target="_top">` があるため素の <a> は
    * トップフレームを動かそうとしてしまう）: build-manual.js が本文中の内部リンクに
-   * `data-manual-page`（ページ間）・`data-manual-anchor`（同一/他ページ内アンカー）・
-   * `data-manual-exit`（発注ツールへ戻る）を付けている。ここではクリックを 1 箇所で
-   * イベント委譲して window.SpecWebNavigate で iframe 内遷移する。
+   * `data-manual-kind`（"designer"/"programmer"）・`data-manual-page`（ページ間、同一/他マニュアル
+   * とも同じ属性）・`data-manual-anchor`（同一/他ページ内アンカー）・`data-manual-exit`
+   * （発注ツールへ戻る）を付けている。ここではクリックを 1 箇所でイベント委譲して
+   * window.SpecWebNavigate で iframe 内遷移する。
    *
    * 緊急修正（2026-09-14）: href 自体は「JS が動かなかったときの素朴なフォールバック」だが、
    * 以前はここに直接 `?page=manual&p=...` のような相対 URL を入れていたため、クリック時に
@@ -22,6 +23,10 @@
    * 既に埋め込まれている）で data 属性から絶対 URL を組み立てて href に設定し直す
    * （applyAbsoluteHrefs_）。これで JS ハンドラが万一効かなくても、トップは正しい exec URL
    * （未取得なら "#" のまま＝画面が動かないだけ）に遷移する。
+   *
+   * 2026-09-17（プログラマーマニュアル配信対応）: 上部ナビに「デザイナーマニュアル」
+   * （従来の「マニュアル」を改名）と「プログラマーマニュアル」の 2 本のリンクを置く
+   * （SPA のナビゲーションから両方に行けるようにする要望への対応）。
    */
   (function () {
     'use strict';
@@ -31,14 +36,26 @@
       var navLink = document.createElement('a');
       // 緊急修正（2026-09-14）: 相対 href '?page=manual&p=Readme' が白画面の原因だったため、
       // window.SpecWebExecUrl から絶対 URL を組み立てる（未取得なら '#'）。
-      navLink.href = window.OrderLinkLogic.buildManualUrl(window.SpecWebExecUrl, 'Readme') || '#';
-      navLink.textContent = 'マニュアル';
+      navLink.href = window.OrderLinkLogic.buildManualUrl(window.SpecWebExecUrl, 'Readme', null, 'designer') || '#';
+      navLink.textContent = 'デザイナーマニュアル';
       navLink.setAttribute('data-screen', 'manual');
       navLink.addEventListener('click', function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
-        window.SpecWebNavigate('manual', { params: { p: 'Readme' } });
+        window.SpecWebNavigate('manual', { params: { p: 'Readme', kind: 'designer' } });
       });
       navHost.appendChild(navLink);
+    }
+
+    if (navHost && !navHost.querySelector('a[data-screen="manual-programmer"]')) {
+      var programmerNavLink = document.createElement('a');
+      programmerNavLink.href = window.OrderLinkLogic.buildManualUrl(window.SpecWebExecUrl, 'Readme', null, 'programmer') || '#';
+      programmerNavLink.textContent = 'プログラマーマニュアル';
+      programmerNavLink.setAttribute('data-screen', 'manual-programmer');
+      programmerNavLink.addEventListener('click', function (ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        window.SpecWebNavigate('manual', { params: { p: 'Readme', kind: 'programmer' } });
+      });
+      navHost.appendChild(programmerNavLink);
     }
 
     /**
@@ -67,7 +84,10 @@
         var page = anchor.getAttribute('data-manual-page');
         if (page) {
           var anchorId = anchor.getAttribute('data-manual-anchor') || '';
-          anchor.setAttribute('href', window.OrderLinkLogic.buildManualUrl(execUrl, page, anchorId) || '#');
+          // 2026-09-17（プログラマーマニュアル配信対応）: data-manual-kind が無いリンク（古い
+          // 生成物・手組みのテスト用ノード）は buildManualUrl 側の既定（"designer"）に委ねる。
+          var linkKind = anchor.getAttribute('data-manual-kind') || '';
+          anchor.setAttribute('href', window.OrderLinkLogic.buildManualUrl(execUrl, page, anchorId, linkKind) || '#');
         }
       });
     }
@@ -80,8 +100,13 @@
       return null;
     }
 
-    /** 本文中の内部リンクへのクリックを 1 箇所で処理する（イベント委譲）。 */
-    function bindManualLinks(container) {
+    /**
+     * 本文中の内部リンクへのクリックを 1 箇所で処理する（イベント委譲）。
+     * @param {Element} container
+     * @param {string} currentKind data-manual-kind が無いリンク（手組みノード・古い生成物）を
+     *   遷移させるときのフォールバック kind（現在表示中のマニュアルの kind）。
+     */
+    function bindManualLinks(container, currentKind) {
       container.addEventListener('click', function (ev) {
         var anchor = findAnchorAncestor(ev.target, container);
         if (!anchor) return;
@@ -97,7 +122,11 @@
         if (page) {
           if (ev.preventDefault) ev.preventDefault();
           var anchorId = anchor.getAttribute('data-manual-anchor') || '';
-          window.SpecWebNavigate('manual', { params: { p: page, anchor: anchorId } });
+          // data-manual-kind が無いリンクは現在表示中の画面と同じ kind とみなす
+          // （build-manual.js は生成する内部リンクに必ず data-manual-kind を付けるため、
+          // 通常はここに来ない。手組みノード・古い生成物向けのフォールバック）。
+          var linkKind = anchor.getAttribute('data-manual-kind') || currentKind || 'designer';
+          window.SpecWebNavigate('manual', { params: { p: page, anchor: anchorId, kind: linkKind } });
           return;
         }
 
@@ -129,13 +158,16 @@
     registerScreen('manual', function (root, params) {
       params = params || {};
       var pageName = params.p || 'Readme';
+      // 2026-09-17（プログラマーマニュアル配信対応）: kind 未指定は "designer"
+      // （src/Manual.js の specWebResolveManualKind_ と同じ既定）。
+      var kind = params.kind || 'designer';
 
       var status = document.createElement('p');
       status.className = 'sw-muted';
       status.textContent = 'マニュアルを読み込み中...';
       root.appendChild(status);
 
-      window.SpecWebClient.callApi('manualGet', { p: pageName }).then(function (result) {
+      window.SpecWebClient.callApi('manualGet', { p: pageName, kind: kind }).then(function (result) {
         root.innerHTML = '';
         if (!result || !result.ok) {
           var errorEl = document.createElement('p');
@@ -148,7 +180,7 @@
         wrap.innerHTML = result.html;
         root.appendChild(wrap);
         applyAbsoluteHrefs_(wrap);
-        bindManualLinks(wrap);
+        bindManualLinks(wrap, result.kind || kind);
 
         if (params.anchor) {
           scrollToAnchor(wrap, params.anchor);

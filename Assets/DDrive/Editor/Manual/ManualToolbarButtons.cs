@@ -68,8 +68,9 @@ namespace DDrive.Editor.Manual
         }
 
         // プログラマーマニュアル(2026-09-17 追加)はデザイナーマニュアルと別のサブメニューにぶら下げる
-        // (既存のデザイナーマニュアル側の項目は変更しない)。常にローカル HTML を開く
-        // (ManualLauncher.OpenProgrammerPage、SpecWeb への配信は範囲外のため「Web 版を優先」は無い)。
+        // (既存のデザイナーマニュアル側の項目は変更しない)。「Web 版を優先」トグル(ManualPrefs.PreferWeb)は
+        // デザイナー/プログラマーで共有する単一の EditorPrefs のため、専用の項目は置かず
+        // 上のデザイナー側の項目がそのまま両方に効く(ManualLauncher.OpenProgrammerPage)。
         private static void AddProgrammerManualItems(GenericMenu menu, string projectRoot)
         {
             const string SubMenuPrefix = "プログラマーマニュアル/";

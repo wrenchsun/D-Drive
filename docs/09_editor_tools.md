@@ -395,8 +395,29 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
 - テスト: `Tests/Editor/ManualPagesTests.cs` に `ManualKind.Programmer` を渡す対の照合テストを追加
   （`docs/ProgrammerManual/*.html` の実ファイルと `DiscoverPages` の結果、`<title>` からの表示名解決）。
   デザイナー側の既存テストはそのまま残している
-- `Tools/SpecWeb/tools/build-manual.js` はこの変更の対象外（`docs/DesignerManual` のみを正本として扱う既存の
-  ドリフト検出のまま。`docs/ProgrammerManual/Readme.html` 冒頭の運用メモにも「SpecWeb への配信対応は範囲外」と明記している）
+- `Tools/SpecWeb/tools/build-manual.js` はこの変更（4-1）の時点では対象外だった（`docs/DesignerManual` のみを
+  正本として扱うドリフト検出だった）。**2026-09-17 追記（SpecWeb へのプログラマーマニュアル配信対応）**:
+  `Tools/SpecWeb/tools/build-manual.js` が `docs/DesignerManual`・`docs/ProgrammerManual` の両方を
+  生成対象にするよう拡張され（`buildAllManuals`。ページ名が両マニュアルで重複するため出力先を
+  `Tools/SpecWeb/html/manual/<kind>/<page>.html`、`kind` は `"designer"`/`"programmer"` に分けた。
+  相互リンク・`style.css` の `@import` 解決も対応。詳細は `docs/32_spec_web.md`「マニュアル配信」節・
+  「実装メモ（2026-09-17、プログラマーマニュアル配信対応）」）、これに合わせて Unity 側の
+  「常にローカル」だった分岐を、デザイナーマニュアルと同じ Web/ローカルの分岐に揃えた:
+  - `ManualUrlBuilder.BuildWebUrl` に `ManualKind kind = ManualKind.Designer` 引数を追加した。
+    `Designer`（既定）は従来どおり `?page=manual&p=<page>`、`Programmer` は `&kind=programmer` を
+    追加する（省略時・Designer 指定時は URL が変わらない後方互換。Tools/SpecWeb 側
+    `OrderLinkLogic.buildManualUrl` の `kind` 引数と同じ規約）
+  - `ManualLauncher.OpenProgrammerPage`（`OpenProgrammerTop` はこれを呼ぶ）が、デザイナー側の
+    `OpenPage` と同じ判定（`ManualPrefs.PreferWeb` かつ `DDriveSpecSettings.HumanAppUrl` が空でなければ
+    `ManualUrlBuilder.BuildWebUrl(humanAppUrl, page, ManualKind.Programmer)` を開き、それ以外は
+    `OpenLocal(page, ManualKind.Programmer)` のローカル HTML にフォールバックする）を行うように変更した。
+    「Web 版を優先」トグル（`ManualPrefs.PreferWeb`）はデザイナー/プログラマーで共有する単一の
+    EditorPrefs のため、専用のトグル項目は追加していない（`ManualToolbarButtons` のコメント参照）
+  - `docs/ProgrammerManual/Readme.html` 冒頭の運用メモ（HTML コメント）を「SpecWeb への配信には
+    対応していない」から実際の配信手順（`build-manual.js` の再実行が必要）に更新した（本文は未変更）
+  - テスト: `Tests/Editor/ManualUrlBuilderTests.cs` に `BuildWebUrl` の `kind` 引数（省略時/Designer/Programmer）
+    のテストを追加。`Tools/SpecWeb/test/build-manual.test.js`・`manual.test.js`・`orderLinkLogic.test.js`・
+    `manual-screen.smoke.test.js` に kind 対応のテストを追加（詳細は `docs/32_spec_web.md`）
 
 ### 6.2 Hierarchy の右クリックから基本オブジェクトを置く（U-18、2026-09-17）
 

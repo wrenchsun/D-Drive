@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › VFX の設定項目</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › VFX の設定項目</nav>
 
 <h1>VFX（エフェクト）の設定項目</h1>
 
@@ -50,9 +50,9 @@
 
 <h2>作り方</h2>
 <ol>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>Vfx (VfxData)</strong> を選び、表示名（日本語 OK）とカテゴリ・識別子（英語）を入力</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>Vfx (VfxData)</strong> を選び、表示名（日本語 OK）とカテゴリ・識別子（英語）を入力</li>
 <li>作られたデータの <code>Prefab</code> に、エフェクトの Prefab を設定（Prefab の見た目からアイコンが自動で作られます。Inspector の「自動生成」で作り直せます）</li>
-<li><a href="#" data-manual-page="vfx-editor">VFX Editor</a> で再生しながら位置・寿命・色を調整</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="vfx-editor">VFX Editor</a> で再生しながら位置・寿命・色を調整</li>
 </ol>
 <p>ファイルは <code>Assets/GameData/Vfx/カテゴリ/VFX_カテゴリ_識別子.asset</code> に自動で置かれます。ファイル名を自分で付ける必要はありません。</p>
 
@@ -82,8 +82,8 @@ Prefab のマテリアルが古い（Built-in 用）シェーダーだと、こ�
 </table>
 
 <h2 id="anchor">Anchor（アタッチ位置）</h2>
-<p><strong>Anchor Id</strong>: <a href="#" data-manual-page="anchor-data">Anchor データ</a>を指定すると、そちらが優先され、下の埋め込み項目は無視されます。ランダム・ディレイ・確率・入れ子を使いたい場合は Anchor データ側で設定します。</p>
-<p>「エフェクトをどこに出すか」の定義です。効果音（SE）の 3D 設定と<strong>同じ仕組み</strong>で、用語も共通です。調整は <a href="#" data-manual-page="vfx-editor" data-manual-anchor="anchor">VFX Editor の Anchor 欄</a> でスライダーや SceneView のドラッグを使うのが簡単です。</p>
+<p><strong>Anchor Id</strong>: <a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor データ</a>を指定すると、そちらが優先され、下の埋め込み項目は無視されます。ランダム・ディレイ・確率・入れ子を使いたい場合は Anchor データ側で設定します。</p>
+<p>「エフェクトをどこに出すか」の定義です。効果音（SE）の 3D 設定と<strong>同じ仕組み</strong>で、用語も共通です。調整は <a href="#" data-manual-kind="designer" data-manual-page="vfx-editor" data-manual-anchor="anchor">VFX Editor の Anchor 欄</a> でスライダーや SceneView のドラッグを使うのが簡単です。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Space</td><td>基準の決め方。<br><strong>World</strong>: 固定座標（Local Offset がそのままワールド座標）。<br><strong>BoneName</strong>: キャラクターのボーン名で探す（例: RightHand）。<br><strong>NamedObject</strong>: オブジェクト名で探す（例: Anchor_Muzzle）。<br><strong>ContextTarget</strong>: プログラムが渡してきたオブジェクトそのもの。</td></tr>
@@ -128,7 +128,7 @@ Prefab のマテリアルが古い（Built-in 用）シェーダーだと、こ�
 </table>
 
 <h2>Events（イベント）</h2>
-<p>エフェクトの出現・ループ・消滅に合わせて効果音などを鳴らす設定です。Trigger（OnSpawn / OnLoop / OnDestroy など）と Action（鳴らすアセットなど）を指定します。各行の <strong>Repeat（繰り返し）</strong>は「毎周回 / 1 回 / 再生中は維持」で、「1 回」「再生中は維持」は OnSpawn や OnLoop のような時刻以外のタイミングでも<strong>再生ごとに 1 回だけ</strong>発火します（<a href="#" data-manual-page="glossary" data-manual-anchor="repeat">用語集: 繰り返し</a>）。</p>
+<p>エフェクトの出現・ループ・消滅に合わせて効果音などを鳴らす設定です。Trigger（OnSpawn / OnLoop / OnDestroy など）と Action（鳴らすアセットなど）を指定します。各行の <strong>Repeat（繰り返し）</strong>は「毎周回 / 1 回 / 再生中は維持」で、「1 回」「再生中は維持」は OnSpawn や OnLoop のような時刻以外のタイミングでも<strong>再生ごとに 1 回だけ</strong>発火します（<a href="#" data-manual-kind="designer" data-manual-page="glossary" data-manual-anchor="repeat">用語集: 繰り返し</a>）。</p>
 
 <h2>よくある警告</h2>
 <table>
@@ -142,11 +142,11 @@ Prefab のマテリアルが古い（Built-in 用）シェーダーだと、こ�
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="vfx-editor">VFX Editor の使い方</a></li>
-<li><a href="#" data-manual-page="se-data">SE（効果音）の設定項目</a> — 3D 設定（Anchor）は VFX と共通</li>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a></li>
-<li><a href="#" data-manual-page="validation">Validation の使い方</a></li>
-<li><a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="vfx-editor">VFX Editor の使い方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="se-data">SE（効果音）の設定項目</a> — 3D 設定（Anchor）は VFX と共通</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の使い方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の使い方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

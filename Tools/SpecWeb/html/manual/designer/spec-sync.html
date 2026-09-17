@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › 発注ツール（Web）と仕様書同期</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › 発注ツール（Web）と仕様書同期</nav>
 
 <h1>アセット発注ツールとの同期</h1>
 
@@ -90,7 +90,7 @@
 <p>一覧画面の「発注者」「受注者」の絞り込みプルダウンには、先頭に<strong>「自分」</strong>という選択肢があります（ログイン中のあなたに一致するメンバーが「メンバー」画面に登録されている場合のみ表示されます）。選ぶだけで「自分が発注したもの」「自分が受けたもの」に絞り込めます。列見出し（発注者・受注者・発注日・納品期限・状態・種類）をクリックすると並べ替えもできるので、「自分が受けたもの」を選んで「納品期限」の見出しをクリックすれば、期限が近い順に並びます。</p>
 
 <h2>Presentation 発注グループと単体発注</h2>
-<p>「剣攻撃」のような 1 つの<a href="#" data-manual-page="presentation">演出（Presentation）</a>は、SE・VFX・カメラ揺れなど複数のアセットの組み合わせでできています。発注ツールではこれを<strong>Presentation 発注グループ</strong>として親にまとめ、その下に必要な発注を子としてぶら下げます。</p>
+<p>「剣攻撃」のような 1 つの<a href="#" data-manual-kind="designer" data-manual-page="presentation">演出（Presentation）</a>は、SE・VFX・カメラ揺れなど複数のアセットの組み合わせでできています。発注ツールではこれを<strong>Presentation 発注グループ</strong>として親にまとめ、その下に必要な発注を子としてぶら下げます。</p>
 <ul>
 <li>発注グループは名前・対応する Presentation の識別子（まだ D-Drive に無くても先に自由入力で作れます）・WBS 番号・発注者の既定値・目安期限・説明（メモ）を持ちます</li>
 <li>子の発注は、それぞれ個別の発注者・受注者・納品期限を持てます（未設定なら親の既定値を見ます）</li>
@@ -107,7 +107,7 @@ Presentation 発注グループを削除できるのは<strong>配下の発注�
 <tr><th>状態</th><th>意味</th><th>誰が進める？</th></tr>
 <tr><td>発注済</td><td>発注が登録された直後の状態</td><td>—（初期状態）</td></tr>
 <tr><td>納品済</td><td>受注者が実際に何か（音・エフェクト・見た目）を渡した状態</td><td>受注者が発注の詳細画面で手動で進めます（納品日が自動で記録されます）</td></tr>
-<tr><td id="imported">インポート済</td><td>D-Drive 側で実際に取り込まれ、必須項目が設定済み（<a href="#" data-manual-page="validation">Validation</a> の Error が無い）状態</td><td><strong>手動では選べません。</strong>D-Drive の仕様書同期（下記）で自動判定されたときだけ進みます</td></tr>
+<tr><td id="imported">インポート済</td><td>D-Drive 側で実際に取り込まれ、必須項目が設定済み（<a href="#" data-manual-kind="designer" data-manual-page="validation">Validation</a> の Error が無い）状態</td><td><strong>手動では選べません。</strong>D-Drive の仕様書同期（下記）で自動判定されたときだけ進みます</td></tr>
 </table>
 <div class="tip">
 <strong>「インポート済」への進行・後退は自動です。</strong> D-Drive で対象データの Validation を実行し、Error が 1 件もなければ「インポート済」へ進みます。逆に、一度インポート済になったアセットが何らかの理由で Placeholder に戻ってしまった場合（必須参照が外れた等）は、次の同期で自動的に「納品済」へ戻り、発注ツール側にその旨のコメントが自動で残ります。デザイナーが状態を手で戻す必要はありません。
@@ -181,7 +181,7 @@ D-Drive の Inspector にある「📄 仕様書を開く」ボタン（<code>Sp
 </div>
 
 <h2>調整値タブ</h2>
-<p>「調整値」タブは今回の発注ツールへの作り直しとは無関係の独立した機能で、そのまま変わらず使えます。スカラー値（float/int/bool/string/enum）と表形式（行×列、2026-09-14 追加）の両方を編集でき、<a href="#" data-manual-page="glossary" data-manual-anchor="valuedef">ValueDef</a> と同じように D-Drive のコードから読めます。</p>
+<p>「調整値」タブは今回の発注ツールへの作り直しとは無関係の独立した機能で、そのまま変わらず使えます。スカラー値（float/int/bool/string/enum）と表形式（行×列、2026-09-14 追加）の両方を編集でき、<a href="#" data-manual-kind="designer" data-manual-page="glossary" data-manual-anchor="valuedef">ValueDef</a> と同じように D-Drive のコードから読めます。</p>
 <pre><code>using DDrive.Generated; // TUNING.キー定数 / TUNING_TABLE / TUNING_COLUMN
 using DDrive.Runtime.Tuning;
 
@@ -244,7 +244,7 @@ int slimeHp = Tuning.GetTableInt(TUNING_TABLE.EnemyParams, "Slime", TUNING_COLUM
 <p>同期すると、そのデータの <code>SpecUrl</code> に発注ツールの発注の詳細ページの URL が自動的に設定され、Inspector 最上部に<strong>「📄 仕様書を開く」</strong>ボタンが出ます。押すとブラウザで該当ページが開きます（「人向け SPA URL」が設定されていない場合はボタンは出ません）。</p>
 
 <h3>新規作成ダイアログから 1 件だけ選んで作る</h3>
-<p>まとめて同期する以外に、<a href="#" data-manual-page="asset-browser">Asset Browser の「新規」ダイアログ</a>の「仕様書から選ぶ」から、発注ツールにあるけどまだ D-Drive に無いものを 1 件だけ選んで作ることもできます。急いで 1 つだけ欲しい時に便利です。詳しくは Asset Browser のページを参照してください。</p>
+<p>まとめて同期する以外に、<a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の「新規」ダイアログ</a>の「仕様書から選ぶ」から、発注ツールにあるけどまだ D-Drive に無いものを 1 件だけ選んで作ることもできます。急いで 1 つだけ欲しい時に便利です。詳しくは Asset Browser のページを参照してください。</p>
 
 <h3>選択肢・実状態を発注ツールへ送る</h3>
 <p>「Web に送信」ボタンを押すと、次の内容だけが発注ツールへ送られます。企画側が入力した本文や調整値の値そのものが D-Drive から書き換わることはありません（安全のため送信できる内容がサーバー側で固定されています）。</p>
@@ -268,10 +268,10 @@ int slimeHp = Tuning.GetTableInt(TUNING_TABLE.EnemyParams, "Slime", TUNING_COLUM
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a></li>
-<li><a href="#" data-manual-page="presentation">演出（Presentation）の設定項目</a></li>
-<li><a href="#" data-manual-page="validation">Validation の使い方</a></li>
-<li><a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の使い方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="presentation">演出（Presentation）の設定項目</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の使い方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

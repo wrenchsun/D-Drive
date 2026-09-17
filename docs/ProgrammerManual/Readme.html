@@ -6,11 +6,14 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- 運用メモ(2026-09-17 作成): このフォルダ(docs/ProgrammerManual)の *.html/style.css が正本。
-     デザイナーマニュアル(docs/DesignerManual)と違い、2026-09-17 時点では
-     Tools/SpecWeb(発注ツールの Web アプリ)への配信には対応していない(配信対象は
-     DesignerManual のみ。build-manual.js・push.ps1 はこのフォルダを扱わない)。
-     ここを編集しても Tools/SpecWeb 側への反映作業は不要。 -->
+<!-- 運用メモ(2026-09-17 作成、同日追記): このフォルダ(docs/ProgrammerManual)の *.html/style.css が正本。
+     デザイナーマニュアル(docs/DesignerManual)と同じ仕組みで Tools/SpecWeb(発注ツールの Web アプリ)
+     へも配信される(tools/build-manual.js が docs/DesignerManual・docs/ProgrammerManual の
+     両方から Tools/SpecWeb/html/manual/<kind>/*.html・src/ManualPages.js を生成する。
+     kind="programmer")。ここを編集したら、デザイナーマニュアルと同じく
+     `node Tools/SpecWeb/tools/build-manual.js`(または push.ps1/push.cmd)を実行して
+     生成物を再生成し、コミットすること(忘れると Tools/SpecWeb/test/build-manual.test.js の
+     ドリフト検出テストが red になる)。詳細は docs/32_spec_web.md「マニュアル配信」節。 -->
 
 <h1>D-Drive プログラマーマニュアル</h1>
 

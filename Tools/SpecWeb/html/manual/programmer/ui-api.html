@@ -1,0 +1,241 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page pre {
+    background: #2b2b2b;
+    color: #e8e8e8;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: Consolas, monospace;
+    font-size: 0.9em;
+    line-height: 1.6;
+    margin: 1em 0;
+}.sw-manual-page pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+    font-size: 1em;
+}.sw-manual-page .sig {
+    display: block;
+    background: #eef3fb;
+    border: 1px solid #c7d5ec;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 0.8em 0;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+    white-space: pre-wrap;
+}.sw-manual-page .bad, .sw-manual-page .good {
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 1em 0;
+}.sw-manual-page .bad {
+    background: #fdecea;
+    border-left: 5px solid #d9463c;
+}.sw-manual-page .bad::before {
+    content: "✗ やってはいけない例";
+    display: block;
+    font-weight: bold;
+    color: #b3261e;
+    margin-bottom: 6px;
+}.sw-manual-page .good {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+}.sw-manual-page .good::before {
+    content: "◯ 正しい例";
+    display: block;
+    font-weight: bold;
+    color: #2e7d32;
+    margin-bottom: 6px;
+}.sw-manual-page .bad pre, .sw-manual-page .good pre {
+    margin: 0;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="programmer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="programmer" data-manual-page="Readme">🏠 トップ</a> › Canvas / UI Tween / Skin</nav>
+
+<h1>Canvas / UI Tween / Skin</h1>
+
+<p>UI 画面（Canvas）を開閉する <code>Ui</code>、UI 要素の動き（フェード・スライド・パンチ等）を再生する <code>UiFx</code>、コントロール（ボタン等）の見た目セットを解決する <code>UiSkins</code> の 3 つの静的ファサードを扱います。Canvas アセット・専用エディタの作り方は<a href="#" data-manual-kind="designer" data-manual-page="canvas-data">デザイナーマニュアル: Canvas の設定項目</a>・<a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor の使い方</a>を、UI Tween のデータ形式は<a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI Tween の設定項目</a>を、Skin は<a href="#" data-manual-kind="designer" data-manual-page="ui-skin">UI Skin の設定項目</a>を先に読んでください。</p>
+
+<h2>Ui 静的ファサード（Canvas の開閉）</h2>
+<p><code>Runtime/Canvas/Ui.cs:11</code>。他のファサードと同じく Bind 前・未 Bind の呼び出しは全て no-op（Invalid Handle / 何もしない）で継続します。</p>
+
+<pre><code>public static class Ui
+{
+    public static void Bind(UiManager instance);
+    public static bool IsBound { get; }
+
+    public static Handle&lt;CanvasMarker&gt; Open(CanvasId id);
+    public static Handle&lt;CanvasMarker&gt; Popup(CanvasId id);
+    public static UniTask&lt;Handle&lt;CanvasMarker&gt;&gt; OpenAsync(CanvasId id);
+    public static UniTask&lt;Handle&lt;CanvasMarker&gt;&gt; PopupAsync(CanvasId id);
+
+    public static void Close(Handle&lt;CanvasMarker&gt; h);
+    public static UniTask CloseAsync(Handle&lt;CanvasMarker&gt; h);
+    public static bool CloseTop();
+    public static UniTask&lt;bool&gt; CloseTopAsync();
+
+    public static IDisposable OnSignal(string key, Action&lt;SignalArgs&gt; cb);
+    public static void SendSignal(string key, Handle&lt;CanvasMarker&gt; from, string elementPath = null);
+
+    public static void SetLayerVisible(UiLayer layer, bool visible);
+    public static bool MoveFocus(Vector2 dir);
+    public static GameObject GetGameObject(Handle&lt;CanvasMarker&gt; h);
+    public static bool IsOpen(Handle&lt;CanvasMarker&gt; h);
+}</code></pre>
+
+<h3>同期版と Async 版の使い分け</h3>
+<p><code>UiManager</code> の実装（<code>Runtime/Canvas/UiManager.cs:307-323</code>）を見ると、<code>Open</code> は Canvas を生成して <code>OpenTransition</code>（演出）を <strong>開始した時点で</strong> Handle を返し、<code>OpenAsync</code> は同じ <code>Open</code> を呼んだ上で <strong>その開く演出が終わるまで await</strong> します（<code>Close</code> / <code>CloseAsync</code> も同様）。</p>
+<table>
+<tr><th></th><th>戻るタイミング</th><th>向いている用途</th></tr>
+<tr><td><code>Open</code> / <code>Popup</code> / <code>Close</code></td><td>演出の開始と同時（同期）</td><td>「開いた/閉じた」という事実だけ必要で、開閉演出の完了を待たずに次の処理へ進みたいとき（大半のケース）</td></tr>
+<tr><td><code>OpenAsync</code> / <code>PopupAsync</code> / <code>CloseAsync</code></td><td>開閉演出（<code>CanvasData.OpenTransition</code> / <code>CloseTransition</code>）が完了してから</td><td>「完全に開き切ってから入力を受け付ける」「閉じ切ってから次の画面を開く」のように演出の完了そのものに依存する処理を続けたいとき</td></tr>
+</table>
+<pre><code>// 開始と同時に次へ進んでよい場合
+var h = Ui.Open(CANVASID.Shop);
+
+// 開く演出が終わってから何かしたい場合
+var h = await Ui.OpenAsync(CANVASID.Shop);
+FocusFirstButton(h);</code></pre>
+<p><code>CloseTop</code> / <code>CloseTopAsync</code> はスタックの一番上（<code>CanvasData.CloseOnBack=true</code> のもの）を閉じます。戻るキー・Android バックボタンの配線に使います。</p>
+
+<h3>Signal によるゲームコードとの連携</h3>
+<p>UI 側の <code>ButtonWire</code> / <code>SliderWire</code> は、ボタンが押された・スライダーの値が変わったときに <code>UiManager.SendSignal</code> を内部から呼びます（<code>Runtime/Canvas/UiManager.cs:1128, 1223</code>）。ゲームコードは <code>Ui.OnSignal(key, cb)</code> で購読するだけで、どの Canvas のどのボタンが押されたかを受け取れます。</p>
+<pre><code>// SignalArgs: Key(合図名) / Canvas(発行元Handle) / ElementPath(要素の名前) / Value(SliderWireのときの現在値)
+var sub = Ui.OnSignal("shop/buy", args =&gt;
+{
+    Debug.Log($"{args.ElementPath} から購入シグナル");
+});
+
+// 購読解除(Canvasを閉じる/オブジェクト破棄時など)
+sub.Dispose();</code></pre>
+<p><code>Ui.OnSignal</code> は R3 の <code>Observable</code> ではなく、<strong><code>IDisposable</code> を返すだけの素の <code>Action&lt;SignalArgs&gt;</code> 購読</strong>です（未 Bind のときは何もしない <code>NullDisposable.Instance</code> を返すので、<code>Dispose()</code> はどちらの場合も安全に呼べます）。<code>SendSignal</code> をゲームコードから直接呼んでコード発の合図を送ることもできます（UI 側は購読していれば受け取ります）。</p>
+
+<h2>UiFx 静的ファサード（UI の動き）</h2>
+<p><code>Runtime/UiTween/UiFx.cs:13</code>。データ化した <code>UiTweenData</code> の再生、約 60 個あるプリセットの 1 行呼び出し、アドホックな Tween、複数 Tween を連結する <code>Sequence()</code> の 4 グループに分かれます。</p>
+
+<pre><code>public static class UiFx
+{
+    public static void Bind(UiTweenManager instance);
+    public static bool IsBound { get; }
+
+    // ── Data / Preset 再生 ──
+    public static Handle&lt;UiTweenMarker&gt; Play(UiTweenId id, RectTransform target);
+    public static Handle&lt;UiTweenMarker&gt; PlayData(UiTweenData data, RectTransform target);
+    public static Handle&lt;UiTweenMarker&gt; Play(UiPreset preset, RectTransform target, in UiPresetRef p = default);
+    public static Handle&lt;UiTweenMarker&gt; Appear(RectTransform t);   // = FadeIn(t)
+    public static Handle&lt;UiTweenMarker&gt; Disappear(RectTransform t); // = FadeOut(t)
+
+    // ── アドホック ──
+    public static Handle&lt;UiTweenMarker&gt; MoveTo(RectTransform t, Vector2 to, float sec, Ease e = Ease.OutCubic);
+    public static Handle&lt;UiTweenMarker&gt; Scale(RectTransform t, float to, float sec, Ease e = Ease.OutBack);
+    public static Handle&lt;UiTweenMarker&gt; Fade(CanvasGroup g, float to, float sec, Ease e = Ease.Linear);
+    public static Handle&lt;UiTweenMarker&gt; Rotate(RectTransform t, float toZ, float sec, Ease e = Ease.OutCubic);
+    public static Handle&lt;UiTweenMarker&gt; MoveAlong(RectTransform t, SplinePath path, float sec, Ease e = Ease.Linear);
+
+    // ── Handle 操作 ──
+    public static void Stop(Handle&lt;UiTweenMarker&gt; h, bool complete = false);
+    public static void StopAll(RectTransform target);
+    public static bool IsPlaying(Handle&lt;UiTweenMarker&gt; h);
+    public static float Progress(Handle&lt;UiTweenMarker&gt; h);
+    public static void SetSpeed(Handle&lt;UiTweenMarker&gt; h, float speed);
+    public static UniTask WaitAsync(Handle&lt;UiTweenMarker&gt; h);
+
+    // ── 連結・同時 ──
+    public static TweenSequence Sequence();
+}</code></pre>
+
+<h3>プリセット 1 行関数（約 60 種）</h3>
+<p><code>UiPreset</code> 列挙（<code>Runtime/UiTween/UiPreset.cs</code>）のコメントにある分類そのままに、<code>UiFx</code> 側にも同名グループの 1 行メソッドが揃っています。全て <code>Play(UiPreset.Xxx, t, new UiPresetRef {...})</code> の薄いラッパーで、第 2 引数以降は秒数・移動量など省略可能な既定値付きです。</p>
+<table>
+<tr><th>分類</th><th>メソッド</th></tr>
+<tr><td>出現系（Appear）</td><td><code>FadeIn</code> <code>SlideInLeft/Right/Top/Bottom</code> <code>ScaleIn</code> <code>PopIn</code> <code>BounceIn</code> <code>ElasticIn</code> <code>FlipInX/Y</code> <code>RotateIn</code> <code>ZoomInFade</code> <code>SlideFadeInLeft/Right/Top/Bottom</code> <code>ExpandWidth/Height</code> <code>TypeFillIn</code></td></tr>
+<tr><td>消滅系（Disappear）</td><td><code>FadeOut</code> <code>SlideOutLeft/Right/Top/Bottom</code> <code>ScaleOut</code> <code>PopOut</code> <code>BounceOut</code> <code>ElasticOut</code> <code>FlipOutX/Y</code> <code>RotateOut</code> <code>ZoomOutFade</code> <code>SlideFadeOutLeft/Right/Top/Bottom</code> <code>CollapseWidth/Height</code></td></tr>
+<tr><td>常時系（Idle / Loop）</td><td><code>Pulse</code> <code>Blink</code> <code>Float</code>（上下ふわふわ） <code>Sway</code>（左右） <code>Breathe</code>（拡縮） <code>RotateLoop</code> <code>ShimmerAlpha</code> <code>RainbowTint</code> <code>WobbleLoop</code></td></tr>
+<tr><td>強調系（単発。通知・エラー・獲得演出）</td><td><code>PunchScale</code> <code>PunchRotation</code> <code>Shake</code> <code>ShakeHard</code> <code>Flash</code> <code>ColorFlash</code> <code>HeartBeat</code> <code>Jelly</code> <code>Tada</code> <code>RubberBand</code> <code>AttentionJump</code></td></tr>
+</table>
+<pre><code>UiFx.FadeIn(panel.GetComponent&lt;RectTransform&gt;());
+UiFx.Shake(errorLabel, strength: 10f, sec: 0.4f);</code></pre>
+
+<h3>アドホック Tween</h3>
+<p><code>MoveTo</code> / <code>Scale</code> / <code>Fade</code> / <code>Rotate</code> / <code>MoveAlong</code> は、プリセット化するほどでない一回限りの Tween をその場のパラメータで再生します（<code>UiTweenManager</code> に直接委譲、<code>Ease</code> 引数は省略可）。</p>
+
+<h3>Sequence() — 複数 Tween の連結</h3>
+<p><code>TweenSequence</code>（<code>Runtime/UiTween/UiFx.cs:150</code>）は「ちょっとした演出シーケンス」を <code>UniTask</code> で連結する薄いビルダーです。定常経路（Tick 等）向けではないため、通常の <code>List</code>/async を使って実装されています。</p>
+<pre><code>await UiFx.Sequence()
+    .Append(() =&gt; UiFx.FadeIn(panel))          // 前の区間が終わってから start を呼んで再生開始(本当の順番再生)
+    .Join(() =&gt; UiFx.SlideInLeft(icon))         // 直前の区間と同時に再生する
+    .AppendInterval(0.2f)                        // 前の区間の完了を待ってから 0.2 秒待機
+    .Append(UiFx.PunchScale(button))             // 開始済みの Handle を渡す版。完了の待ち合わせだけ順番になる(見た目は同時)
+    .Play();</code></pre>
+<table>
+<tr><th>メソッド</th><th>意味</th></tr>
+<tr><td><code>Append(Handle)</code></td><td>すでに再生中の Handle を渡す。呼んだ時点で再生は始まっているため、順番になるのは完了の待ち合わせだけ</td></tr>
+<tr><td><code>Append(Func&lt;Handle&gt;)</code></td><td>前の区間が終わってから <code>start</code> を呼んで再生を始める。本当の意味での順番再生</td></tr>
+<tr><td><code>Join(Handle)</code> / <code>Join(Func&lt;Handle&gt;)</code></td><td>直前の <code>Append</code>/<code>Join</code> と同じ区間として同時に再生する</td></tr>
+<tr><td><code>AppendInterval(sec)</code></td><td>直前の区間の完了を待ってから <code>UniTask.Delay</code> で待機する</td></tr>
+<tr><td><code>Play()</code></td><td><code>async UniTask</code>。各区間を順番に、区間内は並列に <code>_manager.WaitAsync(handle)</code> で待つ</td></tr>
+</table>
+
+<h2>UiSkins 静的ファサード</h2>
+<p><code>Runtime/Ui/UiSkins.cs:9</code>。<code>UiInteractable.SkinId</code>（<code>AssetId&lt;ControlSkinMarker&gt;</code>）の遅延解決だけを行う薄いファサードです。R3 は使わず <code>Func</code> ベースで、<code>DDriveRuntimeBootstrap</code> が起動時に Bind/Unbind します。</p>
+<pre><code>public static class UiSkins
+{
+    public static Func&lt;AssetId&lt;ControlSkinMarker&gt;, ControlSkinData&gt; Resolver { get; }
+
+    public static void Bind(IAssetRegistry registry);
+    public static void Bind(Func&lt;AssetId&lt;ControlSkinMarker&gt;, ControlSkinData&gt; resolver);
+}</code></pre>
+<p><code>Bind(IAssetRegistry)</code> は <code>registry.TryResolveSync&lt;ControlSkinData&gt;(id.Value, out var skin)</code> を包んだ既定のリゾルバを設定します。テスト等でリゾルバ自体を差し替えたい場合は <code>Bind(Func&lt;...&gt;)</code> を使います。通常のゲームコードから直接呼ぶ場面は少なく、<code>UiInteractable</code> 側が内部で <code>UiSkins.Resolver</code> を参照します。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-data">デザイナーマニュアル: Canvas の設定項目</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">デザイナーマニュアル: Canvas Editor の使い方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-tween">デザイナーマニュアル: UI Tween の設定項目</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-skin">デザイナーマニュアル: UI Skin の設定項目</a></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="handle">Handle・イベント・完了待ち</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="#" data-manual-kind="programmer" data-manual-page="Readme">トップ</a></footer></div>

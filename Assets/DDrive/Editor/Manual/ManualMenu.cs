@@ -7,8 +7,8 @@ namespace DDrive.Editor.Manual
     // メニューパスは DDriveMenu 経由(CLAUDE.md §0-6)。既存の「Asset Browser」「Presentation Editor」と
     // 同じく Root 直下の単発アクションのため、専用の定数は追加していない。
     //
-    // プログラマーマニュアル(2026-09-17 追加)も同じ流儀で Root 直下に置く。常にローカル HTML を開く
-    // (ManualLauncher.OpenProgrammerTop、SpecWeb への配信は範囲外)。
+    // プログラマーマニュアル(2026-09-17 追加)も同じ流儀で Root 直下に置く。デザイナーマニュアルと
+    // 同じ Web/ローカルの分岐(ManualLauncher.OpenProgrammerTop、ManualPrefs.PreferWeb 共有)。
     public static class ManualMenu
     {
         [MenuItem(DDriveMenu.Root + "マニュアルを開く")]

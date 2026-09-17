@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › UI の動き(UI Tween)・プリセットギャラリー・要素演出(ElementFx)</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › UI の動き(UI Tween)・プリセットギャラリー・要素演出(ElementFx)</nav>
 
 <h1>UI の動き(UI Tween)・プリセットギャラリー・要素演出(ElementFx)</h1>
 
@@ -52,12 +52,12 @@
 <li><strong>UI Tween Editor</strong>: プリセットで足りない凝った動きを、自分でデータ（UI Tween）として作るウィンドウ。Tween（トゥイーン）= 「ある値からある値まで、決めた形で何秒かけて変える」動きのこと</li>
 <li><strong>要素演出（ElementFx）</strong>: Canvas を開いたとき（Appear）・表示中（Idle）・閉じるとき（Disappear）に、要素ごとにどの動きを使うかの割り当て</li>
 </ul>
-<div class="tip">ボタンを押した瞬間の演出は <a href="#" data-manual-page="ui-skin">Skin</a> の Enter Tween / Enter Preset に指します。このページの演出は「画面（Canvas）の開閉と表示中」のものです。</div>
+<div class="tip">ボタンを押した瞬間の演出は <a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Skin</a> の Enter Tween / Enter Preset に指します。このページの演出は「画面（Canvas）の開閉と表示中」のものです。</div>
 
 <h2>UI Tween Editor</h2>
 <h3>開き方</h3>
 <ol>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>UiTween</strong> を選んで作る（接頭辞 <code>UITWEEN</code>、<code>UiTween</code> フォルダに置かれます）</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>UiTween</strong> を選んで作る（接頭辞 <code>UITWEEN</code>、<code>UiTween</code> フォルダに置かれます）</li>
 <li>Project で UI Tween を選び、Inspector の一番上の「<strong>▶ UI Tween Editor で開く</strong>」</li>
 <li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween</code></li>
 </ol>
@@ -69,7 +69,7 @@
 <li>「プリセット / カタログ」で <strong>SlideFadeInLeft</strong> を選び「プリセットから Tracks を生成」→ カーブ一覧に位置と透明度の 2 行が並びます</li>
 <li>「▶ 再生」→ Game / Scene ビューで画像が左から滑り込みながら現れます</li>
 <li>カーブ一覧の行をクリックして「選択中 Track」で秒数（Motion の Time）や移動量（From Value）を直し、もう一度 ▶ 再生</li>
-<li>気に入ったら、<a href="#" data-manual-page="canvas-editor">Canvas Editor</a> かプリセットギャラリーで要素の Appear に割り当てます</li>
+<li>気に入ったら、<a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor</a> かプリセットギャラリーで要素の Appear に割り当てます</li>
 </ol>
 <!-- screenshot: 36-#49 -->
 <figure>
@@ -79,14 +79,14 @@
 
 
 <div class="tip">
-<strong>実際に動かしたいボタンやパネルで試したいときは、無関係な仮画像ではなく実物を選べます。</strong> 下の「プレビュー対象」を参照。<a href="#" data-manual-page="canvas-editor">Canvas Editor</a> の ElementFx 行にある「▶」から開いた場合は、その要素が自動で選ばれた状態で開きます。
+<strong>実際に動かしたいボタンやパネルで試したいときは、無関係な仮画像ではなく実物を選べます。</strong> 下の「プレビュー対象」を参照。<a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor</a> の ElementFx 行にある「▶」から開いた場合は、その要素が自動で選ばれた状態で開きます。
 </div>
 
 <h3>プレビュー対象</h3>
 <p>「確認用シーンに配置」の仮画像ではなく、シーン上にある実際の要素（Canvas のパネルやボタンなど）を対象にして確認できます。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>収集元</td><td>要素を集めたいシーン上のオブジェクト（例: Canvas Editor の「確認用シーンで開く」で出た <code>[D-Drive] Canvas Preview</code> の中身）。<a href="#" data-manual-page="canvas-editor">Canvas Editor</a> の ElementFx 行の「▶」から開いたときは自動で入ります</td></tr>
+<tr><td>収集元</td><td>要素を集めたいシーン上のオブジェクト（例: Canvas Editor の「確認用シーンで開く」で出た <code>[D-Drive] Canvas Preview</code> の中身）。<a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor</a> の ElementFx 行の「▶」から開いたときは自動で入ります</td></tr>
 <tr><td>要素を自動収集</td><td>収集元の下にある RectTransform をすべて一覧にします（ルート自身も「(ルート)」として候補に入ります）。パスの表記は CanvasData の ElementPath と同じ形式です</td></tr>
 <tr><td>要素</td><td>収集した中から実際にプレビューしたいものを選びます。選ぶと即座にプレビュー対象になります（「プレビュー対象: パス名」と表示）</td></tr>
 </table>
@@ -185,7 +185,7 @@
 <h3>開き方</h3>
 <ol>
 <li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>（Inspector からの入口はありません）</li>
-<li>「適用先」の CanvasData に、演出を付けたい <a href="#" data-manual-page="canvas-data">Canvas データ</a>を入れる</li>
+<li>「適用先」の CanvasData に、演出を付けたい <a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas データ</a>を入れる</li>
 </ol>
 
 <h3>画面の説明</h3>
@@ -212,7 +212,7 @@
 <tr><td>常時（9）</td><td>Pulse（1.2s、1.06 倍まで拡縮）/ Blink（0.6s、透明度 1↔0.2）/ Float（1.6s、上下 10px）/ Sway（1.4s、±8°）/ Breathe（1.8s、1.08 倍まで）/ RotateLoop（2s で 360° 回り続ける）/ ShimmerAlpha（1.2s、透明度 0.4↔1）/ RainbowTint（2s、虹色に巡回）/ WobbleLoop（0.6s、±6°）。いずれも止めるまで繰り返します</td></tr>
 <tr><td>強調（11）</td><td>PunchScale（0.35s、1.2 倍から戻る）/ PunchRotation（0.35s、15° から 0°）/ Shake（0.4s、横 8px を 6 往復）/ ShakeHard（0.5s、16px を 10 往復）/ Flash（0.3s、透明度を 2 往復）/ ColorFlash（0.3s、いまの色↔白）/ HeartBeat（0.6s、1.15 倍の鼓動）/ Jelly（0.5s、横に伸びて縦に縮む）/ Tada（0.6s、拡縮 + 回転）/ RubberBand（0.6s、横 1.3 倍・縦 0.7 倍から等倍）/ AttentionJump（0.4s、上へ 20px 跳ねて戻る）</td></tr>
 </table>
-<p>カードを要素に適用すると、要素側には「どのプリセットか（Preset）/ Duration（0 = 既定の秒数）/ Distance（Slide 系の移動量や Punch・Shake 系の強さ。0 = 既定。Slide 系は要素の大きさから自動）/ Ease Override（緩急の上書き）/ Se（同時に鳴らす音）」が入ります。秒数や距離を変えたいときは <a href="#" data-manual-page="canvas-editor">Canvas Editor</a> でこの値を直します。</p>
+<p>カードを要素に適用すると、要素側には「どのプリセットか（Preset）/ Duration（0 = 既定の秒数）/ Distance（Slide 系の移動量や Punch・Shake 系の強さ。0 = 既定。Slide 系は要素の大きさから自動）/ Ease Override（緩急の上書き）/ Se（同時に鳴らす音）」が入ります。秒数や距離を変えたいときは <a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor</a> でこの値を直します。</p>
 
 <h3>よくある警告</h3>
 <table>
@@ -246,7 +246,7 @@
 </ul>
 
 <h2>要素演出（ElementFx: Appear / Idle / Disappear）</h2>
-<p>Canvas データの ElementEffects に、要素パスごとに「開くとき（Appear）/ 表示中（Idle）/ 閉じるとき（Disappear）」の演出を持たせる仕組みです。プリセットギャラリーの「この要素に適用」か <a href="#" data-manual-page="canvas-editor">Canvas Editor</a> で設定します。</p>
+<p>Canvas データの ElementEffects に、要素パスごとに「開くとき（Appear）/ 表示中（Idle）/ 閉じるとき（Disappear）」の演出を持たせる仕組みです。プリセットギャラリーの「この要素に適用」か <a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor</a> で設定します。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>解決順</td><td>各フェーズについて、UI Tween の Id（Appear / Idle / Disappear）→ プリセット（Appear Preset など）→ <strong>レイヤー既定</strong>（UiLayerSettings の Default Appear / Default Disappear）の順で最初に見つかったものを使います。<strong>Idle にレイヤー既定はありません</strong></td></tr>
@@ -262,7 +262,7 @@
 <div class="warn"><strong>Disappear に無限ループの演出（常時タブのものや Loop Count = 0）を入れてはいけません。</strong>閉じる処理が終わらず、画面が閉じられなくなります。</div>
 
 <h2>標準オプション（音量設定などをスクリプト 0 行で）</h2>
-<p><a href="#" data-manual-page="canvas-data">Canvas データ</a>の Sliders（SliderWire）で、スライダーの Action を <strong>SetOption</strong> にして Option を選ぶだけで、標準の設定値に直結します。Canvas を開いたときに、いまの設定値でスライダーが自動で初期化されます。値は 0〜1、既定は 1、PlayerPrefs に自動保存されます。</p>
+<p><a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas データ</a>の Sliders（SliderWire）で、スライダーの Action を <strong>SetOption</strong> にして Option を選ぶだけで、標準の設定値に直結します。Canvas を開いたときに、いまの設定値でスライダーが自動で初期化されます。値は 0〜1、既定は 1、PlayerPrefs に自動保存されます。</p>
 <table>
 <tr><th>Option</th><th>いま効くか</th><th>説明</th></tr>
 <tr><td>MasterVolume</td><td><strong>効く</strong></td><td>全体音量</td></tr>
@@ -270,14 +270,14 @@
 <tr><td>ShakeScale / HapticScale</td><td>値を保持するだけ</td><td>画面揺れ / 振動の強さ。接続は Phase 6 の予定</td></tr>
 <tr><td>UiSpeedScale</td><td><strong>効く</strong></td><td>UI 演出全体の速さ（0.01 が下限）</td></tr>
 </table>
-<div class="tip">実行中にコンソールへ「[DDrive] OptionStore: Audio バス別音量(…)は Phase 5 で実装予定のため、値は保持のみです」と 1 回出ますが、仕様なので気にしなくて構いません。スライダー側の作り方は <a href="#" data-manual-page="ui-skin">Slider Editor</a> のページを参照。</div>
+<div class="tip">実行中にコンソールへ「[DDrive] OptionStore: Audio バス別音量(…)は Phase 5 で実装予定のため、値は保持のみです」と 1 回出ますが、仕様なので気にしなくて構いません。スライダー側の作り方は <a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Slider Editor</a> のページを参照。</div>
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="ui-skin">ボタン / スライダーの見た目(Skin)と Slider Editor</a> — Enter Tween / Enter Preset、音量スライダーの作り方</li>
-<li><a href="#" data-manual-page="canvas-data">Canvas データ</a> / <a href="#" data-manual-page="canvas-editor">Canvas Editor</a> — ElementEffects と Sliders の配線</li>
-<li><a href="#" data-manual-page="se-data">SE の設定項目</a> — 演出と同時に鳴らす音</li>
-<li><a href="#" data-manual-page="validation">検証（Validation）</a> / <a href="#" data-manual-page="asset-browser">Asset Browser</a> / <a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-skin">ボタン / スライダーの見た目(Skin)と Slider Editor</a> — Enter Tween / Enter Preset、音量スライダーの作り方</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas データ</a> / <a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor</a> — ElementEffects と Sliders の配線</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="se-data">SE の設定項目</a> — 演出と同時に鳴らす音</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">検証（Validation）</a> / <a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> / <a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

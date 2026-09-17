@@ -42,11 +42,11 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</nav>
 
 <h1>Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</h1>
 
-<p>Canvas Editor は、<a href="#" data-manual-page="canvas-data">Canvas(UI 画面)データ</a>を組み立てるための専用ウィンドウです。パッドのフォーカス移動(ナビゲーション)を<strong>矢印付きの図で編集</strong>し、要素ごとの演出(ElementFx)をまとめて割り当て、実際にシーン上で開いて確かめられます。</p>
+<p>Canvas Editor は、<a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas(UI 画面)データ</a>を組み立てるための専用ウィンドウです。パッドのフォーカス移動(ナビゲーション)を<strong>矢印付きの図で編集</strong>し、要素ごとの演出(ElementFx)をまとめて割り当て、実際にシーン上で開いて確かめられます。</p>
 <ul>
 <li>「ナビゲーション」= 十字キー / スティックでフォーカス(選択枠)がどのボタンへ移るかの配線</li>
 <li>「ElementFx」= ボタンやパネルごとの出現(Appear)/ 常時(Idle)/ 消滅(Disappear)の演出</li>
@@ -57,13 +57,13 @@
 <ol>
 <li>Canvas データを Project で選び、<strong>Inspector の一番上の「Canvas Editor で開く」</strong>を押す</li>
 <li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Canvas</code>。Project で Canvas データを選ぶと自動で入ります(「🔒」を ON にすると追従しません)</li>
-<li>まだ Canvas データが無いときは、ツールバーの<strong>「＋ 新規作成」</strong>ボタンでその場で作れます(詳しくは<a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a>)</li>
-<li>演出をカードで選びたいときは <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>(<a href="#" data-manual-page="ui-tween">プリセットギャラリー</a>)</li>
+<li>まだ Canvas データが無いときは、ツールバーの<strong>「＋ 新規作成」</strong>ボタンでその場で作れます(詳しくは<a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の使い方</a>)</li>
+<li>演出をカードで選びたいときは <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>(<a href="#" data-manual-kind="designer" data-manual-page="ui-tween">プリセットギャラリー</a>)</li>
 </ol>
 
 <h2>はじめの一歩(タイトル画面を組む)</h2>
 <ol>
-<li>Canvas Prefab(ルート RectTransform + ボタン数個)と Canvas データを作り、<code>Prefab</code> と <code>Layer=Menu</code> を設定する(<a href="#" data-manual-page="canvas-data">作り方</a>)</li>
+<li>Canvas Prefab(ルート RectTransform + ボタン数個)と Canvas データを作り、<code>Prefab</code> と <code>Layer=Menu</code> を設定する(<a href="#" data-manual-kind="designer" data-manual-page="canvas-data">作り方</a>)</li>
 <li>「<strong>Selectable を自動収集</strong>」→ ステータスに「Selectable を n 件収集しました」。Navigation に行が増える(uGUI の Button などが対象。UiButton は拾われませんが、グラフにはノードとして出ます)</li>
 <li>「Navigation グラフ」で、ノードの下側の丸(▼)を<strong>ドラッグして次のボタンの上で離す</strong> → オレンジの矢印(Down)ができる。上方向(▲)も同様につないで往復できるようにする</li>
 <li>一番上のボタンを右クリック →「<strong>FirstSelected にする</strong>」→ 緑の枠になる</li>
@@ -91,7 +91,7 @@
 <tr><td>Navigation グラフ</td><td>下の「Navigation グラフの操作」を参照</td></tr>
 <tr><td>パッド操作シミュレーション</td><td>「▲」「▼」「◀」「▶」「決定」でパッド操作を再現します。<strong>「確認用シーンを開く」で開いている間だけ</strong>押せます。詳細は下の「パッド操作シミュレーション」を参照</td></tr>
 <tr><td>Inspector 埋め込み</td><td>Canvas データの全項目(Layer / Transition / Navigation / <strong>Buttons</strong> / <strong>Sliders</strong> / ElementEffects)を標準の Inspector として編集。ボタン・スライダーの配線はここの配列に行を足します(専用画面はありません)。Ctrl+Z 対応</td></tr>
-<tr><td>Validation</td><td>問題ごとに色付きの箱(赤 = Error、黄 = Warning、青 = Info)。文言と対処は <a href="#" data-manual-page="canvas-data">Canvas データのよくある警告</a>。自動で直せる項目には右に「修正」ボタンが出ますが、現在の Canvas データの検査には無く、Prefab 内の UiSlider の検査結果にだけ出ることがあります。問題なしなら「Validation に問題はありません。」</td></tr>
+<tr><td>Validation</td><td>問題ごとに色付きの箱(赤 = Error、黄 = Warning、青 = Info)。文言と対処は <a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas データのよくある警告</a>。自動で直せる項目には右に「修正」ボタンが出ますが、現在の Canvas データの検査には無く、Prefab 内の UiSlider の検査結果にだけ出ることがあります。問題なしなら「Validation に問題はありません。」</td></tr>
 <tr><td>プリセットギャラリーとの行き来</td><td>ギャラリー(<code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>)で「適用先」に同じ Canvas データを選び、カードの「この要素に適用」を押すと、Canvas Editor の ElementFx の行に反映されます。逆にギャラリーには Canvas Editor から飛ぶボタンはありません</td></tr>
 </table>
 
@@ -108,7 +108,7 @@
 <tr><td>Appear / Idle / Disappear のラベル</td><td>出現 / 常時(ループ)/ 消滅の 3 区間。Idle は Appear が終わってから始まり、閉じ始めで止まります</td></tr>
 <tr><td>ドロップダウン</td><td>「なし」/ 組み込みプリセット名 / <code>[Catalog] 名前</code>(プロジェクト独自に登録した演出)。「なし」を選ぶとその区間の設定は両方消えます。プリセットを選ぶと右の直接指定は消えます</td></tr>
 <tr><td>直接指定の欄</td><td>UI Tween データをドラッグして入れる欄。入れるとドロップダウン側のプリセットは消えます(どちらか一方だけが有効)</td></tr>
-<tr><td>「✎ Tween Editor」ボタン</td><td>直接指定(UI Tween データ)があるときだけ押せます。押すと<a href="#" data-manual-page="ui-tween">UI Tween Editor</a>が開き、<strong>この行が担当している実際の要素が自動でプレビュー対象に選ばれた状態</strong>で Track を編集できます。「確認用シーンを開く」がまだのときは自動で開いてから割り当てます</td></tr>
+<tr><td>「✎ Tween Editor」ボタン</td><td>直接指定(UI Tween データ)があるときだけ押せます。押すと<a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI Tween Editor</a>が開き、<strong>この行が担当している実際の要素が自動でプレビュー対象に選ばれた状態</strong>で Track を編集できます。「確認用シーンを開く」がまだのときは自動で開いてから割り当てます</td></tr>
 <tr><td>「▶ 再生」/「⏸ 一時停止」/「■ 停止」</td><td>UI Tween Editor を開かずに、この区間をその場で確認します。プリセット指定・直接指定のどちらでも押せます。「確認用シーンを開く」がまだのときは自動で開きます。「▶ 再生」は今の設定で確認用シーンの実要素に再生し(その要素で動いている他の演出、たとえば自動で流れている Idle は先に止めるので、混ざらずにその区間だけ見られます)、「⏸ 一時停止」は再生中だけ押せてその場で止め(もう一度押すか「▶ 再開」で続きから)、「■ 停止」は途中で片付けます(最終状態までは進めません)。右のラベルに「● 再生中」/「⏸ 一時停止」/「■ 停止中」が出ます</td></tr>
 <tr><td>この要素の設定を他の要素へコピー</td><td>この箱の 3 区間の設定を、同じ Canvas の他の要素へまとめて配ります(「設定を他の要素へコピーしました」)</td></tr>
 </table>
@@ -179,11 +179,11 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="canvas-data">Canvas(UI 画面)データの設定項目</a> — 各項目の意味・警告の一覧・実行時の挙動</li>
-<li><a href="#" data-manual-page="ui-tween">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方とカードからの割り当て</li>
-<li><a href="#" data-manual-page="ui-skin">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
-<li><a href="#" data-manual-page="prefab-data">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>
-<li><a href="#" data-manual-page="validation">Validation の見方</a> / <a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas(UI 画面)データの設定項目</a> — 各項目の意味・警告の一覧・実行時の挙動</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方とカードからの割り当て</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="prefab-data">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の見方</a> / <a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

@@ -1,9 +1,10 @@
 'use strict';
 
 /**
- * docs/DesignerManual/*.html（デザイナーマニュアル、真実はこちら）から、
- * GAS（Tools/SpecWeb）が配信できる断片 HTML（Tools/SpecWeb/html/manual/<page>.html）と、
- * ページ名の許可リスト（Tools/SpecWeb/src/ManualPages.js）を生成する。
+ * docs/DesignerManual/*.html・docs/ProgrammerManual/*.html（デザイナー/プログラマーマニュアル、
+ * 真実はこちら）から、GAS（Tools/SpecWeb）が配信できる断片 HTML
+ * （Tools/SpecWeb/html/manual/<kind>/<page>.html）と、kind ごとのページ名の許可リスト
+ * （Tools/SpecWeb/src/ManualPages.js）を生成する。
  *
  * 依存ゼロ（Node 標準の fs/path のみ）。docs/32_spec_web.md「マニュアル配信」節・
  * Tools/SpecWeb/README.md 参照。
@@ -14,12 +15,12 @@
  *
  * 生成方式の選択理由（1 ページ = 1 GAS html ファイル。JSON 化して 1 ファイルにまとめる方式は不採用):
  *   - 既存の `include(filename)`（src/Code.js）がそのまま使え、サーバー側の実装が
- *     `HtmlService.createHtmlOutputFromFile('html/manual/' + page).getContent()` 1 行で済む
+ *     `HtmlService.createHtmlOutputFromFile('html/manual/' + kind + '/' + page).getContent()` 1 行で済む
  *   - 1 ファイルの中身が生成後の最終形（style インライン化済み・リンク書き換え済み）のまま
  *     git 上で読めるため、レビュー・差分確認がしやすい
  *   - GAS の 1 ファイルあたりの上限（実務上 MB 単位まで問題ない）に対し、最大のページでも
- *     画像込みで数百 KB 程度であり、25 ページに分割してもプロジェクト全体のファイル数
- *     （現在 30 ファイル程度）が大きく増えるだけで、サイズ面での問題は生じない
+ *     画像込みで数百 KB 程度であり、2 マニュアル分に分割してもプロジェクト全体のファイル数
+ *     が大きく増えるだけで、サイズ面での問題は生じない
  *   - 1 つの JSON にまとめる方式は、1 ページ更新しただけでも巨大な 1 ファイルの diff になり、
  *     レビューしにくくなるため見送った
  *
@@ -29,9 +30,21 @@
  *     コミットするものがある）と一致させる
  *   - `clasp push` はローカルファイルをそのまま送るだけで、push 時にビルドステップを挟む仕組みが
  *     無いため、コミットしておけば Node が無い環境でも `clasp push` だけで最新化できる
- *   - ドリフト（docs/DesignerManual を直接更新して、生成物の再生成を忘れる）のリスクには、
- *     test/build-manual.test.js の「コミット済みファイルは現在の生成結果と一致する」テスト
- *     （drift チェック）で対応する。加えて Tools/SpecWeb/push.ps1 が push 前に必ず再生成する
+ *   - ドリフト（docs/DesignerManual|ProgrammerManual を直接更新して、生成物の再生成を忘れる）の
+ *     リスクには、test/build-manual.test.js の「コミット済みファイルは現在の生成結果と一致する」
+ *     テスト（drift チェック）で対応する。加えて Tools/SpecWeb/push.ps1 が push 前に必ず再生成する
+ *
+ * 2026-09-17（プログラマーマニュアル配信対応）: デザイナーマニュアルに加えプログラマーマニュアルも
+ * 同じ仕組みで配信する。2 つのマニュアルはページ名（`Readme`/`getting-started` 等）が重複するため、
+ * 出力先を kind（"designer"/"programmer"）ごとのサブフォルダに分け、ページ名の許可リスト
+ * （SPEC_WEB_MANUAL_PAGE_NAMES）も kind をキーにしたオブジェクトにした。プログラマーマニュアルの
+ * 本文はデザイナーマニュアルへの相互リンク（`../DesignerManual/xxx.html`）を含むため、
+ * rewriteLinks にクロスマニュアルリンクの書き換えを追加した。また
+ * docs/ProgrammerManual/style.css は `@import url("../DesignerManual/style.css")` で
+ * デザイナー側の CSS を継承しているため、スコープ化の前に @import を解決してインライン化する
+ * （resolveCssImports）。単体の関数（buildAll/buildManualPageHtml/rewriteLinks 等）は
+ * 1 マニュアル分の生成という既存の役割のまま拡張し、複数マニュアルの束ねは新設の
+ * buildAllManuals が行う（既存の呼び出し側・テストへの影響を最小にするため）。
  */
 
 const fs = require('node:fs');
@@ -42,11 +55,28 @@ const SPEC_WEB_DIR = path.join(TOOLS_DIR, '..');
 const REPO_ROOT = path.join(SPEC_WEB_DIR, '..', '..');
 
 const MANUAL_SOURCE_DIR = path.join(REPO_ROOT, 'docs', 'DesignerManual');
+const PROGRAMMER_MANUAL_SOURCE_DIR = path.join(REPO_ROOT, 'docs', 'ProgrammerManual');
 const OUTPUT_HTML_DIR = path.join(SPEC_WEB_DIR, 'html', 'manual');
 const OUTPUT_PAGES_JS_PATH = path.join(SPEC_WEB_DIR, 'src', 'ManualPages.js');
 
 const TOP_PAGE_NAME = 'Readme';
 const SCOPE_CLASS = 'sw-manual-page';
+
+const DESIGNER_KIND = 'designer';
+const PROGRAMMER_KIND = 'programmer';
+const DEFAULT_MANUAL_KIND = DESIGNER_KIND;
+
+// `../DesignerManual/xxx.html` のようなクロスマニュアルリンクのディレクトリ名 → kind。
+const MANUAL_DIR_TO_KIND = {
+  DesignerManual: DESIGNER_KIND,
+  ProgrammerManual: PROGRAMMER_KIND
+};
+
+// buildAllManuals の既定の対象（kind と docs/ 側のソースフォルダ）。
+const DEFAULT_MANUAL_KIND_CONFIGS = [
+  { kind: DESIGNER_KIND, sourceDir: MANUAL_SOURCE_DIR },
+  { kind: PROGRAMMER_KIND, sourceDir: PROGRAMMER_MANUAL_SOURCE_DIR }
+];
 
 const IMAGE_MIME_BY_EXT = {
   '.png': 'image/png',
@@ -57,10 +87,13 @@ const IMAGE_MIME_BY_EXT = {
 };
 
 const INTERNAL_LINK_RE = /^([A-Za-z0-9_-]+)\.html(?:#([A-Za-z0-9_-]+))?$/;
+// `../DesignerManual/xxx.html` / `../ProgrammerManual/xxx.html`（相互リンク）。
+const CROSS_MANUAL_LINK_RE = /^\.\.\/([A-Za-z0-9_]+)\/([A-Za-z0-9_-]+)\.html(?:#([A-Za-z0-9_-]+))?$/;
 const SAME_PAGE_ANCHOR_RE = /^#([A-Za-z0-9_-]+)$/;
 const EXTERNAL_LINK_RE = /^https?:\/\//i;
+const CSS_IMPORT_RE = /@import\s+url\(\s*["']([^"']+)["']\s*\)\s*;?/gi;
 
-/** docs/DesignerManual/*.html のページ名一覧（拡張子なし）。トップ（Readme）を先頭に。 */
+/** docs/<Kind>Manual/*.html のページ名一覧（拡張子なし）。トップ（Readme）を先頭に。 */
 function listManualPageNames(sourceDir) {
   const names = fs
     .readdirSync(sourceDir)
@@ -81,13 +114,69 @@ function extractBodyInnerHtml(html) {
 }
 
 /**
+ * 2026-09-17（プログラマーマニュアル配信対応）: `@import url("...")` を、参照先の CSS の内容で
+ * その場に展開する（インライン化）。GAS 配信後は相対 URL の @import が解決できず
+ * （script.googleusercontent.com 基準になり 404 になる）、かつ生成物は 1 ページ 1 ファイルの
+ * 断片 HTML として `<style>` にそのまま埋め込む方式のため、ビルド時に解決しておく必要がある。
+ *
+ * `docs/ProgrammerManual/style.css` の `@import url("../DesignerManual/style.css")` を
+ * 解決する用途を想定しており、外部 URL（http/https）の @import はブラウザが解決できるため
+ * 変更しない。ローカルの相対パスが解決できない場合は警告し、@import 文をそのまま残す
+ * （例外にしない。CLAUDE.md §0-4）。再帰的な @import（インポート先がさらに @import する）にも
+ * 対応する（現状は 1 段しか使っていないが、素朴に再帰させておく）。
+ *
+ * @param {string} css
+ * @param {object} [options] { resolveImport(url): string|null, onWarning(message), _depth }
+ * @return {{css:string, warnings:string[]}}
+ */
+function resolveCssImports(css, options) {
+  options = options || {};
+  const resolveImport = options.resolveImport;
+  const onWarning = options.onWarning || function () {};
+  const depth = options._depth || 0;
+  const warnings = [];
+
+  if (depth > 5) {
+    // 循環参照等で無限に再帰しないための安全弁（実際には発生しない想定。例外にはしない）。
+    const message = '@import の解決が深すぎるため中断しました（循環参照の可能性）';
+    warnings.push(message);
+    onWarning(message);
+    return { css, warnings };
+  }
+
+  const resolvedCss = css.replace(CSS_IMPORT_RE, (whole, url) => {
+    if (EXTERNAL_LINK_RE.test(url)) {
+      // 外部 CSS はブラウザが解決できるため変更しない。
+      return whole;
+    }
+    const content = resolveImport ? resolveImport(url) : null;
+    if (content == null) {
+      const message = '@import の CSS が見つかりません（インライン化できずそのまま残しました）: ' + url;
+      warnings.push(message);
+      onWarning(message);
+      return whole;
+    }
+    const nested = resolveCssImports(content, {
+      resolveImport: options.nestedResolveImport || resolveImport,
+      onWarning,
+      _depth: depth + 1
+    });
+    warnings.push(...nested.warnings);
+    return nested.css;
+  });
+
+  return { css: resolvedCss, warnings };
+}
+
+/**
  * style.css をそのままインラインすると、body/h1/table 等の広い CSS セレクタが GAS SPA 全体
  * （ヘッダー・ナビ・他の画面）に漏れてしまう（<style> はサブツリーにスコープされないため）。
  * すべてのセレクタに `.sw-manual-page` を前置してスコープする。
  *
- * 前提: docs/DesignerManual/style.css はフラットな CSS（@media 等のネストが無い）。
- * 現状の style.css はこの前提を満たす。ネストが増えたら本関数の見直しが必要（テストで検出できる
- * 保証は無いため、style.css を編集する人は本関数のコメントも見ること）。
+ * 前提: 解決後の CSS（resolveCssImports 済み）がフラットな CSS（@media 等のネストが無い）
+ * であること。現状の style.css（デザイナー/プログラマー両方）はこの前提を満たす。
+ * ネストが増えたら本関数の見直しが必要（テストで検出できる保証は無いため、style.css を
+ * 編集する人は本関数のコメントも見ること）。
  */
 function scopeCss(css, scopeClass) {
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -105,31 +194,48 @@ function scopeCss(css, scopeClass) {
 }
 
 /**
- * ページ間リンク（`xxx.html`/`xxx.html#anchor`）・同一ページ内アンカー（`#anchor`）・
- * 外部リンク（http/https）を、GAS SPA（iframe 内ナビゲーション）向けに書き換える。
+ * ページ間リンク（`xxx.html`/`xxx.html#anchor`）・クロスマニュアルリンク
+ * （`../DesignerManual/xxx.html`/`../ProgrammerManual/xxx.html`）・同一ページ内アンカー
+ * （`#foo`）・外部リンク（http/https）を、GAS SPA（iframe 内ナビゲーション）向けに書き換える。
  *
  * 生成後の Index.html は `<base target="_top">` を持つため、素の `<a href="#foo">` や
  * `<a href="xxx.html">` はクリック時にトップフレームを動かそうとしてしまう
  * （html/App.html の説明コメント参照）。そのため実際のナビゲーションは
- * html/Manual.html 側のクリックハンドラ（`data-manual-page`/`data-manual-anchor`）に
- * 任せ、href 自体は「JS が動かなかったとき用の素朴なフォールバック」として残す。
+ * html/Manual.html 側のクリックハンドラ（`data-manual-kind`/`data-manual-page`/
+ * `data-manual-anchor`）に任せ、href 自体は「JS が動かなかったとき用の素朴なフォールバック」
+ * として残す。
  *
  * 緊急修正（2026-09-14）: ページ間リンクの href に以前は `?page=manual&p=xxx` を
  * 直接入れていたが、これは相対 URL のためクリック時に既定動作が走ると
  * 「iframe 自身の URL（*-script.googleusercontent.com/userCodeAppPanel）基準で解決した
  * 絶対 URL」にトップフレームが遷移してしまい、真っ白な画面になる不具合があった
- * （実デプロイで発生。html/App.html の「iframe サンドボックスでは素の `<a>` の既定動作が
- * 想定と異なる」という既知の注意と同種の問題）。ビルド時点では実際の exec URL
- * （デプロイごとに変わりうる）が分からないため、href はここでは安全な `#` のプレースホルダーに
- * とどめ、実際のジャンプ先は data-manual-page/data-manual-anchor/data-manual-exit を見て
+ * （実デプロイで発生）。ビルド時点では実際の exec URL（デプロイごとに変わりうる）が
+ * 分からないため、href はここでは安全な `#` のプレースホルダーにとどめ、実際のジャンプ先は
+ * data-manual-kind/data-manual-page/data-manual-anchor/data-manual-exit を見て
  * html/Manual.html が実行時に window.SpecWebExecUrl から絶対 URL を組み立てて設定する
  * （OrderLinkLogic.buildManualUrl/buildExitUrl、O-13 の buildOrderUrl と同じ形）。
- * これにより、万一 JS のクリックハンドラが効かなかった場合でも、トップフレームは
- * 正しい exec URL（execUrl が未取得なら `#`、現在の画面から動かないだけ）に遷移する。
+ *
+ * 2026-09-17（プログラマーマニュアル配信対応）: 同一マニュアル内のリンクにも
+ * `data-manual-kind`（`options.currentKind`）を付けるようにした。クロスマニュアルリンクと
+ * 同じ属性名で扱えるようにするため（呼び出し側で「同一マニュアルか他マニュアルか」を
+ * 区別する必要が無くなる）。
+ *
+ * @param {string} html
+ * @param {object} [options]
+ * @param {string[]} [options.knownPages] 現在の kind のページ名一覧（未知リンクの警告用）
+ * @param {string} [options.currentKind] このページ自身の kind（既定 "designer"）
+ * @param {Object<string,string>} [options.manualDirToKind] クロスマニュアルリンクの
+ *   ディレクトリ名 → kind（既定 MANUAL_DIR_TO_KIND）
+ * @param {Object<string,string[]>} [options.knownPagesByKind] kind ごとのページ名一覧
+ *   （クロスマニュアルリンクの未知ページ検証用。無ければ検証をスキップする）
+ * @param {function} [options.onWarning]
  */
 function rewriteLinks(html, options) {
   options = options || {};
   const knownPages = options.knownPages || null;
+  const currentKind = options.currentKind || DEFAULT_MANUAL_KIND;
+  const manualDirToKind = options.manualDirToKind || MANUAL_DIR_TO_KIND;
+  const knownPagesByKind = options.knownPagesByKind || null;
   const onWarning = options.onWarning || function () {};
   const warnings = [];
 
@@ -144,7 +250,33 @@ function rewriteLinks(html, options) {
         onWarning(message);
       }
       const anchorAttr = anchor ? ' data-manual-anchor="' + anchor + '"' : '';
-      return '<a' + before + 'href="#" data-manual-page="' + page + '"' + anchorAttr + after + '>';
+      return (
+        '<a' + before + 'href="#" data-manual-kind="' + currentKind + '" data-manual-page="' + page + '"' + anchorAttr + after + '>'
+      );
+    }
+
+    m = CROSS_MANUAL_LINK_RE.exec(href);
+    if (m) {
+      const dirName = m[1];
+      const page = m[2];
+      const anchor = m[3] || '';
+      const kind = manualDirToKind[dirName];
+      if (!kind) {
+        const message = '未対応の形式のリンクをそのまま残しました（要確認）: ' + href;
+        warnings.push(message);
+        onWarning(message);
+        return whole;
+      }
+      const kindPages = knownPagesByKind ? knownPagesByKind[kind] : null;
+      if (kindPages && kindPages.indexOf(page) === -1) {
+        const message = '未知のページへのリンク（生成対象に無いページ名、kind=' + kind + '）: ' + href;
+        warnings.push(message);
+        onWarning(message);
+      }
+      const anchorAttr = anchor ? ' data-manual-anchor="' + anchor + '"' : '';
+      return (
+        '<a' + before + 'href="#" data-manual-kind="' + kind + '" data-manual-page="' + page + '"' + anchorAttr + after + '>'
+      );
     }
 
     m = SAME_PAGE_ANCHOR_RE.exec(href);
@@ -246,14 +378,21 @@ function inlineImages(html, options) {
   return { html: rewritten, warnings };
 }
 
-function buildNavBarHtml() {
-  // \u7dca\u6025\u4fee\u6b63\uff082026-09-14\uff09: href="?" / href="?page=..." \u306f rewriteLinks() \u3068\u540c\u3058\u7406\u7531\u3067
-  // \u30c8\u30c3\u30d7\u30d5\u30ec\u30fc\u30e0\u306e\u65e2\u5b9a\u52d5\u4f5c\u304c\u8d70\u308b\u3068\u767d\u753b\u9762\u306b\u306a\u308b\u305f\u3081\u3001\u3053\u3053\u3082 "#" + data \u5c5e\u6027\u306b\u3059\u308b
-  // \uff08html/Manual.html \u304c window.SpecWebExecUrl \u304b\u3089\u5b9f\u969b\u306e href \u3092\u8a2d\u5b9a\u3059\u308b\uff09\u3002
+/**
+ * @param {string} [currentKind] このページ自身の kind（"マニュアル目次" リンクを同じ kind の
+ *   トップへ向けるために使う。既定 "designer"）
+ */
+function buildNavBarHtml(currentKind) {
+  const kind = currentKind || DEFAULT_MANUAL_KIND;
+  // 緊急修正（2026-09-14）: href="?" / href="?page=..." は rewriteLinks() と同じ理由で
+  // トップフレームの既定動作が走ると白画面になるため、ここも "#" + data 属性にする
+  // （html/Manual.html が window.SpecWebExecUrl から実際の href を設定する）。
   return (
     '<div class="sw-manual-navbar">' +
     '<a href="#" data-manual-exit="orders">\u2190 \u767a\u6ce8\u30c4\u30fc\u30eb\u3078</a>' +
-    ' <a href="#" data-manual-page="' +
+    ' <a href="#" data-manual-kind="' +
+    kind +
+    '" data-manual-page="' +
     TOP_PAGE_NAME +
     '">\u30de\u30cb\u30e5\u30a2\u30eb\u76ee\u6b21</a>' +
     '</div>'
@@ -261,13 +400,21 @@ function buildNavBarHtml() {
 }
 
 /**
- * 1 ページ分の最終 HTML（GAS の html/manual/<page>.html に書き出す内容）を組み立てる。
- * @param {object} opts { pageName, rawHtml, scopedCss, knownPages, resolveImage, onWarning }
+ * 1 ページ分の最終 HTML（GAS の html/manual/<kind>/<page>.html に書き出す内容）を組み立てる。
+ * @param {object} opts { pageName, rawHtml, scopedCss, knownPages, currentKind, manualDirToKind,
+ *   knownPagesByKind, resolveImage, onWarning }
  */
 function buildManualPageHtml(opts) {
+  const currentKind = opts.currentKind || DEFAULT_MANUAL_KIND;
   const bodyInner = extractBodyInnerHtml(opts.rawHtml);
   const imaged = inlineImages(bodyInner, { resolveImage: opts.resolveImage, onWarning: opts.onWarning });
-  const linked = rewriteLinks(imaged.html, { knownPages: opts.knownPages, onWarning: opts.onWarning });
+  const linked = rewriteLinks(imaged.html, {
+    knownPages: opts.knownPages,
+    currentKind: currentKind,
+    manualDirToKind: opts.manualDirToKind,
+    knownPagesByKind: opts.knownPagesByKind,
+    onWarning: opts.onWarning
+  });
   // 2026-09-17（docs/41 整理項目）: 書き換え漏れ（シングルクォート・srcset・相対リンク）が
   // 残っていないかを最後に確認する。onWarning を通すので buildAll の警告出力にも載る。
   const leftovers = findUnprocessedLinkTags(linked.html);
@@ -281,7 +428,7 @@ function buildManualPageHtml(opts) {
     '<style>' +
     opts.scopedCss +
     '</style>' +
-    buildNavBarHtml() +
+    buildNavBarHtml(currentKind) +
     '<div class="' +
     SCOPE_CLASS +
     '">' +
@@ -291,6 +438,7 @@ function buildManualPageHtml(opts) {
   return { html, warnings };
 }
 
+/** 単一 kind（旧形式・後方互換）のページ名一覧 JS。buildAll が単独で呼ばれたときに使う。 */
 function buildManualPagesJs(pageNames) {
   const lines = [
     '/**',
@@ -307,6 +455,44 @@ function buildManualPagesJs(pageNames) {
 }
 
 /**
+ * 2026-09-17（プログラマーマニュアル配信対応）: 複数 kind 分のページ名一覧 JS。
+ * 実際に GAS へコミットする `src/ManualPages.js` はこちらの形式（kind をキーにしたオブジェクト）。
+ * ページ名が両マニュアルで重複する（`Readme`/`getting-started`）ため、フラットな配列 1 つには
+ * まとめられない。
+ *
+ * @param {Object<string,string[]>} pageNamesByKind
+ * @param {string} defaultKind kind 未指定・不正なときのフォールバック（"designer"）
+ * @param {string} topPageName 各 kind 共通のトップページ名（"Readme"）
+ */
+function buildManualPagesJsMulti(pageNamesByKind, defaultKind, topPageName) {
+  const kinds = Object.keys(pageNamesByKind);
+  const lines = [
+    '/**',
+    ' * docs/DesignerManual・docs/ProgrammerManual の *.html のページ名一覧（拡張子なし）。',
+    ' * kind（"designer"/"programmer"）ごとに分かれている（ページ名が両マニュアルで重複するため）。',
+    ' * Tools/SpecWeb/tools/build-manual.js が生成する。手で編集しない。',
+    ' * src/Manual.js の manualGet がこの一覧に対して kind+p を検証し、無ければ',
+    ' * SPEC_WEB_MANUAL_DEFAULT_KIND / SPEC_WEB_MANUAL_TOP_PAGE にフォールバックする',
+    ' * （未知の kind/ページで例外にしない）。',
+    ' */',
+    'var SPEC_WEB_MANUAL_KINDS = ' + JSON.stringify(kinds) + ';',
+    'var SPEC_WEB_MANUAL_DEFAULT_KIND = ' + JSON.stringify(defaultKind) + ';',
+    'var SPEC_WEB_MANUAL_TOP_PAGE = ' + JSON.stringify(topPageName) + ';',
+    'var SPEC_WEB_MANUAL_PAGE_NAMES = ' + JSON.stringify(pageNamesByKind, null, 2) + ';',
+    ''
+  ];
+  return lines.join('\n');
+}
+
+/**
+ * 1 マニュアル（1 kind）分の生成。既存の呼び出し側・テストへの影響を避けるため、
+ * 単独で呼んだときの挙動（引数を省略したときに docs/DesignerManual を対象にする等）は
+ * 2026-09-14 実装時点のまま変えていない。プログラマーマニュアル配信対応（2026-09-17）で
+ * 追加したのは、クロスマニュアルリンクの書き換えに使う `options.kind`/`manualDirToKind`/
+ * `knownPagesByKind` と、CSS の `@import` 解決・複数 kind から呼ばれたときに
+ * `src/ManualPages.js` を上書きしないための `options.writePagesJs` だけで、
+ * いずれも省略時は従来どおり動く。
+ *
  * @param {object} [options]
  * @param {string} [options.sourceDir] docs/DesignerManual 相当のディレクトリ（既定: 実物）
  * @param {string} [options.imagesDir] 画像ディレクトリ（既定: <sourceDir>/images）
@@ -314,7 +500,13 @@ function buildManualPagesJs(pageNames) {
  * @param {string} [options.outHtmlDir] 出力先（既定: Tools/SpecWeb/html/manual）
  * @param {string} [options.outPagesJsPath] ページ一覧の出力先（既定: Tools/SpecWeb/src/ManualPages.js）
  * @param {boolean} [options.write] ディスクへ書き出すか（既定 true。テストは false で使う）
- * @return {{pageNames:string[], pages:Object<string,string>, pagesJs:string, warnings:string[]}}
+ * @param {boolean} [options.writePagesJs] `outPagesJsPath` へ書き出すか（既定 true。
+ *   buildAllManuals が複数 kind をまとめて 1 つの ManualPages.js に書き出すため false を渡す）
+ * @param {string} [options.kind] このマニュアルの kind（既定 "designer"）
+ * @param {Object<string,string>} [options.manualDirToKind] クロスマニュアルリンクの解決に使う
+ * @param {Object<string,string[]>} [options.knownPagesByKind] クロスマニュアルリンクの
+ *   未知ページ検証に使う（無ければ検証をスキップ）
+ * @return {{pageNames:string[], pages:Object<string,string>, pagesJs:string, warnings:string[], kind:string}}
  */
 function buildAll(options) {
   options = options || {};
@@ -324,14 +516,30 @@ function buildAll(options) {
   const outHtmlDir = options.outHtmlDir || OUTPUT_HTML_DIR;
   const outPagesJsPath = options.outPagesJsPath || OUTPUT_PAGES_JS_PATH;
   const write = options.write !== false;
+  const writePagesJs = options.writePagesJs !== false;
+  const kind = options.kind || DEFAULT_MANUAL_KIND;
 
   const pageNames = listManualPageNames(sourceDir);
+
+  const warnings = [];
+
   // Windows では docs/DesignerManual が CRLF でチェックアウトされるため、そのまま通すと生成物が CRLF になり
   // 毎回の再生成（push.cmd）で改行コードだけの差分が出る。生成物は LF に揃える（.gitattributes と同じ）。
   const rawCss = fs.readFileSync(cssPath, 'utf8').replace(/\r\n/g, '\n');
-  const scopedCss = scopeCss(rawCss, SCOPE_CLASS);
+  const cssDir = path.dirname(cssPath);
+  const resolveCssImport = (url) => {
+    try {
+      return fs.readFileSync(path.join(cssDir, url), 'utf8').replace(/\r\n/g, '\n');
+    } catch (err) {
+      return null;
+    }
+  };
+  const resolvedCss = resolveCssImports(rawCss, {
+    resolveImport: resolveCssImport,
+    onWarning: (message) => warnings.push('style.css: ' + message)
+  });
+  const scopedCss = scopeCss(resolvedCss.css, SCOPE_CLASS);
 
-  const warnings = [];
   const pages = {};
 
   for (const name of pageNames) {
@@ -349,6 +557,9 @@ function buildAll(options) {
       rawHtml,
       scopedCss,
       knownPages: pageNames,
+      currentKind: kind,
+      manualDirToKind: options.manualDirToKind,
+      knownPagesByKind: options.knownPagesByKind,
       resolveImage,
       onWarning: (message) => warnings.push(name + ': ' + message)
     });
@@ -362,19 +573,99 @@ function buildAll(options) {
     for (const name of pageNames) {
       fs.writeFileSync(path.join(outHtmlDir, name + '.html'), pages[name], 'utf8');
     }
+    if (writePagesJs) {
+      fs.writeFileSync(outPagesJsPath, pagesJs, 'utf8');
+    }
+  }
+
+  return { pageNames, pages, pagesJs, warnings, kind };
+}
+
+/**
+ * 2026-09-17（プログラマーマニュアル配信対応）: 複数マニュアル（kind）をまとめて生成する。
+ * 実際の生成（push.ps1/push.cmd 経由の main()、drift 検出テスト）はこちらを使う。
+ *
+ * 1 パス目で各 kind のページ名一覧を集め（クロスマニュアルリンクの検証に使う）、
+ * 2 パス目で kind ごとに buildAll を呼ぶ（`html/manual/<kind>/<page>.html` へ出力、
+ * `writePagesJs: false` で個別の ManualPages.js 書き出しは止める）。最後に全 kind 分の
+ * ページ名一覧を 1 つの `src/ManualPages.js` にまとめて書き出す。
+ *
+ * @param {object} [options]
+ * @param {{kind:string, sourceDir?:string, imagesDir?:string, cssPath?:string, outHtmlDir?:string}[]} [options.kinds]
+ *   既定: デザイナー（docs/DesignerManual）+ プログラマー（docs/ProgrammerManual）
+ * @param {string} [options.outHtmlBaseDir] 既定 Tools/SpecWeb/html/manual（各 kind はこの下の
+ *   サブフォルダに出力する）
+ * @param {string} [options.outPagesJsPath] 既定 Tools/SpecWeb/src/ManualPages.js
+ * @param {Object<string,string>} [options.manualDirToKind]
+ * @param {boolean} [options.write] 既定 true
+ * @return {{kinds:string[], pageNamesByKind:Object<string,string[]>, pagesByKind:Object<string,Object<string,string>>, pagesJs:string, warnings:string[]}}
+ */
+function buildAllManuals(options) {
+  options = options || {};
+  const write = options.write !== false;
+  const kindConfigs = options.kinds || DEFAULT_MANUAL_KIND_CONFIGS;
+  const outBaseDir = options.outHtmlBaseDir || OUTPUT_HTML_DIR;
+  const outPagesJsPath = options.outPagesJsPath || OUTPUT_PAGES_JS_PATH;
+  const manualDirToKind = options.manualDirToKind || MANUAL_DIR_TO_KIND;
+
+  // 1 パス目: 先にページ名一覧だけ集める（クロスマニュアルリンクの未知ページ検証に使うため、
+  // 各 kind の本文を処理する前にすべての kind の一覧が要る）。
+  const pageNamesByKind = {};
+  for (const cfg of kindConfigs) {
+    pageNamesByKind[cfg.kind] = listManualPageNames(cfg.sourceDir);
+  }
+
+  const warnings = [];
+  const pagesByKind = {};
+
+  for (const cfg of kindConfigs) {
+    const outHtmlDir = cfg.outHtmlDir || path.join(outBaseDir, cfg.kind);
+    const result = buildAll({
+      sourceDir: cfg.sourceDir,
+      imagesDir: cfg.imagesDir,
+      cssPath: cfg.cssPath,
+      outHtmlDir,
+      kind: cfg.kind,
+      manualDirToKind,
+      knownPagesByKind: pageNamesByKind,
+      write,
+      writePagesJs: false
+    });
+    pagesByKind[cfg.kind] = result.pages;
+    result.warnings.forEach((w) => warnings.push(cfg.kind + '/' + w));
+  }
+
+  const pagesJs = buildManualPagesJsMulti(pageNamesByKind, DEFAULT_MANUAL_KIND, TOP_PAGE_NAME);
+
+  if (write) {
     fs.writeFileSync(outPagesJsPath, pagesJs, 'utf8');
   }
 
-  return { pageNames, pages, pagesJs, warnings };
+  return {
+    kinds: kindConfigs.map((cfg) => cfg.kind),
+    pageNamesByKind,
+    pagesByKind,
+    pagesJs,
+    warnings
+  };
 }
 
 function main() {
-  const result = buildAll({ write: true });
+  const result = buildAllManuals({ write: true });
   if (result.warnings.length > 0) {
     console.warn('[build-manual] warnings: ' + result.warnings.length + ' 件');
     result.warnings.forEach((w) => console.warn('  - ' + w));
   }
-  console.log('[build-manual] ' + result.pageNames.length + ' ページを生成しました: ' + OUTPUT_HTML_DIR);
+  for (const kind of result.kinds) {
+    console.log(
+      '[build-manual] (' +
+        kind +
+        ') ' +
+        result.pageNamesByKind[kind].length +
+        ' ページを生成しました: ' +
+        path.join(OUTPUT_HTML_DIR, kind)
+    );
+  }
   console.log('[build-manual] ページ一覧を書き出しました: ' + OUTPUT_PAGES_JS_PATH);
 }
 
@@ -386,10 +677,16 @@ module.exports = {
   TOP_PAGE_NAME,
   SCOPE_CLASS,
   MANUAL_SOURCE_DIR,
+  PROGRAMMER_MANUAL_SOURCE_DIR,
   OUTPUT_HTML_DIR,
   OUTPUT_PAGES_JS_PATH,
+  DESIGNER_KIND,
+  PROGRAMMER_KIND,
+  DEFAULT_MANUAL_KIND,
+  MANUAL_DIR_TO_KIND,
   listManualPageNames,
   extractBodyInnerHtml,
+  resolveCssImports,
   scopeCss,
   rewriteLinks,
   inlineImages,
@@ -398,5 +695,7 @@ module.exports = {
   buildNavBarHtml,
   buildManualPageHtml,
   buildManualPagesJs,
-  buildAll
+  buildManualPagesJsMulti,
+  buildAll,
+  buildAllManuals
 };

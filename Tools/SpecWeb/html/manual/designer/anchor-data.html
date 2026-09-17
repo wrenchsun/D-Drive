@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › Anchor（出す位置）の作り方</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Anchor（出す位置）の作り方</nav>
 
 <h1>Anchor（出す位置）の作り方</h1>
 
@@ -88,9 +88,9 @@
 <h2>作り方（3 通り）</h2>
 <table>
 <tr><th>方法</th><th>手順</th><th>向いている場面</th></tr>
-<tr><td>新規作成</td><td><a href="#" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>Anchor</strong> を選ぶ。Anchor Editor でスポーン先（キャラクター）を指定し、「一覧から選択」でボーンを選んで位置を調整</td><td>ゼロから作る</td></tr>
+<tr><td>新規作成</td><td><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> の「新規」ボタンで種別に <strong>Anchor</strong> を選ぶ。Anchor Editor でスポーン先（キャラクター）を指定し、「一覧から選択」でボーンを選んで位置を調整</td><td>ゼロから作る</td></tr>
 <tr><td>Hierarchy の Transform から作る</td><td>シーンでボーンの下に空のオブジェクトを置いて位置を決め、それを選択したまま Anchor Editor の「<strong>選択した Transform から作成</strong>」（または <code>Tools &gt; D-Drive &gt; Generate &gt; 選択した Transform から Anchor を作成</code>）。親のボーン名と、そこからのずれが自動で入ります。作った後、その空オブジェクトは消して構いません</td><td>既存のボーンやモデルの階層をそのまま使いたい</td></tr>
-<tr><td>AnchorRig から一括で作る</td><td><a href="#" data-manual-page="vfx-data" data-manual-anchor="anchorpoint">AnchorRig</a>（AnchorPoint の集まり）を選択して「<strong>AnchorRig から一括生成</strong>」。AnchorPoint 1 つにつき Anchor データが 1 つでき、AnchorPoint の親子関係はそのまま Anchor の入れ子になります。ランダム設定も写されます</td><td>SceneView でドラッグして決めた目印をデータ化したい</td></tr>
+<tr><td>AnchorRig から一括で作る</td><td><a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="anchorpoint">AnchorRig</a>（AnchorPoint の集まり）を選択して「<strong>AnchorRig から一括生成</strong>」。AnchorPoint 1 つにつき Anchor データが 1 つでき、AnchorPoint の親子関係はそのまま Anchor の入れ子になります。ランダム設定も写されます</td><td>SceneView でドラッグして決めた目印をデータ化したい</td></tr>
 </table>
 <p>VFX / SE の埋め込み Anchor から作るには、VFX Editor の「埋め込みをアセット化」（SE は Inspector の「埋め込み Anchor をアセット化」）を押します。埋め込みの値は残り、Anchor アセット欄に新しいデータが入ります。</p>
 
@@ -111,7 +111,7 @@
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Parent</td><td>親の Anchor。入れておくと「親で決まった位置」を基準に、この Anchor のオフセットを積みます。空ならルート</td></tr>
-<tr><td>Space / Path</td><td>ルートだけで有効。基準の決め方と探す名前（<a href="#" data-manual-page="vfx-data" data-manual-anchor="anchor">VFX の Anchor</a> と同じ）。子では無視されます（親から引き継ぐ）</td></tr>
+<tr><td>Space / Path</td><td>ルートだけで有効。基準の決め方と探す名前（<a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="anchor">VFX の Anchor</a> と同じ）。子では無視されます（親から引き継ぐ）</td></tr>
 <tr><td>Local Offset / Local Euler / Local Scale</td><td>基準からの位置のずれ（m）・向き（度）・大きさの倍率</td></tr>
 <tr><td>Follow Rotation / Detach On Stop</td><td>ルートだけで有効。回転に追従するか／基準が消えた後も残すか</td></tr>
 <tr><td>Position Jitter Radius</td><td>出す位置をこの半径の球の中でランダムに散らす。0 で無効</td></tr>
@@ -162,10 +162,10 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="anchor-group">配置セット（複数の場所にまとめて出す）</a> — 格子や円に並べて一括で出す</li>
-<li><a href="#" data-manual-page="vfx-data" data-manual-anchor="anchor">VFX の設定項目（Anchor）</a> / <a href="#" data-manual-page="vfx-editor" data-manual-anchor="anchor">VFX Editor の Anchor 調整</a></li>
-<li><a href="#" data-manual-page="se-data">SE（効果音）の設定項目</a></li>
-<li><a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="anchor-group">配置セット（複数の場所にまとめて出す）</a> — 格子や円に並べて一括で出す</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="anchor">VFX の設定項目（Anchor）</a> / <a href="#" data-manual-kind="designer" data-manual-page="vfx-editor" data-manual-anchor="anchor">VFX Editor の Anchor 調整</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="se-data">SE（効果音）の設定項目</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

@@ -13,8 +13,12 @@ const { loadGas } = require('./load-gas.js');
 //  - Unity の「マニュアル」ボタンが開く `?page=manual&p=<ページ名>` を doGet が受け取り、
 //    人向け SPA の初期画面を 'manual' + { p } に解決する（resolveInitialScreen_、src/Code.js）
 //  - p が不正・未知でもトップ（Readme）へフォールバックする（例外にしない）
-//  - manualGet API（src/Manual.js）はページ本文（html/manual/<page>.html、
+//  - manualGet API（src/Manual.js）はページ本文（html/manual/<kind>/<page>.html、
 //    Tools/SpecWeb/tools/build-manual.js が事前生成）を返す。フォールバックも同様
+//
+// 2026-09-17（プログラマーマニュアル配信対応）: `kind`（"designer"/"programmer"）が
+// URL・manualGet の両方に追加された。kind 未指定・不正は SPEC_WEB_MANUAL_DEFAULT_KIND
+// （"designer"）にフォールバックする（Unity の既存 URL・既存のコピー済みリンクとの後方互換）。
 
 function usersFixture(list) {
   const items = {};
@@ -78,12 +82,13 @@ test('doGet: ?page=manual&p=... でも許可リスト外なら「メンバーの
   assert.match(output.getContent(), /メンバーのみ利用できます/);
 });
 
-test('specWebUiCall: manualGet は viewer でも呼べ、有効なページ名を返す', () => {
+test('specWebUiCall: manualGet は viewer でも呼べ、有効なページ名を返す（kind 未指定は designer）', () => {
   const ctx = loggedInCtx('viewer');
   const result = ctx.specWebUiCall('manualGet', { p: 'asset-browser' });
   assert.equal(result.ok, true);
   assert.equal(result.page, 'asset-browser');
-  assert.match(result.html, /include:html\/manual\/asset-browser/);
+  assert.equal(result.kind, 'designer');
+  assert.match(result.html, /include:html\/manual\/designer\/asset-browser/);
 });
 
 test('specWebUiCall: manualGet は未知の p をトップ（Readme）にフォールバックする（例外にしない）', () => {
@@ -98,6 +103,47 @@ test('specWebUiCall: manualGet は p が無ければトップ（Readme）を返�
   const result = ctx.specWebUiCall('manualGet', {});
   assert.equal(result.ok, true);
   assert.equal(result.page, 'Readme');
+});
+
+// ── 2026-09-17（プログラマーマニュアル配信対応） ──
+
+test('specWebUiCall: manualGet に kind:"programmer" を渡すとプログラマーマニュアルのページを返す', () => {
+  const ctx = loggedInCtx('viewer');
+  const result = ctx.specWebUiCall('manualGet', { p: 'concepts', kind: 'programmer' });
+  assert.equal(result.ok, true);
+  assert.equal(result.page, 'concepts');
+  assert.equal(result.kind, 'programmer');
+  assert.match(result.html, /include:html\/manual\/programmer\/concepts/);
+});
+
+test('specWebUiCall: manualGet は kind が不正なら designer にフォールバックする（例外にしない）', () => {
+  const ctx = loggedInCtx('viewer');
+  const result = ctx.specWebUiCall('manualGet', { p: 'Readme', kind: 'no-such-kind' });
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, 'designer');
+});
+
+test('specWebUiCall: manualGet は kind が programmer で p がそのマニュアルに無ければトップ（Readme）にフォールバックする', () => {
+  const ctx = loggedInCtx('viewer');
+  // "asset-browser" はデザイナーマニュアル側のページ名。programmer 側には存在しない。
+  const result = ctx.specWebUiCall('manualGet', { p: 'asset-browser', kind: 'programmer' });
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, 'programmer');
+  assert.equal(result.page, 'Readme');
+});
+
+test('resolveInitialScreen_: page=manual & kind=programmer なら params.kind に反映される', () => {
+  const ctx = loggedInCtx();
+  const result = ctx.resolveInitialScreen_({ page: 'manual', p: 'concepts', kind: 'programmer' });
+  assert.equal(result.screen, 'manual');
+  assert.equal(result.params.p, 'concepts');
+  assert.equal(result.params.kind, 'programmer');
+});
+
+test('resolveInitialScreen_: page=manual & kind 未指定は designer になる（後方互換）', () => {
+  const ctx = loggedInCtx();
+  const result = ctx.resolveInitialScreen_({ page: 'manual', p: 'Readme' });
+  assert.equal(result.params.kind, 'designer');
 });
 
 test('specWebUiCall: ログインしていない場合は manualGet も 401 で拒否される（他の API と同じ規約）', () => {
@@ -125,8 +171,15 @@ test('doPost: D-Drive の書き込みトークンは manualGet を呼べない�
   assert.equal(body.status, 403);
 });
 
-test('SPEC_WEB_MANUAL_PAGE_NAMES（生成済み src/ManualPages.js）に Readme が含まれる', () => {
+test('SPEC_WEB_MANUAL_PAGE_NAMES（生成済み src/ManualPages.js）は kind ごとに Readme を含む', () => {
   const ctx = loggedInCtx();
-  assert.ok(ctx.SPEC_WEB_MANUAL_PAGE_NAMES.indexOf('Readme') !== -1);
+  // vm（別実現域）が返す配列は Node 側の Array と prototype が異なるため deepEqual は使わない
+  // （このファイル冒頭の注意・storage.test.js と同じ回避）。
+  assert.equal(ctx.SPEC_WEB_MANUAL_KINDS.length, 2);
+  assert.equal(ctx.SPEC_WEB_MANUAL_KINDS.indexOf('designer') !== -1, true);
+  assert.equal(ctx.SPEC_WEB_MANUAL_KINDS.indexOf('programmer') !== -1, true);
+  assert.equal(ctx.SPEC_WEB_MANUAL_DEFAULT_KIND, 'designer');
   assert.equal(ctx.SPEC_WEB_MANUAL_TOP_PAGE, 'Readme');
+  assert.ok(ctx.SPEC_WEB_MANUAL_PAGE_NAMES.designer.indexOf('Readme') !== -1);
+  assert.ok(ctx.SPEC_WEB_MANUAL_PAGE_NAMES.programmer.indexOf('Readme') !== -1);
 });

@@ -12,12 +12,16 @@ const {
   findUnprocessedLinkTags,
   toDataUri,
   extractBodyInnerHtml,
+  resolveCssImports,
   buildManualPageHtml,
   buildAll,
+  buildAllManuals,
   TOP_PAGE_NAME,
   SCOPE_CLASS,
   OUTPUT_HTML_DIR,
-  OUTPUT_PAGES_JS_PATH
+  OUTPUT_PAGES_JS_PATH,
+  DESIGNER_KIND,
+  PROGRAMMER_KIND
 } = require('../tools/build-manual.js');
 
 // 1x1 の透明 PNG（テスト用の最小フィクスチャ）。
@@ -228,19 +232,27 @@ function normalizeNewlines_(text) {
   return text.replace(/\r\n/g, '\n');
 }
 
-test('ドリフト検出: 実際の docs/DesignerManual からの生成結果はコミット済みファイルと一致する', () => {
-  const result = buildAll({ write: false });
-  assert.equal(result.warnings.length, 0, 'docs/DesignerManual の実データで警告が出ないこと: ' + result.warnings.join(', '));
+// 2026-09-17（プログラマーマニュアル配信対応）: デザイナーマニュアル単独だった drift 検出を
+// buildAllManuals（デザイナー + プログラマー）ベースに更新した。生成物は
+// `Tools/SpecWeb/html/manual/<kind>/<page>.html` に kind ごとのサブフォルダへ出力される。
+test('ドリフト検出: 実際の docs/DesignerManual・docs/ProgrammerManual からの生成結果はコミット済みファイルと一致する', () => {
+  const result = buildAllManuals({ write: false });
+  assert.equal(result.warnings.length, 0, '実データで警告が出ないこと: ' + result.warnings.join(', '));
+  assert.deepEqual(result.kinds.slice().sort(), [DESIGNER_KIND, PROGRAMMER_KIND].sort());
 
-  for (const pageName of result.pageNames) {
-    const committedPath = path.join(OUTPUT_HTML_DIR, pageName + '.html');
-    assert.equal(fs.existsSync(committedPath), true, 'コミットされているはずのファイルが無い: ' + committedPath);
-    const committed = fs.readFileSync(committedPath, 'utf8');
-    assert.equal(
-      normalizeNewlines_(result.pages[pageName]),
-      normalizeNewlines_(committed),
-      pageName + '.html が生成結果と一致しません。node Tools/SpecWeb/tools/build-manual.js（または push.ps1）を実行してコミットしてください。'
-    );
+  for (const kind of result.kinds) {
+    const pageNames = result.pageNamesByKind[kind];
+    assert.ok(pageNames.length > 0, kind + ' のページが 0 件');
+    for (const pageName of pageNames) {
+      const committedPath = path.join(OUTPUT_HTML_DIR, kind, pageName + '.html');
+      assert.equal(fs.existsSync(committedPath), true, 'コミットされているはずのファイルが無い: ' + committedPath);
+      const committed = fs.readFileSync(committedPath, 'utf8');
+      assert.equal(
+        normalizeNewlines_(result.pagesByKind[kind][pageName]),
+        normalizeNewlines_(committed),
+        kind + '/' + pageName + '.html が生成結果と一致しません。node Tools/SpecWeb/tools/build-manual.js（または push.ps1）を実行してコミットしてください。'
+      );
+    }
   }
 
   const committedPagesJs = fs.readFileSync(OUTPUT_PAGES_JS_PATH, 'utf8');
@@ -303,3 +315,156 @@ test('buildManualPageHtml: 書き換え漏れは warnings と onWarning の両�
   assert.match(result.warnings[0], /シングルクォート/);
   assert.deepEqual(warnings, result.warnings);
 });
+
+// ── 2026-09-17（プログラマーマニュアル配信対応） ──
+
+test('rewriteLinks: 内部ページリンクに data-manual-kind（currentKind、既定 designer）が付く', () => {
+  const { html } = rewriteLinks('<a href="other-page.html">次へ</a>', { knownPages: ['other-page'] });
+  assert.match(html, /data-manual-kind="designer"/);
+  assert.match(html, /data-manual-page="other-page"/);
+});
+
+test('rewriteLinks: currentKind を渡すとそのまま反映される', () => {
+  const { html } = rewriteLinks('<a href="other-page.html">次へ</a>', {
+    knownPages: ['other-page'],
+    currentKind: 'programmer'
+  });
+  assert.match(html, /data-manual-kind="programmer"/);
+});
+
+test('rewriteLinks: クロスマニュアルリンク（../DesignerManual/xxx.html）を data-manual-kind="designer" + data-manual-page に書き換える', () => {
+  const { html, warnings } = rewriteLinks('<a href="../DesignerManual/asset-browser.html">Asset Browser</a>', {
+    currentKind: 'programmer',
+    knownPagesByKind: { designer: ['asset-browser'], programmer: [] }
+  });
+  assert.match(html, /href="#"/);
+  assert.match(html, /data-manual-kind="designer"/);
+  assert.match(html, /data-manual-page="asset-browser"/);
+  assert.equal(warnings.length, 0);
+});
+
+test('rewriteLinks: クロスマニュアルリンク + アンカー（../ProgrammerManual/xxx.html#anchor）も書き換える', () => {
+  const { html } = rewriteLinks('<a href="../ProgrammerManual/handle.html#dispose">Handle</a>', {
+    currentKind: 'designer',
+    knownPagesByKind: { designer: [], programmer: ['handle'] }
+  });
+  assert.match(html, /data-manual-kind="programmer"/);
+  assert.match(html, /data-manual-page="handle"/);
+  assert.match(html, /data-manual-anchor="dispose"/);
+});
+
+test('rewriteLinks: クロスマニュアルリンクで knownPagesByKind に無いページは警告する', () => {
+  const warnings = [];
+  rewriteLinks('<a href="../DesignerManual/no-such-page.html">存在しない</a>', {
+    currentKind: 'programmer',
+    knownPagesByKind: { designer: ['asset-browser'], programmer: [] },
+    onWarning: (message) => warnings.push(message)
+  });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /未知のページ/);
+});
+
+test('rewriteLinks: 未知のディレクトリへの相互リンク風パス（../OtherManual/x.html）は未対応形式として警告しそのまま残す', () => {
+  const warnings = [];
+  const { html } = rewriteLinks('<a href="../OtherManual/x.html">?</a>', {
+    onWarning: (message) => warnings.push(message)
+  });
+  assert.match(html, /href="\.\.\/OtherManual\/x\.html"/);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /未対応の形式/);
+});
+
+test('resolveCssImports: ローカル相対パスの @import をその内容で置き換える', () => {
+  const { css, warnings } = resolveCssImports('@import url("../DesignerManual/style.css");\npre { color: red; }', {
+    resolveImport: (url) => {
+      assert.equal(url, '../DesignerManual/style.css');
+      return 'body { color: blue; }';
+    }
+  });
+  assert.doesNotMatch(css, /@import/);
+  assert.match(css, /body \{ color: blue; \}/);
+  assert.match(css, /pre \{ color: red; \}/);
+  assert.equal(warnings.length, 0);
+});
+
+test('resolveCssImports: 外部 URL の @import は変更しない', () => {
+  const { css, warnings } = resolveCssImports('@import url("https://example.com/x.css");', { resolveImport: () => null });
+  assert.match(css, /@import url\("https:\/\/example\.com\/x\.css"\);/);
+  assert.equal(warnings.length, 0);
+});
+
+test('resolveCssImports: 解決できない相対パスは警告してそのまま残す（例外にしない）', () => {
+  const warnings = [];
+  const { css } = resolveCssImports('@import url("./missing.css");', {
+    resolveImport: () => null,
+    onWarning: (message) => warnings.push(message)
+  });
+  assert.match(css, /@import url\("\.\/missing\.css"\);/);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /@import の CSS が見つかりません/);
+});
+
+function makeTempManualDirNamed_(name) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddrive-manual-test-' + name + '-'));
+  fs.mkdirSync(path.join(dir, 'images'));
+  return dir;
+}
+
+test('buildAllManuals（フィクスチャ）: 2 つの kind を kind ごとのサブフォルダへ生成し、相互リンクを解決する', () => {
+  const designerDir = makeTempManualDirNamed_('designer');
+  const programmerDir = makeTempManualDirNamed_('programmer');
+  try {
+    fs.writeFileSync(path.join(designerDir, 'style.css'), 'body { background: #fff; }');
+    fs.writeFileSync(
+      path.join(designerDir, 'Readme.html'),
+      '<html><head><title>D</title></head><body><h1>Designer Top</h1></body></html>'
+    );
+
+    // docs/ProgrammerManual/style.css と同じ形（デザイナー側の CSS を @import で継承する）。
+    fs.writeFileSync(
+      path.join(programmerDir, 'style.css'),
+      '@import url("' + pathToRelativeImport(programmerDir, designerDir) + '");\npre { color: red; }'
+    );
+    // 相互リンクの解決先ディレクトリ名は実プロジェクトと同じ「DesignerManual」固定
+    // （MANUAL_DIR_TO_KIND の既定値、実際の一時ディレクトリ名とは無関係）。
+    fs.writeFileSync(
+      path.join(programmerDir, 'Readme.html'),
+      '<html><head><title>P</title></head><body><h1>Programmer Top</h1>' +
+        '<a href="../DesignerManual/Readme.html">デザイナーマニュアル</a>' +
+        '</body></html>'
+    );
+
+    const outBase = path.join(designerDir, 'out');
+    const outPagesJsPath = path.join(designerDir, 'ManualPages.generated.js');
+    const result = buildAllManuals({
+      kinds: [
+        { kind: 'designer', sourceDir: designerDir },
+        { kind: 'programmer', sourceDir: programmerDir }
+      ],
+      outHtmlBaseDir: outBase,
+      outPagesJsPath,
+      write: true
+    });
+
+    assert.equal(result.warnings.length, 0, result.warnings.join(', '));
+    assert.equal(fs.existsSync(path.join(outBase, 'designer', 'Readme.html')), true);
+    assert.equal(fs.existsSync(path.join(outBase, 'programmer', 'Readme.html')), true);
+
+    const programmerReadme = result.pagesByKind.programmer.Readme;
+    assert.match(programmerReadme, /data-manual-kind="designer"/);
+    assert.match(programmerReadme, /data-manual-page="Readme"/);
+
+    assert.match(result.pagesJs, /SPEC_WEB_MANUAL_KINDS = \["designer","programmer"\]/);
+    assert.match(result.pagesJs, /SPEC_WEB_MANUAL_DEFAULT_KIND = "designer"/);
+    const writtenPagesJs = fs.readFileSync(outPagesJsPath, 'utf8');
+    assert.equal(writtenPagesJs, result.pagesJs);
+  } finally {
+    fs.rmSync(designerDir, { recursive: true, force: true });
+    fs.rmSync(programmerDir, { recursive: true, force: true });
+  }
+});
+
+function pathToRelativeImport(fromDir, toDir) {
+  const rel = path.relative(fromDir, toDir).split(path.sep).join('/');
+  return rel + '/style.css';
+}

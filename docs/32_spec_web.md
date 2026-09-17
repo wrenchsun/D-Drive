@@ -3194,3 +3194,105 @@ X が再び実在する id になった瞬間（新規作成された / リネ�
 
 **未検証**: Unity MCP に接続できなかったため、コンパイル・テストは未実行（オーケストレーターがまとめて
 `run_tests` を回す前提）。
+
+---
+
+## 実装メモ（2026-09-17、プログラマーマニュアル配信対応）
+
+ユーザー要望「新設したプログラマーマニュアル（`docs/ProgrammerManual/`、13 ページ）も SpecWeb（発注ツール）に
+配信できるようにしたい」への対応。「マニュアル配信」節（2026-09-14）で作った仕組みをデザイナー/プログラマーの
+2 マニュアルへ一般化した。`docs/ProgrammerManual/*.html`/`style.css` の本文・Unity 側の配線
+（`ManualKind` 導入、`docs/09_editor_tools.md` §6.1 の 2026-09-17 追記）は本チケットの前提として
+既に完了しており、変更していない。
+
+### 方式（既存の「マニュアル配信」節からの変更点のみ）
+
+1. **ページ名の重複への対応**: デザイナー/プログラマー両マニュアルに `Readme`/`getting-started` が
+   存在するため、フラットな 1 つの一覧・1 つのフォルダにはまとめられない。生成物の出力先を
+   `Tools/SpecWeb/html/manual/<kind>/<page>.html`（`kind` は `"designer"`/`"programmer"`）に分け、
+   `src/ManualPages.js` の `SPEC_WEB_MANUAL_PAGE_NAMES` を `{ designer: [...], programmer: [...] }`
+   （kind をキーにしたオブジェクト）にした。新設した `SPEC_WEB_MANUAL_KINDS`（`["designer","programmer"]`）・
+   `SPEC_WEB_MANUAL_DEFAULT_KIND`（`"designer"`）を合わせて出力する。`SPEC_WEB_MANUAL_TOP_PAGE`
+   （`"Readme"`、両 kind 共通）は変更していない
+2. **URL 契約の拡張**: `?page=manual&p=<page>&kind=<designer|programmer>`。`kind` 省略・不正値は
+   `"designer"` にフォールバックする（`specWebResolveManualKind_`、`src/Manual.js`）。**後方互換を最優先**にし、
+   `kind=designer`（既定）のときは URL に `&kind=` を付けない（`OrderLinkLogic.buildManualUrl` /
+   `ManualUrlBuilder.BuildWebUrl` 双方）。既存の Unity 呼び出し・過去にコピーされたリンク
+   （`?page=manual&p=Readme` のような kind 無し URL）はそのままデザイナーマニュアルを開き続ける
+3. **CSS の `@import` 解決**: `docs/ProgrammerManual/style.css` は
+   `@import url("../DesignerManual/style.css")` でデザイナー側の見た目を継承している。GAS 配信後は
+   相対 URL の `@import` が解決できない（`script.googleusercontent.com` 基準になり 404）ため、
+   ビルド時に `resolveCssImports`（`tools/build-manual.js`、新設）が `@import` をその内容で
+   インライン展開してから、従来どおり `scopeCss` でスコープ化する。外部 URL（http/https）の
+   `@import` は変更しない（ブラウザが解決できるため）。ローカルの相対パスが解決できない場合は
+   警告してそのまま残す（例外にしない）
+4. **相互リンクの書き換え**: `docs/ProgrammerManual/*.html` はデザイナーマニュアルへの相互リンク
+   （`../DesignerManual/xxx.html`、逆方向の `../ProgrammerManual/xxx.html` も同じ仕組みで対応）を
+   多数含む。`rewriteLinks`（`tools/build-manual.js`）に `CROSS_MANUAL_LINK_RE` を追加し、
+   同一マニュアル内リンクと同じ `data-manual-page`（+ `data-manual-anchor`）に加えて
+   `data-manual-kind`（リンク先の kind）を付ける形に統一した。**同一マニュアル内リンクにも
+   `data-manual-kind`（そのページ自身の kind）を付けるようにした**ため、クライアント側
+   （`html/Manual.html`）は「同一マニュアルか他マニュアルか」を区別する必要が無い。
+   未知のディレクトリ名（`DesignerManual`/`ProgrammerManual` 以外）・kind 内に存在しないページ名は
+   従来と同じく警告して処理を続ける（例外にしない）
+5. **既存コードへの影響を最小にする設計**: 1 マニュアル分の生成を行う既存の `buildAll`/
+   `buildManualPageHtml`/`rewriteLinks`/`buildNavBarHtml` は、新しい引数（`kind`/`currentKind`/
+   `manualDirToKind`/`knownPagesByKind`/`writePagesJs`）をすべて省略可能にし、省略時は
+   2026-09-14 実装時点と同じ結果を返すようにした（既存のフィクスチャベースの単体テストは
+   変更していない）。複数マニュアルの束ね（kind ごとのページ名一覧を先に集めてから
+   相互リンクを検証する 2 パス構成、`src/ManualPages.js` の書き出しを 1 回にまとめる）は
+   新設の `buildAllManuals` が行う。実際の生成（`main()`、push.ps1/push.cmd、drift 検出テスト）は
+   `buildAllManuals` を使う
+
+### 変更・追加ファイル
+
+| ファイル | 内容 |
+|---|---|
+| `Tools/SpecWeb/tools/build-manual.js` | `resolveCssImports`（新設）・`rewriteLinks`/`buildNavBarHtml`/`buildManualPageHtml`/`buildAll` に kind 対応の引数を追加・`buildManualPagesJsMulti`/`buildAllManuals`（新設） |
+| `Tools/SpecWeb/html/manual/designer/*.html`（移動、26 ファイル） | 旧 `Tools/SpecWeb/html/manual/*.html` から移動（内容は無変更、`git mv` 相当のリネーム） |
+| `Tools/SpecWeb/html/manual/programmer/*.html`（新規、13 ファイル、生成物） | プログラマーマニュアルの断片 HTML |
+| `Tools/SpecWeb/src/ManualPages.js`（生成物） | `SPEC_WEB_MANUAL_KINDS`/`SPEC_WEB_MANUAL_DEFAULT_KIND` を追加、`SPEC_WEB_MANUAL_PAGE_NAMES` を kind ごとのオブジェクトに変更 |
+| `Tools/SpecWeb/src/Manual.js` | `specWebResolveManualKind_`（新設）、`manualGet` が `kind` を受け取り `html/manual/<kind>/<page>` を読むように変更、応答に `kind` を追加 |
+| `Tools/SpecWeb/src/Code.js` | `resolveInitialScreen_` の `page==='manual'` 分岐が `kind` を解決して `params.kind` を返すように変更 |
+| `Tools/SpecWeb/html/OrderLinkLogic.html` | `buildManualUrl` に `kind` 引数を追加（省略/`"designer"` は URL 不変） |
+| `Tools/SpecWeb/html/Manual.html` | ナビに「デザイナーマニュアル」（旧「マニュアル」を改名）+「プログラマーマニュアル」の 2 リンク、`applyAbsoluteHrefs_`/`bindManualLinks`/`registerScreen` が `data-manual-kind`/`params.kind` を扱うように変更 |
+| `.gitattributes` | `Tools/SpecWeb/html/manual/*.html` → `Tools/SpecWeb/html/manual/**/*.html`（kind サブフォルダに対応） |
+| `docs/ProgrammerManual/Readme.html` | 冒頭の運用メモ（HTML コメント）のみ更新（本文は無変更）。「SpecWeb への配信は未対応」→実際の再生成手順 |
+| `Assets/DDrive/Editor/Manual/ManualUrlBuilder.cs` | `BuildWebUrl` に `ManualKind kind = ManualKind.Designer` 引数を追加 |
+| `Assets/DDrive/Editor/Manual/ManualLauncher.cs` | `OpenProgrammerPage` をデザイナー側と同じ Web/ローカル分岐に変更（常にローカルだったのをやめた） |
+| `Assets/DDrive/Editor/Manual/ManualMenu.cs`・`ManualToolbarButtons.cs` | コメントのみ更新（「常にローカル」の記述を実態に合わせた） |
+| `Tools/SpecWeb/test/build-manual.test.js` | ドリフト検出テストを `buildAllManuals` ベースに更新（デザイナー/プログラマー両方を検証）。`resolveCssImports`・クロスマニュアルリンク・`buildAllManuals` のフィクスチャテストを追加。既存のデザイナー側単体テスト（`rewriteLinks`/`buildAll`/`buildManualPageHtml` 等の単一 kind 呼び出し）はそのまま残している |
+| `Tools/SpecWeb/test/manual.test.js` | `manualGet`/`resolveInitialScreen_` の kind 対応テストを追加。「`SPEC_WEB_MANUAL_PAGE_NAMES` に Readme が含まれる」テストを kind ごとの一覧に更新 |
+| `Tools/SpecWeb/test/orderLinkLogic.test.js` | `buildManualUrl` の kind 引数テストを追加 |
+| `Tools/SpecWeb/test/manual-screen.smoke.test.js` | `data-manual-kind` 付き `applyAbsoluteHrefs_`・`registerScreen` への `kind` 伝播のテストを追加 |
+| `Assets/DDrive/Tests/Editor/ManualUrlBuilderTests.cs` | `BuildWebUrl` の kind 引数テストを追加 |
+
+### テスト結果
+
+`node Tools/SpecWeb/tools/build-manual.js` で生成物を再生成（警告 0 件）後、
+`node --test "Tools/SpecWeb/test"/*.test.js` で実行。**SpecWeb 側は全件 green**（2026-09-17 時点、
+本チケット前の基準 501 件 + 本チケットで追加した分。実際の件数は本節の最後に追記した「作業ログ」参照）。
+
+Unity 側（`ManualUrlBuilderTests` の追加分含む）は EditMode/PlayMode を isuzu-unity MCP の
+`compile_request`→`compile_status`→`test_run`/`test_results` で確認する（結果は作業ログ参照。
+未接続の場合は「未検証」と明示する）。
+
+### 目視確認（実デプロイでの確認が必須）
+
+「マニュアル配信」節の目視確認手順（1〜8）に加えて、次を確認する。いずれもユーザー本人が行う
+（Claude はブラウザで実際の Google アカウントにログインしたデプロイを開けないため代行できない）。
+
+1. 上部ナビに「デザイナーマニュアル」「プログラマーマニュアル」の 2 本のリンクが表示され、
+   それぞれ正しいマニュアルのトップ（Readme）が開くこと
+2. プログラマーマニュアルのページ内から、デザイナーマニュアルへの相互リンク
+   （例: 「Asset Browser の使い方」）をクリックすると、フルページリロードにならずに
+   デザイナーマニュアル側のページへ iframe 内で切り替わること（逆方向も同様）
+3. プログラマーマニュアルのページで `pre`/`.sig`/`.bad`/`.good` 等のプログラマー固有のスタイル
+   （コードブロックの配色等）が正しく効いていること（`style.css` の `@import` 解決の確認）
+4. Unity の「マニュアル」ドロップダウン →「プログラマーマニュアル/トップを開く」で、
+   `DDriveSpecSettings.HumanAppUrl` 設定済み + 「Web 版を優先」ON のときは Web 版
+   （`?page=manual&p=Readme&kind=programmer`）が、OFF またはローカル指定時はローカル HTML が
+   開くこと（`ManualLauncher.OpenProgrammerTop`/`OpenLocalTop` の切り替え、実デプロイでの確認は
+   ユーザー作業）
+5. 古い（kind 無しの）マニュアルリンク（`?page=manual&p=Readme`）が引き続きデザイナーマニュアルの
+   トップを開くこと（後方互換の確認）

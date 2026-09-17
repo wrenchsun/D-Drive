@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><!-- 運用メモ(2026-09-14): このフォルダ(docs/DesignerManual)の *.html/style.css/images が正本。
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><!-- 運用メモ(2026-09-14): このフォルダ(docs/DesignerManual)の *.html/style.css/images が正本。
      このマニュアルは Google Apps Script(Tools/SpecWeb)側にも配信されている(生成物)。
      ここを編集したら、Tools/SpecWeb/push.ps1 を実行してから clasp push すること
      (build-manual.js が html/manual/*.html・src/ManualPages.js を再生成する。
@@ -66,67 +66,67 @@
 </div>
 
 <div class="tip">
-<strong>共通の入口:</strong> Project で D-Drive のデータ（効果音・BGM・VFX・モデル・アニメーション・Anchor・配置セット・マテリアル・テクスチャ・Prefab・Canvas・Skin・UI Tween・演出・画面の揺れ・振動）を選ぶと、<strong>Inspector の一番上に「▶ 〜 Editor で開く」ボタン</strong>が出ます。迷ったらこれを押せば、そのデータ用の専用エディタが開きます（マテリアルのように、ボタンが 2〜3 個並ぶものもあります）。多くの専用エディタのツールバーには <strong>「＋ 新規作成」</strong> ボタンもあり、Asset Browser を開かずにその場で新しいデータを作れます（詳しくは<a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a>）。<br>
+<strong>共通の入口:</strong> Project で D-Drive のデータ（効果音・BGM・VFX・モデル・アニメーション・Anchor・配置セット・マテリアル・テクスチャ・Prefab・Canvas・Skin・UI Tween・演出・画面の揺れ・振動）を選ぶと、<strong>Inspector の一番上に「▶ 〜 Editor で開く」ボタン</strong>が出ます。迷ったらこれを押せば、そのデータ用の専用エディタが開きます（マテリアルのように、ボタンが 2〜3 個並ぶものもあります）。多くの専用エディタのツールバーには <strong>「＋ 新規作成」</strong> ボタンもあり、Asset Browser を開かずにその場で新しいデータを作れます（詳しくは<a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の使い方</a>）。<br>
 <strong>アイコン:</strong> 同じ場所に「自動生成」「フォルダから選択」「シーンから作成」「クリア」があります。Prefab や画像を持つデータ（モデル・VFX・Prefab・Canvas・テクスチャ・Skin）とマテリアルは、<strong>「自動生成」を押すだけ</strong>で見た目からアイコンが作られます（作成直後にも自動で試みます）。効果音・BGM・アニメーション・Anchor のように絵の元が無い種類ではこのボタンは押せません。SceneView で良い角度に映してから「シーンから作成」を押すと、シーン全体の写真からドラッグで四角く切り取ってアイコンにできます。画像は <code>Assets/GameData/Icons/&lt;種別&gt;/</code> に自動で保存され、<strong>Inspector に加えて Asset Browser の一覧行・Project ウィンドウのサムネイル（グリッド表示）にも同じ画像が出ます</strong>（2026-09-14 から。未設定のアセットは Unity 既定のサムネイルのままです）。
 </div>
 
 <div class="tip">
 <strong>このマニュアルを Unity から開く（2026-09-14 追加）:</strong> Unity 画面上部、再生ボタン（▶）のすぐ右にある<strong>「？ マニュアル」ボタン</strong>を押すと、このページがブラウザで開きます。横の<strong>▼</strong>から他のページも直接開けます（「ローカルのマニュアルを開く」を選ぶと、常にこの手元の HTML ファイルが開きます）。メニューの <strong>Tools → D-Drive → マニュアルを開く</strong> からも開けます。<br>
 <strong>ボタンが見当たらないとき:</strong> 最初は隠れています。画面上部のツールバーの何もない所を右クリックし、「D-Drive/Manual」にチェックを入れると表示されます（1 回だけでよい）。<br>
-<strong>Web 版マニュアル:</strong> <a href="#" data-manual-page="spec-sync">アセット発注ツール</a>の URL（人向け SPA URL）が設定済みだと、「？ マニュアル」ボタンはブラウザ内蔵のファイルではなく<strong>発注ツールの Web アプリ側</strong>に配信されているマニュアル（内容はこのフォルダと同じものの配信用コピー）を開きます。発注ツールのナビゲーションにも「マニュアル」の項目があり、そちらからも同じ内容を直接読めます。URL が未設定の間は常にこの手元の HTML が開きます。
+<strong>Web 版マニュアル:</strong> <a href="#" data-manual-kind="designer" data-manual-page="spec-sync">アセット発注ツール</a>の URL（人向け SPA URL）が設定済みだと、「？ マニュアル」ボタンはブラウザ内蔵のファイルではなく<strong>発注ツールの Web アプリ側</strong>に配信されているマニュアル（内容はこのフォルダと同じものの配信用コピー）を開きます。発注ツールのナビゲーションにも「マニュアル」の項目があり、そちらからも同じ内容を直接読めます。URL が未設定の間は常にこの手元の HTML が開きます。
 </div>
 
 <h2>ページ一覧</h2>
 <ul class="pagelinks">
-<li><a href="#" data-manual-page="getting-started">はじめての15分（新規メンバー向け）</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="getting-started">はじめての15分（新規メンバー向け）</a>
 <p>効果音の登録から確認までを、所要時間の目安つきで一巡する。<strong>初めての人はこちらから。</strong></p></li>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の使い方</a>
 <p>すべての入口になるウィンドウ。素材の一覧・検索・新規作成はここから。<strong>まず最初に読んでください。</strong></p></li>
-<li><a href="#" data-manual-page="validation">Validation（自動チェック）の使い方</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">Validation（自動チェック）の使い方</a>
 <p>設定ミス・登録漏れをまとめて見つけて、「修正」ボタンで直す。赤い表示が出たらまずここ。</p></li>
-<li><a href="#" data-manual-page="se-data">SE（効果音）の設定項目</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="se-data">SE（効果音）の設定項目</a>
 <p>効果音データの全パラメータの説明。音量・ピッチ・3D設定・連打防止など。</p></li>
-<li><a href="#" data-manual-page="bgm-data">BGM の設定項目</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="bgm-data">BGM の設定項目</a>
 <p>BGMデータの全パラメータの説明。イントロ→ループ構成・フェードなど。</p></li>
-<li><a href="#" data-manual-page="audio-editor">Audio Editor の使い方</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="audio-editor">Audio Editor の使い方</a>
 <p>波形を見ながらの音の切り出し（トリミング）、試聴、3Dサウンドの確認。</p></li>
-<li><a href="#" data-manual-page="scene-sound">シーンに環境音を置く（SeEmitter）</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="scene-sound">シーンに環境音を置く（SeEmitter）</a>
 <p>滝や焚き火などの「その場所で鳴り続ける音」の配置方法。</p></li>
-<li><a href="#" data-manual-page="vfx-data">VFX（エフェクト）の設定項目</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="vfx-data">VFX（エフェクト）の設定項目</a>
 <p>エフェクトデータの全パラメータの説明。寿命・描画・出す位置（Anchor）・公開パラメータ。</p></li>
-<li><a href="#" data-manual-page="vfx-editor">VFX Editor の使い方</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="vfx-editor">VFX Editor の使い方</a>
 <p>シーンの中で再生しながら位置・色を調整。Prefab の中で ParticleSystem を編集しながらの確認も。</p></li>
-<li><a href="#" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a>
 <p>エフェクト・効果音を「どこに・いつ・どう出すか」をデータにして使い回す。ボーン基準、ランダム、ディレイ、入れ子。</p></li>
-<li><a href="#" data-manual-page="anchor-group">配置セット（複数の場所にまとめて出す）</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="anchor-group">配置セット（複数の場所にまとめて出す）</a>
 <p>格子・円・一列・ランダムのパターンで点を並べ、全点にエフェクト / 効果音をまとめて出す。特定の点だけ変える、入れ子も。</p></li>
-<li><a href="#" data-manual-page="model-editor">モデルの設定と Model Editor</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="model-editor">モデルの設定と Model Editor</a>
 <p>キャラクター / 物体の Prefab を登録し、確認用シーンで回して見る。マテリアルのスロット、出した瞬間に再生するアニメーション。</p></li>
-<li><a href="#" data-manual-page="anim-editor">アニメーション（3D）の設定と Anim Editor</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="anim-editor">アニメーション（3D）の設定と Anim Editor</a>
 <p>モデルを動かしながら「何フレーム目で音・エフェクト」を決める。Animator のステートから選んで作る、音の波形を見ながら調整、一時停止、繰り返し設定、ブレンド確認。</p></li>
-<li><a href="#" data-manual-page="anim2d-editor">2D アニメーション（スプライト）の作成と Anim2D Editor</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="anim2d-editor">2D アニメーション（スプライト）の作成と Anim2D Editor</a>
 <p>スプライトシートを切り分けてコマアニメにする。自動検出、8 方向、コマ間隔の調整（リタイミング）。音・エフェクトは Anim Editor と共通。</p></li>
-<li><a href="#" data-manual-page="material-data">マテリアル / テクスチャの設定項目</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="material-data">マテリアル / テクスチャの設定項目</a>
 <p>色・凹凸・金属感・発光などの「表面の質感」と画像の管理。ファイル名のルールで自動設定、Maya / Substance からの受け渡し。</p></li>
-<li><a href="#" data-manual-page="material-editor">Material Editor の使い方（プレビュー・シェーダー変換）</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="material-editor">Material Editor の使い方（プレビュー・シェーダー変換）</a>
 <p>球や板に貼って回しながら確認、2 つを見比べる、シーンに置く、シェーダーの乗り換え。</p></li>
-<li><a href="#" data-manual-page="prefab-data">Prefab データ（ゲーム中に出す物）の設定と Prefab Editor</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="prefab-data">Prefab データ（ゲーム中に出す物）の設定と Prefab Editor</a>
 <p>弾・ギミック・拾い物などを ID で登録。使い回し（プール）の設定、出現時の音・エフェクト。</p></li>
-<li><a href="#" data-manual-page="canvas-data">Canvas（UI 画面）データの設定項目</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas（UI 画面）データの設定項目</a>
 <p>メニューやダイアログ 1 画面分の設定。レイヤー、開閉の演出、ボタンを押したら何が起きるか（配線）、パッドのフォーカス移動。</p></li>
-<li><a href="#" data-manual-page="canvas-editor">Canvas Editor の使い方（ナビゲーション・演出・プレビュー）</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor の使い方（ナビゲーション・演出・プレビュー）</a>
 <p>フォーカスのつながりを線で描く、要素ごとの出現 / 常時 / 消滅演出、パッド操作のシミュレーション。</p></li>
-<li><a href="#" data-manual-page="ui-skin">ボタン / スライダーの見た目（Skin）と Slider Editor</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-skin">ボタン / スライダーの見た目（Skin）と Slider Editor</a>
 <p>通常・ホバー・押下・無効などの状態ごとの色・大きさ・音。スライダーの応答曲線と目盛り（ノッチ）。</p></li>
-<li><a href="#" data-manual-page="ui-tween">UI の動き（UI Tween）・プリセットギャラリー・要素演出（ElementFx）</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI の動き（UI Tween）・プリセットギャラリー・要素演出（ElementFx）</a>
 <p>フェード・スライド・跳ねるなどの動きを作る、59 種類のプリセットから選んで当てる、音量などの標準オプションと直結。</p></li>
-<li><a href="#" data-manual-page="presentation">演出（Presentation）の設定項目</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="presentation">演出（Presentation）の設定項目</a>
 <p>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れなどをまとめて 1 つの演出にする機能。専用の Presentation Editor でタイムライン編集 + 統合プレビューができます。</p></li>
-<li><a href="#" data-manual-page="camera-haptics">画面の揺れ・コントローラーの振動</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="camera-haptics">画面の揺れ・コントローラーの振動</a>
 <p>画面をガクガク揺らす（カメラシェイク）・パッドをブルブル振動させる（ハプティクス）データの作り方。専用の Shake / Haptics Editor で波形を見ながら調整・実際に揺らして/振動させて確認できます。</p></li>
-<li><a href="#" data-manual-page="spec-sync">アセット発注ツール（Web）との同期</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="spec-sync">アセット発注ツール（Web）との同期</a>
 <p>企画がブラウザの発注ツールに登録した発注を D-Drive の空データに変換する。発注者・受注者・状態（発注済→納品済→インポート済）の反映、調整値のコード連携、パラメータ一覧の送信も。</p></li>
-<li><a href="#" data-manual-page="glossary">用語集</a>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a>
 <p>「アセット」「ピッチ」「Mixer」「Skin」「Tween」など、分からない言葉が出てきたらここ。</p></li>
 </ul>
 
@@ -137,7 +137,7 @@
 <li>開いたダイアログに「表示名」（例: 剣の斬撃音）と「識別子」（例: SwordSlash ※英語）を入力して「作成」</li>
 <li>一覧に追加された音を選び、下の <strong>▶ 再生</strong> ボタンで試聴</li>
 </ol>
-<p>これだけで登録完了です。所要時間の目安つきでもう少し丁寧に一巡したい場合は <a href="#" data-manual-page="getting-started">はじめての15分（新規メンバー向け）</a> へ。詳しくは <a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a> へ。エフェクトを「どこに出すか」を決める練習は <a href="#" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a> の「はじめの一歩」へ。</p>
+<p>これだけで登録完了です。所要時間の目安つきでもう少し丁寧に一巡したい場合は <a href="#" data-manual-kind="designer" data-manual-page="getting-started">はじめての15分（新規メンバー向け）</a> へ。詳しくは <a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の使い方</a> へ。エフェクトを「どこに出すか」を決める練習は <a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a> の「はじめの一歩」へ。</p>
 
 <!-- screenshot: 36-#1 -->
 <figure>
@@ -148,9 +148,9 @@
 <h2>困ったときは</h2>
 <ul>
 <li>ウィンドウが見つからない → メニューバーの <code>Tools &gt; D-Drive</code> の下にすべてまとまっています。専用エディタは <code>Editors</code>、一括処理は <code>Generate</code>、自動チェックは <code>Validation</code></li>
-<li>赤い表示が出ている → 何かの設定が足りていません。マウスを乗せると説明が出ます（各ページの「よくある警告」と <a href="#" data-manual-page="validation">Validation の使い方</a> を参照）</li>
-<li>ゲームで出てこない・ピンク色になる → 登録漏れの可能性。<a href="#" data-manual-page="validation">Validation</a> の「Run All」で「未登録」が出たら「修正」を押します</li>
-<li>言葉が分からない → <a href="#" data-manual-page="glossary">用語集</a></li>
+<li>赤い表示が出ている → 何かの設定が足りていません。マウスを乗せると説明が出ます（各ページの「よくある警告」と <a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の使い方</a> を参照）</li>
+<li>ゲームで出てこない・ピンク色になる → 登録漏れの可能性。<a href="#" data-manual-kind="designer" data-manual-page="validation">Validation</a> の「Run All」で「未登録」が出たら「修正」を押します</li>
+<li>言葉が分からない → <a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

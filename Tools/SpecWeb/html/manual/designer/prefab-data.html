@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › Prefab データ(ゲーム中に出す物)の設定と Prefab Editor</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Prefab データ(ゲーム中に出す物)の設定と Prefab Editor</nav>
 
 <h1>Prefab データ(ゲーム中に出す物)の設定と Prefab Editor</h1>
 
@@ -59,12 +59,12 @@
 プログラマーは <code>Prefabs.Spawn(PREFABID.Player, 位置, 向き)</code> と書くだけです(消すときは <code>Prefabs.Despawn(handle)</code>)。「出現時に煙と音を出す」ためだけのスクリプトは要りません。ゲーム固有の動き(敵の AI など)は、これまでどおり Prefab 側のコンポーネントに書きます。
 </div>
 <div class="tip">
-<strong>モデルデータとの違い:</strong> Prefab データには、装備の差し替え(スロット)のような「見た目の切り替え」はありません。見た目を差し替えたいものは <a href="#" data-manual-page="model-editor">モデルデータ</a>で作ってください。
+<strong>モデルデータとの違い:</strong> Prefab データには、装備の差し替え(スロット)のような「見た目の切り替え」はありません。見た目を差し替えたいものは <a href="#" data-manual-kind="designer" data-manual-page="model-editor">モデルデータ</a>で作ってください。
 </div>
 
 <h2>開き方</h2>
 <ol>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a>(<code>Tools &gt; D-Drive &gt; Asset Browser</code>)のツールバー「新規」→「新規アセット作成」ダイアログで、「種別」に <strong>Prefab (PrefabData)</strong> を選び、「表示名(日本語可)」「カテゴリ」「識別子(英語)」を入れて「作成」。ファイル名・ID・カタログ登録はツールが自動で行います(生成先は <code>Assets/GameData/Prefab/カテゴリ/</code>、ファイル名は <code>PREFAB_カテゴリ_識別子</code>)</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a>(<code>Tools &gt; D-Drive &gt; Asset Browser</code>)のツールバー「新規」→「新規アセット作成」ダイアログで、「種別」に <strong>Prefab (PrefabData)</strong> を選び、「表示名(日本語可)」「カテゴリ」「識別子(英語)」を入れて「作成」。ファイル名・ID・カタログ登録はツールが自動で行います(生成先は <code>Assets/GameData/Prefab/カテゴリ/</code>、ファイル名は <code>PREFAB_カテゴリ_識別子</code>)</li>
 <li>Project で Prefab データを選び、<strong>Inspector の一番上の「Prefab Editor で開く」</strong>を押す</li>
 <li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Prefab</code>。Project で Prefab データを選ぶと自動で入ります(「🔒」を ON にすると追従しません)</li>
 </ol>
@@ -100,7 +100,7 @@
 <tr><td>設定(Inspector)</td><td>Prefab データの全項目をそのまま編集。Ctrl+Z で戻せます</td></tr>
 </table>
 <div class="warn">
-Prefab Editor には「検証」の表示や「修正」ボタンは<strong>ありません</strong>(Canvas Editor にはあります)。警告の確認は <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> で行います(<a href="#" data-manual-page="validation">Validation の見方</a>)。
+Prefab Editor には「検証」の表示や「修正」ボタンは<strong>ありません</strong>(Canvas Editor にはあります)。警告の確認は <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> で行います(<a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の見方</a>)。
 </div>
 
 <h2>設定項目</h2>
@@ -111,7 +111,7 @@ Prefab Editor には「検証」の表示や「修正」ボタンは<strong>あ�
 <tr><td>GameplayTags</td><td>ゲームの判定に使う目印の文字列(例: <code>Destructible</code>)。プログラマーが「このタグを持っているか」で分岐します。大文字小文字まで完全一致なので、綴りはプロジェクト内で揃えてください(似た綴りは検証がタイポとして指摘します)。Asset Browser の検索用「Tags」とは別物です</td></tr>
 <tr><td>CollisionLayer</td><td>出したときに強制するレイヤー番号。<strong>-1</strong> = Prefab のレイヤーをそのまま使う。<strong>0〜31</strong> = 子オブジェクトまで含めて全部そのレイヤーに変える。Project Settings の Tags &amp; Layers に名前があるレイヤーを指定します</td></tr>
 <tr><td>Lod</td><td>遠くにあるときの簡略表示(LOD)の切り替え位置を、Prefab 側ではなくデータ側で決めたいときに使います。<code>Enabled</code> を ON にして <code>ScreenRelativeTransitionHeights</code> に LOD 0, 1, 2… の切り替え値(0〜1)を、Prefab の LODGroup の段数と同じ数だけ入れます。Prefab に LODGroup が無ければ何もしません</td></tr>
-<tr><td>Events</td><td>出た瞬間(OnSpawn)・消える瞬間(OnDespawn)などに鳴らす効果音・出すエフェクト。使い方は <a href="#" data-manual-page="anim-editor">Anim Editor</a> の Events と同じです</td></tr>
+<tr><td>Events</td><td>出た瞬間(OnSpawn)・消える瞬間(OnDespawn)などに鳴らす効果音・出すエフェクト。使い方は <a href="#" data-manual-kind="designer" data-manual-page="anim-editor">Anim Editor</a> の Events と同じです</td></tr>
 </table>
 
 <h3>共通項目(すべてのデータに共通)</h3>
@@ -176,11 +176,11 @@ Pooled のときの目安: 弾なら InitialCount=32、MaxCount=128(検証も同
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> — 新規作成・検索</li>
-<li><a href="#" data-manual-page="model-editor">モデルの設定と Model Editor</a> — 見た目を差し替えたいものはこちら</li>
-<li><a href="#" data-manual-page="se-data">SE の設定項目</a> / <a href="#" data-manual-page="vfx-data">VFX の設定項目</a> — Events で鳴らす・出すもの</li>
-<li><a href="#" data-manual-page="canvas-data">Canvas(UI 画面)データの設定項目</a> / <a href="#" data-manual-page="canvas-editor">Canvas Editor の使い方</a> — UI 画面はこちら</li>
-<li><a href="#" data-manual-page="validation">Validation の見方</a> / <a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> — 新規作成・検索</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="model-editor">モデルの設定と Model Editor</a> — 見た目を差し替えたいものはこちら</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="se-data">SE の設定項目</a> / <a href="#" data-manual-kind="designer" data-manual-page="vfx-data">VFX の設定項目</a> — Events で鳴らす・出すもの</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas(UI 画面)データの設定項目</a> / <a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor の使い方</a> — UI 画面はこちら</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の見方</a> / <a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

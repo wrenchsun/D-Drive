@@ -38,6 +38,31 @@ namespace DDrive.Tests.Editor
             StringAssert.DoesNotContain(" ", url);
         }
 
+        // 2026-09-17 追記(プログラマーマニュアルの Web 配信対応): kind 引数。
+        [Test]
+        public void BuildWebUrl_KindOmitted_DefaultsToDesigner_NoKindQuery()
+        {
+            var url = ManualUrlBuilder.BuildWebUrl("https://example.com/app", "Readme");
+
+            Assert.AreEqual("https://example.com/app?page=manual&p=Readme", url);
+        }
+
+        [Test]
+        public void BuildWebUrl_KindDesigner_DoesNotAppendKindQuery()
+        {
+            var url = ManualUrlBuilder.BuildWebUrl("https://example.com/app", "Readme", ManualKind.Designer);
+
+            Assert.AreEqual("https://example.com/app?page=manual&p=Readme", url);
+        }
+
+        [Test]
+        public void BuildWebUrl_KindProgrammer_AppendsKindQuery()
+        {
+            var url = ManualUrlBuilder.BuildWebUrl("https://example.com/app", "Readme", ManualKind.Programmer);
+
+            Assert.AreEqual("https://example.com/app?page=manual&p=Readme&kind=programmer", url);
+        }
+
         [Test]
         public void BuildLocalFileUrl_ReturnsFileUri_ContainingPage()
         {

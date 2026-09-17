@@ -42,14 +42,14 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › VFX Editor の使い方</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › VFX Editor の使い方</nav>
 
 <h1>VFX Editor の使い方</h1>
 
 <p>VFX Editor は、エフェクト（<span class="term" title="Unity の ParticleSystem などで作られた、火花・斬撃・煙などの見た目の演出">VFX</span>）を<strong>ゲームを実行せずにその場で再生しながら</strong>調整するウィンドウです。できること:</p>
 <ul>
 <li>シーンの中で実際に再生して見た目を確認（ライトや背景込み）</li>
-<li>「どこに出すか」（<a href="#" data-manual-page="vfx-data" data-manual-anchor="anchor">Anchor</a>）を、スライダーや SceneView のドラッグで調整</li>
+<li>「どこに出すか」（<a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="anchor">Anchor</a>）を、スライダーや SceneView のドラッグで調整</li>
 <li>色やサイズなどの公開パラメータを、再生中にその場で変更</li>
 <li>複数のエフェクトを同時に出して重なりを確認</li>
 <li>エフェクトの Prefab を開いて、ParticleSystem を編集しながらそのまま再生</li>
@@ -58,7 +58,7 @@
 <h2>開き方</h2>
 <ol>
 <li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; VFX</code></li>
-<li>一番上の「対象アセット」欄に調整したい VFX データを入れる（<a href="#" data-manual-page="asset-browser">Asset Browser</a> や Project ウィンドウで選択すると自動で入ります）</li>
+<li>一番上の「対象アセット」欄に調整したい VFX データを入れる（<a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> や Project ウィンドウで選択すると自動で入ります）</li>
 </ol>
 
 <div class="tip">
@@ -80,7 +80,7 @@
 </table>
 
 <h2>スポーン先</h2>
-<p>「スポーン先」に、シーン内のキャラクターや <a href="#" data-manual-page="vfx-data" data-manual-anchor="anchorpoint">AnchorRig</a> を入れると、Anchor で指定したボーン名などを<strong>その中から探して</strong>そこに出します。空のままなら、Anchor のオフセットがそのままワールド座標になります。</p>
+<p>「スポーン先」に、シーン内のキャラクターや <a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="anchorpoint">AnchorRig</a> を入れると、Anchor で指定したボーン名などを<strong>その中から探して</strong>そこに出します。空のままなら、Anchor のオフセットがそのままワールド座標になります。</p>
 
 <h2>再生コントロール</h2>
 <table>
@@ -93,15 +93,15 @@
 </table>
 
 <h2>基本設定（Prefab / 寿命 / 描画）</h2>
-<p>VFX データの主要な項目をこのウィンドウ内で直接編集できます。項目の意味は <a href="#" data-manual-page="vfx-data">VFX の設定項目</a> を見てください。Prefab を差し替えると、再生中なら自動で新しい Prefab に出直します。</p>
+<p>VFX データの主要な項目をこのウィンドウ内で直接編集できます。項目の意味は <a href="#" data-manual-kind="designer" data-manual-page="vfx-data">VFX の設定項目</a> を見てください。Prefab を差し替えると、再生中なら自動で新しい Prefab に出直します。</p>
 
 <h2 id="anchor">Anchor（アタッチ位置）の調整</h2>
-<p>欄の先頭の「Anchor アセット」に <a href="#" data-manual-page="anchor-data">Anchor データ</a>を入れると、そちらが優先され、下の埋め込み欄は畳まれます（位置の調整は「AnchorEditor で開く」から）。「埋め込みをアセット化」で今の設定から Anchor データを作ることもできます。以下は埋め込み欄の説明です。</p>
+<p>欄の先頭の「Anchor アセット」に <a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor データ</a>を入れると、そちらが優先され、下の埋め込み欄は畳まれます（位置の調整は「AnchorEditor で開く」から）。「埋め込みをアセット化」で今の設定から Anchor データを作ることもできます。以下は埋め込み欄の説明です。</p>
 <p>「エフェクトをどこに出すか」を決めます。<strong>再生中に動かすと、出ているエフェクトがその場で動きます</strong>（停止→再生の押し直しは不要）。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Space</td><td>基準の決め方。<strong>World</strong>=固定座標 / <strong>BoneName・NamedObject</strong>=スポーン先の中から Path の名前を探す / <strong>ContextTarget</strong>=スポーン先そのもの。</td></tr>
-<tr><td>Path（ボーン/オブジェクト名）</td><td>探す名前。手入力せず、右の「<strong>一覧から選択</strong>」を使ってください。スポーン先の中にあるボーン・オブジェクトが一覧で出ます。★ 付きは <a href="#" data-manual-page="vfx-data" data-manual-anchor="anchorpoint">AnchorPoint</a>（アンカー専用の目印）です。選ぶと Space も自動で切り替わります。</td></tr>
+<tr><td>Path（ボーン/オブジェクト名）</td><td>探す名前。手入力せず、右の「<strong>一覧から選択</strong>」を使ってください。スポーン先の中にあるボーン・オブジェクトが一覧で出ます。★ 付きは <a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="anchorpoint">AnchorPoint</a>（アンカー専用の目印）です。選ぶと Space も自動で切り替わります。</td></tr>
 <tr><td>解決: ✓ / ⚠</td><td>今の設定で基準が見つかっているかの表示。「⚠ … が見つかりません」なら名前を確認、「⚠ スポーン先が未指定」なら上の「スポーン先」を設定してください。</td></tr>
 <tr><td>高さオフセット(Y) / 向き(Euler Y)</td><td>基準からの高さと向き。スライダーで動かすとその場で反映。</td></tr>
 <tr><td>2D パッド</td><td>上から見た前後左右（X/Z）のずれ。四角の中をドラッグ。</td></tr>
@@ -163,10 +163,10 @@ Ctrl+Z / Ctrl+Y で戻せます。ウィンドウの値・出ているエフェ�
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="vfx-data">VFX の設定項目</a> — 寿命・描画・Anchor・パラメータの意味</li>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser の使い方</a> — VFX データの新規作成</li>
-<li><a href="#" data-manual-page="audio-editor">Audio Editor の使い方</a></li>
-<li><a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="vfx-data">VFX の設定項目</a> — 寿命・描画・Anchor・パラメータの意味</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser の使い方</a> — VFX データの新規作成</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="audio-editor">Audio Editor の使い方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

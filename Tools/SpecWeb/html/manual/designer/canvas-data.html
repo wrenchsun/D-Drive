@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › Canvas(UI 画面)データの設定項目</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Canvas(UI 画面)データの設定項目</nav>
 
 <h1>Canvas(UI 画面)データの設定項目</h1>
 
@@ -67,14 +67,14 @@
 <h3>1. Canvas Prefab を作る(最小構成)</h3>
 <ol>
 <li>ルートは <strong>RectTransform</strong> を持つオブジェクト(Canvas コンポーネントは無くても構いません。あれば重ね順に SortOffset が加算されます)</li>
-<li>ボタンはどちらか: <strong>uGUI の Button</strong>(Unity 標準)、または <strong>D-Drive の UiButton</strong>(Image を付けたオブジェクトに UiButton を追加し、<code>TargetGraphic</code> にその Image を入れる。色・音・演出を Skin でまとめて当てられます → <a href="#" data-manual-page="ui-skin">Button Skin</a>)</li>
+<li>ボタンはどちらか: <strong>uGUI の Button</strong>(Unity 標準)、または <strong>D-Drive の UiButton</strong>(Image を付けたオブジェクトに UiButton を追加し、<code>TargetGraphic</code> にその Image を入れる。色・音・演出を Skin でまとめて当てられます → <a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Button Skin</a>)</li>
 <li>スライダーは D-Drive の <strong>UiSlider</strong>(Image + UiSlider。Fill / Handle を子に置いて FillRect / HandleRect に入れる)</li>
 <li>Prefab として保存する。要素の名前が「相対パス」(例: <code>Panel/StartButton</code>)として配線に使われるので、分かりやすい名前に</li>
 </ol>
 <h3>2. Canvas データを作る</h3>
 <ol>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> の「新規」→ 種別 <strong>Canvas (CanvasData)</strong>、表示名・識別子を入れて「作成」(生成先 <code>Assets/GameData/Canvas/カテゴリ/</code>、ファイル名 <code>CANVAS_…</code>)。.prefab を Asset Browser にドラッグしても作れません</li>
-<li>Inspector の「Canvas Editor で開く」→ <code>Prefab</code> に 1 で作った Prefab を入れる。以降の配線は <a href="#" data-manual-page="canvas-editor">Canvas Editor</a> で</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> の「新規」→ 種別 <strong>Canvas (CanvasData)</strong>、表示名・識別子を入れて「作成」(生成先 <code>Assets/GameData/Canvas/カテゴリ/</code>、ファイル名 <code>CANVAS_…</code>)。.prefab を Asset Browser にドラッグしても作れません</li>
+<li>Inspector の「Canvas Editor で開く」→ <code>Prefab</code> に 1 で作った Prefab を入れる。以降の配線は <a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor</a> で</li>
 </ol>
 <h3>3. UiLayerSettings(レイヤーごとの既定)を作って割り当てる</h3>
 <ol>
@@ -129,7 +129,7 @@
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>ElementPath</td><td>対象要素の相対パス(ルート自身は空 = Canvas Editor では「(ルート)」)</td></tr>
 <tr><td>AppearPreset / IdlePreset / DisappearPreset</td><td>組み込みプリセットの指定。<code>Preset</code>(種類)/ <code>Duration</code>(0 = 既定の秒数)/ <code>Distance</code>(Slide の移動量や Shake の強さ。0 = 既定)/ <code>EaseOverride</code>(緩急の上書き)/ <code>Se</code>(同時に鳴らす SE)</td></tr>
-<tr><td>Appear / Idle / Disappear</td><td>UI Tween データの直接指定。<strong>設定があればプリセットより優先</strong>(<a href="#" data-manual-page="ui-tween">UI Tween</a>)</td></tr>
+<tr><td>Appear / Idle / Disappear</td><td>UI Tween データの直接指定。<strong>設定があればプリセットより優先</strong>(<a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI Tween</a>)</td></tr>
 <tr><td>AppearDelay</td><td>開き始めからこの秒数だけ遅らせて Appear を始める。項目を順番に出す「スタッガー」(段差)演出に使います</td></tr>
 <tr><td>AppearSe / DisappearSe</td><td>出現時 / 消滅時に鳴らす SE</td></tr>
 </table>
@@ -175,7 +175,7 @@
 </table>
 
 <h2>よくある警告</h2>
-<p>表示場所は Canvas Editor の「Validation」と <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(<a href="#" data-manual-page="validation">Validation の見方</a>)。</p>
+<p>表示場所は Canvas Editor の「Validation」と <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(<a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の見方</a>)。</p>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Prefab が未設定(または Missing)です</td><td>Prefab を設定する。これが出ている間はパスに関する検査は全部止まります</td></tr>
@@ -201,7 +201,7 @@
 <tr><td>ElementFx[i] '…': Idle には常時系プリセットを推奨します(Pulse/Blink/Float/Sway/Breathe/RotateLoop/ShimmerAlpha/RainbowTint/WobbleLoop)</td><td>常時系に変える</td></tr>
 <tr><td>Layer=Popup ですが ModalBlocksInput が OFF です(背後の入力がブロックされません)</td><td>ダイアログなら ON に(Info)</td></tr>
 </table>
-<p>このほか、Prefab 内の UiSlider の設定(Min / Max / Step / Notches など)の検査結果も混ざって出ます(<a href="#" data-manual-page="ui-skin">Slider Editor</a>)。実行時には「CanvasData '…' の ElementFx[i] '…' が Prefab 内(RectTransform)で見つかりません。この行はスキップします。」がコンソールに出ることがあります(パスを直してください)。</p>
+<p>このほか、Prefab 内の UiSlider の設定(Min / Max / Step / Notches など)の検査結果も混ざって出ます(<a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Slider Editor</a>)。実行時には「CanvasData '…' の ElementFx[i] '…' が Prefab 内(RectTransform)で見つかりません。この行はスキップします。」がコンソールに出ることがあります(パスを直してください)。</p>
 
 <h2>注意点</h2>
 <ul>
@@ -216,11 +216,11 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="canvas-editor">Canvas Editor の使い方</a> — ナビゲーション・演出・プレビュー</li>
-<li><a href="#" data-manual-page="ui-skin">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
-<li><a href="#" data-manual-page="ui-tween">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方と割り当て</li>
-<li><a href="#" data-manual-page="prefab-data">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>
-<li><a href="#" data-manual-page="asset-browser">Asset Browser</a> / <a href="#" data-manual-page="se-data">SE の設定項目</a> / <a href="#" data-manual-page="validation">Validation の見方</a> / <a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="canvas-editor">Canvas Editor の使い方</a> — ナビゲーション・演出・プレビュー</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方と割り当て</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="prefab-data">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> / <a href="#" data-manual-kind="designer" data-manual-page="se-data">SE の設定項目</a> / <a href="#" data-manual-kind="designer" data-manual-page="validation">Validation の見方</a> / <a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

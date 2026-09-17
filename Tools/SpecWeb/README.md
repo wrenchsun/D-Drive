@@ -376,22 +376,28 @@ $env:ELECTRON_RUN_AS_NODE = "1"
 - ロールは Google ログインの許可リスト（`users.json`）から決まる（`window.SpecWebCurrentUser`、
   `html/Index.html` が `currentUser` をクライアントへ渡す）
 
-## 13. デザイナーマニュアルの配信（2026-09-14 追加）
+## 13. マニュアル（デザイナー/プログラマー）の配信（2026-09-14 追加、2026-09-17 プログラマーマニュアル対応）
 
-`docs/DesignerManual/*.html`（デザイナーマニュアル、真実はそちら）を、この Web アプリからも
-開けるようにしている。設計は [docs/32_spec_web.md「実装メモ（マニュアル配信）」](../../docs/32_spec_web.md)。
+`docs/DesignerManual/*.html`（デザイナーマニュアル）・`docs/ProgrammerManual/*.html`
+（プログラマーマニュアル、2026-09-17 追加）を、この Web アプリからも開けるようにしている
+（真実はどちらも `docs/` 側）。設計は
+[docs/32_spec_web.md「実装メモ（マニュアル配信）」「実装メモ（プログラマーマニュアル配信対応）」](../../docs/32_spec_web.md)。
 
 - Unity の「マニュアル」ボタン（メインツールバー、再生ボタンの右）が
   `<①のデプロイURL>?page=manual&p=<ページ名（拡張子なし、トップは Readme）>` を開く
-- ① 人向け SPA のナビにも「マニュアル」リンクが表示される（`#/orders` 等と同じ画面切り替え）
-- 本文は `docs/DesignerManual/*.html` から `Tools/SpecWeb/tools/build-manual.js`（Node 標準の
-  fs/path のみ、依存ゼロ）が事前生成した断片 HTML（`Tools/SpecWeb/html/manual/<page>.html`。
-  style インライン化・画像 data URI 化・ページ間リンク書き換え済み）を配信するだけで、
-  この GAS プロジェクト側では本文を直接編集しない
+  （プログラマーマニュアルは `&kind=programmer` を追加。省略時・`kind=designer` は従来どおり）
+- ① 人向け SPA のナビにも「デザイナーマニュアル」「プログラマーマニュアル」の 2 本のリンクが表示される
+  （`#/orders` 等と同じ画面切り替え）
+- 本文は `docs/DesignerManual/*.html`・`docs/ProgrammerManual/*.html` から
+  `Tools/SpecWeb/tools/build-manual.js`（Node 標準の fs/path のみ、依存ゼロ）が事前生成した
+  断片 HTML（`Tools/SpecWeb/html/manual/<kind>/<page>.html`、`kind` は `designer`/`programmer`。
+  style インライン化（プログラマー側は `@import` で継承しているデザイナー側 CSS も解決）・
+  画像 data URI 化・ページ間/相互リンク書き換え済み）を配信するだけで、この GAS プロジェクト側では
+  本文を直接編集しない
 
-**`docs/DesignerManual/*.html`/`style.css`/`images/*.png` を編集したら、必ず次のいずれかを行う**
-（忘れると Web 側のマニュアルが古いままになり、`Tools/SpecWeb/test/build-manual.test.js` の
-ドリフト検出テストが red になる）:
+**`docs/DesignerManual/*.html`/`docs/ProgrammerManual/*.html`/`style.css`/`images/*.png` を
+編集したら、必ず次のいずれかを行う**（忘れると Web 側のマニュアルが古いままになり、
+`Tools/SpecWeb/test/build-manual.test.js` のドリフト検出テストが red になる）:
 
 ```bat
 cd Tools\SpecWeb
@@ -440,9 +446,9 @@ git にコミットする方針（Node が無い環境でも `clasp push` だけ
 | `html/OrderTreeLogic.html`/`OrderTree.html` | 発注ツリーの集計ロジック・画面（O-2） |
 | `html/Members.html` | メンバー管理 + ガント URL 設定画面（O-9・O-10） |
 | `html/TuningGrid.html`/`Tuning.html` | 調整値編集画面 |
-| `src/Manual.js` | マニュアル配信 API（`manualGet`） |
-| `src/ManualPages.js`（生成物） | マニュアルのページ名許可リスト（`tools/build-manual.js` が生成） |
-| `html/Manual.html` | マニュアル画面（ナビ「マニュアル」リンク + 本文差し込み + リンク処理） |
-| `html/manual/*.html`（生成物） | ページごとの断片 HTML（`tools/build-manual.js` が生成） |
+| `src/Manual.js` | マニュアル配信 API（`manualGet`、`kind`（designer/programmer）+ `p` を受け取る） |
+| `src/ManualPages.js`（生成物） | kind ごとのページ名許可リスト（`tools/build-manual.js` が生成） |
+| `html/Manual.html` | マニュアル画面（ナビ「デザイナーマニュアル」「プログラマーマニュアル」リンク + 本文差し込み + リンク処理） |
+| `html/manual/<kind>/*.html`（生成物） | kind（designer/programmer）ごとの断片 HTML（`tools/build-manual.js` が生成） |
 | `tools/build-manual.js` | `docs/DesignerManual/*.html` → 上記 2 つの生成物を作るスクリプト |
 | `push.cmd`（推奨） / `push.ps1` | `build-manual.js` を実行してから `clasp push` する（`.cmd` は実行ポリシーの影響を受けない。`.ps1` は BOM 付き UTF-8 必須） |

@@ -80,9 +80,15 @@ function specWebIsSafeOpenId_(id) {
 
 function resolveInitialScreen_(params) {
   if (params && params.page === 'manual') {
+    // 2026-09-17（プログラマーマニュアル配信対応）: kind（"designer"/"programmer"）が
+    // 未指定・不正なら SPEC_WEB_MANUAL_DEFAULT_KIND（"designer"）にフォールバックする
+    // （specWebResolveManualKind_、src/Manual.js。既存の Unity 側 URL（kind 無し）は
+    // そのまま designer を開く後方互換）。
+    var kind = specWebResolveManualKind_(params.kind);
+    var pageNames = SPEC_WEB_MANUAL_PAGE_NAMES[kind] || [];
     var requested = String(params.p || '');
-    var page = SPEC_WEB_MANUAL_PAGE_NAMES.indexOf(requested) !== -1 ? requested : SPEC_WEB_MANUAL_TOP_PAGE;
-    return { screen: 'manual', params: { p: page } };
+    var page = pageNames.indexOf(requested) !== -1 ? requested : SPEC_WEB_MANUAL_TOP_PAGE;
+    return { screen: 'manual', params: { p: page, kind: kind } };
   }
   if (params && params.page === 'order') {
     var orderId = String(params.id || '');

@@ -134,6 +134,54 @@ test('applyAbsoluteHrefs_: execUrl が未取得なら href="#" のまま（白�
   assert.equal(exitLink.getAttribute('href'), '#');
 });
 
+// 2026-09-17（プログラマーマニュアル配信対応）
+test('applyAbsoluteHrefs_: data-manual-kind="programmer" のリンクは &kind=programmer 付きの絶対 URL になる', () => {
+  const { ctx, dom } = setup('https://script.google.com/macros/s/fake/exec');
+  const container = dom.document.createElement('div');
+  const pageLink = buildAnchor(dom, { 'data-manual-kind': 'programmer', 'data-manual-page': 'concepts' });
+  container.appendChild(pageLink);
+
+  ctx.window.SpecWebManualTestHooks_.applyAbsoluteHrefs(container);
+
+  assert.equal(
+    pageLink.getAttribute('href'),
+    'https://script.google.com/macros/s/fake/exec?page=manual&p=concepts&kind=programmer'
+  );
+});
+
+test('registerScreen("manual", ...): params.kind を manualGet にそのまま渡す（kind 未指定は designer）', async () => {
+  const dom = createFakeDom();
+  let capturedRender = null;
+  let capturedParams = null;
+  const sandbox = {
+    console,
+    document: dom.document,
+    registerScreen: function (id, render) {
+      if (id === 'manual') capturedRender = render;
+    },
+    window: {
+      SpecWebExecUrl: 'https://script.google.com/macros/s/fake/exec',
+      SpecWebNavigate: function () {},
+      SpecWebClient: createFakeSpecWebClient({
+        manualGet: function (params) {
+          capturedParams = params;
+          return { ok: true, kind: params.kind, html: '<p>dummy</p>' };
+        }
+      })
+    }
+  };
+  loadHtmlScripts(['OrderLinkLogic', 'Manual'], sandbox);
+  const root = dom.document.createElement('div');
+
+  capturedRender(root, { p: 'concepts', kind: 'programmer' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(capturedParams.kind, 'programmer');
+
+  capturedRender(root, { p: 'Readme' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(capturedParams.kind, 'designer');
+});
+
 test('applyAbsoluteHrefs_: ネストした子要素の中の <a> も見つけて書き換える', () => {
   const { ctx, dom } = setup('https://script.google.com/macros/s/fake/exec');
   const container = dom.document.createElement('div');

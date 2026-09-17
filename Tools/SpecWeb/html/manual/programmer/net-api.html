@@ -1,0 +1,223 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page pre {
+    background: #2b2b2b;
+    color: #e8e8e8;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: Consolas, monospace;
+    font-size: 0.9em;
+    line-height: 1.6;
+    margin: 1em 0;
+}.sw-manual-page pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+    font-size: 1em;
+}.sw-manual-page .sig {
+    display: block;
+    background: #eef3fb;
+    border: 1px solid #c7d5ec;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 0.8em 0;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+    white-space: pre-wrap;
+}.sw-manual-page .bad, .sw-manual-page .good {
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 1em 0;
+}.sw-manual-page .bad {
+    background: #fdecea;
+    border-left: 5px solid #d9463c;
+}.sw-manual-page .bad::before {
+    content: "✗ やってはいけない例";
+    display: block;
+    font-weight: bold;
+    color: #b3261e;
+    margin-bottom: 6px;
+}.sw-manual-page .good {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+}.sw-manual-page .good::before {
+    content: "◯ 正しい例";
+    display: block;
+    font-weight: bold;
+    color: #2e7d32;
+    margin-bottom: 6px;
+}.sw-manual-page .bad pre, .sw-manual-page .good pre {
+    margin: 0;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="programmer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="programmer" data-manual-page="Readme">🏠 トップ</a> › ネットワーク（INetBridge / NGO）</nav>
+
+<h1>ネットワーク（INetBridge / NGO）</h1>
+
+<p>D-Drive のアセットシステム本体は<strong>トランスポート非依存</strong>です。マルチプレイの有無に関わらずゲームコードは同じ API（<code>Audio.PlaySe</code> / <code>Vfx.Spawn</code> / <code>Presentation.Play</code> など）を呼ぶだけで、送受信の判断は Manager 内部と <code>INetBridge</code> の実装が行います。このページは <code>INetBridge</code> の全メンバー、シングルプレイとマルチプレイでの実装の違い、Host 権威モデルと偽造メッセージ対策、実機確認の結果をまとめます。</p>
+
+<div class="tip">
+<strong>プログラマーが直接 <code>INetBridge</code> を呼ぶ場面は基本的にありません。</strong> Audio / Vfx / Presentation などの Manager が内部で使うため、通常は各種 API ページ（<a href="#" data-manual-kind="programmer" data-manual-page="audio-api">Audio API</a> 等）どおりに呼べばネットワーク対応も含めて動きます。このページは、独自のネットメッセージを追加する場合や、NGO 統合の配線・デバッグをする場合に読んでください。
+</div>
+
+<h2 id="get">INetBridge の取得</h2>
+<p><code>Assets/DDrive/Foundation/Net/INetBridge.cs</code> で定義されるインタフェースです。実体は <code>DDriveRuntimeBootstrap.Instance.NetBridge</code>（起動配線の詳細は <a href="#" data-manual-kind="programmer" data-manual-page="bootstrap">起動配線（DDriveRuntimeBootstrap）</a>）から取得します。<code>await DDriveRuntimeBootstrap.Instance.WhenReady;</code> の後であれば確実に非 null です。</p>
+
+<h2 id="members">INetBridge のメンバー一覧</h2>
+<table>
+<tr><th>メンバー</th><th>役割</th></tr>
+<tr><td><code>bool IsServer</code></td><td>自分が Host（権威）かどうか</td></tr>
+<tr><td><code>bool IsClient</code></td><td>自分が Client かどうか（Host は通常 true でもある。<code>LocalLoopbackBridge</code> は両方常に true）</td></tr>
+<tr><td><code>double NetworkTime</code></td><td>全端末で単調同期した時刻。<code>Presentation</code> の開始時刻シークなど、演出の位相合わせに使う基準時刻</td></tr>
+<tr><td><code>ulong LocalClientId</code></td><td>自分自身の ClientId。NGO は <code>NetworkManager.LocalClientId</code>、Loopback（シングルプレイ）は常に 0（Host 相当）。<code>HandleNetKey</code> へ発行者を埋め込む検証（後述）に使う</td></tr>
+<tr><td><code>void Broadcast&lt;T&gt;(in T msg, NetChannel channel)</code> where <code>T : INetMessage</code></td><td>全員（Host 含む）へ送る</td></tr>
+<tr><td><code>void SendTo&lt;T&gt;(ulong clientId, in T msg, NetChannel channel)</code></td><td>特定の 1 クライアントへ送る。<strong>Host からのみ有効</strong>（Client が呼ぶと警告して無視される）</td></tr>
+<tr><td><code>IDisposable Subscribe&lt;T&gt;(Action&lt;ulong, T&gt; handler)</code></td><td>型 <code>T</code> のメッセージ受信を購読する。第 1 引数は送信元 ClientId。<code>Dispose()</code> で解除</td></tr>
+<tr><td><code>Transform ResolveNetObject(ulong netId)</code></td><td>NetId → Transform。解決できなければ null</td></tr>
+<tr><td><code>ulong ResolveNetId(Transform transform)</code></td><td><code>ResolveNetObject</code> の逆方向。解決できなければ 0（呼び出し元は Position 送信にフォールバックする設計）</td></tr>
+<tr><td><code>bool IsLocalPlayerObject(Transform transform)</code></td><td>渡した Transform が「ローカルクライアントの所有物か」を判定する。<code>HapticsData.LocalPlayerOnly</code> の誤爆防止に使う。Loopback は常に true、NGO は <code>NetworkObject.OwnerClientId == LocalClientId</code></td></tr>
+<tr><td><code>ulong SpawnNetworked(GameObject root)</code></td><td><code>NetMode.Simulated</code> な Prefab を Host 権威で <code>NetworkObject</code> として Spawn する。<code>root</code> は既にローカルへ Instantiate 済み（Pool から借りた実体）であることが前提。非対応の実装（Loopback）は常に 0 を返す</td></tr>
+<tr><td><code>void DespawnNetworked(ulong netId, bool destroy)</code></td><td><code>SpawnNetworked</code> の対。<code>destroy=false</code> は Pool へ戻す想定（NGO の <code>Despawn(destroy:false)</code> 相当）。非対応の実装は no-op</td></tr>
+<tr><td><code>event Action&lt;ulong&gt; ClientConnected</code></td><td>新規接続通知（Host 視点）。Late Join でアクティブな演出リストをスナップショット送信するために使う。シングルプレイでは通常発火しない</td></tr>
+<tr><td><code>event Action&lt;ulong, string&gt; ClientDisconnected</code></td><td>切断通知 <code>(clientId, reason)</code>。Host 視点は「どの Client が切断したか」、Client 視点は「自分が切断された」ことを表す</td></tr>
+<tr><td><code>void DisconnectClient(ulong clientId, string reason)</code></td><td>該当 Client を切断する。<strong>Host からのみ意味を持つ</strong>。カタログ ContentHash 不一致時などに使う</td></tr>
+</table>
+
+<h2 id="impls">2 つの実装</h2>
+<table>
+<tr><th>実装</th><th>用途</th><th>備考</th></tr>
+<tr><td><code>LocalLoopbackBridge</code></td><td>シングルプレイ（既定）</td><td><code>Foundation/Net/LocalLoopbackBridge.cs</code>。<code>Broadcast</code>/<code>SendTo</code> は自分自身に即時配送するだけ。<code>IsServer</code>/<code>IsClient</code> は常に true、<code>LocalClientId</code> は常に 0</td></tr>
+<tr><td><code>NgoNetBridge</code></td><td>マルチプレイ（NGO 2.13.2）</td><td><code>Runtime/Net/NgoNetBridge.cs</code>。<code>NetworkBehaviour</code> として実装され、シーンに 1 つ <code>NetworkObject</code> として配置する</td></tr>
+</table>
+<p>どちらも同じ <code>INetBridge</code> を実装するため、<strong>ゲームコード・Data は通信の有無で一切変わりません</strong>（<code>FR-13.1</code>）。Manager は <code>NetMode</code>（Local / Cosmetic / Simulated）を見て配送経路を自動で選ぶので、プログラマーは通常の <code>Play</code>/<code>Spawn</code> API を呼ぶだけです。</p>
+
+<h2 id="select">ブリッジの選択</h2>
+<p>選択は <code>DDriveRuntimeBootstrap.DefaultNetBridge</code>（Inspector、<code>NetBridgeMode.Loopback</code> または <code>NetBridgeMode.Ngo</code>、既定 <code>Loopback</code>）と、起動時のコマンドライン引数（<code>NetLaunchArgs.Parse</code>、<code>Runtime/Net/NetLaunchArgs.cs</code>）で決まります。引数が Inspector の既定値を上書きします。</p>
+<table>
+<tr><th>引数</th><th>値</th><th>意味</th></tr>
+<tr><td><code>-ddrive-net</code></td><td><code>host</code> / <code>client</code> / <code>off</code></td><td>役割を明示指定する。未指定なら Inspector の <code>DefaultNetBridge</code> にフォールバック</td></tr>
+<tr><td><code>-ddrive-host</code></td><td>文字列</td><td>接続先ホスト（IP 等）</td></tr>
+<tr><td><code>-ddrive-port</code></td><td>整数</td><td>ポート番号</td></tr>
+<tr><td><code>-ddrive-sim-latency</code></td><td>整数（ms）</td><td>開発ビルドのみ有効。アプリ層の送受信キューに遅延を挟む（後述）</td></tr>
+<tr><td><code>-ddrive-sim-loss</code></td><td>0〜100（%）</td><td>パケットロス率。<strong>パーサはこの値を受け取るが、実際にロスを起こす実装はまだ無い</strong>（後述の見送り事項）</td></tr>
+<tr><td><code>-ddrive-autotest</code></td><td>文字列</td><td>NetCheck の自動確認シナリオ名</td></tr>
+<tr><td><code>-ddrive-autotest-seconds</code></td><td>数値（秒）</td><td>自動確認の実行時間</td></tr>
+</table>
+<p>各フラグは次のトークンを値として消費しますが、次のトークンが別の <code>-ddrive-*</code> フラグの場合は値なし（null）として扱われます（<code>NetLaunchArgs.NextValue</code>）。</p>
+
+<div class="warn">
+<strong>NGO 利用時はシーンの構成が前提条件です。</strong> <code>Ngo</code> モードを要求しても、シーンに <code>NetworkManager</code> と <code>NgoNetBridge</code>（<code>DDriveRuntimeBootstrap.NetworkManagerRef</code>/<code>NgoBridgeRef</code> の Inspector 直参照、未設定なら <code>FindAnyObjectByType</code> で自動検索）が見つからなければ、警告を出して <strong><code>LocalLoopbackBridge</code> にフォールバックします</strong>（例外で止めない設計、CLAUDE.md §0-4）。また <code>NetworkManager</code> と <code>NetworkObject</code>（＝ <code>NgoNetBridge</code>）は<strong>同じ GameObject に置けません</strong>（NGO が <code>[OnValidate] NetworkManager cannot be a NetworkObject</code> と警告し機能しない）。<code>NgoNetBridge</code> は別の GameObject（例: <code>NgoBridge</code>）に置いてください。
+</div>
+
+<h2 id="delivery">配送規則</h2>
+<table>
+<tr><th>呼び出し</th><th>実装</th><th>備考</th></tr>
+<tr><td>Host から <code>Broadcast</code></td><td><code>[Rpc(SendTo.ClientsAndHost)]</code></td><td><strong>ホスト自身にも届く</strong>。旧 <code>[ClientRpc]</code> は NGO 2.x では <code>SendTo.NotServer</code> 扱いでホストに届かないため、統一 RPC を使っている</td></tr>
+<tr><td>Client から <code>Broadcast</code></td><td><code>[Rpc(SendTo.Server)]</code> で Host に「依頼」→ Host がレート制限と種別登録を検証して全員へ配る</td><td>「クライアント発の中継は無条件に行わない」の実装。<code>NetMode.Simulated</code> の生成はこの経路を通らない</td></tr>
+<tr><td>Host から <code>SendTo(clientId, ...)</code></td><td><code>[Rpc(SendTo.SpecifiedInParams)]</code> + <code>RpcTarget.Single</code></td><td>Client からの呼び出しは警告して破棄</td></tr>
+<tr><td><code>NetChannel.Unreliable</code></td><td><code>RpcDelivery.Unreliable</code>。ペイロードが <code>UnreliablePayloadLimit</code>（1000 bytes）を超える場合は Reliable にフォールバック</td><td>NGO の Unreliable は 1 パケット（MTU）制限があるため</td></tr>
+</table>
+
+<h2 id="limits">NgoNetBridge の制限値</h2>
+<table>
+<tr><th>メンバー</th><th>値</th><th>何を守るためか</th></tr>
+<tr><td><code>UnreliablePayloadLimit</code></td><td>1000（バイト、<code>const int</code>）</td><td>NGO の Unreliable RPC は 1 パケットに収まる必要があるため、それを超えるペイロードは自動的に Reliable 配送へ切り替える（配送そのものが失敗しないようにする安全弁）</td></tr>
+<tr><td><code>ClientRelayLimitPerSecond</code></td><td>60（<code>const int</code>、1 クライアントあたり/秒）</td><td>Client → Host への「Cosmetic を中継してほしい」依頼が過剰に来た場合の DoS 的な負荷を防ぐ。超過分は破棄して警告ログを出す（<code>ConsumeRelayBudget</code>、1 秒単位のスライディングウィンドウ）</td></tr>
+<tr><td><code>int ReceivedMessageCount</code></td><td>公開プロパティ</td><td>デバッグオーバーレイ（<code>NetDebugOverlay</code>）向けの受信数カウンタ。実際に処理した時点（アプリ層遅延キューを抜けた後）で加算される</td></tr>
+<tr><td><code>bool IsConnected</code></td><td>公開プロパティ（既定 true）</td><td>Client 視点で「Host との接続を保っているか」。切断時に false になり、<code>NetDebugOverlay</code>/<code>NetCheckRunner</code> の表示や偽造 Cancel の送出停止に使われる</td></tr>
+</table>
+
+<h2 id="authority">Host 権威モデルと偽造メッセージの検証</h2>
+<p>D-Drive の「Server」は MS2026 の「Host」と同じ意味です。権威は Host にあり、<strong>Broadcast/SendTo は Host から呼ぶのが正規経路</strong>です。Client が Cosmetic 演出（SE/VFX 等）を出したいときは Server 宛 RPC で Host に「依頼」し、Host がレート制限と型登録を検証したうえで全員へ配ります（前節）。</p>
+<p><strong>発行者検証（<code>HandleNetKey</code>）</strong>: <code>PresentationManager</code> は演出ごとに発行する <code>HandleNetKey</code>（32bit）の上位 8bit に発行者（<code>LocalClientId</code> の下位 8bit）を埋め込み、<code>IsAuthorizedSender(senderId, handleNetKey)</code>（発行者一致、または Host からの信頼された中継/再送）で Signal/Cancel/Play を検証してから処理します。不一致は警告して破棄されます。この検証が機能するには「中継されたメッセージの送信元が誰か」を正しく伝える必要があり、以前は <code>NgoNetBridge.Dispatch</code> が受信メッセージの送信元を常に <code>NetworkManager.ServerClientId</code>（＝ Host）としてしまうバグがあり、発行者検証が原理的に機能していませんでした。<code>RequestBroadcastRpc</code> が <code>rpcParams.Receive.SenderClientId</code>（トランスポートが付与する真の値、Client は偽装できない）をそのまま中継するよう修正されています。</p>
+<p>未知のキー宛の Signal/Cancel（対象の演出が既に完了している、または最初から存在しない）は、開発ビルドではキーごとに 1 回だけ「未知のキー、または対象の演出が既に完了しているため破棄しました」という警告ログを出します。</p>
+
+<h2 id="device-test">実機確認（PC 2 台）</h2>
+<p>この仕組みは<strong>実機 2 台（PC-A Host + PC-B Client）での確認が済んでいます</strong>。詳細な手順・ログの見方は <code>docs/29_network_device_test.md</code>、確認済みの内容は以下のとおりです（最終版 v3）。</p>
+<ul>
+<li><strong>遅延 0ms / 200ms</strong>: 接続・剣攻撃デモの Play/Signal・VFX 描画・アプリ層 RTT 計測（<code>rtt_app_ms</code>）を確認。<code>UnityTransport.SetDebugSimulatorParameters</code> が Obsolete で no-op になっているため、遅延は <code>NgoNetBridge</code> のアプリ層送受信キュー（<code>ConfigureAppLayerSimLatency</code>、開発ビルド限定）で代替実装している</li>
+<li><strong>Late Join</strong>: 接続直後に Host が保持する「アクティブ演出台帳」をスナップショット送信し、Client 側で復元されることを確認</li>
+<li><strong>偽造メッセージ破棄</strong>: Client 役が周期的に送る偽造 <code>PresentationCancelMsg</code>（自分が発行していない <code>HandleNetKey</code>）が、Host・他 Client の両方で確実に破棄されることを確認（送信件数と破棄件数が一致）</li>
+<li><strong>切断</strong>: Host 停止時に Client が <code>[Net/Client] ... Host から切断されました</code> を検知し、進行中のネット経由演出（VFX 含む）を <code>PresentationManager.CancelAllNetworked()</code> で後片付けすることを確認</li>
+</ul>
+<p>確認の過程で見つかった実バグ（遅延時にワンショット演出が一切発火しない、切断後も VFX が描画され続ける、等）はすべて修正済みです。詳細な原因と修正内容は <code>docs/14_networking.md</code>「実装メモ（6-0 修正6/修正7）」を参照してください。</p>
+
+<h2 id="samples">実例</h2>
+<p><code>Assets/DDrive/Samples/</code> 配下に 2 つのサンプルがあります（Validation の走査対象外。確認できたら削除してよいデモコード）。</p>
+<table>
+<tr><th>ファイル</th><th>内容</th></tr>
+<tr><td><code>NetBridgeSmokeTest.cs</code></td><td>0-14 時点の NGO アダプタ疎通確認用。独自メッセージ <code>PingMessage : INetMessage</code> を定義し、<code>bridge.Subscribe&lt;PingMessage&gt;(...)</code> で受信、<code>bridge.Broadcast(new PingMessage{...}, NetChannel.Unreliable)</code> で送信する最小例</td></tr>
+<tr><td><code>NetCheckRunner.cs</code></td><td>6-0 以降の実機確認用自動チェック。Host が <code>PRES_Demo_SkillSlash</code> を周期 Play → Signal("hit")し、<code>[DDriveNetCheck] key=value ...</code> 形式のハートビートを出す。偽造 Cancel の送出・切断検知・Late Join 復元の判定ロジックの実例として読める</td></tr>
+</table>
+
+<h2 id="known-gaps">既知の制約</h2>
+<div class="warn">
+<strong>ネット系のテストの穴が 5 件残っています</strong>（<code>docs/41_phase6_review_2026-09-17.md</code>「テストの穴」節より）。実装自体は動作確認済みですが、以下は回帰を防ぐ自動テストがまだありません。新しいネット機能を追加する際はここも一緒に埋めることを検討してください。
+<ol>
+<li>偽造 <code>CatalogContentHashResultMsg</code> — <code>OnReceiveResultMsg</code> は送信元を見ずに Host でなければ誰からの Result でも状態を書き換えてしまう経路が未検証</li>
+<li>Host のカタログ登録前に届いたハッシュの保留 → 登録完了時のフラッシュが未テスト</li>
+<li>タイムアウト経由の切断で <code>ClientDisconnectedForMismatch</code> が発火することの確認が不足（既存は呼び出し回数だけを見ている）</li>
+<li>保留バッファ経由の偽造 — 「非発行者からの Signal が Play より先に届いた場合、Play 到着後にも適用されない」ことを直接固定するテストが無い（保留 Cancel の Play 後適用も同様）</li>
+<li>Cancel のレート制限（非 Host の Client 発）— Signal と同じ「61 件目破棄」のテストが Cancel には無い</li>
+</ol>
+</div>
+
+<h2 id="see-also">見送り事項（現状のスコープ外）</h2>
+<ul>
+<li><code>-ddrive-sim-loss</code>（パケットロス）の実装。引数はパースされるが、ドロップを起こす経路はまだ実装されていない</li>
+<li>カタログ ContentHash 照合（版情報の付与）は別チケットのスコープ</li>
+<li>Simulated Prefab をプールから再利用（Rent）した際の NetworkObject 再 Spawn</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="Readme">トップ（ページ一覧・共通の入口）</a></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="bootstrap">起動配線（DDriveRuntimeBootstrap）</a></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="presentation-api">Presentation API</a>（ネット再生の主役）</li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="handle">Handle の扱い方</a></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="rules">コーディング規約・禁止事項</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="#" data-manual-kind="programmer" data-manual-page="Readme">トップ</a> | <a href="#" data-manual-kind="designer" data-manual-page="Readme">デザイナーマニュアル</a></footer></div>

@@ -67,6 +67,35 @@ test('buildManualUrl: execUrl か page が空なら空文字（呼び出し側�
   assert.equal(logic.buildManualUrl('https://example.com/exec', ''), '');
 });
 
+// 2026-09-17（プログラマーマニュアル配信対応）: buildManualUrl の kind 引数。
+test('buildManualUrl: kind 省略・"designer" は URL に &kind= を付けない（後方互換）', () => {
+  const logic = loadLogic();
+  assert.equal(
+    logic.buildManualUrl('https://example.com/exec', 'Readme'),
+    'https://example.com/exec?page=manual&p=Readme'
+  );
+  assert.equal(
+    logic.buildManualUrl('https://example.com/exec', 'Readme', null, 'designer'),
+    'https://example.com/exec?page=manual&p=Readme'
+  );
+});
+
+test('buildManualUrl: kind="programmer" は &kind=programmer を付ける', () => {
+  const logic = loadLogic();
+  assert.equal(
+    logic.buildManualUrl('https://example.com/exec', 'Readme', null, 'programmer'),
+    'https://example.com/exec?page=manual&p=Readme&kind=programmer'
+  );
+});
+
+test('buildManualUrl: kind と anchor を両方指定すると #anchor が末尾に付く', () => {
+  const logic = loadLogic();
+  assert.equal(
+    logic.buildManualUrl('https://example.com/exec', 'concepts', 'section', 'programmer'),
+    'https://example.com/exec?page=manual&p=concepts&kind=programmer#section'
+  );
+});
+
 test('buildExitUrl: execUrl をそのまま（末尾スラッシュ除去のみ）返す。空なら空文字', () => {
   const logic = loadLogic();
   assert.equal(logic.buildExitUrl('https://example.com/exec/'), 'https://example.com/exec');

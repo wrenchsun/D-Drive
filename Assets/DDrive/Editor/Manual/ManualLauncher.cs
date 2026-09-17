@@ -7,13 +7,18 @@ namespace DDrive.Editor.Manual
     // [09_editor_tools.md] §6.1 — マニュアルを開く実処理(副作用側)。URL の組み立ては
     // ManualUrlBuilder(純粋関数)、優先設定は ManualPrefs、ページ一覧は ManualPages に分離している。
     //
-    // 開く先の決定(契約、デザイナーマニュアル):
+    // 開く先の決定(契約。デザイナー/プログラマーの両マニュアルで共通):
     //   1. ManualPrefs.PreferWeb かつ DDriveSpecSettings.HumanAppUrl が空でなければ Web(デプロイ①)を開く
-    //   2. それ以外はローカルの docs/DesignerManual/<page>.html を file:// で開く
+    //      (<HumanAppUrl>?page=manual&p=<page>、プログラマーマニュアルは &kind=programmer を追加。
+    //      ManualUrlBuilder.BuildWebUrl)
+    //   2. それ以外はローカルの docs/DesignerManual|ProgrammerManual/<page>.html を file:// で開く
     //      (ファイルが無ければ Debug.LogWarning のみ、例外で止めない。CLAUDE.md §0-4)
     //
-    // プログラマーマニュアル(2026-09-17 追加)は SpecWeb(発注ツール)に配信されていないため、
-    // Web 版の分岐は無く常にローカルの docs/ProgrammerManual/<page>.html を開く。
+    // 2026-09-17 追記: プログラマーマニュアルは当初(新設時点)「SpecWeb に配信されていないため
+    // 常にローカル」だったが、Tools/SpecWeb 側にプログラマーマニュアルの配信(manualGet の
+    // kind 引数)を追加したため、デザイナーマニュアルと同じ Web/ローカルの分岐に揃えた
+    // (ManualPrefs.PreferWeb はデザイナー/プログラマーで共有する単一のトグル。
+    // docs/32_spec_web.md「実装メモ(マニュアル配信)」参照)。
     public static class ManualLauncher
     {
         public static void OpenTop() => OpenPage(ManualPages.TopPageName);
@@ -56,10 +61,28 @@ namespace DDrive.Editor.Manual
             Application.OpenURL(ManualUrlBuilder.BuildLocalFileUrl(folder, page));
         }
 
-        // プログラマーマニュアルのトップ(Readme)を開く。常にローカル HTML(Web 配信は範囲外)。
+        // プログラマーマニュアルのトップ(Readme)を開く。
         public static void OpenProgrammerTop() => OpenProgrammerPage(ManualPages.TopPageName);
 
-        // プログラマーマニュアルの指定ページを開く。常にローカル HTML。
-        public static void OpenProgrammerPage(string pageName) => OpenLocal(pageName, ManualKind.Programmer);
+        // プログラマーマニュアルの指定ページを開く。デザイナーマニュアルの OpenPage と同じ
+        // Web/ローカルの分岐(ManualPrefs.PreferWeb + DDriveSpecSettings.HumanAppUrl)を使う。
+        public static void OpenProgrammerPage(string pageName)
+        {
+            var page = string.IsNullOrEmpty(pageName) ? ManualPages.TopPageName : pageName;
+            var settings = DDriveSpecSettings.Load();
+            var humanAppUrl = settings != null ? settings.HumanAppUrl : null;
+
+            if (ManualUrlBuilder.ResolveUseWeb(ManualPrefs.PreferWeb, humanAppUrl))
+            {
+                var webUrl = ManualUrlBuilder.BuildWebUrl(humanAppUrl, page, ManualKind.Programmer);
+                if (!string.IsNullOrEmpty(webUrl))
+                {
+                    Application.OpenURL(webUrl);
+                    return;
+                }
+            }
+
+            OpenLocal(page, ManualKind.Programmer);
+        }
     }
 }

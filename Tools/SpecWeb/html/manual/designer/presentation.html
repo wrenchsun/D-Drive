@@ -42,7 +42,7 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-page="Readme">🏠 トップ</a> › 演出（Presentation）の設定項目</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › 演出（Presentation）の設定項目</nav>
 
 <h1>演出（Presentation）の設定項目</h1>
 
@@ -60,8 +60,8 @@
 <tr><td>Kind（何を）</td><td>下記「トラックの種類」参照。</td></tr>
 <tr><td>Asset（何のデータを）</td><td>Kind に応じた ID(例: Kind=Vfx なら VfxData の ID)。Marker/Signal/HitStop は不要。</td></tr>
 <tr><td>Target（基準になる場所）</td><td><strong>Self</strong>: 演出を出した本人(例: 攻撃した本人)。<strong>Context Target</strong>: 相手(例: 攻撃を受けた敵)。<strong>World</strong> / <strong>Anchor</strong>: 場所を固定したい据え置きの演出向け(下の Anchor 欄の位置をそのまま使う)。</td></tr>
-<tr><td>Anchor</td><td>VFX・SE を出す細かい位置(ボーン名や右手・足元など)。<a href="#" data-manual-page="anchor-data">Anchor のページ</a>と同じ形式。</td></tr>
-<tr><td>Params</td><td>Kind ごとの追加パラメータ(例: Kind=HitStop なら「何秒止めるか」を 1 つ目に入れる)。<strong>Kind=Vfx</strong> のときは、そのエフェクト側(<a href="#" data-manual-page="vfx-data" data-manual-anchor="params">VfxData の Params</a>)と同じ並び順(ラベル名の順番=インデックス)の値を上書きします(色を差し替える、など)。<strong>Kind=Se の音量上書きにはまだ対応していません</strong>(値を入れても音量には反映されません)。他の Kind では今のところ使われません。</td></tr>
+<tr><td>Anchor</td><td>VFX・SE を出す細かい位置(ボーン名や右手・足元など)。<a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor のページ</a>と同じ形式。</td></tr>
+<tr><td>Params</td><td>Kind ごとの追加パラメータ(例: Kind=HitStop なら「何秒止めるか」を 1 つ目に入れる)。<strong>Kind=Vfx</strong> のときは、そのエフェクト側(<a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="params">VfxData の Params</a>)と同じ並び順(ラベル名の順番=インデックス)の値を上書きします(色を差し替える、など)。<strong>Kind=Se の音量上書きにはまだ対応していません</strong>(値を入れても音量には反映されません)。他の Kind では今のところ使われません。</td></tr>
 <tr><td>Stop On Cancel</td><td>途中で演出が中断された(Cancel された)とき、このトラックで出した物(VFX・SE 等)も一緒に止めるか。オフなら鳴らし切る。</td></tr>
 </table>
 
@@ -72,12 +72,12 @@
 <tr><td>Se / Bgm</td><td>効果音 / BGM を鳴らす</td><td>対応済み</td></tr>
 <tr><td>Vfx</td><td>エフェクトを出す</td><td>対応済み</td></tr>
 <tr><td>Canvas</td><td>UI 画面(ポップアップ等)を開く</td><td>対応済み</td></tr>
-<tr><td>UiTween</td><td>UI の動き(<a href="#" data-manual-page="ui-tween">UI Tween</a>)を再生する</td><td>対応済み</td></tr>
+<tr><td>UiTween</td><td>UI の動き(<a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI Tween</a>)を再生する</td><td>対応済み</td></tr>
 <tr><td>HitStop</td><td>一瞬だけゲーム全体の時間を止める(「ヒットストップ」演出)。Params の 1 つ目に止める秒数を入れる</td><td>対応済み</td></tr>
 <tr><td>Marker</td><td>プログラム側に「ここまで来た」を知らせるだけの目印(見た目には何も起きない)。Signal Key 欄が目印の名前になる</td><td>対応済み</td></tr>
 <tr><td>Signal</td><td>プログラム側の処理を直接呼び出すための合図(Marker と似ているが、コード側の受け取り方が違う)。Signal Key 欄が合図の名前になる</td><td>対応済み</td></tr>
-<tr><td>CameraShake</td><td>画面を揺らす。Asset 欄に<a href="#" data-manual-page="camera-haptics">カメラシェイクのデータ</a>の ID を入れる</td><td>対応済み</td></tr>
-<tr><td>Haptic</td><td>コントローラーを振動させる。Asset 欄に<a href="#" data-manual-page="camera-haptics">振動データ</a>の ID を入れる</td><td>対応済み</td></tr>
+<tr><td>CameraShake</td><td>画面を揺らす。Asset 欄に<a href="#" data-manual-kind="designer" data-manual-page="camera-haptics">カメラシェイクのデータ</a>の ID を入れる</td><td>対応済み</td></tr>
+<tr><td>Haptic</td><td>コントローラーを振動させる。Asset 欄に<a href="#" data-manual-kind="designer" data-manual-page="camera-haptics">振動データ</a>の ID を入れる</td><td>対応済み</td></tr>
 <tr><td>Timeline</td><td>Unity Timeline を再生する(カットシーン向け)</td><td class="warn">未対応(近日実装予定)</td></tr>
 </table>
 
@@ -117,8 +117,8 @@
 <h2>通信対戦（オンライン対戦）での演出</h2>
 <p>演出データの <strong>Flags &gt; Net</strong> を <strong>Cosmetic</strong>(「見た目だけで勝敗には影響しない」の意味)にしておくと、通信対戦時にプログラム側の特別な配線なしで<strong>自分が再生した演出が相手の画面にも自動で配られ、同じタイミングで再生されます</strong>。既定値は Local(自分の画面だけ)なので、<strong>相手にも見せたい演出は Flags.Net を Cosmetic に変える必要があります</strong>(通常の攻撃演出などは Cosmetic にしておくのが基本です)。</p>
 <ul>
-<li><strong>Cosmetic（勝敗に影響しない見た目の演出）</strong>: 攻撃を当てた側だけでなく、<strong>相手の画面にも同じ演出（アニメ・SE・VFX・カメラ揺れなど）が出ます</strong>（<a href="#" data-manual-page="glossary" data-manual-anchor="cosmetic">用語集: Cosmetic</a>）</li>
-<li><strong>コントローラーの振動だけは鳴らし分けられます</strong>: <a href="#" data-manual-page="camera-haptics">振動データ</a>の「Local Player Only」が ON（既定）のときは、<strong>その事象を起こした本人（当事者）のコントローラーだけ</strong>が振動します。相手の画面にも見た目・音は出ますが、相手のパッドは振動しません</li>
+<li><strong>Cosmetic（勝敗に影響しない見た目の演出）</strong>: 攻撃を当てた側だけでなく、<strong>相手の画面にも同じ演出（アニメ・SE・VFX・カメラ揺れなど）が出ます</strong>（<a href="#" data-manual-kind="designer" data-manual-page="glossary" data-manual-anchor="cosmetic">用語集: Cosmetic</a>）</li>
+<li><strong>コントローラーの振動だけは鳴らし分けられます</strong>: <a href="#" data-manual-kind="designer" data-manual-page="camera-haptics">振動データ</a>の「Local Player Only」が ON（既定）のときは、<strong>その事象を起こした本人（当事者）のコントローラーだけ</strong>が振動します。相手の画面にも見た目・音は出ますが、相手のパッドは振動しません</li>
 </ul>
 <div class="tip">
 2026-09-14 時点では、実際のオンライン対戦の配線（NGO）自体は次の開発段階（Phase 6）で接続される予定です。上記の Cosmetic の振り分けの仕組みそのものは既に用意されており（テストで確認済み）、接続が済めばデータ側の設定変更なしでそのまま動く想定です。
@@ -135,12 +135,12 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="#" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a></li>
-<li><a href="#" data-manual-page="vfx-data">VFX（エフェクト）の設定項目</a></li>
-<li><a href="#" data-manual-page="se-data">SE（効果音）の設定項目</a></li>
-<li><a href="#" data-manual-page="ui-tween">UI の動き（UI Tween）</a></li>
-<li><a href="#" data-manual-page="camera-haptics">画面の揺れ・コントローラーの振動</a></li>
-<li><a href="#" data-manual-page="glossary">用語集</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="vfx-data">VFX（エフェクト）の設定項目</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="se-data">SE（効果音）の設定項目</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="ui-tween">UI の動き（UI Tween）</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="camera-haptics">画面の揺れ・コントローラーの振動</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-page="Readme">トップ</a></footer></div>
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

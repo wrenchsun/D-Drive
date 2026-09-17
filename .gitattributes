@@ -4,5 +4,7 @@ Assets/SourceAssets/Samples/Shizuku/FBX/FBX/shizuku.fbx filter=lfs diff=lfs merg
 # 緊急修正（2026-09-14）: Tools/SpecWeb/tools/build-manual.js の生成物は Node が常に LF で
 # 書き出す。core.autocrlf=true の Windows チェックアウトで CRLF に化けると、次回の
 # node tools/build-manual.js 実行時に無関係な改行コードの差分（diff ノイズ）が出るため固定する。
-Tools/SpecWeb/html/manual/*.html text eol=lf
+# 2026-09-17（プログラマーマニュアル配信対応）: 出力先が kind ごとのサブフォルダ
+# （html/manual/designer/, html/manual/programmer/）に分かれたため ** で両方を拾う。
+Tools/SpecWeb/html/manual/**/*.html text eol=lf
 Tools/SpecWeb/src/ManualPages.js text eol=lf

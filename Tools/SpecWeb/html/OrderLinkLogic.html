@@ -39,13 +39,23 @@
      * 緊急修正（2026-09-14）: html/Manual.html・tools/build-manual.js の生成物（`data-manual-page`）
      * が使う「マニュアルページへの絶対 URL」の組み立て。buildOrderUrl/buildGroupUrl と同じ形
      * （execUrl が無ければ空文字。呼び出し側は '#' 等にフォールバックする）。
+     *
+     * 2026-09-17（プログラマーマニュアル配信対応）: `kind`（"designer"/"programmer"）を追加した。
+     * 省略時・"designer"（既定 kind）のときは URL に `&kind=` を付けない
+     * （既存の `?page=manual&p=...` の形のまま。Unity 側の既存 URL・既存のコピー済みリンクとの
+     * 後方互換のため。サーバー側（src/Code.js の resolveInitialScreen_）も kind 未指定を
+     * "designer" として扱う）。
      * @param {string} execUrl
      * @param {string} page ページ名（拡張子無し）
      * @param {string} [anchor] 同一ページ内アンカー（無ければ省略）
+     * @param {string} [kind] "designer"（既定、省略可）/ "programmer"
      */
-    function buildManualUrl(execUrl, page, anchor) {
+    function buildManualUrl(execUrl, page, anchor, kind) {
       if (!execUrl || !page) return '';
       var base = trimTrailingSlash_(execUrl) + '?page=manual&p=' + encodeURIComponent(page);
+      if (kind && kind !== 'designer') {
+        base += '&kind=' + encodeURIComponent(kind);
+      }
       return anchor ? base + '#' + anchor : base;
     }
 

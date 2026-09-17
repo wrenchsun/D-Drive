@@ -1,0 +1,270 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page pre {
+    background: #2b2b2b;
+    color: #e8e8e8;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: Consolas, monospace;
+    font-size: 0.9em;
+    line-height: 1.6;
+    margin: 1em 0;
+}.sw-manual-page pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+    font-size: 1em;
+}.sw-manual-page .sig {
+    display: block;
+    background: #eef3fb;
+    border: 1px solid #c7d5ec;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 0.8em 0;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+    white-space: pre-wrap;
+}.sw-manual-page .bad, .sw-manual-page .good {
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 1em 0;
+}.sw-manual-page .bad {
+    background: #fdecea;
+    border-left: 5px solid #d9463c;
+}.sw-manual-page .bad::before {
+    content: "✗ やってはいけない例";
+    display: block;
+    font-weight: bold;
+    color: #b3261e;
+    margin-bottom: 6px;
+}.sw-manual-page .good {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+}.sw-manual-page .good::before {
+    content: "◯ 正しい例";
+    display: block;
+    font-weight: bold;
+    color: #2e7d32;
+    margin-bottom: 6px;
+}.sw-manual-page .bad pre, .sw-manual-page .good pre {
+    margin: 0;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="programmer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="programmer" data-manual-page="Readme">🏠 トップ</a> › 新しい種別（AssetType）を追加する</nav>
+
+<h1>新しい種別（AssetType）を追加する</h1>
+
+<p>D-Drive に新しいアセット種別（例: 新しい <code>AssetType</code>）を追加する手順をまとめます。設計上、拡張点（<code>[AssetIdDefinition]</code> 属性、<code>IValidator</code> の自動発見、<code>[DataEditor]</code> 属性）に載せることで、基盤（Foundation / Editor の生成器・発見ロジック）自体は無改修で新種別に対応できるように作られています（NFR-7）。このページのファイル一覧は、既存の <strong>Haptics 種別</strong>（<code>AssetType.Haptics</code>）を実際に grep して確認した実在ファイルです。</p>
+
+<div class="warn">
+<strong>P-13（互換性ルール）発効後は AssetType の追加そのものに制約がかかります。</strong>（<code>docs/42_distribution.md</code>）配布用パッケージ化が完了し互換性ポリシーが発効すると、<code>AssetType</code> enum への追加・シリアライズ形式の変更は §5 の互換性ポリシーに従う必要があります。発効前の現時点では、このページの手順どおり進めて問題ありません。
+</div>
+
+<h2 id="overview">手順の全体像</h2>
+<table>
+<tr><th>#</th><th>やること</th><th>ファイル（Haptics の実例）</th></tr>
+<tr><td>1</td><td><code>AssetType</code> enum に追記（末尾のみ）</td><td><code>Foundation/Identity/AssetType.cs</code></td></tr>
+<tr><td>2</td><td>Data クラス + <code>[AssetIdDefinition]</code> 属性</td><td><code>Runtime/Haptics/HapticsData.cs</code></td></tr>
+<tr><td>3</td><td>ID 定数の生成（自動）</td><td><code>Editor/Codegen/AssetIdGenerator.cs</code>（改修不要）</td></tr>
+<tr><td>4</td><td>命名規則・配置フォルダ・接頭辞の登録</td><td><code>Editor/AssetBrowser/AssetNamingService.cs</code></td></tr>
+<tr><td>5</td><td>定数名生成の接頭辞除去登録</td><td><code>Editor/Codegen/AssetIdGenerator.cs</code>（<code>KnownPrefixes</code>）</td></tr>
+<tr><td>6</td><td>カタログ割当</td><td><code>Editor/AssetBrowser/AssetCreationService.cs</code>（<code>GetCatalogName</code>）</td></tr>
+<tr><td>7</td><td>Manager</td><td><code>Runtime/Haptics/HapticsManager.cs</code></td></tr>
+<tr><td>8</td><td>静的ファサード + Handle マーカー型</td><td><code>Runtime/Haptics/Haptics.cs</code>（マーカーは <code>HapticsData.cs</code> 内の <code>HapticMarker</code>）</td></tr>
+<tr><td>9</td><td><code>DDriveRuntimeBootstrap</code> への配線</td><td><code>Runtime/Loop/DDriveRuntimeBootstrap.cs</code></td></tr>
+<tr><td>10</td><td>Validator</td><td><code>Runtime/Haptics/HapticsDataValidator.cs</code></td></tr>
+<tr><td>11</td><td>専用エディタ（<code>[DataEditor]</code>）</td><td><code>Editor/Camera/CameraFxEditorWindow.cs</code></td></tr>
+<tr><td>12</td><td>Addressables / カタログ登録</td><td>自動（手順 6 の <code>AssetCreationService</code> が作成時に行う）</td></tr>
+<tr><td>13</td><td>テスト</td><td><code>Tests/Runtime/HapticsManagerTests.cs</code> / <code>Tests/Editor/HapticsDataValidatorTests.cs</code> / <code>Tests/Performance/HapticsAllocTests.cs</code></td></tr>
+<tr><td>14</td><td>docs 更新</td><td>該当する <code>docs/0X_*.md</code></td></tr>
+</table>
+
+<h2 id="step1">1. AssetType enum への追加</h2>
+<p><code>Foundation/Identity/AssetType.cs</code> の末尾に追記します。</p>
+<pre>public enum AssetType : byte
+{
+    None = 0,
+    Se, Bgm, Vfx, Anim, Anim2D, Material, Texture, Canvas,
+    Prefab, Presentation, Shake, Haptics, UiTween, Model,
+    Anchor, AnchorGroup, ControlSkin,
+
+    // 末尾に追加すること
+    YourNewType,
+}</pre>
+<div class="warn">
+<strong>既存の値を並び替えたり、途中に挿入してはいけません。</strong> <code>.asset</code> の YAML には enum が整数値で永続化されるため、並び替え・挿入は既存アセットの種別を破壊します。必ず末尾に追記してください。
+</div>
+
+<h2 id="step2">2. Data クラスと AssetIdDefinition 属性</h2>
+<p><code>AssetDataBase</code> を継承した Data クラスに <code>[AssetIdDefinition(AssetType, MarkerType, ConstantsClassName)]</code> を付けます。<code>HapticsData.cs</code> の実例:</p>
+<pre>public readonly struct HapticMarker
+{
+}
+
+[CreateAssetMenu(menuName = "D-Drive/Haptics/Haptics Data", fileName = "HAPTIC_NewHaptic")]
+[AssetIdDefinition(AssetType.Haptics, typeof(HapticMarker), "HAPTICID")]
+public class HapticsData : AssetDataBase
+{
+    // ... フィールド
+}</pre>
+<p><code>MarkerType</code>（例の <code>HapticMarker</code>）は <code>Handle&lt;T&gt;</code> と <code>AssetId&lt;T&gt;</code> の型引数に使う、中身のない <code>struct</code> です。型だけで種別を区別するための目印で、これがあることで「VFX の Handle に SE の ID を渡す」といった取り違えがコンパイルエラーになります。</p>
+
+<h2 id="step3">3. ID 定数の生成（自動）</h2>
+<p><code>AssetIdGenerator</code> は <code>AppDomain.CurrentDomain.GetAssemblies()</code> の全アセンブリ（<code>DDrive.Tests.*</code> は除く）を走査し、<code>AssetDataBase</code> を継承する具象クラスで <code>[AssetIdDefinition]</code> を持つものを<strong>リフレクションで自動発見</strong>します。生成器本体の改修は不要です。<code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code>（または CI の [2/6]）で <code>HAPTICID</code> のような定数クラスが自動生成されます。</p>
+
+<h2 id="step4">4. 命名規則・配置フォルダの登録</h2>
+<p><code>Editor/AssetBrowser/AssetNamingService.cs</code> の 2 つの switch 式に case を追加します。ここを忘れても例外にはなりませんが、既定値（接頭辞 <code>"ASSET"</code>、フォルダ <code>"Misc"</code>）に落ちてしまいます。</p>
+<pre>public static string GetTypePrefix(AssetType type) => type switch
+{
+    // ...既存
+    AssetType.YourNewType => "YOURTYPE",
+    _ => "ASSET",
+};
+
+public static string GetTargetFolder(AssetType type) => type switch
+{
+    // ...既存
+    AssetType.YourNewType => "YourType",
+    _ => "Misc",
+};</pre>
+
+<h2 id="step5">5. 定数名生成の接頭辞（KnownPrefixes）</h2>
+<p><code>Editor/Codegen/AssetIdGenerator.cs</code> の <code>KnownPrefixes</code>（<code>HashSet&lt;string&gt;</code>）に、手順4 で決めた接頭辞を追加します。<code>ToConstantName</code> がファイル名の先頭トークンをこの一覧と照合し、一致すれば定数名から取り除きます（例: <code>HAPTIC_PlayerHit</code> → <code>HAPTICID.PlayerHit</code>）。</p>
+<div class="warn">
+<strong>ここへの登録を忘れると、接頭辞が二重に残った定数名になります。</strong> 例えば <code>MODELID.MODELPlayerModel</code> のように、種別プレフィックス（<code>MODELID</code>）とファイル名の接頭辞（<code>MODEL</code>）が両方残ってしまいます。2026-09-17 時点で <strong><code>MODEL</code> / <code>ANC</code> / <code>ANCG</code> / <code>SKIN</code> が <code>KnownPrefixes</code> に未登録</strong>で、この不具合が実際に起きています（P-5 着手前に修正予定）。<code>KnownPrefixes = { "SE", "BGM", "VFX", "ANIM", "ANIM2D", "MAT", "TEX", "CANVAS", "PREFAB", "PRES", "SHAKE", "HAPTIC", "HAPTICS", "UITWEEN" }</code> が現状の内容です。なお <code>docs/42_distribution.md</code> §5.3 により、互換性ポリシー発効（P-13）後は <code>KnownPrefixes</code> への追加は禁止になります（発効前の一度きりの例外として上記 4 種を追加する方針が決定済みです）。
+</div>
+
+<h2 id="step6">6. カタログ割当</h2>
+<p><code>Editor/AssetBrowser/AssetCreationService.GetCatalogName(AssetType)</code> に、新種別をどのカタログ（既存流用でも新規でも可）にまとめるかを追加します。</p>
+<pre>public static string GetCatalogName(AssetType type) => type switch
+{
+    // ...既存
+    AssetType.Shake or AssetType.Haptics => "CameraFxCatalog",
+    AssetType.YourNewType => "YourTypeCatalog",
+    _ => "MiscCatalog",
+};</pre>
+<p>同じメソッドの近くにある「Preload 強制」の分岐（<code>AssetType.Canvas</code> / <code>ControlSkin</code> / <code>Presentation</code> / <code>Shake</code> / <code>Haptics</code>）も確認してください。Manager が Play/Spawn 時に <strong>同期解決（<code>ResolveOrPlaceholder</code> 等）しか使わない設計</strong>の場合、既定の <code>LoadMode.LazyLoad</code> のままだと「初回参照時にロード」が起きず常に Placeholder になる不具合があるため、その種別も <code>LoadMode.Preload</code> に追加する必要があります。</p>
+
+<h2 id="step7">7. Manager</h2>
+<p>新しい <code>XxxManager</code> は <code>Foundation/Manager/IAssetManager</code> を実装します。</p>
+<pre>public interface IAssetManager
+{
+    AssetType Type { get; }
+    void Tick(float dt);
+    void OnPause(PauseChannel channel, bool paused);
+    void StopAll(StopReason reason);
+    void OnSceneUnload();
+}</pre>
+<p><strong>Manager を <code>new</code> するのは <code>DDriveRuntimeBootstrap</code>・テスト・Editor プレビューだけ</strong>という規約があります（CLAUDE.md §0-8）。Manager は Data を書き換えません（読み取り専用）。Instance ごとの現在値は Instance 側に持たせます。</p>
+
+<h2 id="step8">8. 静的ファサードと Handle マーカー型</h2>
+<p><code>Haptics.cs</code> は薄い静的ファサードの典型例です。<code>Bind</code> 前の呼び出しは全て no-op（Invalid Handle）で継続します（例外で止めない設計、<a href="#" data-manual-kind="programmer" data-manual-page="rules">コーディング規約</a>参照）。</p>
+<pre>public static class Haptics
+{
+    private static HapticsManager _instance;
+    public static void Bind(HapticsManager instance) => _instance = instance;
+    public static bool IsBound =&gt; _instance != null;
+
+    public static Handle&lt;HapticMarker&gt; Play(HapticId id)
+        =&gt; _instance?.Play(id) ?? Handle&lt;HapticMarker&gt;.Invalid;
+    public static void Stop(Handle&lt;HapticMarker&gt; h) =&gt; _instance?.Stop(h);
+    public static void StopAll() =&gt; _instance?.StopAll();
+}</pre>
+
+<h2 id="step9">9. DDriveRuntimeBootstrap への配線</h2>
+<p><code>Runtime/Loop/DDriveRuntimeBootstrap.cs</code> に、他の Manager と同じパターンで追加します。</p>
+<pre>Haptics = new HapticsManager(Registry);
+// ...
+loop.Register(Haptics);
+// ...
+Runtime.Haptics.Haptics.Bind(Haptics);
+// (Shutdown 側)
+loop.Unregister(Haptics);
+Runtime.Haptics.Haptics.Bind(null);</pre>
+<p>ネット対応が必要な種別（Cosmetic/Simulated）は、<code>Audio</code>/<code>Vfx</code>/<code>Prefabs</code>/<code>Presentation</code> と同様にコンストラクタへ <code>INetBridge netBridge = null</code> を受け取れるようにします（詳細は <a href="#" data-manual-kind="programmer" data-manual-page="net-api">ネットワーク（INetBridge / NGO）</a>）。</p>
+
+<h2 id="step10">10. Validator</h2>
+<p><code>IValidator</code> を実装するだけで、<code>CI.DiscoverValidators()</code>（<code>AppDomain.CurrentDomain.GetAssemblies()</code> を走査し、<code>DDrive.Tests.*</code> 以外のアセンブリから型を集める）が自動発見します。<strong>明示的な登録は不要</strong>です。</p>
+<pre>public interface IValidator
+{
+    AssetType Target { get; }
+    IEnumerable&lt;ValidationResult&gt; Validate(AssetDataBase data, ValidationContext ctx);
+}</pre>
+
+<h2 id="step11">11. 専用エディタ（DataEditor 属性）</h2>
+<p>デザイナーが編集する専用 EditorWindow がある場合、<code>[DataEditor(typeof(XxxData), "…で開く")]</code> を付けます（<code>Editor/Inspector/DataEditorAttribute.cs</code>）。<code>CameraFxEditorWindow</code> は 1 ウィンドウで 2 種別（Shake / Haptics）を扱うため属性を 2 つ付けている実例です。</p>
+<pre>[DataEditor(typeof(CameraShakeData), "Shake Editor で開く")]
+[DataEditor(typeof(HapticsData), "Haptics Editor で開く")]
+public class CameraFxEditorWindow : EditorWindow
+{
+    public static void Open(HapticsData data) { /* ... */ }
+}</pre>
+<p><code>public static Open(XxxData)</code>（引数型は基底 <code>AssetDataBase</code> でも可、メソッド名は属性の第 3 引数 <code>openMethod</code> で変更可、既定 <code>"Open"</code>）を <code>DataEditorRegistry</code> が <code>TypeCache</code> で拾い、Inspector 最上部の「エディターで開く」ボタンに自動で出ます。専用エディタを持たせない種別を作る場合は、<code>Tests/Editor/DataEditorRegistryTests.cs</code> の <code>Exempt</code> リストに理由付きで追加してください（このテストが「全 <code>AssetDataBase</code> 派生型に登録があるか」を検査し、付け忘れを検出します）。</p>
+
+<h2 id="step12">12. Addressables / カタログ登録</h2>
+<p>手順6で <code>GetCatalogName</code> を設定していれば、デザイナーが Asset Browser や新規ダイアログでアセットを作成した時点で <code>AssetCreationService.Create</code> が自動的に <code>RegisterToCatalog</code> + <code>AddressablesSync.EnsureEntry</code>/<code>EnsureCatalogEntry</code> を呼び、カタログと Addressables への登録が完了します。プログラマー側で追加の手作業は不要です。CLAUDE.md §0-8 の「作成した Data は Addressables に同じ address で登録されていること」は <code>Validation &gt; Run All</code> が機械的に検出します。</p>
+
+<h2 id="step13">13. テスト</h2>
+<p>Haptics の実例では 3 レイヤーにテストがあります。</p>
+<table>
+<tr><th>ファイル</th><th>asmdef</th><th>内容</th></tr>
+<tr><td><code>Tests/Runtime/HapticsManagerTests.cs</code></td><td>PlayMode で実行</td><td>Manager の Play/Stop/StopAll 等の挙動</td></tr>
+<tr><td><code>Tests/Editor/HapticsDataValidatorTests.cs</code></td><td>EditMode</td><td>Validator の Error/Warning 判定</td></tr>
+<tr><td><code>Tests/Performance/HapticsAllocTests.cs</code></td><td>PlayMode、<code>-testCategory Performance</code></td><td>Tick 経路の 0 alloc 検証（<a href="#" data-manual-kind="programmer" data-manual-page="rules">コーディング規約</a>参照）</td></tr>
+</table>
+
+<h2 id="step14">14. docs 更新</h2>
+<p>公開 API・データ構造・エディタ機能を変えたら、対応する <code>docs/0X_*.md</code> を同じ PR で更新します（CLAUDE.md §3-4）。変更履歴は該当節に日付付きで追記する慣習です。新しい種別を追加した場合は、この <code>extending.html</code> の実例と食い違いが出ていないかも確認してください。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="Readme">トップ（ページ一覧・共通の入口）</a></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="concepts">基本概念（Data / Instance / Handle、4層、AssetId）</a></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="rules">コーディング規約・禁止事項</a></li>
+<li><a href="#" data-manual-kind="programmer" data-manual-page="net-api">ネットワーク（INetBridge / NGO 統合）</a></li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">デザイナーマニュアル: Asset Browser の使い方</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="#" data-manual-kind="programmer" data-manual-page="Readme">トップ</a> | <a href="#" data-manual-kind="designer" data-manual-page="Readme">デザイナーマニュアル</a></footer></div>
