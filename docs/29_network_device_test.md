@@ -1037,3 +1037,11 @@ Select-String -Path C:\DDriveTest\host_release.log -Pattern 'heartbeat=' | Selec
 > Unity のプレイヤーログ（`-logFile`）は Development ビルドでなくても出力されるため。`Debug.Log` が
 > 剥がされるのは `#if DEVELOPMENT_BUILD` 等で明示的に囲っている場合だけで、`NetCheckRunner.LogCheck` は
 > そうなっていない。
+>
+> **例外が 1 つある**: `NetCheckRunner.OnRemoteOneShotSkipped`（`track_skipped` のログ）だけは
+> `#if DEVELOPMENT_BUILD || UNITY_EDITOR` で囲われており、リリース相当ビルドでは出ない。
+> §21.4 の判定基準（切断の確認）には関係しないが、`track_skipped` を当てにした判定はできない。
+
+**リリース相当ビルドの作り方**: `Tools > D-Drive > Build > 実機確認用 Windows リリース相当ビルド`。
+出力先を指定したい場合は `NetCheckBuilder.Build(outputDirectory: ..., development: false)` を直接呼ぶ
+（`development` の既定は `true` = 従来どおり開発ビルド。既存の呼び出しと CI は影響を受けない）。

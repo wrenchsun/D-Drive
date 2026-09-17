@@ -22,6 +22,23 @@ namespace DDrive.Editor.Build
         public static void BuildFromMenu()
         {
             var result = Build();
+            ShowResultDialog(result);
+        }
+
+        // [11_tasks.md] 6-5 — docs/29 §14「リリースビルド相当(切断)の確認について」の要判断対応
+        // (2026-09-18)。既定は従来どおり開発ビルド(BuildFromMenu / Build() 引数省略)のままにし、
+        // このメニューだけを新設して呼び出しを分ける。出力先は既定の Builds/DDriveNetCheck のままで、
+        // 個別の出力先(v8_release_normal 等)を使うビルドは isuzu MCP の execute_code から
+        // Build(outputDirectory: ..., development: false) を直接呼ぶ想定。
+        [MenuItem(DDriveMenu.Build + "実機確認用 Windows リリース相当ビルド")]
+        public static void BuildReleaseFromMenu()
+        {
+            var result = Build(development: false);
+            ShowResultDialog(result);
+        }
+
+        private static void ShowResultDialog(BuildResult result)
+        {
             if (result.Success)
             {
                 EditorUtility.DisplayDialog("D-Drive", $"ビルド完了: {result.ExecutablePath}\nzip: {result.ZipPath}", "OK");
@@ -41,7 +58,13 @@ namespace DDrive.Editor.Build
         }
 
         // isuzu MCP の execute_code や他ツールからもそのまま呼べる、ダイアログを出さない版。
-        public static BuildResult Build(string outputDirectory = OutputDirectory, bool zip = true)
+        // development: true(既定)なら従来どおり BuildOptions.Development(Debug.isDebugBuild=true、
+        // CatalogContentHashGate は不一致時に警告のみで継続)。false なら通常のリリース相当ビルド
+        // (BuildOptions.None、Debug.isDebugBuild=false、不一致時は Host が切断する側の経路になる。
+        // [docs/29_network_device_test.md] §14「リリースビルド相当(切断)の確認について」参照)。
+        // zip の出力先は outputDirectory から自動導出する(例: Builds/v8_release_normal →
+        // Builds/v8_release_normal.zip)。既定の OutputDirectory/ZipPath の組み合わせもこの規則に沿っている。
+        public static BuildResult Build(string outputDirectory = OutputDirectory, bool zip = true, bool development = true)
         {
             if (!File.Exists(NetCheckScenePath))
             {
@@ -58,7 +81,7 @@ namespace DDrive.Editor.Build
                 scenes = new[] { NetCheckScenePath },
                 locationPathName = executablePath,
                 target = BuildTarget.StandaloneWindows64,
-                options = BuildOptions.Development,
+                options = development ? BuildOptions.Development : BuildOptions.None,
             };
 
             var report = BuildPipeline.BuildPlayer(options);
@@ -69,13 +92,14 @@ namespace DDrive.Editor.Build
                 return new BuildResult { Success = false, Error = $"BuildPipeline.BuildPlayer failed: result={summary.result}, errors={summary.totalErrors}" };
             }
 
-            var zipPath = Path.Combine(projectRoot, ZipPath);
+            var zipPath = Path.Combine(projectRoot, outputDirectory + ".zip");
             if (zip)
             {
                 CreateZip(absoluteOutputDir, zipPath);
             }
 
-            Debug.Log($"[DDrive] NetCheckBuilder: ビルド完了 {executablePath}" + (zip ? $" / zip: {zipPath}" : string.Empty));
+            Debug.Log($"[DDrive] NetCheckBuilder: ビルド完了 {executablePath}" + (zip ? $" / zip: {zipPath}" : string.Empty)
+                + (development ? string.Empty : " / release相当(BuildOptions.None)"));
             return new BuildResult { Success = true, ExecutablePath = executablePath, ZipPath = zip ? zipPath : null };
         }
 
