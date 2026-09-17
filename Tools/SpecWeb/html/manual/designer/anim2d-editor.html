@@ -210,6 +210,7 @@
 <tr><td>'…' のスライス済みスプライトの参照が N 件切れています(元テクスチャの再インポート等で消失した可能性があります)</td><td>元画像を再スライスして Clip を作り直す</td></tr>
 <tr><td>Frame イベント(…)が Clip 長(… フレーム)を超えています / Time イベント(…s)が Clip 長(…s)を超えています</td><td>Anim Editor でマーカーを Clip の長さより手前に動かす</td></tr>
 <tr><td>Loop=false ですが OnLoop イベントがあります(発火しません)</td><td>Loop を ON にするか行を消す</td></tr>
+<tr><td>Flags.Load が Preload ではありません(…)</td><td>2026-09-17 以前に作った Anim2DData（3D の AnimData も同様）で起きることがあります。「修正」ボタンを押すと直ります（Asset Browser の「Validation &gt; Run All」からも実行できます）。放置すると Anim Editor で SE / VFX を設定しても<strong>実行時に一切鳴らない/出ない</strong>ままになります（見た目のアニメーションだけは動くため気づきにくい不具合でした）。2026-09-17 以降に新規作成した Anim2DData はこの設定が自動で入るため対処不要です</td></tr>
 </table>
 <p>Console（ログ）に出る主なもの:</p>
 <table>

@@ -22,6 +22,7 @@ var SPEC_WEB_MANUAL_PAGE_NAMES = {
     "camera-haptics",
     "canvas-data",
     "canvas-editor",
+    "cutscene-maya-export",
     "getting-started",
     "glossary",
     "material-data",

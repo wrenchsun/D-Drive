@@ -176,7 +176,7 @@ sub.Dispose();</code></pre>
 
     // ── Handle 操作 ──
     public static void Stop(Handle&lt;UiTweenMarker&gt; h, bool complete = false);
-    public static void StopAll(RectTransform target);
+    public static void StopAll(RectTransform target, bool complete = false);
     public static bool IsPlaying(Handle&lt;UiTweenMarker&gt; h);
     public static float Progress(Handle&lt;UiTweenMarker&gt; h);
     public static void SetSpeed(Handle&lt;UiTweenMarker&gt; h, float speed);
@@ -185,6 +185,15 @@ sub.Dispose();</code></pre>
     // ── 連結・同時 ──
     public static TweenSequence Sequence();
 }</code></pre>
+
+<div class="warn">
+<strong><code>Stop</code> / <code>StopAll</code> の <code>complete</code> を省略すると位置がずれることがあります。</strong>
+既定の <code>complete: false</code> は Tween を<strong>途中の値のまま</strong>打ち切ります。<code>SlideIn</code> 系のプリセットは
+<code>UiPresetFactory.Build</code> の時点で「そのときの <code>anchoredPosition</code>」を静止位置として採用する設計なので、
+前の Tween が終わる前に止めて再生し直すと、中断された中途半端な位置が次の静止位置として使われ、
+繰り返すたびに本来の位置から離れていきます（2026-09-17 の U-23 の実害）。
+<strong>同じ要素に対して再生し直す場合は <code>complete: true</code> で止めてください。</strong>
+</div>
 
 <h3>プリセット 1 行関数（約 60 種）</h3>
 <p><code>UiPreset</code> 列挙（<code>Runtime/UiTween/UiPreset.cs</code>）のコメントにある分類そのままに、<code>UiFx</code> 側にも同名グループの 1 行メソッドが揃っています。全て <code>Play(UiPreset.Xxx, t, new UiPresetRef {...})</code> の薄いラッパーで、第 2 引数以降は秒数・移動量など省略可能な既定値付きです。</p>
