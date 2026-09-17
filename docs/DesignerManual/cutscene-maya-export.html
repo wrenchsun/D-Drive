@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カットシーン用 FBX を Maya から書き出す | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › カットシーン用 FBX を Maya から書き出す</nav>
+
+<h1>カットシーン用 FBX を Maya から書き出す</h1>
+
+<p>必殺技のカットインやラウンド開始 / 勝利デモのような<strong>数秒の短い演出</strong>で、Maya で作ったカメラワークとキャラの動きをそのまま Unity で再生するための、<strong>Maya 側の書き出し手順</strong>です。Maya のスクリプトやプラグインは使いません。標準の FBX 書き出しだけで済みます。Unity 側では、決められたフォルダに FBX を置くだけでカットシーンのデータ（CutsceneData）と Timeline が自動で作られ、そこに効果音・エフェクト・画面揺れなどを足せます。</p>
+
+<div class="warn">
+<strong>予告ページです（2026-09-18）。</strong> Unity 側の取り込み機能（Timeline チケット 6-10a〜d）はまだ実装されていません。ただし <strong>Maya 側の手順とファイル名のルールは確定済み</strong>なので、このページどおりに書き出しておけば、機能ができたときにそのまま取り込めます。機能ができたらこのページの「Unity 側で確認する」以降を実際の画面に合わせて更新します。
+</div>
+
+<h2>先に決めておくこと（プロジェクト共通）</h2>
+<table>
+<tr><th>項目</th><th>決めごと</th><th>理由</th></tr>
+<tr><td>シーンの fps</td><td>プロジェクトの既定（<strong>30 または 60</strong>。どちらかは Unity 側の設定 <code>CutsceneImportProfile</code> で宣言されています。分からなければプログラマーに確認）</td><td>違う fps でも取り込めますが、Validation に「宣言と違う」というお知らせ（Info）が出ます。同じショットの中でファイルごとに fps が違うのは NG（Warning）</td></tr>
+<tr><td>単位・上方向</td><td>cm・Y-up（Maya の既定のまま）</td><td>Unity の取り込み既定に合わせ、大きさのずれを防ぐ</td></tr>
+<tr><td>キャラリグの名前</td><td>リグの<strong>名前空間（または参照ファイル名）を D-Drive のモデル識別子に揃える</strong>（例: モデル識別子が <code>Hero</code> なら名前空間 <code>Hero:</code>）</td><td>Unity 側で「どのキャラを動かすか」を自動で結び付けるため。違っていても Unity 側で手で結べます</td></tr>
+<tr><td>カメラ</td><td>複数カメラで切り替えて作った場合は、Camera Sequencer の「<strong>Ubercam 作成</strong>」で 1 台のカメラに焼く</td><td>1 台にしておくと Unity 側でそのまま 1 本のカメラクリップになる。複数のまま出しても取り込めます（Unity 側でカメラごとにクリップが並ぶ）</td></tr>
+</table>
+
+<h2>ファイル名のルール（これだけ守る）</h2>
+<p>1 つのショット（= 1 つのカットシーン）は、<strong>「カメラ + 小物」の FBX 1 本</strong>と、<strong>キャラごとの FBX</strong>（キャラの数だけ）のセットです。ファイル名で「同じショットか」「どのキャラか」を判別します。</p>
+<table>
+<tr><th>対象</th><th>ファイル名</th><th>例</th><th>Unity 側で起きること</th></tr>
+<tr><td>カメラ + 小物</td><td><code>&lt;ショット名&gt;.fbx</code></td><td><code>Opening01.fbx</code></td><td>カットシーンデータ <code>CUT_&lt;カテゴリ&gt;_Opening01</code> ができ、カメラはカメラクリップになる</td></tr>
+<tr><td>キャラ（1 体ずつ）</td><td><code>&lt;ショット名&gt;__&lt;モデル識別子&gt;.fbx</code>（アンダースコア <strong>2 つ</strong>）</td><td><code>Opening01__Hero.fbx</code></td><td>役割 <code>Hero</code> として、モデル <code>Hero</code> に自動で結び付く</td></tr>
+<tr><td>同じキャラ 2 体目</td><td>識別子の末尾に <code>_2</code>、<code>_3</code> …</td><td><code>Opening01__Hero_2.fbx</code></td><td>同じモデルを 2 体出す</td></tr>
+<tr><td>小物（剣・扉など動く物）</td><td>ノード名を <code>PRP_&lt;モデル識別子&gt;</code>、または名前空間 = モデル識別子。カメラと同じ FBX に入れる</td><td><code>PRP_Sword</code></td><td>モデル <code>Sword</code> に結び付く</td></tr>
+<tr><td>イベントの目印（任意）</td><td>ロケーター <code>EVT_&lt;キー&gt;</code>。カメラと同じ FBX に入れる</td><td><code>EVT_Hit</code></td><td>Timeline 上の合図（Signal マーカー <code>cutscene/hit</code>）になる（Unity 側で検証中の機能。無くても Unity の Timeline 上で後から置けます）</td></tr>
+</table>
+<div class="tip">
+<strong><code>@</code> をファイル名に使わないでください</strong>（<code>Hero@Opening01.fbx</code> のような形）。Unity が「同じフォルダの <code>Hero.fbx</code> にアニメを合流させる」古い動きをしてしまうため、区切りは <code>__</code>（アンダースコア 2 つ）にしています。
+</div>
+
+<h2>書き出し手順（1 ショットにつき、1 + キャラ数 回）</h2>
+<div class="tip">
+<strong>なぜキャラごとに分けるのか:</strong> Unity は 1 つの FBX に 1 体分の「人型（Humanoid）の骨の定義」しか持てません。2 キャラを 1 つの FBX に入れると片方の動きが正しく移りません。そのため <strong>Export Selection をキャラの数だけ</strong>行います。手数は増えますが、スクリプト無しの標準機能だけで済みます。
+</div>
+<ol>
+<li><strong>カメラ + 小物</strong>: カメラ（Ubercam）・小物（<code>PRP_*</code>）・イベント用ロケーター（<code>EVT_*</code>）だけを選択 → <code>File &gt; Export Selection</code> → 形式 FBX → 名前 <code>&lt;ショット名&gt;.fbx</code>。<strong>キャラは選ばない。動かない背景も選ばない</strong>（背景は Unity 側のシーンに置きます）</li>
+<li><strong>キャラ 1 体目</strong>: そのキャラの<strong>ルートジョイント</strong>（骨の一番上）を選択（骨の階層ごと選ばれます。<strong>メッシュは選ばない</strong>）→ <code>File &gt; Export Selection</code> → 名前 <code>&lt;ショット名&gt;__&lt;モデル識別子&gt;.fbx</code></li>
+<li><strong>キャラ 2 体目以降</strong>: 2 を繰り返す（同じキャラが 2 体なら <code>__&lt;識別子&gt;_2</code>）</li>
+<li>すべて <strong>同じ保存先</strong>に置く: <code>Assets/SourceAssets/Cutscene/&lt;カテゴリ&gt;/</code>（カテゴリは <code>Skill</code> / <code>Round</code> など、Unity 側のフォルダ分け。既にあるフォルダに合わせてください）</li>
+</ol>
+
+<h3>書き出しオプション（1〜3 で共通）</h3>
+<table>
+<tr><th>項目</th><th>設定</th><th>理由</th></tr>
+<tr><td>Animation</td><td>ON</td><td>—</td></tr>
+<tr><td>Bake Animation</td><td><strong>ON</strong>。開始〜終了 = ショットの全フレーム、Step 1</td><td>IK・コンストレイント・エクスプレッションは Unity に持っていけないので、キーに焼きます。<strong>同じショットの全ファイルで開始〜終了フレームを揃える</strong>（ずれると Validation Warning）</td></tr>
+<tr><td>Cameras</td><td>ON</td><td>カメラの位置・回転・画角（焦点距離）を持っていく</td></tr>
+<tr><td>Lights</td><td>OFF</td><td>ライトは Unity 側で作ります</td></tr>
+<tr><td>Embed Media</td><td>OFF</td><td>テクスチャは不要（見た目は Unity 側のモデル / マテリアルが正）</td></tr>
+<tr><td>Include &gt; Input Connections</td><td><strong>OFF</strong></td><td>ON だと選んでいないノード（コンストレイント先など）まで付いてきます</td></tr>
+<tr><td>キャラ FBX のみ: Deformed Models / Skins / Blend Shapes</td><td><strong>OFF</strong></td><td>骨のアニメだけを出す（メッシュ・スキンはキャラ本体の FBX 側に既にあります）</td></tr>
+<tr><td>Units / Up Axis</td><td>Automatic（cm）/ Y</td><td>—</td></tr>
+</table>
+
+<h2>カメラのピント・絞りも持っていきたいとき（任意）</h2>
+<p>画角（焦点距離）は標準の書き出しで持っていけます。<strong>ピント距離・絞り（f 値）</strong>は FBX の標準属性で届くかを Unity 側で検証中です。届かない場合は、Maya のカメラにカスタムアトリビュート <code>dd_focusDistance</code>（ピント距離、cm）と <code>dd_fStop</code>（絞り）を追加してキーを打ってください（標準機能。アトリビュート追加 → キー）。どちらの経路になるかは Unity 側の実装時に決まり、このページを更新します。持っていかなくても、Unity 側でショットごとに手で入れられます。</p>
+
+<h2>Unity 側で確認する（機能実装後に有効）</h2>
+<ol>
+<li>FBX をフォルダに置くと自動で取り込まれ、Asset Browser の「Cutscene」にショットが現れる</li>
+<li><a href="validation.html">Validation</a> の「Run All」で次を確認する:
+  <ul>
+    <li><strong>fps が違う</strong>（Warning）: 同じショットのファイル間で fps が違う。Maya のシーン fps を揃えて書き出し直す</li>
+    <li><strong>モデルが見つからない</strong>（Warning）: ファイル名の識別子と D-Drive のモデル識別子が違う。ファイル名を直すか、Unity 側のバインド表で手で選ぶ</li>
+    <li><strong>Avatar が未設定</strong>（Error、モデル側）: キャラ本体のモデルデータに人型（Humanoid）の Avatar が無い。モデル担当に依頼</li>
+  </ul>
+</li>
+<li>確認用シーンで再生して、カメラとキャラの動きが Maya と同じか見る。効果音・エフェクト・画面揺れは Unity の Timeline ウィンドウで足す（<a href="presentation.html">演出</a>と同じ ID を置くだけ）</li>
+</ol>
+
+<h2>直すとき</h2>
+<ul>
+<li>Maya で直して<strong>同じファイル名で上書き</strong>書き出し → Unity が再取り込みし、カメラ・キャラの動きだけ差し替わります。Unity 側で足した効果音・エフェクト・カメラの「コマ落ち（ステップ fps）」「ブレンド秒」などの設定は<strong>そのまま残ります</strong></li>
+<li>ファイル名を変えると<strong>別のショット</strong>として扱われます（新しいカットシーンデータができる）</li>
+<li>キャラが増えた / 減った: 増えたら FBX を 1 本足すだけ。減ったら FBX を消しても、Unity 側のトラックは消さずに「ミュート」になります（Unity 側で足した設定を消さないため）</li>
+</ul>
+
+<h2>よくある質問</h2>
+<table>
+<tr><th>質問</th><th>答え</th></tr>
+<tr><td>1 つの FBX に 2 つのショットを入れてしまった</td><td>Unity 側でショットごとに「フレーム範囲」を指定して切り出せます（逃げ道）。ただし既定は「1 ショット = 1 FBX セット」なので、できれば分けてください</td></tr>
+<tr><td>カメラの動きが「ぬるぬるし過ぎる」。24fps 風にしたい</td><td>Maya で間引かないでください。Unity 側のカメラクリップに「ステップ fps」の項目があり、ショットごとに <strong>Unity 側で</strong>コマ落ちの度合いを変えられます（Maya をやり直さなくて済みます）</td></tr>
+<tr><td>キャラ本体（メッシュ）も一緒に出してよい？</td><td>出さないでください。キャラ本体は普段どおりモデルデータとして登録済みのものを使い、カットシーン FBX には骨の動きだけを入れます（同じキャラを何ショットでも使い回すため）</td></tr>
+<tr><td>Generic（人型でない）キャラは？</td><td>剣・扉などの小物は Generic で OK（カメラと同じ FBX に入れる）。キャラは人型（Humanoid）のみ対応です</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ</a></li>
+<li><a href="model-editor.html">モデルの設定と Model Editor</a>（キャラ本体の登録・Avatar）</li>
+<li><a href="presentation.html">演出（Presentation）の設定項目</a>（Maya の FBX を使わない演出はこちら）</li>
+<li><a href="validation.html">Validation（自動チェック）の使い方</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

@@ -6,7 +6,9 @@
 >
 > **2026-09-13 ユーザー決定: 実装は P6 の最後(6-10a〜d)、運用開始後に行う**(実際にカットシーンを作る段階がまだ先のため。旧チケット番号 5-3a〜d)。
 >
-> **2026-09-18 設計確定**: §7 の未決事項 6 件にユーザー回答が出た(短い演出のみ / カメラはシームレス / 1 ショット = 1 FBX(フレーム範囲の逃げ道あり)/ Humanoid・アニメ FBX 分離 / fps 30・60 切替 / ネットは両方)。あわせて追加要望 2 件(**カメラのステップ fps を Unity 側で調整できること**、**ピント等のカメラ設定の持ち越し**)を設計に落とした。§3.1(Presentation との使い分け)・§4.6(カメラ)・§4.7(ネット)・§5.3(fps)・§5.4(Humanoid)が新規/改定。**残る未決は §7.2**(統合可否・asmdef・Cinemachine アダプタ等)で、これらは 6-10a 着手前にユーザーが決める。
+> **2026-09-18 設計確定**: §7 の未決事項 6 件にユーザー回答が出た(短い演出のみ / カメラはシームレス / 1 ショット = 1 FBX(フレーム範囲の逃げ道あり)/ Humanoid・アニメ FBX 分離 / fps 30・60 切替 / ネットは両方)。あわせて追加要望 2 件(**カメラのステップ fps を Unity 側で調整できること**、**ピント等のカメラ設定の持ち越し**)を設計に落とした。§3.1(Presentation との使い分け)・§4.6(カメラ)・§4.7(ネット)・§5.3(fps)・§5.4(Humanoid)が新規/改定。
+>
+> **2026-09-18(同日 2 回目)**: §7.2 の未決のうち 3 件が確定した。**(1) CutsceneData / PresentationData は併存**(判断基準は「Maya の FBX を使うなら Cutscene」、`CutsceneHandle.Signal` は持たない)。**(2) `DDrive.Runtime` asmdef に `Unity.Timeline` + URP を直接追加することを承認**(CLAUDE.md §0-9 の asmdef 構成変更。持ち込み先に URP がランタイム必須依存として増える → [42] §3.5 / §5.10 に追記)。**(3) ゲームカメラ制御との実行順は D-Drive が契約として定める**(MS2026 側が未定のため。§4.6.5 を「確認事項」から「契約 + 違反の検出」に書き換え、[ProgrammerManual/rules.html](ProgrammerManual/rules.html) に追記)。§7.1 に 9〜11 として記録。**同日、残る 6 件(Cinemachine アダプタ / キャラごと FBX / AudioListener / LockInput / Skip 権限 / StepFps 既定値)もすべて提案どおりで確定し、§7.2 は「決定」の表に書き換えた(未決なし = 6-10a に着手できる状態)**。帰結として §4.5.1(入力ロックの分担)・§5.1.1(Maya 作業者の手順)を追加し、[DesignerManual/cutscene-maya-export.html](DesignerManual/cutscene-maya-export.html) を新設した。§7.3 の要検証(Unity 実機で確かめるもの)は残る。
 
 ---
 
@@ -53,7 +55,7 @@ D-Drive の設計を読むのに必要な範囲だけまとめる。
 - クリップ: `PlayableAsset`(データ)+ `PlayableBehaviour`(再生中の処理: `OnBehaviourPlay` / `ProcessFrame` / `OnBehaviourPause`)
 - トラック: `TrackAsset` に `[TrackClipType]` / `[TrackBindingType]` を付ける
 - マーカー: `Marker` + `INotification` を実装し、`INotificationReceiver` で受ける
-- これらは Runtime asmdef に置き、`Unity.Timeline` を参照する(**asmdef 変更**。§6)
+- これらは Runtime asmdef に置き、`Unity.Timeline` を参照する(**asmdef 変更。2026-09-18 ユーザー承認済み**、§6 / §7.1-10)
 
 ---
 
@@ -99,7 +101,7 @@ Unity(デザイナー)── Timeline ウィンドウで D-Drive トラックを
 
 ### 3.1 CutsceneData と PresentationData の使い分け(2026-09-18 追記)
 
-用途が「短い演出のみ」に決まったため、両者は正面から重なる(どちらも数秒の SE/VFX/揺れ/HitStop の束)。**提案は「併存させ、判断基準を 1 つに絞る」(案 A)**。統合の可否そのものはユーザーの判断(§7.2-1)なので、ここでは案と根拠を示す。
+用途が「短い演出のみ」に決まったため、両者は正面から重なる(どちらも数秒の SE/VFX/揺れ/HitStop の束)。**「併存させ、判断基準を 1 つに絞る」(案 A)で確定**(2026-09-18 ユーザー決定、§7.1-9)。以下は判断基準と、併存を選んだ根拠(代案 B / C は不採用)。
 
 **判断基準(デザイナー向け。上から順に当てはまったところで決まる)**
 
@@ -131,7 +133,7 @@ Unity(デザイナー)── Timeline ウィンドウで D-Drive トラックを
 
 | 案 | 内容 | 利点 | 欠点 |
 |---|---|---|---|
-| **A. 併存(提案)** | 上の判断基準で使い分け。相互に入れ子可 | 5-1〜5-16 で実装・ネット対応・エディタ済みの Presentation を変えない。FBX 取り込みが作る Data と人が作る Data が種別で分かれ、再取り込みが人の編集を壊さない(§5.2-3)。fps・カメラ・バインド表など Timeline 固有の欄が Presentation に増えない | 種別が 1 つ増える(`CUTID` / カタログ / Validator / エディタ導線)。「どっちで作るか」を一度は考える必要がある(→ 判断基準で吸収) |
+| **A. 併存(採用、2026-09-18)** | 上の判断基準で使い分け。相互に入れ子可 | 5-1〜5-16 で実装・ネット対応・エディタ済みの Presentation を変えない。FBX 取り込みが作る Data と人が作る Data が種別で分かれ、再取り込みが人の編集を壊さない(§5.2-3)。fps・カメラ・バインド表など Timeline 固有の欄が Presentation に増えない | 種別が 1 つ増える(`CUTID` / カタログ / Validator / エディタ導線)。「どっちで作るか」を一度は考える必要がある(→ 判断基準で吸収) |
 | B. Presentation に統合 | `PresentationData` に `Timeline`・`Bindings`・`FrameRate`・カメラ設定を持たせ、CutsceneData を作らない | 種別・ID 系統・エディタ導線が 1 つ | Timeline を使わない大多数の演出に無意味な欄が並ぶ。FBX 取り込みが PresentationData を自動生成することになり「ツールが管理する Data」と「人が作る Data」が同じ種別に混在(`ImportSourceGuid` の有無で挙動を分ける実装が要る)。編集 UI が PresentationEditor と Timeline ウィンドウの 2 つに割れる(同じ Data の同じ時間軸を 2 つの UI が触る)。ネット経路が「AtTime トラック方式」と「Director シーク方式」の 2 系統になる |
 | C. Cutscene に統合(Presentation 廃止) | 全部 Timeline で作る | 編集 UI が Unity 標準 1 つ | 実装済みの Presentation(5-1〜5-16、ネット・Late Join・エディタ・デモ・テスト)を捨てる。`OnSignal`(ゲーム結果待ち)を Timeline で素直に表せない(マーカーで止めて待つ拡張が要る)。不採用 |
 
@@ -232,6 +234,21 @@ Maya のカメラ・キャラ・小物は Maya シーンのワールド座標で
 - 終了・キャンセル時: バインドを外し、SpawnModel を返却、カメラをブレンドアウトしてゲームカメラへ返す(§4.6.2)、KeepWhilePlaying の SE / VFX を止める(EventBus.End)
 - ネット: §4.7(2026-09-18 に節として独立)
 
+#### 4.5.1 入力ロック(`LockInput`)の分担(2026-09-18 決定、§7.2-4)
+
+**決定: D-Drive は「ロック中かどうか」を公開・通知するだけで、実際に入力を止めるのはゲーム側の責務**。理由: 入力系(Input System の Action Map 切替、Host 権威での入力破棄、UI のフォーカス制御)はゲームごとに違い、D-Drive が共通 API を作ると MS2026 の入力設計を縛る。Presentation にも入力ロックの概念は無く、Cutscene だけが例外を持つ理由も無い。D-Drive 側が持つのは次の 3 つだけ:
+
+| 公開面 | 形 | 意味 |
+|---|---|---|
+| `CutsceneHandle.IsInputLocked` | `bool`(読み取り専用) | `Data.LockInput && IsPlaying`。BlendOut 中(Skip / Cancel 後の戻し区間)も `IsPlaying` なので **true のまま**(戻し中に入力で動かれるとブレンドが破綻するため)。Handle が無効なら false |
+| `Cutscene.IsInputLocked` / `Cutscene.OnInputLockChanged` | 静的ファサード。`bool` + R3 `Observable<bool>` | 「`LockInput` な Cutscene が **1 つでも**再生中か」。複数同時再生(入れ子・重なり)を数え、0→1 / 1→0 の**変化時だけ**発火する(`PauseService.OnPauseChanged` と同じエッジ通知。深さ 2 以上の増減では発火しない)。ゲーム側は通常こちらを購読する(Handle を個別に追わなくてよい) |
+| EventBus(Data 側の通知) | `EventBus.Fire(ctx, EventTrigger.Custom, "cutscene/input_lock")` / `"cutscene/input_unlock"` | ロックの開始・終了を **AssetEvent の Custom トリガ**として流す。デザイナーが CutsceneData の Events に「`input_lock` で字幕 Canvas を開く / レターボックス SE を鳴らす」等を Data だけで足せる(コードを書かずに「入力を受け付けていない」見せ方を作れる) |
+
+- ゲーム側の実装例(MS2026): `Cutscene.OnInputLockChanged.Subscribe(locked => inputActions.Player.Set(!locked))`。Host 権威のゲームロジックが「ロック中のクライアントからの入力を捨てる」側も MS2026 側の実装(D-Drive は関知しない。[14] §3 の Host 権威と同じ分担)
+- Cosmetic(§4.7)では各クライアントが**自分の**ロック状態を持つ(受信側でも `LockInput` なら true になる)。Host が「相手の入力を受け付けない」ようにするかはゲームルール
+- `Flags.Pause` でポーズ中もロック状態は変わらない(ポーズ解除で続きから)。`Cancel` / 終了で必ず解除される(Handle の破棄経路は 1 本。解除漏れを作らない)
+- 持ち込み先のプログラマー向けの記述は [ProgrammerManual/rules.html](ProgrammerManual/rules.html) の「Cutscene と共存するためのゲーム側の責務」節(実行順の契約 §4.6.5 と同じ節にまとめる。両方を同時に更新する)
+
 ### 4.6 カメラ(シームレス化・ステップ fps・設定の持ち越し)(2026-09-18 新規)
 
 #### 4.6.1 方式: Cinemachine は使わず、D-Drive 独自のブレンドで足りる
@@ -240,10 +257,10 @@ Maya のカメラ・キャラ・小物は Maya シーンのワールド座標で
 
 | 方式 | 内容 | 利点 | 欠点 |
 |---|---|---|---|
-| **A. D-Drive 独自ブレンド(採用)** | CutsceneManager が「ゲームカメラが今フレーム計算した姿勢」と「Timeline カメラの姿勢」を重み `w(t)` で補間して Camera に書く(§4.6.2)。新規依存なし | 要件(位置・回転・画角・ピントの数百 ms の繋ぎ)に対して過不足がない。Maya カメラは焼き済みなので Cinemachine の強み(追従・ノイズ・手続き的カメラ)は使わない。[42] §3.5 の依存表・ウィザードが増えない。ゲーム側のカメラ制御方式(自前 / Cinemachine)を問わず動く | ブレンドの補間は D-Drive が持つ(Cinemachine の Blend 曲線・BlendList は使えない)。ゲームカメラ制御が `LateUpdate` より後で姿勢を書いている場合は実行順の調整が要る(§4.6.5) |
+| **A. D-Drive 独自ブレンド(採用)** | CutsceneManager が「ゲームカメラが今フレーム計算した姿勢」と「Timeline カメラの姿勢」を重み `w(t)` で補間して Camera に書く(§4.6.2)。新規依存なし | 要件(位置・回転・画角・ピントの数百 ms の繋ぎ)に対して過不足がない。Maya カメラは焼き済みなので Cinemachine の強み(追従・ノイズ・手続き的カメラ)は使わない。[42] §3.5 の依存表・ウィザードが増えない。ゲーム側のカメラ制御方式(自前 / Cinemachine)を問わず動く | ブレンドの補間は D-Drive が持つ(Cinemachine の Blend 曲線・BlendList は使えない)。ゲームカメラ制御は「`LateUpdate` 以前・実行順 1000 未満で姿勢を書く」契約(§4.6.5)を守る必要がある |
 | B. Cinemachine 導入 | Timeline の `CinemachineShot` クリップ + `CinemachineBrain` のブレンドに任せる | ブレンド曲線・優先度・Impulse(揺れ)が標準で揃う。Cinemachine を使うゲームなら自然 | **新規依存**(`com.unity.cinemachine`)。[42] §5.10「依存の追加 = MINOR + ウィザード検査」、§3.5 依存表と README の更新、MS2026 が Cinemachine を使わないなら持ち込み先に不要な依存を強いる。CameraFx(5-2)の Shake ノード方式とブレンドの主体が二重になる。「短い演出のみ」の用途に対して重い |
 
-結論: **v1 は A**。将来ゲーム側が Cinemachine を採用したときは、[42] §7 A-7 の NGO と同じ流儀で `versionDefines`(`DDRIVE_CINEMACHINE`)を切り、「MainCamera 役割を `CinemachineCamera` にバインドする」任意アダプタを後付けできるようにしておく(v1 では作らない。§7.2-3)。
+結論: **v1 は A**。将来ゲーム側が Cinemachine を採用したときは、[42] §7 A-7 の NGO と同じ流儀で `versionDefines`(`DDRIVE_CINEMACHINE`)を切り、「MainCamera 役割を `CinemachineCamera` にバインドする」任意アダプタを後付けできるようにしておく(v1 では作らない。§7.2-1)。
 
 #### 4.6.2 ブレンド(ゲームカメラ ⇄ Timeline カメラ)
 
@@ -312,14 +329,57 @@ Volume の書き方:
 - CutsceneManager が **D-Drive 専用の Global Volume**(`DDriveCutsceneVolume`、`priority` は大きめ、`isGlobal = true`)を初回に 1 つ作り、実行時に `ScriptableObject.CreateInstance<VolumeProfile>()` で作ったプロファイルに `DepthOfField`(`mode = Bokeh`)だけを載せる。**毎フレームの alloc は無し**(プロファイルとオーバーライドは 1 回だけ作り、`focusDistance.value` 等を書き換えるだけ)。`weight = w`(§4.6.2)で、ブレンド中は DoF もフェードする。`w = 0` のとき `weight = 0` = 通常時は存在しないのと同じ
 - Volume は `Camera` の `UniversalAdditionalCameraData.volumeLayerMask` に含まれるレイヤーに置く(そのカメラの Volume マスクに含まれる最初のレイヤーを使う。無ければ警告 1 回 + DoF を書かない)。`renderPostProcessing = false` のカメラでは DoF が効かないので、これも警告 1 回(Validation は静的に検査できないため実行時警告のみ)
 - `Focus = Off` にすればピントは一切書かない(低スペック向けに DoF を切る、既存の DoF 設定を尊重する、等)。`CameraOnly` は Volume を作らない(HDRP 移植時の逃げ道。[42] B-1 のとおり URP 以外は非対応だが、コードの分岐点だけ用意しておく)
-- 型は `UnityEngine.Rendering.Volume` / `VolumeProfile`(Core RP)と `UnityEngine.Rendering.Universal.DepthOfField`(URP)。**`DDrive.Runtime.asmdef` は現状 URP を参照していない**(Editor のみ参照)ため asmdef 変更が要る(§6、§7.2-2)
+- 型は `UnityEngine.Rendering.Volume` / `VolumeProfile`(Core RP)と `UnityEngine.Rendering.Universal.DepthOfField`(URP)。**`DDrive.Runtime.asmdef` は現状 URP を参照していない**(Editor のみ参照)ため asmdef 変更が要る → **2026-09-18 に直接追加を承認済み**(§6、§7.1-10)
 
-#### 4.6.5 実行順(ゲームカメラ制御より後に書く)
+#### 4.6.5 実行順の契約(ゲームカメラ制御より後に書く)(2026-09-18 改定: 確認事項 → D-Drive が課す契約)
 
-- `GameLoopDriver` は `Update` で全 Manager を Tick する(確認済み: `Runtime/Loop/GameLoopDriver.cs`)。ゲームのカメラ制御は普通 `LateUpdate` で書くので、Tick の中で Camera に書くと**そのあとゲーム側に上書きされる**
-- そこで CutsceneManager は Tick では「`T` と `w` の評価」までを行い、Camera への書き込みは **`DDriveCutsceneCameraApplier`**(`Camera.main` に初回自動追加する小さなコンポーネント。CameraFx の Shake ノードと同じ「無ければ作る、見つからなければ警告 1 回 + no-op」の流儀)が **`LateUpdate`(`DefaultExecutionOrder` を大きな値にして通常の LateUpdate より後)** で行う。書き込み直前に Camera の現在姿勢を `G` として読む(§4.6.2)
-- Cinemachine の `CinemachineBrain` も `LateUpdate` で書くので、ゲーム側が Cinemachine を使っていてもこの順で上書きできる(Brain の Update Method が `SmartUpdate`/`LateUpdate` の場合。`FixedUpdate` の場合も LateUpdate より前)
-- ゲーム側が PlayerLoop の後段(`PostLateUpdate` 等)で書いている場合は上書きされる。**MS2026 のカメラ制御がどこで姿勢を書いているかは要確認**(§7.2-6)。合わない場合は Applier の挿入点を PlayerLoop の `PostLateUpdate` 末尾に変える選択肢を残す
+> **2026-09-18 ユーザー回答**: MS2026 のカメラ制御は「どこで姿勢を書くか」がまだ決まっていない。**D-Drive 側が仕様を決め、MS2026 のカメラがそれに合わせる**(§7.1-11)。したがって本節は「着手前に確認する事項」ではなく、**持ち込み先のゲームコードが守るべき契約**として書く。契約の持ち込み先向けの記述は [ProgrammerManual/rules.html](ProgrammerManual/rules.html) 「ゲームカメラ制御の実行順」節(本節と同じ内容。両方を同時に更新する)。
+
+**前提(確認済みの事実)**
+
+- `GameLoopDriver` は `Update` で全 Manager を Tick する(`Runtime/Loop/GameLoopDriver.cs`)。ゲームのカメラ制御は普通 `LateUpdate` で書くので、Tick の中で Camera に書くと**そのあとゲーム側に上書きされる**
+- Unity の `DefaultExecutionOrder` は `Update` / `LateUpdate` など同じフェーズ内の呼び出し順を決める(値が小さいほど先。既定 0。ProjectSettings > Script Execution Order の設定があればそちらが優先)。D-Drive は既に `DDriveRuntimeBootstrap` を `[DefaultExecutionOrder(-1000)]` にして「全 `Awake` より先」を確保している([02] §14、ProgrammerManual/bootstrap.html)
+
+**D-Drive 側の実装(契約の D-Drive 側の履行)**
+
+- CutsceneManager は Tick(`Update`)では「`T` と `w` の評価」までを行い、Camera への書き込みは **`DDriveCutsceneCameraApplier`**(`Camera.main` に初回自動追加する小さな MonoBehaviour。CameraFx の Shake ノードと同じ「無ければ作る、見つからなければ警告 1 回 + no-op」の流儀)が **`LateUpdate`** で行う。書き込み直前に Camera の現在姿勢を `G` として読む(§4.6.2)
+- Applier は **`[DefaultExecutionOrder(DDriveCutsceneCameraApplier.ExecutionOrder)]`、`public const int ExecutionOrder = 1000`** を付ける。値の根拠:
+  - `DDriveRuntimeBootstrap` の `-1000` と対称。D-Drive は「−1000 = 誰よりも先に組み立てる」「+1000 = 誰よりも後にカメラを書く」の両端を占め、**ゲームコードは (−1000, 1000) の範囲に収まる**、という 1 行で説明できる規約になる
+  - 典型的なゲームコードは既定 0、手で順序を付ける場合も ±数百に収まるのが通例。1000 は「意識して超えない限り超えない」大きさで、かつ `int.MaxValue` のような極端な値と違って将来 D-Drive 側でさらに後段が要るとき(例: 1100)の余地が残る
+  - 定数を public にして、ゲーム側が「D-Drive より前」を明示したいときに `DDriveCutsceneCameraApplier.ExecutionOrder - 1` のように参照できるようにする(数値の直書きを避ける。`DDriveMenu` 定数と同じ考え方)
+- Applier 自身の順序が ProjectSettings の Script Execution Order で書き換えられていないことも契約に含める(下の検出 1 で検査)
+- `w = 0` のフレーム(Cutscene 非再生時)は `LateUpdate` で何もしない(§4.6.2)。Applier が付いているだけではゲームカメラに影響しない
+
+**ゲーム側(持ち込み先)が守る条件 — 契約**
+
+| # | 条件 | 理由 |
+|---|---|---|
+| G-1 | カメラ(`Camera.main` の Transform・`fieldOfView`・物理カメラ値)への書き込みは **`Update` / `FixedUpdate` / `LateUpdate` のいずれかで行う**。`LateUpdate` の場合、そのスクリプトの実行順は **1000 未満**(`DefaultExecutionOrder` も ProjectSettings の Script Execution Order も) | Applier(1000)が同じフレームの `LateUpdate` の最後に `G` を読んで上書きするため |
+| G-2 | **`LateUpdate` より後で姿勢を書かない**: `PlayerLoop` の `PostLateUpdate` 以降に挿した独自システム、`Application.onBeforeRender`、`RenderPipelineManager.beginFrameRendering` / `beginCameraRendering` / `Camera.onPreCull` 等の描画コールバック内での Transform・画角の書き込みを行わない。`yield return new WaitForEndOfFrame()` からの書き込みも避ける(描画の後なので絵は潰さないが、次フレームの `G` を汚し G-4 と同じ問題になる) | いずれも Applier の後に走り、D-Drive の書き込みを潰す |
+| G-3 | Cinemachine を使う場合、`CinemachineBrain` の Update Method は `LateUpdate` / `SmartUpdate` / `FixedUpdate` のいずれか(既定のまま)で、Brain の実行順も 1000 未満 | Brain は `LateUpdate` で書くので G-1 と同じ扱い。`DDRIVE_CINEMACHINE` アダプタ(§7.2-1)を作るまではこの契約だけで共存する |
+| G-4 | (推奨)ゲームカメラ制御は**自前の状態**(追従目標・前フレームの自分の計算値)から毎フレーム姿勢を計算し、`Camera.main.transform` の現在値を「前フレームの自分の姿勢」として読み戻さない | 再生中は Camera に D-Drive が `lerp(G,T,w)` を書いているため、読み戻す実装だと `G` が D-Drive の書き込みに引きずられる(見た目は BlendOut が近い位置へ戻るだけなので破綻はしないが、終了後にゲームカメラが「本来の位置」へ改めて動く) |
+| G-5 | 再生中に `Camera.main` を差し替えない(差し替えたら Applier は新しいカメラへ付け直し、その回の再生は BlendOut 無しで終了する。CameraFx の P1 対応と同じ挙動) | 1 カメラ上書き方式の前提 |
+
+**契約が守られなかったときに起きること**
+
+| 破り方 | 症状 | 補足 |
+|---|---|---|
+| G-1 違反(`LateUpdate` で実行順 ≥ 1000 のスクリプトがカメラを書く)/ G-2 違反で**毎フレーム**上書き | **演出が効かない**: カメラはゲームカメラのまま、キャラ・SE・VFX だけ再生される。さらに Volume の DoF(§4.6.4)だけは効くので、ゲームカメラのままピントだけ変わる不自然な絵になる | いちばん気づきにくい壊れ方(エラーが出ず、「カメラが動かない」だけ)。検出 2 で必ずログに出す |
+| G-2 違反で**間欠的に**上書き(コルーチンの `WaitForEndOfFrame`、特定条件でだけ走る補正等) | **カメラがカクつく / 震える**: フレームごとに `T` と `G` が交互に出る | 検出 2 が「上書きされたフレーム数」を数えるので間欠でも分かる |
+| G-4 違反 | 再生終了後、ゲームカメラが BlendOut の到達点から本来の位置へもう一度動く(二段階の戻り) | 破綻ではないので Info 相当。検出は難しい(ゲーム側の実装次第)ため契約の「推奨」に留める |
+| G-5 違反 | その回の再生のカメラだけ即時に切れる(BlendOut 無し)。次回からは新しいカメラで正常 | 警告 1 回 |
+
+**検出(気づけない壊れ方を作らない)**
+
+| # | 手段 | 何を見るか | 重度 / 出し方 | 実装チケット |
+|---|---|---|---|---|
+| 1 | **Validation(静的、Editor)**: `CameraExecutionOrderValidator`(`IValidator`。`Validation > Run All` と CI の `ValidateAll` に載る) | (a) `MonoImporter.GetAllRuntimeMonoScripts()` の全スクリプトについて **実効実行順**(ProjectSettings の値があればそれ、無ければ `DefaultExecutionOrder` 属性)を求め、**1000 以上のものが D-Drive 以外にあれば Warning**(「LateUpdate でカメラを書いている場合、Cutscene のカメラが効きません」)。(b) `DDriveCutsceneCameraApplier` の実効実行順が 1000 でなければ **Error**(ProjectSettings で書き換えられている)。(c) `Assets/` 配下の `.cs` を `ForbiddenApiScanner` と同じテキスト走査で調べ、`PlayerLoop.SetPlayerLoop` / `PostLateUpdate` / `WaitForEndOfFrame` / `onBeforeRender` / `beginCameraRendering` を含むファイルを **Info** で列挙(「カメラを書いていないか人が確認する」用。誤検知は許容し、重度を上げない) | Warning(a)/ Error(b)/ Info(c)。[42] §5.8 の 2 段階ルールどおり、(a) は Warning から始める | 6-10d |
+| 2 | **実行時(Editor + Development Build)**: Applier が `RenderPipelineManager.endCameraRendering` で自分のカメラの描画直後に **「このフレームに自分が書いた姿勢」と「描画に使われた Camera の姿勢」を比較**する | `w > 0` のフレームで位置・回転・`fieldOfView` が自分の書き込みと一致しない(許容差 1e-4)なら「上書きされた」と数える。**再生 1 回につき警告 1 回**(`CutsceneHandle` 単位。上書きされたフレーム数 / 総フレーム数と、G-1・G-2 の確認を促す文言、`CameraExecutionOrderValidator` の実行を案内)。描画の**後**で比べるので、`PostLateUpdate`・`onBeforeRender`・`beginCameraRendering`(購読順に関係なく)のどこで書かれても「描画に使われた姿勢が D-Drive の書き込みと違う」として一括で捕まえられる(G-2 の全パターン)。比較は float 数個で alloc 無し(購読は `OnEnable` で 1 回)。製品ビルドでは購読しない(`UNITY_EDITOR \|\| DEVELOPMENT_BUILD`)。「`endCameraRendering` 時点の Transform = 描画に使われた姿勢」は §7.3 で実機確認 | 警告ログ(1 回 / 再生)。確認用シーン(6-10d)の再生でも同じ経路が動くので、デザイナーのプレビュー段階でも分かる | 6-10b |
+| 3 | **実行時**: Applier の `LateUpdate` が Cutscene 再生中に呼ばれなかったフレーム(Applier が無効化された / `Camera.main` が消えた / 別カメラに差し替わった) | 再生 1 回につき警告 1 回 + G-5 の処理(付け直し、その回は即終了) | 6-10b |
+
+- 検出 2 の許容差は `Volume` の `weight` には掛けない(Volume は D-Drive 専用なので他者が書かない)
+- 「合わない場合は Applier の挿入点を PlayerLoop の `PostLateUpdate` 末尾に変える」という旧版の逃げ道は**採らない**(D-Drive 側が契約を決めた以上、ゲーム側が合わせる。`PlayerLoop` の書き換えは持ち込み先の他システムと衝突しやすく、[42] の互換性ポリシー上も維持が重い)。契約を守れない持ち込み先が出た場合はそのときに改めて判断する(§7.2 の表に追記)
+- MS2026 側への伝え方: [ProgrammerManual/rules.html](ProgrammerManual/rules.html) の節 + MS2026 のカメラ設計時に本節を参照してもらう(移植時のチェックは [42] P-12)
 
 ### 4.7 ネット(ローカル再生と同期再生の両方)(2026-09-18 新規)
 
@@ -335,7 +395,7 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 
 - `CutscenePlayMsg { CutId, SelfNetId, TargetNetId, Position, StartNetTime, Seed, HandleNetKey }` / `CutsceneSeekMsg { HandleNetKey, ToTime }`(Skip 用)/ `CutsceneCancelMsg { HandleNetKey }`。`HandleNetKey` の採番・`ReliableOrdered`・Host 経由中継・レート制限(60/秒/クライアント)・未知キー保留(6-6 の K3)はすべて `PresentationManager` の既存実装と同じ規則
 - **受信側のシーク**: `elapsed = NetworkTime − StartNetTime` で `director.time` を合わせる。Timeline のカメラ・Animation トラックは連続系なので途中から再生できる。D-Drive SE / VFX クリップの one-shot は Presentation と同じ猶予(0.5 秒)以内なら遅れて発火、それより古ければスキップ
-- **Skip**: `Skip` の種類(即終了 / マーカーまで)は Data で決まる。Cosmetic では Skip を Broadcast(`CutsceneSeekMsg`)し、自分を含む全員が受信してから Seek する(Cancel と同じ「Broadcast 前に自分だけ飛ばない」規則)。「相手にスキップさせない」はゲームロジック側の仕事(`CutsceneSkip.Disabled` にすれば Data として禁止もできる)。既定は「誰でも Skip でき、全員に効く」(§7.2-8)
+- **Skip**: `Skip` の種類(即終了 / マーカーまで)は Data で決まる。Cosmetic では Skip を Broadcast(`CutsceneSeekMsg`)し、自分を含む全員が受信してから Seek する(Cancel と同じ「Broadcast 前に自分だけ飛ばない」規則)。「相手にスキップさせない」はゲームロジック側の仕事(`CutsceneSkip.Disabled` にすれば Data として禁止もできる)。既定は「誰でも Skip でき、全員に効く」(§7.2-5)
 - **PredictLocal**: Presentation と同じ意味。必殺技の入力に対して行為者は即再生し、自分の Broadcast を受信しても二重生成しない。既定 false
 - **Late Join**: Host の台帳(`HandleNetKey → {Data, ctx, StartNetTime, Seed}`)から `CutscenePlayMsg` を再送 → 受信側はシーク再生で復元。Presentation と違い、カットシーンは連続系なので途中参加でも「今の位置から」見える
 - **カメラ**: 受信側でもカメラを奪う(それが「同じ映像」の意味)。相手の画面でカメラを奪ってよいかはゲームデザインの問題で、奪いたくなければ Local にする
@@ -359,6 +419,22 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 | 命名 | §5.5 の最小ルール(キャラ FBX のファイル名サフィックス = D-Drive のモデル識別子) | Unity 側でトラックと役割・使うモデルを自動判定するため |
 
 > キャラクター本体(メッシュ・リグ)は通常どおり別 FBX で ModelData に登録し、カットシーン FBX には**アニメーションだけ**入れる(決定 2026-09-18。同じキャラを複数ショットで使い回すため、また Humanoid のリターゲットを ModelData の Avatar で揃えるため。§5.4)。
+
+#### 5.1.1 Maya 作業者の手順(決定 2026-09-18、§7.2-2「キャラごとに FBX を分ける」の帰結)
+
+1 ショットにつき **「カメラ + 小物」1 回 + キャラの数だけ** `File > Export Selection` を行う。Maya スクリプトは使わない(標準の FBX 書き出しだけ)。デザイナー / アーティスト向けの手順書は [DesignerManual/cutscene-maya-export.html](DesignerManual/cutscene-maya-export.html)(本節と同じ内容。両方を同時に更新する)。
+
+| 手順 | 内容 | 補足 |
+|---|---|---|
+| 0. 準備 | シーンの fps をプロジェクト既定(30 / 60、§5.3)に合わせる。単位 cm・Y-up。キャラリグの**名前空間(または参照ファイル名)を D-Drive の Model 識別子に揃える**(`Hero:` 等)。複数カメラで作った場合は Camera Sequencer の「Ubercam 作成」で 1 台に焼く | fps が違っても取り込めるが Validation Info(§5.3)。識別子が違ってもバインド表で手で結べる(§5.5) |
+| 1. カメラ + 小物 | カメラ(Ubercam)・小物(`PRP_*`)・イベント用ロケーター(`EVT_*`)を選択 → `File > Export Selection` → FBX。書き出し名 `<ショット>.fbx`、保存先 `Assets/SourceAssets/Cutscene/<カテゴリ>/` | キャラは選ばない。動かない背景も選ばない |
+| 2. キャラ(キャラの数だけ繰り返す) | そのキャラの**ルートジョイント**を選択(階層ごと。メッシュは選ばない)→ `File > Export Selection` → `<ショット>__<Model識別子>.fbx`(`__` は 2 つ)。同じキャラ 2 体目は `<ショット>__<Model識別子>_2.fbx` | 1 FBX = 1 Humanoid の制約(§5.4)のため。Export Selection の回数 = キャラ数 |
+| 3. 書き出しオプション(1・2 共通) | `Animation` ON / `Bake Animation` ON(開始〜終了 = ショットの全フレーム、Step 1)/ `Cameras` ON / `Lights` OFF / `Embed Media` OFF / `Include > Input Connections` **OFF**(選択していないノードが付いてくるのを防ぐ)/ キャラ FBX は `Deformed Models`・`Skins`・`Blend Shapes` **OFF**(アニメだけ)/ 単位 Automatic(cm)/ Up Axis Y | **同じショットの全ファイルで開始〜終了フレームを揃える**(ずれると Validation Warning、§5.3)。`@` をファイル名に使わない(§5.5) |
+| 4. Unity で確認 | ファイルをフォルダに置くだけで自動取り込み(§5.2)。`Validation > Run All` で fps 不一致 / ModelData 未発見 / Avatar 未設定の Warning を確認 | Unity 側の作業はデザイナー(D-Drive トラックの追加、§4.3) |
+| 5. 直すとき | Maya で直して**同じファイル名で上書き**書き出し → Unity が再取り込みし、自動生成トラックだけ差し替わる(デザイナーが足した D-Drive トラック・`StepFps` 等の設定は保持、§5.2-4) | ファイル名を変えると別ショット扱いになる |
+
+- 1 FBX に複数ショットを入れた場合(逃げ道)は、Unity 側で `SourceFrameRange` を切る(§5.1 表)。Maya 側の手順は同じ
+- 「キャラごとに Export Selection」を嫌って 1 FBX に全キャラを入れると、Humanoid では片方しかリターゲットできず Validation Warning になる(§5.4)。Generic で逃げる経路は作らない
 
 ### 5.2 Unity 側の自動処理
 
@@ -400,7 +476,7 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 ユーザー決定: **Humanoid**。キャラ本体の FBX とアニメの FBX は分ける。
 
 - **リターゲット**: カットシーン FBX(アニメ専用)を `Humanoid` + `CopyFromOther`(`sourceAvatar = ModelData.Avatar`)で取り込む。同じ Avatar 定義を使うので、ModelData の Prefab(Humanoid Animator)にそのまま流せ、筋肉マッピングのずれによる姿勢崩れが起きない。`ModelData.Avatar` が未設定なら既存の `ModelDataValidator` の Error(「Animator はあるが Avatar 未設定」)が先に出るので、Cutscene 側は Warning + `CreateFromThisModel` で仮に取り込む(骨だけの FBX からでも Avatar は作れる)
-- **1 FBX = 1 Humanoid の制約**: Unity の `ModelImporter` は 1 ファイルに 1 つの Avatar / `animationType` しか持てない。**1 つの FBX に 2 キャラ(`Hero:` と `EnemyBoss:`)を入れると Humanoid では片方しかリターゲットできない**。したがって **キャラごとに FBX を分ける**(`<ショット>__Hero.fbx`、`<ショット>__EnemyBoss.fbx`。Maya では Export Selection をキャラ数分行う。スクリプト不要だが手数は増える。§7.2-4)。カメラ・小物は Generic なので 1 本にまとめてよい
+- **1 FBX = 1 Humanoid の制約**: Unity の `ModelImporter` は 1 ファイルに 1 つの Avatar / `animationType` しか持てない。**1 つの FBX に 2 キャラ(`Hero:` と `EnemyBoss:`)を入れると Humanoid では片方しかリターゲットできない**。したがって **キャラごとに FBX を分ける**(`<ショット>__Hero.fbx`、`<ショット>__EnemyBoss.fbx`。Maya では Export Selection をキャラ数分行う。スクリプト不要だが手数は増える。§7.2-2)。カメラ・小物は Generic なので 1 本にまとめてよい
 - 同じキャラ 2 体(`Hero_2`)は `<ショット>__Hero_2.fbx`。ModelData は `Hero` を引く(末尾の `_2` 以降を落として検索)
 - Generic は**小物専用**(剣・扉など。ボーン名一致で流す。Validation で検出)。キャラを Generic で取り込む経路は作らない(ModelData 側が Humanoid 前提のため、Generic クリップは Humanoid Animator で再生されない)
 - Timeline の Animation トラック設定: `Apply Foot IK` は既定 OFF(Maya で焼いた足位置を優先)。ルートモーション(Hips のワールド移動)と原点(§4.2.1)の組み合わせは 6-10a で実機確認(§7.3)
@@ -448,26 +524,30 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 
 ## 6. 影響範囲(実装時に確認が要るもの)(2026-09-18 改定)
 
-- **asmdef(要承認、§7.2-2)**: `DDrive.Runtime` に `Unity.Timeline` を追加(1.5 のとおり)。加えて §4.6.4 の Volume 書き込みのため **`Unity.RenderPipelines.Universal.Runtime` と `Unity.RenderPipelines.Core.Runtime`** も必要(現状は `DDrive.Editor` だけが参照)。URP は [42] §3.5 / B-1 で「必須依存(URP のみ対応)」なので**新しいパッケージ依存は増えない**が、Runtime asmdef の参照が増えるのは CLAUDE.md §0-9「asmdef 構成は聞く」の対象。代案 = Timeline 関連を別 asmdef `DDrive.Runtime.Timeline`(Foundation / Runtime / Timeline / URP を参照)に分け、`DDrive.Runtime` を汚さない。ただし `PresentationManager` の `TrackKind.Timeline` から Cutscene を呼ぶには `DDrive.Runtime` 側にインタフェース(`ICutscenePlayer`)を置いて Bootstrap で差し込む逆依存の回避が要り、生成コード(`AssetIds.g.cs` の `AssetId<CutsceneMarker>`)と P-5 の `DDrive.Generated.asmdef` も新 asmdef を参照する必要がある。**提案は「直接追加」**(Timeline も URP も必須依存であり、任意依存の NGO と違って `versionDefines` で切る理由が無い)
+- **asmdef(2026-09-18 ユーザー承認済み、§7.1-10)**: `DDrive.Runtime` に `Unity.Timeline` を追加(1.5 のとおり)。加えて §4.6.4 の Volume 書き込みのため **`Unity.RenderPipelines.Universal.Runtime` と `Unity.RenderPipelines.Core.Runtime`** も追加(現状は `DDrive.Editor` だけが参照)。Runtime asmdef の参照が増えるのは CLAUDE.md §0-9「asmdef 構成は聞く」の対象で、**「直接追加」を承認**(Timeline も URP も必須依存であり、任意依存の NGO と違って `versionDefines` で切る理由が無い)。不採用の代案 = Timeline 関連を別 asmdef `DDrive.Runtime.Timeline`(Foundation / Runtime / Timeline / URP を参照)に分ける案。`PresentationManager` の `TrackKind.Timeline` から Cutscene を呼ぶには `DDrive.Runtime` 側にインタフェース(`ICutscenePlayer`)を置いて Bootstrap で差し込む逆依存の回避が要り、生成コード(`AssetIds.g.cs` の `AssetId<CutsceneMarker>`)と P-5 の `DDrive.Generated.asmdef` も新 asmdef を参照する必要があるため見送った
+  - **配布への影響([42] に 2026-09-18 付きで追記済み)**: これまで URP は `DDrive.Editor` だけが参照していた(= 持ち込み先で Editor がコンパイルできる条件)が、6-10 以降は **`DDrive.Runtime` が実行時に URP を参照する**。持ち込み先にとって URP は「Editor 拡張の都合」ではなく**ゲーム実行に必須の依存**になる。[42] §3.5 の依存表(`com.unity.render-pipelines.universal` / `com.unity.timeline` の「持ち込み先での扱い」)と §3.4 の記述を更新し、§5.10 に「既存依存の参照範囲が Editor → Runtime に広がる変更も『依存の追加』と同じ区分(MINOR + 明記)」を追記した。B-1(URP 以外は非対応)とは整合する(HDRP / Built-in の持ち込み先は元々非対応)。P 発効(P-13)前の変更なので今回は区分の適用対象外(記録のみ)
+  - 新しいパッケージ依存は増えない(`com.unity.timeline` 1.8.12・URP 17.3.0 は manifest に導入済み)
 - **Cinemachine は導入しない**(§4.6.1)。manifest 変更なし。[42] §3.5 依存表は `com.unity.timeline` が既に「○(6-10 以降)」で載っているので P-1 で「6-10 で有効化済み」に書き換えるだけ
 - **AssetType enum**: `Cutscene` を末尾追加(シリアライズ値は不変)。`KnownPrefixes` に `CUT`([42] §5.13)
 - **新規メッセージ型** 3 つ(§4.7)。P 発効前なので追加は自由だが、型名・名前空間はワイヤ互換([42] §5.6)になるので `Runtime/Net/CutsceneMessages.cs` に Presentation と同じ命名で置く
 - **`ImportRule` の対象種別に `Cutscene` を追加**(9 → 10。[10] §3、[09] §1.1)。`SourceAssets/Cutscene/` の 1 つの `<ショット>` に複数 FBX が対応するため、既存の「1 元ファイル = 1 Data」の対応付け(`ImportSourceGuid`)は**カメラ FBX の GUID を代表**にし、キャラ FBX は CutsceneData 側のリスト(`SourceFbxGuids[]`)で追跡する
 - **`CutsceneImportProfile`**(設定 SO、§4.1 / §5.3)を `Assets/GameData/Settings/` に `FindOrDefault()` で生成([42] §2.1 の「G: 持ち込み先で作る」分類)
 - **ContentHash**: Cutscene カタログを `ContentHashCatalogCoverageValidator` の対象に含める(§4.7)
-- **`DDriveCutsceneCameraApplier` / `DDriveCutsceneVolume`**: ランタイムがシーンに置く永続オブジェクト(CameraFx の `DDriveCameraShakeNode` と同じ流儀。DontDestroyOnLoad のカメラなら追従)
+- **`DDriveCutsceneCameraApplier` / `DDriveCutsceneVolume`**: ランタイムがシーンに置く永続オブジェクト(CameraFx の `DDriveCameraShakeNode` と同じ流儀。DontDestroyOnLoad のカメラなら追従)。Applier は `[DefaultExecutionOrder(1000)]`(`public const int ExecutionOrder`)で、実行順の契約(§4.6.5)の D-Drive 側の履行。Editor / Development Build では `RenderPipelineManager.endCameraRendering` を購読して上書き検出(§4.6.5 検出 2・3)を行う
+- **`CameraExecutionOrderValidator`(新規 `IValidator`、6-10d)**: 実行順の契約(§4.6.5 検出 1)。全ランタイムスクリプトの実効実行順(ProjectSettings の Script Execution Order > `DefaultExecutionOrder` 属性)を調べ、D-Drive 以外で 1000 以上 → Warning、Applier 自身が 1000 でない → Error、`PlayerLoop` / `onBeforeRender` / 描画コールバックを使うファイル → Info。P-6 の `ProjectSetupValidator` とは別の Validator にする(こちらは Cutscene を使わないプロジェクトには関係ないため、`CutsceneData` が 1 件も無いときは検査を省略)
+- **`Cutscene` 静的ファサードの入力ロック公開面**(§4.5.1): `Cutscene.IsInputLocked` / `Cutscene.OnInputLockChanged`(R3)/ `CutsceneHandle.IsInputLocked` + EventBus Custom トリガ `cutscene/input_lock` / `input_unlock`。入力を実際に止める API は D-Drive に作らない(ゲーム側の責務)
 - 標準の Audio / Control / Signal トラックは禁止 API 規約(AudioSource.Play / Instantiate 直呼び)と衝突するので、Validation で「D-Drive トラックを使ってください」と Warning を出す。**標準 Animation トラックをカメラにバインドしている**場合も同様に Warning(Camera クリップを使う)
 - `PresentationManager` の `TrackKind.Timeline`(現在は警告 + no-op)を `CutsceneManager` に接続。Presentation → Cutscene → Presentation の循環を `PresentationDataValidator` / `CutsceneDataValidator` の両方で Error にする
 
 ---
 
-## 7. 決定事項と未決事項
+## 7. 決定事項と要検証事項(2026-09-18 時点で未決なし)
 
 ### 7.1 決定(2026-09-18 ユーザー回答)
 
 | # | 項目 | 決定 | 設計への反映 |
 |---|---|---|---|
-| 1 | 用途の比重 | **短い演出のみ**(数秒。長いカットシーンは作らない)。PresentationData と役割が重なることは承知のうえ | §3.1 使い分け(併存を提案。統合可否は §7.2-1) |
+| 1 | 用途の比重 | **短い演出のみ**(数秒。長いカットシーンは作らない)。PresentationData と役割が重なることは承知のうえ | §3.1 使い分け(併存。統合可否は同日 2 回目の回答で確定、下の 9) |
 | 2 | カメラ | **シームレスにしたい**(Maya カメラをただ再生するのではなく、ゲームカメラとの繋ぎが要る) | §4.6.1 独自ブレンド(Cinemachine 不採用)、§4.6.2 ブレンド仕様 |
 | 3 | 書き出し単位 | **A(1 ショット = 1 FBX)**。ただし「1 FBX に複数ショット」の逃げ道として `CutsceneData` にフレーム範囲を持てる(既定は A) | §4.1 `SourceFrameRange`、§5.1。Humanoid の制約でキャラごとに FBX を分ける「FBX セット」になった(§5.4) |
 | 4 | キャラアニメ | **Humanoid**。キャラ本体の FBX とアニメの FBX は分ける | §5.4、§5.5 命名規則(ファイル名サフィックス) |
@@ -475,20 +555,22 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 | 6 | ネット | **ローカル再生と同期再生の両方**(`CutsceneData` で切替) | §4.7(既存 `Flags.Net` の Local / Cosmetic。新フィールド無し) |
 | 7 | (追加要望)カメラの fps を自由に | Unity の再生時に、ショットごとに調整できること | §4.6.3 評価時量子化(`StepFps`、非破壊) |
 | 8 | (追加要望)カメラ設定の持ち越し(ピント等) | URP では DoF は Volume の設定なので Camera と Volume の両方へ書く | §4.6.4 |
+| 9 | (同日 2 回目)**CutsceneData と PresentationData の統合可否** | **併存(案 A)**。判断基準は「Maya の FBX を使うなら Cutscene、使わないなら Presentation」の 1 つ。`CutsceneHandle.Signal` を持たない設計も確定 | §3.1(採用を明記)、§4.5。不採用の理由: B(Presentation に統合)は PresentationData のシリアライズ形式が大きく変わり(§0-9)、編集 UI とネット経路が 2 系統に割れる。C(Cutscene に統合)は 5-1〜5-16 の作り直しで `OnSignal` を Timeline で表せない |
+| 10 | (同日 2 回目)**asmdef**: `DDrive.Runtime` に `Unity.Timeline` + URP(Universal.Runtime / Core.Runtime)を直接追加 | **直接追加を承認**(CLAUDE.md §0-9 の asmdef 構成変更。**2026-09-18 ユーザー承認**)。別 asmdef `DDrive.Runtime.Timeline` 案は不採用 | §1.5、§4.6.4、§6(配布への影響: 持ち込み先に URP がランタイム必須依存として増える → [42] §3.4 / §3.5 / §5.10 に追記)。不採用の理由: 別 asmdef は `ICutscenePlayer` の逆依存回避・生成コード・`DDrive.Generated.asmdef` の参照追加が要り、必須依存を切り離す利点が無い |
+| 11 | (同日 2 回目)**ゲームカメラ制御の実行順** | **MS2026 側は未定のため、D-Drive が仕様(契約)を決め、MS2026 のカメラがそれに合わせる** | §4.6.5 を「確認事項」から「契約(G-1〜G-5)+ `DefaultExecutionOrder(1000)` + 違反時の症状 + 検出 3 手段(Validation / 実行時 endCameraRendering 比較 / Applier 未実行検出)」に書き換え。[ProgrammerManual/rules.html](ProgrammerManual/rules.html) に追記。旧案「Applier を `PostLateUpdate` 末尾へ挿す」は不採用(PlayerLoop 書き換えは持ち込み先の他システムと衝突しやすく、互換性ポリシー上も重い) |
 
-### 7.2 未決(6-10a 着手前にユーザーが決める)
+### 7.2 決定(2026-09-18 同日 2 回目の回答。**未決なし = 6-10a に着手できる状態**)
 
-| # | 内容 | 提案 | 代案 | 影響 |
-|---|---|---|---|---|
-| 1 | **CutsceneData と PresentationData の統合可否** | **併存(案 A)**: 「Maya の FBX を使うなら Cutscene、使わないなら Presentation」の 1 基準で使い分け。相互入れ子可、循環は Error | B: Presentation に統合 / C: Cutscene に統合(§3.1 の表) | B は PresentationData のシリアライズ形式が大きく変わる(§0-9)。C は 5-1〜5-16 の作り直し |
-| 2 | **asmdef**: `DDrive.Runtime` に `Unity.Timeline` + URP(Universal.Runtime / Core.Runtime)を直接追加するか | **直接追加**(どちらも必須依存。§6) | 別 asmdef `DDrive.Runtime.Timeline` + `ICutscenePlayer` で逆依存回避 | 別 asmdef は生成コード・P-5 の `DDrive.Generated.asmdef` にも参照追加が要る |
-| 3 | **Cinemachine アダプタ**を将来用意するか | **v1 は無し**。ゲーム側(MS2026)が Cinemachine を採用したら `DDRIVE_CINEMACHINE` の `versionDefines` で任意対応を後付け | 今から導入(新規依存、[42] §5.10 MINOR + ウィザード) | MS2026 のゲームカメラの実装方式による(未確認) |
-| 4 | **キャラごとに FBX を分ける運用**でよいか(Humanoid の 1 FBX = 1 Avatar 制約。Maya の Export Selection がキャラ数分) | **分ける**(§5.4) | 1 ショットにキャラ 1 体までに制限 / 2 体目以降は Generic(ModelData 側も Generic にする必要があり非推奨) | Maya 側の手数(スクリプト無しは維持できる) |
-| 5 | **AudioListener** をカットシーン中にカメラへ追従させるか | **追従させない**(1 カメラ上書き方式なので Listener はそのままカメラに付いてくる = 自動で追従する。別オブジェクトに Listener がある構成なら追従しない) | Listener を一時的にカメラへ移す | 数秒の演出では差が小さい |
-| 6 | **カメラ書き込みの実行順**(`LateUpdate` 末尾)で MS2026 のカメラ制御と衝突しないか | **MS2026 のカメラ制御がどのタイミングで姿勢を書くか確認**してから 6-10a に入る(§4.6.5) | Applier を PlayerLoop `PostLateUpdate` 末尾に挿す | 衝突するとブレンド中にカメラが震える |
-| 7 | **`LockInput` の受け口**(UiManager / 入力側の API がまだ無い) | 6-10a では `CutsceneHandle.IsInputLocked` と EventBus 通知だけ用意し、実際に入力を止めるのはゲーム側 | D-Drive 側に入力ロックの共通 API を作る | MS2026 の入力系に依存 |
-| 8 | **Cosmetic 時の Skip 権限** | **誰でも Skip でき、全員に効く**(Broadcast) | Host のみ / 行為者のみ | ゲームルール寄り。Data の `CutsceneSkip.Disabled` で禁止はできる |
-| 9 | `StepFps` の**既定値** | 0(量子化なし)。プロジェクト既定は `CutsceneImportProfile` で変えられる | 24 を既定にする | 見た目の好みなので実データで判断 |
+旧「未決(6-10a 着手前にユーザーが決める)」の 9 件のうち 3 件は §7.1-9〜11 に昇格、残る 6 件も**すべて提案どおり**で確定した。経緯を追えるよう、採った理由と不採用の代案を残す。
+
+| # | 内容 | 決定(2026-09-18) | 採った理由 | 不採用の代案とその理由 | 反映先 |
+|---|---|---|---|---|---|
+| 1 | **Cinemachine アダプタ** | **v1 は無し**。ゲーム側が Cinemachine を採用したら `DDRIVE_CINEMACHINE` の `versionDefines` で任意対応を後付けする | 要件(数百 ms の繋ぎ)に独自ブレンドで足り、`com.unity.cinemachine` は manifest に無い = 新規依存になる。[42] §5.10(依存追加 = MINOR + ウィザード検査)と §3.5 依存表を今増やす理由が無い。Cinemachine を使わない持ち込み先に依存を強いない | 今から導入: ブレンド曲線・Impulse が標準で揃うが、CameraFx(5-2)の Shake ノードとブレンド主体が二重になり、「短い演出のみ」の用途に重い | §4.6.1。実行順の契約(§4.6.5 G-3)で Cinemachine とはアダプタ無しでも共存する |
+| 2 | **キャラごとに FBX を分ける** | **分ける**。Maya 作業者は 1 ショットにつき「カメラ + 小物」1 回 + キャラの数だけ `Export Selection` を行う(スクリプト無しの運用は維持) | Unity の `ModelImporter` は 1 FBX に 1 Avatar / `animationType` しか持てず、Humanoid(§7.1-4)で 2 キャラを 1 FBX に入れると片方しかリターゲットできない。Export Selection の回数が増えるだけで Maya 側の標準機能で完結する | 1 ショットにキャラ 1 体までに制限(演出の幅を狭める)/ 2 体目以降を Generic にする(ModelData 側も Generic が要り、Humanoid のリターゲット・Avatar Mask の利点を失う) | §5.1.1(手順を具体化)、§5.4、§5.5、[DesignerManual/cutscene-maya-export.html](DesignerManual/cutscene-maya-export.html) |
+| 3 | **AudioListener** をカットシーン中にカメラへ追従させるか | **追従させない** | 1 カメラ上書き方式(§4.6.2)では Listener はカメラに付いたままなので**自動で追従する**。別オブジェクトに Listener を置く構成なら追従しないが、数秒の演出では聞こえ方の差が小さい | Listener を一時的にカメラへ移す: 元の親への戻し・`Camera.main` 差し替え時の付け替えが増え、CameraFx の P1(ノード孤児化)と同種の事故要因になる | §4.6.2(追記なし。本表が記録) |
+| 4 | **`LockInput` の受け口** | 6-10a では `CutsceneHandle.IsInputLocked` + `Cutscene.IsInputLocked` / `Cutscene.OnInputLockChanged`(R3)+ EventBus Custom トリガだけ用意し、**実際に入力を止めるのはゲーム側の責務** | 入力系(Action Map 切替・Host 権威での入力破棄・UI フォーカス)はゲームごとに違い、D-Drive が共通 API を作ると MS2026 の入力設計を縛る。Presentation にも入力ロックの概念は無い | D-Drive 側に入力ロックの共通 API(Input System の Action Map を D-Drive が切る等): MS2026 の入力系に依存し、持ち込み先ごとに分岐が要る | §4.5.1(仕様を具体化)、§6、[ProgrammerManual/rules.html](ProgrammerManual/rules.html) |
+| 5 | **Cosmetic 時の Skip 権限** | **誰でも Skip でき、全員に効く**(Broadcast)。禁止したい演出は Data の `CutsceneSkip.Disabled` | 「誰が飛ばせるか」はゲームルールで、D-Drive が決めるべきでない。Data で禁止できるので最小の機能で足りる。Cancel と同じ「Broadcast 前に自分だけ飛ばない」規則に乗るだけで実装が増えない | Host のみ / 行為者のみ: ネットの権限判定が D-Drive に入り、ゲームルールを Data 側に固定してしまう | §4.7 |
+| 6 | **`StepFps` の既定値** | **0(量子化なし)**。プロジェクト既定は `CutsceneImportProfile.DefaultCameraStepFps` で変更可 | 「Maya の見た目どおり」を既定にし、コマ落ちは意図して付ける値にする。見た目の好みは実データで決めるべきで、既定が 0 なら「何もしていない」ことが自明 | 24 を既定にする: Maya 30fps 元に 24 は整数倍でなく Validation Warning(§5.3)が既定で出てしまう | §4.6.3 |
 
 ### 7.3 要検証(6-10c 着手時に Unity 実機で確かめる。設計は変えない)
 
@@ -497,3 +579,4 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 - `OnPostprocessGameObjectWithAnimatedUserProperties` でアニメ付きカスタムアトリビュートが Unity 6 でも取れるか(ロケーターとピント・絞りの両方が依存)
 - Humanoid + Timeline Animation トラックのオフセットで、Maya のワールド座標と原点(§4.2.1)の合成が期待どおりになるか(ルートモーション / Bake Into Pose の設定)
 - URP の `Volume.weight` を毎フレーム書き換えたときの DoF の追従(Bokeh モードの `focusDistance` 変更にフレーム遅れが無いか)
+- (2026-09-18 追加、§4.6.5 検出 2)`RenderPipelineManager.endCameraRendering` 時点の Camera の Transform / `fieldOfView` が「その描画に使われた姿勢」と一致すること(URP 17.3 で `beginCameraRendering` 内の書き込みが同じフレームの描画に反映されるか、`onBeforeRender` の呼び出し位置)。一致しない経路があれば比較点を `Camera.onPostRender` 相当の別コールバックに変える(契約 G-1〜G-5 は変えない)

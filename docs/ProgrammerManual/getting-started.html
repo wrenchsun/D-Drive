@@ -20,14 +20,14 @@
 <table>
 <tr><th>パッケージ</th><th>バージョン</th><th>備考</th></tr>
 <tr><td>Unity Editor</td><td><strong>6000.3.13f1</strong></td><td>Unity Hub でこのバージョンだけを入れる（勝手に上げない）</td></tr>
-<tr><td><code>com.unity.render-pipelines.universal</code>（URP）</td><td>17.3.0</td><td></td></tr>
+<tr><td><code>com.unity.render-pipelines.universal</code>（URP）</td><td>17.3.0</td><td>現状は <code>DDrive.Editor</code> だけが参照。<strong>Timeline（6-10a）以降は <code>DDrive.Runtime</code> も参照する = ゲーム実行時の必須依存</strong>になります（2026-09-18 決定、<code>docs/42_distribution.md</code> §3.5）。Built-in / HDRP のプロジェクトへは持ち込めません</td></tr>
 <tr><td><code>com.unity.addressables</code></td><td>2.3.1</td><td>ID→アセット解決の実体（<code>AssetLoader</code>）</td></tr>
 <tr><td><code>com.cysharp.unitask</code></td><td>(git、タグ指定なし)</td><td><code>https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask</code></td></tr>
 <tr><td><code>com.unity.netcode.gameobjects</code>（NGO）</td><td><strong>2.13.2</strong></td><td>CLAUDE.md の「2.2」表記は誤り</td></tr>
 <tr><td><code>org.nuget.r3</code></td><td>1.3.1</td><td>Presentation のイベント公開に使用する素の R3（<code>R3.dll</code>、namespace <code>R3</code>）。<code>scopedRegistries</code> に UnityNuGet(<code>https://unitynuget-registry.openupm.com</code>、スコープ <code>org.nuget</code>)の追加が必要</td></tr>
 <tr><td><code>com.cysharp.r3</code>（R3.Unity）</td><td>1.3.1（git）</td><td>Unity 統合層。2026-09-17 時点ではランタイムコードから未使用（将来 UI の R3 化で使用予定）</td></tr>
 <tr><td><code>com.unity.inputsystem</code></td><td>1.19.0</td><td>Samples のデモコードは <code>Keyboard.current</code>（Input System）を使用</td></tr>
-<tr><td><code>com.unity.timeline</code></td><td>1.8.12</td><td></td></tr>
+<tr><td><code>com.unity.timeline</code></td><td>1.8.12</td><td>Timeline（6-10a）以降は <code>DDrive.Runtime</code> が参照する必須依存（2026-09-18 決定）</td></tr>
 <tr><td><code>com.unity.test-framework</code> / <code>com.unity.test-framework.performance</code></td><td>1.6.0 / 3.4.0</td><td>EditMode/PlayMode テスト、0 alloc 検証用</td></tr>
 <tr><td><code>com.coplaydev.unity-mcp</code> / <code>jp.shiranui-isuzu.unity-mcp</code></td><td>v10.2.0 / v4.2.0</td><td>AI エージェント向け Unity MCP ブリッジ（開発ツール。ゲーム本体には不要）</td></tr>
 </table>

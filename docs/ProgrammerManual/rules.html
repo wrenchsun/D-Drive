@@ -60,6 +60,47 @@
 <h2 id="readonly-data">Data は読み取り専用</h2>
 <p>Manager は Data（<code>AssetDataBase</code> 派生の ScriptableObject）を実行時に書き換えません。Instance ごとに変化する現在値（再生位置、現在のマテリアル値など）は Instance 側に持たせます（例: <code>ModelsManager.Materials</code>）。エディタコードが Data を書き換えるときは必ず <code>Undo.RecordObject</code> + <code>EditorUtility.SetDirty</code> を通してください。</p>
 
+<h2 id="cutscene-contract">Cutscene（Timeline カットシーン）と共存するためのゲーム側の責務</h2>
+<p><strong>2026-09-18 に決めた契約です（設計書 <code>docs/26_timeline.md</code> §4.5.1 / §4.6.5。実装は Timeline チケット 6-10a〜d で、このページを書いた時点ではまだコードはありません）。</strong> Maya で作ったカメラワークをゲームカメラに滑らかに繋ぐため、D-Drive はカットシーン再生中にゲームのメインカメラ（<code>Camera.main</code>）の姿勢を<strong>ゲーム側の書き込みの後から上書き</strong>します。この上書きが成り立つ条件と、入力ロックの分担を、持ち込み先のゲームコードが守る契約として先に決めました（MS2026 のカメラ制御はこの契約に合わせて設計します）。</p>
+
+<h3 id="camera-order">1. ゲームカメラ制御の実行順（契約）</h3>
+<p>D-Drive 側は <code>DDriveCutsceneCameraApplier</code>（初回再生時に <code>Camera.main</code> へ自動で付く小さな MonoBehaviour）が <code>LateUpdate</code> でカメラの Transform・画角を書きます。この実行順は次のとおりです。</p>
+<div class="sig">[DefaultExecutionOrder(DDriveCutsceneCameraApplier.ExecutionOrder)]   // ExecutionOrder = 1000
+public sealed class DDriveCutsceneCameraApplier : MonoBehaviour</div>
+<p><code>DDriveRuntimeBootstrap</code> の <code>-1000</code>（誰よりも先に組み立てる）と対称に、<code>+1000</code>（誰よりも後にカメラを書く）を D-Drive が占めます。<strong>ゲームコードの実行順は −1000 より大きく 1000 より小さい範囲に収めてください。</strong> 「D-Drive より前」を明示したいときは数値を直書きせず <code>DDriveCutsceneCameraApplier.ExecutionOrder - 1</code> のように定数を参照してください。カットシーンが再生されていないフレームでは Applier は何もしません（付いているだけではゲームカメラに影響しません）。</p>
+<table>
+<tr><th>#</th><th>ゲーム側が守る条件</th><th>理由</th></tr>
+<tr><td>G-1</td><td><code>Camera.main</code> の Transform・<code>fieldOfView</code>・物理カメラ値への書き込みは <code>Update</code> / <code>FixedUpdate</code> / <code>LateUpdate</code> のいずれかで行う。<code>LateUpdate</code> の場合、そのスクリプトの実行順は <strong>1000 未満</strong>（<code>DefaultExecutionOrder</code> 属性も、ProjectSettings &gt; Script Execution Order の設定も）</td><td>Applier（1000）が同じフレームの <code>LateUpdate</code> の最後に「ゲームカメラの姿勢」を読んでから上書きするため</td></tr>
+<tr><td>G-2</td><td><code>LateUpdate</code> より後で姿勢を書かない: <code>PlayerLoop</code> の <code>PostLateUpdate</code> 以降に挿した独自システム、<code>Application.onBeforeRender</code>、<code>RenderPipelineManager.beginFrameRendering</code> / <code>beginCameraRendering</code>、<code>Camera.onPreCull</code> 等の描画コールバック内でカメラを動かさない。<code>yield return new WaitForEndOfFrame()</code> からの書き込みも避ける（絵は潰さないが次フレームの「ゲームカメラの姿勢」を汚す）</td><td>いずれも Applier の後に走り、D-Drive の書き込みを潰す</td></tr>
+<tr><td>G-3</td><td>Cinemachine を使う場合、<code>CinemachineBrain</code> の Update Method は <code>LateUpdate</code> / <code>SmartUpdate</code> / <code>FixedUpdate</code> のいずれか（既定のまま）で、Brain の実行順も 1000 未満</td><td>Brain は <code>LateUpdate</code> で書くので G-1 と同じ扱い。専用アダプタは v1 では作らず、この契約だけで共存する</td></tr>
+<tr><td>G-4（推奨）</td><td>ゲームカメラ制御は自前の状態（追従目標・前フレームの自分の計算値）から毎フレーム姿勢を計算し、<code>Camera.main.transform</code> の現在値を「前フレームの自分の姿勢」として読み戻さない</td><td>再生中はカメラに D-Drive がブレンド結果を書いているため、読み戻す実装だとゲームカメラが D-Drive の書き込みに引きずられる（破綻はしないが、終了後にカメラが本来の位置へもう一度動く）</td></tr>
+<tr><td>G-5</td><td>カットシーン再生中に <code>Camera.main</code> を差し替えない</td><td>差し替えると Applier は新しいカメラへ付け直し、その回の再生はブレンドアウト無しで終わる（警告 1 回）</td></tr>
+</table>
+
+<div class="warn">
+<strong>守られなかったときに起きること:</strong> 実行順 1000 以上の <code>LateUpdate</code> や描画コールバックでカメラを毎フレーム書いていると、<strong>カットシーンのカメラが一切効かず</strong>（キャラ・SE・VFX だけ再生され、ゲームカメラのまま。被写界深度だけ変わる不自然な絵になる）、間欠的に書いていると<strong>カメラがカクつく / 震える</strong>状態になります。どちらも例外は出ません。そのため次の検出手段を用意します。
+</div>
+<table>
+<tr><th>検出</th><th>何が出るか</th></tr>
+<tr><td><code>Validation &gt; Run All</code>（<code>CameraExecutionOrderValidator</code>、CI の <code>ValidateAll</code> にも載る）</td><td>プロジェクト内の全ランタイムスクリプトの実効実行順（ProjectSettings の値 &gt; <code>DefaultExecutionOrder</code> 属性）を調べ、D-Drive 以外で <strong>1000 以上のスクリプトがあれば Warning</strong>、Applier 自身が 1000 でなければ <strong>Error</strong>。<code>PlayerLoop.SetPlayerLoop</code> / <code>PostLateUpdate</code> / <code>onBeforeRender</code> / <code>beginCameraRendering</code> 等を含む <code>.cs</code> ファイルは <strong>Info</strong>（カメラを書いていないか人が確認する）</td></tr>
+<tr><td>実行時（Editor と Development Build のみ）</td><td>Applier がカメラの描画直後（<code>RenderPipelineManager.endCameraRendering</code>）に「このフレームに自分が書いた姿勢」と「描画に使われた姿勢」を比べ、違っていれば<strong>再生 1 回につき警告ログ 1 回</strong>（上書きされたフレーム数 / 総フレーム数、G-1・G-2 の確認と Validation の実行を促す文言）。Applier の <code>LateUpdate</code> が再生中に呼ばれなかった場合（無効化・カメラ消失・差し替え）も警告 1 回。製品ビルドでは検出コードは動きません</td></tr>
+</table>
+
+<h3 id="input-lock">2. 入力ロック（LockInput）はゲーム側が止める</h3>
+<p>CutsceneData には「再生中はプレイヤー入力を止める」フラグ（<code>LockInput</code>）がありますが、<strong>D-Drive は「ロック中かどうか」を公開・通知するだけで、実際に入力を止める処理は持ちません</strong>。入力系（Input System の Action Map 切替、Host 権威での入力破棄、UI のフォーカス制御）はゲームごとに違うためです。ゲーム側が次のいずれかを購読して止めてください。</p>
+<table>
+<tr><th>公開面</th><th>型</th><th>意味</th></tr>
+<tr><td><code>Cutscene.IsInputLocked</code></td><td><code>static bool</code></td><td><code>LockInput</code> なカットシーンが 1 つでも再生中か</td></tr>
+<tr><td><code>Cutscene.OnInputLockChanged</code></td><td><code>static Observable&lt;bool&gt;</code>（R3）</td><td>ロック数が 0→1 になったとき true、1→0 になったとき false を 1 回ずつ流す（<code>PauseService.OnPauseChanged</code> と同じエッジ通知。2 本重ねても中間では発火しない）。<strong>通常はこれを購読する</strong></td></tr>
+<tr><td><code>CutsceneHandle.IsInputLocked</code></td><td><code>bool</code></td><td>その Handle が <code>LockInput</code> かつ再生中か。ブレンドアウト中（Skip / Cancel 後の戻し区間）も true のまま。無効な Handle は false</td></tr>
+<tr><td>EventBus（データ側）</td><td><code>EventTrigger.Custom</code> キー <code>cutscene/input_lock</code> / <code>cutscene/input_unlock</code></td><td>デザイナーが CutsceneData の Events に「ロック開始で字幕 Canvas を開く」等を Data だけで足すためのもの。ゲームコードはこちらを使う必要はありません</td></tr>
+</table>
+<pre><code>// MS2026 側の例: ロック中は Player の Action Map を無効化する
+Cutscene.OnInputLockChanged
+    .Subscribe(locked =&gt; { if (locked) inputActions.Player.Disable(); else inputActions.Player.Enable(); })
+    .AddTo(this);</code></pre>
+<p>ロックは <code>Cancel</code> / 再生終了で必ず解除されます（Handle の破棄経路は 1 本）。<code>Flags.Pause</code> でポーズ中もロック状態は変わりません。ネット同期再生（<code>Flags.Net = Cosmetic</code>）では各クライアントが自分のロック状態を持ち、Host 権威のゲームロジックが「ロック中のクライアントからの入力を捨てる」かどうかはゲーム側の実装です。</p>
+
 <h2 id="ci">Validation と CI の走らせ方</h2>
 <p><code>Tools/CI/run-ci.cmd</code> が <code>.github/workflows/ci.yml</code> と同じ検査をローカルで実行します（Unity Editor でこのプロジェクトを開いたままだと多重起動になり失敗するので注意）。</p>
 <table>

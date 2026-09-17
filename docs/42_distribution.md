@@ -171,6 +171,7 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 
 - `DDrive.Editor`（パッケージ側）→ `Assets/` 側は**文字列パス**でしか参照していない（`AssetCreationService.DefaultGameDataRoot = "Assets/GameData"` 等 21 箇所。§2.3 の 5 箇所以外は「出力先・監視先の既定値」で、パッケージ化しても意味が変わらない）。型参照は無い（asmdef 参照は Foundation/Runtime と Unity パッケージのみ）→ **依存の向きは逆転しない**
 - `DDrive.Editor` は `Unity.RenderPipelines.Universal.Runtime`/`Core.Runtime`、`Unity.Addressables.Editor`、`Unity.InputSystem` を参照 → 持ち込み先に URP・Addressables・Input System が無いと Editor asmdef がコンパイルできない（Runtime も Addressables/Netcode/InputSystem/ugui が必須）。§3.5 の依存表のとおり
+  - **2026-09-18 追記（[26] §7.1-10、asmdef 構成変更をユーザー承認）**: Timeline（6-10a）で `DDrive.Runtime` に `Unity.Timeline` と `Unity.RenderPipelines.Universal.Runtime`/`Core.Runtime` を**直接追加**する（Cutscene のカメラが URP の `Volume`/`DepthOfField` へ書き込むため、[26] §4.6.4）。これにより URP は「Editor 拡張の都合で要る依存」から**ゲーム実行時の必須依存**になる（`DDrive.Runtime` がコンパイルできる条件）。B-1（URP 以外は非対応）とは整合し、新しいパッケージ依存は増えない（両方とも manifest に導入済み）が、§3.5 の「持ち込み先での扱い」と §5.10 の区分に反映した
 - 持ち込み先のゲームコードは `DDrive.Runtime`（と `DDrive.Foundation`）のみ参照、`DDrive.Editor` 参照禁止（[01] §4）。パッケージ化でこの規約は変わらない
 - 既定値パスの設定化: `DDriveSpecSettings.GameDataRoot` は既に設定化済み。`ImportRuleService.DefaultSourceRoot`（`Assets/SourceAssets`）・`AssetIdGenerator.DefaultOutputPath`・`TuningCodegen.DefaultOutputPath`・`AssetIconService.DefaultIconRoot`・`ScenePreloadGenerator.DefaultOutputRoot` は P-5 で **プロジェクト設定（§4.3 の `DDriveProjectSettings`）から読む**ようにし、既定値は現状のままにする（持ち込み先が既存のフォルダ構成を持つ場合の逃げ道。§7 B-6）
 
@@ -183,10 +184,10 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 | `com.unity.addressables` | 2.3.1 | ○ | 自動解決 |
 | `com.unity.netcode.gameobjects` | 2.13.2 | ×（2026-09-17 決定、§7 A-7。`versionDefines` で `DDRIVE_NGO` を切り、必須依存から外す） | NGO を使う持ち込み先のみ導入する。導入すると asmdef の `versionDefines` が `DDRIVE_NGO` を自動定義し NGO 連携コードが有効になる。導入する場合は **Host/Client 全員同じ版**（[14] §12） |
 | `com.unity.inputsystem` | 1.19.0 | ○ | 自動解決 + Active Input Handling の確認（§3.6） |
-| `com.unity.render-pipelines.universal` | 17.3.0 | ○ | 自動解決 + URP アセットが GraphicsSettings に設定済みかの確認 |
+| `com.unity.render-pipelines.universal` | 17.3.0 | ○ | 自動解決 + URP アセットが GraphicsSettings に設定済みかの確認。**2026-09-18: 6-10 以降は `DDrive.Editor` だけでなく `DDrive.Runtime` も参照する（[26] §4.6.4 の Volume 書き込み。asmdef 変更は同日ユーザー承認）= ゲーム実行時の必須依存**。`versionDefines` で切らない（B-1 のとおり URP 以外は非対応のため、切る意味が無い） |
 | `com.unity.nuget.newtonsoft-json` | 3.2.1 | ○ | 自動解決（`Editor/Spec/*` が使用） |
 | `com.unity.ugui` | 2.0.0 | ○ | 自動解決 |
-| `com.unity.timeline` | 1.8.12 | ○（6-10 以降） | 自動解決 |
+| `com.unity.timeline` | 1.8.12 | ○（6-10 以降） | 自動解決。**2026-09-18: 6-10a で `DDrive.Runtime` が `Unity.Timeline` を参照する（必須依存。`versionDefines` で切らない）** |
 | `com.cysharp.unitask` | git（タグ無し） | **×** | ウィザードが manifest を検査し、無ければ `Client.Add("https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#<タグ>")` を提案・実行（`UnityEditor.PackageManager.Client.Add` は git URL を受け付ける） |
 | `com.cysharp.r3` | git 1.3.1 | **×** | 同上（`#1.3.1`） |
 | `org.nuget.r3` | 1.3.1（scoped registry） | **×** | scoped registry `Unity NuGet`（`https://unitynuget-registry.openupm.com`、scope `org.nuget`）の追加が必要。**`Client.AddScopedRegistry` が public API か未確認**（要確認 §7 C-1）。無理なら manifest.json への追記手順を README に載せ、ウィザードは「無い」ことの検出と案内だけ行う |
@@ -446,6 +447,7 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 | 依存の PATCH/MINOR（URP 17.3 → 17.4 等） | MINOR + 明記 | 依存側の破壊が無いことを確認 |
 | NGO の版 | MINOR + **太字で明記**（Host/Client 全員同時） | [14] §12 |
 | 依存の追加 | MINOR + 明記（ウィザードの検査にも追加） | git 配布なら手順書更新 |
+| **既存依存の参照範囲の拡大**（Editor asmdef のみ → Runtime asmdef も参照。2026-09-18 追加） | **MINOR + 明記**（「依存の追加」と同じ扱い。CHANGELOG に「vX から `<パッケージ>` はゲーム実行時にも必須」と書く） | 持ち込み先にとっては「Editor が動く条件」から「ゲームが動く条件」への格上げ。初出は 6-10a の URP + Timeline（[26] §7.1-10。P 発効前なので区分の適用対象外、記録のみ） |
 | 依存の削除 | PATCH | – |
 
 ### 5.11 機械的な検査（CI で互換性を守る）
@@ -556,3 +558,4 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 
 - 2026-09-17: 新規作成（設計のみ、実装なし）。ユーザー要望「タスクの追加、Timeline の後に行う。この環境を Unity の実際の作業環境に簡単に移植する、D-Drive の Update があったらほかの環境に取り込むことができる。これにより、この新規タスクの後はすべて互換性を持たせる必要があります」を受けて、§2 線引き / §3 配布方式（UPM git URL を推奨）/ §4 更新フロー（SemVer・スキーマ版・マイグレーション・ロールバック）/ §5 互換性ポリシー（9 互換面 + 機械検査 11 種）/ §6 P-1〜P-13 / §7 要判断 を記載。[11_tasks.md] に P チケット表、[README.md] に目次行、[CLAUDE.md] §1 に予告を追加。
 - 2026-09-17（同日追記）: §7 A-1〜A-9 をユーザー回答により「決定」に更新（設計のみ、実装なし。ドキュメント編集のみで実施）。決定内容: A-1 パッケージ名 `com.ddrive.core`（displayName `D-Drive`）・分離リポジトリを作らず同一リポジトリを `?path=` で参照 / A-2 リポジトリは private のまま・`git+ssh` URL で参照 / A-3 最初の版は 1.0.0（P-5 で発効） / A-4 `AssetDataBase.SchemaVersion` の追加を承認（既存 `Version` は保存回数であり別物と明記） / A-5 `[Obsolete]` 猶予 2 MINOR・MAJOR は年 1 回まで / A-6 発効前（P-5 より前）に `KnownPrefixes` へ `MODEL`/`ANC`/`ANCG`/`SKIN` を追加して不整合を解消（参照コード 0 件を確認済み） / A-7 NGO は `versionDefines` で必須依存から切り離す / A-8 `DDrive.Generated.asmdef` の出力は既定 ON / A-9 持ち込み先での改造は原則禁止のまま、強制手段（Warning）は P-6 以降で実装（`DDriveProjectSettings`/`IsDevelopmentRepo` は現状未実装）。この決定に合わせて §0 いちばん厳しい制約・§2.1 分類表・§2.2 レイアウト例・§2.3 境界違反 5/7/9・§3.2 推奨・§3.5 依存表・§4.1 版・§4.3 SchemaVersion・§4.5 改造の扱い・§5.3/§5.4/§5.7/§5.12/§5.13・P-5/P-7 チケット本文を整合させた。あわせて §2.3 #5 の行番号誤記（`CodeReferenceScan.cs:9` → 実際は `ScanRoots` 定義の 32 行目）を訂正。
+- 2026-09-18: Timeline（[26] §7.1-10）で `DDrive.Runtime` asmdef に `Unity.Timeline` + URP（Universal.Runtime / Core.Runtime）を直接追加することをユーザーが承認したことを受け、§3.4 に追記、§3.5 の URP / Timeline 行に「6-10 以降はランタイム必須依存」を明記、§5.10 に「既存依存の参照範囲の拡大（Editor → Runtime）= 依存の追加と同じ MINOR」の行を追加。B-1（URP 以外は非対応）は変更なし。ドキュメント編集のみ（asmdef の実変更は 6-10a）。
