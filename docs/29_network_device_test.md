@@ -712,3 +712,51 @@ Host/Client 間の実プレゼンテーション同期・偽造メッセージ�
 
 すべてのシナリオで `content_hash=OK` が最後まで維持された（上記 a の自己接続タイムアウトが解消したことの確認）。
 初回実行のログは比較用に保存してある（リポジトリ外）。
+
+## 16. v5 実機確認の結果（2026-09-18、PC-A Host + PC-B Client。§13 の実施）
+
+構成: PC-A（Host、`Builds/DDriveNetCheck`、コード日時 2026-09-15 03:46 = v5）/ PC-B（`wrench_2nd`、192.168.137.74、
+`C:\DDriveTest\v5`）。ログ: PC-A = `Builds/PlayerHost_v5.log`、PC-B = `C:\DDriveTest\client_v5.log` および
+`client_v5_200ms.log`（**PC-B に保管。修正前の比較用に消さないこと**）。
+
+### 16.1 通った項目（§13 項目 2 = 既存項目の回帰なし）
+
+| 項目 | 結果 |
+|---|---|
+| 接続 | `heartbeat=1 role=client clientId=1 connected=1`、`rtt_app_ms=4〜5`（遅延なし時） |
+| Signal の伝播 | `signal_recv=hit` が key ごとに HitStop / Se / CameraShake / Haptic の 4 種届く |
+| ContentHash | 両端 `content_hash=OK` |
+| 遅延の適用 | `-ddrive-sim-latency 200` で `rtt_app_ms=205〜208`。アプリ層キューによる代替（§3）が機能している |
+| 復旧時の Signal | 通信停止からの復旧の瞬間（`networkTime=411.15`）に 3 つの key の Signal が 4 種まとめて発火。**「未知のキーとして破棄」は 0 件**。保留分のフラッシュが効いている |
+| 偽造 Cancel の破棄 | 26 件（すべて `PresentationCancelMsg` の発行者不一致による破棄。仕様どおり） |
+| 切断扱いにならないこと | `connected` は最後まで 1。disconnect / Exception / Error いずれも 0 件 |
+| VFX の蓄積・残留なし | `vfx_active` が停止中に 3 → 0 まで落ち、復旧後 1 → 4 に戻る。`activeCount` も 5 → 2 → 5 に復帰（v4 で解消した項目の回帰なし） |
+
+### 16.2 通らなかった項目（§13 項目 1 の本題）— **K2 修正は目的を達成していない**
+
+通信停止（Wi-Fi を約 6 秒切断、`networkTime` 403.59〜411.16）の間、`rtt_app_stale=1` の行は出たが、
+**`rtt_app_ms` は経過時間に応じて増え続けなかった**（実測 372 / 714 / 370 / 370 / 370 / 633 / 369 / 368 /
+369 / 553 / 405 / 405 / 438 と上下する）。
+
+**真因（2026-09-18 にコードで確認）**:
+
+1. **経過時間の基準が「直近の Ping 送信時刻」になっている** — `NgoNetBridge.cs` の Ping ループは 1 秒ごとに
+   `_lastPingSentRealtime` を現在時刻で上書きし `_awaitingPong` を立て直す。**前回の Pong が返っていなくても
+   上書きする**ため、`AppRoundTripMs` が返す `elapsedMs` は常に直近 1 秒以内に制限され、停止がどれだけ
+   長引いても 1000ms 前後までしか伸びない。観測された 368〜714 の上下は、1 秒周期のノコギリ波を 1Hz の
+   ハートビートで拾った結果。
+   **直すべき方向**: 基準を「最後に Pong が返った時刻」または「未応答のまま最も古い Ping の送信時刻」にする。
+2. **`rtt_app_stale` が平常時にも立つ** — `IsAppRoundTripMsStale` は `_awaitingPong` が立っていれば true を
+   返すだけなので、**正常動作中でも Ping 送信から Pong 到着までの約 200ms（1 秒周期の約 20%）は true になる**。
+   実際、復旧後の `networkTime=419.37 / 420.37 / 421.37` で `rtt_app_stale=1` なのに `rtt_app_ms=209 / 206 / 205`
+   （実測値のまま）という矛盾した行が出ている。フラグが「通信途絶」の指標として機能していない。
+
+いずれも**実機でしか出ない**（ユニットテストは 1 秒周期の実時間経過を再現していなかった）。
+
+### 16.3 次にやること
+
+1. `NgoNetBridge` の K2 を上記の方向で直す（併せて `rtt_app_stale` の意味を「通信途絶の疑い」に変える。
+   例: 連続して N 回 Pong が返っていない場合のみ true にする）。
+2. **ビルドを作り直して**再確認する（今の v5 ビルドには修正が入らない）。判定は §13 項目 1 と同じ。
+3. 単体テスト側にも「1 秒周期で Ping を送り続けたまま Pong が返らない」状況を再現するテストを足す
+   （今回見逃した理由がここにあるため）。
