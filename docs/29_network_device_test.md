@@ -541,13 +541,28 @@ CatalogContentHashGateTests.cs`（`FakeNetBridge` を使った Host/Client 双�
 
 ### リリースビルド相当（切断）の確認について
 
-`NetCheckBuilder.Build()` は `BuildOptions.Development` 固定でビルドするため、`Debug.isDebugBuild` が
-常に `true` になり、この経路では「リリースビルドでは切断」側の実機確認ができない（要判断: 確認するには
-Unity の `Build Settings` で `Development Build` のチェックを外した手動ビルドを別途作るか、
-`NetCheckBuilder` にリリース向けオプションを追加する必要がある。6-5 のスコープでは追加していない）。
-手動でリリース相当のビルドを作った場合は、上記手順 3〜4 と同じ操作で
-「Host が該当 Client を切断し、Client 側に `NetworkManager.DisconnectReason`(「カタログの ContentHash
-が一致しません…」)を含む切断が表示されること」を確認する。
+**2026-09-18 対応済み**: `NetCheckBuilder.Build()` に `development` 引数（既定 `true` = 従来どおり
+`BuildOptions.Development`）を追加し、`development: false` を渡すとリリース相当（`BuildOptions.None`、
+`Debug.isDebugBuild=false`）でビルドできるようにした。呼び出し元は他に無かったため既存の呼び出し・CI には
+影響しない（既定の開発ビルド用メニュー `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド` もそのまま）。
+メニューに `Tools > D-Drive > Build > 実機確認用 Windows リリース相当ビルド`
+(`NetCheckBuilder.BuildReleaseFromMenu()`)を新設した。zip の出力先は `outputDirectory` から自動導出する
+（例: `Builds/v8_release_normal` → `Builds/v8_release_normal.zip`）。個別の出力先を使うビルド(v8_release_normal
+等)は isuzu MCP の `execute_code` から `NetCheckBuilder.Build(outputDirectory: "Builds/...", development: false)`
+を直接呼ぶ運用にした(メニューは既定の `Builds/DDriveNetCheck` 固定のため)。
+
+**リリース相当ビルドでもログが残ることを実機ビルドで確認済み**: `Debug.Log`/`Debug.LogWarning`/`Debug.LogError`
+(`NetCheckRunner.LogCheck` 経由の `[DDriveNetCheck] ...` 行、`CatalogContentHashGate` の警告/エラーを含む)は
+`#if DEVELOPMENT_BUILD` 等で条件分岐しておらず、リリースビルドでも通常どおり実行される。実際に
+`v8_release_normal\DDriveNetCheck.exe -ddrive-net off -logFile <path>` を約 18 秒単体起動したところ、
+`-logFile` 出力に `[DDriveNetCheck]` 行が 48 件(`heartbeat=`/`ready=`/`track_fired=`/`signal_fire=` 等)残る
+ことを確認した(Unity のプレイヤーログは Development Build でなくても `-logFile` で出力されるため、実機での
+判定はこの経路で行える)。唯一 `NetCheckRunner.OnRemoteOneShotSkipped`(`track_skipped` ログ)だけが
+`#if DEVELOPMENT_BUILD || UNITY_EDITOR` で意図的にリリースビルドでは出力しない設計(既存のコメントどおり、
+製品ビルドでのログ汚染・コストを避けるため)だが、§21.4 の切断判定(基準 1/2/4)には影響しない。
+
+実機での 2 段階確認手順(PC-B=Host / PC-C=Client、`v8_release_normal`/`v8_release_mismatch` の配布手順・
+判定基準・うまくいかないときの切り分け)は §21 を参照。§21 は本節の対応を前提に書かれている。
 
 ## 15. 自動判定つきローカル 2 プロセス確認(6-7)
 
@@ -1006,13 +1021,19 @@ Select-String -Path C:\DDriveTest\host_release.log -Pattern 'heartbeat=' | Selec
 | `content_hash=OK` と出る | **カタログが読めていない可能性**（§18）。`InvalidKeyException` と `Placeholder` の行を先に確認すること。`OK` は「一致した」とは限らず「比較対象が無くて素通りした」ことがある |
 | 不一致は出るが切断しない | リリースビルドになっていない（`Debug.isDebugBuild` が true のまま）。ビルドの作り方を確認 |
 
-### 21.6 リリースビルドでログが残るか（**実施前に必ず確認する**）
+### 21.6 リリースビルドでログが残るか — **確認済み（2026-09-18）。残る**
 
-リリースビルドでは `Debug.Log` の扱いが開発ビルドと異なるため、**`NetCheckRunner` のログが残らないと何も判定できない**。
-PC-C を呼ぶ前に、**PC-A で単体起動してログが出ることを確認してから**配ること（`-ddrive-net off` で短時間起動し、
-`[DDriveNetCheck]` の行が `-logFile` の出力に含まれるかを見る）。
+懸念していた「リリースビルドでは `Debug.Log` が出ず、`NetCheckRunner` のログが残らないのでは」は**杞憂だった**。
+`Builds/v8_release_normal/DDriveNetCheck.exe` を `-ddrive-net off -logFile <パス>` で 20 秒起動したところ、
+**`[DDriveNetCheck]` で始まる行が 59 件**出力された（`heartbeat=` / `ready=1 role=host` など）。
 
-残らない場合の代替案:
-- **Host 側（PC-B）のログだけで判定する** — 切断は Host が行うので、Host 側に警告と切断の記録が残れば基準 1 と 4 は満たせる。
-  基準 2（Client 側の `DisconnectReason`）は Client の画面表示（`NetDebugOverlay`）で目視する
-- `NetCheckRunner` のログを `Debug.Log` ではなくプレイヤーログへ直接書く経路を用意する（コード変更。別チケット）
+```
+[DDriveNetCheck] ready=1 role=host
+[DDriveNetCheck] heartbeat=1 role=host clientId=0 networkTime=0.00 activeCount=0 connected=1 ... content_hash=検証中...
+```
+
+したがって **§21 の判定は開発ビルドのときと同じ方法（ログの抽出）で行える**。代替判定を用意する必要はない。
+
+> Unity のプレイヤーログ（`-logFile`）は Development ビルドでなくても出力されるため。`Debug.Log` が
+> 剥がされるのは `#if DEVELOPMENT_BUILD` 等で明示的に囲っている場合だけで、`NetCheckRunner.LogCheck` は
+> そうなっていない。
