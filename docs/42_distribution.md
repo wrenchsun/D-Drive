@@ -4,7 +4,7 @@
 
 > **位置づけ（2026-09-17 ユーザー指定）**: Timeline（6-10a〜d）の後に着手する。**P チケットが完了した時点から、D-Drive の変更はすべて本書 §5 の互換性ポリシーに従わなければならない**（それまでは予告扱い。CLAUDE.md §1 の予告参照。完了時に CLAUDE.md §0 TL;DR へ昇格させる = P-13）。
 >
-> **本書の性格**: 実装前の設計書。**内容は 2026-09-17 時点の実ファイル（asmdef・manifest.json・ProjectSettings・Editor/Runtime コード）を読んで確認した事実に基づく**。確認できなかったこと・決められないことは §7「要判断」に列挙し、推測で確定していない。§7 の A 群は P-1/P-2 の着手前にユーザー回答が必要。
+> **本書の性格**: 実装前の設計書。**内容は 2026-09-17 時点の実ファイル（asmdef・manifest.json・ProjectSettings・Editor/Runtime コード）を読んで確認した事実に基づく**。確認できなかったこと・決められないことは §7「要判断」に列挙し、推測で確定していない。§7 の A 群は **2026-09-17 にユーザーが回答・確定済み**（P-1/P-2 の着手前提はこれで満たされた）。B/C 群は引き続き着手後・実装中に決める。
 
 ## 0. 要約
 
@@ -18,11 +18,11 @@
 
 | 論点 | 結論 |
 |---|---|
-| 配布方式（§3） | **UPM パッケージ（git URL、`?path=` でサブフォルダ指定、`#vX.Y.Z` タグ固定）を推奨**。開発は**このリポジトリ内で埋め込みパッケージ**（`Packages/<パッケージ名>/`、= 現 `Assets/DDrive/` の移設）として行い、持ち込み先は同じフォルダを git URL で参照する。1 つのソースで「開発（編集可）」と「配布（読み取り専用・版固定）」を兼ねる |
+| 配布方式（§3） | **UPM パッケージ（git URL、`?path=` でサブフォルダ指定、`#vX.Y.Z` タグ固定）**（2026-09-17 決定、§7 A-1）。パッケージ名は `com.ddrive.core`（displayName `D-Drive`）。開発は**このリポジトリ内で埋め込みパッケージ**（`Packages/com.ddrive.core/`、= 現 `Assets/DDrive/` の移設）として行い、分離リポジトリは作らず、持ち込み先は同じリポジトリ（github.com/wrenchsun/D-Drive、private のまま）を `?path=` 付きの git URL で参照する。1 つのソースで「開発（編集可）」と「配布（読み取り専用・版固定）」を兼ねる |
 | 線引き（§2） | `Assets/DDrive/` のコード・shader・asmdef と `docs/DesignerManual/` がパッケージ。`GameData/`・`Generated/`・`AddressableAssetsData/`・`Settings/*.asset`・`Specs/`・`SourceAssets/` は持ち込み先ごとのデータ（**持っていかず、ツールが生成する**）。**境界をまたいでいる箇所が 6 系統ある**（§2.3。`SourceAssets/Shaders/` のシステム用 shader、`Assets/DDrive` 固定のパス 5 箇所、`docs/` 参照 等）→ P-4 で解消 |
 | 更新（§4） | SemVer。持ち込み先は manifest のタグを進めるだけ。更新後に `Tools > D-Drive > Update` が **マイグレーション → ID/Tuning 再生成 → Addressables 同期 → Validation** をワンボタンで実行する。**スキーマ版は `AssetDataBase.Version`（保存回数）とは別に持つ**（§4.3） |
 | 互換性（§5） | 「互換面」を 9 つに定義し（シリアライズ / 列挙 / ID・Address・定数名 / 公開 API / ContentHash / ネットメッセージ / 生成コード / Validation の重さ / Editor 契約）、それぞれに **許可・条件付き・禁止** の変更を列挙。**すべて既存の `Assets/DDrive/Tests/Editor` と同じ流儀の EditMode テスト（スナップショット / ゴールデン値）で機械判定する**（§5.11） |
-| いちばん厳しい制約 | **「生成コードの形と ID の導出規則が公開 API である」こと**。`AssetIdGenerator.ToConstantName` / `KnownPrefixes` / 定数クラス名 / `StableHashFromGuid` / `TuningCodegen` の命名規則は、持ち込み先の**ゲームコードがコンパイルできるかどうか**を直接左右する。現状 `KnownPrefixes` に `MODEL`/`ANC`/`ANCG`/`SKIN` が入っておらず定数名に接頭辞が残る不整合（`MODELID.MODELPlayerModel` 等）があり、**発効後は直せなくなる**（§7 A-6） |
+| いちばん厳しい制約 | **「生成コードの形と ID の導出規則が公開 API である」こと**。`AssetIdGenerator.ToConstantName` / `KnownPrefixes` / 定数クラス名 / `StableHashFromGuid` / `TuningCodegen` の命名規則は、持ち込み先の**ゲームコードがコンパイルできるかどうか**を直接左右する。現状 `KnownPrefixes` に `MODEL`/`ANC`/`ANCG`/`SKIN` が入っておらず定数名に接頭辞が残る不整合（`MODELID.MODELPlayerModel` 等）があり、**発効後は直せなくなる**ため、**発効前（P-5 より前）に `KnownPrefixes` へ追加して解消する**と決定した（2026-09-17、§7 A-6。参照しているコードは Samples を含め 0 件と確認済みで、今なら実害なく変更できる） |
 
 ## 1. 前提（確認した事実）
 
@@ -76,7 +76,7 @@ DDrive.Editor ──(文字列パス)──▶ "Assets/DDrive/…" "Assets/Sourc
 | `Assets/GameData/Icons/` | **G** | `AssetIconService` が生成 |
 | `Assets/GameData/Settings/DDriveSpecSettings.asset`, `DDriveTuningTable.asset` | **G** | `DDriveSpecSettings.GetOrCreate()` が生成。**中身（`WebAppUrl`/`HumanAppUrl`、GameDataRoot）は持ち込み先ごとの値**。トークンは EditorPrefs 側（[32] 実装メモ W-9）なのでリポジトリには入らない |
 | `Assets/GameData/Ui/UI_LayerSettings.asset`（`UiLayerSettings`） | **G** | `[CreateAssetMenu("D-Drive/Ui/Ui Layer Settings")]` あり。Bootstrap の Inspector 直参照。セットアップウィザード（P-6）で既定値付きで生成する |
-| `Assets/Generated/AssetIds.g.cs`, `Tuning.g.cs` | **G** | **持ち込み先ごとに中身が違う**生成物。持ち込み先で `Regenerate` して作る（最初は空クラス）。出力先を設定化し、**`DDrive.Generated.asmdef` を同時に出力する選択肢**を用意する（§2.3-5、§7 A-8） |
+| `Assets/Generated/AssetIds.g.cs`, `Tuning.g.cs` | **G** | **持ち込み先ごとに中身が違う**生成物。持ち込み先で `Regenerate` して作る（最初は空クラス）。出力先を設定化し、**`DDrive.Generated.asmdef` を同時に出力する選択肢**を用意する（**既定 ON**。2026-09-17 決定、§7 A-8。§2.3-5） |
 | `Assets/AddressableAssetsData/`（Settings・Groups・Profiles） | **G** | 持ち込み先の Addressables 設定。`AddressableAssetSettingsDefaultObject.GetSettings(true)` で既定設定を作れる（ウィザード）。`DDrive_GameData`/`DDrive_Catalogs` グループとラベルは `AddressablesSync` が自動作成する。ビルドパス・バンドル分割等の Schema 設定は持ち込み先の方針に従う |
 | `Assets/Settings/`（URP アセット）, `Assets/Scenes/SampleScene.unity`, `Assets/InputSystem_Actions.inputactions`, `Assets/TextMesh Pro/`, `Assets/TutorialInfo/`, `Readme.asset`, `README_UnityChan_*` | **D** | Unity テンプレート由来。D-Drive コードからの参照は無い（`InputSystem_Actions`・`TMPro` の参照 0 件を grep で確認）。持ち込み先は自分の URP 設定を使う |
 | `Assets/DefaultNetworkPrefabs.asset` | **D**（持ち込み先は自前） | NGO の既定 NetworkPrefabsList。[14] §12 のとおり `Assets/` 直下、プロジェクトごと |
@@ -87,7 +87,7 @@ DDrive.Editor ──(文字列パス)──▶ "Assets/DDrive/…" "Assets/Sourc
 | `Tools/SpecWeb/`（GAS 発注ツール） | **D**（**?**） | Apps Script プロジェクト（`clasp`）。`assets.json` の `id` は `"Se::Player"` のように**プロジェクト名を含まない**ため、1 デプロイを複数プロジェクトで共有すると識別子が衝突する。→ **持ち込み先ごとに別デプロイ**を推奨。ソースをパッケージ（`SpecWeb~/`）に同梱するか、開発リポジトリのタグから取ってもらうかは要判断（§7 B-3）。D-Drive Editor ↔ GAS の API・JSON 形式は互換面（§5.9） |
 | `Specs/assets.json`, `tuning.json` | **G** | `SpecSnapshotWriter` が `Application.dataPath/..`（= 持ち込み先のリポジトリ直下）に書く。持ち込み先のデータ |
 | `docs/00〜41_*.md` | **D** | 設計書。パッケージには入れない（GitHub 上のリンクを README から張る） |
-| `docs/DesignerManual/*.html`（+ images） | **P** | `ManualPages` が `docs/DesignerManual` を**プロジェクト直下から相対**で探し、`ManualLauncher` が file:// で開く（SpecWeb の `?page=manual` が設定されていれば Web 版）。パッケージでは `Documentation~/DesignerManual/` に同梱し、`Path.GetFullPath("Packages/<name>/Documentation~/…")` で解決する（§2.3-3）。デザイナーマニュアルは「デザイナーが実際に触る機能のみ」（[10] §3.4）なので持ち込み先でもそのまま有効 |
+| `docs/DesignerManual/*.html`（+ images） | **P** | `ManualPages` が `docs/DesignerManual` を**プロジェクト直下から相対**で探し、`ManualLauncher` が file:// で開く（SpecWeb の `?page=manual` が設定されていれば Web 版）。パッケージでは `Documentation~/DesignerManual/` に同梱し、`Path.GetFullPath("Packages/com.ddrive.core/Documentation~/…")` で解決する（§2.3-3）。デザイナーマニュアルは「デザイナーが実際に触る機能のみ」（[10] §3.4）なので持ち込み先でもそのまま有効 |
 | `.claude/skills/ddrive-agent-workflow/`, `AGENTS.md`, `CLAUDE.md` | **D**（消費側向け要約を **P** に、**?**） | 中身は「D-Drive を**開発する**ときの手順」（新種別追加・MCP 検証・SpecWeb 検証）。持ち込み先のエージェントに要るのは「D-Drive を**使う**ときの規約」（禁止 API、静的ファサードの使い方、Data を書き換えない、`.asset` をテキスト編集しない）。→ `Documentation~/AGENTS_CONSUMER.md`（+ 任意で `ddrive-consumer` スキル）を新規に書き、持ち込み先の CLAUDE.md からリンクしてもらう（§7 B-4） |
 | `package.json`, `CHANGELOG.md`, `LICENSE`（新規） | **P** | UPM 必須/推奨ファイル。`CHANGELOG.md` は §4.1 の互換性区分を必ず書く |
 | `ProjectSettings/*` | **D** | 持っていかない。持ち込み先で**必要な設定**は §3.6 の表のとおりで、P-6 のウィザードが検査・（可能なものは）自動設定する |
@@ -96,7 +96,7 @@ DDrive.Editor ──(文字列パス)──▶ "Assets/DDrive/…" "Assets/Sourc
 ### 2.2 パッケージ内のレイアウト案
 
 ```
-Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設（.meta ごと。GUID 不変なので GameData の参照は壊れない）
+Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.meta ごと。GUID 不変なので GameData の参照は壊れない）
   package.json                          … name / version / unity: "6000.3" / dependencies（レジストリ配布のもののみ、§3.5）/ samples
   CHANGELOG.md  LICENSE  README.md      … README は「導入 5 ステップ」+ docs へのリンク
   Foundation/  Runtime/  Editor/        … 現行のまま（asmdef 名も不変。UPM は Runtime/Editor 以外のフォルダ名を強制しない）
@@ -116,15 +116,15 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 
 | # | 箇所 | 何が起きるか | 対処案 |
 |---|---|---|---|
-| 1 | `Assets/SourceAssets/Shaders/DDrive_Lit.shader` / `DDrive_Unlit.shader` / `AiStandardSurface/*.shader,*.hlsl` | 持ち込み先に存在しない → `UnityMaterialMigrator`（URP Lit → `DDrive/Lit` 変換）と `AiStandardSurfacePreprocessor`（`ShaderPath` 定数 `Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurface.shader`）が機能しない。`AiStandardSurfaceMapperTests` / `UnityMaterialMigratorTests` は `Assume` で Inconclusive | パッケージ `Runtime/Shaders/` へ移設。`ShaderPath` は `Shader.Find("DDrive/…")` か `Packages/<name>/…` パスへ |
+| 1 | `Assets/SourceAssets/Shaders/DDrive_Lit.shader` / `DDrive_Unlit.shader` / `AiStandardSurface/*.shader,*.hlsl` | 持ち込み先に存在しない → `UnityMaterialMigrator`（URP Lit → `DDrive/Lit` 変換）と `AiStandardSurfacePreprocessor`（`ShaderPath` 定数 `Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurface.shader`）が機能しない。`AiStandardSurfaceMapperTests` / `UnityMaterialMigratorTests` は `Assume` で Inconclusive | パッケージ `Runtime/Shaders/` へ移設。`ShaderPath` は `Shader.Find("DDrive/…")` か `Packages/com.ddrive.core/…` パスへ |
 | 2 | `Editor/Validation/CI.cs:31` `ForbiddenApiScanner.Scan("Assets/DDrive")` | パッケージ化すると走査対象フォルダが無く**違反 0 件として静かに通る**（CI の握りつぶし） | 走査ルートを `PackageInfo.FindForAssembly(typeof(CI).Assembly).resolvedPath` から導出。フォルダが無ければ Error にする |
-| 3 | `Editor/Manual/ManualPages.cs:15` `FolderRelativePath = "docs/DesignerManual"`（プロジェクト直下相対） | 持ち込み先にはローカルのマニュアルが無い → 「マニュアル」ボタンが file:// を開けない | `Documentation~/DesignerManual/` に同梱し `Path.GetFullPath("Packages/<name>/Documentation~/DesignerManual")` で解決（開発リポジトリでは埋め込みパッケージのため同じパスで動く） |
-| 4 | `Editor/Ui/ControlSkinPreviewSection.cs:895` `DefaultScrollMaterialPath = "Assets/DDrive/Runtime/Ui/Shaders/DDrive_UI_Scroll.mat"` | パッケージ化でパスが `Packages/<name>/Runtime/Ui/Shaders/…` に変わり `LoadAssetAtPath` が null | GUID 固定参照（`AssetDatabase.GUIDToAssetPath`）か `Packages/<name>/` 起点に変更 |
-| 5 | `Editor/Dependencies/CodeReferenceScan.cs:9` `ScanRoots = { "DDrive", "Generated" }`（`Application.dataPath` 直下）、`Editor/Spec/SpecWebSender.cs` `ScanRoots`（同形式） | 「安全な削除」のコード参照チェック（[10] §3）と調整値の未使用キー検出が**持ち込み先のゲームコード（例: `Assets/_Project/Scripts`）を一切見ない** → 使用中の ID を削除してもコンパイルエラーを予告できない | 走査対象を「`Assets/` 配下の全 `.cs`（`Library`・`Packages` 除外、大きいフォルダは除外設定可）」に変更。D-Drive 自身のコードはパッケージ側パスを追加 |
+| 3 | `Editor/Manual/ManualPages.cs:15` `FolderRelativePath = "docs/DesignerManual"`（プロジェクト直下相対） | 持ち込み先にはローカルのマニュアルが無い → 「マニュアル」ボタンが file:// を開けない | `Documentation~/DesignerManual/` に同梱し `Path.GetFullPath("Packages/com.ddrive.core/Documentation~/DesignerManual")` で解決（開発リポジトリでは埋め込みパッケージのため同じパスで動く） |
+| 4 | `Editor/Ui/ControlSkinPreviewSection.cs:895` `DefaultScrollMaterialPath = "Assets/DDrive/Runtime/Ui/Shaders/DDrive_UI_Scroll.mat"` | パッケージ化でパスが `Packages/com.ddrive.core/Runtime/Ui/Shaders/…` に変わり `LoadAssetAtPath` が null | GUID 固定参照（`AssetDatabase.GUIDToAssetPath`）か `Packages/com.ddrive.core/` 起点に変更 |
+| 5 | `Editor/Dependencies/CodeReferenceScan.cs:32`（`ScanRoots` の定義。旧版の本書では `:9` としていたが誤りで、正しくは 32 行目。2026-09-17 訂正） `ScanRoots = { "DDrive", "Generated" }`（`Application.dataPath` 直下）、`Editor/Spec/SpecWebSender.cs` `ScanRoots`（同形式） | 「安全な削除」のコード参照チェック（[10] §3）と調整値の未使用キー検出が**持ち込み先のゲームコード（例: `Assets/_Project/Scripts`）を一切見ない** → 使用中の ID を削除してもコンパイルエラーを予告できない | 走査対象を「`Assets/` 配下の全 `.cs`（`Library`・`Packages` 除外、大きいフォルダは除外設定可）」に変更。D-Drive 自身のコードはパッケージ側パスを追加 |
 | 6 | `Tests/Editor/ImportRuleServiceTests.cs:30-31`（`Assets/SourceAssets/Data/UnityChan/...fbx` 固定）、`AssetSearchTests.cs:41`（`Assets/GameData`）、`ContentHashCatalogCoverageValidatorTests.cs`（実カタログ）、`AiStandardSurfaceMapperTests` / `UnityMaterialMigratorTests`（`Assume` で shader 依存） | 素のプロジェクトでテストが Fail/Inconclusive。テストがパッケージに同梱されても持ち込み先で価値を持たない | フィクスチャを `Tests/Editor/Fixtures/` に持つ（UnityChan は再配布条件があるため自作の最小 FBX に差し替え）。持ち込み先ではテストを走らせない方針（§2.1）でも、開発リポジトリの `Samples~` 未 import 状態で green にする |
-| 7 | `Assets/Generated/` に asmdef が無い | 持ち込み先のゲームコードが asmdef 配下（`Game.*`、[01] §4 の想定）だと `Assembly-CSharp` の `DDrive.Generated` を参照できない（asmdef は Assembly-CSharp を参照できない） | `Regenerate` 時に `DDrive.Generated.asmdef`（参照: `DDrive.Foundation`, `DDrive.Runtime`）を同時出力するオプション（既定 ON か OFF かは要判断 §7 A-8） |
+| 7 | `Assets/Generated/` に asmdef が無い | 持ち込み先のゲームコードが asmdef 配下（`Game.*`、[01] §4 の想定）だと `Assembly-CSharp` の `DDrive.Generated` を参照できない（asmdef は Assembly-CSharp を参照できない） | `Regenerate` 時に `DDrive.Generated.asmdef`（参照: `DDrive.Foundation`, `DDrive.Runtime`）を同時出力するオプション（**既定 ON**。2026-09-17 決定、§7 A-8） |
 | 8 | `Packages/manifest.json` の `com.cysharp.unitask` にタグが無い | 持ち込み先の初回 resolve で**別のコミット**が入り得る（開発側は lock の hash で固定されているだけ） | 持ち込み先向け依存表（§3.5）では UniTask をタグ付き（`#2.5.x` 等、P-1 で実際に使っている hash が属するタグを確認）で指定。開発側 manifest も同じタグに揃える |
-| 9 | `DDrive.Runtime.asmdef` が `Unity.Netcode.Runtime` を参照（`NgoNetBridge` 等） | シングルプレイの持ち込み先でも NGO 2.13.2 の導入が必須 | 現状維持（MS2026 は NGO 必須）。将来 `versionDefines` で `DDRIVE_NGO` を切って optional にする余地あり（§7 B-1） |
+| 9 | `DDrive.Runtime.asmdef` が `Unity.Netcode.Runtime` を参照（`NgoNetBridge` 等） | シングルプレイの持ち込み先でも NGO 2.13.2 の導入が必須 | **`versionDefines` で `DDRIVE_NGO` を切り、NGO を必須依存から外す**（2026-09-17 決定、§7 A-7。旧版の本書では誤って「§7 B-1」を参照していたが、正しくは A-7）。`NgoNetBridge`/`NetDebugOverlay`/Bootstrap 等の NGO 依存箇所を `#if DDRIVE_NGO` で囲む（P-4 で対応。MS2026 自体は NGO を導入するため実質的な影響はない） |
 | 10 | `CatalogContentHashMsg` に版情報が無い | Host と Client で D-Drive の版が違うとき「カタログ不一致」としてしか見えず原因が分からない | `PackageVersion`（string）と `ProtocolVersion`（int）を**フィールド追加**（JsonUtility は未知/欠落フィールドに寛容なので旧版と混在しても落ちない）。判定は §5.6 |
 
 ## 3. 配布方式
@@ -143,13 +143,13 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 
 ### 3.2 推奨: A（UPM git URL）+ 開発リポジトリは埋め込みパッケージ
 
-**推奨**: `Assets/DDrive/` を **このリポジトリの `Packages/<パッケージ名>/` に移設**（埋め込みパッケージ。編集可・テスト実行可）し、持ち込み先は同じフォルダを
+**決定（2026-09-17、§7 A-1/A-2）**: `Assets/DDrive/` を **このリポジトリの `Packages/com.ddrive.core/` に移設**（埋め込みパッケージ。編集可・テスト実行可）し、分離リポジトリは作らず、持ち込み先は同じリポジトリ（`github.com/wrenchsun/D-Drive`。private のまま）を
 
 ```json
-"<パッケージ名>": "https://github.com/<org>/D-Drive.git?path=Packages/<パッケージ名>#v1.0.0"
+"com.ddrive.core": "git+ssh://git@github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0"
 ```
 
-で参照する（[14] §12 の「`Assets/DDrive/` をそのまま持ち込み」を置き換える）。
+の形（`git+ssh` URL）で参照する（[14] §12 の「`Assets/DDrive/` をそのまま持ち込み」を置き換える）。
 
 採った理由:
 
@@ -181,7 +181,7 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 | 依存 | 現在の版 | package.json で宣言 | 持ち込み先での扱い |
 |---|---|---|---|
 | `com.unity.addressables` | 2.3.1 | ○ | 自動解決 |
-| `com.unity.netcode.gameobjects` | 2.13.2 | ○ | 自動解決。**Host/Client 全員同じ版**（[14] §12） |
+| `com.unity.netcode.gameobjects` | 2.13.2 | ×（2026-09-17 決定、§7 A-7。`versionDefines` で `DDRIVE_NGO` を切り、必須依存から外す） | NGO を使う持ち込み先のみ導入する。導入すると asmdef の `versionDefines` が `DDRIVE_NGO` を自動定義し NGO 連携コードが有効になる。導入する場合は **Host/Client 全員同じ版**（[14] §12） |
 | `com.unity.inputsystem` | 1.19.0 | ○ | 自動解決 + Active Input Handling の確認（§3.6） |
 | `com.unity.render-pipelines.universal` | 17.3.0 | ○ | 自動解決 + URP アセットが GraphicsSettings に設定済みかの確認 |
 | `com.unity.nuget.newtonsoft-json` | 3.2.1 | ○ | 自動解決（`Editor/Spec/*` が使用） |
@@ -233,7 +233,7 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 - 版の置き場: `package.json` の `version`（正）+ `Foundation/DDriveVersion.cs` の `public const string Value`（ランタイムから読める写し。**両者の一致を EditMode テストで固定**: `PackageInfo.FindForAssembly(typeof(DDriveVersion).Assembly).version == DDriveVersion.Value`）
 - git tag `vX.Y.Z` をパッケージの `version` と一致させる（持ち込み先の `#vX.Y.Z` がこれを指す）
 - `CHANGELOG.md`（Keep a Changelog 形式）に**互換性の節を必須化**: `### 互換性` に「破壊なし / 追加のみ / マイグレーションあり（自動・手動）/ 破壊あり（移行ガイド リンク）」のいずれかを必ず書く。P-3 の CHANGELOG ガード（§5.11-8）が空欄を fail にする
-- 最初の版: **1.0.0**（0.x は SemVer 上「何を壊してもよい」の意味になり、ユーザー要望「以降は互換性を持たせる」と矛盾する。§7 A-3）
+- 最初の版: **1.0.0**（2026-09-17 決定、§7 A-3。0.x は SemVer 上「何を壊してもよい」の意味になり、ユーザー要望「以降は互換性を持たせる」と矛盾する）。**P-5（パッケージ化）で `1.0.0` を発効させる**
 
 ### 4.2 持ち込み先の更新手順（標準）
 
@@ -257,7 +257,7 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 
 設計:
 
-- **アセット側**: `AssetDataBase` に `[HideInInspector] public int SchemaVersion;` を**追加**（フィールド追加のみ。既存 .asset は 0 で読まれる = 「1.0.0 以前の形式」の意味。**シリアライズ変更なので要判断 §7 A-4**）。`VersionStampProcessor` が保存時に `SchemaVersion = DDriveSchema.Current` を書く。**`SchemaVersion` は `AssetDataBase` 派生 = Data 全体で 1 本の整数**（種別ごとに分けない。分けると「どの種別が何版か」の管理が増えるだけで、マイグレーション側で `data is XxxData` を見れば足りる）
+- **アセット側**: `AssetDataBase` に `[HideInInspector] public int SchemaVersion;` を**追加**（フィールド追加のみ。既存 .asset は 0 で読まれる = 「1.0.0 以前の形式」の意味。**シリアライズ変更につき §7 A-4 で 2026-09-17 に承認済み**。既存の `Version` フィールドは「保存回数」であって schema 版ではないため、`SchemaVersion` は別フィールドとして持つ）。`VersionStampProcessor` が保存時に `SchemaVersion = DDriveSchema.Current` を書く。**`SchemaVersion` は `AssetDataBase` 派生 = Data 全体で 1 本の整数**（種別ごとに分けない。分けると「どの種別が何版か」の管理が増えるだけで、マイグレーション側で `data is XxxData` を見れば足りる）
 - **`AssetDataBase` 派生でない SO**（`AssetCatalog`、`TuningTable`、`UiLayerSettings`、`DDriveSpecSettings`、`ScenePreloadList`、`Anim2DImportProfile` 等）は個別に `SchemaVersion` を持たせず、**プロジェクト側の `LastAppliedVersion` だけで判断する**（数が少なく、ツールが所有しているため）
 - **プロジェクト側**: `ProjectSettings/DDriveProjectSettings.asset`（`ScriptableSingleton<T>` + `[FilePath]`。持ち込み先のリポジトリにコミットされる）に `LastAppliedVersion`（string）、`AppliedMigrationIds`（string[]）、§3.4 の出力先パス設定を持つ
 - **マイグレーション**: `Editor/Migration/IDataMigration { string Id; int FromSchema; int ToSchema; bool AppliesTo(AssetDataBase); void Migrate(AssetDataBase, MigrationContext); }`。`IValidator` と同じく **TypeCache で自動発見・登録リスト無し**。`DDriveMigrationRunner` が `SchemaVersion < Current` の Data を `AssetSearch.FindAssets("t:AssetDataBase")` で集め、From→To の順に適用。SO 単位のマイグレーション（カタログ等）は `IProjectMigration { string Id; void Migrate(); }` で `AppliedMigrationIds` に無いものを実行
@@ -274,8 +274,8 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 
 ### 4.5 持ち込み先で D-Drive を改造していた場合
 
-- 方針: **原則禁止**。git URL 参照では `Library/PackageCache` 内の編集は resolve のたびに消えるので、構造的に「改造して忘れる」が起きない
-- どうしても必要なとき: (1) まず既存の拡張点で解決できないか（`IValidator` 自動発見 / `ImportRule` ハンドラ / `IHapticOutput` / `INetBridge` / `IAssetBehaviour` / `[DataEditor]` / `Placeholder` 差し替え）。(2) 修正を**開発リポジトリへ PR**（CLAUDE.md §3 の手順で）し、次の PATCH/MINOR で取り込む。(3) 緊急回避としてのみ、PackageCache から `Packages/` へコピーして埋め込み化（B 方式）。**埋め込み化した時点で §4.2 の更新手順の対象外**（差分を人が 3-way マージする）。埋め込み中であることを `ProjectSetupValidator` が Warning で出し続ける（`PackageInfo.source == Embedded` かつ開発リポジトリでない = `DDriveProjectSettings.IsDevelopmentRepo == false` のとき）
+- 方針: **原則禁止**（2026-09-17 決定、§7 A-9）。git URL 参照では `Library/PackageCache` 内の編集は resolve のたびに消えるので、構造的に「改造して忘れる」が起きない
+- どうしても必要なとき: (1) まず既存の拡張点で解決できないか（`IValidator` 自動発見 / `ImportRule` ハンドラ / `IHapticOutput` / `INetBridge` / `IAssetBehaviour` / `[DataEditor]` / `Placeholder` 差し替え）。(2) 修正を**開発リポジトリへ PR**（CLAUDE.md §3 の手順で）し、次の PATCH/MINOR で取り込む。(3) 緊急回避としてのみ、PackageCache から `Packages/` へコピーして埋め込み化（B 方式）。**埋め込み化した時点で §4.2 の更新手順の対象外**（差分を人が 3-way マージする）。埋め込み中であることを `ProjectSetupValidator` が Warning で出し続ける（`PackageInfo.source == Embedded` かつ開発リポジトリでない = `DDriveProjectSettings.IsDevelopmentRepo == false` のとき）。**この強制手段（Warning 検知）は P-6 以降で実装する。`DDriveProjectSettings` および `IsDevelopmentRepo` は 2026-09-17 時点では未実装で、本節は設計のみ**
 - 持ち込み先固有のコード（ゲーム側のファサード呼び出し、独自 Validator 等）は持ち込み先の asmdef に置く。パッケージの名前空間 `DDrive.*` を持ち込み先で使わない（`partial` や拡張メソッドの衝突を避ける）
 
 ### 4.6 何が壊れうるか → 検知手段（更新時チェック表）
@@ -346,7 +346,7 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 | ID の不変性 | リネーム・カテゴリ変更・フォルダ移動で不変（既存規約） | – |
 | Address（Addressables） | `= カタログの Address = 規約ファイル名`（`AssetNamingService` が生成）。**既存種別の接頭辞・フォルダ規則は固定** | 規則変更 → ファイル追従リネーム → Address 変更 → ContentHash 変更・Addressables 再ビルド。旧 Address を知っている外部（Remote カタログ運用時のクライアント）が解決不能 |
 | 定数クラス名（`SEID` 等） | `[AssetIdDefinition]` の第 3 引数は固定 | 持ち込み先コードの `SEID.X` がコンパイルエラー |
-| 定数名の導出 `ToConstantName` + `KnownPrefixes` | **規則固定**。`KnownPrefixes` への**追加も禁止**（§7 A-6 参照: 追加すると `MODELID.MODELPlayerModel` が `MODELID.PlayerModel` に変わる = 破壊） | 同上 |
+| 定数名の導出 `ToConstantName` + `KnownPrefixes` | **発効後は規則固定**。`KnownPrefixes` への**追加も禁止**（追加すると `MODELID.MODELPlayerModel` が `MODELID.PlayerModel` に変わる = 破壊）。**発効前の一度きりの例外として `MODEL`/`ANC`/`ANCG`/`SKIN` を追加する（§5.13、§7 A-6、2026-09-17 決定）。この例外は 1.0.0 発効前のみで、発効後は本行のとおり凍結する** | 同上 |
 | `DDrive.Generated` 名前空間・`TUNING`/`TUNING_TABLE`/`TUNING_COLUMN` クラス名・キー→定数名の変換 | 固定 | 同上 |
 | 種別→カタログ名マッピング（`AssetCreationService`） | 既存種別は固定 | カタログが分裂し、ラベル `DDriveCatalog` 経由の収集は動くが Bootstrap の `Catalogs[]` 直参照が古いまま |
 
@@ -364,11 +364,11 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 |---|---|---|
 | 型・メンバの追加、オーバーロード追加 | **許可（MINOR）** | 既存呼び出しの解決が変わらないこと（省略可能引数の追加は既存バイナリ互換を壊すが、ソース互換のみ保証すればよい: 持ち込み先は常にソースから再コンパイル） |
 | 既定引数の追加 | 許可（MINOR） | 同上 |
-| メンバの削除・改名・シグネチャ変更・戻り値変更 | **禁止**（MAJOR でのみ） | 先に **`[Obsolete("代替: X。vN.0 で削除", false)]` を付けた MINOR を最低 1 つ挟む**。削除は次の MAJOR。`error: true` にしない（持ち込み先の CI を止めないため） |
+| メンバの削除・改名・シグネチャ変更・戻り値変更 | **禁止**（MAJOR でのみ） | 先に **`[Obsolete("代替: X。vN.0 で削除", false)]` を付け、少なくとも 2 回の MINOR リリースを挟む**（猶予 2 MINOR、§7 A-5）。削除は次の MAJOR。`error: true` にしない（持ち込み先の CI を止めないため） |
 | 型の名前空間移動 | 禁止（MAJOR） | 旧名前空間に `[Obsolete]` な派生/エイリアスを残せる場合は条件付き MINOR |
 | asmdef 名・分割（`DDrive.Runtime` を `DDrive.Runtime.Audio` に割る等、[01] §4 の余地） | **禁止（MAJOR）** | 持ち込み先の asmdef `references` が壊れる |
 | 挙動の互換 | 「Bind 前・未登録 ID・null ctx で**例外を出さず no-op/Placeholder**」（CLAUDE.md §0-4）は API 契約の一部。破ると MAJOR | `Handle` の世代チェック（破棄後アクセスが false/no-op）も同じ |
-| `[Obsolete]` の猶予 | 付与から**次の MAJOR まで**（MAJOR の頻度は §7 A-5） | – |
+| `[Obsolete]` の猶予 | **2 MINOR**（付与から少なくとも 2 回の MINOR リリースを経てから、次の MAJOR で削除できる。2026-09-17 決定、§7 A-5。MAJOR は年 1 回まで） | – |
 
 テスト: `PublicApiSnapshotTests`（`DDrive.Foundation`/`DDrive.Runtime` の public 型・メンバのシグネチャを反射で文字列化 → `Tests/Editor/Snapshots/public-api-{asm}.txt` と比較。**削除・変更行は fail、`[Obsolete]` 付与は許可、追加はスナップショット更新**。`DataEditorRegistryTests` と同じ「反射で列挙して対応表と突き合わせる」流儀）。
 
@@ -414,7 +414,7 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 | `KnownPrefixes` の追加 | **禁止**（§5.3） |
 | 新 AssetType の定数クラス追加 | 許可（MINOR） |
 | 出力先（`Assets/Generated/…`） | 既定値固定。設定で変更可（§3.4） |
-| `DDrive.Generated.asmdef` の出力 | 追加は許可（MINOR、既定 OFF なら既存プロジェクトに影響なし）。既定を変えるのは MAJOR |
+| `DDrive.Generated.asmdef` の出力 | **既定 ON**（2026-09-17 決定、§7 A-8。1.0.0 の初期状態としてこの既定で発効する）。この既定を変えるのは MAJOR |
 
 テスト: `CodegenGoldenTests`（`AssetIdGeneratorTests` の `includeTestAssemblies: true` 経路で固定フィクスチャ（テスト用 Data 型 + 固定 GUID）から生成した全文を `Tests/Editor/Snapshots/AssetIds.golden.cs` と比較。`TuningCodegen` も同様）。
 
@@ -464,22 +464,22 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 | 8 | `ValidatorSeverityRegistryTests` + `EditorContractSnapshotTests` | §5.8 / §5.9 | Error 昇格・改名は CHANGELOG 行必須 |
 | 9 | `PackageVersionConsistencyTests` | §4.1 | `package.json` ↔ `DDriveVersion.Value` ↔ 直近 CHANGELOG 見出し ↔ manifest の依存版 |
 | 10 | CHANGELOG ガード（`Tools/CI/Check-Changelog.ps1`。`run-ci.cmd` と `ci.yml` に 1 段追加） | 全部 | `Tests/Editor/Snapshots/**` のいずれかが変わった PR で `CHANGELOG.md` が変わっていなければ fail。`version` が上がっていなければ fail |
-| 11 | 消費側スモーク（`Tools/CI/run-consumer-smoke.cmd`、P-11） | 導入手順全体 | 空プロジェクトを `Unity -createProject` で作り、manifest にローカルパス（`file:` で開発リポジトリの `Packages/<name>`）+ 依存を書き、`DDrive.Editor.CI.ConsumerSmoke`（Addressables 初期化 → ウィザード相当 → SeData を 1 件 `AssetCreationService.Create` → カタログ・Addressables 登録・ID 再生成・`ValidateAll` Error 0）を実行 |
+| 11 | 消費側スモーク（`Tools/CI/run-consumer-smoke.cmd`、P-11） | 導入手順全体 | 空プロジェクトを `Unity -createProject` で作り、manifest にローカルパス（`file:` で開発リポジトリの `Packages/com.ddrive.core`）+ 依存を書き、`DDrive.Editor.CI.ConsumerSmoke`（Addressables 初期化 → ウィザード相当 → SeData を 1 件 `AssetCreationService.Create` → カタログ・Addressables 登録・ID 再生成・`ValidateAll` Error 0）を実行 |
 
 ### 5.12 破壊的変更をどうしても行う場合の手続き
 
 1. **issue/設計メモ**に「何を・なぜ・代替案（2 段階で回避できないか）」を書き、ユーザー承認（CLAUDE.md §0-9）
-2. 直前の MINOR で `[Obsolete]`・Warning・移行ツール（`IDataMigration`/`IProjectMigration`）を**先に出す**（持ち込み先が MAJOR 前に準備できる）
+2. 少なくとも 2 回の MINOR で `[Obsolete]`・Warning・移行ツール（`IDataMigration`/`IProjectMigration`）を**先に出す**（猶予 2 MINOR、§7 A-5。持ち込み先が MAJOR 前に準備できる）
 3. MAJOR で削除。`CHANGELOG.md` に「破壊あり」+ `docs/migrations/vN.md`（移行ガイド: 対象・症状・手順・ロールバック可否）
 4. スナップショットを更新（削除行が消える）。`ProtocolVersion` を上げる（ネット互換を破った場合）
 5. 持ち込み先（MS2026）で §4.2 を実施し、結果を移行ガイドに追記
-6. **MAJOR の頻度上限**は §7 A-5 で決める（案: 年 1 回まで。MS2026 の開発フェーズ中は 0 回）
+6. **MAJOR の頻度上限**: 年 1 回まで（2026-09-17 決定、§7 A-5）。MS2026 の開発フェーズ中は 0 回
 
 ### 5.13 発効前に片付ける「最後のチャンス」リスト
 
 互換性ポリシーが発効すると直せなくなる既知の不整合。**P-1/P-2 で採否を決め、P-5 のパッケージ化（= 1.0.0）より前にやる**（§7 A-6）:
 
-- `KnownPrefixes` に `MODEL`/`ANC`/`ANCG`/`SKIN`/`CUT`（6-10a）が無く、定数名に接頭辞が残る（`MODELID.MODELPlayerModel`、`ANCHORID.ANCAnimJump`、`SKINID.SKINButtonSkin`）。揃えるなら今
+- `KnownPrefixes` に `MODEL`/`ANC`/`ANCG`/`SKIN`/`CUT`（6-10a）が無く、定数名に接頭辞が残る（`MODELID.MODELPlayerModel`、`ANCHORID.ANCAnimJump`、`SKINID.SKINButtonSkin`）。**決定: やる（2026-09-17、§7 A-6）**。少なくとも `MODEL`/`ANC`/`ANCG`/`SKIN` を追加する。これらの接頭辞除去で定数名が変わる `AssetIdDefinition` 定義例: `MODELID.MODELPlayerModel`、`SKINID.SKINButtonSkin`、`ANCHORID.ANCAnimJump`、`ANCHORGROUPID.ANCG1PlayerSlash`、`SLIDERSKINID.SKINSkiderTest`、`ANCHORID.ANCPlayerVFXPlayerSlashAnchor` 等の重複接頭辞を解消する。調査の結果、これらの生成定数を参照しているコードは Samples を含め 0 件であり、今なら実害なく変更できる（この根拠を裏付けに P-1 で実施する）
 - `DDriveSpecSettings` の旧フィールド 3 つ（`SpreadsheetUrl`/`AssetSheetName`/`TuningSheetName`、[32] 要判断）の削除
 - `SliderSkinData.NotchHapticId`/`LimitHapticId` の `ulong` → `AssetId<HapticMarker>`（[31] A2 は「ulong のまま」と決定済み。据え置きなら発効後もそのまま）
 - [25] の P3 後半の整理項目のうち API に触るもの
@@ -496,9 +496,9 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 | P-2 | **互換性ポリシーの確定**: §5 を確定（§7 A-3〜A-6）。[12] §3 に「互換性」チェック節を追加（草案）。`CHANGELOG.md` の書式・`docs/migrations/` の雛形を作る。**この時点では発効しない**（発効は P-13） | 基盤+リード | 1 | 6-10d | §5 の各表に「要判断」が残っていない。[12] §3 草案がある |
 | P-3 | **互換性スナップショットテスト群**（§5.11 の 1〜10）: 公開 API / シリアライズ形式 + 旧版フィクスチャ / enum / ID・定数名・ContentHash ゴールデン / Net メッセージ / Codegen ゴールデン / Validator 重さ + Editor 契約 / 版一致 / CHANGELOG ガード。`ValidationResult.Code` の追加。**パッケージ化（P-5）より先に作り、移設で壊れないことをこのテストで確認する** | 基盤 | 3 | P-2 | 全テストが現状で green。意図的に public メンバを 1 つ消す/enum を並べ替える/`KnownPrefixes` に追加する、のそれぞれで fail することを確認 |
 | P-4 | **境界違反の解消**（§2.3 #1〜#6、#8）: shader をパッケージ側へ移設、`CI.cs` の走査ルート、`ManualPages` のパス、`ControlSkinPreviewSection` のパス、`CodeReferenceScan`/`SpecWebSender` の走査範囲を Assets 全体へ、テストのフィクスチャ化（UnityChan 依存の除去）、UniTask のタグ固定 | 基盤+ED | 2 | P-1 | `Samples~` 未 import・`SourceAssets` 空でも EditMode/PlayMode が green。`ForbiddenApiScanner` が走査 0 ファイルのとき Error を出す |
-| P-5 | **パッケージ化**: `Assets/DDrive/` → `Packages/<name>/`（.meta ごと移動。Unity Editor 経由）、`package.json`（§3.5 の依存、`unity: 6000.3`、`samples`）、`Samples~`（Demo/NetCheck + 最小データ）、`Documentation~`（DesignerManual、AGENTS_CONSUMER 雛形）、開発 manifest に `testables`、`DDriveVersion.cs`、`DDriveProjectSettings`（`ScriptableSingleton`、出力先パス設定、`IsDevelopmentRepo`）、`Regenerate` の `DDrive.Generated.asmdef` 出力オプション、出力先の設定化（§3.4） | 基盤 | 3 | P-3, P-4 | 開発リポジトリで EditMode/PlayMode/Performance が green、`run-ci.cmd` が green、P-3 のスナップショットに差分が無い（= 移設で公開 API・生成物が変わっていない）。`Package Manager` に D-Drive が表示され Samples を import できる |
+| P-5 | **パッケージ化**: `Assets/DDrive/` → `Packages/com.ddrive.core/`（.meta ごと移動。Unity Editor 経由）、`package.json`（`name: "com.ddrive.core"`、`displayName: "D-Drive"`、`version: "1.0.0"`、§3.5 の依存、`unity: 6000.3`、`samples`）、`Samples~`（Demo/NetCheck + 最小データ）、`Documentation~`（DesignerManual、AGENTS_CONSUMER 雛形）、開発 manifest に `testables`、`DDriveVersion.cs`、`DDriveProjectSettings`（`ScriptableSingleton`、出力先パス設定、`IsDevelopmentRepo`）、`Regenerate` の `DDrive.Generated.asmdef` 出力オプション、出力先の設定化（§3.4） | 基盤 | 3 | P-3, P-4 | 開発リポジトリで EditMode/PlayMode/Performance が green、`run-ci.cmd` が green、P-3 のスナップショットに差分が無い（= 移設で公開 API・生成物が変わっていない）。`Package Manager` に D-Drive が表示され Samples を import できる |
 | P-6 | **セットアップウィザード + ProjectSetupValidator**（§3.6）: 依存（manifest 検査、git 依存の `Client.Add`、scoped registry の検出/案内）→ URP/Input/API Level の検査 → Addressables 初期化 → `GameData`/`SourceAssets` 既定フォルダ・`UiLayerSettings`・`DDriveSpecSettings`・カタログの生成 → 起動オブジェクト配置。同じ検査を `IValidator` として `Run All` に | ED | 3 | P-5 | 空プロジェクト + manifest 1 行から、ウィザードの「すべて直す」だけで `Validation > Run All` Error 0 になる（人手はメニュー操作のみ） |
-| P-7 | **スキーマ版 + マイグレーション基盤**（§4.3）: `AssetDataBase.SchemaVersion`（要判断 A-4 承認後）、`VersionStampProcessor` での書き込み、`IDataMigration`/`IProjectMigration`（TypeCache 自動発見）、`DDriveMigrationRunner`（ドライラン・Undo・`VersionStampSuppression`）、`CI.MigrateCheck`、「SchemaVersion が古い」Validator、旧版フィクスチャでの往復テスト | 基盤 | 2 | P-2, P-5 | ダミーのマイグレーション（テスト内）が対象だけに 1 回だけ適用され、Undo で戻る。`MigrateCheck` が未適用ありで exit 1 |
+| P-7 | **スキーマ版 + マイグレーション基盤**（§4.3）: `AssetDataBase.SchemaVersion`（A-4 承認済み、2026-09-17）、`VersionStampProcessor` での書き込み、`IDataMigration`/`IProjectMigration`（TypeCache 自動発見）、`DDriveMigrationRunner`（ドライラン・Undo・`VersionStampSuppression`）、`CI.MigrateCheck`、「SchemaVersion が古い」Validator、旧版フィクスチャでの往復テスト | 基盤 | 2 | P-2, P-5 | ダミーのマイグレーション（テスト内）が対象だけに 1 回だけ適用され、Undo で戻る。`MigrateCheck` が未適用ありで exit 1 |
 | P-8 | **更新ツール + 版の照合**（§4.2 手順 5、§5.6）: `Tools > D-Drive > Update` ウィンドウ（前回版/現在版/CHANGELOG 表示、「更新を適用」= Migrate → Regenerate IDs/Tuning → Addressables 同期 → Run All → `LastAppliedVersion` 更新）。`CatalogContentHashMsg` に `PackageVersion`/`ProtocolVersion` を追加し `CatalogContentHashGate` で先に照合、`NetDebugOverlay` に表示 | 基盤+ED | 2 | P-6, P-7 | 版を進めた直後に「更新を適用」1 回で Error 0。Host/Client の `ProtocolVersion` が違うと [14] §7 の方針（開発は警告・リリースは切断）で「D-Drive の版が違う」理由が表示される（`CatalogContentHashGateTests` に追加） |
 | P-9 | **リリース手順の道具化**（§4.1）: `Tools/Release/bump-version.ps1`（`package.json`・`DDriveVersion.cs`・CHANGELOG 見出し・git tag を一括）、リリースチェックリスト（[12] に節追加: スナップショット差分の確認 → CHANGELOG「互換性」節 → `run-ci.cmd` → タグ）、`[Obsolete]` 棚卸し一覧（次 MAJOR で消すものを `docs/migrations/next-major.md` に自動列挙） | 基盤 | 1 | P-2 | 手順どおりに `v1.0.0` タグが切れ、`PackageVersionConsistencyTests` が green |
 | P-10 | **消費側ドキュメント**: パッケージ `README.md`（導入 5 ステップ、依存表、既知の制約: URP のみ・NGO 必須）、`Documentation~/AGENTS_CONSUMER.md`（持ち込み先のエージェント向け規約。任意で `ddrive-consumer` スキル、要判断 B-4）、`Tools~/CI/` テンプレ（要判断 B-5）、SpecWeb の持ち込み先デプロイ手順（要判断 B-3）と `apiVersion`、[34] に「持ち込み先での始め方」節、DesignerManual に「パッケージを更新する」ページ | 全員 | 2 | P-5, P-6 | 新メンバーが README だけで空プロジェクトに導入し SE を 1 件鳴らせる（P-11 で実測） |
@@ -512,19 +512,19 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 
 [31] と同じ書式。**A は P-1/P-2 の着手前に回答が必要**。B は着手後・実装中に決めればよい。C は確認事項（設計には影響しない）。
 
-### A. 着手前に決めたい
+### A. 着手前に決めたい（2026-09-17 ユーザー回答により決定済み）
 
-| # | 内容 | 現在の暫定（本書の前提） | 選択肢 | 影響 |
-|---|---|---|---|---|
-| A-1 | **パッケージ名と配布リポジトリ**。名前は逆ドメイン形式が UPM の規約 | `com.<org>.ddrive`（`<org>` は GitHub の組織名。PR のブランチ名から `wrenchsun` と推測されるが未確認）。配布は**このリポジトリ**の `Packages/<name>` を `?path=` で参照 | (a) このリポジトリを `?path=` 参照 (b) 配布専用リポジトリへ subtree split で自動同期 (c) 名前を別にする | (b) は二重管理と同期 CI が増える。名前は後から変えると全持ち込み先の manifest と asmdef 参照（変えないが）に影響するので最初に決める |
-| A-2 | **リポジトリの公開範囲と持ち込み先の認証**。private のままだと持ち込み先 PC の git 認証（SSH 鍵 / PAT）が Package Manager の resolve に必要 | private のまま、持ち込み先は SSH 鍵で resolve | (a) private + SSH (b) private + PAT (c) public | CI マシン（MS2026 側）にも同じ認証が要る。[33] §3 のセキュリティ注意は public 化のときに再確認 |
-| A-3 | **最初の版番号** | **1.0.0** | (a) 1.0.0 (b) 0.9.0 から始め MS2026 導入後に 1.0.0 | (b) は SemVer 上「壊してよい期間」を意味し、ユーザー要望「以降は互換性を持たせる」と矛盾する。(b) を選ぶなら「0.x でも本書のルールを適用する」と明記が必要 |
-| A-4 | **`AssetDataBase.SchemaVersion` の追加**（シリアライズ変更 = CLAUDE.md §0-9 の事前確認対象。[31] A1 と同じ「フィールド追加のみ」） | 追加する（§4.3） | (a) 追加する (b) `AssetDataBase` には足さず `DDriveProjectSettings.LastAppliedVersion` だけで管理 | (b) だと「途中で git から古い .asset を持ってきた」「更新途中で中断した」ケースでどの Data が未移行か分からず、全件再走査（冪等なマイグレーションのみ許容）になる |
-| A-5 | **`[Obsolete]` の猶予と MAJOR の頻度** | 猶予 = 次の MAJOR まで。MAJOR は年 1 回まで、MS2026 の開発期間中は 0 回 | (a) 暫定どおり (b) 猶予を「N ヶ月以上かつ次 MAJOR」に (c) MAJOR 頻度の上限を設けない | (c) だと持ち込み先の更新コストが読めない。1 人開発の現状では (a) が運用しやすい |
-| A-6 | **発効前の「最後のチャンス」（§5.13）をやるか**。特に `KnownPrefixes` の不整合（`MODEL`/`ANC`/`ANCG`/`SKIN` が未登録で `MODELID.MODELPlayerModel` のような定数名になっている）は、発効後は直せない | やる（P-1 で個別に採否を決め、P-5 前に実施） | (a) すべて直してから 1.0.0 (b) `KnownPrefixes` だけ直す (c) 何も直さず現状を固定 | (a)(b) はこのリポジトリと MS2026 の既存コードで定数名が変わる箇所を直す必要がある（現時点では `Assets/Generated` を参照するゲームコードは Samples のみ）。(c) は将来ずっと不整合を抱える |
-| A-7 | **NGO を必須依存のままにするか** | 必須のまま（MS2026 が NGO 前提。§2.3-9） | (a) 必須 (b) `versionDefines` で `DDRIVE_NGO` を切り、NGO 無しでもコンパイルできるようにする | (b) は `NgoNetBridge`/`NetDebugOverlay`/Bootstrap の分岐を `#if` で囲む作業（1〜2 日）と、テストマトリクスの増加 |
-| A-8 | **`DDrive.Generated.asmdef` を出力するか**。MS2026 の `Assets/_Project/Scripts/` が asmdef を持つか未確認 | 出力オプションを用意し既定 OFF | (a) 既定 OFF（Assembly-CSharp に入る。asmdef 無しのプロジェクト向け） (b) 既定 ON (c) MS2026 の構成を確認してから決める | asmdef 付きのゲームコードから `SEID` を参照するには (b) か手動 ON が必要。既定を後から変えるのは MAJOR（§5.7） |
-| A-9 | **持ち込み先での D-Drive 改造の扱い** | 原則禁止。緊急時のみ埋め込み化、Validator が Warning を出し続ける（§4.5） | (a) 暫定どおり (b) 埋め込み運用を正式サポート（更新は 3-way マージ手順を用意） | (b) は「更新が取り込めない」事故の温床になり、ユーザー要望 2 と衝突する |
+| # | 内容 | 決定（2026-09-17） | 影響・根拠 |
+|---|---|---|---|
+| A-1 | **パッケージ名と配布リポジトリ**。名前は逆ドメイン形式が UPM の規約 | **(a) を採用**。パッケージ名は `com.ddrive.core`（displayName `D-Drive`）。配布は分離リポジトリを作らず、同一リポジトリ（`github.com/wrenchsun/D-Drive`）を git URL の `?path=` で参照する。開発は引き続きこのリポジトリ内の埋め込みパッケージ（`Packages/com.ddrive.core/`）で行う | 配布専用リポジトリへの subtree split（選択肢 b）は二重管理と同期 CI が増えるため不採用。名前は後から変えると全持ち込み先の manifest に影響するため、この時点で確定した |
+| A-2 | **リポジトリの公開範囲と持ち込み先の認証**。private のままだと持ち込み先 PC の git 認証（SSH 鍵 / PAT）が Package Manager の resolve に必要 | **(a) を採用**。リポジトリは **private のまま**。持ち込み先（MS2026 等）からは `git+ssh` 形式の URL で参照する | CI マシン（MS2026 側）にも同じ SSH 認証が要る。[33] §3 のセキュリティ注意は将来 public 化するときに再確認する |
+| A-3 | **最初の版番号** | **1.0.0**。**P-5（パッケージ化）で発効**する | 0.x は SemVer 上「壊してよい期間」を意味し、ユーザー要望「以降は互換性を持たせる」と矛盾するため 1.0.0 から始める |
+| A-4 | **`AssetDataBase.SchemaVersion` の追加**（シリアライズ変更 = CLAUDE.md §0-9 の事前確認対象。[31] A1 と同じ「フィールド追加のみ」） | **(a) を採用（承認済み）**。`AssetDataBase` に `SchemaVersion` フィールドを追加する（§4.3）。既存の `Version` は「保存回数」であって schema 版ではないため、両者は別フィールドとして持つ | `DDriveProjectSettings.LastAppliedVersion` だけで管理する案（選択肢 b）は、更新が途中で中断した場合にどの Data が未移行か分からず全件再走査になるため不採用 |
+| A-5 | **`[Obsolete]` の猶予と MAJOR の頻度** | **猶予は 2 MINOR**（付与から少なくとも 2 回の MINOR リリースを経てから、次の MAJOR で削除できる）。**MAJOR リリースは年 1 回まで**（MS2026 の開発フェーズ中は 0 回） | MAJOR 頻度の上限を設けない案（選択肢 c）は持ち込み先の更新コストが読めなくなるため不採用。1 人開発の現状に合わせた運用とする |
+| A-6 | **発効前の「最後のチャンス」（§5.13）をやるか**。特に `KnownPrefixes` の不整合（`MODEL`/`ANC`/`ANCG`/`SKIN` が未登録で `MODELID.MODELPlayerModel` のような定数名になっている）は、発効後は直せない | **発効前（P-5 より前）に不整合を直す**。`KnownPrefixes`（`Assets/DDrive/Editor/Codegen/AssetIdGenerator.cs:227-230`、現在 SE/BGM/VFX/ANIM/ANIM2D/MAT/TEX/CANVAS/PREFAB/PRES/SHAKE/HAPTIC/HAPTICS/UITWEEN の 14 個）に **MODEL / ANC / ANCG / SKIN** を追加し、`MODELID.MODELPlayerModel` `SKINID.SKINButtonSkin` `ANCHORID.ANCAnimJump` `ANCHORGROUPID.ANCG1PlayerSlash` `SLIDERSKINID.SKINSkiderTest` `ANCHORID.ANCPlayerVFXPlayerSlashAnchor` のような重複接頭辞を解消する | 調査の結果、これらの生成定数を参照しているコードは Samples を含め **0 件** であり、今なら実害なく変更できる。この根拠に基づき P-1 で実施する（§5.13 に反映済み） |
+| A-7 | **NGO を必須依存のままにするか** | **(b) を採用**。NGO は必須依存のままにせず、**`versionDefines` で切り離す**（`DDRIVE_NGO` シンボルを定義し、`NgoNetBridge`/`NetDebugOverlay`/Bootstrap 等の分岐を `#if DDRIVE_NGO` で囲む。P-4 で対応） | MS2026 自体は NGO を導入するため実質的な影響はないが、NGO 不要な将来の持ち込み先でもコンパイルできるようにする |
+| A-8 | **`DDrive.Generated.asmdef` を出力するか**。MS2026 の `Assets/_Project/Scripts/` が asmdef を持つか未確認 | **(b) を採用**。出力する（**既定 ON**） | asmdef 付きのゲームコードから `SEID` を参照するには既定 ON が必要。既定を後から変えるのは MAJOR（§5.7） |
+| A-9 | **持ち込み先での D-Drive 改造の扱い** | **(a) を採用（暫定どおり）**。原則禁止のまま。強制手段は **P-6 以降で Warning として実装**する（`ProjectSetupValidator` が `PackageInfo.source == Embedded` かつ `DDriveProjectSettings.IsDevelopmentRepo == false` を検知）。**`DDriveProjectSettings` / `IsDevelopmentRepo` は 2026-09-17 時点では未実装**（§4.5 の記述は設計のみ） | 埋め込み運用の正式サポート（選択肢 b）は「更新が取り込めない」事故の温床になり、ユーザー要望 2（更新の取り込み）と衝突するため不採用 |
 
 ### B. 実装中・使ってみて決める
 
@@ -546,7 +546,7 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 |---|---|---|
 | C-1 | `UnityEditor.PackageManager.Client.AddScopedRegistry` が public API か（不可なら manifest.json の JSON 編集で代替） | P-6 ウィザードの scoped registry 追加 |
 | C-2 | git URL パッケージの `Samples~` に含めた `.asset`（Data）の GUID が import 後も保たれ、`StableHashFromGuid` の ID が開発リポジトリと一致すること | `Samples~/Demo` の ID |
-| C-3 | `Path.GetFullPath("Packages/<name>/Documentation~/…")` が埋め込み・PackageCache の両方で解決できること | `ManualPages` |
+| C-3 | `Path.GetFullPath("Packages/com.ddrive.core/Documentation~/…")` が埋め込み・PackageCache の両方で解決できること | `ManualPages` |
 | C-4 | `AssetIdGenerator` の `AssetSearch.FindAssets("t:XxxData")`（`Roots = {"Assets"}`）が `Packages/` 配下を見ないこと（見ると `Tests/` のダミー Data 型が拾われ得る。`includeTestAssemblies: false` で型は除外されるが、パッケージ内に置いたフィクスチャ `.asset` は要確認） | P-4 のフィクスチャ配置 |
 | C-5 | `ForbiddenApiScanner` をパッケージパスで走らせたとき `Tests/`・`Samples~/` を含めるか（現状 `Assets/DDrive` 全体 = Tests/Samples 込み） | P-4 |
 | C-6 | Addressables のグループ Schema 既定（`BundledAssetGroupSchema` + `ContentUpdateGroupSchema`、`AddressablesSync.cs:223`）が持ち込み先の Build/Load Path プロファイルで問題なく動くこと | P-6 |
@@ -555,3 +555,4 @@ Packages/<パッケージ名>/                 ← 現 Assets/DDrive/ を移設�
 ## 8. 変更履歴
 
 - 2026-09-17: 新規作成（設計のみ、実装なし）。ユーザー要望「タスクの追加、Timeline の後に行う。この環境を Unity の実際の作業環境に簡単に移植する、D-Drive の Update があったらほかの環境に取り込むことができる。これにより、この新規タスクの後はすべて互換性を持たせる必要があります」を受けて、§2 線引き / §3 配布方式（UPM git URL を推奨）/ §4 更新フロー（SemVer・スキーマ版・マイグレーション・ロールバック）/ §5 互換性ポリシー（9 互換面 + 機械検査 11 種）/ §6 P-1〜P-13 / §7 要判断 を記載。[11_tasks.md] に P チケット表、[README.md] に目次行、[CLAUDE.md] §1 に予告を追加。
+- 2026-09-17（同日追記）: §7 A-1〜A-9 をユーザー回答により「決定」に更新（設計のみ、実装なし。ドキュメント編集のみで実施）。決定内容: A-1 パッケージ名 `com.ddrive.core`（displayName `D-Drive`）・分離リポジトリを作らず同一リポジトリを `?path=` で参照 / A-2 リポジトリは private のまま・`git+ssh` URL で参照 / A-3 最初の版は 1.0.0（P-5 で発効） / A-4 `AssetDataBase.SchemaVersion` の追加を承認（既存 `Version` は保存回数であり別物と明記） / A-5 `[Obsolete]` 猶予 2 MINOR・MAJOR は年 1 回まで / A-6 発効前（P-5 より前）に `KnownPrefixes` へ `MODEL`/`ANC`/`ANCG`/`SKIN` を追加して不整合を解消（参照コード 0 件を確認済み） / A-7 NGO は `versionDefines` で必須依存から切り離す / A-8 `DDrive.Generated.asmdef` の出力は既定 ON / A-9 持ち込み先での改造は原則禁止のまま、強制手段（Warning）は P-6 以降で実装（`DDriveProjectSettings`/`IsDevelopmentRepo` は現状未実装）。この決定に合わせて §0 いちばん厳しい制約・§2.1 分類表・§2.2 レイアウト例・§2.3 境界違反 5/7/9・§3.2 推奨・§3.5 依存表・§4.1 版・§4.3 SchemaVersion・§4.5 改造の扱い・§5.3/§5.4/§5.7/§5.12/§5.13・P-5/P-7 チケット本文を整合させた。あわせて §2.3 #5 の行番号誤記（`CodeReferenceScan.cs:9` → 実際は `ScanRoots` 定義の 32 行目）を訂正。
