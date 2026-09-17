@@ -294,8 +294,10 @@ namespace DDrive.Samples
 
             var rttAppMs = _ngoBridge != null && _ngoBridge.AppRoundTripMs.HasValue ? _ngoBridge.AppRoundTripMs.Value.ToString("F0") : "n/a";
 
-            // 6-6(K2 修正) — 通信停止中に rtt_app_ms が前回値のまま固着していないことをログだけで判定
-            // できるよう、「経過時間による下限推定」中かどうかを併記する(NgoNetBridge.IsAppRoundTripMsStale)。
+            // 6-6(K2 修正、2026-09-18 再修正) — 通信停止中に rtt_app_ms が前回値のまま固着していないこと
+            // をログだけで判定できるよう併記する。IsAppRoundTripMsStale は「連続 3 回 Pong 無応答(≒3 秒間
+            // 無応答)= 通信途絶の疑い」を表す(旧実装は Ping 送信〜Pong 到達までの間〔平常時にも毎秒
+            // 発生する〕を stale としていたため、平常時にも 1 になる実バグがあった。NgoNetBridge.cs 参照)。
             var rttAppStale = _ngoBridge != null && _ngoBridge.IsAppRoundTripMsStale ? "1" : "0";
 
             // 6-5(ContentHash)/6-7 — NetDebugOverlay と同じ状態文字列("検証中..."/"OK"/"不一致: ...")を

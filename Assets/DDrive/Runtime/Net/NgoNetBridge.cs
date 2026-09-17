@@ -107,38 +107,16 @@ namespace DDrive.Runtime.Net
         // 遅延を反映しないため、Client→Host→Client の Ping/Pong 往復で計測した「アプリ層の RTT」を別途持つ
         // (null = まだ計測できていない。Host 自身は計測しない=常に null)。
         //
-        // [11_tasks.md] 6-6(K2 修正、実機確認 v4 §12 で発見) — 通信が止まっている間、直近の Pong 応答が
-        // 途絶えても `_lastMeasuredAppRoundTripMs` は最後に測れた値のまま残り続け、実際にはもっと悪化して
-        // いる往復時間を表示・ログし続けてしまっていた。未応答の Ping がある間(`_awaitingPong`)は
-        // 「最後の Ping 送信からの経過時間」を下限として返す(それが最後の実測値を上回っている場合のみ、
-        // 下回っている間はまだ正常な RTT の範囲内なので実測値を返す)。`IsAppRoundTripMsStale` を併せて
-        // 公開し、NetDebugOverlay/NetCheckRunner が「これは実測ではなく経過時間による下限推定」だと
-        // 分かるようにする。
-        private double? _lastMeasuredAppRoundTripMs;
-        private double _lastPingSentRealtime = -1d;
-        private bool _awaitingPong;
+        // [11_tasks.md] 6-6(K2 修正、実機確認 v4 §12 で発見。2026-09-18 v5 実機確認 §16.2 で状態遷移の
+        // 実バグが見つかり再修正) — 通信停止中に最後の実測値のまま固着させず経過時間を下限として返す
+        // 仕組みと、それが「通信途絶の疑い」であることを示す stale フラグ。状態遷移ロジックそのものは
+        // `AppRoundTripTracker`(Unity API 非依存、EditMode テスト済み)に切り出してある。再修正の経緯・
+        // 旧実装の実バグの詳細は AppRoundTripTracker.cs 冒頭のコメント参照。
+        private readonly AppRoundTripTracker _appRoundTripTracker = new();
 
-        public double? AppRoundTripMs
-        {
-            get
-            {
-                if (_awaitingPong && _lastPingSentRealtime >= 0d)
-                {
-                    var elapsedMs = (Time.unscaledTimeAsDouble - _lastPingSentRealtime) * 1000d;
-                    if (!_lastMeasuredAppRoundTripMs.HasValue || elapsedMs > _lastMeasuredAppRoundTripMs.Value)
-                    {
-                        return elapsedMs;
-                    }
-                }
+        public double? AppRoundTripMs => _appRoundTripTracker.GetRoundTripMs(Time.unscaledTimeAsDouble);
 
-                return _lastMeasuredAppRoundTripMs;
-            }
-            private set => _lastMeasuredAppRoundTripMs = value;
-        }
-
-        // K2 修正 — true の間、AppRoundTripMs は実測値ではなく「最後の Ping 送信からの経過時間」を
-        // 下限として返している(Pong が返れば false に戻り、実測値に戻る)。
-        public bool IsAppRoundTripMsStale => _awaitingPong && _lastPingSentRealtime >= 0d;
+        public bool IsAppRoundTripMsStale => _appRoundTripTracker.IsStale;
 
         private CancellationTokenSource _pingLoopCts;
 
@@ -243,12 +221,11 @@ namespace DDrive.Runtime.Net
                 // キューに残っている送受信を破棄する(§ 上のコメント参照。Host 視点でどれか 1 Client が
                 // 抜けたケースは、MS2026 の 1v1 前提では他に対象が居ないため対象外)。
                 IsConnected = false;
-                AppRoundTripMs = null;
                 // K2 修正 — 切断後は「経過時間による下限推定」も出さない(n/a に戻す)。Ping ループ自体は
                 // OnNetworkDespawn 側で止まる(_pingLoopCts.Cancel())が、そのタイミングより前にここへ
-                // 来ることがあるため明示的にリセットする。
-                _awaitingPong = false;
-                _lastPingSentRealtime = -1d;
+                // 来ることがあるため明示的にリセットする(2026-09-18 再修正: AppRoundTripTracker.Reset()
+                // に委譲。次回接続時にゼロから測り直せる)。
+                _appRoundTripTracker.Reset();
                 _delayedSendToAllQueue.Clear();
                 _delayedSendToQueue.Clear();
                 _delayedDispatchQueue.Clear();
@@ -287,10 +264,11 @@ namespace DDrive.Runtime.Net
 
                 Broadcast(new NetPingMsg { SentAtNetworkTime = NetworkTime }, NetChannel.Unreliable);
 
-                // K2 修正 — この送信に対する Pong をまだ受け取っていない間、AppRoundTripMs は
-                // 「この送信からの経過時間」を下限として返すようになる(OnPongMsgReceived で false に戻る)。
-                _lastPingSentRealtime = Time.unscaledTimeAsDouble;
-                _awaitingPong = true;
+                // K2 修正(2026-09-18 再修正) — 未達カウント・経過時間の基準点更新は
+                // AppRoundTripTracker.OnPingSent に委譲する(前回の Pong が未受信なら 1 回分の未達として
+                // カウントする。Pong が届いていれば OnPongReceived で既に 0 にリセットされているため
+                // 加算しない)。
+                _appRoundTripTracker.OnPingSent(Time.unscaledTimeAsDouble);
             }
         }
 
@@ -307,8 +285,11 @@ namespace DDrive.Runtime.Net
 
         private void OnPongMsgReceived(ulong senderId, NetPongMsg msg)
         {
-            AppRoundTripMs = Math.Max(0d, (NetworkTime - msg.OriginalSentAtNetworkTime) * 1000d);
-            _awaitingPong = false; // K2 修正 — Pong が返った=もう「経過時間による下限推定」ではない。
+            var measuredMs = Math.Max(0d, (NetworkTime - msg.OriginalSentAtNetworkTime) * 1000d);
+            // K2 修正(2026-09-18 再修正) — Pong が返った=もう「経過時間による下限推定」ではない。
+            // AppRoundTripTracker.OnPongReceived が実測値の反映・未達カウントのリセット・応答待ち
+            // 起点のクリアをまとめて行う。
+            _appRoundTripTracker.OnPongReceived(measuredMs);
         }
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage

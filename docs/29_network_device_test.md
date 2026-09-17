@@ -760,3 +760,32 @@ Host/Client 間の実プレゼンテーション同期・偽造メッセージ�
 2. **ビルドを作り直して**再確認する（今の v5 ビルドには修正が入らない）。判定は §13 項目 1 と同じ。
 3. 単体テスト側にも「1 秒周期で Ping を送り続けたまま Pong が返らない」状況を再現するテストを足す
    （今回見逃した理由がここにあるため）。
+
+**2026-09-18 修正済み**: 上記 1・3 をコードで対応した。
+
+- **経過時間の基準**(1): 「未応答のまま最も古い Ping の送信時刻」を採用した(「最後に Pong を受信した
+  時刻」案も検討したが、まだ 1 度も Pong を受信できていない接続直後からの断線を素直に扱えない・応答待ちが
+  始まった時点そのものを指すためダウンタイムの下限としてより正確〔過大評価しない〕という 2 点でこちらを
+  選んだ)。状態遷移ロジックは `Assets/DDrive/Runtime/Net/AppRoundTripTracker.cs`(Unity API 非依存の純粋
+  クラス)に切り出し、`NgoNetBridge` はこれに委譲する形にリファクタした。
+- **`rtt_app_stale` の意味**(上記の「併せて」): 連続 **3 回**(`AppRoundTripTracker.DefaultStalePongMissThreshold`)
+  Pong が返らない場合だけ true にするよう変更した。Ping ループは 1Hz・Pong は NetChannel.Unreliable
+  (パケットロス上等)のため、1 回だけの未達は Wi-Fi の日常的なロスと区別が付かない。3 回連続(≒3 秒間
+  無応答)を閾値にすることで、単発ロスは吸収しつつ、実際の通信途絶は本節の実機確認(6 秒切断)の範囲内で
+  十分早く検出できる。
+- **単体テスト**(3): `Assets/DDrive/Tests/Editor/AppRoundTripTrackerTests.cs` に追加した。
+  `AppRoundTripMs_GrowsMonotonically_WhileOutageContinues_WithPingSentEverySecond` が「1 秒周期で Ping を
+  送り続けたまま Pong が返らない」状況(まさに今回見逃した状況)を再現し、次の Ping 送信直前という修正前
+  バグが観測されたのと同じタイミングでサンプリングして単調増加を確認する(修正前の実装〔基準が「最後の
+  Ping 送信時刻」で毎秒リセットされる〕のままだと、6 秒停止しても ~1000ms 前後で頭打ちになり
+  `Assert.Greater(sample.Value, 4500d)` 等で赤くなることを、コードで再現して確認済み)。
+  `IsStale_StaysFalse_DuringNormalOperation_EvenWhileAwaitingEachPong` は、Pong が毎回正常に(Ping 周期
+  1 秒に対して 200ms で)返ってくる平常運用を 20 サイクル回し、`IsAppRoundTripMsStale` が一度も true に
+  ならないことを確認する(修正前は Ping 送信〜Pong 到達の間〔毎秒約 20%〕が常に true になっていた)。
+- `NetDebugOverlay`(画面表示: `(stale)` → `(途絶疑い)`)と `Assets/DDrive/Samples/NetCheckRunner.cs`
+  (ログのコメント)も新しい意味に合わせて文言・コメントを更新した。
+- compile 0 エラー、EditMode 814 件 / PlayMode 689 件がいずれも green であることを確認済み(2026-09-18)。
+- **残課題**: 本節はコードレベルの修正・単体テストの追加のみで、**実機での再確認(ビルドを作り直して
+  §13 項目 1 を再実施)はまだ行っていない**。次回の実機確認セッションで、v5 と同じ手順(Wi-Fi を数秒
+  切って戻す)で `rtt_app_ms` が経過時間とともに増え続けること・`rtt_app_stale` が平常時には出ないことを
+  確認すること。

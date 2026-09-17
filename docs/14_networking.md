@@ -576,6 +576,42 @@ Warning）、`Runtime/Net/NetModeUnsetValidator.cs`（新規、NetMode 未設定
   K2/K3 とも NgoNetBridge(実 NGO 接続)に閉じた変更を含むため、既存の慣習([docs/29] §7/§9/§11)に合わせて
   ユニットテストだけでなく実機/ローカル結合確認が必要(下記 v5 手順参照)。
 
+### 実装メモ（2026-09-18、K2 再修正: `rtt_app_ms`/`rtt_app_stale` の実バグ修正）
+
+v5 実機確認([docs/29] §16.2)で、上記 K2 の修正が「実機でしか出ない実時間依存のバグ」を含んでいたことが
+判明した。真因は 2 つ:
+
+1. `_lastPingSentRealtime` を「経過時間の基準点」に使っていたが、Ping ループが Pong の有無に関係なく
+   1 秒ごとにこの値を上書きしていた。そのため通信停止中も基準点が毎秒リセットされ、`AppRoundTripMs` は
+   1 秒周期のノコギリ波(実測 372/714/370/370/370/633/… で上下)にしかならず、停止がどれだけ長引いても
+   増え続けなかった。
+2. `IsAppRoundTripMsStale` は `_awaitingPong`(Ping 送信〜Pong 到達の間、Ping 周期 1 秒に対して RTT は
+   数百 ms)を見るだけだったため、**平常運用でも毎秒約 20% の時間 true になっていた**。実際、復旧後の
+   正常な行(`rtt_app_ms` が実測値どおり)でも `rtt_app_stale=1` になる矛盾が観測された。
+
+修正方針(いずれも今回見逃した「実時間経過」を EditMode テストで再現できるよう、Unity API 非依存の
+`AppRoundTripTracker`(`Runtime/Net/AppRoundTripTracker.cs`)に状態遷移を切り出し、`NgoNetBridge` はこれに
+委譲する形にリファクタした):
+
+- **経過時間の基準**: 「未応答のまま最も古い Ping の送信時刻」(応答待ちのストリークが始まった時刻)に
+  変更した。Ping が何回再送されてもこの基準点は動かず、Pong を受信した瞬間だけクリアされる。「最後に
+  Pong を受信した時刻」を基準にする案も検討したが、(a) まだ 1 度も Pong を受信できていない接続直後からの
+  断線を素直に扱えない、(b) 応答待ちが始まった時点そのものを指すためダウンタイムの下限としてより正確
+  (最大 1 Ping 周期ぶん過大評価しない)、の 2 点で採用しなかった。
+- **`rtt_app_stale` の意味**: 「連続 3 回(`AppRoundTripTracker.DefaultStalePongMissThreshold`)Pong が
+  返っていない」場合だけ true にするよう変更した。Pong は `NetChannel.Unreliable` で配送されるため単発の
+  ロスは日常的に起こりうる(1 回の未達だけでは stale にしない)が、3 回連続(≒3 秒間無応答)は実際の通信
+  途絶とみなせる、かつ [docs/29] §16 の実機確認(6 秒切断)の範囲内で十分早く検出できる、という理由で選んだ。
+- **`NetDebugOverlay`**(表示: `App RTT: … ms (stale)` → `App RTT: … ms (途絶疑い)`)と `NetCheckRunner`
+  (heartbeat の `rtt_app_stale` ログのコメント)も新しい意味に合わせて更新した。
+- **単体テスト**: `Tests/Editor/AppRoundTripTrackerTests.cs` に、今回見逃した「1 秒周期で Ping を送り続けた
+  まま Pong が返らない」状況を明示的に再現するテスト(`AppRoundTripMs_GrowsMonotonically_...`。次の Ping
+  送信直前という修正前バグが観測されたのと同じタイミングでサンプリングし単調増加を確認する)と、平常運用
+  中は `IsAppRoundTripMsStale` が一度も true にならないことを確認するテストを追加した。
+- **検証**: compile 0 エラー、EditMode 814 件(旧 808 件 + 追加 6 件)/ PlayMode 689 件がいずれも green
+  (2026-09-18)。**実機での再確認(ビルドを作り直して [docs/29] §13 項目 1 を再実施)は未実施**([docs/29]
+  §16.3 参照)。
+
 ### 実装メモ（2026-09-15、6-5: ContentHash 生成対象外のカタログ Validator）
 
 `ContentHashCatalogCoverageValidator`(`Editor/Validation/`)は `AssetCatalog` が `AssetDataBase` を

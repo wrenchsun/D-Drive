@@ -49,12 +49,15 @@ namespace DDrive.Runtime.Net
             // 反映しない(NgoTransportConfigurator.cs 参照。UnityTransport.SetDebugSimulatorParameters が
             // Obsolete/no-op のため)。アプリ層で計測した往復時間(NgoNetBridge.AppRoundTripMs、Ping/Pong)を
             // 併記し、シミュレーター遅延が実際に効いているかをこちらで判定できるようにする。
-            // 6-6(K2 修正) — 通信停止中は最後の実測値のまま固着させず、IsAppRoundTripMsStale=true の間は
-            // 「経過時間による下限推定」であることを (stale) で明示する。
+            // 6-6(K2 修正、2026-09-18 再修正) — 通信停止中は最後の実測値のまま固着させず、Pong 未受信の
+            // 間は経過時間を下限として表示する(基準は「最後に Pong を受信した時刻」。NgoNetBridge.cs 参照)。
+            // IsAppRoundTripMsStale=true(連続 3 回 Pong 無応答)の間は「通信途絶の疑い」であることを
+            // (途絶疑い) で明示する(旧: (stale)。単なる Ping 送信直後の未応答〔平常時にも起きる〕では
+            // 表示しない)。
             var ngoForRtt = Bridge as NgoNetBridge;
             var appRtt = ngoForRtt?.AppRoundTripMs;
             var appRttText = appRtt.HasValue
-                ? $"{appRtt.Value:F0} ms{(ngoForRtt != null && ngoForRtt.IsAppRoundTripMsStale ? " (stale)" : string.Empty)}"
+                ? $"{appRtt.Value:F0} ms{(ngoForRtt != null && ngoForRtt.IsAppRoundTripMsStale ? " (途絶疑い)" : string.Empty)}"
                 : "n/a";
 
             var contentHashText = ContentHashGate != null ? $"\nContentHash: {ContentHashGate.LastStatusText}" : string.Empty;
