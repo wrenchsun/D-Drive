@@ -10,6 +10,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
+using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.Model
 {
@@ -45,6 +46,7 @@ namespace DDrive.Editor.Model
         private double _lastTurntableTime;
 
         private ObjectField _targetField;
+        private DataValidationSection _validationSection; // 2026-09-17 U-13([09] §11)
         private Label _statusLabel;
         private VisualElement _slotsContainer;
         private VisualElement _animContainer;
@@ -56,7 +58,7 @@ namespace DDrive.Editor.Model
         public static void Open(ModelData target)
         {
             var window = GetWindow<ModelEditorWindow>("Model Editor");
-            window.minSize = new Vector2(520, 420);
+            window.minSize = new Vector2(500, 420); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17)
             if (target != null)
             {
                 window.SetTarget(target);
@@ -161,6 +163,10 @@ namespace DDrive.Editor.Model
             _animContainer = new VisualElement();
             root.Add(_animContainer);
 
+            // 2026-09-17(U-13): 「検証」を全エディタで揃える([09] §11)。
+            _validationSection = new DataValidationSection();
+            root.Add(_validationSection);
+
             if (_target == null && !_lockTarget && Selection.activeObject is ModelData selected)
             {
                 SetTarget(selected);
@@ -182,11 +188,10 @@ namespace DDrive.Editor.Model
             toolbar.Add(new ToolbarSpacer());
             toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(ModelEditorWindow)));
             toolbar.Add(new ToolbarSpacer());
-            toolbar.Add(new ToolbarButton(OpenPreviewScene)
-            {
-                text = "確認用シーンを開く",
-                tooltip = "ライト/カメラ/Volume/床を備えた確認用シーンを開き(無ければ生成)、対象を原点に配置する",
-            });
+            toolbar.Add(PreviewPlacementButton.CreateToolbarButton(
+                "確認用シーンを開く",
+                "ライト/カメラ/Volume/床を備えた確認用シーンを開き(無ければ生成)、対象を原点に配置する",
+                OpenPreviewScene));
             toolbar.Add(new ToolbarButton(OpenPrefab) { text = "Prefab を開く", tooltip = "ModelData.Prefab をプレハブモードで開く(Renderer / Material をその場で編集)" });
             toolbar.Add(new ToolbarButton(() => { if (_target != null) EditorGUIUtility.PingObject(_target); }) { text = "Project で表示" });
             root.Add(toolbar);
@@ -256,7 +261,24 @@ namespace DDrive.Editor.Model
         private void BuildMaterialSection(VisualElement root)
         {
             var foldout = new Foldout { text = "Material スロット", value = true };
-            foldout.Add(new Button(CollectSlots) { text = "Slot 自動収集(Prefab の Renderer を走査)" });
+
+            // 横幅 500px でも見切れないように、ボタン行は折り返す + 文字数を抑えて詳細は tooltip へ逃がす([09] §7.1、2026-09-17)。
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap } };
+            row.Add(new Button(CollectSlots)
+            {
+                text = "Slot 自動収集",
+                tooltip = "Prefab の Renderer を走査してスロット一覧を作り、Renderer が使っている Material から生成済みの MaterialData を割り当てる"
+                          + "(既に割り当て済みのスロットは変更しない)",
+                style = { flexShrink = 1f },
+            });
+            row.Add(new Button(ReloadSource)
+            {
+                text = "元ファイル再読み込み",
+                tooltip = "Prefab が参照している FBX / Material から MaterialData(+ TextureData)を作り直してから、Slot を貼り直す。"
+                          + "FBX を差し替え・修正した後に使う(MaterialData の固有調整は保持される)",
+                style = { flexShrink = 1f },
+            });
+            foldout.Add(row);
             _slotsContainer = new VisualElement();
             foldout.Add(_slotsContainer);
             root.Add(foldout);
@@ -291,44 +313,30 @@ namespace DDrive.Editor.Model
             _slotsContainer.Add(_applySlotsButton);
         }
 
-        private void CollectSlots()
+        // Slot 自動収集: 走査 + 「Renderer が使っている Material から作られた MaterialData」の割り当てまでを
+        // ModelSlotBinder に任せる(U-2、2026-09-17。以前はここで Material を常に None のまま並べていた)。
+        private void CollectSlots() => RunSlotBinder(ensureMaterials: false);
+
+        // 元ファイル(FBX / .mat)を読み直して MaterialData を作り直してから貼り直す(U-3、2026-09-17)。
+        private void ReloadSource() => RunSlotBinder(ensureMaterials: true);
+
+        private void RunSlotBinder(bool ensureMaterials)
         {
             if (_target == null || _target.Prefab == null)
             {
+                Debug.LogWarning("[DDrive] 対象 ModelData に Prefab がありません。");
                 return;
             }
 
-            var renderers = _target.Prefab.GetComponentsInChildren<Renderer>(true);
-            var existing = _target.Slots ?? System.Array.Empty<MaterialSlot>();
-            var collected = new List<MaterialSlot>();
-            foreach (var renderer in renderers)
+            var report = new ModelSlotBinder.Report();
+            var changed = ModelSlotBinder.Rebuild(_target, ensureMaterials, report);
+            Debug.Log($"[DDrive] Model Slot {(ensureMaterials ? "再読み込み" : "自動収集")}: {_target.name}\n{report}");
+            if (changed)
             {
-                var path = DDrive.Runtime.Ui.TransformPath.GetRelative(_target.Prefab.transform, renderer.transform); // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
-                var materialCount = renderer.sharedMaterials.Length;
-                for (var slotIndex = 0; slotIndex < materialCount; slotIndex++)
-                {
-                    var preserved = FindExisting(existing, path, slotIndex);
-                    collected.Add(new MaterialSlot { RendererPath = path, SlotIndex = slotIndex, Material = preserved.Material });
-                }
+                AssetDatabase.SaveAssetIfDirty(_target);
             }
 
-            Undo.RecordObject(_target, "Collect Model Slots");
-            _target.Slots = collected.ToArray();
-            EditorUtility.SetDirty(_target);
             RefreshTargetUi();
-        }
-
-        private static MaterialSlot FindExisting(MaterialSlot[] slots, string path, int slotIndex)
-        {
-            foreach (var slot in slots)
-            {
-                if (slot.RendererPath == path && slot.SlotIndex == slotIndex)
-                {
-                    return slot;
-                }
-            }
-
-            return default;
         }
 
         private void ApplySlotsToPreview()
@@ -413,12 +421,32 @@ namespace DDrive.Editor.Model
             RebuildMaterialUi();
             RebuildAnimUi();
             RefreshStatus();
+            _validationSection?.Bind(_target);
         }
 
-        private void OpenPreviewScene()
+        // U-5(2026-09-17): 左クリック = 確認用シーンを開いて配置 / 右クリック = このシーンに配置・本配置。
+        private void OpenPreviewScene(PreviewPlaceMode mode)
         {
             RemoveMain();
-            VfxPreviewSceneSetup.OpenOrCreate();
+            if (!PreviewPlacement.PrepareScene(mode, VfxPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
+            if (PreviewPlacement.IsPersistent(mode))
+            {
+                if (_target == null)
+                {
+                    Debug.LogWarning("[DDrive] 対象 ModelData を選んでください。");
+                    return;
+                }
+
+                // 本配置は ModelsManager が追跡しない実体(Prefab リンク付き)にする。
+                PreviewPlacement.PlacePrefabPersistent(_target.Prefab, Vector3.zero, Quaternion.identity);
+                RefreshStatus();
+                return;
+            }
+
             PlaceMain();
         }
 
@@ -454,6 +482,7 @@ namespace DDrive.Editor.Model
             RefreshStatus();
             RebuildMaterialUi();
             Selection.activeGameObject = _scene.CurrentRoot;
+            PreviewPlacement.Focus(_scene.CurrentRoot); // U-5: 配置場所が遠いと見えないので SceneView を寄せる
         }
 
         private void RemoveMain()

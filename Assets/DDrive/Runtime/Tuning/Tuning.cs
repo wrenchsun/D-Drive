@@ -145,8 +145,12 @@ namespace DDrive.Runtime.Tuning
         // 規模になった場合は Bind() 時に構築する方式へ変更する。GetFloat/GetInt 等と同じ
         // 「未登録は警告1回+既定値」方式)。
 
-        private static readonly HashSet<string> WarnedTableKeys = new();
-        private static readonly HashSet<string> WarnedTableTypeMismatchKeys = new();
+        // 2026-09-17 レビュー対応(P2-4) — 以前は "table/row/column" を毎回文字列連結してから
+        // HashSet.Add に渡していたため、Tick から未登録キーを読むと毎フレーム string alloc が出ていた
+        // (スカラー版 WarnedKeys は key をそのまま使って 0 alloc なのと非対称だった)。
+        // ValueTuple のキーなら boxing 無し・連結無しで判定できる([12_review.md] §3 定常経路 alloc 禁止)。
+        private static readonly HashSet<(string Table, string Row, string Column)> WarnedTableKeys = new();
+        private static readonly HashSet<(string Table, string Row, string Column)> WarnedTableTypeMismatchKeys = new();
 
         public static float GetTableFloat(string tableKey, string rowId, string columnKey, float defaultValue = 0f)
         {
@@ -264,8 +268,7 @@ namespace DDrive.Runtime.Tuning
 
         private static void WarnTableMissingOnce(string tableKey, string rowId, string columnKey)
         {
-            var warnKey = tableKey + "/" + rowId + "/" + columnKey;
-            if (!WarnedTableKeys.Add(warnKey))
+            if (!WarnedTableKeys.Add((tableKey, rowId, columnKey)))
             {
                 return;
             }
@@ -277,8 +280,7 @@ namespace DDrive.Runtime.Tuning
 
         private static void WarnTableTypeMismatchOnce(string tableKey, string rowId, string columnKey, TuningValueType actualType, string calledFrom)
         {
-            var warnKey = tableKey + "/" + rowId + "/" + columnKey;
-            if (!WarnedTableTypeMismatchKeys.Add(warnKey))
+            if (!WarnedTableTypeMismatchKeys.Add((tableKey, rowId, columnKey)))
             {
                 return;
             }

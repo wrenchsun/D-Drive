@@ -59,7 +59,8 @@ namespace DDrive.Editor.Dependencies
             window.titleContent = new GUIContent("アセットを削除");
             window._targets = new List<DeleteTarget>(targets);
             window._onCompleted = onCompleted;
-            window.minSize = new Vector2(620, 480);
+            // 2026-09-17([41] P2-9 / [09] §7.1): minSize で横幅 500px を下回れないようにしない。
+            window.minSize = new Vector2(480, 360);
             window.Show();
         }
 
@@ -108,7 +109,7 @@ namespace DDrive.Editor.Dependencies
 
             foreach (var t in _targets)
             {
-                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginLeft = 8 } };
+                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginLeft = 8, flexWrap = Wrap.Wrap } };
 
                 var icon = new Image { scaleMode = ScaleMode.ScaleToFit };
                 icon.style.width = 16;
@@ -121,7 +122,7 @@ namespace DDrive.Editor.Dependencies
 
                 var name = t.Asset != null ? DependencyAssetResolver.DisplayNameOrFileName(t.Asset, t.Path) : "?";
                 var idText = t.Asset != null ? $"#{t.Asset.Id:X}" : "?";
-                row.Add(new Label($"[{t.Type}] {name} ({idText}) — {t.Path}"));
+                row.Add(WrappingLabel($"[{t.Type}] {name} ({idText}) — {t.Path}"));
 
                 _root.Add(row);
 
@@ -180,10 +181,9 @@ namespace DDrive.Editor.Dependencies
 
         private static VisualElement UsageRow(DependencyReference reference, bool jumpable)
         {
-            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginLeft = 8 } };
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginLeft = 8, flexWrap = Wrap.Wrap } };
             var objectPart = string.IsNullOrEmpty(reference.ObjectPath) ? string.Empty : $" / {reference.ObjectPath}";
-            var label = new Label($"{reference.SourcePath}{objectPart} ({reference.ComponentType}.{reference.PropertyPath})") { style = { flexGrow = 1 } };
-            row.Add(label);
+            row.Add(WrappingLabel($"{reference.SourcePath}{objectPart} ({reference.ComponentType}.{reference.PropertyPath})"));
 
             if (jumpable)
             {
@@ -204,7 +204,7 @@ namespace DDrive.Editor.Dependencies
 
             foreach (var dep in _analysis.Dependencies)
             {
-                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginLeft = 8 } };
+                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginLeft = 8, flexWrap = Wrap.Wrap } };
 
                 var canCascade = dep.WouldBecomeUnused && !dep.IsAlsoDeleteTarget && !dep.IsUnresolved;
                 var toggle = new Toggle { value = _cascadeSelected.Contains((dep.Type, dep.Id)) };
@@ -228,7 +228,7 @@ namespace DDrive.Editor.Dependencies
                     : dep.WouldBecomeUnused ? "(この削除で未使用になります。一緒に削除できます)"
                     : "(他でも使用中のため一緒に削除できません)";
 
-                row.Add(new Label($"[{dep.Type}] {dep.DisplayName} {status}"));
+                row.Add(WrappingLabel($"[{dep.Type}] {dep.DisplayName} {status}"));
                 _root.Add(row);
             }
         }
@@ -241,7 +241,7 @@ namespace DDrive.Editor.Dependencies
 
             if (!hasBlocking)
             {
-                var row = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap } };
                 row.Add(new Button(() => ExecuteAndShowResult(DeleteAction.ForceDelete)) { text = "削除する" });
                 row.Add(new Button(() => ExecuteAndShowResult(DeleteAction.ArchiveOnly)) { text = "アーカイブのみ" });
                 row.Add(new Button(Close) { text = "キャンセル" });
@@ -263,7 +263,7 @@ namespace DDrive.Editor.Dependencies
             _forceSection = BuildForceSection();
             _root.Add(_forceSection);
 
-            var buttonsRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            var buttonsRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap } };
             _executeButton = new Button(OnExecuteClicked) { text = "実行" };
             buttonsRow.Add(_executeButton);
             buttonsRow.Add(new Button(Close) { text = "キャンセル" });
@@ -275,7 +275,7 @@ namespace DDrive.Editor.Dependencies
         private VisualElement BuildReplaceSection()
         {
             var section = new VisualElement();
-            section.Add(new Label("参照元の Data / Prefab は、選んだ置き換え先の ID に書き換えます(Ctrl+Z: Data は戻せます。Prefab は戻せません)。Scene 内の参照は自動で書き換えないため、Scene から使われている対象は削除せずアーカイブのみ行います。"));
+            section.Add(WrappingLabel("参照元の Data / Prefab は、選んだ置き換え先の ID に書き換えます(Ctrl+Z: Data は戻せます。Prefab は戻せません)。Scene 内の参照は自動で書き換えないため、Scene から使われている対象は削除せずアーカイブのみ行います。"));
 
             foreach (var t in _targets)
             {
@@ -286,8 +286,8 @@ namespace DDrive.Editor.Dependencies
                     continue;
                 }
 
-                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
-                row.Add(new Label($"[{t.Type}] {DependencyAssetResolver.DisplayNameOrFileName(t.Asset, t.Path)} の代わりに使う:") { style = { minWidth = 220 } });
+                var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexWrap = Wrap.Wrap } };
+                row.Add(new Label($"[{t.Type}] {DependencyAssetResolver.DisplayNameOrFileName(t.Asset, t.Path)} の代わりに使う:") { style = { whiteSpace = WhiteSpace.Normal, flexShrink = 1, minWidth = 0 } });
 
                 var field = new ObjectField { objectType = t.Asset.GetType(), allowSceneObjects = false };
                 var capturedTarget = t;
@@ -456,23 +456,39 @@ namespace DDrive.Editor.Dependencies
             foreach (var r in result.Results)
             {
                 var name = r.Target.Asset != null ? DependencyAssetResolver.DisplayNameOrFileName(r.Target.Asset, r.Target.Path) : r.Target.Path;
-                var outcome = r.Deleted
-                    ? "OS のゴミ箱へ移動しました(カタログ登録解除・Addressables エントリ削除・アイコンも削除済み)。"
-                    : "参照が残っているため削除せず、アーカイブ済みの印だけ付けました。";
 
-                _root.Add(new Label($"[{r.Target.Type}] {name}: {outcome}"));
+                // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-8): 実際に選ばれた
+                // 操作で文言を出し分ける(以前は Deleted=false が一律「参照が残っているため削除せず…」
+                // で、ユーザーが明示的に「アーカイブのみ」を選んだ場合にも同じ文言が出ていた)。
+                string outcome;
+                if (r.Deleted)
+                {
+                    outcome = "OS のゴミ箱へ移動しました(カタログ登録解除・Addressables エントリ削除・アイコンも削除済み)。";
+                }
+                else if (result.Action == DeleteAction.ArchiveOnly)
+                {
+                    outcome = "「アーカイブのみ」を選んだため、削除はせずアーカイブ済みの印だけ付けました。";
+                }
+                else
+                {
+                    outcome = "参照が残っているため削除せず、アーカイブ済みの印だけ付けました。";
+                }
+
+                _root.Add(WrappingLabel($"[{r.Target.Type}] {name}: {outcome}"));
 
                 if (!string.IsNullOrEmpty(r.CodeReferenceWarning))
                 {
                     _root.Add(new HelpBox(r.CodeReferenceWarning, HelpBoxMessageType.Warning));
 
-                    if (r.Target.Asset != null)
+                    // P2-7: ヒット一覧は削除**前**に AssetDeleteExecutionService が取ったものを使う
+                    // (削除後は MoveAssetToTrash 済みのオブジェクトが fake null になり取れない)。
+                    if (r.CodeReferenceHits != null)
                     {
-                        foreach (var hit in CodeReferenceScan.FindPossibleReferenceHits(r.Target.Asset, r.Target.Path))
+                        foreach (var hit in r.CodeReferenceHits)
                         {
                             var capturedHit = hit;
-                            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, marginLeft = 8 } };
-                            row.Add(new Label($"{capturedHit.RelativePath}:{capturedHit.Line}") { style = { flexGrow = 1 } });
+                            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, marginLeft = 8, flexWrap = Wrap.Wrap } };
+                            row.Add(WrappingLabel($"{capturedHit.RelativePath}:{capturedHit.Line}"));
                             row.Add(new Button(() => OpenCodeReference(capturedHit)) { text = "開く" });
                             _root.Add(row);
                         }
@@ -485,12 +501,12 @@ namespace DDrive.Editor.Dependencies
                 _root.Add(SectionHeader("差し替えた参照"));
                 foreach (var path in result.ChangedDataPaths)
                 {
-                    _root.Add(new Label($"[Data、Ctrl+Z で戻せます] {path}"));
+                    _root.Add(WrappingLabel($"[Data、Ctrl+Z で戻せます] {path}"));
                 }
 
                 foreach (var path in result.ChangedPrefabPaths)
                 {
-                    _root.Add(new Label($"[Prefab、Ctrl+Z では戻せません] {path}"));
+                    _root.Add(WrappingLabel($"[Prefab、Ctrl+Z では戻せません] {path}"));
                 }
             }
 
@@ -513,7 +529,7 @@ namespace DDrive.Editor.Dependencies
             }
 
             _root.Add(SectionHeader("元に戻す手順 / 後始末"));
-            _root.Add(new Label("ゴミ箱から復元した場合: ファイルは元の場所に戻りますが、カタログ・Addressables 登録は自動では戻りません。下のボタンで同期してから Validation を確認してください。"));
+            _root.Add(WrappingLabel("ゴミ箱から復元した場合: ファイルは元の場所に戻りますが、カタログ・Addressables 登録は自動では戻りません。下のボタンで同期してから Validation を確認してください。"));
 
             var toolsRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap } };
             toolsRow.Add(new Button(() => DependencyGraphService.RebuildAll()) { text = "依存関係グラフを再構築" });
@@ -534,7 +550,24 @@ namespace DDrive.Editor.Dependencies
 
         private static Label SectionHeader(string text)
         {
-            return new Label(text) { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } };
+            return new Label(text) { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8, whiteSpace = WhiteSpace.Normal } };
+        }
+
+        // 2026-09-17([41] P2-9 / [09] §7.1) — 横幅 500px で右側が読めなくなるのを防ぐ。
+        // ScrollView は縦専用なので、長い説明・パス・文言は折り返さないと見切れる
+        // (とくに「参照を差し替えてから削除」の説明は 100 文字超の 1 行だった)。
+        private static Label WrappingLabel(string text)
+        {
+            return new Label(text)
+            {
+                style =
+                {
+                    whiteSpace = WhiteSpace.Normal,
+                    flexGrow = 1,
+                    flexShrink = 1,
+                    minWidth = 0,
+                },
+            };
         }
     }
 }

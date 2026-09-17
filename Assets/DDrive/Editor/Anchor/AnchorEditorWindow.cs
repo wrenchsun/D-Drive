@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Validation;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Vfx;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
-using DDrive.Foundation.Validation;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.Vfx;
@@ -46,7 +46,7 @@ namespace DDrive.Editor.Anchor
         private VisualElement _fieldsContainer;
         private ToolbarMenu _boneDropdown;
         private HelpBox _sceneHelp;
-        private Foldout _validationFoldout;
+        private DataValidationSection _validationSection;
         private Label _vfxStatusLabel;
         private Label _sceneOwnerLabel;
 
@@ -341,8 +341,10 @@ namespace DDrive.Editor.Anchor
 
         private void BuildValidationSection(VisualElement root)
         {
-            _validationFoldout = new Foldout { text = "検証", value = true };
-            root.Add(_validationFoldout);
+            // 2026-09-17(U-13): 独自実装から共通の個別検証セクションに置き換えた([09] §11)。
+            // AnchorDataValidator は入れ子/循環を見るため、同じ型のアセットを文脈に載せる。
+            _validationSection = new DataValidationSection(includeSameTypeAssets: true);
+            root.Add(_validationSection);
         }
 
         // ── 対象 ──
@@ -537,47 +539,7 @@ namespace DDrive.Editor.Anchor
             RestartVfxIfPlaying();
         }
 
-        private void RefreshValidation()
-        {
-            if (_validationFoldout == null)
-            {
-                return;
-            }
-
-            _validationFoldout.Clear();
-            if (_target == null)
-            {
-                return;
-            }
-
-            var all = new List<AssetDataBase>();
-            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AnchorData)))
-            {
-                var a = AssetDatabase.LoadAssetAtPath<AnchorData>(AssetDatabase.GUIDToAssetPath(guid));
-                if (a != null)
-                {
-                    all.Add(a);
-                }
-            }
-
-            if (!all.Contains(_target))
-            {
-                all.Add(_target);
-            }
-
-            var any = false;
-            foreach (var result in new AnchorDataValidator().Validate(_target, new ValidationContext(all)))
-            {
-                any = true;
-                var type = result.Severity == ValidationSeverity.Error ? HelpBoxMessageType.Error : HelpBoxMessageType.Warning;
-                _validationFoldout.Add(new HelpBox(result.Message, type));
-            }
-
-            if (!any)
-            {
-                _validationFoldout.Add(new Label("Validation に問題はありません。") { style = { opacity = 0.6f } });
-            }
-        }
+        private void RefreshValidation() => _validationSection?.Bind(_target);
 
         private void RefreshSceneHelp()
         {
@@ -695,7 +657,10 @@ namespace DDrive.Editor.Anchor
                 return;
             }
 
-            AnchorSceneHandles.DrawChain(chain, baseTransform, color);
+            // 基準(原点) → 連鎖の各段 → 最終位置。どこを起点にしたオフセットなのかを 1 枚の絵で見せる(U-24)。
+            var originWorld = AnchorSceneHandles.DrawOrigin(baseTransform, extraOffset, AnchorSceneHandles.DescribeBase(rootDef, baseTransform), rootDef.FollowRotation);
+            var parentWorld = AnchorSceneHandles.DrawChain(chain, baseTransform, extraOffset, originWorld, color);
+            AnchorSceneHandles.DrawOffsetLink(parentWorld, AnchorPose.WorldPosition(targetDef, baseTransform, extraOffset), _target.LocalOffset, color);
             var result = AnchorSceneHandles.Draw(targetDef, baseTransform, extraOffset, $"Anchor: {_target.name}", color);
             if (!result.PositionChanged && !result.RotationChanged)
             {

@@ -47,7 +47,8 @@ namespace DDrive.Tests.Editor
             // 「仕様書から選ぶ」の一覧を表示させるには URL が非空である必要がある(空だと案内文だけの分岐になる)。
             // 実 DDriveSpecSettings.asset には一切触れず、メモリ上だけのインスタンスを差し替える。
             var settings = ScriptableObject.CreateInstance<DDriveSpecSettings>();
-            settings.SpreadsheetUrl = "https://example.com/ddrive-test-5016-spec";
+            // U-15(2026-09-17): 判定対象は W-9 以降の WebAppUrl(旧 SpreadsheetUrl ではない)。
+            settings.WebAppUrl = "https://example.com/ddrive-test-5016-spec";
             NewAssetDialog.TestSpecSettingsOverride = settings;
             NewAssetDialog.TestGameDataRootOverride = TestRoot;
         }
@@ -186,10 +187,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
-        public void RebuildSpecSection_NoSpreadsheetUrl_ShowsGuidanceOnly_NoListContainer()
+        public void RebuildSpecSection_NoWebAppUrl_ShowsGuidanceOnly_NoListContainer()
         {
             // このテストだけ URL を空にして「未設定」分岐を確認する(メモリ上のオーバーライドを直接書き換えるだけ)。
-            NewAssetDialog.TestSpecSettingsOverride.SpreadsheetUrl = string.Empty;
+            NewAssetDialog.TestSpecSettingsOverride.WebAppUrl = string.Empty;
 
             var window = OpenUnlocked();
 

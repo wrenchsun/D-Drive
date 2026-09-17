@@ -41,6 +41,9 @@ namespace DDrive.Tests.Runtime
 
         public event Action<ulong> ClientConnected;
 
+        // 2026-09-17 レビュー対応(P2-2) — INetBridge に追加された切断通知(このテスト用ブリッジでは未使用)。
+        public event Action<ulong, string> ClientDisconnected;
+
         private sealed class NoopSubscription : IDisposable
         {
             public void Dispose()

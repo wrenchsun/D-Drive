@@ -21,8 +21,16 @@ namespace DDrive.Editor.Preview
         public static void OpenOrCreate() => TryOpenOrCreate();
 
         // 戻り値は「実際に切り替わったか」(CanvasEditorWindow が続けて OpenData してよいかの判断に使う)。
-        internal static bool TryOpenOrCreate()
+        // 2026-09-17(U-5): internal → public。UI 系エディタ(Button Skin / Slider Skin / Slider / UI Tween)の
+        // 「確認用シーンに配置」も、この確認用シーンを開いてから置くようになったため。
+        public static bool TryOpenOrCreate()
         {
+            // 既に確認用シーンを開いているなら開き直さない(2026-09-17: CanvasEditorWindow 側にあった判定をここへ集約)。
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().path == ScenePath)
+            {
+                return true;
+            }
+
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
                 // ユーザーが保存ダイアログでキャンセルした場合は何もしない(現在の作業を失わせない)。
@@ -69,7 +77,9 @@ namespace DDrive.Editor.Preview
         // InputSystemUIInputModule を探して付ける。見つからない場合だけ警告して手動対応を促す
         // (activeInputHandler=Input System 専用のプロジェクトでは StandaloneInputModule は動かないため
         // フォールバックにしない)。
-        internal static void AddEventSystem()
+        // U-19(2026-09-17): Hierarchy から Canvas を置くときにも使い回せるよう、作った GameObject を返すようにした
+        // (呼び出し側が Undo.RegisterCreatedObjectUndo を積めるようにするため)。挙動は従来どおり。
+        internal static GameObject AddEventSystem()
         {
             var esGo = new GameObject("EventSystem", typeof(EventSystem));
             var moduleType = FindType("UnityEngine.InputSystem.UI.InputSystemUIInputModule");
@@ -81,6 +91,8 @@ namespace DDrive.Editor.Preview
             {
                 Debug.LogWarning("[DDrive] InputSystemUIInputModule が見つかりませんでした(Unity.InputSystem 未導入?)。EventSystem に入力モジュールを手動で追加してください。");
             }
+
+            return esGo;
         }
 
         private static System.Type FindType(string fullName)

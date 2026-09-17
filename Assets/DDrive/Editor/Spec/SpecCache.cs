@@ -47,6 +47,16 @@ namespace DDrive.Editor.Spec
             Updated?.Invoke();
         }
 
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P1-2 (b)) 追加 — 取得そのものが
+        // 失敗したときに、前回の取得結果(行・差分)を保持したまま失敗の理由だけを記録する。
+        // 以前は取得失敗が Debug.LogWarning だけで、LastError が null のまま SpecSyncWindow に
+        // 何も出なかった(「画面上は何も異常が見えない」= P1-2 の本質)。
+        public static void SetError(string error)
+        {
+            LastError = error;
+            Updated?.Invoke();
+        }
+
         // 新規/変更として検出されている件数(AssetBrowser のバッジ用)。
         public static int PendingChangeCount => LastDiff == null ? 0 : LastDiff.New.Count + LastDiff.Changed.Count;
 

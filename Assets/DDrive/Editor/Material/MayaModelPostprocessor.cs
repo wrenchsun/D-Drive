@@ -44,8 +44,17 @@ namespace DDrive.Editor.Materials
             foreach (var path in paths)
             {
                 var report = MayaMaterialImporter.ImportModel(path, profile);
-                Debug.Log($"[DDrive] Maya インポート: {path}\n{report}");
+                Debug.Log($"[DDrive] Maya インポート: {path}\n{report}{RebindSlots(path)}");
             }
+        }
+
+        // 生成した MaterialData を、その FBX を使っている ModelData の Material スロットへ結び付ける(U-2、2026-09-17)。
+        // それまでは MaterialData を作るところで経路が途切れており、ModelData.Slots は None のままだった。
+        private static string RebindSlots(string modelPath)
+        {
+            var slotReport = new DDrive.Editor.Model.ModelSlotBinder.Report();
+            var updated = DDrive.Editor.Model.ModelSlotBinder.RebindForModelPath(modelPath, slotReport);
+            return updated > 0 ? $"\nModelData の Slots を更新: {updated} 件\n{slotReport}" : string.Empty;
         }
 
         // 手動: 選択した FBX / モデルから生成(AutoImport=OFF の運用や、規約変更後のやり直し用)。
@@ -63,7 +72,7 @@ namespace DDrive.Editor.Materials
                 }
 
                 var report = MayaMaterialImporter.ImportModel(path, profile);
-                Debug.Log($"[DDrive] Maya インポート(手動): {path}\n{report}");
+                Debug.Log($"[DDrive] Maya インポート(手動): {path}\n{report}{RebindSlots(path)}");
                 count++;
             }
 

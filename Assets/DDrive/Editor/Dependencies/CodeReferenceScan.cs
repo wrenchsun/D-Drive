@@ -14,7 +14,11 @@ namespace DDrive.Editor.Dependencies
     // 使われているか」の簡易チェック。DependencyGraphService はデータ側(Data/Prefab/Scene)の参照しか
     // 追わないため、コード側の参照はこの grep ベースの best-effort な補助でしか警告できない
     // (要判断: docs/28 参照。誤検知/見逃しがあり得るので、削除を止めるのではなく確認ダイアログの文言で注意喚起するだけに留める)。
-    internal static class CodeReferenceScan
+    // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-7): internal → public。
+    // `DeleteExecutionResult.PerAssetResult.CodeReferenceHits` が `Hit` を公開フィールドで持つため、
+    // テスト asmdef(InternalsVisibleTo 未設定)から結果を検証できるようにする
+    // (`SpecDiffService.BuildExistingIndex` 等と同じ理由)。
+    public static class CodeReferenceScan
     {
         private const int MaxHits = 5;
 

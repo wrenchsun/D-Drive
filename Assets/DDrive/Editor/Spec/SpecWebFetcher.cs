@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -181,6 +182,22 @@ namespace DDrive.Editor.Spec
                     if (request.result == UnityWebRequest.Result.Success)
                     {
                         var json = request.downloadHandler.text;
+
+                        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-4):
+                        // GAS は HTTP ステータスを設定できず常に 200 を返す
+                        // (Tools/SpecWeb/src/adapters/ContentAdapter.js)ため、トークン未設定 / 無効(401)・
+                        // 許可外(403)・レート制限(429 相当)でも result は Success になる。以前はこの
+                        // エラー JSON をそのまま Library/DDriveSpec/web_*.json に書き込んでいたため、
+                        // 一度トークンが切れると直前の正常キャッシュが失われ、その後ネットワーク断で
+                        // フォールバックしても「前回のキャッシュを使用します」と言いながら中身が
+                        // `{ok:false}`(= 行 0 件)になっていた(P1-2 の入口)。失敗応答はキャッシュせず
+                        // FallbackOrFail(= 前回の正常キャッシュ or 失敗)に回す。
+                        if (useCache && TryDescribeFailure(json, out var failure))
+                        {
+                            onComplete(FallbackOrFail(apiName, failure));
+                            return;
+                        }
+
                         if (useCache)
                         {
                             WriteCache(apiName, json);
@@ -198,6 +215,46 @@ namespace DDrive.Editor.Spec
                     request.Dispose();
                 }
             };
+        }
+
+        // 応答本文が「失敗」を表しているか([41] P2-4)。GAS のエンベロープは `{ok:false, status, error}`。
+        // JSON として読めない応答(HTML のエラーページ・空応答等)も失敗扱いにする — 正常時は必ず
+        // JSON オブジェクトが返る契約([32] §3)なので、そういう本文をキャッシュに残す意味が無い。
+        internal static bool TryDescribeFailure(string json, out string failure)
+        {
+            failure = null;
+            if (string.IsNullOrEmpty(json))
+            {
+                failure = "応答が空です。";
+                return true;
+            }
+
+            JObject obj;
+            try
+            {
+                obj = JToken.Parse(json) as JObject;
+            }
+            catch (Exception)
+            {
+                failure = "応答が JSON ではありません(Web アプリの URL・公開設定を確認してください)。";
+                return true;
+            }
+
+            if (obj == null)
+            {
+                failure = "応答が JSON オブジェクトではありません。";
+                return true;
+            }
+
+            if (obj.Value<bool?>("ok") == false)
+            {
+                var status = obj.Value<int?>("status") ?? 0;
+                var error = (string)obj["error"] ?? "不明なエラー";
+                failure = $"Web API がエラーを返しました(status={status}): {error}";
+                return true;
+            }
+
+            return false;
         }
 
         private static SpecWebFetchResult FallbackOrFail(string apiName, string error)

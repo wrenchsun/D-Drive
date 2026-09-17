@@ -306,9 +306,19 @@ namespace DDrive.Editor.AssetBrowser
 
                 // 5-15: 専用エディタの「＋ 新規作成」から開いた場合、作成後にそのエディタへ切り替える。
                 // 呼び出し元のエディタが既に閉じていても例外で落とさない([00] §0-4: 例外で止めない)。
+                // U-16(2026-09-17): 呼び出し元の指定が無い場合(AssetBrowser の「新規」/ D&D / Project 右クリック)は、
+                // その種別の専用エディタ(DataEditorRegistry の主エディタ)で作ったアセットをそのまま開く。
+                // 専用エディタが無い種別は上の Ping + Selection(Inspector で選択状態)のままにする。
                 try
                 {
-                    _onCreated?.Invoke(asset);
+                    if (_onCreated != null)
+                    {
+                        _onCreated.Invoke(asset);
+                    }
+                    else
+                    {
+                        DDrive.Editor.Inspector.CreatedAssetOpener.Reveal(asset);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -326,9 +336,14 @@ namespace DDrive.Editor.AssetBrowser
             _specSection.Clear();
 
             var settings = TestSpecSettingsOverride ?? DDriveSpecSettings.Load();
-            if (settings == null || string.IsNullOrEmpty(settings.SpreadsheetUrl))
+            if (settings == null || string.IsNullOrEmpty(settings.WebAppUrl))
             {
-                // [27] §4.5: 設定 URL 未設定時は案内文だけ出す(この場から設定 SO を自動生成しない)。
+                // [27] §4.5 / [32] §5.1: 設定 URL 未設定時は案内文だけ出す(この場から設定 SO を自動生成しない)。
+                //
+                // U-15(2026-09-17 修正): ここだけ W-9 以前の旧フィールド SpreadsheetUrl を見ていたため、
+                // 「仕様書と同期」で Web API URL(WebAppUrl)を設定しても「未設定です」のままだった。
+                // 取得・同期の実装(SpecAutoSync / SpecSyncWindow)はすべて WebAppUrl を見ているので、
+                // 判定もそちらに合わせる(旧フィールドは [32] §9 の要判断のため残置)。
                 _specSection.Add(new HelpBox(
                     "仕様書の URL が未設定です。Tools > D-Drive > 仕様書と同期 で設定すると、ここから仕様書の未作成アセットを選べます。",
                     HelpBoxMessageType.Info));

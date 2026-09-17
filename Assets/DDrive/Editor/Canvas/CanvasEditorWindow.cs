@@ -242,13 +242,16 @@ namespace DDrive.Editor.CanvasTool
             _elementFxContainer = new VisualElement();
             _elementFxFoldout.Add(_elementFxContainer);
 
-            var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
+            var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 4, marginBottom = 4 } }; // [09] §7.1
             // 2026-09-12 レビュー対応: 「確認用シーンを開く」と「ここに配置」を分けていたが、専用シーンに
             // 切り替えたら必ず置きたいだけなので手間なだけだった(ユーザー指摘)。1 ボタンに統合する
             // (専用シーンへ切り替え → その場で OpenData まで行う)。「Disappear を再生」も撤去: Disappear の
             // 見た目確認は UI Tween Editor 側(実要素をプレビュー対象に自動割り当てして▶再生できる。2026-09-12
             // 追加)でできるようになったため、Canvas Editor に専用ボタンを残す必要がなくなった。
-            previewButtons.Add(new Button(OpenPreviewSceneAndPlace) { text = "確認用シーンを開く", tooltip = "EventSystem だけを置いた空の専用シーン(CanvasPreviewScene)に切り替え、そのまま実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。自分の Canvas 等と重ならずに確認できる。既に確認用シーンを開いているときはシーンを開き直さず、表示だけやり直す(Appear / Idle をやり直す)" });
+            previewButtons.Add(PreviewPlacementButton.Create(
+                "確認用シーンを開く",
+                "EventSystem だけを置いた空の専用シーン(CanvasPreviewScene)に切り替え、そのまま実 UiManager で OpenData する(Selectable / 要素の自動収集も併せて実行する)。自分の Canvas 等と重ならずに確認できる。既に確認用シーンを開いているときはシーンを開き直さず、表示だけやり直す(Appear / Idle をやり直す)",
+                OpenPreviewSceneAndPlace));
             previewButtons.Add(new Button(RemovePreview) { text = "閉じる", tooltip = "演出を待たず即座に片付ける(StopAll)" });
             _root.Add(previewButtons);
 
@@ -1201,21 +1204,33 @@ namespace DDrive.Editor.CanvasTool
         // (レビュー対応 2026-09-14) 表示中に押すと、シーンの読み直しで実体だけが消え UiManager の _stack / _instances に
         // 古い CanvasInstance が残っていた。先に RemovePreview で Manager 側を片付ける。また既に確認用シーンを
         // 開いているときはシーンを開き直さない(保存確認ダイアログや読み直しが無駄なため。表示だけやり直す)。
-        private void OpenPreviewSceneAndPlace()
+        // 2026-09-17(U-5): 「既に確認用シーンを開いているなら開き直さない」判定は
+        // CanvasPreviewSceneSetup.TryOpenOrCreate に集約した。ここは mode の分岐だけを見る。
+        private void OpenPreviewSceneAndPlace(PreviewPlaceMode mode)
         {
             RemovePreview();
-
-            var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-            if (active.IsValid() && active.path == CanvasPreviewSceneSetup.ScenePath)
+            if (!PreviewPlacement.PrepareScene(mode, CanvasPreviewSceneSetup.TryOpenOrCreate))
             {
-                PlacePreview();
                 return;
             }
 
-            if (CanvasPreviewSceneSetup.TryOpenOrCreate())
+            if (PreviewPlacement.IsPersistent(mode))
             {
-                PlacePreview();
+                if (_target == null)
+                {
+                    _statusLabel.text = "CanvasData を選択してください";
+                    return;
+                }
+
+                // 本配置は UiManager が追跡しない実体(Prefab リンク付き)にする。
+                var placed = PreviewPlacement.PlacePrefabPersistent(_target.Prefab, Vector3.zero, Quaternion.identity);
+                _statusLabel.text = placed != null
+                    ? "このシーンに本配置しました(シーンを保存すると残ります。プレビュー表示ではありません)"
+                    : "本配置に失敗しました(CanvasData に Prefab がありません)";
+                return;
             }
+
+            PlacePreview();
         }
 
         private void PlacePreview()
@@ -1249,6 +1264,9 @@ namespace DDrive.Editor.CanvasTool
                 {
                     _statusLabel.text = "プレビュー表示中";
                 }
+
+                // U-5(2026-09-17): 配置場所が SceneView のカメラから遠いと何も映らないため、必ず寄せる。
+                PreviewPlacement.Focus(_previewRoot);
             }
 
             SceneView.RepaintAll();

@@ -84,7 +84,8 @@ namespace DDrive.Editor.Ui
         {
             var window = GetWindow<SliderEditorWindow>("Slider Editor");
             window.minSize = new Vector2(420, 480);
-            window.PlaceSampleInScene(skin);
+            // 暗黙の配置なのでシーンは切り替えない(保存ダイアログを出さない)。
+            window.PlaceSampleInScene(skin, PreviewPlaceMode.CurrentScene);
         }
 
         private void OnEnable()
@@ -138,9 +139,12 @@ namespace DDrive.Editor.Ui
             _targetField.RegisterValueChangedCallback(evt => SetTarget(evt.newValue as UiSlider));
             scrollView.Add(_targetField);
 
-            var targetButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
+            var targetButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 4, marginBottom = 4 } }; // [09] §7.1
             targetButtons.Add(new Button(() => SetTarget(Selection.activeGameObject != null ? Selection.activeGameObject.GetComponent<UiSlider>() : null)) { text = "選択から取得" });
-            targetButtons.Add(new Button(() => PlaceSampleInScene(null)) { text = "確認用シーンにサンプルを配置" });
+            targetButtons.Add(PreviewPlacementButton.Create(
+                "サンプルを配置",
+                "UI 確認用シーン(CanvasPreviewScene)を開き、サンプルの UiSlider を置いて対象にする",
+                mode => PlaceSampleInScene(null, mode)));
             targetButtons.Add(new Button(RemoveFromScene) { text = "撤去" });
             scrollView.Add(targetButtons);
 
@@ -728,8 +732,29 @@ namespace DDrive.Editor.Ui
 
         // (レビュー対応 2026-09-14) 組み立ては SliderSkinEditorWindow と共通の PreviewSliderFactory(子も DontSave。
         // 以前は子が HideFlags.None で、プレビューを置いたままシーンを保存すると子だけ親無しで保存されていた)。
-        private void PlaceSampleInScene(SliderSkinData skin)
+        // U-5(2026-09-17): 左クリック = UI 確認用シーンを開いてから配置 / 右クリック = このシーンに配置・本配置。
+        private void PlaceSampleInScene(SliderSkinData skin, PreviewPlaceMode mode)
         {
+            if (!PreviewPlacement.PrepareScene(mode, CanvasPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
+            if (PreviewPlacement.IsPersistent(mode))
+            {
+                // 本配置は共有のプレビュー Canvas(比較用スライダー等が同居する)ではなく、専用の Canvas を作って渡す。
+                var ownCanvas = EditorPreviewRoots.CreateOverlayCanvas(PreviewRootName);
+                var ownSlider = PreviewSliderFactory.Create(ownCanvas.transform, "Slider", Vector2.zero);
+                if (skin != null)
+                {
+                    ownSlider.SetVisual(skin);
+                }
+
+                EditorPreviewRoots.MarkDontSaveRecursive(ownCanvas);
+                PreviewPlacement.Persist(ownCanvas, skin != null ? skin.DisplayName ?? skin.name : null);
+                return;
+            }
+
             var canvas = EnsurePreviewCanvas();
             var slider = PreviewSliderFactory.Create(canvas.transform, "SampleSlider", Vector2.zero);
             if (skin != null)
@@ -741,6 +766,7 @@ namespace DDrive.Editor.Ui
             SetTarget(slider);
             _explicitSkin = skin;
             Selection.activeGameObject = slider.gameObject;
+            PreviewPlacement.Focus(slider.gameObject);
         }
 
         private void RemoveFromScene()

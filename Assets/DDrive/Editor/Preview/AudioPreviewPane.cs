@@ -1,3 +1,4 @@
+using DDrive.Editor.Common;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Audio;
 using UnityEngine;
@@ -22,7 +23,16 @@ namespace DDrive.Editor.Preview
         {
             _service = service;
 
+            // U-12(2026-09-17): 「下部のサウンドのプレビューバーの UI が崩れている」の修正。
+            // 原因は 2 つ:
+            //   1. Toggle / Slider は BaseField で、ラベル部に USS 既定の min-width 120px が付く。
+            //      「ループ」「速度」のような 2〜3 文字のラベルでも 120px を占め、チェックボックスと
+            //      つまみがバーの右端へ押し出されていた
+            //   2. 行が flex-wrap: nowrap のうえ速度スライダーが固定幅 180px だったため、バーが狭いと
+            //      折り返さずに右側が見切れていた([09] §7.1 の横幅 500px 下限を満たしていなかった)
+            // → ラベル幅を内容なりにし、行を折り返し可能にし、固定幅をやめる。
             style.flexDirection = FlexDirection.Row;
+            style.flexWrap = Wrap.Wrap;
             style.alignItems = Align.Center;
             style.paddingLeft = 6;
             style.paddingRight = 6;
@@ -33,21 +43,35 @@ namespace DDrive.Editor.Preview
 
             _titleLabel = new Label("(プレビュー対象なし)");
             _titleLabel.style.flexGrow = 1f;
+            _titleLabel.style.flexShrink = 1f;
+            _titleLabel.style.minWidth = 0; // 既定だと縮まず、右側のコントロールを押し出す
+            _titleLabel.style.overflow = Overflow.Hidden;
+            _titleLabel.style.textOverflow = TextOverflow.Ellipsis;
+            _titleLabel.style.whiteSpace = WhiteSpace.NoWrap;
+            _titleLabel.style.marginRight = 6;
             _titleLabel.style.opacity = 0.7f;
             Add(_titleLabel);
 
             _playButton = new Button(Play) { text = "▶ 再生", tooltip = "実 AudioManager 経由で試聴(実行時と同じコードパス)" };
+            _playButton.style.flexShrink = 0f;
             Add(_playButton);
 
             _stopButton = new Button(Stop) { text = "■ 停止" };
+            _stopButton.style.flexShrink = 0f;
             Add(_stopButton);
 
             _loopToggle = new Toggle("ループ") { tooltip = "SE をループで試聴(アセット本体は変更しない)" };
             _loopToggle.style.marginLeft = 8;
+            _loopToggle.style.flexShrink = 0f;
+            CompactFieldLayout.ShrinkLabel(_loopToggle.labelElement);
             Add(_loopToggle);
 
             _speedSlider = new Slider("速度", 0.1f, 2f) { value = 1f, tooltip = "0.1x–2x。Audio ではピッチとして適用" };
-            _speedSlider.style.width = 180;
+            _speedSlider.style.marginLeft = 8;
+            _speedSlider.style.minWidth = 120;
+            _speedSlider.style.flexGrow = 1f;
+            _speedSlider.style.flexShrink = 1f;
+            CompactFieldLayout.ShrinkLabel(_speedSlider.labelElement);
             _speedSlider.RegisterValueChangedCallback(evt => _service.Speed = evt.newValue);
             Add(_speedSlider);
 

@@ -93,10 +93,14 @@ namespace DDrive.Editor.Spec
                     Category = (string)item["category"] ?? string.Empty,
                     Identifier = identifier,
                     DisplayName = (string)item["displayName"] ?? string.Empty,
+                    // 状態は O-1 以降 3 値(発注済 / 納品済 / インポート済)。
+                    // (Tools/SpecWeb/src/Assets.js の SPEC_WEB_ASSET_STATUSES が正。旧 4 値
+                    //  (未着手/仮/本番/保留)は GAS 側の specWebNormalizeLegacyOrderItem_ が
+                    //  読み込み時に 3 値へ変換して返すため、D-Drive 側は変換しない)。
                     Status = (string)item["status"] ?? string.Empty,
-                    Assignee = (string)item["assignee"] ?? string.Empty,
+                    Assignee = ReadContractor(item),
                     SpecLink = BuildSpecLink(humanAppUrl, id),
-                    Note = (string)item["note"] ?? string.Empty,
+                    Note = ReadReferenceMd(item),
                 });
             }
 
@@ -246,6 +250,41 @@ namespace DDrive.Editor.Spec
 
             return ManualUrlBuilder.AppendQuery(humanAppUrl, "page=order&id=" + Uri.EscapeDataString(assetId));
         }
+
+        // ── 発注スキーマ(O-1)のフィールド名。旧名は移行前のデータのためだけに残す ──
+        // [32] §10.2.1 — 旧 `assignee`(担当)は `orderer`(発注者)/`contractor`(受注者)に分割され、
+        // 「実際に作る人」= `contractor` が D-Drive の Assignee に対応する。旧 `note` は
+        // `referenceMd`(Markdown)に改称された。
+        // 2026-09-17([41] P1-7): D-Drive 側が旧名 `assignee` / `note` のままだったため、O-1 以降に
+        // 作られた発注(旧キーを持たない)では常に空文字として読まれ、「担当 / 備考が変わった」と
+        // 誤判定 → 適用で既存の Assignee / Description を空で上書きしていた。
+        // 旧名へのフォールバックを残すのは、GAS 側の物理移行(migrateLegacyOrdersToNewSchema)を
+        // まだ実行していないデータが残っている可能性があるため(Migration.js の
+        // specWebNormalizeLegacyOrderItem_ は読み込み時に新名で返すが、D-Drive 側は取得した JSON を
+        // 信用せず自前でも同じ規則を持つ。CLAUDE.md §0-4)。
+        private static string ReadContractor(JObject item)
+        {
+            // GAS の specWebNormalizeLegacyOrderItem_ と同じ規則: contractor が空なら assignee を使う。
+            var contractor = ReadString(item, "contractor");
+            return contractor.Length > 0 ? contractor : ReadString(item, "assignee");
+        }
+
+        private static string ReadReferenceMd(JObject item)
+        {
+            // GAS は「referenceMd のキーが無いときだけ note を使う」が、D-Drive 側は
+            // 「空(キー無し / null / 空文字)なら旧 note を見る」に緩めてある(既存値を空で
+            // 潰さない方向に倒す。SpecDiffService/SpecSyncService の「空は変更なし」と同じ向き)。
+            var token = item["referenceMd"];
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                return ReadString(item, "note");
+            }
+
+            var value = (string)token ?? string.Empty;
+            return value.Length > 0 ? value : ReadString(item, "note");
+        }
+
+        private static string ReadString(JObject item, string key) => (string)item[key] ?? string.Empty;
 
         private static string[] ToStringArray(JArray array)
         {

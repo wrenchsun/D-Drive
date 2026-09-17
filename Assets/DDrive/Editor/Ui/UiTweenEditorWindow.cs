@@ -220,16 +220,31 @@ namespace DDrive.Editor.Ui
             _elementDropdown.RegisterValueChangedCallback(evt => SelectElement(evt.newValue));
             scrollView.Add(_elementDropdown);
 
-            var presetRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 6, alignItems = Align.Center } };
-            _presetDropdown = new DropdownField("プリセット / カタログ", new List<string> { string.Empty }, 0) { style = { flexGrow = 1f } };
+            // [09] §7.1(2026-09-17): 横 500px でボタンが見切れないよう、行を折り返し可能にする。
+            var presetRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 6, alignItems = Align.Center } };
+            _presetDropdown = new DropdownField("プリセット / カタログ", new List<string> { string.Empty }, 0) { style = { flexGrow = 1f, flexShrink = 1f, minWidth = 180 } };
             presetRow.Add(_presetDropdown);
             presetRow.Add(new Button(GenerateFromSelection) { text = "プリセットから Tracks を生成", tooltip = "いまの Tracks を丸ごと置き換える" });
             presetRow.Add(new Button(AppendFromSelection) { text = "＋ プリセットを追加", tooltip = "いまの Tracks は残したまま、選んだプリセットの Track を末尾に追加する(スライドイン + フェードインのような組み合わせに)" });
             scrollView.Add(presetRow);
+
+            // U-9(2026-09-17): プリセットギャラリー(4-12)への導線。これまでメニュー
+            // (Tools > D-Drive > Editors > UI Tween · Preset Gallery)からしか開けず、
+            // 「どんなプリセットがあるか」を見ながら選ぶ流れに入れなかった。
+            var galleryRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 2, marginBottom = 2 } };
+            galleryRow.Add(new Button(OpenPresetGallery)
+            {
+                text = "プリセットギャラリーを開く",
+                tooltip = "カード一覧(出現 / 常時 / 消滅 / 強調 / カタログ)からプリセットを探す。いま編集中の UiTweenData は「独自プリセットとして登録」の元アセットとして入る",
+            });
+            scrollView.Add(galleryRow);
             RebuildPresetChoices();
 
-            var sceneRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
-            sceneRow.Add(new Button(PlaceInScene) { text = "確認用シーンに配置" });
+            var sceneRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 4, marginBottom = 4 } }; // [09] §7.1
+            sceneRow.Add(DDrive.Editor.Preview.PreviewPlacementButton.Create(
+                "確認用シーンに配置",
+                "UI 確認用シーン(CanvasPreviewScene)を開き、仮画像 1 枚を置いてプレビュー対象にする",
+                PlaceInScene));
             sceneRow.Add(new Button(Play) { text = "▶ 再生" });
             sceneRow.Add(new Button(Stop) { text = "■ 停止" });
             sceneRow.Add(new Button(RemoveFromScene) { text = "撤去" });
@@ -634,6 +649,10 @@ namespace DDrive.Editor.Ui
 
         // ── プリセット / カタログからの Tracks 生成 ──
 
+        // U-9(2026-09-17): プリセットギャラリー(UiPresetGalleryWindow、4-12)を開く。
+        // 新しい開き方は作らず、メニュー項目と同じ UiPresetGalleryWindow.Open を通す。
+        private void OpenPresetGallery() => UiPresetGalleryWindow.Open(_target);
+
         private void RebuildPresetChoices()
         {
             if (_presetDropdown == null)
@@ -888,27 +907,41 @@ namespace DDrive.Editor.Ui
         // ── 確認用シーンプレビュー(4-8。ADR-4: 実 UiTweenManager を EditorApplication.update から駆動) ──
         // 「収集元」から実要素を選ばず手早く確認したいときの、無関係な仮画像 1 枚(旧来の挙動)。
 
-        private void PlaceInScene()
+        // U-5(2026-09-17): 左クリック = UI 確認用シーンを開いてから配置 / 右クリック = このシーンに配置・本配置。
+        // 併せて、生の new GameObject をやめ EditorPreviewRoots(子まで DontSave)で組み立てるようにした。
+        private void PlaceInScene(DDrive.Editor.Preview.PreviewPlaceMode mode)
         {
             RemoveFromScene();
-
-            var canvasGo = new GameObject(PreviewRootName, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster))
+            if (!DDrive.Editor.Preview.PreviewPlacement.PrepareScene(mode, DDrive.Editor.Preview.CanvasPreviewSceneSetup.TryOpenOrCreate))
             {
-                hideFlags = HideFlags.DontSave,
-            };
-            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            _ownedPlaceholderRoot = canvasGo;
+                return;
+            }
 
-            var imageGo = new GameObject("PreviewImage", typeof(RectTransform), typeof(UnityEngine.UI.Image));
-            imageGo.transform.SetParent(canvasGo.transform, false);
-            _previewTarget = (RectTransform)imageGo.transform;
-            _previewTarget.sizeDelta = new Vector2(200f, 80f);
+            var canvasGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateOverlayCanvas(PreviewRootName);
+
+            var imageGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateChild(canvasGo.transform, "PreviewImage", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            ((RectTransform)imageGo.transform).sizeDelta = new Vector2(200f, 80f);
+            DDrive.Editor.Preview.EditorPreviewRoots.MarkDontSaveRecursive(canvasGo);
 
             // 仮画像は「要素を自動収集」の候補ではないので、選択表示を明示的に外しておく。
             _selectedElementLabel = NoElementChoice;
             _elementDropdown?.SetValueWithoutNotify(NoElementChoice);
 
+            if (DDrive.Editor.Preview.PreviewPlacement.IsPersistent(mode))
+            {
+                // Canvas ごと本配置する。所有しない(撤去・再生の対象にしない)。
+                DDrive.Editor.Preview.PreviewPlacement.Persist(canvasGo, _target != null ? _target.DisplayName ?? _target.name : null);
+                _ownedPlaceholderRoot = null;
+                _previewTarget = null;
+                _statusLabel.text = "このシーンに本配置しました(プレビュー対象にはしていません)";
+                return;
+            }
+
+            _ownedPlaceholderRoot = canvasGo;
+            _previewTarget = (RectTransform)imageGo.transform;
+
             Selection.activeGameObject = imageGo;
+            DDrive.Editor.Preview.PreviewPlacement.Focus(imageGo);
             _statusLabel.text = "確認用シーンに配置しました";
         }
 

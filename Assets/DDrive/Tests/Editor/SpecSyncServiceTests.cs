@@ -180,6 +180,101 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(1, table.Tables.Length);
         }
 
+        // ── 2026-09-17(docs/41_phase6_review_2026-09-17.md P1-2)の回帰テスト ──
+        // GAS は HTTP ステータスを設定できず常に 200 を返すため、トークン未設定/無効(401)・許可外(403)・
+        // レート制限でも取得は「成功」する。その応答(`ok:false`)で TuningTable を上書きすると
+        // Entries/Tables が全消えになり、Tuning.g.cs が空で再生成されて TUNING.Xxx を参照している
+        // 全コードがコンパイルエラーになっていた。
+
+        [Test]
+        public void ApplyTuning_ErrorEnvelopeResponse_KeepsExistingEntries()
+        {
+            var table = CreateTuningTable();
+            table.Entries = new[] { new TuningEntry { Key = "Combat/HitStopSec", Type = TuningValueType.Float, ValueFloat = 0.05f } };
+            table.RebuildIndex();
+
+            var parsed = SpecWebParser.ParseTuningScalars("{\"ok\":false,\"status\":401,\"error\":\"unauthorized\"}");
+            Assert.AreEqual(0, parsed.Rows.Count, "前提: ok:false の応答は行 0 件になる");
+            Assert.AreEqual(1, parsed.Issues.Count, "前提: エンベロープ段(行番号 0)の Issue が積まれる");
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*スキップしました.*"));
+            SpecSyncService.ApplyTuning(parsed, table);
+
+            Assert.AreEqual(1, table.Entries.Length, "ok:false の応答で既存の Entries を消してはいけない");
+            Assert.AreEqual("Combat/HitStopSec", table.Entries[0].Key);
+            Assert.IsTrue(table.TryFindIndex("Combat/HitStopSec", out _));
+        }
+
+        [Test]
+        public void ApplyTuningTable_ErrorEnvelopeResponse_KeepsExistingTables()
+        {
+            var table = CreateTuningTable();
+            table.Tables = new[]
+            {
+                new TuningTableEntry
+                {
+                    Key = "Enemy/Params",
+                    Columns = new[] { new TuningTableColumn { Key = "Hp", Type = TuningValueType.Int } },
+                    Rows = System.Array.Empty<TuningTableRow>(),
+                },
+            };
+            table.RebuildIndex();
+
+            var parsed = SpecWebParser.ParseTuningTables("{\"ok\":false,\"status\":403,\"error\":\"forbidden\"}");
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*スキップしました.*"));
+            SpecSyncService.ApplyTuningTable(parsed, table);
+
+            Assert.AreEqual(1, table.Tables.Length, "ok:false の応答で既存の Tables を消してはいけない");
+            Assert.AreEqual("Enemy/Params", table.Tables[0].Key);
+        }
+
+        // 「取得はできたが 0 件」も、意図的な全削除と区別できないため適用しない(全消しを避ける安全側)。
+        [Test]
+        public void ApplyTuning_ZeroRows_KeepsExistingEntries()
+        {
+            var table = CreateTuningTable();
+            table.Entries = new[] { new TuningEntry { Key = "Combat/HitStopSec", Type = TuningValueType.Float, ValueFloat = 0.05f } };
+            table.RebuildIndex();
+
+            var parsed = SpecWebParser.ParseTuningScalars("{\"ok\":true,\"items\":{}}");
+            Assert.AreEqual(0, parsed.Rows.Count);
+            Assert.AreEqual(0, parsed.Issues.Count, "前提: ok:true・items 空はエンベロープ失敗ではない");
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*スキップしました.*"));
+            SpecSyncService.ApplyTuning(parsed, table);
+
+            Assert.AreEqual(1, table.Entries.Length);
+        }
+
+        [Test]
+        public void IsUnusableForApply_ValidRows_ReturnsFalse()
+        {
+            var parsed = new SpecParseResult<SpecTuningRow>();
+            parsed.Rows.Add(new SpecTuningRow { RowNumber = 1, Key = "A/B", RawValue = "1", RawType = "int" });
+
+            Assert.IsFalse(SpecSyncService.IsUnusableForApply(parsed, out var reason));
+            Assert.IsNull(reason);
+        }
+
+        // 行ごとの Issue(重複キー等)は「一部の行だけ無効」なので適用を止めない。
+        [Test]
+        public void IsUnusableForApply_RowLevelIssueOnly_ReturnsFalse()
+        {
+            var parsed = new SpecParseResult<SpecTuningRow>();
+            parsed.Rows.Add(new SpecTuningRow { RowNumber = 1, Key = "A/B", RawValue = "1", RawType = "int" });
+            parsed.Issues.Add(new SpecIssue(2, "行 2 は壊れています"));
+
+            Assert.IsFalse(SpecSyncService.IsUnusableForApply(parsed, out _));
+        }
+
+        [Test]
+        public void IsUnusableForApply_Null_ReturnsTrue()
+        {
+            Assert.IsTrue(SpecSyncService.IsUnusableForApply<SpecTuningRow>(null, out var reason));
+            Assert.IsNotNull(reason);
+        }
+
         [Test]
         public void BuildChoicesTsv_ContainsHeaderAndKnownValues()
         {
@@ -187,7 +282,11 @@ namespace DDrive.Tests.Editor
 
             StringAssert.StartsWith("種別\t状態\t型", tsv);
             StringAssert.Contains("Se", tsv);
-            StringAssert.Contains("仮", tsv);
+            // 2026-09-17([41] P1-7): 状態は 3 値(発注済 / 納品済 / インポート済)。旧 4 値の「仮」は出ない。
+            StringAssert.Contains("発注済", tsv);
+            StringAssert.Contains("納品済", tsv);
+            StringAssert.Contains("インポート済", tsv);
+            StringAssert.DoesNotContain("仮", tsv);
             StringAssert.Contains("float", tsv);
         }
 

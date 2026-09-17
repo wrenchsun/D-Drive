@@ -55,6 +55,10 @@ namespace DDrive.Tests.Runtime
         public event Action<ulong> ClientConnected;
         public void RaiseClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
 
+        // 2026-09-17 レビュー対応(P2-2) — 切断通知テスト用(手動発火)。
+        public event Action<ulong, string> ClientDisconnected;
+        public void RaiseClientDisconnected(ulong clientId, string reason = "test") => ClientDisconnected?.Invoke(clientId, reason);
+
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage
         {
             BroadcastCount++;

@@ -75,6 +75,39 @@ namespace DDrive.Tests.Runtime
             Object.DestroyImmediate(prefab);
         }
 
+        // 2026-09-17 レビュー対応(P1-1): 6-2 で Free に PooledObject ラッパーごと積むようにした結果、
+        // evict(上限超過の強制回収)で回収したラッパーがそのまま次の借り手へ渡り、旧借り手の Return が
+        // 新しい貸出を取り消していた(旧 A の Despawn で新 B の GameObject が非アクティブ化され、
+        // さらに Free に積み直されて二重貸出になる)。evict 経路だけラッパーを作り直すことで防ぐ。
+        [UnityTest]
+        public IEnumerator Return_OfEvictedWrapper_DoesNotCancelNewBorrower()
+        {
+            var prefab = new GameObject("Prefab");
+            var pool = new PoolService();
+            pool.SetLimit(prefab, 1);
+
+            var a = pool.Rent(prefab);
+            var b = pool.Rent(prefab); // 上限 1 なので a が evict され、b は同じ GameObject を受け取る。
+
+            Assert.AreSame(a.GameObject, b.GameObject, "上限 1 なので同じ GameObject が再利用される");
+            Assert.AreNotSame(a, b, "回収済みのラッパーをそのまま新しい借り手へ渡してはいけない");
+
+            // 旧借り手(a)側のゲームコードが後から Despawn する = Return(a)。
+            pool.Return(a);
+
+            Assert.IsTrue(b.GameObject.activeSelf, "新しい借り手の GameObject が非アクティブ化されてはいけない");
+            Assert.AreEqual(0, pool.FreeCount(prefab), "evict 済みラッパーの Return で Free に積み直されてはいけない");
+
+            // 続けて Rent しても、b と同じラッパーが二重に貸し出されない。
+            var c = pool.Rent(prefab);
+            Assert.AreSame(b.GameObject, c.GameObject);
+            Assert.AreNotSame(b, c);
+
+            pool.Clear(PoolScope.Global);
+            yield return null;
+            Object.DestroyImmediate(prefab);
+        }
+
         [UnityTest]
         public IEnumerator Rent_AtLimit_WithDestroyedActive_DoesNotThrowAndRentsLiveInstance()
         {

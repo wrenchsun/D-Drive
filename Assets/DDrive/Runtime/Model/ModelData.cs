@@ -42,6 +42,12 @@ namespace DDrive.Runtime.Model
     [AssetIdDefinition(AssetType.Model, typeof(ModelMarker), "MODELID")]
     public class ModelData : AssetDataBase
     {
+        // 0 = Prefab 側の Renderer 設定を上書きしない(2026-09-17。VfxData.LightLayerKeepPrefab と同じ規約)。
+        // それまでは既定値 0 がそのまま renderingLayerMask=0 として全 Renderer に適用され、
+        // URP の描画対象フィルタ(FilteringSettings.renderingLayerMask)に 1 つも一致せず
+        // 「モデルが丸ごと描画されない(= 透明に見える)」事故になっていた。
+        public const uint LightLayerKeepPrefab = 0;
+
         [Header("Prefab")]
         [Tooltip("Spawn する実体。")]
         public GameObject Prefab;
@@ -61,8 +67,8 @@ namespace DDrive.Runtime.Model
         [Tooltip("Sorting/RenderingLayerMask に使う値。")]
         public int RenderLayer;
 
-        [Tooltip("Light Layer のビットマスク。")]
-        public uint LightLayerMask;
+        [Tooltip("Rendering Layer Mask(Light Layer)。0 = Prefab の Renderer 設定を上書きしない。既定は 1(Default)。")]
+        public uint LightLayerMask = 1;
 
         [Tooltip("任意。LODGroup の閾値をデータ側から上書きしたい場合に使う。")]
         public LodProfile Lod;

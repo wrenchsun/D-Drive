@@ -302,5 +302,58 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(result.SkippedCascadeStillUsed.Any(u => u.SourcePath == otherReferencerPath));
             Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<SeData>(stillUsedPath));
         }
+
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-7) — コード参照のヒット
+        // (ファイル:行)は削除**前**に取る。削除後は MoveAssetToTrash 済みのオブジェクトが fake null に
+        // なるため、結果画面で `r.Target.Asset != null` を条件に取り直していた旧実装ではヒット一覧が
+        // 絶対に出なかった(docs/09 §10 の「クリックでエディタを開く」が不動作)。
+        // 「コード参照あり」はこのテスト自身のソース中の定数参照で再現する(AssetCreationService が作る
+        // ファイル名 "SE_Category_ZzTestDelExecScanProbe" → AssetIdGenerator.ToConstantName の規則):
+        // SEID.CategoryZzTestDelExecScanProbe
+        [Test]
+        public void Execute_ForceDelete_ScanCodeReferences_CapturesHitsBeforeDelete()
+        {
+            var asset = CreateSe("ZzTestDelExecScanProbe");
+            var path = AssetDatabase.GetAssetPath(asset);
+            Track(path);
+
+            var request = new DeleteExecutionRequest
+            {
+                Action = DeleteAction.ForceDelete,
+                PrimaryTargets = new List<DeleteTarget> { new DeleteTarget(asset, AssetType.Se, path) },
+                ScanCodeReferences = true,
+            };
+
+            var result = AssetDeleteExecutionService.Execute(request);
+
+            var perAsset = result.Results.Single();
+            Assert.IsTrue(perAsset.Deleted);
+            Assert.IsNotNull(perAsset.CodeReferenceWarning, "自前コードに ID 定数の参照があれば警告が付くはず");
+            Assert.IsNotNull(perAsset.CodeReferenceHits, "警告が出たらヒット一覧(ファイル:行)も入るはず");
+            Assert.Greater(perAsset.CodeReferenceHits.Count, 0);
+            Assert.Greater(perAsset.CodeReferenceHits[0].Line, 0);
+        }
+
+        // 2026-09-17([41] P2-8) — 結果画面が「アーカイブのみ」と「参照が残っていて削除できなかった」を
+        // 出し分けられるよう、実行した操作を結果に持たせる。
+        [Test]
+        public void Execute_RecordsRequestedActionInResult()
+        {
+            var asset = CreateSe("ZzTestDelExecActionRecord");
+            var path = AssetDatabase.GetAssetPath(asset);
+            Track(path);
+
+            var request = new DeleteExecutionRequest
+            {
+                Action = DeleteAction.ArchiveOnly,
+                PrimaryTargets = new List<DeleteTarget> { new DeleteTarget(asset, AssetType.Se, path) },
+                ScanCodeReferences = false,
+            };
+
+            var result = AssetDeleteExecutionService.Execute(request);
+
+            Assert.AreEqual(DeleteAction.ArchiveOnly, result.Action);
+            Assert.IsTrue(result.Results.Single().ArchivedOnly);
+        }
     }
 }

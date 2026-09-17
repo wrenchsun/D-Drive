@@ -17,47 +17,52 @@ namespace DDrive.Runtime.Anchoring
     {
         // sampleRandom=false のとき Random レイアウトは固定シード(Seed が 0 なら 1)で生成する(エディタ表示が毎フレーム動かないように)。
         public static int Generate(AnchorGroupData group, AnchorLayoutPoint[] buffer, bool sampleRandom)
+            => AppendManualPoints(group, buffer, GeneratePattern(group, buffer, sampleRandom));
+
+        // パターン(Grid/Circle/Line/Random)の分だけを生成する。Layout=Manual は 0。
+        // エディタの「手置きの点に変換」([22] §3.7、U-22)が「どこまでがパターンの点か」を知るために分離している。
+        public static int GeneratePattern(AnchorGroupData group, AnchorLayoutPoint[] buffer, bool sampleRandom)
         {
             if (group == null || buffer == null)
             {
                 return 0;
             }
 
-            var count = 0;
             switch (group.Layout)
             {
                 case AnchorLayoutKind.Grid:
-                    count = GenerateGrid(group, buffer);
-                    break;
+                    return GenerateGrid(group, buffer);
                 case AnchorLayoutKind.Circle:
-                    count = GenerateCircle(group, buffer);
-                    break;
+                    return GenerateCircle(group, buffer);
                 case AnchorLayoutKind.Line:
-                    count = GenerateLine(group, buffer);
-                    break;
+                    return GenerateLine(group, buffer);
                 case AnchorLayoutKind.Random:
-                    count = GenerateRandom(group, buffer, sampleRandom);
-                    break;
+                    return GenerateRandom(group, buffer, sampleRandom);
                 case AnchorLayoutKind.Manual:
                 default:
-                    break;
+                    return 0;
+            }
+        }
+
+        // 手置きの点をパターンの後ろに足す(Manual はこれだけ)。count = パターンの点数、戻り値 = 合計点数。
+        public static int AppendManualPoints(AnchorGroupData group, AnchorLayoutPoint[] buffer, int count)
+        {
+            if (group == null || buffer == null || group.Points == null)
+            {
+                return count;
             }
 
-            // 手置きの点はどのパターンにも追加できる(Manual はこれだけ)。
-            if (group.Points != null)
+            for (var i = 0; i < group.Points.Length && count < buffer.Length; i++)
             {
-                for (var i = 0; i < group.Points.Length && count < buffer.Length; i++)
+                var p = group.Points[i];
+                buffer[count] = new AnchorLayoutPoint
                 {
-                    var p = group.Points[i];
-                    buffer[count] = new AnchorLayoutPoint
-                    {
-                        Index = count,
-                        LocalOffset = p.LocalOffset,
-                        LocalEuler = p.LocalEuler,
-                        LocalScale = p.LocalScale == Vector3.zero ? Vector3.one : p.LocalScale,
-                    };
-                    count++;
-                }
+                    Index = count,
+                    LocalOffset = p.LocalOffset,
+                    LocalEuler = p.LocalEuler,
+                    LocalScale = p.LocalScale == Vector3.zero ? Vector3.one : p.LocalScale,
+                };
+                count++;
             }
 
             return count;

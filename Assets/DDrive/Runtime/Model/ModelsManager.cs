@@ -148,10 +148,19 @@ namespace DDrive.Runtime.Model
             root.transform.SetPositionAndRotation(pos, rot);
 
             VfxManager.SetLayerRecursively(root, data.RenderLayer);
-            var allRenderers = root.GetComponentsInChildren<Renderer>(true);
-            foreach (var renderer in allRenderers)
+            // LightLayerMask=0 は「Prefab の Renderer 設定を上書きしない」(2026-09-17、U-1)。
+            // 以前は 0 をそのまま renderingLayerMask に書いていたため、URP の描画対象フィルタに 1 つも一致せず
+            // モデルが丸ごと描画されなかった(= プレビューが透明に見える)。VfxManager と同じ規約に揃える。
+            if (data.LightLayerMask != ModelData.LightLayerKeepPrefab)
             {
-                renderer.renderingLayerMask = data.LightLayerMask;
+                var allRenderers = root.GetComponentsInChildren<Renderer>(true);
+                foreach (var renderer in allRenderers)
+                {
+                    if (renderer != null)
+                    {
+                        renderer.renderingLayerMask = data.LightLayerMask;
+                    }
+                }
             }
 
             ApplyLodProfile(root, data.Lod);
@@ -171,6 +180,16 @@ namespace DDrive.Runtime.Model
 
             var handle = _instances.Add(instance);
             _allActive.Add(handle);
+
+            // 2026-09-17 レビュー対応(P1-1 恒久策) — Pool が上限超過でこの Instance を強制回収したときに
+            // 台帳から外す(VfxManager/AudioManager と同じ橋渡し。[02] §6)。これを入れないと、回収後も
+            // 古い Handle が有効なまま残り、次の借り手の GameObject を操作できてしまう。
+            if (!root.TryGetComponent<ModelInstancePoolable>(out var poolable))
+            {
+                poolable = root.AddComponent<ModelInstancePoolable>();
+            }
+
+            poolable.OnReturnedToPool = () => CleanupBookkeeping(handle);
 
             // Slots の Material: MaterialManager が接続されていれば Spawn 時に共有 Material を割り当てる([06] A-3、3-5)。
             if (_materials != null && data.Slots != null)
@@ -200,6 +219,35 @@ namespace DDrive.Runtime.Model
                 return;
             }
 
+            CloseInstance(handle, instance);
+
+            if (instance.IsPooled)
+            {
+                _pool.Return(instance.Pooled);
+            }
+            else
+            {
+                // Kind == None(既定): プールに戻さず破棄する(Codex レビュー 2026-09-10。[05] A-3 実装メモ参照)。
+                _pool.Discard(instance.Pooled);
+            }
+        }
+
+        // Pool が上限超過でこの Instance を強制回収したときのコールバック(ModelInstancePoolable 経由)。
+        // GameObject は Pool が次の借り手へ渡すため、ここでは再生中アニメの停止と台帳の掃除だけを行う
+        // (Despawn と違って Return/Discard は呼ばない)。既に Despawn 済みなら何もしない(冪等)。
+        private void CleanupBookkeeping(Handle<ModelMarker> handle)
+        {
+            if (!_instances.IsValidSilent(handle) || !_instances.TryGet(handle, out var instance))
+            {
+                return;
+            }
+
+            CloseInstance(handle, instance);
+        }
+
+        // Despawn / 強制回収に共通の後始末(所有アニメの停止 + 台帳からの削除)。
+        private void CloseInstance(Handle<ModelMarker> handle, ModelInstance instance)
+        {
             // この Instance の Animator で動いているアニメーションを全て止めてからプールへ返す
             // (所有リスト + 外部が Anim.Play した分も含めて Animator 単位で中断)。
             if (_anim != null)
@@ -219,16 +267,6 @@ namespace DDrive.Runtime.Model
             instance.Anims.Clear();
             _allActive.Remove(handle);
             _instances.Remove(handle);
-
-            if (instance.IsPooled)
-            {
-                _pool.Return(instance.Pooled);
-            }
-            else
-            {
-                // Kind == None(既定): プールに戻さず破棄する(Codex レビュー 2026-09-10。[05] A-3 実装メモ参照)。
-                _pool.Discard(instance.Pooled);
-            }
         }
 
         public void SetLayer(Handle<ModelMarker> handle, int layer)

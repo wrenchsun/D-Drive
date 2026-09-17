@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DDrive.Editor.Common;
 using DDrive.Editor.Preview;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Handle;
@@ -412,9 +413,13 @@ namespace DDrive.Editor.Ui
                 names.Add(seq.Name);
             }
 
+            // U-10(2026-09-17): 横 500px だと「SE も鳴らす」が右へはみ出して見切れていた([09] §7.1)。
+            // 原因は (a) 行が折り返さない (b) Toggle / Slider のラベルが USS 既定の 120px 幅を占める
+            // (c) 見出しラベルが固定幅、の 3 点。Row() を折り返し対応にしたうえで、この行のラベル幅を
+            // 内容なりに縮め、長い説明は tooltip に逃がす。
             var row1 = Row();
-            row1.Add(new Label("状態遷移") { style = { unityFontStyleAndWeight = FontStyle.Bold, width = 70 } });
-            _seqPopup = new PopupField<string>(names, 0) { style = { flexGrow = 1f } };
+            row1.Add(new Label("状態遷移") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginRight = 6, flexShrink = 0f } });
+            _seqPopup = new PopupField<string>(names, 0) { style = { flexGrow = 1f, flexShrink = 1f, minWidth = 90 } };
             _seqPopup.RegisterValueChangedCallback(_ => UpdateSequenceHint());
             row1.Add(_seqPopup);
             row1.Add(new Button(StartSequence) { text = "▶ 遷移を再生", tooltip = "選んだ遷移を順に自動で再生する(画像の差し替え・演出・SE を通しで確認)" });
@@ -425,13 +430,22 @@ namespace DDrive.Editor.Ui
             block.Add(row1);
 
             var row2 = Row();
-            var interval = new Slider("1 状態の長さ(秒)", 0.2f, 2f) { value = _seqInterval, showInputField = true, style = { flexGrow = 1f } };
+            var interval = new Slider("長さ(秒)", 0.2f, 2f)
+            {
+                value = _seqInterval,
+                showInputField = true,
+                tooltip = "1 つの状態を見せている時間(秒)",
+                style = { flexGrow = 1f, flexShrink = 1f, minWidth = 150 },
+            };
+            CompactFieldLayout.ShrinkLabel(interval.labelElement);
             interval.RegisterValueChangedCallback(evt => _seqInterval = evt.newValue);
             row2.Add(interval);
-            var loop = new Toggle("ループ") { value = _seqLoop, style = { marginLeft = 8 } };
+            var loop = new Toggle("ループ") { value = _seqLoop, style = { marginLeft = 8, flexShrink = 0f } };
+            CompactFieldLayout.ShrinkLabel(loop.labelElement);
             loop.RegisterValueChangedCallback(evt => _seqLoop = evt.newValue);
             row2.Add(loop);
-            var withSe = new Toggle("SE も鳴らす") { value = _seqWithSe, style = { marginLeft = 8 } };
+            var withSe = new Toggle("SE も鳴らす") { value = _seqWithSe, tooltip = "遷移の再生中に各状態の SE も試聴する", style = { marginLeft = 8, flexShrink = 0f } };
+            CompactFieldLayout.ShrinkLabel(withSe.labelElement);
             withSe.RegisterValueChangedCallback(evt => _seqWithSe = evt.newValue);
             row2.Add(withSe);
             block.Add(row2);
@@ -1339,7 +1353,9 @@ namespace DDrive.Editor.Ui
 
         private static string NameOf(AssetDataBase data) => string.IsNullOrEmpty(data.DisplayName) ? data.name : data.DisplayName;
 
-        private static VisualElement Row() => new() { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2 } };
+        // U-10 / [09] §7.1(2026-09-17): 横 500px でも見切れないよう、行は折り返し可能にする。
+        // ここを通る行はすべて「狭いときは 2 段になる」挙動になる(ボタン・トグルが右へはみ出さない)。
+        private static VisualElement Row() => new() { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginTop = 2 } };
 
         private static VisualElement Block(Color accent) => new()
         {

@@ -94,9 +94,22 @@ namespace DDrive.Editor.Spec
 
         // シートが上書きしてよい項目だけを比較する([27] §4.3: 表示名・カテゴリ・状態・担当・備考・仕様リンク)。
         // デザイナーが作った中身(音源・カーブ・Prefab 等)には触れない。
+        //
+        // 2026-09-17([41] P1-7): **Web 側が空の項目は「未入力」として扱い、差分に含めない**
+        // (= 既存値を空で消さない)。もともと「仕様リンク」だけに入っていた保護を、人が書く文字列
+        // (表示名・状態・担当・備考)へ広げた防御。契約ずれ(P1-7: `assignee` / `note` を読んでいて
+        // 常に空だった)や取得の部分失敗が起きたときに、同期のたびにデザイナーの入力が消えるという
+        // 最悪の結果を避けるのが目的。空にしたいときは D-Drive 側(Inspector / 専用エディタ)で消す。
+        // Web で発注を作るとき displayName は必須・status は必ず 3 値のどれかが入る
+        // (`Tools/SpecWeb/src/Assets.js` の specWebValidateAssetFields_ / assets.create)ので、
+        // 「Web 側で意図的に空にする」運用は元から存在しない。
+        // カテゴリだけは空が正当な値(カテゴリ無し。GAS も必須にしていない)なので従来どおり比較する。
+        // SpecSyncService.ApplyExtraFields / ApplyChanged と対称に保つこと(片方だけ直しても、
+        // 別の項目が変わったときの適用で空が書き込まれてしまう)。
         private static void CollectChangedFields(AssetDataBase asset, SpecAssetRow row, List<string> changedFields)
         {
-            if (!string.Equals(asset.DisplayName ?? string.Empty, row.DisplayName, StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(row.DisplayName)
+                && !string.Equals(asset.DisplayName ?? string.Empty, row.DisplayName, StringComparison.Ordinal))
             {
                 changedFields.Add("表示名");
             }
@@ -106,23 +119,26 @@ namespace DDrive.Editor.Spec
                 changedFields.Add("カテゴリ");
             }
 
-            if (!string.Equals(SpecStatusTag.GetCurrent(asset.Tags), row.Status, StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(row.Status)
+                && !string.Equals(SpecStatusTag.GetCurrent(asset.Tags), row.Status, StringComparison.Ordinal))
             {
                 changedFields.Add("状態");
             }
 
-            if (!string.Equals(asset.Assignee ?? string.Empty, row.Assignee, StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(row.Assignee)
+                && !string.Equals(asset.Assignee ?? string.Empty, row.Assignee, StringComparison.Ordinal))
             {
                 changedFields.Add("担当");
             }
 
-            if (!string.Equals(asset.Description ?? string.Empty, row.Note, StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(row.Note)
+                && !string.Equals(asset.Description ?? string.Empty, row.Note, StringComparison.Ordinal))
             {
                 changedFields.Add("備考");
             }
 
-            // 仕様リンクは、シート側が空のときは既存値を消さない(手で貼ったリンクを保護する)。
-            if (!string.IsNullOrEmpty(row.SpecLink) && !string.Equals(asset.SpecUrl ?? string.Empty, row.SpecLink, StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(row.SpecLink)
+                && !string.Equals(asset.SpecUrl ?? string.Empty, row.SpecLink, StringComparison.Ordinal))
             {
                 changedFields.Add("仕様リンク");
             }

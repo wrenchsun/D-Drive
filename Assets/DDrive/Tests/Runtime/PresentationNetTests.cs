@@ -124,6 +124,9 @@ namespace DDrive.Tests.Runtime
         public ulong LocalClientId => _selfClientId;
         public event Action<ulong> ClientConnected;
 
+        // 2026-09-17 レビュー対応(P2-2) — INetBridge に追加された切断通知(手動発火。既存テストは未使用)。
+        public event Action<ulong, string> ClientDisconnected;
+
         public DelayedNetBridge(DelayedNetworkRelay relay, ulong selfClientId, bool isServer, double clockJitterSeconds = 0d)
         {
             _relay = relay;
@@ -135,6 +138,8 @@ namespace DDrive.Tests.Runtime
 
         // 5-9: 実 NGO の OnClientConnectedCallback を模した手動発火(テスト専用)。
         public void RaiseClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
+
+        public void RaiseClientDisconnected(ulong clientId, string reason = "test") => ClientDisconnected?.Invoke(clientId, reason);
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage
             => _relay.EnqueueBroadcast(_selfClientId, msg);

@@ -185,6 +185,20 @@ namespace DDrive.Runtime.Prefab
             instance.Context = new InstanceContext(handle.Index, handle.Generation);
             _allActive.Add(handle);
 
+            // 2026-09-17 レビュー対応(P1-1 恒久策) — Pool が上限超過でこの Instance を強制回収したときに
+            // 台帳から外す(VfxManager/AudioManager と同じ橋渡し。[02] §6)。これを入れないと、回収後も
+            // 古い Handle が有効なまま残り、次の借り手の GameObject を Move/SetLayer/Despawn できてしまう。
+            // Placeholder は Pool を経由しないので対象外。
+            if (!isPlaceholder)
+            {
+                if (!root.TryGetComponent<PrefabInstancePoolable>(out var poolable))
+                {
+                    poolable = root.AddComponent<PrefabInstancePoolable>();
+                }
+
+                poolable.OnReturnedToPool = () => CleanupBookkeeping(handle);
+            }
+
             _events.Begin(instance.Context, data.Events);
             _events.Fire(instance.Context, EventTrigger.OnSpawn);
 
@@ -256,6 +270,42 @@ namespace DDrive.Runtime.Prefab
                 return;
             }
 
+            CloseInstance(handle, instance);
+
+            if (instance.IsPlaceholder)
+            {
+                if (instance.Root != null)
+                {
+                    Object.Destroy(instance.Root);
+                }
+            }
+            else if (instance.IsPooled)
+            {
+                _pool.Return(instance.Pooled);
+            }
+            else
+            {
+                // Kind == None: プールに戻さず破棄する(待機中インスタンスが無限に残るのを防ぐ)。
+                _pool.Discard(instance.Pooled);
+            }
+        }
+
+        // Pool が上限超過でこの Instance を強制回収したときのコールバック(PrefabInstancePoolable 経由)。
+        // GameObject は Pool が次の借り手へ渡すため、ここでは台帳とイベントセッションだけを閉じる
+        // (Despawn と違って Return/Discard/Destroy は呼ばない)。既に Despawn 済みなら何もしない(冪等)。
+        private void CleanupBookkeeping(Handle<PrefabMarker> handle)
+        {
+            if (!_instances.IsValidSilent(handle) || !_instances.TryGet(handle, out var instance))
+            {
+                return;
+            }
+
+            CloseInstance(handle, instance);
+        }
+
+        // Despawn / 強制回収に共通の後始末(イベント終了通知 + ネット通知 + 台帳からの削除)。
+        private void CloseInstance(Handle<PrefabMarker> handle, PrefabInstance instance)
+        {
             _events.Fire(instance.Context, EventTrigger.OnDestroy);
             _events.End(instance.Context);
 
@@ -274,23 +324,6 @@ namespace DDrive.Runtime.Prefab
 
             _allActive.Remove(handle);
             _instances.Remove(handle);
-
-            if (instance.IsPlaceholder)
-            {
-                if (instance.Root != null)
-                {
-                    Object.Destroy(instance.Root);
-                }
-            }
-            else if (instance.IsPooled)
-            {
-                _pool.Return(instance.Pooled);
-            }
-            else
-            {
-                // Kind == None: プールに戻さず破棄する(待機中インスタンスが無限に残るのを防ぐ)。
-                _pool.Discard(instance.Pooled);
-            }
         }
 
         // ── Handle 操作 ──

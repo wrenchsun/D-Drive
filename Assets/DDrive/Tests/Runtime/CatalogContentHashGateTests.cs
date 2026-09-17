@@ -190,6 +190,138 @@ namespace DDrive.Tests.Runtime
             StringAssert.DoesNotContain("未受信", gate.LastStatusText);
         }
 
+        // ── 2026-09-17 レビュー対応 ──
+
+        // P2-2: 接続後、ハッシュを送る前に切断/クラッシュした Client の保留期限を掃除する。
+        // 修正前は 5 秒後に「居ない Client」をタイムアウト扱いにして、リリースビルドでは
+        // Debug.LogError + DisconnectClient + ClientDisconnectedForMismatch まで発火していた。
+        [Test]
+        public void HostSide_ClientDisconnectedBeforeHash_DoesNotTimeoutLater()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            var mismatchNotified = false;
+            gate.ClientDisconnectedForMismatch += (_, __) => mismatchNotified = true;
+
+            bridge.RaiseClientConnected(7);
+            // ハッシュを送らないまま切断(クラッシュ/回線断)。
+            bridge.RaiseClientDisconnected(7, "connection lost");
+
+            bridge.NetworkTime = 10d;
+            gate.Tick(bridge.NetworkTime);
+
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount, "既に居ない Client を切断しようとしてはいけない");
+            Assert.IsFalse(mismatchNotified);
+            StringAssert.DoesNotContain("未受信", gate.LastStatusText, "LastStatusText(Overlay / NetCheck 表示)を誤って上書きしない");
+        }
+
+        // P2-2: Client 視点の「自分が切れた」通知は Host 側の保留台帳とは無関係(誤って掃除しない)。
+        [Test]
+        public void ClientSide_DisconnectedEvent_DoesNotThrow()
+        {
+            var bridge = new FakeNetBridge { IsServer = false, IsClient = true, LocalClientId = 42 };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            Assert.DoesNotThrow(() => bridge.RaiseClientDisconnected(42, "host stopped"));
+        }
+
+        [Test]
+        public void Dispose_UnsubscribesFromClientDisconnected()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(7);
+            gate.Dispose();
+
+            // Dispose 後は購読していないので、切断通知を出しても保留台帳は掃除されない
+            // (= Dispose 前後で購読/解除が対になっていることの確認。Tick も呼ばれない前提)。
+            Assert.DoesNotThrow(() => bridge.RaiseClientDisconnected(7, "after dispose"));
+        }
+
+        // P2-3: Host のカタログ登録(Preload 込み)が timeoutSeconds より長くかかっても、先に接続して
+        // 正しくハッシュを送った正規の Client を切断しない。期限は _registryReady 後から数え直す。
+        [Test]
+        public void HostSide_RegistryNotReady_DoesNotTimeout_AndRebasesDeadline()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
+
+            // Host のカタログ登録はまだ終わっていない(SetLocalSummary 未呼び出し)。
+            bridge.RaiseClientConnected(7);
+
+            // 登録に 8 秒かかる間、Tick が回り続けてもタイムアウト扱いにしない。
+            bridge.NetworkTime = 8d;
+            gate.Tick(bridge.NetworkTime);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount, "Host が判定できない間はタイムアウトさせない");
+
+            // 登録完了。ここから期限を数え直すので、直後の Tick でも切断しない。
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+            gate.Tick(bridge.NetworkTime);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount, "登録完了時点から数え直す");
+
+            // 数え直した期限内にハッシュが届けば正常解決する。
+            bridge.NetworkTime = 10d;
+            gate.Tick(bridge.NetworkTime);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            Assert.AreEqual("OK", gate.LastStatusText);
+
+            // 数え直した期限を過ぎてから Tick しても、既に解決済みなので何も起きない。
+            bridge.NetworkTime = 20d;
+            gate.Tick(bridge.NetworkTime);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+        }
+
+        // P2-3: 未 ready 中に届いたハッシュ(_pendingBeforeReady)は、登録完了後に処理されて解決する。
+        [Test]
+        public void HostSide_HashReceivedBeforeReady_IsProcessedOnReady_WithoutTimeout()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
+
+            bridge.RaiseClientConnected(7);
+            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+
+            // Host の登録完了が期限(5 秒)より遅い。
+            bridge.NetworkTime = 8d;
+            gate.Tick(bridge.NetworkTime);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            Assert.AreEqual("OK", gate.LastStatusText, "保留していたハッシュが登録完了後に処理される");
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+
+            gate.Tick(bridge.NetworkTime);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+        }
+
+        // P2-2 + P2-3: 未 ready 中に受信して保留したハッシュは、その Client が切断したら捨てる
+        // (切断済み Client へ FlushPendingBeforeReady が SendTo しない)。
+        [Test]
+        public void HostSide_PendingBeforeReady_IsDroppedWhenClientDisconnects()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+
+            bridge.RaiseClientConnected(7);
+            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            bridge.RaiseClientDisconnected(7, "connection lost");
+
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            Assert.AreEqual(0, bridge.SendToCount, "切断済み Client へ結果を送らない");
+
+            bridge.NetworkTime = 20d;
+            gate.Tick(bridge.NetworkTime);
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount);
+        }
+
         // ── Client 側 ──
 
         [Test]

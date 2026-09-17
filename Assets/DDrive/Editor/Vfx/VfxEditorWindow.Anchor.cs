@@ -191,9 +191,16 @@ namespace DDrive.Editor.Vfx
             _anchorPadOffset = new Vector2(anchor.LocalOffset.x, anchor.LocalOffset.z);
 
             // AnchorId 行(SerializedObject バインド)と、埋め込み欄の表示切替。
-            if (_serializedTarget != null)
+            // 2026-09-17([39] U-13): 対象が破棄済み(削除・再インポート)の SerializedObject は
+            // FindProperty が null を返し、BindProperty が ArgumentNullException を投げていた。
+            // その例外で RefreshTargetUi / OnUndoRedo が途中終了し、後段の RefreshValidation に
+            // 到達せず「検証」セクションが空のままになっていた(CLAUDE.md §0-4: 例外で止めない)。
+            var anchorIdProp = _serializedTarget != null && _serializedTarget.targetObject != null
+                ? _serializedTarget.FindProperty("AnchorId")
+                : null;
+            if (anchorIdProp != null)
             {
-                _anchorIdField.BindProperty(_serializedTarget.FindProperty("AnchorId"));
+                _anchorIdField.BindProperty(anchorIdProp);
             }
             else
             {
@@ -477,6 +484,10 @@ namespace DDrive.Editor.Vfx
             }
 
             // 描画と逆変換は AnchorEditor と共通(AnchorSceneHandles)。
+            // 最終位置だけだと「何を基準にしたオフセットか」が分からないので、基準(解決先 Transform。
+            // 未解決ならワールド原点)にも 3 軸とラベルを描き、基準 → 最終位置を線で結ぶ(U-24)。
+            var originWorld = AnchorSceneHandles.DrawOrigin(baseTransform, extraOffset, AnchorSceneHandles.DescribeBase(anchor, baseTransform), anchor.FollowRotation);
+            AnchorSceneHandles.DrawOffsetLink(originWorld, AnchorPose.WorldPosition(anchor, baseTransform, extraOffset), anchor.LocalOffset, vfxColor);
             var result = AnchorSceneHandles.Draw(anchor, baseTransform, extraOffset, $"VFX Anchor: {(_target.DisplayName ?? _target.name)}", vfxColor);
             if (result.RotationChanged)
             {

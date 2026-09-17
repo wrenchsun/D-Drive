@@ -93,6 +93,48 @@ namespace DDrive.Tests.Editor
             StringAssert.Contains("トークンが無効です", result.Warning);
         }
 
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-5) — scalars / tables の
+        // 片方だけ失敗したとき、失敗した側を空配列 `[]` で書き出していた(§8 W-11 の「失敗した部分は
+        // 書き込まず警告を返す」と食い違い、git diff に「全スカラー削除」が現れ SpecDiffValidator の
+        // 範囲チェックも黙って無効になっていた)。既存ファイルの該当配列を温存する。
+        [Test]
+        public void Write_TablesFail_KeepsExistingScalarsInFile()
+        {
+            const string scalarsJson = "{\"ok\":true,\"items\":{\"Combat/HitStopSec\":{\"kind\":\"scalar\",\"valueType\":\"float\",\"value\":0.05}}}";
+            const string tablesJson = "{\"ok\":true,\"items\":{\"Enemy/Params\":{\"kind\":\"table\",\"columns\":[],\"rows\":[]}}}";
+
+            // 1 回目: 両方成功。
+            var first = SpecSnapshotWriter.Write(null, scalarsJson, tablesJson, _tempRepoRoot);
+            Assert.IsTrue(first.TuningWritten);
+
+            // 2 回目: tuningTableList だけ ok:false(トークン切れ・レート制限等)。
+            const string tablesError = "{\"ok\":false,\"status\":429,\"error\":\"rate limited\"}";
+            var second = SpecSnapshotWriter.Write(null, scalarsJson, tablesError, _tempRepoRoot);
+
+            Assert.IsTrue(second.TuningWritten);
+            var text = File.ReadAllText(Path.Combine(_tempRepoRoot, "Specs", "tuning.json"));
+            StringAssert.Contains("Combat/HitStopSec", text, "成功した側は更新される");
+            StringAssert.Contains("Enemy/Params", text, "失敗した側は前回の内容を温存するはず(空配列で消してはいけない)");
+            StringAssert.Contains("rate limited", second.Warning);
+        }
+
+        [Test]
+        public void Write_ScalarsFail_KeepsExistingScalarsInFile()
+        {
+            const string scalarsJson = "{\"ok\":true,\"items\":{\"Combat/HitStopSec\":{\"kind\":\"scalar\",\"valueType\":\"float\",\"value\":0.05}}}";
+            const string tablesJson = "{\"ok\":true,\"items\":{\"Enemy/Params\":{\"kind\":\"table\",\"columns\":[],\"rows\":[]}}}";
+
+            SpecSnapshotWriter.Write(null, scalarsJson, tablesJson, _tempRepoRoot);
+
+            const string scalarsError = "{\"ok\":false,\"status\":401,\"error\":\"unauthorized\"}";
+            var second = SpecSnapshotWriter.Write(null, scalarsError, tablesJson, _tempRepoRoot);
+
+            Assert.IsTrue(second.TuningWritten);
+            var text = File.ReadAllText(Path.Combine(_tempRepoRoot, "Specs", "tuning.json"));
+            StringAssert.Contains("Combat/HitStopSec", text, "失敗した側(scalars)は前回の内容を温存するはず");
+            StringAssert.Contains("Enemy/Params", text);
+        }
+
         [Test]
         public void Write_AllNull_DoesNothingWithoutThrowing()
         {

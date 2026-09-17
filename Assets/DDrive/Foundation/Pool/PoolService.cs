@@ -76,12 +76,24 @@ namespace DDrive.Foundation.Pool
                     var evicted = FindLowestPriority(pool.Active);
                     if (evicted != null)
                     {
-                        // 回収した Instance のラッパーをそのまま使い回す。ForceReturn は Free に積むため、
-                        // 積んだままにすると同じ GO が二重に貸し出される(必ず取り除く)。
+                        // ForceReturn は Free に積むため、積んだままにすると同じ GO が二重に貸し出される(必ず取り除く)。
                         ForceReturn(pool, evicted);
                         if (pool.Free.Count > 0)
                         {
-                            pooled = pool.Free.Pop();
+                            var reclaimed = pool.Free.Pop();
+                            // 2026-09-17 レビュー対応(P1-1): 回収したラッパー(reclaimed == evicted)を
+                            // そのまま新しい借り手へ渡すと、旧借り手がまだ同じラッパーを握っているため、
+                            // 旧借り手の Return/Despawn が「新しい貸出」を取り消してしまう
+                            // (旧 A の Despawn で新 B の GameObject が非アクティブ化され Free に積み直される)。
+                            // evict は上限超過という例外経路なので、ここだけ PooledObject 1 個の alloc を
+                            // 許容して新しいラッパーに差し替える。旧ラッパーは Free/Active のどちらにも
+                            // 残らないため、旧借り手の Return は Active.Remove に失敗して no-op になる。
+                            // 通常の Return → Rent サイクルは従来どおりラッパーごと再利用で 0 alloc
+                            // ([12_review.md] §3 の定常経路 alloc 禁止)。
+                            if (reclaimed.GameObject != null)
+                            {
+                                pooled = new PooledObject(reclaimed.GameObject, prefab);
+                            }
                         }
                     }
 

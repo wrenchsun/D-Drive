@@ -39,8 +39,11 @@ namespace DDrive.Editor.Presentation
             _modelField.RegisterValueChangedCallback(evt => _model = evt.newValue as ModelData);
             foldout.Add(_modelField);
 
-            var modelRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 4 } };
-            modelRow.Add(new Button(PlaceModel) { text = "配置", tooltip = "確認用シーンの原点にモデルを配置して ctx.Self にする(未保存、DontSave)" });
+            var modelRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginBottom = 4 } }; // [09] §7.1
+            modelRow.Add(PreviewPlacementButton.Create(
+                "配置",
+                "確認用シーンを開き、その原点にモデルを配置して ctx.Self にする(未保存、DontSave)",
+                PlaceModel));
             modelRow.Add(new Button(() =>
             {
                 _preview?.ReleaseModel();
@@ -125,7 +128,23 @@ namespace DDrive.Editor.Presentation
 
         // ── 再生 ──
 
-        private void PlaceModel()
+        // U-6(2026-09-17): 「確認用シーンを開く」の実体。他のエディタ(Model / Anim / Anim2D)と同じ
+        // 「止める → 確認用シーンを開く → 配置する」の順に揃える。
+        private void OpenPreviewScene(PreviewPlaceMode mode)
+        {
+            Stop();
+            if (!PreviewPlacement.PrepareScene(mode, VfxPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
+            // シーンは開けたので、以降はモデル配置だけ行う(モデル未選択なら PlaceModel が案内を出す)。
+            PlaceModel(mode, sceneAlreadyPrepared: true);
+        }
+
+        private void PlaceModel(PreviewPlaceMode mode) => PlaceModel(mode, sceneAlreadyPrepared: false);
+
+        private void PlaceModel(PreviewPlaceMode mode, bool sceneAlreadyPrepared)
         {
             if (_preview == null)
             {
@@ -138,8 +157,23 @@ namespace DDrive.Editor.Presentation
                 return;
             }
 
-            VfxPreviewSceneSetup.OpenOrCreate();
+            if (!sceneAlreadyPrepared && !PreviewPlacement.PrepareScene(mode, VfxPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
+            if (PreviewPlacement.IsPersistent(mode))
+            {
+                // 本配置は Manager が追跡しない実体(Prefab リンク付き)にする。ctx.Self には使わない。
+                var placed = PreviewPlacement.PlacePrefabPersistent(_model.Prefab, Vector3.zero, Quaternion.identity);
+                AppendLog(placed != null
+                    ? $"モデル '{_model.DisplayName ?? _model.name}' をこのシーンに本配置しました(プレビュー対象=ctx.Self にはなりません)"
+                    : "⚠ 本配置に失敗しました(ModelData に Prefab がありません)");
+                return;
+            }
+
             var animator = _preview.SpawnModel(_model, Vector3.zero, Quaternion.identity);
+            PreviewPlacement.Focus(_preview.SelfRoot != null ? _preview.SelfRoot.gameObject : null);
             AppendLog(animator != null
                 ? $"確認用モデル '{_model.DisplayName ?? _model.name}' を配置(Animator あり、Anim/Anim2D トラックも再生可)"
                 : $"確認用モデル '{_model.DisplayName ?? _model.name}' を配置(Animator なし。VFX/SE/Shake/Haptic の基準点として使用)");

@@ -192,5 +192,29 @@ namespace DDrive.Tests.Editor
             var unusedKeys = ((Newtonsoft.Json.Linq.JArray)payload["unusedKeys"]).Select(t => (string)t).ToArray();
             CollectionAssert.DoesNotContain(unusedKeys, "ZzSpecWebSenderTest/ReferencedKey");
         }
+
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-10) — 定数名の規則は
+        // TuningCodegen.ToConstantName だけに置く。以前は SpecWebSender が同じ規則を複製していて、
+        // 複製側は char.IsLetterOrDigit(Unicode)で日本語を残していたため、Codegen が
+        // "ZzSpecWebSenderTestHpKey" を生成しているのに Sender は "ZzSpecWebSenderTest敵HpKey" を探し、
+        // 実際に使われているキーを「未使用」として Web に送っていた。
+        // 下のコメント中の参照でコード参照ありを再現する: TUNING.ZzSpecWebSenderTestHpKey
+        [Test]
+        public void BuildTuningUsagePayload_NonAsciiKey_UsesSameConstantNameAsCodegen()
+        {
+            var table = ScriptableObject.CreateInstance<TuningTable>();
+            table.Entries = new[]
+            {
+                new TuningEntry { Key = "ZzSpecWebSenderTest/敵HpKey", Type = TuningValueType.Int, ValueInt = 1 },
+            };
+
+            var payload = SpecWebSender.BuildTuningUsagePayload(table);
+
+            var unusedKeys = ((Newtonsoft.Json.Linq.JArray)payload["unusedKeys"]).Select(t => (string)t).ToArray();
+            CollectionAssert.DoesNotContain(
+                unusedKeys,
+                "ZzSpecWebSenderTest/敵HpKey",
+                "Codegen と同じ定数名(ASCII 英数字以外を落とす)で探すはず");
+        }
     }
 }

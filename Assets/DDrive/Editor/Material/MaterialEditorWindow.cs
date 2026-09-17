@@ -9,6 +9,7 @@ using UnityEditor.SceneManagement;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.Materials
 {
@@ -49,6 +50,7 @@ namespace DDrive.Editor.Materials
 
         private ScrollView _root;
         private ObjectField _targetField;
+        private DataValidationSection _validationSection; // 2026-09-17 U-13([09] §11)
         private VisualElement _inspectorContainer;
         private VisualElement _inspectorHost; // 対象ごとに作り直す(バインド + 変更追跡の持ち主)
         private Label _statusLabel;
@@ -372,6 +374,11 @@ namespace DDrive.Editor.Materials
             _inspectorContainer = new VisualElement();
             _root.Add(_inspectorContainer);
 
+            // 2026-09-17(U-13): 「検証」を全エディタで揃える([09] §11)。MaterialData / TextureData の
+            // どちらでも、その種別の Validator がそのまま走る。
+            _validationSection = new DataValidationSection();
+            _root.Add(_validationSection);
+
             if (_target != null)
             {
                 SetTarget(_target);
@@ -445,6 +452,7 @@ namespace DDrive.Editor.Materials
 
             _targetField.SetValueWithoutNotify(target);
             _inspectorContainer.Clear();
+            _validationSection?.Bind(target as DDrive.Foundation.Data.AssetDataBase);
             _textureImage.style.display = DisplayStyle.None;
             if (target == null)
             {

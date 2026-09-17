@@ -12,9 +12,12 @@ namespace DDrive.Tests.Editor
         [Test]
         public void ParseAssets_ValidItem_ReturnsRowWithSpecLink()
         {
+            // 2026-09-17([41] P1-7): 発注スキーマ(O-1)の新フィールド名・新 3 値の状態で書く
+            // (`contractor` / `referenceMd` / 3 値の status。旧 `assignee` / `note` / 旧 4 値ではない)。
             const string json = "{\"ok\":true,\"status\":200,\"items\":[" +
                 "{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"category\":\"Player\",\"identifier\":\"Slash\"," +
-                "\"displayName\":\"斬撃音\",\"status\":\"仮\",\"assignee\":\"よしだ\",\"note\":\"備考\",\"archived\":false}" +
+                "\"displayName\":\"斬撃音\",\"status\":\"納品済\",\"orderer\":\"やまぐち\",\"contractor\":\"よしだ\"," +
+                "\"referenceMd\":\"備考\",\"archived\":false}" +
                 "]}";
 
             var result = SpecWebParser.ParseAssets(json, "https://example.com/spec");
@@ -25,12 +28,74 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("Slash", row.Identifier);
             Assert.AreEqual("Player", row.Category);
             Assert.AreEqual("斬撃音", row.DisplayName);
-            Assert.AreEqual("仮", row.Status);
+            Assert.AreEqual("納品済", row.Status);
             Assert.AreEqual("よしだ", row.Assignee);
             Assert.AreEqual("備考", row.Note);
             // 2026-09-14: PR #50(O-13)の Web 側ディープリンク(`?page=order&id=...`)に合わせた形式
             // (旧 `#/assets/<id>` ハッシュ形式は Web の SPA が location.hash に依存しないため機能しなかった)。
             Assert.AreEqual("https://example.com/spec?page=order&id=Se%3A%3ASlash", row.SpecLink);
+        }
+
+        [Test]
+        public void ParseAssets_LegacyKeysOnly_FallsBackToAssigneeAndNote()
+        {
+            // GAS 側の物理移行(migrateLegacyOrdersToNewSchema)をまだ実行していないデータが
+            // 残っていても読めること(Migration.js の specWebNormalizeLegacyOrderItem_ と同じ規則)。
+            const string json = "{\"ok\":true,\"items\":[" +
+                "{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"identifier\":\"Slash\"," +
+                "\"displayName\":\"斬撃音\",\"assignee\":\"よしだ\",\"note\":\"旧備考\"}" +
+                "]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual("よしだ", result.Rows[0].Assignee);
+            Assert.AreEqual("旧備考", result.Rows[0].Note);
+        }
+
+        [Test]
+        public void ParseAssets_NewKeysEmptyWithLegacyValues_PrefersLegacyValues()
+        {
+            // 新キーが空文字で存在する(正規化を経ていないデータ)ときは旧キーを見る。
+            const string json = "{\"ok\":true,\"items\":[" +
+                "{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"斬撃音\"," +
+                "\"contractor\":\"\",\"referenceMd\":\"\",\"assignee\":\"よしだ\",\"note\":\"旧備考\"}" +
+                "]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual("よしだ", result.Rows[0].Assignee);
+            Assert.AreEqual("旧備考", result.Rows[0].Note);
+        }
+
+        [Test]
+        public void ParseAssets_NewKeysWin_WhenBothPresent()
+        {
+            const string json = "{\"ok\":true,\"items\":[" +
+                "{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"斬撃音\"," +
+                "\"contractor\":\"あたらしい\",\"referenceMd\":\"新備考\",\"assignee\":\"ふるい\",\"note\":\"旧備考\"}" +
+                "]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual("あたらしい", result.Rows[0].Assignee);
+            Assert.AreEqual("新備考", result.Rows[0].Note);
+        }
+
+        [Test]
+        public void ParseAssets_NoContractorOrReference_RowFieldsAreEmpty()
+        {
+            // 受注者・リファレンス未入力の発注(新スキーマ)。行としては空で読み、
+            // 「空で既存値を上書きしない」のは SpecDiffService / SpecSyncService 側の責務
+            // (SpecDiffServiceTests の P1-7 回帰テスト参照)。
+            const string json = "{\"ok\":true,\"items\":[" +
+                "{\"id\":\"Se::Slash\",\"assetType\":\"Se\",\"identifier\":\"Slash\",\"displayName\":\"斬撃音\"," +
+                "\"status\":\"発注済\",\"contractor\":\"\",\"referenceMd\":\"\"}" +
+                "]}";
+
+            var result = SpecWebParser.ParseAssets(json);
+
+            Assert.AreEqual(string.Empty, result.Rows[0].Assignee);
+            Assert.AreEqual(string.Empty, result.Rows[0].Note);
         }
 
         [Test]

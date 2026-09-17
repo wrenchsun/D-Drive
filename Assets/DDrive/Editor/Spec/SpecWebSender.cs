@@ -130,16 +130,25 @@ namespace DDrive.Editor.Spec
             return new JObject { ["items"] = items };
         }
 
-        // Validation(CI.RunValidation、[Editor > Validation > Run All]と同じ全 Validator 実行)の
+        // Validation(CI.RunValidation、[Editor > Validation > Run All]と同じ Validator 発見規則)の
         // 結果から、Error severity が 1 件以上ある AssetDataBase のアセットパス集合を作る。
         // 例外を投げず(CLAUDE.md §0-4)、失敗時は「Error 無し」扱い(isPlaceholder は false 側へ倒す
         // 保守的な既定)にする。
+        //
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-6 (a)): プロジェクト全体を
+        // 1 回まとめて見る Validator を除外する(`includeProjectWideValidators: false`)。
+        // `ValidatorRegistry.RunAll` は `IUniversalValidator` の結果も「その時渡されたアセット」に
+        // 紐付けるため、以前は「調整値が 1 つでも範囲外(SpecDiffValidator)/ カタログがラベル未登録
+        // (ContentHashCatalogCoverageValidator)」だと**無関係なアセット**が `isPlaceholder=true` で
+        // 送られ、`assetParams` からも外れて Web 側で「インポート済」に進めなかった。
+        // 1 アセット単位で意味がある検査(種別 Validator + ValueDef / Addressables 登録 / NetMode)は
+        // 従来どおり isPlaceholder に含める。
         private static HashSet<string> FindAssetPathsWithValidationErrors()
         {
             var result = new HashSet<string>(StringComparer.Ordinal);
             try
             {
-                foreach (var report in DDrive.Editor.CI.RunValidation())
+                foreach (var report in DDrive.Editor.CI.RunValidation(includeProjectWideValidators: false))
                 {
                     if (report.Result.Severity != ValidationSeverity.Error || report.Asset == null)
                     {
@@ -241,7 +250,9 @@ namespace DDrive.Editor.Spec
                     continue;
                 }
 
-                var constName = "TUNING." + TuningCodegenConstantName(entry.Key);
+                // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-10): 同じ規則の
+                // 複製をやめ、TuningCodegen.ToConstantName(internal 化)をそのまま使う。
+                var constName = "TUNING." + TuningCodegen.ToConstantName(entry.Key);
                 if (!sourceText.Any(text => text.IndexOf(constName, StringComparison.Ordinal) >= 0))
                 {
                     unusedKeys.Add(entry.Key);
@@ -249,41 +260,6 @@ namespace DDrive.Editor.Spec
             }
 
             return new JObject { ["unusedKeys"] = unusedKeys };
-        }
-
-        // TuningCodegen.ToConstantName は private のため、同じ規則をここに複製する
-        // (公開するほど汎用ではない小さな文字列変換のため、依存を増やさず複製する判断。
-        // TuningCodegen.cs のロジックを変更する場合はここも合わせて更新すること)。
-        private static string TuningCodegenConstantName(string key)
-        {
-            var tokens = key.Split(new[] { '/', '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            var sb = new System.Text.StringBuilder();
-            foreach (var token in tokens)
-            {
-                var clean = new string(token.Where(c => char.IsLetterOrDigit(c)).ToArray());
-                if (clean.Length == 0)
-                {
-                    continue;
-                }
-
-                sb.Append(char.ToUpperInvariant(clean[0]));
-                if (clean.Length > 1)
-                {
-                    sb.Append(clean.Substring(1));
-                }
-            }
-
-            if (sb.Length == 0)
-            {
-                sb.Append("Unnamed");
-            }
-
-            if (!char.IsLetter(sb[0]))
-            {
-                sb.Insert(0, '_');
-            }
-
-            return sb.ToString();
         }
 
         private static List<string> ReadAllScannableSource()

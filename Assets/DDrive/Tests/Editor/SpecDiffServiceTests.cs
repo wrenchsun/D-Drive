@@ -127,6 +127,83 @@ namespace DDrive.Tests.Editor
             Assert.IsNull(asset, "ButtonSkinData/SliderSkinData のどちらか一意に決められないため作成しない");
         }
 
+        // ── 2026-09-17([41] P1-7)の回帰テスト ──
+        // Web(GAS)の JSON を SpecWebParser で読み、「受注者・リファレンスが空の発注」を同期しても
+        // 既存の Assignee / Description / 状態 / 仕様リンクが空で上書きされないことを確認する。
+        // 元の不具合は「D-Drive が旧キー(assignee/note)を読んでいて常に空だった」ことだが、
+        // 同じ事故の被害を最小にする防御(空は変更なし)そのものをここで固定する。
+        private const string WebIdentifier = "SpecDiffTestWebEmpty";
+
+        private static string WebAssetsJson(string displayName, string status, string contractor, string referenceMd)
+            => "{\"ok\":true,\"items\":[{" +
+               "\"id\":\"Se::" + WebIdentifier + "\",\"assetType\":\"Se\",\"category\":\"Player\"," +
+               "\"identifier\":\"" + WebIdentifier + "\",\"displayName\":\"" + displayName + "\"," +
+               "\"status\":\"" + status + "\",\"contractor\":\"" + contractor + "\"," +
+               "\"referenceMd\":\"" + referenceMd + "\"}]}";
+
+        private static AssetDataBase CreateWebTestAsset()
+        {
+            var asset = AssetCreationService.Create(
+                typeof(SeData), AssetType.Se, "斬撃音", "Player", WebIdentifier, gameDataRoot: TestRoot);
+            asset.Assignee = "よしだ";
+            asset.Description = "D-Drive 側で書いた説明";
+            asset.Tags = SpecStatusTag.WithStatus(asset.Tags, "納品済");
+            asset.SpecUrl = "https://example/spec?page=order&id=Se%3A%3A" + WebIdentifier;
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+            return asset;
+        }
+
+        [Test]
+        public void ComputeDiff_WebRowWithEmptyContractorAndReference_IsNotChanged()
+        {
+            CreateWebTestAsset();
+            var parsed = SpecWebParser.ParseAssets(WebAssetsJson("斬撃音", string.Empty, string.Empty, string.Empty));
+
+            var diff = SpecDiffService.ComputeDiff(parsed);
+
+            Assert.IsFalse(diff.Changed.Any(c => c.Row.Identifier == WebIdentifier),
+                "Web 側が空の項目は差分に含めない(空で既存値を消さない)");
+        }
+
+        [Test]
+        public void ApplyChanged_WebRowWithEmptyContractorAndReference_KeepsExistingValues()
+        {
+            var asset = CreateWebTestAsset();
+            // 表示名だけが変わった発注(受注者・リファレンスは未入力)。
+            var parsed = SpecWebParser.ParseAssets(WebAssetsJson("斬撃音(改)", string.Empty, string.Empty, string.Empty));
+            var diff = SpecDiffService.ComputeDiff(parsed);
+            var change = diff.Changed.Single(c => c.Row.Identifier == WebIdentifier);
+            CollectionAssert.Contains(change.ChangedFields, "表示名");
+            CollectionAssert.DoesNotContain(change.ChangedFields, "担当");
+            CollectionAssert.DoesNotContain(change.ChangedFields, "備考");
+            CollectionAssert.DoesNotContain(change.ChangedFields, "状態");
+
+            SpecSyncService.ApplyChanged(change);
+
+            Assert.AreEqual("斬撃音(改)", asset.DisplayName, "表示名は反映する");
+            Assert.AreEqual("よしだ", asset.Assignee, "担当が空で上書きされていない");
+            Assert.AreEqual("D-Drive 側で書いた説明", asset.Description, "説明が空で上書きされていない");
+            Assert.AreEqual("納品済", SpecStatusTag.GetCurrent(asset.Tags), "状態タグが消えていない");
+            Assert.IsFalse(string.IsNullOrEmpty(asset.SpecUrl), "仕様リンクが消えていない");
+        }
+
+        [Test]
+        public void ApplyChanged_WebRowWithNewSchemaValues_IsApplied()
+        {
+            var asset = CreateWebTestAsset();
+            var parsed = SpecWebParser.ParseAssets(WebAssetsJson("斬撃音(改)", "インポート済", "たなか", "新しいリファレンス"));
+            var diff = SpecDiffService.ComputeDiff(parsed);
+            var change = diff.Changed.Single(c => c.Row.Identifier == WebIdentifier);
+
+            SpecSyncService.ApplyChanged(change);
+
+            Assert.AreEqual("斬撃音(改)", asset.DisplayName);
+            Assert.AreEqual("たなか", asset.Assignee, "contractor が Assignee に入る");
+            Assert.AreEqual("新しいリファレンス", asset.Description, "referenceMd が Description に入る");
+            Assert.AreEqual("インポート済", SpecStatusTag.GetCurrent(asset.Tags));
+        }
+
         [Test]
         public void ComputeDiff_MissingFromSheet_WithSpecUrlSet_IsArchiveCandidate()
         {

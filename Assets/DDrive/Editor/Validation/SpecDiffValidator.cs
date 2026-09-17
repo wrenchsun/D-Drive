@@ -27,7 +27,8 @@ namespace DDrive.Editor.Validation
     // スナップショットが無いプロジェクト(仕様書同期を使っていない)では Info 1 件だけ出して他の検査はしない。
     public sealed class SpecDiffValidator : IUniversalValidator
     {
-        private const string ImportedStatus = "インポート済";
+        // 値は SpecStatusTag に 1 か所化した(2026-09-17、[41] P1-7。GAS 側 SPEC_WEB_ASSET_STATUSES が正)。
+        private const string ImportedStatus = DDrive.Editor.Spec.SpecStatusTag.ImportedStatus;
 
         // テスト用オーバーライド。既定(null)は本番動作(Specs/*.json の実パス・DDriveSpecSettings/
         // プロジェクト内の TuningTable を自動解決)。
@@ -492,83 +493,31 @@ namespace DDrive.Editor.Validation
         }
 
         // docs/32_spec_web.md §10.4.1 の決定(既存 Validator の実行結果を再利用して Placeholder を判定する)を
-        // そのまま踏襲する。ただし CI.RunValidation()/SpecWebSender と違い、この Validator 自身は呼び直さない
-        // (自分自身が Run All/CI.ValidateAll から発見・実行される Validator であるため、無限再帰を避ける)。
+        // そのまま踏襲する。
         //
-        // 発見した Validator の一覧はプロセス内でキャッシュする(このメソッドは「インポート済」の発注ごとに
-        // 呼ばれうるため、都度 AppDomain 全体をリフレクションで走査するのは避ける。スクリプト再コンパイル
-        // 後は AppDomain 自体が入れ替わるためキャッシュも自然にリセットされる)。
-        private static List<IValidator> _placeholderCheckValidators;
-
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-6 (b)) — 自前で
+        // `ValidatorRegistry` を組んで「自分自身を除く全 Validator」を 1 アセットに対して回していたのを、
+        // 既存の「個別検証」(`DataValidationRunner.Run`、docs/09 §11)に置き換えた。旧実装の問題:
+        //   - `IUniversalValidator` を含めていたため、**プロジェクト全体の Error が 1 件でもあると**
+        //     チェックした「インポート済」アセット全件が「まだ Placeholder のようです」Warning に化けた
+        //   - 内側の `RunAll` が全体系 Validator の「1 回だけ」ガード(`_lastRunContext` /
+        //     `_noSettingsReported`)を書き換えるため、Report Window / CI に同じ Error が件数ぶん重複した
+        // `DataValidationRunner` は「プロジェクト全体を 1 回まとめて見る Validator」(`SpecDiffValidator`
+        // 自身と `ContentHashCatalogCoverageValidator`)を除外し、1 アセット単位で意味がある検査
+        // (種別 Validator + ValueDef / Addressables 登録 / NetMode)だけを実行する
+        // = 自分自身も外れるので無限再帰にもならない。Validator 一覧のキャッシュも向こうが持つ。
         private static bool IsPlaceholder(AssetDataBase data)
         {
-            _placeholderCheckValidators ??= new List<IValidator>(DiscoverValidatorsExceptSelf());
-
-            var registry = new ValidatorRegistry();
-            foreach (var validator in _placeholderCheckValidators)
+            var results = DataValidationRunner.Run(data);
+            for (var i = 0; i < results.Count; i++)
             {
-                registry.Register(validator);
-            }
-
-            foreach (var report in registry.RunAll(new[] { data }))
-            {
-                if (report.Result.Severity == ValidationSeverity.Error)
+                if (results[i].Severity == ValidationSeverity.Error)
                 {
                     return true;
                 }
             }
 
             return false;
-        }
-
-        private static IEnumerable<IValidator> DiscoverValidatorsExceptSelf()
-        {
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                // CI.DiscoverValidators と同じ理由: テスト asmdef 内のダミー実装は対象外。
-                if (asm.GetName().Name.StartsWith("DDrive.Tests", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                Type[] types;
-                try
-                {
-                    types = asm.GetTypes();
-                }
-                catch (ReflectionTypeLoadException e)
-                {
-                    types = e.Types;
-                }
-
-                if (types == null)
-                {
-                    continue;
-                }
-
-                foreach (var t in types)
-                {
-                    if (t == null || t.IsAbstract || t.IsInterface || !typeof(IValidator).IsAssignableFrom(t))
-                    {
-                        continue;
-                    }
-
-                    if (t == typeof(SpecDiffValidator))
-                    {
-                        continue; // 自分自身は除外(無限再帰防止)
-                    }
-
-                    if (t.GetConstructor(Type.EmptyTypes) == null)
-                    {
-                        continue;
-                    }
-
-                    if (Activator.CreateInstance(t) is IValidator validator)
-                    {
-                        yield return validator;
-                    }
-                }
-            }
         }
     }
 }

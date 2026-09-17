@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Handle;
-using DDrive.Foundation.Validation;
+using DDrive.Editor.Validation;
 using DDrive.Runtime.Vfx;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -32,7 +32,7 @@ namespace DDrive.Editor.Vfx
         private string _paramsSignature;
 
         private Foldout _eventsFoldout;
-        private Foldout _validationFoldout;
+        private DataValidationSection _validationSection;
 
         // ── パラメータ ──
 
@@ -282,60 +282,15 @@ namespace DDrive.Editor.Vfx
             }
         }
 
-        // ── 検証(VfxDataValidator をその場で実行。AssetBrowser の一括検証と同じ結果) ──
+        // ── 検証(共通の個別検証セクション。AssetBrowser の一括検証と同じ Validator を対象 1 件に対して実行) ──
+        // 2026-09-17(U-13): 独自実装から DataValidationSection に置き換えた([09] §11)。
 
         private void BuildValidationSection(VisualElement root)
         {
-            _validationFoldout = new Foldout { text = "検証", value = true };
-            root.Add(_validationFoldout);
+            _validationSection = new DataValidationSection();
+            root.Add(_validationSection);
         }
 
-        private void RefreshValidation()
-        {
-            if (_validationFoldout == null)
-            {
-                return;
-            }
-
-            _validationFoldout.Clear();
-
-            if (_target == null)
-            {
-                return;
-            }
-
-            var errors = 0;
-            var warnings = 0;
-            var ctx = new ValidationContext(new List<AssetDataBase> { _target });
-            foreach (var result in new VfxDataValidator().Validate(_target, ctx))
-            {
-                var type = result.Severity switch
-                {
-                    ValidationSeverity.Error => HelpBoxMessageType.Error,
-                    ValidationSeverity.Warning => HelpBoxMessageType.Warning,
-                    _ => HelpBoxMessageType.Info,
-                };
-
-                if (result.Severity == ValidationSeverity.Error)
-                {
-                    errors++;
-                }
-                else if (result.Severity == ValidationSeverity.Warning)
-                {
-                    warnings++;
-                }
-
-                _validationFoldout.Add(new HelpBox(result.Message, type));
-            }
-
-            _validationFoldout.text = errors == 0 && warnings == 0
-                ? "検証: ✓ 問題なし"
-                : $"検証: エラー {errors} / 警告 {warnings}";
-
-            if (errors == 0 && warnings == 0)
-            {
-                _validationFoldout.Add(new Label("Validation に問題はありません。") { style = { opacity = 0.6f } });
-            }
-        }
+        private void RefreshValidation() => _validationSection?.Bind(_target);
     }
 }

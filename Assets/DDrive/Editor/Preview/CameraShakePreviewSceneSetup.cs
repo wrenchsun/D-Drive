@@ -16,21 +16,30 @@ namespace DDrive.Editor.Preview
         public const string ScenePath = "Assets/GameData/PreviewScenes/CameraShakePreviewScene.unity";
 
         [MenuItem(DDriveMenu.Editors + "揺れ・振動確認用シーンを開く")]
-        public static void OpenOrCreate()
+        public static void OpenOrCreate() => TryOpenOrCreate();
+
+        // 戻り値は「確認用シーンが開いている状態になったか」(U-5、VfxPreviewSceneSetup と同じ流儀)。
+        public static bool TryOpenOrCreate()
         {
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().path == ScenePath)
+            {
+                return true;
+            }
+
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
                 // ユーザーが保存ダイアログでキャンセルした場合は何もしない(現在の作業を失わせない)。
-                return;
+                return false;
             }
 
             if (System.IO.File.Exists(ScenePath))
             {
                 EditorSceneManager.OpenScene(ScenePath);
-                return;
+                return true;
             }
 
             CreateScene();
+            return true;
         }
 
         private static void CreateScene()

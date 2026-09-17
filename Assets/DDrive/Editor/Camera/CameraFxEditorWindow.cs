@@ -10,6 +10,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
+using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.CameraFx
 {
@@ -38,6 +39,7 @@ namespace DDrive.Editor.CameraFx
         private SerializedObject _serializedTarget;
 
         private ObjectField _targetField;
+        private DataValidationSection _validationSection; // 2026-09-17 U-13([09] §11)
         private Label _statusLabel;
         private HelpBox _sceneHelp;
         private HelpBox _padHelp;
@@ -150,6 +152,10 @@ namespace DDrive.Editor.CameraFx
 
             _hapticsSection = BuildHapticsSection();
             root.Add(_hapticsSection);
+
+            // 2026-09-17(U-13): 「検証」を全エディタで揃える([09] §11)。
+            _validationSection = new DataValidationSection();
+            root.Add(_validationSection);
 
             if (_target == null && !_lockTarget && Selection.activeObject is AssetDataBase selected && selected is CameraShakeData or HapticsData)
             {
@@ -454,6 +460,7 @@ namespace DDrive.Editor.CameraFx
             RebuildShakeFieldsUi();
             RebuildHapticsFieldsUi();
             RefreshWaveforms();
+            _validationSection?.Bind(_target);
         }
 
         private void RefreshWaveforms()

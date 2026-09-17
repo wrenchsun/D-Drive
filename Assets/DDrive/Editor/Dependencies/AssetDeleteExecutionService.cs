@@ -41,7 +41,20 @@ namespace DDrive.Editor.Dependencies
             public bool Deleted;
             public bool ArchivedOnly;
             public string CodeReferenceWarning;
+
+            // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-7) 追加 —
+            // コード参照のヒット(ファイル:行)。**削除前**に取らなければならない:
+            // `MoveAssetToTrash` 済みの `AssetDataBase` は fake null になるため、結果画面で
+            // `r.Target.Asset != null` を条件に取り直していた旧実装ではヒット一覧が絶対に出なかった
+            // (docs/09 §10 の「クリックでエディタを開く」が機能していなかった)。
+            // 走査していない / ヒット無しのときは null。
+            public List<CodeReferenceScan.Hit> CodeReferenceHits;
         }
+
+        // 2026-09-17([41] P2-8) 追加 — 結果画面の文言を実際に選ばれた操作で出し分けるために持つ
+        // (`Deleted=false` が一律「参照が残っているため削除せず…」だったため、ユーザーが明示的に
+        // 「アーカイブのみ」を選んだ場合にも同じ文言が出ていた)。
+        public DeleteAction Action;
 
         public readonly List<PerAssetResult> Results = new();
         public readonly List<string> ChangedDataPaths = new(); // 参照差し替えで書き換わった Data
@@ -59,6 +72,8 @@ namespace DDrive.Editor.Dependencies
             {
                 return result;
             }
+
+            result.Action = request.Action;
 
             switch (request.Action)
             {
@@ -92,15 +107,11 @@ namespace DDrive.Editor.Dependencies
         {
             foreach (var t in AllTargets(request))
             {
-                var warning = request.ScanCodeReferences ? CodeReferenceScan.FindPossibleReferences(t.Asset, t.Path) : null;
+                var perAsset = new DeleteExecutionResult.PerAssetResult { Target = t, Deleted = true };
+                CollectCodeReferences(request, t, perAsset);
                 ArchiveTagService.SetArchived(t.Asset, true);
                 SafeDeleteService.PerformDelete(t.Asset, t.Path);
-                result.Results.Add(new DeleteExecutionResult.PerAssetResult
-                {
-                    Target = t,
-                    Deleted = true,
-                    CodeReferenceWarning = warning,
-                });
+                result.Results.Add(perAsset);
             }
         }
 
@@ -129,16 +140,12 @@ namespace DDrive.Editor.Dependencies
                     continue;
                 }
 
-                var warning = request.ScanCodeReferences ? CodeReferenceScan.FindPossibleReferences(t.Asset, t.Path) : null;
+                var perAsset = new DeleteExecutionResult.PerAssetResult { Target = t, Deleted = true };
+                CollectCodeReferences(request, t, perAsset);
                 ArchiveTagService.SetArchived(t.Asset, true);
                 SafeDeleteService.PerformDelete(t.Asset, t.Path);
                 deletedPaths.Add(t.Path);
-                result.Results.Add(new DeleteExecutionResult.PerAssetResult
-                {
-                    Target = t,
-                    Deleted = true,
-                    CodeReferenceWarning = warning,
-                });
+                result.Results.Add(perAsset);
             }
 
             // 「一緒に削除」対象は、実際に削除された Primary(と他の一緒に削除対象)以外から使われていなければ削除する。
@@ -156,15 +163,28 @@ namespace DDrive.Editor.Dependencies
                     continue;
                 }
 
-                var warning = request.ScanCodeReferences ? CodeReferenceScan.FindPossibleReferences(c.Asset, c.Path) : null;
+                var perAsset = new DeleteExecutionResult.PerAssetResult { Target = c, Deleted = true };
+                CollectCodeReferences(request, c, perAsset);
                 ArchiveTagService.SetArchived(c.Asset, true);
                 SafeDeleteService.PerformDelete(c.Asset, c.Path);
-                result.Results.Add(new DeleteExecutionResult.PerAssetResult
-                {
-                    Target = c,
-                    Deleted = true,
-                    CodeReferenceWarning = warning,
-                });
+                result.Results.Add(perAsset);
+            }
+        }
+
+        // 2026-09-17([41] P2-7) — 警告文言とヒット一覧(ファイル:行)を**削除の前に**まとめて取る。
+        // 削除後に取り直すと `MoveAssetToTrash` 済みのオブジェクトが fake null になり何も取れない。
+        private static void CollectCodeReferences(DeleteExecutionRequest request, DeleteTarget target, DeleteExecutionResult.PerAssetResult into)
+        {
+            if (!request.ScanCodeReferences || target.Asset == null)
+            {
+                return;
+            }
+
+            into.CodeReferenceWarning = CodeReferenceScan.FindPossibleReferences(target.Asset, target.Path);
+            if (!string.IsNullOrEmpty(into.CodeReferenceWarning))
+            {
+                // 走査(キャッシュ済みのファイル内容)を共有するので、警告が出たときだけ行番号を数える。
+                into.CodeReferenceHits = CodeReferenceScan.FindPossibleReferenceHits(target.Asset, target.Path);
             }
         }
 

@@ -234,6 +234,42 @@ namespace DDrive.Tests.Runtime
             Assert.IsNull(_manager.GetGameObject(h2));
         }
 
+        // 2026-09-17 レビュー対応(P1-1 恒久策): Pool の上限超過で強制回収(evict)された Instance は
+        // PrefabsManager の台帳からも消える(= 古い Handle が無効になる)。これが無いと、回収後も古い
+        // Handle 経由で「次の借り手」の GameObject を操作・Despawn できてしまう。
+        [Test]
+        public void SpawnData_AtPoolLimit_EvictedInstance_IsRemovedFromLedger()
+        {
+            var data = CreatePrefabData(1);
+            data.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 1);
+
+            var first = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var second = _manager.SpawnData(data, Vector3.one, Quaternion.identity);
+
+            Assert.IsFalse(_manager.IsValid(first), "強制回収された Handle は無効になる");
+            Assert.IsTrue(_manager.IsValid(second));
+            Assert.AreEqual(1, _manager.ActiveCount, "台帳に残るのは新しい Instance だけ");
+            Assert.IsNull(_manager.GetGameObject(first));
+        }
+
+        // 回収済み Handle の Despawn が「次の借り手」を巻き込まないこと(P1-1 の最小修正側)。
+        [Test]
+        public void Despawn_OfEvictedHandle_DoesNotAffectNewInstance()
+        {
+            var data = CreatePrefabData(1);
+            data.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 1);
+
+            var first = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var second = _manager.SpawnData(data, Vector3.one, Quaternion.identity);
+            var secondRoot = _manager.GetGameObject(second);
+
+            _manager.Despawn(first);
+
+            Assert.IsTrue(_manager.IsValid(second), "回収済み Handle の Despawn で新しい Instance が消えてはいけない");
+            Assert.IsTrue(secondRoot.activeSelf, "回収済み Handle の Despawn で新しい GameObject が非アクティブ化されてはいけない");
+            Assert.AreEqual(0, _pool.FreeCount(_prefab), "貸出中の GameObject が Free に積み直されてはいけない");
+        }
+
         // registry.ResolveOrPlaceholder は既にロード済み(_loaded にキャッシュ済み)の ID しか実データを返さない
         // ([02] AssetRegistry.ResolveOrPlaceholder)ため、Spawn(id,...) を使うテストは先にカタログ登録 +
         // 1 回 ResolveAsync してキャッシュに乗せておく。

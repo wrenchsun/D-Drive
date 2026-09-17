@@ -64,7 +64,10 @@ namespace DDrive.Editor.Anim2D
 
             root.Add(new Label("プレビュー(SceneView で確認)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
             var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row } };
-            previewButtons.Add(new Button(OpenPreviewScene) { text = "確認用シーンを開く", tooltip = "確認用シーンを開き(無ければ生成)、SpriteRenderer 付きのプレビュー物を配置する" });
+            previewButtons.Add(DDrive.Editor.Preview.PreviewPlacementButton.Create(
+                "確認用シーンを開く",
+                "確認用シーンを開き(無ければ生成)、SpriteRenderer 付きのプレビュー物を配置する",
+                OpenPreviewScene));
             previewButtons.Add(new Button(PlacePreview) { text = "今のシーンに配置", tooltip = "開いているシーン / プレハブモードに保存されないプレビュー物を置く" });
             previewButtons.Add(new Button(PlayPreview) { text = "▶ 再生" });
             previewButtons.Add(new Button(StopPreview) { text = "■ 停止" });
@@ -300,11 +303,25 @@ namespace DDrive.Editor.Anim2D
 
         // ── シーンプレビュー ──
 
-        private void OpenPreviewScene()
+        // U-5(2026-09-17): 左クリック = 確認用シーンを開いて配置 / 右クリック = このシーンに配置・本配置。
+        private void OpenPreviewScene(DDrive.Editor.Preview.PreviewPlaceMode mode)
         {
             StopPreview();
-            VfxPreviewSceneSetup.OpenOrCreate();
+            if (!DDrive.Editor.Preview.PreviewPlacement.PrepareScene(mode, VfxPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
             PlacePreview();
+            if (DDrive.Editor.Preview.PreviewPlacement.IsPersistent(mode) && _previewObject != null)
+            {
+                // 置いたプレビュー物(SpriteRenderer + Animator)をそのままシーンの住人にする。
+                // 引き渡した後はこちらが所有しない(撤去・再生の対象から外す)。
+                DDrive.Editor.Preview.PreviewPlacement.Persist(_previewObject, _editTarget != null ? _editTarget.DisplayName ?? _editTarget.name : null);
+                _scene?.ReleaseTarget();
+                _previewObject = null;
+                _previewStatusLabel.text = "このシーンに本配置しました(プレビュー対象にはしていません)";
+            }
         }
 
         private void PlacePreview()
@@ -324,6 +341,7 @@ namespace DDrive.Editor.Anim2D
             ApplyFirstFrame();
             _scene.SetTarget(_previewObject.GetComponent<Animator>());
             _previewStatusLabel.text = "プレビュー物を配置済み(SceneView を確認)";
+            DDrive.Editor.Preview.PreviewPlacement.Focus(_previewObject); // U-5: SceneView のカメラを配置先へ寄せる
             SceneView.RepaintAll();
         }
 

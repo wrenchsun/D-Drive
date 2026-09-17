@@ -202,11 +202,13 @@ namespace DDrive.Editor.Presentation
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
             toolbar.Add(new ToolbarSpacer());
-            toolbar.Add(new ToolbarButton(VfxPreviewSceneSetup.OpenOrCreate)
-            {
-                text = "確認用シーンを開く",
-                tooltip = "ライト/カメラ/Volume/床を備えた確認用シーンを開く(無ければ生成)。統合プレビューはここで実行する",
-            });
+            // U-6(2026-09-17): 確認用シーンを「開くだけ」で、モデル配置は別ボタン(下の「配置」)だったため、
+            // 押しても確認用シーンで演出が確認できる状態にならなかった。Model / Anim / Anim2D と同じく
+            // 「片付ける → 確認用シーンを開く → 配置する」を 1 ボタンにまとめる。
+            toolbar.Add(PreviewPlacementButton.CreateToolbarButton(
+                "確認用シーンを開く",
+                "ライト/カメラ/Volume/床を備えた確認用シーンを開き(無ければ生成)、モデル(ctx.Self)を配置する。統合プレビューはここで実行する",
+                OpenPreviewScene));
             toolbar.Add(new ToolbarButton(() => { if (_target != null) EditorGUIUtility.PingObject(_target); }) { text = "Project で表示" });
             toolbar.Add(new ToolbarSpacer());
             toolbar.Add(NewAssetToolbarButton.CreateToolbarButton(typeof(PresentationEditorWindow)));

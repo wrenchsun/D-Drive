@@ -30,6 +30,9 @@ namespace DDrive.Foundation.Net
         // マルチウィンドウ運用向けに RaiseClientConnected で手動発火できる([14] §5、5-9)。
         public event Action<ulong> ClientConnected;
 
+        // 同上(2026-09-17 レビュー対応 P2-2)。シングルプレイでは通常発火しない。
+        public event Action<ulong, string> ClientDisconnected;
+
         // [11_tasks.md] 6-0(B) — NetDebugOverlay 用の受信メッセージ数(INetBridge のインタフェースには
         // 含めない。オーバーレイ側は型チェックで見る)。
         public int ReceivedMessageCount { get; private set; }
@@ -37,6 +40,8 @@ namespace DDrive.Foundation.Net
         public void Tick(double deltaTime) => NetworkTime += deltaTime;
 
         public void RaiseClientConnected(ulong clientId) => ClientConnected?.Invoke(clientId);
+
+        public void RaiseClientDisconnected(ulong clientId, string reason = null) => ClientDisconnected?.Invoke(clientId, reason);
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage => Dispatch(0, msg);
 

@@ -92,7 +92,20 @@ namespace DDrive.Editor.Import
 
         public void Configure(AssetDataBase data, UnityEngine.Object source, string assetPath)
         {
-            ((ModelData)data).Prefab = (GameObject)source;
+            var model = (ModelData)data;
+            model.Prefab = (GameObject)source;
+
+            // Slots も同時に埋める(U-2、2026-09-17)。FBX の MaterialData は MayaModelPostprocessor が
+            // 先に(同じ delayCall 列の手前で)作っているので、ここでは探して結び付けるだけ = 新しいアセットは作らない
+            // (configure はまだ AssetDatabase.CreateAsset の前なので、ここでアセットを作らない)。
+            // 未解決のスロットは None のまま残り、ModelEditor の「元ファイルを再読み込み」で作り直せる。
+            var report = new DDrive.Editor.Model.ModelSlotBinder.Report();
+            model.Slots = DDrive.Editor.Model.ModelSlotBinder.BuildSlots(model.Prefab, null, report);
+            if (report.Unresolved > 0)
+            {
+                Debug.LogWarning($"[DDrive] ImportRule: {assetPath} の Material スロット {report.Unresolved}/{report.Slots} 件は MaterialData が見つかりませんでした"
+                                 + "(Model Editor の「元ファイルを再読み込み」で生成できます)。");
+            }
         }
 
     }

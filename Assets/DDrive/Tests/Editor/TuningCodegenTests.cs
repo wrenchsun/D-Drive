@@ -4,6 +4,7 @@ using DDrive.Runtime.Tuning;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace DDrive.Tests.Editor
 {
@@ -92,6 +93,48 @@ namespace DDrive.Tests.Editor
             StringAssert.Contains("public const string EnemyParams = \"Enemy/Params\";", content);
             StringAssert.Contains("public const string EnemyParamsHp = \"Hp\";", content);
             StringAssert.Contains("public const string EnemyParamsSpeed = \"Speed\";", content);
+        }
+
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P1-2 (d)) — 安全弁の回帰テスト。
+        // 仕様書 Web API が `ok:false` を返した結果で TuningTable が空になると、以前はここが
+        // `TUNING` を空クラスで書き出し `TUNING.Xxx` を参照している全コードがコンパイルエラーになった。
+        [Test]
+        public void Regenerate_ZeroKeys_DoesNotOverwriteExistingFileThatHasConstants()
+        {
+            AssetDatabase.CreateFolder("Assets/DDrive/Tests/Editor", "TempTuningCodegen");
+            var table = ScriptableObject.CreateInstance<TuningTable>();
+            table.Entries = new[]
+            {
+                new TuningEntry { Key = "Combat/HitStopSec", Type = TuningValueType.Float, ValueFloat = 0.05f },
+            };
+            AssetDatabase.CreateAsset(table, TablePath);
+
+            var first = TuningCodegen.Regenerate(table, OutputPath);
+            Assert.AreEqual(1, first.TotalCount);
+            var before = File.ReadAllText(OutputPath);
+
+            // 取得失敗で TuningTable が空になった状態を模す。
+            table.Entries = System.Array.Empty<TuningEntry>();
+            table.Tables = System.Array.Empty<TuningTableEntry>();
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*再生成を中止.*"));
+            var second = TuningCodegen.Regenerate(table, OutputPath);
+
+            Assert.IsFalse(second.Success, "0 件のときは上書きせず Success=false で返すはず");
+            Assert.AreEqual(before, File.ReadAllText(OutputPath), "既存の Tuning.g.cs を空にしてはいけない");
+            StringAssert.Contains("CombatHitStopSec", File.ReadAllText(OutputPath));
+        }
+
+        // 既存ファイルが無い(初回生成)ときは 0 件でも通常どおり書き出す(上の安全弁が効きすぎないこと)。
+        [Test]
+        public void Regenerate_ZeroKeys_NoExistingFile_StillWrites()
+        {
+            Assert.IsFalse(File.Exists(OutputPath), "前提: 出力先がまだ存在しない");
+
+            var result = TuningCodegen.Regenerate(table: null, outputPath: OutputPath);
+
+            Assert.IsTrue(result.Success);
+            Assert.IsTrue(File.Exists(OutputPath));
         }
     }
 }

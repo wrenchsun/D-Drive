@@ -27,6 +27,12 @@ namespace DDrive.Tests.Editor
     //   - 取得の成功・キャッシュフォールバックの各経路で、Debug.Log に token 文字列が出力されないこと
     public class SpecWebFetcherTests
     {
+        // 2026-09-17 — このテストが SpecWebFetcher に渡してよい apiName はこれだけ。実 API 名
+        // ("assets.list" / "tuningScalarList" / "tuningTableList"。SpecAutoSync が使う)を渡すと、
+        // FetchGet の useCache:true が開発者の実キャッシュ(Library/DDriveSpec/web_<apiName>.json)を
+        // テスト応答で上書きし、TearDown でも消えずに残ってしまう。
+        private const string TestApiName = "__test_api";
+
         private HttpListener _listener;
         private readonly List<CapturedRequest> _captured = new();
 
@@ -50,7 +56,7 @@ namespace DDrive.Tests.Editor
             StopListener();
             _captured.Clear();
 
-            var path = SpecWebFetcher.CachePathFor("__test_api");
+            var path = SpecWebFetcher.CachePathFor(TestApiName);
             if (File.Exists(path))
             {
                 File.Delete(path);
@@ -160,7 +166,7 @@ namespace DDrive.Tests.Editor
             var prefix = StartRedirectServer("{\"ok\":true,\"pong\":true}");
 
             SpecWebFetchResult result = null;
-            SpecWebFetcher.FetchGet(prefix, "__test_api", null, null, r => result = r);
+            SpecWebFetcher.FetchGet(prefix, TestApiName, null, null, r => result = r);
 
             yield return WaitFor(() => result != null);
 
@@ -176,7 +182,7 @@ namespace DDrive.Tests.Editor
             // 1 回目: 正常応答でキャッシュに保存させる。
             var prefix = StartRedirectServer("{\"ok\":true,\"cached\":true}");
             SpecWebFetchResult first = null;
-            SpecWebFetcher.FetchGet(prefix, "__test_api", null, null, r => first = r);
+            SpecWebFetcher.FetchGet(prefix, TestApiName, null, null, r => first = r);
             yield return WaitFor(() => first != null);
             Assert.IsTrue(first != null && first.Success, "1 回目の取得が成功している前提のテストです");
 
@@ -184,7 +190,7 @@ namespace DDrive.Tests.Editor
             StopListener();
 
             SpecWebFetchResult second = null;
-            SpecWebFetcher.FetchGet(prefix, "__test_api", null, null, r => second = r);
+            SpecWebFetcher.FetchGet(prefix, TestApiName, null, null, r => second = r);
             yield return WaitFor(() => second != null);
 
             Assert.IsNotNull(second);
@@ -193,11 +199,65 @@ namespace DDrive.Tests.Editor
             StringAssert.Contains("cached", second.Json);
         }
 
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-4) — GAS は HTTP ステータスを
+        // 設定できず常に 200 を返す(Tools/SpecWeb/src/adapters/ContentAdapter.js)ため、トークン切れ等の
+        // `{"ok":false}` 応答も UnityWebRequest からは Success に見える。以前はこれをそのまま
+        // Library/DDriveSpec/web_*.json に書き込んでいたので、一度トークンが切れると直前の正常キャッシュが
+        // 失われ、その後の失敗時に「前回のキャッシュを使用します」と言いながら中身が `{ok:false}`
+        // (= 行 0 件)になっていた(P1-2 の入口)。
+        [UnityTest]
+        public IEnumerator FetchGet_ErrorEnvelope_DoesNotOverwriteCache_AndFallsBack()
+        {
+            // 1 回目: 正常応答でキャッシュに保存させる。
+            var okPrefix = StartRedirectServer("{\"ok\":true,\"cached\":true}");
+            SpecWebFetchResult first = null;
+            SpecWebFetcher.FetchGet(okPrefix, TestApiName, null, null, r => first = r);
+            yield return WaitFor(() => first != null);
+            Assert.IsTrue(first != null && first.Success, "1 回目の取得が成功している前提のテストです");
+            StopListener();
+
+            // 2 回目: HTTP 200 だが ok:false(トークン無効)を返す。
+            var errorPrefix = StartRedirectServer("{\"ok\":false,\"status\":401,\"error\":\"unauthorized\"}");
+            SpecWebFetchResult second = null;
+            SpecWebFetcher.FetchGet(errorPrefix, TestApiName, null, null, r => second = r);
+            yield return WaitFor(() => second != null);
+
+            Assert.IsNotNull(second);
+            Assert.IsTrue(second.Success, "キャッシュがあればフォールバックして成功扱いになる");
+            Assert.IsTrue(second.FromCache, "ok:false の応答ではなく前回のキャッシュを返すはず");
+            StringAssert.Contains("cached", second.Json);
+            StringAssert.DoesNotContain("unauthorized", second.Json);
+            StringAssert.Contains("401", second.Warning, "失敗の理由(status)が警告文に載るはず");
+
+            var cacheText = File.ReadAllText(SpecWebFetcher.CachePathFor(TestApiName));
+            StringAssert.DoesNotContain("unauthorized", cacheText, "失敗応答をキャッシュに書き込んではいけない");
+            StringAssert.Contains("cached", cacheText);
+        }
+
+        [UnityTest]
+        public IEnumerator FetchGet_ErrorEnvelope_NoCache_Fails()
+        {
+            var cachePath = SpecWebFetcher.CachePathFor(TestApiName);
+            if (File.Exists(cachePath))
+            {
+                File.Delete(cachePath); // 前のテスト/前回の実行が残していたら消す(フォールバック先を無くす)
+            }
+
+            var errorPrefix = StartRedirectServer("{\"ok\":false,\"status\":403,\"error\":\"forbidden\"}");
+            SpecWebFetchResult result = null;
+            SpecWebFetcher.FetchGet(errorPrefix, TestApiName, null, null, r => result = r);
+            yield return WaitFor(() => result != null);
+
+            Assert.IsNotNull(result);
+            Assert.IsFalse(result.Success, "キャッシュも無ければ失敗として返す(空の結果を成功扱いにしない)");
+            Assert.IsFalse(File.Exists(SpecWebFetcher.CachePathFor(TestApiName)), "失敗応答でキャッシュを作ってはいけない");
+        }
+
         [UnityTest]
         public IEnumerator FetchGet_NoUrl_FailsWithoutThrowing()
         {
             SpecWebFetchResult result = null;
-            Assert.DoesNotThrow(() => SpecWebFetcher.FetchGet(null, "__test_api", null, null, r => result = r));
+            Assert.DoesNotThrow(() => SpecWebFetcher.FetchGet(null, TestApiName, null, null, r => result = r));
             yield return WaitFor(() => result != null);
 
             Assert.IsFalse(result.Success);
@@ -212,7 +272,13 @@ namespace DDrive.Tests.Editor
             const string secretToken = "SECRET-READ-TOKEN-12345";
 
             SpecWebFetchResult result = null;
-            SpecWebFetcher.FetchGet(prefix, "assets.list", secretToken, "includeArchived=1", r => result = r);
+            // 2026-09-17 修正: ここは「token が URL に出ないこと」の検査であり、実 API 名である必要が無い。
+            // 実 API 名("assets.list" 等)を渡すと FetchGet が useCache:true で
+            // Library/DDriveSpec/web_assets.list.json を上書きしてしまい、開発者の実キャッシュが
+            // テスト応答({"ok":true})に置き換わったまま残る(次に実 Web API が失敗したとき
+            // FallbackOrFail がこの偽キャッシュを「前回の取得結果」として返す)。
+            // テスト用の apiName("__test_api")だけを使い、TearDown でそのキャッシュを消す。
+            SpecWebFetcher.FetchGet(prefix, TestApiName, secretToken, "includeArchived=1", r => result = r);
             yield return WaitFor(() => result != null);
 
             Assert.IsTrue(result.Success);
@@ -296,7 +362,7 @@ namespace DDrive.Tests.Editor
             try
             {
                 SpecWebFetchResult result = null;
-                SpecWebFetcher.FetchGet(prefix, "__test_api", secretToken, null, r => result = r);
+                SpecWebFetcher.FetchGet(prefix, TestApiName, secretToken, null, r => result = r);
                 yield return WaitFor(() => result != null);
                 Assert.IsTrue(result.Success);
             }
@@ -318,7 +384,7 @@ namespace DDrive.Tests.Editor
             var prefix = StartRedirectServer("{\"ok\":true,\"cached\":true}");
             const string secretToken = "SECRET-LOG-CHECK-BBBB";
             SpecWebFetchResult first = null;
-            SpecWebFetcher.FetchGet(prefix, "__test_api", secretToken, null, r => first = r);
+            SpecWebFetcher.FetchGet(prefix, TestApiName, secretToken, null, r => first = r);
             yield return WaitFor(() => first != null);
             Assert.IsTrue(first != null && first.Success);
 
@@ -331,7 +397,7 @@ namespace DDrive.Tests.Editor
             try
             {
                 SpecWebFetchResult second = null;
-                SpecWebFetcher.FetchGet(prefix, "__test_api", secretToken, null, r => second = r);
+                SpecWebFetcher.FetchGet(prefix, TestApiName, secretToken, null, r => second = r);
                 yield return WaitFor(() => second != null);
                 Assert.IsNotNull(second);
                 Assert.IsTrue(second.FromCache);

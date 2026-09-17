@@ -56,12 +56,12 @@ namespace DDrive.Editor.Spec
 
                 result.Warning = CombineWarning(result.Warning, assetsWarning);
 
-                if (TryBuildTuningSnapshot(tuningScalarJson, tuningTableJson, out var tuningSnapshot, out var tuningWarning))
+                var tuningPath = Path.Combine(repoRoot, DefaultRelativeTuningPath);
+                if (TryBuildTuningSnapshot(tuningScalarJson, tuningTableJson, tuningPath, out var tuningSnapshot, out var tuningWarning))
                 {
-                    var path = Path.Combine(repoRoot, DefaultRelativeTuningPath);
-                    WriteJsonFile(path, tuningSnapshot);
+                    WriteJsonFile(tuningPath, tuningSnapshot);
                     result.TuningWritten = true;
-                    result.TuningPath = path;
+                    result.TuningPath = tuningPath;
                 }
 
                 result.Warning = CombineWarning(result.Warning, tuningWarning);
@@ -114,7 +114,7 @@ namespace DDrive.Editor.Spec
             return true;
         }
 
-        private static bool TryBuildTuningSnapshot(string tuningScalarJson, string tuningTableJson, out JObject snapshot, out string warning)
+        private static bool TryBuildTuningSnapshot(string tuningScalarJson, string tuningTableJson, string existingPath, out JObject snapshot, out string warning)
         {
             snapshot = null;
             warning = null;
@@ -127,12 +127,70 @@ namespace DDrive.Editor.Spec
                 return false;
             }
 
+            // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-5) — 片方だけ失敗した
+            // ときに、失敗した側を空配列 `[]` で書き出していた(両方 null のときだけスキップしていた)。
+            // §8 W-11 の「失敗した部分は書き込まず警告を返す」と食い違い、`Specs/tuning.json` の
+            // git diff に「全スカラー削除」が現れ、SpecDiffValidator の範囲チェック(スナップショットの
+            // min/max と TuningTable の値を比べる)も黙って無効になっていた。
+            // 失敗した側は既存ファイルの該当配列をそのまま温存する。
+            if (scalars == null || tables == null)
+            {
+                var existing = TryReadExistingSnapshot(existingPath);
+
+                if (scalars == null)
+                {
+                    scalars = ExistingArray(existing, "scalars");
+                    warning = CombineWarning(warning, "tuningScalarList を更新できなかったため、Specs/tuning.json の scalars は前回の内容を保持しました。");
+                }
+
+                if (tables == null)
+                {
+                    tables = ExistingArray(existing, "tables");
+                    warning = CombineWarning(warning, "tuningTableList を更新できなかったため、Specs/tuning.json の tables は前回の内容を保持しました。");
+                }
+            }
+
             snapshot = new JObject
             {
-                ["scalars"] = new JArray(scalars ?? Array.Empty<JToken>()),
-                ["tables"] = new JArray(tables ?? Array.Empty<JToken>()),
+                ["scalars"] = new JArray(scalars),
+                ["tables"] = new JArray(tables),
             };
             return true;
+        }
+
+        // 既存の Specs/*.json(前回のスナップショット)。無い / 壊れている場合は null(温存対象が無い扱い)。
+        private static JObject TryReadExistingSnapshot(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                {
+                    return null;
+                }
+
+                return JObject.Parse(File.ReadAllText(path));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] 既存の '{path}' を読めませんでした(該当部分は空で書き出します): {e.Message}");
+                return null;
+            }
+        }
+
+        private static JToken[] ExistingArray(JObject existing, string propertyName)
+        {
+            if (existing == null || existing[propertyName] is not JArray array || array.Count == 0)
+            {
+                return Array.Empty<JToken>();
+            }
+
+            var result = new JToken[array.Count];
+            for (var i = 0; i < array.Count; i++)
+            {
+                result[i] = array[i].DeepClone();
+            }
+
+            return result;
         }
 
         // { items: { "<key>": {...} } } 形式の応答から、キーでソートした値配列を返す(id フィールドが

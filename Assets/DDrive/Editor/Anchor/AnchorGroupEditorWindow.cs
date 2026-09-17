@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Validation;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Vfx;
 using DDrive.Foundation.Data;
@@ -44,8 +45,9 @@ namespace DDrive.Editor.Anchor
         private Label _sceneOwnerLabel;
         private Label _selectionLabel;
         private VisualElement _fieldsContainer;
-        private Foldout _validationFoldout;
+        private DataValidationSection _validationSection;
         private Button _overrideButton;
+        private VisualElement _convertRow;
 
         private static readonly string[] GridFields = { "GridCountX", "GridCountY", "GridCountZ", "GridSpacing", "GridCentered" };
         private static readonly string[] CircleFields = { "CircleCount", "CircleRadius", "CircleStartAngle", "CircleArc", "CircleFaceOutward" };
@@ -161,8 +163,9 @@ namespace DDrive.Editor.Anchor
             fieldsFoldout.Add(_fieldsContainer);
             root.Add(fieldsFoldout);
 
-            _validationFoldout = new Foldout { text = "検証", value = true };
-            root.Add(_validationFoldout);
+            // 2026-09-17(U-13): 独自実装から共通の個別検証セクションに置き換えた([09] §11)。
+            _validationSection = new DataValidationSection(includeSameTypeAssets: true);
+            root.Add(_validationSection);
 
             if (_target == null && !_lockTarget && Selection.activeObject is AnchorGroupData selected)
             {
@@ -243,6 +246,7 @@ namespace DDrive.Editor.Anchor
             AddSection("Circle", CircleFields);
             AddSection("Line", LineFields);
             AddSection("Random", RandomFields);
+            AddConvertRow();
             AddField("Points", "手置きの点");
             AddField("DelayPerIndex", "番号順ディレイ(秒/点)");
             AddField("DelayJitterSec", "ディレイのランダム(秒)");
@@ -285,6 +289,27 @@ namespace DDrive.Editor.Anchor
             _fieldsContainer.Add(section);
         }
 
+        // 「手置きの点に変換」(U-22)。パターンのときだけ出す。
+        // 横幅 500px でも切れないように、行は折り返し可・ボタンとラベルは縮む([09] §7.1)。
+        private void AddConvertRow()
+        {
+            _convertRow = new VisualElement
+            {
+                style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginLeft = 8, marginBottom = 4 },
+            };
+            _convertRow.Add(new Button(ConvertPatternToPoints)
+            {
+                text = "手置きの点に変換",
+                tooltip = "今のパターンで計算された点を、そのまま手置きの点(Points)として書き込み、Layout を Manual に切り替える。点を 1 つずつ動かせるようになる。Ctrl+Z で元に戻せる",
+                style = { flexShrink = 1f, minWidth = 0f, whiteSpace = WhiteSpace.Normal, marginRight = 4 },
+            });
+            _convertRow.Add(new Label("点を 1 つずつ動かしたくなったら押す。番号は変わりません。")
+            {
+                style = { opacity = 0.6f, flexShrink = 1f, flexGrow = 1f, minWidth = 0f, whiteSpace = WhiteSpace.Normal },
+            });
+            _fieldsContainer.Add(_convertRow);
+        }
+
         private void RefreshLayoutSections()
         {
             if (_target == null)
@@ -296,6 +321,40 @@ namespace DDrive.Editor.Anchor
             {
                 section.style.display = key == _target.Layout.ToString() ? DisplayStyle.Flex : DisplayStyle.None;
             }
+
+            if (_convertRow != null)
+            {
+                _convertRow.style.display = AnchorGroupPointConverter.CanConvert(_target) ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        // パターンの計算結果を手置きの点へ焼き付ける(U-22)。計算は AnchorLayout をそのまま通すので配置は変わらない。
+        private void ConvertPatternToPoints()
+        {
+            if (!AnchorGroupPointConverter.CanConvert(_target))
+            {
+                return;
+            }
+
+            RefreshPoints();
+            var message =
+                $"「{_target.Layout}」パターンで計算された {_pointCount} 点を、手置きの点(Points)として書き込みます。\n\n" +
+                "・Layout は Manual になり、点を 1 つずつ SceneView でドラッグして調整できます\n" +
+                "・点の番号と並び順は変わらないので、Overrides / 入れ子の指定はそのまま使えます\n" +
+                "・パターンの設定値(間隔・半径・長さなど)は残るので、Layout を戻せばやり直せます\n" +
+                "・取り消しは Ctrl+Z(Undo)でできます";
+            if (!EditorUtility.DisplayDialog("手置きの点に変換", message, "変換する", "キャンセル"))
+            {
+                return;
+            }
+
+            if (AnchorGroupPointConverter.Convert(_target) <= 0)
+            {
+                return;
+            }
+
+            _serializedTarget?.Update();
+            OnEdited();
         }
 
         // ── 対象 ──
@@ -458,46 +517,7 @@ namespace DDrive.Editor.Anchor
             OnEdited();
         }
 
-        private void RefreshValidation()
-        {
-            if (_validationFoldout == null)
-            {
-                return;
-            }
-
-            _validationFoldout.Clear();
-            if (_target == null)
-            {
-                return;
-            }
-
-            var all = new List<AssetDataBase>();
-            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AnchorGroupData)))
-            {
-                var a = AssetDatabase.LoadAssetAtPath<AnchorGroupData>(AssetDatabase.GUIDToAssetPath(guid));
-                if (a != null)
-                {
-                    all.Add(a);
-                }
-            }
-
-            if (!all.Contains(_target))
-            {
-                all.Add(_target);
-            }
-
-            var any = false;
-            foreach (var result in new AnchorGroupDataValidator().Validate(_target, new ValidationContext(all)))
-            {
-                any = true;
-                _validationFoldout.Add(new HelpBox(result.Message, result.Severity == ValidationSeverity.Error ? HelpBoxMessageType.Error : HelpBoxMessageType.Warning));
-            }
-
-            if (!any)
-            {
-                _validationFoldout.Add(new Label("Validation に問題はありません。") { style = { opacity = 0.6f } });
-            }
-        }
+        private void RefreshValidation() => _validationSection?.Bind(_target);
 
         private void RefreshSceneHelp()
         {
@@ -614,6 +634,10 @@ namespace DDrive.Editor.Anchor
                 Handles.Label(originPos, $"Group: {_target.name}", EditorStyles.miniLabel);
                 return;
             }
+
+            // 基準(解決先 Transform。未解決ならワールド原点)→ 原点(基準 + Origin の LocalOffset)(U-24)
+            var baseWorld = AnchorSceneHandles.DrawOrigin(baseTransform, extraOffset, AnchorSceneHandles.DescribeBase(originDef, baseTransform), originDef.FollowRotation);
+            AnchorSceneHandles.DrawOffsetLink(baseWorld, originPos, originDef.LocalOffset, color);
 
             // 原点
             Handles.color = color;

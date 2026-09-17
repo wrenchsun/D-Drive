@@ -76,18 +76,38 @@ namespace DDrive.Editor
             }
         }
 
-        public static IReadOnlyList<ValidationReport> RunValidation()
+        public static IReadOnlyList<ValidationReport> RunValidation() => RunValidation(includeProjectWideValidators: true);
+
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-6 (a)) —
+        // `ValidatorRegistry.RunAll` は `IUniversalValidator` の結果も「その時渡されたアセット」の
+        // `ValidationReport` にする。プロジェクト全体を 1 回まとめて見る Validator
+        // (`SpecDiffValidator` の調整値の範囲チェック・`ContentHashCatalogCoverageValidator` の
+        // カタログのラベル未登録)は 1 回だけ結果を出す作りなので、その Error が**無関係なアセットに
+        // 紐付く**。「このアセットに Error があるか」をアセット単位で判定したい用途
+        // (`SpecWebSender` の isPlaceholder)では false を渡して除外する。
+        // 除外対象の定義は `DataValidationRunner.IsProjectWide`(docs/09 §11 で導入したものを共用。
+        // 1 アセット単位で意味がある `IUniversalValidator`(ValueDef / Addressables 登録 / NetMode)は残す)。
+        // 本筋は「全体結果は Asset を持たない別経路にする」だが、`ValidatorRegistry` は Foundation
+        // (本チケットの担当範囲外)にあるため、ここでは呼び出し側で除外する方式にした。
+        public static IReadOnlyList<ValidationReport> RunValidation(bool includeProjectWideValidators)
         {
             var registry = new ValidatorRegistry();
             foreach (var validator in DiscoverValidators())
             {
+                if (!includeProjectWideValidators && DataValidationRunner.IsProjectWide(validator))
+                {
+                    continue;
+                }
+
                 registry.Register(validator);
             }
 
             return registry.RunAll(LoadAllAssetDataAssets());
         }
 
-        private static IEnumerable<IValidator> DiscoverValidators()
+        // 2026-09-17(U-13): 各専用エディタの「個別検証」(DataValidationRunner)からも同じ発見規則を
+        // 使うため public にした。ここが唯一の IValidator 発見経路(重複実装を作らない)。
+        public static IEnumerable<IValidator> DiscoverValidators()
         {
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {

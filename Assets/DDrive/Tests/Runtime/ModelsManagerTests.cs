@@ -158,6 +158,39 @@ namespace DDrive.Tests.Runtime
             Assert.DoesNotThrow(() => _manager.SetMaterial(handle, 0, AssetId<MaterialMarker>.Invalid));
         }
 
+        // U-1(2026-09-17): 既定 0 をそのまま renderingLayerMask に書いていたため、URP の描画フィルタに
+        // 1 つも一致せずモデルが描かれなかった(プレビューが透明)。VfxData と同じく 0 = Prefab の設定を保つ。
+        [Test]
+        public void LightLayerMask_DefaultIsOne()
+        {
+            var data = CreateModelData(1);
+            Assert.AreEqual(1u, data.LightLayerMask);
+        }
+
+        [Test]
+        public void LightLayerMask_Zero_KeepsPrefabRendererSetting()
+        {
+            _bodyChild.GetComponent<MeshRenderer>().renderingLayerMask = 4u;
+            var data = CreateModelData(1);
+            data.LightLayerMask = ModelData.LightLayerKeepPrefab;
+
+            var handle = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+
+            Assert.AreEqual(4u, _manager.GetGameObject(handle).GetComponentInChildren<MeshRenderer>(true).renderingLayerMask);
+        }
+
+        [Test]
+        public void LightLayerMask_NonZero_OverridesRenderer()
+        {
+            _bodyChild.GetComponent<MeshRenderer>().renderingLayerMask = 4u;
+            var data = CreateModelData(1);
+            data.LightLayerMask = 2u;
+
+            var handle = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+
+            Assert.AreEqual(2u, _manager.GetGameObject(handle).GetComponentInChildren<MeshRenderer>(true).renderingLayerMask);
+        }
+
         [Test]
         public void StopAll_DespawnsEveryActiveInstance()
         {
@@ -169,6 +202,40 @@ namespace DDrive.Tests.Runtime
 
             Assert.IsNull(_manager.GetGameObject(h1));
             Assert.IsNull(_manager.GetGameObject(h2));
+        }
+
+        // 2026-09-17 レビュー対応(P1-1 恒久策): Pool の上限超過で強制回収(evict)された Instance は
+        // ModelsManager の台帳からも消える(= 古い Handle が無効になる)。これが無いと、回収後も古い
+        // Handle 経由で「次の借り手」の GameObject を操作・Despawn できてしまう。
+        [Test]
+        public void SpawnData_AtPoolLimit_EvictedInstance_IsRemovedFromLedger()
+        {
+            var data = CreateModelData(1);
+            data.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 1);
+
+            var first = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var second = _manager.SpawnData(data, Vector3.one, Quaternion.identity);
+
+            Assert.IsFalse(_manager.IsValid(first), "強制回収された Handle は無効になる");
+            Assert.IsTrue(_manager.IsValid(second));
+        }
+
+        // 回収済み Handle の Despawn が「次の借り手」を巻き込まないこと(P1-1 の最小修正側)。
+        [Test]
+        public void Despawn_OfEvictedHandle_DoesNotAffectNewInstance()
+        {
+            var data = CreateModelData(1);
+            data.Flags.Pool = DDrive.Foundation.Data.PoolPolicy.Pooled(0, 1);
+
+            var first = _manager.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var second = _manager.SpawnData(data, Vector3.one, Quaternion.identity);
+            var secondRoot = _manager.GetGameObject(second);
+
+            _manager.Despawn(first);
+
+            Assert.IsTrue(_manager.IsValid(second), "回収済み Handle の Despawn で新しい Instance が消えてはいけない");
+            Assert.IsTrue(secondRoot.activeSelf, "回収済み Handle の Despawn で新しい GameObject が非アクティブ化されてはいけない");
+            Assert.AreEqual(0, _pool.FreeCount(_prefab), "貸出中の GameObject が Free に積み直されてはいけない");
         }
     }
 }

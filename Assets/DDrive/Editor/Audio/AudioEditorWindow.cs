@@ -7,6 +7,7 @@ using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.Audio
 {
@@ -29,6 +30,7 @@ namespace DDrive.Editor.Audio
         private Handle<SeMarker> _lastHandle;
 
         private ObjectField _targetField;
+        private DataValidationSection _validationSection; // 2026-09-17 U-13([09] §11)
         private IMGUIContainer _waveformContainer;
         private DropdownField _sourceIndexField;
         private Label _infoLabel;
@@ -160,6 +162,10 @@ namespace DDrive.Editor.Audio
 
             BuildListenerPadSection(root);
 
+            // 2026-09-17(U-13): 種別ごとにあったり無かったりした「検証」を全エディタで揃える([09] §11)。
+            _validationSection = new DataValidationSection();
+            root.Add(_validationSection);
+
             if (_target == null && Selection.activeObject is AssetDataBase selected && selected is SeData or BgmData)
             {
                 SetTarget(selected);
@@ -184,6 +190,8 @@ namespace DDrive.Editor.Audio
             {
                 _targetField.SetValueWithoutNotify(_target);
             }
+
+            _validationSection?.Bind(_target);
 
             var mixer = _target switch
             {

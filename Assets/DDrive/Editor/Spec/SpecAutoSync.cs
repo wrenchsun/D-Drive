@@ -5,7 +5,9 @@ using UnityEngine;
 namespace DDrive.Editor.Spec
 {
     // [32_spec_web.md] §4.2(旧 [27_spec_sheet.md])— Unity 起動時・ドメインリロード後に「取得と差分検出だけ」
-    // を行う。自動では適用しない(例外: 設定で ON にした「未着手の新規行→Placeholder 自動作成」のみ)。
+    // を行う。自動では適用しない(例外: 設定で ON にした「新規行→Placeholder 自動作成」のみ。
+    // 2026-09-17([41] P1-7): 状態が 3 値(発注済/納品済/インポート済)になり「未着手」は無くなったため
+    // 文言から外した。実装も元から状態では絞っていない(Web に有って D-Drive に無い行すべてが対象))。
     // テスト実行中(バッチモードでの CI テスト実行)やバッチモードでは走らせない。
     // ネットワーク待ちで Editor を止めないよう、delayCall 経由・完全非同期(コールバック)で行う。
     //
@@ -84,25 +86,51 @@ namespace DDrive.Editor.Spec
             {
                 if (!assetResult.Success)
                 {
-                    Debug.LogWarning($"[DDrive] 仕様書(Web)の取得に失敗しました: {assetResult.Error}");
+                    var message = $"仕様書(Web)の取得に失敗しました: {assetResult.Error}";
+                    Debug.LogWarning($"[DDrive] {message}");
+                    SpecCache.SetError(message); // P1-2 (b)/(c): 失敗を画面に出せるようにする(前回値は保持)
                     onComplete?.Invoke();
                     return;
                 }
 
                 var parsedAssets = SpecWebParser.ParseAssets(assetResult.Json, settings.HumanAppUrl);
+
+                // 2026-09-17([41] P1-2 (b)) — GAS は常に HTTP 200 を返すため(ContentAdapter.js)、
+                // トークン未設定/無効(401)・許可外(403)・レート制限でも request.result は Success になる。
+                // 「取得できた」と「中身が使える」は別なので、エンベロープ段(行番号 0 の Issue = ok:false /
+                // JSON 不正 / items 欠落)の失敗を見て、失敗なら前回のキャッシュを一切上書きしない。
+                var assetsFailure = DescribeEnvelopeFailure(parsedAssets);
+                if (assetsFailure != null)
+                {
+                    var message = $"仕様書(Web)の取得に失敗しました: {assetsFailure}";
+                    Debug.LogWarning($"[DDrive] {message}");
+                    SpecCache.SetError(message);
+                    onComplete?.Invoke();
+                    return;
+                }
+
                 var diff = SpecDiffService.ComputeDiff(parsedAssets);
 
                 SpecWebFetcher.FetchGet(settings.WebAppUrl, "tuningScalarList", readToken, null, tuningResult =>
                 {
+                    // 失敗(取得失敗 or ok:false)のときは空の結果ではなく「前回値のまま」にする。
+                    // 空の結果を載せると SpecSyncWindow の「適用」が TuningTable.Entries を全消しにする(P1-2)。
                     var parsedTuning = tuningResult.Success
                         ? SpecWebParser.ParseTuningScalars(tuningResult.Json)
-                        : new SpecParseResult<SpecTuningRow>();
+                        : null;
+                    var tuningFailure = tuningResult.Success
+                        ? DescribeEnvelopeFailure(parsedTuning)
+                        : tuningResult.Error;
+                    var tuningForCache = tuningFailure == null ? parsedTuning : SpecCache.LastTuningRows;
 
                     SpecWebFetcher.FetchGet(settings.WebAppUrl, "tuningTableList", readToken, null, tuningTableResult =>
                     {
                         var parsedTuningTables = tuningTableResult.Success
                             ? SpecWebParser.ParseTuningTables(tuningTableResult.Json)
-                            : new SpecParseResult<SpecTuningTableRow>();
+                            : null;
+                        var tuningTableFailure = tuningTableResult.Success
+                            ? DescribeEnvelopeFailure(parsedTuningTables)
+                            : tuningTableResult.Error;
 
                         if (applyAutoPlaceholders && settings.AutoApplyNewPlaceholders && diff.New.Count > 0)
                         {
@@ -134,13 +162,58 @@ namespace DDrive.Editor.Spec
                         }
 
                         var warning = assetResult.Warning ?? tuningResult.Warning ?? tuningTableResult.Warning;
-                        var error = tuningResult.Success ? null : tuningResult.Error;
-                        SpecCache.Set(parsedAssets, parsedTuning, diff, warning, error);
-                        SpecCache.SetTuningTables(parsedTuningTables);
+
+                        // P1-2 (b): 調整値側の失敗理由を LastError に載せる(以前は tuningScalarList の
+                        // 取得失敗しか見ず、ok:false と tuningTableList の失敗は完全に黙っていた)。
+                        var error = CombineErrors(
+                            tuningFailure == null ? null : $"調整値(スカラー)を更新できませんでした: {tuningFailure}",
+                            tuningTableFailure == null ? null : $"調整値(テーブル)を更新できませんでした: {tuningTableFailure}");
+                        if (error != null)
+                        {
+                            Debug.LogWarning($"[DDrive] {error}(前回の取得結果を保持します)");
+                        }
+
+                        SpecCache.Set(parsedAssets, tuningForCache, diff, warning, error);
+                        if (tuningTableFailure == null)
+                        {
+                            SpecCache.SetTuningTables(parsedTuningTables);
+                        }
+
                         onComplete?.Invoke();
                     });
                 });
             });
+        }
+
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P1-2 (b)) — 行番号 0 の Issue は
+        // SpecWebParser.TryParseEnvelope が積むエンベロープ段の失敗(`ok:false` / JSON 不正 /
+        // items 欠落)。行ごとの Issue(重複識別子等)は「一部の行だけ無効」なので失敗扱いにしない。
+        private static string DescribeEnvelopeFailure<T>(SpecParseResult<T> parsed)
+        {
+            if (parsed == null)
+            {
+                return "応答を解釈できませんでした。";
+            }
+
+            for (var i = 0; i < parsed.Issues.Count; i++)
+            {
+                if (parsed.Issues[i].RowNumber == 0)
+                {
+                    return parsed.Issues[i].Message;
+                }
+            }
+
+            return null;
+        }
+
+        private static string CombineErrors(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a))
+            {
+                return string.IsNullOrEmpty(b) ? null : b;
+            }
+
+            return string.IsNullOrEmpty(b) ? a : a + " / " + b;
         }
     }
 }

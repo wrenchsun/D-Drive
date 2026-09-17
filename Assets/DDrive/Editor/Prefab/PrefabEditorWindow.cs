@@ -9,6 +9,7 @@ using UnityEditor.SceneManagement;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.PrefabTool
 {
@@ -31,6 +32,7 @@ namespace DDrive.Editor.PrefabTool
 
         private ScrollView _root;
         private ObjectField _targetField;
+        private DataValidationSection _validationSection; // 2026-09-17 U-13([09] §11)
         private VisualElement _inspectorContainer;
         private Label _statusLabel;
 
@@ -104,8 +106,11 @@ namespace DDrive.Editor.PrefabTool
             toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(PrefabEditorWindow)));
             _root.Add(toolbar);
 
-            var buttons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
-            buttons.Add(new Button(PlacePreview) { text = "確認用シーンに配置", tooltip = "開いているシーン(またはプレハブステージ)に実 PrefabsManager で Spawn する" });
+            var buttons = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 4, marginBottom = 4 } }; // [09] §7.1
+            buttons.Add(PreviewPlacementButton.Create(
+                "確認用シーンに配置",
+                "確認用シーン(VfxPreviewScene)を開き、実 PrefabsManager で Spawn して SceneView をそこへ向ける",
+                PlacePreview));
             buttons.Add(new Button(RemovePreview) { text = "撤去" });
             _root.Add(buttons);
 
@@ -114,6 +119,10 @@ namespace DDrive.Editor.PrefabTool
 
             _inspectorContainer = new VisualElement();
             _root.Add(_inspectorContainer);
+
+            // 2026-09-17(U-13): 「検証」を全エディタで揃える([09] §11)。
+            _validationSection = new DataValidationSection();
+            _root.Add(_validationSection);
 
             if (_target != null)
             {
@@ -135,6 +144,7 @@ namespace DDrive.Editor.PrefabTool
 
             _targetField.SetValueWithoutNotify(target);
             _inspectorContainer.Clear();
+            _validationSection?.Bind(target);
             if (target == null)
             {
                 _statusLabel.text = "PrefabData を選択してください";
@@ -162,7 +172,10 @@ namespace DDrive.Editor.PrefabTool
             _pool.SetInstanceParent(_previewRoot.transform);
         }
 
-        private void PlacePreview()
+        // U-4(2026-09-17): 「確認用シーンに配置」が確認用シーンを開かず、今開いているシーンにしか置いていなかった。
+        // 他のエディタ(Model / Anim / Anim2D)と同じ「片付ける → 確認用シーンを開く → 配置」の順に揃える。
+        // U-5: 右クリックの「このシーンに配置 / 本配置」は mode で分岐する(PreviewPlacement に集約)。
+        private void PlacePreview(PreviewPlaceMode mode)
         {
             if (_target == null)
             {
@@ -171,11 +184,31 @@ namespace DDrive.Editor.PrefabTool
             }
 
             RemovePreview();
+            if (!PreviewPlacement.PrepareScene(mode, VfxPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
+            if (PreviewPlacement.IsPersistent(mode))
+            {
+                // 本配置は Pool / Manager が追跡しない実体にする(後で Despawn されないように)。
+                var pivot = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.pivot : Vector3.zero;
+                var placed = PreviewPlacement.PlacePrefabPersistent(_target.Prefab, pivot, Quaternion.identity);
+                _statusLabel.text = placed != null ? "このシーンに本配置しました(シーンを保存すると残ります)" : "本配置に失敗しました";
+                return;
+            }
+
             EnsurePreviewRoot();
             EditorAnchorRegistry.Refresh(_registry);
 
             _previewHandle = _manager.SpawnData(_target, _previewRoot.transform.position, Quaternion.identity);
-            _statusLabel.text = _manager.IsValid(_previewHandle) ? "プレビュー配置中" : "配置に失敗しました";
+            var placedOk = _manager.IsValid(_previewHandle);
+            _statusLabel.text = placedOk ? "プレビュー配置中" : "配置に失敗しました";
+            if (placedOk)
+            {
+                PreviewPlacement.Focus(_manager.GetGameObject(_previewHandle) ?? _previewRoot);
+            }
+
             SceneView.RepaintAll();
         }
 

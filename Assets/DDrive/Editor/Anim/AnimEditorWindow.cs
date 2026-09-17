@@ -312,11 +312,10 @@ namespace DDrive.Editor.Anim
             lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
             toolbar.Add(lockToggle);
             toolbar.Add(new ToolbarSpacer());
-            toolbar.Add(new ToolbarButton(OpenPreviewScene)
-            {
-                text = "確認用シーンを開く",
-                tooltip = "ライト/カメラ/Volume/床を備えた確認用シーンを開き(無ければ生成)、確認用モデルを配置して対象にする",
-            });
+            toolbar.Add(PreviewPlacementButton.CreateToolbarButton(
+                "確認用シーンを開く",
+                "ライト/カメラ/Volume/床を備えた確認用シーンを開き(無ければ生成)、確認用モデルを配置して対象にする",
+                OpenPreviewScene));
             toolbar.Add(new ToolbarButton(OpenModelPrefab) { text = "モデル Prefab を開く", tooltip = "確認用モデルの Prefab をプレハブモードで開き、その Animator を対象にする" });
             toolbar.Add(new ToolbarButton(() => { if (_target != null) EditorGUIUtility.PingObject(_target); }) { text = "Project で表示" });
             toolbar.Add(new ToolbarSpacer());
@@ -411,15 +410,38 @@ namespace DDrive.Editor.Anim
 
         // ── 対象(シーン上の Animator) ──
 
-        private void OpenPreviewScene()
+        // U-5(2026-09-17): 左クリック = 確認用シーンを開いて配置 / 右クリック = このシーンに配置・本配置。
+        private void OpenPreviewScene(PreviewPlaceMode mode)
         {
             Stop();
-            VfxPreviewSceneSetup.OpenOrCreate();
+            if (!PreviewPlacement.PrepareScene(mode, VfxPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
+            if (PreviewPlacement.IsPersistent(mode))
+            {
+                if (_model == null || _model.Prefab == null)
+                {
+                    AppendLog("⚠ 本配置するには確認用モデル(Prefab 付きの ModelData)を入れてください");
+                    return;
+                }
+
+                // 本配置は ModelsManager が追跡しない実体(Prefab リンク付き)にする。動かす対象にはしない。
+                PreviewPlacement.PlacePrefabPersistent(_model.Prefab, Vector3.zero, Quaternion.identity);
+                AppendLog("このシーンに本配置しました(プレビュー対象にはしていません)");
+                return;
+            }
+
             // シーンが開いた(または既に開いていた)ので、確認用モデルを配置して対象にする。
             var animator = EnsureSceneTarget();
             if (animator == null)
             {
                 AppendLog(_model == null ? "⚠ 確認用モデルを入れると、確認用シーンに配置して動かせます" : "⚠ 確認用モデルの Prefab に Animator がありません");
+            }
+            else
+            {
+                PreviewPlacement.Focus(animator.gameObject); // U-5: SceneView のカメラを配置先へ寄せる
             }
         }
 

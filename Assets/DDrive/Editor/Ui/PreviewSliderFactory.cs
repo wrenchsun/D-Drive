@@ -14,21 +14,24 @@ namespace DDrive.Editor.Ui
         public static readonly Vector2 TrackSize = new(300f, 24f);
         public static readonly Vector2 HandleSize = new(20f, 24f);
 
-        public static UiSlider Create(Transform parent, string name, Vector2 anchoredPosition)
+        // dontSave=false は U-18(2026-09-17)の Hierarchy 右クリック配置用。プレビューではなく「実際にシーンへ残す
+        // UiSlider」を作る場合だけ false にする(組み立て = Track + Fill + Handle の定義をここ 1 箇所に保つため、
+        // 配置用に別の組み立てコードを作らない)。
+        public static UiSlider Create(Transform parent, string name, Vector2 anchoredPosition, bool dontSave = true)
         {
-            var trackGo = EditorPreviewRoots.CreateChild(parent, name, typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UiSlider));
+            var trackGo = CreateGo(parent, name, dontSave, typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UiSlider));
             var trackRect = (RectTransform)trackGo.transform;
             trackRect.sizeDelta = TrackSize;
             trackRect.anchoredPosition = anchoredPosition;
 
-            var fillGo = EditorPreviewRoots.CreateChild(trackGo.transform, "Fill", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            var fillGo = CreateGo(trackGo.transform, "Fill", dontSave, typeof(RectTransform), typeof(UnityEngine.UI.Image));
             var fillRect = (RectTransform)fillGo.transform;
             fillRect.anchorMin = new Vector2(0f, 0f);
             fillRect.anchorMax = new Vector2(0f, 1f);
             fillRect.offsetMin = Vector2.zero;
             fillRect.offsetMax = Vector2.zero;
 
-            var handleGo = EditorPreviewRoots.CreateChild(trackGo.transform, "Handle", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            var handleGo = CreateGo(trackGo.transform, "Handle", dontSave, typeof(RectTransform), typeof(UnityEngine.UI.Image));
             var handleRect = (RectTransform)handleGo.transform;
             handleRect.sizeDelta = HandleSize;
 
@@ -38,6 +41,22 @@ namespace DDrive.Editor.Ui
             slider.FillRect = fillRect;
             slider.HandleRect = handleRect;
             return slider;
+        }
+
+        private static GameObject CreateGo(Transform parent, string name, bool dontSave, params System.Type[] components)
+        {
+            if (dontSave)
+            {
+                return EditorPreviewRoots.CreateChild(parent, name, components);
+            }
+
+            var go = new GameObject(name, components);
+            if (parent != null)
+            {
+                go.transform.SetParent(parent, false);
+            }
+
+            return go;
         }
     }
 }

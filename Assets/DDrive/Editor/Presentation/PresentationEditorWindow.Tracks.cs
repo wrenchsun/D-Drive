@@ -26,6 +26,12 @@ namespace DDrive.Editor.Presentation
         // 完了判定には無関係)。
         private const float PlayheadFrameRate = 60f;
 
+        // タイムラインの操作ヒント([41] P2-9 / [09] §7.1)。狭いときは短縮版、全文は tooltip。
+        private const string OperationHintFull =
+            "上段クリック/ドラッグ: シーク / マーカーをドラッグ: 時刻変更 / Data を D&D: トラック追加 / Ctrl+ホイール: ズーム / ホイール: スクロール";
+
+        private const string OperationHintShort = "上段: シーク / マーカー: 時刻変更 / D&D: 追加 …";
+
         // レーンをまとめる粒度(Kind 単位で 13 行あると縦に長くなりすぎるため、関連する Kind をまとめる)。
         private static readonly (TrackKind[] kinds, string label)[] Lanes =
         {
@@ -180,8 +186,13 @@ namespace DDrive.Editor.Presentation
                 GUI.Label(new Rect(rect.xMax - 132f, rect.y + 2f, 128f, 14f), "⚠ 尺が未設定です", EditorStyles.miniLabel);
             }
 
+            // 2026-09-17(docs/41_phase6_review_2026-09-17.md P2-9 / [09] §7.1):
+            // 1 行の GUI.Label なので、ウィンドウ横幅 500px では後半(「Ctrl+ホイール: ズーム」以降)が
+            // 切れて読めなかった。ルーラーの高さ(RulerHeight)は固定なので 2 行にはできないため、
+            // 狭いときは短縮版を出し、全文は tooltip に逃がす([09] §7.1 の「ラベルが長い項目は
+            // 短くするか tooltip に逃がす」)。
             GUI.Label(new Rect(rect.x + 6f, rect.y + RulerHeight - 14f, rect.width - 12f, 14f),
-                "上段クリック/ドラッグ: シーク / マーカーをドラッグ: 時刻変更 / Data を D&D: トラック追加 / Ctrl+ホイール: ズーム / ホイール: スクロール",
+                new GUIContent(rect.width >= 620f ? OperationHintFull : OperationHintShort, OperationHintFull),
                 EditorStyles.miniLabel);
 
             // レーン背景 + ラベル

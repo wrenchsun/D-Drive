@@ -52,7 +52,13 @@ namespace DDrive.Editor.Spec
             using (VersionStampSuppression.Scope())
             {
                 Undo.RecordObject(asset, "仕様書と同期(変更を反映)");
-                asset.DisplayName = change.Row.DisplayName;
+                // 2026-09-17([41] P1-7): Web 側が空の表示名で既存値を潰さない
+                // (SpecDiffService.CollectChangedFields と対称。カテゴリは空が正当な値なのでそのまま反映)。
+                if (!string.IsNullOrEmpty(change.Row.DisplayName))
+                {
+                    asset.DisplayName = change.Row.DisplayName;
+                }
+
                 asset.Category = change.Row.Category;
                 ApplyExtraFields(asset, change.Row);
                 EditorUtility.SetDirty(asset);
@@ -66,12 +72,28 @@ namespace DDrive.Editor.Spec
         // public: NewAssetDialog の「仕様書から選ぶ」(5-16)もここを呼ぶ。ダイアログ経由で作った結果と
         // 同期の「新規 → Placeholder 作成」の結果が食い違わないよう、状態タグ/Assignee/Description/SpecUrl の
         // 反映ロジックをコピペせずここ 1 箇所に保つ。
+        // 2026-09-17([41] P1-7): **Web 側が空の項目は書き込まない**(既存値を空で消さない)。
+        // 「仕様リンク」だけに入っていた保護を状態・担当・備考へ広げた防御で、判定側
+        // (SpecDiffService.CollectChangedFields)と対称に保つ。片方だけだと「表示名が変わった」等の
+        // 別の理由で適用が走ったときに、空の担当・備考が書き込まれてしまう。
+        // 空にしたいときは D-Drive 側(Inspector / 専用エディタ)で消す。
         public static void ApplyExtraFields(AssetDataBase asset, SpecAssetRow row)
         {
-            asset.Tags = SpecStatusTag.WithStatus(asset.Tags, row.Status);
-            asset.Assignee = row.Assignee;
-            asset.Description = row.Note;
-            // シート側が空のときは既存の仕様リンクを消さない(手で貼ったリンクを保護する。SpecDiffService と対称)。
+            if (!string.IsNullOrEmpty(row.Status))
+            {
+                asset.Tags = SpecStatusTag.WithStatus(asset.Tags, row.Status);
+            }
+
+            if (!string.IsNullOrEmpty(row.Assignee))
+            {
+                asset.Assignee = row.Assignee;
+            }
+
+            if (!string.IsNullOrEmpty(row.Note))
+            {
+                asset.Description = row.Note;
+            }
+
             if (!string.IsNullOrEmpty(row.SpecLink))
             {
                 asset.SpecUrl = row.SpecLink;
@@ -100,9 +122,63 @@ namespace DDrive.Editor.Spec
 
         // ── 調整値タブ → TuningTable ──
 
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P1-2 (a)) — 取得に失敗した結果・
+        // Web API が `ok:false` を返した結果で TuningTable を上書きすると、Entries / Tables が全消えになり、
+        // 続く TuningCodegen.Regenerate が `TUNING` を空クラスで書き出して `TUNING.Xxx` を参照している
+        // 全コードがコンパイルエラーになる。GAS は HTTP ステータスを設定できず常に 200 を返すため
+        // (Tools/SpecWeb/src/adapters/ContentAdapter.js)、SpecWebFetcher の Success だけでは
+        // 「トークン切れ・許可外・レート制限」を区別できない。判定はパース結果で行う:
+        //   - 行番号 0 の Issue = エンベロープ段の失敗(`ok:false` / JSON 不正 / items 欠落)
+        //   - Rows が 0 件 = 全消しになるため、意図的な全削除と区別できない
+        // どちらも「警告 + no-op」で既存の TuningTable を保持する(CLAUDE.md §0-4: 例外で止めない)。
+        // 本当に全削除したい場合は TuningTable アセットを直接編集する運用。
+        // reason は SpecSyncWindow が画面に出すためにも使う(同じ判定を 2 箇所に書かないため public)。
+        public static bool IsUnusableForApply<T>(SpecParseResult<T> parsed, out string reason)
+        {
+            if (parsed == null)
+            {
+                reason = "取得結果がありません(まだ取得していない、または取得に失敗しています)。";
+                return true;
+            }
+
+            for (var i = 0; i < parsed.Issues.Count; i++)
+            {
+                if (parsed.Issues[i].RowNumber == 0)
+                {
+                    reason = parsed.Issues[i].Message;
+                    return true;
+                }
+            }
+
+            if (parsed.Rows.Count == 0)
+            {
+                reason = "取得できた行が 0 件です(全消しを避けるため適用しません)。";
+                return true;
+            }
+
+            reason = null;
+            return false;
+        }
+
+        private static bool IsUnusableForApply<T>(SpecParseResult<T> parsed, string label)
+        {
+            if (!IsUnusableForApply(parsed, out var reason))
+            {
+                return false;
+            }
+
+            Debug.LogWarning($"[DDrive] {label}をスキップしました: {reason} 既存の TuningTable は変更していません。");
+            return true;
+        }
+
         public static void ApplyTuning(SpecParseResult<SpecTuningRow> parsed, TuningTable table)
         {
             if (table == null)
+            {
+                return;
+            }
+
+            if (IsUnusableForApply(parsed, "調整値(スカラー)の同期"))
             {
                 return;
             }
@@ -199,6 +275,11 @@ namespace DDrive.Editor.Spec
         public static void ApplyTuningTable(SpecParseResult<SpecTuningTableRow> parsed, TuningTable table)
         {
             if (table == null)
+            {
+                return;
+            }
+
+            if (IsUnusableForApply(parsed, "調整値(テーブル)の同期"))
             {
                 return;
             }
@@ -388,7 +469,9 @@ namespace DDrive.Editor.Spec
                 .Where(t => t != AssetType.None)
                 .Select(t => t.ToString())
                 .ToArray();
-            var states = new[] { "未着手", "仮", "本番", "保留" };
+            // 2026-09-17([41] P1-7): 状態は O-1 以降 3 値(発注済 / 納品済 / インポート済)。
+            // 値の定義は SpecStatusTag.Statuses に 1 か所化してある(正は GAS 側の SPEC_WEB_ASSET_STATUSES)。
+            var states = SpecStatusTag.Statuses;
             var valueTypes = Enum.GetNames(typeof(TuningValueType)).Select(n => n.ToLowerInvariant()).ToArray();
 
             var sb = new StringBuilder();

@@ -72,8 +72,48 @@ namespace DDrive.Editor.Ui
         // DrawCurveSketch の作業バッファ(描画のたびに new Vector3[64] していた。レビュー対応 2026-09-14)。
         private Vector3[] _sketchPoints = Array.Empty<Vector3>();
 
+        // U-9(2026-09-17): UI Tween Editor の「プリセットギャラリー」ボタンからも開けるようにしたため、
+        // メニュー以外からの入口を Open() に切り出した。source を渡すと「独自プリセットとして登録」の
+        // 「元になる UiTweenData」を埋めておく(いま編集中の Tween をそのままプリセット化する導線)。
+        // minSize は [09] §7.1(横 500px 下限)に合わせて 520 → 500 にした。
         [MenuItem(DDriveMenu.Editors + "UI Tween · Preset Gallery")]
-        public static void OpenFromMenu() => GetWindow<UiPresetGalleryWindow>("Preset Gallery").minSize = new Vector2(520, 480);
+        public static void OpenFromMenu() => Open(Selection.activeObject as UiTweenData);
+
+        public static UiPresetGalleryWindow Open(UiTweenData source = null)
+        {
+            var window = GetWindow<UiPresetGalleryWindow>("Preset Gallery");
+            window.minSize = new Vector2(500, 480);
+
+            if (source != null)
+            {
+                window._pendingRegisterSource = source;
+                window.ApplyPendingRegisterSource();
+            }
+
+            return window;
+        }
+
+        // CreateGUI 前に Open(source) が呼ばれた場合に備えて保持しておく。
+        private UiTweenData _pendingRegisterSource;
+
+        private void ApplyPendingRegisterSource()
+        {
+            if (_pendingRegisterSource == null || _registerTweenField == null)
+            {
+                return;
+            }
+
+            _registerTweenField.value = _pendingRegisterSource;
+
+            if (_registerNameField != null && string.IsNullOrEmpty(_registerNameField.value))
+            {
+                _registerNameField.value = string.IsNullOrEmpty(_pendingRegisterSource.DisplayName)
+                    ? _pendingRegisterSource.name
+                    : _pendingRegisterSource.DisplayName;
+            }
+
+            _pendingRegisterSource = null;
+        }
 
         private void OnEnable()
         {
@@ -114,6 +154,7 @@ namespace DDrive.Editor.Ui
             RebuildCatalogChoices();
             RebuildElementChoices();
             RebuildGrid();
+            ApplyPendingRegisterSource();
         }
 
         private void OnDestroy()

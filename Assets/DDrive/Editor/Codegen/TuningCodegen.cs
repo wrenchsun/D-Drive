@@ -156,6 +156,24 @@ namespace DDrive.Editor.Codegen
             sb.AppendLine("    }");
             sb.AppendLine("}");
 
+            // 2026-09-17(docs/41_phase6_review_2026-09-17.md P1-2 (d)) — 安全弁。
+            // 定数が 1 つも無い状態で、既存の生成ファイルに定数があるときは上書きしない。
+            // 仕様書 Web API が `ok:false`(トークン切れ・許可外・レート制限)を返した結果で
+            // TuningTable が空になると、ここが `TUNING` を空クラスで書き出し `TUNING.Xxx` を
+            // 参照している全コードが一斉にコンパイルエラーになる。上流(SpecSyncService の
+            // IsUnusableForApply)でも止めているが、TuningTable を手で空にした場合や別経路からの
+            // 呼び出しでも壊れないよう、ここでも警告 + no-op で継続する(CLAUDE.md §0-4)。
+            // 意図して全削除したい場合は Assets/Generated/Tuning.g.cs を先に削除してから再生成する。
+            if (result.TotalCount + result.TableCount + result.ColumnCount == 0 && ExistingFileHasConstants(outputPath))
+            {
+                Debug.LogWarning(
+                    $"[DDrive] 調整値のキーが 0 件のため '{outputPath}' の再生成を中止しました" +
+                    "(既存の定数を残します)。仕様書の取得に失敗している / TuningTable が空になっていないか確認してください。" +
+                    "意図した全削除の場合は、先に生成ファイルを削除してから再生成してください。");
+                result.Success = false;
+                return result;
+            }
+
             var dir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
@@ -173,6 +191,26 @@ namespace DDrive.Editor.Codegen
             return result;
         }
 
+        // 既存の生成ファイルに `public const string` が 1 つでもあるか(= 消すと参照側が壊れるか)。
+        // 読めない場合は「無い」扱いにして通常の書き出しに進む(例外で止めない)。
+        private static bool ExistingFileHasConstants(string outputPath)
+        {
+            try
+            {
+                if (!File.Exists(outputPath))
+                {
+                    return false;
+                }
+
+                return File.ReadAllText(outputPath).IndexOf("public const string", StringComparison.Ordinal) >= 0;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] 既存の '{outputPath}' を読めませんでした: {e.Message}");
+                return false;
+            }
+        }
+
         private static TuningTable ResolveDefaultTable()
         {
             var settings = DDriveSpecSettings.Load();
@@ -184,7 +222,11 @@ namespace DDrive.Editor.Codegen
             return AssetDatabase.LoadAssetAtPath<TuningTable>(DDriveSpecSettings.DefaultTuningTablePath);
         }
 
-        private static string ToConstantName(string key)
+        // 2026-09-17([41] P2-10) — private だったため SpecWebSender が同じ規則を複製しており、
+        // しかも複製側は `char.IsLetterOrDigit`(Unicode)で日本語を残す実装になっていて初版から
+        // 不一致だった(`敵/HP` が `HP` と `敵HP` に分かれ、使われているキーが「未使用」として
+        // Web に送られていた)。定数名の規則はこの 1 箇所だけに置く。
+        internal static string ToConstantName(string key)
         {
             var tokens = key.Split(new[] { '/', '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
             var sb = new StringBuilder();

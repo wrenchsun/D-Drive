@@ -46,7 +46,7 @@ namespace DDrive.Editor.Spec
         [Tooltip("Unity 起動時・ドメインリロード後に取得と差分検出だけ行うか(既定 ON)。適用はしない([27] §4.2)。")]
         public bool AutoFetchOnStartup = true;
 
-        [Tooltip("差分の「新規(未着手)」だけ、検出時に自動で Placeholder 作成まで行うか(既定 OFF)。")]
+        [Tooltip("差分の「新規」だけ、検出時に自動で Placeholder 作成まで行うか(既定 OFF)。")]
         public bool AutoApplyNewPlaceholders;
 
         [Tooltip("Placeholder 作成先の GameData ルート(通常は変更不要)。")]

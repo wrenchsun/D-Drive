@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
+using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.Ui
 {
@@ -27,6 +28,7 @@ namespace DDrive.Editor.Ui
         [SerializeField] private SliderSkinData _target;
 
         private ObjectField _targetField;
+        private DataValidationSection _validationSection; // 2026-09-17 U-13([09] §11)
         private EnumField _presetField;
         private UiSlider _previewSlider;
         private ControlSkinPreviewSection _settings;
@@ -99,8 +101,11 @@ namespace DDrive.Editor.Ui
             _targetField.RegisterValueChangedCallback(evt => SetTarget(evt.newValue as SliderSkinData));
             scrollView.Add(_targetField);
 
-            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 4 } };
-            row.Add(new UnityEngine.UIElements.Button(PlaceInScene) { text = "確認用シーンに配置" });
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 4, marginBottom = 4 } }; // [09] §7.1
+            row.Add(DDrive.Editor.Preview.PreviewPlacementButton.Create(
+                "確認用シーンに配置",
+                "UI 確認用シーン(CanvasPreviewScene)を開き、実 UiSlider を置いて SceneView をそこへ向ける",
+                PlaceInScene));
             row.Add(new UnityEngine.UIElements.Button(RemoveFromScene) { text = "撤去" });
             scrollView.Add(row);
 
@@ -117,6 +122,10 @@ namespace DDrive.Editor.Ui
             _settings = new ControlSkinPreviewSection(BuildOptions());
             scrollView.Add(_settings);
 
+            // 2026-09-17(U-13): 「検証」を全エディタで揃える([09] §11)。
+            _validationSection = new DataValidationSection();
+            scrollView.Add(_validationSection);
+
             if (_target == null && Selection.activeObject is SliderSkinData selected)
             {
                 SetTarget(selected);
@@ -125,6 +134,7 @@ namespace DDrive.Editor.Ui
             {
                 _targetField.SetValueWithoutNotify(_target);
                 _settings.SetSkin(_target);
+                _validationSection.Bind(_target);
             }
         }
 
@@ -133,6 +143,7 @@ namespace DDrive.Editor.Ui
             _target = target;
             _targetField?.SetValueWithoutNotify(_target);
             _settings?.SetSkin(_target);
+            _validationSection?.Bind(_target);
 
             // (レビュー対応 2026-09-14) Skin を外したときも SetVisual(null) で差し替え前の見た目に戻す
             // (以前は null のとき呼ばず、古い Skin の見た目のまま残っていた)。
@@ -148,7 +159,8 @@ namespace DDrive.Editor.Ui
         {
             if (_previewSlider == null)
             {
-                PlaceInScene();
+                // ▶ 等からの暗黙の配置ではシーンを勝手に切り替えない(今開いているシーンに置く)。
+                PlaceInScene(DDrive.Editor.Preview.PreviewPlaceMode.CurrentScene);
             }
 
             return _previewSlider;
@@ -416,7 +428,8 @@ namespace DDrive.Editor.Ui
         }
 
         // Data 自体は編集しない。実配置での見た目確認だけをシーン上で行う(ADR-4: プレビューは実 Manager/実コンポーネントを駆動する)。
-        private void PlaceInScene()
+        // U-5(2026-09-17): 左クリック = UI 確認用シーンを開いてから配置 / 右クリック = このシーンに配置・本配置。
+        private void PlaceInScene(DDrive.Editor.Preview.PreviewPlaceMode mode)
         {
             if (_target == null)
             {
@@ -424,18 +437,32 @@ namespace DDrive.Editor.Ui
             }
 
             RemoveFromScene();
+            if (!DDrive.Editor.Preview.PreviewPlacement.PrepareScene(mode, DDrive.Editor.Preview.CanvasPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
 
             // (レビュー対応 2026-09-14) 組み立ては SliderEditorWindow と共通の PreviewSliderFactory(子も DontSave)。
             var canvasGo = DDrive.Editor.Preview.EditorPreviewRoots.CreateOverlayCanvas(PreviewCanvasName);
             _previewSlider = PreviewSliderFactory.Create(canvasGo.transform, "PreviewSlider", Vector2.zero);
             _previewSlider.SetVisual(_target);
             DDrive.Editor.Preview.EditorPreviewRoots.MarkDontSaveRecursive(canvasGo);
+
+            if (DDrive.Editor.Preview.PreviewPlacement.IsPersistent(mode))
+            {
+                // Canvas ごと本配置する(スライダー単体を外すと描画できないため)。以後このウィンドウの所有物ではない。
+                DDrive.Editor.Preview.PreviewPlacement.Persist(canvasGo, _target.DisplayName ?? _target.name);
+                _previewSlider = null;
+                return;
+            }
+
             Subscribe(_previewSlider);
 
             // (レビュー対応 2026-09-14) 新しいスライダーにはまだプリセットを当てていないので、欄を None に戻す。
             _presetField?.SetValueWithoutNotify(SliderPresets.SliderPreset.None);
 
             Selection.activeGameObject = _previewSlider.gameObject;
+            DDrive.Editor.Preview.PreviewPlacement.Focus(_previewSlider.gameObject);
         }
 
         private void RemoveFromScene()

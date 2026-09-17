@@ -9,8 +9,16 @@ namespace DDrive.Editor.Preview
     // SceneView 上の Anchor 編集ハンドル(移動/回転)と、AnchorData の連鎖をエディタ側で合成する補助。
     // VfxEditorWindow(埋め込み Anchor)と AnchorEditorWindow(AnchorData)が同じ描画・逆変換を使う
     // ([21_anchor_spec.md] §3.6)。式は Runtime の AnchorPose / AnchorChain と同じものを通す。
+    //
+    // 2026-09-17(U-24): 最終位置だけでなく「基準(原点)」も描くようにした。基準 = LocalOffset を積む前の
+    // 出発点で、ルートは解決先 Transform(Space/Path で見つけたボーン等。見つからなければワールド原点)、
+    // 連鎖の各段はひとつ上の段の合成姿勢。基準には 3 軸とラベル(名前 + ワールド座標)を描き、
+    // 基準 → 最終位置を線で結んでオフセット量を表示する。
     public static class AnchorSceneHandles
     {
+        // 基準の色。対象(最終位置)のギズモとは別色にして「どちらが基準か」を一目で分かるようにする。
+        public static readonly Color OriginColor = new(1f, 0.4f, 0.45f);
+
         public struct Result
         {
             public bool PositionChanged;
@@ -65,47 +73,177 @@ namespace DDrive.Editor.Preview
             var size = HandleUtility.GetHandleSize(worldPos);
             Handles.color = new Color(color.r, color.g, color.b, 0.25f);
             Handles.DrawWireDisc(worldPos, Vector3.up, size * 0.18f);
-            var style = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = new Color(color.r, color.g, color.b, 0.5f) } };
-            Handles.Label(worldPos + Vector3.up * size * 0.28f, label, style);
+            Handles.Label(worldPos + Vector3.up * size * 0.28f, label, FadedStyle(color));
         }
 
-        // 連鎖(ルート → 対象)の各段の位置を線で結び、ランダム半径とディレイをラベル表示する。
-        public static void DrawChain(IReadOnlyList<AnchorData> rootToTarget, Transform baseTransform, Color color)
+        // ── 基準(原点)の描画(U-24) ──
+
+        // 基準 = LocalOffset を積む前の出発点。解決先 Transform の位置に 3 軸とラベルを描き、
+        // AnchorPoint の SpawnOffset がある場合は「解決先 → SpawnOffset 適用後」を点線で結ぶ。
+        // 戻り値は LocalOffset の起点になるワールド位置(= extraOffset 適用後の基準点)。
+        public static Vector3 DrawOrigin(Transform baseTransform, Vector3 extraOffset, string label, bool followRotation)
         {
+            var rootPos = baseTransform != null ? baseTransform.position : Vector3.zero;
+            var rootRot = baseTransform != null ? baseTransform.rotation : Quaternion.identity;
+            var originPos = baseTransform != null ? baseTransform.TransformPoint(extraOffset) : extraOffset;
+            var size = HandleUtility.GetHandleSize(rootPos);
+
+            DrawAxes(rootPos, rootRot, size * 0.45f);
+
+            Handles.color = OriginColor;
+            Handles.SphereHandleCap(0, rootPos, Quaternion.identity, size * 0.07f, EventType.Repaint);
+            Handles.Label(
+                rootPos - Vector3.up * size * 0.22f,
+                $"{label} {Format(rootPos)}\n回転の基準: {(followRotation ? "この向きに追従" : "ワールド")}",
+                OriginStyle());
+
+            if (extraOffset != Vector3.zero)
+            {
+                Handles.color = OriginColor;
+                Handles.DrawDottedLine(rootPos, originPos, 3f);
+                Handles.Label(originPos + Vector3.up * size * 0.16f, $"★AnchorPoint SpawnOffset {Format(extraOffset)}", OriginStyle());
+            }
+
+            return originPos;
+        }
+
+        // 基準 → 最終位置を実線で結び、中点にオフセット量と距離を出す。
+        public static void DrawOffsetLink(Vector3 originWorld, Vector3 targetWorld, Vector3 localOffset, Color color)
+        {
+            var delta = targetWorld - originWorld;
+            var size = HandleUtility.GetHandleSize(targetWorld);
+            Handles.color = color;
+
+            if (delta.sqrMagnitude < 1e-8f)
+            {
+                Handles.Label(targetWorld + Vector3.up * size * 0.18f, "LocalOffset 0(基準と同じ位置)", FadedStyle(color));
+                return;
+            }
+
+            Handles.DrawLine(originWorld, targetWorld, 2f);
+            Handles.Label(Vector3.Lerp(originWorld, targetWorld, 0.5f), $"LocalOffset {Format(localOffset)}  ({delta.magnitude:0.##}m)", FadedStyle(color));
+        }
+
+        // 基準のラベル文字列。解決できなかった場合は「ワールド原点扱い」であることを明示する
+        // (デザイナーが「設定が効いていない」のか「そこが基準」なのかを見分けられるように)。
+        public static string DescribeBase(in AnchorDef def, Transform baseTransform)
+        {
+            if (baseTransform != null)
+            {
+                return $"基準: {baseTransform.name}";
+            }
+
+            return def.Space switch
+            {
+                AnchorSpace.World => "基準: ワールド原点",
+                AnchorSpace.ContextTarget => "基準: ⚠ スポーン先が未指定 → ワールド原点",
+                _ => string.IsNullOrEmpty(def.Path)
+                    ? "基準: ⚠ Path が空 → ワールド原点"
+                    : $"基準: ⚠ '{def.Path}' が見つからない → ワールド原点",
+            };
+        }
+
+        // 連鎖(基準 → 各中間段)を点線で結び、各段に基準としての 3 軸とラベルを描く。
+        // 最終段(対象)の位置・ハンドルは Draw が、基準 → 最終位置の線は DrawOffsetLink が描くため、
+        // ここでは最終段の手前までを描き、「最終段の基準になるワールド位置」を返す。
+        public static Vector3 DrawChain(IReadOnlyList<AnchorData> rootToTarget, Transform baseTransform, Vector3 extraOffset, Vector3 originWorld, Color color)
+        {
+            var previous = originWorld;
             if (rootToTarget == null || rootToTarget.Count == 0)
+            {
+                return previous;
+            }
+
+            var chained = new Color(color.r, color.g, color.b, 0.6f);
+            for (var i = 0; i < rootToTarget.Count - 1; i++)
+            {
+                var def = AnchorChainEditor.ComposeUpTo(rootToTarget, i);
+                var pos = AnchorPose.WorldPosition(def, baseTransform, extraOffset);
+                var rot = AnchorPose.WorldRotation(def, baseTransform, Quaternion.identity);
+                var size = HandleUtility.GetHandleSize(pos);
+
+                Handles.color = chained;
+                Handles.DrawDottedLine(previous, pos, 4f);
+                Handles.DrawWireDisc(pos, Vector3.up, size * 0.12f);
+                DrawAxes(pos, rot, size * 0.25f);
+                Handles.color = chained;
+                Handles.Label(pos + Vector3.up * size * 0.2f, $"基準{i + 1}: {rootToTarget[i].name}", OriginStyle());
+
+                DrawJitter(rootToTarget[i], pos, chained);
+                previous = pos;
+            }
+
+            // 対象自身のランダム半径(最終段)。位置の線とラベルは呼び出し側が描く。
+            var last = rootToTarget[rootToTarget.Count - 1];
+            var lastPos = AnchorPose.WorldPosition(AnchorChainEditor.ComposeUpTo(rootToTarget, rootToTarget.Count - 1), baseTransform, extraOffset);
+            Handles.color = chained;
+            DrawJitter(last, lastPos, chained);
+
+            return previous;
+        }
+
+        // ── 内部 ──
+
+        private static void DrawJitter(AnchorData node, Vector3 pos, Color color)
+        {
+            if (node == null || node.PositionJitterRadius <= 0f)
             {
                 return;
             }
 
-            Handles.color = new Color(color.r, color.g, color.b, 0.6f);
-            Vector3? previous = null;
-            for (var i = 0; i < rootToTarget.Count; i++)
+            Handles.color = color;
+            Handles.DrawWireDisc(pos, Vector3.up, node.PositionJitterRadius);
+            Handles.DrawWireDisc(pos, Vector3.right, node.PositionJitterRadius);
+            Handles.DrawWireDisc(pos, Vector3.forward, node.PositionJitterRadius);
+        }
+
+        // 基準の姿勢を示す小さな 3 軸(X=赤 / Y=緑 / Z=青)。Unity の Transform ギズモと同じ色にする。
+        private static void DrawAxes(Vector3 position, Quaternion rotation, float length)
+        {
+            Handles.color = Handles.xAxisColor;
+            Handles.DrawLine(position, position + rotation * Vector3.right * length, 3f);
+            Handles.color = Handles.yAxisColor;
+            Handles.DrawLine(position, position + rotation * Vector3.up * length, 3f);
+            Handles.color = Handles.zAxisColor;
+            Handles.DrawLine(position, position + rotation * Vector3.forward * length, 3f);
+        }
+
+        private static string Format(Vector3 v) => $"({v.x:0.##}, {v.y:0.##}, {v.z:0.##})";
+
+        private static GUIStyle _originStyle;
+
+        private static GUIStyle OriginStyle()
+        {
+            if (_originStyle == null && EditorStyles.miniLabel != null)
             {
-                var def = AnchorChainEditor.ComposeUpTo(rootToTarget, i);
-                var pos = AnchorPose.WorldPosition(def, baseTransform, Vector3.zero);
-                var size = HandleUtility.GetHandleSize(pos);
-
-                if (previous.HasValue)
-                {
-                    Handles.DrawDottedLine(previous.Value, pos, 4f);
-                }
-
-                if (i < rootToTarget.Count - 1)
-                {
-                    Handles.DrawWireDisc(pos, Vector3.up, size * 0.12f);
-                    Handles.Label(pos + Vector3.up * size * 0.2f, rootToTarget[i].name);
-                }
-
-                var node = rootToTarget[i];
-                if (node.PositionJitterRadius > 0f)
-                {
-                    Handles.DrawWireDisc(pos, Vector3.up, node.PositionJitterRadius);
-                    Handles.DrawWireDisc(pos, Vector3.right, node.PositionJitterRadius);
-                    Handles.DrawWireDisc(pos, Vector3.forward, node.PositionJitterRadius);
-                }
-
-                previous = pos;
+                _originStyle = new GUIStyle(EditorStyles.miniLabel) { richText = false };
             }
+
+            if (_originStyle == null)
+            {
+                return GUIStyle.none;
+            }
+
+            _originStyle.normal.textColor = OriginColor;
+            return _originStyle;
+        }
+
+        private static GUIStyle _fadedStyle;
+
+        private static GUIStyle FadedStyle(Color color)
+        {
+            if (_fadedStyle == null && EditorStyles.miniLabel != null)
+            {
+                _fadedStyle = new GUIStyle(EditorStyles.miniLabel);
+            }
+
+            if (_fadedStyle == null)
+            {
+                return GUIStyle.none;
+            }
+
+            _fadedStyle.normal.textColor = new Color(color.r, color.g, color.b, 0.9f);
+            return _fadedStyle;
         }
     }
 

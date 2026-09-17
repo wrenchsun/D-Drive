@@ -42,6 +42,13 @@ namespace DDrive.Foundation.Net
         // スナップショット送信するための最小限の口。シングルプレイ(LocalLoopbackBridge)では通常発火しない。
         event Action<ulong> ClientConnected;
 
+        // [14_networking.md] §5/§7 — 切断通知。(clientId, reason)。Host 視点は「どの Client が切断したか」、
+        // Client 視点は「自分(= Host との接続)が切れた」ことを表す。ClientConnected と対になる口で、
+        // CatalogContentHashGate が「接続したが ContentHash を送らずに落ちた Client」の保留期限を
+        // 掃除するために購読する(2026-09-17 レビュー対応 P2-2)。シングルプレイ(LocalLoopbackBridge)では
+        // 通常発火しない。
+        event Action<ulong, string> ClientDisconnected;
+
         // [14_networking.md] §7(6-5) — カタログ ContentHash 不一致(リリースビルド)時に Host が該当
         // Client を切断するための primitive。Host からのみ意味を持つ(Client/Loopback からの呼び出しは
         // no-op または警告)。reason は null 可(NGO では NetworkManager.DisconnectReason 経由で Client 側に

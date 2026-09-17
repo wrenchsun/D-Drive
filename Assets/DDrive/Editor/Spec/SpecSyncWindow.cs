@@ -33,9 +33,20 @@ namespace DDrive.Editor.Spec
         private VisualElement _archivedContainer;
         private VisualElement _conflictContainer;
 
+        // 2026-09-17(docs/41_phase6_review_2026-09-17.md P1-2 (c)) 追加 — 取得の失敗
+        // (`SpecCache.LastError` / `LastWarning`)と調整値側の Issues をここに出す。
+        // 以前はどちらも画面に出ず、トークン切れで「取得」しても「新規/変更 0 件」に見えるだけで、
+        // そのまま「適用」すると TuningTable が全消えになった(= P1-2 の本質は「失敗が見えないこと」)。
+        private VisualElement _errorContainer;
+        private VisualElement _tuningStatusContainer;
+
         // 行キー(SpecAssetRow.Key)→適用対象として選択されているか。取得のたびに新しい行として
         // 再構築されるため、無ければ既定 ON。
         private readonly Dictionary<string, bool> _selected = new();
+
+        // 直前の「適用」で調整値をスキップした理由。「適用」の直後に差分の再取得(OnFetchClicked)が
+        // 走ってステータス行が上書きされるため、再描画をまたいで残す(P1-2 (c))。
+        private readonly List<string> _lastApplySkipNotes = new();
 
         [MenuItem(DDriveMenu.Root + "仕様書と同期")]
         public static void Open()
@@ -72,6 +83,14 @@ namespace DDrive.Editor.Spec
             _statusLabel = new Label();
             _statusLabel.style.whiteSpace = WhiteSpace.Normal;
             scrollView.Add(_statusLabel);
+
+            // P1-2 (c): 取得の失敗と調整値側の Issues を常に見える場所に出す。
+            _errorContainer = new VisualElement();
+            scrollView.Add(_errorContainer);
+
+            scrollView.Add(new Label("調整値の取得状況") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 8 } });
+            _tuningStatusContainer = new VisualElement();
+            scrollView.Add(_tuningStatusContainer);
 
             // W-12/O-6: D-Drive → Web 送信(選択肢・アセット実状態・TUNING コード参照・パラメータ)。
             scrollView.Add(new Label("D-Drive → Web 送信(W-12/O-6)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 10 } });
@@ -117,7 +136,7 @@ namespace DDrive.Editor.Spec
             _autoFetchToggle = new Toggle("起動時に自動取得(通知のみ)") { value = _settings == null || _settings.AutoFetchOnStartup };
             box.Add(_autoFetchToggle);
 
-            _autoApplyToggle = new Toggle("未着手の新規行を自動で Placeholder 作成") { value = _settings != null && _settings.AutoApplyNewPlaceholders };
+            _autoApplyToggle = new Toggle("新規行を自動で Placeholder 作成") { value = _settings != null && _settings.AutoApplyNewPlaceholders };
             box.Add(_autoApplyToggle);
 
             box.Add(new Button(OnSaveSettingsClicked) { text = "設定を保存" });
@@ -196,23 +215,45 @@ namespace DDrive.Editor.Spec
                 changedCount++;
             }
 
+            // 2026-09-17([41] P1-2 (a)/(c)): 取得に失敗している調整値で TuningTable を上書きしない。
+            // 判定は SpecSyncService.IsUnusableForApply(適用側と同じ 1 箇所)を使い、スキップした
+            // 理由はステータス行に出す(黙って何もしない = 以前と同じ「画面に出ない」状態にしない)。
+            _lastApplySkipNotes.Clear();
             if (_applyTuningToggle != null && _applyTuningToggle.value)
             {
                 var table = settings.GetOrCreateTuningTable();
-                if (SpecCache.LastTuningRows != null)
+                var appliedAny = false;
+
+                if (SpecSyncService.IsUnusableForApply(SpecCache.LastTuningRows, out var scalarReason))
+                {
+                    _lastApplySkipNotes.Add($"調整値(スカラー)は適用しませんでした: {scalarReason}");
+                }
+                else
                 {
                     SpecSyncService.ApplyTuning(SpecCache.LastTuningRows, table);
+                    appliedAny = true;
                 }
 
-                if (SpecCache.LastTuningTableRows != null)
+                if (SpecSyncService.IsUnusableForApply(SpecCache.LastTuningTableRows, out var tableReason))
+                {
+                    _lastApplySkipNotes.Add($"調整値(テーブル)は適用しませんでした: {tableReason}");
+                }
+                else
                 {
                     SpecSyncService.ApplyTuningTable(SpecCache.LastTuningTableRows, table);
+                    appliedAny = true;
                 }
 
-                TuningCodegen.Regenerate(table);
+                if (appliedAny)
+                {
+                    // 片方だけ適用した場合でも、TuningTable にはもう片方の前回値が残っているため
+                    // 再生成して問題ない(空の TuningTable で Tuning.g.cs を上書きすることはない)。
+                    TuningCodegen.Regenerate(table);
+                }
             }
 
-            _statusLabel.text = $"適用しました: 新規 {createdCount} 件 / 変更 {changedCount} 件。";
+            var skipPart = _lastApplySkipNotes.Count == 0 ? string.Empty : " / " + string.Join(" / ", _lastApplySkipNotes);
+            _statusLabel.text = $"適用しました: 新規 {createdCount} 件 / 変更 {changedCount} 件。{skipPart}";
             OnFetchClicked(); // 適用後の状態で差分を再計算する
         }
 
@@ -274,6 +315,28 @@ namespace DDrive.Editor.Spec
             _changedContainer.Clear();
             _archivedContainer.Clear();
             _conflictContainer.Clear();
+            _errorContainer.Clear();
+            _tuningStatusContainer.Clear();
+
+            // P1-2 (c): 取得の失敗・フォールバック警告・直前の「適用」でスキップした理由を最初に出す。
+            // diff が無い(まだ取得できていない)場合でも出す必要があるので、早期 return より前に置く。
+            if (!string.IsNullOrEmpty(SpecCache.LastError))
+            {
+                _errorContainer.Add(new HelpBox(SpecCache.LastError, HelpBoxMessageType.Error));
+            }
+
+            if (!string.IsNullOrEmpty(SpecCache.LastWarning))
+            {
+                _errorContainer.Add(new HelpBox(SpecCache.LastWarning, HelpBoxMessageType.Warning));
+            }
+
+            foreach (var note in _lastApplySkipNotes)
+            {
+                _errorContainer.Add(new HelpBox(note, HelpBoxMessageType.Warning));
+            }
+
+            RenderTuningStatus(_tuningStatusContainer, "調整値(スカラー)", SpecCache.LastTuningRows);
+            RenderTuningStatus(_tuningStatusContainer, "調整値(テーブル)", SpecCache.LastTuningTableRows);
 
             var diff = SpecCache.LastDiff;
             if (diff == null)
@@ -304,6 +367,42 @@ namespace DDrive.Editor.Spec
 
             var warningPart = string.IsNullOrEmpty(SpecCache.LastWarning) ? string.Empty : $" / {SpecCache.LastWarning}";
             _statusLabel.text = $"新規 {diff.New.Count} / 変更 {diff.Changed.Count} / Archive候補 {diff.Archived.Count} / 衝突 {diff.Conflicts.Count}{warningPart}";
+        }
+
+        // 2026-09-17([41] P1-2 (c)) — 調整値側の取得状況(件数 / 適用できない理由 / Issues 全件)。
+        // SpecWebParser が積む Issues はこれまでどこにも表示されておらず、`ok:false`(トークン切れ・
+        // 許可外・レート制限)も「0 件」と見分けが付かなかった。
+        private static void RenderTuningStatus<T>(VisualElement container, string label, SpecParseResult<T> parsed)
+        {
+            if (SpecSyncService.IsUnusableForApply(parsed, out var reason))
+            {
+                container.Add(new HelpBox(
+                    $"{label}: {reason} 「適用」では既存の TuningTable を変更しません。",
+                    HelpBoxMessageType.Warning));
+            }
+            else
+            {
+                container.Add(new Label($"{label}: {parsed.Rows.Count} 件") { style = { whiteSpace = WhiteSpace.Normal } });
+            }
+
+            if (parsed == null)
+            {
+                return;
+            }
+
+            foreach (var issue in parsed.Issues)
+            {
+                var where = issue.RowNumber == 0 ? "応答全体" : $"行 {issue.RowNumber}";
+                container.Add(new Label($"{label} / {where}: {issue.Message}")
+                {
+                    style =
+                    {
+                        color = new Color(0.85f, 0.35f, 0.25f),
+                        whiteSpace = WhiteSpace.Normal,
+                        marginLeft = 8,
+                    },
+                });
+            }
         }
 
         private VisualElement BuildAssetChangeRow(SpecAssetChange change, string detail)

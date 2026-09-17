@@ -119,7 +119,10 @@ namespace DDrive.Editor.Vfx
 
         private void OnUndoRedo()
         {
-            _serializedTarget?.Update();
+            // 2026-09-17([39] U-13): Undo/Redo の時点で対象が破棄されていると SerializedObject.Update() が
+            // 「target has been destroyed」を出し、後続の BindProperty が例外になって RefreshValidation まで
+            // 到達しなかった。作り直してから進める。
+            EnsureSerializedTarget();
             RefreshAnchorUi();
             RebuildParamsUiIfChanged();
             RefreshValidation();
@@ -268,11 +271,10 @@ namespace DDrive.Editor.Vfx
 
             toolbar.Add(new ToolbarSpacer());
 
-            toolbar.Add(new ToolbarButton(VfxPreviewSceneSetup.OpenOrCreate)
-            {
-                text = "確認用シーンを開く",
-                tooltip = "ライト/カメラ/Volume/床を備えた VFX 確認用シーンを開く(無ければ生成)",
-            });
+            toolbar.Add(PreviewPlacementButton.CreateToolbarButton(
+                "確認用シーンを開く",
+                "ライト/カメラ/Volume/床を備えた VFX 確認用シーンを開き(無ければ生成)、対象をそこで再生する",
+                OpenPreviewScene));
             toolbar.Add(new ToolbarButton(OpenPrefab) { text = "Prefab を開く", tooltip = "VfxData.Prefab をプレハブモードで開く" });
             toolbar.Add(new ToolbarButton(PingTarget) { text = "Project で表示", tooltip = "対象アセットを Project ウィンドウでハイライト" });
             toolbar.Add(new ToolbarSpacer());
@@ -284,7 +286,7 @@ namespace DDrive.Editor.Vfx
         private void BuildPlaySection(VisualElement root)
         {
             var playRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 2, marginTop = 4, alignItems = Align.Center } };
-            _playButton = new Button(PlayMain) { text = "▶ 再生" };
+            _playButton = new Button(() => PlayMain(focus: true)) { text = "▶ 再生" };
             playRow.Add(_playButton);
             playRow.Add(new Button(StopMain) { text = "■ 停止" });
 
@@ -408,6 +410,25 @@ namespace DDrive.Editor.Vfx
             RefreshTargetUi();
         }
 
+        // 破棄済みの対象を指した SerializedObject を使い回さない(使うと Update()/FindProperty で
+        // 例外になり、呼び出し側の更新処理が途中で止まる。[39] U-13)。
+        private void EnsureSerializedTarget()
+        {
+            if (_target == null)
+            {
+                _serializedTarget = null;
+                return;
+            }
+
+            if (_serializedTarget == null || _serializedTarget.targetObject == null)
+            {
+                _serializedTarget = new SerializedObject(_target);
+                return;
+            }
+
+            _serializedTarget.Update();
+        }
+
         private void RefreshTargetUi()
         {
             if (_targetField == null)
@@ -493,7 +514,36 @@ namespace DDrive.Editor.Vfx
 
         // ── 再生制御(メイン対象) ──
 
-        private void PlayMain()
+        // U-5(2026-09-17): 左クリック = 確認用シーンを開いてそこで再生 / 右クリック = このシーンで再生・本配置。
+        private void OpenPreviewScene(PreviewPlaceMode mode)
+        {
+            StopMain();
+            if (!PreviewPlacement.PrepareScene(mode, VfxPreviewSceneSetup.TryOpenOrCreate))
+            {
+                return;
+            }
+
+            if (PreviewPlacement.IsPersistent(mode))
+            {
+                if (_target == null)
+                {
+                    Debug.LogWarning("[DDrive] 対象 VfxData を選んでください。");
+                    return;
+                }
+
+                // 本配置は VfxManager が追跡しない実体(Prefab リンク付き)にする。
+                PreviewPlacement.PlacePrefabPersistent(_target.Prefab, Vector3.zero, Quaternion.identity);
+                return;
+            }
+
+            PlayMain(focus: true);
+        }
+
+        // focus=false 既定。リピート再生(OnEditorUpdate)からも呼ばれるため、SceneView を寄せ直すのは
+        // ユーザーが押したとき(▶ / 確認用シーンを開く)だけにする(U-5、2026-09-17)。
+        private void PlayMain() => PlayMain(focus: false);
+
+        private void PlayMain(bool focus)
         {
             if (_target == null)
             {
@@ -504,6 +554,11 @@ namespace DDrive.Editor.Vfx
             _wantPlaying = true;
             _repeatWaitStart = -1;
             _mainHandle = _driver.Play(_target, _attachTarget != null ? _attachTarget.transform : null);
+            if (focus)
+            {
+                PreviewPlacement.Focus(_driver.Manager.GetGameObject(_mainHandle));
+            }
+
             RefreshAnchorStatus();
         }
 

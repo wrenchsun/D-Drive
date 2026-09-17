@@ -66,6 +66,7 @@ namespace DDrive.Runtime.Net
             _subHash = _netBridge.Subscribe<CatalogContentHashMsg>(OnReceiveHashMsg);
             _subResult = _netBridge.Subscribe<CatalogContentHashResultMsg>(OnReceiveResultMsg);
             _netBridge.ClientConnected += OnClientConnected;
+            _netBridge.ClientDisconnected += OnClientDisconnected;
         }
 
         public void Dispose()
@@ -73,6 +74,7 @@ namespace DDrive.Runtime.Net
             _subHash?.Dispose();
             _subResult?.Dispose();
             _netBridge.ClientConnected -= OnClientConnected;
+            _netBridge.ClientDisconnected -= OnClientDisconnected;
         }
 
         // DDriveRuntimeBootstrap.RegisterCatalogsAsync() が IsReady=true にした直後に呼ぶ(自分の
@@ -84,7 +86,40 @@ namespace DDrive.Runtime.Net
             _registryReady = true;
 
             FlushPendingBeforeReady();
+
+            // 2026-09-17 レビュー対応(P2-3) — Host のカタログ登録(LoadMode.Preload 込みの
+            // RegisterCatalogAsync)が _timeoutSeconds より長くかかる環境では、先に接続して正しく
+            // ハッシュを送った正規の Client まで「ContentHash 未受信」扱いで切断されていた
+            // (Tick は保留の有無を見ずに ClientConnected 時点からの期限だけで判定していた)。
+            // 期限は「Host が判定できるようになった時点」から数え直す。
+            RebasePendingHostSideDeadlines();
+
             TrySendOwnHash();
+        }
+
+        // 未 ready 中に接続していた Client の保留期限を「今」から数え直す(P2-3)。
+        private void RebasePendingHostSideDeadlines()
+        {
+            if (!_netBridge.IsServer || _pendingHostSideDeadlines.Count == 0)
+            {
+                return;
+            }
+
+            var deadline = _netBridge.NetworkTime + _timeoutSeconds;
+
+            // Dictionary は列挙中に値を書き換えられないため、キーを一旦退避する(scratch を使い回して alloc しない)。
+            _expiredScratch.Clear();
+            foreach (var kv in _pendingHostSideDeadlines)
+            {
+                _expiredScratch.Add(kv.Key);
+            }
+
+            for (var i = 0; i < _expiredScratch.Count; i++)
+            {
+                _pendingHostSideDeadlines[_expiredScratch[i]] = deadline;
+            }
+
+            _expiredScratch.Clear();
         }
 
         private void OnClientConnected(ulong clientId)
@@ -112,6 +147,34 @@ namespace DDrive.Runtime.Net
             // 発火する。[14] §5(5-9) 実装メモ参照)。
             _clientConnectedFired = true;
             TrySendOwnHash();
+        }
+
+        // 2026-09-17 レビュー対応(P2-2) — 接続後 _timeoutSeconds 以内(ハッシュ送信前)に切断/クラッシュした
+        // Client の保留期限を掃除する。これが無いと、居ない Client に対して Host がタイムアウト扱いの
+        // Debug.LogError + DisconnectClient + ClientDisconnectedForMismatch を発火し、LastStatusText
+        // (NetDebugOverlay / NetCheck の content_hash)も誤った内容に上書きされていた。
+        private void OnClientDisconnected(ulong clientId, string reason)
+        {
+            if (!_netBridge.IsServer)
+            {
+                return; // Client 視点の「自分が切れた」通知は Host 側の保留台帳とは無関係。
+            }
+
+            _pendingHostSideDeadlines.Remove(clientId);
+            RemovePendingBeforeReady(clientId);
+        }
+
+        // 未 ready 中に受信して保留していたハッシュのうち、切断済み Client の分を捨てる
+        // (FlushPendingBeforeReady が切断済み Client へ SendTo するのを防ぐ)。
+        private void RemovePendingBeforeReady(ulong clientId)
+        {
+            for (var i = _pendingBeforeReady.Count - 1; i >= 0; i--)
+            {
+                if (_pendingBeforeReady[i].SenderId == clientId)
+                {
+                    _pendingBeforeReady.RemoveAt(i);
+                }
+            }
         }
 
         private void TrySendOwnHash()
@@ -218,7 +281,10 @@ namespace DDrive.Runtime.Net
         // (偽装: ハッシュを送らない/遅延させるクライアントへの対処、[14] §7 実装メモ)。
         public void Tick(double networkTimeNow)
         {
-            if (!_netBridge.IsServer || _pendingHostSideDeadlines.Count == 0)
+            // 2026-09-17 レビュー対応(P2-3) — Host 自身のカタログ登録が終わるまでは誰も判定できない
+            // (受信済みハッシュも _pendingBeforeReady に積まれたまま)。未 ready の間はタイムアウト
+            // 判定そのものを行わず、SetLocalSummary で期限を数え直す。
+            if (!_netBridge.IsServer || !_registryReady || _pendingHostSideDeadlines.Count == 0)
             {
                 return;
             }
