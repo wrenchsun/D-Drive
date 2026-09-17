@@ -124,14 +124,11 @@ namespace DDrive.Editor.Presentation
             if (playing)
             {
                 _timelineContainer?.MarkDirtyRepaint();
+                // U-7(2026-09-17): シークバーは IMGUIContainer(SeekBarGui)化したため、UI Toolkit の
+                // Slider.SetValueWithoutNotify のような明示同期は不要(再生ヘッドは毎フレーム _preview.NormalizedTime
+                // を読んで描く。AnimEditorWindow.DrawTimeline と同じ方式)。MarkDirtyRepaint だけ呼べばよい。
+                _seekBarContainer?.MarkDirtyRepaint();
                 Repaint();
-
-                // シークスライダーは再生中(一時停止中も含む)は現在位置に追従する。ユーザーがドラッグ中は
-                // 上書きしない(5-4 追補 2026-09-14。ユーザー報告: 一時停止から再生すると最初からに見える問題の一部)。
-                if (!_seekSliderDragging)
-                {
-                    _seekSlider?.SetValueWithoutNotify(normalized);
-                }
 
                 // 「再生ヘッドに追従」(既定 ON): 表示範囲の外に再生ヘッドが出ないよう自動スクロールする。
                 if (_followPlayhead)

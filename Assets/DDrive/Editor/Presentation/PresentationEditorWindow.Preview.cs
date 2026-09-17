@@ -1,3 +1,4 @@
+using DDrive.Editor.Common;
 using DDrive.Editor.Preview;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Presentation;
@@ -13,13 +14,14 @@ namespace DDrive.Editor.Presentation
     // 実 PresentationManager は ScenePresentationPreviewDriver が駆動する(ADR-4。ウィンドウはボタン/ログのみ)。
     public sealed partial class PresentationEditorWindow
     {
-        private bool _paused;
-        private Slider _seekSlider;
-        private Button _pauseButton;
+        // U-7(2026-09-17): シークバーは AnimEditorWindow(3-3)と同じ形(暗い背景 + 目盛り付きバー + 白い
+        // 再生ヘッド + クリックでシーク)にするため、UI Toolkit の Slider をやめて SeekBarGui(共通ヘルパー)で
+        // 描く IMGUIContainer に置き換えた。ピクセル高さも AnimEditorWindow.TimelineHeight と同じ値。
+        private const float SeekBarHeight = 62f;
 
-        // ユーザーがシークスライダーをドラッグ中は OnEditorUpdate からの追従(SetValueWithoutNotify)を止める
-        // (5-4 追補 2026-09-14。ドラッグ中に再生位置へ巻き戻されて操作できなくなるのを防ぐ)。
-        private bool _seekSliderDragging;
+        private bool _paused;
+        private IMGUIContainer _seekBarContainer;
+        private Button _pauseButton;
 
         // 巻き戻し(過去への Seek)では発火済みトラックが再発火しない([08] Runtime 実装メモ)ことの注意書きを、
         // 1 回の再生につき最初の巻き戻しだけログへ出す(要望: ツールチップだけでは気づかれにくい)。
@@ -73,21 +75,12 @@ namespace DDrive.Editor.Presentation
             });
             foldout.Add(speed);
 
-            _seekSlider = new Slider("シーク", 0f, 1f) { showInputField = true, tooltip = "デバッグ用。通過したトラックはまとめて発火する(巻き戻しでは既発火のトラックを再発火しない)。再生中・一時停止中は現在位置に追従します" };
-            // ドラッグ中は OnEditorUpdate の追従(SetValueWithoutNotify)を止める(5-4 追補)。
-            _seekSlider.RegisterCallback<PointerDownEvent>(_ => _seekSliderDragging = true, TrickleDown.TrickleDown);
-            _seekSlider.RegisterCallback<PointerUpEvent>(_ => _seekSliderDragging = false, TrickleDown.TrickleDown);
-            _seekSlider.RegisterValueChangedCallback(evt =>
+            _seekBarContainer = new IMGUIContainer(DrawSeekBar)
             {
-                if (_target == null || _preview == null)
-                {
-                    return;
-                }
-
-                var duration = PresentationTiming.EffectiveDuration(_target);
-                SeekToTime(evt.newValue * duration);
-            });
-            foldout.Add(_seekSlider);
+                style = { height = SeekBarHeight },
+                tooltip = "デバッグ用。クリックでシーク。通過したトラックはまとめて発火する(巻き戻しでは既発火のトラックを再発火しない)。再生中・一時停止中は現在位置に追従します",
+            };
+            foldout.Add(_seekBarContainer);
 
             var signalFoldout = new Foldout { text = "Signal レーン(手動発火)", value = true };
             _signalRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap } };
@@ -223,7 +216,7 @@ namespace DDrive.Editor.Presentation
             _rewindNoticeShown = false;
             _preview.Play(_target);
             SubscribeToCurrent();
-            _seekSlider?.SetValueWithoutNotify(0f);
+            _seekBarContainer?.MarkDirtyRepaint();
             UpdatePauseButtonLabel();
             AppendLog($"{logPrefix} '{_target.DisplayName ?? _target.name}' を再生" + (_preview.HasSelf ? string.Empty : "(モデル未配置。Self 基準のトラックは対象が見つからず警告のうえ no-op になります)"));
         }
@@ -273,10 +266,9 @@ namespace DDrive.Editor.Presentation
             }
         }
 
-        // タイムライン(ルーラーのクリック/ドラッグ)とシークスライダーの両方から呼ぶ共通のシーク処理。
-        // 実際の再生時間(EffectiveDuration。表示用の DisplayDuration ではない)にクランプし、シークスライダーも
-        // 同じ値へ同期する(要望: 両方の UI が同じ値を共有する)。巻き戻し(過去への Seek)を検出したら、
-        // その再生の最初の 1 回だけログへ注意書きを出す。
+        // タイムライン(ルーラーのクリック/ドラッグ)とシークバー(クリック)の両方から呼ぶ共通のシーク処理。
+        // 実際の再生時間(EffectiveDuration。表示用の DisplayDuration ではない)にクランプする。巻き戻し
+        // (過去への Seek)を検出したら、その再生の最初の 1 回だけログへ注意書きを出す。
         private void SeekToTime(float absoluteSeconds)
         {
             if (_target == null || _preview == null)
@@ -295,7 +287,39 @@ namespace DDrive.Editor.Presentation
             }
 
             _preview.Seek(clamped);
-            _seekSlider?.SetValueWithoutNotify(duration > 0f ? clamped / duration : 0f);
+            _seekBarContainer?.MarkDirtyRepaint();
+        }
+
+        // シークバー(U-7): AnimEditorWindow.DrawTimeline と同じ形(SeekBarGui 共通ヘルパー)で描く。
+        // Presentation にはトラック編集用の詳細タイムライン(PresentationEditorWindow.Tracks.cs、ズーム/パン/
+        // 複数レーン)が別にあるため、こちらは再生位置の確認・簡易シークに絞った単純な 1 本のバー。
+        private void DrawSeekBar()
+        {
+            var rect = GUILayoutUtility.GetRect(100, SeekBarHeight, GUILayout.ExpandWidth(true));
+            SeekBarGui.DrawBackground(rect);
+            if (_target == null)
+            {
+                GUI.Label(rect, "対象アセットが未選択です", EditorStyles.centeredGreyMiniLabel);
+                return;
+            }
+
+            var duration = Mathf.Max(0.01f, PresentationTiming.EffectiveDuration(_target));
+            var totalUnits = Mathf.Max(1, Mathf.CeilToInt(duration));
+            var bar = SeekBarGui.DrawBar(rect, totalUnits, f => $"{f}s");
+
+            GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, rect.width - 12f, 14f),
+                $"0s  —  {duration:0.##}s   クリック: シーク",
+                EditorStyles.miniLabel);
+
+            var normalized = _preview?.NormalizedTime ?? -1f;
+            SeekBarGui.DrawPlayhead(bar, normalized);
+
+            var evt = Event.current;
+            if (SeekBarGui.TryHandleClickSeek(rect, bar, evt, out var t))
+            {
+                SeekToTime(t * duration);
+                evt.Use();
+            }
         }
 
         private void StopPreview()

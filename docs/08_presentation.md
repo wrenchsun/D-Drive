@@ -206,8 +206,17 @@ Timeline 風の複数トラック UI。
   - `ComputeSeekSliderValue(isPlaying, normalizedTime)` / `IsRewind(previousElapsed, targetElapsed, epsilon)`。
 - **`Play()`**: `PresentationPreviewPlayback.DecideOnPlay` が `Resume` を返したら `_preview.SetPaused(false)` だけ行う(最初から再生し直さない)。最初からやり直す手段として **「⏮ 最初から」ボタン(`Restart`)を追加**した(「▶ 再生」の意味が変わったための代替)。
 - **「⏸ 一時停止」ボタンは一時停止中「▶ 再開」に表示が切り替わる**(`_pauseButton.text` を都度更新)。ステータス欄も「⏸ 一時停止中 42% (1.26s)」のように時刻(秒、小数 2 桁)を出すようにした。
-- **シークスライダーは再生中・一時停止中とも現在位置へ `SetValueWithoutNotify` で追従する**(`OnEditorUpdate`)。ユーザーがスライダーをドラッグ中は上書きしない(`PointerDownEvent`/`PointerUpEvent` を `TrickleDown` で監視する `_seekSliderDragging` フラグ)。
-- **`SeekToTime(absoluteSeconds)`(Preview.cs、新規の共通処理)**: シークスライダーとタイムラインのルーラー(上記 (A) の `_seekDragging`)の両方がこれを呼ぶ(値を共有する)。実際の再生時間にクランプし、シークスライダーも同じ値に同期する。巻き戻し(過去へのシーク)を検出したら、**その再生の最初の 1 回だけ**ログへ「巻き戻しでは発火済みのトラックは再発火しません。最初から確認するには ⏮」を出す(`_rewindNoticeShown`。`StartFresh`/`Stop` でリセットする)。既存のツールチップ(「巻き戻しでは既発火のトラックを再発火しない」)を消してはいない — ログはそれに追加する形。
+- **シークバーは再生中・一時停止中とも現在位置へ追従する**(`OnEditorUpdate` が毎フレーム `_seekBarContainer.MarkDirtyRepaint()` を呼び、`DrawSeekBar` が `_preview.NormalizedTime` を読んで再生ヘッドを描き直す)。**2026-09-17(U-7)にシークバー自体を UI Toolkit の `Slider` から `IMGUIContainer`(`SeekBarGui`)描画に置き換えたため、ドラッグ中フラグ(`_seekSliderDragging`)は廃止した** — 詳細は下の「追補（2026-09-17、U-7）」参照。
+- **`SeekToTime(absoluteSeconds)`(Preview.cs、共通処理)**: シークバーとタイムラインのルーラー(上記 (A) の `_seekDragging`)の両方がこれを呼ぶ(値を共有する)。実際の再生時間にクランプする。巻き戻し(過去へのシーク)を検出したら、**その再生の最初の 1 回だけ**ログへ「巻き戻しでは発火済みのトラックは再発火しません。最初から確認するには ⏮」を出す(`_rewindNoticeShown`。`StartFresh`/`Stop` でリセットする)。既存のツールチップ(「巻き戻しでは既発火のトラックを再発火しない」)を消してはいない — ログはそれに追加する形。
+
+## 追補（2026-09-17、U-7 — シークバーを Anim Editor と同じ形に）
+
+要望([39_usability_fixes_2026-09-17.md](39_usability_fixes_2026-09-17.md) U-7)「Presentation Editor のシークバーを Anim Editor のシークバーと同じ形にする」対応。統合プレビューの「シーク」は UI Toolkit の丸ノブ `Slider` で、`AnimEditorWindow`(3-3)の暗い背景 + 目盛り付きバー + 白い再生ヘッド + クリックでシークという「バー」の見た目とは違う形をしていた。
+
+- **`SeekBarGui`(`Editor/Common/SeekBarGui.cs`、新規)**: `AnimEditorWindow.DrawTimeline` から「背景(暗い矩形)」「目盛り付きバー(`TimelineRulerGui.DrawTicks` を内部で呼ぶ)」「白い再生ヘッド」「バー領域のクリックを 0..1 の位置に変換する」の 4 つを共通ヘルパーとして切り出した(`DrawBackground`/`DrawBar`/`DrawPlayhead`/`TryHandleClickSeek`)。既定のピクセル位置(マージン 8px・バー開始 y=18px・バー高さ 8px・再生ヘッドのはみ出し 8px)は `AnimEditorWindow.DrawTimeline` の元の値をそのまま既定値にしており、**Anim Editor 側の見た目は変えていない**(イベントマーカー・SE 波形・イベントのドラッグなど Anim 固有の描画/操作はこれまでどおり `AnimEditorWindow.DrawTimeline` 側に残る)。
+- **`PresentationEditorWindow.Preview.cs`**: `_seekSlider`(`Slider`)と `_seekSliderDragging` を廃止し、`_seekBarContainer`(`IMGUIContainer` → `DrawSeekBar`)に置き換えた。`DrawSeekBar` は `SeekBarGui` で背景・バー(目盛りは 1 秒刻み)・再生ヘッド(`_preview.NormalizedTime`。Handle 無効なら -1 で非表示、Anim と同じ判定)を描き、クリックで `SeekToTime` を呼ぶ。UI Toolkit の値変更イベントを使わなくなったため、ドラッグ中フラグでの上書き防止(`PointerDownEvent`/`PointerUpEvent`)は不要になった(クリックのみでドラッグでの連続シークは元々無い、Anim と同じ)。
+- Presentation にはトラック編集用の詳細タイムライン(`PresentationEditorWindow.Tracks.cs`。ズーム/パン/複数レーン、上記 (A))が別に存在する。**これは今回の対象外**(ズーム対応の `DrawTimeRuler` は Anim 側の見た目に影響しないよう独立させる方針を継続。上記「(A) タイムラインのズーム」参照)。新しいシークバーは、再生位置の確認・簡易シークに絞った単純な 1 本のバーとして統合プレビュー欄に残す。
+- `PresentationPreviewPlayback.ComputeSeekSliderValue` は関数名・シグネチャとも変更していない(EditMode テスト `PresentationPreviewPlaybackTests` が参照する純粋関数。「シークバーに表示する正規化位置」を返す意味は変わっていない)。
 
 ## 実装メモ（2026-09-14、5-8）
 

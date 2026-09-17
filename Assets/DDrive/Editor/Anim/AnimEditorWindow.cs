@@ -820,7 +820,7 @@ namespace DDrive.Editor.Anim
         private void DrawTimeline()
         {
             var rect = GUILayoutUtility.GetRect(100, TimelineHeight, GUILayout.ExpandWidth(true));
-            EditorGUI.DrawRect(rect, new Color(0.16f, 0.16f, 0.16f));
+            SeekBarGui.DrawBackground(rect);
             if (_target == null)
             {
                 GUI.Label(rect, "対象アセットが未選択です", EditorStyles.centeredGreyMiniLabel);
@@ -829,13 +829,13 @@ namespace DDrive.Editor.Anim
 
             var length = _target.LengthSec;
             var frameRate = _target.FrameRate;
-            var bar = new Rect(rect.x + 8f, rect.y + 18f, rect.width - 16f, 8f);
-            EditorGUI.DrawRect(bar, new Color(0.3f, 0.3f, 0.3f));
 
             // 目盛り: フレームごと(細)+ ラベル付き(太)。ラベル間隔は幅に応じて間引く(OH_CASE2026_ITAMI の SE タイムライン相当、2026-09-11)。
             // 2026-09-14(5-4): PresentationEditor と共用するため TimelineRulerGui へ切り出し(見た目は不変)。
+            // 2026-09-17(U-7): 背景 + バー + 再生ヘッド + クリックシークの「形」自体は SeekBarGui へ切り出し、
+            // PresentationEditorWindow の統合プレビューのシークバーと共用した(見た目は不変。既定値が同じピクセル位置)。
             var totalFrames = Mathf.Max(1, Mathf.RoundToInt(length * frameRate));
-            TimelineRulerGui.DrawTicks(bar, totalFrames, f => f.ToString());
+            var bar = SeekBarGui.DrawBar(rect, totalFrames, f => f.ToString());
 
             GUI.Label(new Rect(rect.x + 6f, rect.y + 2f, rect.width - 12f, 14f),
                 $"0s  —  {length:0.##}s ({length * frameRate:0} フレーム @ {frameRate:0}fps)   クリック: シーク / マーカーをドラッグ: イベント時刻の変更",
@@ -882,11 +882,7 @@ namespace DDrive.Editor.Anim
             // 再生ヘッド
             var anim = _scene?.Manager;
             var normalized = anim != null ? anim.GetNormalizedTime(_animHandle) : -1f;
-            if (normalized >= 0f)
-            {
-                var px = bar.x + bar.width * normalized;
-                EditorGUI.DrawRect(new Rect(px - 1f, bar.y - 8f, 2f, bar.height + 16f), Color.white);
-            }
+            SeekBarGui.DrawPlayhead(bar, normalized);
 
             switch (evt.type)
             {
@@ -909,10 +905,9 @@ namespace DDrive.Editor.Anim
                     RefreshValidation();
                     evt.Use();
                     break;
-                case EventType.MouseDown when rect.Contains(evt.mousePosition):
+                case EventType.MouseDown when SeekBarGui.TryHandleClickSeek(rect, bar, evt, out var t):
                 {
                     // 空いている場所のクリックはシーク(再生中でなければ再生を開始してその位置へ)。
-                    var t = Mathf.Clamp01((evt.mousePosition.x - bar.x) / bar.width);
                     var animator = EnsureSceneTarget();
                     if (anim != null && animator != null)
                     {
