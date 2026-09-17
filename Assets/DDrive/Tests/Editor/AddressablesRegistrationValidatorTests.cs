@@ -6,6 +6,9 @@ using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
 using DDrive.Runtime.Anim2D;
 using DDrive.Runtime.Audio;
+using DDrive.Runtime.CameraShake;
+using DDrive.Runtime.Haptics;
+using DDrive.Runtime.Presentation;
 using NUnit.Framework;
 using UnityEditor;
 
@@ -146,6 +149,41 @@ namespace DDrive.Tests.Editor
 
             var results = Run(asset);
             Assert.AreEqual(1, Errors(results), "Flags.Load が Preload でない Anim2DData は Error");
+            StringAssert.Contains("Preload", results[0].Message);
+
+            results[0].FixAction();
+            Assert.AreEqual(LoadMode.Preload, asset.Flags.Load, "FixAction で Preload に書き戻る");
+            Assert.AreEqual(0, Errors(Run(asset)));
+        }
+
+        // 2026-09-17: NeedsPreload の対象リストが AssetCreationService.Create() と別々に持たれていたため、
+        // Presentation/Shake/Haptics(2026-09-14 に Create() 側だけへ追加済みだった)が Validator に反映されて
+        // おらず、既存アセットの Flags.Load 退行を検出できない抜けがあった([07_canvas_prefab.md] 追記参照)。
+        // AssetCreationService.NeedsPreloadDefault への一本化後も同じ検出ができることを型ごとに確認する。
+        [TestCase(typeof(PresentationData), AssetType.Presentation, "AddrPresentation")]
+        [TestCase(typeof(CameraShakeData), AssetType.Shake, "AddrShake")]
+        [TestCase(typeof(HapticsData), AssetType.Haptics, "AddrHaptics")]
+        public void PresentationShakeHaptics_FlagsLoadRegression_IsDetectedAndFixed(
+            System.Type dataType, AssetType assetType, string identifier)
+        {
+            if (!AddressablesSync.IsAvailable)
+            {
+                Assert.Ignore("Addressables の設定が無いためスキップ");
+            }
+
+            var asset = AssetCreationService.Create(dataType, assetType, "検証用", "Test", identifier, gameDataRoot: TestRoot);
+            Assert.IsNotNull(asset);
+            Assert.AreEqual(LoadMode.Preload, asset.Flags.Load, "作成時点で既定 Preload になっているはず");
+            Assert.AreEqual(0, Errors(Run(asset)));
+
+            // このバグ修正より前に作られた既存アセット(Flags.Load=LazyLoad のまま)を模す。
+            var flags = asset.Flags;
+            flags.Load = LoadMode.LazyLoad;
+            asset.Flags = flags;
+            EditorUtility.SetDirty(asset);
+
+            var results = Run(asset);
+            Assert.AreEqual(1, Errors(results), $"Flags.Load が Preload でない {assetType} は Error");
             StringAssert.Contains("Preload", results[0].Message);
 
             results[0].FixAction();

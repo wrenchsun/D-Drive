@@ -69,9 +69,7 @@ namespace DDrive.Editor.AssetBrowser
             // 一切鳴らない/出ない(見た目のアニメーションは Animator 自身の状態遷移で動き続けるため気づきにくい)。
             // 2D キャラクターは ModelData(3D 専用)を経由しないため他経路の先行ロードが起きにくく、3D より
             // 顕在化しやすかった(Anim2DEventDispatchTests.Anim2D_IdPlay_WithoutPriorPreload_… で再現・固定)。
-            if (assetType == AssetType.Canvas || assetType == AssetType.ControlSkin || assetType == AssetType.Presentation
-                || assetType == AssetType.Shake || assetType == AssetType.Haptics
-                || assetType == AssetType.Anim || assetType == AssetType.Anim2D)
+            if (NeedsPreloadDefault(assetType))
             {
                 var flags = asset.Flags;
                 flags.Load = LoadMode.Preload;
@@ -127,6 +125,18 @@ namespace DDrive.Editor.AssetBrowser
 
             return asset;
         }
+
+        // Ui.Open(CanvasData) / ApplyLayerDefaults(ControlSkinData) / PresentationManager.PlayData /
+        // CameraFxManager.ShakeData / HapticsManager.PlayData / AnimManager.PlayData は AssetRegistry の
+        // 同期解決(ResolveOrPlaceholder/TryResolveSync、「既にロード済みのものだけ」を返す)でしか引かれない
+        // 種別。LazyLoad(既定)のままだと初回参照時ロードが起きず常に Placeholder になる([02_core_framework.md] §4)。
+        // 2026-09-17: この判定を Create() の既定設定と AddressablesRegistrationValidator の検出が別々に
+        // 持っていて、片方だけ更新して追加漏れが起きる事故が 4 回(Canvas/ControlSkin → Presentation/Shake/Haptics
+        // → Anim/Anim2D → Presentation/Shake/Haptics の検出漏れ)続いたため、ここ 1 箇所に集約する。
+        public static bool NeedsPreloadDefault(AssetType type)
+            => type == AssetType.Canvas || type == AssetType.ControlSkin || type == AssetType.Presentation
+                || type == AssetType.Shake || type == AssetType.Haptics
+                || type == AssetType.Anim || type == AssetType.Anim2D;
 
         // 種別→カタログファイルの対応([01_architecture.md] §5: AudioCatalog は SE/BGM を束ねる)。
         public static string GetCatalogName(AssetType type) => type switch

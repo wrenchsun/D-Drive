@@ -78,8 +78,11 @@ namespace DDrive.Editor.Validation
             // 2026-09-17(U-20、[39_usability_fixes_2026-09-17.md]): Anim.Play/Anim2D.Play(ID 版)も
             // AnimManager.Play → ResolveOrPlaceholder<AnimData> でしか解決しないため同じ穴だった
             // (`AssetCreationService.cs` の既定 Preload 化とあわせて追加。既存アセットはここで検出・修正する)。
+            // 2026-09-17: 対象種別の判定は `AssetCreationService.NeedsPreloadDefault` に集約した(このメソッドが
+            // 独自に判定を持つと、種別追加時に片方だけ更新して漏れる事故が起きる。実際に Presentation/Shake/Haptics
+            // が Create() 側にだけ追加されここに反映されておらず、既存アセットの検出漏れが発生していた)。
             var resolvedType = ResolveType(data);
-            if (NeedsPreload(resolvedType) && data.Flags.Load != LoadMode.Preload)
+            if (AssetCreationService.NeedsPreloadDefault(resolvedType) && data.Flags.Load != LoadMode.Preload)
             {
                 var captured = data;
                 yield return ValidationResult.Error(
@@ -87,9 +90,6 @@ namespace DDrive.Editor.Validation
                     () => FixPreload(captured));
             }
         }
-
-        private static bool NeedsPreload(AssetType type)
-            => type == AssetType.Canvas || type == AssetType.ControlSkin || type == AssetType.Anim || type == AssetType.Anim2D;
 
         private static void Fix(AssetDataBase data, string address)
         {
