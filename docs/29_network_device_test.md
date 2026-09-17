@@ -889,3 +889,39 @@ Placeholder 0 件）。つまり v7 のビルドは健全で、残るのはフ�
 > **注**: ビルド前の健全性確認（プレイヤーを短時間起動してカタログのエラーが無いことを見る、§18 の再発防止）
 > は有効だが、**新しいパスで初めて起動すると、そこでファイアウォール確認が発生する**。上の固定パス運用と
 > 併用すること。
+
+## 20. §14 ハッシュ不一致の実機確認（2026-09-18 朝、v7_normal Host + Client）— **合格**
+
+§19 のファイアウォール Block をユーザーが解除したうえで実施。**2 段階とも通った。**
+
+### 20.1 段階 1: 不一致を検出できること（PC-B = `v7_mismatch`）
+
+差は `VFX_Player_Slash2` の `NetMode` のみ（`Local` / `Cosmetic`）。エントリ数は同じ。
+
+| 判定基準 | 結果 |
+|---|---|
+| 接続できること | **合格**。`role=client` / `clientId=1` / `connected=1` |
+| Client 側に不一致の警告 | **合格**。`[Net/Client] CatalogContentHashGate: 不一致: VfxCatalog: entries local=2 remote=2(Host と同じ GameData か確認してください)。` |
+| Host 側にも警告 | **合格**。`[Net/Host] CatalogContentHashGate: ContentHash 不一致(Client 1): VfxCatalog: entries local=2 remote=2 — 開発ビルド/エディタのため接続は継続します。` |
+| **カタログ名 + Entry 数だけ**で実データが出ない | **合格**。ハッシュ値・AssetId・アドレス・NetMode はログ全体で 1 件も出ていない |
+| 接続が切れず同期も継続 | **合格**。`connected=1`、disconnect 0 件、`track_fired` 26 / `signal_recv` 52、`vfx_active` 3〜4 |
+
+> `entries local=2 remote=2` と**件数が同じ**でも不一致を検出できている。今回の差は `NetMode` だけで
+> エントリ数は変わらないため、件数比較では捕まらないケースの確認になっている。
+
+### 20.2 段階 2: 一致なら通ること（PC-B = `v7_normal`、Host と同じビルド）
+
+`content_hash` は起動直後の「検証中...」2 回のあと **42 回すべて `OK`**。`CatalogContentHashGate` を含む行は
+**0 件**（段階 1 では警告が出ていたので対比になる）。disconnect / Exception / `InvalidKeyException` / Placeholder
+いずれも 0 件。`track_fired` 18 / `signal_recv` 36 で同期も継続。
+
+### 20.3 残っている確認（リリースビルド相当の切断）
+
+開発ビルドでは「警告して継続」が正しい挙動。**リリースビルドでは切断する**側は未確認で、`NetCheckBuilder` が
+`BuildOptions.Development` 固定だったため確認手段が無かった。2026-09-18 にリリース向けオプションを追加し、
+**PC-B（Host）と PC-C（Client）の 2 台で確認する**ことにした（PC-A は使わない）。
+
+### 20.4 軽微な改善余地
+
+`heartbeat` の `content_hash` 欄に不一致の文字列が毎行出続けるため、長時間の実機確認でログが膨らむ。
+判定には影響しない。要否はユーザー判断。
