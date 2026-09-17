@@ -22,6 +22,10 @@ namespace DDrive.Runtime.Net
     // (他 Manager と同じく「通信の有無で挙動を変えない」原則。[14] §1)。
     public sealed class CatalogContentHashGate
     {
+        // NGO では Host(Server)の ClientId は常に 0(NetworkManager.ServerClientId と同じ)。
+        // PresentationManager.TrustedRelayClientId と同じ考え方の定数([14_networking.md] §9)。
+        private const ulong HostClientId = 0UL;
+
         private readonly INetBridge _netBridge;
         private readonly double _timeoutSeconds;
         private readonly bool _isDevelopmentOrEditor;
@@ -265,6 +269,18 @@ namespace DDrive.Runtime.Net
             if (_netBridge.IsServer)
             {
                 return; // Host は自分で判定済み(§ProcessHostSide)。
+            }
+
+            // 2026-09-18 レビュー対応(41 テストの穴 1: 偽造 Result) — Host(HostClientId=0)以外からの
+            // Result は無視する。NgoNetBridge.Broadcast の Client→Host 依頼(RequestBroadcastRpc)は
+            // 「型登録済みなら」Client からでも呼び出せてしまい、CatalogContentHashResultMsg もここで
+            // Subscribe されているため型登録される。中継時の senderId には真の送信元(攻撃者)が入るため、
+            // 従来は senderId を見ずに LastStatusText を上書きしており、改造 Client が本物の Host 判定
+            // (不一致警告)を偽の Matched=true で塗り替えられた(PresentationManager.IsAuthorizedSender と
+            // 同じ考え方の発行者検証をここにも適用する)。
+            if (senderId != HostClientId)
+            {
+                return;
             }
 
             if (msg.Matched)

@@ -307,6 +307,105 @@ namespace DDrive.Tests.Runtime
             bridge.InjectReceive(0UL, new PresentationCancelMsg { HandleNetKey = 0x70000010u });
         }
 
+        // ── 2026-09-18 レビュー対応(41 テストの穴 4: 保留経由の偽造 / 保留 Cancel の Play 後適用) ──
+
+        // 「非発行者からの Signal が Play より先に届いた場合、Play 到着後にも適用されない」を直接固定する。
+        // IsAuthorizedSender は受信時点(HoldUnknownKeyMessage に積む前)で発行者不一致を弾くため、偽造
+        // Signal はそもそも保留バッファに入らない。本物の Play が後から届いても、偽造分が紛れ込んで
+        // 適用されることが無いことを確認する。
+        [Test]
+        public void ForgedSignal_FromNonIssuerClient_ArrivesBeforePlay_IsNeverApplied_EvenAfterPlayArrives()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
+            var time = new TimeService();
+            var manager = new PresentationManager(registry, time, netBridge: bridge);
+
+            var presId = _nextId++;
+            var onHit = new PresentationTrack { Trigger = TrackTrigger.OnSignal, SignalKey = "hit", Kind = TrackKind.HitStop, Params = new[] { ParamValue.Of(0.1f) } };
+            var data = CreateData(onHit);
+            data.TotalDuration = 5f;
+            RegisterPresentation(registry, loader, presId, data);
+
+            // HandleNetKey の発行者は issuer=1(Client 1)。改造 Client(senderId=2、発行者でも Host でもない)
+            // が対応する Play より先に Signal を送りつける。
+            const uint handleNetKey = (1u << 24) | 0x00000AAu; // issuer=1
+            LogAssert.ignoreFailingMessages = true;
+            bridge.InjectReceive(2UL, new PresentationSignalMsg { HandleNetKey = handleNetKey, SignalKeyHash = HashSignalKeyForTest("hit") });
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count, "偽造 Signal だけでは何も生成されない");
+            Assert.AreEqual(1f, time.TimeScale, "発行者不一致で受信時点で破棄されるため保留にも入らない");
+
+            // 発行者(issuer=1、senderId=1)から本物の Play が届く。
+            bridge.InjectReceive(1UL, new PresentationPlayMsg { PresId = presId, HandleNetKey = handleNetKey, StartNetTime = 0d });
+
+            Assert.AreEqual(1, manager.DebugActiveHandles().Count, "本物の Play は正しく処理される");
+            Assert.AreEqual(1f, time.TimeScale, "Play 到着後も、受信時点で破棄された偽造 Signal が後から適用されてはいけない");
+        }
+
+        // 保留 Cancel の Play 後適用: 正規の発行者から Cancel が Play より先に届いた場合、Play 到着直後に
+        // 適用されて Instance が即座に終了することを確認する(Signal 版の
+        // UnknownHandleNetKey_Signal_AppliedLater_WhenMatchingPlayArrives に対応する Cancel 版で、
+        // これまで無かった)。
+        [Test]
+        public void UnknownHandleNetKey_Cancel_AppliedLater_WhenMatchingPlayArrives()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
+            var manager = new PresentationManager(registry, new TimeService(), netBridge: bridge);
+
+            var presId = _nextId++;
+            var t0 = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Marker, SignalKey = "go" };
+            var data = CreateData(t0);
+            data.TotalDuration = 5f;
+            data.Interruptible = true;
+            RegisterPresentation(registry, loader, presId, data);
+
+            const uint handleNetKey = 0x88888801u; // Host(0)発行のキー(issuer bits=0)
+
+            // Cancel が Play より先に届く。
+            bridge.InjectReceive(0UL, new PresentationCancelMsg { HandleNetKey = handleNetKey });
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count, "Cancel だけでは何も生成されない(保留されるだけ)");
+
+            bridge.InjectReceive(0UL, new PresentationPlayMsg { PresId = presId, HandleNetKey = handleNetKey, StartNetTime = 0d });
+
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count, "保留されていた Cancel が Play 到着直後に適用され、Instance が即座に終了する");
+        }
+
+        // Interruptible=false の演出は、保留経由(Play 後の Flush)で適用される Cancel でも無視される
+        // (ApplyCancelIfInterruptible の Data.Interruptible チェックが FlushPendingUnknownKey 経路でも
+        // 効くことを確認する。受信時点の発行者検証を回避できない偽造 Cancel でも止められないことの
+        // 保留バッファ版)。
+        [Test]
+        public void UnknownHandleNetKey_Cancel_NonInterruptible_IsIgnored_AfterPlayArrives()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
+            var manager = new PresentationManager(registry, new TimeService(), netBridge: bridge);
+
+            var presId = _nextId++;
+            var t0 = new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.Marker, SignalKey = "go" };
+            var data = CreateData(t0);
+            data.TotalDuration = 5f;
+            data.Interruptible = false;
+            RegisterPresentation(registry, loader, presId, data);
+
+            const uint handleNetKey = 0x88888802u; // Host(0)発行のキー(issuer bits=0)
+
+            bridge.InjectReceive(0UL, new PresentationCancelMsg { HandleNetKey = handleNetKey });
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count);
+
+            LogAssert.ignoreFailingMessages = true;
+            bridge.InjectReceive(0UL, new PresentationPlayMsg { PresId = presId, HandleNetKey = handleNetKey, StartNetTime = 0d });
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual(1, manager.DebugActiveHandles().Count, "Interruptible=false のため保留 Cancel は Play 到着後も無視され、Instance は生き続ける");
+        }
+
         // FNV-1a 16bit(PresentationManager.HashSignalKey と同じアルゴリズム)。private のためテスト側で
         // 複製する(PresentationNetTests.cs の HashSignalKeyForTest と同じ慣習)。
         private static ushort HashSignalKeyForTest(string key)

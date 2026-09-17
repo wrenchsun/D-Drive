@@ -143,6 +143,33 @@ namespace DDrive.Tests.Runtime
             }
         }
 
+        // ── 2026-09-18 レビュー対応(41 テストの穴 5: Cancel のレート制限) ──
+
+        // Signal 版(OnReceiveSignalMsg_ExceedsRateLimit_IsDiscarded_ButWithinLimitIsProcessed)の Cancel 版。
+        // OnReceiveSignalMsg_FromHost_IsExemptFromRateLimit は「Host は対象外」しか確認しておらず、
+        // 「非 Host の Client 発の Cancel が実際にレート制限される」こと自体は未検証だった。
+        [Test]
+        public void OnReceiveCancelMsg_FromNonHostClient_ExceedsRateLimit_IsDiscarded()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = true, LocalClientId = 0UL };
+            _ = new PresentationManager(registry, new TimeService(), netBridge: bridge);
+
+            // 発行者(issuer=1)と一致する senderId=1(Host ではない Client)からの未知キー Cancel を
+            // 60 回送る(認可は通るがレート制限を消費するだけ。保留バッファ(16件)の退避ログは出るが
+            // 無害。OnReceiveSignalMsg_FromHost_IsExemptFromRateLimit と同じ手口の非 Host 版)。
+            const uint handleNetKey = (1u << 24) | 0x000003u; // issuer=1
+            for (var i = 0; i < 60; i++)
+            {
+                bridge.InjectReceive(1UL, new PresentationCancelMsg { HandleNetKey = handleNetKey });
+            }
+
+            // 61 件目は authorization/lookup に進む前にレート制限(60/秒/クライアント)で破棄される。
+            LogAssert.Expect(LogType.Warning, new Regex(@"PresentationCancelMsg.*レート制限"));
+            bridge.InjectReceive(1UL, new PresentationCancelMsg { HandleNetKey = handleNetKey });
+        }
+
         [Test]
         public void OnReceiveSignalMsg_FromHost_IsExemptFromRateLimit()
         {

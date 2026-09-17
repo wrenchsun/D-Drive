@@ -450,6 +450,34 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
   複数 Client(1v1 を超える構成)は `Dictionary<ulong,double>` で自然に扱える設計にしてあるが、実機確認は
   MS2026 の 1v1 前提のまま(6-0/6-6 の既存確認環境を再利用)。
 
+### 実装メモ（2026-09-18、docs/41 テストの穴 1: 偽造 `CatalogContentHashResultMsg` の修正）
+
+上記「セキュリティ上の限界」は **Client→Host** に届く `CombinedHash`(自己申告値)が偽装可能であることを
+指しており、これは意図的に許容している。今回見つかったのは別方向の穴: **Host→Client** の判定結果
+(`CatalogContentHashResultMsg`)自体を、Host 以外が偽装して上書きできる問題(`CatalogContentHashGate.
+OnReceiveResultMsg` が `senderId` を一切見ていなかった)。
+
+`NgoNetBridge.Broadcast` は Client 発でも `RequestBroadcastRpc`(`[Rpc(SendTo.Server, InvokePermission =
+RpcInvokePermission.Everyone)]`)経由で「型登録済み(`_keyToType` に載っている)なら」Host が中継してしまう。
+`CatalogContentHashResultMsg` も `CatalogContentHashGate` のコンストラクタで `Subscribe` される(Host/Client
+双方が同じ Gate を持つため型登録される)ため対象になり、改造 Client が `Matched=true` を騙って
+`Broadcast` すると、Host が中継した先(自分自身を含む全 Client)で本物の Host 判定(不一致警告)を
+「OK」に上書きできてしまっていた。「双方に警告ログ」という設計意図(§7 実装メモ 2026-09-15)そのものを
+無効化できる欠陥だったため、意図的に許容した「ハッシュ自己申告の偽装」とは切り分けて修正した。
+
+修正: `CatalogContentHashGate` に `HostClientId = 0UL`(`PresentationManager.TrustedRelayClientId` と同じ、
+NGO の `ServerClientId` は常に 0)を追加し、`OnReceiveResultMsg` の先頭で `senderId != HostClientId` を
+弾くようにした(`PresentationManager.IsAuthorizedSender` と同じ考え方の発行者検証)。回帰テストは
+`Tests/Runtime/CatalogContentHashGateTests.cs` の `ClientSide_ForgedResultFromNonHostSender_IsIgnored`
+(修正前は red: 偽の `Matched=true` で `LastStatusText` が "OK" に上書きされていた)。既存の
+`ClientSide_ReceivesMismatchResult_UpdatesStatusAndLogs` / `ClientSide_ReceivesMatchedResult_SetsStatusOk`
+も、`bridge.SendTo(42, ...)`(実質「自分自身から」という非現実的な模擬になっていた)から
+`bridge.InjectReceive(0UL, ...)`(Host から、を明示)に修正した。
+
+同じレビュー([docs/41](41_phase6_review_2026-09-17.md) テストの穴 2〜5)で追加した他 4 件のテスト
+(保留のフラッシュ・タイムアウト時のイベント発火・保留バッファ経由の偽造/保留 Cancel の Play 後適用・
+Cancel のレート制限)はすべて green で、実装側の修正は不要だった。
+
 ## 8. 帯域・最適化
 
 - ID は ulong(8B) だが、接続時に「セッション ID テーブル」（登場しうる ID → u16 インデックス）を交換し **2B に圧縮**（オプション。v1 は ulong 直送で可）

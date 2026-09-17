@@ -113,6 +113,34 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(7UL, bridge.LastDisconnectedClientId);
         }
 
+        // ── 2026-09-18 レビュー対応(41 テストの穴 3: タイムアウト時のイベント) ──
+
+        // 既存の HostSide_Timeout_InRelease_Disconnects は bridge.DisconnectClientCallCount しか見ておらず、
+        // ClientDisconnectedForMismatch イベント自体が発火することは検証していなかった(NetDebugOverlay/
+        // 上位が購読する契約なので、呼び出しの有無とイベント発火は別に確認する必要がある)。
+        [Test]
+        public void HostSide_Timeout_InRelease_FiresClientDisconnectedForMismatchEvent()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            ulong? disconnectedId = null;
+            string detail = null;
+            var fireCount = 0;
+            gate.ClientDisconnectedForMismatch += (id, d) => { disconnectedId = id; detail = d; fireCount++; };
+
+            bridge.RaiseClientConnected(7);
+            bridge.NetworkTime = 5.1d;
+            LogAssert.ignoreFailingMessages = true;
+            gate.Tick(bridge.NetworkTime);
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual(1, fireCount, "タイムアウト経由でも ClientDisconnectedForMismatch が(1回だけ)発火する");
+            Assert.AreEqual(7UL, disconnectedId);
+            StringAssert.Contains("タイムアウト", detail, "イベント引数の detail にタイムアウトの理由が入っている");
+        }
+
         [Test]
         public void HostSide_BeforeTimeoutDeadline_DoesNotDisconnect()
         {
@@ -322,6 +350,52 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(0, bridge.DisconnectClientCallCount);
         }
 
+        // ── 2026-09-18 レビュー対応(41 テストの穴 2: 保留のフラッシュ) ──
+
+        // 既存の HostSide_HashReceivedBeforeReady_IsProcessedOnReady_WithoutTimeout は LastStatusText と
+        // DisconnectClientCallCount しか見ておらず、「保留していたハッシュが SetLocalSummary で実際に
+        // 処理されて Client へ結果が送られる(SendTo が呼ばれる)」こと自体は未検証だった。
+        [Test]
+        public void HostSide_HashReceivedBeforeReady_Flush_SendsMatchedResultToPendingClient()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+
+            bridge.RaiseClientConnected(7);
+            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+
+            Assert.AreEqual(0, bridge.SendToCount, "Host 未 ready の間は保留するだけで、まだ応答しない");
+
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            Assert.AreEqual(1, bridge.SendToCount, "SetLocalSummary(登録完了)時点で保留分がフラッシュされ、Client へ結果が送られる");
+            Assert.AreEqual(7UL, bridge.LastSendToClientId);
+            var result = (CatalogContentHashResultMsg)bridge.LastMessage;
+            Assert.IsTrue(result.Matched);
+        }
+
+        // 不一致の場合もフラッシュ経路で正しく Descriptions 付きの結果が送られることを確認する
+        // (ProcessHostSide の不一致分岐が FlushPendingBeforeReady 経由でも通ることの確認)。
+        [Test]
+        public void HostSide_MismatchedHashReceivedBeforeReady_Flush_SendsMismatchResult()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+
+            bridge.RaiseClientConnected(7);
+            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 999UL, Catalogs = MakeCatalogs(999UL, 2) }, NetChannel.ReliableOrdered);
+
+            LogAssert.ignoreFailingMessages = true;
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL, 1));
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual(1, bridge.SendToCount);
+            var result = (CatalogContentHashResultMsg)bridge.LastMessage;
+            Assert.IsFalse(result.Matched);
+            Assert.IsNotEmpty(result.Descriptions);
+            StringAssert.Contains("不一致", gate.LastStatusText);
+        }
+
         // ── Client 側 ──
 
         [Test]
@@ -363,8 +437,11 @@ namespace DDrive.Tests.Runtime
             var bridge = new FakeNetBridge { IsServer = false, IsClient = true, LocalClientId = 42 };
             var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
 
+            // 2026-09-18 レビュー対応(41 テストの穴 1) — Result は Host(senderId=0)からのみ受理する。
+            // InjectReceive で「Host から」を明示的に模擬する(以前は SendTo(42, ...) が clientId=42 を
+            // そのまま senderId として配送していたため、実質「自分自身から」という非現実的な模擬だった)。
             LogAssert.ignoreFailingMessages = true;
-            bridge.SendTo(42, new CatalogContentHashResultMsg { Matched = false, Descriptions = new[] { "TestCatalog: entries local=1 remote=2" } }, NetChannel.ReliableOrdered);
+            bridge.InjectReceive(0UL, new CatalogContentHashResultMsg { Matched = false, Descriptions = new[] { "TestCatalog: entries local=1 remote=2" } });
             LogAssert.ignoreFailingMessages = false;
 
             StringAssert.Contains("不一致", gate.LastStatusText);
@@ -377,9 +454,33 @@ namespace DDrive.Tests.Runtime
             var bridge = new FakeNetBridge { IsServer = false, IsClient = true, LocalClientId = 42 };
             var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
 
-            bridge.SendTo(42, new CatalogContentHashResultMsg { Matched = true, Descriptions = System.Array.Empty<string>() }, NetChannel.ReliableOrdered);
+            bridge.InjectReceive(0UL, new CatalogContentHashResultMsg { Matched = true, Descriptions = System.Array.Empty<string>() });
 
             Assert.AreEqual("OK", gate.LastStatusText);
+        }
+
+        // ── 2026-09-18 レビュー対応(41 テストの穴 1: 偽造 Result) ──
+
+        // OnReceiveResultMsg は senderId を見ていなかった。NgoNetBridge.Broadcast は Client 発でも
+        // RequestBroadcastRpc 経由で「型登録済みなら」Host が中継してしまう(CatalogContentHashResultMsg も
+        // Subscribe 済みのため型登録される)。中継時の senderId は真の送信元(攻撃者)になるため、改造
+        // Client が Matched=true を騙って本物の Host 判定(不一致)を「OK」に上書きできてしまっていた。
+        [Test]
+        public void ClientSide_ForgedResultFromNonHostSender_IsIgnored()
+        {
+            var bridge = new FakeNetBridge { IsServer = false, IsClient = true, LocalClientId = 42 };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+
+            // 前提: Host(senderId=0)からの本物の不一致通知を受け取っている。
+            LogAssert.ignoreFailingMessages = true;
+            bridge.InjectReceive(0UL, new CatalogContentHashResultMsg { Matched = false, Descriptions = new[] { "TestCatalog: entries local=1 remote=2" } });
+            LogAssert.ignoreFailingMessages = false;
+            StringAssert.Contains("不一致", gate.LastStatusText, "前提条件: Host からの本物の不一致通知");
+
+            // 改造 Client(senderId=99。Host=0 でも自分自身でもない)が偽の Matched=true を送りつける。
+            bridge.InjectReceive(99UL, new CatalogContentHashResultMsg { Matched = true, Descriptions = System.Array.Empty<string>() });
+
+            StringAssert.Contains("不一致", gate.LastStatusText, "Host 以外からの Result は無視され、本物の不一致状態が保たれる");
         }
 
         [Test]
