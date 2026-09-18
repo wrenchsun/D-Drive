@@ -336,6 +336,15 @@ namespace DDrive.Editor.Model
                 AssetDatabase.SaveAssetIfDirty(_target);
             }
 
+            // 2026-09-18(docs/43 item12 修正): Binder が新規に MaterialData/TextureData を作った場合、
+            // プレビュー用 Registry が古いままだとテクスチャ ID が解決できず白いモデルになる。Registry と
+            // 共有 Material キャッシュを再走査させ、配置中なら貼り直すために配置し直す。
+            _scene?.RefreshRegistry();
+            if (_scene != null && _scene.OwnsCurrent)
+            {
+                PlaceMain();
+            }
+
             RefreshTargetUi();
         }
 

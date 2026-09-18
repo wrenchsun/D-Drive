@@ -342,6 +342,18 @@ namespace DDrive.Editor.Anim
             SceneView.RepaintAll();
         }
 
+        // ModelEditor の「元ファイル再読み込み」等でアセット(MaterialData/TextureData)が新規作成された後に呼ぶ
+        // (2026-09-18, docs/43 item12)。EditorAnchorRegistry は既知 ID を上書きするだけなので、新規 ID もここで
+        // 解決可能にする。共有 Material のキャッシュ(_materials)も合わせて捨てないと、古い ID 解決(=未解決の
+        // テクスチャ無し)で作った共有 Material を握り続けて白いまま残る(MaterialEditorWindow.EnsureRegistryFresh
+        // と同じ理由)。呼び出し側は、今配置中のモデルがあれば再配置して反映させること(このメソッド自体は
+        // 配置し直さない)。
+        public void RefreshRegistry()
+        {
+            EditorAnchorRegistry.Refresh(Registry);
+            _materials?.Clear();
+        }
+
         // 再生を止めて、借用中の対象なら元のポーズに戻す(対象自体は保持する)。
         // 再生を止める。ポーズはその瞬間のまま残す(2026-09-10: 停止で初期ポーズに戻ると確認しづらいため)。
         // 元のポーズへ戻すのは RestorePoseNow / ReleaseTarget / ステージ切替 / Prefab 保存の直前。
