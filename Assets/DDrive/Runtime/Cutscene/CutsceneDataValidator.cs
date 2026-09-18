@@ -3,12 +3,16 @@ using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Net;
 using DDrive.Foundation.Validation;
+using DDrive.Runtime.Cutscene.Tracks;
+using UnityEngine.Timeline;
 
 namespace DDrive.Runtime.Cutscene
 {
     // [26_timeline.md] §4.1/§4.2/§4.7 — 6-10a の範囲で判定できる基本チェックのみ。fps 検査 6 種・
     // Humanoid/Avatar 不整合・Presentation⇄Cutscene 循環参照・Cosmetic+Simulated 参照等は 6-10d の
     // CutsceneDataValidator 拡張で追加する([11_tasks.md] 6-10d)。
+    // 6-10b で「標準 Audio/Control/Signal トラック・カメラへの標準 Animation トラック使用は Warning」
+    // ([26] §6)を追加した(静的な型検査だけで判定できるため 6-10d を待たずに実装)。
     public sealed class CutsceneDataValidator : IValidator
     {
         public AssetType Target => AssetType.Cutscene;
@@ -40,9 +44,16 @@ namespace DDrive.Runtime.Cutscene
                 yield return ValidationResult.Error("Origin=AnchorPoint ですが OriginAnchorName が空です");
             }
 
-            if (cutscene.Skip == CutsceneSkip.ToMarker && string.IsNullOrEmpty(cutscene.SkipToMarkerKey))
+            if (cutscene.Skip == CutsceneSkip.ToMarker)
             {
-                yield return ValidationResult.Warning("Skip=ToMarker ですが SkipToMarkerKey が空です(6-10b の D-Drive Signal マーカー導入までは Immediate と同じ挙動になります)");
+                if (string.IsNullOrEmpty(cutscene.SkipToMarkerKey))
+                {
+                    yield return ValidationResult.Warning("Skip=ToMarker ですが SkipToMarkerKey が空です(マーカーが見つからない場合と同じく Immediate〔末尾〕にフォールバックします)");
+                }
+                else if (cutscene.Timeline != null && !HasSignalMarker(cutscene.Timeline, cutscene.SkipToMarkerKey))
+                {
+                    yield return ValidationResult.Warning($"Skip=ToMarker の SkipToMarkerKey '{cutscene.SkipToMarkerKey}' に一致する D-Drive Signal マーカーが Timeline に見つかりません(Immediate〔末尾〕にフォールバックします)");
+                }
             }
 
             var bindings = cutscene.Bindings;
@@ -85,6 +96,81 @@ namespace DDrive.Runtime.Cutscene
             if (cutscene.Flags.Net == NetMode.Simulated)
             {
                 yield return ValidationResult.Info("Cutscene の Flags.Net=Simulated は未対応です(Local または Cosmetic を使ってください)");
+            }
+
+            if (cutscene.Timeline != null)
+            {
+                foreach (var result in ValidateStandardTrackUsage(cutscene))
+                {
+                    yield return result;
+                }
+            }
+        }
+
+        private static bool HasSignalMarker(TimelineAsset timeline, string key)
+        {
+            foreach (var track in timeline.GetOutputTracks())
+            {
+                if (track == null)
+                {
+                    continue;
+                }
+
+                foreach (var marker in track.GetMarkers())
+                {
+                    if (marker is CutsceneSignalNotification signal && signal.Key == key)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // [26_timeline.md] §6(6-10b) — 標準 Audio/Control/Signal トラックは D-Drive の禁止 API
+        // (AudioSource の Play や Instantiate の直呼び)を内部で使うため、D-Drive トラックへの置き換えを促す。
+        // カメラへの標準 Animation トラック使用も同様(D-Drive Camera クリップを使ってください)。
+        // いずれも静的な型検査のみで判定できるため 6-10d を待たずに実装した。
+        private static IEnumerable<ValidationResult> ValidateStandardTrackUsage(CutsceneData cutscene)
+        {
+            var cameraTrackNames = new HashSet<string>();
+            if (cutscene.Bindings != null)
+            {
+                for (var i = 0; i < cutscene.Bindings.Length; i++)
+                {
+                    if (cutscene.Bindings[i].Target == CutsceneBindTarget.MainCamera && !string.IsNullOrEmpty(cutscene.Bindings[i].TrackName))
+                    {
+                        cameraTrackNames.Add(cutscene.Bindings[i].TrackName);
+                    }
+                }
+            }
+
+            foreach (var track in cutscene.Timeline.GetOutputTracks())
+            {
+                if (track == null)
+                {
+                    continue;
+                }
+
+                switch (track)
+                {
+                    case AudioTrack:
+                        yield return ValidationResult.Warning($"標準 Audio トラック('{track.name}')は使わないでください。D-Drive の SE クリップ(CutsceneSeTrack)を使ってください([26_timeline.md] §4.3)");
+                        break;
+
+                    case ControlTrack:
+                        yield return ValidationResult.Warning($"標準 Control トラック('{track.name}')は使わないでください。D-Drive の VFX/AnchorGroup クリップを使ってください([26_timeline.md] §4.3)");
+                        break;
+
+                    case SignalTrack:
+                        yield return ValidationResult.Warning($"標準 Signal トラック('{track.name}')は使わないでください。D-Drive の Event/Signal マーカーを使ってください([26_timeline.md] §4.3)");
+                        break;
+
+                    case AnimationTrack when cameraTrackNames.Contains(track.name):
+                        yield return ValidationResult.Warning($"カメラ役割('{track.name}')に標準 Animation トラックがバインドされています。D-Drive Camera クリップ(CutsceneCameraTrack)を使ってください([26_timeline.md] §4.3/§4.6)");
+                        break;
+                }
             }
         }
     }

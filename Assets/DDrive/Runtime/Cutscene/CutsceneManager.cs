@@ -10,6 +10,7 @@ using DDrive.Foundation.Net;
 using DDrive.Foundation.Pause;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
+using DDrive.Runtime.Cutscene.Tracks;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Net;
 using DDrive.Runtime.Presentation;
@@ -53,6 +54,21 @@ namespace DDrive.Runtime.Cutscene
             public bool IsNetworked;
             public ushort Seed;
             public bool PlayedViaNetworkReceive;
+
+            // [26_timeline.md] §4.6(6-10b) — このプレイバックがカメラ所有権を失って終了した(G-5/検出3)
+            // ことを示す。一度 true になったら、このプレイバックはカメラを再取得しない([26] §4.6.5)。
+            public bool CameraOwnershipEnded;
+
+            // [26_timeline.md] §4.3(6-10b) — Play() 時に時刻順で集めた D-Drive マーカー一覧とカーソル
+            // (elapsed が跨いだら発火し、カーソルだけ前進する。巻き戻しても再発火しない)。
+            public readonly List<(double, CutsceneEventNotification)> EventMarkers = new();
+            public int EventMarkerCursor;
+            public readonly List<(double, CutsceneSignalNotification)> SignalMarkers = new();
+            public int SignalMarkerCursor;
+            public readonly List<(double, CutsceneShakeNotification)> ShakeMarkers = new();
+            public int ShakeMarkerCursor;
+            public readonly List<(double, CutsceneHapticNotification)> HapticMarkers = new();
+            public int HapticMarkerCursor;
         }
 
         // [26] §4.5「PlayableDirector は Pool から借用」の実装。PoolService はプレハブの Instantiate を前提に
@@ -82,6 +98,14 @@ namespace DDrive.Runtime.Cutscene
         private readonly Stack<CutsceneDirectorSlot> _freeDirectors = new();
         private readonly HashSet<string> _unresolvedBindingWarned = new();
         private readonly HashSet<CutsceneData> _skipWarned = new();
+
+        // [26_timeline.md] §4.6(6-10b) — Camera クリップを持つ Cutscene のうち、現在カメラを実際に駆動して
+        // いる 1 本(単純化: 同時に複数本がカメラを取り合う場合は最初の 1 本が勝ち、2 本目以降は警告 1 回で
+        // カメラ以外のトラックだけ普通に再生する。TODO: 複数同時駆動の合成は将来必要になれば対応する)。
+        private CutsceneInstance _cameraOwner;
+        private DDriveCutsceneCameraApplier _cameraApplier;
+        private Camera _cameraOwnerCamera;
+        private readonly HashSet<CutsceneData> _multiCameraWarned = new();
 
         private readonly EventBus _events = new();
         private int _lockDepth;
@@ -201,6 +225,10 @@ namespace DDrive.Runtime.Cutscene
             slot.Director.playableAsset = data.Timeline;
             ApplyOrigin(instance);
             ApplyBindings(instance);
+            CollectMarkers(instance);
+            // elapsedSeek>0(ネット越しの遅延復元等)で始まる場合、既に過ぎたマーカーは無音でスキップする
+            // (PresentationManager の SeekInitialTracks と同じ方針)。elapsedSeek==0 なら何も跨がない。
+            AdvanceMarkers(instance, instance.Elapsed, fire: false);
 
             slot.Director.time = System.Math.Min(instance.Elapsed, System.Math.Max(0d, instance.Duration));
             slot.Director.extrapolationMode = data.Wrap;
@@ -408,6 +436,158 @@ namespace DDrive.Runtime.Cutscene
 #endif
         }
 
+        // [26_timeline.md] §4.3(6-10b 実装メモ) — D-Drive のマーカー(Event/Signal/Shake/Haptic)は Unity
+        // 標準の Signal 通知配送(INotification/INotificationReceiver)を使わず、Play() 時に
+        // TrackAsset.GetMarkers() で時刻順に集めておき、Tick() で elapsed が跨いだ瞬間に直接発火する
+        // (EventBus.Tick の Frame/Time 判定・PresentationManager.FireDueTracks と同じ「跨いだら発火、
+        // Seek は無音でスキップ」パターン)。理由: `TimeNotificationBehaviour.PrepareFrame` は
+        // `FrameData.EvaluationType.Evaluate`(Evaluate() 単体呼び出し)のフレームで通知を送らない実装で、
+        // CutsceneManager は DirectorUpdateMode.Manual + 毎 Tick Evaluate() で駆動するため native 通知に
+        // 頼るとバージョン依存のリスクがある。
+        private void CollectMarkers(CutsceneInstance instance)
+        {
+            var timeline = instance.Data.Timeline;
+            if (timeline == null)
+            {
+                return;
+            }
+
+            foreach (var track in timeline.GetOutputTracks())
+            {
+                if (track == null)
+                {
+                    continue;
+                }
+
+                foreach (var marker in track.GetMarkers())
+                {
+                    switch (marker)
+                    {
+                        case CutsceneEventNotification evt:
+                            instance.EventMarkers.Add((marker.time, evt));
+                            break;
+
+                        case CutsceneSignalNotification sig:
+                            instance.SignalMarkers.Add((marker.time, sig));
+                            break;
+
+                        case CutsceneShakeNotification shake:
+                            instance.ShakeMarkers.Add((marker.time, shake));
+                            break;
+
+                        case CutsceneHapticNotification haptic:
+                            instance.HapticMarkers.Add((marker.time, haptic));
+                            break;
+                    }
+                }
+            }
+
+            instance.EventMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+            instance.SignalMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+            instance.ShakeMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+            instance.HapticMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+        }
+
+        // fire=false は Seek(Skip/ネット復元の開始点)用: 跨いだマーカーは「既に通過済み」として無音で
+        // カーソルだけ進める(PresentationManager の SeekInitialTracks/ワンショットスキップと同じ方針)。
+        private void AdvanceMarkers(CutsceneInstance instance, double newElapsed, bool fire)
+        {
+            AdvanceEventMarkers(instance, newElapsed, fire);
+            AdvanceSignalMarkers(instance, newElapsed, fire);
+            AdvanceShakeMarkers(instance, newElapsed, fire);
+            AdvanceHapticMarkers(instance, newElapsed, fire);
+        }
+
+        private void AdvanceEventMarkers(CutsceneInstance instance, double newElapsed, bool fire)
+        {
+            var list = instance.EventMarkers;
+            while (instance.EventMarkerCursor < list.Count && list[instance.EventMarkerCursor].Item1 <= newElapsed)
+            {
+                var marker = list[instance.EventMarkerCursor].Item2;
+                instance.EventMarkerCursor++;
+
+                if (fire && Application.isPlaying)
+                {
+                    _events.RaiseAdHoc(instance.EventCtx, marker.Event);
+                }
+            }
+        }
+
+        private void AdvanceSignalMarkers(CutsceneInstance instance, double newElapsed, bool fire)
+        {
+            var list = instance.SignalMarkers;
+            while (instance.SignalMarkerCursor < list.Count && list[instance.SignalMarkerCursor].Item1 <= newElapsed)
+            {
+                var marker = list[instance.SignalMarkerCursor].Item2;
+                instance.SignalMarkerCursor++;
+
+                if (fire && Application.isPlaying)
+                {
+                    instance.MarkerSubject.OnNext(marker.Key);
+                }
+            }
+        }
+
+        private void AdvanceShakeMarkers(CutsceneInstance instance, double newElapsed, bool fire)
+        {
+            var list = instance.ShakeMarkers;
+            while (instance.ShakeMarkerCursor < list.Count && list[instance.ShakeMarkerCursor].Item1 <= newElapsed)
+            {
+                var marker = list[instance.ShakeMarkerCursor].Item2;
+                instance.ShakeMarkerCursor++;
+
+                if (fire && Application.isPlaying && marker.ShakeId.IsValid)
+                {
+                    // 完全修飾で呼ぶ(DDrive.Runtime 配下の子ネームスペース DDrive.Runtime.CameraShake が
+                    // 素の `CameraFx` より先に解決されコンパイルエラーになるため、[26_timeline.md] §4.3 実装メモ)。
+                    DDrive.Runtime.CameraShake.CameraFx.Shake(marker.ShakeId, instance.Ctx.Position);
+                }
+            }
+        }
+
+        private void AdvanceHapticMarkers(CutsceneInstance instance, double newElapsed, bool fire)
+        {
+            var list = instance.HapticMarkers;
+            while (instance.HapticMarkerCursor < list.Count && list[instance.HapticMarkerCursor].Item1 <= newElapsed)
+            {
+                var marker = list[instance.HapticMarkerCursor].Item2;
+                instance.HapticMarkerCursor++;
+
+                if (fire && Application.isPlaying && marker.HapticId.IsValid)
+                {
+                    DDrive.Runtime.Haptics.Haptics.Play(marker.HapticId);
+                }
+            }
+        }
+
+        // [26_timeline.md] §4.1/§4.3(6-10b) — Skip=ToMarker の目標秒を、Timeline 上の D-Drive Signal
+        // マーカー(CutsceneSignalNotification.Key が一致するもの)の時刻から求める。見つからなければ null。
+        private static double? FindSignalMarkerTime(TimelineAsset timeline, string key)
+        {
+            if (timeline == null || string.IsNullOrEmpty(key))
+            {
+                return null;
+            }
+
+            foreach (var track in timeline.GetOutputTracks())
+            {
+                if (track == null)
+                {
+                    continue;
+                }
+
+                foreach (var marker in track.GetMarkers())
+                {
+                    if (marker is CutsceneSignalNotification signal && signal.Key == key)
+                    {
+                        return marker.time;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         // ── Pool 代替(PlayableDirector の free-list) ──
 
         private CutsceneDirectorSlot RentDirector()
@@ -426,6 +606,12 @@ namespace DDrive.Runtime.Cutscene
             var director = go.AddComponent<PlayableDirector>();
             director.timeUpdateMode = DirectorUpdateMode.Manual;
             director.playOnAwake = false;
+
+            // [26_timeline.md] §4.6(6-10b) — Camera クリップの評価結果置き場。free-list で再利用されるため
+            // CutsceneRoot 生成時に 1 回だけ付ける(マーカーは CollectMarkers/AdvanceMarkers が
+            // TrackAsset.GetMarkers() から直接読むため、対応するコンポーネントは不要)。
+            go.AddComponent<CutsceneCameraStateHolder>();
+
             return new CutsceneDirectorSlot { Root = go, Director = director };
         }
 
@@ -788,12 +974,18 @@ namespace DDrive.Runtime.Cutscene
         {
             if (instance.Data.Skip == CutsceneSkip.ToMarker)
             {
-                // 6-10b の D-Drive Signal マーカーが無いうちは名前解決ができないため、Immediate と同じ
-                // (末尾まで飛ばす)にフォールバックする。TODO(6-10b): マーカー実装後にここを接続する。
+                var markerTime = FindSignalMarkerTime(instance.Data.Timeline, instance.Data.SkipToMarkerKey);
+                if (markerTime.HasValue)
+                {
+                    return markerTime.Value;
+                }
+
+                // マーカーが見つからない(未設定・削除済み・タイプミス)場合は Immediate と同じ(末尾まで飛ばす)
+                // にフォールバックする([26] §4.1)。
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                 if (_skipWarned.Add(instance.Data))
                 {
-                    Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': Skip=ToMarker はまだ未対応です(6-10b で D-Drive Signal マーカーを実装後に対応)。末尾へ飛ばします。");
+                    Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': Skip=ToMarker のマーカー '{instance.Data.SkipToMarkerKey}' が見つかりません。末尾へ飛ばします。");
                 }
 #endif
             }
@@ -818,6 +1010,10 @@ namespace DDrive.Runtime.Cutscene
                 instance.Slot.Director.time = System.Math.Min(instance.Elapsed, System.Math.Max(0d, instance.Duration));
                 instance.Slot.Director.Evaluate();
             }
+
+            // Skip()/デバッグ Seek() で跨いだマーカーは無音でスキップする(TL;DR「スクラブで連打しない」と
+            // 同じ考え方。通常の前進 Tick() だけが実際に発火させる)。
+            AdvanceMarkers(instance, instance.Elapsed, fire: false);
         }
 
         public void SetPaused(Handle<CutsceneMarker> handle, bool paused)
@@ -969,6 +1165,9 @@ namespace DDrive.Runtime.Cutscene
                     instance.Slot.Director.Evaluate();
                 }
 
+                UpdateCameraForInstance(handle, instance);
+                AdvanceMarkers(instance, instance.Elapsed, fire: true);
+
                 _events.Tick(instance.EventCtx, dt);
 
                 if (!instance.Done && instance.Elapsed >= instance.Duration)
@@ -976,6 +1175,105 @@ namespace DDrive.Runtime.Cutscene
                     Complete(handle, instance);
                 }
             }
+        }
+
+        // [26_timeline.md] §4.6/§4.6.5(6-10b) — Camera クリップの評価結果(CutsceneCameraStateHolder)を
+        // 読み、原点([26] §4.2.1)を掛けてワールド座標にしたうえで DDriveCutsceneCameraApplier へ渡す。
+        // 実際の Camera/Volume への書き込みは Applier の LateUpdate(実行順 1000)が行う([26] §4.6.5)。
+        private void UpdateCameraForInstance(Handle<CutsceneMarker> handle, CutsceneInstance instance)
+        {
+            if (instance.CameraOwnershipEnded || instance.Slot?.Root == null)
+            {
+                return;
+            }
+
+            var holder = instance.Slot.Root.GetComponent<CutsceneCameraStateHolder>();
+            var hasData = holder != null && holder.HasData;
+
+            if (_cameraOwner == instance && !hasData)
+            {
+                // カメラクリップの区間外(ギャップ、または尾まで再生し終えた)。所有権を手放す。
+                ReleaseCameraOwnership();
+                return;
+            }
+
+            if (!hasData)
+            {
+                return;
+            }
+
+            if (_cameraOwner == null)
+            {
+                _cameraOwner = instance;
+            }
+            else if (_cameraOwner != instance)
+            {
+                // [26] §4.6.2 — 「1 カメラ上書き方式」の単純化: 同時に複数本がカメラを取り合った場合は
+                // 最初の 1 本を優先し、2 本目以降はカメラ以外のトラックだけ普通に再生する(警告 1 回)。
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                if (_multiCameraWarned.Add(instance.Data))
+                {
+                    Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': 別の Cutscene が既にカメラを駆動しているため、このプレイバックのカメラクリップは無視します([26_timeline.md] §4.6)。");
+                }
+#endif
+                return;
+            }
+
+            var cam = Camera.main;
+            if (cam == null || (_cameraOwnerCamera != null && cam != _cameraOwnerCamera))
+            {
+                // G-5([26] §4.6.5) — Camera.main が見つからない/差し替わった。このプレイバックは
+                // BlendOut 無しで終了する(付け直しての継続はしない)。
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': 再生中に Camera.main が見つからなくなった/差し替わったため、カメラ演出を終了します(G-5、[26_timeline.md] §4.6.5)。");
+#endif
+                ReleaseCameraOwnership();
+                instance.CameraOwnershipEnded = true;
+                return;
+            }
+
+            var applier = DDriveCutsceneCameraApplier.EnsureOn(cam);
+            if (applier == null)
+            {
+                return;
+            }
+
+            _cameraApplier = applier;
+            _cameraOwnerCamera = cam;
+
+            var root = instance.Slot.Root.transform;
+            var request = new CutsceneCameraWriteRequest
+            {
+                WorldPos = root.TransformPoint(holder.LocalPos),
+                WorldRot = root.rotation * holder.LocalRot,
+                Fov = holder.Fov,
+                FocusDistance = holder.FocusDistance,
+                Aperture = holder.Aperture,
+                FocalLength = holder.FocalLength,
+                Weight = holder.GameBlendWeight,
+                Focus = holder.Focus,
+            };
+
+            var applied = applier.Submit(in request, handle);
+            if (!applied)
+            {
+                // 検出 3([26] §4.6.5) — 前回の Submit が LateUpdate で消費されなかった
+                // (Applier が無効化/破棄された等)。このプレイバックは BlendOut 無しで終了する。
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': DDriveCutsceneCameraApplier が LateUpdate で実行されていません。カメラ演出を終了します([26_timeline.md] §4.6.5 検出3)。");
+#endif
+                ReleaseCameraOwnership();
+                instance.CameraOwnershipEnded = true;
+            }
+        }
+
+        // 所有権を手放し、控えていた画角・ピントを書き戻す([26] §4.6.2 の終了処理)。
+        private void ReleaseCameraOwnership()
+        {
+            _cameraApplier?.Restore();
+            _cameraOwner = null;
+            _cameraApplier = null;
+            _cameraOwnerCamera = null;
         }
 
         private void Complete(Handle<CutsceneMarker> handle, CutsceneInstance instance)
@@ -992,6 +1290,13 @@ namespace DDrive.Runtime.Cutscene
 
         private void Cleanup(Handle<CutsceneMarker> handle, CutsceneInstance instance)
         {
+            // [26_timeline.md] §4.6.2(6-10b) — Cancel()/Skip(Immediate) は Tick() の次の巡回を待たずに
+            // ここへ来るため、カメラ所有権の解放(Volume weight=0、画角・ピントの書き戻し)もここで行う。
+            if (_cameraOwner == instance)
+            {
+                ReleaseCameraOwnership();
+            }
+
             _active.Remove(handle);
             _instances.Remove(handle);
 

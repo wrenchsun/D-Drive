@@ -39,6 +39,12 @@ namespace DDrive.Foundation.Event
             }
         }
 
+        // [26_timeline.md] §4.3(6-10b) — D-Drive Event マーカー用。Timeline のマーカーが持つ 1 件の
+        // AssetEvent は Data.Events(Begin で登録した配列)に含まれないため、Fire() の「session.Events から
+        // 探して発火」経路に乗せず、購読者(AssetEventDispatcher)へ直接渡す。跨いだかどうかの重複防止は
+        // 呼び出し側(CutsceneManager の時刻順カーソル)が担う([26] §4.3/§4.4 実装メモ)。
+        public void RaiseAdHoc(InstanceContext ctx, in AssetEvent evt) => OnEventFired?.Invoke(ctx, evt);
+
         // OnSpawn/OnEnable/OnLoop/OnDisable/OnDestroy/Custom 用。Frame/Time は Tick から発火する。
         public void Fire(InstanceContext ctx, EventTrigger trigger, string customKey = null)
         {
