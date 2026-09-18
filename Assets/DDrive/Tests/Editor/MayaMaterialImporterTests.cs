@@ -97,6 +97,44 @@ namespace DDrive.Tests.Editor
             StringAssert.Contains("Material/Player/", AssetDatabase.GetAssetPath(created));
         }
 
+        // UTS 系(UnityChan 等)の Material は _EMISSION キーワードを立てないまま _EmissionColor に白の残骸値を
+        // 持っていることがある。キーワード無しなら発光させない(2026-09-18 修正の再発防止)。
+        [Test]
+        public void ImportMaterial_EmissionColorPropertyWithoutKeyword_DoesNotEnableEmission()
+        {
+            var source = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(MaterialPath);
+            Assume.That(source.HasProperty("_EmissionColor"));
+            source.SetColor("_EmissionColor", Color.white);
+            source.DisableKeyword("_EMISSION");
+
+            var created = MayaMaterialImporter.ImportMaterial(source, "Player", "Body", _profile, new MayaMaterialImporter.Report(), TestRoot);
+
+            Assert.IsNotNull(created);
+            Assert.AreEqual(Color.black, created.Common.EmissionColor, "キーワード無しなら EmissionColor は黒に落とす");
+            Assert.AreEqual(0f, created.Common.EmissionIntensity, 1e-5f, "キーワード無しなら発光しない");
+        }
+
+        // キーワードが立っていれば従来どおり _EmissionColor を引き継ぐ。
+        [Test]
+        public void ImportMaterial_EmissionKeywordEnabled_MapsEmissionColor()
+        {
+            var source = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(MaterialPath);
+            Assume.That(source.HasProperty("_EmissionColor"));
+            // SetUp が付けた法線マップを外す: 付いたままだと ImportMaterial 内で新規 TextureData が作られ、
+            // その CreateFolder が誘発する Refresh で(AssetCreationService.Create のコメントにある既知の
+            // 再インポート挙動と同種)この Material の未保存のキーワード変更が読み取り前に失われて誤検出する。
+            var bumpProperty = source.HasProperty("_BumpMap") ? "_BumpMap" : "_MainTex";
+            source.SetTexture(bumpProperty, null);
+            source.SetColor("_EmissionColor", Color.red);
+            source.EnableKeyword("_EMISSION");
+
+            var created = MayaMaterialImporter.ImportMaterial(source, "Player", "Body", _profile, new MayaMaterialImporter.Report(), TestRoot);
+
+            Assert.IsNotNull(created);
+            Assert.AreEqual(Color.red, created.Common.EmissionColor);
+            Assert.AreEqual(1f, created.Common.EmissionIntensity, 1e-5f);
+        }
+
         [Test]
         public void ImportMaterial_Reimport_UpdatesCommonOnly_AndKeepsSpecific()
         {

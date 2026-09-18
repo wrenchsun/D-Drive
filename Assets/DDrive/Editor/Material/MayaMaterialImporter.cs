@@ -331,9 +331,14 @@ namespace DDrive.Editor.Materials
             common.NormalScale = GetFloat(source, "_BumpScale", 1f);
             common.Metallic = GetFloat(source, "_Metallic", 0f);
             common.Smoothness = GetFloat(source, "_Smoothness", GetFloat(source, "_Glossiness", 0.5f));
-            var emission = GetColor(source, "_EmissionColor", Color.black);
+            // _EmissionColor は Standard 系プロパティブロックの値がそのまま残っていることがあり(UTS 等のシェーダーで
+            // 実際には発光させていない Material でも白(1,1,1,1)が入っている場合がある)、発光の有無は _EMISSION キーワードで
+            // 判定する(MaterialCommonBinding.Apply が書き込むときと対称。キーワード無し = 発光オフとして EmissionColor も
+            // 黒に落とす。UnityMaterialMigrator で移行した UnityChan Material が全て白発光してしまっていた不具合の修正。2026-09-18)。
+            var emissionKeywordOn = source.IsKeywordEnabled("_EMISSION");
+            var emission = emissionKeywordOn ? GetColor(source, "_EmissionColor", Color.black) : Color.black;
             common.EmissionColor = emission;
-            common.EmissionIntensity = emission.maxColorComponent > 0f || common.Emission.IsValid ? 1f : 0f;
+            common.EmissionIntensity = emissionKeywordOn && (emission.maxColorComponent > 0f || common.Emission.IsValid) ? 1f : 0f;
             common.Cutoff = GetFloat(source, "_Cutoff", 0.5f);
             common.DoubleSided = source.HasProperty("_Cull") && Mathf.Approximately(source.GetFloat("_Cull"), 0f);
             common.Blend = source.renderQueue >= (int)UnityEngine.Rendering.RenderQueue.Transparent ? BlendType.Transparent

@@ -18,9 +18,11 @@ MonoBehaviour:
   Category: Player
   Tags: []
   Icon: {fileID: 2800000, guid: a8bf58e0d2dc62d49aaf5c6985b446ba, type: 3}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-18T10:39:42
   ChangeNote: 
   Flags:
     Pause: 0
@@ -34,123 +36,124 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Prefab: {fileID: 100096, guid: 412b92d4feeb9c548bfa98f62c4d1022, type: 3}
   Slots:
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/BLW_DEF
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 2028071200369487925
+      type: 6
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/eye_base_old
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 14228664533242381114
+      type: 6
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/EYE_DEF
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 12364718158266667179
+      type: 6
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/EYE_DEF/EL_DEF
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 2028071200369487925
+      type: 6
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/eye_L_old
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 2010432965874348796
+      type: 6
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/eye_R_old
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 15875757133759719553
+      type: 6
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/head_back
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 12364718158266667179
+      type: 6
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/MTH_DEF
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 12364718158266667179
+      type: 6
   - RendererPath: mesh_root/button
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/cheek
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 8595876682296370523
+      type: 6
   - RendererPath: mesh_root/hair_accce
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/hair_front
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 2668047834929390196
+      type: 6
   - RendererPath: mesh_root/hair_frontside
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 2668047834929390196
+      type: 6
   - RendererPath: mesh_root/hairband
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/Leg
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/Shirts
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/shirts_sode
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/shirts_sode_BK
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/skin
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 16418246553853521210
+      type: 6
   - RendererPath: mesh_root/tail
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 2668047834929390196
+      type: 6
   - RendererPath: mesh_root/tail_bottom
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 2668047834929390196
+      type: 6
   - RendererPath: mesh_root/uwagi
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   - RendererPath: mesh_root/uwagi_BK
     SlotIndex: 0
     Material:
-      value: 0
-      type: 0
+      value: 3942353303024983942
+      type: 6
   DefaultAnimation:
     value: 0
     type: 0

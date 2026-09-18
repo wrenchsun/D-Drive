@@ -55,6 +55,48 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 2010432965874348796
+    Type: 6
+    Address: MAT_Materials_EyeL1
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 2028071200369487925
+    Type: 6
+    Address: MAT_Materials_Eyeline
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 2668047834929390196
+    Type: 6
+    Address: MAT_Materials_Hair
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 2810704748364141198
     Type: 6
     Address: MAT_FBX_MatBody01
@@ -86,6 +128,20 @@ MonoBehaviour:
   - Id: 3730150700295365579
     Type: 6
     Address: MAT_FBX_MatWear03
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 3942353303024983942
+    Type: 6
+    Address: MAT_Materials_Body
     Flags:
       Pause: 0
       Load: 0
@@ -139,9 +195,51 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 5186562798101113647
+    Type: 7
+    Address: TEX_Materials_Hair01
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 6182459458607989326
     Type: 6
     Address: MAT_FBX_MatWear02
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 6486245105997788059
+    Type: 7
+    Address: TEX_Materials_EyeIrisR00
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 6563274743418815909
+    Type: 7
+    Address: TEX_Materials_Skin01
     Flags:
       Pause: 0
       Load: 0
@@ -181,6 +279,34 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 8595876682296370523
+    Type: 6
+    Address: MAT_Materials_MatCheek
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 9410561975304481833
+    Type: 7
+    Address: TEX_Materials_Eyeline00
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 9736741878492926523
     Type: 7
     Address: TEX_Jam_House
@@ -209,9 +335,51 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 10531402156620746791
+    Type: 7
+    Address: TEX_Materials_Hair01NRM
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 10623863106499607921
+    Type: 7
+    Address: TEX_Materials_Body01NRM
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 11083295164143669461
     Type: 6
     Address: MAT_Test_Material
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 12364718158266667179
+    Type: 6
+    Address: MAT_Materials_Face
     Flags:
       Pause: 0
       Load: 0
@@ -268,6 +436,20 @@ MonoBehaviour:
   - Id: 13898136259027817199
     Type: 7
     Address: TEX_FBX_Wear03N
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 14228664533242381114
+    Type: 6
+    Address: MAT_Materials_Eyebase
     Flags:
       Pause: 0
       Load: 0
@@ -363,9 +545,79 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 15167258256308402017
+    Type: 7
+    Address: TEX_Materials_Face00
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 15799071615782347846
+    Type: 7
+    Address: TEX_Materials_EyeIrisL00
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 15875757133759719553
+    Type: 6
+    Address: MAT_Materials_EyeR1
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 16418246553853521210
+    Type: 6
+    Address: MAT_Materials_Skin1
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
   - Id: 18003058593433904693
     Type: 7
     Address: TEX_FBX_FaceOptionD
+    Flags:
+      Pause: 0
+      Load: 0
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 0
+  - Id: 18123726321691575747
+    Type: 7
+    Address: TEX_Materials_Cheek00
     Flags:
       Pause: 0
       Load: 0

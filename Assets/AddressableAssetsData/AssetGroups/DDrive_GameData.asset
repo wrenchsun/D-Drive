@@ -15,6 +15,11 @@ MonoBehaviour:
   m_GroupName: DDrive_GameData
   m_GUID: 7d0330e9280bfa74aaca9631072f761c
   m_SerializeEntries:
+  - m_GUID: 06aa01f47124e3e4ca22aaeb6f549e66
+    m_Address: TEX_Materials_Eyeline00
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 0a9e65c22f6122347941d4430af936fb
     m_Address: MAT_FBX_ShizukuBlendShapeMatBody01
     m_ReadOnly: 0
@@ -22,6 +27,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 0b25978d8a727b94ba4e56a167e7a19c
     m_Address: MAT_FBX_MatBody01
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0d25c5756fe9ebd4cace1671b510345e
+    m_Address: TEX_Materials_Hair01
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -55,6 +65,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 238252c47004833499d920f126927e1a
+    m_Address: MAT_Materials_Skin1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 290e328c6ed8fc549993bc0526a1dea7
     m_Address: TEX_FBX_Wear01N
     m_ReadOnly: 0
@@ -62,6 +77,16 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 2cb3256cb5b68654fbd900c3d2232e18
     m_Address: TEX_FBX_FaceOptionD
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 355fc75193c40114a950cb061dbd0e52
+    m_Address: MAT_Materials_EyeL1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 35b7f59feb9c24c45bf246562090d8e1
+    m_Address: TEX_Materials_Skin01
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -85,6 +110,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 40f8e3e1e6750bc49a71a58d8f5c5c8f
+    m_Address: TEX_Materials_Cheek00
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 4670c02ca60e7624f80fd96924f39cbb
     m_Address: ANC_Anim_Jump
     m_ReadOnly: 0
@@ -97,6 +127,16 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 541368f117039f5468c3d8d6cf283757
     m_Address: TEX_Test_Texture
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5a5d9601ee8a3514b9e9501c5b22b843
+    m_Address: MAT_Materials_Hair
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5d8c1e52c358e0b418be0c30e9d0c09a
+    m_Address: TEX_Materials_Face00
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -150,6 +190,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7985e4a9fbe73d1468bef7dbcee4f144
+    m_Address: MAT_Materials_Eyeline
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 7e891a44defbdbf40890f41da4190ccc
     m_Address: UITWEEN_Ui_Tween
     m_ReadOnly: 0
@@ -160,6 +205,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 928997e4b8ffe72489f77247f23defc0
+    m_Address: TEX_Materials_EyeIrisR00
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 9c912d504098803498b29e862618a9a5
     m_Address: ANCG_1_PlayerSlash
     m_ReadOnly: 0
@@ -167,6 +217,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a23a06ad62a0a8d4b960a5cb75ffb375
     m_Address: SKIN_test_Default
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a39b73a4293c153409695320136bbfe7
+    m_Address: MAT_Materials_Face
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -185,13 +240,38 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ab72ab0c22bc7a24a91e74fc438d9342
+    m_Address: MAT_Materials_MatCheek
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ac684c16a6849644ba0fef5fd16ae0dd
     m_Address: TEX_Tex20240822124521
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: aef83d49fa1d40a40a4956c14a9f2f33
+    m_Address: MAT_Materials_EyeR1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b596fd29dffc8274b800da5d195c0bc7
+    m_Address: MAT_Materials_Body
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c21319e87221abf4ea996d0cc47f6779
     m_Address: VFX_Player_Slash2
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c381145c87ae6d040b24cbd39441c251
+    m_Address: TEX_Materials_Body01NRM
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c3d59378d63b4c54b9428686bdee8168
+    m_Address: TEX_Materials_EyeIrisL00
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -202,6 +282,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c947cc2894989ba45b19d8168ad8d23c
     m_Address: SE_test_NewSound
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce5c0ce1bd4412c428c97ce4c90f8c66
+    m_Address: MAT_Materials_Eyebase
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -217,6 +302,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: d28a6ad01a1f49d409bc30274c3be886
     m_Address: SHAKE_Demo_DemoHitSmall
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d54fdb8e21fd6f946a6e92aa1aff6bf7
+    m_Address: TEX_Materials_Hair01NRM
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

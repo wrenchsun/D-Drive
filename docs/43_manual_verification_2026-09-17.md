@@ -96,13 +96,36 @@
 | # | 何を |
 |---|---|
 | 11 | **U-1 3D プレビューの透明** — Model Editor で確認用シーンに配置 / 複数モデル並列表示 / `PresentationSkillSlashPreviewScene`。3 つとも同時に直っているはず |
-| 12 | **U-2 FBX のマテリアルスロット** — FBX を入れ直して `ModelData` の Material スロットが埋まるか。既存モデルは Model Editor の「元ファイル再読み込み」で埋まるか |
+| 12 | **U-2 FBX のマテリアルスロット** — FBX を入れ直して `ModelData` の Material スロットが埋まるか。既存モデルは Model Editor の「元ファイル再読み込み」で埋まるか → **2026-09-18 合格**（再読み込み後に確認用シーンでテクスチャ反映を確認。下の追記 2 件を修正後） |
 | 13 | **U-4 / U-5 / U-6 配置ボタン** — Prefab Editor が確認用シーンに置くか / 全エディタで右クリック → 2 メニューが出るか / 配置後に SceneView がフォーカスするか / 「このシーンに本配置」がシーン保存後も残るか（一時配置の掃除に巻き込まれないこと） |
 | 14 | **U-16〜U-19 メニュー** — `Assets/D-Drive/Data を作成/`（12 種、対象外のアセットで灰色になるか） / `GameObject/D-Drive/`（7 項目、Undo が効くか） / `Tools > D-Drive > Generate > Canvas + Panel と CanvasData を作成` |
 | 15 | **U-22 / U-24 Anchor** — SceneView に基準の 3 軸とワールド座標ラベルが出るか / Anchor Group の「手置きの点に変換」で点の位置と番号が変わらないか |
 | 16 | **U-9 / U-10 / U-12 / U-13 / U-14 / U-15** — PresetGallery ボタン / 「SE も鳴らす」の見切れ / プレビューバー / 検証セクション / Fade 欄 / 仕様書 URL |
 | 17 | **P1-2 の安全弁（意図的に壊して確認する）** — トークンを空にして「取得」→「適用」。TuningTable が消えず、画面に理由が出ること。修正前はここで TUNING が空生成されコンパイル不能になっていた |
 | 18 | **P1-1 Pool** — `PrefabData` の `Flags.Pool` を `Kind = Pooled` / `MaxCount = 1` にして Spawn → Spawn → 1 つ目を Despawn。2 つ目が消えないこと |
+
+**2026-09-18 追記(項番 12 の修正)**: 「元ファイル再読み込み」でスロットは埋まるが、確認用シーンに配置中のモデルが
+白いままになる別バグを確認・修正した。原因は `ModelEditorWindow` の `SceneAnimPreviewDriver` が持つ
+`EditorAnchorRegistry` スナップショットが再読み込みで新規作成した `MaterialData`/`TextureData` を認識できず、
+`MaterialManager.ResolveTexture` が解決に失敗して DDrive/Lit の既定 `_BaseMap`（白）になっていたこと。
+`SceneAnimPreviewDriver.RefreshRegistry()`（`Assets/DDrive/Editor/Anim/SceneAnimPreviewDriver.cs`、
+`EditorAnchorRegistry.Refresh` + 共有 Material キャッシュ `Clear()`）を追加し、`ModelEditorWindow.RunSlotBinder`
+（`Assets/DDrive/Editor/Model/ModelEditorWindow.cs`）から呼んで、配置中なら配置し直すようにした
+（`MaterialEditorWindow.EnsureRegistryFresh` と同じ方式）。(当初は未検証と書いたが、下の発光修正と合わせて 2026-09-18 にユーザー確認で合格)。確認内容:
+「元ファイル再読み込み」の前に対象モデルを確認用シーンに配置した状態で実行し、白くならずマテリアルが反映されること。
+
+**2026-09-18 追記(項番 12・実際の原因は別にもう1つあった)**: 上記のレジストリ再構築を直した後も、Unity MCP
+接続下で確認すると `Shirts` 等の Renderer が真っ白(発光)のまま残った。実際の原因はレジストリではなく、
+`UnityMaterialMigrator`/`MayaMaterialImporter` で生成した `MAT_Materials_*`(9件、`Assets/GameData/Material/Materials/`、
+元は UnityChan の UTS 系 `.mat`)の `MaterialCommon.EmissionColor` が白(1,1,1,1)・`EmissionIntensity` が 1 になっていたこと。
+元の `.mat` は `_EMISSION` キーワードを立てていない(発光オフ)のに `_EmissionColor` プロパティ自体は白の値を残しており、
+`MayaMaterialImporter.BuildCommon`(`Assets/DDrive/Editor/Material/MayaMaterialImporter.cs`)がキーワードを見ずに
+色の値だけで発光判定していたため、発光オフの Material が `MaterialCommonBinding.Apply` で `_EMISSION` を立てられ
+白発光していた。`source.IsKeywordEnabled("_EMISSION")` を見てから `_EmissionColor` を引き継ぐように修正し(キーワード無し
+なら黒・Intensity 0 に落とす)、`ModelSlotBinder.Rebuild(MODEL_Player_Model, ensureMaterials:true)` で 9 件を再移行して
+確認した(Common が更新され、Albedo は引き継がれたまま)。`MaterialCommonBinding.Apply` を直接呼んで `_EMISSION` が
+立たなくなったことも確認済み。EditMode 全 819 件 green(`MayaMaterialImporterTests` にキーワード有無それぞれの
+テストを追加)。上記のレジストリ再構築の修正自体は別の不具合(テクスチャ未解決)への対応として有効なので取り下げない。
 
 ## 2. `clasp push`
 
