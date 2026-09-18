@@ -86,8 +86,64 @@ namespace DDrive.Editor.Import
                 EnsureReadme(folderPath, BuildTypeReadme(handler), report);
             }
 
+            // Cutscene([26_timeline.md] §5/§6・6-10c、2026-09-18): ImportRuleService.Handlers に無い
+            // (専用パイプライン、ImportRuleService.cs の KnownNonTargetTypeFolders コメント参照)ため、
+            // ハンドラ一覧のループとは別にフォルダ + README を用意する。
+            var cutsceneFolder = $"{sourceRoot}/{DDrive.Editor.Cutscene.CutsceneImportService.TypeFolder}";
+            if (!AssetDatabase.IsValidFolder(cutsceneFolder))
+            {
+                AssetDatabase.CreateFolder(sourceRoot, DDrive.Editor.Cutscene.CutsceneImportService.TypeFolder);
+                report.CreatedFolders++;
+                report.Log($"新規フォルダ: {cutsceneFolder}");
+            }
+            else if (IsCaseCollision(cutsceneFolder, out var existingCutscenePath))
+            {
+                report.Log(
+                    $"スキップ: {cutsceneFolder} は既存の '{existingCutscenePath}' と大文字小文字違いで衝突しています" +
+                    "(README は作成しません。どちらかのフォルダ名を変えて解消してください)");
+                AssetDatabase.SaveAssets();
+                return report;
+            }
+
+            EnsureReadme(cutsceneFolder, BuildCutsceneReadme(), report);
+
             AssetDatabase.SaveAssets();
             return report;
+        }
+
+        // [26_timeline.md] §5.1/§5.1.1/§5.5 の最小命名規則をそのまま README にする。
+        private static string BuildCutsceneReadme()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("# SourceAssets/Cutscene");
+            sb.AppendLine();
+            sb.AppendLine("このフォルダには **Maya から書き出したカットシーン用 FBX** を置きます。");
+            sb.AppendLine("他の種別フォルダと違い、1 ファイル = 1 Data ではなく「1 ショット = FBX セット」で 1 つの");
+            sb.AppendLine("CutsceneData になります(詳細は `docs/26_timeline.md` §5、Maya 作業者向けの手順は");
+            sb.AppendLine("`docs/DesignerManual/cutscene-maya-export.html`)。");
+            sb.AppendLine();
+            sb.AppendLine("## 対応拡張子");
+            sb.AppendLine();
+            sb.AppendLine(".fbx");
+            sb.AppendLine();
+            sb.AppendLine("## 置き方(1 ショットにつき)");
+            sb.AppendLine();
+            sb.AppendLine("- `Cutscene/<カテゴリ.../>ショット名.fbx` — カメラ + 小物(1 本)");
+            sb.AppendLine("- `Cutscene/<カテゴリ.../>ショット名__Model識別子.fbx` — キャラごとの骨アニメ(`__` は 2 つ。キャラの数だけ)");
+            sb.AppendLine("- 同じキャラを 2 体使う場合は `ショット名__Model識別子_2.fbx`");
+            sb.AppendLine();
+            sb.AppendLine("## 生成される Data の例");
+            sb.AppendLine();
+            sb.AppendLine("`Cutscene/Opening/Opening01.fbx` + `Cutscene/Opening/Opening01__Hero.fbx` を置くと、");
+            sb.AppendLine("`Assets/GameData/Cutscene/Opening/CUT_Opening_Opening01.asset` が自動的に作られます。");
+            sb.AppendLine();
+            sb.AppendLine("## 注意");
+            sb.AppendLine();
+            sb.AppendLine("キャラ FBX の Model 識別子(ファイル名の `__` の後ろ)と一致する ModelData が見つかると、");
+            sb.AppendLine("自動で Humanoid + Avatar 引き継ぎで取り込まれます。見つからない場合は Console に警告が出ます。");
+            sb.AppendLine("再取り込みは自動生成トラック/カーブだけを差し替え、Timeline に手で足したトラックや");
+            sb.AppendLine("StepFps/Blend/Focus の設定はそのまま残ります。");
+            return sb.ToString();
         }
 
         // Windows 等の大文字小文字を区別しないファイルシステムでは、AssetDatabase.IsValidFolder(folderPath) が

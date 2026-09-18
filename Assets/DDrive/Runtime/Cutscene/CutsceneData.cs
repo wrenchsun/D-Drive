@@ -91,6 +91,12 @@ namespace DDrive.Runtime.Cutscene
         [Tooltip("取り込むフレーム範囲。Start=End=0 で FBX 全体(既定、[26] §5.1「逃げ道」)。")]
         public FrameRange SourceFrameRange;
 
+        [Tooltip("この CutsceneData を構成する全 FBX の GUID(カメラ+小物 1 本 + キャラごとの FBX。6-10c、[26] §6)。" +
+                 "ImportSourceGuid はカメラ+小物 FBX の GUID を代表として持つため、キャラ FBX の追跡にはこちらを使う。" +
+                 "再取り込みでノードが消えたトラックをミュートで残すかどうかの判定にも使う。手編集しないこと。")]
+        [HideInInspector]
+        public string[] SourceFbxGuids = Array.Empty<string>();
+
         [Tooltip("Skip() の挙動。Disabled=不可 / Immediate=即終了 / ToMarker=指定マーカーまで飛ばす([26] §4.1)。")]
         public CutsceneSkip Skip = CutsceneSkip.Immediate;
 

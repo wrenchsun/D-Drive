@@ -79,11 +79,17 @@ namespace DDrive.Editor.Import
         // Data: サンプル/テスト用の元アセット置き場(UnityChan 一式・ImportRuleServiceTests が参照する fbx 等)。
         // Samples: サンプル素材の退避先([10_workflow.md] §3.3、2026-09-14。SourceAssets/model(shizuku)が
         // 種別フォルダ "Model" と大文字小文字違いで衝突したため Samples/Shizuku へ退避した。ImportRule の対象外)。
+        // Cutscene: [26_timeline.md] §5/§6・6-10c(2026-09-18)。「1 ショット = カメラ+小物 FBX 1 本 + キャラ
+        // ごとの FBX N 本 → CutsceneData 1 個」という N:1 の対応・「自動生成トラックのみ差し替え」という
+        // 再取り込みの個別更新が `IImportRuleHandler`(1 元ファイル = 1 Data の Configure)では表現できないため、
+        // `CutsceneFbxPostprocessor`/`CutsceneImportService` を専用パイプラインとして実装した(Shaders と同じ、
+        // 「既に用途が決まっているフォルダ → 汎用の案内ログは出さない」扱い)。
         private static readonly HashSet<string> KnownNonTargetTypeFolders = new(StringComparer.Ordinal)
         {
             "Shaders",
             "Data",
             "Samples",
+            "Cutscene",
         };
 
         private static string _allowedTypeFolderList;

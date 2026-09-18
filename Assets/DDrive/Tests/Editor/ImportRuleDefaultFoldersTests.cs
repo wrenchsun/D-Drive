@@ -49,10 +49,10 @@ namespace DDrive.Tests.Editor
         {
             var report = ImportRuleDefaultFolders.EnsureDefaultFolders(TempRoot);
 
-            // 種別フォルダの数 + ルートフォルダ自体 = ImportRuleService.Handlers.Count + 1
-            Assert.AreEqual(ImportRuleService.Handlers.Count + 1, report.CreatedFolders);
-            // README: ルート 1 つ + 種別フォルダ分
-            Assert.AreEqual(ImportRuleService.Handlers.Count + 1, report.CreatedReadmes);
+            // 種別フォルダの数 + ルートフォルダ自体 + Cutscene(6-10c、Handlers に無い専用フォルダ) = Handlers.Count + 2
+            Assert.AreEqual(ImportRuleService.Handlers.Count + 2, report.CreatedFolders);
+            // README: ルート 1 つ + 種別フォルダ分 + Cutscene
+            Assert.AreEqual(ImportRuleService.Handlers.Count + 2, report.CreatedReadmes);
 
             Assert.IsTrue(AssetDatabase.IsValidFolder(TempRoot));
             Assert.IsTrue(File.Exists(Path.GetFullPath($"{TempRoot}/README.md")));
@@ -71,6 +71,13 @@ namespace DDrive.Tests.Editor
                     StringAssert.Contains(ext, content);
                 }
             }
+
+            // Cutscene(6-10c): ImportRuleService.Handlers には無い専用フォルダ([26_timeline.md] §6)。
+            var cutsceneFolder = $"{TempRoot}/{DDrive.Editor.Cutscene.CutsceneImportService.TypeFolder}";
+            Assert.IsTrue(AssetDatabase.IsValidFolder(cutsceneFolder), $"{cutsceneFolder} should exist");
+            var cutsceneReadme = $"{cutsceneFolder}/README.md";
+            Assert.IsTrue(File.Exists(Path.GetFullPath(cutsceneReadme)), $"{cutsceneReadme} should exist");
+            StringAssert.Contains(".fbx", File.ReadAllText(Path.GetFullPath(cutsceneReadme)));
         }
 
         [Test]

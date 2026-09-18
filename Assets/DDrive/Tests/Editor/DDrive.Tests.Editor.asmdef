@@ -11,7 +11,8 @@
         "Unity.ResourceManager",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.Timeline"
     ],
     "includePlatforms": [
         "Editor"
