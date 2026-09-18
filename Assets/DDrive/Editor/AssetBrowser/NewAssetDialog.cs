@@ -24,6 +24,9 @@ namespace DDrive.Editor.AssetBrowser
         // 場合の目安として 1 時間にした(要判断。docs/28 参照)。
         private static readonly TimeSpan SpecCacheStaleThreshold = TimeSpan.FromHours(1);
 
+        // 2026-09-18: 「仕様書から選ぶ」の開閉状態を EditorPrefs に保存する(Foldout 化。既定は開いたまま)。
+        private const string SpecFoldoutKey = "DDrive.NewAssetDialog.SpecFoldout";
+
         private List<(Type dataType, AssetType assetType)> _definitions;
         private DropdownField _typeField;
         private TextField _displayNameField;
@@ -136,9 +139,12 @@ namespace DDrive.Editor.AssetBrowser
             root.style.paddingTop = 8;
 
             // 5-16: 「仕様書から選ぶ」セクション(先頭)。選ぶと下の各欄が入力済みになる。
-            root.Add(new Label("仕様書から選ぶ") { style = { unityFontStyleAndWeight = FontStyle.Bold } });
+            // 2026-09-18: 折りたたみ可能な Foldout にする(開閉状態は EditorPrefs に保存。既定は開いたまま)。
+            var specFoldout = new Foldout { text = "仕様書から選ぶ", value = EditorPrefs.GetBool(SpecFoldoutKey, true) };
+            specFoldout.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(SpecFoldoutKey, evt.newValue));
+            root.Add(specFoldout);
             _specSection = new VisualElement();
-            root.Add(_specSection);
+            specFoldout.Add(_specSection);
             RebuildSpecSection();
 
             var divider = new VisualElement

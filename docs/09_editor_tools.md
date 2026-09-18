@@ -652,6 +652,10 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 「仕様書の URL が未設定です」の案内文を出し続けていた。判定を `WebAppUrl` に統一した（`NewAssetDialog.RebuildSpecSection`。
 旧フィールドは [32] §9 の要判断が済むまで残置）。テストも `NewAssetDialogSpecPickerTests` で `WebAppUrl` を使うよう更新。
 
+**2026-09-18 追記**: 「仕様書から選ぶ」見出し（`Label`）を折りたたみ可能な `Foldout` にした（項目数が多いときに畳んで隠せる）。
+開閉状態は `EditorPrefs`（キー `DDrive.NewAssetDialog.SpecFoldout`）に保存し、既定は開いた状態。内側の一覧・検索欄・
+選択中インジケータ（`_specSection` 以下）は変更なし。
+
 ### 8.6 Inspector の編集可否を分離（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-11）
 
 **課題**: `AssetDataInspector`（§8）の本文は「全部出す」だけで、`AssetDataBase` の `Id` / `Version` / `Author` / `UpdatedAt` のように
