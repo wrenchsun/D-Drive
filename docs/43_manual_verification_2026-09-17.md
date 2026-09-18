@@ -177,3 +177,38 @@ cd Tools/SpecWeb && clasp push
 | テストの穴 13 件 | [41](41_phase6_review_2026-09-17.md)。ネット系 5 件（偽造 Result / 保留のフラッシュ / タイムアウト時のイベント / 保留経由の偽造 / Cancel のレート制限）は実バグが 5 回出ている領域なので優先度が高い。**PC 2 台の実機確認が要る** |
 | P2-6 の本筋 | Validation の「全体結果」を Asset 無しの別経路にする（`ValidatorRegistry` = Foundation を触るため範囲外にしていた） |
 | 移植（P チケット） | [42](42_distribution.md)。A-1〜A-9 は 2026-09-17 に確定済み。**A-6（`KnownPrefixes` の不整合）は P-5（1.0.0）より前が最後の修正機会** |
+
+## 7. Timeline(6-10a〜d)の人による確認(2026-09-18 追記)
+
+Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a〜d)はコンパイル・EditMode/PlayMode テスト green(860/860・717/717)まで確認済みだが、**この環境には実 Maya 由来の FBX(カメラ・キャラアニメ付き)が無いため、実際の見た目・実データでの取り込みは未確認**。以下は実 Maya 素材が用意できたときに行う確認手順。
+
+### 7.1 まず必要なもの
+
+- Maya で書き出した実 FBX セット([DesignerManual/cutscene-maya-export.html](DesignerManual/cutscene-maya-export.html)の手順どおり): `<ショット>.fbx`(カメラ + 小物)+ `<ショット>__<Model識別子>.fbx`(キャラごと)
+- 対応する `ModelData`(`MODEL_*_<識別子>.asset`)が Humanoid Avatar 込みで先に登録済みであること
+
+### 7.2 Maya FBX 取り込みの確認
+
+- [ ] `Assets/SourceAssets/Cutscene/<カテゴリ>/` に FBX セットを置くと自動で取り込まれ、Asset Browser の「Cutscene」にショットが現れる
+- [ ] `Validation > Run All` で以下を確認する(いずれも今回追加した検査、[26_timeline.md] §5.3/§5.4):
+  - fps 不一致(Warning): カメラ/キャラ/小物のファイル間で fps が違う場合に出る
+  - `FrameRate` と取り込んだアニメーションの fps の不一致(Warning、FixAction で自動修正可)
+  - Humanoid クリップだが Avatar 未設定(Warning、`ModelData` 側)
+  - `CutsceneImportProfile.DefaultFrameRate` を 30↔60 に変えても既存 `CutsceneData.FrameRate` が変わらないこと([26] §5.3 の AC どおり)
+- [ ] 画角(FieldOfView)のカーブが実際に付くか([26] §7.3 未検証事項)。ピント距離・絞り・イベント用ロケーターは今回未対応(空のまま、または手動設定)であることを確認する
+
+### 7.3 Inspector 導線・確認用シーンの確認
+
+- [ ] 取り込まれた `CutsceneData` を選択し、Inspector 上部の「▶ Timeline ウィンドウで開く」を押すと標準 Timeline ウィンドウが開くこと
+- [ ] 同じく「▶ Cutscene確認用シーンを開く」を押すと `Assets/GameData/PreviewScenes/CutscenePreviewScene.unity` が開くこと(無ければ自動生成される)
+- [ ] バインド検査(Bindings ⇔ Timeline のトラック名)の一覧が、実際の役割名と一致していること。取り込みで自動生成された役割名(カメラ/キャラの識別子/小物の名前空間)が Bindings 側にも登録されていること
+- [ ] 確認用シーンで **Play ボタンを押して Play Mode に入る**(`CutsceneManager` は起動オブジェクト `DDriveRuntimeBootstrap` 経由でしか組み立てられないため、Edit Mode のままではカメラ/SE/VFX が反映されない、[26] §4.4 実装メモ)
+- [ ] Play Mode 中に CutsceneData の Inspector の「● 再生(Play Mode)」を押し、カメラがゲームカメラから Maya カメラへ滑らかに繋がり、終了後に元へ戻ること(§4.6.2 のブレンド)
+- [ ] Camera クリップの `StepFps` を変えると、カメラだけコマ落ちしキャラは滑らかなままであること(§4.6.3)
+- [ ] Play Mode 中に標準 Timeline ウィンドウでスクラブし、SE/VFX が連打・残留しないこと(§4.4)。**Edit Mode(非再生中)のスクラブでは実 Manager に届かないため確認できない**(§4.4 の制約、6-10d 実装メモ (5) 参照)
+- [ ] Console に「上書きされました」という警告(`CameraExecutionOrderValidator` の実行時検出 2、[26] §4.6.5)が出ないこと(出た場合はゲームカメラ制御の実行順が契約に違反している)
+
+### 7.4 再取り込み・削除の確認
+
+- [ ] Maya で直して同じファイル名で上書き書き出し → 自動生成トラックだけ差し替わり、Unity 側で足した SE/VFX トラックや Camera クリップの `StepFps`/`BlendIn`/`BlendOut`/`Focus` が保持されること
+- [ ] キャラの FBX を削除しても、対応する Timeline トラックは削除されずミュートになること(§5.2 の簡略化。自動ミュートは未実装なので、実際には「残るだけ」の可能性がある — 挙動を確認して食い違えばこのページと [26_timeline.md] を更新すること)

@@ -14,7 +14,7 @@
 <p>必殺技のカットインやラウンド開始 / 勝利デモのような<strong>数秒の短い演出</strong>で、Maya で作ったカメラワークとキャラの動きをそのまま Unity で再生するための、<strong>Maya 側の書き出し手順</strong>です。Maya のスクリプトやプラグインは使いません。標準の FBX 書き出しだけで済みます。Unity 側では、決められたフォルダに FBX を置くだけでカットシーンのデータ（CutsceneData）と Timeline が自動で作られ、そこに効果音・エフェクト・画面揺れなどを足せます。</p>
 
 <div class="warn">
-<strong>予告ページです（2026-09-18）。</strong> Unity 側の取り込み機能（Timeline チケット 6-10a〜d）はまだ実装されていません。ただし <strong>Maya 側の手順とファイル名のルールは確定済み</strong>なので、このページどおりに書き出しておけば、機能ができたときにそのまま取り込めます。機能ができたらこのページの「Unity 側で確認する」以降を実際の画面に合わせて更新します。
+<strong>2026-09-18 に Unity 側の取り込み機能(Timeline チケット 6-10a〜d)を実装しました。</strong> このページの手順とファイル名のルールで、そのまま取り込めます。ただし <strong>この環境には実際の Maya 書き出し FBX が無いため、カメラの画角以外(ピント距離・絞り・イベント用ロケーター)は実 Maya 素材での確認がまだ済んでいません</strong>(下の各節に記載)。実際に書き出して試したときに画面と食い違う点があれば都度このページを直してください。
 </div>
 
 <h2>先に決めておくこと（プロジェクト共通）</h2>
@@ -34,7 +34,7 @@
 <tr><td>キャラ（1 体ずつ）</td><td><code>&lt;ショット名&gt;__&lt;モデル識別子&gt;.fbx</code>（アンダースコア <strong>2 つ</strong>）</td><td><code>Opening01__Hero.fbx</code></td><td>役割 <code>Hero</code> として、モデル <code>Hero</code> に自動で結び付く</td></tr>
 <tr><td>同じキャラ 2 体目</td><td>識別子の末尾に <code>_2</code>、<code>_3</code> …</td><td><code>Opening01__Hero_2.fbx</code></td><td>同じモデルを 2 体出す</td></tr>
 <tr><td>小物（剣・扉など動く物）</td><td>ノード名を <code>PRP_&lt;モデル識別子&gt;</code>、または名前空間 = モデル識別子。カメラと同じ FBX に入れる</td><td><code>PRP_Sword</code></td><td>モデル <code>Sword</code> に結び付く</td></tr>
-<tr><td>イベントの目印（任意）</td><td>ロケーター <code>EVT_&lt;キー&gt;</code>。カメラと同じ FBX に入れる</td><td><code>EVT_Hit</code></td><td>Timeline 上の合図（Signal マーカー <code>cutscene/hit</code>）になる（Unity 側で検証中の機能。無くても Unity の Timeline 上で後から置けます）</td></tr>
+<tr><td>イベントの目印（任意）</td><td>ロケーター <code>EVT_&lt;キー&gt;</code></td><td><code>EVT_Hit</code></td><td><strong>今回は未対応です</strong>（実 Maya 素材が無く安全に検証できなかったため、6-10c では取り込みを実装していません）。Unity の Timeline ウィンドウで手動で D-Drive Signal マーカーを置いてください</td></tr>
 </table>
 <div class="tip">
 <strong><code>@</code> をファイル名に使わないでください</strong>（<code>Hero@Opening01.fbx</code> のような形）。Unity が「同じフォルダの <code>Hero.fbx</code> にアニメを合流させる」古い動きをしてしまうため、区切りは <code>__</code>（アンダースコア 2 つ）にしています。
@@ -65,9 +65,9 @@
 </table>
 
 <h2>カメラのピント・絞りも持っていきたいとき（任意）</h2>
-<p>画角（焦点距離）は標準の書き出しで持っていけます。<strong>ピント距離・絞り（f 値）</strong>は FBX の標準属性で届くかを Unity 側で検証中です。届かない場合は、Maya のカメラにカスタムアトリビュート <code>dd_focusDistance</code>（ピント距離、cm）と <code>dd_fStop</code>（絞り）を追加してキーを打ってください（標準機能。アトリビュート追加 → キー）。どちらの経路になるかは Unity 側の実装時に決まり、このページを更新します。持っていかなくても、Unity 側でショットごとに手で入れられます。</p>
+<p>画角（焦点距離）は標準の書き出しで持っていけます（Unity の Animation ウィンドウの既知の束縛名 <code>field of view</code> から取得する実装です)。<strong>ピント距離・絞り（f 値）</strong>は FBX の標準属性(<code>FocusDistance</code>/<code>FStop</code>)から複数の候補名で取得を試みる防御的な実装になっていますが、<strong>実 Maya 素材での確認はまだ済んでいません</strong>(この環境に実 FBX が無いため)。取得できなければ空のまま(ピントは書き込まれません)。うまく届かない場合は Maya のカメラにカスタムアトリビュート <code>dd_focusDistance</code>（ピント距離、cm）と <code>dd_fStop</code>（絞り）を追加してキーを打つ経路も設計上は用意していますが、こちらも今回は取り込みを実装していません(イベント用ロケーターと同じ理由)。持っていかなくても、Unity 側でショットごとに手で入れられます。</p>
 
-<h2>Unity 側で確認する（機能実装後に有効）</h2>
+<h2>Unity 側で確認する</h2>
 <ol>
 <li>FBX をフォルダに置くと自動で取り込まれ、Asset Browser の「Cutscene」にショットが現れる</li>
 <li><a href="validation.html">Validation</a> の「Run All」で次を確認する:
@@ -77,7 +77,8 @@
     <li><strong>Avatar が未設定</strong>（Error、モデル側）: キャラ本体のモデルデータに人型（Humanoid）の Avatar が無い。モデル担当に依頼</li>
   </ul>
 </li>
-<li>確認用シーンで再生して、カメラとキャラの動きが Maya と同じか見る。効果音・エフェクト・画面揺れは Unity の Timeline ウィンドウで足す（<a href="presentation.html">演出</a>と同じ ID を置くだけ）</li>
+<li>Asset Browser でショットの CutsceneData を選ぶと、Inspector 上部に「Timeline ウィンドウで開く」「Cutscene確認用シーンを開く」ボタンとバインド検査(役割名⇔Timeline のトラック名の食い違い)が出ます。効果音・エフェクト・画面揺れは Timeline ウィンドウで足す（<a href="presentation.html">演出</a>と同じ ID を置くだけ）</li>
+<li>実際に再生してカメラとキャラの動きが Maya と同じか見るには、「Cutscene確認用シーンを開く」で確認用シーンを開き、<strong>Play ボタンを押して(Play Mode に入って)</strong> から CutsceneData の Inspector の「再生」ボタンを押してください(カメラ・効果音・エフェクトの実際の適用は Play Mode 中でないと確認できません)。Play Mode 中は Timeline ウィンドウでスクラブしても実際の見た目のまま確認できます</li>
 </ol>
 
 <h2>直すとき</h2>

@@ -61,7 +61,7 @@
 <p>Manager は Data（<code>AssetDataBase</code> 派生の ScriptableObject）を実行時に書き換えません。Instance ごとに変化する現在値（再生位置、現在のマテリアル値など）は Instance 側に持たせます（例: <code>ModelsManager.Materials</code>）。エディタコードが Data を書き換えるときは必ず <code>Undo.RecordObject</code> + <code>EditorUtility.SetDirty</code> を通してください。</p>
 
 <h2 id="cutscene-contract">Cutscene（Timeline カットシーン）と共存するためのゲーム側の責務</h2>
-<p><strong>2026-09-18 に決めた契約です（設計書 <code>docs/26_timeline.md</code> §4.5.1 / §4.6.5。実装は Timeline チケット 6-10a〜d で、このページを書いた時点ではまだコードはありません）。</strong> Maya で作ったカメラワークをゲームカメラに滑らかに繋ぐため、D-Drive はカットシーン再生中にゲームのメインカメラ（<code>Camera.main</code>）の姿勢を<strong>ゲーム側の書き込みの後から上書き</strong>します。この上書きが成り立つ条件と、入力ロックの分担を、持ち込み先のゲームコードが守る契約として先に決めました（MS2026 のカメラ制御はこの契約に合わせて設計します）。</p>
+<p><strong>2026-09-18 に決めた契約です(設計書 <code>docs/26_timeline.md</code> §4.5.1 / §4.6.5。Timeline チケット 6-10a〜d で実装完了、<code>CameraExecutionOrderValidator</code> による検出 1 も 6-10d で実装済みです)。</strong> Maya で作ったカメラワークをゲームカメラに滑らかに繋ぐため、D-Drive はカットシーン再生中にゲームのメインカメラ(<code>Camera.main</code>)の姿勢を<strong>ゲーム側の書き込みの後から上書き</strong>します。この上書きが成り立つ条件と、入力ロックの分担を、持ち込み先のゲームコードが守る契約として先に決めました(MS2026 のカメラ制御はこの契約に合わせて設計します)。</p>
 
 <h3 id="camera-order">1. ゲームカメラ制御の実行順（契約）</h3>
 <p>D-Drive 側は <code>DDriveCutsceneCameraApplier</code>（初回再生時に <code>Camera.main</code> へ自動で付く小さな MonoBehaviour）が <code>LateUpdate</code> でカメラの Transform・画角を書きます。この実行順は次のとおりです。</p>

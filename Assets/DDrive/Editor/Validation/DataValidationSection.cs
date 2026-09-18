@@ -164,6 +164,10 @@ namespace DDrive.Editor.Validation
             "SpecDiffValidator",
             "ContentHashCatalogCoverageValidator",
             "CatalogAddressCoverageValidator",
+            // [26_timeline.md] §4.6.5 検出1(6-10d) — 全ランタイムスクリプトの実行順走査 + Assets/ 全体の
+            // テキスト走査を行うプロジェクト全体の検査。個別アセットの「検証」セクションに出しても
+            // 無関係なアセットに紐付くだけなので Run All 専用にする(上のコメントと同じ理由)。
+            "CameraExecutionOrderValidator",
         };
 
         private static List<IValidator> _validators;

@@ -31,8 +31,11 @@ namespace DDrive.Tests.Editor
         // 2026-09-14(5-4): PresentationEditorWindow を実装したため PresentationData を Exempt から外した。
         // 2026-09-18(6-10a): CutsceneData の編集 UI は Unity 標準の Timeline ウィンドウ([26_timeline.md] §3
         // 「編集 UI は Unity 標準の Timeline ウィンドウを使う。独自のタイムライン UI は作らない」)であり、
-        // D-Drive 独自の EditorWindow は持たない。Inspector の「エディターで開く」導線(標準 Timeline
-        // ウィンドウを開く・バインド検査)は 6-10d([11_tasks.md])の範囲。
+        // D-Drive 独自の EditorWindow は持たない。
+        // 2026-09-18(6-10d): Inspector 導線(標準 Timeline ウィンドウを開く・確認用シーンを開く・
+        // バインド検査・Play Mode 中の再生)は `CutsceneDataEditor`(`Editor/Cutscene/CutsceneDataEditor.cs`)
+        // で実装したが、これは [DataEditor] 属性付きの EditorWindow ではないため本テストの対象表には乗らない。
+        // Exempt は上記の理由により変更なし。
         private static readonly HashSet<string> Exempt = new() { nameof(CutsceneData) };
 
         private sealed class DerivedVfxData : VfxData
