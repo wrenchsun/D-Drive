@@ -1045,3 +1045,65 @@ Select-String -Path C:\DDriveTest\host_release.log -Pattern 'heartbeat=' | Selec
 **リリース相当ビルドの作り方**: `Tools > D-Drive > Build > 実機確認用 Windows リリース相当ビルド`。
 出力先を指定したい場合は `NetCheckBuilder.Build(outputDirectory: ..., development: false)` を直接呼ぶ
 （`development` の既定は `true` = 従来どおり開発ビルド。既存の呼び出しと CI は影響を受けない）。
+
+## 22. リリースビルド相当の切断確認（2026-09-18、PC-B Host + PC-C Client）— **合格**
+
+§21 の手順で実施。**4 基準すべて合格**し、開発ビルド（§20「警告して継続」）との対比が取れた。
+
+構成は §21 の想定から変わり、**PC-B がホットスポットの親（`192.168.137.1`）で Host**、**PC-C（`192.168.137.179`）が Client**。
+PC-A は関与しない。ビルドはどちらも `NetCheckBuilder.Build(development: false)` のリリース相当。
+
+| # | 基準 | 結果 |
+|---|---|---|
+| 1 | Host が該当 Client を切断 | **合格**。`[Net/Host] CatalogContentHashGate: ContentHash 不一致(Client 1): VfxCatalog: entries local=2 remote=2 — リリースビルドのため切断します。` |
+| 2 | Client 側に `DisconnectReason` | **合格**。`[Net/Client] NgoNetBridge: Host から切断されました(reason=カタログの ContentHash が一致しません(GameData のバージョンが異なります)。)。` |
+| 3 | カタログ名 + Entry 数だけ | **合格**。ハッシュ値・AssetId は出ていない |
+| 4 | 切断後に当該 Client が居なくなる | **合格**（切断ログで確認。下記 22.2-3 参照） |
+
+Host は切断後も稼働を継続（`vfx_active` 3〜4）。Client は静止し、**自動再接続はしない**（MS2026 の規約に無いため実装していない、という設計どおり）。
+Exception / Error / `InvalidKeyException` / Placeholder はいずれも 0 件。
+
+**ハッシュの実測値が PC-A と完全に一致した**（`4466529056671198312` → `4466527957159570875`）。別マシン・別ビルドで
+同じ値が出たので、`CatalogContentHasher` が環境に依存しないことの裏付けにもなっている。
+
+### 22.1 実装と docs のずれ（**要判断**）
+
+**不一致で切断される Client が、切断される前に演出を再生し始めている。** Client は接続直後に `activeCount=5` /
+`vfx_active=1` となり `track_fired`（Vfx/Se、`late_ms=11`）が発火し、その**約 0.2 秒後**に切断された。
+
+原因は処理の順序:
+
+- `PresentationManager.OnClientConnected`（`:760`）は **`ClientConnected` で即座に Late Join のスナップショットを送る**
+- `CatalogContentHashGate` も `ClientConnected` を購読するが、照合は**往復が要る**（Client が
+  `RegisterCatalogsAsync` 完了後に自分のハッシュを `Broadcast` → Host が比較 → 結果を `SendTo`）
+
+つまり**照合が終わる前に Late Join の同期が走る**。`docs/14_networking.md` §7 の「接続ハンドシェイクで照合:
+不一致 → 切断」を字義どおり取るなら、実装は「ハンドシェイクでのゲート」ではなく**「接続を通してから事後に照合」**である。
+
+| 案 | 内容 | 影響 |
+|---|---|---|
+| A（現状維持） | 0.2 秒ほど誤ったデータで演出が出てから切断される。docs の表現を実装に合わせて直す | 実害は「一瞬おかしな絵が出る」だけ。正規 Client の接続は最速 |
+| B | 照合が通るまで Late Join のスナップショットを送らない | 正規 Client も 1 往復分待たされる。Late Join の復元が遅れる |
+
+**ユーザー判断が要る。** 現状は A の挙動。
+
+### 22.2 軽微な指摘（PC-C 側から）
+
+1. **Client 側の `content_hash` が最後まで「検証中...」のまま**。Host は「不一致: 切断しました」と終状態を出すのに、
+   Client 側だけゲートの結果が `heartbeat` の欄に反映されない（切断から 2 分後も変わらず）。判定には影響しないが、
+   **この欄だけ見ると「検証が終わる前に切られた」と誤読する**。直す価値がある
+2. **Host の `heartbeat` に接続中の Client 数を示す欄が無い**（`clientId=0` は Host 自身）。基準 4 は切断ログで
+   判断するしかない。欄を足すと実機確認が楽になる
+3. `NetCheckRunner.OnRemoteOneShotSkipped` の `track_skipped` は `#if DEVELOPMENT_BUILD || UNITY_EDITOR` で
+   囲われており、リリース相当ビルドでは出ない（§21.6）
+
+### 22.3 実施してみて分かった環境の問題（**次にやる人は必ず踏む**）
+
+| # | 問題 | 対処 |
+|---|---|---|
+| 1 | **学校のプロキシ**（`HTTP_PROXY=proxy01.osaka.hal.ac.jp:8080`）が環境変数に入っており、`NO_PROXY` にホットスポットの IP が無いため **`Invoke-WebRequest` と素の `curl` が失敗する** | `curl.exe --noproxy 192.168.137.1 -O http://192.168.137.1:8765/<zip 名>` を使う |
+| 2 | **Addressables の「Build Report / Debug Build Layout を有効にするか」のモーダル**がビルドのたびに出て、**MCP のツール呼び出しが全部タイムアウトする** | ユーザーがダイアログを閉じる。無人で回さない |
+| 3 | **Unity エディタを開いたままだとバッチモードのビルドが失敗する** | 開いているエディタを MCP の `execute_code` で操作してビルドする |
+| 4 | **セッション間の伝達経路が Markdown として解釈するため、手順書の `_` と `*` が消える**（`client_release.log` → `clientrelease.log`、`$_.Line` → `$.Line`） | 人へ渡す文面ではアンダースコアとアスタリスクを避ける（`ForEach-Object Line` 等） |
+
+4 は盲点だった。**手順書をコードブロックで書いても、経路によっては壊れる。**
