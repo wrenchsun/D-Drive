@@ -29,5 +29,8 @@ namespace DDrive.Foundation.Identity
 
         // [15_ui_interaction.md] / [18_ui_controls.md]: UiInteractable 共通 Skin(ButtonSkinData 等)。2026-09-11 追加。
         ControlSkin,
+
+        // [26_timeline.md] §4.1: Maya FBX 取り込み + D-Drive トラックの Timeline 基盤(CutsceneData)。6-10a で追加。
+        Cutscene,
     }
 }

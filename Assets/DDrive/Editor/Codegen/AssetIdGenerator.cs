@@ -231,6 +231,8 @@ namespace DDrive.Editor.Codegen
         {
             "SE", "BGM", "VFX", "ANIM", "ANIM2D", "MAT", "TEX", "CANVAS", "PREFAB", "PRES", "SHAKE", "HAPTIC", "HAPTICS", "UITWEEN",
             "MODEL", "ANC", "ANCG", "SKIN",
+            // [26_timeline.md] §4.1(6-10a、2026-09-18): CutsceneData の接頭辞。P 発効(P-13)前のため追加可能。
+            "CUT",
         };
 
         // internal(同一 asmdef): 5-6 の CodeReferenceScan が「削除しようとしている ID の生成済み定数名」を

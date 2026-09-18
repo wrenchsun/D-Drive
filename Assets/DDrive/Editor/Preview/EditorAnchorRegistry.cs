@@ -67,6 +67,9 @@ namespace DDrive.Editor.Preview
             Collect<DDrive.Runtime.Ui.CanvasData>(AssetType.Canvas, entries, loads);
             Collect<DDrive.Runtime.Ui.ButtonSkinData>(AssetType.ControlSkin, entries, loads);
             Collect<DDrive.Runtime.Ui.UiTweenData>(AssetType.UiTween, entries, loads);
+            // 2026-09-18(6-10a): PresentationEditor の統合プレビューが TrackKind.Timeline から CutsceneData を
+            // ID 解決できるように登録する(Shake/Haptics と同じ理由。未登録だと Presentation 経由で常に Placeholder になる)。
+            Collect<DDrive.Runtime.Cutscene.CutsceneData>(AssetType.Cutscene, entries, loads);
 
             var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
             catalog.hideFlags = HideFlags.HideAndDontSave;
@@ -88,6 +91,7 @@ namespace DDrive.Editor.Preview
                 else if (type == typeof(DDrive.Runtime.Ui.CanvasData)) registry.ResolveAsync<DDrive.Runtime.Ui.CanvasData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Ui.ButtonSkinData)) registry.ResolveAsync<DDrive.Runtime.Ui.ButtonSkinData>(id).GetAwaiter().GetResult();
                 else if (type == typeof(DDrive.Runtime.Ui.UiTweenData)) registry.ResolveAsync<DDrive.Runtime.Ui.UiTweenData>(id).GetAwaiter().GetResult();
+                else if (type == typeof(DDrive.Runtime.Cutscene.CutsceneData)) registry.ResolveAsync<DDrive.Runtime.Cutscene.CutsceneData>(id).GetAwaiter().GetResult();
                 else registry.ResolveAsync<DDrive.Runtime.Audio.SeData>(id).GetAwaiter().GetResult();
             }
 

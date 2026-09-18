@@ -15,8 +15,8 @@ namespace DDrive.Runtime.Presentation
     }
 
     // [01_architecture.md] §6 / [08_presentation.md] §2 のトラック種別。
-    // CameraShake([16] Part A)/ Haptic([16] Part B)は 5-2/5-2b で実装済み。Timeline のみ 6-10 待ちで
-    // 警告 1 回 + no-op として扱う。
+    // CameraShake([16] Part A)/ Haptic([16] Part B)は 5-2/5-2b で実装済み。Timeline は 6-10a で
+    // CutsceneManager に接続済み(未配線時は警告 1 回 + no-op)。
     // Marker / Signal は他 Manager に委譲せず、SignalKey をそのまま「名前」として使う(実装メモ: [08] 実装メモ参照)。
     //   Marker → handle.OnMarker(string) を発火(データ→コードの通知)
     //   Signal → PlayContext.OnSignal(string) を呼ぶ(データ→コードの通知。handle.Signal() はコード→データの逆方向)

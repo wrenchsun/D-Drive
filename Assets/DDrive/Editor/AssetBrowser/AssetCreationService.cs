@@ -133,10 +133,13 @@ namespace DDrive.Editor.AssetBrowser
         // 2026-09-17: この判定を Create() の既定設定と AddressablesRegistrationValidator の検出が別々に
         // 持っていて、片方だけ更新して追加漏れが起きる事故が 4 回(Canvas/ControlSkin → Presentation/Shake/Haptics
         // → Anim/Anim2D → Presentation/Shake/Haptics の検出漏れ)続いたため、ここ 1 箇所に集約する。
+        // 2026-09-18(6-10a): CutsceneManager.PlayData/Play も ResolveOrPlaceholder の同期解決のみで
+        // CutsceneData を引くため、同じ理由で追加する([26_timeline.md] §4.5)。
         public static bool NeedsPreloadDefault(AssetType type)
             => type == AssetType.Canvas || type == AssetType.ControlSkin || type == AssetType.Presentation
                 || type == AssetType.Shake || type == AssetType.Haptics
-                || type == AssetType.Anim || type == AssetType.Anim2D;
+                || type == AssetType.Anim || type == AssetType.Anim2D
+                || type == AssetType.Cutscene;
 
         // 種別→カタログファイルの対応([01_architecture.md] §5: AudioCatalog は SE/BGM を束ねる)。
         public static string GetCatalogName(AssetType type) => type switch
@@ -153,6 +156,7 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.UiTween => "UiTweenCatalog",
             AssetType.Anchor or AssetType.AnchorGroup => "AnchorCatalog",
             AssetType.ControlSkin => "UiCatalog",
+            AssetType.Cutscene => "CutsceneCatalog",
             _ => "MiscCatalog",
         };
 

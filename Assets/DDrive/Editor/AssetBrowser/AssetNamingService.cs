@@ -29,6 +29,7 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.Anchor => "ANC",
             AssetType.AnchorGroup => "ANCG",
             AssetType.ControlSkin => "SKIN",
+            AssetType.Cutscene => "CUT",
             _ => "ASSET",
         };
 
@@ -52,6 +53,7 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.Anchor => "Anchor",
             AssetType.AnchorGroup => "AnchorGroup",
             AssetType.ControlSkin => "Ui/Skin",
+            AssetType.Cutscene => "Cutscene",
             _ => "Misc",
         };
 

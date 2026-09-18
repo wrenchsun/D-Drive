@@ -10,6 +10,7 @@ using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
+using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Loading;
 using DDrive.Runtime.Material;
@@ -113,6 +114,8 @@ namespace DDrive.Runtime.Loop
         public HapticsManager Haptics { get; private set; }
         // [08_presentation.md] / [11_tasks.md] 5-1 — 演出統合(Presentation)のオーケストレータ。
         public PresentationManager Presentation { get; private set; }
+        // [26_timeline.md] / [11_tasks.md] 6-10a — Maya FBX 取り込み + D-Drive トラックの Timeline 基盤。
+        public CutsceneManager Cutscene { get; private set; }
         // [18_ui_controls.md] B-4(4-16) — 音量/アクセシビリティ/UI 速度の永続化ストア。起動時に PlayerPrefs から読み込む。
         public OptionStore Options { get; private set; }
         public AnchorGroupPlayer Groups { get; private set; }
@@ -122,6 +125,8 @@ namespace DDrive.Runtime.Loop
         public AssetEventDispatcher PrefabDispatcher { get; private set; }
         // Ui.Events(OnSpawn/OnEnable/OnDisable/OnDestroy)を SE/VFX へ配線する 3 つ目の Dispatcher([07] A-3)。
         public AssetEventDispatcher UiDispatcher { get; private set; }
+        // Cutscene.Events(OnSpawn/OnEnable/OnDisable/OnDestroy/Custom)を SE/VFX へ配線する 4 つ目の Dispatcher(6-10a)。
+        public AssetEventDispatcher CutsceneDispatcher { get; private set; }
 
         // カタログ登録が終わったか(IsReady 前の Play は未登録 ID として Placeholder になる)。
         public bool IsReady { get; private set; }
@@ -296,12 +301,15 @@ namespace DDrive.Runtime.Loop
             Options.Load(optionStorage);
             Ui.SetOptionStore(Options);
             Groups = new AnchorGroupPlayer(Registry, Vfx, Audio);
+            // [26_timeline.md] §4.5/§6(6-10a) — CutsceneManager は Presentation より前に作る
+            // (PresentationManager.TrackKind.Timeline がこの参照を必要とするため)。
+            Cutscene = new CutsceneManager(Registry, Models, NetBridge);
             // [11_tasks.md] 5-1 — Loop.TimeService を渡すことで、HitStop トラックが TimeService.HitStop を
             // 呼ぶだけで AtTime の進行も(他の全 Manager と同じく)自動的に止まる(GameLoopDriver が
             // ScaledDeltaTime を配るため、Presentation 側で特別な配線は不要)。
             // [14_networking.md] §5(5-8/5-9) — Audio/Vfx/Prefabs と同じく NetBridge を渡す(現状は
             // LocalLoopbackBridge のため常に完全ローカル。NGO 統合は Phase 6 でここを差し替える)。
-            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics, NetBridge);
+            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics, NetBridge, cutscene: Cutscene);
             // [11_tasks.md] 6-0 修正3(実機確認で発見した課題3) — カタログ登録(RegisterCatalogsAsync、Start())が
             // 完了する前に接続直後のスナップショット(PresentationPlayMsg)を受信すると、Registry にまだ
             // 存在しない PresId が Unregistered として Placeholder に解決されてしまう(Late Join 直後の実機確認で
@@ -321,6 +329,7 @@ namespace DDrive.Runtime.Loop
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
             UiDispatcher = new AssetEventDispatcher(Ui.Events, Registry, Audio, Vfx, Ui.GetContextTransform, Groups);
+            CutsceneDispatcher = new AssetEventDispatcher(Cutscene.Events, Registry, Audio, Vfx, Cutscene.GetContextTransform, Groups);
 
             var loop = Loop.GameLoop;
             loop.Register(Audio);
@@ -333,6 +342,7 @@ namespace DDrive.Runtime.Loop
             loop.Register(Ui);
             loop.Register(UiTweens);
             loop.Register(Haptics);
+            loop.Register(Cutscene);
             loop.Register(Presentation);
             _groupAdapter = new AnchorGroupLoopAdapter(Groups);
             loop.Register(_groupAdapter);
@@ -360,6 +370,7 @@ namespace DDrive.Runtime.Loop
                 Anchors.Bind(Groups);
                 Runtime.Tuning.Tuning.Bind(TuningTable);
                 Runtime.Loading.ScenePreload.Bind(Registry); // [11_tasks.md] 5-7
+                Runtime.Cutscene.Cutscene.Bind(Cutscene); // [11_tasks.md] 6-10a
                 Runtime.Presentation.Presentation.Bind(Presentation); // [11_tasks.md] 5-1
             }
 
@@ -444,6 +455,7 @@ namespace DDrive.Runtime.Loop
             if (NgoBridgeRef != null && !NgoBridgeRef.IsServer)
             {
                 Presentation?.CancelAllNetworked();
+                Cutscene?.CancelAllNetworked();
             }
         }
 
@@ -477,6 +489,7 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Ui);
                 loop.Unregister(UiTweens);
                 loop.Unregister(Haptics);
+                loop.Unregister(Cutscene);
                 loop.Unregister(Presentation);
                 loop.Unregister(_groupAdapter);
                 loop.Unregister(_cameraFxAdapter);
@@ -488,6 +501,8 @@ namespace DDrive.Runtime.Loop
             PrefabDispatcher = null;
             UiDispatcher?.Dispose();
             UiDispatcher = null;
+            CutsceneDispatcher?.Dispose();
+            CutsceneDispatcher = null;
 
             if (BindFacades)
             {
@@ -508,6 +523,7 @@ namespace DDrive.Runtime.Loop
                 Anchors.Bind(null);
                 Runtime.Tuning.Tuning.Bind(null);
                 Runtime.Loading.ScenePreload.Bind(null); // [11_tasks.md] 5-7
+                Runtime.Cutscene.Cutscene.Bind(null); // [11_tasks.md] 6-10a
                 Runtime.Presentation.Presentation.Bind(null); // [11_tasks.md] 5-1
             }
 

@@ -13,6 +13,7 @@ using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
+using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Net;
 using DDrive.Runtime.Ui;
@@ -25,7 +26,8 @@ namespace DDrive.Runtime.Presentation
 {
     // [08_presentation.md] §3 / [01_architecture.md] §8 — 「剣攻撃」等の演出データを 1 API で再生する
     // オーケストレータ(5-1)。自身は何も再生せず、Tracks を各 Manager(Audio/Vfx/Anim/Anim2D/Canvas/UiTween/
-    // CameraFx/Haptics)へ委譲するだけ。Timeline のみ 6-10 待ちのため警告 1 回 + no-op。
+    // CameraFx/Haptics/Cutscene)へ委譲するだけ。Timeline は 6-10a で CutsceneManager に接続済み
+    // (未配線時は警告 1 回 + no-op で継続)。
     //
     // Tick は GameLoop 経由で TimeService.ScaledDeltaTime(unscaledDt) を受け取るため、HitStop 中は
     // (他の全 Manager 同様)AtTime の進行も自動的に止まる([16_camera_haptics.md] 参照。特別な配線は不要)。
@@ -61,6 +63,8 @@ namespace DDrive.Runtime.Presentation
             public List<(int track, Handle<CanvasMarker> handle)> FiredCanvas;
             public List<(int track, Handle<ShakeMarker> handle)> FiredShake;
             public List<(int track, Handle<HapticMarker> handle)> FiredHaptic;
+            // [26_timeline.md] §6(6-10a) — TrackKind.Timeline が委譲する CutsceneManager の Handle。
+            public List<(int track, Handle<CutsceneMarker> handle)> FiredCutscene;
 
             // ── [14_networking.md] §5(5-8/5-9) ネット関連の付帯情報 ──
             // HandleNetKey!=0 のとき「ネットワーク経路(Cosmetic)を通った Instance」であることを示す
@@ -98,6 +102,8 @@ namespace DDrive.Runtime.Presentation
         private readonly UiTweenManager _uiTween;
         private readonly CameraFxManager _cameraFx;
         private readonly HapticsManager _haptics;
+        // [26_timeline.md] §6(6-10a) — TrackKind.Timeline の委譲先。null なら未実装時と同じ警告 1 回 + no-op。
+        private readonly CutsceneManager _cutscene;
 
         private readonly InstanceStore<PresentationMarker, PresentationInstance> _instances = new();
         private readonly List<Handle<PresentationMarker>> _active = new();
@@ -244,7 +250,8 @@ namespace DDrive.Runtime.Presentation
             CameraFxManager cameraFx = null,
             HapticsManager haptics = null,
             INetBridge netBridge = null,
-            float remoteOneShotGraceSec = 0.5f)
+            float remoteOneShotGraceSec = 0.5f,
+            CutsceneManager cutscene = null)
         {
             _registry = registry;
             _time = timeService;
@@ -257,6 +264,7 @@ namespace DDrive.Runtime.Presentation
             _cameraFx = cameraFx;
             _haptics = haptics;
             _netBridge = netBridge;
+            _cutscene = cutscene;
             _remoteOneShotGraceSec = Mathf.Max(0f, remoteOneShotGraceSec);
             // 6-6(K3 修正) — 「例 1 秒、または remoteOneShotGraceSec の 2 倍」(要求どおり)。既定の
             // remoteOneShotGraceSec=0.5s なら 1.0s になる。シリアライズフィールドは増やさない
@@ -339,6 +347,7 @@ namespace DDrive.Runtime.Presentation
                 FiredCanvas = new List<(int, Handle<CanvasMarker>)>(),
                 FiredShake = new List<(int, Handle<ShakeMarker>)>(),
                 FiredHaptic = new List<(int, Handle<HapticMarker>)>(),
+                FiredCutscene = new List<(int, Handle<CutsceneMarker>)>(),
                 HandleNetKey = handleNetKey,
                 IsNetworked = isNetworked,
                 PlayedViaNetworkReceive = playedViaNetworkReceive,
@@ -1117,6 +1126,15 @@ namespace DDrive.Runtime.Presentation
                     _haptics.Stop(h);
                 }
             }
+
+            for (var i = 0; i < instance.FiredCutscene.Count; i++)
+            {
+                var h = instance.FiredCutscene[i].handle;
+                if (_cutscene != null && _cutscene.IsPlaying(h))
+                {
+                    _cutscene.Cancel(h);
+                }
+            }
         }
 
         // [14_networking.md] §5(6-0 修正7、実機確認 v3 で発見した実バグの修正) — 自分の接続が切れた
@@ -1506,7 +1524,7 @@ namespace DDrive.Runtime.Presentation
                     break;
 
                 case TrackKind.Timeline:
-                    WarnUnimplemented(track.Kind);
+                    FireTimeline(instance, trackIndex, in track);
                     break;
             }
 
@@ -1557,6 +1575,27 @@ namespace DDrive.Runtime.Presentation
             for (var i = 0; i < count; i++)
             {
                 _vfx.SetParam(handle, data.Params[i].Label, track.Params[i]);
+            }
+        }
+
+        // [26_timeline.md] §6/§3.1(6-10a) — Presentation → Cutscene の入れ子(「Maya カメラも使うし、
+        // ヒットも待ちたい」ケース。Presentation を親にして Timeline トラックで Cutscene を呼ぶ)。
+        // track.Asset.Id を CutsceneId として CutsceneManager.Play に委譲するだけの薄い接続。
+        private void FireTimeline(PresentationInstance instance, int trackIndex, in PresentationTrack track)
+        {
+            if (_cutscene == null)
+            {
+                WarnMissingManager(TrackKind.Timeline);
+                return;
+            }
+
+            var data = _registry.ResolveOrPlaceholder<CutsceneData>(track.Asset.Id);
+            var ctx = instance.Ctx;
+            var h = _cutscene.PlayData(data, in ctx);
+
+            if (track.StopOnCancel && _cutscene.IsPlaying(h))
+            {
+                instance.FiredCutscene.Add((trackIndex, h));
             }
         }
 

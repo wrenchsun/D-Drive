@@ -13,6 +13,7 @@ using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
+using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Presentation;
@@ -28,7 +29,11 @@ namespace DDrive.Tests.Editor
     {
         // 専用エディタを持たない Data 種別はここに明示する(理由をコメントで残す)。
         // 2026-09-14(5-4): PresentationEditorWindow を実装したため PresentationData を Exempt から外した。
-        private static readonly HashSet<string> Exempt = new();
+        // 2026-09-18(6-10a): CutsceneData の編集 UI は Unity 標準の Timeline ウィンドウ([26_timeline.md] §3
+        // 「編集 UI は Unity 標準の Timeline ウィンドウを使う。独自のタイムライン UI は作らない」)であり、
+        // D-Drive 独自の EditorWindow は持たない。Inspector の「エディターで開く」導線(標準 Timeline
+        // ウィンドウを開く・バインド検査)は 6-10d([11_tasks.md])の範囲。
+        private static readonly HashSet<string> Exempt = new() { nameof(CutsceneData) };
 
         private sealed class DerivedVfxData : VfxData
         {
