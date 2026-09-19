@@ -227,5 +227,62 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(1, count);
             Assert.AreEqual("埋め込み Anchor", buffer[0].Label);
         }
+
+        // ── 逆算(2026-09-20、指摘2「ケース1のハンドル」): 親(トラック Anchor)∘子(アセット側) = 合成済み ──
+
+        [Test]
+        public void SolveTrackLocal_PositionOnly_RoundTripsThroughComposeNodes()
+        {
+            var childOffset = new Vector3(0.3f, 1.2f, -0.4f);
+            var childEuler = Vector3.zero;
+            var desiredOffset = new Vector3(2f, 0.5f, -1f);
+            var desiredEuler = Vector3.zero;
+
+            PresentationTrackAnchorComposer.SolveTrackLocal(desiredOffset, desiredEuler, childOffset, childEuler, out var trackOffset, out var trackEuler);
+
+            var nodes = new[]
+            {
+                AnchorChainNode.FromDef(new AnchorDef { Space = AnchorSpace.World, LocalOffset = childOffset, LocalEuler = childEuler, LocalScale = Vector3.one }),
+                AnchorChainNode.FromDef(new AnchorDef { Space = AnchorSpace.World, LocalOffset = trackOffset, LocalEuler = trackEuler, LocalScale = Vector3.one }),
+            };
+            var composed = AnchorChain.ComposeNodes(nodes, nodes.Length, sampleRandom: false);
+
+            Assert.Less(Vector3.Distance(desiredOffset, composed.Def.LocalOffset), 1e-4f);
+        }
+
+        [Test]
+        public void SolveTrackLocal_PositionAndRotation_RoundTripsThroughComposeNodes()
+        {
+            var childOffset = new Vector3(0f, 0f, 1f);
+            var childEuler = new Vector3(0f, 30f, 0f);
+            var desiredOffset = new Vector3(1.5f, 0.2f, -0.7f);
+            var desiredEuler = new Vector3(0f, 100f, 0f);
+
+            PresentationTrackAnchorComposer.SolveTrackLocal(desiredOffset, desiredEuler, childOffset, childEuler, out var trackOffset, out var trackEuler);
+
+            var nodes = new[]
+            {
+                AnchorChainNode.FromDef(new AnchorDef { Space = AnchorSpace.World, LocalOffset = childOffset, LocalEuler = childEuler, LocalScale = Vector3.one }),
+                AnchorChainNode.FromDef(new AnchorDef { Space = AnchorSpace.World, LocalOffset = trackOffset, LocalEuler = trackEuler, LocalScale = Vector3.one }),
+            };
+            var composed = AnchorChain.ComposeNodes(nodes, nodes.Length, sampleRandom: false);
+
+            Assert.Less(Vector3.Distance(desiredOffset, composed.Def.LocalOffset), 1e-3f);
+            Assert.Less(Quaternion.Angle(Quaternion.Euler(desiredEuler), Quaternion.Euler(composed.Def.LocalEuler)), 0.1f);
+        }
+
+        // ComposeAssetOnly はケース3(ComposeBoth)の「子」計算と同じ式であること(アセット側の連鎖単独)。
+        [Test]
+        public void ComposeAssetOnly_MatchesAssetOnlyBranchOfCompose()
+        {
+            var embedded = new AnchorDef { Space = AnchorSpace.World, LocalOffset = new Vector3(1f, 2f, 3f), LocalEuler = new Vector3(0f, 45f, 0f), LocalScale = Vector3.one };
+
+            var viaComposeAssetOnly = PresentationTrackAnchorComposer.ComposeAssetOnly(default, in embedded, null, sampleRandom: false);
+            var track = new PresentationTrack { Kind = TrackKind.Vfx, Anchor = AnchorDef.WorldDefault };
+            var viaCompose = PresentationTrackAnchorComposer.Compose(in track, default, in embedded, null, sampleRandom: false);
+
+            Assert.AreEqual(viaCompose.Def.LocalOffset, viaComposeAssetOnly.Def.LocalOffset);
+            Assert.AreEqual(viaCompose.Def.LocalEuler, viaComposeAssetOnly.Def.LocalEuler);
+        }
     }
 }

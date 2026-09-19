@@ -210,6 +210,12 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 - **AnchorGroup(配置セット)は Vfx/Se と表示方法が異なる**: 単一の `track.Anchor` ではなく、参照先 `AnchorGroupData` の**全点**を `AnchorGroupPlanner.EnumeratePoints` で列挙し、`AnchorGroupEditorWindow` と同じ番号付きの点として描く。**点の編集(移動)はしない**(常に Anchor Group Editor に任せる。ラベルに「(編集は Anchor Group Editor)」と明示)
 - 詳細（優先順位の確定事実、色の使い分け、ライブリアプライをしない理由、AnchorGroup トラックの設計判断）は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-19）を参照
 
+**追記（2026-09-20、ユーザーの確認作業で出た指摘 4 件への対応）**:
+
+- **クリック可能な薄い目印**: `SceneGuiOwner` の描画権を持たないウィンドウの薄い目印は、以前は表示のみだった。`Editor/Preview/AnchorSceneHandles.cs` に共通 API `DrawClickableMarker(anchor, baseTransform, extraOffset, label, color, active)` を追加し、押されたら呼び出し元がそのウィンドウを `SceneGuiOwner.Claim` + `Focus()` して描画権を奪うようにした。PresentationEditorWindow(トラック選択)・VfxEditorWindow・AnchorEditorWindow の 3 か所がこれを使う（コピペしない）。当たり判定（pickSize）は可視の円（`DrawTargetMarker` と同じ半径 `handleSize*0.25`）に合わせて広げた（以前は `handleSize*0.12〜0.18` 相当で小さすぎた）。クリックすると Presentation Editor 側はトラック一覧の該当行を展開し `ScrollView.ScrollTo` で見える位置までスクロールする
+- **ケース1（アセット側のみ設定）にもハンドルを出す設計変更**、**ケース3で掴む点を「最終位置」に統一した設計変更**、逆算の式（`PresentationTrackAnchorComposer.SolveTrackLocal`）の詳細は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-20）を参照
+- **トラックの行から専用エディタを同時に開く**（「一緒に調整」/「単体で確認用シーンに開き直す」の 2 モード）は §8 系の「エディターで開く」導線の Presentation 版。VfxEditorWindow / AnchorGroupEditorWindow / AnimEditorWindow に `Open(data, GameObject attachTarget)` の overload を追加し、`PresentationTrackEditorRouting`（ウィンドウを開かずに種別→経路の対応をテストできる純粋な分類関数）が振り分ける。詳細は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-20）を参照
+
 ## 3. ID 参照 PropertyDrawer
 
 - `SeIdRef` 等のフィールドを Inspector で「検索付きドロップダウン + プレビューボタン + Browser で開く」として描画

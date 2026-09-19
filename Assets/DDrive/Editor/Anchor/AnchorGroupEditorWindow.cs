@@ -68,6 +68,27 @@ namespace DDrive.Editor.Anchor
             }
         }
 
+        // [08_presentation.md] 指摘3/4(2026-09-20)「一緒に調整」— PresentationEditor の AnchorGroup トラック
+        // から開くときに使う。確認用シーンを開き直さない・プレビューを止めない。attachTarget は「スポーン先
+        // (シーン内・任意)」欄(_attachTarget)にそのまま渡すだけ(原点の Space/Path の検索起点)。
+        public static void Open(AnchorGroupData target, GameObject attachTarget)
+        {
+            var window = GetWindow<AnchorGroupEditorWindow>("Anchor Group Editor");
+            window.minSize = new Vector2(500, 400);
+            if (target != null)
+            {
+                window.SetTarget(target);
+            }
+
+            window._attachTarget = attachTarget;
+            if (window._attachField != null)
+            {
+                window._attachField.SetValueWithoutNotify(attachTarget);
+                window.RefreshStatus();
+                SceneView.RepaintAll();
+            }
+        }
+
         // ── ライフサイクル ──
 
         private void OnEnable()

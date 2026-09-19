@@ -67,6 +67,28 @@ namespace DDrive.Editor.Vfx
             }
         }
 
+        // [08_presentation.md] 指摘3(2026-09-20)「一緒に調整」— PresentationEditor 等、他のエディタが
+        // 開いている確認用シーン・配置済みモデルをそのまま使う。確認用シーンを開き直さない・プレビューを
+        // 止めない(通常の Open(VfxData) と違い、シーン準備やプレビュー開始は一切行わない)。
+        // attachTarget は「スポーン先(シーン内・任意)」欄(_attachTarget)にそのまま渡すだけ。
+        public static void Open(VfxData target, GameObject attachTarget)
+        {
+            var window = GetWindow<VfxEditorWindow>("VFX Editor");
+            window.minSize = new Vector2(500, 380);
+            if (target != null)
+            {
+                window.SetTarget(target);
+            }
+
+            window._attachTarget = attachTarget;
+            if (window._attachField != null)
+            {
+                window._attachField.SetValueWithoutNotify(attachTarget);
+                window.RefreshBoneMenu();
+                window.RefreshAnchorStatus();
+            }
+        }
+
         // ── ライフサイクル ──
 
         private void OnEnable()

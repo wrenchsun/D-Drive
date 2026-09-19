@@ -123,10 +123,7 @@ namespace DDrive.Runtime.Presentation
                     return AnchorSpawnSpec.FromDef(AnchorDef.WorldDefault);
 
                 case Case.AssetOnly:
-                    // [21_anchor_spec.md] §3.3 と同じ優先順位: AnchorId の連鎖 > 埋め込み Anchor。
-                    return assetAnchorId.IsValid && registry != null
-                        ? AnchorChain.Resolve(registry, assetAnchorId, sampleRandom)
-                        : AnchorSpawnSpec.FromDef(assetEmbeddedAnchor);
+                    return ComposeAssetOnly(assetAnchorId, in assetEmbeddedAnchor, registry, sampleRandom);
 
                 case Case.TrackOnly:
                     return AnchorSpawnSpec.FromDef(track.Anchor);
@@ -134,6 +131,40 @@ namespace DDrive.Runtime.Presentation
                 default: // Both — トラックを親、アセット側を子として合成する。
                     return ComposeBoth(in track, assetAnchorId, in assetEmbeddedAnchor, registry, sampleRandom);
             }
+        }
+
+        // アセット側の連鎖(または埋め込み Anchor)だけを合成した値(Case.AssetOnly と同じ式。[21_anchor_spec.md]
+        // §3.3 と同じ優先順位: AnchorId の連鎖 > 埋め込み Anchor)。トラック側の設定有無を問わず呼べる —
+        // Case.Both のハンドル逆算(SolveTrackLocal の「子」)にも使う([08_presentation.md] 実装メモ
+        // 2026-09-20「ケース1のハンドル」。Compose の Case.AssetOnly 分岐もこれを呼ぶだけにして重複を避けた)。
+        public static AnchorSpawnSpec ComposeAssetOnly(AssetId<AnchorMarker> assetAnchorId, in AnchorDef assetEmbeddedAnchor, IAssetRegistry registry, bool sampleRandom)
+            => assetAnchorId.IsValid && registry != null
+                ? AnchorChain.Resolve(registry, assetAnchorId, sampleRandom)
+                : AnchorSpawnSpec.FromDef(assetEmbeddedAnchor);
+
+        // [08_presentation.md] 実装メモ(2026-09-20、指摘2「ケース1のハンドル」) — 「親(トラック Anchor) ∘
+        // 子(アセット側の合成済み Anchor) = 合成済み(ハンドルでドラッグした望みの最終位置/回転)」を解いて
+        // 親の LocalOffset/LocalEuler を逆算する(AnchorChainEditor.ToChildLocalOffset/Euler の逆方向)。
+        // AnchorChain.ComposeNodes の再帰は「ルート(親)の pos/rot/scale を初期値にして、各子ノードを
+        // pos += rot*Scale(scale,child.LocalOffset); rot *= Euler(child.LocalEuler); … の順に積む」ため、
+        // 子側(アセット側連鎖全体)を「1 つの合成済みノード」とみなせば
+        //   desiredPos = parentPos + parentRot * childPos
+        //   desiredRot = parentRot * childRot
+        // という単純な式になる(parentScale は編集対象外として常に (1,1,1) 固定で扱う。ハンドルは
+        // 位置・回転しか動かさないため)。
+        public static void SolveTrackLocal(
+            Vector3 desiredComposedOffset,
+            Vector3 desiredComposedEuler,
+            Vector3 childComposedOffset,
+            Vector3 childComposedEuler,
+            out Vector3 trackLocalOffset,
+            out Vector3 trackLocalEuler)
+        {
+            var childRot = Quaternion.Euler(childComposedEuler);
+            var desiredRot = Quaternion.Euler(desiredComposedEuler);
+            var trackRot = desiredRot * Quaternion.Inverse(childRot);
+            trackLocalEuler = trackRot.eulerAngles;
+            trackLocalOffset = desiredComposedOffset - trackRot * childComposedOffset;
         }
 
         // トラック Anchor を全体のルート、アセット側(AnchorId の連鎖、または埋め込み 1 段)をその子として

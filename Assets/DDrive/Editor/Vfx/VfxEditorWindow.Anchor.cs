@@ -503,7 +503,14 @@ namespace DDrive.Editor.Vfx
                 var vfxName = _target.DisplayName ?? _target.name;
                 if (!SceneGuiOwner.IsOwner(this))
                 {
-                    AnchorSceneHandles.DrawInactiveMarker(targetDef, baseTransform, extraOffset, $"VFX: {vfxName}", vfxColor);
+                    // 2026-09-20(指摘1): 薄い目印もクリック可能にし、押したらこのウィンドウが描画権を持つ
+                    // ようにする(AnchorSceneHandles.DrawClickableMarker、PresentationEditorWindow と共通)。
+                    if (AnchorSceneHandles.DrawClickableMarker(targetDef, baseTransform, extraOffset, $"VFX: {vfxName}", vfxColor, active: false))
+                    {
+                        SceneGuiOwner.Claim(this);
+                        Focus();
+                    }
+
                     return;
                 }
 
@@ -521,7 +528,12 @@ namespace DDrive.Editor.Vfx
 
             if (!SceneGuiOwner.IsOwner(this))
             {
-                AnchorSceneHandles.DrawInactiveMarker(anchor, baseTransform, extraOffset, $"VFX: {(_target.DisplayName ?? _target.name)}", vfxColor);
+                if (AnchorSceneHandles.DrawClickableMarker(anchor, baseTransform, extraOffset, $"VFX: {(_target.DisplayName ?? _target.name)}", vfxColor, active: false))
+                {
+                    SceneGuiOwner.Claim(this);
+                    Focus();
+                }
+
                 return;
             }
 

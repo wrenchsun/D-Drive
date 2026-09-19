@@ -54,6 +54,10 @@ namespace DDrive.Editor.Presentation
         private VisualElement _tracksListContainer;
         private IMGUIContainer _timelineContainer;
 
+        // トラック一覧を包む ScrollView(2026-09-20、指摘1: SceneView でトラックの点をクリックしたときに
+        // 該当行までスクロールするため。PresentationEditorWindow.SceneAnchors.cs の ScrollToSelectedTrackRow から使う)。
+        private ScrollView _mainScrollView;
+
         [MenuItem(DDriveMenu.Root + "Presentation Editor")]
         public static void Open() => Open(Selection.activeObject as PresentationData);
 
@@ -158,6 +162,7 @@ namespace DDrive.Editor.Presentation
 
             var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
             rootVisualElement.Add(scrollView);
+            _mainScrollView = scrollView;
             var root = scrollView;
             root.style.paddingLeft = 6;
             root.style.paddingRight = 6;

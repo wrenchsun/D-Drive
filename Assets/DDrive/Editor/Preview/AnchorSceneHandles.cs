@@ -84,6 +84,25 @@ namespace DDrive.Editor.Preview
             Handles.Label(worldPos + Vector3.up * size * 0.28f, label, FadedStyle(color));
         }
 
+        // [08_presentation.md] 実装メモ(2026-09-20、指摘1「SceneView の点をクリックしても選択されない」) —
+        // クリック可能な目印。描画権を持たないウィンドウの薄い目印(active=false)にも、描画権を持つ
+        // ウィンドウの非選択項目(active=true、旧 DrawSelectableEffectiveMarker 相当)にも使う共通 API
+        // (PresentationEditorWindow.SceneAnchors.cs / VfxEditorWindow.Anchor.cs / AnchorEditorWindow.cs が使う。
+        // コピペしない)。当たり判定(pickSize)は可視の円(DrawTargetMarker と同じ半径 handleSize*0.25)に
+        // 合わせて広げる(以前は handleSize*0.12〜0.18 相当で小さすぎてクリックしにくかった)。
+        // 戻り値: このフレームでクリックされたら true(呼び出し側が選択・オーナー切替を行う)。
+        public static bool DrawClickableMarker(in AnchorDef anchor, Transform baseTransform, Vector3 extraOffset, string label, Color color, bool active)
+        {
+            var worldPos = AnchorPose.WorldPosition(anchor, baseTransform, extraOffset);
+            var handleSize = HandleUtility.GetHandleSize(worldPos);
+            var visualSize = handleSize * (active ? 0.12f : 0.1f);
+            var pickSize = handleSize * 0.25f;
+            Handles.color = active ? color : new Color(color.r, color.g, color.b, 0.3f);
+            var clicked = Handles.Button(worldPos, Quaternion.identity, visualSize, pickSize, Handles.SphereHandleCap);
+            Handles.Label(worldPos + Vector3.up * visualSize * 1.6f, label, active ? EditorStyles.miniLabel : FadedStyle(color));
+            return clicked;
+        }
+
         // ── 基準(原点)の描画(U-24) ──
 
         // 基準 = LocalOffset を積む前の出発点。解決先 Transform の位置に 3 軸とラベルを描き、

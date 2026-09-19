@@ -1,3 +1,4 @@
+using System.Linq;
 using DDrive.Editor.Preview;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Anchoring;
@@ -176,7 +177,7 @@ namespace DDrive.Editor.Presentation
                 switch (effective.Case)
                 {
                     case PresentationTrackAnchorComposer.Case.AssetOnly:
-                        DrawAssetOnlyCase(in effective, color, label);
+                        DrawAssetOnlyCase(i, in track, in effective, color, label);
                         break;
 
                     case PresentationTrackAnchorComposer.Case.Both:
@@ -197,63 +198,138 @@ namespace DDrive.Editor.Presentation
             }
         }
 
-        // ケース1(アセット側のみ設定): 最終位置は表示のみ(ハンドルはトラック Anchor を「設定する」意味に
-        // なってしまうため出さない)。編集は VFX Editor / Anchor Editor へ誘導する注記を添える。
-        private void DrawAssetOnlyCase(in PresentationTrackAnchorResolver.EffectiveResult effective, Color color, string label)
+        // ケース1(アセット側のみ設定): 2026-09-20、指摘2でユーザー要望により設計変更(以前は表示のみだった)。
+        // 最終位置に移動/回転ハンドルを出し、ドラッグしたら「合成後の最終位置がハンドルの位置になる」ように
+        // トラックの Anchor(親)を逆算して設定する(ケース3へ遷移する)。掴む点を「最終位置」で統一するため、
+        // ケース3(DrawBothCase)でも同じ点をドラッグ対象にする([08_presentation.md] 実装メモ参照)。
+        private void DrawAssetOnlyCase(int index, in PresentationTrack track, in PresentationTrackAnchorResolver.EffectiveResult effective, Color color, string label)
         {
-            AnchorSceneHandles.DrawTargetMarker(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset, $"{label}(アセット側の Anchor)", color);
-            var worldPos = AnchorPose.WorldPosition(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset);
-            var size = HandleUtility.GetHandleSize(worldPos);
-            Handles.Label(worldPos - Vector3.up * size * 0.35f, "トラックの Anchor を設定すると親として上書きできます(編集は VFX Editor / Anchor Editor で)", EditorStyles.miniLabel);
+            var originWorld = AnchorSceneHandles.DrawOrigin(effective.BaseTransform, effective.ExtraOffset, AnchorSceneHandles.DescribeBase(effective.ComposedDef, effective.BaseTransform), effective.ComposedDef.FollowRotation);
+            AnchorSceneHandles.DrawOffsetLink(originWorld, AnchorPose.WorldPosition(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset), effective.ComposedDef.LocalOffset, color);
+
+            var result = AnchorSceneHandles.Draw(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset, $"{label}(アセット側の Anchor。動かすとトラック側に上書きします)", color);
+            if (result.PositionChanged || result.RotationChanged)
+            {
+                ApplyAssetOnlyDragToTrack(index, in track, in effective, result);
+            }
         }
 
-        // ケース3(両方設定): 基準 → トラック Anchor(親、編集可能) → アセット側の各段(表示のみ) → 最終位置。
+        // ケース1 → ケース3 への遷移。アセット側の連鎖(= effective.ComposedDef、ドラッグ前の値)を「子」として、
+        // ドラッグ後の望む最終位置/回転を再現する「親」(トラック Anchor)を逆算する。
+        // トラック Anchor の Space/Path/FollowRotation/DetachOnStop はアセット側の連鎖のルートの値をコピーする
+        // (コピーしないと合成の基準〔effective.BaseTransform〕がワールド原点に飛んで位置がジャンプする。
+        // ケース3は親〔トラック〕の Space/Path が効くため)。LocalScale はハンドルで編集しないため常に 1 にする。
+        private void ApplyAssetOnlyDragToTrack(int index, in PresentationTrack track, in PresentationTrackAnchorResolver.EffectiveResult effective, AnchorSceneHandles.Result result)
+        {
+            if (_target?.Tracks == null || index < 0 || index >= _target.Tracks.Length)
+            {
+                return;
+            }
+
+            var child = effective.ComposedDef; // ドラッグ前(アセット側のみ)の合成値 = 逆算の「子」
+            var desiredOffset = result.PositionChanged ? result.LocalOffset : child.LocalOffset;
+            var desiredEuler = result.RotationChanged ? result.LocalEuler : child.LocalEuler;
+            PresentationTrackAnchorComposer.SolveTrackLocal(desiredOffset, desiredEuler, child.LocalOffset, child.LocalEuler, out var trackOffset, out var trackEuler);
+
+            Undo.RecordObject(_target, "Set Presentation Track Anchor (from Asset Anchor)");
+            var updated = track;
+            updated.Anchor.Space = child.Space;
+            updated.Anchor.Path = child.Path;
+            updated.Anchor.FollowRotation = child.FollowRotation;
+            updated.Anchor.DetachOnStop = child.DetachOnStop;
+            updated.Anchor.LocalScale = Vector3.one;
+            updated.Anchor.LocalOffset = trackOffset;
+            updated.Anchor.LocalEuler = trackEuler;
+            _target.Tracks[index] = updated;
+            EditorUtility.SetDirty(_target);
+            _serializedTarget?.Update();
+            RefreshTracksList(); // Anchor 欄見出しのケース表示(DescribeAnchorCase)を更新するため
+            SceneView.RepaintAll();
+        }
+
+        // ケース3(両方設定): 基準 → トラック Anchor(親、表示のみ) → アセット側の各段(表示のみ) → 最終位置
+        // (編集可能なハンドル)。掴む点はケース1と同じ「最終位置」にする(ユーザーが実際に見ている/触りたいのは
+        // 常に最終位置のため。トラック Anchor 自体の位置は表示のみに変更した。理由は [08_presentation.md] 参照)。
         private void DrawBothCase(int index, in PresentationTrack track, AssetDataBase asset, in PresentationTrackAnchorResolver.EffectiveResult effective, Color color, string label)
         {
             var originWorld = AnchorSceneHandles.DrawOrigin(effective.BaseTransform, effective.ExtraOffset, AnchorSceneHandles.DescribeBase(track.Anchor, effective.BaseTransform), track.Anchor.FollowRotation);
 
-            // トラック Anchor(親)= 編集可能なハンドル。アセット側は書き換えない。
-            AnchorSceneHandles.DrawOffsetLink(originWorld, AnchorPose.WorldPosition(track.Anchor, effective.BaseTransform, effective.ExtraOffset), track.Anchor.LocalOffset, color);
-            var handleResult = AnchorSceneHandles.Draw(track.Anchor, effective.BaseTransform, effective.ExtraOffset, $"{label}(トラック Anchor)", color);
-            if (handleResult.PositionChanged || handleResult.RotationChanged)
-            {
-                ApplyTrackAnchorHandleResult(index, handleResult);
-            }
+            // トラック Anchor(親)は表示のみ(ドラッグ対象は最終位置に統一)。
+            var trackWorld = AnchorPose.WorldPosition(track.Anchor, effective.BaseTransform, effective.ExtraOffset);
+            AnchorSceneHandles.DrawOffsetLink(originWorld, trackWorld, track.Anchor.LocalOffset, color);
+            AnchorSceneHandles.DrawTargetMarker(track.Anchor, effective.BaseTransform, effective.ExtraOffset, $"{label}(トラック Anchor、表示のみ)", color);
 
-            // アセット側の各段(表示のみ。トラック Anchor の位置から続ける)。
+            // アセット側の各段。最後の段(= effective.ComposedDef と同じ最終位置)だけハンドルを出す。
             var count = PresentationTrackAnchorComposer.TryGetAssetAnchor(asset, out var assetAnchorId, out var assetEmbedded)
                 ? PresentationTrackAnchorComposer.ResolveStages(in track, assetAnchorId, in assetEmbedded, _preview.Registry, _sceneAnchorComposedStages)
                 : 0;
 
-            var previous = AnchorPose.WorldPosition(track.Anchor, effective.BaseTransform, effective.ExtraOffset);
+            var previous = trackWorld;
             for (var s = 1; s < count; s++)
             {
                 var stage = _sceneAnchorComposedStages[s];
                 var pos = AnchorPose.WorldPosition(stage.ComposedDef, effective.BaseTransform, effective.ExtraOffset);
                 var rot = AnchorPose.WorldRotation(stage.ComposedDef, effective.BaseTransform, Quaternion.identity);
                 var isLast = s == count - 1;
-                var stageLabel = isLast ? $"{stage.Label}(アセット側の Anchor は VFX Editor / Anchor Editor で編集)" : $"{stage.Label}(アセット側)";
-                AnchorSceneHandles.DrawChainNode(previous, pos, rot, stageLabel, stage.PositionJitterRadius, color);
+                if (isLast)
+                {
+                    Handles.color = new Color(color.r, color.g, color.b, 0.6f);
+                    Handles.DrawDottedLine(previous, pos, 4f);
+                    var handleResult = AnchorSceneHandles.Draw(stage.ComposedDef, effective.BaseTransform, effective.ExtraOffset, $"{stage.Label}(最終位置。動かすとトラック Anchor に逆算します)", color);
+                    if (handleResult.PositionChanged || handleResult.RotationChanged)
+                    {
+                        ApplyBothDragToTrack(index, asset, in effective, handleResult);
+                    }
+                }
+                else
+                {
+                    var stageLabel = $"{stage.Label}(アセット側)";
+                    AnchorSceneHandles.DrawChainNode(previous, pos, rot, stageLabel, stage.PositionJitterRadius, color);
+                }
+
                 previous = pos;
             }
         }
 
+        // ケース3での最終位置ドラッグ → トラック Anchor(親)の逆算。「子」はアセット側の連鎖だけを合成した値
+        // (Case.AssetOnly と同じ式、DetermineCase の結果に関係なく求められる ComposeAssetOnly)。
+        private void ApplyBothDragToTrack(int index, AssetDataBase asset, in PresentationTrackAnchorResolver.EffectiveResult effective, AnchorSceneHandles.Result result)
+        {
+            if (_target?.Tracks == null || index < 0 || index >= _target.Tracks.Length
+                || !PresentationTrackAnchorComposer.TryGetAssetAnchor(asset, out var assetAnchorId, out var assetEmbedded))
+            {
+                return;
+            }
+
+            var child = PresentationTrackAnchorComposer.ComposeAssetOnly(assetAnchorId, in assetEmbedded, _preview?.Registry, sampleRandom: false).Def;
+            var desiredOffset = result.PositionChanged ? result.LocalOffset : effective.ComposedDef.LocalOffset;
+            var desiredEuler = result.RotationChanged ? result.LocalEuler : effective.ComposedDef.LocalEuler;
+            PresentationTrackAnchorComposer.SolveTrackLocal(desiredOffset, desiredEuler, child.LocalOffset, child.LocalEuler, out var trackOffset, out var trackEuler);
+
+            Undo.RecordObject(_target, "Move Presentation Track Anchor (Final Position)");
+            var updated = _target.Tracks[index];
+            updated.Anchor.LocalOffset = trackOffset;
+            updated.Anchor.LocalEuler = trackEuler;
+            _target.Tracks[index] = updated;
+            EditorUtility.SetDirty(_target);
+            _serializedTarget?.Update();
+            SceneView.RepaintAll();
+        }
+
         // トラック一覧で選択されていないトラックの点(effective.ComposedDef を使うため、ケースを問わず
-        // 常に実際の再生位置に一致する)。
+        // 常に実際の再生位置に一致する)。クリックで選択に切り替える(2026-09-20、指摘1: 当たり判定を
+        // 広げた共通 API AnchorSceneHandles.DrawClickableMarker を使う)。
         private void DrawSelectableEffectiveMarker(int index, in PresentationTrackAnchorResolver.EffectiveResult effective, Color color, string label)
         {
-            var worldPos = AnchorPose.WorldPosition(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset);
-            var size = HandleUtility.GetHandleSize(worldPos) * 0.12f;
-            Handles.color = color;
-            if (Handles.Button(worldPos, Quaternion.identity, size, size * 1.5f, Handles.SphereHandleCap))
+            if (AnchorSceneHandles.DrawClickableMarker(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset, label, color, active: true))
             {
                 SelectTrackFromScene(index);
             }
-
-            Handles.Label(worldPos + Vector3.up * size * 1.6f, label, EditorStyles.miniLabel);
         }
 
-        // 描画権を持たないウィンドウ: ハンドル無し・薄い目印のみ(VfxEditorWindow / AnchorEditorWindow と同じ)。
+        // 描画権を持たないウィンドウ: 薄い目印のみ、ただしクリックは可能にする(2026-09-20、指摘1)。
+        // クリックしたら SceneGuiOwner.Claim + Focus() でこのウィンドウが所有者になり、そのトラックを選択する
+        // (VfxEditorWindow / AnchorEditorWindow と同じ「薄い目印」の見た目のまま、行き来できるようにする)。
         private void DrawInactiveSceneAnchors(PresentationTrack[] tracks, Transform self, Transform target)
         {
             for (var i = 0; i < tracks.Length; i++)
@@ -277,13 +353,17 @@ namespace DDrive.Editor.Presentation
 
                 var asset = ResolveTrackAsset(in track);
                 var effective = PresentationTrackAnchorResolver.ResolveEffective(in track, self, target, _preview?.Registry, asset);
-                AnchorSceneHandles.DrawInactiveMarker(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset, SceneAnchorLabel(i, in track), SceneAnchorColorFor(track.Kind));
+                if (AnchorSceneHandles.DrawClickableMarker(effective.ComposedDef, effective.BaseTransform, effective.ExtraOffset, SceneAnchorLabel(i, in track), SceneAnchorColorFor(track.Kind), active: false))
+                {
+                    SelectTrackFromScene(i);
+                }
             }
         }
 
         // AnchorGroup: 参照先 AnchorGroupData の全点を番号付きで描く(AnchorGroupEditorWindow と同じ見た目)。
         // 点の編集(移動/上書き)は Anchor Group Editor に任せるため、ハンドルは一切出さない(表示のみ)。
-        // interactive=true(このウィンドウが SceneGuiOwner)のときだけ点クリックでトラック選択に切り替える。
+        // クリックはどちらの状態でも受け付ける(2026-09-20、指摘1: 非所有ウィンドウでもクリックで
+        // Claim+Focus+選択できるようにする。SelectTrackFromScene がオーナー切替まで面倒を見る)。
         private void DrawAnchorGroupPoints(int trackIndex, in PresentationTrack track, Transform self, Transform target, bool isSelected, bool interactive)
         {
             if (_preview?.Registry == null || !track.Asset.IsAssigned)
@@ -313,18 +393,16 @@ namespace DDrive.Editor.Presentation
             for (var p = 0; p < count; p++)
             {
                 var worldPos = AnchorPose.WorldPosition(_sceneAnchorGroupPoints[p].Def, baseTransform, extraOffset);
-                var size = HandleUtility.GetHandleSize(worldPos) * 0.1f;
+                var handleSize = HandleUtility.GetHandleSize(worldPos);
+                var visualSize = handleSize * 0.1f;
+                var pickSize = handleSize * 0.25f; // 指摘1: 当たり判定を広げる(以前は size*1.5≈0.15 相当)
 
-                if (interactive && Handles.Button(worldPos, Quaternion.identity, size, size * 1.5f, Handles.SphereHandleCap))
+                if (Handles.Button(worldPos, Quaternion.identity, visualSize, pickSize, Handles.SphereHandleCap))
                 {
                     SelectTrackFromScene(trackIndex);
                 }
-                else
-                {
-                    Handles.DrawWireDisc(worldPos, Vector3.up, size);
-                }
 
-                Handles.Label(worldPos + Vector3.up * size * 1.6f, p.ToString(), EditorStyles.miniLabel);
+                Handles.Label(worldPos + Vector3.up * visualSize * 1.6f, p.ToString(), EditorStyles.miniLabel);
             }
 
             var overviewPos = AnchorPose.WorldPosition(_sceneAnchorGroupPoints[0].Def, baseTransform, extraOffset);
@@ -344,11 +422,38 @@ namespace DDrive.Editor.Presentation
             return assetType != null ? PresentationTrackKindMapping.FindAssetById(assetType, track.Asset.Id) : null;
         }
 
+        // 2026-09-20(指摘1): SceneView の点をクリックしたら、このウィンドウが SceneGuiOwner になっていなくても
+        // Claim + Focus() で描画権を奪い、選択したトラックの行をトラック一覧で展開・スクロール表示する
+        // (既に選択中のトラックの点をクリックしても、この一連の処理は冪等で何も壊れない)。
         private void SelectTrackFromScene(int index)
         {
+            SceneGuiOwner.Claim(this);
+            Focus();
             _selectedTrack = index;
             RefreshTracksList();
+            ScrollToSelectedTrackRow();
+            RefreshSceneAnchorOwnerLabel();
             SceneView.RepaintAll();
+        }
+
+        // トラック一覧(_tracksListContainer、RefreshTracksList が index 順に行を積む)の中から、選択中の
+        // トラックの行を ScrollView で見える位置までスクロールする。RefreshTracksList 直後は行の geometry が
+        // 未確定のことがあるため、レイアウトが済む次のフレームへ回す。
+        private void ScrollToSelectedTrackRow()
+        {
+            if (_mainScrollView == null || _tracksListContainer == null)
+            {
+                return;
+            }
+
+            var index = _selectedTrack;
+            if (index < 0 || index >= _tracksListContainer.childCount)
+            {
+                return;
+            }
+
+            var row = _tracksListContainer.Children().ElementAt(index);
+            _mainScrollView.schedule.Execute(() => _mainScrollView.ScrollTo(row));
         }
 
         // ハンドルの結果をこのトラック自身の Anchor へ書き戻す(常にこのトラック。参照先アセットは書き換えない)。

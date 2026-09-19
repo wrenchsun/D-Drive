@@ -80,6 +80,25 @@ namespace DDrive.Editor.Anim
             }
         }
 
+        // [08_presentation.md] 指摘3(2026-09-20)「一緒に調整」— PresentationEditor 等が配置した Self の
+        // Animator をそのまま対象にする。確認用シーンを開き直さない・配置物を変えない(SetSceneTarget は
+        // 既存の「手動で Animator を差し替える」経路と同じものをそのまま呼ぶだけ)。Animator が無ければ
+        // 何もしない(3D 用の対象のため、2D 専用モデルを渡された場合は無視して通常の Open(AnimData) と同じ)。
+        public static void Open(AnimData target, GameObject attachTarget)
+        {
+            var window = GetWindow<AnimEditorWindow>("Anim Editor");
+            window.minSize = new Vector2(500, 480);
+            if (target != null)
+            {
+                window.SetTarget(target);
+            }
+
+            if (attachTarget != null && attachTarget.TryGetComponent<Animator>(out var animator))
+            {
+                window.SetSceneTarget(animator);
+            }
+        }
+
         // ── ライフサイクル ──
 
         private void OnEnable()

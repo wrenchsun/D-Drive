@@ -390,3 +390,79 @@ Timeline 風の複数トラック UI。
 
 - SceneView での実際の見た目(ケース1の注記表示・ケース3のチェーン表示・トラック一覧の見出し文言)は人による確認が必要([43_manual_verification_2026-09-17.md] §11 に手順を追記した)
 - 既存プロジェクトの `PresentationData` のうち、今回の仕様変更で実際に出る位置が変わるものが無いか(`Validation > Run All` の Info)は未確認
+
+## 実装メモ(2026-09-20、ユーザーの確認作業〔[43] §8/§11〕で出た指摘 4 件)
+
+### 指摘1: SceneView の点をクリックしても選択・ハンドルが出ない
+
+原因は 2 つ: (a) `SceneGuiOwner` の描画権を持たないウィンドウの薄い目印(`DrawInactiveSceneAnchors`)にはそもそもクリック判定(`Handles.Button`)が無かった、(b) 描画権を持つウィンドウの非選択トラックの点(`DrawSelectableEffectiveMarker`)も当たり判定(`pickSize`)が `handleSize*0.18` 相当と小さすぎた。
+
+- **`AnchorSceneHandles.DrawClickableMarker(anchor, baseTransform, extraOffset, label, color, active)`**(新規、`Editor/Preview/AnchorSceneHandles.cs`)に共通化した。`active=true`(描画権あり・非選択)/`active=false`(描画権なし・薄い目印)の両方をこの 1 つの API でカバーする。当たり判定は可視の円(`DrawTargetMarker` と同じ `handleSize*0.25`)に合わせて広げた。**コピペしない方針どおり、`PresentationEditorWindow.SceneAnchors.cs`(トラック選択)・`VfxEditorWindow.Anchor.cs`(2 か所)・`AnchorEditorWindow.cs` の計 4 か所がこの 1 つの API を使う**
+- クリックされたら、呼び出し側が `SceneGuiOwner.Claim(this)` + `Focus()` を行ってから自分の「選択」処理をする。Presentation Editor の `SelectTrackFromScene(index)` にこの一連の処理(Claim → Focus → `_selectedTrack` 更新 → `RefreshTracksList()` → スクロール → `SceneView.RepaintAll()`)を集約した。VFX Editor / Anchor Editor は「選択」という概念が無い(対象は 1 つ)ため、Claim + Focus だけ行う
+- **展開**: `RefreshTracksList()` は各トラックの `Foldout.value` を `index == _selectedTrack` から作り直すため、選択の変更だけで自動的に展開される(追加の作業は不要だった)
+- **スクロール**: トラック一覧を包む `ScrollView`(`CreateGUI` の `scrollView`)への参照を新規フィールド `_mainScrollView` として保持し、`ScrollToSelectedTrackRow()` が `_tracksListContainer[index]`(`RefreshTracksList` が index 順に積む行)を `_mainScrollView.schedule.Execute(() => ScrollTo(row))` で次のフレームにスクロールする(直後は行の geometry が未確定なため)
+- AnchorGroup の点(`DrawAnchorGroupPoints`)も同様に、`interactive` の値に関わらず常にクリック可能にし(`pickSize` も `handleSize*0.25` に統一)、非所有ウィンドウでもクリックで `SelectTrackFromScene` → オーナー切替まで面倒を見るようにした
+- 回転ツール(E)で回転ハンドルに切り替わる挙動は既存の `AnchorSceneHandles.Draw`(`Tools.current == Tool.Rotate` の分岐)がそのまま担う(無改修)。確認手順は [43] §8 に追記した
+
+### 指摘2: 「アセット側のみ」のケースでハンドルが出ない
+
+**設計変更(ユーザー要望により、前回の「ケース1はハンドルを出さない」という決定を覆す)**: ケース1(アセット側のみ設定)でも最終位置に移動/回転ハンドルを出す。ドラッグしたら「合成後の最終位置がドラッグ後の位置に一致する」ようにトラックの Anchor(親)を逆算して設定し、ケース3(両方設定)へ遷移する。
+
+**遷移時の初期化**: トラック Anchor の `Space`/`Path`/`FollowRotation`/`DetachOnStop` は、ドラッグ前の実効値(`effective.ComposedDef`。ケース1ではアセット側の連鎖のルートの値そのもの)をコピーする。コピーしないと、ケース3では基準(`effective.BaseTransform`)がトラック自身の `Space`/`Path` で決まるため、基準がワールド原点に飛んで位置がジャンプしてしまう。`LocalScale` は常に `Vector3.one` にする(ハンドルはスケールを編集しないため)。
+
+**逆算の式(`PresentationTrackAnchorComposer.SolveTrackLocal`、新規、Runtime)**: `AnchorChain.ComposeNodes` は「ルート(トラック Anchor)の pos/rot/scale を初期値にして、各子ノード(アセット側の連鎖)を `pos += rot*Scale(scale,child.LocalOffset); rot *= Euler(child.LocalEuler)` の順に積む」ため、子側(アセット側の連鎖全体)を「1 つの合成済みノード」(= `PresentationTrackAnchorComposer.ComposeAssetOnly` の結果と同じ値。これは元のケース1の合成そのもの)とみなせば
+
+```
+desiredPos = trackPos + trackRot * childPos   (trackScale は 1 固定として無視)
+desiredRot = trackRot * childRot
+```
+
+という単純な式になる(スケールは 1 固定のため無視できる)。これを逆に解くと
+
+```
+trackRot = desiredRot * Inverse(childRot)
+trackPos = desiredPos - trackRot * childPos
+```
+
+`ComposeAssetOnly(assetAnchorId, embedded, registry, sampleRandom)`(新規)は「アセット側の連鎖(または埋め込み Anchor)だけを合成した値」を返す純関数で、旧 `Compose` の `Case.AssetOnly` 分岐をそのまま切り出した(コピペしない。`Compose` はこれを呼ぶだけになった)。ケース3のハンドル逆算では `DetermineCase` の結果(= `Both`)に関係なく「アセット側だけ」の合成値が要るため、`Case` 判定を経由しないこの関数を使う。往復(親を逆算 → `AnchorChain.ComposeNodes` で合成 → 元の位置/回転に一致すること)は EditMode テスト(`Tests/Runtime/PresentationTrackAnchorComposerTests.cs` の `SolveTrackLocal_*` 2 件)で固定した。
+
+**掴む点は常に「最終位置」にした**: ケース1(`DrawAssetOnlyCase`)はもともと最終位置(`effective.ComposedDef`)にハンドルを出す。ケース3(`DrawBothCase`)は**以前はトラック Anchor 自身の位置にハンドルを出し、直接 `track.Anchor.LocalOffset/LocalEuler` に書き戻していた**が、これを「最終位置(アセット側の各段を合成し終えた末尾の段、`ResolveStages` の最後の要素で `effective.ComposedDef` と同じ値)」にハンドルを出す形に変更し、ドラッグ結果は `SolveTrackLocal` で同じ逆算をしてからトラック Anchor に書き戻すようにした。理由: ユーザーが SceneView で実際に見ている・操作したいのは常に VFX/SE が出る最終位置であり、ケース1↔ケース3で「どの点を掴むか」が変わると操作の一貫性が失われる。トラック Anchor 自身の位置は(ケース3で)`AnchorSceneHandles.DrawTargetMarker` による表示のみに変えた
+
+編集は毎回 `Undo.RecordObject(_target)` + `EditorUtility.SetDirty(_target)` + `_serializedTarget.Update()` を行う。ケース1→3 の遷移時は `RefreshTracksList()` も呼び、トラック一覧の Anchor 欄見出し(`DescribeAnchorCase`)がその場で「アセット側の Anchor を使用」→「両方設定されているため親子合成」に切り替わるようにした。
+
+### 指摘3: トラックごとに専用エディタを同時に開く
+
+各トラック(`PresentationTrackKindMapping.AssetTypeFor` が返す型に `DataEditorRegistry` の登録がある種別)の行に「専用エディタで開く(一緒に調整)」「単体で確認用シーンに開き直す」の 2 つのボタンを追加した(`PresentationEditorWindow.TrackEditors.cs`、新規)。
+
+| Kind | 「一緒に調整」の経路 | 備考 |
+|---|---|---|
+| Vfx | `VfxEditorWindow.Open(VfxData, GameObject attachTarget)`(新規 overload) | attachTarget = Presentation が配置した Self |
+| AnchorGroup | `AnchorGroupEditorWindow.Open(AnchorGroupData, GameObject attachTarget)`(新規 overload) | 同上。指摘4 もこの経路 |
+| Anim | `AnimEditorWindow.Open(AnimData, GameObject attachTarget)`(新規 overload、内部で `SetSceneTarget(attachTarget の Animator)`) | Self に Animator が無ければ何も対象にしない(通常の Open と同じ状態のまま) |
+| Anim2D | 通常の `Open(data)`(`DataEditorRegistry.OpenDefault`) | `Anim2DData : AnimData` だが 3D の Animator を対象にする概念が無いため attach 未対応(仕様上「一緒に調整」ボタンを押しても効果は「単体」と同じ) |
+| Se/Bgm | 通常の `Open(data)` | `AudioEditorWindow` に 3D 試聴の基準となるシーン Transform の概念が無い(2D のリスナーパッドのみ)ため、attach 付き overload は追加しなかった(要判断として残す) |
+| CameraShake/Haptic/Canvas/UiTween/Timeline | 通常の `Open(data)` | attach(スポーン先)の概念自体が無い種別。ボタン自体は出るが 2 モードとも同じ動作になる |
+| HitStop/Marker/Signal | 行自体を出さない | `AssetTypeFor` が null(Asset を持たない Kind) |
+
+- **「一緒に調整」**: `attachTarget = ScenePresentationPreviewDriver.SelfRoot?.gameObject`(統合プレビューが `SpawnModel` で配置したモデル、または借用中の Animator)。専用エディタ側の `Open(data, attachTarget)` overload は**確認用シーンを開き直さない・プレビューを止めない**(既存の `SetTarget`/`SetSceneTarget` だけを呼ぶ薄いラッパー)。DataEditorRegistry の既定 `Open(data)` は変更していない(reflection ベースの `FindOpenMethod` は 1 引数のメソッドしか拾わないため、2 引数の overload を追加しても既存の「エディターで開く」ボタン(`DataEditorHeader`)には影響しない)
+- **「単体で確認用シーンに開き直す」**: `DataEditorRegistry.OpenDefault(asset)`(通常の `Open(data)`)をそのまま呼ぶ。Presentation のプレビューには一切触れない(未保存の警告は各専用エディタの既存の仕組み〔シーン切替時の `SaveCurrentModifiedScenesIfUserWantsTo` 等〕に任せる)
+- **`PresentationTrackEditorRouting.Classify(AssetDataBase)`(新規、Editor/Presentation、静的・純粋関数)**: 参照先の具象型からどちらの経路を使うかを判定する。ウィンドウを起動せずに検証できるようにするため、実際のディスパッチ(`OpenTrackEditorTogether`)から分離した(`Tests/Editor/PresentationTrackEditorRoutingTests.cs` で 6 パターンを検証。`Anim2DData : AnimData` のため `AnimData` より先に判定する必要がある点も固定した)
+
+### 指摘4: AnchorGroup トラックから Anchor Group Editor を同時編集
+
+指摘3の「一緒に調整」経路がそのまま AnchorGroup トラックにも適用される(`AnchorGroupEditorWindow.Open(AnchorGroupData, GameObject)`)。Anchor Group Editor の SceneView 描画(`OnSceneGui` → `RefreshPoints` → `AnchorGroupPlanner.EnumeratePoints`)は毎再描画でアセットの現在値を読み直す実装のため、Anchor Group Editor で点を動かすと Presentation Editor 側の SceneView 表示(`DrawAnchorGroupPoints`。これも毎再描画で `AnchorGroupPlanner.EnumeratePoints` を呼ぶ)に**追加の配線なしで即座に反映される**(共有アセットを 2 つのウィンドウがそれぞれ独立に読んでいるだけなので、片方の編集がもう片方の次の描画に自然に反映される)。確認手順は [43] §12 に追記した。
+
+### 変更ファイル
+
+| 層 | ファイル |
+|---|---|
+| Runtime | `Runtime/Presentation/PresentationTrackAnchorComposer.cs`(`ComposeAssetOnly`/`SolveTrackLocal` 追加、`Compose` の `Case.AssetOnly` 分岐を `ComposeAssetOnly` 呼び出しに整理) |
+| Editor | `Editor/Preview/AnchorSceneHandles.cs`(`DrawClickableMarker` 新設)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(クリック選択・ケース1/3のハンドル・逆算呼び出し)、`Editor/Presentation/PresentationEditorWindow.cs`(`_mainScrollView` 追加)、`Editor/Vfx/VfxEditorWindow.cs`(`Open(VfxData, GameObject)` 追加)、`Editor/Vfx/VfxEditorWindow.Anchor.cs`(薄い目印をクリック可能に)、`Editor/Anchor/AnchorGroupEditorWindow.cs`(`Open(AnchorGroupData, GameObject)` 追加)、`Editor/Anchor/AnchorEditorWindow.cs`(薄い目印をクリック可能に)、`Editor/Anim/AnimEditorWindow.cs`(`Open(AnimData, GameObject)` 追加)、`Editor/Presentation/PresentationTrackEditorRouting.cs`(新規)、`Editor/Presentation/PresentationEditorWindow.TrackEditors.cs`(新規)、`Editor/Presentation/PresentationEditorWindow.Tracks.cs`(行に導線を追加) |
+| Tests | `Tests/Runtime/PresentationTrackAnchorComposerTests.cs`(`SolveTrackLocal`/`ComposeAssetOnly` のテスト追加)、`Tests/Editor/PresentationTrackEditorRoutingTests.cs`(新規) |
+| docs | 本節、[09_editor_tools.md] §2.3、[43_manual_verification_2026-09-17.md] §8/§11/§12、`docs/DesignerManual/presentation.html` |
+
+### 未確認・要判断
+
+- SceneView での実際のドラッグ操作感(ケース1→3 の遷移時にジャンプしないか、ケース3で最終位置を掴んだときの逆算が違和感なく追従するか)は人による確認が必要([43] §8/§11/§12)
+- Se/Bgm(AudioEditorWindow)への attach 付き overload は追加していない(3D 試聴の基準となるシーン Transform の概念が無いため)。将来 AudioEditorWindow に基準 Transform を持たせる改修が入ったら追加を検討する
+- 「単体で確認用シーンに開き直す」を押したときに Presentation 側のプレビューを明示的に止める処理は入れていない(専用エディタ側がシーンを開き直す過程で `PreviewPlacement.PrepareScene` 等が既存の未保存確認ダイアログを出す想定。Presentation の `ScenePresentationPreviewDriver` 自体は `OnStageChanged`/`OnPrefabStageChanged` で自動的に片付く既存の仕組みに任せている)

@@ -625,6 +625,13 @@ namespace DDrive.Editor.Presentation
                     RefreshAfterEdit();
                 });
                 foldout.Add(assetField);
+
+                // [08_presentation.md] 指摘3/4(2026-09-20) — 「専用エディタで開く」導線(一緒に調整 / 単体)。
+                var editorRow = BuildTrackEditorOpenRow(index, track.Kind);
+                if (editorRow != null)
+                {
+                    foldout.Add(editorRow);
+                }
             }
 
             AddField("Target");

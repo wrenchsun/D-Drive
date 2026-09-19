@@ -654,7 +654,14 @@ namespace DDrive.Editor.Anchor
             // 描画権が他のウィンドウにあるときは対象の薄い目印だけ(連鎖・半径・ハンドルは描かない)。
             if (!SceneGuiOwner.IsOwner(this))
             {
-                AnchorSceneHandles.DrawInactiveMarker(targetDef, baseTransform, extraOffset, $"Anchor: {_target.name}", color);
+                // 2026-09-20(指摘1): 薄い目印もクリック可能にし、押したらこのウィンドウが描画権を持つ
+                // ようにする(AnchorSceneHandles.DrawClickableMarker、PresentationEditorWindow と共通)。
+                if (AnchorSceneHandles.DrawClickableMarker(targetDef, baseTransform, extraOffset, $"Anchor: {_target.name}", color, active: false))
+                {
+                    SceneGuiOwner.Claim(this);
+                    Focus();
+                }
+
                 return;
             }
 
