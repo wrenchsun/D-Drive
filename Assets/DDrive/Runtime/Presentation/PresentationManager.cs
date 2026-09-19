@@ -1366,7 +1366,10 @@ namespace DDrive.Runtime.Presentation
 
         // ── トラック発火 ──
 
-        private static Transform ResolveContextRoot(in PlayContext ctx, TrackTargetMode mode)
+        // public(InternalsVisibleTo 未設定のため、Editor 側の SceneView Anchor 表示
+        // 〔PresentationTrackAnchorResolver、docs/08_presentation.md〕から同じ解決をコピペせずに再利用できるようにする。
+        // UiButton.cs / SpecDiffService.cs と同じ理由)。
+        public static Transform ResolveContextRoot(in PlayContext ctx, TrackTargetMode mode)
         {
             switch (mode)
             {

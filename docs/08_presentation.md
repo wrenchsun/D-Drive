@@ -239,3 +239,52 @@ Timeline 風の複数トラック UI。
 
 - **Cancel Interruptible=false のチェックは Broadcast より前**: [14] のとおり Cancel はネット経路の Instance では Broadcast してから自分を含む全員が受信して初めて止まるが、`Interruptible=false` の警告・no-op 判定自体はローカルで即座に行う(ネットワークを介さない。Broadcast 前に弾くので不要な通信をしない)。
 - **Haptic の LocalPlayerOnly 誤爆防止**は Presentation 側(`PresentationInstance.PlayedViaNetworkReceive`)で吸収しており、`HapticsManager`/`HapticsData` 自体は無改修([16_camera_haptics.md] の既存「NGO 統合前は常にローカル再生扱い」という要判断を、Presentation 経由の再生に限って解消した形。Haptics を直接呼ぶ既存 API(`Haptics.Play`)は今回のスコープ外で未対応のまま)。
+
+## 実装メモ（2026-09-19、SceneView に Anchor を表示）
+
+**ユーザー要望**: 「PresentationEditor でトラックの Anchor がシーン上のどこか分からない。SceneView に表示するボタンを付け、複数あるときは単体表示もできるようにし、表示は VFX Editor の Anchor 表示と同じにし、ギズモ(ハンドル)での操作もできるようにする」。
+
+### 実効 Anchor の解決(調査で確定した事実。推測ではない)
+
+実装を読んで確認した結果、**トラックの実際の再生位置を決めるのは Kind=Vfx/Se のときの `PresentationTrack.Anchor`(トラック自身が持つ埋め込み `AnchorDef`)だけ**であることが分かった。優先順位の分岐は無い。
+
+| Kind | 位置 | 決定要因 |
+|---|---|---|
+| Vfx | あり | `PresentationTrack.Anchor` + `PresentationTrack.Target`(contextRoot の決定)のみ |
+| Se | あり | 同上 |
+| Anim / Anim2D / Bgm / CameraShake / Haptic / HitStop / Timeline / Canvas / UiTween / Marker / Signal | なし | `Target` は Animator/RectTransform の検索先やアニメーションの再生対象を決めるのに使うことはあるが、空間上の「出す位置」は持たない(CameraShake は `PlayContext.Position` を直接使うのみで `Anchor` を消費しない) |
+
+根拠: `PresentationManager.FireVfx`/`FireSe` は必ず `AnchorSpawnSpec.FromDef(track.Anchor)` を「合成済み(presolved)」として `VfxManager.SpawnData(data, in spec, root)` / `AudioManager.PlaySeData(data, in spec, root, seed)` へ渡す。この経路(`SpawnDataLocal` の `presolved` 引数)は `anchorOverride > Data.AnchorId > Data.Anchor` の優先順位を解く `ResolveAnchorSpec` を一切呼ばない。**つまり参照先 VfxData/SeData 自身の `AnchorId` も埋め込み `Anchor` も、Presentation 経由の再生では絶対に使われない。** これは新しい発見ではなく、[43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §6「Presentation に Anchor 上書きが無い」で既に指摘されていた既知事象と一致する(「意図的な仕様か漏れかは未判断」とされたままだが、本チケットでは仕様を変えず、この事実どおりに表示・編集する)。
+
+また `TrackKind` に `AnchorGroup`(配置セット)は存在しない。[22_anchor_group.md](22_anchor_group.md) §5 で「Presentation 統合(トラック種別 AnchorGroup)は Phase 5」と予告されていたが、実装済みの Kind 一覧(Anim/Anim2D/Se/Bgm/Vfx/CameraShake/Haptic/HitStop/Timeline/Canvas/UiTween/Marker/Signal)には含まれておらず、未実装のまま今日に至っている。したがって「AnchorGroup トラック」は作ることも描くこともできない。
+
+### SceneView 表示(`PresentationEditorWindow.SceneAnchors.cs`、新規)
+
+- 「トラック一覧」の上に「SceneView 表示」トグル(既定 ON。VFX Editor / Anchor Editor と同じ文言・流儀)と「表示対象」(すべて / 選択中のみ)を追加した。**「選択中」はトラック一覧の選択(`_selectedTrack`。タイムラインのマーカークリック・行の展開と共有している既存の状態)をそのまま使う**(表示専用の別の選択状態を増やすとトラック一覧の選択とズレるため)
+- 「すべて」表示時は、位置を持つ全トラック(Vfx/Se)を番号付きの点(クリックで選択に切り替え、`AnchorGroupEditorWindow` の点選択と同じ操作感)として表示する。**移動/回転ハンドル(編集可能なギズモ)が出るのは選択中の 1 本だけ**(全トラックに常時ハンドルを出すとドラッグの取り違えが起きやすいため。AnchorGroupEditorWindow が「全点は点で表示、選択点だけフルハンドル」としているのと同じ設計判断)
+- ラベルは `"[{index}] {Kind} {アセット表示名}"`。色は Kind ごとに固定(Vfx=マゼンタ `(0.9, 0.4, 0.85)`、Se=シアン `(0.3, 0.85, 0.95)`)で、VFX Editor の埋め込み Anchor 表示(teal 系 `(0.35, 0.85, 0.65)`)・Anchor Editor(黄 `(0.95, 0.75, 0.3)`)・Anchor Group Editor(水色 `(0.4, 0.8, 1)`)のいずれとも衝突しない配色にした
+- 描画・ハンドルの逆変換は VFX Editor / Anchor Editor と同じ `Editor/Preview/AnchorSceneHandles.cs`(`DrawOrigin`/`DrawOffsetLink`/`Draw`/`DrawInactiveMarker`)を通す(コピペしない)。基準(原点)の描画・「⚠ … → ワールド原点」の表記は [21_anchor_spec.md] §3.10 のとおり
+- `SceneGuiOwner` による描画権の調停(最後にフォーカスしたウィンドウだけがハンドルを描く)も既存の流儀のまま
+- **「Kind ごとの実効 Anchor の解決」は `Editor/Presentation/PresentationTrackAnchorResolver.cs`(ウィンドウ非依存の純関数)に切り出し、EditMode テスト(`Tests/Editor/PresentationTrackAnchorResolverTests.cs`)で検証した**: `HasPosition(kind)` が Vfx/Se のみ true になること、`Target`(Self/ContextTarget/World/Anchor)ごとの contextRoot 解決、Path 未解決時のワールド原点フォールバック。共通処理 `PresentationManager.ResolveContextRoot` は `private` から `public static` に変えて Editor 側から直接再利用した(コピペしない。`Tests/Runtime/PresentationManagerTests.cs` に回帰テストを追加)
+- 統合プレビューは常に `ctx.Target = null` で再生する(`ScenePresentationPreviewDriver.Play`)。したがって `Target=ContextTarget` のトラックはプレビュー中は常にワールド原点扱いになる(実際の挙動どおりに表示される。バグではない)
+
+### 編集(ギズモ)の書き戻し先
+
+実効 Anchor が常に `PresentationTrack.Anchor` である以上、**編集の書き戻し先も常にこのトラック自身**であり、参照先 VfxData/SeData や AnchorData のような共有アセットを書き換えることは無い(VFX Editor の「AnchorId 使用時は参照先 AnchorData を書き換える」という分岐に相当するものは、Presentation には存在しない)。`Undo.RecordObject(_target, ...)` + `EditorUtility.SetDirty(_target)` + `_serializedTarget.Update()` は他のトラック編集(Kind/Time/Params 等)と同じ流儀。
+
+**再生中の実体への即時反映(ライブリアプライ)はしていない(意図的な判断)**: `VfxManager.ReapplyAnchor`(VFX Editor が `ApplyAnchorChange` から呼んでいるもの)は `instance.AnchorSource`(AnchorId)が無効なら `instance.Data.Anchor`(参照先 VfxData の埋め込み Anchor)から再合成する実装になっている。Presentation 経由で生成された実体は `AnchorSource` が常に無効(`presolved` 経由のため)なので、これをそのまま呼ぶと `track.Anchor` ではなく `VfxData.Anchor`(多くの場合デフォルト値)へ位置が飛んでしまう。安全側に倒し、SceneView でトラックの Anchor を動かしても再生中の実体はその場では動かない。変更は次に「▶ 再生」/「⏮ 最初から」を押したときから反映される(Presentation Editor の他のトラック編集がすべてそうであるのと同じ)。ライブリアプライを実現するには `VfxManager`/`AudioManager` に「track.Anchor をそのまま再適用する」経路を新設する必要があり、本チケットのスコープ外とする(要判断として残す)。
+
+### 変更ファイル
+
+| 層 | ファイル |
+|---|---|
+| Runtime | `Runtime/Presentation/PresentationManager.cs`(`ResolveContextRoot` を `public static` 化。ロジック自体は無変更) |
+| Editor | `Editor/Presentation/PresentationTrackAnchorResolver.cs`(新規)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(新規、partial)、`Editor/Presentation/PresentationEditorWindow.cs`(SceneView 購読の配線・UI 呼び出し追加) |
+| Tests | `Tests/Editor/PresentationTrackAnchorResolverTests.cs`(新規)、`Tests/Runtime/PresentationManagerTests.cs`(`ResolveContextRoot` の回帰テスト追加) |
+| docs | 本節、[09_editor_tools.md] §2.3、`docs/DesignerManual/presentation.html`、[43_manual_verification_2026-09-17.md] |
+
+### 未確認・要判断
+
+- ライブリアプライ(再生中の実体へ即時反映)は上記のとおり未実装。次の Play/Restart まで反映されない
+- 「Presentation に Anchor 上書きが無い」(VfxData/SeData の AnchorId が Presentation 経由では効かない)こと自体が仕様として正しいのかは、[43_manual_verification_2026-09-17.md] §6 のとおり引き続き未判断のまま(本チケットは表示・編集のみが目的で、この挙動自体は変えていない)
+- コンパイル・EditMode(879/879)・PlayMode(721/721)はいずれも green(Unity MCP、CoplayDev 版)。**SceneView での実際の見た目・ハンドル操作・複数ウィンドウの描画権切替は未確認**([43_manual_verification_2026-09-17.md] §8 の手順を参照)

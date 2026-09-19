@@ -75,11 +75,14 @@ namespace DDrive.Editor.Presentation
             _preview.OnDataSignal += OnDataSignalFromPresentation;
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorApplication.update += OnEditorUpdate;
+            SceneView.duringSceneGui += OnSceneGui; // [08] SceneView に Anchor を表示(2026-09-19)
         }
 
         private void OnDisable()
         {
             DisposeSubscriptions();
+            SceneView.duringSceneGui -= OnSceneGui;
+            DDrive.Editor.Preview.SceneGuiOwner.Release(this);
             EditorApplication.update -= OnEditorUpdate;
             Undo.undoRedoPerformed -= OnUndoRedo;
             if (_preview != null)
@@ -176,6 +179,7 @@ namespace DDrive.Editor.Presentation
             root.Add(_timelineContainer);
 
             BuildAddTrackRow(root);
+            BuildSceneAnchorSection(root); // [08] SceneView に Anchor を表示(2026-09-19)
             _tracksListContainer = new VisualElement();
             root.Add(_tracksListContainer);
 

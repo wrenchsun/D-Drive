@@ -201,6 +201,14 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 - 既存の描画（ランダム半径の円・移動/回転ハンドル・`SceneGuiOwner` の描画権）に**足す形**。描画権が他のウィンドウにあるときは従来どおり薄い目印だけで、基準は描かない
 - Anchor Group Editor の「手置きの点に変換」（U-22）は [22 §3.7](22_anchor_group.md)
 
+### 2.3 Presentation Editor の SceneView Anchor 表示（2026-09-19）
+
+**ユーザー要望**: 「PresentationEditor でトラックの Anchor がシーン上のどこか分からない」。トラック一覧の上に「SceneView 表示」トグル + 「表示対象」（すべて / 選択中のみ）を追加し、位置を持つトラック（Kind=Vfx/Se のみ。実効 Anchor の解決は §2.2 の 3 か所と同じ `Editor/Preview/AnchorSceneHandles.cs` を通す）を SceneView に表示・編集できるようにした。
+
+- 「すべて」は番号付きの点として全トラックを表示（クリックで選択に切り替え）。ハンドル（移動/回転）は選択中の 1 本だけに出す（AnchorGroupEditorWindow の「全点は点、選択点だけフルハンドル」と同じ設計）
+- 実効 Anchor は常にトラック自身の `PresentationTrack.Anchor`（参照先 VfxData/SeData の AnchorId・埋め込み Anchor は Presentation 経由では使われない）。編集の書き戻し先も常にこのトラック自身で、共有アセットは書き換えない
+- 詳細（優先順位の確定事実、色の使い分け、ライブリアプライをしない理由）は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-19）を参照
+
 ## 3. ID 参照 PropertyDrawer
 
 - `SeIdRef` 等のフィールドを Inspector で「検索付きドロップダウン + プレビューボタン + Browser で開く」として描画
@@ -297,7 +305,7 @@ Tools/
     │   ├─ UI Tween · Preset Gallery    ← 2026-09-11 実装(4-12。UiPresetGalleryWindow。タブ(出現/常時/消滅/強調/カタログ)+ 検索 + お気に入り(EditorPrefs)の静的カード一覧(名前・カテゴリ・64 サンプルの静的イージング曲線スケッチ)。カードから「この要素に適用」「Canvas 内一括適用」「選択中のシーン要素で再生」「設定を他の要素へコピー」「独自プリセットとして登録」、[15] B-3.5 実装メモ)
     │   ├─ Shake / Haptics             ← 2026-09-14 実装(5-2c。CameraFxEditorWindow。1 ウィンドウで CameraShakeData/HapticsData 両方を扱う(AudioEditorWindow の SE/BGM と同じ設計)。波形編集は ValueDefDrawer の PropertyField のまま、読み取り専用の重ね描き波形(WaveformGraphGui)を追加。Shake は SceneCameraShakePreviewDriver が実 CameraFxManager で開いているシーンの Camera.main を直接揺らす(連打で Trauma 合成を確認可)。Haptics は EditorHapticsPreviewDriver が実 HapticsManager 経由で接続中のパッドを「Test on Pad」で振動。プリセット 10 種(Pulse/Rumble/Heartbeat/Explosion/Hit_Small/Hit_Large/Landing/Earthquake/Alarm/Engine)は `CameraFxPresets` が Undo 付きで適用。詳細は [16] 実装メモ参照)
     │   ├─ 揺れ・振動確認用シーンを開く ← 2026-09-14 追加(5-2c。CameraShakePreviewSceneSetup。VfxPreviewSceneSetup と同じ流儀)
-    │   └─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置。CutsceneManager はこの起動オブジェクト経由でしか組み立てられないため、目視確認は Play Mode に入って CutsceneData の Inspector の「再生(Play Mode)」ボタンを押す([26_timeline.md] §4.4/§6 実装メモ)
+    │   └─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
     ├─ Validation/
     │   ├─ Run All
     │   └─ Report Window

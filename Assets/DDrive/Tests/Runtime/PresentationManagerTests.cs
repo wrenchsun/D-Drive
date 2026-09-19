@@ -554,5 +554,29 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(1, cancelled);
             Assert.AreEqual(1, _vfx.ActiveCount, "StopOnCancel=false の VFX は Cancel 後も再生を継続する");
         }
+
+        // [08_presentation.md] SceneView Anchor 表示(2026-09-19) — ResolveContextRoot を public 化した際の
+        // 回帰テスト。Editor 側の PresentationTrackAnchorResolver がこれをそのまま再利用する(コピペしない)ため、
+        // TrackTargetMode ごとのマッピングをここで固定しておく。
+        [Test]
+        public void ResolveContextRoot_MapsEachTargetModeAsDocumented()
+        {
+            var selfGo = new GameObject("Self");
+            var targetGo = new GameObject("Target");
+            try
+            {
+                var ctx = new PlayContext { Self = selfGo.transform, Target = targetGo.transform };
+
+                Assert.AreSame(selfGo.transform, PresentationManager.ResolveContextRoot(in ctx, TrackTargetMode.Self));
+                Assert.AreSame(targetGo.transform, PresentationManager.ResolveContextRoot(in ctx, TrackTargetMode.ContextTarget));
+                Assert.IsNull(PresentationManager.ResolveContextRoot(in ctx, TrackTargetMode.World));
+                Assert.IsNull(PresentationManager.ResolveContextRoot(in ctx, TrackTargetMode.Anchor));
+            }
+            finally
+            {
+                Object.DestroyImmediate(selfGo);
+                Object.DestroyImmediate(targetGo);
+            }
+        }
     }
 }

@@ -212,3 +212,19 @@ Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a
 
 - [ ] Maya で直して同じファイル名で上書き書き出し → 自動生成トラックだけ差し替わり、Unity 側で足した SE/VFX トラックや Camera クリップの `StepFps`/`BlendIn`/`BlendOut`/`Focus` が保持されること
 - [ ] キャラの FBX を削除しても、対応する Timeline トラックは削除されずミュートになること(§5.2 の簡略化。自動ミュートは未実装なので、実際には「残るだけ」の可能性がある — 挙動を確認して食い違えばこのページと [26_timeline.md] を更新すること)
+
+## 8. Presentation Editor の SceneView Anchor 表示の確認(2026-09-19 追記)
+
+[08_presentation.md](08_presentation.md) 実装メモ(2026-09-19、SceneView に Anchor を表示)の人による確認手順。コンパイル・EditMode/PlayMode テストの結果は本チケットの最終報告を参照。
+
+- [ ] `Tools > D-Drive > Presentation Editor` を開き、Vfx トラックと Se トラックを 1 本ずつ含む `PresentationData`(例: `PRES_Demo_SkillSlash.asset`)を対象にする
+- [ ] 「確認用シーンを開く」でモデルを配置する
+- [ ] トラック一覧の上にある「SceneView 表示」トグルと「表示対象」(すべて / 選択中のみ)が表示されること
+- [ ] 「表示対象」=「すべて」のとき、Vfx/Se トラックの位置に色つきの点(Vfx=マゼンタ、Se=シアン)がラベル付き(`[index] Kind アセット名`)で表示され、Anim/CameraShake/Haptic/HitStop/Marker/Signal 等のトラックは何も描かれないこと
+- [ ] SceneView 上の点をクリックすると、トラック一覧の対応する行が選択状態(展開)に切り替わり、その点に移動ハンドルが表示されること(移動ツール)。回転ツールに切り替えると回転ハンドルに変わること
+- [ ] 移動/回転ハンドルを操作すると、トラック一覧の該当トラックの「Anchor」欄(LocalOffset/LocalEuler)がその場で更新されること(Undo(Ctrl+Z)で戻せること)
+- [ ] 「表示対象」=「選択中のみ」にすると、選択中の 1 本の点(+ハンドル)だけが残り、他のトラックの点が消えること
+- [ ] Presentation Editor を 2 つ開いて別々の `PresentationData` を選ぶと、最後にフォーカスしたウィンドウだけがハンドル付きで描画され、もう片方は薄い目印だけになること(`SceneGuiOwner`)。VFX Editor / Anchor Editor を同時に開いても同様に競合しないこと
+- [ ] SceneView でハンドルを動かした直後は「▶ 再生」中の実体はその場では動かない(既知の制約。次に「▶ 再生」/「⏮ 最初から」を押すと新しい位置が反映されること)
+- [ ] `Target`(Self/ContextTarget/World/Anchor)を切り替えると、点の基準(ワールド原点扱いになるか、配置したモデル基準になるか)が説明どおりに変わること。特に `ContextTarget` は統合プレビューでは常にワールド原点扱いになること(`ctx.Target` が常に null のため)
+- [ ] デザイナーマニュアル `docs/DesignerManual/presentation.html`(「専用エディタの使い方」の新しい手順)の説明どおりに操作できること
