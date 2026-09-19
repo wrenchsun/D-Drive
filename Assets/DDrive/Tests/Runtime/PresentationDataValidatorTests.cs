@@ -4,6 +4,7 @@ using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
 using DDrive.Runtime.Presentation;
+using DDrive.Runtime.Vfx;
 using NUnit.Framework;
 using UnityEngine;
 using VfxId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>;
@@ -142,6 +143,67 @@ namespace DDrive.Tests.Runtime
 
             var results = Validate(data);
             Assert.IsFalse(results.Exists(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        // [08_presentation.md] 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)。
+        [Test]
+        public void VfxTrack_BothTrackAndAssetAnchorSet_IsInfo()
+        {
+            var vfx = ScriptableObject.CreateInstance<VfxData>();
+            try
+            {
+                vfx.Id = 42;
+                vfx.Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "Hand", LocalScale = Vector3.one };
+
+                var data = ValidData();
+                var tracks = data.Tracks;
+                tracks[0] = new PresentationTrack
+                {
+                    Trigger = TrackTrigger.AtTime,
+                    Time = 0f,
+                    Kind = TrackKind.Vfx,
+                    Asset = new AssetRef { Type = AssetType.Vfx, Id = 42 },
+                    Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "Foot", LocalScale = Vector3.one },
+                };
+                data.Tracks = tracks;
+
+                var results = new PresentationDataValidator().Validate(data, new ValidationContext(new List<AssetDataBase> { data, vfx })).ToList();
+                Assert.IsTrue(results.Any(r => r.Severity == ValidationSeverity.Info && r.Message.Contains("親子合成")));
+            }
+            finally
+            {
+                Object.DestroyImmediate(vfx);
+            }
+        }
+
+        [Test]
+        public void VfxTrack_OnlyAssetAnchorSet_NoAnchorInfo()
+        {
+            var vfx = ScriptableObject.CreateInstance<VfxData>();
+            try
+            {
+                vfx.Id = 43;
+                vfx.Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "Hand", LocalScale = Vector3.one };
+
+                var data = ValidData();
+                var tracks = data.Tracks;
+                tracks[0] = new PresentationTrack
+                {
+                    Trigger = TrackTrigger.AtTime,
+                    Time = 0f,
+                    Kind = TrackKind.Vfx,
+                    Asset = new AssetRef { Type = AssetType.Vfx, Id = 43 },
+                    // トラック側は既定値(未設定)のまま。
+                };
+                data.Tracks = tracks;
+
+                var results = new PresentationDataValidator().Validate(data, new ValidationContext(new List<AssetDataBase> { data, vfx })).ToList();
+                Assert.IsFalse(results.Any(r => r.Severity == ValidationSeverity.Info && r.Message.Contains("親子合成")));
+            }
+            finally
+            {
+                Object.DestroyImmediate(vfx);
+            }
         }
 
         [Test]

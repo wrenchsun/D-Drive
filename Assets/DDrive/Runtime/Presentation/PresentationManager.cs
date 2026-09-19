@@ -1580,7 +1580,9 @@ namespace DDrive.Runtime.Presentation
 
             var data = _registry.ResolveOrPlaceholder<VfxData>(track.Asset.Id);
             var root = ResolveContextRoot(instance.Ctx, track.Target);
-            var spec = AnchorSpawnSpec.FromDef(track.Anchor);
+            // [08_presentation.md] 実装メモ(2026-09-19) — トラックの Anchor とアセット側(Data.AnchorId/
+            // 埋め込み Anchor)の両方を参照する(3 ケース、PresentationTrackAnchorComposer に集約)。
+            var spec = PresentationTrackAnchorComposer.Compose(in track, data, _registry, sampleRandom: true);
             var h = _vfx.SpawnData(data, in spec, root);
 
             ApplyVfxTrackParams(h, data, in track);
@@ -1677,7 +1679,9 @@ namespace DDrive.Runtime.Presentation
 
             var data = _registry.ResolveOrPlaceholder<SeData>(track.Asset.Id);
             var root = ResolveContextRoot(instance.Ctx, track.Target);
-            var spec = AnchorSpawnSpec.FromDef(track.Anchor);
+            // [08_presentation.md] 実装メモ(2026-09-19) — トラックの Anchor とアセット側(Data.AnchorId/
+            // 埋め込み Anchor)の両方を参照する(3 ケース、PresentationTrackAnchorComposer に集約)。
+            var spec = PresentationTrackAnchorComposer.Compose(in track, data, _registry, sampleRandom: true);
             // [14_networking.md] §6(6-0、Seed の実消費) — ネットワーク経路の Instance は Seed を渡し、
             // 全クライアントで同じ Clip/Pitch が選ばれるようにする(ローカル再生は今までどおり未指定)。
             var h = _audio.PlaySeData(data, in spec, root, seed: instance.IsNetworked ? instance.Seed : (ushort?)null);

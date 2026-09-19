@@ -1,3 +1,4 @@
+using DDrive.Foundation.Data;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Presentation;
@@ -8,20 +9,20 @@ namespace DDrive.Editor.Presentation
     // [08_presentation.md] SceneView Anchor 表示 — 「このトラックは今どこに出るか」をウィンドウ非依存の
     // 純関数として切り出したもの(PresentationEditorWindow.SceneAnchors.cs から使う。EditMode テスト対象)。
     //
-    // 実装調査で確認した事実(推測ではない。PresentationManager.FireVfx/FireSe を参照):
-    //   - Kind=Vfx/Se は必ず `AnchorSpawnSpec.FromDef(track.Anchor)` を「合成済み(presolved)」として
-    //     VfxManager.SpawnData(data, in spec, root) / AudioManager.PlaySeData(data, in spec, root, seed)
-    //     へ渡す。この経路(SpawnDataLocal の presolved 引数)は ResolveAnchorSpec(anchorOverride > Data.AnchorId >
-    //     Data.Anchor の優先順位)を一切呼ばない。したがって **参照先 VfxData/SeData 自身の AnchorId / 埋め込み
-    //     Anchor は Presentation 経由では絶対に使われない**。位置を決めるのは track.Anchor(このトラック自身の
-    //     埋め込み AnchorDef)と track.Target(TrackTargetMode)だけ([43_manual_verification_2026-09-17.md] §6
-    //     「Presentation に Anchor 上書きが無い」で既に指摘済みの既知事象と一致)。
+    // 2026-09-19 追記(トラック/アセット両方の Anchor 参照): 以前は Kind=Vfx/Se の実効 Anchor は常に
+    // track.Anchor のみだったが(参照先 VfxData/SeData の AnchorId/埋め込み Anchor は一切見なかった。
+    // [43_manual_verification_2026-09-17.md] §6 で指摘されていた既知事象)、ユーザー決定によりトラックの
+    // Anchor とアセット側の Anchor の両方を参照するよう仕様変更した。3 ケースの判定・合成は
+    // `PresentationTrackAnchorComposer`(Runtime/Presentation、ランタイムと共通)に集約した。
+    // `Resolve`(下記、track.Anchor のみを見る)は「ケース2(トラックのみ設定)/ケース Neither」でのみ正しい
+    // 結果になる(既存呼び出し元・テストのために残す)。アセット情報を踏まえた解決には `ResolveEffective` を使う。
     //   - 位置を持つのは Vfx / Se / AnchorGroup。Anim/Anim2D/Bgm/CameraShake/Haptic/HitStop/Timeline/Canvas/
     //     UiTween/Marker/Signal はいずれも位置を消費しない(CameraShake は ctx.Position を直接使うのみ)。
     //   - AnchorGroup(2026-09-19、[22_anchor_group.md] §5 で予告されていた Presentation 統合)は Vfx/Se と
     //     解決方法が異なる: track.Anchor(単一の AnchorDef)ではなく、参照先 AnchorGroupData の原点 +
     //     パターン/手置きの点(AnchorGroupPlanner.EnumeratePoints)から「全点」を求める。編集は Anchor Group
-    //     Editor に任せるため、ここでは列挙のみ提供する(ハンドルでの書き戻しは無い)。
+    //     Editor に任せるため、ここでは列挙のみ提供する(ハンドルでの書き戻しは無い)。トラック/アセット
+    //     両方の Anchor 参照の対象外(AnchorGroup は自分の点を持つため)。
     public static class PresentationTrackAnchorResolver
     {
         // 解決結果。HasPosition=false は「この Kind には位置が無い」ことを示す(Anchor は無視してよい)。
@@ -67,6 +68,69 @@ namespace DDrive.Editor.Presentation
             }
 
             return new Result(true, baseTransform, extraOffset);
+        }
+
+        // トラック/アセット両方の Anchor 参照(2026-09-19)を踏まえた解決結果。SceneView 描画専用
+        // (ランタイムは PresentationManager.FireVfx/FireSe が PresentationTrackAnchorComposer を直接使う)。
+        public readonly struct EffectiveResult
+        {
+            public readonly bool HasPosition;
+            public readonly PresentationTrackAnchorComposer.Case Case;
+
+            // 解決先(見つからない/World なら null = ワールド原点)。AssetOnly はアセット側の連鎖の最上段、
+            // TrackOnly/Both/Neither はトラック自身の Space/Path で決まる。
+            public readonly Transform BaseTransform;
+            public readonly Vector3 ExtraOffset;
+
+            // 合成済み(ランダム無し)の最終 Def。最終位置の表示・ハンドルの逆変換に使う。
+            public readonly AnchorDef ComposedDef;
+
+            // 参照先 VfxData/SeData(表示・注記用。見つからなければ null)。
+            public readonly AssetDataBase Asset;
+
+            public EffectiveResult(bool hasPosition, PresentationTrackAnchorComposer.Case kase, Transform baseTransform, Vector3 extraOffset, AnchorDef composedDef, AssetDataBase asset)
+            {
+                HasPosition = hasPosition;
+                Case = kase;
+                BaseTransform = baseTransform;
+                ExtraOffset = extraOffset;
+                ComposedDef = composedDef;
+                Asset = asset;
+            }
+        }
+
+        // Vfx/Se 専用(AnchorGroup は対象外。呼び出し側で HasPosition(track.Kind) && track.Kind != AnchorGroup
+        // を確認してから呼ぶこと)。referencedAsset は PresentationTrackKindMapping.FindAssetById 等で
+        // 呼び出し側が解決した参照先(見つからなければ null。その場合はケース TrackOnly/Neither 相当になる)。
+        public static EffectiveResult ResolveEffective(in PresentationTrack track, Transform self, Transform target, IAssetRegistry registry, AssetDataBase referencedAsset)
+        {
+            if (track.Kind != TrackKind.Vfx && track.Kind != TrackKind.Se)
+            {
+                return default;
+            }
+
+            PresentationTrackAnchorComposer.TryGetAssetAnchor(referencedAsset, out var assetAnchorId, out var assetEmbedded);
+            var kase = PresentationTrackAnchorComposer.DetermineCase(in track, assetAnchorId, in assetEmbedded);
+
+            // ルートの Space/Path は「ケースに応じた合成の根」— AssetOnly はアセット側の(連鎖ならその
+            // 最上段)、TrackOnly/Both/Neither はトラック自身(Neither は World 既定と同じ結果になる)。
+            var rootDef = kase == PresentationTrackAnchorComposer.Case.AssetOnly
+                ? PresentationTrackAnchorComposer.ResolveAssetRootDef(assetAnchorId, in assetEmbedded, registry)
+                : track.Anchor;
+
+            var ctx = new PlayContext { Self = self, Target = target };
+            var contextRoot = PresentationManager.ResolveContextRoot(in ctx, track.Target);
+            var baseTransform = AnchorResolver.Resolve(rootDef, contextRoot);
+
+            var extraOffset = Vector3.zero;
+            if (baseTransform != null && baseTransform.TryGetComponent<AnchorPoint>(out var point))
+            {
+                extraOffset = point.SpawnOffset;
+            }
+
+            var spec = PresentationTrackAnchorComposer.Compose(in track, assetAnchorId, in assetEmbedded, registry, sampleRandom: false);
+
+            return new EffectiveResult(true, kase, baseTransform, extraOffset, spec.Def, referencedAsset);
         }
 
         // AnchorGroup 専用: 参照先 AnchorGroupData の全点を列挙する(AnchorGroupEditorWindow.RefreshPoints と

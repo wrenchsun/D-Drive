@@ -6,6 +6,7 @@ using DDrive.Foundation.Identity;
 using DDrive.Foundation.Pause;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
+using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
@@ -18,6 +19,7 @@ using UnityEngine;
 using VfxId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>;
 using ShakeId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker>;
 using HapticId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker>;
+using AnchorId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>;
 
 namespace DDrive.Tests.Runtime
 {
@@ -117,6 +119,80 @@ namespace DDrive.Tests.Runtime
             _registry.ResolveAsync<VfxData>(id).GetAwaiter().GetResult();
 
             return new VfxId(id, AssetType.Vfx);
+        }
+
+        // [08_presentation.md] 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照) — AnchorId/埋め込み
+        // Anchor を指定できる版(RegisterVfx と同じ登録手順)。
+        private VfxId RegisterVfxWithAnchor(AnchorDef? embeddedAnchor = null, AnchorId anchorId = default)
+        {
+            var id = _nextVfxId++;
+            var address = $"vfx/{id}";
+            var data = ScriptableObject.CreateInstance<VfxData>();
+            data.Id = id;
+            data.Prefab = _vfxPrefab;
+            data.LifeMode = VfxLifeMode.Loop;
+            if (embeddedAnchor.HasValue)
+            {
+                data.Anchor = embeddedAnchor.Value;
+            }
+
+            data.AnchorId = anchorId;
+
+            _loader.Assets[address] = data;
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = id, Type = AssetType.Vfx, Address = address } });
+            _registry.RegisterCatalogAsync(catalog).GetAwaiter().GetResult();
+            _registry.ResolveAsync<VfxData>(id).GetAwaiter().GetResult();
+
+            return new VfxId(id, AssetType.Vfx);
+        }
+
+        // [08_presentation.md] 実装メモ(2026-09-19) — AnchorId 連鎖を含むケースのテスト用(AnchorChainTests.cs
+        // の AnchorChainTestRegistry は別の AssetRegistry を新規作成するため、このテストクラスの既存 _registry
+        // へ直接登録するための専用ヘルパーを用意した)。
+        private AnchorId RegisterAnchor(ulong id, Vector3 offset = default, ulong parent = 0)
+        {
+            var address = $"anchor/{id}";
+            var data = ScriptableObject.CreateInstance<AnchorData>();
+            data.Id = id;
+            data.LocalOffset = offset;
+            data.LocalScale = Vector3.one;
+            if (parent != 0)
+            {
+                data.Parent = new AnchorId(parent, AssetType.Anchor);
+            }
+
+            _loader.Assets[address] = data;
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = id, Type = AssetType.Anchor, Address = address } });
+            _registry.RegisterCatalogAsync(catalog).GetAwaiter().GetResult();
+            _registry.ResolveAsync<AnchorData>(id).GetAwaiter().GetResult();
+
+            return new AnchorId(id, AssetType.Anchor);
+        }
+
+        // [08_presentation.md] 実装メモ(2026-09-19) — PlayData で新規に Spawn されたクローンの
+        // ParticleSystemRenderer を、Instantiate 前後の InstanceID 差分で特定する
+        // (VfxTrack_ParamsAppliedByIndex_... と同じ手法。PlayMode では他テストの残骸が残ることがあるため)。
+        private ParticleSystemRenderer PlayAndFindSpawnedRenderer(PresentationData data)
+        {
+            var before = new HashSet<int>();
+            foreach (var r in Object.FindObjectsByType<ParticleSystemRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                before.Add(r.GetInstanceID());
+            }
+
+            _manager.PlayData(data, new PlayContext());
+
+            foreach (var r in Object.FindObjectsByType<ParticleSystemRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (!before.Contains(r.GetInstanceID()))
+                {
+                    return r;
+                }
+            }
+
+            return null;
         }
 
         private ShakeId RegisterShake()
@@ -577,6 +653,112 @@ namespace DDrive.Tests.Runtime
                 Object.DestroyImmediate(selfGo);
                 Object.DestroyImmediate(targetGo);
             }
+        }
+
+        // ── 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)── FireVfx が
+        // PresentationTrackAnchorComposer の 3 ケースをそのまま反映することを確認する
+        // (合成の数式自体は PresentationTrackAnchorComposerTests で検証済み。ここでは
+        // PresentationManager.FireVfx が正しい引数〔track / data / registry〕で呼んでいることを確認する)。
+
+        [Test]
+        public void FireVfx_TrackOnly_SpawnsAtTrackAnchorPosition()
+        {
+            var vfxId = RegisterVfx(); // Anchor/AnchorId とも既定値(アセット側は未設定)。
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(vfxId),
+                Anchor = new AnchorDef { Space = AnchorSpace.World, LocalOffset = new Vector3(1f, 2f, 3f), LocalScale = Vector3.one },
+            };
+            var data = CreateData(300, track);
+
+            var renderer = PlayAndFindSpawnedRenderer(data);
+
+            Assert.IsNotNull(renderer, "Spawn されたクローンが見つかりません");
+            Assert.Less(Vector3.Distance(new Vector3(1f, 2f, 3f), renderer.transform.position), 1e-4f);
+        }
+
+        [Test]
+        public void FireVfx_AssetOnly_SpawnsAtAssetEmbeddedAnchorPosition()
+        {
+            // トラック側は既定値のまま(未設定)、アセット側の埋め込み Anchor だけを設定する。
+            var vfxId = RegisterVfxWithAnchor(embeddedAnchor: new AnchorDef { Space = AnchorSpace.World, LocalOffset = new Vector3(4f, 5f, 6f), LocalScale = Vector3.one });
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(vfxId),
+            };
+            var data = CreateData(301, track);
+
+            var renderer = PlayAndFindSpawnedRenderer(data);
+
+            Assert.IsNotNull(renderer, "Spawn されたクローンが見つかりません");
+            Assert.Less(Vector3.Distance(new Vector3(4f, 5f, 6f), renderer.transform.position), 1e-4f);
+        }
+
+        [Test]
+        public void FireVfx_AssetOnly_ViaAnchorIdChain_SpawnsAtChainPosition()
+        {
+            var anchorId = RegisterAnchor(600, offset: new Vector3(7f, 0f, 0f));
+            var vfxId = RegisterVfxWithAnchor(anchorId: anchorId);
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(vfxId),
+            };
+            var data = CreateData(302, track);
+
+            var renderer = PlayAndFindSpawnedRenderer(data);
+
+            Assert.IsNotNull(renderer, "Spawn されたクローンが見つかりません");
+            Assert.Less(Vector3.Distance(new Vector3(7f, 0f, 0f), renderer.transform.position), 1e-4f);
+        }
+
+        [Test]
+        public void FireVfx_Both_ComposesTrackAsParentOfAsset()
+        {
+            // トラック: World 原点から +X 1m, Y+90°回転。アセット側(埋め込み): 親の前方(+Z)に 1m。
+            var vfxId = RegisterVfxWithAnchor(embeddedAnchor: new AnchorDef { Space = AnchorSpace.World, LocalOffset = new Vector3(0f, 0f, 1f), LocalScale = Vector3.one });
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(vfxId),
+                Anchor = new AnchorDef { Space = AnchorSpace.World, LocalOffset = new Vector3(1f, 0f, 0f), LocalEuler = new Vector3(0f, 90f, 0f), LocalScale = Vector3.one },
+            };
+            var data = CreateData(303, track);
+
+            var renderer = PlayAndFindSpawnedRenderer(data);
+
+            Assert.IsNotNull(renderer, "Spawn されたクローンが見つかりません");
+            // 親の向き(Y+90°)で子の前方(+Z)は +X になる: (1,0,0) + (1,0,0) = (2,0,0)。
+            Assert.Less(Vector3.Distance(new Vector3(2f, 0f, 0f), renderer.transform.position), 1e-4f);
+        }
+
+        [Test]
+        public void FireVfx_Neither_SpawnsAtWorldOrigin()
+        {
+            var vfxId = RegisterVfx();
+            var track = new PresentationTrack
+            {
+                Trigger = TrackTrigger.AtTime,
+                Time = 0f,
+                Kind = TrackKind.Vfx,
+                Asset = AssetRef.From(vfxId),
+            };
+            var data = CreateData(304, track);
+
+            var renderer = PlayAndFindSpawnedRenderer(data);
+
+            Assert.IsNotNull(renderer, "Spawn されたクローンが見つかりません");
+            Assert.Less(Vector3.Distance(Vector3.zero, renderer.transform.position), 1e-4f);
         }
     }
 }

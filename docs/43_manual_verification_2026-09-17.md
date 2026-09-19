@@ -171,7 +171,7 @@ cd Tools/SpecWeb && clasp push
 | 項目 | 内容 |
 |---|---|
 | テスト実行が実データを汚す | EditMode / PlayMode のテスト実行が、実在する `PresentationData` アセットの `Version` / `UpdatedAt` を書き換える（テスト分離の不備）。2026-09-17 の作業中に毎回手で戻していた。**先に直しておくと、以後の `git status` が読みやすくなる** |
-| Presentation に Anchor 上書きが無い | `Audio.PlaySe(id, anchor)` / `Vfx.Spawn(id, anchor)` にはあるコード側からの Anchor 上書きが、Presentation のトラックには無い（`PresentationManager` に `AnchorId` が 1 件もヒットしない）。意図的な仕様か漏れかは未判断 |
+| ~~Presentation に Anchor 上書きが無い~~ | **決定・実装済み（2026-09-19）**。`Audio.PlaySe(id, anchor)` / `Vfx.Spawn(id, anchor)` にはあるコード側からの Anchor 上書きが Presentation のトラックには無かった問題（`PresentationManager` に参照先 VfxData/SeData の `AnchorId`/埋め込み Anchor が 1 件もヒットしない）を解消し、トラックの Anchor とアセット側の Anchor の両方を参照するようにした（3 ケース: アセット側のみ / トラックのみ / 両方=親子合成。実装は `Runtime/Presentation/PresentationTrackAnchorComposer.cs` に集約）。詳細・確認手順は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-19、トラック/アセット両方の Anchor 参照）と本書 §11 を参照 |
 | 種別固有フィールドの編集可否 | U-11 は `AssetDataBase` 共通 4 フィールドのみ対象と決定済み（2026-09-17）。将来変えるなら `[InspectorReadOnly]` を足すだけでよい |
 | Toolbar の折り返し | U-27 で「Unity の制約で折り返せない」は**誤りだと判明**（`flexWrap` + `height: StyleKeyword.Auto` で可能）。現状溢れている Toolbar は無いため未適用。手法は [09 §7.1.2](09_editor_tools.md) |
 | テストの穴 13 件 | [41](41_phase6_review_2026-09-17.md)。ネット系 5 件（偽造 Result / 保留のフラッシュ / タイムアウト時のイベント / 保留経由の偽造 / Cancel のレート制限）は実バグが 5 回出ている領域なので優先度が高い。**PC 2 台の実機確認が要る** |
@@ -273,3 +273,16 @@ Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a
 
 - [ ] `CutsceneDataEditor` の Inspector 上部の HelpBox の文言が実際の挙動と一致していること(Edit Mode でできること/できないことの案内)
 - [ ] デザイナーマニュアル `docs/DesignerManual/cutscene-maya-export.html`(「Unity 側で確認する」「Unity の Timeline ウィンドウで演出を足す」節)の説明どおりに操作できること
+
+## 11. Presentation のトラック/アセット両方の Anchor 参照の確認(2026-09-19 追記)
+
+[08_presentation.md](08_presentation.md) 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)の人による確認手順。コンパイル・EditMode/PlayMode テストの結果は本チケットの最終報告を参照。§6 の「Presentation に Anchor 上書きが無い」問題への対応。
+
+- [ ] `Tools > D-Drive > Presentation Editor` で、Vfx トラックを 1 本含む `PresentationData` を対象にする。参照先 `VfxData` の埋め込み `Anchor` を(NamedObject 等で)設定し、トラック自身の Anchor は既定値(未設定)のままにして「確認用シーンを開く」→「▶ 再生」すると、**アセット側の Anchor の位置**に VFX が出ること(以前はアセット側が一切無視され World 原点に出ていた)
+- [ ] 同じトラックのトラック側 Anchor も別の位置に設定すると、**トラックの Anchor を親、アセット側の Anchor を子として合成した位置**(両方のオフセットが積み重なった位置)に出ること
+- [ ] トラック一覧の各トラックの「Anchor(VFX/SE の位置)」の見出しに、現在のケース(アセット側のみ / トラックのみ / 両方=親子合成 / 未設定)が 1 行で表示されること。Anchor 欄や Asset 欄を編集すると、その場で表示が切り替わること
+- [ ] SceneView 表示(「SceneView 表示」トグル ON)で、ケース1(アセット側のみ)を選択したトラックには**移動/回転ハンドルが出ず**、「トラックの Anchor を設定すると親として上書きできます」の注記が出ること
+- [ ] ケース3(両方設定)を選択したトラックには、基準 → トラック Anchor(親、ハンドルあり) → アセット側の各段(点線、ハンドル無し) → 最終位置、の順に描画されること。**ハンドルを動かすとトラック自身の Anchor だけが変わり**、参照先 VfxData/SeData の Anchor は変わらないこと(Undo(Ctrl+Z)で戻せること)
+- [ ] `Validation > Run All` で、ケース3のトラックを含む Presentation に Info「トラックとアセット側の両方に Anchor が設定されているため、親子合成されます」が出ること(Error にはならないこと)
+- [ ] SE トラックでも同様(埋め込み Anchor だけ設定 → 音の定位が変わること。3D 対応の AudioSource/ミキサー設定があれば、Play Mode で実際に聞こえる位置が変わることも確認できると尚良い)
+- [ ] 既存の `PresentationData`(特に `PRES_Demo_SkillSlash.asset` 等)を開き、Validation の Info 一覧を確認し、意図せず親子合成になってしまっているものが無いか確認する

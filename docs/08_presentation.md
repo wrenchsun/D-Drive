@@ -246,7 +246,7 @@ Timeline 風の複数トラック UI。
 
 **ユーザー要望**: 「PresentationEditor でトラックの Anchor がシーン上のどこか分からない。SceneView に表示するボタンを付け、複数あるときは単体表示もできるようにし、表示は VFX Editor の Anchor 表示と同じにし、ギズモ(ハンドル)での操作もできるようにする」。
 
-### 実効 Anchor の解決(調査で確定した事実。推測ではない)
+### 実効 Anchor の解決(2026-09-19 時点。トラック/アセット両方の Anchor 参照を実装する前の調査結果)
 
 実装を読んで確認した結果、**トラックの実際の再生位置を決めるのは Kind=Vfx/Se のときの `PresentationTrack.Anchor`(トラック自身が持つ埋め込み `AnchorDef`)だけ**であることが分かった。優先順位の分岐は無い。
 
@@ -256,7 +256,9 @@ Timeline 風の複数トラック UI。
 | Se | あり | 同上 |
 | Anim / Anim2D / Bgm / CameraShake / Haptic / HitStop / Timeline / Canvas / UiTween / Marker / Signal | なし | `Target` は Animator/RectTransform の検索先やアニメーションの再生対象を決めるのに使うことはあるが、空間上の「出す位置」は持たない(CameraShake は `PlayContext.Position` を直接使うのみで `Anchor` を消費しない) |
 
-根拠: `PresentationManager.FireVfx`/`FireSe` は必ず `AnchorSpawnSpec.FromDef(track.Anchor)` を「合成済み(presolved)」として `VfxManager.SpawnData(data, in spec, root)` / `AudioManager.PlaySeData(data, in spec, root, seed)` へ渡す。この経路(`SpawnDataLocal` の `presolved` 引数)は `anchorOverride > Data.AnchorId > Data.Anchor` の優先順位を解く `ResolveAnchorSpec` を一切呼ばない。**つまり参照先 VfxData/SeData 自身の `AnchorId` も埋め込み `Anchor` も、Presentation 経由の再生では絶対に使われない。** これは新しい発見ではなく、[43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §6「Presentation に Anchor 上書きが無い」で既に指摘されていた既知事象と一致する(「意図的な仕様か漏れかは未判断」とされたままだが、本チケットでは仕様を変えず、この事実どおりに表示・編集する)。
+根拠: `PresentationManager.FireVfx`/`FireSe` は必ず `AnchorSpawnSpec.FromDef(track.Anchor)` を「合成済み(presolved)」として `VfxManager.SpawnData(data, in spec, root)` / `AudioManager.PlaySeData(data, in spec, root, seed)` へ渡す。この経路(`SpawnDataLocal` の `presolved` 引数)は `anchorOverride > Data.AnchorId > Data.Anchor` の優先順位を解く `ResolveAnchorSpec` を一切呼ばない。**つまり参照先 VfxData/SeData 自身の `AnchorId` も埋め込み `Anchor` も、Presentation 経由の再生では絶対に使われない。** これは新しい発見ではなく、[43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §6「Presentation に Anchor 上書きが無い」で既に指摘されていた既知事象と一致する。
+
+**→ 2026-09-19、同日中にユーザー決定により仕様変更した。最新の優先順位・合成規則は下の「実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)」を参照。**
 
 また(2026-09-19 時点)`TrackKind` に `AnchorGroup`(配置セット)は存在しない。[22_anchor_group.md](22_anchor_group.md) §5 で「Presentation 統合(トラック種別 AnchorGroup)は Phase 5」と予告されていたが、実装済みの Kind 一覧(Anim/Anim2D/Se/Bgm/Vfx/CameraShake/Haptic/HitStop/Timeline/Canvas/UiTween/Marker/Signal)には含まれておらず、未実装のまま今日に至っている。したがって「AnchorGroup トラック」は作ることも描くこともできない。**→ 同日中に本チケットで実装した(下記「実装メモ(2026-09-19、AnchorGroup トラック)」参照)。**
 
@@ -288,7 +290,7 @@ Timeline 風の複数トラック UI。
 ### 未確認・要判断
 
 - ライブリアプライ(再生中の実体へ即時反映)は上記のとおり未実装。次の Play/Restart まで反映されない
-- 「Presentation に Anchor 上書きが無い」(VfxData/SeData の AnchorId が Presentation 経由では効かない)こと自体が仕様として正しいのかは、[43_manual_verification_2026-09-17.md] §6 のとおり引き続き未判断のまま(本チケットは表示・編集のみが目的で、この挙動自体は変えていない)
+- ~~「Presentation に Anchor 上書きが無い」(VfxData/SeData の AnchorId が Presentation 経由では効かない)こと自体が仕様として正しいのか~~ → **2026-09-19、同日中にユーザー決定・実装済み。下の「実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)」を参照**
 
 ## 実装メモ（2026-09-19、AnchorGroup トラック — [22_anchor_group.md] §5 Presentation 統合）
 
@@ -324,3 +326,67 @@ Timeline 風の複数トラック UI。
 - SceneView での実際の見た目(全点の番号付き表示・色・ラベル)・統合プレビューでの Adopt(VFX が SceneView で実際に動いて見えるか)は人による確認が必要([43_manual_verification_2026-09-17.md] に項番追記)
 - 既存の Vfx/Se トラックが統合プレビューの EditMode で Adopt されていない疑い(上記)は本チケットのスコープ外のまま
 - コンパイル・EditMode(879/879)・PlayMode(721/721)はいずれも green(Unity MCP、CoplayDev 版)。**SceneView での実際の見た目・ハンドル操作・複数ウィンドウの描画権切替は未確認**([43_manual_verification_2026-09-17.md] §8 の手順を参照)
+
+## 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)
+
+**ユーザー決定**: 「Presentation に Anchor 上書きが無い」(上の「実効 Anchor の解決」節で確定した事実。VfxData/SeData の `AnchorId`/埋め込み `Anchor` が Presentation 経由では一切使われない)を仕様として解消する。Vfx/Se トラックの実効 Anchor は、**トラック自身の Anchor** と **参照先 VfxData/SeData の Anchor(AnchorId の連鎖、または埋め込み Anchor)** の両方を見るように変更した。
+
+### 優先順位(新)
+
+| # | 条件 | 挙動 |
+|---|---|---|
+| 1 | アセット側だけ設定されている(トラックの Anchor が既定値) | アセット側の Anchor を使う(`VfxManager.ResolveAnchorSpec`/`AudioManager` と同じ優先順位: AnchorId の連鎖 > 埋め込み Anchor、[21_anchor_spec.md] §3.3) |
+| 2 | トラック側だけ設定されている(アセット側が既定値 / AnchorId 無し) | 従来どおりトラックの Anchor(`PresentationTrack.Anchor`) |
+| 3 | 両方設定されている | **トラックの Anchor を親、アセット側の Anchor をその子として合成する**(`AnchorChain.Compose` と同じ合成規則。アセット側が AnchorId の連鎖なら「トラック Anchor → 連鎖のルート → … → 末端」の順で合成する) |
+| (両方既定値) | — | 従来どおりワールド既定(`AnchorDef.WorldDefault`) |
+
+### 「設定されている」の判定(確定した事実)
+
+- **トラック側**: `PresentationTrack.Anchor` が `AnchorDef.WorldDefault` と等価でないこと。`AnchorDef` に `IsDefault`(`Equals(WorldDefault)`)/`Equals`/`GetHashCode`(`IEquatable<AnchorDef>`)を追加した(`Assets/DDrive/Foundation/Data/AnchorDef.cs`。フィールド追加・型変更はしていない)。**`LocalScale` は `(0,0,0)` と `(1,1,1)` を同じ意味として扱う**(`AnchorPose.BaseScale` が `LocalScale==0` を 1 として扱う既存規則に合わせたもの。これにより struct の裸の既定値〔全フィールド 0〕と `WorldDefault`〔`LocalScale=one`〕が「実質同じ既定値」になる)。`Path` は `null` と空文字列を同一視する
+- **アセット側**: `AnchorId.IsValid`、または埋め込み `Anchor` が `IsDefault` でないこと(`VfxData.Anchor` は元々 `AnchorDef.WorldDefault` を既定値にしているため、未編集なら「設定されていない」判定になる。`SeData.Anchor` はフィールド初期化子が無い〔裸の既定値〕が、上記の正規化により同じく「設定されていない」判定になる)
+- 両方既定値なら従来どおりワールド既定
+
+### 子(アセット側)の Space/Path の扱い(確定した事実)
+
+`AnchorChain.Compose` の既存規則をそのまま踏襲する: **合成後の `Space`/`Path`/`FollowRotation`/`DetachOnStop` は常にルート(ケース3ではトラック、ケース1ではアセット連鎖の最上段)の値になり、子(アセット側の各段)のこれらの値は無視される**。子の `LocalOffset`/`LocalEuler`/`LocalScale` だけが、親で決まった姿勢を基準に積まれる。
+
+### 実装(合成を 1 か所に集約)
+
+`Runtime/Presentation/PresentationTrackAnchorComposer.cs`(新規、静的クラス)に集約した。
+
+- **`AnchorChain` の一般化(`Runtime/Anchoring/AnchorChain.cs`)**: 合成アルゴリズムの本体を `AnchorData[]` 専用の `Compose` から、`AnchorChainNode`(新規 struct。`AnchorDef` + ジッター/ディレイ/確率フィールドを持つ値型)の配列を受け取る `ComposeNodes` に切り出した。旧 `Compose(AnchorData[], count, sampleRandom)` は `AnchorChainNode.FromAnchorData` で変換してから `ComposeNodes` を呼ぶだけの薄いラッパーになった(**既存の呼び出し・挙動は無変更**。`AnchorChainTests` はそのまま green)。トラック/埋め込み Anchor は `AnchorChainNode.FromDef`(ジッター無し・Delay=0・Chance=1)で同じ配列に混在させられる。あわせて、Parent 連鎖を呼び出し側所有の buffer へ集める `CollectChainInto`(`public` 化。既存の `private CollectChain` はこれの薄いラッパー)を追加した
+- **`PresentationTrackAnchorComposer.Compose(in track, data, registry, sampleRandom)`**(`VfxData`/`SeData` それぞれの overload + 共通の `AssetId<AnchorMarker>`/`AnchorDef` 版)が上記 3 ケースを判定して `AnchorSpawnSpec` を返す。ケース3は「アセット側の連鎖(または埋め込み 1 段)」+「トラック Anchor(全体のルート、配列の末尾)」を `AnchorChainNode[]` に詰めて `AnchorChain.ComposeNodes` に通すだけ(コピペしない)。定常経路(Fire)から呼ばれるため、固定長の静的バッファ(`AnchorChain.MaxDepth + 1` 段分)を使い回して 0 alloc を保つ
+- **`PresentationManager.FireVfx`/`FireSe`**(`Runtime/Presentation/PresentationManager.cs`)は `AnchorSpawnSpec.FromDef(track.Anchor)` の直呼びをやめ、`PresentationTrackAnchorComposer.Compose(in track, data, _registry, sampleRandom: true)` を呼ぶだけに変わった。`SeekInitialTracks`(ネット越しの遅延復元)や `ResolveContextRoot` 自体は Anchor を解決しないため無改修(調査済み。位置を決めるのは `FireVfx`/`FireSe` の 2 箇所だけだった)。ネットワークのメッセージ形式(`PresentationPlayMsg` 等)は変更していない(PresId + ctx を配って各自ローカルで合成する既存方針のまま)
+- **AnchorGroup トラックは対象外**(配置セットは自分の点を持つため、[22_anchor_group.md] の既存の解決方法のまま)
+
+### Editor(SceneView 表示・トラック一覧)
+
+- **`PresentationTrackAnchorResolver.ResolveEffective`**(新規、`Editor/Presentation/PresentationTrackAnchorResolver.cs`)が `PresentationTrackAnchorComposer` の判定・合成をそのまま使い、SceneView 描画用の `BaseTransform`/`ExtraOffset`/`ComposedDef`/`Case` を返す。**基準(原点)の解決先は、ケース1(アセットのみ)はアセット連鎖の最上段の `Space`/`Path`、それ以外(ケース2/3/未設定)はトラック自身の `Space`/`Path`**(`PresentationTrackAnchorComposer.ResolveAssetRootDef` が連鎖の最上段を取り出す)。既存の `Resolve`(track.Anchor のみを見る、ケース2/未設定でのみ正しい)はそのまま残した(既存呼び出し元・テストへの影響を避けるため)
+- **ケース3の SceneView 表示**(`PresentationEditorWindow.SceneAnchors.cs` の `DrawBothCase`)は「基準 → トラック Anchor(親、編集可能なハンドル) → アセット側の各段(表示のみ) → 最終位置」を `AnchorSceneHandles.DrawOrigin`/`DrawOffsetLink`/`Draw`/新設の `DrawChainNode` で描く。**ハンドルで編集できるのはトラック Anchor(親)だけ**(`Draw(track.Anchor, ...)` の結果を `ApplyTrackAnchorHandleResult` でトラック自身に書き戻す。従来と同じ書き戻し先で、アセット側は一切書き換えない)。アセット側の各段は `AnchorSceneHandles.DrawChainNode`(`DrawChain` の内部ループを汎用化して抽出した新規 public メソッド。`AnchorData` を持たない仮想ノードからも呼べる。**既存の `DrawChain`/`AnchorEditorWindow`/`VfxEditorWindow` の見た目は無変更**)で表示のみ描く
+- **ケース1の SceneView 表示**(`DrawAssetOnlyCase`)は最終位置を `AnchorSceneHandles.DrawTargetMarker` で表示するだけ(ハンドルを出さない。ハンドルを出すと「トラックの Anchor を設定する」操作になってしまい、意図せずケース3へ切り替わってしまうため)。かわりに「トラックの Anchor を設定すると親として上書きできます(編集は VFX Editor / Anchor Editor で)」の注記ラベルを添える
+- **非選択トラックの点(`DrawSelectableEffectiveMarker`)・描画権を持たないウィンドウの薄い目印(`DrawInactiveSceneAnchors`)も `effective.ComposedDef` を使うよう変更**(以前は `track.Anchor` を直接使っていたため、ケース1では常に間違った位置〔World 原点〕を指していた)
+- **トラック一覧の見出し**(`PresentationEditorWindow.Tracks.cs`)の「Anchor(VFX/SE の位置)」フォールドアウトのタイトルに、現在どのケースか(`DescribeAnchorCase`)を 1 行追記するようにした(Anchor/Asset いずれかを編集するたびに `RefreshAnchorCaseLabel` で更新)
+- **Validator**(`PresentationDataValidator`)にケース3を Info で知らせる検査を追加した(「トラックとアセット側の両方に Anchor が設定されているため、親子合成されます」。Error にはしない)
+
+### 既存 Data への影響
+
+これまで「トラック Anchor 既定値 + アセット側に `AnchorId`/埋め込み Anchor」だった既存の Presentation は、**今回から意図どおりアセット側の Anchor が使われるようになり、出る位置が変わる**(以前は常に World 原点扱いだったものが、アセット側の設定どおりの位置に変わる)。逆に「トラック Anchor だけ設定・アセット側は既定値」の既存 Data は挙動不変(ケース2、従来どおり)。プロジェクト内の既存 `PresentationData` を `Validation > Run All` で確認し、Info「親子合成されます」が出るものは意図どおりか確認すること(ケース1〔アセット側のみ〕への遷移は Info を出していないため、位置が変わった既存データがあれば別途目視確認が必要)。
+
+### 変更ファイル
+
+| 層 | ファイル |
+|---|---|
+| Foundation | `Foundation/Data/AnchorDef.cs`(`IEquatable<AnchorDef>`、`IsDefault`/`Equals`/`GetHashCode`/`==`/`!=` 追加。フィールド追加・型変更なし) |
+| Runtime | `Runtime/Anchoring/AnchorChain.cs`(`AnchorChainNode` 新規、`ComposeNodes`/`CollectChainInto` 追加、既存 `Compose`/`CollectChain` は薄いラッパー化)、`Runtime/Presentation/PresentationTrackAnchorComposer.cs`(新規)、`Runtime/Presentation/PresentationManager.cs`(`FireVfx`/`FireSe` が Composer 経由に)、`Runtime/Presentation/PresentationDataValidator.cs`(ケース3 Info、`TryFindTrackAsset` 追加) |
+| Editor | `Editor/Preview/AnchorSceneHandles.cs`(`DrawChainNode` 新設。`DrawChain` はこれを呼ぶだけに整理、見た目は無変更)、`Editor/Presentation/PresentationTrackAnchorResolver.cs`(`ResolveEffective`/`EffectiveResult` 追加)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(ケース別描画に分岐)、`Editor/Presentation/PresentationEditorWindow.Tracks.cs`(Anchor 欄見出しにケース表示) |
+| Tests | `Tests/Editor/AnchorDefTests.cs`(新規)、`Tests/Runtime/PresentationTrackAnchorComposerTests.cs`(新規)、`Tests/Runtime/PresentationManagerTests.cs`(FireVfx の 3 ケース + AnchorId 連鎖の統合テスト追加)、`Tests/Editor/PresentationTrackAnchorResolverTests.cs`(`ResolveEffective` の 3 ケース追加)、`Tests/Runtime/PresentationDataValidatorTests.cs`(ケース3 Info の追加) |
+| docs | 本節、[21_anchor_spec.md] §3.3、[43_manual_verification_2026-09-17.md] §6、`docs/DesignerManual/presentation.html` |
+
+### コンパイル・テスト(2026-09-19、Unity MCP CoplayDev 版)
+
+コンパイル(エラー 0)・EditMode(919 件中 919 件完走、失敗 4 件はいずれも本チケットと無関係。同時並行で別エージェントが作業していた `AssetCreationService`(バージョンスタンプ関連、`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`)の作業中の変更によるもので、本チケットのファイルは一切含まれない)・PlayMode(751/751 green)を確認した。本チケット関連のテストのみを抽出して実行しても全件 green(`AnchorDefTests` 6 件・`PresentationTrackAnchorResolverTests` 27 件の Editor 33 件、`PresentationTrackAnchorComposerTests`・`PresentationManagerTests`・`AnchorChainTests`・`PresentationDataValidatorTests` の Runtime 58 件)。
+
+### 未確認・要判断
+
+- SceneView での実際の見た目(ケース1の注記表示・ケース3のチェーン表示・トラック一覧の見出し文言)は人による確認が必要([43_manual_verification_2026-09-17.md] §11 に手順を追記した)
+- 既存プロジェクトの `PresentationData` のうち、今回の仕様変更で実際に出る位置が変わるものが無いか(`Validation > Run All` の Info)は未確認

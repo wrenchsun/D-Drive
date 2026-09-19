@@ -162,47 +162,54 @@ namespace DDrive.Editor.Preview
                 return previous;
             }
 
-            var chained = new Color(color.r, color.g, color.b, 0.6f);
             for (var i = 0; i < rootToTarget.Count - 1; i++)
             {
                 var def = AnchorChainEditor.ComposeUpTo(rootToTarget, i);
                 var pos = AnchorPose.WorldPosition(def, baseTransform, extraOffset);
                 var rot = AnchorPose.WorldRotation(def, baseTransform, Quaternion.identity);
-                var size = HandleUtility.GetHandleSize(pos);
-
-                Handles.color = chained;
-                Handles.DrawDottedLine(previous, pos, 4f);
-                Handles.DrawWireDisc(pos, Vector3.up, size * 0.12f);
-                DrawAxes(pos, rot, size * 0.25f);
-                Handles.color = chained;
-                Handles.Label(pos + Vector3.up * size * 0.2f, $"基準{i + 1}: {rootToTarget[i].name}", OriginStyle());
-
-                DrawJitter(rootToTarget[i], pos, chained);
+                DrawChainNode(previous, pos, rot, $"基準{i + 1}: {rootToTarget[i].name}", rootToTarget[i].PositionJitterRadius, color);
                 previous = pos;
             }
 
             // 対象自身のランダム半径(最終段)。位置の線とラベルは呼び出し側が描く。
             var last = rootToTarget[rootToTarget.Count - 1];
             var lastPos = AnchorPose.WorldPosition(AnchorChainEditor.ComposeUpTo(rootToTarget, rootToTarget.Count - 1), baseTransform, extraOffset);
-            Handles.color = chained;
-            DrawJitter(last, lastPos, chained);
+            DrawJitter(last.PositionJitterRadius, lastPos, new Color(color.r, color.g, color.b, 0.6f));
 
             return previous;
         }
 
+        // 汎用: 連鎖の 1 中間段(軸 + ラベル + 前段からの点線 + ジッター半径)を描く。DrawChain の内部から、
+        // および AnchorData を持たない仮想ノード(Presentation の「トラック Anchor」等)からも呼べる
+        // ([08_presentation.md] 実装メモ 2026-09-19「トラック/アセット両方の Anchor 参照」)。
+        public static void DrawChainNode(Vector3 previousWorld, Vector3 worldPos, Quaternion worldRot, string label, float positionJitterRadius, Color color)
+        {
+            var size = HandleUtility.GetHandleSize(worldPos);
+            var chained = new Color(color.r, color.g, color.b, 0.6f);
+
+            Handles.color = chained;
+            Handles.DrawDottedLine(previousWorld, worldPos, 4f);
+            Handles.DrawWireDisc(worldPos, Vector3.up, size * 0.12f);
+            DrawAxes(worldPos, worldRot, size * 0.25f);
+            Handles.color = chained;
+            Handles.Label(worldPos + Vector3.up * size * 0.2f, label, OriginStyle());
+
+            DrawJitter(positionJitterRadius, worldPos, chained);
+        }
+
         // ── 内部 ──
 
-        private static void DrawJitter(AnchorData node, Vector3 pos, Color color)
+        private static void DrawJitter(float positionJitterRadius, Vector3 pos, Color color)
         {
-            if (node == null || node.PositionJitterRadius <= 0f)
+            if (positionJitterRadius <= 0f)
             {
                 return;
             }
 
             Handles.color = color;
-            Handles.DrawWireDisc(pos, Vector3.up, node.PositionJitterRadius);
-            Handles.DrawWireDisc(pos, Vector3.right, node.PositionJitterRadius);
-            Handles.DrawWireDisc(pos, Vector3.forward, node.PositionJitterRadius);
+            Handles.DrawWireDisc(pos, Vector3.up, positionJitterRadius);
+            Handles.DrawWireDisc(pos, Vector3.right, positionJitterRadius);
+            Handles.DrawWireDisc(pos, Vector3.forward, positionJitterRadius);
         }
 
         // 基準の姿勢を示す小さな 3 軸(X=赤 / Y=緑 / Z=青)。Unity の Transform ギズモと同じ色にする。

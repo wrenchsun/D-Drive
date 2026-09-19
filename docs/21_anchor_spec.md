@@ -100,6 +100,14 @@ public sealed class AnchorData : AssetDataBase
 - ファサード追加: `Vfx.Spawn(VfxId, AnchorId)` / `Vfx.Spawn(VfxId, AnchorId, Transform ctx)` / `Audio.PlaySe(SeId, AnchorId)` / `Audio.PlaySe(SeId, AnchorId, Transform ctx)`。`PlayContext` を導入する場合はそこに `AnchorId` を載せる（[19] §2 の未着手項目と統合）
 - `AnchorId` 未登録は他種別と同じく **Placeholder（= World 原点、警告 1 回）**で継続
 
+**2026-09-19 追記(Presentation の合成)**: 上記は `Vfx.Spawn`/`Audio.PlaySe` 等プログラマーが直接呼ぶ経路の優先順位。**[08_presentation.md] の Presentation トラック(Kind=Vfx/Se)はこれとは別に、トラック自身の埋め込み `Anchor`(`PresentationTrack.Anchor`)も参照する**(2026-09-14 時点ではトラックの Anchor だけが使われ、参照先 VfxData/SeData の `AnchorId`/埋め込み Anchor は一切使われていなかった=既知の欠落だった)。2026-09-19 のユーザー決定により、Presentation は次の 3 ケースで解決する(`Runtime/Presentation/PresentationTrackAnchorComposer.cs` に実装を集約):
+
+1. アセット側だけ設定 → 上記の優先順位どおり(AnchorId の連鎖 > 埋め込み Anchor)
+2. トラック側だけ設定 → トラックの Anchor をそのまま使う
+3. 両方設定 → **トラックの Anchor を「連鎖の最上位の親」として扱い、アセット側(AnchorId の連鎖、または埋め込み 1 段)をその子として `AnchorChain.Compose` と同じ規則で合成する**。合成後の `Space`/`Path`/`FollowRotation`/`DetachOnStop` は常にルート(トラック)の値になり、アセット側(子)のこれらの値は無視される(§3.2 の「子は親の姿勢を基準にオフセットを積む」規則そのまま。アセット側が連鎖なら「トラック Anchor → 連鎖のルート → … → 末端」の順)
+
+「設定されている」の判定は `AnchorDef.IsDefault`(`WorldDefault` と等価か、`LocalScale` の 0/1 と `Path` の null/空文字は同一視)/ `AssetId.IsValid`。詳細・確定した事実・変更ファイル一覧は [08_presentation.md](08_presentation.md) の「実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)」を参照。
+
 ### 3.4 AnchorPoint / AnchorRig（シーン配置型）の位置づけ
 
 - 残す。役割は「**シーン/プレハブ上の Transform を名前で示すマーカー**」に限定していく

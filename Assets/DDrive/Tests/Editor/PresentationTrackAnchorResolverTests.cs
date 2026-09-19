@@ -2,6 +2,7 @@ using DDrive.Editor.Presentation;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Presentation;
+using DDrive.Runtime.Vfx;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -187,6 +188,92 @@ namespace DDrive.Tests.Editor
 
             Assert.AreEqual(0, count);
             Assert.IsNull(baseTransform);
+        }
+
+        // ── ResolveEffective(2026-09-19、トラック/アセット両方の Anchor 参照) ──
+
+        [Test]
+        public void ResolveEffective_AssetOnly_UsesAssetEmbeddedAnchorForBaseTransform()
+        {
+            var vfx = ScriptableObject.CreateInstance<VfxData>();
+            try
+            {
+                vfx.Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "RightHand", LocalScale = Vector3.one };
+                var track = new PresentationTrack { Kind = TrackKind.Vfx, Target = TrackTargetMode.Self, Anchor = AnchorDef.WorldDefault };
+
+                var result = PresentationTrackAnchorResolver.ResolveEffective(in track, _self.transform, null, null, vfx);
+
+                Assert.AreEqual(PresentationTrackAnchorComposer.Case.AssetOnly, result.Case);
+                Assert.AreSame(_boneChild.transform, result.BaseTransform);
+            }
+            finally
+            {
+                Object.DestroyImmediate(vfx);
+            }
+        }
+
+        [Test]
+        public void ResolveEffective_TrackOnly_UsesTrackAnchorForBaseTransform()
+        {
+            var track = new PresentationTrack
+            {
+                Kind = TrackKind.Vfx,
+                Target = TrackTargetMode.Self,
+                Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "RightHand", LocalScale = Vector3.one },
+            };
+
+            var result = PresentationTrackAnchorResolver.ResolveEffective(in track, _self.transform, null, null, null);
+
+            Assert.AreEqual(PresentationTrackAnchorComposer.Case.TrackOnly, result.Case);
+            Assert.AreSame(_boneChild.transform, result.BaseTransform);
+        }
+
+        [Test]
+        public void ResolveEffective_Both_BaseTransformComesFromTrackAnchor_NotAsset()
+        {
+            var vfx = ScriptableObject.CreateInstance<VfxData>();
+            try
+            {
+                // アセット側は解決できない Path(存在しないボーン)。子(アセット側)の Space/Path は無視され、
+                // 常にルート(トラック)の Space/Path が基準になる(確定した事実)。
+                vfx.Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "NoSuchBone", LocalScale = Vector3.one };
+                var track = new PresentationTrack
+                {
+                    Kind = TrackKind.Vfx,
+                    Target = TrackTargetMode.Self,
+                    Anchor = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "RightHand", LocalScale = Vector3.one },
+                };
+
+                var result = PresentationTrackAnchorResolver.ResolveEffective(in track, _self.transform, null, null, vfx);
+
+                Assert.AreEqual(PresentationTrackAnchorComposer.Case.Both, result.Case);
+                Assert.AreSame(_boneChild.transform, result.BaseTransform);
+            }
+            finally
+            {
+                Object.DestroyImmediate(vfx);
+            }
+        }
+
+        [Test]
+        public void ResolveEffective_Neither_ReturnsWorldOrigin()
+        {
+            var track = new PresentationTrack { Kind = TrackKind.Vfx, Target = TrackTargetMode.Self, Anchor = AnchorDef.WorldDefault };
+
+            var result = PresentationTrackAnchorResolver.ResolveEffective(in track, _self.transform, null, null, null);
+
+            Assert.AreEqual(PresentationTrackAnchorComposer.Case.Neither, result.Case);
+            Assert.IsNull(result.BaseTransform);
+        }
+
+        [Test]
+        public void ResolveEffective_AnchorGroupKind_ReturnsHasPositionFalse()
+        {
+            var track = new PresentationTrack { Kind = TrackKind.AnchorGroup };
+
+            var result = PresentationTrackAnchorResolver.ResolveEffective(in track, _self.transform, null, null, null);
+
+            Assert.IsFalse(result.HasPosition);
         }
     }
 }

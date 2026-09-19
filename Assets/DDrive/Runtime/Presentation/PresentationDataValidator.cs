@@ -53,6 +53,17 @@ namespace DDrive.Runtime.Presentation
                     yield return ValidationResult.Error($"トラック {i}({track.Kind}) の Asset の種別が AnchorGroup ではありません({track.Asset.Type})");
                 }
 
+                // [08_presentation.md] 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照) — ケース3
+                // (トラック/アセット双方に Anchor が設定されている)は合成される旨を Info で知らせる
+                // (Error にはしない。意図した組み合わせもありうるため)。
+                if ((track.Kind == TrackKind.Vfx || track.Kind == TrackKind.Se) && track.Asset.IsAssigned
+                    && TryFindTrackAsset(ctx, track.Asset, out var referencedAsset)
+                    && PresentationTrackAnchorComposer.TryGetAssetAnchor(referencedAsset, out var assetAnchorId, out var assetEmbedded)
+                    && PresentationTrackAnchorComposer.DetermineCase(in track, assetAnchorId, in assetEmbedded) == PresentationTrackAnchorComposer.Case.Both)
+                {
+                    yield return ValidationResult.Info($"トラック {i}({track.Kind}) はトラックとアセット側の両方に Anchor が設定されているため、親子合成されます(トラックの Anchor が親)");
+                }
+
                 if (track.Trigger == TrackTrigger.OnSignal && string.IsNullOrEmpty(track.SignalKey))
                 {
                     yield return ValidationResult.Error($"トラック {i}({track.Kind}) は Trigger=OnSignal ですが SignalKey が空です");
@@ -136,18 +147,33 @@ namespace DDrive.Runtime.Presentation
         // AssetRef.Type も一致させて誤爆を避ける)。
         private static bool TryFindTrackAssetNetMode(ValidationContext ctx, in AssetRef assetRef, out NetMode netMode)
         {
+            if (TryFindTrackAsset(ctx, in assetRef, out var asset))
+            {
+                netMode = asset.Flags.Net;
+                return true;
+            }
+
             netMode = NetMode.Local;
+            return false;
+        }
+
+        // [08_presentation.md] 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照) — TryFindTrackAssetNetMode
+        // と同じ走査を、参照先アセットそのもの(VfxData/SeData の AnchorId/埋め込み Anchor を見るため)を
+        // 返す形に切り出した(コピペしない)。
+        private static bool TryFindTrackAsset(ValidationContext ctx, in AssetRef assetRef, out AssetDataBase asset)
+        {
             var all = ctx.AllAssets;
             for (var i = 0; i < all.Count; i++)
             {
                 var candidate = all[i];
                 if (candidate != null && candidate.Id == assetRef.Id && AssetTypeOf(candidate) == assetRef.Type)
                 {
-                    netMode = candidate.Flags.Net;
+                    asset = candidate;
                     return true;
                 }
             }
 
+            asset = null;
             return false;
         }
 

@@ -531,14 +531,25 @@ namespace DDrive.Editor.Presentation
                 return foldout;
             }
 
+            // [08_presentation.md] 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照) — RefreshAfterEdit
+            // (下記、Trigger/Time/SignalKey 等のコールバックから呼ばれうる)が anchorFoldout(後で構築)を
+            // 参照する RefreshAnchorCaseLabel を呼ぶため、先に null で宣言しておく(CS0165 対策。
+            // RefreshAnchorCaseLabel 側で null チェックする)。
+            Foldout anchorFoldout = null;
+
             void RefreshAfterEdit()
             {
                 EditorUtility.SetDirty(_target);
                 RefreshValidation();
                 RefreshSignalButtons();
                 foldout.text = TrackFoldoutTitle(index);
+                RefreshAnchorCaseLabel();
                 _timelineContainer?.MarkDirtyRepaint();
             }
+
+            // RefreshAnchorCaseLabel は anchorFoldout(後述)を参照するため、その宣言より後ろに定義する
+            // (ローカル関数どうしの前方参照〔RefreshAfterEdit → RefreshAnchorCaseLabel〕は可能だが、
+            // ローカル変数 anchorFoldout 自体は宣言前に参照できないため CS0841 になる)。
 
             void AddField(string name, string label = null)
             {
@@ -618,7 +629,7 @@ namespace DDrive.Editor.Presentation
 
             AddField("Target");
 
-            var anchorFoldout = new Foldout { text = "Anchor(VFX/SE の位置)", value = false };
+            anchorFoldout = new Foldout { text = "Anchor(VFX/SE の位置)", value = false };
             var anchorProp = prop.FindPropertyRelative("Anchor");
             if (anchorProp != null)
             {
@@ -629,6 +640,34 @@ namespace DDrive.Editor.Presentation
             }
 
             foldout.Add(anchorFoldout);
+
+            // [08_presentation.md] 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照) — 今どのケース
+            // (アセット側のみ / トラックのみ / 両方=親子合成 / 未設定)かを Anchor 欄の見出しに 1 行で表示する。
+            // Vfx/Se トラックだけが対象(AnchorGroup は自分の点を持つため対象外、他 Kind は位置を消費しない)。
+            void RefreshAnchorCaseLabel()
+            {
+                if (anchorFoldout == null)
+                {
+                    return;
+                }
+
+                var current = _target.Tracks[index];
+                if (current.Kind != TrackKind.Vfx && current.Kind != TrackKind.Se)
+                {
+                    anchorFoldout.text = "Anchor(VFX/SE の位置)";
+                    return;
+                }
+
+                var currentAssetType = PresentationTrackKindMapping.AssetTypeFor(current.Kind);
+                var asset = currentAssetType != null && current.Asset.IsAssigned
+                    ? PresentationTrackKindMapping.FindAssetById(currentAssetType, current.Asset.Id)
+                    : null;
+                PresentationTrackAnchorComposer.TryGetAssetAnchor(asset, out var assetAnchorId, out var assetEmbedded);
+                var kase = PresentationTrackAnchorComposer.DetermineCase(in current, assetAnchorId, in assetEmbedded);
+                anchorFoldout.text = $"Anchor(VFX/SE の位置) — {DescribeAnchorCase(kase)}";
+            }
+
+            RefreshAnchorCaseLabel();
 
             var paramsFoldout = new Foldout { text = "Params(パラメータ上書き)", value = false };
 
@@ -707,5 +746,15 @@ namespace DDrive.Editor.Presentation
 
             return $"[{index}] {track.Kind}{assetName} ({when})";
         }
+
+        // [08_presentation.md] 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照) — Anchor 欄の見出しに
+        // 出す 1 行(現在どのケースか)。
+        private static string DescribeAnchorCase(PresentationTrackAnchorComposer.Case kase) => kase switch
+        {
+            PresentationTrackAnchorComposer.Case.AssetOnly => "現在: アセット側の Anchor を使用",
+            PresentationTrackAnchorComposer.Case.TrackOnly => "現在: トラックの Anchor を使用",
+            PresentationTrackAnchorComposer.Case.Both => "現在: 両方設定されているため親子合成(トラックが親)",
+            _ => "現在: 未設定(ワールド原点)",
+        };
     }
 }
