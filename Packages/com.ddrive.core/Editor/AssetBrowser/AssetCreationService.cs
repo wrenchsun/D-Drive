@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DDrive.Editor.Codegen;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Settings;
@@ -205,16 +206,7 @@ namespace DDrive.Editor.AssetBrowser
 
         private static AssetCatalog RegisterToCatalog(AssetDataBase asset, AssetType assetType, string address, string gameDataRoot)
         {
-            var catalogFolder = $"{gameDataRoot}/Catalogs";
-            EnsureFolder(catalogFolder);
-
-            var catalogPath = $"{catalogFolder}/{GetCatalogName(assetType)}.asset";
-            var catalog = AssetDatabase.LoadAssetAtPath<AssetCatalog>(catalogPath);
-            if (catalog == null)
-            {
-                catalog = ScriptableObject.CreateInstance<AssetCatalog>();
-                AssetDatabase.CreateAsset(catalog, catalogPath);
-            }
+            var catalog = EnsureCatalogFile(GetCatalogName(assetType), gameDataRoot);
 
             catalog.AddOrUpdate(new CatalogEntry
             {
@@ -226,6 +218,51 @@ namespace DDrive.Editor.AssetBrowser
 
             EditorUtility.SetDirty(catalog);
             return catalog;
+        }
+
+        // [42_distribution.md] §3.6/§6 P-6(2026-09-20) — セットアップウィザードの「既定フォルダ・設定の
+        // 生成」段が、まだ 1 件も Data を作っていない状態でも全カタログを空のまま用意できるようにする
+        // (Data 作成時の RegisterToCatalog が内部でこれと同じロジックを既に持っていたので、そちらを
+        // 本メソッドへ切り出して共用にした。挙動は変えていない)。
+        public static AssetCatalog EnsureCatalogFile(string catalogName, string gameDataRoot = DefaultGameDataRoot)
+        {
+            gameDataRoot = ResolveGameDataRoot(gameDataRoot);
+
+            var catalogFolder = $"{gameDataRoot}/Catalogs";
+            EnsureFolder(catalogFolder);
+
+            var catalogPath = $"{catalogFolder}/{catalogName}.asset";
+            var catalog = AssetDatabase.LoadAssetAtPath<AssetCatalog>(catalogPath);
+            if (catalog == null)
+            {
+                catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+                AssetDatabase.CreateAsset(catalog, catalogPath);
+            }
+
+            return catalog;
+        }
+
+        // 種別一覧(AssetType の全値、None を除く)から一意なカタログ名の一覧を作る。
+        // ウィザードが「未作成のカタログを全部空で用意する」ときに使う(GetCatalogName の switch を
+        // 単一の情報源のまま保つため、ここではカタログ名を列挙するだけで新しい対応表は持たない)。
+        public static IReadOnlyList<string> AllCatalogNames()
+        {
+            var names = new List<string>();
+            foreach (AssetType type in Enum.GetValues(typeof(AssetType)))
+            {
+                if (type == AssetType.None)
+                {
+                    continue;
+                }
+
+                var name = GetCatalogName(type);
+                if (!names.Contains(name))
+                {
+                    names.Add(name);
+                }
+            }
+
+            return names;
         }
 
         internal static void EnsureFolder(string folder)

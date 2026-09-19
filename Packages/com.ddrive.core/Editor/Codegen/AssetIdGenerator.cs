@@ -67,7 +67,11 @@ namespace DDrive.Editor.Codegen
         {
             // [42_distribution.md] §3.4/§7 B-6(P-5) — 既定値のまま指定されていないときだけ
             // DDriveProjectSettings.GeneratedRoot を出力先として使う。
-            if (outputPath == DefaultOutputPath)
+            // [42_distribution.md] §2.3-7/§7 A-8(P-6) — このときだけ(=呼び出し側が出力先を明示していない
+            // 通常のメニュー/ウィザード実行のときだけ)`DDrive.Generated.asmdef` の出力可否も判定する。
+            // テスト(AssetIdGeneratorTests 等)は常に明示の一時パスを渡すため対象にならない。
+            var usingDefaultOutputPath = outputPath == DefaultOutputPath;
+            if (usingDefaultOutputPath)
             {
                 outputPath = $"{DDriveProjectSettings.instance.GeneratedRoot}/AssetIds.g.cs";
             }
@@ -187,6 +191,12 @@ namespace DDrive.Editor.Codegen
             if (normalized.StartsWith("Assets/"))
             {
                 AssetDatabase.ImportAsset(normalized);
+            }
+
+            if (usingDefaultOutputPath)
+            {
+                var generatedFolder = Path.GetDirectoryName(normalized)?.Replace('\\', '/');
+                GeneratedAsmdefWriter.EnsureAsmdef(generatedFolder, DDriveProjectSettings.instance.EmitGeneratedAsmdef);
             }
 
             return result;

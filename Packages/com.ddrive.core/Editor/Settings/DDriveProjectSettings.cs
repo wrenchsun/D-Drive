@@ -29,6 +29,19 @@ namespace DDrive.Editor.Settings
         [SerializeField] private string _sourceAssetsRoot = ImportRuleService.DefaultSourceRoot;
         [SerializeField] private string _specsRoot = "Specs";
 
+        // [42_distribution.md] §4.5/§7 A-9(P-6、2026-09-20) — 「持ち込み先で D-Drive を改造している
+        // 可能性」の Warning(ProjectSetupValidator)を出すための判定材料。開発リポジトリ(このリポジトリ)
+        // では true にする(埋め込みパッケージ = PackageSource.Embedded であること自体は開発リポジトリでも
+        // 持ち込み先でも起こり得るため、この 2 つを掛け合わせて判定する)。開発リポジトリでの true 化は
+        // 人手ではなく `DevRepoSettingsSync`(Editor/Settings)が `DDRIVE_DEV_REPO` 定義時に自動で行う
+        // (ProjectSettings/*.asset はテキスト編集しない。Unity 経由の保存のみ)。
+        [SerializeField] private bool _isDevelopmentRepo;
+
+        // [42_distribution.md] §2.3-7/§7 A-8(P-6、2026-09-20) — `Tools > D-Drive > Generate >
+        // Regenerate Asset IDs` が出力フォルダに `DDrive.Generated.asmdef` を同時出力するかどうか。
+        // 既定 ON(A-8 決定)。セットアップウィザードのチェックボックスで OFF にできる。
+        [SerializeField] private bool _emitGeneratedAsmdef = true;
+
         public string GameDataRoot
         {
             get => string.IsNullOrEmpty(_gameDataRoot) ? AssetCreationService.DefaultGameDataRoot : _gameDataRoot;
@@ -51,6 +64,26 @@ namespace DDrive.Editor.Settings
         {
             get => string.IsNullOrEmpty(_specsRoot) ? "Specs" : _specsRoot;
             set => SetAndSave(ref _specsRoot, value);
+        }
+
+        public bool IsDevelopmentRepo
+        {
+            get => _isDevelopmentRepo;
+            set
+            {
+                _isDevelopmentRepo = value;
+                Save(true);
+            }
+        }
+
+        public bool EmitGeneratedAsmdef
+        {
+            get => _emitGeneratedAsmdef;
+            set
+            {
+                _emitGeneratedAsmdef = value;
+                Save(true);
+            }
         }
 
         private void SetAndSave(ref string field, string value)

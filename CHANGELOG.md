@@ -28,6 +28,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - P-5（2026-09-20）: `DDriveVersion.Value` を `"1.0.0-dev"` → `"1.0.0"` に変更(パッケージ化発効に伴う正式表記。`PackageVersionConsistencyTests` で `package.json` の `version` と一致することを確認済み)
 - P-5（2026-09-20）: `AssetSearch.Roots` の既定値を `{"Assets"}` から `{"Assets", <D-Drive 自身のパッケージ asset パス>}` に拡張(`PackageInfo` で解決。他パッケージは対象外のまま)。D-Drive 自身が `Packages/com.ddrive.core/` に移った後も `Tests/` 配下の一時フィクスチャ等を検索できるようにするための必須修正(追加のみ、`DDrive.Editor` は互換面 §5.4 の対象外)
 - P-5（2026-09-20）: `CameraExecutionOrderValidator.IsDDrivePath` が `PackageInfo` 経由でパッケージの実 asset パスも D-Drive 自身のスクリプトと判定するようにした(`"Assets/DDrive/"` 前方一致は後方互換のため維持)。`ScanRiskyPatternFiles` の走査対象を `DDriveCodeScanRoots`(Assets 全体 + D-Drive 自身のパッケージパス)に拡張
+- P-6（2026-09-20）: `DDriveProjectSettings` に `IsDevelopmentRepo`（bool）・`EmitGeneratedAsmdef`（bool、既定 true）を追加(追加のみ)。`AssetCreationService` に `EnsureCatalogFile`/`AllCatalogNames`（`public static`、追加のみ）を追加
+- P-6（2026-09-20）: `DDriveMenu` に `Setup`（`"Tools/D-Drive/Setup/"`）を追加(追加のみ)。`Tests/Editor/Compat/Snapshots/editor-contract.txt` を更新済み(`Tools > D-Drive > Compat > スナップショットを更新`)
 
 ### 追加
 
@@ -54,4 +56,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - `AssetCreationService`/`ImportRuleService`/`AssetIdGenerator`/`TuningCodegen`/`AssetIconService`/`ScenePreloadGenerator`/`SpecSnapshotWriter`/`DDriveSpecSettings`/`AssetReorganizer`/`SourceDataCreation`/`CutsceneImportService` の `"Assets/GameData"`/`"Assets/Generated"`/`"Assets/SourceAssets"`/`"Specs"` 決め打ちを `DDriveProjectSettings.{GameDataRoot,GeneratedRoot,SourceAssetsRoot,SpecsRoot}` 経由の解決に置き換え(既定値は現状のままなので挙動は不変。実際にウィザードで変更できるようにするのは P-6)
   - `AiStandardSurface` shader の `#include` 絶対パス・`AiStandardSurfacePreprocessor.ShaderPath` を `Packages/com.ddrive.core/Runtime/Shaders/...` へ更新
   - `Tests/Editor/Compat/*`(`CompatSnapshotPaths`・`LegacyAssetFixtureTests`・`CodegenGoldenTests`・`ConstantNameGoldenTests`・`ValidatorSeverityRegistryTests`)と、その他 `Assets/DDrive/Tests/Editor/Temp*` を自前のスクラッチフォルダにしていたテスト約 50 件のパスを `Packages/com.ddrive.core/Tests/Editor/...` へ更新
+- P-6（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §3.6・§6 P-6）: **セットアップウィザード + `ProjectSetupValidator`**
+  - `Tools > D-Drive > Setup > セットアップウィザード`（`ProjectSetupWizardWindow`）を新設。依存パッケージ・ProjectSettings・置き場所・既定フォルダ/設定の生成・Addressables 初期化・起動オブジェクト・テスト有効化・エージェント向けスキル・完了チェックの 9 段（各段は独立して再検査できる）
+  - `ProjectSetupInspector`（検査/計算の純関数）・`ProjectSetupActions`（副作用のある適用）・`ManifestJson`（`Packages/manifest.json` の `dependencies`/`scopedRegistries`/`testables` を Newtonsoft.Json で読み書き）を新設
+  - `ProjectSetupValidator`（`IUniversalValidator`）を新設し、ウィザードの検査 1・2・4・5 + A-9（改造の可能性）と同じ判定を `Validation > Run All` にも追加。新設 Code（すべて Warning）: `DD-SETUP-DEP-UNITASK` / `DD-SETUP-DEP-R3` / `DD-SETUP-DEP-R3-NUGET-REGISTRY` / `DD-SETUP-DEP-R3-NUGET` / `DD-SETUP-URP` / `DD-SETUP-INPUT` / `DD-SETUP-API-LEVEL` / `DD-SETUP-ADDRESSABLES` / `DD-SETUP-GAMEDATA-ROOT` / `DD-SETUP-UI-LAYER-SETTINGS` / `DD-SETUP-SPEC-SETTINGS` / `DD-SETUP-EMBEDDED-MODIFIED`
+  - `GeneratedAsmdefWriter` を新設し、`AssetIdGenerator.Regenerate()` の既定呼び出し（出力先未指定）から `DDrive.Generated.asmdef` を同時出力できるようにした（`DDriveProjectSettings.EmitGeneratedAsmdef` で ON/OFF、A-8）。このリポジトリ自身は `DevRepoSettingsSync` が初回検出時に `false` にする（既存の `Assets/Generated/` = `Assembly-CSharp` 構成を変えないため）
+  - `AssetCreationService.EnsureCatalogFile`/`AllCatalogNames` を新設（既存の `RegisterToCatalog` からカタログ確保ロジックを切り出して共用化。挙動は変えていない）
+  - `DevRepoSettingsSync`（`[InitializeOnLoad]`）を新設し、`DDRIVE_DEV_REPO` 定義時に `DDriveProjectSettings.IsDevelopmentRepo` を自動で `true` にする（人手で `ProjectSettings/*.asset` を編集しない）
+  - `UnityEditor.PackageManager.Client.AddScopedRegistry` が public API に無いことを確認（[42] §7 C-1 解決）。scoped registry の追加は `ManifestJson.AddScopedRegistry` による manifest.json の直接編集で行う
 

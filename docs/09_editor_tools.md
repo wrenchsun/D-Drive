@@ -339,6 +339,8 @@ Tools/
     │   ├─ Canvas + Panel と CanvasData を作成   ← 2026-09-17 追加(U-19。CanvasSetupService。§6.3)
     │   ├─ Rebuild Dependency Graph
     │   └─ Live Tuning Connect
+    ├─ Setup/
+    │   └─ セットアップウィザード          ← 2026-09-20 追加(P-6。§13。持ち込み先のセットアップ・更新後の再設定用)
     └─ Debug/
         ├─ Runtime Overlay
         └─ Missing Asset Report（発注リスト）
@@ -933,6 +935,22 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 
 ## 12. プロジェクト単位の出力先設定（`DDriveProjectSettings`、2026-09-20、P-4 の土台）
 
-`Assets/DDrive/Editor/Settings/DDriveProjectSettings.cs`（`ScriptableSingleton<DDriveProjectSettings>` + `[FilePath("ProjectSettings/DDriveProjectSettings.asset", ...)]`）。`GameDataRoot` / `GeneratedRoot` / `SourceAssetsRoot` / `SpecsRoot` の 4 フィールドを持ち、既定値は現状の決め打ちパス（`Assets/GameData` 等）と同じ。
+`Packages/com.ddrive.core/Editor/Settings/DDriveProjectSettings.cs`（`ScriptableSingleton<DDriveProjectSettings>` + `[FilePath("ProjectSettings/DDriveProjectSettings.asset", ...)]`。**P-5 でパッケージ化に伴い `Assets/DDrive/Editor/Settings/` から移設済み**）。`GameDataRoot` / `GeneratedRoot` / `SourceAssetsRoot` / `SpecsRoot` の 4 フィールドを持ち、既定値は現状の決め打ちパス（`Assets/GameData` 等）と同じ。**P-5 でこれらを実際に読みに行くよう `AssetCreationService`/`ImportRuleService`/`AssetIdGenerator`/`TuningCodegen`/`AssetIconService`/`ScenePreloadGenerator`/`SpecSnapshotWriter`/`DDriveSpecSettings`/`AssetReorganizer`/`SourceDataCreation`/`CutsceneImportService` に配線済み**（既定値のまま渡されたときだけ設定を読む sentinel 方式。挙動は変えていない）。
 
-**現時点（P-4）ではこの設定を読みに来るコードは無い**。`AssetCreationService.DefaultGameDataRoot` 等、既存の決め打ち定数はまだ差し替えていない。位置づけは [42_distribution.md](42_distribution.md) §3.4・§4.3・§7 B-6 の「出力先を持ち込み先が選べるようにする」土台で、実際の参照差し替えは P-5、選択 UI（セットアップウィザード）は P-6 で行う。1 つの設定 SO に他チケットの責務（`AssetDataBase.SchemaVersion` = P-7、`LastAppliedVersion` = P-8 等）は混ぜない。
+**2026-09-20（P-6）追記**: `IsDevelopmentRepo`（bool）・`EmitGeneratedAsmdef`（bool、既定 true）の 2 フィールドを追加した。
+
+- `IsDevelopmentRepo`: [42_distribution.md] §4.5/§7 A-9 の「持ち込み先で D-Drive を改造している可能性」の Warning（`ProjectSetupValidator`）を判定する材料。開発リポジトリ（このリポジトリ）だけ `true` にする必要があるが、ProjectSettings/*.asset をテキスト編集できないため、新設の `DevRepoSettingsSync`（`Editor/Settings/DevRepoSettingsSync.cs`、`[InitializeOnLoad]`）が `DDRIVE_DEV_REPO`（Scripting Define Symbols にこのリポジトリだけ追加してある）定義時に自動で `true` にする。持ち込み先には `DDRIVE_DEV_REPO` が無いため、既定の `false` のまま埋め込み改造の Warning が働く
+- `EmitGeneratedAsmdef`: [42_distribution.md] §2.3-7/§7 A-8 の「`Regenerate Asset IDs` が `DDrive.Generated.asmdef` を同時出力するか」（既定 ON。`GeneratedAsmdefWriter` が実際の出力を担う）。**このリポジトリ自身は `DevRepoSettingsSync` が初回検出時に明示的に `false` にする**（`Assets/Generated/` に asmdef が無い既存構成を壊さないため。A-8 の「既定 ON」は持ち込み先向けの初期値であり、このリポジトリには適用しない）
+
+1 つの設定 SO に他チケットの責務（`AssetDataBase.SchemaVersion` = P-7、`LastAppliedVersion` = P-8 等）は混ぜない。
+
+## 13. セットアップウィザード（`ProjectSetupWizardWindow`、2026-09-20、P-6）
+
+`Tools > D-Drive > Setup > セットアップウィザード`（`Packages/com.ddrive.core/Editor/Setup/ProjectSetupWizardWindow.cs`）。持ち込み先で最初に 1 回、更新後にも再実行できる、[42_distribution.md](42_distribution.md) §3.6 の「検査 → 提案 → 適用」ウィザード。
+
+- **UI**: `ScrollView` ルート（§7 の規約どおり）+ 9 個の `Foldout`（1. 依存パッケージ 2. ProjectSettings 3. 置き場所 4. 既定フォルダ・設定の生成 5. Addressables 同期 6. 起動オブジェクト 7. テストを有効化する 8. エージェント向けスキル 9. 完了チェック）。各段は独立して「再検査」できる
+- **設計**: 検査/計算ロジックはウィンドウに依存しない `ProjectSetupInspector`（純関数。git 依存の不足検出・URP/Input System/API Compatibility Level の検査・Addressables 初期化検査・既定フォルダ検査・フォルダ配置プリセットの計算・A-9 の改造検出）に、副作用のある適用は `ProjectSetupActions`（`Client.Add` の呼び出し・`Packages/manifest.json` の編集・既定フォルダ/カタログ/`UiLayerSettings`/`DDriveSpecSettings` の生成・ID/Tuning 再生成・Addressables 初期化・`testables` の切り替え・消費側スキルのコピー）に分離。`manifest.json` の読み書きは `ManifestJson`（Newtonsoft.Json、`dependencies`/`scopedRegistries`/`testables` の各操作）に集約した
+- **Active Input Handling の読み取り**: `PlayerSettings` に公開 getter が無い（`GetPropertyInt("activeInputHandler")` は不正な値を返すことを確認済み）ため、`ProjectSettings/ProjectSettings.asset` 自体を `SerializedObject` で読む（`ProjectSetupInspector.ReadActiveInputHandler`）。書き込みは行わない（検査のみ、[42] §3.6 の方針どおり）
+- **scoped registry の追加**: `UnityEditor.PackageManager.Client` に `AddScopedRegistry` は無い（2026-09-20 に `unity_reflect` で確認）ため、`ManifestJson.AddScopedRegistry` で `manifest.json` を直接編集する
+- **`ProjectSetupValidator`**（`Editor/Validation/ProjectSetupValidator.cs`、`IUniversalValidator`）: ウィザードの検査 1（依存）・2（ProjectSettings）・4（既定フォルダ・設定）・5（Addressables 初期化）+ A-9（改造の可能性）と同じ判定を `Validation > Run All` にも載せる。新設した Code（すべて Warning、[42] §5.8 の「新しい検査は Warning から」方針）: `DD-SETUP-DEP-UNITASK` / `DD-SETUP-DEP-R3` / `DD-SETUP-DEP-R3-NUGET-REGISTRY` / `DD-SETUP-DEP-R3-NUGET` / `DD-SETUP-URP` / `DD-SETUP-INPUT` / `DD-SETUP-API-LEVEL` / `DD-SETUP-ADDRESSABLES` / `DD-SETUP-GAMEDATA-ROOT` / `DD-SETUP-UI-LAYER-SETTINGS` / `DD-SETUP-SPEC-SETTINGS` / `DD-SETUP-EMBEDDED-MODIFIED`。他の `IUniversalValidator`（`AddressablesRegistrationValidator` 等）と同じ制約で、`AssetDataBase` が 1 件も無いプロジェクトでは実行されない（`ValidatorRegistry.RunAll` が資産 0 件のとき Validator 自体を呼ばないため。Foundation 側の既存設計であり本チケットでは変更していない）
+- **テスト**: `Tests/Editor/Setup/`（`ManifestJsonTests` / `ProjectSetupInspectorTests` / `ProjectSetupActionsTests` / `GeneratedAsmdefWriterTests` / `ProjectSetupValidatorTests`）。開発リポジトリの実 `manifest.json`・実 `GameData` を書き換える `ProjectSetupActions` のメソッド（`EnsureDefaultFoldersAndSettings`/`RegenerateGeneratedCode`/`AddDependency`/`AddScopedRegistryToProjectManifest`/`SetTestablesEnabled`/`CopyConsumerSkillIfBundled`）は EditMode テストから直接呼ばない（検査・純関数・実データに影響しない範囲の関数だけを検証する）

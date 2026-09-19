@@ -124,22 +124,23 @@
 
 <h3>1-2. 既存プロジェクトに持ち込む場合</h3>
 <div class="tip">
-<strong>2026-09-20 更新: D-Drive はパッケージ化されました（P-5）。</strong> <code>Assets/DDrive/</code> は <code>Packages/com.ddrive.core/</code>（埋め込みパッケージ）へ移設済みで、<code>package.json</code>（<code>name: "com.ddrive.core"</code>、<code>version: "1.0.0"</code>）も存在します。ただし、他プロジェクトから git URL で参照して実際に導入できることの確認（P-11）とセットアップウィザード（P-6）はまだ完了していません。それまでの持ち込み手順は下記のとおりです。
+<strong>2026-09-20 更新: セットアップウィザード（P-6）を実装しました。</strong> <code>Assets/DDrive/</code> は <code>Packages/com.ddrive.core/</code>（埋め込みパッケージ）へ移設済み（P-5）で、<code>package.json</code>（<code>name: "com.ddrive.core"</code>、<code>version: "1.0.0"</code>）も存在します。持ち込み先で <code>Tools &gt; D-Drive &gt; Setup &gt; セットアップウィザード</code> を開くと、下記の状態をまとめて確認し、ボタン操作だけで直せます。ただし、他プロジェクトから git URL で参照して実際に導入できることの確認（P-11）と消費側ドキュメント一式（P-10）はまだ完了していません。
 </div>
 <ol>
-<li><strong>（推奨、P-6 完了までの暫定）</strong> <code>Packages/com.ddrive.core/</code> フォルダを丸ごとコピー（<code>.meta</code> ファイルも含める。GUID 参照を壊さないため）するか、下記「UPM 化の状況」の git URL 形式で <code>manifest.json</code> に追加する</li>
-<li><code>Assets/Generated/AssetIds.g.cs</code>（ID 定数。手編集禁止・再生成前提）と、そのフォルダに asmdef が無いこと（既定アセンブリ所属である必要がある点。§<a href="#" data-manual-kind="programmer" data-manual-page="concepts">concepts.html</a> 参照）を確認する</li>
-<li><code>Assets/GameData/</code> は<strong>プロジェクト固有の実データ</strong>（Data アセット・カタログ・標準プレハブ）なので、そのまま流用するのではなく、持ち込み先で新規に Addressables グループ・カタログを作る運用になる見込みです（<strong>要確認</strong>: 現状「持ち込み」を実際にやった実績が無く、[42_distribution.md] で設計検討中の段階。P-11 で実証予定）</li>
-<li>1-1 の依存パッケージを持ち込み先の <code>Packages/manifest.json</code> に追加する（UnityNuGet の <code>scopedRegistries</code> エントリを忘れずに）</li>
-<li>Addressables を <code>Window &gt; Asset Management &gt; Addressables &gt; Groups</code> から初期化する（<code>AddressableAssetSettings</code> が無いと全 Data が実行時にロードできないと Validation が警告します）</li>
-<li>シーンに起動オブジェクトを配置する（<code>Tools &gt; D-Drive &gt; Generate &gt; 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置</code>）。詳細は <a href="#" data-manual-kind="programmer" data-manual-page="bootstrap">bootstrap.html</a></li>
-<li><strong>要確認</strong>: URP アセットの割り当て、Input System の Active Input Handling 設定、その他 ProjectSettings 側の必須項目一式は、このリポジトリの docs 上に確定した手順が見当たりませんでした。動かない場合は既存プロジェクトの ProjectSettings を見比べてください（自動検査は P-6 の <code>ProjectSetupValidator</code> で用意する予定）</li>
+<li><strong>（推奨、正式な配布手順〔P-9/P-11〕までの暫定）</strong> <code>Packages/com.ddrive.core/</code> フォルダを丸ごとコピー（<code>.meta</code> ファイルも含める。GUID 参照を壊さないため）するか、下記「UPM 化の状況」の git URL 形式で <code>manifest.json</code> に追加する</li>
+<li><code>Tools &gt; D-Drive &gt; Setup &gt; セットアップウィザード</code> を開く。「1. 依存パッケージ」で UniTask / R3 / <code>org.nuget.r3</code>（scoped registry）の不足を検出し、「追加」ボタンで導入できる（NGO はマルチプレイを使う場合のみ任意で導入）</li>
+<li>ウィザードの「2. ProjectSettings」で URP アセットの割り当て・Input System の Active Input Handling・API Compatibility Level（.NET Standard 2.1）を確認する（自動変更はしない項目のため、不足があれば案内どおり Project Settings を開いて直す）。同じ検査は <code>ProjectSetupValidator</code> として <code>Validation &gt; Run All</code> にも載る（Code: <code>DD-SETUP-URP</code> / <code>DD-SETUP-INPUT</code> / <code>DD-SETUP-API-LEVEL</code>、いずれも Warning）</li>
+<li>ウィザードの「3. 置き場所」で <code>GameData</code>/<code>Generated</code>/<code>SourceAssets</code>/<code>Specs</code> の置き場所を選ぶ（既定のまま／1 つの親フォルダ配下にまとめる／個別指定の 3 通り。<code>DDriveProjectSettings</code> に保存される）。<strong>持ち込み先が「<code>Assets</code> 直下に新規フォルダを作らない」規約を持つ場合（MS2026 など）は「1 つの親フォルダ配下」を選ぶ</strong></li>
+<li>ウィザードの「4. 既定フォルダ・設定の生成」で <code>GameData</code>/<code>SourceAssets</code> の既定フォルダ・<code>UiLayerSettings</code>・<code>DDriveSpecSettings</code>・各カタログ（空でも可）をまとめて作り、ID/Tuning 定数も再生成する。<code>DDrive.Generated.asmdef</code> を同時出力するかはチェックボックスで選べる（既定 ON。asmdef 付きのゲームコードから生成定数を参照するために必要）</li>
+<li>ウィザードの「5. Addressables 同期」で <code>AddressableAssetSettings</code> が無ければ「初期化」する（無いと全 Data が実行時にロードできないと Validation が警告します）</li>
+<li>ウィザードの「6. 起動オブジェクト」でシーンに起動オブジェクトを配置する（<code>DDriveRuntimeBootstrap</code>。詳細は <a href="#" data-manual-kind="programmer" data-manual-page="bootstrap">bootstrap.html</a>）</li>
+<li><code>Assets/GameData/</code> は<strong>プロジェクト固有の実データ</strong>（Data アセット・カタログ・標準プレハブ）なので、そのまま流用するのではなく、持ち込み先で新規に Addressables グループ・カタログを作る運用です（<strong>要確認</strong>: 実際に「持ち込み」をやった実績は P-11 でまだ検証していません）</li>
 </ol>
 
 <div class="tip">
 <strong>UPM 化の状況（2026-09-17 決定 → 2026-09-20 パッケージ化実施、[42_distribution.md]）:</strong> <code>Packages/com.ddrive.core/</code>（パッケージ名 <code>com.ddrive.core</code>、表示名 <code>D-Drive</code>）が実在し、このリポジトリ（<code>github.com/wrenchsun/D-Drive</code>、private のまま）を git URL の <code>?path=</code> 付きで参照する形の配布を想定しています。最初の版は <strong>1.0.0</strong>。持ち込み先の <code>manifest.json</code> は次のような 1 行になる想定です（<strong>git tag <code>v1.0.0</code> の打刻は P-9 で行うため、2026-09-20 時点ではこの URL はまだ解決できません</strong>）:
 <pre><code>"com.ddrive.core": "git+ssh://git@github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0"</code></pre>
-セットアップウィザード（P-6）・消費側ドキュメント（P-10）・実際に空プロジェクトへ導入する検証（P-11）が完了するまで、上記 1-2 の手順が現行の持ち込み方法です。
+セットアップウィザード（P-6）は実装済みです。消費側ドキュメント（P-10）・実際に空プロジェクトへ導入する検証（P-11）が完了するまで、上記 1-2 の手順が現行の持ち込み方法です。
 </div>
 
 <h2>2. 最初の一本 — SE を ID だけで鳴らす</h2>

@@ -58,6 +58,14 @@ namespace DDrive.Editor.Spec
                 return true;
             }
 
+            // Play Mode 突入のドメインリロードでも [InitializeOnLoad] は走る。そこで開始した非同期取得の
+            // 結果ログが PlayMode テストの途中に落ちて「Unhandled log message」で赤くなる(2026-09-20 に
+            // CutsceneTimelineTracksTests で発生)。自動取得は Editor 起動時の用途なので Play Mode では行わない。
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                return true;
+            }
+
             var args = Environment.GetCommandLineArgs();
             foreach (var arg in args)
             {

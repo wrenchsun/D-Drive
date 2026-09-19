@@ -13,6 +13,9 @@ namespace DDrive.Editor.Menu
         // [11_tasks.md] 6-0(E) — 実機確認用ビルド一式。
         public const string Build = Root + "Build/";
 
+        // [42_distribution.md] §3.6/§6 P-6(2026-09-20) — セットアップウィザードの入口。
+        public const string Setup = Root + "Setup/";
+
         // [42_distribution.md] §5.11(P-3) — 互換性スナップショット(ゴールデン)の更新導線。
         public const string Compat = Root + "Compat/";
 

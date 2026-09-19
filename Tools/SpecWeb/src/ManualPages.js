@@ -28,6 +28,7 @@ var SPEC_WEB_MANUAL_PAGE_NAMES = {
     "material-data",
     "material-editor",
     "model-editor",
+    "package-setup",
     "prefab-data",
     "presentation",
     "scene-sound",

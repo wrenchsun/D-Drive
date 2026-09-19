@@ -8,6 +8,7 @@ Editors = Tools/D-Drive/Editors/
 GameObjectRoot = GameObject/D-Drive/
 Generate = Tools/D-Drive/Generate/
 Root = Tools/D-Drive/
+Setup = Tools/D-Drive/Setup/
 Validation = Tools/D-Drive/Validation/
 == CI ==
 BuildJUnitXml
