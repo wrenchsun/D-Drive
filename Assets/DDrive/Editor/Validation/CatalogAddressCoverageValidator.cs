@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
@@ -100,7 +101,8 @@ namespace DDrive.Editor.Validation
         private static void Fix(AssetDataBase data, string address)
         {
             AddressablesSync.EnsureEntry(data, address);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: Addressables 同期の FixAction は「一括処理」なので版数を進めない。
+            DDriveAssetSave.SaveAllSuppressed();
         }
     }
 }

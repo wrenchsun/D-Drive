@@ -507,6 +507,12 @@ PC-A 側の配布用 HTTP サーバーは停止済み、両 PC とも `DDriveNet
 2. **既存の判定項目の再確認（回帰していないこと）**: 接続・Late Join・偽造 Cancel 破棄・切断検知・
    VFX の蓄積なし・切断後の VFX 残留なし（v4 で解消した項目、§12 参照）が引き続き成立すること
 3. ログ取得後、`docs/28_manual_verification_phase5.md` と本ドキュメントの該当節に結果を追記する
+4. **偽 Pong の破棄(2026-09-19 追加、[docs/44](44_review_2026-09-19.md) P2-1)**: 改造 Client(または
+   デバッグビルドで手動送信)から `NetPongMsg` を Broadcast させ、受信した Host/他 Client の
+   `rtt_app_ms`/`rtt_app_stale` が変化しないこと、`Player.log` に `NgoNetBridge: 送信元 ClientId(...) が
+   正当な Pong の送信元と一致しないため破棄しました。` の警告が(開発ビルドのみ)1 回だけ出ることを確認する
+   (`AppRoundTripTracker` 側は EditMode テストで固定済み。ここで見るのは `NgoNetBridge.OnPongMsgReceived`
+   の `IsServer`/`senderId` 分岐という、NGO 接続が要る部分)
 
 ## 14. ハッシュ不一致の実機確認手順（6-5、次回の実機/ローカル結合確認で行う）
 

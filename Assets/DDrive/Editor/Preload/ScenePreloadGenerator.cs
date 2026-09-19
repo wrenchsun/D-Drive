@@ -3,6 +3,7 @@ using System.IO;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Dependencies;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Versioning;
 using DDrive.Runtime.Loading;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -45,7 +46,8 @@ namespace DDrive.Editor.Preload
             Undo.RecordObject(list, "Update Scene Preload List");
             list.SetEntries(sceneName, entries);
             EditorUtility.SetDirty(list);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 対象は list 1 個だけなので、それだけ保存する。
+            DDriveAssetSave.SaveDirty(list);
 
             return list;
         }

@@ -120,6 +120,10 @@ namespace DDrive.Runtime.Net
 
         private CancellationTokenSource _pingLoopCts;
 
+        // [44_review_2026-09-19.md] P2-1 — 偽造 NetPongMsg を検出したことの警告を、開発ビルドで 1 回だけ出す
+        // (PresentationManager.WarnUnknownKeyDiscardedOnce と同じ考え方)。
+        private bool _warnedForgedPong;
+
         private string LogTag => IsServer ? "[Net/Host]" : "[Net/Client]";
 
         public override void OnNetworkSpawn()
@@ -129,6 +133,7 @@ namespace DDrive.Runtime.Net
             _delayedSendToQueue.Clear();
             _delayedDispatchQueue.Clear();
             IsConnected = true;
+            _warnedForgedPong = false;
 
             if (NetworkManager != null)
             {
@@ -285,11 +290,46 @@ namespace DDrive.Runtime.Net
 
         private void OnPongMsgReceived(ulong senderId, NetPongMsg msg)
         {
+            // [44_review_2026-09-19.md] P2-1 — 送信元検証(CatalogContentHashGate.OnReceiveResultMsg と同じ形)。
+            // NetPongMsg は OnNetworkSpawn で Subscribe されるため _keyToType に登録済みになり、
+            // RequestBroadcastRpc(Client→Host の中継依頼)は「型登録済みなら」中継してしまう。改造 Client が
+            // Broadcast(new NetPongMsg{...}) すると、Host を含む全ピアがそれを受信する。
+            // Host は PingLoopAsync を自分では起動しない(!IsServer 限定)ため、正当な Pong の宛先には
+            // 絶対にならない = Host が受信する Pong は常に不正(明示的に弾く)。
+            if (IsServer)
+            {
+                WarnForgedPongOnce(senderId);
+                return;
+            }
+
+            // Client にとっての正当な送信元は「Ping を送った相手 = Host(NetworkManager.ServerClientId、
+            // 常に 0)」だけ。実際の一致判定と状態更新は AppRoundTripTracker(EditMode テスト対象)に委ねる。
+            var trustedSenderId = NetworkManager != null ? NetworkManager.ServerClientId : 0UL;
+            if (senderId != trustedSenderId)
+            {
+                WarnForgedPongOnce(senderId);
+                return;
+            }
+
             var measuredMs = Math.Max(0d, (NetworkTime - msg.OriginalSentAtNetworkTime) * 1000d);
             // K2 修正(2026-09-18 再修正) — Pong が返った=もう「経過時間による下限推定」ではない。
             // AppRoundTripTracker.OnPongReceived が実測値の反映・未達カウントのリセット・応答待ち
             // 起点のクリアをまとめて行う。
-            _appRoundTripTracker.OnPongReceived(measuredMs);
+            _appRoundTripTracker.OnPongReceived(measuredMs, senderId, trustedSenderId);
+        }
+
+        // 6-0 修正4 の WarnUnknownKeyDiscardedOnce と同じ考え方(開発ビルドのみ、1 回だけ出す)。
+        private void WarnForgedPongOnce(ulong senderId)
+        {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            if (_warnedForgedPong)
+            {
+                return;
+            }
+
+            _warnedForgedPong = true;
+            Debug.LogWarning($"{LogTag} NgoNetBridge: 送信元 ClientId({senderId}) が正当な Pong の送信元と一致しないため破棄しました。");
+#endif
         }
 
         public void Broadcast<T>(in T msg, NetChannel channel) where T : INetMessage

@@ -231,14 +231,26 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
   - `ChangeNote` は触らない（手入力のまま、自動では消さない）。
   - **新規作成時の v1（2026-09-15 修正）**: `AssetDatabase.CreateAsset` は作成と同時に書き込み、作成直後のアセットは dirty にならないため、保存フックでは `0→1` にならない（EditMode テストで判明）。そこで `AssetCreationService.Create` が `CreateAsset` の直前に `VersionStampProcessor.StampNew(asset)` を呼び、v1・作成者・作成日時を記録する（抑止スコープ中でも付ける。初版の記録はノイズではないため）。この経路を通らない作成（Project ウィンドウの Create メニュー等）は v0 のままで、最初の編集 + 保存で v1 になる。
 
-- **抑止スコープ（`VersionStampSuppression`）**: `using (VersionStampSuppression.Scope())` で囲むと、その間に走る保存では版数を上げない（参照カウント方式で入れ子安全）。**ツールによる一括処理（大量のアセットの版数が機械的に上がってノイズになるのを防ぐ）専用**で、以下の 5 箇所にだけ差し込んでいる（最小限の変更方針。他のツールに広げる場合はここに追記する）:
-  1. `AssetCreationService.Create` の初期アイコン自動生成（`delayCall` 内、[09] §8.1）— 作成直後に Icon が自動で入って Version が 1→2 にならないようにする
-  2. `AssetCreationService.RegisterExisting`（Validation の FixAction からのカタログ登録漏れ修正）
-  3. `AddressablesSync.SyncAll`（Addressables 登録の一括同期。実際には Data 自体を dirty にしないので現状は保険）
-  4. `SpecSyncService.ApplyChanged`（仕様書同期の「変更を反映」。抑止スコープの間に `AssetDatabase.SaveAssetIfDirty` も済ませている — 呼び出し元(`SpecSyncWindow`)がまとめて保存するのを待つと、その時点では抑止スコープが外れてしまうため）
-  5. `AssetIdGenerator.Regenerate`（ID 定数再生成に伴う、未発行 ID の一括確定）
-  - **既知の制約**: `AssetDatabase.SaveAssets()`（グローバル版）はパスの呼び出し元を区別しないため、上記のスコープ内で偶然「他の dirty な `AssetDataBase`」が同じ保存に乗ると、それも一時的に加算対象から外れる。実運用では上記 5 箇所はほぼ単発 or 同種アセットの一括処理でしか呼ばないため実害は小さいと判断し、パス単位の判定は行っていない（要判断: 将来問題になれば、抑止対象パスの集合を明示的に渡す設計に変える）。
-  - `ImportRuleService`（インポート検知による自動生成）と Maya→Material 経由の新規作成は、上記 1 経由（`AssetCreationService.Create` を再利用している）でカバーされるため個別の抑止は不要。既存アセットを機械的に上書きする Maya 再インポート（`MayaMaterialImporter`）は対象外（Maya 側の実データ変更を反映するものなので、版数が上がるのは意図した挙動として扱う）。
+- **抑止スコープ（`VersionStampSuppression`）**: `using (VersionStampSuppression.Scope())` で囲むと、その間に走る保存では版数を上げない（参照カウント方式で入れ子安全）。**ツールによる一括処理（大量のアセットの版数が機械的に上がってノイズになるのを防ぐ）専用**。
+
+- **保存ヘルパー（`DDriveAssetSave`、[docs/44](44_review_2026-09-19.md) P1-1、2026-09-19 追加）**: `Editor/Versioning/DDriveAssetSave.cs`。Editor コードから `AssetDatabase.SaveAssets()` を直接呼ぶことを禁止し、必ずこのヘルパー経由にする（理由: 引数なし `SaveAssets()` は「呼んだ瞬間にプロジェクト全体で dirty な `AssetDataBase` すべて」を無差別に保存フックへ巻き込むため、実アセットを開いて編集中にテストや一括処理が走ると無関係な版数が進んでしまう不具合が実際に起きた、[docs/41](41_phase6_review_2026-09-17.md)「テストが実データを汚す不具合」参照）。
+  - **`SaveAllSuppressed()`**: `VersionStampSuppression.Scope()` で囲んで `AssetDatabase.SaveAssets()` する。「一括処理」用（版数を進めない）。
+  - **`SaveDirty(Object obj)`**: `AssetDatabase.SaveAssetIfDirty(obj)`。「デザイナーが対象 1 個を編集して保存する」本来の経路用（抑止しないので通常どおり版数が進む。対象を 1 個に絞ることで、他に開いていた無関係な実アセットの dirty を巻き込まない）。
+
+  **使い分け判断表**（何を保存するか・版数を進めてよいかで決める）:
+
+  | 呼び出し元の性質 | ヘルパー | 例 |
+  |---|---|---|
+  | カタログ / Addressables 同期 | `SaveAllSuppressed()` | `AssetCreationService.Create`、`AddressablesSync.SyncAll`、`AddressablesRegistrationValidator`/`ContentHashCatalogCoverageValidator`/`CatalogAddressCoverageValidator` の FixAction |
+  | ID 再生成 | `SaveAllSuppressed()` | `AssetIdGenerator.Regenerate` |
+  | インポート検知の自動生成 | `SaveAllSuppressed()` | `CutsceneImportService`（FBX→CutsceneData/Timeline）、`ImportRuleDefaultFolders`（既定フォルダ + README 生成） |
+  | 削除 / 整理などの機械的なクリーンアップ（対象自体はこの後消える、または版数を問わない） | `SaveAllSuppressed()` | `SafeDeleteService.PerformDelete`、`AssetReorganizer.Reorganize`、`AssetDeleteExecutionService.Execute`（ForceDelete/ReplaceThenDelete 分岐） |
+  | デザイナーが対象 1 個を編集して保存（版数を進めてよい） | `SaveDirty(obj)` | `AssetBrowserWindow`/`UnusedAssetsWindow` の「アーカイブする」、`SpecSyncWindow.OnSaveSettingsClicked`、`SpecSyncService.ApplyTuning`/`ApplyTuningTable`、`AddressablesRegistrationValidator.FixPreload`、`CutsceneFpsValidator.FixFrameRate`、`SeTrimApplier.Apply`、`ScenePreloadGenerator.GenerateForScene`、`Anim2DEditorWindow` の Retiming 適用/Validator の「修正」ボタン、`BlendTreeRegistrar.Register`、`AnimationClipBuilder`（新規 Clip） |
+  | 対象が既知の複数個（内容の変更そのもの、版数を進めてよい） | 変更した対象それぞれに `SaveDirty(obj)` | `ReferenceReplaceService.Replace`（実際に書き換えた Data だけ）、`AssetDeleteExecutionService.Execute`（ArchiveOnly 分岐、対象ごと） |
+
+  - **既知の制約**: `AssetDatabase.SaveAssets()`（グローバル版）はパスの呼び出し元を区別しないため、`SaveAllSuppressed()` の間に偶然「他の dirty な `AssetDataBase`」が同じ保存に乗ると、それも一時的に加算対象から外れる。実運用では上記の呼び出し元はほぼ単発 or 同種アセットの一括処理でしか呼ばないため実害は小さいと判断し、パス単位の判定は行っていない（要判断: 将来問題になれば、抑止対象パスの集合を明示的に渡す設計に変える）。
+  - `ImportRuleService`（インポート検知による自動生成）と Maya→Material 経由の新規作成は、`AssetCreationService.Create` を再利用しているため個別の対応は不要。既存アセットを機械的に上書きする Maya 再インポート（`MayaMaterialImporter`）は対象外（Maya 側の実データ変更を反映するものなので、版数が上がるのは意図した挙動として扱う。`AssetDatabase.SaveAssetIfDirty` を使っており元から直呼びではない）。
+  - **再発防止**: `Tests/Editor/NoDirectSaveAssetsCallTests.cs` が `Assets/DDrive/Editor/**/*.cs`（ヘルパー本体を除く）に引数なし `AssetDatabase.SaveAssets(` が無いことを grep する。`Assets/DDrive/Tests/Editor/**/*.cs` は対象外（テスト自身の一時アセット/Addressables 設定の後始末として `using (VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }` の直呼びが既に 55+ 箇所に意図的に残っている。理由は上記テストのコメント、[docs/41](41_phase6_review_2026-09-17.md) の「残り経路(2026-09-19)」参照）。
 
 - **表示（今の値だけ、履歴は持たない）**: `Editor/Inspector/VersionStampGui.cs`。`AssetDataInspector.DrawOpenEditorHeader()`（[09] §8）が `DataEditorHeader.Draw` の直後に `VersionStampGui.Draw(target)` を呼び、「エディターで開く」ボタンの直下に `v12 ・ yamag ・ 2026-09-15 14:03` の形式で 1 行表示する（`UpdatedAt` の ISO 8601 を `yyyy-MM-dd HH:mm` に整形。パースできなければ生の文字列をそのまま出す）。`ChangeNote` が入っていればその下にもう 1 行表示する。未保存（`Version <= 0`）なら「未保存(保存すると v1 になります)」と出す。UI Toolkit 製の専用エディタから使う場合向けに `VersionStampGui.Build(target)`（`VisualElement` 版、`DataEditorHeader.Build` と同じ位置付け）も用意している（現時点でどの専用エディタからも未使用。IMGUI の `AssetDataInspector` だけが実際に呼んでいる）。
 - **AssetBrowser の一覧**（要望: 更新日時・更新者列、できれば並べ替え可能）: `AssetBrowserWindow` の各行に「更新者」「更新日時」の 2 ラベルを追加した(`MakeRowElement`/`BindRowElement`)。**並べ替えは未実装**——現状の一覧は単一列の仮想化 `ListView`（[09] §1）であり、列ヘッダーでのソートには `MultiColumnListView` への切り替えが必要。今回は最小限の変更で表示のみ足すに留め、ソート対応は次回チケットに回す。

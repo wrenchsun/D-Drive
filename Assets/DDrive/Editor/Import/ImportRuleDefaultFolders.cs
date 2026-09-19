@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Versioning;
 using UnityEditor;
 using UnityEngine;
 
@@ -101,13 +102,14 @@ namespace DDrive.Editor.Import
                 report.Log(
                     $"スキップ: {cutsceneFolder} は既存の '{existingCutscenePath}' と大文字小文字違いで衝突しています" +
                     "(README は作成しません。どちらかのフォルダ名を変えて解消してください)");
-                AssetDatabase.SaveAssets();
+                // [44_review_2026-09-19.md] P1-1: フォルダ/README の自動生成は「一括処理」なので版数を進めない。
+                DDriveAssetSave.SaveAllSuppressed();
                 return report;
             }
 
             EnsureReadme(cutsceneFolder, BuildCutsceneReadme(), report);
 
-            AssetDatabase.SaveAssets();
+            DDriveAssetSave.SaveAllSuppressed();
             return report;
         }
 

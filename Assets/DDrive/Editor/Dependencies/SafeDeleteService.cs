@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using UnityEditor;
@@ -108,7 +109,9 @@ namespace DDrive.Editor.Dependencies
             // Addressables エントリ削除(Data 本体。AddressablesSync.EnsureEntry の逆操作)。
             AddressablesSync.RemoveEntry(asset);
 
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: カタログ登録解除/Addressables 削除は「一括処理」相当の
+            // 機械的なクリーンアップなので版数を進めない(削除対象自体はこの後消えるため関係ない)。
+            DDriveAssetSave.SaveAllSuppressed();
 
             // アイコン PNG ごと Data を OS のゴミ箱へ(復元可能)。先にアイコン、次に Data 本体の順で消す
             // (Data を先に消すと asset.Icon 経由の参照が失われるため、iconPath は事前に確定させてある)。

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
@@ -171,7 +172,8 @@ namespace DDrive.Editor.Cutscene
             Undo.RecordObject(cutscene, "Fix Cutscene FrameRate");
             cutscene.FrameRate = frameRate;
             EditorUtility.SetDirty(cutscene);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: cutscene 自身のフィールドを直す fix なので、対象 1 個だけ保存する。
+            DDriveAssetSave.SaveDirty(cutscene);
         }
     }
 }

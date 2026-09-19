@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -129,10 +130,12 @@ namespace DDrive.Editor.Dependencies
                 }
 
                 ArchiveTagService.SetArchived(asset, true);
+                // [44_review_2026-09-19.md] P1-1: アーカイブは対象ごとの designer 操作なので、対象自身だけ
+                // 保存する(無関係な実アセットの dirty を巻き込まない)。
+                DDriveAssetSave.SaveDirty(asset);
                 archived++;
             }
 
-            AssetDatabase.SaveAssets();
             Debug.Log($"[DDrive] 未使用アセット: {archived} 件を Archive しました。");
             Reload();
         }

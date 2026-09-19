@@ -89,7 +89,14 @@ namespace DDrive.Editor.AssetBrowser
             asset.Id = AssetIdGenerator.StableHashFromGuid(guid);
             EditorUtility.SetDirty(asset);
             // Id は他の AssetDatabase 操作(カタログ作成等)より前にディスクへ確定させる(上記の再インポート対策)。
-            AssetDatabase.SaveAssetIfDirty(asset);
+            // [44_review_2026-09-19.md] P1-1(EditMode テストで確認): この SaveAssetIfDirty は抑止していないと
+            // OnWillSaveAssets が dirty な asset(Id 書き込みで dirty になったばかり)を対象に Version を
+            // 1(StampNew)→2 へ進めてしまう(新規作成なのに v2 になる docs/41 の懸念が実際に起きていた)。
+            // ID 確定は機械的な後処理であり designer 編集ではないので、抑止して v1 のまま保つ。
+            using (DDrive.Editor.Versioning.VersionStampSuppression.Scope())
+            {
+                AssetDatabase.SaveAssetIfDirty(asset);
+            }
 
             // Address は必ず「実際に作られたファイル名」から取る。同名衝突時に
             // GenerateUniqueAssetPath が "〜 1.asset" 等へリネームするため、
@@ -99,7 +106,10 @@ namespace DDrive.Editor.AssetBrowser
             AddressablesSync.EnsureEntry(asset, finalAddress);
             AddressablesSync.EnsureCatalogEntry(catalog);
 
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: カタログ/Addressables 登録は「一括処理」(機械的な同期)なので、
+            // このタイミングで他に dirty な実アセットが乗っても版数を進めない。新規作成の v1 は上の StampNew が
+            // 別途付けているので意味は変わらない。
+            DDriveAssetSave.SaveAllSuppressed();
 
             // 初期アイコン: 元アセット(Prefab / Texture / Sprite)が configure で入っているか、描画で表現できる種別(Material)なら
             // 自動で作る([09] §8.1、2026-09-11)。GUI の外(delayCall)で行う(Camera.Render / AssetPreview の都合)。
@@ -170,15 +180,12 @@ namespace DDrive.Editor.AssetBrowser
                 return null;
             }
 
-            using (VersionStampSuppression.Scope())
-            {
-                var address = System.IO.Path.GetFileNameWithoutExtension(path);
-                var catalog = RegisterToCatalog(asset, assetType, address, gameDataRoot);
-                AddressablesSync.EnsureEntry(asset, address);
-                AddressablesSync.EnsureCatalogEntry(catalog);
-                AssetDatabase.SaveAssets();
-                return catalog;
-            }
+            var address = System.IO.Path.GetFileNameWithoutExtension(path);
+            var catalog = RegisterToCatalog(asset, assetType, address, gameDataRoot);
+            AddressablesSync.EnsureEntry(asset, address);
+            AddressablesSync.EnsureCatalogEntry(catalog);
+            DDriveAssetSave.SaveAllSuppressed();
+            return catalog;
         }
 
         private static AssetCatalog RegisterToCatalog(AssetDataBase asset, AssetType assetType, string address, string gameDataRoot)

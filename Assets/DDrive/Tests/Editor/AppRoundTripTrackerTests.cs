@@ -157,6 +157,39 @@ namespace DDrive.Tests.Editor
             Assert.IsFalse(tracker.GetRoundTripMs(t + 10d).HasValue, "Reset 後は推定値も無い(n/a)");
         }
 
+        // [44_review_2026-09-19.md] P2-1 — 偽造 NetPongMsg の再発防止テスト。CatalogContentHashGateTests の
+        // ClientSide_ForgedResultFromNonHostSender_IsIgnored と同じ手口(信頼できる送信元と違う senderId で
+        // 受信させる)。NgoNetBridge は NetworkBehaviour 派生で EditMode から直接テストできないため、
+        // 送信元検証込みのオーバーロード(AppRoundTripTracker.OnPongReceived(double, ulong, ulong))を対象にする。
+        [Test]
+        public void OnPongReceived_WithSenderValidation_IgnoresPongFromUntrustedSender()
+        {
+            const ulong hostClientId = 0UL;
+            const ulong forgedSenderId = 99UL;
+
+            var tracker = new AppRoundTripTracker(staleThreshold: 3);
+            var t = 0d;
+
+            t += 1d;
+            tracker.OnPingSent(t); // Ping #1(まだ未達 0 回目)
+            t += 1d;
+            tracker.OnPingSent(t); // #1 未達 → 未達 1 回目
+
+            var beforeRoundTripMs = tracker.GetRoundTripMs(t + 0.5d);
+            var beforeStale = tracker.IsStale;
+
+            // 改造 Client(forgedSenderId)からの偽造 Pong は無視され、RTT/未達カウントとも変化しない。
+            tracker.OnPongReceived(1d, forgedSenderId, hostClientId);
+
+            Assert.AreEqual(beforeRoundTripMs, tracker.GetRoundTripMs(t + 0.5d), "偽造 Pong では RTT が変わらない");
+            Assert.AreEqual(beforeStale, tracker.IsStale, "偽造 Pong では stale 判定が変わらない");
+
+            // 正当な送信元(Host)からの Pong は通常どおり反映される。
+            tracker.OnPongReceived(123d, hostClientId, hostClientId);
+            Assert.AreEqual(123d, tracker.GetRoundTripMs(t + 0.001d).Value, 0.001d, "正当な送信元の Pong は反映される");
+            Assert.IsFalse(tracker.IsStale, "正当な Pong を受信すれば未達カウントはリセットされる");
+        }
+
         // 実測値(Pong 到達済み)が経過時間による下限推定を上回っている間は、実測値をそのまま返す
         // (応答待ちの直後の一瞬だけ経過時間が実測値を下回ることがあり、その間は実測値のままでよい)。
         [Test]

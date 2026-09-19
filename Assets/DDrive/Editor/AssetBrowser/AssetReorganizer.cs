@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Registry;
@@ -110,7 +111,9 @@ namespace DDrive.Editor.AssetBrowser
                 MoveCompanionWavs(currentFolder, currentName, expectedFolder, expectedName, result);
             }
 
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 規約違反の移動/リネームを一括で直す機械的な整理処理なので、
+            // 版数を進めない(何件動くか呼び出し元も把握しきれない)。
+            DDriveAssetSave.SaveAllSuppressed();
             RefreshOpenBrowsers();
             return result;
         }

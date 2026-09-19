@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
@@ -94,7 +95,8 @@ namespace DDrive.Editor.Validation
         private static void Fix(AssetDataBase data, string address)
         {
             AddressablesSync.EnsureEntry(data, address);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: Addressables 同期の FixAction は「一括処理」なので版数を進めない。
+            DDriveAssetSave.SaveAllSuppressed();
         }
 
         private static void FixPreload(AssetDataBase data)
@@ -104,7 +106,9 @@ namespace DDrive.Editor.Validation
             flags.Load = LoadMode.Preload;
             data.Flags = flags;
             EditorUtility.SetDirty(data);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: data 自身のフィールドを直す fix なので、対象 1 個だけ保存する
+            // (版数は通常どおり進む。他は AssetIdGenerator の Fix() と違い data 自体の内容修正のため)。
+            DDriveAssetSave.SaveDirty(data);
         }
 
         private static AssetType ResolveType(AssetDataBase data)

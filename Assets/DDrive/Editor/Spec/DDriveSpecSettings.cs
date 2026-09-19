@@ -1,4 +1,5 @@
 using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Versioning;
 using DDrive.Runtime.Tuning;
 using UnityEditor;
 using UnityEngine;
@@ -68,7 +69,8 @@ namespace DDrive.Editor.Spec
             AssetCreationService.EnsureFolder("Assets/GameData/Settings");
             var asset = CreateInstance<DDriveSpecSettings>();
             AssetDatabase.CreateAsset(asset, DefaultPath);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 新規作成した asset 1 個だけ保存する。
+            DDriveAssetSave.SaveDirty(asset);
             return asset;
         }
 
@@ -90,7 +92,9 @@ namespace DDrive.Editor.Spec
 
             TuningTable = existing;
             EditorUtility.SetDirty(this);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 触った対象(this・existing)だけ保存する。
+            DDriveAssetSave.SaveDirty(this);
+            DDriveAssetSave.SaveDirty(existing);
             return existing;
         }
 

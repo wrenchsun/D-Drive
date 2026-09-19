@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using UnityEditor;
@@ -99,7 +100,14 @@ namespace DDrive.Editor.Dependencies
             allChanged.AddRange(changedPrefabPaths);
             if (allChanged.Count > 0)
             {
-                AssetDatabase.SaveAssets();
+                // [44_review_2026-09-19.md] P1-1: 実際に書き換えた Data だけを保存する(Prefab は
+                // SaveAsPrefabAsset で既に書き込み済み)。参照差し替えは内容の変更そのものなので、
+                // 対象の Version は通常どおり進む(他の無関係な実アセットは巻き込まない)。
+                foreach (var path in changedDataPaths)
+                {
+                    DDriveAssetSave.SaveDirty(AssetDatabase.LoadAssetAtPath<AssetDataBase>(path));
+                }
+
                 DependencyGraphService.UpdatePaths(allChanged, null);
             }
 

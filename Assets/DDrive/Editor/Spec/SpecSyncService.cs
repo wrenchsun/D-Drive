@@ -196,7 +196,8 @@ namespace DDrive.Editor.Spec
             table.Entries = entries.ToArray();
             table.RebuildIndex();
             EditorUtility.SetDirty(table);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 対象は table 1 個だけなので、それだけ保存する。
+            DDriveAssetSave.SaveDirty(table);
         }
 
         private static bool TryBuildEntry(SpecTuningRow row, out TuningEntry entry)
@@ -297,7 +298,8 @@ namespace DDrive.Editor.Spec
             table.Tables = entries.ToArray();
             table.RebuildIndex();
             EditorUtility.SetDirty(table);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 対象は table 1 個だけなので、それだけ保存する。
+            DDriveAssetSave.SaveDirty(table);
         }
 
         private static bool TryBuildTableEntry(SpecTuningTableRow row, out TuningTableEntry entry)

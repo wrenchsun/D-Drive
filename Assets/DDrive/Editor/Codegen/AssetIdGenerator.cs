@@ -153,7 +153,8 @@ namespace DDrive.Editor.Codegen
                 return result;
             }
 
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: ID 再生成は「一括処理」なので版数を進めない。
+            DDriveAssetSave.SaveAllSuppressed();
 
             var dir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))

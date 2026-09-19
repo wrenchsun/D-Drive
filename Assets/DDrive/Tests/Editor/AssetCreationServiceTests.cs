@@ -42,6 +42,9 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("剣の斬撃音", asset.DisplayName);
             Assert.AreEqual("Player", asset.Category);
             Assert.AreNotEqual(0UL, asset.Id);
+            // [44_review_2026-09-19.md] P1-1(テストの穴 2): 新規作成は StampNew で v1 になり、その後の
+            // カタログ/Addressables 登録の SaveAssets(SaveAllSuppressed)で 2 に進んでしまわないことを固定する。
+            Assert.AreEqual(1, asset.Version);
 
             var catalog = AssetDatabase.LoadAssetAtPath<AssetCatalog>($"{TestRoot}/Catalogs/AudioCatalog.asset");
             Assert.IsNotNull(catalog, "AudioCatalog should be auto-created");

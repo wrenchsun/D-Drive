@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DDrive.Editor.Versioning;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
@@ -134,7 +135,10 @@ namespace DDrive.Editor.Anim2D
                     case BlendTreeConflictResolution.Skip:
                         Debug.Log($"[BlendTreeRegistrar] 角度 {angle} は既存エントリがあるためスキップしました。");
                         EditorUtility.SetDirty(controller);
-                        AssetDatabase.SaveAssets();
+                        // [44_review_2026-09-19.md] P1-1: 対象は controller/blendTree の 2 個だけなので、
+                        // それぞれ保存する(無関係な実アセットの dirty を巻き込まない)。
+                        DDriveAssetSave.SaveDirty(controller);
+                        DDriveAssetSave.SaveDirty(blendTree);
                         return true;
                     case BlendTreeConflictResolution.Cancel:
                     default:
@@ -149,7 +153,8 @@ namespace DDrive.Editor.Anim2D
 
             EditorUtility.SetDirty(blendTree);
             EditorUtility.SetDirty(controller);
-            AssetDatabase.SaveAssets();
+            DDriveAssetSave.SaveDirty(controller);
+            DDriveAssetSave.SaveDirty(blendTree);
             return true;
         }
 

@@ -478,6 +478,33 @@ NGO の `ServerClientId` は常に 0)を追加し、`OnReceiveResultMsg` の先�
 (保留のフラッシュ・タイムアウト時のイベント発火・保留バッファ経由の偽造/保留 Cancel の Play 後適用・
 Cancel のレート制限)はすべて green で、実装側の修正は不要だった。
 
+### 実装メモ（2026-09-19、[docs/44](44_review_2026-09-19.md) P2-1: `NgoNetBridge.OnPongMsgReceived` の送信元検証）
+
+`CatalogContentHashResultMsg` に対して上の実装メモで塞いだのとまったく同じ形の穴が `NetPongMsg` にも
+残っていた。`NgoNetBridge.OnPongMsgReceived` は `senderId` を一切見ずに
+`_appRoundTripTracker.OnPongReceived(measuredMs)` を呼んでいたため、改造 Client が
+`Broadcast(new NetPongMsg{...})` すると(`NetPongMsg` も `OnNetworkSpawn` で `Subscribe` され型登録される
+ため中継されてしまう)、受け取った側の `AppRoundTripMs`/`IsAppRoundTripMsStale` が任意の値に化けた。
+本来 `null` のはずの Host 側にも `AppRoundTripMs` に値が入ってしまう副作用もあった(`NgoNetBridge.cs` の
+「Host 自身は計測しない=常に null」というコメントと矛盾する状態)。
+
+修正: `OnPongMsgReceived` の先頭で `IsServer` なら常に破棄する(Host は `PingLoopAsync` を自分では
+起動しない=`!IsServer` 限定なので、正当な Pong の宛先には絶対にならない)。Client 側は
+`senderId != NetworkManager.ServerClientId`(常に 0、Host)を弾く。いずれも開発ビルドのみ 1 回だけ
+`Debug.LogWarning` する(`PresentationManager.WarnUnknownKeyDiscardedOnce` と同じ考え方、
+`NgoNetBridge._warnedForgedPong`)。
+
+`CatalogContentHashGate` の修正と異なり、送信元との一致判定・状態更新そのものは
+`AppRoundTripTracker.OnPongReceived(double measuredMs, ulong senderId, ulong trustedSenderId)`
+(新規オーバーロード、既存の `OnPongReceived(double)` はそのまま残す)に委ねた。`NgoNetBridge` は
+`NetworkBehaviour` 派生で EditMode から直接テストできない([docs/29](29_network_device_test.md)
+§7/§9/§11 の既存の慣習)ため、「送信元が信頼できる相手と一致しない Pong は状態を変えずに無視する」
+という不変条件を Unity API 非依存の `AppRoundTripTracker` 側に持たせることで、
+`Tests/Editor/AppRoundTripTrackerTests.cs` の
+`OnPongReceived_WithSenderValidation_IgnoresPongFromUntrustedSender` で EditMode のまま固定できるように
+した。`NgoNetBridge` 側の `IsServer`/`senderId` 分岐そのもの(NGO 接続が要る部分)は
+[docs/29](29_network_device_test.md) の次回実機確認項目に追加した(「偽 Pong の破棄」)。
+
 ## 8. 帯域・最適化
 
 - ID は ulong(8B) だが、接続時に「セッション ID テーブル」（登場しうる ID → u16 インデックス）を交換し **2B に圧縮**（オプション。v1 は ulong 直送で可）

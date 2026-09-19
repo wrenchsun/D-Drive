@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DDrive.Editor.Anim;
 using DDrive.Editor.Preview;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
@@ -257,7 +258,9 @@ namespace DDrive.Editor.Anim2D
                     row.Add(new Button(() =>
                     {
                         fix();
-                        AssetDatabase.SaveAssets();
+                        // [44_review_2026-09-19.md] P1-1: この Validator は _editTarget 1 個だけを見ているので、
+                        // それだけ保存する(無関係な実アセットの dirty を巻き込まない)。
+                        DDriveAssetSave.SaveDirty(_editTarget);
                         RefreshValidation();
                     })
                     { text = "修正" });
@@ -299,7 +302,19 @@ namespace DDrive.Editor.Anim2D
             var applied = Anim2DRetiming.ApplyToDirectionClips(_editTarget, _placementMode, totalSeconds, _editSprites.Length, out var skipped);
 
             EditorUtility.SetDirty(_editTarget);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 触った対象(_editTarget・主 Clip・方向 Clip)だけを保存する
+            // (無関係な実アセットの dirty を巻き込まない)。_editTarget は AssetDataBase なので通常どおり
+            // 版数が進む(designer 編集そのもの)。
+            DDriveAssetSave.SaveDirty(_editTarget);
+            DDriveAssetSave.SaveDirty(_editClip);
+            if (_editTarget.DirectionClips != null)
+            {
+                foreach (var directionClip in _editTarget.DirectionClips)
+                {
+                    DDriveAssetSave.SaveDirty(directionClip);
+                }
+            }
+
             Debug.Log($"[Anim2DEditorWindow] {_editClip.name} のリタイミングを適用しました({_editSprites.Length} 枚)。方向 Clip: 適用 {applied} / スキップ {skipped}(枚数が違う・Sprite キー無し)。");
             RefreshValidation();
         }

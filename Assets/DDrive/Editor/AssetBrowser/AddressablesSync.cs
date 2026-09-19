@@ -213,7 +213,8 @@ namespace DDrive.Editor.AssetBrowser
                     }
                 }
 
-                AssetDatabase.SaveAssets();
+                // [44_review_2026-09-19.md] P1-1: カタログ/Addressables 同期は「一括処理」なので版数を進めない。
+                DDriveAssetSave.SaveAllSuppressed();
                 if (log)
                 {
                     Debug.Log($"[DDrive] Addressables 同期: Data {fixedAssets} 件を登録/修正、カタログ {catalogs} 件をラベル '{CatalogLabel}' で登録。カタログ未登録の Data {missing} 件(Validation > Run All で FixAction を実行してください)。");

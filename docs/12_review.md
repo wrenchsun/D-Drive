@@ -64,6 +64,7 @@
 - [ ] 保存フック（Version/Author/Validation）が動く
 - [ ] ドメインリロード・プレビューシーン破棄でリークなし（`NewPreviewScene` の Close 確認)
 - [ ] `AssetDatabase.FindAssets` を直接呼んでいない（`DDrive.Editor.AssetSearch.FindAssets` 経由。Unity 6000.3 の `FindAssets` は 1 回ごとに走査ファイル数比例のネイティブメモリを解放せず保持するため、プロジェクト変更までキャッシュする。アセット作成直後に同フレームで検索するなら `AssetSearch.Invalidate()`。2026-09-11 実測、[09] §9）
+- [ ] `AssetDatabase.SaveAssets()` を直に呼んでいない（`DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed()` / `SaveDirty(obj)` 経由。引数なし `SaveAssets()` はプロジェクト全体の dirty な `AssetDataBase` を無差別に版数へ乗せるため、実アセットを開いて編集中に別の一括処理が走ると無関係な版数が進む。`Tests/Editor/NoDirectSaveAssetsCallTests.cs` が機械検出する。使い分けは [09] §4.1 の判断表、[44_review_2026-09-19.md] P1-1）
 
 ## 4. データ PR（デザイナー）チェックリスト
 

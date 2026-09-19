@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Import;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Easing;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Values;
@@ -233,7 +234,9 @@ namespace DDrive.Editor.Cutscene
 
             EditorUtility.SetDirty(data);
             EditorUtility.SetDirty(timeline);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: FBX 取り込みの自動構築は「インポート検知の自動生成」なので
+            // 版数を進めない(再取り込みのたびに Version が上がるのを防ぐ)。
+            DDriveAssetSave.SaveAllSuppressed();
 
             report.Log($"{(isNew ? "新規" : "更新")}: {data.name}(FBX {guids.Count} 件)");
         }

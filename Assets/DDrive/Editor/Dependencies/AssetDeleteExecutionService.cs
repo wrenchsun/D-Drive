@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using UnityEditor;
 
@@ -90,7 +91,22 @@ namespace DDrive.Editor.Dependencies
                     break;
             }
 
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: ArchiveOnly は対象が残る designer 操作(アーカイブ)なので、
+            // AssetBrowserWindow の右クリック「アーカイブする」と同じく対象ごとに保存して版数を進める。
+            // ForceDelete/ReplaceThenDelete は削除対象がこの後消えるため、残るのはカタログ/Addressables の
+            // クリーンアップだけであり、機械的な一括処理として扱う(版数を進めない)。
+            if (result.Action == DeleteAction.ArchiveOnly)
+            {
+                foreach (var t in AllTargets(request))
+                {
+                    DDriveAssetSave.SaveDirty(t.Asset);
+                }
+            }
+            else
+            {
+                DDriveAssetSave.SaveAllSuppressed();
+            }
+
             return result;
         }
 

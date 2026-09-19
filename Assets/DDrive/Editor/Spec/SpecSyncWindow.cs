@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DDrive.Editor.Codegen;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Versioning;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -153,7 +154,8 @@ namespace DDrive.Editor.Spec
             settings.AutoFetchOnStartup = _autoFetchToggle.value;
             settings.AutoApplyNewPlaceholders = _autoApplyToggle.value;
             EditorUtility.SetDirty(settings);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 設定 1 個(settings)の designer 編集なので、それだけ保存する。
+            DDriveAssetSave.SaveDirty(settings);
             _settings = settings;
 
             // トークンは .asset(git 管理)には書かない。EditorPrefs(マシンごと)へ保存する([32] §7)。

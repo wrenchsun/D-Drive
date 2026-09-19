@@ -1,4 +1,5 @@
 using System.IO;
+using DDrive.Editor.Versioning;
 using DDrive.Runtime.Audio;
 using UnityEditor;
 using UnityEngine;
@@ -71,7 +72,8 @@ namespace DDrive.Editor.Audio
 
             data.Clips = newClips;
             EditorUtility.SetDirty(data);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 対象は data 1 個の designer 編集なので、それだけ保存する。
+            DDriveAssetSave.SaveDirty(data);
             return true;
         }
 

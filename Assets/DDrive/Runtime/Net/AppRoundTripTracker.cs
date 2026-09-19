@@ -87,13 +87,30 @@ namespace DDrive.Runtime.Net
         }
 
         // Pong 受信時に呼ぶ(NgoNetBridge.OnPongMsgReceived 相当)。measuredMs は Client→Host→Client の
-        // 実測往復時間。
+        // 実測往復時間。送信元検証はしない(検証込みの経路は下の OnPongReceived(double, ulong, ulong)。
+        // 呼び出し元が既に検証済みであることを前提にする、既存の呼び出し規約はそのまま)。
         public void OnPongReceived(double measuredMs)
         {
             _lastMeasuredMs = measuredMs;
             _awaitingPong = false;
             _unansweredStreakStartRealtime = -1d;
             _consecutiveMissedPongCount = 0;
+        }
+
+        // [44_review_2026-09-19.md] P2-1 — 送信元検証込みのオーバーロード。NgoNetBridge は
+        // NetworkBehaviour 派生で EditMode から直接テストできない(docs/29 §7/§9/§11 の既存の慣習)ため、
+        // 「送信元が信頼できる相手(Client なら Host)と一致しない Pong は無視する」という不変条件を、
+        // Unity API 非依存のこのクラスに置いて EditMode テストで固定する(改造 Client が NetPongMsg を
+        // Broadcast すると、型登録済みなら Host が全ピアへ中継してしまうため、senderId を見ずに
+        // 状態を書き換えると RTT/stale を任意の値に化けさせられる)。一致しない場合は状態を一切変えない。
+        public void OnPongReceived(double measuredMs, ulong senderId, ulong trustedSenderId)
+        {
+            if (senderId != trustedSenderId)
+            {
+                return;
+            }
+
+            OnPongReceived(measuredMs);
         }
 
         // 切断時に呼ぶ(NgoNetBridge.HandleClientDisconnected の Client 分岐相当)。次回接続時に

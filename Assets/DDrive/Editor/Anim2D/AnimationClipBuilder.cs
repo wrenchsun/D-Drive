@@ -1,4 +1,5 @@
 using System.IO;
+using DDrive.Editor.Versioning;
 using UnityEditor;
 using UnityEngine;
 
@@ -88,7 +89,8 @@ namespace DDrive.Editor.Anim2D
             var path = Path.Combine(saveDirectory, clipName + ".anim").Replace('\\', '/');
             path = AssetDatabase.GenerateUniqueAssetPath(path);
             AssetDatabase.CreateAsset(clip, path);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 新規作成した clip 1 個だけ保存する。
+            DDriveAssetSave.SaveDirty(clip);
             AssetDatabase.Refresh();
 
             outClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
@@ -156,7 +158,8 @@ namespace DDrive.Editor.Anim2D
             var path = Path.Combine(saveDirectory, clipName + ".anim").Replace('\\', '/');
             path = AssetDatabase.GenerateUniqueAssetPath(path);
             AssetDatabase.CreateAsset(clip, path);
-            AssetDatabase.SaveAssets();
+            // [44_review_2026-09-19.md] P1-1: 新規作成した clip 1 個だけ保存する。
+            DDriveAssetSave.SaveDirty(clip);
             AssetDatabase.Refresh();
 
             outClip = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);

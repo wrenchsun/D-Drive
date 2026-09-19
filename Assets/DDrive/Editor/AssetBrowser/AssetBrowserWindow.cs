@@ -6,6 +6,7 @@ using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Spec;
+using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using UnityEditor;
@@ -238,7 +239,9 @@ namespace DDrive.Editor.AssetBrowser
             evt.menu.AppendAction(archived ? "アーカイブを解除" : "アーカイブする", _ =>
             {
                 ArchiveTagService.SetArchived(row.Asset, !archived);
-                AssetDatabase.SaveAssets();
+                // [44_review_2026-09-19.md] P1-1: アーカイブ切り替えは対象 1 個の designer 編集なので、
+                // その 1 個だけ保存する(他に開いていた無関係な実アセットの dirty を巻き込まない)。
+                DDriveAssetSave.SaveDirty(row.Asset);
                 Refresh();
             });
 
