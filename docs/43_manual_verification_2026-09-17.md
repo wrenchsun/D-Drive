@@ -180,6 +180,8 @@ cd Tools/SpecWeb && clasp push
 
 ## 7. Timeline(6-10a〜d)の人による確認(2026-09-18 追記)
 
+> **2026-09-19 決定**: 本節と §10(Cutscene の Edit Mode プレビュー)の確認は、デザイナーに UnityChan 素体の確認用 FBX を作ってもらってから行う([46_cutscene_fbx_request_unitychan.md](46_cutscene_fbx_request_unitychan.md) に依頼票と Unity 側の事前準備〔ModelData の Avatar 設定・識別子〕)。そのため **P チケット([42](42_distribution.md))の後**に実施する。
+
 Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a〜d)はコンパイル・EditMode/PlayMode テスト green(860/860・717/717)まで確認済みだが、**この環境には実 Maya 由来の FBX(カメラ・キャラアニメ付き)が無いため、実際の見た目・実データでの取り込みは未確認**。以下は実 Maya 素材が用意できたときに行う確認手順。
 
 ### 7.1 まず必要なもの
