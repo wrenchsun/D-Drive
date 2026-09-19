@@ -178,7 +178,7 @@ public static string GetTargetFolder(AssetType type) => type switch
 <h2 id="step5">5. 定数名生成の接頭辞（KnownPrefixes）</h2>
 <p><code>Editor/Codegen/AssetIdGenerator.cs</code> の <code>KnownPrefixes</code>（<code>HashSet&lt;string&gt;</code>）に、手順4 で決めた接頭辞を追加します。<code>ToConstantName</code> がファイル名の先頭トークンをこの一覧と照合し、一致すれば定数名から取り除きます（例: <code>HAPTIC_PlayerHit</code> → <code>HAPTICID.PlayerHit</code>）。</p>
 <div class="warn">
-<strong>ここへの登録を忘れると、接頭辞が二重に残った定数名になります。</strong> 例えば <code>MODELID.MODELPlayerModel</code> のように、種別プレフィックス（<code>MODELID</code>）とファイル名の接頭辞（<code>MODEL</code>）が両方残ってしまいます。現在の内容は <code>KnownPrefixes = { "SE", "BGM", "VFX", "ANIM", "ANIM2D", "MAT", "TEX", "CANVAS", "PREFAB", "PRES", "SHAKE", "HAPTIC", "HAPTICS", "UITWEEN", "MODEL", "ANC", "ANCG", "SKIN", "CUT" }</code>（19 個。<code>Assets/DDrive/Editor/Codegen/AssetIdGenerator.cs</code>）です。なお <code>docs/42_distribution.md</code> §5.3 により、互換性ポリシー発効（P-13）後は <code>KnownPrefixes</code> への追加は禁止になります。
+<strong>ここへの登録を忘れると、接頭辞が二重に残った定数名になります。</strong> 例えば <code>MODELID.MODELPlayerModel</code> のように、種別プレフィックス（<code>MODELID</code>）とファイル名の接頭辞（<code>MODEL</code>）が両方残ってしまいます。現在の内容は <code>KnownPrefixes = { "SE", "BGM", "VFX", "ANIM", "ANIM2D", "MAT", "TEX", "CANVAS", "PREFAB", "PRES", "SHAKE", "HAPTIC", "HAPTICS", "UITWEEN", "MODEL", "ANC", "ANCG", "SKIN", "CUT" }</code>（19 個。<code>Packages/com.ddrive.core/Editor/Codegen/AssetIdGenerator.cs</code>）です。なお <code>docs/42_distribution.md</code> §5.3 により、互換性ポリシー発効（P-13）後は <code>KnownPrefixes</code> への追加は禁止になります。
 </div>
 
 <h2 id="step6">6. カタログ割当</h2>

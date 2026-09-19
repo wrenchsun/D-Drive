@@ -1,4 +1,7 @@
 {
+  "testables": [
+    "com.ddrive.core"
+  ],
   "scopedRegistries": [
     {
       "name": "Unity NuGet",

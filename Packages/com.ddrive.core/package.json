@@ -1,0 +1,31 @@
+{
+  "name": "com.ddrive.core",
+  "displayName": "D-Drive",
+  "version": "1.0.0",
+  "unity": "6000.3",
+  "description": "D-Drive(Designer-Driven Re: IDE Visual Environment): プログラマーは ID だけでモックを完成させ、デザイナーが専用エディタで中身を作るための Unity フレームワーク(Audio/VFX/Model/Animation/Material/UI/Presentation/Timeline 等)。",
+  "keywords": [
+    "ddrive",
+    "designer-driven",
+    "asset-pipeline",
+    "addressables"
+  ],
+  "author": {
+    "name": "wrenchsun"
+  },
+  "dependencies": {
+    "com.unity.addressables": "2.3.1",
+    "com.unity.inputsystem": "1.19.0",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.render-pipelines.universal": "17.3.0",
+    "com.unity.timeline": "1.8.12",
+    "com.unity.ugui": "2.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Demo",
+      "description": "PresentationSkillSlashDemo / NetCheckRunner / NetBridgeSmokeTest の参照実装スクリプト。対応する確認用シーン・GameData(SE/VFX/Presentation の実データ)は同梱していない(docs/42_distribution.md §2.1 参照。P-9 のリリース手順で curate する予定)。NetCheckRunner/NetBridgeSmokeTest は com.unity.netcode.gameobjects(DDRIVE_NGO)導入時のみ有効。",
+      "path": "Samples~/Demo"
+    }
+  ]
+}

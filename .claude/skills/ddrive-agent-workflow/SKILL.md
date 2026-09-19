@@ -25,15 +25,15 @@ D-Drive の設計の真実は `docs/` にあり、TL;DR の禁止事項は `CLAU
 
 **チェックリストと既存の手本ファイル一覧は [`references/new-asset-type-checklist.md`](references/new-asset-type-checklist.md) を参照。** 概要:
 
-1. `Assets/DDrive/Foundation/Identity/AssetType.cs` の enum に**末尾追加のみ**（既存値の並び替え・削除は既存アセットの種別を破壊する）
+1. `Packages/com.ddrive.core/Foundation/Identity/AssetType.cs` の enum に**末尾追加のみ**（既存値の並び替え・削除は既存アセットの種別を破壊する）
 2. Data クラス（`AssetDataBase` 派生）に `[CreateAssetMenu(menuName = "D-Drive/...")]` + `[AssetIdDefinition(AssetType.X, typeof(XMarker), "XID")]` を付ける（ID 定数生成は `AssetIdGenerator` がこの属性を反射で自動収集するため、他に登録作業は不要）
 3. Manager（`IAssetManager` 実装）+ Handle/Instance + 静的ファサード（Bind/Unbind パターン）を実装
 4. Validator（`IValidator` 実装、public 引数無しコンストラクタ）を追加すれば `CI.cs`/AssetBrowser の Validation に自動で載る（登録リストは無い）
-5. `AssetNamingService.GetTypePrefix` / `GetTargetFolder`（`Assets/DDrive/Editor/AssetBrowser/AssetNamingService.cs`）に switch case を追加
-6. `AssetCreationService`（`Assets/DDrive/Editor/AssetBrowser/AssetCreationService.cs`）にカタログ名マッピングを追加。**Manager が同期 API（`ResolveOrPlaceholder`）のみで解決する種別は既定 Load を Preload にする**（Shake/Haptics/Presentation/Canvas/ControlSkin と同じ理由。[`../../docs/02_core_framework.md`](../../docs/02_core_framework.md) §4 参照）
-7. `DDriveRuntimeBootstrap.cs`（`Assets/DDrive/Runtime/Loop/`）に Manager 生成・`loop.Register`・静的ファサード Bind/Unbind を追加
+5. `AssetNamingService.GetTypePrefix` / `GetTargetFolder`（`Packages/com.ddrive.core/Editor/AssetBrowser/AssetNamingService.cs`）に switch case を追加
+6. `AssetCreationService`（`Packages/com.ddrive.core/Editor/AssetBrowser/AssetCreationService.cs`）にカタログ名マッピングを追加。**Manager が同期 API（`ResolveOrPlaceholder`）のみで解決する種別は既定 Load を Preload にする**（Shake/Haptics/Presentation/Canvas/ControlSkin と同じ理由。[`../../docs/02_core_framework.md`](../../docs/02_core_framework.md) §4 参照）
+7. `DDriveRuntimeBootstrap.cs`（`Packages/com.ddrive.core/Runtime/Loop/`）に Manager 生成・`loop.Register`・静的ファサード Bind/Unbind を追加
 8. 専用エディタ（EditorWindow、`ScrollView` ルート必須）+ `[DataEditor]` 属性 + `DDriveMenu` 経由のメニュー登録 + プレビューは確認用シーン駆動（ウィンドウ内描画にしない）
-9. テスト: Validator の EditMode テスト、Manager の PlayMode テスト（`Assets/DDrive/Tests/{Editor,Runtime}/`）
+9. テスト: Validator の EditMode テスト、Manager の PlayMode テスト（`Packages/com.ddrive.core/Tests/{Editor,Runtime}/`）
 10. docs 更新（同じ PR で）: 種別の設計 doc・[`../../docs/02_core_framework.md`](../../docs/02_core_framework.md)（Bootstrap 配線メモ）・[`../../docs/09_editor_tools.md`](../../docs/09_editor_tools.md) §6/§8（メニュー一覧・DataEditor 対応表）・[`../../docs/11_tasks.md`](../../docs/11_tasks.md)（チケット行に ✅ 実装メモ）・デザイナー向け機能なら `docs/DesignerManual/*.html`
 
 ## 2. 検証ループ（Unity MCP）

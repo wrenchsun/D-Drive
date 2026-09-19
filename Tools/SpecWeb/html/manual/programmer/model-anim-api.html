@@ -108,7 +108,7 @@
 </div>
 
 <h2>Models（見た目差し替え可能なモデル）</h2>
-<p>実装: <code>Assets/DDrive/Runtime/Model/Models.cs:9</code>。ModelData は Prefab に加えて Slot/Avatar 等の「見た目差し替え」を持つ点が、下記の Prefabs（汎用 Prefab）と異なります。</p>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Model/Models.cs:9</code>。ModelData は Prefab に加えて Slot/Avatar 等の「見た目差し替え」を持つ点が、下記の Prefabs（汎用 Prefab）と異なります。</p>
 <div class="sig">static Handle&lt;ModelMarker&gt; Spawn(ModelId id, Vector3 pos, Quaternion rot)
 static Handle&lt;ModelMarker&gt; Spawn(ModelId id, Transform parent)
 static void Despawn(Handle&lt;ModelMarker&gt; h)
@@ -127,7 +127,7 @@ Models.SetMaterial(h, 0, MATID.EnemyDamaged);
 Models.PlayAnim(h, ANIMID.Idle);</code></pre>
 
 <h2>Prefabs（汎用 Prefab）</h2>
-<p>実装: <code>Assets/DDrive/Runtime/Prefab/Prefabs.cs:9</code>。見た目差し替えを持たない、種類・タグ・コリジョンレイヤーだけを管理する汎用 Prefab です（<code>PrefabData</code>、<code>Assets/DDrive/Runtime/Prefab/PrefabData.cs:28</code>）。</p>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Prefab/Prefabs.cs:9</code>。見た目差し替えを持たない、種類・タグ・コリジョンレイヤーだけを管理する汎用 Prefab です（<code>PrefabData</code>、<code>Packages/com.ddrive.core/Runtime/Prefab/PrefabData.cs:28</code>）。</p>
 <div class="sig">static Handle&lt;PrefabMarker&gt; Spawn(PrefabAssetId id, Vector3 pos, Quaternion rot)
 static Handle&lt;PrefabMarker&gt; Spawn(PrefabAssetId id, Transform parent)
 static void Despawn(Handle&lt;PrefabMarker&gt; h)
@@ -159,7 +159,7 @@ h.Despawn();</code></pre>
 </div>
 
 <h2 id="anim">Anim（3D アニメーション）</h2>
-<p>実装: <code>Assets/DDrive/Runtime/Anim/Anim.cs:9</code>。再生対象は <code>Animator</code> を渡す設計です（Controller 自体の状態遷移はゲーム側 / Animator Controller の責務のまま）。</p>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Anim/Anim.cs:9</code>。再生対象は <code>Animator</code> を渡す設計です（Controller 自体の状態遷移はゲーム側 / Animator Controller の責務のまま）。</p>
 <div class="sig">static Handle&lt;AnimMarker&gt; Play(AnimId id, Animator target)
 static Handle&lt;AnimMarker&gt; Play(AnimId id, Animator target, float fade)
 static void Stop(Handle&lt;AnimMarker&gt; h, float fade = 0f)
@@ -178,7 +178,7 @@ static void SetLayerWeight(Animator target, int layer, float weight)</div>
 <p>ドット記法（<code>AnimHandleExtensions</code>）: <code>h.IsPlaying()</code> / <code>h.Stop(fade)</code> / <code>h.SetSpeed(speed)</code> / <code>h.NormalizedTime()</code>。</p>
 
 <h2>Anim2D（2D スプライトアニメーション）</h2>
-<p>実装: <code>Assets/DDrive/Runtime/Anim2D/Anim2D.cs:12</code>。再生実体は 3D と同じ <code>AnimManager</code>（<code>Anim2DData</code> は <code>AnimData</code> の派生）で、Handle も共通の <code>Handle&lt;AnimMarker&gt;</code> です。Anim2D 固有の機能は、方向 BlendTree のパラメータ設定です。</p>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Anim2D/Anim2D.cs:12</code>。再生実体は 3D と同じ <code>AnimManager</code>（<code>Anim2DData</code> は <code>AnimData</code> の派生）で、Handle も共通の <code>Handle&lt;AnimMarker&gt;</code> です。Anim2D 固有の機能は、方向 BlendTree のパラメータ設定です。</p>
 <div class="sig">static void Bind(AnimManager anim, IAssetRegistry registry)
 static Handle&lt;AnimMarker&gt; Play(Anim2DId id, Animator target)
 static Handle&lt;AnimMarker&gt; Play(Anim2DId id, Animator target, Vector2 dir)
@@ -201,7 +201,7 @@ static bool IsPlaying(Handle&lt;AnimMarker&gt; h)</div>
 Anim2D.SetDirection(animator, moveDir, hash, hashY);</code></pre>
 
 <h2>Mats（マテリアル）</h2>
-<p>実装: <code>Assets/DDrive/Runtime/Material/Mats.cs:10</code>。</p>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Material/Mats.cs:10</code>。</p>
 <div class="sig">static UnityEngine.Material Get(MaterialId id)
 static void Apply(Renderer r, int slot, MaterialId id)
 static int  Replace(MaterialId from, MaterialId to)

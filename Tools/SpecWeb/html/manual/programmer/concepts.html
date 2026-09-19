@@ -104,14 +104,14 @@
 <p>D-Drive のコードを書く前に知っておくべき設計の土台をまとめます。詳細な設計根拠は <code>docs/01_architecture.md</code>・<code>docs/02_core_framework.md</code> にあります。本ページはその要約＋実際のソースで確認した実装の詳細です。</p>
 
 <h2>1. 4 層構成と asmdef の対応</h2>
-<p>システムは 4 層に分離されており、<strong>上の層は下の層しか知らない</strong>という一方向の依存だけが許されます（[01_architecture.md] §1）。実際の asmdef 名と参照関係は次のとおりです（<code>Assets/DDrive/**/*.asmdef</code> から確認）。</p>
+<p>システムは 4 層に分離されており、<strong>上の層は下の層しか知らない</strong>という一方向の依存だけが許されます（[01_architecture.md] §1）。実際の asmdef 名と参照関係は次のとおりです（<code>Packages/com.ddrive.core/**/*.asmdef</code> から確認）。</p>
 <table>
 <tr><th>層</th><th>asmdef</th><th>主な参照</th><th>役割</th></tr>
 <tr><td>Foundation</td><td><code>DDrive.Foundation</code></td><td>UniTask</td><td>Registry / Loader / Pool / Handle / EventBus / Pause / ValueDef / Validation の共通基盤。Unity 非依存部分は最小限</td></tr>
 <tr><td>Runtime</td><td><code>DDrive.Runtime</code></td><td>DDrive.Foundation, UniTask, Unity.Addressables, Unity.ResourceManager, Unity.Netcode.Runtime, UnityEngine.UI, Unity.InputSystem</td><td>種別ごとの Data / Manager / Instance / 静的ファサード（<code>Audio</code>・<code>Vfx</code>・<code>Anim</code> 等）、Presentation 層、起動配線（<code>DDriveRuntimeBootstrap</code>）</td></tr>
 <tr><td>Editor</td><td><code>DDrive.Editor</code></td><td>DDrive.Foundation, DDrive.Runtime, Unity.Addressables.Editor, URP Runtime/Core, UnityEngine.UI, Unity.InputSystem（<code>includePlatforms: ["Editor"]</code>）</td><td>AssetBrowser / 各専用エディタ / Preview / ID 生成（Codegen） / Validation UI</td></tr>
 <tr><td>Tests</td><td><code>DDrive.Tests.Editor</code> / <code>DDrive.Tests.Runtime</code> / <code>DDrive.Tests.Performance</code></td><td>それぞれ DDrive.Foundation, DDrive.Runtime（+ Editor はさらに DDrive.Editor）</td><td>EditMode / PlayMode / パフォーマンステスト。<code>DDrive.Tests.Runtime</code> は全プラットフォーム対象の asmdef のため <strong>PlayMode でしか実行されない</strong></td></tr>
-<tr><td>(参考) サンプル</td><td><code>DDrive.Samples</code></td><td>DDrive.Foundation, DDrive.Runtime, Unity.Netcode.Runtime, UniTask, Unity.InputSystem</td><td>ゲームコードが D-Drive をどう呼ぶかを示すデモ（<code>Assets/DDrive/Samples/</code>）。Editor 層は参照しない</td></tr>
+<tr><td>(参考) サンプル</td><td><code>DDrive.Samples</code></td><td>DDrive.Foundation, DDrive.Runtime, Unity.Netcode.Runtime, UniTask, Unity.InputSystem</td><td>ゲームコードが D-Drive をどう呼ぶかを示すデモ（<code>Packages/com.ddrive.core/Samples~/Demo/</code>）。Editor 層は参照しない</td></tr>
 </table>
 
 <div class="warn">
@@ -128,7 +128,7 @@
 <p>なぜ Data を書き換えてはいけないか: Data は複数の Instance・複数の Manager 呼び出しから同時に参照される共有の定義です。ランタイムから書き換えると、他の再生中インスタンスやマルチスレッド／ネットワーク越しの参照との整合性が取れなくなります。値を可変にしたい場合は Instance 側（Handle 経由の API）か、<a href="#" data-manual-kind="designer" data-manual-page="glossary">ValueDef</a>／Tuning（調整値。[02_core_framework.md] §2.5・§14）を使ってください。Data をエディタから書き換える場合（専用エディタ側の実装）は必ず <code>Undo.RecordObject</code> + <code>EditorUtility.SetDirty</code> を伴う必要があります（[CLAUDE.md] §0-5）。</p>
 
 <h2>3. AssetId — ID の実体</h2>
-<p>実装は <code>Assets/DDrive/Foundation/Identity/AssetId.cs</code>。</p>
+<p>実装は <code>Packages/com.ddrive.core/Foundation/Identity/AssetId.cs</code>。</p>
 <div class="sig">public struct AssetId&lt;TMarker&gt; : IAssetId, IEquatable&lt;AssetId&lt;TMarker&gt;&gt;
 {
     public ulong Value { get; }
@@ -152,7 +152,7 @@
 <p>読み方: <code>SEID.PlayerSlash</code> は「Se 種別の、識別子 PlayerSlash」という意味です。定数名は Data の識別子から、その種別の接頭辞トークン（<code>SE</code>・<code>VFX</code> など）が先頭に付いていれば取り除いて生成されます（<code>Editor/Codegen/AssetIdGenerator.cs</code> の <code>ToConstantName</code> / <code>KnownPrefixes</code>）。</p>
 <ul>
 <li><strong>再生成</strong>: <code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code>（メニュー定数は <code>DDriveMenu.Generate</code>）。アセットの作成・識別子変更のタイミングでツールが呼ぶため、通常は手動再生成を意識する必要はありません</li>
-<li><strong>asmdef の所属に注意</strong>: <code>Assets/Generated/AssetIds.g.cs</code> 自体には asmdef が無く、既定アセンブリ（Assembly-CSharp）に属します。そのため <strong>独自の asmdef を持つコード（<code>DDrive.Samples</code> など）からはこれらの定数を直接参照できません</strong>。実際 <code>Assets/DDrive/Samples/PresentationSkillSlashDemo.cs</code> のコメントにもこの制約と、生の値で <code>AssetId&lt;TMarker&gt;</code> を組み立てる回避策が書かれています。通常のゲームコード（既定アセンブリに置く場合）はこの制約を気にせず <code>DDrive.Generated.SEID.PlayerSlash</code> のように直接使えます</li>
+<li><strong>asmdef の所属に注意</strong>: <code>Assets/Generated/AssetIds.g.cs</code> 自体には asmdef が無く、既定アセンブリ（Assembly-CSharp）に属します。そのため <strong>独自の asmdef を持つコード（<code>DDrive.Samples</code> など）からはこれらの定数を直接参照できません</strong>。実際 <code>Packages/com.ddrive.core/Samples~/Demo/PresentationSkillSlashDemo.cs</code> のコメントにもこの制約と、生の値で <code>AssetId&lt;TMarker&gt;</code> を組み立てる回避策が書かれています。通常のゲームコード（既定アセンブリに置く場合）はこの制約を気にせず <code>DDrive.Generated.SEID.PlayerSlash</code> のように直接使えます</li>
 </ul>
 
 <div class="warn">
@@ -160,7 +160,7 @@
 </div>
 
 <h2>4. AssetType 一覧</h2>
-<p><code>Assets/DDrive/Foundation/Identity/AssetType.cs</code>（<code>enum AssetType : byte</code>）。<code>None</code> を含め 18 値です。新種別は既存アセットのシリアライズを壊さないよう<strong>必ず末尾に追記</strong>する規約になっています。</p>
+<p><code>Packages/com.ddrive.core/Foundation/Identity/AssetType.cs</code>（<code>enum AssetType : byte</code>）。<code>None</code> を含め 18 値です。新種別は既存アセットのシリアライズを壊さないよう<strong>必ず末尾に追記</strong>する規約になっています。</p>
 <table>
 <tr><th>AssetType</th><th>対応する Data / 用途</th><th>このマニュアルでの対応ページ</th></tr>
 <tr><td><code>None</code></td><td>(未設定・無効値)</td><td>—</td></tr>

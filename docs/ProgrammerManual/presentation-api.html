@@ -14,7 +14,7 @@
 <p>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れ・振動・ヒットストップをまとめて 1 つの演出として再生する仕組みが <code>Presentation</code>、演出やエフェクトを出す「位置」を扱う仕組みが Anchor（<code>AnchorData</code>）/ 配置セット（<code>AnchorGroupData</code>）です。演出データそのものの作り方（トラックの編集・専用エディタの使い方）は<a href="../DesignerManual/presentation.html">デザイナーマニュアル: 演出（Presentation）の設定項目</a>を、Anchor の作り方は<a href="../DesignerManual/anchor-data.html">Anchor（出す位置）の作り方</a>・<a href="../DesignerManual/anchor-group.html">配置セット（AnchorGroup）の作り方</a>を先に読んでください。このページはプログラマーが書く側の API（<code>Presentation</code> / <code>Anchors</code> ファサードと <code>PlayContext</code>）だけを扱います。</p>
 
 <div class="tip">
-<strong>実際のゲームコードは 1 行で足ります。</strong> サンプル <code>Assets/DDrive/Samples/PresentationSkillSlashDemo.cs</code> は <code>DDrive.Samples.asmdef</code>（<code>DDrive.Runtime</code> のみ参照）から生成コード（<code>Assets/Generated/AssetIds.g.cs</code>、asmdef 無し = Assembly-CSharp 所属）の <code>PRESENTID.DemoSkillSlash</code> を直接参照できないため、同じ値を生の <code>AssetId</code> として組み立てています（19 行目付近のコメント参照）。<strong>あなたが Assembly-CSharp 側に書くゲームコードでは</strong>次の 1 行で足ります。
+<strong>実際のゲームコードは 1 行で足ります。</strong> サンプル <code>Packages/com.ddrive.core/Samples~/Demo/PresentationSkillSlashDemo.cs</code> は <code>DDrive.Samples.asmdef</code>（<code>DDrive.Runtime</code> のみ参照）から生成コード（<code>Assets/Generated/AssetIds.g.cs</code>、asmdef 無し = Assembly-CSharp 所属）の <code>PRESENTID.DemoSkillSlash</code> を直接参照できないため、同じ値を生の <code>AssetId</code> として組み立てています（19 行目付近のコメント参照）。<strong>あなたが Assembly-CSharp 側に書くゲームコードでは</strong>次の 1 行で足ります。
 <pre><code>Presentation.Play(DDrive.Generated.PRESENTID.DemoSkillSlash, ctx);</code></pre>
 </div>
 
@@ -97,7 +97,7 @@
 <tr><td><code>ctx.OnSignal</code>（<code>Action&lt;string&gt;</code>）</td><td>演出データ → ゲームコード</td><td><code>Kind=Signal</code> のトラックが発火すると <code>ctx.OnSignal?.Invoke(track.SignalKey)</code> が呼ばれる。<code>OnMarker</code> と役割は似ているが、Observable の購読ではなく <code>PlayContext</code> に渡したコールバックが直接呼ばれる点が違う（Time=0 でも確実に受け取れる。上の警告参照）</td></tr>
 </table>
 
-<p>剣攻撃デモ（<code>PRES_Demo_SkillSlash.asset</code>）は AtTime(0.00) に Vfx+Se、<code>OnSignal("hit")</code> に HitStop(0.08s)+Se を配置しています。実際のコード側（<code>Assets/DDrive/Samples/PresentationSkillSlashDemo.cs</code>）は次のように書きます。</p>
+<p>剣攻撃デモ（<code>PRES_Demo_SkillSlash.asset</code>）は AtTime(0.00) に Vfx+Se、<code>OnSignal("hit")</code> に HitStop(0.08s)+Se を配置しています。実際のコード側（<code>Packages/com.ddrive.core/Samples~/Demo/PresentationSkillSlashDemo.cs</code>）は次のように書きます。</p>
 
 <pre><code>private PresentationHandle _handle;
 

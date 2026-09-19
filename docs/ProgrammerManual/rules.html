@@ -14,7 +14,7 @@
 <p>このページは「守らないと CI が赤くなる」規約を実用の観点でまとめたものです。設計原則の背景は <a href="concepts.html">基本概念</a>、PR を出す前の全チェック項目は <code>docs/12_review.md</code> を参照してください。</p>
 
 <h2 id="forbidden-api">禁止 API</h2>
-<p><code>Assets/DDrive/Editor/Validation/ForbiddenApiScanner.cs</code> が、<code>Assets/DDrive</code> 配下の全 <code>.cs</code> ファイルをテキストパターン一致（正規表現）で走査します。Roslyn Analyzer ではなく簡易的なテキスト走査です。</p>
+<p><code>Packages/com.ddrive.core/Editor/Validation/ForbiddenApiScanner.cs</code> が、D-Drive 本体（<code>Packages/com.ddrive.core</code>。2026-09-20 の P-5 で <code>Assets/DDrive</code> から移設）配下の全 <code>.cs</code> ファイルをテキストパターン一致（正規表現）で走査します。Roslyn Analyzer ではなく簡易的なテキスト走査です。</p>
 <table>
 <tr><th>#</th><th>禁止パターン（正規表現）</th><th>代わりに使うもの</th><th>許可されているファイル</th></tr>
 <tr><td>1</td><td><code>\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b</code></td><td><code>ITimeSource</code>（<code>docs/02_core_framework.md</code> §9.5）</td><td><code>LocalTimeSource.cs</code> / <code>NetworkTimeSource.cs</code> / <code>GameLoopDriver.cs</code></td></tr>
@@ -26,16 +26,16 @@
 <p>いずれのルールも <code>ForbiddenApiScanner.cs</code> 自身は常に例外扱いです（このファイルの Message 文字列がパターンに一致してしまうため、自己検出を避ける自己参照の除外）。<code>//</code> で始まる行（コメント）はどのルールも対象外です。</p>
 
 <div class="warn">
-<strong>スキャナは <code>Samples/</code> フォルダを走査対象外にしています。</strong> <code>Assets/DDrive/Samples/</code> 配下（<code>NetBridgeSmokeTest.cs</code> 等の手動確認用デモ）はパスに <code>/Samples/</code> を含む場合、ルールに関係なく丸ごとスキップされます。
+<strong>スキャナは <code>Samples</code> フォルダを走査対象外にしています。</strong> サンプル（<code>Packages/com.ddrive.core/Samples~/Demo/</code>、<code>NetBridgeSmokeTest.cs</code> 等の手動確認用デモ）はパスに <code>/Samples</code> を含む場合、ルールに関係なく丸ごとスキップされます。<code>Samples~</code> は Unity のコンパイル対象外のフォルダでもあるため、実質的に二重に対象外です。
 </div>
 
 <div class="warn">
-<strong>ゲームコード（<code>Assembly-CSharp</code> 等）はこのスキャナの対象外です。</strong> <code>Editor/Validation/CI.cs</code> は <code>ForbiddenApiScanner.Scan("Assets/DDrive")</code> という固定パスでしか呼んでおらず、D-Drive 本体以外のフォルダは走査しません。それでも <code>CLAUDE.md</code> §0-3 は同じ禁止事項（<code>Instantiate</code> / <code>Resources.Load</code> / <code>AudioSource.Play</code> の直接呼び出し）をゲームコードにも適用すると定めています。<strong>ゲームコードでこれらの API を直接呼んでも CI は検出しません。人が守るしかない</strong>ことを理解したうえでレビューしてください。
+<strong>ゲームコード（<code>Assembly-CSharp</code> 等）はこのスキャナの対象外です。</strong> <code>Editor/Validation/CI.cs</code> は <code>ForbiddenApiScanner.Scan(CI.ResolveForbiddenApiScanRoot())</code>（D-Drive 自身が属するパッケージの実パスを <code>PackageInfo</code> から解決。2026-09-20 の P-5 でパッケージ化された後は <code>Packages/com.ddrive.core</code> の絶対パスになる）でしか呼んでおらず、D-Drive 本体以外のフォルダは走査しません。それでも <code>CLAUDE.md</code> §0-3 は同じ禁止事項（<code>Instantiate</code> / <code>Resources.Load</code> / <code>AudioSource.Play</code> の直接呼び出し）をゲームコードにも適用すると定めています。<strong>ゲームコードでこれらの API を直接呼んでも CI は検出しません。人が守るしかない</strong>ことを理解したうえでレビューしてください。
 </div>
 
 <h2 id="performance">定常経路（Tick / Spawn / Play）でのパフォーマンス規約</h2>
 <p>毎フレーム、または高頻度に呼ばれる経路（<code>Tick</code> / <code>Spawn</code> / <code>Play</code>）では <strong>LINQ・クロージャ・boxing を禁止</strong>します（<code>docs/12_review.md</code> §3）。</p>
-<p><strong>2026-09-15（6-2）から自動検証があります。</strong> <code>Assets/DDrive/Tests/Performance/</code>（asmdef <code>DDrive.Tests.Performance</code>、<code>com.unity.test-framework.performance</code> 使用）が、Pool の Rent/Return・Vfx/Se/CameraFx/Haptics の Tick・Presentation の Tick+Signal・GameLoopDriver の 1 フレームなど、Tick 系の定常経路を <code>GC.GetAllocatedBytesForCurrentThread()</code> の差分で hard assert します。<code>-testCategory Performance</code> で実行します（Unity Test Runner、または <code>Tools/CI/run-ci.cmd</code> の [5/6]）。GitHub Actions での自動実行は P7 末の CI 導入まで保留されているため、現状はローカル実行が唯一の実行経路です。</p>
+<p><strong>2026-09-15（6-2）から自動検証があります。</strong> <code>Packages/com.ddrive.core/Tests/Performance/</code>（asmdef <code>DDrive.Tests.Performance</code>、<code>com.unity.test-framework.performance</code> 使用）が、Pool の Rent/Return・Vfx/Se/CameraFx/Haptics の Tick・Presentation の Tick+Signal・GameLoopDriver の 1 フレームなど、Tick 系の定常経路を <code>GC.GetAllocatedBytesForCurrentThread()</code> の差分で hard assert します。<code>-testCategory Performance</code> で実行します（Unity Test Runner、または <code>Tools/CI/run-ci.cmd</code> の [5/6]）。GitHub Actions での自動実行は P7 末の CI 導入まで保留されているため、現状はローカル実行が唯一の実行経路です。</p>
 
 <div class="tip">
 <strong>既知の未解決 alloc（このチェックでは検出されるが対象外）</strong>: Spawn/Play 系（<code>VfxManager.SpawnDataLocal</code>・<code>AudioManager.PlaySeData</code>・<code>PresentationManager.PlayLocalInternal</code>）は呼び出しごとに Instance（class）を 1 個 new する既存設計です（<code>PresentationInstance</code> は List×7 + R3 Subject×4 も new します）。Instance プーリングという大きな設計変更が必要なため、対応するテスト（<code>*_RecordsAllocForKnownIssue</code>）は記録するだけで assert しません。<strong>新しい Tick/Spawn/Play コードを書くときは、この既知課題を新たな LINQ/クロージャ追加の免罪符にしないでください</strong>（既存の allocation を増やさない・可能なら減らす）。
@@ -117,7 +117,7 @@ Cutscene.OnInputLockChanged
 <strong>[6/6] NetCheck が FAIL したとき:</strong> <code>%RESULTS_DIR%\NetCheck\summary.md</code> を確認してください。
 </div>
 
-<p>互換性スナップショット（<code>Assets/DDrive/Tests/Editor/Compat/</code>、EditMode テスト）は、公開 API・シリアライズ形式・enum・ID/Address/定数名・ネットメッセージ・生成コード・Validator の重さ・Editor 契約・版番号が意図せず変わっていないかをゴールデン比較で機械的に検出します。P チケット（移植・更新・互換性、<code>docs/42_distribution.md</code>）が完了して互換性ポリシーが発効した後は、<strong>このスナップショットが赤い PR はマージしません</strong>。意図した変更（追加は MINOR、削除・変更は MAJOR で手続きが必要）なら、<code>Tools &gt; D-Drive &gt; Compat &gt; スナップショットを更新</code>（または一部は環境変数 <code>DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1</code>）でゴールデンを更新し、同じ PR で <code>CHANGELOG.md</code> の互換性節に記載してください（詳細は <code>docs/12_review.md</code> §3 / <code>docs/42_distribution.md</code> §5.11）。</p>
+<p>互換性スナップショット（<code>Packages/com.ddrive.core/Tests/Editor/Compat/</code>、EditMode テスト）は、公開 API・シリアライズ形式・enum・ID/Address/定数名・ネットメッセージ・生成コード・Validator の重さ・Editor 契約・版番号が意図せず変わっていないかをゴールデン比較で機械的に検出します。P チケット（移植・更新・互換性、<code>docs/42_distribution.md</code>）が完了して互換性ポリシーが発効した後は、<strong>このスナップショットが赤い PR はマージしません</strong>。意図した変更（追加は MINOR、削除・変更は MAJOR で手続きが必要）なら、<code>Tools &gt; D-Drive &gt; Compat &gt; スナップショットを更新</code>（または一部は環境変数 <code>DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1</code>）でゴールデンを更新し、同じ PR で <code>CHANGELOG.md</code> の互換性節に記載してください（詳細は <code>docs/12_review.md</code> §3 / <code>docs/42_distribution.md</code> §5.11）。</p>
 
 <h3 id="dev-repo-only">開発リポジトリの実データに依存するテスト（<code>DDRIVE_DEV_REPO</code>、2026-09-20 追加）</h3>
 <p>D-Drive のテストは持ち込み先でも実行できるように設計されていますが（<code>docs/42_distribution.md</code> §2.1 Tests 行）、UnityChan サンプル FBX など<strong>開発リポジトリにしか無い実データ</strong>を使う一部のテスト（例: <code>ImportRuleServiceTests</code>/<code>CutsceneImportServiceTests</code> の埋め込みアニメ・実 FBX を要するケース）は、持ち込み先では実行できません。これらには <code>[Category("DevRepoOnly")]</code> を付け、テスト冒頭で <code>DevRepoOnlyGuard.SkipUnlessDevRepo()</code> を呼びます。<code>DDRIVE_DEV_REPO</code> スクリプティング定義シンボル（<strong>開発リポジトリの <code>ProjectSettings</code> の Scripting Define Symbols にのみ追加</strong>。持ち込み先には無い）が定義されていなければ、<code>Assume.That(false, ...)</code> で <strong>Fail ではなく Inconclusive</strong> にします。これにより、持ち込み先で D-Drive のテストを有効化（<code>testables</code> に追加）しても、開発リポジトリ専用のテストが赤くなってビルドを止めることはありません。</p>

@@ -98,6 +98,8 @@ Game.*                 … ゲーム本体。DDrive.Runtime のみ参照（Edito
 
 **2026-09-15 追記(6-2)**: `com.unity.test-framework.performance`(**3.4.0**)を `Packages/manifest.json` に正式追加した。`com.unity.test-framework`(EditMode/PlayMode テスト本体)の依存として `Library/PackageCache` に既に transitive で解決されていたバージョンにそのまま固定している(依存関係の版ズレを避けるため)。新規 asmdef `DDrive.Tests.Performance`(`Assets/DDrive/Tests/Performance/`、`Unity.PerformanceTesting` を参照)で 0 alloc 検証([12_review.md] §3、[11_tasks.md] 6-2)に使用。既存 asmdef(`DDrive.Runtime`/`DDrive.Editor`/`DDrive.Tests.Runtime`/`DDrive.Tests.Editor`)は変更していない(この用途は新規テスト asmdef 側だけで閉じている)。
 
+**2026-09-20 追記(P-5、[42_distribution.md] §6)**: `Assets/DDrive/` を `Packages/com.ddrive.core/` へパッケージ化(埋め込みパッケージ)した。7 つの asmdef 名・`references`・`versionDefines` はすべて不変(移設は `AssetDatabase.MoveAsset` による .meta ごとの移動のみで、asmdef の中身は変更していない)。`Assets/DDrive/Samples/` はスクリプトのみ `Packages/com.ddrive.core/Samples~/Demo/`(UPM 標準の import 前提の非コンパイル領域)へ移設し、`DDrive.Samples.asmdef` は開発リポジトリでは import するまでコンパイル対象外になる(実害は無い。参照コード 0 件を確認済み)。テストは開発 `Packages/manifest.json` の `testables: ["com.ddrive.core"]` で引き続き Test Runner から実行できる。
+
 ### R3 の asmdef 明示参照 — 調査結果(2026-09-15 追記、[31] A6、P6)
 
 **決定は「(c) asmdef に R3 の明示参照を追加する」だったが、調査の結果 `DDrive.Runtime.asmdef`/`DDrive.Editor.asmdef` 自体は変更しなかった。理由と調査結果を以下に記録する(CLAUDE.md §0-9: asmdef 構成は迷ったら聞く、に該当するため実施を見送り、要判断として残す)。**
@@ -109,18 +111,21 @@ Game.*                 … ゲーム本体。DDrive.Runtime のみ参照（Edito
 - **結論**: `overrideReferences: true` への切替は「今使っている型を列挙するだけ」では済まず、各アセンブリが暗黙に頼っている**他の**プリコンパイル DLL を全て洗い出して同時に列挙する必要があり、洗い出しが漏れると静かにビルドが壊れる(デザイナーの作業を止める、CLAUDE.md §0-4 に反する)リスクがある。今回は Unity 実機でのコンパイル確認ができない状態での変更を避け、**asmdef 自体は変更せず**、上記の依存関係をこの節に明記する形で対応した。実際に `overrideReferences: true` へ切り替える場合は、Unity Editor に接続した状態で `DDrive.Runtime`/`DDrive.Editor` 配下の全 `.cs` を洗い出し、コンパイルが green になることを確認してから行うこと
 ## 5. データ配置・カタログ構成
 
-**配置の基本原則**: D-Drive に関連するアセット・スクリプトファイルは、基本的にすべて `Assets/DDrive/` 以下に置く。その中を層・種別ごとに適切にディレクトリ分割し、各スクリプトを対応するディレクトリへ配置する（`Assets/` 直下や無関係なフォルダへの散在を禁止）。ディレクトリの分割単位は §4 の asmdef 構成と一致させる。
+**配置の基本原則**: D-Drive に関連するアセット・スクリプトファイルは、基本的にすべて `Packages/com.ddrive.core/` 以下に置く（2026-09-20 P-5 で `Assets/DDrive/` から移設。埋め込みパッケージなので開発リポジトリ内では引き続き編集・テスト実行できる）。その中を層・種別ごとに適切にディレクトリ分割し、各スクリプトを対応するディレクトリへ配置する（`Assets/` 直下や無関係なフォルダへの散在を禁止）。ディレクトリの分割単位は §4 の asmdef 構成と一致させる。
 
 ```
-Assets/
-  DDrive/                        … システム本体（パッケージ化可）
+Packages/
+  com.ddrive.core/               … システム本体(埋め込みパッケージ。旧 Assets/DDrive/)
     Foundation/                  … Registry / Loader / Pool / EventBus / Pause / ValueDef / Validation
     Runtime/                     … 各種別の Data / Manager / Instance
-      Audio/  Vfx/  Anim/  Material/  Canvas/  Presentation/  Ui/  Camera/  Net/
+      Audio/  Vfx/  Anim/  Material/  Canvas/  Presentation/  Ui/  Camera/  Net/  Shaders/
     Editor/                      … AssetBrowser / 各専用エディタ / Preview / ID生成 / 依存解析
-      AssetBrowser/  Inspectors/  Preview/  Codegen/  Validation/
+      AssetBrowser/  Inspectors/  Preview/  Codegen/  Validation/  Settings/
     Tests/
-      Runtime/  Editor/
+      Runtime/  Editor/  Performance/
+    Samples~/Demo/                … サンプルスクリプト(Unity からは見えない。Package Manager から import)
+    package.json  README.md  Documentation~/
+Assets/
   GameData/
     Catalogs/
       AudioCatalog.asset         … 種別ごとのカタログ(ID→Data参照のリスト)

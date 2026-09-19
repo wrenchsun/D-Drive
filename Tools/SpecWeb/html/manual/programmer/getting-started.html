@@ -123,27 +123,27 @@
 </table>
 
 <h3>1-2. 既存プロジェクトに持ち込む場合</h3>
-<div class="warn">
-<strong>2026-09-17 時点、UPM パッケージ配布は未整備です。</strong> 下記は現状のファイル構成から読み取れる「最低限コピーすべきもの」であり、公式な持ち込み手順（セットアップウィザード）はまだありません（下の「UPM 化の予告」参照）。ProjectSettings 側の正確な要件は<strong>要確認</strong>の項目が多く残っています。
+<div class="tip">
+<strong>2026-09-20 更新: D-Drive はパッケージ化されました（P-5）。</strong> <code>Assets/DDrive/</code> は <code>Packages/com.ddrive.core/</code>（埋め込みパッケージ）へ移設済みで、<code>package.json</code>（<code>name: "com.ddrive.core"</code>、<code>version: "1.0.0"</code>）も存在します。ただし、他プロジェクトから git URL で参照して実際に導入できることの確認（P-11）とセットアップウィザード（P-6）はまだ完了していません。それまでの持ち込み手順は下記のとおりです。
 </div>
 <ol>
-<li><code>Assets/DDrive/</code> を丸ごとコピー（<code>.meta</code> ファイルも含める。GUID 参照を壊さないため）</li>
+<li><strong>（推奨、P-6 完了までの暫定）</strong> <code>Packages/com.ddrive.core/</code> フォルダを丸ごとコピー（<code>.meta</code> ファイルも含める。GUID 参照を壊さないため）するか、下記「UPM 化の状況」の git URL 形式で <code>manifest.json</code> に追加する</li>
 <li><code>Assets/Generated/AssetIds.g.cs</code>（ID 定数。手編集禁止・再生成前提）と、そのフォルダに asmdef が無いこと（既定アセンブリ所属である必要がある点。§<a href="#" data-manual-kind="programmer" data-manual-page="concepts">concepts.html</a> 参照）を確認する</li>
-<li><code>Assets/GameData/</code> は<strong>プロジェクト固有の実データ</strong>（Data アセット・カタログ・標準プレハブ）なので、そのまま流用するのではなく、持ち込み先で新規に Addressables グループ・カタログを作る運用になる見込みです（<strong>要確認</strong>: 現状「持ち込み」を実際にやった実績が無く、[42_distribution.md] で設計検討中の段階）</li>
+<li><code>Assets/GameData/</code> は<strong>プロジェクト固有の実データ</strong>（Data アセット・カタログ・標準プレハブ）なので、そのまま流用するのではなく、持ち込み先で新規に Addressables グループ・カタログを作る運用になる見込みです（<strong>要確認</strong>: 現状「持ち込み」を実際にやった実績が無く、[42_distribution.md] で設計検討中の段階。P-11 で実証予定）</li>
 <li>1-1 の依存パッケージを持ち込み先の <code>Packages/manifest.json</code> に追加する（UnityNuGet の <code>scopedRegistries</code> エントリを忘れずに）</li>
 <li>Addressables を <code>Window &gt; Asset Management &gt; Addressables &gt; Groups</code> から初期化する（<code>AddressableAssetSettings</code> が無いと全 Data が実行時にロードできないと Validation が警告します）</li>
 <li>シーンに起動オブジェクトを配置する（<code>Tools &gt; D-Drive &gt; Generate &gt; 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置</code>）。詳細は <a href="#" data-manual-kind="programmer" data-manual-page="bootstrap">bootstrap.html</a></li>
-<li><strong>要確認</strong>: URP アセットの割り当て、Input System の Active Input Handling 設定、その他 ProjectSettings 側の必須項目一式は、このリポジトリの docs 上に確定した手順が見当たりませんでした。動かない場合は既存プロジェクトの ProjectSettings を見比べてください</li>
+<li><strong>要確認</strong>: URP アセットの割り当て、Input System の Active Input Handling 設定、その他 ProjectSettings 側の必須項目一式は、このリポジトリの docs 上に確定した手順が見当たりませんでした。動かない場合は既存プロジェクトの ProjectSettings を見比べてください（自動検査は P-6 の <code>ProjectSetupValidator</code> で用意する予定）</li>
 </ol>
 
 <div class="tip">
-<strong>UPM 化の予告（2026-09-17 決定、[42_distribution.md]）:</strong> Timeline のチケット完了後、<code>Assets/DDrive/</code> を <code>Packages/com.ddrive.core/</code>（パッケージ名 <code>com.ddrive.core</code>、表示名 <code>D-Drive</code>）へ移設し、このリポジトリ（<code>github.com/wrenchsun/D-Drive</code>、private のまま）を git URL の <code>?path=</code> 付きで参照する形の配布に変わる予定です。最初の版は <strong>1.0.0</strong>。持ち込み先の <code>manifest.json</code> は次のような 1 行になる想定です（<strong>2026-09-17 時点ではまだ存在しません。今は使えません</strong>）:
+<strong>UPM 化の状況（2026-09-17 決定 → 2026-09-20 パッケージ化実施、[42_distribution.md]）:</strong> <code>Packages/com.ddrive.core/</code>（パッケージ名 <code>com.ddrive.core</code>、表示名 <code>D-Drive</code>）が実在し、このリポジトリ（<code>github.com/wrenchsun/D-Drive</code>、private のまま）を git URL の <code>?path=</code> 付きで参照する形の配布を想定しています。最初の版は <strong>1.0.0</strong>。持ち込み先の <code>manifest.json</code> は次のような 1 行になる想定です（<strong>git tag <code>v1.0.0</code> の打刻は P-9 で行うため、2026-09-20 時点ではこの URL はまだ解決できません</strong>）:
 <pre><code>"com.ddrive.core": "git+ssh://git@github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0"</code></pre>
-この移行（P チケット群、P-1〜P-13）が完了する（P-13 発効）まで、上記 1-2 の手動コピー手順が現行の唯一の持ち込み方法です。
+セットアップウィザード（P-6）・消費側ドキュメント（P-10）・実際に空プロジェクトへ導入する検証（P-11）が完了するまで、上記 1-2 の手順が現行の持ち込み方法です。
 </div>
 
 <h2>2. 最初の一本 — SE を ID だけで鳴らす</h2>
-<p>デザイナーが登録済みの SE（このリポジトリには実例として <code>SEID.PlayerSlash</code> が既に存在します）を、ID だけで鳴らす最小コードです。実在する API（<code>Assets/DDrive/Runtime/Audio/Audio.cs</code> の静的ファサード）だけで構成しています。</p>
+<p>デザイナーが登録済みの SE（このリポジトリには実例として <code>SEID.PlayerSlash</code> が既に存在します）を、ID だけで鳴らす最小コードです。実在する API（<code>Packages/com.ddrive.core/Runtime/Audio/Audio.cs</code> の静的ファサード）だけで構成しています。</p>
 <pre><code>using DDrive.Generated;
 using DDrive.Runtime.Audio;
 using UnityEngine;

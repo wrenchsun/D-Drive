@@ -108,7 +108,7 @@
 </div>
 
 <h2>シーンへの配置</h2>
-<p>メニュー <code>Tools &gt; D-Drive &gt; Generate &gt; 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置</code>（実装: <code>Assets/DDrive/Editor/Bootstrap/BootstrapSceneSetup.cs:17</code>）を実行すると、<code>[D-Drive] Runtime</code> という名前の GameObject が作られ、<code>DDriveRuntimeBootstrap</code> が付きます。同時にプロジェクト内の <code>AssetCatalog</code>（<code>Tests/</code> 配下を除く）を自動収集して Inspector の <code>Catalogs</code> に設定します。カタログを増やした後は、同じメニューか Inspector の「カタログを再収集」ボタンで更新してください。</p>
+<p>メニュー <code>Tools &gt; D-Drive &gt; Generate &gt; 起動オブジェクト(DDriveRuntimeBootstrap)をシーンに配置</code>（実装: <code>Packages/com.ddrive.core/Editor/Bootstrap/BootstrapSceneSetup.cs:17</code>）を実行すると、<code>[D-Drive] Runtime</code> という名前の GameObject が作られ、<code>DDriveRuntimeBootstrap</code> が付きます。同時にプロジェクト内の <code>AssetCatalog</code>（<code>Tests/</code> 配下を除く）を自動収集して Inspector の <code>Catalogs</code> に設定します。カタログを増やした後は、同じメニューか Inspector の「カタログを再収集」ボタンで更新してください。</p>
 <p>シーンに 1 つだけ置いてください（<code>[DisallowMultipleComponent]</code>。2 個目を置いても既存のものが優先され、新しい方は破棄されます）。<code>KeepAcrossScenes</code>（既定 true）が ON の場合、<code>DontDestroyOnLoad</code> でシーンをまたいで生き続けます。</p>
 
 <h2>クラス宣言</h2>
@@ -117,7 +117,7 @@
 [DisallowMultipleComponent]
 public sealed class DDriveRuntimeBootstrap : MonoBehaviour</div>
 <p><code>DefaultExecutionOrder(-1000)</code> により、シーン内の他のどの <code>Awake()</code> よりも先に実行されます。<code>RequireComponent(typeof(GameLoopDriver))</code> のとおり、<code>GameLoopDriver</code>（後述）が自動的に一緒に付きます。</p>
-<p>実装: <code>Assets/DDrive/Runtime/Loop/DDriveRuntimeBootstrap.cs:39</code></p>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Loop/DDriveRuntimeBootstrap.cs:39</code></p>
 
 <h2>公開メンバー</h2>
 
@@ -190,7 +190,7 @@ public sealed class DDriveRuntimeBootstrap : MonoBehaviour</div>
 }</code></pre>
 
 <h2>GameLoopDriver</h2>
-<p><code>GameLoopDriver</code>（<code>Assets/DDrive/Runtime/Loop/GameLoopDriver.cs:8</code>）は、シーン内で唯一の <code>Update()</code> 入口です。各 Manager 自身は <code>Update()</code> を持たず、<code>GameLoop.Tick(dt)</code> 経由で駆動されます。通常、ゲームコードから直接触る必要はありません。</p>
+<p><code>GameLoopDriver</code>（<code>Packages/com.ddrive.core/Runtime/Loop/GameLoopDriver.cs:8</code>）は、シーン内で唯一の <code>Update()</code> 入口です。各 Manager 自身は <code>Update()</code> を持たず、<code>GameLoop.Tick(dt)</code> 経由で駆動されます。通常、ゲームコードから直接触る必要はありません。</p>
 <table>
 <tr><th>プロパティ</th><th>型</th><th>役割</th></tr>
 <tr><td><code>GameLoop</code></td><td><code>GameLoop</code></td><td>登録された各 Manager（<code>IAssetManager</code>）へ Tick / Pause 通知 / StopAll をブロードキャストする</td></tr>
@@ -200,7 +200,7 @@ public sealed class DDriveRuntimeBootstrap : MonoBehaviour</div>
 <p><code>Update()</code> では、毎フレーム <code>TimeService.Tick(Time.unscaledDeltaTime)</code> → <code>GameLoop.Tick(TimeService.ScaledDeltaTime(...))</code> の順に呼ばれます。</p>
 
 <h2>PauseService</h2>
-<p><code>Assets/DDrive/Foundation/Pause/PauseService.cs:8</code>。チャンネルごとに多重 Push/Pop 可能なスタック式ポーズです。同じチャンネルを 2 回 <code>Push</code> したら <code>Pop</code> も 2 回必要です。</p>
+<p><code>Packages/com.ddrive.core/Foundation/Pause/PauseService.cs:8</code>。チャンネルごとに多重 Push/Pop 可能なスタック式ポーズです。同じチャンネルを 2 回 <code>Push</code> したら <code>Pop</code> も 2 回必要です。</p>
 <div class="sig">void Push(PauseChannel channel)
 void Pop(PauseChannel channel)
 bool IsPaused(PauseChannel channel)
@@ -214,7 +214,7 @@ event Action&lt;PauseChannel, bool&gt; OnPauseChanged</div>
 <p>取得は <code>DDriveRuntimeBootstrap.Instance.Loop.PauseService</code>。</p>
 
 <h2>Tuning（仕様書「調整値」タブの読み取り）</h2>
-<p><code>Assets/DDrive/Runtime/Tuning/Tuning.cs:11</code>。デザイナー/企画がアセット発注ツールの「調整値」タブで管理する数値をコードから読む静的ファサードです。<a href="#" data-manual-kind="designer" data-manual-page="spec-sync">デザイナーマニュアル: アセット発注ツールとの同期</a>で取り込まれた <code>TuningTable</code> の内容を <code>DDriveRuntimeBootstrap.Instance.TuningTable</code>（Inspector）経由で読みます。</p>
+<p><code>Packages/com.ddrive.core/Runtime/Tuning/Tuning.cs:11</code>。デザイナー/企画がアセット発注ツールの「調整値」タブで管理する数値をコードから読む静的ファサードです。<a href="#" data-manual-kind="designer" data-manual-page="spec-sync">デザイナーマニュアル: アセット発注ツールとの同期</a>で取り込まれた <code>TuningTable</code> の内容を <code>DDriveRuntimeBootstrap.Instance.TuningTable</code>（Inspector）経由で読みます。</p>
 <div class="sig">float  GetFloat(string key, float defaultValue = 0f)
 int    GetInt(string key, int defaultValue = 0)
 bool   GetBool(string key, bool defaultValue = false)
@@ -230,21 +230,21 @@ string GetTableString(string tableKey, string rowId, string columnKey, string de
 </div>
 
 <h2>Options（音量・UI 速度などの永続設定）</h2>
-<p><code>Assets/DDrive/Runtime/Ui/OptionStore.cs:213</code> 付近の静的ファサード。<code>DDriveRuntimeBootstrap</code> が起動時に <code>PlayerPrefs</code> から読み込み、破棄時 / アプリ終了時に変更があれば自動保存します。</p>
+<p><code>Packages/com.ddrive.core/Runtime/Ui/OptionStore.cs:213</code> 付近の静的ファサード。<code>DDriveRuntimeBootstrap</code> が起動時に <code>PlayerPrefs</code> から読み込み、破棄時 / アプリ終了時に変更があれば自動保存します。</p>
 <div class="sig">float Get(OptionKey key)
 void  Set(OptionKey key, float value)
 event Action&lt;OptionKey, float&gt; OnChanged</div>
 <p>未 Bind のときの <code>Get</code> は <code>1f</code> を返します。<code>OnChanged</code> は未 Bind の間に登録しても購読が消えず、後から Bind されたインスタンスへ自動的に付け替わります。</p>
 
 <h2>ScenePreload（シーン読み込み時の一括プリロード）</h2>
-<p><code>Assets/DDrive/Runtime/Loading/ScenePreload.cs:11</code>。ロード画面などから、複数 ID をまとめて先読みするための窓口です。</p>
+<p><code>Packages/com.ddrive.core/Runtime/Loading/ScenePreload.cs:11</code>。ロード画面などから、複数 ID をまとめて先読みするための窓口です。</p>
 <div class="sig">void   Bind(IAssetRegistry registry)
 UniTask RunAsync(ScenePreloadList list, IProgress&lt;float&gt; progress = null)
 void   Release(ScenePreloadList list)</div>
 <p><code>list</code> が <code>null</code>、または未 Bind（起動配線前 / テスト環境）の場合は、<code>progress</code> に 1f を即時報告して<strong>即完了扱い</strong>になります（例外にはなりません）。<code>Release</code> は <code>RunAsync</code> で確保した参照を解放するために、シーンアンロード時などに対で呼びます。</p>
 
 <h2>Addressables とカタログの同期</h2>
-<p><code>Assets/DDrive/Editor/AssetBrowser/AddressablesSync.cs:18</code> が、Asset Browser で作成した Data アセットとカタログを自動的に Addressables へ登録します。</p>
+<p><code>Packages/com.ddrive.core/Editor/AssetBrowser/AddressablesSync.cs:18</code> が、Asset Browser で作成した Data アセットとカタログを自動的に Addressables へ登録します。</p>
 <ul>
 <li>Data アセット: グループ <code>DDrive_GameData</code> に、カタログ上の Address（＝ファイル名）と同じ address で登録</li>
 <li>カタログ自体: グループ <code>DDrive_Catalogs</code> に、ラベル <code>DDriveCatalog</code>（＝<code>DDriveRuntimeBootstrap.DefaultCatalogLabel</code>）付きで登録。<code>DDriveRuntimeBootstrap.CatalogLabel</code> にこのラベルを設定しておくと、Inspector で直参照していないカタログもこのラベル経由で起動時に自動収集される</li>
@@ -252,7 +252,7 @@ void   Release(ScenePreloadList list)</div>
 <p>ID 定数（<code>SEID</code> / <code>VFXID</code> / <code>ANIMID</code> など）の再生成は <code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code>。生成先やコード規約は <a href="#" data-manual-kind="programmer" data-manual-page="concepts">concepts.html</a> を参照してください。</p>
 
 <h2 id="project-settings">出力先パスの設定（<code>DDriveProjectSettings</code>、2026-09-20 追加）</h2>
-<p><code>Assets/DDrive/Editor/Settings/DDriveProjectSettings.cs</code>（<code>ScriptableSingleton&lt;DDriveProjectSettings&gt;</code>、<code>ProjectSettings/DDriveProjectSettings.asset</code> に保存）が <code>GameDataRoot</code> / <code>GeneratedRoot</code> / <code>SourceAssetsRoot</code> / <code>SpecsRoot</code> の 4 つの出力先パスを持ちます。既定値は現状の決め打ちパス（<code>Assets/GameData</code> 等）と同じです。</p>
+<p><code>Packages/com.ddrive.core/Editor/Settings/DDriveProjectSettings.cs</code>（<code>ScriptableSingleton&lt;DDriveProjectSettings&gt;</code>、<code>ProjectSettings/DDriveProjectSettings.asset</code> に保存）が <code>GameDataRoot</code> / <code>GeneratedRoot</code> / <code>SourceAssetsRoot</code> / <code>SpecsRoot</code> の 4 つの出力先パスを持ちます。既定値は現状の決め打ちパス（<code>Assets/GameData</code> 等）と同じです。</p>
 <div class="tip">
 現時点ではこの設定を実際に読みに行くコードはまだありません（<code>AssetCreationService.DefaultGameDataRoot</code> 等の既存の決め打ち定数は変更していません）。持ち込み先が自分のフォルダ構成に合わせて出力先を選べるようにする土台で、実際の参照差し替えとセットアップウィザードは後続チケットで行います。
 </div>

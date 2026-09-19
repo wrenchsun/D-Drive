@@ -18,7 +18,7 @@
 </div>
 
 <h2 id="get">INetBridge の取得</h2>
-<p><code>Assets/DDrive/Foundation/Net/INetBridge.cs</code> で定義されるインタフェースです。実体は <code>DDriveRuntimeBootstrap.Instance.NetBridge</code>（起動配線の詳細は <a href="bootstrap.html">起動配線（DDriveRuntimeBootstrap）</a>）から取得します。<code>await DDriveRuntimeBootstrap.Instance.WhenReady;</code> の後であれば確実に非 null です。</p>
+<p><code>Packages/com.ddrive.core/Foundation/Net/INetBridge.cs</code> で定義されるインタフェースです。実体は <code>DDriveRuntimeBootstrap.Instance.NetBridge</code>（起動配線の詳細は <a href="bootstrap.html">起動配線（DDriveRuntimeBootstrap）</a>）から取得します。<code>await DDriveRuntimeBootstrap.Instance.WhenReady;</code> の後であれば確実に非 null です。</p>
 
 <h2 id="members">INetBridge のメンバー一覧</h2>
 <table>
@@ -107,7 +107,7 @@
 </ul>
 
 <h2 id="samples">実例</h2>
-<p><code>Assets/DDrive/Samples/</code> 配下に 2 つのサンプルがあります（Validation の走査対象外。確認できたら削除してよいデモコード）。</p>
+<p><code>Packages/com.ddrive.core/Samples~/Demo/</code> 配下に 2 つのサンプルがあります（Validation の走査対象外。確認できたら削除してよいデモコード）。</p>
 <table>
 <tr><th>ファイル</th><th>内容</th></tr>
 <tr><td><code>NetBridgeSmokeTest.cs</code></td><td>0-14 時点の NGO アダプタ疎通確認用。独自メッセージ <code>PingMessage : INetMessage</code> を定義し、<code>bridge.Subscribe&lt;PingMessage&gt;(...)</code> で受信、<code>bridge.Broadcast(new PingMessage{...}, NetChannel.Unreliable)</code> で送信する最小例</td></tr>
