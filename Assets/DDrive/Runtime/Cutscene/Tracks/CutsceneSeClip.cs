@@ -19,29 +19,46 @@ namespace DDrive.Runtime.Cutscene.Tracks
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
         {
             var playable = ScriptPlayable<CutsceneSeBehaviour>.Create(graph);
-            playable.GetBehaviour().SeId = SeId;
+            var behaviour = playable.GetBehaviour();
+            behaviour.SeId = SeId;
+            // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — owner(PlayableDirector の
+            // GameObject)から文脈を辿る(`CutsceneCameraMixerBehaviour.Owner` と同じ手法)。
+            behaviour.Context = owner != null ? owner.GetComponent<CutsceneDirectorContext>() : null;
             return playable;
         }
     }
 
-    // [26_timeline.md] §4.4 — 編集中のスクラブでは発火しない(Application.isPlaying のときだけ発音する)。
+    // [26_timeline.md] §4.4 — 編集中のスクラブでは発火しない(`Context.FireEnabled` のときだけ発音する。
+    // 2026-09-19: Play Mode 専用だった `Application.isPlaying` 判定を `CutsceneDirectorContext.FireEnabled`
+    // に置き換えた。Play Mode は CutsceneManager.RentDirector が常に true を入れるため挙動は変わらない)。
     // 区間から抜けたら(OnBehaviourPause、Cancel/Skip による Director 破棄も含む)鳴らした SE を止める
     // (ループ SE 向け。OneShot は既に鳴り終わっているため IsPlaying=false で無害)。
     public sealed class CutsceneSeBehaviour : PlayableBehaviour
     {
         public SeId SeId;
+        public CutsceneDirectorContext Context;
         private Handle<SeMarker> _handle;
         private bool _fired;
 
         public override void ProcessFrame(Playable playable, FrameData info, object playerData)
         {
-            if (_fired || !Application.isPlaying || !SeId.IsValid)
+            if (_fired || !SeId.IsValid || Context == null || !Context.FireEnabled)
             {
                 return;
             }
 
             _fired = true;
             var root = ResolveRoot(playerData);
+            // [26_timeline.md] §4.4(2026-09-19) — Edit Mode プレビューは Context.ManagerRefs.Audio が
+            // 直接渡された Editor 用 AudioManager を使う(静的ファサードは Edit Mode では未 Bind のため)。
+            // Play Mode(ManagerRefs 未設定)は従来どおり静的ファサードへフォールバックする。
+            var audio = Context.ManagerRefs?.Audio;
+            if (audio != null)
+            {
+                _handle = root != null ? audio.PlaySe(SeId, root) : audio.PlaySe(SeId);
+                return;
+            }
+
             // 完全修飾で呼ぶ(DDrive.Runtime 配下に同名の子ネームスペース DDrive.Runtime.Audio があるため、
             // このファイルの名前空間〔DDrive.Runtime.Cutscene.Tracks〕から素の `Audio` はネームスペースと
             // 解釈され、`Audio.PlaySe` が「ネームスペースの静的クラス」として解決できずコンパイルエラーに
@@ -57,6 +74,13 @@ namespace DDrive.Runtime.Cutscene.Tracks
             }
 
             _fired = false;
+            var audio = Context?.ManagerRefs?.Audio;
+            if (audio != null)
+            {
+                audio.Stop(_handle);
+                return;
+            }
+
             // Audio 静的ファサードに IsPlaying は無い(AudioManager インスタンスにしか無い)。Stop() は
             // 無効/既に停止済みの Handle でも安全な no-op なので、無条件に呼ぶ(AudioManager.Stop 参照)。
             DDrive.Runtime.Audio.Audio.Stop(_handle);

@@ -38,7 +38,10 @@ namespace DDrive.Editor.Cutscene
                 {
                     if (GUILayout.Button("▶ Timeline ウィンドウで開く", GUILayout.Height(26)))
                     {
-                        AssetDatabase.OpenAsset(cutscene.Timeline);
+                        // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — 確認用シーンに
+                        // プレビュー用 Director を用意して Bindings を解決してから選択・Timeline ウィンドウを
+                        // 開く(Edit Mode でもスクラブ・再生で SE/VFX/カメラ等が実際に動く)。
+                        CutsceneEditModeDirectorSetup.OpenTimelineWindow(cutscene);
                     }
                 }
 
@@ -75,9 +78,11 @@ namespace DDrive.Editor.Cutscene
             if (!Application.isPlaying)
             {
                 EditorGUILayout.HelpBox(
-                    "実際の Camera/SE/VFX 適用の確認には Play Mode が必要です(CutsceneManager は " +
-                    "DDriveRuntimeBootstrap 経由でしか組み立てられません、[26_timeline.md] §4.4/§6)。" +
-                    "確認用シーンを開いて Play ボタンを押してから、上の「再生」を押してください。",
+                    "「▶ Timeline ウィンドウで開く」を押すと、確認用シーンにプレビュー用 Director を用意して " +
+                    "標準 Timeline ウィンドウを開きます。再生ボタンを押すと SE/VFX/UI/AnchorGroup/Camera/" +
+                    "Shake/Haptic/Event/Signal が Edit Mode のまま実際に鳴り・動きます(ドラッグ中のスクラブは " +
+                    "無音、[26_timeline.md] §4.4)。Presentation クリップ・ネット・入力ロック・Skip は Edit Mode " +
+                    "では確認できないため、下の「再生(Play Mode)」で Play Mode に入って確認してください。",
                     MessageType.Info);
             }
             else if (Object.FindFirstObjectByType<CutscenePreviewHarness>() == null)

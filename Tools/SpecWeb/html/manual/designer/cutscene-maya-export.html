@@ -119,7 +119,8 @@
   </ul>
 </li>
 <li>Asset Browser でショットの CutsceneData を選ぶと、Inspector 上部に「Timeline ウィンドウで開く」「Cutscene確認用シーンを開く」ボタンとバインド検査(役割名⇔Timeline のトラック名の食い違い)が出ます。効果音・エフェクト・画面揺れは Timeline ウィンドウで足す（<a href="#" data-manual-kind="designer" data-manual-page="presentation">演出</a>と同じ ID を置くだけ）</li>
-<li>実際に再生してカメラとキャラの動きが Maya と同じか見るには、「Cutscene確認用シーンを開く」で確認用シーンを開き、<strong>Play ボタンを押して(Play Mode に入って)</strong> から CutsceneData の Inspector の「再生」ボタンを押してください(カメラ・効果音・エフェクトの実際の適用は Play Mode 中でないと確認できません)。Play Mode 中は Timeline ウィンドウでスクラブしても実際の見た目のまま確認できます</li>
+<li>「Timeline ウィンドウで開く」を押すと、確認用シーンにプレビュー用のカメラ・キャラ位置が自動で用意され、標準 Timeline ウィンドウが開きます。<strong>再生ボタンを押すだけで</strong>カメラの動き・効果音・エフェクト・画面揺れ・コントローラー振動・イベントがその場で確認できます(Play Mode に入る必要はありません)。ドラッグしてスクラブしている間は音・エフェクトは鳴らず、カメラだけ現在位置に追従します</li>
+<li>通信対戦での見え方や「入力をロックする」通知、途中で飛ばす(Skip)機能まで含めて確認したいときは、「Cutscene確認用シーンを開く」で確認用シーンを開き、<strong>Play ボタンを押して(Play Mode に入って)</strong>から CutsceneData の Inspector の「● 再生(Play Mode)」ボタンを押してください</li>
 </ol>
 
 <h2 id="timeline">Unity の Timeline ウィンドウで演出を足す</h2>
@@ -137,9 +138,10 @@
 <h3>開き方と流れ</h3>
 <ol>
 <li>Asset Browser で「Cutscene」のショット（<code>CUT_…</code>）を選ぶ</li>
-<li>Inspector 上部の「<strong>▶ Timeline ウィンドウで開く</strong>」を押す</li>
-<li>Timeline ウィンドウでトラックを足し、効果音・エフェクトなどを演出と同じ ID（名前で選べます）で置く</li>
-<li>Inspector の「<strong>▶ Cutscene確認用シーンを開く</strong>」で確認用シーンを開き、<strong>Play ボタンで Play Mode に入ってから</strong>「● 再生(Play Mode)」を押して見る（Cancel / Skip ボタンも試せます）</li>
+<li>Inspector 上部の「<strong>▶ Timeline ウィンドウで開く</strong>」を押す(確認用シーンにプレビュー用のカメラ・キャラ位置が自動で用意されます)</li>
+<li>Timeline ウィンドウでトラックを足し、効果音・エフェクトなどを演出と同じ ID(名前で選べます)で置く</li>
+<li>そのまま Timeline ウィンドウの<strong>再生ボタン</strong>を押すと、置いた SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal がその場で確認できます。合わなければ止めて調整し、また再生ボタンを押すだけです</li>
+<li>通信対戦・入力ロック・Skip まで確認したいときは、Inspector の「<strong>▶ Cutscene確認用シーンを開く</strong>」で確認用シーンを開き、<strong>Play ボタンで Play Mode に入ってから</strong>「● 再生(Play Mode)」を押して見る(Cancel / Skip ボタンも試せます)</li>
 </ol>
 
 <h3>足せるトラック</h3>
@@ -163,7 +165,7 @@
 <tr><td>Flags &gt; Net</td><td>Local = 自分の画面だけ / Cosmetic = 通信対戦で相手の画面にも同じ演出を出す（見た目だけで勝敗に影響しないもの）。演出と同じ考え方です</td></tr>
 </table>
 <div class="warn">
-<strong>確認の注意:</strong> Edit Mode（Play ボタンを押していない状態）では、カメラ・効果音・エフェクトの実際の適用は確認できません。必ず確認用シーンで Play Mode に入って確認してください。
+<strong>確認の注意:</strong> Timeline ウィンドウの再生ボタンで Camera/SE/VFX/UI/AnchorGroup/Shake/Haptic/Event/Signal は Edit Mode のまま確認できます(Play Mode に入る必要はありません)。ドラッグしてスクラブしている間は音・エフェクトは鳴りません(連打防止)。<strong>Presentation クリップ・通信対戦(Cosmetic)・入力ロックの通知・Skip だけは Play Mode でないと確認できません</strong>(確認用シーンを開いて Play ボタンを押してから CutsceneData の Inspector の「● 再生(Play Mode)」を使ってください)。
 </div>
 
 <h2>直すとき</h2>

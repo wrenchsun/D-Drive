@@ -16,7 +16,12 @@ namespace DDrive.Runtime.Cutscene.Tracks
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
         {
             var playable = ScriptPlayable<CutscenePresentationBehaviour>.Create(graph);
-            playable.GetBehaviour().PresentationId = PresentationId;
+            var behaviour = playable.GetBehaviour();
+            behaviour.PresentationId = PresentationId;
+            // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — Presentation クリップは
+            // Edit Mode の直接 Manager 経路(ManagerRefs)を持たない(未対応、実装メモ参照)。
+            // Context は FireEnabled のゲートにのみ使う。
+            behaviour.Context = owner != null ? owner.GetComponent<CutsceneDirectorContext>() : null;
             return playable;
         }
     }
@@ -24,12 +29,13 @@ namespace DDrive.Runtime.Cutscene.Tracks
     public sealed class CutscenePresentationBehaviour : PlayableBehaviour
     {
         public PresentationId PresentationId;
+        public CutsceneDirectorContext Context;
         private PresentationHandle _handle;
         private bool _fired;
 
         public override void ProcessFrame(Playable playable, FrameData info, object playerData)
         {
-            if (_fired || !Application.isPlaying || !PresentationId.IsValid)
+            if (_fired || !PresentationId.IsValid || Context == null || !Context.FireEnabled)
             {
                 return;
             }

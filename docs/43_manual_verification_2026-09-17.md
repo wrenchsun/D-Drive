@@ -202,10 +202,10 @@ Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a
 - [ ] 取り込まれた `CutsceneData` を選択し、Inspector 上部の「▶ Timeline ウィンドウで開く」を押すと標準 Timeline ウィンドウが開くこと
 - [ ] 同じく「▶ Cutscene確認用シーンを開く」を押すと `Assets/GameData/PreviewScenes/CutscenePreviewScene.unity` が開くこと(無ければ自動生成される)
 - [ ] バインド検査(Bindings ⇔ Timeline のトラック名)の一覧が、実際の役割名と一致していること。取り込みで自動生成された役割名(カメラ/キャラの識別子/小物の名前空間)が Bindings 側にも登録されていること
-- [ ] 確認用シーンで **Play ボタンを押して Play Mode に入る**(`CutsceneManager` は起動オブジェクト `DDriveRuntimeBootstrap` 経由でしか組み立てられないため、Edit Mode のままではカメラ/SE/VFX が反映されない、[26] §4.4 実装メモ)
+- [ ] 確認用シーンで **Play ボタンを押して Play Mode に入る**(`CutsceneManager` は起動オブジェクト `DDriveRuntimeBootstrap` 経由でしか組み立てられないため。Camera/SE/VFX/UI/AnchorGroup/Shake/Haptic/Event/Signal は Edit Mode のまま「▶ Timeline ウィンドウで開く」でも確認できるようになった〔2026-09-19、§7.5〕。Play Mode でしか確認できないのは Presentation クリップ・通信対戦・入力ロック・Skip)
 - [ ] Play Mode 中に CutsceneData の Inspector の「● 再生(Play Mode)」を押し、カメラがゲームカメラから Maya カメラへ滑らかに繋がり、終了後に元へ戻ること(§4.6.2 のブレンド)
 - [ ] Camera クリップの `StepFps` を変えると、カメラだけコマ落ちしキャラは滑らかなままであること(§4.6.3)
-- [ ] Play Mode 中に標準 Timeline ウィンドウでスクラブし、SE/VFX が連打・残留しないこと(§4.4)。**Edit Mode(非再生中)のスクラブでは実 Manager に届かないため確認できない**(§4.4 の制約、6-10d 実装メモ (5) 参照)
+- [ ] Play Mode 中に標準 Timeline ウィンドウでスクラブし、SE/VFX が連打・残留しないこと(§4.4)
 - [ ] Console に「上書きされました」という警告(`CameraExecutionOrderValidator` の実行時検出 2、[26] §4.6.5)が出ないこと(出た場合はゲームカメラ制御の実行順が契約に違反している)
 
 ### 7.4 再取り込み・削除の確認
@@ -228,3 +228,48 @@ Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a
 - [ ] SceneView でハンドルを動かした直後は「▶ 再生」中の実体はその場では動かない(既知の制約。次に「▶ 再生」/「⏮ 最初から」を押すと新しい位置が反映されること)
 - [ ] `Target`(Self/ContextTarget/World/Anchor)を切り替えると、点の基準(ワールド原点扱いになるか、配置したモデル基準になるか)が説明どおりに変わること。特に `ContextTarget` は統合プレビューでは常にワールド原点扱いになること(`ctx.Target` が常に null のため)
 - [ ] デザイナーマニュアル `docs/DesignerManual/presentation.html`(「専用エディタの使い方」の新しい手順)の説明どおりに操作できること
+
+## 9. Presentation の AnchorGroup トラックの確認(2026-09-19 追記)
+
+[08_presentation.md](08_presentation.md) 実装メモ(2026-09-19、AnchorGroup トラック)の人による確認手順。コンパイル・EditMode/PlayMode テストの結果は本チケットの最終報告を参照。
+
+- [ ] `Tools > D-Drive > Presentation Editor` で、既存の `PresentationData` に Asset Browser / Project ウィンドウから `AnchorGroupData`(例: `Assets/GameData/AnchorGroup/` 配下の格子状の配置セット)をタイムラインへドラッグ&ドロップすると、Kind=AnchorGroup のトラックが「Vfx / AnchorGroup」レーンに追加されること
+- [ ] トラック一覧で Kind を「AnchorGroup」に切り替えると、Asset 欄が `AnchorGroupData` を受け付けるドロップダウンになること(Vfx 用の ID を選ぼうとすると弾かれる/選べないこと)
+- [ ] Asset 欄に配置セット以外の ID を強引に割り当てた場合、「検証」に「トラック N(AnchorGroup)の Asset の種別が AnchorGroup ではありません」の Error が出ること
+- [ ] 「確認用シーンを開く」でモデルを配置し「▶ 再生」を押すと、AnchorGroup トラックの発火タイミングで配置セットの全点に VFX / SE が実際に出ること(既存の Anchor Group Editor の「▶ 全点」と同じ見え方になること)
+- [ ] SceneView で AnchorGroup トラックの点が Vfx(マゼンタ)/Se(シアン)とは異なる黄緑色で、番号付きの点として**全点**表示されること。「表示対象」=「選択中のみ」で AnchorGroup トラックを選んでも、1 点だけでなく全点が表示され続けること
+- [ ] AnchorGroup の点には移動/回転ハンドルが一切出ないこと(クリックしてもトラックが選択状態になるだけで、位置は動かせないこと)。点の近くに「(編集は Anchor Group Editor)」の案内ラベルが出ること
+- [ ] 再生中、SceneView に出た VFX が(静止画ではなく)実際にアニメーション(パーティクルの動き)して見えること(EditMode の手動 Simulate に Adopt されているかの確認。動いていなければ `ScenePresentationPreviewDriver`/`SceneAnimPreviewDriver.Groups` の Adopt 配線を疑う)
+- [ ] Stop On Cancel を ON にしたトラックで、演出の途中に「⏸」→「■」(Cancel 相当の操作、またはウィンドウを閉じて `StopCurrent`)を行うと、その配置セットの VFX/SE が止まること。OFF のときは Cancel 後も鳴り続けること
+- [ ] デザイナーマニュアル `docs/DesignerManual/presentation.html`(トラック種別の表・SceneView の説明)と `docs/DesignerManual/anchor-group.html`(「他の演出とまとめて使いたいとき」)の説明どおりに操作できること
+
+## 10. Cutscene の Edit Mode プレビュー(Timeline ウィンドウ主導)の確認(2026-09-19 追記)
+
+[26_timeline.md] §4.4 実装メモ(2026-09-19)。コンパイル・EditMode 898/898・PlayMode 721/721 green まで確認済み。Unity MCP `execute_code` で一時的な CutsceneData(SE クリップ + Signal マーカー + Camera クリップ)を組み立てて実 Editor Manager 経由で動くことを自動確認済みだが、**実際の Timeline ウィンドウの操作感(ドラッグでのスクラブ、再生ボタンの手触り)は人による確認が必要**。
+
+### 10.1 SE/VFX/UI/AnchorGroup/Event/Signal の確認
+
+- [ ] Assets/GameData/Cutscene 配下(または新規)の `CutsceneData` に SE/VFX/UI/AnchorGroup クリップ、Event/Signal マーカーを 1 つずつ置く
+- [ ] Inspector の「▶ Timeline ウィンドウで開く」を押す → `Assets/GameData/PreviewScenes/CutscenePreviewScene.unity` が開き、`"Cutscene Timeline Preview (Edit Mode)"` という GameObject が選択された状態で標準 Timeline ウィンドウが開くこと(**Play Mode に入っていないこと**を確認)
+- [ ] Timeline ウィンドウの再生ボタンを押すと、置いた SE が実際に鳴り、VFX が実際に再生され、UI(Canvas)が開き、AnchorGroup が再生されること
+- [ ] Console に Signal マーカーのログ(`[DDrive] Cutscene Signal (Edit Mode プレビュー): '...'`)が、置いた時刻を過ぎたタイミングで 1 回だけ出ること
+- [ ] Event マーカー(AssetEvent=PlayAsset)で指定した SE/VFX/AnchorGroup が、マーカーの時刻で実際に鳴る/出ること
+- [ ] 再生を止めて(一時停止 or 頭出し)、再生ヘッドをドラッグしてスクラブしても、SE が連打されないこと(ドラッグ中は無音)
+- [ ] 再生ヘッドを後ろへドラッグしてから、もう一度再生ボタンを押すと、通過し直したマーカー/Event が正しく再発火すること(巻き戻し後の再発火)
+- [ ] 一時停止中に Timeline ウィンドウで新しいトラック/マーカーを追加してから再生すると、新しく追加した分もその場で反映されること
+
+### 10.2 Camera クリップ・Shake/Haptic マーカーの確認
+
+- [ ] Camera クリップを置いて再生すると、`Camera.main` がブレンド無しでカーブどおりに動くこと(ゲームカメラへの繋ぎのブレンドは無し、§4.4 の Edit Mode の仕様どおり)
+- [ ] クリップの区間外(HasData=false)へスクラブすると、Camera が「Timeline ウィンドウで開く」を押す前の元の位置・画角・ピント距離へ戻ること
+- [ ] Shake マーカーを置いて再生すると、`Camera.main` が実際に揺れること。Haptic マーカーを置いて再生すると、接続したゲームパッドが実際に振動すること(パッドが無ければ確認をスキップ)
+
+### 10.3 Play Mode でのみ確認できるもの
+
+- [ ] Presentation クリップは Edit Mode では何も再生されない(no-op、警告も出ない)ことを確認したうえで、確認用シーンで Play ボタンを押して Play Mode に入り、CutsceneData の Inspector の「● 再生(Play Mode)」から同じ CutsceneData を再生し、Presentation クリップが実際に再生されることを確認する
+- [ ] 通信対戦(`Flags.Net=Cosmetic`)・入力ロックの通知(`Cutscene.OnInputLockChanged`)・Skip は Play Mode でのみ確認する(docs/29 の実機確認手順に準じる)
+
+### 10.4 導線・表示の確認
+
+- [ ] `CutsceneDataEditor` の Inspector 上部の HelpBox の文言が実際の挙動と一致していること(Edit Mode でできること/できないことの案内)
+- [ ] デザイナーマニュアル `docs/DesignerManual/cutscene-maya-export.html`(「Unity 側で確認する」「Unity の Timeline ウィンドウで演出を足す」節)の説明どおりに操作できること

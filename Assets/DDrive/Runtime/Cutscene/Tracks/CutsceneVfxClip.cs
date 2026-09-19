@@ -18,7 +18,10 @@ namespace DDrive.Runtime.Cutscene.Tracks
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
         {
             var playable = ScriptPlayable<CutsceneVfxBehaviour>.Create(graph);
-            playable.GetBehaviour().VfxId = VfxId;
+            var behaviour = playable.GetBehaviour();
+            behaviour.VfxId = VfxId;
+            // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19)。
+            behaviour.Context = owner != null ? owner.GetComponent<CutsceneDirectorContext>() : null;
             return playable;
         }
     }
@@ -26,18 +29,28 @@ namespace DDrive.Runtime.Cutscene.Tracks
     public sealed class CutsceneVfxBehaviour : PlayableBehaviour
     {
         public VfxId VfxId;
+        public CutsceneDirectorContext Context;
         private Handle<VfxMarker> _handle;
         private bool _fired;
 
         public override void ProcessFrame(Playable playable, FrameData info, object playerData)
         {
-            if (_fired || !Application.isPlaying || !VfxId.IsValid)
+            if (_fired || !VfxId.IsValid || Context == null || !Context.FireEnabled)
             {
                 return;
             }
 
             _fired = true;
             var root = ResolveRoot(playerData);
+            // [26_timeline.md] §4.4(2026-09-19) — Edit Mode は Context.ManagerRefs.Vfx(Editor 用
+            // VfxManager)、Play Mode(ManagerRefs 未設定)は従来どおり静的ファサード。
+            var vfx = Context.ManagerRefs?.Vfx;
+            if (vfx != null)
+            {
+                _handle = root != null ? vfx.Spawn(VfxId, root) : vfx.Spawn(VfxId);
+                return;
+            }
+
             // 完全修飾で呼ぶ(このファイルの名前空間 DDrive.Runtime.Cutscene.Tracks から素の `Vfx` は
             // DDrive.Runtime.Vfx を子ネームスペースとして解決してしまい、`Vfx.Spawn` がコンパイルエラーになる)。
             _handle = root != null ? DDrive.Runtime.Vfx.Vfx.Spawn(VfxId, root) : DDrive.Runtime.Vfx.Vfx.Spawn(VfxId);
@@ -51,6 +64,17 @@ namespace DDrive.Runtime.Cutscene.Tracks
             }
 
             _fired = false;
+            var vfx = Context?.ManagerRefs?.Vfx;
+            if (vfx != null)
+            {
+                if (vfx.IsPlaying(_handle))
+                {
+                    vfx.Stop(_handle);
+                }
+
+                return;
+            }
+
             if (DDrive.Runtime.Vfx.Vfx.IsPlaying(_handle))
             {
                 DDrive.Runtime.Vfx.Vfx.Stop(_handle);

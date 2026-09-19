@@ -16,7 +16,10 @@ namespace DDrive.Runtime.Cutscene.Tracks
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
         {
             var playable = ScriptPlayable<CutsceneUiBehaviour>.Create(graph);
-            playable.GetBehaviour().CanvasId = CanvasId;
+            var behaviour = playable.GetBehaviour();
+            behaviour.CanvasId = CanvasId;
+            // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19)。
+            behaviour.Context = owner != null ? owner.GetComponent<CutsceneDirectorContext>() : null;
             return playable;
         }
     }
@@ -24,17 +27,27 @@ namespace DDrive.Runtime.Cutscene.Tracks
     public sealed class CutsceneUiBehaviour : PlayableBehaviour
     {
         public CanvasId CanvasId;
+        public CutsceneDirectorContext Context;
         private Handle<CanvasMarker> _handle;
         private bool _fired;
 
         public override void ProcessFrame(Playable playable, FrameData info, object playerData)
         {
-            if (_fired || !Application.isPlaying || !CanvasId.IsValid)
+            if (_fired || !CanvasId.IsValid || Context == null || !Context.FireEnabled)
             {
                 return;
             }
 
             _fired = true;
+            // [26_timeline.md] §4.4(2026-09-19) — Edit Mode は Context.ManagerRefs.Ui、Play Mode
+            // (ManagerRefs 未設定)は従来どおり静的ファサード。
+            var ui = Context.ManagerRefs?.Ui;
+            if (ui != null)
+            {
+                _handle = ui.Open(CanvasId);
+                return;
+            }
+
             // 完全修飾で呼ぶ(CutsceneSeClip.cs と同じ理由: DDrive.Runtime.Ui が子ネームスペースとして
             // 先に解決されてしまうため)。
             _handle = DDrive.Runtime.Ui.Ui.Open(CanvasId);
@@ -48,6 +61,17 @@ namespace DDrive.Runtime.Cutscene.Tracks
             }
 
             _fired = false;
+            var ui = Context?.ManagerRefs?.Ui;
+            if (ui != null)
+            {
+                if (ui.IsOpen(_handle))
+                {
+                    ui.Close(_handle);
+                }
+
+                return;
+            }
+
             if (DDrive.Runtime.Ui.Ui.IsOpen(_handle))
             {
                 DDrive.Runtime.Ui.Ui.Close(_handle);

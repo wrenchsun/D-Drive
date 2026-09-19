@@ -78,6 +78,10 @@ namespace DDrive.Runtime.Cutscene
         {
             public GameObject Root;
             public PlayableDirector Director;
+            // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — クリップ 5 種・Advance*Markers が
+            // `Application.isPlaying` の代わりに見るゲート。CutsceneManager は Play Mode/テスト専用の
+            // 経路なので常に true 固定にする(RentDirector 参照)。
+            public CutsceneDirectorContext Context;
         }
 
         // Host のみが保持する「アクティブな Cosmetic Cutscene」台帳(Late Join 用。PresentationManager と同じ設計)。
@@ -498,6 +502,14 @@ namespace DDrive.Runtime.Cutscene
             AdvanceHapticMarkers(instance, newElapsed, fire);
         }
 
+        // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — `Application.isPlaying` の代わりに
+        // Slot に付けた `CutsceneDirectorContext.FireEnabled` を見る(RentDirector が常に true を入れるため、
+        // Play Mode/テストでの挙動は変わらない)。Edit Mode 側は CutsceneManager を経由しない(TL;DR どおり
+        // 別経路の `CutsceneEditModePreviewProvider` が独自にマーカーを監視する)ため、ここでは Context が
+        // 無い(Root が既に破棄された等の異常系)場合のみ安全側で発火しない。
+        private static bool IsFireEnabled(CutsceneInstance instance)
+            => instance.Slot?.Context != null && instance.Slot.Context.FireEnabled;
+
         private void AdvanceEventMarkers(CutsceneInstance instance, double newElapsed, bool fire)
         {
             var list = instance.EventMarkers;
@@ -506,7 +518,7 @@ namespace DDrive.Runtime.Cutscene
                 var marker = list[instance.EventMarkerCursor].Item2;
                 instance.EventMarkerCursor++;
 
-                if (fire && Application.isPlaying)
+                if (fire && IsFireEnabled(instance))
                 {
                     _events.RaiseAdHoc(instance.EventCtx, marker.Event);
                 }
@@ -521,7 +533,7 @@ namespace DDrive.Runtime.Cutscene
                 var marker = list[instance.SignalMarkerCursor].Item2;
                 instance.SignalMarkerCursor++;
 
-                if (fire && Application.isPlaying)
+                if (fire && IsFireEnabled(instance))
                 {
                     instance.MarkerSubject.OnNext(marker.Key);
                 }
@@ -536,7 +548,7 @@ namespace DDrive.Runtime.Cutscene
                 var marker = list[instance.ShakeMarkerCursor].Item2;
                 instance.ShakeMarkerCursor++;
 
-                if (fire && Application.isPlaying && marker.ShakeId.IsValid)
+                if (fire && IsFireEnabled(instance) && marker.ShakeId.IsValid)
                 {
                     // 完全修飾で呼ぶ(DDrive.Runtime 配下の子ネームスペース DDrive.Runtime.CameraShake が
                     // 素の `CameraFx` より先に解決されコンパイルエラーになるため、[26_timeline.md] §4.3 実装メモ)。
@@ -553,7 +565,7 @@ namespace DDrive.Runtime.Cutscene
                 var marker = list[instance.HapticMarkerCursor].Item2;
                 instance.HapticMarkerCursor++;
 
-                if (fire && Application.isPlaying && marker.HapticId.IsValid)
+                if (fire && IsFireEnabled(instance) && marker.HapticId.IsValid)
                 {
                     DDrive.Runtime.Haptics.Haptics.Play(marker.HapticId);
                 }
@@ -612,7 +624,14 @@ namespace DDrive.Runtime.Cutscene
             // TrackAsset.GetMarkers() から直接読むため、対応するコンポーネントは不要)。
             go.AddComponent<CutsceneCameraStateHolder>();
 
-            return new CutsceneDirectorSlot { Root = go, Director = director };
+            // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — SE/VFX/UI/AnchorGroup クリップの
+            // `CreatePlayable(graph, owner)` が owner から辿る文脈。Play Mode(CutsceneManager 経由)は
+            // 常に発火してよいので固定 true、Manager 参照(ManagerRefs)は null のままにして各クリップを
+            // 既存の静的ファサード経路へフォールバックさせる(Play Mode の挙動を変えない)。
+            var context = go.AddComponent<CutsceneDirectorContext>();
+            context.FireEnabled = true;
+
+            return new CutsceneDirectorSlot { Root = go, Director = director, Context = context };
         }
 
         private void ReturnDirector(CutsceneDirectorSlot slot)
