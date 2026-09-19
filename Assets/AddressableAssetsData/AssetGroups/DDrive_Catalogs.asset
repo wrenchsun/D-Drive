@@ -39,6 +39,12 @@ MonoBehaviour:
     m_SerializedLabels:
     - DDriveCatalog
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5fcafddbd07dcb446a8e9a8b860f8580
+    m_Address: CutsceneCatalog
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - DDriveCatalog
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 67edb57ec85dff34da0b199908952aca
     m_Address: PrefabCatalog
     m_ReadOnly: 0

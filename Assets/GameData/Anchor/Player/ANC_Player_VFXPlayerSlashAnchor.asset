@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 2800000, guid: 6c15d837e6cc4224a912d5ef0003d6fc, type: 3}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 3
   Author: yamag
-  UpdatedAt: 2026-09-16T12:34:03
+  UpdatedAt: 2026-09-19T19:33:16
   ChangeNote: 
   Flags:
     Pause: 0
@@ -42,8 +42,8 @@ MonoBehaviour:
     type: 0
   Space: 0
   Path: 
-  LocalOffset: {x: -0.06566604, y: 0, z: 2.5625}
-  LocalEuler: {x: 0, y: 0, z: 0}
+  LocalOffset: {x: 0, y: 0, z: 13.353736}
+  LocalEuler: {x: -0, y: 0, z: 0}
   LocalScale: {x: 1, y: 1, z: 1}
   FollowRotation: 0
   DetachOnStop: 0

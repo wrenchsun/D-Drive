@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 2
   Author: yamag
-  UpdatedAt: 2026-09-17T22:13:18
+  UpdatedAt: 2026-09-19T14:46:44
   ChangeNote: 
   Flags:
     Pause: 0
@@ -35,7 +35,60 @@ MonoBehaviour:
     Persistent: 0
     Domain: 0
     Net: 0
-  Events: []
+  Events:
+  - Trigger: 5
+    Time: 1
+    CustomKey: 
+    Action: 0
+    Target:
+      Type: 1
+      Id: 7631461039341190435
+    Param:
+      Type: 0
+      FloatValue: 0
+      IntValue: 0
+      BoolValue: 0
+      ColorValue: {r: 0, g: 0, b: 0, a: 0}
+      VectorValue: {x: 0, y: 0, z: 0, w: 0}
+      CurveValue:
+        serializedVersion: 2
+        m_Curve: []
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      GradientValue:
+        serializedVersion: 2
+        key0: {r: 1, g: 1, b: 1, a: 1}
+        key1: {r: 1, g: 1, b: 1, a: 1}
+        key2: {r: 0, g: 0, b: 0, a: 0}
+        key3: {r: 0, g: 0, b: 0, a: 0}
+        key4: {r: 0, g: 0, b: 0, a: 0}
+        key5: {r: 0, g: 0, b: 0, a: 0}
+        key6: {r: 0, g: 0, b: 0, a: 0}
+        key7: {r: 0, g: 0, b: 0, a: 0}
+        ctime0: 0
+        ctime1: 65535
+        ctime2: 0
+        ctime3: 0
+        ctime4: 0
+        ctime5: 0
+        ctime6: 0
+        ctime7: 0
+        atime0: 0
+        atime1: 65535
+        atime2: 0
+        atime3: 0
+        atime4: 0
+        atime5: 0
+        atime6: 0
+        atime7: 0
+        m_Mode: 0
+        m_ColorSpace: -1
+        m_NumColorKeys: 2
+        m_NumAlphaKeys: 2
+      StringValue: 
+      ObjectValue: {fileID: 0}
+    Repeat: 0
   ImportSourceGuid: 
   Clip: {fileID: 7400000, guid: 48125d42214bb3049a0bac0aa8480c62, type: 2}
   StateName: Test

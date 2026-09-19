@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 4
+  Version: 6
   Author: yamag
-  UpdatedAt: 2026-09-16T10:33:21
+  UpdatedAt: 2026-09-19T19:33:16
   ChangeNote: 
   Flags:
     Pause: 0
@@ -45,6 +45,24 @@ MonoBehaviour:
     Asset:
       Type: 3
       Id: 7393815273046077722
+    Target: 0
+    Anchor:
+      Space: 0
+      Path: 
+      LocalOffset: {x: 0, y: 0, z: 0}
+      LocalEuler: {x: 0, y: 0, z: 0}
+      LocalScale: {x: 1, y: 1, z: 1}
+      FollowRotation: 0
+      DetachOnStop: 0
+    Params: []
+    StopOnCancel: 1
+  - Trigger: 1
+    Time: 1.67
+    SignalKey: TestSignal
+    Kind: 12
+    Asset:
+      Type: 0
+      Id: 0
     Target: 0
     Anchor:
       Space: 0

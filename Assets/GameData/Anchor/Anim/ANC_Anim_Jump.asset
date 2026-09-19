@@ -18,9 +18,11 @@ MonoBehaviour:
   Category: Anim
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-09-19T19:05:57
   ChangeNote: 
   Flags:
     Pause: 0
@@ -34,12 +36,13 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
   Parent:
     value: 0
     type: 0
   Space: 0
   Path: 
-  LocalOffset: {x: 0, y: 0, z: 0}
+  LocalOffset: {x: 0, y: 0, z: 2.5385392}
   LocalEuler: {x: 0, y: 0, z: 0}
   LocalScale: {x: 1, y: 1, z: 1}
   FollowRotation: 0
