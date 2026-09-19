@@ -373,9 +373,10 @@ namespace DDrive.Editor.Anchor
             SceneView.RepaintAll();
         }
 
+        // 既存 Anchor の値変更(欄・ハンドル・Undo)。Registry は同じ AnchorData インスタンスを既に持っているので
+        // Refresh(全アセット走査)はしない(ドラッグ中は毎フレーム呼ばれる。docs/44 P2-2)。新規作成時は AfterCreated が Refresh する。
         private void OnAnchorEdited()
         {
-            EditorAnchorRegistry.Refresh(_vfxDriver?.Registry);
             _vfxDriver?.ReapplyAnchorToAll();
             RefreshChainRow();
             RefreshStatus();

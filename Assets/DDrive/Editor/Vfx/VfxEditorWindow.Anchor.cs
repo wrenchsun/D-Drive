@@ -573,7 +573,8 @@ namespace DDrive.Editor.Vfx
             }
 
             EditorUtility.SetDirty(asset);
-            EditorAnchorRegistry.Refresh(_driver?.Registry);
+            // Registry は同じ AnchorData インスタンスを既に持っているので Refresh(全アセット走査)は不要
+            // (ドラッグ中は毎フレーム呼ばれる。docs/44 P2-2)。再生中の実体への反映だけ行う。
             _driver?.ReapplyAnchorToAll();
             RefreshAnchorUi();
             SceneView.RepaintAll();

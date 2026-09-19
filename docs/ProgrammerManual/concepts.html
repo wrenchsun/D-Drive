@@ -66,7 +66,7 @@
 </ul>
 
 <div class="warn">
-<strong>既知の不整合（2026-09-17 決定、修正予定）:</strong> 現在 <code>KnownPrefixes</code> に <code>MODEL</code> / <code>ANC</code> / <code>ANCG</code> / <code>SKIN</code> が登録されていないため、これらの種別では接頭辞が定数名から取り除かれず <code>MODELID.MODELPlayerModel</code>（本来なら <code>MODELID.PlayerModel</code>）のような重複した名前になります。<code>docs/42_distribution.md</code> §7 A-6 の決定により、<strong>UPM パッケージ化（P-5、バージョン 1.0.0 発効）より前にこの接頭辞リストを直す予定</strong>です。発効後は生成規則が公開 API として固定され、この種の修正はできなくなります。現時点でこれらの定数を書く場合は、いま実在する名前（重複接頭辞つき）をそのまま使ってください。将来のリネームで既存コードが影響を受ける可能性があります。
+<strong>定数名の形:</strong> <code>KnownPrefixes</code>（SE / BGM / VFX / ANIM / ANIM2D / MAT / TEX / CANVAS / PREFAB / PRES / SHAKE / HAPTIC / HAPTICS / UITWEEN / MODEL / ANC / ANCG / SKIN / CUT の 19 個）に含まれる接頭辞はファイル名から取り除かれ、<code>MODELID.PlayerModel</code> / <code>ANCHORID.AnimJump</code> / <code>SKINID.ButtonSkin</code> のように種別クラス名 + 識別子だけになります。<code>docs/42_distribution.md</code> §5.3 により、互換性ポリシー発効（P-13）後はこの生成規則と <code>KnownPrefixes</code> は公開 API として固定されます。
 </div>
 
 <h2>4. AssetType 一覧</h2>
