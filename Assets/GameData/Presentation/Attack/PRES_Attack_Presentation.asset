@@ -74,6 +74,24 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 1
+  - Trigger: 0
+    Time: 0
+    SignalKey: 
+    Kind: 13
+    Asset:
+      Type: 16
+      Id: 12258079574725544254
+    Target: 0
+    Anchor:
+      Space: 0
+      Path: 
+      LocalOffset: {x: 0, y: 0, z: 0}
+      LocalEuler: {x: 0, y: 0, z: 0}
+      LocalScale: {x: 1, y: 1, z: 1}
+      FollowRotation: 0
+      DetachOnStop: 0
+    Params: []
+    StopOnCancel: 1
   TotalDuration: 5
   Interruptible: 1
   PredictLocal: 0
