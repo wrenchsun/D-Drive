@@ -1,0 +1,71 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bde4918bc0c27404bbd509ad885a2853, type: 3}
+  m_Name: SeData
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Audio.SeData
+  Id: 900000000000000005
+  DisplayName: CompatFixture_SeData
+  Description: 
+  Category: CompatFixture
+  Tags: []
+  Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 0
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  ImportSourceGuid: 
+  Clips: []
+  Sources: []
+  StartOffsetSec: 0
+  SelectMode: 0
+  Mixer: {fileID: 0}
+  Volume: 1
+  PitchRange: {x: 1, y: 1}
+  Loop: 0
+  Spatial: 0
+  AnchorId:
+    value: 0
+    type: 0
+  Anchor:
+    Space: 0
+    Path: 
+    LocalOffset: {x: 0, y: 0, z: 0}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 0, y: 0, z: 0}
+    FollowRotation: 0
+    DetachOnStop: 0
+  MinDistance: 1
+  MaxDistance: 30
+  Rolloff:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  Spread: 0
+  DopplerEnabled: 0
+  MaxConcurrent: 8
+  CooldownSec: 0.03

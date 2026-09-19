@@ -12,11 +12,15 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 ### 互換性
 
 - 破壊なし（互換性ポリシーは未発効。[docs/42_distribution.md](docs/42_distribution.md) §5 は P-13 で発効する草案段階）
+- P-3（2026-09-20）: `ValidationResult` に `Code`（string、既定引数）を追加。既存の `Error/Warning/Info` 呼び出しはすべて変更不要（省略可能引数のため既定は空文字）。追加のみなので互換性への影響なし
+- P-3（2026-09-20）: `AddressablesRegistrationValidator` の 5 種のメッセージに `Code`（`DD-ADDR-CATALOG-MISSING` / `DD-ADDR-NO-SETTINGS` / `DD-ADDR-MISSING` / `DD-ADDR-MISMATCH` / `DD-ADDR-PRELOAD-REQUIRED`）を付与。メッセージ文言・Severity（いずれも Error）は変更なし
+- P-3（2026-09-20）: `AssetIdGenerator.Regenerate` / `CI.LoadAllAssetDataAssets` が `Tests/Editor/Compat/Fixtures/` 配下のアセットを常に除外するようにした（互換性スナップショットの旧版フィクスチャが実生成物・実 Validation に混入するのを防ぐ）。実 GameData の挙動に影響なし
 
 ### 追加
 
 - `CHANGELOG.md`（本ファイル）・`docs/migrations/README.md`・`docs/migrations/TEMPLATE.md` を新規作成（P-2）
 - [docs/12_review.md](docs/12_review.md) §3 に「互換性」チェック節の草案を追加（P-2）
+- P-3（2026-09-20）: 互換性スナップショットテスト群（`Assets/DDrive/Tests/Editor/Compat/`）。[docs/42_distribution.md](docs/42_distribution.md) §5.11 の 1〜10 に対応する EditMode テストとゴールデン（`Tests/Editor/Compat/Snapshots/*`）、旧版フィクスチャ（`Tests/Editor/Compat/Fixtures/v1_0_0/*.asset`、19 種別）、更新メニュー `Tools > D-Drive > Compat > スナップショットを更新`（`CompatSnapshotMenu`）、環境変数 `DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1` による一時フィクスチャ依存ゴールデンの更新経路。`Assets/DDrive/Runtime/DDriveVersion.cs`（`DDriveVersion.Value = "1.0.0-dev"`）を新設し、CHANGELOG 最新見出しとの一致を検査する `PackageVersionConsistencyTests` を追加
 
 ## [1.0.0] - 未リリース（P-5 で発効予定）
 

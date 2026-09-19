@@ -1,0 +1,90 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4a93940094fe7ba4ba12cdbd0ce5335e, type: 3}
+  m_Name: HapticsData
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Haptics.HapticsData
+  Id: 900000000000000008
+  DisplayName: CompatFixture_HapticsData
+  Description: 
+  Category: CompatFixture
+  Tags: []
+  Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 0
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  ImportSourceGuid: 
+  LowFreq:
+    Mode: 1
+    Constant: 0
+    Parametric:
+      Kind: 0
+      Ease: 5
+      BezierP1: {x: 0, y: 0}
+      BezierP2: {x: 0, y: 0}
+    Curve:
+      serializedVersion: 2
+      m_Curve: []
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    From: 1
+    To: 0
+    Normalized: 0
+    Time:
+      Mode: 0
+      Value: 0.2
+      SpeedScale: 1
+      IgnoreTimeScale: 0
+    Loop: 0
+    LoopCount: 0
+  HighFreq:
+    Mode: 1
+    Constant: 0
+    Parametric:
+      Kind: 0
+      Ease: 5
+      BezierP1: {x: 0, y: 0}
+      BezierP2: {x: 0, y: 0}
+    Curve:
+      serializedVersion: 2
+      m_Curve: []
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    From: 1
+    To: 0
+    Normalized: 0
+    Time:
+      Mode: 0
+      Value: 0.2
+      SpeedScale: 1
+      IgnoreTimeScale: 0
+    Loop: 0
+    LoopCount: 0
+  Priority: 1
+  LocalPlayerOnly: 1
+  Extensions: []

@@ -1,0 +1,61 @@
+MESSAGE DDrive.Runtime.Net.CatalogContentHashMsg
+  CombinedHash : ulong
+  Catalogs : DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry[]
+MESSAGE DDrive.Runtime.Net.CatalogContentHashResultMsg
+  Matched : bool
+  Descriptions : string[]
+MESSAGE DDrive.Runtime.Net.CutsceneCancelMsg
+  HandleNetKey : uint
+MESSAGE DDrive.Runtime.Net.CutscenePlayMsg
+  CutId : ulong
+  SelfNetId : ulong
+  TargetNetId : ulong
+  Position : UnityEngine.Vector3
+  StartNetTime : double
+  Seed : ushort
+  HandleNetKey : uint
+MESSAGE DDrive.Runtime.Net.CutsceneSeekMsg
+  HandleNetKey : uint
+  ToTime : double
+MESSAGE DDrive.Runtime.Net.NetPingMsg
+  SentAtNetworkTime : double
+MESSAGE DDrive.Runtime.Net.NetPongMsg
+  OriginalSentAtNetworkTime : double
+MESSAGE DDrive.Runtime.Net.PrefabDespawnedMsg
+  NetObjectId : ulong
+MESSAGE DDrive.Runtime.Net.PrefabSpawnRequestMsg
+  PrefabId : ulong
+  Position : UnityEngine.Vector3
+  Rotation : UnityEngine.Quaternion
+  RequestKey : uint
+MESSAGE DDrive.Runtime.Net.PrefabSpawnedMsg
+  PrefabId : ulong
+  NetObjectId : ulong
+  Position : UnityEngine.Vector3
+  Rotation : UnityEngine.Quaternion
+  RequestKey : uint
+MESSAGE DDrive.Runtime.Net.PresentationCancelMsg
+  HandleNetKey : uint
+MESSAGE DDrive.Runtime.Net.PresentationPlayMsg
+  PresId : ulong
+  SelfNetId : ulong
+  TargetNetId : ulong
+  Position : UnityEngine.Vector3
+  StartNetTime : double
+  Seed : ushort
+  HandleNetKey : uint
+MESSAGE DDrive.Runtime.Net.PresentationSignalMsg
+  HandleNetKey : uint
+  SignalKeyHash : ushort
+MESSAGE DDrive.Runtime.Net.SeNetBatchMsg
+  Items : DDrive.Runtime.Net.SeNetMsg[]
+MESSAGE DDrive.Runtime.Net.SeNetMsg
+  SeId : ulong
+  AnchorNetId : ulong
+  Position : UnityEngine.Vector3
+MESSAGE DDrive.Runtime.Net.VfxNetBatchMsg
+  Items : DDrive.Runtime.Net.VfxNetMsg[]
+MESSAGE DDrive.Runtime.Net.VfxNetMsg
+  VfxId : ulong
+  AnchorNetId : ulong
+  Position : UnityEngine.Vector3

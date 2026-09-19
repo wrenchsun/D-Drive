@@ -41,7 +41,8 @@ namespace DDrive.Editor.Validation
                 var captured = data;
                 yield return ValidationResult.Error(
                     $"カタログ未登録: '{data.name}'(ID 0x{data.Id:X})がどのカタログにもありません。実行時に解決できず Placeholder になります。",
-                    () => AssetCreationService.RegisterExisting(captured, type));
+                    () => AssetCreationService.RegisterExisting(captured, type),
+                    code: "DD-ADDR-CATALOG-MISSING");
                 yield break;
             }
 
@@ -50,7 +51,9 @@ namespace DDrive.Editor.Validation
                 if (_noSettingsReported != ctx)
                 {
                     _noSettingsReported = ctx;
-                    yield return ValidationResult.Error("Addressables の設定(AddressableAssetSettings)がありません。Window > Asset Management > Addressables > Groups で作成してください。全 Data が実行時にロードできません。");
+                    yield return ValidationResult.Error(
+                        "Addressables の設定(AddressableAssetSettings)がありません。Window > Asset Management > Addressables > Groups で作成してください。全 Data が実行時にロードできません。",
+                        code: "DD-ADDR-NO-SETTINGS");
                 }
 
                 yield break;
@@ -62,14 +65,16 @@ namespace DDrive.Editor.Validation
                 var captured = data;
                 yield return ValidationResult.Error(
                     $"Addressables 未登録: '{data.name}' がグループに入っていません(カタログの Address '{address}')。実行時にロードできません。",
-                    () => Fix(captured, address));
+                    () => Fix(captured, address),
+                    code: "DD-ADDR-MISSING");
             }
             else if (entry.address != address)
             {
                 var captured = data;
                 yield return ValidationResult.Error(
                     $"Address 不一致: '{data.name}' のカタログ '{address}' と Addressables '{entry.address}' が違います。実行時にロードできません。",
-                    () => Fix(captured, address));
+                    () => Fix(captured, address),
+                    code: "DD-ADDR-MISMATCH");
             }
 
             // 2026-09-12: Ui.Open(CanvasData) / ApplyLayerDefaults(ControlSkinData)は AssetRegistry の
@@ -88,7 +93,8 @@ namespace DDrive.Editor.Validation
                 var captured = data;
                 yield return ValidationResult.Error(
                     $"Flags.Load が Preload ではありません: '{data.name}'({resolvedType})は Ui.Open 等の同期解決でしか引かれないため、Preload 以外だと実行時に常に Placeholder になります。",
-                    () => FixPreload(captured));
+                    () => FixPreload(captured),
+                    code: "DD-ADDR-PRELOAD-REQUIRED");
             }
         }
 

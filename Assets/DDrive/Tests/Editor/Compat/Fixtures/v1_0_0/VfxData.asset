@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4015dd925fd84944a6b81371d5d7807, type: 3}
+  m_Name: VfxData
+  m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Vfx.VfxData
+  Id: 900000000000000018
+  DisplayName: CompatFixture_VfxData
+  Description: 
+  Category: CompatFixture
+  Tags: []
+  Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
+  Version: 0
+  Author: 
+  UpdatedAt: 
+  ChangeNote: 
+  Flags:
+    Pause: 0
+    Load: 0
+    Pool:
+      Kind: 0
+      InitialCount: 0
+      MaxCount: 0
+    Priority: 0
+    Persistent: 0
+    Domain: 0
+    Net: 0
+  Events: []
+  ImportSourceGuid: 
+  Prefab: {fileID: 0}
+  AnchorId:
+    value: 0
+    type: 0
+  Anchor:
+    Space: 0
+    Path: 
+    LocalOffset: {x: 0, y: 0, z: 0}
+    LocalEuler: {x: 0, y: 0, z: 0}
+    LocalScale: {x: 1, y: 1, z: 1}
+    FollowRotation: 0
+    DetachOnStop: 0
+  LifeMode: 0
+  Duration: 1
+  FadeOutSec: 0
+  Render: 0
+  RenderLayer: 0
+  LightLayerMask: 1
+  Params: []

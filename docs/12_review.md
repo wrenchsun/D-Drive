@@ -87,6 +87,15 @@ P-13 発効後、以下の互換面のいずれかに触れる PR は、対応�
 
 CHANGELOG ガード（[42] §5.11-10）: `Tests/Editor/Snapshots/**` が変わった PR で `CHANGELOG.md` が変わっていなければ fail。
 
+**ゴールデンの更新手順（2026-09-20 追加、P-3）**: 上表のスナップショットテストが赤くなったら、まず「意図した変更か」を確認する（MINOR=追加のみ→更新して進める / MAJOR=削除・改名・変更→[42] §5.12 の手続きが必須）。意図した変更なら:
+
+1. 純粋なリフレクション/`SerializedObject` 走査で作れるもの（公開 API・シリアライズ enum・シリアライズ形式レイアウト・ネットメッセージのフィールド一覧・Editor 契約）は `Tools > D-Drive > Compat > スナップショットを更新`（`CompatSnapshotMenu`）を実行する
+2. 一時フィクスチャに依存するもの（Tuning コード生成・ContentHash・KnownPrefixes 由来の定数名例・Validator の重さ）は、環境変数 `DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1` を設定してから対象テストを再実行すると、比較の代わりにゴールデンへ書き込む
+3. `Tests/Editor/Compat/Fixtures/v1_0_0/*.asset`（旧版フィクスチャ）は Unity Editor 経由（`AssetDatabase.CreateAsset`）で作る。`.asset` をテキストで手編集しない。新しい AssetType を追加したら対応する Data 型のフィクスチャも追加する（`LegacyAssetFixtureTests.AllConcreteDataTypes_HaveFixture` が検出する）
+4. 差分を確認したら、同じ PR で `CHANGELOG.md` の `[Unreleased]` 互換性節に「何を・なぜ・MINOR/MAJOR どちらか」を追記する（CHANGELOG ガードの対象）
+
+`AssetIds.g.cs` は Unity 採番の GUID に依存し全文一致ゴールデンにできないため、`CodegenGoldenTests` は生成される 1 行の構文の形だけを検証する（詳細は [42] §5.11 実装メモ）。新しく書く `IValidator` は `ValidationResult` の `Code`（安定した識別子、例: `DD-VFX-003`）を必ず渡すこと（既存呼び出しは省略可能引数のため変更不要だが、新規は必須にする）。
+
 ## 4. データ PR（デザイナー）チェックリスト
 
 - [ ] Validation エラー 0 / 警告は理由をコメント

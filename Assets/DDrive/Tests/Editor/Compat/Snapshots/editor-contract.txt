@@ -1,0 +1,41 @@
+== DDriveMenu ==
+AssetsCreateData = Assets/D-Drive/Data を作成/
+AssetsRoot = Assets/D-Drive/
+Build = Tools/D-Drive/Build/
+Compat = Tools/D-Drive/Compat/
+Debug = Tools/D-Drive/Debug/
+Editors = Tools/D-Drive/Editors/
+GameObjectRoot = GameObject/D-Drive/
+Generate = Tools/D-Drive/Generate/
+Root = Tools/D-Drive/
+Validation = Tools/D-Drive/Validation/
+== CI ==
+BuildJUnitXml
+DiscoverValidators
+RegenerateIds
+RunAllMenuItem
+RunValidation
+ValidateAll
+== DataEditor ==
+DDrive.Runtime.Anchoring.AnchorData -> DDrive.Editor.Anchor.AnchorEditorWindow "Anchor Editor で開く" order=0
+DDrive.Runtime.Anchoring.AnchorGroupData -> DDrive.Editor.Anchor.AnchorGroupEditorWindow "Anchor Group Editor で開く" order=0
+DDrive.Runtime.Anim.AnimData -> DDrive.Editor.Anim.AnimEditorWindow "Anim Editor で開く" order=0
+DDrive.Runtime.Anim2D.Anim2DData -> DDrive.Editor.Anim.AnimEditorWindow "Anim Editor で開く" order=0
+DDrive.Runtime.Anim2D.Anim2DData -> DDrive.Editor.Anim2D.Anim2DEditorWindow "Anim2D Editor で開く" order=0
+DDrive.Runtime.Audio.BgmData -> DDrive.Editor.Audio.AudioEditorWindow "Audio Editor で開く(波形・ループ編集)" order=0
+DDrive.Runtime.Audio.SeData -> DDrive.Editor.Audio.AudioEditorWindow "Audio Editor で開く(波形・トリム編集)" order=0
+DDrive.Runtime.CameraShake.CameraShakeData -> DDrive.Editor.CameraFx.CameraFxEditorWindow "Shake Editor で開く" order=0
+DDrive.Runtime.Haptics.HapticsData -> DDrive.Editor.CameraFx.CameraFxEditorWindow "Haptics Editor で開く" order=0
+DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialConvertWindow "シェーダー変換" order=10
+DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialEditorWindow "Material Editor で開く" order=0
+DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialThumbnailWindow "プレビューをポップアップ" order=5
+DDrive.Runtime.Material.TextureData -> DDrive.Editor.Materials.MaterialEditorWindow "Material Editor で開く" order=0
+DDrive.Runtime.Model.ModelData -> DDrive.Editor.Model.ModelEditorWindow "Model Editor で開く" order=0
+DDrive.Runtime.Prefab.PrefabData -> DDrive.Editor.PrefabTool.PrefabEditorWindow "Prefab Editor で開く" order=0
+DDrive.Runtime.Presentation.PresentationData -> DDrive.Editor.Presentation.PresentationEditorWindow "Presentation エディタで開く" order=0
+DDrive.Runtime.Ui.ButtonSkinData -> DDrive.Editor.Ui.ButtonSkinEditorWindow "Skin Editor で開く" order=0
+DDrive.Runtime.Ui.CanvasData -> DDrive.Editor.CanvasTool.CanvasEditorWindow "Canvas Editor で開く" order=0
+DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderEditorWindow "Slider Editor で開く" order=5
+DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderSkinEditorWindow "Skin Editor で開く" order=0
+DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditorWindow "UI Tween Editor で開く" order=0
+DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditorWindow "VFX Editor で開く" order=0

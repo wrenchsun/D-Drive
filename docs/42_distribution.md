@@ -484,6 +484,24 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 | 10 | CHANGELOG ガード（`Tools/CI/Check-Changelog.ps1`。`run-ci.cmd` と `ci.yml` に 1 段追加） | 全部 | `Tests/Editor/Snapshots/**` のいずれかが変わった PR で `CHANGELOG.md` が変わっていなければ fail。`version` が上がっていなければ fail |
 | 11 | 消費側スモーク（`Tools/CI/run-consumer-smoke.cmd`、P-11） | 導入手順全体 | 空プロジェクトを `Unity -createProject` で作り、manifest にローカルパス（`file:` で開発リポジトリの `Packages/com.ddrive.core`）+ 依存を書き、`DDrive.Editor.CI.ConsumerSmoke`（Addressables 初期化 → ウィザード相当 → SeData を 1 件 `AssetCreationService.Create` → カタログ・Addressables 登録・ID 再生成・`ValidateAll` Error 0）を実行 |
 
+**実装メモ（P-3、2026-09-20）**: 1〜9 は `Assets/DDrive/Tests/Editor/Compat/`（EditMode、asmdef は既存の `DDrive.Tests.Editor` のまま）に実装済み。
+
+| # | 実装ファイル | ゴールデン | 更新手順 |
+|---|---|---|---|
+| 1 | `Editor/Compat/PublicApiSnapshotBuilder.cs` + `Tests/Editor/Compat/PublicApiSnapshotTests.cs` | `Snapshots/public-api-DDrive.Foundation.txt` / `public-api-DDrive.Runtime.txt` | `Tools > D-Drive > Compat > スナップショットを更新` |
+| 2 | `Editor/Compat/SerializedLayoutSnapshotBuilder.cs` + `Tests/Editor/Compat/{SerializedLayoutSnapshotTests,LegacyAssetFixtureTests}.cs` | `Snapshots/serialized-layout.txt` + `Fixtures/v1_0_0/*.asset`（具象 `AssetDataBase` 19 種別、`DisplayName="CompatFixture_<型名>"`/`Category="CompatFixture"`/`Id≠0` を既知値として固定） | レイアウトは同上メニュー。フィクスチャは Unity Editor 経由(`ScriptableObject.CreateInstance` → `AssetDatabase.CreateAsset`)で追加する。新しい AssetType を追加したら `AllConcreteDataTypes_HaveFixture` が検出する |
+| 3 | `Editor/Compat/SerializedEnumSnapshotBuilder.cs` + `Tests/Editor/Compat/SerializedEnumSnapshotTests.cs` | `Snapshots/enums.txt` | 同メニュー |
+| 4 | `Tests/Editor/Compat/{IdHashGoldenTests,ConstantNameGoldenTests}.cs` | テスト内蔵の固定値(ファイル無し)。`ConstantNameGoldenTests` は `AssetIdGenerator.Regenerate` の出力を読んで間接検証(`ToConstantName` が internal のため) | 意図した算法変更のときだけコード中の期待値を書き換える(MAJOR 手続き必須) |
+| 5 | `Tests/Editor/Compat/CatalogContentHasherGoldenTests.cs` | テスト内蔵の固定値 | 同上 |
+| 6 | `Editor/Compat/NetMessageSnapshotBuilder.cs` + `Tests/Editor/Compat/NetMessageSnapshotTests.cs` | `Snapshots/net-messages.txt` + テスト内蔵の JSON 固定値 2 件 | フィールド一覧は同メニュー。JSON 固定値はコード中の期待文字列を書き換える。**注記**: このコードベースに `INetSerializable` の実装は無く実際の配送は `JsonUtility.ToJson`（`NgoNetBridge`）なので、そのワイヤ出力で代替した |
+| 7 | `Editor/Codegen/TuningCodegen.cs`（既存）+ `Tests/Editor/Compat/CodegenGoldenTests.cs` | `Snapshots/tuning-codegen.golden.cs`(全文一致) + `AssetIds.g.cs` は形のみ検証(下記注記) | Tuning は環境変数 `DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1` でテストを再実行すると自動更新。**注記**: `AssetIds.g.cs` の ulong 値は `StableHashFromGuid(guid)` が Unity 採番の GUID(乱数)に依存し、GUID を固定する公開手段が無い(`.meta` 手編集は CLAUDE.md §0-1 で禁止)ため、全文一致ゴールデンにはできなかった。代わりに「生成される 1 行の構文(ヘッダ・using・namespace・`public static readonly AssetId<Marker> 定数名 = new(0x...UL, AssetType.X);` の形)」を、実際に採番された GUID から独立に再計算した期待値と突き合わせて検証している(算法自体は 4 の `IdHashGoldenTests` が別途固定) |
+| 8 | `Editor/Compat/{EditorContractSnapshotBuilder}.cs` + `Tests/Editor/Compat/{ValidatorSeverityRegistryTests,EditorContractSnapshotTests}.cs` | `Snapshots/validator-severity.txt`(環境変数で更新) + `Snapshots/editor-contract.txt`(メニューで更新) | 上記のとおり 2 経路 |
+| 9 | `Runtime/DDriveVersion.cs`(新設、`Value = "1.0.0-dev"`) + `Tests/Editor/Compat/PackageVersionConsistencyTests.cs` | ゴールデンファイルなし(CHANGELOG.md の最新見出しと直接比較) | `package.json` が無い間は該当テストを `Assert.Ignore` で保留。存在すれば `version` と比較する |
+
+**§5.8 Validator の Code についての制約**: `ValidationResult.Code`(既定引数、既存呼び出しは無変更)は本チケットで新設したばかりで、既存の大多数の `IValidator` 実装は Code 未設定のまま(§5.11-8「Code 未設定の結果はゴールデン対象外にしてよい」を適用)。代表として `AddressablesRegistrationValidator`(共通検査)の 5 メッセージにだけ `DD-ADDR-*` の Code を付与し、`ValidatorSeverityRegistryTests` が実際にこの検査を発火させて `Code=Severity` のゴールデンを取れることを確認した(汎用スイープ `CollectGenericValidatorCodes` も用意しており、新しい Validator が Code を付けて追加されればテスト修正なしでゴールデン対象に入る)。**新規に書く Validator は Code を必須にする**方針は [12_review.md] §3 に明記した。既存 Validator 全件への Code 展開は本チケットの範囲外(後続チケットまたは各機能追加時に順次行う)。
+
+**10(CHANGELOG ガード)について**: 「ゴールデンの更新日時 > CHANGELOG の更新日時」を EditMode テストで比較する案は、`git clone`/`git checkout` 直後は全ファイルの mtime がほぼ同時刻になり得るため採用しなかった（本文が示す代替条件に該当）。代わりに §5.11 が許容する「CI スクリプト側に `git diff --name-only` ベースの検査を足す」を採用する方針とし、`Tools/CI/run-ci.cmd` と `.github/workflows/ci.yml` へ「`Assets/DDrive/Tests/Editor/Compat/Snapshots/**` が差分に含まれるコミット/PR では `CHANGELOG.md` も差分に含まれていること」を確認する 1 段を追加することを P-9(リリース手順の道具化）または P-13（発効整備）で行う **TODO** として記録する（本チケット P-3 では EditMode テスト・CI スクリプトのどちらも未実装。理由: `git` 呼び出しは Unity Editor の EditMode テストから行う想定が無く、`run-ci.cmd`/`ci.yml` の変更は他チケットの管轄と重なるため）。
+
 ### 5.12 破壊的変更をどうしても行う場合の手続き
 
 1. **issue/設計メモ**に「何を・なぜ・代替案（2 段階で回避できないか）」を書き、ユーザー承認（CLAUDE.md §0-9）

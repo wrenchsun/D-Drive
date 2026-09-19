@@ -117,6 +117,8 @@ Cutscene.OnInputLockChanged
 <strong>[6/6] NetCheck が FAIL したとき:</strong> <code>%RESULTS_DIR%\NetCheck\summary.md</code> を確認してください。
 </div>
 
+<p>互換性スナップショット（<code>Assets/DDrive/Tests/Editor/Compat/</code>、EditMode テスト）は、公開 API・シリアライズ形式・enum・ID/Address/定数名・ネットメッセージ・生成コード・Validator の重さ・Editor 契約・版番号が意図せず変わっていないかをゴールデン比較で機械的に検出します。P チケット（移植・更新・互換性、<code>docs/42_distribution.md</code>）が完了して互換性ポリシーが発効した後は、<strong>このスナップショットが赤い PR はマージしません</strong>。意図した変更（追加は MINOR、削除・変更は MAJOR で手続きが必要）なら、<code>Tools &gt; D-Drive &gt; Compat &gt; スナップショットを更新</code>（または一部は環境変数 <code>DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1</code>）でゴールデンを更新し、同じ PR で <code>CHANGELOG.md</code> の互換性節に記載してください（詳細は <code>docs/12_review.md</code> §3 / <code>docs/42_distribution.md</code> §5.11）。</p>
+
 <h2 id="checklist">PR チェックリスト</h2>
 <p>上記はあくまで実用的な抜粋です。Manager/基盤・Data/シリアライズ・Editor/ツールを含む全チェック項目は <code>docs/12_review.md</code> §3 を参照してください。コード PR とデータ PR は分離されており、データ PR は Validation green + プレビュー動画で足ります（コードレビュー不要）。</p>
 

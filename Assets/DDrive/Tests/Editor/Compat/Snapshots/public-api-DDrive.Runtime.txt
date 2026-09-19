@@ -1,0 +1,2618 @@
+TYPE class static DDrive.Runtime.Anchoring.AnchorChain
+  field const MaxDepth : int
+  method static CollectChainInto(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> id, DDrive.Runtime.Anchoring.AnchorData[] buffer) : int
+  method static Compose(DDrive.Runtime.Anchoring.AnchorData[] nodesLeafToRoot, int count, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  method static ComposeNodes(DDrive.Runtime.Anchoring.AnchorChainNode[] nodesLeafToRoot, int count, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  method static Resolve(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> id, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+TYPE struct DDrive.Runtime.Anchoring.AnchorChainNode
+  field Def : DDrive.Foundation.Data.AnchorDef
+  field DelayJitterSec : float
+  field DelaySec : float
+  field EulerJitter : UnityEngine.Vector3
+  field PositionJitterRadius : float
+  field ScaleRange : UnityEngine.Vector2
+  field SpawnChance : float
+  method static FromAnchorData(DDrive.Runtime.Anchoring.AnchorData data) : DDrive.Runtime.Anchoring.AnchorChainNode
+  method static FromDef(ref DDrive.Foundation.Data.AnchorDef def) : DDrive.Runtime.Anchoring.AnchorChainNode
+TYPE class sealed DDrive.Runtime.Anchoring.AnchorData : DDrive.Foundation.Data.AssetDataBase
+  ctor AnchorData()
+  field DelayJitterSec : float
+  field DelaySec : float
+  field DetachOnStop : bool
+  field EulerJitter : UnityEngine.Vector3
+  field FollowRotation : bool
+  field LocalEuler : UnityEngine.Vector3
+  field LocalOffset : UnityEngine.Vector3
+  field LocalScale : UnityEngine.Vector3
+  field Parent : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>
+  field Path : string
+  field PositionJitterRadius : float
+  field ScaleRange : UnityEngine.Vector2
+  field Space : DDrive.Foundation.Data.AnchorSpace
+  field SpawnChance : float
+  method CopyFrom(ref DDrive.Foundation.Data.AnchorDef def) : void
+  method ToDef() : DDrive.Foundation.Data.AnchorDef
+TYPE class sealed DDrive.Runtime.Anchoring.AnchorDataValidator
+  ctor AnchorDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  method static IsEmbeddedAnchorNonDefault(ref DDrive.Foundation.Data.AnchorDef def) : bool
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Anchoring.AnchorGroupAction
+  field AssetId : ulong
+  field Depth : int
+  field Kind : DDrive.Runtime.Anchoring.AnchorGroupActionKind
+  field PointIndex : int
+  field Spec : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+TYPE enum DDrive.Runtime.Anchoring.AnchorGroupActionKind
+  enum-member Se = 1
+  enum-member Vfx = 0
+  field const Se : DDrive.Runtime.Anchoring.AnchorGroupActionKind
+  field const Vfx : DDrive.Runtime.Anchoring.AnchorGroupActionKind
+TYPE struct DDrive.Runtime.Anchoring.AnchorGroupChild
+  field AtIndex : int
+  field Group : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker>
+TYPE class sealed DDrive.Runtime.Anchoring.AnchorGroupData : DDrive.Foundation.Data.AssetDataBase
+  ctor AnchorGroupData()
+  field ChancePerPoint : float
+  field Children : DDrive.Runtime.Anchoring.AnchorGroupChild[]
+  field CircleArc : float
+  field CircleCount : int
+  field CircleFaceOutward : bool
+  field CircleRadius : float
+  field CircleStartAngle : float
+  field DelayJitterSec : float
+  field DelayPerIndex : float
+  field EulerJitter : UnityEngine.Vector3
+  field GridCentered : bool
+  field GridCountX : int
+  field GridCountY : int
+  field GridCountZ : int
+  field GridSpacing : UnityEngine.Vector3
+  field Layout : DDrive.Runtime.Anchoring.AnchorLayoutKind
+  field LineCentered : bool
+  field LineCount : int
+  field LineDirection : UnityEngine.Vector3
+  field LineLength : float
+  field Origin : DDrive.Foundation.Data.AnchorDef
+  field OriginAnchorId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>
+  field Overrides : DDrive.Runtime.Anchoring.AnchorGroupOverride[]
+  field Points : DDrive.Runtime.Anchoring.AnchorGroupPoint[]
+  field PositionJitterRadius : float
+  field RandomCount : int
+  field RandomRadius : float
+  field RandomSeed : int
+  field ScaleRange : UnityEngine.Vector2
+  field SharedSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>[]
+  field SharedVfx : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>[]
+  field const MaxPoints : int
+  method FindOverride(int index) : int
+TYPE class sealed DDrive.Runtime.Anchoring.AnchorGroupDataValidator
+  ctor AnchorGroupDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Anchoring.AnchorGroupMarker
+TYPE struct DDrive.Runtime.Anchoring.AnchorGroupOverride
+  field Index : int
+  field Se : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>[]
+  field Skip : bool
+  field Vfx : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>[]
+TYPE class static DDrive.Runtime.Anchoring.AnchorGroupPlanner
+  field const MaxDepth : int
+  method static EnumeratePoints(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Anchoring.AnchorGroupData group, DDrive.Runtime.Anchoring.AnchorSpawnSpec[] specs) : int
+  method static Plan(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Anchoring.AnchorGroupData group, bool sampleRandom, System.Collections.Generic.List<DDrive.Runtime.Anchoring.AnchorGroupAction> actions) : int
+TYPE class sealed DDrive.Runtime.Anchoring.AnchorGroupPlayer
+  ctor AnchorGroupPlayer(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Vfx.VfxManager vfx, DDrive.Runtime.Audio.AudioManager audio)
+  method CollectVfxHandles(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker> handle, System.Collections.Generic.List<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>> into) : int
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker> handle) : bool
+  method Kill(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker> handle) : void
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker> id, UnityEngine.Transform contextRoot = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker>
+  method PlayData(DDrive.Runtime.Anchoring.AnchorGroupData group, UnityEngine.Transform contextRoot = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker>
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker> handle) : void
+  method StopAll() : void
+  method Tick() : void
+  property ActiveCount : int {get}
+TYPE struct DDrive.Runtime.Anchoring.AnchorGroupPoint
+  field LocalEuler : UnityEngine.Vector3
+  field LocalOffset : UnityEngine.Vector3
+  field LocalScale : UnityEngine.Vector3
+  field Name : string
+TYPE class static DDrive.Runtime.Anchoring.AnchorLayout
+  method static AppendManualPoints(DDrive.Runtime.Anchoring.AnchorGroupData group, DDrive.Runtime.Anchoring.AnchorLayoutPoint[] buffer, int count) : int
+  method static ComposePoint(ref DDrive.Runtime.Anchoring.AnchorSpawnSpec parent, ref DDrive.Runtime.Anchoring.AnchorLayoutPoint point, DDrive.Runtime.Anchoring.AnchorGroupData group, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  method static Generate(DDrive.Runtime.Anchoring.AnchorGroupData group, DDrive.Runtime.Anchoring.AnchorLayoutPoint[] buffer, bool sampleRandom) : int
+  method static GeneratePattern(DDrive.Runtime.Anchoring.AnchorGroupData group, DDrive.Runtime.Anchoring.AnchorLayoutPoint[] buffer, bool sampleRandom) : int
+TYPE enum DDrive.Runtime.Anchoring.AnchorLayoutKind
+  enum-member Circle = 2
+  enum-member Grid = 1
+  enum-member Line = 3
+  enum-member Manual = 0
+  enum-member Random = 4
+  field const Circle : DDrive.Runtime.Anchoring.AnchorLayoutKind
+  field const Grid : DDrive.Runtime.Anchoring.AnchorLayoutKind
+  field const Line : DDrive.Runtime.Anchoring.AnchorLayoutKind
+  field const Manual : DDrive.Runtime.Anchoring.AnchorLayoutKind
+  field const Random : DDrive.Runtime.Anchoring.AnchorLayoutKind
+TYPE struct DDrive.Runtime.Anchoring.AnchorLayoutPoint
+  field Index : int
+  field LocalEuler : UnityEngine.Vector3
+  field LocalOffset : UnityEngine.Vector3
+  field LocalScale : UnityEngine.Vector3
+TYPE struct DDrive.Runtime.Anchoring.AnchorMarker
+TYPE class sealed DDrive.Runtime.Anchoring.AnchorPoint : UnityEngine.MonoBehaviour
+  ctor AnchorPoint()
+  field EulerJitter : UnityEngine.Vector3
+  field GizmoColor : UnityEngine.Color
+  field PositionJitterRadius : float
+  field ScaleRange : UnityEngine.Vector2
+  field SpawnOffset : UnityEngine.Vector3
+  method SampleLocalOffset(UnityEngine.Vector3 baseLocalOffset) : UnityEngine.Vector3
+  method SampleRotation(UnityEngine.Quaternion baseRotation) : UnityEngine.Quaternion
+  method SampleScaleMultiplier() : float
+TYPE class static DDrive.Runtime.Anchoring.AnchorPose
+  method static BaseRotation(ref DDrive.Foundation.Data.AnchorDef anchor, UnityEngine.Transform target) : UnityEngine.Quaternion
+  method static BaseScale(ref DDrive.Foundation.Data.AnchorDef anchor) : UnityEngine.Vector3
+  method static LocalEulerFromWorld(ref DDrive.Foundation.Data.AnchorDef anchor, UnityEngine.Transform target, UnityEngine.Quaternion worldRotation) : UnityEngine.Vector3
+  method static LocalOffsetFromWorld(UnityEngine.Transform target, UnityEngine.Vector3 worldPosition, UnityEngine.Vector3 extraOffset) : UnityEngine.Vector3
+  method static LocalOffsetWithExtra(ref DDrive.Foundation.Data.AnchorDef anchor, UnityEngine.Vector3 extraOffset) : UnityEngine.Vector3
+  method static WorldPosition(ref DDrive.Foundation.Data.AnchorDef anchor, UnityEngine.Transform target, UnityEngine.Vector3 extraOffset) : UnityEngine.Vector3
+  method static WorldRotation(ref DDrive.Foundation.Data.AnchorDef anchor, UnityEngine.Transform target, UnityEngine.Quaternion jitterRotation) : UnityEngine.Quaternion
+  method static WorldScale(ref DDrive.Foundation.Data.AnchorDef anchor, float scaleMultiplier) : UnityEngine.Vector3
+TYPE class static DDrive.Runtime.Anchoring.AnchorResolver
+  method static Resolve(DDrive.Foundation.Data.AnchorDef anchor, UnityEngine.Transform contextRoot) : UnityEngine.Transform
+TYPE class sealed DDrive.Runtime.Anchoring.AnchorRig : UnityEngine.MonoBehaviour
+  ctor AnchorRig()
+  method GetPoints() : DDrive.Runtime.Anchoring.AnchorPoint[]
+TYPE struct DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  field Def : DDrive.Foundation.Data.AnchorDef
+  field DelaySec : float
+  field ExtraOffset : UnityEngine.Vector3
+  field JitterRotation : UnityEngine.Quaternion
+  field ScaleMultiplier : float
+  field SpawnChance : float
+  method static FromDef(ref DDrive.Foundation.Data.AnchorDef def) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+TYPE class static DDrive.Runtime.Anchoring.Anchors
+  method static Bind(DDrive.Runtime.Anchoring.AnchorGroupPlayer instance) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker> h) : bool
+  method static Kill(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker> h) : void
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker>
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker> id, UnityEngine.Transform contextRoot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker>
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker> h) : void
+  property static IsBound : bool {get}
+TYPE class static DDrive.Runtime.Anim.Anim
+  method static Bind(DDrive.Runtime.Anim.AnimManager instance) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h) : bool
+  method static NormalizedTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h) : float
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> id, UnityEngine.Animator target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> id, UnityEngine.Animator target, float fade) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method static SetLayerWeight(UnityEngine.Animator target, int layer, float weight) : void
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h, float speed) : void
+  method static SetTrigger(UnityEngine.Animator target, string param) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h, float fade = 0) : void
+  property static IsBound : bool {get}
+TYPE class DDrive.Runtime.Anim.AnimData : DDrive.Foundation.Data.AssetDataBase
+  ctor AnimData()
+  field BlendShapes : DDrive.Runtime.Anim.BlendShapeTrack[]
+  field Clip : UnityEngine.AnimationClip
+  field DefaultCrossFade : float
+  field Ik : DDrive.Runtime.Anim.IkProfile
+  field Layer : int
+  field Loop : bool
+  field Mask : UnityEngine.AvatarMask
+  field StateName : string
+  field const FallbackLengthSec : float
+  property FrameRate : float {get}
+  property LengthSec : float {get}
+  property ResolvedStateName : string {get}
+TYPE class sealed DDrive.Runtime.Anim.AnimDataValidator
+  ctor AnimDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class static DDrive.Runtime.Anim.AnimHandleExtensions
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h) : bool
+  method static NormalizedTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h) : float
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h, float speed) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h, float fade = 0) : void
+TYPE class sealed DDrive.Runtime.Anim.AnimManager
+  ctor AnimManager(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Event.EventBus events = null)
+  method GetContextTransform(DDrive.Foundation.Manager.InstanceContext ctx) : UnityEngine.Transform
+  method GetLoopCount(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle) : int
+  method GetNormalizedTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle) : float
+  method IsPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle) : bool
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle) : bool
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> id, UnityEngine.Animator target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> id, UnityEngine.Animator target, float fade) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method PlayData(DDrive.Runtime.Anim.AnimData data, UnityEngine.Animator target, float fade = -1) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle, float normalizedTime) : void
+  method SetPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle, bool paused) : void
+  method SetPausedAll(bool paused) : void
+  method SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle, float speed) : void
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle, float fade = 0) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method StopAllFor(UnityEngine.Animator animator) : void
+  method Tick(float dt) : void
+  method TryGetPlayback(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> handle, out DDrive.Runtime.Anim.AnimData data, out UnityEngine.Animator animator) : bool
+  property ActiveCount : int {get}
+  property Events : DDrive.Foundation.Event.EventBus {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Anim.AnimMarker
+TYPE class sealed DDrive.Runtime.Anim.AnimatorProxy : UnityEngine.MonoBehaviour
+  ctor AnimatorProxy()
+  field LeftFootTarget : UnityEngine.Transform
+  field LeftHandTarget : UnityEngine.Transform
+  field RightFootTarget : UnityEngine.Transform
+  field RightHandTarget : UnityEngine.Transform
+  method ApplyBlendShapes(DDrive.Runtime.Anim.AnimData data, float normalizedTime) : void
+  method ClearActive(DDrive.Runtime.Anim.AnimData data) : void
+  method GetActiveData(int layer) : DDrive.Runtime.Anim.AnimData
+  method GetNormalizedTime(int layer) : float
+  method HasBlendShape(string shapeName) : bool
+  method SetActive(DDrive.Runtime.Anim.AnimData data, float normalizedTime) : void
+  property ActiveData : DDrive.Runtime.Anim.AnimData {get}
+  property ActiveLayerCount : int {get}
+  property Animator : UnityEngine.Animator {get}
+  property NormalizedTime : float {get}
+TYPE struct DDrive.Runtime.Anim.BlendShapeTrack
+  field ShapeName : string
+  field Weight : UnityEngine.AnimationCurve
+TYPE struct DDrive.Runtime.Anim.IkProfile
+  field LeftFoot : bool
+  field LeftHand : bool
+  field RightFoot : bool
+  field RightHand : bool
+  field Weight : UnityEngine.AnimationCurve
+  method EvaluateWeight(float normalizedTime) : float
+  property Any : bool {get}
+TYPE class static DDrive.Runtime.Anim2D.Anim2D
+  method static Bind(DDrive.Runtime.Anim.AnimManager anim, DDrive.Foundation.Registry.IAssetRegistry registry) : void
+  method static FreezeAtFirstFrame(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h) : bool
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim2D.Anim2DMarker> id, UnityEngine.Animator target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim2D.Anim2DMarker> id, UnityEngine.Animator target, UnityEngine.Vector2 dir) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method static PlayData(DDrive.Runtime.Anim.AnimData data, UnityEngine.Animator target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method static ResolveFloatParameterHash(UnityEngine.Animator target, string name) : int
+  method static SetDirection(UnityEngine.Animator target, UnityEngine.Vector2 dir, int paramXHash, int paramYHash) : void
+  method static SetDirection(UnityEngine.Animator target, UnityEngine.Vector2 dir, string paramX = "x", string paramY = "y") : void
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h, float speed) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h) : void
+  method static Unfreeze(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker> h, float speed = 1) : void
+  property static IsBound : bool {get}
+TYPE class DDrive.Runtime.Anim2D.Anim2DData : DDrive.Runtime.Anim.AnimData
+  ctor Anim2DData()
+  field DirectionClips : UnityEngine.AnimationClip[]
+  field Directions : DDrive.Runtime.Anim2D.DirectionSet
+  field ParamXName : string
+  field ParamYName : string
+  field Retiming : DDrive.Foundation.Values.ValueDef
+  field const EightDirections : int
+  field const FourDirections : int
+  property HasDirections : bool {get}
+  property RequiredDirectionClips : int {get}
+TYPE class sealed DDrive.Runtime.Anim2D.Anim2DDataValidator
+  ctor Anim2DDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Anim2D.Anim2DFacing : UnityEngine.MonoBehaviour
+  ctor Anim2DFacing()
+  field CameraRelative : bool
+  field InitialDirection : UnityEngine.Vector2
+  field ParamX : string
+  field ParamY : string
+  field Smoothing : float
+  field Target : UnityEngine.Animator
+  method SetScreenDirection(UnityEngine.Vector2 screenDir) : void
+  method SetWorldDirection(UnityEngine.Vector3 worldDir) : void
+  method Tick(float dt) : void
+  method static Smooth(UnityEngine.Vector2 current, UnityEngine.Vector2 desired, float smoothing, float dt) : UnityEngine.Vector2
+  method static ToScreenDirection(UnityEngine.Vector2 worldXZ, float cameraYawDeg) : UnityEngine.Vector2
+  property CurrentDirection : UnityEngine.Vector2 {get}
+TYPE struct DDrive.Runtime.Anim2D.Anim2DMarker
+TYPE enum DDrive.Runtime.Anim2D.DirectionSet
+  enum-member Eight = 2
+  enum-member Four = 1
+  enum-member None = 0
+  field const Eight : DDrive.Runtime.Anim2D.DirectionSet
+  field const Four : DDrive.Runtime.Anim2D.DirectionSet
+  field const None : DDrive.Runtime.Anim2D.DirectionSet
+TYPE class static DDrive.Runtime.Audio.Audio
+  method static Bind(DDrive.Runtime.Audio.AudioManager instance) : void
+  method static Bind(DDrive.Runtime.Audio.BgmManager instance) : void
+  method static CrossFade(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.BgmMarker> next, float duration) : void
+  method static PlayBgm(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.BgmMarker> id, float fadeIn = -1) : void
+  method static PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method static PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchor) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method static PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchor, UnityEngine.Transform contextRoot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method static PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, UnityEngine.Transform contextRoot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method static PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, UnityEngine.Vector3 pos) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> h, float fade = 0) : void
+  method static StopBgm(float fadeOut = -1) : void
+  property static IsBound : bool {get}
+TYPE enum DDrive.Runtime.Audio.AudioBus
+  enum-member Bgm = 1
+  enum-member Master = 0
+  enum-member Se = 2
+  enum-member Voice = 3
+  field const Bgm : DDrive.Runtime.Audio.AudioBus
+  field const Master : DDrive.Runtime.Audio.AudioBus
+  field const Se : DDrive.Runtime.Audio.AudioBus
+  field const Voice : DDrive.Runtime.Audio.AudioBus
+TYPE class sealed DDrive.Runtime.Audio.AudioManager
+  ctor AudioManager(DDrive.Foundation.Pool.IPoolService pool, DDrive.Foundation.Registry.IAssetRegistry registry, UnityEngine.GameObject seSourcePrefab, DDrive.Foundation.Net.INetBridge netBridge = null)
+  method GetLoop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle) : System.Nullable<bool>
+  method GetPitch(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle) : System.Nullable<float>
+  method GetPosition(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle) : System.Nullable<UnityEngine.Vector3>
+  method GetTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle) : System.Nullable<float>
+  method IsPending(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle) : bool
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle) : bool
+  method Move(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle, UnityEngine.Vector3 position) : void
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchor, UnityEngine.Transform contextRoot = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, UnityEngine.Transform contextRoot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, UnityEngine.Vector3 pos) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method PlaySeData(DDrive.Runtime.Audio.SeData data, System.Nullable<UnityEngine.Vector3> explicitPosition = null, UnityEngine.Transform contextRoot = null, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchorOverride = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method PlaySeData(DDrive.Runtime.Audio.SeData data, ref DDrive.Runtime.Anchoring.AnchorSpawnSpec spec, UnityEngine.Transform contextRoot = null, System.Nullable<ushort> seed = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method SetGlobalSeLimit(int maxConcurrentSources) : void
+  method SetPausedAll(bool paused) : void
+  method SetPitch(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle, float pitch) : void
+  method SetVolume(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle, float volume) : void
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle, float fade = 0) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  property ActiveCount : int {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE class DDrive.Runtime.Audio.BgmData : DDrive.Foundation.Data.AssetDataBase
+  ctor BgmData()
+  field Bpm : float
+  field FadeIn : DDrive.Foundation.Values.ValueDef
+  field FadeOut : DDrive.Foundation.Values.ValueDef
+  field Intro : UnityEngine.AudioClip
+  field LoopBody : UnityEngine.AudioClip
+  field LoopEndSec : double
+  field LoopStartSec : double
+  field Mixer : UnityEngine.Audio.AudioMixerGroup
+  field Volume : float
+TYPE class sealed DDrive.Runtime.Audio.BgmDataValidator
+  ctor BgmDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Audio.BgmManager
+  ctor BgmManager(DDrive.Foundation.Registry.IAssetRegistry registry, UnityEngine.AudioSource channelA, UnityEngine.AudioSource channelB)
+  method CrossFade(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.BgmMarker> next, float duration) : void
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method PlayBgm(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.BgmMarker> id, float fadeInOverride = -1) : void
+  method PlayBgmData(DDrive.Runtime.Audio.BgmData data, float fadeInOverride = -1, float fadeOutOverride = -1) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method StopBgm(float fadeOutOverride = -1) : void
+  method Tick(float dt) : void
+  property IsPlaying : bool {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Audio.BgmMarker
+TYPE enum DDrive.Runtime.Audio.ClipSelectMode
+  enum-member First = 2
+  enum-member Random = 0
+  enum-member RoundRobin = 1
+  field const First : DDrive.Runtime.Audio.ClipSelectMode
+  field const Random : DDrive.Runtime.Audio.ClipSelectMode
+  field const RoundRobin : DDrive.Runtime.Audio.ClipSelectMode
+TYPE class sealed DDrive.Runtime.Audio.DuckEventBridge
+  ctor DuckEventBridge(DDrive.Foundation.Event.EventBus eventBus, DDrive.Foundation.Pause.AudioDuckService duck)
+  method Dispose() : void
+TYPE struct DDrive.Runtime.Audio.SeClipSource
+  field Source : UnityEngine.AudioClip
+  field TrimEndSec : float
+  field TrimStartSec : float
+TYPE class DDrive.Runtime.Audio.SeData : DDrive.Foundation.Data.AssetDataBase
+  ctor SeData()
+  field Anchor : DDrive.Foundation.Data.AnchorDef
+  field AnchorId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>
+  field Clips : UnityEngine.AudioClip[]
+  field CooldownSec : float
+  field DopplerEnabled : bool
+  field Loop : bool
+  field MaxConcurrent : int
+  field MaxDistance : float
+  field MinDistance : float
+  field Mixer : UnityEngine.Audio.AudioMixerGroup
+  field PitchRange : UnityEngine.Vector2
+  field Rolloff : UnityEngine.AnimationCurve
+  field SelectMode : DDrive.Runtime.Audio.ClipSelectMode
+  field Sources : DDrive.Runtime.Audio.SeClipSource[]
+  field Spatial : DDrive.Runtime.Audio.SpatialMode
+  field Spread : float
+  field StartOffsetSec : float
+  field Volume : float
+TYPE class sealed DDrive.Runtime.Audio.SeDataValidator
+  ctor SeDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Audio.SeEmitter : UnityEngine.MonoBehaviour
+  ctor SeEmitter()
+TYPE struct DDrive.Runtime.Audio.SeMarker
+TYPE enum DDrive.Runtime.Audio.SpatialMode
+  enum-member Anchor = 1
+  enum-member AtPosition = 2
+  enum-member None = 0
+  field const Anchor : DDrive.Runtime.Audio.SpatialMode
+  field const AtPosition : DDrive.Runtime.Audio.SpatialMode
+  field const None : DDrive.Runtime.Audio.SpatialMode
+TYPE class static DDrive.Runtime.CameraShake.CameraFx
+  method static Bind(DDrive.Runtime.CameraShake.CameraFxManager instance) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> h) : bool
+  method static SetGlobalScale(float scale) : void
+  method static SetStrength(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> h, float strength) : void
+  method static Shake(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker>
+  method static Shake(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker> id, UnityEngine.Vector3 sourcePos) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker>
+  method static Shake(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker> id, float strengthScale) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker>
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> h, float fade = 0.1) : void
+  method static StopAll(float fadeOut = 0.1) : void
+  property static IsBound : bool {get}
+TYPE class sealed DDrive.Runtime.CameraShake.CameraFxManager
+  ctor CameraFxManager(DDrive.Foundation.Registry.IAssetRegistry registry)
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> handle) : bool
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method SetGlobalScale(float scale) : void
+  method SetStrength(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> handle, float strength) : void
+  method Shake(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker>
+  method Shake(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker> id, UnityEngine.Vector3 sourcePos) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker>
+  method Shake(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker> id, float strengthScale) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker>
+  method ShakeData(DDrive.Runtime.CameraShake.CameraShakeData data, System.Nullable<UnityEngine.Vector3> sourcePos = null, float strengthScale = 1) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker>
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> handle, float fade = 0.1) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method StopAllWithFade(float fadeOut = 0.1) : void
+  method Tick(float dt) : void
+  property ActiveCount : int {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE class DDrive.Runtime.CameraShake.CameraShakeData : DDrive.Foundation.Data.AssetDataBase
+  ctor CameraShakeData()
+  field Envelope : DDrive.Foundation.Values.ValueDef
+  field Frequency : DDrive.Foundation.Values.ValueDef
+  field MaxStack : int
+  field Pattern : DDrive.Runtime.CameraShake.ShakePattern
+  field PosAmplitude : UnityEngine.Vector3
+  field RotAmplitude : UnityEngine.Vector3
+  field Space : DDrive.Runtime.CameraShake.ShakeSpace
+  field TraumaWeight : float
+TYPE class sealed DDrive.Runtime.CameraShake.CameraShakeDataValidator
+  ctor CameraShakeDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class static DDrive.Runtime.CameraShake.ShakeHandleExtensions
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> h) : bool
+  method static SetStrength(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> h, float strength) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.CameraShake.ShakeMarker> h, float fade = 0.1) : void
+TYPE struct DDrive.Runtime.CameraShake.ShakeMarker
+TYPE enum DDrive.Runtime.CameraShake.ShakePattern
+  enum-member CustomCurve = 3
+  enum-member DecaySine = 1
+  enum-member Impulse = 2
+  enum-member PerlinNoise = 0
+  field const CustomCurve : DDrive.Runtime.CameraShake.ShakePattern
+  field const DecaySine : DDrive.Runtime.CameraShake.ShakePattern
+  field const Impulse : DDrive.Runtime.CameraShake.ShakePattern
+  field const PerlinNoise : DDrive.Runtime.CameraShake.ShakePattern
+TYPE enum DDrive.Runtime.CameraShake.ShakeSpace
+  enum-member CameraLocal = 0
+  enum-member FromSource = 2
+  enum-member World = 1
+  field const CameraLocal : DDrive.Runtime.CameraShake.ShakeSpace
+  field const FromSource : DDrive.Runtime.CameraShake.ShakeSpace
+  field const World : DDrive.Runtime.CameraShake.ShakeSpace
+TYPE class static DDrive.Runtime.Cutscene.Cutscene
+  method static Bind(DDrive.Runtime.Cutscene.CutsceneManager instance) : void
+  method static Cancel(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : void
+  method static IsHandleInputLocked(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : bool
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : bool
+  method static NormalizedTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : float
+  method static OnCancelled(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : R3.Observable<R3.Unit>
+  method static OnCompleted(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : R3.Observable<R3.Unit>
+  method static OnMarker(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : R3.Observable<string>
+  method static Pause(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : void
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Runtime.Cutscene.CutsceneHandle
+  method static PlayData(DDrive.Runtime.Cutscene.CutsceneData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Runtime.Cutscene.CutsceneHandle
+  method static Resume(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : void
+  method static Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h, float time) : void
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h, float speed) : void
+  method static Skip(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : void
+  method static WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h, System.Threading.CancellationToken ct = null) : Cysharp.Threading.Tasks.UniTask
+  property static IsBound : bool {get}
+  property static IsInputLocked : bool {get}
+  property static OnInputLockChanged : R3.Observable<bool> {get}
+TYPE enum DDrive.Runtime.Cutscene.CutsceneBindTarget
+  enum-member AnchorPoint = 5
+  enum-member MainCamera = 0
+  enum-member SceneObjectByName = 4
+  enum-member Self = 1
+  enum-member SpawnModel = 3
+  enum-member Target = 2
+  field const AnchorPoint : DDrive.Runtime.Cutscene.CutsceneBindTarget
+  field const MainCamera : DDrive.Runtime.Cutscene.CutsceneBindTarget
+  field const SceneObjectByName : DDrive.Runtime.Cutscene.CutsceneBindTarget
+  field const Self : DDrive.Runtime.Cutscene.CutsceneBindTarget
+  field const SpawnModel : DDrive.Runtime.Cutscene.CutsceneBindTarget
+  field const Target : DDrive.Runtime.Cutscene.CutsceneBindTarget
+TYPE struct DDrive.Runtime.Cutscene.CutsceneBinding
+  field Model : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Model.ModelMarker>
+  field SceneObjectName : string
+  field Target : DDrive.Runtime.Cutscene.CutsceneBindTarget
+  field TrackName : string
+TYPE struct DDrive.Runtime.Cutscene.CutsceneCameraWriteRequest
+  field Aperture : float
+  field FocalLength : float
+  field Focus : DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
+  field FocusDistance : float
+  field Fov : float
+  field Weight : float
+  field WorldPos : UnityEngine.Vector3
+  field WorldRot : UnityEngine.Quaternion
+TYPE class DDrive.Runtime.Cutscene.CutsceneData : DDrive.Foundation.Data.AssetDataBase
+  ctor CutsceneData()
+  field Bindings : DDrive.Runtime.Cutscene.CutsceneBinding[]
+  field FrameRate : float
+  field LockInput : bool
+  field Origin : DDrive.Runtime.Cutscene.CutsceneOrigin
+  field OriginAnchorName : string
+  field PredictLocal : bool
+  field Skip : DDrive.Runtime.Cutscene.CutsceneSkip
+  field SkipToMarkerKey : string
+  field SourceFbxGuids : string[]
+  field SourceFrameRange : DDrive.Runtime.Cutscene.FrameRange
+  field Timeline : UnityEngine.Timeline.TimelineAsset
+  field Wrap : UnityEngine.Playables.DirectorWrapMode
+TYPE class sealed DDrive.Runtime.Cutscene.CutsceneDataValidator
+  ctor CutsceneDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Cutscene.CutsceneDirectorContext : UnityEngine.MonoBehaviour
+  ctor CutsceneDirectorContext()
+  field FireEnabled : bool
+  field ManagerRefs : DDrive.Runtime.Cutscene.CutsceneDirectorManagerRefs
+TYPE class sealed DDrive.Runtime.Cutscene.CutsceneDirectorManagerRefs
+  ctor CutsceneDirectorManagerRefs()
+  field Audio : DDrive.Runtime.Audio.AudioManager
+  field Groups : DDrive.Runtime.Anchoring.AnchorGroupPlayer
+  field Ui : DDrive.Runtime.Ui.UiManager
+  field Vfx : DDrive.Runtime.Vfx.VfxManager
+TYPE struct DDrive.Runtime.Cutscene.CutsceneHandle
+  field readonly Raw : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
+  field static readonly Invalid : DDrive.Runtime.Cutscene.CutsceneHandle
+  method Cancel() : void
+  method Equals(DDrive.Runtime.Cutscene.CutsceneHandle other) : bool
+  method Equals(object obj) : bool
+  method GetHashCode() : int
+  method Pause() : void
+  method Resume() : void
+  method Seek(float time) : void
+  method SetSpeed(float speed) : void
+  method Skip() : void
+  method ToString() : string
+  method WaitAsync(System.Threading.CancellationToken ct = null) : Cysharp.Threading.Tasks.UniTask
+  method static op_Equality(DDrive.Runtime.Cutscene.CutsceneHandle a, DDrive.Runtime.Cutscene.CutsceneHandle b) : bool
+  method static op_Inequality(DDrive.Runtime.Cutscene.CutsceneHandle a, DDrive.Runtime.Cutscene.CutsceneHandle b) : bool
+  property IsInputLocked : bool {get}
+  property IsPlaying : bool {get}
+  property NormalizedTime : float {get}
+  property OnCancelled : R3.Observable<R3.Unit> {get}
+  property OnCompleted : R3.Observable<R3.Unit> {get}
+  property OnMarker : R3.Observable<string> {get}
+TYPE class sealed DDrive.Runtime.Cutscene.CutsceneManager
+  ctor CutsceneManager(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Model.ModelsManager models = null, DDrive.Foundation.Net.INetBridge netBridge = null)
+  method Cancel(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : void
+  method CancelAllNetworked() : void
+  method DebugActiveHandles() : System.Collections.Generic.List<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>>
+  method GetContextTransform(DDrive.Foundation.Manager.InstanceContext ctx) : UnityEngine.Transform
+  method GetNormalizedTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : float
+  method IsInputLocked(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : bool
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : bool
+  method OnCancelled(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : R3.Observable<R3.Unit>
+  method OnCompleted(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : R3.Observable<R3.Unit>
+  method OnMarker(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : R3.Observable<string>
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
+  method PlayData(DDrive.Runtime.Cutscene.CutsceneData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
+  method Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, float time) : void
+  method SetPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, bool paused) : void
+  method SetRegistryReady(bool ready) : void
+  method SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, float speed) : void
+  method Skip(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  method WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, System.Threading.CancellationToken ct) : Cysharp.Threading.Tasks.UniTask
+  property Events : DDrive.Foundation.Event.EventBus {get}
+  property IsInputLockedAny : bool {get}
+  property OnInputLockChanged : R3.Observable<bool> {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Cutscene.CutsceneMarker
+TYPE class sealed DDrive.Runtime.Cutscene.CutsceneMarkerCursor<TMarker>
+  ctor CutsceneMarkerCursor<TMarker>()
+  method Advance(double newElapsed, bool fire, Action<TMarker> action) : void
+  method Collect(UnityEngine.Timeline.TimelineAsset timeline) : void
+  method ResetCursor() : void
+  property Count : int {get}
+  property Cursor : int {get}
+TYPE enum DDrive.Runtime.Cutscene.CutsceneOrigin
+  enum-member AnchorPoint = 2
+  enum-member Self = 0
+  enum-member World = 1
+  field const AnchorPoint : DDrive.Runtime.Cutscene.CutsceneOrigin
+  field const Self : DDrive.Runtime.Cutscene.CutsceneOrigin
+  field const World : DDrive.Runtime.Cutscene.CutsceneOrigin
+TYPE class sealed DDrive.Runtime.Cutscene.CutscenePreviewHarness : UnityEngine.MonoBehaviour
+  ctor CutscenePreviewHarness()
+  field Self : UnityEngine.Transform
+  field Target : UnityEngine.Transform
+  method Cancel() : void
+  method Play(DDrive.Runtime.Cutscene.CutsceneData data) : DDrive.Runtime.Cutscene.CutsceneHandle
+  method Skip() : void
+  property IsPlaying : bool {get}
+TYPE enum DDrive.Runtime.Cutscene.CutsceneSkip
+  enum-member Disabled = 0
+  enum-member Immediate = 1
+  enum-member ToMarker = 2
+  field const Disabled : DDrive.Runtime.Cutscene.CutsceneSkip
+  field const Immediate : DDrive.Runtime.Cutscene.CutsceneSkip
+  field const ToMarker : DDrive.Runtime.Cutscene.CutsceneSkip
+TYPE class sealed DDrive.Runtime.Cutscene.DDriveCutsceneCameraApplier : UnityEngine.MonoBehaviour
+  ctor DDriveCutsceneCameraApplier()
+  field const ExecutionOrder : int
+  method Restore() : void
+  method Submit(ref DDrive.Runtime.Cutscene.CutsceneCameraWriteRequest req, object ownerKey) : bool
+  method static EnsureOn(UnityEngine.Camera camera) : DDrive.Runtime.Cutscene.DDriveCutsceneCameraApplier
+TYPE struct DDrive.Runtime.Cutscene.FrameRange
+  field End : int
+  field Start : int
+TYPE enum DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
+  enum-member CameraOnly = 2
+  enum-member Off = 0
+  enum-member Volume = 1
+  field const CameraOnly : DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
+  field const Off : DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
+  field const Volume : DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneAnchorGroupBehaviour : UnityEngine.Playables.PlayableBehaviour
+  ctor CutsceneAnchorGroupBehaviour()
+  field Context : DDrive.Runtime.Cutscene.CutsceneDirectorContext
+  field GroupId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker>
+  method OnBehaviourPause(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info) : void
+  method ProcessFrame(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info, object playerData) : void
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneAnchorGroupClip : UnityEngine.Playables.PlayableAsset
+  ctor CutsceneAnchorGroupClip()
+  field GroupId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorGroupMarker>
+  method CreatePlayable(UnityEngine.Playables.PlayableGraph graph, UnityEngine.GameObject owner) : UnityEngine.Playables.Playable
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneAnchorGroupTrack : UnityEngine.Timeline.TrackAsset
+  ctor CutsceneAnchorGroupTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneCameraBehaviour : UnityEngine.Playables.PlayableBehaviour
+  ctor CutsceneCameraBehaviour()
+  field Clip : DDrive.Runtime.Cutscene.Tracks.CutsceneCameraClip
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneCameraClip : UnityEngine.Playables.PlayableAsset
+  ctor CutsceneCameraClip()
+  field Aperture : UnityEngine.AnimationCurve
+  field BlendIn : DDrive.Foundation.Values.ValueDef
+  field BlendOut : DDrive.Foundation.Values.ValueDef
+  field FieldOfView : UnityEngine.AnimationCurve
+  field FocalLengthMm : UnityEngine.AnimationCurve
+  field Focus : DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
+  field FocusDistance : UnityEngine.AnimationCurve
+  field PosX : UnityEngine.AnimationCurve
+  field PosY : UnityEngine.AnimationCurve
+  field PosZ : UnityEngine.AnimationCurve
+  field RotW : UnityEngine.AnimationCurve
+  field RotX : UnityEngine.AnimationCurve
+  field RotY : UnityEngine.AnimationCurve
+  field RotZ : UnityEngine.AnimationCurve
+  field StepFps : float
+  method CreatePlayable(UnityEngine.Playables.PlayableGraph graph, UnityEngine.GameObject owner) : UnityEngine.Playables.Playable
+  method QuantizeTime(float localTime) : float
+  property clipCaps : UnityEngine.Timeline.ClipCaps {get}
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneCameraMixerBehaviour : UnityEngine.Playables.PlayableBehaviour
+  ctor CutsceneCameraMixerBehaviour()
+  field Owner : UnityEngine.GameObject
+  method ProcessFrame(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info, object playerData) : void
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneCameraStateHolder : UnityEngine.MonoBehaviour
+  ctor CutsceneCameraStateHolder()
+  field Aperture : float
+  field FocalLength : float
+  field Focus : DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
+  field FocusDistance : float
+  field Fov : float
+  field GameBlendWeight : float
+  field HasData : bool
+  field LocalPos : UnityEngine.Vector3
+  field LocalRot : UnityEngine.Quaternion
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneCameraTrack : UnityEngine.Timeline.TrackAsset
+  ctor CutsceneCameraTrack()
+  method CreateTrackMixer(UnityEngine.Playables.PlayableGraph graph, UnityEngine.GameObject go, int inputCount) : UnityEngine.Playables.Playable
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneEventNotification : UnityEngine.Timeline.Marker
+  ctor CutsceneEventNotification()
+  field Event : DDrive.Foundation.Event.AssetEvent
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneEventTrack : UnityEngine.Timeline.MarkerTrack
+  ctor CutsceneEventTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneHapticNotification : UnityEngine.Timeline.Marker
+  ctor CutsceneHapticNotification()
+  field HapticId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker>
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneHapticTrack : UnityEngine.Timeline.MarkerTrack
+  ctor CutsceneHapticTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutscenePresentationBehaviour : UnityEngine.Playables.PlayableBehaviour
+  ctor CutscenePresentationBehaviour()
+  field Context : DDrive.Runtime.Cutscene.CutsceneDirectorContext
+  field PresentationId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Presentation.PresentationMarker>
+  method OnBehaviourPause(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info) : void
+  method ProcessFrame(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info, object playerData) : void
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutscenePresentationClip : UnityEngine.Playables.PlayableAsset
+  ctor CutscenePresentationClip()
+  field PresentationId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Presentation.PresentationMarker>
+  method CreatePlayable(UnityEngine.Playables.PlayableGraph graph, UnityEngine.GameObject owner) : UnityEngine.Playables.Playable
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutscenePresentationTrack : UnityEngine.Timeline.TrackAsset
+  ctor CutscenePresentationTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneSeBehaviour : UnityEngine.Playables.PlayableBehaviour
+  ctor CutsceneSeBehaviour()
+  field Context : DDrive.Runtime.Cutscene.CutsceneDirectorContext
+  field SeId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  method OnBehaviourPause(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info) : void
+  method ProcessFrame(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info, object playerData) : void
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneSeClip : UnityEngine.Playables.PlayableAsset
+  ctor CutsceneSeClip()
+  field SeId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  method CreatePlayable(UnityEngine.Playables.PlayableGraph graph, UnityEngine.GameObject owner) : UnityEngine.Playables.Playable
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneSeTrack : UnityEngine.Timeline.TrackAsset
+  ctor CutsceneSeTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneShakeNotification : UnityEngine.Timeline.Marker
+  ctor CutsceneShakeNotification()
+  field ShakeId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker>
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneShakeTrack : UnityEngine.Timeline.MarkerTrack
+  ctor CutsceneShakeTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneSignalNotification : UnityEngine.Timeline.Marker
+  ctor CutsceneSignalNotification()
+  field Key : string
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneSignalTrack : UnityEngine.Timeline.MarkerTrack
+  ctor CutsceneSignalTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneUiBehaviour : UnityEngine.Playables.PlayableBehaviour
+  ctor CutsceneUiBehaviour()
+  field CanvasId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker>
+  field Context : DDrive.Runtime.Cutscene.CutsceneDirectorContext
+  method OnBehaviourPause(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info) : void
+  method ProcessFrame(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info, object playerData) : void
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneUiClip : UnityEngine.Playables.PlayableAsset
+  ctor CutsceneUiClip()
+  field CanvasId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker>
+  method CreatePlayable(UnityEngine.Playables.PlayableGraph graph, UnityEngine.GameObject owner) : UnityEngine.Playables.Playable
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneUiTrack : UnityEngine.Timeline.TrackAsset
+  ctor CutsceneUiTrack()
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneVfxBehaviour : UnityEngine.Playables.PlayableBehaviour
+  ctor CutsceneVfxBehaviour()
+  field Context : DDrive.Runtime.Cutscene.CutsceneDirectorContext
+  field VfxId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>
+  method OnBehaviourPause(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info) : void
+  method ProcessFrame(UnityEngine.Playables.Playable playable, UnityEngine.Playables.FrameData info, object playerData) : void
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneVfxClip : UnityEngine.Playables.PlayableAsset
+  ctor CutsceneVfxClip()
+  field VfxId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>
+  method CreatePlayable(UnityEngine.Playables.PlayableGraph graph, UnityEngine.GameObject owner) : UnityEngine.Playables.Playable
+TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneVfxTrack : UnityEngine.Timeline.TrackAsset
+  ctor CutsceneVfxTrack()
+TYPE class static DDrive.Runtime.DDriveVersion
+  field const Value : string
+TYPE class sealed DDrive.Runtime.Haptics.GamepadHapticOutput
+  ctor GamepadHapticOutput()
+  method SetMotors(float low, float high) : void
+TYPE struct DDrive.Runtime.Haptics.HapticExt
+  field PlatformKey : string
+TYPE class static DDrive.Runtime.Haptics.HapticHandleExtensions
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker> h) : bool
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker> h) : void
+TYPE struct DDrive.Runtime.Haptics.HapticMarker
+TYPE enum DDrive.Runtime.Haptics.HapticPriority
+  enum-member High = 2
+  enum-member Low = 0
+  enum-member Normal = 1
+  field const High : DDrive.Runtime.Haptics.HapticPriority
+  field const Low : DDrive.Runtime.Haptics.HapticPriority
+  field const Normal : DDrive.Runtime.Haptics.HapticPriority
+TYPE class static DDrive.Runtime.Haptics.Haptics
+  method static Bind(DDrive.Runtime.Haptics.HapticsManager instance) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker> h) : bool
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker>
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker> id, float strengthScale) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker>
+  method static SetGlobalScale(float scale) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker> h) : void
+  method static StopAll() : void
+  property static IsBound : bool {get}
+TYPE class DDrive.Runtime.Haptics.HapticsData : DDrive.Foundation.Data.AssetDataBase
+  ctor HapticsData()
+  field Extensions : DDrive.Runtime.Haptics.HapticExt[]
+  field HighFreq : DDrive.Foundation.Values.ValueDef
+  field LocalPlayerOnly : bool
+  field LowFreq : DDrive.Foundation.Values.ValueDef
+  field Priority : DDrive.Runtime.Haptics.HapticPriority
+TYPE class sealed DDrive.Runtime.Haptics.HapticsDataValidator
+  ctor HapticsDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Haptics.HapticsManager
+  ctor HapticsManager(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Haptics.IHapticOutput output = null)
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker> handle) : bool
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker>
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker> id, float strengthScale) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker>
+  method PlayData(DDrive.Runtime.Haptics.HapticsData data, float strengthScale = 1) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker>
+  method ResetOutput() : void
+  method SetFocusLost(bool lost) : void
+  method SetGlobalScale(float scale) : void
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Haptics.HapticMarker> handle) : void
+  method StopAll() : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE interface DDrive.Runtime.Haptics.IHapticOutput
+  method SetMotors(float low, float high) : void
+TYPE class sealed DDrive.Runtime.Loading.AddressablesAssetLoader
+  ctor AddressablesAssetLoader()
+  method LoadAsync<T>(string address, System.Threading.CancellationToken ct) : UniTask<T>
+  method PreloadAsync(System.Collections.Generic.IEnumerable<string> addresses, System.IProgress<float> progress) : Cysharp.Threading.Tasks.UniTask
+  method Release(string address) : void
+TYPE struct DDrive.Runtime.Loading.PreloadEntry
+  ctor PreloadEntry(DDrive.Foundation.Identity.AssetType type, ulong id, string displayName)
+  field DisplayName : string
+  field Id : ulong
+  field Type : DDrive.Foundation.Identity.AssetType
+  method Equals(DDrive.Runtime.Loading.PreloadEntry other) : bool
+  method Equals(object obj) : bool
+  method GetHashCode() : int
+TYPE class sealed DDrive.Runtime.Loading.SceneLoadingScreen : UnityEngine.MonoBehaviour
+  ctor SceneLoadingScreen()
+  method RunAsync() : Cysharp.Threading.Tasks.UniTaskVoid
+  property IsDone : bool {get}
+  property Progress : float {get}
+TYPE class static DDrive.Runtime.Loading.ScenePreload
+  method static Bind(DDrive.Foundation.Registry.IAssetRegistry registry) : void
+  method static Release(DDrive.Runtime.Loading.ScenePreloadList list) : void
+  method static RunAsync(DDrive.Runtime.Loading.ScenePreloadList list, System.IProgress<float> progress = null) : Cysharp.Threading.Tasks.UniTask
+  property static IsBound : bool {get}
+TYPE class sealed DDrive.Runtime.Loading.ScenePreloadList : UnityEngine.ScriptableObject
+  ctor ScenePreloadList()
+  method GetIds() : System.Collections.Generic.IReadOnlyList<ulong>
+  method SetEntries(string newSceneName, System.Collections.Generic.List<DDrive.Runtime.Loading.PreloadEntry> newEntries) : void
+  property Entries : System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Loading.PreloadEntry> {get}
+  property SceneName : string {get}
+TYPE class sealed DDrive.Runtime.Loop.DDriveRuntimeBootstrap : UnityEngine.MonoBehaviour
+  ctor DDriveRuntimeBootstrap()
+  event OnReady : System.Action
+  field BindFacades : bool
+  field CatalogLabel : string
+  field Catalogs : DDrive.Foundation.Registry.AssetCatalog[]
+  field ContentHashTimeoutSeconds : double
+  field DefaultHostAddress : string
+  field DefaultNetBridge : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
+  field DefaultPort : ushort
+  field KeepAcrossScenes : bool
+  field LayerSettings : DDrive.Runtime.Ui.UiLayerSettings
+  field NetworkManagerRef : Unity.Netcode.NetworkManager
+  field NgoBridgeRef : DDrive.Runtime.Net.NgoNetBridge
+  field ShowNetDebugOverlay : bool
+  field TuningTable : DDrive.Runtime.Tuning.TuningTable
+  field const DefaultCatalogLabel : string
+  method RegisterCatalogsAsync() : Cysharp.Threading.Tasks.UniTask
+  property Anim : DDrive.Runtime.Anim.AnimManager {get}
+  property Audio : DDrive.Runtime.Audio.AudioManager {get}
+  property Bgm : DDrive.Runtime.Audio.BgmManager {get}
+  property CameraFx : DDrive.Runtime.CameraShake.CameraFxManager {get}
+  property Cutscene : DDrive.Runtime.Cutscene.CutsceneManager {get}
+  property CutsceneDispatcher : DDrive.Runtime.Presentation.AssetEventDispatcher {get}
+  property Dispatcher : DDrive.Runtime.Presentation.AssetEventDispatcher {get}
+  property Groups : DDrive.Runtime.Anchoring.AnchorGroupPlayer {get}
+  property Haptics : DDrive.Runtime.Haptics.HapticsManager {get}
+  property IsReady : bool {get}
+  property LaunchOptions : DDrive.Runtime.Net.NetLaunchOptions {get}
+  property Loop : DDrive.Runtime.Loop.GameLoopDriver {get}
+  property Materials : DDrive.Runtime.Material.MaterialManager {get}
+  property Models : DDrive.Runtime.Model.ModelsManager {get}
+  property NetBridge : DDrive.Foundation.Net.INetBridge {get}
+  property NetHashGate : DDrive.Runtime.Net.CatalogContentHashGate {get}
+  property Options : DDrive.Runtime.Ui.OptionStore {get}
+  property Pool : DDrive.Foundation.Pool.PoolService {get}
+  property PrefabDispatcher : DDrive.Runtime.Presentation.AssetEventDispatcher {get}
+  property Prefabs : DDrive.Runtime.Prefab.PrefabsManager {get}
+  property Presentation : DDrive.Runtime.Presentation.PresentationManager {get}
+  property RegisteredCatalogCount : int {get}
+  property Registry : DDrive.Foundation.Registry.AssetRegistry {get}
+  property Ui : DDrive.Runtime.Ui.UiManager {get}
+  property UiDispatcher : DDrive.Runtime.Presentation.AssetEventDispatcher {get}
+  property UiTweens : DDrive.Runtime.Ui.UiTweenManager {get}
+  property Vfx : DDrive.Runtime.Vfx.VfxManager {get}
+  property WhenReady : Cysharp.Threading.Tasks.UniTask {get}
+  property static Instance : DDrive.Runtime.Loop.DDriveRuntimeBootstrap {get}
+TYPE enum DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
+  enum-member Loopback = 0
+  enum-member Ngo = 1
+  field const Loopback : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
+  field const Ngo : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
+TYPE class sealed DDrive.Runtime.Loop.GameLoopDriver : UnityEngine.MonoBehaviour
+  ctor GameLoopDriver()
+  property GameLoop : DDrive.Foundation.Manager.GameLoop {get}
+  property PauseService : DDrive.Foundation.Pause.PauseService {get}
+  property TimeService : DDrive.Foundation.Pause.TimeService {get}
+TYPE enum DDrive.Runtime.Material.BlendType
+  enum-member Cutout = 1
+  enum-member Opaque = 0
+  enum-member Transparent = 2
+  field const Cutout : DDrive.Runtime.Material.BlendType
+  field const Opaque : DDrive.Runtime.Material.BlendType
+  field const Transparent : DDrive.Runtime.Material.BlendType
+TYPE struct DDrive.Runtime.Material.MaterialAnim
+  field Channel : DDrive.Runtime.Material.MaterialAnimChannel
+  field Property : string
+  field Value : DDrive.Foundation.Values.ValueDef
+TYPE enum DDrive.Runtime.Material.MaterialAnimChannel
+  enum-member Float = 0
+  enum-member OffsetU = 1
+  enum-member OffsetV = 2
+  field const Float : DDrive.Runtime.Material.MaterialAnimChannel
+  field const OffsetU : DDrive.Runtime.Material.MaterialAnimChannel
+  field const OffsetV : DDrive.Runtime.Material.MaterialAnimChannel
+TYPE struct DDrive.Runtime.Material.MaterialCommon
+  field Albedo : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.TextureMarker>
+  field AlbedoTint : UnityEngine.Color
+  field Blend : DDrive.Runtime.Material.BlendType
+  field Cutoff : float
+  field DoubleSided : bool
+  field Emission : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.TextureMarker>
+  field EmissionColor : UnityEngine.Color
+  field EmissionIntensity : float
+  field Mask : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.TextureMarker>
+  field Metallic : float
+  field Normal : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.TextureMarker>
+  field NormalScale : float
+  field Smoothness : float
+  property static Default : DDrive.Runtime.Material.MaterialCommon {get}
+TYPE class static DDrive.Runtime.Material.MaterialCommonBinding
+  method static Apply(UnityEngine.Material material, ref DDrive.Runtime.Material.MaterialCommon common, DDrive.Runtime.Material.MaterialCommonBinding.TextureResolver resolveTexture) : void
+  method static ApplyBlend(UnityEngine.Material material, DDrive.Runtime.Material.BlendType blend, float cutoff) : void
+  method static IsSupported(UnityEngine.Shader shader, DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel channel) : bool
+TYPE enum DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  enum-member Albedo = 0
+  enum-member AlbedoTint = 1
+  enum-member Blend = 9
+  enum-member Cutoff = 10
+  enum-member DoubleSided = 11
+  enum-member Emission = 7
+  enum-member EmissionColor = 8
+  enum-member Mask = 4
+  enum-member Metallic = 5
+  enum-member Normal = 2
+  enum-member NormalScale = 3
+  enum-member Smoothness = 6
+  field const Albedo : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const AlbedoTint : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const Blend : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const Cutoff : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const DoubleSided : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const Emission : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const EmissionColor : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const Mask : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const Metallic : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const Normal : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const NormalScale : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+  field const Smoothness : DDrive.Runtime.Material.MaterialCommonBinding.CommonChannel
+TYPE delegate DDrive.Runtime.Material.MaterialCommonBinding.TextureResolver
+  ctor TextureResolver(object object, System.IntPtr method)
+  method BeginInvoke(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.TextureMarker> id, System.AsyncCallback callback, object object) : System.IAsyncResult
+  method EndInvoke(System.IAsyncResult result) : UnityEngine.Texture
+  method Invoke(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.TextureMarker> id) : UnityEngine.Texture
+TYPE class static DDrive.Runtime.Material.MaterialCommonNaming
+  method static Classify(string property) : DDrive.Runtime.Material.MaterialCommonNaming.Kind
+  method static DisplayName(DDrive.Runtime.Material.MaterialCommonNaming.Kind kind) : string
+  method static IsCommon(string property) : bool
+  method static IsExcludedByFlags(UnityEngine.Rendering.ShaderPropertyFlags flags) : bool
+  method static IsSpecific(string property, UnityEngine.Rendering.ShaderPropertyFlags flags) : bool
+TYPE enum DDrive.Runtime.Material.MaterialCommonNaming.Kind
+  enum-member CommonChannel = 1
+  enum-member Derived = 3
+  enum-member RenderState = 2
+  enum-member Reserved = 4
+  enum-member Specific = 0
+  field const CommonChannel : DDrive.Runtime.Material.MaterialCommonNaming.Kind
+  field const Derived : DDrive.Runtime.Material.MaterialCommonNaming.Kind
+  field const RenderState : DDrive.Runtime.Material.MaterialCommonNaming.Kind
+  field const Reserved : DDrive.Runtime.Material.MaterialCommonNaming.Kind
+  field const Specific : DDrive.Runtime.Material.MaterialCommonNaming.Kind
+TYPE class static DDrive.Runtime.Material.MaterialConverter
+  method static ApplyTo(DDrive.Runtime.Material.MaterialData dest, DDrive.Runtime.Material.MaterialData source, DDrive.Runtime.Material.MaterialConverter.Result result) : void
+  method static Convert(DDrive.Runtime.Material.MaterialData source, UnityEngine.Shader target, System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Material.ShaderConversionTable> tables) : DDrive.Runtime.Material.MaterialConverter.Result
+  method static IsCompatible(UnityEngine.Shader shader, string property, DDrive.Foundation.Data.ParamValueType valueType) : bool
+  method static TryFindRule(UnityEngine.Shader from, UnityEngine.Shader to, System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Material.ShaderConversionTable> tables, out DDrive.Runtime.Material.ShaderConversionTable.Rule rule) : bool
+TYPE struct DDrive.Runtime.Material.MaterialConverter.Entry
+  field FromProperty : string
+  field Outcome : DDrive.Runtime.Material.MaterialConverter.Outcome
+  field ToProperty : string
+  field Value : DDrive.Foundation.Data.ParamValue
+TYPE enum DDrive.Runtime.Material.MaterialConverter.Outcome
+  enum-member Discarded = 3
+  enum-member Dropped = 2
+  enum-member Kept = 1
+  enum-member Mapped = 0
+  field const Discarded : DDrive.Runtime.Material.MaterialConverter.Outcome
+  field const Dropped : DDrive.Runtime.Material.MaterialConverter.Outcome
+  field const Kept : DDrive.Runtime.Material.MaterialConverter.Outcome
+  field const Mapped : DDrive.Runtime.Material.MaterialConverter.Outcome
+TYPE class sealed DDrive.Runtime.Material.MaterialConverter.Result
+  ctor Result()
+  field DiscardedCount : int
+  field DroppedCount : int
+  field KeptCount : int
+  field MappedCount : int
+  field TargetShader : UnityEngine.Shader
+  field UsedTable : bool
+  field readonly Entries : System.Collections.Generic.List<DDrive.Runtime.Material.MaterialConverter.Entry>
+  field readonly Specific : System.Collections.Generic.List<DDrive.Runtime.Material.ShaderParam>
+TYPE class DDrive.Runtime.Material.MaterialData : DDrive.Foundation.Data.AssetDataBase
+  ctor MaterialData()
+  field Anims : DDrive.Runtime.Material.MaterialAnim[]
+  field Common : DDrive.Runtime.Material.MaterialCommon
+  field RenderQueueOffset : int
+  field RenderingLayerMask : uint
+  field Shader : UnityEngine.Shader
+  field SourceMaterial : string
+  field Specific : DDrive.Runtime.Material.ShaderParam[]
+  property BaseRenderQueue : int {get}
+  property HasAnims : bool {get}
+  property RenderQueue : int {get}
+TYPE class sealed DDrive.Runtime.Material.MaterialDataValidator
+  ctor MaterialDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class static DDrive.Runtime.Material.MaterialHandleExtensions
+  method static IsFading(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker> h) : bool
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker> h) : void
+TYPE class sealed DDrive.Runtime.Material.MaterialManager
+  ctor MaterialManager(DDrive.Foundation.Registry.IAssetRegistry registry, UnityEngine.Shader defaultShader = null)
+  method Apply(UnityEngine.Renderer renderer, int slot, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> id) : void
+  method ApplyData(UnityEngine.Renderer renderer, int slot, DDrive.Runtime.Material.MaterialData data) : void
+  method Clear() : void
+  method FadeTo(UnityEngine.Renderer renderer, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> to, float seconds) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker>
+  method FadeTo(UnityEngine.Renderer renderer, int slot, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> to, float seconds) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker>
+  method FadeToData(UnityEngine.Renderer renderer, int slot, DDrive.Runtime.Material.MaterialData toData, float seconds) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker>
+  method Get(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> id) : UnityEngine.Material
+  method GetData(DDrive.Runtime.Material.MaterialData data) : UnityEngine.Material
+  method IsFading(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker> handle) : bool
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method Replace(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> from, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> to) : int
+  method ReplaceData(DDrive.Runtime.Material.MaterialData fromData, DDrive.Runtime.Material.MaterialData toData) : int
+  method SetGlobalParam(string property, DDrive.Foundation.Data.ParamValue value) : void
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker> handle) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  method TryGetBuilt(DDrive.Runtime.Material.MaterialData data, out UnityEngine.Material material) : bool
+  property ActiveFadeCount : int {get}
+  property BuiltCount : int {get}
+  property DefaultShader : UnityEngine.Shader {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Material.MaterialMarker
+TYPE class static DDrive.Runtime.Material.MaterialSpecificResolver
+  method static FindUnregistered(DDrive.Runtime.Material.ShaderParam[] existing, UnityEngine.Shader shader) : System.Collections.Generic.List<string>
+  method static IsConflicting(UnityEngine.Shader shader, string property) : bool
+  method static Merge(DDrive.Runtime.Material.ShaderParam[] existing, UnityEngine.Shader shader, DDrive.Runtime.Material.MaterialSpecificResolver.MergeReport report = null) : DDrive.Runtime.Material.ShaderParam[]
+  method static Resolve(UnityEngine.Shader shader) : System.Collections.Generic.List<DDrive.Runtime.Material.ShaderParam>
+TYPE class sealed DDrive.Runtime.Material.MaterialSpecificResolver.MergeReport
+  ctor MergeReport()
+  field readonly Added : System.Collections.Generic.List<string>
+  field readonly Conflict : System.Collections.Generic.List<string>
+  field readonly Kept : System.Collections.Generic.List<string>
+  field readonly Stale : System.Collections.Generic.List<string>
+  property Changed : bool {get}
+TYPE class static DDrive.Runtime.Material.Mats
+  method static Apply(UnityEngine.Renderer r, int slot, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> id) : void
+  method static Bind(DDrive.Runtime.Material.MaterialManager instance) : void
+  method static FadeTo(UnityEngine.Renderer r, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> to, float sec) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker>
+  method static FadeTo(UnityEngine.Renderer r, int slot, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> to, float sec) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker>
+  method static Get(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> id) : UnityEngine.Material
+  method static IsFading(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker> h) : bool
+  method static Replace(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> from, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> to) : int
+  method static SetGlobalParam(string name, DDrive.Foundation.Data.ParamValue v) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Material.MaterialMarker> h) : void
+  property static IsBound : bool {get}
+TYPE class sealed DDrive.Runtime.Material.ShaderConversionTable : UnityEngine.ScriptableObject
+  ctor ShaderConversionTable()
+  field Rules : DDrive.Runtime.Material.ShaderConversionTable.Rule[]
+  method TryFind(UnityEngine.Shader from, UnityEngine.Shader to, out DDrive.Runtime.Material.ShaderConversionTable.Rule rule) : bool
+TYPE struct DDrive.Runtime.Material.ShaderConversionTable.Mapping
+  field FromProperty : string
+  field Offset : float
+  field Scale : float
+  field ToProperty : string
+  property IsDrop : bool {get}
+TYPE struct DDrive.Runtime.Material.ShaderConversionTable.Rule
+  field From : UnityEngine.Shader
+  field Mappings : DDrive.Runtime.Material.ShaderConversionTable.Mapping[]
+  field To : UnityEngine.Shader
+TYPE struct DDrive.Runtime.Material.ShaderParam
+  field Property : string
+  field Value : DDrive.Foundation.Data.ParamValue
+TYPE class static DDrive.Runtime.Material.ShaderPipelineAnalyzer
+  method static ActivePipelineDisplayName() : string
+  method static CheckActivePipeline(UnityEngine.Shader shader) : DDrive.Runtime.Material.ShaderPipelineCompatibility
+  method static Detect(UnityEngine.Shader shader) : DDrive.Runtime.Material.ShaderPipelineKind
+  method static DisplayName(DDrive.Runtime.Material.ShaderPipelineKind kind) : string
+  method static HasSrpDefaultUnlitPass(UnityEngine.Shader shader) : bool
+  method static IsCompatibleWithActivePipeline(UnityEngine.Shader shader) : bool
+TYPE enum DDrive.Runtime.Material.ShaderPipelineCompatibility
+  enum-member Compatible = 0
+  enum-member Incompatible = 2
+  enum-member RendersButNotNative = 1
+  field const Compatible : DDrive.Runtime.Material.ShaderPipelineCompatibility
+  field const Incompatible : DDrive.Runtime.Material.ShaderPipelineCompatibility
+  field const RendersButNotNative : DDrive.Runtime.Material.ShaderPipelineCompatibility
+TYPE enum DDrive.Runtime.Material.ShaderPipelineKind
+  enum-member BuiltIn = 1
+  enum-member Custom = 4
+  enum-member HighDefinition = 3
+  enum-member Universal = 2
+  enum-member Unknown = 0
+  field const BuiltIn : DDrive.Runtime.Material.ShaderPipelineKind
+  field const Custom : DDrive.Runtime.Material.ShaderPipelineKind
+  field const HighDefinition : DDrive.Runtime.Material.ShaderPipelineKind
+  field const Universal : DDrive.Runtime.Material.ShaderPipelineKind
+  field const Unknown : DDrive.Runtime.Material.ShaderPipelineKind
+TYPE enum DDrive.Runtime.Material.TextureChannel
+  enum-member Albedo = 0
+  enum-member Emission = 3
+  enum-member Mask = 2
+  enum-member Normal = 1
+  enum-member Other = 4
+  field const Albedo : DDrive.Runtime.Material.TextureChannel
+  field const Emission : DDrive.Runtime.Material.TextureChannel
+  field const Mask : DDrive.Runtime.Material.TextureChannel
+  field const Normal : DDrive.Runtime.Material.TextureChannel
+  field const Other : DDrive.Runtime.Material.TextureChannel
+TYPE class DDrive.Runtime.Material.TextureData : DDrive.Foundation.Data.AssetDataBase
+  ctor TextureData()
+  field AllowScale : bool
+  field Channel : DDrive.Runtime.Material.TextureChannel
+  field SliceBorder : UnityEngine.Vector4
+  field Sprite : UnityEngine.Sprite
+  field Texture : UnityEngine.Texture2D
+  field Usage : DDrive.Runtime.Material.TextureUsage
+TYPE struct DDrive.Runtime.Material.TextureMarker
+TYPE enum DDrive.Runtime.Material.TextureUsage
+  enum-member Model = 0
+  enum-member UI = 1
+  field const Model : DDrive.Runtime.Material.TextureUsage
+  field const UI : DDrive.Runtime.Material.TextureUsage
+TYPE struct DDrive.Runtime.Model.LodProfile
+  field Enabled : bool
+  field ScreenRelativeTransitionHeights : float[]
+TYPE struct DDrive.Runtime.Model.MaterialSlot
+  field Material : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker>
+  field RendererPath : string
+  field SlotIndex : int
+TYPE class DDrive.Runtime.Model.ModelData : DDrive.Foundation.Data.AssetDataBase
+  ctor ModelData()
+  field Avatar : UnityEngine.Avatar
+  field DefaultAnimation : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker>
+  field LightLayerMask : uint
+  field Lod : DDrive.Runtime.Model.LodProfile
+  field Prefab : UnityEngine.GameObject
+  field RenderLayer : int
+  field Slots : DDrive.Runtime.Model.MaterialSlot[]
+  field const LightLayerKeepPrefab : uint
+TYPE class sealed DDrive.Runtime.Model.ModelDataValidator
+  ctor ModelDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Model.ModelMarker
+TYPE class static DDrive.Runtime.Model.Models
+  method static Bind(DDrive.Runtime.Model.ModelsManager instance) : void
+  method static Despawn(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> h) : void
+  method static GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> h) : UnityEngine.GameObject
+  method static PlayAnim(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> h, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> animId) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method static PlayAnim(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> h, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> animId, float fade) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method static SetLayer(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> h, int layer) : void
+  method static SetMaterial(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> h, int slotIndex, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> materialId) : void
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Model.ModelMarker> id, UnityEngine.Transform parent) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker>
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Model.ModelMarker> id, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker>
+  property static IsBound : bool {get}
+TYPE class sealed DDrive.Runtime.Model.ModelsManager
+  ctor ModelsManager(DDrive.Foundation.Pool.IPoolService pool, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Anim.AnimManager anim = null, DDrive.Runtime.Material.MaterialManager materials = null)
+  method Despawn(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle) : void
+  method GetAnimator(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle) : UnityEngine.Animator
+  method GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle) : UnityEngine.GameObject
+  method GetOwnedAnimCount(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle) : int
+  method IsValid(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle) : bool
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method PlayAnim(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker> animId, float fade = -1) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>
+  method SetAnimManager(DDrive.Runtime.Anim.AnimManager anim) : void
+  method SetLayer(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle, int layer) : void
+  method SetMaterial(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle, int slotIndex, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> materialId) : void
+  method SetMaterialManager(DDrive.Runtime.Material.MaterialManager materials) : void
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Model.ModelMarker> id, UnityEngine.Transform parent) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker>
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Model.ModelMarker> id, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker>
+  method SpawnData(DDrive.Runtime.Model.ModelData data, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker>
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  method TryGetMaterial(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle, int slotIndex, out DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Material.MaterialMarker> materialId) : bool
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Net.AppRoundTripTracker
+  ctor AppRoundTripTracker(int staleThreshold = 3)
+  field const DefaultStalePongMissThreshold : int
+  method GetRoundTripMs(double nowRealtime) : System.Nullable<double>
+  method OnPingSent(double nowRealtime) : void
+  method OnPongReceived(double measuredMs) : void
+  method OnPongReceived(double measuredMs, ulong senderId, ulong trustedSenderId) : void
+  method Reset() : void
+  property IsStale : bool {get}
+TYPE class sealed DDrive.Runtime.Net.CatalogContentHashGate
+  ctor CatalogContentHashGate(DDrive.Foundation.Net.INetBridge netBridge, double timeoutSeconds, bool isDevelopmentOrEditor)
+  event ClientDisconnectedForMismatch : System.Action<ulong, string>
+  method Dispose() : void
+  method SetLocalSummary(ulong combinedHash, DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry[] catalogs) : void
+  method Tick(double networkTimeNow) : void
+  property LastStatusText : string {get}
+TYPE struct DDrive.Runtime.Net.CatalogContentHashMsg
+  field Catalogs : DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry[]
+  field CombinedHash : ulong
+TYPE class static DDrive.Runtime.Net.CatalogContentHashPolicy
+  method static Decide(bool isDevelopmentOrEditor) : DDrive.Runtime.Net.CatalogContentHashPolicy.Outcome
+  method static DescribeDifferences(System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry> local, System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry> remote) : System.Collections.Generic.List<string>
+TYPE enum DDrive.Runtime.Net.CatalogContentHashPolicy.Outcome
+  enum-member Disconnect = 1
+  enum-member WarnAndContinue = 0
+  field const Disconnect : DDrive.Runtime.Net.CatalogContentHashPolicy.Outcome
+  field const WarnAndContinue : DDrive.Runtime.Net.CatalogContentHashPolicy.Outcome
+TYPE struct DDrive.Runtime.Net.CatalogContentHashResultMsg
+  field Descriptions : string[]
+  field Matched : bool
+TYPE struct DDrive.Runtime.Net.CutsceneCancelMsg
+  field HandleNetKey : uint
+TYPE struct DDrive.Runtime.Net.CutscenePlayMsg
+  field CutId : ulong
+  field HandleNetKey : uint
+  field Position : UnityEngine.Vector3
+  field Seed : ushort
+  field SelfNetId : ulong
+  field StartNetTime : double
+  field TargetNetId : ulong
+TYPE struct DDrive.Runtime.Net.CutsceneSeekMsg
+  field HandleNetKey : uint
+  field ToTime : double
+TYPE struct DDrive.Runtime.Net.NetCheckCounters
+  field ActiveAndVfxZeroedAfterDisconnect : bool
+  field ConnectedAtEnd : bool
+  field ContentHashApplicable : bool
+  field ContentHashStatus : string
+  field DisconnectedObserved : bool
+  field ExceptionOrErrorCount : int
+  field ForgedCancelDiscardedCount : int
+  field ForgedCancelSentCount : int
+  field IsOffRole : bool
+  field LateJoinRestoreObserved : bool
+  field PlaceholderObserved : bool
+  field RequireLateJoinRestore : bool
+  field RequireSignalActivity : bool
+  field SignalFireCount : int
+  field SignalRecvCount : int
+  field TrackFiredOverGraceCount : int
+  field TrackSkippedWithinGraceCount : int
+TYPE class static DDrive.Runtime.Net.NetCheckJudge
+  method static Evaluate(ref DDrive.Runtime.Net.NetCheckCounters c) : DDrive.Runtime.Net.NetCheckResult
+TYPE struct DDrive.Runtime.Net.NetCheckResult
+  field Pass : bool
+  field Reason : string
+  method static FailResult(string reason) : DDrive.Runtime.Net.NetCheckResult
+  method static PassResult(string summary) : DDrive.Runtime.Net.NetCheckResult
+TYPE class sealed DDrive.Runtime.Net.NetDebugOverlay : UnityEngine.MonoBehaviour
+  ctor NetDebugOverlay()
+  field Bridge : DDrive.Foundation.Net.INetBridge
+  field ContentHashGate : DDrive.Runtime.Net.CatalogContentHashGate
+  field NetworkManagerRef : Unity.Netcode.NetworkManager
+  field Visible : bool
+TYPE class static DDrive.Runtime.Net.NetLaunchArgs
+  field const AutoTestFlag : string
+  field const AutoTestSecondsFlag : string
+  field const HostFlag : string
+  field const NetFlag : string
+  field const PortFlag : string
+  field const SimLatencyFlag : string
+  field const SimLossFlag : string
+  method static Parse(string[] args) : DDrive.Runtime.Net.NetLaunchOptions
+TYPE struct DDrive.Runtime.Net.NetLaunchOptions
+  field AutoTestName : string
+  field AutoTestSeconds : System.Nullable<float>
+  field Host : string
+  field Port : System.Nullable<int>
+  field Role : DDrive.Runtime.Net.NetLaunchRole
+  field SimLatencyMs : System.Nullable<int>
+  field SimLossPercent : System.Nullable<float>
+TYPE enum DDrive.Runtime.Net.NetLaunchRole
+  enum-member Client = 3
+  enum-member Host = 2
+  enum-member Off = 1
+  enum-member Unspecified = 0
+  field const Client : DDrive.Runtime.Net.NetLaunchRole
+  field const Host : DDrive.Runtime.Net.NetLaunchRole
+  field const Off : DDrive.Runtime.Net.NetLaunchRole
+  field const Unspecified : DDrive.Runtime.Net.NetLaunchRole
+TYPE class sealed DDrive.Runtime.Net.NetModeUnsetValidator
+  ctor NetModeUnsetValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Net.NetPingMsg
+  field SentAtNetworkTime : double
+TYPE struct DDrive.Runtime.Net.NetPongMsg
+  field OriginalSentAtNetworkTime : double
+TYPE class sealed DDrive.Runtime.Net.NgoNetBridge : Unity.Netcode.NetworkBehaviour
+  ctor NgoNetBridge()
+  event ClientConnected : System.Action<ulong>
+  event ClientDisconnected : System.Action<ulong, string>
+  field const ClientRelayLimitPerSecond : int
+  field const UnreliablePayloadLimit : int
+  method Broadcast<T>(ref T msg, DDrive.Foundation.Net.NetChannel channel) : void
+  method ConfigureAppLayerSimLatency(int simLatencyMs) : void
+  method DespawnNetworked(ulong netId, bool destroy) : void
+  method DisconnectClient(ulong clientId, string reason) : void
+  method IsLocalPlayerObject(UnityEngine.Transform transform) : bool
+  method OnNetworkDespawn() : void
+  method OnNetworkSpawn() : void
+  method ResolveNetId(UnityEngine.Transform transform) : ulong
+  method ResolveNetObject(ulong netId) : UnityEngine.Transform
+  method SendTo<T>(ulong clientId, ref T msg, DDrive.Foundation.Net.NetChannel channel) : void
+  method SpawnNetworked(UnityEngine.GameObject root) : ulong
+  method Subscribe<T>(Action<ulong, T> handler) : System.IDisposable
+  property AppRoundTripMs : System.Nullable<double> {get}
+  property IsAppRoundTripMsStale : bool {get}
+  property IsConnected : bool {get}
+  property LocalClientId : ulong {get}
+  property NetworkTime : double {get}
+  property ReceivedMessageCount : int {get}
+TYPE class static DDrive.Runtime.Net.NgoTransportConfigurator
+  method static TryConfigure(Unity.Netcode.NetworkManager nm, string host, ushort port, System.Nullable<int> simLatencyMs, System.Nullable<float> simLossPercent) : bool
+  method static TryGetRoundTripTimeMs(Unity.Netcode.NetworkManager nm, ulong clientId) : System.Nullable<double>
+TYPE struct DDrive.Runtime.Net.PrefabDespawnedMsg
+  field NetObjectId : ulong
+TYPE struct DDrive.Runtime.Net.PrefabSpawnRequestMsg
+  field Position : UnityEngine.Vector3
+  field PrefabId : ulong
+  field RequestKey : uint
+  field Rotation : UnityEngine.Quaternion
+TYPE struct DDrive.Runtime.Net.PrefabSpawnedMsg
+  field NetObjectId : ulong
+  field Position : UnityEngine.Vector3
+  field PrefabId : ulong
+  field RequestKey : uint
+  field Rotation : UnityEngine.Quaternion
+TYPE struct DDrive.Runtime.Net.PresentationCancelMsg
+  field HandleNetKey : uint
+TYPE struct DDrive.Runtime.Net.PresentationPlayMsg
+  field HandleNetKey : uint
+  field Position : UnityEngine.Vector3
+  field PresId : ulong
+  field Seed : ushort
+  field SelfNetId : ulong
+  field StartNetTime : double
+  field TargetNetId : ulong
+TYPE struct DDrive.Runtime.Net.PresentationSignalMsg
+  field HandleNetKey : uint
+  field SignalKeyHash : ushort
+TYPE struct DDrive.Runtime.Net.SeNetBatchMsg
+  field Items : DDrive.Runtime.Net.SeNetMsg[]
+TYPE struct DDrive.Runtime.Net.SeNetMsg
+  field AnchorNetId : ulong
+  field Position : UnityEngine.Vector3
+  field SeId : ulong
+TYPE struct DDrive.Runtime.Net.VfxNetBatchMsg
+  field Items : DDrive.Runtime.Net.VfxNetMsg[]
+TYPE struct DDrive.Runtime.Net.VfxNetMsg
+  field AnchorNetId : ulong
+  field Position : UnityEngine.Vector3
+  field VfxId : ulong
+TYPE class static DDrive.Runtime.Prefab.GameplayTagDictionary
+  field static readonly KnownTags : System.Collections.Generic.HashSet<string>
+  method static Rebuild(System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Data.AssetDataBase> allAssets) : void
+  method static TryFindNearMiss(string tag, out string match) : bool
+TYPE class DDrive.Runtime.Prefab.PrefabData : DDrive.Foundation.Data.AssetDataBase
+  ctor PrefabData()
+  field CollisionLayer : int
+  field GameplayTags : string[]
+  field Kind : DDrive.Runtime.Prefab.PrefabKind
+  field Lod : DDrive.Runtime.Model.LodProfile
+  field Prefab : UnityEngine.GameObject
+  method HasTag(string tag) : bool
+TYPE class sealed DDrive.Runtime.Prefab.PrefabDataValidator
+  ctor PrefabDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class static DDrive.Runtime.Prefab.PrefabHandleExtensions
+  method static Despawn(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h) : void
+  method static GetComponent<T>(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h) : T
+  method static Go(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h) : UnityEngine.GameObject
+  method static HasTag(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h, string tag) : bool
+  method static IsValid(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h) : bool
+  method static Move(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : void
+TYPE enum DDrive.Runtime.Prefab.PrefabKind
+  enum-member Character = 4
+  enum-member Environment = 3
+  enum-member Gimmick = 0
+  enum-member Other = 5
+  enum-member Pickup = 2
+  enum-member Projectile = 1
+  field const Character : DDrive.Runtime.Prefab.PrefabKind
+  field const Environment : DDrive.Runtime.Prefab.PrefabKind
+  field const Gimmick : DDrive.Runtime.Prefab.PrefabKind
+  field const Other : DDrive.Runtime.Prefab.PrefabKind
+  field const Pickup : DDrive.Runtime.Prefab.PrefabKind
+  field const Projectile : DDrive.Runtime.Prefab.PrefabKind
+TYPE struct DDrive.Runtime.Prefab.PrefabMarker
+TYPE class static DDrive.Runtime.Prefab.Prefabs
+  method static Bind(DDrive.Runtime.Prefab.PrefabsManager instance) : void
+  method static Despawn(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h) : void
+  method static GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h) : UnityEngine.GameObject
+  method static HasTag(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h, string tag) : bool
+  method static Move(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> h, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : void
+  method static Preload(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker>[] ids) : void
+  method static PreloadAsync(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker>[] ids) : Cysharp.Threading.Tasks.UniTask
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker> id, UnityEngine.Transform parent) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker>
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker> id, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker>
+  property static IsBound : bool {get}
+TYPE class sealed DDrive.Runtime.Prefab.PrefabsManager
+  ctor PrefabsManager(DDrive.Foundation.Pool.IPoolService pool, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Event.EventBus events = null, DDrive.Foundation.Net.INetBridge netBridge = null)
+  method Despawn(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle) : void
+  method GetComponent<T>(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle) : T
+  method GetContextTransform(DDrive.Foundation.Manager.InstanceContext ctx) : UnityEngine.Transform
+  method GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle) : UnityEngine.GameObject
+  method HasTag(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle, string tag) : bool
+  method IsValid(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle) : bool
+  method Move(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : void
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method Preload(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker>[] ids) : void
+  method PreloadAsync(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker>[] ids) : Cysharp.Threading.Tasks.UniTask
+  method SetLayer(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle, int layer) : void
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker> id, UnityEngine.Transform parent) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker>
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker> id, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker>
+  method SpawnData(DDrive.Runtime.Prefab.PrefabData data, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot, UnityEngine.Transform parent = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker>
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  property ActiveCount : int {get}
+  property Events : DDrive.Foundation.Event.EventBus {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Presentation.AssetEventDispatcher
+  ctor AssetEventDispatcher(DDrive.Foundation.Event.EventBus bus, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Audio.AudioManager audio, DDrive.Runtime.Vfx.VfxManager vfx, System.Func<DDrive.Foundation.Manager.InstanceContext, UnityEngine.Transform> contextResolver, DDrive.Runtime.Anchoring.AnchorGroupPlayer groups = null)
+  event OnGroupPlayed : System.Action<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker>>
+  event OnSePlayed : System.Action<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>>
+  event OnVfxSpawned : System.Action<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>>
+  method Dispose() : void
+  property KeptCount : int {get}
+TYPE struct DDrive.Runtime.Presentation.PlayContext
+  field OnSignal : System.Action<string>
+  field Position : UnityEngine.Vector3
+  field Self : UnityEngine.Transform
+  field Target : UnityEngine.Transform
+TYPE class static DDrive.Runtime.Presentation.Presentation
+  method static Bind(DDrive.Runtime.Presentation.PresentationManager instance) : void
+  method static Cancel(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : bool
+  method static NormalizedTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : float
+  method static OnCancelled(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : R3.Observable<R3.Unit>
+  method static OnCompleted(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : R3.Observable<R3.Unit>
+  method static OnMarker(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : R3.Observable<string>
+  method static OnTrackFired(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : R3.Observable<DDrive.Runtime.Presentation.PresentationTrack>
+  method static Pause(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : void
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Presentation.PresentationMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Runtime.Presentation.PresentationHandle
+  method static PlayData(DDrive.Runtime.Presentation.PresentationData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Runtime.Presentation.PresentationHandle
+  method static Resume(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h) : void
+  method static Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h, float time) : void
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h, float speed) : void
+  method static Signal(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h, string key) : void
+  method static WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> h, System.Threading.CancellationToken ct = null) : Cysharp.Threading.Tasks.UniTask
+  property static IsBound : bool {get}
+TYPE class DDrive.Runtime.Presentation.PresentationData : DDrive.Foundation.Data.AssetDataBase
+  ctor PresentationData()
+  field Interruptible : bool
+  field PredictLocal : bool
+  field TotalDuration : float
+  field Tracks : DDrive.Runtime.Presentation.PresentationTrack[]
+TYPE class sealed DDrive.Runtime.Presentation.PresentationDataValidator
+  ctor PresentationDataValidator()
+  field const LargeParamKeyCountWarnThreshold : int
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  method static RequiresAsset(DDrive.Runtime.Presentation.TrackKind kind) : bool
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Presentation.PresentationHandle
+  field readonly Raw : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>
+  field static readonly Invalid : DDrive.Runtime.Presentation.PresentationHandle
+  method Cancel() : void
+  method Equals(DDrive.Runtime.Presentation.PresentationHandle other) : bool
+  method Equals(object obj) : bool
+  method GetHashCode() : int
+  method Pause() : void
+  method Resume() : void
+  method Seek(float time) : void
+  method SetSpeed(float speed) : void
+  method Signal(string key) : void
+  method ToString() : string
+  method WaitAsync(System.Threading.CancellationToken ct = null) : Cysharp.Threading.Tasks.UniTask
+  method static op_Equality(DDrive.Runtime.Presentation.PresentationHandle a, DDrive.Runtime.Presentation.PresentationHandle b) : bool
+  method static op_Inequality(DDrive.Runtime.Presentation.PresentationHandle a, DDrive.Runtime.Presentation.PresentationHandle b) : bool
+  property IsPlaying : bool {get}
+  property NormalizedTime : float {get}
+  property OnCancelled : R3.Observable<R3.Unit> {get}
+  property OnCompleted : R3.Observable<R3.Unit> {get}
+  property OnMarker : R3.Observable<string> {get}
+  property OnTrackFired : R3.Observable<DDrive.Runtime.Presentation.PresentationTrack> {get}
+TYPE class sealed DDrive.Runtime.Presentation.PresentationManager
+  ctor PresentationManager(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Pause.TimeService timeService, DDrive.Runtime.Audio.AudioManager audio = null, DDrive.Runtime.Audio.BgmManager bgm = null, DDrive.Runtime.Vfx.VfxManager vfx = null, DDrive.Runtime.Anim.AnimManager anim = null, DDrive.Runtime.Ui.UiManager ui = null, DDrive.Runtime.Ui.UiTweenManager uiTween = null, DDrive.Runtime.CameraShake.CameraFxManager cameraFx = null, DDrive.Runtime.Haptics.HapticsManager haptics = null, DDrive.Foundation.Net.INetBridge netBridge = null, float remoteOneShotGraceSec = 0.5, DDrive.Runtime.Cutscene.CutsceneManager cutscene = null, DDrive.Runtime.Anchoring.AnchorGroupPlayer groups = null)
+  event OnAnchorGroupPlayed : System.Action<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anchoring.AnchorGroupMarker>>
+  event OnAtTimeTrackFired : System.Action<DDrive.Runtime.Presentation.PresentationTrack, uint, float>
+  event OnNetworkReceivedPlay : System.Action<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>, uint>
+  event OnRemoteOneShotSkipped : System.Action<DDrive.Runtime.Presentation.PresentationTrack, uint, float>
+  method Cancel(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : void
+  method CancelAllNetworked() : void
+  method DebugActiveHandles() : System.Collections.Generic.List<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>>
+  method DebugHandleNetKeyOf(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : uint
+  method GetNormalizedTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : float
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : bool
+  method OnCancelled(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : R3.Observable<R3.Unit>
+  method OnCompleted(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : R3.Observable<R3.Unit>
+  method OnMarker(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : R3.Observable<string>
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method OnTrackFired(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : R3.Observable<DDrive.Runtime.Presentation.PresentationTrack>
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Presentation.PresentationMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>
+  method PlayData(DDrive.Runtime.Presentation.PresentationData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>
+  method Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, float time) : void
+  method SetPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, bool paused) : void
+  method SetRegistryReady(bool ready) : void
+  method SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, float speed) : void
+  method Signal(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, string key) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  method WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, System.Threading.CancellationToken ct) : Cysharp.Threading.Tasks.UniTask
+  method static ResolveContextRoot(ref DDrive.Runtime.Presentation.PlayContext ctx, DDrive.Runtime.Presentation.TrackTargetMode mode) : UnityEngine.Transform
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Presentation.PresentationMarker
+TYPE class static DDrive.Runtime.Presentation.PresentationTiming
+  method static EffectiveDuration(DDrive.Runtime.Presentation.PresentationData data) : float
+TYPE struct DDrive.Runtime.Presentation.PresentationTrack
+  field Anchor : DDrive.Foundation.Data.AnchorDef
+  field Asset : DDrive.Foundation.Data.AssetRef
+  field Kind : DDrive.Runtime.Presentation.TrackKind
+  field Params : DDrive.Foundation.Data.ParamValue[]
+  field SignalKey : string
+  field StopOnCancel : bool
+  field Target : DDrive.Runtime.Presentation.TrackTargetMode
+  field Time : float
+  field Trigger : DDrive.Runtime.Presentation.TrackTrigger
+TYPE class static DDrive.Runtime.Presentation.PresentationTrackAnchorComposer
+  field const MaxStages : int
+  method static Compose(ref DDrive.Runtime.Presentation.PresentationTrack track, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> assetAnchorId, ref DDrive.Foundation.Data.AnchorDef assetEmbeddedAnchor, DDrive.Foundation.Registry.IAssetRegistry registry, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  method static Compose(ref DDrive.Runtime.Presentation.PresentationTrack track, DDrive.Runtime.Audio.SeData data, DDrive.Foundation.Registry.IAssetRegistry registry, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  method static Compose(ref DDrive.Runtime.Presentation.PresentationTrack track, DDrive.Runtime.Vfx.VfxData data, DDrive.Foundation.Registry.IAssetRegistry registry, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  method static ComposeAssetOnly(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> assetAnchorId, ref DDrive.Foundation.Data.AnchorDef assetEmbeddedAnchor, DDrive.Foundation.Registry.IAssetRegistry registry, bool sampleRandom) : DDrive.Runtime.Anchoring.AnchorSpawnSpec
+  method static DetermineCase(ref DDrive.Runtime.Presentation.PresentationTrack track, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> assetAnchorId, ref DDrive.Foundation.Data.AnchorDef assetEmbeddedAnchor) : DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Case
+  method static IsAssetAnchorSet(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> assetAnchorId, ref DDrive.Foundation.Data.AnchorDef assetEmbeddedAnchor) : bool
+  method static IsAssetAnchorSet(DDrive.Runtime.Audio.SeData data) : bool
+  method static IsAssetAnchorSet(DDrive.Runtime.Vfx.VfxData data) : bool
+  method static IsTrackAnchorSet(ref DDrive.Runtime.Presentation.PresentationTrack track) : bool
+  method static ResolveAssetRootDef(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> assetAnchorId, ref DDrive.Foundation.Data.AnchorDef assetEmbeddedAnchor, DDrive.Foundation.Registry.IAssetRegistry registry) : DDrive.Foundation.Data.AnchorDef
+  method static ResolveStages(ref DDrive.Runtime.Presentation.PresentationTrack track, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> assetAnchorId, ref DDrive.Foundation.Data.AnchorDef assetEmbeddedAnchor, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Stage[] buffer) : int
+  method static ResolveStages(ref DDrive.Runtime.Presentation.PresentationTrack track, DDrive.Runtime.Audio.SeData data, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Stage[] buffer) : int
+  method static ResolveStages(ref DDrive.Runtime.Presentation.PresentationTrack track, DDrive.Runtime.Vfx.VfxData data, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Stage[] buffer) : int
+  method static SolveTrackLocal(UnityEngine.Vector3 desiredComposedOffset, UnityEngine.Vector3 desiredComposedEuler, UnityEngine.Vector3 childComposedOffset, UnityEngine.Vector3 childComposedEuler, out UnityEngine.Vector3 trackLocalOffset, out UnityEngine.Vector3 trackLocalEuler) : void
+  method static TryGetAssetAnchor(DDrive.Foundation.Data.AssetDataBase asset, out DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchorId, out DDrive.Foundation.Data.AnchorDef embedded) : bool
+TYPE enum DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Case
+  enum-member AssetOnly = 1
+  enum-member Both = 3
+  enum-member Neither = 0
+  enum-member TrackOnly = 2
+  field const AssetOnly : DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Case
+  field const Both : DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Case
+  field const Neither : DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Case
+  field const TrackOnly : DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Case
+TYPE struct DDrive.Runtime.Presentation.PresentationTrackAnchorComposer.Stage
+  ctor Stage(string label, DDrive.Foundation.Data.AnchorDef composedDef, float positionJitterRadius)
+  field readonly ComposedDef : DDrive.Foundation.Data.AnchorDef
+  field readonly Label : string
+  field readonly PositionJitterRadius : float
+TYPE enum DDrive.Runtime.Presentation.TrackKind
+  enum-member AnchorGroup = 13
+  enum-member Anim = 0
+  enum-member Anim2D = 1
+  enum-member Bgm = 3
+  enum-member CameraShake = 5
+  enum-member Canvas = 9
+  enum-member Haptic = 6
+  enum-member HitStop = 7
+  enum-member Marker = 11
+  enum-member Se = 2
+  enum-member Signal = 12
+  enum-member Timeline = 8
+  enum-member UiTween = 10
+  enum-member Vfx = 4
+  field const AnchorGroup : DDrive.Runtime.Presentation.TrackKind
+  field const Anim : DDrive.Runtime.Presentation.TrackKind
+  field const Anim2D : DDrive.Runtime.Presentation.TrackKind
+  field const Bgm : DDrive.Runtime.Presentation.TrackKind
+  field const CameraShake : DDrive.Runtime.Presentation.TrackKind
+  field const Canvas : DDrive.Runtime.Presentation.TrackKind
+  field const Haptic : DDrive.Runtime.Presentation.TrackKind
+  field const HitStop : DDrive.Runtime.Presentation.TrackKind
+  field const Marker : DDrive.Runtime.Presentation.TrackKind
+  field const Se : DDrive.Runtime.Presentation.TrackKind
+  field const Signal : DDrive.Runtime.Presentation.TrackKind
+  field const Timeline : DDrive.Runtime.Presentation.TrackKind
+  field const UiTween : DDrive.Runtime.Presentation.TrackKind
+  field const Vfx : DDrive.Runtime.Presentation.TrackKind
+TYPE enum DDrive.Runtime.Presentation.TrackTargetMode
+  enum-member Anchor = 3
+  enum-member ContextTarget = 1
+  enum-member Self = 0
+  enum-member World = 2
+  field const Anchor : DDrive.Runtime.Presentation.TrackTargetMode
+  field const ContextTarget : DDrive.Runtime.Presentation.TrackTargetMode
+  field const Self : DDrive.Runtime.Presentation.TrackTargetMode
+  field const World : DDrive.Runtime.Presentation.TrackTargetMode
+TYPE enum DDrive.Runtime.Presentation.TrackTrigger
+  enum-member AtTime = 0
+  enum-member OnSignal = 1
+  field const AtTime : DDrive.Runtime.Presentation.TrackTrigger
+  field const OnSignal : DDrive.Runtime.Presentation.TrackTrigger
+TYPE class static DDrive.Runtime.Tuning.Tuning
+  method static Bind(DDrive.Runtime.Tuning.TuningTable table) : void
+  method static GetBool(string key, bool defaultValue = false) : bool
+  method static GetEnum(string key, string defaultValue = "") : string
+  method static GetFloat(string key, float defaultValue = 0) : float
+  method static GetInt(string key, int defaultValue = 0) : int
+  method static GetString(string key, string defaultValue = "") : string
+  method static GetTableBool(string tableKey, string rowId, string columnKey, bool defaultValue = false) : bool
+  method static GetTableFloat(string tableKey, string rowId, string columnKey, float defaultValue = 0) : float
+  method static GetTableInt(string tableKey, string rowId, string columnKey, int defaultValue = 0) : int
+  method static GetTableString(string tableKey, string rowId, string columnKey, string defaultValue = "") : string
+  property static IsBound : bool {get}
+TYPE struct DDrive.Runtime.Tuning.TuningCellValue
+  field B : bool
+  field ColumnKey : string
+  field F : float
+  field I : int
+  field S : string
+TYPE struct DDrive.Runtime.Tuning.TuningEntry
+  field Description : string
+  field EnumOptions : string[]
+  field Key : string
+  field Max : float
+  field Min : float
+  field Type : DDrive.Runtime.Tuning.TuningValueType
+  field Unit : string
+  field ValueBool : bool
+  field ValueFloat : float
+  field ValueInt : int
+  field ValueString : string
+TYPE class sealed DDrive.Runtime.Tuning.TuningTable : UnityEngine.ScriptableObject
+  ctor TuningTable()
+  field Entries : DDrive.Runtime.Tuning.TuningEntry[]
+  field Tables : DDrive.Runtime.Tuning.TuningTableEntry[]
+  method RebuildIndex() : void
+  method TryFindIndex(string key, out int index) : bool
+  method TryFindTableIndex(string key, out int index) : bool
+TYPE struct DDrive.Runtime.Tuning.TuningTableColumn
+  field EnumOptions : string[]
+  field Key : string
+  field Max : float
+  field Min : float
+  field Type : DDrive.Runtime.Tuning.TuningValueType
+  field Unit : string
+TYPE struct DDrive.Runtime.Tuning.TuningTableEntry
+  field Columns : DDrive.Runtime.Tuning.TuningTableColumn[]
+  field Key : string
+  field Rows : DDrive.Runtime.Tuning.TuningTableRow[]
+TYPE struct DDrive.Runtime.Tuning.TuningTableRow
+  field Cells : DDrive.Runtime.Tuning.TuningCellValue[]
+  field RowId : string
+TYPE enum DDrive.Runtime.Tuning.TuningValueType
+  enum-member Bool = 2
+  enum-member Enum = 4
+  enum-member Float = 0
+  enum-member Int = 1
+  enum-member String = 3
+  field const Bool : DDrive.Runtime.Tuning.TuningValueType
+  field const Enum : DDrive.Runtime.Tuning.TuningValueType
+  field const Float : DDrive.Runtime.Tuning.TuningValueType
+  field const Int : DDrive.Runtime.Tuning.TuningValueType
+  field const String : DDrive.Runtime.Tuning.TuningValueType
+TYPE class DDrive.Runtime.Ui.ButtonSkinData : DDrive.Runtime.Ui.ControlSkinData
+  ctor ButtonSkinData()
+  field ClickSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field DeniedSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field HoverSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field LongPressSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+TYPE class sealed DDrive.Runtime.Ui.ButtonSkinDataValidator
+  ctor ButtonSkinDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Ui.ButtonWire
+  field Action : DDrive.Runtime.Ui.UiAction
+  field ButtonPath : string
+  field ClickSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field SignalKey : string
+  field Target : DDrive.Foundation.Data.AssetRef
+  field Trigger : DDrive.Runtime.Ui.WireTrigger
+TYPE class DDrive.Runtime.Ui.CanvasData : DDrive.Foundation.Data.AssetDataBase
+  ctor CanvasData()
+  field Buttons : DDrive.Runtime.Ui.ButtonWire[]
+  field CloseOnBack : bool
+  field CloseTransition : DDrive.Runtime.Ui.UiTransition
+  field ElementEffects : DDrive.Runtime.Ui.ElementFx[]
+  field FirstSelected : string
+  field Layer : DDrive.Runtime.Ui.UiLayer
+  field ModalBlocksInput : bool
+  field Navigation : DDrive.Runtime.Ui.NavNode[]
+  field NavigationEdgeWaypoints : DDrive.Runtime.Ui.NavEdgeWaypoint[]
+  field NavigationNodeLayout : DDrive.Runtime.Ui.NavNodeLayout[]
+  field OpenTransition : DDrive.Runtime.Ui.UiTransition
+  field PauseGameWhileOpen : bool
+  field Prefab : UnityEngine.GameObject
+  field Sliders : DDrive.Runtime.Ui.SliderWire[]
+  field SortOffset : int
+TYPE class sealed DDrive.Runtime.Ui.CanvasDataValidator
+  ctor CanvasDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class static DDrive.Runtime.Ui.CanvasHandleExtensions
+  method static Close(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : void
+  method static Go(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : UnityEngine.GameObject
+  method static IsOpen(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : bool
+TYPE struct DDrive.Runtime.Ui.CanvasMarker
+TYPE class abstract DDrive.Runtime.Ui.ControlSkinData : DDrive.Foundation.Data.AssetDataBase
+  field AlphaHitThreshold : float
+  field Disabled : DDrive.Runtime.Ui.StateVisual
+  field HitAreaExpand : UnityEngine.Vector4
+  field Hover : DDrive.Runtime.Ui.StateVisual
+  field Locked : DDrive.Runtime.Ui.StateVisual
+  field Normal : DDrive.Runtime.Ui.StateVisual
+  field Pressed : DDrive.Runtime.Ui.StateVisual
+  field ScrollMaterial : UnityEngine.Material
+  field Selected : DDrive.Runtime.Ui.StateVisual
+  method Get(DDrive.Runtime.Ui.ControlState state) : DDrive.Runtime.Ui.StateVisual
+  property EffectiveHitAreaExpand : UnityEngine.Vector4 {get}
+TYPE class static DDrive.Runtime.Ui.ControlSkinHitAreaValidation
+  method static Validate(DDrive.Runtime.Ui.ControlSkinData skin) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+TYPE struct DDrive.Runtime.Ui.ControlSkinMarker
+TYPE class static DDrive.Runtime.Ui.ControlSkinVisualValidation
+  method static Validate(DDrive.Runtime.Ui.ControlSkinData skin) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+TYPE enum DDrive.Runtime.Ui.ControlState
+  enum-member Disabled = 4
+  enum-member Hover = 1
+  enum-member Locked = 5
+  enum-member Normal = 0
+  enum-member Pressed = 2
+  enum-member Selected = 3
+  field const Disabled : DDrive.Runtime.Ui.ControlState
+  field const Hover : DDrive.Runtime.Ui.ControlState
+  field const Locked : DDrive.Runtime.Ui.ControlState
+  field const Normal : DDrive.Runtime.Ui.ControlState
+  field const Pressed : DDrive.Runtime.Ui.ControlState
+  field const Selected : DDrive.Runtime.Ui.ControlState
+TYPE struct DDrive.Runtime.Ui.ElementFx
+  field Appear : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.UiTweenMarker>
+  field AppearDelay : float
+  field AppearPreset : DDrive.Runtime.Ui.UiPresetRef
+  field AppearSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field Disappear : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.UiTweenMarker>
+  field DisappearPreset : DDrive.Runtime.Ui.UiPresetRef
+  field DisappearSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field ElementPath : string
+  field Idle : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.UiTweenMarker>
+  field IdlePreset : DDrive.Runtime.Ui.UiPresetRef
+TYPE interface DDrive.Runtime.Ui.IOptionStorage
+  method TryRead(string key, out float v) : bool
+  method Write(string key, float v) : void
+TYPE interface DDrive.Runtime.Ui.IUiNavigable
+  method SetFocused(bool focused) : void
+  property CanFocus : bool {get}
+  property Transform : UnityEngine.Transform {get}
+TYPE struct DDrive.Runtime.Ui.NavEdgeWaypoint
+  field Direction : string
+  field Element : string
+  field Points : UnityEngine.Vector2[]
+TYPE struct DDrive.Runtime.Ui.NavNode
+  field Down : string
+  field Element : string
+  field Left : string
+  field Right : string
+  field Up : string
+TYPE struct DDrive.Runtime.Ui.NavNodeLayout
+  field Element : string
+  field Position : UnityEngine.Vector2
+TYPE enum DDrive.Runtime.Ui.OffScreenDirection
+  enum-member Bottom = 3
+  enum-member Left = 0
+  enum-member Right = 1
+  enum-member Top = 2
+  field const Bottom : DDrive.Runtime.Ui.OffScreenDirection
+  field const Left : DDrive.Runtime.Ui.OffScreenDirection
+  field const Right : DDrive.Runtime.Ui.OffScreenDirection
+  field const Top : DDrive.Runtime.Ui.OffScreenDirection
+TYPE enum DDrive.Runtime.Ui.OptionKey
+  enum-member BgmVolume = 2
+  enum-member HapticScale = 6
+  enum-member MasterVolume = 1
+  enum-member None = 0
+  enum-member SeVolume = 3
+  enum-member ShakeScale = 5
+  enum-member UiSpeedScale = 7
+  enum-member VoiceVolume = 4
+  field const BgmVolume : DDrive.Runtime.Ui.OptionKey
+  field const HapticScale : DDrive.Runtime.Ui.OptionKey
+  field const MasterVolume : DDrive.Runtime.Ui.OptionKey
+  field const None : DDrive.Runtime.Ui.OptionKey
+  field const SeVolume : DDrive.Runtime.Ui.OptionKey
+  field const ShakeScale : DDrive.Runtime.Ui.OptionKey
+  field const UiSpeedScale : DDrive.Runtime.Ui.OptionKey
+  field const VoiceVolume : DDrive.Runtime.Ui.OptionKey
+TYPE class sealed DDrive.Runtime.Ui.OptionStore
+  ctor OptionStore()
+  event OnChanged : System.Action<DDrive.Runtime.Ui.OptionKey, float>
+  field CameraFx : DDrive.Runtime.CameraShake.CameraFxManager
+  field ExternalApplier : System.Action<DDrive.Runtime.Ui.OptionKey, float>
+  field Haptics : DDrive.Runtime.Haptics.HapticsManager
+  field UiTweens : DDrive.Runtime.Ui.UiTweenManager
+  method Get(DDrive.Runtime.Ui.OptionKey key) : float
+  method Load(DDrive.Runtime.Ui.IOptionStorage storage) : void
+  method Save(DDrive.Runtime.Ui.IOptionStorage storage) : void
+  method SaveIfDirty() : void
+  method Set(DDrive.Runtime.Ui.OptionKey key, float value) : void
+  property Storage : DDrive.Runtime.Ui.IOptionStorage {get;set}
+TYPE class static DDrive.Runtime.Ui.Options
+  event static OnChanged : System.Action<DDrive.Runtime.Ui.OptionKey, float>
+  method static Bind(DDrive.Runtime.Ui.OptionStore instance) : void
+  method static Get(DDrive.Runtime.Ui.OptionKey key) : float
+  method static Set(DDrive.Runtime.Ui.OptionKey key, float value) : void
+  property static IsBound : bool {get}
+TYPE class sealed DDrive.Runtime.Ui.PlayerPrefsOptionStorage
+  ctor PlayerPrefsOptionStorage()
+  method TryRead(string key, out float v) : bool
+  method Write(string key, float v) : void
+TYPE struct DDrive.Runtime.Ui.SignalArgs
+  ctor SignalArgs(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> canvas, string elementPath, float value = 0)
+  field readonly Canvas : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  field readonly ElementPath : string
+  field readonly Key : string
+  field readonly Value : float
+TYPE enum DDrive.Runtime.Ui.SliderDirection
+  enum-member BottomToTop = 2
+  enum-member LeftToRight = 0
+  enum-member RightToLeft = 1
+  enum-member TopToBottom = 3
+  field const BottomToTop : DDrive.Runtime.Ui.SliderDirection
+  field const LeftToRight : DDrive.Runtime.Ui.SliderDirection
+  field const RightToLeft : DDrive.Runtime.Ui.SliderDirection
+  field const TopToBottom : DDrive.Runtime.Ui.SliderDirection
+TYPE class DDrive.Runtime.Ui.SliderSkinData : DDrive.Runtime.Ui.ControlSkinData
+  ctor SliderSkinData()
+  field DelayFill : DDrive.Runtime.Ui.StateVisual
+  field DeniedSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field ExtraHitPadding : UnityEngine.Vector2
+  field Fill : DDrive.Runtime.Ui.StateVisual
+  field GrabSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field Handle : DDrive.Runtime.Ui.StateVisual
+  field HandleHitAreaExpand : UnityEngine.Vector4
+  field HideHandleOnGamepad : bool
+  field LimitHapticId : ulong
+  field LimitSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field NotchHapticId : ulong
+  field NotchSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field NotchSeMinIntervalSec : float
+  field NotchSprite : UnityEngine.Sprite
+  field ReleaseSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field Track : DDrive.Runtime.Ui.StateVisual
+  property EffectiveHitAreaExpand : UnityEngine.Vector4 {get}
+TYPE class sealed DDrive.Runtime.Ui.SliderSkinDataValidator
+  ctor SliderSkinDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE enum DDrive.Runtime.Ui.SliderTrigger
+  enum-member Changed = 0
+  enum-member Commit = 1
+  enum-member LimitReached = 3
+  enum-member NotchPassed = 2
+  field const Changed : DDrive.Runtime.Ui.SliderTrigger
+  field const Commit : DDrive.Runtime.Ui.SliderTrigger
+  field const LimitReached : DDrive.Runtime.Ui.SliderTrigger
+  field const NotchPassed : DDrive.Runtime.Ui.SliderTrigger
+TYPE struct DDrive.Runtime.Ui.SliderWire
+  field Action : DDrive.Runtime.Ui.UiAction
+  field ElementPath : string
+  field Option : DDrive.Runtime.Ui.OptionKey
+  field SignalKey : string
+  field ThrottleSec : float
+  field Trigger : DDrive.Runtime.Ui.SliderTrigger
+TYPE struct DDrive.Runtime.Ui.SplinePathDef
+  field Points : UnityEngine.Vector3[]
+  field Type : DDrive.Foundation.Easing.SplineType
+  property IsValid : bool {get}
+TYPE struct DDrive.Runtime.Ui.StateVisual
+  field AnimFps : float
+  field AnimFrames : UnityEngine.Sprite[]
+  field AnimLoop : bool
+  field EnterPreset : DDrive.Runtime.Ui.UiPresetRef
+  field EnterTween : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.UiTweenMarker>
+  field OverrideSprite : UnityEngine.Sprite
+  field Scale : DDrive.Foundation.Values.ValueDef
+  field ScrollSpeed : UnityEngine.Vector2
+  field Tint : UnityEngine.Color
+  property static Default : DDrive.Runtime.Ui.StateVisual {get}
+TYPE class static DDrive.Runtime.Ui.TransformPath
+  method static GetRelative(UnityEngine.Transform root, UnityEngine.Transform target) : string
+TYPE enum DDrive.Runtime.Ui.TweenFromMode
+  enum-member Absolute = 1
+  enum-member Current = 0
+  enum-member OffScreen = 3
+  enum-member Relative = 2
+  field const Absolute : DDrive.Runtime.Ui.TweenFromMode
+  field const Current : DDrive.Runtime.Ui.TweenFromMode
+  field const OffScreen : DDrive.Runtime.Ui.TweenFromMode
+  field const Relative : DDrive.Runtime.Ui.TweenFromMode
+TYPE class static DDrive.Runtime.Ui.TweenHandleExtensions
+  method static Complete(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : bool
+  method static Progress(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : float
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h, float speed) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : void
+  method static WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : Cysharp.Threading.Tasks.UniTask
+TYPE enum DDrive.Runtime.Ui.TweenProperty
+  enum-member Alpha = 3
+  enum-member AnchoredPosition = 0
+  enum-member Color = 4
+  enum-member ColorHue = 10
+  enum-member FillAmount = 5
+  enum-member PathMove = 7
+  enum-member Rotation = 2
+  enum-member RotationX = 8
+  enum-member RotationY = 9
+  enum-member Scale = 1
+  enum-member SizeDelta = 6
+  field const Alpha : DDrive.Runtime.Ui.TweenProperty
+  field const AnchoredPosition : DDrive.Runtime.Ui.TweenProperty
+  field const Color : DDrive.Runtime.Ui.TweenProperty
+  field const ColorHue : DDrive.Runtime.Ui.TweenProperty
+  field const FillAmount : DDrive.Runtime.Ui.TweenProperty
+  field const PathMove : DDrive.Runtime.Ui.TweenProperty
+  field const Rotation : DDrive.Runtime.Ui.TweenProperty
+  field const RotationX : DDrive.Runtime.Ui.TweenProperty
+  field const RotationY : DDrive.Runtime.Ui.TweenProperty
+  field const Scale : DDrive.Runtime.Ui.TweenProperty
+  field const SizeDelta : DDrive.Runtime.Ui.TweenProperty
+TYPE class sealed DDrive.Runtime.Ui.TweenSequence
+  method Append(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle) : DDrive.Runtime.Ui.TweenSequence
+  method Append(System.Func<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>> start) : DDrive.Runtime.Ui.TweenSequence
+  method AppendInterval(float sec) : DDrive.Runtime.Ui.TweenSequence
+  method Join(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle) : DDrive.Runtime.Ui.TweenSequence
+  method Join(System.Func<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>> start) : DDrive.Runtime.Ui.TweenSequence
+  method Play() : Cysharp.Threading.Tasks.UniTask
+TYPE struct DDrive.Runtime.Ui.TweenTrack
+  field Delay : float
+  field From : DDrive.Runtime.Ui.TweenFromMode
+  field FromValue : DDrive.Foundation.Data.ParamValue
+  field Motion : DDrive.Foundation.Values.ValueDef
+  field OffScreen : DDrive.Runtime.Ui.OffScreenDirection
+  field Path : DDrive.Runtime.Ui.SplinePathDef
+  field Property : DDrive.Runtime.Ui.TweenProperty
+  field ToValue : DDrive.Foundation.Data.ParamValue
+TYPE class static DDrive.Runtime.Ui.Ui
+  method static Bind(DDrive.Runtime.Ui.UiManager instance) : void
+  method static Close(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : void
+  method static CloseAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : Cysharp.Threading.Tasks.UniTask
+  method static CloseTop() : bool
+  method static CloseTopAsync() : Cysharp.Threading.Tasks.UniTask<bool>
+  method static GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : UnityEngine.GameObject
+  method static IsOpen(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : bool
+  method static MoveFocus(UnityEngine.Vector2 dir) : bool
+  method static OnSignal(string key, System.Action<DDrive.Runtime.Ui.SignalArgs> cb) : System.IDisposable
+  method static Open(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method static OpenAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
+  method static Popup(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method static PopupAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
+  method static SendSignal(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> from, string elementPath = null) : void
+  method static SetLayerVisible(DDrive.Runtime.Ui.UiLayer layer, bool visible) : void
+  property static IsBound : bool {get}
+TYPE enum DDrive.Runtime.Ui.UiAction
+  enum-member CloseSelf = 2
+  enum-member CloseTop = 3
+  enum-member None = 0
+  enum-member OpenCanvas = 1
+  enum-member PlayPresentation = 5
+  enum-member SendSignal = 4
+  enum-member SetOption = 6
+  field const CloseSelf : DDrive.Runtime.Ui.UiAction
+  field const CloseTop : DDrive.Runtime.Ui.UiAction
+  field const None : DDrive.Runtime.Ui.UiAction
+  field const OpenCanvas : DDrive.Runtime.Ui.UiAction
+  field const PlayPresentation : DDrive.Runtime.Ui.UiAction
+  field const SendSignal : DDrive.Runtime.Ui.UiAction
+  field const SetOption : DDrive.Runtime.Ui.UiAction
+TYPE class sealed DDrive.Runtime.Ui.UiButton : DDrive.Runtime.Ui.UiInteractable
+  ctor UiButton()
+  event OnClick : System.Action
+  event OnDoubleClick : System.Action
+  event OnLongPress : System.Action
+  event OnRepeat : System.Action
+  field DoubleClickSec : float
+  field LongPressSec : float
+  field RepeatIntervalSec : float
+  method Advance(float unscaledDt) : void
+  method Focus(bool focused) : void
+  method Hover(bool over) : void
+  method OnDeselect(UnityEngine.EventSystems.BaseEventData eventData) : void
+  method OnPointerDown(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerExit(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerUp(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnSelect(UnityEngine.EventSystems.BaseEventData eventData) : void
+  method OnSubmit(UnityEngine.EventSystems.BaseEventData eventData) : void
+  method Press() : void
+  method Release(bool inside = true) : void
+  method SetVisual(DDrive.Runtime.Ui.ButtonSkinData skin) : void
+  method SimulateClick() : void
+  method WaitClickAsync(System.Threading.CancellationToken ct) : Cysharp.Threading.Tasks.UniTask
+TYPE class static DDrive.Runtime.Ui.UiFx
+  method static Appear(UnityEngine.RectTransform t) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static AttentionJump(UnityEngine.RectTransform t, float height = 20, float sec = 0.4) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Bind(DDrive.Runtime.Ui.UiTweenManager instance) : void
+  method static Blink(UnityEngine.RectTransform t, float period = 0.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static BounceIn(UnityEngine.RectTransform t, float sec = 0.5) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static BounceOut(UnityEngine.RectTransform t, float sec = 0.4) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Breathe(UnityEngine.RectTransform t, float scale = 1.08, float period = 1.8) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static CollapseHeight(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static CollapseWidth(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ColorFlash(UnityEngine.RectTransform t, float sec = 0.3) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Disappear(UnityEngine.RectTransform t) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ElasticIn(UnityEngine.RectTransform t, float sec = 0.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ElasticOut(UnityEngine.RectTransform t, float sec = 0.4) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ExpandHeight(UnityEngine.RectTransform t, float sec = 0.3) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ExpandWidth(UnityEngine.RectTransform t, float sec = 0.3) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Fade(UnityEngine.CanvasGroup g, float to, float sec, DDrive.Foundation.Easing.Ease e = Linear) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static FadeIn(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static FadeOut(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Flash(UnityEngine.RectTransform t, float sec = 0.3) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static FlipInX(UnityEngine.RectTransform t, float sec = 0.35) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static FlipInY(UnityEngine.RectTransform t, float sec = 0.35) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static FlipOutX(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static FlipOutY(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Float(UnityEngine.RectTransform t, float distance = 10, float period = 1.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static HeartBeat(UnityEngine.RectTransform t, float sec = 0.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : bool
+  method static Jelly(UnityEngine.RectTransform t, float sec = 0.5) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static MoveAlong(UnityEngine.RectTransform t, DDrive.Foundation.Easing.SplinePath path, float sec, DDrive.Foundation.Easing.Ease e = Linear) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static MoveTo(UnityEngine.RectTransform t, UnityEngine.Vector2 to, float sec, DDrive.Foundation.Easing.Ease e = OutCubic) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.UiTweenMarker> id, UnityEngine.RectTransform target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Play(DDrive.Runtime.Ui.UiPreset preset, UnityEngine.RectTransform target, ref DDrive.Runtime.Ui.UiPresetRef p = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static PlayData(DDrive.Runtime.Ui.UiTweenData data, UnityEngine.RectTransform target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static PopIn(UnityEngine.RectTransform t, float sec = 0.3) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static PopOut(UnityEngine.RectTransform t, float sec = 0.2) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Progress(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : float
+  method static Pulse(UnityEngine.RectTransform t, float scale = 1.06, float period = 1.2) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static PunchRotation(UnityEngine.RectTransform t, float degrees = 15, float sec = 0.35) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static PunchScale(UnityEngine.RectTransform t, float strength = 0.2, float sec = 0.35) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static RainbowTint(UnityEngine.RectTransform t, float period = 2) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Rotate(UnityEngine.RectTransform t, float toZ, float sec, DDrive.Foundation.Easing.Ease e = OutCubic) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static RotateIn(UnityEngine.RectTransform t, float sec = 0.35) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static RotateLoop(UnityEngine.RectTransform t, float period = 2) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static RotateOut(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static RubberBand(UnityEngine.RectTransform t, float sec = 0.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Scale(UnityEngine.RectTransform t, float to, float sec, DDrive.Foundation.Easing.Ease e = OutBack) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ScaleIn(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ScaleOut(UnityEngine.RectTransform t, float sec = 0.2) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Sequence() : DDrive.Runtime.Ui.TweenSequence
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h, float speed) : void
+  method static Shake(UnityEngine.RectTransform t, float strength = 8, float sec = 0.4) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ShakeHard(UnityEngine.RectTransform t, float strength = 16, float sec = 0.5) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ShimmerAlpha(UnityEngine.RectTransform t, float period = 1.2) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeInBottom(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeInLeft(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeInRight(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeInTop(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeOutBottom(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeOutLeft(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeOutRight(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideFadeOutTop(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideInBottom(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideInLeft(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideInRight(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideInTop(UnityEngine.RectTransform t, float sec = 0.3, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideOutBottom(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideOutLeft(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideOutRight(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static SlideOutTop(UnityEngine.RectTransform t, float sec = 0.25, float distance = 0) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h, bool complete = false) : void
+  method static StopAll(UnityEngine.RectTransform target, bool complete = false) : void
+  method static Sway(UnityEngine.RectTransform t, float degrees = 8, float period = 1.4) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static Tada(UnityEngine.RectTransform t, float sec = 0.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static TypeFillIn(UnityEngine.RectTransform t, float sec = 0.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> h) : Cysharp.Threading.Tasks.UniTask
+  method static WobbleLoop(UnityEngine.RectTransform t, float degrees = 6, float period = 0.6) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ZoomInFade(UnityEngine.RectTransform t, float sec = 0.3) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method static ZoomOutFade(UnityEngine.RectTransform t, float sec = 0.25) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  property static IsBound : bool {get}
+TYPE class abstract DDrive.Runtime.Ui.UiInteractable : UnityEngine.MonoBehaviour
+  event OnDenied : System.Action
+  event OnFocus : System.Action<bool>
+  event OnHover : System.Action<bool>
+  event OnPress : System.Action<bool>
+  event OnStateChanged : System.Action<DDrive.Runtime.Ui.ControlState>
+  field BlockDoubleFire : bool
+  field CooldownSec : float
+  field SkinId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.ControlSkinMarker>
+  field TargetGraphic : UnityEngine.UI.Graphic
+  method ApplyDefaultSkin(DDrive.Runtime.Ui.ControlSkinData skin) : void
+  method ForceStateForPreview(DDrive.Runtime.Ui.ControlState state) : void
+  method OnDeselect(UnityEngine.EventSystems.BaseEventData eventData) : void
+  method OnMove(UnityEngine.EventSystems.AxisEventData eventData) : void
+  method OnPointerDown(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerExit(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerUp(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnSelect(UnityEngine.EventSystems.BaseEventData eventData) : void
+  method ResetInteractionState() : void
+  method SetDefaultSe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> click, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> hover, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> denied) : void
+  method SetFocused(bool focused) : void
+  method SetLocked(bool locked, string reasonKey = null) : void
+  method SetVisual(DDrive.Runtime.Ui.ControlSkinData skin) : void
+  method TickVisuals(float dt) : void
+  method static ResetDoubleFireGuardForTests() : void
+  property CanFocus : bool {get}
+  property HasExplicitSkin : bool {get}
+  property HasVisualAnimation : bool {get}
+  property Interactable : bool {get;set}
+  property LockReasonKey : string {get}
+  property State : DDrive.Runtime.Ui.ControlState {get}
+  property Transform : UnityEngine.Transform {get}
+  property static ScrollMaterialCountForTests : int {get}
+TYPE enum DDrive.Runtime.Ui.UiLayer
+  enum-member HUD = 0
+  enum-member Loading = 4
+  enum-member Menu = 1
+  enum-member Overlay = 3
+  enum-member Popup = 2
+  field const HUD : DDrive.Runtime.Ui.UiLayer
+  field const Loading : DDrive.Runtime.Ui.UiLayer
+  field const Menu : DDrive.Runtime.Ui.UiLayer
+  field const Overlay : DDrive.Runtime.Ui.UiLayer
+  field const Popup : DDrive.Runtime.Ui.UiLayer
+TYPE struct DDrive.Runtime.Ui.UiLayerDefaultEntry
+  field DefaultAppear : DDrive.Runtime.Ui.UiPresetRef
+  field DefaultButtonSkin : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.ControlSkinMarker>
+  field DefaultClickSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field DefaultDeniedSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field DefaultDisappear : DDrive.Runtime.Ui.UiPresetRef
+  field DefaultHoverSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field Layer : DDrive.Runtime.Ui.UiLayer
+TYPE class DDrive.Runtime.Ui.UiLayerSettings : UnityEngine.ScriptableObject
+  ctor UiLayerSettings()
+  field Layers : DDrive.Runtime.Ui.UiLayerDefaultEntry[]
+  method TryGet(DDrive.Runtime.Ui.UiLayer layer, out DDrive.Runtime.Ui.UiLayerDefaultEntry entry) : bool
+TYPE class sealed DDrive.Runtime.Ui.UiManager
+  ctor UiManager(DDrive.Foundation.Pool.IPoolService pool, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Pause.PauseService pause = null, DDrive.Foundation.Event.EventBus events = null, DDrive.Runtime.Ui.UiTweenManager tweens = null)
+  field AnimHook : System.Func<DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker>, UnityEngine.Animator, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Anim.AnimMarker>>
+  field const RootName : string
+  method Close(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : void
+  method CloseAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : Cysharp.Threading.Tasks.UniTask
+  method CloseTop() : bool
+  method CloseTopAsync() : Cysharp.Threading.Tasks.UniTask<bool>
+  method DestroyEditorRoot() : void
+  method GetComponent<T>(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle, string relativePath = null) : T
+  method GetContextTransform(DDrive.Foundation.Manager.InstanceContext ctx) : UnityEngine.Transform
+  method GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : UnityEngine.GameObject
+  method IsClosing(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : bool
+  method IsOpen(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : bool
+  method IsOpening(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : bool
+  method MoveFocus(UnityEngine.Vector2 dir) : bool
+  method MoveFocusFrom(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle, string currentPath, UnityEngine.Vector2 dir, out string nextPath) : bool
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method OnSignal(string key, System.Action<DDrive.Runtime.Ui.SignalArgs> cb) : System.IDisposable
+  method Open(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method OpenAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
+  method OpenData(DDrive.Runtime.Ui.CanvasData data, bool modal = false) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method Popup(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method PopupAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
+  method SendSignal(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> from, string elementPath = null, float value = 0) : void
+  method SetLayerSettings(DDrive.Runtime.Ui.UiLayerSettings settings) : void
+  method SetLayerVisible(DDrive.Runtime.Ui.UiLayer layer, bool visible) : void
+  method SetOptionStore(DDrive.Runtime.Ui.OptionStore options) : void
+  method SetTweenManager(DDrive.Runtime.Ui.UiTweenManager tweens) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  property Events : DDrive.Foundation.Event.EventBus {get}
+  property StackCount : int {get}
+  property Top : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Ui.UiNavigation : UnityEngine.MonoBehaviour
+  ctor UiNavigation()
+  field Down : UnityEngine.Transform
+  field Left : UnityEngine.Transform
+  field Right : UnityEngine.Transform
+  field Up : UnityEngine.Transform
+TYPE enum DDrive.Runtime.Ui.UiPreset
+  enum-member AttentionJump = 59
+  enum-member Blink = 41
+  enum-member BounceIn = 8
+  enum-member BounceOut = 28
+  enum-member Breathe = 44
+  enum-member CollapseHeight = 39
+  enum-member CollapseWidth = 38
+  enum-member ColorFlash = 54
+  enum-member ElasticIn = 9
+  enum-member ElasticOut = 29
+  enum-member ExpandHeight = 19
+  enum-member ExpandWidth = 18
+  enum-member FadeIn = 1
+  enum-member FadeOut = 21
+  enum-member Flash = 53
+  enum-member FlipInX = 10
+  enum-member FlipInY = 11
+  enum-member FlipOutX = 30
+  enum-member FlipOutY = 31
+  enum-member Float = 42
+  enum-member HeartBeat = 55
+  enum-member Jelly = 56
+  enum-member None = 0
+  enum-member PopIn = 7
+  enum-member PopOut = 27
+  enum-member Pulse = 40
+  enum-member PunchRotation = 50
+  enum-member PunchScale = 49
+  enum-member RainbowTint = 47
+  enum-member RotateIn = 12
+  enum-member RotateLoop = 45
+  enum-member RotateOut = 32
+  enum-member RubberBand = 58
+  enum-member ScaleIn = 6
+  enum-member ScaleOut = 26
+  enum-member Shake = 51
+  enum-member ShakeHard = 52
+  enum-member ShimmerAlpha = 46
+  enum-member SlideFadeInBottom = 17
+  enum-member SlideFadeInLeft = 14
+  enum-member SlideFadeInRight = 15
+  enum-member SlideFadeInTop = 16
+  enum-member SlideFadeOutBottom = 37
+  enum-member SlideFadeOutLeft = 34
+  enum-member SlideFadeOutRight = 35
+  enum-member SlideFadeOutTop = 36
+  enum-member SlideInBottom = 5
+  enum-member SlideInLeft = 2
+  enum-member SlideInRight = 3
+  enum-member SlideInTop = 4
+  enum-member SlideOutBottom = 25
+  enum-member SlideOutLeft = 22
+  enum-member SlideOutRight = 23
+  enum-member SlideOutTop = 24
+  enum-member Sway = 43
+  enum-member Tada = 57
+  enum-member TypeFillIn = 20
+  enum-member WobbleLoop = 48
+  enum-member ZoomInFade = 13
+  enum-member ZoomOutFade = 33
+  field const AttentionJump : DDrive.Runtime.Ui.UiPreset
+  field const Blink : DDrive.Runtime.Ui.UiPreset
+  field const BounceIn : DDrive.Runtime.Ui.UiPreset
+  field const BounceOut : DDrive.Runtime.Ui.UiPreset
+  field const Breathe : DDrive.Runtime.Ui.UiPreset
+  field const CollapseHeight : DDrive.Runtime.Ui.UiPreset
+  field const CollapseWidth : DDrive.Runtime.Ui.UiPreset
+  field const ColorFlash : DDrive.Runtime.Ui.UiPreset
+  field const ElasticIn : DDrive.Runtime.Ui.UiPreset
+  field const ElasticOut : DDrive.Runtime.Ui.UiPreset
+  field const ExpandHeight : DDrive.Runtime.Ui.UiPreset
+  field const ExpandWidth : DDrive.Runtime.Ui.UiPreset
+  field const FadeIn : DDrive.Runtime.Ui.UiPreset
+  field const FadeOut : DDrive.Runtime.Ui.UiPreset
+  field const Flash : DDrive.Runtime.Ui.UiPreset
+  field const FlipInX : DDrive.Runtime.Ui.UiPreset
+  field const FlipInY : DDrive.Runtime.Ui.UiPreset
+  field const FlipOutX : DDrive.Runtime.Ui.UiPreset
+  field const FlipOutY : DDrive.Runtime.Ui.UiPreset
+  field const Float : DDrive.Runtime.Ui.UiPreset
+  field const HeartBeat : DDrive.Runtime.Ui.UiPreset
+  field const Jelly : DDrive.Runtime.Ui.UiPreset
+  field const None : DDrive.Runtime.Ui.UiPreset
+  field const PopIn : DDrive.Runtime.Ui.UiPreset
+  field const PopOut : DDrive.Runtime.Ui.UiPreset
+  field const Pulse : DDrive.Runtime.Ui.UiPreset
+  field const PunchRotation : DDrive.Runtime.Ui.UiPreset
+  field const PunchScale : DDrive.Runtime.Ui.UiPreset
+  field const RainbowTint : DDrive.Runtime.Ui.UiPreset
+  field const RotateIn : DDrive.Runtime.Ui.UiPreset
+  field const RotateLoop : DDrive.Runtime.Ui.UiPreset
+  field const RotateOut : DDrive.Runtime.Ui.UiPreset
+  field const RubberBand : DDrive.Runtime.Ui.UiPreset
+  field const ScaleIn : DDrive.Runtime.Ui.UiPreset
+  field const ScaleOut : DDrive.Runtime.Ui.UiPreset
+  field const Shake : DDrive.Runtime.Ui.UiPreset
+  field const ShakeHard : DDrive.Runtime.Ui.UiPreset
+  field const ShimmerAlpha : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeInBottom : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeInLeft : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeInRight : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeInTop : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeOutBottom : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeOutLeft : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeOutRight : DDrive.Runtime.Ui.UiPreset
+  field const SlideFadeOutTop : DDrive.Runtime.Ui.UiPreset
+  field const SlideInBottom : DDrive.Runtime.Ui.UiPreset
+  field const SlideInLeft : DDrive.Runtime.Ui.UiPreset
+  field const SlideInRight : DDrive.Runtime.Ui.UiPreset
+  field const SlideInTop : DDrive.Runtime.Ui.UiPreset
+  field const SlideOutBottom : DDrive.Runtime.Ui.UiPreset
+  field const SlideOutLeft : DDrive.Runtime.Ui.UiPreset
+  field const SlideOutRight : DDrive.Runtime.Ui.UiPreset
+  field const SlideOutTop : DDrive.Runtime.Ui.UiPreset
+  field const Sway : DDrive.Runtime.Ui.UiPreset
+  field const Tada : DDrive.Runtime.Ui.UiPreset
+  field const TypeFillIn : DDrive.Runtime.Ui.UiPreset
+  field const WobbleLoop : DDrive.Runtime.Ui.UiPreset
+  field const ZoomInFade : DDrive.Runtime.Ui.UiPreset
+  field const ZoomOutFade : DDrive.Runtime.Ui.UiPreset
+TYPE class DDrive.Runtime.Ui.UiPresetCatalog : UnityEngine.ScriptableObject
+  ctor UiPresetCatalog()
+  field Entries : DDrive.Runtime.Ui.UiPresetCatalog.Entry[]
+TYPE struct DDrive.Runtime.Ui.UiPresetCatalog.Entry
+  field Category : string
+  field Name : string
+  field Tween : DDrive.Runtime.Ui.UiTweenData
+TYPE class static DDrive.Runtime.Ui.UiPresetFactory
+  method static Build(ref DDrive.Runtime.Ui.UiPresetRef p, UnityEngine.RectTransform target, DDrive.Runtime.Ui.TweenTrack[] buffer) : int
+  method static IsApproximation(DDrive.Runtime.Ui.UiPreset preset) : bool
+TYPE struct DDrive.Runtime.Ui.UiPresetRef
+  field Distance : float
+  field Duration : float
+  field EaseOverride : DDrive.Foundation.Values.EaseDef
+  field Preset : DDrive.Runtime.Ui.UiPreset
+  field Se : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+TYPE class static DDrive.Runtime.Ui.UiSkins
+  method static Bind(DDrive.Foundation.Registry.IAssetRegistry registry) : void
+  method static Bind(System.Func<DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.ControlSkinMarker>, DDrive.Runtime.Ui.ControlSkinData> resolver) : void
+  property static Resolver : System.Func<DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.ControlSkinMarker>, DDrive.Runtime.Ui.ControlSkinData> {get}
+TYPE class sealed DDrive.Runtime.Ui.UiSlider : DDrive.Runtime.Ui.UiInteractable
+  ctor UiSlider()
+  event OnCommit : System.Action<float>
+  event OnDragBegin : System.Action
+  event OnDragEnd : System.Action
+  event OnLimitReached : System.Action<bool>
+  event OnNotchPassed : System.Action<int>
+  event OnValueChanged : System.Action<float>
+  field ChangeThrottleSec : float
+  field DelayFillRect : UnityEngine.RectTransform
+  field DelayFollowMotion : DDrive.Foundation.Values.ValueDef
+  field Direction : DDrive.Runtime.Ui.SliderDirection
+  field EscapeOnLimit : bool
+  field FillRect : UnityEngine.RectTransform
+  field FineStepMultiplier : float
+  field FollowMotion : DDrive.Foundation.Values.ValueDef
+  field HandleRect : UnityEngine.RectTransform
+  field JumpOnTrackClick : bool
+  field Max : float
+  field Min : float
+  field NavigationInput : bool
+  field Notches : int
+  field NotifyOnlyOnCommit : bool
+  field PadRepeatDelaySec : float
+  field PadRepeatIntervalSec : float
+  field PadStepAmount : float
+  field PointerInput : bool
+  field Response : DDrive.Foundation.Values.ValueDef
+  field SnapThreshold : float
+  field Step : float
+  field TrackRect : UnityEngine.RectTransform
+  field WheelEnabled : bool
+  field WholeNumbers : bool
+  method Advance(float unscaledDt) : void
+  method AnimateTo(float value, ref DDrive.Foundation.Values.ValueDef motion) : void
+  method BeginDragAt(float normalizedPointer) : void
+  method DragTo(float normalizedPointer) : void
+  method EndDrag() : void
+  method EvaluateResponse(float p) : float
+  method InverseResponse(float f) : float
+  method Move(UnityEngine.EventSystems.MoveDirection dir, bool fine = false) : bool
+  method MoveRelease() : void
+  method OnBeginDrag(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnDrag(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnEndDrag(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnMove(UnityEngine.EventSystems.AxisEventData eventData) : void
+  method OnPointerDown(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerExit(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnPointerUp(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method OnScroll(UnityEngine.EventSystems.PointerEventData eventData) : void
+  method SetRange(float min, float max, bool keepNormalized = true) : void
+  method SetValueSilent(float v) : void
+  method SetVisual(DDrive.Runtime.Ui.SliderSkinData skin) : void
+  method TrackClickAt(float normalizedPointer) : void
+  method WaitCommitAsync(System.Threading.CancellationToken ct) : Cysharp.Threading.Tasks.UniTask<float>
+  method Wheel(float delta) : void
+  property CanFocus : bool {get}
+  property NormalizedValue : float {get;set}
+  property Value : float {get;set}
+TYPE class static DDrive.Runtime.Ui.UiSliderValidation
+  method static Validate(DDrive.Runtime.Ui.UiSlider slider, string path, System.Collections.Generic.List<DDrive.Foundation.Validation.ValidationResult> results) : void
+TYPE struct DDrive.Runtime.Ui.UiTransition
+  field Anim : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anim.AnimMarker>
+  field Duration : float
+  field Ease : DDrive.Foundation.Values.EaseDef
+  field Kind : DDrive.Runtime.Ui.UiTransitionKind
+  field SlideOffset : UnityEngine.Vector2
+TYPE enum DDrive.Runtime.Ui.UiTransitionKind
+  enum-member Anim = 4
+  enum-member Fade = 1
+  enum-member None = 0
+  enum-member Scale = 3
+  enum-member Slide = 2
+  field const Anim : DDrive.Runtime.Ui.UiTransitionKind
+  field const Fade : DDrive.Runtime.Ui.UiTransitionKind
+  field const None : DDrive.Runtime.Ui.UiTransitionKind
+  field const Scale : DDrive.Runtime.Ui.UiTransitionKind
+  field const Slide : DDrive.Runtime.Ui.UiTransitionKind
+TYPE class DDrive.Runtime.Ui.UiTweenData : DDrive.Foundation.Data.AssetDataBase
+  ctor UiTweenData()
+  field TotalDuration : float
+  field Tracks : DDrive.Runtime.Ui.TweenTrack[]
+  property ResolvedDuration : float {get}
+TYPE class sealed DDrive.Runtime.Ui.UiTweenDataValidator
+  ctor UiTweenDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class sealed DDrive.Runtime.Ui.UiTweenManager
+  ctor UiTweenManager(DDrive.Foundation.Registry.IAssetRegistry registry)
+  field GlobalSpeed : float
+  field const MaxTracksPerTween : int
+  method Fade(UnityEngine.CanvasGroup group, float to, float sec, DDrive.Foundation.Easing.Ease ease = Linear) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method IsPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle) : bool
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle) : bool
+  method MoveAlong(UnityEngine.RectTransform target, DDrive.Foundation.Easing.SplinePath path, float sec, DDrive.Foundation.Easing.Ease ease = Linear) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method MoveTo(UnityEngine.RectTransform target, UnityEngine.Vector2 to, float sec, DDrive.Foundation.Easing.Ease ease = OutCubic) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.UiTweenMarker> id, UnityEngine.RectTransform target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method PlayData(DDrive.Runtime.Ui.UiTweenData data, UnityEngine.RectTransform target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method PlayPreset(ref DDrive.Runtime.Ui.UiPresetRef p, UnityEngine.RectTransform target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method PlayTracks(DDrive.Runtime.Ui.TweenTrack[] tracks, int count, UnityEngine.RectTransform target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method PlayTracks(System.ReadOnlySpan<DDrive.Runtime.Ui.TweenTrack> tracks, UnityEngine.RectTransform target) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method Progress(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle) : float
+  method Rotate(UnityEngine.RectTransform target, float toZ, float sec, DDrive.Foundation.Easing.Ease ease = OutCubic) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method Scale(UnityEngine.RectTransform target, float to, float sec, DDrive.Foundation.Easing.Ease ease = OutBack) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
+  method SetPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle, bool paused) : void
+  method SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle, float speed) : void
+  method SetUseScaledTime(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle, bool useScaledTime) : void
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle, bool complete = false) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method StopAll(UnityEngine.RectTransform target, bool complete = false) : void
+  method Tick(float dt) : void
+  method WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker> handle) : Cysharp.Threading.Tasks.UniTask
+  property ActiveCount : int {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Ui.UiTweenMarker
+TYPE enum DDrive.Runtime.Ui.WireTrigger
+  enum-member Click = 0
+  enum-member DoubleClick = 1
+  enum-member LongPress = 2
+  enum-member Repeat = 3
+  field const Click : DDrive.Runtime.Ui.WireTrigger
+  field const DoubleClick : DDrive.Runtime.Ui.WireTrigger
+  field const LongPress : DDrive.Runtime.Ui.WireTrigger
+  field const Repeat : DDrive.Runtime.Ui.WireTrigger
+TYPE class static DDrive.Runtime.Vfx.Vfx
+  method static Attach(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, UnityEngine.Transform target) : void
+  method static Bind(DDrive.Runtime.Vfx.VfxManager instance) : void
+  method static Detach(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : bool
+  method static Kill(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : void
+  method static Move(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, UnityEngine.Vector3 position) : void
+  method static Preload(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>[] ids) : void
+  method static SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, string label, DDrive.Foundation.Data.ParamValue value) : void
+  method static SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, string label, UnityEngine.Color value) : void
+  method static SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, string label, float value) : void
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, float speed) : void
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchor) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchor, UnityEngine.Transform attach) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id, UnityEngine.Transform attach) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method static Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : void
+  property static IsBound : bool {get}
+TYPE class DDrive.Runtime.Vfx.VfxData : DDrive.Foundation.Data.AssetDataBase
+  ctor VfxData()
+  field Anchor : DDrive.Foundation.Data.AnchorDef
+  field AnchorId : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker>
+  field Duration : float
+  field FadeOutSec : float
+  field LifeMode : DDrive.Runtime.Vfx.VfxLifeMode
+  field LightLayerMask : uint
+  field Params : DDrive.Runtime.Vfx.VfxParam[]
+  field Prefab : UnityEngine.GameObject
+  field Render : DDrive.Runtime.Vfx.VfxRenderMode
+  field RenderLayer : int
+  field const LightLayerKeepPrefab : uint
+TYPE class sealed DDrive.Runtime.Vfx.VfxDataValidator
+  ctor VfxDataValidator()
+  method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
+  property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE class static DDrive.Runtime.Vfx.VfxHandleExtensions
+  method static Attach(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, UnityEngine.Transform target) : void
+  method static Detach(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : void
+  method static IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : bool
+  method static Kill(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : void
+  method static Move(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, UnityEngine.Vector3 position) : void
+  method static SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, string label, DDrive.Foundation.Data.ParamValue value) : void
+  method static SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, string label, UnityEngine.Color value) : void
+  method static SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, string label, float value) : void
+  method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h, float speed) : void
+  method static Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> h) : void
+TYPE enum DDrive.Runtime.Vfx.VfxLifeMode
+  enum-member Duration = 2
+  enum-member Loop = 1
+  enum-member OneShot = 0
+  field const Duration : DDrive.Runtime.Vfx.VfxLifeMode
+  field const Loop : DDrive.Runtime.Vfx.VfxLifeMode
+  field const OneShot : DDrive.Runtime.Vfx.VfxLifeMode
+TYPE class sealed DDrive.Runtime.Vfx.VfxManager
+  ctor VfxManager(DDrive.Foundation.Pool.IPoolService pool, DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Net.INetBridge netBridge = null)
+  method Attach(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, UnityEngine.Transform target) : void
+  method Detach(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : void
+  method GetAnchorExtraOffset(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : UnityEngine.Vector3
+  method GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : UnityEngine.GameObject
+  method IsPending(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : bool
+  method IsPlaying(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : bool
+  method Kill(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : void
+  method Move(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, UnityEngine.Vector3 position) : void
+  method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
+  method OnSceneUnload() : void
+  method Preload(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>[] ids) : void
+  method ReapplyAnchor(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : void
+  method SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, string label, DDrive.Foundation.Data.ParamValue value) : void
+  method SetPausedAll(bool paused) : void
+  method SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, float speed) : void
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchor, UnityEngine.Transform attach = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id, UnityEngine.Transform attach) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker> id, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method SpawnData(DDrive.Runtime.Vfx.VfxData data, System.Nullable<System.ValueTuple<UnityEngine.Vector3, UnityEngine.Quaternion>> explicitPose = null, UnityEngine.Transform contextRoot = null, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchorOverride = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method SpawnData(DDrive.Runtime.Vfx.VfxData data, ref DDrive.Runtime.Anchoring.AnchorSpawnSpec spec, UnityEngine.Transform contextRoot = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker>
+  method Stop(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : void
+  method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
+  method Tick(float dt) : void
+  method TryGetAnchorTarget(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, out UnityEngine.Transform target) : bool
+  method TryGetData(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, out DDrive.Runtime.Vfx.VfxData data) : bool
+  method TryGetEffectiveAnchor(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, out DDrive.Foundation.Data.AnchorDef anchor) : bool
+  property ActiveCount : int {get}
+  property Type : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Vfx.VfxMarker
+TYPE struct DDrive.Runtime.Vfx.VfxParam
+  field Anim : DDrive.Foundation.Values.ValueDef
+  field Default : DDrive.Foundation.Data.ParamValue
+  field Label : string
+  field TargetProperty : string
+  field Type : DDrive.Runtime.Vfx.VfxParamType
+TYPE enum DDrive.Runtime.Vfx.VfxParamType
+  enum-member Color = 2
+  enum-member Curve = 3
+  enum-member Float = 0
+  enum-member Gradient = 4
+  enum-member Int = 1
+  enum-member Texture = 5
+  enum-member Vector = 6
+  field const Color : DDrive.Runtime.Vfx.VfxParamType
+  field const Curve : DDrive.Runtime.Vfx.VfxParamType
+  field const Float : DDrive.Runtime.Vfx.VfxParamType
+  field const Gradient : DDrive.Runtime.Vfx.VfxParamType
+  field const Int : DDrive.Runtime.Vfx.VfxParamType
+  field const Texture : DDrive.Runtime.Vfx.VfxParamType
+  field const Vector : DDrive.Runtime.Vfx.VfxParamType
+TYPE enum DDrive.Runtime.Vfx.VfxRenderMode
+  enum-member UIOverlay = 1
+  enum-member World3D = 0
+  field const UIOverlay : DDrive.Runtime.Vfx.VfxRenderMode
+  field const World3D : DDrive.Runtime.Vfx.VfxRenderMode

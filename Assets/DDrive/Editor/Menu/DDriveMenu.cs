@@ -13,6 +13,9 @@ namespace DDrive.Editor.Menu
         // [11_tasks.md] 6-0(E) — 実機確認用ビルド一式。
         public const string Build = Root + "Build/";
 
+        // [42_distribution.md] §5.11(P-3) — 互換性スナップショット(ゴールデン)の更新導線。
+        public const string Compat = Root + "Compat/";
+
         // [11_tasks.md] U-17(2026-09-17) — Project ウィンドウの右クリックメニュー(Unity 標準の "Assets/" 配下)。
         // 選択中のソースアセット(AudioClip / Texture / FBX / Prefab / Material …)から Data を作る入口。
         public const string AssetsRoot = "Assets/D-Drive/";

@@ -160,6 +160,16 @@ namespace DDrive.Editor
             foreach (var guid in guids)
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
+
+                // [42_distribution.md] §5.11-2(P-3、2026-09-20) — 互換性スナップショットの「旧版フィクスチャ」
+                // (LegacyAssetFixtureTests、Tests/Editor/Compat/Fixtures/)は本物の Data 型で作られているため
+                // 通常の t:AssetDataBase 検索に引っかかる。Addressables 未登録等の Validation ノイズを
+                // 実データの Validate All に混ぜないため常に除外する。
+                if (path.Contains("/Compat/Fixtures/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
                 if (asset != null)
                 {
