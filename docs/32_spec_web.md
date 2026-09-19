@@ -3298,3 +3298,94 @@ Unity 側（`ManualUrlBuilderTests` の追加分含む）は EditMode/PlayMode �
    ユーザー作業）
 5. 古い（kind 無しの）マニュアルリンク（`?page=manual&p=Readme`）が引き続きデザイナーマニュアルの
    トップを開くこと（後方互換の確認）
+
+## 実装メモ（2026-09-20、ガント テンプレート生成 + 運用引き継ぎ手順）
+
+「誰が運用しても成り立つ発注ツール」にするための2点を実装した。**Unity 側の変更は無し（GAS の
+`Tools/SpecWeb/` 側のみ）。**
+
+### ガント テンプレート生成（`Tools/SpecWeb/src/GanttTemplate.js`、新規）
+
+§10.5 の「①メンバー取り込み」「②WBS 番号によるガントへのリンク」は、企画担当が所有する
+Google スプレッドシート「03_ガントチャート」（スケジュール／個人別タスク／ダッシュボード／設定
+の4タブ、Google 固有関数〔FILTER/SORT/SPARKLINE/QUERY〕+ container-bound script〔メニュー
+「📅 ガント」〕を持つ）の実在を前提にしていたが、**このシート自体は発注ツールに同梱されていなかった**
+（企画担当が個別に用意する前提のまま）。
+
+- **xlsx を同梱しない理由**: xlsx へ書き出すと Google 固有関数は
+  `__xludf.DUMMYFUNCTION("元の式")` に化けて動かなくなり、bound script も取り出せない
+  （実際に元シートを xlsx 書き出しして構造抽出に使った際に確認済み）。そのため
+  **「GAS が `SpreadsheetApp.create` で新しいスプレッドシートを組み立てる」方式**にした
+  （同梱物は xlsx ではなくコード）
+- **実装**: `createGanttTemplate_(options)`（内部、`SpreadsheetApp` 依存）と、admin セッション
+  必須の公開運用関数 `createGanttTemplate(projectName, startDateIso, weeks)`（README §5・§6 の
+  ブートストラップ関数と同じ位置付け。Web の画面には出さない）。数式の組み立て・祝日リストの
+  整形・担当者マスタの整形・条件付き書式/データ検証の定義は `SpreadsheetApp` 非依存の純関数に
+  分離し、`test/ganttTemplate.test.js` で検証する（既存 `test/load-gas.js` の流儀。
+  `SpreadsheetApp` のフェイクは用意していないため、実際にシートへ書き込む関数群はテスト対象外）
+- **実名を含めない**: 担当者マスタは `担当者A(PLN)` のようなプレースホルダー7件、プロジェクト名は
+  既定 `(プロジェクト名)`、タスクはサンプル投入相当の汎用5行のみ。祝日リスト（2026〜2028年）だけは
+  公開の祝日カレンダーであり実データ・個人情報ではないため、そのまま同梱した
+- **bound script 相当**: GAS API から他のスプレッドシートへ container-bound script を直接
+  付けることはできないため、(a) 同じ機能を SpecWeb 側の運用関数として提供
+  （`ganttJumpToToday(spreadsheetId)`/`ganttReapplyFormulas(spreadsheetId)`/
+  `ganttInsertSampleData(spreadsheetId)`、いずれも admin セッション必須）、(b) 生成先の
+  「使い方」タブに、メニューが欲しい場合に貼り付ける最小限のコード片を書き込む、の**両方**を
+  採用した（README §12 に採用理由を記載）
+- **再現度**: ヘッダ・凡例・日数/開始/状態の数式・条件付き書式（進行中/完了/遅延/未着手/
+  マイルストーン/今日/祝日/週末）・データ検証（担当プルダウン・進捗0〜1）・名前付き範囲
+  （祝日/土日稼働/担当者）・ダッシュボードの主要な集計・個人別タスクの FILTER/SORT 表示は再現した。
+  SPARKLINE の棒グラフ装飾、担当者を後から追加/削除したときのダッシュボード担当者別セクションの
+  自動追従、条件付き書式の正確な色（元シートの差分書式 dxf 定義との1対1対応）は省略・近似した
+  （README §12「再現度・省略した点」に詳細）
+- **`test/globals.test.js`**: 新設した4つの公開運用関数（`createGanttTemplate`/
+  `ganttJumpToToday`/`ganttReapplyFormulas`/`ganttInsertSampleData`）を `ADMIN_OPERATIONS` に
+  追加し、admin セッションが無ければ失敗することを検証する既存テストの対象に含めた
+
+### 運用引き継ぎ手順（`Tools/SpecWeb/HANDOVER.md`、新規）
+
+現状はユーザー個人（Gmail アカウント）が GAS プロジェクトの所有者兼運用者を兼ねている
+（§2.3 の決定どおり個人アカウント運用が前提）。別の誰かが運用者になっても成り立つように、
+以下を章立てでまとめた（実データ・実際の URL・トークンの値・実名は書かない）:
+
+1. 引き継ぎの全体像（デプロイ②が「実行ユーザー=自分」固定であることの影響が最重要）
+2. 所有者の移管（Apps Script プロジェクト・Drive の JSON ストレージフォルダ・画像フォルダ・
+   ガント スプレッドシートの所有権・アクセス権。ガントのシート自体は企画担当が所有し続ける前提を明記）
+3. スクリプトプロパティ（トークン kind ごと）の引き継ぎと再発行（値を見せずにローテーションする
+   手順を推奨）
+4. `users.json` の admin 引き継ぎ（最初の1人のブートストラップ、admin 0人ガードとロックアウト
+   回避の順序）
+5. デプロイ①②の更新手順（② はエディタ UI のみ、README §7 の事故事例を再掲して強調）
+6. Unity 側 `DDriveSpecSettings`（`.asset` の `WebAppUrl`/`HumanAppUrl` はチーム共有、
+   `EditorPrefs` のトークンはマシンごとに再設定が必要という違いを明記）
+7. 引き継ぎチェックリスト（順序付き、13項目）
+8. 個人 Gmail アカウント所有の制約（§2.3 決定の再掲）と、Workspace に移す場合の差分表
+
+README.md に §12「ガント テンプレートの生成」・§15「運用の引き継ぎ」（HANDOVER.md への
+リンク）を追加し、実装ファイル一覧に `src/GanttTemplate.js` を追記した。
+
+### テスト結果
+
+`node --test Tools/SpecWeb/test` で **536件 green**（既存521件 + `test/ganttTemplate.test.js`
+新設15件。`test/globals.test.js` の `ADMIN_OPERATIONS` 拡張分は既存テストケース内で検証される
+ため件数の増加は無い）。Unity 側は変更していないため未検証の必要も無い。
+
+### docs/42_distribution.md への追記が必要な内容（本チケットでは docs/42 を編集していない）
+
+P-10（Tools/SpecWeb 関連チケット、詳細は docs/42 参照）の AC・B群に、次の内容を反映することを
+提案する（別チケットで docs/42 の担当者が追記すること）:
+
+- 新設した `Tools/SpecWeb/src/GanttTemplate.js` の公開関数（`createGanttTemplate`/
+  `ganttJumpToToday`/`ganttReapplyFormulas`/`ganttInsertSampleData`）は、P チケット完了後の
+  互換性維持の対象に含めるかどうかの判断が必要（他の運用関数〔`issueApiToken` 等〕と同じ
+  「admin が Apps Script エディタから手で実行する運用関数」の扱いにするなら、公開シグネチャ
+  （引数の順序・意味）の変更は既存の呼び出しコード（あれば）を壊すため、他の運用関数と同じ
+  互換性維持ルールに含めるべき
+- `Tools/SpecWeb/HANDOVER.md` は P チケット完了後の「配布・更新の取り込み手順」（docs/42 の
+  スコープ）と重複する可能性がある内容（Apps Script プロジェクトの所有権・デプロイの更新手順）を
+  含むため、docs/42 側で D-Drive パッケージ配布の話をまとめる際に、SpecWeb の運用引き継ぎと
+  混同しないよう住み分け（「D-Drive〔Unity パッケージ〕の配布」と「SpecWeb〔GAS ツール〕の運用
+  引き継ぎ」は別物）を明記した方がよい
+- 生成される担当者マスタのプレースホルダー表記（`担当者A(PLN)` 等）や祝日リストは
+  ID/定数名ではなく表示用の初期データのため、docs/42 §5 のスナップショットテスト（ContentHash
+  等）の対象には含まれない想定である旨を確認しておくとよい

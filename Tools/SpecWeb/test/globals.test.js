@@ -52,7 +52,12 @@ const ADMIN_OPERATIONS = [
   'upsertSpecWebUser',
   'removeSpecWebUser',
   'listSpecWebUsers',
-  'migrateLegacyOrdersToNewSchema'
+  'migrateLegacyOrdersToNewSchema',
+  // 2026-09-20: ガント テンプレート生成（Tools/SpecWeb/src/GanttTemplate.js）。
+  'createGanttTemplate',
+  'ganttJumpToToday',
+  'ganttReapplyFormulas',
+  'ganttInsertSampleData'
 ];
 
 /** エラー型（`throw` 用のコンストラクタ。クライアントから呼んでも副作用が無い）。 */
@@ -121,7 +126,11 @@ test('運用関数は admin セッションでなければ失敗する（viewer 
     upsertSpecWebUser: ['someone@example.com', '誰か', 'viewer'],
     removeSpecWebUser: ['someone@example.com'],
     listSpecWebUsers: [],
-    migrateLegacyOrdersToNewSchema: []
+    migrateLegacyOrdersToNewSchema: [],
+    createGanttTemplate: ['サンプル', '2026-09-04', 4],
+    ganttJumpToToday: ['fake-spreadsheet-id'],
+    ganttReapplyFormulas: ['fake-spreadsheet-id'],
+    ganttInsertSampleData: ['fake-spreadsheet-id']
   };
 
   const cases = [
