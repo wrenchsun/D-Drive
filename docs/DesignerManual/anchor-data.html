@@ -10,6 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Anchor（出す位置）の作り方</nav>
 
 <h1>Anchor（出す位置）の作り方</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>Anchor は「エフェクトや効果音を<strong>どこに・いつ・どう</strong>出すか」だけを決めるデータです。「何を出すか」は持ちません。1 つ作っておけば、いくつもの VFX / SE から同じ位置設定を使い回せます。</p>
 <ul>
@@ -70,7 +71,11 @@
 <tr><td>SceneView</td><td>ルートから対象までを点線で結び、ランダム半径を円で表示。移動/回転ハンドルでドラッグして位置を決められます（Ctrl+Z 可）。ツールバーの「SceneView 表示」を OFF にすると何も描きません。VFX Editor など他の D-Drive ウィンドウも開いているときは、<strong>最後にクリックしたウィンドウだけ</strong>が詳細とハンドルを描き、他は薄い目印だけになります（重なって見づらくなるのを防ぐため。ツールバー下の「SceneView: …が描画中」で確認できます）</td></tr>
 <tr><td>検証</td><td>入れ子の循環、親が見つからない、Path が空、などの問題を表示</td></tr>
 </table>
-<!-- screenshot: 36-#23 / 未撮影: #19 と同じ理由（SceneView に基準が描かれない） -->
+<figure>
+<img src="images/anchor-editor-sceneview.png" alt="Anchor Editor の SceneView 表示">
+<figcaption>SceneView。左上が基準（赤い 3 軸とラベル）、そこから対象の位置（黄色い円と移動ハンドル）までの線に LocalOffset と距離が出る</figcaption>
+</figure>
+<p><a href="vfx-editor.html#anchor">VFX Editor</a> でも、Anchor アセットを設定した VFX なら同じ表示・同じハンドルで Anchor データを動かせます。どちらから動かしても同じ Anchor データが書き換わります。</p>
 
 <h2>設定項目</h2>
 <table>

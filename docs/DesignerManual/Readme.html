@@ -14,6 +14,7 @@
      詳細は docs/32_spec_web.md「実装メモ(2026-09-14、マニュアル配信)」参照)。 -->
 
 <h1>D-Drive デザイナーマニュアル</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>このマニュアルは、<strong>D-Drive</strong>（Designer-Driven Re: IDE Visual Environment、このプロジェクトのアセット管理システム）をデザイナーが使うためのガイドです。プログラムの知識は必要ありません。</p>
 
@@ -88,8 +89,8 @@
 <p>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れなどをまとめて 1 つの演出にする機能。専用の Presentation Editor でタイムライン編集 + 統合プレビューができます。</p></li>
 <li><a href="camera-haptics.html">画面の揺れ・コントローラーの振動</a>
 <p>画面をガクガク揺らす（カメラシェイク）・パッドをブルブル振動させる（ハプティクス）データの作り方。専用の Shake / Haptics Editor で波形を見ながら調整・実際に揺らして/振動させて確認できます。</p></li>
-<li><a href="cutscene-maya-export.html">カットシーン用 FBX を Maya から書き出す（予告）</a>
-<p>Maya のカメラ・キャラの動きを Unity の Timeline に取り込むための、Maya 側の書き出し手順とファイル名のルール。スクリプト不要。Unity 側の取り込み機能は準備中ですが、Maya 側の作業は今から始められます。</p></li>
+<li><a href="cutscene-maya-export.html">カットシーン（Timeline）: Maya から書き出して Unity で演出を足す</a>
+<p>Maya のカメラ・キャラの動きを Unity の Timeline に取り込むための、Maya 側の書き出し手順とファイル名のルール。スクリプト不要。FBX を置くだけでカットシーンのデータと Timeline が自動で作られ、Unity の Timeline ウィンドウで効果音・エフェクト・画面揺れを足せます（2026-09-18 に取り込み機能を実装、使い方は 2026-09-19 に追記）。</p></li>
 <li><a href="spec-sync.html">アセット発注ツール（Web）との同期</a>
 <p>企画がブラウザの発注ツールに登録した発注を D-Drive の空データに変換する。発注者・受注者・状態（発注済→納品済→インポート済）の反映、調整値のコード連携、パラメータ一覧の送信も。</p></li>
 <li><a href="glossary.html">用語集</a>
@@ -110,6 +111,22 @@
 <img src="images/root-overview.png" alt="Asset Browser 全体像のスクリーンショット">
 <figcaption>Asset Browser の全体像（画像が表示されない場合は準備中です）</figcaption>
 </figure>
+
+<h2>最近の更新</h2>
+<p>各ページの見出しの下に「最終更新日」を入れました（2026-09-19 追加）。マニュアル全体の最終更新は <strong>2026-09-19</strong> です。</p>
+<table>
+<tr><th>日付</th><th>更新内容</th></tr>
+<tr><td>2026-09-19</td><td>
+<ul>
+<li><a href="cutscene-maya-export.html#timeline">カットシーン（Timeline）の使い方</a>を追加（トラックの種類・原点・Skip・確認の手順）</li>
+<li><a href="asset-browser.html">Asset Browser</a>: 行を選んで Delete キーで削除画面を開く / 右クリックに「パスをコピー」 / 新規作成ダイアログの「仕様書から選ぶ」を折りたためる</li>
+<li><a href="vfx-editor.html#anchor">VFX Editor</a>: Anchor アセットを使っていても SceneView に連鎖を表示し、ハンドルで動かせる（<a href="anchor-data.html">Anchor Editor</a> と同じ表示）</li>
+<li><a href="validation.html">検証</a>: URP でも描画される古いシェーダー（Default-Particle 等）は、Error ではなく置き換え推奨の Warning として表示</li>
+<li><a href="glossary.html">確認用シーン</a>: 各エディタ共通の確認用シーン <code>PreviewScene</code> とメニュー「共通確認用シーンを開く」を用語集に追記</li>
+<li>スクリーンショットを 9 枚追加・差し替え</li>
+</ul>
+</td></tr>
+</table>
 
 <h2>困ったときは</h2>
 <ul>

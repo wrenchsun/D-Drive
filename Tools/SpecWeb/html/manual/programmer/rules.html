@@ -42,7 +42,12 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page pre {
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page .lastupdate {
+    margin: -0.4em 0 1.2em;
+    font-size: 0.85em;
+    color: #777;
+    text-align: right;
+}.sw-manual-page pre {
     background: #2b2b2b;
     color: #e8e8e8;
     padding: 14px 16px;
@@ -146,7 +151,7 @@
 <p>Manager は Data（<code>AssetDataBase</code> 派生の ScriptableObject）を実行時に書き換えません。Instance ごとに変化する現在値（再生位置、現在のマテリアル値など）は Instance 側に持たせます（例: <code>ModelsManager.Materials</code>）。エディタコードが Data を書き換えるときは必ず <code>Undo.RecordObject</code> + <code>EditorUtility.SetDirty</code> を通してください。</p>
 
 <h2 id="cutscene-contract">Cutscene（Timeline カットシーン）と共存するためのゲーム側の責務</h2>
-<p><strong>2026-09-18 に決めた契約です（設計書 <code>docs/26_timeline.md</code> §4.5.1 / §4.6.5。実装は Timeline チケット 6-10a〜d で、このページを書いた時点ではまだコードはありません）。</strong> Maya で作ったカメラワークをゲームカメラに滑らかに繋ぐため、D-Drive はカットシーン再生中にゲームのメインカメラ（<code>Camera.main</code>）の姿勢を<strong>ゲーム側の書き込みの後から上書き</strong>します。この上書きが成り立つ条件と、入力ロックの分担を、持ち込み先のゲームコードが守る契約として先に決めました（MS2026 のカメラ制御はこの契約に合わせて設計します）。</p>
+<p><strong>2026-09-18 に決めた契約です(設計書 <code>docs/26_timeline.md</code> §4.5.1 / §4.6.5。Timeline チケット 6-10a〜d で実装完了、<code>CameraExecutionOrderValidator</code> による検出 1 も 6-10d で実装済みです)。</strong> Maya で作ったカメラワークをゲームカメラに滑らかに繋ぐため、D-Drive はカットシーン再生中にゲームのメインカメラ(<code>Camera.main</code>)の姿勢を<strong>ゲーム側の書き込みの後から上書き</strong>します。この上書きが成り立つ条件と、入力ロックの分担を、持ち込み先のゲームコードが守る契約として先に決めました(MS2026 のカメラ制御はこの契約に合わせて設計します)。</p>
 
 <h3 id="camera-order">1. ゲームカメラ制御の実行順（契約）</h3>
 <p>D-Drive 側は <code>DDriveCutsceneCameraApplier</code>（初回再生時に <code>Camera.main</code> へ自動で付く小さな MonoBehaviour）が <code>LateUpdate</code> でカメラの Transform・画角を書きます。この実行順は次のとおりです。</p>
@@ -199,7 +204,7 @@ Cutscene.OnInputLockChanged
 </table>
 
 <div class="warn">
-<strong>[6/6] NetCheck の失敗が従来握りつぶされていました。</strong> <code>run-ci.cmd</code> の <code>if exist ... call "%~dp0run-netcheck.cmd"</code> ブロック内では、バッチファイルの遅延展開の仕様上 <code>%ERRORLEVEL%</code> がブロックに入る前の値（直前の [5/6] Performance の結果）に展開されてしまい、NetCheck 自体の成否が正しく判定されていませんでした（2026-09-17 修正、<code>!ERRORLEVEL!</code> の遅延展開 + <code>NETCHECK_EXIT</code> への退避で修正済み）。<strong>修正後の初回実行では、今まで見えていなかった NetCheck の失敗が新たに表面化する可能性があります</strong>。[6/6] が FAIL した場合は <code>%RESULTS_DIR%\NetCheck\summary.md</code> を確認してください。
+<strong>[6/6] NetCheck が FAIL したとき:</strong> <code>%RESULTS_DIR%\NetCheck\summary.md</code> を確認してください。
 </div>
 
 <h2 id="checklist">PR チェックリスト</h2>

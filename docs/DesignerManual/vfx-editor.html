@@ -10,6 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › VFX Editor の使い方</nav>
 
 <h1>VFX Editor の使い方</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>VFX Editor は、エフェクト（<span class="term" title="Unity の ParticleSystem などで作られた、火花・斬撃・煙などの見た目の演出">VFX</span>）を<strong>ゲームを実行せずにその場で再生しながら</strong>調整するウィンドウです。できること:</p>
 <ul>
@@ -61,7 +62,7 @@
 <p>VFX データの主要な項目をこのウィンドウ内で直接編集できます。項目の意味は <a href="vfx-data.html">VFX の設定項目</a> を見てください。Prefab を差し替えると、再生中なら自動で新しい Prefab に出直します。</p>
 
 <h2 id="anchor">Anchor（アタッチ位置）の調整</h2>
-<p>欄の先頭の「Anchor アセット」に <a href="anchor-data.html">Anchor データ</a>を入れると、そちらが優先され、下の埋め込み欄は畳まれます（位置の調整は「AnchorEditor で開く」から）。「埋め込みをアセット化」で今の設定から Anchor データを作ることもできます。以下は埋め込み欄の説明です。</p>
+<p>欄の先頭の「Anchor アセット」に <a href="anchor-data.html">Anchor データ</a>を入れると、そちらが優先され、下の埋め込み欄は畳まれます（位置の調整は「AnchorEditor で開く」から、または下の SceneView のハンドルで）。「埋め込みをアセット化」で今の設定から Anchor データを作ることもできます。以下は埋め込み欄の説明です。</p>
 <p>「エフェクトをどこに出すか」を決めます。<strong>再生中に動かすと、出ているエフェクトがその場で動きます</strong>（停止→再生の押し直しは不要）。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
@@ -75,7 +76,13 @@
 <tr><td>親消滅後も残す</td><td>ON にすると、基準のキャラクターが消えてもエフェクトはその場に残って最後まで再生されます（斬撃の軌跡など）。</td></tr>
 <tr><td>SceneView 表示</td><td>ON にすると SceneView のエフェクト位置に目印が出て、<strong>このウィンドウを最後にクリックしていれば</strong>移動ハンドル（矢印）も出ます。ドラッグで直接動かせ、値はこのウィンドウに戻ってきます。回転ツール（E キー）に切り替えると回転ハンドルになります。OFF にすると何も描きません。Anchor Editor など他の D-Drive ウィンドウも開いているときは、最後にクリックしたウィンドウだけがハンドルを出し、他は薄い目印だけになります（下の「SceneView: …が描画中」の案内で確認できます）。</td></tr>
 </table>
-<!-- screenshot: 36-#20 / 未撮影: 理由未記載 -->
+<figure>
+<img src="images/vfx-editor-anchor-handle.png" alt="VFX Editor と SceneView の移動ハンドル">
+<figcaption>VFX Editor（右）と SceneView（左）。「SceneView 表示」が ON のとき、エフェクトの位置に基準・線・移動ハンドルが出る</figcaption>
+</figure>
+<div class="tip">
+<strong>Anchor アセットを使っているときも SceneView で動かせます:</strong> 「Anchor アセット」を設定した VFX でも、Anchor Editor と同じ表示（基準 → 入れ子の各段 → 最終位置を点線と線で結び、ランダム半径を円で表示）が出て、最終位置のハンドルをドラッグするとその位置に動かせます（ラベルに「Anchor アセットを編集」と出ます）。Ctrl+Z で戻せます。<strong>ただし動かすのは VFX 自身ではなく、参照している Anchor データそのものです。</strong>同じ Anchor を使っている他の VFX・SE の位置も一緒に変わります。この VFX だけ動かしたいときは、「埋め込みをアセット化」ではなく、Anchor アセット欄を外して埋め込みの設定を使ってください。
+</div>
 <div class="tip">
 Ctrl+Z / Ctrl+Y で戻せます。ウィンドウの値・出ているエフェクトの位置・SceneView の表示が一緒に戻ります。
 </div>

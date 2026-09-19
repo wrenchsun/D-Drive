@@ -42,9 +42,15 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › アニメーション（3D）の設定と Anim Editor</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page .lastupdate {
+    margin: -0.4em 0 1.2em;
+    font-size: 0.85em;
+    color: #777;
+    text-align: right;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › アニメーション（3D）の設定と Anim Editor</nav>
 
 <h1>アニメーション（3D）の設定と Anim Editor</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>アニメーションデータ（AnimData）は「この Clip を、このステートで、いつ効果音・エフェクトを出しながら再生するか」をまとめたものです。基本の動き（待機・歩き）は Animator Controller に持たせ、攻撃・被弾などの<strong>ワンショット</strong>を D-Drive のアニメーションデータで再生します。</p>
 <ul>
@@ -132,6 +138,9 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 <li>「↗」でその音・エフェクトの専用エディタが開きます（中身を直したいとき）</li>
 </ol>
 <div class="tip">▶ で最初から再生し直すときと ■ 停止のときは、前に出した音・エフェクトは消えます。</div>
+<div class="tip">
+<strong>新しく作った SE / VFX をイベントに割り当てたとき:</strong> ウィンドウを開いたままで割り当てても、次に「▶ 再生」を押せば鳴る・出ます（再生のたびに最新のアセットを読み直します）。一時停止からの「▶ 再開」では読み直さないので、割り当てを変えたら「■ 停止」してから「▶ 再生」を押してください。
+</div>
 <div class="tip">
 <strong>Animator から選ぶ:</strong> 「Animator から選択(ステートを選ぶと AnimData を探す / 作る)」でモデルの Controller にあるステート（Idle / Attack …）を選ぶと、そのアニメーションデータに自動で切り替わります。まだ無ければ「このクリップの AnimData を作成(ID 発行・カタログ・Addressables 登録)」を押すだけで作られます。方向違いのクリップにも同じ音を付けたいときは「同じステートの他クリップの AnimData へ一括コピー(無ければ作成)」。
 </div>

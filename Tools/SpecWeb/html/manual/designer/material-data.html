@@ -42,9 +42,15 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › マテリアル / テクスチャの設定項目</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page .lastupdate {
+    margin: -0.4em 0 1.2em;
+    font-size: 0.85em;
+    color: #777;
+    text-align: right;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › マテリアル / テクスチャの設定項目</nav>
 
 <h1>マテリアル / テクスチャの設定項目</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>マテリアルデータ（MaterialData）は、<strong>Unity の Material の代わりに D-Drive で編集する「素材」のデータ</strong>です。色・テクスチャ・光り方・透け方をここに書いておくと、Unity の Material 実体は D-Drive が自動で作って共有します。デザイナーが Unity の Material を直接作る必要はありません。</p>
 <ul>
@@ -202,7 +208,7 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Shader が未設定です(既定の Lit で生成されます。意図した見た目か確認してください)</td><td>Shader を設定する</td></tr>
-<tr><td>シェーダー '…' は … 用ですが、プロジェクトは … です。正しく描画されません</td><td>同じレンダーパイプライン用のシェーダーに差し替える（Error）</td></tr>
+<tr><td>シェーダー '…' は … 用ですが、プロジェクトは … です。描画されません（Error）/ 描画はされますが … 用シェーダーへの置き換えを推奨します（Warning）</td><td>同じレンダーパイプライン用のシェーダーに差し替える。光の計算をしない単純な Built-in 用シェーダー（Legacy のパーティクル等）は URP でも描画されるため Warning</td></tr>
 <tr><td>Common.Albedo(ベースカラー)が未設定です</td><td>テクスチャデータを割り当てる。AlbedoTint だけで塗るなら無視して可</td></tr>
 <tr><td>Transparent なのに RenderQueue(…)が Opaque 帯です / 不透明なのに RenderQueue(…)が Transparent 帯です</td><td>RenderQueueOffset を 0 に戻す</td></tr>
 <tr><td>EmissionIntensity &gt; 0 ですが Emission テクスチャも EmissionColor も無いため発光しません</td><td>EmissionColor を黒以外にするか、Intensity を 0 に</td></tr>
@@ -234,7 +240,7 @@ Console に「[DDrive] TextureData '…': Usage/Channel から求まる Texture 
 <li><strong>Specific に共通チャンネル名（<code>_BaseMap</code> や <code>_Metallic</code> など）が入ると、Common の値が黙って上書きされます</strong>。値は消えませんが、Common を変えても見た目が変わらなくなります。検証の Warning を見たら Material Editor の「共通チャンネルの重複を削除」で取り除いてください</li>
 <li>プレビューが<strong>真っピンク（マゼンタ）</strong>なら、テクスチャデータの ID 参照が切れているか未登録です</li>
 <li>Shader 未設定のときの既定は URP Lit で、<code>DDrive/Lit</code> ではありません。<code>DDrive/Lit</code> の固有は <code>_OcclusionStrength</code> のみ、<code>DDrive/Unlit</code> は固有なしです</li>
-<li>半透明マテリアルのサムネイル / アイコンに穴が開く問題は 2026-09-11 に修正済みですが、<strong>それ以前に作った古いアイコン PNG は作り直し</strong>が必要です（<code>Tools &gt; D-Drive &gt; Generate &gt; 初期アイコンを生成(未設定の Data のみ)</code> は未設定のものだけが対象）</li>
+<li>半透明マテリアルのサムネイル / アイコンに穴が開いて見えるときは、<strong>古いアイコン PNG の作り直し</strong>が必要です（<code>Tools &gt; D-Drive &gt; Generate &gt; 初期アイコンを生成(未設定の Data のみ)</code> は未設定のものだけが対象）</li>
 <li>2026-09-11 より前に作られた aiStandardSurface 由来のマテリアルは Metalness / Roughness / SpecColor / Opacity マップが効きません。<strong>FBX を再インポートすれば直ります</strong>。Shader が None のままの Maya 由来データも、再インポートで自動設定されます</li>
 <li>Maya インポート直後にプレビューが灰色（テクスチャ無し）になったら、Material Editor を開き直すか「再生成」を押してください</li>
 <li>UsedInCanvas / UsedInModels（どこで使われているかの一覧）、Skybox の切替は未実装です</li>

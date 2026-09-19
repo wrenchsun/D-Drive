@@ -97,7 +97,6 @@
 <li><strong>偽造メッセージ破棄</strong>: Client 役が周期的に送る偽造 <code>PresentationCancelMsg</code>（自分が発行していない <code>HandleNetKey</code>）が、Host・他 Client の両方で確実に破棄されることを確認（送信件数と破棄件数が一致）</li>
 <li><strong>切断</strong>: Host 停止時に Client が <code>[Net/Client] ... Host から切断されました</code> を検知し、進行中のネット経由演出（VFX 含む）を <code>PresentationManager.CancelAllNetworked()</code> で後片付けすることを確認</li>
 </ul>
-<p>確認の過程で見つかった実バグ（遅延時にワンショット演出が一切発火しない、切断後も VFX が描画され続ける、等）はすべて修正済みです。詳細な原因と修正内容は <code>docs/14_networking.md</code>「実装メモ（6-0 修正6/修正7）」を参照してください。</p>
 
 <h2 id="samples">実例</h2>
 <p><code>Assets/DDrive/Samples/</code> 配下に 2 つのサンプルがあります（Validation の走査対象外。確認できたら削除してよいデモコード）。</p>

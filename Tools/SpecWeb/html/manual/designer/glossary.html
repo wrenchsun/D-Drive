@@ -42,9 +42,15 @@
     border: 1px solid #d0d8e8;
     border-radius: 8px;
     padding: 14px;
-}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › 用語集</nav>
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page .lastupdate {
+    margin: -0.4em 0 1.2em;
+    font-size: 0.85em;
+    color: #777;
+    text-align: right;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › 用語集</nav>
 
 <h1>用語集</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>マニュアルや Unity の画面に出てくる言葉の説明です。五十音・アルファベット順。</p>
 
@@ -60,7 +66,7 @@
 <tr><td id="placeholder">Placeholder（プレースホルダー）</td><td>まだ中身（音・見た目）が入っていない、<strong>ID だけ確保された空のデータ</strong>。プログラマーは中身が無くてもこの ID でコードを書き進められます。<a href="#" data-manual-kind="designer" data-manual-page="spec-sync">仕様書と同期</a>で新規行から自動的に作られるのもこれです。デザイナーが後から中身を作り込むと Placeholder ではなくなります。</td></tr>
 <tr><td id="archive">Archive（アーカイブ）/ Archived タグ</td><td>「もう使っていないかもしれない」印を付けるだけの操作で、<strong>削除ではありません</strong>。ファイルはそのまま残ります。<a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a> の「未使用...」一覧から一括で付けられます。実際に消すかどうかは人が別途「削除...」で判断します。</td></tr>
 <tr><td id="catalog">カタログ (AssetCatalog)</td><td>どの ID がどのアセットかを書いた管理台帳。Asset Browser で作れば自動で載るので、普段は意識しません。</td></tr>
-<tr><td id="previewscene">確認用シーン</td><td>ライト・カメラ・床がそろった、見た目チェック専用のシーン。各エディタの「確認用シーンを開く」で開きます（無ければ自動で作られます）。D-Drive のエディタは<strong>ウィンドウの中に絵を出さず、必ずシーンに置いて SceneView / Game ビューで確認</strong>します。</td></tr>
+<tr><td id="previewscene">確認用シーン</td><td>ライト・カメラ・床がそろった、見た目チェック専用のシーン。各エディタの「確認用シーンを開く」で開きます（無ければ自動で作られます）。<strong>VFX / Anchor / Anim / Anim2D / Model / Prefab / Presentation の各エディタは同じ共通の確認用シーン <code>Assets/GameData/PreviewScenes/PreviewScene.unity</code> を使い回します</strong>（メニューは <code>Tools &gt; D-Drive &gt; Editors &gt; 共通確認用シーンを開く</code>）。Canvas は <code>CanvasPreviewScene</code>、揺れ・振動は <code>CameraShakePreviewScene</code>、カットシーンは <code>CutscenePreviewScene</code> という専用のシーンがあります。D-Drive のエディタは<strong>ウィンドウの中に絵を出さず、必ずシーンに置いて SceneView / Game ビューで確認</strong>します。</td></tr>
 <tr><td>識別子</td><td>アセット登録時に入力する英語の名前（例: SwordSlash）。プログラマーがコードで使う名前になります。英字大文字始まり・英数字のみ。</td></tr>
 <tr><td id="fix">修正ボタン (FixAction)</td><td><a href="#" data-manual-kind="designer" data-manual-page="validation">Validation</a> の警告の横に出る、その場で自動修正するボタン。付いていない警告は手で直します。</td></tr>
 <tr><td id="spawn">Spawn / Despawn<br>（スポーン / デスポーン）</td><td>シーンに出すこと / 消すこと。モデル・Prefab・VFX で使う言葉。</td></tr>

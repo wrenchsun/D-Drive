@@ -10,6 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 2D アニメーション(スプライト)の作成と Anim2D Editor</nav>
 
 <h1>2D アニメーション(スプライト)の作成と Anim2D Editor</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>2D アニメーションデータ（Anim2DData）は「<strong>このパラパラ絵（スプライトの Clip）を、どのステート・レイヤーで、方向ありなら 4 方向 / 8 方向のどれとして再生するか</strong>」をまとめた再生単位です。3D のアニメーションデータ（AnimData）の仲間なので、再生の仕組み・Frame/Time イベント・切り替え時の混ざり（CrossFade）はすべて 3D と共通です。</p>
 <p><strong>スプライトシート</strong>（コマ絵を 1 枚の画像に並べたもの）を渡すと、Anim2D Editor が次をまとめて行います。</p>
@@ -33,7 +34,7 @@
 <div class="warn">Asset Browser に画像をドラッグ&amp;ドロップしても Anim2DData は作れません（ドラッグ&amp;ドロップで作れるのは音源 → SE だけです）。画像からの作成は必ず Anim2D Editor の「スプライトから新規作成…」ポップアップで行います。</div>
 
 <div class="tip">
-<strong>2026-09-17 更新:</strong> 以前は Anim2D Editor 本体を「作成」/「編集」のタブで切り替えていましたが、作成はタブに分ける必要が無いため独立したポップアップウィンドウ「Anim2D 新規作成」に分離しました。Anim2D Editor 本体は常に編集(Edit)画面だけを表示します。
+新規作成は独立したポップアップウィンドウ「Anim2D 新規作成」（ツールバーの「スプライトから新規作成…」から開きます）で行います。Anim2D Editor 本体は常に編集(Edit)画面だけを表示します。
 </div>
 
 <h2>はじめの一歩（4 コマ横並びのシートから待機アニメを作る）</h2>
@@ -46,10 +47,9 @@
 <li>「プレビュー(SceneView で確認)」で「<strong>確認用シーンを開く</strong>」→「<strong>▶ 再生</strong>」→ SceneView でコマが切り替わるのを確認。終わったら「<strong>撤去</strong>」</li>
 <li>足音や効果音を付けたいときは「<strong>Anim Editor で開く(イベント D&amp;D・SE/VFX 同時再生)</strong>」→ <a href="anim-editor.html">Anim Editor</a> のタイムラインで「＋ 現在位置に SE」（手順はそちらのページ）</li>
 </ol>
-<!-- screenshot: 36-#32 (U-8 で UI がポップアップに変わったため要再撮影) -->
 <figure>
 <img src="images/anim2d-editor-create-mode.png" alt="Anim2D 新規作成ポップアップ">
-<figcaption>「Anim2D 新規作成」ポップアップ(旧: 作成モードのタブ)。入力モード・Texture・Name/State・Frame Rate/Loop を入れて生成する</figcaption>
+<figcaption>「Anim2D 新規作成」ポップアップ。入力モード・Texture・Name/State・Frame Rate/Loop を入れて生成する</figcaption>
 </figure>
 
 <div class="tip">プログラマーは 3D と同じく <code>Anim.Play(ID, animator)</code> を呼ぶだけです。カタログも 3D と共通（AnimCatalog）です。</div>
@@ -90,7 +90,6 @@
 </figure>
 
 <h3>Anim2D Editor 本体(編集)</h3>
-<!-- screenshot: 36-#34 (U-8 で UI がポップアップに変わったため要再撮影) -->
 <figure>
 <img src="images/anim2d-editor-edit-mode.png" alt="Anim2D Editor 本体(編集)">
 <figcaption>Anim2D Editor 本体。編集対象の読み込み・プレビュー・リタイミング・検証をまとめて行う(作成は「Anim2D 新規作成」ポップアップ側)</figcaption>

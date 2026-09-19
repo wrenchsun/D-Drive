@@ -2,14 +2,15 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>カットシーン用 FBX を Maya から書き出す | D-Drive デザイナーマニュアル</title>
+<title>カットシーン（Timeline）: Maya から書き出して Unity で演出を足す | D-Drive デザイナーマニュアル</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › カットシーン用 FBX を Maya から書き出す</nav>
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › カットシーン（Timeline）: Maya から書き出して Unity で演出を足す</nav>
 
-<h1>カットシーン用 FBX を Maya から書き出す</h1>
+<h1>カットシーン（Timeline）: Maya から書き出して Unity で演出を足す</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>必殺技のカットインやラウンド開始 / 勝利デモのような<strong>数秒の短い演出</strong>で、Maya で作ったカメラワークとキャラの動きをそのまま Unity で再生するための、<strong>Maya 側の書き出し手順</strong>です。Maya のスクリプトやプラグインは使いません。標準の FBX 書き出しだけで済みます。Unity 側では、決められたフォルダに FBX を置くだけでカットシーンのデータ（CutsceneData）と Timeline が自動で作られ、そこに効果音・エフェクト・画面揺れなどを足せます。</p>
 
@@ -80,6 +81,50 @@
 <li>Asset Browser でショットの CutsceneData を選ぶと、Inspector 上部に「Timeline ウィンドウで開く」「Cutscene確認用シーンを開く」ボタンとバインド検査(役割名⇔Timeline のトラック名の食い違い)が出ます。効果音・エフェクト・画面揺れは Timeline ウィンドウで足す（<a href="presentation.html">演出</a>と同じ ID を置くだけ）</li>
 <li>実際に再生してカメラとキャラの動きが Maya と同じか見るには、「Cutscene確認用シーンを開く」で確認用シーンを開き、<strong>Play ボタンを押して(Play Mode に入って)</strong> から CutsceneData の Inspector の「再生」ボタンを押してください(カメラ・効果音・エフェクトの実際の適用は Play Mode 中でないと確認できません)。Play Mode 中は Timeline ウィンドウでスクラブしても実際の見た目のまま確認できます</li>
 </ol>
+
+<h2 id="timeline">Unity の Timeline ウィンドウで演出を足す</h2>
+<p>FBX を置くと自動で作られる Timeline に、効果音・エフェクト・画面揺れなどを足して仕上げます。編集画面は Unity 標準の <strong>Timeline ウィンドウ</strong>です（D-Drive 専用の画面は作っていません）。</p>
+
+<h3>カットシーンと「演出（Presentation）」の使い分け</h3>
+<table>
+<tr><th>質問</th><th>選ぶもの</th></tr>
+<tr><td>Maya で作ったカメラやキャラの動き（FBX）を使う？ / 演出中カメラをゲームから奪って別のカメラワークにする？</td><td><strong>カットシーン</strong>（このページ）</td></tr>
+<tr><td>ヒット判定など「ゲームの結果を待ってから」続きを出したい？ / 既存の SE・VFX・揺れ・HitStop を時間で並べるだけ？</td><td><a href="presentation.html">演出（Presentation）</a></td></tr>
+<tr><td>Maya カメラも使うし、ヒットも待ちたい</td><td>演出を親にして、Timeline トラックでカットシーンを呼ぶ</td></tr>
+</table>
+<p>一言でいうと<strong>「Maya の FBX を使うならカットシーン、使わないなら演出」</strong>です。</p>
+
+<h3>開き方と流れ</h3>
+<ol>
+<li>Asset Browser で「Cutscene」のショット（<code>CUT_…</code>）を選ぶ</li>
+<li>Inspector 上部の「<strong>▶ Timeline ウィンドウで開く</strong>」を押す</li>
+<li>Timeline ウィンドウでトラックを足し、効果音・エフェクトなどを演出と同じ ID（名前で選べます）で置く</li>
+<li>Inspector の「<strong>▶ Cutscene確認用シーンを開く</strong>」で確認用シーンを開き、<strong>Play ボタンで Play Mode に入ってから</strong>「● 再生(Play Mode)」を押して見る（Cancel / Skip ボタンも試せます）</li>
+</ol>
+
+<h3>足せるトラック</h3>
+<table>
+<tr><th>トラック / マーカー</th><th>使い方</th></tr>
+<tr><td><strong>Camera</strong>（黄色）</td><td>Maya のカメラを取り込むと自動で作られます。<strong>ステップ fps</strong>（0 = そのまま。数字を入れると、その fps のコマ落ち風に見せます。24fps 風にしたいとき）、<strong>ブレンド秒</strong>（ゲームのカメラから Timeline のカメラへ滑らかに繋ぐ長さ。前後それぞれ）、ピントの設定を、ショットごとに調整します</td></tr>
+<tr><td><strong>SE</strong> / <strong>VFX</strong> / <strong>AnchorGroup</strong></td><td>クリップを置くと、その時刻から鳴る / 出ます。クリップの<strong>長さ</strong>が、ループする SE や VFX を鳴らし続ける時間になります（1 回だけ鳴る SE は開始点だけ使われます）</td></tr>
+<tr><td><strong>UI</strong> / <strong>Presentation</strong></td><td>区間のあいだだけ Canvas（字幕・レターボックス等）を開く / 演出を再生します。演出の中に「合図待ち（On Signal）」のトラックがあるものは、カットシーンから合図を送れないので検証に警告が出ます</td></tr>
+<tr><td><strong>Event</strong> / <strong>Shake</strong> / <strong>Haptic</strong>（マーカー）</td><td>置いた時刻にイベント（SE や VFX を鳴らす等）・画面揺れ・コントローラー振動を 1 回出します</td></tr>
+<tr><td><strong>Signal</strong>（マーカー）</td><td>文字列のキー（<code>cutscene/xxx</code> の形）を置くと、プログラム側がその時刻を受け取れます。「ここで画面を切り替える」等の連携用です</td></tr>
+</table>
+<p>キャラや小物の動きは、Unity 標準の <strong>Animation トラック</strong>のままです（人型のリターゲットなどをそのまま使うため）。トラックを追加するときは Timeline ウィンドウの「トラックを追加」メニューから D-Drive のトラックを選びます（メニューに出る正確な表記は、実機ではまだ確認していません）。</p>
+
+<h3>カットシーンデータ（Inspector）の主な設定</h3>
+<table>
+<tr><th>項目</th><th>意味</th></tr>
+<tr><td>Origin（原点）</td><td>Maya の座標をゲームのどこに置くか。<strong>Self</strong>（使う人の位置と向き。必殺技のカットインなど・既定）/ <strong>World</strong>（Maya の座標そのまま。ステージ固定のデモ）/ <strong>AnchorPoint</strong>（名前を付けた目印の位置）</td></tr>
+<tr><td>Frame Rate</td><td>Maya のシーンの fps。取り込みで自動で入ります（30 か 60）</td></tr>
+<tr><td>Skip</td><td>途中で飛ばせるか。不可 / 即終了 / 指定した Signal マーカーまで飛ばす</td></tr>
+<tr><td>Lock Input</td><td>ON にすると、再生中は「入力をロックする」という状態がゲームに通知されます。<strong>実際に操作を止めるのはゲーム側の実装</strong>で、D-Drive は通知するだけです</td></tr>
+<tr><td>Flags &gt; Net</td><td>Local = 自分の画面だけ / Cosmetic = 通信対戦で相手の画面にも同じ演出を出す（見た目だけで勝敗に影響しないもの）。演出と同じ考え方です</td></tr>
+</table>
+<div class="warn">
+<strong>確認の注意:</strong> Edit Mode（Play ボタンを押していない状態）では、カメラ・効果音・エフェクトの実際の適用は確認できません。必ず確認用シーンで Play Mode に入って確認してください。
+</div>
 
 <h2>直すとき</h2>
 <ul>

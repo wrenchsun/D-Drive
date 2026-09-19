@@ -10,6 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › VFX の設定項目</nav>
 
 <h1>VFX（エフェクト）の設定項目</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>VFX データ（VfxData）は「どのエフェクトを・どこに・どのくらいの時間出すか」をまとめたものです。中身の見た目（粒の飛び方や色）は Unity の <span class="term" title="Unity 標準の粒子エフェクト機能。火花・煙・光などを粒の集まりで表現する">ParticleSystem</span> を持つ Prefab 側で作り、VFX データはそれを「どう使うか」を決めます。</p>
 
@@ -27,7 +28,7 @@
 <tr><td>Prefab</td><td>再生する実体。ParticleSystem の Prefab（VFX Graph でも可）。<strong>未設定だと Error</strong>。</td></tr>
 </table>
 <div class="warn">
-Prefab のマテリアルが古い（Built-in 用）シェーダーだと、このプロジェクト（URP）では<strong>透明になって見えません</strong>。「検証」に赤く出ます。<code>Tools &gt; D-Drive &gt; Generate &gt; デフォルトパーティクルマテリアルを生成</code> で作った URP 用マテリアルに差し替えてください。
+Prefab のマテリアルが古い（Built-in 用）シェーダーだと、このプロジェクト（URP）では<strong>描画されない（透明で見えない）ことがあります</strong>。描画されないものは「検証」に赤（Error）で出ます。<code>Default-Particle</code> のような光の計算をしない単純なシェーダーは URP でも描画されますが、URP 用への置き換えを勧める黄色（Warning）が出ます（詳しくは<a href="validation.html">検証</a>のページ）。<code>Tools &gt; D-Drive &gt; Generate &gt; デフォルトパーティクルマテリアルを生成</code> で作った URP 用マテリアルに差し替えてください。
 </div>
 
 <h2>Lifetime（寿命）</h2>
@@ -79,7 +80,10 @@ Prefab のマテリアルが古い（Built-in 用）シェーダーだと、こ�
 <div class="tip">
 同じキャラクターの中で AnchorPoint の名前を重複させないでください（最初に見つかったものが使われます）。
 </div>
-<!-- screenshot: 36-#19 / 未撮影: SceneView に基準（原点）が描かれず、LocalOffset だけでは位置関係が分からないため -->
+<figure>
+<img src="images/vfx-data-anchorpoint-sceneview.png" alt="SceneView の Anchor 表示と AnchorPoint の目印">
+<figcaption>SceneView。赤い 3 軸が基準、そこから最終位置（黄色い円と移動ハンドル）までが線で結ばれる。水色の球と名前ラベルは AnchorPoint の目印</figcaption>
+</figure>
 
 <h2 id="params">Parameters（公開パラメータ）</h2>
 <p>「このエフェクトの色は場面ごとに変えたい」といった項目に名前を付けて公開しておくと、プログラムから名前で変更できます。VFX Editor で再生中に変えて確認できます。</p>
@@ -99,7 +103,7 @@ Prefab のマテリアルが古い（Built-in 用）シェーダーだと、こ�
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Prefab が未設定(または Missing)です</td><td>Prefab を設定する。Missing の場合は Prefab が削除・移動されています。</td></tr>
-<tr><td>マテリアル '…' のシェーダーは Built-in 用です</td><td>上の「Prefab」の枠内を参照。</td></tr>
+<tr><td>マテリアル '…' のシェーダーは Built-in 用です（Error は描画されない、Warning は描画されるが置き換え推奨）</td><td>上の「Prefab」の枠内を参照。</td></tr>
 <tr><td>Params '…' の TargetProperty が存在しません</td><td>プロパティ名を確認する。</td></tr>
 <tr><td>Render=UIOverlay ですが Domain=Game3D です</td><td>UI 用なのに用途が 3D になっています。プログラマーに確認。</td></tr>
 <tr><td>FadeOutSec が 10 秒を超えています</td><td>入力ミスでないか確認。</td></tr>

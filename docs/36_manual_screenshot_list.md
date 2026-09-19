@@ -380,3 +380,29 @@
 | #34 | `anim2d-editor-edit-mode.png` | 「編集モード」という概念が無くなり、**Anim2D Editor は常に編集画面**になった | ウィンドウ単体。ツールバーに「スプライトから新規作成…」ボタンが並んでいる状態を映す。キャプション・本文の「編集モード」という言い方も `anim2d-editor.html` 側で既に改めてある |
 
 §4 の #32〜#34 の行は当初の撮影指示のまま残してあるため、**撮影時はこの節の指示を優先すること**（§4 の「作成モード」「編集モード」という記述は U-8 より前のもの）。
+
+## 5.7 2026-09-19 の撮影結果（9 枚を配置、残りの取りやめ・据え置きを確定）
+
+`C:\Users\yamag\Downloads\sc` の 9 枚を受領し、`docs/DesignerManual/images/` に配置して各 HTML の `<!-- screenshot: 36-#N ... -->` の位置に `<figure>` を入れた（#32 はファイル名が同じなので画像の差し替えのみ）。あわせて 2026-09-19 時点の実装（[39](39_usability_fixes_2026-09-17.md) 以降の変更）を各ページの本文に反映し、各ページの見出しの下に「最終更新日」を入れた。
+
+| # | ファイル | 挿入先 | 備考 |
+|---|---|---|---|
+| #6 | `asset-browser-spec-picker.png` | asset-browser.html | 「仕様書から選ぶ」の折りたたみ（2026-09-18）の説明と一緒に配置 |
+| #11 | `asset-browser-delete-references.png` | asset-browser.html | |
+| #14 | `asset-browser-preview-inline.png` | asset-browser.html | 下端のプレビューバーは一部が切れている。「更新者」列に Windows ユーザー名（`yamag`）が写っている（§5.5 と同じ指摘） |
+| #15 | `validation-run-all.png` | validation.html | 撮影時点の表示（Legacy シェーダーが Error）。2026-09-19 に Warning へ変えたため、画像の中の 2 件目の文言は現行と少し違う。本文のキャプションは件数の見方だけを説明している |
+| #19 | `vfx-data-anchorpoint-sceneview.png` | vfx-data.html | #20 と同一ファイル（VFX Editor + SceneView が写っている） |
+| #20 | `vfx-editor-anchor-handle.png` | vfx-editor.html | 同上。AnchorId を使う VFX でもハンドルで動かせるようにした変更（2026-09-19）の説明と一緒に配置 |
+| #23 | `anchor-editor-sceneview.png` | anchor-data.html | |
+| #53 | `presentation-editor-signal-lane.png` | presentation.html | |
+| #32 | `anim2d-editor-create-mode.png` | anim2d-editor.html | 「Anim2D 新規作成」ポップアップの撮り直し（U-8 対応）。既存ファイルを差し替え |
+
+**撮り直し不要・取りやめの確定（2026-09-19、ユーザー判断）**
+
+| # | 判断 |
+|---|---|
+| #27 `model-editor-turntable-sceneview.png` | 不要。model-editor.html の `<!-- screenshot -->` コメントを削除 |
+| #54 `presentation-demo-sceneview.png` | 不要。presentation.html の同コメントを削除 |
+| #33 / #34（§5.6） | 現状の画像のままでよい。anim2d-editor.html の「要再撮影」コメントを削除 |
+
+これで §5.4 の未撮影 10 枚のうち、#27 / #54 は取りやめ、残る 8 枚は配置済みになった。§5.5 の「更新者列に Windows ユーザー名」「#58 の姓」の指摘は引き続き残っている。

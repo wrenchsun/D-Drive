@@ -10,10 +10,11 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Validation（自動チェック）の使い方</nav>
 
 <h1>Validation（自動チェック）の使い方</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>Validation は、D-Drive のデータの<strong>設定ミス・矛盾・登録漏れを自動で見つける仕組み</strong>です。「Prefab が入っていない」「フォーカスの行き先が無い」「カタログに載っていないのでゲームで出てこない」といった問題を、ゲームを実行する前に一覧で教えてくれます。</p>
 <ul>
-<li>各専用エディタ（VFX / Anim / Canvas など）の下の方にある「検証」「Validation」欄には、<strong>いま開いているデータ 1 件分</strong>の結果がその場で出ます。2026-09-17 から<strong>すべての専用エディタに同じ「検証」欄</strong>が付きました（以前は Audio / Shake・Haptics / Material / Model / Prefab / Button Skin / Slider Skin には無く、VFX Editor は開いても中身が出ないことがありました）。見出しに件数（<code>検証: ✓ 問題なし</code> / <code>検証: エラー 1 / 警告 2</code>）が出ます</li>
+<li>各専用エディタ（VFX / Anim / Canvas など）の下の方にある「検証」「Validation」欄には、<strong>いま開いているデータ 1 件分</strong>の結果がその場で出ます。<strong>すべての専用エディタに同じ「検証」欄</strong>が付いています。見出しに件数（<code>検証: ✓ 問題なし</code> / <code>検証: エラー 1 / 警告 2</code>）が出ます</li>
 <li>プロジェクト全体をまとめて調べるときは、メニューの <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code></li>
 </ul>
 
@@ -24,7 +25,13 @@
 <tr><td>Warning（黄）</td><td>動くが、意図と違う結果になりやすい</td><td>内容を読んで判断。意図的ならそのままでよい</td></tr>
 <tr><td>Info（青）</td><td>お知らせ。設定の確認用</td><td>読んでおくだけでよい</td></tr>
 </table>
-<!-- screenshot: 36-#15 / 未撮影: （2026-09-17 に原因を修正済み。撮影可能） -->
+<figure>
+<img src="images/validation-run-all.png" alt="検証の結果一覧（エラー・警告・お知らせ）">
+<figcaption>個別の「検証」欄（VFX Editor など）。見出しに「エラー 1 / 警告 1」のように件数が出て、赤（エラー）・黄（警告）・お知らせ（Info）の行が並ぶ</figcaption>
+</figure>
+<div class="tip">
+<strong>シェーダーの不一致は、描画されるかどうかで Error と Warning に分かれます:</strong> プロジェクトの描画方式（URP）用ではない古いシェーダーでも、<code>Default-Particle</code>（Legacy のパーティクル）のように光の計算をしない単純なものは、そのまま描画されます。この場合は<strong>「描画はされますが URP 用への置き換えを推奨します」という Warning</strong> です。<code>Standard</code> など光の計算を使うシェーダーは URP では描画されない（エディタでは桃色、ビルドでは透明）ため、これまでどおり Error です。Warning は放置しても見た目は変わりませんが、将来の更新で描画されなくなる恐れがあるので、余裕のあるときに <code>Tools &gt; D-Drive &gt; Generate &gt; デフォルトパーティクルマテリアルを生成</code> で作れる URP 用マテリアルなどへ差し替えてください。
+</div>
 
 <h2>「修正」ボタン</h2>
 <p>自動で直せる項目には、メッセージの横に<strong>「修正」ボタン</strong>が出ます。押すとその場で直り、Ctrl+Z で戻せます。すべての項目に付いているわけではなく、付いていないものは各ページの「よくある警告」を見て手で直します。</p>
