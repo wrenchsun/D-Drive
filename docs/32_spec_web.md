@@ -791,8 +791,10 @@ Tools/SpecWeb/
   の `webapp` フィールド）とは**独立して**デプロイごとに持てる。そのため `appsscript.json` には
   デプロイ①相当の値（`access: ANYONE`, `executeAs: USER_ACCESSING`）を既定値として置き、
   デプロイ②（実行者=Me、ログイン不要）は Apps Script エディタの「新しいデプロイ」ダイアログで
-  個別に設定する（README §7）。**clasp の CLI 自体がこの個別設定をコマンドラインから直接指定できるかは
-  未確認**（今回は確認できなかったため、エディタ UI での作成を手順として案内している。要判断として残す）
+  個別に設定する（README §7）。**clasp の CLI はこの個別設定を指定できない（2026-09-19 確認）**: `clasp update-deployment`
+  には `--versionNumber` / `--description` しか無く、実行すると対象デプロイの Web アプリ設定がマニフェストの `webapp`（① 相当）で
+  上書きされる。②（実行者=Me、ログイン不要）に対して実行した結果、Unity の `?api=1` が Google のログイン要求（HTTP 401）で弾かれた
+  （同日、エディタ UI で ② の設定を戻して復旧）。② の新バージョン更新はエディタ UI のみで行う（README §7）
 - Content Service（`ContentService.createTextOutput`）には HTTP ステータスコードを設定する API が
   存在しない（`setMimeType` に相当する `setStatusCode` の記載が無い）。そのため本実装は
   「40x/50x 相当」を常に本文の `status` フィールドで表現する方式にした（`ContentAdapter.json`）

@@ -234,10 +234,15 @@ UI 推奨）。Apps Script エディタ右上「デプロイ」→「新しい�
 
 - **エディタの UI（推奨）**: 「デプロイ」→「デプロイを管理」→ 更新したいデプロイの鉛筆（編集）アイコン
   → 「バージョン」を「新バージョン」に変更 → 「デプロイ」。URL は変わりません
-- **clasp コマンド**: `clasp list-deployments` で `deploymentId` を確認し、
+- **clasp コマンド（① 人向け SPA にだけ使える）**: `clasp list-deployments` で `deploymentId` を確認し、
   `clasp update-deployment <deploymentId>`（別名 `redeploy`）で同じデプロイ ID のまま新バージョンに
   更新できます（`clasp create-deployment` は**新しい** URL のデプロイを作ってしまうため、
-  既存 URL を維持したい更新には使わない）
+  既存 URL を維持したい更新には使わない）。
+  **② D-Drive API には使わないこと（2026-09-19 に実際に壊れた）**: `update-deployment` は新バージョンの作成と同時に
+  デプロイの Web アプリ設定を `appsscript.json` の `webapp`（= ① 相当の「アクセスしているユーザー / Google アカウントを持つ全員」）で
+  上書きします。② に対して実行すると「自分 / 全員」が失われ、Unity からの `?api=1` が Google のログイン画面（HTTP 401 の HTML）で
+  弾かれます（`clasp update-deployment` に実行ユーザー・アクセス権を指定するオプションはありません。`--help` で確認済み）。
+  ② は必ず上のエディタ UI で「新バージョン」に更新してください。壊してしまったときも同じ UI で「実行ユーザー: 自分 / アクセス: 全員」に戻せば直ります
 
 ### 動作確認・ログ
 
