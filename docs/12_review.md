@@ -66,6 +66,27 @@
 - [ ] `AssetDatabase.FindAssets` を直接呼んでいない（`DDrive.Editor.AssetSearch.FindAssets` 経由。Unity 6000.3 の `FindAssets` は 1 回ごとに走査ファイル数比例のネイティブメモリを解放せず保持するため、プロジェクト変更までキャッシュする。アセット作成直後に同フレームで検索するなら `AssetSearch.Invalidate()`。2026-09-11 実測、[09] §9）
 - [ ] `AssetDatabase.SaveAssets()` を直に呼んでいない（`DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed()` / `SaveDirty(obj)` 経由。引数なし `SaveAssets()` はプロジェクト全体の dirty な `AssetDataBase` を無差別に版数へ乗せるため、実アセットを開いて編集中に別の一括処理が走ると無関係な版数が進む。`Tests/Editor/NoDirectSaveAssetsCallTests.cs` が機械検出する。使い分けは [09] §4.1 の判断表、[44_review_2026-09-19.md] P1-1）
 
+### 互換性（草案・2026-09-20 追加、P チケット完了＝P-13 発効後に必須化）
+
+> **現状は草案（P-2 の成果物）**。[42_distribution.md](42_distribution.md) §5 が定める互換性ポリシーの要約。**P-13 が CLAUDE.md §0 TL;DR に昇格させるまでは参考情報**であり、このチェックリストが red でも今の PR は止めない。発効後は「全 PR 共通」と同格の必須項目になる。
+
+P-13 発効後、以下の互換面のいずれかに触れる PR は、対応するスナップショットテスト（[42] §5.11、`Tests/Editor/`）が green であることを確認してからマージする。**スナップショットテストが赤なら、その PR はマージしない**（[42] §5.0-2）。
+
+| 互換面 | やってよいこと | MINOR（互換を保ったまま追加） | MAJOR（§5.12 の手続きが必須） | 判定テスト（[42] §5.11） |
+|---|---|---|---|---|
+| シリアライズ形式（`.asset`/`.prefab`/`.unity` に書かれる全フィールド、[42] §5.1） | 既定値が安全側の新フィールド追加（`[Tooltip]` 必須） | フィールド追加 / `[FormerlySerializedAs]` 付き改名 / `[HideInInspector][Obsolete]` を残した型変換（2 段階） | フィールド削除・型の直接変更・struct のフィールド順変更・asmdef 名の変更 | `SerializedLayoutSnapshotTests` + `LegacyAssetFixtureTests` |
+| シリアライズされる enum（`AssetType` 含む全部、§5.2） | 末尾への値追加のみ | 末尾追加（MINOR）、値の改名は `[Obsolete]` エイリアス併存で条件付き MINOR | 途中挿入・並べ替え・削除・基底型変更 | `SerializedEnumSnapshotTests` |
+| ID・Address・定数名（§5.3） | 変更しないことがやってよいこと | – | `StableHashFromGuid` の算法・`ToConstantName`/`KnownPrefixes`・定数クラス名・Address 規則・カタログ名マッピングの変更はすべて MAJOR（**発効後は例外なし**。[42] §5.13 の「最後のチャンス」は発効前限定） | `IdHashGoldenTests` / `ConstantNameGoldenTests` / `CodegenGoldenTests` |
+| 公開 API（`DDrive.Foundation`/`DDrive.Runtime` の `public`、§5.4。`DDrive.Editor` の `public` は対象外） | 型・メンバ追加、オーバーロード追加、既定引数追加 | 同左（MINOR） | 削除・改名・シグネチャ変更・戻り値変更・名前空間移動・asmdef 分割は禁止（先に `[Obsolete]` を 2 MINOR 分挟んでから MAJOR で削除。§5.12） | `PublicApiSnapshotTests` |
+| ContentHash・ネットメッセージ（§5.6） | 新しいメッセージ型の追加、既存メッセージへのフィールド追加（欠落時は安全な既定値） | 同左（MINOR） | ハッシュの算法・対象フィールド変更、メッセージの改名・削除・型変更、`NetChannel`/直列化方式の変更 | `CatalogContentHasherGoldenTests` / `NetMessageSnapshotTests` |
+| 生成コード（`AssetIds.g.cs`/`Tuning.g.cs`、§5.7） | 新 AssetType の定数クラス追加（データが増えた結果） | 同左（MINOR） | クラス名・名前空間・命名規則・`static readonly` の形の変更、`KnownPrefixes` への追加 | `CodegenGoldenTests` |
+| Validation の重さ（Error/Warning、§5.8） | 新しい検査を Warning として追加 | 次の MINOR 以降で Warning→Error に昇格（CHANGELOG に「Error 昇格: XxxValidator」を明記） | 新規検査をいきなり Error にする（緊急時のみ §5.12 の手続きで例外） | `ValidatorSeverityRegistryTests` |
+| 依存パッケージ・Unity 版（§5.10） | Unity パッチ版更新、依存の PATCH/MINOR 更新 | 依存追加・Unity マイナー版更新・既存依存の参照範囲拡大（Editor→Runtime 等）（CHANGELOG 必須） | Unity メジャー版更新 | `package.json`/manifest 一致テスト（`PackageVersionConsistencyTests`） |
+
+**手続きの要点**（詳細は [42] §5.12）: MAJOR は (1) issue/設計メモでユーザー承認 → (2) `[Obsolete]`/Warning/移行ツールを 2 MINOR 分先出し → (3) MAJOR で削除 + `CHANGELOG.md`「破壊あり」+ `docs/migrations/vN.md` → (4) スナップショット更新 → (5) 持ち込み先（MS2026）で更新手順を実施し結果を移行ガイドに追記。**MAJOR は年 1 回まで**（MS2026 開発フェーズ中は 0 回）。
+
+CHANGELOG ガード（[42] §5.11-10）: `Tests/Editor/Snapshots/**` が変わった PR で `CHANGELOG.md` が変わっていなければ fail。
+
 ## 4. データ PR（デザイナー）チェックリスト
 
 - [ ] Validation エラー 0 / 警告は理由をコメント

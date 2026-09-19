@@ -689,4 +689,12 @@ D-Drive は最終的に **MS2026（LAN 内 1v1、NGO 2.13.2、Host+Client 方式
 | ログ | `[Net]`、Host/Client を分けて `[Net/Host]` `[Net/Client]` | `NgoNetBridge` のログを同プレフィックスに統一 |
 | テスト | 1 台での確認だけで「動いた」と言わない。MPPM → 実機 2 台 + 実 LAN | [12_review.md](12_review.md) §5 の「M2 以降は 2 クライアント + サーバー構成」と同じ。`NetBridgeSmokeTest` を MPPM で回す |
 
-**移植時の配置**: D-Drive は `Assets/DDrive/`（asmdef ごと）を MS2026 にそのまま持ち込み、ゲームコード（`Assets/_Project/Scripts/`）は `DDrive.Runtime` のみを参照する（Editor 参照禁止）。`Assets/GameData/` はカタログごと移す。MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API として挙げているが、NGO 2.x では統一 RPC `[Rpc(SendTo.*)]` が推奨（旧属性の `RequireOwnership` は Obsolete 警告）であり、D-Drive の bridge は統一 RPC で書く。移植時に MS2026 側の文書も同じ記述に揃える。
+**移植時の配置（2026-09-20 改訂、P-1）**: 旧方針（`Assets/DDrive/` をそのままコピーして持ち込む）は撤回した。[42_distribution.md](42_distribution.md) §3.2 の決定により、D-Drive は **UPM パッケージ（git URL 参照）** として持ち込む。
+
+```json
+"com.ddrive.core": "git+ssh://git@github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0"
+```
+
+の 1 行を MS2026 の `Packages/manifest.json` に追加する（`?path=` でリポジトリ内のサブフォルダ `Packages/com.ddrive.core/` を指定、`#v1.0.0` でタグ固定。リポジトリは private のままなので MS2026 側にも `git+ssh` の認証（SSH 鍵）が要る）。ゲームコード（`Assets/_Project/Scripts/`）は `DDrive.Runtime`（と `DDrive.Foundation`）のみを参照する（`DDrive.Editor` 参照禁止、この方針は変わらない）。`Assets/GameData/` はカタログごと**移すのではなく MS2026 側で新規に作る**（[42] §2.1 の分類「G」。パッケージは版固定の読み取り専用、データは持ち込み先ごとに持つ）。更新は「manifest のタグを書き換えるだけ」（[42] §4.2）。詳細な線引き・境界違反・互換性ポリシーは [42_distribution.md] を参照。
+
+MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API として挙げているが、NGO 2.x では統一 RPC `[Rpc(SendTo.*)]` が推奨（旧属性の `RequireOwnership` は Obsolete 警告）であり、D-Drive の bridge は統一 RPC で書く。移植時に MS2026 側の文書も同じ記述に揃える。
