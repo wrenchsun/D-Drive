@@ -38,7 +38,7 @@ namespace DDrive.Tests.Editor
         public void SetUp()
         {
             _shader = Shader.Find(AiStandardSurfaceMapper.ShaderName);
-            Assume.That(_shader != null, "DDrive/AiStandardSurface が必要(Assets/SourceAssets/Shaders/AiStandardSurface)");
+            Assume.That(_shader != null, "DDrive/AiStandardSurface が必要(Assets/DDrive/Runtime/Shaders/AiStandardSurface)");
             MayaModelPostprocessor.Suppress = true;
             if (!AssetDatabase.IsValidFolder(TempFolder))
             {

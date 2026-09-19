@@ -191,8 +191,8 @@ Shader "DDrive/AiStandardSurface"
             #pragma instancing_options renderinglayer
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
 
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceForwardPass.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceForwardPass.hlsl"
             ENDHLSL
         }
 
@@ -240,7 +240,7 @@ Shader "DDrive/AiStandardSurface"
 
             // -------------------------------------
             // Includes
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
             ENDHLSL
         }
@@ -329,7 +329,7 @@ Shader "DDrive/AiStandardSurface"
 
             // -------------------------------------
             // Includes
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitGBufferPass.hlsl"
             ENDHLSL
         }
@@ -371,7 +371,7 @@ Shader "DDrive/AiStandardSurface"
 
             // -------------------------------------
             // Includes
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
             ENDHLSL
         }
@@ -418,7 +418,7 @@ Shader "DDrive/AiStandardSurface"
 
             // -------------------------------------
             // Includes
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitDepthNormalsPass.hlsl"
             ENDHLSL
         }
@@ -459,7 +459,7 @@ Shader "DDrive/AiStandardSurface"
 
             // -------------------------------------
             // Includes
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitMetaPass.hlsl"
 
             ENDHLSL
@@ -496,7 +496,7 @@ Shader "DDrive/AiStandardSurface"
 
             // -------------------------------------
             // Includes
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/Utils/Universal2D.hlsl"
             ENDHLSL
         }
@@ -512,7 +512,7 @@ Shader "DDrive/AiStandardSurface"
             #pragma multi_compile _ LOD_FADE_CROSSFADE
             #pragma shader_feature_local_vertex _ADD_PRECOMPUTED_VELOCITY
 
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ObjectMotionVectors.hlsl"
             ENDHLSL
         }
@@ -538,7 +538,7 @@ Shader "DDrive/AiStandardSurface"
             #pragma shader_feature_local_vertex _ADD_PRECOMPUTED_VELOCITY
             #define APPLICATION_SPACE_WARP_MOTION 1
 
-            #include "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
+            #include "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurfaceInput.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ObjectMotionVectors.hlsl"
             ENDHLSL
         }

@@ -55,7 +55,7 @@ namespace DDrive.Tests.Editor
             var lit = Shader.Find("Universal Render Pipeline/Lit");
             var unlit = Shader.Find("Universal Render Pipeline/Unlit");
             Assume.That(lit != null && unlit != null, "URP のシェーダーが必要");
-            Assume.That(Shader.Find(UnityMaterialMigrator.LitShaderName) != null, "DDrive/Lit が必要(Assets/SourceAssets/Shaders)");
+            Assume.That(Shader.Find(UnityMaterialMigrator.LitShaderName) != null, "DDrive/Lit が必要(Assets/DDrive/Runtime/Shaders)");
 
             Assert.AreEqual(UnityMaterialMigrator.LitShaderName, UnityMaterialMigrator.ResolveTargetShader(lit).name);
             Assert.AreEqual(UnityMaterialMigrator.UnlitShaderName, UnityMaterialMigrator.ResolveTargetShader(unlit).name);

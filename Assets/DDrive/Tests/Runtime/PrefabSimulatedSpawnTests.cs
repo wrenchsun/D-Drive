@@ -184,6 +184,9 @@ namespace DDrive.Tests.Runtime
             }
         }
 
+        // [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO は versionDefines(DDRIVE_NGO)で切り離した。
+        // NGO 未導入時は PrefabDataValidator.ValidateSimulated が NetworkObject 検査自体をスキップするため、
+        // 期待値を DDRIVE_NGO の有無で分ける(NGO ありの現状の挙動は変えない)。
         [Test]
         public void Simulated_WithoutNetworkObject_IsError()
         {
@@ -196,14 +199,20 @@ namespace DDrive.Tests.Runtime
             var results = new System.Collections.Generic.List<DDrive.Foundation.Validation.ValidationResult>(
                 new PrefabDataValidator().Validate(data, new DDrive.Foundation.Validation.ValidationContext(new System.Collections.Generic.List<AssetDataBase> { data })));
 
+#if DDRIVE_NGO
             Assert.IsTrue(results.Exists(r => r.Severity == DDrive.Foundation.Validation.ValidationSeverity.Error && r.Message.Contains("NetworkObject")));
+#else
+            Assert.IsFalse(results.Exists(r => r.Message.Contains("NetworkObject")), "NGO 未導入時は NetworkObject 検査自体が無効(スキップ)");
+#endif
         }
 
         [Test]
         public void Simulated_WithUnexpectedKind_IsInfo()
         {
             _prefabWithoutNetworkObject = new GameObject("NoNetworkObject2");
+#if DDRIVE_NGO
             _prefabWithoutNetworkObject.AddComponent<Unity.Netcode.NetworkObject>();
+#endif
             var data = ScriptableObject.CreateInstance<PrefabData>();
             data.Prefab = _prefabWithoutNetworkObject;
             data.Kind = PrefabKind.Pickup; // Projectile/Gimmick/Character 以外
@@ -219,7 +228,9 @@ namespace DDrive.Tests.Runtime
         public void Simulated_WithPooledPolicy_IsWarning()
         {
             _prefabWithoutNetworkObject = new GameObject("NoNetworkObject3");
+#if DDRIVE_NGO
             _prefabWithoutNetworkObject.AddComponent<Unity.Netcode.NetworkObject>();
+#endif
             var data = ScriptableObject.CreateInstance<PrefabData>();
             data.Prefab = _prefabWithoutNetworkObject;
             data.Kind = PrefabKind.Projectile;

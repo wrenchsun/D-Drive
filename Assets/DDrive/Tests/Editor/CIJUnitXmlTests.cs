@@ -48,5 +48,13 @@ namespace DDrive.Tests.Editor
             StringAssert.Contains("tests=\"0\"", xml);
             StringAssert.Contains("failures=\"0\"", xml);
         }
+
+        // [42_distribution.md] §2.3-2(P-4、2026-09-20) — 開発リポジトリ(P-5 未実施 = Assets/DDrive が
+        // 通常の Assets フォルダ)では PackageInfo が null になり、既存どおり "Assets/DDrive" にフォールバックする。
+        [Test]
+        public void ResolveForbiddenApiScanRoot_FallsBackToAssetsDDrive_WhenNotPackaged()
+        {
+            Assert.AreEqual("Assets/DDrive", CI.ResolveForbiddenApiScanRoot());
+        }
     }
 }

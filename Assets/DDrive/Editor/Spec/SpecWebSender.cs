@@ -232,8 +232,9 @@ namespace DDrive.Editor.Spec
         }
 
         // TUNING 定数へのコード参照が無いキーの一覧([32] §3.2.4「コード未使用の検出」)。
-        private static readonly string[] ScanRoots = { "DDrive", "Generated" };
-
+        // [42_distribution.md] §2.3-5(P-4、2026-09-20) — 以前は Assets/DDrive・Assets/Generated だけを
+        // 見ていたため持ち込み先のゲームコードを見ておらず、「未使用」判定が誤検知し得た。
+        // CodeReferenceScan と共通の DDriveCodeScanRoots(Assets 全体 + D-Drive 自身のパッケージパス)へ広げる。
         public static JObject BuildTuningUsagePayload(TuningTable table)
         {
             var unusedKeys = new JArray();
@@ -265,9 +266,8 @@ namespace DDrive.Editor.Spec
         private static List<string> ReadAllScannableSource()
         {
             var texts = new List<string>();
-            foreach (var root in ScanRoots)
+            foreach (var rootPath in DDrive.Editor.Dependencies.DDriveCodeScanRoots.ResolveAbsoluteRoots())
             {
-                var rootPath = Path.Combine(Application.dataPath, root);
                 if (!Directory.Exists(rootPath))
                 {
                     continue;

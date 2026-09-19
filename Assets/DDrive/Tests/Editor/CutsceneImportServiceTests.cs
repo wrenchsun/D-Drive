@@ -170,9 +170,13 @@ namespace DDrive.Tests.Editor
 
         // ── ProcessPaths: 新規作成 ──
 
+        // [42_distribution.md] §2.3-6(P-4、2026-09-20) — 実 Maya 素材の代わりに開発リポジトリの実データ
+        // (UnityChan サンプル FBX)をコピーして使うため、開発リポジトリ専用。DevRepoOnlyGuard 参照。
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_CameraPropsFileOnly_CreatesCutsceneData()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var cameraPath = CopyAsset(SampleCameraPropsFbx, $"{SourceRoot}/Cutscene/Opening/Opening01.fbx");
 
             var report = CutsceneImportService.ProcessPaths(new[] { cameraPath }, SourceRoot, GameDataRoot);
@@ -186,8 +190,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_CharacterFileWithoutCameraProps_IsSkipped()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var charPath = CopyAsset(SampleCharacterFbx, $"{SourceRoot}/Cutscene/Opening/Opening01__Hero.fbx");
 
             var report = CutsceneImportService.ProcessPaths(new[] { charPath }, SourceRoot, GameDataRoot);
@@ -199,8 +205,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_ShotSet_BuildsCameraAndCharacterTracks()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var cameraPath = CopyAsset(SampleCameraPropsFbx, $"{SourceRoot}/Cutscene/Opening/Opening01.fbx");
             var charPath = CopyAsset(SampleCharacterFbx, $"{SourceRoot}/Cutscene/Opening/Opening01__Hero.fbx");
 
@@ -223,8 +231,10 @@ namespace DDrive.Tests.Editor
         // ── 再取り込み(冪等性・保持) ──
 
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_Reimport_DoesNotDuplicateCutsceneDataOrTracks()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var cameraPath = CopyAsset(SampleCameraPropsFbx, $"{SourceRoot}/Cutscene/Opening/Opening01.fbx");
             var charPath = CopyAsset(SampleCharacterFbx, $"{SourceRoot}/Cutscene/Opening/Opening01__Hero.fbx");
 
@@ -242,8 +252,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_Reimport_PreservesManuallyAddedTrackAndCameraSettings()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var cameraPath = CopyAsset(SampleCameraPropsFbx, $"{SourceRoot}/Cutscene/Opening/Opening01.fbx");
             var charPath = CopyAsset(SampleCharacterFbx, $"{SourceRoot}/Cutscene/Opening/Opening01__Hero.fbx");
             CutsceneImportService.ProcessPaths(new[] { cameraPath, charPath }, SourceRoot, GameDataRoot);
@@ -266,8 +278,10 @@ namespace DDrive.Tests.Editor
         // ── SourceFrameRange の永続化(docs/45 P1-4、2026-09-20) ──
 
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_SourceFrameRange_PersistsTrimmedClipAsSubAsset_AndDoesNotDuplicateOnReimport()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var cameraPath = CopyAsset(SampleCameraPropsFbx, $"{SourceRoot}/Cutscene/Opening/Opening01.fbx");
             var charPath = CopyAsset(SampleCharacterFbx, $"{SourceRoot}/Cutscene/Opening/Opening01__Hero.fbx");
             CutsceneImportService.ProcessPaths(new[] { cameraPath, charPath }, SourceRoot, GameDataRoot);
@@ -299,8 +313,10 @@ namespace DDrive.Tests.Editor
         // ── AC: CutsceneImportProfile.DefaultFrameRate を変えても既存 CutsceneData は変わらない ──
 
         [Test]
+        [Category("DevRepoOnly")]
         public void ChangingDefaultFrameRate_DoesNotAffectExistingCutsceneData()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             // プロジェクトに CutsceneImportProfile が無い場合、FindOrDefault() はメモリ上の組み込み既定
             // (static シングルトン)を返す。"/Tests/" 配下は FindOrDefault の対象外(Anim2DImportProfile 等と
             // 同じ規約)のため、テスト用アセットではなくこのシングルトンを直接書き換えて確認する。

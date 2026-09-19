@@ -1,3 +1,5 @@
+// [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO 実機 2 台確認用サンプル。NgoNetBridge を直接型参照するのでファイル全体を DDRIVE_NGO で囲う。
+#if DDRIVE_NGO
 using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
@@ -614,3 +616,4 @@ namespace DDrive.Samples
         }
     }
 }
+#endif // DDRIVE_NGO

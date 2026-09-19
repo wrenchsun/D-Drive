@@ -12,7 +12,9 @@ namespace DDrive.Editor.Materials
     public sealed class AiStandardSurfacePreprocessor : AssetPostprocessor
     {
         // シェーダーが見つからないときのフォールバック用パス(Shader.Find が null でも依存として登録する)。
-        public const string ShaderPath = "Assets/SourceAssets/Shaders/AiStandardSurface/DDrive_AiStandardSurface.shader";
+        // [42_distribution.md] §2.3-1(P-4、2026-09-20) — Assets/SourceAssets/Shaders から
+        // Assets/DDrive/Runtime/Shaders(パッケージ側)へ移設した。
+        public const string ShaderPath = "Assets/DDrive/Runtime/Shaders/AiStandardSurface/DDrive_AiStandardSurface.shader";
 
         // テストや一括インポート中の抑止。
         public static bool Suppress;

@@ -26,6 +26,12 @@
     "defineConstraints": [
         "UNITY_INCLUDE_TESTS"
     ],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.netcode.gameobjects",
+            "expression": "",
+            "define": "DDRIVE_NGO"
+        }
+    ],
     "noEngineReferences": false
 }

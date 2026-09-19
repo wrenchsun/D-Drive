@@ -12,17 +12,17 @@ namespace DDrive.Editor.Spec
     // (CLAUDE.md §0-2/§0-9: .asset をテキスト編集しない)。
     //
     // W-9(2026-09-14): 取得元を Google スプレッドシート(CSV)から Web アプリ(GAS)の API に差し替えた。
-    // CLAUDE.md §0-9「シリアライズ形式の変更は着手前に確認」への保守的な既定として、
-    // 旧フィールド(SpreadsheetUrl/AssetSheetName/TuningSheetName)は削除せずそのまま残し、
-    // 新フィールド(WebAppUrl/HumanAppUrl)を追加するだけにした(docs/32_spec_web.md §9 の
-    // 要判断に追記。ユーザー確認が取れたら旧フィールドの削除を検討する)。
-    // 旧フィールドは SpecAutoSync/SpecSyncWindow からは呼ばれなくなったが、既存 .asset の
-    // 値は失われない(そのまま読める)。
+    //
+    // 2026-09-20(P-4、[42_distribution.md] §5.13): 旧フィールド(SpreadsheetUrl/AssetSheetName/
+    // TuningSheetName)を削除した。実データ(Assets/GameData/Settings/DDriveSpecSettings.asset。開発
+    // リポジトリに存在する唯一の実 .asset)を確認したところ SpreadsheetUrl は空文字、AssetSheetName/
+    // TuningSheetName も既定値のままでユーザー固有の値が入っていなかったため、[32_spec_web.md] §9-12
+    // の保留条件(「実データが入っている .asset が存在しない場合は次のチケットで削除してよい」)に該当する。
+    // フィールド削除により既存 .asset の当該キーは次回保存時に消える(それまでは YAML に残るが無視される。
+    // Unity は未知フィールドを無視するだけで読み込みエラーにはしない)。
     public sealed class DDriveSpecSettings : ScriptableObject
     {
         public const string DefaultPath = "Assets/GameData/Settings/DDriveSpecSettings.asset";
-        public const string DefaultAssetSheetName = "アセット";
-        public const string DefaultTuningSheetName = "調整値";
         public const string DefaultTuningTablePath = "Assets/GameData/Settings/DDriveTuningTable.asset";
 
         // ── Web アプリ(GAS)接続設定(W-9 で新設) ──
@@ -32,17 +32,6 @@ namespace DDrive.Editor.Spec
 
         [Tooltip("人向け SPA の URL(デプロイ①)。AssetDataBase.SpecUrl を組み立てる元になる([32] §6: 5-14 の SpecUrl の意味変更)。空なら SpecUrl は同期時に更新されない。")]
         public string HumanAppUrl;
-
-        // ── 旧: Google スプレッドシート(CSV)接続設定。[27_spec_sheet.md] 廃止予定、削除はしない(上記コメント参照) ──
-
-        [Tooltip("[旧方式・未使用] Google スプレッドシートの共有URL(またはID)。Web アプリ方式に移行したため SpecAutoSync/SpecSyncWindow からは参照されない。")]
-        public string SpreadsheetUrl;
-
-        [Tooltip("[旧方式・未使用] ツール向け「アセット」タブのタブ名。")]
-        public string AssetSheetName = DefaultAssetSheetName;
-
-        [Tooltip("[旧方式・未使用] ツール向け「調整値」タブのタブ名。")]
-        public string TuningSheetName = DefaultTuningSheetName;
 
         [Tooltip("Unity 起動時・ドメインリロード後に取得と差分検出だけ行うか(既定 ON)。適用はしない([27] §4.2)。")]
         public bool AutoFetchOnStartup = true;

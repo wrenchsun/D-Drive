@@ -23,13 +23,14 @@ namespace DDrive.Editor.Dependencies
         private const int MaxHits = 5;
 
         // P5 レビュー対応(2026-09-14): 削除のたびに Assets 配下の全 .cs を同期で全文読み込んでいた
-        // (安全な削除・依存ツリーからの一括削除で件数が増えるほど重くなる)。対策 2 点:
-        //   - 走査対象を「自前コード」(Assets/DDrive・Assets/Generated)に限定する(TextMesh Pro 等の
-        //     同梱サンプルコードは対象外。生成された ID 定数の利用箇所はこの 2 フォルダにしか無い前提)。
-        //   - ファイル内容をこのクラスの static キャッシュ(更新時刻キー)に保持し、同じ Editor セッション内で
-        //     複数回呼ばれても変更が無いファイルは再読み込みしない(Library を再構築しても消える程度の
-        //     エディタ限定キャッシュなので Undo/永続化は不要)。
-        private static readonly string[] ScanRoots = { "DDrive", "Generated" };
+        // (安全な削除・依存ツリーからの一括削除で件数が増えるほど重くなる)。当時の対策として
+        // 走査対象を「自前コード」(Assets/DDrive・Assets/Generated)に限定していたが、これだと
+        // 持ち込み先のゲームコード(例: Assets/_Project/Scripts)を一切見ないため、「安全な削除」
+        // チェックが使用中の ID を見逃す事故があり得た。[42_distribution.md] §2.3-5(P-4、2026-09-20)で
+        // Assets 全体 + D-Drive 自身のパッケージパス(DDriveCodeScanRoots 参照)へ広げた。
+        // ファイル内容はこのクラスの static キャッシュ(更新時刻キー)に保持し、同じ Editor セッション内で
+        // 複数回呼ばれても変更が無いファイルは再読み込みしない(Library を再構築しても消える程度の
+        // エディタ限定キャッシュなので Undo/永続化は不要)。
         private static readonly Dictionary<string, (DateTime writeTimeUtc, string text)> FileCache = new();
 
         // 見つからない/判定できない場合は null。見つかった場合は確認ダイアログにそのまま載せられる文言を返す。
@@ -46,9 +47,8 @@ namespace DDrive.Editor.Dependencies
                 var hits = new List<string>();
                 var dataPath = Application.dataPath.Replace('\\', '/');
 
-                foreach (var root in ScanRoots)
+                foreach (var rootPath in DDriveCodeScanRoots.ResolveAbsoluteRoots())
                 {
-                    var rootPath = Path.Combine(Application.dataPath, root);
                     if (!Directory.Exists(rootPath))
                     {
                         continue;
@@ -69,7 +69,7 @@ namespace DDrive.Editor.Dependencies
 
                         if (text.IndexOf(pattern, StringComparison.Ordinal) >= 0)
                         {
-                            var relative = "Assets" + normalized.Substring(dataPath.Length);
+                            var relative = ToRelativeDisplayPath(normalized, dataPath);
                             hits.Add(relative);
                             if (hits.Count >= MaxHits)
                             {
@@ -127,9 +127,8 @@ namespace DDrive.Editor.Dependencies
 
                 var dataPath = Application.dataPath.Replace('\\', '/');
 
-                foreach (var root in ScanRoots)
+                foreach (var rootPath in DDriveCodeScanRoots.ResolveAbsoluteRoots())
                 {
-                    var rootPath = Path.Combine(Application.dataPath, root);
                     if (!Directory.Exists(rootPath))
                     {
                         continue;
@@ -153,7 +152,7 @@ namespace DDrive.Editor.Dependencies
                             continue;
                         }
 
-                        var relative = "Assets" + normalized.Substring(dataPath.Length);
+                        var relative = ToRelativeDisplayPath(normalized, dataPath);
                         var lines = text.Split('\n');
                         for (var i = 0; i < lines.Length; i++)
                         {
@@ -175,6 +174,16 @@ namespace DDrive.Editor.Dependencies
             }
 
             return result;
+        }
+
+        // "Assets/..." 表示に変換する。D-Drive 自身がパッケージ化(P-5)された後は Packages/com.ddrive.core/...
+        // のように Application.dataPath の外を指すことがあるため、その場合は絶対パスのまま返す
+        // (確認ダイアログの文言用途なので、クリックしてエディタで開く動作までは要求しない)。
+        private static string ToRelativeDisplayPath(string normalizedAbsolutePath, string dataPath)
+        {
+            return normalizedAbsolutePath.StartsWith(dataPath, StringComparison.Ordinal)
+                ? "Assets" + normalizedAbsolutePath.Substring(dataPath.Length)
+                : normalizedAbsolutePath;
         }
 
         private static bool TryReadCached(string normalizedPath, out string text)

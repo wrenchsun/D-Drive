@@ -209,6 +209,9 @@ Cutscene.OnInputLockChanged
 
 <p>互換性スナップショット（<code>Assets/DDrive/Tests/Editor/Compat/</code>、EditMode テスト）は、公開 API・シリアライズ形式・enum・ID/Address/定数名・ネットメッセージ・生成コード・Validator の重さ・Editor 契約・版番号が意図せず変わっていないかをゴールデン比較で機械的に検出します。P チケット（移植・更新・互換性、<code>docs/42_distribution.md</code>）が完了して互換性ポリシーが発効した後は、<strong>このスナップショットが赤い PR はマージしません</strong>。意図した変更（追加は MINOR、削除・変更は MAJOR で手続きが必要）なら、<code>Tools &gt; D-Drive &gt; Compat &gt; スナップショットを更新</code>（または一部は環境変数 <code>DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1</code>）でゴールデンを更新し、同じ PR で <code>CHANGELOG.md</code> の互換性節に記載してください（詳細は <code>docs/12_review.md</code> §3 / <code>docs/42_distribution.md</code> §5.11）。</p>
 
+<h3 id="dev-repo-only">開発リポジトリの実データに依存するテスト（<code>DDRIVE_DEV_REPO</code>、2026-09-20 追加）</h3>
+<p>D-Drive のテストは持ち込み先でも実行できるように設計されていますが（<code>docs/42_distribution.md</code> §2.1 Tests 行）、UnityChan サンプル FBX など<strong>開発リポジトリにしか無い実データ</strong>を使う一部のテスト（例: <code>ImportRuleServiceTests</code>/<code>CutsceneImportServiceTests</code> の埋め込みアニメ・実 FBX を要するケース）は、持ち込み先では実行できません。これらには <code>[Category("DevRepoOnly")]</code> を付け、テスト冒頭で <code>DevRepoOnlyGuard.SkipUnlessDevRepo()</code> を呼びます。<code>DDRIVE_DEV_REPO</code> スクリプティング定義シンボル（<strong>開発リポジトリの <code>ProjectSettings</code> の Scripting Define Symbols にのみ追加</strong>。持ち込み先には無い）が定義されていなければ、<code>Assume.That(false, ...)</code> で <strong>Fail ではなく Inconclusive</strong> にします。これにより、持ち込み先で D-Drive のテストを有効化（<code>testables</code> に追加）しても、開発リポジトリ専用のテストが赤くなってビルドを止めることはありません。</p>
+
 <h2 id="checklist">PR チェックリスト</h2>
 <p>上記はあくまで実用的な抜粋です。Manager/基盤・Data/シリアライズ・Editor/ツールを含む全チェック項目は <code>docs/12_review.md</code> §3 を参照してください。コード PR とデータ PR は分離されており、データ PR は Validation green + プレビュー動画で足ります（コードレビュー不要）。</p>
 

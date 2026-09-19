@@ -20,7 +20,9 @@ using DDrive.Runtime.Prefab;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Ui;
 using DDrive.Runtime.Vfx;
+#if DDRIVE_NGO
 using Unity.Netcode;
+#endif
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
@@ -55,11 +57,16 @@ namespace DDrive.Runtime.Loop
         [Tooltip("既定のネットブリッジ。コマンドライン引数 -ddrive-net host|client|off で上書きできる(未指定時はこの値を使う)。既定は Loopback(シングルプレイ、既存の挙動を変えない)")]
         public NetBridgeMode DefaultNetBridge = NetBridgeMode.Loopback;
 
+        // [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO は versionDefines(DDRIVE_NGO)で必須依存から
+        // 切り離した。この 2 フィールドは NGO 導入時のみ意味を持つため、型ごと #if で囲む
+        // (NGO 未導入の持ち込み先ではこの 2 フィールドは Inspector に出ない)。
+#if DDRIVE_NGO
         [Tooltip("Ngo モードのとき使う NetworkManager。シーンに置いておく(Host が NetworkObject を生成する MS2026 規約。[14] §12)。未設定ならシーンから自動検索する")]
         public NetworkManager NetworkManagerRef;
 
         [Tooltip("Ngo モードのとき使う NgoNetBridge(NetworkManager と同じ NetworkObject に付ける想定)。未設定ならシーンから自動検索する")]
         public NgoNetBridge NgoBridgeRef;
+#endif
 
         [Tooltip("コマンドライン引数 -ddrive-host が無いときに使う既定 IP(PC-A=Host、[docs/29])")]
         public string DefaultHostAddress = "192.168.137.1";
@@ -136,13 +143,17 @@ namespace DDrive.Runtime.Loop
         private readonly UniTaskCompletionSource _ready = new();
         private AnchorGroupLoopAdapter _groupAdapter;
         private UnscaledCameraFxAdapter _cameraFxAdapter;
+#if DDRIVE_NGO
         private NetDebugOverlay _netDebugOverlay;
+#endif
         private bool _built;
 
         // [14_networking.md] §12(6-0) — StartHost/StartClient は Awake() ではなく Start() まで遅延する
         // (下記 StartNetworkingIfPending 参照)。
         private NetLaunchRole _pendingNetRole;
+#if DDRIVE_NGO
         private NetworkManager _pendingNetworkManager;
+#endif
         private ushort _pendingNetPort;
         private string _pendingNetHost;
 
@@ -198,6 +209,7 @@ namespace DDrive.Runtime.Loop
         // 終わった後の Start() まで遅延する。
         private void StartNetworkingIfPending()
         {
+#if DDRIVE_NGO
             if (_pendingNetworkManager == null || _pendingNetRole == NetLaunchRole.Unspecified || _pendingNetRole == NetLaunchRole.Off)
             {
                 return;
@@ -219,6 +231,7 @@ namespace DDrive.Runtime.Loop
                 nm.StartClient();
                 Debug.Log($"[Net/Client] DDriveRuntimeBootstrap: Client として起動しました(host={_pendingNetHost}:{_pendingNetPort})。");
             }
+#endif
         }
 
         private void OnDestroy()
@@ -272,10 +285,12 @@ namespace DDrive.Runtime.Loop
             // [14_networking.md] §7(6-5) — Debug.isDebugBuild は Editor 実行時、または「Development Build」を
             // 付けたプレイヤーで true になる(NgoNetBridge.ConfigureAppLayerSimLatency と同じ判定基準)。
             NetHashGate = new CatalogContentHashGate(NetBridge, ContentHashTimeoutSeconds, Debug.isDebugBuild);
+#if DDRIVE_NGO
             if (_netDebugOverlay != null)
             {
                 _netDebugOverlay.ContentHashGate = NetHashGate;
             }
+#endif
 
             var seTemplate = new GameObject("SeSourceTemplate");
             seTemplate.transform.SetParent(transform, false);
@@ -325,10 +340,12 @@ namespace DDrive.Runtime.Loop
             // Host との接続を失ったときに、ネット経由で開始した Presentation(StopOnCancel=true の
             // Vfx/Se 等を含む)を強制終了する。NgoBridgeRef は Ngo モードのときだけ非 null(Loopback は
             // ClientDisconnected を持たない=既存のシングルプレイ挙動を変えない、[14] §1)。
+#if DDRIVE_NGO
             if (NgoBridgeRef != null)
             {
                 NgoBridgeRef.ClientDisconnected += OnNetClientDisconnected;
             }
+#endif
 
             Dispatcher = new AssetEventDispatcher(Anim.Events, Registry, Audio, Vfx, Anim.GetContextTransform, Groups);
             PrefabDispatcher = new AssetEventDispatcher(Prefabs.Events, Registry, Audio, Vfx, Prefabs.GetContextTransform, Groups);
@@ -396,6 +413,7 @@ namespace DDrive.Runtime.Loop
                 ? LaunchOptions.Role
                 : (DefaultNetBridge == NetBridgeMode.Ngo ? NetLaunchRole.Host : NetLaunchRole.Off);
 
+#if DDRIVE_NGO
             if (role == NetLaunchRole.Off)
             {
                 return new LocalLoopbackBridge();
@@ -442,6 +460,17 @@ namespace DDrive.Runtime.Loop
             }
 
             return bridge;
+#else
+            // [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO(com.unity.netcode.gameobjects)が
+            // 導入されていない持ち込み先向け。Host/Client が要求されても例外で止めず、警告のうえ
+            // LocalLoopbackBridge にフォールバックする(CLAUDE.md §0-4)。
+            if (role != NetLaunchRole.Off)
+            {
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap: NGO(com.unity.netcode.gameobjects)が導入されていないため、Host/Client の要求を無視して LocalLoopbackBridge を使います。");
+            }
+
+            return new LocalLoopbackBridge();
+#endif
         }
 
         private AudioSource CreateAudioChannel(string channelName)
@@ -454,6 +483,7 @@ namespace DDrive.Runtime.Loop
         // [14_networking.md] §5(6-0 修正7) — 自分(Client)が Host との接続を失ったときだけ、ネット経由の
         // Presentation を強制終了する。Host 視点(相手が抜けた)は自分の接続は継続しているため対象外
         // (NgoNetBridge.IsConnected が Client 側でだけ false になる既存の仕様と対になる判定)。
+#if DDRIVE_NGO
         private void OnNetClientDisconnected(ulong clientId, string reason)
         {
             if (NgoBridgeRef != null && !NgoBridgeRef.IsServer)
@@ -462,6 +492,7 @@ namespace DDrive.Runtime.Loop
                 Cutscene?.CancelAllNetworked();
             }
         }
+#endif
 
         private void Teardown()
         {
@@ -470,14 +501,18 @@ namespace DDrive.Runtime.Loop
                 return;
             }
 
+#if DDRIVE_NGO
             if (NgoBridgeRef != null)
             {
                 NgoBridgeRef.ClientDisconnected -= OnNetClientDisconnected;
             }
+#endif
 
             NetHashGate?.Dispose();
             NetHashGate = null;
+#if DDRIVE_NGO
             _netDebugOverlay = null;
+#endif
 
             var loop = Loop != null ? Loop.GameLoop : null;
             if (loop != null)

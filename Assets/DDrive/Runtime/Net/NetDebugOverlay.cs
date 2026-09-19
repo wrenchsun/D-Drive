@@ -1,3 +1,7 @@
+// [42_distribution.md] §2.3-9 / §7 A-7(P-4、2026-09-20) — NGO(com.unity.netcode.gameobjects)を
+// versionDefines(DDRIVE_NGO)で切り離す。ファイル全体が NGO 依存なので、NGO 未導入の持ち込み先
+// （DDRIVE_NGO 未定義）ではファイル全体をコンパイル対象外にする（LocalLoopbackBridge だけでコンパイル・動作する）。
+#if DDRIVE_NGO
 using DDrive.Foundation.Net;
 using Unity.Netcode;
 using UnityEngine;
@@ -90,3 +94,4 @@ namespace DDrive.Runtime.Net
         }
     }
 }
+#endif // DDRIVE_NGO

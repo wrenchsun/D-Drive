@@ -28,7 +28,7 @@ namespace DDrive.Editor
         public static void ValidateAll()
         {
             var reports = RunValidation();
-            var forbiddenApiViolations = ForbiddenApiScanner.Scan("Assets/DDrive");
+            var forbiddenApiViolations = ForbiddenApiScanner.Scan(ResolveForbiddenApiScanRoot());
 
             WriteJUnitXml(reports, forbiddenApiViolations, ResolveOutputPath());
             LogSummary(reports);
@@ -178,6 +178,17 @@ namespace DDrive.Editor
             }
 
             return result;
+        }
+
+        // [42_distribution.md] §2.3-2(P-4、2026-09-20) — パッケージ化(P-5)で `Assets/DDrive` が
+        // `Packages/com.ddrive.core/` に移っても走査ルートが追従するよう、まず `PackageInfo` から
+        // 自分自身(CI 自身の asmdef = DDrive.Editor)が属するパッケージの実パスを引く。
+        // 現状(P-5 未実施)は `Assets/DDrive` が通常の Assets フォルダのため PackageInfo は null になり、
+        // 既存どおり "Assets/DDrive" にフォールバックする(挙動は変わらない)。
+        public static string ResolveForbiddenApiScanRoot()
+        {
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(CI).Assembly);
+            return packageInfo != null ? packageInfo.resolvedPath : "Assets/DDrive";
         }
 
         private static string ResolveOutputPath()

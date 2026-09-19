@@ -102,5 +102,28 @@ namespace DDrive.Tests.Editor
 
             Assert.AreEqual(0, violations.Count);
         }
+
+        // [42_distribution.md] §2.3-2(P-4、2026-09-20) — 走査対象フォルダが存在しない/`.cs` が
+        // 0 件のときは「違反 0 件」で静かに通さず、Error 扱いの Violation を返す(禁止 API チェックの
+        // 恒久的な無効化を防ぐ)。
+        [Test]
+        public void Scan_MissingFolder_ReturnsErrorViolation()
+        {
+            var missing = Path.Combine(_tempDir, "does_not_exist");
+
+            var violations = ForbiddenApiScanner.Scan(missing);
+
+            Assert.AreEqual(1, violations.Count);
+            StringAssert.Contains("見つかりません", violations[0].Message);
+        }
+
+        [Test]
+        public void Scan_EmptyFolder_ReturnsErrorViolation()
+        {
+            var violations = ForbiddenApiScanner.Scan(_tempDir);
+
+            Assert.AreEqual(1, violations.Count);
+            StringAssert.Contains("0 件", violations[0].Message);
+        }
     }
 }

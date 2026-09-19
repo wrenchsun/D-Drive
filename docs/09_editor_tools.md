@@ -273,6 +273,10 @@ Unity -batchmode -executeMethod DDrive.Editor.CI.RegenerateIds
   → ID 定数の生成漏れ検出（生成結果に差分があれば fail）
 ```
 
+### 5.1 禁止 API 走査ルートのパッケージ対応（2026-09-20、P-4）
+
+`CI.ValidateAll` の `ForbiddenApiScanner` 走査ルートは `CI.ResolveForbiddenApiScanRoot()` で決める。`UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(CI).Assembly)` で自分自身(`DDrive.Editor`)が属するパッケージを引き、パッケージ化されていれば(P-5 以降)そのパッケージの実パスを、そうでなければ(現状)`"Assets/DDrive"` を使う。`ForbiddenApiScanner.Scan` は走査対象フォルダが無い、または `.cs` が 0 件のときに Error 相当の `Violation` を返す(以前は「違反 0 件」として静かに通っていた。パッケージ化でルートが変わって禁止 API チェックが恒久的に無効化される事故を防ぐ、[42_distribution.md] §2.3-2)。
+
 ## 6. メニュー構成
 
 メニューパスの文字列直書きは禁止（[00] §5）。定数クラス `DDriveMenu` に集約し、全 `[MenuItem]` がこれを経由する（後の改名・再配置を 1 箇所で吸収する）。
@@ -926,3 +930,9 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 > → `SpecWebSender` の `isPlaceholder`、および `SpecDiffValidator.IsPlaceholder`（自前の
 > `ValidatorRegistry` 実行をやめて `DataValidationRunner.Run` に寄せた）。詳細は
 > [32](32_spec_web.md) の「実装メモ（2026-09-17、[41] editor 系レビュー対応）」。
+
+## 12. プロジェクト単位の出力先設定（`DDriveProjectSettings`、2026-09-20、P-4 の土台）
+
+`Assets/DDrive/Editor/Settings/DDriveProjectSettings.cs`（`ScriptableSingleton<DDriveProjectSettings>` + `[FilePath("ProjectSettings/DDriveProjectSettings.asset", ...)]`）。`GameDataRoot` / `GeneratedRoot` / `SourceAssetsRoot` / `SpecsRoot` の 4 フィールドを持ち、既定値は現状の決め打ちパス（`Assets/GameData` 等）と同じ。
+
+**現時点（P-4）ではこの設定を読みに来るコードは無い**。`AssetCreationService.DefaultGameDataRoot` 等、既存の決め打ち定数はまだ差し替えていない。位置づけは [42_distribution.md](42_distribution.md) §3.4・§4.3・§7 B-6 の「出力先を持ち込み先が選べるようにする」土台で、実際の参照差し替えは P-5、選択 UI（セットアップウィザード）は P-6 で行う。1 つの設定 SO に他チケットの責務（`AssetDataBase.SchemaVersion` = P-7、`LastAppliedVersion` = P-8 等）は混ぜない。

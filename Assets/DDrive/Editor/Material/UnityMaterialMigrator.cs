@@ -71,7 +71,8 @@ namespace DDrive.Editor.Materials
                 report.Log($"警告: '{source.name}' のシェーダー '{(source.shader != null ? source.shader.name : "null")}' は未対応のため {LitShaderName} として変換します");
                 if (target == null)
                 {
-                    report.Log($"エラー: {LitShaderName} が見つかりません(Assets/SourceAssets/Shaders を確認)");
+                    // [42_distribution.md] §2.3-1(P-4、2026-09-20) — シェーダーはパッケージ側(Assets/DDrive/Runtime/Shaders)へ移設済み。
+                    report.Log($"エラー: {LitShaderName} が見つかりません(Assets/DDrive/Runtime/Shaders を確認)");
                     return null;
                 }
             }

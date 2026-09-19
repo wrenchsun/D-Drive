@@ -20,6 +20,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.netcode.gameobjects",
+            "expression": "",
+            "define": "DDRIVE_NGO"
+        }
+    ],
     "noEngineReferences": false
 }

@@ -901,7 +901,21 @@ namespace DDrive.Editor.Ui
             InternalEditorUtility.RepaintAllViews();
         }
 
-        public const string DefaultScrollMaterialPath = "Assets/DDrive/Runtime/Ui/Shaders/DDrive_UI_Scroll.mat";
+        // [42_distribution.md] §2.3-4(P-4、2026-09-20) — パッケージ化(P-5)でこのファイル(DDrive.Editor)
+        // が Packages/com.ddrive.core/ に移ると、素材の絶対パスも Packages/com.ddrive.core/Runtime/Ui/Shaders/...
+        // に変わり、直書きの定数パスでは LoadAssetAtPath が null になる。GUID(パスが変わっても不変)で
+        // 解決し、解決できない(アセット自体が無い)場合だけ現状のパスへフォールバックする。
+        private const string DefaultScrollMaterialGuid = "541fe40e4c0e1ef4582d44e6a908aef9";
+        private const string DefaultScrollMaterialPathFallback = "Assets/DDrive/Runtime/Ui/Shaders/DDrive_UI_Scroll.mat";
+
+        public static string DefaultScrollMaterialPath
+        {
+            get
+            {
+                var path = AssetDatabase.GUIDToAssetPath(DefaultScrollMaterialGuid);
+                return string.IsNullOrEmpty(path) ? DefaultScrollMaterialPathFallback : path;
+            }
+        }
 
         // (レビュー対応 2026-09-14) 以前は Scroll Material が空なら開いただけで自動で書き込んでいた(Data が勝手に
         // 変更扱いになり、Undo しても直後に入れ直されて空に戻せず、Redo 履歴も消えていた)。自動では書き込まず、

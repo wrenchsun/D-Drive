@@ -1,3 +1,5 @@
+// [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO 実機確認用サンプル。NetworkBehaviour を直接継承するのでファイル全体を DDRIVE_NGO で囲う。
+#if DDRIVE_NGO
 using System;
 using DDrive.Foundation.Net;
 using DDrive.Runtime.Net;
@@ -74,3 +76,4 @@ namespace DDrive.Samples
         }
     }
 }
+#endif // DDRIVE_NGO

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using UnityEditor.PackageManager;
 using UnityEngine;
 
 namespace DDrive.Editor.Manual
@@ -56,8 +57,29 @@ namespace DDrive.Editor.Manual
         public static string GetTitleSuffix(ManualKind kind)
             => kind == ManualKind.Programmer ? ProgrammerTitleSuffix : DesignerTitleSuffix;
 
+        private const string DesignerDocumentationFolderName = "DesignerManual";
+        private const string ProgrammerDocumentationFolderName = "ProgrammerManual";
+
+        // [42_distribution.md] §2.3-3(P-4、2026-09-20) — パッケージ化(P-5)後は docs/DesignerManual|
+        // ProgrammerManual が `Packages/com.ddrive.core/Documentation~/...Manual` に同梱される想定のため、
+        // まず PackageInfo から自分自身(ManualPages 自身の asmdef = DDrive.Editor)が属するパッケージの
+        // 実パスを引く。現状(P-5 未実施)は `Assets/DDrive` が通常の Assets フォルダのため PackageInfo は
+        // null になり、既存どおりプロジェクト直下の docs/...Manual にフォールバックする(挙動は変わらない)。
         public static string GetManualFolder(string projectRoot, ManualKind kind = ManualKind.Designer)
-            => Path.Combine(projectRoot, GetFolderRelativePath(kind).Replace('/', Path.DirectorySeparatorChar));
+        {
+            var packageInfo = PackageInfo.FindForAssembly(typeof(ManualPages).Assembly);
+            if (packageInfo != null)
+            {
+                var documentationFolder = kind == ManualKind.Programmer ? ProgrammerDocumentationFolderName : DesignerDocumentationFolderName;
+                var packaged = Path.Combine(packageInfo.resolvedPath, "Documentation~", documentationFolder);
+                if (Directory.Exists(packaged))
+                {
+                    return packaged;
+                }
+            }
+
+            return Path.Combine(projectRoot, GetFolderRelativePath(kind).Replace('/', Path.DirectorySeparatorChar));
+        }
 
         // トップ(Readme)を除くページ一覧。フォルダが無ければ空配列(警告ログのみ、例外で止めない)。
         public static Page[] DiscoverPages(string projectRoot, ManualKind kind = ManualKind.Designer)

@@ -13,6 +13,7 @@ Validation = Tools/D-Drive/Validation/
 BuildJUnitXml
 DiscoverValidators
 RegenerateIds
+ResolveForbiddenApiScanRoot
 RunAllMenuItem
 RunValidation
 ValidateAll

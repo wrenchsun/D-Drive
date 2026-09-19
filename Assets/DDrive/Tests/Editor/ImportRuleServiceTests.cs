@@ -358,9 +358,13 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(AssetDatabase.LoadAssetAtPath<AnimationClip>(path), data.Clip);
         }
 
+        // [42_distribution.md] §2.3-6(P-4、2026-09-20) — 埋め込み AnimationClip 付きの実 FBX が要るため、
+        // 開発リポジトリの実データ(UnityChan サンプル)に依存する。DevRepoOnlyGuard 参照。
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_Anim_FromEmbeddedFbxClip_CreatesAnimData_WithFirstNonPreviewClip()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var path = CopyAsset(SampleAnimFbx, $"{SourceRoot}/Anim/Player/Wait.fbx");
             var report = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
             Assert.AreEqual(1, report.Created);
@@ -387,9 +391,13 @@ namespace DDrive.Tests.Editor
 
         // ── Model(GameObject。FBX は既存サンプルをコピーして使う) ──
 
+        // [42_distribution.md] §2.3-6(P-4、2026-09-20) — 実 FBX が要るため開発リポジトリの実データ
+        // (UnityChan サンプル)に依存する。DevRepoOnlyGuard 参照。
         [Test]
+        [Category("DevRepoOnly")]
         public void ProcessPaths_Model_FromFbx_CreatesModelData_WithPrefabReference()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
             var path = CopyAsset(SampleModelFbx, $"{SourceRoot}/Model/Enemy/Box.fbx");
             var report = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
             Assert.AreEqual(1, report.Created);

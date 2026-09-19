@@ -161,6 +161,12 @@ void   Release(ScenePreloadList list)</div>
 </ul>
 <p>ID 定数（<code>SEID</code> / <code>VFXID</code> / <code>ANIMID</code> など）の再生成は <code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code>。生成先やコード規約は <a href="concepts.html">concepts.html</a> を参照してください。</p>
 
+<h2 id="project-settings">出力先パスの設定（<code>DDriveProjectSettings</code>、2026-09-20 追加）</h2>
+<p><code>Assets/DDrive/Editor/Settings/DDriveProjectSettings.cs</code>（<code>ScriptableSingleton&lt;DDriveProjectSettings&gt;</code>、<code>ProjectSettings/DDriveProjectSettings.asset</code> に保存）が <code>GameDataRoot</code> / <code>GeneratedRoot</code> / <code>SourceAssetsRoot</code> / <code>SpecsRoot</code> の 4 つの出力先パスを持ちます。既定値は現状の決め打ちパス（<code>Assets/GameData</code> 等）と同じです。</p>
+<div class="tip">
+現時点ではこの設定を実際に読みに行くコードはまだありません（<code>AssetCreationService.DefaultGameDataRoot</code> 等の既存の決め打ち定数は変更していません）。持ち込み先が自分のフォルダ構成に合わせて出力先を選べるようにする土台で、実際の参照差し替えとセットアップウィザードは後続チケットで行います。
+</div>
+
 <h2>関連ページ</h2>
 <ul>
 <li><a href="Readme.html">トップ</a></li>

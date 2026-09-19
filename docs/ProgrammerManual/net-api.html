@@ -48,6 +48,14 @@
 </table>
 <p>どちらも同じ <code>INetBridge</code> を実装するため、<strong>ゲームコード・Data は通信の有無で一切変わりません</strong>（<code>FR-13.1</code>）。Manager は <code>NetMode</code>（Local / Cosmetic / Simulated）を見て配送経路を自動で選ぶので、プログラマーは通常の <code>Play</code>/<code>Spawn</code> API を呼ぶだけです。</p>
 
+<h2 id="ddrive-ngo">シングルプレイ持ち込み先向け: <code>DDRIVE_NGO</code>（2026-09-20 追加）</h2>
+<p>NGO（<code>com.unity.netcode.gameobjects</code>）は <strong>必須依存ではありません</strong>。<code>DDrive.Runtime</code>/<code>DDrive.Samples</code>/<code>DDrive.Tests.Runtime</code> の各 asmdef が <code>versionDefines</code> で <code>com.unity.netcode.gameobjects</code> パッケージの有無を <code>DDRIVE_NGO</code> というスクリプティング定義シンボルに変換します。<code>NgoNetBridge</code>/<code>NetDebugOverlay</code>/<code>NgoTransportConfigurator</code> や、<code>DDriveRuntimeBootstrap</code>・<code>PrefabDataValidator</code> の NGO 関連コードは <code>#if DDRIVE_NGO</code> で囲まれています。</p>
+<ul>
+<li><strong>NGO を導入した場合</strong>（このリポジトリの既定）: <code>DDRIVE_NGO</code> が自動的に定義され、今までどおり <code>NetBridgeMode.Ngo</code> が使えます。手動で定義する必要はありません。</li>
+<li><strong>NGO を導入しない場合</strong>: <code>DDRIVE_NGO</code> が定義されないため、上記の型・分岐はコンパイル対象から外れます。<code>DDriveRuntimeBootstrap.ResolveNetBridge()</code> は Host/Client が要求されても警告を出したうえで <code>LocalLoopbackBridge</code> にフォールバックし（例外で止めない）、<code>PrefabDataValidator</code> は <code>NetworkObject</code> の存在検査をスキップします。シングルプレイ専用の持ち込み先で NGO パッケージを入れずに済みます。</li>
+</ul>
+<p>これは Unity の「バージョン定義」の標準パターンで、<code>Packages/manifest.json</code> に <code>com.unity.netcode.gameobjects</code> が有るかどうかだけで自動的に切り替わります（プロジェクト設定を手で触る必要はありません）。詳細は <a href="https://docs.unity3d.com/Manual/assembly-definition-references.html">Unity マニュアルの asmdef versionDefines</a> と <code>docs/42_distribution.md</code> §2.3-9・§7 A-7 を参照してください。</p>
+
 <h2 id="select">ブリッジの選択</h2>
 <p>選択は <code>DDriveRuntimeBootstrap.DefaultNetBridge</code>（Inspector、<code>NetBridgeMode.Loopback</code> または <code>NetBridgeMode.Ngo</code>、既定 <code>Loopback</code>）と、起動時のコマンドライン引数（<code>NetLaunchArgs.Parse</code>、<code>Runtime/Net/NetLaunchArgs.cs</code>）で決まります。引数が Inspector の既定値を上書きします。</p>
 <table>

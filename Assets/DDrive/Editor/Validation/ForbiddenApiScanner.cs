@@ -67,16 +67,29 @@ namespace DDrive.Editor.Validation
             }
         }
 
+        // [42_distribution.md] §2.3-2(P-4、2026-09-20) — 走査ルートが見つからない/`.cs` が 0 件のときは
+        // 「違反 0 件」として静かに通さず、専用の Violation を 1 件返して CI.ValidateAll を Error にする
+        // (パッケージ化でルートが変わって走査対象が消えると、禁止 API チェックが恒久的に無効化されて
+        // しまう事故を防ぐ。CLAUDE.md §0-3)。
         public static List<Violation> Scan(string rootFolder)
         {
             var violations = new List<Violation>();
 
             if (!Directory.Exists(rootFolder))
             {
+                violations.Add(new Violation(rootFolder, 0,
+                    $"ForbiddenApiScanner: 走査対象フォルダが見つかりません('{rootFolder}')。禁止 API チェックが無効化されています。"));
                 return violations;
             }
 
             var files = Directory.GetFiles(rootFolder, "*.cs", SearchOption.AllDirectories);
+
+            if (files.Length == 0)
+            {
+                violations.Add(new Violation(rootFolder, 0,
+                    $"ForbiddenApiScanner: 走査対象の .cs ファイルが 0 件です('{rootFolder}')。禁止 API チェックが無効化されています。"));
+                return violations;
+            }
 
             foreach (var file in files)
             {
