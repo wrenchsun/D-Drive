@@ -309,7 +309,7 @@ namespace DDrive.Runtime.Loop
             // ScaledDeltaTime を配るため、Presentation 側で特別な配線は不要)。
             // [14_networking.md] §5(5-8/5-9) — Audio/Vfx/Prefabs と同じく NetBridge を渡す(現状は
             // LocalLoopbackBridge のため常に完全ローカル。NGO 統合は Phase 6 でここを差し替える)。
-            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics, NetBridge, cutscene: Cutscene);
+            Presentation = new PresentationManager(Registry, Loop.TimeService, Audio, Bgm, Vfx, Anim, Ui, UiTweens, CameraFx, Haptics, NetBridge, cutscene: Cutscene, groups: Groups);
             // [11_tasks.md] 6-0 修正3(実機確認で発見した課題3) — カタログ登録(RegisterCatalogsAsync、Start())が
             // 完了する前に接続直後のスナップショット(PresentationPlayMsg)を受信すると、Registry にまだ
             // 存在しない PresId が Unregistered として Placeholder に解決されてしまう(Late Join 直後の実機確認で

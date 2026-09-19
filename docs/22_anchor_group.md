@@ -147,10 +147,11 @@ Grid 3×3 などのパターンで並べたあと「この 1 点だけ少しず�
 
 ## 5. 未対応・今後
 
-- Presentation 統合（トラック種別 AnchorGroup）は Phase 5
-- ネット同期は各点の Cosmetic 配送（位置のみ）に任せる。Group 単位の同期は未対応
+- **Presentation 統合（トラック種別 AnchorGroup）は 2026-09-19 に実装済み。** `TrackKind.AnchorGroup` → `PresentationManager.FireAnchorGroup` → `AnchorGroupPlayer.PlayData` に薄く委譲する（詳細・設計判断は [08_presentation.md](08_presentation.md) 実装メモ「2026-09-19、AnchorGroup トラック」を参照）。PresentationEditor の SceneView には全点を番号付きで表示するが、点の編集は引き続きこの Anchor Group Editor で行う（Presentation Editor 側では表示のみ）
+- ネット同期は各点の Cosmetic 配送（位置のみ）に任せる。Group 単位の同期は未対応。Presentation の AnchorGroup トラックも `PresentationPlayMsg.Seed` を `AnchorGroupPlayer.PlayData` に渡していない（API 自体が Seed を受け取らない。理由は [08_presentation.md] 実装メモ参照）
 - Spiral / 曲線パターン、点ごとの個別ディレイ表は要望があれば
 
 ## 6. 変更履歴
 
+- 2026-09-19: §5「Presentation 統合」実装完了（トラック種別 `TrackKind.AnchorGroup`）。詳細は [08_presentation.md](08_presentation.md) 実装メモ参照
 - 2026-09-17: §3.7「自動配置 → 手置きの点に変換」を追加（U-22）。`AnchorLayout.Generate` を `GeneratePattern` + `AppendManualPoints` に分割（挙動は不変）。SceneView に基準（原点）の 3 軸・座標ラベル・基準 → 原点の線を追加（U-24。定義は [21](21_anchor_spec.md) §3.10）

@@ -1,5 +1,6 @@
 using DDrive.Editor.Presentation;
 using DDrive.Foundation.Identity;
+using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Anim2D;
 using DDrive.Runtime.Audio;
@@ -43,6 +44,7 @@ namespace DDrive.Tests.Editor
         [TestCase(typeof(HapticsData), TrackKind.Haptic)]
         [TestCase(typeof(CanvasData), TrackKind.Canvas)]
         [TestCase(typeof(UiTweenData), TrackKind.UiTween)]
+        [TestCase(typeof(AnchorGroupData), TrackKind.AnchorGroup)]
         public void TryKindFor_EachConcreteType_ResolvesExpectedKind(System.Type dataType, TrackKind expected)
         {
             var data = (DDrive.Foundation.Data.AssetDataBase)ScriptableObject.CreateInstance(dataType);
@@ -68,6 +70,7 @@ namespace DDrive.Tests.Editor
         [TestCase(TrackKind.Haptic, typeof(HapticsData))]
         [TestCase(TrackKind.Canvas, typeof(CanvasData))]
         [TestCase(TrackKind.UiTween, typeof(UiTweenData))]
+        [TestCase(TrackKind.AnchorGroup, typeof(AnchorGroupData))]
         public void AssetTypeFor_MatchesTryKindFor_RoundTrip(TrackKind kind, System.Type expectedType)
         {
             Assert.AreEqual(expectedType, PresentationTrackKindMapping.AssetTypeFor(kind));
@@ -86,6 +89,7 @@ namespace DDrive.Tests.Editor
         [TestCase(TrackKind.CameraShake, AssetType.Shake)]
         [TestCase(TrackKind.Haptic, AssetType.Haptics)]
         [TestCase(TrackKind.Anim2D, AssetType.Anim2D)]
+        [TestCase(TrackKind.AnchorGroup, AssetType.AnchorGroup)]
         public void AssetKindFor_MatchesAssetTypeEnum(TrackKind kind, AssetType expected)
         {
             Assert.AreEqual(expected, PresentationTrackKindMapping.AssetKindFor(kind));

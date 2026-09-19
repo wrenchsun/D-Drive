@@ -19,9 +19,10 @@ namespace DDrive.Editor.Presentation
     // 使われない(PresentationTrackAnchorResolver のコメント参照)。したがって編集の書き戻し先も常に
     // 「このトラックの PresentationTrack.Anchor」であり、共有アセット(AnchorData 等)を書き換えることはない。
     //
-    // TrackKind に AnchorGroup(配置セット)は存在しない([22_anchor_group.md] §5 で予告されていたが
-    // 未実装のまま)ため、AnchorGroup の点は描けない。位置を持つのは Vfx/Se のみ([16_camera_haptics.md]
-    // の CameraShake/Haptic 等は位置を消費しない。§4 Kind 一覧参照)。
+    // AnchorGroup(配置セット、2026-09-19、[22_anchor_group.md] §5 で予告されていた Presentation 統合)は
+    // Vfx/Se と解決方法が異なる: track.Anchor(単一の AnchorDef)ではなく、参照先 AnchorGroupData の原点 +
+    // 全点(AnchorGroupPlanner.EnumeratePoints、AnchorGroupEditorWindow と同じ見た目)を番号付きで描く。
+    // 点の編集(移動)は Anchor Group Editor に任せ、ここでは表示のみ(ハンドルを出さない)。
     public sealed partial class PresentationEditorWindow
     {
         // 表示対象: すべての位置持ちトラックをまとめて見せるか、トラック一覧で選択中の 1 本だけに絞るか。
@@ -37,6 +38,13 @@ namespace DDrive.Editor.Presentation
         // Anchor Editor(黄)・Anchor Group Editor(水色)のいずれとも衝突しない配色にする。
         private static readonly Color SceneAnchorVfxColor = new(0.9f, 0.4f, 0.85f);   // マゼンタ
         private static readonly Color SceneAnchorSeColor = new(0.3f, 0.85f, 0.95f);   // シアン
+
+        // AnchorGroup(配置セット)専用。上記いずれとも、Cutscene の AnchorGroup トラック色(黄緑系
+        // (0.6, 0.8, 0.4)、CutsceneAnchorGroupClip)とも大きくは衝突しない黄緑にした。
+        private static readonly Color SceneAnchorGroupColor = new(0.6f, 0.85f, 0.3f);
+
+        // AnchorGroup の点バッファ(AnchorGroupData.MaxPoints 分を使い回す。AnchorGroupEditorWindow と同じ)。
+        private readonly AnchorSpawnSpec[] _sceneAnchorGroupPoints = new AnchorSpawnSpec[AnchorGroupData.MaxPoints];
 
         [SerializeField] private bool _sceneAnchorEnabled = true;
         [SerializeField] private bool _sceneAnchorShowAll = true;
@@ -76,7 +84,8 @@ namespace DDrive.Editor.Presentation
             row.Add(modeField);
             root.Add(row);
 
-            root.Add(new Label("位置を持つのは Vfx / Se トラックのみです(Anim/CameraShake/Haptic 等は対象外)。")
+            root.Add(new Label("位置を持つのは Vfx / Se / AnchorGroup トラックのみです(Anim/CameraShake/Haptic 等は対象外)。" +
+                "AnchorGroup は全点を表示のみ(点の編集は Anchor Group Editor で行います)。")
             {
                 style = { opacity = 0.6f, whiteSpace = WhiteSpace.Normal, marginLeft = 4 },
             });
@@ -141,6 +150,12 @@ namespace DDrive.Editor.Presentation
                     continue;
                 }
 
+                if (track.Kind == TrackKind.AnchorGroup)
+                {
+                    DrawAnchorGroupPoints(i, in track, self, target, isSelected, interactive: true);
+                    continue;
+                }
+
                 var resolved = PresentationTrackAnchorResolver.Resolve(in track, self, target);
                 var color = SceneAnchorColorFor(track.Kind);
                 var label = SceneAnchorLabel(i, in track);
@@ -178,9 +193,66 @@ namespace DDrive.Editor.Presentation
                     continue;
                 }
 
+                if (track.Kind == TrackKind.AnchorGroup)
+                {
+                    DrawAnchorGroupPoints(i, in track, self, target, isSelected: i == _selectedTrack, interactive: false);
+                    continue;
+                }
+
                 var resolved = PresentationTrackAnchorResolver.Resolve(in track, self, target);
                 AnchorSceneHandles.DrawInactiveMarker(track.Anchor, resolved.BaseTransform, resolved.ExtraOffset, SceneAnchorLabel(i, in track), SceneAnchorColorFor(track.Kind));
             }
+        }
+
+        // AnchorGroup: 参照先 AnchorGroupData の全点を番号付きで描く(AnchorGroupEditorWindow と同じ見た目)。
+        // 点の編集(移動/上書き)は Anchor Group Editor に任せるため、ハンドルは一切出さない(表示のみ)。
+        // interactive=true(このウィンドウが SceneGuiOwner)のときだけ点クリックでトラック選択に切り替える。
+        private void DrawAnchorGroupPoints(int trackIndex, in PresentationTrack track, Transform self, Transform target, bool isSelected, bool interactive)
+        {
+            if (_preview?.Registry == null || !track.Asset.IsAssigned)
+            {
+                return;
+            }
+
+            var group = _preview.Registry.ResolveOrPlaceholder<AnchorGroupData>(track.Asset.Id);
+            if (group == null)
+            {
+                return;
+            }
+
+            var count = PresentationTrackAnchorResolver.ResolveAnchorGroupPoints(
+                _preview.Registry, group, self, target, track.Target, _sceneAnchorGroupPoints,
+                out var baseTransform, out var extraOffset);
+
+            if (count == 0)
+            {
+                return;
+            }
+
+            var baseColor = isSelected ? Color.yellow : SceneAnchorGroupColor;
+            var alpha = interactive ? 1f : 0.3f;
+            Handles.color = new Color(baseColor.r, baseColor.g, baseColor.b, alpha);
+
+            for (var p = 0; p < count; p++)
+            {
+                var worldPos = AnchorPose.WorldPosition(_sceneAnchorGroupPoints[p].Def, baseTransform, extraOffset);
+                var size = HandleUtility.GetHandleSize(worldPos) * 0.1f;
+
+                if (interactive && Handles.Button(worldPos, Quaternion.identity, size, size * 1.5f, Handles.SphereHandleCap))
+                {
+                    SelectTrackFromScene(trackIndex);
+                }
+                else
+                {
+                    Handles.DrawWireDisc(worldPos, Vector3.up, size);
+                }
+
+                Handles.Label(worldPos + Vector3.up * size * 1.6f, p.ToString(), EditorStyles.miniLabel);
+            }
+
+            var overviewPos = AnchorPose.WorldPosition(_sceneAnchorGroupPoints[0].Def, baseTransform, extraOffset);
+            Handles.Label(overviewPos + Vector3.up * HandleUtility.GetHandleSize(overviewPos) * 0.3f,
+                $"{SceneAnchorLabel(trackIndex, in track)}(編集は Anchor Group Editor)", EditorStyles.miniLabel);
         }
 
         // 非選択トラックの点(クリックで選択に切り替える。AnchorGroupEditorWindow の点選択と同じ操作感)。

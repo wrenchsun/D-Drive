@@ -16,10 +16,14 @@ namespace DDrive.Runtime.Presentation
 
     // [01_architecture.md] §6 / [08_presentation.md] §2 のトラック種別。
     // CameraShake([16] Part A)/ Haptic([16] Part B)は 5-2/5-2b で実装済み。Timeline は 6-10a で
-    // CutsceneManager に接続済み(未配線時は警告 1 回 + no-op)。
+    // CutsceneManager に接続済み(未配線時は警告 1 回 + no-op)。AnchorGroup(配置セット)は
+    // [22_anchor_group.md] §5 の予告どおり Presentation 統合として追加(未配線時は警告 1 回 + no-op)。
     // Marker / Signal は他 Manager に委譲せず、SignalKey をそのまま「名前」として使う(実装メモ: [08] 実装メモ参照)。
     //   Marker → handle.OnMarker(string) を発火(データ→コードの通知)
     //   Signal → PlayContext.OnSignal(string) を呼ぶ(データ→コードの通知。handle.Signal() はコード→データの逆方向)
+    //
+    // 末尾に追加すること(既存アセットの Tracks[].Kind は YAML に整数値で永続化されるため、
+    // 既存の値の並び替え・挿入は既存アセットの種別を破壊する)。
     public enum TrackKind
     {
         Anim,
@@ -35,6 +39,9 @@ namespace DDrive.Runtime.Presentation
         UiTween,
         Marker,
         Signal,
+
+        // [22_anchor_group.md] §5 — 配置セット(AnchorGroupData)。全点に VFX/SE を一括で出す。2026-09-19 追加。
+        AnchorGroup,
     }
 
     // [08_presentation.md] §2 の「シーン配置型アンカーとの連携」— トラック単位でどの Transform を基準に

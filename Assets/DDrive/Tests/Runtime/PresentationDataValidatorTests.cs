@@ -118,6 +118,33 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
+        public void AnchorGroupTrack_AssetTypeMismatch_IsError()
+        {
+            var data = ValidData();
+            data.Tracks = new[]
+            {
+                // Kind=AnchorGroup なのに Asset.Type が Vfx のまま(取り違えたデータ)。
+                new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.AnchorGroup, Asset = AssetRef.From(new VfxId(1, AssetType.Vfx)) },
+            };
+
+            var results = Validate(data);
+            Assert.IsTrue(results.Any(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("種別")));
+        }
+
+        [Test]
+        public void AnchorGroupTrack_CorrectAssetType_HasNoError()
+        {
+            var data = ValidData();
+            data.Tracks = new[]
+            {
+                new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0f, Kind = TrackKind.AnchorGroup, Asset = new AssetRef { Type = AssetType.AnchorGroup, Id = 1 } },
+            };
+
+            var results = Validate(data);
+            Assert.IsFalse(results.Exists(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        [Test]
         public void SelfReferencingTrack_IsError()
         {
             var data = ValidData();

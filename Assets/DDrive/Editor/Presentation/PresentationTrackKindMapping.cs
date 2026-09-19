@@ -1,6 +1,7 @@
 using System;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
+using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
 using DDrive.Runtime.Anim2D;
 using DDrive.Runtime.Audio;
@@ -32,6 +33,7 @@ namespace DDrive.Editor.Presentation
             TrackKind.Haptic => typeof(HapticsData),
             TrackKind.Canvas => typeof(CanvasData),
             TrackKind.UiTween => typeof(UiTweenData),
+            TrackKind.AnchorGroup => typeof(AnchorGroupData),
             _ => null,
         };
 
@@ -47,6 +49,7 @@ namespace DDrive.Editor.Presentation
             TrackKind.Haptic => AssetType.Haptics,
             TrackKind.Canvas => AssetType.Canvas,
             TrackKind.UiTween => AssetType.UiTween,
+            TrackKind.AnchorGroup => AssetType.AnchorGroup,
             _ => AssetType.None,
         };
 
@@ -83,6 +86,9 @@ namespace DDrive.Editor.Presentation
                 case UiTweenData:
                     kind = TrackKind.UiTween;
                     return true;
+                case AnchorGroupData:
+                    kind = TrackKind.AnchorGroup;
+                    return true;
                 default:
                     kind = default;
                     return false;
@@ -95,6 +101,7 @@ namespace DDrive.Editor.Presentation
             TrackKind.Anim or TrackKind.Anim2D => new Color(0.55f, 0.7f, 1f),
             TrackKind.Se or TrackKind.Bgm => new Color(0.5f, 0.9f, 0.6f),
             TrackKind.Vfx => new Color(1f, 0.7f, 0.3f),
+            TrackKind.AnchorGroup => new Color(0.6f, 0.85f, 0.35f),
             TrackKind.CameraShake => new Color(1f, 0.4f, 0.4f),
             TrackKind.Haptic => new Color(0.8f, 0.5f, 1f),
             TrackKind.HitStop => new Color(1f, 1f, 1f),

@@ -85,6 +85,12 @@ namespace DDrive.Editor.Anim
         public AudioManager Audio { get; private set; }
         public ModelsManager Models { get; private set; }
 
+        // [08_presentation.md] §5(Presentation 統合、2026-09-19) — ScenePresentationPreviewDriver が
+        // TrackKind.AnchorGroup を委譲する先として共有する(Vfx/Audio/Anim と同じ「1 種別 1 実体を束ねて渡す」
+        // 方針、ADR-4)。EnsureManagers() が呼ばれるまで(=まだ一度もモデル配置/SE/VFX 試聴をしていない間)は
+        // null のまま(呼び出し側は null 許容の Manager 未設定として警告 + no-op で継続する)。
+        public AnchorGroupPlayer Groups => _groups;
+
         // 現在の対象 Animator(借用 or 自前配置)。無ければ null。
         public Animator Current { get; private set; }
 

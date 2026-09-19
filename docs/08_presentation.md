@@ -31,7 +31,8 @@ public struct PresentationTrack
     public string SignalKey;
     public TrackKind Kind;             // Anim/Anim2D/SE/BGM/VFX/CameraShake(ShakeId)/
                                        // Haptic(HapticId)/HitStop/Timeline/Canvas/
-                                       // UiTween/Marker/Signal   ※Shake/Haptic は [16] 参照
+                                       // UiTween/Marker/Signal/AnchorGroup(配置セット)
+                                       // ※Shake/Haptic は [16]、AnchorGroup は [22] 参照
     public AssetRef Asset;             // 対応するID
     public TrackTargetMode Target;     // Self / ContextTarget / World / Anchor
     public AnchorDef Anchor;           // VFX 用 (04参照)
@@ -124,6 +125,7 @@ Timeline 風の複数トラック UI。
 | AtTime が TotalDuration 超過 | Warning |
 | Interruptible=false かつ長尺(>10s) | Warning |
 | 循環参照（Presentation が自身を含む） | Error |
+| Kind=AnchorGroup なのに Asset の種別が AnchorGroup ではない | Error |
 
 ## 実装メモ（2026-09-14、5-1）
 
@@ -131,7 +133,7 @@ Timeline 風の複数トラック UI。
 
 - **R3 導入**: `Packages/manifest.json` に UnityNuGet scoped registry(`org.nuget` スコープ)を追加し `org.nuget.r3`(コア型 `Observable<T>`/`Unit`/`Subject<T>` を含む素の `R3.dll`) + `com.cysharp.r3`(git、`R3.Unity` の Unity 統合層。今回は使っていない)を導入。両方とも 1.3.1。**DLL 重複は発生しなかった**(`org.nuget.system.runtime.compilerservices.unsafe@6.0.0` が isuzu MCP 側のコピーと衝突する懸念があったが、`console_read_logs`/Editor.log に "Multiple precompiled assemblies" は出ず、isuzu MCP・compile/test も導入後に問題なく動作し続けた)。`DDrive.Runtime.asmdef`/`DDrive.Samples.asmdef`(`overrideReferences: false`)は R3.dll が自動参照されるため無編集で通ったが、`DDrive.Tests.Runtime.asmdef`(`overrideReferences: true`)は `precompiledReferences` に `"R3.dll"` を追記する必要があった。
 - **PresentationHandle は Handle<TMarker> の薄いラッパー struct**(他種別のような拡張メソッドではなく、`Signal`/`Cancel`/`Pause`/`Resume`/`SetSpeed`/`Seek`/`NormalizedTime`/`IsPlaying`/`OnCompleted`/`OnCancelled`/`OnMarker`/`OnTrackFired`/`WaitAsync` を直接メンバーに持つ readonly struct)。中身は `Handle<PresentationMarker>` 1 個のみで GC alloc 0。`WaitAsync` は `UniTask.WaitUntil` のポーリングではなく `UiTweenManager` と同じ `UniTaskCompletionSource` 方式(Complete/Cancel 時に同期的に `TrySetResult`)。
-- **Kind の委譲先(実装済み)**: Anim/Anim2D → `AnimManager.PlayData`(対象 Animator は `TrackTargetMode` で決めた Transform から `GetComponentInChildren<Animator>` で解決) / Se → `AudioManager.PlaySeData` / Bgm → `BgmManager.PlayBgmData` / Vfx → `VfxManager.SpawnData` / Canvas → `UiManager.Open` / UiTween → `UiTweenManager.PlayData`(対象は `RectTransform`) / **CameraShake → `CameraFxManager.ShakeData`(2026-09-14、5-2)** / **Haptic → `HapticsManager.PlayData`(2026-09-14、5-2b)**。**Timeline のみ 6-10 待ちのため警告 1 回 + no-op**。
+- **Kind の委譲先(実装済み)**: Anim/Anim2D → `AnimManager.PlayData`(対象 Animator は `TrackTargetMode` で決めた Transform から `GetComponentInChildren<Animator>` で解決) / Se → `AudioManager.PlaySeData` / Bgm → `BgmManager.PlayBgmData` / Vfx → `VfxManager.SpawnData` / Canvas → `UiManager.Open` / UiTween → `UiTweenManager.PlayData`(対象は `RectTransform`) / **CameraShake → `CameraFxManager.ShakeData`(2026-09-14、5-2)** / **Haptic → `HapticsManager.PlayData`(2026-09-14、5-2b)** / **AnchorGroup → `AnchorGroupPlayer.PlayData`(2026-09-19、下記実装メモ参照)**。**Timeline は 6-10a で `CutsceneManager.PlayData` に接続済み**。
 - **5-2/5-2b 実装メモ(2026-09-14)**: `CameraShake`/`Haptic` トラックは `ctx.Position` を `ShakeSpace.FromSource` 用の発生位置としてそのまま `CameraFxManager.ShakeData` に渡す(CameraLocal/World は無視するので常に渡してよい)。`StopOnCancel=true` のときは `FiredShake`/`FiredHaptic` リストに Handle を積み、Cancel 時に `CameraFx.Stop(h, fade:0)`(即時)/ `Haptics.Stop(h)` する(既存の `FiredVfx` 等と同じパターン)。CameraFx 自体は Presentation の Tick(ScaledDeltaTime)経由ではなく Unscaled dt で駆動されるため、HitStop 中も揺れは止まらない(詳細は [16_camera_haptics.md] 実装メモ)。
 - **Marker / Signal Kind は他 Manager に委譲しない**: `PresentationTrack.SignalKey` を「名前」として再利用する(専用フィールドを増やさない設計判断)。Marker → `handle.OnMarker` へ通知(データ→コード)。Signal → `PlayContext.OnSignal` を呼ぶ(データ→コードのもう 1 つの経路。`handle.Signal(key)` はコード→データの逆方向)。
 - **HitStop は `Params[0].FloatValue` を秒数として `TimeService.HitStop` に渡すだけ**。AtTime の進行が HitStop 後に止まるのは特別な配線をしたからではなく、`PresentationManager` も他の全 `IAssetManager` と同じく `GameLoopDriver` から `TimeService.ScaledDeltaTime(unscaledDt)` を受け取って `Tick` しているため(HitStop 中は全 Manager が同時に止まる。[16] Part A の CameraShake が実装されたら「揺れは止めない」等の個別対応が要るかもしれない)。
@@ -256,7 +258,7 @@ Timeline 風の複数トラック UI。
 
 根拠: `PresentationManager.FireVfx`/`FireSe` は必ず `AnchorSpawnSpec.FromDef(track.Anchor)` を「合成済み(presolved)」として `VfxManager.SpawnData(data, in spec, root)` / `AudioManager.PlaySeData(data, in spec, root, seed)` へ渡す。この経路(`SpawnDataLocal` の `presolved` 引数)は `anchorOverride > Data.AnchorId > Data.Anchor` の優先順位を解く `ResolveAnchorSpec` を一切呼ばない。**つまり参照先 VfxData/SeData 自身の `AnchorId` も埋め込み `Anchor` も、Presentation 経由の再生では絶対に使われない。** これは新しい発見ではなく、[43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §6「Presentation に Anchor 上書きが無い」で既に指摘されていた既知事象と一致する(「意図的な仕様か漏れかは未判断」とされたままだが、本チケットでは仕様を変えず、この事実どおりに表示・編集する)。
 
-また `TrackKind` に `AnchorGroup`(配置セット)は存在しない。[22_anchor_group.md](22_anchor_group.md) §5 で「Presentation 統合(トラック種別 AnchorGroup)は Phase 5」と予告されていたが、実装済みの Kind 一覧(Anim/Anim2D/Se/Bgm/Vfx/CameraShake/Haptic/HitStop/Timeline/Canvas/UiTween/Marker/Signal)には含まれておらず、未実装のまま今日に至っている。したがって「AnchorGroup トラック」は作ることも描くこともできない。
+また(2026-09-19 時点)`TrackKind` に `AnchorGroup`(配置セット)は存在しない。[22_anchor_group.md](22_anchor_group.md) §5 で「Presentation 統合(トラック種別 AnchorGroup)は Phase 5」と予告されていたが、実装済みの Kind 一覧(Anim/Anim2D/Se/Bgm/Vfx/CameraShake/Haptic/HitStop/Timeline/Canvas/UiTween/Marker/Signal)には含まれておらず、未実装のまま今日に至っている。したがって「AnchorGroup トラック」は作ることも描くこともできない。**→ 同日中に本チケットで実装した(下記「実装メモ(2026-09-19、AnchorGroup トラック)」参照)。**
 
 ### SceneView 表示(`PresentationEditorWindow.SceneAnchors.cs`、新規)
 
@@ -287,4 +289,38 @@ Timeline 風の複数トラック UI。
 
 - ライブリアプライ(再生中の実体へ即時反映)は上記のとおり未実装。次の Play/Restart まで反映されない
 - 「Presentation に Anchor 上書きが無い」(VfxData/SeData の AnchorId が Presentation 経由では効かない)こと自体が仕様として正しいのかは、[43_manual_verification_2026-09-17.md] §6 のとおり引き続き未判断のまま(本チケットは表示・編集のみが目的で、この挙動自体は変えていない)
+
+## 実装メモ（2026-09-19、AnchorGroup トラック — [22_anchor_group.md] §5 Presentation 統合）
+
+**ユーザー決定(2026-09-19)**: 上の「SceneView に Anchor を表示」実装メモで判明した「`TrackKind` に `AnchorGroup` が無い」欠落を埋め、PresentationEditor で配置セット(`AnchorGroupData`)を 1 本のトラックとして置けるようにする。
+
+- **`TrackKind.AnchorGroup` を末尾追加**(`Runtime/Presentation/PresentationTrack.cs`)。既存値は不変、YAML の整数値はそのまま(既存アセットは壊れない)。
+- **`PresentationManager.FireAnchorGroup`**: `ResolveContextRoot(ctx, track.Target)` で決めた contextRoot をそのまま `AnchorGroupPlayer.PlayData(group, contextRoot)` に渡す薄い委譲(`TrackTargetMode` の解釈は Vfx/Se と同じ)。`StopOnCancel=true` のときだけ Handle を `FiredAnchorGroup` に積み、`Cancel()` 経由で `AnchorGroupPlayer.Stop` する(`FiredVfx`/`FiredSe`/`FiredCutscene` と同じパターン)。`_groups`(コンストラクタ引数 `AnchorGroupPlayer groups = null`、既定 null = 他の Manager と同じ「未配線」警告 + no-op)。
+- **Seed(ネット同期済み乱数)は消費しない**: `PresentationInstance.Seed`(ネット受信側で全クライアント同じ値になるよう同期済み)は `FireSe`/`FireCameraShake` 等と違い `FireAnchorGroup` には渡していない。`AnchorGroupPlayer.PlayData(group, contextRoot)` に Seed 引数が無く(`AnchorGroupPlanner.Plan(sampleRandom: true, ...)` を呼ぶだけで、各点のランダム(位置ジッタ・ディレイジッタ・確率)は呼び出しのたびに `UnityEngine.Random` から独立にサンプリングする設計、[22] §3.2/§3.4)、Seed を受け取る API 自体が存在しない。[14_networking.md] §12 のとおり「`AnchorPoint` のランダム散らばりは見た目専用なので各自ローカルで可(結果に影響しない)」という既定方針とも一致するため、新しい API は追加せずこの制約をそのまま受け入れた(Cosmetic 配送でも各クライアントが独立にサンプリングした配置になるが、AnchorGroup は元々「見た目の散らばり」用途であり許容できる)。
+- **Validator(`PresentationDataValidator`)**: Kind=AnchorGroup で `Asset.Type != AssetType.AnchorGroup`(取り違え)なら Error。Asset 未設定は既存の `RequiresAsset` 汎用チェックがそのまま拾う(AnchorGroup を `RequiresAsset` の例外〔Marker/Signal/HitStop〕に加えていないため)。
+- **`PresentationTrackKindMapping`**: `AssetTypeFor`/`AssetKindFor`/`TryKindFor`/`LaneColor` に AnchorGroup を追加(D&D で `AnchorGroupData` を落とすと Kind=AnchorGroup のトラックが作られる)。
+- **レーン割り当て**: AnchorGroup は **Vfx と同じレーンにまとめた**(レーンラベルを「Vfx」→「Vfx / AnchorGroup」に変更。既存のレーン数・高さ・他 Kind の配置は変えていない)。「Vfx / AnchorGroup」用の新レーンを増設する案もあったが、レーン数が増えるとタイムラインが縦に伸び既存の見た目(6 行)を壊すため、役割が近い(どちらも「対象に VFX/SE を出す」)Vfx のレーンに同居させる方を選んだ。
+- **統合プレビュー(`ScenePresentationPreviewDriver`)への Player 注入 — 設計判断**: `SceneAnimPreviewDriver`(以下 AnimDriver)が内部に持つ `AnchorGroupPlayer`(`_groups`、Animation フレームイベントの配置セット再生・`AssetEventDispatcher` と共有)を **そのまま公開して共有する**方式を選んだ(`SceneAnimPreviewDriver.Groups` プロパティを新設)。Vfx/Audio を束ねた**別インスタンス**を新設する案もあったが、以下の理由で共有を選んだ。
+  - AnimDriver 自身がすでに「1 つの `_groups` を Animation イベント経由の再生と共有する」設計(`_dispatcher.OnGroupPlayed += OnGroupPlayed`)になっており、別インスタンスにすると「同じ Vfx/Audio Manager に対して 2 つの `AnchorGroupPlayer` が並存する」歪な構成になる(`AnchorGroupPlayer` 自体は状態〔`_active`/`_free`〕を持つため、二重に持つ意味がない)。
+  - **Adopt(再生中の VFX の追従・停止)を正しく効かせるため**: `SceneVfxPreviewDriver`(AnimDriver.Vfx)は EditMode で `ParticleSystem` を自動シミュレートしない(`EditModeParticleStepper.Step` による手動 Simulate が必須、`SceneVfxPreviewDriver.Tick` のコメント参照)ため、`VfxManager.SpawnData` で直接生成した VFX(Presentation の `FireVfx`/`FireAnchorGroup` はいずれもこの経路)は `SceneVfxPreviewDriver.Adopt(handle)` で台帳(`_active`)に登録しない限り SceneView で静止したまま(手動 Simulate されない)。共有方式では `PresentationManager.OnAnchorGroupPlayed`(新設。開発/確認ツール専用、`OnNetworkReceivedPlay` と同じ設計の event)を `ScenePresentationPreviewDriver` が購読し、AnimDriver.`AdoptGroupVfx`(既存)と全く同じ考え方で「Handle を台帳に積む → 毎 Tick `AnchorGroupPlayer.CollectVfxHandles` で VFX Handle を集めて `AnimDriver.Vfx.Adopt` する」処理を追加した(`ScenePresentationPreviewDriver.OnGroupPlayed`/`AdoptGroupVfx`、AnimDriver 側のコードをコピペせず同じ公開 API を再利用しただけ)。
+  - **タイミングの注意**: `AnimDriver.Groups`(`_groups`)は `AnimDriver.EnsureManagers()`(`SpawnModel`/`PreviewSe`/`PreviewVfx` 等で初めて呼ばれる)が済むまで `null` のままのことがある。`ScenePresentationPreviewDriver` はコンストラクタで一度 `PresentationManager` を構築する(`EnsureAudio()` 経由)ため、「配置 → 再生」という通常の操作順でも、コンストラクタ時点ではまだ `AnimDriver.Groups` が `null` だったケースが起こり得る。これを避けるため、`Play()` の冒頭(`StopCurrent()` の直後、副作用なし)で毎回 `RebuildManager()` を呼び直すようにした(以前は `EnsureAudio()` が `_root` 生存中は no-op のため、実質コンストラクタ時の 1 回しか `PresentationManager` を作り直していなかった)。
+  - **既存の Vfx/Se トラックの Adopt は本チケットのスコープ外**: 調査の結果、既存の `FireVfx`/`FireSe` も同じ理由(`VfxManager.SpawnData` を直接呼ぶだけで `Adopt` していない)で、統合プレビューの EditMode では厳密には手動 Simulate の対象外になっている可能性があるが、これは AnchorGroup 追加前から存在する挙動であり本チケットでは変更していない(要判断として残す。人による確認手順に追記した)。
+- **`AssetType.AnchorGroup` は新規追加ではない**: [22_anchor_group.md] の時点(2026-09-08)で `AnchorGroupData` 自身の種別として既に追加済み。今回追加したのは `TrackKind.AnchorGroup`(Presentation のトラック種別。別の enum)のみ。
+- **`DDriveRuntimeBootstrap`**: `Presentation = new PresentationManager(..., cutscene: Cutscene, groups: Groups)` に 1 引数(`groups: Groups`)を追加しただけ(`Groups`〔`AnchorGroupPlayer`〕は既存の生成物をそのまま渡す。ランタイムの `Anchors.Play`/イベント経由の配置セット再生とは独立した別の呼び出し経路が増えるだけで、既存の挙動は変えない)。
+- **テスト**: `Tests/Runtime/PresentationAnchorGroupTests.cs`(新規、PlayMode): AnchorGroup トラックが `AnchorGroupPlayer.PlayData` を呼ぶこと・`StopOnCancel=true` で `Cancel()` 時に `AnchorGroupPlayer.Stop` されること・`StopOnCancel=false` では止まらないこと(Vfx/Se と同じ規則)・`groups` 未設定なら警告 1 回 + no-op(例外にしない)。`Tests/Runtime/PresentationDataValidatorTests.cs` に Asset 種別不一致の Error/正しい種別で Error 無しの 2 件。`Tests/Editor/PresentationTrackAnchorResolverTests.cs` に `HasPosition(AnchorGroup)==true` と `ResolveAnchorGroupPoints`(Grid 3×3 が 9 点、null Group で 0 件)の 2 件。`Tests/Editor/PresentationTrackKindMappingTests.cs` の各 `TestCase` に AnchorGroup を追加。
+
+### 変更ファイル(2026-09-19、AnchorGroup トラック)
+
+| 層 | ファイル |
+|---|---|
+| Runtime | `Runtime/Presentation/PresentationTrack.cs`(`TrackKind.AnchorGroup` 追加)、`Runtime/Presentation/PresentationManager.cs`(`FireAnchorGroup`/`FiredAnchorGroup`/`OnAnchorGroupPlayed`/コンストラクタ引数 `groups`)、`Runtime/Presentation/PresentationDataValidator.cs`(Asset 種別不一致 Error)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(`groups: Groups` を渡す 1 行) |
+| Editor | `Editor/Presentation/PresentationTrackKindMapping.cs`、`Editor/Presentation/PresentationEditorWindow.Tracks.cs`(レーン)、`Editor/Presentation/PresentationTrackAnchorResolver.cs`(`HasPosition`/`ResolveAnchorGroupPoints` 追加)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(`DrawAnchorGroupPoints` 追加)、`Editor/Presentation/ScenePresentationPreviewDriver.cs`(Groups 注入・Adopt)、`Editor/Anim/SceneAnimPreviewDriver.cs`(`Groups` プロパティ新設) |
+| Tests | `Tests/Runtime/PresentationAnchorGroupTests.cs`(新規)、`Tests/Runtime/PresentationDataValidatorTests.cs`、`Tests/Editor/PresentationTrackAnchorResolverTests.cs`、`Tests/Editor/PresentationTrackKindMappingTests.cs` |
+| docs | 本節、[22_anchor_group.md] §5、[02_core_framework.md] §14、`docs/DesignerManual/presentation.html`・`anchor-group.html`、[43_manual_verification_2026-09-17.md] |
+
+### 未確認・要判断(2026-09-19、AnchorGroup トラック)
+
+- Unity MCP(CoplayDev)でのコンパイル・EditMode/PlayMode テストの実行結果は本節末尾の報告を参照(未検証ならその旨明記する)
+- SceneView での実際の見た目(全点の番号付き表示・色・ラベル)・統合プレビューでの Adopt(VFX が SceneView で実際に動いて見えるか)は人による確認が必要([43_manual_verification_2026-09-17.md] に項番追記)
+- 既存の Vfx/Se トラックが統合プレビューの EditMode で Adopt されていない疑い(上記)は本チケットのスコープ外のまま
 - コンパイル・EditMode(879/879)・PlayMode(721/721)はいずれも green(Unity MCP、CoplayDev 版)。**SceneView での実際の見た目・ハンドル操作・複数ウィンドウの描画権切替は未確認**([43_manual_verification_2026-09-17.md] §8 の手順を参照)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DDrive.Editor.Anim;
 using DDrive.Editor.CameraFx;
 using DDrive.Editor.Preview;
@@ -6,9 +7,11 @@ using DDrive.Foundation.Handle;
 using DDrive.Foundation.Pause;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
+using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Presentation;
+using DDrive.Runtime.Vfx;
 using R3;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -53,6 +56,12 @@ namespace DDrive.Editor.Presentation
         private double _lastTick;
         private bool _ticking;
 
+        // [22_anchor_group.md] §5(Presentation 統合) — TrackKind.AnchorGroup が出した VFX を
+        // AnimDriver.Vfx(SceneVfxPreviewDriver)へ Adopt するための台帳(AnimDriver.AdoptGroupVfx と同じ設計。
+        // Manager.OnAnchorGroupPlayed で追加し、Tick 毎に生存確認して再生終了分を外す)。
+        private readonly List<Handle<AnchorGroupMarker>> _groupHandles = new();
+        private readonly List<Handle<VfxMarker>> _vfxScratch = new();
+
         // ctx.Self として使う Transform(SpawnModel で配置したモデル、または借用中の Animator)。無ければ null。
         public Transform SelfRoot => AnimDriver.CurrentRoot != null ? AnimDriver.CurrentRoot.transform : null;
 
@@ -95,6 +104,12 @@ namespace DDrive.Editor.Presentation
 
             StopCurrent();
             EnsureAudio();
+            // [22_anchor_group.md] §5 — AnimDriver.Groups は AnimDriver.EnsureManagers()(SpawnModel/PreviewSe 等
+            // で初めて呼ばれる)が済むまで null のままのことがある。EnsureAudio() はコンストラクタ時点で
+            // 一度 Manager を作った後は _root が生き続ける限り何もしない(下記 EnsureAudio 参照)ため、
+            // 「配置」→「再生」の通常操作順では初回 Manager 構築時に Groups がまだ null だった、という
+            // タイミング問題が起き得る。直前で StopCurrent() 済み(副作用なし)なので、Play() の都度作り直す。
+            RebuildManager();
             EnsureTicking();
 
             var self = SelfRoot;
@@ -185,6 +200,44 @@ namespace DDrive.Editor.Presentation
         {
             Time.Tick(dt);
             Manager?.Tick(Time.ScaledDeltaTime(dt));
+            AdoptGroupVfx();
+        }
+
+        // AnimDriver.AdoptGroupVfx と同じ考え方: 配置セットのディレイ待ちで後から生まれた VFX も含めて
+        // 毎 Tick 拾い直す。台帳が空なら走査コストは実質 0。
+        private void OnGroupPlayed(Handle<AnchorGroupMarker> handle)
+        {
+            if (!_groupHandles.Contains(handle))
+            {
+                _groupHandles.Add(handle);
+            }
+
+            AdoptGroupVfx();
+        }
+
+        private void AdoptGroupVfx()
+        {
+            var groups = AnimDriver.Groups;
+            if (groups == null || _groupHandles.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = _groupHandles.Count - 1; i >= 0; i--)
+            {
+                if (!groups.IsPlaying(_groupHandles[i]))
+                {
+                    _groupHandles.RemoveAt(i);
+                    continue;
+                }
+
+                _vfxScratch.Clear();
+                groups.CollectVfxHandles(_groupHandles[i], _vfxScratch);
+                foreach (var h in _vfxScratch)
+                {
+                    AnimDriver.Vfx.Adopt(h);
+                }
+            }
         }
 
         // ── ライフサイクル ──
@@ -217,7 +270,9 @@ namespace DDrive.Editor.Presentation
                 ui: null,
                 uiTween: null,
                 cameraFx: ShakeDriver.Manager,
-                haptics: HapticsDriver.Manager);
+                haptics: HapticsDriver.Manager,
+                groups: AnimDriver.Groups);
+            Manager.OnAnchorGroupPlayed += OnGroupPlayed;
         }
 
         private void DestroyAudioRoot()
@@ -243,6 +298,7 @@ namespace DDrive.Editor.Presentation
 
             DestroyAudioRoot();
             Manager = null;
+            _groupHandles.Clear();
         }
 
         private void OnStageChanged(Scene previous, Scene current) => StopAndReset();

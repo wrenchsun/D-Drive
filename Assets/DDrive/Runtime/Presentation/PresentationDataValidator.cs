@@ -44,6 +44,15 @@ namespace DDrive.Runtime.Presentation
                     yield return ValidationResult.Error($"トラック {i}({track.Kind}) の Asset が未設定です");
                 }
 
+                // [22_anchor_group.md] §5(Presentation 統合) — Kind=AnchorGroup なのに Asset の種別が
+                // AnchorGroup ではない(別種別のアセットを取り違えて割り当てた)場合を検出する。他 Kind は
+                // D&D(PresentationTrackKindMapping)が Kind と Asset.Type を同時に書き込むため通常ズレないが、
+                // AnchorGroup は追加時のみこの検査で明示的に守る。
+                if (track.Kind == TrackKind.AnchorGroup && track.Asset.IsAssigned && track.Asset.Type != AssetType.AnchorGroup)
+                {
+                    yield return ValidationResult.Error($"トラック {i}({track.Kind}) の Asset の種別が AnchorGroup ではありません({track.Asset.Type})");
+                }
+
                 if (track.Trigger == TrackTrigger.OnSignal && string.IsNullOrEmpty(track.SignalKey))
                 {
                     yield return ValidationResult.Error($"トラック {i}({track.Kind}) は Trigger=OnSignal ですが SignalKey が空です");

@@ -37,7 +37,10 @@ namespace DDrive.Editor.Presentation
         {
             (new[] { TrackKind.Anim, TrackKind.Anim2D }, "Anim / Anim2D"),
             (new[] { TrackKind.Se, TrackKind.Bgm }, "Se / Bgm"),
-            (new[] { TrackKind.Vfx }, "Vfx"),
+            // [22_anchor_group.md] §5(Presentation 統合、2026-09-19) — AnchorGroup(配置セット)は Vfx と同じ
+            // レーンにまとめる(既存のレーン数・高さを変えない。どちらも「点/対象に VFX/SE を出す」トラックで
+            // 見た目の役割が近いため)。
+            (new[] { TrackKind.Vfx, TrackKind.AnchorGroup }, "Vfx / AnchorGroup"),
             (new[] { TrackKind.CameraShake, TrackKind.Haptic }, "CameraShake / Haptic"),
             // P5 レビュー対応(2026-09-14) 整理項目: TrackKind.Signal がどのレーンにも属していなかったため
             // LaneIndexFor のフォールバック(最後のレーン)に落ちていた。Marker(コード→データ通知)と対を成す

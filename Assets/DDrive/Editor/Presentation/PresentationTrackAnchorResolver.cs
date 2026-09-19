@@ -1,3 +1,4 @@
+using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Presentation;
 using UnityEngine;
@@ -15,10 +16,12 @@ namespace DDrive.Editor.Presentation
     //     Anchor は Presentation 経由では絶対に使われない**。位置を決めるのは track.Anchor(このトラック自身の
     //     埋め込み AnchorDef)と track.Target(TrackTargetMode)だけ([43_manual_verification_2026-09-17.md] §6
     //     「Presentation に Anchor 上書きが無い」で既に指摘済みの既知事象と一致)。
-    //   - TrackKind に AnchorGroup は存在しない(22_anchor_group.md §5 で「Presentation 統合は Phase 5」と
-    //     予告されていたが未実装のまま)。よって「AnchorGroup トラック」は描けない(そもそも作れない)。
-    //   - 位置を持つのは Vfx / Se のみ。Anim/Anim2D/Bgm/CameraShake/Haptic/HitStop/Timeline/Canvas/UiTween/
-    //     Marker/Signal はいずれも track.Anchor を消費しない(CameraShake は ctx.Position を直接使うのみ)。
+    //   - 位置を持つのは Vfx / Se / AnchorGroup。Anim/Anim2D/Bgm/CameraShake/Haptic/HitStop/Timeline/Canvas/
+    //     UiTween/Marker/Signal はいずれも位置を消費しない(CameraShake は ctx.Position を直接使うのみ)。
+    //   - AnchorGroup(2026-09-19、[22_anchor_group.md] §5 で予告されていた Presentation 統合)は Vfx/Se と
+    //     解決方法が異なる: track.Anchor(単一の AnchorDef)ではなく、参照先 AnchorGroupData の原点 +
+    //     パターン/手置きの点(AnchorGroupPlanner.EnumeratePoints)から「全点」を求める。編集は Anchor Group
+    //     Editor に任せるため、ここでは列挙のみ提供する(ハンドルでの書き戻しは無い)。
     public static class PresentationTrackAnchorResolver
     {
         // 解決結果。HasPosition=false は「この Kind には位置が無い」ことを示す(Anchor は無視してよい)。
@@ -40,8 +43,8 @@ namespace DDrive.Editor.Presentation
             }
         }
 
-        // 位置を持つ Kind か(Vfx/Se のみ。上記調査結果のとおり)。
-        public static bool HasPosition(TrackKind kind) => kind == TrackKind.Vfx || kind == TrackKind.Se;
+        // 位置を持つ Kind か(Vfx/Se/AnchorGroup。上記調査結果のとおり)。
+        public static bool HasPosition(TrackKind kind) => kind == TrackKind.Vfx || kind == TrackKind.Se || kind == TrackKind.AnchorGroup;
 
         // ランタイムの FireVfx/FireSe と同じ解決(PresentationManager.ResolveContextRoot を共用し、
         // コピペしない)。self/target はプレビューの ctx.Self/ctx.Target 相当(統合プレビューでは
@@ -64,6 +67,46 @@ namespace DDrive.Editor.Presentation
             }
 
             return new Result(true, baseTransform, extraOffset);
+        }
+
+        // AnchorGroup 専用: 参照先 AnchorGroupData の全点を列挙する(AnchorGroupEditorWindow.RefreshPoints と
+        // 同じ式。ランダムはサンプリングしない = sampleRandom:false、エディタ表示と同じ固定シード。[22] §3.6)。
+        // 戻り値は列挙した点数。pointsBuffer は呼び出し側で AnchorGroupData.MaxPoints 分確保して使い回すこと
+        // (定常経路ではない〔SceneView 描画〕が、AnchorGroupEditorWindow と同じく配列を使い回す慣習に合わせる)。
+        public static int ResolveAnchorGroupPoints(
+            IAssetRegistry registry,
+            AnchorGroupData group,
+            Transform self,
+            Transform target,
+            TrackTargetMode mode,
+            AnchorSpawnSpec[] pointsBuffer,
+            out Transform baseTransform,
+            out Vector3 extraOffset)
+        {
+            baseTransform = null;
+            extraOffset = Vector3.zero;
+
+            if (group == null || pointsBuffer == null)
+            {
+                return 0;
+            }
+
+            var ctx = new PlayContext { Self = self, Target = target };
+            var root = PresentationManager.ResolveContextRoot(in ctx, mode);
+
+            // [22_anchor_group.md] §3.1 と同じ優先順位: OriginAnchorId があればそちらを優先し、無ければ
+            // 埋め込み Origin を使う(AnchorGroupEditorWindow.OriginDef と同じ)。
+            var originDef = group.OriginAnchorId.IsValid && registry != null
+                ? AnchorChain.Resolve(registry, group.OriginAnchorId, sampleRandom: false).Def
+                : group.Origin;
+
+            baseTransform = AnchorResolver.Resolve(originDef, root);
+            if (baseTransform != null && baseTransform.TryGetComponent<AnchorPoint>(out var point))
+            {
+                extraOffset = point.SpawnOffset;
+            }
+
+            return AnchorGroupPlanner.EnumeratePoints(registry, group, pointsBuffer);
         }
     }
 }

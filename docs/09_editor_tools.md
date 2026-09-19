@@ -203,11 +203,12 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 
 ### 2.3 Presentation Editor の SceneView Anchor 表示（2026-09-19）
 
-**ユーザー要望**: 「PresentationEditor でトラックの Anchor がシーン上のどこか分からない」。トラック一覧の上に「SceneView 表示」トグル + 「表示対象」（すべて / 選択中のみ）を追加し、位置を持つトラック（Kind=Vfx/Se のみ。実効 Anchor の解決は §2.2 の 3 か所と同じ `Editor/Preview/AnchorSceneHandles.cs` を通す）を SceneView に表示・編集できるようにした。
+**ユーザー要望**: 「PresentationEditor でトラックの Anchor がシーン上のどこか分からない」。トラック一覧の上に「SceneView 表示」トグル + 「表示対象」（すべて / 選択中のみ）を追加し、位置を持つトラック（Kind=Vfx/Se。実効 Anchor の解決は §2.2 の 3 か所と同じ `Editor/Preview/AnchorSceneHandles.cs` を通す）を SceneView に表示・編集できるようにした。**2026-09-19 に同日中で `TrackKind.AnchorGroup` を追加した際、位置を持つ Kind に AnchorGroup も加えた**(下記参照)。
 
 - 「すべて」は番号付きの点として全トラックを表示（クリックで選択に切り替え）。ハンドル（移動/回転）は選択中の 1 本だけに出す（AnchorGroupEditorWindow の「全点は点、選択点だけフルハンドル」と同じ設計）
 - 実効 Anchor は常にトラック自身の `PresentationTrack.Anchor`（参照先 VfxData/SeData の AnchorId・埋め込み Anchor は Presentation 経由では使われない）。編集の書き戻し先も常にこのトラック自身で、共有アセットは書き換えない
-- 詳細（優先順位の確定事実、色の使い分け、ライブリアプライをしない理由）は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-19）を参照
+- **AnchorGroup(配置セット)は Vfx/Se と表示方法が異なる**: 単一の `track.Anchor` ではなく、参照先 `AnchorGroupData` の**全点**を `AnchorGroupPlanner.EnumeratePoints` で列挙し、`AnchorGroupEditorWindow` と同じ番号付きの点として描く。**点の編集(移動)はしない**(常に Anchor Group Editor に任せる。ラベルに「(編集は Anchor Group Editor)」と明示)
+- 詳細（優先順位の確定事実、色の使い分け、ライブリアプライをしない理由、AnchorGroup トラックの設計判断）は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-19）を参照
 
 ## 3. ID 参照 PropertyDrawer
 
@@ -284,7 +285,7 @@ Tools/
     ├─ Asset Browser
     ├─ 未使用アセット                ← 2026-09-14 追加(5-6。UnusedAssetsWindow。AssetBrowser の「未使用...」ボタンからも開く)
     ├─ 仕様書と同期                 ← 2026-09-14 追加(5-13。SpecSyncWindow。差分プレビュー + 適用 + TSV コピー、[27] §8.2)
-    ├─ Presentation Editor          ← 目玉機能につき最上段。2026-09-14 実装(5-4。PresentationEditorWindow。トラック編集(Kind ごとのレーン + D&D + 時間ドラッグ + 複製/削除)+ 統合プレビュー(モデル選択→ Anim/Vfx/Se/CameraShake/Haptic を実 Manager で同時再生)+ Signal レーン手動発火 + パラメータ上書き + 環境切替(ライト強度/背景色)。[08_presentation.md] 実装メモ参照)
+    ├─ Presentation Editor          ← 目玉機能につき最上段。2026-09-14 実装(5-4。PresentationEditorWindow。トラック編集(Kind ごとのレーン + D&D + 時間ドラッグ + 複製/削除)+ 統合プレビュー(モデル選択→ Anim/Vfx/Se/CameraShake/Haptic/AnchorGroup を実 Manager で同時再生)+ Signal レーン手動発火 + パラメータ上書き + 環境切替(ライト強度/背景色)。AnchorGroup トラックは 2026-09-19 追加。[08_presentation.md] 実装メモ参照)
     ├─ Editors/
     │   ├─ Audio
     │   ├─ VFX
@@ -596,7 +597,7 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 - 種別独自の Inspector を作る場合は `AssetDataInspector` を継承し、`OnInspectorGUI` の先頭で `DrawOpenEditorHeader()` を呼ぶ（`SeDataEditor` 参照）。UI Toolkit 製なら `DataEditorHeader.Build(target)` を先頭に追加する
 - **付け忘れ防止**: `Tests/Editor/DataEditorRegistryTests.cs` が `DDrive.*` の全 concrete `AssetDataBase` 派生型に登録があるかを検査する。専用エディタを持たない種別は同テストの `Exempt` に理由付きで明示する
 - 現在の対応: SeData / BgmData → AudioEditor、VfxData → VfxEditor、ModelData → ModelEditor、AnimData → AnimEditor、AnchorData → AnchorEditor、AnchorGroupData → AnchorGroupEditor、ButtonSkinData → ButtonSkinEditorWindow(2026-09-11 追加)、CameraShakeData / HapticsData → CameraFxEditorWindow(2026-09-14 追加)、PresentationData → PresentationEditorWindow(2026-09-14 追加、5-4)
-- **CutsceneData は例外(2026-09-18、6-10d)**: 編集 UI が Unity 標準の Timeline ウィンドウ([26_timeline.md] §3)であり D-Drive 独自の `[DataEditor]` 付き `EditorWindow` を持たないため、この対応表には乗らない(`DataEditorRegistryTests.Exempt` に明記)。代わりに `CutsceneDataEditor`(`AssetDataInspector` を継承する種別独自 Inspector、`Editor/Cutscene/CutsceneDataEditor.cs`)が Inspector 最上部に「Timeline ウィンドウで開く」(`AssetDatabase.OpenAsset`)・「Cutscene確認用シーンを開く」・バインド検査(Bindings ⇔ Timeline のトラック名の食い違いを一覧表示、Validator には昇格させない目視アシスト)・Play Mode 中の「再生/Cancel/Skip」(シーンの `CutscenePreviewHarness` 経由)を提供する
+- **CutsceneData は例外(2026-09-18、6-10d)**: 編集 UI が Unity 標準の Timeline ウィンドウ([26_timeline.md] §3)であり D-Drive 独自の `[DataEditor]` 付き `EditorWindow` を持たないため、この対応表には乗らない(`DataEditorRegistryTests.Exempt` に明記)。代わりに `CutsceneDataEditor`(`AssetDataInspector` を継承する種別独自 Inspector、`Editor/Cutscene/CutsceneDataEditor.cs`)が Inspector 最上部に「Timeline ウィンドウで開く」・「Cutscene確認用シーンを開く」・バインド検査(Bindings ⇔ Timeline のトラック名の食い違いを一覧表示、Validator には昇格させない目視アシスト)・Play Mode 中の「再生/Cancel/Skip」(シーンの `CutscenePreviewHarness` 経由)を提供する。**2026-09-19 追記**: 「Timeline ウィンドウで開く」は単純な `AssetDatabase.OpenAsset` ではなく `CutsceneEditModeDirectorSetup.OpenTimelineWindow` を呼ぶ — Cutscene確認用シーンにプレビュー用 `PlayableDirector`(`"Cutscene Timeline Preview (Edit Mode)"`、無ければ作って使い回す)を用意し、Origin/Bindings を解決してから選択して Timeline ウィンドウを開く(`CutsceneEditModePreviewProvider.PrepareContext` で Editor 用 Manager 参照を割り当てる)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal を確認できる(Presentation クリップ・ネット・入力ロック・Skip は Play Mode のみ、[26_timeline.md] §4.4 実装メモ)
 
 ### 8.1 アイコン行（2026-09-10）
 

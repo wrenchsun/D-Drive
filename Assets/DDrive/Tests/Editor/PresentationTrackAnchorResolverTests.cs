@@ -1,5 +1,6 @@
 using DDrive.Editor.Presentation;
 using DDrive.Foundation.Data;
+using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Presentation;
 using NUnit.Framework;
 using UnityEngine;
@@ -33,6 +34,7 @@ namespace DDrive.Tests.Editor
 
         [TestCase(TrackKind.Vfx, true)]
         [TestCase(TrackKind.Se, true)]
+        [TestCase(TrackKind.AnchorGroup, true)]
         [TestCase(TrackKind.Anim, false)]
         [TestCase(TrackKind.Anim2D, false)]
         [TestCase(TrackKind.Bgm, false)]
@@ -137,6 +139,54 @@ namespace DDrive.Tests.Editor
             var result = PresentationTrackAnchorResolver.Resolve(in track, _self.transform, null);
 
             Assert.IsNull(result.BaseTransform);
+        }
+
+        [Test]
+        public void ResolveAnchorGroupPoints_Grid3x3_EnumeratesNinePointsAroundBone()
+        {
+            var group = ScriptableObject.CreateInstance<AnchorGroupData>();
+            try
+            {
+                group.Layout = AnchorLayoutKind.Grid;
+                group.GridCountX = 3;
+                group.GridCountY = 1;
+                group.GridCountZ = 3;
+                group.GridSpacing = Vector3.one;
+                group.GridCentered = true;
+                group.Origin = new AnchorDef { Space = AnchorSpace.NamedObject, Path = "RightHand" };
+
+                var buffer = new AnchorSpawnSpec[AnchorGroupData.MaxPoints];
+                var count = PresentationTrackAnchorResolver.ResolveAnchorGroupPoints(
+                    registry: null,
+                    group,
+                    _self.transform,
+                    null,
+                    TrackTargetMode.Self,
+                    buffer,
+                    out var baseTransform,
+                    out var extraOffset);
+
+                Assert.AreEqual(9, count);
+                Assert.AreSame(_boneChild.transform, baseTransform);
+                Assert.AreEqual(Vector3.zero, extraOffset);
+                Assert.Less(Vector3.Distance(Vector3.zero, buffer[4].Def.LocalOffset), 1e-4f, "中央は原点");
+            }
+            finally
+            {
+                Object.DestroyImmediate(group);
+            }
+        }
+
+        [Test]
+        public void ResolveAnchorGroupPoints_NullGroup_ReturnsZero()
+        {
+            var buffer = new AnchorSpawnSpec[AnchorGroupData.MaxPoints];
+
+            var count = PresentationTrackAnchorResolver.ResolveAnchorGroupPoints(
+                registry: null, null, _self.transform, null, TrackTargetMode.Self, buffer, out var baseTransform, out _);
+
+            Assert.AreEqual(0, count);
+            Assert.IsNull(baseTransform);
         }
     }
 }

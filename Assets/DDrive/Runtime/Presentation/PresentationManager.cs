@@ -26,7 +26,8 @@ namespace DDrive.Runtime.Presentation
 {
     // [08_presentation.md] §3 / [01_architecture.md] §8 — 「剣攻撃」等の演出データを 1 API で再生する
     // オーケストレータ(5-1)。自身は何も再生せず、Tracks を各 Manager(Audio/Vfx/Anim/Anim2D/Canvas/UiTween/
-    // CameraFx/Haptics/Cutscene)へ委譲するだけ。Timeline は 6-10a で CutsceneManager に接続済み
+    // CameraFx/Haptics/Cutscene/AnchorGroupPlayer)へ委譲するだけ。Timeline は 6-10a で CutsceneManager に、
+    // AnchorGroup(配置セット)は [22_anchor_group.md] §5 の予告どおり AnchorGroupPlayer に接続済み
     // (未配線時は警告 1 回 + no-op で継続)。
     //
     // Tick は GameLoop 経由で TimeService.ScaledDeltaTime(unscaledDt) を受け取るため、HitStop 中は
@@ -65,6 +66,8 @@ namespace DDrive.Runtime.Presentation
             public List<(int track, Handle<HapticMarker> handle)> FiredHaptic;
             // [26_timeline.md] §6(6-10a) — TrackKind.Timeline が委譲する CutsceneManager の Handle。
             public List<(int track, Handle<CutsceneMarker> handle)> FiredCutscene;
+            // [22_anchor_group.md] §5 — TrackKind.AnchorGroup が委譲する AnchorGroupPlayer の Handle。
+            public List<(int track, Handle<AnchorGroupMarker> handle)> FiredAnchorGroup;
 
             // ── [14_networking.md] §5(5-8/5-9) ネット関連の付帯情報 ──
             // HandleNetKey!=0 のとき「ネットワーク経路(Cosmetic)を通った Instance」であることを示す
@@ -104,6 +107,8 @@ namespace DDrive.Runtime.Presentation
         private readonly HapticsManager _haptics;
         // [26_timeline.md] §6(6-10a) — TrackKind.Timeline の委譲先。null なら未実装時と同じ警告 1 回 + no-op。
         private readonly CutsceneManager _cutscene;
+        // [22_anchor_group.md] §5 — TrackKind.AnchorGroup の委譲先。null なら未配線時と同じ警告 1 回 + no-op。
+        private readonly AnchorGroupPlayer _groups;
 
         private readonly InstanceStore<PresentationMarker, PresentationInstance> _instances = new();
         private readonly List<Handle<PresentationMarker>> _active = new();
@@ -150,6 +155,14 @@ namespace DDrive.Runtime.Presentation
         // ロジックからは購読しない想定。誰も購読していなければ delegate 呼び出し自体が発生しないため
         // 0 alloc を保つ)。
         public event Action<Handle<PresentationMarker>, uint> OnNetworkReceivedPlay;
+
+        // [22_anchor_group.md] §5 — 開発/確認ツール(エディタの統合プレビュー等)専用。TrackKind.AnchorGroup が
+        // 実際に再生を開始した(AnchorGroupPlayer.IsPlaying==true)瞬間に、その Handle を通知する。
+        // ScenePresentationPreviewDriver がこれを購読し、AnimDriver.AdoptGroupVfx と同じ考え方で
+        // 「配置セットが出した VFX」を SceneVfxPreviewDriver へ Adopt する(EditMode の手動 Simulate 対象にする、
+        // [08_presentation.md] 実装メモ参照)。ゲームロジックからの購読は想定していない(誰も購読していなければ
+        // delegate 呼び出し自体発生しないため、定常経路の 0 alloc 原則は保たれる。OnNetworkReceivedPlay と同じ設計)。
+        public event Action<Handle<AnchorGroupMarker>> OnAnchorGroupPlayed;
 
         // [11_tasks.md] 6-0 修正4(実機確認で発見した課題4) — 未知の HandleNetKey(対象の演出が既に完了して
         // 台帳から外れた場合を含む)で Signal/Cancel を受信して破棄したことを、開発ビルドでは 1 キーにつき
@@ -251,7 +264,8 @@ namespace DDrive.Runtime.Presentation
             HapticsManager haptics = null,
             INetBridge netBridge = null,
             float remoteOneShotGraceSec = 0.5f,
-            CutsceneManager cutscene = null)
+            CutsceneManager cutscene = null,
+            AnchorGroupPlayer groups = null)
         {
             _registry = registry;
             _time = timeService;
@@ -265,6 +279,7 @@ namespace DDrive.Runtime.Presentation
             _haptics = haptics;
             _netBridge = netBridge;
             _cutscene = cutscene;
+            _groups = groups;
             _remoteOneShotGraceSec = Mathf.Max(0f, remoteOneShotGraceSec);
             // 6-6(K3 修正) — 「例 1 秒、または remoteOneShotGraceSec の 2 倍」(要求どおり)。既定の
             // remoteOneShotGraceSec=0.5s なら 1.0s になる。シリアライズフィールドは増やさない
@@ -348,6 +363,7 @@ namespace DDrive.Runtime.Presentation
                 FiredShake = new List<(int, Handle<ShakeMarker>)>(),
                 FiredHaptic = new List<(int, Handle<HapticMarker>)>(),
                 FiredCutscene = new List<(int, Handle<CutsceneMarker>)>(),
+                FiredAnchorGroup = new List<(int, Handle<AnchorGroupMarker>)>(),
                 HandleNetKey = handleNetKey,
                 IsNetworked = isNetworked,
                 PlayedViaNetworkReceive = playedViaNetworkReceive,
@@ -1135,6 +1151,15 @@ namespace DDrive.Runtime.Presentation
                     _cutscene.Cancel(h);
                 }
             }
+
+            for (var i = 0; i < instance.FiredAnchorGroup.Count; i++)
+            {
+                var h = instance.FiredAnchorGroup[i].handle;
+                if (_groups != null && _groups.IsPlaying(h))
+                {
+                    _groups.Stop(h);
+                }
+            }
         }
 
         // [14_networking.md] §5(6-0 修正7、実機確認 v3 で発見した実バグの修正) — 自分の接続が切れた
@@ -1529,6 +1554,10 @@ namespace DDrive.Runtime.Presentation
                 case TrackKind.Timeline:
                     FireTimeline(instance, trackIndex, in track);
                     break;
+
+                case TrackKind.AnchorGroup:
+                    FireAnchorGroup(instance, trackIndex, in track);
+                    break;
             }
 
             instance.TrackFiredSubject.OnNext(track);
@@ -1599,6 +1628,42 @@ namespace DDrive.Runtime.Presentation
             if (track.StopOnCancel && _cutscene.IsPlaying(h))
             {
                 instance.FiredCutscene.Add((trackIndex, h));
+            }
+        }
+
+        // [22_anchor_group.md] §5(Presentation 統合) — 配置セット(AnchorGroup)トラック。各点の VFX/SE の
+        // 再生自体は AnchorGroupPlayer(Cutscene の CutsceneAnchorGroupClip / Anchors ファサードと同じ実体)に
+        // そのまま委譲する薄い接続で、二重実装しない(ADR-4)。TrackTargetMode の解釈は Vfx/Se と同じ
+        // (ResolveContextRoot で contextRoot を決めるだけ)。
+        private void FireAnchorGroup(PresentationInstance instance, int trackIndex, in PresentationTrack track)
+        {
+            if (_groups == null)
+            {
+                WarnMissingManager(TrackKind.AnchorGroup);
+                return;
+            }
+
+            var data = _registry.ResolveOrPlaceholder<AnchorGroupData>(track.Asset.Id);
+            var root = ResolveContextRoot(instance.Ctx, track.Target);
+            // [14_networking.md] §6/§12 — AnchorPoint のランダム散らばりは見た目専用のため、Cosmetic 配送でも
+            // 各クライアントがローカルで独立にサンプリングしてよい(結果に影響しない)。AnchorGroupPlayer.PlayData
+            // には Vfx/Se の PlaySeData(seed:)に相当する Seed 引数が無い(AnchorGroupPlanner.Plan が呼び出しの
+            // たびに UnityEngine.Random で毎回サンプリングする設計、[22] §3.2/§3.4)ため、instance.Seed(ネット
+            // 同期済みの乱数種)は消費しない。
+            var h = _groups.PlayData(data, root);
+            if (!_groups.IsPlaying(h))
+            {
+                return;
+            }
+
+            // エディタの統合プレビュー(ScenePresentationPreviewDriver)が「配置セットが出した VFX」を
+            // SceneVfxPreviewDriver へ Adopt するためのフック。StopOnCancel の有無に関わらず通知する
+            // (AnimDriver.AssetEventDispatcher.OnGroupPlayed と同じ設計)。
+            OnAnchorGroupPlayed?.Invoke(h);
+
+            if (track.StopOnCancel)
+            {
+                instance.FiredAnchorGroup.Add((trackIndex, h));
             }
         }
 

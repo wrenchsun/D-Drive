@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › 配置セット（複数の場所にまとめて出す）</nav>
 
 <h1>配置セット（複数の場所にまとめて出す）</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
 
 <p>配置セット（Anchor Group）は、「<strong>この形に並べた場所に、このエフェクト / 効果音を出す</strong>」をひとまとめにしたデータです。3×3 の格子、円形、一列、ランダムなどの<strong>パターンを選んで数を入れるだけ</strong>で点が並び、1 か所ずつ作る必要はありません。</p>
 <ul>
@@ -130,6 +130,9 @@
 <tr><td>格子の各点に小さな円形の粒</td><td>円形の配置セットを別に作り、格子側の「入れ子」に At Index = -1 で登録</td></tr>
 </table>
 
+<h2>他の演出とまとめて使いたいとき</h2>
+<p><a href="#" data-manual-kind="designer" data-manual-page="presentation">Presentation</a>のトラック種別「AnchorGroup」に配置セットの ID を入れると、剣攻撃などの一連の演出（アニメ・SE・カメラ揺れ…）の中の 1 トラックとして配置セットを一緒に再生できます。Presentation Editor の SceneView では配置セットの全点が番号付きで表示されますが、<strong>点の位置を動かす編集はできません</strong>。並びや点を変えたいときは、このページの Anchor Group Editor を開いて調整してください。</p>
+
 <h2>確認のしかた（チェックリスト）</h2>
 <ul>
 <li>状態表示の「原点」が ✓、「点」の数が想定どおり</li>
@@ -141,6 +144,7 @@
 <h2>関連ページ</h2>
 <ul>
 <li><a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor（出す位置）の作り方</a> — 1 か所の位置・原点として使う</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="presentation">Presentation</a> — 他の演出とまとめて 1 本のトラックとして再生する</li>
 <li><a href="#" data-manual-kind="designer" data-manual-page="vfx-data">VFX の設定項目</a> / <a href="#" data-manual-kind="designer" data-manual-page="se-data">SE の設定項目</a></li>
 <li><a href="#" data-manual-kind="designer" data-manual-page="glossary">用語集</a></li>
 </ul>
