@@ -209,7 +209,7 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 | `org.nuget.r3` | 1.3.1（scoped registry） | **×** | scoped registry `Unity NuGet`（`https://unitynuget-registry.openupm.com`、scope `org.nuget`）の追加が必要。**`Client.AddScopedRegistry` が public API か未確認**（要確認 §7 C-1）。無理なら manifest.json への追記手順を README に載せ、ウィザードは「無い」ことの検出と案内だけ行う |
 | `com.unity.test-framework` / `.performance` | 1.6.0 / 3.4.0 | ×（開発専用） | 持ち込み先ではテストを走らせないため不要 |
 | `com.unity.multiplayer.playmode` / `.center` | 2.0.2 / 1.0.1 | ×（開発専用） | MPPM は開発側の 2 クライアント確認用 |
-| `com.coplaydev.unity-mcp` / `jp.shiranui-isuzu.unity-mcp` | v10.2.0 / v4.2.0 | ×（開発専用） | **持っていかない**（asmdef 参照も無い） |
+| `com.coplaydev.unity-mcp` / `jp.shiranui-isuzu.unity-mcp` | v10.2.0 / v4.2.0 | ×（開発専用） | **持っていかない**（asmdef 参照も無い）。**決定（2026-09-20 ユーザー指示）: 現在の MCP 環境（この 2 パッケージ・`.mcp.json`・`docs/20_mcp_setup.md`・`.claude/` の MCP 関連設定）はパッケージにも `Documentation~` にも含めない。持ち込み先（MS2026）は自前の MCP 構成（`Docs/MCPSetup.md`）を使う。`Documentation~/AGENTS_CONSUMER.md`（P-10）にも D-Drive 側の MCP 手順は書かず、「Unity の操作は持ち込み先の MCP 構成に従う」とだけ書く** |
 
 依存の版は `package.json` に**固定値**で書く（範囲指定にしない。NGO は特に全員同時更新が前提）。依存の版を上げる変更の区分は §5.10。
 
