@@ -109,7 +109,7 @@ namespace DDrive.Editor.PrefabTool
             var buttons = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 4, marginBottom = 4 } }; // [09] §7.1
             buttons.Add(PreviewPlacementButton.Create(
                 "確認用シーンに配置",
-                "確認用シーン(VfxPreviewScene)を開き、実 PrefabsManager で Spawn して SceneView をそこへ向ける",
+                "確認用シーン(PreviewScene)を開き、実 PrefabsManager で Spawn して SceneView をそこへ向ける",
                 PlacePreview));
             buttons.Add(new Button(RemovePreview) { text = "撤去" });
             _root.Add(buttons);

@@ -70,7 +70,7 @@ h.SetLayer(int);
 
 > **2026-09-10 改定（SceneView 方式へ統一）**: `Editor/Model/ModelEditorWindow.cs` はウィンドウ内ビューポートと背景色・ライト切替を廃止し、AnimEditor と同じ `SceneAnimPreviewDriver` で **開いているシーン / プレハブモードに配置して SceneView で確認**する。ツールバー「確認用シーンを開く」= 確認用シーン（VFX と共通）を開いて対象を原点に配置、「Prefab を開く」= `ModelData.Prefab` をプレハブモードで開く（Renderer / Material をその場で編集。Ctrl+S で保存）。ターンテーブルは配置したモデルを回す（プレハブモードの実体は回さない）。並列表示は `SpawnExtraModel` で対象の隣に 2m 間隔。DefaultAnimation は配置時に実 AnimManager が自動再生（`EditorAnchorRegistry` に Anim / Model も登録するようにした）。配置物は DontSave で保存されない
 - 運用: モデラーが FBX→Prefab 化 → AssetBrowser で登録 → Slots 自動収集ボタン（Prefab の Renderer を走査して Slot リストを生成、既存の Material 割当は RendererPath+SlotIndex が一致する分だけ保持、**未割当のスロットは Renderer が使っている Material から作られた MaterialData を自動で割当**）→ 必要なら MaterialId を差し替え
-- Validation: Prefab Missing (Error)、Animator はあるが Avatar 未設定 (Error。Animator を持たない静的モデルは対象外)、Slot の RendererPath 不整合 (Error)、Material 未割当 Slot (Warning)、Prefab のマテリアルのシェーダーが現在のレンダーパイプラインと非互換 (Error。VfxDataValidator と共通の `ShaderPipelineAnalyzer` を使用、[04] §7参照)
+- Validation: Prefab Missing (Error)、Animator はあるが Avatar 未設定 (Error。Animator を持たない静的モデルは対象外)、Slot の RendererPath 不整合 (Error)、Material 未割当 Slot (Warning)、Prefab のマテリアルのシェーダーが現在のレンダーパイプラインと非互換 (描画されないもの = Error、URP でも描画される Built-in 用ライティング無しシェーダー = Warning。VfxDataValidator と共通の `ShaderPipelineAnalyzer.CheckActivePipeline` を使用、[04] §7参照、2026-09-19)
 - Skybox・Post Process 切替は見送り（`RenderSettings` がプロジェクト全体で共有されるため、実シーンへの副作用を避けた）
 
 > **2026-09-17（不具合修正 U-1 / U-2 / U-3。[39](39_usability_fixes_2026-09-17.md)）**

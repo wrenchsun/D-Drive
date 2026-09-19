@@ -41,6 +41,8 @@ namespace DDrive.Editor.Anim2D
         public void SetEditTarget(Anim2DData target)
         {
             _editTarget = target;
+            // 新規に開いた直後は CreateGUI が先に走っており、ObjectField は None のままになるため同期する。
+            _editTargetField?.SetValueWithoutNotify(target);
             LoadEditTarget();
         }
 

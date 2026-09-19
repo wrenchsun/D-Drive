@@ -49,6 +49,35 @@ namespace DDrive.Tests.Runtime
                 "Built-in RP 専用シェーダーは URP プロジェクトでは互換性なしと判定されるべき(実際に透明になる不具合の原因)");
         }
 
+        // 2026-09-19: Legacy Shaders/Particles/*(Default-Particle が使う)は LightMode 無しのパスだけなので
+        // URP の DrawObjectsPass(SRPDefaultUnlit)がそのまま描く → 「描画はされる」判定になること。
+        [Test]
+        public void CheckActivePipeline_LegacyUnlitParticleShaderInUrpProject_RendersButNotNative()
+        {
+            var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply");
+            Assert.IsNotNull(shader, "テスト前提: Built-in の Legacy パーティクルシェーダーが存在する(常に同梱される)");
+
+            Assert.IsTrue(ShaderPipelineAnalyzer.HasSrpDefaultUnlitPass(shader));
+            Assert.AreEqual(ShaderPipelineCompatibility.RendersButNotNative, ShaderPipelineAnalyzer.CheckActivePipeline(shader));
+            Assert.IsFalse(ShaderPipelineAnalyzer.IsCompatibleWithActivePipeline(shader), "「URP 用」ではないので従来の bool 判定は false のまま");
+        }
+
+        // Standard は ForwardBase/Deferred 等 Built-in のライティング用 LightMode しか持たない → 描画されない。
+        [Test]
+        public void CheckActivePipeline_StandardShaderInUrpProject_Incompatible()
+        {
+            var shader = Shader.Find("Standard");
+            Assert.IsFalse(ShaderPipelineAnalyzer.HasSrpDefaultUnlitPass(shader));
+            Assert.AreEqual(ShaderPipelineCompatibility.Incompatible, ShaderPipelineAnalyzer.CheckActivePipeline(shader));
+        }
+
+        [Test]
+        public void CheckActivePipeline_UrpShaderInUrpProject_Compatible()
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            Assert.AreEqual(ShaderPipelineCompatibility.Compatible, ShaderPipelineAnalyzer.CheckActivePipeline(shader));
+        }
+
         [Test]
         public void ActivePipelineDisplayName_UrpProject_ReturnsUrp()
         {

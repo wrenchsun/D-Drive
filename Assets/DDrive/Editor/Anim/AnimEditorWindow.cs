@@ -778,6 +778,9 @@ namespace DDrive.Editor.Anim
 
             _seqIndex = -1;
             _scene.StopSpawned(); // 最初に戻るので前回の SE / VFX は切る
+            // イベントに新規割り当てした SE / VFX(ウィンドウを開いた後に作った Data)を ID 解決できるようにする。
+            // Registry は OnEnable で 1 回作るだけなので、再生のたびに最新のアセットを登録し直す。
+            DDrive.Editor.Preview.EditorAnchorRegistry.Refresh(_scene.Registry);
             _animHandle = _scene.Play(_target, animator);
             AppendLog($"▶ '{_target.DisplayName ?? _target.name}' on {animator.name}");
             RefreshValidation();

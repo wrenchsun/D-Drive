@@ -99,7 +99,7 @@ Phase 2 のエフェクト実装（2-1〜2-11）が一区切りついた時点�
 
 #### 手順 2: VFX Editor の操作確認
 
-準備: `Tools > D-Drive > Editors > VFX確認用シーンを開く` → Project で `Assets/GameData/Vfx/Player/VFX_Player_Slash.asset` を選択 → `Tools > D-Drive > Editors > VFX`。
+準備: `Tools > D-Drive > Editors > 共通確認用シーンを開く` → Project で `Assets/GameData/Vfx/Player/VFX_Player_Slash.asset` を選択 → `Tools > D-Drive > Editors > VFX`。
 
 | # | 操作 | 期待 |
 |---|---|---|

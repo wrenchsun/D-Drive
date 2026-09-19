@@ -14,7 +14,7 @@
 
 > **実装メモ(2026-07-27)**: `com.unity.visualeffectgraph` パッケージが本プロジェクトに未導入のため、VfxManager は現状 **ParticleSystem のみ対応**。VfxData.Prefab に ParticleSystem を含まない Prefab を指定すると OneShot の終了判定は Duration フォールバックになる（§7 参照）。パッケージ導入後は VisualEffect コンポーネントの検出・SetFloat 等の反映を追加すれば、同じ Handle API のまま拡張できる設計にしてある。
 
-> ⚠ **既知の落とし穴(2026-07-28)**: 本プロジェクトは URP。パーティクルの Renderer に `Default-Particle` 等の **Built-in Render Pipeline 用シェーダー**（`Particles/Alpha Blended` 等）のマテリアルを割り当てると、Scene/Game ビューでは**完全に透明**になって描画されない（プレハブのアセットプレビューは Built-in 経路で別途描画されるため、そちらでは正しく見えてしまい発見が遅れやすい）。新規 VFX を作る際は必ず `Universal Render Pipeline/Particles/Unlit`（または `.../Lit`）系シェーダーのマテリアルを使うこと。迷ったら `Tools > D-Drive > Generate > デフォルトパーティクルマテリアルを生成` で URP 対応・テクスチャ無しでも見える既定マテリアル(`Assets/GameData/Materials/Default/M_DefaultParticleUnlit.mat`、白色・加算合成)を用意できる(`VfxDefaultMaterial`、冪等)。
+> ⚠ **既知の落とし穴(2026-07-28、2026-09-19 訂正)**: 本プロジェクトは URP。Renderer に **Built-in Render Pipeline 用シェーダー**のマテリアルを割り当てると、`Standard` やサーフェスシェーダーのように **Built-in のライティング用 LightMode(ForwardBase/Deferred 等)しか持たないもの**は Scene/Game ビューで描画されない（エディタでは magenta、ビルドでは透明。プレハブのアセットプレビューは Built-in 経路で別途描画されるため、そちらでは正しく見えてしまい発見が遅れやすい）。一方、`Default-Particle`(`Legacy Shaders/Particles/Alpha Blended Premultiply`)のような **ライティング無しの単純なシェーダー**は、LightMode タグの無いパスを URP が `SRPDefaultUnlit` として通常どおり描くため、URP でも**見える**（以前は「完全に透明になる」と書いていたが、実際には描画されることをユーザーが確認した）。ただし URP 用ではなく将来の保証も無いので置き換えを推奨する。Validation は前者を Error、後者を Warning で区別する（§7 `ShaderPipelineAnalyzer.CheckActivePipeline`）。新規 VFX を作る際は必ず `Universal Render Pipeline/Particles/Unlit`（または `.../Lit`）系シェーダーのマテリアルを使うこと。迷ったら `Tools > D-Drive > Generate > デフォルトパーティクルマテリアルを生成` で URP 対応・テクスチャ無しでも見える既定マテリアル(`Assets/GameData/Materials/Default/M_DefaultParticleUnlit.mat`、白色・加算合成)を用意できる(`VfxDefaultMaterial`、冪等)。
 
 ## 2. データ構造
 
@@ -197,7 +197,7 @@ manager.TryGetEffectiveAnchor(h, out a); // 実際に使われている合成済
 
 > 旧・埋め込みビューポート（RenderTexture + オービットカメラ + 環境切替 Foldout）は廃止。ModelEditor は引き続きプレビューシーン方式（ターンテーブル用途にはこちらが適する。要望があれば同様に移行検討）。EditMode の手動 Simulate は `EditModeParticleStepper` に共通化し、PreviewService と SceneVfxPreviewDriver が共有する。
 
-**確認専用シーン**: `Tools > D-Drive > Editors > VFX確認用シーンを開く`（ウィンドウのツールバーからも可）で `Assets/GameData/PreviewScenes/VfxPreviewScene.unity` を開く(初回は自動生成)。生成される最小構成は Directional Light + 参照用の床(Plane) + Camera(URP) + Global Volume(Bloom/ColorAdjustments の最小プロファイル)。これはあくまで叩き台で、本番のライティング/ポストプロセスに合わせて各自チューニングする前提。現在開いているシーンに未保存の変更がある場合は標準の保存確認ダイアログが出る。
+**確認専用シーン**: `Tools > D-Drive > Editors > 共通確認用シーンを開く`（ウィンドウのツールバーからも可）で `Assets/GameData/PreviewScenes/PreviewScene.unity` を開く(初回は自動生成)。生成される最小構成は Directional Light + 参照用の床(Plane) + Camera(URP) + Global Volume(Bloom/ColorAdjustments の最小プロファイル)。これはあくまで叩き台で、本番のライティング/ポストプロセスに合わせて各自チューニングする前提。現在開いているシーンに未保存の変更がある場合は標準の保存確認ダイアログが出る。
 
 ## 6. 運用方法
 
@@ -219,4 +219,4 @@ manager.TryGetEffectiveAnchor(h, out a); // 実際に使われている合成済
 | AnchorId 設定済みなのに埋め込み Anchor が既定値以外 | Warning（埋め込みは無視される。2026-09-08） |
 | UIOverlay なのに Domain=Game3D | Warning |
 | Stop 時 FadeOut > 10s | Warning |
-| Prefab のマテリアルのシェーダーが現在のレンダーパイプライン(URP/HDRP/Built-in)と非互換 | Error(2026-07-28 追加。`ShaderPipelineAnalyzer` が SubShader の `RenderPipeline` タグを見て判定。ModelDataValidator も同じ検査を共有) |
+| Prefab のマテリアルのシェーダーが現在のレンダーパイプライン(URP/HDRP/Built-in)と非互換 | Error / Warning(2026-07-28 追加、2026-09-19 区別。`ShaderPipelineAnalyzer.CheckActivePipeline` が SubShader の `RenderPipeline` タグと各パスの `LightMode` タグを見て判定。描画されないもの〔Standard 等〕= Error、LightMode 無し / `SRPDefaultUnlit` のパスがあり URP でも描画されるもの〔`Legacy Shaders/Particles/*`・`Default-Particle` 等〕= 置き換え推奨の Warning。ModelDataValidator も同じ検査を共有) |

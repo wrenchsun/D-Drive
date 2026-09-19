@@ -63,9 +63,11 @@ namespace DDrive.Runtime.Vfx
             }
         }
 
-        // [04_vfx.md] 実装メモ — Built-in RP 用シェーダー(Particles/Alpha Blended 等)を URP プロジェクトで
-        // 使うと Scene/Game ビューで完全に透明になる(プレハブのアセットプレビューだけは正しく見えるため
-        // 発見が遅れやすい)。SubShader の RenderPipeline タグを見て機械的に検出する。
+        // [04_vfx.md] 実装メモ — Built-in RP 用シェーダー(Standard 等)を URP プロジェクトで使うと
+        // Scene/Game ビューで描画されない(プレハブのアセットプレビューだけは正しく見えるため発見が
+        // 遅れやすい)。SubShader の RenderPipeline タグを見て機械的に検出する。
+        // Legacy Shaders/Particles/* のようなライティング無しのシェーダーは URP でも描画されるため
+        // (ShaderPipelineAnalyzer のコメント参照)、そちらは Error ではなく置き換え推奨の Warning にする(2026-09-19)。
         internal static IEnumerable<ValidationResult> ValidateShaderPipelineCompatibility(GameObject prefab)
         {
             var reported = new HashSet<Shader>();
@@ -84,13 +86,26 @@ namespace DDrive.Runtime.Vfx
                         continue;
                     }
 
-                    if (!ShaderPipelineAnalyzer.IsCompatibleWithActivePipeline(mat.shader))
+                    var compatibility = ShaderPipelineAnalyzer.CheckActivePipeline(mat.shader);
+                    if (compatibility == ShaderPipelineCompatibility.Compatible)
                     {
-                        var detected = ShaderPipelineAnalyzer.DisplayName(ShaderPipelineAnalyzer.Detect(mat.shader));
-                        var active = ShaderPipelineAnalyzer.ActivePipelineDisplayName();
+                        continue;
+                    }
+
+                    var detected = ShaderPipelineAnalyzer.DisplayName(ShaderPipelineAnalyzer.Detect(mat.shader));
+                    var active = ShaderPipelineAnalyzer.ActivePipelineDisplayName();
+                    if (compatibility == ShaderPipelineCompatibility.Incompatible)
+                    {
                         yield return ValidationResult.Error(
                             $"マテリアル '{mat.name}' のシェーダー '{mat.shader.name}' は {detected} 用ですが、" +
-                            $"プロジェクトは {active} です。Scene/Game ビューで正しく描画されません(多くの場合、完全に透明になります)");
+                            $"プロジェクトは {active} です。Scene/Game ビューで描画されません(エディタでは magenta、ビルドでは透明)");
+                    }
+                    else
+                    {
+                        yield return ValidationResult.Warning(
+                            $"マテリアル '{mat.name}' のシェーダー '{mat.shader.name}' は {detected} 用です。" +
+                            $"ライティング無しの単純なパスのため {active} でも描画はされますが、{active} 用シェーダー" +
+                            "(Universal Render Pipeline/Particles/Unlit 等。Generate > デフォルトパーティクルマテリアルを生成)への置き換えを推奨します");
                     }
                 }
             }

@@ -104,7 +104,7 @@ namespace DDrive.Editor.Inspector
         private static readonly Dictionary<System.Type, HashSet<string>> ReadOnlyFieldNamesByType = new();
         private static readonly HashSet<string> EmptyFieldNames = new();
 
-        private static HashSet<string> GetReadOnlyFieldNames(System.Type dataType)
+        internal static HashSet<string> GetReadOnlyFieldNames(System.Type dataType)
         {
             if (dataType == null || !typeof(AssetDataBase).IsAssignableFrom(dataType))
             {

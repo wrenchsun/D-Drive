@@ -174,10 +174,10 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 
 | エディタ | 左クリックで開く確認用シーン | 本配置の実体 |
 |---|---|---|
-| Prefab Editor（U-4。**以前は確認用シーンを開かず、今開いているシーンにしか置いていなかった**） | `VfxPreviewScene` | `PrefabData.Prefab` |
-| Presentation Editor（U-6。**「確認用シーンを開く」が開くだけでモデルを置かず、そのままでは確認できなかった**。「配置」ボタンも共通部品に） | `VfxPreviewScene` | `ModelData.Prefab` |
-| Model Editor / Anim Editor / Anim2D Editor | `VfxPreviewScene` | Model/Anim は `ModelData.Prefab`、Anim2D はプレビュー物（`Anim2DPreviewObject`）を昇格 |
-| VFX Editor（左クリックで確認用シーンを開いて **そのまま再生**するようにした） | `VfxPreviewScene` | `VfxData.Prefab` |
+| Prefab Editor（U-4。**以前は確認用シーンを開かず、今開いているシーンにしか置いていなかった**） | `PreviewScene` | `PrefabData.Prefab` |
+| Presentation Editor（U-6。**「確認用シーンを開く」が開くだけでモデルを置かず、そのままでは確認できなかった**。「配置」ボタンも共通部品に） | `PreviewScene` | `ModelData.Prefab` |
+| Model Editor / Anim Editor / Anim2D Editor | `PreviewScene` | Model/Anim は `ModelData.Prefab`、Anim2D はプレビュー物（`Anim2DPreviewObject`）を昇格 |
+| VFX Editor（左クリックで確認用シーンを開いて **そのまま再生**するようにした） | `PreviewScene` | `VfxData.Prefab` |
 | Canvas Editor | `CanvasPreviewScene` | `CanvasData.Prefab` |
 | Button Skin / Slider Skin / Slider / UI Tween（**以前はどれも確認用シーンを開かず、今開いているシーンに置いていた**） | `CanvasPreviewScene` | プレビュー用 Canvas ごと昇格（UI 要素だけ外すと描画できないため） |
 
@@ -280,7 +280,7 @@ Tools/
     ├─ Editors/
     │   ├─ Audio
     │   ├─ VFX
-    │   ├─ VFX確認用シーンを開く
+    │   ├─ 共通確認用シーンを開く
     │   ├─ Anchor                      ← 2026-09-08 追加(AnchorData 専用エディタ、[21])
     │   ├─ Anchor Group                ← 2026-09-08 追加(配置セット、[22])
     │   ├─ Animation (3D)

@@ -35,11 +35,7 @@ namespace DDrive.Editor.Preview
             var result = default(Result);
             var worldPos = AnchorPose.WorldPosition(anchor, baseTransform, extraOffset);
             var worldRot = AnchorPose.WorldRotation(anchor, baseTransform, Quaternion.identity);
-            var size = HandleUtility.GetHandleSize(worldPos);
-
-            Handles.color = color;
-            Handles.DrawWireDisc(worldPos, Vector3.up, size * 0.25f);
-            Handles.Label(worldPos + Vector3.up * size * 0.35f, label);
+            DrawTargetMarker(anchor, baseTransform, extraOffset, label, color);
 
             if (Tools.current == Tool.Rotate)
             {
@@ -64,6 +60,18 @@ namespace DDrive.Editor.Preview
             }
 
             return result;
+        }
+
+        // 対象(最終位置)の円とラベル。Draw と同じ見た目で、ハンドル(編集)は付けない。
+        // 他アセット(AnchorData)を参照している VFX など、その場では編集させない表示に使う。
+        public static void DrawTargetMarker(in AnchorDef anchor, Transform baseTransform, Vector3 extraOffset, string label, Color color)
+        {
+            var worldPos = AnchorPose.WorldPosition(anchor, baseTransform, extraOffset);
+            var size = HandleUtility.GetHandleSize(worldPos);
+
+            Handles.color = color;
+            Handles.DrawWireDisc(worldPos, Vector3.up, size * 0.25f);
+            Handles.Label(worldPos + Vector3.up * size * 0.35f, label);
         }
 
         // 描画権を持たないウィンドウ用: ハンドル無し・薄い円と短いラベルだけ(重なっても読める最小限)。

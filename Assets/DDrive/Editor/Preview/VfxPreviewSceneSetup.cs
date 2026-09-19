@@ -13,9 +13,9 @@ namespace DDrive.Editor.Preview
     // 開ける(無ければ最小構成で自動生成する)ようにする。
     public static class VfxPreviewSceneSetup
     {
-        public const string ScenePath = "Assets/GameData/PreviewScenes/VfxPreviewScene.unity";
+        public const string ScenePath = "Assets/GameData/PreviewScenes/PreviewScene.unity";
 
-        [MenuItem(DDriveMenu.Editors + "VFX確認用シーンを開く")]
+        [MenuItem(DDriveMenu.Editors + "共通確認用シーンを開く")]
         public static void OpenOrCreate() => TryOpenOrCreate();
 
         // 戻り値は「確認用シーンが開いている状態になったか」(U-5 の PreviewPlacement.PrepareScene が
@@ -76,7 +76,7 @@ namespace DDrive.Editor.Preview
             BuildDefaultVolume(folder);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
-            Debug.Log($"[DDrive] VFX確認用シーンを新規作成しました: {ScenePath}。ライト・カメラ・Volume・床を調整してから VFX を確認してください。");
+            Debug.Log($"[DDrive] 共通確認用シーンを新規作成しました: {ScenePath}。ライト・カメラ・Volume・床を調整してから VFX を確認してください。");
         }
 
         // Bloom/ColorAdjustments 程度の最小構成。プロジェクトごとの本番ポストプロセスに合わせて
@@ -87,7 +87,7 @@ namespace DDrive.Editor.Preview
             profile.Add<Bloom>(true).threshold.value = 1f;
             profile.Add<ColorAdjustments>(true);
 
-            var profilePath = $"{sceneFolder}/VfxPreviewVolumeProfile.asset";
+            var profilePath = $"{sceneFolder}/PreviewVolumeProfile.asset";
             AssetDatabase.CreateAsset(profile, profilePath);
 
             var volumeGo = new GameObject("Global Volume");

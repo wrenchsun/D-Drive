@@ -66,9 +66,11 @@ namespace DDrive.Editor.Presentation
             loopToggle.RegisterValueChangedCallback(evt => _loopPreview = evt.newValue);
             CompactFieldLayout.ShrinkLabel(loopToggle.labelElement);
             playRow.Add(loopToggle);
-            _statusLabel = new Label("■ 停止中") { style = { marginLeft = 12, opacity = 0.8f } };
-            playRow.Add(_statusLabel);
             foldout.Add(playRow);
+
+            // ステータス(「再生中 n% (ns)」)は文字数で折り返してちらつくため、ループの下の専用行に置く(1 行固定)。
+            _statusLabel = new Label("■ 停止中") { style = { marginTop = 2, opacity = 0.8f, whiteSpace = WhiteSpace.NoWrap, overflow = Overflow.Hidden, minHeight = 18 } };
+            foldout.Add(_statusLabel);
 
             var speed = new Slider("速度(0.1x〜2x、スロー再生)", 0.1f, 2f) { value = _speed, showInputField = true };
             speed.RegisterValueChangedCallback(evt =>
@@ -225,6 +227,8 @@ namespace DDrive.Editor.Presentation
             DisposeSubscriptions();
             _paused = false;
             _rewindNoticeShown = false;
+            // ウィンドウを開いた後に作った / 割り当てた Data(トラックの ID)を解決できるよう、再生のたびに Registry を最新化する。
+            DDrive.Editor.Preview.EditorAnchorRegistry.Refresh(_preview.Registry);
             _preview.Play(_target);
             SubscribeToCurrent();
             _seekBarContainer?.MarkDirtyRepaint();

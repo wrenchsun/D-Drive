@@ -23,11 +23,19 @@ namespace DDrive.Runtime.Material
             {
                 yield return ValidationResult.Warning("Shader が未設定です(既定の Lit で生成されます。意図した見た目か確認してください)");
             }
-            else if (!ShaderPipelineAnalyzer.IsCompatibleWithActivePipeline(mat.Shader))
+            else
             {
-                var detected = ShaderPipelineAnalyzer.DisplayName(ShaderPipelineAnalyzer.Detect(mat.Shader));
-                var active = ShaderPipelineAnalyzer.ActivePipelineDisplayName();
-                yield return ValidationResult.Error($"シェーダー '{mat.Shader.name}' は {detected} 用ですが、プロジェクトは {active} です。正しく描画されません");
+                // Built-in 用でもライティング無しのシェーダーは URP で描画される(ShaderPipelineAnalyzer 参照)ため、
+                // 描画されないものだけ Error、描画されるものは置き換え推奨の Warning に分ける(2026-09-19)。
+                var compatibility = ShaderPipelineAnalyzer.CheckActivePipeline(mat.Shader);
+                if (compatibility != ShaderPipelineCompatibility.Compatible)
+                {
+                    var detected = ShaderPipelineAnalyzer.DisplayName(ShaderPipelineAnalyzer.Detect(mat.Shader));
+                    var active = ShaderPipelineAnalyzer.ActivePipelineDisplayName();
+                    yield return compatibility == ShaderPipelineCompatibility.Incompatible
+                        ? ValidationResult.Error($"シェーダー '{mat.Shader.name}' は {detected} 用ですが、プロジェクトは {active} です。描画されません(エディタでは magenta、ビルドでは透明)")
+                        : ValidationResult.Warning($"シェーダー '{mat.Shader.name}' は {detected} 用です。ライティング無しのため {active} でも描画はされますが、{active} 用シェーダーへの置き換えを推奨します");
+                }
             }
 
             if (!mat.Common.Albedo.IsValid)

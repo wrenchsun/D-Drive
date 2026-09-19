@@ -86,18 +86,25 @@ namespace DDrive.Editor.AssetBrowser
                 bindItem = BindRowElement,
                 itemsSource = _visibleRows,
             };
+            // 一覧が残りの高さだけを使い、下のステータス・試聴バーを押し出さない(窓が低いと試聴バーが隠れていた)。
             _listView.style.flexGrow = 1f;
+            _listView.style.flexShrink = 1f;
+            _listView.style.flexBasis = 0f;
+            _listView.style.minHeight = 0f;
             _listView.selectionChanged += OnSelectionChanged;
             _listView.itemsChosen += OnItemsChosen;
+            _listView.RegisterCallback<KeyDownEvent>(OnListKeyDown, TrickleDown.TrickleDown);
             root.Add(_listView);
 
             _statusLabel = new Label();
             _statusLabel.style.paddingLeft = 6;
             _statusLabel.style.paddingBottom = 2;
+            _statusLabel.style.flexShrink = 0f;
             root.Add(_statusLabel);
 
             _previewService ??= new PreviewService();
             _previewPane = new AudioPreviewPane(_previewService);
+            _previewPane.style.flexShrink = 0f;
             root.Add(_previewPane);
 
             SetupDragAndDrop(root);
@@ -236,6 +243,8 @@ namespace DDrive.Editor.AssetBrowser
             });
 
             evt.menu.AppendSeparator();
+            evt.menu.AppendAction("パスをコピー", _ => GUIUtility.systemCopyBuffer = row.Path);
+            evt.menu.AppendSeparator();
             evt.menu.AppendAction("削除...", _ => DeleteRows(row));
         }
 
@@ -246,7 +255,35 @@ namespace DDrive.Editor.AssetBrowser
         {
             var selected = _listView?.selectedItems?.OfType<Row>().ToList() ?? new List<Row>();
             var rows = selected.Contains(clickedRow) && selected.Count > 1 ? selected : new List<Row> { clickedRow };
+            OpenDeleteWindow(rows);
+        }
 
+        // Delete キー: 選択中の全行を対象に削除の確認画面を開く(右クリックの「削除...」と同じ画面)。
+        private void OnListKeyDown(KeyDownEvent evt)
+        {
+            if (evt.keyCode != KeyCode.Delete && evt.keyCode != KeyCode.Backspace)
+            {
+                return;
+            }
+
+            // Backspace は Mac の Delete 相当(Cmd+Backspace)のときだけ扱う。
+            if (evt.keyCode == KeyCode.Backspace && !evt.commandKey)
+            {
+                return;
+            }
+
+            var selected = _listView?.selectedItems?.OfType<Row>().ToList();
+            if (selected == null || selected.Count == 0)
+            {
+                return;
+            }
+
+            evt.StopPropagation();
+            OpenDeleteWindow(selected);
+        }
+
+        private void OpenDeleteWindow(List<Row> rows)
+        {
             var targets = rows
                 .Where(r => r.Asset != null)
                 .Select(r => new DeleteTarget(r.Asset, r.Type, r.Path))

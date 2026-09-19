@@ -263,6 +263,7 @@ namespace DDrive.Editor.Ui
             }
 
             var so = new SerializedObject(skin);
+            var readOnlyNames = DDrive.Editor.Inspector.AssetDataInspector.GetReadOnlyFieldNames(skin.GetType());
             var it = so.GetIterator();
             var enterChildren = true;
             var statesHeaderAdded = false;
@@ -301,7 +302,15 @@ namespace DDrive.Editor.Ui
                 }
                 else
                 {
-                    _body.Add(new PropertyField(prop));
+                    var field = new PropertyField(prop);
+                    // U-11: 全プロパティを自前で並べるため AssetDataInspector を通らない。
+                    // Id / Version / Author / UpdatedAt など [InspectorReadOnly] のものは同じ基準でグレーアウトする。
+                    if (readOnlyNames.Contains(prop.name))
+                    {
+                        field.SetEnabled(false);
+                    }
+
+                    _body.Add(field);
                 }
             }
 

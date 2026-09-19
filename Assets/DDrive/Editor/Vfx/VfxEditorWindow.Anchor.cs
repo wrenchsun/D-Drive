@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DDrive.Editor.Anchor;
 using DDrive.Editor.Audio;
 using DDrive.Editor.Common;
@@ -458,12 +459,25 @@ namespace DDrive.Editor.Vfx
 
         private void OnSceneGui(SceneView sceneView)
         {
-            if (!_sceneHandleEnabled || _target == null || _driver == null || UsesAnchorAsset)
+            if (!_sceneHandleEnabled || _target == null || _driver == null)
             {
-                return; // 表示オフ / AnchorId 使用時のハンドル編集は AnchorEditor 側
+                return; // 表示オフ
             }
 
-            var anchor = _target.Anchor;
+            // AnchorId 使用時は AnchorEditor と同じ連鎖表示(基準 → 各段 → 最終位置)+ ハンドル編集にする。
+            // ハンドルは参照先の AnchorData アセットを書き換える(同じ Anchor を使う他の VFX / SE にも効く)。
+            List<AnchorData> assetChain = null;
+            if (UsesAnchorAsset)
+            {
+                var asset = EditorAnchorRegistry.Find(_target.AnchorId.Value);
+                assetChain = asset != null ? AnchorChainEditor.CollectRootToTarget(asset) : null;
+                if (assetChain == null || assetChain.Count == 0)
+                {
+                    return;
+                }
+            }
+
+            var anchor = assetChain != null ? assetChain[0].ToDef() : _target.Anchor;
             Transform baseTransform;
             var extraOffset = Vector3.zero;
 
@@ -483,6 +497,28 @@ namespace DDrive.Editor.Vfx
 
             // 描画権が他のウィンドウにあるときは薄い目印だけ(重なりを避ける)。
             var vfxColor = new Color(0.35f, 0.85f, 0.65f);
+            if (assetChain != null)
+            {
+                var targetDef = AnchorChainEditor.ComposeUpTo(assetChain, assetChain.Count - 1);
+                var vfxName = _target.DisplayName ?? _target.name;
+                if (!SceneGuiOwner.IsOwner(this))
+                {
+                    AnchorSceneHandles.DrawInactiveMarker(targetDef, baseTransform, extraOffset, $"VFX: {vfxName}", vfxColor);
+                    return;
+                }
+
+                var chainOrigin = AnchorSceneHandles.DrawOrigin(baseTransform, extraOffset, AnchorSceneHandles.DescribeBase(anchor, baseTransform), anchor.FollowRotation);
+                var chainParent = AnchorSceneHandles.DrawChain(assetChain, baseTransform, extraOffset, chainOrigin, vfxColor);
+                AnchorSceneHandles.DrawOffsetLink(chainParent, AnchorPose.WorldPosition(targetDef, baseTransform, extraOffset), assetChain[assetChain.Count - 1].LocalOffset, vfxColor);
+                var chainResult = AnchorSceneHandles.Draw(targetDef, baseTransform, extraOffset, $"VFX Anchor: {vfxName}(Anchor アセットを編集)", vfxColor);
+                if (chainResult.PositionChanged || chainResult.RotationChanged)
+                {
+                    ApplyAnchorAssetHandle(assetChain, chainResult);
+                }
+
+                return;
+            }
+
             if (!SceneGuiOwner.IsOwner(this))
             {
                 AnchorSceneHandles.DrawInactiveMarker(anchor, baseTransform, extraOffset, $"VFX: {(_target.DisplayName ?? _target.name)}", vfxColor);
@@ -516,6 +552,31 @@ namespace DDrive.Editor.Vfx
                 });
                 RefreshAnchorUi();
             }
+        }
+
+        // ハンドルの結果を参照先 AnchorData(連鎖の最終段)へ書き戻す。合成済みの値を親基準に変換するのは
+        // AnchorEditor と同じ(AnchorChainEditor.ToChildLocal*)。
+        private void ApplyAnchorAssetHandle(List<AnchorData> chain, AnchorSceneHandles.Result result)
+        {
+            var asset = chain[chain.Count - 1];
+            AnchorDef? parentDef = chain.Count > 1 ? AnchorChainEditor.ComposeUpTo(chain, chain.Count - 2) : null;
+
+            Undo.RecordObject(asset, "Move Anchor");
+            if (result.PositionChanged)
+            {
+                asset.LocalOffset = AnchorChainEditor.ToChildLocalOffset(parentDef, result.LocalOffset);
+            }
+
+            if (result.RotationChanged)
+            {
+                asset.LocalEuler = AnchorChainEditor.ToChildLocalEuler(parentDef, result.LocalEuler);
+            }
+
+            EditorUtility.SetDirty(asset);
+            EditorAnchorRegistry.Refresh(_driver?.Registry);
+            _driver?.ReapplyAnchorToAll();
+            RefreshAnchorUi();
+            SceneView.RepaintAll();
         }
 
         // 埋め込み Anchor → AnchorData アセット化(移行補助)。埋め込み値は残す。
