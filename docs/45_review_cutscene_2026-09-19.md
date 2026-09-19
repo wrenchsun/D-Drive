@@ -49,6 +49,8 @@ Skip 経由(`ApplySeek` → `Evaluate()`、`:1024-1036`)は最終フレームで
 
 **直し方**: `ReturnDirector`(または `RentDirector` のスロット再利用時)で holder を `HasData=false` に戻す。ついでに `slot.Director.ClearGenericBinding` 相当の掃除(整理項目参照)も同じ場所に置ける。
 
+**✅ 対応済み 2026-09-20**: `CutsceneManager.ReturnDirector`(`Assets/DDrive/Runtime/Cutscene/CutsceneManager.cs`)で `CutsceneCameraStateHolder.HasData = false` にリセットするようにした(カメラ所有権自体は既存の `Cleanup` → `ReleaseCameraOwnership` で全返却経路から解放済みだったため未変更)。PlayMode テスト `CutsceneTimelineTracksTests.Cancel_MidCameraClip_DoesNotLeakCameraStateToNextCameraLessCutscene` を追加(カメラクリップ途中で Cancel → カメラ無しの Cutscene を再生 → `Camera.main` が動かないことを固定)。`slot.Director` の GenericBinding 掃除は整理項目のまま未対応(スコープ外)。
+
 ### runtime / camera
 
 **P1-2. 取り込んだままの Camera クリップ(`Focus=Volume` 既定 + ピント距離カーブ空)で、DoF のピントが 0.01m に張り付き画面全体がボケる。docs/26 §4.6.4 とデザイナーマニュアルは「取れなければ書かない」と明記している**
@@ -64,6 +66,8 @@ Skip 経由(`ApplySeek` → `Evaluate()`、`:1024-1036`)は最終フレームで
 
 **直し方**: (1) `CutsceneCameraCurveExtractor.Extract` が `FocusDistance` を取れなかったら `target.Focus = CameraFocusMode.Off` にする(または `CutsceneImportService` 側で「取れた時だけ Volume」にする)。(2) Applier 側も保険として `_pending.FocusDistance <= 0f` なら DoF を書かず `weight=0` にする。(3) `CutsceneDataValidator` に「`Focus=Volume` だが `FocusDistance` カーブが空」の Warning を足す。
 
+**✅ 対応済み 2026-09-20**: (1)(2) を実装。`CutsceneImportService.ResolveInitialFocusMode`(新規)で「焦点距離/ピント距離/絞りのいずれか 1 つでも取れれば Volume、全て空なら Off」を新規クリップ生成時にのみ適用(再取り込みではデザイナー設定の `Focus` を保持する既存方針は変えていない)。`DDriveCutsceneCameraApplier.ApplyFocus` にも `_pending.FocusDistance <= 0f` なら DoF を書かない二重防御を追加。(3) の Validator Warning は未対応(スコープ外、P2-13 と合わせて別途検討)。EditMode テスト(`CutsceneImportServiceTests.ResolveInitialFocusMode_*`)+ PlayMode テスト(`CutsceneTimelineTracksTests.CameraClip_FocusVolume_EmptyFocusDistanceCurve_DoesNotWriteDoF`)を追加。
+
 ### net
 
 **P1-3. Late Join / 接続直後の `CutscenePlayMsg` が「未登録」として破棄される。Presentation の 6-0 修正3(`SetRegistryReady` の保留キュー)が Cutscene に移植されていない**
@@ -75,6 +79,8 @@ Skip 経由(`ApplySeek` → `Evaluate()`、`:1024-1036`)は最終フレームで
 **再現条件**: Late Join(Host の `OnClientConnected` は接続直後に台帳ぶんの `CutscenePlayMsg` を送る、`CutsceneManager.cs:816-853`)。参加側の `RegisterCatalogsAsync` は `Start()` から `Forget()` で走る非同期(`Bootstrap.cs:177`)なので、接続直後のこのメッセージは**まさに未登録の窓**に当たる。docs/26 §4.7 の「Late Join は Host の台帳から復元」が機能しない。6-0 の実機確認で Presentation について見つかった課題(docs/11 6-0 修正3)と同一。
 
 **直し方**: `PresentationManager` の `PendingNetMessage` キュー + `SetRegistryReady` をそのまま移植し、`Bootstrap.Build()` と `RegisterCatalogsAsync` の 2 箇所へ `Cutscene.SetRegistryReady(...)` を足す。
+
+**✅ 対応済み 2026-09-20**: `PresentationManager.SetRegistryReady`(`_registryReady` + `PendingNetMessage` キュー)をそのまま `CutsceneManager` に移植(Play/Seek/Cancel の到着順を保つ)。`DDriveRuntimeBootstrap.Build()`(`Presentation.SetRegistryReady(false)` の直後)と `RegisterCatalogsAsync` 完了時(`Presentation.SetRegistryReady(true)` の直後)に `Cutscene.SetRegistryReady(...)` を追加。PlayMode テスト `CutsceneManagerTests.OnReceivePlayMsg_BeforeRegistryReady_IsQueued_AndFlushedAfterReady` / `OnReceiveCancelMsg_BeforeRegistryReady_IsQueued_AndAppliedInOrderAfterReady`(Play→Cancel の順序保持)を追加。
 
 ### import
 
@@ -92,6 +98,8 @@ Skip 経由(`ApplySeek` → `Evaluate()`、`:1024-1036`)は最終フレームで
 **再現条件**: `CutsceneData.SourceFrameRange` に 0/0 以外を入れて再取り込み(docs/26 §5.1 の「逃げ道」)。既定(0/0)では `ShouldTrim` が false で元のサブアセットをそのまま使うため発生しない。
 
 **直し方**: 切り出したクリップを CutsceneData か TimelineAsset のサブアセット(`AssetDatabase.AddObjectToAsset` + 既存があれば上書き)として永続化する。永続化しないなら `SourceFrameRange` 自体を「未対応」として Validator で Error にする方が安全(現状は Validator も `End < Start` しか見ていない、`CutsceneDataValidator.cs:46-49`)。
+
+**✅ 対応済み 2026-09-20**: `CutsceneImportService.PersistTrimmedClip`(新規)を追加し、`CutsceneFrameRangeTrimmer.TrimClip` が返す一時 AnimationClip を TimelineAsset(`.playable`)のサブアセットとして `AssetDatabase.AddObjectToAsset` で永続化(カメラ+小物・キャラの両呼び出し箇所)。サブアセット名は元 FBX のファイル名から一意に決め、再取り込みでは同名の既存サブアセットへ `EditorUtility.CopySerialized` で内容だけ差し替えて再利用する(孤児を残さない)。`TrimClip` が「切り出さず元のクリップをそのまま返した」場合(既に永続、または fps 不明)は何もしない安全弁も追加。EditMode テスト `CutsceneImportServiceTests.ProcessPaths_SourceFrameRange_PersistsTrimmedClipAsSubAsset_AndDoesNotDuplicateOnReimport` を追加。
 
 ### editor(Edit Mode プレビュー)
 
@@ -111,6 +119,8 @@ if (director == null) { director = directorGo.AddComponent<PlayableDirector>(); 
 - **(b) Play Mode での自動再生**: `PlayableDirector.playOnAwake` の既定は true。保存された確認用シーンで Play Mode に入ると、この Director が `CutsceneManager` を通さずに Timeline を再生する。`CutsceneDirectorContext.FireEnabled` は **public な直列化フィールド**(`Runtime/Cutscene/CutsceneDirectorContext.cs:26`)で、Edit Mode の監視役が再生中に true を書く(`CutsceneEditModePreviewProvider.cs:176-177`)。その状態で保存 → Play Mode に入ると、監視役は `Application.isPlaying` で止まる(`:126-129`)ため **true のまま固定**され、SE/VFX/UI/AnchorGroup/Presentation クリップが静的ファサード(= 本番 Manager)経由で発火する。Animation トラックは `FireEnabled` と無関係に常に動く。
 
 **直し方**: Director の GameObject を `hideFlags = HideFlags.DontSave` にする(既存の `CutsceneEditModeManagers.PreviewRootName` と同じ流儀)、`director.playOnAwake = false` を明示する、`PrepareContext` で `FireEnabled=false` を入れているのと同様に `OnPlayModeStateChanged(ExitingEditMode)` でも false に戻す、`ApplyBindings` で前回 Spawn したハンドルを保持して次回に `Despawn` する(または Director の子を作り直す)。
+
+**✅ 対応済み 2026-09-20**: `CutsceneEditModeDirectorSetup` のプレビュー用 GameObject を `HideFlags.DontSave` にし、`director.playOnAwake = false` を明示。`OpenTimelineWindow` の本体を `EnsureDirector`(テストから直接呼べる公開 API)として切り出し、押し直すたびに `ApplyBindings` の先頭で前回 Spawn した Model(`_spawnedModels`)を `Despawn` してから作り直すようにした。加えて、`OnPlayModeStateChanged(ExitingEditMode)`・`OnActiveSceneChanged`・`OnPrefabStageChanged`・ドメインリロード(`AssemblyReloadEvents.beforeAssemblyReload`)のすべてで `CutsceneEditModeDirectorSetup.TearDown()`(Despawn + Director 自体を `DestroyImmediate`)を呼ぶようにした(`FireEnabled` を false に戻すだけでなく Director ごと消すため、(b) は「残った Director が誤って再生する」リスクごと無くなる)。テストの穴 8 も合わせて対応: `CutsceneEditModePreviewProvider.TearDownForTests()`(新規公開 API)を `CutsceneEditModePreviewProviderTests` の `TearDown` から呼び、静的 Manager 群(`[D-Drive] Cutscene Edit Preview` プレビュールート)がテスト実行後にシーンへ残らないようにした。EditMode テスト `CutsceneEditModeDirectorSetupTests`(DontSave / playOnAwake=false / 2 回呼んでもモデルが 1 体)を追加。
 
 ---
 
@@ -344,3 +354,4 @@ var key = category + "" + shot;
 ## 変更履歴
 
 - 2026-09-19: 新規作成。`f02c68b` / `02bc145` / `e562059` / `883a372` / `fe17586`(+ `bf76062` の Cutscene 分)を読み取り専用レビュー(Unity MCP 未使用、作業ツリーの HEAD = `bf76062` を参照)。
+- 2026-09-20: P1-1〜P1-5 の 5 件を対応(各節に「✅ 対応済み」を追記。詳細は [docs/26_timeline.md](26_timeline.md) の各実装メモ「docs/45 P1 対応(2026-09-20)」を参照)。EditMode 931/931・PlayMode 758/758 green(Unity MCP `mcp__UnityMCP__*` で確認)。P2 以下・整理項目・テストの穴の残りは未対応。

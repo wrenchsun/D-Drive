@@ -317,6 +317,10 @@ namespace DDrive.Runtime.Loop
             // キューに保留し(SetRegistryReady(false))、完了後に登録順で処理する(SetRegistryReady(true) が
             // まとめて flush する)。ローカル(手で Play() を呼ぶ)経路は影響を受けない([14_networking.md] §5)。
             Presentation.SetRegistryReady(false);
+            // [26_timeline.md] §4.7 / docs/45 P1-3(2026-09-20) — Presentation と同じ穴が CutsceneManager
+            // にもあった(Late Join 直後の CutscenePlayMsg が「未登録」として破棄される)。Presentation の
+            // 6-0 修正3をそのまま移植したので、同じタイミングで false → RegisterCatalogsAsync 完了で true にする。
+            Cutscene.SetRegistryReady(false);
             // [14_networking.md] §5(6-0 修正7、実機確認 v3 で発見した実バグの修正) — Client 視点で
             // Host との接続を失ったときに、ネット経由で開始した Presentation(StopOnCancel=true の
             // Vfx/Se 等を含む)を強制終了する。NgoBridgeRef は Ngo モードのときだけ非 null(Loopback は
@@ -567,6 +571,8 @@ namespace DDrive.Runtime.Loop
             // [11_tasks.md] 6-0 修正3 — カタログ登録完了後にネット受信の保留分(Play/Signal/Cancel)を
             // 受信順に処理する。Presentation は Build() で常に生成されるため null チェックは不要。
             Presentation.SetRegistryReady(true);
+            // docs/45 P1-3(2026-09-20) — CutsceneManager も同じタイミングで保留分(Play/Seek/Cancel)を flush する。
+            Cutscene.SetRegistryReady(true);
 
             var catalogHashes = new CatalogContentHasher.CatalogHashEntry[allCatalogs.Count];
             for (var i = 0; i < allCatalogs.Count; i++)

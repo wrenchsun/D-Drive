@@ -19,6 +19,11 @@ namespace DDrive.Tests.Editor
             {
                 Object.DestroyImmediate(_go);
             }
+
+            // docs/45 テストの穴 8(2026-09-20) — PrepareContext が EnsureManagers() 経由で開いている
+            // シーンに作る「[D-Drive] Cutscene Edit Preview」プレビュールートを破棄する
+            // (DontSave なので保存はされないが、ドメインリロードまでシーンに残ってしまう)。
+            CutsceneEditModePreviewProvider.TearDownForTests();
         }
 
         [Test]

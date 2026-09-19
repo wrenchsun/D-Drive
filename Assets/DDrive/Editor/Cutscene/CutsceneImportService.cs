@@ -287,7 +287,8 @@ namespace DDrive.Editor.Cutscene
             var detectedClipFps = clip != null ? clip.frameRate : 0f;
             if (clip != null && CutsceneFrameRangeTrimmer.ShouldTrim(sourceFrameRange))
             {
-                clip = CutsceneFrameRangeTrimmer.TrimClip(clip, sourceFrameRange, detectedClipFps);
+                var trimmed = CutsceneFrameRangeTrimmer.TrimClip(clip, sourceFrameRange, detectedClipFps);
+                clip = PersistTrimmedClip(timeline, trimmed, Path.GetFileNameWithoutExtension(assetPath) + "_Trim");
             }
 
             var cameras = root.GetComponentsInChildren<Camera>(true);
@@ -372,13 +373,65 @@ namespace DDrive.Editor.Cutscene
 
             if (CutsceneFrameRangeTrimmer.ShouldTrim(sourceFrameRange))
             {
-                clip = CutsceneFrameRangeTrimmer.TrimClip(clip, sourceFrameRange, clip.frameRate);
+                var trimmed = CutsceneFrameRangeTrimmer.TrimClip(clip, sourceFrameRange, clip.frameRate);
+                clip = PersistTrimmedClip(timeline, trimmed, Path.GetFileNameWithoutExtension(assetPath) + "_Trim");
             }
 
             var modelIdentifier = CutsceneShotParser.StripDuplicateSuffix(modelIdentifierRaw);
             BuildOrUpdateAnimationRoleTrack(timeline, clip, modelIdentifierRaw, modelIdentifier, bindings, bindingNames, report);
 
             return clip.frameRate > 0f ? clip.frameRate : (float?)null;
+        }
+
+        // [26_timeline.md] §5.1 逃げ道 / docs/45 P1-4(2026-09-20) — CutsceneFrameRangeTrimmer.TrimClip が
+        // 返す一時 AnimationClip は非永続のため、そのまま asset.clip に代入するとドメインリロード後に
+        // シリアライズ参照が空になる(トリム済みトラックのアニメが消える)。TimelineAsset(.playable)の
+        // サブアセットとして永続化する。TrimClip が「切り出さず元のクリップをそのまま返した」場合(既に
+        // 永続 = 通常の FBX 埋め込みクリップ、または fps 不明で切り出せなかった場合)は何もしない。
+        // 再取り込みでは同名の既存サブアセットの中身だけを差し替えて再利用し(CopySerialized)、孤児を残さない。
+        private static AnimationClip PersistTrimmedClip(TimelineAsset timeline, AnimationClip trimmed, string subAssetName)
+        {
+            if (timeline == null || trimmed == null || EditorUtility.IsPersistent(trimmed))
+            {
+                return trimmed;
+            }
+
+            // Maya の既定クリップ名(例: "Take 001")はカメラ+小物 FBX とキャラ FBX で重複しうるため、
+            // 元 FBX のファイル名を使って CutsceneData 内でのサブアセット名を一意にする。
+            trimmed.name = subAssetName;
+
+            var timelinePath = AssetDatabase.GetAssetPath(timeline);
+            if (string.IsNullOrEmpty(timelinePath))
+            {
+                // まだディスクに保存されていない(ProcessShot は timeline を CreateAsset した直後にしか
+                // ここを呼ばないため通常は起きない)。安全側で非永続のまま返す。
+                return trimmed;
+            }
+
+            var existing = FindSubAsset<AnimationClip>(timelinePath, subAssetName);
+            if (existing != null)
+            {
+                EditorUtility.CopySerialized(trimmed, existing);
+                UnityEngine.Object.DestroyImmediate(trimmed);
+                return existing;
+            }
+
+            AssetDatabase.AddObjectToAsset(trimmed, timeline);
+            return trimmed;
+        }
+
+        private static T FindSubAsset<T>(string assetPath, string name) where T : UnityEngine.Object
+        {
+            var all = AssetDatabase.LoadAllAssetRepresentationsAtPath(assetPath);
+            for (var i = 0; i < all.Length; i++)
+            {
+                if (all[i] is T typed && typed.name == name)
+                {
+                    return typed;
+                }
+            }
+
+            return null;
         }
 
         // ── 共通: Animation トラック(キャラ/小物とも Target=SpawnModel、[26] §4.2/§5.2) ──
@@ -471,13 +524,21 @@ namespace DDrive.Editor.Cutscene
                 asset.StepFps = profile.DefaultCameraStepFps;
                 asset.BlendIn = BuildDefaultBlend(profile.DefaultBlendSeconds);
                 asset.BlendOut = BuildDefaultBlend(profile.DefaultBlendSeconds);
-                asset.Focus = CameraFocusMode.Volume;
             }
 
             var found = CutsceneCameraCurveExtractor.Extract(clip, cameraPath, asset);
             if (!found)
             {
                 report.Log($"警告: '{trackName}' のカメラカーブが抽出できませんでした(位置/回転/画角のいずれも見つかりません)");
+            }
+
+            if (isNewTrack)
+            {
+                // [26_timeline.md] §4.6.4 / docs/45 P1-2(2026-09-20) — 「取れなければ書かない」。焦点距離/
+                // ピント距離/絞りのカーブが 1 つも取れなかった新規クリップは Focus=Off で初期化する(取れた
+                // ときだけ Volume)。再取り込みでは(isNewTrack==false のため)この分岐を通らず、デザイナーが
+                // 手で変えた Focus をそのまま保持する。
+                asset.Focus = ResolveInitialFocusMode(asset);
             }
 
             timelineClip.start = 0d;
@@ -489,6 +550,23 @@ namespace DDrive.Editor.Cutscene
                 bindings.Add(new CutsceneBinding { TrackName = trackName, Target = CutsceneBindTarget.MainCamera });
                 bindingNames.Add(trackName);
             }
+        }
+
+        // docs/45 P1-2(2026-09-20) — 焦点距離/ピント距離/絞りのいずれか 1 つでもカーブが取れていれば
+        // Volume(既定)、全て空なら Off(§4.6.4「取れなければ書かない」)。CutsceneCameraCurveExtractor.Extract
+        // 呼び出し直後の asset を見るだけの純ロジックなので、実 FBX が無くてもテストできる。
+        public static CameraFocusMode ResolveInitialFocusMode(CutsceneCameraClip asset)
+        {
+            if (asset == null)
+            {
+                return CameraFocusMode.Off;
+            }
+
+            var hasFocusCurve = (asset.FocalLengthMm != null && asset.FocalLengthMm.length > 0)
+                || (asset.FocusDistance != null && asset.FocusDistance.length > 0)
+                || (asset.Aperture != null && asset.Aperture.length > 0);
+
+            return hasFocusCurve ? CameraFocusMode.Volume : CameraFocusMode.Off;
         }
 
         private static ValueDef BuildDefaultBlend(float seconds) => new()

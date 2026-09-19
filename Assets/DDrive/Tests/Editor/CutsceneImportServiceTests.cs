@@ -110,6 +110,47 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("Assets/GameData/Cutscene/CUT_Opening01.asset", path);
         }
 
+        // ── ResolveInitialFocusMode(純ロジック、docs/45 P1-2 2026-09-20) ──
+
+        [Test]
+        public void ResolveInitialFocusMode_NoFocusCurves_ReturnsOff()
+        {
+            var asset = ScriptableObject.CreateInstance<CutsceneCameraClip>();
+            try
+            {
+                // Extract() 直後の既定値と同じ(見つからなかったチャンネルは空カーブ、[26_timeline.md] §4.6.4)。
+                asset.FocalLengthMm = new AnimationCurve();
+                asset.FocusDistance = new AnimationCurve();
+                asset.Aperture = new AnimationCurve();
+
+                Assert.AreEqual(CameraFocusMode.Off, CutsceneImportService.ResolveInitialFocusMode(asset),
+                    "焦点距離/ピント距離/絞りのいずれも取れなければ Focus=Off(「取れなければ書かない」)");
+            }
+            finally
+            {
+                Object.DestroyImmediate(asset);
+            }
+        }
+
+        [Test]
+        public void ResolveInitialFocusMode_FocusDistanceCurveFound_ReturnsVolume()
+        {
+            var asset = ScriptableObject.CreateInstance<CutsceneCameraClip>();
+            try
+            {
+                asset.FocalLengthMm = new AnimationCurve();
+                asset.FocusDistance = AnimationCurve.Constant(0f, 1f, 3f);
+                asset.Aperture = new AnimationCurve();
+
+                Assert.AreEqual(CameraFocusMode.Volume, CutsceneImportService.ResolveInitialFocusMode(asset),
+                    "ピント距離カーブが 1 つでも取れれば Volume(既定)");
+            }
+            finally
+            {
+                Object.DestroyImmediate(asset);
+            }
+        }
+
         // ── FindModelDataByIdentifier ──
 
         [Test]
@@ -220,6 +261,39 @@ namespace DDrive.Tests.Editor
             var reloaded = AssetDatabase.LoadAssetAtPath<CutsceneData>(dataPath);
             var stillThere = System.Array.Exists(reloaded.Timeline.GetOutputTracks().ToArray(), t => t.name == "DesignerAdded");
             Assert.IsTrue(stillThere, "再取り込みでデザイナーが足したトラックが消えてはならない");
+        }
+
+        // ── SourceFrameRange の永続化(docs/45 P1-4、2026-09-20) ──
+
+        [Test]
+        public void ProcessPaths_SourceFrameRange_PersistsTrimmedClipAsSubAsset_AndDoesNotDuplicateOnReimport()
+        {
+            var cameraPath = CopyAsset(SampleCameraPropsFbx, $"{SourceRoot}/Cutscene/Opening/Opening01.fbx");
+            var charPath = CopyAsset(SampleCharacterFbx, $"{SourceRoot}/Cutscene/Opening/Opening01__Hero.fbx");
+            CutsceneImportService.ProcessPaths(new[] { cameraPath, charPath }, SourceRoot, GameDataRoot);
+
+            var dataPath = CutsceneImportService.ComputeCutsceneDataPath(GameDataRoot, "Opening", "Opening01");
+            var data = AssetDatabase.LoadAssetAtPath<CutsceneData>(dataPath);
+
+            // [26_timeline.md] §5.1「逃げ道」を有効にする(既定 0/0 だとトリムが走らないため)。
+            data.SourceFrameRange = new FrameRange { Start = 0, End = 2 };
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssets();
+
+            CutsceneImportService.ProcessPaths(new[] { cameraPath, charPath }, SourceRoot, GameDataRoot);
+
+            var timelinePath = AssetDatabase.GetAssetPath(data.Timeline);
+            var subAssets = AssetDatabase.LoadAllAssetRepresentationsAtPath(timelinePath);
+            var clipCount = subAssets.Count(o => o is AnimationClip);
+            Assert.GreaterOrEqual(clipCount, 1,
+                "SourceFrameRange で切り出したクリップが TimelineAsset(.playable)のサブアセットとして" +
+                "永続化されていること(非永続のままだとドメインリロードで参照が消える、docs/45 P1-4)");
+
+            // 再取り込みでは同名の既存サブアセットを差し替えて再利用し、孤児を残さない。
+            CutsceneImportService.ProcessPaths(new[] { cameraPath, charPath }, SourceRoot, GameDataRoot);
+            var subAssets2 = AssetDatabase.LoadAllAssetRepresentationsAtPath(timelinePath);
+            var clipCount2 = subAssets2.Count(o => o is AnimationClip);
+            Assert.AreEqual(clipCount, clipCount2, "再取り込みでサブアセットが増えてはならない(孤児を残さない)");
         }
 
         // ── AC: CutsceneImportProfile.DefaultFrameRate を変えても既存 CutsceneData は変わらない ──

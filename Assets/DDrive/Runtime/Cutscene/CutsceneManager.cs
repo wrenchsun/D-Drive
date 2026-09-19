@@ -120,6 +120,30 @@ namespace DDrive.Runtime.Cutscene
         private readonly uint _instanceSalt;
         private uint _nextLocalSeq;
 
+        // [14_networking.md] §5(6-0 修正3)/docs/45 P1-3(2026-09-20) — PresentationManager.SetRegistryReady
+        // と同じ仕組みをそのまま移植する。DDriveRuntimeBootstrap のカタログ登録が完了するまで(Build() 直後
+        // ～RegisterCatalogsAsync 完了)、Late Join 直後に届く CutscenePlayMsg 等が「未登録」として破棄される
+        // 穴を塞ぐ。既定 true(Bootstrap を経由しない既存テスト/シングルプレイは今までどおり即時処理)。
+        private bool _registryReady = true;
+
+        private enum PendingNetMessageKind
+        {
+            Play,
+            Seek,
+            Cancel,
+        }
+
+        private struct PendingNetMessage
+        {
+            public PendingNetMessageKind Kind;
+            public ulong SenderId;
+            public CutscenePlayMsg Play;
+            public CutsceneSeekMsg Seek;
+            public CutsceneCancelMsg Cancel;
+        }
+
+        private readonly Queue<PendingNetMessage> _pendingNetMessages = new();
+
         private const int HandleNetKeyIssuerBits = 8;
         private const uint HandleNetKeyIssuerMask = 0xFFu;
         private const uint HandleNetKeyLowerMask = 0x00FFFFFFu;
@@ -645,6 +669,18 @@ namespace DDrive.Runtime.Cutscene
             slot.Root.transform.SetParent(null, worldPositionStays: false);
             slot.Root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             slot.Root.SetActive(false);
+
+            // [26_timeline.md] §4.6/docs/45 P1-1(2026-09-20) — CutsceneCameraStateHolder は
+            // CutsceneRoot 生成時に 1 回だけ付き free-list で使い回されるため、HasData をここでリセット
+            // しないと、次にこのスロットを借りた「カメラトラックを持たない」Cutscene が前回の値を
+            // 自分のカメラデータだと誤認してしまう(Cancel 直後の再現条件)。ミキサーは毎フレーム
+            // ProcessFrame で上書きするので、カメラ付きの Cutscene が借りた場合はすぐ正しい値に戻る。
+            var holder = slot.Root.GetComponent<CutsceneCameraStateHolder>();
+            if (holder != null)
+            {
+                holder.HasData = false;
+            }
+
             _freeDirectors.Push(slot);
         }
 
@@ -738,7 +774,45 @@ namespace DDrive.Runtime.Cutscene
             }
         }
 
-        private void OnReceivePlayMsg(ulong senderId, CutscenePlayMsg msg) => OnReceivePlayMsgInternal(senderId, msg);
+        // [14_networking.md] §5(6-0 修正3)/docs/45 P1-3(2026-09-20) — Registry が ready になるまで
+        // 受信順にキューへ保留する(PresentationManager.SetRegistryReady と同じ実装)。
+        // DDriveRuntimeBootstrap.Build() が false を、RegisterCatalogsAsync 完了時に true を呼ぶ。
+        public void SetRegistryReady(bool ready)
+        {
+            _registryReady = ready;
+            if (!ready)
+            {
+                return;
+            }
+
+            while (_pendingNetMessages.Count > 0)
+            {
+                var pending = _pendingNetMessages.Dequeue();
+                switch (pending.Kind)
+                {
+                    case PendingNetMessageKind.Play:
+                        OnReceivePlayMsgInternal(pending.SenderId, pending.Play);
+                        break;
+                    case PendingNetMessageKind.Seek:
+                        OnReceiveSeekMsgInternal(pending.SenderId, pending.Seek);
+                        break;
+                    case PendingNetMessageKind.Cancel:
+                        OnReceiveCancelMsgInternal(pending.SenderId, pending.Cancel);
+                        break;
+                }
+            }
+        }
+
+        private void OnReceivePlayMsg(ulong senderId, CutscenePlayMsg msg)
+        {
+            if (!_registryReady)
+            {
+                _pendingNetMessages.Enqueue(new PendingNetMessage { Kind = PendingNetMessageKind.Play, SenderId = senderId, Play = msg });
+                return;
+            }
+
+            OnReceivePlayMsgInternal(senderId, msg);
+        }
 
         private void OnReceivePlayMsgInternal(ulong senderId, CutscenePlayMsg msg)
         {
@@ -852,7 +926,16 @@ namespace DDrive.Runtime.Cutscene
             }
         }
 
-        private void OnReceiveSeekMsg(ulong senderId, CutsceneSeekMsg msg) => OnReceiveSeekMsgInternal(senderId, msg);
+        private void OnReceiveSeekMsg(ulong senderId, CutsceneSeekMsg msg)
+        {
+            if (!_registryReady)
+            {
+                _pendingNetMessages.Enqueue(new PendingNetMessage { Kind = PendingNetMessageKind.Seek, SenderId = senderId, Seek = msg });
+                return;
+            }
+
+            OnReceiveSeekMsgInternal(senderId, msg);
+        }
 
         private void OnReceiveSeekMsgInternal(ulong senderId, CutsceneSeekMsg msg)
         {
@@ -877,7 +960,16 @@ namespace DDrive.Runtime.Cutscene
             ApplySeek(instance, msg.ToTime);
         }
 
-        private void OnReceiveCancelMsg(ulong senderId, CutsceneCancelMsg msg) => OnReceiveCancelMsgInternal(senderId, msg);
+        private void OnReceiveCancelMsg(ulong senderId, CutsceneCancelMsg msg)
+        {
+            if (!_registryReady)
+            {
+                _pendingNetMessages.Enqueue(new PendingNetMessage { Kind = PendingNetMessageKind.Cancel, SenderId = senderId, Cancel = msg });
+                return;
+            }
+
+            OnReceiveCancelMsgInternal(senderId, msg);
+        }
 
         private void OnReceiveCancelMsgInternal(ulong senderId, CutsceneCancelMsg msg)
         {

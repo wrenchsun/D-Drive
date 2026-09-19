@@ -186,7 +186,12 @@ namespace DDrive.Runtime.Cutscene
         // Camera.focusDistance のみ(Volume は作らない、HDRP 移植時の逃げ道)。
         private void ApplyFocus(Camera cam, float w)
         {
-            if (_pending.Focus == CameraFocusMode.Off)
+            // [26_timeline.md] §4.6.4 / docs/45 P1-2(2026-09-20) 二重防御 — 取り込み側(CutsceneImportService.
+            // ResolveInitialFocusMode)が「取れなければ Focus=Off」を新規クリップにしか適用できない
+            // (再取り込みは既存の Focus を保持する)ため、取り込み済みデータで Focus=Volume のまま
+            // ピント距離カーブが空(評価結果が 0 以下)になるケースが起こりうる。その場合は Off と同じ扱いに
+            // して、Mathf.Max(0.01f, 0) の 1cm 張り付きを書かない。
+            if (_pending.Focus == CameraFocusMode.Off || _pending.FocusDistance <= 0f)
             {
                 if (_volume != null)
                 {

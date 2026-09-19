@@ -108,6 +108,11 @@ namespace DDrive.Editor.Cutscene
             return _managers;
         }
 
+        // docs/45 P1-5(2026-09-20) — `CutsceneEditModeDirectorSetup.TearDown`(Despawn 用)専用。
+        // `EnsureAndGetManagers` と違い、無ければ null を返すだけで新規生成しない
+        // (テアダウンのためだけに Manager 群を作ってしまわないようにする)。
+        public static CutsceneEditModeManagers PeekManagers() => _managers;
+
         private static void EnsureManagers() => _managers ??= new CutsceneEditModeManagers();
 
         private static CutsceneDirectorManagerRefs BuildManagerRefs() => new()
@@ -245,6 +250,10 @@ namespace DDrive.Editor.Cutscene
                 // Play Mode に入る直前に、Shake/Haptics の出力とカメラの書き込みを止める
                 // (SceneCameraShakePreviewDriver/EditorHapticsPreviewDriver 自身も同じ通知で自浄する)。
                 CutsceneEditModeCameraWriter.ResetCapture();
+                // docs/45 P1-5(2026-09-20) — プレビュー用 Director(playOnAwake=true のまま保存された
+                // シーンで Play Mode に入ると CutsceneManager を経由せず勝手に再生してしまう)と、そこに
+                // Spawn された Model を Play Mode 突入前に消す。
+                CutsceneEditModeDirectorSetup.TearDown();
                 _sessions.Clear();
             }
         }
@@ -257,6 +266,8 @@ namespace DDrive.Editor.Cutscene
         {
             _sessions.Clear();
             CutsceneEditModeCameraWriter.ResetCapture();
+            // docs/45 P1-5(2026-09-20) — シーン切替・Prefab ステージ切替でプレビュー用 Director を残さない。
+            CutsceneEditModeDirectorSetup.TearDown();
         }
 
         private static void TearDown()
@@ -265,5 +276,10 @@ namespace DDrive.Editor.Cutscene
             _managers?.Dispose();
             _managers = null;
         }
+
+        // テスト専用: 静的 Manager 群とプレビュー用 Director を破棄する。`EnsureManagers`/`EnsureAndGetManagers`
+        // を経由するテストが、開いているシーンにプレビュー用ルートを残さないようにする
+        // (docs/45 テストの穴 8、2026-09-20)。
+        public static void TearDownForTests() => TearDown();
     }
 }

@@ -3,6 +3,7 @@ using DDrive.Foundation.Identity;
 using DDrive.Foundation.Net;
 using DDrive.Foundation.Registry;
 using DDrive.Runtime.Cutscene;
+using DDrive.Runtime.Net;
 using DDrive.Runtime.Presentation;
 using NUnit.Framework;
 using R3;
@@ -222,6 +223,82 @@ namespace DDrive.Tests.Runtime
 
             Assert.IsFalse(host.Manager.IsPlaying(hostHandle), "Skip が Host 自身にも効くこと");
             Assert.IsFalse(client.Manager.IsPlaying(clientHandle), "Skip が Client にも効くこと");
+        }
+
+        // ── Registry 未 ready の保留キュー([26] §4.7 / docs/45 P1-3、2026-09-20) ──
+        // PresentationNetDeviceFixTests.OnReceivePlayMsg_BeforeRegistryReady_IsQueued_AndFlushedWithoutPlaceholder_AfterReady
+        // と同じ手口(PresentationManager の 6-0 修正3 と同じ実装を CutsceneManager に移植したことの確認)。
+
+        [Test]
+        public void OnReceivePlayMsg_BeforeRegistryReady_IsQueued_AndFlushedAfterReady()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = false, LocalClientId = 1UL };
+            var manager = new CutsceneManager(registry, netBridge: bridge);
+
+            manager.SetRegistryReady(false);
+
+            const ulong cutId = 990001UL;
+            const uint handleNetKey = 0x22222222u;
+
+            // Registry にまだ cutId が登録されていない状態で PlayMsg を受信させる(Late Join のスナップ
+            // ショットがカタログ登録完了より先に届くケースを模す)。senderId=0(Host、TrustedRelayClientId)
+            // なので発行者検証は常に通る。
+            bridge.InjectReceive(0UL, new CutscenePlayMsg { CutId = cutId, HandleNetKey = handleNetKey, StartNetTime = 0d });
+
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count, "Registry 未 ready の間は即座に処理されず保留される");
+
+            // カタログ登録がようやく完了する(DDriveRuntimeBootstrap.RegisterCatalogsAsync 完了に相当)。
+            var data = CreateData(5.0, net: NetMode.Cosmetic);
+            data.Id = cutId;
+            var address = "cutscene/" + cutId;
+            loader.Assets[address] = data;
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = cutId, Type = AssetType.Cutscene, Address = address } });
+            registry.RegisterCatalogAsync(catalog).GetAwaiter().GetResult();
+            registry.ResolveAsync<CutsceneData>(cutId).GetAwaiter().GetResult();
+            Object.DestroyImmediate(catalog);
+
+            manager.SetRegistryReady(true);
+
+            Assert.AreEqual(1, manager.DebugActiveHandles().Count, "ready になった時点で保留分がまとめて処理される");
+        }
+
+        // Seek/Cancel も同じ保留キューを通ることの確認(順序を保つ: Play→Cancel が ready 前に両方届いても、
+        // flush 後にちゃんと「再生してから終了」になる)。
+        [Test]
+        public void OnReceiveCancelMsg_BeforeRegistryReady_IsQueued_AndAppliedInOrderAfterReady()
+        {
+            var loader = new FakeAssetLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new FakeNetBridge { IsServer = false, LocalClientId = 1UL };
+            var manager = new CutsceneManager(registry, netBridge: bridge);
+
+            manager.SetRegistryReady(false);
+
+            const ulong cutId = 990002UL;
+            const uint handleNetKey = 0x33333333u;
+
+            bridge.InjectReceive(0UL, new CutscenePlayMsg { CutId = cutId, HandleNetKey = handleNetKey, StartNetTime = 0d });
+            bridge.InjectReceive(0UL, new CutsceneCancelMsg { HandleNetKey = handleNetKey });
+
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count);
+
+            var data = CreateData(5.0, net: NetMode.Cosmetic);
+            data.Id = cutId;
+            var address = "cutscene/" + cutId;
+            loader.Assets[address] = data;
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = cutId, Type = AssetType.Cutscene, Address = address } });
+            registry.RegisterCatalogAsync(catalog).GetAwaiter().GetResult();
+            registry.ResolveAsync<CutsceneData>(cutId).GetAwaiter().GetResult();
+            Object.DestroyImmediate(catalog);
+
+            manager.SetRegistryReady(true);
+
+            Assert.AreEqual(0, manager.DebugActiveHandles().Count,
+                "Play→Cancel の到着順が保たれ、flush 後は再生してから終了した状態になること(docs/45 P1-3)");
         }
     }
 }
