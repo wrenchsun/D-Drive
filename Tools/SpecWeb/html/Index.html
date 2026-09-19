@@ -17,9 +17,11 @@
          取得できない場合は空文字（html/OrderLinkLogic.html 側が空なら何もしない）。
 
          2026-09-17（P1-3）: 4 つとも `JSON.stringify` の直書きから src/Code.js の
-         specWebJsonForScript_ 経由に変えた。`<?!= ?>` は非エスケープ出力で JSON.stringify は
+         specWebJsonForScript_ 経由に変えた。印字スクリプトレット(<?!= …) は非エスケープ出力で JSON.stringify は
          `<` を素通しするため、値に `</script>` を含められると任意 JS が実行できた。
-         **ここに新しい値を足すときも必ず specWebJsonForScript_ を通すこと。** -->
+         **ここに新しい値を足すときも必ず specWebJsonForScript_ を通すこと。**
+         注意: この HTML コメントの中でも GAS のテンプレート記法(<? … ?>)は評価される。空の
+         スクリプトレットを書くとページ全体が SyntaxError になる(2026-09-20 に実際に起きた)。 -->
     <script>
       window.SpecWebCurrentUser = <?!= specWebJsonForScript_(currentUser) ?>;
       window.SpecWebInitialScreen = <?!= specWebJsonForScript_(initialScreen || null) ?>;
