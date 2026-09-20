@@ -11,46 +11,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊あり（互換性ポリシーは未発効のため 1.0.0 発効前の例外として実施。[docs/42_distribution.md](docs/42_distribution.md) §5 は P-13 で発効する草案段階）: **P-10.5 レビュー対応（2026-09-20、[docs/47_review_p_tickets_2026-09-20.md](docs/47_review_p_tickets_2026-09-20.md) P1-1）** — NGO を任意依存にする実現方式を asmdef 分離まで修正した。`DDriveRuntimeBootstrap` の public フィールド `NetworkManagerRef`/`NgoBridgeRef` を削除し（`DDrive.Runtime.Ngo` アセンブリの `DDriveNgoBootstrapHook` へ移設）、`NgoNetBridge`/`NgoTransportConfigurator`/`NetDebugOverlay` を `DDrive.Runtime` から新設アセンブリ `DDrive.Runtime.Ngo` へ移動した（namespace は `DDrive.Runtime.Net` のまま不変、GUID も不変）。互換性スナップショット `public-api-DDrive.Runtime.txt` を更新（該当箇所は削除+新設 API `INgoBridgeFactory`/`NetBridgeFactoryRegistry`/`NgoBridgeCreateArgs`/`NgoBridgeCreateResult` の追加）。既存シーン（`NetCheckScene.unity`）は Unity Editor 経由で `DDriveNgoBootstrapHook` を追加し直し、参照を復元済み
-- P-10.5 レビュー対応（2026-09-20）の残りの修正（P1-2〜P1-7、P2-1〜P2-9）は、Editor 専用 API のシグネチャ変更（`ChangelogLocator.ResolvePath` に `preferDevRepoRoot` 引数を追加 等）・挙動修正（`ForbiddenApiScanner`/`ManualPages`/`DDriveMigrationRunner`/`ValidatorRegistry` 等）・PowerShell/バッチスクリプトの修正で、いずれも `DDrive.Editor` は互換性スナップショットの対象外（ゲームコードは `DDrive.Editor` を参照禁止のため）。公開 API（`DDrive.Foundation`/`DDrive.Runtime`）への影響は上記の NGO 分離のみ
-- P-9（2026-09-20）: リリース手順を道具化しただけで、公開 API・シリアライズ形式・生成コード等の互換面には触れていない
-- P-10（2026-09-20）: 消費側ドキュメント・スキル・CI テンプレの追加のみで、C# の変更は無い（公開 API・シリアライズ形式・生成コード等の互換面には触れていない）
-- P-11 フォローアップ（2026-09-20、[docs/48_p11_install_test_2026-09-20.md](docs/48_p11_install_test_2026-09-20.md) §12）: テスト専用コード（`Tests/Editor`・`Tests/Runtime`）の修正・追加とエディタ専用の `ProjectSetupActions`/`ProjectSetupWizardWindow`（`DDrive.Editor`）の変更のみで、公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード等の互換面には触れていない
-- P-12（2026-09-20、[docs/49_p12_ms2026_install_2026-09-20.md](docs/49_p12_ms2026_install_2026-09-20.md)）: MS2026 への実移植確認のみで、D-Drive（`Packages/com.ddrive.core`）のコードは一切変更していない（変更したのは移植先 MS2026 側のみ）。互換面には触れていない。実移植で発見した D-Drive 側の不具合（`DDriveSpecSettings.DefaultPath` のハードコード、置き場所変更×git URL 参照を想定していない同梱テスト 9 件、`-nographics` バッチモードでの `CutsceneTimelineTracksTests` 1 件の Fail）は [docs/42_distribution.md](docs/42_distribution.md) §2.3 #11・#12 に記録済み → **2026-09-20 フォローアップで修正済み（下記「修正」参照）**
-- P-12 フォローアップ（2026-09-20、[docs/49_p12_ms2026_install_2026-09-20.md](docs/49_p12_ms2026_install_2026-09-20.md) §16）: `DDrive.Editor` とテストのみの変更（`DDriveSpecSettings.DefaultPath`/`DefaultTuningTablePath` を `const` → static プロパティに変更したが、既定値〔GameDataRoot 未変更、または旧パスに既存アセットがある場合〕では従来と同じパスを返すため挙動は変わらない）。公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード等の互換面には触れていない
-
-### 修正
-
-- P-12 フォローアップ（2026-09-20、[docs/49_p12_ms2026_install_2026-09-20.md](docs/49_p12_ms2026_install_2026-09-20.md) §16、[docs/42_distribution.md](docs/42_distribution.md) §2.3 #11・#12）: **P-12（MS2026 への実移植）で発見した D-Drive 側の不具合 4 件 + 起動時に新規発見した 1 件、計 5 件を修正**
-  1. `DDriveSpecSettings.DefaultPath`/`DefaultTuningTablePath`（`Editor/Spec/DDriveSpecSettings.cs`）が `const` で `Assets/GameData/Settings/` に固定され、`DDriveProjectSettings.GameDataRoot`（置き場所プリセット）を無視していたのを、これを尊重する static プロパティに変更した。既に既定パスにアセットが存在する場合はそれを優先して使う（移動しない。開発リポジトリの既存アセットが迷子にならない）
-  2. 置き場所変更×git URL 参照（`PackageCache` のハッシュ付きパス）で落ちる EditMode テスト 9 件（`DDriveProjectSettingsTests`/`SourceDataCreationTests`/`SpecSnapshotWriterTests`/`CIJUnitXmlTests`）を、実際の `DDriveProjectSettings`/`PackageInfo` の値から期待値を動的に組み立てる形に修正した
-  3. `-nographics` バッチモードで Fail していた `CutsceneTimelineTracksTests.Applier_DetectsOverwrite_WhenLaterScriptWritesCameraInLateUpdate`（検出2が実際の SRP カメラ描画コールバックに依存するため `TestFrameWait` だけでは解消できなかった）に `[Category("RequiresGraphics")]` を追加し、新設 `Tests/Runtime/RequiresGraphicsGuard.cs` でガードした
-  4. Addressables の既定アセット名（`Default Local Group`・`Packed Assets`）のスペースを解消する経路（`ProjectSetupActions.RenameDefaultAddressablesAssetsToAvoidSpaces`、新規初期化直後の自動実行・ウィザードのボタン・`ProjectSetupValidator` の Warning `DD-SETUP-ADDR-NAME-SPACE`〔修正アクション付き〕）を追加した。開発リポジトリ自身の `Assets/AddressableAssetsData` も Unity Editor 経由でリネームした
-  5. （今回のセッション中に新規発見）Unity 起動直後の全量再インポートで `DependencyGraphPostprocessor`→`DependencyGraphService`（`RebuildAll`/`UpdatePaths`）が読み取り専用パッケージ内のシーンを開こうとして「Opening scene in read-only package!」のモーダルが連続表示される不具合を修正した。走査対象を Assets 配下 + 埋め込み/ローカルパッケージに限定する `DependencyGraphService.IsScannablePath` を追加した
-- P-11 フォローアップ（2026-09-20、[docs/48_p11_install_test_2026-09-20.md](docs/48_p11_install_test_2026-09-20.md) §12）: **持ち込み先で testables を ON にしたときの Fail 24 件の解消**
-  - 開発リポジトリの状態を暗黙の前提にしていたテスト 6 件（`CIJUnitXmlTests`/`ManualPagesTests`/`DDriveMigrationRunnerTests`/`ProjectSetupInspectorTests`/`ProjectSetupValidatorTests`）を、原則はテスト内でセットアップ/モックする自己完結な形に直した（4 件）。実プロジェクトのグローバル設定（URP/Input System/manifest.json/Addressables 初期化）を書き換えないと再現できない 2 件だけ `[Category("DevRepoOnly")]` にした
-  - `-batchmode -nographics` で `EditorWindow.GetWindow<T>()`/`RenderTexture.Create` が失敗する 14 件に `[Category("RequiresGraphics")]` を追加し、新設 `Tests/Editor/RequiresGraphicsGuard.cs`（グラフィックデバイスが無ければ `Assume` で Inconclusive）でガードした
-  - `new WaitForEndOfFrame()` がバッチモードで失敗する `CutsceneTimelineTracksTests` の 4 件を、新設 `Tests/Runtime/TestFrameWait.cs`（`Application.isBatchMode` なら `yield return null` に切り替える共通ヘルパー）で対処した
-  - 開発リポジトリ自身の `Tools/CI/run-ci.cmd` 相当のバッチ実行（`git worktree` で再現）でも同じ 24 件が Fail することを実測で確認した上で対処した
-  - `ProjectSetupActions.EnsureDefaultFoldersAndSettings`（セットアップウィザード「4. 既定フォルダ・設定の生成」）が空カタログを作成した直後に `AddressablesSync.SyncAll` を自動実行するようにし、セットアップウィザードの「5. Addressables 同期」に**「全カタログ・Data を今すぐ同期する」ボタン**を追加した（`Tools > D-Drive > Update` の「Addressables 登録を同期」と同じ処理を再利用）。`README.md` の関連する既知の注意を解消済みに更新した
-
-### 追加
-
-- P-10（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §6 P-10）: **消費側ドキュメント**
-  - `Packages/com.ddrive.core/README.md` を全面改訂: 導入 5 ステップ（manifest への git URL 追加〔`git+https`/`git+ssh` 両形式〕→ Unity を開く → セットアップウィザード → SE を登録・試聴 → `Audio.PlaySe`）、依存表、既知の制約、更新手順、ロールバック、問い合わせ先。Unity 操作の手順は「持ち込み先の MCP 構成に従う」の 1 行のみで、D-Drive 独自の MCP 手順は書かない
-  - `Packages/com.ddrive.core/Documentation~/AGENTS_CONSUMER.md`（新規）: 持ち込み先の AI エージェント向け禁止事項・ID 経由の利用・Validation・更新手順の要約
-  - `Packages/com.ddrive.core/Documentation~/skills/ddrive-consumer/{SKILL.md, references/{common-warnings.md, update-checklist.md}}`（新規）: Claude Code 向け消費側スキル。開発リポジトリ専用の節（新種別追加・ワークツリー・SpecWeb のテスト・MCP セットアップ）は含めない。P-6 の `ProjectSetupActions.CopyConsumerSkillIfBundled`（既存）がこの同梱を検出して `.claude/skills/ddrive-consumer/` へコピーできる
-  - `Packages/com.ddrive.core/Tools~/CI/{run-ddrive-ci.cmd, ddrive-ci.yml, README.md}`（新規）: 持ち込み先向け CI テンプレート。`ddrive-ci.yml` は MS2026 の既存 self-hosted runner 運用に合わせた GitHub Actions 雛形
-  - `Tools/SpecWeb/README.md` に「16. 持ち込み先で使う」節を新規追加（別デプロイの手順・`HANDOVER.md` への導線）
-  - `docs/34_onboarding.md` に「10. 持ち込み先での始め方」節、`docs/DesignerManual/package-setup.html` を完成版に更新、`docs/ProgrammerManual/getting-started.html` に「1-4. 持ち込み先」節を追加
-  - C# の変更は無い
-
-- P-9（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.1・§6 P-9）: **リリース手順の道具化**
-  - `Tools/Release/{ReleaseChecks.ps1（共通関数）, bump-version.ps1, check-release.ps1, list-obsolete.ps1}` を新設（PowerShell 7/5.1 両対応・BOM 付き UTF-8）。`bump-version.ps1 -Version x.y.z|-Part major|minor|patch [-DryRun] [-Tag] [-SkipChecks]` が事前チェック→`package.json`/`DDriveVersion.cs`/`CHANGELOG.md` の更新→同梱物の同期（`docs/DesignerManual`・`docs/ProgrammerManual` → `Documentation~/`、`CHANGELOG.md` → `Packages/com.ddrive.core/CHANGELOG.md`）→`-Tag` 時の `git tag -a`（push はしない）を行う。`check-release.ps1`（`-GuardOnly` で CHANGELOG ガードだけに絞れる）はファイルを書き換えずに同じ事前チェック + CHANGELOG ガード（§5.11-10）を検査する
-  - `docs/12_review.md` に「7. リリース手順」節を新設
-  - `docs/migrations/next-major.md`（`[Obsolete]` 棚卸しの自動生成物。`list-obsolete.ps1` が更新する。2026-09-20 時点で該当 0 件）を新規作成
-  - `Tools/CI/run-ci.cmd` に `[1/8] CHANGELOG ガード (check-release.ps1 -GuardOnly)` を追加し、既存の `[1/7]`〜`[7/7]` を `[2/8]`〜`[8/8]` に繰り下げ
-  - **P-8 が残した docs の指摘 2 件を修正**: `docs/42_distribution.md` §8 の変更履歴に欠落していた P-7 の記述を追記。`docs/ProgrammerManual/net-api.html` の「既知の制約」が偽造 `CatalogContentHashResultMsg` を未検証としたままだった記述を、2026-09-18 の修正（`docs/14_networking.md` §7 実装メモ）に合わせて更新し、`Tools/SpecWeb/tools/build-manual.js` で再生成した
+- 破壊なし(このリリース以降の変更はまだありません)
 
 ## [1.0.0] - 2026-09-20
 
@@ -78,6 +39,29 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - `Editor/Update/`（新設）: `Tools > D-Drive > Update > 更新ウィンドウ`（`UpdateWindow`）。現在の版/前回適用した版(`DDriveProjectSettings.LastAppliedVersion`)/その間の CHANGELOG 該当節(`ChangelogRangeReader`/`ChangelogLocator`)を表示し、「互換性」節に「破壊あり」があれば警告(`ChangelogCompatibilityAnalyzer`)。「更新を適用」はウィンドウ非依存の `UpdateActions.Apply`(純関数、フェイクの段でテスト可能)に委譲し、`UpdateStepsFactory` が実処理(マイグレーション → ID/Tuning 再生成 → Addressables 同期 → Validation → `LastAppliedVersion` 更新)を配線する。途中の段が失敗したら以降を実行しない。「テストを有効化」「エージェント向けスキルを更新」は P-6 の `ProjectSetupActions`(`SetTestablesEnabled`/`CopyConsumerSkillIfBundled`)を再利用(重複実装なし)
   - `ProjectSetupValidator` に `LastAppliedVersion` が現在版より古い(または未適用)ことを検出する Warning(`DD-SETUP-UPDATE-PENDING`)を追加(§5.8 の 2 段階ルールに従い Warning。開発リポジトリ〔`IsDevelopmentRepo=true`〕は対象外)
   - §2.3 #10(`CatalogContentHashMsg` に版情報が無い)に対応
+
+- 破壊あり（互換性ポリシーは未発効のため 1.0.0 発効前の例外として実施。[docs/42_distribution.md](docs/42_distribution.md) §5 は P-13 で発効する草案段階）: **P-10.5 レビュー対応（2026-09-20、[docs/47_review_p_tickets_2026-09-20.md](docs/47_review_p_tickets_2026-09-20.md) P1-1）** — NGO を任意依存にする実現方式を asmdef 分離まで修正した。`DDriveRuntimeBootstrap` の public フィールド `NetworkManagerRef`/`NgoBridgeRef` を削除し（`DDrive.Runtime.Ngo` アセンブリの `DDriveNgoBootstrapHook` へ移設）、`NgoNetBridge`/`NgoTransportConfigurator`/`NetDebugOverlay` を `DDrive.Runtime` から新設アセンブリ `DDrive.Runtime.Ngo` へ移動した（namespace は `DDrive.Runtime.Net` のまま不変、GUID も不変）。互換性スナップショット `public-api-DDrive.Runtime.txt` を更新（該当箇所は削除+新設 API `INgoBridgeFactory`/`NetBridgeFactoryRegistry`/`NgoBridgeCreateArgs`/`NgoBridgeCreateResult` の追加）。既存シーン（`NetCheckScene.unity`）は Unity Editor 経由で `DDriveNgoBootstrapHook` を追加し直し、参照を復元済み
+- P-10.5 レビュー対応（2026-09-20）の残りの修正（P1-2〜P1-7、P2-1〜P2-9）は、Editor 専用 API のシグネチャ変更（`ChangelogLocator.ResolvePath` に `preferDevRepoRoot` 引数を追加 等）・挙動修正（`ForbiddenApiScanner`/`ManualPages`/`DDriveMigrationRunner`/`ValidatorRegistry` 等）・PowerShell/バッチスクリプトの修正で、いずれも `DDrive.Editor` は互換性スナップショットの対象外（ゲームコードは `DDrive.Editor` を参照禁止のため）。公開 API（`DDrive.Foundation`/`DDrive.Runtime`）への影響は上記の NGO 分離のみ
+- P-9（2026-09-20）: リリース手順を道具化しただけで、公開 API・シリアライズ形式・生成コード等の互換面には触れていない
+- P-10（2026-09-20）: 消費側ドキュメント・スキル・CI テンプレの追加のみで、C# の変更は無い（公開 API・シリアライズ形式・生成コード等の互換面には触れていない）
+- P-11 フォローアップ（2026-09-20、[docs/48_p11_install_test_2026-09-20.md](docs/48_p11_install_test_2026-09-20.md) §12）: テスト専用コード（`Tests/Editor`・`Tests/Runtime`）の修正・追加とエディタ専用の `ProjectSetupActions`/`ProjectSetupWizardWindow`（`DDrive.Editor`）の変更のみで、公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード等の互換面には触れていない
+- P-12（2026-09-20、[docs/49_p12_ms2026_install_2026-09-20.md](docs/49_p12_ms2026_install_2026-09-20.md)）: MS2026 への実移植確認のみで、D-Drive（`Packages/com.ddrive.core`）のコードは一切変更していない（変更したのは移植先 MS2026 側のみ）。互換面には触れていない。実移植で発見した D-Drive 側の不具合（`DDriveSpecSettings.DefaultPath` のハードコード、置き場所変更×git URL 参照を想定していない同梱テスト 9 件、`-nographics` バッチモードでの `CutsceneTimelineTracksTests` 1 件の Fail）は [docs/42_distribution.md](docs/42_distribution.md) §2.3 #11・#12 に記録済み → **2026-09-20 フォローアップで修正済み（下記「修正」参照）**
+- P-12 フォローアップ（2026-09-20、[docs/49_p12_ms2026_install_2026-09-20.md](docs/49_p12_ms2026_install_2026-09-20.md) §16）: `DDrive.Editor` とテストのみの変更（`DDriveSpecSettings.DefaultPath`/`DefaultTuningTablePath` を `const` → static プロパティに変更したが、既定値〔GameDataRoot 未変更、または旧パスに既存アセットがある場合〕では従来と同じパスを返すため挙動は変わらない）。公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード等の互換面には触れていない
+
+### 修正
+
+- P-12 フォローアップ（2026-09-20、[docs/49_p12_ms2026_install_2026-09-20.md](docs/49_p12_ms2026_install_2026-09-20.md) §16、[docs/42_distribution.md](docs/42_distribution.md) §2.3 #11・#12）: **P-12（MS2026 への実移植）で発見した D-Drive 側の不具合 4 件 + 起動時に新規発見した 1 件、計 5 件を修正**
+  1. `DDriveSpecSettings.DefaultPath`/`DefaultTuningTablePath`（`Editor/Spec/DDriveSpecSettings.cs`）が `const` で `Assets/GameData/Settings/` に固定され、`DDriveProjectSettings.GameDataRoot`（置き場所プリセット）を無視していたのを、これを尊重する static プロパティに変更した。既に既定パスにアセットが存在する場合はそれを優先して使う（移動しない。開発リポジトリの既存アセットが迷子にならない）
+  2. 置き場所変更×git URL 参照（`PackageCache` のハッシュ付きパス）で落ちる EditMode テスト 9 件（`DDriveProjectSettingsTests`/`SourceDataCreationTests`/`SpecSnapshotWriterTests`/`CIJUnitXmlTests`）を、実際の `DDriveProjectSettings`/`PackageInfo` の値から期待値を動的に組み立てる形に修正した
+  3. `-nographics` バッチモードで Fail していた `CutsceneTimelineTracksTests.Applier_DetectsOverwrite_WhenLaterScriptWritesCameraInLateUpdate`（検出2が実際の SRP カメラ描画コールバックに依存するため `TestFrameWait` だけでは解消できなかった）に `[Category("RequiresGraphics")]` を追加し、新設 `Tests/Runtime/RequiresGraphicsGuard.cs` でガードした
+  4. Addressables の既定アセット名（`Default Local Group`・`Packed Assets`）のスペースを解消する経路（`ProjectSetupActions.RenameDefaultAddressablesAssetsToAvoidSpaces`、新規初期化直後の自動実行・ウィザードのボタン・`ProjectSetupValidator` の Warning `DD-SETUP-ADDR-NAME-SPACE`〔修正アクション付き〕）を追加した。開発リポジトリ自身の `Assets/AddressableAssetsData` も Unity Editor 経由でリネームした
+  5. （今回のセッション中に新規発見）Unity 起動直後の全量再インポートで `DependencyGraphPostprocessor`→`DependencyGraphService`（`RebuildAll`/`UpdatePaths`）が読み取り専用パッケージ内のシーンを開こうとして「Opening scene in read-only package!」のモーダルが連続表示される不具合を修正した。走査対象を Assets 配下 + 埋め込み/ローカルパッケージに限定する `DependencyGraphService.IsScannablePath` を追加した
+- P-11 フォローアップ（2026-09-20、[docs/48_p11_install_test_2026-09-20.md](docs/48_p11_install_test_2026-09-20.md) §12）: **持ち込み先で testables を ON にしたときの Fail 24 件の解消**
+  - 開発リポジトリの状態を暗黙の前提にしていたテスト 6 件（`CIJUnitXmlTests`/`ManualPagesTests`/`DDriveMigrationRunnerTests`/`ProjectSetupInspectorTests`/`ProjectSetupValidatorTests`）を、原則はテスト内でセットアップ/モックする自己完結な形に直した（4 件）。実プロジェクトのグローバル設定（URP/Input System/manifest.json/Addressables 初期化）を書き換えないと再現できない 2 件だけ `[Category("DevRepoOnly")]` にした
+  - `-batchmode -nographics` で `EditorWindow.GetWindow<T>()`/`RenderTexture.Create` が失敗する 14 件に `[Category("RequiresGraphics")]` を追加し、新設 `Tests/Editor/RequiresGraphicsGuard.cs`（グラフィックデバイスが無ければ `Assume` で Inconclusive）でガードした
+  - `new WaitForEndOfFrame()` がバッチモードで失敗する `CutsceneTimelineTracksTests` の 4 件を、新設 `Tests/Runtime/TestFrameWait.cs`（`Application.isBatchMode` なら `yield return null` に切り替える共通ヘルパー）で対処した
+  - 開発リポジトリ自身の `Tools/CI/run-ci.cmd` 相当のバッチ実行（`git worktree` で再現）でも同じ 24 件が Fail することを実測で確認した上で対処した
+  - `ProjectSetupActions.EnsureDefaultFoldersAndSettings`（セットアップウィザード「4. 既定フォルダ・設定の生成」）が空カタログを作成した直後に `AddressablesSync.SyncAll` を自動実行するようにし、セットアップウィザードの「5. Addressables 同期」に**「全カタログ・Data を今すぐ同期する」ボタン**を追加した（`Tools > D-Drive > Update` の「Addressables 登録を同期」と同じ処理を再利用）。`README.md` の関連する既知の注意を解消済みに更新した
 
 ### 追加
 
@@ -113,3 +97,18 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - `DevRepoSettingsSync`（`[InitializeOnLoad]`）を新設し、`DDRIVE_DEV_REPO` 定義時に `DDriveProjectSettings.IsDevelopmentRepo` を自動で `true` にする（人手で `ProjectSettings/*.asset` を編集しない）
   - `UnityEditor.PackageManager.Client.AddScopedRegistry` が public API に無いことを確認（[42] §7 C-1 解決）。scoped registry の追加は `ManifestJson.AddScopedRegistry` による manifest.json の直接編集で行う
 
+- P-10（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §6 P-10）: **消費側ドキュメント**
+  - `Packages/com.ddrive.core/README.md` を全面改訂: 導入 5 ステップ（manifest への git URL 追加〔`git+https`/`git+ssh` 両形式〕→ Unity を開く → セットアップウィザード → SE を登録・試聴 → `Audio.PlaySe`）、依存表、既知の制約、更新手順、ロールバック、問い合わせ先。Unity 操作の手順は「持ち込み先の MCP 構成に従う」の 1 行のみで、D-Drive 独自の MCP 手順は書かない
+  - `Packages/com.ddrive.core/Documentation~/AGENTS_CONSUMER.md`（新規）: 持ち込み先の AI エージェント向け禁止事項・ID 経由の利用・Validation・更新手順の要約
+  - `Packages/com.ddrive.core/Documentation~/skills/ddrive-consumer/{SKILL.md, references/{common-warnings.md, update-checklist.md}}`（新規）: Claude Code 向け消費側スキル。開発リポジトリ専用の節（新種別追加・ワークツリー・SpecWeb のテスト・MCP セットアップ）は含めない。P-6 の `ProjectSetupActions.CopyConsumerSkillIfBundled`（既存）がこの同梱を検出して `.claude/skills/ddrive-consumer/` へコピーできる
+  - `Packages/com.ddrive.core/Tools~/CI/{run-ddrive-ci.cmd, ddrive-ci.yml, README.md}`（新規）: 持ち込み先向け CI テンプレート。`ddrive-ci.yml` は MS2026 の既存 self-hosted runner 運用に合わせた GitHub Actions 雛形
+  - `Tools/SpecWeb/README.md` に「16. 持ち込み先で使う」節を新規追加（別デプロイの手順・`HANDOVER.md` への導線）
+  - `docs/34_onboarding.md` に「10. 持ち込み先での始め方」節、`docs/DesignerManual/package-setup.html` を完成版に更新、`docs/ProgrammerManual/getting-started.html` に「1-4. 持ち込み先」節を追加
+  - C# の変更は無い
+
+- P-9（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.1・§6 P-9）: **リリース手順の道具化**
+  - `Tools/Release/{ReleaseChecks.ps1（共通関数）, bump-version.ps1, check-release.ps1, list-obsolete.ps1}` を新設（PowerShell 7/5.1 両対応・BOM 付き UTF-8）。`bump-version.ps1 -Version x.y.z|-Part major|minor|patch [-DryRun] [-Tag] [-SkipChecks]` が事前チェック→`package.json`/`DDriveVersion.cs`/`CHANGELOG.md` の更新→同梱物の同期（`docs/DesignerManual`・`docs/ProgrammerManual` → `Documentation~/`、`CHANGELOG.md` → `Packages/com.ddrive.core/CHANGELOG.md`）→`-Tag` 時の `git tag -a`（push はしない）を行う。`check-release.ps1`（`-GuardOnly` で CHANGELOG ガードだけに絞れる）はファイルを書き換えずに同じ事前チェック + CHANGELOG ガード（§5.11-10）を検査する
+  - `docs/12_review.md` に「7. リリース手順」節を新設
+  - `docs/migrations/next-major.md`（`[Obsolete]` 棚卸しの自動生成物。`list-obsolete.ps1` が更新する。2026-09-20 時点で該当 0 件）を新規作成
+  - `Tools/CI/run-ci.cmd` に `[1/8] CHANGELOG ガード (check-release.ps1 -GuardOnly)` を追加し、既存の `[1/7]`〜`[7/7]` を `[2/8]`〜`[8/8]` に繰り下げ
+  - **P-8 が残した docs の指摘 2 件を修正**: `docs/42_distribution.md` §8 の変更履歴に欠落していた P-7 の記述を追記。`docs/ProgrammerManual/net-api.html` の「既知の制約」が偽造 `CatalogContentHashResultMsg` を未検証としたままだった記述を、2026-09-18 の修正（`docs/14_networking.md` §7 実装メモ）に合わせて更新し、`Tools/SpecWeb/tools/build-manual.js` で再生成した
