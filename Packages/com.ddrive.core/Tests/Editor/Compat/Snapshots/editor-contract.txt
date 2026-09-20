@@ -9,10 +9,12 @@ GameObjectRoot = GameObject/D-Drive/
 Generate = Tools/D-Drive/Generate/
 Root = Tools/D-Drive/
 Setup = Tools/D-Drive/Setup/
+Update = Tools/D-Drive/Update/
 Validation = Tools/D-Drive/Validation/
 == CI ==
 BuildJUnitXml
 DiscoverValidators
+MigrateCheck
 RegenerateIds
 ResolveForbiddenApiScanRoot
 RunAllMenuItem

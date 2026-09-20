@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>マイグレーションの書き方 | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › マイグレーションの書き方</nav>
+
+<h1>マイグレーションの書き方</h1>
+
+<p>D-Drive のデータ（<code>.asset</code>）のシリアライズ形式を変えるとき、既存のアセットの値を新しい形式へ機械的に移すための仕組みです（<code>docs/42_distribution.md</code> §4.3、P-7 で実装）。実装は <code>Packages/com.ddrive.core/Editor/Migration/</code>。</p>
+
+<div class="tip">
+<strong>まず Unity 標準の道具で足りないか確認してください。</strong> フィールドの改名だけなら <code>[FormerlySerializedAs]</code>（コード不要 = マイグレーション不要、MINOR）。クラス名・名前空間の移動だけなら <code>[MovedFrom]</code>。<strong>値そのものの変換が要るとき</strong>（型変更、複数フィールドの統合等）だけ <code>IDataMigration</code> を書きます。
+</div>
+
+<h2 id="schema-version">スキーマ版（SchemaVersion）とは</h2>
+<p><code>AssetDataBase.SchemaVersion</code>(<code>int</code>、<code>[HideInInspector]</code>)は「今の D-Drive コードが期待するデータ形式の版」を表す単調増加の整数です。<code>AssetDataBase.Version</code>(保存回数、デザイナーの編集履歴表示用)とは**別物**です。</p>
+<ul>
+<li><code>VersionStampProcessor</code>(保存フック)が保存の都度、現在のスキーマ版定数 <code>DDriveSchema.Current</code>(<code>Foundation/Data/DDriveSchema.cs</code>)を <code>SchemaVersion</code> へ書き込みます</li>
+<li>既存 <code>.asset</code>(このフィールドが無かった頃に保存されたもの)は <code>SchemaVersion == 0</code> のまま読まれます。これは「1.0.0 以前の形式」を意味します</li>
+<li><code>SchemaVersion</code> が古い Data には <code>SchemaVersionValidator</code>(Warning、Code <code>DD-SCHEMA-OUTDATED</code>)が付きます。実際に値を揃えるのは下記の Runner です</li>
+</ul>
+
+<h2 id="idatamigration">IDataMigration の書き方</h2>
+<p>「Data 1 個の値を変換する」マイグレーションです。<code>IValidator</code> と同じく <strong>登録リストは無く、クラスを書くだけで <code>TypeCache</code> が自動発見</strong>します。</p>
+<pre>namespace DDrive.Editor.Migration
+{
+    public sealed class MyFieldTypeChangeMigration : IDataMigration
+    {
+        // 一度公開したら変えない(DDriveProjectSettings.AppliedMigrationIds に記録される)。
+        public string Id =&gt; "2026-xx-xx-myfield-float-to-valuedef";
+
+        // 対象にする Data の現在の SchemaVersion(この値未満は対象外)。
+        public int FromSchema =&gt; 1;
+
+        // 適用後に書き込む SchemaVersion(通常は DDriveSchema.Current)。
+        public int ToSchema =&gt; 2;
+
+        // 型・フィールドの状態で対象を絞り込む。
+        public bool AppliesTo(AssetDataBase data) =&gt; data is MyData;
+
+        public void Migrate(AssetDataBase data, MigrationContext context)
+        {
+            var d = (MyData)data;
+            d.NewValueDefField = ValueDef.Constant(d.OldFloatField);
+            context.Note($"{d.name}: OldFloatField({d.OldFloatField}) -&gt; NewValueDefField");
+            // SchemaVersion 自体はここで書かない(Runner がまとめて ToSchema を書く)。
+        }
+    }
+}</pre>
+
+<div class="warn">
+<strong>旧フィールドは消さないでください。</strong> <code>[HideInInspector] [Obsolete]</code> を付けて次の MAJOR まで残します(<code>docs/42_distribution.md</code> §5.1・§4.3)。同一 MAJOR 内なら、ダウングレードしても旧コードが旧フィールドを読めることが前提です。
+</div>
+
+<h2 id="iprojectmigration">IProjectMigration の書き方</h2>
+<p><code>AssetDataBase</code> を持たない SO(<code>AssetCatalog</code>・<code>TuningTable</code>・<code>UiLayerSettings</code> 等)への一括処理です。対象ごとの <code>SchemaVersion</code> が無いため、二重適用の防止は <code>DDriveProjectSettings.AppliedMigrationIds</code> に <code>Id</code> が記録済みかどうかで判定します。</p>
+<pre>public interface IProjectMigration
+{
+    string Id { get; }
+    void Migrate(MigrationContext context);
+}</pre>
+
+<h2 id="runner">Runner の動かし方</h2>
+<table>
+<tr><th>操作</th><th>メニュー</th><th>挙動</th></tr>
+<tr><td>ドライラン</td><td><code>Tools &gt; D-Drive &gt; Update &gt; マイグレーション(ドライラン)</code></td><td>実データは一切変更せず、対象件数と一覧をコンソールに出す(<code>DDriveMigrationRunner.Plan</code> は読み取りのみ)</td></tr>
+<tr><td>適用</td><td><code>Tools &gt; D-Drive &gt; Update &gt; マイグレーション(適用)</code></td><td><code>Undo.RecordObject</code> → <code>Migrate</code> → <code>SchemaVersion</code> 書き込み → <code>EditorUtility.SetDirty</code> を対象ごとに行い、<code>VersionStampSuppression.Scope()</code> 内で保存する(= 保存回数は進めない)。Ctrl+Z で戻せる</td></tr>
+<tr><td>CI</td><td><code>-executeMethod DDrive.Editor.CI.MigrateCheck</code></td><td>未適用のマイグレーションがあれば exit 1。<code>Tools/CI/run-ci.cmd</code> の <code>[1/7]</code>(Validation より前)</td></tr>
+</table>
+<p>適用順は <code>FromSchema</code> の昇順。対象は <code>SchemaVersion &lt; ToSchema &amp;&amp; AppliesTo(data)</code> を満たす Data だけです。適用後は <code>SchemaVersion</code> が <code>ToSchema</code> 以上になるため、次回の Plan では自然に対象外になります(二重適用防止に専用のフラグは要りません)。</p>
+
+<div class="tip">
+<strong>テストアセンブリ内の実装は自動発見の対象外です。</strong> <code>IValidator</code> の <code>CI.DiscoverValidators()</code> と同じ理由(テスト用のダミー実装が実運用・CI に混ざらないようにするため)で、<code>DDrive.Tests.*</code> アセンブリ内の <code>IDataMigration</code>/<code>IProjectMigration</code> は <code>DDriveMigrationRunner.DiscoverDataMigrations()</code>/<code>DiscoverProjectMigrations()</code>(ひいては <code>CI.MigrateCheck</code>)から除外されます。テストでは <code>DDriveMigrationRunner.Plan(...)</code>/<code>Apply(...)</code> にダミー実装を明示的に渡してください(<code>Tests/Editor/Migration/DDriveMigrationRunnerTests.cs</code> が実例)。
+</div>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ（ページ一覧・共通の入口）</a></li>
+<li><a href="extending.html">新しい種別（AssetType）を追加する</a></li>
+<li><a href="rules.html">コーディング規約・禁止事項</a></li>
+</ul>
+<p>設計の背景・互換性ポリシー全体は <code>docs/42_distribution.md</code> §4.3・§5.1、書き方の要点は <code>docs/migrations/README.md</code> を参照してください。</p>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

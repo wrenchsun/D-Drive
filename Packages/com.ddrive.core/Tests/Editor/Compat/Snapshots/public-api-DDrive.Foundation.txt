@@ -34,6 +34,7 @@ TYPE class abstract DDrive.Foundation.Data.AssetDataBase : UnityEngine.Scriptabl
   field Icon : UnityEngine.Texture2D
   field Id : ulong
   field ImportSourceGuid : string
+  field SchemaVersion : int
   field SpecUrl : string
   field Tags : string[]
   field UpdatedAt : string
@@ -64,6 +65,8 @@ TYPE struct DDrive.Foundation.Data.AssetRef
   method static op_Equality(DDrive.Foundation.Data.AssetRef a, DDrive.Foundation.Data.AssetRef b) : bool
   method static op_Inequality(DDrive.Foundation.Data.AssetRef a, DDrive.Foundation.Data.AssetRef b) : bool
   property IsAssigned : bool {get}
+TYPE class static DDrive.Foundation.Data.DDriveSchema
+  field const Current : int
 TYPE class sealed DDrive.Foundation.Data.InspectorReadOnlyAttribute : System.Attribute
   ctor InspectorReadOnlyAttribute()
 TYPE enum DDrive.Foundation.Data.LoadMode

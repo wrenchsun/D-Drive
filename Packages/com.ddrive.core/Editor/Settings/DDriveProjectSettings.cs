@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Codegen;
 using DDrive.Editor.Import;
@@ -41,6 +43,54 @@ namespace DDrive.Editor.Settings
         // Regenerate Asset IDs` が出力フォルダに `DDrive.Generated.asmdef` を同時出力するかどうか。
         // 既定 ON(A-8 決定)。セットアップウィザードのチェックボックスで OFF にできる。
         [SerializeField] private bool _emitGeneratedAsmdef = true;
+
+        // [42_distribution.md] §4.3/§6 P-7(2026-09-20) — 更新ツール(P-8)が使う「前回適用した版」と、
+        // マイグレーション基盤(DDriveMigrationRunner)が二重適用を防ぐための適用済み ID 台帳。
+        // Data 側の SchemaVersion と違い、これは「Data を持たないマイグレーション」(IProjectMigration。
+        // カタログ等の一括処理)を主な対象にする(Data 側の二重適用防止は SchemaVersion < ToSchema の
+        // 比較で足りるが、DDriveMigrationRunner は適用したものを両方ここへ記録する。§4.3)。
+        [SerializeField] private string _lastAppliedVersion = string.Empty;
+        [SerializeField] private string[] _appliedMigrationIds = Array.Empty<string>();
+
+        public string LastAppliedVersion
+        {
+            get => _lastAppliedVersion ?? string.Empty;
+            set => SetAndSave(ref _lastAppliedVersion, value ?? string.Empty);
+        }
+
+        public IReadOnlyList<string> AppliedMigrationIds => _appliedMigrationIds ?? Array.Empty<string>();
+
+        public bool HasAppliedMigration(string id)
+        {
+            if (string.IsNullOrEmpty(id) || _appliedMigrationIds == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _appliedMigrationIds.Length; i++)
+            {
+                if (string.Equals(_appliedMigrationIds[i], id, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // 冪等(既に記録済みの Id は無視する)。ScriptableSingleton の保存(ProjectSettings/*.asset)を伴うため、
+        // Unity 経由(このメソッド)以外でこのファイルを編集しないこと(CLAUDE.md §0-1)。
+        public void MarkMigrationApplied(string id)
+        {
+            if (string.IsNullOrEmpty(id) || HasAppliedMigration(id))
+            {
+                return;
+            }
+
+            var list = new List<string>(_appliedMigrationIds ?? Array.Empty<string>()) { id };
+            _appliedMigrationIds = list.ToArray();
+            Save(true);
+        }
 
         public string GameDataRoot
         {

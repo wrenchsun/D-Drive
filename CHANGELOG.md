@@ -30,6 +30,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - P-5（2026-09-20）: `CameraExecutionOrderValidator.IsDDrivePath` が `PackageInfo` 経由でパッケージの実 asset パスも D-Drive 自身のスクリプトと判定するようにした(`"Assets/DDrive/"` 前方一致は後方互換のため維持)。`ScanRiskyPatternFiles` の走査対象を `DDriveCodeScanRoots`(Assets 全体 + D-Drive 自身のパッケージパス)に拡張
 - P-6（2026-09-20）: `DDriveProjectSettings` に `IsDevelopmentRepo`（bool）・`EmitGeneratedAsmdef`（bool、既定 true）を追加(追加のみ)。`AssetCreationService` に `EnsureCatalogFile`/`AllCatalogNames`（`public static`、追加のみ）を追加
 - P-6（2026-09-20）: `DDriveMenu` に `Setup`（`"Tools/D-Drive/Setup/"`）を追加(追加のみ)。`Tests/Editor/Compat/Snapshots/editor-contract.txt` を更新済み(`Tools > D-Drive > Compat > スナップショットを更新`)
+- P-7（2026-09-20）: `AssetDataBase` に `SchemaVersion`（`int`、`[HideInInspector]`、既定 0）を追加(追加のみ)。`Foundation.Data.DDriveSchema`(`public const int Current = 1`)を新設。`VersionStampProcessor` が保存の都度(新規作成時も)`SchemaVersion = DDriveSchema.Current` を書き込む(`Version`〔保存回数〕とは別カウンタ)。`DDriveProjectSettings` に `LastAppliedVersion`（string）・`AppliedMigrationIds`（string[]）・`HasAppliedMigration`/`MarkMigrationApplied`（追加のみ）を追加。`DDriveMenu` に `Update`（`"Tools/D-Drive/Update/"`）を追加。`CI` に `MigrateCheck`（追加のみ）を追加。`Tests/Editor/Compat/Snapshots/{public-api-DDrive.Foundation.txt,editor-contract.txt}` を更新済み(いずれも追加のみ。`serialized-layout.txt` は `[HideInInspector]` フィールドが `SerializedProperty.NextVisible` の走査対象外のため差分なし)。`Tools/CI/run-ci.cmd` に `[1/7] CI.MigrateCheck` を追加し、以降のステップ番号を `[2/7]`〜`[7/7]` に繰り下げ
 
 ### 追加
 

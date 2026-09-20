@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text;
 using DDrive.Editor.Codegen;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Migration;
 using DDrive.Editor.Validation;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Validation;
@@ -73,6 +74,31 @@ namespace DDrive.Editor
             if (Application.isBatchMode)
             {
                 EditorApplication.Exit(result.Success ? 0 : 1);
+            }
+        }
+
+        // [42_distribution.md] §4.3/§4.2 手順 6/§6 P-7(2026-09-20) — 未適用のマイグレーションがあれば
+        // fail する CI エントリポイント。ValidateAll の前段として run-ci.cmd から呼ぶ想定
+        // (Unity -batchmode -executeMethod DDrive.Editor.CI.MigrateCheck)。
+        // バッチモードでの exit と、テストからの検証(戻り値)を両立するため、実際の判定・ログは
+        // DDriveMigrationRunner.HasPendingMigrations() へ委譲する(このメソッド自体は薄いラッパー)。
+        public static void MigrateCheck()
+        {
+            var pending = DDriveMigrationRunner.HasPendingMigrations();
+
+            if (pending)
+            {
+                Debug.LogError("[DDrive][Migration] 未適用のマイグレーションがあります。" +
+                                "Tools > D-Drive > Update > マイグレーション(適用) を実行してください。");
+            }
+            else
+            {
+                Debug.Log("[DDrive][Migration] 未適用のマイグレーションはありません。");
+            }
+
+            if (Application.isBatchMode)
+            {
+                EditorApplication.Exit(pending ? 1 : 0);
             }
         }
 

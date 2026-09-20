@@ -64,6 +64,13 @@ namespace DDrive.Foundation.Data
         [HideInInspector]
         public string ImportSourceGuid;
 
+        [Header("Schema")]
+        [Tooltip("データのスキーマ版(保存フックで DDriveSchema.Current が自動的に書き込まれる)。" +
+                 "Version(保存回数)とは別物。既存 .asset は 0 = 「1.0.0 以前の形式」。手編集しないこと。" +
+                 "[42_distribution.md] §4.3。")]
+        [HideInInspector]
+        public int SchemaVersion;
+
         public virtual IAssetBehaviour CreateBehaviour() => null;
     }
 }

@@ -263,6 +263,14 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 - **テスト**: `Tests/Editor/VersionStampTests.cs`。保存で 1 回だけ加算 / 未変更アセットは加算しない / 抑止スコープ中は加算しない(入れ子安全) / Author・UpdatedAt の形式(ISO 8601、`VersionStampGui.FormatForDisplay` との対応) / Undo で戻せる、を検証。`Assets/DDrive/Tests/Editor/TempVersionStamp/` の一時アセットのみ使い、実 GameData・カタログ・Addressables には触れない(`AssetCreationService` を経由しないため Addressables 登録も発生しない)。
 - **デザイナー向け表記**: [DesignerManual/asset-browser.html](DesignerManual/asset-browser.html) に「保存すると版数・更新者・日時が自動で入る」旨を追記（`Tools/SpecWeb/tools/build-manual.js` で HTML 本体を再生成）。
 
+### 4.1.1 スキーマ版の書き込み(`AssetDataBase.SchemaVersion`、P-7、2026-09-20)
+
+[42_distribution.md] §4.3 のとおり、`Version`(保存回数)とは別に「今のコードが期待するデータ形式の版」を表す `AssetDataBase.SchemaVersion`(`[HideInInspector] public int`)を持つ。**同じ `VersionStampProcessor` が書き込む**が、Version とは別の関心事(保存回数ではなくスキーマの版)であるため別フィールドにしている。
+
+- `OnWillSaveAssets` は `Version++`/`Author`/`UpdatedAt` の更新と同じタイミング・同じ対象判定(実際に dirty なものだけ、抑止スコープ中は書かない)で `asset.SchemaVersion = DDriveSchema.Current`(`Foundation/Data/DDriveSchema.cs`、`public const int Current`)を書く
+- `StampNew`(新規作成時の v1 記録)も同様に `SchemaVersion = DDriveSchema.Current` を付ける(新規作成したアセットは作成した瞬間から現行コードの形式に適合しているため)
+- 既存 .asset(このフィールド追加前に保存されたもの)は `SchemaVersion` が既定値の `0` のまま読まれる。これは「1.0.0 以前の形式」を意味し、`SchemaVersionValidator`(`IUniversalValidator`、Code `DD-SCHEMA-OUTDATED`)が AssetBrowser の Validation(§1)に Warning を出す。実際に値を揃えるのは `Tools > D-Drive > Update > マイグレーション(適用)`(`DDriveMigrationRunner`、[docs/migrations/README.md](../docs/migrations/README.md))で、対象となる `IDataMigration` が無ければ(= 実際の形式変更が無ければ)Warning は次にそのアセットを保存するまで残り続ける(意図した挙動。§4.6 の「持ち込み先」列参照)
+
 ## 5. CI 連携
 
 ```

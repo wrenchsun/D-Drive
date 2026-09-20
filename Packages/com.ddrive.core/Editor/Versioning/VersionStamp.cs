@@ -89,6 +89,9 @@ namespace DDrive.Editor.Versioning
                 asset.Version++;
                 asset.Author = userName;
                 asset.UpdatedAt = nowIso;
+                // [42_distribution.md] §4.3(P-7、2026-09-20) — 保存の都度、現在のスキーマ版を書く
+                // (抑止スコープ中は Version++ と同様に書かない。既にこの版のものへの上書きは無害)。
+                asset.SchemaVersion = DDriveSchema.Current;
                 EditorUtility.SetDirty(asset);
             }
 
@@ -115,6 +118,9 @@ namespace DDrive.Editor.Versioning
 
             asset.Author = Environment.UserName;
             asset.UpdatedAt = FormatTimestamp(DateTime.Now);
+            // [42_distribution.md] §4.3(P-7、2026-09-20) — 新規作成時点で既に現在のスキーマ版に
+            // 適合しているため(これから書くフィールドは全部現行コードの形)、v1 と同じくここで付ける。
+            asset.SchemaVersion = DDriveSchema.Current;
         }
 
         // ISO 8601(秒まで、タイムゾーン無し = ローカル時刻)。VersionStampGui.FormatForDisplay と対応。

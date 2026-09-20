@@ -19,6 +19,10 @@ namespace DDrive.Editor.Menu
         // [42_distribution.md] §5.11(P-3) — 互換性スナップショット(ゴールデン)の更新導線。
         public const string Compat = Root + "Compat/";
 
+        // [42_distribution.md] §4.3/§6 P-7(2026-09-20) — マイグレーション(スキーマ版の引き上げ)の
+        // ドライラン・適用。P-8 で更新ツールウィンドウへ統合する前提の最小 UI。
+        public const string Update = Root + "Update/";
+
         // [11_tasks.md] U-17(2026-09-17) — Project ウィンドウの右クリックメニュー(Unity 標準の "Assets/" 配下)。
         // 選択中のソースアセット(AudioClip / Texture / FBX / Prefab / Material …)から Data を作る入口。
         public const string AssetsRoot = "Assets/D-Drive/";

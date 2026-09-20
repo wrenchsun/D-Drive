@@ -18,3 +18,5 @@ MonoBehaviour:
   _specsRoot: Specs
   _isDevelopmentRepo: 1
   _emitGeneratedAsmdef: 0
+  _lastAppliedVersion: 
+  _appliedMigrationIds: []

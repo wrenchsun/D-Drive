@@ -50,6 +50,10 @@ public abstract class AssetDataBase : ScriptableObject
     public AssetFlags Flags;
     public AssetEvent[] Events;
 
+    // [42_distribution.md] §4.3(P-7、2026-09-20) — Version(保存回数)とは別の「スキーマ版」。
+    // VersionStampProcessor が保存の都度 DDriveSchema.Current を書く。既存 .asset は 0 = 1.0.0 以前の形式。
+    [HideInInspector] public int SchemaVersion;
+
     // 特殊制御の差し込み口（FR-2.2）
     // 派生 Data がオーバーライドすると Manager 改修なしで挙動を変えられる
     public virtual IAssetBehaviour CreateBehaviour() => null;
