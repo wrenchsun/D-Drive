@@ -66,11 +66,11 @@
 - [ ] `AssetDatabase.FindAssets` を直接呼んでいない（`DDrive.Editor.AssetSearch.FindAssets` 経由。Unity 6000.3 の `FindAssets` は 1 回ごとに走査ファイル数比例のネイティブメモリを解放せず保持するため、プロジェクト変更までキャッシュする。アセット作成直後に同フレームで検索するなら `AssetSearch.Invalidate()`。2026-09-11 実測、[09] §9）
 - [ ] `AssetDatabase.SaveAssets()` を直に呼んでいない（`DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed()` / `SaveDirty(obj)` 経由。引数なし `SaveAssets()` はプロジェクト全体の dirty な `AssetDataBase` を無差別に版数へ乗せるため、実アセットを開いて編集中に別の一括処理が走ると無関係な版数が進む。`Tests/Editor/NoDirectSaveAssetsCallTests.cs` が機械検出する。使い分けは [09] §4.1 の判断表、[44_review_2026-09-19.md] P1-1）
 
-### 互換性（草案・2026-09-20 追加、P チケット完了＝P-13 発効後に必須化）
+### 互換性（**発効済み・2026-09-20 P-13**。全 PR 共通と同格の必須項目）
 
-> **現状は草案（P-2 の成果物）**。[42_distribution.md](42_distribution.md) §5 が定める互換性ポリシーの要約。**P-13 が CLAUDE.md §0 TL;DR に昇格させるまでは参考情報**であり、このチェックリストが red でも今の PR は止めない。発効後は「全 PR 共通」と同格の必須項目になる。
+> [42_distribution.md](42_distribution.md) §5 が定める互換性ポリシーの要約。2026-09-20 の P-13 で CLAUDE.md §0-10 / AGENTS.md §1-10 / `ddrive-agent-workflow` スキル §0-10 に昇格し、以降の PR で必須（草案として 2026-09-20 の P-2 で追加、P-11/P-12 の移植確認を経て発効）。
 
-P-13 発効後、以下の互換面のいずれかに触れる PR は、対応するスナップショットテスト（[42] §5.11、`Tests/Editor/`）が green であることを確認してからマージする。**スナップショットテストが赤なら、その PR はマージしない**（[42] §5.0-2）。
+以下の互換面のいずれかに触れる PR は、対応するスナップショットテスト（[42] §5.11、`Tests/Editor/`）が green であることを確認してからマージする。**スナップショットテストが赤なら、その PR はマージしない**（[42] §5.0-2）。
 
 | 互換面 | やってよいこと | MINOR（互換を保ったまま追加） | MAJOR（§5.12 の手続きが必須） | 判定テスト（[42] §5.11） |
 |---|---|---|---|---|
