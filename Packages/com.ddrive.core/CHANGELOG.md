@@ -16,6 +16,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - P-9（2026-09-20）: リリース手順を道具化しただけで、公開 API・シリアライズ形式・生成コード等の互換面には触れていない
 - P-10（2026-09-20）: 消費側ドキュメント・スキル・CI テンプレの追加のみで、C# の変更は無い（公開 API・シリアライズ形式・生成コード等の互換面には触れていない）
 - P-11 フォローアップ（2026-09-20、[docs/48_p11_install_test_2026-09-20.md](docs/48_p11_install_test_2026-09-20.md) §12）: テスト専用コード（`Tests/Editor`・`Tests/Runtime`）の修正・追加とエディタ専用の `ProjectSetupActions`/`ProjectSetupWizardWindow`（`DDrive.Editor`）の変更のみで、公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード等の互換面には触れていない
+- P-12（2026-09-20、[docs/49_p12_ms2026_install_2026-09-20.md](docs/49_p12_ms2026_install_2026-09-20.md)）: MS2026 への実移植確認のみで、D-Drive（`Packages/com.ddrive.core`）のコードは一切変更していない（変更したのは移植先 MS2026 側のみ）。互換面には触れていない。実移植で発見した D-Drive 側の不具合（`DDriveSpecSettings.DefaultPath` のハードコード、置き場所変更×git URL 参照を想定していない同梱テスト 9 件、`-nographics` バッチモードでの `CutsceneTimelineTracksTests` 1 件の Fail）は [docs/42_distribution.md](docs/42_distribution.md) §2.3 #11・#12 に記録済み（未修正）
 
 ### 修正
 
