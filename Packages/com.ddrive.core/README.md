@@ -28,7 +28,7 @@ D-Drive（Designer-Driven Re: IDE Visual Environment）は、プログラマー�
 ## ドキュメント
 
 - 設計書・運用ドキュメントは開発リポジトリの `docs/`（[docs/42_distribution.md](../../docs/42_distribution.md) が配布・互換性ポリシーの正本）
-- デザイナー / プログラマー向けマニュアルは `Documentation~/`（P-9 のリリース手順で `docs/DesignerManual` / `docs/ProgrammerManual` から同期する予定）
+- デザイナー / プログラマー向けマニュアルは `Documentation~/`。正本は `docs/DesignerManual` / `docs/ProgrammerManual` で、`Tools/Release/bump-version.ps1`（P-9）がリリースのたびに同期する。`Documentation~/` 配下を直接編集しないこと（次のリリースで上書きされる）
 
 ## バージョニング
 

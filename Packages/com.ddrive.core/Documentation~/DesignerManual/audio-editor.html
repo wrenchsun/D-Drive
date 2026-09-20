@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Audio Editor の使い方 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Audio Editor の使い方</nav>
+
+<h1>Audio Editor の使い方</h1>
+<p class="lastupdate">最終更新日: 2026-09-14</p>
+
+<p>Audio Editor は、音の<strong>波形を見ながら</strong>細かい調整をするためのウィンドウです。できること:</p>
+<ul>
+<li>音の切り出し（トリミング）— 前後の無音カットなど</li>
+<li>BGM のループ範囲設定</li>
+<li>音量・ピッチ（音の高さ）を変えながらの試聴</li>
+<li>3D サウンド（距離による聞こえ方）の確認</li>
+</ul>
+
+<h2>開き方</h2>
+<p>次のどちらでも開けます:</p>
+<ol>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Audio</code></li>
+<li>SE データの Inspector 最上部の「▶ Audio Editor で開く(波形・トリム編集)」ボタン（BGM データでは「▶ Audio Editor で開く(波形・ループ編集)」）</li>
+</ol>
+<p>開いたら、一番上の「対象アセット」欄に編集したい SE / BGM を設定します（<a href="asset-browser.html">Asset Browser</a> で選択してから開くと自動で入ります）。まだデータが無ければ、同じ行の<strong>「＋ 新規作成」</strong>ボタンで SE / BGM のどちらを作るか選んで、その場で新規作成できます。</p>
+
+<figure>
+<img src="images/audio-editor-window.png" alt="Audio Editor ウィンドウ全体">
+<figcaption>Audio Editor。上から「対象アセット」「波形」「トリミングボタン」「再生コントロール」「3D サウンド確認パッド」</figcaption>
+</figure>
+
+<h2 id="trim">音の切り出し（トリミング）</h2>
+
+<p>「素材の前後に無音が入っていて鳴り出しが遅れる」というときに使います。<strong>元のファイルは一切変更されない</strong>（非破壊）ので、安心して何度でもやり直せます。</p>
+
+<ol>
+<li>SE データの Inspector で <code>Sources</code> に元の音声ファイルを設定（Asset Browser のドラッグ＆ドロップで登録した場合は自動で入っています）</li>
+<li>Audio Editor で対象を開くと波形が表示される</li>
+<li>波形の上でドラッグして残したい範囲を決める
+<ul>
+<li><span style="color:#0aa;">水色の線</span> = 残す範囲の始まり</li>
+<li><span style="color:#a0a;">紫の線</span> = 残す範囲の終わり</li>
+<li>線の近くをドラッグするとその線が動きます。波形の上部に「範囲: 0.120s – 1.450s」と数値も表示されます</li>
+</ul></li>
+<li>もしくは「<strong>無音自動検出</strong>」ボタンで、前後の無音区間を自動で見つけて範囲設定</li>
+<li>「<strong>トリミングを適用(Clips 再生成)</strong>」ボタンを押す</li>
+</ol>
+
+<div class="tip">
+適用すると、切り出し済みの音声ファイル（〜_Trimmed_0.wav）がデータの隣に自動生成され、実際に再生される Clips に設定されます。範囲を変えて再度適用すれば、同じファイルが作り直されます（ゴミは増えません）。
+</div>
+
+<h2>BGM のループ範囲設定</h2>
+<p>対象が BGM の場合、波形ドラッグは「ループ範囲」（曲のどこからどこまでを繰り返すか）の設定になります。操作は上のトリミングと同じで、水色=ループ開始、紫=ループ終了です。</p>
+
+<h2>試聴コントロール</h2>
+<table>
+<tr><th>操作</th><th>説明</th></tr>
+<tr><td>▶ 再生 / ■ 停止</td><td>ゲームを実行せずにその場で試聴。Clips が複数ある SE は、設定した Select Mode（ランダム等）どおりに毎回選ばれるので、<strong>▶ を連打するとランダム再生の確認ができます</strong>。</td></tr>
+<tr><td>ループ試聴</td><td>繰り返し再生で聞き続ける（データは変更されません）。</td></tr>
+<tr><td>音量 / ピッチ</td><td>再生中に動かすと、その場で音に反映されます。<strong>ここでの操作は試聴用で、データには保存されません。</strong>「この値が良い」と思ったら Inspector の Volume / Pitch Range に入力してください。</td></tr>
+<tr><td>再生開始位置(秒)</td><td>こちらは<strong>データに保存されます</strong>（SE の Start Offset Sec と同じもの）。次の再生から反映。</td></tr>
+</table>
+
+<h2 id="pad">3D サウンド確認パッド</h2>
+
+<p>ウィンドウ下部の四角いエリアで、<strong>「音源から離れるとどう聞こえるか」を耳で確認</strong>できます。</p>
+
+<figure>
+<img src="images/audio-editor-3dpad.png" alt="3D サウンド確認パッド">
+<figcaption>中央の赤い点が音源。青い点（あなた＝聞く人）をドラッグで動かせる</figcaption>
+</figure>
+
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>赤い点（中央）</td><td>音源の位置。固定です。</td></tr>
+<tr><td>青い点</td><td>聞く人（リスナー）の位置。<strong>ドラッグで自由に動かせます。再生中に動かすと、音量や左右の聞こえ方がリアルタイムに変わります。</strong></td></tr>
+<tr><td>青い点から伸びる線</td><td>聞く人の向き。「リスナー角度」スライダーで回せます。向きを変えると左右の聞こえ方（どちらの耳から聞こえるか）が変わります。ヘッドホン推奨。</td></tr>
+<tr><td>緑の円</td><td>Min Distance。この内側では最大音量。</td></tr>
+<tr><td>オレンジの円</td><td>Max Distance。この外側では聞こえません。</td></tr>
+<tr><td>横範囲 / 縦範囲(±m)</td><td>四角いエリアが表す実際の距離（メートル）。遠距離の減衰を見たいときは大きく、近距離を細かく見たいときは小さく。</td></tr>
+<tr><td>距離表示（左上）</td><td>音源から聞く人までの今の距離・角度・座標。</td></tr>
+</table>
+
+<div class="warn">
+<strong>パッドが暗くなって「⚠ 3D プレビュー無効」と出る場合:</strong> 表示されている理由を確認してください。<br>
+・「Spatial = None(2D 設定)」→ その SE は位置に関係なく同じ聞こえ方をする設定です。3D で鳴らしたいなら Inspector で Spatial を Anchor か At Position に変更。<br>
+・「BGM は常に 2D 再生」→ BGM に位置の概念はないため、このパッドは使いません。<br>
+・「Clips が未設定」→ まず音声ファイルを設定（またはトリミングを適用）してください。
+</div>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="se-data.html">SE（効果音）の設定項目</a> — Spatial / Min / Max などの意味</li>
+<li><a href="bgm-data.html">BGM の設定項目</a> — ループ範囲の意味</li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a></li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

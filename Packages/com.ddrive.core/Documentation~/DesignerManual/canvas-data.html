@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Canvas(UI 画面)データの設定項目 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Canvas(UI 画面)データの設定項目</nav>
+
+<h1>Canvas(UI 画面)データの設定項目</h1>
+<p class="lastupdate">最終更新日: 2026-09-17</p>
+
+<p>Canvas データ(CanvasData)は「<strong>UI の 1 画面</strong>」を 1 個のデータにまとめたものです。タイトル画面・ポーズメニュー・確認ダイアログ・音量設定など、画面 1 枚につき 1 個作ります。1 枚の Canvas データで次のことが全部決まります。</p>
+<ul>
+<li>どの Canvas Prefab を開くか(Prefab)</li>
+<li>どの表示レイヤーに、どの重ね順で出すか(Layer / SortOffset)</li>
+<li>開く / 閉じるときの演出(OpenTransition / CloseTransition)</li>
+<li>「戻る」で閉じるか、背後の操作を止めるか、開いている間ゲームを止めるか(CloseOnBack / ModalBlocksInput / PauseGameWhileOpen)</li>
+<li>十字キー / スティックでフォーカスがどう移るか、最初にどこにフォーカスするか(Navigation / FirstSelected)</li>
+<li>ボタンやスライダーを操作したら何が起きるか(Buttons / Sliders)</li>
+<li>要素ごとの出現 / 常時 / 消滅の演出(ElementEffects)</li>
+</ul>
+<div class="tip">
+プログラマーは <code>Ui.Open(CANVASID.Title)</code> の 1 行で画面を開きます(ダイアログは <code>Ui.Popup(...)</code>、戻るは <code>Ui.CloseTop()</code>)。「設定画面 → サウンド設定」のような画面どうしの行き来は、ボタンの配線(Buttons)だけでデザイナーが組めます。コードに知らせたい操作(購入など)だけ SendSignal で通知します。
+</div>
+
+<h2>作り方</h2>
+<div class="warn">
+<code>Assets/GameData/Canvas</code> フォルダはまだ空で、標準の UI Prefab もありません。<strong>最初の 1 枚は自分で作ります</strong>。
+</div>
+<h3>1. Canvas Prefab を作る(最小構成)</h3>
+<ol>
+<li>ルートは <strong>RectTransform</strong> を持つオブジェクト(Canvas コンポーネントは無くても構いません。あれば重ね順に SortOffset が加算されます)</li>
+<li>ボタンはどちらか: <strong>uGUI の Button</strong>(Unity 標準)、または <strong>D-Drive の UiButton</strong>(Image を付けたオブジェクトに UiButton を追加し、<code>TargetGraphic</code> にその Image を入れる。色・音・演出を Skin でまとめて当てられます → <a href="ui-skin.html">Button Skin</a>)</li>
+<li>スライダーは D-Drive の <strong>UiSlider</strong>(Image + UiSlider。Fill / Handle を子に置いて FillRect / HandleRect に入れる)</li>
+<li>Prefab として保存する。要素の名前が「相対パス」(例: <code>Panel/StartButton</code>)として配線に使われるので、分かりやすい名前に</li>
+</ol>
+<h3>2. Canvas データを作る</h3>
+<ol>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規」→ 種別 <strong>Canvas (CanvasData)</strong>、表示名・識別子を入れて「作成」(生成先 <code>Assets/GameData/Canvas/カテゴリ/</code>、ファイル名 <code>CANVAS_…</code>)。.prefab を Asset Browser にドラッグしても作れません</li>
+<li>Inspector の「Canvas Editor で開く」→ <code>Prefab</code> に 1 で作った Prefab を入れる。以降の配線は <a href="canvas-editor.html">Canvas Editor</a> で</li>
+</ol>
+<h3>3. UiLayerSettings(レイヤーごとの既定)を作って割り当てる</h3>
+<ol>
+<li>Project で右クリック → <code>Create &gt; D-Drive &gt; Ui &gt; Ui Layer Settings</code>(ファイル名 <code>UI_LayerSettings</code>)。プロジェクトに 1 個で十分。Asset Browser には出ません</li>
+<li>起動用オブジェクトの <strong>DDriveRuntimeBootstrap</strong> の <code>LayerSettings</code> 欄に Inspector で直接入れる(未設定でも動きますが、レイヤー既定の Skin・SE・演出は効きません)</li>
+</ol>
+<div class="warn">
+このプロジェクトの入力は Input System パッケージです。シーンの <strong>EventSystem には InputSystemUIInputModule</strong> が必要です。EventSystem 自体が無いと Play 中に「シーンに EventSystem がありません。UI の入力(選択/ナビゲーション)が動作しません。」と警告が出て、ボタンもフォーカスも動きません。
+</div>
+
+<h2>設定項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Prefab</td><td>開く実体。未設定でも <code>&lt;Placeholder:CANVAS&gt;</code> という空の RectTransform で開き、1 回だけ警告が出ます</td></tr>
+<tr><td>Layer</td><td>表示レイヤー。手前から <strong>Loading</strong>(ロード画面)/ <strong>Overlay</strong>(最前面の演出)/ <strong>Popup</strong>(確認ダイアログ)/ <strong>Menu</strong>(メニュー画面)/ <strong>HUD</strong>(体力・ミニマップなど常時表示)。並び順がそのまま前後関係です</td></tr>
+<tr><td>SortOffset</td><td>同じレイヤー内での重ね順の微調整。Prefab に Canvas コンポーネントがあれば sortingOrder に加算、無ければ兄弟の並び順に使われます</td></tr>
+<tr><td>OpenTransition / CloseTransition</td><td>画面全体の開閉演出。<code>Kind</code>: None(即時)/ Fade(透明度)/ Slide(位置)/ Scale(拡縮)/ Anim(AnimData を再生)。<code>Duration</code>(秒)、<code>Ease</code>(動きの緩急)、<code>SlideOffset</code>(Slide の開始位置のずれ)、<code>Anim</code>(Kind=Anim のときだけ)</td></tr>
+<tr><td>CloseOnBack(既定 ON)</td><td>「戻る」操作(CloseTop)で閉じる対象に含めるか。HUD のように戻るで消えてほしくない画面は OFF</td></tr>
+<tr><td>ModalBlocksInput</td><td>モーダル(= この画面を閉じるまで後ろの画面を触らせない)として開いたとき、背後の入力を止めるか。<strong>効くのは <code>Ui.Popup</code> で開いたときだけ</strong>。<code>Ui.Open</code> で開くとモーダルになりません</td></tr>
+<tr><td>PauseGameWhileOpen</td><td>開いている間ゲームを一時停止するか(ポーズメニュー用)</td></tr>
+<tr><td>Navigation</td><td>十字キー / スティックでのフォーカス移動の配線。1 行 = <code>Element</code>(対象の相対パス)+ <code>Up / Down / Left / Right</code>(各方向の移動先パス)。<strong>4 方向とも空なら Unity の自動ナビゲーションのまま</strong>。1 方向でも入れると明示扱いになり、空の方向は「行き先なし」になります。普段は Canvas Editor のグラフで編集します</td></tr>
+<tr><td>FirstSelected</td><td>開いたときに最初にフォーカスする要素の相対パス。パッド操作の画面では必ず決めてください</td></tr>
+<tr><td>Buttons</td><td>ボタンの配線(下記「Buttons(ButtonWire)」)</td></tr>
+<tr><td>Sliders</td><td>スライダーの配線(下記「Sliders(SliderWire)」)</td></tr>
+<tr><td>ElementEffects</td><td>要素ごとの演出(下記「ElementEffects」)</td></tr>
+</table>
+
+<h3>Buttons(ButtonWire)— 「この要素のこの操作で、これをする」</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>ButtonPath</td><td>Prefab ルートからの相対パス(例 <code>Panel/StartButton</code>)</td></tr>
+<tr><td>Trigger</td><td><strong>Click</strong>(押した)/ <strong>DoubleClick</strong>(2 回押し)/ <strong>LongPress</strong>(長押し。UiButton の LongPressSec が必要)/ <strong>Repeat</strong>(押しっぱなしの連射)</td></tr>
+<tr><td>Action</td><td><strong>None</strong>(何もしない)/ <strong>OpenCanvas</strong>(Target の画面を開く)/ <strong>CloseSelf</strong>(この画面を閉じる)/ <strong>CloseTop</strong>(「戻る」= 一番上の閉じられる画面を閉じる)/ <strong>SendSignal</strong>(SignalKey でプログラマーに通知)/ <strong>PlayPresentation</strong>(<strong>未実装</strong>。Phase 5 予定。押すと「ButtonWire.Action=PlayPresentation は Phase 5 で実装予定です」と警告が出るだけ)/ <strong>SetOption</strong>(スライダー専用)</td></tr>
+<tr><td>Target</td><td>Action=OpenCanvas のときに開く Canvas データ</td></tr>
+<tr><td>SignalKey</td><td>Action=SendSignal のときの通知名(例 <code>shop/buy</code>)。プログラマーと名前を決めておきます</td></tr>
+<tr><td>ClickSe</td><td>押したときの効果音。空ならレイヤー既定の SE / Skin の SE が使われます</td></tr>
+</table>
+
+<h3>Sliders(SliderWire)</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>ElementPath</td><td>対象 UiSlider の相対パス</td></tr>
+<tr><td>Trigger</td><td><strong>Changed</strong>(値が動くたび)/ <strong>Commit</strong>(離した・確定)/ <strong>NotchPassed</strong>(目盛りを跨いだ)/ <strong>LimitReached</strong>(端に到達)</td></tr>
+<tr><td>Action</td><td>スライダーで意味があるのは <strong>SetOption</strong>(標準オプションに書き込む)/ <strong>SendSignal</strong>(現在値付きで通知)/ PlayPresentation(未実装)</td></tr>
+<tr><td>SignalKey</td><td>SendSignal の通知名。スライダーの現在値が一緒に届きます</td></tr>
+<tr><td>Option</td><td>SetOption の書き込み先。<strong>MasterVolume</strong>(いま効く: 全体音量)/ <strong>UiSpeedScale</strong>(いま効く: UI 演出の速さ)/ BgmVolume・SeVolume・VoiceVolume(値を保存するだけ。バス別音量は Phase 5 待ち)/ ShakeScale・HapticScale(値を保存するだけ。Phase 6 待ち)。開いたときに保存値でスライダーが初期化され、動かすと書き戻ります。保存は自動です</td></tr>
+<tr><td>ThrottleSec</td><td>Trigger=Changed の通知を間引く秒数。UiSlider 側の ChangeThrottleSec との大きい方が使われます</td></tr>
+</table>
+
+<h3>ElementEffects(ElementFx)— 要素ごとの出現 / 常時 / 消滅</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>ElementPath</td><td>対象要素の相対パス(ルート自身は空 = Canvas Editor では「(ルート)」)</td></tr>
+<tr><td>AppearPreset / IdlePreset / DisappearPreset</td><td>組み込みプリセットの指定。<code>Preset</code>(種類)/ <code>Duration</code>(0 = 既定の秒数)/ <code>Distance</code>(Slide の移動量や Shake の強さ。0 = 既定)/ <code>EaseOverride</code>(緩急の上書き)/ <code>Se</code>(同時に鳴らす SE)</td></tr>
+<tr><td>Appear / Idle / Disappear</td><td>UI Tween データの直接指定。<strong>設定があればプリセットより優先</strong>(<a href="ui-tween.html">UI Tween</a>)</td></tr>
+<tr><td>AppearDelay</td><td>開き始めからこの秒数だけ遅らせて Appear を始める。項目を順番に出す「スタッガー」(段差)演出に使います</td></tr>
+<tr><td>AppearSe / DisappearSe</td><td>出現時 / 消滅時に鳴らす SE</td></tr>
+</table>
+<p><strong>どれが使われるか(解決順):</strong> UI Tween の直接指定(Appear など)→ プリセット(AppearPreset など)→ <strong>レイヤー既定</strong>(UiLayerSettings の DefaultAppear / DefaultDisappear。<strong>Idle にレイヤー既定はありません</strong>)。3 つとも無ければその区間は何もせず即完了です。</p>
+<p><strong>プリセットの種類:</strong></p>
+<ul>
+<li><strong>出現</strong>: FadeIn, SlideInLeft / Right / Top / Bottom, ScaleIn, PopIn, BounceIn, ElasticIn, FlipInX / Y, RotateIn, ZoomInFade, SlideFadeInLeft / Right / Top / Bottom, ExpandWidth, ExpandHeight, TypeFillIn</li>
+<li><strong>消滅</strong>: FadeOut, SlideOutLeft / Right / Top / Bottom, ScaleOut, PopOut, BounceOut, ElasticOut, FlipOutX / Y, RotateOut, ZoomOutFade, SlideFadeOutLeft / Right / Top / Bottom, CollapseWidth, CollapseHeight</li>
+<li><strong>常時(ループ)</strong>: Pulse, Blink, Float, Sway, Breathe, RotateLoop, ShimmerAlpha, RainbowTint, WobbleLoop — Idle にはこの 9 種から選びます</li>
+<li><strong>強調(単発)</strong>: PunchScale, PunchRotation, Shake, ShakeHard, Flash, ColorFlash, HeartBeat, Jelly, Tada, RubberBand, AttentionJump</li>
+</ul>
+
+<h3>UiLayerSettings(レイヤーごとの既定)</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Layer</td><td>対象レイヤー(HUD / Menu / Popup / Overlay / Loading)。Layers 配列に 1 レイヤー 1 行</td></tr>
+<tr><td>DefaultButtonSkin</td><td>SkinId が未設定のボタン・スライダーに当てる既定の Skin</td></tr>
+<tr><td>DefaultClickSe / DefaultHoverSe / DefaultDeniedSe</td><td>決定音 / カーソル音 / 拒否音の既定。開いたときに Prefab 内の全ボタンに配られます</td></tr>
+<tr><td>DefaultAppear / DefaultDisappear</td><td>ElementFx の Appear / Disappear が両方未設定のときの既定演出</td></tr>
+</table>
+
+<h2>実行時の挙動</h2>
+<ul>
+<li><strong>レイヤー</strong>: 初回に <code>[D-Drive] UI Root</code> が作られ、その下に HUD / Menu / Popup / Overlay / Loading の 5 枚の Canvas が並びます。重ね順はレイヤー番号 × 100(+ SortOffset)</li>
+<li><strong>スタック</strong>: 開いた画面はレイヤーに関係なく 1 本の「積み重ね」に順番に積まれます。「戻る」(CloseTop)は上から順に、CloseOnBack が ON で閉じ処理中でない画面を 1 つ閉じます</li>
+<li><strong>モーダル</strong>: <code>Ui.Popup</code> で開いた ModalBlocksInput=ON の画面より下にある画面は、すべて操作できなくなります</li>
+<li><strong>入力ゲート</strong>: 要素の Appear が全部終わるまで、その画面は入力を受け付けません(モーダルとは無関係)。AppearDelay を大きくしすぎると、その分だけ操作できない時間が延びます</li>
+<li><strong>Close の完了</strong>: CloseTransition が終わり、<strong>かつ</strong>全要素の Disappear が終わったとき。Disappear にループ演出を入れると閉じ終わりません</li>
+<li><strong>フォーカス移動</strong>: 十字キー / スティックで、uGUI の Button も D-Drive の UiButton / UiSlider も同じようにフォーカスが移ります。順番は Navigation の明示リンクが優先、無ければ開いている画面の中でその方向に一番近い要素へ。スライダーは十字キーが値の操作になり(右・上で増、左・下で減)、端まで行ったときだけ隣へ抜けます(<code>EscapeOnLimit</code> ON のとき)</li>
+</ul>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>タイトル画面</td><td>Prefab を設定、Layer=Menu。Canvas Editor で「Selectable を自動収集」→ グラフで上下リンク → 右クリック「FirstSelected にする」→「確認用シーンで開く」</td></tr>
+<tr><td>ボタンで別の画面へ(コード 0 行)</td><td>Buttons に 1 行: ButtonPath、Trigger=Click、Action=OpenCanvas、Target=遷移先。UiButton の CooldownSec を 0.2 秒ほど入れて連打対策</td></tr>
+<tr><td>確認ダイアログ(モーダル)</td><td>Layer=Popup、ModalBlocksInput=ON、CloseOnBack=ON。プログラマーは <code>Ui.Popup</code> で開く。「はい」は Action=SendSignal + SignalKey <code>confirm/yes</code>、「いいえ」は Action=CloseSelf</td></tr>
+<tr><td>ポーズメニュー</td><td>Layer=Menu、PauseGameWhileOpen=ON、CloseOnBack=ON</td></tr>
+<tr><td>音量設定画面(コード 0 行)</td><td>Prefab に UiSlider → Sliders に 1 行: Trigger=Commit、Action=SetOption、Option=MasterVolume。保存 / 復元は自動</td></tr>
+<tr><td>項目を順番に出す(スタッガー)</td><td>Canvas Editor の「要素を自動収集」→ 各行の Appear に SlideFadeInLeft など → AppearDelay を 0.05 / 0.10 / 0.15 … と段差を付ける</td></tr>
+<tr><td>全ボタンに同じ出現演出</td><td>Canvas Editor の「プリセット」で PopIn を選び「一括適用: 全ボタンに反映」。またはプリセットギャラリーの「Canvas 内一括適用(全ボタン)」</td></tr>
+<tr><td>レイヤーごとの既定演出・既定 SE</td><td>UI_LayerSettings を 1 個作り、DDriveRuntimeBootstrap の LayerSettings に割り当て</td></tr>
+</table>
+
+<h2>よくある警告</h2>
+<p>表示場所は Canvas Editor の「Validation」と <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(<a href="validation.html">Validation の見方</a>)。</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Prefab が未設定(または Missing)です</td><td>Prefab を設定する。これが出ている間はパスに関する検査は全部止まります</td></tr>
+<tr><td>Navigation[i] の Element '…' が Prefab 内の Selectable として見つかりません</td><td>パスを直すか行を消す(グラフでは黄土色の枠)</td></tr>
+<tr><td>Navigation[i] の Up/Down/Left/Right '…' が Prefab 内の Selectable として見つかりません</td><td>移動先のパスを直す</td></tr>
+<tr><td>Navigation[i] '…': 左右 NavNode が設定されていますが EscapeOnLimit=false です(フォーカスが抜けられません)</td><td>対象 UiSlider の EscapeOnLimit を ON にするか、左右リンクを外す</td></tr>
+<tr><td>Selectable '…' は Navigation のどこからも到達できません</td><td>どこかからリンクを張る(グラフの赤枠)</td></tr>
+<tr><td>Navigation が設定されていますが FirstSelected が未設定です</td><td>グラフの右クリック「FirstSelected にする」</td></tr>
+<tr><td>FirstSelected '…' が Prefab 内で見つかりません</td><td>パスを直す</td></tr>
+<tr><td>ButtonWire[i] の ButtonPath '…' が Prefab 内で見つかりません</td><td>パスを直す</td></tr>
+<tr><td>ButtonWire[i] '…': Action=OpenCanvas なのに Target が未設定です</td><td>開く先の Canvas データを Target に</td></tr>
+<tr><td>ButtonWire[i] '…': Action=SendSignal なのに SignalKey が未設定です</td><td>通知名を入れる</td></tr>
+<tr><td>ButtonWire[i] '…' の Trigger=… が重複しています</td><td>片方を消す</td></tr>
+<tr><td>ButtonWire[i] '…': Trigger=LongPress なのに対象 UiButton の LongPressSec が 0 以下です</td><td>UiButton の LongPressSec に秒数を入れる</td></tr>
+<tr><td>ButtonWire[i] '…': CooldownSec=0 の状態で OpenCanvas に配線されています(連打で多重遷移するおそれがあります)</td><td>UiButton の CooldownSec を 0.2 秒程度に</td></tr>
+<tr><td>SliderWire[i] の ElementPath '…' が Prefab 内で見つかりません</td><td>パスを直す</td></tr>
+<tr><td>SliderWire[i] '…': Action=SetOption なのに Option が未設定(None)です</td><td>書き込み先を選ぶ</td></tr>
+<tr><td>SliderWire[i] '…': Trigger=Changed かつ ThrottleSec=0 のまま重処理(PlayPresentation)に配線されています</td><td>ThrottleSec を入れて間引く</td></tr>
+<tr><td>ElementFx[i] の ElementPath '…' が Prefab 内で見つかりません</td><td>パスを直すか行を消す</td></tr>
+<tr><td>ElementFx[i] '…' の ElementPath が重複しています</td><td>1 行にまとめる</td></tr>
+<tr><td>ElementFx[i] '…': AppearDelay が負数です</td><td>0 以上に</td></tr>
+<tr><td>ElementFx[i] '…': 出現なし(Appear/AppearPreset が未設定です)</td><td>意図的なら無視可(Info)</td></tr>
+<tr><td>ElementFx[i] '…': Idle には常時系プリセットを推奨します(Pulse/Blink/Float/Sway/Breathe/RotateLoop/ShimmerAlpha/RainbowTint/WobbleLoop)</td><td>常時系に変える</td></tr>
+<tr><td>Layer=Popup ですが ModalBlocksInput が OFF です(背後の入力がブロックされません)</td><td>ダイアログなら ON に(Info)</td></tr>
+</table>
+<p>このほか、Prefab 内の UiSlider の設定(Min / Max / Step / Notches など)の検査結果も混ざって出ます(<a href="ui-skin.html">Slider Editor</a>)。実行時には「CanvasData '…' の ElementFx[i] '…' が Prefab 内(RectTransform)で見つかりません。この行はスキップします。」がコンソールに出ることがあります(パスを直してください)。</p>
+
+<h2>注意点</h2>
+<ul>
+<li><strong>Action=PlayPresentation は未実装</strong>(Phase 5 予定)。押しても警告が出るだけです</li>
+<li><strong>Navigation の 4 方向はむやみに全部埋めない</strong>。全部空なら Unity の自動ナビゲーションのままで、レイアウト変更にも追従します</li>
+<li><strong>ModalBlocksInput は <code>Ui.Popup</code> で開いたときだけ</strong>効きます。Layer=Popup でも OFF なら背後は操作できます</li>
+<li><strong>Idle にレイヤー既定はありません</strong>。単発プリセットを Idle に入れると警告になります</li>
+<li>Disappear に無限ループの演出を入れると画面が閉じ終わりません</li>
+<li>Option の BgmVolume / SeVolume / VoiceVolume / ShakeScale / HapticScale は値を保存するだけで、まだ効きません(コンソールに 1 回「Audio バス別音量 … は Phase 5 で実装予定のため、値は保持のみです」と出ますが仕様です)</li>
+<li>十字キーのフォーカス移動には、シーンに EventSystem(InputSystemUIInputModule 付き)が必要です</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="canvas-editor.html">Canvas Editor の使い方</a> — ナビゲーション・演出・プレビュー</li>
+<li><a href="ui-skin.html">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
+<li><a href="ui-tween.html">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方と割り当て</li>
+<li><a href="prefab-data.html">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>
+<li><a href="asset-browser.html">Asset Browser</a> / <a href="se-data.html">SE の設定項目</a> / <a href="validation.html">Validation の見方</a> / <a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

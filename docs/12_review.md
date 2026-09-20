@@ -123,3 +123,26 @@ CHANGELOG ガード（[42] §5.11-10）: `Tests/Editor/Snapshots/**` が変わ�
 - 週次: Validation レポート（Error/Warning 件数の推移）と未使用アセット数をチームに共有
 - 月次: 「デザイナーがコードを触った回数 / プログラマーがアセットを触った回数」をふりかえり — 0 に近いほど責務分離が機能している
 - 新種別追加（Timeline/Dialogue 等）時は本ドキュメント群のテンプレ（データ構造/Manager/エディタ/Validation/チケット）に沿って設計レビューから開始
+
+## 7. リリース手順（P-9、[42_distribution.md](42_distribution.md) §4.1）
+
+D-Drive（`com.ddrive.core`）のバージョンを 1 つ進めて配布するときの手順。道具は `Tools/Release/` にまとめてあり、`git` を書き換える操作は手順 5 の `-Tag` を明示したときの `git tag` だけ（push は一切しない）。
+
+1. **スナップショット差分の確認**: `Packages/com.ddrive.core/Tests/Editor/Compat/Snapshots/**` に意図した差分だけがあるか確認する（意図しない差分＝互換性を壊している可能性。[42_distribution.md] §5.11・§5.12）
+2. **CHANGELOG「互換性」節**: `CHANGELOG.md` の `## [Unreleased]` にある `### 互換性` 節に、今回の変更が「破壊なし / 追加のみ / マイグレーションあり / 破壊あり（[docs/migrations/vN.md](migrations/) へリンク）」のどれかを明記する（空欄のままだと手順 3・4 で fail する）
+3. **`Tools/Release/check-release.ps1` を実行**（ファイルは書き換えない検査専用）: 作業ツリーがクリーンか、`[Unreleased]` の互換性節が空でないか、`DDriveProtocol.Current` を変えていればネットメッセージの記述があるか、CHANGELOG ガード（[42_distribution.md] §5.11-10。スナップショットが変わっているのに `CHANGELOG.md`/`version` が変わっていなければ fail）をまとめて検査する
+   ```
+   pwsh Tools/Release/check-release.ps1
+   ```
+4. **`Tools/CI/run-ci.cmd` を実行**して green を確認する（`[1/8]` として組み込んだ CHANGELOG ガードに加え、Migrate チェック・Validation・ID 再生成差分・EditMode/PlayMode/Performance テストが通ること）
+5. **`Tools/Release/bump-version.ps1` を実行**して版を進める:
+   ```
+   pwsh Tools/Release/bump-version.ps1 -Version x.y.z -DryRun   # まず差分だけ確認
+   pwsh Tools/Release/bump-version.ps1 -Version x.y.z -Tag      # 問題なければ実行(package.json/DDriveVersion.cs/CHANGELOG.md を更新し、Documentation~ と CHANGELOG.md をパッケージへ同期し、git tag を作る)
+   ```
+   `-Part major|minor|patch` でも指定できる。同梱物の同期（`docs/DesignerManual`・`docs/ProgrammerManual` → `Documentation~/`、`CHANGELOG.md` → `Packages/com.ddrive.core/CHANGELOG.md`）は版が変わらないときも毎回実行される
+6. **`git push --tags`**: 手順 5 で作ったタグを push する（明示的に指示されたときだけ。CLAUDE.md の「破壊的な git 操作は指示されたときだけ」と同じ扱い）
+7. **SpecWeb の push / デプロイ**: `docs/DesignerManual`・`docs/ProgrammerManual` を今回のリリースで変更していれば `cd Tools/SpecWeb && ./push.cmd`（`build-manual.js` の再生成 + `clasp push`）を実行し、デプロイ①（人向け SPA）を更新する（デプロイ②は UI 操作なのでユーザー作業）
+8. **持ち込み先の更新手順の案内**: 持ち込み先（MS2026 等）の担当に、[42_distribution.md] §4.2「持ち込み先の更新手順」に沿って `manifest.json` のタグを進め、`Tools > D-Drive > Update > 更新ウィンドウ` を実行するよう伝える
+
+`[Obsolete]` の棚卸し（次の MAJOR で削除する候補の一覧）は `Tools/Release/list-obsolete.ps1` を実行すると `docs/migrations/next-major.md` が更新される。MAJOR リリースの前（手順 1 の直前が目安）に実行し、削除してよいものを確認してから [42_distribution.md] §5.12 の破壊的変更手続きに進む。

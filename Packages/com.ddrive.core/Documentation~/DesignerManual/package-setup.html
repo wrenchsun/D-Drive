@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>パッケージを導入する / 更新する | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › パッケージを導入する / 更新する</nav>
+
+<h1>パッケージを導入する / 更新する</h1>
+<p class="lastupdate">最終更新日: 2026-09-20</p>
+
+<div class="tip">
+<strong>このページは骨子です。</strong> D-Drive は「別のプロジェクトへ簡単に持ち込めるパッケージ」として配布できるように準備を進めています（2026-09-20 時点はセットアップウィザードまで実装済み）。導入・更新の手順を実際にプロジェクトに沿って書き切るページは、消費側ドキュメント一式（README・エージェント向け手順）と合わせて後日完成させます。ここでは<strong>今できることの機能説明だけ</strong>を紹介します。
+</div>
+
+<h2>セットアップウィザードとは</h2>
+<p>D-Drive を新しいプロジェクトに持ち込んだとき（または D-Drive を更新した後）に、必要な設定が揃っているかをまとめて確認し、足りないものをボタン 1 つで直すための画面です。プログラマー・テクニカルアーティストがプロジェクトの立ち上げ時に使うことを想定していますが、デザイナーが「なぜエフェクトが出ないのか」を確認するときにも使えます。</p>
+
+<h2>開き方</h2>
+<ol>
+<li>Unity のメニューバーから <code>Tools &gt; D-Drive &gt; Setup &gt; セットアップウィザード</code> を開く</li>
+</ol>
+
+<h2>確認できること（上から順に）</h2>
+<ol>
+<li><strong>依存パッケージ</strong>: D-Drive が必要とする外部パッケージ（UniTask・R3 など）がプロジェクトに入っているかを確認し、足りなければ「追加」ボタンで導入する</li>
+<li><strong>ProjectSettings</strong>: レンダーパイプライン（URP）・入力方式（Input System）・API 互換レベルが D-Drive の前提と合っているかを確認する（自動では変更しない項目もあります）</li>
+<li><strong>置き場所</strong>: D-Drive が作るデータ（<code>GameData</code> フォルダ等）をどこに置くか選べる（既定のまま/1 つの親フォルダの下にまとめる/個別に指定、の 3 通り）</li>
+<li><strong>既定フォルダ・設定の生成</strong>: 最初に必要なフォルダや設定ファイルをまとめて作る</li>
+<li><strong>Addressables 同期</strong>: アセット管理の仕組み（Addressables）が初期化されているかを確認する</li>
+<li><strong>起動オブジェクト</strong>: ゲームを実際に動かすために必要な「起動オブジェクト」をシーンに置く</li>
+<li><strong>テストを有効化する</strong>: D-Drive 自身のテストをこのプロジェクトで実行できるようにするかどうか（既定は OFF）</li>
+<li><strong>エージェント向けスキル</strong>: AI エージェント（Claude Code 等）が D-Drive を正しく使うための手引きを、このプロジェクトの設定にコピーする</li>
+<li><strong>完了チェック</strong>: 上のすべての状態を一覧表示し、<a href="validation.html">Validation（自動チェック）</a>もあわせて実行できる</li>
+</ol>
+
+<h2>更新する</h2>
+<p>D-Drive のバージョンが上がったら（<code>Packages/manifest.json</code> のタグを新しくしたら）、<code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code> を開きます。</p>
+<ol>
+<li><strong>版と CHANGELOG</strong>: 「現在の版」「前回適用した版」と、その間に何が変わったか（CHANGELOG の該当箇所）を表示します。「破壊あり」の変更が含まれる場合は警告が出るので、先に移行ガイドを確認してください</li>
+<li><strong>マイグレーション（プレビュー）</strong>: 更新に伴ってデータの形式を直す必要がある件数を確認できます（この時点ではまだ何も変更しません）</li>
+<li><strong>更新を適用</strong>: ボタン 1 つで「データの形式を直す → ID/調整値の定数を作り直す → アセット管理の登録を揃える → 自動チェックを実行する」を順番に実行します。途中で失敗したらそこで止まり、それより後の手順は実行されません(前回適用した版も更新されません)</li>
+<li><strong>テストを有効化する / エージェント向けスキルを更新</strong>: セットアップウィザードと同じ項目をここからも操作できます</li>
+</ol>
+<p>更新後も、念のため <a href="package-setup.html">セットアップウィザード</a>の「完了チェック」を確認することをおすすめします（更新のたびに新しい設定項目が増えることがあります）。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="validation.html">Validation（自動チェック）の使い方</a></li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

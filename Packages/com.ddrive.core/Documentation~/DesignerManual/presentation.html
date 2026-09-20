@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>演出（Presentation）の設定項目 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 演出（Presentation）の設定項目</nav>
+
+<h1>演出（Presentation）の設定項目</h1>
+<p class="lastupdate">最終更新日: 2026-09-20</p>
+
+<p>「剣攻撃」のように、<strong>アニメ・効果音・エフェクト・カメラ揺れ・振動・画面停止（ヒットストップ）</strong>などを 1 つにまとめたものが「演出（PresentationData）」です。プログラマーは <code>Presentation.Play(演出のID, ...)</code> と 1 行書くだけで、中身（何を・いつ・どう鳴らすか）はすべてこのデータで決まります。あとから演出の中身を差し替えても、プログラムの修正は不要です。</p>
+
+<div class="tip">
+<strong>専用エディタ</strong>: <code>Tools &gt; D-Drive &gt; Presentation Editor</code>（目玉機能につき Tools メニュー最上段）でトラックをタイムライン形式で編集し、実際にアニメ・SE・エフェクト・画面揺れ・振動を<strong>同時に再生して確認</strong>しながら作れます。使い方は下の「専用エディタの使い方」を参照してください。
+</div>
+
+<h2>基本の考え方: トラック（Tracks）</h2>
+<p>演出は「トラック」という短い指示の集まりでできています。1 本のトラックは「いつ」「何を」の 2 つを決めます。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Trigger（いつ）</td><td><strong>At Time</strong>: 再生開始から何秒後に鳴らすか(Time 欄に秒数)。0 秒は「開始と同時」。<br><strong>On Signal</strong>: プログラム側が「合図（例: 攻撃が当たった）」を送ってきたら鳴らす。Signal Key 欄に合図の名前(例: <code>hit</code>)を入れる。</td></tr>
+<tr><td>Kind（何を）</td><td>下記「トラックの種類」参照。</td></tr>
+<tr><td>Asset（何のデータを）</td><td>Kind に応じた ID(例: Kind=Vfx なら VfxData の ID)。Marker/Signal/HitStop は不要。</td></tr>
+<tr><td>Target（基準になる場所）</td><td><strong>Self</strong>: 演出を出した本人(例: 攻撃した本人)。<strong>Context Target</strong>: 相手(例: 攻撃を受けた敵)。<strong>World</strong> / <strong>Anchor</strong>: 場所を固定したい据え置きの演出向け(下の Anchor 欄の位置をそのまま使う)。</td></tr>
+<tr><td>Anchor</td><td>VFX・SE を出す細かい位置(ボーン名や右手・足元など)。<a href="anchor-data.html">Anchor のページ</a>と同じ形式。<strong>この欄はエフェクト・効果音側のデータ(VfxData/SeData)が持つ Anchor と組み合わさって、次の 3 通りのどれかで実際に出す位置が決まります</strong>。<table><tr><th>状況</th><th>実際に出る位置</th></tr><tr><td>この欄が未設定、エフェクト・効果音側だけに Anchor が設定されている</td><td>エフェクト・効果音側の Anchor をそのまま使う</td></tr><tr><td>この欄だけ設定されている(エフェクト・効果音側は未設定)</td><td>この欄の Anchor をそのまま使う</td></tr><tr><td>両方に設定されている</td><td>この欄の Anchor を基準にして、エフェクト・効果音側の Anchor がそこからの相対位置として上乗せされる(「この欄を親、エフェクト側を子」として組み合わさる)</td></tr></table>トラック一覧の「Anchor(VFX/SE の位置)」の見出しに、今どの状況かが 1 行で表示されます。</td></tr>
+<tr><td>Params</td><td>Kind ごとの追加パラメータ(例: Kind=HitStop なら「何秒止めるか」を 1 つ目に入れる)。<strong>Kind=Vfx</strong> のときは、そのエフェクト側(<a href="vfx-data.html#params">VfxData の Params</a>)と同じ並び順(ラベル名の順番=インデックス)の値を上書きします(色を差し替える、など)。<strong>Kind=Se の音量上書きにはまだ対応していません</strong>(値を入れても音量には反映されません)。他の Kind では今のところ使われません。</td></tr>
+<tr><td>Stop On Cancel</td><td>途中で演出が中断された(Cancel された)とき、このトラックで出した物(VFX・SE 等)も一緒に止めるか。オフなら鳴らし切る。</td></tr>
+</table>
+
+<h2>トラックの種類（Kind）</h2>
+<table>
+<tr><th>Kind</th><th>内容</th><th>今の対応状況</th></tr>
+<tr><td>Anim / Anim2D</td><td>アニメーションを再生する</td><td>対応済み</td></tr>
+<tr><td>Se / Bgm</td><td>効果音 / BGM を鳴らす</td><td>対応済み</td></tr>
+<tr><td>Vfx</td><td>エフェクトを出す</td><td>対応済み</td></tr>
+<tr><td>Canvas</td><td>UI 画面(ポップアップ等)を開く</td><td>対応済み</td></tr>
+<tr><td>UiTween</td><td>UI の動き(<a href="ui-tween.html">UI Tween</a>)を再生する</td><td>対応済み</td></tr>
+<tr><td>HitStop</td><td>一瞬だけゲーム全体の時間を止める(「ヒットストップ」演出)。Params の 1 つ目に止める秒数を入れる</td><td>対応済み</td></tr>
+<tr><td>Marker</td><td>プログラム側に「ここまで来た」を知らせるだけの目印(見た目には何も起きない)。Signal Key 欄が目印の名前になる</td><td>対応済み</td></tr>
+<tr><td>Signal</td><td>プログラム側の処理を直接呼び出すための合図(Marker と似ているが、コード側の受け取り方が違う)。Signal Key 欄が合図の名前になる</td><td>対応済み</td></tr>
+<tr><td>CameraShake</td><td>画面を揺らす。Asset 欄に<a href="camera-haptics.html">カメラシェイクのデータ</a>の ID を入れる</td><td>対応済み</td></tr>
+<tr><td>Haptic</td><td>コントローラーを振動させる。Asset 欄に<a href="camera-haptics.html">振動データ</a>の ID を入れる</td><td>対応済み</td></tr>
+<tr><td>Timeline</td><td>Unity Timeline を再生する(カットシーン向け)</td><td class="warn">未対応(近日実装予定)</td></tr>
+<tr><td>AnchorGroup</td><td><a href="anchor-group.html">配置セット</a>を出す。Asset 欄に配置セットの ID を入れると、そのセットが持つ全点に一括で VFX / 効果音が出ます</td><td>対応済み</td></tr>
+</table>
+
+<h2>共通項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Total Duration</td><td>演出全体の長さ(秒)。<strong>0 のままにすると、At Time トラックの一番遅い時刻から自動で決まります。</strong>「On Signal のトラックだけ」で組んだ演出は、この自動計算だと 0 秒扱いになりすぐ終わってしまうため、必ず秒数を入れてください。0 のままにしている間はタイムライン右上に小さく「⚠ 尺が未設定です」と出ます。共通設定の警告にある<strong>「トラックの最後に合わせる」ボタン</strong>を押すと、各トラックの終わりの時刻(アニメ・効果音は長さも考慮)に合わせて自動で数値を入れてくれます。</td></tr>
+<tr><td>Interruptible</td><td>途中で中断(Cancel)できるか。オフにすると、プログラム側が止めようとしても無視されます(最後まで再生し切る前提の演出向け)。</td></tr>
+</table>
+
+<h2>専用エディタの使い方（剣攻撃を作る流れ）</h2>
+<p><code>Tools &gt; D-Drive &gt; Presentation Editor</code> を開き、対象アセット欄に演出データ（新規なら「＋ 新規作成」）を選びます。</p>
+<!-- screenshot: 36-#52 -->
+<figure>
+<img src="images/presentation-editor-timeline.png" alt="Presentation Editor のタイムライン全体">
+<figcaption>Presentation Editor。レーンごとにトラックを並べ、再生ヘッドで時間を進める</figcaption>
+</figure>
+
+<ol>
+<li><strong>トラックを置く</strong>: 画面中央のタイムラインへ、Asset Browser や Project ウィンドウから SE・VFX・アニメ・<a href="anchor-group.html">配置セット</a>等のデータをドラッグ＆ドロップすると、種類に応じたレーン（Anim/Anim2D・Se/Bgm・Vfx/AnchorGroup・CameraShake/Haptic・HitStop/Marker・Signal・Canvas/UiTween）へ自動でトラックが追加されます。時刻は落とした位置がそのまま入ります（後から左右にドラッグして直せます）。手入力したい場合は下の「＋ トラックを追加」から Kind を選んで空のトラックを足せます。<strong>Kind を後から変えると Asset 欄は空にリセットされます</strong>（別の種類のデータが誤って残らないようにするための安全策です。差し替え後にもう一度 Asset を選んでください）</li>
+<li><strong>トラックを直す</strong>: タイムラインの色つきマーカーをクリックすると下の一覧でそのトラックが開きます。Trigger（At Time / On Signal）・時刻・Signal Key・Asset・Target・Anchor（出す位置）・Params（上書きパラメータ）・Stop On Cancel を編集できます。「複製」「削除」ボタンも各トラックにあります</li>
+<li><strong>モデルを置いて統合プレビュー</strong>: 「モデル選択」でモデルを選び「配置」を押すと確認用シーンにモデルが出ます（Animator が無いモデルでも VFX/SE/揺れ/振動の基準点として使えます）。「▶ 再生」を押すと、そのモデルを起点に <strong>アニメ・SE・エフェクト・カメラの揺れ・コントローラーの振動が実際に同時に再生されます</strong>（SceneView / Game ビューで確認、パッドを接続していれば実機振動も確認できます）</li>
+<li><strong>Anchor（出す位置）を SceneView で確認・編集する</strong>: Vfx・Se トラックには「出す位置」があり、文字だけでは分かりにくいため SceneView に表示できます。トラック一覧の上にある「SceneView 表示」を ON にすると、位置を持つトラックがシーン上に色つきの点として表示されます（Vfx=マゼンタ、Se=シアン、AnchorGroup=黄緑）。「表示対象」を「すべて」にすると位置を持つ全トラックの点が、「選択中のみ」にすると今トラック一覧で開いている 1 本だけが表示されます。<strong>点をクリックするとそのトラックがトラック一覧で選択（展開・スクロール）されます</strong>。他のウィンドウ（VFX Editor 等）を触っていて薄く表示されているときでも、点をクリックすればこのウィンドウに切り替わります。<strong>移動・回転ハンドルは、位置を持つトラックであれば状況に関わらず常に最終的な出す位置に表示されます</strong>（上の表の「この欄だけ設定」「両方に設定」はもちろん、「エフェクト・効果音側だけ設定」の状況でも表示されます）。<strong>「エフェクト・効果音側だけ設定」の状況でハンドルを動かすと、その最終位置になるようにトラック側の Anchor が自動で設定され、「両方に設定」の状況に切り替わります</strong>（元のエフェクト・効果音側のデータ自体は変わりません）。「両方に設定」の状況でも掴む点は常に最終位置で、動かすとトラック自身の Anchor が自動で計算し直されます。エフェクト・効果音側の Anchor（子）は最終位置までの経路として点線で表示されるだけで、直接は動かせません（子を直したいときは <a href="vfx-data.html">VFX Editor</a> / <a href="se-data.html">Audio Editor</a> / <a href="anchor-data.html">Anchor Editor</a> を開いてください）。SceneView 上で移動/回転ツールを切り替えると、ハンドルも移動・回転に切り替わります。<strong>AnchorGroup トラックは配置セットの全点を番号付きで表示しますが、点の移動・編集はできません</strong>（点の並び・位置を変えたいときは<a href="anchor-group.html">Anchor Group Editor</a>を開いてください）。<strong>Anchor（出す位置）を持たない Kind（Anim・CameraShake・Haptic など）は表示されません</strong>。ハンドルで動かした結果はそのトラック自身に保存され、<strong>次の「▶ 再生」/「⏮ 最初から」から反映されます</strong>（再生中の実体はその場では動きません）</li>
+<li><strong>専用エディタを同時に開く</strong>: トラック一覧の各行に「専用エディタで開く（一緒に調整）」「単体で確認用シーンに開き直す」の 2 つのボタンがあります（対応する専用エディタがある種類のトラックのみ）。<strong>「一緒に調整」</strong>は、今の確認用シーン・配置したモデル・再生状態をそのまま維持して専用エディタ（VFX Editor / Anchor Group Editor / Anim Editor など）を開きます。専用エディタの「スポーン先」欄には、このウィンドウで配置したモデル（Self）が自動で入ります。専用エディタ側で調整した内容は、Presentation Editor 側で次に「▶ 再生」/「⏮ 最初から」を押したときに反映されます。<strong>Anchor Group Editor を「一緒に調整」で開いて配置セットの点を動かすと、Presentation Editor 側の SceneView の点表示にもすぐに反映されます</strong>（2 つのウィンドウを並べて確認できます）。<strong>「単体で確認用シーンに開き直す」</strong>は、専用エディタのいつもの流れ（そのアセット単体の確認用シーンを開く）で開きます。こちらを選ぶと Presentation Editor 側のプレビューは片付きます。</li>
+<li><strong>Signal を手動で送る</strong>: 「onHit」のような Trigger=On Signal のトラックを作ると、統合プレビューの中に「Signal レーン(手動発火)」という枠が現れ、Signal Key ごとにボタン（例: 「Signal: onHit」）が並びます。手順は次の 2 段階です。
+  <ol>
+  <li>まず上の「▶ 再生」を押して演出を再生する（ボタンはこの間だけ有効になり、押せる状態になります）</li>
+  <li>再生中に「Signal レーン」のボタンを押すと、コード側から「当たった」等の合図が来たのと同じ動きを試せます（ログ欄に「手動発火: Signal("onHit")」と出ます）</li>
+  </ol>
+  <strong>停止中はボタンがグレーアウトして押せません</strong>（合図を受け取る演出自体が動いていないため、押しても何も起きないことを分かりやすくするための表示です）。ボタンにカーソルを合わせると同じ説明がツールチップで出ます。On Signal のトラックが 1 つも無い場合は「(On Signal のトラックがありません…)」という案内だけが表示されます
+  <figure>
+  <img src="images/presentation-editor-signal-lane.png" alt="Signal レーン(手動発火)">
+  <figcaption>再生中の統合プレビュー。「Signal レーン(手動発火)」のボタン（例: 「Signal: TestSignal」）で合図を送る</figcaption>
+  </figure>
+</li>
+<li><strong>タイムラインを拡大縮小して見る</strong>: 演出が短い(または細かく作り込みたい)ときは、タイムライン上部の「－」「＋」ボタンかズームスライダーで拡大縮小できます。タイムライン上で<strong>Ctrl(Mac は Cmd)+マウスホイール</strong>を回すと、カーソルの位置を中心にその場でズームできます。拡大した状態では、ホイールを普通に回す、またはタイムライン下部の横スクロールバー(ミニマップ)をドラッグすると左右に移動できます。目盛りの間隔(1 秒 / 0.5 秒 / 0.1 秒 / フレーム単位)は拡大の度合いに応じて自動で見やすく切り替わります。元に戻したいときは「全体表示」ボタンを押してください(対象アセットを切り替えたときも自動で全体表示に戻ります)</li>
+<li><strong>タイムライン上でもシークできる</strong>: タイムラインの上段(目盛りの帯)をクリック、またはそのままドラッグすると、その時刻へシークします(下の「シーク」スライダーと同じ動きで、値も連動します)。トラックのマーカー(色つきの四角、目盛りより下)をドラッグする操作とは干渉しません</li>
+<li><strong>再生位置が分かりやすい</strong>: 再生中はタイムラインを縦に貫く目立った色の線(再生ヘッド)が今の位置を示し、上部に「現在時刻(秒)」と「フレーム数」が出ます。「再生ヘッドに追従」を ON(既定)にしておくと、拡大していても再生ヘッドが画面外に出ないように表示範囲が自動でスクロールします</li>
+<li><strong>速度・シーク・一時停止・ループ</strong>: 「速度」スライダー（0.1x〜2x）でスロー再生、「シーク」で好きな時刻へ飛べます（通過したトラックはまとめて発火）。<strong>「⏸ 一時停止」を押した後の「▶ 再生」は、最初からではなく一時停止した位置から再開します</strong>(ボタンの表示も「▶ 再開」に変わります)。最初から再生し直したいときは「⏮ 最初から」を押してください。ステータス欄には「⏸ 一時停止中 42% (1.26s)」のように現在時刻も出ます（この表示は「ループ」の下の専用の 1 行に出ます）。「ループ」を ON にすると完了後に自動でもう一度再生します。なお、再生位置を手前に戻す(巻き戻す)と、すでに発火したトラックは再発火しません(ログ欄に 1 回だけ注意書きが出ます)。最初から確認したいときは「⏮ 最初から」を使ってください</li>
+<li><strong>環境切替</strong>: 「環境切替」を開くと確認用シーンの既存のライトの強さ・カメラの背景色を調整できます（新しい部屋を作るのではなく、今開いているシーンの見た目を変えるだけです）</li>
+<li><strong>新しく割り当てた SE・VFX などは、次の再生から鳴る / 出る</strong>: ウィンドウを開いたまま、トラックに SE や VFX・カメラの揺れなどを新しく作って割り当てたときは、いったん「■ 停止」してから「▶ 再生」（または「⏮ 最初から」）を押してください。再生し直すたびに最新のアセットを読み直します。一時停止からの「▶ 再開」は読み直さないので、割り当てを変えたら再開ではなく「⏮ 最初から」を使います。また再生中にトラックを追加・削除すると挙動が不安定になることがあるため、トラックの編集は停止中に行ってください</li>
+<li><strong>保存すれば即反映</strong>: ウィンドウを閉じても配置したモデル・揺れ・振動の後片付けは自動で行われます（シーンには保存されません）。保存すれば <strong>コード変更なしで</strong> ゲーム内の演出に反映されます</li>
+</ol>
+
+<h2>剣攻撃デモで確認する</h2>
+<p><code>Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity</code> を開いて Play すると、剣攻撃の演出(アニメ相当の代わりに VFX+SE を Self に配置、当たった合図で画面停止+SE+画面揺れ+振動)が自動で再生されます。P キーでもう一度再生、Space キーで「当たった」合図(Signal)、C キーで中断(Cancel)を試せます。</p>
+
+<h2>通信対戦（オンライン対戦）での演出</h2>
+<p>演出データの <strong>Flags &gt; Net</strong> を <strong>Cosmetic</strong>(「見た目だけで勝敗には影響しない」の意味)にしておくと、通信対戦時にプログラム側の特別な配線なしで<strong>自分が再生した演出が相手の画面にも自動で配られ、同じタイミングで再生されます</strong>。既定値は Local(自分の画面だけ)なので、<strong>相手にも見せたい演出は Flags.Net を Cosmetic に変える必要があります</strong>(通常の攻撃演出などは Cosmetic にしておくのが基本です)。</p>
+<ul>
+<li><strong>Cosmetic（勝敗に影響しない見た目の演出）</strong>: 攻撃を当てた側だけでなく、<strong>相手の画面にも同じ演出（アニメ・SE・VFX・カメラ揺れなど）が出ます</strong>（<a href="glossary.html#cosmetic">用語集: Cosmetic</a>）</li>
+<li><strong>コントローラーの振動だけは鳴らし分けられます</strong>: <a href="camera-haptics.html">振動データ</a>の「Local Player Only」が ON（既定）のときは、<strong>その事象を起こした本人（当事者）のコントローラーだけ</strong>が振動します。相手の画面にも見た目・音は出ますが、相手のパッドは振動しません</li>
+</ul>
+<div class="tip">
+2026-09-14 時点では、実際のオンライン対戦の配線（NGO）自体は次の開発段階（Phase 6）で接続される予定です。上記の Cosmetic の振り分けの仕組みそのものは既に用意されており（テストで確認済み）、接続が済めばデータ側の設定変更なしでそのまま動く想定です。
+</div>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>警告</th><th>意味と直し方</th></tr>
+<tr><td>トラック N(Kind)の Asset が未設定です</td><td>そのトラックが使う ID(VfxData など)を設定してください。Marker/Signal/HitStop は対象外です。</td></tr>
+<tr><td>SignalKey が空です</td><td>On Signal トラック、または Marker/Signal の名前欄が空です。半角英数字などで名前を入れてください。</td></tr>
+<tr><td>Time が Total Duration を超過しています</td><td>そのトラックが鳴る前に演出全体が終わってしまいます。Total Duration を伸ばすか、Time を短くしてください。</td></tr>
+<tr><td>Interruptible=false ですが尺が長すぎます</td><td>10 秒を超える演出を「中断不可」にすると、プレイヤーを長時間拘束してしまいます。本当に中断不可でよいか見直してください。</td></tr>
+<tr><td>トラック N(AnchorGroup)の Asset の種別が AnchorGroup ではありません</td><td>Asset 欄に配置セット以外のデータ(VfxData など)が入っています。<a href="anchor-group.html">配置セット</a>のデータを選び直してください。</td></tr>
+<tr><td>トラックとアセット側の両方に Anchor が設定されているため、親子合成されます</td><td>警告ではなくお知らせです。トラックの Anchor とエフェクト・効果音側の Anchor を両方設定すると、上の Anchor 欄の説明どおり自動で組み合わさります。意図した組み合わせなら無視してかまいません。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="anchor-data.html">Anchor（出す位置）の作り方</a></li>
+<li><a href="vfx-data.html">VFX（エフェクト）の設定項目</a></li>
+<li><a href="se-data.html">SE（効果音）の設定項目</a></li>
+<li><a href="ui-tween.html">UI の動き（UI Tween）</a></li>
+<li><a href="camera-haptics.html">画面の揺れ・コントローラーの振動</a></li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

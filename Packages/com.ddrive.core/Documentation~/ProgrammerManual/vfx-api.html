@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>VFX API | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › VFX API</nav>
+
+<h1>VFX API</h1>
+
+<p>エフェクトの生成・停止は静的ファサード <code>DDrive.Runtime.Vfx.Vfx</code>（実装: <code>Packages/com.ddrive.core/Runtime/Vfx/Vfx.cs:11</code>）から行います。画面の揺れは <code>DDrive.Runtime.CameraShake.CameraFx</code>、コントローラー振動は <code>DDrive.Runtime.Haptics.Haptics</code> が別クラスですが、設計・使い勝手はどちらも同じです。データの作り方は <a href="../DesignerManual/vfx-data.html">デザイナーマニュアル: VFX の設定項目</a> / <a href="../DesignerManual/vfx-editor.html">VFX Editor の使い方</a> / <a href="../DesignerManual/camera-haptics.html">画面の揺れ・コントローラー振動の設定項目</a>を参照してください。</p>
+
+<div class="tip">
+<strong>未 Bind でも例外にならない:</strong> <a href="bootstrap.html">起動配線</a>が済む前に呼んでも、無効な <code>Handle&lt;VfxMarker&gt;</code>（<code>Handle&lt;VfxMarker&gt;.Invalid</code>）を返して no-op になります（Vfx / CameraFx / Haptics 共通）。
+</div>
+
+<h2>VFX（DDrive.Runtime.Vfx.Vfx）</h2>
+
+<h3>Spawn — 5 通りの呼び方</h3>
+<div class="sig">static Handle&lt;VfxMarker&gt; Spawn(VfxId id)
+static Handle&lt;VfxMarker&gt; Spawn(VfxId id, Vector3 pos, Quaternion rot)
+static Handle&lt;VfxMarker&gt; Spawn(VfxId id, Transform attach)
+static Handle&lt;VfxMarker&gt; Spawn(VfxId id, AnchorId anchor)
+static Handle&lt;VfxMarker&gt; Spawn(VfxId id, AnchorId anchor, Transform attach)</div>
+<table>
+<tr><th>オーバーロード</th><th>用途</th></tr>
+<tr><td><code>Spawn(id)</code></td><td>原点付近に依存しないエフェクト（画面全体を覆う演出など）</td></tr>
+<tr><td><code>Spawn(id, pos, rot)</code></td><td>ワールド座標 <code>pos</code> / 回転 <code>rot</code> で生成する</td></tr>
+<tr><td><code>Spawn(id, attach)</code></td><td><code>attach</code> の Transform に追従させて生成する（Data 側の Anchor があればそれを <code>attach</code> 基準で解決する）</td></tr>
+<tr><td><code>Spawn(id, anchor)</code> / <code>Spawn(id, anchor, attach)</code></td><td>生成する Anchor アセットをコード側から明示する。SE と同じく Data 側の Anchor より優先される</td></tr>
+</table>
+<pre><code>var h = Vfx.Spawn(VFXID.HitSpark, hitPoint, Quaternion.identity);
+h.SetParam("MainColor", Color.red);</code></pre>
+
+<h3>Stop と Kill の違い</h3>
+<div class="sig">static void Stop(Handle&lt;VfxMarker&gt; h)
+static void Kill(Handle&lt;VfxMarker&gt; h)</div>
+<table>
+<tr><th>メソッド</th><th>挙動</th></tr>
+<tr><td><code>Stop</code></td><td>放出（エミッション）を止めた上で、<code>VfxData.FadeOutSec</code> が 0 より大きい場合はその秒数だけ既存パーティクルの消失を待ってから Pool に返却する。残っているパーティクルが自然に消えるのを見せたいとき（通常の停止）はこちらを使う</td></tr>
+<tr><td><code>Kill</code></td><td>フェードアウトを待たず<strong>即座に</strong> Pool へ返却する（残留パーティクルの消失を待たない）。シーン遷移や緊急停止など、見た目より確実な停止を優先したいときに使う</td></tr>
+</table>
+
+<h3>Preload</h3>
+<div class="sig">static void Preload(params VfxId[] ids)</div>
+<p>指定した VFX の Prefab を事前に Pool へ用意しておきます（初回 Spawn 時のスパイクを避けたいときに使う）。</p>
+
+<h3>Handle 操作</h3>
+<div class="sig">static bool IsPlaying(Handle&lt;VfxMarker&gt; h)
+static void Move(Handle&lt;VfxMarker&gt; h, Vector3 position)
+static void Attach(Handle&lt;VfxMarker&gt; h, Transform target)
+static void Detach(Handle&lt;VfxMarker&gt; h)
+static void SetSpeed(Handle&lt;VfxMarker&gt; h, float speed)
+static void SetParam(Handle&lt;VfxMarker&gt; h, string label, ParamValue value)
+static void SetParam(Handle&lt;VfxMarker&gt; h, string label, float value)
+static void SetParam(Handle&lt;VfxMarker&gt; h, string label, Color value)</div>
+<p><code>SetParam</code> は VFX Graph の Exposed Property を、ラベル（表示名。<code>VfxData</code> 側で定義）で指定して書き換えます。<code>float</code> / <code>Color</code> の overload はそれぞれ <code>ParamValue.Of(value)</code> に変換してから同じ実装に委譲します。</p>
+
+<h3>ドット記法（VfxHandleExtensions）</h3>
+<p><code>Packages/com.ddrive.core/Runtime/Vfx/Vfx.cs:62-83</code> の <code>VfxHandleExtensions</code> により、<code>Handle&lt;VfxMarker&gt;</code> に対して <code>h.Stop()</code> のようにドットで書けます。中身は上記の <code>Vfx.xxx(h, ...)</code> への委譲です。</p>
+<pre><code>var h = Vfx.Spawn(VFXID.HitSpark, hitPoint, Quaternion.identity);
+h.SetSpeed(1.5f);
+h.Move(newPos);
+h.Stop();          // Vfx.Stop(h) と同じ</code></pre>
+
+<h2>画面の揺れ（DDrive.Runtime.CameraShake.CameraFx）</h2>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Camera/CameraFx.cs:9</code>。</p>
+<div class="sig">static Handle&lt;ShakeMarker&gt; Shake(ShakeId id)
+static Handle&lt;ShakeMarker&gt; Shake(ShakeId id, Vector3 sourcePos)
+static Handle&lt;ShakeMarker&gt; Shake(ShakeId id, float strengthScale)
+static void Stop(Handle&lt;ShakeMarker&gt; h, float fade = 0.1f)
+static void SetStrength(Handle&lt;ShakeMarker&gt; h, float strength)
+static bool IsPlaying(Handle&lt;ShakeMarker&gt; h)
+static void StopAll(float fadeOut = 0.1f)
+static void SetGlobalScale(float scale)</div>
+<table>
+<tr><th>オーバーロード / メンバー</th><th>用途</th></tr>
+<tr><td><code>Shake(id, sourcePos)</code></td><td>発生位置 <code>sourcePos</code> から「奥から手前に押される」方向のシェイクを計算する（爆発の発生源など）</td></tr>
+<tr><td><code>Shake(id, strengthScale)</code></td><td>距離減衰など外部要因で強さを一律スケールしたいときの係数</td></tr>
+<tr><td><code>SetGlobalScale(scale)</code></td><td>オプション画面の「画面揺れ 0〜100%」に対応する全体スケール。0 にすると完全に無揺れになる（アクセシビリティ要件）</td></tr>
+</table>
+<p><code>Handle&lt;ShakeMarker&gt;</code> にも <code>h.Stop(fade)</code> / <code>h.SetStrength(strength)</code> / <code>h.IsPlaying()</code> のドット記法（<code>ShakeHandleExtensions</code>）があります。</p>
+
+<h2>コントローラー振動（DDrive.Runtime.Haptics.Haptics）</h2>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Haptics/Haptics.cs:8</code>。</p>
+<div class="sig">static Handle&lt;HapticMarker&gt; Play(HapticId id)
+static Handle&lt;HapticMarker&gt; Play(HapticId id, float strengthScale)
+static void Stop(Handle&lt;HapticMarker&gt; h)
+static bool IsPlaying(Handle&lt;HapticMarker&gt; h)
+static void StopAll()
+static void SetGlobalScale(float scale)</div>
+<p><code>SetGlobalScale</code> はオプション画面の「振動 0〜100% / OFF」に対応します。<code>Handle&lt;HapticMarker&gt;</code> にも <code>h.Stop()</code> / <code>h.IsPlaying()</code> のドット記法（<code>HapticHandleExtensions</code>）があります。</p>
+
+<div class="warn">
+<strong>アプリ終了・フォーカス喪失時は自動でモーターが 0 に戻ります</strong>（<code>DDriveRuntimeBootstrap.OnApplicationQuit</code> / <code>OnApplicationFocus</code>）。ゲームコード側で明示的に <code>Haptics.StopAll()</code> を呼ぶ必要は通常ありません。
+</div>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ</a></li>
+<li><a href="bootstrap.html">起動配線（DDriveRuntimeBootstrap）</a></li>
+<li><a href="handle.html">Handle の扱い方</a></li>
+<li><a href="../DesignerManual/vfx-data.html">デザイナーマニュアル: VFX の設定項目</a></li>
+<li><a href="../DesignerManual/vfx-editor.html">デザイナーマニュアル: VFX Editor の使い方</a></li>
+<li><a href="../DesignerManual/camera-haptics.html">デザイナーマニュアル: 画面の揺れ・コントローラー振動</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

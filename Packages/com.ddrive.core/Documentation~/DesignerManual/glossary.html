@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>用語集 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 用語集</nav>
+
+<h1>用語集</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
+
+<p>マニュアルや Unity の画面に出てくる言葉の説明です。五十音・アルファベット順。</p>
+
+<h2>共通・全般</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="icon">アイコン (Icon)</td><td>Inspector のアイコン行に出る小さな画像。Asset Browser の一覧行の先頭や、Project ウィンドウをグリッド表示にしたときのサムネイルにも同じ画像が出ます。作り方は 3 通り: <strong>「自動生成」</strong>（Prefab・画像を持つ種類やマテリアルは、その見た目から自動で作られる）/「フォルダから選択」/「シーンから作成」（SceneView の写真から切り取る）。画像は <code>Assets/GameData/Icons/</code> に保存されます（<a href="Readme.html">トップ</a>の「共通の入口」参照）。</td></tr>
+<tr><td id="addressables">Addressables（アドレッサブル）</td><td>ゲーム実行時にアセットを名前（アドレス）で読み込む Unity の仕組み。D-Drive のデータはここにも登録されていないとゲームで出てきません。Asset Browser で作れば自動で登録されます。漏れは <a href="validation.html">Validation</a> の「修正」で直せます。</td></tr>
+<tr><td id="asset">アセット</td><td>ゲームで使う素材データのこと。このプロジェクトでは特に「D-Drive に登録された音・エフェクトなどのデータ」を指します。</td></tr>
+<tr><td>アセットブラウザ<br>(Asset Browser)</td><td>D-Drive の素材を一覧・検索・登録するウィンドウ。<a href="asset-browser.html">使い方はこちら</a>。</td></tr>
+<tr><td id="inspector">インスペクター<br>(Inspector)</td><td>Unity 画面の右側にある、選択中のものの詳細設定を表示する場所。項目にマウスを乗せると説明が表示されます。</td></tr>
+<tr><td id="id">ID（アイディー）</td><td>アセット1つ1つに付く「番号札」。プログラムはこの番号で音を呼び出すので、<strong>中身を差し替えてもプログラム修正は不要</strong>になります。番号はツールが自動で管理するため、手で触ることはありません。</td></tr>
+<tr><td id="placeholder">Placeholder（プレースホルダー）</td><td>まだ中身（音・見た目）が入っていない、<strong>ID だけ確保された空のデータ</strong>。プログラマーは中身が無くてもこの ID でコードを書き進められます。<a href="spec-sync.html">仕様書と同期</a>で新規行から自動的に作られるのもこれです。デザイナーが後から中身を作り込むと Placeholder ではなくなります。</td></tr>
+<tr><td id="archive">Archive（アーカイブ）/ Archived タグ</td><td>「もう使っていないかもしれない」印を付けるだけの操作で、<strong>削除ではありません</strong>。ファイルはそのまま残ります。<a href="asset-browser.html">Asset Browser</a> の「未使用...」一覧から一括で付けられます。実際に消すかどうかは人が別途「削除...」で判断します。</td></tr>
+<tr><td id="catalog">カタログ (AssetCatalog)</td><td>どの ID がどのアセットかを書いた管理台帳。Asset Browser で作れば自動で載るので、普段は意識しません。</td></tr>
+<tr><td id="previewscene">確認用シーン</td><td>ライト・カメラ・床がそろった、見た目チェック専用のシーン。各エディタの「確認用シーンを開く」で開きます（無ければ自動で作られます）。<strong>VFX / Anchor / Anim / Anim2D / Model / Prefab / Presentation の各エディタは同じ共通の確認用シーン <code>Assets/GameData/PreviewScenes/PreviewScene.unity</code> を使い回します</strong>（メニューは <code>Tools &gt; D-Drive &gt; Editors &gt; 共通確認用シーンを開く</code>）。Canvas は <code>CanvasPreviewScene</code>、揺れ・振動は <code>CameraShakePreviewScene</code>、カットシーンは <code>CutscenePreviewScene</code> という専用のシーンがあります。D-Drive のエディタは<strong>ウィンドウの中に絵を出さず、必ずシーンに置いて SceneView / Game ビューで確認</strong>します。</td></tr>
+<tr><td>識別子</td><td>アセット登録時に入力する英語の名前（例: SwordSlash）。プログラマーがコードで使う名前になります。英字大文字始まり・英数字のみ。</td></tr>
+<tr><td id="fix">修正ボタン (FixAction)</td><td><a href="validation.html">Validation</a> の警告の横に出る、その場で自動修正するボタン。付いていない警告は手で直します。</td></tr>
+<tr><td id="spawn">Spawn / Despawn<br>（スポーン / デスポーン）</td><td>シーンに出すこと / 消すこと。モデル・Prefab・VFX で使う言葉。</td></tr>
+<tr><td id="pool">プール (Pool)</td><td>出したものを捨てずに取っておいて使い回す仕組み。連射する弾やエフェクトを軽くするために使います。データの Flags の Pool で「使い回す（Pooled）」か「毎回捨てる（None、既定）」かを選びます。Pooled のときは同時に出せる上限（MaxCount）と、上限を超えたときにどれを回収するかの優先度（Priority）が効きます。</td></tr>
+<tr><td id="preload">Preload（プリロード）/ Preload リスト</td><td>シーンを開く前に、そのシーンで使う音・エフェクトなどを<strong>先読みしておく</strong>仕組み。シーンが参照している ID を自動で集めた一覧（<code>ScenePreloadList</code>）を <code>Tools &gt; D-Drive &gt; Generate &gt; Preload リストを再集計</code> で作り、ロード画面（<code>SceneLoadingScreen</code>）が進捗を見せながら読み込みます。デザイナーが個別に何か設定する項目はなく、<strong>シーンに新しい ID 参照を増やしたら、プログラマーに「Preload リストを再集計してほしい」と伝える</strong>のが唯一の注意点です（<a href="prefab-data.html">Prefab</a> の Pool の「温め」(<code>Prefabs.PreloadAsync</code>) とは別の仕組みです。あちらは同時に出せる個体をあらかじめ用意しておくもの）。</td></tr>
+<tr><td id="pausemode">ポーズ時の扱い (Pause)</td><td>ゲームを一時停止したとき、この音・エフェクトも一緒に止まるかどうかの設定（Flags の中）。PauseWithGame = 一緒に止まる / IgnorePause = 止まらない / UIOnly = UI 操作系だけ追従。</td></tr>
+<tr><td id="handle">ハンドル (Handle)</td><td>「いま再生しているこの 1 本」を指す一時的な番号。プログラム側が使うもので、デザイナーが直接触ることはありません。</td></tr>
+<tr><td id="hierarchy">ヒエラルキー<br>(Hierarchy)</td><td>Unity 画面の左側にある、シーン内に存在するモノの一覧。</td></tr>
+<tr><td id="prefab">プレハブ (Prefab)</td><td>シーンに何度でも置ける「ひな形」。エフェクトの実体（ParticleSystem など）は Prefab として作り、VFX データから参照します。</td></tr>
+<tr><td id="prefabmode">プレハブモード</td><td>Prefab の中身だけを編集する Unity の画面状態。Project で Prefab をダブルクリック、または VFX Editor / Model Editor / Anim Editor の「Prefab を開く」で入り、Hierarchy 左上の「←」で抜けます。エディタはこの状態でも再生できます（<a href="vfx-editor.html#prefab-mode">詳しくはこちら</a>）。</td></tr>
+<tr><td>プレビュー</td><td>ゲームを実行せずに、エディタ上でその場で再生して確認すること。D-Drive のプレビューは実際のゲームと同じ仕組みで再生されるので、「エディタでは良かったのに実機で違う」が起きにくいのが特長です。</td></tr>
+<tr><td id="repeat">繰り返し (Repeat)</td><td>イベント（音・エフェクト）を「毎周回」出すか、「1 回」だけか、「再生中は維持」（1 回出してモーションが終わるまで付いていき、終わると消える）か。フレーム指定だけでなく、再生開始（OnSpawn）や周回（OnLoop）のタイミングにも効きます。タイムラインで再生ヘッドを戻しても「1 回」「再生中は維持」はもう一度は出ません。<a href="anim-editor.html">Anim Editor</a> のイベント一覧で選びます。</td></tr>
+<tr><td id="validation">Validation（バリデーション）</td><td>設定ミス（ファイル未設定・矛盾した数値など）や登録漏れを自動チェックする仕組み。<code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> でプロジェクト全体を調べられ、自動で直せるものには「修正」ボタンが出ます。<a href="validation.html">使い方はこちら</a>。</td></tr>
+<tr><td id="valuedef">ValueDef（値定義）</td><td>「数値がどう変化するか」を決める共通の入力欄。定数（変わらない）/ 曲線（イージング名かベジェ）/ カーブ（自分で描く）の 3 モードと、時間（秒 / 速さ / 1 秒あたりの回数）、ループ（1 回 / 繰り返し / 行って戻る）を持ちます。UI の動き・マテリアルのアニメ・スライダーの応答曲線・2D アニメのコマ間隔などで共通して使われます。</td></tr>
+</table>
+
+<h2>音</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="bgm">BGM</td><td>背景音楽。D-Drive では「イントロ→ループ」構成やクロスフェード切替に対応。<a href="bgm-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="mixer">Mixer（ミキサー）<br>(Audio Mixer Group)</td><td>音の出力先グループ。「BGM 全体の音量」「SE 全体の音量」をまとめて調整できるようにするための仕組みです。どのグループを設定すべきかはサウンド担当の指示に従ってください。</td></tr>
+<tr><td id="se">SE（エスイー）</td><td>効果音（Sound Effect）。斬撃音・足音・ボタン音など。<a href="se-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="spatial">Spatial / 3D サウンド</td><td>音源の位置によって聞こえ方が変わる立体的な音の鳴らし方。遠いと小さく、右にあると右から聞こえます。対義語は 2D（どこでも同じ聞こえ方。UI 音など）。</td></tr>
+<tr><td id="trim">トリミング</td><td>音声の前後の不要部分（無音など）を切り落とすこと。D-Drive では元ファイルを変更しない「非破壊」方式です。<a href="audio-editor.html#trim">やり方はこちら</a>。</td></tr>
+<tr><td id="pitch">ピッチ (Pitch)</td><td>音の高さ。1 が元のまま、2 で1オクターブ高く（再生速度も倍に）、0.5 で低く（半分の速さに）なります。</td></tr>
+<tr><td id="loop">ループ (Loop)</td><td>繰り返し再生のこと。BGM や環境音は基本ループ、通常の効果音は非ループ。</td></tr>
+</table>
+
+<h2>エフェクト・位置</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="anchor">アンカー (Anchor)</td><td>エフェクトや効果音を「どこに・いつ・どう出すか」の定義。ボーン名やオブジェクト名で基準を決め、そこからのずれ（オフセット）を足します。VFX と SE で共通の仕組み。VFX / SE データの中に埋め込む方法と、単独の Anchor データ（ランダム・ディレイ・確率・入れ子つき）を作って参照する方法があります。<a href="anchor-data.html">Anchor データの作り方</a> / <a href="vfx-data.html#anchor">埋め込み項目の説明</a>。</td></tr>
+<tr><td id="anchorpoint">アンカーポイント<br>(AnchorPoint / AnchorRig)</td><td>シーンや Prefab に置く「ここに出す」という目印。SceneView でドラッグして位置を決められ、ランダムな散らばりも設定できます。<a href="vfx-data.html#anchorpoint">使い方はこちら</a>。</td></tr>
+<tr><td id="anchorgroup">配置セット<br>(Anchor Group)</td><td>格子・円・一列・ランダムなどのパターンで並べた複数の場所に、エフェクトや効果音をまとめて出すためのデータ。<a href="anchor-group.html">使い方はこちら</a>。</td></tr>
+<tr><td id="particle">パーティクルシステム<br>(ParticleSystem)</td><td>Unity 標準の粒子エフェクト機能。火花・煙・光などを小さな粒の集まりで表現します。エフェクトの見た目そのものは Prefab の中のこれで作ります。</td></tr>
+<tr><td id="vfx">VFX（ブイエフエックス）</td><td>エフェクト（Visual Effects）。斬撃・ヒット・炎・オーラなど見た目の演出。<a href="vfx-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="lightlayer">ライトレイヤー<br>(Light Layer Mask)</td><td>「どのライトの影響を受けるか」の設定。通常は Default のままで問題ありません。</td></tr>
+</table>
+
+<h2>モデル・アニメーション</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="anim">アニメーションデータ<br>(AnimData)</td><td>Clip とステート名、そして「何フレーム目で音・エフェクトを出すか」をまとめたデータ。Anim Editor でモデルを動かしながら調整します。<a href="anim-editor.html">使い方はこちら</a>。</td></tr>
+<tr><td id="anim2d">2D アニメーション<br>(Anim2D)</td><td>何枚もの絵（スプライト）をパラパラ漫画のように切り替えて動かすアニメーション。1 枚のスプライトシートから自動で切り分けて作れます。<a href="anim2d-editor.html">使い方はこちら</a>。</td></tr>
+<tr><td id="sprite">スプライト / スプライトシート</td><td>2D の 1 枚絵 / それをコマごとに格子状に並べた 1 枚の大きな画像。</td></tr>
+<tr><td id="detect">検出プレビュー</td><td>スプライトシートの中の絵を自動で見つけて、緑の枠と番号（コマ順）で見せる Anim2D Editor の機能。</td></tr>
+<tr><td id="directionset">方向セット (Four / Eight)</td><td>上下左右（4 方向）や斜めを含む 8 方向など、キャラの向きごとに別のコマアニメを持たせる仕組み。向きに応じて自動で切り替わります。</td></tr>
+<tr><td id="retiming">リタイミング</td><td>各コマの表示時間をあとから一括で変える操作。「ためて速く振る」のような緩急を付けられます。</td></tr>
+<tr><td id="blendtree">BlendTree（ブレンドツリー）</td><td>向きや速度の値に応じて複数のアニメを混ぜて再生する Animator の仕組み。8 方向アニメの登録先。</td></tr>
+<tr><td id="frame">フレーム (Frame)</td><td>アニメーションの時間の単位。Clip のフレームレート（多くは 30）で 1 秒を割ったもの。「Frame 15」は 30fps なら 0.5 秒目。</td></tr>
+<tr><td id="model">モデルデータ<br>(ModelData)</td><td>キャラクターや物体の Prefab に、マテリアルのスロットと最初に再生するアニメーションをまとめたもの。スロットのマテリアルはゲーム実行時に実際に差し替わります。<a href="model-editor.html">Model Editor</a> で確認します。</td></tr>
+</table>
+
+<h2>マテリアル・テクスチャ</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="material">マテリアル (MaterialData)</td><td>モデルの「表面の質感」（色・金属っぽさ・ツヤ・透明度・発光など）をまとめたデータ。<a href="material-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="texture">テクスチャ (TextureData)</td><td>マテリアルに貼る画像そのものを管理するデータ。用途（モデル / UI）とチャンネル（色・法線・マスク・発光）を持ち、ファイル名のルールで設定が自動で決まります。</td></tr>
+<tr><td id="shader">シェーダー</td><td>表面をどう計算して描くかのプログラム。D-Drive では <code>DDrive/Lit</code>（光を受ける）と <code>DDrive/Unlit</code>（受けない）が標準。乗り換えは Material Editor の「シェーダー変換」で。</td></tr>
+<tr><td id="channel">共通チャンネル</td><td>Albedo（素の色）・Normal（凹凸）・Mask（金属感 / ザラつき）・Emission（発光）など、シェーダーが違っても同じ意味で使える共通の入力欄。</td></tr>
+<tr><td id="specific">Specific（固有プロパティ）</td><td>共通チャンネルに収まらない、そのシェーダーだけの設定。「シェーダーから固有を同期」で自動的に並びます。</td></tr>
+<tr><td id="normalmap">法線マップ (Normal)</td><td>実際には平らな面に凹凸があるように見せる画像。ファイル名を <code>_N</code> や <code>_Normal</code> で終えると自動設定されます。</td></tr>
+<tr><td id="maskmap">マスクマップ (Mask)</td><td>金属っぽさ・遮蔽・ツヤなどを 1 枚の画像の色チャンネルにまとめたもの。ファイル名は <code>_M</code> / <code>_MaskMap</code>。</td></tr>
+<tr><td id="nineslice">9-slice（スライスボーダー）</td><td>UI 画像を引き伸ばしても角が歪まないように、四辺の余白（L,B,R,T）を指定する設定。</td></tr>
+<tr><td id="turntable">ターンテーブル</td><td>置いたモデル / 球を自動でぐるぐる回して見せる確認機能（Model Editor / Material Editor）。</td></tr>
+</table>
+
+<h2>Prefab・UI</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="prefabdata">Prefab データ (PrefabData)</td><td>ゲーム中に出したり消したりする一般の Prefab（弾・小物・ギミック）を ID で管理するデータ。<a href="prefab-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="canvas">Canvas データ (CanvasData)</td><td>メニューやダイアログなど、UI 画面 1 枚分の設定をまとめたデータ。<a href="canvas-data.html">設定項目はこちら</a>。</td></tr>
+<tr><td id="uilayer">レイヤー (UI レイヤー)</td><td>UI の重なりの階層。HUD（常時表示）/ Menu（メニュー）/ Popup（ダイアログ）/ Overlay（最前面の演出）/ Loading（ロード画面）の順に手前になります。レイヤーごとに既定の Skin・音・演出を決められます。</td></tr>
+<tr><td id="skin">Skin（スキン）</td><td>ボタンやスライダーの「見た目と音の着せ替え」。通常・ホバー・押下・選択・無効・ロックの状態ごとに色・大きさ・画像・音を持ちます。<a href="ui-skin.html">使い方はこちら</a>。</td></tr>
+<tr><td id="tween">Tween（トゥイーン）</td><td>位置・大きさ・色・透明度などを時間をかけて滑らかに変化させる演出。<a href="ui-tween.html">使い方はこちら</a>。</td></tr>
+<tr><td id="easing">イージング (Easing)</td><td>変化の緩急の付け方（最初ゆっくり最後速く、行き過ぎて戻る、など）。名前で選べます（OutBack、InOutSine …）。</td></tr>
+<tr><td id="preset">プリセット (Preset)</td><td>よく使う演出の設定をひとまとめにした「ひな形」。出現・常時・消滅・強調の 59 種類があり、プリセットギャラリーから選んで当てます。</td></tr>
+<tr><td id="elementfx">ElementFx（要素演出）</td><td>UI 画面の要素ごとに「出現（Appear）・常時（Idle）・消滅（Disappear）」の 3 場面へ演出を割り当てる仕組み。</td></tr>
+<tr><td id="stagger">スタッガー</td><td>複数の要素を少しずつ時間をずらして順番に動かすこと。ElementFx の AppearDelay で作ります。</td></tr>
+<tr><td id="signal">Signal（シグナル）</td><td>ボタンが押されたことを「<code>shop/buy</code>」のような合言葉でプログラムへ伝える仕組み。画面遷移はデータだけで組み、プログラムに知らせたい操作だけ Signal にします。</td></tr>
+<tr><td id="navigation">Navigation（ナビゲーション）</td><td>パッドの十字キー / スティックで、UI のどこからどこへフォーカスが移るかのつながり。Canvas Editor のグラフで線を引いて決めます。</td></tr>
+<tr><td id="modal">Popup / モーダル</td><td>手前に開く小窓 / その裏側への操作を受け付けない状態。確認ダイアログに使います。</td></tr>
+<tr><td id="notch">ノッチ / SnapThreshold</td><td>スライダーの目盛り / そこへ吸い付く距離。「カチカチ」と段階的に動くスライダーを作るときに使います。</td></tr>
+</table>
+
+<h2>演出・カメラ・振動・仕様書連携</h2>
+<table>
+<tr><th>用語</th><th>説明</th></tr>
+<tr><td id="presentation">演出 (Presentation / PresentationData)</td><td>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れ・振動・画面停止(ヒットストップ)などを 1 つにまとめたデータ。プログラマーは <code>Presentation.Play(…)</code> の 1 行で呼び出せます。<a href="presentation.html">設定項目・専用エディタの使い方はこちら</a>。</td></tr>
+<tr><td id="hitstop">HitStop（ヒットストップ）</td><td>一瞬だけゲーム全体の時間を止めて「打撃が重い」感触を出す演出。<a href="presentation.html">演出（Presentation）</a>の Kind の 1 つで、Params の 1 つ目に止める秒数を入れます。</td></tr>
+<tr><td id="totalduration">Total Duration（演出全体の長さ）</td><td><a href="presentation.html">演出（Presentation）</a>1 つ分の長さ(秒)。0 のままだと At Time トラックの一番遅い時刻から自動で決まりますが、On Signal のトラックだけで組んだ演出は 0 秒扱いになりすぐ終わってしまうため、忘れずに秒数を入れる必要があります。</td></tr>
+<tr><td id="trauma">トラウマ (Trauma) 方式</td><td>画面の揺れ（<a href="camera-haptics.html">カメラシェイク</a>）を複数同時に鳴らしたときの合成方法。単純な足し算にせず、最終的な揺れの強さを 0〜100% の範囲に収める仕組みで、連打しても画面が異常に揺れすぎることがありません。振動（ハプティクス）は別方式（チャンネルごとに一番強い値だけを採用）で、こちらも加算で振り切れないようにしています。</td></tr>
+<tr><td id="cosmetic">Cosmetic（コズメティック）</td><td>通信対戦で「見た目だけの演出で、勝敗や当たり判定そのものには影響しない」再生の扱い。<a href="presentation.html">演出</a>の Flags.Net が Cosmetic だと、当たった側だけでなく<strong>両方の画面に自動で同じ演出が出ます</strong>（振動はコントローラーを持つ本人だけ、というように鳴らし分けられるものもあります）。デザイナーが演出データを作るときの操作は通信対戦でもシングルプレイと同じで、特別な設定は基本的に不要です。</td></tr>
+<tr><td id="order">発注（アセット発注ツール）</td><td>「誰が・何を・いつまでに作るか」を1件まとめたもの。<a href="spec-sync.html">アセット発注ツール</a>（ブラウザで動く Web アプリ）に登録すると、D-Drive 側に<a href="#placeholder">Placeholder</a>（空のデータ）が自動でできます。<a href="#orderstatus">状態</a>は発注済/納品済/インポート済の3段階。</td></tr>
+<tr><td id="orderer">発注者 / 受注者</td><td><a href="spec-sync.html">アセット発注ツール</a>における 2 つの役割。発注者は依頼する側（企画など）、受注者は実際に中身を作る側（デザイナーなど）。どちらもガントの担当者マスタから取り込んだ表記（例:「山口(PRG)」）で選びます。</td></tr>
+<tr><td id="ordergroup">Presentation 発注グループ</td><td><a href="presentation.html">演出（Presentation）</a>1 つを親にして、その演出に必要な SE・VFX・カメラ揺れなどの<a href="#order">発注</a>を子としてまとめる仕組み。親を持たない発注は「単体」として扱われます。<a href="spec-sync.html">アセット発注ツール</a>の「発注ツリー」画面で確認できます。</td></tr>
+<tr><td id="orderstatus">発注の状態（発注済 / 納品済 / インポート済）</td><td><a href="#order">発注</a>が進む3段階。発注済→納品済は受注者が手動で進めますが、<strong>納品済→インポート済は手動では選べず</strong>、D-Drive 側で <a href="#placeholder">Placeholder</a> が解消された(Validation の Error が無い)ことが同期で確認できたときに自動で進みます。詳しくは<a href="spec-sync.html#status">仕様書との同期のページ</a>。</td></tr>
+<tr><td>アーカイブ（発注ツール）</td><td><a href="#archive">Archive</a> と同じ「削除ではない」考え方を、<a href="spec-sync.html">アセット発注ツール</a>側の発注・Presentation 発注グループにも適用したもの。一覧の「アーカイブ済みを表示」で再表示でき、詳細画面の「元に戻す」でいつでも戻せます。</td></tr>
+<tr><td id="markdown">Markdown（マークダウン）</td><td>見出し・太字・箇条書き・リンクなどを簡単な記号（<code>##</code>・<code>**太字**</code>・<code>- 項目</code>・<code>[文言](URL)</code> 等）で書ける文書形式。<a href="spec-sync.html">アセット発注ツール</a>の発注メモ（リファレンス）で使われ、専用の書式ボタン(Ctrl+B・Ctrl+K のショートカットつき)で記号を覚えなくても入力できます。</td></tr>
+<tr><td id="specsync">仕様書同期</td><td>企画が<a href="spec-sync.html">アセット発注ツール</a>（ブラウザで動く Web アプリ）に登録した<a href="#order">発注</a>を、D-Drive の<a href="#placeholder">Placeholder</a>（空のデータ）に変換する機能。<code>Tools &gt; D-Drive &gt; 仕様書と同期</code>で行う。詳しくは<a href="spec-sync.html">仕様書との同期のページ</a>。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップへ戻る</a></li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a> / <a href="validation.html">Validation の使い方</a></li>
+<li><a href="se-data.html">SE の設定項目</a> / <a href="bgm-data.html">BGM の設定項目</a> / <a href="audio-editor.html">Audio Editor</a> / <a href="scene-sound.html">シーンに環境音を置く</a></li>
+<li><a href="vfx-data.html">VFX の設定項目</a> / <a href="vfx-editor.html">VFX Editor</a> / <a href="anchor-data.html">Anchor</a> / <a href="anchor-group.html">配置セット</a></li>
+<li><a href="model-editor.html">モデル</a> / <a href="anim-editor.html">アニメーション（3D）</a> / <a href="anim2d-editor.html">2D アニメーション</a></li>
+<li><a href="material-data.html">マテリアル / テクスチャ</a> / <a href="material-editor.html">Material Editor</a></li>
+<li><a href="prefab-data.html">Prefab</a> / <a href="canvas-data.html">Canvas</a> / <a href="canvas-editor.html">Canvas Editor</a> / <a href="ui-skin.html">Skin</a> / <a href="ui-tween.html">UI Tween</a></li>
+<li><a href="presentation.html">演出（Presentation）</a> / <a href="camera-haptics.html">画面の揺れ・振動</a> / <a href="spec-sync.html">アセット発注ツールとの同期</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

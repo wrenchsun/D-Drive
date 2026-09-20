@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>シーンに環境音を置く（SeEmitter） | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › シーンに環境音を置く（SeEmitter）</nav>
+
+<h1>シーンに環境音を置く（SeEmitter）</h1>
+<p class="lastupdate">最終更新日: 2026-09-17</p>
+
+<p>滝の音、焚き火のパチパチ音、機械のうなり音——「その場所に近づくと聞こえてくる音」は、<strong>SeEmitter（エスイー・エミッター）</strong> という部品をシーンに置くだけで実現できます。プログラムは不要です。</p>
+
+<h2>手順</h2>
+<ol>
+<li>まず鳴らしたい音を SE として登録しておく（→ <a href="asset-browser.html">Asset Browser の使い方</a>）。このとき:
+<ul>
+<li><strong>Loop にチェック</strong>（鳴りっぱなしにするため）</li>
+<li><strong>Spatial を Anchor に</strong>（近づくと聞こえるようにするため）</li>
+<li>Min / Max Distance で聞こえる範囲を調整（→ <a href="se-data.html">SE の設定項目</a>）</li>
+</ul></li>
+<li>Project ウィンドウの <code>Assets/GameData/Prefabs/Audio/SeEmitter</code>（プレハブ = 使い回せる部品のひな形）を、Hierarchy（ヒエラルキー）ウィンドウへドラッグ＆ドロップし、音を鳴らしたい場所に移動する</li>
+<!-- screenshot: 36-#18 -->
+<li>置いた SeEmitter の <code>Se Id</code> 欄をクリック → 一覧から登録した音を選ぶ</li>
+</ol>
+
+<figure>
+<img src="images/scene-sound-drag-emitter.png" alt="SeEmitter プレハブを Hierarchy へドラッグしている様子">
+<figcaption>Project の SeEmitter プレハブを Hierarchy へドラッグする</figcaption>
+</figure>
+
+<div class="tip">
+<strong>プレハブが見つからない場合:</strong> メニューの <code>Tools</code> → <code>D-Drive</code> → <code>Generate</code> → <code>標準プレハブを生成</code> を一度実行すると作られます。空のオブジェクトに自分で <code>Add Component</code> して組むこともできますが、ひな形のプレハブを使う方が設定漏れがなくおすすめです。
+</div>
+
+<p>これで、ゲームを実行するとそのオブジェクトの有効化と同時に音が鳴り始め、オブジェクトが無効化・削除されると止まります。</p>
+
+<h2>音の選択欄（Se Id）について</h2>
+<ul>
+<li>クリックすると検索付きの一覧が開きます。表示名で選べます</li>
+<li><strong>赤く表示されている場合</strong>: 選ばれている音が削除されている等、正しく参照できていません。選び直してください</li>
+<li>&lt;None&gt; のままだと何も鳴りません</li>
+</ul>
+
+<h2>よくある「鳴らない」チェックリスト</h2>
+<ol>
+<li>SE データの <strong>Loop にチェック</strong>が入っているか（入っていないと一瞬鳴って終わり）</li>
+<li>SE データの <strong>Spatial が None になっていないか</strong>（None だと距離に関係なく鳴るため、環境音としては不自然になります）</li>
+<li><strong>Max Distance が小さすぎないか</strong>（その範囲に近づかないと聞こえません）</li>
+<li>Volume が 0 になっていないか</li>
+</ol>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="se-data.html">SE（効果音）の設定項目</a> — Loop / Spatial / 距離の設定</li>
+<li><a href="audio-editor.html">Audio Editor の使い方</a> — 聞こえる範囲を耳で確認</li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

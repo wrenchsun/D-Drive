@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Audio / BGM API | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Audio / BGM API</nav>
+
+<h1>Audio / BGM API</h1>
+
+<p>効果音（SE）は静的ファサード <code>DDrive.Runtime.Audio.Audio</code>、BGM も同じ <code>Audio</code> クラスにまとめられています（実体は <code>AudioManager</code> と <code>BgmManager</code> の 2 つで、<code>Audio</code> はその両方への薄い窓口です）。実装: <code>Packages/com.ddrive.core/Runtime/Audio/Audio.cs:11</code>。</p>
+<p>データの作り方（音量・ピッチ・ループ点・フェード時間などパラメータの意味）は <a href="../DesignerManual/se-data.html">デザイナーマニュアル: SE の設定項目</a> / <a href="../DesignerManual/bgm-data.html">BGM の設定項目</a> / <a href="../DesignerManual/audio-editor.html">Audio Editor の使い方</a> / <a href="../DesignerManual/scene-sound.html">シーン内の音（環境音）</a>を参照してください。このページはコードからどう呼ぶかだけを扱います。</p>
+
+<div class="tip">
+<strong>未 Bind でも例外にならない:</strong> <code>DDriveRuntimeBootstrap</code> が起動する前（<a href="bootstrap.html">起動配線</a>参照）に <code>Audio.PlaySe(...)</code> を呼んでも、内部の <code>_seInstance</code> / <code>_bgmInstance</code> が <code>null</code> のため何も鳴らさず、無効な <code>Handle&lt;SeMarker&gt;</code>（<code>Handle&lt;SeMarker&gt;.Invalid</code>）を返すだけで処理が継続します。
+</div>
+
+<h2>SE（効果音）</h2>
+
+<h3>Bind / IsBound</h3>
+<div class="sig">static void Bind(AudioManager instance)
+static void Bind(BgmManager instance)
+static bool IsBound  // SE 側・BGM 側の両方が Bind 済みのとき true</div>
+<p>通常は <code>DDriveRuntimeBootstrap</code> が自動で Bind するため、ゲームコードから呼ぶことはありません。</p>
+
+<h3>PlaySe — 4 通りの呼び方</h3>
+<div class="sig">static Handle&lt;SeMarker&gt; PlaySe(SeId id)
+static Handle&lt;SeMarker&gt; PlaySe(SeId id, Vector3 pos)
+static Handle&lt;SeMarker&gt; PlaySe(SeId id, Transform contextRoot)
+static Handle&lt;SeMarker&gt; PlaySe(SeId id, AnchorId anchor)
+static Handle&lt;SeMarker&gt; PlaySe(SeId id, AnchorId anchor, Transform contextRoot)</div>
+<table>
+<tr><th>オーバーロード</th><th>用途</th></tr>
+<tr><td><code>PlaySe(id)</code></td><td>位置に依存しない SE（UI クリック音、非 3D 音など）を再生する</td></tr>
+<tr><td><code>PlaySe(id, pos)</code></td><td>ワールド座標 <code>pos</code> で 3D 再生する</td></tr>
+<tr><td><code>PlaySe(id, contextRoot)</code></td><td><code>contextRoot</code>（発生源の Transform）に追従させて再生する。Anchor が Data 側に設定されていれば、その Anchor を <code>contextRoot</code> 基準で解決する</td></tr>
+<tr><td><code>PlaySe(id, anchor)</code> / <code>PlaySe(id, anchor, contextRoot)</code></td><td>再生する Anchor アセットをコード側から明示する</td></tr>
+</table>
+<pre><code>Audio.PlaySe(SEID.PlayerSlash);
+Audio.PlaySe(SEID.PlayerSlash, transform.position);
+Audio.PlaySe(SEID.FootStep, transform);</code></pre>
+
+<div class="tip">
+<strong>AnchorId オーバーロードは優先度が最も高い:</strong> <code>PlaySe(id, anchor)</code> / <code>PlaySe(id, anchor, contextRoot)</code> でコード側から渡した Anchor は、SeData に設定された <code>AnchorId</code> や埋め込み Anchor より優先して使われます（<a href="../DesignerManual/anchor-data.html">デザイナーマニュアル: Anchor</a>参照）。データ側の既定 Anchor をコードから一時的に上書きしたいときに使います。
+</div>
+
+<h3>Stop</h3>
+<div class="sig">static void Stop(Handle&lt;SeMarker&gt; h, float fade = 0f)</div>
+<p><code>fade</code> は 0 なら即時停止、0 より大きい値なら、その秒数でフェードアウトしてから Pool に返却されます（再生中でない Handle には無害）。</p>
+
+<h2>BGM</h2>
+
+<h3>PlayBgm</h3>
+<div class="sig">static void PlayBgm(BgmId id, float fadeIn = -1f)</div>
+<p><code>fadeIn</code> を省略（既定値 <code>-1f</code>）すると、<code>BgmData</code> 側に設定された <code>FadeIn</code> カーブがそのまま使われます。0 以上の値を渡すと、その秒数の線形フェードでその回だけ上書きします。すでに何か再生中の状態でこれを呼ぶと、内部的にクロスフェードで切り替わります。</p>
+<pre><code>Audio.PlayBgm(BGMID.TitleTheme);          // BgmData の FadeIn を使う
+Audio.PlayBgm(BGMID.BattleTheme, 0.5f);   // 0.5 秒でフェードインしてこの回だけ上書き</code></pre>
+
+<h3>StopBgm</h3>
+<div class="sig">static void StopBgm(float fadeOut = -1f)</div>
+<p><code>fadeOut</code> の意味は <code>fadeIn</code> と同じ考え方で、省略時（<code>-1f</code>）は現在再生中のトラックの <code>BgmData.FadeOut</code> を使います。</p>
+
+<h3>CrossFade</h3>
+<div class="sig">static void CrossFade(BgmId next, float duration)</div>
+<p>次のトラック <code>next</code> へ、フェードイン・フェードアウトとも <code>duration</code> 秒で明示的に切り替えます（<code>PlayBgm</code> と違い、データ側の FadeIn/FadeOut は使わず必ず <code>duration</code> が優先されます）。</p>
+
+<div class="warn">
+<strong>Intro（イントロ付き BGM）はクロスフェードでは使われません。</strong> <code>BgmData.Intro</code> は「無音から再生を始める最初の 1 回」専用です。何か再生中の状態から <code>PlayBgm</code> / <code>CrossFade</code> で切り替えると、Intro を飛ばしてループ本体（<code>LoopBody</code>）から始まります（2 チャンネル構成のため、フェードアウト中の旧トラック・新トラックの Intro・新トラックの Loop の 3 系統を同時には扱えない設計上の制約です）。
+</div>
+
+<h2>Handle の扱い</h2>
+<p><code>PlaySe</code> は再生インスタンスを指す <code>Handle&lt;SeMarker&gt;</code> を返します。BGM 側（<code>PlayBgm</code> / <code>StopBgm</code> / <code>CrossFade</code>）は内部で 2 チャンネルを使い回す設計のため、個別の Handle は返しません。Handle の一般的な扱い方（無効化・世代管理）は <a href="handle.html">handle.html</a> を参照してください。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ</a></li>
+<li><a href="bootstrap.html">起動配線（DDriveRuntimeBootstrap）</a></li>
+<li><a href="handle.html">Handle の扱い方</a></li>
+<li><a href="../DesignerManual/se-data.html">デザイナーマニュアル: SE の設定項目</a></li>
+<li><a href="../DesignerManual/bgm-data.html">デザイナーマニュアル: BGM の設定項目</a></li>
+<li><a href="../DesignerManual/audio-editor.html">デザイナーマニュアル: Audio Editor の使い方</a></li>
+<li><a href="../DesignerManual/scene-sound.html">デザイナーマニュアル: シーン内の音（環境音）</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

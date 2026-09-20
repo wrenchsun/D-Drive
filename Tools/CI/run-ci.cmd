@@ -41,11 +41,30 @@ echo.
 
 set "OVERALL_EXIT=0"
 
+REM P-9([11_tasks.md]、[42_distribution.md] §5.11-10)— CHANGELOG ガード。互換性スナップショット
+REM (Packages/com.ddrive.core/Tests/Editor/Compat/Snapshots/**)が変わっているのに CHANGELOG.md/version
+REM が変わっていなければ fail する。Unity を起動しないため最初に実行する(pwsh が無ければスキップするだけ
+REM で CI 全体は落とさない。ローカル環境に pwsh が無いことがあるため)。
+where pwsh >nul 2>nul
+if "%ERRORLEVEL%"=="0" (
+    echo [1/8] CHANGELOG ガード (check-release.ps1 -GuardOnly) を実行します...
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\Release\check-release.ps1" -GuardOnly
+    if not "%ERRORLEVEL%"=="0" (
+        echo [FAIL] CHANGELOG ガード。互換性スナップショットの変更に対して CHANGELOG.md/version の更新が不足しています。
+        set "OVERALL_EXIT=1"
+    ) else (
+        echo [OK] CHANGELOG ガード
+    )
+) else (
+    echo [1/8] CHANGELOG ガード: pwsh が見つからないためスキップします
+)
+echo.
+
 REM P-7([11_tasks.md]、[42_distribution.md] §4.3・§4.2 手順 6)— 未適用のマイグレーション
 REM (DDriveMigrationRunner)があれば、Validation より前に検知して fail する。ValidateAll だけだと
 REM 「SchemaVersion が古い」は Warning 止まり(§5.8 の 2 段階ルール)で CI を落とさないため、
 REM 別ステップとして先に強く検知する。
-echo [1/7] マイグレーションの未適用チェック (CI.MigrateCheck) を実行します...
+echo [2/8] マイグレーションの未適用チェック (CI.MigrateCheck) を実行します...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.MigrateCheck -logFile "%RESULTS_DIR%\migrate-check.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] 未適用のマイグレーションがあります。Tools ^> D-Drive ^> Update ^> マイグレーション^(適用^) を実行してください。ログ: %RESULTS_DIR%\migrate-check.log
@@ -55,7 +74,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [2/7] Validation (CI.ValidateAll) を実行します...
+echo [3/8] Validation (CI.ValidateAll) を実行します...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.ValidateAll -ddriveOutput "%RESULTS_DIR%\ddrive-validation.junit.xml" -logFile "%RESULTS_DIR%\validate.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Validation で Error が見つかりました。ログ: %RESULTS_DIR%\validate.log
@@ -65,7 +84,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [3/7] Asset ID 再生成 ^(CI.RegenerateIds^) + git diff 確認 を実行します...
+echo [4/8] Asset ID 再生成 ^(CI.RegenerateIds^) + git diff 確認 を実行します...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.RegenerateIds -logFile "%RESULTS_DIR%\regenerate-ids.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Asset ID 再生成に失敗しました^(重複 ID 等^)。ログ: %RESULTS_DIR%\regenerate-ids.log
@@ -83,7 +102,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [4/7] EditMode テストを実行します...
+echo [5/8] EditMode テストを実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform EditMode -testResults "%RESULTS_DIR%\editmode-results.xml" -logFile "%RESULTS_DIR%\editmode.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] EditMode テスト。ログ: %RESULTS_DIR%\editmode.log
@@ -93,7 +112,7 @@ if not "%ERRORLEVEL%"=="0" (
 )
 echo.
 
-echo [5/7] PlayMode テストを実行します...
+echo [6/8] PlayMode テストを実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testResults "%RESULTS_DIR%\playmode-results.xml" -logFile "%RESULTS_DIR%\playmode.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] PlayMode テスト。ログ: %RESULTS_DIR%\playmode.log
@@ -107,7 +126,7 @@ REM 6-2(パフォーマンス計測・0 alloc 検証): DDrive.Tests.Performance(
 REM PlayMode で実行する。GitHub Actions 側の CI(.github\workflows\ci.yml)は P7 末の CI 導入まで
 REM このステップを実処理化しない(2026-09-15 ユーザー決定)ため、当面はローカル実行がこの一式の
 REM 唯一の実行経路になる。
-echo [6/7] Performance テスト(0 alloc 検証、DDrive.Tests.Performance)を実行します...
+echo [7/8] Performance テスト(0 alloc 検証、DDrive.Tests.Performance)を実行します...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testCategory "Performance" -testResults "%RESULTS_DIR%\performance-results.xml" -logFile "%RESULTS_DIR%\performance.log"
 if not "%ERRORLEVEL%"=="0" (
     echo [FAIL] Performance テスト。ログ: %RESULTS_DIR%\performance.log
@@ -122,10 +141,10 @@ REM 2 クライアント自動テスト(Tools\CI\run-netcheck.cmd)を実行す�
 REM(このステップは Unity Editor でのビルドを前提にしており、run-ci.cmd 自体はビルドしないため)
 REM スキップするだけで CI 全体を失敗させない([11_tasks.md] 6-7、CI 本稼働は P7 末のため任意ステップ扱い)。
 if exist "%PROJECT_PATH%\Builds\DDriveNetCheck\DDriveNetCheck.exe" (
-    echo [7/7] NetCheck^(6-7、2 クライアント自動テスト^)を実行します...
+    echo [8/8] NetCheck^(6-7、2 クライアント自動テスト^)を実行します...
     call "%~dp0run-netcheck.cmd"
     REM 2026-09-17 修正: 括弧ブロックの中では %ERRORLEVEL% はブロックに入る前の値
-    REM ＝ここでは [6/7] Performance の結果 に展開されるため、call の結果は
+    REM ＝ここでは [7/8] Performance の結果 に展開されるため、call の結果は
     REM !ERRORLEVEL!＝遅延展開 で読む。さらに call 先の chcp 等で ERRORLEVEL が
     REM 上書きされる余地を潰すため、直後に NETCHECK_EXIT へ退避してから判定する。
     set "NETCHECK_EXIT=!ERRORLEVEL!"
@@ -136,7 +155,7 @@ if exist "%PROJECT_PATH%\Builds\DDriveNetCheck\DDriveNetCheck.exe" (
         echo [OK] NetCheck
     )
 ) else (
-    echo [7/7] NetCheck: ビルド済み exe が無いためスキップします
+    echo [8/8] NetCheck: ビルド済み exe が無いためスキップします
     echo        ^(Tools ^> D-Drive ^> Build ^> 実機確認用 Windows 開発ビルド の後に Tools\CI\run-netcheck.cmd を単体実行できます^)
 )
 echo.

@@ -186,6 +186,7 @@
 <p>D-Drive の「Server」は MS2026 の「Host」と同じ意味です。権威は Host にあり、<strong>Broadcast/SendTo は Host から呼ぶのが正規経路</strong>です。Client が Cosmetic 演出（SE/VFX 等）を出したいときは Server 宛 RPC で Host に「依頼」し、Host がレート制限と型登録を検証したうえで全員へ配ります（前節）。</p>
 <p><strong>発行者検証（<code>HandleNetKey</code>）</strong>: <code>PresentationManager</code> は演出ごとに発行する <code>HandleNetKey</code>（32bit）の上位 8bit に発行者（<code>LocalClientId</code> の下位 8bit）を埋め込み、<code>IsAuthorizedSender(senderId, handleNetKey)</code>（発行者一致、または Host からの信頼された中継/再送）で Signal/Cancel/Play を検証してから処理します。不一致は警告して破棄されます。この検証が機能するには「中継されたメッセージの送信元が誰か」を正しく伝える必要があり、以前は <code>NgoNetBridge.Dispatch</code> が受信メッセージの送信元を常に <code>NetworkManager.ServerClientId</code>（＝ Host）としてしまうバグがあり、発行者検証が原理的に機能していませんでした。<code>RequestBroadcastRpc</code> が <code>rpcParams.Receive.SenderClientId</code>（トランスポートが付与する真の値、Client は偽装できない）をそのまま中継するよう修正されています。</p>
 <p>未知のキー宛の Signal/Cancel（対象の演出が既に完了している、または最初から存在しない）は、開発ビルドではキーごとに 1 回だけ「未知のキー、または対象の演出が既に完了しているため破棄しました」という警告ログを出します。</p>
+<p><strong>Host 以外による判定結果の偽装対策（2026-09-18 修正）</strong>: カタログ ContentHash の判定結果（<code>CatalogContentHashResultMsg</code>）は本来 Host だけが送るメッセージですが、<code>NgoNetBridge.Broadcast</code> は Client 発でも型登録済みのメッセージなら中継してしまうため、改造 Client が <code>Matched=true</code> を偽って送ると、Host が下した本物の不一致判定を上書きできてしまう欠陥がありました。<code>CatalogContentHashGate</code> に <code>HostClientId</code>（NGO の <code>ServerClientId</code>）を追加し、<code>OnReceiveResultMsg</code> の先頭で送信元が Host と一致するかを検証する（<code>PresentationManager.IsAuthorizedSender</code> と同じ発行者検証の考え方）ことで修正済みです。回帰テストは <code>Tests/Runtime/CatalogContentHashGateTests.cs</code> の <code>ClientSide_ForgedResultFromNonHostSender_IsIgnored</code>。詳細は <code>docs/14_networking.md</code> §7 実装メモ（2026-09-18）を参照してください。同じ形の穴が <code>NetPongMsg</code>（RTT 計測）にもあり、<code>NgoNetBridge.OnPongMsgReceived</code> の送信元検証で同様に修正済みです（2026-09-19、同ページ参照）。</p>
 
 <h2 id="version-check">D-Drive の版照合（<code>ProtocolVersion</code>、2026-09-20 追加）</h2>
 <p>接続時のカタログ ContentHash 照合（<code>CatalogContentHashGate</code>）は、GameData の内容を比較する前に<strong>まず D-Drive 自体の版</strong>を照合します。<code>CatalogContentHashMsg</code> に <code>PackageVersion</code>（string、表示専用）と <code>ProtocolVersion</code>（int、<code>Foundation/Net/DDriveProtocol.Current</code>）が乗っており、Host は受信した <code>ProtocolVersion</code> が自分の <code>DDriveProtocol.Current</code> と一致するかを<strong>ContentHash の比較より先に</strong>見ます。</p>
@@ -215,15 +216,8 @@
 </table>
 
 <h2 id="known-gaps">既知の制約</h2>
-<div class="warn">
-<strong>ネット系のテストの穴が 5 件残っています</strong>（<code>docs/41_phase6_review_2026-09-17.md</code>「テストの穴」節より）。実装自体は動作確認済みですが、以下は回帰を防ぐ自動テストがまだありません。新しいネット機能を追加する際はここも一緒に埋めることを検討してください。
-<ol>
-<li>偽造 <code>CatalogContentHashResultMsg</code> — <code>OnReceiveResultMsg</code> は送信元を見ずに Host でなければ誰からの Result でも状態を書き換えてしまう経路が未検証</li>
-<li>Host のカタログ登録前に届いたハッシュの保留 → 登録完了時のフラッシュが未テスト</li>
-<li>タイムアウト経由の切断で <code>ClientDisconnectedForMismatch</code> が発火することの確認が不足（既存は呼び出し回数だけを見ている）</li>
-<li>保留バッファ経由の偽造 — 「非発行者からの Signal が Play より先に届いた場合、Play 到着後にも適用されない」ことを直接固定するテストが無い（保留 Cancel の Play 後適用も同様）</li>
-<li>Cancel のレート制限（非 Host の Client 発）— Signal と同じ「61 件目破棄」のテストが Cancel には無い</li>
-</ol>
+<div class="tip">
+<strong>ネット系のテストの穴 5 件は解消済みです</strong>（<code>docs/41_phase6_review_2026-09-17.md</code>「テストの穴」節、2026-09-18 対応）。偽造 <code>CatalogContentHashResultMsg</code>（上記「Host 権威モデルと偽造メッセージの検証」参照）・Host のカタログ登録前に届いたハッシュの保留のフラッシュ・タイムアウト経由の切断時の <code>ClientDisconnectedForMismatch</code> 発火・保留バッファ経由の偽造 Signal/Cancel・Cancel のレート制限（非 Host の Client 発）の 5 件すべてに回帰テストを追加済みです。実バグが見つかったのは <code>CatalogContentHashResultMsg</code>（送信元検証漏れ）の 1 件のみで、残り 4 件は追加したテストも green（実装は元々正しかった）でした。
 </div>
 
 <h2 id="see-also">見送り事項（現状のスコープ外）</h2>

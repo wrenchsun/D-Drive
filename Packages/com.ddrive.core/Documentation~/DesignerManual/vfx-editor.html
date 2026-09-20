@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>VFX Editor の使い方 | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › VFX Editor の使い方</nav>
+
+<h1>VFX Editor の使い方</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
+
+<p>VFX Editor は、エフェクト（<span class="term" title="Unity の ParticleSystem などで作られた、火花・斬撃・煙などの見た目の演出">VFX</span>）を<strong>ゲームを実行せずにその場で再生しながら</strong>調整するウィンドウです。できること:</p>
+<ul>
+<li>シーンの中で実際に再生して見た目を確認（ライトや背景込み）</li>
+<li>「どこに出すか」（<a href="vfx-data.html#anchor">Anchor</a>）を、スライダーや SceneView のドラッグで調整</li>
+<li>色やサイズなどの公開パラメータを、再生中にその場で変更</li>
+<li>複数のエフェクトを同時に出して重なりを確認</li>
+<li>エフェクトの Prefab を開いて、ParticleSystem を編集しながらそのまま再生</li>
+</ul>
+
+<h2>開き方</h2>
+<ol>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; VFX</code></li>
+<li>一番上の「対象アセット」欄に調整したい VFX データを入れる（<a href="asset-browser.html">Asset Browser</a> や Project ウィンドウで選択すると自動で入ります）</li>
+</ol>
+
+<div class="tip">
+<strong>最初に「確認用シーンを開く」を押してください。</strong> エフェクトは今開いているシーンの中に出るので、カメラやライトの無いシーンだと真っ暗で見えません。ツールバーの「確認用シーンを開く」で、ライト・カメラ・床の揃った確認専用シーンが開きます（無ければ自動で作られます）。カメラやライトが無いシーンを開いていると、ウィンドウ上部に黄色い警告が出ます。
+</div>
+
+<figure>
+<img src="images/vfx-editor-window.png" alt="VFX Editor ウィンドウ全体">
+<figcaption>VFX Editor。上から「ツールバー」「対象アセット・スポーン先」「再生コントロール」「基本設定」「Anchor」「パラメータ」「イベント」「複数同時再生」「検証」（画像が表示されない場合は準備中です）</figcaption>
+</figure>
+
+<h2>ツールバー</h2>
+<table>
+<tr><th>ボタン</th><th>説明</th></tr>
+<tr><td>🔒 対象を固定</td><td>ON にすると、Project ウィンドウで別のものを選んでも対象が切り替わりません。他のアセットを見ながら 1 つを調整したいときに。</td></tr>
+<tr><td>確認用シーンを開く</td><td>VFX 確認用シーンを開く（無ければ生成）。ライト・カメラ・ポストプロセス・床が入っています。</td></tr>
+<tr><td>Prefab を開く</td><td>対象 VFX の Prefab を<span class="term" title="Prefab の中身だけを編集する専用モード。Hierarchy が Prefab の中身だけの表示になる">プレハブモード</span>で開きます。ParticleSystem そのものを編集したいときに（下の「<a href="#prefab-mode">Prefab の中で再生する</a>」参照）。</td></tr>
+<tr><td>Project で表示</td><td>対象アセットを Project ウィンドウでハイライト。</td></tr>
+</table>
+
+<h2>スポーン先</h2>
+<p>「スポーン先」に、シーン内のキャラクターや <a href="vfx-data.html#anchorpoint">AnchorRig</a> を入れると、Anchor で指定したボーン名などを<strong>その中から探して</strong>そこに出します。空のままなら、Anchor のオフセットがそのままワールド座標になります。</p>
+
+<h2>再生コントロール</h2>
+<table>
+<tr><th>操作</th><th>説明</th></tr>
+<tr><td>▶ 再生 / ■ 停止</td><td>ゲームを実行せずにその場で再生。SceneView を見てください。Hierarchy には「[D-Drive] VFX Preview」という一時的な入れ物が現れ、その下にエフェクトが出ます（シーンには保存されません）。Anchor に生成ディレイを設定した VFX も、遅れて出た分がこの入れ物にまとめられ、■ 停止でちゃんと消えます。</td></tr>
+<tr><td>⏸ 一時停止</td><td>出ている粒子が止まります。「止める」指示のあとのフェードアウト（Fade Out Sec）の残り時間も一緒に止まります。再開すると残っている粒子の動きだけ戻り、新しい粒子の放出は再開しません。</td></tr>
+<tr><td>リピート</td><td>ON にすると、1 回で終わるエフェクト（OneShot / Duration）が終わるたびに自動でもう一度出ます。何度も ▶ を押さずに調整できます。ずっと出続けるエフェクト（Loop）には関係ありません。</td></tr>
+<tr><td>速度</td><td>再生速度（0.1〜2 倍）。ゆっくりにして細部を見る、速くして全体の印象を見る、といった使い方。データには保存されません。</td></tr>
+<tr><td>ステータス</td><td>「● 再生中」「■ 停止中」の表示。</td></tr>
+</table>
+
+<h2>基本設定（Prefab / 寿命 / 描画）</h2>
+<p>VFX データの主要な項目をこのウィンドウ内で直接編集できます。項目の意味は <a href="vfx-data.html">VFX の設定項目</a> を見てください。Prefab を差し替えると、再生中なら自動で新しい Prefab に出直します。</p>
+
+<h2 id="anchor">Anchor（アタッチ位置）の調整</h2>
+<p>欄の先頭の「Anchor アセット」に <a href="anchor-data.html">Anchor データ</a>を入れると、そちらが優先され、下の埋め込み欄は畳まれます（位置の調整は「AnchorEditor で開く」から、または下の SceneView のハンドルで）。「埋め込みをアセット化」で今の設定から Anchor データを作ることもできます。以下は埋め込み欄の説明です。</p>
+<p>「エフェクトをどこに出すか」を決めます。<strong>再生中に動かすと、出ているエフェクトがその場で動きます</strong>（停止→再生の押し直しは不要）。</p>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Space</td><td>基準の決め方。<strong>World</strong>=固定座標 / <strong>BoneName・NamedObject</strong>=スポーン先の中から Path の名前を探す / <strong>ContextTarget</strong>=スポーン先そのもの。</td></tr>
+<tr><td>Path（ボーン/オブジェクト名）</td><td>探す名前。手入力せず、右の「<strong>一覧から選択</strong>」を使ってください。スポーン先の中にあるボーン・オブジェクトが一覧で出ます。★ 付きは <a href="vfx-data.html#anchorpoint">AnchorPoint</a>（アンカー専用の目印）です。選ぶと Space も自動で切り替わります。</td></tr>
+<tr><td>解決: ✓ / ⚠</td><td>今の設定で基準が見つかっているかの表示。「⚠ … が見つかりません」なら名前を確認、「⚠ スポーン先が未指定」なら上の「スポーン先」を設定してください。</td></tr>
+<tr><td>高さオフセット(Y) / 向き(Euler Y)</td><td>基準からの高さと向き。スライダーで動かすとその場で反映。</td></tr>
+<tr><td>2D パッド</td><td>上から見た前後左右（X/Z）のずれ。四角の中をドラッグ。</td></tr>
+<tr><td>スケール</td><td>エフェクト全体の大きさ倍率。(0,0,0) は 1 扱い。</td></tr>
+<tr><td>回転追従</td><td>ON にすると、基準（ボーンなど）が回転したときにエフェクトも一緒に回ります。</td></tr>
+<tr><td>親消滅後も残す</td><td>ON にすると、基準のキャラクターが消えてもエフェクトはその場に残って最後まで再生されます（斬撃の軌跡など）。</td></tr>
+<tr><td>SceneView 表示</td><td>ON にすると SceneView のエフェクト位置に目印が出て、<strong>このウィンドウを最後にクリックしていれば</strong>移動ハンドル（矢印）も出ます。ドラッグで直接動かせ、値はこのウィンドウに戻ってきます。回転ツール（E キー）に切り替えると回転ハンドルになります。OFF にすると何も描きません。Anchor Editor など他の D-Drive ウィンドウも開いているときは、最後にクリックしたウィンドウだけがハンドルを出し、他は薄い目印だけになります（下の「SceneView: …が描画中」の案内で確認できます）。</td></tr>
+</table>
+<figure>
+<img src="images/vfx-editor-anchor-handle.png" alt="VFX Editor と SceneView の移動ハンドル">
+<figcaption>VFX Editor（右）と SceneView（左）。「SceneView 表示」が ON のとき、エフェクトの位置に基準・線・移動ハンドルが出る</figcaption>
+</figure>
+<div class="tip">
+<strong>Anchor アセットを使っているときも SceneView で動かせます:</strong> 「Anchor アセット」を設定した VFX でも、Anchor Editor と同じ表示（基準 → 入れ子の各段 → 最終位置を点線と線で結び、ランダム半径を円で表示）が出て、最終位置のハンドルをドラッグするとその位置に動かせます（ラベルに「Anchor アセットを編集」と出ます）。Ctrl+Z で戻せます。<strong>ただし動かすのは VFX 自身ではなく、参照している Anchor データそのものです。</strong>同じ Anchor を使っている他の VFX・SE の位置も一緒に変わります。この VFX だけ動かしたいときは、「埋め込みをアセット化」ではなく、Anchor アセット欄を外して埋め込みの設定を使ってください。
+</div>
+<div class="tip">
+Ctrl+Z / Ctrl+Y で戻せます。ウィンドウの値・出ているエフェクトの位置・SceneView の表示が一緒に戻ります。
+</div>
+
+<h2>パラメータ（再生中は即時反映）</h2>
+<p>VFX データで「公開」した項目（色・サイズなど）が並びます。再生中に変えると出ているエフェクトにその場で反映されるので、色味の調整に便利です。ここで変えた値は<strong>データの既定値として保存されます</strong>。</p>
+<p>「定義の追加・削除」を開くと、公開する項目そのものを増やせます。Label（表示名）・Type（色 / 数値 など）・TargetProperty（マテリアルのプロパティ名。例: <code>_BaseColor</code>）を設定します。プロパティ名が Prefab のマテリアルに無いと「検証」に赤い表示が出ます。</p>
+
+<h2>イベント</h2>
+<p>「エフェクトが出た瞬間に効果音を鳴らす」など、エフェクトに連動する動作を設定します。OnSpawn（出た瞬間）/ OnLoop（ループ 1 周ごと）/ OnDestroy（消えたとき）などのタイミングを選び、鳴らす SE などを指定します。</p>
+
+<h2>複数同時再生</h2>
+<p>「打撃 + 火花 + 煙」のように、いくつかのエフェクトを重ねたときの見え方を確認します。空欄に VFX データを入れて各行の ▶ を押すと同時に出ます。■ で個別に止められます（最大 8 つ）。</p>
+
+<h2>検証</h2>
+<p>対象データの設定ミスをその場でチェックした結果です。Error（赤）は直さないと正しく動きません。Warning（黄）は確認推奨。設定を変えると自動で更新されます。</p>
+
+<h2 id="prefab-mode">Prefab の中で再生する（ParticleSystem を編集しながら確認）</h2>
+<p>ParticleSystem の細かい設定（放出数・寿命・色のカーブなど）は Prefab の中で編集します。その作業中も、このウィンドウの再生機能がそのまま使えます。</p>
+<ol>
+<li>ツールバーの「<strong>Prefab を開く</strong>」を押す → プレハブモードに入る（Hierarchy がその Prefab の中身だけになる）</li>
+<li>ウィンドウ上部に青い案内「…この VFX の Prefab 自身なので、ステージ内の実体をその場で再生します」が出る</li>
+<li>▶ 再生 → <strong>Prefab の中にある ParticleSystem がそのまま動きます。</strong> 別のコピーは出ないので、二重に見えることはありません</li>
+<li>Inspector で ParticleSystem を編集すると、<strong>保存しなくても</strong>再生中のエフェクトに反映されます</li>
+<li>調整が終わったら Ctrl+S で Prefab を保存し、Hierarchy 左上の「←」でプレハブモードを抜ける</li>
+</ol>
+<!-- screenshot: 36-#21 -->
+<figure>
+<img src="images/vfx-editor-prefab-mode.png" alt="プレハブモードの VFX Editor">
+<figcaption>「Prefab を開く」でプレハブモードに入った状態。上部に青い案内が出る</figcaption>
+</figure>
+
+<div class="warn">
+<strong>プレハブモード中の制限:</strong><br>
+・Anchor（位置）とパラメータの「再生中に即時反映」は効きません。Prefab は原点に置かれたまま再生されます。位置やパラメータは確認用シーンに戻ってから調整してください。<br>
+・Hierarchy で ParticleSystem を選択していると、SceneView 右下に出る Unity 標準の「Particle Effect」パネルが同じエフェクトを動かします。そのあいだ、このウィンドウの再生は進めません（二重に進んで倍速になるのを防ぐため）。ウィンドウ側の速度スライダーやリピートを使いたいときは、選択を外してください。<br>
+・対象 VFX とは<strong>別の</strong> Prefab をプレハブモードで開いている場合は、従来どおりコピーを出して再生します（その Prefab には保存されません）。
+</div>
+
+<h2>よくある警告と直し方</h2>
+<table>
+<tr><th>表示</th><th>意味と対処</th></tr>
+<tr><td>Prefab が未設定(または Missing)です</td><td>再生する実体が無い状態。基本設定の Prefab にエフェクトの Prefab を入れてください。</td></tr>
+<tr><td>マテリアル '…' のシェーダー '…' は Built-in Render Pipeline 用ですが、プロジェクトは URP です</td><td>古い（Built-in 用）シェーダーのマテリアルは URP では透明になって見えません。<code>Tools &gt; D-Drive &gt; Generate &gt; デフォルトパーティクルマテリアルを生成</code> で URP 用のマテリアルを作り、Prefab の ParticleSystem Renderer に設定してください。</td></tr>
+<tr><td>Params '…' の TargetProperty '…' が Prefab のマテリアルに存在しません</td><td>公開パラメータのプロパティ名が間違っています。マテリアルの Inspector でプロパティ名（<code>_BaseColor</code> など）を確認して合わせてください。</td></tr>
+<tr><td>LifeMode=Loop ですが Pool 上限が未設定です</td><td>ずっと出続けるエフェクトが際限なく増える危険があります。プログラマーに相談してください。</td></tr>
+<tr><td>解決: ⚠ '…' が見つかりません</td><td>Anchor の Path の名前がスポーン先の中にありません。「一覧から選択」で選び直してください。</td></tr>
+<tr><td>開いているシーンにカメラ・ライトがありません</td><td>ツールバーの「確認用シーンを開く」を押してください。</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="vfx-data.html">VFX の設定項目</a> — 寿命・描画・Anchor・パラメータの意味</li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a> — VFX データの新規作成</li>
+<li><a href="audio-editor.html">Audio Editor の使い方</a></li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>コーディング規約・禁止事項 | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › コーディング規約・禁止事項</nav>
+
+<h1>コーディング規約・禁止事項</h1>
+
+<p>このページは「守らないと CI が赤くなる」規約を実用の観点でまとめたものです。設計原則の背景は <a href="concepts.html">基本概念</a>、PR を出す前の全チェック項目は <code>docs/12_review.md</code> を参照してください。</p>
+
+<h2 id="forbidden-api">禁止 API</h2>
+<p><code>Packages/com.ddrive.core/Editor/Validation/ForbiddenApiScanner.cs</code> が、D-Drive 本体（<code>Packages/com.ddrive.core</code>。2026-09-20 の P-5 で <code>Assets/DDrive</code> から移設）配下の全 <code>.cs</code> ファイルをテキストパターン一致（正規表現）で走査します。Roslyn Analyzer ではなく簡易的なテキスト走査です。</p>
+<table>
+<tr><th>#</th><th>禁止パターン（正規表現）</th><th>代わりに使うもの</th><th>許可されているファイル</th></tr>
+<tr><td>1</td><td><code>\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b</code></td><td><code>ITimeSource</code>（<code>docs/02_core_framework.md</code> §9.5）</td><td><code>LocalTimeSource.cs</code> / <code>NetworkTimeSource.cs</code> / <code>GameLoopDriver.cs</code></td></tr>
+<tr><td>2</td><td><code>\bResources\.Load\b</code></td><td>Addressables 経由（<code>IAssetLoader</code>）</td><td>（例外なし）</td></tr>
+<tr><td>3</td><td><code>\bAddressables\.Load\w*\b</code></td><td><code>IAssetLoader</code> 経由</td><td><code>AddressablesAssetLoader.cs</code></td></tr>
+<tr><td>4</td><td><code>\b(?:UnityEngine\.)?Object\.Instantiate\s*\(|(?&lt;![.\w])Instantiate\s*\(</code></td><td><code>PoolService</code> 経由</td><td><code>PoolService.cs</code> / <code>PreviewService.cs</code>（非破壊ループ試聴用の ScriptableObject コピーを許可）</td></tr>
+<tr><td>5</td><td><code>\bAudioSource\.Play\b</code></td><td><code>AudioManager</code> 経由</td><td>（例外なし）</td></tr>
+</table>
+<p>いずれのルールも <code>ForbiddenApiScanner.cs</code> 自身は常に例外扱いです（このファイルの Message 文字列がパターンに一致してしまうため、自己検出を避ける自己参照の除外）。<code>//</code> で始まる行（コメント）はどのルールも対象外です。</p>
+
+<div class="warn">
+<strong>スキャナは <code>Samples</code> フォルダを走査対象外にしています。</strong> サンプル（<code>Packages/com.ddrive.core/Samples~/Demo/</code>、<code>NetBridgeSmokeTest.cs</code> 等の手動確認用デモ）はパスに <code>/Samples</code> を含む場合、ルールに関係なく丸ごとスキップされます。<code>Samples~</code> は Unity のコンパイル対象外のフォルダでもあるため、実質的に二重に対象外です。
+</div>
+
+<div class="warn">
+<strong>ゲームコード（<code>Assembly-CSharp</code> 等）はこのスキャナの対象外です。</strong> <code>Editor/Validation/CI.cs</code> は <code>ForbiddenApiScanner.Scan(CI.ResolveForbiddenApiScanRoot())</code>（D-Drive 自身が属するパッケージの実パスを <code>PackageInfo</code> から解決。2026-09-20 の P-5 でパッケージ化された後は <code>Packages/com.ddrive.core</code> の絶対パスになる）でしか呼んでおらず、D-Drive 本体以外のフォルダは走査しません。それでも <code>CLAUDE.md</code> §0-3 は同じ禁止事項（<code>Instantiate</code> / <code>Resources.Load</code> / <code>AudioSource.Play</code> の直接呼び出し）をゲームコードにも適用すると定めています。<strong>ゲームコードでこれらの API を直接呼んでも CI は検出しません。人が守るしかない</strong>ことを理解したうえでレビューしてください。
+</div>
+
+<h2 id="performance">定常経路（Tick / Spawn / Play）でのパフォーマンス規約</h2>
+<p>毎フレーム、または高頻度に呼ばれる経路（<code>Tick</code> / <code>Spawn</code> / <code>Play</code>）では <strong>LINQ・クロージャ・boxing を禁止</strong>します（<code>docs/12_review.md</code> §3）。</p>
+<p><strong>2026-09-15（6-2）から自動検証があります。</strong> <code>Packages/com.ddrive.core/Tests/Performance/</code>（asmdef <code>DDrive.Tests.Performance</code>、<code>com.unity.test-framework.performance</code> 使用）が、Pool の Rent/Return・Vfx/Se/CameraFx/Haptics の Tick・Presentation の Tick+Signal・GameLoopDriver の 1 フレームなど、Tick 系の定常経路を <code>GC.GetAllocatedBytesForCurrentThread()</code> の差分で hard assert します。<code>-testCategory Performance</code> で実行します（Unity Test Runner、または <code>Tools/CI/run-ci.cmd</code> の [5/6]）。GitHub Actions での自動実行は P7 末の CI 導入まで保留されているため、現状はローカル実行が唯一の実行経路です。</p>
+
+<div class="tip">
+<strong>既知の未解決 alloc（このチェックでは検出されるが対象外）</strong>: Spawn/Play 系（<code>VfxManager.SpawnDataLocal</code>・<code>AudioManager.PlaySeData</code>・<code>PresentationManager.PlayLocalInternal</code>）は呼び出しごとに Instance（class）を 1 個 new する既存設計です（<code>PresentationInstance</code> は List×7 + R3 Subject×4 も new します）。Instance プーリングという大きな設計変更が必要なため、対応するテスト（<code>*_RecordsAllocForKnownIssue</code>）は記録するだけで assert しません。<strong>新しい Tick/Spawn/Play コードを書くときは、この既知課題を新たな LINQ/クロージャ追加の免罪符にしないでください</strong>（既存の allocation を増やさない・可能なら減らす）。
+</div>
+
+<p>やってよい書き方 / 悪い書き方の対比例:</p>
+<table>
+<tr><th>悪い例（Tick 内）</th><th>良い例</th></tr>
+<tr><td><code>foreach (var x in list.Where(a =&gt; a.IsActive))</code>（LINQ + クロージャ + IEnumerator の alloc）</td><td><code>for (int i = 0; i &lt; list.Count; i++) { if (!list[i].IsActive) continue; ... }</code></td></tr>
+<tr><td><code>list.Sort((a, b) =&gt; a.Time.CompareTo(b.Time));</code>（ラムダがクロージャでなくても delegate alloc の懸念があるなら <code>IComparer</code> を再利用する）</td><td>再利用可能な <code>static readonly IComparer&lt;T&gt;</code> を渡す</td></tr>
+<tr><td><code>Dictionary&lt;int, T&gt;</code> に <code>enum</code> や <code>int</code> をそのまま key にする（value type → object への暗黙 boxing）</td><td><code>Dictionary&lt;ulong, T&gt;</code> のように boxing を起こさない key 型を使う、または構造体を直接比較する</td></tr>
+</table>
+
+<h2 id="exception-free">例外で止めない設計</h2>
+<p>D-Drive は「例外で止めず、警告 + no-op / Placeholder で継続する」ことを設計原則にしています（CLAUDE.md §0-4）。ゲームコードを書くときは、これは次のことを意味します。</p>
+<ul>
+<li>未登録 ID を <code>Play</code>/<code>Spawn</code> しても例外は飛ばず、警告ログ + <code>Handle&lt;T&gt;.Invalid</code>（または Placeholder 演出）が返る。<strong>戻ってきた Handle が Invalid でも、それを使って <code>Stop</code>/<code>IsPlaying</code> 等を呼び続けて構いません</strong>（no-op として安全に無視される）</li>
+<li><code>Bind</code> 前の静的ファサード（<code>Audio</code>/<code>Vfx</code>/<code>Presentation</code> 等）を呼んでも例外にならず no-op になる（<code>DDriveRuntimeBootstrap</code> が起動する前のコードパスでも壊れない）</li>
+<li>これに甘えて「戻り値を握りつぶす」のではなく、必要であれば <code>Handle.IsValid</code> やログでデザイナーへの「未登録の発注」を可視化する運用（<code>docs/13_extensions.md</code> の A-1）が推奨されます</li>
+</ul>
+
+<h2 id="readonly-data">Data は読み取り専用</h2>
+<p>Manager は Data（<code>AssetDataBase</code> 派生の ScriptableObject）を実行時に書き換えません。Instance ごとに変化する現在値（再生位置、現在のマテリアル値など）は Instance 側に持たせます（例: <code>ModelsManager.Materials</code>）。エディタコードが Data を書き換えるときは必ず <code>Undo.RecordObject</code> + <code>EditorUtility.SetDirty</code> を通してください。</p>
+
+<h2 id="cutscene-contract">Cutscene（Timeline カットシーン）と共存するためのゲーム側の責務</h2>
+<p><strong>2026-09-18 に決めた契約です(設計書 <code>docs/26_timeline.md</code> §4.5.1 / §4.6.5。Timeline チケット 6-10a〜d で実装完了、<code>CameraExecutionOrderValidator</code> による検出 1 も 6-10d で実装済みです)。</strong> Maya で作ったカメラワークをゲームカメラに滑らかに繋ぐため、D-Drive はカットシーン再生中にゲームのメインカメラ(<code>Camera.main</code>)の姿勢を<strong>ゲーム側の書き込みの後から上書き</strong>します。この上書きが成り立つ条件と、入力ロックの分担を、持ち込み先のゲームコードが守る契約として先に決めました(MS2026 のカメラ制御はこの契約に合わせて設計します)。</p>
+
+<h3 id="camera-order">1. ゲームカメラ制御の実行順（契約）</h3>
+<p>D-Drive 側は <code>DDriveCutsceneCameraApplier</code>（初回再生時に <code>Camera.main</code> へ自動で付く小さな MonoBehaviour）が <code>LateUpdate</code> でカメラの Transform・画角を書きます。この実行順は次のとおりです。</p>
+<div class="sig">[DefaultExecutionOrder(DDriveCutsceneCameraApplier.ExecutionOrder)]   // ExecutionOrder = 1000
+public sealed class DDriveCutsceneCameraApplier : MonoBehaviour</div>
+<p><code>DDriveRuntimeBootstrap</code> の <code>-1000</code>（誰よりも先に組み立てる）と対称に、<code>+1000</code>（誰よりも後にカメラを書く）を D-Drive が占めます。<strong>ゲームコードの実行順は −1000 より大きく 1000 より小さい範囲に収めてください。</strong> 「D-Drive より前」を明示したいときは数値を直書きせず <code>DDriveCutsceneCameraApplier.ExecutionOrder - 1</code> のように定数を参照してください。カットシーンが再生されていないフレームでは Applier は何もしません（付いているだけではゲームカメラに影響しません）。</p>
+<table>
+<tr><th>#</th><th>ゲーム側が守る条件</th><th>理由</th></tr>
+<tr><td>G-1</td><td><code>Camera.main</code> の Transform・<code>fieldOfView</code>・物理カメラ値への書き込みは <code>Update</code> / <code>FixedUpdate</code> / <code>LateUpdate</code> のいずれかで行う。<code>LateUpdate</code> の場合、そのスクリプトの実行順は <strong>1000 未満</strong>（<code>DefaultExecutionOrder</code> 属性も、ProjectSettings &gt; Script Execution Order の設定も）</td><td>Applier（1000）が同じフレームの <code>LateUpdate</code> の最後に「ゲームカメラの姿勢」を読んでから上書きするため</td></tr>
+<tr><td>G-2</td><td><code>LateUpdate</code> より後で姿勢を書かない: <code>PlayerLoop</code> の <code>PostLateUpdate</code> 以降に挿した独自システム、<code>Application.onBeforeRender</code>、<code>RenderPipelineManager.beginFrameRendering</code> / <code>beginCameraRendering</code>、<code>Camera.onPreCull</code> 等の描画コールバック内でカメラを動かさない。<code>yield return new WaitForEndOfFrame()</code> からの書き込みも避ける（絵は潰さないが次フレームの「ゲームカメラの姿勢」を汚す）</td><td>いずれも Applier の後に走り、D-Drive の書き込みを潰す</td></tr>
+<tr><td>G-3</td><td>Cinemachine を使う場合、<code>CinemachineBrain</code> の Update Method は <code>LateUpdate</code> / <code>SmartUpdate</code> / <code>FixedUpdate</code> のいずれか（既定のまま）で、Brain の実行順も 1000 未満</td><td>Brain は <code>LateUpdate</code> で書くので G-1 と同じ扱い。専用アダプタは v1 では作らず、この契約だけで共存する</td></tr>
+<tr><td>G-4（推奨）</td><td>ゲームカメラ制御は自前の状態（追従目標・前フレームの自分の計算値）から毎フレーム姿勢を計算し、<code>Camera.main.transform</code> の現在値を「前フレームの自分の姿勢」として読み戻さない</td><td>再生中はカメラに D-Drive がブレンド結果を書いているため、読み戻す実装だとゲームカメラが D-Drive の書き込みに引きずられる（破綻はしないが、終了後にカメラが本来の位置へもう一度動く）</td></tr>
+<tr><td>G-5</td><td>カットシーン再生中に <code>Camera.main</code> を差し替えない</td><td>差し替えると Applier は新しいカメラへ付け直し、その回の再生はブレンドアウト無しで終わる（警告 1 回）</td></tr>
+</table>
+
+<div class="warn">
+<strong>守られなかったときに起きること:</strong> 実行順 1000 以上の <code>LateUpdate</code> や描画コールバックでカメラを毎フレーム書いていると、<strong>カットシーンのカメラが一切効かず</strong>（キャラ・SE・VFX だけ再生され、ゲームカメラのまま。被写界深度だけ変わる不自然な絵になる）、間欠的に書いていると<strong>カメラがカクつく / 震える</strong>状態になります。どちらも例外は出ません。そのため次の検出手段を用意します。
+</div>
+<table>
+<tr><th>検出</th><th>何が出るか</th></tr>
+<tr><td><code>Validation &gt; Run All</code>（<code>CameraExecutionOrderValidator</code>、CI の <code>ValidateAll</code> にも載る）</td><td>プロジェクト内の全ランタイムスクリプトの実効実行順（ProjectSettings の値 &gt; <code>DefaultExecutionOrder</code> 属性）を調べ、D-Drive 以外で <strong>1000 以上のスクリプトがあれば Warning</strong>、Applier 自身が 1000 でなければ <strong>Error</strong>。<code>PlayerLoop.SetPlayerLoop</code> / <code>PostLateUpdate</code> / <code>onBeforeRender</code> / <code>beginCameraRendering</code> 等を含む <code>.cs</code> ファイルは <strong>Info</strong>（カメラを書いていないか人が確認する）</td></tr>
+<tr><td>実行時（Editor と Development Build のみ）</td><td>Applier がカメラの描画直後（<code>RenderPipelineManager.endCameraRendering</code>）に「このフレームに自分が書いた姿勢」と「描画に使われた姿勢」を比べ、違っていれば<strong>再生 1 回につき警告ログ 1 回</strong>（上書きされたフレーム数 / 総フレーム数、G-1・G-2 の確認と Validation の実行を促す文言）。Applier の <code>LateUpdate</code> が再生中に呼ばれなかった場合（無効化・カメラ消失・差し替え）も警告 1 回。製品ビルドでは検出コードは動きません</td></tr>
+</table>
+
+<h3 id="input-lock">2. 入力ロック（LockInput）はゲーム側が止める</h3>
+<p>CutsceneData には「再生中はプレイヤー入力を止める」フラグ（<code>LockInput</code>）がありますが、<strong>D-Drive は「ロック中かどうか」を公開・通知するだけで、実際に入力を止める処理は持ちません</strong>。入力系（Input System の Action Map 切替、Host 権威での入力破棄、UI のフォーカス制御）はゲームごとに違うためです。ゲーム側が次のいずれかを購読して止めてください。</p>
+<table>
+<tr><th>公開面</th><th>型</th><th>意味</th></tr>
+<tr><td><code>Cutscene.IsInputLocked</code></td><td><code>static bool</code></td><td><code>LockInput</code> なカットシーンが 1 つでも再生中か</td></tr>
+<tr><td><code>Cutscene.OnInputLockChanged</code></td><td><code>static Observable&lt;bool&gt;</code>（R3）</td><td>ロック数が 0→1 になったとき true、1→0 になったとき false を 1 回ずつ流す（<code>PauseService.OnPauseChanged</code> と同じエッジ通知。2 本重ねても中間では発火しない）。<strong>通常はこれを購読する</strong></td></tr>
+<tr><td><code>CutsceneHandle.IsInputLocked</code></td><td><code>bool</code></td><td>その Handle が <code>LockInput</code> かつ再生中か。ブレンドアウト中（Skip / Cancel 後の戻し区間）も true のまま。無効な Handle は false</td></tr>
+<tr><td>EventBus（データ側）</td><td><code>EventTrigger.Custom</code> キー <code>cutscene/input_lock</code> / <code>cutscene/input_unlock</code></td><td>デザイナーが CutsceneData の Events に「ロック開始で字幕 Canvas を開く」等を Data だけで足すためのもの。ゲームコードはこちらを使う必要はありません</td></tr>
+</table>
+<pre><code>// MS2026 側の例: ロック中は Player の Action Map を無効化する
+Cutscene.OnInputLockChanged
+    .Subscribe(locked =&gt; { if (locked) inputActions.Player.Disable(); else inputActions.Player.Enable(); })
+    .AddTo(this);</code></pre>
+<p>ロックは <code>Cancel</code> / 再生終了で必ず解除されます（Handle の破棄経路は 1 本）。<code>Flags.Pause</code> でポーズ中もロック状態は変わりません。ネット同期再生（<code>Flags.Net = Cosmetic</code>）では各クライアントが自分のロック状態を持ち、Host 権威のゲームロジックが「ロック中のクライアントからの入力を捨てる」かどうかはゲーム側の実装です。</p>
+
+<h2 id="ci">Validation と CI の走らせ方</h2>
+<p><code>Tools/CI/run-ci.cmd</code> が <code>.github/workflows/ci.yml</code> と同じ検査をローカルで実行します（Unity Editor でこのプロジェクトを開いたままだと多重起動になり失敗するので注意）。</p>
+<table>
+<tr><th>ステップ</th><th>内容</th></tr>
+<tr><td>[1/6]</td><td><code>DDrive.Editor.CI.ValidateAll</code>（Validation。Error があれば fail）</td></tr>
+<tr><td>[2/6]</td><td><code>DDrive.Editor.CI.RegenerateIds</code>（ID 定数再生成）実行後、<code>git diff --exit-code</code> でコミットされていない差分が無いことを確認</td></tr>
+<tr><td>[3/6]</td><td>EditMode テスト</td></tr>
+<tr><td>[4/6]</td><td>PlayMode テスト</td></tr>
+<tr><td>[5/6]</td><td>Performance テスト（<code>DDrive.Tests.Performance</code>、<code>-testCategory Performance</code>、0 alloc 検証。前節参照）</td></tr>
+<tr><td>[6/6]</td><td>NetCheck（<code>Builds\DDriveNetCheck\DDriveNetCheck.exe</code> がビルド済みのときだけ実行。無ければスキップするだけで CI 全体は失敗させない任意ステップ）</td></tr>
+</table>
+
+<div class="warn">
+<strong>[6/6] NetCheck が FAIL したとき:</strong> <code>%RESULTS_DIR%\NetCheck\summary.md</code> を確認してください。
+</div>
+
+<p>互換性スナップショット（<code>Packages/com.ddrive.core/Tests/Editor/Compat/</code>、EditMode テスト）は、公開 API・シリアライズ形式・enum・ID/Address/定数名・ネットメッセージ・生成コード・Validator の重さ・Editor 契約・版番号が意図せず変わっていないかをゴールデン比較で機械的に検出します。P チケット（移植・更新・互換性、<code>docs/42_distribution.md</code>）が完了して互換性ポリシーが発効した後は、<strong>このスナップショットが赤い PR はマージしません</strong>。意図した変更（追加は MINOR、削除・変更は MAJOR で手続きが必要）なら、<code>Tools &gt; D-Drive &gt; Compat &gt; スナップショットを更新</code>（または一部は環境変数 <code>DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1</code>）でゴールデンを更新し、同じ PR で <code>CHANGELOG.md</code> の互換性節に記載してください（詳細は <code>docs/12_review.md</code> §3 / <code>docs/42_distribution.md</code> §5.11）。</p>
+
+<h3 id="dev-repo-only">開発リポジトリの実データに依存するテスト（<code>DDRIVE_DEV_REPO</code>、2026-09-20 追加）</h3>
+<p>D-Drive のテストは持ち込み先でも実行できるように設計されていますが（<code>docs/42_distribution.md</code> §2.1 Tests 行）、UnityChan サンプル FBX など<strong>開発リポジトリにしか無い実データ</strong>を使う一部のテスト（例: <code>ImportRuleServiceTests</code>/<code>CutsceneImportServiceTests</code> の埋め込みアニメ・実 FBX を要するケース）は、持ち込み先では実行できません。これらには <code>[Category("DevRepoOnly")]</code> を付け、テスト冒頭で <code>DevRepoOnlyGuard.SkipUnlessDevRepo()</code> を呼びます。<code>DDRIVE_DEV_REPO</code> スクリプティング定義シンボル（<strong>開発リポジトリの <code>ProjectSettings</code> の Scripting Define Symbols にのみ追加</strong>。持ち込み先には無い）が定義されていなければ、<code>Assume.That(false, ...)</code> で <strong>Fail ではなく Inconclusive</strong> にします。これにより、持ち込み先で D-Drive のテストを有効化（<code>testables</code> に追加）しても、開発リポジトリ専用のテストが赤くなってビルドを止めることはありません。</p>
+
+<h2 id="checklist">PR チェックリスト</h2>
+<p>上記はあくまで実用的な抜粋です。Manager/基盤・Data/シリアライズ・Editor/ツールを含む全チェック項目は <code>docs/12_review.md</code> §3 を参照してください。コード PR とデータ PR は分離されており、データ PR は Validation green + プレビュー動画で足ります（コードレビュー不要）。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ（ページ一覧・共通の入口）</a></li>
+<li><a href="concepts.html">基本概念（Data / Instance / Handle、4層、AssetId）</a></li>
+<li><a href="extending.html">新しい種別（AssetType）を追加する</a></li>
+<li><a href="../DesignerManual/validation.html">デザイナーマニュアル: Validation の使い方</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

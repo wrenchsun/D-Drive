@@ -23,9 +23,9 @@ D-Drive（`com.ddrive.core`）が **MAJOR バージョン**を上げるとき（
 
 互換性ポリシー（[../42_distribution.md](../42_distribution.md) §5）は **P チケット完了（P-13）まで発効していない**。発効前に行った「最後のチャンス」の整理（§5.13。例: `KnownPrefixes` の追加）は破壊的変更の手続きを踏まず、[CHANGELOG.md](../../CHANGELOG.md) の該当バージョン節にその旨を記録するだけでよい。移行ガイド（`vN.md`）を書くのは **P-13 発効後の MAJOR** からになる。
 
-## `next-major.md`（P-9 で追加予定）
+## `next-major.md`（P-9、2026-09-20 追加）
 
-P-9（リリース手順の道具化）で、`[Obsolete]` 付与済みのまま次の MAJOR で削除される予定の API を自動列挙する `next-major.md` をこのフォルダに追加する（[../42_distribution.md](../42_distribution.md) §6 P-9）。本 README は現時点（P-2）ではその雛形を含まない。
+`[Obsolete]` 付与済みのまま次の MAJOR で削除される予定の API を自動列挙した一覧。`Tools/Release/list-obsolete.ps1` が `Packages/com.ddrive.core/{Foundation,Runtime,Editor}` の `[Obsolete(...)]` を正規表現で静的に走査して生成する（手で編集しない）。MAJOR リリースの前（§5.12 手続きの前）に再実行して確認する（[../42_distribution.md](../42_distribution.md) §6 P-9）。2026-09-20 時点では該当 0 件。
 
 ## マイグレーション基盤（`DDriveMigrationRunner`）の使い方（P-7、2026-09-20）
 

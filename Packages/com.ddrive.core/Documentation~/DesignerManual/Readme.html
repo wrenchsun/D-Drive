@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- 運用メモ(2026-09-14): このフォルダ(docs/DesignerManual)の *.html/style.css/images が正本。
+     このマニュアルは Google Apps Script(Tools/SpecWeb)側にも配信されている(生成物)。
+     ここを編集したら、Tools/SpecWeb/push.ps1 を実行してから clasp push すること
+     (build-manual.js が html/manual/*.html・src/ManualPages.js を再生成する。
+     忘れると Tools/SpecWeb/test/build-manual.test.js のドリフト検出テストが red になる。
+     詳細は docs/32_spec_web.md「実装メモ(2026-09-14、マニュアル配信)」参照)。 -->
+
+<h1>D-Drive デザイナーマニュアル</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
+
+<p>このマニュアルは、<strong>D-Drive</strong>（Designer-Driven Re: IDE Visual Environment、このプロジェクトのアセット管理システム）をデザイナーが使うためのガイドです。プログラムの知識は必要ありません。</p>
+
+<h2>D-Drive とは？（30秒で分かる説明)</h2>
+<p>ゲームで使う音・エフェクトなどの素材を、<strong>「ID（番号札）」で管理する仕組み</strong>です。現在は<strong>効果音・BGM・エフェクト（VFX）・出す位置（Anchor / 配置セット）・モデル・3D アニメーション・2D アニメーション（スプライト）・マテリアル / テクスチャ・Prefab（ゲーム中に出す物）・Canvas（UI 画面）・UI の動き（UI Tween）・ボタン / スライダーの見た目（Skin）・演出（Presentation）・画面の揺れ / コントローラーの振動</strong>に対応しています。</p>
+<ul>
+<li>プログラマーは「この場面でこの番号札の音を鳴らす」とだけ書きます</li>
+<li>デザイナーのあなたは「その番号札の中身（どんな音か、どのくらいの音量か）」を自由に作り込みます</li>
+<li>お互いの作業がぶつからないので、<strong>後から音を差し替えても、プログラムの修正は不要</strong>です</li>
+</ul>
+
+<div class="tip">
+<strong>大事な考え方:</strong> ファイル名は<strong>あなたが決める必要はありません</strong>。「表示名（日本語OK）」と「カテゴリ」などを入力すれば、ツールが自動で規則どおりのファイル名を付けてくれます。ファイル名を気にせず、中身づくりに集中してください。
+</div>
+
+<div class="tip">
+<strong>共通の入口:</strong> Project で D-Drive のデータ（効果音・BGM・VFX・モデル・アニメーション・Anchor・配置セット・マテリアル・テクスチャ・Prefab・Canvas・Skin・UI Tween・演出・画面の揺れ・振動）を選ぶと、<strong>Inspector の一番上に「▶ 〜 Editor で開く」ボタン</strong>が出ます。迷ったらこれを押せば、そのデータ用の専用エディタが開きます（マテリアルのように、ボタンが 2〜3 個並ぶものもあります）。多くの専用エディタのツールバーには <strong>「＋ 新規作成」</strong> ボタンもあり、Asset Browser を開かずにその場で新しいデータを作れます（詳しくは<a href="asset-browser.html">Asset Browser の使い方</a>）。<br>
+<strong>アイコン:</strong> 同じ場所に「自動生成」「フォルダから選択」「シーンから作成」「クリア」があります。Prefab や画像を持つデータ（モデル・VFX・Prefab・Canvas・テクスチャ・Skin）とマテリアルは、<strong>「自動生成」を押すだけ</strong>で見た目からアイコンが作られます（作成直後にも自動で試みます）。効果音・BGM・アニメーション・Anchor のように絵の元が無い種類ではこのボタンは押せません。SceneView で良い角度に映してから「シーンから作成」を押すと、シーン全体の写真からドラッグで四角く切り取ってアイコンにできます。画像は <code>Assets/GameData/Icons/&lt;種別&gt;/</code> に自動で保存され、<strong>Inspector に加えて Asset Browser の一覧行・Project ウィンドウのサムネイル（グリッド表示）にも同じ画像が出ます</strong>（2026-09-14 から。未設定のアセットは Unity 既定のサムネイルのままです）。
+</div>
+
+<div class="tip">
+<strong>このマニュアルを Unity から開く（2026-09-14 追加）:</strong> Unity 画面上部、再生ボタン（▶）のすぐ右にある<strong>「？ マニュアル」ボタン</strong>を押すと、このページがブラウザで開きます。横の<strong>▼</strong>から他のページも直接開けます（「ローカルのマニュアルを開く」を選ぶと、常にこの手元の HTML ファイルが開きます）。メニューの <strong>Tools → D-Drive → マニュアルを開く</strong> からも開けます。<br>
+<strong>ボタンが見当たらないとき:</strong> 最初は隠れています。画面上部のツールバーの何もない所を右クリックし、「D-Drive/Manual」にチェックを入れると表示されます（1 回だけでよい）。<br>
+<strong>Web 版マニュアル:</strong> <a href="spec-sync.html">アセット発注ツール</a>の URL（人向け SPA URL）が設定済みだと、「？ マニュアル」ボタンはブラウザ内蔵のファイルではなく<strong>発注ツールの Web アプリ側</strong>に配信されているマニュアル（内容はこのフォルダと同じものの配信用コピー）を開きます。発注ツールのナビゲーションにも「マニュアル」の項目があり、そちらからも同じ内容を直接読めます。URL が未設定の間は常にこの手元の HTML が開きます。
+</div>
+
+<h2>ページ一覧</h2>
+<ul class="pagelinks">
+<li><a href="getting-started.html">はじめての15分（新規メンバー向け）</a>
+<p>効果音の登録から確認までを、所要時間の目安つきで一巡する。<strong>初めての人はこちらから。</strong></p></li>
+<li><a href="asset-browser.html">Asset Browser の使い方</a>
+<p>すべての入口になるウィンドウ。素材の一覧・検索・新規作成はここから。<strong>まず最初に読んでください。</strong></p></li>
+<li><a href="validation.html">Validation（自動チェック）の使い方</a>
+<p>設定ミス・登録漏れをまとめて見つけて、「修正」ボタンで直す。赤い表示が出たらまずここ。</p></li>
+<li><a href="se-data.html">SE（効果音）の設定項目</a>
+<p>効果音データの全パラメータの説明。音量・ピッチ・3D設定・連打防止など。</p></li>
+<li><a href="bgm-data.html">BGM の設定項目</a>
+<p>BGMデータの全パラメータの説明。イントロ→ループ構成・フェードなど。</p></li>
+<li><a href="audio-editor.html">Audio Editor の使い方</a>
+<p>波形を見ながらの音の切り出し（トリミング）、試聴、3Dサウンドの確認。</p></li>
+<li><a href="scene-sound.html">シーンに環境音を置く（SeEmitter）</a>
+<p>滝や焚き火などの「その場所で鳴り続ける音」の配置方法。</p></li>
+<li><a href="vfx-data.html">VFX（エフェクト）の設定項目</a>
+<p>エフェクトデータの全パラメータの説明。寿命・描画・出す位置（Anchor）・公開パラメータ。</p></li>
+<li><a href="vfx-editor.html">VFX Editor の使い方</a>
+<p>シーンの中で再生しながら位置・色を調整。Prefab の中で ParticleSystem を編集しながらの確認も。</p></li>
+<li><a href="anchor-data.html">Anchor（出す位置）の作り方</a>
+<p>エフェクト・効果音を「どこに・いつ・どう出すか」をデータにして使い回す。ボーン基準、ランダム、ディレイ、入れ子。</p></li>
+<li><a href="anchor-group.html">配置セット（複数の場所にまとめて出す）</a>
+<p>格子・円・一列・ランダムのパターンで点を並べ、全点にエフェクト / 効果音をまとめて出す。特定の点だけ変える、入れ子も。</p></li>
+<li><a href="model-editor.html">モデルの設定と Model Editor</a>
+<p>キャラクター / 物体の Prefab を登録し、確認用シーンで回して見る。マテリアルのスロット、出した瞬間に再生するアニメーション。</p></li>
+<li><a href="anim-editor.html">アニメーション（3D）の設定と Anim Editor</a>
+<p>モデルを動かしながら「何フレーム目で音・エフェクト」を決める。Animator のステートから選んで作る、音の波形を見ながら調整、一時停止、繰り返し設定、ブレンド確認。</p></li>
+<li><a href="anim2d-editor.html">2D アニメーション（スプライト）の作成と Anim2D Editor</a>
+<p>スプライトシートを切り分けてコマアニメにする。自動検出、8 方向、コマ間隔の調整（リタイミング）。音・エフェクトは Anim Editor と共通。</p></li>
+<li><a href="material-data.html">マテリアル / テクスチャの設定項目</a>
+<p>色・凹凸・金属感・発光などの「表面の質感」と画像の管理。ファイル名のルールで自動設定、Maya / Substance からの受け渡し。</p></li>
+<li><a href="material-editor.html">Material Editor の使い方（プレビュー・シェーダー変換）</a>
+<p>球や板に貼って回しながら確認、2 つを見比べる、シーンに置く、シェーダーの乗り換え。</p></li>
+<li><a href="prefab-data.html">Prefab データ（ゲーム中に出す物）の設定と Prefab Editor</a>
+<p>弾・ギミック・拾い物などを ID で登録。使い回し（プール）の設定、出現時の音・エフェクト。</p></li>
+<li><a href="canvas-data.html">Canvas（UI 画面）データの設定項目</a>
+<p>メニューやダイアログ 1 画面分の設定。レイヤー、開閉の演出、ボタンを押したら何が起きるか（配線）、パッドのフォーカス移動。</p></li>
+<li><a href="canvas-editor.html">Canvas Editor の使い方（ナビゲーション・演出・プレビュー）</a>
+<p>フォーカスのつながりを線で描く、要素ごとの出現 / 常時 / 消滅演出、パッド操作のシミュレーション。</p></li>
+<li><a href="ui-skin.html">ボタン / スライダーの見た目（Skin）と Slider Editor</a>
+<p>通常・ホバー・押下・無効などの状態ごとの色・大きさ・音。スライダーの応答曲線と目盛り（ノッチ）。</p></li>
+<li><a href="ui-tween.html">UI の動き（UI Tween）・プリセットギャラリー・要素演出（ElementFx）</a>
+<p>フェード・スライド・跳ねるなどの動きを作る、59 種類のプリセットから選んで当てる、音量などの標準オプションと直結。</p></li>
+<li><a href="presentation.html">演出（Presentation）の設定項目</a>
+<p>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れなどをまとめて 1 つの演出にする機能。専用の Presentation Editor でタイムライン編集 + 統合プレビューができます。</p></li>
+<li><a href="camera-haptics.html">画面の揺れ・コントローラーの振動</a>
+<p>画面をガクガク揺らす（カメラシェイク）・パッドをブルブル振動させる（ハプティクス）データの作り方。専用の Shake / Haptics Editor で波形を見ながら調整・実際に揺らして/振動させて確認できます。</p></li>
+<li><a href="cutscene-maya-export.html">カットシーン（Timeline）: Maya から書き出して Unity で演出を足す</a>
+<p>Maya のカメラ・キャラの動きを Unity の Timeline に取り込むための、Maya 側の書き出し手順とファイル名のルール。スクリプト不要。FBX を置くだけでカットシーンのデータと Timeline が自動で作られ、Unity の Timeline ウィンドウで効果音・エフェクト・画面揺れを足せます（2026-09-18 に取り込み機能を実装、使い方は 2026-09-19 に追記）。</p></li>
+<li><a href="spec-sync.html">アセット発注ツール（Web）との同期</a>
+<p>企画がブラウザの発注ツールに登録した発注を D-Drive の空データに変換する。発注者・受注者・状態（発注済→納品済→インポート済）の反映、調整値のコード連携、パラメータ一覧の送信も。</p></li>
+<li><a href="package-setup.html">パッケージを導入する / 更新する</a>
+<p>D-Drive を新しいプロジェクトへ持ち込むときのセットアップウィザードの使い方（骨子。詳しい手順は今後追記予定）。</p></li>
+<li><a href="glossary.html">用語集</a>
+<p>「アセット」「ピッチ」「Mixer」「Skin」「Tween」など、分からない言葉が出てきたらここ。</p></li>
+</ul>
+
+<h2>はじめの一歩（効果音を1つ登録してみる）</h2>
+<ol>
+<li>Unity のメニューバーから <code>Tools &gt; D-Drive &gt; Asset Browser</code> を開く</li>
+<li>Project ウィンドウから音声ファイル（.wav など）を Asset Browser の上に<strong>ドラッグ＆ドロップ</strong>（ドラッグ＆ドロップで登録できるのは音声ファイルだけです。他の種類は「新規」ボタンから作ります）</li>
+<li>開いたダイアログに「表示名」（例: 剣の斬撃音）と「識別子」（例: SwordSlash ※英語）を入力して「作成」</li>
+<li>一覧に追加された音を選び、下の <strong>▶ 再生</strong> ボタンで試聴</li>
+</ol>
+<p>これだけで登録完了です。所要時間の目安つきでもう少し丁寧に一巡したい場合は <a href="getting-started.html">はじめての15分（新規メンバー向け）</a> へ。詳しくは <a href="asset-browser.html">Asset Browser の使い方</a> へ。エフェクトを「どこに出すか」を決める練習は <a href="anchor-data.html">Anchor（出す位置）の作り方</a> の「はじめの一歩」へ。</p>
+
+<!-- screenshot: 36-#1 -->
+<figure>
+<img src="images/root-overview.png" alt="Asset Browser 全体像のスクリーンショット">
+<figcaption>Asset Browser の全体像（画像が表示されない場合は準備中です）</figcaption>
+</figure>
+
+<h2>最近の更新</h2>
+<p>各ページの見出しの下に「最終更新日」を入れました（2026-09-19 追加）。マニュアル全体の最終更新は <strong>2026-09-19</strong> です。</p>
+<table>
+<tr><th>日付</th><th>更新内容</th></tr>
+<tr><td>2026-09-19</td><td>
+<ul>
+<li><a href="cutscene-maya-export.html#timeline">カットシーン（Timeline）の使い方</a>を追加（トラックの種類・原点・Skip・確認の手順）</li>
+<li><a href="asset-browser.html">Asset Browser</a>: 行を選んで Delete キーで削除画面を開く / 右クリックに「パスをコピー」 / 新規作成ダイアログの「仕様書から選ぶ」を折りたためる</li>
+<li><a href="vfx-editor.html#anchor">VFX Editor</a>: Anchor アセットを使っていても SceneView に連鎖を表示し、ハンドルで動かせる（<a href="anchor-data.html">Anchor Editor</a> と同じ表示）</li>
+<li><a href="validation.html">検証</a>: URP でも描画される古いシェーダー（Default-Particle 等）は、Error ではなく置き換え推奨の Warning として表示</li>
+<li><a href="glossary.html">確認用シーン</a>: 各エディタ共通の確認用シーン <code>PreviewScene</code> とメニュー「共通確認用シーンを開く」を用語集に追記</li>
+<li>スクリーンショットを 9 枚追加・差し替え</li>
+</ul>
+</td></tr>
+</table>
+
+<h2>困ったときは</h2>
+<ul>
+<li>ウィンドウが見つからない → メニューバーの <code>Tools &gt; D-Drive</code> の下にすべてまとまっています。専用エディタは <code>Editors</code>、一括処理は <code>Generate</code>、自動チェックは <code>Validation</code></li>
+<li>赤い表示が出ている → 何かの設定が足りていません。マウスを乗せると説明が出ます（各ページの「よくある警告」と <a href="validation.html">Validation の使い方</a> を参照）</li>
+<li>ゲームで出てこない・ピンク色になる → 登録漏れの可能性。<a href="validation.html">Validation</a> の「Run All」で「未登録」が出たら「修正」を押します</li>
+<li>言葉が分からない → <a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

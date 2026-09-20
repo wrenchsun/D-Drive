@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>演出（Presentation）と Anchor / 配置セット | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 演出（Presentation）と Anchor / 配置セット</nav>
+
+<h1>演出（Presentation）と Anchor / 配置セット</h1>
+
+<p>「剣攻撃」のようにアニメ・SE・VFX・カメラ揺れ・振動・ヒットストップをまとめて 1 つの演出として再生する仕組みが <code>Presentation</code>、演出やエフェクトを出す「位置」を扱う仕組みが Anchor（<code>AnchorData</code>）/ 配置セット（<code>AnchorGroupData</code>）です。演出データそのものの作り方（トラックの編集・専用エディタの使い方）は<a href="../DesignerManual/presentation.html">デザイナーマニュアル: 演出（Presentation）の設定項目</a>を、Anchor の作り方は<a href="../DesignerManual/anchor-data.html">Anchor（出す位置）の作り方</a>・<a href="../DesignerManual/anchor-group.html">配置セット（AnchorGroup）の作り方</a>を先に読んでください。このページはプログラマーが書く側の API（<code>Presentation</code> / <code>Anchors</code> ファサードと <code>PlayContext</code>）だけを扱います。</p>
+
+<div class="tip">
+<strong>実際のゲームコードは 1 行で足ります。</strong> サンプル <code>Packages/com.ddrive.core/Samples~/Demo/PresentationSkillSlashDemo.cs</code> は <code>DDrive.Samples.asmdef</code>（<code>DDrive.Runtime</code> のみ参照）から生成コード（<code>Assets/Generated/AssetIds.g.cs</code>、asmdef 無し = Assembly-CSharp 所属）の <code>PRESENTID.DemoSkillSlash</code> を直接参照できないため、同じ値を生の <code>AssetId</code> として組み立てています（19 行目付近のコメント参照）。<strong>あなたが Assembly-CSharp 側に書くゲームコードでは</strong>次の 1 行で足ります。
+<pre><code>Presentation.Play(DDrive.Generated.PRESENTID.DemoSkillSlash, ctx);</code></pre>
+</div>
+
+<h2>Presentation 静的ファサード</h2>
+<p><code>Runtime/Presentation/Presentation.cs</code>。他の種別（<code>Vfx</code> / <code>Anim</code> 等）と同じ ADR#3 の薄いファサード設計です。<code>Bind()</code> 前・未 Bind 中の呼び出しはすべて no-op（Invalid Handle を返すか何もしない）で継続し、例外は投げません。</p>
+
+<pre><code>public static class Presentation
+{
+    public static void Bind(PresentationManager instance);
+    public static bool IsBound { get; }
+
+    public static PresentationHandle Play(PresentationId id, in PlayContext ctx);
+    public static PresentationHandle PlayData(PresentationData data, in PlayContext ctx);
+
+    // ── Handle 操作(PresentationHandle からも同じ内容を呼べる) ──
+    public static void Signal(Handle&lt;PresentationMarker&gt; h, string key);
+    public static void Cancel(Handle&lt;PresentationMarker&gt; h);
+    public static void Pause(Handle&lt;PresentationMarker&gt; h);
+    public static void Resume(Handle&lt;PresentationMarker&gt; h);
+    public static void SetSpeed(Handle&lt;PresentationMarker&gt; h, float speed);
+    public static void Seek(Handle&lt;PresentationMarker&gt; h, float time);
+    public static bool IsPlaying(Handle&lt;PresentationMarker&gt; h);
+    public static float NormalizedTime(Handle&lt;PresentationMarker&gt; h);   // 無効なら -1
+
+    public static Observable&lt;Unit&gt; OnCompleted(Handle&lt;PresentationMarker&gt; h);
+    public static Observable&lt;Unit&gt; OnCancelled(Handle&lt;PresentationMarker&gt; h);
+    public static Observable&lt;string&gt; OnMarker(Handle&lt;PresentationMarker&gt; h);
+    public static Observable&lt;PresentationTrack&gt; OnTrackFired(Handle&lt;PresentationMarker&gt; h);
+    public static UniTask WaitAsync(Handle&lt;PresentationMarker&gt; h, CancellationToken ct = default);
+}</code></pre>
+
+<p><code>PresentationId</code> は <code>AssetId&lt;PresentationMarker&gt;</code> のエイリアスです。<code>Play</code> / <code>PlayData</code> の戻り値 <code>PresentationHandle</code> は <code>Handle&lt;PresentationMarker&gt;</code> を薄くラップした専用 struct で、上の Handle 操作メソッドと同じ内容をプロパティ・メソッドとして直接呼べます。詳しくは<a href="handle.html">Handle・イベント・完了待ち</a>を参照してください。</p>
+
+<table>
+<tr><th>メソッド</th><th>備考</th></tr>
+<tr><td><code>Play(id, ctx)</code></td><td>ID から <code>PresentationData</code> を解決して再生。未登録 ID は Placeholder で継続</td></tr>
+<tr><td><code>PlayData(data, ctx)</code></td><td>すでに手元にある <code>PresentationData</code> を直接再生（エディタのプレビュー等が使う）</td></tr>
+<tr><td><code>Cancel(h)</code></td><td>全トラック停止。<code>PresentationData.Interruptible=false</code> のときは警告 + no-op（止まらない）</td></tr>
+<tr><td><code>Pause</code> / <code>Resume</code></td><td>内部的には <code>SetPaused(h, true/false)</code></td></tr>
+<tr><td><code>Seek(h, time)</code></td><td>デバッグ・スキップ用。表示専用の <code>DisplayDuration</code> ではなく実際の再生尺（<code>PresentationTiming.EffectiveDuration</code>）にクランプされる</td></tr>
+</table>
+
+<h2>PlayContext</h2>
+<p><code>Runtime/Presentation/PlayContext.cs</code>。<code>Presentation.Play</code> / <code>PlayData</code> に <code>in</code> 渡しする再生文脈です。</p>
+
+<pre><code>public struct PlayContext
+{
+    public Transform Self;         // 再生主体(プレイヤー等)。Target=Self のトラックの基準
+    public Transform Target;       // 対象(敵等)。null 可。Target=ContextTarget のトラックの基準
+    public Vector3 Position;       // 発生位置
+    public Action&lt;string&gt; OnSignal; // 演出→ゲームコードへの通知(Kind=Signal のトラックから呼ばれる)
+}</code></pre>
+
+<p>各フィールドの既定値・null 時の挙動（実装 <code>PresentationManager.ResolveContextRoot</code> / <code>FireVfx</code> 等で確認済み）:</p>
+<table>
+<tr><th>フィールド</th><th>既定値 / null のときの挙動</th></tr>
+<tr><td><code>Self</code></td><td><code>TrackTargetMode.Self</code> のトラックが基準にする Transform。<code>null</code> でも <code>Play()</code> 自体は呼べる（World/Anchor 基準のトラックや Marker/Signal/HitStop だけの演出はモデル不要）。Self 基準の Vfx/Se/Anim/Anim2D/UiTween トラックは「Animator が見つかりません」等の警告 1 回 + no-op で個別にスキップされ、演出全体は止まらない</td></tr>
+<tr><td><code>Target</code></td><td><code>TrackTargetMode.ContextTarget</code> の基準。<code>null</code> なら同様に該当トラックだけ警告 + no-op</td></tr>
+<tr><td><code>Position</code></td><td>既定 <code>Vector3.zero</code>。<strong>Vfx/Se トラックの位置解決には使われない</strong>（Target=World/Anchor は <code>contextRoot=null</code> で <code>AnchorDef.LocalOffset</code> をそのまま絶対座標として使う）。<strong>CameraShake / Haptic トラックには発生位置としてそのまま渡る</strong>（<code>ShakeSpace.FromSource</code> 用、docs/08 5-2 実装メモ）</td></tr>
+<tr><td><code>OnSignal</code></td><td>既定 <code>null</code>。<code>Kind=Signal</code> のトラックが発火するとき <code>instance.Ctx.OnSignal?.Invoke(track.SignalKey)</code> と null 条件演算子で呼ばれるだけなので、未設定でも例外にはならず、その通知は単に届かない</td></tr>
+</table>
+
+<h2>実行モデル</h2>
+<pre><code>Presentation.Play(id, ctx) → PresentationHandle
+  ├ AtTime(0.00) トラック → Play() 呼び出し中に同期的に発火
+  ├ AtTime(t)    トラック → Tick でスケジュール実行
+  └ OnSignal("hit") トラック → handle.Signal("hit") が来たら実行</code></pre>
+<p>Presentation 自身は再生処理を持たず、各 Manager（Anim/Se/Bgm/Vfx/Canvas/UiTween/CameraShake/Haptic）への委譲だけを行う薄いオーケストレータです（Timeline トラックのみ未実装で警告 + no-op）。</p>
+
+<div class="warn">
+<strong>AtTime(0.00) は Play() 呼び出し中に同期発火します。</strong> そのため <code>var h = Presentation.Play(id, ctx); h.OnMarker.Subscribe(...)</code> のように Handle を受け取ってから購読しても、Time=0 のトラックは観測できません（<code>docs/08_presentation.md</code> 実装メモ）。Time=0 の通知を確実に受け取りたい場合は下記の <code>PlayContext.OnSignal</code>（Kind=Signal）を使ってください。
+</div>
+
+<h2>ゲームコードとの双方向通知</h2>
+<p>演出データとゲームコードの間には向きの異なる 3 つの経路があります。<code>SignalKey</code>（デザイナーがトラックに付ける文字列）を名前として使い回している点は共通ですが、意味は別なので混同しないでください。</p>
+<table>
+<tr><th>経路</th><th>向き</th><th>トリガー</th></tr>
+<tr><td><code>handle.Signal(key)</code>（= <code>Presentation.Signal(h, key)</code>）</td><td>ゲームコード → 演出データ</td><td>当たり判定等が成立したタイミングでコードから呼ぶ。<code>Trigger=OnSignal</code> かつ <code>SignalKey</code> が一致するトラックがそこで初めて発火する（1 トラックにつき最大 1 回）</td></tr>
+<tr><td><code>handle.OnMarker</code>（Observable&lt;string&gt;）</td><td>演出データ → ゲームコード</td><td><code>Kind=Marker</code> のトラックがタイムライン上のその時刻・Signal に到達すると <code>SignalKey</code> を積んで <code>OnNext</code> する。「演出の山でダメージ数値を出す」等、見た目には何も起きない目印をコード側が購読する用途</td></tr>
+<tr><td><code>ctx.OnSignal</code>（<code>Action&lt;string&gt;</code>）</td><td>演出データ → ゲームコード</td><td><code>Kind=Signal</code> のトラックが発火すると <code>ctx.OnSignal?.Invoke(track.SignalKey)</code> が呼ばれる。<code>OnMarker</code> と役割は似ているが、Observable の購読ではなく <code>PlayContext</code> に渡したコールバックが直接呼ばれる点が違う（Time=0 でも確実に受け取れる。上の警告参照）</td></tr>
+</table>
+
+<p>剣攻撃デモ（<code>PRES_Demo_SkillSlash.asset</code>）は AtTime(0.00) に Vfx+Se、<code>OnSignal("hit")</code> に HitStop(0.08s)+Se を配置しています。実際のコード側（<code>Packages/com.ddrive.core/Samples~/Demo/PresentationSkillSlashDemo.cs</code>）は次のように書きます。</p>
+
+<pre><code>private PresentationHandle _handle;
+
+public void Play()
+{
+    _handle = Presentation.Play(SkillSlashId, new PlayContext { Self = self, Position = self.position });
+}
+
+public void TriggerHit()
+{
+    // 当たり判定が成立した瞬間にコードから呼ぶ → OnSignal("hit") トラック(HitStop+SE)が発火する
+    _handle.Signal("hit");
+}
+
+public void CancelPresentation()
+{
+    _handle.Cancel();
+}</code></pre>
+
+<h2>Anchor / 配置セット</h2>
+<p>VFX/SE を「どこに」出すかを表す単位が <code>AnchorData</code>（1 つの位置）、複数の位置へ一括で出す単位が <code>AnchorGroupData</code>（配置セット）です。仕様は <code>docs/21_anchor_spec.md</code>・<code>docs/22_anchor_group.md</code>、作り方は<a href="../DesignerManual/anchor-data.html">デザイナーマニュアル: Anchor</a>・<a href="../DesignerManual/anchor-group.html">配置セット</a>を参照してください。ここではプログラマーがコードから触る部分だけを説明します。</p>
+
+<h3>Anchors 静的ファサード（配置セットの再生）</h3>
+<p><code>Runtime/Anchoring/AnchorGroupPlayer.cs:226-243</code>。Presentation がトラック種別 <code>AnchorGroup</code> を持つまでの暫定 API で、他のファサードと同じ「未 Bind = no-op」設計です。</p>
+
+<pre><code>public static class Anchors
+{
+    public static void Bind(AnchorGroupPlayer instance);
+    public static bool IsBound { get; }
+
+    public static Handle&lt;AnchorGroupMarker&gt; Play(AnchorGroupId id);
+    public static Handle&lt;AnchorGroupMarker&gt; Play(AnchorGroupId id, Transform contextRoot);
+    public static void Stop(Handle&lt;AnchorGroupMarker&gt; h);
+    public static void Kill(Handle&lt;AnchorGroupMarker&gt; h);
+    public static bool IsPlaying(Handle&lt;AnchorGroupMarker&gt; h);
+}</code></pre>
+
+<pre><code>var h = Anchors.Play(ANCHORGROUPID.HealField, ctx.Self);
+// 配置セットが定義する全点分の VFX/SE を VfxManager.SpawnData / AudioManager.PlaySeData でまとめて再生する
+Anchors.Stop(h);   // フェードアウト等、通常の停止
+Anchors.Kill(h);   // 即時停止
+Anchors.IsPlaying(h); // 1 点でも再生中なら true</code></pre>
+
+<p><code>contextRoot</code> は配置セットの原点（<code>AnchorGroupData.OriginAnchorId</code> / 埋め込み <code>Origin</code>）が <code>Space=BoneName/NamedObject</code> のときに、その名前をどの階層から検索するかの基準です。<code>Stop</code> / <code>Kill</code> はグループが出した VFX/SE をまとめて操作し、<code>IsPlaying</code> は 1 点でも再生中なら true を返します（内部の Handle リストはグループ終了時に自動で台帳から外れます）。</p>
+
+<h3>AnchorId をコードから指定する意味</h3>
+<p>VFX/SE 個別の Anchor 解決には、Data 側の設定を <strong>呼び出し側から上書きできる優先順位</strong>があります（<code>docs/21_anchor_spec.md</code> §3.3）。</p>
+<pre><code>解決の優先順位(VFX/SE 共通):
+  1. 呼び出し引数の anchorId          Vfx.Spawn(id, anchorId) / Vfx.Spawn(id, anchorId, contextRoot)
+  2. 呼び出し引数の位置/Transform     従来どおり(Data を完全に上書き)
+  3. Data.AnchorId (≠0)              AnchorData を Registry から解決
+  4. Data.Anchor (埋め込み。旧形式)   従来どおり
+  5. World 原点</code></pre>
+<p>つまり <code>VfxData</code> 側に AnchorData（例: <code>Anchor_RightHand</code>）を設定していても、コード側で別の <code>AssetId&lt;AnchorMarker&gt;</code> を明示的に渡せば、そちらが優先されます。「同じエフェクトを状況に応じて違う位置から出したい」といったケースで、Data を複製せずに済みます。</p>
+
+<div class="tip">
+この優先順位は <code>Vfx.Spawn(VfxId, AnchorId)</code> / <code>Vfx.Spawn(VfxId, AnchorId, Transform)</code> のような個別呼び出しに対するものです。<strong>Presentation のトラック（<code>PresentationTrack.Anchor</code>）は埋め込みの <code>AnchorDef</code> と <code>TrackTargetMode</code>（Self/ContextTarget/World/Anchor）だけで基準を決めており、コード側から <code>AnchorId</code> で上書きする経路は現状ありません</strong>（<code>PresentationManager.cs</code> に <code>AnchorId</code> の参照は無いことを確認済み）。トラック単位で出す位置を変えたい場合は、デザイナーが <code>PresentationEditor</code> でトラックごとの Anchor を直接編集する形になります。
+</div>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="../DesignerManual/presentation.html">デザイナーマニュアル: 演出（Presentation）の設定項目</a></li>
+<li><a href="../DesignerManual/anchor-data.html">デザイナーマニュアル: Anchor（出す位置）の作り方</a></li>
+<li><a href="../DesignerManual/anchor-group.html">デザイナーマニュアル: 配置セット（AnchorGroup）の作り方</a></li>
+<li><a href="handle.html">Handle・イベント・完了待ち</a></li>
+<li><a href="vfx-api.html">VFX の API</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

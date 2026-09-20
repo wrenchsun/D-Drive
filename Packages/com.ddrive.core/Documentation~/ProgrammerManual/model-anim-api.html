@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Model / Animation API | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Model / Animation API</nav>
+
+<h1>Model / Animation API</h1>
+
+<p>このページでは、モデル（見た目差し替え可能なキャラクター等）・汎用 Prefab・3D アニメーション・2D アニメーション・マテリアルの、5 つの静的ファサードをまとめて扱います。データの作り方は <a href="../DesignerManual/model-editor.html">デザイナーマニュアル: Model Editor の使い方</a> / <a href="../DesignerManual/anim-editor.html">Anim Editor</a> / <a href="../DesignerManual/anim2d-editor.html">Anim2D Editor</a> / <a href="../DesignerManual/material-data.html">Material の設定項目</a> / <a href="../DesignerManual/material-editor.html">Material Editor</a> / <a href="../DesignerManual/prefab-data.html">Prefab の設定項目</a>を参照してください。</p>
+
+<div class="tip">
+<strong>未 Bind でも例外にならない:</strong> ここに載せたクラスはすべて、<a href="bootstrap.html">起動配線</a>が済む前や未 Bind の状態で呼んでも、無効な Handle（または <code>null</code> / <code>false</code> / <code>0</code>）を返す no-op として継続します。
+</div>
+
+<h2>Models（見た目差し替え可能なモデル）</h2>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Model/Models.cs:9</code>。ModelData は Prefab に加えて Slot/Avatar 等の「見た目差し替え」を持つ点が、下記の Prefabs（汎用 Prefab）と異なります。</p>
+<div class="sig">static Handle&lt;ModelMarker&gt; Spawn(ModelId id, Vector3 pos, Quaternion rot)
+static Handle&lt;ModelMarker&gt; Spawn(ModelId id, Transform parent)
+static void Despawn(Handle&lt;ModelMarker&gt; h)
+static void SetMaterial(Handle&lt;ModelMarker&gt; h, int slotIndex, AssetId&lt;MaterialMarker&gt; materialId)
+static void SetLayer(Handle&lt;ModelMarker&gt; h, int layer)
+static GameObject GetGameObject(Handle&lt;ModelMarker&gt; h)
+static Handle&lt;AnimMarker&gt; PlayAnim(Handle&lt;ModelMarker&gt; h, AssetId&lt;AnimMarker&gt; animId)
+static Handle&lt;AnimMarker&gt; PlayAnim(Handle&lt;ModelMarker&gt; h, AssetId&lt;AnimMarker&gt; animId, float fade)</div>
+<ul>
+<li><code>Spawn(id, pos, rot)</code> / <code>Spawn(id, parent)</code> の 2 通り。<code>SetMaterial</code> はモデルの指定スロットのマテリアルを <code>MaterialId</code> で差し替える</li>
+<li><code>PlayAnim</code> は内部で <code>AnimManager</code> に委譲するため、<a href="#anim">下記の Anim</a> と同じ再生系に乗ります。<code>ModelsManager</code> に <code>AnimManager</code> が接続されていない構成（テスト等）では no-op になります</li>
+<li><code>fade</code> 省略時（既定 <code>-1f</code>）は <code>AnimData.DefaultCrossFade</code> が使われます（下記 Anim の <code>Play</code> と同じ仕様）</li>
+</ul>
+<pre><code>var h = Models.Spawn(MODELID.Enemy01, spawnPoint.position, spawnPoint.rotation);
+Models.SetMaterial(h, 0, MATID.EnemyDamaged);
+Models.PlayAnim(h, ANIMID.Idle);</code></pre>
+
+<h2>Prefabs（汎用 Prefab）</h2>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Prefab/Prefabs.cs:9</code>。見た目差し替えを持たない、種類・タグ・コリジョンレイヤーだけを管理する汎用 Prefab です（<code>PrefabData</code>、<code>Packages/com.ddrive.core/Runtime/Prefab/PrefabData.cs:28</code>）。</p>
+<div class="sig">static Handle&lt;PrefabMarker&gt; Spawn(PrefabAssetId id, Vector3 pos, Quaternion rot)
+static Handle&lt;PrefabMarker&gt; Spawn(PrefabAssetId id, Transform parent)
+static void Despawn(Handle&lt;PrefabMarker&gt; h)
+static void Preload(params PrefabAssetId[] ids)
+static UniTask PreloadAsync(params PrefabAssetId[] ids)
+static GameObject GetGameObject(Handle&lt;PrefabMarker&gt; h)
+static bool HasTag(Handle&lt;PrefabMarker&gt; h, string tag)
+static void Move(Handle&lt;PrefabMarker&gt; h, Vector3 pos, Quaternion rot)</div>
+<p><code>HasTag</code> は <code>PrefabData.GameplayTags</code>（発注ツール等でタイポ検査される文字列タグ）との完全一致（大文字小文字を区別）を調べます。</p>
+
+<h3>ドット記法（PrefabHandleExtensions）</h3>
+<pre><code>var h = Prefabs.Spawn(PREFABID.Barrel, pos, rot);
+h.GetComponent&lt;Rigidbody&gt;().AddExplosionForce(500f, pos, 5f);
+if (h.HasTag("Destructible")) { /* ... */ }
+h.Move(newPos, newRot);
+h.Despawn();</code></pre>
+<p><code>h.Go()</code>（<code>GetGameObject</code> と同じ）、<code>h.GetComponent&lt;T&gt;()</code>、<code>h.Move(pos, rot)</code>、<code>h.HasTag(tag)</code>、<code>h.Despawn()</code>、<code>h.IsValid()</code>（<code>GetGameObject(h) != null</code>）が使えます。</p>
+
+<h3>Pool の挙動</h3>
+<p><code>PrefabData.Flags.Pool</code>（<code>AssetFlags.Pool</code>、型 <code>PoolPolicy</code>）が <code>Kind == PoolPolicyKind.Pooled</code> のときだけ、この Prefab は使い回されます（既定の <code>Kind == None</code> は毎回 Instantiate/Destroy 相当の Discard 扱い）。</p>
+<table>
+<tr><th>フィールド</th><th>意味</th></tr>
+<tr><td><code>Kind</code></td><td><code>None</code>（プールしない）/ <code>Pooled</code>（使い回す）</td></tr>
+<tr><td><code>InitialCount</code></td><td>Prewarm（<code>Preload</code> / <code>PreloadAsync</code> 実行時、または起動時のカタログ Preload 時）で事前に生成しておく数</td></tr>
+<tr><td><code>MaxCount</code></td><td>同時に存在できる上限。超過すると Pool が最も優先度の低いものを強制回収する</td></tr>
+</table>
+<div class="warn">
+<strong><code>Preload</code> は同期解決できる ID しか Prewarm できません。</strong> Addressables のカタログ登録がまだ完了していない（lazy な）ID に対して <code>Preload</code> を呼ぶと、開発ビルドで警告ログが出て素通りします。確実に Prewarm したい場合は <code>PreloadAsync</code>（<code>UniTask</code> を返す非同期版）を使ってください。
+</div>
+
+<h2 id="anim">Anim（3D アニメーション）</h2>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Anim/Anim.cs:9</code>。再生対象は <code>Animator</code> を渡す設計です（Controller 自体の状態遷移はゲーム側 / Animator Controller の責務のまま）。</p>
+<div class="sig">static Handle&lt;AnimMarker&gt; Play(AnimId id, Animator target)
+static Handle&lt;AnimMarker&gt; Play(AnimId id, Animator target, float fade)
+static void Stop(Handle&lt;AnimMarker&gt; h, float fade = 0f)
+static bool IsPlaying(Handle&lt;AnimMarker&gt; h)
+static float NormalizedTime(Handle&lt;AnimMarker&gt; h)
+static void SetSpeed(Handle&lt;AnimMarker&gt; h, float speed)
+static void SetTrigger(Animator target, string param)
+static void SetLayerWeight(Animator target, int layer, float weight)</div>
+<ul>
+<li><code>Play(id, target)</code> は内部で <code>fade = -1f</code> として呼ばれ、<code>AnimData.DefaultCrossFade</code>（データ側の既定クロスフェード時間）を使います。<code>Play(id, target, fade)</code> で秒数を明示指定すればその回だけ上書きできます</li>
+<li><code>NormalizedTime</code> は Handle が無効（再生していない）なら <strong>-1</strong> を返します（0〜1 の正規化時間ではなく「未再生」を表す番兵値）</li>
+<li><code>SetTrigger</code> は <code>target</code> が <code>null</code>、または <code>param</code> が空文字/<code>null</code> のとき no-op（Animator 自体の <code>SetTrigger</code> はここでは行われない）</li>
+<li><code>SetLayerWeight</code> は <code>weight</code> を <code>Mathf.Clamp01</code> し、<code>layer</code> が <code>target.layerCount</code> の範囲外なら no-op</li>
+<li>同じ <code>Animator</code> の同じレイヤーで既に再生中のものがあれば、新しい <code>Play</code> によって自動的に中断（Interrupt）されます</li>
+</ul>
+<p>ドット記法（<code>AnimHandleExtensions</code>）: <code>h.IsPlaying()</code> / <code>h.Stop(fade)</code> / <code>h.SetSpeed(speed)</code> / <code>h.NormalizedTime()</code>。</p>
+
+<h2>Anim2D（2D スプライトアニメーション）</h2>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Anim2D/Anim2D.cs:12</code>。再生実体は 3D と同じ <code>AnimManager</code>（<code>Anim2DData</code> は <code>AnimData</code> の派生）で、Handle も共通の <code>Handle&lt;AnimMarker&gt;</code> です。Anim2D 固有の機能は、方向 BlendTree のパラメータ設定です。</p>
+<div class="sig">static void Bind(AnimManager anim, IAssetRegistry registry)
+static Handle&lt;AnimMarker&gt; Play(Anim2DId id, Animator target)
+static Handle&lt;AnimMarker&gt; Play(Anim2DId id, Animator target, Vector2 dir)
+static Handle&lt;AnimMarker&gt; PlayData(AnimData data, Animator target)
+static void SetDirection(Animator target, Vector2 dir, string paramX = "x", string paramY = "y")
+static void SetDirection(Animator target, Vector2 dir, int paramXHash, int paramYHash)
+static int  ResolveFloatParameterHash(Animator target, string name)
+static void SetSpeed(Handle&lt;AnimMarker&gt; h, float speed)
+static void FreezeAtFirstFrame(Handle&lt;AnimMarker&gt; h)
+static void Unfreeze(Handle&lt;AnimMarker&gt; h, float speed = 1f)
+static void Stop(Handle&lt;AnimMarker&gt; h)
+static bool IsPlaying(Handle&lt;AnimMarker&gt; h)</div>
+<ul>
+<li><code>Play(id, target, dir)</code>: <code>dir</code> は BlendTree の x, y（正規化不要。<code>Vector2.zero</code> なら方向を変えずに再生だけする）。Data が <code>Anim2DData</code> で <code>HasDirections</code> が true のときだけ方向が設定される</li>
+<li><code>SetDirection</code>（文字列版）は再生中でも方向だけ変えられる。<strong>毎フレーム呼ぶ経路では文字列版は使わないこと。</strong> <code>animator.parameters</code>（配列 alloc）を毎回走査するため、定常経路（Tick 等）では <code>ResolveFloatParameterHash</code> で事前にハッシュを 1 回求め、ハッシュ版の <code>SetDirection</code> を使う</li>
+<li><code>FreezeAtFirstFrame</code>: 先頭フレームで止めて保持する（チャージ中の構えなど）。内部で <code>Seek(h, 0f)</code> + <code>SetSpeed(h, 0f)</code> を行う。<code>Unfreeze</code>（既定 <code>speed = 1f</code>）で速度を戻す</li>
+</ul>
+<pre><code>var hash = Anim2D.ResolveFloatParameterHash(animator, "x"); // 対象が決まった時に1回だけ
+// ... Tick 内 ...
+Anim2D.SetDirection(animator, moveDir, hash, hashY);</code></pre>
+
+<h2>Mats（マテリアル）</h2>
+<p>実装: <code>Packages/com.ddrive.core/Runtime/Material/Mats.cs:10</code>。</p>
+<div class="sig">static UnityEngine.Material Get(MaterialId id)
+static void Apply(Renderer r, int slot, MaterialId id)
+static int  Replace(MaterialId from, MaterialId to)
+static Handle&lt;MaterialMarker&gt; FadeTo(Renderer r, MaterialId to, float sec)
+static Handle&lt;MaterialMarker&gt; FadeTo(Renderer r, int slot, MaterialId to, float sec)
+static void SetGlobalParam(string name, ParamValue v)
+static bool IsFading(Handle&lt;MaterialMarker&gt; h)
+static void Stop(Handle&lt;MaterialMarker&gt; h)</div>
+<ul>
+<li><code>Get(id)</code> は Data ごとに 1 つの共有インスタンスを返す（呼ぶたびに新規生成しない）</li>
+<li><code>Apply(r, slot, id)</code> は <code>Renderer</code> の指定スロットへそのまま差し替える</li>
+<li><code>Replace(from, to)</code> はシーン内を走査して <code>from</code> を使っている箇所を <code>to</code> に一括差し替えし、差し替えた Renderer スロット数を返す</li>
+<li><code>FadeTo(r, to, sec)</code> はスロット 0 に対する「溶け替え」の短縮形。スロットを指定したい場合は <code>FadeTo(r, slot, to, sec)</code></li>
+<li><code>SetGlobalParam</code> はシェーダーのグローバルパラメータを設定する</li>
+</ul>
+<p>ドット記法（<code>MaterialHandleExtensions</code>）: <code>h.IsFading()</code> / <code>h.Stop()</code>。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ</a></li>
+<li><a href="bootstrap.html">起動配線（DDriveRuntimeBootstrap）</a></li>
+<li><a href="handle.html">Handle の扱い方</a></li>
+<li><a href="../DesignerManual/model-editor.html">デザイナーマニュアル: Model Editor の使い方</a></li>
+<li><a href="../DesignerManual/anim-editor.html">デザイナーマニュアル: Anim Editor の使い方</a></li>
+<li><a href="../DesignerManual/anim2d-editor.html">デザイナーマニュアル: Anim2D Editor の使い方</a></li>
+<li><a href="../DesignerManual/material-data.html">デザイナーマニュアル: Material の設定項目</a></li>
+<li><a href="../DesignerManual/material-editor.html">デザイナーマニュアル: Material Editor の使い方</a></li>
+<li><a href="../DesignerManual/prefab-data.html">デザイナーマニュアル: Prefab の設定項目</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

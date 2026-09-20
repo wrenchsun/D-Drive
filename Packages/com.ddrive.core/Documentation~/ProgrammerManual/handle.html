@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Handle・イベント・完了待ち | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Handle・イベント・完了待ち</nav>
+
+<h1>Handle・イベント・完了待ち</h1>
+
+<p>D-Drive の各種ファサード（<code>Vfx</code> / <code>Anim</code> / <code>Presentation</code> / <code>Ui</code> …）は、再生中の実体を直接返さず <strong>Handle</strong> という軽量な参照を返します。Handle の仕組み・世代（Generation）による安全性・種別ごとの完了待ち方法をまとめて説明します。個別の種別の API シグネチャは <a href="presentation-api.html">演出（Presentation）と Anchor</a>・<a href="ui-api.html">Canvas / UI Tween</a> や他ページを参照してください。</p>
+
+<h2>Handle&lt;TMarker&gt; の仕組み</h2>
+<p><code>Foundation/Handle/Handle.cs:7-33</code>。GC alloc 0 の readonly struct で、<code>Index</code>（台帳上の位置）と <code>Generation</code>（世代）の 2 つの int だけを持ちます。</p>
+<pre><code>public readonly struct Handle&lt;TMarker&gt; : IEquatable&lt;Handle&lt;TMarker&gt;&gt;
+{
+    public readonly int Index;
+    public readonly int Generation;
+
+    public static readonly Handle&lt;TMarker&gt; Invalid;          // (-1, 0)
+    public static Handle&lt;TMarker&gt; Sentinel(int tag);         // 負のインデックス(tag ごとに異なる値、tag &gt;= 0)
+}</code></pre>
+<p>有効性は Handle 自身では判定せず、生成元の <code>InstanceStore&lt;TMarker, TInstance&gt;</code>（<code>Foundation/Handle/InstanceStore.cs</code>）に問い合わせて判定します。<code>Sentinel(tag)</code> は Manager の台帳に属さない「擬似ハンドル」用です（<code>InstanceStore</code> は負のインデックスを警告なしで無効扱いするため、エディタのプレハブモードその場再生のような独自管理の再生を同じ Handle 型で扱うのに使います）。</p>
+
+<h3>マーカー型による種別の型安全な分離</h3>
+<p><code>TMarker</code> には中身の無い struct タグ（<code>VfxMarker</code> / <code>SeMarker</code> / <code>AnimMarker</code> / <code>PresentationMarker</code> / <code>CanvasMarker</code> / <code>UiTweenMarker</code> / <code>AnchorGroupMarker</code> …)を渡します。これにより <code>Handle&lt;VfxMarker&gt;</code> と <code>Handle&lt;SeMarker&gt;</code> はまったく別の型になり、<strong>コンパイル時に</strong>「VFX の Handle を誤って <code>Audio.Stop</code> に渡す」といったミスを防げます。<code>AssetId&lt;TMarker&gt;</code>（種別ごとの ID 型）も同じマーカー型を使い回しており、ID と Handle の対応も型で保証されます。</p>
+
+<h2>世代（Generation）— なぜ必要か</h2>
+<p><code>InstanceStore</code> は配列 + フリーリストで Instance を管理します（<code>Foundation/Handle/InstanceStore.cs:9-107</code>）。ある Instance が終了すると、そのスロットのインデックスはすぐに次の <code>Add</code> で再利用されます。もし有効性を「そのインデックスに何か入っているか」だけで判定すると、<strong>古い Handle が別の(たまたま同じスロットに入った)新しい Instance を誤って操作してしまう</strong>という事故が起きます（いわゆる ABA 問題）。</p>
+<pre><code>public bool TryGet(Handle&lt;TMarker&gt; handle, out TInstance instance)
+{
+    if (handle.Index &gt;= 0 &amp;&amp; handle.Index &lt; _count &amp;&amp;
+        _generations[handle.Index] == handle.Generation &amp;&amp;   // ← 世代が一致しないと無効
+        _items[handle.Index] != null)
+    { ... }
+}
+
+public void Remove(Handle&lt;TMarker&gt; handle)
+{
+    ...
+    _items[handle.Index] = null;
+    _generations[handle.Index]++;      // ← 破棄のたびに世代を進める
+    _freeIndices.Push(handle.Index);
+}</code></pre>
+<p><code>Remove</code>（Instance の破棄）のたびにそのスロットの世代を 1 つ進めるため、<strong>Handle を保持したまま対象が終了した後にその Handle を使っても</strong>、スロットが再利用されて新しい Instance が入っていた場合はもちろん、まだ何も入っていない場合でも世代が一致せず、常に「無効」として扱われます。誤って他人の Instance を触ることはありません。なお <code>_generations[index] == 0</code> は「未初期化(<code>default(Handle&lt;T&gt;)</code>)」と衝突しないよう、実際の世代は必ず 1 から始まります。</p>
+
+<h3>無効な Handle を操作するとどうなるか</h3>
+<p>D-Drive は例外で止めません（TL;DR §4）。無効な Handle への操作は次のように扱われます。</p>
+<table>
+<tr><th>メソッド</th><th>挙動</th></tr>
+<tr><td><code>TryGet</code> / <code>IsValid</code></td><td>false を返す。Index が範囲内なのに世代不一致などの場合は <code>InvalidAccessCount</code> をカウントし、開発ビルド/エディタでは <code>Debug.LogWarning</code> を出す(<code>Stop</code>/<code>Signal</code> のような「操作」系メソッドが内部で使う)</td></tr>
+<tr><td><code>IsValidSilent</code></td><td>警告・カウント無しで false を返す。「まだ再生中か」のポーリング(<code>IsPlaying</code> や <code>WaitAsync</code> の完了判定)用。終了済み Handle への問い合わせは正常な使い方なので警告にしない</td></tr>
+</table>
+<p>つまり <code>Vfx.Stop(oldHandle)</code> のように終了済みの Handle へ操作を呼んでも安全に無視されますが、開発ビルドではコンソールに警告が出る点に注意してください。一方で <code>Vfx.IsPlaying(oldHandle)</code> は何も警告せず単に <code>false</code> を返すので、毎フレームのポーリングに使っても問題ありません。</p>
+
+<h2>PresentationHandle — 専用ラッパー</h2>
+<p><code>Runtime/Presentation/PresentationHandle.cs:13-55</code>。他種別は「<code>Handle&lt;TMarker&gt;</code> + 拡張メソッド」で済ませていますが、Presentation は Signal/Cancel/Pause 等の「制御」がここに集約されるため専用の readonly struct になっています。中身は <code>Handle&lt;PresentationMarker&gt;</code> 1 個だけで GC alloc 0、実体はすべて <code>Presentation</code> 静的ファサード経由で <code>PresentationManager</code> へ委譲します。</p>
+<pre><code>public readonly struct PresentationHandle : IEquatable&lt;PresentationHandle&gt;
+{
+    public readonly Handle&lt;PresentationMarker&gt; Raw;
+    public static readonly PresentationHandle Invalid;
+
+    public bool IsPlaying { get; }
+    public float NormalizedTime { get; }        // 0..1。無効なら -1
+
+    public void Signal(string key);
+    public void Cancel();
+    public void Pause();
+    public void Resume();
+    public void SetSpeed(float speed);
+    public void Seek(float time);
+
+    public Observable&lt;Unit&gt; OnCompleted { get; }
+    public Observable&lt;Unit&gt; OnCancelled { get; }
+    public Observable&lt;string&gt; OnMarker { get; }
+    public Observable&lt;PresentationTrack&gt; OnTrackFired { get; }
+
+    public UniTask WaitAsync(CancellationToken ct = default);
+}</code></pre>
+
+<h2>非対称: R3 イベントを持つのは Presentation だけ</h2>
+<div class="warn">
+<strong>他の種別(Vfx/Anim/Se/Canvas 等)には R3 の Observable がありません。</strong> 完了待ちは <code>IsPlaying(h)</code> のポーリング（毎フレーム、または <code>await UniTask.WaitUntil(() =&gt; !h.IsPlaying())</code> のような形)になります。R3 は 5-1 で Presentation 用に導入されたばかりで、他種別への展開はまだ行われていません。
+</div>
+<p>例外は <code>Ui.OnSignal(key, cb)</code>（<a href="ui-api.html">Canvas / UI Tween</a>参照）ですが、これも R3 の <code>Observable</code> ではなく、単なる <code>Action&lt;SignalArgs&gt;</code> 購読 + <code>IDisposable</code> です。まとめると：</p>
+<table>
+<tr><th>種別</th><th>完了・イベントの受け取り方</th></tr>
+<tr><td>Presentation</td><td>R3 <code>Observable&lt;T&gt;</code>(<code>OnCompleted</code>/<code>OnCancelled</code>/<code>OnMarker</code>/<code>OnTrackFired</code>) + <code>UniTask WaitAsync</code></td></tr>
+<tr><td>Ui(Canvas)</td><td><code>OnSignal(key, Action&lt;SignalArgs&gt;)</code> → <code>IDisposable</code>(R3 ではない素の購読)。開閉待ちは <code>OpenAsync</code>/<code>CloseAsync</code> の <code>UniTask</code></td></tr>
+<tr><td>UiTween(UiFx)</td><td><code>IsPlaying</code> ポーリング、または <code>UniTask WaitAsync(h)</code>(内部は <code>UniTaskCompletionSource</code>。ポーリングではない)</td></tr>
+<tr><td>Vfx / Anim / Se / Prefab など</td><td><code>IsPlaying</code> ポーリングのみ</td></tr>
+</table>
+<p>Bind 前・未 Bind の Observable 系プロパティは、購読しても何も流れてこない <code>Observable.Empty&lt;T&gt;()</code> を返します（例外にしない no-op 原則。<code>Presentation.OnCompleted</code> 等の実装を参照）。</p>
+
+<h2>購読の後始末</h2>
+<p><code>Subscribe</code> の戻り値（<code>IDisposable</code>）を捨てると、そのオブジェクトが破棄されても購読が残り続け、破棄済みの対象を参照し続けるリークになります。D-Drive 内の実例（<code>Editor/Presentation/PresentationEditorWindow.cs:43-46, 363-370</code>）は、フィールドで保持してまとめて破棄するパターンです。</p>
+<pre><code>private IDisposable _subMarker;
+private IDisposable _subCompleted;
+
+private void SubscribeToCurrent()
+{
+    _subMarker = _preview.OnMarker.Subscribe(name =&gt; AppendLog($"Marker: {name}"));
+    _subCompleted = _preview.OnCompleted.Subscribe(_ =&gt; AppendLog("● 完了"));
+}
+
+private void DisposeSubscriptions()
+{
+    _subMarker?.Dispose();
+    _subMarker = null;
+    _subCompleted?.Dispose();
+    _subCompleted = null;
+}</code></pre>
+<p><code>DisposeSubscriptions()</code> は Close/StopPreview など「この購読が要らなくなるタイミング」で必ず呼びます。スコープが 1 メソッド内で完結する場合は <code>using var</code> で自動破棄するほうが簡潔です（テストコード <code>Tests/Editor/ScenePresentationPreviewDriverTests.cs:75</code> の実例）。</p>
+<pre><code>using var sub = handle.OnMarker.Subscribe(name =&gt; received.Add(name));
+// このスコープを抜けると自動で Dispose される</code></pre>
+<div class="bad">
+<pre><code>void Play()
+{
+    _handle = Presentation.Play(id, ctx);
+    _handle.OnCompleted.Subscribe(_ =&gt; OnAttackFinished());   // 戻り値を捨てている
+}</code></pre>
+</div>
+<div class="good">
+<pre><code>private IDisposable _sub;
+
+void Play()
+{
+    _handle = Presentation.Play(id, ctx);
+    _sub?.Dispose();
+    _sub = _handle.OnCompleted.Subscribe(_ =&gt; OnAttackFinished());
+}
+
+void OnDestroy() =&gt; _sub?.Dispose();
+</code></pre>
+</div>
+<p>R3 には <code>AddTo(this)</code> のような一括破棄の拡張（<code>CompositeDisposable</code> 等)も存在しますが、2026-09-17 時点の D-Drive コード内ではまだ使われていません（フィールド保持 + 明示 <code>Dispose()</code>、または <code>using var</code> が実際のパターンです）。自分のコードで購読が増えてきた場合は <code>R3</code> の <code>CompositeDisposable</code> を導入して構いません。</p>
+
+<h2>種別ごとの Handle 拡張メソッド（ドット記法）</h2>
+<p>Presentation 以外の種別は <code>Handle&lt;TMarker&gt;</code> 自体を拡張メソッドで飾ることで <code>h.Stop()</code> のようなドット記法を実現しています。実体はすべて対応する静的ファサードへの委譲です。</p>
+<table>
+<tr><th>拡張クラス</th><th>対象</th><th>主なメソッド</th></tr>
+<tr><td><code>VfxHandleExtensions</code>（<code>Runtime/Vfx/Vfx.cs:62</code>）</td><td><code>Handle&lt;VfxMarker&gt;</code></td><td><code>IsPlaying()</code> <code>Stop()</code> <code>Kill()</code> <code>Move(pos)</code> <code>Attach(t)</code> <code>Detach()</code> <code>SetSpeed(speed)</code> <code>SetParam(label, value)</code></td></tr>
+<tr><td><code>AnimHandleExtensions</code>（<code>Runtime/Anim/Anim.cs:47</code>）</td><td><code>Handle&lt;AnimMarker&gt;</code></td><td><code>IsPlaying()</code> <code>Stop(fade)</code> <code>SetSpeed(speed)</code> <code>NormalizedTime()</code></td></tr>
+<tr><td><code>PrefabHandleExtensions</code>（<code>Runtime/Prefab/Prefabs.cs:40</code>）</td><td><code>Handle&lt;PrefabMarker&gt;</code></td><td><code>Go()</code>（GameObject 取得） <code>GetComponent&lt;T&gt;()</code> <code>Move(pos, rot)</code> <code>HasTag(tag)</code> <code>Despawn()</code> <code>IsValid()</code></td></tr>
+<tr><td>その他</td><td><code>Handle&lt;CanvasMarker&gt;</code> / <code>Handle&lt;UiTweenMarker&gt;</code> / <code>Handle&lt;MaterialMarker&gt;</code> / <code>Handle&lt;HapticMarker&gt;</code> / <code>Handle&lt;ShakeMarker&gt;</code></td><td><code>CanvasHandleExtensions</code> / <code>TweenHandleExtensions</code> / <code>MaterialHandleExtensions</code> / <code>HapticHandleExtensions</code> / <code>ShakeHandleExtensions</code> が同じパターンで用意されています</td></tr>
+</table>
+<pre><code>var vfx = Vfx.Spawn(VFXID.Slash, transform);
+vfx.Move(newPos);          // Vfx.Move(vfx, newPos) と同じ
+if (vfx.IsPlaying()) { ... }
+
+var go = Prefabs.Spawn(PREFABID.Crate, pos, rot);
+go.GetComponent&lt;Rigidbody&gt;().AddForce(Vector3.up);
+</code></pre>
+<p><code>PresentationHandle</code> だけはこのパターンを使わず、専用 struct にメンバーとして直接生やしている点に注意してください（上の「PresentationHandle」節参照）。</p>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="presentation-api.html">演出（Presentation）と Anchor / 配置セット</a></li>
+<li><a href="ui-api.html">Canvas / UI Tween / Skin</a></li>
+<li><a href="vfx-api.html">VFX の API</a></li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

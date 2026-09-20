@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>アニメーション（3D）の設定と Anim Editor | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › アニメーション（3D）の設定と Anim Editor</nav>
+
+<h1>アニメーション（3D）の設定と Anim Editor</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
+
+<p>アニメーションデータ（AnimData）は「この Clip を、このステートで、いつ効果音・エフェクトを出しながら再生するか」をまとめたものです。基本の動き（待機・歩き）は Animator Controller に持たせ、攻撃・被弾などの<strong>ワンショット</strong>を D-Drive のアニメーションデータで再生します。</p>
+<ul>
+<li>Clip に Unity の AnimationEvent を埋め込む必要はありません。「15 フレーム目で斬撃音」のようなイベントはデータ側に持ち、Clip を差し替えても消えません</li>
+<li>Anim Editor で<strong>モデルを動かしながら</strong>イベントの位置を決め、効果音・エフェクトも同時に確認できます</li>
+</ul>
+
+<h2>開き方</h2>
+<ol>
+<li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anim</strong> を選んで作る（表示名は日本語 OK）</li>
+<li>アニメーションデータを Project で選び、<strong>Inspector の一番上の「▶ Anim Editor で開く」</strong>を押す（効果音・VFX・モデル・Anchor も同じ場所に「〜で開く」があります）</li>
+<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Animation (3D)</code>。Project でアニメーションデータを選ぶと自動で入ります</li>
+</ol>
+<div class="tip">
+Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタンからも、Asset Browser を開かずにその場でアニメーションデータを作れます（詳しくは<a href="asset-browser.html">Asset Browser の使い方</a>）。
+</div>
+
+<h2>はじめの一歩（攻撃モーションに斬撃音を付ける）</h2>
+<ol>
+<li>アニメーションデータを作り、設定の <code>Clip</code> に攻撃の Clip、<code>State Name</code> に Controller 上のステート名（Clip と同じ名前なら空でも可）を入れる</li>
+<li>Anim Editor の「確認用モデル」にキャラクターの ModelData を入れ、「確認用シーンを開く」→ シーンにモデルが置かれる</li>
+<li>▶ 再生 → SceneView でモデルが攻撃モーションで動く。タイムラインの白い線が進む</li>
+<li>タイムラインをクリックして再生ヘッドを 15 フレーム目あたりに置き、「SE / VFX イベント」の「<strong>＋ 現在位置に SE</strong>」→ 行のドロップダウンで斬撃の SE を選ぶ</li>
+<li>▶ 再生 → 15 フレーム目で音が鳴り、「イベントログ」に出る。タイミングを直したいときは<strong>タイムラインの橙色のマーカーをドラッグ</strong>（またはフレームの数字を直す）</li>
+<li>同じ要領で「＋ 現在位置に VFX」でエフェクトを選ぶと、シーン上のモデルの位置にエフェクトが出ます（エフェクト側の Anchor がボーン指定なら、そのボーンから）</li>
+</ol>
+<!-- screenshot: 36-#28 -->
+<figure>
+<img src="images/anim-editor-timeline.png" alt="Anim Editor ウィンドウ全体">
+<figcaption>Anim Editor。タイムライン・SE/VFX イベント一覧・イベントログ・再生コントロール</figcaption>
+</figure>
+
+<div class="tip">
+プログラマーは <code>Anim.Play(ANIMID.Attack01, animator)</code> と書くだけです。音やエフェクトのタイミングはデータ側で何度でも直せます。
+</div>
+
+<h2>シーン上で確認する</h2>
+<p>アニメーションは<strong>開いているシーンやプレハブモードのモデルがその場で動き、SceneView で確認します</strong>（ウィンドウ内の小さなプレビューはありません）。動かす相手（「シーン上の Animator(対象)」）は自動で決まります。</p>
+<ol>
+<li>「確認用モデル」にキャラクターの ModelData を入れる</li>
+<li>ツールバーの「<strong>確認用シーンを開く</strong>」（ライト・カメラ・床の揃ったシーン。VFX と共通）→ モデルがシーンの原点に置かれ、対象に入ります。Hierarchy に <code>[D-Drive] Anim Preview</code> が出ますが、<strong>シーンには保存されません</strong></li>
+<li>▶ 再生 → SceneView でモデルが動きます。効果音・VFX のイベントもシーン内で鳴り、出ます</li>
+</ol>
+<!-- screenshot: 36-#31 -->
+<figure>
+<img src="images/anim-editor-sceneview-playback.png" alt="Anim Editor と SceneView を並べた状態">
+<figcaption>SceneView でモーションを再生して確認する</figcaption>
+</figure>
+
+<p><strong>モデルの Prefab の中で動かす:</strong> ツールバーの「<strong>モデル Prefab を開く</strong>」でプレハブモードに入ると、その Prefab のモデルが自動で対象になります。BlendShape や IK の見え方を Prefab を編集しながら確認できます。■ 停止してもポーズはそのまま残るので、止めた絵を見ながら Prefab を直せます。<strong>Prefab でもシーンでも、保存（Ctrl+S）の直前に自動で再生前のポーズへ戻してから保存するので、再生中の姿勢が Prefab やシーンに入ることはありません。</strong>「↺ ポーズを戻す」でいつでも元に戻せます。</p>
+<div class="tip">
+対象に <a href="anim2d-editor.html">2D アニメーション（Anim2DData）</a>を入れたときは、3D の「確認用モデル」は使われず、2D 用のプレビュー物（<code>[D-Drive] Anim2D Preview</code>）がシーンに置かれます。イベント編集やタイムラインの操作はこのページのとおりです。
+</div>
+<p>シーンに置いてある自分のキャラクターを動かしたい場合は、Hierarchy でそのキャラクターを選んで「選択から取得」を押します。「↺ ポーズを戻す」か対象の切り替えで元のポーズに戻ります。</p>
+
+<h2>画面の説明</h2>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>確認用モデル</td><td>Animator を持つ ModelData。「確認用シーンを開く」でシーンに置かれます。Controller が無いモデルでも Clip をそのまま再生して確認できます</td></tr>
+<tr><td>シーン上の Animator(対象)</td><td>動かす相手。確認用シーン / モデル Prefab を開くと自動で入ります。「選択から取得」で Hierarchy の選択を入れることもできます</td></tr>
+<tr><td>モデル情報</td><td>1 行の要約（Controller 名 / BlendShape の数）。BlendShape の一覧は「モデル情報の詳細」を開くと出ます</td></tr>
+<tr><td>▶ 再生 / ⏸ 一時停止 / ■ 停止 / ↺ ポーズを戻す</td><td>⏸ は音・エフェクトも一緒に止まり、もう一度押すか ▶ で<strong>続きから</strong>再開します（まだ再生していない・終わった状態で ⏸ を押しても何も起きません）。■ 停止はその瞬間のポーズのまま止まり、前に出した音・エフェクト・配置セットは消えます。「↺ ポーズを戻す」で再生前のポーズに</td></tr>
+<tr><td>ループ試聴 / 速度</td><td>ループ試聴は終わったら自動でもう一度（データは変えません）。速度は 0.1〜2 倍</td></tr>
+<tr><td>タイムライン</td><td>フレームごとの目盛り（太い目盛りにはフレーム番号）と再生ヘッド。<strong>クリックでその位置にシークして一時停止</strong>（絵を止めて確認できます。イベントは鳴りません）。イベントのマーカー: 橙 = 効果音・エフェクトなど（PlayAsset）、水色 = それ以外、赤 = Clip の長さを超えている。マーカーの下には「F15 剣の斬撃音」のように時刻と対象の名前が出ます。<strong>マーカーをドラッグすると時刻が変わります</strong>（ドラッグ 1 回が Ctrl+Z 1 回で戻ります）</td></tr>
+<!-- screenshot: 36-#29 -->
+<tr><td>ブレンド確認</td><td>3 つの確認ができます（下の「ブレンドを確認する」参照）: <strong>遷移シーケンス</strong>（対象 → Step1 → Step2 … を CrossFade でつなぐ）/ <strong>レイヤー同時再生</strong>（上半身だけ別モーションを重ね、レイヤーの重みをスライダーで）/ <strong>Blend Tree パラメータ</strong>（歩き↔走りなどの混ざり具合をパッドで）</td></tr>
+<tr><td>設定</td><td>下の「設定項目」を参照</td></tr>
+<tr><td>イベントログ</td><td>再生中に発火したイベントの一覧（Frame 15: PlayAsset Se … のように）。狙った位置で鳴っているかの確認に</td></tr>
+<tr><td>検証</td><td>Clip 未設定、イベントが Clip より後ろ、ステート名が Controller に無い、BlendShape 名がモデルに無い、など</td></tr>
+</table>
+
+<figure>
+<img src="images/anim-editor-timeline-zoom.png" alt="タイムラインの拡大">
+<figcaption>タイムライン。橙のマーカーがイベント、下の目盛りがフレーム番号</figcaption>
+</figure>
+
+<h2>音とエフェクトを付ける（イベント一覧）</h2>
+<p>「SE / VFX イベント」に、音とエフェクトを付けるための道具がまとまっています。</p>
+<ol>
+<li>タイムラインをクリックして、鳴らしたい位置に白い線（再生ヘッド）を置く</li>
+<li>「<strong>＋ 現在位置に SE</strong>」（または VFX / 配置セット）を押す → 行が増える</li>
+<li>行のドロップダウンで音・エフェクトを選ぶ。「▶」でその音だけ試聴できます</li>
+<li>フレームの数字を直すか、タイムラインの橙色のマーカーをドラッグして位置を調整（Trigger が Time＝秒指定の行には「= F12」のようにフレーム換算も出ます）。SE は<strong>波形</strong>が重なって表示されるので、どこまで鳴るかが分かります</li>
+<li>「繰り返し」を決める: <strong>毎周回</strong> = ループするたびに出す（足音など）/ <strong>1 回</strong> = 再生ごとに 1 回 / <strong>再生中は維持</strong> = 1 回出してモーションが終わるまで付いていき、終わると消える（ダッシュの土煙など、ループするエフェクト向け）。「1 回」「再生中は維持」は OnSpawn や OnLoop のような時刻以外のタイミングにも効き、タイムラインで再生ヘッドを戻してももう一度は出ません</li>
+<li>「↗」でその音・エフェクトの専用エディタが開きます（中身を直したいとき）</li>
+</ol>
+<div class="tip">▶ で最初から再生し直すときと ■ 停止のときは、前に出した音・エフェクトは消えます。</div>
+<div class="tip">
+<strong>新しく作った SE / VFX をイベントに割り当てたとき:</strong> ウィンドウを開いたままで割り当てても、次に「▶ 再生」を押せば鳴る・出ます（再生のたびに最新のアセットを読み直します）。一時停止からの「▶ 再開」では読み直さないので、割り当てを変えたら「■ 停止」してから「▶ 再生」を押してください。
+</div>
+<div class="tip">
+<strong>Animator から選ぶ:</strong> 「Animator から選択(ステートを選ぶと AnimData を探す / 作る)」でモデルの Controller にあるステート（Idle / Attack …）を選ぶと、そのアニメーションデータに自動で切り替わります。まだ無ければ「このクリップの AnimData を作成(ID 発行・カタログ・Addressables 登録)」を押すだけで作られます。方向違いのクリップにも同じ音を付けたいときは「同じステートの他クリップの AnimData へ一括コピー(無ければ作成)」。
+</div>
+
+<h2>ブレンドを確認する</h2>
+<p>「ブレンド確認」を開くと 3 つの道具があります。どれもモデルを動かして見るだけで、データは変わりません。</p>
+<table>
+<tr><th>道具</th><th>使い方</th><th>見えるもの</th></tr>
+<tr><td>遷移シーケンス</td><td>Steps の ＋ で次に再生したいアニメーションを並べ、Step ごとに CrossFade 秒と「前のモーションのどこで切り替えるか（SwitchAt、0.5 = 半分、1 = 終わってから）」を決めて「▶ シーケンスを再生」。ループを ON にすると繰り返します</td><td>攻撃 1 → 攻撃 2 → 構え直し、のようなつながりが自然か。CrossFade が短すぎてカクつかないか</td></tr>
+<tr><td>レイヤー同時再生</td><td>「一緒に再生する Anim」に上半身用（Layer が 1 のアニメーションデータ）を入れて「▶ 対象と一緒に再生」。Controller のレイヤーごとにスライダーが出るので、動かしながら見ます</td><td>走りながら手を振る、などの重ね合わせ。AvatarMask（上半身だけ等）が効いているか</td></tr>
+<tr><td>Blend Tree パラメータ</td><td>横軸・縦軸に Controller のパラメータ（Speed、Direction など）を選び、パッドをドラッグ。1 つずつならスライダーで</td><td>歩き↔走り、前後左右の混ざり方。境目で足が滑らないか</td></tr>
+</table>
+<!-- screenshot: 36-#30 -->
+<figure>
+<img src="images/anim-editor-blend-tools.png" alt="ブレンド確認の折りたたみ">
+<figcaption>「ブレンド確認」を開いた状態</figcaption>
+</figure>
+
+<div class="tip">
+アニメーションデータの「Layer」欄が、どのレイヤーで再生されるかを決めます。同じ Layer のものを重ねると前のモーションが止まる（中断）ので、上半身用は Layer を 1 にしてください。
+</div>
+
+<h2>設定項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Clip</td><td>再生するアニメーションクリップ。長さとフレームレートはイベントの位置と終了判定に使います。未設定は Error</td></tr>
+<tr><td>State Name / Layer</td><td>Animator Controller 上のステート名とレイヤー。空なら Clip の名前を使います。Controller に無い名前だと検証に Error（再生自体は止まらず、イベントだけ動きます）</td></tr>
+<tr><td>Loop</td><td>ON で周回し続ける（止める指示があるまで）。周回ごとに OnLoop イベントが出て、Frame/Time のイベントも毎周出ます</td></tr>
+<tr><td>Default Cross Fade</td><td>前のモーションから切り替わるときの混ざり秒数。0.1 くらいが自然</td></tr>
+<tr><td>Mask</td><td>上半身だけ、などのマスク（情報用。実際の適用は Controller のレイヤー設定）</td></tr>
+<tr><td>Ik</td><td>手足の IK を使うかとウェイトのカーブ。IK の目標位置はプログラム側で設定します</td></tr>
+<tr><td>Blend Shapes</td><td>表情など。Shape Name（モデル情報に出ている名前）と、時間（0〜1）→ ウェイト（0〜100）のカーブ</td></tr>
+<tr><td>Events</td><td>Trigger: <strong>Frame</strong>（Clip の何フレーム目）/ <strong>Time</strong>（何秒）/ OnSpawn（再生開始）/ OnLoop（周回）/ OnDisable（止まった・中断された）/ OnDestroy（最後まで再生した）。Action = PlayAsset で Target に SE / VFX / 配置セットを入れると、そのタイミングで出ます。Repeat（繰り返し）: EveryLoop = 毎周回 / Once = 1 回 / KeepWhilePlaying = 再生中は維持（上の「音とエフェクトを付ける」参照）。普段は「SE / VFX イベント」の一覧から編集すれば十分です</td></tr>
+</table>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>攻撃の当たるフレームで音とエフェクト</td><td>Events に Frame=当たるフレーム、PlayAsset、Target=SE の行と Target=VFX の行を 1 つずつ</td></tr>
+<tr><td>足音（歩きループ）</td><td>Loop ON。Frame=左足着地 と Frame=右足着地 の 2 行に足音 SE。周回ごとに鳴ります</td></tr>
+<tr><td>モーションの最後に構え直しの音</td><td>Trigger=OnDestroy に SE（最後まで再生したときだけ鳴る。途中で別のモーションに切り替わったときは鳴らない）</td></tr>
+<tr><td>叫び顔（表情）</td><td>Blend Shapes に ShapeName と、0→100→0 のカーブ</td></tr>
+<tr><td>ダッシュ中ずっと出る土煙</td><td>Loop ON のダッシュモーションに、Loop の VFX を「再生中は維持」で 1 行。1 回出て走っている間付いていき、モーションが終わると消えます</td></tr>
+<tr><td>方向違いの 4 クリップに同じ音</td><td>1 つに付けてから「同じステートの他クリップの AnimData へ一括コピー」</td></tr>
+</table>
+
+<h2>よくある警告</h2>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Clip が未設定(または Missing)です</td><td>Clip を設定する</td></tr>
+<tr><td>Frame イベント(…)が Clip 長(… フレーム)を超えています</td><td>マーカーが赤になっています。Clip の長さより手前にドラッグ（Clip の最後のフレームちょうどは OK です）</td></tr>
+<tr><td>StateName '…'(Layer 0) が対象モデルの Controller にありません</td><td>Controller のステート名を確認して合わせる。空にすれば Clip 名が使われます</td></tr>
+<tr><td>BlendShape '…' が対象モデルにありません</td><td>モデル情報に出ている名前から選び直す</td></tr>
+<tr><td>Loop=false ですが OnLoop イベントがあります</td><td>ループしないので鳴りません。Loop を ON にするか行を消す</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="se-data.html">SE（効果音）の設定項目</a> / <a href="vfx-data.html">VFX の設定項目</a> — イベントで鳴らす・出すもの</li>
+<li><a href="anchor-data.html">Anchor（出す位置）</a> — エフェクトをボーンに付ける</li>
+<li><a href="model-editor.html">モデルの設定と Model Editor</a> — 確認用モデルの登録、Default Animation</li>
+<li><a href="anim2d-editor.html">2D アニメーション（スプライト）</a> — 2D のコマアニメも同じこのエディタで音・エフェクトを付ける</li>
+<li><a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

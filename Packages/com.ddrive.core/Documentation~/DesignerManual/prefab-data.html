@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Prefab データ(ゲーム中に出す物)の設定と Prefab Editor | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Prefab データ(ゲーム中に出す物)の設定と Prefab Editor</nav>
+
+<h1>Prefab データ(ゲーム中に出す物)の設定と Prefab Editor</h1>
+<p class="lastupdate">最終更新日: 2026-09-17</p>
+
+<p>Prefab データ(PrefabData)は、ギミック・弾・拾い物・背景オブジェクト・キャラクターなど「<strong>ゲーム中に出したり消したりする Prefab</strong>」を 1 個ずつ登録するデータです。登録しておくと、次のことがすべてデータだけで決まります。</p>
+<ul>
+<li>どの Prefab を出すか(Prefab)</li>
+<li>用途の目安(Kind)と、ゲームの判定に使う目印の文字列(GameplayTags)</li>
+<li>出したときに強制するレイヤー(CollisionLayer)</li>
+<li>遠くにあるときの簡略表示(LOD)の切り替えタイミング(Lod)</li>
+<li>使い回す(プールする)か、同時に何個まで出せるか(Flags の Pool)</li>
+<li>出た瞬間・消える瞬間に鳴らす効果音、出すエフェクト(Events)</li>
+</ul>
+<div class="tip">
+プログラマーは <code>Prefabs.Spawn(PREFABID.Player, 位置, 向き)</code> と書くだけです(消すときは <code>Prefabs.Despawn(handle)</code>)。「出現時に煙と音を出す」ためだけのスクリプトは要りません。ゲーム固有の動き(敵の AI など)は、これまでどおり Prefab 側のコンポーネントに書きます。
+</div>
+<div class="tip">
+<strong>モデルデータとの違い:</strong> Prefab データには、装備の差し替え(スロット)のような「見た目の切り替え」はありません。見た目を差し替えたいものは <a href="model-editor.html">モデルデータ</a>で作ってください。
+</div>
+
+<h2>開き方</h2>
+<ol>
+<li><a href="asset-browser.html">Asset Browser</a>(<code>Tools &gt; D-Drive &gt; Asset Browser</code>)のツールバー「新規」→「新規アセット作成」ダイアログで、「種別」に <strong>Prefab (PrefabData)</strong> を選び、「表示名(日本語可)」「カテゴリ」「識別子(英語)」を入れて「作成」。ファイル名・ID・カタログ登録はツールが自動で行います(生成先は <code>Assets/GameData/Prefab/カテゴリ/</code>、ファイル名は <code>PREFAB_カテゴリ_識別子</code>)</li>
+<li>Project で Prefab データを選び、<strong>Inspector の一番上の「Prefab Editor で開く」</strong>を押す</li>
+<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Prefab</code>。Project で Prefab データを選ぶと自動で入ります(「🔒」を ON にすると追従しません)</li>
+</ol>
+<div class="warn">
+<strong>.prefab ファイルを Asset Browser にドラッグ&amp;ドロップしても何も起きません</strong>(ドラッグで作れるのは音源ファイルだけ)。必ず「新規」から作り、あとで Prefab 欄に入れてください。識別子は英語の PascalCase(例: PlayerSlash)で。違う形式だと「識別子は英語 PascalCase(例: PlayerSlash)で入力してください」と出ます。
+</div>
+
+<h2>はじめの一歩(壊せる箱を登録する)</h2>
+<ol>
+<li>Asset Browser の「新規」で種別 Prefab、表示名「壊せる箱」、識別子 <code>BreakableBox</code> で作成</li>
+<li>Inspector の「Prefab Editor で開く」→ 設定の <code>Prefab</code> に箱の Prefab を入れる</li>
+<li><code>Kind</code> を <strong>Gimmick</strong>、<code>GameplayTags</code> に <code>Destructible</code> を 1 行追加(プログラマーが「壊せるか」を判定する目印になります)</li>
+<li>「<strong>確認用シーンに配置</strong>」→ 開いているシーンの SceneView の中心あたりに箱が置かれる。ステータスが「プレビュー配置中」になる</li>
+<li>見た目・大きさ・レイヤーを SceneView / Game ビューで確認。直したら「撤去」→ もう一度「確認用シーンに配置」</li>
+<li>使いたい場面(ID は <code>PREFABID.BreakableBox</code>)をプログラマーに伝える</li>
+</ol>
+<!-- screenshot: 36-#39 -->
+<figure>
+<img src="images/prefab-editor-window.png" alt="Prefab Editor ウィンドウ全体">
+<figcaption>Prefab Editor。対象・確認用シーンに配置/撤去・Kind / GameplayTags などの設定</figcaption>
+</figure>
+
+
+<h2>画面の説明(Prefab Editor)</h2>
+<p>ウィンドウの中に 3D の絵は出ません。<strong>確認は必ず SceneView / Game ビューで行います</strong>。プレビューはゲーム実行時とまったく同じ仕組み(PrefabsManager)で出すので、Pool 設定・レイヤーの強制・LOD の上書きもそのまま再現されます。</p>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>対象</td><td>編集する Prefab データ。Prefab データ以外(シーン上の物など)は入りません</td></tr>
+<tr><td>🔒</td><td>「選択に追従しない」。OFF のときは Project で別の Prefab データを選ぶとウィンドウの中身も切り替わります</td></tr>
+<tr><td>確認用シーンに配置</td><td>開いているシーン(またはプレハブモード)に、実際のゲームと同じ仕組みで Prefab を出します。Hierarchy に <code>[D-Drive] Prefab Preview</code> が出ますが<strong>シーンには保存されません</strong>。押すたびに前のプレビューは消えて置き直されます</td></tr>
+<tr><td>撤去</td><td>プレビューを消します。撤去せずにシーンを切り替えても残骸は残りません</td></tr>
+<tr><td>ステータス</td><td>「PrefabData を選択してください」→「「確認用シーンに配置」で確認できます」→「プレビュー配置中」。「配置に失敗しました」が出たらコンソールを確認</td></tr>
+<tr><td>設定(Inspector)</td><td>Prefab データの全項目をそのまま編集。Ctrl+Z で戻せます</td></tr>
+</table>
+<div class="warn">
+Prefab Editor には「検証」の表示や「修正」ボタンは<strong>ありません</strong>(Canvas Editor にはあります)。警告の確認は <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> で行います(<a href="validation.html">Validation の見方</a>)。
+</div>
+
+<h2>設定項目</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Prefab</td><td>実際に出す Prefab。未設定でもゲームは止まらず、<code>&lt;Placeholder:PREFAB&gt;</code> という空のオブジェクトが出ます(エディタでは 1 回だけ警告)。本番に出す前には必ず入れてください</td></tr>
+<tr><td>Kind</td><td>用途の目安。<strong>Gimmick</strong>(ギミック)/ <strong>Projectile</strong>(弾)/ <strong>Pickup</strong>(拾い物)/ <strong>Environment</strong>(背景)/ <strong>Character</strong>(キャラ)/ <strong>Other</strong>(その他)。一覧の整理と検証のための分類で、<strong>ゲームの判定には使いません</strong>(判定は GameplayTags で)</td></tr>
+<tr><td>GameplayTags</td><td>ゲームの判定に使う目印の文字列(例: <code>Destructible</code>)。プログラマーが「このタグを持っているか」で分岐します。大文字小文字まで完全一致なので、綴りはプロジェクト内で揃えてください(似た綴りは検証がタイポとして指摘します)。Asset Browser の検索用「Tags」とは別物です</td></tr>
+<tr><td>CollisionLayer</td><td>出したときに強制するレイヤー番号。<strong>-1</strong> = Prefab のレイヤーをそのまま使う。<strong>0〜31</strong> = 子オブジェクトまで含めて全部そのレイヤーに変える。Project Settings の Tags &amp; Layers に名前があるレイヤーを指定します</td></tr>
+<tr><td>Lod</td><td>遠くにあるときの簡略表示(LOD)の切り替え位置を、Prefab 側ではなくデータ側で決めたいときに使います。<code>Enabled</code> を ON にして <code>ScreenRelativeTransitionHeights</code> に LOD 0, 1, 2… の切り替え値(0〜1)を、Prefab の LODGroup の段数と同じ数だけ入れます。Prefab に LODGroup が無ければ何もしません</td></tr>
+<tr><td>Events</td><td>出た瞬間(OnSpawn)・消える瞬間(OnDespawn)などに鳴らす効果音・出すエフェクト。使い方は <a href="anim-editor.html">Anim Editor</a> の Events と同じです</td></tr>
+</table>
+
+<h3>共通項目(すべてのデータに共通)</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Id / Version / Author / UpdatedAt</td><td>ツールが自動で付けます。<strong>手で編集しないでください</strong>。Id は名前を変えても変わりません</td></tr>
+<tr><td>DisplayName / Description / Category / Tags / Icon</td><td>Asset Browser での表示名・説明・フォルダ分け・検索用タグ・アイコン。Tags は TagCatalog から選びます(自由入力は非推奨)</td></tr>
+<tr><td>ChangeNote</td><td>変更内容のメモ(任意)</td></tr>
+</table>
+
+<h3>Flags(使い回し・優先度・ネットワーク)</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Pool.Kind</td><td>「プール」= 消したものを捨てずに取っておいて次に使い回す仕組み。<strong>None</strong>(既定)= 使い回さず、消したら破棄。<strong>Pooled</strong> = 消したらプールに戻し、次に出すときは同じオブジェクトを再利用。弾・ヒットエフェクトのように短命で数が多いものは Pooled にします(2026-09-11 に実機で動作確認済み)</td></tr>
+<tr><td>Pool.InitialCount</td><td>あらかじめ作っておく数。プログラマーがシーン開始時などに「温め」(PreloadAsync)を呼ぶと、この数だけ先に作られます。Pooled のときだけ効きます</td></tr>
+<tr><td>Pool.MaxCount</td><td>同時に存在できる上限。超えて出そうとすると、<strong>Priority が一番低いもの</strong>が強制的に回収されます。Pooled のときだけ効きます</td></tr>
+<tr><td>Priority</td><td>上限に達したときの残りやすさ。数値が高いほど残ります。<strong>Pool が None のときは効きません</strong></td></tr>
+<tr><td>Pause / Load / Persistent / Domain</td><td>Pause: ポーズ中の扱い(Prefab 本体はポーズで特別なことをしません)。Load: 読み込みのタイミング(既定 LazyLoad = 最初に使うときに読む)。Persistent: シーンをまたいでも消さないか。Domain: ゲーム内(Game3D)/ UI / 両方</td></tr>
+<tr><td>Net</td><td>マルチプレイでの扱い。<strong>Local</strong> = 自分の画面だけ。<strong>Cosmetic</strong> = 見た目だけ全員の画面で出す(結果に影響しないエフェクトなど)。<strong>Simulated</strong> = 結果に影響するのでサーバーが管理する(弾・ギミック・キャラ)。Simulated は Prefab のルートに NetworkObject が必須です</td></tr>
+</table>
+<div class="tip">
+Pooled のときの目安: 弾なら InitialCount=32、MaxCount=128(検証も同じ値を推奨してきます)。「温め」は <code>Prefabs.PreloadAsync</code> で行ってもらってください。同期版の Preload は、まだ読み込まれていないものを素通りすることがあります。
+</div>
+
+<h2>よくある使い方</h2>
+<table>
+<tr><th>やりたいこと</th><th>設定</th></tr>
+<tr><td>壊せる箱</td><td>Kind=Gimmick、GameplayTags に <code>Destructible</code>。「確認用シーンに配置」で見た目確認</td></tr>
+<tr><td>弾を大量に撃つ</td><td>Kind=Projectile、Pool.Kind=Pooled、InitialCount=32、MaxCount=128。シーン開始時に温めてもらう</td></tr>
+<tr><td>出た瞬間に煙と音</td><td>Events に OnSpawn の行を足し、SE と VFX を入れる(スクリプト不要)</td></tr>
+<tr><td>当たり判定用のレイヤーを強制する</td><td>CollisionLayer にそのレイヤー番号(子まで全部変わります)</td></tr>
+<tr><td>遠景の切り替えタイミングを調整</td><td>Lod.Enabled を ON、ScreenRelativeTransitionHeights を LODGroup の段数ぶん入れる</td></tr>
+<tr><td>拾い物(コイン等)</td><td>Kind=Pickup、Pool.Kind=Pooled、GameplayTags に <code>Pickup</code> など</td></tr>
+<tr><td>マルチ対戦で結果に影響する物</td><td>Net=Simulated + Prefab に NetworkObject。クライアント側からの Spawn はサーバーへの要求になり、その場には出ません</td></tr>
+<tr><td>見た目だけ試す</td><td>Prefab Editor →「確認用シーンに配置」→ 調整 →「撤去」</td></tr>
+</table>
+
+<h2>よくある警告</h2>
+<p>表示場所は <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(Prefab Editor 内には出ません)。</p>
+<table>
+<tr><th>表示</th><th>対処</th></tr>
+<tr><td>Prefab が未設定(または Missing)です</td><td>Prefab 欄に Prefab を入れる。空のままでも動きますが本番には出せません</td></tr>
+<tr><td>CollisionLayer '…' は未定義のレイヤーです(-1=Prefab のレイヤーを維持、0-31=定義済みレイヤー)</td><td>-1 に戻すか、Project Settings の Tags &amp; Layers に名前のあるレイヤー番号にする</td></tr>
+<tr><td>Kind=Projectile ですが Flags.Pool が Pooled ではありません(Pooled(32, 128) を推奨)</td><td>弾は使い回すのが前提。Pool.Kind=Pooled、InitialCount=32、MaxCount=128 を目安に</td></tr>
+<tr><td>Flags.Net=Simulated ですが Prefab に NetworkObject がありません(サーバー権威の複製には NetworkObject が必須です)</td><td>Prefab のルートに NetworkObject を付けるか、Net を Local / Cosmetic に戻す</td></tr>
+<tr><td>Flags.Net=Simulated は Kind=Projectile/Gimmick/Character を想定しています(現在: …)</td><td>意図的ならそのままで OK(Info)</td></tr>
+<tr><td>Flags.Net=Simulated(サーバー権威の複製)と Flags.Pool=Pooled(プール再利用)は併用注意です</td><td>ネット同期と使い回しの組み合わせはズレの原因になりやすい。どちらかを外すかプログラマーに相談</td></tr>
+<tr><td>GameplayTags[i] が空白です</td><td>空の行を消す</td></tr>
+<tr><td>GameplayTags[i] '…' は重複しています</td><td>同じタグが 2 回。片方を消す</td></tr>
+<tr><td>GameplayTags[i] '…' は既知タグ '…' のタイポの可能性があります</td><td>他の Prefab データで使われているタグと大文字小文字違い・1 文字違い。綴りを揃える</td></tr>
+</table>
+
+<h2>注意点</h2>
+<ul>
+<li><strong>Kind はゲームの判定に使いません</strong>。判定は GameplayTags で</li>
+<li><strong>Pool=None は破棄です</strong>。MaxCount / Priority を入れても効きません。使い回したいときは Pooled に</li>
+<li><strong>Net=Simulated は NetworkObject が必須</strong>。また Simulated + Pooled は警告になります</li>
+<li>Simulated の物はクライアント側では直接出ません(サーバーへの要求だけ)。実際のネットワーク複製は Phase 6 で接続予定です</li>
+<li>Prefab Editor に検証表示は無いので、<code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> で確認する習慣を</li>
+<li>プレビューはシーンに保存されません。保存したい配置は自分でシーンに置いてください</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="asset-browser.html">Asset Browser</a> — 新規作成・検索</li>
+<li><a href="model-editor.html">モデルの設定と Model Editor</a> — 見た目を差し替えたいものはこちら</li>
+<li><a href="se-data.html">SE の設定項目</a> / <a href="vfx-data.html">VFX の設定項目</a> — Events で鳴らす・出すもの</li>
+<li><a href="canvas-data.html">Canvas(UI 画面)データの設定項目</a> / <a href="canvas-editor.html">Canvas Editor の使い方</a> — UI 画面はこちら</li>
+<li><a href="validation.html">Validation の見方</a> / <a href="glossary.html">用語集</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>

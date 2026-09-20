@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カットシーン（Timeline）: Maya から書き出して Unity で演出を足す | D-Drive デザイナーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › カットシーン（Timeline）: Maya から書き出して Unity で演出を足す</nav>
+
+<h1>カットシーン（Timeline）: Maya から書き出して Unity で演出を足す</h1>
+<p class="lastupdate">最終更新日: 2026-09-19</p>
+
+<p>必殺技のカットインやラウンド開始 / 勝利デモのような<strong>数秒の短い演出</strong>で、Maya で作ったカメラワークとキャラの動きをそのまま Unity で再生するための、<strong>Maya 側の書き出し手順</strong>です。Maya のスクリプトやプラグインは使いません。標準の FBX 書き出しだけで済みます。Unity 側では、決められたフォルダに FBX を置くだけでカットシーンのデータ（CutsceneData）と Timeline が自動で作られ、そこに効果音・エフェクト・画面揺れなどを足せます。</p>
+
+<div class="warn">
+<strong>2026-09-18 に Unity 側の取り込み機能(Timeline チケット 6-10a〜d)を実装しました。</strong> このページの手順とファイル名のルールで、そのまま取り込めます。ただし <strong>この環境には実際の Maya 書き出し FBX が無いため、カメラの画角以外(ピント距離・絞り・イベント用ロケーター)は実 Maya 素材での確認がまだ済んでいません</strong>(下の各節に記載)。実際に書き出して試したときに画面と食い違う点があれば都度このページを直してください。
+</div>
+
+<h2>先に決めておくこと（プロジェクト共通）</h2>
+<table>
+<tr><th>項目</th><th>決めごと</th><th>理由</th></tr>
+<tr><td>シーンの fps</td><td>プロジェクトの既定（<strong>30 または 60</strong>。どちらかは Unity 側の設定 <code>CutsceneImportProfile</code> で宣言されています。分からなければプログラマーに確認）</td><td>違う fps でも取り込めますが、Validation に「宣言と違う」というお知らせ（Info）が出ます。同じショットの中でファイルごとに fps が違うのは NG（Warning）</td></tr>
+<tr><td>単位・上方向</td><td>cm・Y-up（Maya の既定のまま）</td><td>Unity の取り込み既定に合わせ、大きさのずれを防ぐ</td></tr>
+<tr><td>キャラリグの名前</td><td>リグの<strong>名前空間（または参照ファイル名）を D-Drive のモデル識別子に揃える</strong>（例: モデル識別子が <code>Hero</code> なら名前空間 <code>Hero:</code>）</td><td>Unity 側で「どのキャラを動かすか」を自動で結び付けるため。違っていても Unity 側で手で結べます</td></tr>
+<tr><td>カメラ</td><td>複数カメラで切り替えて作った場合は、Camera Sequencer の「<strong>Ubercam 作成</strong>」で 1 台のカメラに焼く</td><td>1 台にしておくと Unity 側でそのまま 1 本のカメラクリップになる。複数のまま出しても取り込めます（Unity 側でカメラごとにクリップが並ぶ）</td></tr>
+</table>
+
+<h2>ファイル名のルール（これだけ守る）</h2>
+<p>1 つのショット（= 1 つのカットシーン）は、<strong>「カメラ + 小物」の FBX 1 本</strong>と、<strong>キャラごとの FBX</strong>（キャラの数だけ）のセットです。ファイル名で「同じショットか」「どのキャラか」を判別します。</p>
+<table>
+<tr><th>対象</th><th>ファイル名</th><th>例</th><th>Unity 側で起きること</th></tr>
+<tr><td>カメラ + 小物</td><td><code>&lt;ショット名&gt;.fbx</code></td><td><code>Opening01.fbx</code></td><td>カットシーンデータ <code>CUT_&lt;カテゴリ&gt;_Opening01</code> ができ、カメラはカメラクリップになる</td></tr>
+<tr><td>キャラ（1 体ずつ）</td><td><code>&lt;ショット名&gt;__&lt;モデル識別子&gt;.fbx</code>（アンダースコア <strong>2 つ</strong>）</td><td><code>Opening01__Hero.fbx</code></td><td>役割 <code>Hero</code> として、モデル <code>Hero</code> に自動で結び付く</td></tr>
+<tr><td>同じキャラ 2 体目</td><td>識別子の末尾に <code>_2</code>、<code>_3</code> …</td><td><code>Opening01__Hero_2.fbx</code></td><td>同じモデルを 2 体出す</td></tr>
+<tr><td>小物（剣・扉など動く物）</td><td>ノード名を <code>PRP_&lt;モデル識別子&gt;</code>、または名前空間 = モデル識別子。カメラと同じ FBX に入れる</td><td><code>PRP_Sword</code></td><td>モデル <code>Sword</code> に結び付く</td></tr>
+<tr><td>イベントの目印（任意）</td><td>ロケーター <code>EVT_&lt;キー&gt;</code></td><td><code>EVT_Hit</code></td><td><strong>今回は未対応です</strong>（実 Maya 素材が無く安全に検証できなかったため、6-10c では取り込みを実装していません）。Unity の Timeline ウィンドウで手動で D-Drive Signal マーカーを置いてください</td></tr>
+</table>
+<div class="tip">
+<strong><code>@</code> をファイル名に使わないでください</strong>（<code>Hero@Opening01.fbx</code> のような形）。Unity が「同じフォルダの <code>Hero.fbx</code> にアニメを合流させる」古い動きをしてしまうため、区切りは <code>__</code>（アンダースコア 2 つ）にしています。
+</div>
+
+<h2>書き出し手順（1 ショットにつき、1 + キャラ数 回）</h2>
+<div class="tip">
+<strong>なぜキャラごとに分けるのか:</strong> Unity は 1 つの FBX に 1 体分の「人型（Humanoid）の骨の定義」しか持てません。2 キャラを 1 つの FBX に入れると片方の動きが正しく移りません。そのため <strong>Export Selection をキャラの数だけ</strong>行います。手数は増えますが、スクリプト無しの標準機能だけで済みます。
+</div>
+<ol>
+<li><strong>カメラ + 小物</strong>: カメラ（Ubercam）・小物（<code>PRP_*</code>）・イベント用ロケーター（<code>EVT_*</code>）だけを選択 → <code>File &gt; Export Selection</code> → 形式 FBX → 名前 <code>&lt;ショット名&gt;.fbx</code>。<strong>キャラは選ばない。動かない背景も選ばない</strong>（背景は Unity 側のシーンに置きます）</li>
+<li><strong>キャラ 1 体目</strong>: そのキャラの<strong>ルートジョイント</strong>（骨の一番上）を選択（骨の階層ごと選ばれます。<strong>メッシュは選ばない</strong>）→ <code>File &gt; Export Selection</code> → 名前 <code>&lt;ショット名&gt;__&lt;モデル識別子&gt;.fbx</code></li>
+<li><strong>キャラ 2 体目以降</strong>: 2 を繰り返す（同じキャラが 2 体なら <code>__&lt;識別子&gt;_2</code>）</li>
+<li>すべて <strong>同じ保存先</strong>に置く: <code>Assets/SourceAssets/Cutscene/&lt;カテゴリ&gt;/</code>（カテゴリは <code>Skill</code> / <code>Round</code> など、Unity 側のフォルダ分け。既にあるフォルダに合わせてください）</li>
+</ol>
+
+<h3>書き出しオプション（1〜3 で共通）</h3>
+<table>
+<tr><th>項目</th><th>設定</th><th>理由</th></tr>
+<tr><td>Animation</td><td>ON</td><td>—</td></tr>
+<tr><td>Bake Animation</td><td><strong>ON</strong>。開始〜終了 = ショットの全フレーム、Step 1</td><td>IK・コンストレイント・エクスプレッションは Unity に持っていけないので、キーに焼きます。<strong>同じショットの全ファイルで開始〜終了フレームを揃える</strong>（ずれると Validation Warning）</td></tr>
+<tr><td>Cameras</td><td>ON</td><td>カメラの位置・回転・画角（焦点距離）を持っていく</td></tr>
+<tr><td>Lights</td><td>OFF</td><td>ライトは Unity 側で作ります</td></tr>
+<tr><td>Embed Media</td><td>OFF</td><td>テクスチャは不要（見た目は Unity 側のモデル / マテリアルが正）</td></tr>
+<tr><td>Include &gt; Input Connections</td><td><strong>OFF</strong></td><td>ON だと選んでいないノード（コンストレイント先など）まで付いてきます</td></tr>
+<tr><td>キャラ FBX のみ: Deformed Models / Skins / Blend Shapes</td><td><strong>OFF</strong></td><td>骨のアニメだけを出す（メッシュ・スキンはキャラ本体の FBX 側に既にあります）</td></tr>
+<tr><td>Units / Up Axis</td><td>Automatic（cm）/ Y</td><td>—</td></tr>
+</table>
+
+<h2>カメラのピント・絞りも持っていきたいとき（任意）</h2>
+<p>画角（焦点距離）は標準の書き出しで持っていけます（Unity の Animation ウィンドウの既知の束縛名 <code>field of view</code> から取得する実装です)。<strong>ピント距離・絞り（f 値）</strong>は FBX の標準属性(<code>FocusDistance</code>/<code>FStop</code>)から複数の候補名で取得を試みる防御的な実装になっていますが、<strong>実 Maya 素材での確認はまだ済んでいません</strong>(この環境に実 FBX が無いため)。取得できなければ空のまま(ピントは書き込まれません)。うまく届かない場合は Maya のカメラにカスタムアトリビュート <code>dd_focusDistance</code>（ピント距離、cm）と <code>dd_fStop</code>（絞り）を追加してキーを打つ経路も設計上は用意していますが、こちらも今回は取り込みを実装していません(イベント用ロケーターと同じ理由)。持っていかなくても、Unity 側でショットごとに手で入れられます。</p>
+<p><strong>2026-09-20 追記</strong>: 焦点距離・ピント距離・絞りのいずれか 1 つでも取得できた新規ショットは、Camera クリップの「Focus」設定が自動的に <code>Volume</code>（ピントを URP の被写界深度に反映する）になります。<strong>1 つも取得できなかった場合は自動的に <code>Off</code> になり、ピントは一切効きません</strong>(以前は無条件で <code>Volume</code> になっていたため、ピントが取得できないショットで画面全体がボケてしまう不具合がありましたが解消しました)。「Focus」は Timeline ウィンドウでいつでも手で切り替えられ、一度手で変えた設定は同じ FBX を再取り込みしても保持されます。</p>
+
+<h2>Unity 側で確認する</h2>
+<ol>
+<li>FBX をフォルダに置くと自動で取り込まれ、Asset Browser の「Cutscene」にショットが現れる</li>
+<li><a href="validation.html">Validation</a> の「Run All」で次を確認する:
+  <ul>
+    <li><strong>fps が違う</strong>（Warning）: 同じショットのファイル間で fps が違う。Maya のシーン fps を揃えて書き出し直す</li>
+    <li><strong>モデルが見つからない</strong>（Warning）: ファイル名の識別子と D-Drive のモデル識別子が違う。ファイル名を直すか、Unity 側のバインド表で手で選ぶ</li>
+    <li><strong>Avatar が未設定</strong>（Error、モデル側）: キャラ本体のモデルデータに人型（Humanoid）の Avatar が無い。モデル担当に依頼</li>
+  </ul>
+</li>
+<li>Asset Browser でショットの CutsceneData を選ぶと、Inspector 上部に「Timeline ウィンドウで開く」「Cutscene確認用シーンを開く」ボタンとバインド検査(役割名⇔Timeline のトラック名の食い違い)が出ます。効果音・エフェクト・画面揺れは Timeline ウィンドウで足す（<a href="presentation.html">演出</a>と同じ ID を置くだけ）</li>
+<li>「Timeline ウィンドウで開く」を押すと、確認用シーンにプレビュー用のカメラ・キャラ位置が自動で用意され、標準 Timeline ウィンドウが開きます。<strong>再生ボタンを押すだけで</strong>カメラの動き・効果音・エフェクト・画面揺れ・コントローラー振動・イベントがその場で確認できます(Play Mode に入る必要はありません)。ドラッグしてスクラブしている間は音・エフェクトは鳴らず、カメラだけ現在位置に追従します</li>
+<li>通信対戦での見え方や「入力をロックする」通知、途中で飛ばす(Skip)機能まで含めて確認したいときは、「Cutscene確認用シーンを開く」で確認用シーンを開き、<strong>Play ボタンを押して(Play Mode に入って)</strong>から CutsceneData の Inspector の「● 再生(Play Mode)」ボタンを押してください</li>
+</ol>
+
+<h2 id="timeline">Unity の Timeline ウィンドウで演出を足す</h2>
+<p>FBX を置くと自動で作られる Timeline に、効果音・エフェクト・画面揺れなどを足して仕上げます。編集画面は Unity 標準の <strong>Timeline ウィンドウ</strong>です（D-Drive 専用の画面は作っていません）。</p>
+
+<h3>カットシーンと「演出（Presentation）」の使い分け</h3>
+<table>
+<tr><th>質問</th><th>選ぶもの</th></tr>
+<tr><td>Maya で作ったカメラやキャラの動き（FBX）を使う？ / 演出中カメラをゲームから奪って別のカメラワークにする？</td><td><strong>カットシーン</strong>（このページ）</td></tr>
+<tr><td>ヒット判定など「ゲームの結果を待ってから」続きを出したい？ / 既存の SE・VFX・揺れ・HitStop を時間で並べるだけ？</td><td><a href="presentation.html">演出（Presentation）</a></td></tr>
+<tr><td>Maya カメラも使うし、ヒットも待ちたい</td><td>演出を親にして、Timeline トラックでカットシーンを呼ぶ</td></tr>
+</table>
+<p>一言でいうと<strong>「Maya の FBX を使うならカットシーン、使わないなら演出」</strong>です。</p>
+
+<h3>開き方と流れ</h3>
+<ol>
+<li>Asset Browser で「Cutscene」のショット（<code>CUT_…</code>）を選ぶ</li>
+<li>Inspector 上部の「<strong>▶ Timeline ウィンドウで開く</strong>」を押す(確認用シーンにプレビュー用のカメラ・キャラ位置が自動で用意されます)</li>
+<li>Timeline ウィンドウでトラックを足し、効果音・エフェクトなどを演出と同じ ID(名前で選べます)で置く</li>
+<li>そのまま Timeline ウィンドウの<strong>再生ボタン</strong>を押すと、置いた SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal がその場で確認できます。合わなければ止めて調整し、また再生ボタンを押すだけです</li>
+<li>通信対戦・入力ロック・Skip まで確認したいときは、Inspector の「<strong>▶ Cutscene確認用シーンを開く</strong>」で確認用シーンを開き、<strong>Play ボタンで Play Mode に入ってから</strong>「● 再生(Play Mode)」を押して見る(Cancel / Skip ボタンも試せます)</li>
+</ol>
+
+<h3>足せるトラック</h3>
+<table>
+<tr><th>トラック / マーカー</th><th>使い方</th></tr>
+<tr><td><strong>Camera</strong>（黄色）</td><td>Maya のカメラを取り込むと自動で作られます。<strong>ステップ fps</strong>（0 = そのまま。数字を入れると、その fps のコマ落ち風に見せます。24fps 風にしたいとき）、<strong>ブレンド秒</strong>（ゲームのカメラから Timeline のカメラへ滑らかに繋ぐ長さ。前後それぞれ）、ピントの設定を、ショットごとに調整します</td></tr>
+<tr><td><strong>SE</strong> / <strong>VFX</strong> / <strong>AnchorGroup</strong></td><td>クリップを置くと、その時刻から鳴る / 出ます。クリップの<strong>長さ</strong>が、ループする SE や VFX を鳴らし続ける時間になります（1 回だけ鳴る SE は開始点だけ使われます）</td></tr>
+<tr><td><strong>UI</strong> / <strong>Presentation</strong></td><td>区間のあいだだけ Canvas（字幕・レターボックス等）を開く / 演出を再生します。演出の中に「合図待ち（On Signal）」のトラックがあるものは、カットシーンから合図を送れないので検証に警告が出ます</td></tr>
+<tr><td><strong>Event</strong> / <strong>Shake</strong> / <strong>Haptic</strong>（マーカー）</td><td>置いた時刻にイベント（SE や VFX を鳴らす等）・画面揺れ・コントローラー振動を 1 回出します</td></tr>
+<tr><td><strong>Signal</strong>（マーカー）</td><td>文字列のキー（<code>cutscene/xxx</code> の形）を置くと、プログラム側がその時刻を受け取れます。「ここで画面を切り替える」等の連携用です</td></tr>
+</table>
+<p>キャラや小物の動きは、Unity 標準の <strong>Animation トラック</strong>のままです（人型のリターゲットなどをそのまま使うため）。トラックを追加するときは Timeline ウィンドウの「トラックを追加」メニューから D-Drive のトラックを選びます（メニューに出る正確な表記は、実機ではまだ確認していません）。</p>
+
+<h3>カットシーンデータ（Inspector）の主な設定</h3>
+<table>
+<tr><th>項目</th><th>意味</th></tr>
+<tr><td>Origin（原点）</td><td>Maya の座標をゲームのどこに置くか。<strong>Self</strong>（使う人の位置と向き。必殺技のカットインなど・既定）/ <strong>World</strong>（Maya の座標そのまま。ステージ固定のデモ）/ <strong>AnchorPoint</strong>（名前を付けた目印の位置）</td></tr>
+<tr><td>Frame Rate</td><td>Maya のシーンの fps。取り込みで自動で入ります（30 か 60）</td></tr>
+<tr><td>Skip</td><td>途中で飛ばせるか。不可 / 即終了 / 指定した Signal マーカーまで飛ばす</td></tr>
+<tr><td>Lock Input</td><td>ON にすると、再生中は「入力をロックする」という状態がゲームに通知されます。<strong>実際に操作を止めるのはゲーム側の実装</strong>で、D-Drive は通知するだけです</td></tr>
+<tr><td>Flags &gt; Net</td><td>Local = 自分の画面だけ / Cosmetic = 通信対戦で相手の画面にも同じ演出を出す（見た目だけで勝敗に影響しないもの）。演出と同じ考え方です</td></tr>
+</table>
+<div class="warn">
+<strong>確認の注意:</strong> Timeline ウィンドウの再生ボタンで Camera/SE/VFX/UI/AnchorGroup/Shake/Haptic/Event/Signal は Edit Mode のまま確認できます(Play Mode に入る必要はありません)。ドラッグしてスクラブしている間は音・エフェクトは鳴りません(連打防止)。<strong>Presentation クリップ・通信対戦(Cosmetic)・入力ロックの通知・Skip だけは Play Mode でないと確認できません</strong>(確認用シーンを開いて Play ボタンを押してから CutsceneData の Inspector の「● 再生(Play Mode)」を使ってください)。
+</div>
+
+<h2>直すとき</h2>
+<ul>
+<li>Maya で直して<strong>同じファイル名で上書き</strong>書き出し → Unity が再取り込みし、カメラ・キャラの動きだけ差し替わります。Unity 側で足した効果音・エフェクト・カメラの「コマ落ち（ステップ fps）」「ブレンド秒」などの設定は<strong>そのまま残ります</strong></li>
+<li>ファイル名を変えると<strong>別のショット</strong>として扱われます（新しいカットシーンデータができる）</li>
+<li>キャラが増えた / 減った: 増えたら FBX を 1 本足すだけ。減ったら FBX を消しても、Unity 側のトラックは消さずに「ミュート」になります（Unity 側で足した設定を消さないため）</li>
+</ul>
+
+<h2>よくある質問</h2>
+<table>
+<tr><th>質問</th><th>答え</th></tr>
+<tr><td>1 つの FBX に 2 つのショットを入れてしまった</td><td>Unity 側でショットごとに「フレーム範囲」を指定して切り出せます（逃げ道）。ただし既定は「1 ショット = 1 FBX セット」なので、できれば分けてください</td></tr>
+<tr><td>カメラの動きが「ぬるぬるし過ぎる」。24fps 風にしたい</td><td>Maya で間引かないでください。Unity 側のカメラクリップに「ステップ fps」の項目があり、ショットごとに <strong>Unity 側で</strong>コマ落ちの度合いを変えられます（Maya をやり直さなくて済みます）</td></tr>
+<tr><td>キャラ本体（メッシュ）も一緒に出してよい？</td><td>出さないでください。キャラ本体は普段どおりモデルデータとして登録済みのものを使い、カットシーン FBX には骨の動きだけを入れます（同じキャラを何ショットでも使い回すため）</td></tr>
+<tr><td>Generic（人型でない）キャラは？</td><td>剣・扉などの小物は Generic で OK（カメラと同じ FBX に入れる）。キャラは人型（Humanoid）のみ対応です</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="Readme.html">トップ</a></li>
+<li><a href="model-editor.html">モデルの設定と Model Editor</a>（キャラ本体の登録・Avatar）</li>
+<li><a href="presentation.html">演出（Presentation）の設定項目</a>（Maya の FBX を使わない演出はこちら）</li>
+<li><a href="validation.html">Validation（自動チェック）の使い方</a></li>
+</ul>
+
+<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
+</body>
+</html>
