@@ -64,6 +64,16 @@
 <p>更新をまだ適用していない（<code>LastAppliedVersion</code> が現在の版より古い）状態は <code>Validation &gt; Run All</code> の Warning（<code>DD-SETUP-UPDATE-PENDING</code>）としても検出されます。</p>
 <p>Host/Client（マルチプレイ）で D-Drive の版が違う場合の挙動（接続時の <code>ProtocolVersion</code> 照合）は <a href="net-api.html#version-check">net-api.html「D-Drive の版照合」</a>を参照してください。</p>
 
+<h3>1-4. 持ち込み先（このリポジトリではなく、D-Drive を導入した別プロジェクトで作業する場合）</h3>
+<p>D-Drive を <code>com.ddrive.core</code> として導入した別のプロジェクト（MS2026 等）で新しくメンバーになった場合の入口です。上記 1-1〜1-3 は D-Drive 自身の開発リポジトリでの実態を書いたものですが、持ち込み先で最初に読むべきものは次の 4 つです。</p>
+<ol>
+<li><strong>パッケージ <code>README.md</code></strong>（<code>Packages/com.ddrive.core/README.md</code>）: 「導入（5 ステップ）」・依存表・既知の制約・更新手順・ロールバックがまとまっている。まずここを読む</li>
+<li><strong><code>Documentation~/AGENTS_CONSUMER.md</code></strong>: AI エージェントに実装を頼む場合の規約（禁止事項・ID 経由の利用・Validation・更新手順）</li>
+<li><strong><code>Documentation~/skills/ddrive-consumer/SKILL.md</code></strong>: Claude Code を使っている場合のより詳しい手順書（セットアップウィザード・更新ウィンドウが自動でこのプロジェクトの <code>.claude/skills/ddrive-consumer/</code> にコピーする）</li>
+<li><strong><code>Packages/com.ddrive.core/Tools~/CI/</code></strong>: このプロジェクトの CI に D-Drive の互換性・品質チェックを組み込みたい場合のテンプレート（<code>run-ddrive-ci.cmd</code>・<code>ddrive-ci.yml</code>・README）</li>
+</ol>
+<p>置き場所（<code>Assets</code> 直下に新しいフォルダを作らない規約があるプロジェクト向け）はセットアップウィザードの「置き場所」ステップで選べます。<code>DDrive.Generated.asmdef</code> の出力有無・テストの有効化もウィザードから設定します。詳細はパッケージ <code>README.md</code> と <a href="../DesignerManual/package-setup.html">DesignerManual: パッケージを導入する / 更新する</a>を参照してください。</p>
+
 <h2>2. 最初の一本 — SE を ID だけで鳴らす</h2>
 <p>デザイナーが登録済みの SE（このリポジトリには実例として <code>SEID.PlayerSlash</code> が既に存在します）を、ID だけで鳴らす最小コードです。実在する API（<code>Packages/com.ddrive.core/Runtime/Audio/Audio.cs</code> の静的ファサード）だけで構成しています。</p>
 <pre><code>using DDrive.Generated;

@@ -1,0 +1,123 @@
+# D-Drive の互換性・品質チェックを行う GitHub Actions ワークフローのテンプレート。
+#
+# このリポジトリ（持ち込み先プロジェクト）に Unity のコンパイル・テストを実行する CI が
+# まだ無い場合に、新規ワークフローとして追加することを想定している（既存 CI への「差し込み」
+# ではない）。既に Unity Editor をバッチモードで動かす自前の CI 資産（self-hosted runner・
+# ライセンスの扱い）がある場合は、その資産の流儀に合わせて書き換えること。詳細は
+# 同じフォルダの README.md、判断の根拠は D-Drive 開発リポジトリの docs/42_distribution.md §7 B-5 を参照。
+#
+# 前提（このテンプレートが決め打ちしていること。README.md の手順に沿って調整する）:
+#   - Unity Editor をバッチモードで起動できる self-hosted runner が既にある
+#     （GitHub Hosted runner には Unity がインストールされていないため、self-hosted 前提）
+#   - その runner の Unity Editor は既にライセンス認証済み（このテンプレートはライセンス
+#     アクティベーションの手順を含まない。license の扱いは各プロジェクトの既存 CI 資産に合わせる）
+#   - リポジトリは private、または runner がフォークからの PR を実行しない設定になっている
+#     （self-hosted runner を public リポジトリで使う場合の一般的な注意）
+
+name: D-Drive CI
+
+on:
+  push:
+    branches: [main]
+    # ゲームの中身・D-Drive のバージョンに関わる変更のときだけ実行する
+    paths:
+      - 'Assets/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+      - '.github/workflows/ddrive-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ddrive-ci
+  cancel-in-progress: false
+
+jobs:
+  ddrive-ci:
+    name: D-Drive Validation / EditMode / PlayMode
+    # 実際のラベルは自分のリポジトリの runner 登録に合わせて書き換える
+    # （例: MS2026 の Build Windows ワークフローは [self-hosted, windows, ms2026-build] を使っている）
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 60
+
+    env:
+      UNITY_EDITOR_PATH: ${{ vars.UNITY_EDITOR_PATH }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          clean: false
+
+      - name: Unity の場所を決める
+        id: unity
+        shell: pwsh
+        run: |
+          $path = $env:UNITY_EDITOR_PATH
+          if ([string]::IsNullOrWhiteSpace($path)) {
+            $version = (Get-Content ProjectSettings/ProjectVersion.txt | Select-String '^m_EditorVersion: (.+)$').Matches[0].Groups[1].Value.Trim()
+            $path = "C:\Program Files\Unity\Hub\Editor\$version\Editor\Unity.exe"
+          }
+          if (-not (Test-Path $path)) {
+            Write-Error "Unity が見つかりません: $path`nUnity Hub でこのバージョンを入れるか、リポジトリ変数 UNITY_EDITOR_PATH で場所を指定してください。"
+            exit 1
+          }
+          Write-Host "Unity: $path"
+          "path=$path" >> $env:GITHUB_OUTPUT
+
+      - name: マイグレーションの未適用チェック (DDrive.Editor.CI.MigrateCheck)
+        shell: pwsh
+        run: |
+          & '${{ steps.unity.outputs.path }}' -batchmode -nographics -quit -projectPath (Get-Location).Path -executeMethod DDrive.Editor.CI.MigrateCheck -logFile "$env:RUNNER_TEMP\ddrive-migrate-check.log"
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content "$env:RUNNER_TEMP\ddrive-migrate-check.log" -Tail 60
+            Write-Error "未適用のマイグレーションがあります。Tools > D-Drive > Update > 更新ウィンドウ で適用してください。"
+          }
+          exit $LASTEXITCODE
+
+      - name: Validation (DDrive.Editor.CI.ValidateAll)
+        shell: pwsh
+        run: |
+          & '${{ steps.unity.outputs.path }}' -batchmode -nographics -quit -projectPath (Get-Location).Path -executeMethod DDrive.Editor.CI.ValidateAll -ddriveOutput "$env:RUNNER_TEMP\ddrive-validation.junit.xml" -logFile "$env:RUNNER_TEMP\ddrive-validate.log"
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content "$env:RUNNER_TEMP\ddrive-validate.log" -Tail 60
+            Write-Error "Validation で Error が見つかりました。"
+          }
+          exit $LASTEXITCODE
+
+      - name: Asset ID 再生成 + git diff 確認 (DDrive.Editor.CI.RegenerateIds)
+        shell: pwsh
+        run: |
+          & '${{ steps.unity.outputs.path }}' -batchmode -nographics -quit -projectPath (Get-Location).Path -executeMethod DDrive.Editor.CI.RegenerateIds -logFile "$env:RUNNER_TEMP\ddrive-regenerate-ids.log"
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content "$env:RUNNER_TEMP\ddrive-regenerate-ids.log" -Tail 60
+            Write-Error "Asset ID 再生成に失敗しました(重複 ID 等)。"
+            exit $LASTEXITCODE
+          }
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "ID 再生成でコミットされていない差分が出ました。生成コードや Data アセットの変更をコミットしてください。"
+          }
+          exit $LASTEXITCODE
+
+      - name: EditMode テスト
+        shell: pwsh
+        run: |
+          & '${{ steps.unity.outputs.path }}' -batchmode -nographics -projectPath (Get-Location).Path -runTests -testPlatform EditMode -testResults "$env:RUNNER_TEMP\ddrive-editmode-results.xml" -logFile "$env:RUNNER_TEMP\ddrive-editmode.log"
+          exit $LASTEXITCODE
+
+      - name: PlayMode テスト
+        shell: pwsh
+        run: |
+          & '${{ steps.unity.outputs.path }}' -batchmode -nographics -projectPath (Get-Location).Path -runTests -testPlatform PlayMode -testResults "$env:RUNNER_TEMP\ddrive-playmode-results.xml" -logFile "$env:RUNNER_TEMP\ddrive-playmode.log"
+          exit $LASTEXITCODE
+
+      - name: ログ・結果 XML を保存（失敗時の調査用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddrive-ci-results
+          path: |
+            ${{ runner.temp }}/ddrive-*.log
+            ${{ runner.temp }}/ddrive-*.xml
+          retention-days: 14
+          if-no-files-found: ignore

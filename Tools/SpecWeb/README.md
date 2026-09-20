@@ -513,6 +513,32 @@ git にコミットする方針（Node が無い環境でも `clasp push` だけ
 更新手順・Unity 側 `DDriveSpecSettings` の再設定・チェックリストを
 [HANDOVER.md](HANDOVER.md) にまとめた。運用者の異動が決まったら、着手前に必ず読むこと。
 
+## 16. 持ち込み先で使う（別プロジェクトへの展開）
+
+D-Drive を UPM パッケージとして別プロジェクトへ持ち込んだ場合、このツール（SpecWeb）は**同梱せず、持ち込み先ごとに別デプロイを作る**運用にする。
+
+- **別デプロイにする理由**: `assets.json`/`tuning.json` の `id` はプロジェクト名を含まない形式（例: `"Se::Player"`）。1 つのデプロイを複数の D-Drive プロジェクトで共有すると識別子が衝突する
+- **ソースの取得元**: このツール一式（`Tools/SpecWeb/src`・`html`）は D-Drive の開発リポジトリの git タグから取得する。持ち込み先固有の改造はせず、必要な変更は開発リポジトリへ提案する
+
+### 手順
+
+1. 開発リポジトリ（D-Drive）から、導入したい版のタグのソースだけを取得する
+   ```powershell
+   git clone --branch v1.0.0 --depth 1 https://github.com/wrenchsun/D-Drive.git ddrive-specweb-src
+   ```
+   取得後は `ddrive-specweb-src/Tools/SpecWeb/` 配下だけを使う
+2. 新しい Apps Script プロジェクトを、本書 §1〜§6（Node.js のインストール・clasp のログイン・プロジェクトの作成・Drive フォルダとスクリプトプロパティの設定・管理者ユーザーの登録・API トークンの発行）と同じ手順で作る。**取得したソースディレクトリで** `clasp create-script`/`clasp push` を実行する点だけが異なり、既存の開発用 Apps Script プロジェクトとは完全に別物になる
+3. §7 の手順でデプロイ①②を作成する
+4. 持ち込み先プロジェクトの Unity 側 `DDriveSpecSettings`（`.asset`）に、新しく作ったデプロイの URL・トークンを設定する
+
+### 運用の引き継ぎ
+
+複数人で管理する・運用者を引き継ぐ場合は [HANDOVER.md](HANDOVER.md) の考え方（所有者の移管・スクリプトプロパティの引き継ぎと再発行・`users.json` の admin 管理・デプロイ①②の更新手順）がそのまま参考になる。新規デプロイの最初の管理者登録は HANDOVER.md §4 の「ブートストラップ」経路（`users.json` に admin が誰もいないときだけ使える `upsertSpecWebUser` の直接実行）を使う。
+
+### `apiVersion`（版の不一致検出）について
+
+GAS API のレスポンスに `apiVersion` を追加し、D-Drive 側の同期ウィンドウで持ち込み先の D-Drive の版と GAS 側の版の不一致を明示する案がある。これは C# 側（同期処理）と GAS 側（レスポンス形式）の双方の変更を伴うため、**本書時点では未実装**。開発リポジトリの `docs/42_distribution.md` §5.9 に「未実装、P-13 前に判断」として記録している。
+
 ## 実装ファイル一覧
 
 | ファイル | 内容 |

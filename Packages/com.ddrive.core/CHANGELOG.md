@@ -13,8 +13,18 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 破壊なし（互換性ポリシーは未発効。[docs/42_distribution.md](docs/42_distribution.md) §5 は P-13 で発効する草案段階）
 - P-9（2026-09-20）: リリース手順を道具化しただけで、公開 API・シリアライズ形式・生成コード等の互換面には触れていない
+- P-10（2026-09-20）: 消費側ドキュメント・スキル・CI テンプレの追加のみで、C# の変更は無い（公開 API・シリアライズ形式・生成コード等の互換面には触れていない）
 
 ### 追加
+
+- P-10（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §6 P-10）: **消費側ドキュメント**
+  - `Packages/com.ddrive.core/README.md` を全面改訂: 導入 5 ステップ（manifest への git URL 追加〔`git+https`/`git+ssh` 両形式〕→ Unity を開く → セットアップウィザード → SE を登録・試聴 → `Audio.PlaySe`）、依存表、既知の制約、更新手順、ロールバック、問い合わせ先。Unity 操作の手順は「持ち込み先の MCP 構成に従う」の 1 行のみで、D-Drive 独自の MCP 手順は書かない
+  - `Packages/com.ddrive.core/Documentation~/AGENTS_CONSUMER.md`（新規）: 持ち込み先の AI エージェント向け禁止事項・ID 経由の利用・Validation・更新手順の要約
+  - `Packages/com.ddrive.core/Documentation~/skills/ddrive-consumer/{SKILL.md, references/{common-warnings.md, update-checklist.md}}`（新規）: Claude Code 向け消費側スキル。開発リポジトリ専用の節（新種別追加・ワークツリー・SpecWeb のテスト・MCP セットアップ）は含めない。P-6 の `ProjectSetupActions.CopyConsumerSkillIfBundled`（既存）がこの同梱を検出して `.claude/skills/ddrive-consumer/` へコピーできる
+  - `Packages/com.ddrive.core/Tools~/CI/{run-ddrive-ci.cmd, ddrive-ci.yml, README.md}`（新規）: 持ち込み先向け CI テンプレート。`ddrive-ci.yml` は MS2026 の既存 self-hosted runner 運用に合わせた GitHub Actions 雛形
+  - `Tools/SpecWeb/README.md` に「16. 持ち込み先で使う」節を新規追加（別デプロイの手順・`HANDOVER.md` への導線）
+  - `docs/34_onboarding.md` に「10. 持ち込み先での始め方」節、`docs/DesignerManual/package-setup.html` を完成版に更新、`docs/ProgrammerManual/getting-started.html` に「1-4. 持ち込み先」節を追加
+  - C# の変更は無い
 
 - P-9（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.1・§6 P-9）: **リリース手順の道具化**
   - `Tools/Release/{ReleaseChecks.ps1（共通関数）, bump-version.ps1, check-release.ps1, list-obsolete.ps1}` を新設（PowerShell 7/5.1 両対応・BOM 付き UTF-8）。`bump-version.ps1 -Version x.y.z|-Part major|minor|patch [-DryRun] [-Tag] [-SkipChecks]` が事前チェック→`package.json`/`DDriveVersion.cs`/`CHANGELOG.md` の更新→同梱物の同期（`docs/DesignerManual`・`docs/ProgrammerManual` → `Documentation~/`、`CHANGELOG.md` → `Packages/com.ddrive.core/CHANGELOG.md`）→`-Tag` 時の `git tag -a`（push はしない）を行う。`check-release.ps1`（`-GuardOnly` で CHANGELOG ガードだけに絞れる）はファイルを書き換えずに同じ事前チェック + CHANGELOG ガード（§5.11-10）を検査する

@@ -138,3 +138,27 @@ D-Drive の実装作業は Claude Code / Codex 等の AI エージェントに�
 | コミット・PR の作法が分からない | [12_review.md](12_review.md) / [AGENTS.md](../AGENTS.md) §5 |
 | CI が「Waiting for a runner…」のまま進まない | [33_ci_setup.md](33_ci_setup.md) §1（ランナー未登録の間は仕様） |
 | デザイナー向け機能の使い方を聞かれた | [DesignerManual/Readme.html](DesignerManual/Readme.html)（プログラマーが答えるのではなくこのページへ誘導する） |
+
+---
+
+## 10. 持ち込み先での始め方（D-Drive を UPM パッケージとして導入したプロジェクト向け）
+
+このリポジトリ（D-Drive 開発リポジトリ）ではなく、D-Drive を `com.ddrive.core` として導入した**別のプロジェクト**（MS2026 等）で新しくメンバーになった場合の入口。
+
+**まずパッケージ `README.md`（`Packages/com.ddrive.core/README.md`）の「導入（5 ステップ）」を読む**: manifest への git URL 追加 → Unity を開く → セットアップウィザード → SE を 1 件登録して試聴 → Play Mode で `Audio.PlaySe(SEID.X)`。困ったときの参照先（Validation・AI エージェント向け規約・マニュアル）も同じ README にまとまっている。
+
+### デザイナーの最初の 1 時間
+
+1. README の 5 ステップを一度実行してもらう（環境構築はプログラマーと分担してよい）
+2. [DesignerManual/getting-started.html](DesignerManual/getting-started.html) の「はじめての15分」を実施
+3. [DesignerManual/package-setup.html](DesignerManual/package-setup.html) で、セットアップウィザード・更新ウィンドウの画面と役割をひととおり確認する
+4. Asset Browser で自分が担当する種別（Audio/VFX 等）の新規作成 → 専用エディタでの割り当て → Validation の実行、までを一度通す
+
+### プログラマーの最初の 1 時間
+
+1. README の 5 ステップを実行し、`Audio.PlaySe(SEID.X)` が動くところまで確認する
+2. [ProgrammerManual/getting-started.html](../Packages/com.ddrive.core/Documentation~/ProgrammerManual/getting-started.html)（同梱先。正本は `docs/ProgrammerManual/getting-started.html`）の「1-4. 持ち込み先」を読み、置き場所（`Assets` 直下禁止の規約がある場合の扱い）・更新手順を把握する
+3. `Documentation~/AGENTS_CONSUMER.md` を読み、AI エージェントに実装を頼む前提を揃える（禁止事項・ID 経由の利用・Validation）。Claude Code を使う場合は `Documentation~/skills/ddrive-consumer/SKILL.md` も読む
+4. 未登録 ID で Placeholder が返る挙動（[CLAUDE.md] §0-4 と同じ「例外で止めない」方針）を実際に確認し、デザイナー側の作業待ちとコードのバグを区別できるようにする
+
+一次情報は常にパッケージ `README.md` と `Documentation~/`。設計の背景を知りたい場合は D-Drive 開発リポジトリの [docs/42_distribution.md](42_distribution.md) を参照する（持ち込み先には同梱されないため、開発リポジトリを別途参照できる場合のみ）。
