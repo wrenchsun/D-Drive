@@ -97,16 +97,20 @@ Audio.PlaySe(SEID.X);
 
 ## 更新する
 
-1. `Packages/manifest.json` の `#vX.Y.Z` タグを新しい版に書き換える（Package Manager の UI からでも可）
-2. Unity を開き直し、コンパイルエラーが無いことを確認する（エラーがあれば `CHANGELOG.md` の「破壊あり」を疑い、`Documentation~/migrations/` の移行ガイドを確認する）
-3. `Tools > D-Drive > Update > 更新ウィンドウ` を開き、「更新を適用」を実行する（データマイグレーション → ID/調整値の再生成 → Addressables 同期 → Validation の順にまとめて実行され、途中で失敗するとそこで止まる）
-4. `Validation > Run All` で Error が無いことを確認する
+1. `Tools > D-Drive > Update > 更新ウィンドウ` を開き、最上段の「1. 更新チェック」で「最新の版を確認」を押す（`git ls-remote` でタグを取得し、現在の参照と比較して「最新です」/MINOR/MAJOR を表示する。MAJOR のときは赤字で移行ガイドを読むよう警告する）
+2. 「manifest を選んだ版に更新する」を押す（確認ダイアログの後、`Packages/manifest.json` の `#vX.Y.Z` タグだけを新しい版に書き換える。手動で `manifest.json` を編集したい場合や Package Manager の UI から書き換えても構わない）
+3. Unity が再コンパイルするのを待ち、コンパイルエラーが無いことを確認する（エラーがあれば `CHANGELOG.md` の「破壊あり」を疑い、`Documentation~/migrations/` の移行ガイドを確認する）
+4. 同じ更新ウィンドウの「4. 更新を適用」を実行する（データマイグレーション → ID/調整値の再生成 → Addressables 同期 → Validation の順にまとめて実行され、途中で失敗するとそこで止まる）
+5. `Validation > Run All` で Error が無いことを確認する
 
 詳しい手順は `Documentation~/AGENTS_CONSUMER.md` および開発リポジトリの `docs/42_distribution.md` §4.2 を参照してください。
 
 ## ロールバック
 
-更新を取りやめる場合は、manifest / lock ファイル / 更新で変わった `.asset` / `Assets/Generated` の変更コミットを `git revert` し、Unity を開き直します。同一メジャーバージョン内の更新であれば、旧フィールドが残っているため旧版でも読めます（新版だけの値は次に保存したときに失われます）。メジャーバージョンをまたぐ更新のロールバックは「更新前のコミットへ戻す」以外の方法を保証しません（詳細は `docs/42_distribution.md` §4.4）。
+- **manifest を選んだ版に更新した直後で、まだ何も適用していない場合**: 更新ウィンドウの「1. 更新チェック」にある「前の参照に戻す」を押すと、直前の `com.ddrive.core` の参照値に戻せます（もう一度押すと戻す前の状態に入れ替えられます）
+- **それ以外の場合**: manifest / lock ファイル / 更新で変わった `.asset` / `Assets/Generated` の変更コミットを `git revert` し、Unity を開き直します
+
+同一メジャーバージョン内の更新であれば、旧フィールドが残っているため旧版でも読めます（新版だけの値は次に保存したときに失われます）。メジャーバージョンをまたぐ更新のロールバックは「更新前のコミットへ戻す」以外の方法を保証しません（詳細は `docs/42_distribution.md` §4.4）。
 
 ## 困ったときは
 

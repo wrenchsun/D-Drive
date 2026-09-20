@@ -54,12 +54,15 @@
 </div>
 
 <h3>1-3. 更新する（2026-09-20 追加、P-8）</h3>
-<p>D-Drive のバージョンを進めた後（<code>Packages/manifest.json</code> のタグを新しくした後）は、<code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code> を開きます。</p>
+<p><code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code> を開きます。</p>
 <ol>
-<li>「1. 版と CHANGELOG」で現在の版・前回適用した版（<code>DDriveProjectSettings.LastAppliedVersion</code>）・その間の CHANGELOG の該当節を確認する。「破壊あり」の変更が含まれる場合は警告が出るので、先に <code>docs/migrations/</code> の移行ガイドを読む</li>
-<li>「2. マイグレーション（プレビュー）」で未適用のデータ移行件数を確認する（この時点では何も変更しない）</li>
-<li>「3. 更新を適用」ボタンを押す。内部では (1) マイグレーション適用 → (2) <code>Regenerate Asset IDs</code>/<code>Regenerate Tuning Keys</code> → (3) Addressables 登録の同期 → (4) <code>Validation &gt; Run All</code> → (5) <code>LastAppliedVersion</code> の更新、の順で実行され、<strong>途中の段が失敗したらそこで止まります</strong>（それより後の手順・<code>LastAppliedVersion</code> の更新は行われません）</li>
-<li>「4. テストを有効化する」「5. エージェント向けスキルを更新」は上記のセットアップウィザードと同じ項目です</li>
+<li>「1. 更新チェック」で「最新の版を確認」を押す。<code>git ls-remote</code> で公開されているタグを取得し、現在の参照（manifest の <code>#ref</code>。コミットハッシュ指定のときは <code>package.json</code> の版）と比較して「最新です」「MINOR」「MAJOR」を表示する。MAJOR の場合は赤字で <code>docs/migrations/vN.md</code> を先に読むよう警告が出る</li>
+<li>更新したい版をドロップダウンから選び、「manifest を選んだ版に更新する」を押す。確認ダイアログの後、<code>Packages/manifest.json</code> の <code>com.ddrive.core</code> の <code>#ref</code> だけが書き換わる（URL・<code>?path=</code>・<code>git+https</code>/<code>git+ssh</code> の形式は変わらない）。差し替え前の値は自動で退避され、「前の参照に戻す」でいつでも戻せる</li>
+<li>Unity の再コンパイルを待つ</li>
+<li>「2. 版と CHANGELOG」で現在の版・前回適用した版（<code>DDriveProjectSettings.LastAppliedVersion</code>）・その間の CHANGELOG の該当節を確認する。「破壊あり」の変更が含まれる場合は警告が出るので、先に <code>docs/migrations/</code> の移行ガイドを読む</li>
+<li>「3. マイグレーション（プレビュー）」で未適用のデータ移行件数を確認する（この時点では何も変更しない）</li>
+<li>「4. 更新を適用」ボタンを押す。内部では (1) マイグレーション適用 → (2) <code>Regenerate Asset IDs</code>/<code>Regenerate Tuning Keys</code> → (3) Addressables 登録の同期 → (4) <code>Validation &gt; Run All</code> → (5) <code>LastAppliedVersion</code> の更新、の順で実行され、<strong>途中の段が失敗したらそこで止まります</strong>（それより後の手順・<code>LastAppliedVersion</code> の更新は行われません）</li>
+<li>「5. テストを有効化する」「6. エージェント向けスキルを更新」は上記のセットアップウィザードと同じ項目です</li>
 </ol>
 <p>更新をまだ適用していない（<code>LastAppliedVersion</code> が現在の版より古い）状態は <code>Validation &gt; Run All</code> の Warning（<code>DD-SETUP-UPDATE-PENDING</code>）としても検出されます。</p>
 <p>Host/Client（マルチプレイ）で D-Drive の版が違う場合の挙動（接続時の <code>ProtocolVersion</code> 照合）は <a href="net-api.html#version-check">net-api.html「D-Drive の版照合」</a>を参照してください。</p>

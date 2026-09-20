@@ -11,6 +11,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 追加のみ（MINOR）: **P-14（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.2・§6 P-14）** — 更新ウィンドウ（`Tools > D-Drive > Update > 更新ウィンドウ`）の最上段に「更新チェック」（`git ls-remote --tags` で最新版を取得し、現在の参照と比較して manifest の `#ref` を更新する）を追加した。変更は `DDrive.Editor` のみ（新設: `Editor/Update/{GitPackageUrl.cs, GitTagListParser.cs, IGitTagLister.cs, GitCliTagLister.cs, UpdateCheckLogic.cs}`）で、公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード・ネットメッセージには触れていない。`DDriveProjectSettings` に `PreviousPackageRef`（string）フィールドを追加（`ScriptableSingleton`、`ProjectSettings/DDriveProjectSettings.asset` 配下、フィールド追加のみ）
 - 破壊あり（互換性ポリシーは未発効のため 1.0.0 発効前の例外として実施。[docs/42_distribution.md](docs/42_distribution.md) §5 は P-13 で発効する草案段階）: **P-10.5 レビュー対応（2026-09-20、[docs/47_review_p_tickets_2026-09-20.md](docs/47_review_p_tickets_2026-09-20.md) P1-1）** — NGO を任意依存にする実現方式を asmdef 分離まで修正した。`DDriveRuntimeBootstrap` の public フィールド `NetworkManagerRef`/`NgoBridgeRef` を削除し（`DDrive.Runtime.Ngo` アセンブリの `DDriveNgoBootstrapHook` へ移設）、`NgoNetBridge`/`NgoTransportConfigurator`/`NetDebugOverlay` を `DDrive.Runtime` から新設アセンブリ `DDrive.Runtime.Ngo` へ移動した（namespace は `DDrive.Runtime.Net` のまま不変、GUID も不変）。互換性スナップショット `public-api-DDrive.Runtime.txt` を更新（該当箇所は削除+新設 API `INgoBridgeFactory`/`NetBridgeFactoryRegistry`/`NgoBridgeCreateArgs`/`NgoBridgeCreateResult` の追加）。既存シーン（`NetCheckScene.unity`）は Unity Editor 経由で `DDriveNgoBootstrapHook` を追加し直し、参照を復元済み
 - P-10.5 レビュー対応（2026-09-20）の残りの修正（P1-2〜P1-7、P2-1〜P2-9）は、Editor 専用 API のシグネチャ変更（`ChangelogLocator.ResolvePath` に `preferDevRepoRoot` 引数を追加 等）・挙動修正（`ForbiddenApiScanner`/`ManualPages`/`DDriveMigrationRunner`/`ValidatorRegistry` 等）・PowerShell/バッチスクリプトの修正で、いずれも `DDrive.Editor` は互換性スナップショットの対象外（ゲームコードは `DDrive.Editor` を参照禁止のため）。公開 API（`DDrive.Foundation`/`DDrive.Runtime`）への影響は上記の NGO 分離のみ
 - P-9（2026-09-20）: リリース手順を道具化しただけで、公開 API・シリアライズ形式・生成コード等の互換面には触れていない
@@ -27,6 +28,16 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - `ProjectSetupActions.EnsureDefaultFoldersAndSettings`（セットアップウィザード「4. 既定フォルダ・設定の生成」）が空カタログを作成した直後に `AddressablesSync.SyncAll` を自動実行するようにし、セットアップウィザードの「5. Addressables 同期」に**「全カタログ・Data を今すぐ同期する」ボタン**を追加した（`Tools > D-Drive > Update` の「Addressables 登録を同期」と同じ処理を再利用）。`README.md` の関連する既知の注意を解消済みに更新した
 
 ### 追加
+
+- P-14（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.2・§6 P-14）: **更新ウィンドウの更新チェック / 版上げ**（v1.0.0 の後の最初の MINOR = v1.1.0）
+  - `Tools > D-Drive > Update > 更新ウィンドウ` の最上段に「1. 更新チェック」を新設（既存の節は 1 つずつ繰り下げ）。「最新の版を確認」ボタンが `git ls-remote --tags` でタグを取得し、現在の参照（manifest の `#ref`。コミットハッシュ指定のときは `package.json` の版）と比較して「最新です」/MINOR/MAJOR を表示する（MAJOR は赤字で移行ガイドの確認を促す）
+  - `Editor/Update/GitPackageUrl.cs`（新規）: `Packages/manifest.json` の `com.ddrive.core` の値を URL・`?path=`・`#ref` に分解する純関数。`WithRef` は `#ref` だけを差し替える（URL・`?path=`・`git+https`/`git+ssh` の形式は保持）。git URL でない値（レジストリ配布・`file:`）は対象外として no-op にする
+  - `Editor/Update/{IGitTagLister.cs, GitCliTagLister.cs}`（新規）: `git ls-remote --tags` の実プロセス起動をインターフェースに分離（タイムアウト 30 秒、`git` が無い/失敗時は警告表示のみで例外を投げない）。`Editor/Update/GitTagListParser.cs`（新規、純関数）: 標準出力から `refs/tags/vX.Y.Z` を抽出し、peeled 行（`^{}`）と非 SemVer タグを除外して降順に整列する
+  - `Editor/Update/UpdateCheckLogic.cs`（新規、純関数）: 現在の参照 vs 取得した最新タグを比較し `UpToDate`/`Patch`/`Minor`/`Major`/`Unknown` を判定する
+  - 「manifest を選んだ版に更新する」ボタン（確認ダイアログ付き）で `#ref` を書き換えて保存 → `AssetDatabase.Refresh()` → `Client.Resolve()`。差し替え前の値は `DDriveProjectSettings.PreviousPackageRef`（新規フィールド）に退避し、「前の参照に戻す」ボタンで入れ替えて戻せる（2 回押すと元に戻せる簡易 1 段 undo）。「起動時に確認」トグルは作らない（手動のみ）
+  - テスト: `Tests/Editor/Update/{GitPackageUrlTests, GitTagListParserTests, UpdateCheckLogicTests}`（新規 30 件）+ `DDriveProjectSettingsTests` に `PreviousPackageRef` の往復テストを追加
+  - docs: `docs/42_distribution.md` §4.2・`docs/09_editor_tools.md` §14・`docs/11_tasks.md`（P-14 行）・パッケージ `README.md`「更新する」/「ロールバック」・`Documentation~/skills/ddrive-consumer/{SKILL.md, references/update-checklist.md}`・`docs/DesignerManual/package-setup.html`・`docs/ProgrammerManual/getting-started.html` を更新
+  - **未検証**: Unity が使えない環境（メモリ制約で別プロジェクトのバッチ起動中）で実装したため、コンパイル・EditMode/PlayMode 実行は未検証
 
 - P-10（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §6 P-10）: **消費側ドキュメント**
   - `Packages/com.ddrive.core/README.md` を全面改訂: 導入 5 ステップ（manifest への git URL 追加〔`git+https`/`git+ssh` 両形式〕→ Unity を開く → セットアップウィザード → SE を登録・試聴 → `Audio.PlaySe`）、依存表、既知の制約、更新手順、ロールバック、問い合わせ先。Unity 操作の手順は「持ち込み先の MCP 構成に従う」の 1 行のみで、D-Drive 独自の MCP 手順は書かない
