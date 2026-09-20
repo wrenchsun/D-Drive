@@ -96,7 +96,9 @@ namespace DDrive.Editor.Update
             _versionsBody.Add(WrappingLabel($"現在の版: {currentVersion}"));
             _versionsBody.Add(WrappingLabel($"前回適用した版: {(string.IsNullOrEmpty(lastApplied) ? "未適用" : lastApplied)}"));
 
-            var changelogPath = packageInfo != null ? ChangelogLocator.ResolvePath(packageInfo.resolvedPath) : null;
+            var changelogPath = packageInfo != null
+                ? ChangelogLocator.ResolvePath(packageInfo.resolvedPath, settings.IsDevelopmentRepo)
+                : null;
             if (changelogPath == null)
             {
                 _changelogBody.Add(WrappingLabel("CHANGELOG.md が見つかりませんでした。"));

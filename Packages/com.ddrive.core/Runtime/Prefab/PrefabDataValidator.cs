@@ -160,11 +160,13 @@ namespace DDrive.Runtime.Prefab
             }
         }
 
-        // [14_networking.md] §10(4-13) — NetMode.Simulated はサーバー権威で複製されるため、Prefab に
-        // NetworkObject が無いと NGO 統合後に Spawn できない。DDrive.Runtime.asmdef は Unity.Netcode.Runtime を
-        // 参照済みなので直接型参照する(ModelDataValidator 等と違い文字列 GetComponent にする必要は無い)。
-        // [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO は versionDefines(DDRIVE_NGO)で切り離した。
-        // NGO 未導入の持ち込み先では NetworkObject 型自体が無いため、この検査だけスキップする
+        // [14_networking.md] §10(4-13) — NetMode.Simulated はサーバー権威で複製されるため、本来は
+        // Prefab に NetworkObject が必要。ただしその検査自体(NetworkObject 型参照)は
+        // [42_distribution.md] §2.3-9/§7 A-7(P1-1、2026-09-20) — NGO を versionDefines(DDRIVE_NGO)で
+        // 切り離したことに伴い、DDrive.Runtime.Ngo アセンブリの `PrefabNetworkObjectValidator` へ移した
+        // (`DDrive.Runtime.asmdef` はもう `Unity.Netcode.Runtime` を参照しないため、ここでは
+        // NetworkObject 型を扱えない)。NGO 未導入の持ち込み先では `PrefabNetworkObjectValidator` を含む
+        // アセンブリごとコンパイル対象外になるため、この検査は自動的にスキップされる
         // (例外で止めない・警告 no-op、CLAUDE.md §0-4)。
         private static IEnumerable<ValidationResult> ValidateSimulated(PrefabData prefab)
         {
@@ -172,13 +174,6 @@ namespace DDrive.Runtime.Prefab
             {
                 yield break;
             }
-
-#if DDRIVE_NGO
-            if (prefab.Prefab != null && prefab.Prefab.GetComponent<Unity.Netcode.NetworkObject>() == null)
-            {
-                yield return ValidationResult.Error("Flags.Net=Simulated ですが Prefab に NetworkObject がありません(サーバー権威の複製には NetworkObject が必須です)");
-            }
-#endif
 
             if (prefab.Kind != PrefabKind.Projectile && prefab.Kind != PrefabKind.Gimmick && prefab.Kind != PrefabKind.Character)
             {

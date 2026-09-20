@@ -12,7 +12,7 @@ namespace DDrive.Tests.Editor
     // ネットワークに出ず、CSV 文字列を直接注入して差分・適用を検証する([27_spec_sheet.md] 5-13 の要件)。
     public class SpecDiffServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempSpecGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempSpecGameData";
         private const string AssetHeader = "種別,カテゴリ,識別子,表示名,状態,担当,仕様,備考\n";
 
         [TearDown]

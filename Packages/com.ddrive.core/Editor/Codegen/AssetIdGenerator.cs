@@ -103,15 +103,10 @@ namespace DDrive.Editor.Codegen
                 {
                     var path = AssetDatabase.GUIDToAssetPath(guid);
 
-                    // [42_distribution.md] §5.11-2/§5.11-4(P-3、2026-09-20) — 互換性スナップショットの
-                    // 「旧版フィクスチャ」(LegacyAssetFixtureTests)は本物の Data 型(SeData 等)で作られており、
-                    // 通常の t:型名 検索に引っかかる。実生成物(Assets/Generated/AssetIds.g.cs)や実カタログに
-                    // 紛れ込ませないため、このフォルダだけは常に除外する(includeTestAssemblies の有無に
-                    // 関わらず。既存の Tests/Editor/Temp 一時アセット(AssetIdGeneratorTests 等)はこの対象外)。
-                    if (path.Contains("/Compat/Fixtures/", StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
+                    // [47_review_p_tickets_2026-09-20.md] P2-1(2026-09-20) — 互換性スナップショットの
+                    // 「旧版フィクスチャ」(LegacyAssetFixtureTests、Tests/Editor/Compat/Fixtures/)の除外は
+                    // `AssetSearch.FindAssets` 自身が行うようになったため(唯一の検索口に集約)、ここでの
+                    // 個別除外は不要。
 
                     var asset = AssetDatabase.LoadAssetAtPath(path, def.DataType) as AssetDataBase;
                     if (asset == null || asset.GetType() != def.DataType)

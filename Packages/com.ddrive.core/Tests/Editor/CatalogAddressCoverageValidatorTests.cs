@@ -20,7 +20,7 @@ namespace DDrive.Tests.Editor
     // 側のグループ登録は追従しなかった)。
     public class CatalogAddressCoverageValidatorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameDataAddrCoverage";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameDataAddrCoverage";
 
         [TearDown]
         public void TearDown()

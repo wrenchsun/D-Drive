@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Reflection;
 using DDrive.Editor;
+using DDrive.Editor.Settings;
 using DDrive.Foundation.Validation;
 using NUnit.Framework;
 
@@ -58,6 +60,30 @@ namespace DDrive.Tests.Editor
         {
             var root = CI.ResolveForbiddenApiScanRoot();
             StringAssert.EndsWith("com.ddrive.core", root.Replace('\\', '/').TrimEnd('/'));
+        }
+
+        // [47_review_p_tickets_2026-09-20.md] P1-2 — 持ち込み先(IsDevelopmentRepo=false)では
+        // D-Drive 自身のパッケージではなく "Assets"(ゲームコード全体)を走査する。
+        // ProjectSetupValidatorTests と同じ流儀でフィールドを直接書き換えて模擬する(Save を呼ばない)。
+        [Test]
+        public void ResolveForbiddenApiScanRoot_NotDevelopmentRepo_ReturnsAssets()
+        {
+            var settings = DDriveProjectSettings.instance;
+            var isDevField = typeof(DDriveProjectSettings).GetField("_isDevelopmentRepo", BindingFlags.NonPublic | BindingFlags.Instance);
+            var originalIsDev = (bool)isDevField.GetValue(settings);
+
+            try
+            {
+                isDevField.SetValue(settings, false);
+
+                var root = CI.ResolveForbiddenApiScanRoot();
+
+                Assert.AreEqual("Assets", root);
+            }
+            finally
+            {
+                isDevField.SetValue(settings, originalIsDev);
+            }
         }
     }
 }

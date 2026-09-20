@@ -15,7 +15,7 @@ namespace DDrive.Tests.Editor
     // 任意の (AssetType, ulong) に仕立てて疑似的な参照チェーンを作る)を流用する。識別子は "ZzTest5007" のみ。
     public class ScenePreloadAggregatorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempPreloadGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempPreloadGameData";
 
         private readonly List<string> _trackedPaths = new();
 

@@ -19,7 +19,7 @@ namespace DDrive.Tests.Editor.Setup
     // だけを検証する。
     public class ProjectSetupActionsTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameDataSetup";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameDataSetup";
 
         [TearDown]
         public void TearDown()
@@ -48,8 +48,11 @@ namespace DDrive.Tests.Editor.Setup
             Assert.IsNotEmpty(names);
             Assert.AreEqual(names.Distinct().Count(), names.Count, "カタログ名は重複しないこと");
             Assert.IsTrue(names.Contains("AudioCatalog"));
-            Assert.IsTrue(names.Contains("MiscCatalog") || names.All(n => n != "MiscCatalog"),
-                "MiscCatalog は現行の AssetType では使われていない可能性があるため存在有無どちらでも許容");
+            // [47_review_p_tickets_2026-09-20.md] テストの穴 8 — 旧アサート
+            // `names.Contains("MiscCatalog") || names.All(n => n != "MiscCatalog")` は
+            // 「含む、または含まない」という恒真式で何も検査していなかった。意図(各名前が空白でない)を
+            // 検査する形に直す。
+            Assert.IsTrue(names.All(n => !string.IsNullOrWhiteSpace(n)), "カタログ名はすべて非空であること");
         }
 
         [Test]

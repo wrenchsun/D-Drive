@@ -177,5 +177,53 @@ namespace DDrive.Tests.Editor
             const string title = "用語集 | D-Drive デザイナーマニュアル";
             Assert.AreEqual(title, ManualPages.StripManualSuffix(title, ManualKind.Programmer));
         }
+
+        // [47_review_p_tickets_2026-09-20.md] P2-2(2026-09-20) — 開発リポジトリでは docs/ を優先する。
+        // ProjectSetupValidatorTests と同じ流儀でフィールドを直接書き換えて模擬する(Save を呼ばない)。
+        [Test]
+        public void GetManualFolder_DevelopmentRepo_PrefersDocsFolder_OverDocumentationTilde()
+        {
+            var settings = DDrive.Editor.Settings.DDriveProjectSettings.instance;
+            var isDevField = typeof(DDrive.Editor.Settings.DDriveProjectSettings).GetField(
+                "_isDevelopmentRepo", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var originalIsDev = (bool)isDevField.GetValue(settings);
+
+            try
+            {
+                isDevField.SetValue(settings, true);
+                var projectRoot = ManualPages.GetProjectRoot();
+                var folder = ManualPages.GetManualFolder(projectRoot);
+
+                var expectedDocsFolder = Path.Combine(projectRoot, "docs/DesignerManual".Replace('/', Path.DirectorySeparatorChar));
+                Assert.AreEqual(expectedDocsFolder, folder);
+            }
+            finally
+            {
+                isDevField.SetValue(settings, originalIsDev);
+            }
+        }
+
+        [Test]
+        public void GetManualFolder_NotDevelopmentRepo_PrefersDocumentationTilde_WhenBundled()
+        {
+            var settings = DDrive.Editor.Settings.DDriveProjectSettings.instance;
+            var isDevField = typeof(DDrive.Editor.Settings.DDriveProjectSettings).GetField(
+                "_isDevelopmentRepo", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var originalIsDev = (bool)isDevField.GetValue(settings);
+
+            try
+            {
+                isDevField.SetValue(settings, false);
+                var projectRoot = ManualPages.GetProjectRoot();
+                var folder = ManualPages.GetManualFolder(projectRoot);
+
+                StringAssert.Contains("Documentation~", folder,
+                    "このリポジトリは Documentation~/DesignerManual を同梱済み(P-9)のため、持ち込み先扱いではこちらが正本");
+            }
+            finally
+            {
+                isDevField.SetValue(settings, originalIsDev);
+            }
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 
@@ -55,7 +56,8 @@ namespace DDrive.Editor
             var key = filter + "\n" + string.Join("|", folders);
             if (!Cache.TryGetValue(key, out var guids))
             {
-                guids = AssetDatabase.FindAssets(filter, folders);
+                var rawGuids = AssetDatabase.FindAssets(filter, folders);
+                guids = FilterOutCompatFixtures(rawGuids);
                 Cache[key] = guids;
                 MissCount++;
             }
@@ -63,6 +65,34 @@ namespace DDrive.Editor
             // 呼び出し側が並べ替え・書き換えしてもキャッシュを壊さないよう複製を返す(GUID 文字列の配列なので軽い)。
             return (string[])guids.Clone();
         }
+
+        // [47_review_p_tickets_2026-09-20.md] P2-1(2026-09-20) — P-3 の互換性スナップショットの
+        // 旧版フィクスチャ(Tests/Editor/Compat/Fixtures/、実 Data 型で作られている)は、除外を各呼び出し側
+        // (AssetBrowser・仕様書インデックス・ID ピッカー・Addressables 同期・各種 Validator/Codegen 等)に
+        // ばらばらに実装すると漏れが出る(実測 [42] §2.3-2 参照)。`AssetSearch` が唯一の
+        // `AssetDatabase.FindAssets` 呼び出し口(クラス冒頭コメントのルール)であることを利用し、
+        // ここ 1 箇所でフィクスチャを結果から落とす(呼び出し側の個別の除外実装は不要になる)。
+        private static string[] FilterOutCompatFixtures(string[] guids)
+        {
+            List<string> filtered = null;
+
+            for (var i = 0; i < guids.Length; i++)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (IsCompatFixturePath(path))
+                {
+                    filtered ??= new List<string>(guids[..i]);
+                    continue;
+                }
+
+                filtered?.Add(guids[i]);
+            }
+
+            return filtered?.ToArray() ?? guids;
+        }
+
+        public static bool IsCompatFixturePath(string assetPath) =>
+            !string.IsNullOrEmpty(assetPath) && assetPath.Contains("/Compat/Fixtures/", StringComparison.Ordinal);
 
         // アセットの作成・削除・移動の直後、projectChanged が来る前に検索する必要があるときに呼ぶ。
         public static void Invalidate() => Cache.Clear();

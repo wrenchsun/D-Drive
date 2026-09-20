@@ -15,7 +15,7 @@ namespace DDrive.Tests.Editor
     // (SpecWebFetcherTests がフェイク HTTP で疎通経路を確認する)。ここでは payload の内容だけを検証する。
     public class SpecWebSenderTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempSpecWebSenderGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempSpecWebSenderGameData";
         private const string TestIdentifier = "SpecWebSenderTestAlpha";
 
         [TearDown]

@@ -17,7 +17,7 @@ namespace DDrive.Tests.Editor
     // GameData/カタログ/Addressables/既存シーンには書き込まない。識別子は "ZzTestDelExec" のみ)。
     public class AssetDeleteExecutionServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempDelExecGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempDelExecGameData";
 
         private readonly List<string> _trackedPaths = new();
 
@@ -54,7 +54,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempDelExecGameData");
+                TestTempFolder.CreateFolder("TempDelExecGameData");
             }
         }
 

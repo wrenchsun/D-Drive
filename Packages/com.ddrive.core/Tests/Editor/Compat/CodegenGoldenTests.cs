@@ -26,7 +26,7 @@ namespace DDrive.Tests.Editor.Compat
     // (IdHashGoldenTests が算法そのものを別途固定しているため、ここでの目的は「形」の固定)。
     public class CodegenGoldenTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempDir = TestTempFolder.Root + "/Temp";
         private readonly List<string> _createdAssetPaths = new();
         private string _tempOutputPath;
 
@@ -35,7 +35,7 @@ namespace DDrive.Tests.Editor.Compat
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             _tempOutputPath = Path.Combine(Path.GetTempPath(), "ddrive_test_codegen_" + Guid.NewGuid().ToString("N") + ".cs");

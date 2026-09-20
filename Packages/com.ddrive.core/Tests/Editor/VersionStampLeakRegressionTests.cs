@@ -19,7 +19,7 @@ namespace DDrive.Tests.Editor
     // これらの本番コード内の引数なし SaveAssets() は素通しだった)。
     public class VersionStampLeakRegressionTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempVersionStampLeak";
+        private const string TestRoot = TestTempFolder.Root + "/TempVersionStampLeak";
 
         [TearDown]
         public void TearDown()

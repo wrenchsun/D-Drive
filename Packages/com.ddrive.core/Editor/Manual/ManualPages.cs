@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using DDrive.Editor.Settings;
 using UnityEditor.PackageManager;
 using UnityEngine;
 
@@ -61,14 +62,22 @@ namespace DDrive.Editor.Manual
         private const string ProgrammerDocumentationFolderName = "ProgrammerManual";
 
         // [42_distribution.md] §2.3-3(P-4/P-5、2026-09-20) — パッケージ化(P-5)後は docs/DesignerManual|
-        // ProgrammerManual が `Packages/com.ddrive.core/Documentation~/...Manual` に同梱される想定のため、
-        // まず PackageInfo から自分自身(ManualPages 自身の asmdef = DDrive.Editor)が属するパッケージの
-        // 実パスを引く。P-5 でパッケージ化済みのため PackageInfo は解決できるが、
-        // `Documentation~/DesignerManual|ProgrammerManual` の同梱自体は P-9 のリリース手順で行う予定
-        // (今回はフォルダと README.md の雛形のみ)なので、当面はディレクトリが無く既存どおり
-        // プロジェクト直下の docs/...Manual にフォールバックする(挙動は変わらない)。
+        // ProgrammerManual が `Packages/com.ddrive.core/Documentation~/...Manual` に同梱される。
+        // [47_review_p_tickets_2026-09-20.md] P2-2(2026-09-20 修正) — P-9 で実際に同梱が始まったため、
+        // 「同梱されていれば常に Documentation~ を優先する」だと、開発リポジトリ(このリポジトリ)で
+        // `docs/DesignerManual`/`docs/ProgrammerManual` を直接編集しても、`bump-version.ps1` を回すまで
+        // Editor の「マニュアル」ボタンには反映されない(実装メモの前提「当面はフォールバック側が使われ
+        // 挙動は変わらない」が P-9 で崩れた)。開発リポジトリ(`DDriveProjectSettings.IsDevelopmentRepo`)
+        // では `docs/` を優先し、持ち込み先では従来どおり `Documentation~`(正本)を優先する。
         public static string GetManualFolder(string projectRoot, ManualKind kind = ManualKind.Designer)
         {
+            var docsFolder = Path.Combine(projectRoot, GetFolderRelativePath(kind).Replace('/', Path.DirectorySeparatorChar));
+
+            if (DDriveProjectSettings.instance.IsDevelopmentRepo && Directory.Exists(docsFolder))
+            {
+                return docsFolder;
+            }
+
             var packageInfo = PackageInfo.FindForAssembly(typeof(ManualPages).Assembly);
             if (packageInfo != null)
             {
@@ -80,7 +89,7 @@ namespace DDrive.Editor.Manual
                 }
             }
 
-            return Path.Combine(projectRoot, GetFolderRelativePath(kind).Replace('/', Path.DirectorySeparatorChar));
+            return docsFolder;
         }
 
         // トップ(Readme)を除くページ一覧。フォルダが無ければ空配列(警告ログのみ、例外で止めない)。

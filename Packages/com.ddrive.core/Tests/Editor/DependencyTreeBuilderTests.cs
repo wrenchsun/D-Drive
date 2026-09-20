@@ -14,7 +14,7 @@ namespace DDrive.Tests.Editor
     // 総称引数を見ず value/type の中身しか見ないため、テストの都合で Se 同士を指しても問題ない)。
     public class DependencyTreeBuilderTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempTreeGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempTreeGameData";
 
         private readonly List<string> _trackedPaths = new();
 

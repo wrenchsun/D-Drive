@@ -488,6 +488,7 @@ GameObject:
   - component: {fileID: 1006670957}
   - component: {fileID: 1006670956}
   - component: {fileID: 1006670955}
+  - component: {fileID: 1006670958}
   m_Layer: 0
   m_Name: '[D-Drive] Runtime'
   m_TagString: Untagged
@@ -508,11 +509,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Loop.DDriveRuntimeBootstrap
   DefaultNetBridge: 1
-  NetworkManagerRef: {fileID: 2031260604}
-  NgoBridgeRef: {fileID: 896873073}
   DefaultHostAddress: 192.168.137.1
   DefaultPort: 7777
   ShowNetDebugOverlay: 1
+  ContentHashTimeoutSeconds: 5
   Catalogs: []
   CatalogLabel: DDriveCatalog
   KeepAcrossScenes: 1
@@ -546,6 +546,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1006670958
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1006670954}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e9a33825529f5c4489cfabcdd9b1daf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DDrive.Runtime.Ngo::DDrive.Runtime.Net.DDriveNgoBootstrapHook
+  NetworkManagerRef: {fileID: 2031260604}
+  NgoBridgeRef: {fileID: 896873073}
 --- !u!1 &2031260601
 GameObject:
   m_ObjectHideFlags: 0

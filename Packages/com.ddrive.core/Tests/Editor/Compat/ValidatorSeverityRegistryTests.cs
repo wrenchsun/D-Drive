@@ -60,10 +60,10 @@ namespace DDrive.Tests.Editor.Compat
             // ディスクに保存されていない)だと即座に抜ける(実行時ロード対象外の判定)。メモリ上の
             // ScriptableObject.CreateInstance のままでは経路を再現できないため、一時アセットとして
             // 保存してから検証する([09_editor_tools.md] の一時アセットの流儀。Tests/Editor/Temp を使う)。
-            const string tempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+            const string tempDir = TestTempFolder.Root + "/Temp";
             if (!UnityEditor.AssetDatabase.IsValidFolder(tempDir))
             {
-                UnityEditor.AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             var path = $"{tempDir}/ValidatorSeverityRegistryProbe.asset";

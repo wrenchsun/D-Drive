@@ -205,13 +205,13 @@ namespace DDrive.Tests.Editor
         }
             // ── プレハブモード(Prefab Stage)内での再生 ──
 
-        private const string StageTempFolder = "Packages/com.ddrive.core/Tests/Editor/TempPrefabStage";
+        private const string StageTempFolder = TestTempFolder.Root + "/TempPrefabStage";
 
         private static PrefabStage OpenTempPrefabStage()
         {
             if (!AssetDatabase.IsValidFolder(StageTempFolder))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempPrefabStage");
+                TestTempFolder.CreateFolder("TempPrefabStage");
             }
 
             var host = new GameObject("StageHost");
@@ -290,7 +290,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(StageTempFolder))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempPrefabStage");
+                TestTempFolder.CreateFolder("TempPrefabStage");
             }
 
             var src = new GameObject("TargetFx");

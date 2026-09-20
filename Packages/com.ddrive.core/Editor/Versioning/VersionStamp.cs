@@ -89,9 +89,14 @@ namespace DDrive.Editor.Versioning
                 asset.Version++;
                 asset.Author = userName;
                 asset.UpdatedAt = nowIso;
-                // [42_distribution.md] §4.3(P-7、2026-09-20) — 保存の都度、現在のスキーマ版を書く
-                // (抑止スコープ中は Version++ と同様に書かない。既にこの版のものへの上書きは無害)。
-                asset.SchemaVersion = DDriveSchema.Current;
+                // [47_review_p_tickets_2026-09-20.md] P1-4(2026-09-20 修正) — 保存フックは SchemaVersion を
+                // 書かない。ここで無条件に DDriveSchema.Current を書くと、マイグレーション未適用のまま
+                // デザイナーが 1 文字編集して保存しただけで「適用済み」に化けてしまい
+                // (DDriveMigrationRunner.Plan は `SchemaVersion < ToSchema` で対象を選ぶため、先に保存された
+                // Data は永久に対象外になる)、旧形式のフィールドが旧形式のまま新形式として扱われる
+                // 静かなデータ破損に繋がる。SchemaVersion を書いてよいのは
+                // (a) StampNew(新規作成 = 定義上その時点のスキーマ)と
+                // (b) DDriveMigrationRunner.Apply(マイグレーション適用時に ToSchema まで引き上げる)だけ。
                 EditorUtility.SetDirty(asset);
             }
 

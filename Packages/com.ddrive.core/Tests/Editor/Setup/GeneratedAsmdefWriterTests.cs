@@ -39,6 +39,9 @@ namespace DDrive.Tests.Editor.Setup
         {
             // Packages 配下のテスト用一時フォルダ等は対象外(実フォルダが存在しなくても、
             // Assets/ 前置きの判定で書き込み前に return するため安全)。
+            // [47_review_p_tickets_2026-09-20.md] P1-3(2026-09-20) — テストの一時アセットは
+            // `TestTempFolder`(Assets 配下)へ寄せたが、このテストは意図的に「Assets 配下ではない
+            // パス」を検証するためのものなので、ここだけは Packages 配下の非 Assets パスのままにする。
             var result = GeneratedAsmdefWriter.EnsureAsmdef("Packages/com.ddrive.core/Tests/Editor/TempGameData", emit: true);
             Assert.IsFalse(result);
         }

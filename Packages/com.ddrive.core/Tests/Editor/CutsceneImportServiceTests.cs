@@ -18,8 +18,8 @@ namespace DDrive.Tests.Editor
     // CutsceneCameraCurveExtractorTests でコードで組んだ AnimationClip/Camera を使って別に検証する)。
     public class CutsceneImportServiceTests
     {
-        private const string GameDataRoot = "Packages/com.ddrive.core/Tests/Editor/TempCutsceneGameData";
-        private const string SourceRoot = "Packages/com.ddrive.core/Tests/Editor/TempCutsceneSourceAssets";
+        private const string GameDataRoot = TestTempFolder.Root + "/TempCutsceneGameData";
+        private const string SourceRoot = TestTempFolder.Root + "/TempCutsceneSourceAssets";
 
         private const string SampleCameraPropsFbx = "Assets/SourceAssets/Data/UnityChan/Models/BoxUnityChan.fbx";
         private const string SampleCharacterFbx = "Assets/SourceAssets/Data/UnityChan/Animations/unitychan_WAIT00.fbx";

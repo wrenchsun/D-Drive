@@ -125,5 +125,46 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(1, violations.Count);
             StringAssert.Contains("0 件", violations[0].Message);
         }
+
+        // [47_review_p_tickets_2026-09-20.md] P1-2 — Samples~/Tests/Tools~/Documentation~ の除外を
+        // "/Samples/" だけでなく広げたことの回帰確認(P-5 の Samples~ 移設で増えた回帰の再発防止)。
+        [Test]
+        public void Scan_ExcludesTildeSamplesFolder()
+        {
+            var samplesDir = Path.Combine(_tempDir, "Samples~", "Demo");
+            Directory.CreateDirectory(samplesDir);
+            File.WriteAllText(Path.Combine(samplesDir, "Demo.cs"), "var t = UnityEngine.Time.time;");
+
+            var violations = ForbiddenApiScanner.Scan(_tempDir);
+
+            Assert.AreEqual(0, violations.Count);
+        }
+
+        [Test]
+        public void Scan_ExcludesTestsFolder()
+        {
+            var testsDir = Path.Combine(_tempDir, "Tests", "Editor");
+            Directory.CreateDirectory(testsDir);
+            File.WriteAllText(Path.Combine(testsDir, "SomeTests.cs"), "var t = UnityEngine.Time.time;");
+
+            var violations = ForbiddenApiScanner.Scan(_tempDir);
+
+            Assert.AreEqual(0, violations.Count);
+        }
+
+        [Test]
+        public void Scan_ExcludesToolsAndDocumentationTildeFolders()
+        {
+            var toolsDir = Path.Combine(_tempDir, "Tools~");
+            var docsDir = Path.Combine(_tempDir, "Documentation~");
+            Directory.CreateDirectory(toolsDir);
+            Directory.CreateDirectory(docsDir);
+            File.WriteAllText(Path.Combine(toolsDir, "Tool.cs"), "var t = UnityEngine.Time.time;");
+            File.WriteAllText(Path.Combine(docsDir, "Snippet.cs"), "var t = UnityEngine.Time.time;");
+
+            var violations = ForbiddenApiScanner.Scan(_tempDir);
+
+            Assert.AreEqual(0, violations.Count);
+        }
     }
 }

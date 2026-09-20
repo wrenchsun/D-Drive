@@ -21,7 +21,7 @@ namespace DDrive.Tests.Editor
     // NewAssetDialog の種別ロック付きオーバーロードのテスト。
     public class NewAssetToolbarButtonTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameData_5_15";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameData_5_15";
 
         [TearDown]
         public void TearDown()

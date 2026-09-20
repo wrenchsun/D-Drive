@@ -8,7 +8,7 @@ namespace DDrive.Tests.Editor
 {
     public class SeTrimApplierTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempDir = TestTempFolder.Root + "/Temp";
         private const string AssetPath = TempDir + "/TrimApplier_Se.asset";
 
         [TearDown]
@@ -33,7 +33,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             var data = ScriptableObject.CreateInstance<SeData>();

@@ -20,7 +20,7 @@ namespace DDrive.Tests.Editor
     // (実 GameData に書き込まない。CLAUDE.md §0-8 相当の配慮)。識別子は "ZzTest5007" のみ。
     public class ScenePreloadGeneratorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempPreloadGenGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempPreloadGenGameData";
         private const string TestOutputRoot = TestRoot + "/Preload";
 
         private readonly List<string> _trackedPaths = new();
@@ -58,7 +58,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(path))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", System.IO.Path.GetFileName(path));
+                TestTempFolder.CreateFolder(System.IO.Path.GetFileName(path));
             }
         }
 

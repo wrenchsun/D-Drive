@@ -16,7 +16,7 @@ namespace DDrive.Tests.Editor
     // [05_model_animation.md] C-5/C-6 — チケット 3-13(Anim2DEditor: 共通プレビュー移植 + イベント D&D + Validator)。
     public class Anim2DEditorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/Temp3-13";
+        private const string TestRoot = TestTempFolder.Root + "/Temp3-13";
 
         private readonly List<UnityEngine.Object> _scratch = new();
 
@@ -44,7 +44,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp3-13");
+                TestTempFolder.CreateFolder("Temp3-13");
             }
         }
 

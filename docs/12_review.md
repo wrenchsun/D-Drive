@@ -138,10 +138,11 @@ D-Drive（`com.ddrive.core`）のバージョンを 1 つ進めて配布する�
 5. **`Tools/Release/bump-version.ps1` を実行**して版を進める:
    ```
    pwsh Tools/Release/bump-version.ps1 -Version x.y.z -DryRun   # まず差分だけ確認
-   pwsh Tools/Release/bump-version.ps1 -Version x.y.z -Tag      # 問題なければ実行(package.json/DDriveVersion.cs/CHANGELOG.md を更新し、Documentation~ と CHANGELOG.md をパッケージへ同期し、git tag を作る)
+   pwsh Tools/Release/bump-version.ps1 -Version x.y.z -Tag      # 問題なければ実行
    ```
-   `-Part major|minor|patch` でも指定できる。同梱物の同期（`docs/DesignerManual`・`docs/ProgrammerManual` → `Documentation~/`、`CHANGELOG.md` → `Packages/com.ddrive.core/CHANGELOG.md`）は版が変わらないときも毎回実行される
-6. **`git push --tags`**: 手順 5 で作ったタグを push する（明示的に指示されたときだけ。CLAUDE.md の「破壊的な git 操作は指示されたときだけ」と同じ扱い）
+   `-Part major|minor|patch` でも指定できる。同梱物の同期（`docs/DesignerManual`・`docs/ProgrammerManual` → `Documentation~/`、`CHANGELOG.md` → `Packages/com.ddrive.core/CHANGELOG.md`）は版が変わらないときも毎回実行される。
+   **`-Tag` は package.json/DDriveVersion.cs/CHANGELOG.md の更新 → 同梱物の同期 → 明示パスで `git add` + `git commit -m "Release vX.Y.Z"` → `git tag -a vX.Y.Z` の順に実行する**（2026-09-20 修正、[47_review_p_tickets_2026-09-20.md] P1-7。以前は版を書き換えるだけでコミットせずにタグを打っていたため、タグが「版を上げる前」のコミットを指すバグがあった）。タグが指すコミットに版の更新が必ず含まれるため、この手順の後に別途コミットする必要は無い（タグ対象のコミットを自分で用意したい場合は `-NoCommit` を付けると従来どおりコミットを省略できる）
+6. **`git push --tags`**: 手順 5 で作った `Release vX.Y.Z` コミットとタグを push する（明示的に指示されたときだけ。CLAUDE.md の「破壊的な git 操作は指示されたときだけ」と同じ扱い）
 7. **SpecWeb の push / デプロイ**: `docs/DesignerManual`・`docs/ProgrammerManual` を今回のリリースで変更していれば `cd Tools/SpecWeb && ./push.cmd`（`build-manual.js` の再生成 + `clasp push`）を実行し、デプロイ①（人向け SPA）を更新する（デプロイ②は UI 操作なのでユーザー作業）
 8. **持ち込み先の更新手順の案内**: 持ち込み先（MS2026 等）の担当に、[42_distribution.md] §4.2「持ち込み先の更新手順」に沿って `manifest.json` のタグを進め、`Tools > D-Drive > Update > 更新ウィンドウ` を実行するよう伝える
 

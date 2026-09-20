@@ -11,7 +11,7 @@ namespace DDrive.Tests.Editor
 {
     public class AssetReorganizerTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempReorgRoot";
+        private const string TestRoot = TestTempFolder.Root + "/TempReorgRoot";
 
         [TearDown]
         public void TearDown()

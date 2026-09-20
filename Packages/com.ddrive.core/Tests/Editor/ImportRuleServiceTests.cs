@@ -23,8 +23,8 @@ namespace DDrive.Tests.Editor
     // テスト専用の一時フォルダに作り、ProcessPaths を直接呼ぶ(AssetPostprocessor 経由の delayCall はタイミング依存のため経由しない)。
     public class ImportRuleServiceTests
     {
-        private const string GameDataRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameData";
-        private const string SourceRoot = "Packages/com.ddrive.core/Tests/Editor/TempSourceAssets";
+        private const string GameDataRoot = TestTempFolder.Root + "/TempGameData";
+        private const string SourceRoot = TestTempFolder.Root + "/TempSourceAssets";
 
         // 埋め込み AnimationClip を持つ既存サンプルアニメーション(コピーして使う。読み取りのみで元ファイルは変更しない)。
         private const string SampleAnimFbx = "Assets/SourceAssets/Data/UnityChan/Animations/unitychan_WAIT00.fbx";

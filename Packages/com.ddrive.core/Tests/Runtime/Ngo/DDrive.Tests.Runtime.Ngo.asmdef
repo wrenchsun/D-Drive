@@ -1,0 +1,33 @@
+{
+    "name": "DDrive.Tests.Runtime.Ngo",
+    "rootNamespace": "DDrive.Tests.Runtime",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime",
+        "DDrive.Runtime.Ngo",
+        "UniTask",
+        "Unity.Netcode.Runtime",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "DDRIVE_NGO"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.netcode.gameobjects",
+            "expression": "",
+            "define": "DDRIVE_NGO"
+        }
+    ],
+    "noEngineReferences": false
+}

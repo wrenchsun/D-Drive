@@ -10,7 +10,7 @@ namespace DDrive.Tests.Editor
     // 実データ(Assets/SourceAssets)を汚さないため、一時フォルダに対して EnsureDefaultFolders を直接呼ぶ。
     public class ImportRuleDefaultFoldersTests
     {
-        private const string TempRoot = "Packages/com.ddrive.core/Tests/Editor/TempDefaultFoldersSourceAssets";
+        private const string TempRoot = TestTempFolder.Root + "/TempDefaultFoldersSourceAssets";
 
         [SetUp]
         public void SetUp()
@@ -137,13 +137,13 @@ namespace DDrive.Tests.Editor
 
             // README.md は拡張子的にもどの種別にも一致しないが、案内ログの対象にもならないこと
             // (「置き方を間違えたファイル」ではなくツール自身が置いた説明書のため)。
-            var report = ImportRuleService.ScanAll(TempRoot, "Packages/com.ddrive.core/Tests/Editor/TempDefaultFoldersGameData");
+            var report = ImportRuleService.ScanAll(TempRoot, TestTempFolder.Root + "/TempDefaultFoldersGameData");
             Assert.AreEqual(0, report.Created);
             LogAssert.NoUnexpectedReceived();
 
-            if (AssetDatabase.IsValidFolder("Packages/com.ddrive.core/Tests/Editor/TempDefaultFoldersGameData"))
+            if (AssetDatabase.IsValidFolder(TestTempFolder.Root + "/TempDefaultFoldersGameData"))
             {
-                AssetDatabase.DeleteAsset("Packages/com.ddrive.core/Tests/Editor/TempDefaultFoldersGameData");
+                AssetDatabase.DeleteAsset(TestTempFolder.Root + "/TempDefaultFoldersGameData");
             }
         }
     }

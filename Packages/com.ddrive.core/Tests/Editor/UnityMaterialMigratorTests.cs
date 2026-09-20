@@ -11,8 +11,8 @@ namespace DDrive.Tests.Editor
     // [06_material_texture.md] A-2 — Unity 標準シェーダーの Material → DDrive/Lit・Unlit の MaterialData(2026-09-11)。
     public class UnityMaterialMigratorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameData";
-        private const string TempFolder = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameData";
+        private const string TempFolder = TestTempFolder.Root + "/Temp";
         private const string LitMaterialPath = TempFolder + "/MigrateLit.mat";
         private const string UnlitMaterialPath = TempFolder + "/MigrateUnlit.mat";
 
@@ -24,7 +24,7 @@ namespace DDrive.Tests.Editor
             MayaModelPostprocessor.Suppress = true;
             if (!AssetDatabase.IsValidFolder(TempFolder))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
         }
 

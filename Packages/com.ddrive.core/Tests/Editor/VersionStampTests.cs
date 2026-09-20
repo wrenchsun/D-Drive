@@ -14,7 +14,7 @@ namespace DDrive.Tests.Editor
     // AssetCreationService を経由しないため Addressables 登録も発生しない)。
     public class VersionStampTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/TempVersionStamp";
+        private const string TempDir = TestTempFolder.Root + "/TempVersionStamp";
         private const string AssetPath = TempDir + "/VersionStamp_TestAssetData.asset";
 
         [SetUp]
@@ -22,7 +22,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempVersionStamp");
+                TestTempFolder.CreateFolder("TempVersionStamp");
             }
         }
 

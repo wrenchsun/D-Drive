@@ -12,8 +12,8 @@ namespace DDrive.Tests.Editor
     // [06_material_texture.md] A-2 Maya FBX 自動生成(3-7): Unity Material → MaterialData + TextureData、再インポートで固有調整を保持。
     public class MayaMaterialImporterTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameData";
-        private const string TempFolder = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameData";
+        private const string TempFolder = TestTempFolder.Root + "/Temp";
         private const string TexturePath = TempFolder + "/T_MayaTest_N.png";
         private const string MaterialPath = TempFolder + "/MayaTestMat.mat";
 
@@ -26,7 +26,7 @@ namespace DDrive.Tests.Editor
             TexturePostprocessorSuppress(true);
             if (!AssetDatabase.IsValidFolder(TempFolder))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             var png = new Texture2D(4, 4);

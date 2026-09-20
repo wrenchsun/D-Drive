@@ -891,8 +891,6 @@ TYPE class sealed DDrive.Runtime.Loop.DDriveRuntimeBootstrap : UnityEngine.MonoB
   field DefaultPort : ushort
   field KeepAcrossScenes : bool
   field LayerSettings : DDrive.Runtime.Ui.UiLayerSettings
-  field NetworkManagerRef : Unity.Netcode.NetworkManager
-  field NgoBridgeRef : DDrive.Runtime.Net.NgoNetBridge
   field ShowNetDebugOverlay : bool
   field TuningTable : DDrive.Runtime.Tuning.TuningTable
   field const DefaultCatalogLabel : string
@@ -1284,6 +1282,10 @@ TYPE struct DDrive.Runtime.Net.CutscenePlayMsg
 TYPE struct DDrive.Runtime.Net.CutsceneSeekMsg
   field HandleNetKey : uint
   field ToTime : double
+TYPE interface DDrive.Runtime.Net.INgoBridgeFactory
+  method Create(ref DDrive.Runtime.Net.NgoBridgeCreateArgs args) : DDrive.Runtime.Net.NgoBridgeCreateResult
+TYPE class static DDrive.Runtime.Net.NetBridgeFactoryRegistry
+  property static Current : DDrive.Runtime.Net.INgoBridgeFactory {get;set}
 TYPE struct DDrive.Runtime.Net.NetCheckCounters
   field ActiveAndVfxZeroedAfterDisconnect : bool
   field ConnectedAtEnd : bool
@@ -1309,12 +1311,6 @@ TYPE struct DDrive.Runtime.Net.NetCheckResult
   field Reason : string
   method static FailResult(string reason) : DDrive.Runtime.Net.NetCheckResult
   method static PassResult(string summary) : DDrive.Runtime.Net.NetCheckResult
-TYPE class sealed DDrive.Runtime.Net.NetDebugOverlay : UnityEngine.MonoBehaviour
-  ctor NetDebugOverlay()
-  field Bridge : DDrive.Foundation.Net.INetBridge
-  field ContentHashGate : DDrive.Runtime.Net.CatalogContentHashGate
-  field NetworkManagerRef : Unity.Netcode.NetworkManager
-  field Visible : bool
 TYPE class static DDrive.Runtime.Net.NetLaunchArgs
   field const AutoTestFlag : string
   field const AutoTestSecondsFlag : string
@@ -1349,33 +1345,19 @@ TYPE struct DDrive.Runtime.Net.NetPingMsg
   field SentAtNetworkTime : double
 TYPE struct DDrive.Runtime.Net.NetPongMsg
   field OriginalSentAtNetworkTime : double
-TYPE class sealed DDrive.Runtime.Net.NgoNetBridge : Unity.Netcode.NetworkBehaviour
-  ctor NgoNetBridge()
-  event ClientConnected : System.Action<ulong>
-  event ClientDisconnected : System.Action<ulong, string>
-  field const ClientRelayLimitPerSecond : int
-  field const UnreliablePayloadLimit : int
-  method Broadcast<T>(ref T msg, DDrive.Foundation.Net.NetChannel channel) : void
-  method ConfigureAppLayerSimLatency(int simLatencyMs) : void
-  method DespawnNetworked(ulong netId, bool destroy) : void
-  method DisconnectClient(ulong clientId, string reason) : void
-  method IsLocalPlayerObject(UnityEngine.Transform transform) : bool
-  method OnNetworkDespawn() : void
-  method OnNetworkSpawn() : void
-  method ResolveNetId(UnityEngine.Transform transform) : ulong
-  method ResolveNetObject(ulong netId) : UnityEngine.Transform
-  method SendTo<T>(ulong clientId, ref T msg, DDrive.Foundation.Net.NetChannel channel) : void
-  method SpawnNetworked(UnityEngine.GameObject root) : ulong
-  method Subscribe<T>(Action<ulong, T> handler) : System.IDisposable
-  property AppRoundTripMs : System.Nullable<double> {get}
-  property IsAppRoundTripMsStale : bool {get}
-  property IsConnected : bool {get}
-  property LocalClientId : ulong {get}
-  property NetworkTime : double {get}
-  property ReceivedMessageCount : int {get}
-TYPE class static DDrive.Runtime.Net.NgoTransportConfigurator
-  method static TryConfigure(Unity.Netcode.NetworkManager nm, string host, ushort port, System.Nullable<int> simLatencyMs, System.Nullable<float> simLossPercent) : bool
-  method static TryGetRoundTripTimeMs(Unity.Netcode.NetworkManager nm, ulong clientId) : System.Nullable<double>
+TYPE struct DDrive.Runtime.Net.NgoBridgeCreateArgs
+  ctor NgoBridgeCreateArgs(DDrive.Runtime.Net.NetLaunchRole role, string host, ushort port, DDrive.Runtime.Net.NetLaunchOptions launchOptions, bool showDebugOverlay, UnityEngine.Transform parentTransform)
+  field readonly Host : string
+  field readonly LaunchOptions : DDrive.Runtime.Net.NetLaunchOptions
+  field readonly ParentTransform : UnityEngine.Transform
+  field readonly Port : ushort
+  field readonly Role : DDrive.Runtime.Net.NetLaunchRole
+  field readonly ShowDebugOverlay : bool
+TYPE class sealed DDrive.Runtime.Net.NgoBridgeCreateResult
+  ctor NgoBridgeCreateResult()
+  field AssignHashGate : System.Action<DDrive.Runtime.Net.CatalogContentHashGate>
+  field Bridge : DDrive.Foundation.Net.INetBridge
+  field PendingStart : System.Action
 TYPE struct DDrive.Runtime.Net.PrefabDespawnedMsg
   field NetObjectId : ulong
 TYPE struct DDrive.Runtime.Net.PrefabSpawnRequestMsg

@@ -20,7 +20,13 @@
        - docs/ProgrammerManual/ -> Packages/com.ddrive.core/Documentation~/ProgrammerManual/(ミラー)
        - CHANGELOG.md          -> Packages/com.ddrive.core/CHANGELOG.md(単一ファイルコピー)
        .claude/skills は同期しない(消費側スキルは P-10 で Documentation~/skills/ddrive-consumer/ に別途用意する)。
-    4. -Tag を付けたときだけ `git tag -a vX.Y.Z` を作成する(push はしない)。
+    4. -Tag を付けたときだけ、明示パスで `git add` + `git commit -m "Release vX.Y.Z"` してから
+       `git tag -a vX.Y.Z` を作成する(push はしない)。
+       [47_review_p_tickets_2026-09-20.md] P1-7(2026-09-20 修正) — 以前は「版を書き換える(コミットしない)
+       →タグを打つ」の順だったため、タグが指す HEAD は常に「版を上げる前」のコミットだった
+       (`#vX.Y.Z` で参照した持ち込み先に旧版の package.json が届く実バグ)。`-NoCommit` を付けると
+       コミットを省略し、従来どおり現在の HEAD にタグだけを打つ(タグ対象のコミットを自分で用意済みの
+       場合の逃げ道)。
 
   -DryRun を付けると、上記のうち「ファイルへの書き込み」をすべて行わず、変更内容の表示だけを行う
   (同梱物の同期も robocopy の /L(一覧表示のみ)で差分を見せるだけにする)。
@@ -39,7 +45,12 @@
   実際にはファイルを書き換えず、変更される内容だけを表示する。
 
 .PARAMETER Tag
-  成功したら `git tag -a vX.Y.Z` を作成する(push はしない)。
+  成功したら、変更ファイルを明示パスで `git add` + `git commit -m "Release vX.Y.Z"` してから
+  `git tag -a vX.Y.Z` を作成する(push はしない)。-NoCommit と併用するとコミットを省略する。
+
+.PARAMETER NoCommit
+  -Tag と併用したとき、コミットを省略して現在の HEAD にそのままタグを打つ(従来動作。P1-7 参照)。
+  -Tag を付けていないときは何もしない。
 
 .PARAMETER SkipChecks
   事前チェックをすべて省略する(緊急時のみ。通常は使わない)。
@@ -66,6 +77,7 @@ param(
 
     [switch]$DryRun,
     [switch]$Tag,
+    [switch]$NoCommit,
     [switch]$SkipChecks,
     [string]$ProtocolCompareRef
 )
@@ -229,12 +241,20 @@ $designerSrc = Join-Path $repoRoot 'docs/DesignerManual'
 $designerDst = Join-Path $packageDir 'Documentation~/DesignerManual'
 $programmerSrc = Join-Path $repoRoot 'docs/ProgrammerManual'
 $programmerDst = Join-Path $packageDir 'Documentation~/ProgrammerManual'
+$migrationsSrc = Join-Path $repoRoot 'docs/migrations'
+$migrationsDst = Join-Path $packageDir 'Documentation~/migrations'
 $changelogDst = Join-Path $packageDir 'CHANGELOG.md'
 
 $designerResult = Sync-MirrorDirectory -Source $designerSrc -Destination $designerDst -DryRun:$DryRun
 Write-Host "docs/DesignerManual    -> Documentation~/DesignerManual  (robocopy 終了コード=$($designerResult.ExitCode))"
 $programmerResult = Sync-MirrorDirectory -Source $programmerSrc -Destination $programmerDst -DryRun:$DryRun
 Write-Host "docs/ProgrammerManual  -> Documentation~/ProgrammerManual(robocopy 終了コード=$($programmerResult.ExitCode))"
+# [47_review_p_tickets_2026-09-20.md] P2-9(2026-09-20 修正) — 消費側ドキュメント(README/AGENTS_CONSUMER/
+# ddrive-consumer スキル)が「破壊あり」の移行ガイドの参照先として docs/migrations/ を案内しているが、
+# パッケージにも Documentation~ にも同梱されていなかった(持ち込み先からは辿れない)。DesignerManual/
+# ProgrammerManual と同じミラー同期の対象に加える。
+$migrationsResult = Sync-MirrorDirectory -Source $migrationsSrc -Destination $migrationsDst -DryRun:$DryRun
+Write-Host "docs/migrations        -> Documentation~/migrations      (robocopy 終了コード=$($migrationsResult.ExitCode))"
 # CHANGELOG.md 自体は今回の更新(あれば)を反映した後の内容を同期する。DryRun のときは元ファイルのままで比較する。
 $changelogResult = Sync-SingleFile -Source $changelogPath -Destination $changelogDst -DryRun:$DryRun
 Write-Host "CHANGELOG.md           -> Packages/com.ddrive.core/CHANGELOG.md (変更=$($changelogResult.Changed))"
@@ -246,13 +266,54 @@ if ($DryRun) {
 }
 
 if ($Tag) {
-    Write-Host '--- git tag ---'
     $tagName = "v$($newVersion.Original)"
+    $committed = $false
+
+    if (-not $NoCommit) {
+        Write-Host '--- git commit(バージョン更新 + 同梱物の同期) ---'
+        # [47] P1-7 — タグが指すコミットに版の更新を含めるため、-Tag のときは明示パスでコミットしてから
+        # タグを打つ(git add -A/-. は使わず、このスクリプトが実際に書き換えた/同期したパスだけを add する)。
+        $addPaths = @($packageJsonPath, $versionCsPath, $changelogPath, $designerDst, $programmerDst, $migrationsDst, $changelogDst) |
+            Where-Object { Test-Path -LiteralPath $_ }
+
+        if ($addPaths.Count -gt 0) {
+            & git -C $repoRoot add -- $addPaths
+            if ($LASTEXITCODE -ne 0) { throw "git add に失敗しました(終了コード $LASTEXITCODE)。" }
+        }
+
+        $stagedDiff = & git -C $repoRoot diff --cached --name-only
+        if ($LASTEXITCODE -ne 0) { throw "git diff --cached に失敗しました(終了コード $LASTEXITCODE)。" }
+
+        if (-not $stagedDiff -or $stagedDiff.Count -eq 0) {
+            Write-Host '(コミットする変更がありません。バージョン・同梱物は既に最新のようです)'
+        }
+        else {
+            & git -C $repoRoot commit -m "Release $tagName"
+            if ($LASTEXITCODE -ne 0) { throw "git commit に失敗しました(終了コード $LASTEXITCODE)。" }
+            $committed = $true
+            Write-Host "コミットしました: Release $tagName"
+        }
+        Write-Host ''
+    }
+    else {
+        Write-Host '(-NoCommit: コミットを省略します。現在の HEAD にそのままタグを打ちます)'
+        Write-Host ''
+    }
+
+    Write-Host '--- git tag ---'
     & git -C $repoRoot tag -a $tagName -m "D-Drive $($newVersion.Original)"
     if ($LASTEXITCODE -ne 0) { throw "git tag に失敗しました(終了コード $LASTEXITCODE)。" }
     Write-Host "タグを作成しました: $tagName (push はしていません。'git push --tags' を別途実行してください)"
+    if (-not $committed -and -not $NoCommit) {
+        Write-Host '(コミット対象が無かったため、タグは実行前の HEAD を指しています)'
+    }
     Write-Host ''
 }
 
 Write-Host '=== 完了 ==='
-Write-Host '変更されたファイルを確認し、コミットしてください(git add -A/-. は使わず、明示パスで add すること)。'
+if ($Tag -and -not $NoCommit) {
+    Write-Host 'バージョン更新・同梱物の同期はコミット済みです。他に変更されたファイルがあれば確認してください。'
+}
+else {
+    Write-Host '変更されたファイルを確認し、コミットしてください(git add -A/-. は使わず、明示パスで add すること)。'
+}

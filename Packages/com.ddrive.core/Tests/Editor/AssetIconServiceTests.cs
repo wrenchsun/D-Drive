@@ -10,7 +10,7 @@ namespace DDrive.Tests.Editor
     // [09_editor_tools.md] §8.1 — Data アイコンの「シーンから作成」(カメラ撮影 → 切り出し → PNG → Icon 割り当て)の検証。
     public class AssetIconServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempIcons";
+        private const string TestRoot = TestTempFolder.Root + "/TempIcons";
         private const string DataPath = TestRoot + "/SE_Icon_Test.asset";
 
         [TearDown]
@@ -27,7 +27,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempIcons");
+                TestTempFolder.CreateFolder("TempIcons");
             }
 
             var data = ScriptableObject.CreateInstance<SeData>();
@@ -221,7 +221,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempIcons");
+                TestTempFolder.CreateFolder("TempIcons");
             }
         }
     }

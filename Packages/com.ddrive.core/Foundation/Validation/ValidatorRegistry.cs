@@ -41,6 +41,26 @@ namespace DDrive.Foundation.Validation
                 }
             }
 
+            // [47_review_p_tickets_2026-09-20.md] P2-5(2026-09-20 修正) — Data が 1 件も無いプロジェクトでは
+            // 上の foreach が 1 回も回らず、IUniversalValidator(空プロジェクトの ProjectSetupValidator 等)も
+            // 一度も呼ばれなかった。「Run All で Error 0 / Warning 0」が実際には「何も検査していないから」
+            // であることに気づけない([42_distribution.md] P-6 の AC を検査が空振りしたまま満たしてしまう)。
+            // Data が 0 件のときだけ、IUniversalValidator を asset=null で 1 回ずつ明示的に呼ぶ
+            // (Data が 1 件以上あるときは既存どおり各 Data に対して呼ばれるため、二重には呼ばない)。
+            if (context.AllAssets.Count == 0)
+            {
+                for (var i = 0; i < _validators.Count; i++)
+                {
+                    if (_validators[i] is IUniversalValidator universal)
+                    {
+                        foreach (var result in universal.Validate(null, context))
+                        {
+                            reports.Add(new ValidationReport(null, result));
+                        }
+                    }
+                }
+            }
+
             return reports;
         }
 

@@ -11,7 +11,7 @@ namespace DDrive.Tests.Editor
 {
     public class AssetDataBaseSerializationTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempDir = TestTempFolder.Root + "/Temp";
         private const string TempAssetPath = TempDir + "/RoundTrip_TestAssetData.asset";
 
         [TearDown]
@@ -28,7 +28,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             var data = ScriptableObject.CreateInstance<TestAssetData>();

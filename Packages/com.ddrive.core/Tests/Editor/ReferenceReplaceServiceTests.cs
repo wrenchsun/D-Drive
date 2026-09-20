@@ -16,7 +16,7 @@ namespace DDrive.Tests.Editor
     // Data/Prefab の参照は書き換える、Scene の参照は書き換えず RemainingSceneUsages に残す(自動保存しない方針)。
     public class ReferenceReplaceServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempRefReplaceGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempRefReplaceGameData";
 
         private readonly List<string> _trackedPaths = new();
 
@@ -53,7 +53,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempRefReplaceGameData");
+                TestTempFolder.CreateFolder("TempRefReplaceGameData");
             }
         }
 

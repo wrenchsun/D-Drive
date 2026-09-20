@@ -27,7 +27,7 @@ namespace DDrive.Tests.Editor
     public class NewAssetDialogSpecPickerTests
     {
         private const string AssetHeader = "種別,カテゴリ,識別子,表示名,状態,担当,仕様,備考\n";
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempNewAssetDialogGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempNewAssetDialogGameData";
 
         private SpecParseResult<SpecAssetRow> _prevAssetRows;
         private SpecParseResult<SpecTuningRow> _prevTuningRows;

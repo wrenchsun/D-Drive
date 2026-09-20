@@ -11,7 +11,7 @@ namespace DDrive.Tests.Editor
     // [21_anchor_spec.md] §3.9 — 既存ヒエラルキー / AnchorRig / 埋め込み AnchorDef からの AnchorData 生成。
     public class AnchorAssetFactoryTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempAnchorGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempAnchorGameData";
 
         [TearDown]
         public void TearDown()

@@ -346,9 +346,9 @@ namespace DDrive.Tests.Editor
             go.AddComponent<Animator>();
             try
             {
-                if (!UnityEditor.AssetDatabase.IsValidFolder("Packages/com.ddrive.core/Tests/Editor/Temp"))
+                if (!UnityEditor.AssetDatabase.IsValidFolder(TestTempFolder.Root + "/Temp"))
                 {
-                    UnityEditor.AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                    TestTempFolder.CreateFolder("Temp");
                 }
 
                 var asset = UnityEditor.PrefabUtility.SaveAsPrefabAsset(go, prefabPath);

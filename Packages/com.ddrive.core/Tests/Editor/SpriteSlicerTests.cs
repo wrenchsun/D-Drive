@@ -9,7 +9,7 @@ namespace DDrive.Tests.Editor
     // [05_model_animation.md] C-5 — Grid 分割は元画像のピクセル座標で切る(Max Size で縮小されるテクスチャでもずれない。2026-09-11 修正)。
     public class SpriteSlicerTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempDir = TestTempFolder.Root + "/Temp";
         private const string PngPath = TempDir + "/GridDownscaled.png";
 
         [SetUp]
@@ -17,7 +17,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             var png = new Texture2D(64, 64, TextureFormat.RGBA32, false);

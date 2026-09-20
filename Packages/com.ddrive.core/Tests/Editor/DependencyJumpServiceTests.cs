@@ -13,13 +13,13 @@ namespace DDrive.Tests.Editor
     // Test Runner セッションを不安定にし得るため自動テストの対象にしない(要判断: docs/28 参照。手動検証のみ)。
     public class DependencyJumpServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempJumpGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempJumpGameData";
 
         private static void EnsureFolder()
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempJumpGameData");
+                TestTempFolder.CreateFolder("TempJumpGameData");
             }
         }
 

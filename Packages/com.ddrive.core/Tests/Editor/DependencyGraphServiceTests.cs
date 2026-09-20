@@ -23,7 +23,7 @@ namespace DDrive.Tests.Editor
     // DependencyGraphService.UpdatePaths を直接呼ぶ(タイミング依存を避ける)。
     public class DependencyGraphServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempDepsGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempDepsGameData";
 
         private readonly List<string> _trackedPaths = new();
 
@@ -60,7 +60,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempDepsGameData");
+                TestTempFolder.CreateFolder("TempDepsGameData");
             }
         }
 

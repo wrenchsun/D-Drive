@@ -726,3 +726,26 @@ D-Drive は最終的に **MS2026（LAN 内 1v1、NGO 2.13.2、Host+Client 方式
 の 1 行を MS2026 の `Packages/manifest.json` に追加する（`?path=` でリポジトリ内のサブフォルダ `Packages/com.ddrive.core/` を指定、`#v1.0.0` でタグ固定。リポジトリは private のままなので MS2026 側にも `git+ssh` の認証（SSH 鍵）が要る）。ゲームコード（`Assets/_Project/Scripts/`）は `DDrive.Runtime`（と `DDrive.Foundation`）のみを参照する（`DDrive.Editor` 参照禁止、この方針は変わらない）。`Assets/GameData/` はカタログごと**移すのではなく MS2026 側で新規に作る**（[42] §2.1 の分類「G」。パッケージは版固定の読み取り専用、データは持ち込み先ごとに持つ）。更新は「manifest のタグを書き換えるだけ」（[42] §4.2）。詳細な線引き・境界違反・互換性ポリシーは [42_distribution.md] を参照。
 
 MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API として挙げているが、NGO 2.x では統一 RPC `[Rpc(SendTo.*)]` が推奨（旧属性の `RequireOwnership` は Obsolete 警告）であり、D-Drive の bridge は統一 RPC で書く。移植時に MS2026 側の文書も同じ記述に揃える。
+
+## 13. NGO を任意依存にする asmdef 分離（2026-09-20、P1-1）
+
+[42_distribution.md] §2.3-9/§7 A-7 の決定（`versionDefines` で `DDRIVE_NGO` を切る）を実際に asmdef 分離まで進めた。従来は `DDrive.Runtime.asmdef` が `Unity.Netcode.Runtime` を直接 `references` していたため、`versionDefines` で `DDRIVE_NGO` シンボルを立てても **参照自体は外れておらず**、NGO 未導入の持ち込み先では `DDrive.Runtime` アセンブリごとコンパイル対象外になり、D-Drive 全体が動かなくなる欠陥があった（[47_review_p_tickets_2026-09-20.md] P1-1）。
+
+**構成**:
+
+| アセンブリ | 依存 | 存在条件 |
+|---|---|---|
+| `DDrive.Runtime`（既存） | `Unity.Netcode.Runtime` を**参照しない** | 常に存在 |
+| `DDrive.Runtime.Ngo`（新設、`Packages/com.ddrive.core/Runtime/Ngo/`） | `DDrive.Foundation`/`DDrive.Runtime`/`Unity.Netcode.Runtime` | `defineConstraints: ["DDRIVE_NGO"]` + 自身の `versionDefines`(`com.unity.netcode.gameobjects` → `DDRIVE_NGO`)。NGO 未導入時はアセンブリごとコンパイル対象外 |
+| `DDrive.Samples.NetCheck`（新設、`Samples~/NetCheck/`） | 同上 + `DDrive.Runtime.Ngo` | 同上。`NetCheckRunner`/`NetBridgeSmokeTest` はここに移設し、`Samples~/Demo`(`PresentationSkillSlashDemo` のみ)から分離した |
+| `DDrive.Tests.Runtime.Ngo`（新設、`Tests/Runtime/Ngo/`） | 同上 | 同上。`PrefabNetworkObjectValidatorTests` 等 NGO 型に依存するテストのみ |
+
+`NgoNetBridge`/`NgoTransportConfigurator`/`NetDebugOverlay` は `Runtime/Net/` から `Runtime/Ngo/` へ移設した（`.meta` ごと移動、GUID 不変。namespace は互換のため `DDrive.Runtime.Net` のまま変えていない）。
+
+**Bootstrap との接続**: `DDriveRuntimeBootstrap`（`DDrive.Runtime`、NGO 非依存）は NGO 型を一切参照しない。`Runtime/Net/NetBridgeFactory.cs`（`DDrive.Runtime`）に `INgoBridgeFactory`/`NetBridgeFactoryRegistry`(静的レジストリ)を定義し、`DDrive.Runtime.Ngo` 側の `NgoBridgeFactoryInstaller` が `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` で自分自身をここへ登録する。`DDriveRuntimeBootstrap.ResolveNetBridge()` は `NetBridgeFactoryRegistry.Current` が登録されていればそれを使い（NetworkManager/NgoNetBridge の解決・トランスポート設定・デバッグオーバーレイ生成・`StartHost`/`StartClient` の遅延実行をすべて `NgoBridgeFactory` 側が行う）、無ければ（NGO 未導入、またはシーンに `NetworkManager` が無い）警告のうえ `LocalLoopbackBridge` にフォールバックする。NGO 未導入時は登録が一切起きないため、Bootstrap 側は null チェックだけで安全に分岐できる（詳細は [02_core_framework.md] §14）。
+
+**Inspector 直参照の移設**: Bootstrap が持っていた `NetworkManagerRef`/`NgoBridgeRef`（NGO 型の Inspector 直参照）は `DDrive.Runtime.Ngo` アセンブリの補助コンポーネント `DDriveNgoBootstrapHook` へ移した。NGO を使うシーン（`NetCheckScene.unity` 等）では、Bootstrap と同じ GameObject にこのコンポーネントを追加し、`NetworkManager`/`NgoNetBridge` を明示的に割り当てる（未設定ならシーンから自動検索する。既存の挙動を変えない）。`ClientDisconnected` の購読は `INetBridge` 自体が持つイベントに一本化したため（`NetBridge.ClientDisconnected`）、NGO 型を経由しない。
+
+**`PrefabDataValidator` の NetworkObject 検査**: `DDrive.Runtime.Prefab.PrefabDataValidator`（NGO 非依存）から NetworkObject 型を直接参照する検査だけを `DDrive.Runtime.Ngo` の `PrefabNetworkObjectValidator`（別クラス、同じ `AssetType.Prefab` を対象にする `IValidator`）へ切り出した。`CI.DiscoverValidators`(TypeCache、全ロード済みアセンブリが対象)が自動発見するため、`Validation > Run All` への登録作業は不要。
+
+**互換性への影響**: `DDriveRuntimeBootstrap` の public フィールド `NetworkManagerRef`/`NgoBridgeRef` の削除はシリアライズ形式・公開 API の破壊的変更にあたる（1.0.0 発効前の例外として実施。CHANGELOG.md の互換性節・[42_distribution.md] §5.13 参照）。`Samples~/Demo` の構成変更（`NetCheckRunner`/`NetBridgeSmokeTest` を `Samples~/NetCheck` へ移設）も `package.json` の `samples` を 2 件に変更した。

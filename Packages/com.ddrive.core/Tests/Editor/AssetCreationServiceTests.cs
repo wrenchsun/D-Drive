@@ -14,7 +14,7 @@ namespace DDrive.Tests.Editor
     public class AssetCreationServiceTests
     {
         // テスト専用の GameData ルート(実データを汚さない)。
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameData";
 
         [TearDown]
         public void TearDown()

@@ -11,7 +11,7 @@ namespace DDrive.Tests.Editor
     // [05_model_animation.md] Part C / チケット 3-11 — 既存ツール移植ロジックのユニットテスト。
     public class Anim2DToolTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TestRoot = TestTempFolder.Root + "/Temp";
 
         [TearDown]
         public void TearDown()
@@ -27,7 +27,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
         }
 

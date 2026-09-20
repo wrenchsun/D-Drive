@@ -163,8 +163,20 @@ function Test-ProtocolVersionChangeNoted {
 
     Push-Location -LiteralPath $RepoRoot
     try {
-        $diffOutput = & git diff --name-only "$CompareRef" -- $ProtocolCsRelativePath 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        # [47_review_p_tickets_2026-09-20.md] P2-7(2026-09-20 修正) — `2>&1` を外し、失敗は try/catch で
+        # 拾う(Windows PowerShell 5.1 + $ErrorActionPreference='Stop' の組み合わせで NativeCommandError に
+        # なり $LASTEXITCODE 判定に到達できない問題を避ける)。
+        $diffOutput = $null
+        $diffFailed = $false
+        try {
+            $diffOutput = & git diff --name-only "$CompareRef" -- $ProtocolCsRelativePath
+            if ($LASTEXITCODE -ne 0) { $diffFailed = $true }
+        }
+        catch {
+            $diffFailed = $true
+        }
+
+        if ($diffFailed) {
             return [pscustomobject]@{
                 Ok      = $true
                 Message = "比較対象 '$CompareRef' を解決できなかったため ProtocolVersion の変更チェックはスキップしました。"
@@ -198,16 +210,36 @@ function Test-ProtocolVersionChangeNoted {
 function Test-ChangelogGuard {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [Parameter(Mandatory = $true)][string]$BaseRef
+        [Parameter(Mandatory = $true)][string]$BaseRef,
+        # [47_review_p_tickets_2026-09-20.md] P2-6(2026-09-20 修正) — package.json の version が
+        # $BaseRef から上がっているかの検査は「リリース PR」を想定した条件であって、日々の開発コミット
+        # には合わない(スナップショットに差分があるだけで、リリースする前の通常コミットが必ず fail する
+        # 設計になっていた)。既定は $false(CHANGELOG.md の変更有無だけを見る)にし、
+        # check-release.ps1 の通常実行(リリース時、-GuardOnly 無し)だけが $true を渡す。
+        [switch]$RequireVersionBump
     )
 
     Push-Location -LiteralPath $RepoRoot
     try {
-        $diffOutput = & git diff --name-only "$BaseRef..HEAD" 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        # [47_review_p_tickets_2026-09-20.md] P2-7(2026-09-20 修正) — Windows PowerShell 5.1 は
+        # $ErrorActionPreference='Stop' の下で外部コマンドの stderr を `2>&1` でパイプに載せると
+        # NativeCommandError として終了エラーになり、後続の $LASTEXITCODE 判定に到達できない
+        # (shallow clone・detached HEAD・origin/main が無い CI で踏む)。`2>&1` を外し、
+        # 呼び出し全体を try/catch で囲んで判定する。
+        $diffOutput = $null
+        $diffFailed = $false
+        try {
+            $diffOutput = & git diff --name-only "$BaseRef..HEAD"
+            if ($LASTEXITCODE -ne 0) { $diffFailed = $true }
+        }
+        catch {
+            $diffFailed = $true
+        }
+
+        if ($diffFailed) {
             return [pscustomobject]@{
                 Ok      = $false
-                Message = "git diff --name-only $BaseRef..HEAD に失敗しました(比較対象が存在しない可能性)。出力: $($diffOutput -join ' / ')"
+                Message = "git diff --name-only $BaseRef..HEAD に失敗しました(比較対象が存在しない可能性)。"
             }
         }
 
@@ -228,11 +260,31 @@ function Test-ChangelogGuard {
             }
         }
 
+        # [47] P2-6(2026-09-20 修正) — package.json の version が上がっているかの検査は、
+        # リリース時(check-release.ps1 の通常実行)にだけ要求する(-RequireVersionBump)。
+        # 日々の開発コミット(run-ci.cmd の [1/8]、-GuardOnly)では、スナップショットの変更に
+        # CHANGELOG.md の記述が伴っていることだけを見る(§5.11-10 の元の意図は「リリース PR」向け)。
+        if (-not $RequireVersionBump) {
+            return [pscustomobject]@{
+                Ok      = $true
+                Message = 'CHANGELOG.md の変更を確認しました(version の一致検査はリリース時〔check-release.ps1、-GuardOnly 無し〕だけで行います)。'
+            }
+        }
+
         # package.json の version が $BaseRef 時点より上がっているか(比較できないときは警告メッセージのみ付記)。
         $versionNote = ''
         try {
-            $basePackageJsonLines = & git show "${BaseRef}:Packages/com.ddrive.core/package.json" 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            $basePackageJsonLines = $null
+            $baseShowFailed = $false
+            try {
+                $basePackageJsonLines = & git show "${BaseRef}:Packages/com.ddrive.core/package.json"
+                if ($LASTEXITCODE -ne 0) { $baseShowFailed = $true }
+            }
+            catch {
+                $baseShowFailed = $true
+            }
+
+            if (-not $baseShowFailed) {
                 $baseMatch = [regex]::Match(($basePackageJsonLines -join "`n"), '"version"\s*:\s*"([^"]+)"')
                 if ($baseMatch.Success) {
                     $headVersionStr = Get-PackageJsonVersion -PackageJsonPath (Join-Path $RepoRoot 'Packages/com.ddrive.core/package.json')

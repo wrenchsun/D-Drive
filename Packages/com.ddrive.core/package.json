@@ -24,8 +24,13 @@
   "samples": [
     {
       "displayName": "Demo",
-      "description": "PresentationSkillSlashDemo / NetCheckRunner / NetBridgeSmokeTest の参照実装スクリプト。対応する確認用シーン・GameData(SE/VFX/Presentation の実データ)は同梱していない(docs/42_distribution.md §2.1 参照。P-9 のリリース手順で curate する予定)。NetCheckRunner/NetBridgeSmokeTest は com.unity.netcode.gameobjects(DDRIVE_NGO)導入時のみ有効。",
+      "description": "PresentationSkillSlashDemo の参照実装スクリプト。対応する確認用シーン・GameData(SE/VFX/Presentation の実データ)は同梱していない(docs/42_distribution.md §2.1 参照。P-9 のリリース手順で curate する予定)。com.unity.netcode.gameobjects を導入していないプロジェクトでも import してコンパイルできる。",
       "path": "Samples~/Demo"
+    },
+    {
+      "displayName": "NetCheck",
+      "description": "NetCheckRunner / NetBridgeSmokeTest の参照実装スクリプト。com.unity.netcode.gameobjects(DDRIVE_NGO)導入時のみコンパイルされる別アセンブリ(DDrive.Samples.NetCheck)に分離しているため、NGO 未導入のプロジェクトへ import しても他のコードのコンパイルを妨げない(2026-09-20、P1-1)。対応する確認用シーン・GameData は同梱していない。",
+      "path": "Samples~/NetCheck"
     }
   ]
 }

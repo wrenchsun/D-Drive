@@ -7,7 +7,7 @@ namespace DDrive.Tests.Editor
 {
     public class AssetIdLookupTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempDir = TestTempFolder.Root + "/Temp";
         private const string AssetPath = TempDir + "/Lookup_TestAssetData.asset";
 
         [TearDown]
@@ -24,7 +24,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             var data = ScriptableObject.CreateInstance<TestAssetData>();

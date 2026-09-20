@@ -20,7 +20,7 @@ namespace DDrive.Tests.Editor
     // Addressables を汚さないことを徹底する(一時フォルダ + RepoRootOverride/TuningTableOverride で隔離)。
     public class SpecDiffValidatorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempSpecDiffValidator";
+        private const string TestRoot = TestTempFolder.Root + "/TempSpecDiffValidator";
 
         private string _tempRepoRoot;
 

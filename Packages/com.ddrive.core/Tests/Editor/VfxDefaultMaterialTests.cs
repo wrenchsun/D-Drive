@@ -8,7 +8,7 @@ namespace DDrive.Tests.Editor
     // [04_vfx.md] §2 — URP 対応の既定パーティクルマテリアル生成の検証。
     public class VfxDefaultMaterialTests
     {
-        private const string TestPath = "Packages/com.ddrive.core/Tests/Editor/TempMaterials/M_DefaultParticleUnlit.mat";
+        private const string TestPath = TestTempFolder.Root + "/TempMaterials/M_DefaultParticleUnlit.mat";
 
         [TearDown]
         public void TearDown()

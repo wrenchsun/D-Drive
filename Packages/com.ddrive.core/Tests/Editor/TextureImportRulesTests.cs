@@ -13,7 +13,7 @@ namespace DDrive.Tests.Editor
     // [06_material_texture.md] B-3/B-4 — TextureImportProfile / TexturePostprocessor / TextureDataValidator(チケット 3-8)。
     public class TextureImportRulesTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempDir = TestTempFolder.Root + "/Temp";
         private readonly List<string> _createdAssetPaths = new();
         private readonly List<Object> _createdObjects = new();
 
@@ -22,7 +22,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
         }
 

@@ -4,7 +4,6 @@
     "references": [
         "DDrive.Foundation",
         "DDrive.Runtime",
-        "Unity.Netcode.Runtime",
         "UniTask",
         "Unity.InputSystem"
     ],
@@ -15,12 +14,6 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [
-        {
-            "name": "com.unity.netcode.gameobjects",
-            "expression": "",
-            "define": "DDRIVE_NGO"
-        }
-    ],
+    "versionDefines": [],
     "noEngineReferences": false
 }

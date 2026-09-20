@@ -20,6 +20,7 @@ using DDrive.Generated;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.Vfx;
 using DDrive.Runtime.Presentation;
+using DDrive.Runtime.Cutscene;
 
 // SE を鳴らす
 Audio.PlaySe(SEID.X);
@@ -27,11 +28,13 @@ Audio.PlaySe(SEID.X);
 // VFX を出す（位置・向きは呼び出し側の Transform 等から渡す）
 Vfx.Spawn(VFXID.X, position, rotation);
 
-// 演出（SE/VFX/揺れ/HitStop の束）を再生する
-var handle = Presentation.Play(PRESID.X, ctx);
+// 演出（SE/VFX/揺れ/HitStop の束）を再生する。PlayContext は in 渡し
+// （呼び出し側の書き方は Presentation.Play(id, ctx) のままでよい。in は call site では省略できる）。
+var ctx = new PlayContext { Self = transform, Target = targetTransform };
+var handle = Presentation.Play(PRESID.X, in ctx);
 
-// Maya の FBX を取り込んだカットシーンを再生する
-var cutsceneHandle = Cutscene.Play(CUTID.X, ctx);
+// Maya の FBX を取り込んだカットシーンを再生する（同じ PlayContext を渡す）
+var cutsceneHandle = Cutscene.Play(CUTID.X, in ctx);
 ```
 
 - ID 定数（`SEID.X` 等）は `Assets/Generated/`（または `DDrive.Generated.asmdef`）にある**生成物**です。手で書かない。古ければ `Tools > D-Drive > Generate > Regenerate Asset IDs` で作り直す
@@ -55,7 +58,7 @@ Data の配置フォルダ・ファイル名はツールが決めるものです
 ## 4. 更新手順
 
 1. `Packages/manifest.json` の `#vX.Y.Z` タグを新しい版に書き換える
-2. Unity を開き直し、コンパイルエラーが無いことを確認する（エラーがあれば「破壊あり」の変更を踏んでいるので `docs/migrations/` の移行ガイドを確認する）
+2. Unity を開き直し、コンパイルエラーが無いことを確認する（エラーがあれば「破壊あり」の変更を踏んでいるので `Documentation~/migrations/` の移行ガイドを確認する）
 3. `Tools > D-Drive > Update > 更新ウィンドウ` を開く
    1. 「1. 版と CHANGELOG」で前回適用した版との差分・「破壊あり」の有無を確認する
    2. 「2. マイグレーション（プレビュー）」で対象件数を確認する（この時点では何も変更しない）

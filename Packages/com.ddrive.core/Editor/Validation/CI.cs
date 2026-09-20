@@ -6,6 +6,7 @@ using System.Text;
 using DDrive.Editor.Codegen;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Migration;
+using DDrive.Editor.Settings;
 using DDrive.Editor.Validation;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Validation;
@@ -183,19 +184,13 @@ namespace DDrive.Editor
             var result = new List<AssetDataBase>();
             var guids = AssetSearch.FindAssets("t:" + nameof(AssetDataBase));
 
+            // [47_review_p_tickets_2026-09-20.md] P2-1(2026-09-20) — 互換性スナップショットの
+            // 「旧版フィクスチャ」(LegacyAssetFixtureTests、Tests/Editor/Compat/Fixtures/)の除外は
+            // AssetSearch.FindAssets 自身が行う(唯一の検索口に集約。以前は呼び出し側ごとに個別実装しており
+            // 漏れがあった)。
             foreach (var guid in guids)
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-
-                // [42_distribution.md] §5.11-2(P-3、2026-09-20) — 互換性スナップショットの「旧版フィクスチャ」
-                // (LegacyAssetFixtureTests、Tests/Editor/Compat/Fixtures/)は本物の Data 型で作られているため
-                // 通常の t:AssetDataBase 検索に引っかかる。Addressables 未登録等の Validation ノイズを
-                // 実データの Validate All に混ぜないため常に除外する。
-                if (path.Contains("/Compat/Fixtures/", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
                 var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
                 if (asset != null)
                 {
@@ -206,16 +201,22 @@ namespace DDrive.Editor
             return result;
         }
 
-        // [42_distribution.md] §2.3-2(P-4/P-5、2026-09-20) — パッケージ化(P-5)で `Assets/DDrive` が
-        // `Packages/com.ddrive.core/` に移っても走査ルートが追従するよう、まず `PackageInfo` から
-        // 自分自身(CI 自身の asmdef = DDrive.Editor)が属するパッケージの実パスを引く。
-        // このリポジトリは P-5 でパッケージ化済みのため常に PackageInfo が解決でき、実パス
-        // (`.../Packages/com.ddrive.core`)を返す。"Assets/DDrive" へのフォールバックは、
-        // まだパッケージ化されていない(将来ありうる)消費側環境向けの防御コードとして残す。
+        // [47_review_p_tickets_2026-09-20.md] P1-2 — 走査対象は「持ち込み先が実際に書いたコード」であるべきで、
+        // D-Drive 自身のパッケージを走査すると、持ち込み先では必ず(D-Drive 内の既存の当たり + Samples~/Tests の
+        // 誤検出分だけ)Error が出て `CI.ValidateAll` を fail 条件にした消費側 CI が初日から赤くなる
+        // ([42_distribution.md] §2.3-2 の実測、26 件)。
+        // 開発リポジトリ(`DDriveProjectSettings.IsDevelopmentRepo == true`)だけ、従来どおり D-Drive 自身の
+        // パッケージ実パスを走査する(D-Drive を開発するときは D-Drive 自身の禁止 API 違反を検出したい)。
+        // 持ち込み先では `Assets` 配下(ゲームコード全体)を走査する。
         public static string ResolveForbiddenApiScanRoot()
         {
-            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(CI).Assembly);
-            return packageInfo != null ? packageInfo.resolvedPath : "Assets/DDrive";
+            if (DDriveProjectSettings.instance.IsDevelopmentRepo)
+            {
+                var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(CI).Assembly);
+                return packageInfo != null ? packageInfo.resolvedPath : "Assets/DDrive";
+            }
+
+            return "Assets";
         }
 
         private static string ResolveOutputPath()

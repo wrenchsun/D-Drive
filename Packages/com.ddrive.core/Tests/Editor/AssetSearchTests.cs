@@ -52,14 +52,13 @@ namespace DDrive.Tests.Editor
         [Test]
         public void CreatedAsset_IsFound_WithoutManualInvalidate()
         {
-            const string parent = "Packages/com.ddrive.core/Tests/Editor";
             const string folderName = "TempAssetSearch";
-            const string folder = parent + "/" + folderName;
-            const string assetPath = folder + "/SearchProbe.asset";
+            var folder = TestTempFolder.Root + "/" + folderName;
+            var assetPath = folder + "/SearchProbe.asset";
 
             if (!AssetDatabase.IsValidFolder(folder))
             {
-                AssetDatabase.CreateFolder(parent, folderName);
+                TestTempFolder.CreateFolder(folderName);
             }
 
             try
@@ -80,6 +79,31 @@ namespace DDrive.Tests.Editor
                 AssetDatabase.DeleteAsset(folder);
                 AssetSearch.Invalidate();
             }
+        }
+
+        // [47_review_p_tickets_2026-09-20.md] P2-1(2026-09-20) — 互換性スナップショットの
+        // 「旧版フィクスチャ」(Tests/Editor/Compat/Fixtures/、実 Data 型で作られている)は
+        // AssetSearch.FindAssets 自身が除外する(唯一の検索口に集約。これに乗る呼び出し側 — AssetBrowser・
+        // 仕様書インデックス・ID ピッカー・Addressables 同期・各 Validator/Codegen — は個別実装が不要)。
+        [Test]
+        public void FindAssets_ExcludesCompatFixtures()
+        {
+            AssetSearch.Invalidate();
+            var results = AssetSearch.FindAssets("t:" + nameof(AssetDataBase));
+
+            foreach (var guid in results)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                Assert.IsFalse(AssetSearch.IsCompatFixturePath(path), $"フィクスチャが検索結果に混ざっている: {path}");
+            }
+        }
+
+        [Test]
+        public void IsCompatFixturePath_DetectsFixtureFolder()
+        {
+            Assert.IsTrue(AssetSearch.IsCompatFixturePath("Packages/com.ddrive.core/Tests/Editor/Compat/Fixtures/v1_0_0/SeData.asset"));
+            Assert.IsFalse(AssetSearch.IsCompatFixturePath("Packages/com.ddrive.core/Tests/Editor/Compat/CodegenGoldenTests.cs"));
+            Assert.IsFalse(AssetSearch.IsCompatFixturePath(null));
         }
     }
 }

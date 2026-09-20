@@ -49,7 +49,12 @@ where pwsh >nul 2>nul
 if "%ERRORLEVEL%"=="0" (
     echo [1/8] CHANGELOG ガード (check-release.ps1 -GuardOnly) を実行します...
     pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\Release\check-release.ps1" -GuardOnly
-    if not "%ERRORLEVEL%"=="0" (
+    REM [47_review_p_tickets_2026-09-20.md] P1-6(2026-09-20 修正) — 括弧ブロックの中では %ERRORLEVEL% は
+    REM ブロックに入る前の値(ここでは直前の "where pwsh" の結果 = 0)に固定される(:146 付近の NetCheck の
+    REM コメントで既に踏んだのと同じ罠が、この [1/8] で再発していた)。!ERRORLEVEL!(遅延展開)で読み、
+    REM さらに直後に CHANGELOG_GUARD_EXIT へ退避してから判定する。
+    set "CHANGELOG_GUARD_EXIT=!ERRORLEVEL!"
+    if not "!CHANGELOG_GUARD_EXIT!"=="0" (
         echo [FAIL] CHANGELOG ガード。互換性スナップショットの変更に対して CHANGELOG.md/version の更新が不足しています。
         set "OVERALL_EXIT=1"
     ) else (

@@ -11,8 +11,8 @@ namespace DDrive.Tests.Editor
     // [06_material_texture.md] A-2 — aiStandardSurface → DDrive/AiStandardSurface の写像と、Maya インポータでの固有引き継ぎ(2026-09-11)。
     public class AiStandardSurfaceMapperTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameData";
-        private const string TempFolder = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameData";
+        private const string TempFolder = TestTempFolder.Root + "/Temp";
         private const string MaterialPath = TempFolder + "/AiSurfaceTest.mat";
 
         // MaterialDescription の代わり(値を辞書で持つ)。
@@ -42,7 +42,7 @@ namespace DDrive.Tests.Editor
             MayaModelPostprocessor.Suppress = true;
             if (!AssetDatabase.IsValidFolder(TempFolder))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
         }
 

@@ -40,6 +40,8 @@
 
 **P1-1. `DDrive.Foundation` / `DDrive.Runtime` の asmdef が UniTask と NGO を無条件の `references` で持ったままなので、README どおりに manifest に 1 行足しただけの素のプロジェクトでは D-Drive のどのアセンブリもコンパイルできず、README 手順 3 の「セットアップウィザードを開く」に到達できない**
 
+✅ 対応済み 2026-09-20: NGO 依存コードを別アセンブリ `DDrive.Runtime.Ngo`（`defineConstraints: ["DDRIVE_NGO"]`）へ分離し、`DDrive.Runtime`/`DDrive.Samples`(Demo)/`DDrive.Tests.Runtime` から `Unity.Netcode.Runtime` 参照を削除した。Samples は `Samples~/Demo`（NGO 非依存）と `Samples~/NetCheck`（NGO 専用、新設 `DDrive.Samples.NetCheck`）に分割。README 手順 1 を「manifest に D-Drive + UniTask + R3 + scoped registry をまとめて足す」形にコピペ用断片つきで書き直した。`Packages/manifest.json` から NGO 系パッケージを一時的に外して `refresh_unity` し error 0 を確認（NGO 無しコンパイル確認）。詳細は docs/14_networking.md §13・docs/02_core_framework.md §14（2026-09-20 追記）。
+
 - `Packages/com.ddrive.core/Foundation/DDrive.Foundation.asmdef:5` — `"references": ["UniTask"]`
 - `Packages/com.ddrive.core/Runtime/DDrive.Runtime.asmdef:5-16` — `"references"` に `"UniTask"` と **`"Unity.Netcode.Runtime"`** が入ったまま。`versionDefines` で `DDRIVE_NGO` を足しただけで、参照自体は外していない
 - `Packages/com.ddrive.core/Samples~/Demo/DDrive.Samples.asmdef:5` / `Tests/Runtime/DDrive.Tests.Runtime.asmdef:5` も同じ
@@ -58,6 +60,8 @@
 
 **P1-2. `CI.ValidateAll` の `ForbiddenApiScanner` が、持ち込み先では必ず 26 件の Error を出す（走査ルートが D-Drive 自身のパッケージになり、`Samples~` と `Tests` が除外されていない）**
 
+✅ 対応済み 2026-09-20: `CI.ResolveForbiddenApiScanRoot()` を `DDriveProjectSettings.IsDevelopmentRepo` で分岐（開発リポジトリ=パッケージ自身、持ち込み先=`"Assets"`）。`ForbiddenApiScanner.Scan` の除外を `/Samples/` に加えて `/Samples~/`・`/Tests/`・`/Tools~/`・`/Documentation~/` に拡張。テスト追加（`CIJUnitXmlTests`・`ForbiddenApiScannerTests`）。
+
 - `Packages/com.ddrive.core/Editor/Validation/CI.cs:215-219` — `ResolveForbiddenApiScanRoot()` が `PackageInfo.resolvedPath`（消費側では `<project>/Library/PackageCache/com.ddrive.core@<hash>`）を返す
 - `Packages/com.ddrive.core/Editor/Validation/ForbiddenApiScanner.cs:85` — `Directory.GetFiles(rootFolder, "*.cs", SearchOption.AllDirectories)`。`~` 付きフォルダもファイルシステム上は普通のフォルダなので `Samples~/` `Tools~/` も走査対象
 - 同 `:99` — 除外は `normalized.Contains("/Samples/")` だけ。P-5 で `Assets/DDrive/Samples/` → `Samples~/Demo/` に移したため、**この除外がもう効かない**（`"/Samples~/"` は `"/Samples/"` を含まない）。`Tests/` は元から除外されていない
@@ -74,6 +78,8 @@ HEAD のパッケージに対して同じ規則を機械的に適用した実測
 3. `Tests/Editor/ForbiddenApiScannerTests.cs` は「禁止パターンを含む文字列リテラル」を書くテストなので、`ForbiddenApiScanner.cs` と同じく許可リストに `ForbiddenApiScannerTests.cs` を足すのが素直
 
 **P1-3. パッケージ同梱のテスト群が、読み取り専用の `Library/PackageCache` では必ず失敗する（`testables` を ON にした持ち込み先でテストが赤くなる）**
+
+✅ 対応済み 2026-09-20: 一時アセットの置き場所を `TestTempFolder`（`Assets/DDriveTests~Temp/`）に統一（53 ファイルを機械的に置換）。`PackageVersionConsistencyTests` を `PackageInfo.FindForAssembly` の `resolvedPath` 基準（`ChangelogLocator.ResolvePath` 共用）+ パッケージ直下の `package.json` 直読みに書き直した。
 
 [42] §2.1 の Tests 行は「**持ち込み先で ON にしても通るように**」を条件に「テストはパッケージに置くが既定は無効」と決めている。HEAD の実装はこれを満たしていない。
 
@@ -94,6 +100,8 @@ HEAD のパッケージに対して同じ規則を機械的に適用した実測
 
 **P1-4. `VersionStampProcessor.OnWillSaveAssets` が保存のたびに `SchemaVersion = DDriveSchema.Current` を書くため、マイグレーション未適用のデータが「適用済み」に化ける**
 
+✅ 対応済み 2026-09-20: `VersionStampProcessor.OnWillSaveAssets` から `SchemaVersion` の書き込みを削除（`StampNew` だけが書く）。`DDriveMigrationRunner.Apply` に「適用すべき IDataMigration が無くても SchemaVersion < Current の Data を Current へ引き上げる」刻印段を追加（`MigrationPlan.SchemaStampOnly`）。
+
 `Packages/com.ddrive.core/Editor/Versioning/VersionStamp.cs:89-95`:
 
 ```csharp
@@ -113,6 +121,8 @@ asset.SchemaVersion = DDriveSchema.Current;   // ← 無条件に現在値へ引
 
 **P1-5. `SchemaVersionValidator` が既存データ全件に「解消手段の無い Warning」を出す**
 
+✅ 対応済み 2026-09-20: 上記 P1-4 の刻印段により「マイグレーション(適用)を実行すれば必ず解消する」が成立するようにした。`SchemaVersionValidator` のメッセージ文言もそれに合わせて更新（FixAction は付けない方針は維持）。
+
 - `Editor/Validation/SchemaVersionValidator.cs:19-25` — `data.SchemaVersion < DDriveSchema.Current`（= 1）で Warning `DD-SCHEMA-OUTDATED`
 - `Foundation/Data/AssetDataBase.cs:68-72` — `SchemaVersion` はフィールド追加のみなので、**既存 `.asset` には行が存在せず 0 で読まれる**
 
@@ -127,6 +137,8 @@ asset.SchemaVersion = DDriveSchema.Current;   // ← 無条件に現在値へ引
 ### CI・リリース（P-9）
 
 **P1-6. `run-ci.cmd` の `[1/8] CHANGELOG ガード` が、遅延展開の付け忘れで**常に**`[OK]` になる（ガードが一度も働いていない）**
+
+✅ 対応済み 2026-09-20: `if not "%ERRORLEVEL%"=="0"` を `if not "!ERRORLEVEL!"=="0"` + `CHANGELOG_GUARD_EXIT` への退避に修正（NetCheck ブロックと同じ形）。`cmd /c` で修正前/修正後を模擬実行し、修正前は `[OK]` に化ける・修正後は `[FAIL]` を検出することを確認済み（pwsh 有り/無し両方の分岐も確認）。
 
 `Tools/CI/run-ci.cmd:48-60`:
 
@@ -152,6 +164,8 @@ if "%ERRORLEVEL%"=="0" (
 
 **P1-7. `bump-version.ps1 -Tag` が、版を書き換える*前*のコミットにタグを打つ（`#vX.Y.Z` で参照した持ち込み先には旧版の `package.json` が届く）**
 
+✅ 対応済み 2026-09-20: `-Tag` の処理を「版の更新 → 同梱物の同期 → 明示パスで `git add` + `git commit -m "Release vX.Y.Z"` → `git tag -a`」の順に変更。`-NoCommit` で従来動作（コミットなしでタグのみ）に戻せる。分離した scratch リポジトリで両モードを実機検証し、タグが指すコミットに版更新が含まれることを確認済み。docs/12_review.md §7 を更新。
+
 `Tools/Release/bump-version.ps1` の流れ:
 
 1. `:116-119` 事前チェックで「作業ツリーがクリーン」を要求 → この時点の `HEAD` は**版を上げる前**のコミット
@@ -172,6 +186,8 @@ if "%ERRORLEVEL%"=="0" (
 
 **P2-1. P-3 の旧版フィクスチャ 19 件（実 Data 型）が、`AssetBrowser` の一覧・仕様書インデックス・ID ピッカー等に混ざる**
 
+✅ 対応済み 2026-09-20: `AssetSearch.FindAssets` 自身が `/Compat/Fixtures/` を結果から除外するように変更（唯一の検索口に集約）。`AssetIdGenerator`/`DDriveMigrationRunner`/`CI.cs` の個別除外は重複のため削除。テスト追加（`AssetSearchTests.FindAssets_ExcludesCompatFixtures` 等）。
+
 `/Compat/Fixtures/` を除外しているのは **3 箇所だけ**（`grep` で確認）:
 - `Editor/Codegen/AssetIdGenerator.cs:111`
 - `Editor/Migration/DDriveMigrationRunner.cs:104`
@@ -188,6 +204,8 @@ if "%ERRORLEVEL%"=="0" (
 
 **P2-2. `ManualPages` が `Documentation~` を優先するようになったため、開発リポジトリで `docs/DesignerManual` を更新しても Editor の「マニュアル」ボタンには反映されない**
 
+✅ 対応済み 2026-09-20: `ManualPages.GetManualFolder` を `DDriveProjectSettings.IsDevelopmentRepo` で分岐（開発リポジトリ=`docs/` 優先、持ち込み先=`Documentation~` 優先）。テスト追加。
+
 - `Editor/Manual/ManualPages.cs:70-84` — `PackageInfo.resolvedPath + "Documentation~/DesignerManual"` が存在すればそちらを返す
 - P-4 のコメント（`:63-69`）は「`Documentation~` の同梱は P-9 のリリース手順で行う予定なので、**当面はフォールバック側が使われ挙動は変わらない**」と書いているが、**P-9（`1fdb4ab`）がまさにその `Documentation~/DesignerManual`（28 ページ）と `Documentation~/ProgrammerManual`（14 ページ）を同梱したので、前提が変わっている**
 
@@ -200,6 +218,8 @@ if "%ERRORLEVEL%"=="0" (
 ### 更新ツール（P-7 / P-8）
 
 **P2-3. `DDriveMigrationRunner.Plan` は計画時点の状態だけで `AppliesTo` を評価するため、多段（0→1→2）の連鎖で 2 段目が取りこぼされる。`AppliesTo` / `Migrate` が投げた例外も捕まえていない**
+
+✅ 対応済み 2026-09-20: `DDriveMigrationRunner.Apply` に「1 つ適用するたびに残りを再評価する」ループを実装（`FromSchema <= SchemaVersion < ToSchema` の条件修正込み）。`AppliesTo`/`Migrate` を try/catch して警告 + スキップ。Undo グループを 1 回の Apply で 1 つに集約（`Undo.IncrementCurrentGroup`/`CollapseUndoOperations`）。`MarkMigrationApplied` は `IProjectMigration` だけに限定。
 
 `Editor/Migration/DDriveMigrationRunner.cs:141-147`:
 
@@ -223,6 +243,8 @@ foreach (var migration in orderedMigrations)
 
 **P2-4. `ChangelogLocator` は「`resolvedPath` の 2 階層上」を先に見るので、持ち込み先で埋め込み配置（[42] §4.5 の緊急回避）になっていると*持ち込み先自身の* `CHANGELOG.md` を D-Drive のものとして表示する**
 
+✅ 対応済み 2026-09-20: `ChangelogLocator.ResolvePath` に `preferDevRepoRoot` パラメータを追加し、既定（持ち込み先）はパッケージ直下を先に見る形に反転。開発リポジトリだけ 2 階層上を優先。`PackageVersionConsistencyTests` もこの API を使うよう修正（P1-3(b) と同時対応）。
+
 `Editor/Update/ChangelogLocator.cs:28-39`。解決先は配置形態で変わる:
 
 | 配置 | `resolvedPath` | 2 階層上 | 結果 |
@@ -238,6 +260,8 @@ foreach (var migration in orderedMigrations)
 
 **P2-5. `ProjectSetupValidator` は Data が 1 件も無いプロジェクトでは一度も呼ばれないため、P-6 の AC「空プロジェクト + manifest 1 行から、ウィザードの『すべて直す』だけで `Run All` Error 0」は検査が空振りしたまま満たされる**
 
+✅ 対応済み 2026-09-20: `ValidatorRegistry.RunAll` が `context.AllAssets.Count == 0` のとき `IUniversalValidator` を `data=null` で 1 回呼ぶように変更。`SchemaVersionValidator` に null ガードを追加（他の `IUniversalValidator` は既存の `_lastRunContext` パターン等で null 安全なことを確認済み）。テスト追加。
+
 `Editor/Validation/ProjectSetupValidator.cs:20-25` のコメント自身がこの制約を書いている（`ValidatorRegistry.RunAll` は `context.AllAssets` を foreach するだけ）。`CI.LoadAllAssetDataAssets`（`Editor/Validation/CI.cs:181-207`）は `/Compat/Fixtures/` を除外するので、**素の持ち込み先では `AllAssets.Count == 0`** → `IUniversalValidator` が 1 つも走らない。ウィザードが作るもの（カタログ・`UiLayerSettings`・`DDriveSpecSettings`）はどれも `AssetDataBase` 派生ではないので、最初の Data を作るまでこの状態が続く。
 
 つまり導入直後は「`Run All` が Error 0 / Warning 0」になるが、それは**何も検査していない**からで、UniTask が無くても URP でなくても Addressables が未初期化でも同じ結果になる。P-11 でこの AC を確認するときに誤った安心を与える。
@@ -245,6 +269,8 @@ foreach (var migration in orderedMigrations)
 **直し方**: `ValidatorRegistry.RunAll` が `AllAssets` が空でも `IUniversalValidator` を 1 回呼ぶようにする（Foundation 側の変更なので [42] §5.4 の公開 API 互換に注意。`RunAll` の**挙動**の変更であってシグネチャは変わらない）。それが重いなら、`CI.RunValidation` 側で「Data 0 件のときは `AllAssets` にダミー 1 件ではなく、Universal だけを明示的に 1 回回す」分岐を入れる。
 
 **P2-6. `Test-ChangelogGuard` の判定（スナップショットが変わったら `package.json` の version も上がっていること）は、通常の開発コミットでは必ず fail する設計になっている**
+
+✅ 対応済み 2026-09-20: `Test-ChangelogGuard` に `-RequireVersionBump` スイッチを追加（既定 OFF）。`run-ci.cmd`/`ci.yml` から呼ぶ `-GuardOnly` は渡さず、`check-release.ps1` の通常実行（リリース時）だけが渡す。scratch リポジトリで「CHANGELOG は変えたが version は変えていない」コミットに対し、GuardOnly では通り・通常実行では落ちることを確認済み。docs/42_distribution.md §5.11-10 の記述も修正。
 
 `Tools/Release/ReleaseChecks.ps1:231-249` — スナップショットに差分があると、`CHANGELOG.md` の変更だけでは足りず `package.json` の version が `$BaseRef` 時点より上がっていることまで要求する。
 
@@ -257,6 +283,8 @@ foreach (var migration in orderedMigrations)
 ### PowerShell（P-9）
 
 **P2-7. `$ErrorActionPreference = 'Stop'` と `& git ... 2>&1` の組み合わせは Windows PowerShell 5.1 で終了コード判定に到達しない**
+
+✅ 対応済み 2026-09-20: `Test-ChangelogGuard`/`Test-ProtocolVersionChangeNoted` の `git diff ... 2>&1` を `2>&1` 無し + try/catch に変更。実際に Windows PowerShell 5.1（`powershell.exe`）で不正な BaseRef を渡し、修正前は `NativeCommandError` で落ちる・修正後は `Ok=False` を返して継続することを確認済み。
 
 `Tools/Release/ReleaseChecks.ps1:9`（`$ErrorActionPreference = 'Stop'`）+ 以下の 3 箇所:
 - `:166` `$diffOutput = & git diff --name-only "$CompareRef" -- $ProtocolCsRelativePath 2>&1`
@@ -272,6 +300,8 @@ PowerShell 5.1 は native コマンドの stderr を `2>&1` でパイプライ�
 ### 消費側ドキュメント（P-10）
 
 **P2-8. `ddrive-consumer` スキルのサンプルコードがコンパイルできない（`Presentation.Play` / `Cutscene.Play` は `ref PlayContext` を取る）**
+
+✅ 対応済み 2026-09-20: 実際の現行シグネチャは `in PlayContext ctx`（`ref` ではない。`in` は call site で省略可能なため、指摘にある「`ref` が要るので CS1620」は誤り。ただし `PublicApiSnapshotBuilder.cs:264` が `in`/`ref` を区別せず両方 "ref " と表示するため、コミット済みの互換性スナップショットには「ref」と記録されており誤認の原因になっていた）。SKILL.md のサンプルを `PlayContext` の構築込みの完全な例に書き直し、`in` を明示。`Tests/Editor/ConsumerSkillSampleCompileTests.cs` を新設し、サンプルと同じ呼び出し（`in` 付き/無し両方）をテストコードに埋め込んでコンパイルを保証した。**未対応**: `PublicApiSnapshotBuilder` の in/ref/out 区別バグ自体は本チケットの範囲外として残した（誤検知の温床のため別途修正を推奨）。
 
 `Packages/com.ddrive.core/Documentation~/skills/ddrive-consumer/SKILL.md:28-34`:
 
@@ -294,6 +324,8 @@ method static Play(AssetId<PresentationMarker> id, ref PlayContext ctx) : Presen
 **直し方**: `var ctx = new PlayContext(...); var handle = Presentation.Play(PRESID.X, ref ctx);` に直す（`PlayContext` の作り方も 1 行添えると親切）。
 
 **P2-9. 消費側ドキュメントが、同梱されていない `docs/migrations/` を参照先として案内している**
+
+✅ 対応済み 2026-09-20: `docs/migrations/` を `Documentation~/migrations/` に同梱する処理を `bump-version.ps1` に追加し、実際に同期を実行して同梱した。README.md・SKILL.md・CHANGELOG.md の参照先を `Documentation~/migrations/` に修正。
 
 - `Packages/com.ddrive.core/README.md:75` 「エラーがあれば `CHANGELOG.md` の「破壊あり」を疑い、`docs/migrations/` の移行ガイドを確認する」
 - `Documentation~/AGENTS_CONSUMER.md:33`（同旨）
@@ -344,6 +376,16 @@ method static Play(AssetId<PresentationMarker> id, ref PlayContext ctx) : Presen
 ---
 
 ## テストの穴（この範囲で追加すべきテスト）
+
+> **2026-09-20 対応状況**（このタスクで P1/P2 を修正した際に確認したもの）:
+> 1. **一部対応**: NGO 無しでの実コンパイルは本タスク中に手動で確認済み（`Packages/manifest.json` から NGO 系パッケージを外して `refresh_unity` → error 0 → 復元）。ただし `run-consumer-smoke.cmd` のような自動スモークへの組み込みは未対応（P-11 待ち）。UniTask 無しのパターンは未確認（UniTask は Foundation/Runtime 全体が依存するため外すとほぼ全滅することが自明で、確認の価値が低いと判断し見送った）。
+> 2. **未対応**: `SerializedLayoutSnapshotTests` のソート問題（フィールド順変更・隠しフィールド削除を検出できない）は本タスクの範囲外。
+> 3. **未対応**: `validator-severity.txt` に P-6/P-7/P-8 の新設コードが載っていない件は本タスクの範囲外。
+> 4. **対応済み**: `Tests/Editor/Migration/DDriveMigrationRunnerTests.cs` に `Apply_NoMigrationsAtAll_StillStampsSchemaVersionToCurrent`・`Apply_TrulyEmptyPlan_WhenAlreadyAtCurrentSchema_DoesNothing`・`Apply_MultiHopMigration_CompletesBothStagesInOneCall`・`Apply_WhenMigrationThrows_SkipsThatAssetButContinuesWithOthers`・`Apply_CollapsesIntoSingleUndoGroup_ForMultipleAssets` を追加し、「通常の保存では上がらない／`StampNew`では上がる／`Apply`でのみ`ToSchema`まで上がる」を含めて固定した（P1-4/P2-3 の修正と同時対応）。
+> 5. **一部対応**: `run-ci.cmd`（P1-6）と `bump-version.ps1 -Tag`（P1-7）はどちらも、隔離した scratch git リポジトリで実際に「わざと失敗させる」手動確認を行い、修正前は検出できず・修正後は検出できることを確認した（本文の各チケット節に追記済み）。自動テストとしての `Tools/Release/`・`Tools/CI/run-ci.cmd` への追加は今回も見送った（Unity 非依存の PowerShell/cmd テストランナーが無いため）。
+> 6. **未対応**: `DevRepoOnlyGuard` の実行件数を検査するテスト・サマリ出力は本タスクの範囲外。
+> 7. **未対応**: `ManifestJson` の実ファイル往復テストは本タスクの範囲外。
+> 8. **対応済み**: `ProjectSetupActionsTests.AllCatalogNames_ReturnsDistinctNonEmptyNames` の恒真アサートを「カタログ名がすべて非空であること」の検査に直した。
 
 1. **NGO / UniTask 無しでコンパイルが通ることの検証が無い**（P1-1）。[42] §2.3 #9 の実装メモ自身が「`#if` の網羅性は grep で確認、実コンパイルは未実施」と書いている。`grep` では「asmdef の `references` が残っている」ことは分からないので、grep では代替にならない。P-11 のスモーク（`run-consumer-smoke.cmd`、[42] §5.11-11）に「NGO 無し」「UniTask 無し（= 導入手順の最初の状態）」の 2 パターンを入れる
 2. **`SerializedLayoutSnapshotTests` はフィールドの順序変更を検出できない**。`Editor/Compat/SerializedLayoutSnapshotBuilder.cs:53` が全行を `lines.Sort(StringComparer.Ordinal)` でソートしているため、`propertyPath` の並びが変わっても出力は同じ。[42] §5.1 は「`[Serializable]` struct のフィールド順変更 = **禁止**（バイナリ形式が順序依存）」と定めているので、この互換面は機械判定できていない。あわせて `NextVisible` は `[HideInInspector]` を辿らないので、`SchemaVersion` / `ImportSourceGuid` 等の**隠しフィールドの削除も検出されない**（[42] §4.3 実装メモが「更新不要」と書いているのは事実だが、それは「検出できない」と同義）。型ごとにソートし、型内は宣言順のまま出力する形に変えるべき

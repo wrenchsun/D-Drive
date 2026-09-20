@@ -17,7 +17,7 @@ namespace DDrive.Tests.Editor
     // [02] §11 / [09] §1 — 作成 → カタログ → Addressables が一つの導線になっていることの検証。
     public class AddressablesRegistrationValidatorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameDataAddr";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameDataAddr";
 
         [TearDown]
         public void TearDown()

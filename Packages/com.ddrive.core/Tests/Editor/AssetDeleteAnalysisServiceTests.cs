@@ -16,7 +16,7 @@ namespace DDrive.Tests.Editor
     // id ホルダーとして使う手法も同じ(DependencyGraphCollector は総称引数を見ないため転用できる)。
     public class AssetDeleteAnalysisServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempDelAnalysisGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempDelAnalysisGameData";
 
         private readonly List<string> _trackedPaths = new();
 
@@ -53,7 +53,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempDelAnalysisGameData");
+                TestTempFolder.CreateFolder("TempDelAnalysisGameData");
             }
         }
 

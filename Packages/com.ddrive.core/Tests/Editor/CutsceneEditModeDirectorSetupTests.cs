@@ -15,7 +15,7 @@ namespace DDrive.Tests.Editor
     // 再生しない (c) 押し直しても前回の SpawnModel を溜めないことを確認する。
     public class CutsceneEditModeDirectorSetupTests
     {
-        private const string GameDataRoot = "Packages/com.ddrive.core/Tests/Editor/TempCutsceneEditModeGameData";
+        private const string GameDataRoot = TestTempFolder.Root + "/TempCutsceneEditModeGameData";
 
         private GameObject _prefab;
         private CutsceneData _data;

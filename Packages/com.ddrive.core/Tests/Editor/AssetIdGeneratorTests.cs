@@ -12,7 +12,7 @@ namespace DDrive.Tests.Editor
 {
     public class AssetIdGeneratorTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempDir = TestTempFolder.Root + "/Temp";
         private readonly List<string> _createdAssetPaths = new();
         private string _tempOutputPath;
 
@@ -21,7 +21,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             _tempOutputPath = Path.Combine(Path.GetTempPath(), "ddrive_test_ids_" + Guid.NewGuid().ToString("N") + ".cs");

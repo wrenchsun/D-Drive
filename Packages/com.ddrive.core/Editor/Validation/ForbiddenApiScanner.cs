@@ -95,8 +95,15 @@ namespace DDrive.Editor.Validation
             {
                 var normalized = file.Replace('\\', '/');
 
-                // Samples/ は製品コードの規約対象外(手動確認用のデモスクリプト置き場)。
-                if (normalized.Contains("/Samples/"))
+                // [47_review_p_tickets_2026-09-20.md] P1-2 — Samples(通常配置の "/Samples/" と、UPM の
+                // Unity 非可視フォルダ "/Samples~/")・Tests・Tools~・Documentation~ は製品コードの規約対象外
+                // (手動確認用のデモスクリプト・テストの意図的な禁止パターン文字列・付属ツール・ドキュメント置き場)。
+                // 開発リポジトリでは CI.ResolveForbiddenApiScanRoot() がパッケージ自身を走査するため、
+                // これらのフォルダを除外しないと Samples~/Tests 内の既知の当たりが常に混ざる
+                // ([42_distribution.md] §2.3-2 の実測 26 件のうち 14 件はこの除外漏れが原因)。
+                if (normalized.Contains("/Samples/") || normalized.Contains("/Samples~/") ||
+                    normalized.Contains("/Tests/") || normalized.Contains("/Tools~/") ||
+                    normalized.Contains("/Documentation~/"))
                 {
                     continue;
                 }

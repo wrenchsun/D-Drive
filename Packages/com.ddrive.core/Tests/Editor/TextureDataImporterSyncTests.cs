@@ -11,7 +11,7 @@ namespace DDrive.Tests.Editor
     // ファイル名は規約に当たらない名前(Plain.png)にして、Data 側の設定だけで決まることを確かめる。
     public class TextureDataImporterSyncTests
     {
-        private const string TempFolder = "Packages/com.ddrive.core/Tests/Editor/Temp";
+        private const string TempFolder = TestTempFolder.Root + "/Temp";
         private const string PlainPath = TempFolder + "/SyncPlain.png";
         private const string NormalNamedPath = TempFolder + "/SyncNamed_N.png";
 
@@ -24,7 +24,7 @@ namespace DDrive.Tests.Editor
             TexturePostprocessor.Suppress = false;
             if (!AssetDatabase.IsValidFolder(TempFolder))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "Temp");
+                TestTempFolder.CreateFolder("Temp");
             }
 
             WritePng(PlainPath);

@@ -13,8 +13,8 @@ namespace DDrive.Tests.Editor
     // MaterialData」を引き当てて割り当てる(以前は常に None だった)。
     public class ModelSlotBinderTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempSlotGameData";
-        private const string TempFolder = "Packages/com.ddrive.core/Tests/Editor/TempSlot";
+        private const string TestRoot = TestTempFolder.Root + "/TempSlotGameData";
+        private const string TempFolder = TestTempFolder.Root + "/TempSlot";
         private const string MaterialPath = TempFolder + "/SlotBinderMat.mat";
 
         private MayaImportProfile _profile;
@@ -26,7 +26,7 @@ namespace DDrive.Tests.Editor
             MayaModelPostprocessor.Suppress = true;
             if (!AssetDatabase.IsValidFolder(TempFolder))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempSlot");
+                TestTempFolder.CreateFolder("TempSlot");
             }
 
             var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");

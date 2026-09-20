@@ -6,7 +6,6 @@
         "UniTask",
         "Unity.Addressables",
         "Unity.ResourceManager",
-        "Unity.Netcode.Runtime",
         "UnityEngine.UI",
         "Unity.InputSystem",
         "Unity.Timeline",
@@ -20,12 +19,6 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [
-        {
-            "name": "com.unity.netcode.gameobjects",
-            "expression": "",
-            "define": "DDRIVE_NGO"
-        }
-    ],
+    "versionDefines": [],
     "noEngineReferences": false
 }

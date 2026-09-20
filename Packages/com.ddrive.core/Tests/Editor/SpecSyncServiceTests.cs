@@ -14,7 +14,7 @@ namespace DDrive.Tests.Editor
 {
     public class SpecSyncServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempSpecSyncGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempSpecSyncGameData";
         private const string TuningTablePath = TestRoot + "/TestTuningTable.asset";
 
         [TearDown]
@@ -32,7 +32,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempSpecSyncGameData");
+                TestTempFolder.CreateFolder("TempSpecSyncGameData");
             }
 
             var table = ScriptableObject.CreateInstance<TuningTable>();

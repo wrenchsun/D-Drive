@@ -18,7 +18,7 @@ namespace DDrive.Tests.Editor
     // 識別子は "ZzTest5006" のみを使う。実プロジェクトの GameData/カタログ/Addressables グループには書き込まない。
     public class SafeDeleteServiceTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempSafeDeleteGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempSafeDeleteGameData";
 
         private readonly List<string> _trackedPaths = new();
 
@@ -65,7 +65,7 @@ namespace DDrive.Tests.Editor
         {
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempSafeDeleteGameData");
+                TestTempFolder.CreateFolder("TempSafeDeleteGameData");
             }
         }
 

@@ -8,6 +8,7 @@ using DDrive.Tests.Editor.Compat;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace DDrive.Tests.Editor.Migration
 {
@@ -20,14 +21,14 @@ namespace DDrive.Tests.Editor.Migration
     // 実 GameData・カタログ・Addressables には触れない(一時アセットと ScriptableObject.CreateInstance のみ)。
     public class DDriveMigrationRunnerTests
     {
-        private const string TempDir = "Packages/com.ddrive.core/Tests/Editor/TempMigration";
+        private const string TempDir = TestTempFolder.Root + "/TempMigration";
 
         [SetUp]
         public void SetUp()
         {
             if (!AssetDatabase.IsValidFolder(TempDir))
             {
-                AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempMigration");
+                TestTempFolder.CreateFolder("TempMigration");
             }
         }
 
@@ -113,18 +114,23 @@ namespace DDrive.Tests.Editor.Migration
             var assets = new List<AssetDataBase> { target, other };
 
             var plan1 = DDriveMigrationRunner.Plan(migrations, assets, Array.Empty<IProjectMigration>(), settings: null);
-            Assert.AreEqual(1, plan1.TotalCount);
+            Assert.AreEqual(1, plan1.DataMigrations.Count, "target だけが実マイグレーションの対象");
+            // [47] P1-4/P1-5 — other は AppliesTo を満たさないが、SchemaVersion(0) < Current なので
+            // 「スキーマ版の刻印」だけの対象になる(TotalCount にはこちらも数える)。
+            Assert.AreEqual(1, plan1.SchemaStampOnly.Count);
+            Assert.AreEqual(2, plan1.TotalCount);
 
             DDriveMigrationRunner.Apply(plan1, settings: null);
 
             Assert.AreEqual(1, target.SchemaVersion, "適用後は ToSchema になる");
             Assert.AreEqual("migrated-by:" + migration.Id, target.ChangeNote);
-            Assert.AreEqual(0, other.SchemaVersion, "対象外の Data は触られない");
-            Assert.IsNull(other.ChangeNote);
+            Assert.AreEqual(DDriveSchema.Current, other.SchemaVersion,
+                "対象の実マイグレーションは無いが、スキーマ版の刻印段で Current まで引き上げられる([47] P1-4/P1-5)");
+            Assert.IsNull(other.ChangeNote, "刻印段は値を書き換えない(SchemaVersion だけを進める)");
 
-            // 2 回目は対象 0 件(SchemaVersion が ToSchema に達しているため AppliesTo を満たしても対象外)。
+            // 2 回目は対象 0 件(SchemaVersion が ToSchema/Current に達しているため)。
             var plan2 = DDriveMigrationRunner.Plan(migrations, assets, Array.Empty<IProjectMigration>(), settings: null);
-            Assert.AreEqual(0, plan2.TotalCount, "SchemaVersion が既に ToSchema 以上のものは二重適用されない");
+            Assert.AreEqual(0, plan2.TotalCount, "SchemaVersion が既に ToSchema/Current 以上のものは二重適用されない");
         }
 
         [Test]
@@ -151,10 +157,15 @@ namespace DDrive.Tests.Editor.Migration
             Assert.IsTrue(string.IsNullOrEmpty(target.ChangeNote), "Undo で Migrate() によるフィールドの書き換えも戻る");
         }
 
+        // [47] P1-4/P1-5 — 「本当に何もしない」は SchemaVersion が既に Current の Data だけ
+        // (StampNew と同じタイミングで付与される。新規作成直後を模擬する)。
         [Test]
-        public void Apply_WithEmptyPlan_DoesNothing()
+        public void Apply_TrulyEmptyPlan_WhenAlreadyAtCurrentSchema_DoesNothing()
         {
             var target = CreateTestAsset("Target", "NotAMatch");
+            VersionStampProcessor.StampNew(target);
+            Assert.AreEqual(DDriveSchema.Current, target.SchemaVersion, "このテストの前提: StampNew 直後は Current");
+
             var emptyPlan = DDriveMigrationRunner.Plan(
                 new List<IDataMigration> { new BumpMigrationTargetCategoryOnly() },
                 new List<AssetDataBase> { target },
@@ -165,8 +176,131 @@ namespace DDrive.Tests.Editor.Migration
 
             var context = DDriveMigrationRunner.Apply(emptyPlan, settings: null);
 
-            Assert.AreEqual(0, target.SchemaVersion);
+            Assert.AreEqual(DDriveSchema.Current, target.SchemaVersion);
             Assert.AreEqual(0, context.Log.Count);
+        }
+
+        // [47] P1-4/P1-5 の中心的なシナリオ: 対象の IDataMigration が 1 つも無くても
+        // (migrations が空配列でも)、SchemaVersion < Current の Data は Apply で Current に刻印される。
+        [Test]
+        public void Apply_NoMigrationsAtAll_StillStampsSchemaVersionToCurrent()
+        {
+            var target = CreateTestAsset("Target", "AnyCategory");
+            Assert.AreEqual(0, target.SchemaVersion);
+
+            var plan = DDriveMigrationRunner.Plan(
+                Array.Empty<IDataMigration>(),
+                new List<AssetDataBase> { target },
+                Array.Empty<IProjectMigration>(),
+                settings: null);
+
+            Assert.AreEqual(0, plan.DataMigrations.Count);
+            Assert.AreEqual(1, plan.SchemaStampOnly.Count);
+            Assert.AreEqual(1, plan.TotalCount, "マイグレーション実装が 0 件でも、刻印段が TotalCount に数える");
+
+            DDriveMigrationRunner.Apply(plan, settings: null);
+
+            Assert.AreEqual(DDriveSchema.Current, target.SchemaVersion);
+        }
+
+        // [47] P2-3 — 多段連鎖(0→1 の適用で初めて 1→2 の条件〔AppliesTo〕を満たすようになる Data)が
+        // 1 回の Apply で完了することを固定する(以前は計画時点の状態だけで判定していたため、
+        // 1→2 が計画に入らず 2 回 Apply しないと完了しなかった)。
+        private sealed class StageOneMigration : IDataMigration
+        {
+            public string Id => "test-only-dummy-stage1-0-to-1";
+            public int FromSchema => 0;
+            public int ToSchema => 1;
+            public bool AppliesTo(AssetDataBase data) => data is TestAssetData;
+            public void Migrate(AssetDataBase data, MigrationContext context)
+            {
+                ((TestAssetData)data).ChangeNote = "stage1";
+            }
+        }
+
+        private sealed class StageTwoMigration : IDataMigration
+        {
+            public string Id => "test-only-dummy-stage2-1-to-2";
+            public int FromSchema => 1;
+            public int ToSchema => 2;
+            // stage1 が付けた ChangeNote に依存する(実際の多段連鎖でよくある「前段の出力を見て判断する」形)。
+            public bool AppliesTo(AssetDataBase data) => data is TestAssetData t && t.ChangeNote == "stage1";
+            public void Migrate(AssetDataBase data, MigrationContext context)
+            {
+                ((TestAssetData)data).ChangeNote = "stage1+stage2";
+            }
+        }
+
+        [Test]
+        public void Apply_MultiHopMigration_CompletesBothStagesInOneCall()
+        {
+            var target = CreateTestAsset("Target", "AnyCategory");
+            var migrations = new List<IDataMigration> { new StageOneMigration(), new StageTwoMigration() };
+
+            var plan = DDriveMigrationRunner.Plan(migrations, new List<AssetDataBase> { target }, Array.Empty<IProjectMigration>(), settings: null);
+            // Plan は単発の見積もりのため、この時点では stage1 しか計画に入らない(stage2 の AppliesTo は
+            // まだ ChangeNote が "stage1" になっていないため false)。
+            Assert.AreEqual(1, plan.DataMigrations.Count);
+
+            DDriveMigrationRunner.Apply(plan, settings: null);
+
+            Assert.AreEqual(2, target.SchemaVersion, "Apply の再評価ループにより stage1→stage2 まで 1 回で進む");
+            Assert.AreEqual("stage1+stage2", target.ChangeNote);
+        }
+
+        // [47] P2-3 — AppliesTo/Migrate の例外は警告 + そのアセットをスキップするだけで、
+        // Apply 全体やほかのアセットの処理を止めない(CLAUDE.md §0-4)。
+        private sealed class ThrowingMigration : IDataMigration
+        {
+            public string Id => "test-only-dummy-throwing";
+            public int FromSchema => 0;
+            public int ToSchema => 1;
+            public bool AppliesTo(AssetDataBase data) => data is TestAssetData t && t.Category == "ThrowOnMe";
+            public void Migrate(AssetDataBase data, MigrationContext context) => throw new InvalidOperationException("boom");
+        }
+
+        [Test]
+        public void Apply_WhenMigrationThrows_SkipsThatAssetButContinuesWithOthers()
+        {
+            var broken = CreateTestAsset("Broken", "ThrowOnMe");
+            var healthy = CreateTestAsset("Healthy", "AnyCategory");
+            var migrations = new List<IDataMigration> { new ThrowingMigration() };
+
+            var plan = DDriveMigrationRunner.Plan(migrations, new List<AssetDataBase> { broken, healthy }, Array.Empty<IProjectMigration>(), settings: null);
+
+            LogAssert.ignoreFailingMessages = true;
+            Assert.DoesNotThrow(() => DDriveMigrationRunner.Apply(plan, settings: null));
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual(0, broken.SchemaVersion, "例外を投げたアセットはスキップされ、SchemaVersion も変わらない");
+            Assert.AreEqual(DDriveSchema.Current, healthy.SchemaVersion, "他のアセットの処理は継続する(刻印段まで完了する)");
+        }
+
+        // [47] P2-3 — 67 件マイグレートしても Undo は 1 回で済む(1 回の Apply = 1 つの Undo グループ)。
+        [Test]
+        public void Apply_CollapsesIntoSingleUndoGroup_ForMultipleAssets()
+        {
+            var a = CreateTestAsset("A", "AnyCategory");
+            var b = CreateTestAsset("B", "AnyCategory");
+
+            var plan = DDriveMigrationRunner.Plan(
+                Array.Empty<IDataMigration>(),
+                new List<AssetDataBase> { a, b },
+                Array.Empty<IProjectMigration>(),
+                settings: null);
+
+            Undo.IncrementCurrentGroup();
+            var groupBefore = Undo.GetCurrentGroup();
+            DDriveMigrationRunner.Apply(plan, settings: null);
+
+            Assert.AreEqual(DDriveSchema.Current, a.SchemaVersion);
+            Assert.AreEqual(DDriveSchema.Current, b.SchemaVersion);
+
+            Undo.PerformUndo();
+
+            Assert.AreEqual(0, a.SchemaVersion, "1 回の Undo で両方のアセットが戻る(1 グループにまとまっている)");
+            Assert.AreEqual(0, b.SchemaVersion);
+            Assert.GreaterOrEqual(groupBefore, 0);
         }
 
         // [42_distribution.md] §6 P-7 AC「MigrateCheck が未適用ありで失敗扱い」— exit の代わりに
@@ -193,11 +327,22 @@ namespace DDrive.Tests.Editor.Migration
         // CI.MigrateCheck 自体(実プロジェクトの TypeCache 発見を使う経路)が例外を投げないことの
         // スモークテスト。Application.isBatchMode は EditMode テスト実行中は false のため
         // EditorApplication.Exit は呼ばれない(テストプロセスを道連れに終了しない)。
+        // [47] P1-4/P1-5(2026-09-20 修正) — この開発リポジトリの実 GameData は「スキーマ版の刻印」が
+        // まだ適用されていない(SchemaVersion=0 のまま)ため、通常は Pending=true で Error ログが出る。
+        // それ自体は仕様どおりの挙動なので、ログの有無ではなく「例外を投げない」ことだけを確認する。
         [Test]
         public void CI_MigrateCheck_DoesNotThrow_OnRealProject()
         {
             Assert.IsFalse(Application.isBatchMode, "このテストは Exit を避けるため非バッチモードで走ることを前提にする");
-            Assert.DoesNotThrow(() => DDrive.Editor.CI.MigrateCheck());
+            LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                Assert.DoesNotThrow(() => DDrive.Editor.CI.MigrateCheck());
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+            }
         }
 
         // [42_distribution.md] §5.11-2 の旧版フィクスチャ(Fixtures/v1_0_0、SchemaVersion=0)を

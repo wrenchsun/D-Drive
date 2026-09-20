@@ -1,0 +1,27 @@
+{
+    "name": "DDrive.Runtime.Ngo",
+    "rootNamespace": "DDrive.Runtime.Net",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime",
+        "UniTask",
+        "Unity.Netcode.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "DDRIVE_NGO"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.netcode.gameobjects",
+            "expression": "",
+            "define": "DDRIVE_NGO"
+        }
+    ],
+    "noEngineReferences": false
+}

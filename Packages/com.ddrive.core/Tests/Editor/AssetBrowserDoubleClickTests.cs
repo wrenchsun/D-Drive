@@ -18,7 +18,7 @@ namespace DDrive.Tests.Editor
     // ウィンドウ内の ListView を操作せずヘルパーそのものを検証する。
     public class AssetBrowserDoubleClickTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameData_DblClick";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameData_DblClick";
 
         // 専用エディタを一切持たない Data 型(候補なしケース用)。DDrive.Tests アセンブリなので
         // DataEditorRegistryTests の「全 Data 型はエディタを持つべき」検査の対象にはならない。

@@ -21,7 +21,7 @@ namespace DDrive.Tests.Editor
     // ことで、実カタログの状態(常に健全であるべきだが保証はしない)に依存しないようにしている。
     public class ContentHashCatalogCoverageValidatorTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempGameDataContentHash";
+        private const string TestRoot = TestTempFolder.Root + "/TempGameDataContentHash";
 
         [TearDown]
         public void TearDown()

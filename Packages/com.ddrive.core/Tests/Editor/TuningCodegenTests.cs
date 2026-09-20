@@ -12,7 +12,7 @@ namespace DDrive.Tests.Editor
     {
         // Assets 配下だとインポート・削除の後始末が増えるため、Unity が管理しない Temp/ 配下に書き出す。
         private const string OutputPath = "Temp/DDriveTuningCodegenTests/Tuning.g.cs";
-        private const string TableRoot = "Packages/com.ddrive.core/Tests/Editor/TempTuningCodegen";
+        private const string TableRoot = TestTempFolder.Root + "/TempTuningCodegen";
         private const string TablePath = TableRoot + "/TestTuningTable.asset";
 
         [TearDown]
@@ -33,7 +33,7 @@ namespace DDrive.Tests.Editor
         [Test]
         public void Regenerate_WritesConstantsForEachKey()
         {
-            AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempTuningCodegen");
+            TestTempFolder.CreateFolder("TempTuningCodegen");
             var table = ScriptableObject.CreateInstance<TuningTable>();
             table.Entries = new[]
             {
@@ -68,7 +68,7 @@ namespace DDrive.Tests.Editor
         [Test]
         public void Regenerate_WithTables_WritesTableAndColumnConstants()
         {
-            AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempTuningCodegen");
+            TestTempFolder.CreateFolder("TempTuningCodegen");
             var table = ScriptableObject.CreateInstance<TuningTable>();
             table.Tables = new[]
             {
@@ -101,7 +101,7 @@ namespace DDrive.Tests.Editor
         [Test]
         public void Regenerate_ZeroKeys_DoesNotOverwriteExistingFileThatHasConstants()
         {
-            AssetDatabase.CreateFolder("Packages/com.ddrive.core/Tests/Editor", "TempTuningCodegen");
+            TestTempFolder.CreateFolder("TempTuningCodegen");
             var table = ScriptableObject.CreateInstance<TuningTable>();
             table.Entries = new[]
             {

@@ -13,7 +13,7 @@ namespace DDrive.Tests.Editor
     // SpecCache は静的な共有状態のため、テスト前後で保存/復元して他テスト・自動同期の状態を壊さない。
     public class SpecCacheTests
     {
-        private const string TestRoot = "Packages/com.ddrive.core/Tests/Editor/TempSpecCacheGameData";
+        private const string TestRoot = TestTempFolder.Root + "/TempSpecCacheGameData";
         private const string AssetHeader = "種別,カテゴリ,識別子,表示名,状態,担当,仕様,備考\n";
 
         private SpecParseResult<SpecAssetRow> _prevAssetRows;

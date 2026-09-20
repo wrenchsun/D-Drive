@@ -3,7 +3,7 @@
 D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) 形式に準拠し、[Semantic Versioning](https://semver.org/lang/ja/) を採用する。
 
 > **運用ルール（[docs/42_distribution.md](docs/42_distribution.md) §4.1・§5.11-10）**:
-> - 各バージョン見出しには **`### 互換性` 節を必ず書く**。「破壊なし / 追加のみ / マイグレーションあり（自動・手動）/ 破壊あり（[docs/migrations/](docs/migrations/) の移行ガイドへリンク）」のいずれかを明記する（空欄は CI の CHANGELOG ガードで fail にする）。
+> - 各バージョン見出しには **`### 互換性` 節を必ず書く**。「破壊なし / 追加のみ / マイグレーションあり（自動・手動）/ 破壊あり（移行ガイドへリンク。開発リポジトリでは `docs/migrations/`、パッケージでは `Documentation~/migrations/`〔2026-09-20 同梱、[47_review_p_tickets_2026-09-20.md](47_review_p_tickets_2026-09-20.md) P2-9〕）」のいずれかを明記する（空欄は CI の CHANGELOG ガードで fail にする）。この CHANGELOG.md 自体は開発リポジトリ直下とパッケージ直下（`Packages/com.ddrive.core/CHANGELOG.md`）に同じ内容が同梱されるため、本文中の相対リンクは開発リポジトリ側でのみ有効(パッケージ側から見るときは `Documentation~/` 配下の対応するファイルを直接開く)。
 > - どの桁を上げるかは人の裁量ではなく [docs/42_distribution.md](docs/42_distribution.md) §5 の互換面ごとの区分で機械的に決まる（§4.1 の対応表）。
 > - **本ファイルは P-2（互換性ポリシーの確定）の成果物として、P チケット完了（P-13 発効）前に用意した雛形**。互換性ポリシー自体は P-13 が発効するまで参考情報であり、`[Unreleased]` は現時点では通常の変更ログとして運用する。
 
@@ -11,7 +11,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし（互換性ポリシーは未発効。[docs/42_distribution.md](docs/42_distribution.md) §5 は P-13 で発効する草案段階）
+- 破壊あり（互換性ポリシーは未発効のため 1.0.0 発効前の例外として実施。[docs/42_distribution.md](docs/42_distribution.md) §5 は P-13 で発効する草案段階）: **P-10.5 レビュー対応（2026-09-20、[docs/47_review_p_tickets_2026-09-20.md](docs/47_review_p_tickets_2026-09-20.md) P1-1）** — NGO を任意依存にする実現方式を asmdef 分離まで修正した。`DDriveRuntimeBootstrap` の public フィールド `NetworkManagerRef`/`NgoBridgeRef` を削除し（`DDrive.Runtime.Ngo` アセンブリの `DDriveNgoBootstrapHook` へ移設）、`NgoNetBridge`/`NgoTransportConfigurator`/`NetDebugOverlay` を `DDrive.Runtime` から新設アセンブリ `DDrive.Runtime.Ngo` へ移動した（namespace は `DDrive.Runtime.Net` のまま不変、GUID も不変）。互換性スナップショット `public-api-DDrive.Runtime.txt` を更新（該当箇所は削除+新設 API `INgoBridgeFactory`/`NetBridgeFactoryRegistry`/`NgoBridgeCreateArgs`/`NgoBridgeCreateResult` の追加）。既存シーン（`NetCheckScene.unity`）は Unity Editor 経由で `DDriveNgoBootstrapHook` を追加し直し、参照を復元済み
+- P-10.5 レビュー対応（2026-09-20）の残りの修正（P1-2〜P1-7、P2-1〜P2-9）は、Editor 専用 API のシグネチャ変更（`ChangelogLocator.ResolvePath` に `preferDevRepoRoot` 引数を追加 等）・挙動修正（`ForbiddenApiScanner`/`ManualPages`/`DDriveMigrationRunner`/`ValidatorRegistry` 等）・PowerShell/バッチスクリプトの修正で、いずれも `DDrive.Editor` は互換性スナップショットの対象外（ゲームコードは `DDrive.Editor` を参照禁止のため）。公開 API（`DDrive.Foundation`/`DDrive.Runtime`）への影響は上記の NGO 分離のみ
 - P-9（2026-09-20）: リリース手順を道具化しただけで、公開 API・シリアライズ形式・生成コード等の互換面には触れていない
 - P-10（2026-09-20）: 消費側ドキュメント・スキル・CI テンプレの追加のみで、C# の変更は無い（公開 API・シリアライズ形式・生成コード等の互換面には触れていない）
 
