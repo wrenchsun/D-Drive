@@ -54,6 +54,7 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 40 | [マニュアル スクリーンショットの撮影・取り込み手順](40_manual_screenshot_workflow.md) | 撮る人のチェックリスト（構図・伏せるもの・命名）と、取り込む側の手順 1〜9（突き合わせ → 伏せ字 → 最適化 → HTML 挿入 → docs 更新 → Web 版再生成）+ 落とし穴（2026-09-17） |
 | 41 | [Phase 6 + W/O チケット 自前レビュー結果（2026-09-17）](41_phase6_review_2026-09-17.md) | docs/30 以降の未レビュー分 `b533bf6..HEAD`（139 コミット）を runtime / editor / tests+CI / SpecWeb の 4 系統でレビュー。P1 8 件（Pool の ABA・調整値の全消し・GAS の認可の抜け 3 件・CI の握りつぶし ほか）（2026-09-17） |
 | 42 | [配布・移植・更新・互換性ポリシー（P チケット、設計）](42_distribution.md) | Timeline の後に行う P-1〜P-13 の設計: システム/データの線引き表と境界違反 10 件、配布方式の比較（**UPM git URL + 埋め込み開発を推奨**）、SemVer・スキーマ版・マイグレーション・ロールバックの更新フロー、**P 完了後に発効する互換性ポリシー**（9 互換面 + スナップショットテスト 11 種）、要判断 A/B/C（2026-09-17） |
+| 50 | [持ち込み先向け持ち込み先ガイド（導入・更新・運用、HTML）](50_consumer_guide.md) | 持ち込み先（MS2026 等）のプログラマー向けに、導入手順・更新方法・運用方法を個別 HTML ページにまとめたガイド（`docs/50_consumer_guide/`、DesignerManual/ProgrammerManual と同じ書式）。正本はこのリポジトリで、リリースのたびに `Packages/com.ddrive.core/Documentation~/ConsumerGuide/` へ同期される（2026-09-20） |
 
 ## デザイナー向けマニュアル
 

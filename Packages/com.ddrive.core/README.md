@@ -123,6 +123,7 @@ Audio.PlaySe(SEID.X);
 
 - 設計書・運用ドキュメントは開発リポジトリの `docs/`（`docs/42_distribution.md` が配布・互換性ポリシーの正本）
 - デザイナー / プログラマー向けマニュアルは `Documentation~/`。正本は `docs/DesignerManual` / `docs/ProgrammerManual` で、`Tools/Release/bump-version.ps1`（P-9）がリリースのたびに同期する。`Documentation~/` 配下を直接編集しないこと（次のリリースで上書きされる）
+- **導入・更新・運用の手順を個別ページにした持ち込み先ガイド**は `Documentation~/ConsumerGuide/`（正本は開発リポジトリの `docs/50_consumer_guide/`、同じく `bump-version.ps1` が同期する）。このパッケージを初めて触るプログラマー向けの入口はまず `ConsumerGuide/index.html`
 - AI エージェント向けの消費側規約は `Documentation~/AGENTS_CONSUMER.md`、Claude Code 向けスキルは `Documentation~/skills/ddrive-consumer/`（セットアップウィザード・更新ウィンドウが `.claude/skills/ddrive-consumer/` へコピーする）
 
 ## バージョニング

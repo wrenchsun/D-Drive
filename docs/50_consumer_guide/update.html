@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>更新方法 | D-Drive 持ち込み先ガイド</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="index.html">🏠 目次</a> › 更新方法</nav>
+
+<h1>更新方法</h1>
+<p class="lastupdate">最終更新日: 2026-09-20</p>
+
+<p>D-Drive の新しい版が出たときに、このプロジェクトへ取り込む手順です。<code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code> を開いて進めます。所要時間の目安は 8 分（Unity の再コンパイル・テスト実行を除く）。</p>
+
+<div class="tip">
+<strong>版の付け方（SemVer）</strong>: D-Drive は <code>MAJOR.MINOR.PATCH</code> で版を付けます。<strong>MINOR までの更新は既存のゲームコード・データを壊さない</strong>ことが互換性ポリシーで保証されています。<strong>MAJOR の更新だけが「破壊あり」の変更を含み得ます</strong>（削除・改名・型変更など）。更新ウィンドウは MAJOR のときだけ赤字で警告します。
+</div>
+
+<h2>1. 更新チェック</h2>
+<ol>
+<li>更新ウィンドウの「1. 更新チェック」で「最新の版を確認」ボタンを押す</li>
+<li><code>git ls-remote</code> で公開されているタグを取得し、現在の参照と比較して「最新です」「MINOR の更新があります」「MAJOR の更新があります」のいずれかを表示する</li>
+<li><strong>MAJOR の場合は赤字で警告が出る</strong>。適用する前に、下記「MAJOR 更新時の移行ガイドの読み方」を先に読む</li>
+<li>取得できたタグの一覧がドロップダウンに新しい順で並ぶ（既定選択は最新）。更新したい版を選ぶ</li>
+</ol>
+
+<h2>2. <code>manifest.json</code> の版を上げる</h2>
+<ol>
+<li>「manifest を選んだ版に更新する」ボタンを押す</li>
+<li>確認ダイアログの後、<code>Packages/manifest.json</code> の <code>com.ddrive.core</code> の <code>#ref</code>（タグ部分）だけが書き換わる。URL・<code>?path=</code>・<code>git+https</code>/<code>git+ssh</code> の形式は変わらない</li>
+<li>差し替え前の値は自動で退避される。間違えて更新した場合は「前の参照に戻す」ボタンでいつでも戻せる（もう一度押すと戻す前の状態に入れ替えられる、簡易 1 段 undo）</li>
+<li>Unity の再コンパイルを待ち、コンパイルエラーが無いことを確認する。<strong>コンパイルエラーが出た場合は「破壊あり」の変更を踏んでいる</strong>ので、下記の移行ガイドを確認する</li>
+</ol>
+<p>手動で <code>manifest.json</code> を書き換えたり、Package Manager の UI から書き換えたりしても構いません（更新ウィンドウはその補助です）。</p>
+
+<h2>3. 版と CHANGELOG を確認する</h2>
+<p>更新ウィンドウの「2. 版と CHANGELOG」に、現在の版・前回適用した版と、その間の <code>CHANGELOG.md</code> の該当節が表示されます。「破壊あり」の変更が含まれる場合は警告が出るので、先に移行ガイドを確認してください。</p>
+
+<h2>4. マイグレーション（プレビュー）を確認する</h2>
+<p>「3. マイグレーション(プレビュー)」で、データの形式を直す必要がある件数を確認できます。<strong>この時点ではまだ何も変更されません</strong>（読み取り専用のドライラン）。</p>
+
+<h2>5. 更新を適用する</h2>
+<p>「4. 更新を適用」ボタンを押すと、内部で次の 4 段が<strong>この順に</strong>実行されます。</p>
+<ol>
+<li>データマイグレーション（古い形式の <code>.asset</code> を新しい形式に直す）</li>
+<li>ID/調整値の定数を作り直す（<code>Regenerate Asset IDs</code> / <code>Regenerate Tuning Keys</code>）</li>
+<li>アセット管理の登録を揃える（Addressables 登録の同期）</li>
+<li>自動チェックを実行する（<code>Validation &gt; Run All</code>）</li>
+</ol>
+<div class="warn">
+<strong>途中の段が失敗したらそこで止まります。</strong> それより後の手順・「前回適用した版」の記録更新は行われません。失敗した段のエラー内容を確認してから再実行してください。
+</div>
+<p>全段成功すると、「前回適用した版」が現在の版に更新されます。更新後は「5. テストを有効化する」「6. エージェント向けスキルを更新」も同じウィンドウから操作できます（セットアップウィザードと同じ項目）。</p>
+
+<div class="tip">
+<strong>✔ 更新完了の確認ライン:</strong> <code>Validation &gt; Run All</code> で Error が 0 件。実機で SE を 1 件再生できる。NGO を使っている場合は Host/Client を<strong>両方同じ版で</strong>起動し、接続時のバージョン照合でエラーが出ないことを確認する。最後に manifest / lock / 更新で変わった <code>.asset</code> / 生成コードを 1 コミットにまとめる。
+</div>
+
+<h2>ロールバック（更新の取りやめ）</h2>
+<table>
+<tr><th>状況</th><th>手順</th></tr>
+<tr><td>manifest を書き換えた直後で、まだ「更新を適用」していない</td><td>更新ウィンドウ「1. 更新チェック」の「前の参照に戻す」を押す</td></tr>
+<tr><td>それ以外（「更新を適用」まで実行済み）</td><td>manifest / lock / 更新で変わった <code>.asset</code> / 生成コードの変更コミットを <code>git revert</code> し、Unity を開き直す</td></tr>
+</table>
+<p>同一メジャーバージョン内の更新であれば、旧フィールドが残っているため旧版でも読めます（新版だけの値は次に保存したときに失われます）。<strong>メジャーバージョンをまたぐ更新のロールバックは「更新前のコミットへ戻す」以外の方法を保証しません。</strong></p>
+
+<h2 id="major">MAJOR 更新時の移行ガイドの読み方</h2>
+<p>D-Drive の互換性ポリシーでは、公開 API・シリアライズ形式・ID の導出規則などの「互換面」は MINOR/PATCH では壊されません。MAJOR の更新だけが、事前に <code>[Obsolete]</code>・Warning・移行ツールで少なくとも 2 回の MINOR リリースを経て予告されたうえで、破壊的な変更を行います。</p>
+<ol>
+<li>更新ウィンドウ・パッケージ <code>README.md</code>・<code>CHANGELOG.md</code> のいずれかで MAJOR の更新が「破壊あり」と表示されたら、<strong>manifest の版を上げる前に</strong> <code>Documentation~/migrations/vN.md</code>（このプロジェクトに同梱されている移行ガイド）を読む</li>
+<li>移行ガイドには「対象・症状・手順・ロールバック可否」が書かれている。**対象**（自分のプロジェクトが該当するか）と**症状**（コンパイルエラーになるのか、実行時の挙動が変わるのか）を先に確認する</li>
+<li>手順に沿って、更新前にゲームコード側を直しておけるものは直しておく（<code>[Obsolete]</code> 警告が出ている API は移行ガイドに代替 API が書かれている）</li>
+<li>上記「1〜5」の通常の更新手順を実行する</li>
+<li>更新後、移行ガイドの「確認方法」に沿って動作確認する</li>
+</ol>
+<p>移行ガイドが無い、または内容が不十分な場合は、開発リポジトリ（<code>github.com/wrenchsun/D-Drive</code>）へ Issue を立てるか、<code>CHANGELOG.md</code> の該当版の記述を確認してください。</p>
+
+<h2>更新チェックリスト</h2>
+<ol>
+<li>作業ツリーをクリーンにし、更新用のブランチを切る</li>
+<li>「1. 更新チェック」で「最新の版を確認」→ 対象版までの <code>CHANGELOG.md</code> の「互換性」節を読む。「破壊あり」があれば移行ガイドを先に読む</li>
+<li>「manifest を選んだ版に更新する」を押す</li>
+<li>Unity が再コンパイルするのを待ち、コンパイルエラーが無いことを確認する</li>
+<li>「2. 版と CHANGELOG」の表示を確認する</li>
+<li>「3. マイグレーション(プレビュー)」で対象件数を確認する</li>
+<li>「4. 更新を適用」を実行し、途中で失敗せず最後まで完了することを確認する</li>
+<li><code>Validation &gt; Run All</code> で Error が 0 件であることを確認する</li>
+<li>EditMode/PlayMode 相当のテスト（このプロジェクトで用意しているもの）を実行する</li>
+<li>NGO を使っている場合は、Host/Client を同じ版で起動し、接続時のバージョン照合でエラーが出ないことを確認する</li>
+<li>manifest / lock / 更新で変わった <code>.asset</code> / 生成コードを 1 コミットにまとめる</li>
+<li>このプロジェクトの CI が green であることを確認する</li>
+</ol>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="index.html">目次</a></li>
+<li><a href="install.html">導入手順</a></li>
+<li><a href="operation.html">運用方法</a></li>
+</ul>
+
+<footer>D-Drive 持ち込み先ガイド | <a href="index.html">目次</a></footer>
+</body>
+</html>

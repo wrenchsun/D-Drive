@@ -243,6 +243,8 @@ $programmerSrc = Join-Path $repoRoot 'docs/ProgrammerManual'
 $programmerDst = Join-Path $packageDir 'Documentation~/ProgrammerManual'
 $migrationsSrc = Join-Path $repoRoot 'docs/migrations'
 $migrationsDst = Join-Path $packageDir 'Documentation~/migrations'
+$consumerGuideSrc = Join-Path $repoRoot 'docs/50_consumer_guide'
+$consumerGuideDst = Join-Path $packageDir 'Documentation~/ConsumerGuide'
 $changelogDst = Join-Path $packageDir 'CHANGELOG.md'
 
 $designerResult = Sync-MirrorDirectory -Source $designerSrc -Destination $designerDst -DryRun:$DryRun
@@ -255,6 +257,10 @@ Write-Host "docs/ProgrammerManual  -> Documentation~/ProgrammerManual(robocopy �
 # ProgrammerManual と同じミラー同期の対象に加える。
 $migrationsResult = Sync-MirrorDirectory -Source $migrationsSrc -Destination $migrationsDst -DryRun:$DryRun
 Write-Host "docs/migrations        -> Documentation~/migrations      (robocopy 終了コード=$($migrationsResult.ExitCode))"
+# [50_consumer_guide.md] 持ち込み先向け持ち込み先ガイド(導入・更新・運用の HTML)も DesignerManual/ProgrammerManual/
+# migrations と同じミラー同期の対象にする(正本は docs/50_consumer_guide/、Documentation~/ConsumerGuide/ は生成物)。
+$consumerGuideResult = Sync-MirrorDirectory -Source $consumerGuideSrc -Destination $consumerGuideDst -DryRun:$DryRun
+Write-Host "docs/50_consumer_guide -> Documentation~/ConsumerGuide    (robocopy 終了コード=$($consumerGuideResult.ExitCode))"
 # CHANGELOG.md 自体は今回の更新(あれば)を反映した後の内容を同期する。DryRun のときは元ファイルのままで比較する。
 $changelogResult = Sync-SingleFile -Source $changelogPath -Destination $changelogDst -DryRun:$DryRun
 Write-Host "CHANGELOG.md           -> Packages/com.ddrive.core/CHANGELOG.md (変更=$($changelogResult.Changed))"
@@ -273,7 +279,7 @@ if ($Tag) {
         Write-Host '--- git commit(バージョン更新 + 同梱物の同期) ---'
         # [47] P1-7 — タグが指すコミットに版の更新を含めるため、-Tag のときは明示パスでコミットしてから
         # タグを打つ(git add -A/-. は使わず、このスクリプトが実際に書き換えた/同期したパスだけを add する)。
-        $addPaths = @($packageJsonPath, $versionCsPath, $changelogPath, $designerDst, $programmerDst, $migrationsDst, $changelogDst) |
+        $addPaths = @($packageJsonPath, $versionCsPath, $changelogPath, $designerDst, $programmerDst, $migrationsDst, $consumerGuideDst, $changelogDst) |
             Where-Object { Test-Path -LiteralPath $_ }
 
         if ($addPaths.Count -gt 0) {
