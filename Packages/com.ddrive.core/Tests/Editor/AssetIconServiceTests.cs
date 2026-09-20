@@ -22,9 +22,15 @@ namespace DDrive.Tests.Editor
             }
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ「-nographics 起因の 14 件」— シーンからの
+        // カメラ撮影(RenderTexture)は `-batchmode -nographics` では失敗する(Unity の制約、`run-ci.cmd`
+        // 相当のバッチ実行で再現を確認済み)。
         [Test]
+        [Category("RequiresGraphics")]
         public void RenderView_CropAndSave_WritesSquarePng_UnderTypeFolder_AndAssignsIcon()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             if (!AssetDatabase.IsValidFolder(TestRoot))
             {
                 TestTempFolder.CreateFolder("TempIcons");
@@ -153,8 +159,11 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void DefaultIcon_MaterialData_RendersSphere()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             EnsureTestRoot();
             var data = ScriptableObject.CreateInstance<DDrive.Runtime.Material.MaterialData>();
             data.Id = 3;

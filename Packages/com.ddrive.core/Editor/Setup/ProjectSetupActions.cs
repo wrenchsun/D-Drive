@@ -110,6 +110,24 @@ namespace DDrive.Editor.Setup
             }
             report.Log($"カタログ確認済み: {AssetCreationService.AllCatalogNames().Count} 件");
 
+            // [48_p11_install_test_2026-09-20.md] フォローアップ — 上で作った(まだ Data が 1 件も無い)
+            // 空カタログは、`AssetCreationService.Create` がその種別の Data を初めて作るまで Addressables に
+            // 登録されない(Create は「そのとき作った Data が属するカタログ」だけを登録するため)。
+            // ここで作成直後に一括同期しておけば、最初の SE 等を 1 件作る前でも
+            // `Validation > Run All` の「カタログが Addressables に未登録」Error(P-11 で実見)を防げる。
+            // Addressables がまだ初期化されていない(ウィザードの「5. Addressables 同期」より先に
+            // この「4. 既定フォルダ・設定の生成」を実行した)場合は同期をスキップするだけで、
+            // 未初期化の警告ログは出さない(初期化後にウィザードの同期ボタンから再実行できる)。
+            if (AddressablesSync.IsAvailable)
+            {
+                var (fixedAssets, catalogs, missingCatalog) = AddressablesSync.SyncAll(log: false);
+                report.Log($"Addressables 同期: 修正 {fixedAssets} 件・カタログ {catalogs} 件・カタログ未登録 {missingCatalog} 件。");
+            }
+            else
+            {
+                report.Log("Addressables 未初期化のため同期はスキップしました(初期化後にウィザードの「5. Addressables 同期」からまとめて同期できます)。");
+            }
+
             // [44_review_2026-09-19.md] P1-1: 既定フォルダ・設定の生成は「一括処理」なので版数を進めない。
             DDriveAssetSave.SaveAllSuppressed();
             return report;

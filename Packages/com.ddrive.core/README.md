@@ -60,7 +60,7 @@ Package Manager が git URL をすべて解決し、`package.json` の `dependen
 
 同じ検査は `Validation > Run All` の `ProjectSetupValidator` としても実行できます。
 
-> **既知の注意(2026-09-20、P-11 で確認)**: 空プロジェクトの直後は種別ごとの空カタログ(Anchor/Anim/CameraFx/…)がまだ Addressables に登録されておらず、`Validation > Run All` で「ContentHash 生成対象外」の Error が種別の数だけ出ます。各カテゴリで最低 1 件アセットを作る(その種別のカタログが自動で同期される)か、`Validation > Run All` の各行の「修正」ボタンを押すと解消します。ウィザードの「5. Addressables 同期」段には現状まとめて同期するボタンが無いため、多くの種別を一度に使う場合はこの手順に少し時間がかかります。
+> **Addressables の一括同期**: 「4. 既定フォルダ・設定の生成」は、種別ごとの空カタログを作った直後に(Addressables が初期化済みなら)全カタログを自動で Addressables に登録します。ウィザードの「5. Addressables 同期」にある「全カタログ・Data を今すぐ同期する」ボタンでも同じ処理をいつでも実行できます(`Tools > D-Drive > Update` の「Addressables 登録を同期」と同じ)。既定の順番どおり「4」を「5. Addressables 初期化」より先に実行した場合は、初期化後にこのボタンを 1 回押してください。押さないと `Validation > Run All` で「カタログが Addressables に未登録」の Error が種別の数だけ出ます。
 
 ### 4. SE を 1 件登録して試聴する
 

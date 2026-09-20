@@ -180,6 +180,11 @@ namespace DDrive.Tests.Editor
 
         // [47_review_p_tickets_2026-09-20.md] P2-2(2026-09-20) — 開発リポジトリでは docs/ を優先する。
         // ProjectSetupValidatorTests と同じ流儀でフィールドを直接書き換えて模擬する(Save を呼ばない)。
+        // [48_p11_install_test_2026-09-20.md] フォローアップ(2026-09-20 修正) — もとは実際の
+        // `ManualPages.GetProjectRoot()`(= このプロジェクトのルート)を渡していたため、持ち込み先には
+        // 存在しない `docs/DesignerManual`(開発リポジトリだけの実データ)に暗黙で依存していた。
+        // `GetManualFolder` は projectRoot を引数で受け取るだけの純関数なので、一時フォルダを
+        // 自前で用意して渡せば環境非依存にできる(DevRepoOnly 化は不要)。
         [Test]
         public void GetManualFolder_DevelopmentRepo_PrefersDocsFolder_OverDocumentationTilde()
         {
@@ -188,18 +193,21 @@ namespace DDrive.Tests.Editor
                 "_isDevelopmentRepo", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var originalIsDev = (bool)isDevField.GetValue(settings);
 
+            var tempProjectRoot = Path.Combine(Path.GetTempPath(), "DDriveManualPagesTest_" + Guid.NewGuid().ToString("N"));
+            var expectedDocsFolder = Path.Combine(tempProjectRoot, "docs".Replace('/', Path.DirectorySeparatorChar), "DesignerManual");
+            Directory.CreateDirectory(expectedDocsFolder);
+
             try
             {
                 isDevField.SetValue(settings, true);
-                var projectRoot = ManualPages.GetProjectRoot();
-                var folder = ManualPages.GetManualFolder(projectRoot);
+                var folder = ManualPages.GetManualFolder(tempProjectRoot);
 
-                var expectedDocsFolder = Path.Combine(projectRoot, "docs/DesignerManual".Replace('/', Path.DirectorySeparatorChar));
                 Assert.AreEqual(expectedDocsFolder, folder);
             }
             finally
             {
                 isDevField.SetValue(settings, originalIsDev);
+                Directory.Delete(tempProjectRoot, true);
             }
         }
 

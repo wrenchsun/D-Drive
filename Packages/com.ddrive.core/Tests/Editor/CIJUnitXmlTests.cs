@@ -55,11 +55,31 @@ namespace DDrive.Tests.Editor
         // ため PackageInfo が解決でき、走査ルートは常にパッケージの実パス(絶対パス)になる。
         // "Assets/DDrive" へのフォールバックは(このリポジトリでは再現できないが)パッケージ化されていない
         // 消費側環境向けの防御コードとして CI.cs 側に残っている。
+        // [48_p11_install_test_2026-09-20.md] フォローアップ(2026-09-20 修正) — もともと
+        // `DDriveProjectSettings.instance.IsDevelopmentRepo` が(この開発リポジトリでは
+        // `DevRepoSettingsSync` が `DDRIVE_DEV_REPO` 定義から自動で true にする)前提で書かれており、
+        // 持ち込み先で testables を有効にして実行すると(`DDRIVE_DEV_REPO` が無いため)false のままで
+        // Fail していた。`ResolveForbiddenApiScanRoot_NotDevelopmentRepo_ReturnsAssets` と同じ流儀で
+        // フィールドを直接書き換えて模擬し、環境に依存しない自己完結テストにする。
         [Test]
         public void ResolveForbiddenApiScanRoot_ResolvesToPackagedPath_InThisRepo()
         {
-            var root = CI.ResolveForbiddenApiScanRoot();
-            StringAssert.EndsWith("com.ddrive.core", root.Replace('\\', '/').TrimEnd('/'));
+            var settings = DDriveProjectSettings.instance;
+            var isDevField = typeof(DDriveProjectSettings).GetField("_isDevelopmentRepo", BindingFlags.NonPublic | BindingFlags.Instance);
+            var originalIsDev = (bool)isDevField.GetValue(settings);
+
+            try
+            {
+                isDevField.SetValue(settings, true);
+
+                var root = CI.ResolveForbiddenApiScanRoot();
+
+                StringAssert.EndsWith("com.ddrive.core", root.Replace('\\', '/').TrimEnd('/'));
+            }
+            finally
+            {
+                isDevField.SetValue(settings, originalIsDev);
+            }
         }
 
         // [47_review_p_tickets_2026-09-20.md] P1-2 — 持ち込み先(IsDevelopmentRepo=false)では

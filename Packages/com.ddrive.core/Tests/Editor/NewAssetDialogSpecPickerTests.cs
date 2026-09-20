@@ -86,8 +86,14 @@ namespace DDrive.Tests.Editor
             SpecCache.Set(parsed, new SpecParseResult<SpecTuningRow>(), diff, null, null);
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ「-nographics 起因の 14 件」— このクラスの全
+        // テストがここを通るため、ガードを 1 箇所にまとめる(`-batchmode -nographics` では
+        // `EditorWindow.GetWindow<T>()` が `No graphic device is available` で失敗する。Unity の制約、
+        // `run-ci.cmd` 相当のバッチ実行で再現を確認済み)。
         private static NewAssetDialog OpenUnlocked()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             NewAssetDialog.Open();
             return EditorWindow.GetWindow<NewAssetDialog>();
         }
@@ -114,6 +120,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SelectingSpecRow_FillsFormFields()
         {
             const string identifier = "ZzTest5016Pick";
@@ -132,8 +139,13 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RenderSpecList_LockedType_OnlyShowsMatchingType()
         {
+            // このテストだけ OpenUnlocked() を使わず NewAssetDialog.Open(...) を直接呼ぶため、
+            // ガードもここで直接呼ぶ(他はすべて OpenUnlocked() 内のガードでカバーされる)。
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             const string seIdentifier = "ZzTest5016LockSe";
             const string vfxIdentifier = "ZzTest5016LockVfx";
             SeedCache(AssetHeader
@@ -154,6 +166,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RenderSpecList_SearchFilters_ByDisplayNameOrIdentifier()
         {
             const string matchIdentifier = "ZzTest5016SearchMatch";
@@ -175,6 +188,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RebuildSpecSection_NoUncreatedRows_ShowsEmptyMessage_NotError()
         {
             SeedCache(AssetHeader); // ヘッダのみ(0 行)
@@ -187,6 +201,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RebuildSpecSection_NoWebAppUrl_ShowsGuidanceOnly_NoListContainer()
         {
             // このテストだけ URL を空にして「未設定」分岐を確認する(メモリ上のオーバーライドを直接書き換えるだけ)。
@@ -210,6 +225,7 @@ namespace DDrive.Tests.Editor
         // SpecDiffService.BuildExistingIndex はプロジェクト全体を t:AssetDataBase で検索するため、
         // TestRoot 配下に作られたアセットでも「既存」として正しく見つかる。
         [Test]
+        [Category("RequiresGraphics")]
         public void CreateFromSelectedSpecRow_AppliesExtraFields_AndRemovesRowFromCache()
         {
             const string identifier = "ZzTest5016CreateFromSpec";
@@ -239,6 +255,7 @@ namespace DDrive.Tests.Editor
         // 選択を解除して「作成」時に別アセットへ Status/Assignee が付かないようにする
         // (review1_editor.md #4 の要判断だった部分の修正)。
         [Test]
+        [Category("RequiresGraphics")]
         public void ManuallyEditingIdentifierAfterSelectingSpecRow_ClearsSelection_AndCreateDoesNotApplyExtraFields()
         {
             const string identifier = "ZzTest5016EditAfterPick";
@@ -270,6 +287,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ClearSelectedSpecRow_Button_RemovesIndicator_AndUnboldsListRow()
         {
             const string identifier = "ZzTest5016ClearButton";

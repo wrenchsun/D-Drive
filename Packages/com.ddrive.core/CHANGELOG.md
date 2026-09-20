@@ -15,6 +15,16 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - P-10.5 レビュー対応（2026-09-20）の残りの修正（P1-2〜P1-7、P2-1〜P2-9）は、Editor 専用 API のシグネチャ変更（`ChangelogLocator.ResolvePath` に `preferDevRepoRoot` 引数を追加 等）・挙動修正（`ForbiddenApiScanner`/`ManualPages`/`DDriveMigrationRunner`/`ValidatorRegistry` 等）・PowerShell/バッチスクリプトの修正で、いずれも `DDrive.Editor` は互換性スナップショットの対象外（ゲームコードは `DDrive.Editor` を参照禁止のため）。公開 API（`DDrive.Foundation`/`DDrive.Runtime`）への影響は上記の NGO 分離のみ
 - P-9（2026-09-20）: リリース手順を道具化しただけで、公開 API・シリアライズ形式・生成コード等の互換面には触れていない
 - P-10（2026-09-20）: 消費側ドキュメント・スキル・CI テンプレの追加のみで、C# の変更は無い（公開 API・シリアライズ形式・生成コード等の互換面には触れていない）
+- P-11 フォローアップ（2026-09-20、[docs/48_p11_install_test_2026-09-20.md](docs/48_p11_install_test_2026-09-20.md) §12）: テスト専用コード（`Tests/Editor`・`Tests/Runtime`）の修正・追加とエディタ専用の `ProjectSetupActions`/`ProjectSetupWizardWindow`（`DDrive.Editor`）の変更のみで、公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード等の互換面には触れていない
+
+### 修正
+
+- P-11 フォローアップ（2026-09-20、[docs/48_p11_install_test_2026-09-20.md](docs/48_p11_install_test_2026-09-20.md) §12）: **持ち込み先で testables を ON にしたときの Fail 24 件の解消**
+  - 開発リポジトリの状態を暗黙の前提にしていたテスト 6 件（`CIJUnitXmlTests`/`ManualPagesTests`/`DDriveMigrationRunnerTests`/`ProjectSetupInspectorTests`/`ProjectSetupValidatorTests`）を、原則はテスト内でセットアップ/モックする自己完結な形に直した（4 件）。実プロジェクトのグローバル設定（URP/Input System/manifest.json/Addressables 初期化）を書き換えないと再現できない 2 件だけ `[Category("DevRepoOnly")]` にした
+  - `-batchmode -nographics` で `EditorWindow.GetWindow<T>()`/`RenderTexture.Create` が失敗する 14 件に `[Category("RequiresGraphics")]` を追加し、新設 `Tests/Editor/RequiresGraphicsGuard.cs`（グラフィックデバイスが無ければ `Assume` で Inconclusive）でガードした
+  - `new WaitForEndOfFrame()` がバッチモードで失敗する `CutsceneTimelineTracksTests` の 4 件を、新設 `Tests/Runtime/TestFrameWait.cs`（`Application.isBatchMode` なら `yield return null` に切り替える共通ヘルパー）で対処した
+  - 開発リポジトリ自身の `Tools/CI/run-ci.cmd` 相当のバッチ実行（`git worktree` で再現）でも同じ 24 件が Fail することを実測で確認した上で対処した
+  - `ProjectSetupActions.EnsureDefaultFoldersAndSettings`（セットアップウィザード「4. 既定フォルダ・設定の生成」）が空カタログを作成した直後に `AddressablesSync.SyncAll` を自動実行するようにし、セットアップウィザードの「5. Addressables 同期」に**「全カタログ・Data を今すぐ同期する」ボタン**を追加した（`Tools > D-Drive > Update` の「Addressables 登録を同期」と同じ処理を再利用）。`README.md` の関連する既知の注意を解消済みに更新した
 
 ### 追加
 

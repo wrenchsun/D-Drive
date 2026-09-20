@@ -30,11 +30,17 @@ namespace DDrive.Tests.Editor
             Object.DestroyImmediate(_data);
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ「-nographics 起因の 14 件」—
+        // PreviewRenderUtility/RenderTexture は `-batchmode -nographics` では失敗する
+        // (Unity の制約、`run-ci.cmd` 相当のバッチ実行で再現を確認済み)。
         [TestCase(MaterialPreviewShape.Sphere)]
         [TestCase(MaterialPreviewShape.Plane)]
         [TestCase(MaterialPreviewShape.Cube)]
+        [Category("RequiresGraphics")]
         public void Render_Primitive_ReturnsTextureOfRequestedSize(MaterialPreviewShape shape)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             var material = _manager.GetData(_data);
 
             var texture = _renderer.Render(material, shape, 30f, 45f, 128, 96);
@@ -107,8 +113,11 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Dispose_Twice_DoesNotThrow()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             _renderer.Render(_manager.GetData(_data), MaterialPreviewShape.Sphere, 0f, 0f, 32, 32);
             _renderer.Dispose();
             Assert.DoesNotThrow(() => _renderer.Dispose());

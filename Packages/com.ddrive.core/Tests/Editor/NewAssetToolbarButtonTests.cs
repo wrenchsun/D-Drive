@@ -83,9 +83,15 @@ namespace DDrive.Tests.Editor
             Assert.IsEmpty(missing, "[DataEditor] を持つのに Data 型を 1 つも解決できないウィンドウ: " + string.Join(", ", missing));
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ「-nographics 起因の 14 件」— `EditorWindow.GetWindow<T>()`
+        // による実ウィンドウ生成は `-batchmode -nographics` では失敗する(Unity の制約、`run-ci.cmd` 相当の
+        // バッチ実行で再現を確認済み)。
         [Test]
+        [Category("RequiresGraphics")]
         public void SwitchToCreated_OpensOwnerWindow_AndSetsItAsTarget()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             var asset = AssetCreationService.Create(typeof(SeData), AssetType.Se, "TestSe", "Category", "SwitchTarget5015", gameDataRoot: TestRoot);
             Assert.IsNotNull(asset);
 
@@ -120,8 +126,11 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void DialogOpen_WithLockedTypes_RestrictsSelectionToOwnerTypes()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             // NewAssetDialog.Open(Type[], Action<AssetDataBase>) を実際に開き、種別ロックが内部状態に
             // 反映されていることを確認してから必ず閉じる(ウィンドウを開くテストの流儀)。
             AssetDataBase created = null;

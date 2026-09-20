@@ -18,6 +18,13 @@ namespace DDrive.Tests.Runtime
     // [26_timeline.md] §4.3/§4.4/§4.6(6-10b) — D-Drive Timeline トラック群(Event/Signal/Shake/Haptic
     // マーカー、Camera クリップ)の検証。SE/VFX/AnchorGroup/UI/Presentation クリップは静的ファサード経由の
     // ため実 Manager の Bind が要り、ここでは対象外(手動確認 = docs/23 系に委ねる、6-10d)。
+    //
+    // [48_p11_install_test_2026-09-20.md] フォローアップ「WaitForEndOfFrame バッチ非対応の 4 件」—
+    // `new WaitForEndOfFrame()` は `-batchmode`(この開発リポジトリの `Tools/CI/run-ci.cmd` を含む)では
+    // `UnityTest yielded WaitForEndOfFrame, which is not evoked in batchmode.` で失敗するため(実際に
+    // `run-ci.cmd` 相当のバッチ実行で再現を確認済み)、`TestFrameWait.EndOfFrameOrNextUpdate()` へ置き換えた
+    // (バッチ実行時は `yield return null` になる。DDriveCutsceneCameraApplier の LateUpdate〔実行順 1000〕は
+    // Update と次フレームの間に必ず実行されるため、`yield return null` でも「LateUpdate 適用後」を待てる)。
     public class CutsceneTimelineTracksTests
     {
         private readonly List<Object> _created = new();
@@ -203,16 +210,16 @@ namespace DDrive.Tests.Runtime
             var handle = manager.PlayData(data, new PlayContext());
 
             manager.Tick(0.2f); // elapsed=0.2 → quantized 0.0
-            yield return new WaitForEndOfFrame();
+            yield return TestFrameWait.EndOfFrameOrNextUpdate();
             Assert.AreEqual(0f, cam.transform.position.x, 0.01f, "StepFps=2 のステップ前(0.2 秒)は 0 のまま");
 
             manager.Tick(0.35f); // elapsed=0.55 → quantized 0.5 → x=5
-            yield return new WaitForEndOfFrame();
+            yield return TestFrameWait.EndOfFrameOrNextUpdate();
             Assert.AreEqual(5f, cam.transform.position.x, 0.01f, "0.5 秒のステップに入ったら 5 へジャンプする(なめらかに補間しない)");
             Assert.AreEqual(5f, cam.focusDistance, 0.01f, "Focus=CameraOnly は Camera.focusDistance に書く");
 
             manager.Tick(0.6f); // elapsed=1.15 >= duration=1.0 → Complete → Cleanup で復元
-            yield return new WaitForEndOfFrame();
+            yield return TestFrameWait.EndOfFrameOrNextUpdate();
 
             Assert.IsFalse(manager.IsPlaying(handle));
             Assert.AreEqual(10f, cam.focusDistance, 0.01f, "再生終了後は再生開始時の focusDistance に書き戻る([26_timeline.md] §4.6.2)");
@@ -243,13 +250,13 @@ namespace DDrive.Tests.Runtime
 
             var handleA = manager.PlayData(dataA, new PlayContext());
             manager.Tick(0.5f); // クリップの途中(尺 2.0 秒の 0.5 秒地点)。
-            yield return new WaitForEndOfFrame();
+            yield return TestFrameWait.EndOfFrameOrNextUpdate();
             Assert.AreNotEqual(0f, cam.transform.position.x, "前提: カメラクリップ中はカメラが動くこと");
 
             // 再現条件([26_timeline.md] §4.6.2 / docs/45 P1-1): クリップ区間の「途中」で Cancel する
             // (Evaluate() を挟まずに Cleanup → ReturnDirector する経路)。
             manager.Cancel(handleA);
-            yield return new WaitForEndOfFrame();
+            yield return TestFrameWait.EndOfFrameOrNextUpdate();
 
             // ゲーム側が Cutscene 終了後に別の場所へカメラを動かした状況を作る(Applier.Restore() は
             // 位置・回転を戻さない仕様〔P2-3、別チケット〕なので、素の位置のままでは判定できないため)。
@@ -270,7 +277,7 @@ namespace DDrive.Tests.Runtime
             for (var i = 0; i < 5; i++)
             {
                 manager.Tick(0.1f);
-                yield return new WaitForEndOfFrame();
+                yield return TestFrameWait.EndOfFrameOrNextUpdate();
             }
 
             Assert.AreEqual(100f, cam.transform.position.x, 0.01f,
@@ -310,7 +317,7 @@ namespace DDrive.Tests.Runtime
             var handle = manager.PlayData(data, new PlayContext());
 
             manager.Tick(0.5f);
-            yield return new WaitForEndOfFrame();
+            yield return TestFrameWait.EndOfFrameOrNextUpdate();
 
             Assert.AreEqual(10f, cam.focusDistance, 0.01f,
                 "ピント距離カーブが空(評価結果 0)なら Camera.focusDistance も書き換えない(docs/45 P1-2 二重防御)");
@@ -354,7 +361,7 @@ namespace DDrive.Tests.Runtime
             for (var i = 0; i < 5; i++)
             {
                 manager.Tick(0.1f);
-                yield return new WaitForEndOfFrame();
+                yield return TestFrameWait.EndOfFrameOrNextUpdate();
             }
 
             Assert.GreaterOrEqual(overwriter.LateUpdateCallCount, 1, "実行順 1001 のテスト用スクリプトが LateUpdate で呼ばれていること");

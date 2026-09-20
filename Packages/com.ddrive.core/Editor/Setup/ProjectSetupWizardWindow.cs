@@ -287,6 +287,14 @@ namespace DDrive.Editor.Setup
 
         // ── 5. Addressables 同期 ──
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ — 「4. 既定フォルダ・設定の生成」は
+        // 種別ごとの空カタログ(.asset)を作るだけで Addressables への登録まではしない
+        // (`AssetCreationService.Create` は「そのとき作った Data が属するカタログ」だけを登録するため、
+        // まだ Data が 1 件も無い残り十数種別のカタログは未登録のまま残る)。P-11 では
+        // 消費側の glue コードから `AddressablesSync.SyncAll` を直接呼んで解消していたが、
+        // ウィザード自体にはその手段が無かった。`UpdateStepsFactory.SyncAddressablesStep`
+        // (Tools > D-Drive > Update)と同じ `AddressablesSync.SyncAll(log: true)` を呼ぶボタンを
+        // ここに追加し、初回セットアップでも更新と同じ手段でまとめて同期できるようにする。
         private void RefreshAddressablesSection()
         {
             _addressablesBody.Clear();
@@ -304,8 +312,31 @@ namespace DDrive.Editor.Setup
                 { text = "初期化" });
             }
 
-            _addressablesBody.Add(WrappingLabel("Data の Address/カタログ登録は各アセット作成時、または Validation > Run All の「修正」ボタンから同期されます(AddressablesSync)。"));
+            _addressablesBody.Add(WrappingLabel(
+                "Data の Address/カタログ登録は各アセット作成時、または Validation > Run All の「修正」ボタンから個別に同期されますが、"
+                + "「4. 既定フォルダ・設定の生成」で作った(まだ Data が無い)空カタログは、その種別の Data を 1 件も作らない限り自動では登録されません。"
+                + "下のボタンでまとめて同期できます(AddressablesSync.SyncAll。Tools > D-Drive > Update の「Addressables 登録を同期」と同じ処理)。"));
+
+            using (new EditorGUI.DisabledScope(!initialized))
+            {
+                _addressablesBody.Add(new Button(SyncAllAddressables) { text = "全カタログ・Data を今すぐ同期する" });
+            }
+
             _addressablesBody.Add(new Button(RefreshAddressablesSection) { text = "再検査" });
+        }
+
+        private void SyncAllAddressables()
+        {
+            if (!ProjectSetupInspector.IsAddressablesInitialized())
+            {
+                Debug.LogWarning("[DDrive] Addressables が未初期化のため同期をスキップしました。先に「初期化」を実行してください。");
+                return;
+            }
+
+            var (fixedAssets, catalogs, missingCatalog) = AddressablesSync.SyncAll(log: true);
+            Debug.Log($"[DDrive] セットアップウィザード: Addressables 同期(修正 {fixedAssets} 件・カタログ {catalogs} 件・カタログ未登録 {missingCatalog} 件)。");
+            RefreshAddressablesSection();
+            RefreshSummarySection();
         }
 
         // ── 6. 起動オブジェクト ──

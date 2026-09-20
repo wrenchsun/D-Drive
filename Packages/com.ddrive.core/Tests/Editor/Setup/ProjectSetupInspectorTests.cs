@@ -89,9 +89,20 @@ namespace DDrive.Tests.Editor.Setup
             Assert.IsFalse(ProjectSetupInspector.IsNgoPresent(EmptyManifest()));
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ(2026-09-20) — `InspectProjectSettings()` は
+        // `GraphicsSettings.currentRenderPipeline`/`ProjectSettings.asset`(activeInputHandler)/
+        // `PlayerSettings.GetApiCompatibilityLevel` という実プロジェクトのグローバル設定を直接読むだけで、
+        // テスト側から差し替える注入口が無い。持ち込み先の素のプロジェクト(URP アセット未作成・
+        // Input System 未設定)では実際に false になり得るため、この開発リポジトリが
+        // 既にセットアップ済みであることを前提にした回帰テストとして DevRepoOnly にする
+        // (URP/Input System をテストの setup/teardown でグローバルに書き換えるのは、テスト失敗時に
+        // 実プロジェクトの設定を壊しかねずリスクが高いため見送った)。
         [Test]
+        [Category("DevRepoOnly")]
         public void InspectProjectSettings_DevRepo_AllOk()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
+
             // このリポジトリ(開発リポジトリ)は URP / Input System / .NET Standard 2.1 が
             // 既に設定済み([42_distribution.md] §1.1)。
             var status = ProjectSetupInspector.InspectProjectSettings();

@@ -325,15 +325,21 @@ namespace DDrive.Tests.Editor.Migration
         }
 
         // CI.MigrateCheck 自体(実プロジェクトの TypeCache 発見を使う経路)が例外を投げないことの
-        // スモークテスト。Application.isBatchMode は EditMode テスト実行中は false のため
-        // EditorApplication.Exit は呼ばれない(テストプロセスを道連れに終了しない)。
-        // [47] P1-4/P1-5(2026-09-20 修正) — この開発リポジトリの実 GameData は「スキーマ版の刻印」が
-        // まだ適用されていない(SchemaVersion=0 のまま)ため、通常は Pending=true で Error ログが出る。
-        // それ自体は仕様どおりの挙動なので、ログの有無ではなく「例外を投げない」ことだけを確認する。
+        // スモークテスト。CI.MigrateCheck は `Application.isBatchMode` のときだけ `EditorApplication.Exit`
+        // を呼ぶ(未適用のマイグレーションがあれば exit code 1 でテストプロセスごと終了する)ため、
+        // このテストは非バッチモード(Test Runner ウィンドウ・MCP 経由の実行等)でしか意味を持たない。
+        // [48_p11_install_test_2026-09-20.md] フォローアップ(2026-09-20 修正) — もとは
+        // `Assert.IsFalse(Application.isBatchMode, ...)` で「非バッチモード前提」を Assert していたため、
+        // `-batchmode -runTests`(この開発リポジトリの `Tools/CI/run-ci.cmd` 自身を含む、あらゆる CI 実行)
+        // では常に Fail していた。バッチモードでの検証自体は `run-ci.cmd` の
+        // `-executeMethod DDrive.Editor.CI.MigrateCheck`(exit code)が別途行っているため、このテストは
+        // バッチモードでは Inconclusive にして重複させない。
         [Test]
         public void CI_MigrateCheck_DoesNotThrow_OnRealProject()
         {
-            Assert.IsFalse(Application.isBatchMode, "このテストは Exit を避けるため非バッチモードで走ることを前提にする");
+            Assume.That(!Application.isBatchMode,
+                "バッチモードでは CI.MigrateCheck() が EditorApplication.Exit を呼び得るため実行しない" +
+                "(バッチモードでの検証は run-ci.cmd の -executeMethod CI.MigrateCheck が担う)");
             LogAssert.ignoreFailingMessages = true;
             try
             {

@@ -35,9 +35,19 @@ namespace DDrive.Tests.Editor.Setup
             }
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ(2026-09-20) — `ProjectSetupValidator` は
+        // manifest.json の依存・URP/Input System/API Level・Addressables 初期化・GameData 等のフォルダ・
+        // `IsDevelopmentRepo` という複数のグローバルなプロジェクト状態を集約するだけで、注入口が無い。
+        // 「持ち込み先の素のプロジェクトでも Warning 0 件」を主張するテストではなく「この開発リポジトリは
+        // 常に Warning 0 件であるべき」という回帰テストなので DevRepoOnly にする
+        // (manifest.json 編集・Addressables 初期化・ProjectSettings 変更をテスト内で行って復元する方式は、
+        // 失敗時に実プロジェクトの設定を壊しかねずリスクが高いため見送った)。
         [Test]
+        [Category("DevRepoOnly")]
         public void Validate_DevRepoFullyConfigured_ReturnsNoWarnings()
         {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
+
             var ctx = new ValidationContext(new List<AssetDataBase> { _dummy });
             var validator = new ProjectSetupValidator();
 
@@ -47,17 +57,22 @@ namespace DDrive.Tests.Editor.Setup
                 string.Join(", ", results.Select(r => $"{r.Code}:{r.Message}")));
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ(2026-09-20 修正) — このテストの本旨は
+        // 「同じ ValidationContext で 2 回目は必ず空(= 重複報告しない)」ことで、`ProjectSetupValidator`
+        // の `_reportedForCtx` ガードにより 1 回目に何件警告が出るか(= 環境依存)に関係なく成立する。
+        // もとは 1 回目も Warning 0 件であることを assert していたため、持ち込み先の未セットアップな
+        // 環境では 1 回目が非 0 件になって Fail していた。DevRepoOnly にする必要は無く、1 回目の件数を
+        // 見ないことで環境非依存にできる。
         [Test]
         public void Validate_SecondCallSameContext_DoesNotDuplicateReport()
         {
             var ctx = new ValidationContext(new List<AssetDataBase> { _dummy });
             var validator = new ProjectSetupValidator();
 
-            var first = validator.Validate(_dummy, ctx).ToList();
+            validator.Validate(_dummy, ctx).ToList();
             var second = validator.Validate(_dummy, ctx).ToList();
 
-            Assert.IsEmpty(first);
-            Assert.IsEmpty(second, "同じ ValidationContext で 2 回呼んでも重複報告しないこと");
+            Assert.IsEmpty(second, "同じ ValidationContext で 2 回呼んでも重複報告しないこと(2 回目は必ず空)");
         }
 
         [Test]

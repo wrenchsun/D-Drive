@@ -102,9 +102,16 @@ namespace DDrive.Tests.Editor
             Assert.IsFalse(DataEditorRegistry.OpenDefault(null));
         }
 
+        // [48_p11_install_test_2026-09-20.md] フォローアップ「-nographics 起因の 14 件」— `EditorWindow.GetWindow<T>()`
+        // による実ウィンドウ生成は `-batchmode -nographics`(この開発リポジトリの `Tools/CI/run-ci.cmd` を含む)
+        // では `No graphic device is available` で失敗する(D-Drive/持ち込み先固有ではない Unity の制約。
+        // 実際に `run-ci.cmd` 相当のバッチ実行で再現することを確認した)。
         [Test]
+        [Category("RequiresGraphics")]
         public void OpenDefault_SingleCandidate_OpensThatWindow_WithAssetAsTarget()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             var asset = AssetCreationService.Create(typeof(VfxData), AssetType.Vfx, "TestVfx", "Category", "DblClickVfx", gameDataRoot: TestRoot);
             Assert.IsNotNull(asset);
 
@@ -119,8 +126,11 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void OpenDefault_MultipleCandidates_OpensPrimaryWindow_NotSecondaryTools()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             var asset = AssetCreationService.Create(typeof(MaterialData), AssetType.Material, "TestMaterial", "Category", "DblClickMaterial", gameDataRoot: TestRoot);
             Assert.IsNotNull(asset);
 
