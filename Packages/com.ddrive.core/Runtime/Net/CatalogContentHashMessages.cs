@@ -17,6 +17,17 @@ namespace DDrive.Runtime.Net
 
         // 不一致時にどのカタログが違うかを名前 + Entry 数だけで診断できるようにする(実データは含めない)。
         public CatalogContentHasher.CatalogHashEntry[] Catalogs;
+
+        // [42_distribution.md] §5.6/§6 P-8(2026-09-20) — Host/Client の D-Drive 版照合。フィールド追加のみ
+        // (JsonUtility は未知/欠落フィールドに寛容なので旧版と混在しても落ちない。旧版 Client はここが
+        // 既定値(PackageVersion=null, ProtocolVersion=0)のまま届く)。
+        //
+        // ProtocolVersion は ContentHash の照合より先に見る(CatalogContentHashGate.ProcessHostSide)。
+        // 不一致(旧版含む)は「D-Drive の版が違う」として ContentHashPolicy と同じ方針(開発は警告継続・
+        // リリースは切断)を適用する。PackageVersion は表示専用(NetDebugOverlay)で照合には使わない
+        // (MINOR/PATCH の版差は互換なので、揃える必要があるのは ProtocolVersion だけ)。
+        public string PackageVersion;
+        public int ProtocolVersion;
     }
 
     // Host → 該当 Client への結果通知(SendTo)。一致時も送る(Client 側の NetDebugOverlay/ログが

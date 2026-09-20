@@ -349,6 +349,10 @@ Tools/
     │   └─ Live Tuning Connect
     ├─ Setup/
     │   └─ セットアップウィザード          ← 2026-09-20 追加(P-6。§13。持ち込み先のセットアップ・更新後の再設定用)
+    ├─ Update/
+    │   ├─ 更新ウィンドウ                  ← 2026-09-20 追加(P-8。§14。前回版/現在版/CHANGELOG 表示 + 「更新を適用」)
+    │   ├─ マイグレーション(ドライラン)     ← 2026-09-20 追加(P-7。件数のみ表示、実データは変更しない)
+    │   └─ マイグレーション(適用)           ← 2026-09-20 追加(P-7。§14 の更新ウィンドウの「更新を適用」に統合済みだが単体メニューとしても残す)
     └─ Debug/
         ├─ Runtime Overlay
         └─ Missing Asset Report（発注リスト）
@@ -962,3 +966,17 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **scoped registry の追加**: `UnityEditor.PackageManager.Client` に `AddScopedRegistry` は無い（2026-09-20 に `unity_reflect` で確認）ため、`ManifestJson.AddScopedRegistry` で `manifest.json` を直接編集する
 - **`ProjectSetupValidator`**（`Editor/Validation/ProjectSetupValidator.cs`、`IUniversalValidator`）: ウィザードの検査 1（依存）・2（ProjectSettings）・4（既定フォルダ・設定）・5（Addressables 初期化）+ A-9（改造の可能性）と同じ判定を `Validation > Run All` にも載せる。新設した Code（すべて Warning、[42] §5.8 の「新しい検査は Warning から」方針）: `DD-SETUP-DEP-UNITASK` / `DD-SETUP-DEP-R3` / `DD-SETUP-DEP-R3-NUGET-REGISTRY` / `DD-SETUP-DEP-R3-NUGET` / `DD-SETUP-URP` / `DD-SETUP-INPUT` / `DD-SETUP-API-LEVEL` / `DD-SETUP-ADDRESSABLES` / `DD-SETUP-GAMEDATA-ROOT` / `DD-SETUP-UI-LAYER-SETTINGS` / `DD-SETUP-SPEC-SETTINGS` / `DD-SETUP-EMBEDDED-MODIFIED`。他の `IUniversalValidator`（`AddressablesRegistrationValidator` 等）と同じ制約で、`AssetDataBase` が 1 件も無いプロジェクトでは実行されない（`ValidatorRegistry.RunAll` が資産 0 件のとき Validator 自体を呼ばないため。Foundation 側の既存設計であり本チケットでは変更していない）
 - **テスト**: `Tests/Editor/Setup/`（`ManifestJsonTests` / `ProjectSetupInspectorTests` / `ProjectSetupActionsTests` / `GeneratedAsmdefWriterTests` / `ProjectSetupValidatorTests`）。開発リポジトリの実 `manifest.json`・実 `GameData` を書き換える `ProjectSetupActions` のメソッド（`EnsureDefaultFoldersAndSettings`/`RegenerateGeneratedCode`/`AddDependency`/`AddScopedRegistryToProjectManifest`/`SetTestablesEnabled`/`CopyConsumerSkillIfBundled`）は EditMode テストから直接呼ばない（検査・純関数・実データに影響しない範囲の関数だけを検証する）
+
+## 14. 更新ウィンドウ（`UpdateWindow`、2026-09-20、P-8）
+
+`Tools > D-Drive > Update > 更新ウィンドウ`（`Packages/com.ddrive.core/Editor/Update/UpdateWindow.cs`）。持ち込み先が `Packages/manifest.json` のタグを進めた直後に開く、[42_distribution.md](42_distribution.md) §4.2 手順 5 の実行画面。
+
+- **UI**: `ScrollView` ルート + 5 個の `Foldout`（1. 版と CHANGELOG 2. マイグレーション〔プレビュー〕 3. 更新を適用 4. テストを有効化する 5. エージェント向けスキルを更新）
+- **設計**: 「更新を適用」の 4 段（マイグレーション → ID/Tuning 再生成 → Addressables 同期 → Validation）+ `LastAppliedVersion` 更新は、ウィンドウに依存しない `UpdateActions.Apply(UpdateActions.Steps)`（`Editor/Update/UpdateActions.cs`、純粋な `Func<StepOutcome>` の並び）に委譲する。実際の Unity API 呼び出しは `UpdateStepsFactory.CreateRealSteps` が組み立てる（`DDriveMigrationRunner`・`AssetIdGenerator`/`TuningCodegen`・`AddressablesSync`・`CI.RunValidation` をそのまま使う。新しい生成ロジックは無い）。**途中の段が失敗したら以降を実行しない**（`UpdateActions.Apply` がループを打ち切り、全段成功したときだけ `LastAppliedVersion` を更新する）
+- **CHANGELOG 表示**: `ChangelogLocator.ResolvePath`（`PackageInfo.resolvedPath` の 2 階層上〔開発リポジトリ、または git URL 参照でクローンされたリポジトリのルート〕→ 見つからなければパッケージ直下の順で探す。P-5 の時点では `CHANGELOG.md` はパッケージには同梱されていないため通常は前者）・`ChangelogRangeReader`（`## [X.Y.Z]` 見出しで版ごとの節に分解し、「前回適用した版〔排他〕→ 現在の版〔含む〕」を切り出す純関数）・`ChangelogCompatibilityAnalyzer`（各節の `### 互換性` から「破壊あり」を検出）の 3 つに分けている（いずれも Unity API 非依存で EditMode テストから直接検証できる）
+- **テストを有効化する / エージェント向けスキルを更新**: 新しいロジックは追加していない。P-6 の `ProjectSetupActions.SetTestablesEnabled`/`IsTestablesEnabled`/`CopyConsumerSkillIfBundled` をそのまま呼ぶ（§13 参照）
+- **マイグレーション専用メニュー**: P-7 の `Tools > D-Drive > Update > マイグレーション(ドライラン/適用)`（`MigrationMenu`）はそのまま残している。更新ウィンドウの「更新を適用」に統合されているが、単体でドライラン/適用したいとき用に併存させた
+- **版の照合(ネットワーク)**: `CatalogContentHashMsg` の `PackageVersion`/`ProtocolVersion` を使った Host/Client の版照合は本ウィンドウの範囲外([docs/14_networking.md](14_networking.md) §7 実装メモ、[docs/42_distribution.md](42_distribution.md) §5.6 参照)
+- **テスト**: `Tests/Editor/Update/`（`SemVerTests` / `ChangelogRangeReaderTests` / `ChangelogCompatibilityAnalyzerTests` / `ChangelogLocatorTests` / `UpdateActionsTests`）。`UpdateActions.Apply` はフェイクの `Steps`（デリゲート）で「途中で失敗したら以降を実行しない」「全段成功したときだけ `MarkApplied` が呼ばれる」を固定する。`UpdateStepsFactory`・`UpdateWindow` 自体(実 AssetDatabase/Addressables/Validation に触れる)は EditMode テストの対象外
+- **`ProjectSetupValidator` との連携**: `LastAppliedVersion` が現在のパッケージ版より古い(または未適用)ことを検出する Warning(`DD-SETUP-UPDATE-PENDING`)を §13 の `ProjectSetupValidator` に追加した（開発リポジトリ〔`DDriveProjectSettings.IsDevelopmentRepo == true`〕は対象外）
+

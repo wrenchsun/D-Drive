@@ -15,6 +15,18 @@ namespace DDrive.Tests.Runtime
         private static CatalogContentHasher.CatalogHashEntry[] MakeCatalogs(ulong hash, int entryCount = 1)
             => new[] { new CatalogContentHasher.CatalogHashEntry { CatalogName = "TestCatalog", Hash = hash, EntryCount = entryCount } };
 
+        // [42_distribution.md] §5.6(P-8、2026-09-20) — 既存テストは(本チケット以前と同じく)
+        // ProtocolVersion が一致している前提で ContentHash の照合そのものを検証する。ProtocolVersion
+        // 自体の不一致/一致の検証は本チケットで追加した専用テスト(下記)で行う。
+        private static CatalogContentHashMsg MakeMsg(ulong hash, CatalogContentHasher.CatalogHashEntry[] catalogs, int protocolVersion = DDriveProtocol.Current, string packageVersion = null)
+            => new()
+            {
+                CombinedHash = hash,
+                Catalogs = catalogs,
+                ProtocolVersion = protocolVersion,
+                PackageVersion = packageVersion ?? DDrive.Runtime.DDriveVersion.Value,
+            };
+
         // ── Host 側 ──
 
         [Test]
@@ -25,7 +37,7 @@ namespace DDrive.Tests.Runtime
             gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
 
             bridge.RaiseClientConnected(5);
-            var accepted = bridge.RequestBroadcastFromClient(5, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            var accepted = bridge.RequestBroadcastFromClient(5, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
 
             Assert.IsTrue(accepted);
             Assert.AreEqual(0, bridge.DisconnectClientCallCount);
@@ -45,7 +57,7 @@ namespace DDrive.Tests.Runtime
 
             bridge.RaiseClientConnected(5);
             LogAssert.ignoreFailingMessages = true;
-            bridge.RequestBroadcastFromClient(5, new CatalogContentHashMsg { CombinedHash = 999UL, Catalogs = MakeCatalogs(999UL, 11) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(5, MakeMsg(999UL, MakeCatalogs(999UL, 11)), NetChannel.ReliableOrdered);
             LogAssert.ignoreFailingMessages = false;
 
             Assert.AreEqual(0, bridge.DisconnectClientCallCount, "開発ビルド/エディタでは切断しない");
@@ -69,13 +81,92 @@ namespace DDrive.Tests.Runtime
 
             bridge.RaiseClientConnected(5);
             LogAssert.ignoreFailingMessages = true;
-            bridge.RequestBroadcastFromClient(5, new CatalogContentHashMsg { CombinedHash = 999UL, Catalogs = MakeCatalogs(999UL) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(5, MakeMsg(999UL, MakeCatalogs(999UL)), NetChannel.ReliableOrdered);
             LogAssert.ignoreFailingMessages = false;
 
             Assert.AreEqual(1, bridge.DisconnectClientCallCount, "リリースビルドでは切断する");
             Assert.AreEqual(5UL, bridge.LastDisconnectedClientId);
             Assert.AreEqual(5UL, disconnectedId);
             Assert.AreEqual(0, bridge.SendToCount, "切断済みの Client へ追加のメッセージは送らない");
+        }
+
+        // ── ProtocolVersion(P-8、2026-09-20) ──
+        // [42_distribution.md] §5.6 — ContentHash の照合より先に D-Drive の版(ProtocolVersion)を照合する。
+
+        [Test]
+        public void HostSide_ProtocolVersionMismatch_InDevelopment_WarnsAndContinues_WithVersionsInReason()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(5);
+            LogAssert.ignoreFailingMessages = true;
+            // CombinedHash 自体は一致しているのに、ProtocolVersion が違うだけで不一致扱いになることを確認する
+            // (ContentHash の照合より先に判定されることの証明)。
+            bridge.RequestBroadcastFromClient(5, MakeMsg(123UL, MakeCatalogs(123UL), protocolVersion: DDriveProtocol.Current + 1, packageVersion: "9.9.9"), NetChannel.ReliableOrdered);
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount, "開発ビルド/エディタでは切断しない");
+            Assert.AreEqual(1, bridge.SendToCount, "版不一致でも Client へ結果を通知する");
+            var result = (CatalogContentHashResultMsg)bridge.LastMessage;
+            Assert.IsFalse(result.Matched);
+            StringAssert.Contains("版が違います", gate.LastStatusText);
+            StringAssert.Contains("9.9.9", gate.LastStatusText, "相手の版(表示専用)が理由に出る");
+            StringAssert.Contains(DDrive.Runtime.DDriveVersion.Value, gate.LastStatusText, "自分の版も理由に出る");
+        }
+
+        [Test]
+        public void HostSide_ProtocolVersionMismatch_InRelease_Disconnects_EvenWhenHashMatches()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(5);
+            LogAssert.ignoreFailingMessages = true;
+            // 旧版 Client(フィールド無し = ProtocolVersion 既定値 0)を模擬する。
+            bridge.RequestBroadcastFromClient(5, MakeMsg(123UL, MakeCatalogs(123UL), protocolVersion: 0), NetChannel.ReliableOrdered);
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual(1, bridge.DisconnectClientCallCount, "リリースビルドでは ProtocolVersion 不一致でも切断する");
+            Assert.AreEqual(5UL, bridge.LastDisconnectedClientId);
+            Assert.AreEqual(0, bridge.SendToCount, "切断済みの Client へ追加のメッセージは送らない");
+        }
+
+        [Test]
+        public void HostSide_ProtocolVersionMatches_ProceedsToContentHashComparison()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(5);
+            LogAssert.ignoreFailingMessages = true;
+            // ProtocolVersion は一致・CombinedHash は不一致 → 通常の ContentHash 不一致の分岐に進む
+            // (「版が違います」ではなく、既存のカタログ差分の文言になる)。
+            bridge.RequestBroadcastFromClient(5, MakeMsg(999UL, MakeCatalogs(999UL, 2)), NetChannel.ReliableOrdered);
+            LogAssert.ignoreFailingMessages = false;
+
+            StringAssert.Contains("不一致", gate.LastStatusText);
+            StringAssert.DoesNotContain("版が違います", gate.LastStatusText);
+            var result = (CatalogContentHashResultMsg)bridge.LastMessage;
+            Assert.IsFalse(result.Matched);
+            StringAssert.Contains("TestCatalog", result.Descriptions[0]);
+        }
+
+        [Test]
+        public void TrySendOwnHash_IncludesLocalPackageVersionAndProtocolVersion()
+        {
+            var bridge = new FakeNetBridge { IsServer = false, IsClient = true, LocalClientId = 42 };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(42);
+
+            var sent = (CatalogContentHashMsg)bridge.LastMessage;
+            Assert.AreEqual(DDriveProtocol.Current, sent.ProtocolVersion);
+            Assert.AreEqual(DDrive.Runtime.DDriveVersion.Value, sent.PackageVersion);
         }
 
         [Test]
@@ -163,7 +254,7 @@ namespace DDrive.Tests.Runtime
             gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
 
             bridge.RaiseClientConnected(7);
-            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(7, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
 
             bridge.NetworkTime = 10d; // 元の期限をはるかに過ぎても、既に解決済みなのでタイムアウトしない。
             gate.Tick(bridge.NetworkTime);
@@ -188,7 +279,7 @@ namespace DDrive.Tests.Runtime
 
             // 実クライアント(id=5)が接続し、ハッシュも一致して即座に解決する。
             bridge.RaiseClientConnected(5);
-            bridge.RequestBroadcastFromClient(5, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(5, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
             Assert.AreEqual("OK", gate.LastStatusText);
 
             // タイムアウト期限をはるかに過ぎても、自己分の保留エントリが残っていなければ何も起きない
@@ -296,7 +387,7 @@ namespace DDrive.Tests.Runtime
             bridge.NetworkTime = 10d;
             gate.Tick(bridge.NetworkTime);
             Assert.AreEqual(0, bridge.DisconnectClientCallCount);
-            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(7, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
             Assert.AreEqual("OK", gate.LastStatusText);
 
             // 数え直した期限を過ぎてから Tick しても、既に解決済みなので何も起きない。
@@ -313,7 +404,7 @@ namespace DDrive.Tests.Runtime
             var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
 
             bridge.RaiseClientConnected(7);
-            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(7, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
 
             // Host の登録完了が期限(5 秒)より遅い。
             bridge.NetworkTime = 8d;
@@ -338,7 +429,7 @@ namespace DDrive.Tests.Runtime
             var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
 
             bridge.RaiseClientConnected(7);
-            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(7, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
             bridge.RaiseClientDisconnected(7, "connection lost");
 
             gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
@@ -362,7 +453,7 @@ namespace DDrive.Tests.Runtime
             var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
 
             bridge.RaiseClientConnected(7);
-            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 123UL, Catalogs = MakeCatalogs(123UL) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(7, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
 
             Assert.AreEqual(0, bridge.SendToCount, "Host 未 ready の間は保留するだけで、まだ応答しない");
 
@@ -383,7 +474,7 @@ namespace DDrive.Tests.Runtime
             var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
 
             bridge.RaiseClientConnected(7);
-            bridge.RequestBroadcastFromClient(7, new CatalogContentHashMsg { CombinedHash = 999UL, Catalogs = MakeCatalogs(999UL, 2) }, NetChannel.ReliableOrdered);
+            bridge.RequestBroadcastFromClient(7, MakeMsg(999UL, MakeCatalogs(999UL, 2)), NetChannel.ReliableOrdered);
 
             LogAssert.ignoreFailingMessages = true;
             gate.SetLocalSummary(123UL, MakeCatalogs(123UL, 1));

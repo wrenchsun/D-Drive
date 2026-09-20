@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using DDrive.Foundation.Net;
 using DDrive.Foundation.Registry;
+using DDrive.Runtime;
 using UnityEngine;
 
 namespace DDrive.Runtime.Net
@@ -57,6 +58,14 @@ namespace DDrive.Runtime.Net
         // NetDebugOverlay 表示用の一言状態("検証中" / "OK" / "不一致: ..." 等)。Host/Client どちらでも
         // 同じフィールドを見ればよいようにしている(役割ごとに別プロパティを持たない)。
         public string LastStatusText { get; private set; } = "検証中...";
+
+        // [42_distribution.md] §5.6/§6 P-8(2026-09-20) — NetDebugOverlay 表示用(自分の版は常に分かる)。
+        public string LocalPackageVersion => DDriveVersion.Value;
+
+        // Host 側は受信した CatalogContentHashMsg から相手の版を都度更新する(表示専用)。Client 側は
+        // 現状の設計では Host の版を受け取る手段が無い(CatalogContentHashResultMsg にフィールドを
+        // 追加していない。本チケットが追加するのは CatalogContentHashMsg のみ)ため空のまま。
+        public string LastKnownRemotePackageVersion { get; private set; } = string.Empty;
 
         // ネット越しに接続してきた相手を実際に切断したことをテスト/上位が確認できるようにする通知。
         public event Action<ulong, string> ClientDisconnectedForMismatch;
@@ -194,7 +203,15 @@ namespace DDrive.Runtime.Net
             }
 
             _clientHashSent = true;
-            _netBridge.Broadcast(new CatalogContentHashMsg { CombinedHash = _localCombinedHash, Catalogs = _localCatalogs }, NetChannel.ReliableOrdered);
+            _netBridge.Broadcast(
+                new CatalogContentHashMsg
+                {
+                    CombinedHash = _localCombinedHash,
+                    Catalogs = _localCatalogs,
+                    PackageVersion = DDriveVersion.Value,
+                    ProtocolVersion = DDriveProtocol.Current,
+                },
+                NetChannel.ReliableOrdered);
         }
 
         private void OnReceiveHashMsg(ulong senderId, CatalogContentHashMsg msg)
@@ -234,6 +251,25 @@ namespace DDrive.Runtime.Net
         private void ProcessHostSide(ulong senderId, CatalogContentHashMsg msg)
         {
             _pendingHostSideDeadlines.Remove(senderId);
+            LastKnownRemotePackageVersion = string.IsNullOrEmpty(msg.PackageVersion) ? "unknown" : msg.PackageVersion;
+
+            // [42_distribution.md] §5.6(P-8、2026-09-20) — ContentHash の照合より先に D-Drive の版
+            // (ProtocolVersion)を照合する。旧版 Client(この Msg にフィールドが無い版が送ってきた場合、
+            // JsonUtility の既定値のまま 0 で届く)も同じ扱いになる。一致すれば従来どおり ContentHash の
+            // 照合に進む。
+            if (msg.ProtocolVersion != DDriveProtocol.Current)
+            {
+                var versionDetail = DescribeVersionMismatch(msg);
+                var versionOutcome = ApplyOutcome(senderId, new[] { versionDetail }, "D-Drive の版が違います");
+                if (versionOutcome == CatalogContentHashPolicy.Outcome.Disconnect)
+                {
+                    // 切断済みの Client へ追ってメッセージを送る意味は無い(ContentHash 不一致時と同じ扱い)。
+                    return;
+                }
+
+                _netBridge.SendTo(senderId, new CatalogContentHashResultMsg { Matched = false, Descriptions = new[] { versionDetail } }, NetChannel.ReliableOrdered);
+                return;
+            }
 
             var matched = msg.CombinedHash == _localCombinedHash;
             var descriptions = matched
@@ -323,6 +359,14 @@ namespace DDrive.Runtime.Net
                 // (Client 側はそもそも自分のハッシュが届いていないことを知る手段が無く、送っても意味が薄い。
                 // Host のログ + NetDebugOverlay だけで十分と判断した)。
             }
+        }
+
+        // [42_distribution.md] §5.6(P-8) — 「D-Drive の版が違う(自: x / 相手: y)」の x/y を組み立てる。
+        // PackageVersion は表示専用(照合していない実際の理由=ProtocolVersion を併記して分かりやすくする)。
+        private static string DescribeVersionMismatch(CatalogContentHashMsg msg)
+        {
+            var remoteVersion = string.IsNullOrEmpty(msg.PackageVersion) ? "unknown" : msg.PackageVersion;
+            return $"自: {DDriveVersion.Value}(Protocol {DDriveProtocol.Current}) / 相手: {remoteVersion}(Protocol {msg.ProtocolVersion})";
         }
 
         private CatalogContentHashPolicy.Outcome ApplyOutcome(ulong clientId, string[] descriptions, string reasonPrefix)

@@ -1252,10 +1252,14 @@ TYPE class sealed DDrive.Runtime.Net.CatalogContentHashGate
   method Dispose() : void
   method SetLocalSummary(ulong combinedHash, DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry[] catalogs) : void
   method Tick(double networkTimeNow) : void
+  property LastKnownRemotePackageVersion : string {get}
   property LastStatusText : string {get}
+  property LocalPackageVersion : string {get}
 TYPE struct DDrive.Runtime.Net.CatalogContentHashMsg
   field Catalogs : DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry[]
   field CombinedHash : ulong
+  field PackageVersion : string
+  field ProtocolVersion : int
 TYPE class static DDrive.Runtime.Net.CatalogContentHashPolicy
   method static Decide(bool isDevelopmentOrEditor) : DDrive.Runtime.Net.CatalogContentHashPolicy.Outcome
   method static DescribeDifferences(System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry> local, System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry> remote) : System.Collections.Generic.List<string>

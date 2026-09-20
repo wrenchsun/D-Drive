@@ -1,6 +1,8 @@
 MESSAGE DDrive.Runtime.Net.CatalogContentHashMsg
   CombinedHash : ulong
   Catalogs : DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry[]
+  PackageVersion : string
+  ProtocolVersion : int
 MESSAGE DDrive.Runtime.Net.CatalogContentHashResultMsg
   Matched : bool
   Descriptions : string[]

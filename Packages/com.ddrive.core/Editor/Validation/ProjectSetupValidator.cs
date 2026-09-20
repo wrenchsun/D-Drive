@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DDrive.Editor.Settings;
 using DDrive.Editor.Setup;
+using DDrive.Editor.Update;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Validation;
@@ -110,6 +111,25 @@ namespace DDrive.Editor.Validation
                     "パッケージを直接改造している可能性があります([docs/42_distribution.md] §4.5)。改造は更新が取り込めなくなるため、" +
                     "拡張点(IValidator/ImportRule/IHapticOutput/INetBridge/IAssetBehaviour/[DataEditor])での解決か、開発リポジトリへの PR を検討してください。",
                     code: "DD-SETUP-EMBEDDED-MODIFIED");
+            }
+
+            // [42_distribution.md] §6 P-8(2026-09-20) — LastAppliedVersion が現在のパッケージ版より古い
+            // (または「未適用」のまま)なら、更新ツール(Tools > D-Drive > Update > 更新ウィンドウ)の
+            // 「更新を適用」がまだ実行されていない可能性がある。§5.8 の 2 段階ルールに従い Warning にする。
+            // 開発リポジトリ(このリポジトリ自身)は「更新を取り込む側」ではなく「更新を作る側」なので、
+            // LastAppliedVersion が空のままでも対象外にする(A-9 の判定と同じ IsDevelopmentRepo を使う)。
+            if (!DDriveProjectSettings.instance.IsDevelopmentRepo)
+            {
+                var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(DDrive.Runtime.DDriveVersion).Assembly);
+                var currentVersion = !string.IsNullOrEmpty(packageInfo?.version) ? packageInfo.version : DDrive.Runtime.DDriveVersion.Value;
+                var lastApplied = DDriveProjectSettings.instance.LastAppliedVersion;
+                if (string.IsNullOrEmpty(lastApplied) || SemVer.IsOlderThan(lastApplied, currentVersion))
+                {
+                    yield return ValidationResult.Warning(
+                        $"D-Drive の更新が未適用の可能性があります(前回適用した版: {(string.IsNullOrEmpty(lastApplied) ? "未適用" : lastApplied)} / 現在の版: {currentVersion})。" +
+                        "Tools > D-Drive > Update > 更新ウィンドウ から「更新を適用」を実行してください。",
+                        code: "DD-SETUP-UPDATE-PENDING");
+                }
             }
         }
     }

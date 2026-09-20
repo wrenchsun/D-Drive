@@ -505,6 +505,34 @@ Cancel のレート制限)はすべて green で、実装側の修正は不要�
 した。`NgoNetBridge` 側の `IsServer`/`senderId` 分岐そのもの(NGO 接続が要る部分)は
 [docs/29](29_network_device_test.md) の次回実機確認項目に追加した(「偽 Pong の破棄」)。
 
+### 実装メモ(2026-09-20、[docs/42_distribution.md](42_distribution.md) §5.6/P-8: `ProtocolVersion` による版照合)
+
+D-Drive の版が違う Host/Client が繋がると、従来は「ContentHash 不一致」としてしか見えず原因(GameData の
+ズレなのか D-Drive 自体の版差なのか)が分からなかった。`CatalogContentHashMsg` に `PackageVersion`
+(string、表示専用)・`ProtocolVersion`(int、`Foundation/Net/DDriveProtocol.cs` の `Current = 1`)を
+フィールド追加し、`CatalogContentHashGate.ProcessHostSide` が **ContentHash の比較より先に**
+`ProtocolVersion` を照合するようにした。
+
+- 不一致(`msg.ProtocolVersion != DDriveProtocol.Current`。旧版 Client〔このフィールドが無い版〕は
+  `JsonUtility` の既定値のまま `0` で届くため同じ扱いになる)は、本節の**開発ビルド/エディタは警告のみで
+  継続、リリースビルドは切断**という既存方針(`CatalogContentHashPolicy.Decide`)をそのまま適用する。
+  理由文には「D-Drive の版が違います(自: x(Protocol n) / 相手: y(Protocol m))」のように双方の
+  `PackageVersion`/`ProtocolVersion` を含める(Host のログ・`NetDebugOverlay`・Client への
+  `CatalogContentHashResultMsg` いずれにも同じ文言が乗る)
+- 一致すれば従来どおり `CombinedHash` の比較に進む(ContentHash 不一致の分岐と ProtocolVersion 不一致の
+  分岐は排他。両方一致して初めて `LastStatusText = "OK"` になる)
+- `PackageVersion` 自体は**照合しない**(表示専用)。MINOR/PATCH の版差は互換なので、揃える必要があるのは
+  ワイヤ形式そのものを表す `ProtocolVersion` だけ。`ProtocolVersion` を上げるのは
+  [docs/42_distribution.md](42_distribution.md) §5.6 のネットメッセージ互換を破る MAJOR 変更のときだけ
+- `NetDebugOverlay`(`#if DDRIVE_NGO`)に自分の版(`CatalogContentHashGate.LocalPackageVersion`)と、
+  分かる範囲での相手の版(`LastKnownRemotePackageVersion`。Host は受信した `CatalogContentHashMsg` から
+  都度更新できるが、Client 側は現状 Host の版を受け取る経路が無い〔`CatalogContentHashResultMsg` には
+  フィールドを追加していない〕ため空のまま)を表示する行を追加した
+- テスト: `Tests/Runtime/CatalogContentHashGateTests.cs` に `HostSide_ProtocolVersionMismatch_InDevelopment_WarnsAndContinues_WithVersionsInReason`・
+  `HostSide_ProtocolVersionMismatch_InRelease_Disconnects_EvenWhenHashMatches`(`CombinedHash` が一致
+  していても `ProtocolVersion` 不一致だけで切断される = 先に判定されることの証明)・
+  `HostSide_ProtocolVersionMatches_ProceedsToContentHashComparison` を追加
+
 ## 8. 帯域・最適化
 
 - ID は ulong(8B) だが、接続時に「セッション ID テーブル」（登場しうる ID → u16 インデックス）を交換し **2B に圧縮**（オプション。v1 は ulong 直送で可）

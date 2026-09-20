@@ -385,6 +385,8 @@ TYPE enum DDrive.Foundation.Manager.StopReason
   field const GameOver : DDrive.Foundation.Manager.StopReason
   field const Manual : DDrive.Foundation.Manager.StopReason
   field const SceneUnload : DDrive.Foundation.Manager.StopReason
+TYPE class static DDrive.Foundation.Net.DDriveProtocol
+  field const Current : int
 TYPE interface DDrive.Foundation.Net.INetBridge
   event ClientConnected : System.Action<ulong>
   event ClientDisconnected : System.Action<ulong, string>

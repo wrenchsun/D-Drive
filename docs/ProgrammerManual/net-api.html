@@ -97,6 +97,16 @@
 <p><strong>発行者検証（<code>HandleNetKey</code>）</strong>: <code>PresentationManager</code> は演出ごとに発行する <code>HandleNetKey</code>（32bit）の上位 8bit に発行者（<code>LocalClientId</code> の下位 8bit）を埋め込み、<code>IsAuthorizedSender(senderId, handleNetKey)</code>（発行者一致、または Host からの信頼された中継/再送）で Signal/Cancel/Play を検証してから処理します。不一致は警告して破棄されます。この検証が機能するには「中継されたメッセージの送信元が誰か」を正しく伝える必要があり、以前は <code>NgoNetBridge.Dispatch</code> が受信メッセージの送信元を常に <code>NetworkManager.ServerClientId</code>（＝ Host）としてしまうバグがあり、発行者検証が原理的に機能していませんでした。<code>RequestBroadcastRpc</code> が <code>rpcParams.Receive.SenderClientId</code>（トランスポートが付与する真の値、Client は偽装できない）をそのまま中継するよう修正されています。</p>
 <p>未知のキー宛の Signal/Cancel（対象の演出が既に完了している、または最初から存在しない）は、開発ビルドではキーごとに 1 回だけ「未知のキー、または対象の演出が既に完了しているため破棄しました」という警告ログを出します。</p>
 
+<h2 id="version-check">D-Drive の版照合（<code>ProtocolVersion</code>、2026-09-20 追加）</h2>
+<p>接続時のカタログ ContentHash 照合（<code>CatalogContentHashGate</code>）は、GameData の内容を比較する前に<strong>まず D-Drive 自体の版</strong>を照合します。<code>CatalogContentHashMsg</code> に <code>PackageVersion</code>（string、表示専用）と <code>ProtocolVersion</code>（int、<code>Foundation/Net/DDriveProtocol.Current</code>）が乗っており、Host は受信した <code>ProtocolVersion</code> が自分の <code>DDriveProtocol.Current</code> と一致するかを<strong>ContentHash の比較より先に</strong>見ます。</p>
+<ul>
+<li>不一致（旧版 Client など、このフィールドが無い版は既定値 0 として届く）は、ContentHash 不一致と同じ方針（<code>CatalogContentHashPolicy.Decide</code>: 開発ビルド/エディタは警告のみで継続、リリースビルドは切断）で扱われ、理由に「D-Drive の版が違います（自: x(Protocol n) / 相手: y(Protocol m)）」の形で双方の版が出ます</li>
+<li>一致すれば従来どおり <code>CombinedHash</code>（GameData の内容）の比較に進みます</li>
+<li><code>PackageVersion</code> 自体は照合しません（MINOR/PATCH の版差は互換のため、揃える必要があるのはワイヤ形式を表す <code>ProtocolVersion</code> だけです）</li>
+<li><code>NetDebugOverlay</code>（<code>#if DDRIVE_NGO</code>）に自分の版（<code>CatalogContentHashGate.LocalPackageVersion</code>）と、分かる範囲での相手の版（<code>LastKnownRemotePackageVersion</code>。Host は受信した Msg から更新できますが、Client 側は現状 Host の版を受け取る経路が無く常に空です）が表示されます</li>
+</ul>
+<p>詳細な設計・互換性ルールは <code>docs/14_networking.md</code> §7・<code>docs/42_distribution.md</code> §5.6 を参照してください。持ち込み先の更新手順は <code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code>（<code>docs/09_editor_tools.md</code> §14）から行います。</p>
+
 <h2 id="device-test">実機確認（PC 2 台）</h2>
 <p>この仕組みは<strong>実機 2 台（PC-A Host + PC-B Client）での確認が済んでいます</strong>。詳細な手順・ログの見方は <code>docs/29_network_device_test.md</code>、確認済みの内容は以下のとおりです（最終版 v3）。</p>
 <ul>
@@ -129,7 +139,6 @@
 <h2 id="see-also">見送り事項（現状のスコープ外）</h2>
 <ul>
 <li><code>-ddrive-sim-loss</code>（パケットロス）の実装。引数はパースされるが、ドロップを起こす経路はまだ実装されていない</li>
-<li>カタログ ContentHash 照合（版情報の付与）は別チケットのスコープ</li>
 <li>Simulated Prefab をプールから再利用（Rent）した際の NetworkObject 再 Spawn</li>
 </ul>
 

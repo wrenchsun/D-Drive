@@ -66,6 +66,16 @@ namespace DDrive.Runtime.Net
 
             var contentHashText = ContentHashGate != null ? $"\nContentHash: {ContentHashGate.LastStatusText}" : string.Empty;
 
+            // [42_distribution.md] §5.6/§6 P-8(2026-09-20) — 自分の D-Drive 版と(分かる範囲での)相手の版を
+            // 表示する。相手の版は Host 視点でのみ分かる(CatalogContentHashMsg を受信した Client のもの)。
+            // Client 視点で Host の版を受け取る経路は本チケットでは追加していない(§5.6 は
+            // CatalogContentHashMsg への追加のみを許可。CatalogContentHashGate.cs のコメント参照)ため
+            // "?" のまま表示する。
+            var versionText = ContentHashGate != null
+                ? $"\nVersion: {ContentHashGate.LocalPackageVersion} (Protocol {DDriveProtocol.Current}) / Remote: " +
+                  $"{(string.IsNullOrEmpty(ContentHashGate.LastKnownRemotePackageVersion) ? "?" : ContentHashGate.LastKnownRemotePackageVersion)}"
+                : string.Empty;
+
             var text =
                 $"[DDrive Net]\n" +
                 $"Role: {role} (ClientId={Bridge.LocalClientId})\n" +
@@ -73,9 +83,10 @@ namespace DDrive.Runtime.Net
                 $"NetworkTime: {Bridge.NetworkTime:F2}\n" +
                 $"RTT: {rttText} / App RTT: {appRttText}\n" +
                 $"Received: {ReceivedCount()} ({_lastRatePerSecond:F1}/s)" +
-                contentHashText;
+                contentHashText +
+                versionText;
 
-            GUI.Box(new Rect(8, 8, 260, 144), text, _style);
+            GUI.Box(new Rect(8, 8, 260, 168), text, _style);
         }
 
         private int ReceivedCount()
