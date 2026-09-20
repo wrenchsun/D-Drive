@@ -61,6 +61,14 @@ namespace DDrive.Tests.Editor
         // 持ち込み先で testables を有効にして実行すると(`DDRIVE_DEV_REPO` が無いため)false のままで
         // Fail していた。`ResolveForbiddenApiScanRoot_NotDevelopmentRepo_ReturnsAssets` と同じ流儀で
         // フィールドを直接書き換えて模擬し、環境に依存しない自己完結テストにする。
+        //
+        // [42_distribution.md] §2.3 #12(P-12 で発見、docs/49) — このテストは元々「パッケージ名で終わる
+        // パス」を期待していたが、git URL 参照(PackageCache 配下、`com.ddrive.core@<hash>` のように
+        // ハッシュ付きフォルダ名になる)で解決された場合はパスの末尾がパッケージ名と一致しない
+        // (`Expected: String ending with "com.ddrive.core" But was: ".../PackageCache/com.ddrive.core@58d251a3c528"`)。
+        // 「パッケージ名の末尾一致」ではなく、`ResolveForbiddenApiScanRoot()` が実際の `PackageInfo.resolvedPath`
+        // と一致すること・そのパッケージの `name` が "com.ddrive.core" であることを検証する形に直す
+        // (埋め込み・git URL 参照のどちらでも成立する)。
         [Test]
         public void ResolveForbiddenApiScanRoot_ResolvesToPackagedPath_InThisRepo()
         {
@@ -74,7 +82,10 @@ namespace DDrive.Tests.Editor
 
                 var root = CI.ResolveForbiddenApiScanRoot();
 
-                StringAssert.EndsWith("com.ddrive.core", root.Replace('\\', '/').TrimEnd('/'));
+                var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(CI).Assembly);
+                Assert.IsNotNull(packageInfo, "このテストはパッケージ化されている前提です");
+                Assert.AreEqual("com.ddrive.core", packageInfo.name);
+                Assert.AreEqual(packageInfo.resolvedPath, root, "解決先は実際のパッケージパス(埋め込み/git URL 参照のいずれでも)と一致するはず");
             }
             finally
             {

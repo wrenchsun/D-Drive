@@ -6,6 +6,7 @@ using DDrive.Editor.Inspectors;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using UnityEditor;
+using UnityEditor.PackageManager;
 using UnityEngine;
 using AssetSearch = DDrive.Editor.AssetSearch;
 
@@ -133,6 +134,11 @@ namespace DDrive.Editor.Dependencies
             foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!IsScannablePath(path))
+                {
+                    continue;
+                }
+
                 var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
                 if (asset == null)
                 {
@@ -146,6 +152,11 @@ namespace DDrive.Editor.Dependencies
             foreach (var guid in AssetSearch.FindAssets("t:Prefab"))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!IsScannablePath(path))
+                {
+                    continue;
+                }
+
                 SaveAndIndex(BuildRecord(guid, path, DependencyGraphCollector.CollectFromPrefab(path)));
                 fileCount++;
             }
@@ -153,6 +164,11 @@ namespace DDrive.Editor.Dependencies
             foreach (var guid in AssetSearch.FindAssets("t:Scene"))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!IsScannablePath(path))
+                {
+                    continue;
+                }
+
                 SaveAndIndex(BuildRecord(guid, path, DependencyGraphCollector.CollectFromScene(path)));
                 fileCount++;
             }
@@ -263,9 +279,48 @@ namespace DDrive.Editor.Dependencies
                 return false;
             }
 
-            return path.EndsWith(".asset", StringComparison.OrdinalIgnoreCase)
+            var isCandidateExtension = path.EndsWith(".asset", StringComparison.OrdinalIgnoreCase)
                 || path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)
                 || path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase);
+
+            return isCandidateExtension && IsScannablePath(path);
+        }
+
+        // [49_p12_ms2026_install_2026-09-20.md] 項目5 — Unity 起動直後の全量再インポート(Library 再生成等)では
+        // OnPostprocessAllAssets がプロジェクト全体(Assets 配下だけでなく Packages/ 配下の全パッケージ)の
+        // パスを渡してくる。これを絞らずに RebuildAll/UpdatePaths がそのまま処理すると、読み取り専用パッケージ
+        // (レジストリ配布・git URL 参照・組み込み等。持ち込み先で D-Drive 自身が git URL 参照されている場合は
+        // PackageCache 配下の D-Drive も読み取り専用になる)内のシーンを EditorSceneManager.OpenScene で
+        // 開こうとして「Opening scene in read-only package!」のモーダルダイアログが連続表示される事故になる
+        // (docs/49 で発見)。走査対象を「Assets 配下」+「埋め込み(Embedded)/ローカル(Local)パッケージ」に
+        // 限定する。対象外はログを出さず静かにスキップする(デザイナーの作業を止めない、CLAUDE.md §0-4)。
+        //
+        // 純粋な判定ロジックだけを切り出したもの(PackageManager への実アクセスを伴わない。テスト可能)。
+        // public(InternalsVisibleTo 未設定のため、テスト asmdef から直接検証できるようにする)。
+        public static bool IsScannablePath(string path, PackageSource? source)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            if (!path.StartsWith("Packages/", StringComparison.Ordinal))
+            {
+                return true; // Assets 配下・repo 直下等はそのまま対象
+            }
+
+            return source == PackageSource.Embedded || source == PackageSource.Local;
+        }
+
+        private static bool IsScannablePath(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !path.StartsWith("Packages/", StringComparison.Ordinal))
+            {
+                return IsScannablePath(path, null);
+            }
+
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(path);
+            return IsScannablePath(path, packageInfo?.source);
         }
 
         private static void EnsureLoaded()

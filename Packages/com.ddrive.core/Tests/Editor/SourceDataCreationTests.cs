@@ -79,13 +79,26 @@ namespace DDrive.Tests.Editor
         }
 
         // SourceAssets/<種別>/<カテゴリ...>/ は ImportRule と同じ「種別フォルダから先」。
-        [TestCase("Assets/SourceAssets/Se/Player/Attack/Slash.wav", "Player/Attack")]
-        [TestCase("Assets/SourceAssets/Se/Slash.wav", "")]
-        [TestCase("Assets/SourceAssets/Texture/UI/Btn.png", "UI")]
-        // それ以外は直上のフォルダ名 1 つ。
+        // [42_distribution.md] §2.3 #12(P-12 で発見、docs/49) — SourceAssetsRoot(置き場所プリセット、B-6)を
+        // 持ち込み先が変更していると、"Assets/SourceAssets/..." 決め打ちの入力パスは実際のルートと一致しなくなり
+        // (フォルダの深さがずれて「種別フォルダから先」のロジックに乗らない)Fail していた。実際の
+        // ImportRuleService.ResolveSourceRoot(既定値のままならこれまでと同じ "Assets/SourceAssets")から
+        // 入力パスを組み立てる。
+        [TestCase("Se/Player/Attack/Slash.wav", "Player/Attack")]
+        [TestCase("Se/Slash.wav", "")]
+        [TestCase("Texture/UI/Btn.png", "UI")]
+        public void ResolveCategory_FollowsFolderConvention_UnderSourceRoot(string relativePath, string expected)
+        {
+            var sourceRoot = ImportRuleService.ResolveSourceRoot(ImportRuleService.DefaultSourceRoot);
+            var assetPath = $"{sourceRoot}/{relativePath}";
+            Assert.AreEqual(expected, SourceDataCreation.ResolveCategory(assetPath));
+        }
+
+        // それ以外(SourceAssetsRoot の外)は直上のフォルダ名 1 つ。SourceAssetsRoot に依存しないので
+        // 決め打ちパスのままでよい。
         [TestCase("Assets/Art/UI/Btn.png", "UI")]
         [TestCase("Assets/Btn.png", "")]
-        public void ResolveCategory_FollowsFolderConvention(string assetPath, string expected)
+        public void ResolveCategory_FollowsFolderConvention_OutsideSourceRoot(string assetPath, string expected)
         {
             Assert.AreEqual(expected, SourceDataCreation.ResolveCategory(assetPath));
         }

@@ -322,7 +322,29 @@ namespace DDrive.Editor.Setup
                 _addressablesBody.Add(new Button(SyncAllAddressables) { text = "全カタログ・Data を今すぐ同期する" });
             }
 
+            // [42_distribution.md] §2.3 #12(b)(P-12 で発見、docs/49) — Addressables 自身が既定で作る
+            // "Default Local Group"・"Packed Assets" はアセット名にスペースを含み、パスにスペースを
+            // 禁止する持ち込み先(MS2026 の Unity Hygiene 等)で Error になる(DD-SETUP-ADDR-NAME-SPACE)。
+            if (initialized && ProjectSetupInspector.HasAddressablesDefaultNameWithSpace())
+            {
+                _addressablesBody.Add(WrappingLabel(
+                    "✗ 既定アセット名(\"Default Local Group\"/\"Packed Assets\")にスペースが含まれています。"
+                    + "パスにスペースを禁止する持ち込み先の命名規則チェックに抵触します(参照は GUID のため壊れません)。"));
+                _addressablesBody.Add(new Button(RenameDefaultAddressablesAssetsToAvoidSpaces)
+                { text = "スペースを含む既定アセット名をリネーム" });
+            }
+
             _addressablesBody.Add(new Button(RefreshAddressablesSection) { text = "再検査" });
+        }
+
+        private void RenameDefaultAddressablesAssetsToAvoidSpaces()
+        {
+            var renamed = ProjectSetupActions.RenameDefaultAddressablesAssetsToAvoidSpaces();
+            Debug.Log(renamed
+                ? "[DDrive] セットアップウィザード: Addressables の既定アセット名からスペースを除去しました。"
+                : "[DDrive] セットアップウィザード: リネーム対象の既定アセット名(スペース入り)は見つかりませんでした。");
+            RefreshAddressablesSection();
+            RefreshSummarySection();
         }
 
         private void SyncAllAddressables()

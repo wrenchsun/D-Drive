@@ -329,9 +329,15 @@ namespace DDrive.Tests.Runtime
 
         // ── DDriveCutsceneCameraApplier の実行順契約(検出2): 実行順 1001 の LateUpdate で上書きされたら警告 ──
 
+        // [49_p12_ms2026_install_2026-09-20.md] §7/§13-3 — この検出2は実際のカメラ描画
+        // (RenderPipelineManager.endCameraRendering)に依存するため、`-batchmode -nographics` では
+        // 描画自体が発生せず再現できない(TestFrameWait では解消できないことを実測で確認済み)。
         [UnityTest]
+        [Category("RequiresGraphics")]
         public IEnumerator Applier_DetectsOverwrite_WhenLaterScriptWritesCameraInLateUpdate()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             var camGo = new GameObject("DDriveTestMainCamera2", typeof(Camera)) { tag = "MainCamera" };
             _created.Add(camGo);
             var cam = camGo.GetComponent<Camera>();

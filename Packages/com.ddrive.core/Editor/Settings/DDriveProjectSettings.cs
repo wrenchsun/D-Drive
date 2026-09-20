@@ -26,10 +26,18 @@ namespace DDrive.Editor.Settings
     [FilePath("ProjectSettings/DDriveProjectSettings.asset", FilePathAttribute.Location.ProjectFolder)]
     public sealed class DDriveProjectSettings : ScriptableSingleton<DDriveProjectSettings>
     {
+        // 2026-09-20([42_distribution.md] §2.3 #12、P-12 の実移植〔docs/49〕で発見) — 「既定値が
+        // 特定の文字列である」ことを検査するテスト(DDriveProjectSettingsTests.Defaults_MatchCurrentHardcodedPaths)が
+        // 実際の GameDataRoot 等(持ち込み先で変更され得る値)を直接比較していたため、置き場所を変更した
+        // 持ち込み先で testables を ON にすると Fail していた。既定値そのものは公開 const として切り出し、
+        // テストは実際の設定値ではなくこの const と比較する。
+        public const string DefaultGeneratedRoot = "Assets/Generated";
+        public const string DefaultSpecsRoot = "Specs";
+
         [SerializeField] private string _gameDataRoot = AssetCreationService.DefaultGameDataRoot;
-        [SerializeField] private string _generatedRoot = "Assets/Generated";
+        [SerializeField] private string _generatedRoot = DefaultGeneratedRoot;
         [SerializeField] private string _sourceAssetsRoot = ImportRuleService.DefaultSourceRoot;
-        [SerializeField] private string _specsRoot = "Specs";
+        [SerializeField] private string _specsRoot = DefaultSpecsRoot;
 
         // [42_distribution.md] §4.5/§7 A-9(P-6、2026-09-20) — 「持ち込み先で D-Drive を改造している
         // 可能性」の Warning(ProjectSetupValidator)を出すための判定材料。開発リポジトリ(このリポジトリ)
@@ -100,7 +108,7 @@ namespace DDrive.Editor.Settings
 
         public string GeneratedRoot
         {
-            get => string.IsNullOrEmpty(_generatedRoot) ? "Assets/Generated" : _generatedRoot;
+            get => string.IsNullOrEmpty(_generatedRoot) ? DefaultGeneratedRoot : _generatedRoot;
             set => SetAndSave(ref _generatedRoot, value);
         }
 
@@ -112,7 +120,7 @@ namespace DDrive.Editor.Settings
 
         public string SpecsRoot
         {
-            get => string.IsNullOrEmpty(_specsRoot) ? "Specs" : _specsRoot;
+            get => string.IsNullOrEmpty(_specsRoot) ? DefaultSpecsRoot : _specsRoot;
             set => SetAndSave(ref _specsRoot, value);
         }
 

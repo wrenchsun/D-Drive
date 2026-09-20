@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
-  m_Name: Default Local Group
+  m_Name: DDriveDefaultLocalGroup
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
-  m_GroupName: Default Local Group
+  m_GroupName: DDriveDefaultLocalGroup
   m_GUID: ae88d6b5aed245e4bafb9790450bf9b5
   m_SerializeEntries: []
   m_ReadOnly: 0

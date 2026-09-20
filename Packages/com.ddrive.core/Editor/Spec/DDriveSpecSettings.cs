@@ -1,4 +1,5 @@
 using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Settings;
 using DDrive.Editor.Versioning;
 using DDrive.Runtime.Tuning;
 using UnityEditor;
@@ -22,8 +23,43 @@ namespace DDrive.Editor.Spec
     // Unity は未知フィールドを無視するだけで読み込みエラーにはしない)。
     public sealed class DDriveSpecSettings : ScriptableObject
     {
-        public const string DefaultPath = "Assets/GameData/Settings/DDriveSpecSettings.asset";
-        public const string DefaultTuningTablePath = "Assets/GameData/Settings/DDriveTuningTable.asset";
+        // 2026-09-20([42_distribution.md] §2.3 #11、P-12 の実移植〔docs/49〕で発見) — 以前はここが
+        // `const` のハードコードで、`DDriveProjectSettings.GameDataRoot`(§7 B-6 の置き場所プリセット)を
+        // 一切参照していなかった。持ち込み先が「1 つの親フォルダ配下にまとめる」プリセットで GameDataRoot を
+        // 変更しても、この 2 ファイルだけが既定の "Assets/GameData/Settings/" に取り残される不具合があった
+        // (対照的に SpecSnapshotWriter.cs は元から DDriveProjectSettings.instance.SpecsRoot を正しく
+        // 読んでいた)。`ControlSkinPreviewSection.DefaultScrollMaterialPath` を const → プロパティ化した
+        // P-4 の対応と同じパターンで static プロパティに変える。
+        //
+        // 既定値のままなら今までと同じパス("Assets/GameData/Settings/...")になる
+        // (DDriveProjectSettings.GameDataRoot の既定値は AssetCreationService.DefaultGameDataRoot と同じ)。
+        // 既にこの決め打ちパスにアセットが存在する場合はそれを優先して使う(移動はしない。開発リポジトリの
+        // 既存アセット、および GameDataRoot 変更前に作られたアセットが迷子にならないようにするため)。
+        private const string LegacyDefaultPath = "Assets/GameData/Settings/DDriveSpecSettings.asset";
+        private const string LegacyDefaultTuningTablePath = "Assets/GameData/Settings/DDriveTuningTable.asset";
+
+        public static string DefaultPath => ResolveSettingsPath("DDriveSpecSettings.asset", LegacyDefaultPath);
+
+        public static string DefaultTuningTablePath => ResolveSettingsPath("DDriveTuningTable.asset", LegacyDefaultTuningTablePath);
+
+        private static string ResolveSettingsPath(string fileName, string legacyPath) =>
+            ResolveSettingsPathCore(
+                fileName,
+                legacyPath,
+                AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(legacyPath) != null,
+                DDriveProjectSettings.instance.GameDataRoot);
+
+        // 純粋な決定ロジックだけを切り出したもの(AssetDatabase/DDriveProjectSettings への実アクセスを伴わない)。
+        // public(InternalsVisibleTo 未設定のため、テスト asmdef から直接検証できるようにする。
+        // CodeReferenceScan.cs 等と同じ理由)。
+        public static string ResolveSettingsPathCore(string fileName, string legacyPath, bool legacyAssetExists, string gameDataRoot)
+            => legacyAssetExists ? legacyPath : $"{gameDataRoot}/Settings/{fileName}";
+
+        private static string FolderOf(string assetPath)
+        {
+            var slash = assetPath.LastIndexOf('/');
+            return slash < 0 ? assetPath : assetPath.Substring(0, slash);
+        }
 
         // ── Web アプリ(GAS)接続設定(W-9 で新設) ──
 
@@ -55,13 +91,14 @@ namespace DDrive.Editor.Spec
                 return existing;
             }
 
-            AssetCreationService.EnsureFolder("Assets/GameData/Settings");
+            var defaultPath = DefaultPath;
+            AssetCreationService.EnsureFolder(FolderOf(defaultPath));
             var asset = CreateInstance<DDriveSpecSettings>();
             // [42_distribution.md] §3.4/§7 B-6(P-5) — 新規作成時だけ DDriveProjectSettings.GameDataRoot を
             // 反映する(フィールド初期化子ではなく GetOrCreate 内で解決することで、任意のデシリアライズ時に
             // ScriptableSingleton へアクセスすることを避ける)。
             asset.GameDataRoot = AssetCreationService.ResolveGameDataRoot(AssetCreationService.DefaultGameDataRoot);
-            AssetDatabase.CreateAsset(asset, DefaultPath);
+            AssetDatabase.CreateAsset(asset, defaultPath);
             // [44_review_2026-09-19.md] P1-1: 新規作成した asset 1 個だけ保存する。
             DDriveAssetSave.SaveDirty(asset);
             return asset;
@@ -75,12 +112,13 @@ namespace DDrive.Editor.Spec
                 return TuningTable;
             }
 
-            var existing = AssetDatabase.LoadAssetAtPath<TuningTable>(DefaultTuningTablePath);
+            var tuningTablePath = DefaultTuningTablePath;
+            var existing = AssetDatabase.LoadAssetAtPath<TuningTable>(tuningTablePath);
             if (existing == null)
             {
-                AssetCreationService.EnsureFolder("Assets/GameData/Settings");
+                AssetCreationService.EnsureFolder(FolderOf(tuningTablePath));
                 existing = ScriptableObject.CreateInstance<TuningTable>();
-                AssetDatabase.CreateAsset(existing, DefaultTuningTablePath);
+                AssetDatabase.CreateAsset(existing, tuningTablePath);
             }
 
             TuningTable = existing;

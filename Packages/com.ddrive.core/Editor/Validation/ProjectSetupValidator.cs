@@ -79,6 +79,18 @@ namespace DDrive.Editor.Validation
                     "Addressables が初期化されていません(AddressableAssetSettings が無い)。セットアップウィザードの「初期化」で作成できます。",
                     code: "DD-SETUP-ADDRESSABLES");
             }
+            else if (ProjectSetupInspector.HasAddressablesDefaultNameWithSpace())
+            {
+                // [42_distribution.md] §2.3 #12(b)(P-12 で発見、docs/49) — Addressables 自身が既定で
+                // 作る "Default Local Group"・"Packed Assets" はアセット名にスペースを含み、パスに
+                // スペースを禁止する持ち込み先(MS2026 の Unity Hygiene 等)で Error になる。
+                yield return ValidationResult.Warning(
+                    "Addressables の既定アセット名(\"Default Local Group\"/\"Packed Assets\")にスペースが含まれています。" +
+                    "パスにスペースを禁止する持ち込み先の命名規則チェックに抵触します。セットアップウィザードの「5. Addressables 同期」の" +
+                    "「スペースを含む既定アセット名をリネーム」から直せます。",
+                    fixAction: () => ProjectSetupActions.RenameDefaultAddressablesAssetsToAvoidSpaces(),
+                    code: "DD-SETUP-ADDR-NAME-SPACE");
+            }
 
             // 4. 既定フォルダ・設定
             var folders = ProjectSetupInspector.InspectFolderLayout(DDriveProjectSettings.instance);

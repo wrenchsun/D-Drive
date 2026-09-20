@@ -8,15 +8,17 @@ namespace DDrive.Tests.Editor
     // 現状は既定値が変わらないことだけを確認する(実際の参照差し替えは P-5)。
     public class DDriveProjectSettingsTests
     {
+        // [42_distribution.md] §2.3 #12(P-12 で発見、docs/49) — 持ち込み先が置き場所プリセット(B-6)で
+        // GameDataRoot 等を変更していると、実際の設定値(settings.GameDataRoot)は既定値と一致しなくなる
+        // (それ自体は正しい挙動)。このテストの本旨は「既定値の定数そのものが今までと同じ文字列であること」
+        // (定数を書き換えたときに気づけること)なので、実際の設定値ではなく既定値定数を比較する。
         [Test]
         public void Defaults_MatchCurrentHardcodedPaths()
         {
-            var settings = DDriveProjectSettings.instance;
-
-            Assert.AreEqual("Assets/GameData", settings.GameDataRoot);
-            Assert.AreEqual("Assets/Generated", settings.GeneratedRoot);
-            Assert.AreEqual("Assets/SourceAssets", settings.SourceAssetsRoot);
-            Assert.AreEqual("Specs", settings.SpecsRoot);
+            Assert.AreEqual("Assets/GameData", DDrive.Editor.AssetBrowser.AssetCreationService.DefaultGameDataRoot);
+            Assert.AreEqual("Assets/Generated", DDriveProjectSettings.DefaultGeneratedRoot);
+            Assert.AreEqual("Assets/SourceAssets", DDrive.Editor.Import.ImportRuleService.DefaultSourceRoot);
+            Assert.AreEqual("Specs", DDriveProjectSettings.DefaultSpecsRoot);
         }
 
         // [42_distribution.md] §4.3/§6 P-7(2026-09-20) — LastAppliedVersion/AppliedMigrationIds は

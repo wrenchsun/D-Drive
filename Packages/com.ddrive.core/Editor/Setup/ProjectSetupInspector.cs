@@ -128,6 +128,43 @@ namespace DDrive.Editor.Setup
 
         public static bool IsAddressablesInitialized() => AddressableAssetSettingsDefaultObject.SettingsExists;
 
+        // [42_distribution.md] §2.3 #12(b)(P-12 で発見、docs/49) — DD-SETUP-ADDR-NAME-SPACE。
+        // Addressables 自身が既定で作る "Default Local Group"・"Packed Assets" はアセット名に
+        // スペースを含むため、パスにスペースを禁止する持ち込み先(MS2026 の Unity Hygiene 等)で
+        // Error になる。ウィザード(5. Addressables 同期)・ProjectSetupValidator の Warning 判定に使う。
+        // 修正は ProjectSetupActions.RenameDefaultAddressablesAssetsToAvoidSpaces()。
+        public static bool HasAddressablesDefaultNameWithSpace()
+        {
+            if (!AddressableAssetSettingsDefaultObject.SettingsExists)
+            {
+                return false;
+            }
+
+            var settings = AddressableAssetSettingsDefaultObject.Settings;
+            if (settings == null)
+            {
+                return false;
+            }
+
+            foreach (var group in settings.groups)
+            {
+                if (group != null && group.Name == "Default Local Group")
+                {
+                    return true;
+                }
+            }
+
+            foreach (var templateObject in settings.GroupTemplateObjects)
+            {
+                if (templateObject != null && templateObject.name == "Packed Assets")
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // ── 4. 既定フォルダ・設定 ──
 
         public static FolderLayoutStatus InspectFolderLayout(DDriveProjectSettings settings)

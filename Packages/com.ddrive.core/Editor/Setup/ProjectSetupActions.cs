@@ -60,10 +60,95 @@ namespace DDrive.Editor.Setup
 
         public static void EnsureAddressablesInitialized()
         {
+            var alreadyExisted = AddressableAssetSettingsDefaultObject.SettingsExists;
+            AddressableAssetSettingsDefaultObject.GetSettings(true);
+
+            if (!alreadyExisted)
+            {
+                // [42_distribution.md] §2.3 #12(b)(P-12 で発見、docs/49) — 作成直後だけリネームする
+                // (既に初期化済みのプロジェクトで人がグループ名を変えている可能性があるものまで
+                // 勝手に触らないため。そちらは ProjectSetupValidator の Warning + 修正アクション、
+                // ウィザードの明示的なボタンから同じメソッドを呼ぶ)。
+                RenameDefaultAddressablesAssetsToAvoidSpaces();
+            }
+        }
+
+        // [42_distribution.md] §2.3 #12(b)(P-12 で発見、docs/49) — Addressables 自身が既定で作る
+        // "Default Local Group"(+ その BundledAssetGroupSchema/ContentUpdateGroupSchema)・
+        // "Packed Assets"(既定グループテンプレート)はアセット名にスペースを含むため、パスにスペースを
+        // 禁止する持ち込み先(MS2026 の Unity Hygiene 等)で Error になる。冪等(該当名の対象が無ければ
+        // 何もしない)。EnsureAddressablesInitialized(新規初期化直後)・ウィザードの「5. Addressables 同期」
+        // ボタン・ProjectSetupValidator の修正アクション(DD-SETUP-ADDR-NAME-SPACE)から呼ばれる。
+        // 参照は GUID で解決されるため、リネームしても既存の参照は壊れない。
+        public static bool RenameDefaultAddressablesAssetsToAvoidSpaces()
+        {
             if (!AddressableAssetSettingsDefaultObject.SettingsExists)
             {
-                AddressableAssetSettingsDefaultObject.GetSettings(true);
+                return false;
             }
+
+            return RenameDefaultAddressablesAssetsToAvoidSpaces(AddressableAssetSettingsDefaultObject.Settings);
+        }
+
+        // settings を引数で受け取る版。既定(引数無し)は実プロジェクトの
+        // AddressableAssetSettingsDefaultObject.Settings を渡すだけの薄いラッパー。テストからは
+        // 実プロジェクトの Addressables 設定に触れずに、独立した一時 AddressableAssetSettings を
+        // 渡して検証できるようにする(InternalsVisibleTo 未設定のため public のまま。他ファイルと同じ理由)。
+        public static bool RenameDefaultAddressablesAssetsToAvoidSpaces(
+            UnityEditor.AddressableAssets.Settings.AddressableAssetSettings settings)
+        {
+            if (settings == null)
+            {
+                return false;
+            }
+
+            var renamed = false;
+
+            foreach (var group in settings.groups)
+            {
+                if (group != null && group.Name == "Default Local Group")
+                {
+                    // setter がグループ自身の .asset と、紐づく Schema の .asset(2 個)のファイル名も
+                    // 同時にリネームする(AddressableAssetGroup.Name の実装)。
+                    group.Name = "DDriveDefaultLocalGroup";
+                    renamed = true;
+                }
+            }
+
+            foreach (var templateObject in settings.GroupTemplateObjects)
+            {
+                if (templateObject == null || templateObject.name != "Packed Assets")
+                {
+                    continue;
+                }
+
+                var path = AssetDatabase.GetAssetPath(templateObject);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+
+                var error = AssetDatabase.RenameAsset(path, "PackedAssets");
+                if (string.IsNullOrEmpty(error))
+                {
+                    EditorUtility.SetDirty(templateObject);
+                    renamed = true;
+                }
+                else
+                {
+                    Debug.LogWarning($"[DDrive] Addressables の既定テンプレート名(Packed Assets)の変更に失敗しました: {error}");
+                }
+            }
+
+            if (renamed)
+            {
+                EditorUtility.SetDirty(settings);
+                // [44_review_2026-09-19.md] P1-1 / NoDirectSaveAssetsCallTests — 機械的な一括処理
+                // (Addressables の既定名リネーム)なので SaveAllSuppressed() で版数を進めない。
+                DDriveAssetSave.SaveAllSuppressed();
+            }
+
+            return renamed;
         }
 
         // ── 4. 既定フォルダ・設定の生成 ──

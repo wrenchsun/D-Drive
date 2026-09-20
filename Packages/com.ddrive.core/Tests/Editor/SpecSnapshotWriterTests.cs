@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using DDrive.Editor.Settings;
 using DDrive.Editor.Spec;
 using NUnit.Framework;
 
@@ -11,6 +12,12 @@ namespace DDrive.Tests.Editor
     public class SpecSnapshotWriterTests
     {
         private string _tempRepoRoot;
+
+        // [42_distribution.md] §2.3 #12(P-12 で発見、docs/49) — SpecSnapshotWriter.Write は
+        // DDriveProjectSettings.instance.SpecsRoot(置き場所プリセット、B-6)から書き出し先を組み立てるため、
+        // 持ち込み先が SpecsRoot を "Specs" 以外に変更していると "Specs" 決め打ちの検証パスとズレて Fail する。
+        // 実際の SpecsRoot から検証パスを組み立てる。
+        private static string SpecsRoot => DDriveProjectSettings.instance.SpecsRoot;
 
         [SetUp]
         public void SetUp()
@@ -39,7 +46,7 @@ namespace DDrive.Tests.Editor
             var result = SpecSnapshotWriter.Write(assetsJson, null, null, _tempRepoRoot);
 
             Assert.IsTrue(result.AssetsWritten);
-            var path = Path.Combine(_tempRepoRoot, "Specs", "assets.json");
+            var path = Path.Combine(_tempRepoRoot, SpecsRoot, "assets.json");
             Assert.IsTrue(File.Exists(path));
 
             var text = File.ReadAllText(path);
@@ -53,7 +60,7 @@ namespace DDrive.Tests.Editor
             const string assetsJson = "{\"ok\":true,\"items\":[{\"id\":\"Se::Alpha\",\"zField\":1,\"aField\":2}]}";
 
             SpecSnapshotWriter.Write(assetsJson, null, null, _tempRepoRoot);
-            var path = Path.Combine(_tempRepoRoot, "Specs", "assets.json");
+            var path = Path.Combine(_tempRepoRoot, SpecsRoot, "assets.json");
             var first = File.ReadAllText(path);
 
             SpecSnapshotWriter.Write(assetsJson, null, null, _tempRepoRoot);
@@ -73,7 +80,7 @@ namespace DDrive.Tests.Editor
             var result = SpecSnapshotWriter.Write(null, scalarsJson, tablesJson, _tempRepoRoot);
 
             Assert.IsTrue(result.TuningWritten);
-            var path = Path.Combine(_tempRepoRoot, "Specs", "tuning.json");
+            var path = Path.Combine(_tempRepoRoot, SpecsRoot, "tuning.json");
             var text = File.ReadAllText(path);
             StringAssert.Contains("Combat/HitStopSec", text);
             StringAssert.Contains("Enemy/Params", text);
@@ -89,7 +96,7 @@ namespace DDrive.Tests.Editor
             var result = SpecSnapshotWriter.Write(errorJson, null, null, _tempRepoRoot);
 
             Assert.IsFalse(result.AssetsWritten);
-            Assert.IsFalse(File.Exists(Path.Combine(_tempRepoRoot, "Specs", "assets.json")));
+            Assert.IsFalse(File.Exists(Path.Combine(_tempRepoRoot, SpecsRoot, "assets.json")));
             StringAssert.Contains("トークンが無効です", result.Warning);
         }
 
@@ -112,7 +119,7 @@ namespace DDrive.Tests.Editor
             var second = SpecSnapshotWriter.Write(null, scalarsJson, tablesError, _tempRepoRoot);
 
             Assert.IsTrue(second.TuningWritten);
-            var text = File.ReadAllText(Path.Combine(_tempRepoRoot, "Specs", "tuning.json"));
+            var text = File.ReadAllText(Path.Combine(_tempRepoRoot, SpecsRoot, "tuning.json"));
             StringAssert.Contains("Combat/HitStopSec", text, "成功した側は更新される");
             StringAssert.Contains("Enemy/Params", text, "失敗した側は前回の内容を温存するはず(空配列で消してはいけない)");
             StringAssert.Contains("rate limited", second.Warning);
@@ -130,7 +137,7 @@ namespace DDrive.Tests.Editor
             var second = SpecSnapshotWriter.Write(null, scalarsError, tablesJson, _tempRepoRoot);
 
             Assert.IsTrue(second.TuningWritten);
-            var text = File.ReadAllText(Path.Combine(_tempRepoRoot, "Specs", "tuning.json"));
+            var text = File.ReadAllText(Path.Combine(_tempRepoRoot, SpecsRoot, "tuning.json"));
             StringAssert.Contains("Combat/HitStopSec", text, "失敗した側(scalars)は前回の内容を温存するはず");
             StringAssert.Contains("Enemy/Params", text);
         }
@@ -143,7 +150,7 @@ namespace DDrive.Tests.Editor
 
             Assert.IsFalse(result.AssetsWritten);
             Assert.IsFalse(result.TuningWritten);
-            Assert.IsFalse(Directory.Exists(Path.Combine(_tempRepoRoot, "Specs")));
+            Assert.IsFalse(Directory.Exists(Path.Combine(_tempRepoRoot, SpecsRoot)));
         }
     }
 }

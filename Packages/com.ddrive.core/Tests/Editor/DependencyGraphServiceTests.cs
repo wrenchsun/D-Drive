@@ -8,6 +8,7 @@ using DDrive.Foundation.Identity;
 using DDrive.Runtime.Audio;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.PackageManager;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -253,6 +254,68 @@ namespace DDrive.Tests.Editor
             var unusedIds = DependencyGraphService.FindUnusedIds();
             Assert.IsTrue(unusedIds.Any(u => u.Type == AssetType.Se && u.Id == unused.Id), "参照されていない ID は一覧に出るはず");
             Assert.IsFalse(unusedIds.Any(u => u.Type == AssetType.Se && u.Id == used.Id), "参照されている ID は一覧に出ないはず");
+        }
+
+        // [49_p12_ms2026_install_2026-09-20.md] 項目5 — 起動直後の全量再インポートで OnPostprocessAllAssets が
+        // 読み取り専用パッケージ内のシーンのパスまで渡してくるため、RebuildAll/UpdatePaths がそれを開こうとして
+        // 「Opening scene in read-only package!」のモーダルが連続表示される事故があった。純粋な判定ロジック
+        // (IsScannablePath)だけを、PackageManager への実アクセスを伴わずに検証する。
+        [Test]
+        public void IsScannablePath_AssetsPath_IsScannable()
+        {
+            Assert.IsTrue(DependencyGraphService.IsScannablePath("Assets/GameData/PreviewScenes/PreviewScene.unity", null));
+        }
+
+        [Test]
+        public void IsScannablePath_PackagesPath_WithoutPackageInfo_IsNotScannable()
+        {
+            // 通常は起こらない(Packages/ 配下は必ず PackageInfo を持つ)が、null(解決不能)は安全側 = 対象外にする。
+            Assert.IsFalse(DependencyGraphService.IsScannablePath("Packages/com.example.unknown/Foo.unity", null));
+        }
+
+        [TestCase(PackageSource.Embedded, true)]
+        [TestCase(PackageSource.Local, true)]
+        [TestCase(PackageSource.Git, false)]
+        [TestCase(PackageSource.Registry, false)]
+        [TestCase(PackageSource.BuiltIn, false)]
+        [TestCase(PackageSource.LocalTarball, false)]
+        public void IsScannablePath_PackagesPath_DependsOnPackageSource(PackageSource source, bool expected)
+        {
+            Assert.AreEqual(expected, DependencyGraphService.IsScannablePath(
+                "Packages/com.ddrive.core/Tests/Editor/Fixtures/Whatever.unity", source));
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        public void IsScannablePath_NullOrEmptyPath_IsNotScannable(string path)
+        {
+            Assert.IsFalse(DependencyGraphService.IsScannablePath(path, PackageSource.Embedded));
+        }
+
+        // 実際にこの開発リポジトリの D-Drive 自身(埋め込みパッケージ)のパスは対象、
+        // 他パッケージ(PackageCache/レジストリ配布。ここでは Addressables で代表)は対象外になることを、
+        // 実際の PackageInfo 解決込みで確認する(RebuildAll と同じ絞り込みが機能していることの実地確認)。
+        [Test]
+        public void IsScannablePath_DevRepo_OwnEmbeddedPackage_IsScannable()
+        {
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(DependencyGraphService).Assembly);
+            Assume.That(packageInfo != null, "D-Drive がパッケージ化されていない環境ではスキップ");
+            Assume.That(packageInfo.source == PackageSource.Embedded, "開発リポジトリでは埋め込みパッケージのはず");
+
+            var samplePath = packageInfo.assetPath + "/Tests/Editor/DependencyGraphServiceTests.cs";
+            Assert.IsTrue(DependencyGraphService.IsScannablePath(samplePath, packageInfo.source));
+        }
+
+        [Test]
+        public void IsScannablePath_OtherPackage_IsNotScannable()
+        {
+            const string otherPackageJson = "Packages/com.unity.addressables/package.json";
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(otherPackageJson);
+            Assume.That(packageInfo != null, "com.unity.addressables が導入されていない環境ではスキップ");
+
+            // 実在しないが同じパッケージ配下のシーンパスでも同じ判定になるはず(判定は path prefix + source のみで決まる)。
+            var sceneUnderThatPackage = "Packages/com.unity.addressables/Tests/Editor/Expected/Sample.unity";
+            Assert.IsFalse(DependencyGraphService.IsScannablePath(sceneUnderThatPackage, packageInfo.source));
         }
     }
 }
