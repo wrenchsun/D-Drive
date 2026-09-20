@@ -341,7 +341,11 @@ namespace DDrive.Tests.Editor
         [Test]
         public void SetTarget_RejectsPersistentAsset()
         {
-            var prefabPath = "Packages/com.ddrive.core/Tests/Editor/Temp/SceneAnimDriverTempPrefab.prefab";
+            // [47_review_p_tickets_2026-09-20.md] P1-3 の一時フォルダ統一(TestTempFolder)が
+            // フォルダ作成だけ更新され、このパス文字列自体が旧 `Packages/com.ddrive.core/Tests/Editor/Temp/`
+            // のまま取り残されていた(2026-09-20、P-11 の持ち込み先確認〔読み取り専用 PackageCache〕で発見)。
+            // 読み取り専用の PackageCache では `SaveAsPrefabAsset`/`DeleteAsset` が失敗し常に Fail していた。
+            var prefabPath = TestTempFolder.Root + "/Temp/SceneAnimDriverTempPrefab.prefab";
             var go = new GameObject("TempPrefabSource");
             go.AddComponent<Animator>();
             try

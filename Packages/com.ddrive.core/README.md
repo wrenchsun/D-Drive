@@ -38,6 +38,8 @@ SSH 鍵で GitHub に認証する環境では、`com.ddrive.core` の値を次�
 
 このリポジトリは private のままなので、参照する側の PC に GitHub への git 認証(HTTPS の Git 資格情報、または SSH 鍵)が設定されている必要があります。開発機は HTTPS の Git 資格情報(Git Credential Manager 等でキャッシュされたトークン)で解決できる環境になっているため、まずは `git+https` 形式を試し、環境が SSH 鍵運用のときだけ `git+ssh` 形式に切り替えてください。
 
+タグが無いコミットを直接指定したい場合(リリース前の検証等)は、`#` の後ろに**省略しない 40 桁のフルコミットハッシュ**を書いてください。短縮形(例 `#6c65a89`)は Unity の Package Manager が `Could not clone … Make sure […] is a valid branch name, tag or full commit hash` で解決に失敗します(2026-09-20、P-11 で実際に確認)。
+
 NGO(マルチプレイ、`com.unity.netcode.gameobjects`)は**任意**です。使う場合だけ、下の「依存関係」表のとおり別途 `manifest.json` に追加してください(D-Drive 側の NGO 連携コードは別アセンブリ `DDrive.Runtime.Ngo` に分離されており、`versionDefines` の `DDRIVE_NGO` が自動で有効になったときだけコンパイルされます。NGO を追加しなくても D-Drive 本体・他のアセンブリのコンパイルには影響しません)。
 
 ### 2. Unity を開く
@@ -54,7 +56,11 @@ Package Manager が git URL をすべて解決し、`package.json` の `dependen
 - テストを有効化するか(既定 OFF。D-Drive 自身のテストをこのプロジェクトの Test Runner で実行できるようにするかどうか)
 - エージェント向けスキルのコピー(AI エージェントを使う場合。下記「ドキュメント」参照)
 
+ウィザードは URP(Universal Render Pipeline)アセットの生成・割り当てまでは行いません(検査して警告するだけ)。空プロジェクトで URP をまだ使っていない場合は、Unity のメニュー `Assets > Create > Rendering > URP Asset (with Universal Renderer)` で作成し、`Project Settings > Graphics`/`Quality` に割り当ててください(2026-09-20、P-11 で確認: 割り当てないままだと D-Drive のシェーダー関連 Validator・テストの一部が Warning/Fail のままになります)。
+
 同じ検査は `Validation > Run All` の `ProjectSetupValidator` としても実行できます。
+
+> **既知の注意(2026-09-20、P-11 で確認)**: 空プロジェクトの直後は種別ごとの空カタログ(Anchor/Anim/CameraFx/…)がまだ Addressables に登録されておらず、`Validation > Run All` で「ContentHash 生成対象外」の Error が種別の数だけ出ます。各カテゴリで最低 1 件アセットを作る(その種別のカタログが自動で同期される)か、`Validation > Run All` の各行の「修正」ボタンを押すと解消します。ウィザードの「5. Addressables 同期」段には現状まとめて同期するボタンが無いため、多くの種別を一度に使う場合はこの手順に少し時間がかかります。
 
 ### 4. SE を 1 件登録して試聴する
 
