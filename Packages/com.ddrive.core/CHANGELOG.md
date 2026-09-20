@@ -11,7 +11,19 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 追加のみ（MINOR）: **P-14（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.2・§6 P-14）** — 更新ウィンドウ（`Tools > D-Drive > Update > 更新ウィンドウ`）の最上段に「更新チェック」（`git ls-remote --tags` で最新版を取得し、現在の参照と比較して manifest の `#ref` を更新する）を追加した。変更は `DDrive.Editor` のみ（新設: `Editor/Update/{GitPackageUrl.cs, GitTagListParser.cs, IGitTagLister.cs, GitCliTagLister.cs, UpdateCheckLogic.cs}`）で、公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード・ネットメッセージには触れていない。`DDriveProjectSettings` に `PreviousPackageRef`（string）フィールドを追加（`ScriptableSingleton`、`ProjectSettings/DDriveProjectSettings.asset` 配下、フィールド追加のみ）
+
+### 追加
+
+- P-14（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.2・§6 P-14）: **更新ウィンドウの更新チェック / 版上げ**（v1.0.0 の後の最初の MINOR = v1.1.0）
+  - `Tools > D-Drive > Update > 更新ウィンドウ` の最上段に「1. 更新チェック」を新設（既存の節は 1 つずつ繰り下げ）。「最新の版を確認」ボタンが `git ls-remote --tags` でタグを取得し、現在の参照（manifest の `#ref`。コミットハッシュ指定のときは `package.json` の版）と比較して「最新です」/MINOR/MAJOR を表示する（MAJOR は赤字で移行ガイドの確認を促す）
+  - `Editor/Update/GitPackageUrl.cs`（新規）: `Packages/manifest.json` の `com.ddrive.core` の値を URL・`?path=`・`#ref` に分解する純関数。`WithRef` は `#ref` だけを差し替える（URL・`?path=`・`git+https`/`git+ssh` の形式は保持）。git URL でない値（レジストリ配布・`file:`）は対象外として no-op にする
+  - `Editor/Update/{IGitTagLister.cs, GitCliTagLister.cs}`（新規）: `git ls-remote --tags` の実プロセス起動をインターフェースに分離（タイムアウト 30 秒、`git` が無い/失敗時は警告表示のみで例外を投げない）。`Editor/Update/GitTagListParser.cs`（新規、純関数）: 標準出力から `refs/tags/vX.Y.Z` を抽出し、peeled 行（`^{}`）と非 SemVer タグを除外して降順に整列する
+  - `Editor/Update/UpdateCheckLogic.cs`（新規、純関数）: 現在の参照 vs 取得した最新タグを比較し `UpToDate`/`Patch`/`Minor`/`Major`/`Unknown` を判定する
+  - 「manifest を選んだ版に更新する」ボタン（確認ダイアログ付き）で `#ref` を書き換えて保存 → `AssetDatabase.Refresh()` → `Client.Resolve()`。差し替え前の値は `DDriveProjectSettings.PreviousPackageRef`（新規フィールド）に退避し、「前の参照に戻す」ボタンで入れ替えて戻せる（2 回押すと元に戻せる簡易 1 段 undo）。「起動時に確認」トグルは作らない（手動のみ）
+  - テスト: `Tests/Editor/Update/{GitPackageUrlTests, GitTagListParserTests, UpdateCheckLogicTests}`（新規 30 件）+ `DDriveProjectSettingsTests` に `PreviousPackageRef` の往復テストを追加
+  - docs: `docs/42_distribution.md` §4.2・`docs/09_editor_tools.md` §14・`docs/11_tasks.md`（P-14 行）・パッケージ `README.md`「更新する」/「ロールバック」・`Documentation~/skills/ddrive-consumer/{SKILL.md, references/update-checklist.md}`・`docs/DesignerManual/package-setup.html`・`docs/ProgrammerManual/getting-started.html` を更新
+  - **未検証**: Unity が使えない環境（メモリ制約で別プロジェクトのバッチ起動中）で実装したため、コンパイル・EditMode/PlayMode 実行は未検証
 
 ## [1.0.0] - 2026-09-20
 

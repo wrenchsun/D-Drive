@@ -94,5 +94,30 @@ namespace DDrive.Tests.Editor
                 Assert.IsFalse(settings.HasAppliedMigration("test-only-p7-migration-id"), "テスト後は元の状態に復元されている");
             }
         }
+
+        // [42_distribution.md] §4.2/§6 P-14(2026-09-20) — 更新ウィンドウの「更新チェック」が manifest を
+        // 差し替える直前に退避する値。セッターは実際に Save(true) を呼ぶため、上と同じく finally で
+        // 実ファイルの内容を元に戻す。
+        [Test]
+        public void PreviousPackageRef_DefaultsToEmpty_AndRoundTrips_ThenRestoresPersistedState()
+        {
+            var settings = DDriveProjectSettings.instance;
+            var before = settings.PreviousPackageRef;
+
+            try
+            {
+                settings.PreviousPackageRef = "git+https://github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0";
+                Assert.AreEqual(
+                    "git+https://github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0",
+                    settings.PreviousPackageRef);
+
+                settings.PreviousPackageRef = null;
+                Assert.AreEqual(string.Empty, settings.PreviousPackageRef, "null を設定すると空文字になる(LastAppliedVersion と同じ流儀)");
+            }
+            finally
+            {
+                settings.PreviousPackageRef = before;
+            }
+        }
     }
 }

@@ -350,7 +350,7 @@ Tools/
     ├─ Setup/
     │   └─ セットアップウィザード          ← 2026-09-20 追加(P-6。§13。持ち込み先のセットアップ・更新後の再設定用)
     ├─ Update/
-    │   ├─ 更新ウィンドウ                  ← 2026-09-20 追加(P-8。§14。前回版/現在版/CHANGELOG 表示 + 「更新を適用」)
+    │   ├─ 更新ウィンドウ                  ← 2026-09-20 追加(P-8。§14。前回版/現在版/CHANGELOG 表示 + 「更新を適用」。P-14 で最上段に「更新チェック」を追加)
     │   ├─ マイグレーション(ドライラン)     ← 2026-09-20 追加(P-7。件数のみ表示、実データは変更しない)
     │   └─ マイグレーション(適用)           ← 2026-09-20 追加(P-7。§14 の更新ウィンドウの「更新を適用」に統合済みだが単体メニューとしても残す)
     └─ Debug/
@@ -973,7 +973,7 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 
 `Tools > D-Drive > Update > 更新ウィンドウ`（`Packages/com.ddrive.core/Editor/Update/UpdateWindow.cs`）。持ち込み先が `Packages/manifest.json` のタグを進めた直後に開く、[42_distribution.md](42_distribution.md) §4.2 手順 5 の実行画面。
 
-- **UI**: `ScrollView` ルート + 5 個の `Foldout`（1. 版と CHANGELOG 2. マイグレーション〔プレビュー〕 3. 更新を適用 4. テストを有効化する 5. エージェント向けスキルを更新）
+- **UI**: `ScrollView` ルート + 6 個の `Foldout`（1. 更新チェック 2. 版と CHANGELOG 3. マイグレーション〔プレビュー〕 4. 更新を適用 5. テストを有効化する 6. エージェント向けスキルを更新）。「1. 更新チェック」は P-14(2026-09-20)で追加した最上段のセクション(下記)
 - **設計**: 「更新を適用」の 4 段（マイグレーション → ID/Tuning 再生成 → Addressables 同期 → Validation）+ `LastAppliedVersion` 更新は、ウィンドウに依存しない `UpdateActions.Apply(UpdateActions.Steps)`（`Editor/Update/UpdateActions.cs`、純粋な `Func<StepOutcome>` の並び）に委譲する。実際の Unity API 呼び出しは `UpdateStepsFactory.CreateRealSteps` が組み立てる（`DDriveMigrationRunner`・`AssetIdGenerator`/`TuningCodegen`・`AddressablesSync`・`CI.RunValidation` をそのまま使う。新しい生成ロジックは無い）。**途中の段が失敗したら以降を実行しない**（`UpdateActions.Apply` がループを打ち切り、全段成功したときだけ `LastAppliedVersion` を更新する）
 - **CHANGELOG 表示**: `ChangelogLocator.ResolvePath`(`resolvedPath`, `preferDevRepoRoot`)・`ChangelogRangeReader`（`## [X.Y.Z]` 見出しで版ごとの節に分解し、「前回適用した版〔排他〕→ 現在の版〔含む〕」を切り出す純関数）・`ChangelogCompatibilityAnalyzer`（各節の `### 互換性` から「破壊あり」を検出）の 3 つに分けている（いずれも Unity API 非依存で EditMode テストから直接検証できる）。**2026-09-20 修正([47_review_p_tickets_2026-09-20.md] P2-4)**: `ResolvePath` の探索順を反転した。既定(`preferDevRepoRoot=false`、持ち込み先)は**パッケージ直下**(`resolvedPath`)を先に見る(P-9 で `CHANGELOG.md` がパッケージに同梱されたため正本になった。埋め込み配置の持ち込み先で `resolvedPath` の 2 階層上を先に見ると、持ち込み先自身の `CHANGELOG.md` を D-Drive のものと誤認する事故があった)。開発リポジトリ(`preferDevRepoRoot=true`、`UpdateWindow` が `DDriveProjectSettings.IsDevelopmentRepo` を渡す)だけ 2 階層上(リポジトリ直下)を先に見る
 - **テストを有効化する / エージェント向けスキルを更新**: 新しいロジックは追加していない。P-6 の `ProjectSetupActions.SetTestablesEnabled`/`IsTestablesEnabled`/`CopyConsumerSkillIfBundled` をそのまま呼ぶ（§13 参照）
@@ -981,4 +981,5 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **版の照合(ネットワーク)**: `CatalogContentHashMsg` の `PackageVersion`/`ProtocolVersion` を使った Host/Client の版照合は本ウィンドウの範囲外([docs/14_networking.md](14_networking.md) §7 実装メモ、[docs/42_distribution.md](42_distribution.md) §5.6 参照)
 - **テスト**: `Tests/Editor/Update/`（`SemVerTests` / `ChangelogRangeReaderTests` / `ChangelogCompatibilityAnalyzerTests` / `ChangelogLocatorTests` / `UpdateActionsTests`）。`UpdateActions.Apply` はフェイクの `Steps`（デリゲート）で「途中で失敗したら以降を実行しない」「全段成功したときだけ `MarkApplied` が呼ばれる」を固定する。`UpdateStepsFactory`・`UpdateWindow` 自体(実 AssetDatabase/Addressables/Validation に触れる)は EditMode テストの対象外
 - **`ProjectSetupValidator` との連携**: `LastAppliedVersion` が現在のパッケージ版より古い(または未適用)ことを検出する Warning(`DD-SETUP-UPDATE-PENDING`)を §13 の `ProjectSetupValidator` に追加した（開発リポジトリ〔`DDriveProjectSettings.IsDevelopmentRepo == true`〕は対象外）
+- **「1. 更新チェック」（P-14、2026-09-20）**: `Packages/manifest.json` の `com.ddrive.core` の値を `GitPackageUrl.Parse`（`Editor/Update/GitPackageUrl.cs`、純関数）で URL・`?path=`・`#ref` に分解する。`file:`/レジストリ配布の値なら `IsGitUrl=false` になり「更新チェック対象外(git URL 参照ではありません)」を表示して no-op にする。「最新の版を確認」ボタンは `IGitTagLister`(既定実装 `GitCliTagLister`、`System.Diagnostics.Process` で `git ls-remote --tags` をタイムアウト 30 秒で起動。git が PATH に無い/タイムアウト/非 0 終了/例外はいずれも警告表示 + no-op)→ `GitTagListParser.Parse`(標準出力を解析、peeled 行〔`^{}`〕と非 SemVer タグを除外し降順に整列)→ `UpdateCheckLogic.Evaluate`(現在の参照 vs 最新のタグを比較し `UpToDate`/`Patch`/`Minor`/`Major`/`Unknown` を判定。現在の参照がタグとして解釈できない〔コミットハッシュ指定〕ときは package.json の版にフォールバックする)の順に呼ぶ。取得したタグを `DropdownField` に降順で並べ、「manifest を選んだ版に更新する」ボタン(`EditorUtility.DisplayDialog` で確認)で `GitPackageUrl.WithRef` を使い `#ref` だけを差し替えて保存し `AssetDatabase.Refresh()` + `Client.Resolve()` を実行する。差し替え前の値は `DDriveProjectSettings.PreviousPackageRef`(新設フィールド)に退避し、「前の参照に戻す」ボタンで現在値と入れ替えて戻せる(2 回押すと元に戻る簡易 1 段 undo)。「起動時に確認」トグルは作らない(手動のみ)。manifest を書き換えた後の再コンパイル・「4. 更新を適用」の実行は本セクションの範囲外(案内ラベルを出すだけ)。テスト: `Tests/Editor/Update/`(`GitPackageUrlTests`・`GitTagListParserTests`・`UpdateCheckLogicTests`)+ `DDriveProjectSettingsTests` の `PreviousPackageRef` 往復テスト。`GitCliTagLister`・`UpdateWindow` 自体は他の実配線クラスと同じく EditMode テスト対象外
 

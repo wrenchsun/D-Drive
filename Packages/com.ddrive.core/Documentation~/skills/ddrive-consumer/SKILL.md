@@ -57,14 +57,18 @@ Data の配置フォルダ・ファイル名はツールが決めるものです
 
 ## 4. 更新手順
 
-1. `Packages/manifest.json` の `#vX.Y.Z` タグを新しい版に書き換える
-2. Unity を開き直し、コンパイルエラーが無いことを確認する（エラーがあれば「破壊あり」の変更を踏んでいるので `Documentation~/migrations/` の移行ガイドを確認する）
-3. `Tools > D-Drive > Update > 更新ウィンドウ` を開く
-   1. 「1. 版と CHANGELOG」で前回適用した版との差分・「破壊あり」の有無を確認する
-   2. 「2. マイグレーション（プレビュー）」で対象件数を確認する（この時点では何も変更しない）
-   3. 「3. 更新を適用」を押す。内部で (a) データマイグレーション → (b) ID/調整値の再生成 → (c) Addressables 登録の同期 → (d) `Validation > Run All` → (e) 「前回適用した版」の更新、の順に実行され、**途中の段が失敗したらそこで止まる**
+1. `Tools > D-Drive > Update > 更新ウィンドウ` を開く
+   1. 「1. 更新チェック」で「最新の版を確認」を押す（`git ls-remote` でタグを取得し、現在の参照と比較して「最新です」/MINOR/MAJOR を表示する。MAJOR なら `docs/migrations/vN.md` を先に読む）
+   2. 「manifest を選んだ版に更新する」を押す（確認ダイアログの後、`Packages/manifest.json` の `#vX.Y.Z` タグだけを新しい版に書き換える。手動で `manifest.json` を編集しても構わない）
+2. Unity が再コンパイルするのを待ち、コンパイルエラーが無いことを確認する（エラーがあれば「破壊あり」の変更を踏んでいるので `Documentation~/migrations/` の移行ガイドを確認する）
+3. 同じ更新ウィンドウで続きを進める
+   1. 「2. 版と CHANGELOG」で前回適用した版との差分・「破壊あり」の有無を確認する
+   2. 「3. マイグレーション（プレビュー）」で対象件数を確認する（この時点では何も変更しない）
+   3. 「4. 更新を適用」を押す。内部で (a) データマイグレーション → (b) ID/調整値の再生成 → (c) Addressables 登録の同期 → (d) `Validation > Run All` → (e) 「前回適用した版」の更新、の順に実行され、**途中の段が失敗したらそこで止まる**
 4. `Validation > Run All` で Error が無いことを確認する
 5. manifest / lock / 更新で変わった `.asset` / 生成コードをコミットする
+
+途中で取りやめたい場合は「1. 更新チェック」の「前の参照に戻す」で manifest の参照を直前の値に戻せる（まだ何も適用していない段階のみ。それ以降は commit の `git revert` を使う）。
 
 チェックリスト形式は [references/update-checklist.md](references/update-checklist.md) を参照。
 

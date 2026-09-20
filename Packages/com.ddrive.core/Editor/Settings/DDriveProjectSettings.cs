@@ -60,10 +60,22 @@ namespace DDrive.Editor.Settings
         [SerializeField] private string _lastAppliedVersion = string.Empty;
         [SerializeField] private string[] _appliedMigrationIds = Array.Empty<string>();
 
+        // [42_distribution.md] §4.2/§6 P-14(2026-09-20) — 更新ウィンドウの「更新チェック」が
+        // `Packages/manifest.json` の `com.ddrive.core` の値を書き換える直前に退避する、差し替え前の
+        // 値そのもの(`GitPackageUrl.RawValue` 相当。ロールバック用)。「前の参照に戻す」を押すと
+        // このフィールドと現在の manifest 値を入れ替える(2 回押すと元に戻せる)。
+        [SerializeField] private string _previousPackageRef = string.Empty;
+
         public string LastAppliedVersion
         {
             get => _lastAppliedVersion ?? string.Empty;
             set => SetAndSave(ref _lastAppliedVersion, value ?? string.Empty);
+        }
+
+        public string PreviousPackageRef
+        {
+            get => _previousPackageRef ?? string.Empty;
+            set => SetAndSave(ref _previousPackageRef, value ?? string.Empty);
         }
 
         public IReadOnlyList<string> AppliedMigrationIds => _appliedMigrationIds ?? Array.Empty<string>();
