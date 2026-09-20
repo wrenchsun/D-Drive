@@ -11,6 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.1.0] - 2026-09-20
+
+### 互換性
+
 - 追加のみ（MINOR）: **P-14（2026-09-20、[docs/42_distribution.md](docs/42_distribution.md) §4.2・§6 P-14）** — 更新ウィンドウ（`Tools > D-Drive > Update > 更新ウィンドウ`）の最上段に「更新チェック」（`git ls-remote --tags` で最新版を取得し、現在の参照と比較して manifest の `#ref` を更新する）を追加した。変更は `DDrive.Editor` のみ（新設: `Editor/Update/{GitPackageUrl.cs, GitTagListParser.cs, IGitTagLister.cs, GitCliTagLister.cs, UpdateCheckLogic.cs}`）で、公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ形式・生成コード・ネットメッセージには触れていない。`DDriveProjectSettings` に `PreviousPackageRef`（string）フィールドを追加（`ScriptableSingleton`、`ProjectSettings/DDriveProjectSettings.asset` 配下、フィールド追加のみ）
 
 ### 追加
