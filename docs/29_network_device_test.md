@@ -1157,7 +1157,13 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
 
 ### 結果表
 
-**軽量確認のみ実施・本番のビルド/run-netcheck は未実施（2026-09-22）**: 空きメモリが 1GB 前後で不安定だったため、設定済みの MCP クライアント（isuzu-unity/CoplayDev）のポートが Unity 側の実ポートとズレている状態のまま、instance ファイルから直接 JSON-RPC で接続して軽量な確認だけ実施した。**compile_request → error 0**（namespace 衝突による実コンパイルエラーを 1 件発見・修正。[14_networking.md] §16 実装メモ参照）。**EditMode を絞って実行（`Compat|NetCheckJudge|NetLaunchArgs|ForbiddenApiScanner`）→ 99/99 green**（`PublicApiSnapshotTests.Runtime_MatchesGolden` を含む）。**EditMode 全件・PlayMode・`NetCheckBuilder.Build()` でのビルド・`Tools\CI\run-netcheck.cmd` の実行はいずれも未実施**（空きメモリ 1.3GB 回復後に実施）。以下は実行結果ではなく、次回メモリに余裕があるときに埋める表のプレースホルダ。
+**コンパイル・EditMode・PlayMode は実施済み。ビルド/run-netcheck は未実施（2026-09-22 更新）**: main（N-4 マージ済み、6ae597b）を `feat/n3-netcheck-multi-client` へマージした後、空きメモリが不安定な状態（instance ファイル経由の直接 JSON-RPC 接続、設定済み MCP クライアントのポートは Unity 側の実ポートとズレたまま）で以下を実施した:
+
+- **compile_status → error 0**（マージ直後・軽量確認時の 2 回とも）。軽量確認時に namespace 衝突による実コンパイルエラー 1 件を発見・修正済み（[14_networking.md] §16 実装メモ）
+- **EditMode 全件 → 1164/1164 green**（0 failed / 0 skipped / 0 inconclusive、所要 179 秒）
+- **PlayMode 全件（`DDrive.Tests.Runtime`）→ 775/775 green**（0 failed / 0 skipped / 0 inconclusive、所要 8 秒）
+- テスト実行後に残った `Assets/Tests/`（一時フィクスチャ）・`ProjectSettings/DDriveProjectSettings.asset` の意図しない差分（`_previousPackageRef:` 空行の追加）を確認し、削除・`git checkout --` で復元済み。Addressables グループ・`Assets/GameData/` には差分なし
+- **`NetCheckBuilder.Build()` での再ビルド・`Tools\CI\run-netcheck.cmd`（8 シナリオ）は未実施**: EditMode/PlayMode の完走後、空きメモリが 1.3GB 未満（Unity 自身のメモリ使用量が複数回の domain reload で累積して増加したことが主因と推測。他プロセスを閉じる/Unity 再起動などユーザー側の対応が必要）まで低下し、Player ビルドという最も重い操作を安全に実行できる状態に回復しなかったため見送った。以下は実行結果ではなく、次回メモリに余裕があるとき（できれば Unity Editor 再起動直後）に埋める表のプレースホルダ。
 
 | シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
 |---|---|---|---|---|---|---|
