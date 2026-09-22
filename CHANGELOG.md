@@ -11,7 +11,19 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 追加のみ（MINOR）: **N-1（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §14・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動ネット接続 API。`NetLaunchRole` に `Manual`（末尾追加）、`DDriveRuntimeBootstrap` に `NetStartMode`(新規 enum)・`DefaultNetStart`(新規フィールド、既定 `Auto`)・`public bool IsNetworkStarted`・`public bool StartHost(ushort)`・`public bool StartClient(string,ushort)`・`public void StopNetworking()` を追加。`NgoBridgeCreateResult`（`DDrive.Runtime.Net`）に `IsListening`/`ManualStartHost`/`ManualStartClient`/`ManualStop` の delegate フィールドを追加。既存の Auto 起動（既定 `DefaultNetBridge=Loopback`/`DefaultNetStart=Auto`）の挙動・既定値は無改修
+
+### 追加
+
+- N-1（2026-09-22）: 開発用の手動ネット接続 API（[docs/14_networking.md](docs/14_networking.md) §14）
+  - 背景: MS2026（4 人対戦）へ持ち込む前提の開発用テストプレイで「LAN 外の特定 IP を入力 → 接続 → テストプレイ」をしたいが、既存の `DDriveRuntimeBootstrap` は起動時に自動で `StartHost`/`StartClient` を呼ぶため、実行中に IP を選ぶ余地が無かった
+  - `NetLaunchRole.Manual`（末尾追加）+ `-ddrive-net manual`。役割解決を純関数 `NetLaunchArgs.ResolveEffectiveRole(cliRole, defaultBridgeIsNgo, defaultStartIsManual)` に切り出し（EditMode テスト）
+  - `DDriveRuntimeBootstrap.NetStartMode`(`Auto`/`Manual`)・`DefaultNetStart`(既定 `Auto`)。Manual のときは `ResolveNetBridge()` が NGO ブリッジの解決・`NetworkManager`/`NgoNetBridge` の検索までは行い、Transport 設定と `StartHost`/`StartClient` は新 API 呼び出し時まで遅延する
+  - `public bool StartHost(ushort port)` / `public bool StartClient(string address, ushort port)` / `public void StopNetworking()` / `public bool IsNetworkStarted` を追加。`NetBridgeMode.Loopback`、または NGO 未導入/シーンに `NetworkManager`+`NgoNetBridge` が無いときは警告して no-op（例外で止めない）。既に接続中なら警告して `false`
+  - **手動 Host は `"0.0.0.0"` で listen する**（レビュー指摘、2026-09-22 追記。Auto の Host は従来どおり `DefaultHostAddress`/`-ddrive-host` に bind し、挙動を変えていない）。`NgoTransportConfigurator.TryConfigure`（`DDrive.Runtime.Ngo`、互換性スナップショット対象外）に省略可能引数 `listenAddress`（既定 `null` = 挙動不変）を追加し、`UnityTransport.SetConnectionData(host, port, listenAddress)` の `ServerListenAddress` を明示制御できるようにした。省略時は `ServerListenAddress = host` になり、手動 Host が別 LAN・LAN 外からのテストプレイで listen に失敗する不具合を修正
+  - 現在の役割（Host/Client）は重複を避けるため新規プロパティを設けず、既存の `NetBridge.IsServer`/`NetBridge.IsClient`（`NetDebugOverlay` と同じ判定）をそのまま使う
+  - テスト: `Tests/Editor/NetLaunchArgsTests.cs` に `-ddrive-net manual` のパース + `ResolveEffectiveRole` の 4 パターンを追加。`NgoNetBridge`/`NgoBridgeFactoryInstaller` は `NetworkBehaviour`/`NetworkManager` 依存のため EditMode 化できず、実機/PlayMode での確認は N-1 では未実施（要フォローアップ）
+  - `docs/11_tasks.md` に N-1〜N-4 のチケット枠を追加（N-2: 開発用接続 UI、N-3: NetCheckScene の N クライアント対応、N-4: 1v1 前提の当事者判定の 4 人対応。N-2〜N-4 は未着手）
 
 ## [1.1.0] - 2026-09-20
 

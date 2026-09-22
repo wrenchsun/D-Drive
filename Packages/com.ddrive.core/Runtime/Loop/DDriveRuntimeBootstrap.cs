@@ -50,9 +50,22 @@ namespace DDrive.Runtime.Loop
             Ngo,
         }
 
+        // [14_networking.md] N-1(2026-09-22) — 開発用の手動接続(実行中に IP を入力 → StartClient
+        // を呼ぶ)向け。Auto は既存の挙動(Start() で自動 StartHost/StartClient)、Manual は
+        // ResolveNetBridge() で NGO ブリッジの解決・NetworkManager/NgoNetBridge の検索までは行うが
+        // 自動接続はせず、StartHost/StartClient/StopNetworking(公開 API)を呼ぶまで待つ。
+        public enum NetStartMode
+        {
+            Auto,
+            Manual,
+        }
+
         [Header("ネットワーク(6-0)")]
-        [Tooltip("既定のネットブリッジ。コマンドライン引数 -ddrive-net host|client|off で上書きできる(未指定時はこの値を使う)。既定は Loopback(シングルプレイ、既存の挙動を変えない)")]
+        [Tooltip("既定のネットブリッジ。コマンドライン引数 -ddrive-net host|client|off|manual で上書きできる(未指定時はこの値を使う)。既定は Loopback(シングルプレイ、既存の挙動を変えない)")]
         public NetBridgeMode DefaultNetBridge = NetBridgeMode.Loopback;
+
+        [Tooltip("DefaultNetBridge=Ngo のとき、起動時に自動で StartHost/StartClient するか(Auto、既定)。Manual にすると自動接続せず、StartHost/StartClient/StopNetworking(公開 API)を呼ぶまで待つ(開発用: 実行中に IP を入力して接続するテストプレイ向け、N-1)。コマンドライン引数 -ddrive-net manual でも同じ効果")]
+        public NetStartMode DefaultNetStart = NetStartMode.Auto;
 
         // [42_distribution.md] §2.3-9/§7 A-7(P1-1、2026-09-20) — NGO は versionDefines(DDRIVE_NGO)で
         // 必須依存から切り離した。DDrive.Runtime 自身は Unity.Netcode.Runtime を参照しないため、
@@ -142,6 +155,14 @@ namespace DDrive.Runtime.Loop
         // 済んでいないと NullReferenceException になるため。元 _pendingNetworkManager 等と同じ理由)。
         private Action _pendingNetStart;
         private Action<CatalogContentHashGate> _assignHashGateToOverlay;
+
+        // [14_networking.md] N-1(2026-09-22) — 開発用の手動接続 API(StartHost/StartClient/StopNetworking/
+        // IsNetworkStarted)の実処理。NetBridgeMode.Loopback、または NGO 未導入/シーンに NetworkManager+
+        // NgoNetBridge が無い場合は null のまま(公開 API 側が警告 + no-op にフォールバックする)。
+        private Func<bool> _isNetworkStartedQuery;
+        private Func<ushort, bool> _manualStartHost;
+        private Func<string, ushort, bool> _manualStartClient;
+        private Action _manualStop;
 
         public UniTask WhenReady => _ready.Task;
 
@@ -361,6 +382,54 @@ namespace DDrive.Runtime.Loop
         // NetCheckRunner(6-0, D)等が -ddrive-autotest / シミュレータ設定を参照するために公開する。
         public NetLaunchOptions LaunchOptions { get; private set; }
 
+        // [14_networking.md] N-1(2026-09-22) — 開発用の手動接続 API。
+        //
+        // 背景: MS2026(4人対戦)へ持ち込む前提の開発用テストプレイで「LAN 外の特定 IP を入力 → 接続」を
+        // したいが、既存の StartNetworkingIfPending() は Start() で自動的に StartHost/StartClient を
+        // 呼んでしまうため、実行中に IP を選ぶ余地が無かった。DefaultNetStart=Manual(または
+        // -ddrive-net manual)のときは ResolveNetBridge() が NGO ブリッジの解決・NetworkManager/
+        // NgoNetBridge の検索までは行うが、Transport 設定と StartHost/StartClient の実行はここで
+        // 遅延し、下記 API を呼んだときに初めて行う(NgoTransportConfigurator.TryConfigure を再利用)。
+        //
+        // NetBridgeMode.Loopback、または NGO 未導入/シーンに NetworkManager+NgoNetBridge が無い場合は
+        // 警告して no-op する(例外で止めない、[CLAUDE.md] TL;DR 4)。既に接続中のときも警告して false を
+        // 返す(先に StopNetworking() を呼ぶ運用)。現在の役割(Host/Client)は既存の公開プロパティ
+        // `NetBridge.IsServer`/`NetBridge.IsClient`(NetDebugOverlay と同じ判定)で読める(重複させない)。
+        public bool IsNetworkStarted => _isNetworkStartedQuery != null && _isNetworkStartedQuery();
+
+        public bool StartHost(ushort port)
+        {
+            if (_manualStartHost == null)
+            {
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartHost: NGO ブリッジが使えないため何もしません(NetBridgeMode.Loopback、または NGO 未導入/シーンに NetworkManager+NgoNetBridge が見つかりません)。");
+                return false;
+            }
+
+            return _manualStartHost(port);
+        }
+
+        public bool StartClient(string address, ushort port)
+        {
+            if (_manualStartClient == null)
+            {
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartClient: NGO ブリッジが使えないため何もしません(NetBridgeMode.Loopback、または NGO 未導入/シーンに NetworkManager+NgoNetBridge が見つかりません)。");
+                return false;
+            }
+
+            return _manualStartClient(address, port);
+        }
+
+        public void StopNetworking()
+        {
+            if (_manualStop == null)
+            {
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StopNetworking: NGO ブリッジが使えないため何もしません(NetBridgeMode.Loopback、または NGO 未導入/シーンに NetworkManager+NgoNetBridge が見つかりません)。");
+                return;
+            }
+
+            _manualStop();
+        }
+
         // [14_networking.md] §12(6-0, A) — コマンドライン引数(未指定なら Inspector の既定値)に従って
         // LocalLoopbackBridge か NgoNetBridge を選ぶ。Ngo を要求されたのにシーンに NetworkManager/
         // NgoNetBridge が無い場合は警告して Loopback にフォールバックする(例外で止めない、[CLAUDE.md] TL;DR 4)。
@@ -368,9 +437,10 @@ namespace DDrive.Runtime.Loop
         {
             LaunchOptions = NetLaunchArgs.Parse(Environment.GetCommandLineArgs());
 
-            var role = LaunchOptions.Role != NetLaunchRole.Unspecified
-                ? LaunchOptions.Role
-                : (DefaultNetBridge == NetBridgeMode.Ngo ? NetLaunchRole.Host : NetLaunchRole.Off);
+            // [14_networking.md] N-1(2026-09-22) — 役割解決を純関数(NetLaunchArgs.ResolveEffectiveRole、
+            // EditMode テスト済み)に切り出した。既定(DefaultNetBridge=Loopback, DefaultNetStart=Auto)では
+            // 常に Off を返すため、既存の挙動は変わらない。
+            var role = NetLaunchArgs.ResolveEffectiveRole(LaunchOptions.Role, DefaultNetBridge == NetBridgeMode.Ngo, DefaultNetStart == NetStartMode.Manual);
 
             if (role == NetLaunchRole.Off)
             {
@@ -385,7 +455,7 @@ namespace DDrive.Runtime.Loop
             var factory = NetBridgeFactoryRegistry.Current;
             if (factory == null)
             {
-                Debug.LogWarning("[Net] DDriveRuntimeBootstrap: NGO(com.unity.netcode.gameobjects)が導入されていないため、Host/Client の要求を無視して LocalLoopbackBridge を使います。");
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap: NGO(com.unity.netcode.gameobjects)が導入されていないため、Host/Client/Manual の要求を無視して LocalLoopbackBridge を使います。");
                 return new LocalLoopbackBridge();
             }
 
@@ -395,13 +465,18 @@ namespace DDrive.Runtime.Loop
 
             if (result?.Bridge == null)
             {
-                Debug.LogWarning("[Net] DDriveRuntimeBootstrap: -ddrive-net で Host/Client が要求されましたが、シーンに NetworkManager + NgoNetBridge が見つかりません。LocalLoopbackBridge にフォールバックします([docs/29] のセットアップ手順を確認してください)。");
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap: -ddrive-net で Host/Client/Manual が要求されましたが、シーンに NetworkManager + NgoNetBridge が見つかりません。LocalLoopbackBridge にフォールバックします([docs/29] のセットアップ手順を確認してください)。");
                 return new LocalLoopbackBridge();
             }
 
             // StartHost/StartClient は Start() まで遅延する(上記 StartNetworkingIfPending 参照)。
+            // role==Manual のときは result.PendingStart が null なので自動接続は起きない([14] N-1)。
             _pendingNetStart = result.PendingStart;
             _assignHashGateToOverlay = result.AssignHashGate;
+            _isNetworkStartedQuery = result.IsListening;
+            _manualStartHost = result.ManualStartHost;
+            _manualStartClient = result.ManualStartClient;
+            _manualStop = result.ManualStop;
 
             return result.Bridge;
         }
@@ -436,6 +511,10 @@ namespace DDrive.Runtime.Loop
             NetBridge.ClientDisconnected -= OnNetClientDisconnected;
             _pendingNetStart = null;
             _assignHashGateToOverlay = null;
+            _isNetworkStartedQuery = null;
+            _manualStartHost = null;
+            _manualStartClient = null;
+            _manualStop = null;
 
             NetHashGate?.Dispose();
             NetHashGate = null;

@@ -12,6 +12,11 @@ namespace DDrive.Runtime.Net
         Off,
         Host,
         Client,
+
+        // [14_networking.md] N-1(2026-09-22) — NGO ブリッジは解決するが StartHost/StartClient を自動で
+        // 呼ばない(開発用の手動接続。DDriveRuntimeBootstrap.StartHost/StartClient/StopNetworking を
+        // 呼ぶまで待つ)。既存の Host/Client/Off の判定はどれも変えない([42_distribution.md] §5「追加のみ」)。
+        Manual,
     }
 
     // 純粋なデータ(Unity API 非依存)。EditMode テストで容易に検証できるようにするため、
@@ -124,9 +129,31 @@ namespace DDrive.Runtime.Net
                     return NetLaunchRole.Client;
                 case "off":
                     return NetLaunchRole.Off;
+                case "manual":
+                    return NetLaunchRole.Manual;
                 default:
                     return NetLaunchRole.Unspecified;
             }
+        }
+
+        // [14_networking.md] N-1(2026-09-22) — DDriveRuntimeBootstrap.ResolveNetBridge の役割解決を
+        // Unity API 非依存の純関数に切り出したもの(EditMode テストで検証するため、Parse と同じ方針)。
+        // CLI(`-ddrive-net`)で明示されていればそれを最優先し、未指定のときだけ Inspector の既定値
+        // (DefaultNetBridge/DefaultNetStart)から導く。defaultBridgeIsNgo=false のときは常に Off
+        // (DefaultNetStart の値に関わらず。既存の挙動を変えないための既定 = Loopback/Auto)。
+        public static NetLaunchRole ResolveEffectiveRole(NetLaunchRole cliRole, bool defaultBridgeIsNgo, bool defaultStartIsManual)
+        {
+            if (cliRole != NetLaunchRole.Unspecified)
+            {
+                return cliRole;
+            }
+
+            if (!defaultBridgeIsNgo)
+            {
+                return NetLaunchRole.Off;
+            }
+
+            return defaultStartIsManual ? NetLaunchRole.Manual : NetLaunchRole.Host;
         }
     }
 }

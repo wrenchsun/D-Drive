@@ -30,7 +30,9 @@ namespace DDrive.Tests.Editor
         [TestCase("host", NetLaunchRole.Host)]
         [TestCase("client", NetLaunchRole.Client)]
         [TestCase("off", NetLaunchRole.Off)]
+        [TestCase("manual", NetLaunchRole.Manual)]
         [TestCase("HOST", NetLaunchRole.Host)]
+        [TestCase("MANUAL", NetLaunchRole.Manual)]
         [TestCase("garbage", NetLaunchRole.Unspecified)]
         public void Parse_NetFlag_ParsesRole(string value, NetLaunchRole expected)
         {
@@ -122,6 +124,40 @@ namespace DDrive.Tests.Editor
         {
             var result = NetLaunchArgs.Parse(new[] { "-someOtherUnityFlag", "value", "-ddrive-net", "off" });
             Assert.AreEqual(NetLaunchRole.Off, result.Role);
+        }
+
+        // [14_networking.md] N-1(2026-09-22) — DDriveRuntimeBootstrap.ResolveNetBridge の役割解決
+        // (NetLaunchArgs.ResolveEffectiveRole)。既定(defaultBridgeIsNgo=false, defaultStartIsManual=false)
+        // では常に Off を返すこと(既存の挙動を変えない)を含めて検証する。
+
+        [Test]
+        public void ResolveEffectiveRole_CliRoleSpecified_AlwaysWinsOverDefaults()
+        {
+            Assert.AreEqual(NetLaunchRole.Client, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Client, defaultBridgeIsNgo: false, defaultStartIsManual: false));
+            Assert.AreEqual(NetLaunchRole.Host, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Host, defaultBridgeIsNgo: true, defaultStartIsManual: true));
+            Assert.AreEqual(NetLaunchRole.Off, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Off, defaultBridgeIsNgo: true, defaultStartIsManual: false));
+            Assert.AreEqual(NetLaunchRole.Manual, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Manual, defaultBridgeIsNgo: false, defaultStartIsManual: false));
+        }
+
+        [Test]
+        public void ResolveEffectiveRole_Unspecified_DefaultBridgeLoopback_ReturnsOff_RegardlessOfNetStart()
+        {
+            // 既存の既定値(DefaultNetBridge=Loopback)のときは DefaultNetStart の値に関わらず Off
+            // (= LocalLoopbackBridge)のまま。既存挙動を変えないための回帰テスト。
+            Assert.AreEqual(NetLaunchRole.Off, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Unspecified, defaultBridgeIsNgo: false, defaultStartIsManual: false));
+            Assert.AreEqual(NetLaunchRole.Off, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Unspecified, defaultBridgeIsNgo: false, defaultStartIsManual: true));
+        }
+
+        [Test]
+        public void ResolveEffectiveRole_Unspecified_DefaultBridgeNgo_AutoStart_ReturnsHost()
+        {
+            Assert.AreEqual(NetLaunchRole.Host, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Unspecified, defaultBridgeIsNgo: true, defaultStartIsManual: false));
+        }
+
+        [Test]
+        public void ResolveEffectiveRole_Unspecified_DefaultBridgeNgo_ManualStart_ReturnsManual()
+        {
+            Assert.AreEqual(NetLaunchRole.Manual, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Unspecified, defaultBridgeIsNgo: true, defaultStartIsManual: true));
         }
     }
 }

@@ -55,13 +55,24 @@ namespace DDrive.Runtime.Net
 
         // Start() のタイミングで呼ぶ(NetworkManager.Awake/OnEnable が済んでからでないと
         // StartHost/StartClient が NullReferenceException になるため、実際の呼び出しを遅延する。
-        // 元 DDriveRuntimeBootstrap.StartNetworkingIfPending と同じ理由)。
+        // 元 DDriveRuntimeBootstrap.StartNetworkingIfPending と同じ理由)。role が Manual のときは
+        // null(自動開始しない。[14_networking.md] N-1、2026-09-22)。
         public Action PendingStart;
 
         // NetHashGate は ResolveNetBridge() の戻り値を受け取った"後"に Bootstrap 側で生成されるため、
         // NetDebugOverlay へは生成後にコールバック経由で渡す(CatalogContentHashGate は DDrive.Runtime 側の
         // 型なので Ngo アセンブリからも安全に参照できる)。
         public Action<CatalogContentHashGate> AssignHashGate;
+
+        // [14_networking.md] N-1(2026-09-22) — 開発用の手動接続 API(DDriveRuntimeBootstrap.StartHost/
+        // StartClient/StopNetworking/IsNetworkStarted)が使う。`NetworkManager`/`NgoNetBridge` 型を
+        // DDrive.Runtime アセンブリへ露出させずに済むよう、実処理は全て Ngo アセンブリ側の delegate に
+        // 閉じ込める(既存の PendingStart/AssignHashGate と同じパターン)。役割(Host/Client/Manual)に
+        // 関わらず常に渡す(Auto で起動済みのセッションを後から StopNetworking() で止める用途にも使えるため)。
+        public Func<bool> IsListening;
+        public Func<ushort, bool> ManualStartHost;
+        public Func<string, ushort, bool> ManualStartClient;
+        public Action ManualStop;
     }
 
     public static class NetBridgeFactoryRegistry
