@@ -207,6 +207,30 @@ function Get-ClientConnectNetworkTime {
     return $null
 }
 
+# [14_networking.md] §16(N-3、コーディネーター指摘・2026-09-22) — quad_latejoin/quad_leave のように
+# Client が Host より先に(または後から)いなくなるシナリオでは、その Client の最後の heartbeat 以降に
+# Host が発火した signal_fire は原理的に受信不可能。これを分母に含めると中継率(ratio)が実態より低く出て
+# 機械的に FAIL する(quad_leave の 12 秒で退出する Client で実測 ratio=0.23。quad_latejoin の遅れて
+# 参加し先に退出する Client でも ratio=0.6)。Get-ClientConnectNetworkTime(下限)と対になる上限を返す
+# (Client ログの最後の heartbeat 行の networkTime。接続状態は問わない=切断直前の値も含めてよい、
+# 「その時刻まではまだ生きていた」ことの目安として十分なため)。
+function Get-ClientLastNetworkTime {
+    param([string]$ClientLogPath)
+
+    if (-not (Test-Path $ClientLogPath)) {
+        return $null
+    }
+
+    $lastTime = $null
+    foreach ($line in Get-Content -Path $ClientLogPath -ErrorAction SilentlyContinue) {
+        if ($line -match '\[DDriveNetCheck\]\s+heartbeat=1\s+role=client\s+.*networkTime=([\d.]+)') {
+            $lastTime = [double]$Matches[1]
+        }
+    }
+
+    return $lastTime
+}
+
 function Test-SignalPhase {
     param([string]$HostLogPath, [string]$ClientLogPath, [double]$LatencyMs = 0.0)
 
@@ -215,12 +239,20 @@ function Test-SignalPhase {
 
     # Client が接続する前に Host が単独で発火させた signal_fire は、Client からは受信不可能なので分母から
     # 除外する(late-join シナリオ用。他シナリオは Client 接続が最初の Play より早いため実質無害)。
+    # 2026-09-22 追加(コーディネーター指摘) — 同じ理由で、Client が退出した後に Host が発火した分も
+    # 分母から除外する(quad_leave/quad_latejoin のように Client が Host より先に/後から生きなくなる
+    # シナリオ用。既存 4 シナリオは全 Client が Host と同程度以上生きるため、この上限を追加しても
+    # 実質的にフィルタされる件数は変わらない=結果は変わらない)。
     $clientConnectNetworkTime = Get-ClientConnectNetworkTime -ClientLogPath $ClientLogPath
-    if ($null -ne $clientConnectNetworkTime) {
+    $clientLastNetworkTime = Get-ClientLastNetworkTime -ClientLogPath $ClientLogPath
+    if ($null -ne $clientConnectNetworkTime -or $null -ne $clientLastNetworkTime) {
         $filtered = @{}
         foreach ($key in $fireEvents.Keys) {
-            if ($fireEvents[$key] -ge $clientConnectNetworkTime) {
-                $filtered[$key] = $fireEvents[$key]
+            $time = $fireEvents[$key]
+            $afterConnect = ($null -eq $clientConnectNetworkTime) -or ($time -ge $clientConnectNetworkTime)
+            $beforeExit = ($null -eq $clientLastNetworkTime) -or ($time -le $clientLastNetworkTime)
+            if ($afterConnect -and $beforeExit) {
+                $filtered[$key] = $time
             }
         }
 
