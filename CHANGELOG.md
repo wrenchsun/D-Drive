@@ -12,6 +12,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 ### 互換性
 
 - 追加のみ（MINOR）: **N-1（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §14・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動ネット接続 API。`NetLaunchRole` に `Manual`（末尾追加）、`DDriveRuntimeBootstrap` に `NetStartMode`(新規 enum)・`DefaultNetStart`(新規フィールド、既定 `Auto`)・`public bool IsNetworkStarted`・`public bool StartHost(ushort)`・`public bool StartClient(string,ushort)`・`public void StopNetworking()` を追加。`NgoBridgeCreateResult`（`DDrive.Runtime.Net`）に `IsListening`/`ManualStartHost`/`ManualStartClient`/`ManualStop` の delegate フィールドを追加。既存の Auto 起動（既定 `DefaultNetBridge=Loopback`/`DefaultNetStart=Auto`）の挙動・既定値は無改修
+- 追加のみ（MINOR）: **N-2（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §15・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動接続 UI。`DDrive.Runtime.Net` に `public static class NetManualConnectInput`（`TryParsePort`/`TryParse`）を追加。`DDrive.Runtime.Ngo`（互換性スナップショット対象外）に `NetManualConnectOverlay`（新規コンポーネント）を追加。既存の公開 API・挙動・既定値は無改修（`NgoBridgeFactoryInstaller.Create()` の内部実装のみ変更）
 
 ### 追加
 
@@ -24,6 +25,14 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - 現在の役割（Host/Client）は重複を避けるため新規プロパティを設けず、既存の `NetBridge.IsServer`/`NetBridge.IsClient`（`NetDebugOverlay` と同じ判定）をそのまま使う
   - テスト: `Tests/Editor/NetLaunchArgsTests.cs` に `-ddrive-net manual` のパース + `ResolveEffectiveRole` の 4 パターンを追加。`NgoNetBridge`/`NgoBridgeFactoryInstaller` は `NetworkBehaviour`/`NetworkManager` 依存のため EditMode 化できず、実機/PlayMode での確認は N-1 では未実施（要フォローアップ）
   - `docs/11_tasks.md` に N-1〜N-4 のチケット枠を追加（N-2: 開発用接続 UI、N-3: NetCheckScene の N クライアント対応、N-4: 1v1 前提の当事者判定の 4 人対応。N-2〜N-4 は未着手）
+
+- N-2（2026-09-22）: 開発用の手動接続 UI（[docs/14_networking.md](docs/14_networking.md) §15）
+  - 背景: N-1 で追加した `StartHost`/`StartClient`/`StopNetworking`/`IsNetworkStarted` はコードから呼ぶ API のみで、実行中に IP を入力する導線が無かった。実機（Unity の無いビルド済み exe）向けなので EditorWindow ではなくランタイム UI にした
+  - `Runtime/Net/NetManualConnectInput.cs`（新規、Unity API 非依存の純関数）: `TryParsePort(string, out ushort, out string)`・`TryParse(string ip, string port, out string address, out ushort portValue, out string error)`。IP は IPv4 のドット表記のみ許可（ホスト名不可、`"localhost"` だけ `"127.0.0.1"` に読み替え）
+  - `Runtime/Ngo/NetManualConnectOverlay.cs`（新規、`#if DDRIVE_NGO`）: `NetDebugOverlay` と同じ `OnGUI` 方式。画面左下に IP/Port 入力欄 + 「Host で開始」「Client で接続」「切断」ボタン + 状態 1 行（未接続/Host listening/Client 接続中/切断）を表示。接続中は入力欄を編集不可にする。最後に接続した IP/Port を `PlayerPrefs`（`DDrive.Net.Manual.LastAddress`/`LastPort`）に保存し次回の初期値にする
+  - `NgoBridgeFactoryInstaller.cs`（`NgoBridgeFactory.Create`）: `role==NetLaunchRole.Manual` かつ `Debug.isDebugBuild || Application.isEditor` のときだけ `NetManualConnectOverlay` を生成する（リリースビルドで Manual が指定された場合は生成せず警告を 1 回だけ出す）。`DDriveRuntimeBootstrap` に新規 Inspector フィールドは追加していない
+  - テスト: `Tests/Editor/NetManualConnectInputTests.cs`（EditMode 新規 25 件）。互換性スナップショット `public-api-DDrive.Runtime.txt` を更新（`NetManualConnectInput` の追加のみ）。EditMode 1148/1148・PlayMode（`DDrive.Tests.Runtime`）754/754 green（Unity MCP 経由で確認済み）
+  - **未実施**: `NetCheckBuilder` の実ビルドを 2 プロセス起動しての Host/Client 接続・切断・再接続の実機確認（実装完了時点で空きメモリが約 1.2GB、ビルドの目安閾値 1.3GB 未満だったため見送り）
 
 ## [1.1.0] - 2026-09-20
 

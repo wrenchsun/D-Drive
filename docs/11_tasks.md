@@ -305,12 +305,12 @@ W-1〜W-12（実装済み）を拡張元として「アセット仕様」を「�
 
 ## N チケット: 開発用ネット手動接続（2026-09-22 追加。詳細は [14_networking.md] §14「N-1」）
 
-MS2026（4 人対戦: Host 1 + Client 3）へ持ち込む前提の開発用テストプレイで「LAN 外の特定 IP を入力 → 接続 → テストプレイ」をしたい、というユーザー要望から着手。N-1 のみ実装、N-2〜N-4 はチケット枠のみ（本チケットでは未着手）。
+MS2026（4 人対戦: Host 1 + Client 3）へ持ち込む前提の開発用テストプレイで「LAN 外の特定 IP を入力 → 接続 → テストプレイ」をしたい、というユーザー要望から着手。N-1・N-2 を実装、N-3〜N-4 はチケット枠のみ（本チケットでは未着手）。
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|
 | N-1 | 手動接続 API: `DDriveRuntimeBootstrap` に `NetStartMode`(Auto/Manual)+`DefaultNetStart`、`-ddrive-net manual`、`StartHost(ushort)`/`StartClient(string,ushort)`/`StopNetworking()`/`IsNetworkStarted` を追加(既存の Auto 起動・既定値は不変) | 基盤 | 1 | 6-0 | Manual モードで起動しても自動接続せず、`StartClient(ip, port)` を呼んだ時点で接続できる。既存の Auto 起動(既定)は無改修 → ✅ 2026-09-22 実装。詳細は [14_networking.md] §14 参照 |
-| N-2 | 開発用の接続 UI（IP 入力欄 + Host/Client ボタン。`StartHost`/`StartClient`/`StopNetworking`/`IsNetworkStarted` を呼ぶだけの薄い UI。確認用シーンから開ける形を想定） | 基盤+ED | 1 | N-1 | 実機/エディタで IP を入力して接続・切断ができる(テストプレイの導線) |
+| N-2 | 開発用の接続 UI（IP 入力欄 + Host/Client ボタン。`StartHost`/`StartClient`/`StopNetworking`/`IsNetworkStarted` を呼ぶだけの薄い UI。確認用シーンから開ける形を想定） | 基盤+ED | 1 | N-1 | 実機/エディタで IP を入力して接続・切断ができる(テストプレイの導線) → ✅ 2026-09-22 実装（要約）: `Runtime/Net/NetManualConnectInput.cs`(IP/Port 入力検証の純関数)+ `Runtime/Ngo/NetManualConnectOverlay.cs`(`OnGUI`、`NetDebugOverlay` と同じ方式。左下に表示し左上の `NetDebugOverlay` と重ならない)を新設。`NgoBridgeFactoryInstaller.Create()` が `role==Manual` かつ開発ビルド/エディタのときだけ生成する(リリースビルドは警告 1 回のみで生成しない)。最後の接続先は `PlayerPrefs` に保存し次回の初期値にする。テスト: `Tests/Editor/NetManualConnectInputTests.cs`(EditMode 新規 25 件)。EditMode 1148/1148・PlayMode(`DDrive.Tests.Runtime`)754/754 green(Unity MCP 経由で確認済み)。**未実施**: `NetCheckBuilder` での実ビルド 2 プロセスによる Host/Client 接続・切断・再接続の実機確認(空きメモリ約 1.2GB で閾値 1.3GB 未満のため見送り)。詳細は [14_networking.md] §15 参照 |
 | N-3 | `NetCheckScene`/`NetCheckRunner` の N クライアント対応（現状は 1v1 前提のシナリオのみ）。Host 側の heartbeat ログ/`NetDebugOverlay` に接続クライアント数を表示 | 基盤 | 2 | N-1, 6-7 | Host 1 + Client 3 で `NetCheckRunner` の RESULT 判定が成立する |
 | N-4 | 1v1 前提の当事者判定（HitStop 等）の 4 人（Host+3 Client）対応。[14_networking.md] 各所で「相手」を単数として扱っている箇所の洗い出しと対応 | 基盤 | 3 | N-1 | 3 人目以降の Client が参加してもHitStop 等の当事者判定が誤動作しない |
 

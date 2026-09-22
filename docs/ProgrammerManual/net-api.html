@@ -74,6 +74,30 @@
 <strong>NGO 利用時はシーンの構成が前提条件です。</strong> <code>Ngo</code> モードを要求しても、シーンに <code>NetworkManager</code> と <code>NgoNetBridge</code>（<code>DDriveRuntimeBootstrap.NetworkManagerRef</code>/<code>NgoBridgeRef</code> の Inspector 直参照、未設定なら <code>FindAnyObjectByType</code> で自動検索）が見つからなければ、警告を出して <strong><code>LocalLoopbackBridge</code> にフォールバックします</strong>（例外で止めない設計、CLAUDE.md §0-4）。また <code>NetworkManager</code> と <code>NetworkObject</code>（＝ <code>NgoNetBridge</code>）は<strong>同じ GameObject に置けません</strong>（NGO が <code>[OnValidate] NetworkManager cannot be a NetworkObject</code> と警告し機能しない）。<code>NgoNetBridge</code> は別の GameObject（例: <code>NgoBridge</code>）に置いてください。
 </div>
 
+<h2 id="manual-connect">開発用の手動接続（N-1 API + N-2 UI、2026-09-22 追加）</h2>
+<p>MS2026 のような複数人対戦（Host + 複数 Client）への持ち込みを想定した開発用テストプレイで、「実行中に接続先 IP を入力して接続する」ための仕組みです。<code>-ddrive-net host</code>/<code>client</code> は起動前に接続先を固定する必要がありますが、この Manual モードは<strong>起動後に接続先を選べます</strong>。開発ビルド/エディタ専用で、本編（リリース）の通常プレイには使いません。</p>
+<h3 id="manual-connect-role">起動: <code>NetLaunchRole.Manual</code></h3>
+<p><code>-ddrive-net manual</code>（または <code>DDriveRuntimeBootstrap.DefaultNetBridge=Ngo</code> かつ <code>DefaultNetStart=Manual</code>）を指定すると、<code>ResolveNetBridge()</code> は <code>NetworkManager</code>/<code>NgoNetBridge</code> の解決までは行いますが、Transport 設定と <code>StartHost</code>/<code>StartClient</code> の実行はどちらも呼び出しません。<code>Start()</code> の自動接続（<code>StartNetworkingIfPending</code>）は無害な no-op で終わります。</p>
+<h3 id="manual-connect-api"><code>DDriveRuntimeBootstrap</code> の手動接続 API</h3>
+<table>
+<tr><th>メンバー</th><th>役割</th></tr>
+<tr><td><code>bool IsNetworkStarted</code></td><td><code>NetworkManager.IsListening</code> を薄くラップした読み取り専用プロパティ</td></tr>
+<tr><td><code>bool StartHost(ushort port)</code></td><td>指定 Port で Host として開始する。<strong>手動 Host は <code>"0.0.0.0"</code> で listen する</strong>（別 LAN・LAN 外からの接続を受けるため。接続先として案内するアドレス自体は既存の <code>DefaultHostAddress</code>/<code>-ddrive-host</code> のまま）</td></tr>
+<tr><td><code>bool StartClient(string address, ushort port)</code></td><td>指定 IP:Port へ Client として接続する</td></tr>
+<tr><td><code>void StopNetworking()</code></td><td><code>NetworkManager.Shutdown()</code>。この後にもう一度 <code>StartHost</code>/<code>StartClient</code> を呼べば再接続できる</td></tr>
+</table>
+<p>いずれも <code>NetBridgeMode.Loopback</code> のとき、または NGO 未導入/シーンに <code>NetworkManager</code>+<code>NgoNetBridge</code> が無いときは警告を出して no-op（<code>StartHost</code>/<code>StartClient</code> は <code>false</code>）を返します（例外で止めない）。既に接続中に呼んだ場合も警告して <code>false</code> です。現在の役割（Host/Client）は重複を避けるため専用プロパティを設けておらず、既存の <code>NetBridge.IsServer</code>/<code>NetBridge.IsClient</code>（<code>NetDebugOverlay</code> と同じ判定）をそのまま使います。</p>
+<h3 id="manual-connect-ui">ランタイム UI: <code>NetManualConnectOverlay</code></h3>
+<p><code>Runtime/Ngo/NetManualConnectOverlay.cs</code>（<code>#if DDRIVE_NGO</code>）は、Unity Editor が無い実機（ビルド済み exe）でも IP を入力できるよう、上記 API を呼ぶだけの薄いランタイム UI です。<code>NetDebugOverlay</code> と同じ <code>OnGUI</code> 方式（専用の uGUI Canvas は使わない）で、<code>NgoBridgeFactory.Create()</code> が <code>NetLaunchRole.Manual</code> のときだけ、<code>Debug.isDebugBuild || Application.isEditor</code> を満たす場合に生成します（リリースビルドでは生成せず警告のみ）。</p>
+<ul>
+<li>画面<strong>左下</strong>に表示します（左上の <code>NetDebugOverlay</code> と重ならないようにするため）</li>
+<li>IP / Port の入力欄、「Host で開始」「Client で接続」「切断」ボタン、状態 1 行（未接続 / Host listening / Client 接続中 / 切断）を表示します。状態は <code>IsNetworkStarted</code>・<code>Bridge.IsServer</code>/<code>IsClient</code>・<code>NgoNetBridge.IsConnected</code> から導きます</li>
+<li>接続中（<code>IsNetworkStarted=true</code>）は入力欄を編集できません</li>
+<li>入力検証は <code>Runtime/Net/NetManualConnectInput.cs</code>（Unity API 非依存の静的クラス）の <code>TryParsePort</code>/<code>TryParse</code> が行います。IP は<strong>IPv4 のドット表記のみ</strong>受け付け（ホスト名不可）、<code>"localhost"</code> だけ例外的に <code>"127.0.0.1"</code> に読み替えます。Port は 1〜65535 の数値のみ</li>
+<li>最後に接続した IP/Port は <code>PlayerPrefs</code>（<code>DDrive.Net.Manual.LastAddress</code>/<code>DDrive.Net.Manual.LastPort</code>）に保存し、次回起動時の初期値にします</li>
+</ul>
+<p>詳細な設計・実機確認手順は <code>docs/14_networking.md</code> §14・§15、<code>docs/29_network_device_test.md</code> §23 を参照してください。</p>
+
 <h2 id="delivery">配送規則</h2>
 <table>
 <tr><th>呼び出し</th><th>実装</th><th>備考</th></tr>
