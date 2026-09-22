@@ -20,13 +20,13 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 2
   Author: yamag
-  UpdatedAt: 2026-09-16T10:33:21
+  UpdatedAt: 2026-09-22T20:00:32
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -108,6 +108,7 @@ MonoBehaviour:
       ObjectValue: {fileID: 0}
     Repeat: 0
   ImportSourceGuid: 
+  SchemaVersion: 0
   Clips:
   - {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   Sources: []
