@@ -303,6 +303,17 @@ W-1〜W-12（実装済み）を拡張元として「アセット仕様」を「�
 
 合計 約 24.5 人日（基盤 + ED 並行で 3〜3.5 週）。P-1/P-2 は並行可。**P-5（移設）は P-3 のテストが green になってから**。
 
+## N チケット: 開発用ネット手動接続（2026-09-22 追加。詳細は [14_networking.md] §14「N-1」）
+
+MS2026（4 人対戦: Host 1 + Client 3）へ持ち込む前提の開発用テストプレイで「LAN 外の特定 IP を入力 → 接続 → テストプレイ」をしたい、というユーザー要望から着手。N-1 のみ実装、N-2〜N-4 はチケット枠のみ（本チケットでは未着手）。
+
+| # | チケット | 担当 | 日数 | 依存 | AC |
+|---|---|---|---|---|---|
+| N-1 | 手動接続 API: `DDriveRuntimeBootstrap` に `NetStartMode`(Auto/Manual)+`DefaultNetStart`、`-ddrive-net manual`、`StartHost(ushort)`/`StartClient(string,ushort)`/`StopNetworking()`/`IsNetworkStarted` を追加(既存の Auto 起動・既定値は不変) | 基盤 | 1 | 6-0 | Manual モードで起動しても自動接続せず、`StartClient(ip, port)` を呼んだ時点で接続できる。既存の Auto 起動(既定)は無改修 → ✅ 2026-09-22 実装。詳細は [14_networking.md] §14 参照 |
+| N-2 | 開発用の接続 UI（IP 入力欄 + Host/Client ボタン。`StartHost`/`StartClient`/`StopNetworking`/`IsNetworkStarted` を呼ぶだけの薄い UI。確認用シーンから開ける形を想定） | 基盤+ED | 1 | N-1 | 実機/エディタで IP を入力して接続・切断ができる(テストプレイの導線) |
+| N-3 | `NetCheckScene`/`NetCheckRunner` の N クライアント対応（現状は 1v1 前提のシナリオのみ）。Host 側の heartbeat ログ/`NetDebugOverlay` に接続クライアント数を表示 | 基盤 | 2 | N-1, 6-7 | Host 1 + Client 3 で `NetCheckRunner` の RESULT 判定が成立する |
+| N-4 | 1v1 前提の当事者判定（HitStop 等）の 4 人（Host+3 Client）対応。[14_networking.md] 各所で「相手」を単数として扱っている箇所の洗い出しと対応 | 基盤 | 3 | N-1 | 3 人目以降の Client が参加してもHitStop 等の当事者判定が誤動作しない |
+
 ## U チケット: 使い勝手の修正（2026-09-17 追加。詳細は [39](39_usability_fixes_2026-09-17.md)）
 
 デザイナーマニュアル用のスクリーンショット撮影（[36 §5](36_manual_screenshot_list.md)）と実機での通し確認で見つかった不具合・要望 26 件（U-1〜U-26）。3D プレビューが透明になる件・FBX のマテリアルスロット未割当・「確認用シーンに配置」の挙動・作成導線（Project / Hierarchy 右クリック）などが含まれる。**Phase 7 より先に片付ける**。一覧と状態は [39](39_usability_fixes_2026-09-17.md) §0。

@@ -41,11 +41,19 @@ namespace DDrive.Runtime.Net
             var role = args.Role;
             var launchOptions = args.LaunchOptions;
 
-            NgoTransportConfigurator.TryConfigure(nm, host, port, launchOptions.SimLatencyMs, launchOptions.SimLossPercent);
+            // [14_networking.md] N-1(2026-09-22) — role==Manual は StartHost/StartClient API 呼び出し時まで
+            // Transport 設定を遅延する(まだ Host か Client かも決まっていないため、既定の host/port で
+            // 設定しても後で上書きされるだけで無意味。DoManualStartHost/DoManualStartClient が呼び出し時に
+            // NgoTransportConfigurator.TryConfigure を再利用する)。Host/Client は従来どおりここで設定する
+            // (既存の挙動を変えない)。
+            if (role == NetLaunchRole.Host || role == NetLaunchRole.Client)
+            {
+                NgoTransportConfigurator.TryConfigure(nm, host, port, launchOptions.SimLatencyMs, launchOptions.SimLossPercent);
 
-            // [11_tasks.md] 6-0 修正1 — UnityTransport.SetDebugSimulatorParameters は Obsolete/no-op
-            // (NgoTransportConfigurator.cs 参照)なので、アプリ層の送受信キュー遅延で代替する。
-            bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
+                // [11_tasks.md] 6-0 修正1 — UnityTransport.SetDebugSimulatorParameters は Obsolete/no-op
+                // (NgoTransportConfigurator.cs 参照)なので、アプリ層の送受信キュー遅延で代替する。
+                bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
+            }
 
             NetDebugOverlay overlay = null;
             if (args.ShowDebugOverlay)
@@ -88,11 +96,70 @@ namespace DDrive.Runtime.Net
                 }
             }
 
+            // [14_networking.md] N-1(2026-09-22) — 開発用の手動接続 API の実処理。DDriveRuntimeBootstrap.
+            // StartHost/StartClient/StopNetworking はこれらの delegate を呼ぶだけの薄いラッパー(NetworkManager
+            // 型を DDrive.Runtime 側へ露出させないため。既存の PendingStart/AssignHashGate と同じパターン)。
+            bool DoManualStartHost(ushort manualPort)
+            {
+                if (nm.IsListening)
+                {
+                    Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartHost: 既に接続中のため無視しました(先に StopNetworking() を呼んでください)。");
+                    return false;
+                }
+
+                NgoTransportConfigurator.TryConfigure(nm, host, manualPort, launchOptions.SimLatencyMs, launchOptions.SimLossPercent);
+                bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
+                nm.StartHost();
+                Debug.Log($"[Net/Host] DDriveRuntimeBootstrap.StartHost: Host として起動しました(port={manualPort})。");
+                return true;
+            }
+
+            bool DoManualStartClient(string manualAddress, ushort manualPort)
+            {
+                if (nm.IsListening)
+                {
+                    Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartClient: 既に接続中のため無視しました(先に StopNetworking() を呼んでください)。");
+                    return false;
+                }
+
+                if (string.IsNullOrEmpty(manualAddress))
+                {
+                    Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartClient: address が空のため接続できません。");
+                    return false;
+                }
+
+                NgoTransportConfigurator.TryConfigure(nm, manualAddress, manualPort, launchOptions.SimLatencyMs, launchOptions.SimLossPercent);
+                bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
+                nm.StartClient();
+                Debug.Log($"[Net/Client] DDriveRuntimeBootstrap.StartClient: Client として起動しました(host={manualAddress}:{manualPort})。");
+                return true;
+            }
+
+            void DoManualStop()
+            {
+                if (!nm.IsListening)
+                {
+                    Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StopNetworking: 接続していないため何もしません。");
+                    return;
+                }
+
+                nm.Shutdown();
+                Debug.Log("[Net] DDriveRuntimeBootstrap.StopNetworking: ネットワークを停止しました(NetworkManager.Shutdown)。");
+            }
+
+            bool DoIsListening() => nm.IsListening;
+
+            var pendingStart = (role == NetLaunchRole.Host || role == NetLaunchRole.Client) ? (System.Action)PendingStart : null;
+
             return new NgoBridgeCreateResult
             {
                 Bridge = bridge,
-                PendingStart = PendingStart,
+                PendingStart = pendingStart,
                 AssignHashGate = AssignHashGate,
+                IsListening = DoIsListening,
+                ManualStartHost = DoManualStartHost,
+                ManualStartClient = DoManualStartClient,
+                ManualStop = DoManualStop,
             };
         }
     }

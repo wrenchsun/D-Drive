@@ -888,6 +888,7 @@ TYPE class sealed DDrive.Runtime.Loop.DDriveRuntimeBootstrap : UnityEngine.MonoB
   field ContentHashTimeoutSeconds : double
   field DefaultHostAddress : string
   field DefaultNetBridge : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
+  field DefaultNetStart : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetStartMode
   field DefaultPort : ushort
   field KeepAcrossScenes : bool
   field LayerSettings : DDrive.Runtime.Ui.UiLayerSettings
@@ -895,6 +896,9 @@ TYPE class sealed DDrive.Runtime.Loop.DDriveRuntimeBootstrap : UnityEngine.MonoB
   field TuningTable : DDrive.Runtime.Tuning.TuningTable
   field const DefaultCatalogLabel : string
   method RegisterCatalogsAsync() : Cysharp.Threading.Tasks.UniTask
+  method StartClient(string address, ushort port) : bool
+  method StartHost(ushort port) : bool
+  method StopNetworking() : void
   property Anim : DDrive.Runtime.Anim.AnimManager {get}
   property Audio : DDrive.Runtime.Audio.AudioManager {get}
   property Bgm : DDrive.Runtime.Audio.BgmManager {get}
@@ -904,6 +908,7 @@ TYPE class sealed DDrive.Runtime.Loop.DDriveRuntimeBootstrap : UnityEngine.MonoB
   property Dispatcher : DDrive.Runtime.Presentation.AssetEventDispatcher {get}
   property Groups : DDrive.Runtime.Anchoring.AnchorGroupPlayer {get}
   property Haptics : DDrive.Runtime.Haptics.HapticsManager {get}
+  property IsNetworkStarted : bool {get}
   property IsReady : bool {get}
   property LaunchOptions : DDrive.Runtime.Net.NetLaunchOptions {get}
   property Loop : DDrive.Runtime.Loop.GameLoopDriver {get}
@@ -929,6 +934,11 @@ TYPE enum DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
   enum-member Ngo = 1
   field const Loopback : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
   field const Ngo : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetBridgeMode
+TYPE enum DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetStartMode
+  enum-member Auto = 0
+  enum-member Manual = 1
+  field const Auto : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetStartMode
+  field const Manual : DDrive.Runtime.Loop.DDriveRuntimeBootstrap.NetStartMode
 TYPE class sealed DDrive.Runtime.Loop.GameLoopDriver : UnityEngine.MonoBehaviour
   ctor GameLoopDriver()
   property GameLoop : DDrive.Foundation.Manager.GameLoop {get}
@@ -1320,6 +1330,7 @@ TYPE class static DDrive.Runtime.Net.NetLaunchArgs
   field const SimLatencyFlag : string
   field const SimLossFlag : string
   method static Parse(string[] args) : DDrive.Runtime.Net.NetLaunchOptions
+  method static ResolveEffectiveRole(DDrive.Runtime.Net.NetLaunchRole cliRole, bool defaultBridgeIsNgo, bool defaultStartIsManual) : DDrive.Runtime.Net.NetLaunchRole
 TYPE struct DDrive.Runtime.Net.NetLaunchOptions
   field AutoTestName : string
   field AutoTestSeconds : System.Nullable<float>
@@ -1331,10 +1342,12 @@ TYPE struct DDrive.Runtime.Net.NetLaunchOptions
 TYPE enum DDrive.Runtime.Net.NetLaunchRole
   enum-member Client = 3
   enum-member Host = 2
+  enum-member Manual = 4
   enum-member Off = 1
   enum-member Unspecified = 0
   field const Client : DDrive.Runtime.Net.NetLaunchRole
   field const Host : DDrive.Runtime.Net.NetLaunchRole
+  field const Manual : DDrive.Runtime.Net.NetLaunchRole
   field const Off : DDrive.Runtime.Net.NetLaunchRole
   field const Unspecified : DDrive.Runtime.Net.NetLaunchRole
 TYPE class sealed DDrive.Runtime.Net.NetModeUnsetValidator
@@ -1357,6 +1370,10 @@ TYPE class sealed DDrive.Runtime.Net.NgoBridgeCreateResult
   ctor NgoBridgeCreateResult()
   field AssignHashGate : System.Action<DDrive.Runtime.Net.CatalogContentHashGate>
   field Bridge : DDrive.Foundation.Net.INetBridge
+  field IsListening : System.Func<bool>
+  field ManualStartClient : System.Func<string, ushort, bool>
+  field ManualStartHost : System.Func<ushort, bool>
+  field ManualStop : System.Action
   field PendingStart : System.Action
 TYPE struct DDrive.Runtime.Net.PrefabDespawnedMsg
   field NetObjectId : ulong
