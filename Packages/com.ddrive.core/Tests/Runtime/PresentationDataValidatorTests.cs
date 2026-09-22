@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
+using DDrive.Foundation.Net;
 using DDrive.Foundation.Validation;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
@@ -217,6 +218,35 @@ namespace DDrive.Tests.Runtime
 
             var results = Validate(data);
             Assert.IsTrue(results.Any(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("循環")));
+        }
+
+        // [11_tasks.md] N-4(2026-09-22) — Scope=ParticipantsOnly は「ネット受信 Instance に限り、当事者以外の
+        // 発火を抑える」機能のため、Flags.Net=Local(常にローカル、ネット再生自体をしない)な Presentation では
+        // 意味を持たない。[14_networking.md] §5 実装メモ参照。
+        [Test]
+        public void ParticipantsOnlyScope_OnLocalPresentation_IsInfo()
+        {
+            var data = ValidData();
+            data.Flags.Net = NetMode.Local;
+            var tracks = data.Tracks;
+            tracks[1].Scope = PresentationEffectScope.ParticipantsOnly; // tracks[1] は HitStop
+            data.Tracks = tracks;
+
+            var results = Validate(data);
+            Assert.IsTrue(results.Any(r => r.Severity == ValidationSeverity.Info && r.Message.Contains("ParticipantsOnly")));
+        }
+
+        [Test]
+        public void ParticipantsOnlyScope_OnCosmeticPresentation_HasNoInfo()
+        {
+            var data = ValidData();
+            data.Flags.Net = NetMode.Cosmetic;
+            var tracks = data.Tracks;
+            tracks[1].Scope = PresentationEffectScope.ParticipantsOnly; // tracks[1] は HitStop
+            data.Tracks = tracks;
+
+            var results = Validate(data);
+            Assert.IsFalse(results.Any(r => r.Message.Contains("ParticipantsOnly")));
         }
     }
 }

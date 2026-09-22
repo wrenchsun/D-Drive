@@ -64,6 +64,14 @@ namespace DDrive.Runtime.Presentation
                     yield return ValidationResult.Info($"トラック {i}({track.Kind}) はトラックとアセット側の両方に Anchor が設定されているため、親子合成されます(トラックの Anchor が親)");
                 }
 
+                // [14_networking.md] §5(N-4、2026-09-22) — Scope=ParticipantsOnly はネット受信 Instance
+                // (PlayedViaNetworkReceive=true)にしか効かないため、Flags.Net=Local な Presentation では
+                // 常に「ネット非経由=全員(自分だけ)発火」のままで意味を持たない。
+                if (track.Scope == PresentationEffectScope.ParticipantsOnly && presentation.Flags.Net == NetMode.Local)
+                {
+                    yield return ValidationResult.Info($"トラック {i}({track.Kind}) は Scope=ParticipantsOnly ですが、この Presentation は Flags.Net=Local のためネット再生されず意味がありません");
+                }
+
                 if (track.Trigger == TrackTrigger.OnSignal && string.IsNullOrEmpty(track.SignalKey))
                 {
                     yield return ValidationResult.Error($"トラック {i}({track.Kind}) は Trigger=OnSignal ですが SignalKey が空です");
