@@ -3,6 +3,7 @@
 // (`Runtime/Ngo/NetCheck/`)へ移設した(GUID 不変。NetCheckScene.unity の参照は壊れない)。名前空間も
 // `DDrive.Samples` から `DDrive.Runtime.Net` に揃えた(DDrive.Runtime.Ngo.asmdef の rootNamespace と同じ)。
 #if DDRIVE_NGO
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
@@ -74,6 +75,13 @@ namespace DDrive.Runtime.Net
         private int _signalRecvCount;
         private int _forgedCancelSentCount;
         private int _forgedCancelDiscardedCount;
+
+        // [14_networking.md] §16(N-3、2026-09-22 追記) — quad(Host 1 + Client 3)では Broadcast が全ピアに
+        // 届くため、他 Client が送った偽造 Cancel の破棄ログも自分のログに出る。1v1 前提のまま「破棄ログが
+        // 見えたら自分の送信分」として数えていたため、quad では sent の約 3 倍が discarded として観測される
+        // 実バグ(forged_cancel_mismatch)があった。自分が送った鍵だけを覚えておき、破棄ログにその鍵が
+        // 含まれるときだけ数える(確認用サンプル専用コードのため HashSet の allocation は許容する)。
+        private readonly HashSet<uint> _forgedCancelKeysSent = new();
         private bool _placeholderObserved;
         private int _trackFiredOverGraceCount;
         private int _trackSkippedWithinGraceCount;
@@ -223,9 +231,22 @@ namespace DDrive.Runtime.Net
             // 送信元自身にも同じ破棄ログが返ってくるため、単一プロセスのログだけで送信数と破棄数を突き合わせられる
             // ([14_networking.md] §9、NgoNetBridge.Broadcast のコメント参照)。このシーンでは Cancel を明示的に
             // 送るのは SendForgedCancel だけなので、"PresentationCancelMsg" の破棄ログは全て偽造分だと判定できる。
+            // [14_networking.md] §16(N-3、2026-09-22 追記) — quad では他 Client 発の破棄ログも同じ経路(Broadcast
+            // はクライアントすべてへ届く)で見えるため、上記だけでは自分の送信分以外まで数えてしまう
+            // (forged_cancel_mismatch の原因)。PresentationManager 側の破棄ログ(発行者不一致・未知キーの
+            // どちらも)には `HandleNetKey=0xXXXXXXXX`(KeyText と同じ書式)が既に含まれているため、自分が
+            // 送った鍵のときだけ数える。
             if (condition.Contains("PresentationCancelMsg") && condition.Contains("破棄しました"))
             {
-                _forgedCancelDiscardedCount++;
+                foreach (var sentKey in _forgedCancelKeysSent)
+                {
+                    if (condition.Contains(KeyText(sentKey)))
+                    {
+                        _forgedCancelDiscardedCount++;
+                        break;
+                    }
+                }
+
                 return;
             }
 
@@ -553,6 +574,9 @@ namespace DDrive.Runtime.Net
 
             bootstrap.NetBridge.Broadcast(new PresentationCancelMsg { HandleNetKey = forgedKey }, NetChannel.ReliableOrdered);
             _forgedCancelSentCount++;
+            // [14_networking.md] §16(N-3、2026-09-22 追記) — OnLogMessageReceived が「自分が送った鍵か」を
+            // 判定するために保持する(quad 対応、forged_cancel_mismatch の修正)。
+            _forgedCancelKeysSent.Add(forgedKey);
             LogCheck("forged_cancel_sent", forgedKey.ToString());
         }
 
