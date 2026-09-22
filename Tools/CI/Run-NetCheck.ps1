@@ -211,9 +211,14 @@ function Get-ClientConnectNetworkTime {
 # Client が Host より先に(または後から)いなくなるシナリオでは、その Client の最後の heartbeat 以降に
 # Host が発火した signal_fire は原理的に受信不可能。これを分母に含めると中継率(ratio)が実態より低く出て
 # 機械的に FAIL する(quad_leave の 12 秒で退出する Client で実測 ratio=0.23。quad_latejoin の遅れて
-# 参加し先に退出する Client でも ratio=0.6)。Get-ClientConnectNetworkTime(下限)と対になる上限を返す
-# (Client ログの最後の heartbeat 行の networkTime。接続状態は問わない=切断直前の値も含めてよい、
-# 「その時刻まではまだ生きていた」ことの目安として十分なため)。
+# 参加し先に退出する Client でも ratio=0.6)。Get-ClientConnectNetworkTime(下限)と対になる上限を返す。
+# 2026-09-22 再修正: 「最後の heartbeat 行」の networkTime をそのまま使うと、Host との接続が切れた後の
+# heartbeat 行は networkTime が 0.00 にリセットされる([docs/29] §8「切断後は heartbeat の... networkTime=0.00」)
+# ため、disconnect シナリオ(Host が先に終了→ Client が切断検知)で「最後の行の値」を採用すると上限が
+# 0.00 になり、全ての signal_fire が上限を超えている扱いになって fireEvents が空になる偽陽性 FAIL
+# (no_signal_fire_in_host_log)を起こす実バグがあった(初回修正時に見落とし)。時系列で単調増加するとは
+# 限らないため、「観測した networkTime の最大値」を返すようにする(切断後にリセットされた 0.00 は
+# 無視される)。
 function Get-ClientLastNetworkTime {
     param([string]$ClientLogPath)
 
@@ -221,14 +226,17 @@ function Get-ClientLastNetworkTime {
         return $null
     }
 
-    $lastTime = $null
+    $maxTime = $null
     foreach ($line in Get-Content -Path $ClientLogPath -ErrorAction SilentlyContinue) {
         if ($line -match '\[DDriveNetCheck\]\s+heartbeat=1\s+role=client\s+.*networkTime=([\d.]+)') {
-            $lastTime = [double]$Matches[1]
+            $time = [double]$Matches[1]
+            if ($null -eq $maxTime -or $time -gt $maxTime) {
+                $maxTime = $time
+            }
         }
     }
 
-    return $lastTime
+    return $maxTime
 }
 
 function Test-SignalPhase {
