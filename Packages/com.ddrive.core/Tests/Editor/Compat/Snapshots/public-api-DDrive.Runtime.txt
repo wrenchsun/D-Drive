@@ -1528,6 +1528,11 @@ TYPE class sealed DDrive.Runtime.Presentation.PresentationDataValidator
   method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
   method static RequiresAsset(DDrive.Runtime.Presentation.TrackKind kind) : bool
   property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE enum DDrive.Runtime.Presentation.PresentationEffectScope
+  enum-member Everyone = 0
+  enum-member ParticipantsOnly = 1
+  field const Everyone : DDrive.Runtime.Presentation.PresentationEffectScope
+  field const ParticipantsOnly : DDrive.Runtime.Presentation.PresentationEffectScope
 TYPE struct DDrive.Runtime.Presentation.PresentationHandle
   field readonly Raw : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>
   field static readonly Invalid : DDrive.Runtime.Presentation.PresentationHandle
@@ -1578,6 +1583,7 @@ TYPE class sealed DDrive.Runtime.Presentation.PresentationManager
   method StopAll(DDrive.Foundation.Manager.StopReason reason) : void
   method Tick(float dt) : void
   method WaitAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, System.Threading.CancellationToken ct) : Cysharp.Threading.Tasks.UniTask
+  method static IsParticipant(DDrive.Foundation.Net.INetBridge bridge, ulong selfNetId, ulong targetNetId) : bool
   method static ResolveContextRoot(ref DDrive.Runtime.Presentation.PlayContext ctx, DDrive.Runtime.Presentation.TrackTargetMode mode) : UnityEngine.Transform
   property Type : DDrive.Foundation.Identity.AssetType {get}
 TYPE struct DDrive.Runtime.Presentation.PresentationMarker
@@ -1588,6 +1594,7 @@ TYPE struct DDrive.Runtime.Presentation.PresentationTrack
   field Asset : DDrive.Foundation.Data.AssetRef
   field Kind : DDrive.Runtime.Presentation.TrackKind
   field Params : DDrive.Foundation.Data.ParamValue[]
+  field Scope : DDrive.Runtime.Presentation.PresentationEffectScope
   field SignalKey : string
   field StopOnCancel : bool
   field Target : DDrive.Runtime.Presentation.TrackTargetMode

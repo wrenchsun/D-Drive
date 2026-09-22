@@ -59,6 +59,16 @@ namespace DDrive.Runtime.Presentation
         Anchor,
     }
 
+    // [14_networking.md] §5「HitStop は全員が実行する(観戦者を区別しない、既定)」の要判断(2026-09-14)を
+    // 解消する(N-4、2026-09-22)。4 人対戦等、当事者が 2 人固定でない構成向けに、HitStop/CameraShake/Haptic
+    // トラックが「当事者(Self/Target が自分のプレイヤーオブジェクト)だけ」で発火するよう絞れるようにする。
+    // 既定は Everyone(=0、従来どおり全員実行)。末尾追加のみ(互換性ポリシー、docs/42 §5)。
+    public enum PresentationEffectScope
+    {
+        Everyone = 0,
+        ParticipantsOnly = 1,
+    }
+
     [Serializable]
     public struct PresentationTrack
     {
@@ -89,5 +99,13 @@ namespace DDrive.Runtime.Presentation
 
         [Tooltip("Cancel() 時、このトラックが起動した実体(VFX/SE/UiTween 等)も一緒に止めるか。")]
         public bool StopOnCancel;
+
+        // [14_networking.md] §5(N-4、2026-09-22) — HitStop/CameraShake/Haptic のみ意味を持つ。
+        // ParticipantsOnly は「ネット受信した Instance(PlayedViaNetworkReceive=true)のうち、SelfNetId/
+        // TargetNetId のどちらかが自分のプレイヤーオブジェクトのときだけ発火する」(予測再生した行為者自身は
+        // 対象外、常に発火する)。既定 Everyone は互換性ポリシーどおり既存の全員実行の挙動を変えない。
+        [Tooltip("HitStop/CameraShake/Haptic のみ有効。ParticipantsOnly はネット越しに受信した当事者(Self/Target " +
+                 "が自分のプレイヤーオブジェクト)だけが発火する。既定 Everyone は全員が発火する(従来どおり)。")]
+        public PresentationEffectScope Scope;
     }
 }

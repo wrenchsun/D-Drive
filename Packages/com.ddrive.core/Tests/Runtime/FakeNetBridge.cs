@@ -28,6 +28,10 @@ namespace DDrive.Tests.Runtime
         private readonly Dictionary<Type, bool> _knownTypes = new();
         private readonly Dictionary<ulong, RelayBudget> _relayBudgets = new();
         private readonly Dictionary<Transform, ulong> _netIds = new();
+        // N-4(2026-09-22) — PresentationManager.IsParticipant() は netId → Transform の順引きを使う
+        // (ResolveNetObject)。既存の _netIds(Transform → netId、ResolveNetId 用)とは逆方向のため、
+        // SetNetId で両方に登録する(片方だけ更新して食い違わないようにするため専用の辞書にした)。
+        private readonly Dictionary<ulong, Transform> _netObjects = new();
         private readonly HashSet<Transform> _localPlayerObjects = new();
 
         public bool IsServer { get; set; } = true;
@@ -130,16 +134,23 @@ namespace DDrive.Tests.Runtime
             return new Subscription(() => list.Remove(handler));
         }
 
-        public Transform ResolveNetObject(ulong netId) => null;
+        public Transform ResolveNetObject(ulong netId)
+            => netId != 0 && _netObjects.TryGetValue(netId, out var transform) ? transform : null;
 
         public ulong ResolveNetId(Transform transform)
             => transform != null && _netIds.TryGetValue(transform, out var id) ? id : 0UL;
 
         public void SetNetId(Transform transform, ulong netId)
         {
-            if (transform != null)
+            if (transform == null)
             {
-                _netIds[transform] = netId;
+                return;
+            }
+
+            _netIds[transform] = netId;
+            if (netId != 0)
+            {
+                _netObjects[netId] = transform;
             }
         }
 

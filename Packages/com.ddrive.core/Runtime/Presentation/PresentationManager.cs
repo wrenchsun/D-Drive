@@ -82,6 +82,13 @@ namespace DDrive.Runtime.Presentation
             // 場合だけ再生し、それ以外(未解決 or 自分ではない)は誤発火防止のため安全側に倒して再生しない
             // (オーケストレーターの追加指示、2026-09-14 → 6-0 で NetId 解決を実装)。
             public bool PlayedViaNetworkReceive;
+
+            // [14_networking.md] §5(N-4、2026-09-22) — ネット受信(PlayedViaNetworkReceive=true)の Instance に
+            // 限り、元の PresentationPlayMsg.SelfNetId/TargetNetId をそのまま保持する(0 = 未解決)。
+            // IsParticipant()/FireHaptic の LocalPlayerOnly 判定が共通の解決経路として使う。予測再生
+            // (PlayedViaNetworkReceive=false)の Instance では設定しない(既定 0 のままで未使用)。
+            public ulong SelfNetId;
+            public ulong TargetNetId;
         }
 
         // Host のみが保持する「アクティブな Cosmetic Presentation」台帳(5-9, Late Join 用)。
@@ -343,7 +350,9 @@ namespace DDrive.Runtime.Presentation
             ushort seed,
             uint handleNetKey,
             bool isNetworked,
-            bool playedViaNetworkReceive)
+            bool playedViaNetworkReceive,
+            ulong selfNetId = 0UL,
+            ulong targetNetId = 0UL)
         {
             var instance = new PresentationInstance
             {
@@ -368,6 +377,8 @@ namespace DDrive.Runtime.Presentation
                 IsNetworked = isNetworked,
                 PlayedViaNetworkReceive = playedViaNetworkReceive,
                 Seed = seed,
+                SelfNetId = selfNetId,
+                TargetNetId = targetNetId,
             };
 
             var handle = _instances.Add(instance);
@@ -752,7 +763,7 @@ namespace DDrive.Runtime.Presentation
                 }
             }
 
-            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true);
+            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true, selfNetId: msg.SelfNetId, targetNetId: msg.TargetNetId);
 
             if (_instances.TryGet(handle, out var instance))
             {
@@ -1409,6 +1420,54 @@ namespace DDrive.Runtime.Presentation
             }
         }
 
+        // [14_networking.md] §5(N-4、2026-09-22) — 「SelfNetId/TargetNetId のどちらかが自分のプレイヤー
+        // オブジェクトか」を解決する共有ロジック(FireHaptic の LocalPlayerOnly 判定と IsParticipant() の
+        // 両方がここを通る。重複コード禁止)。未解決(bridge==null、netId==0、ResolveNetObject が null、
+        // 自分の所有物でない)は false を返す(呼び出し元がそれぞれのポリシーで「未解決時どうするか」の
+        // 安全側デフォルトを適用する。LocalPlayerOnly は false=鳴らさない、Scope は IsParticipant() 側で
+        // true=全員発火に読み替える)。
+        private static bool IsLocalParticipant(INetBridge bridge, ulong selfNetId, ulong targetNetId)
+        {
+            if (bridge == null)
+            {
+                return false;
+            }
+
+            if (selfNetId != 0)
+            {
+                var self = bridge.ResolveNetObject(selfNetId);
+                if (self != null && bridge.IsLocalPlayerObject(self))
+                {
+                    return true;
+                }
+            }
+
+            if (targetNetId != 0)
+            {
+                var target = bridge.ResolveNetObject(targetNetId);
+                if (target != null && bridge.IsLocalPlayerObject(target))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // [14_networking.md] §5(N-4、2026-09-22) — PresentationTrack.Scope=ParticipantsOnly 用の当事者判定。
+        // 純関数(0 alloc)。SelfNetId/TargetNetId が両方 0(未解決)のときは false ではなく true を返す
+        // (安全側=従来どおり全員実行。Loopback/シングルプレイ〈netBridge==null で呼ばれることは無いが、
+        // bridge==null が来ても同じ安全側〉でも挙動を変えない)。public static: EditMode テストから直接検証する。
+        public static bool IsParticipant(INetBridge bridge, ulong selfNetId, ulong targetNetId)
+        {
+            if (selfNetId == 0 && targetNetId == 0)
+            {
+                return true;
+            }
+
+            return IsLocalParticipant(bridge, selfNetId, targetNetId);
+        }
+
         private void FireDueTracks(Handle<PresentationMarker> handle, PresentationInstance instance)
         {
             var tracks = instance.Data.Tracks;
@@ -1532,7 +1591,7 @@ namespace DDrive.Runtime.Presentation
                     break;
 
                 case TrackKind.HitStop:
-                    FireHitStop(in track);
+                    FireHitStop(instance, in track);
                     break;
 
                 case TrackKind.Marker:
@@ -1800,6 +1859,14 @@ namespace DDrive.Runtime.Presentation
                 return;
             }
 
+            // [14_networking.md] §5(N-4) — ネット受信した Instance に限り Scope=ParticipantsOnly を見る。
+            // 予測再生した行為者自身(PlayedViaNetworkReceive=false)は Scope に関わらず発火する。
+            if (instance.PlayedViaNetworkReceive && track.Scope == PresentationEffectScope.ParticipantsOnly &&
+                !IsParticipant(_netBridge, instance.SelfNetId, instance.TargetNetId))
+            {
+                return;
+            }
+
             var data = _registry.ResolveOrPlaceholder<CameraShakeData>(track.Asset.Id);
             var h = _cameraFx.ShakeData(data, instance.Ctx.Position);
 
@@ -1820,17 +1887,25 @@ namespace DDrive.Runtime.Presentation
             var data = _registry.ResolveOrPlaceholder<HapticsData>(track.Asset.Id);
 
             // [14_networking.md] §5(6-0, C 対応) — SelfNetId/TargetNetId が実際に解決できていれば
-            // 「自分の Self/Target か」で誤爆防止を判定する(NetworkObject の所有者比較)。解決できない場合
-            // (SelfNetId/TargetNetId が 0、または対象が Spawn されていない等)は 5-8 の安全側デフォルトのまま
-            // (ネット受信 Instance では LocalPlayerOnly を鳴らさない)。予測再生した行為者自身の Instance は
-            // PlayedViaNetworkReceive=false のため、そもそもこの判定に入らず影響を受けない。
-            if (instance.PlayedViaNetworkReceive && data.LocalPlayerOnly)
+            // 「自分の Self/Target か」で誤爆防止を判定する(NetworkObject の所有者比較。IsLocalParticipant
+            // が共有の解決経路)。解決できない場合(SelfNetId/TargetNetId が 0、または対象が Spawn されて
+            // いない等)は 5-8 の安全側デフォルトのまま(ネット受信 Instance では LocalPlayerOnly を鳴らさない)。
+            // 予測再生した行為者自身の Instance は PlayedViaNetworkReceive=false のため、そもそもこの判定に
+            // 入らず影響を受けない。
+            if (instance.PlayedViaNetworkReceive)
             {
-                var isSelf = _netBridge != null &&
-                    ((instance.Ctx.Self != null && _netBridge.IsLocalPlayerObject(instance.Ctx.Self)) ||
-                     (instance.Ctx.Target != null && _netBridge.IsLocalPlayerObject(instance.Ctx.Target)));
+                if (data.LocalPlayerOnly && !IsLocalParticipant(_netBridge, instance.SelfNetId, instance.TargetNetId))
+                {
+                    return;
+                }
 
-                if (!isSelf)
+                // [14_networking.md] §5(N-4、2026-09-22) — LocalPlayerOnly(「自分の事象なら鳴らす」)と
+                // Scope=ParticipantsOnly(「当事者以外は発火しない」)は独立した条件で、両方 AND で通す
+                // (docs/08 §Scope 参照)。Scope 側は未解決(SelfNetId/TargetNetId とも 0)のとき安全側で
+                // true(全員発火)を返す IsParticipant() を使う(LocalPlayerOnly の安全側〈鳴らさない〉とは
+                // 逆であることに注意。目的が異なるため意図的に別デフォルト)。
+                if (track.Scope == PresentationEffectScope.ParticipantsOnly &&
+                    !IsParticipant(_netBridge, instance.SelfNetId, instance.TargetNetId))
                 {
                     return;
                 }
@@ -1844,11 +1919,20 @@ namespace DDrive.Runtime.Presentation
             }
         }
 
-        private void FireHitStop(in PresentationTrack track)
+        private void FireHitStop(PresentationInstance instance, in PresentationTrack track)
         {
             if (_time == null)
             {
                 WarnMissingManager(TrackKind.HitStop);
+                return;
+            }
+
+            // [14_networking.md] §5(N-4) — [08_presentation.md] 実装メモ「HitStop は全員が実行する
+            // (観戦者を区別しない、既定)」の要判断を解消する。Scope=ParticipantsOnly のときだけ、ネット受信
+            // Instance に限り非当事者の HitStop をスキップする(既定 Everyone は今までどおり全員停止する)。
+            if (instance.PlayedViaNetworkReceive && track.Scope == PresentationEffectScope.ParticipantsOnly &&
+                !IsParticipant(_netBridge, instance.SelfNetId, instance.TargetNetId))
+            {
                 return;
             }
 

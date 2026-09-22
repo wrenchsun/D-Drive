@@ -13,6 +13,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 追加のみ（MINOR）: **N-1（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §14・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動ネット接続 API。`NetLaunchRole` に `Manual`（末尾追加）、`DDriveRuntimeBootstrap` に `NetStartMode`(新規 enum)・`DefaultNetStart`(新規フィールド、既定 `Auto`)・`public bool IsNetworkStarted`・`public bool StartHost(ushort)`・`public bool StartClient(string,ushort)`・`public void StopNetworking()` を追加。`NgoBridgeCreateResult`（`DDrive.Runtime.Net`）に `IsListening`/`ManualStartHost`/`ManualStartClient`/`ManualStop` の delegate フィールドを追加。既存の Auto 起動（既定 `DefaultNetBridge=Loopback`/`DefaultNetStart=Auto`）の挙動・既定値は無改修
 - 追加のみ（MINOR）: **N-2（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §15・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動接続 UI。`DDrive.Runtime.Net` に `public static class NetManualConnectInput`（`TryParsePort`/`TryParse`）を追加。`DDrive.Runtime.Ngo`（互換性スナップショット対象外）に `NetManualConnectOverlay`（新規コンポーネント）を追加。既存の公開 API・挙動・既定値は無改修（`NgoBridgeFactoryInstaller.Create()` の内部実装のみ変更）
+- 追加のみ（MINOR）: **N-4（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §16・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — `DDrive.Runtime.Presentation` に `enum PresentationEffectScope { Everyone = 0, ParticipantsOnly = 1 }` を追加。`PresentationTrack` に `public PresentationEffectScope Scope`（末尾追加フィールド、既定 0=`Everyone`）を追加。`PresentationManager` に `public static bool IsParticipant(INetBridge, ulong, ulong)` を追加。シリアライズ形式は末尾追加のみ（既存 `.asset` は再インポート不要）。既存の HitStop/CameraShake/Haptic の挙動・既定値（`Scope=Everyone`）は無改修
 
 ### 追加
 
@@ -33,6 +34,17 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - `NgoBridgeFactoryInstaller.cs`（`NgoBridgeFactory.Create`）: `role==NetLaunchRole.Manual` かつ `Debug.isDebugBuild || Application.isEditor` のときだけ `NetManualConnectOverlay` を生成する（リリースビルドで Manual が指定された場合は生成せず警告を 1 回だけ出す）。`DDriveRuntimeBootstrap` に新規 Inspector フィールドは追加していない
   - テスト: `Tests/Editor/NetManualConnectInputTests.cs`（EditMode 新規 25 件）。互換性スナップショット `public-api-DDrive.Runtime.txt` を更新（`NetManualConnectInput` の追加のみ）。EditMode 1148/1148・PlayMode（`DDrive.Tests.Runtime`）754/754 green（Unity MCP 経由で確認済み）
   - **未実施**: `NetCheckBuilder` の実ビルドを 2 プロセス起動しての Host/Client 接続・切断・再接続の実機確認（実装完了時点で空きメモリが約 1.2GB、ビルドの目安閾値 1.3GB 未満だったため見送り）
+
+- N-4（2026-09-22）: HitStop/CameraShake/Haptic の当事者限定（Scope）（[docs/14_networking.md](docs/14_networking.md) §16）
+  - 背景: [docs/14_networking.md] §5 の 5-8 実装メモ「HitStop は全員が実行する（観戦者を区別しない、既定）」は MS2026 が 1v1 前提だった頃の要判断。MS2026 が 4 人対戦（Host 1 + Client 3）になったため、当事者ではない Client にも HitStop/CameraShake/Haptic が誤って波及する
+  - `Runtime/Presentation/PresentationTrack.cs` に `enum PresentationEffectScope { Everyone = 0, ParticipantsOnly = 1 }` と `PresentationTrack.Scope`（末尾追加、既定 `Everyone`）を追加。HitStop/CameraShake/Haptic のみ意味を持つ
+  - `PresentationManager` に `public static bool IsParticipant(INetBridge bridge, ulong selfNetId, ulong targetNetId)`（0 alloc 純関数）を追加。SelfNetId/TargetNetId のどちらかが `ResolveNetObject`→`IsLocalPlayerObject` で自分の所有物なら true。両方未解決（0）なら安全側で true（従来どおり全員実行）
+  - 既存の `FireHaptic`（`HapticsData.LocalPlayerOnly`、6-0 で追加済み）を `IsParticipant` と同じ解決経路（`IsLocalParticipant`、private）を共有する形に書き換えた（重複コード排除。`PresentationInstance` に `SelfNetId`/`TargetNetId` を追加してネット受信 Instance に限り保持する）
+  - `FireCameraShake`/`FireHaptic`/`FireHitStop` は `PlayedViaNetworkReceive && Scope==ParticipantsOnly && !IsParticipant(...)` のとき発火をスキップする。予測再生（`PredictLocal`）した行為者自身（`PlayedViaNetworkReceive=false`）は Scope に関わらず常に発火する
+  - `PresentationDataValidator` に Info 検査を追加: `Scope=ParticipantsOnly` なのに `Flags.Net=Local`（ネット再生されず無意味）
+  - `Editor/Presentation/PresentationEditorWindow.Tracks.cs`: トラック編集 Inspector に `Scope` フィールドを追加（`Kind` が CameraShake/Haptic/HitStop のときのみ表示）
+  - テスト: `Tests/Editor/PresentationIsParticipantTests.cs`（新規、EditMode、`IsParticipant` の純関数テスト）・`Tests/Runtime/PresentationParticipantScopeTests.cs`（新規、PlayMode、Everyone 回帰・Self/Target 当事者・第三者非発火・未解決時の安全側発火・予測再生の無条件発火）・`PresentationDataValidatorTests` に Info 検査 2 件。`Tests/Runtime/FakeNetBridge.cs` に `ResolveNetObject` の順引き（`netId → Transform`）辞書を追加（`SetNetId` の逆引きと対にした。既存呼び出しの挙動は不変）
+  - **未検証**: このセッションでは Unity MCP（isuzu-unity/CoplayDev）のどちらにも接続できず、コンパイル・EditMode/PlayMode テスト・互換性スナップショットの再生成（`Tools > D-Drive > Compat > スナップショットを更新`）を一度も実行できなかった。次回 Unity Editor 上で必ず確認すること
 
 ## [1.1.0] - 2026-09-20
 
