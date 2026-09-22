@@ -46,7 +46,7 @@ MonoBehaviour:
     Address: ANC_Player_VFXPlayerSlashAnchor
     Flags:
       Pause: 0
-      Load: 0
+      Load: 1
       Pool:
         Kind: 0
         InitialCount: 0
