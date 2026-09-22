@@ -1350,6 +1350,9 @@ TYPE enum DDrive.Runtime.Net.NetLaunchRole
   field const Manual : DDrive.Runtime.Net.NetLaunchRole
   field const Off : DDrive.Runtime.Net.NetLaunchRole
   field const Unspecified : DDrive.Runtime.Net.NetLaunchRole
+TYPE class static DDrive.Runtime.Net.NetManualConnectInput
+  method static TryParse(string ip, string port, out string address, out ushort portValue, out string error) : bool
+  method static TryParsePort(string port, out ushort portValue, out string error) : bool
 TYPE class sealed DDrive.Runtime.Net.NetModeUnsetValidator
   ctor NetModeUnsetValidator()
   method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>

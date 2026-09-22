@@ -23,6 +23,11 @@ namespace DDrive.Runtime.Net
     // トランスポート設定・デバッグオーバーレイの生成・StartHost/StartClient の遅延実行を用意する。
     internal sealed class NgoBridgeFactory : INgoBridgeFactory
     {
+        // [14_networking.md] §14(N-2、2026-09-22) — リリースビルドで role==Manual が指定された場合の
+        // 警告は 1 回だけ出す(CLAUDE.md §0-4「例外で止めない」+ ログを埋めない配慮。NgoTransportConfigurator
+        // の WarnOnce と同じ考え方)。
+        private static bool _warnedManualOverlaySkippedInRelease;
+
         public NgoBridgeCreateResult Create(in NgoBridgeCreateArgs args)
         {
             var hook = Object.FindAnyObjectByType<DDriveNgoBootstrapHook>();
@@ -67,6 +72,32 @@ namespace DDrive.Runtime.Net
                 overlay = overlayGo.AddComponent<NetDebugOverlay>();
                 overlay.Bridge = bridge;
                 overlay.NetworkManagerRef = nm;
+            }
+
+            // [14_networking.md] §14(N-2、2026-09-22) — role==Manual のときだけ、開発用の手動接続 UI
+            // (IP/Port 入力欄 + Host/Client/切断ボタン)を生成する。開発ビルド/エディタ限定
+            // (Debug.isDebugBuild は Editor 実行時、または「Development Build」を付けたプレイヤーで true。
+            // NgoNetBridge.ConfigureAppLayerSimLatency と同じ判定基準)。リリースビルドで Manual が
+            // 指定された場合は生成せず警告だけ 1 回出す(手動接続は開発用途のためリリースに含める理由が無い、
+            // かつ操作可能な UI を誤って残さない安全側)。
+            if (role == NetLaunchRole.Manual)
+            {
+                if (Debug.isDebugBuild || Application.isEditor)
+                {
+                    var manualOverlayGo = new GameObject("NetManualConnectOverlay");
+                    if (args.ParentTransform != null)
+                    {
+                        manualOverlayGo.transform.SetParent(args.ParentTransform, false);
+                    }
+
+                    var manualOverlay = manualOverlayGo.AddComponent<NetManualConnectOverlay>();
+                    manualOverlay.Initialize(host, port, bridge, DoIsListening, DoManualStartHost, DoManualStartClient, DoManualStop);
+                }
+                else if (!_warnedManualOverlaySkippedInRelease)
+                {
+                    _warnedManualOverlaySkippedInRelease = true;
+                    Debug.LogWarning("[Net] NgoBridgeFactory: リリースビルドのため手動接続 UI(NetManualConnectOverlay)は生成しません(開発ビルド/エディタ限定、[14_networking.md] §14 N-2)。");
+                }
             }
 
             void PendingStart()

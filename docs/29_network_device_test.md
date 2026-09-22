@@ -1113,3 +1113,17 @@ Exception / Error / `InvalidKeyException` / Placeholder はいずれも 0 件。
 | 4 | **セッション間の伝達経路が Markdown として解釈するため、手順書の `_` と `*` が消える**（`client_release.log` → `clientrelease.log`、`$_.Line` → `$.Line`） | 人へ渡す文面ではアンダースコアとアスタリスクを避ける（`ForEach-Object Line` 等） |
 
 4 は盲点だった。**手順書をコードブロックで書いても、経路によっては壊れる。**
+
+## 23. 手動接続モードでの起動手順（2026-09-22、N-2）
+
+N-1/N-2（[14_networking.md] §14・§15）で追加した「実行中に IP を入力して接続する」開発用モードの起動手順。上記の §1〜§22 は起動時に `-ddrive-net host`/`client` を渡して自動接続する前提だったが、こちらは接続先を実行中に選べる。
+
+1. ビルド（`DDrive.Editor.Build.NetCheckBuilder.Build(development: true)` 等）は `-ddrive-net` を付けずに作ってよい。起動時の引数だけで挙動が変わる
+2. 起動時の引数に `-ddrive-net manual` を渡す（`-ddrive-host`/`-ddrive-port` は省略可。省略時は Inspector の `DefaultHostAddress`/`DefaultPort` が Host ボタン押下時の初期値になる）
+3. 起動すると自動接続はせず、画面**左下**に手動接続 UI（`NetManualConnectOverlay`）が出る（左上の `NetDebugOverlay` とは別物。開発ビルド/エディタでしか出ない）
+4. Host にしたい端末で IP 欄はそのまま（無視される）、Port 欄を確認して「Host で開始」を押す。ログに `[Net/Host] ... Host として起動しました(listen=0.0.0.0:<port>)。` が出れば成功
+5. Client にしたい端末で IP 欄に Host の実アドレス（LAN 外なら到達可能なグローバル/ポートフォワード先 IP、同一 PC 内のループバック確認なら `127.0.0.1` または `localhost`）と Port を入力し「Client で接続」を押す。ログに `[Net/Client] ... Client として起動しました(host=<ip>:<port>)。` が出れば成功
+6. 「切断」を押すと `NetworkManager.Shutdown()` が走る（`[Net] ... ネットワークを停止しました` のログ）。もう一度「Host で開始」/「Client で接続」を押せば再接続を試せる（入力欄は未接続の間だけ編集できる)
+7. 接続の成否・状態（未接続/Host listening/Client 接続中/切断）は UI の状態 1 行と、既存の `NetDebugOverlay`（左上、Role/RTT/NetworkTime 等）を併読して確認する
+
+**未実施（2026-09-22 時点）**: 実ビルドを 2 プロセス起動しての Host/Client 接続・切断・`StopNetworking()` → 再 `StartHost` の再起動確認。実装完了時点で空きメモリが約 1.2GB（ビルドの目安閾値 1.3GB 未満）だったため見送った。次回、空きメモリに余裕があるときに §21/§22 と同様の形式で結果を追記すること。

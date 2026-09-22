@@ -782,3 +782,26 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 
 - 手動 Host が実際に `0.0.0.0` で listen し、別 LAN・LAN 外のマシンから `StartClient(その IP, port)` で接続できること（本チケットの主目的そのもの）。
 - `StopNetworking()` → 再度 `StartHost`/`StartClient` を呼ぶ「再起動」経路。シーンに配置した `NgoNetBridge` は `NetworkObject` であり、`NetworkManager.Shutdown()` 後にその `NetworkObject` が再 Spawn される（= 2 回目の `StartHost`/`StartClient` でも `NgoNetBridge` が機能する）かは NGO のシーン管理の実装依存で、EditMode では検証できない。実機/PlayMode で「切断 → 再接続」を実際に試すこと。
+
+## 15. 実装メモ（2026-09-22、N-2: 開発用の接続 UI）
+
+**背景**: N-1 で追加した手動接続 API（`StartHost`/`StartClient`/`StopNetworking`/`IsNetworkStarted`）はコードから呼ぶ薄い API のみで、実行中に IP を入力する導線が無かった。実機（Unity の無いビルド済み exe を動かす PC）ではスクリプトから叩けないため、EditorWindow ではなく**ランタイム UI**が要る。追加のみ（[42_distribution.md] §5 の互換性ポリシー）。
+
+**設計**:
+
+- `Runtime/Net/NetManualConnectInput.cs`（`DDrive.Runtime` アセンブリ、Unity API 非依存の `static class`）: UI の入力検証を切り出した純関数。
+  - `TryParsePort(string port, out ushort portValue, out string error)` — Host 開始は Port だけが要る（接続先アドレスは既存の `DefaultHostAddress`/`-ddrive-host` のまま）ため単独で公開。空/空白/非数値/0/65536 以上は失敗、1〜65535 は成功。
+  - `TryParse(string ip, string port, out string address, out ushort portValue, out string error)` — Client 接続用。内部で `TryParsePort` を先に呼ぶ（Port が不正なら IP を見るまでもなく失敗）。IP は **IPv4 のドット表記のみ許可**（ホスト名は不可。DNS 解決に処理を依存させないため）。`"localhost"`（大小無視）だけ例外的に `"127.0.0.1"` に読み替える。`System.Net.IPAddress.TryParse` は使わない（IPv6・短縮表記まで受理してしまうため、独自に「0-255 を `.` で 4 つ区切っただけの表記」を検証する）。
+  - テスト: `Tests/Editor/NetManualConnectInputTests.cs`（EditMode、25 件。空/空白/null/非数値/0/65535/65536/前後空白/ホスト名/IPv6/オクテット数不正/オクテット範囲外/`localhost`/大文字小文字/通常系/前後空白/全 0/全 255 を網羅）。
+- `Runtime/Ngo/NetManualConnectOverlay.cs`（`#if DDRIVE_NGO`、`NetDebugOverlay` と同じ「確認用のためだけ」の `OnGUI` 方式。専用の uGUI Canvas は作らない。ADR-4 とは無関係）: IP/Port 入力欄 + 「Host で開始」「Client で接続」「切断」ボタン + 状態 1 行を描画する。
+  - 表示位置は画面**左下**（`Rect(8, Screen.height-height-8, 240, 150)`）。`NetDebugOverlay` は左上（`Rect(8,8,260,168)`）のため重ならない。
+  - 状態 1 行（未接続 / Host listening / Client 接続中 / 切断）は `IsNetworkStarted`（≒ `NetworkManager.IsListening`）・`Bridge.IsServer`/`Bridge.IsClient`・`NgoNetBridge.IsConnected` から導く（`NetDebugOverlay` の役割・接続状態判定と同じ基準）。文字列の組み立ては 4 値のいずれかが変わったときだけ行い（`RefreshStateTextIfChanged`）、`OnGUI` の毎フレーム経路では文字列連結・GC を発生させない（[CLAUDE.md] §0-3 の趣旨）。
+  - 入力欄（IP/Port の `TextField`）は接続中（`IsNetworkStarted=true`）は `GUI.enabled=false` で編集不可にする。
+  - ボタン押下時にだけ `NetManualConnectInput.TryParsePort`/`TryParse` を呼び、失敗ならエラーメッセージを状態行の下にもう 1 行表示する（例外を投げない）。
+  - `NetworkManager`/`NgoNetBridge` 型を `DDrive.Runtime` へ露出させないため、実処理は N-1 で用意済みの `NgoBridgeCreateResult` の delegate（`IsListening`/`ManualStartHost`/`ManualStartClient`/`ManualStop`）をそのまま受け取って呼ぶ（`DDriveRuntimeBootstrap.StartHost`/`StartClient`/`StopNetworking`/`IsNetworkStarted` の実体と同じもの）。`DDriveRuntimeBootstrap`（`DDrive.Runtime.Loop` 名前空間、実は `DDrive.Runtime` アセンブリの一部なので `DDrive.Runtime.Ngo` から直接参照できるが）には依存しない設計にした。既存の `PendingStart`/`AssignHashGate` と同じパターンを踏襲するため。
+  - 最後に接続した IP/Port は `PlayerPrefs`（キー `DDrive.Net.Manual.LastAddress`/`DDrive.Net.Manual.LastPort`）に保存し、次回の初期値にする（開発用ツールのため簡易な永続化で十分。`OptionStore`/`DDriveProjectSettings` 等の正式な永続化とは無関係）。
+- `Runtime/Ngo/NgoBridgeFactoryInstaller.cs`（`NgoBridgeFactory.Create`）に生成箇所を追加: `role == NetLaunchRole.Manual` のときだけ、`Debug.isDebugBuild || Application.isEditor` を満たせば `NetManualConnectOverlay` を生成する（`NetDebugOverlay` と同じ場所、別の `GameObject` に `AddComponent`）。満たさない（= 開発ビルド/エディタ以外でリリースビルドに `-ddrive-net manual` が渡された）場合は生成せず、`NgoBridgeFactory` 内の `static bool` フラグで警告を 1 回だけ出す（`NgoTransportConfigurator.WarnOnce` と同じ考え方）。`DDriveRuntimeBootstrap` に新しい Inspector フィールドは追加していない（Manual 役割そのものが開発用のため）。
+
+**テスト**: `Tests/Editor/NetManualConnectInputTests.cs`（EditMode、新規 25 件）。`NetManualConnectOverlay`/`NgoBridgeFactoryInstaller` の変更は `NetworkBehaviour`/`NetworkManager`/`OnGUI` 依存のため EditMode 化できず、実機/PlayMode での目視確認が必要（[29_network_device_test.md] §23 に手順を追加）。EditMode 1148/1148・PlayMode（`DDrive.Tests.Runtime`）754/754 green（Unity MCP 経由で確認済み）。互換性スナップショット（`public-api-DDrive.Runtime.txt`）は `NetManualConnectInput` の追加のみを反映して更新済み（`Tools > D-Drive > Compat > スナップショットを更新`）。
+
+**未実施（メモリ制約）**: `NetCheckBuilder.Build()` での開発ビルド作成 → 2 プロセス（両方 `-ddrive-net manual`）での Host 開始/Client 接続/切断/`StopNetworking()` → 再 `StartHost` の実機確認は、実装完了時点で空きメモリが約 1.2GB（閾値 1.3GB 未満）だったため見送った。次回、空きメモリに余裕があるときに実施すること。`NetCheckRunner`（`Samples~/NetCheck/`）は `_role` を `Start()` 時点で 1 度だけ確定させており、Manual モードで `WhenReady` 完了時点ではまだ `StartHost`/`StartClient` を呼んでいないため `RoleOf(bootstrap)` が `"off"` に固定される問題があるが、これは `-ddrive-autotest` 経由の自動判定シナリオでのみ意味を持ち、本チケットの手動 UI 経由の接続確認では `NetCheckRunner` を使わないため、N-3 の範囲として手を付けなかった。
