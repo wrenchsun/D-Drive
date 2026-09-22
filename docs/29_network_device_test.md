@@ -1157,26 +1157,44 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
 
 ### 結果表
 
-**コンパイル・EditMode・PlayMode は実施済み。ビルド/run-netcheck は未実施（2026-09-22 更新）**: main（N-4 マージ済み、6ae597b）を `feat/n3-netcheck-multi-client` へマージした後、空きメモリが不安定な状態（instance ファイル経由の直接 JSON-RPC 接続、設定済み MCP クライアントのポートは Unity 側の実ポートとズレたまま）で以下を実施した:
+**コンパイル・EditMode・PlayMode・ビルド・run-netcheck をすべて実施（2026-09-22 最終）**: main（N-4 マージ済み、6ae597b）を `feat/n3-netcheck-multi-client` へマージした後、空きメモリが 2GB 以上に回復した時点で以下をすべて実施した。
 
-- **compile_status → error 0**（マージ直後・軽量確認時の 2 回とも）。軽量確認時に namespace 衝突による実コンパイルエラー 1 件を発見・修正済み（[14_networking.md] §16 実装メモ）
+- **compile_status → error 0**
 - **EditMode 全件 → 1164/1164 green**（0 failed / 0 skipped / 0 inconclusive、所要 179 秒）
 - **PlayMode 全件（`DDrive.Tests.Runtime`）→ 775/775 green**（0 failed / 0 skipped / 0 inconclusive、所要 8 秒）
-- テスト実行後に残った `Assets/Tests/`（一時フィクスチャ）・`ProjectSettings/DDriveProjectSettings.asset` の意図しない差分（`_previousPackageRef:` 空行の追加）を確認し、削除・`git checkout --` で復元済み。Addressables グループ・`Assets/GameData/` には差分なし
-- **`NetCheckBuilder.Build()` での再ビルド・`Tools\CI\run-netcheck.cmd`（8 シナリオ）は未実施**: EditMode/PlayMode の完走後、空きメモリが 1.3GB 未満（Unity 自身のメモリ使用量が複数回の domain reload で累積して増加したことが主因と推測。他プロセスを閉じる/Unity 再起動などユーザー側の対応が必要）まで低下し、Player ビルドという最も重い操作を安全に実行できる状態に回復しなかったため見送った。以下は実行結果ではなく、次回メモリに余裕があるとき（できれば Unity Editor 再起動直後）に埋める表のプレースホルダ。
+- テスト実行後に残った `Assets/Tests/`・`ProjectSettings/DDriveProjectSettings.asset` の差分は削除・復元済み。Addressables グループ・`Assets/GameData/` には差分なし
+- **`NetCheckBuilder.Build()` → 成功**（`Builds/DDriveNetCheck/DDriveNetCheck.exe` / `Builds/DDriveNetCheck.zip`、Addressables コンテンツも同時に再ビルド）
+- **`Tools\CI\run-netcheck.cmd`（8 シナリオ全部）→ 8 件とも FAIL**。ただし後述のとおり **N-3 で追加した判定ロジック自体（接続・Signal 中継・quad の `client_left`/`clients` 減少）は正しく機能していることを確認できた**。FAIL の内訳は以下の表と「原因の切り分け」を参照。
 
 | シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
 |---|---|---|---|---|---|---|
-| pair0 | 未実施 | 未実施 | - | - | 未実施 | - |
-| pair200 | 未実施 | 未実施 | - | - | 未実施 | - |
-| latejoin | 未実施 | 未実施 | - | - | 未実施 | - |
-| disconnect | 未実施 | 未実施 | - | - | 未実施 | - |
-| quad0 | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | - |
-| quad_latejoin | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | - |
-| quad_leave | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | 未実施(client_left/clients 減少) |
-| quad_hostquit | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | - |
+| pair0 | FAIL（placeholder_observed） | FAIL（placeholder_observed） | - | - | PASS（fire=11 matched=9 maxDiffMs=90） | - |
+| pair200 | FAIL（placeholder_observed） | FAIL（placeholder_observed） | - | - | PASS（fire=11 matched=9 maxDiffMs=350） | - |
+| latejoin | FAIL（placeholder_observed） | PASS（signal_recv=28、late_join_restored=True、content_hash=OK） | - | - | PASS（fire=8 matched=7 maxDiffMs=90） | - |
+| disconnect | FAIL（placeholder_observed） | FAIL（placeholder_observed） | - | - | PASS（fire=3 matched=3 maxDiffMs=70） | - |
+| quad0 | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/PASS（fire=13 matched=11 maxDiffMs=80） | - |
+| quad_latejoin | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/**FAIL**（Client3: fire=10 matched=6 ratio=0.6） | - |
+| quad_leave | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/**FAIL**（Client3: fire=13 matched=3 ratio=0.23） | **PASS**（`client_left`/`clients` 減少、peak=3） |
+| quad_hostquit | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/PASS（fire=3 matched=3 maxDiffMs=80） | - |
 
-次回実施する手順: (1) Unity Editor を起動し MCP（isuzu-unity 優先）を繋ぐ、(2) `compile_request` → error 0、(3) EditMode 全件 + PlayMode の `Net|Presentation|ContentHash` を green、(4) `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド`、(5) 空きメモリ 1.3GB 以上を確認してから `Tools\CI\run-netcheck.cmd` を実行、(6) `TestResults/NetCheck/summary.md` の内容をこの表に転記する。
+ログ全文は `TestResults/NetCheck/*.log`・`TestResults/NetCheck/summary.md`（リポジトリ外、scratchpad にも保存済み）。
+
+### 原因の切り分け（2026-09-22）
+
+**① `placeholder_observed`（8 シナリオ全部で Host が FAIL、ほぼ全 Client も FAIL）— 判定/シナリオ側の不備ではなく、N-3/N-4 のコード変更が原因でもない、ローカル環境の Addressables カタログ側の問題と判断**。
+
+- 実際のログ（例 `pair0_host.log`）: `[DDrive] Unregistered AssetId 0xC7469048615C5C60 resolved to Placeholder.`（スタックトレース: `AssetRegistry.ResolveOrPlaceholder<AnchorData>` ← `AnchorChain.CollectChainInto` ← `PresentationTrackAnchorComposer.ComposeAssetOnly`）。`0xC7469048615C5C60` は `AssetIds.g.cs` の `PlayerVFXPlayerSlashAnchor`（AnchorMarker）、他に `0x69E86561CF2A3D23`（`TestNewSound`、SeMarker）も同様に未解決だった
+- どちらも `AssetIds.g.cs` に定数として存在する＝過去に生成された正規の ID だが、今回ビルドした Addressables カタログには含まれていない（Host 起動直後、最初の Play で PRES_Demo_SkillSlash の VFX トラックが参照する Anchor を解決しようとした瞬間に発生。ネットワーク要因ではなく起動直後から再現するため、通信・Late Join・切断とは無関係）
+- N-3（NetCheck 関連）・N-4（Presentation の Scope 追加）はいずれも `AnchorChain`/`PresentationTrackAnchorComposer`/Addressables 登録に触れていないため、**本 PR のコード変更が原因である可能性は低い**。ローカルの `Assets/GameData`/Addressables グループの状態（例: これらのアセットが未登録・グループ未割当・カタログが同期されていない）に起因する環境要因と推測される
+- **本 PR の範囲では修正しない**（Addressables グループ・`Assets/GameData` に差分を出さない制約のため、また「勝手に大きな修正はしない」の指示のとおり）。次回、Unity Editor で `Validation > Run All`・Addressables グループの `PlayerVFXPlayerSlashAnchor`/`TestNewSound` の登録状態を確認することを推奨する
+
+**② quad_latejoin/quad_leave の Client3 だけ Signal 位相差が `signal_relay_ratio_low` で FAIL — こちらは判定側（`Tools/CI/Run-NetCheck.ps1` の `Test-SignalPhase`）の設計漏れ**。
+
+- `quad_leave` の Client3 は 12 秒で自ら正常終了する設計だが、`Test-SignalPhase` の分母（Host の `signal_fire` 件数）は「Client の接続時刻以降」だけで絞り込んでおり、**Client の退出時刻以降に Host が発火した分もそのまま分母に含めてしまう**ため、Client3 が既に見ていない大部分の `signal_fire` が「受信できなかった」扱いになり ratio が不当に低くなる（実測 0.23）。`quad_latejoin` の Client3（遅れて参加し先に退出する側）も同じ理由（実測 0.6）
+- これは 6-7 で `latejoin` シナリオ向けに実施済みの「接続前の `signal_fire` を分母から除く」修正と対になる話で、今回は「退出後の `signal_fire` も分母から除く」対応が漏れていた、**新規追加した quad シナリオの判定ロジック側の設計漏れ**（既存 4 シナリオは各 Client が Host と同じかそれより長く生きる設計のため、この漏れの影響を受けていなかった）
+- **本 PR の範囲では修正しない**（指示により大きな修正は行わず報告のみ）。修正するなら `Get-ClientConnectNetworkTime` と対になる「Client の最後の heartbeat の networkTime」を取得する関数を追加し、分母を `[接続時刻, 退出時刻]` の範囲に絞る変更が必要
+
+**③ N-3 自体の判定ロジックは正しく機能したことを確認**: `quad_leave` の `client_left`/`clients` 減少チェック（`Test-ClientLeftAndCountDecrease`）は **PASS**（`peak=3`）。`latejoin` の Client 側 `late_join_restored=True`・`content_hash=OK` も正常。接続・Signal 中継自体（①③のノイズを除く）はすべて期待どおり動いている。
 
 ## 25. 実機 4 人テストの手順
 
