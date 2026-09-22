@@ -1171,7 +1171,7 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
   3. `forged_cancel_mismatch`（判定側の設計漏れ、quad 4 シナリオ全 Client）: `NetCheckRunner` に自分が送った偽造キーの `HashSet<uint>` を持たせ、破棄ログにそのキーが含まれるときだけカウントするよう修正
 - 上記 2 の修正を確認する再実行の過程で `Get-ClientLastNetworkTime`（②の実装）が「最後の heartbeat 行」をそのまま使っていたため disconnect シナリオで新たな回帰（`no_signal_fire_in_host_log`）を起こしたことも発見し、「観測した networkTime の最大値」を使うよう再修正した
 - ユーザー報告により、`run-netcheck.cmd` 実行中の SE 再生（Hidden + `-batchmode` でもスピーカーへ出力される）を止める `AudioListener.volume=0f`（`-ddrive-autotest` 指定時のみ）も追加した
-- **再ビルド 5 回・`run-netcheck.cmd` 再実行 5 回を経て、最終実行結果は以下のとおり**: **既存 4 シナリオ（pair0/pair200/latejoin/disconnect）は全て PASS**。**quad 4 シナリオは ③ 修正後も `forged_cancel_mismatch` が一部残存し FAIL**（`placeholder_observed`・Signal 位相差・N-3 独自の `client_left`/`clients` 減少チェックはいずれも quad 全シナリオで解消・PASS。③ は discarded 件数を大きく減らしたが sent と一致するまでは至らなかった。原因は次節参照）。
+- **再ビルド 6 回・`run-netcheck.cmd` 再実行 6 回を経て、最終実行結果は以下のとおり**: **8 シナリオ全て PASS**（`placeholder_observed`・Signal 位相差・N-3 独自の `client_left`/`clients` 減少チェック・`forged_cancel_mismatch` のいずれも quad 全シナリオで解消）。③ の残存分は「発行者不一致の破棄ログに含まれる送信元 `ClientId(N)` が自分の `LocalClientId` と一致するときだけ数える」よう追加修正して解消した（次節参照）。
 
 | シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
 |---|---|---|---|---|---|---|
@@ -1179,12 +1179,12 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
 | pair200 | **PASS** | **PASS** | - | - | PASS（fire=9 matched=9 maxDiffMs=350） | - |
 | latejoin | **PASS** | **PASS**（late_join_restored=True） | - | - | PASS（fire=7 matched=7 maxDiffMs=110） | - |
 | disconnect | **PASS** | **PASS**（disconnected=True） | - | - | PASS（fire=3 matched=3 maxDiffMs=100） | - |
-| quad0 | PASS（forged_discarded=0） | FAIL（forged_cancel_mismatch sent=6 discarded=15） | FAIL（sent=6 discarded=10） | FAIL（sent=6 discarded=18） | PASS/PASS/PASS | - |
-| quad_latejoin | PASS（forged_discarded=0） | FAIL（forged_cancel_mismatch sent=7 discarded=16） | FAIL（sent=7 discarded=11） | **PASS**（sent=3 discarded=3、late_join_restored=True） | PASS/PASS/PASS | - |
-| quad_leave | PASS（forged_discarded=0） | FAIL（forged_cancel_mismatch sent=6 discarded=14） | FAIL（sent=6 discarded=10） | FAIL（sent=2 discarded=5） | PASS/PASS/PASS | **PASS**（`client_left`/`clients` 減少、peak=3） |
-| quad_hostquit | PASS（forged_discarded=0） | FAIL（forged_cancel_mismatch sent=2 discarded=6） | FAIL（sent=2 discarded=4） | FAIL（sent=2 discarded=6） | PASS/PASS/PASS | - |
+| quad0 | **PASS** | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | PASS/PASS/PASS | - |
+| quad_latejoin | **PASS** | **PASS**（sent=7 discarded=7） | **PASS**（sent=7 discarded=7） | **PASS**（sent=3 discarded=3、late_join_restored=True） | PASS/PASS/PASS | - |
+| quad_leave | **PASS** | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | **PASS**（sent=2 discarded=2） | PASS/PASS/PASS | **PASS**（`client_left`/`clients` 減少、peak=3） |
+| quad_hostquit | **PASS** | **PASS**（sent=2 discarded=2） | **PASS**（sent=2 discarded=2） | **PASS**（sent=2 discarded=2） | PASS/PASS/PASS | - |
 
-全シナリオで `placeholder_observed` は 0 件（①修正が有効）。全シナリオで Signal 位相差は PASS（②修正が有効。quad_latejoin/quad_leave の Client3 も含む）。Host の `forged_discarded` は quad 全シナリオで 0（③修正により Host 自身は偽造 Cancel を送らないため正しく 0 になった）。quad_latejoin の Client3（遅延参加した 1 台）だけは sent と discarded が完全一致して PASS。他の quad Client は discarded が sent の約 3 倍だった修正前と比べて大きく減った（例: quad0 は 18/18/18 → 15/10/18）ものの、一致には至らず FAIL のまま。原因は次節参照。ログ全文は `TestResults/NetCheck/*.log`・`TestResults/NetCheck/summary.md`（リポジトリ外、scratchpad にも保存済み）。
+全シナリオ **PASS**。`placeholder_observed` は全シナリオで 0 件（①修正が有効）。全シナリオで Signal 位相差は PASS（②修正が有効。quad_latejoin/quad_leave の Client3 も含む）。全 quad Client で `sent==discarded` が厳密に一致（③の追加修正〔発行者不一致の破棄ログに含まれる送信元 ClientId を自分の LocalClientId と照合〕が有効）。ログ全文は `TestResults/NetCheck/*.log`・`TestResults/NetCheck/summary.md`（リポジトリ外、scratchpad にも保存済み）。
 
 ### 修正内容（2026-09-22）
 
@@ -1204,15 +1204,19 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
 
 **③ N-3 自体の判定ロジックは最終的に完全に PASS を確認**: `quad_leave` の `client_left`/`clients` 減少チェック（`Test-ClientLeftAndCountDecrease`）は PASS（`peak=3`）。`latejoin`/`disconnect` の Client 側 `late_join_restored=True`/`disconnected=True`・`content_hash=OK` も正常。接続・Signal 中継（①②のノイズを除去した後）はすべて期待どおり動いている。
 
-### ③ `forged_cancel_mismatch`（quad 4 シナリオ）— 修正済みだが一部残存（要判断）
+### ③ `forged_cancel_mismatch`（quad 4 シナリオ）— 修正済み・全 quad Client で解消
 
 **原因（修正前）**: 判定側（`NetCheckRunner`）の集計が 1v1 前提のままだったこと。`ForgedCancelDiscardedCount` は `Application.logMessageReceived` で「`PresentationCancelMsg` の破棄ログ」を無条件にカウントしており、Broadcast は `ClientsAndHost` 全員に届くため、quad 構成では 3 台の Client がそれぞれ周期的に偽造 Cancel を送信すると、各 Client のログには自分の分だけでなく他 2 台の破棄ログも見える（3 台合計で自分の送信数の約 3 倍が観測される）。実プロダクト（`NgoNetBridge`/`PresentationManager` の発行者検証・破棄そのもの）は正しく機能している（Host ログで全件が正しく破棄されていることを確認済み）。
 
-**修正内容**: `NetCheckRunner.SendForgedCancel` で送信した `forgedKey` を `HashSet<uint> _forgedCancelKeysSent`（確認用コードのため alloc 可）に保持し、`OnLogMessageReceived` の破棄ログ判定を「そのログ文字列に自分が送った鍵（`KeyText()` と同じ `0x{...:X8}` 書式）が含まれるときだけ `_forgedCancelDiscardedCount++`」に変更した。`PresentationManager` の破棄ログ（`PresentationCancelMsg(HandleNetKey=0x...)`・`WarnUnknownKeyDiscardedOnce` とも）は元々 `HandleNetKey` を同じ書式で出力済みだったため、ログ側の変更は不要だった。`NetCheckJudge` は無改修。
+**修正内容（1 回目）**: `NetCheckRunner.SendForgedCancel` で送信した `forgedKey` を `HashSet<uint> _forgedCancelKeysSent`（確認用コードのため alloc 可）に保持し、`OnLogMessageReceived` の破棄ログ判定を「そのログ文字列に自分が送った鍵（`KeyText()` と同じ `0x{...:X8}` 書式）が含まれるときだけ `_forgedCancelDiscardedCount++`」に変更した。`PresentationManager` の破棄ログ（`PresentationCancelMsg(HandleNetKey=0x...)`・`WarnUnknownKeyDiscardedOnce` とも）は元々 `HandleNetKey` を同じ書式で出力済みだったため、ログ側の変更は不要だった。`NetCheckJudge` は無改修。
 
-**修正の効果（一部のみ解消）**: Host の `forged_discarded` は quad 全シナリオで正しく 0 になった（Host 自身は偽造 Cancel を送らないため）。quad_latejoin の Client3（12 秒遅れて参加した 1 台）は `sent=3 discarded=3` で完全一致し PASS した。しかし他の quad Client は、修正前の「discarded ≈ 3×sent」からは大きく改善した（例: quad0 は 18/18/18 → 15/10/18、quad_hostquit は 6/6/6 → 6/4/6）ものの、`sent` と `discarded` は一致せず FAIL のまま残った。
+**1 回目の効果（一部のみ解消）**: Host の `forged_discarded` は quad 全シナリオで正しく 0 になった（Host 自身は偽造 Cancel を送らないため）。quad_latejoin の Client3（12 秒遅れて参加した 1 台）は `sent=3 discarded=3` で完全一致し PASS した。しかし他の quad Client は、修正前の「discarded ≈ 3×sent」からは大きく改善した（例: quad0 は 18/18/18 → 15/10/18、quad_hostquit は 6/6/6 → 6/4/6）ものの、`sent` と `discarded` は一致せず FAIL のまま残った。
 
-**残存原因の推定（未確定・本チケットのスコープ外として追加修正はしていない）**: `SendForgedCancel` は偽造キーの選定に `bootstrap.Presentation.DebugActiveHandles()` から見つかった最初の非ゼロキーを使う決定的なロジックになっており、3 台の Client が同期された同じ Presentation 状態を見ているため、複数の Client がほぼ同時に**同一の実キー**を偽造対象に選んでしまうケースが多いと考えられる。その場合、あるログの「鍵 K の破棄」が「自分が送った K」なのか「たまたま同じ K を別の Client も送っていた」のかを、鍵の値だけでは区別できない（今回の修正はこの区別をしていない＝「自分がその鍵を送ったことがあるか」だけを見ている）。厳密に直すには、偽造キーの選定をキー衝突が起きないよう Client ごとに分散させる（例: 各 Client が異なるハンドルを優先して選ぶ）か、破棄ログ側に送信元 ClientId を出力してそれで照合する、といった追加変更が必要になる。quad_latejoin の Client3 のみ PASS したのは、遅延参加でアクティブなハンドル数が少なく他 Client とキーが衝突しにくかったためと推測される（未検証の仮説）。追加対応の要否は判断待ち。
+**残存原因**: `SendForgedCancel` は偽造キーの選定に `bootstrap.Presentation.DebugActiveHandles()` から見つかった最初の非ゼロキーを使う決定的なロジックになっており、3 台の Client が同期された同じ Presentation 状態を見ているため、複数の Client がほぼ同時に**同一の実キー**を偽造対象に選んでしまうケースが多かった。その場合、あるログの「鍵 K の破棄」が「自分が送った K」なのか「たまたま同じ K を別の Client も送っていた」のかを、鍵の値だけでは区別できていなかった（1 回目の修正はこの区別をしておらず、「自分がその鍵を送ったことがあるか」だけを見ていた）。
+
+**修正内容（2 回目、最終）**: `PresentationManager` の発行者不一致による破棄ログ（`OnReceiveCancelMsgInternal` の `IsAuthorizedSender` 不一致時、`... の送信元 ClientId({senderId}) が発行者と一致しないため破棄しました。`）には、`NgoNetBridge.RequestBroadcastRpc` が `rpcParams.Receive.SenderClientId` から拾って全ピアへ伝播させる**真の発行者 ClientId** が既に `ClientId(N)` という書式で含まれている（Host 中継後もこの値は書き換わらない）ため、ログ文言の変更は不要だった。`OnLogMessageReceived` を「鍵が一致し、かつログに `ClientId(` があるなら `ClientId({bootstrap.NetBridge.LocalClientId})` も含むときだけカウント（未知キー側の破棄ログには送信元が無いため鍵一致のみで判定）」に変更し、同一キーを複数 Client が偽造対象に選んだ場合でも自分が原因の破棄だけを数えるようにした。`NetCheckJudge` は無改修。
+
+**2 回目の効果（全解消）**: 再ビルド・`run-netcheck.cmd` 8 シナリオ再実行の結果、**quad 4 シナリオ全ての全 Client で `sent==discarded` が厳密に一致**し、8 シナリオ全て PASS を確認した。
 
 ## 25. 実機 4 人テストの手順
 

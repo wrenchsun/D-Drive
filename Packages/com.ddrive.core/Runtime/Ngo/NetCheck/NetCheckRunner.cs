@@ -236,15 +236,36 @@ namespace DDrive.Runtime.Net
             // (forged_cancel_mismatch の原因)。PresentationManager 側の破棄ログ(発行者不一致・未知キーの
             // どちらも)には `HandleNetKey=0xXXXXXXXX`(KeyText と同じ書式)が既に含まれているため、自分が
             // 送った鍵のときだけ数える。
+            // [14_networking.md] §16(N-3、2026-09-22 追記・forged_cancel_mismatch 残存分の修正) — 鍵一致
+            // だけでは、複数 Client が偶然同じ実キーを偽造対象に選んだ場合に他 Client の破棄まで数えてしまう。
+            // 発行者不一致の破棄ログ(PresentationManager)は「送信元 ClientId(N)」を含むので、ログに
+            // `ClientId(` があるときは自分の LocalClientId のものだけを数える(未知キー側のログには送信元が
+            // 無いので鍵一致だけで判定する)。
             if (condition.Contains("PresentationCancelMsg") && condition.Contains("破棄しました"))
             {
+                var keyMatched = false;
                 foreach (var sentKey in _forgedCancelKeysSent)
                 {
                     if (condition.Contains(KeyText(sentKey)))
                     {
-                        _forgedCancelDiscardedCount++;
+                        keyMatched = true;
                         break;
                     }
+                }
+
+                if (keyMatched && condition.Contains("ClientId("))
+                {
+                    var bootstrap = DDriveRuntimeBootstrap.Instance;
+                    if (bootstrap != null && bootstrap.NetBridge != null)
+                    {
+                        var selfClientIdText = $"ClientId({bootstrap.NetBridge.LocalClientId})";
+                        keyMatched = condition.Contains(selfClientIdText);
+                    }
+                }
+
+                if (keyMatched)
+                {
+                    _forgedCancelDiscardedCount++;
                 }
 
                 return;
