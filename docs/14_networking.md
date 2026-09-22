@@ -760,13 +760,15 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 - `DDriveRuntimeBootstrap.NetStartMode`(新規 enum、`Auto`/`Manual`)+ `DefaultNetStart`(既定 `Auto`)。`DefaultNetBridge=Ngo` かつ `DefaultNetStart=Manual` のとき、CLI 未指定なら実効役割は `Manual` になる。判定は Unity API 非依存の純関数 `NetLaunchArgs.ResolveEffectiveRole(cliRole, defaultBridgeIsNgo, defaultStartIsManual)` に切り出し、EditMode テスト（`NetLaunchArgsTests`）で「既定値(Loopback/Auto)なら常に Off を返す」ことを含めて検証している。CLI の `-ddrive-net` が指定されていれば常にそちらが優先される（既存どおり）。
 - 役割が `Manual` のとき、`NgoBridgeFactory.Create()`（`Runtime/Ngo/NgoBridgeFactoryInstaller.cs`）は `NetworkManager`/`NgoNetBridge` の解決・`NetDebugOverlay` の生成までは行うが、`NgoTransportConfigurator.TryConfigure`/`ConfigureAppLayerSimLatency`/`StartHost`/`StartClient` の呼び出しはすべて後述の API 呼び出し時まで遅延する（`NgoBridgeCreateResult.PendingStart` は `null` になり、`Start()` の `StartNetworkingIfPending()` は無害な no-op で終わる）。
 - `DDriveRuntimeBootstrap` に公開 API を追加:
-  - `public bool StartHost(ushort port)` — 指定 Port で Host として開始（bind アドレスは既存の `DefaultHostAddress`/`-ddrive-host` のまま。既にリスニング中なら警告して `false`）。
+  - `public bool StartHost(ushort port)` — 指定 Port で Host として開始（接続先アドレス表示は既存の `DefaultHostAddress`/`-ddrive-host` のまま。既にリスニング中なら警告して `false`）。**手動 Host は `"0.0.0.0"` で listen する**（レビュー指摘、2026-09-22 追記。下記「listenAddress」参照。Auto の Host は従来どおり `DefaultHostAddress`/`-ddrive-host` に bind する挙動を変えていない）。
   - `public bool StartClient(string address, ushort port)` — 指定 IP:Port へ Client として接続。
   - `public void StopNetworking()` — `NetworkManager.Shutdown()`。未接続なら警告して no-op。
   - `public bool IsNetworkStarted` — `NetworkManager.IsListening` を薄くラップした読み取り専用プロパティ。
   - 現在の役割（Host/Client）は重複を避けるため新規プロパティを設けず、既存の `NetBridge.IsServer`/`NetBridge.IsClient`（`NetDebugOverlay` と同じ判定基準）をそのまま使う。
   - これらは `NetBridgeMode.Loopback` のとき、または NGO 未導入/シーンに `NetworkManager`+`NgoNetBridge` が無いとき（`_manualStartHost`/`_manualStartClient`/`_manualStop`/`_isNetworkStartedQuery` が `null` のまま）は警告してから no-op / `false` を返す（例外で止めない、CLAUDE.md §0-4）。`StartHost`/`StartClient` は Auto/Manual どちらの役割でも「既に接続中」なら警告して `false` を返す実装は `NgoBridgeFactory` 側の delegate 内に閉じており、Bootstrap の Update ループやフィールドで重複して状態を持たない。
   - 実処理は `NetworkManager`/`NgoNetBridge` 型を `DDrive.Runtime` へ露出させないため、既存の `PendingStart`/`AssignHashGate` と同じパターンで `NgoBridgeCreateResult` に `Func<bool> IsListening`/`Func<ushort,bool> ManualStartHost`/`Func<string,ushort,bool> ManualStartClient`/`Action ManualStop` を追加し、`DDrive.Runtime.Ngo` 側（`NgoBridgeFactoryInstaller.cs`）が実装する。これらは役割（Host/Client/Manual）に関わらず常に用意されるため、Auto で自動起動したセッションを後から `StopNetworking()` で止める用途にも使える。
+
+**listenAddress（レビュー指摘、2026-09-22 追記）**: `NgoTransportConfigurator.TryConfigure` に省略可能引数 `string listenAddress = null`（既存呼び出しは無変更 = 挙動不変、`DDrive.Runtime.Ngo` アセンブリの API のため互換性スナップショット〔`DDrive.Foundation`/`DDrive.Runtime` のみ対象〕には現れない）を追加し、内部で `SetConnectionData(host, port, listenAddress)` へそのまま渡す。UnityTransport の `SetConnectionData(ipv4, port, listenAddress=null)` は `ServerListenAddress = listenAddress ?? ipv4` になるため、`listenAddress` 省略時（Auto の Host はこちら）は接続先アドレス（`DefaultHostAddress`/`-ddrive-host`、既定 `"192.168.137.1"` はホットスポット時代の値）にそのまま bind される。**手動 Host（`DoManualStartHost`）はこれだと LAN 外・別 LAN からのテストプレイでそのマシンに存在しない IP へ bind しようとして listen に失敗する**ため、`listenAddress: "0.0.0.0"`（全インタフェースで listen）を明示的に渡すよう修正した。`Address` 側（接続先として案内する IP）は従来どおり `host` のまま。ログも `listen=0.0.0.0:{port}` に変更した。
 
 **見送り（本チケットのスコープ外、N-2〜N-4 として `docs/11_tasks.md` にチケット枠を追加済み）**:
 
@@ -775,3 +777,8 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 - N-4: 1v1 前提で書かれている当事者判定（HitStop 等、[14_networking.md] 各所の「Client」を単数として扱っている箇所）の 4 人（Host+3 Client）対応。
 
 **テスト**: `Packages/com.ddrive.core/Tests/Editor/NetLaunchArgsTests.cs` に `-ddrive-net manual` のパースと `ResolveEffectiveRole` の 4 パターン（CLI 優先・既定 Loopback は常に Off・Ngo+Auto=Host・Ngo+Manual=Manual）を追加。`NgoNetBridge`/`NgoBridgeFactoryInstaller` は `NetworkBehaviour`/`NetworkManager` 依存のため EditMode 化できず、実機/PlayMode での手動確認が必要（[29_network_device_test.md] の手順を流用可能）。
+
+**実機確認が必要な項目（未検証、レビュー指摘 2026-09-22 追記）**:
+
+- 手動 Host が実際に `0.0.0.0` で listen し、別 LAN・LAN 外のマシンから `StartClient(その IP, port)` で接続できること（本チケットの主目的そのもの）。
+- `StopNetworking()` → 再度 `StartHost`/`StartClient` を呼ぶ「再起動」経路。シーンに配置した `NgoNetBridge` は `NetworkObject` であり、`NetworkManager.Shutdown()` 後にその `NetworkObject` が再 Spawn される（= 2 回目の `StartHost`/`StartClient` でも `NgoNetBridge` が機能する）かは NGO のシーン管理の実装依存で、EditMode では検証できない。実機/PlayMode で「切断 → 再接続」を実際に試すこと。

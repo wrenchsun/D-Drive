@@ -27,7 +27,13 @@ namespace DDrive.Runtime.Net
         private static bool _warnedMissingSimulator;
 
         // Host/Client 開始前に呼ぶ。IP/Port を設定し、指定があればシミュレータ(遅延/損失)も設定する。
-        public static bool TryConfigure(NetworkManager nm, string host, ushort port, int? simLatencyMs, float? simLossPercent)
+        // [14_networking.md] N-1 追記(2026-09-22、レビュー指摘) — listenAddress(省略可能引数、既定 null =
+        // 挙動不変)。UnityTransport.SetConnectionData(ipv4, port, listenAddress) は
+        // ServerListenAddress = listenAddress ?? ipv4 になるため、省略時は host(接続先アドレス)にそのまま
+        // bind される。手動 Host(N-1 の DoManualStartHost)はこれだと DefaultHostAddress(既定
+        // "192.168.137.1" 等、ホットスポット固定)にしか bind できず、別 LAN・LAN 外からのテストプレイで
+        // listen に失敗するため、呼び出し側が明示的に "0.0.0.0" を渡せるようにする。
+        public static bool TryConfigure(NetworkManager nm, string host, ushort port, int? simLatencyMs, float? simLossPercent, string listenAddress = null)
         {
             if (nm == null || nm.NetworkConfig == null || nm.NetworkConfig.NetworkTransport == null)
             {
@@ -64,7 +70,7 @@ namespace DDrive.Runtime.Net
             {
                 try
                 {
-                    setConnectionData.Invoke(transport, new object[] { host, port, null });
+                    setConnectionData.Invoke(transport, new object[] { host, port, listenAddress });
                 }
                 catch (Exception e)
                 {

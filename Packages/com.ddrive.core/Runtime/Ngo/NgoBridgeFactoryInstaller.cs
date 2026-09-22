@@ -107,10 +107,14 @@ namespace DDrive.Runtime.Net
                     return false;
                 }
 
-                NgoTransportConfigurator.TryConfigure(nm, host, manualPort, launchOptions.SimLatencyMs, launchOptions.SimLossPercent);
+                // [14_networking.md] N-1 追記(2026-09-22、レビュー指摘) — 手動 Host は "0.0.0.0" で
+                // listen する(全インタフェース)。省略すると SetConnectionData の ServerListenAddress が
+                // host(DefaultHostAddress/-ddrive-host、既定 "192.168.137.1" 等)に固定され、別 LAN・LAN 外
+                // からのテストプレイで listen に失敗するため(Address 側は従来どおり host のまま)。
+                NgoTransportConfigurator.TryConfigure(nm, host, manualPort, launchOptions.SimLatencyMs, launchOptions.SimLossPercent, listenAddress: "0.0.0.0");
                 bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
                 nm.StartHost();
-                Debug.Log($"[Net/Host] DDriveRuntimeBootstrap.StartHost: Host として起動しました(port={manualPort})。");
+                Debug.Log($"[Net/Host] DDriveRuntimeBootstrap.StartHost: Host として起動しました(listen=0.0.0.0:{manualPort})。");
                 return true;
             }
 
