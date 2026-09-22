@@ -1157,7 +1157,7 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
 
 ### 結果表
 
-**未実施（2026-09-22、本チケットの実装時点）**: 実装完了直後は空きメモリが 1GB を切って不安定に増減しており（設定済みの MCP クライアント〔isuzu-unity/CoplayDev〕のポートも Unity 側の実ポートとズレていたため、直接 JSON-RPC 経由で Unity Editor 自体には到達できることは確認したが、コンパイル・テスト実行に踏み切れるだけの空きメモリの回復を待たなかった）、コンパイル確認・`NetCheckBuilder.Build()` でのビルド・`Tools\CI\run-netcheck.cmd` の実行のいずれも見送った（コーディネーター判断: メモリ回復待ちより PR 作成を優先）。以下は実行結果ではなく、次回メモリに余裕があるときに埋める表のプレースホルダ。
+**軽量確認のみ実施・本番のビルド/run-netcheck は未実施（2026-09-22）**: 空きメモリが 1GB 前後で不安定だったため、設定済みの MCP クライアント（isuzu-unity/CoplayDev）のポートが Unity 側の実ポートとズレている状態のまま、instance ファイルから直接 JSON-RPC で接続して軽量な確認だけ実施した。**compile_request → error 0**（namespace 衝突による実コンパイルエラーを 1 件発見・修正。[14_networking.md] §16 実装メモ参照）。**EditMode を絞って実行（`Compat|NetCheckJudge|NetLaunchArgs|ForbiddenApiScanner`）→ 99/99 green**（`PublicApiSnapshotTests.Runtime_MatchesGolden` を含む）。**EditMode 全件・PlayMode・`NetCheckBuilder.Build()` でのビルド・`Tools\CI\run-netcheck.cmd` の実行はいずれも未実施**（空きメモリ 1.3GB 回復後に実施）。以下は実行結果ではなく、次回メモリに余裕があるときに埋める表のプレースホルダ。
 
 | シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
 |---|---|---|---|---|---|---|

@@ -44,7 +44,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - `ForbiddenApiScanner`（[00_requirements.md](docs/00_requirements.md) §5 の禁止 API 静的走査）の除外パスに `/Runtime/Ngo/NetCheck/` を追加（`Samples~` 配下から通常配置へ移ったことで新規に対象へ入り、`Time.deltaTime`/`Time.time` 直接参照の違反が発生していたため。確認用のヘッドレス自動テストコードという性質は変わらない）
   - `Tools/CI/Run-NetCheck.ps1` に `quad0`/`quad_latejoin`/`quad_leave`/`quad_hostquit`（Host 1 + Client 3。既存 4 シナリオ `pair0`/`pair200`/`latejoin`/`disconnect` は無改修）を追加。ポートは 7841/7851/7861/7871（既存と重複なし）
   - テスト: `Tests/Editor/NetLaunchArgsTests.cs`・`Tests/Editor/NetCheckJudgeTests.cs`・`Tests/Editor/ForbiddenApiScannerTests.cs` に EditMode テストを追加。互換性スナップショット `public-api-DDrive.Runtime.txt` を手動更新（`NetLaunchOptions.ExpectedClientCount`・`NetLaunchArgs.ExpectClientsFlag`・`NetCheckCounters.ExpectedClientCount`/`MaxConnectedClientsObserved` の追加のみ）
-  - **未検証**: 実装完了時点で空きメモリが 1GB を切って不安定だったため、コンパイル・EditMode/PlayMode テスト・`NetCheckBuilder.Build()` での再ビルド・`run-netcheck.cmd`（8 シナリオ）の実行はいずれも未実施（[docs/29_network_device_test.md](docs/29_network_device_test.md) §24/§25。メモリに余裕ができ次第、同じブランチで実施し結果を追記する）
+  - **PR レビュー対応（2026-09-22）**: `NgoNetBridge.ConnectedClientCount` が Host 自身を含んだ値を返しており、`-ddrive-expect-clients` 判定が Client 1 人不足でも誤って PASS してしまう実バグを修正（Host を除いたリモート Client 数を返すよう変更）
+  - **軽量検証（2026-09-22）**: 空きメモリ制約下で instance ファイル経由の直接 JSON-RPC 接続により、**compile_request → error 0**（`Samples~/NetCheck` → `Runtime/Ngo/NetCheck` の namespace 変更に起因する `Presentation.Play` の namespace 衝突〔CS0234〕を発見・修正。using エイリアスを namespace ブロック内側に置いて解決）・**EditMode を絞って実行（`Compat|NetCheckJudge|NetLaunchArgs|ForbiddenApiScanner`）→ 99/99 green**（`PublicApiSnapshotTests.Runtime_MatchesGolden` を含み、手動更新したスナップショットが実際の公開 API と一致することを確認）を実施。**未検証**: EditMode 全件・PlayMode テスト・`NetCheckBuilder.Build()` での再ビルド・`run-netcheck.cmd`（8 シナリオ）はいずれも未実施（[docs/29_network_device_test.md](docs/29_network_device_test.md) §24/§25。メモリに余裕ができ次第、同じブランチで実施し結果を追記する）
 
 ## [1.1.0] - 2026-09-20
 

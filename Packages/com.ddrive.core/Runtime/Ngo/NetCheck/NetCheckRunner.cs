@@ -14,6 +14,16 @@ using UnityEngine;
 
 namespace DDrive.Runtime.Net
 {
+    // [14_networking.md] §16(N-3) — この namespace 変更(DDrive.Samples → DDrive.Runtime.Net)で判明した
+    // コンパイルエラーの修正。DDrive.Runtime.Net は DDrive.Runtime の子であり、DDrive.Runtime.Presentation
+    // (兄弟 namespace)も同じ親の下にあるため、未修飾の `Presentation` は namespace `DDrive.Runtime.Presentation`
+    // 自身に解決されてしまい、同名の静的ファサードクラス `DDrive.Runtime.Presentation.Presentation` に
+    // 解決されない(namespace メンバの直接解決は、ファイル先頭〔コンパイル単位スコープ〕の using より
+    // 優先順位が高いため。CS0234 で実際に検出した)。DDrive.Samples 名前空間ではこの衝突が起きなかった
+    // (DDrive.Runtime の子ではないため)。using エイリアスを namespace ブロックの内側(このスコープ自身)に
+    // 置くことで、このスコープの解決を DDrive.Runtime レベルまで探しに行く前に確定させる。
+    using Presentation = DDrive.Runtime.Presentation.Presentation;
+
     // [11_tasks.md] 6-0(D) — 実機確認用の自動チェック。Host が剣攻撃デモ(PRES_Demo_SkillSlash)を
     // 一定間隔で Play → Signal("hit") し、各端末で位相差・Signal 受信・HitStop 発火をログ出力する。
     // `[Net/Host]`/`[Net/Client]` プレフィックスに加え、`[DDriveNetCheck] key=value ...` 形式の行を出す
