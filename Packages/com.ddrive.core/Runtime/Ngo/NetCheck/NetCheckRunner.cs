@@ -322,7 +322,8 @@ namespace DDrive.Runtime.Net
             var vfxActive = bootstrap.Vfx != null ? bootstrap.Vfx.ActiveCount : -1;
 
             // [14_networking.md] §16(N-3) — Host 役のときだけ意味を持つ接続クライアント数(Host 自身を
-            // 含むかどうかは NgoNetBridge.ConnectedClientCount 側のコメント参照)。Client では -1(既存の
+            // 除いたリモート Client の数。Host 1 + Client 3 が全員繋がった状態では 3。詳細は
+            // NgoNetBridge.ConnectedClientCount 側のコメント参照)。Client では -1(既存の
             // activeCount/vfxActive の「対象外は -1」という表現と揃える)。
             var clientCount = bootstrap.NetBridge.IsServer && _ngoBridge != null ? _ngoBridge.ConnectedClientCount : -1;
 

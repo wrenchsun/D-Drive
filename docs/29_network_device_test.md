@@ -1136,7 +1136,7 @@ N-1/N-2（[14_networking.md] §14・§15）で追加した「実行中に IP を
 
 | シナリオ | 構成 | 目的 |
 |---|---|---|
-| `quad0` | Host + Client×3、同一 Port、全員 0ms、同時参加 | Host 1 + Client 3 の基本接続・Signal 中継・`ConnectedClientCount` が 4（Host 自身含む）に達すること |
+| `quad0` | Host + Client×3、同一 Port、全員 0ms、同時参加 | Host 1 + Client 3 の基本接続・Signal 中継・`ConnectedClientCount`（Host を除くリモート Client 数）が 3 に達すること |
 | `quad_latejoin` | 同上、うち 1 人だけ 12 秒遅れて参加 | 4 人構成での Late Join 復元。他 2 人は最初から接続したまま |
 | `quad_leave` | 同上、うち 1 人だけ先に正常終了して抜ける | Host が「他 Client が 1 人抜けても自分と残り 2 人は継続する」こと。Host の `client_left=<clientId>` ログと `clients=<n>` の減少（3→2 等）、残り 2 Client の `signal_recv` 継続を判定 |
 | `quad_hostquit` | 同上、Host が先に終了 | 既存 `disconnect`（1v1）の 4 人版。Client×3 全員が切断検知 + 演出後片付け（activeCount/vfx_active=0）を行うこと |
@@ -1211,7 +1211,7 @@ DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-
 
 ### N-2 の手動接続 UI（`-ddrive-net manual`）を使う場合
 
-自動接続ではなく、起動後に画面左下の手動接続 UI（[14_networking.md] §15、[29] §23）から接続したい場合は、全端末を `-ddrive-net manual` で起動し、マシン A で「Host で開始」を押した後、マシン B（2 回）・マシン C で IP に「マシン A の IP」・Port に「マシン A の Port」を入力して「Client で接続」を押す。`-ddrive-expect-clients` は Manual モードでは `NetCheckRunner` の自動判定（`-ddrive-autotest`）を使わない限り意味を持たないため、目視確認（`NetDebugOverlay` の「Clients: n」が 4 になること）で代用する。
+自動接続ではなく、起動後に画面左下の手動接続 UI（[14_networking.md] §15、[29] §23）から接続したい場合は、全端末を `-ddrive-net manual` で起動し、マシン A で「Host で開始」を押した後、マシン B（2 回）・マシン C で IP に「マシン A の IP」・Port に「マシン A の Port」を入力して「Client で接続」を押す。`-ddrive-expect-clients` は Manual モードでは `NetCheckRunner` の自動判定（`-ddrive-autotest`）を使わない限り意味を持たないため、目視確認（`NetDebugOverlay` の「Clients: n」が 3〔Host を除くリモート Client 数〕になること）で代用する。
 
 ### ファイアウォール / ポート開放の注意
 
@@ -1221,10 +1221,10 @@ DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-
 
 ### 確認項目チェックリスト
 
-- [ ] マシン A の `NetDebugOverlay`（または `PlayerHost.log` の `heartbeat`）で `clients=4`（Host 自身含む。§16）になる
+- [ ] マシン A の `NetDebugOverlay`（または `PlayerHost.log` の `heartbeat`）で `clients=3`（Host を除くリモート Client 数。§16）になる
 - [ ] マシン B・C それぞれで接続成功（`[Net/Client] ... Client として起動しました` ログ、Exception/Error 0 件）
 - [ ] Signal 中継: マシン A の `signal_fire` と各マシンの `signal_recv` が対応する（§4 の位相差の目安、数ティック以内）
-- [ ] 3 人のうち 1 人（例: マシン C）だけ終了 → マシン A の `client_left=<clientId>` ログ + `clients=3` への減少、マシン B・残る接続は継続（`signal_recv` が途切れない）
+- [ ] 3 人のうち 1 人（例: マシン C）だけ終了 → マシン A の `client_left=<clientId>` ログ + `clients=2` への減少、マシン B・残る接続は継続（`signal_recv` が途切れない）
 - [ ] マシン A（Host）を終了 → マシン B・C 全員が `disconnected=1` を検知し、進行中の演出（VFX 等）が消える
 - [ ] 初回起動時のファイアウォール許可ダイアログが出た場合は、その旨と対応（プライベート/パブリックいずれを許可したか）をこの節に追記する
 

@@ -67,12 +67,28 @@ namespace DDrive.Runtime.Net
         public int ReceivedMessageCount { get; private set; }
 
         // [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3(MS2026 の 4 人対戦)の接続確認用。
-        // Server(Host)のときだけ NetworkManager.ConnectedClientsIds.Count を返す(NGO は StartHost() 時に
-        // Host 自身の LocalClientId も ConnectedClientsIds に含めるため、この数には Host 自身が含まれる。
-        // つまり Host 1 + Client 3 が全員繋がった状態では 4 になる)。Client では常に 0(自分から見た
-        // 他クライアントの一覧は NGO のセキュリティ上取得できないため)。NetworkManager 自体が無い/未接続
-        // (IsSpawned 前)は 0。
-        public int ConnectedClientCount => IsServer && NetworkManager != null ? NetworkManager.ConnectedClientsIds.Count : 0;
+        // **Host 自身を除いたリモート Client の数**を返す(レビュー指摘 2026-09-22 で修正。NGO は
+        // StartHost() 時に Host 自身の LocalClientId も NetworkManager.ConnectedClientsIds に含めるため、
+        // 素通しすると「Host+Client の合計」になり、MS2026 の「Clients: 3」という直感〔4 人対戦=Host 1 +
+        // Client 3〕と食い違うだけでなく、-ddrive-expect-clients による判定でも Client が 1 人足りない
+        // 状態〔Host+Client2人=3〕を誤って PASS させてしまう実バグがあった)。Host(IsServer かつ
+        // IsClient)は ConnectedClientsIds.Count から自分の 1 人分を引く。専用サーバー(IsServer かつ
+        // !IsClient)は全員がリモートなので引かない。Client では常に 0(自分から見た他クライアントの一覧は
+        // NGO のセキュリティ上取得できないため)。NetworkManager 自体が無い/未接続(IsSpawned 前)は 0。
+        public int ConnectedClientCount
+        {
+            get
+            {
+                if (!IsServer || NetworkManager == null)
+                {
+                    return 0;
+                }
+
+                var total = NetworkManager.ConnectedClientsIds.Count;
+                var remote = IsClient ? total - 1 : total;
+                return remote < 0 ? 0 : remote;
+            }
+        }
 
         // [11_tasks.md] 6-0 修正5(オーケストレーター追加指示、実機確認で発見) — 切断通知。
         // (clientId, reason)。Host 視点は「どの Client が切断したか」、Client 視点は「自分(=Host との接続)が
