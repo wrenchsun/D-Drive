@@ -158,6 +158,15 @@ namespace DDrive.Runtime.Net
             if (!string.IsNullOrEmpty(autoTestName))
             {
                 _scenarioName = autoTestName;
+
+                // [14_networking.md] §16(N-3、2026-09-22 追記) — `-ddrive-autotest` 実行時(=run-netcheck.cmd の
+                // ヘッドレス自動判定シナリオ)だけ音を止める。`Hidden`/`-batchmode` でも AudioSource 自体は
+                // 再生されスピーカーへ出力され得るため、複数シナリオを連続実行すると SE が鳴り続けて実害が
+                // あった(ユーザー報告、2026-09-22)。手動実行・実機確認(-ddrive-autotest 未指定)では
+                // 従来どおり鳴らす(判定ロジックには一切影響しない。AudioListener.volume は Signal/Track の
+                // 発火判定〔ログベース〕を変えない)。
+                AudioListener.volume = 0f;
+
                 // "latejoin" シナリオは Client 側でだけ意味を持つ判定(Host は「後から接続してくる相手」を
                 // 待つだけで、自分の activeCount が 0→復元 になるわけではない)。
                 _requireLateJoinRestore = _role == "client" && autoTestName.IndexOf("latejoin", System.StringComparison.OrdinalIgnoreCase) >= 0;

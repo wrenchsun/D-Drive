@@ -1155,6 +1155,8 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
 
 ログは `TestResults/NetCheck/<シナリオ名>_host.log`・`<シナリオ名>_client1.log`〜`_client3.log`。判定は §15 と同じ 2 段構え（各プロセス自身の `RESULT=PASS|FAIL` 行 + このスクリプトによるクロスログの Signal 位相差）を Client 3 本ぶん繰り返し、`quad_leave` だけ追加で `Test-ClientLeftAndCountDecrease`（Host ログの `client_left` 出現 + その後の `clients=<n>` 減少）を課す。
 
+**2026-09-22 追記（ユーザー報告への対応）**: `run-netcheck.cmd` の実行中、`DDriveNetCheck.exe`（Hidden + `-batchmode`）の SE がスピーカーから鳴り続ける実害が報告されたため、`NetCheckRunner.Start()` で `-ddrive-autotest`（run-netcheck.cmd のヘッドレス自動判定シナリオ）が指定されているときだけ `AudioListener.volume = 0f` にして無音化した。手動実行・実機確認（`-ddrive-autotest` 未指定）では従来どおり鳴る。判定ロジック（ログベース）には影響しない。
+
 ### 結果表
 
 **コンパイル・EditMode・PlayMode・ビルド・run-netcheck をすべて実施（2026-09-22 最終）**: main（N-4 マージ済み、6ae597b）を `feat/n3-netcheck-multi-client` へマージした後、空きメモリが 2GB 以上に回復した時点で以下をすべて実施した。
