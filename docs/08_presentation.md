@@ -42,7 +42,7 @@ public struct PresentationTrack
 }
 ```
 
-> **Scope（当事者限定、N-4・2026-09-22 追加）**: `PresentationEffectScope { Everyone = 0, ParticipantsOnly = 1 }`。HitStop/CameraShake/Haptic トラックだけが対象で、`ParticipantsOnly` にすると「ネット越しに受信した演出は、Self/Target のどちらかが自分のプレイヤーオブジェクトのとき（当事者）だけ発火する」ようになる。既定は `Everyone`(全員発火、従来どおり)。予測再生した行為者自身は Scope に関わらず必ず発火する。詳細（LocalPlayerOnly との関係を含む）は [14_networking.md] §16 実装メモを参照。
+> **Scope（当事者限定、N-4・2026-09-22 追加）**: `PresentationEffectScope { Everyone = 0, ParticipantsOnly = 1 }`。HitStop/CameraShake/Haptic トラックだけが対象で、`ParticipantsOnly` にすると「ネット越しに受信した演出は、Self/Target のどちらかが自分のプレイヤーオブジェクトのとき（当事者）だけ発火する」ようになる。既定は `Everyone`(全員発火、従来どおり)。予測再生した行為者自身は Scope に関わらず必ず発火する。詳細（LocalPlayerOnly との関係を含む）は [14_networking.md] §17 実装メモを参照。
 
 > **シーン配置型アンカー(AnchorPoint、[04] §2.5)との連携(2026-07-28 明記)**: トラックごとに `AnchorDef` を持つため、**1つの Presentation 内の複数トラックがそれぞれ別の AnchorPoint を参照できる**。各トラックの Anchor(BoneName/NamedObject)は `PlayContext.Self`(または Target)配下から名前解決されるので、キャラクターに AnchorRig を持たせておけば「斬撃 VFX は Anchor_RightHand、ヒット音は Anchor_Chest、土煙は Anchor_Foot」のように、まとめた演出の中でトラック単位に使い分けられる。AnchorPoint 固有のオフセット/ランダムも各トラックの Spawn 時に個別適用される(Phase 5 実装時はこの契約を維持すること)。
 
@@ -148,7 +148,7 @@ Timeline 風の複数トラック UI。
 - **剣攻撃デモ**: `Assets/GameData/Presentation/Demo/PRES_Demo_SkillSlash.asset`(既存の `VFX_Player_Slash`/`SE_Player_Slash` を Target=Self で参照。AtTime(0.00) に Vfx+Se、OnSignal("hit") に HitStop(0.08s)+Se を配置)。確認用シーンは `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity`(`DDriveRuntimeBootstrap` + `PresentationSkillSlashDemo`(`Assets/DDrive/Samples/`、P キーで Play・Space で Signal("hit")・C で Cancel)。**要判断**: `VFX_Player_Slash`/`SE_Player_Slash`/`PRES_Demo_SkillSlash` の `Flags.Load` を `LazyLoad`(既定)から `Preload` に変更した — `PresentationManager` も他の Manager と同じく `ResolveOrPlaceholder` で同期解決するため、LazyLoad のままだと(何かが先に `ResolveAsync` を呼んでいない限り)常に Placeholder になる Canvas/ControlSkin と同種の問題(`Editor/AssetBrowser/AssetCreationService.cs` の `Create` 内コメント、2026-09-12 対応分を参照。Presentation は当時のケース分けに含まれていなかった)。この 2 つの既存アセットは他の用途(AnchorGroup デモ等)でも使われているため、Preload 化の影響範囲は要確認。
 - Addressables グループ(`DDrive_GameData.asset`/`DDrive_Catalogs.asset`)はユーザーの未コミット変更と混ざるため、デモアセット作成に伴う変更はコミットしていない(下記コミット範囲を参照)。
 - **2026-09-14(5-2/5-2b) 追記**: 同じ `PRES_Demo_SkillSlash.asset` の `onHit`(`SignalKey="hit"`)に `CameraShake`(`SHAKE_Demo_DemoHitSmall`)と `Haptic`(`HAPTIC_Demo_DemoHitPunch`)のトラックを追記した(`StopOnCancel=true`)。詳細は [16_camera_haptics.md] 実装メモを参照。
-- **2026-09-22(N-4) 追記**: HitStop/CameraShake/Haptic トラックに `Scope`(`Everyone`/`ParticipantsOnly`、既定 `Everyone`)を追加した。ネット受信した演出のうち `ParticipantsOnly` のトラックは、当事者(Self/Target が自分のプレイヤーオブジェクト)以外では発火しない([14_networking.md] §5「HitStop は全員が実行する」の要判断を解消)。実装詳細・`LocalPlayerOnly` との関係(AND)は [14_networking.md] §16 を参照。
+- **2026-09-22(N-4) 追記**: HitStop/CameraShake/Haptic トラックに `Scope`(`Everyone`/`ParticipantsOnly`、既定 `Everyone`)を追加した。ネット受信した演出のうち `ParticipantsOnly` のトラックは、当事者(Self/Target が自分のプレイヤーオブジェクト)以外では発火しない([14_networking.md] §5「HitStop は全員が実行する」の要判断を解消)。実装詳細・`LocalPlayerOnly` との関係(AND)は [14_networking.md] §17 を参照。
 
 ## 実装メモ（2026-09-14、5-4）
 

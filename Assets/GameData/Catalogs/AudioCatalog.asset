@@ -32,7 +32,7 @@ MonoBehaviour:
     Address: SE_test_NewSound
     Flags:
       Pause: 0
-      Load: 0
+      Load: 1
       Pool:
         Kind: 0
         InitialCount: 0

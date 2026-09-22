@@ -20,13 +20,13 @@ MonoBehaviour:
   Icon: {fileID: 2800000, guid: 6c15d837e6cc4224a912d5ef0003d6fc, type: 3}
   Assignee: 
   SpecUrl: 
-  Version: 3
+  Version: 4
   Author: yamag
-  UpdatedAt: 2026-09-19T19:33:16
+  UpdatedAt: 2026-09-22T20:00:32
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 0
   Parent:
     value: 0
     type: 0

@@ -30,6 +30,11 @@ namespace DDrive.Runtime.Net
         public float? SimLossPercent; // -ddrive-sim-loss(0-100)
         public string AutoTestName;   // -ddrive-autotest
         public float? AutoTestSeconds; // -ddrive-autotest-seconds([11_tasks.md] 6-7。未指定は NetCheckRunner の既定式にフォールバック)
+
+        // [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3 の接続確認用。NetCheckRunner が
+        // Host 役のときだけ「NgoNetBridge.ConnectedClientCount がこの人数に達したか」を PASS 条件に加える
+        // (未指定/Client 役では従来どおり判定をスキップする)。
+        public int? ExpectedClientCount; // -ddrive-expect-clients
     }
 
     // [11_tasks.md] 6-0(B) — コマンドライン引数パーサ。Unity API に依存しない純関数のため、
@@ -43,6 +48,7 @@ namespace DDrive.Runtime.Net
         public const string SimLossFlag = "-ddrive-sim-loss";
         public const string AutoTestFlag = "-ddrive-autotest";
         public const string AutoTestSecondsFlag = "-ddrive-autotest-seconds"; // [11_tasks.md] 6-7
+        public const string ExpectClientsFlag = "-ddrive-expect-clients"; // [14_networking.md] §16(N-3)
 
         public static NetLaunchOptions Parse(string[] args)
         {
@@ -96,6 +102,14 @@ namespace DDrive.Runtime.Net
                         if (float.TryParse(NextValue(args, ref i), NumberStyles.Float, CultureInfo.InvariantCulture, out var autoTestSeconds))
                         {
                             result.AutoTestSeconds = autoTestSeconds;
+                        }
+
+                        break;
+
+                    case ExpectClientsFlag:
+                        if (int.TryParse(NextValue(args, ref i), NumberStyles.Integer, CultureInfo.InvariantCulture, out var expectClients))
+                        {
+                            result.ExpectedClientCount = expectClients;
                         }
 
                         break;

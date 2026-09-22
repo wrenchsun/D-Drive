@@ -1127,3 +1127,151 @@ N-1/N-2（[14_networking.md] §14・§15）で追加した「実行中に IP を
 7. 接続の成否・状態（未接続/Host listening/Client 接続中/切断）は UI の状態 1 行と、既存の `NetDebugOverlay`（左上、Role/RTT/NetworkTime 等）を併読して確認する
 
 **未実施（2026-09-22 時点）**: 実ビルドを 2 プロセス起動しての Host/Client 接続・切断・`StopNetworking()` → 再 `StartHost` の再起動確認。実装完了時点で空きメモリが約 1.2GB（ビルドの目安閾値 1.3GB 未満）だったため見送った。次回、空きメモリに余裕があるときに §21/§22 と同様の形式で結果を追記すること。
+
+## 24. N-3: Host 1 + Client 3 のローカル確認
+
+[14_networking.md] §16（N-3）で追加した Host 1 + Client 3 対応（`NgoNetBridge.ConnectedClientCount`・`-ddrive-expect-clients`・`client_left` ログ・役割の遅延評価）の確認手順とシナリオ。`Tools/CI/Run-NetCheck.ps1` の `$quadScenarios`（§15 の `$scenarios` とは別配列、既存 4 シナリオは無改修）が実行する。
+
+### シナリオ
+
+| シナリオ | 構成 | 目的 |
+|---|---|---|
+| `quad0` | Host + Client×3、同一 Port、全員 0ms、同時参加 | Host 1 + Client 3 の基本接続・Signal 中継・`ConnectedClientCount`（Host を除くリモート Client 数）が 3 に達すること |
+| `quad_latejoin` | 同上、うち 1 人だけ 12 秒遅れて参加 | 4 人構成での Late Join 復元。他 2 人は最初から接続したまま |
+| `quad_leave` | 同上、うち 1 人だけ先に正常終了して抜ける | Host が「他 Client が 1 人抜けても自分と残り 2 人は継続する」こと。Host の `client_left=<clientId>` ログと `clients=<n>` の減少（3→2 等）、残り 2 Client の `signal_recv` 継続を判定 |
+| `quad_hostquit` | 同上、Host が先に終了 | 既存 `disconnect`（1v1）の 4 人版。Client×3 全員が切断検知 + 演出後片付け（activeCount/vfx_active=0）を行うこと |
+
+ポートは既存 4 シナリオ（7801/7811/7821/7831）と重ならない 7841（quad0）/7851（quad_latejoin）/7861（quad_leave）/7871（quad_hostquit）を使う。
+
+### 使い方
+
+```
+Tools\CI\run-netcheck.cmd quad0
+Tools\CI\run-netcheck.cmd quad_latejoin
+Tools\CI\run-netcheck.cmd quad_leave
+Tools\CI\run-netcheck.cmd quad_hostquit
+Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/latejoin/disconnect/quad0/quad_latejoin/quad_leave/quad_hostquit)
+```
+
+ログは `TestResults/NetCheck/<シナリオ名>_host.log`・`<シナリオ名>_client1.log`〜`_client3.log`。判定は §15 と同じ 2 段構え（各プロセス自身の `RESULT=PASS|FAIL` 行 + このスクリプトによるクロスログの Signal 位相差）を Client 3 本ぶん繰り返し、`quad_leave` だけ追加で `Test-ClientLeftAndCountDecrease`（Host ログの `client_left` 出現 + その後の `clients=<n>` 減少）を課す。
+
+**2026-09-22 追記（ユーザー報告への対応）**: `run-netcheck.cmd` の実行中、`DDriveNetCheck.exe`（Hidden + `-batchmode`）の SE がスピーカーから鳴り続ける実害が報告されたため、`NetCheckRunner.Start()` で `-ddrive-autotest`（run-netcheck.cmd のヘッドレス自動判定シナリオ）が指定されているときだけ `AudioListener.volume = 0f` にして無音化した。手動実行・実機確認（`-ddrive-autotest` 未指定）では従来どおり鳴る。判定ロジック（ログベース）には影響しない。
+
+### 結果表（2026-09-22 最終、①②③修正 + 音声ミュート適用後）
+
+**コンパイル・EditMode・PlayMode・ビルド・run-netcheck をすべて実施**: main（N-4 マージ済み、6ae597b）を `feat/n3-netcheck-multi-client` へマージした後、空きメモリが 2GB 以上に回復した時点で以下をすべて実施した。
+
+- **compile_status → error 0**
+- **EditMode 全件 → 1164/1164 green**（0 failed / 0 skipped / 0 inconclusive、所要 179 秒）
+- **PlayMode 全件（`DDrive.Tests.Runtime`）→ 775/775 green**（0 failed / 0 skipped / 0 inconclusive、所要 8 秒）
+- テスト実行後に残った `Assets/Tests/`・`ProjectSettings/DDriveProjectSettings.asset` の差分は削除・復元済み。ビルド後に残った `Assets/GameData/Presentation/Attack/PRES_Attack_Presentation.asset` の版数差分（Unity の自動マイグレーションによるもの、意図した変更ではない）も `git checkout --` で復元済み。Addressables グループには差分なし
+- **初回 run-netcheck（8 シナリオ全部 FAIL）** の原因を切り分け、以下 3 件を修正した（詳細は次節「修正内容」）:
+  1. `placeholder_observed`（データ側の実バグ）: `ANC_Player_VFXPlayerSlashAnchor`/`SE_test_NewSound` の `Flags.Load` を Preload に修正 + カタログエントリを再同期
+  2. `signal_relay_ratio_low`（判定側の設計漏れ）: `Test-SignalPhase` の分母を Client の生存時間窓に限定
+  3. `forged_cancel_mismatch`（判定側の設計漏れ、quad 4 シナリオ全 Client）: `NetCheckRunner` に自分が送った偽造キーの `HashSet<uint>` を持たせ、破棄ログにそのキーが含まれるときだけカウントするよう修正
+- 上記 2 の修正を確認する再実行の過程で `Get-ClientLastNetworkTime`（②の実装）が「最後の heartbeat 行」をそのまま使っていたため disconnect シナリオで新たな回帰（`no_signal_fire_in_host_log`）を起こしたことも発見し、「観測した networkTime の最大値」を使うよう再修正した
+- ユーザー報告により、`run-netcheck.cmd` 実行中の SE 再生（Hidden + `-batchmode` でもスピーカーへ出力される）を止める `AudioListener.volume=0f`（`-ddrive-autotest` 指定時のみ）も追加した
+- **再ビルド 6 回・`run-netcheck.cmd` 再実行 6 回を経て、最終実行結果は以下のとおり**: **8 シナリオ全て PASS**（`placeholder_observed`・Signal 位相差・N-3 独自の `client_left`/`clients` 減少チェック・`forged_cancel_mismatch` のいずれも quad 全シナリオで解消）。③ の残存分は「発行者不一致の破棄ログに含まれる送信元 `ClientId(N)` が自分の `LocalClientId` と一致するときだけ数える」よう追加修正して解消した（次節参照）。
+
+| シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
+|---|---|---|---|---|---|---|
+| pair0 | **PASS** | **PASS** | - | - | PASS（fire=9 matched=9 maxDiffMs=70） | - |
+| pair200 | **PASS** | **PASS** | - | - | PASS（fire=9 matched=9 maxDiffMs=350） | - |
+| latejoin | **PASS** | **PASS**（late_join_restored=True） | - | - | PASS（fire=7 matched=7 maxDiffMs=110） | - |
+| disconnect | **PASS** | **PASS**（disconnected=True） | - | - | PASS（fire=3 matched=3 maxDiffMs=100） | - |
+| quad0 | **PASS** | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | PASS/PASS/PASS | - |
+| quad_latejoin | **PASS** | **PASS**（sent=7 discarded=7） | **PASS**（sent=7 discarded=7） | **PASS**（sent=3 discarded=3、late_join_restored=True） | PASS/PASS/PASS | - |
+| quad_leave | **PASS** | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | **PASS**（sent=2 discarded=2） | PASS/PASS/PASS | **PASS**（`client_left`/`clients` 減少、peak=3） |
+| quad_hostquit | **PASS** | **PASS**（sent=2 discarded=2） | **PASS**（sent=2 discarded=2） | **PASS**（sent=2 discarded=2） | PASS/PASS/PASS | - |
+
+全シナリオ **PASS**。`placeholder_observed` は全シナリオで 0 件（①修正が有効）。全シナリオで Signal 位相差は PASS（②修正が有効。quad_latejoin/quad_leave の Client3 も含む）。全 quad Client で `sent==discarded` が厳密に一致（③の追加修正〔発行者不一致の破棄ログに含まれる送信元 ClientId を自分の LocalClientId と照合〕が有効）。ログ全文は `TestResults/NetCheck/*.log`・`TestResults/NetCheck/summary.md`（リポジトリ外、scratchpad にも保存済み）。
+
+### 修正内容（2026-09-22）
+
+**① `placeholder_observed`（初回は 8 シナリオ全部で Host・ほぼ全 Client が FAIL）— データ側の実バグ、修正済み**。
+
+- 原因: `ANC_Player_VFXPlayerSlashAnchor`（VFX_Player_Slash のトラック Anchor）と `SE_test_NewSound`（ANIM_Player_Jump のフレームイベント SE）がどちらも `Flags.Load = LazyLoad`（OnDemand）のままだった。参照経路（`AnchorChain.Resolve` → `ResolveOrPlaceholder<AnchorData>`、`AssetEventDispatcher` → `ResolveOrPlaceholder<SeData>`）はどちらも同期解決のみで、`_loaded` に無いと Placeholder に落ちる仕様どおりの挙動だった（2026-09-19 のエディタ操作で作られたデータ）
+- 修正 1: Unity Editor 経由（execute_code、`Undo.RecordObject` + `EditorUtility.SetDirty` + `AssetDatabase.SaveAssets`）で両 Data の `Flags.Load` を `Preload` に変更
+- 修正 2（追加で判明）: `AssetRegistry.RegisterCatalogAsync` が Preload 判定に使うのは `CatalogEntry.Flags`（カタログにスナップショットされた Flags）であり、Data 側の Flags を直接読むわけではないため、修正 1 だけでは反映されなかった。`AssetCreationService.RegisterExisting(anchor, AssetType.Anchor)`/`RegisterExisting(se, AssetType.Se)`（既存の `DD-ADDR-CATALOG-MISSING` FixAction と同じ経路）を実行し、`AnchorCatalog`/`AudioCatalog` の該当エントリの Flags を再同期
+- `AddressablesRegistrationValidator`（U-20 の `DD-ADDR-PRELOAD-REQUIRED`）はこの 2 件を検出しなかった（`AssetCreationService.NeedsPreloadDefault` の対象種別が Canvas/ControlSkin/Presentation/Shake/Haptics/Anim/Anim2D/Cutscene のみで、Anchor/Se は対象外のため。`Validation > Run All` 実行時 totalErrors=68、対象 2 件・PRELOAD 系とも一致 0 件で確認済み）。Validator 自体の拡張は本チケットのスコープ外として手を付けていない
+
+**② quad_latejoin/quad_leave の Client3 だけ Signal 位相差が `signal_relay_ratio_low` で FAIL — 判定側（`Tools/CI/Run-NetCheck.ps1` の `Test-SignalPhase`）の設計漏れ、修正済み**。
+
+- 原因: `Test-SignalPhase` の分母（Host の `signal_fire` 件数）は「Client の接続時刻以降」だけで絞り込んでおり、Client の退出時刻以降に Host が発火した分もそのまま分母に含めていたため、既に見ていない `signal_fire` が「受信できなかった」扱いになり ratio が不当に低くなっていた（quad_leave の Client3 で実測 0.23、quad_latejoin の Client3 で 0.6）
+- 修正: `Get-ClientConnectNetworkTime`（下限）と対になる `Get-ClientLastNetworkTime`（上限、Client ログの heartbeat の networkTime）を追加し、`fireEvents` を `[接続時刻, 退出時刻]` の窓に絞り込むようにした
+- 再修正: 上記の初回実装は「最後の heartbeat 行」をそのまま上限に使っていたため、disconnect シナリオ（Host が先に終了 → Client が切断検知）で回帰が発生した。切断後の heartbeat は `networkTime` が `0.00` にリセットされる（§8 参照）ため、「最後の行」を採用すると上限が `0.00` になり `fireEvents` が空になって `no_signal_fire_in_host_log` で誤って FAIL していた。「観測した `networkTime` の最大値」を返すように修正し、disconnect の回帰を解消した
+- 修正後、quad_latejoin/quad_leave の Client3 とも位相差 PASS を確認。既存 4 シナリオ（pair0/pair200/latejoin/disconnect）の結果は不変（全 Client が Host と同程度以上生きる設計のため、上限フィルタを追加しても除外される件数は変わらない）
+
+**③ N-3 自体の判定ロジックは最終的に完全に PASS を確認**: `quad_leave` の `client_left`/`clients` 減少チェック（`Test-ClientLeftAndCountDecrease`）は PASS（`peak=3`）。`latejoin`/`disconnect` の Client 側 `late_join_restored=True`/`disconnected=True`・`content_hash=OK` も正常。接続・Signal 中継（①②のノイズを除去した後）はすべて期待どおり動いている。
+
+### ③ `forged_cancel_mismatch`（quad 4 シナリオ）— 修正済み・全 quad Client で解消
+
+**原因（修正前）**: 判定側（`NetCheckRunner`）の集計が 1v1 前提のままだったこと。`ForgedCancelDiscardedCount` は `Application.logMessageReceived` で「`PresentationCancelMsg` の破棄ログ」を無条件にカウントしており、Broadcast は `ClientsAndHost` 全員に届くため、quad 構成では 3 台の Client がそれぞれ周期的に偽造 Cancel を送信すると、各 Client のログには自分の分だけでなく他 2 台の破棄ログも見える（3 台合計で自分の送信数の約 3 倍が観測される）。実プロダクト（`NgoNetBridge`/`PresentationManager` の発行者検証・破棄そのもの）は正しく機能している（Host ログで全件が正しく破棄されていることを確認済み）。
+
+**修正内容（1 回目）**: `NetCheckRunner.SendForgedCancel` で送信した `forgedKey` を `HashSet<uint> _forgedCancelKeysSent`（確認用コードのため alloc 可）に保持し、`OnLogMessageReceived` の破棄ログ判定を「そのログ文字列に自分が送った鍵（`KeyText()` と同じ `0x{...:X8}` 書式）が含まれるときだけ `_forgedCancelDiscardedCount++`」に変更した。`PresentationManager` の破棄ログ（`PresentationCancelMsg(HandleNetKey=0x...)`・`WarnUnknownKeyDiscardedOnce` とも）は元々 `HandleNetKey` を同じ書式で出力済みだったため、ログ側の変更は不要だった。`NetCheckJudge` は無改修。
+
+**1 回目の効果（一部のみ解消）**: Host の `forged_discarded` は quad 全シナリオで正しく 0 になった（Host 自身は偽造 Cancel を送らないため）。quad_latejoin の Client3（12 秒遅れて参加した 1 台）は `sent=3 discarded=3` で完全一致し PASS した。しかし他の quad Client は、修正前の「discarded ≈ 3×sent」からは大きく改善した（例: quad0 は 18/18/18 → 15/10/18、quad_hostquit は 6/6/6 → 6/4/6）ものの、`sent` と `discarded` は一致せず FAIL のまま残った。
+
+**残存原因**: `SendForgedCancel` は偽造キーの選定に `bootstrap.Presentation.DebugActiveHandles()` から見つかった最初の非ゼロキーを使う決定的なロジックになっており、3 台の Client が同期された同じ Presentation 状態を見ているため、複数の Client がほぼ同時に**同一の実キー**を偽造対象に選んでしまうケースが多かった。その場合、あるログの「鍵 K の破棄」が「自分が送った K」なのか「たまたま同じ K を別の Client も送っていた」のかを、鍵の値だけでは区別できていなかった（1 回目の修正はこの区別をしておらず、「自分がその鍵を送ったことがあるか」だけを見ていた）。
+
+**修正内容（2 回目、最終）**: `PresentationManager` の発行者不一致による破棄ログ（`OnReceiveCancelMsgInternal` の `IsAuthorizedSender` 不一致時、`... の送信元 ClientId({senderId}) が発行者と一致しないため破棄しました。`）には、`NgoNetBridge.RequestBroadcastRpc` が `rpcParams.Receive.SenderClientId` から拾って全ピアへ伝播させる**真の発行者 ClientId** が既に `ClientId(N)` という書式で含まれている（Host 中継後もこの値は書き換わらない）ため、ログ文言の変更は不要だった。`OnLogMessageReceived` を「鍵が一致し、かつログに `ClientId(` があるなら `ClientId({bootstrap.NetBridge.LocalClientId})` も含むときだけカウント（未知キー側の破棄ログには送信元が無いため鍵一致のみで判定）」に変更し、同一キーを複数 Client が偽造対象に選んだ場合でも自分が原因の破棄だけを数えるようにした。`NetCheckJudge` は無改修。
+
+**2 回目の効果（全解消）**: 再ビルド・`run-netcheck.cmd` 8 シナリオ再実行の結果、**quad 4 シナリオ全ての全 Client で `sent==discarded` が厳密に一致**し、8 シナリオ全て PASS を確認した。
+
+## 25. 実機 4 人テストの手順
+
+N-3 のシナリオ確認がローカル（127.0.0.1）で PASS した後、実機での Host 1 + Client 3 確認を行う手順（§5〜§22 の 1 対 1/1 対 2 実機確認の 4 人版）。
+
+### 構成
+
+| | マシン A | マシン B | マシン C |
+|---|---|---|---|
+| 役割 | **Host** | **Client×2**（同一 PC で `DDriveNetCheck.exe` を 2 プロセス起動） | **Client×1** |
+| ネット | §1 のホットスポット親、または LAN | ホットスポット/LAN に接続 | ホットスポット/LAN に接続 |
+| Unity | Editor（Host は Play Mode でも可）または開発ビルド | 不要（ビルド済み Player のみ） | 不要（ビルド済み Player のみ） |
+
+マシン B で 2 プロセス起動する場合は `-logFile` を別ファイルにする（例 `C:\DDriveTest\ClientB1.log`/`ClientB2.log`）。ポートは 3 プロセスとも同じ Host の Port（既定 7777）へ接続する（NGO は Client ごとに別ポートを使わないため、同一 PC から複数プロセスで接続しても Port は競合しない）。
+
+### Auto 起動（`-ddrive-net host`/`client`）を使う場合
+
+マシン A（Host）:
+
+```
+DDriveNetCheck.exe -ddrive-net host -ddrive-host 0.0.0.0 -ddrive-port 7777 -ddrive-expect-clients 3 -logFile PlayerHost.log
+```
+
+マシン B（Client×2、それぞれ別ウィンドウ/別コマンドプロンプトで起動）:
+
+```
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -logFile C:\DDriveTest\ClientB1.log
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -logFile C:\DDriveTest\ClientB2.log
+```
+
+マシン C（Client×1）:
+
+```
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -logFile C:\DDriveTest\ClientC.log
+```
+
+`-ddrive-expect-clients 3` は Host 側にだけ付ける（§16 のとおり Client 側では意味を持たない）。`-ddrive-autotest <name>` を追加すればヘッドレス自動判定（`RESULT=PASS|FAIL`）も使えるが、実機確認では省略して常駐させ、目視 + ログで確認してよい。
+
+### N-2 の手動接続 UI（`-ddrive-net manual`）を使う場合
+
+自動接続ではなく、起動後に画面左下の手動接続 UI（[14_networking.md] §15、[29] §23）から接続したい場合は、全端末を `-ddrive-net manual` で起動し、マシン A で「Host で開始」を押した後、マシン B（2 回）・マシン C で IP に「マシン A の IP」・Port に「マシン A の Port」を入力して「Client で接続」を押す。`-ddrive-expect-clients` は Manual モードでは `NetCheckRunner` の自動判定（`-ddrive-autotest`）を使わない限り意味を持たないため、目視確認（`NetDebugOverlay` の「Clients: n」が 3〔Host を除くリモート Client 数〕になること）で代用する。
+
+### ファイアウォール / ポート開放の注意
+
+- Host（マシン A）のファイアウォールで UDP 7777（または指定した Port）の**受信**を許可する必要がある（§2 の初回起動ダイアログ、または `netsh advfirewall` で `DDriveNetCheck.exe` の Inbound を許可）。マシン B・C 側は送信のみのため通常は追加設定不要
+- 同一 PC（マシン B）で 2 プロセス起動する場合、Windows は送信元ポートを自動的に別々に割り当てるため、Host 側からは 2 つの異なる `ClientId` として区別される（同一 IP からの複数接続は NGO/UnityTransport の制約に抵触しない）
+- ホットスポット経由の場合、DHCP でマシン B/C の IP が変わることがあるので、接続前に `ipconfig` で確認する
+
+### 確認項目チェックリスト
+
+- [ ] マシン A の `NetDebugOverlay`（または `PlayerHost.log` の `heartbeat`）で `clients=3`（Host を除くリモート Client 数。§16）になる
+- [ ] マシン B・C それぞれで接続成功（`[Net/Client] ... Client として起動しました` ログ、Exception/Error 0 件）
+- [ ] Signal 中継: マシン A の `signal_fire` と各マシンの `signal_recv` が対応する（§4 の位相差の目安、数ティック以内）
+- [ ] 3 人のうち 1 人（例: マシン C）だけ終了 → マシン A の `client_left=<clientId>` ログ + `clients=2` への減少、マシン B・残る接続は継続（`signal_recv` が途切れない）
+- [ ] マシン A（Host）を終了 → マシン B・C 全員が `disconnected=1` を検知し、進行中の演出（VFX 等）が消える
+- [ ] 初回起動時のファイアウォール許可ダイアログが出た場合は、その旨と対応（プライベート/パブリックいずれを許可したか）をこの節に追記する
+
+**未実施（2026-09-22 時点）**: 実機環境（複数 PC）を用意できなかったため、本節の手順に沿った実機確認は未実施。次回実機確認時にこの節へ結果（ログ抜粋・スクリーンショット・チェックリストの結果）を追記すること。

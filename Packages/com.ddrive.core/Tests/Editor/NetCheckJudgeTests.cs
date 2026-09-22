@@ -294,5 +294,51 @@ namespace DDrive.Tests.Editor
             var result = NetCheckJudge.Evaluate(c);
             Assert.IsTrue(result.Pass, result.Reason);
         }
+
+        // ── [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3 対応 ──
+
+        [Test]
+        public void Evaluate_ExpectedClientCountZero_SkipsCheck_EvenIfNoneObserved()
+        {
+            // 未指定(Client 役・-ddrive-expect-clients 未指定)は従来どおり判定をスキップする。
+            var c = Healthy();
+            c.ExpectedClientCount = 0;
+            c.MaxConnectedClientsObserved = 0;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_ExpectedClientCount_NotReached_Fails()
+        {
+            var c = Healthy();
+            c.ExpectedClientCount = 3;
+            c.MaxConnectedClientsObserved = 2;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsFalse(result.Pass);
+            StringAssert.Contains("expected_clients_not_reached", result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_ExpectedClientCount_Reached_Passes()
+        {
+            var c = Healthy();
+            c.ExpectedClientCount = 3;
+            c.MaxConnectedClientsObserved = 3;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_ExpectedClientCount_ObservedPeakKeptEvenIfOneLeftLater()
+        {
+            // quad_leave のように途中で 1 人抜けても、一度でも期待人数に到達した実績
+            // (MaxConnectedClientsObserved の「最大値」)があれば満たす。
+            var c = Healthy();
+            c.ExpectedClientCount = 3;
+            c.MaxConnectedClientsObserved = 3; // 一度 3 人揃った後、2 人に減っても最大値は 3 のまま
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
     }
 }

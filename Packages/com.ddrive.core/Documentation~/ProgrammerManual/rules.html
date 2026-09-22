@@ -26,7 +26,7 @@
 <p>いずれのルールも <code>ForbiddenApiScanner.cs</code> 自身は常に例外扱いです（このファイルの Message 文字列がパターンに一致してしまうため、自己検出を避ける自己参照の除外）。<code>//</code> で始まる行（コメント）はどのルールも対象外です。</p>
 
 <div class="warn">
-<strong>スキャナは <code>Samples</code> フォルダを走査対象外にしています。</strong> サンプル（<code>Packages/com.ddrive.core/Samples~/Demo/</code>、<code>NetBridgeSmokeTest.cs</code> 等の手動確認用デモ）はパスに <code>/Samples</code> を含む場合、ルールに関係なく丸ごとスキップされます。<code>Samples~</code> は Unity のコンパイル対象外のフォルダでもあるため、実質的に二重に対象外です。
+<strong>スキャナは <code>Samples</code> フォルダを走査対象外にしています。</strong> サンプル（<code>Packages/com.ddrive.core/Samples~/Demo/</code> の <code>PresentationSkillSlashDemo.cs</code> 等の手動確認用デモ）はパスに <code>/Samples</code> を含む場合、ルールに関係なく丸ごとスキップされます。<code>Samples~</code> は Unity のコンパイル対象外のフォルダでもあるため、実質的に二重に対象外です。2026-09-22（N-3）追記: <code>NetBridgeSmokeTest.cs</code>/<code>NetCheckRunner.cs</code> は <code>Runtime/Ngo/NetCheck/</code>（パッケージ本体、Unity がコンパイルする通常配置）へ移設しましたが、実プレイの定常経路ではない実機確認専用コードという性質は変わらないため、こちらも個別にスキャナ対象外にしてあります。
 </div>
 
 <div class="warn">

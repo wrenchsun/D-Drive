@@ -1303,10 +1303,12 @@ TYPE struct DDrive.Runtime.Net.NetCheckCounters
   field ContentHashStatus : string
   field DisconnectedObserved : bool
   field ExceptionOrErrorCount : int
+  field ExpectedClientCount : int
   field ForgedCancelDiscardedCount : int
   field ForgedCancelSentCount : int
   field IsOffRole : bool
   field LateJoinRestoreObserved : bool
+  field MaxConnectedClientsObserved : int
   field PlaceholderObserved : bool
   field RequireLateJoinRestore : bool
   field RequireSignalActivity : bool
@@ -1324,6 +1326,7 @@ TYPE struct DDrive.Runtime.Net.NetCheckResult
 TYPE class static DDrive.Runtime.Net.NetLaunchArgs
   field const AutoTestFlag : string
   field const AutoTestSecondsFlag : string
+  field const ExpectClientsFlag : string
   field const HostFlag : string
   field const NetFlag : string
   field const PortFlag : string
@@ -1334,6 +1337,7 @@ TYPE class static DDrive.Runtime.Net.NetLaunchArgs
 TYPE struct DDrive.Runtime.Net.NetLaunchOptions
   field AutoTestName : string
   field AutoTestSeconds : System.Nullable<float>
+  field ExpectedClientCount : System.Nullable<int>
   field Host : string
   field Port : System.Nullable<int>
   field Role : DDrive.Runtime.Net.NetLaunchRole

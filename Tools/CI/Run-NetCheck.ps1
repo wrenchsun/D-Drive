@@ -14,6 +14,10 @@
 #      Host の signal_fire と Client の signal_recv を HandleNetKey で対にして networkTime 差を見る。
 #      [docs/29] §4「両方のログを外部スクリプトが判定」)
 # シナリオは 1) と 2) の両方が通れば PASS。全シナリオ PASS ならこのスクリプトは終了コード 0 を返す。
+#
+# [14_networking.md] §16(N-3、2026-09-22) — 上記は 1 Host + 1 Client の $scenarios(無改修)の説明。
+# 別途 $quadScenarios(Host 1 + Client 3、MS2026 の 4 人対戦を見据えた確認)を追加した。判定は同じ 2 段構え
+# を Client の本数ぶん繰り返す(位相差判定は Client 全本の Player.log に対して行う)。詳細は docs/29 §24。
 
 param(
     [string]$ExePath = "Builds/DDriveNetCheck/DDriveNetCheck.exe",
@@ -52,16 +56,58 @@ $scenarios = @(
     [pscustomobject]@{ Name = "disconnect"; LatencyMs = 0;   Port = 7831; ClientDelaySec = 0;  HostSeconds = 10; ClientSeconds = 25 }
 )
 
+# [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3(MS2026 の 4 人対戦)のローカル確認。上の
+# $scenarios(1 Host + 1 Client、無改修)とは別の配列にして既存 4 シナリオの実行ロジックに影響しないように
+# する。Host/全 Client が同一 Port へ接続する(NGO は Client ごとの待受ポートを使わないため、Port 競合は
+# 起きない)。各シナリオの Clients 配列の要素数が接続するクライアント数。
+$quadScenarios = @(
+    [pscustomobject]@{
+        Name = "quad0"; LatencyMs = 0; Port = 7841; HostSeconds = 40
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0; Seconds = 35 }
+            [pscustomobject]@{ DelaySec = 0; Seconds = 35 }
+            [pscustomobject]@{ DelaySec = 0; Seconds = 35 }
+        )
+    }
+    [pscustomobject]@{
+        Name = "quad_latejoin"; LatencyMs = 0; Port = 7851; HostSeconds = 45
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0;  Seconds = 40 }
+            [pscustomobject]@{ DelaySec = 0;  Seconds = 40 }
+            [pscustomobject]@{ DelaySec = 12; Seconds = 20 } # 12 秒遅れて参加する 1 人
+        )
+    }
+    [pscustomobject]@{
+        Name = "quad_leave"; LatencyMs = 0; Port = 7861; HostSeconds = 40
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0; Seconds = 35 }
+            [pscustomobject]@{ DelaySec = 0; Seconds = 35 }
+            [pscustomobject]@{ DelaySec = 0; Seconds = 12 } # 先に正常終了して抜ける 1 人
+        )
+    }
+    [pscustomobject]@{
+        Name = "quad_hostquit"; LatencyMs = 0; Port = 7871; HostSeconds = 12
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0; Seconds = 30 }
+            [pscustomobject]@{ DelaySec = 0; Seconds = 30 }
+            [pscustomobject]@{ DelaySec = 0; Seconds = 30 }
+        )
+    }
+)
+
 if ($OnlyScenario) {
-    $scenarios = $scenarios | Where-Object { $_.Name -eq $OnlyScenario }
-    if ($scenarios.Count -eq 0) {
+    $matchedPair = $scenarios | Where-Object { $_.Name -eq $OnlyScenario }
+    $matchedQuad = $quadScenarios | Where-Object { $_.Name -eq $OnlyScenario }
+    $scenarios = @($matchedPair)
+    $quadScenarios = @($matchedQuad)
+    if ($matchedPair.Count -eq 0 -and $matchedQuad.Count -eq 0) {
         Write-Host "[ERROR] 不明なシナリオ名: $OnlyScenario"
         exit 1
     }
 }
 
 function Build-Args {
-    param($Role, $Port, $LatencyMs, $Scenario, $Seconds, $LogPath)
+    param($Role, $Port, $LatencyMs, $Scenario, $Seconds, $LogPath, $ExpectClients = 0)
 
     $argList = @(
         "-ddrive-net", $Role,
@@ -75,6 +121,12 @@ function Build-Args {
 
     if ($LatencyMs -gt 0) {
         $argList += @("-ddrive-sim-latency", $LatencyMs)
+    }
+
+    # [14_networking.md] §16(N-3) — 既存 4 シナリオは $ExpectClients を渡さない(既定 0)ため、
+    # このフラグは付与されず起動引数は従来どおり不変(既存 4 本は無改修)。
+    if ($ExpectClients -gt 0) {
+        $argList += @("-ddrive-expect-clients", $ExpectClients)
     }
 
     return $argList
@@ -155,6 +207,38 @@ function Get-ClientConnectNetworkTime {
     return $null
 }
 
+# [14_networking.md] §16(N-3、コーディネーター指摘・2026-09-22) — quad_latejoin/quad_leave のように
+# Client が Host より先に(または後から)いなくなるシナリオでは、その Client の最後の heartbeat 以降に
+# Host が発火した signal_fire は原理的に受信不可能。これを分母に含めると中継率(ratio)が実態より低く出て
+# 機械的に FAIL する(quad_leave の 12 秒で退出する Client で実測 ratio=0.23。quad_latejoin の遅れて
+# 参加し先に退出する Client でも ratio=0.6)。Get-ClientConnectNetworkTime(下限)と対になる上限を返す。
+# 2026-09-22 再修正: 「最後の heartbeat 行」の networkTime をそのまま使うと、Host との接続が切れた後の
+# heartbeat 行は networkTime が 0.00 にリセットされる([docs/29] §8「切断後は heartbeat の... networkTime=0.00」)
+# ため、disconnect シナリオ(Host が先に終了→ Client が切断検知)で「最後の行の値」を採用すると上限が
+# 0.00 になり、全ての signal_fire が上限を超えている扱いになって fireEvents が空になる偽陽性 FAIL
+# (no_signal_fire_in_host_log)を起こす実バグがあった(初回修正時に見落とし)。時系列で単調増加するとは
+# 限らないため、「観測した networkTime の最大値」を返すようにする(切断後にリセットされた 0.00 は
+# 無視される)。
+function Get-ClientLastNetworkTime {
+    param([string]$ClientLogPath)
+
+    if (-not (Test-Path $ClientLogPath)) {
+        return $null
+    }
+
+    $maxTime = $null
+    foreach ($line in Get-Content -Path $ClientLogPath -ErrorAction SilentlyContinue) {
+        if ($line -match '\[DDriveNetCheck\]\s+heartbeat=1\s+role=client\s+.*networkTime=([\d.]+)') {
+            $time = [double]$Matches[1]
+            if ($null -eq $maxTime -or $time -gt $maxTime) {
+                $maxTime = $time
+            }
+        }
+    }
+
+    return $maxTime
+}
+
 function Test-SignalPhase {
     param([string]$HostLogPath, [string]$ClientLogPath, [double]$LatencyMs = 0.0)
 
@@ -163,12 +247,20 @@ function Test-SignalPhase {
 
     # Client が接続する前に Host が単独で発火させた signal_fire は、Client からは受信不可能なので分母から
     # 除外する(late-join シナリオ用。他シナリオは Client 接続が最初の Play より早いため実質無害)。
+    # 2026-09-22 追加(コーディネーター指摘) — 同じ理由で、Client が退出した後に Host が発火した分も
+    # 分母から除外する(quad_leave/quad_latejoin のように Client が Host より先に/後から生きなくなる
+    # シナリオ用。既存 4 シナリオは全 Client が Host と同程度以上生きるため、この上限を追加しても
+    # 実質的にフィルタされる件数は変わらない=結果は変わらない)。
     $clientConnectNetworkTime = Get-ClientConnectNetworkTime -ClientLogPath $ClientLogPath
-    if ($null -ne $clientConnectNetworkTime) {
+    $clientLastNetworkTime = Get-ClientLastNetworkTime -ClientLogPath $ClientLogPath
+    if ($null -ne $clientConnectNetworkTime -or $null -ne $clientLastNetworkTime) {
         $filtered = @{}
         foreach ($key in $fireEvents.Keys) {
-            if ($fireEvents[$key] -ge $clientConnectNetworkTime) {
-                $filtered[$key] = $fireEvents[$key]
+            $time = $fireEvents[$key]
+            $afterConnect = ($null -eq $clientConnectNetworkTime) -or ($time -ge $clientConnectNetworkTime)
+            $beforeExit = ($null -eq $clientLastNetworkTime) -or ($time -le $clientLastNetworkTime)
+            if ($afterConnect -and $beforeExit) {
+                $filtered[$key] = $time
             }
         }
 
@@ -229,6 +321,49 @@ function Wait-ForExitOrKill {
     }
 }
 
+# [14_networking.md] §16(N-3、quad_leave 専用) — Host の Player.log に「他 Client が 1 人抜けても自分は
+# 継続する」ことを示す client_left=<clientId> 行が出ていること、かつその後の heartbeat の clients=<n> が
+# 一度は減っていること(3→2 等)を確認する。NetCheckJudge 自体は接続の最大値(MaxConnectedClientsObserved)
+# だけを見るため、「実際に 1 人減ったこと」はこのスクリプト側でクロスチェックする。
+function Test-ClientLeftAndCountDecrease {
+    param([string]$HostLogPath)
+
+    if (-not (Test-Path $HostLogPath)) {
+        return [pscustomobject]@{ Pass = $false; Reason = "log_file_missing" }
+    }
+
+    $lines = Get-Content -Path $HostLogPath -ErrorAction SilentlyContinue
+    $sawClientLeft = $false
+    $peakClients = -1
+    $sawDecreaseAfterLeft = $false
+
+    foreach ($line in $lines) {
+        if ($line -match '\[DDriveNetCheck\]\s+client_left=(\d+)') {
+            $sawClientLeft = $true
+            continue
+        }
+
+        if ($line -match '\[DDriveNetCheck\]\s+heartbeat=1\s+.*\bclients=(-?\d+)') {
+            $clients = [int]$Matches[1]
+            if ($clients -gt $peakClients) {
+                $peakClients = $clients
+            } elseif ($sawClientLeft -and $clients -lt $peakClients) {
+                $sawDecreaseAfterLeft = $true
+            }
+        }
+    }
+
+    if (-not $sawClientLeft) {
+        return [pscustomobject]@{ Pass = $false; Reason = "no_client_left_observed" }
+    }
+
+    if (-not $sawDecreaseAfterLeft) {
+        return [pscustomobject]@{ Pass = $false; Reason = "clients_count_did_not_decrease peak=$peakClients" }
+    }
+
+    return [pscustomobject]@{ Pass = $true; Reason = "ok peak=$peakClients" }
+}
+
 $overallPass = $true
 $summaryRows = New-Object System.Collections.Generic.List[string]
 $jsonResults = New-Object System.Collections.Generic.List[object]
@@ -280,6 +415,106 @@ foreach ($scenario in $scenarios) {
         clientReason = $clientResult.Reason
         phasePass    = $phase.Pass
         phaseReason  = $phase.Reason
+    })
+}
+
+# [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3。上の $scenarios ループ(1 Host + 1 Client、
+# 無改修)とは別に、Host + 複数 Client を起動して同じ判定パターン(各プロセス自身の RESULT 行 + このスクリプト
+# によるクロスログの Signal 位相差)を Client の本数ぶん繰り返す。ログファイル名は
+# "<シナリオ名>_client<N>.log"(N=1始まり)。
+foreach ($scenario in $quadScenarios) {
+    $clientCount = $scenario.Clients.Count
+    Write-Host ""
+    Write-Host "=== シナリオ: $($scenario.Name) (latency=$($scenario.LatencyMs)ms, host=$($scenario.HostSeconds)s, clients=$clientCount) ==="
+
+    $hostLog = Join-Path $resultsFull "$($scenario.Name)_host.log"
+    $clientLogs = @()
+    for ($i = 1; $i -le $clientCount; $i++) {
+        $clientLogs += Join-Path $resultsFull "$($scenario.Name)_client$i.log"
+    }
+    Remove-Item -Path (@($hostLog) + $clientLogs) -ErrorAction SilentlyContinue
+
+    $hostArgs = Build-Args -Role "host" -Port $scenario.Port -LatencyMs $scenario.LatencyMs -Scenario $scenario.Name -Seconds $scenario.HostSeconds -LogPath $hostLog -ExpectClients $clientCount
+    $hostProc = Start-Process -FilePath $exeFull -ArgumentList $hostArgs -PassThru -WindowStyle Hidden
+    Write-Host "  Host 起動($($hostProc.Id))。Client を $clientCount 本起動します。"
+
+    $clientProcs = @()
+    $elapsedSinceHostStart = 0
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        $clientCfg = $scenario.Clients[$i]
+        if ($clientCfg.DelaySec -gt $elapsedSinceHostStart) {
+            $sleepSec = $clientCfg.DelaySec - $elapsedSinceHostStart
+            Write-Host "  Client$($i+1) を $sleepSec 秒後に起動します(遅延参加)。"
+            Start-Sleep -Seconds $sleepSec
+            $elapsedSinceHostStart = $clientCfg.DelaySec
+        }
+
+        $clientArgs = Build-Args -Role "client" -Port $scenario.Port -LatencyMs $scenario.LatencyMs -Scenario $scenario.Name -Seconds $clientCfg.Seconds -LogPath $clientLogs[$i]
+        $proc = Start-Process -FilePath $exeFull -ArgumentList $clientArgs -PassThru -WindowStyle Hidden
+        Write-Host "  Client$($i+1) 起動($($proc.Id))。"
+        $clientProcs += $proc
+    }
+
+    $maxClientEndSec = 0
+    foreach ($clientCfg in $scenario.Clients) {
+        $endSec = $clientCfg.DelaySec + $clientCfg.Seconds
+        if ($endSec -gt $maxClientEndSec) { $maxClientEndSec = $endSec }
+    }
+
+    $timeoutSec = [Math]::Max($scenario.HostSeconds, $maxClientEndSec) + 30
+    Wait-ForExitOrKill -Process $hostProc -TimeoutSec $timeoutSec -Label "Host"
+    for ($i = 0; $i -lt $clientProcs.Count; $i++) {
+        Wait-ForExitOrKill -Process $clientProcs[$i] -TimeoutSec $timeoutSec -Label "Client$($i+1)"
+    }
+
+    $hostResult = Parse-ResultLine -LogPath $hostLog
+    $clientResults = @()
+    $phases = @()
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        $clientResults += Parse-ResultLine -LogPath $clientLogs[$i]
+        # 位相差判定は Client 全本の Player.log に対して行う([14_networking.md] §16)。
+        $phases += Test-SignalPhase -HostLogPath $hostLog -ClientLogPath $clientLogs[$i] -LatencyMs $scenario.LatencyMs
+    }
+
+    $allClientsPass = -not ($clientResults | Where-Object { -not $_.Pass })
+    $allPhasesPass = -not ($phases | Where-Object { -not $_.Pass })
+
+    # quad_leave だけ追加のクロスチェック(Host の client_left ログ + clients 数の減少)を課す。
+    $extraCheck = $null
+    if ($scenario.Name -eq "quad_leave") {
+        $extraCheck = Test-ClientLeftAndCountDecrease -HostLogPath $hostLog
+    }
+    $extraPass = if ($null -eq $extraCheck) { $true } else { $extraCheck.Pass }
+
+    $scenarioPass = $hostResult.Pass -and $allClientsPass -and $allPhasesPass -and $extraPass
+    if (-not $scenarioPass) { $overallPass = $false }
+
+    $verdict = if ($scenarioPass) { "PASS" } else { "FAIL" }
+    Write-Host "  Host    : $(if ($hostResult.Pass) {'PASS'} else {'FAIL'}) ($($hostResult.Reason))"
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        Write-Host "  Client$($i+1) : $(if ($clientResults[$i].Pass) {'PASS'} else {'FAIL'}) ($($clientResults[$i].Reason)) / 位相差 $(if ($phases[$i].Pass) {'PASS'} else {'FAIL'}) fire=$($phases[$i].FireCount) matched=$($phases[$i].MatchedCount) maxDiffMs=$([Math]::Round($phases[$i].MaxDiffMs,0)) ($($phases[$i].Reason))"
+    }
+    if ($null -ne $extraCheck) {
+        Write-Host "  client_left/clients 減少: $(if ($extraCheck.Pass) {'PASS'} else {'FAIL'}) ($($extraCheck.Reason))"
+    }
+    Write-Host "  => $verdict"
+
+    $clientSummary = ($clientResults | ForEach-Object { $_.Pass }) -join ","
+    $phaseSummary = ($phases | ForEach-Object { $_.Pass }) -join ","
+    $reasonSummary = "host=$($hostResult.Reason) / clients=$(($clientResults | ForEach-Object { $_.Reason }) -join ';') / phases=$(($phases | ForEach-Object { $_.Reason }) -join ';')"
+    if ($null -ne $extraCheck) {
+        $reasonSummary += " / extra=$($extraCheck.Reason)"
+    }
+
+    $summaryRows.Add("| $($scenario.Name) | $verdict | host=$($hostResult.Pass) clients=$clientSummary phases=$phaseSummary | $reasonSummary |")
+    $jsonResults.Add([pscustomobject]@{
+        scenario      = $scenario.Name
+        pass          = $scenarioPass
+        hostPass      = $hostResult.Pass
+        hostReason    = $hostResult.Reason
+        clientResults = $clientResults
+        phaseResults  = $phases
+        extraCheck    = $extraCheck
     })
 }
 

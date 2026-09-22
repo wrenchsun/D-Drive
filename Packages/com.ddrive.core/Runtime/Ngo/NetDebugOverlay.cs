@@ -30,6 +30,13 @@ namespace DDrive.Runtime.Net
         private int _messagesInWindow;
         private float _lastRatePerSecond;
 
+        // [14_networking.md] §16(N-3、2026-09-22) — 接続クライアント数の行。OnGUI は毎フレーム呼ばれる
+        // ため、NetManualConnectOverlay.RefreshStateTextIfChanged と同じ「値が変わったときだけ文字列を
+        // 作る」パターンに従い、Host のときだけ意味を持つ ConnectedClientCount が変化したときだけ
+        // 組み立て直す([CLAUDE.md] §0-3 の趣旨)。
+        private int _lastClientCount = int.MinValue;
+        private string _clientsText = string.Empty;
+
         private void OnGUI()
         {
             if (!Visible || Bridge == null)
@@ -64,6 +71,17 @@ namespace DDrive.Runtime.Net
                 ? $"{appRtt.Value:F0} ms{(ngoForRtt != null && ngoForRtt.IsAppRoundTripMsStale ? " (途絶疑い)" : string.Empty)}"
                 : "n/a";
 
+            // [14_networking.md] §16(N-3) — Host のときだけ接続クライアント数(Host 自身を除いたリモート
+            // Client の数。Host 1 + Client 3 が全員繋がった状態では 3)を表示する(Client では
+            // NgoNetBridge.ConnectedClientCount が常に 0 で意味を持たないため、行自体を出さない)。
+            var ngoForClients = Bridge as NgoNetBridge;
+            var clientCount = Bridge.IsServer && ngoForClients != null ? ngoForClients.ConnectedClientCount : -1;
+            if (clientCount != _lastClientCount)
+            {
+                _lastClientCount = clientCount;
+                _clientsText = clientCount >= 0 ? $"\nClients: {clientCount}" : string.Empty;
+            }
+
             var contentHashText = ContentHashGate != null ? $"\nContentHash: {ContentHashGate.LastStatusText}" : string.Empty;
 
             // [42_distribution.md] §5.6/§6 P-8(2026-09-20) — 自分の D-Drive 版と(分かる範囲での)相手の版を
@@ -83,6 +101,7 @@ namespace DDrive.Runtime.Net
                 $"NetworkTime: {Bridge.NetworkTime:F2}\n" +
                 $"RTT: {rttText} / App RTT: {appRttText}\n" +
                 $"Received: {ReceivedCount()} ({_lastRatePerSecond:F1}/s)" +
+                _clientsText +
                 contentHashText +
                 versionText;
 
