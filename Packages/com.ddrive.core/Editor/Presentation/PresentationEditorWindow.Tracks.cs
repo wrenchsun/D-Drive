@@ -698,6 +698,13 @@ namespace DDrive.Editor.Presentation
 
             foldout.Add(paramsFoldout);
 
+            // [14_networking.md] §5(N-4、2026-09-22) — Scope は HitStop/CameraShake/Haptic のみ意味を持つ
+            // (PresentationDataValidator.RequiresAsset 等と同じ Kind 限定の慣習)。他 Kind では表示しない。
+            if (track.Kind == TrackKind.CameraShake || track.Kind == TrackKind.Haptic || track.Kind == TrackKind.HitStop)
+            {
+                AddField("Scope");
+            }
+
             AddField("StopOnCancel");
 
             var buttonRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4, marginBottom = 6 } };
