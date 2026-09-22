@@ -1157,46 +1157,55 @@ Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/late
 
 **2026-09-22 追記（ユーザー報告への対応）**: `run-netcheck.cmd` の実行中、`DDriveNetCheck.exe`（Hidden + `-batchmode`）の SE がスピーカーから鳴り続ける実害が報告されたため、`NetCheckRunner.Start()` で `-ddrive-autotest`（run-netcheck.cmd のヘッドレス自動判定シナリオ）が指定されているときだけ `AudioListener.volume = 0f` にして無音化した。手動実行・実機確認（`-ddrive-autotest` 未指定）では従来どおり鳴る。判定ロジック（ログベース）には影響しない。
 
-### 結果表
+### 結果表（2026-09-22 最終、①②修正 + 音声ミュート適用後）
 
-**コンパイル・EditMode・PlayMode・ビルド・run-netcheck をすべて実施（2026-09-22 最終）**: main（N-4 マージ済み、6ae597b）を `feat/n3-netcheck-multi-client` へマージした後、空きメモリが 2GB 以上に回復した時点で以下をすべて実施した。
+**コンパイル・EditMode・PlayMode・ビルド・run-netcheck をすべて実施**: main（N-4 マージ済み、6ae597b）を `feat/n3-netcheck-multi-client` へマージした後、空きメモリが 2GB 以上に回復した時点で以下をすべて実施した。
 
 - **compile_status → error 0**
 - **EditMode 全件 → 1164/1164 green**（0 failed / 0 skipped / 0 inconclusive、所要 179 秒）
 - **PlayMode 全件（`DDrive.Tests.Runtime`）→ 775/775 green**（0 failed / 0 skipped / 0 inconclusive、所要 8 秒）
-- テスト実行後に残った `Assets/Tests/`・`ProjectSettings/DDriveProjectSettings.asset` の差分は削除・復元済み。Addressables グループ・`Assets/GameData/` には差分なし
-- **`NetCheckBuilder.Build()` → 成功**（`Builds/DDriveNetCheck/DDriveNetCheck.exe` / `Builds/DDriveNetCheck.zip`、Addressables コンテンツも同時に再ビルド）
-- **`Tools\CI\run-netcheck.cmd`（8 シナリオ全部）→ 8 件とも FAIL**。ただし後述のとおり **N-3 で追加した判定ロジック自体（接続・Signal 中継・quad の `client_left`/`clients` 減少）は正しく機能していることを確認できた**。FAIL の内訳は以下の表と「原因の切り分け」を参照。
+- テスト実行後に残った `Assets/Tests/`・`ProjectSettings/DDriveProjectSettings.asset` の差分は削除・復元済み。ビルド後に残った `Assets/GameData/Presentation/Attack/PRES_Attack_Presentation.asset` の版数差分（Unity の自動マイグレーションによるもの、意図した変更ではない）も `git checkout --` で復元済み。Addressables グループには差分なし
+- **初回 run-netcheck（8 シナリオ全部 FAIL）** の原因を切り分け、以下 2 件を修正した（詳細は次節「修正内容」）:
+  1. `placeholder_observed`（データ側の実バグ）: `ANC_Player_VFXPlayerSlashAnchor`/`SE_test_NewSound` の `Flags.Load` を Preload に修正 + カタログエントリを再同期
+  2. `signal_relay_ratio_low`（判定側の設計漏れ）: `Test-SignalPhase` の分母を Client の生存時間窓に限定
+- 上記 2 件の修正を確認する再実行の過程で `Get-ClientLastNetworkTime`（②の実装）が「最後の heartbeat 行」をそのまま使っていたため disconnect シナリオで新たな回帰（`no_signal_fire_in_host_log`）を起こしたことも発見し、「観測した networkTime の最大値」を使うよう再修正した
+- ユーザー報告により、`run-netcheck.cmd` 実行中の SE 再生（Hidden + `-batchmode` でもスピーカーへ出力される）を止める `AudioListener.volume=0f`（`-ddrive-autotest` 指定時のみ）も追加した
+- **再ビルド 3 回・`run-netcheck.cmd` 再実行 3 回を経て、最終実行結果は以下のとおり**: **既存 4 シナリオ（pair0/pair200/latejoin/disconnect）は全て PASS**。**quad 4 シナリオは `forged_cancel_mismatch`（新たに判明した別種の判定側の設計漏れ、後述）のみが原因で FAIL**（`placeholder_observed`・Signal 位相差・N-3 独自の `client_left`/`clients` 減少チェックはいずれも quad 全シナリオで解消・PASS）。
 
 | シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
 |---|---|---|---|---|---|---|
-| pair0 | FAIL（placeholder_observed） | FAIL（placeholder_observed） | - | - | PASS（fire=11 matched=9 maxDiffMs=90） | - |
-| pair200 | FAIL（placeholder_observed） | FAIL（placeholder_observed） | - | - | PASS（fire=11 matched=9 maxDiffMs=350） | - |
-| latejoin | FAIL（placeholder_observed） | PASS（signal_recv=28、late_join_restored=True、content_hash=OK） | - | - | PASS（fire=8 matched=7 maxDiffMs=90） | - |
-| disconnect | FAIL（placeholder_observed） | FAIL（placeholder_observed） | - | - | PASS（fire=3 matched=3 maxDiffMs=70） | - |
-| quad0 | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/PASS（fire=13 matched=11 maxDiffMs=80） | - |
-| quad_latejoin | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/**FAIL**（Client3: fire=10 matched=6 ratio=0.6） | - |
-| quad_leave | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/**FAIL**（Client3: fire=13 matched=3 ratio=0.23） | **PASS**（`client_left`/`clients` 減少、peak=3） |
-| quad_hostquit | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | FAIL（placeholder_observed） | PASS/PASS/PASS（fire=3 matched=3 maxDiffMs=80） | - |
+| pair0 | **PASS** | **PASS** | - | - | PASS（fire=9 matched=9 maxDiffMs=70） | - |
+| pair200 | **PASS** | **PASS** | - | - | PASS（fire=9 matched=9 maxDiffMs=350） | - |
+| latejoin | **PASS** | **PASS**（late_join_restored=True） | - | - | PASS（fire=7 matched=7 maxDiffMs=110） | - |
+| disconnect | **PASS** | **PASS**（disconnected=True） | - | - | PASS（fire=3 matched=3 maxDiffMs=100） | - |
+| quad0 | PASS | FAIL（forged_cancel_mismatch sent=6 discarded=18） | FAIL（同左） | FAIL（同左） | PASS/PASS/PASS（fire=11 matched=11） | - |
+| quad_latejoin | PASS | FAIL（forged_cancel_mismatch sent=7 discarded=17） | FAIL（同左） | FAIL（sent=3 discarded=11） | PASS/PASS/**PASS**（Client3: fire=6 matched=6、②修正で解消） | - |
+| quad_leave | PASS | FAIL（forged_cancel_mismatch sent=6 discarded=14） | FAIL（同左） | FAIL（sent=2 discarded=6） | PASS/PASS/**PASS**（Client3: fire=3 matched=3、②修正で解消） | **PASS**（`client_left`/`clients` 減少、peak=3） |
+| quad_hostquit | PASS | FAIL（forged_cancel_mismatch sent=2 discarded=6） | FAIL（同左） | FAIL（同左） | PASS/PASS/PASS（fire=3 matched=3） | - |
 
-ログ全文は `TestResults/NetCheck/*.log`・`TestResults/NetCheck/summary.md`（リポジトリ外、scratchpad にも保存済み）。
+全シナリオで `placeholder_observed` は 0 件（①修正が有効）。全シナリオで Signal 位相差は PASS（②修正が有効。quad_latejoin/quad_leave の Client3 も含む）。ログ全文は `TestResults/NetCheck/*.log`・`TestResults/NetCheck/summary.md`（リポジトリ外、scratchpad にも保存済み）。
 
-### 原因の切り分け（2026-09-22）
+### 修正内容（2026-09-22）
 
-**① `placeholder_observed`（8 シナリオ全部で Host が FAIL、ほぼ全 Client も FAIL）— 判定/シナリオ側の不備ではなく、N-3/N-4 のコード変更が原因でもない、ローカル環境の Addressables カタログ側の問題と判断**。
+**① `placeholder_observed`（初回は 8 シナリオ全部で Host・ほぼ全 Client が FAIL）— データ側の実バグ、修正済み**。
 
-- 実際のログ（例 `pair0_host.log`）: `[DDrive] Unregistered AssetId 0xC7469048615C5C60 resolved to Placeholder.`（スタックトレース: `AssetRegistry.ResolveOrPlaceholder<AnchorData>` ← `AnchorChain.CollectChainInto` ← `PresentationTrackAnchorComposer.ComposeAssetOnly`）。`0xC7469048615C5C60` は `AssetIds.g.cs` の `PlayerVFXPlayerSlashAnchor`（AnchorMarker）、他に `0x69E86561CF2A3D23`（`TestNewSound`、SeMarker）も同様に未解決だった
-- どちらも `AssetIds.g.cs` に定数として存在する＝過去に生成された正規の ID だが、今回ビルドした Addressables カタログには含まれていない（Host 起動直後、最初の Play で PRES_Demo_SkillSlash の VFX トラックが参照する Anchor を解決しようとした瞬間に発生。ネットワーク要因ではなく起動直後から再現するため、通信・Late Join・切断とは無関係）
-- N-3（NetCheck 関連）・N-4（Presentation の Scope 追加）はいずれも `AnchorChain`/`PresentationTrackAnchorComposer`/Addressables 登録に触れていないため、**本 PR のコード変更が原因である可能性は低い**。ローカルの `Assets/GameData`/Addressables グループの状態（例: これらのアセットが未登録・グループ未割当・カタログが同期されていない）に起因する環境要因と推測される
-- **本 PR の範囲では修正しない**（Addressables グループ・`Assets/GameData` に差分を出さない制約のため、また「勝手に大きな修正はしない」の指示のとおり）。次回、Unity Editor で `Validation > Run All`・Addressables グループの `PlayerVFXPlayerSlashAnchor`/`TestNewSound` の登録状態を確認することを推奨する
+- 原因: `ANC_Player_VFXPlayerSlashAnchor`（VFX_Player_Slash のトラック Anchor）と `SE_test_NewSound`（ANIM_Player_Jump のフレームイベント SE）がどちらも `Flags.Load = LazyLoad`（OnDemand）のままだった。参照経路（`AnchorChain.Resolve` → `ResolveOrPlaceholder<AnchorData>`、`AssetEventDispatcher` → `ResolveOrPlaceholder<SeData>`）はどちらも同期解決のみで、`_loaded` に無いと Placeholder に落ちる仕様どおりの挙動だった（2026-09-19 のエディタ操作で作られたデータ）
+- 修正 1: Unity Editor 経由（execute_code、`Undo.RecordObject` + `EditorUtility.SetDirty` + `AssetDatabase.SaveAssets`）で両 Data の `Flags.Load` を `Preload` に変更
+- 修正 2（追加で判明）: `AssetRegistry.RegisterCatalogAsync` が Preload 判定に使うのは `CatalogEntry.Flags`（カタログにスナップショットされた Flags）であり、Data 側の Flags を直接読むわけではないため、修正 1 だけでは反映されなかった。`AssetCreationService.RegisterExisting(anchor, AssetType.Anchor)`/`RegisterExisting(se, AssetType.Se)`（既存の `DD-ADDR-CATALOG-MISSING` FixAction と同じ経路）を実行し、`AnchorCatalog`/`AudioCatalog` の該当エントリの Flags を再同期
+- `AddressablesRegistrationValidator`（U-20 の `DD-ADDR-PRELOAD-REQUIRED`）はこの 2 件を検出しなかった（`AssetCreationService.NeedsPreloadDefault` の対象種別が Canvas/ControlSkin/Presentation/Shake/Haptics/Anim/Anim2D/Cutscene のみで、Anchor/Se は対象外のため。`Validation > Run All` 実行時 totalErrors=68、対象 2 件・PRELOAD 系とも一致 0 件で確認済み）。Validator 自体の拡張は本チケットのスコープ外として手を付けていない
 
-**② quad_latejoin/quad_leave の Client3 だけ Signal 位相差が `signal_relay_ratio_low` で FAIL — こちらは判定側（`Tools/CI/Run-NetCheck.ps1` の `Test-SignalPhase`）の設計漏れ**。
+**② quad_latejoin/quad_leave の Client3 だけ Signal 位相差が `signal_relay_ratio_low` で FAIL — 判定側（`Tools/CI/Run-NetCheck.ps1` の `Test-SignalPhase`）の設計漏れ、修正済み**。
 
-- `quad_leave` の Client3 は 12 秒で自ら正常終了する設計だが、`Test-SignalPhase` の分母（Host の `signal_fire` 件数）は「Client の接続時刻以降」だけで絞り込んでおり、**Client の退出時刻以降に Host が発火した分もそのまま分母に含めてしまう**ため、Client3 が既に見ていない大部分の `signal_fire` が「受信できなかった」扱いになり ratio が不当に低くなる（実測 0.23）。`quad_latejoin` の Client3（遅れて参加し先に退出する側）も同じ理由（実測 0.6）
-- これは 6-7 で `latejoin` シナリオ向けに実施済みの「接続前の `signal_fire` を分母から除く」修正と対になる話で、今回は「退出後の `signal_fire` も分母から除く」対応が漏れていた、**新規追加した quad シナリオの判定ロジック側の設計漏れ**（既存 4 シナリオは各 Client が Host と同じかそれより長く生きる設計のため、この漏れの影響を受けていなかった）
-- **本 PR の範囲では修正しない**（指示により大きな修正は行わず報告のみ）。修正するなら `Get-ClientConnectNetworkTime` と対になる「Client の最後の heartbeat の networkTime」を取得する関数を追加し、分母を `[接続時刻, 退出時刻]` の範囲に絞る変更が必要
+- 原因: `Test-SignalPhase` の分母（Host の `signal_fire` 件数）は「Client の接続時刻以降」だけで絞り込んでおり、Client の退出時刻以降に Host が発火した分もそのまま分母に含めていたため、既に見ていない `signal_fire` が「受信できなかった」扱いになり ratio が不当に低くなっていた（quad_leave の Client3 で実測 0.23、quad_latejoin の Client3 で 0.6）
+- 修正: `Get-ClientConnectNetworkTime`（下限）と対になる `Get-ClientLastNetworkTime`（上限、Client ログの heartbeat の networkTime）を追加し、`fireEvents` を `[接続時刻, 退出時刻]` の窓に絞り込むようにした
+- 再修正: 上記の初回実装は「最後の heartbeat 行」をそのまま上限に使っていたため、disconnect シナリオ（Host が先に終了 → Client が切断検知）で回帰が発生した。切断後の heartbeat は `networkTime` が `0.00` にリセットされる（§8 参照）ため、「最後の行」を採用すると上限が `0.00` になり `fireEvents` が空になって `no_signal_fire_in_host_log` で誤って FAIL していた。「観測した `networkTime` の最大値」を返すように修正し、disconnect の回帰を解消した
+- 修正後、quad_latejoin/quad_leave の Client3 とも位相差 PASS を確認。既存 4 シナリオ（pair0/pair200/latejoin/disconnect）の結果は不変（全 Client が Host と同程度以上生きる設計のため、上限フィルタを追加しても除外される件数は変わらない）
 
-**③ N-3 自体の判定ロジックは正しく機能したことを確認**: `quad_leave` の `client_left`/`clients` 減少チェック（`Test-ClientLeftAndCountDecrease`）は **PASS**（`peak=3`）。`latejoin` の Client 側 `late_join_restored=True`・`content_hash=OK` も正常。接続・Signal 中継自体（①③のノイズを除く）はすべて期待どおり動いている。
+**③ N-3 自体の判定ロジックは最終的に完全に PASS を確認**: `quad_leave` の `client_left`/`clients` 減少チェック（`Test-ClientLeftAndCountDecrease`）は PASS（`peak=3`）。`latejoin`/`disconnect` の Client 側 `late_join_restored=True`/`disconnected=True`・`content_hash=OK` も正常。接続・Signal 中継（①②のノイズを除去した後）はすべて期待どおり動いている。
+
+### 新たに判明した課題（`forged_cancel_mismatch`、quad 4 シナリオ全部）— 未修正・報告のみ
+
+`quad0`/`quad_latejoin`/`quad_leave`/`quad_hostquit` の全 Client が `forged_cancel_mismatch sent=N discarded=M`（M が N の約 3 倍）で FAIL する。原因は判定側（`NetCheckRunner`）の設計が 1v1 前提のままであること: `ForgedCancelDiscardedCount` は `Application.logMessageReceived` で「`PresentationCancelMsg` の破棄ログ」を無条件にカウントしており、Broadcast は `ClientsAndHost` 全員に届くため、**quad 構成では 3 台の Client がそれぞれ周期的に偽造 Cancel を送信すると、各 Client のログには自分の分だけでなく他 2 台の破棄ログも見える**（3 台合計で自分の送信数の約 3 倍が観測される）。1v1 前提では送信者が 1 人だけなので `sent==discarded` が成り立っていたが、quad では成り立たない。実プロダクト（`NgoNetBridge`/`PresentationManager` の発行者検証・破棄そのもの）は正しく機能しており（Host ログで全件が正しく破棄されていることを確認済み）、**判定ロジック（`NetCheckRunner.EvaluateResult`/`NetCheckJudge`）側の設計漏れ**と判断する。本チケットのスコープ外のため修正していない（当初依頼された①②とは別の問題として発見）。修正するなら、送信者ごとに破棄ログの発行者 ClientId を区別してカウントする（現状は判別可能な情報がログに出ていないため、ログ側の変更も要る）か、quad シナリオでは `ForgedCancelDiscardedCount` の一致チェック自体を「割合」ベースに緩める等の対応が必要（要判断）。
 
 ## 25. 実機 4 人テストの手順
 
