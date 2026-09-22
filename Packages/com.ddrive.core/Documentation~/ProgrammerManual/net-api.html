@@ -142,11 +142,16 @@
 </ul>
 
 <h2 id="samples">実例</h2>
-<p><code>Packages/com.ddrive.core/Samples~/Demo/</code> 配下に 2 つのサンプルがあります（Validation の走査対象外。確認できたら削除してよいデモコード）。</p>
+<p><code>Packages/com.ddrive.core/Samples~/Demo/</code> 配下にサンプルが 1 つあります（Validation の走査対象外。確認できたら削除してよいデモコード）。</p>
+<table>
+<tr><th>ファイル</th><th>内容</th></tr>
+<tr><td><code>PresentationSkillSlashDemo.cs</code></td><td>剣攻撃デモの参照実装。<code>Presentation.Play</code>/<code>Signal</code> の最小例</td></tr>
+</table>
+<p>実機確認用のコードは、2026-09-22（N-3）に <code>Samples~/NetCheck/</code> から <code>Packages/com.ddrive.core/Runtime/Ngo/NetCheck/</code>（<code>DDrive.Runtime.Ngo</code> アセンブリ本体。サンプルではなくパッケージ本体の一部）へ移設しました（理由: Unity が import しない <code>Samples~</code> 配下だと開発リポジトリで常にコンパイルされず、<code>run-netcheck.cmd</code> の前提が壊れるため）。</p>
 <table>
 <tr><th>ファイル</th><th>内容</th></tr>
 <tr><td><code>NetBridgeSmokeTest.cs</code></td><td>0-14 時点の NGO アダプタ疎通確認用。独自メッセージ <code>PingMessage : INetMessage</code> を定義し、<code>bridge.Subscribe&lt;PingMessage&gt;(...)</code> で受信、<code>bridge.Broadcast(new PingMessage{...}, NetChannel.Unreliable)</code> で送信する最小例</td></tr>
-<tr><td><code>NetCheckRunner.cs</code></td><td>6-0 以降の実機確認用自動チェック。Host が <code>PRES_Demo_SkillSlash</code> を周期 Play → Signal("hit")し、<code>[DDriveNetCheck] key=value ...</code> 形式のハートビートを出す。偽造 Cancel の送出・切断検知・Late Join 復元の判定ロジックの実例として読める</td></tr>
+<tr><td><code>NetCheckRunner.cs</code></td><td>6-0 以降の実機確認用自動チェック。Host が <code>PRES_Demo_SkillSlash</code> を周期 Play → Signal("hit")し、<code>[DDriveNetCheck] key=value ...</code> 形式のハートビートを出す。偽造 Cancel の送出・切断検知・Late Join 復元・接続クライアント数（N-3、Host 1 + Client 3）の判定ロジックの実例として読める</td></tr>
 </table>
 
 <h2 id="known-gaps">既知の制約</h2>

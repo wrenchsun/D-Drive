@@ -166,5 +166,20 @@ namespace DDrive.Tests.Editor
 
             Assert.AreEqual(0, violations.Count);
         }
+
+        // [14_networking.md] §16(N-3、2026-09-22) — NetCheckRunner/NetBridgeSmokeTest を
+        // `Samples~/NetCheck/` から `Runtime/Ngo/NetCheck/` へ移設したため、専用の除外パスを追加した
+        // 回帰確認(Scan_ExcludesTildeSamplesFolder と同じ趣旨)。
+        [Test]
+        public void Scan_ExcludesRuntimeNgoNetCheckFolder()
+        {
+            var netCheckDir = Path.Combine(_tempDir, "Runtime", "Ngo", "NetCheck");
+            Directory.CreateDirectory(netCheckDir);
+            File.WriteAllText(Path.Combine(netCheckDir, "NetCheckRunner.cs"), "var t = UnityEngine.Time.deltaTime;");
+
+            var violations = ForbiddenApiScanner.Scan(_tempDir);
+
+            Assert.AreEqual(0, violations.Count);
+        }
     }
 }

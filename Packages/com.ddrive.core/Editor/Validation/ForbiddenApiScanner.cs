@@ -101,9 +101,15 @@ namespace DDrive.Editor.Validation
                 // 開発リポジトリでは CI.ResolveForbiddenApiScanRoot() がパッケージ自身を走査するため、
                 // これらのフォルダを除外しないと Samples~/Tests 内の既知の当たりが常に混ざる
                 // ([42_distribution.md] §2.3-2 の実測 26 件のうち 14 件はこの除外漏れが原因)。
+                // [14_networking.md] §16(N-3、2026-09-22) — `Samples~/NetCheck/` の手動確認用デモ
+                // (NetCheckRunner/NetBridgeSmokeTest)を `Runtime/Ngo/NetCheck/` へ移設した際、Samples の
+                // 除外パスに乗らなくなったため個別に追加した。これらは実プレイの定常経路(Tick/Spawn/Play)
+                // ではなく実機確認専用のヘッドレス自動テストコードで、以前から Samples 扱いとして本規約の
+                // 対象外だった経緯を維持する(禁止パターンの意図=製品コードの定常経路保護、であってこの
+                // 確認用コードは対象ではない)。
                 if (normalized.Contains("/Samples/") || normalized.Contains("/Samples~/") ||
                     normalized.Contains("/Tests/") || normalized.Contains("/Tools~/") ||
-                    normalized.Contains("/Documentation~/"))
+                    normalized.Contains("/Documentation~/") || normalized.Contains("/Runtime/Ngo/NetCheck/"))
                 {
                     continue;
                 }

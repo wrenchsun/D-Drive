@@ -78,6 +78,28 @@ namespace DDrive.Tests.Editor
             Assert.IsNull(result.AutoTestSeconds);
         }
 
+        // [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3 の接続確認用フラグ。
+        [Test]
+        public void Parse_ExpectClients()
+        {
+            var result = NetLaunchArgs.Parse(new[] { "-ddrive-expect-clients", "3" });
+            Assert.AreEqual(3, result.ExpectedClientCount);
+        }
+
+        [Test]
+        public void Parse_ExpectClients_InvalidValue_LeavesNull()
+        {
+            var result = NetLaunchArgs.Parse(new[] { "-ddrive-expect-clients", "not-a-number" });
+            Assert.IsNull(result.ExpectedClientCount);
+        }
+
+        [Test]
+        public void Parse_ExpectClients_Unspecified_IsNull()
+        {
+            var result = NetLaunchArgs.Parse(new string[0]);
+            Assert.IsNull(result.ExpectedClientCount);
+        }
+
         [Test]
         public void Parse_AllFlagsTogether_InAnyOrder()
         {
@@ -90,6 +112,7 @@ namespace DDrive.Tests.Editor
                 "-ddrive-sim-loss", "1",
                 "-ddrive-autotest", "netcheck",
                 "-ddrive-autotest-seconds", "30",
+                "-ddrive-expect-clients", "3",
             };
 
             var result = NetLaunchArgs.Parse(args);
@@ -100,6 +123,7 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(1f, result.SimLossPercent.Value, 0.001f);
             Assert.AreEqual("netcheck", result.AutoTestName);
             Assert.AreEqual(30f, result.AutoTestSeconds.Value, 0.001f);
+            Assert.AreEqual(3, result.ExpectedClientCount);
         }
 
         [Test]

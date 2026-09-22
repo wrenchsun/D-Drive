@@ -61,6 +61,13 @@ namespace DDrive.Runtime.Net
         // ビルドの経路は 6-5 側でユニットテスト済み、[docs/29] §14)。
         public bool ContentHashApplicable;
         public string ContentHashStatus; // CatalogContentHashGate.LastStatusText の最終値
+
+        // [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3 対応。ExpectedClientCount は
+        // -ddrive-expect-clients で指定された値(Host 役のときだけ非 0。Client 役・未指定は 0 = 従来どおり
+        // この判定をスキップする)。MaxConnectedClientsObserved は NgoNetBridge.ConnectedClientCount の
+        // 観測最大値(quad_leave のように途中で 1 人抜けても、一度でも全員揃った実績があれば満たす)。
+        public int ExpectedClientCount;
+        public int MaxConnectedClientsObserved;
     }
 
     public struct NetCheckResult
@@ -97,6 +104,14 @@ namespace DDrive.Runtime.Net
             if (!c.ConnectedAtEnd && !c.DisconnectedObserved)
             {
                 return NetCheckResult.FailResult("not_connected");
+            }
+
+            // [14_networking.md] §16(N-3) — Host 1 + Client 3。ExpectedClientCount>0(Host 役のみ)の
+            // ときだけ、観測できた接続クライアント数の最大値が期待数に届いているかを見る。Client 役・
+            // 未指定(ExpectedClientCount==0)は従来どおりスキップする(1v1 の既存シナリオは無改修)。
+            if (c.ExpectedClientCount > 0 && c.MaxConnectedClientsObserved < c.ExpectedClientCount)
+            {
+                return NetCheckResult.FailResult($"expected_clients_not_reached expected={c.ExpectedClientCount} observed={c.MaxConnectedClientsObserved}");
             }
 
             if (c.PlaceholderObserved)

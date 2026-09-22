@@ -1,23 +1,28 @@
 // [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO 実機 2 台確認用サンプル。NgoNetBridge を直接型参照するのでファイル全体を DDRIVE_NGO で囲う。
+// [14_networking.md] §16(N-3、2026-09-22) — `Samples~/NetCheck/` から `DDrive.Runtime.Ngo` アセンブリ本体
+// (`Runtime/Ngo/NetCheck/`)へ移設した(GUID 不変。NetCheckScene.unity の参照は壊れない)。名前空間も
+// `DDrive.Samples` から `DDrive.Runtime.Net` に揃えた(DDrive.Runtime.Ngo.asmdef の rootNamespace と同じ)。
 #if DDRIVE_NGO
 using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Net;
 using DDrive.Runtime.Loop;
-using DDrive.Runtime.Net;
 using DDrive.Runtime.Presentation;
 using R3;
 using UnityEngine;
 
-namespace DDrive.Samples
+namespace DDrive.Runtime.Net
 {
-    // [11_tasks.md] 6-0(D) — 実機 2 台確認用の自動チェック。Host が剣攻撃デモ(PRES_Demo_SkillSlash)を
-    // 一定間隔で Play → Signal("hit") し、両端末で位相差・Signal 受信・HitStop 発火をログ出力する。
+    // [11_tasks.md] 6-0(D) — 実機確認用の自動チェック。Host が剣攻撃デモ(PRES_Demo_SkillSlash)を
+    // 一定間隔で Play → Signal("hit") し、各端末で位相差・Signal 受信・HitStop 発火をログ出力する。
     // `[Net/Host]`/`[Net/Client]` プレフィックスに加え、`[DDriveNetCheck] key=value ...` 形式の行を出す
     // (docs/29_network_device_test.md の判定基準はこの行を機械的に読む)。
     // Assets/GameData/PreviewScenes/NetCheckScene.unity に置く。NetBridgeSmokeTest の Ping もこのシーンに
     // 同居させる(疎通確認の一次情報源として残す)。
+    // [14_networking.md] §16(N-3、2026-09-22) — Host 1 + Client 3(MS2026 の 4 人対戦)を見据え、
+    // 接続クライアント数(clients=<n>)・他 Client 離脱(client_left=<clientId>)・期待クライアント数の
+    // 到達判定(-ddrive-expect-clients)を追加した。1v1 前提だった当事者判定(HitStop 等)は N-4 の範囲(未着手)。
     public sealed class NetCheckRunner : MonoBehaviour
     {
         // PRES_Demo_SkillSlash.asset の Id(PresentationSkillSlashDemo.cs と同じ値)。
@@ -64,6 +69,14 @@ namespace DDrive.Samples
         private int _trackSkippedWithinGraceCount;
         private bool _maxActiveCountObservedPositive;
         private bool _vfxAndActiveZeroedAfterDisconnect;
+
+        // [14_networking.md] §16(N-3) — Host 1 + Client 3 対応。ExpectedClientCount は Host 役のときだけ
+        // -ddrive-expect-clients から読む(未指定/Client 役は 0 のまま=従来どおり判定をスキップ)。
+        // MaxConnectedClientsObserved は Heartbeat() が Host 役のときだけ NgoNetBridge.ConnectedClientCount
+        // の最大値を積む(Client の入れ替わり〔quad_leave〕があっても「一度でも全員揃った実績」を保持する)。
+        private int _expectedClientCount;
+        private int _maxConnectedClientsObserved;
+        private int _lastClientCount = -1;
 
         // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — ⑤(切断後の演出 0)の判定対象は「自分(Client)が
         // Host との接続を失った」場合だけにする。`_ngoBridge.ClientDisconnected` は Host 側でも「他 Client が
@@ -120,6 +133,11 @@ namespace DDrive.Samples
 
             _role = RoleOf(bootstrap);
             LogCheck("ready", "1", "role", _role);
+
+            // [14_networking.md] §16(N-3) — -ddrive-expect-clients は Host/Client どちらのプロセスにも
+            // 同じ値が渡り得るが、実際に判定へ使うのは Host 役のときだけ(EvaluateResult/Heartbeat 側で
+            // 役割を見て絞り込む)。ここでは値をそのまま保持するだけ。
+            _expectedClientCount = bootstrap != null ? (bootstrap.LaunchOptions.ExpectedClientCount ?? 0) : 0;
 
             // [11_tasks.md] 6-7 — Exception/Error(PASS 条件⑥)と偽造 Cancel の破棄(条件③)・Late Join の
             // Placeholder 誤解決(条件④)は、この Runner 自身のイベント購読では観測できない箇所(Presentation/
@@ -207,6 +225,24 @@ namespace DDrive.Samples
                 return;
             }
 
+            // [14_networking.md] §16(N-3) — Manual モード(-ddrive-net manual)では役割が Start() の
+            // WhenReady 完了時点ではまだ確定していない(接続ボタンを押すまで off のまま)。off/unknown の
+            // 間だけ毎フレーム再評価し、host/client/server に変わった瞬間に ready ログを出す。
+            // Auto モードは Start() 時点で既に確定しているため、この分岐は最初の 1 回で条件が false に
+            // なり以後は素通り(既存の Auto 経路の挙動・ログは不変)。
+            if (_role != "host" && _role != "client" && _role != "server")
+            {
+                var resolvedRole = RoleOf(bootstrap);
+                if (resolvedRole != _role)
+                {
+                    _role = resolvedRole;
+                    if (_role == "host" || _role == "client" || _role == "server")
+                    {
+                        LogCheck("ready", "1", "role", _role);
+                    }
+                }
+            }
+
             Heartbeat(bootstrap);
 
             if (bootstrap.NetBridge.IsServer)
@@ -285,7 +321,12 @@ namespace DDrive.Samples
             var activeCount = bootstrap.Presentation != null ? bootstrap.Presentation.DebugActiveHandles().Count : -1;
             var vfxActive = bootstrap.Vfx != null ? bootstrap.Vfx.ActiveCount : -1;
 
-            if (_heartbeatTimer < 1f && activeCount == _lastActiveCount && vfxActive == _lastVfxActive)
+            // [14_networking.md] §16(N-3) — Host 役のときだけ意味を持つ接続クライアント数(Host 自身を
+            // 含むかどうかは NgoNetBridge.ConnectedClientCount 側のコメント参照)。Client では -1(既存の
+            // activeCount/vfxActive の「対象外は -1」という表現と揃える)。
+            var clientCount = bootstrap.NetBridge.IsServer && _ngoBridge != null ? _ngoBridge.ConnectedClientCount : -1;
+
+            if (_heartbeatTimer < 1f && activeCount == _lastActiveCount && vfxActive == _lastVfxActive && clientCount == _lastClientCount)
             {
                 return;
             }
@@ -293,6 +334,12 @@ namespace DDrive.Samples
             _heartbeatTimer = 0f;
             _lastActiveCount = activeCount;
             _lastVfxActive = vfxActive;
+            _lastClientCount = clientCount;
+
+            if (bootstrap.NetBridge.IsServer && clientCount > _maxConnectedClientsObserved)
+            {
+                _maxConnectedClientsObserved = clientCount;
+            }
 
             var rttAppMs = _ngoBridge != null && _ngoBridge.AppRoundTripMs.HasValue ? _ngoBridge.AppRoundTripMs.Value.ToString("F0") : "n/a";
 
@@ -316,7 +363,8 @@ namespace DDrive.Samples
                 "rtt_app_ms", rttAppMs,
                 "rtt_app_stale", rttAppStale,
                 "vfx_active", vfxActive.ToString(),
-                "content_hash", contentHash);
+                "content_hash", contentHash,
+                "clients", clientCount.ToString());
 
             // [11_tasks.md] 6-7 — 条件④(Late Join 復元)の下限確認: 接続中に activeCount>0 を一度でも
             // 観測できれば、Late Join のスナップショットが Placeholder に落ちず反映されたと判定する
@@ -508,6 +556,15 @@ namespace DDrive.Samples
                 _selfDisconnectedObserved = true;
             }
 
+            // [14_networking.md] §16(N-3) — Host 役は「他 Client が 1 人抜けても自分は継続する」ことを
+            // 示すため、離脱した clientId を毎回(dedupe せず)ログに出す(quad_leave の判定用)。既存の
+            // `disconnected=1` 行(下の _disconnectLogged ガード)は 1 回だけの汎用ログのままにする
+            // (挙動を変えない)。
+            if (_role == "host" || _role == "server")
+            {
+                LogCheck("client_left", clientId.ToString());
+            }
+
             if (_disconnectLogged)
             {
                 return;
@@ -576,6 +633,11 @@ namespace DDrive.Samples
                 ActiveAndVfxZeroedAfterDisconnect = _vfxAndActiveZeroedAfterDisconnect,
                 ContentHashApplicable = contentHashApplicable,
                 ContentHashStatus = contentHashStatus,
+
+                // [14_networking.md] §16(N-3) — Host 役のときだけ意味を持つ(Client 役・未指定は 0 のまま
+                // なので NetCheckJudge 側の判定は素通りする。既存の 1v1 シナリオは無改修)。
+                ExpectedClientCount = (_role == "host" || _role == "server") ? _expectedClientCount : 0,
+                MaxConnectedClientsObserved = _maxConnectedClientsObserved,
             };
 
             return NetCheckJudge.Evaluate(counters);

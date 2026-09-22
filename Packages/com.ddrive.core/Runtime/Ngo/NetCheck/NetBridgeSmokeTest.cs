@@ -1,12 +1,14 @@
 // [42_distribution.md] §2.3-9(P-4、2026-09-20) — NGO 実機確認用サンプル。NetworkBehaviour を直接継承するのでファイル全体を DDRIVE_NGO で囲う。
+// [14_networking.md] §16(N-3、2026-09-22) — `Samples~/NetCheck/` から `DDrive.Runtime.Ngo` アセンブリ本体
+// (`Runtime/Ngo/NetCheck/`)へ移設した(GUID 不変)。名前空間も `DDrive.Samples` から `DDrive.Runtime.Net`
+// に揃えた(DDrive.Runtime.Ngo.asmdef の rootNamespace と同じ)。
 #if DDRIVE_NGO
 using System;
 using DDrive.Foundation.Net;
-using DDrive.Runtime.Net;
 using Unity.Netcode;
 using UnityEngine;
 
-namespace DDrive.Samples
+namespace DDrive.Runtime.Net
 {
     [Serializable]
     public struct PingMessage : INetMessage

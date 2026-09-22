@@ -16,8 +16,13 @@ REM     プロセス起動・待機・強制終了・2 プロセスのログ突�
 REM     Summarize-Results.ps1 呼び出しと違って pwsh は必須。無い場合はエラーで終了する。
 REM
 REM 使い方:
-REM   Tools\CI\run-netcheck.cmd                 全シナリオ(pair0 / pair200 / latejoin / disconnect)
-REM   Tools\CI\run-netcheck.cmd pair0            1 シナリオだけ実行
+REM   Tools\CI\run-netcheck.cmd                 全シナリオ(pair0 / pair200 / latejoin / disconnect /
+REM                                              quad0 / quad_latejoin / quad_leave / quad_hostquit)
+REM   Tools\CI\run-netcheck.cmd pair0            1 シナリオだけ実行(1 Host + 1 Client)
+REM   Tools\CI\run-netcheck.cmd quad0            Host 1 + Client 3、全員 0ms(N-3、docs/29 §24)
+REM   Tools\CI\run-netcheck.cmd quad_latejoin    Host 1 + Client 3、うち 1 人が 12 秒遅れて参加
+REM   Tools\CI\run-netcheck.cmd quad_leave       Host 1 + Client 3、うち 1 人が先に正常終了して抜ける
+REM   Tools\CI\run-netcheck.cmd quad_hostquit    Host 1 + Client 3、Host が先に終了する
 REM
 REM .ps1 を主にしない理由は run-ci.cmd と同じ。この PC の PowerShell 5.1 は既定の実行ポリシーで
 REM .ps1 実行がブロックされる、BOM 無し UTF-8 のコメントが化けることがあるため、内部で pwsh を
@@ -49,7 +54,8 @@ echo Project    : %CD%
 if not "%SCENARIO%"=="" echo Scenario   : %SCENARIO%
 echo.
 echo [注意] このプロジェクトを Unity Editor で開いていても実行はできますが、127.0.0.1 の UDP ポート
-echo        7801/7811/7821/7831 が他プロセスで使用中でないことを確認してください。
+echo        7801/7811/7821/7831(1v1)・7841/7851/7861/7871(quad、N-3)が他プロセスで使用中でないことを
+echo        確認してください。
 echo.
 
 pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0Run-NetCheck.ps1" -OnlyScenario "%SCENARIO%"

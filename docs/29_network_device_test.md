@@ -1127,3 +1127,105 @@ N-1/N-2（[14_networking.md] §14・§15）で追加した「実行中に IP を
 7. 接続の成否・状態（未接続/Host listening/Client 接続中/切断）は UI の状態 1 行と、既存の `NetDebugOverlay`（左上、Role/RTT/NetworkTime 等）を併読して確認する
 
 **未実施（2026-09-22 時点）**: 実ビルドを 2 プロセス起動しての Host/Client 接続・切断・`StopNetworking()` → 再 `StartHost` の再起動確認。実装完了時点で空きメモリが約 1.2GB（ビルドの目安閾値 1.3GB 未満）だったため見送った。次回、空きメモリに余裕があるときに §21/§22 と同様の形式で結果を追記すること。
+
+## 24. N-3: Host 1 + Client 3 のローカル確認
+
+[14_networking.md] §16（N-3）で追加した Host 1 + Client 3 対応（`NgoNetBridge.ConnectedClientCount`・`-ddrive-expect-clients`・`client_left` ログ・役割の遅延評価）の確認手順とシナリオ。`Tools/CI/Run-NetCheck.ps1` の `$quadScenarios`（§15 の `$scenarios` とは別配列、既存 4 シナリオは無改修）が実行する。
+
+### シナリオ
+
+| シナリオ | 構成 | 目的 |
+|---|---|---|
+| `quad0` | Host + Client×3、同一 Port、全員 0ms、同時参加 | Host 1 + Client 3 の基本接続・Signal 中継・`ConnectedClientCount` が 4（Host 自身含む）に達すること |
+| `quad_latejoin` | 同上、うち 1 人だけ 12 秒遅れて参加 | 4 人構成での Late Join 復元。他 2 人は最初から接続したまま |
+| `quad_leave` | 同上、うち 1 人だけ先に正常終了して抜ける | Host が「他 Client が 1 人抜けても自分と残り 2 人は継続する」こと。Host の `client_left=<clientId>` ログと `clients=<n>` の減少（3→2 等）、残り 2 Client の `signal_recv` 継続を判定 |
+| `quad_hostquit` | 同上、Host が先に終了 | 既存 `disconnect`（1v1）の 4 人版。Client×3 全員が切断検知 + 演出後片付け（activeCount/vfx_active=0）を行うこと |
+
+ポートは既存 4 シナリオ（7801/7811/7821/7831）と重ならない 7841（quad0）/7851（quad_latejoin）/7861（quad_leave）/7871（quad_hostquit）を使う。
+
+### 使い方
+
+```
+Tools\CI\run-netcheck.cmd quad0
+Tools\CI\run-netcheck.cmd quad_latejoin
+Tools\CI\run-netcheck.cmd quad_leave
+Tools\CI\run-netcheck.cmd quad_hostquit
+Tools\CI\run-netcheck.cmd              # 8 シナリオ全部(pair0/pair200/latejoin/disconnect/quad0/quad_latejoin/quad_leave/quad_hostquit)
+```
+
+ログは `TestResults/NetCheck/<シナリオ名>_host.log`・`<シナリオ名>_client1.log`〜`_client3.log`。判定は §15 と同じ 2 段構え（各プロセス自身の `RESULT=PASS|FAIL` 行 + このスクリプトによるクロスログの Signal 位相差）を Client 3 本ぶん繰り返し、`quad_leave` だけ追加で `Test-ClientLeftAndCountDecrease`（Host ログの `client_left` 出現 + その後の `clients=<n>` 減少）を課す。
+
+### 結果表
+
+**未実施（2026-09-22、本チケットの実装時点）**: 実装完了直後は空きメモリが 1GB を切って不安定に増減しており（設定済みの MCP クライアント〔isuzu-unity/CoplayDev〕のポートも Unity 側の実ポートとズレていたため、直接 JSON-RPC 経由で Unity Editor 自体には到達できることは確認したが、コンパイル・テスト実行に踏み切れるだけの空きメモリの回復を待たなかった）、コンパイル確認・`NetCheckBuilder.Build()` でのビルド・`Tools\CI\run-netcheck.cmd` の実行のいずれも見送った（コーディネーター判断: メモリ回復待ちより PR 作成を優先）。以下は実行結果ではなく、次回メモリに余裕があるときに埋める表のプレースホルダ。
+
+| シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
+|---|---|---|---|---|---|---|
+| pair0 | 未実施 | 未実施 | - | - | 未実施 | - |
+| pair200 | 未実施 | 未実施 | - | - | 未実施 | - |
+| latejoin | 未実施 | 未実施 | - | - | 未実施 | - |
+| disconnect | 未実施 | 未実施 | - | - | 未実施 | - |
+| quad0 | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | - |
+| quad_latejoin | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | - |
+| quad_leave | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | 未実施(client_left/clients 減少) |
+| quad_hostquit | 未実施 | 未実施 | 未実施 | 未実施 | 未実施 | - |
+
+次回実施する手順: (1) Unity Editor を起動し MCP（isuzu-unity 優先）を繋ぐ、(2) `compile_request` → error 0、(3) EditMode 全件 + PlayMode の `Net|Presentation|ContentHash` を green、(4) `Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド`、(5) 空きメモリ 1.3GB 以上を確認してから `Tools\CI\run-netcheck.cmd` を実行、(6) `TestResults/NetCheck/summary.md` の内容をこの表に転記する。
+
+## 25. 実機 4 人テストの手順
+
+N-3 のシナリオ確認がローカル（127.0.0.1）で PASS した後、実機での Host 1 + Client 3 確認を行う手順（§5〜§22 の 1 対 1/1 対 2 実機確認の 4 人版）。
+
+### 構成
+
+| | マシン A | マシン B | マシン C |
+|---|---|---|---|
+| 役割 | **Host** | **Client×2**（同一 PC で `DDriveNetCheck.exe` を 2 プロセス起動） | **Client×1** |
+| ネット | §1 のホットスポット親、または LAN | ホットスポット/LAN に接続 | ホットスポット/LAN に接続 |
+| Unity | Editor（Host は Play Mode でも可）または開発ビルド | 不要（ビルド済み Player のみ） | 不要（ビルド済み Player のみ） |
+
+マシン B で 2 プロセス起動する場合は `-logFile` を別ファイルにする（例 `C:\DDriveTest\ClientB1.log`/`ClientB2.log`）。ポートは 3 プロセスとも同じ Host の Port（既定 7777）へ接続する（NGO は Client ごとに別ポートを使わないため、同一 PC から複数プロセスで接続しても Port は競合しない）。
+
+### Auto 起動（`-ddrive-net host`/`client`）を使う場合
+
+マシン A（Host）:
+
+```
+DDriveNetCheck.exe -ddrive-net host -ddrive-host 0.0.0.0 -ddrive-port 7777 -ddrive-expect-clients 3 -logFile PlayerHost.log
+```
+
+マシン B（Client×2、それぞれ別ウィンドウ/別コマンドプロンプトで起動）:
+
+```
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -logFile C:\DDriveTest\ClientB1.log
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -logFile C:\DDriveTest\ClientB2.log
+```
+
+マシン C（Client×1）:
+
+```
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -logFile C:\DDriveTest\ClientC.log
+```
+
+`-ddrive-expect-clients 3` は Host 側にだけ付ける（§16 のとおり Client 側では意味を持たない）。`-ddrive-autotest <name>` を追加すればヘッドレス自動判定（`RESULT=PASS|FAIL`）も使えるが、実機確認では省略して常駐させ、目視 + ログで確認してよい。
+
+### N-2 の手動接続 UI（`-ddrive-net manual`）を使う場合
+
+自動接続ではなく、起動後に画面左下の手動接続 UI（[14_networking.md] §15、[29] §23）から接続したい場合は、全端末を `-ddrive-net manual` で起動し、マシン A で「Host で開始」を押した後、マシン B（2 回）・マシン C で IP に「マシン A の IP」・Port に「マシン A の Port」を入力して「Client で接続」を押す。`-ddrive-expect-clients` は Manual モードでは `NetCheckRunner` の自動判定（`-ddrive-autotest`）を使わない限り意味を持たないため、目視確認（`NetDebugOverlay` の「Clients: n」が 4 になること）で代用する。
+
+### ファイアウォール / ポート開放の注意
+
+- Host（マシン A）のファイアウォールで UDP 7777（または指定した Port）の**受信**を許可する必要がある（§2 の初回起動ダイアログ、または `netsh advfirewall` で `DDriveNetCheck.exe` の Inbound を許可）。マシン B・C 側は送信のみのため通常は追加設定不要
+- 同一 PC（マシン B）で 2 プロセス起動する場合、Windows は送信元ポートを自動的に別々に割り当てるため、Host 側からは 2 つの異なる `ClientId` として区別される（同一 IP からの複数接続は NGO/UnityTransport の制約に抵触しない）
+- ホットスポット経由の場合、DHCP でマシン B/C の IP が変わることがあるので、接続前に `ipconfig` で確認する
+
+### 確認項目チェックリスト
+
+- [ ] マシン A の `NetDebugOverlay`（または `PlayerHost.log` の `heartbeat`）で `clients=4`（Host 自身含む。§16）になる
+- [ ] マシン B・C それぞれで接続成功（`[Net/Client] ... Client として起動しました` ログ、Exception/Error 0 件）
+- [ ] Signal 中継: マシン A の `signal_fire` と各マシンの `signal_recv` が対応する（§4 の位相差の目安、数ティック以内）
+- [ ] 3 人のうち 1 人（例: マシン C）だけ終了 → マシン A の `client_left=<clientId>` ログ + `clients=3` への減少、マシン B・残る接続は継続（`signal_recv` が途切れない）
+- [ ] マシン A（Host）を終了 → マシン B・C 全員が `disconnected=1` を検知し、進行中の演出（VFX 等）が消える
+- [ ] 初回起動時のファイアウォール許可ダイアログが出た場合は、その旨と対応（プライベート/パブリックいずれを許可したか）をこの節に追記する
+
+**未実施（2026-09-22 時点）**: 実機環境（複数 PC）を用意できなかったため、本節の手順に沿った実機確認は未実施。次回実機確認時にこの節へ結果（ログ抜粋・スクリーンショット・チェックリストの結果）を追記すること。

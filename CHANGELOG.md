@@ -13,6 +13,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 追加のみ（MINOR）: **N-1（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §14・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動ネット接続 API。`NetLaunchRole` に `Manual`（末尾追加）、`DDriveRuntimeBootstrap` に `NetStartMode`(新規 enum)・`DefaultNetStart`(新規フィールド、既定 `Auto`)・`public bool IsNetworkStarted`・`public bool StartHost(ushort)`・`public bool StartClient(string,ushort)`・`public void StopNetworking()` を追加。`NgoBridgeCreateResult`（`DDrive.Runtime.Net`）に `IsListening`/`ManualStartHost`/`ManualStartClient`/`ManualStop` の delegate フィールドを追加。既存の Auto 起動（既定 `DefaultNetBridge=Loopback`/`DefaultNetStart=Auto`）の挙動・既定値は無改修
 - 追加のみ（MINOR）: **N-2（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §15・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動接続 UI。`DDrive.Runtime.Net` に `public static class NetManualConnectInput`（`TryParsePort`/`TryParse`）を追加。`DDrive.Runtime.Ngo`（互換性スナップショット対象外）に `NetManualConnectOverlay`（新規コンポーネント）を追加。既存の公開 API・挙動・既定値は無改修（`NgoBridgeFactoryInstaller.Create()` の内部実装のみ変更）
+- 追加のみ（MINOR）: **N-3（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §16・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — Host 1 + Client 3 対応。`DDrive.Runtime`（互換性スナップショット対象）に `NetLaunchOptions.ExpectedClientCount`（フィールド追加）・`NetLaunchArgs.ExpectClientsFlag`（定数追加）・`NetCheckCounters.ExpectedClientCount`/`MaxConnectedClientsObserved`（フィールド追加）を追加。`DDrive.Runtime.Ngo`（互換性スナップショット対象外）に `NgoNetBridge.ConnectedClientCount` を追加。`Samples~/NetCheck/`（`NetBridgeSmokeTest`/`NetCheckRunner`）をパッケージ本体 `Runtime/Ngo/NetCheck/` へ移動し、`package.json` の `samples` から削除（サンプルではなくパッケージ本体の一部に区分変更。GUID 不変のため既存の `NetCheckScene.unity` の参照は壊れない）
 
 ### 追加
 
@@ -33,6 +34,17 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - `NgoBridgeFactoryInstaller.cs`（`NgoBridgeFactory.Create`）: `role==NetLaunchRole.Manual` かつ `Debug.isDebugBuild || Application.isEditor` のときだけ `NetManualConnectOverlay` を生成する（リリースビルドで Manual が指定された場合は生成せず警告を 1 回だけ出す）。`DDriveRuntimeBootstrap` に新規 Inspector フィールドは追加していない
   - テスト: `Tests/Editor/NetManualConnectInputTests.cs`（EditMode 新規 25 件）。互換性スナップショット `public-api-DDrive.Runtime.txt` を更新（`NetManualConnectInput` の追加のみ）。EditMode 1148/1148・PlayMode（`DDrive.Tests.Runtime`）754/754 green（Unity MCP 経由で確認済み）
   - **未実施**: `NetCheckBuilder` の実ビルドを 2 プロセス起動しての Host/Client 接続・切断・再接続の実機確認（実装完了時点で空きメモリが約 1.2GB、ビルドの目安閾値 1.3GB 未満だったため見送り）
+
+- N-3（2026-09-22）: `NetCheckScene`/`NetCheckRunner` の Host 1 + Client 3 対応（[docs/14_networking.md](docs/14_networking.md) §16）
+  - 背景: MS2026（4 人対戦: Host 1 + Client 3）向けに NGO 経路を「Host 1 + Client 3」で検証したいが、6-7 の自動確認（`run-netcheck.cmd`）は Host 1 + Client 1 の 2 プロセス前提だった。さらに P-5（2026-09-20）で `NetCheckRunner`/`NetBridgeSmokeTest` が `Samples~/NetCheck/`（Unity が import しない領域）へ移されており、開発リポジトリでは未コンパイルの状態（`NetCheckScene.unity` が Runner を missing script として参照）になっていた
+  - 復旧: `Samples~/NetCheck/NetCheckRunner.cs`/`NetBridgeSmokeTest.cs`（+ `.meta`）を `git mv` で `Runtime/Ngo/NetCheck/`（既存の `DDrive.Runtime.Ngo` アセンブリ）へ移設（GUID 不変）。名前空間を `DDrive.Samples` から `DDrive.Runtime.Net` に統一。`Samples~/NetCheck/DDrive.Samples.NetCheck.asmdef` を削除し、`package.json` の `samples` から NetCheck エントリを削除
+  - `NgoNetBridge.ConnectedClientCount`（`public int`、Server のときだけ `NetworkManager.ConnectedClientsIds.Count`〔Host 自身を含む〕、Client では 0）を追加
+  - `NetLaunchArgs`/`NetLaunchOptions` に `-ddrive-expect-clients <n>`（`int?`）を追加。`NetCheckCounters` に `ExpectedClientCount`/`MaxConnectedClientsObserved` を追加し、`NetCheckJudge.Evaluate` は Host 役で `ExpectedClientCount>0` のとき `MaxConnectedClientsObserved >= ExpectedClientCount` を PASS 条件に加える（Client 役・未指定時は従来どおりスキップ）
+  - `NetCheckRunner` の `Update()` に役割の遅延評価を追加（Manual モードで `_role` が `off`/`unknown` の間は毎フレーム `RoleOf()` を再評価し、host/client/server に変わった時点で `ready` ログを出す。既存の Auto 経路は無改修）。Host 役での `client_left=<clientId>` ログ（`NgoNetBridge.ClientDisconnected` から）、Heartbeat への `clients=<n>` 追加、`NetDebugOverlay` への「Clients: n」行追加（Host のみ、変化検知パターンで文字列を作る）
+  - `ForbiddenApiScanner`（[00_requirements.md](docs/00_requirements.md) §5 の禁止 API 静的走査）の除外パスに `/Runtime/Ngo/NetCheck/` を追加（`Samples~` 配下から通常配置へ移ったことで新規に対象へ入り、`Time.deltaTime`/`Time.time` 直接参照の違反が発生していたため。確認用のヘッドレス自動テストコードという性質は変わらない）
+  - `Tools/CI/Run-NetCheck.ps1` に `quad0`/`quad_latejoin`/`quad_leave`/`quad_hostquit`（Host 1 + Client 3。既存 4 シナリオ `pair0`/`pair200`/`latejoin`/`disconnect` は無改修）を追加。ポートは 7841/7851/7861/7871（既存と重複なし）
+  - テスト: `Tests/Editor/NetLaunchArgsTests.cs`・`Tests/Editor/NetCheckJudgeTests.cs`・`Tests/Editor/ForbiddenApiScannerTests.cs` に EditMode テストを追加。互換性スナップショット `public-api-DDrive.Runtime.txt` を手動更新（`NetLaunchOptions.ExpectedClientCount`・`NetLaunchArgs.ExpectClientsFlag`・`NetCheckCounters.ExpectedClientCount`/`MaxConnectedClientsObserved` の追加のみ）
+  - **未検証**: 実装完了時点で空きメモリが 1GB を切って不安定だったため、コンパイル・EditMode/PlayMode テスト・`NetCheckBuilder.Build()` での再ビルド・`run-netcheck.cmd`（8 シナリオ）の実行はいずれも未実施（[docs/29_network_device_test.md](docs/29_network_device_test.md) §24/§25。メモリに余裕ができ次第、同じブランチで実施し結果を追記する）
 
 ## [1.1.0] - 2026-09-20
 
