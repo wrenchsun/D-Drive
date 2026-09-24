@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 6
+  Version: 7
   Author: yamag
-  UpdatedAt: 2026-09-19T19:33:16
+  UpdatedAt: 2026-09-24T20:45:59
   ChangeNote: 
   Flags:
     Pause: 0
@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 0
   Tracks:
   - Trigger: 0
     Time: -0.03
@@ -56,6 +57,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 1
+    Scope: 0
   - Trigger: 1
     Time: 1.67
     SignalKey: TestSignal
@@ -74,6 +76,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 1
+    Scope: 0
   - Trigger: 0
     Time: 0
     SignalKey: 
@@ -92,6 +95,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 1
+    Scope: 0
   TotalDuration: 5
   Interruptible: 1
   PredictLocal: 0
