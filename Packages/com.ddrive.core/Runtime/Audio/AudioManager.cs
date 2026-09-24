@@ -428,6 +428,15 @@ namespace DDrive.Runtime.Audio
             }
         }
 
+        // [14_networking.md] §18(N-5、2026-09-24) — Host 引き継ぎ向け。Tick 内バッチ(まだ Broadcast
+        // していない Cosmetic SE)を破棄する。次の Tick で FlushCosmeticBatch が古いセッションの
+        // AnchorNetId を含んだメッセージを新しいネットワークセッションへ送ってしまうのを防ぐ
+        // (再生中の Instance には触れない。ネット非経由・ローカル再生は無関係)。
+        public void ResetNetworkedState()
+        {
+            _pendingCosmeticBatch.Clear();
+        }
+
         public void Tick(float dt)
         {
             _clock += dt;

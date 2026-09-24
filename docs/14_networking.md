@@ -857,3 +857,129 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 **テスト**: `Tests/Editor/PresentationIsParticipantTests.cs`（新規、EditMode）— `IsParticipant` の純関数テスト（両 NetId 0 は安全側 true、片方でも非 0 なら未解決時は false、Self/Target それぞれが自分の所有物なら true 等）。`Tests/Runtime/PresentationParticipantScopeTests.cs`（新規、PlayMode）— HitStop/CameraShake/Haptic それぞれについて (a) Everyone は当事者でなくても発火する回帰、(b) 自分が Self なら発火、(c) 自分が Target なら発火、(d) 第三者は発火しない、(e) SelfNetId/TargetNetId 両方未解決なら安全側で発火、(f) 予測再生の行為者自身は Scope に関わらず発火、を検証（`FakeNetBridge` に `ResolveNetObject` の順引き（`netId → Transform`）が無かったため追加した。既存の `SetNetId`/`ResolveNetId`〔逆引き〕と対になる辞書を追加しただけで既存呼び出しの挙動は変えていない）。`Tests/Runtime/PresentationDataValidatorTests.cs` に Validator の Info 検査を追加。EditMode/PlayMode 実行結果は未検証（Unity MCP 未接続、下記参照）。
 
 **未検証（Unity MCP 未接続）**: このセッションでは isuzu-unity/CoplayDev のどちらの MCP ブリッジにも接続できず、`compile_request`/`test_run` を一度も実行できなかった。コンパイル・EditMode/PlayMode テスト・互換性スナップショットの再生成（`Tools > D-Drive > Compat > スナップショットを更新`）はすべて未実施。次回 Unity Editor 上で必ず確認すること。
+
+## 18. 実装メモ（2026-09-24、N-5: Host 引き継ぎ向けのリセット）
+
+**背景**: MS2026（4 人対戦）は Host 切断時に Host 引き継ぎ（ホストマイグレーション）を行う。正本は
+`MS2026/Docs/Spec/03_Network.md` §10（決定: 残っているプレイヤーのうち `PlayerIndex` が最小の人が Host を
+引き継ぐ）で、D-Drive 側に必要な対応は同 §10.7 に D-1〜D-5 として一覧化されている。本チケットは D-1/D-3/D-4
+（実装必須・仕様明文化）を対応する。D-2/D-5（Stop→再 Start の検証・自動確認シナリオ）は N-6 で対応する。
+
+### D-Drive が前提とする呼び出し順（MS2026 §10.2 のシーケンス）
+
+```
+[全端末]     Host 切断を検知
+   └─ 各端末が自分で NetworkManager.Shutdown() を呼んでから bootstrap.StopNetworking() を呼ぶ
+       （NGO の Shutdown は非同期。同フレームで次の StartHost/StartClient を呼ぶ運用は不可)
+
+[successor]  Migration/GraceSeconds(既定 1 秒、MS2026 Tuning)待ってから bootstrap.StartHost(port)
+             （ConnectionData の設定はゲーム側の責務。D-Drive は触らない)
+
+[その他]     Migration/GraceSeconds + 1 秒待ってから bootstrap.StartClient(successor.Address, port)
+             （ConnectionData=(SessionToken, PlayerIndex) をゲーム側が NetworkManager.NetworkConfig.
+             ConnectionData に入れてから呼ぶ。D-Drive はこの値の中身に関与しない)
+```
+
+D-Drive はこの手順を前提に、以下の 2 点を保証する:
+
+1. **`StopNetworking()`(`DoManualStop`)は「MS2026 が先に `NetworkManager.Shutdown()` を呼んでいる」ことを
+   想定する**。呼び出し時点で既に `!NetworkManager.IsListening` でも、`Shutdown()` の二重呼び出しはしない
+   ものの、ネットワーク状態のリセット（下記「捨てるもの一覧」）は必ず実行する。以前は `!IsListening` で
+   即座に警告 + 早期 return していたため、MS2026 の手順（自分で Shutdown 済みのあとに `StopNetworking()`
+   を呼ぶ）ではリセットが一切走らなかった。
+2. **`StartHost`/`StartClient` の再 Start 前提**: `DoManualStartHost`/`DoManualStartClient` は
+   `NetworkManager.IsListening` に加えて `NetworkManager.ShutdownInProgress`(NGO の Shutdown が非同期で
+   完了していない間 true)を見て、進行中なら警告して `false` を返す。`StopNetworking()` の直後、同フレームで
+   `StartHost`/`StartClient` を呼ぶ運用は D-Drive としては不可（MS2026 側は `Migration/GraceSeconds` だけ
+   待ってから呼ぶことでこれを回避する）。
+
+### D-1: `CatalogContentHashGate` が再接続でハッシュを再送しない
+
+`_clientHashSent`/`_clientConnectedFired`（および Host 側の期限辞書・`LastStatusText`）が一度立つと戻らない
+ため、新 Host に再接続した Client はハッシュを送らず、リリースビルドでは `ContentHashTimeoutSeconds` 後に
+切断される。→ `public void Reset()` を追加した（Client 側フラグ・Host 側の期限/結果辞書・`LastStatusText` を
+初期状態に戻す。`SetLocalSummary` で設定したローカルのハッシュ〔`_localCombinedHash`/`_localCatalogs`〕・
+`_registryReady` は保持する＝再接続のたびに再計算する必要が無い）。呼び出し箇所:
+
+- `DDriveRuntimeBootstrap.StopNetworking()`
+- Client 視点で自分が切断されたとき（`OnNetClientDisconnected` の `!NetBridge.IsServer` 分岐）
+
+テスト: `Tests/Runtime/CatalogContentHashGateTests.cs` に `Reset_ClientSide_AllowsResendingHashAfterReconnect`
+（Client が 1 度ハッシュ送信 → Reset → 再度 `ClientConnected` でもう 1 度送る）・
+`Reset_HostSide_ClearsPendingDeadlines_AndTimeoutDoesNotFireLater`（Host 側 Reset で期限が消えタイムアウト
+判定が走らない）・`Reset_ResetsLastStatusTextToVerifying_ButKeepsLocalSummary`・
+`Reset_HostSide_DropsPendingBeforeReadyMessages` を追加した。
+
+### D-3/D-4: 「Stop 時に全 Manager の networked 状態を捨てる」を仕様として保証
+
+`DDriveRuntimeBootstrap` に `private void ResetNetworkedState()` を追加し、`StopNetworking()` と
+Client 視点の切断時（`OnNetClientDisconnected`）の両方から呼ぶ。内容は各 Manager の `ResetNetworkedState()`
+（新規 public API）をまとめて呼ぶだけ:
+
+```csharp
+private void ResetNetworkedState()
+{
+    Presentation?.ResetNetworkedState();
+    Cutscene?.ResetNetworkedState();
+    Prefabs?.ResetNetworkedState();
+    Audio?.ResetNetworkedState();
+    Vfx?.ResetNetworkedState();
+}
+```
+
+- **`PresentationManager.ResetNetworkedState()`**: 既存の `CancelAllNetworked()`(§5 実装メモ「6-0 修正7」)を
+  内包しつつ、ネット由来の台帳（`_networkedHandles`/`_activeNetworked`）・保留キュー
+  （`_pendingNetMessages`・未知キー保留リング`_pendingUnknownKeyMessages`）・受信レート制限窓
+  （`_signalCancelBudgets`）・未知キー警告済みセット（`_unknownKeyDiscardWarned`）を初期状態に戻す。
+  `_registryReady` は変更しない（カタログ登録状態を表すフラグでネットワークの生死とは無関係）。
+- **`CutsceneManager.ResetNetworkedState()`**: 同じ設計（`CancelAllNetworked()` を内包 + 台帳・保留キュー・
+  `_seekCancelBudgets` をクリア）。
+- **`PrefabsManager.ResetNetworkedState()`**: `NetworkManager.Shutdown()` は Host が権威生成した
+  `NetworkObject` を巻き込んで破棄するため、`PrefabsManager` の Simulated 台帳（`IsSimulated==true` な
+  Instance）はもう存在しない GameObject を指した stale entry になる。通常の `Despawn`（Pool 操作・ネット
+  通知）は呼ばず、イベントセッションと台帳からの除去だけ行う。クライアント→サーバー Spawn 要求のレート
+  制限窓（`_requestRateLimits`）も併せてクリアする。ローカル（`NetMode!=Simulated`）の Instance には触れない。
+- **`AudioManager`/`VfxManager` の `ResetNetworkedState()`**: Tick 内でまとめて Broadcast する Cosmetic
+  バッチ（`_pendingCosmeticBatch`）を破棄するだけ（このバッチは元々 Tick ごとに Flush される短命な
+  リストのため、他に持ち越す状態は無い）。再生中の Instance には触れない。
+- **`NgoNetBridge.ResetSessionState()`**: `IsConnected`/`ReceivedMessageCount`/App RTT トラッカー
+  （`AppRoundTripTracker.Reset()`）/受信レート制限窓（`_relayBudgets`）/アプリ層遅延キュー（送信・送信先別・
+  受信の 3 つ）/偽造 Pong 警告済みフラグを初期状態に戻す。`DoManualStop`（`StopNetworking()` の実処理）から
+  呼ぶ。`HandleClientDisconnected` の Client 分岐と似た後始末だが、「切断された」ではなく「自分から明示的に
+  Stop した」場合も含めて常に呼べるよう独立したメソッドにした。
+
+**HandleNetKey と役割変更の関係**: `HandleNetKey` は発行時の `LocalClientId`（の下位 8bit）を上位 8bit に
+埋め込む（[14] §9）。役割変更後（Client → Host 等）は新しい `LocalClientId` で発行され直す（既存のまま
+変更していない）。旧役割で発行した鍵は `ResetNetworkedState()` による台帳クリアで消えるため、
+`IsAuthorizedSender` に弾かれる経路（古い鍵の残骸との不一致）自体が発生しない。
+
+**`NetworkTime` が新 Host で 0 から始まる**: `NgoNetBridge.NetworkTime = NetworkManager.ServerTime.Time` は
+`StartHost`/`StartClient` のたびに新しい `NetworkManager` の時刻系列から測り直されるため、新 Host では 0 から
+始まる（台帳クリアにより `StartNetTime` の比較相手〔旧セッションのネット経由 Instance〕が残っていないため、
+これによる実害は無い）。ゲーム側の残り秒（試合時間）は MS2026 が `MatchEndServerTime = ServerTime + 残り秒`
+を Freeze 時点の値から再設定することで吸収する（`MS2026/Docs/Spec/03_Network.md` §10.2）。
+
+### MS2026 §10.7 との対応表
+
+| MS2026 # | 内容 | D-Drive での対応 | 状態 |
+|---|---|---|---|
+| D-1 | `CatalogContentHashGate` が再接続で再送しない | `CatalogContentHashGate.Reset()` | ✅ N-5 |
+| D-2 | Stop → 再 Start 経路が未検証 | PlayMode テスト（Host+Client をインプロセスで起動 → Shutdown → 役割を入れ替えて再 Start） | N-6（未着手） |
+| D-3 | 役割変更（Client → Host）の想定が無い | 各 Manager の `ResetNetworkedState()` + `DDriveRuntimeBootstrap.ResetNetworkedState()` | ✅ N-5 |
+| D-4 | `NetworkTime` が新 Host で 0 から始まる | 仕様として明文化(上記)。ゲーム側は `MatchEndServerTime` の再設定で吸収 | ✅ N-5(明文化) |
+| D-5 | 4 人 + 引き継ぎの自動確認 | `NetCheckRunner` に host_migration シナリオを追加 | N-6（未着手） |
+
+### テスト
+
+- `Tests/Runtime/CatalogContentHashGateTests.cs`: 上記 D-1 の 4 件。
+- `Tests/Runtime/NetResetForHostMigrationTests.cs`（新規）: `FakeNetBridge` を使い、
+  (a) `PresentationManager.ResetNetworkedState()` がネット経由の Loop VFX（`StopOnCancel=true`）を強制停止
+  しつつ台帳を空にし、ローカル（`NetMode.Local`）の再生には影響しないこと、
+  (b) Reset 後に別の `LocalClientId`（役割変更後）で発行した Play/Signal が正常に通ること、
+  (c) Registry 未準備の間に届いたネット受信（Presentation/Cutscene）が Reset で保留キューごと捨てられること、
+  `PrefabsManager.ResetNetworkedState()` が Simulated 台帳だけを消しローカル Instance に触れないこと、
+  `AudioManager`/`VfxManager` の `ResetNetworkedState()` が Tick 内 Cosmetic バッチを破棄すること、を検証する。
+- `NgoNetBridge.ResetSessionState()` は `NetworkBehaviour` 派生で EditMode/PlayMode 化できないため、内部で
+  使う `AppRoundTripTracker.Reset()` の既存テスト（`Tests/Editor/AppRoundTripTrackerTests.cs`）に委ねる
+  （[14] §7 実装メモ「P2-1」と同じ既存の慣習）。`ResetSessionState()` 自体・`DoManualStartHost`/
+  `DoManualStartClient` の `ShutdownInProgress` ガードは実機/PlayMode での確認が必要（N-6 のスコープ）。

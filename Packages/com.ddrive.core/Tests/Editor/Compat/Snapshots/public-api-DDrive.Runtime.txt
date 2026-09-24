@@ -354,6 +354,7 @@ TYPE class sealed DDrive.Runtime.Audio.AudioManager
   method PlaySe(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker> id, UnityEngine.Vector3 pos) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
   method PlaySeData(DDrive.Runtime.Audio.SeData data, System.Nullable<UnityEngine.Vector3> explicitPosition = null, UnityEngine.Transform contextRoot = null, DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Anchoring.AnchorMarker> anchorOverride = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
   method PlaySeData(DDrive.Runtime.Audio.SeData data, ref DDrive.Runtime.Anchoring.AnchorSpawnSpec spec, UnityEngine.Transform contextRoot = null, System.Nullable<ushort> seed = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker>
+  method ResetNetworkedState() : void
   method SetGlobalSeLimit(int maxConcurrentSources) : void
   method SetPausedAll(bool paused) : void
   method SetPitch(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Audio.SeMarker> handle, float pitch) : void
@@ -615,6 +616,7 @@ TYPE class sealed DDrive.Runtime.Cutscene.CutsceneManager
   method OnSceneUnload() : void
   method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
   method PlayData(DDrive.Runtime.Cutscene.CutsceneData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
+  method ResetNetworkedState() : void
   method Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, float time) : void
   method SetPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, bool paused) : void
   method SetRegistryReady(bool ready) : void
@@ -1258,6 +1260,7 @@ TYPE class sealed DDrive.Runtime.Net.CatalogContentHashGate
   ctor CatalogContentHashGate(DDrive.Foundation.Net.INetBridge netBridge, double timeoutSeconds, bool isDevelopmentOrEditor)
   event ClientDisconnectedForMismatch : System.Action<ulong, string>
   method Dispose() : void
+  method Reset() : void
   method SetLocalSummary(ulong combinedHash, DDrive.Foundation.Registry.CatalogContentHasher.CatalogHashEntry[] catalogs) : void
   method Tick(double networkTimeNow) : void
   property LastKnownRemotePackageVersion : string {get}
@@ -1481,6 +1484,7 @@ TYPE class sealed DDrive.Runtime.Prefab.PrefabsManager
   method OnSceneUnload() : void
   method Preload(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker>[] ids) : void
   method PreloadAsync(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker>[] ids) : Cysharp.Threading.Tasks.UniTask
+  method ResetNetworkedState() : void
   method SetLayer(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker> handle, int layer) : void
   method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker> id, UnityEngine.Transform parent) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker>
   method Spawn(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Prefab.PrefabMarker> id, UnityEngine.Vector3 pos, UnityEngine.Quaternion rot) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Prefab.PrefabMarker>
@@ -1579,6 +1583,7 @@ TYPE class sealed DDrive.Runtime.Presentation.PresentationManager
   method OnTrackFired(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle) : R3.Observable<DDrive.Runtime.Presentation.PresentationTrack>
   method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Presentation.PresentationMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>
   method PlayData(DDrive.Runtime.Presentation.PresentationData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker>
+  method ResetNetworkedState() : void
   method Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, float time) : void
   method SetPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Presentation.PresentationMarker> handle, bool paused) : void
   method SetRegistryReady(bool ready) : void
@@ -2589,6 +2594,7 @@ TYPE class sealed DDrive.Runtime.Vfx.VfxManager
   method OnSceneUnload() : void
   method Preload(params DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Vfx.VfxMarker>[] ids) : void
   method ReapplyAnchor(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle) : void
+  method ResetNetworkedState() : void
   method SetParam(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, string label, DDrive.Foundation.Data.ParamValue value) : void
   method SetPausedAll(bool paused) : void
   method SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Vfx.VfxMarker> handle, float speed) : void

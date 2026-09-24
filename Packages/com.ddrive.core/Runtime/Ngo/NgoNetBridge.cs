@@ -272,6 +272,23 @@ namespace DDrive.Runtime.Net
             Debug.LogWarning($"{LogTag} NgoNetBridge: トランスポート層で失敗が発生しました(NetworkManager.OnTransportFailure)。");
         }
 
+        // [14_networking.md] §18(N-5、2026-09-24) — Host 引き継ぎ(同一プロセスで Stop → 別ロールで
+        // 再 Start)向け。DoManualStop(DDriveRuntimeBootstrap.StopNetworking の実処理)から呼ぶ。
+        // HandleClientDisconnected の Client 分岐(自分が切断された)とほぼ同じ後始末だが、「切断された」
+        // ではなく「自分から明示的に Stop した」場合も含めて常に呼べるよう独立したメソッドにした
+        // (次に Host になる/Client のままやり直す、いずれのケースでもゼロから測り直せるようにする)。
+        public void ResetSessionState()
+        {
+            IsConnected = true;
+            ReceivedMessageCount = 0;
+            _appRoundTripTracker.Reset();
+            _relayBudgets.Clear();
+            _delayedSendToAllQueue.Clear();
+            _delayedSendToQueue.Clear();
+            _delayedDispatchQueue.Clear();
+            _warnedForgedPong = false;
+        }
+
         // [11_tasks.md] 6-0 修正1(B) — 開発ビルド + 明示指定時だけ有効にする。Debug.isDebugBuild は
         // Editor 実行時、または「Development Build」を付けたプレイヤーで true になる([CLAUDE.md] 例外で
         // 止めない: 未指定(0 以下)なら常に無効で既存挙動を変えない)。

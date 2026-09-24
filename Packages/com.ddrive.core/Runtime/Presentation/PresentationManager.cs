@@ -1194,6 +1194,32 @@ namespace DDrive.Runtime.Presentation
             }
         }
 
+        // [14_networking.md] §18(N-5、2026-09-24) — Host 引き継ぎ(同一プロセスで Stop → 別ロールで
+        // 再 Start)向け。CancelAllNetworked() を内包しつつ、ネット由来の台帳・保留キュー・受信レート制限窓を
+        // 初期状態へ戻す(HandleNetKey は発行時の LocalClientId を上位 8bit に埋めるため、役割変更後は
+        // 新しい ClientId で発行され直す。台帳をクリアしておけば古い鍵が残らず IsAuthorizedSender に
+        // 弾かれる経路自体が発生しない)。ローカル(IsNetworked=false)の Instance には触れない。
+        // _registryReady はカタログ登録状態を表すフラグでネットワークの生死とは無関係のため変更しない。
+        // 呼び出し元: DDriveRuntimeBootstrap.StopNetworking() / Client 視点の切断時(OnNetClientDisconnected)。
+        public void ResetNetworkedState()
+        {
+            CancelAllNetworked();
+
+            _networkedHandles.Clear();
+            _activeNetworked.Clear();
+            _pendingNetMessages.Clear();
+
+            for (var i = 0; i < _pendingUnknownKeyMessages.Length; i++)
+            {
+                _pendingUnknownKeyMessages[i] = default;
+            }
+
+            _pendingUnknownKeyCount = 0;
+
+            _signalCancelBudgets.Clear();
+            _unknownKeyDiscardWarned.Clear();
+        }
+
         public void SetPaused(Handle<PresentationMarker> handle, bool paused)
         {
             if (_instances.TryGet(handle, out var instance))

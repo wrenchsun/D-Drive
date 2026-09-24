@@ -416,6 +416,34 @@ namespace DDrive.Runtime.Prefab
             return null;
         }
 
+        // [14_networking.md] §18(N-5、2026-09-24) — Host 引き継ぎ(同一プロセスで Stop → 別ロールで
+        // 再 Start)向け。NetworkManager.Shutdown() は Host が権威生成した NetworkObject を巻き込んで
+        // 破棄するため、Simulated 台帳(_allActive/_instances のうち IsSimulated==true なもの)は
+        // もう存在しない GameObject を指した stale entry になる。通常の Despawn(Pool.Return/Discard・
+        // ネット通知)は呼ばず、イベントセッションと台帳からの除去だけ行う(既に破棄済みかもしれない
+        // GameObject への Pool 操作を避ける。例外で止めない、[CLAUDE.md] §0-4)。クライアント→サーバー
+        // Spawn 要求のレート制限窓(旧 ClientId で残る)も併せて捨てる。ローカル(NetMode!=Simulated)の
+        // Instance には触れない。
+        public void ResetNetworkedState()
+        {
+            for (var i = _allActive.Count - 1; i >= 0; i--)
+            {
+                var handle = _allActive[i];
+                if (!_instances.TryGet(handle, out var instance) || !instance.IsSimulated)
+                {
+                    continue;
+                }
+
+                _events.Fire(instance.Context, EventTrigger.OnDestroy);
+                _events.End(instance.Context);
+                _allActive.RemoveAt(i);
+                _instances.Remove(handle);
+            }
+
+            _requestRateLimits.Clear();
+            _nonSimulatedRequestWarned.Clear();
+        }
+
         public void Tick(float dt)
         {
             // 現時点で時間経過での自動処理は無い(ゲーム固有ロジックは Prefab 上のコンポーネントに書く。[07] B-3)。

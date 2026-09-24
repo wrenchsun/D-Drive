@@ -98,6 +98,35 @@
 </ul>
 <p>詳細な設計・実機確認手順は <code>docs/14_networking.md</code> §14・§15、<code>docs/29_network_device_test.md</code> §23 を参照してください。</p>
 
+<h2 id="host-migration">Host 引き継ぎ時の呼び出し順</h2>
+<p>複数人対戦で Host が切断した際、別の端末が Host を引き継いで試合を続ける構成向けに、D-Drive は「同一プロセスで <code>StopNetworking()</code> → 別ロールで <code>StartHost</code>/<code>StartClient</code> をやり直す」手順を前提として設計されています。呼び出し順序と、その際に内部で何が起こるかをまとめます。</p>
+<h3 id="host-migration-sequence">呼び出し順</h3>
+<ol>
+<li>Host 切断を検知した各端末が、<strong>まず自分で <code>NetworkManager.Shutdown()</code> を呼んでから</strong> <code>DDriveRuntimeBootstrap.StopNetworking()</code> を呼ぶ(NGO の Shutdown は非同期のため、既に停止済みの状態で <code>StopNetworking()</code> を呼んでも問題なく動く)</li>
+<li>次に Host になる端末は、少し待ってから(待ち時間の長さは呼び出し側のゲームロジックが決める)<code>bootstrap.StartHost(port)</code> を呼ぶ</li>
+<li>他の端末は、同様に少し待ってから <code>bootstrap.StartClient(newHostAddress, port)</code> を呼ぶ(再接続の認証情報等は呼び出し側が <code>NetworkManager.NetworkConfig.ConnectionData</code> に入れてから呼ぶ。D-Drive はその中身に関与しない)</li>
+</ol>
+<div class="warn">
+<strong><code>StopNetworking()</code> の直後、同じフレームで <code>StartHost</code>/<code>StartClient</code> を呼ぶことはできません。</strong> NGO の Shutdown は非同期のため、<code>NetworkManager.ShutdownInProgress</code> が true の間は <code>StartHost</code>/<code>StartClient</code> は警告を出して <code>false</code> を返します。Shutdown の完了を待ってから(または一定時間待ってから)呼び出してください。
+</div>
+<h3 id="host-migration-reset"><code>StopNetworking()</code> で初期化される状態 / 保持される状態</h3>
+<p><code>StopNetworking()</code>(および Client 視点で自分が切断されたとき)は、ネットワークに紐づく状態を自動的に初期化します。呼び出し側が個別にクリアする必要はありません。</p>
+<table>
+<tr><th>初期化されるもの</th><th>詳細</th></tr>
+<tr><td>カタログ ContentHash の照合状態</td><td><code>CatalogContentHashGate</code> の送信済みフラグ・保留期限・表示状態(<code>LastStatusText</code>)。次に接続したときにもう一度ハッシュを送り直す(ローカルのカタログ内容自体は再計算不要なので保持される)</td></tr>
+<tr><td>Presentation/Cutscene のネット経由再生</td><td>再生中のネット経由 Instance は終了し(<code>StopOnCancel=true</code> のトラックは対応する Vfx/Se 等も止まる)、台帳・保留キュー・受信レート制限窓を空にする。<strong>ローカル(ネット非経由)の再生には触れない</strong></td></tr>
+<tr><td>Prefab の Simulated 台帳</td><td>Host が権威生成した Simulated Prefab の台帳。<strong>ローカル(<code>NetMode</code> が Simulated 以外)の Instance には触れない</strong></td></tr>
+<tr><td>Audio/Vfx の Cosmetic バッチ</td><td>まだ送信していない Tick 内の Cosmetic バッチ(古いセッション宛のメッセージが次の Tick で送られないようにする)</td></tr>
+<tr><td>NgoNetBridge のセッション状態</td><td>接続状態・受信数・App RTT 計測・受信レート制限窓・アプリ層遅延キュー</td></tr>
+</table>
+<table>
+<tr><th>保持されるもの</th><th>詳細</th></tr>
+<tr><td>ローカル(ネット非経由)の再生・Instance</td><td>Presentation/Cutscene/Prefab のうち <code>NetMode.Local</code>(または Simulated 以外)のものは <code>StopNetworking()</code> の前後で変化しない</td></tr>
+<tr><td>ローカルのカタログ内容</td><td><code>CatalogContentHashGate</code> が計算済みの <code>CombinedHash</code>/カタログ一覧。再接続のたびに登録し直す必要は無い</td></tr>
+</table>
+<p><code>HandleNetKey</code>(ネット経由の演出を識別する鍵)は発行時の <code>LocalClientId</code> を上位 8bit に埋め込みます。役割変更後(Client → Host 等)は新しい <code>LocalClientId</code> で発行され直すため、呼び出し側で意識する必要はありません。<code>NetworkTime</code> は新しい Host で 0 から測り直されます(残り時間など、ゲーム側で管理している時刻に依存する値は呼び出し側で別途保持・再設定してください)。</p>
+<p>詳細な設計は <code>docs/14_networking.md</code> §18 を参照してください。</p>
+
 <h2 id="delivery">配送規則</h2>
 <table>
 <tr><th>呼び出し</th><th>実装</th><th>備考</th></tr>

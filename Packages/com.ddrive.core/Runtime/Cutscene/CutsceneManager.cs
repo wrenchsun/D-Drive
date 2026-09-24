@@ -1008,6 +1008,20 @@ namespace DDrive.Runtime.Cutscene
             }
         }
 
+        // [14_networking.md] §18(N-5、2026-09-24) — Host 引き継ぎ向け(PresentationManager.
+        // ResetNetworkedState と同じ設計)。CancelAllNetworked() を内包しつつ、ネット由来の台帳・保留キュー・
+        // 受信レート制限窓を初期状態へ戻す。ローカル(IsNetworked=false)の Instance には触れない。
+        // _registryReady は変更しない(カタログ登録状態を表すフラグでネットワークの生死とは無関係)。
+        public void ResetNetworkedState()
+        {
+            CancelAllNetworked();
+
+            _networkedHandles.Clear();
+            _activeNetworked.Clear();
+            _pendingNetMessages.Clear();
+            _seekCancelBudgets.Clear();
+        }
+
         // テスト/デバッグ専用: 現在再生中の Handle を列挙する(ネット受信で生成された Instance はゲーム
         // コードに Handle を返さないため、PresentationManager.DebugActiveHandles と同じ理由で用意する)。
         public List<Handle<CutsceneMarker>> DebugActiveHandles()
