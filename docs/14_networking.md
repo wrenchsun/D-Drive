@@ -1090,3 +1090,30 @@ follower 側の生存窓を見るだけで、基準ログが Host か Client か
 `NetworkManager.Shutdown()` で GameObject 実体ごと破棄されるため、`ResetNetworkedState()` が台帳から
 Instance を外しても Pool 側の「貸出中」カウントは補正されない（実害は Pool の再利用数が目減りするだけ。
 機能上の破綻は無い）。今回のスコープでは修正しない。
+
+### 実装メモ（2026-09-24、N-7: `migrated` ログの表示修正 + 起動時 migrate 構成ログ）
+
+実機 4 台テスト（[docs/29_network_device_test.md] §25 ラウンド2「気づいた点」）で見つかった軽微な 2 件を
+`NetCheckRunner`（確認用コードのみ、公開 API は変えない）で対応した。
+
+- **`migrated` の `newClientId` 表示バグ**: `RunHostMigrationAsync` は `StartHost`/`StartClient` が `true`
+  を返した直後に `migrated=1 role=host|client newClientId=<LocalClientId>` をログしていたが、follower の
+  `StartClient()` は成功しても NGO の接続ハンドシェイクが終わる（`LocalClientId` が確定する）までに数フレーム
+  掛かるため、その時点で読む `LocalClientId` は常に `0` だった（successor は `StartHost()` が `IsServer` を
+  即座に `true` にするため実害はなかった）。修正: `StartHost`/`StartClient` 成功直後は `migrating=1
+  role=successor|follower` とだけ出し、`_migratedLogPending=true` を立てる。`Heartbeat()`（`Update()` から
+  毎フレーム呼ばれる）の先頭で `TryLogMigrated()` を呼び、接続確立（successor は `bootstrap.NetBridge.
+  IsServer`、follower は `NgoNetBridge.IsConnected` かつ `LocalClientId!=0`）を確認できた最初の 1 回だけ
+  `migrated=1 role=host|client newClientId=<実 ClientId>` を出す。`_migrationCompleted`（`NetCheckJudge` の
+  判定用フラグ）は従来どおり `StartHost`/`StartClient` 成功時点で立てる（判定条件・`run-netcheck` の PASS/FAIL
+  は変えない）。`_role` フィールドの更新（`RoleOf(bootstrap)` の呼び直し）も `TryLogMigrated` 側に移した
+  （successor は `Heartbeat()` の同一呼び出し内で条件が即座に成立するため実質即時、follower は接続確立まで
+  数フレーム遅れるが、`_role` は移行前から既に `"client"` なので `EvaluateResult`/`OnFired` 側の
+  `_role=="client"` 判定には影響しない）。
+- **起動時の migrate 構成ログ**: 実機確認時に「`-ddrive-migrate` の構成（successor/follower・再接続先ホスト/
+  ポート）を 1 行ログすると切り分けが楽」という指摘を受け、`Start()` の `ready=1` ログの直後に
+  `migrate_config=1 role=successor|follower host=<再接続先> port=<port>` を追加した（`-ddrive-migrate`
+  未指定なら出さない。値の解決ロジック自体は N-6 から変更していない）。
+- ログ仕様の詳細は [docs/29_network_device_test.md] §4。既存 8 シナリオ・`host_migration` シナリオの
+  判定条件（`NetCheckJudge`）・`Tools/CI/Run-NetCheck.ps1` は無改修（`migrated=` 行を直接パースしていない
+  ため、出力タイミングを変えても既存シナリオの PASS/FAIL 判定に影響しない）。
