@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › 演出（Presentation）の設定項目</nav>
 
 <h1>演出（Presentation）の設定項目</h1>
-<p class="lastupdate">最終更新日: 2026-09-20</p>
+<p class="lastupdate">最終更新日: 2026-09-22</p>
 
 <p>「剣攻撃」のように、<strong>アニメ・効果音・エフェクト・カメラ揺れ・振動・画面停止（ヒットストップ）</strong>などを 1 つにまとめたものが「演出（PresentationData）」です。プログラマーは <code>Presentation.Play(演出のID, ...)</code> と 1 行書くだけで、中身（何を・いつ・どう鳴らすか）はすべてこのデータで決まります。あとから演出の中身を差し替えても、プログラムの修正は不要です。</p>
 
@@ -69,6 +69,7 @@
 <tr><td>Anchor</td><td>VFX・SE を出す細かい位置(ボーン名や右手・足元など)。<a href="#" data-manual-kind="designer" data-manual-page="anchor-data">Anchor のページ</a>と同じ形式。<strong>この欄はエフェクト・効果音側のデータ(VfxData/SeData)が持つ Anchor と組み合わさって、次の 3 通りのどれかで実際に出す位置が決まります</strong>。<table><tr><th>状況</th><th>実際に出る位置</th></tr><tr><td>この欄が未設定、エフェクト・効果音側だけに Anchor が設定されている</td><td>エフェクト・効果音側の Anchor をそのまま使う</td></tr><tr><td>この欄だけ設定されている(エフェクト・効果音側は未設定)</td><td>この欄の Anchor をそのまま使う</td></tr><tr><td>両方に設定されている</td><td>この欄の Anchor を基準にして、エフェクト・効果音側の Anchor がそこからの相対位置として上乗せされる(「この欄を親、エフェクト側を子」として組み合わさる)</td></tr></table>トラック一覧の「Anchor(VFX/SE の位置)」の見出しに、今どの状況かが 1 行で表示されます。</td></tr>
 <tr><td>Params</td><td>Kind ごとの追加パラメータ(例: Kind=HitStop なら「何秒止めるか」を 1 つ目に入れる)。<strong>Kind=Vfx</strong> のときは、そのエフェクト側(<a href="#" data-manual-kind="designer" data-manual-page="vfx-data" data-manual-anchor="params">VfxData の Params</a>)と同じ並び順(ラベル名の順番=インデックス)の値を上書きします(色を差し替える、など)。<strong>Kind=Se の音量上書きにはまだ対応していません</strong>(値を入れても音量には反映されません)。他の Kind では今のところ使われません。</td></tr>
 <tr><td>Stop On Cancel</td><td>途中で演出が中断された(Cancel された)とき、このトラックで出した物(VFX・SE 等)も一緒に止めるか。オフなら鳴らし切る。</td></tr>
+<tr><td>Scope</td><td><strong>Kind が HitStop / CameraShake / Haptic のときだけ使います。</strong> <strong>Everyone</strong>(既定): 通信対戦で相手の画面にもそのまま届き、全員が発火します。<strong>Participants Only</strong>: 通信対戦で当事者(攻撃した本人・当たった相手)以外には届かず、関係のないプレイヤーの画面停止・画面揺れ・振動は起きません。詳しくは下の「通信対戦（オンライン対戦）での演出」を参照してください。</td></tr>
 </table>
 
 <h2>トラックの種類（Kind）</h2>
@@ -137,6 +138,7 @@
 <ul>
 <li><strong>Cosmetic（勝敗に影響しない見た目の演出）</strong>: 攻撃を当てた側だけでなく、<strong>相手の画面にも同じ演出（アニメ・SE・VFX・カメラ揺れなど）が出ます</strong>（<a href="#" data-manual-kind="designer" data-manual-page="glossary" data-manual-anchor="cosmetic">用語集: Cosmetic</a>）</li>
 <li><strong>コントローラーの振動だけは鳴らし分けられます</strong>: <a href="#" data-manual-kind="designer" data-manual-page="camera-haptics">振動データ</a>の「Local Player Only」が ON（既定）のときは、<strong>その事象を起こした本人（当事者）のコントローラーだけ</strong>が振動します。相手の画面にも見た目・音は出ますが、相手のパッドは振動しません</li>
+<li><strong>画面停止・画面揺れ・振動は「参加者だけ」に絞れます</strong>: HitStop（画面停止）・CameraShake（画面揺れ）・Haptic（振動）の各トラックには <strong>Scope</strong> 欄があります。<strong>Everyone</strong>(既定)のままなら今までどおり全員に届きますが、<strong>Participants Only</strong> にすると<strong>その演出を起こした本人（Self）と対象（Target）以外には届かなくなります</strong>。3 人以上が同時にプレイする対戦で、無関係なプレイヤーの画面まで一緒に止まったり揺れたりしないようにしたいときに使います。演出データの「Predict Local」がオンで、行為者本人の画面だけ自分の入力に合わせてひと足先に再生される分は、Scope の設定に関わらず常に再生されます</li>
 </ul>
 <div class="tip">
 2026-09-14 時点では、実際のオンライン対戦の配線（NGO）自体は次の開発段階（Phase 6）で接続される予定です。上記の Cosmetic の振り分けの仕組みそのものは既に用意されており（テストで確認済み）、接続が済めばデータ側の設定変更なしでそのまま動く想定です。
