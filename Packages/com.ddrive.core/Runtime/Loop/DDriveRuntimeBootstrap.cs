@@ -428,6 +428,29 @@ namespace DDrive.Runtime.Loop
             }
 
             _manualStop();
+
+            // [14_networking.md] §18(N-5、2026-09-24) — Host 引き継ぎ(同一プロセスで Stop → 別ロールで
+            // 再 Start)向け。MS2026 の手順(docs/14 §18)は各端末がまず NetworkManager.Shutdown() を自分で
+            // 呼んでから StopNetworking() を呼ぶため、_manualStop() 呼び出し時点で既に IsListening=false の
+            // こともある(DoManualStop 側で Shutdown の二重呼び出しは避けつつ、リセットは常に実行するよう
+            // 修正済み)。NetHashGate.Reset()(D-1: 再接続後にハッシュを再送できるようにする)と
+            // ResetNetworkedState()(D-3/D-4: 全 Manager の networked 状態を捨てる)は、ここでは
+            // 「_manualStop が実際に呼べた(NGO ブリッジがある)」ときだけ行う。
+            NetHashGate?.Reset();
+            ResetNetworkedState();
+        }
+
+        // [14_networking.md] §18(N-5、2026-09-24、D-3/D-4) — 「Stop 時に全 Manager の networked 状態を
+        // 捨てる」仕様の実体。StopNetworking() と Client 視点の切断時(OnNetClientDisconnected)の両方から
+        // 呼ぶ。ローカル(ネット非経由)の Instance/State には触れない(各 Manager の ResetNetworkedState
+        // 実装を参照)。
+        private void ResetNetworkedState()
+        {
+            Presentation?.ResetNetworkedState();
+            Cutscene?.ResetNetworkedState();
+            Prefabs?.ResetNetworkedState();
+            Audio?.ResetNetworkedState();
+            Vfx?.ResetNetworkedState();
         }
 
         // [14_networking.md] §12(6-0, A) — コマンドライン引数(未指定なら Inspector の既定値)に従って
@@ -496,8 +519,12 @@ namespace DDrive.Runtime.Loop
         {
             if (!NetBridge.IsServer)
             {
-                Presentation?.CancelAllNetworked();
-                Cutscene?.CancelAllNetworked();
+                // [14_networking.md] §18(N-5、2026-09-24) — D-1: 再接続後に ContentHash を再送できるよう
+                // Gate をリセットする。D-3/D-4: Presentation.CancelAllNetworked()/Cutscene.CancelAllNetworked()
+                // の単独呼び出しを ResetNetworkedState()(CancelAllNetworked を内包しつつ台帳・保留キュー・
+                // レート制限窓も捨てる)に置き換えた。
+                NetHashGate?.Reset();
+                ResetNetworkedState();
             }
         }
 

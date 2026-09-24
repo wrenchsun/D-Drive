@@ -90,6 +90,26 @@ namespace DDrive.Runtime.Net
             _netBridge.ClientDisconnected -= OnClientDisconnected;
         }
 
+        // [14_networking.md] §18(N-5、2026-09-24、D-1) — Host 引き継ぎ(同一プロセスで
+        // StopNetworking() → 別ロールで再 Start)向け。接続セッションに紐づく状態(Client 側の送信済み
+        // フラグ・Host 側の保留期限/結果辞書・LastStatusText)だけを初期状態へ戻す。ローカルのカタログ内容
+        // (_localCombinedHash/_localCatalogs/_registryReady)は再計算不要なので保持する(再接続のたびに
+        // SetLocalSummary を呼び直す必要が無い)。
+        //
+        // 修正前は _clientHashSent/_clientConnectedFired が一度立つと戻らないため、新しい Host に
+        // 再接続した Client がハッシュを再送せず、リリースビルドでは ContentHashTimeoutSeconds 後に
+        // 切断されていた(D-1)。呼び出し元: DDriveRuntimeBootstrap.StopNetworking() /
+        // Client 視点の切断時(OnNetClientDisconnected)。
+        public void Reset()
+        {
+            _clientHashSent = false;
+            _clientConnectedFired = false;
+            _pendingHostSideDeadlines.Clear();
+            _pendingBeforeReady.Clear();
+            LastStatusText = "検証中...";
+            LastKnownRemotePackageVersion = string.Empty;
+        }
+
         // DDriveRuntimeBootstrap.RegisterCatalogsAsync() が IsReady=true にした直後に呼ぶ(自分の
         // カタログ内容が確定した時点。[14] §7 実装メモ参照)。
         public void SetLocalSummary(ulong combinedHash, CatalogContentHasher.CatalogHashEntry[] catalogs)

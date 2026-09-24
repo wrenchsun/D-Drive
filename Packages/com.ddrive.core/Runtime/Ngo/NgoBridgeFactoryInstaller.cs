@@ -138,6 +138,16 @@ namespace DDrive.Runtime.Net
                     return false;
                 }
 
+                // [14_networking.md] §18(N-5、2026-09-24) — NGO の Shutdown は非同期(NetworkManager.
+                // ShutdownInProgress が true の間はまだ完了していない)。StopNetworking() の直後、同フレームで
+                // StartHost/StartClient を呼ぶ運用は不可(MS2026 の手順は Migration/GraceSeconds だけ待ってから
+                // 呼ぶ、[42_distribution.md]/docs/14 §18 参照)。
+                if (nm.ShutdownInProgress)
+                {
+                    Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartHost: 前回の Shutdown が完了していないため無視しました(NetworkManager.ShutdownInProgress。少し待ってから再試行してください)。");
+                    return false;
+                }
+
                 // [14_networking.md] N-1 追記(2026-09-22、レビュー指摘) — 手動 Host は "0.0.0.0" で
                 // listen する(全インタフェース)。省略すると SetConnectionData の ServerListenAddress が
                 // host(DefaultHostAddress/-ddrive-host、既定 "192.168.137.1" 等)に固定され、別 LAN・LAN 外
@@ -157,6 +167,14 @@ namespace DDrive.Runtime.Net
                     return false;
                 }
 
+                // [14_networking.md] §18(N-5、2026-09-24) — DoManualStartHost と同じ理由(NGO の Shutdown は
+                // 非同期)。
+                if (nm.ShutdownInProgress)
+                {
+                    Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartClient: 前回の Shutdown が完了していないため無視しました(NetworkManager.ShutdownInProgress。少し待ってから再試行してください)。");
+                    return false;
+                }
+
                 if (string.IsNullOrEmpty(manualAddress))
                 {
                     Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartClient: address が空のため接続できません。");
@@ -170,16 +188,25 @@ namespace DDrive.Runtime.Net
                 return true;
             }
 
+            // [14_networking.md] §18(N-5、2026-09-24) — MS2026 の Host 引き継ぎ手順(docs/03_Network.md
+            // §10.2)は各端末が NetworkManager.Shutdown() を自分で呼んでから bootstrap.StopNetworking() を
+            // 呼ぶ(切断検知した全端末がまず Shutdown する設計)ため、この時点で既に !nm.IsListening のことが
+            // ある。以前は「接続していないため何もしません」で早期 return していたが、それだと
+            // ResetSessionState()/Manager 側の ResetNetworkedState() が一切呼ばれず D-3 のリセットが
+            // 保証できない。Shutdown の二重呼び出しは避けつつ、ネットワーク状態のリセットは常に実行する。
             void DoManualStop()
             {
-                if (!nm.IsListening)
+                if (nm.IsListening)
                 {
-                    Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StopNetworking: 接続していないため何もしません。");
-                    return;
+                    nm.Shutdown();
+                    Debug.Log("[Net] DDriveRuntimeBootstrap.StopNetworking: ネットワークを停止しました(NetworkManager.Shutdown)。");
+                }
+                else
+                {
+                    Debug.Log("[Net] DDriveRuntimeBootstrap.StopNetworking: 既に停止済みでした(NetworkManager.Shutdown 済み)。ネットワーク状態のリセットのみ行います。");
                 }
 
-                nm.Shutdown();
-                Debug.Log("[Net] DDriveRuntimeBootstrap.StopNetworking: ネットワークを停止しました(NetworkManager.Shutdown)。");
+                bridge.ResetSessionState();
             }
 
             bool DoIsListening() => nm.IsListening;

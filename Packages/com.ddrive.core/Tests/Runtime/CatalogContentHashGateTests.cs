@@ -586,5 +586,87 @@ namespace DDrive.Tests.Runtime
 
             Assert.AreEqual(0, bridge.BroadcastCount, "Dispose 後は ClientConnected を購読していない");
         }
+
+        // ── N-5(2026-09-24、D-1): Reset() — Host 引き継ぎ向けの再接続対応 ──
+        // [14_networking.md] §18 実装メモ参照。修正前は _clientHashSent/_clientConnectedFired が一度立つと
+        // 戻らないため、新しい Host に再接続した Client がハッシュを再送しなかった。
+
+        [Test]
+        public void Reset_ClientSide_AllowsResendingHashAfterReconnect()
+        {
+            var bridge = new FakeNetBridge { IsServer = false, IsClient = true, LocalClientId = 42 };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(42);
+            Assert.AreEqual(1, bridge.BroadcastCount);
+
+            // 二重送信しないことの確認(既存仕様、Reset していない状態での再接続通知)。
+            bridge.RaiseClientConnected(42);
+            Assert.AreEqual(1, bridge.BroadcastCount);
+
+            // Host 引き継ぎ: StopNetworking() → Reset() → 新しい Host へ再接続。
+            gate.Reset();
+            bridge.RaiseClientConnected(42);
+
+            Assert.AreEqual(2, bridge.BroadcastCount, "Reset 後は新しい接続でもう一度ハッシュを送る");
+        }
+
+        [Test]
+        public void Reset_HostSide_ClearsPendingDeadlines_AndTimeoutDoesNotFireLater()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: false);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            // ハッシュ未送信のまま保留期限が立った状態(偽装/遅延クライアントと同じ状況)。
+            bridge.RaiseClientConnected(7);
+
+            gate.Reset();
+
+            // Reset で期限が消えているので、期限を過ぎても何も起きない。
+            bridge.NetworkTime = 10d;
+            gate.Tick(bridge.NetworkTime);
+
+            Assert.AreEqual(0, bridge.DisconnectClientCallCount, "Reset 後は古い保留期限によるタイムアウト判定が走らない");
+        }
+
+        [Test]
+        public void Reset_ResetsLastStatusTextToVerifying_ButKeepsLocalSummary()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0 };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            bridge.RaiseClientConnected(5);
+            bridge.RequestBroadcastFromClient(5, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
+            Assert.AreEqual("OK", gate.LastStatusText);
+
+            gate.Reset();
+            Assert.AreEqual("検証中...", gate.LastStatusText, "Reset で表示状態は初期値に戻る");
+
+            // ローカルのカタログ内容(SetLocalSummary の結果)は保持されるため、再度呼ばなくても
+            // 新しい接続でそのまま一致判定できる。
+            bridge.RaiseClientConnected(9);
+            bridge.RequestBroadcastFromClient(9, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
+            Assert.AreEqual("OK", gate.LastStatusText, "SetLocalSummary を呼び直さなくても一致判定できる(ローカルハッシュは保持)");
+        }
+
+        [Test]
+        public void Reset_HostSide_DropsPendingBeforeReadyMessages()
+        {
+            var bridge = new FakeNetBridge { IsServer = true, IsClient = true, LocalClientId = 0, NetworkTime = 0d };
+            var gate = new CatalogContentHashGate(bridge, timeoutSeconds: 5d, isDevelopmentOrEditor: true);
+
+            // Host 自身のカタログ登録がまだ終わっていない間に届いたハッシュ(_pendingBeforeReady へ保留)。
+            bridge.RaiseClientConnected(7);
+            bridge.RequestBroadcastFromClient(7, MakeMsg(123UL, MakeCatalogs(123UL)), NetChannel.ReliableOrdered);
+            Assert.AreEqual(0, bridge.SendToCount, "登録未完了の間は保留するだけでまだ応答しない");
+
+            gate.Reset();
+            gate.SetLocalSummary(123UL, MakeCatalogs(123UL));
+
+            Assert.AreEqual(0, bridge.SendToCount, "Reset で保留分は捨てられるため、登録完了後もフラッシュされない");
+        }
     }
 }

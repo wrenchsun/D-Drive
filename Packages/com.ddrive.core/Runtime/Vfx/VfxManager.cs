@@ -578,6 +578,14 @@ namespace DDrive.Runtime.Vfx
             ApplyParam(instance, label, value);
         }
 
+        // [14_networking.md] §18(N-5、2026-09-24) — Host 引き継ぎ向け(AudioManager.ResetNetworkedState と
+        // 同じ設計)。Tick 内バッチ(まだ Broadcast していない Cosmetic VFX)を破棄する。再生中の Instance
+        // には触れない。
+        public void ResetNetworkedState()
+        {
+            _pendingCosmeticBatch.Clear();
+        }
+
         // ── Tick / Pause / StopAll ──
 
         public void Tick(float dt)
