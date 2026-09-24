@@ -11,6 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.2.1] - 2026-09-25
+
+### 互換性
+
 - 追加のみ（MINOR）: **M-1a（2026-09-25、[docs/02_core_framework.md](docs/02_core_framework.md)「同期 API と Preload の関係」・[docs/11_tasks.md](docs/11_tasks.md) M チケット）** — MS2026 の実機テストで Prefab/Audio/Vfx/Material 等が「未登録 → Placeholder」になる不具合が見つかった。`DDrive.Editor`（互換性ポリシー対象外）の `AssetCreationService.NeedsPreloadDefault` に Se/Bgm/Vfx/Material/Texture/Prefab/UiTween/Model/Anchor/AnchorGroup を追加（既存の Canvas/ControlSkin/Presentation/Shake/Haptics/Anim/Anim2D/Cutscene とあわせて全 17 種別が対象になる）。**互換性への影響**: 上記種別を Asset Browser の「新規」で作成したときの**既定の読み込み方式（Flags.Load）が LazyLoad → Preload に変わる**（作成時の既定値のみの変更。既存アセットは変わらない）。`AddressablesRegistrationValidator` に Warning `DD-ADDR-PRELOAD-RECOMMENDED`（新設。Error 昇格前の Warning 方針、[42] §5.8）を追加（2026-09-25 時点で登録された対象種別が無いため現状は発火しない、将来の拡張ポイント）
 - 追加のみ（MINOR）: **M-1b（2026-09-25、[docs/09_editor_tools.md](docs/09_editor_tools.md)「M-1b: コード参照の集計」）** — `ScenePreloadList` がシーン/Prefab の参照グラフからしか集計できず、コードが生成 ID 定数を直接呼ぶだけの参照を見逃す不具合を修正。`DDrive.Editor`（対象外）に `AssetIdGenerator.CollectConstantEntries`・`CodeReferenceScan.ScanFiles`・`ScenePreloadCodeReferenceScanner`（新設）・`DDriveProjectSettings.CodeScanRoot`（新設、既定 `"Assets"`）を追加。`ScenePreloadGenerator.GenerateForScene`/`GenerateForAllBuildScenes` に `includeCodeReferences`（既定 `true`）を追加（オーバーロード追加）
 - 追加のみ（MINOR）: **M-1c（2026-09-25、TeamNotes 2026-09-25「Invalid handle access」）** — `UiManager.Close` 等の二重呼び出しガードが実害の無い「Invalid handle access」警告を出すノイズを解消。`DDrive.Foundation` に `InstanceStore<TMarker,TInstance>.TryGetQuiet`（新設）を追加し、UiManager/VfxManager/AudioManager/CameraFxManager/CutsceneManager/PresentationManager/UiTweenManager/AnchorGroupPlayer/AnimManager/MaterialManager の Close/Stop/Cancel の冪等ガードをこれに置き換えた。既存の Handle 世代チェック・戻り値・呼び出し側の挙動は無改修（警告ログが出なくなるだけ）
