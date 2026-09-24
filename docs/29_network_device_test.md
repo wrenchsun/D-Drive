@@ -1267,14 +1267,24 @@ DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-
 
 ### 確認項目チェックリスト
 
-- [ ] マシン A の `NetDebugOverlay`（または `PlayerHost.log` の `heartbeat`）で `clients=3`（Host を除くリモート Client 数。§16）になる
-- [ ] マシン B・C それぞれで接続成功（`[Net/Client] ... Client として起動しました` ログ、Exception/Error 0 件）
-- [ ] Signal 中継: マシン A の `signal_fire` と各マシンの `signal_recv` が対応する（§4 の位相差の目安、数ティック以内）
-- [ ] 3 人のうち 1 人（例: マシン C）だけ終了 → マシン A の `client_left=<clientId>` ログ + `clients=2` への減少、マシン B・残る接続は継続（`signal_recv` が途切れない）
-- [ ] マシン A（Host）を終了 → マシン B・C 全員が `disconnected=1` を検知し、進行中の演出（VFX 等）が消える
-- [ ] 初回起動時のファイアウォール許可ダイアログが出た場合は、その旨と対応（プライベート/パブリックいずれを許可したか）をこの節に追記する
+- [x] マシン A の `NetDebugOverlay`（または `PlayerHost.log` の `heartbeat`）で `clients=3`（Host を除くリモート Client 数。§16）になる
+- [x] マシン B・C それぞれで接続成功（`[Net/Client] ... Client として起動しました` ログ、Exception/Error 0 件）
+- [x] Signal 中継: マシン A の `signal_fire` と各マシンの `signal_recv` が対応する（§4 の位相差の目安、数ティック以内）
+- [x] 3 人のうち 1 人（例: マシン C）だけ終了 → マシン A の `client_left=<clientId>` ログ + `clients=2` への減少、マシン B・残る接続は継続（`signal_recv` が途切れない）
+- [x] マシン A（Host）を終了 → マシン B・C 全員が `disconnected=1` を検知し、進行中の演出（VFX 等）が消える
+- [x] 初回起動時のファイアウォール許可ダイアログが出た場合は、その旨と対応（プライベート/パブリックいずれを許可したか）をこの節に追記する → 今回は 3 台とも出なかった（A・B は前回までの `ddrivenetcheck.exe` の受信許可〔パブリック〕が残っていた。C は Client 発信のみのため未許可でも接続できた）
 
-**未実施（2026-09-22 時点）**: 実機環境（複数 PC）を用意できなかったため、本節の手順に沿った実機確認は未実施。次回実機確認時にこの節へ結果（ログ抜粋・スクリーンショット・チェックリストの結果）を追記すること。
+#### 実施結果（2026-09-24、ラウンド 1: 通常の 4 人）— 全項目合格
+
+構成: A = この PC（Host、ホットスポット親 192.168.137.1、有線 LAN 側は 192.168.0.230）、B = wrench_2nd（192.168.137.74、Client×2、Windows PowerShell 5.1 のみ、学校プロキシあり → zip 取得は `curl.exe --noproxy`）、C = win11ohs30669（192.168.137.29、Client×1、pwsh 7.6）。3 台ともネットワークプロファイルは Public。B・C の操作は Claude Code の Remote Control セッション（「D-Drive 実機B」「Unity ネットワーク実行テスト」）に `SendMessage` で指示し、ログ抜粋を回収した。ビルドは `Builds/DDriveNetCheck.zip`（2026-09-24 15:02、SHA256 先頭 `F9100C2D1229CAC2`、§26 の run-netcheck 9/9 PASS と同一）を A の一時 HTTP サーバー（`scratchpad/serve_build.py`、`Builds/` の zip のみ・192.168.x.x 限定）で配布。
+
+| 手順 | 時刻 | 結果 |
+|---|---|---|
+| 1. A Host 起動 → B1/B2/C 接続 | 19:58〜 | A: `clients=3`、`content_hash=OK`、Exception 0、`signal_fire` 23（約 70 秒時点）。B1（ClientId 2、rtt_app_ms 5）/ B2（ClientId 3、rtt 12）/ C（ClientId 1、rtt 2）とも `connected=1`、`content_hash=OK`、`signal_recv` 52〜88、Exception 0。偽造 Cancel は Client 1/2/3 からの分を A と他 Client の両方で全件破棄 |
+| 2. C の Client を終了（`Stop-Process` = タイムアウト切断） | 19:59:39 | A: 約 29 秒後（20:00:08）に `Client 1 が切断しました(ProtocolTimeout)` → `client_left=1` → `clients=2`、Host は継続（Exception 0）。B1/B2: `connected=1` のまま、`signal_recv` 52 → 144 と増加継続、`disconnected` 0 件 |
+| 3. A の Host を強制終了 | 20:00:48 | B1/B2: 約 30 秒後に `Host から切断されました(ProtocolTimeout)` + `disconnected=1`、以後 `connected=0 activeCount=0 vfx_active=0 clientId=0 rtt_app_ms=n/a`、切断後の `signal_recv`/`track_fired` 0 件、警告 0、再接続の試みなし。A の Host ログは `signal_fire` 57、Exception 0 で終了 |
+
+気づいた点: Client 側 heartbeat の `clients=-1` は設計どおり（Client は接続数を持たない。§16）。切断直前の `rtt_app_ms` が 28254/29246 まで単調増加し `rtt_app_stale=1` が立っていた（K2 修正どおり）。切断後の `content_hash` が「検証中...」に戻るのは N-5 の `CatalogContentHashGate.Reset()` による正常動作。
 
 ### ケース: Host 引き継ぎ（N-6、2026-09-24 追加）
 
@@ -1299,13 +1309,28 @@ DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-
 - `-ddrive-migrate-host` は「新しい Host（successor = マシン B の 1 プロセス目）」の IP を follower 側に明示する（省略すると `-ddrive-host`〔旧 Host の IP〕にフォールバックしてしまい、旧 Host が既にいないため再接続に失敗する。ローカル確認〔127.0.0.1 のみ〕では省略できたが実機では別 IP のため必須）。
 - Port は全員同じ（successor は旧 Host と同じ Port で新たに listen する。`-ddrive-migrate-port` は省略すると `-ddrive-port` にフォールバックする）。
 - 確認項目チェックリスト:
-  - [ ] マシン A を終了させると、B1・B2・C の 3 台が `disconnected=1` を検知する
-  - [ ] マシン B1 が `migrated=1 role=host` をログし、以後 Host として `signal_fire`/`heartbeat role=host` を出し始める
-  - [ ] マシン B2・C が `migrated=1 role=client` をログし、`signal_recv` が再開する（`content_hash=OK` に戻ることも確認）
-  - [ ] `NetDebugOverlay`（マシン B1）の役割表示が Client→Host に切り替わる
-  - [ ] 15 秒以内に再接続できなければ `migration_failed=1` が出ることを確認する（意図的にネットワークを切って再現してもよい）
+  - [x] マシン A を終了させると、B1・B2・C の 3 台が `disconnected=1` を検知する
+  - [x] マシン B1 が `migrated=1 role=host` をログし、以後 Host として `signal_fire`/`heartbeat role=host` を出し始める
+  - [x] マシン B2・C が `migrated=1 role=client` をログし、`signal_recv` が再開する（`content_hash=OK` に戻ることも確認）
+  - [ ] `NetDebugOverlay`（マシン B1）の役割表示が Client→Host に切り替わる → 画面の目視は未取得（ログの `heartbeat role=host` と `UDP 0.0.0.0:7777` の待受で代替確認）
+  - [ ] 15 秒以内に再接続できなければ `migration_failed=1` が出ることを確認する（意図的にネットワークを切って再現してもよい）→ 未実施（失敗経路はローカル §26 の判定ロジックのみ）
 
-**未実施（2026-09-24 時点）**: 実機環境（複数 PC）を用意できなかったため、本ケースの実機確認は未実施。ローカル確認（`host_migration` シナリオ、§26）のみ実施済み。次回実機確認時にこの節へ結果を追記すること。
+#### 実施結果（2026-09-24、ラウンド 2: Host 引き継ぎ）— 合格
+
+構成・配布はラウンド 1 と同じ。B1 = successor（`-ddrive-migrate successor -ddrive-expect-clients 2`）、B2・C = follower（`-ddrive-migrate follower -ddrive-migrate-host 192.168.137.74`）。
+
+| 手順 | 時刻 | 結果 |
+|---|---|---|
+| 1. A Host 再起動 → 3 台接続 | 20:02:40〜20:04:08 | A: `clients=3`、`content_hash=OK`、Exception 0 |
+| 2. A の Host を強制終了 | 20:04:35 | B1/B2/C: 約 30 秒後に `disconnected=1`（ProtocolTimeout） |
+| 3. B1 が Host 化 | 20:05:0x | `[Net/Host] DDriveRuntimeBootstrap.StartHost: Host として起動しました(listen=0.0.0.0:7777)` → `migrated=1 role=host newClientId=0`。heartbeat は `role=host clientId=0 ... content_hash=OK clients=2`（引き継ぎ直後は `clients=0 content_hash=検証中...` から 2 へ増加）。Host 化後に `signal_fire` 25 件・`track_fired` 50 件。`netstat` で B1 の PID が `UDP 0.0.0.0:7777` を待受。**「NgoNetBridge の NetworkObject が自動 Spawn されなかったため明示的に Spawn」の警告は 0 件**（D-2: 実機でも NGO が in-scene NetworkObject を自動再 Spawn した） |
+| 4. B2・C が B1 へ再接続 | 20:05:0x | B2: `migrated=1 role=client`、heartbeat `role=client clientId=1 connected=1 rtt_app_ms=3 content_hash=OK`、`migrated` 以降 `signal_recv` 100 件（増加中）。C: `migrated=1 role=client`、heartbeat `clientId=2 connected=1 rtt_app_ms=8 content_hash=OK activeCount=5 vfx_active=4`、`migrated` 前 40 件 → 後 152 件。**`content_hash=OK` に戻った = D-1（`CatalogContentHashGate.Reset()`）が実機でも機能** |
+| 5. 全体 | — | 3 台とも Exception/Error 0、`migration_failed` 0。B のファイアウォールダイアログは出なかった（既存の受信許可が有効） |
+
+気づいた点（軽微、後続で対応）:
+- follower の `migrated=1 role=client newClientId=0` は `StartClient()` 直後（ClientId 割り当て前）に `LocalClientId` を読んでいるため常に 0 になる。表示だけの問題（直後の heartbeat は正しい ClientId）。→ 接続確立後にログするか、フィールドを外す
+- 起動時に `-ddrive-migrate` の構成（successor/follower・再接続先）を 1 行ログすると切り分けが楽（C 側からの提案）
+- 他 Client 発の `PresentationCancelMsg` 破棄警告（C で 63 件）は NetCheckRunner が意図的に送る偽造 Cancel を拒否している仕様どおりの動作（§4）
 
 ## 26. N-6: host_migration ローカル確認
 
