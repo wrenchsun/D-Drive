@@ -85,6 +85,33 @@ namespace DDrive.Tests.Runtime
             LogAssert.NoUnexpectedReceived();
         }
 
+        // [M-1c、2026-09-25] TryGetQuiet は TryGet と同じ結果を返すが、無効な Handle でも警告を出さない
+        // (Close/Stop/Cancel の冪等ガード用。TeamNotes 2026-09-25「Invalid handle access」ノイズ対応)。
+        [Test]
+        public void TryGetQuiet_OnValidHandle_ReturnsSameInstanceAsTryGet()
+        {
+            var store = new InstanceStore<TestMarker, TestInstance>();
+            var instance = new TestInstance { Name = "a" };
+            var handle = store.Add(instance);
+
+            Assert.IsTrue(store.TryGetQuiet(handle, out var got));
+            Assert.AreSame(instance, got);
+        }
+
+        [Test]
+        public void TryGetQuiet_OnRemovedHandle_ReturnsFalseWithoutWarningOrCounting()
+        {
+            var store = new InstanceStore<TestMarker, TestInstance>();
+            var handle = store.Add(new TestInstance());
+            store.Remove(handle);
+
+            bool result = true;
+            Assert.DoesNotThrow(() => result = store.TryGetQuiet(handle, out _));
+            Assert.IsFalse(result);
+            Assert.AreEqual(0, store.InvalidAccessCount, "TryGetQuiet は不正アクセス扱いにしない");
+            LogAssert.NoUnexpectedReceived();
+        }
+
         [Test]
         public void Invalid_IsNotConfusedWithAllocatedHandle()
         {

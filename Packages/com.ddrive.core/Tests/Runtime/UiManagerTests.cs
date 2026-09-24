@@ -110,6 +110,26 @@ namespace DDrive.Tests.Runtime
             Assert.AreSame(root, _manager.GetGameObject(handle2));
         }
 
+        // [M-1c、2026-09-25] Close の二重呼び出しガードが InstanceStore.TryGet(警告あり)を使っていたため、
+        // 実害の無い「Invalid handle access」警告がノイズとして出ていた(TeamNotes 2026-09-25)。
+        // TryGetQuiet への置き換え後は、破棄済み Handle への冪等な再呼び出しで警告が出ないことを確認する。
+        [Test]
+        public void Close_CalledTwice_DoesNotLogInvalidHandleWarning()
+        {
+            // OpenData の初回 EnsureRoot は、このテストのシーンに EventSystem が無いため
+            // 「シーンに EventSystem がありません」を 1 回だけ警告する(本テストの対象外の既知の挙動)。
+            // それ以外の未想定ログ(「Invalid handle access」を含む)が無いことだけを見る。
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*EventSystem.*"));
+
+            var data = CreateCanvasData(1);
+            var handle = _manager.OpenData(data);
+
+            _manager.Close(handle);
+            _manager.Close(handle); // 二重呼び出し。1 回目で既に Handle は破棄/Closing 済み。
+
+            LogAssert.NoUnexpectedReceived();
+        }
+
         // Codex レビュー対応(2026-09-11): CloseTransition(Scale/Fade/Slide)の終端値(scale 0 / alpha 0 /
         // スライドオフセット位置)を残したままプールへ返すと、次に Rent した実体がそのまま非表示で開いていた。
         [Test]

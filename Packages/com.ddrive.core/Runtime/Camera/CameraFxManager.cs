@@ -145,9 +145,10 @@ namespace DDrive.Runtime.CameraShake
 
         // ── Handle 操作 ──
 
+        // [M-1c、2026-09-25] 冪等操作なので TryGetQuiet で警告なしにガードする。
         public void Stop(Handle<ShakeMarker> handle, float fade = 0.1f)
         {
-            if (!_instances.TryGet(handle, out var instance) || instance.Stopping)
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Stopping)
             {
                 return;
             }

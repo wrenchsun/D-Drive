@@ -1051,9 +1051,10 @@ namespace DDrive.Runtime.Presentation
             CancelInternal(handle, instance);
         }
 
+        // [M-1c、2026-09-25] 冪等操作なので TryGetQuiet で警告なしにガードする。
         public void Cancel(Handle<PresentationMarker> handle)
         {
-            if (!_instances.TryGet(handle, out var instance) || instance.Done)
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Done)
             {
                 return;
             }

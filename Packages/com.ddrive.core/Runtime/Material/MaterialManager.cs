@@ -249,9 +249,10 @@ namespace DDrive.Runtime.Material
         public int ActiveFadeCount => _activeFades.Count;
 
         // 途中で止める: その時点の見た目のまま残さず、to を確定する(中断 = 完了扱い)。
+        // [M-1c、2026-09-25] 冪等操作なので TryGetQuiet で警告なしにガードする。
         public void Stop(Handle<MaterialMarker> handle)
         {
-            if (_fades.TryGet(handle, out var instance))
+            if (_fades.TryGetQuiet(handle, out var instance))
             {
                 Finish(handle, instance);
             }

@@ -71,6 +71,23 @@ namespace DDrive.Foundation.Handle
                _generations[handle.Index] == handle.Generation &&
                _items[handle.Index] != null;
 
+        // [M-1c、2026-09-25] TryGet の「警告を出さない」版。Close/Stop/Cancel 等の冪等操作は、
+        // 「既に破棄済みの Handle で呼ばれたら何もしない」というガードとして先頭で TryGet を使うことが多いが、
+        // これは「操作対象として不正」ではなく「(二重呼び出し等で)既に完了している」正常系のため、
+        // IsValidSilent と同じ考え方で警告を出さずに Instance を取得する(実害の無い「Invalid handle access」
+        // ノイズの原因。[TeamNotes 2026-09-25]「Invalid handle access」参照)。
+        public bool TryGetQuiet(Handle<TMarker> handle, out TInstance instance)
+        {
+            if (IsValidSilent(handle))
+            {
+                instance = _items[handle.Index];
+                return true;
+            }
+
+            instance = null;
+            return false;
+        }
+
         // 冪等: 既に外れている Handle の Remove は何もしない(警告も出さない。Pool 返却コールバックとの二重掃除に備える)。
         public void Remove(Handle<TMarker> handle)
         {
