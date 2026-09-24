@@ -106,6 +106,14 @@ namespace DDrive.Runtime.Net
         private int _signalRecvAfterMigrationCount;
         private bool _contentHashOkAfterMigration;
 
+        // [14_networking.md] §19/N-7(2026-09-24) — 実機確認([29_network_device_test.md] §25 ラウンド2
+        // 「気づいた点」)で follower の `migrated=1 role=client newClientId=0` が `StartClient()` 直後
+        // (ClientId 割り当て前)に `LocalClientId` を読んでいるため常に 0 になる表示だけの不具合が見つかった。
+        // `StartHost`/`StartClient` が true を返した時点ではまだ接続確立前(Heartbeat 参照)なので、この
+        // フラグが立っている間だけ毎 Heartbeat で接続確立を確認し、確立した最初の 1 回だけ `migrated=1` を
+        // 出す(TryLogMigrated 参照)。
+        private bool _migratedLogPending;
+
         // MS2026/Docs/Spec/03_Network.md §10.5 の Tuning キー既定値と同じ(D-Drive はこの確認用コード内で
         // 複製する。ゲーム側の Tuning テーブルには依存しない、RemoteOneShotGraceMs と同じ考え方)。
         private const float MigrationGraceSeconds = 1f;      // successor が待つ秒数
@@ -169,16 +177,14 @@ namespace DDrive.Runtime.Net
             _role = RoleOf(bootstrap);
             LogCheck("ready", "1", "role", _role);
 
-            // [14_networking.md] §16(N-3) — -ddrive-expect-clients は Host/Client どちらのプロセスにも
-            // 同じ値が渡り得るが、実際に判定へ使うのは Host 役のときだけ(EvaluateResult/Heartbeat 側で
-            // 役割を見て絞り込む)。ここでは値をそのまま保持するだけ。
-            _expectedClientCount = bootstrap != null ? (bootstrap.LaunchOptions.ExpectedClientCount ?? 0) : 0;
-
             // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎの自動確認。-ddrive-migrate
             // successor|follower が指定されたときだけ、切断検知後に MS2026 §10.2 と同じ手順(Stop → 再 Start)
             // を試みる(OnBridgeDisconnected 参照)。再接続先は -ddrive-migrate-host/-migrate-port の
             // 明示指定を優先し、未指定なら通常の接続先(-ddrive-host/-ddrive-port、既定値込み)にフォール
             // バックする(successor の StartHost はポートのみ使う。既定は同じ Port で listen する)。
+            // [14_networking.md] §19/N-7(2026-09-24) — 実機確認([29_network_device_test.md] §25 ラウンド2
+            // 「気づいた点」)の「起動時に -ddrive-migrate の構成を 1 行ログすると切り分けが楽」という指摘を
+            // 反映し、ready ログの直後に構成値を出す(値の解決ロジック自体は N-6 から変更していない)。
             if (bootstrap != null)
             {
                 _migrationRole = bootstrap.LaunchOptions.MigrationRole;
@@ -186,7 +192,21 @@ namespace DDrive.Runtime.Net
                 _migrationHost = !string.IsNullOrEmpty(migrationHost) ? migrationHost : (bootstrap.LaunchOptions.Host ?? bootstrap.DefaultHostAddress);
                 var migrationPort = bootstrap.LaunchOptions.MigrationPort ?? bootstrap.LaunchOptions.Port ?? bootstrap.DefaultPort;
                 _migrationPort = (ushort)migrationPort;
+
+                if (_migrationRole != NetMigrationRole.None)
+                {
+                    LogCheck(
+                        "migrate_config", "1",
+                        "role", _migrationRole == NetMigrationRole.Successor ? "successor" : "follower",
+                        "host", _migrationHost,
+                        "port", _migrationPort.ToString());
+                }
             }
+
+            // [14_networking.md] §16(N-3) — -ddrive-expect-clients は Host/Client どちらのプロセスにも
+            // 同じ値が渡り得るが、実際に判定へ使うのは Host 役のときだけ(EvaluateResult/Heartbeat 側で
+            // 役割を見て絞り込む)。ここでは値をそのまま保持するだけ。
+            _expectedClientCount = bootstrap != null ? (bootstrap.LaunchOptions.ExpectedClientCount ?? 0) : 0;
 
             // [11_tasks.md] 6-7 — Exception/Error(PASS 条件⑥)と偽造 Cancel の破棄(条件③)・Late Join の
             // Placeholder 誤解決(条件④)は、この Runner 自身のイベント購読では観測できない箇所(Presentation/
@@ -409,6 +429,14 @@ namespace DDrive.Runtime.Net
         // 白画素カウントに頼らず、切断前後で 0 に落ちることをログだけで確認できるようにする(docs/29 §8)。
         private void Heartbeat(DDriveRuntimeBootstrap bootstrap)
         {
+            // [14_networking.md] §19/N-7(2026-09-24) — `migrated=1` の newClientId 表示バグ修正。
+            // Heartbeat() は Update() から毎フレーム呼ばれるため、下の間引き(1 秒/変化なしでスキップ)より
+            // 前でこの確認を行うことで「接続確立後の最初の Heartbeat」を取りこぼさない。
+            if (_migratedLogPending)
+            {
+                TryLogMigrated(bootstrap);
+            }
+
             _heartbeatTimer += Time.deltaTime;
             var activeCount = bootstrap.Presentation != null ? bootstrap.Presentation.DebugActiveHandles().Count : -1;
             var vfxActive = bootstrap.Vfx != null ? bootstrap.Vfx.ActiveCount : -1;
@@ -746,11 +774,39 @@ namespace DDrive.Runtime.Net
                 return;
             }
 
-            _migrationCompleted = true;
-
             // [14_networking.md] §16(N-3) の遅延評価と同じ理由で、この Runner 自身の `_role` フィールドは
             // 起動時に一度確定させたまま(すでに "client")なので、Update() の遅延評価(off/unknown のときだけ
-            // 再評価する)には乗らない。ここで明示的に更新する(既存の RoleOf() をそのまま使う)。
+            // 再評価する)には乗らない。`_role` の更新自体は TryLogMigrated(接続確立を確認できた時点)で
+            // 行う(既存の RoleOf() をそのまま使う)。
+            //
+            // [14_networking.md] §19/N-7(2026-09-24) — `_migrationCompleted`(NetCheckJudge の判定用)は
+            // 従来どおりここ(StartHost/StartClient 成功時点)で立てる(判定条件は変えない)。一方、
+            // `migrated=1` のログ自体は実機確認([29_network_device_test.md] §25 ラウンド2「気づいた点」)で
+            // 見つかった不具合の修正: `StartHost`/`StartClient` が true を返した直後はまだ接続確立前で、
+            // 特に follower は `LocalClientId` が割り当て前(常に 0)のため、ここでは `migrating=1` だけを
+            // 出し、実際の `migrated=1 newClientId=...` は接続確立後の最初の Heartbeat(TryLogMigrated)まで
+            // 遅延させる。
+            _migrationCompleted = true;
+            LogCheck("migrating", "1", "role", isSuccessor ? "successor" : "follower");
+            _migratedLogPending = true;
+        }
+
+        // [14_networking.md] §19/N-7(2026-09-24) — 接続確立後(successor は IsServer、follower は
+        // NgoNetBridge.IsConnected かつ LocalClientId!=0)になった最初の Heartbeat 呼び出しで 1 回だけ
+        // `migrated=1 role=host|client newClientId=<実 ClientId>` を出す。
+        private void TryLogMigrated(DDriveRuntimeBootstrap bootstrap)
+        {
+            var isSuccessor = _migrationRole == NetMigrationRole.Successor;
+            var established = isSuccessor
+                ? bootstrap.NetBridge.IsServer
+                : _ngoBridge != null && _ngoBridge.IsConnected && bootstrap.NetBridge.LocalClientId != 0;
+
+            if (!established)
+            {
+                return;
+            }
+
+            _migratedLogPending = false;
             _role = RoleOf(bootstrap);
             LogCheck("migrated", "1", "role", _role, "newClientId", bootstrap.NetBridge.LocalClientId.ToString());
         }

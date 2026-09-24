@@ -100,6 +100,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
   - docs: `docs/14_networking.md` §19（新規）、`docs/29_network_device_test.md` §26（新規）+ §25 に実機手順「ケース: Host 引き継ぎ」を追加、`docs/11_tasks.md`（N-6 行）
   - **未実施**: 実機環境（複数 PC）を用意できなかったため、§25「ケース: Host 引き継ぎ」の実機確認は未実施（ローカル確認〔`host_migration` シナリオ〕のみ実施）
 
+- N-7（2026-09-24）: 実機 4 台テスト（[docs/29_network_device_test.md](docs/29_network_device_test.md) §25 ラウンド2「気づいた点」）で見つかった軽微 2 件を修正（`NetCheckRunner` 内部実装のみ、公開 API は無改修）。follower の `migrated=1 newClientId=0` 固定表示を「接続確立後の最初の heartbeat」まで遅延させて実際の ClientId を出すように変更し、起動時に `-ddrive-migrate` の構成（`migrate_config=1 role=... host=... port=...`）を 1 行ログするようにした。詳細は [docs/14_networking.md](docs/14_networking.md) §19「実装メモ（N-7）」
+
 ## [1.1.0] - 2026-09-20
 
 ### 互換性

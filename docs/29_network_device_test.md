@@ -78,6 +78,9 @@ DDriveNetCheck.exe -ddrive-net host -ddrive-port 7777 -logFile C:\DDriveTest\Pla
 - `[DDriveNetCheck] forged_cancel_sent=<key>` — Client が偽造 Cancel を送信したとき(既定 5 秒おき、Client のみ)。**偽造メッセージ破棄の判定**: この行の直後(同じフレーム〜数フレーム以内)に **Host または他クライアントの `Player.log` に `[Net/Host]` または `[Net/Client]` の警告(「送信元 ClientId(...) が発行者と一致しないため破棄しました」)が出て、`heartbeat` の `activeCount` が変化しない**ことを確認する。**2026-09-14 修正(6-0 修正6)**: `sendForgedCancelPeriodically` は切断中(`connected=0`)は送らない(以前は切断後も 5 秒おきに `NgoNetBridge.Broadcast` の「未接続のため送信できません」警告が出続けていた)
 - `[DDriveNetCheck] track_fired=1 kind=<Kind> time=<Time> key=<HandleNetKey> late_ms=<ms> networkTime=...` — **2026-09-14 修正(6-0 修正6)で追加**。各ピアで `TrackTrigger.AtTime` のトラック(Vfx/Se/Anim 等)が実際に発火した瞬間に出る(`PresentationManager.OnAtTimeTrackFired`、Manager 全体の event。Handle 単位の `OnTrackFired(handle)` だと Play() 内の同期発火に購読が追いつかないため専用の event にした)。`late_ms`(= `(elapsed - Time) * 1000`)が判定の主眼: 通常再生・予測再生では 0 に近く、遅延受信では猶予(既定 0.5 秒 = 500ms)以内の正の値になる。**遅延がある環境で VFX/SE が実際に描画/再生されたかをスクリーンショットに頼らず判定できる**(修正前に見つかった実バグ: 遅延 200ms で `late_ms` に相当する猶予が無かったため、開始直後のワンショット演出がリモートで一切発火しなかった)
 - `[DDriveNetCheck] track_skipped=1 kind=<Kind> time=<Time> key=<HandleNetKey> late_ms=<ms>` — **2026-09-14 修正(6-0 修正6)で追加、開発ビルドのみ**。`late_ms` が猶予(既定 500ms)を超えていてワンショットの発火をスキップしたとき(Late Join で大幅に古い演出を復元しようとした場合など)に出る
+- `[DDriveNetCheck] migrate_config=1 role=successor|follower host=<再接続先> port=<port>` — **2026-09-24 追加(N-7)**。`-ddrive-migrate` 指定時のみ `ready=1` の直後に 1 回出る、Host 引き継ぎの構成値(§25「ケース: Host 引き継ぎ」の切り分け用)
+- `[DDriveNetCheck] migrating=1 role=successor|follower` — **2026-09-24 追加(N-7)**。Host 引き継ぎ(`-ddrive-migrate`)で `StopNetworking()` → `StartHost`/`StartClient` が成功した直後(まだ接続確立前)に 1 回出る
+- `[DDriveNetCheck] migrated=1 role=host|client newClientId=<実 ClientId>` — Host 引き継ぎで接続が確立した(successor は `IsServer`、follower は `IsConnected` かつ `LocalClientId!=0`)最初の `heartbeat` タイミングで 1 回出る。**2026-09-24 修正(N-7)**: 旧実装は `StartHost`/`StartClient` 成功直後に出しており、follower は `LocalClientId` が割り当て前(常に 0)のため `newClientId=0` に固定される表示だけの不具合があった([29] §25 ラウンド2「気づいた点」)。接続確立後まで遅延させることで実際の ClientId を出す
 - `[Net/Host]` / `[Net/Client]` — `NgoNetBridge`/`PresentationManager` のログ全般(接続・レート制限・発行者検証の破棄など)
 
 **位相差の判定**: Host/Client 双方の `heartbeat` 行を `play` の直後(数秒間)で突き合わせ、`networkTime` の差が概ね**数ティック以内(目安 100ms 以内**、`-ddrive-sim-latency` を上げた場合はその分)であれば OK(`NetDebugOverlay` の RTT 表示も併用)。**2026-09-15 改訂([31] A8)**: 旧基準は「RTT/2 以内」だったが、NGO の Client 側 `ServerTime` はティック単位のバッファで遅れて推定されるため、実機確認 v2(§8)では RTT/2(≒3ms)を大幅に超える約 80ms の差が実測された。RTT を基準にすると正常なケースを誤診断するため、判定基準を「数ティック以内(目安 100ms 以内)」に改めた。
@@ -1328,8 +1331,8 @@ DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-
 | 5. 全体 | — | 3 台とも Exception/Error 0、`migration_failed` 0。B のファイアウォールダイアログは出なかった（既存の受信許可が有効） |
 
 気づいた点（軽微、後続で対応）:
-- follower の `migrated=1 role=client newClientId=0` は `StartClient()` 直後（ClientId 割り当て前）に `LocalClientId` を読んでいるため常に 0 になる。表示だけの問題（直後の heartbeat は正しい ClientId）。→ 接続確立後にログするか、フィールドを外す
-- 起動時に `-ddrive-migrate` の構成（successor/follower・再接続先）を 1 行ログすると切り分けが楽（C 側からの提案）
+- follower の `migrated=1 role=client newClientId=0` は `StartClient()` 直後（ClientId 割り当て前）に `LocalClientId` を読んでいるため常に 0 になる。表示だけの問題（直後の heartbeat は正しい ClientId）。→ 接続確立後にログするか、フィールドを外す → **N-7 で対応（2026-09-24）**: `StartHost`/`StartClient` 成功直後は `migrating=1` だけを出し、接続確立後（successor は `IsServer`、follower は `IsConnected` かつ `LocalClientId!=0`）の最初の heartbeat で `migrated=1 newClientId=<実 ClientId>` を出すよう変更（§4 参照）
+- 起動時に `-ddrive-migrate` の構成（successor/follower・再接続先）を 1 行ログすると切り分けが楽（C 側からの提案）→ **N-7 で対応（2026-09-24）**: `ready=1` の直後に `migrate_config=1 role=... host=... port=...` を追加（§4 参照）
 - 他 Client 発の `PresentationCancelMsg` 破棄警告（C で 63 件）は NetCheckRunner が意図的に送る偽造 Cancel を拒否している仕様どおりの動作（§4）
 
 ## 26. N-6: host_migration ローカル確認
