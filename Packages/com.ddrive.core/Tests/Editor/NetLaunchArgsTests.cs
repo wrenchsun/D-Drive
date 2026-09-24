@@ -113,6 +113,9 @@ namespace DDrive.Tests.Editor
                 "-ddrive-autotest", "netcheck",
                 "-ddrive-autotest-seconds", "30",
                 "-ddrive-expect-clients", "3",
+                "-ddrive-migrate", "successor",
+                "-ddrive-migrate-host", "192.168.1.5",
+                "-ddrive-migrate-port", "7779",
             };
 
             var result = NetLaunchArgs.Parse(args);
@@ -124,6 +127,45 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("netcheck", result.AutoTestName);
             Assert.AreEqual(30f, result.AutoTestSeconds.Value, 0.001f);
             Assert.AreEqual(3, result.ExpectedClientCount);
+            Assert.AreEqual(NetMigrationRole.Successor, result.MigrationRole);
+            Assert.AreEqual("192.168.1.5", result.MigrationHost);
+            Assert.AreEqual(7779, result.MigrationPort);
+        }
+
+        // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション)の自動確認用引数。
+
+        [TestCase("successor", NetMigrationRole.Successor)]
+        [TestCase("follower", NetMigrationRole.Follower)]
+        [TestCase("SUCCESSOR", NetMigrationRole.Successor)]
+        [TestCase("garbage", NetMigrationRole.None)]
+        public void Parse_MigrateFlag_ParsesRole(string value, NetMigrationRole expected)
+        {
+            var result = NetLaunchArgs.Parse(new[] { "-ddrive-migrate", value });
+            Assert.AreEqual(expected, result.MigrationRole);
+        }
+
+        [Test]
+        public void Parse_MigrateFlag_Unspecified_IsNone()
+        {
+            var result = NetLaunchArgs.Parse(new string[0]);
+            Assert.AreEqual(NetMigrationRole.None, result.MigrationRole);
+            Assert.IsNull(result.MigrationHost);
+            Assert.IsNull(result.MigrationPort);
+        }
+
+        [Test]
+        public void Parse_MigrateHostAndPort()
+        {
+            var result = NetLaunchArgs.Parse(new[] { "-ddrive-migrate-host", "10.0.0.2", "-ddrive-migrate-port", "8888" });
+            Assert.AreEqual("10.0.0.2", result.MigrationHost);
+            Assert.AreEqual(8888, result.MigrationPort);
+        }
+
+        [Test]
+        public void Parse_MigratePort_InvalidValue_LeavesNull()
+        {
+            var result = NetLaunchArgs.Parse(new[] { "-ddrive-migrate-port", "not-a-number" });
+            Assert.IsNull(result.MigrationPort);
         }
 
         [Test]

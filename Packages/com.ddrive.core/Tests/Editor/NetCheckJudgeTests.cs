@@ -340,5 +340,115 @@ namespace DDrive.Tests.Editor
             var result = NetCheckJudge.Evaluate(c);
             Assert.IsTrue(result.Pass, result.Reason);
         }
+
+        // ── [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション) ──
+
+        [Test]
+        public void Evaluate_MigrationNotExpected_SkipsMigrationChecks_EvenIfNotCompleted()
+        {
+            // 既存 8 シナリオ(-ddrive-migrate 未指定)は MigrationExpected=false のままなので、
+            // MigrationCompleted 等が既定値(false/0)でも無関係に判定される(無改修の回帰確認)。
+            var c = Healthy();
+            c.MigrationExpected = false;
+            c.MigrationCompleted = false;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_MigrationExpected_ButNotCompleted_Fails()
+        {
+            var c = Healthy();
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = true;
+            c.MigrationExpected = true;
+            c.MigrationCompleted = false;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsFalse(result.Pass);
+            Assert.AreEqual("migration_not_completed", result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_MigrationExpected_Successor_Completed_Passes_WithoutRequiringSignalRecvAfterMigration()
+        {
+            // successor は「移行後の期待人数に届いたか」(ExpectedClientCount/MaxConnectedClientsObserved、
+            // 既存の判定)で確認する側なので、SignalRecvAfterMigrationCount/ContentHashOkAfterMigration が
+            // 0/false のままでも FAIL にしない。
+            var c = Healthy();
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = true;
+            c.MigrationExpected = true;
+            c.MigrationCompleted = true;
+            c.IsSuccessor = true;
+            c.SignalRecvAfterMigrationCount = 0;
+            c.ContentHashOkAfterMigration = false;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_MigrationExpected_Follower_Completed_ButNoSignalRecvAfterMigration_Fails()
+        {
+            var c = Healthy();
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = true;
+            c.MigrationExpected = true;
+            c.MigrationCompleted = true;
+            c.IsSuccessor = false;
+            c.SignalRecvAfterMigrationCount = 0;
+            c.ContentHashOkAfterMigration = true;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsFalse(result.Pass);
+            Assert.AreEqual("no_signal_recv_after_migration", result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_MigrationExpected_Follower_Completed_ButContentHashNotOkAfterMigration_Fails()
+        {
+            var c = Healthy();
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = true;
+            c.MigrationExpected = true;
+            c.MigrationCompleted = true;
+            c.IsSuccessor = false;
+            c.SignalRecvAfterMigrationCount = 2;
+            c.ContentHashOkAfterMigration = false;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsFalse(result.Pass);
+            Assert.AreEqual("content_hash_not_ok_after_migration", result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_MigrationExpected_Follower_AllSatisfied_Passes()
+        {
+            var c = Healthy();
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = true;
+            c.MigrationExpected = true;
+            c.MigrationCompleted = true;
+            c.IsSuccessor = false;
+            c.SignalRecvAfterMigrationCount = 2;
+            c.ContentHashOkAfterMigration = true;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsTrue(result.Pass, result.Reason);
+        }
+
+        [Test]
+        public void Evaluate_MigrationExpected_Successor_ExpectedClientsNotReached_FailsOnExistingCheck()
+        {
+            // successor の「移行後の期待人数」判定は既存の ExpectedClientCount チェック(先に評価される)に
+            // 委ねているため、migration 側のチェックへ到達する前に FAIL する。
+            var c = Healthy();
+            c.DisconnectedObserved = true;
+            c.ActiveAndVfxZeroedAfterDisconnect = true;
+            c.MigrationExpected = true;
+            c.MigrationCompleted = true;
+            c.IsSuccessor = true;
+            c.ExpectedClientCount = 2;
+            c.MaxConnectedClientsObserved = 1;
+            var result = NetCheckJudge.Evaluate(c);
+            Assert.IsFalse(result.Pass);
+            StringAssert.Contains("expected_clients_not_reached", result.Reason);
+        }
     }
 }

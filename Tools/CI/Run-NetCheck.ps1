@@ -18,6 +18,10 @@
 # [14_networking.md] §16(N-3、2026-09-22) — 上記は 1 Host + 1 Client の $scenarios(無改修)の説明。
 # 別途 $quadScenarios(Host 1 + Client 3、MS2026 の 4 人対戦を見据えた確認)を追加した。判定は同じ 2 段構え
 # を Client の本数ぶん繰り返す(位相差判定は Client 全本の Player.log に対して行う)。詳細は docs/29 §24。
+#
+# [14_networking.md] §18/N-6(2026-09-24) — さらに $migrationScenarios(Host 引き継ぎ。旧 Host が短命に
+# 終了し、Client1 が successor として Host に昇格、Client2/3 が follower として再接続する)を追加した。
+# 位相差判定は「移行後」の successor(Client1)のログを Host ログの代わりに使う。詳細は docs/29 §26。
 
 param(
     [string]$ExePath = "Builds/DDriveNetCheck/DDriveNetCheck.exe",
@@ -95,19 +99,42 @@ $quadScenarios = @(
     }
 )
 
+# [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション)のローカル確認。旧 Host が
+# 短時間(12秒)で終了し、Client1(successor)が Stop→StartHost で新 Host に昇格、Client2/Client3(follower)が
+# Stop→StartClient で新 Host(= Client1、全員同一 Port の 127.0.0.1)へ再接続することを確認する。
+# $quadScenarios(全員が同じ Host に接続し続ける、Client ごとの引数は同一)とは構造が異なる(Client ごとに
+# `-ddrive-migrate successor|follower` を切り替える必要がある)ため、専用の配列・実行ブロックにする。
+# -ddrive-expect-clients: 旧 Host は 3(successor+follower×2 全員の接続を確認してから終了までに満たす)、
+# successor は移行後の期待数(follower×2)として 2 を渡す(NetCheckRunner が Host 役になった時点で使う値。
+# [14_networking.md] §18/N-6 実装メモ参照)。
+$migrationScenarios = @(
+    [pscustomobject]@{
+        Name = "host_migration"; Port = 7881; HostSeconds = 12
+        ExpectClientsHost = 3
+        ExpectClientsSuccessor = 2
+        Clients = @(
+            [pscustomobject]@{ Migrate = "successor"; Seconds = 50 }
+            [pscustomobject]@{ Migrate = "follower";  Seconds = 50 }
+            [pscustomobject]@{ Migrate = "follower";  Seconds = 50 }
+        )
+    }
+)
+
 if ($OnlyScenario) {
     $matchedPair = $scenarios | Where-Object { $_.Name -eq $OnlyScenario }
     $matchedQuad = $quadScenarios | Where-Object { $_.Name -eq $OnlyScenario }
+    $matchedMigration = $migrationScenarios | Where-Object { $_.Name -eq $OnlyScenario }
     $scenarios = @($matchedPair)
     $quadScenarios = @($matchedQuad)
-    if ($matchedPair.Count -eq 0 -and $matchedQuad.Count -eq 0) {
+    $migrationScenarios = @($matchedMigration)
+    if ($matchedPair.Count -eq 0 -and $matchedQuad.Count -eq 0 -and $matchedMigration.Count -eq 0) {
         Write-Host "[ERROR] 不明なシナリオ名: $OnlyScenario"
         exit 1
     }
 }
 
 function Build-Args {
-    param($Role, $Port, $LatencyMs, $Scenario, $Seconds, $LogPath, $ExpectClients = 0)
+    param($Role, $Port, $LatencyMs, $Scenario, $Seconds, $LogPath, $ExpectClients = 0, $Migrate = "")
 
     $argList = @(
         "-ddrive-net", $Role,
@@ -127,6 +154,14 @@ function Build-Args {
     # このフラグは付与されず起動引数は従来どおり不変(既存 4 本は無改修)。
     if ($ExpectClients -gt 0) {
         $argList += @("-ddrive-expect-clients", $ExpectClients)
+    }
+
+    # [14_networking.md] §18/N-6(2026-09-24) — 既存 8 シナリオは $Migrate を渡さない(既定 "")ため、
+    # このフラグは付与されず起動引数は従来どおり不変(既存 8 本は無改修)。-ddrive-migrate-host/-port は
+    # 省略する(全員 127.0.0.1・同一 Port のローカル確認のため、NetCheckRunner 側の既定
+    # 〔-ddrive-host/-ddrive-port にフォールバック〕で足りる)。
+    if ($Migrate) {
+        $argList += @("-ddrive-migrate", $Migrate)
     }
 
     return $argList
@@ -515,6 +550,92 @@ foreach ($scenario in $quadScenarios) {
         clientResults = $clientResults
         phaseResults  = $phases
         extraCheck    = $extraCheck
+    })
+}
+
+# [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション)。上の $quadScenarios
+# ループとは違い、Client ごとに役割(successor/follower)が異なる・旧 Host は短命・位相差判定の基準ログが
+# Host ではなく Client1(successor、移行後)になる、という 3 点が異なるため専用ループにする。
+foreach ($scenario in $migrationScenarios) {
+    $clientCount = $scenario.Clients.Count
+    Write-Host ""
+    Write-Host "=== シナリオ: $($scenario.Name) (旧host=$($scenario.HostSeconds)s, clients=$clientCount, Host 引き継ぎ確認) ==="
+
+    $hostLog = Join-Path $resultsFull "$($scenario.Name)_host.log"
+    $clientLogs = @()
+    for ($i = 1; $i -le $clientCount; $i++) {
+        $clientLogs += Join-Path $resultsFull "$($scenario.Name)_client$i.log"
+    }
+    Remove-Item -Path (@($hostLog) + $clientLogs) -ErrorAction SilentlyContinue
+
+    $hostArgs = Build-Args -Role "host" -Port $scenario.Port -LatencyMs 0 -Scenario $scenario.Name -Seconds $scenario.HostSeconds -LogPath $hostLog -ExpectClients $scenario.ExpectClientsHost
+    $hostProc = Start-Process -FilePath $exeFull -ArgumentList $hostArgs -PassThru -WindowStyle Hidden
+    Write-Host "  旧 Host 起動($($hostProc.Id))。$($scenario.HostSeconds) 秒で終了予定。Client を $clientCount 本起動します。"
+
+    $clientProcs = @()
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        $clientCfg = $scenario.Clients[$i]
+        $expectClients = if ($clientCfg.Migrate -eq "successor") { $scenario.ExpectClientsSuccessor } else { 0 }
+        $clientArgs = Build-Args -Role "client" -Port $scenario.Port -LatencyMs 0 -Scenario $scenario.Name -Seconds $clientCfg.Seconds -LogPath $clientLogs[$i] -ExpectClients $expectClients -Migrate $clientCfg.Migrate
+        $proc = Start-Process -FilePath $exeFull -ArgumentList $clientArgs -PassThru -WindowStyle Hidden
+        Write-Host "  Client$($i+1)($($clientCfg.Migrate)) 起動($($proc.Id))。"
+        $clientProcs += $proc
+    }
+
+    $maxClientSeconds = ($scenario.Clients | ForEach-Object { $_.Seconds } | Measure-Object -Maximum).Maximum
+    $timeoutSec = [Math]::Max($scenario.HostSeconds, $maxClientSeconds) + 30
+    Wait-ForExitOrKill -Process $hostProc -TimeoutSec $timeoutSec -Label "旧Host"
+    for ($i = 0; $i -lt $clientProcs.Count; $i++) {
+        Wait-ForExitOrKill -Process $clientProcs[$i] -TimeoutSec $timeoutSec -Label "Client$($i+1)"
+    }
+
+    $hostResult = Parse-ResultLine -LogPath $hostLog
+    $clientResults = @()
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        $clientResults += Parse-ResultLine -LogPath $clientLogs[$i]
+    }
+
+    # 位相差判定: 「移行後」の successor(Client1、$scenario.Clients[0] が常に successor)のログを Host ログの
+    # 代わりに使い、follower(Client2/3)の signal_recv と突き合わせる([14_networking.md] §18/N-6)。
+    # Client1 は移行前は Client 役なので signal_fire を一切出さず(PlayAndSignal は IsServer のときだけ
+    # 呼ばれる)、ログに現れる signal_fire は移行後の分だけになる。Test-SignalPhase 自体は無改修で流用できる
+    # (Get-ClientConnectNetworkTime/Get-ClientLastNetworkTime は follower 側の生存窓を見るだけなので、
+    # 基準ログが Host か Client かは問わない)。
+    $successorLog = $clientLogs[0]
+    $phases = @()
+    for ($i = 1; $i -lt $clientCount; $i++) {
+        $phases += Test-SignalPhase -HostLogPath $successorLog -ClientLogPath $clientLogs[$i] -LatencyMs 0
+    }
+
+    $allClientsPass = -not ($clientResults | Where-Object { -not $_.Pass })
+    $allPhasesPass = -not ($phases | Where-Object { -not $_.Pass })
+
+    $scenarioPass = $hostResult.Pass -and $allClientsPass -and $allPhasesPass
+    if (-not $scenarioPass) { $overallPass = $false }
+
+    $verdict = if ($scenarioPass) { "PASS" } else { "FAIL" }
+    Write-Host "  旧Host  : $(if ($hostResult.Pass) {'PASS'} else {'FAIL'}) ($($hostResult.Reason))"
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        $roleLabel = $scenario.Clients[$i].Migrate
+        Write-Host "  Client$($i+1)($roleLabel) : $(if ($clientResults[$i].Pass) {'PASS'} else {'FAIL'}) ($($clientResults[$i].Reason))"
+    }
+    for ($i = 0; $i -lt $phases.Count; $i++) {
+        Write-Host "  位相差(successor→follower$($i+2)): $(if ($phases[$i].Pass) {'PASS'} else {'FAIL'}) fire=$($phases[$i].FireCount) matched=$($phases[$i].MatchedCount) maxDiffMs=$([Math]::Round($phases[$i].MaxDiffMs,0)) ($($phases[$i].Reason))"
+    }
+    Write-Host "  => $verdict"
+
+    $clientSummary = ($clientResults | ForEach-Object { $_.Pass }) -join ","
+    $phaseSummary = ($phases | ForEach-Object { $_.Pass }) -join ","
+    $reasonSummary = "host=$($hostResult.Reason) / clients=$(($clientResults | ForEach-Object { $_.Reason }) -join ';') / phases=$(($phases | ForEach-Object { $_.Reason }) -join ';')"
+
+    $summaryRows.Add("| $($scenario.Name) | $verdict | host=$($hostResult.Pass) clients=$clientSummary phases=$phaseSummary | $reasonSummary |")
+    $jsonResults.Add([pscustomobject]@{
+        scenario      = $scenario.Name
+        pass          = $scenarioPass
+        hostPass      = $hostResult.Pass
+        hostReason    = $hostResult.Reason
+        clientResults = $clientResults
+        phaseResults  = $phases
     })
 }
 

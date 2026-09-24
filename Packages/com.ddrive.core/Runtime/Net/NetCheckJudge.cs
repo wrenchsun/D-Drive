@@ -68,6 +68,18 @@ namespace DDrive.Runtime.Net
         // 観測最大値(quad_leave のように途中で 1 人抜けても、一度でも全員揃った実績があれば満たす)。
         public int ExpectedClientCount;
         public int MaxConnectedClientsObserved;
+
+        // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション)の自動確認用。
+        // MigrationExpected は `-ddrive-migrate successor|follower` が指定されたプロセスだけ true になる
+        // (未指定の既存 8 シナリオは従来どおりこの判定を一切スキップする)。
+        public bool MigrationExpected;
+        public bool MigrationCompleted; // StartHost/StartClient による再接続が成功した(15 秒以内)
+        public bool IsSuccessor;        // true=successor(StartHost を試みた側)、false=follower(StartClient)
+
+        // follower のみ意味を持つ(successor は ExpectedClientCount/MaxConnectedClientsObserved の
+        // 既存判定〔上記〕で「移行後の期待人数に届いたか」を見るため、ここでは follower 側だけ見る)。
+        public int SignalRecvAfterMigrationCount;
+        public bool ContentHashOkAfterMigration;
     }
 
     public struct NetCheckResult
@@ -154,11 +166,41 @@ namespace DDrive.Runtime.Net
                 return NetCheckResult.FailResult($"content_hash_not_ok status={c.ContentHashStatus ?? "null"}");
             }
 
+            // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション)。
+            // MigrationExpected は `-ddrive-migrate` が指定されたプロセスだけ true(既存 8 シナリオは
+            // 従来どおりここを素通りする)。successor は上の ExpectedClientCount 判定(移行後の期待人数)で
+            // 既に確認済みのため、ここでは「再接続そのものが成功したか」だけを共通で見て、follower だけ
+            // 追加で Signal 受信・ContentHash 再検証を課す。
+            if (c.MigrationExpected)
+            {
+                if (!c.MigrationCompleted)
+                {
+                    return NetCheckResult.FailResult("migration_not_completed");
+                }
+
+                if (!c.IsSuccessor)
+                {
+                    if (c.SignalRecvAfterMigrationCount <= 0)
+                    {
+                        return NetCheckResult.FailResult("no_signal_recv_after_migration");
+                    }
+
+                    if (!c.ContentHashOkAfterMigration)
+                    {
+                        return NetCheckResult.FailResult("content_hash_not_ok_after_migration");
+                    }
+                }
+            }
+
+            var migrationSummary = c.MigrationExpected
+                ? $" migrated={c.MigrationCompleted} is_successor={c.IsSuccessor} signal_recv_after_migration={c.SignalRecvAfterMigrationCount} content_hash_after_migration_ok={c.ContentHashOkAfterMigration}"
+                : string.Empty;
+
             return NetCheckResult.PassResult(
                 $"signal_fire={c.SignalFireCount} signal_recv={c.SignalRecvCount} " +
                 $"forged_sent={c.ForgedCancelSentCount} forged_discarded={c.ForgedCancelDiscardedCount} " +
                 $"late_join_restored={c.LateJoinRestoreObserved} disconnected={c.DisconnectedObserved} " +
-                $"content_hash={c.ContentHashStatus ?? "n/a"}");
+                $"content_hash={c.ContentHashStatus ?? "n/a"}{migrationSummary}");
         }
     }
 }

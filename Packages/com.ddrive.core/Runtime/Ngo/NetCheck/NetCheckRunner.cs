@@ -96,6 +96,23 @@ namespace DDrive.Runtime.Net
         private int _maxConnectedClientsObserved;
         private int _lastClientCount = -1;
 
+        // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション)の自動確認用。
+        // `-ddrive-migrate` 未指定(None)の既存 8 シナリオは以下の処理を一切行わない(無改修)。
+        private NetMigrationRole _migrationRole;
+        private string _migrationHost;
+        private ushort _migrationPort;
+        private bool _migrationAttempted;
+        private bool _migrationCompleted;
+        private int _signalRecvAfterMigrationCount;
+        private bool _contentHashOkAfterMigration;
+
+        // MS2026/Docs/Spec/03_Network.md §10.5 の Tuning キー既定値と同じ(D-Drive はこの確認用コード内で
+        // 複製する。ゲーム側の Tuning テーブルには依存しない、RemoteOneShotGraceMs と同じ考え方)。
+        private const float MigrationGraceSeconds = 1f;      // successor が待つ秒数
+        private const float MigrationFollowerExtraDelaySeconds = 1f; // follower は +1 秒(合計 2 秒)
+        private const float MigrationRetryIntervalSeconds = 2f;
+        private const float MigrationTimeoutSeconds = 15f;
+
         // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — ⑤(切断後の演出 0)の判定対象は「自分(Client)が
         // Host との接続を失った」場合だけにする。`_ngoBridge.ClientDisconnected` は Host 側でも「他 Client が
         // 切断した」ときに発火する(OnBridgeDisconnected のコメント参照)が、Host は他 Client の 1 人が
@@ -156,6 +173,20 @@ namespace DDrive.Runtime.Net
             // 同じ値が渡り得るが、実際に判定へ使うのは Host 役のときだけ(EvaluateResult/Heartbeat 側で
             // 役割を見て絞り込む)。ここでは値をそのまま保持するだけ。
             _expectedClientCount = bootstrap != null ? (bootstrap.LaunchOptions.ExpectedClientCount ?? 0) : 0;
+
+            // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎの自動確認。-ddrive-migrate
+            // successor|follower が指定されたときだけ、切断検知後に MS2026 §10.2 と同じ手順(Stop → 再 Start)
+            // を試みる(OnBridgeDisconnected 参照)。再接続先は -ddrive-migrate-host/-migrate-port の
+            // 明示指定を優先し、未指定なら通常の接続先(-ddrive-host/-ddrive-port、既定値込み)にフォール
+            // バックする(successor の StartHost はポートのみ使う。既定は同じ Port で listen する)。
+            if (bootstrap != null)
+            {
+                _migrationRole = bootstrap.LaunchOptions.MigrationRole;
+                var migrationHost = bootstrap.LaunchOptions.MigrationHost;
+                _migrationHost = !string.IsNullOrEmpty(migrationHost) ? migrationHost : (bootstrap.LaunchOptions.Host ?? bootstrap.DefaultHostAddress);
+                var migrationPort = bootstrap.LaunchOptions.MigrationPort ?? bootstrap.LaunchOptions.Port ?? bootstrap.DefaultPort;
+                _migrationPort = (ushort)migrationPort;
+            }
 
             // [11_tasks.md] 6-7 — Exception/Error(PASS 条件⑥)と偽造 Cancel の破棄(条件③)・Late Join の
             // Placeholder 誤解決(条件④)は、この Runner 自身のイベント購読では観測できない箇所(Presentation/
@@ -446,6 +477,15 @@ namespace DDrive.Runtime.Net
             {
                 _vfxAndActiveZeroedAfterDisconnect = true;
             }
+
+            // [14_networking.md] §18/N-6(2026-09-24) — D-1(CatalogContentHashGate.Reset)の自動確認。
+            // follower が再接続後に自分のハッシュを送り直し、新 Host との照合が改めて "OK" になったことを
+            // 観測する(sticky。一度 OK を観測すれば以後不一致に変わっても実績として残す設計は他の
+            // sticky フラグと同じ)。successor はホスト側の判定〔ExpectedClientCount〕に委ねるため見ない。
+            if (_migrationCompleted && _role == "client" && contentHash == "OK")
+            {
+                _contentHashOkAfterMigration = true;
+            }
         }
 
         private void PlayAndSignal(DDriveRuntimeBootstrap bootstrap)
@@ -516,6 +556,15 @@ namespace DDrive.Runtime.Net
                 var networkTime = bs != null && bs.NetBridge != null ? bs.NetBridge.NetworkTime.ToString("F2") : "n/a";
 
                 _signalRecvCount++;
+
+                // [14_networking.md] §18/N-6(2026-09-24) — follower(migration 完了後もまだ Client のまま)
+                // が新 Host からの Signal を受信できていることの下限確認。successor は「移行後の期待人数」
+                // (ExpectedClientCount/MaxConnectedClientsObserved、上の EvaluateResult 参照)で確認するため
+                // ここでは follower のみカウントする。
+                if (_migrationCompleted && _role == "client")
+                {
+                    _signalRecvAfterMigrationCount++;
+                }
 
                 // [11_tasks.md] 6-0 修正2/修正6 — kind を足す(同じ key で OnSignal トラック数ぶん出るのが
                 // 分かるようにする。軽微な要判断だった②の対応)。
@@ -619,6 +668,14 @@ namespace DDrive.Runtime.Net
             if (_role == "client")
             {
                 _selfDisconnectedObserved = true;
+
+                // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎの自動確認。自分(Client)が Host
+                // との接続を失ったときだけ、MS2026 §10.2 の手順(successor/follower)を 1 回だけ試みる。
+                if (_migrationRole != NetMigrationRole.None && !_migrationAttempted)
+                {
+                    _migrationAttempted = true;
+                    RunHostMigrationAsync(bootstrap).Forget();
+                }
             }
 
             // [14_networking.md] §16(N-3) — Host 役は「他 Client が 1 人抜けても自分は継続する」ことを
@@ -637,6 +694,65 @@ namespace DDrive.Runtime.Net
 
             _disconnectLogged = true;
             LogCheck("disconnected", "1", "role", RoleOf(bootstrap), "reason", string.IsNullOrEmpty(reason) ? "unknown" : reason);
+        }
+
+        // [14_networking.md] §18/N-6(2026-09-24) — MS2026/Docs/Spec/03_Network.md §10.2 のシーケンスを
+        // この確認用コードで再現する。successor は Migration/GraceSeconds(1 秒)、follower は +1 秒(合計 2 秒)
+        // 待ってから StopNetworking() → StartHost/StartClient を試みる(戻り値 false なら
+        // Migration/RetryIntervalSeconds〔2 秒〕ごとに再試行し、Migration/ReconnectTimeoutSeconds
+        // 〔15 秒〕で諦めて migration_failed=1 をログする)。D-Drive はゲーム側の GameStateSnapshot 復元
+        // ([03_Network.md] §10.3、MS2026 の責務)には関与しない。この Runner にとっての「成功」は
+        // StartHost/StartClient が true を返すことだけ。
+        private async UniTaskVoid RunHostMigrationAsync(DDriveRuntimeBootstrap bootstrap)
+        {
+            var isSuccessor = _migrationRole == NetMigrationRole.Successor;
+            var graceSeconds = isSuccessor ? MigrationGraceSeconds : MigrationGraceSeconds + MigrationFollowerExtraDelaySeconds;
+            await UniTask.Delay(System.TimeSpan.FromSeconds(graceSeconds));
+
+            // MS2026 の手順は「全端末が自分で NetworkManager.Shutdown() を呼んでから bootstrap.
+            // StopNetworking() を呼ぶ」だが、この確認用コードは NGO 自体の切断検知(HandleClientDisconnected)
+            // に乗じているため、NetworkManager は既に非 Listening のことが多い。StopNetworking() 側
+            // (DoManualStop、N-5)が Shutdown 済みでもリセットだけは必ず実行するため、ここでは単純に
+            // StopNetworking() を呼ぶだけでよい。
+            bootstrap.StopNetworking();
+
+            if (isSuccessor)
+            {
+                // [14_networking.md] §16(N-3) — successor は -ddrive-expect-clients を「移行後の期待数」
+                // として使う(旧 Host 分の実績を引き継がない)。
+                _maxConnectedClientsObserved = 0;
+                _lastClientCount = -1;
+            }
+
+            var deadline = Time.time + MigrationTimeoutSeconds;
+            var succeeded = false;
+            while (Time.time < deadline)
+            {
+                succeeded = isSuccessor
+                    ? bootstrap.StartHost(_migrationPort)
+                    : bootstrap.StartClient(_migrationHost, _migrationPort);
+
+                if (succeeded)
+                {
+                    break;
+                }
+
+                await UniTask.Delay(System.TimeSpan.FromSeconds(MigrationRetryIntervalSeconds));
+            }
+
+            if (!succeeded)
+            {
+                LogCheck("migration_failed", "1", "role", isSuccessor ? "successor" : "follower");
+                return;
+            }
+
+            _migrationCompleted = true;
+
+            // [14_networking.md] §16(N-3) の遅延評価と同じ理由で、この Runner 自身の `_role` フィールドは
+            // 起動時に一度確定させたまま(すでに "client")なので、Update() の遅延評価(off/unknown のときだけ
+            // 再評価する)には乗らない。ここで明示的に更新する(既存の RoleOf() をそのまま使う)。
+            _role = RoleOf(bootstrap);
+            LogCheck("migrated", "1", "role", _role, "newClientId", bootstrap.NetBridge.LocalClientId.ToString());
         }
 
         // -ddrive-autotest <name> 用。ヘッドレスで一定時間チェックを走らせてから、この Runner 自身が
@@ -703,6 +819,15 @@ namespace DDrive.Runtime.Net
                 // なので NetCheckJudge 側の判定は素通りする。既存の 1v1 シナリオは無改修)。
                 ExpectedClientCount = (_role == "host" || _role == "server") ? _expectedClientCount : 0,
                 MaxConnectedClientsObserved = _maxConnectedClientsObserved,
+
+                // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ。MigrationExpected は
+                // `-ddrive-migrate` 未指定(既存 8 シナリオ)なら常に false のまま=NetCheckJudge 側の判定は
+                // 完全にスキップされる(無改修)。
+                MigrationExpected = _migrationRole != NetMigrationRole.None,
+                MigrationCompleted = _migrationCompleted,
+                IsSuccessor = _migrationRole == NetMigrationRole.Successor,
+                SignalRecvAfterMigrationCount = _signalRecvAfterMigrationCount,
+                ContentHashOkAfterMigration = _contentHashOkAfterMigration,
             };
 
             return NetCheckJudge.Evaluate(counters);

@@ -1303,6 +1303,7 @@ TYPE struct DDrive.Runtime.Net.NetCheckCounters
   field ActiveAndVfxZeroedAfterDisconnect : bool
   field ConnectedAtEnd : bool
   field ContentHashApplicable : bool
+  field ContentHashOkAfterMigration : bool
   field ContentHashStatus : string
   field DisconnectedObserved : bool
   field ExceptionOrErrorCount : int
@@ -1310,12 +1311,16 @@ TYPE struct DDrive.Runtime.Net.NetCheckCounters
   field ForgedCancelDiscardedCount : int
   field ForgedCancelSentCount : int
   field IsOffRole : bool
+  field IsSuccessor : bool
   field LateJoinRestoreObserved : bool
   field MaxConnectedClientsObserved : int
+  field MigrationCompleted : bool
+  field MigrationExpected : bool
   field PlaceholderObserved : bool
   field RequireLateJoinRestore : bool
   field RequireSignalActivity : bool
   field SignalFireCount : int
+  field SignalRecvAfterMigrationCount : int
   field SignalRecvCount : int
   field TrackFiredOverGraceCount : int
   field TrackSkippedWithinGraceCount : int
@@ -1331,6 +1336,9 @@ TYPE class static DDrive.Runtime.Net.NetLaunchArgs
   field const AutoTestSecondsFlag : string
   field const ExpectClientsFlag : string
   field const HostFlag : string
+  field const MigrateFlag : string
+  field const MigrateHostFlag : string
+  field const MigratePortFlag : string
   field const NetFlag : string
   field const PortFlag : string
   field const SimLatencyFlag : string
@@ -1342,6 +1350,9 @@ TYPE struct DDrive.Runtime.Net.NetLaunchOptions
   field AutoTestSeconds : System.Nullable<float>
   field ExpectedClientCount : System.Nullable<int>
   field Host : string
+  field MigrationHost : string
+  field MigrationPort : System.Nullable<int>
+  field MigrationRole : DDrive.Runtime.Net.NetMigrationRole
   field Port : System.Nullable<int>
   field Role : DDrive.Runtime.Net.NetLaunchRole
   field SimLatencyMs : System.Nullable<int>
@@ -1360,6 +1371,13 @@ TYPE enum DDrive.Runtime.Net.NetLaunchRole
 TYPE class static DDrive.Runtime.Net.NetManualConnectInput
   method static TryParse(string ip, string port, out string address, out ushort portValue, out string error) : bool
   method static TryParsePort(string port, out ushort portValue, out string error) : bool
+TYPE enum DDrive.Runtime.Net.NetMigrationRole
+  enum-member Follower = 2
+  enum-member None = 0
+  enum-member Successor = 1
+  field const Follower : DDrive.Runtime.Net.NetMigrationRole
+  field const None : DDrive.Runtime.Net.NetMigrationRole
+  field const Successor : DDrive.Runtime.Net.NetMigrationRole
 TYPE class sealed DDrive.Runtime.Net.NetModeUnsetValidator
   ctor NetModeUnsetValidator()
   method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
