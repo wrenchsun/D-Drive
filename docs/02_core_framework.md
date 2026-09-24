@@ -123,6 +123,17 @@ public interface IAssetRegistry
 - **`ResolveOrPlaceholder<T>` は同期解決専用**（`TryResolveSync` と同じく `_loaded` キャッシュしか見ない）: Play/Spawn を同期 API にしている Manager（Audio/Vfx/Anim/Presentation 等、ほぼ全種別）は、対象 Data が `Flags.Load = Preload` でカタログ登録時に一括ロードされているか、事前に誰かが `ResolveAsync` を呼んでいない限り、**初回参照時は必ず Placeholder になる**（LazyLoad は「遅延ロードされる」のではなく「明示的に ResolveAsync しない限りロードされない」という意味に近い）。`AssetCreationService.Create` は同期解決でしか使われない種別（Canvas/ControlSkin/Presentation、2026-09-12・2026-09-14 順に対応）の既定を Preload にしてこれを避けている。新しい種別を追加する場合、その Manager が同期 API のみなら同様に Preload をデフォルトにするか、`ScenePreload`（5-7、§14 参照）等で事前ロードする運用にすること
 - 解決失敗 → `PlaceholderProvider.Get<T>()` + 警告（モック動作保証）
 
+### 同期 API と Preload の関係（2026-09-25 追記、M-1a）
+
+MS2026 の実機テストで、Prefab/Audio/Vfx/Material の 11 件が「未登録 → Placeholder」になり見た目・音が全端末で出ない不具合が見つかった（[42_distribution.md] 互換性ポリシー下の PATCH v1.2.1）。原因は上の注記と同じ穴で、対象種別ごとの Manager 公開 API（Play/Spawn/Apply/Resolve 系）を全て grep して調べた結果は次のとおり:
+
+| 種別 | 解決方法 | 既定 Preload |
+|---|---|---|
+| Canvas / ControlSkin / Presentation / Shake / Haptics / Anim / Anim2D / Cutscene | 同期のみ（`ResolveOrPlaceholder`/`TryResolveSync`）。Canvas だけ `OpenAsync`/`PopupAsync` という非同期の代替 API も持つが、既定は Preload のまま（呼び忘れれば同じ穴になる opt-in のため） | ✅（2026-09-12〜2026-09-18 に順次追加） |
+| Se / Bgm / Vfx / Material / Texture / Prefab / UiTween / Model / Anchor / AnchorGroup | 同期のみ。Prefab だけ `Prefabs.PreloadAsync` という明示的な事前ロード API を持つが、これも呼び忘れれば同じ穴になる opt-in | ✅（2026-09-25、M-1a で追加） |
+
+2026-09-25 時点のコード調査では、**全 17 種別が同期解決のみで、Manager 自身が保証する非同期の代替経路（coder が明示操作しなくても安全な経路）を持つ種別は 1 つも無かった**。このため `AssetCreationService.NeedsPreloadDefault` は実質すべての種別で true を返す。`AddressablesRegistrationValidator` はこれを `DD-ADDR-PRELOAD-REQUIRED`（Error）として検出・FixAction で直す。将来、本当に非同期の代替経路を持つ種別が追加された場合は `AssetCreationService.TryGetAsyncResolutionApi` に登録することで、Error ではなく `DD-ADDR-PRELOAD-RECOMMENDED`（Warning）に落とせる（2026-09-25 時点では登録された種別が無いため常に発火しない）。
+
 ### レビュー対応（2026-09-14、P5 レビュー第 1 弾）
 
 - **P2: `PreloadIdsAsync`(5-7)と `ResolveOrPlaceholder`/`ResolveAsync`(Placeholder 経路)の
@@ -260,6 +271,7 @@ public interface IValidator
   `Unity -batchmode -executeMethod DDrive.Editor.CI.ValidateAll`（エラーで exit 1）
 - 共通検査: ID 重複 / 参照欠落 / 循環参照 / Addressable 未登録（実装済み 2026-09-09: `Editor/Validation/AddressablesRegistrationValidator.cs`、カタログ未登録も Error）/ 未使用検出
 - `FixAction` があるものは「自動修正」ボタンを出す（例: Addressable 登録漏れ→登録）
+- **`AddressablesRegistrationValidator` の Code 一覧（2026-09-25 追記、M-1a）**: `DD-ADDR-CATALOG-MISSING`（Error）/ `DD-ADDR-NO-SETTINGS`（Error）/ `DD-ADDR-MISSING`（Error）/ `DD-ADDR-MISMATCH`（Error）/ `DD-ADDR-PRELOAD-REQUIRED`（Error、`AssetCreationService.NeedsPreloadDefault` が true の種別で `Flags.Load != Preload` のとき。M-1a で全 17 種別へ拡大）/ `DD-ADDR-PRELOAD-RECOMMENDED`（Warning、新設。`NeedsPreloadDefault` が false かつ `TryGetAsyncResolutionApi` に登録された種別向けの拡張ポイントで、2026-09-25 時点は登録された種別が無いため発火しない）。詳細は上の「同期 API と Preload の関係」節。
 
 ### 2026-09-18 追記（[29_network_device_test.md] §18 — 検出漏れの修正: `CatalogAddressCoverageValidator`）
 

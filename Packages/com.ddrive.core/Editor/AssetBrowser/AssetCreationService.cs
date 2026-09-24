@@ -159,11 +159,38 @@ namespace DDrive.Editor.AssetBrowser
         // → Anim/Anim2D → Presentation/Shake/Haptics の検出漏れ)続いたため、ここ 1 箇所に集約する。
         // 2026-09-18(6-10a): CutsceneManager.PlayData/Play も ResolveOrPlaceholder の同期解決のみで
         // CutsceneData を引くため、同じ理由で追加する([26_timeline.md] §4.5)。
+        // 2026-09-25(M-1a、[42_distribution.md] 互換性ポリシー下の PATCH): MS2026 の実機テストで
+        // Prefab/Audio/Vfx/Material の 11 件が「未登録 → Placeholder」になる不具合が見つかった
+        // (TeamNotes 2026-09-25「D-Drive 側の本修正候補」)。原因は上と同じ穴で、Se/Bgm/Vfx/Material/
+        // Texture/Prefab/UiTween/Model/Anchor/AnchorGroup の Manager 公開 API(Play/Spawn/Apply/Resolve 系)を
+        // 全て grep して確認したところ、いずれも `IAssetRegistry.ResolveOrPlaceholder`/`TryResolveSync` の
+        // 同期解決のみで、Manager 自身が公開する非同期の代替経路(async Play/Spawn、または明示的な
+        // 事前ロード API)は無かった(唯一 `Prefabs.PreloadAsync` が例外だが、これは呼び出し側が明示的に
+        // 事前に呼ばないと効果が無い opt-in の道具であり、既定のリスクを下げる理由にはならない)。
+        // このため上記 10 種別も既定 Preload に追加する(= 実質すべての種別が同期解決専用)。
+        // `HasAsyncResolutionPath` 参照: 将来 Manager に本物の非同期解決経路(coder が明示操作しなくても
+        // 安全な代替)を持つ種別が追加された場合は、そちらへ登録することで Error ではなく Warning
+        // (DD-ADDR-PRELOAD-RECOMMENDED)に落とす想定。
         public static bool NeedsPreloadDefault(AssetType type)
             => type == AssetType.Canvas || type == AssetType.ControlSkin || type == AssetType.Presentation
                 || type == AssetType.Shake || type == AssetType.Haptics
                 || type == AssetType.Anim || type == AssetType.Anim2D
-                || type == AssetType.Cutscene;
+                || type == AssetType.Cutscene
+                || type == AssetType.Se || type == AssetType.Bgm || type == AssetType.Vfx
+                || type == AssetType.Material || type == AssetType.Texture || type == AssetType.Prefab
+                || type == AssetType.UiTween || type == AssetType.Model
+                || type == AssetType.Anchor || type == AssetType.AnchorGroup;
+
+        // [M-1a、2026-09-25] `NeedsPreloadDefault` が false の種別のうち、Manager が公開する非同期の
+        // 代替経路(async Play/Spawn、または明示的な事前ロード API)を持つものだけを登録する表。
+        // 値は Warning メッセージに出す API 名。2026-09-25 時点のコード調査では該当する種別が無いため空だが、
+        // 将来そのような種別が追加されたときに、Error(DD-ADDR-PRELOAD-REQUIRED)ではなく
+        // Warning(DD-ADDR-PRELOAD-RECOMMENDED)に倒すための拡張ポイントとして残す
+        // (`AddressablesRegistrationValidator` 参照)。
+        private static readonly Dictionary<AssetType, string> AsyncResolutionApiByType = new();
+
+        public static bool TryGetAsyncResolutionApi(AssetType type, out string apiName)
+            => AsyncResolutionApiByType.TryGetValue(type, out apiName);
 
         // 種別→カタログファイルの対応([01_architecture.md] §5: AudioCatalog は SE/BGM を束ねる)。
         public static string GetCatalogName(AssetType type) => type switch

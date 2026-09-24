@@ -96,6 +96,19 @@ namespace DDrive.Editor.Validation
                     () => FixPreload(captured),
                     code: "DD-ADDR-PRELOAD-REQUIRED");
             }
+            // [M-1a、2026-09-25] NeedsPreloadDefault が false の種別のうち、Manager が公開する非同期の
+            // 代替経路(async Play/Spawn、または明示的な事前ロード API)を持つものは、Preload を忘れても
+            // その API を呼べば安全に解決できるため Error ではなく Warning にとどめる
+            // (`AssetCreationService.TryGetAsyncResolutionApi` 参照。2026-09-25 時点では登録された種別が無いため
+            // 現状は発火しないが、将来そのような種別が追加されたときのための拡張ポイント)。
+            else if (!AssetCreationService.NeedsPreloadDefault(resolvedType)
+                     && AssetCreationService.TryGetAsyncResolutionApi(resolvedType, out var apiName)
+                     && data.Flags.Load != LoadMode.Preload)
+            {
+                yield return ValidationResult.Warning(
+                    $"Flags.Load が Preload ではありません: '{data.name}'({resolvedType})を同期 API から参照するなら Preload が必要です(非同期の代替経路 '{apiName}' を明示的に呼んでいるなら無視して構いません)。",
+                    code: "DD-ADDR-PRELOAD-RECOMMENDED");
+            }
         }
 
         private static void Fix(AssetDataBase data, string address)
