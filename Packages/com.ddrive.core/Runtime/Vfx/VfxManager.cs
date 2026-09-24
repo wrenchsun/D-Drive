@@ -395,9 +395,11 @@ namespace DDrive.Runtime.Vfx
         // ── Stop / Kill ──
 
         // FadeOutSec 分の放出停止待ちを経てから Pool へ返却する。
+        // [M-1c、2026-09-25] 冪等操作(既に停止済み/破棄済みの Handle での再呼び出しは no-op)なので
+        // TryGetQuiet で警告なしにガードする。
         public void Stop(Handle<VfxMarker> handle)
         {
-            if (!_instances.TryGet(handle, out var instance) || instance.Stopping)
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Stopping)
             {
                 return;
             }

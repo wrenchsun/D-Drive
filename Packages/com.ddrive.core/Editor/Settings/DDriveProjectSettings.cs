@@ -34,10 +34,17 @@ namespace DDrive.Editor.Settings
         public const string DefaultGeneratedRoot = "Assets/Generated";
         public const string DefaultSpecsRoot = "Specs";
 
+        // [M-1b、2026-09-25] ScenePreloadList のコード参照検出(ScenePreloadCodeReferenceScanner)が
+        // 走査するルート(プロジェクトルートからの相対パス)。既定は "Assets"(持ち込み先のゲームコードが
+        // どこにあっても拾えるように Assets 配下全体)。GeneratedRoot 配下(定数の定義ファイル自身)と
+        // Packages/ 配下は常に除外する([11_tasks.md] M-1b)。
+        public const string DefaultCodeScanRoot = "Assets";
+
         [SerializeField] private string _gameDataRoot = AssetCreationService.DefaultGameDataRoot;
         [SerializeField] private string _generatedRoot = DefaultGeneratedRoot;
         [SerializeField] private string _sourceAssetsRoot = ImportRuleService.DefaultSourceRoot;
         [SerializeField] private string _specsRoot = DefaultSpecsRoot;
+        [SerializeField] private string _codeScanRoot = DefaultCodeScanRoot;
 
         // [42_distribution.md] §4.5/§7 A-9(P-6、2026-09-20) — 「持ち込み先で D-Drive を改造している
         // 可能性」の Warning(ProjectSetupValidator)を出すための判定材料。開発リポジトリ(このリポジトリ)
@@ -134,6 +141,12 @@ namespace DDrive.Editor.Settings
         {
             get => string.IsNullOrEmpty(_specsRoot) ? DefaultSpecsRoot : _specsRoot;
             set => SetAndSave(ref _specsRoot, value);
+        }
+
+        public string CodeScanRoot
+        {
+            get => string.IsNullOrEmpty(_codeScanRoot) ? DefaultCodeScanRoot : _codeScanRoot;
+            set => SetAndSave(ref _codeScanRoot, value);
         }
 
         public bool IsDevelopmentRepo

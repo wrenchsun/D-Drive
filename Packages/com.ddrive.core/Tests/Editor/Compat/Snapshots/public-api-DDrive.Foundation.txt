@@ -282,6 +282,7 @@ TYPE class sealed DDrive.Foundation.Handle.InstanceStore<TMarker, TInstance>
   method IsValidSilent(Handle<TMarker> handle) : bool
   method Remove(Handle<TMarker> handle) : void
   method TryGet(Handle<TMarker> handle, out TInstance instance) : bool
+  method TryGetQuiet(Handle<TMarker> handle, out TInstance instance) : bool
   property InvalidAccessCount : int {get}
 TYPE class sealed DDrive.Foundation.Identity.AssetIdDefinitionAttribute : System.Attribute
   ctor AssetIdDefinitionAttribute(DDrive.Foundation.Identity.AssetType type, System.Type markerType, string constantsClassName)

@@ -19,6 +19,7 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual("Assets/Generated", DDriveProjectSettings.DefaultGeneratedRoot);
             Assert.AreEqual("Assets/SourceAssets", DDrive.Editor.Import.ImportRuleService.DefaultSourceRoot);
             Assert.AreEqual("Specs", DDriveProjectSettings.DefaultSpecsRoot);
+            Assert.AreEqual("Assets", DDriveProjectSettings.DefaultCodeScanRoot);
         }
 
         // [42_distribution.md] §4.3/§6 P-7(2026-09-20) — LastAppliedVersion/AppliedMigrationIds は

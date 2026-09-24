@@ -82,6 +82,14 @@ namespace DDrive.Runtime.Loop
         [Tooltip("Ngo モードのとき、画面左上にデバッグオーバーレイ(役割/接続状態/RTT/NetworkTime/受信数)を出す")]
         public bool ShowNetDebugOverlay = true;
 
+        // [M-1d、2026-09-25] ShowNetDebugOverlay=true のままリリースビルドしても、オーバーレイは
+        // 既定では出さない(Debug.isDebugBuild || Application.isEditor のときだけ生成する。
+        // NgoBridgeFactoryInstaller.Create 参照)。リリースビルドでもオーバーレイを出したい場合だけ
+        // これを true にする(MS2026 TeamNotes 2026-09-25「リリース前に ShowNetDebugOverlay を false に」の
+        // 本修正: 個別プロジェクトが値を管理しなくても既定でリリースには出ない)。
+        [Tooltip("リリースビルドでも(開発ビルド/エディタでなくても)ネットデバッグオーバーレイを出す(既定 OFF)")]
+        public bool ShowNetDebugOverlayInRelease = false;
+
         [Tooltip("カタログ ContentHash 照合(6-5)の待ち時間。この秒数内に相手のハッシュが届かなければタイムアウト扱い(不一致と同じ方針を適用する。[14_networking.md] §7)")]
         public double ContentHashTimeoutSeconds = 5d;
 
@@ -484,7 +492,7 @@ namespace DDrive.Runtime.Loop
 
             var host = LaunchOptions.Host ?? DefaultHostAddress;
             var port = (ushort)(LaunchOptions.Port ?? DefaultPort);
-            var result = factory.Create(new NgoBridgeCreateArgs(role, host, port, LaunchOptions, ShowNetDebugOverlay, transform));
+            var result = factory.Create(new NgoBridgeCreateArgs(role, host, port, LaunchOptions, ShowNetDebugOverlay, transform, ShowNetDebugOverlayInRelease));
 
             if (result?.Bridge == null)
             {

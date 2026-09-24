@@ -895,6 +895,7 @@ TYPE class sealed DDrive.Runtime.Loop.DDriveRuntimeBootstrap : UnityEngine.MonoB
   field KeepAcrossScenes : bool
   field LayerSettings : DDrive.Runtime.Ui.UiLayerSettings
   field ShowNetDebugOverlay : bool
+  field ShowNetDebugOverlayInRelease : bool
   field TuningTable : DDrive.Runtime.Tuning.TuningTable
   field const DefaultCatalogLabel : string
   method RegisterCatalogsAsync() : Cysharp.Threading.Tasks.UniTask
@@ -1388,12 +1389,14 @@ TYPE struct DDrive.Runtime.Net.NetPongMsg
   field OriginalSentAtNetworkTime : double
 TYPE struct DDrive.Runtime.Net.NgoBridgeCreateArgs
   ctor NgoBridgeCreateArgs(DDrive.Runtime.Net.NetLaunchRole role, string host, ushort port, DDrive.Runtime.Net.NetLaunchOptions launchOptions, bool showDebugOverlay, UnityEngine.Transform parentTransform)
+  ctor NgoBridgeCreateArgs(DDrive.Runtime.Net.NetLaunchRole role, string host, ushort port, DDrive.Runtime.Net.NetLaunchOptions launchOptions, bool showDebugOverlay, UnityEngine.Transform parentTransform, bool showDebugOverlayInRelease)
   field readonly Host : string
   field readonly LaunchOptions : DDrive.Runtime.Net.NetLaunchOptions
   field readonly ParentTransform : UnityEngine.Transform
   field readonly Port : ushort
   field readonly Role : DDrive.Runtime.Net.NetLaunchRole
   field readonly ShowDebugOverlay : bool
+  field readonly ShowDebugOverlayInRelease : bool
 TYPE class sealed DDrive.Runtime.Net.NgoBridgeCreateResult
   ctor NgoBridgeCreateResult()
   field AssignHashGate : System.Action<DDrive.Runtime.Net.CatalogContentHashGate>

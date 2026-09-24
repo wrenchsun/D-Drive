@@ -361,9 +361,10 @@ namespace DDrive.Runtime.Ui
         public bool IsPaused(Handle<UiTweenMarker> handle) => _instances.TryGet(handle, out var inst) && inst.Paused;
 
         // complete=true は最終状態(shape=1)へ即座に反映してから終了する。
+        // [M-1c、2026-09-25] 冪等操作なので TryGetQuiet で警告なしにガードする。
         public void Stop(Handle<UiTweenMarker> handle, bool complete = false)
         {
-            if (!_instances.TryGet(handle, out var inst))
+            if (!_instances.TryGetQuiet(handle, out var inst))
             {
                 return;
             }

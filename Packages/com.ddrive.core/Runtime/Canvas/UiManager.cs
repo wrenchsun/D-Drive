@@ -425,9 +425,12 @@ namespace DDrive.Runtime.Ui
 
         // ── Close ──
 
+        // [M-1c、2026-09-25] Close 系は「既に閉じている/破棄済みの Handle」で呼ばれても no-op になる
+        // 冪等操作なので、TryGet(警告あり)ではなく TryGetQuiet(警告なし)で存在確認する
+        // (二重呼び出しで実害の無い「Invalid handle access」警告が出るノイズを解消。TeamNotes 2026-09-25)。
         public void Close(Handle<CanvasMarker> handle)
         {
-            if (!_instances.TryGet(handle, out var instance) || instance.Closing)
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Closing)
             {
                 return;
             }
@@ -442,7 +445,7 @@ namespace DDrive.Runtime.Ui
 
         public async UniTask CloseAsync(Handle<CanvasMarker> handle)
         {
-            if (!_instances.TryGet(handle, out var instance) || instance.Closing)
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Closing)
             {
                 return;
             }
@@ -460,7 +463,7 @@ namespace DDrive.Runtime.Ui
             for (var i = _stack.Count - 1; i >= 0; i--)
             {
                 var handle = _stack[i];
-                if (!_instances.TryGet(handle, out var instance) || instance.Closing)
+                if (!_instances.TryGetQuiet(handle, out var instance) || instance.Closing)
                 {
                     continue;
                 }
@@ -482,7 +485,7 @@ namespace DDrive.Runtime.Ui
             for (var i = _stack.Count - 1; i >= 0; i--)
             {
                 var handle = _stack[i];
-                if (!_instances.TryGet(handle, out var instance) || instance.Closing || !instance.Data.CloseOnBack)
+                if (!_instances.TryGetQuiet(handle, out var instance) || instance.Closing || !instance.Data.CloseOnBack)
                 {
                     continue;
                 }
@@ -577,7 +580,10 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            if (!_instances.TryGet(handle, out _))
+            // [M-1c、2026-09-25] 冪等操作(既に FinalizeClose 済みの再呼び出しは no-op)なので
+            // TryGetQuiet で警告なしにガードする(StartTransition 同期完了時の後始末で実際に毎回通る経路。
+            // TeamNotes 2026-09-25「Invalid handle access」参照)。
+            if (!_instances.TryGetQuiet(handle, out _))
             {
                 return; // 既に FinalizeClose 済み(二重呼び出しガード)
             }

@@ -900,6 +900,18 @@ disabled になること、`DisplayName` 等の通常フィールドは有効な
 - **Preload の粒度は「Data(.asset)そのもの」まで**: Data が内部で持つ AudioClip/Texture/Prefab 等のサブアセットを個別に先読みする API は無い(Addressables が Data の依存関係として同じ/依存バンドルに含めてロードする前提)。極端に重いサブアセットを持つ Data がある場合、体感のロード時間短縮効果が薄い可能性がある(要実測)
 - **`PreloadIdsAsync` で確保した参照カウントの解放漏れリスク**: `ScenePreload.Release` を呼び忘れる(例: `SceneLoadingScreen` を使わず `RunAsync` だけ直接呼ぶ)と `IAssetLoader` 内の参照が張られたままになる。`SceneLoadingScreen.OnDisable` では解放するが、他の呼び出し経路を追加する場合は対で `Release` を呼ぶ運用を徹底する必要がある
 
+### 実装メモ(2026-09-25、M-1b: コード参照の集計)
+
+`ScenePreloadAggregator` はシーン/Prefab の参照グラフからしか集計できないため、ゲームコードが生成 ID 定数(`SEID.PlayerSlash` 等)を直接呼ぶだけで、シーン/Prefab に一切参照が無い ID を見逃していた(TeamNotes 2026-09-25「ScenePreloadList が ID 直呼びを拾えない」。MS2026 の実機不具合の一因)。
+
+- **`AssetIdGenerator.CollectConstantEntries(includeTestAssemblies)`**(新設、`Editor/Codegen/AssetIdGenerator.cs`): `Regenerate()` が `AssetIds.g.cs` を書き出すのと同じ規則(ファイル名 → `ToConstantName`)でプロジェクト全体の「定数名(`SEID.PlayerSlash` 等) → (AssetType, Id, AssetPath)」を作る。定数名の生成ロジックを二重に持たないための共用化
+- **`CodeReferenceScan.ScanFiles(roots, exclude)`**(`Editor/Dependencies/CodeReferenceScan.cs` に追加): 5-6 の「安全な削除」チェックが持っていたファイル列挙 + 更新時刻キャッシュのエンジンを、呼び出し側がルート・除外条件を指定できる汎用版として公開した(キャッシュは共有)。5-6 側の `DDriveCodeScanRoots`(Packages 配下の D-Drive 自身も含む)とは異なり、M-1b は Packages を対象外にしたいため、既存の `FindPossibleReferences` 等とは別にルートを組み立てる
+- **`ScenePreloadCodeReferenceScanner`**(新設、`Editor/Preload/`): `CountReferences(constantReferences, fileTexts)` が判定の核(IO を持たない純関数。単語境界チェックにより `SEID.PlayerSlash` が `SEID.PlayerSlashHeavy` 等に誤って部分一致しないようにしている)。`ScanProject()` が実際の IO(`DDriveProjectSettings.CodeScanRoot`、既定 `"Assets"`)を行い、`GeneratedRoot` 配下(定数の定義ファイル自身)と `Packages/` 配下を除外して `List<PreloadEntry>` を返す
+- **`DDriveProjectSettings.CodeScanRoot`**(新設): コード参照走査のルート(プロジェクトルートからの相対パス、既定 `"Assets"`)。持ち込み先がゲームコードを別フォルダに置いていても設定で追従できる
+- **`ScenePreloadGenerator.GenerateForScene`/`GenerateForAllBuildScenes`** に `includeCodeReferences`(既定 `true`)を追加した。プロジェクト全体の走査結果なのでシーンごとに変わらず、`GenerateForAllBuildScenes` は 1 回だけ走査してシーン数ぶん使い回す。依存グラフに無かった ID が追加されたときは `[DDrive] Preload リスト: コード参照(N 件、依存グラフに無かった ID)を追加集計しました。` をログに出す(専用ウィンドウが無いため、内訳の見える化はログで代替)
+- **判定方針**: 部分一致(コメント・文字列リテラル内も含む)で誤検知の余地はあるが、見逃し(Preload されないまま Placeholder になる)より安全側に倒す。逆に、定数を変数に代入して間接的に使う・reflection 経由で組み立てる等は静的なテキスト走査の限界として見逃す
+- テスト: `Tests/Editor/ScenePreloadCodeReferenceScannerTests.cs`(`CountReferences` の境界条件を EditMode で直接検証)
+
 ## 11. 各専用エディタ共通の「検証」セクション（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-13）
 
 **専用エディタを持つ Data 種別には、すべて同じ「検証」セクション（`DataValidationSection`）を出す。**

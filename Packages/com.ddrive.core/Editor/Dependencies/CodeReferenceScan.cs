@@ -176,6 +176,44 @@ namespace DDrive.Editor.Dependencies
             return result;
         }
 
+        // [M-1b、2026-09-25] ScenePreloadList のコード参照検出(Editor/Preload/ScenePreloadCodeReferenceScanner)
+        // と走査エンジン(ファイル列挙 + 更新時刻キャッシュ)を共有するための汎用版。FindPossibleReferences 等は
+        // 「1 パターンを DDriveCodeScanRoots(Packages 含む)で探す」専用だが、こちらは呼び出し側がルート・
+        // 除外条件を指定できる(ScenePreloadList 側は Packages を対象外にしたいため、DDriveCodeScanRoots を
+        // そのまま使えない。[11_tasks.md] M-1b 参照)。キャッシュ(FileCache)は共有する。
+        public static IReadOnlyList<(string RelativePath, string Text)> ScanFiles(
+            IEnumerable<string> rootAbsolutePaths, Func<string, bool> excludeAbsolutePath = null)
+        {
+            var result = new List<(string, string)>();
+            var dataPath = Application.dataPath.Replace('\\', '/');
+
+            foreach (var rootPath in rootAbsolutePaths)
+            {
+                if (string.IsNullOrEmpty(rootPath) || !Directory.Exists(rootPath))
+                {
+                    continue;
+                }
+
+                foreach (var file in Directory.GetFiles(rootPath, "*.cs", SearchOption.AllDirectories))
+                {
+                    var normalized = file.Replace('\\', '/');
+                    if (excludeAbsolutePath != null && excludeAbsolutePath(normalized))
+                    {
+                        continue;
+                    }
+
+                    if (!TryReadCached(normalized, out var text))
+                    {
+                        continue; // 読めないファイルはスキップ(CLAUDE.md §0-4)
+                    }
+
+                    result.Add((ToRelativeDisplayPath(normalized, dataPath), text));
+                }
+            }
+
+            return result;
+        }
+
         // "Assets/..." 表示に変換する。D-Drive 自身がパッケージ化(P-5)された後は Packages/com.ddrive.core/...
         // のように Application.dataPath の外を指すことがあるため、その場合は絶対パスのまま返す
         // (確認ダイアログの文言用途なので、クリックしてエディタで開く動作までは要求しない)。

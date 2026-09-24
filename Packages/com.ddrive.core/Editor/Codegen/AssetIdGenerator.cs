@@ -50,6 +50,52 @@ namespace DDrive.Editor.Codegen
             public string ConstantsClassName;
         }
 
+        // [M-1b、2026-09-25] ScenePreloadList の「コード参照」検出(Editor/Preload/
+        // ScenePreloadCodeReferenceScanner)が、生成された定数(SEID.PlayerSlash 等)をコードが直接呼んでいるかを
+        // 判定するために使う 1 件分の情報。Regenerate() が AssetIds.g.cs へ書き出すのと同じ規則(ファイル名 →
+        // ToConstantName)で組み立てるため、定数名の生成ロジックを二重に持たない。
+        public readonly struct ConstantEntry
+        {
+            public readonly AssetType Type;
+            public readonly ulong Id;
+            public readonly string ConstantReference; // 例: "SEID.PlayerSlash"
+            public readonly string AssetPath;
+
+            public ConstantEntry(AssetType type, ulong id, string constantReference, string assetPath)
+            {
+                Type = type;
+                Id = id;
+                ConstantReference = constantReference;
+                AssetPath = assetPath;
+            }
+        }
+
+        // Id が未発行(0)のアセットは対象外(Regenerate 未実行 = まだコードから安定して参照できない)。
+        // includeTestAssemblies は Regenerate と同じ意味(通常はテスト用 Data 型を含めない)。
+        public static List<ConstantEntry> CollectConstantEntries(bool includeTestAssemblies = false)
+        {
+            var result = new List<ConstantEntry>();
+
+            foreach (var def in FindDefinitions(includeTestAssemblies))
+            {
+                var guids = AssetSearch.FindAssets("t:" + def.DataType.Name);
+                foreach (var guid in guids)
+                {
+                    var path = AssetDatabase.GUIDToAssetPath(guid);
+                    var asset = AssetDatabase.LoadAssetAtPath(path, def.DataType) as AssetDataBase;
+                    if (asset == null || asset.GetType() != def.DataType || asset.Id == 0)
+                    {
+                        continue;
+                    }
+
+                    var constName = ToConstantName(Path.GetFileNameWithoutExtension(path));
+                    result.Add(new ConstantEntry(def.AssetType, asset.Id, $"{def.ConstantsClassName}.{constName}", path));
+                }
+            }
+
+            return result;
+        }
+
         [MenuItem(DDriveMenu.Generate + "Regenerate Asset IDs")]
         public static void RegenerateMenuItem()
         {

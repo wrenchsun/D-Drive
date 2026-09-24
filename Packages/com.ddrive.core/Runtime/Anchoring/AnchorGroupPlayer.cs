@@ -145,9 +145,10 @@ namespace DDrive.Runtime.Anchoring
             return false;
         }
 
+        // [M-1c、2026-09-25] 冪等操作なので TryGetQuiet で警告なしにガードする。
         public void Stop(Handle<AnchorGroupMarker> handle)
         {
-            if (!_instances.TryGet(handle, out var instance))
+            if (!_instances.TryGetQuiet(handle, out var instance))
             {
                 return;
             }

@@ -31,7 +31,18 @@ namespace DDrive.Editor.Preload
                 : requested;
 
         // 指定シーン 1 つ分の ScenePreloadList を集計・保存する(無ければ新規作成、あれば上書き)。
-        public static ScenePreloadList GenerateForScene(string scenePath, string outputRoot = DefaultOutputRoot)
+        // includeCodeReferences: [M-1b、2026-09-25] true(既定)なら、依存グラフに加えて
+        // ScenePreloadCodeReferenceScanner(生成 ID 定数をコードが直接呼んでいるかの走査)の結果も
+        // マージする(シーン固有ではなくプロジェクト全体の走査結果なので、どのシーンの集計でも同じ結果が
+        // 加わる。「参照されているのに Preload されない」事故を防ぐため、コード参照は安全側に倒して
+        // 全シーンに追加する)。既存の呼び出し元(グラフ集計だけを検証したいテスト等)は false を渡せる。
+        public static ScenePreloadList GenerateForScene(string scenePath, string outputRoot = DefaultOutputRoot, bool includeCodeReferences = true)
+            => GenerateForSceneInternal(scenePath, outputRoot,
+                includeCodeReferences ? ScenePreloadCodeReferenceScanner.ScanProject() : (ScenePreloadCodeReferenceScanner.ScanReport?)null);
+
+        // [M-1b、2026-09-25] コード参照走査(プロジェクト全体が対象でシーンごとに変わらない)を
+        // GenerateForAllBuildScenes からは 1 回だけ実行して使い回すための内部版。
+        private static ScenePreloadList GenerateForSceneInternal(string scenePath, string outputRoot, ScenePreloadCodeReferenceScanner.ScanReport? codeReferenceReport)
         {
             outputRoot = ResolveOutputRoot(outputRoot);
 
@@ -41,6 +52,12 @@ namespace DDrive.Editor.Preload
             }
 
             var entries = ScenePreloadAggregator.Aggregate(scenePath);
+
+            if (codeReferenceReport.HasValue)
+            {
+                entries = MergeCodeReferences(entries, codeReferenceReport.Value);
+            }
+
             var sceneName = Path.GetFileNameWithoutExtension(scenePath);
             var assetPath = $"{outputRoot}/{sceneName}_PreloadList.asset";
 
@@ -63,10 +80,16 @@ namespace DDrive.Editor.Preload
         }
 
         // Build Settings に登録済み(かつ有効)な全シーン分を一括更新する(ビルド前フック / 一括メニュー用)。
-        public static List<ScenePreloadList> GenerateForAllBuildScenes(string outputRoot = DefaultOutputRoot)
+        public static List<ScenePreloadList> GenerateForAllBuildScenes(string outputRoot = DefaultOutputRoot, bool includeCodeReferences = true)
         {
             outputRoot = ResolveOutputRoot(outputRoot);
             WarnIfGraphNotBuilt();
+
+            // コード参照走査はプロジェクト全体が対象でシーンごとに結果が変わらないため、
+            // シーン数ぶん繰り返さずここで 1 回だけ実行する([M-1b] 2026-09-25)。
+            var codeReferenceReport = includeCodeReferences
+                ? ScenePreloadCodeReferenceScanner.ScanProject()
+                : (ScenePreloadCodeReferenceScanner.ScanReport?)null;
 
             var result = new List<ScenePreloadList>();
             foreach (var scene in EditorBuildSettings.scenes)
@@ -76,7 +99,7 @@ namespace DDrive.Editor.Preload
                     continue;
                 }
 
-                var list = GenerateForScene(scene.path, outputRoot);
+                var list = GenerateForSceneInternal(scene.path, outputRoot, codeReferenceReport);
                 if (list != null)
                 {
                     result.Add(list);
@@ -84,6 +107,45 @@ namespace DDrive.Editor.Preload
             }
 
             return result;
+        }
+
+        // [M-1b、2026-09-25] 依存グラフの集計結果に、コード参照(生成 ID 定数の直接呼び出し)由来の
+        // エントリを ID 重複無しでマージする。グラフ側に既に含まれる ID はそのまま(DisplayName 等を
+        // 上書きしない)。追加された件数はコンソールに「コード参照(N 件)」として出す
+        // (専用ウィンドウが無いため、既存の Debug.Log をそのまま「見える化」の手段にする)。
+        private static List<PreloadEntry> MergeCodeReferences(List<PreloadEntry> graphEntries, ScenePreloadCodeReferenceScanner.ScanReport report)
+        {
+            if (report.Entries.Count == 0)
+            {
+                return graphEntries;
+            }
+
+            var merged = new Dictionary<ulong, PreloadEntry>();
+            foreach (var entry in graphEntries)
+            {
+                merged[entry.Id] = entry;
+            }
+
+            var addedFromCode = 0;
+            foreach (var entry in report.Entries)
+            {
+                if (merged.ContainsKey(entry.Id))
+                {
+                    continue;
+                }
+
+                merged[entry.Id] = entry;
+                addedFromCode++;
+            }
+
+            if (addedFromCode > 0)
+            {
+                Debug.Log($"[DDrive] Preload リスト: コード参照({addedFromCode} 件、依存グラフに無かった ID)を追加集計しました。");
+            }
+
+            var list = new List<PreloadEntry>(merged.Values);
+            list.Sort((a, b) => a.Id.CompareTo(b.Id));
+            return list;
         }
 
         [MenuItem(DDriveMenu.Generate + "Preload リストを再集計(現在のシーン)")]
