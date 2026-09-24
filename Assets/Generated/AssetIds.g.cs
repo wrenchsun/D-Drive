@@ -40,6 +40,15 @@ namespace DDrive.Generated
         public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMatWear03 = new(0x33C4284C79C7A3CBUL, AssetType.Material);
         public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXMtlHairline = new(0x18A471B11DC81BB9UL, AssetType.Material);
         public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> FBXShizukuBlendShapeMatBody01 = new(0xCFDEAD81A6E5DF87UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsBody = new(0x36B60D710DE45F86UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsEyeL1 = new(0x1BE67E2177ACF2FCUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsEyeR1 = new(0xDC5204FFF21F2881UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsEyebase = new(0xC5765F019C1C833AUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsEyeline = new(0x1C252802F5393035UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsFace = new(0xAB984DA7634E90ABUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsHair = new(0x2506CF5EB4B76274UL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsMatCheek = new(0x774AB04CB556A55BUL, AssetType.Material);
+        public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> MaterialsSkin1 = new(0xE3D95440CD386D3AUL, AssetType.Material);
         public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> TestMaterial = new(0x99CFC63ADF9690D5UL, AssetType.Material);
         public static readonly AssetId<DDrive.Runtime.Material.MaterialMarker> TestTestUnlit = new(0xC99CF9E25C481ABAUL, AssetType.Material);
     }
@@ -57,6 +66,15 @@ namespace DDrive.Generated
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear03D = new(0xC5801C4D7ACC2653UL, AssetType.Texture);
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> FBXWear03N = new(0xC0E0194AC75452EFUL, AssetType.Texture);
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> JamHouse = new(0x871FDB26A93D923BUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsBody01NRM = new(0x936F8B352D497D71UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsCheek00 = new(0xFB846910E2D2C5C3UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsEyeIrisL00 = new(0xDB4193ED6FA9E446UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsEyeIrisR00 = new(0x5A03C58EED1D339BUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsEyeline00 = new(0x82990841DAD26C29UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsFace00 = new(0xD27CED0647DF7761UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsHair01 = new(0x47FA5F62A212AB2FUL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsHair01NRM = new(0x92270E76B4299027UL, AssetType.Texture);
+        public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> MaterialsSkin01 = new(0x5B156F9AFCC585A5UL, AssetType.Texture);
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> TestTexture = new(0x60F4B3A28C81F893UL, AssetType.Texture);
         public static readonly AssetId<DDrive.Runtime.Material.TextureMarker> Tex20240822124521 = new(0x2B50B82E4DFC8D91UL, AssetType.Texture);
     }
@@ -64,6 +82,11 @@ namespace DDrive.Generated
     public static class HAPTICID
     {
         public static readonly AssetId<DDrive.Runtime.Haptics.HapticMarker> DemoDemoHitPunch = new(0x1A64C878414504A6UL, AssetType.Haptics);
+    }
+
+    public static class CUTID
+    {
+        public static readonly AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> TestCutscene = new(0x46FDF1A4BFDA1A3AUL, AssetType.Cutscene);
     }
 
     public static class CANVASID
