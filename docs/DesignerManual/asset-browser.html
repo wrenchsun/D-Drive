@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Asset Browser の使い方</nav>
 
 <h1>Asset Browser の使い方</h1>
-<p class="lastupdate">最終更新日: 2026-09-19</p>
+<p class="lastupdate">最終更新日: 2026-09-25</p>
 
 <p>Asset Browser は D-Drive の<strong>入口になるウィンドウ</strong>です。登録済みの素材（<span class="term" title="ゲームで使う音・エフェクトなどの素材データのこと">アセット</span>）を一覧で見たり、検索したり、新しく登録したりできます。</p>
 
@@ -315,7 +315,7 @@ A → B → A のように<strong>ぐるっと参照が輪になっている（�
 <h2>読み込みを速くする（Preload リスト、2026-09-14 追加）</h2>
 <p>シーンを開いたとき、そのシーンで使う音・エフェクトなどを<strong>先読み（Preload）</strong>しておくと、実際に鳴らす・出す瞬間の一瞬の遅れが減ります。これはプログラマー / レベル担当が行う作業ですが、デザイナーが意識しておくとよい点をまとめます。</p>
 <ul>
-<li>シーンで使う ID の一覧（<code>ScenePreloadList</code>、<code>Assets/GameData/Preload/</code>）は、<code>Tools &gt; D-Drive &gt; Generate &gt; Preload リストを再集計(現在のシーン)</code>（または「ビルド設定の全シーン」）で<strong>自動的に集計</strong>されます。デザイナーが手で ID を書き足すことはありません</li>
+<li>シーンで使う ID の一覧（<code>ScenePreloadList</code>、<code>Assets/GameData/Preload/</code>）は、<code>Tools &gt; D-Drive &gt; Generate &gt; Preload リストを再集計(現在のシーン)</code>（または「ビルド設定の全シーン」）で<strong>自動的に集計</strong>されます。デザイナーが手で ID を書き足すことはありません。シーン・Prefab に置かれた参照だけでなく、<strong>プログラマーのコードが ID を直接使っている場合もあわせて集計</strong>されます</li>
 <li><strong>新しく Anchor・SeEmitter・配置セットなどをシーンに置いた（新しい ID 参照を増やした）ときは、誰かがこの再集計メニューを実行し直す必要があります。</strong>置いただけでは古いシーンの Preload リストには反映されません（保存時に自動では再集計されない設計です）</li>
 <li>ビルド時には自動で全シーン分が再集計されるため、通常のビルドでは意識しなくても最新の状態になります。エディタで確認しているときに「ロードが速くならない」と感じたら、上記メニューを実行し忘れていないかを確認してください</li>
 <li>ロード画面（進捗バー）はまだ確認用の最小実装（<code>SceneLoadingScreen</code>）です。デザイナー向けの本格的な Canvas ベースのロード画面は今後の別チケットで用意される予定です</li>

@@ -16,7 +16,9 @@ MonoBehaviour:
   _generatedRoot: Assets/Generated
   _sourceAssetsRoot: Assets/SourceAssets
   _specsRoot: Specs
+  _codeScanRoot: Assets
   _isDevelopmentRepo: 1
   _emitGeneratedAsmdef: 0
   _lastAppliedVersion: 
   _appliedMigrationIds: []
+  _previousPackageRef: 
