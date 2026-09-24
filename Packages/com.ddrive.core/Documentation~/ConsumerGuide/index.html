@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>D-Drive 持ち込み先ガイド（持ち込み先向け）</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>D-Drive 持ち込み先ガイド（持ち込み先向け）</h1>
+<p class="lastupdate">最終更新日: 2026-09-20</p>
+
+<p>このガイドは、<strong>D-Drive（<code>com.ddrive.core</code>）を UPM パッケージとして導入したプロジェクト（MS2026 等）で初めて D-Drive に触れるプログラマー</strong>向けに、「導入手順」「更新方法」「運用方法」を 1 ページずつに分けたものです。D-Drive というシステム自体の仕組み（Data/Instance/Handle、Presentation 等）や、Unity 上でのアセットの作り方は扱いません。それらは <a href="../ProgrammerManual/Readme.html">プログラマーマニュアル</a>・<a href="../DesignerManual/Readme.html">デザイナーマニュアル</a>を参照してください。</p>
+
+<div class="tip">
+<strong>読み分け:</strong> 「D-Drive というパッケージをどう入れる・上げる・保守するか」を知りたいときは本ガイド。「D-Drive の API をどう呼ぶか」「専用エディタのボタンは何をするか」を知りたいときはプログラマー/デザイナーマニュアルを使ってください。
+</div>
+
+<h2>ページ一覧</h2>
+<ul class="pagelinks">
+<li><a href="install.html">導入手順</a>
+<p>依存パッケージの確認、<code>manifest.json</code> への追加、セットアップウィザードの実行、SE を 1 件登録して Play Mode で確認するまで。<strong>初めての人はこちらから。</strong></p></li>
+<li><a href="update.html">更新方法</a>
+<p>更新チェック → <code>manifest.json</code> の版上げ → 更新を適用 → Validation の順で進める手順、ロールバック、MAJOR 更新時の移行ガイドの読み方。</p></li>
+<li><a href="operation.html">運用方法</a>
+<p>日常の Validation、ID/調整値の再生成、Addressables 同期、CI テンプレの組み込み、命名規則との付き合い方、テストの有効化、AI エージェント向けスキル、困ったときの見方。</p></li>
+</ul>
+
+<h2>まず読む順番</h2>
+<ol>
+<li><a href="install.html">導入手順</a> — 初めてこのプロジェクトに D-Drive を入れるとき</li>
+<li><a href="operation.html">運用方法</a> — 導入が終わり、日々の開発で D-Drive を使い始めるとき</li>
+<li><a href="update.html">更新方法</a> — D-Drive の新しい版が出たとき（都度参照でよい）</li>
+</ol>
+
+<h2>関連ドキュメント</h2>
+<table>
+<tr><th>知りたいこと</th><th>参照先</th></tr>
+<tr><td>導入 5 ステップ・依存表・既知の制約（パッケージ同梱の一次情報）</td><td><code>Packages/com.ddrive.core/README.md</code></td></tr>
+<tr><td>AI エージェント（Claude Code 等）に作業を頼むときの規約</td><td><code>Documentation~/AGENTS_CONSUMER.md</code></td></tr>
+<tr><td>Claude Code 向けのより詳しい消費側手順・よくある警告</td><td><code>Documentation~/skills/ddrive-consumer/SKILL.md</code></td></tr>
+<tr><td>D-Drive の API・コード例</td><td><a href="../ProgrammerManual/Readme.html">プログラマーマニュアル</a></td></tr>
+<tr><td>Asset Browser・専用エディタの操作手順</td><td><a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></td></tr>
+<tr><td>配布・更新・互換性ポリシーの設計根拠（開発リポジトリ）</td><td>開発リポジトリ <code>docs/42_distribution.md</code></td></tr>
+</table>
+
+<footer>D-Drive 持ち込み先ガイド | <a href="index.html">目次</a> | <a href="../ProgrammerManual/Readme.html">プログラマーマニュアル</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

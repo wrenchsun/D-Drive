@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>運用方法 | D-Drive 持ち込み先ガイド</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="index.html">🏠 目次</a> › 運用方法</nav>
+
+<h1>運用方法</h1>
+<p class="lastupdate">最終更新日: 2026-09-20</p>
+
+<p>導入（<a href="install.html">導入手順</a>）が終わったあと、このプロジェクトで D-Drive を日常的に使い続けるための運用ノウハウです。所要時間の目安は 10 分。</p>
+
+<h2>1. 日常の Validation &gt; Run All</h2>
+<p><code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code>（CI からは <code>-executeMethod DDrive.Editor.CI.ValidateAll</code>）が Data・カタログ・Addressables 登録・ProjectSettings 等をまとめて検査します。</p>
+<ul>
+<li><strong>Error（赤）</strong>: 実行時に Placeholder になる・コンパイルが壊れる等、実害のある問題。CI ではこれを fail 条件にする</li>
+<li><strong>Warning（黄）</strong>: すぐには困らないが直したほうがよい項目。<code>DD-SETUP-</code> で始まる警告はセットアップウィザードの該当ステップを開くと直せる</li>
+</ul>
+<p>D-Drive の更新直後は新しい Warning が増えることがあります（仕様変更の周知が目的）。Error は更新直後には増えない設計（2 段階ルール）なので、更新した直後に Error が増えた場合はまず「<a href="update.html">更新手順</a>を最後まで終えたか」を確認してください。</p>
+
+<h2>2. ID・調整値の再生成</h2>
+<p><code>Assets/Generated/</code>（または <code>DDrive.Generated.asmdef</code> を出力する設定を選んだ場合はそのフォルダ）にある <code>AssetIds.g.cs</code>・<code>Tuning.g.cs</code> は<strong>生成物</strong>です。手で編集しないでください。</p>
+<ul>
+<li><code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code>: アセットを新規作成・削除したあとや、生成定数が古いと感じたときに実行する</li>
+<li><code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Tuning Keys</code>: 調整値（Tuning）のキー一覧を作り直す</li>
+</ul>
+<p>ID 定数（<code>SEID.X</code> 等）が未登録の状態で <code>Play</code>/<code>Spawn</code> しても例外にはならず、警告ログ + Placeholder（無音・代役の見た目）で処理が継続します。デザイナー側の作業が未完了なだけの可能性が高いので、慌てて実装を変える必要はありません。</p>
+
+<h2>3. Addressables 同期</h2>
+<p>新しい種別のアセットを初めて作ったときや、カタログを作った直後は Addressables への登録が必要です。</p>
+<ul>
+<li><code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code> の「Addressables 登録を同期」</li>
+<li>またはセットアップウィザード「5. Addressables 同期」の「全カタログ・Data を今すぐ同期する」ボタン（同じ処理）</li>
+</ul>
+<p>Asset Browser 経由でアセットを作成した場合は、作成時に自動で登録されます。まとめて同期が必要になるのは、空カタログを作っただけの状態や、Addressables を初期化し直した直後です。</p>
+
+<h2>4. CI テンプレの組み込み</h2>
+<p>このプロジェクトの CI に D-Drive の互換性・品質チェックを組み込みたい場合は、パッケージの <code>Tools~/CI/</code>（Unity から見えない配布用フォルダ）にあるテンプレートを使います。</p>
+<ol>
+<li><code>Tools~/CI/run-ddrive-ci.cmd</code> を、このプロジェクトの <code>Tools/CI/</code>（無ければ好きな場所）へコピーする</li>
+<li><code>Tools~/CI/ddrive-ci.yml</code> を、このプロジェクトの <code>.github/workflows/</code> へコピーする</li>
+<li><code>runs-on</code> のラベル・Unity Editor のパス等を、このプロジェクトの runner 構成に合わせて書き換える</li>
+</ol>
+<p>実行される内容は、<code>run-ddrive-ci.cmd</code>/<code>ddrive-ci.yml</code> のどちらも次の 4 段を順に実行し、途中で失敗したら止まります。</p>
+<ol>
+<li><code>DDrive.Editor.CI.MigrateCheck</code> — 未適用のデータマイグレーションが無いか</li>
+<li><code>DDrive.Editor.CI.ValidateAll</code> — Validation の Error が無いか</li>
+<li><code>DDrive.Editor.CI.RegenerateIds</code> + <code>git diff --exit-code</code> — ID/調整値の生成コードに未コミットの差分が出ないか</li>
+<li>EditMode / PlayMode テスト（このプロジェクトの Test Runner に登録されているテストを実行する。D-Drive 自身のテストも含めたい場合は下記「テストの有効化」を ON にする）</li>
+</ol>
+<div class="tip">
+<strong>既存の Unity 用 CI が無いプロジェクトの場合</strong>: <code>ddrive-ci.yml</code> は既存のワークフローに手を加えて差し込むのではなく、<strong>新しいワークフローとして追加</strong>してください。self-hosted runner を使う場合はラベルで指定し（他プロジェクトの runner に誤って割り当てない）、<code>push</code> のトリガーは <code>Assets/**</code>・<code>Packages/**</code>・<code>ProjectSettings/**</code> にパスを絞ってドキュメントだけの変更では動かさないようにします。CHANGELOG ガード・Performance テスト・NetCheck（複数クライアント自動テスト）は D-Drive の開発リポジトリ専用の検査のため、このテンプレートには含まれていません。
+</div>
+
+<h2>5. 命名規則との付き合い方</h2>
+<h3>Addressables の既定名リネーム</h3>
+<p>Unity Addressables が自動生成するグループ・スキーマ名（<code>Default Local Group</code>・<code>Packed Assets</code> 等）には既定でスペースが含まれます。プロジェクトの CI/Hygiene チェックが「ファイル名にスペースを含めない」規約を持つ場合、これに抵触することがあります。セットアップウィザード「5. Addressables 同期」の「スペースを含む既定アセット名をリネーム」ボタン、または <code>ProjectSetupValidator</code> の Warning（<code>DD-SETUP-ADDR-NAME-SPACE</code>）の修正アクションで解消できます（新規初期化直後は自動でリネームされます。既存プロジェクトで人が付けた名前は勝手に変更しません）。</p>
+<h3>D-Drive が管理するデータの置き場所</h3>
+<p><code>Assets/GameData/</code>・<code>Assets/Generated/</code>・<code>Assets/SourceAssets/</code>（または導入時に選んだ置き場所プリセットの下）は D-Drive のツールが管理する領域です。人が手でファイルを移動・リネームしないでください（ID は GUID 由来で不変ですが、ツールの命名規約・カタログ整合性が崩れます）。「<code>Assets</code> 直下に新規フォルダを作らない」規約があるプロジェクトは、導入時にセットアップウィザードの「置き場所」で「1 つの親フォルダ配下にまとめる」を選んでいるはずです（未選択の場合は再度ウィザードの「3. 置き場所」から変更できます）。</p>
+
+<h2 id="tests">6. テストの有効化</h2>
+<p>D-Drive 自身が持つテスト（EditMode/PlayMode）を、このプロジェクトの Test Runner で実行できるようにするかどうかの設定です。既定は <strong>OFF</strong>（実行できない状態）で、通常のゲーム開発では ON にする必要はありません。プロジェクトの CI に D-Drive の自動テストも含めたい場合にだけ ON にします。</p>
+<ul>
+<li>ON にする: セットアップウィザードまたは更新ウィンドウの「テストを有効化する」。内部で <code>manifest.json</code> の <code>testables</code> に <code>com.ddrive.core</code> が追加される</li>
+<li>OFF に戻す: 同じ項目をもう一度操作する</li>
+</ul>
+
+<h2>7. AI エージェント向けスキル</h2>
+<p>Claude Code 等の AI エージェントに D-Drive まわりの作業を頼む場合は、次の 2 つを参照させてください。</p>
+<ul>
+<li><code>Documentation~/AGENTS_CONSUMER.md</code>: 禁止事項（Data のテキスト編集禁止・禁止 API・パッケージ改造禁止 等）と作業規約</li>
+<li><code>Documentation~/skills/ddrive-consumer/SKILL.md</code>: ID 経由の利用パターン・アセットの作り方・Validation の読み方・更新手順・Presentation/Cutscene の使い分け</li>
+</ul>
+<p>セットアップウィザード・更新ウィンドウの「エージェント向けスキルを更新」ボタンで、このプロジェクトの <code>.claude/skills/ddrive-consumer/</code> へ最新版がコピーされます。</p>
+
+<h2>8. 困ったときの見方</h2>
+<ol>
+<li>まず <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> を実行し、表示される Error/Warning の説明文に従う</li>
+<li>典型的な症状と対処は下表を参照する</li>
+<li>それでも解決しない場合は、開発リポジトリ（<code>github.com/wrenchsun/D-Drive</code>）へ Issue を立てるか、<code>CHANGELOG.md</code> の該当版の記述を確認する</li>
+</ol>
+
+<h3>よくある症状と対処</h3>
+<table>
+<tr><th>症状</th><th>典型的な原因</th><th>対処</th></tr>
+<tr><td><code>カタログ未登録: '...'(ID 0x...)がどのカタログにもありません</code>（Error）</td><td>Asset Browser 以外の方法でアセットを作成した</td><td>Asset Browser 経由で作り直すか、<code>Regenerate Asset IDs</code> を実行してカタログ登録を揃える</td></tr>
+<tr><td><code>Addressables 未登録: '...' がグループに入っていません</code>（Error）</td><td>Addressables への同期を実行していない</td><td>上記「3. Addressables 同期」を実行する</td></tr>
+<tr><td><code>Flags.Load が Preload ではありません</code>（Error）</td><td>同期解決 API（Audio・Vfx・Anim・Presentation 等）の Data で <code>Load</code> が <code>Preload</code> 以外</td><td>対象 Data の Inspector で <code>Flags.Load</code> を <code>Preload</code> に変更する</td></tr>
+<tr><td>禁止 API の検出（<code>ForbiddenApiScanner</code>）</td><td>ゲームコードで <code>Instantiate</code>/<code>Resources.Load</code>/<code>AudioSource.Play</code> を直接呼んでいる</td><td>D-Drive の静的ファサード（<code>Prefabs</code>/<code>Audio</code> 等）経由に置き換える</td></tr>
+<tr><td><code>DD-SETUP-*</code>（Warning）</td><td>依存パッケージ・ProjectSettings・置き場所等の不足</td><td>セットアップウィザードの該当ステップの「直す」を実行する</td></tr>
+<tr><td><code>DD-SETUP-UPDATE-PENDING</code>（Warning）</td><td>更新がまだ適用されていない</td><td><a href="update.html">更新方法</a>の「更新を適用」を実行する</td></tr>
+<tr><td><code>DD-SCHEMA-OUTDATED</code>（Warning）</td><td>Data の形式が古い</td><td>更新ウィンドウの「更新を適用」がマイグレーションも実行するので、通常はこの手順で解消する</td></tr>
+<tr><td><code>DD-SETUP-EMBEDDED-MODIFIED</code>（Warning）</td><td>パッケージが埋め込み（改造可能な状態）になっている</td><td>通常の git URL 参照に戻す。どうしても改造が必要な場合は開発リポジトリへの提案を検討する</td></tr>
+<tr><td>Console に <code>[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.</code></td><td>未登録 ID を Play/Spawn した（例外にはならない）</td><td>デザイナー側の作業がまだ完了していないだけの可能性が高い。慌てて実装を変えない</td></tr>
+</table>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="index.html">目次</a></li>
+<li><a href="install.html">導入手順</a></li>
+<li><a href="update.html">更新方法</a></li>
+</ul>
+
+<footer>D-Drive 持ち込み先ガイド | <a href="index.html">目次</a></footer>
+</body>
+</html>

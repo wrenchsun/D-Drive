@@ -1,7 +1,7 @@
 {
   "name": "com.ddrive.core",
   "displayName": "D-Drive",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "unity": "6000.3",
   "description": "D-Drive(Designer-Driven Re: IDE Visual Environment): プログラマーは ID だけでモックを完成させ、デザイナーが専用エディタで中身を作るための Unity フレームワーク(Audio/VFX/Model/Animation/Material/UI/Presentation/Timeline 等)。",
   "keywords": [

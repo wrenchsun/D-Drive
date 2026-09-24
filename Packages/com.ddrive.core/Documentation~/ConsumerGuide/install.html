@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>導入手順 | D-Drive 持ち込み先ガイド</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="index.html">🏠 目次</a> › 導入手順</nav>
+
+<h1>導入手順</h1>
+<p class="lastupdate">最終更新日: 2026-09-20</p>
+
+<p>D-Drive（<code>com.ddrive.core</code>）を、このプロジェクトに初めて導入する手順です。所要時間の目安は 10 分（Unity の再コンパイル待ちを除く）。実行するのはプログラマー・テクニカルアーティストを想定していますが、流れを知っておくとトラブル時に自分でも状況を確認できます。</p>
+
+<h2>0. 前提条件</h2>
+<table>
+<tr><th>項目</th><th>要件</th></tr>
+<tr><td>Unity</td><td><strong>6000.3</strong> 以上</td></tr>
+<tr><td>レンダーパイプライン</td><td><strong>URP のみ</strong>（Built-in / HDRP は非対応）</td></tr>
+<tr><td>GitHub アクセス</td><td>D-Drive のリポジトリは private のため、この PC に GitHub への git 認証（HTTPS の Git 資格情報、または SSH 鍵）が設定されていること</td></tr>
+<tr><td>「<code>Assets</code> 直下に新規フォルダを作らない」規約</td><td>ある場合は手順 3 のセットアップウィザードで「置き場所」を変更する（後述）</td></tr>
+</table>
+
+<h2>1. <code>manifest.json</code> に D-Drive と依存をまとめて追加する</h2>
+<p>プロジェクトの <code>Packages/manifest.json</code> に、D-Drive 本体(git URL)と、git 配布のため <code>package.json</code> に書けない依存(UniTask・R3)、R3 が使う NuGet パッケージの scoped registry を<strong>まとめて</strong>追加します。</p>
+<pre><code>{
+  "scopedRegistries": [
+    {
+      "name": "Unity NuGet",
+      "url": "https://unitynuget-registry.openupm.com",
+      "scopes": ["org.nuget"]
+    }
+  ],
+  "dependencies": {
+    "com.ddrive.core": "git+https://github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0",
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.11",
+    "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity#1.3.1",
+    "org.nuget.r3": "1.3.1"
+  }
+}</code></pre>
+<p>既存の <code>manifest.json</code> にはすでに <code>dependencies</code>（と、あれば <code>scopedRegistries</code>）があるはずなので、上記はそれぞれの中身をマージしてください。</p>
+
+<div class="warn">
+<strong>コミットハッシュを直接指定する場合は、省略しない 40 桁のフルコミットハッシュを書く。</strong> タグの無いコミットを指定したいとき（検証目的など）、短縮形（例 <code>#6c65a89</code>）を使うと Package Manager が<code>Could not clone … Make sure […] is a valid branch name, tag or full commit hash</code>で解決に失敗します。通常はタグ（<code>#v1.0.0</code> 等）を使ってください。
+</div>
+
+<p>SSH 鍵で GitHub に認証する環境では、<code>com.ddrive.core</code> の値を <code>git+ssh://git@github.com/wrenchsun/D-Drive.git?path=Packages/com.ddrive.core#v1.0.0</code> 形式に置き換えても参照できます(挙動は同じ)。まず <code>git+https</code> 形式を試し、環境が SSH 鍵運用のときだけ <code>git+ssh</code> に切り替えてください。</p>
+
+<p>NGO（マルチプレイ、<code>com.unity.netcode.gameobjects</code>）は<strong>任意</strong>です。使う場合だけ、下記「依存関係」表のとおり別途 <code>manifest.json</code> に追加してください（D-Drive の NGO 連携コードは別アセンブリ <code>DDrive.Runtime.Ngo</code> に分離されており、導入しなくても D-Drive 本体のコンパイルには影響しません）。</p>
+
+<h3>依存関係</h3>
+<table>
+<tr><th>種別</th><th>パッケージ</th><th>扱い</th></tr>
+<tr><td>レジストリ配布（自動解決）</td><td><code>com.unity.addressables</code> / <code>com.unity.inputsystem</code> / <code>com.unity.render-pipelines.universal</code>（URP）/ <code>com.unity.timeline</code> / <code>com.unity.nuget.newtonsoft-json</code> / <code>com.unity.ugui</code></td><td>Package Manager が <code>package.json</code> の依存として自動解決する。URP と Timeline は <code>DDrive.Runtime</code> の必須依存（ゲーム実行時にも必要）</td></tr>
+<tr><td>git 配布（手順 1 でまとめて追加）</td><td><code>com.cysharp.unitask</code> / <code>com.cysharp.r3</code> + scoped registry <code>org.nuget.r3</code></td><td><code>package.json</code> に書けない種類の依存。書き忘れてもセットアップウィザードの「1. 依存パッケージ」が不足を検出し「追加」ボタンで導入できる</td></tr>
+<tr><td>任意（NGO を使う場合のみ）</td><td><code>com.unity.netcode.gameobjects</code></td><td>導入すると <code>DDrive.Runtime.Ngo</code> が自動でコンパイル対象になる。Host/Client 全員が同じ版を導入すること</td></tr>
+<tr><td>開発専用（持ち込み先には不要）</td><td>Unity MCP 各種、D-Drive のテスト用パッケージ</td><td>パッケージには含まれない。Unity の操作は持ち込み先自身の環境に従う</td></tr>
+</table>
+
+<h2>2. Unity を開く</h2>
+<p>Package Manager が git URL をすべて解決し、レジストリ配布の依存も自動解決します。ここまでで D-Drive の全アセンブリがコンパイルできる状態になります。コンパイルエラーが出た場合は、依存の追加漏れ（手順 1）か、次に説明するステップの前提（<code>DDrive.Generated</code> を参照するコードを先に置いていないか等）を確認してください。</p>
+
+<h2>3. セットアップウィザードを実行する</h2>
+<p>Unity のメニューから <code>Tools &gt; D-Drive &gt; Setup &gt; セットアップウィザード</code> を開き、上から順に確認・適用します。各ステップには「再検査」ボタンがあり、直した後にその場で確認できます。</p>
+<ol>
+<li><strong>1. 依存パッケージ</strong>: 手順 1 で追加済みのため通常は「OK」。欠けていれば「追加」ボタンで導入する</li>
+<li><strong>2. ProjectSettings</strong>: レンダーパイプライン（URP）・入力方式（Input System）・API 互換レベル（.NET Standard 2.1）を検査する。<strong>自動では変更しない項目もある</strong>（「Project Settings &gt; Player を開く」ボタンで手動設定に案内される）</li>
+<li><strong>3. 置き場所</strong>: D-Drive が作るデータ（<code>GameData</code>/<code>Generated</code>/<code>SourceAssets</code>/<code>Specs</code>）の置き場所を選ぶ。「適用」ボタンで確定する。3 通り:
+  <ul>
+    <li>既定のまま（<code>Assets/GameData</code> 等、<code>Assets</code> 直下）</li>
+    <li>1 つの親フォルダ配下にまとめる（例 <code>Assets/_Project/DDrive</code>）。<strong>「<code>Assets</code> 直下に新規フォルダを作らない」規約があるプロジェクトはこちらを選ぶ</strong></li>
+    <li>個別に指定する</li>
+  </ul>
+</li>
+<li><strong>4. 既定フォルダ・設定の生成</strong>: 「生成」ボタン（<code>SourceAssets</code>/<code>UiLayerSettings</code>/<code>DDriveSpecSettings</code>/カタログ + ID/Tuning 再生成をまとめて実行）</li>
+<li><strong>5. Addressables 同期</strong>: <code>AddressableAssetSettings</code> が無ければ「初期化」ボタンで作成する。作成直後に空カタログが自動で Addressables に登録されるが、念のため「全カタログ・Data を今すぐ同期する」ボタンでいつでもまとめて同期できる。既定アセット名にスペースが入っている場合（Unity Addressables の既定生成物 <code>Default Local Group</code>/<code>Packed Assets</code> 等）は「スペースを含む既定アセット名をリネーム」ボタンで解消する</li>
+<li><strong>6. 起動オブジェクト</strong>: 「配置(またはカタログを再収集)」ボタンでシーンに起動オブジェクト（<code>DDriveRuntimeBootstrap</code>）を置く</li>
+<li><strong>7. テストを有効化する(既定 OFF)</strong>: D-Drive 自身のテストをこのプロジェクトの Test Runner で実行できるようにするかどうか。通常のゲーム開発では ON にする必要はない（詳細は<a href="operation.html#tests">運用方法「テストの有効化」</a>）</li>
+<li><strong>8. エージェント向けスキル</strong>: 「.claude/skills/ddrive-consumer へコピー」ボタン（AI エージェントを使う場合）</li>
+<li><strong>9. 完了チェック</strong>: 「すべて再検査」で上記の状態を一覧確認し、「Validation &gt; Run All を実行」で自動チェックもあわせて実行できる</li>
+</ol>
+
+<div class="tip">
+<strong>✔ ここまでで OK なライン:</strong> ウィザードの各ステップがすべて「OK」表示、かつ <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> で Error が 0 件。
+</div>
+
+<h2>4. SE を 1 件登録して試聴する</h2>
+<p><code>Tools &gt; D-Drive &gt; AssetBrowser</code> で新規 SE アセットを作成し、音源ファイルを割り当てて試聴します（Unity の操作自体はこのプロジェクトの環境・MCP 構成に従ってください。D-Drive 独自の操作手順はありません）。</p>
+
+<h2>5. Play Mode で ID を再生する</h2>
+<p>登録した SE の ID 定数を使って 1 行で再生できます。</p>
+<pre><code>using DDrive.Generated;
+using DDrive.Runtime.Audio;
+
+Audio.PlaySe(SEID.X);</code></pre>
+<p>シーンに起動オブジェクト（<code>DDriveRuntimeBootstrap</code>）が置かれていることが前提です（手順 3-6 で配置済み）。</p>
+
+<div class="tip">
+<strong>✔ 導入完了の確認ライン:</strong> Play Mode で上記の 1 行が例外なく実行され、登録した SE の音が鳴る。<code>Validation &gt; Run All</code> が Error 0 件。
+</div>
+
+<h2>つまずきポイント</h2>
+<div class="warn">
+<strong>Package Manager がタグ・コミットハッシュを解決できない</strong>: 短縮 SHA を使っていないか確認する（フル 40 桁が必要。上記「1」参照）。
+</div>
+<div class="warn">
+<strong>Validation にカタログ未登録の Error が出る</strong>: セットアップウィザード「5. Addressables 同期」の「全カタログ・Data を今すぐ同期する」ボタンを押す。
+</div>
+<div class="warn">
+<strong>Validation に「Mixer が未割当」等、URP 関連の Warning/Error が出る</strong>: ウィザードは URP アセットの生成・割り当てまでは行いません（検査のみ）。空プロジェクトで URP をまだ使っていない場合は、<code>Assets &gt; Create &gt; Rendering &gt; URP Asset (with Universal Renderer)</code> で作成し、<code>Project Settings &gt; Graphics</code>/<code>Quality</code> に割り当ててください。
+</div>
+<div class="warn">
+<strong>生成定数（<code>SEID.Xxx</code> 等）が見つからない</strong>: <code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code> を実行する。<code>DDrive.Generated</code> を参照するコード（ランタイム・テスト）は、この再生成が終わったあとに追加すること（先に置くとコンパイルエラーでセットアップ自体が止まる）。
+</div>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="index.html">目次</a></li>
+<li><a href="update.html">更新方法</a></li>
+<li><a href="operation.html">運用方法</a></li>
+</ul>
+
+<footer>D-Drive 持ち込み先ガイド | <a href="index.html">目次</a></footer>
+</body>
+</html>

@@ -11,6 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.2.0] - 2026-09-24
+
+### 互換性
+
 - 追加のみ（MINOR）: **N-1（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §14・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動ネット接続 API。`NetLaunchRole` に `Manual`（末尾追加）、`DDriveRuntimeBootstrap` に `NetStartMode`(新規 enum)・`DefaultNetStart`(新規フィールド、既定 `Auto`)・`public bool IsNetworkStarted`・`public bool StartHost(ushort)`・`public bool StartClient(string,ushort)`・`public void StopNetworking()` を追加。`NgoBridgeCreateResult`（`DDrive.Runtime.Net`）に `IsListening`/`ManualStartHost`/`ManualStartClient`/`ManualStop` の delegate フィールドを追加。既存の Auto 起動（既定 `DefaultNetBridge=Loopback`/`DefaultNetStart=Auto`）の挙動・既定値は無改修
 - 追加のみ（MINOR）: **N-2（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §15・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — 開発用の手動接続 UI。`DDrive.Runtime.Net` に `public static class NetManualConnectInput`（`TryParsePort`/`TryParse`）を追加。`DDrive.Runtime.Ngo`（互換性スナップショット対象外）に `NetManualConnectOverlay`（新規コンポーネント）を追加。既存の公開 API・挙動・既定値は無改修（`NgoBridgeFactoryInstaller.Create()` の内部実装のみ変更）
 - 追加のみ（MINOR）: **N-3（2026-09-22、[docs/14_networking.md](docs/14_networking.md) §16・[docs/11_tasks.md](docs/11_tasks.md) N チケット）** — Host 1 + Client 3 対応。`DDrive.Runtime`（互換性スナップショット対象）に `NetLaunchOptions.ExpectedClientCount`（フィールド追加）・`NetLaunchArgs.ExpectClientsFlag`（定数追加）・`NetCheckCounters.ExpectedClientCount`/`MaxConnectedClientsObserved`（フィールド追加）を追加。`DDrive.Runtime.Ngo`（互換性スナップショット対象外）に `NgoNetBridge.ConnectedClientCount` を追加。`Samples~/NetCheck/`（`NetBridgeSmokeTest`/`NetCheckRunner`）をパッケージ本体 `Runtime/Ngo/NetCheck/` へ移動し、`package.json` の `samples` から削除（サンプルではなくパッケージ本体の一部に区分変更。GUID 不変のため既存の `NetCheckScene.unity` の参照は壊れない）
