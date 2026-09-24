@@ -38,6 +38,12 @@ namespace DDrive.Runtime.Net
         // としていたのと同じ挙動を維持するために渡す(Transform 自体は NGO 非依存の UnityEngine 型)。
         public readonly Transform ParentTransform;
 
+        // [M-1d、2026-09-25] ShowDebugOverlay=true でも、リリースビルド(Debug.isDebugBuild/Application.isEditor
+        // のどちらも false)では既定でオーバーレイを生成しない(NgoBridgeFactory.Create 参照)。この値が true の
+        // ときだけリリースビルドでも生成する(DDriveRuntimeBootstrap.ShowNetDebugOverlayInRelease の値をそのまま運ぶ、
+        // 追加のみのフィールドなので既存の 6 引数コンストラクタ経由で作られた既存呼び出し元は false のまま)。
+        public readonly bool ShowDebugOverlayInRelease;
+
         public NgoBridgeCreateArgs(NetLaunchRole role, string host, ushort port, NetLaunchOptions launchOptions, bool showDebugOverlay, Transform parentTransform)
         {
             Role = role;
@@ -46,6 +52,20 @@ namespace DDrive.Runtime.Net
             LaunchOptions = launchOptions;
             ShowDebugOverlay = showDebugOverlay;
             ParentTransform = parentTransform;
+            ShowDebugOverlayInRelease = false;
+        }
+
+        // [M-1d、2026-09-25] ShowDebugOverlayInRelease を指定できる追加コンストラクタ(既存の 6 引数版は
+        // 互換性のため残したまま、オーバーロード追加として提供する。[42_distribution.md] §5.4 MINOR)。
+        public NgoBridgeCreateArgs(NetLaunchRole role, string host, ushort port, NetLaunchOptions launchOptions, bool showDebugOverlay, Transform parentTransform, bool showDebugOverlayInRelease)
+        {
+            Role = role;
+            Host = host;
+            Port = port;
+            LaunchOptions = launchOptions;
+            ShowDebugOverlay = showDebugOverlay;
+            ParentTransform = parentTransform;
+            ShowDebugOverlayInRelease = showDebugOverlayInRelease;
         }
     }
 

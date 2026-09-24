@@ -60,8 +60,13 @@ namespace DDrive.Runtime.Net
                 bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
             }
 
+            // [M-1d、2026-09-25] リリースビルドでは既定でオーバーレイを出さない(MS2026 TeamNotes
+            // 2026-09-25「リリース前に ShowNetDebugOverlay を false に」の本修正)。Debug.isDebugBuild は
+            // 「Development Build」を付けたプレイヤーで true、Application.isEditor はエディタ実行時に true
+            // (NgoBridgeFactory の他の判定と同じ基準)。args.ShowDebugOverlayInRelease を true にすれば
+            // リリースビルドでも従来どおり出せる(opt-in)。
             NetDebugOverlay overlay = null;
-            if (args.ShowDebugOverlay)
+            if (args.ShowDebugOverlay && (Debug.isDebugBuild || Application.isEditor || args.ShowDebugOverlayInRelease))
             {
                 var overlayGo = new GameObject("NetDebugOverlay");
                 if (args.ParentTransform != null)
