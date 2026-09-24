@@ -19,6 +19,16 @@ namespace DDrive.Runtime.Net
         Manual,
     }
 
+    // [14_networking.md] §18/N-6(2026-09-24) — MS2026 §10.2 のホストマイグレーション手順で、この
+    // プロセスが「Host 切断後どちらの手順を踏むか」を表す。None は「今回のシナリオでは引き継ぎを行わない」
+    // (既存の Host/Client/disconnect 各シナリオは無改修。追加のみ、[42_distribution.md] §5)。
+    public enum NetMigrationRole
+    {
+        None,
+        Successor, // PlayerIndex 最小。StopNetworking() → StartHost(port) を試みる
+        Follower,  // それ以外。StopNetworking() → StartClient(successor の address, port) を試みる
+    }
+
     // 純粋なデータ(Unity API 非依存)。EditMode テストで容易に検証できるようにするため、
     // パース処理(NetLaunchArgs.Parse)と Bootstrap への適用処理を分離してある。
     public struct NetLaunchOptions
@@ -35,6 +45,12 @@ namespace DDrive.Runtime.Net
         // Host 役のときだけ「NgoNetBridge.ConnectedClientCount がこの人数に達したか」を PASS 条件に加える
         // (未指定/Client 役では従来どおり判定をスキップする)。
         public int? ExpectedClientCount; // -ddrive-expect-clients
+
+        // [14_networking.md] §18/N-6(2026-09-24) — Host 引き継ぎ(ホストマイグレーション)の自動確認用。
+        // None(既定)なら NetCheckRunner は従来どおり切断後の再接続を試みない(既存 8 シナリオは無改修)。
+        public NetMigrationRole MigrationRole; // -ddrive-migrate successor|follower
+        public string MigrationHost;           // -ddrive-migrate-host(follower の再接続先。未指定なら Host を使う)
+        public int? MigrationPort;             // -ddrive-migrate-port(未指定なら Port を使う)
     }
 
     // [11_tasks.md] 6-0(B) — コマンドライン引数パーサ。Unity API に依存しない純関数のため、
@@ -49,6 +65,9 @@ namespace DDrive.Runtime.Net
         public const string AutoTestFlag = "-ddrive-autotest";
         public const string AutoTestSecondsFlag = "-ddrive-autotest-seconds"; // [11_tasks.md] 6-7
         public const string ExpectClientsFlag = "-ddrive-expect-clients"; // [14_networking.md] §16(N-3)
+        public const string MigrateFlag = "-ddrive-migrate"; // [14_networking.md] §18/N-6
+        public const string MigrateHostFlag = "-ddrive-migrate-host";
+        public const string MigratePortFlag = "-ddrive-migrate-port";
 
         public static NetLaunchOptions Parse(string[] args)
         {
@@ -113,6 +132,22 @@ namespace DDrive.Runtime.Net
                         }
 
                         break;
+
+                    case MigrateFlag:
+                        result.MigrationRole = ParseMigrationRole(NextValue(args, ref i));
+                        break;
+
+                    case MigrateHostFlag:
+                        result.MigrationHost = NextValue(args, ref i);
+                        break;
+
+                    case MigratePortFlag:
+                        if (int.TryParse(NextValue(args, ref i), NumberStyles.Integer, CultureInfo.InvariantCulture, out var migratePort))
+                        {
+                            result.MigrationPort = migratePort;
+                        }
+
+                        break;
                 }
             }
 
@@ -147,6 +182,21 @@ namespace DDrive.Runtime.Net
                     return NetLaunchRole.Manual;
                 default:
                     return NetLaunchRole.Unspecified;
+            }
+        }
+
+        // [14_networking.md] §18/N-6(2026-09-24) — -ddrive-migrate successor|follower のパース。
+        // 未指定/不明な値は None(既存の 8 シナリオはこの引数を渡さないため無改修のまま)。
+        private static NetMigrationRole ParseMigrationRole(string value)
+        {
+            switch (value?.ToLowerInvariant())
+            {
+                case "successor":
+                    return NetMigrationRole.Successor;
+                case "follower":
+                    return NetMigrationRole.Follower;
+                default:
+                    return NetMigrationRole.None;
             }
         }
 

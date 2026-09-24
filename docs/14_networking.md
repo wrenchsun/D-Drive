@@ -939,6 +939,16 @@ private void ResetNetworkedState()
   Instance）はもう存在しない GameObject を指した stale entry になる。通常の `Despawn`（Pool 操作・ネット
   通知）は呼ばず、イベントセッションと台帳からの除去だけ行う。クライアント→サーバー Spawn 要求のレート
   制限窓（`_requestRateLimits`）も併せてクリアする。ローカル（`NetMode!=Simulated`）の Instance には触れない。
+  **要判断（N-6 で確認、修正は見送り）**: 上記のとおり `ResetNetworkedState()` は台帳から Simulated
+  Instance を外すだけで、その Instance が Pool から借りた（`Flags.Pool.Kind==Pooled`）ものだった場合でも
+  `Pool.Return` を呼ばない。`NetworkManager.Shutdown()` 自体が対応する `NetworkObject`（＝ GameObject）を
+  破棄してしまうため Pool 側の「貸出中」カウントは実質的な GameObject 実体を失ったまま残り続ける（実害は
+  Pool の再利用数がその分減ることだけで、例外やメモリリークにはならない。次回同じ PrefabData を
+  `Prefabs.Spawn` すると Pool は新規 Instantiate で補充するため、機能面の破綻はない）。Host 引き継ぎが
+  頻発する運用（MS2026 は 1 試合に高々 1〜数回想定）でこの目減りが問題になるなら、`ResetNetworkedState()`
+  に「Pooled だった Instance は `Pool.Return` 相当の後始末を行う（ただし GameObject 自体は
+  `NetworkManager.Shutdown()` が既に破棄済みのため、Pool の内部カウントだけを補正する専用 API が要る）」を
+  追加検討すること。
 - **`AudioManager`/`VfxManager` の `ResetNetworkedState()`**: Tick 内でまとめて Broadcast する Cosmetic
   バッチ（`_pendingCosmeticBatch`）を破棄するだけ（このバッチは元々 Tick ごとに Flush される短命な
   リストのため、他に持ち越す状態は無い）。再生中の Instance には触れない。
@@ -964,7 +974,7 @@ private void ResetNetworkedState()
 | MS2026 # | 内容 | D-Drive での対応 | 状態 |
 |---|---|---|---|
 | D-1 | `CatalogContentHashGate` が再接続で再送しない | `CatalogContentHashGate.Reset()` | ✅ N-5 |
-| D-2 | Stop → 再 Start 経路が未検証 | PlayMode テスト（Host+Client をインプロセスで起動 → Shutdown → 役割を入れ替えて再 Start） | N-6（未着手） |
+| D-2 | Stop → 再 Start 経路が未検証 | ローカル複数プロセス（run-netcheck、NGO は 1 プロセスに `NetworkManager` を 1 つしか持てずインプロセス PlayMode 化は不可）で確認。詳細は §19/[docs/29] §26 | ✅ N-6 |
 | D-3 | 役割変更（Client → Host）の想定が無い | 各 Manager の `ResetNetworkedState()` + `DDriveRuntimeBootstrap.ResetNetworkedState()` | ✅ N-5 |
 | D-4 | `NetworkTime` が新 Host で 0 から始まる | 仕様として明文化(上記)。ゲーム側は `MatchEndServerTime` の再設定で吸収 | ✅ N-5(明文化) |
 | D-5 | 4 人 + 引き継ぎの自動確認 | `NetCheckRunner` に host_migration シナリオを追加 | N-6（未着手） |
@@ -983,3 +993,100 @@ private void ResetNetworkedState()
   使う `AppRoundTripTracker.Reset()` の既存テスト（`Tests/Editor/AppRoundTripTrackerTests.cs`）に委ねる
   （[14] §7 実装メモ「P2-1」と同じ既存の慣習）。`ResetSessionState()` 自体・`DoManualStartHost`/
   `DoManualStartClient` の `ShutdownInProgress` ガードは実機/PlayMode での確認が必要（N-6 のスコープ）。
+
+## 19. 実装メモ（2026-09-24、N-6: Stop→再 Start のローカル確認 + host_migration 自動確認シナリオ）
+
+N-5 で対応した D-1/D-3/D-4 に続き、MS2026 §10.7 の残り D-2（Stop→再 Start 経路の検証）・D-5（4 人 + 引き継ぎの
+自動確認）を対応した。
+
+### D-2 の検証方針
+
+NGO は 1 プロセスに `NetworkManager` を 1 つしか持てないため、PlayMode でインプロセス Host+Client を組めない
+（[docs/14] §14 の既存の制約と同じ）。D-2 は **ローカル複数プロセス（`run-netcheck`）** で検証する
+（実行結果は [docs/29] §26）。
+
+- **in-scene `NetworkObject`（`NgoNetBridge`）の再 Spawn**: NGO は通常、`StartHost()`/`StartServer()` の
+  たびに in-scene 配置の `NetworkObject` を内部スイープで自動的に(再)Spawn する。理屈のうえでは
+  `NetworkManager.Shutdown()` → 同一プロセスでの `StartHost()` でも同じ経路を通るはずだが、単体テスト
+  （Fake/Delayed ブリッジ）はもちろん、PlayMode でも実際の `NetworkManager` を跨いだ Stop→再 Start は検証
+  できない制約がある。**念のための保険として**、`NgoBridgeFactoryInstaller.DoManualStartHost` の
+  `NetworkManager.StartHost()` 直後に `NgoNetBridge` の `NetworkObject.IsSpawned` を確認し、`false` の
+  ときだけ明示的に `Spawn()` する処理を追加した（既に自動 Spawn 済みなら `IsSpawned=true` なので
+  `Spawn()` は呼ばれず、二重 Spawn エラーにはならない。Client 側は Host からの同期で Spawn されるため
+  同様の処置は不要 = 追加していない）。実際に自動 Spawn で足りていたか、この保険が発火したかは
+  `run-netcheck` のログ（`[Net/Host] ... 明示的に Spawn しました` 警告の有無）で確認できる。結果は
+  [docs/29] §26 参照。
+- 確認項目: `StopNetworking()` → `StartHost`/`StartClient` 後に、`Broadcast`（successor の `signal_fire`
+  に対して follower の `signal_recv`）が届くこと、Ping ループ（App RTT）が再開すること（`rtt_app_ms` が
+  n/a → 数値に戻ること）、ContentHash が再度 `OK` になること（D-1 の実地確認）。
+
+### `NetLaunchArgs`/`NetCheckRunner` への host_migration 追加
+
+- `NetLaunchOptions` に `MigrationRole`（新規 `enum NetMigrationRole { None, Successor, Follower }`）・
+  `MigrationHost`（string、既定 `null` = `-ddrive-host` にフォールバック）・`MigrationPort`（`int?`、既定
+  `null` = `-ddrive-port` にフォールバック）を追加。対応する CLI フラグ `-ddrive-migrate successor|follower`・
+  `-ddrive-migrate-host <ip>`・`-ddrive-migrate-port <port>` を `NetLaunchArgs.Parse` に追加した（純関数、
+  `NetLaunchArgsTests` で検証）。`-ddrive-migrate` 未指定（既定 `None`）の既存 8 シナリオは一切の追加処理を
+  行わない（追加のみ、[42_distribution.md] §5）。
+- `NetCheckRunner`: Client 役の自分が Host との接続を失った（`_selfDisconnectedObserved` が立った）瞬間、
+  `_migrationRole != None` かつ未着手なら `RunHostMigrationAsync` を 1 回だけ起動する。MS2026
+  §10.2 と同じ手順を踏む:
+  - **successor**: `Migration/GraceSeconds`（1 秒）待って `bootstrap.StopNetworking()` →
+    `bootstrap.StartHost(port)`。`false` が返れば `Migration/RetryIntervalSeconds`（2 秒）ごとに再試行し、
+    `Migration/ReconnectTimeoutSeconds`（15 秒）で諦めて `migration_failed=1` をログする。
+  - **follower**: `Migration/GraceSeconds + 1 秒`（合計 2 秒）待って `StopNetworking()` →
+    `StartClient(ip, port)`。同様に再試行・タイムアウト処理を行う。
+  - 成功したら `migrated=1 role=host|client newClientId=<LocalClientId>` を 1 回ログする。この Runner
+    自身の `_role` フィールドは起動時に一度 `"client"` に確定させたままなので、N-3 で追加した
+    「off/unknown の間だけ毎フレーム再評価する」既存の遅延評価ロジックには乗らない（`_role` が既に
+    `"client"` = 除外対象のため）。そのため `RunHostMigrationAsync` の成功パスで `_role = RoleOf(bootstrap)`
+    を明示的に呼び直す。一方、`Update()` の `PlayAndSignal`/偽造 Cancel 送信の分岐は `_role` 文字列ではなく
+    `bootstrap.NetBridge.IsServer` を直接見ているため、`StartHost()` が成功した瞬間から `_role` の更新を
+    待たずに自動的に成立する（既存コードを変えていない）。
+  - successor は `-ddrive-expect-clients` を「移行後の期待数」として使う（旧 Host 分の実績を引き継がない
+    ため、`RunHostMigrationAsync` の成功パス手前で `_maxConnectedClientsObserved`/`_lastClientCount` を
+    リセットしてから数え直す）。
+  - 切断後カウンタ: follower のみ `_signalRecvAfterMigrationCount`（`_migrationCompleted && _role=="client"`
+    の間に `signal_recv` を観測するたび加算）・`_contentHashOkAfterMigration`（同条件下で
+    `NetHashGate.LastStatusText=="OK"` を一度でも観測したら sticky で true）を持つ。successor は
+    「移行後の期待人数に届いたか」（既存の `ExpectedClientCount`/`MaxConnectedClientsObserved` 判定、上記）で
+    確認する側なのでこれらは見ない。
+- `NetCheckJudge`: `NetCheckCounters` に `MigrationExpected`/`MigrationCompleted`/`IsSuccessor`/
+  `SignalRecvAfterMigrationCount`/`ContentHashOkAfterMigration` を追加。`MigrationExpected` のときだけ
+  追加判定を行う（既存 8 シナリオは `MigrationExpected=false` のまま素通り）: `MigrationCompleted` が
+  false なら `migration_not_completed` で FAIL。successor はここでは追加判定をせず（`ExpectedClientCount`
+  の既存チェックに委ねる）、follower は `SignalRecvAfterMigrationCount<=0` なら `no_signal_recv_after_migration`、
+  `ContentHashOkAfterMigration=false` なら `content_hash_not_ok_after_migration` で FAIL。既存の判定
+  （⑤ 切断後の演出 0 等）はそのまま適用される（切断直後に一度 0 になる実績があれば満たす。successor/
+  follower とも通常のクライアントと同じ切断検知経路を通るため回帰しない）。
+
+### `Run-NetCheck.ps1` の `host_migration` シナリオ
+
+`$migrationScenarios`（`$scenarios`/`$quadScenarios` とは別配列、既存 8 シナリオは無改修）に追加。
+
+| シナリオ | 構成 | 目的 |
+|---|---|---|
+| `host_migration` | 旧 Host が 12 秒で終了 → Client1（successor）が Stop→StartHost で新 Host に昇格、Client2/Client3（follower）が Stop→StartClient で新 Host（Client1、同一 127.0.0.1:Port）へ再接続 | Host 引き継ぎの一連の流れ（切断検知・successor 昇格・follower 再接続・Signal 中継の復旧・ContentHash 再検証） |
+
+`-ddrive-expect-clients` は旧 Host に `3`（successor+follower×2 全員の接続を終了前に満たす）、successor
+（Client1）に `2`（移行後の期待数）を渡す。follower（Client2/3）には渡さない（既存の「Client 役では判定
+スキップ」のまま）。全プロセス同一 Port（7881）・`-ddrive-host 127.0.0.1` のため、
+`-ddrive-migrate-host`/`-migrate-port` の明示指定は省略している（NetCheckRunner 側の既定
+フォールバックで足りる）。
+
+**位相差判定の基準ログ**: 既存の `Test-SignalPhase`（Host ログ vs Client ログ）をそのまま流用し、「Host ログ」
+の代わりに **successor（Client1）のログ** を渡す（`$clientLogs[0]`）。Client1 は移行前は Client 役のため
+`PlayAndSignal`（`bootstrap.NetBridge.IsServer` のときだけ動く）を一度も呼ばず、ログに現れる `signal_fire`
+は移行後の分だけになる。そのため `Get-SignalEvents -Kind fire` は自然に「移行後」だけを拾い、
+`Test-SignalPhase` 自体は無改修で流用できる（`Get-ClientConnectNetworkTime`/`Get-ClientLastNetworkTime` は
+follower 側の生存窓を見るだけで、基準ログが Host か Client かは問わない設計のため）。
+
+`run-netcheck.cmd host_migration` で単独実行、`run-netcheck.cmd`（引数無し）で既存 8 シナリオと合わせて
+9 本すべて実行する。詳細な実行結果・ログ抜粋は [docs/29] §26。
+
+### N-5 で保留した要判断（`PrefabsManager.ResetNetworkedState()` の Pool 台帳残留、記録のみ・修正見送り）
+
+§18 の `PrefabsManager.ResetNetworkedState()` 節に追記済み: Pooled な Simulated Prefab は
+`NetworkManager.Shutdown()` で GameObject 実体ごと破棄されるため、`ResetNetworkedState()` が台帳から
+Instance を外しても Pool 側の「貸出中」カウントは補正されない（実害は Pool の再利用数が目減りするだけ。
+機能上の破綻は無い）。今回のスコープでは修正しない。

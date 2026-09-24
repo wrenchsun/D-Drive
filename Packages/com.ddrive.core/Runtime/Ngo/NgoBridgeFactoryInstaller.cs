@@ -155,6 +155,21 @@ namespace DDrive.Runtime.Net
                 NgoTransportConfigurator.TryConfigure(nm, host, manualPort, launchOptions.SimLatencyMs, launchOptions.SimLossPercent, listenAddress: "0.0.0.0");
                 bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
                 nm.StartHost();
+
+                // [14_networking.md] §18/N-6(2026-09-24, D-2) — NGO は通常、in-scene 配置の NetworkObject を
+                // StartHost()/StartServer() のたびに自動的に再 Spawn する(サーバー起動直後の内部スイープ。
+                // シーンリロードを伴わない「同一プロセスで Stop→再 Start」でも同じ経路を通るはずだが、NGO は
+                // 1 プロセスに NetworkManager を 1 つしか持てず PlayMode でインプロセス Host+Client を組めない
+                // ため、D-Drive 側のテストでは検証できない[MS2026 Host 引き継ぎの前提、docs/29 §26]。
+                // 万一自動 Spawn されなかった場合に備え、ここで明示的に確認する(既に Spawn 済みなら
+                // IsSpawned=true なので Spawn() は呼ばれず、二重 Spawn エラーにはならない)。
+                var bridgeNetObj = bridge.GetComponent<NetworkObject>();
+                if (bridgeNetObj != null && !bridgeNetObj.IsSpawned)
+                {
+                    bridgeNetObj.Spawn();
+                    Debug.LogWarning("[Net/Host] DDriveRuntimeBootstrap.StartHost: NgoNetBridge の NetworkObject が自動 Spawn されなかったため明示的に Spawn しました(docs/14_networking.md §18 N-6 参照)。");
+                }
+
                 Debug.Log($"[Net/Host] DDriveRuntimeBootstrap.StartHost: Host として起動しました(listen=0.0.0.0:{manualPort})。");
                 return true;
             }

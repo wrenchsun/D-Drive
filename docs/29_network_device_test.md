@@ -1275,3 +1275,113 @@ DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-
 - [ ] 初回起動時のファイアウォール許可ダイアログが出た場合は、その旨と対応（プライベート/パブリックいずれを許可したか）をこの節に追記する
 
 **未実施（2026-09-22 時点）**: 実機環境（複数 PC）を用意できなかったため、本節の手順に沿った実機確認は未実施。次回実機確認時にこの節へ結果（ログ抜粋・スクリーンショット・チェックリストの結果）を追記すること。
+
+### ケース: Host 引き継ぎ（N-6、2026-09-24 追加）
+
+上記の Host 1 + Client 3 構成に加え、Host（マシン A）を落として Client の 1 人（マシン B の 1 プロセス目）が
+successor として Host に昇格することを確認する。[14_networking.md] §19 / 本ドキュメント §26 のローカル確認
+（`host_migration` シナリオ）が PASS した後に行う。
+
+```
+マシン A（旧 Host、先に終了させる）:
+DDriveNetCheck.exe -ddrive-net host -ddrive-host 0.0.0.0 -ddrive-port 7777 -ddrive-expect-clients 3 -logFile PlayerHostOld.log
+
+マシン B・1 プロセス目（successor）:
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -ddrive-migrate successor -logFile C:\DDriveTest\ClientB1_successor.log
+
+マシン B・2 プロセス目（follower）:
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -ddrive-migrate follower -ddrive-migrate-host <マシン B の IP> -logFile C:\DDriveTest\ClientB2_follower.log
+
+マシン C（follower）:
+DDriveNetCheck.exe -ddrive-net client -ddrive-host <マシン A の IP> -ddrive-port 7777 -ddrive-migrate follower -ddrive-migrate-host <マシン B の IP> -logFile C:\DDriveTest\ClientC_follower.log
+```
+
+- `-ddrive-migrate-host` は「新しい Host（successor = マシン B の 1 プロセス目）」の IP を follower 側に明示する（省略すると `-ddrive-host`〔旧 Host の IP〕にフォールバックしてしまい、旧 Host が既にいないため再接続に失敗する。ローカル確認〔127.0.0.1 のみ〕では省略できたが実機では別 IP のため必須）。
+- Port は全員同じ（successor は旧 Host と同じ Port で新たに listen する。`-ddrive-migrate-port` は省略すると `-ddrive-port` にフォールバックする）。
+- 確認項目チェックリスト:
+  - [ ] マシン A を終了させると、B1・B2・C の 3 台が `disconnected=1` を検知する
+  - [ ] マシン B1 が `migrated=1 role=host` をログし、以後 Host として `signal_fire`/`heartbeat role=host` を出し始める
+  - [ ] マシン B2・C が `migrated=1 role=client` をログし、`signal_recv` が再開する（`content_hash=OK` に戻ることも確認）
+  - [ ] `NetDebugOverlay`（マシン B1）の役割表示が Client→Host に切り替わる
+  - [ ] 15 秒以内に再接続できなければ `migration_failed=1` が出ることを確認する（意図的にネットワークを切って再現してもよい）
+
+**未実施（2026-09-24 時点）**: 実機環境（複数 PC）を用意できなかったため、本ケースの実機確認は未実施。ローカル確認（`host_migration` シナリオ、§26）のみ実施済み。次回実機確認時にこの節へ結果を追記すること。
+
+## 26. N-6: host_migration ローカル確認
+
+[14_networking.md] §19（N-6）で追加した `host_migration` シナリオ（旧 Host が 12 秒で終了 → Client1
+〔successor〕が Stop→StartHost で新 Host に昇格、Client2/Client3〔follower〕が Stop→StartClient で再接続）
+のローカル確認結果。既存 8 シナリオ（pair0/pair200/latejoin/disconnect/quad0/quad_latejoin/quad_leave/
+quad_hostquit）と合わせて 9 本すべてを `Tools\CI\run-netcheck.cmd`（引数無し）で実行した。
+
+### D-2 の観測結果（in-scene `NetworkObject` の再 Spawn）
+
+**NGO は `StartHost()` のたびに in-scene 配置の `NetworkObject`（`NgoNetBridge`）を自動的に再 Spawn した**。
+successor（Client1）のログ（`host_migration_client1.log`）に `NgoBridgeFactoryInstaller.DoManualStartHost`
+が追加した保険（`NetworkObject.IsSpawned==false` のときだけ明示 `Spawn()` する分岐）の警告ログ
+（「明示的に Spawn しました」）は**一度も出力されなかった**。つまり自動 Spawn だけで足りており、明示的な
+`Spawn()` 呼び出しは実行されなかった（保険コードは残すが、今回のローカル確認の範囲では発火しなかった）。
+このことは `Broadcast`（successor の `signal_fire` に対する follower の `signal_recv`）が実際に届いている
+こと（下表参照）からも裏付けられる。
+
+### 実行結果（2026-09-24、9 シナリオ全て PASS）
+
+| シナリオ | Host | Client1 | Client2 | Client3 | Signal 中継（位相差） | 追加チェック |
+|---|---|---|---|---|---|---|
+| pair0 | **PASS** | **PASS** | - | - | PASS（fire=9 matched=9 maxDiffMs=80） | - |
+| pair200 | **PASS** | **PASS** | - | - | PASS（fire=9 matched=9 maxDiffMs=350） | - |
+| latejoin | **PASS** | **PASS**（late_join_restored=True） | - | - | PASS（fire=7 matched=7 maxDiffMs=90） | - |
+| disconnect | **PASS** | **PASS**（disconnected=True） | - | - | PASS（fire=3 matched=3 maxDiffMs=90） | - |
+| quad0 | **PASS** | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | PASS/PASS/PASS | - |
+| quad_latejoin | **PASS** | **PASS**（sent=7 discarded=7） | **PASS**（sent=7 discarded=7） | **PASS**（sent=3 discarded=3、late_join_restored=True） | PASS/PASS/PASS | - |
+| quad_leave | **PASS** | **PASS**（sent=6 discarded=6） | **PASS**（sent=6 discarded=6） | **PASS**（sent=2 discarded=2） | PASS/PASS/PASS | **PASS**（`client_left`/`clients` 減少、peak=3） |
+| quad_hostquit | **PASS** | **PASS**（sent=2 discarded=2） | **PASS**（sent=2 discarded=2） | **PASS**（sent=2 discarded=2） | PASS/PASS/PASS | - |
+| **host_migration** | **PASS**（旧 Host、`-ddrive-expect-clients 3` 到達） | **PASS**（successor。`migrated=True is_successor=True`、`-ddrive-expect-clients 2` 到達） | **PASS**（follower。`migrated=True is_successor=False signal_recv_after_migration=48 content_hash_after_migration_ok=True`） | **PASS**（follower。同上） | PASS（successor→follower2: fire=12 matched=12 maxDiffMs=50 / successor→follower3: fire=12 matched=12 maxDiffMs=50） | - |
+
+**すべて PASS。** `run-netcheck.cmd`（引数無し、9 シナリオ）の最終出力は `=== すべてのシナリオが PASS です ===`
+（終了コード 0）。
+
+### host_migration のログ抜粋
+
+successor（Client1、旧 Host との接続喪失 → 1 秒待って再起動）:
+
+```
+[DDriveNetCheck] disconnected=1 role=client reason=[Disconnect Event][Client-1][TransportClientId-4294967296][ClosedByRemote] Connection was closed by remote endpoint.
+[Net/Host] DDriveRuntimeBootstrap.StartHost: Host として起動しました(listen=0.0.0.0:7881)。
+[DDriveNetCheck] migrated=1 role=host newClientId=0
+...
+[DDriveNetCheck] RESULT=PASS scenario=host_migration reason=signal_fire=12 signal_recv=60 forged_sent=2 forged_discarded=2 late_join_restored=True disconnected=True content_hash=OK migrated=True is_successor=True signal_recv_after_migration=0 content_hash_after_migration_ok=False
+```
+
+follower（Client2/Client3、旧 Host との接続喪失 → 2 秒待って新 Host〔127.0.0.1、successor と同じ Port〕へ再接続）:
+
+```
+[DDriveNetCheck] disconnected=1 role=client reason=[Disconnect Event][Client-2][TransportClientId-4294967296][ClosedByRemote] Connection was closed by remote endpoint.
+[DDriveNetCheck] migrated=1 role=client newClientId=0
+...
+[DDriveNetCheck] RESULT=PASS scenario=host_migration reason=signal_fire=0 signal_recv=60 forged_sent=9 forged_discarded=9 late_join_restored=True disconnected=True content_hash=検証中... migrated=True is_successor=False signal_recv_after_migration=48 content_hash_after_migration_ok=True
+```
+
+**`signal_recv_after_migration=0 content_hash_after_migration_ok=False`（successor 側のログ、仕様どおり）**:
+successor は「移行後の期待人数に届いたか」（`-ddrive-expect-clients 2` / `MaxConnectedClientsObserved`、
+既存の N-3 判定）で確認する側であり、`SignalRecvAfterMigrationCount`/`ContentHashOkAfterMigration` は
+follower 専用のカウンタのため 0/false のままで正しい（[14_networking.md] §19、`NetCheckJudge.Evaluate` は
+`IsSuccessor=true` のときこの 2 つを見ない）。
+
+**follower の `content_hash=検証中...`（RESULT 全体の理由欄）と `content_hash_after_migration_ok=True`
+（migration 側の理由欄）が両立している点**: `ContentHashStatus`（`NetHashGate.LastStatusText` の最終値）は
+プロセス終了時点でたまたま次の照合サイクル待ちの `"検証中..."` だったが、`_contentHashOkAfterMigration` は
+「移行後に一度でも `OK` を観測した」sticky フラグのため true のまま残っている。`ContentHashApplicable` は
+`contentHashStatus != "検証中..."` のときだけ true になる（既存の 6-5 実装のとおり）ため、最終状態が
+`"検証中..."` の場合は通常の ContentHash チェック自体がスキップされ（disconnect/quad_hostquit の Client でも
+同じ挙動が既に見られる）、migration 専用のチェック（`content_hash_not_ok_after_migration`）だけが実質的な
+検証になる。今回は両 follower とも `content_hash_after_migration_ok=True` で PASS した。
+
+### 実行時の所感
+
+- 9 シナリオ全体の所要時間は概ね 15 分程度（既存 8 シナリオ ≒ 7〜8 分 + host_migration ≒ 80 秒 + プロセス
+  起動/終了のオーバーヘッド）。
+- `-ddrive-migrate-host`/`-ddrive-migrate-port` は省略した（全プロセス `127.0.0.1`・同一 Port のローカル
+  確認のため、既定フォールバック〔`-ddrive-host`/`-ddrive-port`〕で足りた）。実機では新 Host の実 IP が
+  旧 Host と異なるため、follower 起動時に `-ddrive-migrate-host <successor の IP>` を明示する必要がある
+  （§25「ケース: Host 引き継ぎ」参照）。
