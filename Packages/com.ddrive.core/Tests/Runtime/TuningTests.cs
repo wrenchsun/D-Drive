@@ -76,6 +76,55 @@ namespace DDrive.Tests.Runtime
             Assert.DoesNotThrow(() => Tuning.GetFloat("Anything", 9f));
         }
 
+        // ── M-2c(2026-09-27) 追加: Play 中の再読込通知([11_tasks.md] M-2 チケット) ──
+
+        [Test]
+        public void Rebind_AfterEntryChanged_RaisesReloadedOnceAndReflectsNewValue()
+        {
+            var table = CreateTable(new TuningEntry { Key = "Player/MoveSpeedMax", Type = TuningValueType.Float, ValueFloat = 8f });
+            Tuning.Bind(table);
+            Assert.AreEqual(8f, Tuning.GetFloat("Player/MoveSpeedMax"), 0.0001f);
+
+            var raisedCount = 0;
+            void Handler() => raisedCount++;
+
+            Tuning.Reloaded += Handler;
+            try
+            {
+                // Editor で値を書き換えたのと同じ状況(同じ ScriptableObject インスタンスへの書き込み)を再現する。
+                table.Entries[0].ValueFloat = 12f;
+                Tuning.Rebind();
+
+                Assert.AreEqual(1, raisedCount, "Reloaded は 1 回だけ発火する");
+                Assert.AreEqual(12f, Tuning.GetFloat("Player/MoveSpeedMax"), 0.0001f, "起動時にキャッシュした側と同じ経路(Tuning.GetFloat)で新しい値が読める");
+            }
+            finally
+            {
+                Tuning.Reloaded -= Handler;
+            }
+        }
+
+        [Test]
+        public void Rebind_NotBound_WarnsOnce_NoException()
+        {
+            Assert.IsFalse(Tuning.IsBound);
+
+            var raisedCount = 0;
+            void Handler() => raisedCount++;
+
+            Tuning.Reloaded += Handler;
+            try
+            {
+                LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(".*Rebind.*"));
+                Assert.DoesNotThrow(() => Tuning.Rebind());
+                Assert.AreEqual(0, raisedCount, "未バインドなら Reloaded は発火しない(no-op)");
+            }
+            finally
+            {
+                Tuning.Reloaded -= Handler;
+            }
+        }
+
         // ── W-10(2026-09-14) 追加: Enum・テーブル型 ──
 
         [Test]

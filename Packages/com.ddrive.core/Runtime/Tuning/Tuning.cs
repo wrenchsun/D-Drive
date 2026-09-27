@@ -29,6 +29,33 @@ namespace DDrive.Runtime.Tuning
 
         public static bool IsBound => _table != null;
 
+        // M-2c(2026-09-27。[11_tasks.md] M-2 チケット、[02_core_framework.md] §14 追記) — Play 中に
+        // TuningEditorWindow(M-2a)の「Play 中に再読込」から呼ばれる。バインド中の TuningTable は
+        // Editor で値を編集しても同じ ScriptableObject インスタンスに入るため Tuning.GetFloat 自体は
+        // 次の呼び出しから新しい値を返すが、起動時に 1 回読んでキャッシュしている消費側
+        // (MS2026 の PlayerMovementParams.Load() 等)には届かない。その通知だけを担う。
+        // Bind()/Bind(null) は無改修(既存の呼び出し元・挙動を変えない)。Reloaded の購読は Bind() では
+        // 消さない(OptionStore.OnChanged と異なり Tuning は単一の静的購読者リストであり、Bind(null) は
+        // 「テーブルを外す」操作であって「購読者をリセットする」操作ではないため。購読側は自身の
+        // ライフサイクルで += / -= を管理する)。
+        public static event Action Reloaded;
+
+        public static void Rebind()
+        {
+            if (_table == null)
+            {
+                Debug.LogWarning("[DDrive] Tuning: Rebind() は Bind() 前には呼べません(no-op)。");
+                return;
+            }
+
+            _table.RebuildIndex();
+            WarnedKeys.Clear();
+            WarnedTypeMismatchKeys.Clear();
+            WarnedTableKeys.Clear();
+            WarnedTableTypeMismatchKeys.Clear();
+            Reloaded?.Invoke();
+        }
+
         public static float GetFloat(string key, float defaultValue = 0f)
         {
             if (TryFindEntry(key, out var entry))

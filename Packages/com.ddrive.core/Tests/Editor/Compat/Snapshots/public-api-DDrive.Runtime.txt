@@ -1705,6 +1705,7 @@ TYPE enum DDrive.Runtime.Presentation.TrackTrigger
   field const AtTime : DDrive.Runtime.Presentation.TrackTrigger
   field const OnSignal : DDrive.Runtime.Presentation.TrackTrigger
 TYPE class static DDrive.Runtime.Tuning.Tuning
+  event static Reloaded : System.Action
   method static Bind(DDrive.Runtime.Tuning.TuningTable table) : void
   method static GetBool(string key, bool defaultValue = false) : bool
   method static GetEnum(string key, string defaultValue = "") : string
@@ -1715,6 +1716,7 @@ TYPE class static DDrive.Runtime.Tuning.Tuning
   method static GetTableFloat(string tableKey, string rowId, string columnKey, float defaultValue = 0) : float
   method static GetTableInt(string tableKey, string rowId, string columnKey, int defaultValue = 0) : int
   method static GetTableString(string tableKey, string rowId, string columnKey, string defaultValue = "") : string
+  method static Rebind() : void
   property static IsBound : bool {get}
 TYPE struct DDrive.Runtime.Tuning.TuningCellValue
   field B : bool
