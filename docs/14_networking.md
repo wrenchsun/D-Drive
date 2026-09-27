@@ -1136,6 +1136,8 @@ Instance を外しても Pool 側の「貸出中」カウントは補正され�
 
 ## 20. 実装メモ（2026-09-27、M-3: MS2026 コードレビュー由来の依頼 DD-1〜DD-9 の照合と対応）
 
+**2026-09-27 追記（ローカル確認）**: M-3a（IsReady 後の Auto 起動）・M-3b・M-3f を含む `main` で `NetCheckBuilder` の開発ビルドを作り直し、`Tools/CI/Run-NetCheck.ps1` の全 9 シナリオ（pair0 / pair200 / latejoin / disconnect / quad0 / quad_latejoin / quad_leave / quad_hostquit / host_migration）が PASS。起動順序の変更で ContentHash 照合・Late Join・Host 引き継ぎに退行が無いことを確認した（Git Bash から `run-netcheck.cmd` を呼ぶと cmd.exe の文字コード解釈で構文エラーになるため、`pwsh -File Tools/CI/Run-NetCheck.ps1` を直接実行した）。
+
 **背景**: MS2026 のコードレビュー（`MS2026/Docs/CodeReview/2026-09-27_PhaseP_review.md`）で D-Drive 側への
 依頼 DD-1〜DD-9 が挙がった。以下は照合結果（D-Drive の現状・根拠ファイル・MS2026 側に残る作業）。DD-8 は
 本チケット（M-3a）で対応、追加で見つかった 2 件（`StartHost`/`StartClient` の戻り値、Overlay の ClientId）も
