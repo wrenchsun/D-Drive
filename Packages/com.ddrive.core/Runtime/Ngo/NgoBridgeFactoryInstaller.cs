@@ -159,7 +159,16 @@ namespace DDrive.Runtime.Net
                 // からのテストプレイで listen に失敗するため(Address 側は従来どおり host のまま)。
                 NgoTransportConfigurator.TryConfigure(nm, host, manualPort, launchOptions.SimLatencyMs, launchOptions.SimLossPercent, listenAddress: "0.0.0.0");
                 bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
-                nm.StartHost();
+
+                // [14_networking.md] §20(M-3b、2026-09-27) — 以前は nm.StartHost() の戻り値(bool)を捨てて
+                // 常に true を返していたため、Transport の bind 失敗等で実際には起動していなくても
+                // DDriveRuntimeBootstrap.StartHost が true を返してしまっていた(MS2026 `NetworkLauncher.cs:107`
+                // のコメントで指摘)。戻り値を見て false なら警告し、false を返して抜ける(明示 Spawn は行わない)。
+                if (!nm.StartHost())
+                {
+                    Debug.LogWarning($"[Net] DDriveRuntimeBootstrap.StartHost: NetworkManager.StartHost() が失敗しました(Transport の bind 失敗等。listen=0.0.0.0:{manualPort})。");
+                    return false;
+                }
 
                 // [14_networking.md] §18/N-6(2026-09-24, D-2) — NGO は通常、in-scene 配置の NetworkObject を
                 // StartHost()/StartServer() のたびに自動的に再 Spawn する(サーバー起動直後の内部スイープ。
@@ -203,7 +212,14 @@ namespace DDrive.Runtime.Net
 
                 NgoTransportConfigurator.TryConfigure(nm, manualAddress, manualPort, launchOptions.SimLatencyMs, launchOptions.SimLossPercent);
                 bridge.ConfigureAppLayerSimLatency(launchOptions.SimLatencyMs ?? 0);
-                nm.StartClient();
+
+                // [14_networking.md] §20(M-3b、2026-09-27) — DoManualStartHost と同じ理由。
+                if (!nm.StartClient())
+                {
+                    Debug.LogWarning($"[Net] DDriveRuntimeBootstrap.StartClient: NetworkManager.StartClient() が失敗しました(Transport の bind/接続失敗等。host={manualAddress}:{manualPort})。");
+                    return false;
+                }
+
                 Debug.Log($"[Net/Client] DDriveRuntimeBootstrap.StartClient: Client として起動しました(host={manualAddress}:{manualPort})。");
                 return true;
             }

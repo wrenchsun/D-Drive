@@ -328,6 +328,38 @@ MS2026 の実機テストで D-Drive 起因の不具合 3 件が見つかり、M
 | M-1c | `InstanceStore<TMarker,TInstance>.TryGetQuiet`（警告を出さない TryGet）を新設し、UiManager/VfxManager/AudioManager/CameraFxManager/CutsceneManager/PresentationManager/UiTweenManager/AnchorGroupPlayer/AnimManager/MaterialManager の Close/Stop/Cancel の冪等ガードをこれに置き換える | 基盤 | 0.5 | なし | `UiManager.Close` を 2 回呼んでも「Invalid handle access」警告が出ない → ✅ 2026-09-25 実装。挙動は変えず警告ログのみ解消。テスト: `UiManagerTests.Close_CalledTwice_DoesNotLogInvalidHandleWarning` + `InstanceStoreTests` |
 | M-1d | `NgoBridgeFactoryInstaller` の `NetDebugOverlay` 生成条件を `Debug.isDebugBuild \|\| Application.isEditor` に限定し、`DDriveRuntimeBootstrap.ShowNetDebugOverlayInRelease`（既定 false）で opt-in できるようにする | 基盤 | 0.5 | 6-0 | リリースビルドでは既定でオーバーレイが出ない。`ShowNetDebugOverlayInRelease=true` にすれば従来どおり出る → ✅ 2026-09-25 実装。互換性への影響: リリースビルドの既定挙動が変わる（[14_networking.md]「6-0 B」に追記） |
 
+## M-2 チケット: MS2026 チームからの Tuning（調整値）運用の要望（2026-09-27 追加。詳細は [docs/09_editor_tools.md] §「Tuning ウィンドウ（M-2a）」・[docs/02_core_framework.md] §14「2026-09-27 追記(M-2b/M-2c)」）
+
+MS2026 で P-8（Tuning 全キーの `TuningTable` 登録、46 キー）が入り、企画・レベル担当が実際に値を触り始めたところ、次の意見が出た（MS2026 側の調査は 2026-09-27 に実施）。
+
+1. **Tuning Table はカテゴリごと（Player / Match / …）に分けて見たい・分けて持ちたい。** 現状は `TuningTable` 1 個の `Entries[]`（46 件）を Unity 既定の配列 Inspector で編集するしかなく、目的のキーに辿り着けない。加えて `.asset` 1 個を全員が触るため git 競合の温床になる（MS2026 `Docs/Spec/04_EditorTools.md` §5 で「共有ファイル」として注意喚起済み）。
+2. **専用ウィンドウが欲しい。** MS2026 側は「MS2026 に専用ウィンドウは作らない（D-Drive の Tuning を使う）」と決めている（同 §5）ため、D-Drive で提供する。
+3. Play 中に値を変えても反映されない（MS2026 は起動時に 1 回読む設計。MS2026 側で A-6「Tuning ライブ再読込」を α 開始時に判断予定）。D-Drive 側に「再読込した」を知らせる口があれば MS2026 A-6 が小さく済む。
+
+方針: **データ形式は変えない（案 A 継続、既存 `.asset` 無変更）。** まず M-2a（ウィンドウ + カテゴリ表示）で 1・2 を満たし、M-2b（アセット分割）は M-2a を MS2026 チームが使ってみて「それでも分けたい」となったときだけ着手する（要判断）。M-2c は小さいので M-2a と同時でよい。いずれも公開 API・シリアライズは追加のみ（[42] §5、MINOR）。
+
+| # | チケット | 担当 | 日数 | 依存 | AC |
+|---|---|---|---|---|---|
+| M-2a | **Tuning ウィンドウ**（`Tools > D-Drive > Editors > Tuning（調整値）`、`TuningEditorWindow`）: キーの `<機能>/` 接頭辞で自動分類したカテゴリ一覧（左）+ 選択カテゴリのキー一覧（右。float/int は `Min≠Max` ならスライダー、bool はトグル、Enum は `EnumOptions` のドロップダウン、string はテキスト。`Unit`/`Description` を横に表示）+ 検索 + `Tables` タブ（列×行グリッド）+ 「キー定数を再生成」「仕様書と同期」「Play 中に再読込（M-2c）」ボタン。`TuningTable` の Inspector 最上部に「エディターで開く」ボタン（`[CustomEditor(typeof(TuningTable))]`。`[DataEditor]` は `AssetDataBase` 専用のため別途）。保存は `Undo.RecordObject` + `DDriveAssetSave.SaveDirty(table)`（[09] §保存規約） | ED | 2 | 5-13, W-10 | MS2026 の 46 キーが 11 カテゴリ（Player/Interact/Pickup/Match/Fan/InfluenceObject/Minigame/InfluenceItem/Sabotage/Migration/Level）に分かれて表示され、`Player/MoveSpeedMax` をスライダーで変えて保存 → Play で反映される。既存 `.asset` のシリアライズは無変更（Compat スナップショット green）。ウィンドウは `ScrollView` ルート・`DDriveMenu` 定数（[09] §6-7） |
+| M-2b | **複数 `TuningTable` のバインド（カテゴリ別アセット分割、要判断）**: `DDriveRuntimeBootstrap.TuningTables: TuningTable[]`（追加フィールド。既存 `TuningTable` は残し、両方を結合して Bind）+ `Tuning.Bind(IReadOnlyList<TuningTable>)`（オーバーロード追加。既存 `Bind(TuningTable)` は無改修）。結合時の重複キーは警告 1 回 + 先勝ち、新設 `TuningTableValidator` で Error（`DD-TUNING-DUP-KEY`）。`TuningCodegen` は全テーブルの和集合から生成。`SpecSyncService.ApplyTuning` はキー接頭辞で振り分け（対応するアセットが無いカテゴリは `DDriveSpecSettings.DefaultTuningTablePath` の既定テーブルへ） | 基盤+ED | 1.5 | M-2a | `TuningTable_Player.asset` / `TuningTable_Match.asset` に分けても `Tuning.GetFloat(TUNING.PlayerMoveSpeedMax)` が同じ値を返す。重複キーが Validation で Error になる。既存の 1 アセット構成は無改修で動く。**着手条件**: MS2026 チームが M-2a を使った上で「アセットも分けたい（git 競合が実際に起きた）」と判断したとき |
+| M-2c | **Play 中の再読込通知**: `Tuning.Rebind()`（バインド中のテーブルで `RebuildIndex()` をやり直し、新設 `Tuning.Reloaded`（`public static event Action`）を発火）。Editor では `TuningTable` の Inspector 編集は Play 中も同じ `ScriptableObject` インスタンスに入る（= `Tuning.GetFloat` は次の呼び出しから新しい値を返す）ため、足りないのは「起動時に 1 回読んでキャッシュしている側（MS2026 の `PlayerMovementParams.Load()` 等）への通知」だけ。M-2a の「Play 中に再読込」ボタンがこれを呼ぶ。[13] A-3 / W-24 の Live Tuning（実機ホットリロード）はこの上に載せる | 基盤 | 0.5 | なし | Play 中に `Player/MoveSpeedMax` を変えて「Play 中に再読込」→ `Reloaded` を購読した側で新しい値が読める（PlayMode テスト）。MS2026 A-6 が `Tuning.Reloaded += ...` だけで済む |
+
+**MS2026 側の対応（D-Drive のリリース後）**: `Docs/Spec/04_EditorTools.md` §5 の手順を「Tuning ウィンドウ」に書き換え、A-6 で `Tuning.Reloaded` を購読。M-2b を採る場合は `Assets/_Project/DDrive/GameData/Settings/` のアセット分割と `DDriveRuntimeBootstrap` の参照差し替え（Unity Editor 経由）。
+
+**同時に出た要望で D-Drive の変更が不要と判断したもの（記録）**: 「Player がネットワーク Spawn 前提なので、移動・ジャンプ・カメラの単体調整やグレーボックスの動作確認を 1 人でできる開発用シーンが欲しい」→ `DDriveRuntimeBootstrap` の `DefaultNetStart=Manual` + `StartHost(port)`（N-1）と `IsReady` で足りる。MS2026 側で `Dev_Sandbox` シーン + ローカル Host 自動起動を実装する（MS2026 `Docs/Spec/tasks.md` V チケット）。
+
+## M-3 チケット: MS2026 コードレビュー（`MS2026/Docs/CodeReview/2026-09-27_PhaseP_review.md`）で挙がった D-Drive 側への依頼 DD-1〜DD-9 の対応（2026-09-27 追加。詳細は [docs/14_networking.md] §20）
+
+MS2026 の Phase P コードレビューが D-Drive 側への依頼 9 件（DD-1〜DD-9）を挙げた。D-Drive `main`（v1.2.1）と照合した結果は次のとおり。**DD-1/3/4/5 は v1.2.0（N-5/N-6）で既に解消**（MS2026 は `DDriveRuntimeBootstrap.StartHost/StartClient/StopNetworking` 経由で接続しているため `CatalogContentHashGate.Reset()`・`ResetNetworkedState()` は有効。MS2026 側のレビュー文が N-5 以前の [03] §10.7 をそのまま転記したもので古い）。**DD-6/7 は v1.2.1（M-1a/b）で解消。** DD-2 は NGO が 1 プロセスに `NetworkManager` を 1 つしか持てずインプロセス Host+Client の PlayMode テストが組めない（[docs/29] §26、[14] §19「D-2 の検証方針」）ため `run-netcheck host_migration` + MS2026 の実機確認（TeamNotes 2026-09-25 #3）で代替し、追加テストは書かない。残るのは DD-8（IsReady 前の自動接続）・DD-9（日本語フォント、要判断）と、MS2026 のコードコメント・TeamNotes から拾った 2 件（`StartHost` の戻り値・Overlay の ClientId 表示）。すべて追加のみ（[42] §5、MINOR）。
+
+| # | チケット | 担当 | 日数 | 依存 | AC |
+|---|---|---|---|---|---|
+| M-3a | **DD-8: `IsReady` 前の自動接続を遅延**: `DDriveRuntimeBootstrap.Start()` の `StartNetworkingIfPending()` を `RegisterCatalogsAsync()` 完了（`IsReady=true`）の後に呼ぶ（Auto 起動）。Manual の `StartHost`/`StartClient` は `IsReady` 前に呼ばれたら Warning を 1 回出して続行（no-op にはしない。MS2026 は既に `IsReady` を待っている）。`AssetRegistry.NotifyPlaceholderUsed` 相当の Placeholder 警告に「カタログ登録前」の理由を含める | 基盤 | 0.5 | 0-14, N-1 | Auto 起動で NGO のシーン同期が `IsReady` 後に始まり、起動直後の `Prefabs.Spawn` が Placeholder にならない。Loopback/既存 Auto の挙動（役割解決・Transport 設定）は無改修。PlayMode テスト: `RegisterCatalogsAsync` 完了前に `_pendingNetStart` が呼ばれない |
+| M-3b | **`StartHost`/`StartClient` の戻り値を NGO の成否に連動**: `NgoBridgeFactoryInstaller.DoManualStartHost/DoManualStartClient` が `nm.StartHost()`/`nm.StartClient()` の `bool` を見て、`false` なら Warning + `false` を返す（MS2026 `NetworkLauncher.cs:107` のコメント「戻り値は NetworkManager.StartHost() 自体の成否を反映しない」への対応） | 基盤 | 0.25 | N-1 | Transport の bind 失敗等で `DDriveRuntimeBootstrap.StartHost` が `false` を返す。成功時の挙動は無改修 |
+| M-3c | **Overlay の ClientId 表示が再 Start 後に古く見える件の調査**（TeamNotes 2026-09-25 #2）: `NetDebugOverlay` は `Bridge.LocalClientId` を毎 OnGUI で読み、`NgoNetBridge.LocalClientId` は `NetworkManager.LocalClientId` を素通しにしている。キャッシュが無いことをコードで確認し、原因が NGO 側（接続確立前の値）であれば docs/14 に記録して対応不要とする。D-Drive 側にキャッシュがあれば直す | 基盤 | 0.25 | なし | 調査結果が [14] §20 に残る。修正が要る場合は `LocalClientId` が接続状態に追従する |
+| M-3d | **照合記録 + MS2026 側への返答**: [14] §20 に DD-1〜DD-9 の照合表（解消済み版・根拠・MS2026 側に残る作業）を書く。MS2026 側は `Docs/CodeReview/2026-09-27_PhaseP_review.md` に追記（本文は書き換えない、README の運用どおり）+ `Docs/Spec/03_Network.md` §10.7 に「D-1〜D-5 は D-Drive v1.2.0 で対応済み」を追記（MS2026 はブランチにコミット、push しない） | 基盤 | 0.25 | M-3a〜c | MS2026 の次のレビューで DD-1 が「未解消」と再起票されない |
+| M-3e | **DD-9: 日本語 TMP フォント（要判断）**: D-Drive のフォント資産 / TMP 既定フォントに日本語グリフを含むフォントを登録できるようにする（AssetBrowser 側）。MS2026 は `JapaneseFontFallback`（OS フォント動的フォールバック）で運用継続を 2026-09-26 に決定済みのため**着手しない**。フォント資産をどう持つか（同梱するフォントのライセンス・サイズ）はユーザー判断 | ED | - | なし | 要判断として記録のみ |
+
 ## U チケット: 使い勝手の修正（2026-09-17 追加。詳細は [39](39_usability_fixes_2026-09-17.md)）
 
 デザイナーマニュアル用のスクリーンショット撮影（[36 §5](36_manual_screenshot_list.md)）と実機での通し確認で見つかった不具合・要望 26 件（U-1〜U-26）。3D プレビューが透明になる件・FBX のマテリアルスロット未割当・「確認用シーンに配置」の挙動・作成導線（Project / Hierarchy 右クリック）などが含まれる。**Phase 7 より先に片付ける**。一覧と状態は [39](39_usability_fixes_2026-09-17.md) §0。

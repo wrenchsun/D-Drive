@@ -200,8 +200,30 @@ namespace DDrive.Runtime.Loop
 
         private void Start()
         {
-            RegisterCatalogsAsync().Forget();
-            StartNetworkingIfPending();
+            StartAsync().Forget();
+        }
+
+        // [14_networking.md] §20(M-3a、2026-09-27) — 以前は RegisterCatalogsAsync().Forget() の直後に
+        // StartNetworkingIfPending() を呼んでいたため、IsReady=true になる前(カタログ登録前)に Auto 起動の
+        // NGO 接続が始まり、起動直後の NGO シーン同期で Spawn される Player が Prefabs.Spawn 未登録として
+        // Placeholder になる実バグが MS2026 実機で見つかった(MS2026 TeamNotes 2026-09-25 #1、DD-8)。
+        // RegisterCatalogsAsync() の完了(成功でも例外でも)を待ってから StartNetworkingIfPending() を呼ぶ。
+        // 例外で止めない([CLAUDE.md] §0-4)ため try/finally で必ず後続の接続処理を実行する。
+        // private のまま(公開 API を増やさない。PlayMode テストは reflection で呼ぶ、RuntimeBootstrapTests.cs)。
+        private async UniTask StartAsync()
+        {
+            try
+            {
+                await RegisterCatalogsAsync();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] RegisterCatalogsAsync が例外で失敗しました。カタログは未登録のまま続行します(全 ID が Placeholder になります): {e}");
+            }
+            finally
+            {
+                StartNetworkingIfPending();
+            }
         }
 
         // [14_networking.md] §7(6-5) — ContentHash 照合のタイムアウト検出(偽装: ハッシュを送らない/
@@ -407,6 +429,14 @@ namespace DDrive.Runtime.Loop
 
         public bool StartHost(ushort port)
         {
+            // [14_networking.md] §20(M-3a、2026-09-27、DD-8) — Manual 接続は no-op にはしない(MS2026 は
+            // 既に IsReady を待ってから呼んでいるため通常は発生しないが、他の持ち込み先が IsReady を待たずに
+            // 呼んだ場合に気付けるよう警告だけ出して続行する)。
+            if (!IsReady)
+            {
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartHost: カタログ登録前(IsReady=false)に呼ばれました。続行しますが、RegisterCatalogsAsync 完了前は未登録 ID が Placeholder になります(DDriveRuntimeBootstrap.IsReady/OnReady を待つことを推奨)。");
+            }
+
             if (_manualStartHost == null)
             {
                 Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartHost: NGO ブリッジが使えないため何もしません(NetBridgeMode.Loopback、または NGO 未導入/シーンに NetworkManager+NgoNetBridge が見つかりません)。");
@@ -418,6 +448,12 @@ namespace DDrive.Runtime.Loop
 
         public bool StartClient(string address, ushort port)
         {
+            // [14_networking.md] §20(M-3a、2026-09-27、DD-8) — StartHost と同じ理由。
+            if (!IsReady)
+            {
+                Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartClient: カタログ登録前(IsReady=false)に呼ばれました。続行しますが、RegisterCatalogsAsync 完了前は未登録 ID が Placeholder になります(DDriveRuntimeBootstrap.IsReady/OnReady を待つことを推奨)。");
+            }
+
             if (_manualStartClient == null)
             {
                 Debug.LogWarning("[Net] DDriveRuntimeBootstrap.StartClient: NGO ブリッジが使えないため何もしません(NetBridgeMode.Loopback、または NGO 未導入/シーンに NetworkManager+NgoNetBridge が見つかりません)。");

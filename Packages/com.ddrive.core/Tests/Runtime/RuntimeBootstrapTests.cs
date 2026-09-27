@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Registry;
@@ -106,6 +107,42 @@ namespace DDrive.Tests.Runtime
             Assert.IsTrue(readyFired);
             Assert.AreEqual(1, bootstrap.RegisteredCatalogCount);
             Assert.AreEqual(1, bootstrap.Registry.Entries(AssetType.Anim).Count);
+        }
+
+        // [14_networking.md] §20(M-3a、2026-09-27、DD-8) — Start() が RegisterCatalogsAsync().Forget() の
+        // 直後に StartNetworkingIfPending() を呼んでいた旧実装だと、IsReady=true になる前(カタログ登録前)に
+        // 保留中のネット開始(_pendingNetStart)が呼ばれてしまう。StartAsync() が await RegisterCatalogsAsync()
+        // の後に呼ぶよう直したことを、IsReady のタイミングで検証する(private フィールドへは reflection で
+        // 直接ダミーの delegate を差し込む。InternalsVisibleTo 未設定のため、UiButton.cs 等と同じ理由で
+        // 実運用コードを public にはしない)。
+        [UnityTest]
+        public IEnumerator StartAsync_InvokesPendingNetStart_OnlyAfterCatalogsReady()
+        {
+            var bootstrap = Create();
+            var catalog = ScriptableObject.CreateInstance<AssetCatalog>();
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = 99, Type = AssetType.Anim, Address = "anim/99" } });
+            bootstrap.Catalogs = new[] { catalog };
+
+            var invoked = false;
+            var invokedWhileNotReady = false;
+            var field = typeof(DDriveRuntimeBootstrap).GetField("_pendingNetStart", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(field, "_pendingNetStart フィールドの名前が変わっていないか確認する");
+            field.SetValue(bootstrap, (System.Action)(() =>
+            {
+                invoked = true;
+                if (!bootstrap.IsReady)
+                {
+                    invokedWhileNotReady = true;
+                }
+            }));
+
+            var startAsync = typeof(DDriveRuntimeBootstrap).GetMethod("StartAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(startAsync, "StartAsync メソッドの名前が変わっていないか確認する");
+            yield return ((UniTask)startAsync.Invoke(bootstrap, null)).ToCoroutine();
+
+            Assert.IsTrue(invoked, "保留中のネット開始が呼ばれること");
+            Assert.IsFalse(invokedWhileNotReady, "RegisterCatalogsAsync 完了(IsReady=true)前に呼ばれてはいけない");
+            Assert.IsTrue(bootstrap.IsReady);
         }
 
         [Test]

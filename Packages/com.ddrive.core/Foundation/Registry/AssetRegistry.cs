@@ -189,7 +189,15 @@ namespace DDrive.Foundation.Registry
 
             if (_placeholderWarnedIds.Add(id))
             {
-                Debug.LogWarning($"[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.");
+                // [14_networking.md] §20(M-3a、2026-09-27、DD-8) — カタログが 1 つも登録されていない状態
+                // (DDriveRuntimeBootstrap.IsReady が true になる前)での Placeholder は、たいてい「起動直後の
+                // NGO 接続でカタログ登録前にネット経由の Spawn/Play が来た」ことが原因なので、原因に気付ける
+                // よう理由を一言添える。登録後に本当に未登録の ID を渡した場合は _index に何か入っているため
+                // このメッセージは出ない(既存の警告文自体は変えない。末尾に追記のみ)。
+                var reason = _index.Count == 0
+                    ? "(カタログ登録前。DDriveRuntimeBootstrap.IsReady を待ってください)"
+                    : string.Empty;
+                Debug.LogWarning($"[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.{reason}");
             }
         }
     }
