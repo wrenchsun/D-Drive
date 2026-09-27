@@ -28,6 +28,10 @@ namespace DDrive.Tests.Editor
         [SetUp]
         public void SetUp()
         {
+            // UiInteractable の同フレーム多重発火ガード(静的 _lastFireFrame)は EditMode では Time.frameCount が
+            // 進まないため、前のテストの発火が残っていると SimulateClick が拒否される(順序依存のフレーク、
+            // 2026-09-27 に EditMode 1197/1198 で再現)。他の UI テストと同じく毎回リセットする。
+            UiInteractable.ResetDoubleFireGuardForTests();
             _pool = new PoolService();
             _registry = EditorAnchorRegistry.Build();
             _manager = new UiManager(_pool, _registry, new PauseService());
