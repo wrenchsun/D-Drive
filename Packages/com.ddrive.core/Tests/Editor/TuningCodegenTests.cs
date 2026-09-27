@@ -55,8 +55,25 @@ namespace DDrive.Tests.Editor
         [Test]
         public void Regenerate_NullTable_WritesEmptyClassWithoutThrowing()
         {
+            // table: null は「プロジェクト既定の TuningTable(DDriveSpecSettings.DefaultTuningTablePath)を使う」の
+            // 意味(TuningCodegen.ResolveDefaultTable)なので、件数は実データ次第(2026-09-27 に確認用データ 48 件を
+            // 投入したため 0 ではなくなった)。ここでは「例外で止まらない・クラスの骨組みが出る」だけを検証し、
+            // 件数 0 の検証は下の Regenerate_EmptyTable_WritesZeroEntries(実データに依存しない)で行う。
             TuningCodegen.Result result = null;
             Assert.DoesNotThrow(() => result = TuningCodegen.Regenerate(table: null, outputPath: OutputPath));
+
+            Assert.IsNotNull(result);
+            StringAssert.Contains("public static class TUNING", File.ReadAllText(OutputPath));
+            StringAssert.Contains("public static class TUNING_TABLE", File.ReadAllText(OutputPath));
+            StringAssert.Contains("public static class TUNING_COLUMN", File.ReadAllText(OutputPath));
+        }
+
+        [Test]
+        public void Regenerate_EmptyTable_WritesZeroEntries()
+        {
+            var table = ScriptableObject.CreateInstance<TuningTable>();
+            TuningCodegen.Result result = null;
+            Assert.DoesNotThrow(() => result = TuningCodegen.Regenerate(table, OutputPath));
 
             Assert.AreEqual(0, result.TotalCount);
             StringAssert.Contains("public static class TUNING", File.ReadAllText(OutputPath));

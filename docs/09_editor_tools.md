@@ -402,9 +402,9 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
 メニュー `Tools/D-Drive/マニュアルを開く` で同じ処理を呼べる。
 
 - ボタン（アイコン `EditorGUIUtility.IconContent("_Help")`、ツールチップ「デザイナーマニュアルをブラウザで開く」）: クリックでマニュアルのトップ（`Readme`）を開く
-- 横のドロップダウン（アイコン `"icon dropdown"`）: `docs/DesignerManual/*.html` のページ一覧（表示名は各 HTML の `<title>` から動的に取得。`ManualPages.DiscoverPages`）+ 「Web 版を優先」トグル + 「ローカルのマニュアルを開く」
+- 横のドロップダウン（アイコン `"icon dropdown"`）: `docs/DesignerManual/*.html` のページ一覧（表示名は各 HTML の `<title>` から動的に取得。`ManualPages.DiscoverPages`）+ 「Web 版を優先」トグル + 「ローカルのマニュアルを開く」+ 「マニュアルのフォルダを開く」（2026-09-27 追加。`ManualLauncher.RevealManualFolder`、`EditorUtility.RevealInFinder` でトップページをエクスプローラー表示。ブラウザで `file://` を開けない環境〔`.html` の関連付け・既定ブラウザの問題〕の代替手段。ローカルで開くときは開いたパスと URL を `Debug.Log` に出すので、開けない人はまず Console のこの行を確認する）
 - 開く先の決定（契約）:
-  1. `DDriveSpecSettings.Load()?.HumanAppUrl` が空でなく、かつ `ManualPrefs.PreferWeb`（EditorPrefs、既定 ON）が ON なら
+  1. `DDriveSpecSettings.Load()?.HumanAppUrl` が空でなく、かつ `ManualPrefs.PreferWeb`（EditorPrefs、**既定 OFF**。2026-09-27 に ON → OFF へ変更: Web 版〔GAS の Web アプリ〕は Google アカウントの閲覧権限が無い人には開けず、持ち込み先で「開ける人と開けない人」が出たため。Web を使う人だけドロップダウンの「Web 版を優先」を ON にする）が ON なら
      `<HumanAppUrl>?page=manual&p=<ページ名(拡張子なし)>`（既にクエリがあれば `&` で連結）を `Application.OpenURL`
      （`ManualUrlBuilder.BuildWebUrl` / `ResolveUseWeb`）
   2. それ以外はローカルの `docs/DesignerManual/<page>.html` を `file:///` URI で開く（`ManualUrlBuilder.BuildLocalFileUrl`）。

@@ -8,7 +8,7 @@ namespace DDrive.Editor.Manual
     // ManualUrlBuilder(純粋関数)、優先設定は ManualPrefs、ページ一覧は ManualPages に分離している。
     //
     // 開く先の決定(契約。デザイナー/プログラマーの両マニュアルで共通):
-    //   1. ManualPrefs.PreferWeb かつ DDriveSpecSettings.HumanAppUrl が空でなければ Web(デプロイ①)を開く
+    //   1. ManualPrefs.PreferWeb(既定 OFF、2026-09-27 変更)かつ DDriveSpecSettings.HumanAppUrl が空でなければ Web(デプロイ①)を開く
     //      (<HumanAppUrl>?page=manual&p=<page>、プログラマーマニュアルは &kind=programmer を追加。
     //      ManualUrlBuilder.BuildWebUrl)
     //   2. それ以外はローカルの docs/DesignerManual|ProgrammerManual/<page>.html を file:// で開く
@@ -58,7 +58,28 @@ namespace DDrive.Editor.Manual
                 return;
             }
 
-            Application.OpenURL(ManualUrlBuilder.BuildLocalFileUrl(folder, page));
+            var url = ManualUrlBuilder.BuildLocalFileUrl(folder, page);
+            // 2026-09-27 — 持ち込み先で「開ける人と開けない人」が出たとき、どのファイルを何の URL で開こうと
+            // したかを Console で確認できるようにする(Application.OpenURL は成否を返さないため、失敗は
+            // OS 側の .html の関連付け・既定ブラウザの問題として切り分ける。RevealManualFolder が代替手段)。
+            Debug.Log($"[D-Drive] マニュアルを開きます: {filePath}\n{url}");
+            Application.OpenURL(url);
+        }
+
+        // 2026-09-27 — ブラウザで開けない環境向けの代替手段。マニュアルのフォルダ(トップページ)を
+        // エクスプローラー/Finder で表示する(ユーザーが HTML をブラウザへドラッグして開ける)。
+        public static void RevealManualFolder(ManualKind kind = ManualKind.Designer)
+        {
+            var projectRoot = ManualPages.GetProjectRoot();
+            var folder = ManualPages.GetManualFolder(projectRoot, kind);
+            var topPath = Path.Combine(folder, ManualPages.TopPageName + ".html");
+            if (!File.Exists(topPath))
+            {
+                Debug.LogWarning($"[D-Drive] マニュアルのフォルダが見つかりません: {folder}");
+                return;
+            }
+
+            UnityEditor.EditorUtility.RevealInFinder(topPath);
         }
 
         // プログラマーマニュアルのトップ(Readme)を開く。

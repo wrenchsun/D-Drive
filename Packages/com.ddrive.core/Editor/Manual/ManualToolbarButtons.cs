@@ -60,6 +60,8 @@ namespace DDrive.Editor.Manual
             menu.AddSeparator(string.Empty);
             menu.AddItem(new GUIContent("Web 版を優先"), ManualPrefs.PreferWeb, () => ManualPrefs.PreferWeb = !ManualPrefs.PreferWeb);
             menu.AddItem(new GUIContent("ローカルのマニュアルを開く"), false, ManualLauncher.OpenLocalTop);
+            // 2026-09-27 — ブラウザで開けない環境向け(フォルダをエクスプローラーで表示)。
+            menu.AddItem(new GUIContent("マニュアルのフォルダを開く"), false, () => ManualLauncher.RevealManualFolder());
 
             menu.AddSeparator(string.Empty);
             AddProgrammerManualItems(menu, projectRoot);
