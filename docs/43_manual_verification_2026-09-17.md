@@ -305,3 +305,20 @@ Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a
 - [ ] CameraShake/Haptic/Canvas/UiTween 等、attach 概念の無い Kind のトラックでは「専用エディタで開く」の行自体は出る(専用エディタが登録されている種別のため)が、2 つのボタンとも同じ通常の Open になること(仕様どおり)
 - [ ] HitStop/Marker/Signal トラック(Asset を持たない Kind)には「専用エディタで開く」の行が出ないこと
 - [ ] デザイナーマニュアル `docs/DesignerManual/presentation.html`(「専用エディタを同時に開く」の新しい節)の説明どおりに操作できること
+
+## 13. Tuning ウィンドウ(M-2a/M-2c)の確認(2026-09-27 追記)
+
+MS2026 チームの要望で追加した `Tools > D-Drive > Editors > Tuning（調整値）`([09_editor_tools.md] 「Tuning ウィンドウ」、[11_tasks.md] M-2)。自動テストは分類ロジックと `Tuning.Rebind()` のみなので、見た目・操作は人が確認する。
+
+1. `Tools > D-Drive > Editors > Tuning（調整値）` を開く。既定の対象が `Assets/GameData/Settings/DDriveTuningTable.asset`(無ければ `DDriveSpecSettings.DefaultTuningTablePath` のアセット)になっていること。無い場合は `TuningTable` を 1 つ作って `Player/MoveSpeedMax`(Float、Min 0 / Max 10)・`Match/TimeLimitSec`(Int)・`Debug/ShowHud`(Bool)・`Enum` 型 1 件を入れる
+2. 左のカテゴリ一覧(`Player (n)` のように件数付き)をクリックし、右にそのカテゴリのキーだけが出ること。`/` の無いキーは「(未分類)」に入ること
+3. Float/Int は `Min≠Max` のときスライダー、`Min==Max` のとき数値欄。Bool はトグル、Enum は `EnumOptions` のドロップダウン、String はテキスト。右に `Unit`/`Description` が出ること
+4. スライダーで値を変える → Inspector の同じ Entry が変わり、`.asset` が保存される(タイトルの `*` が消える)。Ctrl+Z で戻ること
+5. `Tables` を選び、`TuningTable.Tables` のグリッド(列×行)でセルを編集できること(列・行の追加削除ボタンは無い)
+6. 検索欄に文字を入れると選択中カテゴリ内で絞り込まれること
+7. 「キー定数を再生成」で `Assets/Generated/Tuning.g.cs` が更新される、「仕様書と同期」で `SpecSyncWindow` が開くこと
+8. `TuningTable` アセットの Inspector 最上部に「Tuning ウィンドウで開く」ボタンがあり、押すとそのテーブルが対象で開くこと
+9. Play Mode に入る(`DDriveRuntimeBootstrap` が `TuningTable` を Bind しているシーン)。「Play 中に再読込」ボタンが活性になる。値を変えて押すと `Tuning.Reloaded` が発火する(購読者が無ければ `Tuning.GetFloat` が次の呼び出しから新しい値を返すことをデバッグ表示等で確認)。Edit Mode ではボタンが非活性であること
+10. ウィンドウを狭く・広くしてもレイアウトが崩れず、全体が `ScrollView` でスクロールできること
+
+要判断(M-2b): カテゴリごとにアセットを分けたい(git 競合が実際に起きた)と MS2026 チームが判断したときだけ着手する([11] M-2b)。
