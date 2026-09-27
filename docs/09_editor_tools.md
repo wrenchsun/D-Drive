@@ -336,7 +336,8 @@ Tools/
     │   ├─ UI Tween · Preset Gallery    ← 2026-09-11 実装(4-12。UiPresetGalleryWindow。タブ(出現/常時/消滅/強調/カタログ)+ 検索 + お気に入り(EditorPrefs)の静的カード一覧(名前・カテゴリ・64 サンプルの静的イージング曲線スケッチ)。カードから「この要素に適用」「Canvas 内一括適用」「選択中のシーン要素で再生」「設定を他の要素へコピー」「独自プリセットとして登録」、[15] B-3.5 実装メモ)
     │   ├─ Shake / Haptics             ← 2026-09-14 実装(5-2c。CameraFxEditorWindow。1 ウィンドウで CameraShakeData/HapticsData 両方を扱う(AudioEditorWindow の SE/BGM と同じ設計)。波形編集は ValueDefDrawer の PropertyField のまま、読み取り専用の重ね描き波形(WaveformGraphGui)を追加。Shake は SceneCameraShakePreviewDriver が実 CameraFxManager で開いているシーンの Camera.main を直接揺らす(連打で Trauma 合成を確認可)。Haptics は EditorHapticsPreviewDriver が実 HapticsManager 経由で接続中のパッドを「Test on Pad」で振動。プリセット 10 種(Pulse/Rumble/Heartbeat/Explosion/Hit_Small/Hit_Large/Landing/Earthquake/Alarm/Engine)は `CameraFxPresets` が Undo 付きで適用。詳細は [16] 実装メモ参照)
     │   ├─ 揺れ・振動確認用シーンを開く ← 2026-09-14 追加(5-2c。CameraShakePreviewSceneSetup。VfxPreviewSceneSetup と同じ流儀)
-    │   └─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
+    │   ├─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
+    │   └─ Tuning（調整値）              ← 2026-09-27 設計のみ(M-2a、**未実装**。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
     ├─ Validation/
     │   ├─ Run All
     │   └─ Report Window
@@ -994,4 +995,37 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **テスト**: `Tests/Editor/Update/`（`SemVerTests` / `ChangelogRangeReaderTests` / `ChangelogCompatibilityAnalyzerTests` / `ChangelogLocatorTests` / `UpdateActionsTests`）。`UpdateActions.Apply` はフェイクの `Steps`（デリゲート）で「途中で失敗したら以降を実行しない」「全段成功したときだけ `MarkApplied` が呼ばれる」を固定する。`UpdateStepsFactory`・`UpdateWindow` 自体(実 AssetDatabase/Addressables/Validation に触れる)は EditMode テストの対象外
 - **`ProjectSetupValidator` との連携**: `LastAppliedVersion` が現在のパッケージ版より古い(または未適用)ことを検出する Warning(`DD-SETUP-UPDATE-PENDING`)を §13 の `ProjectSetupValidator` に追加した（開発リポジトリ〔`DDriveProjectSettings.IsDevelopmentRepo == true`〕は対象外）
 - **「1. 更新チェック」（P-14、2026-09-20）**: `Packages/manifest.json` の `com.ddrive.core` の値を `GitPackageUrl.Parse`（`Editor/Update/GitPackageUrl.cs`、純関数）で URL・`?path=`・`#ref` に分解する。`file:`/レジストリ配布の値なら `IsGitUrl=false` になり「更新チェック対象外(git URL 参照ではありません)」を表示して no-op にする。「最新の版を確認」ボタンは `IGitTagLister`(既定実装 `GitCliTagLister`、`System.Diagnostics.Process` で `git ls-remote --tags` をタイムアウト 30 秒で起動。git が PATH に無い/タイムアウト/非 0 終了/例外はいずれも警告表示 + no-op)→ `GitTagListParser.Parse`(標準出力を解析、peeled 行〔`^{}`〕と非 SemVer タグを除外し降順に整列)→ `UpdateCheckLogic.Evaluate`(現在の参照 vs 最新のタグを比較し `UpToDate`/`Patch`/`Minor`/`Major`/`Unknown` を判定。現在の参照がタグとして解釈できない〔コミットハッシュ指定〕ときは package.json の版にフォールバックする)の順に呼ぶ。取得したタグを `DropdownField` に降順で並べ、「manifest を選んだ版に更新する」ボタン(`EditorUtility.DisplayDialog` で確認)で `GitPackageUrl.WithRef` を使い `#ref` だけを差し替えて保存し `AssetDatabase.Refresh()` + `Client.Resolve()` を実行する。差し替え前の値は `DDriveProjectSettings.PreviousPackageRef`(新設フィールド)に退避し、「前の参照に戻す」ボタンで現在値と入れ替えて戻せる(2 回押すと元に戻る簡易 1 段 undo)。「起動時に確認」トグルは作らない(手動のみ)。manifest を書き換えた後の再コンパイル・「4. 更新を適用」の実行は本セクションの範囲外(案内ラベルを出すだけ)。テスト: `Tests/Editor/Update/`(`GitPackageUrlTests`・`GitTagListParserTests`・`UpdateCheckLogicTests`)+ `DDriveProjectSettingsTests` の `PreviousPackageRef` 往復テスト。`GitCliTagLister`・`UpdateWindow` 自体は他の実配線クラスと同じく EditMode テスト対象外
+
+## Tuning ウィンドウ（M-2a、設計、2026-09-27。未実装）
+
+MS2026 チームからの要望（[11_tasks.md](11_tasks.md) M-2 チケット）。`TuningTable`（[02] §14 の 5-13 追記）は現状 Unity 既定の配列 Inspector でしか編集できず、キーが 46 件を超えたところで「目的のキーに辿り着けない」「Player 担当と Match 担当が同じ `.asset` を触って競合する」が問題になった。データ形式は変えず（案 A 継続）、閲覧・編集の単位だけをカテゴリにする。
+
+### 画面
+
+```
+┌ Tuning（調整値） ───────────────────────────────────────────────────────┐
+│ [TuningTable: DDriveTuningTable ▼] [検索          ]  [キー定数を再生成] [仕様書と同期] │
+├──────────────┬──────────────────────────────────────────────────────────┤
+│ Player   (13)│ MoveSpeedInitial  [====o------] 3.0   m/s   入力開始時の速度      │
+│ Interact  (3)│ MoveSpeedMax      [======o----] 8.0   m/s                         │
+│ Match     (3)│ TurnRateDeg       [=====o-----] 720   deg/s 見た目の回転補間      │
+│ Fan       (5)│ ...                                                               │
+│ Minigame  (5)│                                                                   │
+│ Tables    (0)│                                                                   │
+│ (未分類)  (0)│ Play 中: 保存した値は次の Play から。[Play 中に再読込]            │
+└──────────────┴──────────────────────────────────────────────────────────┘
+```
+
+- **カテゴリ** = キーの `<機能>/` 接頭辞（[27] §3.2 のキー書式。`/` が無いキーは「(未分類)」）。データに Category フィールドは足さない（既存 `.asset` 無変更、Compat スナップショット [42] §5.11-2 に影響しない）。
+- **1 行 1 キー**: 表示名はキーの `/` 以降。`Type` ごとに `Float`/`Int` = `Min≠Max` なら `EditorGUILayout.Slider`/`IntSlider`、それ以外は数値フィールド。`Bool` = トグル。`Enum` = `EnumOptions` の `Popup`（`ValueString` に書く）。`String` = テキスト。右に `Unit` と `Description`（`Tooltip` にも同じ文言）。
+- **Tables タブ**: `TuningTable.Tables` を 1 テーブル 1 グリッド（列 = `Columns`、行 = `Rows`。セルは列の `Type` に応じた UI）。行の追加・削除は仕様書側が正本（[32] §5.3）なので、ウィンドウからは**値の編集のみ**（列・行の追加削除は仕様書と同期に任せる。ローカルで試したい場合だけ Inspector）。
+- **保存**: `SerializedObject` 経由で編集し `Undo.RecordObject(table, "Tuning")` → `DDriveAssetSave.SaveDirty(table)`（§保存規約の「デザイナーが対象 1 個を編集して保存」）。`RebuildIndex()` は Play 中のみ呼ぶ（Edit Mode では次の `Bind()` で作り直される）。
+- **ボタン**: 「キー定数を再生成」= `TuningCodegen`（`Generate/Regenerate Tuning Keys` と同じ）、「仕様書と同期」= `SpecSyncWindow` を開く、「Play 中に再読込」= `Tuning.Rebind()`（M-2c。Play 中のみ活性）。
+- **Inspector 導線**: `[CustomEditor(typeof(TuningTable))]` を新設し、最上部に「Tuning ウィンドウで開く」ボタン + 既定の描画。`[DataEditor]`（§8）は `AssetDataBase` 前提のため使えない。
+- **対象テーブルの選択**: ツールバーの `ObjectField`（既定は `DDriveSpecSettings.DefaultTuningTablePath`、または `DDriveRuntimeBootstrap` がシーンにあればその参照）。M-2b（複数テーブル）を採った場合はカテゴリ一覧の上にテーブル名の見出しを挟む。
+- **規約**: `DDriveMenu.Editors + "Tuning（調整値）"` 定数を追加（メニューパス直書き禁止）。ルートは `ScrollView`（§6-7）。ウィンドウ内で `Tuning.Get*` は呼ばない（Editor は `TuningTable` を直接読む。ファサードは Play 中のランタイム専用）。
+
+### AC（[11] M-2a と同じ）
+
+MS2026 の 46 キーが 11 カテゴリに分かれて表示され、`Player/MoveSpeedMax` をスライダーで変えて保存 → Play で反映される。既存 `.asset` のシリアライズは無変更。EditMode テスト: カテゴリ分類の純関数（`TuningCategoryGrouper.Group(entries)`）と `Enum` 行の `Popup` → `ValueString` 書き込み。
 
