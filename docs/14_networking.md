@@ -1025,6 +1025,17 @@ NGO は 1 プロセスに `NetworkManager` を 1 つしか持てないため、P
   に対して follower の `signal_recv`）が届くこと、Ping ループ（App RTT）が再開すること（`rtt_app_ms` が
   n/a → 数値に戻ること）、ContentHash が再度 `OK` になること（D-1 の実地確認）。
 
+**2026-09-27 追記(M-3f)**: Host+Client のインプロセス構成(D-2 全体)は上記のとおり PlayMode でも組めない
+制約は変わらないが、**Host 単体**の `NetworkManager.Shutdown()` → 同一プロセスでの再 `StartHost()` は
+PlayMode テスト `NgoNetBridgeRestartTests`（`Packages/com.ddrive.core/Tests/Runtime/Ngo/
+NgoNetBridgeRestartTests.cs`）で担保できることが分かったため追加した。実行時に生成した
+`NetworkObject` は自然には「in-scene 配置」と判定されない（`InScenePlaced` が既定 `false` のまま）ため、
+reflection で `InScenePlaced=true` を明示的に立てて本番のシーン配置状態を模している。
+**結果（実測）**: 2 回とも(素の `StartHost()` のみの経路 / `DoManualStop` と同じ順序で
+`ResetSessionState()` を挟む経路)、**NGO が自動で再 Spawn した**（`NgoBridgeFactoryInstaller.
+DoManualStartHost` の保険は発火しなかった）。Client を含む役割入れ替え（host_migration）は引き続き
+`run-netcheck` + MS2026 実機で確認する。
+
 ### `NetLaunchArgs`/`NetCheckRunner` への host_migration 追加
 
 - `NetLaunchOptions` に `MigrationRole`（新規 `enum NetMigrationRole { None, Successor, Follower }`）・
@@ -1133,7 +1144,7 @@ Instance を外しても Pool 側の「貸出中」カウントは補正され�
 | 依頼 | MS2026 の指摘 | D-Drive の状態 | 根拠（ファイル・版） | MS2026 側に残る作業 |
 |---|---|---|---|---|
 | DD-1 | `CatalogContentHashGate` が再接続時にリセットされず、2 回目以降の接続で ContentHash 検証が誤判定になる | **v1.2.0 N-5 で解消済み** | `Packages/com.ddrive.core/Runtime/Loop/DDriveRuntimeBootstrap.cs`（`StopNetworking()` と `OnNetClientDisconnected` の両方から `NetHashGate?.Reset()` を呼ぶ）。docs/14 §18 | MS2026 のレビュー文は N-5 以前の `03_Network.md` §10.7 を転記したもので古い。レビュー文書の更新（DD-1 を「解消済み」に）はMS2026 側の作業 |
-| DD-2 | Stop→再 Start の挙動が PlayMode テストで検証されていない | NGO は 1 プロセスに `NetworkManager` を 1 つしか持てず、PlayMode でインプロセス Host+Client を組めない（docs/29 §26、docs/14 §19「D-2 の検証方針」）。`run-netcheck host_migration` シナリオ（N-6）+ MS2026 実機確認（TeamNotes 2026-09-25 #3）で代替 | docs/14 §19、docs/29 §26 | 追加の PlayMode テストは書かない（技術的制約のため方針として確定） |
+| DD-2 | Stop→再 Start の挙動が PlayMode テストで検証されていない | Host+Client のインプロセス構成は引き続き PlayMode で組めないが、**Host 単体**の Stop→再 StartHost は本 M-3f で `NgoNetBridgeRestartTests`（PlayMode）を追加して担保した（実測: NGO が自動で in-scene NetworkObject を再 Spawn。保険は発火せず）。Client を含む役割入れ替えは従来どおり `run-netcheck host_migration` シナリオ（N-6）+ MS2026 実機確認（TeamNotes 2026-09-25 #3）で代替 | docs/14 §19、docs/29 §26、`Packages/com.ddrive.core/Tests/Runtime/Ngo/NgoNetBridgeRestartTests.cs` | なし |
 | DD-3 | ネット状態のリセット漏れ（Presentation/Cutscene 等） | v1.2.0 N-5 の `ResetNetworkedState()`（Presentation/Cutscene/Prefabs/Audio/Vfx を横断してリセット）で対応済み | `DDriveRuntimeBootstrap.ResetNetworkedState()`、docs/14 §18「D-3/D-4」 | なし |
 | DD-4 | 同上（D-3 とセットの仕様明文化） | 同上。仕様は docs/14 §18 に明文化済み | 同上 | なし |
 | DD-5 | Host 引き継ぎ後の自動確認シナリオが無い | v1.2.0 N-6 の `run-netcheck host_migration` シナリオで解消 | docs/14 §19、`Tools/CI/Run-NetCheck.ps1` | なし |
