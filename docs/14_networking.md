@@ -862,6 +862,9 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 
 ## 18. 実装メモ（2026-09-24、N-5: Host 引き継ぎ向けのリセット）
 
+**2026-09-27 追記**: D-2（Stop→再 Start 経路の検証）は MS2026 で実機確認済み（TeamNotes 2026-09-25 #3）。
+詳細は §20 の DD-2 照合結果を参照。
+
 **背景**: MS2026（4 人対戦）は Host 切断時に Host 引き継ぎ（ホストマイグレーション）を行う。正本は
 `MS2026/Docs/Spec/03_Network.md` §10（決定: 残っているプレイヤーのうち `PlayerIndex` が最小の人が Host を
 引き継ぐ）で、D-Drive 側に必要な対応は同 §10.7 に D-1〜D-5 として一覧化されている。本チケットは D-1/D-3/D-4
@@ -1119,3 +1122,29 @@ Instance を外しても Pool 側の「貸出中」カウントは補正され�
 - ログ仕様の詳細は [docs/29_network_device_test.md] §4。既存 8 シナリオ・`host_migration` シナリオの
   判定条件（`NetCheckJudge`）・`Tools/CI/Run-NetCheck.ps1` は無改修（`migrated=` 行を直接パースしていない
   ため、出力タイミングを変えても既存シナリオの PASS/FAIL 判定に影響しない）。
+
+## 20. 実装メモ（2026-09-27、M-3: MS2026 コードレビュー由来の依頼 DD-1〜DD-9 の照合と対応）
+
+**背景**: MS2026 のコードレビュー（`MS2026/Docs/CodeReview/2026-09-27_PhaseP_review.md`）で D-Drive 側への
+依頼 DD-1〜DD-9 が挙がった。以下は照合結果（D-Drive の現状・根拠ファイル・MS2026 側に残る作業）。DD-8 は
+本チケット（M-3a）で対応、追加で見つかった 2 件（`StartHost`/`StartClient` の戻り値、Overlay の ClientId）も
+合わせて対応した（M-3b/M-3c）。
+
+| 依頼 | MS2026 の指摘 | D-Drive の状態 | 根拠（ファイル・版） | MS2026 側に残る作業 |
+|---|---|---|---|---|
+| DD-1 | `CatalogContentHashGate` が再接続時にリセットされず、2 回目以降の接続で ContentHash 検証が誤判定になる | **v1.2.0 N-5 で解消済み** | `Packages/com.ddrive.core/Runtime/Loop/DDriveRuntimeBootstrap.cs`（`StopNetworking()` と `OnNetClientDisconnected` の両方から `NetHashGate?.Reset()` を呼ぶ）。docs/14 §18 | MS2026 のレビュー文は N-5 以前の `03_Network.md` §10.7 を転記したもので古い。レビュー文書の更新（DD-1 を「解消済み」に）はMS2026 側の作業 |
+| DD-2 | Stop→再 Start の挙動が PlayMode テストで検証されていない | NGO は 1 プロセスに `NetworkManager` を 1 つしか持てず、PlayMode でインプロセス Host+Client を組めない（docs/29 §26、docs/14 §19「D-2 の検証方針」）。`run-netcheck host_migration` シナリオ（N-6）+ MS2026 実機確認（TeamNotes 2026-09-25 #3）で代替 | docs/14 §19、docs/29 §26 | 追加の PlayMode テストは書かない（技術的制約のため方針として確定） |
+| DD-3 | ネット状態のリセット漏れ（Presentation/Cutscene 等） | v1.2.0 N-5 の `ResetNetworkedState()`（Presentation/Cutscene/Prefabs/Audio/Vfx を横断してリセット）で対応済み | `DDriveRuntimeBootstrap.ResetNetworkedState()`、docs/14 §18「D-3/D-4」 | なし |
+| DD-4 | 同上（D-3 とセットの仕様明文化） | 同上。仕様は docs/14 §18 に明文化済み | 同上 | なし |
+| DD-5 | Host 引き継ぎ後の自動確認シナリオが無い | v1.2.0 N-6 の `run-netcheck host_migration` シナリオで解消 | docs/14 §19、`Tools/CI/Run-NetCheck.ps1` | なし |
+| DD-6 | （M-1 で対応済みの既知課題、詳細は docs/14 §16 以前の記録を参照） | v1.2.1 M-1a で解消 | CHANGELOG.md v1.2.1 節 | なし |
+| DD-7 | 同上系統の課題 | v1.2.1 M-1b で解消 | CHANGELOG.md v1.2.1 節 | なし |
+| DD-8 | `DDriveRuntimeBootstrap.Start()` がカタログ登録完了（`IsReady=true`）前に Auto 起動の NGO 接続を始めてしまい、起動直後の NGO シーン同期で Spawn される Player が `Prefabs.Spawn` 未登録として Placeholder になる | **本 M-3a で対応**。`Start()` を `StartAsync()`（`await RegisterCatalogsAsync()` の後で `StartNetworkingIfPending()` を呼ぶ）に変更。Manual の `StartHost`/`StartClient` は `IsReady` 前に呼ばれても no-op にはせず、警告して続行する。Placeholder 警告にも「カタログ登録前」の理由を追記 | `Packages/com.ddrive.core/Runtime/Loop/DDriveRuntimeBootstrap.cs`（`StartAsync`/`StartHost`/`StartClient`）、`Packages/com.ddrive.core/Foundation/Registry/AssetRegistry.cs`（`NotifyPlaceholderUsed`）、テスト `Packages/com.ddrive.core/Tests/Runtime/RuntimeBootstrapTests.cs` の `StartAsync_InvokesPendingNetStart_OnlyAfterCatalogsReady` | なし（MS2026 の `NetworkLauncher.cs` は既に `IsReady` を待ってから `StartHost`/`StartClient` を呼んでいるため、この修正で Auto/Manual どちらの経路でも安全になる） |
+| DD-9 | 日本語 TMP フォントのグリフが無い（フォールバック任せ） | **要判断、着手しない**。MS2026 は `JapaneseFontFallback`（OS フォント動的フォールバック）で運用継続を 2026-09-26 に決定済み | docs/11_tasks.md M-3e | フォント資産の同梱可否（ライセンス・サイズ）はユーザー判断待ち |
+| 追加1 | `StartHost`/`StartClient` の戻り値が `NetworkManager.StartHost()`/`StartClient()` 自体の成否を反映していない（MS2026 `NetworkLauncher.cs:107` のコメントで指摘） | **本 M-3b で対応**。`NgoBridgeFactoryInstaller.DoManualStartHost`/`DoManualStartClient` が `nm.StartHost()`/`nm.StartClient()` の `bool` を見て、`false` なら警告して `false` を返す | `Packages/com.ddrive.core/Runtime/Ngo/NgoBridgeFactoryInstaller.cs` | なし |
+| 追加2 | Overlay の ClientId 表示が再 Start 後に古く見える（TeamNotes 2026-09-25 #2） | **調査のみ・D-Drive 側の対応不要**。`NetDebugOverlay.OnGUI` は `Bridge.LocalClientId` を毎フレーム読んでいるだけでキャッシュを持たない（`Packages/com.ddrive.core/Runtime/Ngo/NetDebugOverlay.cs` 97〜106 行目、値をフィールドに保持していない）。`NgoNetBridge.LocalClientId` も `NetworkManager.LocalClientId` の素通し（`NgoNetBridge.cs` 59 行目）。接続確立前は NGO 側が前回の `LocalClientId`（多くの場合 0、あるいは Shutdown 前の値）をそのまま返すため、古く見えるのは NGO 側の値の性質であり D-Drive 側にキャッシュ由来のバグは無い | `Packages/com.ddrive.core/Runtime/Ngo/NetDebugOverlay.cs`、`Packages/com.ddrive.core/Runtime/Ngo/NgoNetBridge.cs` | 気になる場合は MS2026 側で「接続確立（`IsConnected`/`IsServer`）するまでは ClientId 欄を `-` 表示にする」等の表示側の工夫を検討（D-Drive の公開 API 追加は不要な範囲）|
+
+### MS2026 側への返答
+
+`Docs/CodeReview/2026-09-27_PhaseP_review.md` 末尾への追記、`Docs/Spec/03_Network.md` §10.7 直後への追記は
+MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った（D-Drive のコードは変更しない）。
