@@ -11,6 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.3.0] - 2026-09-27
+
+### 互換性
+
 - 変更なし(Editor、互換性ポリシー対象外): **マニュアルの既定をローカル版に（2026-09-27、[docs/09_editor_tools.md](docs/09_editor_tools.md) §6.1）** — 「マニュアル」ボタンの「Web 版を優先」（`ManualPrefs.PreferWeb`、EditorPrefs）の既定を ON → OFF に変更。Web 版（GAS の Web アプリ）は Google アカウントの閲覧権限が無い人には開けず、持ち込み先で「開ける人と開けない人」が出たため。トグルを ON にした人は従来どおり Web。ローカルで開く際に開いたパス/URL を `Debug.Log` に出し、ドロップダウンに「マニュアルのフォルダを開く」（`EditorUtility.RevealInFinder`）を追加
 - 追加のみ（MINOR）: **M-2a/M-2c（2026-09-27、[docs/09_editor_tools.md](docs/09_editor_tools.md)「Tuning ウィンドウ」・[docs/02_core_framework.md](docs/02_core_framework.md) §14・[docs/11_tasks.md](docs/11_tasks.md) M-2 チケット、MS2026 チームからの要望）** — MS2026 で `TuningTable` の登録キーが 46 件になり、Unity 既定の配列 Inspector では目的のキーに辿り着けない・企画/レベル担当が同じ `.asset` を触って git 競合するという課題が出た。データ形式は変えず（案 A 継続、`TuningTable` に Category フィールドは足さない）、閲覧・編集の単位だけをカテゴリ化する。**(M-2c)** `DDrive.Runtime.Tuning.Tuning` に `public static event Action Reloaded` と `public static void Rebind()` を追加（バインド中のテーブルで `RebuildIndex()` をやり直し、警告用 HashSet を Clear してから `Reloaded` を発火。未バインドなら警告して no-op）。既存の `Bind(TuningTable)` は無改修。**(M-2a)** `DDrive.Editor`（互換性ポリシー対象外）に `Editor/Tuning/TuningEditorWindow.cs`（メニュー `Tools/D-Drive/Editors/Tuning（調整値）`）・`TuningCategoryGrouper`・`TuningEnumFieldLogic`・`TuningTableEditor`（`[CustomEditor(typeof(TuningTable))]`、「Tuning ウィンドウで開く」ボタン）を追加。既存 `.asset` のシリアライズ・公開 API の削除/改名は無し
 - 追加のみ（MINOR）: **M-3a（2026-09-27、[docs/14_networking.md](docs/14_networking.md) §20・[docs/11_tasks.md](docs/11_tasks.md) M チケット、MS2026 コードレビュー DD-8）** — `DDriveRuntimeBootstrap.Start()` が `RegisterCatalogsAsync().Forget()` の直後に Auto 起動のネット接続（`StartNetworkingIfPending()`）を呼んでいたため、カタログ登録完了（`IsReady=true`）前に NGO のシーン同期が始まり、起動直後に Spawn される Player が `Prefabs.Spawn` 未登録として Placeholder になる不具合が MS2026 実機で見つかった。`DDriveRuntimeBootstrap.Start()` の内部実装を `StartAsync()`（private。`await RegisterCatalogsAsync()` の後で `StartNetworkingIfPending()` を呼ぶ）に変更（公開 API の追加なし）。既存の `StartHost(ushort)`/`StartClient(string,ushort)` は `IsReady` 前に呼ばれても no-op にはせず、警告を出して従来どおり続行する（挙動追加のみ、既存の戻り値・no-op 条件は無改修）。`DDrive.Foundation` の `AssetRegistry` の Placeholder 警告文（`Debug.LogWarning`、公開 API ではない）に、カタログが 1 つも登録されていない状態での発生時だけ「(カタログ登録前。DDriveRuntimeBootstrap.IsReady を待ってください)」を追記した（ログ文言のみの変更、テストで正規表現マッチしている既存の `LogAssert.Expect` には影響しない）。既存の Loopback/Manual（`_pendingNetStart==null`）の挙動は無改修

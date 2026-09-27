@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 発注ツール（Web）と仕様書同期</nav>
 
 <h1>アセット発注ツールとの同期</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-09-27</p>
 
 <p>「アセット発注ツール」は、企画・デザイナー・プログラマーが<strong>ブラウザで動く Web アプリ</strong>（学内・自宅どちらからでも開けます）を使って、「誰が・何を・いつまでに作るか」をやり取りするための道具です。ここに<span class="term" title="このツールで管理する『誰が・何を・いつまでに作るか』の1件">発注</span>を1件登録するだけで、D-Drive 側に <span class="term" title="まだ中身が入っていない空のデータ。IDだけ確保された状態">Placeholder（空のデータ）</span> が自動でできます。プログラマーはその場でコードから ID を参照できるようになり、デザイナーは後から中身（音・エフェクト・見た目）を作り込みます。このページは<strong>「D-Drive 側でどう同期するか」</strong>の説明です。発注ツール自体の入力先・使い方は、ツールのページ上の説明も参照してください。</p>
 
@@ -158,6 +158,9 @@ float hitStopSec = Tuning.GetFloat(TUNING.CombatHitStopSec, defaultValue: 0.05f)
 int slimeHp = Tuning.GetTableInt(TUNING_TABLE.EnemyParams, "Slime", TUNING_COLUMN.EnemyParamsHp, defaultValue: 10);
 </code></pre>
 <p>企画が「調整値」タブの数字を変えて同期するだけで、次にゲームを実行したときからその値が反映されます（コードの書き換え不要）。キーが未登録の場合は既定値が使われ、ゲームは止まりません。</p>
+
+<h3>Unity 側の「Tuning ウィンドウ」</h3>
+<p>Unity を開けるメンバーは、発注ツールの代わりに Unity のメニュー「Tools &gt; D-Drive &gt; Editors &gt; Tuning（調整値）」からも同じ数値を編集できます。キーは <code>Player</code> / <code>Match</code> のような接頭辞ごとにカテゴリ分けされて左側に一覧表示され、右側で選んだカテゴリのキーだけを編集します（float/int はスライダー、bool はトグル、enum はドロップダウン、string はテキスト欄。単位と説明も横に表示されます）。表形式の調整値は「Tables」から同じ画面でセルの値を編集できます（列・行の追加削除は発注ツール側で行います）。編集した値は保存すると即座にアセットに反映され、Play Mode 中に変更した場合はツールバーの「Play 中に再読込」を押すと起動時に値をキャッシュしている機能にも新しい値が届きます。</p>
 
 <h2 id="login">ログイン</h2>
 <p>発注ツールは<strong>チームで許可されたメンバーの Gmail アカウントだけ</strong>が開けます（学校・会社のドメイン全体に自動で許可するのではなく、1 人ずつの許可リストです）。初めて開くときは Google アカウントでのログインを求められます。</p>
