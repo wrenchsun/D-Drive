@@ -337,7 +337,7 @@ Tools/
     │   ├─ Shake / Haptics             ← 2026-09-14 実装(5-2c。CameraFxEditorWindow。1 ウィンドウで CameraShakeData/HapticsData 両方を扱う(AudioEditorWindow の SE/BGM と同じ設計)。波形編集は ValueDefDrawer の PropertyField のまま、読み取り専用の重ね描き波形(WaveformGraphGui)を追加。Shake は SceneCameraShakePreviewDriver が実 CameraFxManager で開いているシーンの Camera.main を直接揺らす(連打で Trauma 合成を確認可)。Haptics は EditorHapticsPreviewDriver が実 HapticsManager 経由で接続中のパッドを「Test on Pad」で振動。プリセット 10 種(Pulse/Rumble/Heartbeat/Explosion/Hit_Small/Hit_Large/Landing/Earthquake/Alarm/Engine)は `CameraFxPresets` が Undo 付きで適用。詳細は [16] 実装メモ参照)
     │   ├─ 揺れ・振動確認用シーンを開く ← 2026-09-14 追加(5-2c。CameraShakePreviewSceneSetup。VfxPreviewSceneSetup と同じ流儀)
     │   ├─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
-    │   └─ Tuning（調整値）              ← 2026-09-27 設計のみ(M-2a、**未実装**。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
+    │   └─ Tuning（調整値）              ← 2026-09-27 実装(M-2a。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
     ├─ Validation/
     │   ├─ Run All
     │   └─ Report Window
@@ -996,7 +996,7 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **`ProjectSetupValidator` との連携**: `LastAppliedVersion` が現在のパッケージ版より古い(または未適用)ことを検出する Warning(`DD-SETUP-UPDATE-PENDING`)を §13 の `ProjectSetupValidator` に追加した（開発リポジトリ〔`DDriveProjectSettings.IsDevelopmentRepo == true`〕は対象外）
 - **「1. 更新チェック」（P-14、2026-09-20）**: `Packages/manifest.json` の `com.ddrive.core` の値を `GitPackageUrl.Parse`（`Editor/Update/GitPackageUrl.cs`、純関数）で URL・`?path=`・`#ref` に分解する。`file:`/レジストリ配布の値なら `IsGitUrl=false` になり「更新チェック対象外(git URL 参照ではありません)」を表示して no-op にする。「最新の版を確認」ボタンは `IGitTagLister`(既定実装 `GitCliTagLister`、`System.Diagnostics.Process` で `git ls-remote --tags` をタイムアウト 30 秒で起動。git が PATH に無い/タイムアウト/非 0 終了/例外はいずれも警告表示 + no-op)→ `GitTagListParser.Parse`(標準出力を解析、peeled 行〔`^{}`〕と非 SemVer タグを除外し降順に整列)→ `UpdateCheckLogic.Evaluate`(現在の参照 vs 最新のタグを比較し `UpToDate`/`Patch`/`Minor`/`Major`/`Unknown` を判定。現在の参照がタグとして解釈できない〔コミットハッシュ指定〕ときは package.json の版にフォールバックする)の順に呼ぶ。取得したタグを `DropdownField` に降順で並べ、「manifest を選んだ版に更新する」ボタン(`EditorUtility.DisplayDialog` で確認)で `GitPackageUrl.WithRef` を使い `#ref` だけを差し替えて保存し `AssetDatabase.Refresh()` + `Client.Resolve()` を実行する。差し替え前の値は `DDriveProjectSettings.PreviousPackageRef`(新設フィールド)に退避し、「前の参照に戻す」ボタンで現在値と入れ替えて戻せる(2 回押すと元に戻る簡易 1 段 undo)。「起動時に確認」トグルは作らない(手動のみ)。manifest を書き換えた後の再コンパイル・「4. 更新を適用」の実行は本セクションの範囲外(案内ラベルを出すだけ)。テスト: `Tests/Editor/Update/`(`GitPackageUrlTests`・`GitTagListParserTests`・`UpdateCheckLogicTests`)+ `DDriveProjectSettingsTests` の `PreviousPackageRef` 往復テスト。`GitCliTagLister`・`UpdateWindow` 自体は他の実配線クラスと同じく EditMode テスト対象外
 
-## Tuning ウィンドウ（M-2a、設計、2026-09-27。未実装）
+## Tuning ウィンドウ（M-2a、2026-09-27 実装）
 
 MS2026 チームからの要望（[11_tasks.md](11_tasks.md) M-2 チケット）。`TuningTable`（[02] §14 の 5-13 追記）は現状 Unity 既定の配列 Inspector でしか編集できず、キーが 46 件を超えたところで「目的のキーに辿り着けない」「Player 担当と Match 担当が同じ `.asset` を触って競合する」が問題になった。データ形式は変えず（案 A 継続）、閲覧・編集の単位だけをカテゴリにする。
 
@@ -1028,4 +1028,14 @@ MS2026 チームからの要望（[11_tasks.md](11_tasks.md) M-2 チケット）
 ### AC（[11] M-2a と同じ）
 
 MS2026 の 46 キーが 11 カテゴリに分かれて表示され、`Player/MoveSpeedMax` をスライダーで変えて保存 → Play で反映される。既存 `.asset` のシリアライズは無変更。EditMode テスト: カテゴリ分類の純関数（`TuningCategoryGrouper.Group(entries)`）と `Enum` 行の `Popup` → `ValueString` 書き込み。
+
+### 実装メモ（2026-09-27）
+
+- `Editor/Tuning/TuningEditorWindow.cs`（メニュー `DDriveMenu.Editors + "Tuning（調整値）"`。他の `Editors` 配下ウィンドウと同じく専用の `DDriveMenu` 定数は増やさず、既存の書き方〔文字列リテラルを `DDriveMenu.Editors` に足す〕に合わせた）。ルートは `ScrollView`（Toolbar はその外、`CameraFxEditorWindow` と同じ配置）。左カテゴリ一覧 + 右パネルは `ScrollView` の中の横並び `VisualElement`（左 170px 固定 + 右 `flexGrow`）で、右パネルは `IMGUIContainer` 1 個（`EditorGUILayout` でキー一覧 / Tables グリッドを描く。動的に型が変わる Float/Int/Bool/Enum/String の切り替えを UI Toolkit の `PropertyField` で作るより単純なため）
+- カテゴリ分類は `Editor/Tuning/TuningCategoryGrouper.cs`（純関数、`UnityEditor` 非依存）。Enum 行の Popup ⇔ `ValueString` は `Editor/Tuning/TuningEnumFieldLogic.cs`（同じく純関数）。どちらも `Tests/Editor/TuningCategoryGrouperTests.cs` で検証（分類・未分類・件数・`(未分類)` が最後に並ぶこと・Enum 変換の 4 パターン）
+- **設計からの変更点**: 設計は「`SerializedObject` 経由で編集」としていたが、実装では `EditorGUILayout` の戻り値を `EditorGUI.BeginChangeCheck/EndChangeCheck` で拾い、`Undo.RecordObject(table, "Tuning 値を変更")` → 配列要素へ直接代入 → `EditorUtility.SetDirty` → `DDriveAssetSave.SaveDirty` の順にした（`TuningEntry`/`TuningTableEntry` の配列要素は `SerializedProperty` で辿るよりインデックスで直接読み書きする方が単純で、Undo 記録は `Undo.RecordObject` で同等に効く）。Undo は必須どおり効いている(Ctrl+Z で戻る)
+- Inspector 導線: `Editor/Tuning/TuningTableEditor.cs`（`[CustomEditor(typeof(TuningTable))]`。最上部に「Tuning ウィンドウで開く」ボタン + `DrawDefaultInspector()`）
+- 「Play 中に再読込」は `EditorApplication.update` で毎フレーム `EditorApplication.isPlaying && Tuning.IsBound` を見て活性/非活性を切り替える（`CameraFxEditorWindow.OnEditorUpdate` と同じパターン）。押すと `Tuning.Rebind()`（M-2c）を呼ぶ
+- 検索欄は現在選択中のカテゴリ内（または Tables 選択時はテーブル名）のみに効く。カテゴリをまたいだ横断検索は設計に明記が無かったため今回は見送り（必要になれば別チケット）
+- 未検証（人による確認が必要）: ウィンドウの実際の見た目・操作感（カテゴリボタンの選択ハイライト、スライダーの手触り、Tables グリッドの列幅）。手順は [11_tasks.md] M-2a の完了メモ、または `Tools/D-Drive/Editors/Tuning（調整値）` を開いて `Assets/GameData/Settings/DDriveTuningTable.asset` を対象に確認
 
