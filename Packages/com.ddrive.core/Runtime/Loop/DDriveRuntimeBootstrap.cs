@@ -209,9 +209,8 @@ namespace DDrive.Runtime.Loop
         // Placeholder になる実バグが MS2026 実機で見つかった(MS2026 TeamNotes 2026-09-25 #1、DD-8)。
         // RegisterCatalogsAsync() の完了(成功でも例外でも)を待ってから StartNetworkingIfPending() を呼ぶ。
         // 例外で止めない([CLAUDE.md] §0-4)ため try/finally で必ず後続の接続処理を実行する。
-        // public(InternalsVisibleTo 未設定のため、PlayMode テストから直接呼べるようにする。
-        // RuntimeBootstrapTests.cs / UiButton.cs と同じ理由)。
-        public async UniTask StartAsync()
+        // private のまま(公開 API を増やさない。PlayMode テストは reflection で呼ぶ、RuntimeBootstrapTests.cs)。
+        private async UniTask StartAsync()
         {
             try
             {

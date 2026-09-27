@@ -136,7 +136,9 @@ namespace DDrive.Tests.Runtime
                 }
             }));
 
-            yield return bootstrap.StartAsync().ToCoroutine();
+            var startAsync = typeof(DDriveRuntimeBootstrap).GetMethod("StartAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.IsNotNull(startAsync, "StartAsync メソッドの名前が変わっていないか確認する");
+            yield return ((UniTask)startAsync.Invoke(bootstrap, null)).ToCoroutine();
 
             Assert.IsTrue(invoked, "保留中のネット開始が呼ばれること");
             Assert.IsFalse(invokedWhileNotReady, "RegisterCatalogsAsync 完了(IsReady=true)前に呼ばれてはいけない");
