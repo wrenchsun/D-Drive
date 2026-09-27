@@ -310,7 +310,7 @@ Timeline(Maya FBX 取り込み + D-Drive トラック、[26_timeline.md]、6-10a
 
 MS2026 チームの要望で追加した `Tools > D-Drive > Editors > Tuning（調整値）`([09_editor_tools.md] 「Tuning ウィンドウ」、[11_tasks.md] M-2)。自動テストは分類ロジックと `Tuning.Rebind()` のみなので、見た目・操作は人が確認する。
 
-1. `Tools > D-Drive > Editors > Tuning（調整値）` を開く。既定の対象が `Assets/GameData/Settings/DDriveTuningTable.asset`(無ければ `DDriveSpecSettings.DefaultTuningTablePath` のアセット)になっていること。無い場合は `TuningTable` を 1 つ作って `Player/MoveSpeedMax`(Float、Min 0 / Max 10)・`Match/TimeLimitSec`(Int)・`Debug/ShowHud`(Bool)・`Enum` 型 1 件を入れる
+1. `Tools > D-Drive > Editors > Tuning（調整値）` を開く。既定の対象が `Assets/GameData/Settings/DDriveTuningTable.asset` になっていること。**テストデータは 2026-09-27 に投入済み**(MS2026 `Docs/Spec/05_TuningKeys.md` の 46 キー = Player 13 / Interact 3 / Pickup 1 / Match 3 / Fan 5 / InfluenceObject 3 / Minigame 5 / InfluenceItem 3 / Sabotage 6 / Migration 3 / Level 1 に、確認用の `Level/FixedGravityScale`〔Min==Max〕・`DebugShowHud`〔未分類〕を加えた 48 キー + テーブル `Fan/RankBonus`〔Int/Float/String/Enum 列 × 3 行〕。`Assets/Generated/Tuning.g.cs` も再生成済み)
 2. 左のカテゴリ一覧(`Player (n)` のように件数付き)をクリックし、右にそのカテゴリのキーだけが出ること。`/` の無いキーは「(未分類)」に入ること
 3. Float/Int は `Min≠Max` のときスライダー、`Min==Max` のとき数値欄。Bool はトグル、Enum は `EnumOptions` のドロップダウン、String はテキスト。右に `Unit`/`Description` が出ること
 4. スライダーで値を変える → Inspector の同じ Entry が変わり、`.asset` が保存される(タイトルの `*` が消える)。Ctrl+Z で戻ること

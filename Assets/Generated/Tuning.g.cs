@@ -7,13 +7,66 @@ namespace DDrive.Generated
 {
     public static class TUNING
     {
+        public const string DebugShowHud = "DebugShowHud";
+        public const string FanDefaultCanRespawn = "Fan/DefaultCanRespawn";
+        public const string FanDefaultCountPerPoint = "Fan/DefaultCountPerPoint";
+        public const string FanDefaultRespawnSeconds = "Fan/DefaultRespawnSeconds";
+        public const string FanDisplayMax = "Fan/DisplayMax";
+        public const string FanDisplayUnit = "Fan/DisplayUnit";
+        public const string InfluenceItemAnnounceSeconds = "InfluenceItem/AnnounceSeconds";
+        public const string InfluenceItemCoefBonus = "InfluenceItem/CoefBonus";
+        public const string InfluenceItemSpawnTimesSeconds = "InfluenceItem/SpawnTimesSeconds";
+        public const string InfluenceObjectDefaultCoefBonus = "InfluenceObject/DefaultCoefBonus";
+        public const string InfluenceObjectLockSeconds = "InfluenceObject/LockSeconds";
+        public const string InfluenceObjectRetrySeconds = "InfluenceObject/RetrySeconds";
+        public const string InteractCooldownSeconds = "Interact/CooldownSeconds";
+        public const string InteractRange = "Interact/Range";
+        public const string InteractSelectionRule = "Interact/SelectionRule";
+        public const string LevelFixedGravityScale = "Level/FixedGravityScale";
+        public const string LevelMinSpawnDistance = "Level/MinSpawnDistance";
+        public const string MatchCountdownSeconds = "Match/CountdownSeconds";
+        public const string MatchDurationSeconds = "Match/DurationSeconds";
+        public const string MatchResultAutoReturnSeconds = "Match/ResultAutoReturnSeconds";
+        public const string MigrationGraceSeconds = "Migration/GraceSeconds";
+        public const string MigrationReconnectTimeoutSeconds = "Migration/ReconnectTimeoutSeconds";
+        public const string MigrationRetryIntervalSeconds = "Migration/RetryIntervalSeconds";
+        public const string MinigameGaugePeriodSeconds = "Minigame/GaugePeriodSeconds";
+        public const string MinigameInputCount = "Minigame/InputCount";
+        public const string MinigameMaxPressLatencySeconds = "Minigame/MaxPressLatencySeconds";
+        public const string MinigameSuccessWidth = "Minigame/SuccessWidth";
+        public const string MinigameWindowMargin = "Minigame/WindowMargin";
+        public const string PickupHostToleranceMeters = "Pickup/HostToleranceMeters";
+        public const string PlayerAirAccel = "Player/AirAccel";
+        public const string PlayerCoyoteSeconds = "Player/CoyoteSeconds";
+        public const string PlayerGravityDown = "Player/GravityDown";
+        public const string PlayerGravityUp = "Player/GravityUp";
+        public const string PlayerJumpBufferSeconds = "Player/JumpBufferSeconds";
+        public const string PlayerJumpSpeed = "Player/JumpSpeed";
+        public const string PlayerMoveAccel = "Player/MoveAccel";
+        public const string PlayerMoveDecel = "Player/MoveDecel";
+        public const string PlayerMoveSpeedInitial = "Player/MoveSpeedInitial";
+        public const string PlayerMoveSpeedMax = "Player/MoveSpeedMax";
+        public const string PlayerTurnAccel = "Player/TurnAccel";
+        public const string PlayerTurnDecel = "Player/TurnDecel";
+        public const string PlayerTurnRateDeg = "Player/TurnRateDeg";
+        public const string SabotageFanLossRate = "Sabotage/FanLossRate";
+        public const string SabotageFirstSpawnSeconds = "Sabotage/FirstSpawnSeconds";
+        public const string SabotageMaxHold = "Sabotage/MaxHold";
+        public const string SabotageMaxOnField = "Sabotage/MaxOnField";
+        public const string SabotageRespawnSeconds = "Sabotage/RespawnSeconds";
+        public const string SabotageSpawnChance = "Sabotage/SpawnChance";
     }
 
     public static class TUNING_TABLE
     {
+        public const string FanRankBonus = "Fan/RankBonus";
     }
 
     public static class TUNING_COLUMN
     {
+        public const string FanRankBonusCoef = "Coef";
+        public const string FanRankBonusLabel = "Label";
+        public const string FanRankBonusMinFans = "MinFans";
+        public const string FanRankBonusTier = "Tier";
     }
 }

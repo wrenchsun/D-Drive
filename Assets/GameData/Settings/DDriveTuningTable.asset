@@ -12,5 +12,634 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 48867ba2e4995cd44be48746173640fd, type: 3}
   m_Name: DDriveTuningTable
   m_EditorClassIdentifier: DDrive.Runtime::DDrive.Runtime.Tuning.TuningTable
-  Entries: []
-  Tables: []
+  Entries:
+  - Key: Player/MoveSpeedInitial
+    Type: 0
+    ValueFloat: 3
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 10
+    Unit: m/s
+    Description: "\u5165\u529B\u958B\u59CB\u6642\u306E\u901F\u5EA6"
+    EnumOptions: []
+  - Key: Player/MoveSpeedMax
+    Type: 0
+    ValueFloat: 8
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 20
+    Unit: m/s
+    Description: "\u6700\u9AD8\u901F"
+    EnumOptions: []
+  - Key: Player/MoveAccel
+    Type: 0
+    ValueFloat: 20
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 100
+    Unit: "m/s\xB2"
+    Description: "\u52A0\u901F\u5EA6"
+    EnumOptions: []
+  - Key: Player/MoveDecel
+    Type: 0
+    ValueFloat: 30
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 100
+    Unit: "m/s\xB2"
+    Description: "\u6E1B\u901F\u5EA6(\u52A0\u901F\u5EA6\u3088\u308A\u5927\u304D\u304F\u3059\u308B)"
+    EnumOptions: []
+  - Key: Player/TurnAccel
+    Type: 0
+    ValueFloat: 30
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 100
+    Unit: "m/s\xB2"
+    Description: "\u9006\u65B9\u5411\u5165\u529B\u5F8C\u306E\u52A0\u901F"
+    EnumOptions: []
+  - Key: Player/TurnDecel
+    Type: 0
+    ValueFloat: 50
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 100
+    Unit: "m/s\xB2"
+    Description: "\u9006\u65B9\u5411\u5165\u529B\u3067\u306E\u6E1B\u901F"
+    EnumOptions: []
+  - Key: Player/TurnRateDeg
+    Type: 0
+    ValueFloat: 720
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 1440
+    Unit: deg/s
+    Description: "\u898B\u305F\u76EE\u306E\u56DE\u8EE2\u88DC\u9593"
+    EnumOptions: []
+  - Key: Player/JumpSpeed
+    Type: 0
+    ValueFloat: 9
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 20
+    Unit: m/s
+    Description: "\u30B8\u30E3\u30F3\u30D7\u521D\u901F\u5EA6"
+    EnumOptions: []
+  - Key: Player/GravityUp
+    Type: 0
+    ValueFloat: 25
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 100
+    Unit: "m/s\xB2"
+    Description: "\u4E0A\u6607\u6642\u91CD\u529B"
+    EnumOptions: []
+  - Key: Player/GravityDown
+    Type: 0
+    ValueFloat: 45
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 100
+    Unit: "m/s\xB2"
+    Description: "\u843D\u4E0B\u6642\u91CD\u529B"
+    EnumOptions: []
+  - Key: Player/AirAccel
+    Type: 0
+    ValueFloat: 8
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 50
+    Unit: "m/s\xB2"
+    Description: "\u7A7A\u4E2D\u52A0\u901F\u5EA6"
+    EnumOptions: []
+  - Key: Player/JumpBufferSeconds
+    Type: 0
+    ValueFloat: 0.12
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 0.5
+    Unit: s
+    Description: "\u30B8\u30E3\u30F3\u30D7\u5165\u529B\u30D0\u30C3\u30D5\u30A1"
+    EnumOptions: []
+  - Key: Player/CoyoteSeconds
+    Type: 0
+    ValueFloat: 0.1
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 0.5
+    Unit: s
+    Description: "\u30B3\u30E8\u30FC\u30C6\u30BF\u30A4\u30E0"
+    EnumOptions: []
+  - Key: Interact/Range
+    Type: 0
+    ValueFloat: 2.5
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 10
+    Unit: m
+    Description: "\u30D7\u30EC\u30A4\u30E4\u30FC\u4E2D\u5FC3\u306E\u7403"
+    EnumOptions: []
+  - Key: Interact/SelectionRule
+    Type: 4
+    ValueFloat: 0
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: Nearest
+    Min: 0
+    Max: 0
+    Unit: 
+    Description: "\u5BFE\u8C61\u9078\u629E\u512A\u5148\u5EA6(Nearest \u306E\u307F\u5B9F\u88C5)"
+    EnumOptions:
+    - Nearest
+    - FacingFirst
+  - Key: Interact/CooldownSeconds
+    Type: 0
+    ValueFloat: 0.2
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 2
+    Unit: s
+    Description: "\u9023\u6253\u9632\u6B62(\u8981\u6C42\u306E\u6700\u77ED\u9593\u9694)"
+    EnumOptions: []
+  - Key: Pickup/HostToleranceMeters
+    Type: 0
+    ValueFloat: 0.3
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 2
+    Unit: m
+    Description: "Host \u5224\u5B9A\u306E\u8A31\u5BB9\u8AA4\u5DEE"
+    EnumOptions: []
+  - Key: Match/DurationSeconds
+    Type: 1
+    ValueFloat: 0
+    ValueInt: 300
+    ValueBool: 0
+    ValueString: 
+    Min: 30
+    Max: 900
+    Unit: s
+    Description: "\u8A66\u5408\u6642\u9593"
+    EnumOptions: []
+  - Key: Match/CountdownSeconds
+    Type: 0
+    ValueFloat: 3
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 10
+    Unit: s
+    Description: "0 \u3067\u7121\u52B9"
+    EnumOptions: []
+  - Key: Match/ResultAutoReturnSeconds
+    Type: 0
+    ValueFloat: 0
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 60
+    Unit: s
+    Description: "0 = Host \u304C\u624B\u52D5\u3067\u623B\u308B"
+    EnumOptions: []
+  - Key: Fan/DefaultCountPerPoint
+    Type: 1
+    ValueFloat: 0
+    ValueInt: 5
+    ValueBool: 0
+    ValueString: 
+    Min: 1
+    Max: 50
+    Unit: "\u4F53"
+    Description: "FanSpawnPoint \u5074\u304C\u672A\u8A2D\u5B9A(0)\u306E\u3068\u304D\u306E\u65E2\u5B9A"
+    EnumOptions: []
+  - Key: Fan/DefaultCanRespawn
+    Type: 2
+    ValueFloat: 0
+    ValueInt: 0
+    ValueBool: 1
+    ValueString: 
+    Min: 0
+    Max: 0
+    Unit: 
+    Description: "\u30EA\u30B9\u30DD\u30FC\u30F3\u53EF\u5426\u306E\u65E2\u5B9A"
+    EnumOptions: []
+  - Key: Fan/DefaultRespawnSeconds
+    Type: 0
+    ValueFloat: 20
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 120
+    Unit: s
+    Description: "\u30EA\u30B9\u30DD\u30FC\u30F3\u6642\u9593\u306E\u65E2\u5B9A"
+    EnumOptions: []
+  - Key: Fan/DisplayUnit
+    Type: 1
+    ValueFloat: 0
+    ValueInt: 5
+    ValueBool: 0
+    ValueString: 
+    Min: 1
+    Max: 20
+    Unit: "\u4F53"
+    Description: "\u4F55\u4F53\u306B\u3064\u304D\u8FFD\u5F93\u30AD\u30E3\u30E9 1
+      \u4F53"
+    EnumOptions: []
+  - Key: Fan/DisplayMax
+    Type: 1
+    ValueFloat: 0
+    ValueInt: 12
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 32
+    Unit: "\u4F53"
+    Description: "\u8FFD\u5F93\u30AD\u30E3\u30E9\u4E0A\u9650"
+    EnumOptions: []
+  - Key: InfluenceObject/LockSeconds
+    Type: 0
+    ValueFloat: 15
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 60
+    Unit: s
+    Description: "\u596A\u53D6\u4E0D\u53EF\u6642\u9593"
+    EnumOptions: []
+  - Key: InfluenceObject/RetrySeconds
+    Type: 0
+    ValueFloat: 5
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 60
+    Unit: s
+    Description: "\u518D\u6311\u6226\u5F85\u3061\u6642\u9593"
+    EnumOptions: []
+  - Key: InfluenceObject/DefaultCoefBonus
+    Type: 0
+    ValueFloat: 0.5
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 5
+    Unit: "\u500D"
+    Description: "\u4FC2\u6570\u52A0\u7B97\u5024"
+    EnumOptions: []
+  - Key: Minigame/GaugePeriodSeconds
+    Type: 0
+    ValueFloat: 2
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0.1
+    Max: 10
+    Unit: s
+    Description: "\u30B2\u30FC\u30B8\u5F80\u5FA9\u6642\u9593"
+    EnumOptions: []
+  - Key: Minigame/SuccessWidth
+    Type: 0
+    ValueFloat: 0.25
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 1
+    Unit: "\u5272\u5408"
+    Description: "\u6210\u529F\u7BC4\u56F2(0-1)"
+    EnumOptions: []
+  - Key: Minigame/WindowMargin
+    Type: 0
+    ValueFloat: 0.1
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 0.5
+    Unit: "\u5272\u5408"
+    Description: "\u7AEF\u306B\u5BC4\u305B\u306A\u3044\u4F59\u767D"
+    EnumOptions: []
+  - Key: Minigame/InputCount
+    Type: 1
+    ValueFloat: 0
+    ValueInt: 1
+    ValueBool: 0
+    ValueString: 
+    Min: 1
+    Max: 5
+    Unit: "\u56DE"
+    Description: "1 \u5F80\u5FA9\u306E\u3042\u3044\u3060\u306B\u62BC\u3059\u56DE\u6570"
+    EnumOptions: []
+  - Key: Minigame/MaxPressLatencySeconds
+    Type: 0
+    ValueFloat: 0.3
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 1
+    Unit: s
+    Description: "\u62BC\u4E0B\u306E\u6700\u5927\u9045\u5EF6"
+    EnumOptions: []
+  - Key: InfluenceItem/SpawnTimesSeconds
+    Type: 3
+    ValueFloat: 0
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 60,150,240
+    Min: 0
+    Max: 0
+    Unit: s
+    Description: "\u30AB\u30F3\u30DE\u533A\u5207\u308A\u3002\u8981\u7D20\u6570 =
+      \u56DE\u6570"
+    EnumOptions: []
+  - Key: InfluenceItem/AnnounceSeconds
+    Type: 0
+    ValueFloat: 10
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 60
+    Unit: s
+    Description: "\u51FA\u73FE\u4E88\u544A\u6642\u9593"
+    EnumOptions: []
+  - Key: InfluenceItem/CoefBonus
+    Type: 0
+    ValueFloat: 0.3
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 5
+    Unit: "\u500D"
+    Description: "\u4FC2\u6570\u52A0\u7B97\u5024"
+    EnumOptions: []
+  - Key: Sabotage/FanLossRate
+    Type: 0
+    ValueFloat: 0.3
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 1
+    Unit: "\u5272\u5408"
+    Description: "\u30D5\u30A1\u30F3\u6E1B\u5C11\u7387"
+    EnumOptions: []
+  - Key: Sabotage/MaxHold
+    Type: 1
+    ValueFloat: 0
+    ValueInt: 1
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 5
+    Unit: "\u500B"
+    Description: "\u6700\u5927\u4FDD\u6301\u6570"
+    EnumOptions: []
+  - Key: Sabotage/RespawnSeconds
+    Type: 0
+    ValueFloat: 30
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 300
+    Unit: s
+    Description: "\u30EA\u30B9\u30DD\u30FC\u30F3\u6642\u9593"
+    EnumOptions: []
+  - Key: Sabotage/SpawnChance
+    Type: 0
+    ValueFloat: 1
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 1
+    Unit: "\u5272\u5408"
+    Description: "\u51FA\u73FE\u78BA\u7387"
+    EnumOptions: []
+  - Key: Sabotage/FirstSpawnSeconds
+    Type: 0
+    ValueFloat: 30
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 300
+    Unit: s
+    Description: "\u521D\u56DE\u51FA\u73FE\u6642\u9593"
+    EnumOptions: []
+  - Key: Sabotage/MaxOnField
+    Type: 1
+    ValueFloat: 0
+    ValueInt: 2
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 10
+    Unit: "\u500B"
+    Description: "\u6700\u5927\u540C\u6642\u51FA\u73FE\u6570"
+    EnumOptions: []
+  - Key: Migration/GraceSeconds
+    Type: 0
+    ValueFloat: 1
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 10
+    Unit: s
+    Description: "Host \u5F15\u304D\u7D99\u304E\u306E\u7336\u4E88"
+    EnumOptions: []
+  - Key: Migration/RetryIntervalSeconds
+    Type: 0
+    ValueFloat: 2
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 10
+    Unit: s
+    Description: "\u518D\u63A5\u7D9A\u306E\u9593\u9694"
+    EnumOptions: []
+  - Key: Migration/ReconnectTimeoutSeconds
+    Type: 0
+    ValueFloat: 15
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 60
+    Unit: s
+    Description: "\u518D\u63A5\u7D9A\u306E\u30BF\u30A4\u30E0\u30A2\u30A6\u30C8"
+    EnumOptions: []
+  - Key: Level/MinSpawnDistance
+    Type: 0
+    ValueFloat: 3
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 20
+    Unit: m
+    Description: "\u30B9\u30DD\u30FC\u30F3\u5730\u70B9\u306E\u6700\u5C0F\u8DDD\u96E2"
+    EnumOptions: []
+  - Key: Level/FixedGravityScale
+    Type: 0
+    ValueFloat: 1
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 0
+    Unit: "\u500D"
+    Description: "Min==Max \u306E\u305F\u3081\u30B9\u30E9\u30A4\u30C0\u30FC\u3067\u306F\u306A\u304F\u6570\u5024\u6B04\u306B\u306A\u308B\u78BA\u8A8D\u7528"
+    EnumOptions: []
+  - Key: DebugShowHud
+    Type: 2
+    ValueFloat: 0
+    ValueInt: 0
+    ValueBool: 0
+    ValueString: 
+    Min: 0
+    Max: 0
+    Unit: 
+    Description: "\u30B9\u30E9\u30C3\u30B7\u30E5\u306E\u7121\u3044\u30AD\u30FC \u2192
+      (\u672A\u5206\u985E) \u306B\u5165\u308B\u78BA\u8A8D\u7528"
+    EnumOptions: []
+  Tables:
+  - Key: Fan/RankBonus
+    Columns:
+    - Key: MinFans
+      Type: 1
+      Min: 0
+      Max: 200
+      Unit: "\u4F53"
+      EnumOptions: []
+    - Key: Coef
+      Type: 0
+      Min: 0
+      Max: 5
+      Unit: "\u500D"
+      EnumOptions: []
+    - Key: Label
+      Type: 3
+      Min: 0
+      Max: 0
+      Unit: 
+      EnumOptions: []
+    - Key: Tier
+      Type: 4
+      Min: 0
+      Max: 0
+      Unit: 
+      EnumOptions:
+      - Bronze
+      - Silver
+      - Gold
+    Rows:
+    - RowId: Rank1
+      Cells:
+      - ColumnKey: MinFans
+        F: 0
+        I: 0
+        B: 0
+        S: 
+      - ColumnKey: Coef
+        F: 1
+        I: 0
+        B: 0
+        S: 
+      - ColumnKey: Label
+        F: 0
+        I: 0
+        B: 0
+        S: "\u99C6\u3051\u51FA\u3057"
+      - ColumnKey: Tier
+        F: 0
+        I: 0
+        B: 0
+        S: Bronze
+    - RowId: Rank2
+      Cells:
+      - ColumnKey: MinFans
+        F: 0
+        I: 20
+        B: 0
+        S: 
+      - ColumnKey: Coef
+        F: 1.5
+        I: 0
+        B: 0
+        S: 
+      - ColumnKey: Label
+        F: 0
+        I: 0
+        B: 0
+        S: "\u4EBA\u6C17\u8005"
+      - ColumnKey: Tier
+        F: 0
+        I: 0
+        B: 0
+        S: Silver
+    - RowId: Rank3
+      Cells:
+      - ColumnKey: MinFans
+        F: 0
+        I: 60
+        B: 0
+        S: 
+      - ColumnKey: Coef
+        F: 2
+        I: 0
+        B: 0
+        S: 
+      - ColumnKey: Label
+        F: 0
+        I: 0
+        B: 0
+        S: "\u30B9\u30BF\u30FC"
+      - ColumnKey: Tier
+        F: 0
+        I: 0
+        B: 0
+        S: Gold
