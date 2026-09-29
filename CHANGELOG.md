@@ -11,6 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.3.1] - 2026-09-29
+
+### 互換性
+
 - 変更なし(Editor、互換性ポリシー対象外): **Canvas Editor の ElementFx プレビューの使い勝手 3 件（2026-09-29、[docs/39](docs/39_usability_fixes_2026-09-17.md) 2026-09-29 追記・[docs/09_editor_tools.md](docs/09_editor_tools.md)）** — `DDrive.Editor` の `CanvasEditorWindow`・`PreviewPlacement.FocusRect`（新設）・`ElementFxStateSnapshot`（新設）のみ。ランタイム（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ・enum・ID・ネットメッセージは無変更
 
 ### 修正
