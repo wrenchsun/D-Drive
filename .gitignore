@@ -121,3 +121,8 @@ codexreview/
 # HTML 仕様書(GAS、docs/32_spec_web.md §2.5・§7、W-1)。scriptId・トークン等の実値を含むため clasp のローカル設定はコミットしない。
 # テンプレートは Tools/SpecWeb/.clasp.json.example を参照。
 /Tools/SpecWeb/.clasp.json
+
+# D-Drive EditMode tests create this temp folder (TestTempFolder.Root = Assets/Tests/DDriveTemp) and leave an empty
+# folder + .meta behind. Never tracked; ignore it so Tools/Release/check-release.ps1 sees a clean tree after tests.
+/Assets/Tests/
+/Assets/Tests.meta
