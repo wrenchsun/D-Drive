@@ -158,6 +158,26 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 - 詳細・実装ファイルは [07_canvas_prefab.md](07_canvas_prefab.md) の「バグ修正（2026-09-17、U-23）」と [15_ui_interaction.md](15_ui_interaction.md) の「バグ修正（2026-09-17、U-23）」を参照
 - 未確認(Unity MCP 接続状況次第。本セッションでは接続できたため EditMode/PlayMode 双方 green を確認済み): 実際に Canvas Editor で ElementFx を連打して位置がずれないことの目視確認
 
+### 2026-09-29 追記（ElementFx プレビューの使い勝手 3 件）
+
+ユーザー報告 3 件（Canvas Editor の ElementFx）を `fix/elementfx-preview-usability` で対応した（Editor のみの変更。ランタイム・シリアライズ・公開 API は無変更）。
+
+1. **プレハブモードだと ▶ 再生できない**
+   - 真因: 再生対象を `UiManager.OpenData` のプレビュー実体（`_previewHandle`）だけに決め打ちしていた。「選択して移動(Prefab を開く)」やツールバーの「Prefab を開く」は `RemovePreview()` してからプレハブモードを開くため実体が無くなり、▶ は `PlacePreview()` で確認用シーンへ実体を置き直す（= プレハブモードから外れる、または効かない）動きだった。
+   - 修正: 対象 CanvasData の Prefab がプレハブモードで開いているとき（`PrefabStageUtility.GetCurrentPrefabStage().assetPath` が一致）は、`prefabContentsRoot` から `ElementPath` で Find した**ステージ内の実体**を、同じ実 `UiTweenManager` で再生する（Editor 専用の再生経路は作っていない。ADR-4）。プレビュー実体は置かない。プレハブモードでなければ従来どおりプレビュー実体で再生する。
+   - プレハブに値を残さない: 再生前の値を `ElementFxStateSnapshot`（位置・サイズ・スケール・回転・CanvasGroup の alpha・Graphic の色・Image の fillAmount。Alpha トラックで足された CanvasGroup は破棄）に控え、**再生のたび／行の「■ 停止」／「■ 全て停止」／再生がすべて終わったとき／プレハブモードを閉じる（`PrefabStage.prefabStageClosing`）／プレハブを保存する（`PrefabStage.prefabSaving`）／ウィンドウを閉じる（`OnDisable`）／対象 CanvasData の切り替え**で元へ戻す（Undo には積まない。ユーザーの編集ではないため）。実機確認で、スクリプトによる値の変更ではステージが dirty にならないことも確認した。
+   - 「プレビュー実体を置き直して再生」ではなくステージ内再生を採った理由: 実体を置き直すとプレハブモードから外れてしまい、「移動しながら演出を見る」用途に合わないため。値を控えて戻す方式で保存への混入を防げると判断した。
+2. **連打するとどんどん位置がずれる**
+   - 真因: `UiPresetFactory.Build` は再生開始時の**現在値**を基準（SlideIn の To = 現在位置、From = そこからオフセット）に組み立てる。U-23 の `StopAll(complete:true)` は「中断した Tween を最終値へ進める」だけなので、**Disappear（SlideOut 等）や Idle のループを止めた終端値が「現在値」として残り、次の SlideIn の基準になる**（例: SlideOut → SlideIn で画面外の位置が基準になる、Punch/Shake 系の途中値など）。
+   - 修正: 最初に再生する前の値を要素ごとに控え、▶（行ごと・全 Appear/Idle/Disappear）のたびに「実行中の同要素のトゥイーンを止める → 控えた初期状態へ戻す → 組み立てて再生」に変更。「■ 停止」「■ 全て停止」も初期状態へ戻す。プレビュー実体の控えは実体を置いた直後（Tick が進む前）に取り、実体を作り直す／閉じるまで保持する。
+   - ランタイム（`UiTweenManager`）は変えていない: 現在値基準はゲーム実行時の仕様（呼び出し側が Move/Play を重ねたとき現在位置から続きを動かすため）で、エディタの「同じ確認を繰り返す」用途に合わせて挙動を変えると実行時の互換性を壊すため。ゲーム実行時に UiManager が Open/Close で組み立てる Appear/Disappear は「途中で再スタートを繰り返す」使い方を前提にしておらず、この報告（エディタで同じ ▶ を連打する確認作業）に固有の症状のため、ランタイム側の変更は行っていない。
+3. **どの要素か分からない（Inspector / SceneView のフォーカス）**
+   - ElementFx の各要素の箱の先頭に「選択」「フォーカス」を追加（既存の「選択して移動(Prefab を開く)」は残した）。「選択」= 今表示している実体（プレハブモードならステージ内 → プレビュー実体 → どちらも無ければ Prefab アセット内の該当子を Ping）を `Selection` にして Inspector に出す。「フォーカス」= 同じく選択したうえで `PreviewPlacement.FocusRect(RectTransform)`（新規。`GetWorldCorners` から Bounds を作り `SceneView.Frame`）でその要素の矩形へ寄せる（表示中の実体が無いときは Ping のみ）。
+   - 行ごとの ▶ を押したとき、その要素を自動で選択する（EditorPrefs `DDrive.CanvasEditor.SelectOnPlay`、既定 ON。ElementFx 見出し下のトグル「▶ 再生時にその要素を選択」で OFF にできる。「▶ 全〜」のまとめ再生では選択を変えない）。
+- 実装: `Editor/Canvas/CanvasEditorWindow.cs`（`GetTargetStage`/`FindPlaybackTarget`/`PlayPhasePreview`/`SelectElement`/`ReleaseStageStates` ほか）、`Editor/Canvas/ElementFxStateSnapshot.cs`（新規）、`Editor/Preview/PreviewPlacement.cs`（`FocusRect` 追加）。
+- テスト: `Tests/Editor/ElementFxStateSnapshotTests.cs`（控え・復元・追加された CanvasGroup の破棄・破棄済み対象、および「SlideIn を再生途中で 5 回再スタートしても最終位置が 1 回再生と同じ」「SlideOut の後に SlideIn しても画面外を引き継がない」）。
+- 人による確認が必要: プレハブモードのまま ▶ を押して SceneView で動くこと、再生が終わるとプレハブモードのタイトルに `*`（未保存）が付かないこと、「フォーカス」で SceneView が要素へ寄ること。
+
 ### U-25（Signal を手動で送る導線）
 
 **2026-09-17 実装済み（改善）。** 「Presentation の Signal を手動で送る操作のやり方が分からない」という報告について、機能自体（統合プレビュー内の「Signal レーン(手動発火)」に Signal Key ごとのボタンが並ぶ仕組み）は既に実装済みだったため、**分かりにくさの原因を特定してから直した**。
@@ -190,6 +210,7 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
   `style.height=StyleKeyword.Auto` の併用で解決できることを確認(ただし現状どの Toolbar も 500px で破綻していない
   ため未適用、今後の指針として記録)。点検結果の一覧・誤検出として除外した 2 パターン(GraphView のパン領域、
   TextField 内部のネイティブスクロール)は [09_editor_tools.md §7.1.1/§7.1.2](09_editor_tools.md) を参照。
+- 2026-09-29: ElementFx プレビューの使い勝手 3 件（プレハブモードでも ▶ 再生できる／▶ のたびに初期状態へ戻す／「選択」「フォーカス」ボタンと ▶ 時の自動選択）を実装。詳細は上の「2026-09-29 追記」。
 - 2026-09-17: U-25（Presentation の Signal を手動で送る導線を分かりやすくする）を実装。統合プレビューの「Signal レーン(手動発火)」に手順を明文化したラベルを追加し、再生中でなければ Signal ボタンをグレーアウトするようにした(`PresentationEditorWindow.Preview.cs`/`PresentationEditorWindow.cs`)。`docs/DesignerManual/presentation.html` を更新し、スクリーンショット #53 を撮影可能にした([36](36_manual_screenshot_list.md))。
 - 2026-09-17: U-23（ElementFx の「▶ 再生」連打で位置ずれ）を実装。真因は `UiTweenManager.StopAll(RectTransform)` が中断された Tween を完了させずに取り除いていたこと(`Stop(handle, complete)` と違い complete 引数が無かった)。`StopAll` に `complete` 引数を追加し、`CanvasEditorWindow.PlayPhasePreview` を `complete: true` で呼ぶよう変更。再現テスト(`UiTweenTests.RapidReplay_SlideInPreset_WithStopAllComplete_SettlesAtRestPosition`)を先に書いて修正前に赤(実測 -328.05 vs 期待 0)であることを確認してから直した。
 - 2026-09-17: U-21（Canvas Editor で要素の移動）を実装。ツールバーに「Prefab を開く(要素の移動)」、ElementFx の各要素に「選択して移動(Prefab を開く)」ボタンを追加し、`ModelEditorWindow.OpenPrefab`/`VfxEditorWindow.OpenPrefab` と同じ導線でプレハブモードを開いて Unity 標準ツールで移動・回転・リサイズできるようにした。

@@ -11,7 +11,11 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 変更なし(Editor、互換性ポリシー対象外): **Canvas Editor の ElementFx プレビューの使い勝手 3 件（2026-09-29、[docs/39](docs/39_usability_fixes_2026-09-17.md) 2026-09-29 追記・[docs/09_editor_tools.md](docs/09_editor_tools.md)）** — `DDrive.Editor` の `CanvasEditorWindow`・`PreviewPlacement.FocusRect`（新設）・`ElementFxStateSnapshot`（新設）のみ。ランタイム（`DDrive.Foundation`/`DDrive.Runtime`）・シリアライズ・enum・ID・ネットメッセージは無変更
+
+### 修正
+
+- Canvas Editor の ElementFx「▶ 再生」: プレハブモードで対象 Prefab を開いていてもステージ内の要素で再生でき（終了・停止・プレハブモードを閉じる・保存で元の値へ戻す）、▶ のたびに再生前の状態（位置・サイズ・回転・スケール・alpha・色）へ戻してから再生するので連打で位置がずれない。各要素に「選択」「フォーカス」ボタンと「▶ 再生時にその要素を選択」設定を追加
 
 ## [1.3.0] - 2026-09-27
 

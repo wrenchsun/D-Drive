@@ -185,6 +185,12 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 - ▶ などから**暗黙に**呼ばれる配置（`ControlSkinPreviewSection.EnsurePreview` / Slider Skin → Slider Editor の受け渡し）は `CurrentScene` 固定にした。ボタンを押していないのに保存ダイアログが出てシーンが切り替わるのを避けるため
 - 横幅（[09] §7.1）: 共通ボタンは `flexShrink=1` / `minWidth=0` / `whiteSpace=Normal` で、幅 500px でも切れずに折り返す。説明はラベルに足さず tooltip へ逃がす（右クリックの案内も tooltip に自動で付く）。ボタンを並べる行は `flexWrap=Wrap`
 
+#### Canvas Editor の ElementFx プレビュー（2026-09-29 追記）
+
+- **再生対象**: 対象 CanvasData の Prefab を**プレハブモードで開いているときはステージ内の実体**（`prefabContentsRoot` から `ElementPath` で Find）、そうでなければ確認用シーンのプレビュー実体（従来どおり）を、同じ実 `UiTweenManager` で再生する。ステージ内で再生した値は `ElementFxStateSnapshot` に控えておき、再生のたび・停止・全再生の終了・プレハブモードを閉じる／保存する・ウィンドウを閉じるときに元へ戻す（Undo に積まない。プレハブに値を残さない）。
+- **初期状態へリセット**: ▶（行ごと・「▶ 全 Appear/Idle/Disappear」）は「実行中の同要素のトゥイーンを止める → 再生前の値へ戻す → 再生」の順で行うので、連打しても位置がずれない。行の「■ 停止」と「■ 全て停止」も初期状態へ戻す。
+- **選択・フォーカス**: ElementFx の各要素の箱に「選択」「フォーカス」を追加（「選択して移動(Prefab を開く)」は従来どおり）。表示中の実体（プレハブモード → プレビュー実体）を `Selection` にし、「フォーカス」は `PreviewPlacement.FocusRect` で SceneView をその矩形へ寄せる。実体がどちらも無いときは Prefab アセット内の該当要素を Ping。行ごとの ▶ で自動的にその要素を選択する（EditorPrefs `DDrive.CanvasEditor.SelectOnPlay`、既定 ON、ElementFx 見出し下のトグルで切替）。詳細は [39 §2026-09-29 追記](39_usability_fixes_2026-09-17.md)。
+
 ### 2.2 Anchor 系の SceneView 表示（基準の描画、U-24、2026-09-17）
 
 **ユーザー報告**（そのまま）: 「Anchor のシーン表示で基準がわからないので LocalOffset だけではなく基準（原点）の座標もシーンに描画する」
