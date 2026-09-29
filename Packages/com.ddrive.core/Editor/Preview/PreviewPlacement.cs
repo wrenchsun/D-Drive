@@ -73,6 +73,35 @@ namespace DDrive.Editor.Preview
             view.Repaint();
         }
 
+        // UI の 1 要素(RectTransform)の矩形だけへ SceneView のカメラを寄せる(子は含めない。ElementFx の「フォーカス」用)。
+        // SceneView が無い場合は警告のみで落ちない。
+        public static void FocusRect(RectTransform rect)
+        {
+            if (rect == null)
+            {
+                return;
+            }
+
+            var view = SceneView.lastActiveSceneView;
+            if (view == null)
+            {
+                Debug.LogWarning($"[DDrive] SceneView が開いていないため '{rect.name}' へのフォーカスを省略しました。");
+                return;
+            }
+
+            rect.GetWorldCorners(RectCorners);
+            var bounds = new Bounds(RectCorners[0], Vector3.zero);
+            for (var i = 1; i < RectCorners.Length; i++)
+            {
+                bounds.Encapsulate(RectCorners[i]);
+            }
+
+            var size = bounds.size;
+            bounds.size = new Vector3(Mathf.Max(size.x, 0.5f), Mathf.Max(size.y, 0.5f), Mathf.Max(size.z, 0.5f));
+            view.Frame(bounds, instant: false);
+            view.Repaint();
+        }
+
         // 既に置いてある一時プレビュー(DontSave)を「本配置」に昇格する。
         // プレビュールート配下の子だった場合はルートから外して、ルートごと撤去されないようにする。
         // Manager / Pool が追跡しているインスタンスには使わない(後で Despawn されてしまう)。

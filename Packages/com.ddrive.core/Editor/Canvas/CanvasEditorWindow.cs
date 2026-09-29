@@ -79,6 +79,14 @@ namespace DDrive.Editor.CanvasTool
         private readonly List<PhaseRowWidgets> _phaseRowWidgets = new();
         private readonly TweenTrack[] _presetPlayScratch = new TweenTrack[UiTweenManager.MaxTracksPerTween];
 
+        // 2026-09-29: ElementFx の再生前の状態(初期状態)の控え。再生のたびにここへ戻してから再生する
+        // (連打しても位置がずれない)。_previewStates = 確認用シーンのプレビュー実体(実体を作り直すまで保持)、
+        // _stageStates = プレハブモードのステージ内の実体(プレハブに値を残さないよう、再生が終わったら戻して捨てる)。
+        private const string SelectOnPlayPrefKey = "DDrive.CanvasEditor.SelectOnPlay";
+        private readonly ElementFxStateSnapshot _previewStates = new();
+        private readonly ElementFxStateSnapshot _stageStates = new();
+        private readonly List<RectTransform> _targetScratch = new();
+
         // (レビュー対応 2026-09-14) FindUiTweenData が ▶ のたびに(「▶ 全〜」では要素数ぶん)AssetDatabase を
         // 全走査していた。Id → アセットの対応を 1 回の走査でまとめて作り、ヒットしなかったときだけ作り直す。
         private readonly Dictionary<ulong, UiTweenData> _tweenLookup = new();
@@ -116,6 +124,8 @@ namespace DDrive.Editor.CanvasTool
             _lastEditorTime = EditorApplication.timeSinceStartup;
             EditorApplication.update += OnEditorUpdate;
             Undo.undoRedoPerformed += OnUndoRedoPerformed;
+            PrefabStage.prefabStageClosing += OnPrefabStageClosing;
+            PrefabStage.prefabSaving += OnPrefabSaving;
 
             // (レビュー対応 2026-09-14) 前回閉じ損ねた・ドメインリロードで参照を失ったプレビュールートの残骸を消す。
             EditorPreviewRoots.DestroyAll(PreviewRootName);
@@ -124,8 +134,11 @@ namespace DDrive.Editor.CanvasTool
         private void OnDisable()
         {
             Undo.undoRedoPerformed -= OnUndoRedoPerformed;
+            PrefabStage.prefabStageClosing -= OnPrefabStageClosing;
+            PrefabStage.prefabSaving -= OnPrefabSaving;
             EditorApplication.update -= OnEditorUpdate;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
+            ReleaseStageStates(); // プレハブモードで再生した値をプレハブに残さない(ドメインリロード前にも通る)
             RemovePreview();
             // (レビュー対応 2026-09-14) 閉じても "[D-Drive] UI Root"(レイヤー 5 枚 + プールに戻った Canvas 実体)が
             // 次にシーンを閉じるまで残っていた。RemovePreview(StopAll 済み)の後に UiManager 自身のルートを破棄する
@@ -154,6 +167,7 @@ namespace DDrive.Editor.CanvasTool
             _tweenManager?.Tick(dt);
             _manager.Tick(dt);
             RefreshPhaseRowStatuses();
+            ReleaseStageStatesIfIdle();
         }
 
         private void OnSelectionChange()
@@ -242,8 +256,18 @@ namespace DDrive.Editor.CanvasTool
             batchPlayRow.Add(new Button(() => PlayAllPhasePreview("Appear")) { text = "▶ 全 Appear", tooltip = "登録済みの全要素の Appear を、それぞれに割り当てられた演出でまとめて再生する" });
             batchPlayRow.Add(new Button(() => PlayAllPhasePreview("Idle")) { text = "▶ 全 Idle", tooltip = "登録済みの全要素の Idle をまとめて再生する" });
             batchPlayRow.Add(new Button(() => PlayAllPhasePreview("Disappear")) { text = "▶ 全 Disappear", tooltip = "登録済みの全要素の Disappear をまとめて再生する" });
-            batchPlayRow.Add(new Button(StopAllPhasePreview) { text = "■ 全て停止", tooltip = "再生中の ElementFx プレビューをまとめて止める(最終状態には進めない)" });
+            batchPlayRow.Add(new Button(StopAllPhasePreview) { text = "■ 全て停止", tooltip = "再生中の ElementFx プレビューをまとめて止め、再生前の状態(初期位置など)へ戻す" });
             _elementFxFoldout.Add(batchPlayRow);
+
+            // 2026-09-29: 行ごとの ▶ を押したとき、その要素を Selection にして Inspector / Hierarchy で
+            // どの要素か分かるようにする(既定 ON。全 Appear 等のまとめ再生では選択を変えない)。
+            var selectOnPlayToggle = new Toggle("▶ 再生時にその要素を選択")
+            {
+                value = EditorPrefs.GetBool(SelectOnPlayPrefKey, true),
+                tooltip = "行ごとの ▶ 再生を押したとき、再生する要素(プレビュー実体 / プレハブモードの実体)を選択状態にする。設定はエディタに保存される",
+            };
+            selectOnPlayToggle.RegisterValueChangedCallback(evt => EditorPrefs.SetBool(SelectOnPlayPrefKey, evt.newValue));
+            _elementFxFoldout.Add(selectOnPlayToggle);
 
             _elementFxContainer = new VisualElement();
             _elementFxFoldout.Add(_elementFxContainer);
@@ -291,6 +315,7 @@ namespace DDrive.Editor.CanvasTool
                 // ElementFx 直接再生の Handle は (ElementPath, Phase) 文字列だけがキーなので、別の CanvasData に
                 // 切り替えると偶然同じパスの行が「再生中」と誤判定されうる。対象を切り替えたら破棄しておく
                 // (再生自体はプレビューの実体ごと RemovePreview 側で止まるので、ここは辞書のクリアのみでよい)。
+                ReleaseStageStates();
                 _phasePreviewHandles.Clear();
             }
 
@@ -522,7 +547,19 @@ namespace DDrive.Editor.CanvasTool
                 // 古い行 UI から呼ばれても例外にしない)。
                 // U-21: この要素を選んで Prefab 上で移動・回転・リサイズできるようにする(選択のみ。実際の
                 // 移動は Unity 標準の Move/Rect ツールで行う。ウィンドウ内に描画しない方針は維持する)。
-                box.Add(new Button(() => SelectElementForMove(elementPath)) { text = "選択して移動(Prefab を開く)", style = { marginBottom = 4 } });
+                var focusRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginBottom = 4 } };
+                focusRow.Add(new Button(() => SelectElement(elementPath, focus: false))
+                {
+                    text = "選択",
+                    tooltip = "この要素を選択して Inspector に出す(プレハブモード中はステージ内、確認用シーンの表示中はプレビュー実体、どちらも無ければ Prefab アセット内の要素を Ping)",
+                });
+                focusRow.Add(new Button(() => SelectElement(elementPath, focus: true))
+                {
+                    text = "フォーカス",
+                    tooltip = "この要素を選択し、SceneView のカメラをその要素の矩形へ寄せる(表示中の実体が無いときは選択のみ)",
+                });
+                focusRow.Add(new Button(() => SelectElementForMove(elementPath)) { text = "選択して移動(Prefab を開く)" });
+                box.Add(focusRow);
 
                 box.Add(BuildPhaseRow(
                     "Appear",
@@ -732,10 +769,10 @@ namespace DDrive.Editor.CanvasTool
 
             var widgets = new PhaseRowWidgets { ElementPath = elementPath, Phase = phase };
 
-            widgets.PlayButton = new Button(() => PlayPhasePreview(elementPath, phase, getPreset(), getId()))
+            widgets.PlayButton = new Button(() => PlayPhasePreview(elementPath, phase, getPreset(), getId(), selectPlayed: true))
             {
                 text = "▶ 再生",
-                tooltip = "この Appear/Idle/Disappear を、確認用シーンの実要素に対して再生する(未表示なら自動で「確認用シーンを開く」)",
+                tooltip = "この Appear/Idle/Disappear を、確認用シーンの実要素に対して再生する(未表示なら自動で「確認用シーンを開く」。対象の Prefab をプレハブモードで開いているときはステージ内の要素で再生し、終わると元へ戻す)。押すたびに再生前の状態へ戻してから再生する",
             };
             row.Add(widgets.PlayButton);
 
@@ -746,10 +783,10 @@ namespace DDrive.Editor.CanvasTool
             };
             row.Add(widgets.PauseButton);
 
-            widgets.StopButton = new Button(() => StopPhasePreview(elementPath, phase))
+            widgets.StopButton = new Button(() => StopPhasePreviewAndReset(elementPath, phase))
             {
                 text = "■ 停止",
-                tooltip = "途中で止める(最終状態には進めない)",
+                tooltip = "止めて、再生前の状態(初期位置など)へ戻す",
             };
             row.Add(widgets.StopButton);
 
@@ -762,8 +799,53 @@ namespace DDrive.Editor.CanvasTool
             return row;
         }
 
+        // プレハブモードで、このウィンドウの対象 CanvasData の Prefab を開いているときのステージ(それ以外は null)。
+        // 開いているのが別の Prefab のときは対象外(プレビュー実体側で再生する)。
+        private PrefabStage GetTargetStage()
+        {
+            if (_target == null || _target.Prefab == null)
+            {
+                return null;
+            }
+
+            var stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage == null || stage.prefabContentsRoot == null)
+            {
+                return null;
+            }
+
+            return stage.assetPath == AssetDatabase.GetAssetPath(_target.Prefab) ? stage : null;
+        }
+
+        private static RectTransform FindInStage(PrefabStage stage, string elementPath)
+        {
+            var root = stage.prefabContentsRoot.transform;
+            var found = string.IsNullOrEmpty(elementPath) ? root : root.Find(elementPath);
+            return found as RectTransform;
+        }
+
+        // 今「表示されている」再生対象(プレハブモードならステージ内、そうでなければ確認用シーンのプレビュー実体)。
+        // 表示されていなければ null。states には対応する初期状態の控えを返す。プレビューの新規配置はしない。
+        private RectTransform FindPlaybackTarget(string elementPath, out ElementFxStateSnapshot states)
+        {
+            var stage = GetTargetStage();
+            if (stage != null)
+            {
+                states = _stageStates;
+                return FindInStage(stage, elementPath);
+            }
+
+            states = _previewStates;
+            return _manager != null && _manager.IsOpen(_previewHandle)
+                ? _manager.GetComponent<RectTransform>(_previewHandle, elementPath)
+                : null;
+        }
+
         // 戻り値: 実際に再生を開始したか(レビュー対応 2026-09-14。「▶ 全〜」が失敗も再生件数に数えていた)。
-        private bool PlayPhasePreview(string elementPath, string phase, UiPresetRef preset, AssetId<UiTweenMarker> id)
+        // 2026-09-29: プレハブモードで対象の Prefab を開いているときは、ステージ内の実体を実 UiTweenManager で再生する
+        // (プレビュー実体を置き直さない)。再生前の値を控え、再生のたびに・止めるとき・終わったとき・プレハブモードを
+        // 閉じる / 保存するときに元へ戻す(Undo には積まない。プレハブに値を残さない)。
+        private bool PlayPhasePreview(string elementPath, string phase, UiPresetRef preset, AssetId<UiTweenMarker> id, bool selectPlayed = false)
         {
             if (_target == null || _tweenManager == null)
             {
@@ -772,32 +854,36 @@ namespace DDrive.Editor.CanvasTool
 
             elementPath ??= string.Empty; // 行 UI 側のキー(null → 空文字に正規化済み)と揃える(レビュー対応 2026-09-14)
 
-            if (_manager != null && !_manager.IsOpen(_previewHandle))
+            var stage = GetTargetStage();
+            if (stage == null && _manager != null && !_manager.IsOpen(_previewHandle))
             {
                 PlacePreview();
             }
 
-            if (_manager == null || !_manager.IsOpen(_previewHandle))
-            {
-                return false;
-            }
-
-            var elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, elementPath);
+            var elementTarget = FindPlaybackTarget(elementPath, out var states);
             if (elementTarget == null)
             {
+                if (stage == null && (_manager == null || !_manager.IsOpen(_previewHandle)))
+                {
+                    return false;
+                }
+
                 _statusLabel.text = $"{phase}: 要素が見つかりません({(string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath)})";
                 return false;
             }
+
+            // 初期状態(最初に再生する前の値)を控える。既に控えてあれば上書きしない。
+            states.Capture(elementTarget);
 
             StopPhasePreview(elementPath, phase);
             // (レビュー対応 2026-09-14) 同じ要素で UiManager 自身の ElementFx(開いた直後の Appear や自動の Idle ループ)が
             // 走っていると同じプロパティを取り合うため、この要素の Tween を全て止めてから再生する
             // (_tweenManager はこのウィンドウ専用のプレビュー用インスタンスなので、止めてよいのはプレビューの Tween だけ)。
-            // U-23(2026-09-17) バグ修正: complete:true が無いと、中断された Tween が「途中の位置」のまま
-            // 残り、直後に UiPresetFactory.Build が読む target の現在位置(cur)がその中途半端な値になる。
-            // SlideIn 等を連打するたびに本来の静止位置からずれていく不具合の直接原因だったため、
-            // 中断時は必ず最終値へ進めてから(complete:true)次の再生を組み立てる。
-            _tweenManager.StopAll(elementTarget, complete: true);
+            // 2026-09-29: U-23 の StopAll(complete:true) は Disappear(SlideOut 等)の終端値が残って次の SlideIn の基準
+            // (UiPresetFactory.Build が読む現在位置)になり、連打でずれていた。止めたあとで必ず初期状態へ戻してから
+            // 組み立てることで、何度押しても 1 回目と同じ再生になる。
+            _tweenManager.StopAll(elementTarget);
+            states.Restore(elementTarget);
 
             Handle<UiTweenMarker> handle;
             if (id.IsValid)
@@ -826,7 +912,153 @@ namespace DDrive.Editor.CanvasTool
             }
 
             _phasePreviewHandles[(elementPath, phase)] = handle;
+
+            if (selectPlayed)
+            {
+                SelectForPlayback(elementTarget);
+                if (stage != null)
+                {
+                    _statusLabel.text = $"{phase}: プレハブモードの要素で再生中(終わると元の値へ戻します)";
+                }
+            }
+
             return true;
+        }
+
+        private static void SelectForPlayback(RectTransform target)
+        {
+            if (target != null && EditorPrefs.GetBool(SelectOnPlayPrefKey, true))
+            {
+                Selection.activeGameObject = target.gameObject;
+            }
+        }
+
+        // 「選択」「フォーカス」ボタンの実体。今表示している実体(プレハブモード → プレビュー実体 → Prefab アセット内の順)を
+        // Selection にして Inspector に出す。focus=true なら SceneView も寄せる(アセット内の要素は SceneView に無いので Ping のみ)。
+        private void SelectElement(string elementPath, bool focus)
+        {
+            if (_target == null)
+            {
+                return;
+            }
+
+            elementPath ??= string.Empty;
+            var label = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
+            var stage = GetTargetStage();
+            var previewOpen = _manager != null && _manager.IsOpen(_previewHandle);
+
+            if (stage != null || previewOpen)
+            {
+                var displayed = FindPlaybackTarget(elementPath, out _);
+                if (displayed == null)
+                {
+                    _statusLabel.text = $"要素が見つかりません({label})";
+                    return;
+                }
+
+                Selection.activeGameObject = displayed.gameObject;
+                if (focus)
+                {
+                    PreviewPlacement.FocusRect(displayed);
+                }
+
+                _statusLabel.text = focus ? $"'{label}' を選択して SceneView を寄せました" : $"'{label}' を選択しました";
+                return;
+            }
+
+            // 表示中の実体が無い: Prefab アセット内の該当要素を選択 + Ping。
+            if (_target.Prefab == null)
+            {
+                _statusLabel.text = "Prefab を設定してください";
+                return;
+            }
+
+            var assetRoot = _target.Prefab.transform;
+            var inAsset = string.IsNullOrEmpty(elementPath) ? assetRoot : assetRoot.Find(elementPath);
+            if (inAsset == null)
+            {
+                _statusLabel.text = $"要素が見つかりません({label})";
+                return;
+            }
+
+            Selection.activeObject = inAsset.gameObject;
+            EditorGUIUtility.PingObject(inAsset.gameObject);
+            _statusLabel.text = focus
+                ? $"'{label}' は表示中の実体が無いため Prefab アセットを選択しました(SceneView へ寄せるには「確認用シーンを開く」かプレハブモードで表示してください)"
+                : $"'{label}' を Prefab アセット内で選択しました";
+        }
+
+        // プレハブモードで再生した値を元へ戻して控えを捨てる(実行中のトゥイーンも止める)。
+        private void ReleaseStageStates()
+        {
+            if (_stageStates.Count == 0)
+            {
+                return;
+            }
+
+            if (_tweenManager != null)
+            {
+                _stageStates.CollectTargets(_targetScratch);
+                for (var i = 0; i < _targetScratch.Count; i++)
+                {
+                    _tweenManager.StopAll(_targetScratch[i]);
+                }
+
+                _targetScratch.Clear();
+            }
+
+            _stageStates.RestoreAllAndClear();
+        }
+
+        // 再生が全部終わった(停止した)ら、プレハブモードの値を元へ戻す(プレハブに値を残さない)。
+        private void ReleaseStageStatesIfIdle()
+        {
+            if (_stageStates.Count > 0 && _phasePreviewHandles.Count == 0)
+            {
+                ReleaseStageStates();
+            }
+        }
+
+        private void OnPrefabStageClosing(PrefabStage stage)
+        {
+            ReleaseStageStates();
+            _phasePreviewHandles.Clear();
+        }
+
+        private void OnPrefabSaving(GameObject prefabRoot) => ReleaseStageStates();
+
+        // 行の「■ 停止」: 止めて再生前の状態へ戻す。
+        private void StopPhasePreviewAndReset(string elementPath, string phase)
+        {
+            elementPath ??= string.Empty;
+            StopPhasePreview(elementPath, phase);
+            var target = FindPlaybackTarget(elementPath, out var states);
+            if (target != null)
+            {
+                _tweenManager?.StopAll(target);
+                states.Restore(target);
+            }
+        }
+
+        // 実体を新しく置いた直後(まだ Tick が進む前)の値を初期状態として控える。
+        private void CapturePreviewBaselines()
+        {
+            _previewStates.Clear();
+            if (_manager == null || !_manager.IsOpen(_previewHandle))
+            {
+                return;
+            }
+
+            _previewStates.Capture(_manager.GetComponent<RectTransform>(_previewHandle));
+            if (_target?.ElementEffects == null)
+            {
+                return;
+            }
+
+            foreach (var fx in _target.ElementEffects)
+            {
+                _previewStates.Capture(_manager.GetComponent<RectTransform>(_previewHandle, fx.ElementPath ?? string.Empty));
+            }
         }
 
         private void TogglePausePhasePreview(string elementPath, string phase)
@@ -858,14 +1090,16 @@ namespace DDrive.Editor.CanvasTool
                 return;
             }
 
-            if (_manager != null && !_manager.IsOpen(_previewHandle))
+            // プレハブモードで対象の Prefab を開いているときはステージ内の実体で再生する(プレビューを置かない)。
+            var stageMode = GetTargetStage() != null;
+            if (!stageMode && _manager != null && !_manager.IsOpen(_previewHandle))
             {
                 PlacePreview();
             }
 
             // (レビュー対応 2026-09-14) 開けなかったときに要素ごとに PlacePreview(RemovePreview/OpenData)を繰り返していた。
             // 1 回で打ち切る。
-            if (_manager == null || !_manager.IsOpen(_previewHandle))
+            if (!stageMode && (_manager == null || !_manager.IsOpen(_previewHandle)))
             {
                 _statusLabel.text = $"{phase}: プレビューを開けませんでした";
                 return;
@@ -914,7 +1148,22 @@ namespace DDrive.Editor.CanvasTool
             }
 
             _phasePreviewHandles.Clear();
-            _statusLabel.text = "すべて停止しました";
+
+            // 止めた要素を再生前の状態へ戻す(プレビュー実体は控えを残し、プレハブステージは戻して捨てる)。
+            if (_tweenManager != null)
+            {
+                _previewStates.CollectTargets(_targetScratch);
+                for (var i = 0; i < _targetScratch.Count; i++)
+                {
+                    _tweenManager.StopAll(_targetScratch[i]);
+                }
+
+                _targetScratch.Clear();
+            }
+
+            _previewStates.RestoreAll();
+            ReleaseStageStates();
+            _statusLabel.text = "すべて停止しました(再生前の状態へ戻しました)";
         }
 
         // OnEditorUpdate から毎フレーム呼ぶ(AnimEditorWindow の状態ラベル更新と同じ方針)。行数分だけ
@@ -1334,6 +1583,7 @@ namespace DDrive.Editor.CanvasTool
                 // (レビュー対応 2026-09-14) 差分が無ければ書き込まない(Undo を積まない・Dirty にしない)。
                 var changed = CollectSelectables();
                 changed |= CollectElementFx();
+                CapturePreviewBaselines();
                 if (!changed)
                 {
                     _statusLabel.text = "プレビュー表示中";
@@ -1368,6 +1618,7 @@ namespace DDrive.Editor.CanvasTool
             _tweenManager?.StopAll(DDrive.Foundation.Manager.StopReason.Manual);
 
             _previewHandle = Handle<CanvasMarker>.Invalid;
+            _previewStates.Clear(); // 実体ごと破棄するので戻さず捨てる
 
             if (_previewRoot != null)
             {
