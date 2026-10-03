@@ -8,7 +8,11 @@ namespace DDrive.Runtime.Material
     // MaterialDataValidator と Material Editor の「Passes / Keywords」欄が共有する(どちらも静的検査 / 編集時の用途で、定常経路では呼ばない)。
     public static class MaterialShaderInfo
     {
-        // シェーダーの全パスの LightMode タグ値(重複・空は除く)を result に足す。LightMode の無いパスは含まれない。
+        // LightMode タグを書いていないパスの扱い。URP は SRPDefaultUnlit として描き、Material.SetShaderPassEnabled("SRPDefaultUnlit", false)
+        // で止められる(2026-10-03 実描画で確認、FC-R-06)。T-Drive の輪郭線パスなどがこれに当たる。
+        private const string UntaggedPassLightMode = "SRPDefaultUnlit";
+
+        // シェーダーの全パスの LightMode タグ値(重複は除く)を result に足す。LightMode の無いパスは SRPDefaultUnlit として数える。
         public static void CollectLightModes(Shader shader, List<string> result)
         {
             if (shader == null || result == null)
@@ -26,7 +30,12 @@ namespace DDrive.Runtime.Material
                 {
                     var value = shader.FindPassTagValue(i, tag);
                     var name = value.name;
-                    if (!string.IsNullOrEmpty(name) && !ContainsIgnoreCase(result, name))
+                    if (string.IsNullOrEmpty(name))
+                    {
+                        name = UntaggedPassLightMode;
+                    }
+
+                    if (!ContainsIgnoreCase(result, name))
                     {
                         result.Add(name);
                     }
@@ -47,7 +56,7 @@ namespace DDrive.Runtime.Material
 
         // LightMode 名は大文字小文字を区別しない(Unity は組み込みの値を大文字で返すことがある。例: ShadowCaster → SHADOWCASTER。
         // Material.SetShaderPassEnabled も区別しない)ので、比較はこれで行う。
-        public static bool ContainsIgnoreCase(List<string> list, string name)
+        private static bool ContainsIgnoreCase(List<string> list, string name)
         {
             for (var i = 0; i < list.Count; i++)
             {
@@ -70,9 +79,10 @@ namespace DDrive.Runtime.Material
             }
 
             var space = shader.keywordSpace;
+            var keywords = space.keywords; // アクセスのたびに配列が作られるので 1 回だけ取る(FC-R-11)
             for (var i = 0; i < space.keywordCount; i++)
             {
-                var name = space.keywords[i].name;
+                var name = keywords[i].name;
                 if (!string.IsNullOrEmpty(name) && !result.Contains(name))
                 {
                     result.Add(name);

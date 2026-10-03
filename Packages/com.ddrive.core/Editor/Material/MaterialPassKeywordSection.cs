@@ -60,7 +60,7 @@ namespace DDrive.Editor.Materials
             {
                 foreach (var pass in _data.DisabledPasses)
                 {
-                    if (!string.IsNullOrEmpty(pass) && !MaterialShaderInfo.ContainsIgnoreCase(names, pass))
+                    if (!string.IsNullOrEmpty(pass) && !ContainsIgnoreCase(names, pass))
                     {
                         names.Add(pass);
                     }
@@ -70,7 +70,7 @@ namespace DDrive.Editor.Materials
             foreach (var name in names)
             {
                 var captured = name;
-                var inShader = MaterialShaderInfo.ContainsIgnoreCase(_lightModes, captured);
+                var inShader = ContainsIgnoreCase(_lightModes, captured);
                 var toggle = new Toggle(inShader ? captured : captured + "(シェーダーに無い)")
                 {
                     tooltip = "チェックすると Material.SetShaderPassEnabled(\"" + captured + "\", false) で無効にする",
@@ -179,6 +179,20 @@ namespace DDrive.Editor.Materials
             _data.EnabledKeywords = list.ToArray();
             EditorUtility.SetDirty(_data);
             Refresh();
+        }
+
+        // LightMode 名は大文字小文字を区別しない(Material.SetShaderPassEnabled と同じ)。
+        private static bool ContainsIgnoreCase(List<string> list, string name)
+        {
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (string.Equals(list[i], name, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static List<string> ToList(string[] array) => array != null ? new List<string>(array) : new List<string>();
