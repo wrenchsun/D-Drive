@@ -78,8 +78,8 @@ namespace DDrive.Editor.Cutscene
         private static readonly List<int> _staleIds = new();
         private static double _lastTick;
 
-        // 再生開始の最初の更新で、director.time が 1 フレームぶん進んでいても「先頭から再生」と見なす上限(秒)。
-        private const float MaxStartFrameSeconds = 0.1f;
+        // 停止中の再生位置がこの秒数以下なら「先頭(0 秒)」とみなす(浮動小数の誤差の吸収だけ。更新間隔とは無関係)。
+        private const double StartAtZeroEpsilon = 1e-4d;
 
         static CutsceneEditModePreviewProvider()
         {
@@ -202,10 +202,13 @@ namespace DDrive.Editor.Cutscene
                 if (playing && !session.WasPlaying)
                 {
                     session.Collect(timeline);
-                    if (elapsed <= System.Math.Min(dt, MaxStartFrameSeconds) + 1e-4d)
+                    // FX-R-04: 「先頭からの再生か」は時間の許容ではなく、再生を始める直前(停止中)の位置で決める。
+                    // session.LastTime は停止中の更新ごとに記録した再生位置なので、再生開始の操作時点の位置 = LastTime。
+                    // 0 なら先頭から、尺の末尾などから巻き戻って始まった(elapsed < LastTime)ときも先頭からの再生とみなす。
+                    // スクラブ(LastTime > 0)してから再生した場合は、更新の間隔や 1 フレームの進みに関係なく途中から。
+                    if (session.LastTime <= StartAtZeroEpsilon || elapsed + StartAtZeroEpsilon < session.LastTime)
                     {
                         // 先頭からのプレビュー再生(開始位置が 0 = Play Mode の通常の Play と同じ)。時刻 0 のマーカーも発火する(FC-R-03)。
-                        // 再生開始の最初の更新で director.time が 1 フレームぶん進んでいても「先頭から」と見なす。
                         session.EventCursor.Advance(elapsed, true, FireEvent);
                         session.SignalCursor.Advance(elapsed, true, FireSignal);
                         session.ShakeCursor.Advance(elapsed, true, FireShake);
