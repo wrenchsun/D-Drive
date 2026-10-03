@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Pool;
 using DDrive.Foundation.Registry;
@@ -29,6 +30,16 @@ namespace DDrive.Tests.Runtime
             private void OnDisable() => Enabled--;
         }
 
+        // OnModelSpawned の中から別のカットシーンを再生する外部リスナーの模擬(FC-R-05)。
+        private sealed class ReentrantPlayListener : MonoBehaviour, IModelInstanceListener
+        {
+            public static System.Action OnSpawned;
+
+            public void OnModelSpawned(in ModelInstanceContext context) => OnSpawned?.Invoke();
+
+            public void OnModelReturning(in ModelInstanceContext context) { }
+        }
+
         private readonly List<Object> _created = new();
         private PoolService _pool;
 
@@ -42,6 +53,7 @@ namespace DDrive.Tests.Runtime
         [TearDown]
         public void TearDown()
         {
+            ReentrantPlayListener.OnSpawned = null;
             _pool.Clear(PoolScope.Global);
             foreach (var o in _created)
             {
@@ -316,6 +328,68 @@ namespace DDrive.Tests.Runtime
 
             manager.Cancel(handle);
             Assert.AreEqual(0, EnabledCounter.Enabled, "終了時に 1 回だけ Despawn される");
+        }
+
+        // FC-R-05: SpawnModel の OnModelSpawned(外部リスナー)の中から別のカットシーンを Play しても、
+        // 外側の ApplyBindings の共有バッファが壊れず、例外にもならない(長さの違う Bindings で入れ子にする)。
+        [Test]
+        public void ApplyBindings_ReentrantPlayFromOnModelSpawned_DoesNotCorruptOuterBindings()
+        {
+            var prefab = Track(new GameObject("ReentrantModelPrefab"));
+            prefab.AddComponent<Animator>();
+            prefab.AddComponent<ReentrantPlayListener>();
+
+            var model = Track(ScriptableObject.CreateInstance<ModelData>());
+            model.Id = 777002UL;
+            model.Prefab = prefab;
+
+            var loader = new FakeAssetLoader();
+            const string address = "model/777002";
+            loader.Assets[address] = model;
+            var catalog = Track(ScriptableObject.CreateInstance<AssetCatalog>());
+            catalog.SetEntries(new List<CatalogEntry> { new() { Id = model.Id, Type = AssetType.Model, Address = address } });
+            var registry = new AssetRegistry(loader);
+            registry.RegisterCatalogAsync(catalog).GetAwaiter().GetResult();
+            registry.ResolveAsync<ModelData>(model.Id).GetAwaiter().GetResult();
+
+            var models = new ModelsManager(_pool, registry);
+            var manager = new CutsceneManager(registry, models);
+
+            var nestedActor = CreateActor(withAnimator: false);
+            var nestedTimeline = CreateTimeline("Nested");
+            var nestedData = CreateData(nestedTimeline, Self("Nested"));
+            Handle<CutsceneMarker> nestedHandle = default;
+            ReentrantPlayListener.OnSpawned = () =>
+            {
+                ReentrantPlayListener.OnSpawned = null; // 入れ子の Play で再び Spawn しない
+                nestedHandle = manager.PlayData(nestedData, new PlayContext { Self = nestedActor.transform });
+            };
+
+            var actor = CreateActor(withAnimator: false);
+            var timeline = CreateTimeline("Hero", "Hero_Ext", "Extra");
+            var data = CreateData(
+                timeline,
+                Same("Hero_Ext", "Hero"),
+                new CutsceneBinding
+                {
+                    TrackName = "Hero",
+                    Target = CutsceneBindTarget.SpawnModel,
+                    Model = new AssetId<ModelMarker>(model.Id, AssetType.Model),
+                },
+                Self("Extra"));
+
+            var handle = manager.PlayData(data, new PlayContext { Self = actor.transform });
+
+            Assert.IsTrue(manager.IsPlaying(handle), "外側の再生は例外なく始まる");
+            Assert.IsTrue(manager.IsPlaying(nestedHandle), "入れ子の再生も始まる");
+            var hero = BindingOf(timeline, "Hero");
+            Assert.IsInstanceOf<Animator>(hero);
+            Assert.AreSame(hero, BindingOf(timeline, "Hero_Ext"), "外側の SameAsTrack は外側の結果へ結ばれる");
+            Assert.AreSame(actor.transform, BindingOf(timeline, "Extra"));
+            Assert.AreSame(nestedActor.transform, BindingOf(nestedTimeline, "Nested"), "入れ子側のバインドも正しい");
+
+            manager.Cancel(nestedHandle);
+            manager.Cancel(handle);
         }
     }
 }

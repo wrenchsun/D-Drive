@@ -78,6 +78,9 @@ namespace DDrive.Editor.Cutscene
         private static readonly List<int> _staleIds = new();
         private static double _lastTick;
 
+        // 再生開始の最初の更新で、director.time が 1 フレームぶん進んでいても「先頭から再生」と見なす上限(秒)。
+        private const float MaxStartFrameSeconds = 0.1f;
+
         static CutsceneEditModePreviewProvider()
         {
             _lastTick = EditorApplication.timeSinceStartup;
@@ -199,7 +202,21 @@ namespace DDrive.Editor.Cutscene
                 if (playing && !session.WasPlaying)
                 {
                     session.Collect(timeline);
-                    session.SilentAdvanceTo(elapsed);
+                    if (elapsed <= System.Math.Min(dt, MaxStartFrameSeconds) + 1e-4d)
+                    {
+                        // 先頭からのプレビュー再生(開始位置が 0 = Play Mode の通常の Play と同じ)。時刻 0 のマーカーも発火する(FC-R-03)。
+                        // 再生開始の最初の更新で director.time が 1 フレームぶん進んでいても「先頭から」と見なす。
+                        session.EventCursor.Advance(elapsed, true, FireEvent);
+                        session.SignalCursor.Advance(elapsed, true, FireSignal);
+                        session.ShakeCursor.Advance(elapsed, true, FireShake);
+                        session.HapticCursor.Advance(elapsed, true, FireHaptic);
+                        session.ExternalCursor.Advance(elapsed, true, director);
+                    }
+                    else
+                    {
+                        // 途中から(スクラブしてから再生)。開始位置までは無音で追い付く(開始位置ちょうどのマーカーも無音)。
+                        session.SilentAdvanceTo(elapsed);
+                    }
                 }
                 else if (elapsed + 1e-4d < session.LastTime)
                 {

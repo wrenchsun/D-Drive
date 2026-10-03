@@ -217,6 +217,141 @@ namespace ExternalContract.Tests
             manager.Cancel(handle);
         }
 
+        // 時刻・位置を指定して ExternalFireMarker を置いた CutsceneData(FC-R-03 / FC-R-04 用)。markerTrack = true なら Timeline 上端のマーカー領域に置く。
+        private CutsceneData BuildMarkersAt(bool markerTrack, params double[] times)
+        {
+            var timeline = Own(ScriptableObject.CreateInstance<TimelineAsset>());
+            timeline.durationMode = TimelineAsset.DurationMode.FixedLength;
+            timeline.fixedDuration = Duration;
+            TrackAsset track;
+            if (markerTrack)
+            {
+                timeline.CreateMarkerTrack();
+                track = timeline.markerTrack;
+            }
+            else
+            {
+                track = timeline.CreateTrack<ExternalProbeTrack>(null, "ExtMarkers");
+            }
+
+            foreach (var t in times)
+            {
+                track.CreateMarker<ExternalFireMarker>(t);
+            }
+
+            var data = Own(ScriptableObject.CreateInstance<CutsceneData>());
+            data.DisplayName = "ExternalMarkerCutscene";
+            data.Timeline = timeline;
+            data.Origin = CutsceneOrigin.World;
+            data.Skip = CutsceneSkip.Immediate;
+            data.Bindings = new CutsceneBinding[0];
+            return data;
+        }
+
+        // E-20(FC-R-03): 最初から再生(開始位置 0)したとき、ちょうど 0 秒に置いたマーカーも最初の Tick で 1 回だけ発火する。
+        [Test]
+        public void E20_MarkerAtZero_FiresOnFirstTick_WhenPlayedFromStart()
+        {
+            var manager = NewManager();
+            var handle = manager.PlayData(BuildMarkersAt(false, 0.0, 1.0), Ctx());
+            Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "Play の呼び出し自体では発火しない(最初の Tick で発火)");
+
+            manager.Tick(0.1f);
+            Assert.AreEqual(1, ExternalFireMarker.Calls.Count);
+            Assert.AreEqual(0.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+
+            manager.Tick(0.1f);
+            Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "二重発火しない");
+
+            manager.Cancel(handle);
+        }
+
+        // E-20(FC-R-03): Seek / Skip では 0 秒のマーカーも発火しない(従来どおり無音)。
+        [Test]
+        public void E20_MarkerAtZero_SeekIsSilent()
+        {
+            var manager = NewManager();
+            var handle = manager.PlayData(BuildMarkersAt(false, 0.0, 1.0), Ctx());
+
+            manager.Seek(handle, 0.5f);
+            manager.Tick(0.1f);
+            Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "Seek で跨いだ 0 秒は無音(0.6 秒時点で 1.0 は未到達)");
+
+            manager.Cancel(handle);
+        }
+
+        // E-20(FC-R-03): 途中から始まる再生(Late Join = elapsedSeek > 0)では、開始位置までのマーカー(開始位置ちょうど・0 秒を含む)は無音。
+        [Test]
+        public void E20_LateJoin_MarkerAtStartPositionAndAtZero_AreSilent()
+        {
+            const ulong CutId = 940102UL;
+            var loader = new ExternalContractLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new ExternalContractBridge { IsServer = false, LocalClientId = 1UL, NetworkTime = 1.0 };
+            var manager = new CutsceneManager(registry, netBridge: bridge);
+
+            var data = BuildMarkersAt(false, 0.0, 1.0, 2.0);
+            data.Id = CutId;
+            var flags = data.Flags;
+            flags.Net = NetMode.Cosmetic;
+            data.Flags = flags;
+            ExternalContractRegistry.Register(loader, registry, AssetType.Cutscene, data);
+
+            bridge.InjectReceive(0UL, new CutscenePlayMsg { CutId = CutId, HandleNetKey = 0x55555556u, StartNetTime = 0.0 });
+            var active = manager.DebugActiveHandles();
+            Assert.AreEqual(1, active.Count);
+            Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "1.0 秒からの途中参加: 0 秒と開始位置ちょうどの 1.0 は無音");
+
+            manager.Tick(1.1f);
+            Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "以降に跨いだ 2.0 だけローカルの Tick で呼ばれる");
+            Assert.AreEqual(2.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+
+            manager.Cancel(active[0]);
+        }
+
+        // E-20(FC-R-04): Timeline 上端のマーカー領域(markerTrack)に置いた外部マーカーも発火する(GetOutputTracks に含まれることの確認を兼ねる)。
+        [Test]
+        public void E20_MarkerOnTimelineMarkerTrack_Fires()
+        {
+            var data = BuildMarkersAt(true, 0.0, 1.0);
+            var found = false;
+            foreach (var track in data.Timeline.GetOutputTracks())
+            {
+                found |= track == data.Timeline.markerTrack;
+            }
+
+            Assert.IsTrue(found, "markerTrack は GetOutputTracks() に含まれる(Timeline 1.8 系、2026-10-03 実機確認)");
+
+            var manager = NewManager();
+            var handle = manager.PlayData(data, Ctx());
+            manager.Tick(0.1f);
+            Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "0 秒のマーカー(markerTrack 上)");
+            manager.Tick(1.0f);
+            Assert.AreEqual(2, ExternalFireMarker.Calls.Count, "1.0 秒のマーカー(markerTrack 上)");
+
+            manager.Cancel(handle);
+        }
+
+        // E-20(FC-R-09): Fire の中でカットシーンを止められても、残りのマーカーは呼ばれず Tick も落ちない。
+        [Test]
+        public void E20_StopInsideFire_DoesNotFireRemainingMarkers()
+        {
+            var manager = NewManager();
+            var handle = manager.PlayData(BuildMarkersAt(false, 1.0, 2.0, 3.0), Ctx());
+            ExternalFireMarker.OnFire = _ => manager.Cancel(handle);
+            try
+            {
+                manager.Tick(3.5f);
+            }
+            finally
+            {
+                ExternalFireMarker.OnFire = null;
+            }
+
+            Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "止めた後の 2.0 / 3.0 は呼ばれない");
+            Assert.IsFalse(manager.IsPlaying(handle));
+        }
+
         // E-20: ネット受信側(遅延復元 = elapsedSeek > 0)で始まった再生では、既に過ぎたマーカーは無音(Late Join)。
         //       発火は各クライアントのローカル処理(受信側が自分の Tick で跨いだ分だけ呼ぶ)。
         [Test]

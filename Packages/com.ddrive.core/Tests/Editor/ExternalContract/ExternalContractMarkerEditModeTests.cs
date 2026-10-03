@@ -25,6 +25,8 @@ namespace ExternalContract.Tests.Editor
         [SetUp]
         public void SetUp()
         {
+            // private メソッドをリフレクションで呼ぶ(docs/51 §4.5-5)。改名で黙って落ちないよう、理由を出して失敗させる(FC-R-21)。
+            Assert.IsNotNull(OnEditorUpdate, "CutsceneEditModePreviewProvider.OnEditorUpdate(private static)が見つかりません。改名された場合はこのテストの MethodInfo を直してください");
             ExternalFireMarker.ClearCalls();
             _timeline = ScriptableObject.CreateInstance<TimelineAsset>();
             _timeline.durationMode = TimelineAsset.DurationMode.FixedLength;
@@ -120,6 +122,110 @@ namespace ExternalContract.Tests.Editor
             _director.time = 0.5;
             Update();
             Assert.AreEqual(2, ExternalFireMarker.Calls.Count, "巻き戻しは無音");
+        }
+
+        private TimelineAsset ReplaceTimeline(bool markerTrack, params double[] times)
+        {
+            var timeline = ScriptableObject.CreateInstance<TimelineAsset>();
+            timeline.durationMode = TimelineAsset.DurationMode.FixedLength;
+            timeline.fixedDuration = 10.0;
+            UnityEngine.Timeline.TrackAsset track;
+            if (markerTrack)
+            {
+                timeline.CreateMarkerTrack();
+                track = timeline.markerTrack;
+            }
+            else
+            {
+                track = timeline.CreateTrack<ExternalProbeTrack>(null, "ExtMarkers");
+            }
+
+            foreach (var t in times)
+            {
+                track.CreateMarker<ExternalFireMarker>(t);
+            }
+
+            _director.playableAsset = timeline;
+            return timeline;
+        }
+
+        // E-20(FC-R-03): 先頭(0 秒)からのプレビュー再生では、ちょうど 0 秒のマーカーも発火する。二重発火しない。
+        [Test]
+        public void E20_EditPreview_PlayFromStart_FiresMarkerAtZero_Once()
+        {
+            var timeline = ReplaceTimeline(false, 0.0, 1.0);
+            try
+            {
+                _director.time = 0.0;
+                _director.Play();
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "先頭からの再生では 0 秒のマーカーも発火する");
+                Assert.AreEqual(0.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "二重発火しない");
+
+                _director.time = 1.2;
+                Update();
+                Assert.AreEqual(2, ExternalFireMarker.Calls.Count);
+            }
+            finally
+            {
+                _director.playableAsset = null;
+                Object.DestroyImmediate(timeline);
+            }
+        }
+
+        // E-20(FC-R-03): スクラブ(非再生)では発火しない。途中から再生を始めたとき、開始位置ちょうどのマーカーも無音。
+        [Test]
+        public void E20_EditPreview_ScrubToMarkerTime_ThenPlay_IsSilentAtStartPosition()
+        {
+            var timeline = ReplaceTimeline(false, 0.0, 1.0, 2.0);
+            try
+            {
+                _director.Pause();
+                _director.time = 0.0;
+                Update();
+                _director.time = 1.0;
+                Update();
+                Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "スクラブは 0 秒も 1.0 秒も無音");
+
+                _director.Play();
+                Update();
+                Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "途中から再生: 開始位置ちょうどの 1.0 も無音");
+
+                _director.time = 2.2;
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count);
+                Assert.AreEqual(2.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+            }
+            finally
+            {
+                _director.playableAsset = null;
+                Object.DestroyImmediate(timeline);
+            }
+        }
+
+        // E-20(FC-R-04): Timeline 上端のマーカー領域(markerTrack)に置いた外部マーカーも Edit Mode のプレビューで発火する。
+        [Test]
+        public void E20_EditPreview_MarkerOnTimelineMarkerTrack_Fires()
+        {
+            var timeline = ReplaceTimeline(true, 1.0);
+            try
+            {
+                _director.time = 0.0;
+                _director.Play();
+                Update();
+                _director.time = 1.2;
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count);
+                Assert.AreEqual(1.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+            }
+            finally
+            {
+                _director.playableAsset = null;
+                Object.DestroyImmediate(timeline);
+            }
         }
     }
 }

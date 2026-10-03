@@ -111,6 +111,72 @@ namespace DDrive.Tests.Runtime
             CollectionAssert.AreEqual(new[] { "cutscene/hit" }, received);
         }
 
+        // FC-R-03 / FC-R-04: 最初から再生したとき、ちょうど 0 秒のマーカー(既存の Event / Signal)も最初の Tick で発火する。
+        // Timeline 上端のマーカー領域(markerTrack)に置いたものも拾われる。
+        [Test]
+        public void Markers_AtZero_FireOnFirstTick_WhenPlayedFromStart()
+        {
+            var timeline = CreateTimeline(1.0);
+            var eventTrack = timeline.CreateTrack<CutsceneEventTrack>(null, "Event");
+            eventTrack.CreateMarker<CutsceneEventNotification>(0.0).Event = new AssetEvent { Action = EventAction.SendMessage, CustomKey = "zero-event" };
+            var signalTrack = timeline.CreateTrack<CutsceneSignalTrack>(null, "Signal");
+            signalTrack.CreateMarker<CutsceneSignalNotification>(0.0).Key = "zero-signal";
+
+            var manager = new CutsceneManager(new AssetRegistry(new FakeAssetLoader()));
+            var data = CreateData(timeline);
+            var keys = new List<string>();
+            manager.Events.OnEventFired += (_, evt) => keys.Add(evt.CustomKey);
+
+            var handle = manager.PlayData(data, new PlayContext());
+            manager.OnMarker(handle).Subscribe(k => keys.Add(k));
+            Assert.AreEqual(0, keys.Count, "Play の呼び出し自体では発火しない");
+
+            manager.Tick(0.1f);
+            CollectionAssert.AreEquivalent(new[] { "zero-event", "zero-signal" }, keys);
+
+            manager.Tick(0.1f);
+            Assert.AreEqual(2, keys.Count, "二重発火しない");
+
+            manager.Cancel(handle);
+        }
+
+        [Test]
+        public void Markers_AtZero_AreSilent_AfterSeek()
+        {
+            var timeline = CreateTimeline(2.0);
+            var signalTrack = timeline.CreateTrack<CutsceneSignalTrack>(null, "Signal");
+            signalTrack.CreateMarker<CutsceneSignalNotification>(0.0).Key = "zero-signal";
+
+            var manager = new CutsceneManager(new AssetRegistry(new FakeAssetLoader()));
+            var handle = manager.PlayData(CreateData(timeline), new PlayContext());
+            var keys = new List<string>();
+            manager.OnMarker(handle).Subscribe(k => keys.Add(k));
+
+            manager.Seek(handle, 0.5f);
+            manager.Tick(0.1f);
+
+            Assert.AreEqual(0, keys.Count, "Seek で跨いだ分は無音");
+            manager.Cancel(handle);
+        }
+
+        [Test]
+        public void SignalMarker_OnTimelineMarkerTrack_Fires()
+        {
+            var timeline = CreateTimeline(1.0);
+            timeline.CreateMarkerTrack();
+            timeline.markerTrack.CreateMarker<CutsceneSignalNotification>(0.3).Key = "marker-track";
+
+            var manager = new CutsceneManager(new AssetRegistry(new FakeAssetLoader()));
+            var handle = manager.PlayData(CreateData(timeline), new PlayContext());
+            var keys = new List<string>();
+            manager.OnMarker(handle).Subscribe(k => keys.Add(k));
+
+            manager.Tick(0.5f);
+
+            CollectionAssert.AreEqual(new[] { "marker-track" }, keys, "markerTrack 上の既存マーカーも拾われる(GetOutputTracks に含まれる)");
+            manager.Cancel(handle);
+        }
+
         [Test]
         public void SkipToMarker_SeeksToMarkerTime_NotDuration_AndDoesNotRefire()
         {
