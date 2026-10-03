@@ -528,7 +528,7 @@ namespace DDrive.Runtime.Model
 
 **互換区分の判定（[42] §5）**: `DDrive.Editor` の public は §5.4 の互換面外。ただし (1) **生成されるデータ（MaterialData の `Shader`）が変わる**（持ち込み先で同じ操作をしたときの結果が変わる）、(2) 「Lit への変換」は D-Drive の意図した機能（Unity 標準マテリアルの D-Drive 標準シェーダーへの移行、`UnityMaterialMigrator` の 2026-09-11 の設計）であり、既存の `Migrate` の挙動に依存する運用があり得る → **§5.9「弱い互換面」の挙動変更として MINOR（CHANGELOG の互換性節に「挙動の変更・生成されるデータが変わる」を明記）**。`MayaImportProfile` への欄追加は §5.1 のシリアライズ互換（追加のみ）。MAJOR にはしない
 
-**推奨案**:
+**推奨案（2026-10-03 決定: 不採用。決定は U-9 = (c) 確認ダイアログ + Profile の欄。下の実装メモ参照）**:
 
 1. 知らないシェーダー（`ShaderMap` にも `DDrive/` 接頭辞にも無い）は、**そのシェーダーのまま MaterialData を作る**（`Shader = source.shader`、Specific は `MaterialSpecificResolver.Merge` で登録し同名プロパティの値は `CopySpecificValues` が引き継ぐ）。Common は従来どおり共通名から作る
 2. 既存 MaterialData の `Shader` を `Migrate` が上書きする分岐は、**既に有効なシェーダー（non-null）が入っているなら触らない**（FBX 経路の `existing.Shader == null` のときだけ設定、と同じ規則に揃える）
@@ -540,6 +540,18 @@ namespace DDrive.Runtime.Model
 **T-Drive 側の使い方**: 罠 1・3 の運用（スロットを MaterialData で埋めておく / 取り込み対象から外す）が不要になる。ただし Common の再計算は走る（`ImportMaterial` が Common を更新する）ので、ブリッジが書き出した値が Common と食い違わない前提は残る（T-Drive 側の確認事項）
 
 **テスト・docs**: AC は [11](11_tasks.md) FC-15 行。**更新する docs**: [06]（A-2 Maya 取り込み）、[09]、`DesignerManual/model-editor.html`（「元ファイルを再読み込み」の挙動を機能として）
+
+**実装メモ（2026-10-03、FC-15 実装）**: **推奨案（既定 `KeepSource`）は採用されず、U-9 = (c)（確認ダイアログ + Profile の欄）で実装した**（ユーザー決定: 知らないシェーダーを見つけたら確認ダイアログを出す。ダイアログを出せない自動取り込みの経路は従来どおり）。
+
+1. **Profile の欄**: `MayaImportProfile`（`Editor/Material/`）の末尾に `UnknownShaderPolicy UnknownShaderPolicy = Ask`（`[Tooltip]` 付き。enum は同じ `DDrive.Editor.Materials` に新設: `Ask = 0` / `KeepSource = 1` / `ConvertToLit = 2`）。既存 Profile アセットは欄が無く 0 = `Ask` で読まれる。専用エディタは無く Inspector の既定表示に出る。
+2. **「知らないシェーダー」の定義**: 現行コードの判定どおり（`UnityMaterialMigrator.IsSupported` = ShaderMap にも `DDrive/` 接頭辞にも当たらない。`shader == null` は対象外）。`UnknownShaderGuard.IsUnknown`。**D-Drive は T-Drive のシェーダー名を知らない**（許可リストにしない）。
+3. **`Ask` の解決は 1 操作 1 回・先に走査してから適用**: `UnknownShaderGuard.TryResolve(profile, 対象 Material 全部, interactive, out handling)`。`Ask` かつ `interactive` かつ知らないシェーダーが 1 件以上あるときだけ `EditorUtility.DisplayDialogComplex`（「元のシェーダーのまま保つ」/「キャンセル（何もしない）」/「DDrive/Lit に変換」。シェーダー名と件数を本文に列挙し、5 種類を超えたら「ほか N 種類」。「今後聞かない」は付けず、本文で Profile の欄を案内）。キャンセルは false を返し、呼び出し側は MaterialData も Slots も書き換えずに中断する。結果は `UnknownShaderHandling`（`Keep` / `Convert`）で取り込み処理へ**明示的に**渡す（グローバルな推測はしない）。
+4. **対話 / 非対話は呼び出し元が決める**: 対話 = `ModelEditorWindow` の「元ファイルを再読み込み」（`ModelSlotBinder.Rebuild(…, interactive: true)`）、`Generate` メニューの「選択した Material を D-Drive/Lit・Unlit の MaterialData に変換」「選択したモデルから MaterialData を生成」（いずれも `UnknownShaderGuard.IsInteractiveSession()` = `!Application.isBatchMode`）。非対話 = 既存シグネチャのまま（`MayaModelPostprocessor` の自動取り込み・`RebindForModelPath`・`SourceDataCreation` の .mat 取り込み・テスト）。既存シグネチャは Profile の欄だけで決める（`KeepSource` なら保つ、それ以外は従来どおり Lit）。
+5. **`KeepSource`**: `ResolveTargetShader`（`MayaMaterialImporter`）が TargetShader → `DDrive/` 接頭辞 → （知らないシェーダーなら）元のシェーダー → Lit の順。`Migrate` は `Shader = source.shader`、Specific は `MaterialSpecificResolver.Merge` + `CopySpecificValues` が引き継ぐ。`Migrate` の既存 Data の Shader 上書き（`data.Shader != target`）は、知らないシェーダーを保つとき **既に有効な Shader（non-null）が入っていれば行わない**。`Convert` の場合の上書きは従来どおり（変えていない）。
+6. **設計から変えた点**: (a) 既定は `KeepSource` ではなく `Ask`。`Ask` の非対話経路は従来と同じなので、唯一の挙動変更は対話経路でダイアログが増えること。(b) 推奨案 3「`DDrive/Lit` への変換は明示操作のときだけ」は採用しない（`ConvertToLit` / ダイアログの「変換」で従来どおり）。(c) 公開 API は追加のみ（`Migrate` / `ImportModel` / `ImportMaterial` / `ResolveTargetShader` / `Rebuild` / `EnsureMaterialData` に引数を足した**別オーバーロード**。既存のシグネチャは不変）。(d) `Migrate` の既存の警告ログに「Profile の UnknownShaderPolicy を KeepSource にすると元のシェーダーを保てます」を 1 文足した。(e) テストの差し替え口として `UnknownShaderGuard.PromptOverride`・`MayaImportProfile.TestOverride` を public static で置いた（`InternalsVisibleTo` 未設定の既存の慣習。使い終わったら null に戻す）。
+7. **既知の範囲外**: `DDrive/` 接頭辞のシェーダーのうち変換表に無いもの（例 `DDrive/AiStandardSurface`）を **単体 .mat として `Migrate` すると従来どおり Lit に変換される**（`Migrate` の既存の挙動。FBX 経路の `ResolveTargetShader` は保つ）。`SourceDataCreation` の .mat 取り込みは 1 ファイルごとの呼び出しで 1 操作にまとめにくいため非対話のまま（Profile を `KeepSource` にすれば保てる）。
+8. **T-Drive 側の使い方**: T-Drive を使うプロジェクトは Profile の `UnknownShaderPolicy = KeepSource` を設定する（罠 1・3 がダイアログ無しで避けられる。T-Drive の検証 U-23 で案内できる）。< 1.4.0 の D-Drive では欄が無いので従来の運用（スロットを MaterialData で埋める / 取り込み対象から外す）。
+9. **テスト・互換**: EditMode `UnknownShaderPolicyTests` 19 件（TryResolve の 1 操作 1 回・3 択・知らないシェーダーが無ければ出ない・非対話・KeepSource / ConvertToLit は出さない、`Migrate` の Lit / 保つ / 既存 Data の Shader を上書きしない / `Convert` は従来どおり上書き、`ResolveTargetShader`、`Rebuild` の保つ・変換・キャンセル〔何も作らない〕・非対話）。互換区分は MINOR（Editor の弱い互換面。CHANGELOG の互換性節に明記）。スナップショット（serialized-layout / enums / editor-contract）の差分は なし（`MayaImportProfile` は Editor の ScriptableObject で serialized-layout・enums・editor-contract のいずれの対象にも入らず、`EditorContractSnapshotTests` を含む EditMode 全件が無改修で green）。
 
 ### 4.17 FC-16（= doc17 M-6）: モデルの名前付きスロットセット【優先 低】
 
@@ -666,6 +678,7 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 3. **ブリッジ（`TDrive.Toon.DDriveBridge`）が切り替えるべき点**（`com.ddrive.core` の `versionDefines` `[1.4.0,)` のときだけ新経路）: パスの無効化・キーワードは生成シェーダーを増やさず MaterialData の `DisabledPasses` / `EnabledKeywords`（FC-11）/ スロット適用後の初期化は `IModelInstanceListener`（FC-12。`ToonCharacter` が実装）/ 変換表・テクスチャ規則は提供口（FC-14。`Assets/` への生成と Profile の編集が不要）/ 罠 1・3 は FC-15 で緩和
 4. **それまでの運用は doc17 §4 のとおりで足りる**。罠ごとの対応は §3.4 の表。**空・無効 ID のスロットが Prefab のマテリアルを触らない挙動は FC-10 E-13 で契約として固定する**ので、回避策（スロットを空にする）に依存してよい
 5. **D-Drive が Renderer Feature に関与しない**こと・`_Toon*` が Specific にそのまま入ること・シェーダーに無いプロパティが飛ばされることも契約テスト（E-10〜E-15）で固定する
+6. **T-Drive を使うプロジェクトは `MayaImportProfile` の `UnknownShaderPolicy = KeepSource` を設定する**（FC-15、D-Drive 1.4.0 以降。罠 1・3 が確認ダイアログ無しで避けられる。既定の `Ask` は Model エディタの「元ファイルを再読み込み」などの対話的な操作で確認ダイアログを出し、FBX の自動取り込みは従来どおり Lit に変換する）。T-Drive の検証 U-23 で案内できる
 
 ## 8. 未決事項と決定（まとめ役の判断が要るもの）
 
@@ -681,7 +694,7 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 | U-6 | FC-5 のリスナー API を Editor 契約（[42] §5.9）に載せるか | (a) 載せる（`EditorContractSnapshotTests` 対象）/ (b) 載せない（`DDrive.Editor` の public は互換面外のまま） | (a)。T-Drive が事実上依存するため | **(a)**（U-7 に伴う） |
 | U-7 | FC-10: [42] に「外部拡張の契約」を追加するか | (a) 追加する（§5.14 新設。MINOR）/ (b) テストだけ持ち docs/42 は変えない | (a)。ポリシーの追加なのでユーザー承認の上で FC-10 の PR で実施 | **(a)**（2026-10-03 ユーザー決定） |
 | U-8 | R-3 の対応主体 | (a) T-Drive 側で前回値を保持（推奨）/ (b) D-Drive が一時停止中も毎フレーム `Evaluate` する（`Paused` 中の Tick の意味が変わる = 他の外部 Track にも影響する大きな変更） | (a)。D-Drive は変えない | **(a)** |
-| U-9 | FC-15: `UnknownShaderPolicy` の既定値と既存挙動の変更 | (a) 既定 `KeepSource`（知らないシェーダーはそのまま。既存の持ち込み先でも次回の再取り込みから挙動が変わる）/ (b) 既定 `ConvertToLit`（従来どおり。T-Drive は Profile で `KeepSource` を設定）/ (c) 確認ダイアログ | (a)。Editor の挙動変更なので CHANGELOG に明記（弱い互換面）。ユーザー確認の上で実施 | **(c) 確認ダイアログ**（2026-10-03 ユーザー決定。ダイアログを出せない自動取り込みの経路は従来どおり） |
+| U-9 | FC-15: `UnknownShaderPolicy` の既定値と既存挙動の変更 | (a) 既定 `KeepSource`（知らないシェーダーはそのまま。既存の持ち込み先でも次回の再取り込みから挙動が変わる）/ (b) 既定 `ConvertToLit`（従来どおり。T-Drive は Profile で `KeepSource` を設定）/ (c) 確認ダイアログ | (a)。Editor の挙動変更なので CHANGELOG に明記（弱い互換面）。ユーザー確認の上で実施 | **(c) 確認ダイアログ**（2026-10-03 ユーザー決定。ダイアログを出せない自動取り込みの経路は従来どおり）。具体化: `MayaImportProfile.UnknownShaderPolicy` = `Ask`（0、既定）/ `KeepSource`（1）/ `ConvertToLit`（2）。`Ask` は対話的な操作だけ 1 操作 1 回の 3 択ダイアログ（保つ / 変換 / キャンセル）、非対話は従来どおり Lit。`KeepSource` は確認なしで保つ（T-Drive を使うプロジェクト向けの opt-in）。FC-15 で実装済み（§4.16 実装メモ） |
 | U-10 | FC-11: キーワード欄の範囲と検査の重さ | (a) `EnabledKeywords` のみ（無効化は需要が出てから）/ (b) `DisabledKeywords` も同時に。キーワードの未宣言検査はグローバルキーワードで偽陽性があり得るので Info にするか | (a)。検査は Warning（パス名）+ Info（キーワード）の併用 | **(a)**（2026-10-03 FC-11 で実装） |
 | U-11 | FC-14: 外部のテクスチャ規則の評価位置 | (a) Profile の `Rules` の前（`T_` より前に効く）/ (b) 後ろ | (a)。接尾辞が名前空間付き（`_ToonMask`）の運用で、Profile の上書きを抑える | **(a)** |
 | U-12 | FC-12: 通知の形 | (a) Prefab 上のインターフェース（生成時キャッシュ）/ (b) 静的イベント / (c) `IAssetBehaviour` の配線 | (a)（§4.13） | **(a)**（FC-12 で実装） |
@@ -698,3 +711,4 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 - 2026-10-03（同日追記 4）: FC-11 を実装（§4.12 実装メモ。実機で「未確認」だった `SetShaderPassEnabled` の挙動・`new Material(from)` / `Lerp` の扱い・パス列挙の API を確認）。U-10 を決定列に記録。
 - 2026-10-03（同日追記 5）: FC-20 を実装（§4.21 実装メモ。確認項目 1〜6 を再確認、`ExternalBlendShapePrefixes` + Validator Warning + AnimEditor の表示）。
 - 2026-10-03（同日追記 6）: FC-10 を実装（§4.11 実装メモ。契約テスト `ExternalContract*` を EditMode 16 件 + PlayMode 14 件、[42] §5.14 を新設〔U-7 = (a)〕、合成 FBX フィクスチャ〔U-15 = (b)〕）。U-15 を決定列に記録。
+- 2026-10-03（同日追記 7）: FC-15 を実装（§4.16 実装メモ。**推奨案の既定 `KeepSource` は不採用、U-9 = (c) 確認ダイアログ + `MayaImportProfile.UnknownShaderPolicy`**）。U-9 の決定列を具体化、§7.2 に T-Drive 向けの案内を追記。

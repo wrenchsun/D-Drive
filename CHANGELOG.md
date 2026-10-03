@@ -11,6 +11,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 挙動の変更・追加(MINOR。Editor の弱い互換面): **知らないシェーダーの確認ダイアログ（2026-10-03、FC-15、[docs/51](docs/51_tdrive_integration.md) §4.16・[docs/06](docs/06_material_texture.md)・[docs/09_editor_tools.md](docs/09_editor_tools.md)）** — `MayaImportProfile`（Editor）の**末尾**に `UnknownShaderPolicy`（enum `Ask` = 0〔既定〕/ `KeepSource` = 1 / `ConvertToLit` = 2）を追加（追加のみ。欄が無い既存の Profile アセットは 0 = `Ask` で読まれる）。**既定 `Ask` の挙動変更はこれだけ**: Model エディタの「元ファイルを再読み込み」と `Generate` メニューの Material 変換 / MaterialData 生成（対話的な操作）で、変換表にも `DDrive/` にも当たらないシェーダーの Material があると、1 操作 1 回だけ確認ダイアログ（元のシェーダーのまま保つ / `DDrive/Lit` に変換 / キャンセル）が増える。FBX の自動取り込み・バッチモード・テスト等の非対話の経路は従来どおり `DDrive/Lit` に変換する（結果は不変）。`KeepSource` は確認なしで元のシェーダーのまま MaterialData を作り（既に有効な Shader の既存 Data は上書きしない）、`ConvertToLit` は従来どおり。T-Drive など独自シェーダーを使うプロジェクトは `KeepSource` にする。公開 API は追加のみ（`UnityMaterialMigrator.Migrate` / `MayaMaterialImporter.ImportModel`・`ImportMaterial`・`ResolveTargetShader` / `ModelSlotBinder.Rebuild`・`EnsureMaterialData` に引数を足した別オーバーロード、`UnknownShaderGuard`・`UnknownShaderPolicy`・`UnknownShaderHandling` 等。既存のシグネチャは不変）。シリアライズ（Runtime の Data）・ID・ContentHash・ネットメッセージは変更なし。
+
 - 追加のみ(MINOR): **外部拡張の契約（2026-10-03、FC-10、[docs/42](docs/42_distribution.md) §5.14・[docs/51](docs/51_tdrive_integration.md) §4.11）** — 外部パッケージ（T-Drive 等）が「D-Drive を変更しなくても動く」前提で依存している挙動（Prefab 上の外部コンポーネントのプール往復・外部 Timeline Track / Clip / Marker の評価・シーク・インスタンス一時停止中は Evaluate されない〔現挙動を固定〕・検証 0 件・外部アセンブリの `IValidator` の発見・`AnimData` の Update と外部 LateUpdate のブレンドシェイプ書き込みの非衝突・`GameLoop.Register`・`MaterialData.Specific` の `_Toon*` の書き込み・`ModelData.Slots` の空 / 無効 ID・取り込みと Spawn がボーン・名前・スケールを変えないこと 等）を互換面に加え、契約テスト `Tests/{Runtime,Editor}/ExternalContract/` で固定した。契約を壊す変更は MAJOR、契約の追加は MINOR。公開 API・シリアライズ形式・Validation の重さの変更なし（テスト + docs + 合成 FBX フィクスチャ + テスト専用 asmdef 2 つ）。スナップショット差分なし。
 
 - 追加のみ(MINOR): **外部パッケージが所有するブレンドシェイプ接頭辞（2026-10-03、FC-20、[docs/51](docs/51_tdrive_integration.md) §4.21・§3.5・[docs/05](docs/05_model_animation.md) B-6）** — `DDrive.Runtime.Anim` に静的クラス `ExternalBlendShapePrefixes`（`All`〔既定 `FC_`・`fcs_`〕と `IsOwnedExternally(string)`。大文字小文字を区別する前方一致）を追加（`public-api-DDrive.Runtime.txt` を更新。登録口は設けない・実行時の挙動は不変）。`AnimDataValidator` に Warning `DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED`（`AnimData.BlendShapes[].ShapeName` が所有接頭辞のとき。既存の検査・重さは不変）。AnimEditor のモデル情報はこれらのシェイプを既定で隠し件数を出す（Editor、互換性ポリシー対象外）。理由: T-Drive の顔の補正が LateUpdate で `FC_*` / `fcs_*` を書くため、AnimData からの指定と衝突させない。モデル取り込みが名前・ボーンを加工しないことを実コードで再確認（問題なし）
@@ -23,6 +25,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- `MayaImportProfile.UnknownShaderPolicy` と知らないシェーダーの確認ダイアログ（`UnknownShaderGuard`）: Model エディタの「元ファイルを再読み込み」などの対話的な操作で、知らないシェーダーを元のまま保つ / `DDrive/Lit` に変換 / キャンセルを選べる。`KeepSource` なら確認なしで保つ（FC-15）。
 - 外部拡張の契約テスト（`Tests/Runtime/ExternalContract/` PlayMode 14 件・`Tests/Editor/ExternalContract/` EditMode 16 件）と、契約の一覧 [docs/42](docs/42_distribution.md) §5.14（FC-10）。
 - `ExternalBlendShapePrefixes`（外部パッケージが所有するシェイプ接頭辞 `FC_` / `fcs_` の一覧と判定）、`AnimDataValidator` の Warning、AnimEditor のモデル情報で外部管理のシェイプを既定で隠す表示（FC-20）。
 - `MaterialData.DisabledPasses` / `EnabledKeywords`（Material Editor の「Passes / Keywords」欄）: シェーダーのパス（LightMode）を無効にする・シェーダーキーワードを有効にする（FC-11）。

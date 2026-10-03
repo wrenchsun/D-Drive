@@ -46,6 +46,13 @@ namespace DDrive.Editor.Model
         // 既に有効な ID が入っているスロットは上書きしない(デザイナーの差し替えを壊さない)。
         public static bool Rebuild(ModelData data, bool ensureMaterials, Report report = null,
             string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
+            => Rebuild(data, ensureMaterials, report, gameDataRoot, interactive: false);
+
+        // interactive = ユーザーが Editor で直接起こした操作(Model エディタの「元ファイルを再読み込み」など)。
+        // ensureMaterials かつ Profile の UnknownShaderPolicy が Ask で、知らないシェーダーの Material があるときだけ、
+        // 作り直す前に 1 回だけ確認ダイアログを出す。キャンセルなら何も書き換えずに false を返す(FC-15)。
+        // 非対話(自動取り込み・バッチ・テスト)は false を渡す = 従来どおり DDrive/Lit に変換する。
+        public static bool Rebuild(ModelData data, bool ensureMaterials, Report report, string gameDataRoot, bool interactive)
         {
             report ??= new Report();
             if (data == null)
@@ -65,7 +72,16 @@ namespace DDrive.Editor.Model
             {
                 if (ensureMaterials)
                 {
-                    EnsureMaterialData(data.Prefab, report, gameDataRoot);
+                    var profile = MayaImportProfile.FindOrDefault();
+                    var handling = UnknownShaderGuard.HandlingFor(profile);
+                    if (interactive
+                        && !UnknownShaderGuard.TryResolve(profile, CollectSourceMaterials(data.Prefab, profile), true, out handling))
+                    {
+                        report.Log("知らないシェーダーの確認でキャンセルされたため、再読み込みを中断しました(何も変更していません)。");
+                        return false;
+                    }
+
+                    EnsureMaterialData(data.Prefab, report, gameDataRoot, handling);
                 }
 
                 var slots = BuildSlots(data.Prefab, data.Slots, report, gameDataRoot);
@@ -216,6 +232,10 @@ namespace DDrive.Editor.Model
         // 単体の .mat は UnityMaterialMigrator.Migrate。どちらも再実行は Common だけ更新し、固有調整は保持する。
         public static void EnsureMaterialData(GameObject prefab, Report report = null,
             string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
+            => EnsureMaterialData(prefab, report, gameDataRoot, UnknownShaderGuard.HandlingFor(MayaImportProfile.FindOrDefault()));
+
+        // 知らないシェーダーの扱いを呼び出し側が解決して渡す版(FC-15)。
+        public static void EnsureMaterialData(GameObject prefab, Report report, string gameDataRoot, UnknownShaderHandling unknownShader)
         {
             report ??= new Report();
             if (prefab == null)
@@ -265,13 +285,13 @@ namespace DDrive.Editor.Model
             var materialReport = new MayaMaterialImporter.Report();
             foreach (var path in modelPaths)
             {
-                MayaMaterialImporter.ImportModel(path, profile, gameDataRoot);
+                MayaMaterialImporter.ImportModel(path, profile, gameDataRoot, unknownShader);
                 report.Log($"MaterialData を再生成: {path}");
             }
 
             foreach (var material in loose)
             {
-                if (UnityMaterialMigrator.Migrate(material, null, materialReport, gameDataRoot) != null)
+                if (UnityMaterialMigrator.Migrate(material, null, materialReport, gameDataRoot, unknownShader) != null)
                 {
                     report.Log($"MaterialData を再生成: {AssetDatabase.GetAssetPath(material)}({material.name})");
                 }
@@ -281,6 +301,69 @@ namespace DDrive.Editor.Model
             {
                 report.Log("再生成の対象になる元アセット(FBX / .mat)が Prefab の Renderer から見つかりませんでした。");
             }
+        }
+
+        // 再読み込みの対象になる Material(FBX 内蔵 + 単体 .mat)。知らないシェーダーの確認用の走査(FC-15)。
+        // Profile の TargetShader が指定されていれば FBX 内蔵 Material は常にそのシェーダーになるので対象にしない。
+        private static List<UnityEngine.Material> CollectSourceMaterials(GameObject prefab, MayaImportProfile profile)
+        {
+            var result = new List<UnityEngine.Material>();
+            if (prefab == null)
+            {
+                return result;
+            }
+
+            var modelPaths = new List<string>();
+            var prefabPath = AssetDatabase.GetAssetPath(prefab);
+            if (IsModelAsset(prefabPath))
+            {
+                modelPaths.Add(prefabPath);
+            }
+
+            foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                foreach (var material in renderer.sharedMaterials)
+                {
+                    if (material == null)
+                    {
+                        continue;
+                    }
+
+                    var path = AssetDatabase.GetAssetPath(material);
+                    if (IsModelAsset(path))
+                    {
+                        if (!modelPaths.Contains(path))
+                        {
+                            modelPaths.Add(path);
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(path))
+                    {
+                        result.Add(material);
+                    }
+                }
+            }
+
+            if (profile == null || profile.TargetShader == null)
+            {
+                foreach (var path in modelPaths)
+                {
+                    foreach (var sub in AssetDatabase.LoadAllAssetRepresentationsAtPath(path))
+                    {
+                        if (sub is UnityEngine.Material m)
+                        {
+                            result.Add(m);
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
         // ── 内部 ──

@@ -55,8 +55,18 @@ namespace DDrive.Editor.Materials
         }
 
         // 1 Material 分。category は省略時にアセットの親フォルダ名。
+        // 知らないシェーダーの扱いは Profile の UnknownShaderPolicy に従う(Ask は非対話なので従来どおり Lit に変換。FC-15)。
         public static MaterialData Migrate(UnityEngine.Material source, string category = null, MayaMaterialImporter.Report report = null,
             string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
+            => MigrateCore(source, category, report, gameDataRoot, null);
+
+        // 呼び出し側が 1 操作分に解決した扱い(UnknownShaderGuard.TryResolve)を明示的に渡す版。
+        public static MaterialData Migrate(UnityEngine.Material source, string category, MayaMaterialImporter.Report report,
+            string gameDataRoot, UnknownShaderHandling unknownShader)
+            => MigrateCore(source, category, report, gameDataRoot, unknownShader);
+
+        private static MaterialData MigrateCore(UnityEngine.Material source, string category, MayaMaterialImporter.Report report,
+            string gameDataRoot, UnknownShaderHandling? explicitHandling)
         {
             report ??= new MayaMaterialImporter.Report();
             if (source == null)
@@ -65,10 +75,24 @@ namespace DDrive.Editor.Materials
             }
 
             var target = ResolveTargetShader(source.shader);
+            // 知らないシェーダーを保つ(FC-15)。Profile の検索は知らないシェーダーのときだけ行う(一括変換での無駄な検索を避ける)。
+            var keepSource = false;
+            if (target == null && UnknownShaderGuard.IsUnknown(source.shader))
+            {
+                var handling = explicitHandling ?? UnknownShaderGuard.HandlingFor(MayaImportProfile.FindOrDefault());
+                if (handling == UnknownShaderHandling.Keep)
+                {
+                    target = source.shader;
+                    keepSource = true;
+                    report.Log($"元のシェーダーを保ちます: '{source.name}'({source.shader.name})");
+                }
+            }
+
             if (target == null)
             {
                 target = Shader.Find(LitShaderName);
-                report.Log($"警告: '{source.name}' のシェーダー '{(source.shader != null ? source.shader.name : "null")}' は未対応のため {LitShaderName} として変換します");
+                report.Log($"警告: '{source.name}' のシェーダー '{(source.shader != null ? source.shader.name : "null")}' は未対応のため {LitShaderName} として変換します"
+                           + "(Profile の UnknownShaderPolicy を KeepSource にすると元のシェーダーを保てます)");
                 if (target == null)
                 {
                     // [42_distribution.md] §2.3-1(P-4、2026-09-20) — シェーダーはパッケージ側(Packages/com.ddrive.core/Runtime/Shaders)へ移設済み。
@@ -98,7 +122,8 @@ namespace DDrive.Editor.Materials
                     return null;
                 }
 
-                if (data.Shader != target)
+                // 知らないシェーダーを保つとき、既に有効なシェーダーが入っている既存 Data は上書きしない(FC-15)。
+                if (data.Shader != target && !(keepSource && data.Shader != null))
                 {
                     // 再実行時に既存 Data のシェーダーが違う(例: 以前 URP Lit のまま作った)場合も D-Drive 標準へ寄せる
                     Undo.RecordObject(data, "Migrate Unity Material");
@@ -251,13 +276,20 @@ namespace DDrive.Editor.Materials
 
             var report = new MayaMaterialImporter.Report();
             MaterialData last = null;
+            // 知らないシェーダーの確認は 1 操作につき 1 回(先に全 Material を走査して判断を得てから変換する。FC-15)。
+            if (!UnknownShaderGuard.TryResolve(MayaImportProfile.FindOrDefault(), materials, UnknownShaderGuard.IsInteractiveSession(), out var unknownShader))
+            {
+                Debug.Log("[DDrive] 知らないシェーダーの確認でキャンセルされたため、Material の変換を中断しました(何も変更していません)。");
+                return;
+            }
+
             // 一括の間は同定インデックス(SourceMaterial → MaterialData / Texture → TextureData)を作って使い回す([09] §9)。
             MayaMaterialImporter.BeginBatch();
             try
             {
                 foreach (var m in materials)
                 {
-                    var data = Migrate(m, null, report);
+                    var data = Migrate(m, null, report, AssetCreationService.DefaultGameDataRoot, unknownShader);
                     if (data != null)
                     {
                         last = data;

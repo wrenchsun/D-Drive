@@ -167,7 +167,56 @@
 
 ## 15. FC-15: 知らないシェーダーを `DDrive/Lit` に変換しない
 
-未実装（実装時に追記）
+[51] §4.16（推奨案の既定 `KeepSource` は不採用。U-9 = (c) 確認ダイアログ + `MayaImportProfile.UnknownShaderPolicy`）、[06] A-2 の 2026-10-03 追記。**自動テストで確認済み**（`UnknownShaderPolicyTests` 19 件。実ダイアログは出さず `UnknownShaderGuard.PromptOverride` で差し替え）: 確認は 1 操作 1 回（Material が複数でも 1 回）・知らないシェーダーが無ければ出ない・保つ / 変換 / キャンセルの各結果（キャンセルは MaterialData も Slots も作らない・変えない）・非対話（`Rebuild` の既存シグネチャ・`Migrate` の既存シグネチャ）は従来どおり Lit でダイアログ無し・`KeepSource` は対話でも出さずに保つ（Specific 登録・既存 Data の有効な Shader は上書きしない）・`ConvertToLit` は従来どおり・`UnknownShaderPolicy` の既定が Ask（旧 Profile = 0）。以下は実ダイアログと Editor の目視。
+
+準備: 知らないシェーダー（例: T-Drive の Toon、または Sprites/Default などの変換表に無いシェーダー）を使う Material を持つ Prefab（または FBX）を `ModelData` の `Prefab` にする。Project に `MayaImportProfile` が無ければ `Create > D-Drive > Material > Maya Import Profile` で作る（Inspector の「Unknown Shader Policy」の既定が `Ask`、ツールチップに説明が出ること）。
+
+### 15.1 Ask: 「元ファイルを再読み込み」で確認ダイアログが 1 回出る
+
+1. Profile の Unknown Shader Policy = `Ask` にする
+2. `Tools > D-Drive > Editors` から Model エディタを開き、上の `ModelData` を選んで「元ファイルを再読み込み」を押す（知らないシェーダーの Material が複数あっても同様）
+
+期待する結果: 「知らないシェーダーが見つかりました」のダイアログが **1 回だけ**出る。本文にシェーダー名と件数（6 種類以上なら「ほか N 種類」）、3 択の説明、Profile の欄の案内がある。ボタンは「元のシェーダーのまま保つ」「キャンセル（何もしない）」「DDrive/Lit に変換」。
+
+結果: □ 未
+
+### 15.2 3 択それぞれ
+
+1. 15.1 のダイアログで「元のシェーダーのまま保つ」→ 作られた MaterialData の Shader がそのシェーダー（Material Editor / Inspector で確認）。Slots に結び付く
+2. MaterialData を消してから再度押し、「DDrive/Lit に変換」→ Shader が `DDrive/Lit`
+3. MaterialData を消してから再度押し、「キャンセル（何もしない）」（または Esc）→ MaterialData は作られず、ModelData の Slots も変わらない（Console に中断のログ）
+
+期待する結果: 上記のとおり。キャンセルで途中まで書き換えた状態が残らない。
+
+結果: □ 未
+
+### 15.3 KeepSource / ConvertToLit ではダイアログが出ない
+
+1. Profile の Unknown Shader Policy を `KeepSource` にして 15.1 の操作 → ダイアログは出ず、Shader は元のシェーダーのまま
+2. `ConvertToLit` にして同様 → ダイアログは出ず、`DDrive/Lit`
+3. `KeepSource` のまま、すでに Shader が入っている MaterialData（15.2 の 2 で作った Lit のもの）に対して再度「元ファイルを再読み込み」→ Shader は Lit のまま（上書きされない）
+
+期待する結果: 上記のとおり。
+
+結果: □ 未
+
+### 15.4 メニューからの変換でも 1 回だけ
+
+1. Profile = `Ask`。Project で知らないシェーダーの Material を複数選び、`Tools > D-Drive > Generate > 選択した Material を D-Drive/Lit・Unlit の MaterialData に変換`
+
+期待する結果: ダイアログは 1 回だけ（Material の数だけ出ない）。選択に応じて保つ / 変換 / キャンセル（キャンセルなら MaterialData が作られず Console に中断のログ）。`選択したモデルから MaterialData を生成` も同様。
+
+結果: □ 未
+
+### 15.5 自動取り込み（非対話）は従来どおり
+
+1. Profile = `Ask`（`AutoImport` ON、対象パスは `Assets/SourceAssets` 配下）。知らないシェーダーの Material を含む FBX を `Assets/SourceAssets` 配下へ入れる（または再インポート）
+
+期待する結果: ダイアログは出ず、`DDrive/Lit` の MaterialData が作られる（従来と同じ）。Profile を `KeepSource` にして再インポートすると、新規に作られる MaterialData は元のシェーダーのまま（既存の Data の Shader は変わらない）。
+
+結果: □ 未
+
+**要判断（FC-15）**: なし。実装の範囲外として残した点は [51] §4.16 実装メモ 7（単体 .mat の `DDrive/AiStandardSurface` 等は従来どおり Lit に変換される / `SourceDataCreation` の .mat 取り込みは非対話のまま）。
 
 ## 16. FC-16: モデルの名前付きスロットセット
 
