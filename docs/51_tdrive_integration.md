@@ -734,6 +734,13 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 
 8. **FC-19 実装済み（2026-10-03）— doc17 §3 #12 の「Albedo に白テクスチャを入れる」回避策が不要になる条件**（`com.ddrive.core` `[1.4.0,)`）: `MaterialDataValidator` の「`Common.Albedo` が未設定」Warning は、(a) `AlbedoTint` を白以外にした色だけのマテリアル、(b) 割り当てたシェーダーに Albedo テクスチャのプロパティ（`_BaseMap` / `_MainTex`）が無いとき、は出ない。T-Drive の Toon シェーダーが `_BaseMap` を持たない（または色だけで使う）なら、白テクスチャを入れる回避策は不要。`_BaseMap` を持つシェーダーで `AlbedoTint` も白のまま Albedo を空にしたときは従来どおり Warning（意図したもの）。`MaterialData.RenderingLayerMask` は実行時に使われない（0 以外なら Info）。ライトレイヤーは `ModelData.LightLayerMask`。
 
+### 7.3 更新の取り込み（T-Drive の配布形式。P-15、2026-10-03）
+
+1. **T-Drive の `package.json` に `ddriveUpdate.compatibleWith: { "com.ddrive.core": "1.4.0" }` を書けば、D-Drive の更新ウィンドウ（`Tools > D-Drive > Update > 更新ウィンドウ`）と `Validation > Run All` が組み合わせを確認する**（D-Drive が 1.4.0 より古いときに Warning「〜は D-Drive v1.4.0 以降に対応」。D-Drive が導入されていなければ何も言わない = T-Drive は D-Drive 無しでも動く設計と合う）。他の T-Drive パッケージへの必須の依存（例: Facial が Toon を要求する）は `requires: { "com.tdrive.toon": "0.5.0" }`。値は最低版 `X.Y.Z` のみ（上限は書かない）。形式・検査のタイミングは [42] §4.2.1。
+2. **更新ウィンドウに載せるには D-Drive と同じ配布形式にする**: git タグ `vX.Y.Z` が `package.json` の `version` と一致する / パッケージ直下（`unity/com.tdrive.toon` 等の `?path=` の場所）に `CHANGELOG.md`（Keep a Changelog、各版に `### 互換性` 節、破壊は `破壊あり`）。CHANGELOG が無くても更新チェックと版上げは使える（CHANGELOG 欄に「見つかりませんでした」と出るだけ）。
+3. 持ち込み先は更新ウィンドウの「URL を入力して追加」に T-Drive の git URL（`https://github.com/<owner>/<repo>.git?path=unity/com.tdrive.toon`）を入れて管理対象に登録する（既に manifest にあれば登録だけ、無ければ最新の `vX.Y.Z` で導入）。D-Drive 側のコードに T-Drive の URL・パッケージ ID は書かれていない。
+4. **T-Drive 側でやること**: 上記 1・2 の宣言と CHANGELOG の形式を合わせるだけ。D-Drive を 1.4.0 以降に上げる / 下げる操作で T-Drive の対応版を割る場合は、更新ウィンドウが事前に警告する。
+
 ## 8. 未決事項と決定（まとめ役の判断が要るもの）
 
 「決定」列は 2026-10-03 のユーザー決定（実装時に記録）。「未決」のものはまだ決まっていない。

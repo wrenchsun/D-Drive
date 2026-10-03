@@ -94,6 +94,7 @@
 <tr><td><code>DD-SETUP-*</code>（Warning）</td><td>依存パッケージ・ProjectSettings・置き場所等の不足</td><td>セットアップウィザードの該当ステップの「直す」を実行する</td></tr>
 <tr><td><code>DD-SETUP-UPDATE-PENDING</code>（Warning）</td><td>更新がまだ適用されていない</td><td><a href="update.html">更新方法</a>の「更新を適用」を実行する</td></tr>
 <tr><td><code>DD-SCHEMA-OUTDATED</code>（Warning）</td><td>Data の形式が古い</td><td>更新ウィンドウの「更新を適用」がマイグレーションも実行するので、通常はこの手順で解消する</td></tr>
+<tr><td><code>DD-PKGDEP-COMPAT-OLD</code> / <code>DD-PKGDEP-REQUIRES-OLD</code> / <code>DD-PKGDEP-REQUIRES-MISSING</code>（Warning）</td><td>導入済みのパッケージが宣言している「vX.Y.Z 以降に対応」を、今の組み合わせが満たしていない</td><td>更新ウィンドウの「依存の確認」で相手の名前・必要な版を確認し、相手のパッケージを上げる（または今のパッケージを戻す）。<a href="update.html#other-packages">更新方法</a>参照</td></tr>
 <tr><td><code>DD-SETUP-EMBEDDED-MODIFIED</code>（Warning）</td><td>パッケージが埋め込み（改造可能な状態）になっている</td><td>通常の git URL 参照に戻す。どうしても改造が必要な場合は開発リポジトリへの提案を検討する</td></tr>
 <tr><td>Console に <code>[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.</code></td><td>未登録 ID を Play/Spawn した（例外にはならない）</td><td>デザイナー側の作業がまだ完了していないだけの可能性が高い。慌てて実装を変えない</td></tr>
 </table>

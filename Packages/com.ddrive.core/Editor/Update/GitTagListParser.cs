@@ -19,7 +19,14 @@ namespace DDrive.Editor.Update
     public static class GitTagListParser
     {
         // 降順(新しい順)に並べて返す。
-        public static List<Version> Parse(string lsRemoteOutput)
+        public static List<Version> Parse(string lsRemoteOutput) => ParseCore(lsRemoteOutput, false);
+
+        // [42_distribution.md] §4.2 P-15(2026-10-03) — 「vX.Y.Z」形式のタグだけを降順で返す(D-Drive 以外の
+        // パッケージ用。UniTask の "2.5.11" のような v 無しのタグは版上げに使うと `#ref` の表記が合わなくなる
+        // ため「タグ運用ではない」として除外する)。
+        public static List<Version> ParseVersionTags(string lsRemoteOutput) => ParseCore(lsRemoteOutput, true);
+
+        private static List<Version> ParseCore(string lsRemoteOutput, bool requireVPrefix)
         {
             var result = new List<Version>();
             if (string.IsNullOrEmpty(lsRemoteOutput))
@@ -63,7 +70,13 @@ namespace DDrive.Editor.Update
                     continue;
                 }
 
-                var body = tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase) ? tagName.Substring(1) : tagName;
+                var hasV = tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase);
+                if (requireVPrefix && !hasV)
+                {
+                    continue;
+                }
+
+                var body = hasV ? tagName.Substring(1) : tagName;
                 if (SemVer.TryParse(body, out var version))
                 {
                     result.Add(version);

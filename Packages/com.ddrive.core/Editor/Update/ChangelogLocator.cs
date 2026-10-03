@@ -50,6 +50,21 @@ namespace DDrive.Editor.Update
             return devRepoCandidate != null && fileExists(devRepoCandidate) ? devRepoCandidate : null;
         }
 
+        // [42_distribution.md] §4.2 P-15(2026-10-03) — D-Drive 以外の管理対象パッケージ用。パッケージ直下
+        // (`resolvedPath/CHANGELOG.md`)だけを見る。2 階層上へのフォールバックは「D-Drive の開発リポジトリ」
+        // 固有の探索なので使わない(別パッケージの CHANGELOG や持ち込み先自身の CHANGELOG を誤認しないため)。
+        public static string ResolvePackageOnlyPath(string packageResolvedPath, FileExists fileExists = null)
+        {
+            fileExists ??= File.Exists;
+            if (string.IsNullOrEmpty(packageResolvedPath))
+            {
+                return null;
+            }
+
+            var candidate = CombineForward(packageResolvedPath, ChangelogFileName);
+            return fileExists(candidate) ? candidate : null;
+        }
+
         private static string AncestorPath(string path, int levels)
         {
             // Path.GetDirectoryName はプラットフォーム依存の区切り文字を扱うが、テストからは

@@ -334,3 +334,29 @@ MS2026 チームの要望で追加した `Tools > D-Drive > Editors > Tuning（�
 5. 各要素の「選択」で Inspector にその要素が出る(Hierarchy でもハイライトされる)こと。「フォーカス」で SceneView がその要素の矩形に寄ること
 6. プレハブモードを閉じ、「確認用シーンを開く」の状態で 2〜5 を同様に確認する(実体が無い状態で「選択」を押すと Project の Prefab がハイライトされる)
 7. ElementFx 見出し下の「▶ 再生時にその要素を選択」を OFF にして ▶ を押し、選択が変わらないこと
+
+## 15. P-15 追加パッケージの更新(D-Drive 以外の git URL パッケージ + 依存の確認)の確認(2026-10-03 追記)
+
+[42_distribution.md] §4.2.1。自動テストで確認済み: URL 入力の解釈（各形式・不正入力）・既存 manifest の登録と候補・設定の往復・`ddriveUpdate` の依存検査（未導入 / 古い / 十分 / MAJOR 差 / 自己・循環参照 / 壊れた JSON）・版上げ前の事前確認（偽の fetcher）・`vX.Y.Z` 形式でないタグ・CHANGELOG 無し。**実ネットワーク・実 `git`・実 `PackageManager.Client` を使う確認は人が行う**（以下）。
+
+**T-Drive のタグ・package.json がまだ無い間の代替**: (a) manifest にある UniTask / R3（`#2.5.11` 等。`vX.Y.Z` 形式ではない git 依存）を「候補」から登録して壊れないことを見る（15-3）、(b) 小さな公開リポジトリ（`vX.Y.Z` タグ付き・`package.json` あり。例: 自分で作ったテスト用の UPM パッケージ。`git` の `file:///` ローカルリポジトリ + `git+file:///...` は Unity の git 依存では使えないので公開リポジトリか SSH を使う）を 15-4〜15-9 に使う。(c) 依存の警告（15-10〜15-12）は、テスト用パッケージの `package.json` に `"ddriveUpdate": { "compatibleWith": { "com.ddrive.core": "99.0.0" } }` のように今より大きい版を書いたタグを 1 つ切って確認する。T-Drive のタグが出来たら 15-13 で同じことを実物で確認する。
+
+準備: ブランチを切ってから行う（manifest.json と `ProjectSettings/DDriveProjectSettings.asset` が変わる）。`git` が PATH にあること。確認後は `git checkout -- Packages/manifest.json Packages/packages-lock.json ProjectSettings/DDriveProjectSettings.asset` で戻せる。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 15-1 | `Tools > D-Drive > Update > 更新ウィンドウ` を開く（D-Drive だけを使っている状態） | 先頭に「パッケージ」一覧があり、1 行だけ「D-Drive(com.ddrive.core)  現在 v… / 最新 未確認 / 依存 OK」。選択中のパッケージは D-Drive で、その下は従来どおり「1. 更新チェック」〜「6. エージェント向けスキルを更新」（見た目・操作が従来とほぼ同じ） | □ 未 |
+| 15-2 | 「最新の版を確認」→ 更新先を選ぶ → 「manifest を選んだ版に更新する」を押す（ダイアログまで。キャンセルする） | ダイアログに「上げ先の package.json を確認しました」（取得できたとき）または「事前確認できなかった。更新後に確認します」の旨が出る。取得に 30 秒以上かかる・失敗しても例外で止まらず、キャンセルで何も変わらない | □ 未 |
+| 15-3 | 「manifest にある git URL の依存(未登録)」に UniTask / R3 が出ていること。「登録」を押す | 一覧に行が増え「現在 v… / 最新 未確認」。「最新の版を確認」を押すと「vX.Y.Z 形式のタグが見つかりません(最新版を判定できません…)」と出て、壊れない。「登録解除」で一覧から消え、`Packages/manifest.json` は変わらない | □ 未 |
+| 15-4 | 「URL を入力して追加」に、テスト用リポジトリの git URL（`https://github.com/<owner>/<repo>.git?path=<dir>`、タグなし・`#ref` なし）を入れて「追加」 | 最新の `vX.Y.Z` で導入するダイアログ → 「導入する」で Package Manager が導入し、再コンパイル後に一覧へ登録される（`Packages/manifest.json` に `#vX.Y.Z` 付きで追加） | □ 未 |
+| 15-5 | 15-4 と同じ URL をもう一度入れて「追加」。`git+https://…` を前に付けた形・`#v…` を付けた形でも試す | 「manifest に同じ URL の … があります。管理対象に登録します」で、manifest は変わらない（既に登録済みなら何も増えない） | □ 未 |
+| 15-6 | 解釈できない入力（`hello`、空欄）・タグが 1 つも無いリポジトリの URL・存在しない URL を入れて「追加」 | 「⚠ …」の警告が出てコンソールにも Warning。manifest・設定は何も変わらない | □ 未 |
+| 15-7 | 追加したパッケージの行を選び「最新の版を確認」 | 現在の参照 `vX.Y.Z`・「最新: vX.Y.Z」。古いタグを選べる（テスト用リポジトリに 2 つ以上タグがあるとき） | □ 未 |
+| 15-8 | 古い方のタグ（`#ref` を一度古いタグにしておく）から「manifest を選んだ版に更新する」→ 更新する | 確認ダイアログの後、manifest の `#ref` だけが差し替わる（URL・`?path=`・`git+` は変わらない）。再コンパイル後、一覧の「現在」が新しい版になる。「2. 版と CHANGELOG」にパッケージ直下の `CHANGELOG.md` の該当節が出る（無ければ「CHANGELOG.md が見つかりませんでした」だけ） | □ 未 |
+| 15-9 | 「前の参照に戻す」を押す | 元の `#ref` に戻る。もう一度押すと入れ替わる（簡易 1 段 undo） | □ 未 |
+| 15-10 | 15-8 で使うテスト用パッケージの上げ先のタグの `package.json` に `ddriveUpdate.compatibleWith: { "com.ddrive.core": "99.0.0" }` を書いておき、そのタグへ「manifest を選んだ版に更新する」 | 確認ダイアログに「上げ先の package.json を確認しました」+「・… は D-Drive v99.0.0 以降に対応していますが、v… が入っています。」と「依存が満たされなくなる可能性があります。それでも続けますか?」。「それでも更新する」で進める | □ 未 |
+| 15-11 | 更新後（再コンパイル後）に更新ウィンドウを開く | 一覧の行が「⚠ 依存に注意」、「依存の確認」に同じ警告。選択中のパッケージの「前の参照に戻す」が赤く「⚠ 前の参照に戻す(依存を満たしていません)」になっている | □ 未 |
+| 15-12 | `Tools > D-Drive > Validation > Run All` を実行する（Data が 1 件以上ある状態） | コンソールに `DD-PKGDEP-COMPAT-OLD` の Warning（Error ではない）。`requires` を書いて未導入にした場合は `DD-PKGDEP-REQUIRES-MISSING` の Warning | □ 未 |
+| 15-13 | **T-Drive 導入後に確認**: T-Drive の git URL（`?path=unity/com.tdrive.toon` 等）で 15-4〜15-11 を実物で行う。T-Drive の `package.json` に `ddriveUpdate.compatibleWith: { "com.ddrive.core": "1.4.0" }` がある状態で、D-Drive を 1.3.1 に「元に戻す」操作をする | 事前確認のダイアログで「T-Drive は D-Drive v1.4.0 以降に対応」の警告が出る。D-Drive を 1.4.0 以降に戻すと警告が消える | □ 未 |
+| 15-14 | `Packages/manifest.json` に既に D-Drive が `#vX.Y.Z` で入っている状態で、「URL を入力して追加」に D-Drive 自身の URL を入れる | 「manifest に同じ URL の com.ddrive.core があります。管理対象に登録します」→ 一覧は 1 行のまま増えない（D-Drive は常に 1 行目） | □ 未 |
+| 15-15 | ウィンドウを狭く・広くする。`ProjectSettings/DDriveProjectSettings.asset` の差分を `git diff` で見る | レイアウトが崩れず全体が `ScrollView` でスクロールできる。登録したパッケージが `_managedPackages` に 1 要素ずつ追加されている（既存フィールドは変わらない） | □ 未 |
