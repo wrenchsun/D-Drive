@@ -187,6 +187,7 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 - **不採用（将来の候補）**: (C) 子をスロットへ別 Canvas として Open する方式 — 親の Prefab に子を置く必要は無くなるが、Open 時の生成・Close の連動・Handle の持ち方が増える。(E) ElementFx のコンポーネント化（要素に `UiElementFx` を付けパス文字列を無くす）— Data 駆動・一覧編集の方針とぶつかり、既存データの移行も要る。
 - 実装: `Runtime/Canvas/CanvasData.cs`（`EmbeddedCanvas` / `EmbeddedCanvases`）・`EmbeddedCanvasPaths.cs`・`UiManager.cs`（`SetupEmbeddedCanvases` ほか）・`CanvasDataValidator.cs`、`Editor/Canvas/CanvasEmbeddedEditing.cs` / `CanvasEmbeddedValidator.cs` / `CanvasEditorWindow.cs` / `CanvasElementFxCollector.cs`、`Editor/Ui/UiPresetGalleryWindow.cs`。テスト: PlayMode `EmbeddedCanvasTests` 15 件、EditMode `EmbeddedCanvasPathsTests` / `CanvasEmbeddedEditingTests` 26 件。
 - 人による確認: [43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §16。
+- **2026-10-03 レビュー対応（[54](54_review_p15_canvas_2026-10-03.md)）**: 重なる登録の二重適用を担当表方式で解消（1 要素 1 回。内側の登録が先）、担当の単位は ElementFx = 要素 / ボタン・スライダー = (要素, トリガー)、`SendSignal` の `ElementPath` は子のルート基準 + 新しい `SignalArgs.EmbeddedRootPath`、`EmbeddedCanvasPaths` は internal 化、選択に追従の入力途中の値は切り替え前の対象に確定。詳細は [07](07_canvas_prefab.md) の「追記（2026-10-03、レビュー [54]）」。
 
 ### U-25（Signal を手動で送る導線）
 

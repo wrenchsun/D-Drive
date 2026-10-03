@@ -5,7 +5,7 @@ namespace DDrive.Editor.Update
 {
     // [42_distribution.md] §4.2 P-15(2026-10-03) — 版を上げる前に、上げ先の版の package.json を取得して
     // 「依存(requires / compatibleWith)が満たされなくなる組み合わせ」を事前に検査するための入口。
-    // 取得は `IRemotePackageJsonFetcher`(実装 = `GitSparsePackageJsonFetcher`)越しにしてテストでは差し替える。
+    // 取得は `IRemotePackageJsonFetcher`(実装 = `GitPackageJsonFetcher`)越しにしてテストでは差し替える。
     public interface IRemotePackageJsonFetcher
     {
         // 成功時は package.json の本文(失敗時は null、`warningMessage` にユーザーへ見せる 1 行の理由)。

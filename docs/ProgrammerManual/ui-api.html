@@ -58,6 +58,7 @@ FocusFirstButton(h);</code></pre>
 <h3>Signal によるゲームコードとの連携</h3>
 <p>UI 側の <code>ButtonWire</code> / <code>SliderWire</code> は、ボタンが押された・スライダーの値が変わったときに <code>UiManager.SendSignal</code> を内部から呼びます（<code>Runtime/Canvas/UiManager.cs:1128, 1223</code>）。ゲームコードは <code>Ui.OnSignal(key, cb)</code> で購読するだけで、どの Canvas のどのボタンが押されたかを受け取れます。</p>
 <pre><code>// SignalArgs: Key(合図名) / Canvas(発行元Handle) / ElementPath(要素の名前) / Value(SliderWireのときの現在値)
+//             / EmbeddedRootPath(埋め込み Canvas の配線のときの、埋め込み位置。単独・親自身の配線は空文字)
 var sub = Ui.OnSignal("shop/buy", args =&gt;
 {
     Debug.Log($"{args.ElementPath} から購入シグナル");
@@ -71,16 +72,16 @@ sub.Dispose();</code></pre>
 <p>Hud の Prefab の中に Option の Prefab を入れ子で置き、親の <code>CanvasData.EmbeddedCanvases</code>（<code>RootPath</code> + 子の <code>CanvasData</code>）に登録してあるときは、<strong>親を <code>Ui.Open</code> するだけで子の <code>CanvasData</code> の ElementFx・ボタン / スライダー配線が効きます</strong>。子を別に Open する必要はありません（子の Prefab は新しく生成されず、親の Prefab に入っている実体を使います）。コード側が意識することは次の 3 点です。</p>
 <ul>
 <li><strong>子の <code>CanvasData</code> は Preload しておく</strong>（<code>Flags.Load = Preload</code>）。Open 時に Registry から同期解決するため、読み込まれていないと警告を 1 回出してその埋め込みだけスキップします。</li>
-<li><strong>子の配線は親の <code>Handle</code> に対して実行されます</strong>。<code>SendSignal</code> を購読すると、<code>args.Canvas</code> は親のハンドル、<code>args.ElementPath</code> は親ルート基準のパス（<code>OptionRoot/BtnX</code>）で届きます。子の <code>CloseSelf</code> は<strong>親を閉じます</strong>。</li>
-<li>親の <code>CanvasData</code> に同じ要素（親から見たパス）の ElementFx の行・配線があれば<strong>親の行が優先</strong>されます（子の設定を使う場所ごとに上書きできます）。Navigation / FirstSelected / レイヤー既定 / 開閉演出 / Layer は親のものです。</li>
+<li><strong>子の配線は親の <code>Handle</code> に対して実行されます</strong>。<code>SendSignal</code> を購読すると、<code>args.Canvas</code> は親のハンドル（開いた Canvas）、<code>args.ElementPath</code> は<strong>子の <code>CanvasData</code> のルート基準のパス</strong>（<code>BtnX</code>。子を単独で開いたときと同じ値）、<code>args.EmbeddedRootPath</code> は<strong>開いた Canvas のルートから見た、その子の埋め込みルートのパス</strong>（<code>OptionRoot</code>。入れ子の入れ子は最外のルートからの連結 <code>OptionRoot/Inner</code>。親自身の配線・単独で開いたときは空文字）で届きます。= 受け手は <code>Key</code> / <code>ElementPath</code> で、単独でも埋め込みでも同じ書き方で動きます。どこに埋め込まれたかが要るときだけ <code>EmbeddedRootPath</code> を使います。子の <code>CloseSelf</code> は<strong>親を閉じます</strong>。</li>
+<li>親の <code>CanvasData</code> に同じ要素（親から見たパス）の行があれば<strong>親の行が優先</strong>されます（子の設定を使う場所ごとに上書きできます）。優先の単位は、ElementFx が<strong>要素</strong>、ボタン・スライダーの配線が<strong>要素 + トリガー</strong>（親が Click だけ配線していれば子の LongPress の配線は使われます）で、1 つの要素の設定は 1 回だけ適用されます（優先順は、開いた Canvas 自身 &gt; 浅い入れ子の子 &gt; 深い入れ子の子。重なる登録は内側が先）。Navigation / FirstSelected / レイヤー既定 / 開閉演出 / Layer は親のものです。</li>
 </ul>
 <pre><code>// Hud を開くだけで、中に入れ子で入っている Option の演出・配線も効く
 var h = Ui.Open(CANVASID.Hud);
 var sub = Ui.OnSignal("option/apply", args =&gt;
 {
-    // args.Canvas == h(親)、args.ElementPath == "OptionRoot/BtnApply"
+    // args.Canvas == h(親)、args.ElementPath == "BtnApply"(子のルート基準)、args.EmbeddedRootPath == "OptionRoot"
 });</code></pre>
-<p>子を単独の画面として <code>Ui.Open(CANVASID.Option)</code> する使い方は従来どおりで、同じ <code>CanvasData</code> を単独でも埋め込みでも使えます。</p>
+<p>子を単独の画面として <code>Ui.Open(CANVASID.Option)</code> することもでき、同じ <code>CanvasData</code> を単独でも埋め込みでも使えます（単独のとき <code>args.ElementPath</code> は同じ <code>BtnApply</code>、<code>args.EmbeddedRootPath</code> は空）。</p>
 
 <h2>UiFx 静的ファサード（UI の動き）</h2>
 <p><code>Runtime/UiTween/UiFx.cs:13</code>。データ化した <code>UiTweenData</code> の再生、約 60 個あるプリセットの 1 行呼び出し、アドホックな Tween、複数 Tween を連結する <code>Sequence()</code> の 4 グループに分かれます。</p>
