@@ -22,7 +22,7 @@ namespace DDrive.Runtime.Model
         private IModelInstanceListener[] _listeners;
 
         // 冪等。Rent 直後(DefaultAnimation 再生前)に呼ぶ。2 回目以降(プール再利用)は何もしない
-        // (返却のたびに既定へ戻すので、最初に控えた値が常に Prefab 生成時の値)。
+        // (返却のたびに既定へ戻すので、最初に控えた値が常に最初のスポーン時点の値(外部コンポーネントの Awake / OnEnable の後))。
         public void Capture()
         {
             if (_captured)

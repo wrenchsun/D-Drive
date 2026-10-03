@@ -194,7 +194,7 @@ namespace DDrive.Runtime.Model
             poolable.OnReturnedToPool = () => CleanupBookkeeping(handle);
 
             // FC-2 / FC-12(2026-10-03): ブレンドシェイプの既定重みと IModelInstanceListener を生成時に 1 回だけ集める
-            // (冪等。Rent 直後・DefaultAnimation 再生前なので、重みは Prefab 生成時の値)。
+            // (冪等。Rent 直後・DefaultAnimation 再生前なので、重みは最初のスポーン時点(外部コンポーネントの Awake / OnEnable の後)の値)。
             poolable.Capture();
             instance.Poolable = poolable;
 

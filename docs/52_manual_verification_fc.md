@@ -107,6 +107,9 @@
 |---|---|---|---|
 | 4-1 | Event / Signal / Shake / Haptic のいずれかのマーカーを置いた `CutsceneData` を、Timeline ウィンドウで開いて再生する（`CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」） | 再生中にマーカーの時刻を跨ぐと従来どおり発火する（Shake / Haptic / Event。Signal は Edit Mode ではコンソールに `Cutscene Signal (Edit Mode プレビュー)` が出る）。スクラブでは発火しない。**エラー・例外は出ない** | □ 未 |
 
+| 4-2 | （2026-10-03 追記、レビュー FC-R-03）Signal マーカーを **0 秒ちょうど**に置いた `CutsceneData` を Timeline ウィンドウで開き、再生位置を 0 に戻して再生する。続けて、再生位置を途中（例: 2 秒）へスクラブしてから再生する | 先頭から再生したときは 0 秒のマーカーが再生の最初に発火する（Signal はコンソールに `Cutscene Signal (Edit Mode プレビュー)` が 1 回出る）。スクラブしただけでは発火せず、途中からの再生でも 0 秒のマーカーは出ない。Play Mode で `Cutscene.Play` したときも、最初の Tick で 0 秒のマーカーが 1 回発火する（Event / Signal / Shake / Haptic いずれも） | □ 未 |
+| 4-3 | （同上、FC-R-04）Timeline ウィンドウの**上端のマーカー領域**（トラックではなく、時間軸の上の帯）に Signal マーカーを置いて再生する | トラック上に置いたときと同じように発火する（自動テストでも `markerTrack` が収集されることを確認済み） | □ 未 |
+
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-4 の項（T-Drive 側で `ICutsceneMarker` を実装したマーカーを使うとき）。
 
 ## 5. FC-5: カットシーン取り込み完了の公開イベント（Editor）
@@ -206,6 +209,15 @@
 
 **要判断（FC-11）**: なし（U-10 は決定済み。[51] §8）。11-9 で影が消えない場合は SRP の仕様の問題なので、欄の意味（「LightMode のパスを `SetShaderPassEnabled` で止める」）を [51] §4.12 に追記したうえで別の手段（RendererShadowCastingMode 等）を検討する。
 
+### 11.3 LightMode タグの無いパス（輪郭線）を止める（2026-10-03 追記、レビュー FC-R-06）
+
+自動テストで確認済み: `UntaggedPassRenderTests`（実描画。LightMode タグの無いパス〔赤〕と `UniversalForward` のパス〔緑〕を持つシェーダーで、`SRPDefaultUnlit` を止めるとタグ無しのパスが描かれない）、`MaterialPassKeywordTests`（一覧に `SRPDefaultUnlit` が出る・Validator が警告しない）。目視で確認するのは、T-Drive の Toon の輪郭線が実際に消えること（**T-Drive 導入後に確認**）。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 11.3-1 | LightMode タグの無いパス（輪郭線）を持つシェーダー（T-Drive の Toon 等）の `MaterialData` を Material Editor で開き、「Passes / Keywords」の候補を見る | `SRPDefaultUnlit` が候補に出る。チェックして保存した後、Console に `DD-MAT-PASS-UNKNOWN` の警告が出ない（Validation > Run All でも） | □ 未（T-Drive 導入後） |
+| 11.3-2 | 上の `MaterialData` を割り当てたモデルを SceneView / Game ビューで見る | 輪郭線が描かれない（影・本体は残る） | □ 未（T-Drive 導入後） |
+
 ## 12. FC-12: モデルのスポーン / 返却の通知
 
 §2（FC-2 と同一 PR のため同じ節）を参照
@@ -227,7 +239,7 @@
 
 ## 15. FC-15: 知らないシェーダーを `DDrive/Lit` に変換しない
 
-[51] §4.16（推奨案の既定 `KeepSource` は不採用。U-9 = (c) 確認ダイアログ + `MayaImportProfile.UnknownShaderPolicy`）、[06] A-2 の 2026-10-03 追記。**自動テストで確認済み**（`UnknownShaderPolicyTests` 19 件。実ダイアログは出さず `UnknownShaderGuard.PromptOverride` で差し替え）: 確認は 1 操作 1 回（Material が複数でも 1 回）・知らないシェーダーが無ければ出ない・保つ / 変換 / キャンセルの各結果（キャンセルは MaterialData も Slots も作らない・変えない）・非対話（`Rebuild` の既存シグネチャ・`Migrate` の既存シグネチャ）は従来どおり Lit でダイアログ無し・`KeepSource` は対話でも出さずに保つ（Specific 登録・既存 Data の有効な Shader は上書きしない）・`ConvertToLit` は従来どおり・`UnknownShaderPolicy` の既定が Ask（旧 Profile = 0）。以下は実ダイアログと Editor の目視。
+[51] §4.16（推奨案の既定 `KeepSource` は不採用。U-9 = (c) 確認ダイアログ + `MayaImportProfile.UnknownShaderPolicy`）、[06] A-2 の 2026-10-03 追記。**自動テストで確認済み**（`UnknownShaderPolicyTests` 19 件。実ダイアログは出さず `UnknownShaderGuard.PromptOverrideForTests` で差し替え）: 確認は 1 操作 1 回（Material が複数でも 1 回）・知らないシェーダーが無ければ出ない・保つ / 変換 / キャンセルの各結果（キャンセルは MaterialData も Slots も作らない・変えない）・非対話（`Rebuild` の既存シグネチャ・`Migrate` の既存シグネチャ）は従来どおり Lit でダイアログ無し・`KeepSource` は対話でも出さずに保つ（Specific 登録・既存 Data の有効な Shader は上書きしない）・`ConvertToLit` は従来どおり・`UnknownShaderPolicy` の既定が Ask（旧 Profile = 0）。以下は実ダイアログと Editor の目視。
 
 準備: 知らないシェーダー（例: T-Drive の Toon、または Sprites/Default などの変換表に無いシェーダー）を使う Material を持つ Prefab（または FBX）を `ModelData` の `Prefab` にする。Project に `MayaImportProfile` が無ければ `Create > D-Drive > Material > Maya Import Profile` で作る（Inspector の「Unknown Shader Policy」の既定が `Ask`、ツールチップに説明が出ること）。
 
@@ -276,7 +288,19 @@
 
 結果: □ 未
 
-**要判断（FC-15）**: なし。実装の範囲外として残した点は [51] §4.16 実装メモ 7（単体 .mat の `DDrive/AiStandardSurface` 等は従来どおり Lit に変換される / `SourceDataCreation` の .mat 取り込みは非対話のまま）。
+### 15.6 右クリックの「Material を作成」でも 1 回だけ確認される（2026-10-03 追記、レビュー FC-R-01）
+
+自動テストで確認済み（`UnknownShaderPolicyTests`）: 右クリック作成の事前確認は 1 操作 1 回・キャンセルで何も作らない・非対話 + Ask は既存 Data の知らないシェーダーを Lit に戻さない・シェーダーが欠けた Material は保たず Lit に変換する。以下は実ダイアログの目視。
+
+1. Profile = `Ask`。15.2 の 1 で「保つ」を選んで作った MaterialData が既にある、知らないシェーダーの `.mat` を Project で選び、右クリック > `Assets > D-Drive > Data を作成 > MaterialData を作成`（`AssetContextMenu`。Project の右クリックメニューにも同じ項目が出る）
+2. 複数の `.mat`（知らないシェーダー）を選んで同じ操作をする
+3. シェーダー参照が欠けた `.mat`（パッケージを外した Toon など。Inspector のシェーダーが `Hidden/InternalErrorShader` でピンク）を含めて同じ操作をする
+
+期待する結果: 1・2 は確認ダイアログが **1 回だけ**出る（Material の数だけ出ない）。「保つ」なら既存の MaterialData の Shader は変わらない。「キャンセル」なら何も作られず Console に中断のログが出る。3 は、ダイアログに「シェーダーが見つからない（欠けている）Material が N 件」の行が出て、そのデータは `DDrive/Lit` になる（Console に警告）。
+
+結果: □ 未
+
+**要判断（FC-15）**: なし。実装の範囲外として残した点は [51] §4.16 実装メモ 7（単体 .mat の `DDrive/AiStandardSurface` 等は従来どおり Lit に変換される）。`SourceDataCreation` の .mat 取り込み（右クリック作成）は 2026-10-03 のレビュー対応で対話的な操作として扱うようになった（15.6）。
 
 ## 16. FC-16: モデルの名前付きスロットセット
 
@@ -340,6 +364,7 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - FC-7: T-Drive の Timeline クリップ・マーカー（外部パッケージのもの）が `AssetId` / `AssetRef` で SE・VFX 等を参照しているとき、それらが使用箇所に `.playable` として出る（`UnityEngine.Object` の直接参照の Facial データは出ない。出さない仕様）
 - FC-19: T-Drive の Toon シェーダー（`_BaseMap` を持たないものがあれば）の MaterialData で、Albedo が空でも「Common.Albedo が未設定」の Warning が出ない
 - FC-15: T-Drive 側の対応が入ったとき
+- 修正ラウンド 1（レビュー [53]）: (a) 0 秒に置いた `FacialMarker` が先頭から再生したとき 1 回発火する（4-2。途中参加・Seek では出ない） (b) Toon の輪郭線が `DisabledPasses = { SRPDefaultUnlit }` で消える（11.3） (c) T-Drive を入れる前に Toon の `.mat` だけがあるプロジェクトで KeepSource にしても、欠けたシェーダーのデータは Lit になる（15.6 の 3）
 - FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 
 ## 要判断（全体）
