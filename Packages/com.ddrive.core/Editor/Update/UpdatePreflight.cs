@@ -36,11 +36,31 @@ namespace DDrive.Editor.Update
             GitPackageUrl url,
             string packageId,
             string targetRef,
-            IReadOnlyList<PackageState> current)
+            IReadOnlyList<PackageState> current,
+            bool fetchRemote = true)
         {
-            var tagVersion = PackageManifestOps.IsVersionTagRef(targetRef) ? targetRef.Substring(1) : null;
+            // 元のタグ名(`v1.5.0-rc.1` 等)から X.Y.Z を取る(プレリリース部は比較では無視する。[42] §4.2.1)。
+            var tagVersion = GitTag.TryParseRef(targetRef, out var targetTag) ? targetTag.Version.ToString() : null;
             string fetchedText = null;
             string warning = null;
+
+            // fetchRemote = false(D-Drive の版上げ): D-Drive は ddriveUpdate を宣言しない規約([42] §4.2.1)ので上げ先の package.json は
+            // 取得しない(= ネットワークの待ちが入らない)。他パッケージの requires / compatibleWith との照合はタグの版だけで足りる。
+            if (!fetchRemote)
+            {
+                if (tagVersion == null)
+                {
+                    return new PreflightResult(
+                        false,
+                        "事前確認できませんでした(上げ先の版を判定できません)。更新後に確認します。",
+                        Array.Empty<PackageDependencyIssue>());
+                }
+
+                return new PreflightResult(
+                    true,
+                    "他のパッケージの宣言(requires / compatibleWith)との照合を行いました。",
+                    PackageDependencyChecker.CheckPlanned(current, packageId, tagVersion, null));
+            }
 
             if (fetcher != null && url.IsGitUrl && !string.IsNullOrEmpty(targetRef))
             {

@@ -12,6 +12,13 @@ namespace DDrive.Editor.Update
     //     "compatibleWith": { "<パッケージ ID>": "X.Y.Z" }    // 任意の相手。入っている場合だけ X.Y.Z 以上であること
     //   }
     // 値は最低版(上限は書かない)。Unity API に依存しないので EditMode テストから直接検証できる。
+    // 形式の拡張規則(2026-10-03、レビュー PC-R-07。[42_distribution.md] §4.2.1 で v1.4.0 に固定):
+    //   ・値は `X.Y.Z` の文字列だけ(`1.4` と `1.4.0-rc.1` も読める)。範囲・上限・条件は将来**新しいキー**で足す(値の書式は広げない)。
+    //   ・未知のキー(`ddriveUpdate` 直下も `requires` / `compatibleWith` の中身の他のキーも)は黙って無視する(警告しない)。
+    //   ・値が文字列でない項目(オブジェクト・配列・数値・真偽・null)は将来用の予約として黙って無視する(BAD-DECLARATION にしない)。
+    //   ・値が文字列だが版として読めないもの(範囲指定など)だけ BAD-DECLARATION(Warning)で知らせる。
+    //   ・比較ではプレリリース(`-rc.1`)を無視して X.Y.Z で比べる(宣言側も導入済みの版も)。
+    //   ・同じリポジトリの複数パッケージは同じタグ `vX.Y.Z` で揃える前提(タグはリポジトリ単位)。
     public sealed class DdriveUpdateDeclaration
     {
         public const string FieldName = "ddriveUpdate";
@@ -280,7 +287,7 @@ namespace DDrive.Editor.Update
                 return; // 自己参照は無視する。
             }
 
-            if (!TryParse(minimum, out var min))
+            if (!IsDeclaredVersion(minimum) || !TryParse(minimum, out var min))
             {
                 issues.Add(new PackageDependencyIssue(
                     DependencyIssueSeverity.Warning,
@@ -349,6 +356,12 @@ namespace DDrive.Editor.Update
                     $"{target.DisplayName} の MAJOR が上がっています(v{actual}。{owner.DisplayName} が宣言しているのは v{min} 以降)。CHANGELOG の「互換性」を確認してください。"));
             }
         }
+
+        // 宣言の値として許す書式: X.Y(.Z)(-プレリリース)。範囲(">=1.4.0 <2.0.0")や "1.4.0 - 1.x" のような将来の書式は読めない
+        // ものとして BAD-DECLARATION にする(SemVer.TryParse は "-" 以降を捨てるため、そのままだと範囲の前半だけを黙って読んでしまう)。
+        public static bool IsDeclaredVersion(string text)
+            => !string.IsNullOrEmpty(text)
+               && System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d+\.\d+(\.\d+)?(-[0-9A-Za-z.-]+)?$");
 
         // "1.4" のような 2 桁も 3 桁(X.Y.Z)に揃える(System.Version は Build 未指定を -1 として扱い、1.4 < 1.4.0 になるため)。
         private static bool TryParse(string text, out Version version)

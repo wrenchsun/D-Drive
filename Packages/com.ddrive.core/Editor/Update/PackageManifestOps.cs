@@ -79,6 +79,43 @@ namespace DDrive.Editor.Update
                && string.Equals(NormalizeClone(a.CloneUrl), NormalizeClone(b.CloneUrl), StringComparison.OrdinalIgnoreCase)
                && string.Equals(NormalizePath(a.Path), NormalizePath(b.Path), StringComparison.Ordinal);
 
+        // [42] §4.2.1(2026-10-03、レビュー PC-R-07) — 同じリポジトリ(?path= が違うだけ)の別パッケージで、`#ref` が targetRef と違うもの
+        // (id, 今の ref)。同じリポジトリの複数パッケージは同じタグに揃える前提なので、片方だけ上げようとしたときの案内に使う。
+        public static List<KeyValuePair<string, string>> FindSiblingsAtOtherRef(JObject manifest, string packageId, string targetRef)
+        {
+            var result = new List<KeyValuePair<string, string>>();
+            GitPackageUrl self = default;
+            var found = false;
+            foreach (var dep in ListGitDependencies(manifest))
+            {
+                if (dep.Id == packageId)
+                {
+                    self = dep.Url;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                return result;
+            }
+
+            foreach (var dep in ListGitDependencies(manifest))
+            {
+                if (dep.Id == packageId
+                    || !string.Equals(NormalizeClone(dep.Url.CloneUrl), NormalizeClone(self.CloneUrl), StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(dep.Url.Ref ?? string.Empty, targetRef ?? string.Empty, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                result.Add(new KeyValuePair<string, string>(dep.Id, dep.Url.Ref ?? string.Empty));
+            }
+
+            return result;
+        }
+
         // `#ref` だけを差し替える(URL・?path=・git+ の形式は変えない)。git URL 依存でなければ false(何も変えない)。
         public static bool TryBumpRef(JObject manifest, string packageId, string targetRef, out string previousValue, out string newValue)
         {

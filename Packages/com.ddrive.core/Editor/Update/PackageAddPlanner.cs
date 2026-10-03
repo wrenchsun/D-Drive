@@ -96,7 +96,8 @@ namespace DDrive.Editor.Update
                 return new PackageAddPlan(PackageAddOutcome.TagListFailed, null, null, "タグを取得できませんでした: " + (warning ?? "不明なエラー"));
             }
 
-            var tags = GitTagListParser.ParseVersionTags(stdout);
+            // 元のタグ名をそのまま #ref に使う(`v1.5.0-rc.1` を `v1.5.0` に丸めない)。既定では正式版だけを「最新」にする。
+            var tags = GitTagListParser.ParseTags(stdout, true);
             if (tags.Count == 0)
             {
                 return new PackageAddPlan(
@@ -104,7 +105,26 @@ namespace DDrive.Editor.Update
                     "vX.Y.Z 形式のタグが 1 つもありません。#vX.Y.Z またはブランチ・コミットを URL に付けて入力してください。");
             }
 
-            var latest = "v" + tags[0];
+            string latest = null;
+            string newestPre = null;
+            for (var i = 0; i < tags.Count; i++)
+            {
+                if (!tags[i].IsPrerelease)
+                {
+                    latest = tags[i].Name;
+                    break;
+                }
+
+                newestPre ??= tags[i].Name;
+            }
+
+            if (latest == null)
+            {
+                return new PackageAddPlan(
+                    PackageAddOutcome.NoTags, null, null,
+                    $"正式版(vX.Y.Z)のタグがありません(プレリリースのみ: {newestPre} など)。プレリリースを導入するには #{newestPre} のように URL にタグ名を付けて入力してください。");
+            }
+
             return new PackageAddPlan(PackageAddOutcome.AddNew, null, parsed.WithRef(latest), $"最新の {latest} で導入します。");
         }
 
