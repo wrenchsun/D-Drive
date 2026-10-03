@@ -199,6 +199,19 @@ namespace DDrive.Editor.Materials
         public bool TryMatch(string assetPath, out Rule rule)
         {
             var fileName = System.IO.Path.GetFileNameWithoutExtension(assetPath ?? string.Empty);
+
+            // FC-14: 外部パッケージの規則(ITextureImportRuleProvider)を Profile の Rules より前に評価する。
+            // Profile に同じ条件(Match の種類 + Pattern)の規則があればそちらを優先する(外部規則は飛ばす)。
+            var external = TextureImportRuleProviders.Rules;
+            for (var i = 0; i < external.Count; i++)
+            {
+                if (Matches(external[i], fileName) && !ProfileHasSameCondition(external[i]))
+                {
+                    rule = external[i];
+                    return true;
+                }
+            }
+
             if (Rules != null)
             {
                 for (var i = 0; i < Rules.Length; i++)
@@ -212,6 +225,25 @@ namespace DDrive.Editor.Materials
             }
 
             rule = default;
+            return false;
+        }
+
+        private bool ProfileHasSameCondition(in Rule external)
+        {
+            if (Rules == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < Rules.Length; i++)
+            {
+                if (Rules[i].Match == external.Match
+                    && string.Equals(Rules[i].Pattern, external.Pattern, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
             return false;
         }
 

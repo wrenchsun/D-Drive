@@ -65,3 +65,35 @@ enum DDrive.Editor.Cutscene.CutsceneImportRoleKind
   Camera = 0
   Prop = 1
   Character = 2
+== ImportExtension ==
+interface DDrive.Editor.Import.IImportRuleHandler
+  method Object LoadSource(String assetPath)
+  method Void Configure(AssetDataBase data, Object source, String assetPath)
+  property AssetType Target { get; }
+  property String IdentifierFallback { get; }
+  property String TypeFolder { get; }
+  property String[] Extensions { get; }
+  property Type DataType { get; }
+interface DDrive.Editor.Import.IImportRuleFolderOptOut
+  property IEnumerable`1 FolderNames { get; }
+interface DDrive.Editor.Materials.IShaderConversionTableProvider
+  method IEnumerable`1 GetTables()
+interface DDrive.Editor.Materials.ITextureImportRuleProvider
+  method IEnumerable`1 GetRules()
+class DDrive.Editor.Materials.TextureImportProfile+Rule
+  field Boolean FlipGreenChannel
+  field Boolean Mipmaps
+  field Boolean SRgb
+  field Boolean SpriteFullRect
+  field Int32 MaxSize
+  field MatchKind Match
+  field String Name
+  field String Pattern
+  field TextureChannel Channel
+  field TextureImporterCompression Compression
+  field TextureImporterType Type
+  field TextureUsage Usage
+enum DDrive.Editor.Materials.TextureImportProfile+MatchKind
+  Suffix = 0
+  Prefix = 1
+  Contains = 2

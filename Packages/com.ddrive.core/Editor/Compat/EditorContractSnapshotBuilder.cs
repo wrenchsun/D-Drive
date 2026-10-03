@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using DDrive.Editor.Cutscene;
+using DDrive.Editor.Import;
+using DDrive.Editor.Materials;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 
@@ -60,6 +62,17 @@ namespace DDrive.Editor.Compat
             AppendType(sb, typeof(CutsceneImportResult));
             AppendType(sb, typeof(CutsceneImportRole));
             AppendType(sb, typeof(CutsceneImportRoleKind));
+
+            // FC-6 / FC-14(2026-10-03、docs/42 §5.9 / §5.14 E-21・E-22): 取り込みまわりの外部拡張点。
+            // ImportRule のハンドラ(IImportRuleHandler。FC-6 で外部アセンブリから登録可能になり外部が実装する)と
+            // 種別フォルダ宣言、変換表・テクスチャ規則の提供口と、提供口が組み立てる規則の型。追加のみ。
+            sb.Append("== ImportExtension ==\n");
+            AppendType(sb, typeof(IImportRuleHandler));
+            AppendType(sb, typeof(IImportRuleFolderOptOut));
+            AppendType(sb, typeof(IShaderConversionTableProvider));
+            AppendType(sb, typeof(ITextureImportRuleProvider));
+            AppendType(sb, typeof(TextureImportProfile.Rule));
+            AppendType(sb, typeof(TextureImportProfile.MatchKind));
 
             return sb.ToString();
         }
