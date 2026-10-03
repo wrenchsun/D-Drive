@@ -99,6 +99,42 @@ namespace DDrive.Runtime.Material
                 }
             }
 
+            // FC-11: パス無効化・キーワード。
+            if (mat.Shader != null && mat.HasPassesOrKeywords)
+            {
+                if (mat.DisabledPasses != null && mat.DisabledPasses.Length > 0)
+                {
+                    var lightModes = new List<string>();
+                    MaterialShaderInfo.CollectLightModes(mat.Shader, lightModes);
+                    foreach (var pass in mat.DisabledPasses)
+                    {
+                        if (!string.IsNullOrEmpty(pass) && !MaterialShaderInfo.ContainsIgnoreCase(lightModes, pass))
+                        {
+                            yield return ValidationResult.Warning(
+                                $"DisabledPasses '{pass}' はシェーダー '{mat.Shader.name}' の LightMode にありません(無視されます)。" +
+                                $"使える値: {(lightModes.Count > 0 ? string.Join(", ", lightModes) : "(なし)")}",
+                                code: "DD-MAT-PASS-UNKNOWN");
+                        }
+                    }
+                }
+
+                if (mat.EnabledKeywords != null && mat.EnabledKeywords.Length > 0)
+                {
+                    var declared = new List<string>();
+                    MaterialShaderInfo.CollectKeywords(mat.Shader, declared);
+                    foreach (var keyword in mat.EnabledKeywords)
+                    {
+                        if (!string.IsNullOrEmpty(keyword) && !declared.Contains(keyword))
+                        {
+                            // グローバルキーワード(Shader.EnableKeyword 用)は列挙されないため偽陽性があり得る = Info。
+                            yield return ValidationResult.Info(
+                                $"EnabledKeywords '{keyword}' はシェーダー '{mat.Shader.name}' が宣言していないキーワードです(効果が無い可能性。グローバルキーワードなら問題ありません)",
+                                code: "DD-MAT-KEYWORD-UNDECLARED");
+                        }
+                    }
+                }
+            }
+
             if (mat.Anims != null)
             {
                 foreach (var anim in mat.Anims)

@@ -9,7 +9,7 @@
 
 ## 0. 確認の進め方
 
-- **所要時間の目安**: FC-1 = 約 25 分 / FC-2・FC-12 = 約 15 分（実装済み分の合計 約 40 分）
+- **所要時間の目安**: FC-1 = 約 25 分 / FC-2・FC-12 = 約 15 分 / FC-11 = 約 15 分（実装済み分の合計 約 55 分）
 - **前提**: Unity 6000.3.13f1 で D-Drive を開き、`main`（FC-1 と FC-2 / FC-12 のマージ後）を取得済みであること。コンパイルエラーが無いこと。確認用シーンは `Tools > D-Drive > Editors > Cutscene確認用シーンを開く` で開く（シーンは `Assets/GameData/PreviewScenes/CutscenePreviewScene.unity`、無ければ自動生成される）
 - **順番**: §1（FC-1、Cutscene）→ §2（FC-2 / FC-12、Model）の順。互いに独立なので片方だけでもよい。T-Drive 側と合わせる項目は §22 にまとめてある（T-Drive のパッケージが入ってから）
 - **書式**: 各項目は「手順 → 期待する結果 → 結果欄」。結果欄は `□ 未 / OK / NG` のいずれかに書き換え、NG はメモを残す
@@ -109,9 +109,37 @@
 
 未実装（実装時に追記）
 
-## 11. FC-11: MaterialData にパスの無効化・キーワードの欄
+## 11. FC-11: MaterialData にパスの無効化・キーワードの欄の確認
 
-未実装（実装時に追記）
+[51] §4.12（実装メモ付き）、[06](06_material_texture.md) 2026-10-03 追記。**Unity が影などのパスを実際に止めるかの目視と、Material Editor の操作感**を確認する。
+
+自動テストで確認済み（再確認不要）: `MaterialPassKeywordTests`（`DisabledPasses` で指定したパスだけが無効になる・指定なしは従来どおり・存在しない名前 / 空文字は無視して例外なし・大文字小文字を区別しない・`EnabledKeywords` が有効になり Common のキーワードを壊さない・`FadeTo` の一時 Material と完了後の共有 Material の両方で保たれる・`new Material(from)` はパスの状態とキーワードを引き継ぎ `Lerp` は触らない・パス / キーワードの列挙・Validator の Warning / Info）、`LegacyAssetFixtureTests`（旧版のアセットが警告 0 で読める）、`SerializedLayoutSnapshotTests`。
+
+### 11.1 Material Editor の「Passes / Keywords」欄
+
+準備: `Tools > D-Drive > Editors > Material` で Material Editor（`MaterialEditorWindow`）を開き、`ShadowCaster` パスを持つシェーダー（`DDrive/Lit` など）を設定した MaterialData を選ぶ。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 11-1 | MaterialData を選ぶ（TextureData を選ぶと欄が消えることも確認） | ウィンドウの Inspector の上に「Passes / Keywords」欄が出る。パスの一覧に `UniversalForward` / `SHADOWCASTER` / `DepthOnly` などシェーダーのパスが並ぶ（Unity が返す綴りで、`SHADOWCASTER` のように大文字のことがある）。TextureData のときは欄が出ない | □ 未 |
+| 11-2 | `SHADOWCASTER`（`ShadowCaster`）にチェックを入れる | Inspector の `Disabled Passes` に 1 件入る。Ctrl+Z で戻る（チェックも外れる） | □ 未 |
+| 11-3 | キーワード欄のテキストに任意の名前（例 `_MY_FEATURE`）を入れて「追加」 | キーワードの行が 1 件増え、Inspector の `Enabled Keywords` にも入る。もう一度「削除」で消える。空欄で「追加」しても何も起きない | □ 未 |
+| 11-4 | 「（候補から追加）」を開く | そのシェーダーが宣言しているキーワード（`_NORMALMAP` など）が並び、選ぶと追加される（Shader が宣言キーワードを持たなければ候補欄自体が出ない） | □ 未 |
+| 11-5 | Inspector の `Disabled Passes` に存在しない名前（`NoSuchPass`）を手で足す | パス欄に「NoSuchPass（シェーダーに無い）」のチェック済み項目が出て、外せる。`Tools > D-Drive > Validation > Run All` でその MaterialData に Warning「DisabledPasses 'NoSuchPass' は…LightMode にありません」が出る | □ 未 |
+| 11-6 | `Enabled Keywords` にシェーダーが宣言していない名前（`_NO_SUCH_KEYWORD`）を足し、Validation を実行 | **Info**「EnabledKeywords '…' はシェーダー '…' が宣言していないキーワードです」が出る（Warning ではない） | □ 未 |
+| 11-7 | Shader を別のシェーダーに変える | パスの一覧が新しいシェーダーのものに変わる | □ 未 |
+
+### 11.2 影が実際に消える（目視）
+
+準備: 影を受ける床と Directional Light（影 ON）のある確認用シーン（開いて SceneView / GameView で見る。ウィンドウ内プレビューは使わない）。立方体などに、`ShadowCaster` を持つシェーダーの MaterialData を `Mats.Apply`（または `Tools > D-Drive` の確認用シーン / Material Editor の「シーンにプレビューを配置」）で適用する。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 11-8 | `DisabledPasses` が空の MaterialData を適用して Play（または配置） | 床に影が落ちる | □ 未 |
+| 11-9 | `DisabledPasses` に `ShadowCaster` を入れて再生成（Material Editor の「再生成」）または再度適用 | **影が消える**（本体は描画されたまま）。URP の SRP Batcher 有効 / 無効の両方で消えるか（影が残る場合は報告。コードでは `Material.SetShaderPassEnabled` の状態が false になるところまでしか確認できていない） | □ 未 |
+| 11-10 | `FadeTo` で 11-8 の Material から 11-9 の Material へフェードさせる（`Mats.FadeTo` を呼ぶ簡単なボタン等） | フェード開始直後から影が消える。フェード完了後も消えたまま | □ 未 |
+
+**要判断（FC-11）**: なし（U-10 は決定済み。[51] §8）。11-9 で影が消えない場合は SRP の仕様の問題なので、欄の意味（「LightMode のパスを `SetShaderPassEnabled` で止める」）を [51] §4.12 に追記したうえで別の手段（RendererShadowCastingMode 等）を検討する。
 
 ## 12. FC-12: モデルのスポーン / 返却の通知
 

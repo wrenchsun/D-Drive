@@ -75,6 +75,14 @@ namespace DDrive.Runtime.Material
         [Tooltip("Maya FBX 自動生成の由来(\"FBX名/マテリアル名\")。再インポート時の同定に使う。手動で作った Data は空。")]
         public string SourceMaterial;
 
+        // FC-11(2026-10-03): 末尾追加(既定 = 空 = 従来どおり。SchemaVersion は上げない)。
+        [Header("Passes / Keywords")]
+        [Tooltip("無効にするパス。シェーダーの LightMode タグ値で指定する(例: ShadowCaster / DepthOnly)。Material.SetShaderPassEnabled で適用する。空欄・シェーダーに無い名前は無視される。")]
+        public string[] DisabledPasses;
+
+        [Tooltip("有効にするシェーダーキーワード(例: _MY_FEATURE)。Common / Specific の適用後に EnableKeyword する(最終的に有効になる)。空欄は無視される。")]
+        public string[] EnabledKeywords;
+
         // Blend から決まる基準 RenderQueue。
         public int BaseRenderQueue => Common.Blend switch
         {
@@ -84,6 +92,9 @@ namespace DDrive.Runtime.Material
         };
 
         public int RenderQueue => BaseRenderQueue + RenderQueueOffset;
+
+        public bool HasPassesOrKeywords
+            => (DisabledPasses != null && DisabledPasses.Length > 0) || (EnabledKeywords != null && EnabledKeywords.Length > 0);
 
         public bool HasAnims => Anims != null && Anims.Length > 0;
     }

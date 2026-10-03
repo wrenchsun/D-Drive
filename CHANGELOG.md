@@ -15,8 +15,11 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 追加のみ(MINOR): **カットシーンの「同じ相手へのバインド」（2026-10-03、FC-1、[docs/26](docs/26_timeline.md) §4.2・[docs/51](docs/51_tdrive_integration.md) §4.2）** — `CutsceneBindTarget` の末尾に `SameAsTrack`（= 6）、`CutsceneBinding` の末尾に `SourceTrackName`（string、既定は空）を追加。SpawnModel したキャラに別のトラック（表情など）を、モデルを増やさずに結ぶため。既存の enum 値・フィールド・公開 API・既存 Validator は不変（旧データは `SourceTrackName` が空のまま無影響）。ネットメッセージ・ContentHash は不変（Bindings は各クライアントがローカルに解決）。スナップショット（`enums.txt` に `SameAsTrack=6`、`public-api-DDrive.Runtime.txt` に enum メンバーと `SourceTrackName`）を更新。`CutsceneDataValidator` に Warning を追加（Validation の重さは追加のみ）
 
+- 追加のみ(MINOR): **MaterialData のパスの無効化・キーワードの欄（2026-10-03、FC-11、[docs/51](docs/51_tdrive_integration.md) §4.12・[docs/06](docs/06_material_texture.md)）** — `MaterialData` の末尾に `string[] DisabledPasses`（LightMode タグ値）と `string[] EnabledKeywords` を追加（既定は空 = 従来どおり。`SchemaVersion` 不変、旧版フィクスチャは警告 0 で読める）。`MaterialManager` が Common → Specific の後・renderQueue の前に適用（共有 Material と `FadeTo` の一時 Material）。公開 API に `MaterialData.HasPassesOrKeywords` と静的クラス `MaterialShaderInfo`（`CollectLightModes` / `CollectKeywords` / `ContainsIgnoreCase`）を追加。Validator に Warning `DD-MAT-PASS-UNKNOWN` と Info `DD-MAT-KEYWORD-UNDECLARED` を追加（既存の検査・重さは不変）。ContentHash・ネット・ID/定数は不変。スナップショット: serialized-layout と public-api-DDrive.Runtime の追加のみ。理由: T-Drive が生成シェーダーを増やさずに影・輪郭線のパスを止めるため。
+
 ### 追加
 
+- `MaterialData.DisabledPasses` / `EnabledKeywords`（Material Editor の「Passes / Keywords」欄）: シェーダーのパス（LightMode）を無効にする・シェーダーキーワードを有効にする（FC-11）。
 - カットシーンの Binding に `Target = SameAsTrack` + `SourceTrackName`: 別トラックと同じ相手（Animator / Transform）にバインドする（鎖・並び順非依存・循環や未解決は警告 + そのトラックだけミュート。Edit Mode プレビューも同じ挙動）。`CutsceneDataValidator` の SameAsTrack 検査（Warning 4 種）、Inspector の Binding 入力欄の出し分けと「→ 参照先」の検査表示
 
 ## [1.3.1] - 2026-09-29

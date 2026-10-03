@@ -61,6 +61,7 @@ namespace DDrive.Editor.Materials
         private bool _hasMatchedRule;
 
         private VisualElement _specificRow;
+        private MaterialPassKeywordSection _passKeywordSection;
         private Label _specificLabel;
         private Button _removeConflictsButton;
         private Shader _trackedShader;
@@ -371,6 +372,10 @@ namespace DDrive.Editor.Materials
             _specificRow.style.display = DisplayStyle.None;
             _root.Add(_specificRow);
 
+            _passKeywordSection = new MaterialPassKeywordSection();
+            _passKeywordSection.style.display = DisplayStyle.None;
+            _root.Add(_passKeywordSection);
+
             _inspectorContainer = new VisualElement();
             _root.Add(_inspectorContainer);
 
@@ -473,8 +478,14 @@ namespace DDrive.Editor.Materials
             {
                 _trackedShader = mat.Shader;
                 _inspectorHost.TrackPropertyValue(so.FindProperty(nameof(MaterialData.Shader)), OnShaderPropertyChanged);
-                _inspectorHost.TrackSerializedObjectValue(so, _ => _previewDirty = true);
+                _inspectorHost.TrackSerializedObjectValue(so, _ =>
+                {
+                    _previewDirty = true;
+                    _passKeywordSection.Refresh();
+                });
                 _specificRow.style.display = DisplayStyle.Flex;
+                _passKeywordSection.Bind(mat);
+                _passKeywordSection.style.display = DisplayStyle.Flex;
                 UpdateSpecificStatus(mat, null);
                 _thumbnailArea.style.display = DisplayStyle.Flex;
                 _thumbnailRow.style.display = DisplayStyle.Flex;
@@ -484,6 +495,7 @@ namespace DDrive.Editor.Materials
             {
                 _trackedShader = null;
                 _specificRow.style.display = DisplayStyle.None;
+                _passKeywordSection.style.display = DisplayStyle.None;
                 _thumbnailArea.style.display = DisplayStyle.None;
                 _thumbnailRow.style.display = DisplayStyle.None;
             }

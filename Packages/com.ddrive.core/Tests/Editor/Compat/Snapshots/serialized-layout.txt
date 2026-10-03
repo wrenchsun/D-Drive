@@ -257,7 +257,9 @@ DDrive.Runtime.Material.MaterialData::Category : String
 DDrive.Runtime.Material.MaterialData::ChangeNote : String
 DDrive.Runtime.Material.MaterialData::Common : Generic
 DDrive.Runtime.Material.MaterialData::Description : String
+DDrive.Runtime.Material.MaterialData::DisabledPasses : Generic
 DDrive.Runtime.Material.MaterialData::DisplayName : String
+DDrive.Runtime.Material.MaterialData::EnabledKeywords : Generic
 DDrive.Runtime.Material.MaterialData::Events : Generic
 DDrive.Runtime.Material.MaterialData::Flags : Generic
 DDrive.Runtime.Material.MaterialData::Icon : ObjectReference
