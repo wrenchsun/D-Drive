@@ -36,6 +36,7 @@ namespace ExternalContract.Tests
         private static readonly string[] ExpectedOrder =
         {
             nameof(ExternalThrowingListener), nameof(ExternalListenerA), nameof(ExternalListenerB), nameof(ExternalListenerLast),
+            nameof(ExternalVisibleListenerHost.ExternalVisibleNestedListener),
         };
 
         [SetUp]
@@ -122,7 +123,7 @@ namespace ExternalContract.Tests
 
             Assert.AreEqual("ExternalContract.Tests.Editor", typeof(ExternalListenerA).Assembly.GetName().Name, "テストアセンブリ除外(DDrive.Tests*)に当たらない外部アセンブリ");
             var own = names.Where(n => n.StartsWith("External", StringComparison.Ordinal)).ToList();
-            CollectionAssert.AreEqual(ExpectedOrder, own, "Order 昇順(-10 → 0 → 0 → 50)、同値は型のフルネーム順(A → B)");
+            CollectionAssert.AreEqual(ExpectedOrder, own, "Order 昇順(-10 → 0 → 0 → 50 → 60)、同値は型のフルネーム順(A → B)");
         }
 
         // E-19(FX-R-14): public でない型(internal)の実装は発見されない(public のみという契約。他の取り込み拡張点と同じ)。
@@ -131,6 +132,18 @@ namespace ExternalContract.Tests
         {
             var names = CutsceneImportListeners.Discover().Select(l => l.GetType().Name).ToList();
             CollectionAssert.DoesNotContain(names, "ExternalNonPublicListener");
+        }
+
+        // E-19(FY-R-07): 「public な型」は外から見える型(Type.IsVisible)。外側が internal の中の public な入れ子型は発見されない。
+        // 外側も public な入れ子型は発見される。
+        [Test]
+        public void E19_NestedPublicListener_IsDiscovered_OnlyWhenTheOuterTypeIsVisible()
+        {
+            Assert.IsFalse(typeof(ExternalHiddenListenerHost.ExternalHiddenNestedListener).IsVisible, "前提: 外側が internal の入れ子型は外部から見えない");
+            Assert.IsTrue(typeof(ExternalVisibleListenerHost.ExternalVisibleNestedListener).IsVisible);
+            var names = CutsceneImportListeners.Discover().Select(l => l.GetType().Name).ToList();
+            CollectionAssert.DoesNotContain(names, "ExternalHiddenNestedListener");
+            CollectionAssert.Contains(names, "ExternalVisibleNestedListener");
         }
 
         [Test]

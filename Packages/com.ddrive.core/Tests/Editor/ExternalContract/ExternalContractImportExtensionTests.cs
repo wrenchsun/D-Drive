@@ -380,6 +380,20 @@ namespace ExternalContract.Tests
             }
         }
 
+        // FY-R-07: 取り込み系の拡張点(ExtensionPointDiscovery)も同じ規則。外側が internal の入れ子型は発見されず、外側も public なら発見される。
+        [Test]
+        public void E22_NestedProvider_IsDiscovered_OnlyWhenTheOuterTypeIsVisible()
+        {
+            Assert.IsFalse(typeof(ExternalHiddenProviderHost.ExternalHiddenNestedTableProvider).IsVisible);
+            Assert.IsTrue(typeof(ExternalVisibleProviderHost.ExternalVisibleNestedTableProvider).IsVisible);
+            ShaderConversionTables.ResetProviderCacheForTests();
+
+            ShaderConversionTables.Collect();
+
+            Assert.AreEqual(0, ExternalImportProbe.HiddenNestedProviderCalls, "外側が internal の入れ子は発見されない");
+            Assert.Greater(ExternalImportProbe.VisibleNestedProviderCalls, 0, "外側も public の入れ子は発見される");
+        }
+
         [Test]
         public void E22_ThrowingTableProvider_IsIsolated()
         {
