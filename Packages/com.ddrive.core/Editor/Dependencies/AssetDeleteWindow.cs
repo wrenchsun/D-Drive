@@ -149,6 +149,7 @@ namespace DDrive.Editor.Dependencies
             AddUsageGroup("Data", external.Where(u => u.Kind == ReferenceFileKind.Data));
             AddUsageGroup("Prefab", external.Where(u => u.Kind == ReferenceFileKind.Prefab));
             AddUsageGroup("Scene", external.Where(u => u.Kind == ReferenceFileKind.Scene));
+            AddUsageGroup("Timeline", external.Where(u => u.Kind == ReferenceFileKind.Timeline));
 
             if (internalRefs.Count > 0)
             {
@@ -183,7 +184,7 @@ namespace DDrive.Editor.Dependencies
         {
             var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginLeft = 8, flexWrap = Wrap.Wrap } };
             var objectPart = string.IsNullOrEmpty(reference.ObjectPath) ? string.Empty : $" / {reference.ObjectPath}";
-            row.Add(WrappingLabel($"{reference.SourcePath}{objectPart} ({reference.ComponentType}.{reference.PropertyPath})"));
+            row.Add(WrappingLabel($"{reference.SourcePath}{objectPart} ({reference.ComponentType}.{reference.PropertyPath}){DependencyGraphService.DescribeCutscenes(reference.SourcePath)}"));
 
             if (jumpable)
             {

@@ -136,9 +136,19 @@
 
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-6 の項（`SourceAssets/Facial/` に置いても案内ログが出ない）。
 
-## 7. FC-7: 依存関係の追跡が Timeline クリップ内の参照まで届くかの調査
+## 7. FC-7: 依存関係の追跡が Timeline クリップ内の参照まで届く
 
-未実装（実装時に追記）
+[51] §4.8、[09] §10。自動テストで確認済み（EditMode `DependencyGraphTimelineTests` 9 件）: SE クリップ・Shake マーカー・Presentation クリップの `AssetId` が使用箇所に出る（`UpdatePaths_PlayableWith*`）/ `.playable` の変更・削除で索引が更新される（`UpdatePaths_PlayableChangedAndDeleted_UpdatesIndex`）/ Cutscene の Timeline からだけ参照されている SE が未使用にならず、参照の無い SE は従来どおり未使用（`FindUnusedIds_SeReferencedOnlyFromTimeline_IsNotUnused`）/ `.playable` から `CutsceneData` を引ける（`FindCutscenePathsUsing_*`）/ 古いキャッシュ版でも `.playable` が補完される（`EnsureLoaded_WithOutdatedCacheVersion_BackfillsPlayables`）/ `.playable` の分類（`ClassifyPath_Playable_IsTimeline`）。以下は UI の目視。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 7-1 | SE を使うクリップ（SE トラックの `CutsceneSeClip`）を持つ Timeline の `CutsceneData` を用意する（確認用に作ったものでよい）。`Tools > D-Drive > Generate > 依存関係グラフを再構築` を実行する | Console に「DependencyGraph: 再構築完了」が出る | □ 未 |
+| 7-2 | Asset Browser でそのクリップが使っている SE を右クリック →「使用箇所を表示」 | 参照元に `.playable` のパスが出て、行の横に `(Cutscene: CUT_xxx)` が付く。`SeId` の項目名とトラック名 / クリップ名が見える。行をダブルクリックすると Project ウィンドウでその `.playable` が選ばれる | □ 未 |
+| 7-3 | ツールバーの「未使用...」を開く | 7-2 の SE は一覧に**出ない**（Cutscene から使われているため）。どこからも使われていない別の SE は従来どおり出る | □ 未 |
+| 7-4 | 7-2 の SE を右クリック →「削除...」 | 削除ウィンドウの参照元に「Timeline」の欄が出て、`.playable` が外部参照として載り、そのまま削除は進められない（「参照を差し替えてから削除」でも Timeline の中は自動では変わらず、結果画面の「手動で直す」一覧に残る）。確認だけにしてキャンセルで閉じる | □ 未 |
+| 7-5 | Timeline ウィンドウでクリップの SE を別の SE に変えて保存し、7-2 を別の SE と元の SE の両方で見る | 元の SE の使用箇所から `.playable` が消え、新しい SE に出る（再構築なしで更新される） | □ 未 |
+
+**T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-7 の項。
 
 ## 8. FC-8: カットシーンのキャラ FBX でブレンドシェイプのカーブを通す（保留）
 
@@ -282,7 +292,15 @@
 
 ## 19. FC-19: 検証の警告の調整
 
-未実装（実装時に追記）
+[51] §4.20、[06] A-4。自動テストで確認済み（PlayMode `MaterialDataValidatorTests` 4 件）: Albedo 無し + `AlbedoTint` 白 + Albedo のあるシェーダーでは従来どおり Warning / `AlbedoTint` が白以外なら Warning なし / Albedo のプロパティを持たないシェーダーでは Warning なし / `RenderingLayerMask` が 0 のとき Info なし・0 以外のとき Info（`DD-MAT-RENDERINGLAYERMASK-UNUSED`）。以下は Inspector・Validation 画面の目視。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 19-1 | 確認用の MaterialData（Albedo 未設定・AlbedoTint 白・Shader `DDrive/Lit`）を作り `Tools > D-Drive > Validation > Run All` を実行する | 「Common.Albedo（ベースカラー）が未設定です」が Warning で出る | □ 未 |
+| 19-2 | 19-1 の MaterialData の AlbedoTint を赤などにして再度 Run All | 上の Warning が消える | □ 未 |
+| 19-3 | MaterialData の `RenderingLayerMask` にマウスを載せる。次に 4 など 0 以外を入れて Run All | ツールチップに「未使用。ライトレイヤーは ModelData.LightLayerMask を使う」とある。Run All に Info（RenderingLayerMask は実行時に使われません…）が 1 件出る（Warning / Error は増えない）。0 に戻すと消える | □ 未 |
+
+確認後、確認用の MaterialData は削除してください。
 
 ## 20. FC-20: 所有接頭辞（`FC_` / `fcs_`）の一覧と検査
 
@@ -319,6 +337,8 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - FC-6: T-Drive の `IImportRuleFolderOptOut` 実装（`Facial` を宣言）が入ったあと、`Assets/SourceAssets/Facial/<キャラ>/` にファイルを置いても Console に `ImportRule 案内` の警告が出ない（宣言していない名前のフォルダには従来どおり出る）
 - FC-14: T-Drive の `IShaderConversionTableProvider` / `ITextureImportRuleProvider` 実装が入ったあと、(a) マテリアル変換ウィンドウの表に T-Drive パッケージ内の変換表が載り、`Assets/` に同じ組の表を置くとそちらが優先される (b) `*_ToonMask.png` を取り込むと sRGB オフ（`T_` で始まる名前でも）になり、Texture の Validation が Warning を出さない
 - FC-3: T-Drive の `Bridges.DDrive` が `ViewCamera.TryGetCurrent` を視点解決の最後のフォールバックに設定したとき、カットシーン中も表情の補正が実際のカット姿勢（ブレンド中を含む）に追従する。Runner の `LateUpdate` の実行順が 1000 より後であること（それより前だとカットシーン中は 1 フレーム遅れる）
+- FC-7: T-Drive の Timeline クリップ・マーカー（外部パッケージのもの）が `AssetId` / `AssetRef` で SE・VFX 等を参照しているとき、それらが使用箇所に `.playable` として出る（`UnityEngine.Object` の直接参照の Facial データは出ない。出さない仕様）
+- FC-19: T-Drive の Toon シェーダー（`_BaseMap` を持たないものがあれば）の MaterialData で、Albedo が空でも「Common.Albedo が未設定」の Warning が出ない
 - FC-15: T-Drive 側の対応が入ったとき
 - FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 

@@ -5,6 +5,7 @@ using DDrive.Runtime.Ui;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Timeline;
 
 namespace DDrive.Editor.Dependencies
 {
@@ -104,6 +105,100 @@ namespace DDrive.Editor.Dependencies
             }
 
             return edges;
+        }
+
+        // [51_tdrive_integration.md] §4.8(FC-7) — Timeline(.playable)の走査。トラック → クリップの PlayableAsset と
+        // トラック / タイムラインのマーカーを、Prefab・Scene と同じプロパティ走査(WalkProperties)で歩く。
+        // 型は決め打ちしない(D-Drive 自身の CutsceneSeClip 等も、外部パッケージのクリップ・マーカーも、
+        // AssetId<T> / AssetRef のフィールドがあれば同じ走査で拾える)。Presentation クリップの PresentationId のような
+        // 入れ子の参照先(PresentationData 側の参照)は、その Data 自身の辺として既に索引済みなので辿れる。
+        // ObjectPath = "トラック名/クリップ名#番号"(マーカーは "トラック名/[Marker] 時刻#番号")、ComponentType = クリップ / マーカーの型名。
+        public static List<DependencyEdgeRecord> CollectFromTimeline(string path)
+        {
+            var edges = new List<DependencyEdgeRecord>();
+
+            TimelineAsset timeline;
+            try
+            {
+                timeline = AssetDatabase.LoadAssetAtPath<TimelineAsset>(path);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] DependencyGraph: Timeline を読み込めませんでした({path}): {e.Message}");
+                return edges;
+            }
+
+            if (timeline == null)
+            {
+                return edges;
+            }
+
+            try
+            {
+                var seenTracks = new HashSet<TrackAsset>();
+                foreach (var track in timeline.GetOutputTracks())
+                {
+                    CollectFromTrack(track, seenTracks, path, edges);
+                }
+
+                // タイムライン直下のマーカートラックは GetOutputTracks に含まれないことがあるため別に歩く。
+                CollectFromTrack(timeline.markerTrack, seenTracks, path, edges);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] DependencyGraph: {path} を走査できませんでした: {e.Message}");
+            }
+
+            return edges;
+        }
+
+        private static void CollectFromTrack(TrackAsset track, HashSet<TrackAsset> seen, string path, List<DependencyEdgeRecord> edges)
+        {
+            if (track == null || !seen.Add(track))
+            {
+                return;
+            }
+
+            var trackName = track.name;
+
+            // トラック自身(AssetId を持つトラックにも対応)。
+            WalkObject(track, trackName, track.GetType().Name, path, edges);
+
+            var index = 0;
+            foreach (var clip in track.GetClips())
+            {
+                index++;
+                if (clip == null || clip.asset == null)
+                {
+                    continue; // Missing のクリップ(例外で止めない)
+                }
+
+                var clipName = string.IsNullOrEmpty(clip.displayName) ? clip.asset.GetType().Name : clip.displayName;
+                WalkObject(clip.asset, $"{trackName}/{clipName}#{index}", clip.asset.GetType().Name, path, edges);
+            }
+
+            index = 0;
+            foreach (var marker in track.GetMarkers())
+            {
+                index++;
+                if (marker is UnityEngine.Object markerObject && markerObject != null)
+                {
+                    WalkObject(markerObject, $"{trackName}/[Marker] {marker.time:0.###}#{index}", marker.GetType().Name, path, edges);
+                }
+            }
+        }
+
+        private static void WalkObject(UnityEngine.Object target, string objectPath, string componentType, string path, List<DependencyEdgeRecord> edges)
+        {
+            try
+            {
+                var so = new SerializedObject(target);
+                WalkProperties(so, objectPath, componentType, edges);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] DependencyGraph: {path} の {componentType} を走査できませんでした: {e.Message}");
+            }
         }
 
         // 現在開いている / 変更中のシーンには触れない。対象シーンを Additive で開いて読み終えたら必ず閉じる。

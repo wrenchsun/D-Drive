@@ -64,7 +64,7 @@ namespace DDrive.Runtime.Material
         [Tooltip("Blend から決まる基準 RenderQueue(Opaque=2000 / Cutout=2450 / Transparent=3000)へのオフセット。")]
         public int RenderQueueOffset;
 
-        [Tooltip("Rendering Layer Mask(0 なら Renderer 側の設定を変えない。ライトレイヤーは Renderer 単位の設定なので ModelData.LightLayerMask も参照)。")]
+        [Tooltip("未使用。ライトレイヤーは ModelData.LightLayerMask を使う(この値は MaterialConverter がコピーするだけで、実行時には Renderer に書かれない)。")]
         public uint RenderingLayerMask;
 
         [Header("Anim")]

@@ -137,7 +137,7 @@ namespace DDrive.Editor.Dependencies
             {
                 var u = usages[i];
                 var objectPart = string.IsNullOrEmpty(u.ObjectPath) ? string.Empty : $" / {u.ObjectPath}";
-                sb.AppendLine($"- {u.SourcePath}{objectPart} ({u.ComponentType}.{u.PropertyPath})");
+                sb.AppendLine($"- {u.SourcePath}{objectPart} ({u.ComponentType}.{u.PropertyPath}){DependencyGraphService.DescribeCutscenes(u.SourcePath)}");
             }
 
             if (usages.Count > shown)

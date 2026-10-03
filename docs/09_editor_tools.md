@@ -807,6 +807,15 @@ disabled になること、`DisplayName` 等の通常フィールドは有効な
 | `RebuildAll()` | 全再構築(メニュー用。全 Prefab/Scene を開閉するため重い) |
 | `UpdatePaths(changed, deleted)` | 差分更新(Postprocessor・テストから) |
 
+**2026-10-03 追記(FC-7)**: 収集対象に **Timeline(`.playable`、`TimelineAsset`)** を追加した。`DependencyGraphCollector.CollectFromTimeline` が `GetOutputTracks()` の各トラック(トラック自身のプロパティ)→ `GetClips()` の `clip.asset`(`PlayableAsset`)→ `GetMarkers()` のマーカー(+ `markerTrack`)を、Prefab / Scene と同じ `WalkProperties`(`AssetId<T>` / `AssetRef` のフィールド走査)で歩く。**型は決め打ちしない**ので、D-Drive 自身のクリップ・マーカー(`CutsceneSeClip.SeId` / `CutscenePresentationClip.PresentationId` / `CutsceneShakeNotification.ShakeId` 等)も、外部パッケージのクリップ・マーカーも、`AssetId` / `AssetRef` のフィールドがあれば拾える。辺の `ObjectPath` は `トラック名/クリップ名#番号`(マーカーは `トラック名/[Marker] 時刻#番号`)、`ComponentType` はクリップ / マーカーの型名。
+
+- **グラフ上の表し方**: 参照元(`DependencyReference.SourcePath`)は **`.playable`**(どのトラックのどのクリップ / マーカーかまで分かる。Timeline は CutsceneData 以外から使われることもあるため、辺は実際に持っているファイルに付ける)。そのうえで UI(使用箇所ウィンドウ・安全な削除ウィンドウ・安全な削除の拒否メッセージ)は参照元の横に **`(Cutscene: CUT_xxx)`** を添える(`DependencyGraphService.FindCutscenePathsUsing(playablePath)` = その `.playable` を `Timeline` に持つ `CutsceneData` のパス。`CutsceneData.Timeline` は `AssetId` ではなく直接参照のため、辺ではなく UI 表示時に引く)。これでデザイナーは「どの Cutscene が使っているか」を辿れる。
+- **未使用判定の変化(意図した修正)**: これまで「未使用」だった、Cutscene の Timeline からだけ参照されているアセット(SE・VFX・Shake・Presentation 等)が「使用中」になる。逆方向(使用中だったものが未使用になる)の変化は無い(辺を足すだけ)。
+- **安全な削除**: `.playable` からの参照も外部参照として削除をブロックする(削除ウィンドウに「Timeline」グループで出る)。参照差し替え(`ReferenceReplaceService`)は `.playable` 内を自動では書き換えず、Scene と同じく「手動で直す」一覧(`RemainingSceneUsages`)に残す。`ReferenceFileKind.Timeline` を末尾追加。
+- **キャッシュの版**: `Library/DDriveDeps/_version.txt`(`DependencyGraphCache.CurrentVersion` = 2。無い / 古い = 1)。`EnsureLoaded` が版の古いキャッシュを読んだときは **`.playable` だけ**を走査して補完して版を上げる(シーンの Open/Close を伴わない軽い補完。全体の再構築は要らない)。`RebuildAll` も `.playable` を含めて版を書く。差分更新は `.playable` の変更・削除を `DependencyGraphPostprocessor` → `UpdatePaths` で処理する。
+- **性能**: `.playable` の列挙は既存と同じ `AssetSearch.FindAssets("t:TimelineAsset")`(キャッシュされる。`FindAssets` を直接呼ばない)。全体走査に `.playable` の件数分が増えるだけ。
+- **対象外**: `UnityEngine.Object` の直接参照(T-Drive の `FacialCorrectionData` 等)は辺にならない。依存グラフに出したいなら `AssetId` 系で参照する(Addressables の依存としては運ばれる)。
+
 ### メニュー
 
 `Tools > D-Drive > Generate > 依存関係グラフを再構築`(`DDriveMenu.Generate`)。全再構築 + 件数ログのみ(UI は 5-6 で作る)。

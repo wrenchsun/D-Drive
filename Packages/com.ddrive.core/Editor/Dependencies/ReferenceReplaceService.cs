@@ -69,6 +69,11 @@ namespace DDrive.Editor.Dependencies
                             }
                             break;
 
+                        case ReferenceFileKind.Timeline:
+                            // FC-7: Timeline(.playable)内の参照は自動で書き換えず、手動で直す一覧に残す(Scene と同じ扱い)。
+                            result.RemainingSceneUsages.Add(usage);
+                            break;
+
                         case ReferenceFileKind.Prefab:
                             if (!prefabEdits.TryGetValue(usage.SourcePath, out var list))
                             {

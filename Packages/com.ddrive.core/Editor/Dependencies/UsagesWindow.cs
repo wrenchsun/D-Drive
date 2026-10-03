@@ -105,7 +105,7 @@ namespace DDrive.Editor.Dependencies
         {
             var reference = _rows[index];
             var objectPart = string.IsNullOrEmpty(reference.ObjectPath) ? string.Empty : $" / {reference.ObjectPath}";
-            element.Q<Label>("source").text = $"{reference.SourcePath}{objectPart}";
+            element.Q<Label>("source").text = $"{reference.SourcePath}{objectPart}{DependencyGraphService.DescribeCutscenes(reference.SourcePath)}";
             element.Q<Label>("detail").text = $"{reference.ComponentType}.{reference.PropertyPath}";
         }
     }
