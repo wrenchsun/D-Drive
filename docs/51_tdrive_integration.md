@@ -15,6 +15,7 @@ T-Drive（別リポジトリ。Maya + Unity のトゥーン / 表情ツール）
 | 決定 | Facial は **T-Drive 版（`com.tdrive.facial`）が正**。D-Drive 内に `Facial` 種別は作らない。旧チケット 7-8（D-Drive 内に Facial を移植、26〜29 日）は「T-Drive 版を使う。D-Drive 側は FC チケットの小さな追加のみ」に書き換える |
 | 範囲 | Facial（doc16 → FC-1〜FC-10）、Toon マテリアル（doc17 → FC-11〜FC-19）、f27702e 由来の契約（FC-20）。FC-0〜FC-20 の 21 チケット、実装対象は約 20 人日 |
 | 追加するもの | すべて **追加のみ**（互換区分 MINOR）。Facial 専用ではなく**汎用の拡張点**として作る（Facial 以外の外部パッケージにも効く） |
+| 状況 | **実装済み = FC-0〜FC-7・FC-10〜FC-12・FC-14・FC-15・FC-19・FC-20**（2026-10-03）。保留 = FC-8（表情アニメの運用決定後）・FC-9（7-3 / 7-4 着手時）・FC-13（表情パラメータを MS2026 で使い始めるとき）、後回し = FC-16・FC-17・FC-18。v1.4.0 のタグは未実施。人による確認は [52](52_manual_verification_fc.md) |
 | 優先 | 推奨順 **FC-1 → FC-2 + FC-12（同一 PR）→ FC-11 → FC-20 → FC-10 → FC-15 → FC-5 → FC-4 → FC-6 → FC-14 → FC-3 → FC-7 → FC-19**。条件付き / 保留 = FC-8・FC-9・FC-13、低優先で後回し = FC-16・FC-17・FC-18 |
 | 版 | **v1.4.0（MINOR）** 見込み |
 | 実装方式 | 実装者は Sonnet サブエージェント、1 チケット = 1 PR、Unity 検証（コンパイル・EditMode/PlayMode）はまとめ役がメイン checkout で行う |
@@ -415,6 +416,19 @@ namespace DDrive.Editor.Cutscene
 
 **更新する docs**: [09](09_editor_tools.md)（依存関係）、[26](26_timeline.md) §6 影響範囲
 
+**実装メモ（2026-10-03、FC-7 実装。FC-19 と同一 PR）**
+
+1. **実機確認 = 穴は実在した**: 一時フォルダに `CutsceneSeClip.SeId` を持つ `.playable` を作り、修正前の `DependencyGraphService`（`UpdatePaths`）に通す EditMode テストを先に書いて **失敗**を確認した（`FindUsages(Se, id)` が空）。そのうえで §4.8 の変更案 2 を実装した。
+2. **走査**: `DependencyGraphCollector.CollectFromTimeline(path)`。`TimelineAsset.GetOutputTracks()` の各トラック（トラック自身のプロパティ → `GetClips()` の `clip.asset` → `GetMarkers()` のマーカー）+ `timeline.markerTrack` を、既存の `WalkProperties`（`AssetId<T>` / `AssetRef` のフィールド走査）で歩く。`SerializedObject` は `PlayableAsset` / `Marker` のサブアセットにもそのまま使えた。**型は決め打ちしない**: D-Drive の `CutsceneSeClip` / `CutsceneVfxClip` / `CutscenePresentationClip` / Shake・Haptic マーカー等も、外部パッケージのクリップ・マーカーも、`AssetId` / `AssetRef` のフィールドがあれば拾う。Missing のクリップ（`asset == null`）は警告なしでスキップ（例外で止めない）。`ObjectPath` = `トラック名/クリップ名#番号`（マーカー = `トラック名/[Marker] 時刻#番号`）、`ComponentType` = 型名。
+3. **Presentation の入れ子**: `CutscenePresentationClip.PresentationId` が `.playable` → PresentationData の辺になる。Presentation の中の参照（Cutscene トラックの `CutsceneId` 等）は PresentationData 自身の辺として既に索引済みなので、使用箇所・依存ツリーで連鎖して辿れる（EditMode テスト `UpdatePaths_PlayableWithPresentationClip_IsFoundByFindUsages`）。
+4. **グラフ上の表し方（設計から変えた点）**: §4.8 の案は「`CutsceneData` から `.playable` の被参照として扱う」だったが、**参照元は `.playable` にした**。理由: (a) どのトラックのどのクリップかまで出せる、(b) `CutsceneData.Timeline` は `AssetId` ではなく `UnityEngine.Object` の直接参照なので辺にならず、辺を CutsceneData に付けるには走査側に「CutsceneData の Timeline を辿る」Cutscene 専用の処理（型の決め打ち）が要る、(c) Timeline は CutsceneData 以外（手置きの PlayableDirector 等）から使われることもあり、`.playable` に付けておけばそれも落とさない。代わりに **UI が参照元の横に `(Cutscene: CUT_xxx)` を添える**（`DependencyGraphService.FindCutscenePathsUsing` / `DescribeCutscenes`。`CutsceneData.Timeline` が指す `.playable` のパスを `AssetSearch` のキャッシュ列挙で引く。UI 表示時のみ）。デザイナーは使用箇所ウィンドウで「どの Cutscene が使っているか」を辿れる。
+5. **キャッシュ**: 辺のレコード形式は不変。収集対象が増えたので `Library/DDriveDeps/_version.txt`（`DependencyGraphCache.CurrentVersion` = 2。無い / 古い = 1）を足し、`EnsureLoaded` が版の古いキャッシュを読んだら **`.playable` だけを走査して補完して版を上げる**（シーンの Open/Close を伴わない。手動の全再構築は不要）。EditMode テスト `EnsureLoaded_WithOutdatedCacheVersion_BackfillsPlayables`。`.playable` の変更・移動・削除は既存の `DependencyGraphPostprocessor` → `UpdatePaths`（対象拡張子に `.playable` を追加）で更新される。
+6. **未使用判定**: Cutscene の Timeline からだけ参照されているアセットが「使用中」に変わる（穴の修正）。辺を足すだけなので逆方向（使用中 → 未使用）の変化は起きない（テスト `FindUnusedIds_SeReferencedOnlyFromTimeline_IsNotUnused` が「Timeline 参照のみは使用中」「参照なしは従来どおり未使用」を同時に確認）。
+7. **安全な削除 / 参照差し替え**: `ReferenceFileKind.Timeline`（末尾追加）。`.playable` からの参照は外部参照として削除をブロックし、削除ウィンドウに「Timeline」グループで出る。`ReferenceReplaceService` は `.playable` の中を自動では書き換えず、Scene と同じ「手動で直す」一覧（`RemainingSceneUsages`）に残す（Timeline のサブアセットを黙って書き換えない）。ジャンプ（`DependencyJumpService`）は `.playable` を選択する既存の分岐で動く。
+8. **性能**: `.playable` の列挙は `AssetSearch.FindAssets("t:TimelineAsset")`（キャッシュされる。`FindAssets` を直接呼ばない）。既存の全体走査に `.playable` の件数分が増えるだけ。
+9. **テストの隔離**: `Assets/Tests/DDriveTemp/TempDepsTimeline`（`TestTempFolder`）だけを使い、`TearDown` で `UpdatePaths(null, 作ったパス)` と `AddressablesSync.RemoveEntriesUnder` で片付ける。実 `Assets/GameData` は触らない。テスト後の `git status` で `Assets/AddressableAssetsData/AssetGroups/*.asset` に改行コードだけの差分が出るのは既存の挙動（`git checkout` で戻した。内容差分なし）。
+10. **対象外（§4.8 の 3）**: `UnityEngine.Object` の直接参照（T-Drive の `FacialCorrectionData` 等）は辺にならない。§7.1 に T-Drive 宛てで明記。
+
 ### 4.9 FC-8（= C-8）: カットシーンのキャラ FBX で BlendShape のカーブを通す選択肢【優先 低・保留】
 
 **保留**: **表情アニメの運用が決まるまで着手しない**（T-Drive 側で感情の重みは Facial のクリップ / `.fctrack` で渡す設計のため、ショット FBX からブレンドシェイプのカーブを通す必要が今は無い）。
@@ -600,6 +614,13 @@ namespace DDrive.Runtime.Model
 
 **変更案**: (a) Albedo が無くても `AlbedoTint` が既定（白）以外なら Warning を出さない（警告を減らす変更は自由。[42] §5.8）。(b) 実装する案（`RenderingLayerMask` を Renderer に書く）は `ModelData.LightLayerMask` と意味が衝突する（Renderer 単位 vs マテリアル単位、どちらが勝つか）ので**不採用**。Tooltip を「未使用。ライトレイヤーは ModelData.LightLayerMask」に直し、値が 0 以外のときだけ Info を出す。`ValidatorSeverityRegistryTests` のスナップショット更新。PATCH 相当（CHANGELOG の互換性節に記載）。
 
+**実装メモ（2026-10-03、FC-19 実装。FC-7 と同一 PR）**
+
+1. **(a) Albedo の Warning**: `MaterialDataValidator` の「`Common.Albedo` が未設定」は、`Albedo` が未設定でも次のいずれかのとき**出さない**: (i) `AlbedoTint` が既定（白）以外（色で見た目を決めている）、(ii) 割り当てられたシェーダーに Albedo テクスチャのプロパティが無い（`MaterialCommonBinding.IsSupported(shader, CommonChannel.Albedo)` = `_BaseMap` / `_MainTex` のどちらも無い。`MaterialCommonNaming` の共通名と同じ候補。実コードで判定できたので (ii) も入れた）。**警告を減らす方向のみ**（新しい警告は足していない。[42] §5.8）。Shader が null のときは (i) だけで判定（従来どおり、Shader 未設定の Warning は別に出る）。
+2. **(b) `RenderingLayerMask`**: 実装しない（§4.20 のとおり不採用）。Tooltip を「未使用。ライトレイヤーは ModelData.LightLayerMask を使う（…実行時には Renderer に書かれない）」に直した（フィールド名・型・シリアライズ不変。`serialized-layout` スナップショットに差分なし）。値が 0 以外のときだけ **Info**（新規コード `DD-MAT-RENDERINGLAYERMASK-UNUSED`）。既定値は 0（`MaterialData` の `uint` に初期値なし）で、既存の `.asset`（`Assets` / `Packages`）に 0 以外は無い（grep 確認）ので、既存データで Info は増えない。Maya 取り込み（`MayaMaterialImporter`）も書かない。
+3. **スナップショット**: `Tools > D-Drive > Compat > スナップショットを更新` の差分は無し（`validator-severity.txt` は既定インスタンスに対する掃引で、`RenderingLayerMask` は 0 のため新コードは掃引に現れない。新コードの Severity は PlayMode `MaterialDataValidatorTests` で固定）。CHANGELOG の互換性節に PATCH 相当で記載。
+4. **§7.2 への影響**: doc17 §3 #12 の「Albedo に白テクスチャを入れる」回避策は、`AlbedoTint` を白以外にするか、Albedo を持たないシェーダー（T-Drive の Toon の一部）ならそもそも不要。`AlbedoTint` が白のままで `_BaseMap` を持つシェーダーなら従来どおり Warning（意図したもの）。
+
 ### 4.21 FC-20（f27702e 由来・まとめ役の抽出）: `FC_` 接頭辞の予約と、モデル取り込みが名前・ボーンを保つことの確認【優先 高寄りの中。FC-10 の前か同時】
 
 T-Drive の `f27702e` が前提にする (a) シェイプ名・(b) ボーン名の完全一致と、(d) Runner が LateUpdate で `FC_*` だけを書くこと（§3.5）のうち、D-Drive 側で**確認した事実**と、足すもの。D-Drive への明示的な要望ではなく、まとめ役が抜き出した契約。
@@ -699,6 +720,8 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 8. **FC-10（契約）**: A-1〜A-9 は D-Drive が壊さない契約としてテストで固定する。T-Drive が新しく D-Drive の挙動に依存したくなったときは D-Drive に連絡（契約テストに足す）
 9. **FC-6 実装済み（2026-10-03）**: `SourceAssets/Facial/` を「不明な種別フォルダ」扱いさせない回避策（Facial のデータを `SourceAssets/Cutscene/` か GameData 外に置く）は不要になる。`Bridges.DDrive.Editor`（`[1.4.0,)`）に `IImportRuleFolderOptOut` を 1 型実装し、`FolderNames` で `"Facial"` を返す（public・引数なしコンストラクタ。`TypeCache` で自動発見、登録コード不要）。ハンドラは持たなくてよい（T-Drive は D-Drive の `AssetDataBase` を作らない）。`IImportRuleHandler` の外部実装も可能だが、作れる Data は D-Drive の既存 `AssetType` に限る。
 
+10. **FC-7 実装済み（2026-10-03）— 依存グラフ（「使用箇所」「未使用アセット」「安全な削除」）が Timeline の中まで届く**: `.playable` のクリップ・マーカーが持つ `AssetId` / `AssetRef` は、型を問わず（T-Drive のクリップ・マーカーも）使用箇所に出る。**依存グラフに出したいなら `AssetId` 系で参照する。直接参照（`FacialCorrectionData` のような `ScriptableObject` の `UnityEngine.Object` 参照）は Addressables の依存としては運ばれる（再生は問題ない）が、D-Drive の使用箇所・未使用判定・安全な削除には出ない**。つまり直接参照だけで Facial データを持つ Timeline を作ると、D-Drive の「未使用アセット」からは Facial データが未使用に見えうる（`AssetDataBase` の Data として登録していれば別。登録していないなら気にしなくてよい）。
+
 ### 7.2 Toon マテリアル（T-Drive の U-21 宛て。出典 `4d44a32`）
 
 1. **方針は受け入れ済み**（2026-10-03）: doc17 §5 の M-1〜M-9 を D-Drive の **FC-11〜FC-19** として起票（doc17 の「M-n」は D-Drive の既存 M チケットと番号が衝突するので、D-Drive 側は「doc17 M-n」と書く。対応表は [11](11_tasks.md) FC 節の冒頭）。優先と順序は 7.1 の 2。FC-13（インスタンスごとの値）は T-Drive が Q-7 の方式（StructuredBuffer / MPB）を決めてからの着手
@@ -708,6 +731,8 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 5. **D-Drive が Renderer Feature に関与しない**こと・`_Toon*` が Specific にそのまま入ること・シェーダーに無いプロパティが飛ばされることも契約テスト（E-10〜E-15）で固定する
 6. **T-Drive を使うプロジェクトは `MayaImportProfile` の `UnknownShaderPolicy = KeepSource` を設定する**（FC-15、D-Drive 1.4.0 以降。罠 1・3 が確認ダイアログ無しで避けられる。既定の `Ask` は Model エディタの「元ファイルを再読み込み」などの対話的な操作で確認ダイアログを出し、FBX の自動取り込みは従来どおり Lit に変換する）。T-Drive の検証 U-23 で案内できる
 7. **FC-14 実装済み（2026-10-03）— 罠 2・罠 4 の回避策が不要になる**（`com.ddrive.core` `[1.4.0,)`）: (a) **罠 4（変換表の置き場所）**: `Bridges.DDrive.Editor` / `TDrive.Toon.DDriveBridge` に `IShaderConversionTableProvider` を 1 型実装し、`GetTables()` でパッケージ内の `ShaderConversionTable` を返す（`AssetDatabase.LoadAssetAtPath` 等。public・引数なしコンストラクタ。自動発見）。`Assets/` に生成しなくてよい。同じ `From → To` の表が複数あるときの優先順位は **`Assets/` の表 > 外部提供口の表 > D-Drive 同梱の表**。(b) **罠 2（`T_` のテクスチャが sRGB オン）**: `ITextureImportRuleProvider` を 1 型実装し、`GetRules()` で `TextureImportProfile.Rule`（例 `Match = Suffix, Pattern = "_ToonMask", Type = Default, SRgb = false, Mipmaps = true, Compression = CompressedHQ`）を返す。**Profile の `Rules` の前（`T_` 接頭辞の規則より先）に評価される**。プロジェクトが Profile に同じ条件（Match の種類 + Pattern）の規則を足すと Profile が優先される。対象パスは従来どおり `TextureImportProfile.IncludePathContains`（R-11。持ち込み先の `SourceAssetsRoot` が既定と違うなら Profile 側の確認が要る）。`GetRules()` はドメインリロードごとに 1 回しか呼ばれないので、規則を動的に変えたい場合は再コンパイル / ドメインリロードが要る。< 1.4.0 では従来どおり（Profile に規則を足す / `Assets/` に表を生成）。
+
+8. **FC-19 実装済み（2026-10-03）— doc17 §3 #12 の「Albedo に白テクスチャを入れる」回避策が不要になる条件**（`com.ddrive.core` `[1.4.0,)`）: `MaterialDataValidator` の「`Common.Albedo` が未設定」Warning は、(a) `AlbedoTint` を白以外にした色だけのマテリアル、(b) 割り当てたシェーダーに Albedo テクスチャのプロパティ（`_BaseMap` / `_MainTex`）が無いとき、は出ない。T-Drive の Toon シェーダーが `_BaseMap` を持たない（または色だけで使う）なら、白テクスチャを入れる回避策は不要。`_BaseMap` を持つシェーダーで `AlbedoTint` も白のまま Albedo を空にしたときは従来どおり Warning（意図したもの）。`MaterialData.RenderingLayerMask` は実行時に使われない（0 以外なら Info）。ライトレイヤーは `ModelData.LightLayerMask`。
 
 ## 8. 未決事項と決定（まとめ役の判断が要るもの）
 
@@ -742,5 +767,6 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 - 2026-10-03（同日追記 6）: FC-10 を実装（§4.11 実装メモ。契約テスト `ExternalContract*` を EditMode 16 件 + PlayMode 14 件、[42] §5.14 を新設〔U-7 = (a)〕、合成 FBX フィクスチャ〔U-15 = (b)〕）。U-15 を決定列に記録。
 - 2026-10-03（同日追記 8）: FC-5 を実装（§4.6 実装メモ。U-6 = (a) で Editor 契約に掲載、保存はリスナー後に 1 回、`Result` に追加項目なし）。§7.1 に T-Drive 向けの案内（1.4.0 以降は `ICutsceneImportListener`）を追記。
 - 2026-10-03（同日追記 9）: FC-4 を実装（§4.5 実装メモ。`CutsceneMarkerContext` は `Context` を渡さず `Handle` を足した最小の 5 欄、Edit Mode のカーソルは public を増やさず Editor asm 内 internal、契約 E-20）。§7.1 に案内を追記。
+- 2026-10-03（同日追記 11）: FC-7 / FC-19 を実装（§4.8・§4.20 実装メモ。FC-7 は調査で穴が実在 → `.playable` の走査・グラフの参照元は `.playable` + UI が Cutscene を添える・キャッシュ版 2、FC-19 は Albedo Warning の条件緩和と `RenderingLayerMask` の Info）。§7.1 / §7.2 に T-Drive 宛ての案内を追記。**FC の実装対象はこれで完了**（実装済み = FC-0〜FC-7・FC-10〜FC-12・FC-14・FC-15・FC-19・FC-20、保留 = FC-8・FC-9・FC-13、後回し = FC-16・FC-17・FC-18、v1.4.0 のタグは未実施）。
 - 2026-10-03（同日追記 10）: FC-3 を実装（§4.4 実装メモ。`DDrive.Runtime.Viewing` の 4 型、カットシーン所有の判定は Applier に読み取り専用 `IsDriving` を 1 行足しただけ、公開は §4.4 の署名 + `ViewPose` の public コンストラクタ。契約 E-18。既存の `Camera.main` 直参照は置き換えず）。§7.1 に FT-4 / FU-3 宛ての案内を追記。
 - 2026-10-03（同日追記 7）: FC-15 を実装（§4.16 実装メモ。**推奨案の既定 `KeepSource` は不採用、U-9 = (c) 確認ダイアログ + `MayaImportProfile.UnknownShaderPolicy`**）。U-9 の決定列を具体化、§7.2 に T-Drive 向けの案内を追記。
