@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DDrive.Foundation.Handle;
 using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Cutscene.Tracks;
@@ -27,6 +28,10 @@ namespace DDrive.Editor.Cutscene
     // (`CutsceneMarkerCursor<T>`、CutsceneManager.CollectMarkers/AdvanceMarkers と同じパターンを共有)。
     // スクラブ(非再生)中は無音でカーソルだけ進める。巻き戻し(time が後退)を検出したらカーソルを
     // リセットして無音で追いつかせる(Skip/ApplySeek と同じ「Seek は無音」方針)。
+    //
+    // 外部パッケージの `ICutsceneMarker`([51] §4.5 FC-4)も同じ規則で監視する(`ExternalMarkerCursor`、
+    // この asm 内 internal。`CutsceneMarkerCursor<T>` は `where T : Marker` で interface を受けられず、
+    // Runtime の internal はここから見えないため Editor 側に持つ)。`IsEditPreview = true`、例外は隔離。
     // public(InternalsVisibleTo 未設定のため、テスト asmdef から直接検証できるようにする。
     // SpecDiffService.cs 等の既存クラスと同じ理由)。
     [InitializeOnLoad]
@@ -41,10 +46,12 @@ namespace DDrive.Editor.Cutscene
             public readonly CutsceneMarkerCursor<CutsceneSignalNotification> SignalCursor = new();
             public readonly CutsceneMarkerCursor<CutsceneShakeNotification> ShakeCursor = new();
             public readonly CutsceneMarkerCursor<CutsceneHapticNotification> HapticCursor = new();
+            public readonly ExternalMarkerCursor ExternalCursor = new();
 
             public void Collect(TimelineAsset timeline)
             {
                 Timeline = timeline;
+                ExternalCursor.Collect(timeline);
                 EventCursor.Collect(timeline);
                 SignalCursor.Collect(timeline);
                 ShakeCursor.Collect(timeline);
@@ -57,6 +64,8 @@ namespace DDrive.Editor.Cutscene
                 SignalCursor.ResetCursor();
                 ShakeCursor.ResetCursor();
                 HapticCursor.ResetCursor();
+                ExternalCursor.ResetCursor();
+                ExternalCursor.Advance(elapsed, fire: false, null);
                 EventCursor.Advance(elapsed, fire: false, null);
                 SignalCursor.Advance(elapsed, fire: false, null);
                 ShakeCursor.Advance(elapsed, fire: false, null);
@@ -203,6 +212,7 @@ namespace DDrive.Editor.Cutscene
                     session.SignalCursor.Advance(elapsed, playing, FireSignal);
                     session.ShakeCursor.Advance(elapsed, playing, FireShake);
                     session.HapticCursor.Advance(elapsed, playing, FireHaptic);
+                    session.ExternalCursor.Advance(elapsed, playing, director);
                 }
 
                 session.WasPlaying = playing;
@@ -213,6 +223,70 @@ namespace DDrive.Editor.Cutscene
             foreach (var staleId in _staleIds)
             {
                 _sessions.Remove(staleId);
+            }
+        }
+
+        // [51] §4.5(FC-4) — 外部 ICutsceneMarker 用カーソル。CutsceneMarkerCursor<T> と同じ「跨いだら進む、
+        // fire=false は無音」。Fire の例外は 1 マーカーごとに隔離する。
+        internal sealed class ExternalMarkerCursor
+        {
+            private readonly List<(double Time, ICutsceneMarker Marker)> _items = new();
+            private int _cursor;
+
+            public int Count => _items.Count;
+
+            public void Collect(TimelineAsset timeline)
+            {
+                _items.Clear();
+                _cursor = 0;
+                if (timeline == null)
+                {
+                    return;
+                }
+
+                foreach (var track in timeline.GetOutputTracks())
+                {
+                    if (track == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var marker in track.GetMarkers())
+                    {
+                        if (marker is ICutsceneMarker external)
+                        {
+                            _items.Add((marker.time, external));
+                        }
+                    }
+                }
+
+                _items.Sort((a, b) => a.Time.CompareTo(b.Time));
+            }
+
+            public void ResetCursor() => _cursor = 0;
+
+            public void Advance(double newElapsed, bool fire, PlayableDirector director)
+            {
+                while (_cursor < _items.Count && _items[_cursor].Time <= newElapsed)
+                {
+                    var (time, marker) = _items[_cursor];
+                    _cursor++;
+
+                    if (!fire)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var context = new CutsceneMarkerContext(time, newElapsed, director, Handle<CutsceneMarker>.Invalid, true);
+                        marker.Fire(in context);
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogException(e);
+                    }
+                }
             }
         }
 

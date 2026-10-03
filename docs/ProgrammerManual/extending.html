@@ -36,7 +36,7 @@
 <tr><td>14</td><td>docs 更新</td><td>該当する <code>docs/0X_*.md</code></td></tr>
 </table>
 
-<p>種別の追加とは別に、外部パッケージが D-Drive の取り込みへ後処理を足す拡張点があります（<a href="#cutsceneimport">カットシーン取り込みリスナー</a>）。</p>
+<p>種別の追加とは別に、外部パッケージが D-Drive の取り込みへ後処理を足す拡張点があります（<a href="#cutsceneimport">カットシーン取り込みリスナー</a>）と、Timeline に外部のマーカーを置ける拡張点があります（<a href="#cutscenemarker">カットシーン・マーカー</a>）。</p>
 
 <h2 id="step1">1. AssetType enum への追加</h2>
 <p><code>Foundation/Identity/AssetType.cs</code> の末尾に追記します。</p>
@@ -203,6 +203,32 @@ public sealed class MyImportListener : ICutsceneImportListener
 <tr><td>例外</td><td>リスナーごとに捕まえて Console に出し、他のリスナーと取り込みは続きます</td></tr>
 <tr><td>重複させない</td><td>再取り込みでは D-Drive が作ったトラックだけ更新し、既存の <code>Bindings</code> と足したトラックは残ります。足す前に <code>result.Data.Bindings</code>（<code>TrackName</code>）と <code>result.Timeline.GetOutputTracks()</code>（名前）で、すでに足してあるかを確認してください</td></tr>
 <tr><td>互換</td><td>Editor 契約として固定されています。メンバー・列挙値は追加のみで、削除や改名は <code>CHANGELOG.md</code> に記載されます</td></tr>
+</table>
+
+<h2 id="cutscenemarker">外部パッケージのカットシーン・マーカー（ICutsceneMarker）</h2>
+<p>Timeline の <code>Marker</code> 派生クラスに <code>ICutsceneMarker</code> を実装すると、カットシーンの再生位置がそのマーカーの時刻を跨いだ瞬間に <code>Fire</code> が呼ばれます。D-Drive の Event / Signal / Shake / Haptic マーカーと同じ規則で、外部パッケージ（<code>DDrive.Runtime</code> を参照するアセンブリ）が自前のマーカーを足せます。</p>
+<pre>using DDrive.Runtime.Cutscene;
+using UnityEngine.Timeline;
+
+public sealed class MyMarker : Marker, ICutsceneMarker
+{
+    public void Fire(in CutsceneMarkerContext context)
+    {
+        // context.MarkerTime  = マーカーの時刻（秒）
+        // context.Elapsed     = 発火時点の再生位置（秒、MarkerTime 以上）
+        // context.Director    = 再生中の PlayableDirector
+        // context.Handle      = 再生中のカットシーンのハンドル（Edit Mode のプレビューでは無効）
+        // context.IsEditPreview = Edit Mode の Timeline ウィンドウ再生か
+    }
+}</pre>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>呼ばれるとき</td><td>再生位置が時刻を跨いだ Tick で 1 回。巻き戻しても再発火しません。1 Tick で複数跨いだら時刻順に呼ばれます</td></tr>
+<tr><td>呼ばれないとき</td><td><code>Seek</code> / <code>Skip</code>・ネットワークの途中参加（Late Join）で跨いだ分は無音。Edit Mode ではスクラブ（Timeline ウィンドウが再生中でない）・再生開始の立ち上がり・巻き戻しも無音。<code>CutsceneDirectorContext.FireEnabled</code> が false の間も呼ばれません</td></tr>
+<tr><td>例外</td><td>マーカーごとに捕まえて Console に出し、他のマーカーと再生は続きます</td></tr>
+<tr><td>ネットワーク</td><td>呼び出しは各クライアントのローカル処理で、ネットワークには流れません（Cosmetic のカットシーンなら各クライアントが同じ時刻に自分で呼びます）。全員で同じ結果が要る処理は、外部側で同期してください</td></tr>
+<tr><td>実装の注意</td><td><code>Fire</code> は Tick 内で呼ばれるので、割り当て・LINQ・クロージャを避けてください。<code>Marker</code> は <code>ScriptableObject</code> なので、<code>Reset</code> など Unity が特別扱いするメソッド名を static で定義しないでください。<code>ICutsceneMarker</code> を実装しない <code>Marker</code> は従来どおり無視されます</td></tr>
+<tr><td>互換</td><td><code>ICutsceneMarker</code> / <code>CutsceneMarkerContext</code> は公開 API で、追加のみです（欄の追加は末尾）。挙動は外部拡張の契約（E-20）としてテストで固定されています</td></tr>
 </table>
 
 <h2>関連ページ</h2>

@@ -313,6 +313,15 @@ namespace DDrive.Runtime.Cutscene
 
 **更新する docs**: [26](26_timeline.md) §4.3（マーカー）・§4.4（Edit Mode）
 
+**実装メモ（2026-10-03、FC-4）**
+
+1. 設計どおり `Runtime/Cutscene/ICutsceneMarker.cs` に `ICutsceneMarker`（`Fire(in CutsceneMarkerContext)`）と `CutsceneMarkerContext`（readonly struct、public コンストラクタ）を追加。`CutsceneManager` は `CutsceneInstance.ExternalMarkers`（`List<(double, ICutsceneMarker)>`、Play 時に 1 回収集して時刻順ソート、以後再利用）+ カーソルを持ち、`AdvanceMarkers` から `AdvanceExternalMarkers` が既存 4 種と同じ規則（跨いだら 1 回・`fire=false`〔Seek / Skip / 遅延復元〕と `FireEnabled=false` は無音でカーソルだけ進める）で呼ぶ。呼び出しは 1 マーカーごとの `try/catch`（`Debug.LogException` + 継続）。`CollectMarkers` の `switch` は触らず、その後ろに独立した `if (marker is ICutsceneMarker)` を足した（既存 4 種の経路・順序は不変。4 種の型が `ICutsceneMarker` も実装した場合は両方の経路で呼ばれる）。
+2. **設計から変えた点（`CutsceneMarkerContext` の欄）**: 設計案の `CutsceneDirectorContext Context` は**渡さない**（型は public だが `FireEnabled` / `ManagerRefs`〔`[NonSerialized]`、Play では null〕は D-Drive が発火可否・Edit Mode の Manager 参照のために持つ内部用の値で、外へ出すと意味が固定される。必要なら `Director.GetComponent<CutsceneDirectorContext>()` で取れる）。代わりに**再生中の `Handle<CutsceneMarker>`** を足した（外部が `Cutscene.*` / `CutsceneManager.*` へ戻れる最小限。Edit Mode は `Invalid`）。欄 = `MarkerTime` / `Elapsed` / `Director` / `Handle` / `IsEditPreview` の 5 つ。一度公開すると改名・削除できないので、これ以上は足さない方針（足すときは MINOR で末尾に追加）。
+3. **Edit Mode**: `CutsceneMarkerCursor<T>`（`where T : Marker`）は変えず、**public を増やさない**ため Editor asm 内 `internal` の `ExternalMarkerCursor`（`CutsceneEditModePreviewProvider` の入れ子型）を足した。Runtime の internal は Editor から見えない（`InternalsVisibleTo` なし）ので Runtime に internal 型を置く案は不可、public の兄弟型を Runtime に増やす案は互換面が増えるため採らなかった。`Session` の収集・`SilentAdvanceTo`・再生中の `Advance` に既存 4 種と同列に組み込み、Timeline ウィンドウ再生中（`PlayableDirector.state == Playing`）のときだけ `IsEditPreview = true` で呼ぶ。スクラブ・再生開始の立ち上がり・巻き戻しは無音。
+4. **ネット**: 既存 4 種と同じくローカル処理であることを実コードで確認（`AdvanceMarkers` は各クライアントの `Tick` からだけ呼ばれ、`INetBridge` へは何も送らない）。Late Join の遅延復元（`PlayLocalInternal` の `AdvanceMarkers(fire: false)`）で過ぎたマーカーは無音（テスト `E20_LateJoin_*`）。同期が要る処理は外部パッケージの責任（[26] §4.3 に記載）。
+5. テスト: PlayMode `ExternalContractMarkerTests`（7 件: 跨いで 1 回 + 文脈 / 1 Tick で複数・時刻順 / Seek・Skip 無音 / `FireEnabled=false` / 例外隔離 / 跨ぐ Tick の GC 割り当て = 跨がない Tick 以下 / Late Join 無音）、EditMode `ExternalContractMarkerEditModeTests`（3 件: 再生中に 1 回 + `IsEditPreview` / スクラブ無音・再生開始で再発火なし / 巻き戻し無音。`OnEditorUpdate`〔private〕をリフレクションで 1 回ずつ進める）。ダミーの外部マーカー `ExternalPackage.Fake.ExternalFireMarker`（`ICutsceneMarker` 実装）を `ExternalContract.Tests.Runtime` に追加（外部アセンブリの public API だけで書けることの確認を兼ねる）。既存の `ExternalProbeMarker`（`ICutsceneMarker` を実装しない）はそのまま E-2 / E-5 で「無視される」ことを固定し続ける。ダミー側は `Reset` という static 名を避けた（`ScriptableObject.Reset` のマジックメソッドと衝突してエラーログが出るため。外部パッケージも同じ落とし穴がある）。契約は [42] §5.14 の E-20。既存の `CutsceneMarkerCursorTests` / Cutscene のマーカー系テストは無変更で green（既存 4 種の発火順・回数が不変）。
+6. `public-api-DDrive.Runtime.txt` に `ICutsceneMarker`・`CutsceneMarkerContext` のみ追加（`CutsceneMarkerCursor<T>` の変更なし）。MINOR。
+
 ### 4.6 FC-5（= C-5）: カットシーン取り込み完了の公開イベント【優先 中】
 
 **現状のコード**: R-1 のとおり。`CutsceneFbxPostprocessor.OnPostprocessAllAssets` → `delayCall` の `Flush` → `CutsceneImportService.ProcessPaths`（`Editor/Cutscene/CutsceneImportService.cs`）→ ショットごとに `ProcessShot`（`:158`）が `CutsceneData` と `TimelineAsset` を作る / 更新し、`data.Bindings` を書いて `DDriveAssetSave.SaveAllSuppressed()`（`:245`）。役名 → トラックは `BuildOrUpdateAnimationRoleTrack`（`:445`）で `trackName` = 役名（キャラは FBX ファイル名の `__` 以降 = `modelIdentifierRaw`、小物は `PRP_` 接頭辞を除いた名前、カメラは Camera のオブジェクト名）。通知する口は無い。
@@ -671,7 +680,8 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
    - A-6: `IValidator` の実装は **public で引数なしのコンストラクタ**が必須。`DDrive.Tests*` 名のアセンブリは発見されない
 5. **回避策が不要になる点**: FC-1（役名のトラックを引く）・FC-5（`postprocessOrder`・同名ショット探し）が入ると、doc15 §5.5「バインドの補助」「fctrack の取り込み」の回避策が不要になる。FC-2 が入ると「プール返却の確認テスト」は D-Drive 側（FC-10）が持つ
 6. **FC-8（BlendShape カーブ）/ FC-9（デバッグ・調整）は保留**: 表情アニメの運用が決まったら / 7-3・7-4 着手時に再相談
-7. **FC-10（契約）**: A-1〜A-9 は D-Drive が壊さない契約としてテストで固定する。T-Drive が新しく D-Drive の挙動に依存したくなったときは D-Drive に連絡（契約テストに足す）
+7. **FC-4 実装済み（2026-10-03）**: Facial のイベント的な切り替えをマーカーで置きたくなったら、`Bridges.DDrive` 側で `FacialMarker : Marker, ICutsceneMarker`（`DDrive.Runtime.Cutscene`、`[1.4.0,)`）を実装すれば `Fire(in CutsceneMarkerContext)` が跨いだ Tick で 1 回呼ばれる（Seek / Skip / Late Join は無音、Edit Mode は `IsEditPreview = true`）。発火は各クライアントのローカル処理で、全員で同じ結果にしたい処理は T-Drive 側で同期する。例外は D-Drive が隔離する。
+8. **FC-10（契約）**: A-1〜A-9 は D-Drive が壊さない契約としてテストで固定する。T-Drive が新しく D-Drive の挙動に依存したくなったときは D-Drive に連絡（契約テストに足す）
 
 ### 7.2 Toon マテリアル（T-Drive の U-21 宛て。出典 `4d44a32`）
 
@@ -714,4 +724,5 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 - 2026-10-03（同日追記 5）: FC-20 を実装（§4.21 実装メモ。確認項目 1〜6 を再確認、`ExternalBlendShapePrefixes` + Validator Warning + AnimEditor の表示）。
 - 2026-10-03（同日追記 6）: FC-10 を実装（§4.11 実装メモ。契約テスト `ExternalContract*` を EditMode 16 件 + PlayMode 14 件、[42] §5.14 を新設〔U-7 = (a)〕、合成 FBX フィクスチャ〔U-15 = (b)〕）。U-15 を決定列に記録。
 - 2026-10-03（同日追記 8）: FC-5 を実装（§4.6 実装メモ。U-6 = (a) で Editor 契約に掲載、保存はリスナー後に 1 回、`Result` に追加項目なし）。§7.1 に T-Drive 向けの案内（1.4.0 以降は `ICutsceneImportListener`）を追記。
+- 2026-10-03（同日追記 9）: FC-4 を実装（§4.5 実装メモ。`CutsceneMarkerContext` は `Context` を渡さず `Handle` を足した最小の 5 欄、Edit Mode のカーソルは public を増やさず Editor asm 内 internal、契約 E-20）。§7.1 に案内を追記。
 - 2026-10-03（同日追記 7）: FC-15 を実装（§4.16 実装メモ。**推奨案の既定 `KeepSource` は不採用、U-9 = (c) 確認ダイアログ + `MayaImportProfile.UnknownShaderPolicy`**）。U-9 の決定列を具体化、§7.2 に T-Drive 向けの案内を追記。

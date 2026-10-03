@@ -69,6 +69,12 @@ namespace DDrive.Runtime.Cutscene
             public int ShakeMarkerCursor;
             public readonly List<(double, CutsceneHapticNotification)> HapticMarkers = new();
             public int HapticMarkerCursor;
+
+            // [51_tdrive_integration.md] §4.5(FC-4) — 外部パッケージの `ICutsceneMarker`(Play 時に 1 回集め、
+            // 以後このリストを再利用する)。Handle は `CutsceneMarkerContext` に渡すため Add 直後に入れる。
+            public Handle<CutsceneMarker> Handle;
+            public readonly List<(double, ICutsceneMarker)> ExternalMarkers = new();
+            public int ExternalMarkerCursor;
         }
 
         // [26] §4.5「PlayableDirector は Pool から借用」の実装。PoolService はプレハブの Instantiate を前提に
@@ -250,6 +256,7 @@ namespace DDrive.Runtime.Cutscene
             };
 
             var handle = _instances.Add(instance);
+            instance.Handle = handle;
             instance.EventCtx = new InstanceContext(handle.Index, handle.Generation);
 
             slot.Director.playableAsset = data.Timeline;
@@ -603,6 +610,13 @@ namespace DDrive.Runtime.Cutscene
                             instance.HapticMarkers.Add((marker.time, haptic));
                             break;
                     }
+
+                    // 外部パッケージのマーカー(FC-4)。上の 4 種とは独立に判定する(`Marker` 派生が
+                    // `ICutsceneMarker` を実装していなければ従来どおり無視)。
+                    if (marker is ICutsceneMarker external)
+                    {
+                        instance.ExternalMarkers.Add((marker.time, external));
+                    }
                 }
             }
 
@@ -610,6 +624,7 @@ namespace DDrive.Runtime.Cutscene
             instance.SignalMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
             instance.ShakeMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
             instance.HapticMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+            instance.ExternalMarkers.Sort((a, b) => a.Item1.CompareTo(b.Item1));
         }
 
         // fire=false は Seek(Skip/ネット復元の開始点)用: 跨いだマーカーは「既に通過済み」として無音で
@@ -620,6 +635,7 @@ namespace DDrive.Runtime.Cutscene
             AdvanceSignalMarkers(instance, newElapsed, fire);
             AdvanceShakeMarkers(instance, newElapsed, fire);
             AdvanceHapticMarkers(instance, newElapsed, fire);
+            AdvanceExternalMarkers(instance, newElapsed, fire);
         }
 
         // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — `Application.isPlaying` の代わりに
@@ -688,6 +704,33 @@ namespace DDrive.Runtime.Cutscene
                 if (fire && IsFireEnabled(instance) && marker.HapticId.IsValid)
                 {
                     DDrive.Runtime.Haptics.Haptics.Play(marker.HapticId);
+                }
+            }
+        }
+
+        // [51_tdrive_integration.md] §4.5(FC-4) — 外部の ICutsceneMarker。既存 4 種と同じ規則(跨いだら 1 回、
+        // fire=false / FireEnabled=false は無音でカーソルだけ進める)。外部の例外は 1 マーカーごとに隔離する。
+        private void AdvanceExternalMarkers(CutsceneInstance instance, double newElapsed, bool fire)
+        {
+            var list = instance.ExternalMarkers;
+            while (instance.ExternalMarkerCursor < list.Count && list[instance.ExternalMarkerCursor].Item1 <= newElapsed)
+            {
+                var (markerTime, marker) = list[instance.ExternalMarkerCursor];
+                instance.ExternalMarkerCursor++;
+
+                if (!fire || !IsFireEnabled(instance))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var context = new CutsceneMarkerContext(markerTime, newElapsed, instance.Slot.Director, instance.Handle, false);
+                    marker.Fire(in context);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogException(e);
                 }
             }
         }
