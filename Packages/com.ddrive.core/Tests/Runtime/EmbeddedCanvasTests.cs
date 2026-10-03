@@ -182,7 +182,7 @@ namespace DDrive.Tests.Runtime
         // ── ボタン / スライダー配線 ──
 
         [Test]
-        public void ChildButtonWire_SendSignal_Works_WithParentRelativeElementPath()
+        public void ChildButtonWire_SendSignal_ElementPathIsChildRooted_AndEmbeddedRootPathSaysWhere()
         {
             var child = MakeData(ChildId, "Option");
             child.Buttons = new[] { new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "child/click" } };
@@ -197,7 +197,80 @@ namespace DDrive.Tests.Runtime
 
             Assert.AreEqual(1, received.Count);
             Assert.AreEqual(handle, received[0].Canvas, "シグナルの Canvas は親(開いている Canvas)のハンドル");
-            Assert.AreEqual("OptionRoot/BtnX", received[0].ElementPath, "ElementPath は親ルート基準にそろえる");
+            Assert.AreEqual("BtnX", received[0].ElementPath, "ElementPath は子のルート基準(その子を単独で開いたときと同じ値)");
+            Assert.AreEqual("OptionRoot", received[0].EmbeddedRootPath, "埋め込みの位置は EmbeddedRootPath(Open した Canvas のルートから見たパス)");
+        }
+
+        [Test]
+        public void SignalArgs_ParentOwnWire_And_StandaloneChild_HaveEmptyEmbeddedRootPath()
+        {
+            var childPrefab = new GameObject("ChildStandaloneSig", typeof(RectTransform));
+            _created.Add(childPrefab);
+            childPrefab.AddComponent<Canvas>();
+            childPrefab.AddComponent<CanvasGroup>();
+            var btn = Child(childPrefab.transform, "BtnX", typeof(Image), typeof(UiButton)).GetComponent<UiButton>();
+            btn.DoubleClickSec = 0f;
+            btn.BlockDoubleFire = false;
+            var child = MakeData(ChildId, "Option", childPrefab);
+            var childWire = new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "same/sig" };
+            child.Buttons = new[] { childWire };
+            Register(child);
+
+            var received = new List<SignalArgs>();
+            _manager.OnSignal("same/sig", a => received.Add(a));
+
+            // 単独で Open: ElementPath = "BtnX"、EmbeddedRootPath = 空。
+            var standalone = _manager.OpenData(child);
+            Click(_manager.GetComponent<UiButton>(standalone, "BtnX"));
+            Assert.AreEqual(1, received.Count);
+            Assert.AreEqual("BtnX", received[0].ElementPath);
+            Assert.AreEqual(string.Empty, received[0].EmbeddedRootPath);
+            _manager.Close(standalone);
+            received.Clear();
+
+            // 親自身の配線も EmbeddedRootPath は空。
+            var parent = MakeParent();
+            parent.Buttons = new[] { new ButtonWire { ButtonPath = "OptionRoot/BtnX", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "same/sig" } };
+            var handle = _manager.OpenData(parent);
+            Click(_manager.GetComponent<UiButton>(handle, "OptionRoot/BtnX"));
+            Assert.AreEqual(1, received.Count);
+            Assert.AreEqual("OptionRoot/BtnX", received[0].ElementPath, "親自身の配線は親ルート基準(従来どおり)");
+            Assert.AreEqual(string.Empty, received[0].EmbeddedRootPath);
+        }
+
+        [Test]
+        public void NestedNested_SignalCarriesGrandchildRootedPath_AndConcatenatedEmbeddedRoot()
+        {
+            _prefab.transform.Find("OptionRoot/Inner/Deep").gameObject.AddComponent<UiButton>();
+            var deepButton = _prefab.transform.Find("OptionRoot/Inner/Deep").GetComponent<UiButton>();
+            deepButton.DoubleClickSec = 0f;
+            deepButton.BlockDoubleFire = false;
+
+            var grand = MakeData(GrandId, "Deep");
+            grand.Buttons = new[] { new ButtonWire { ButtonPath = "Deep", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "grand/sig" } };
+            Register(grand);
+            var child = MakeData(ChildId, "Option");
+            child.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "Inner", Canvas = IdOf(GrandId) } };
+            child.Buttons = new[] { new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "child/sig2" } };
+            Register(child);
+            var parent = MakeParent(new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) });
+
+            var grandSignals = new List<SignalArgs>();
+            var childSignals = new List<SignalArgs>();
+            _manager.OnSignal("grand/sig", a => grandSignals.Add(a));
+            _manager.OnSignal("child/sig2", a => childSignals.Add(a));
+
+            var handle = _manager.OpenData(parent);
+            Click(_manager.GetComponent<UiButton>(handle, "OptionRoot/Inner/Deep"));
+            Click(_manager.GetComponent<UiButton>(handle, "OptionRoot/BtnX"));
+
+            Assert.AreEqual(1, grandSignals.Count);
+            Assert.AreEqual("Deep", grandSignals[0].ElementPath, "孫のルート基準(孫を単独で開いたときと同じ)");
+            Assert.AreEqual("OptionRoot/Inner", grandSignals[0].EmbeddedRootPath, "最外のルートからの連結パス");
+            Assert.AreEqual(handle, grandSignals[0].Canvas);
+            Assert.AreEqual(1, childSignals.Count);
+            Assert.AreEqual("BtnX", childSignals[0].ElementPath);
+            Assert.AreEqual("OptionRoot", childSignals[0].EmbeddedRootPath);
         }
 
         [Test]
@@ -233,7 +306,7 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
-        public void ChildSliderWire_SendSignal_CarriesValueAndParentRelativePath()
+        public void ChildSliderWire_SendSignal_CarriesValueAndChildRootedPath()
         {
             var child = MakeData(ChildId, "Option");
             child.Sliders = new[] { new SliderWire { ElementPath = "Sld", Trigger = SliderTrigger.Commit, Action = UiAction.SendSignal, SignalKey = "child/slider" } };
@@ -249,7 +322,8 @@ namespace DDrive.Tests.Runtime
 
             Assert.AreEqual(1, received.Count);
             Assert.AreEqual(0.6f, received[0].Value, 0.001f);
-            Assert.AreEqual("OptionRoot/Sld", received[0].ElementPath);
+            Assert.AreEqual("Sld", received[0].ElementPath, "ElementPath は子のルート基準");
+            Assert.AreEqual("OptionRoot", received[0].EmbeddedRootPath);
         }
 
         // ── 優先順位(親の行が勝つ) ──
@@ -288,6 +362,91 @@ namespace DDrive.Tests.Runtime
 
             Assert.AreEqual(1, parentSignals);
             Assert.AreEqual(0, childSignals, "親が同じボタンを配線していれば子の配線は適用されない");
+        }
+
+        [Test]
+        public void ParentButtonWire_OnlyWinsForTheSameTrigger_ChildLongPressStillApplies()
+        {
+            var button = _prefab.transform.Find("OptionRoot/BtnX").GetComponent<UiButton>();
+            button.LongPressSec = 0.2f;
+            var child = MakeData(ChildId, "Option");
+            child.Buttons = new[]
+            {
+                new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "child/click" },
+                new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.LongPress, Action = UiAction.SendSignal, SignalKey = "child/long" },
+            };
+            Register(child);
+            var parent = MakeParent(new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) });
+            parent.Buttons = new[] { new ButtonWire { ButtonPath = "OptionRoot/BtnX", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "parent/click" } };
+
+            var counts = new Dictionary<string, int>();
+            foreach (var key in new[] { "child/click", "child/long", "parent/click" })
+            {
+                var k = key;
+                counts[k] = 0;
+                _manager.OnSignal(k, _ => counts[k]++);
+            }
+
+            var handle = _manager.OpenData(parent);
+            var ui = _manager.GetComponent<UiButton>(handle, "OptionRoot/BtnX");
+            Click(ui);
+            Assert.AreEqual(1, counts["parent/click"]);
+            Assert.AreEqual(0, counts["child/click"], "親が Click を配線している: 子の Click は適用されない");
+
+            ui.Press();
+            ui.Advance(0.25f); // LongPress
+            ui.Release(true);
+            Assert.AreEqual(1, counts["child/long"], "親が配線していない LongPress は子の配線が使われる(担当は(要素, トリガー)単位)");
+        }
+
+        [Test]
+        public void OverlappingEmbedRegistrations_ApplyEachElementOnlyOnce()
+        {
+            // Hud が OptionRoot(Option)と OptionRoot/Inner(Volume)の両方を登録し、Option 自身も Inner(Volume)を埋め込んでいる。
+            _prefab.transform.Find("OptionRoot/Inner/Deep").gameObject.AddComponent<UiButton>();
+            var deepButton = _prefab.transform.Find("OptionRoot/Inner/Deep").GetComponent<UiButton>();
+            deepButton.DoubleClickSec = 0f;
+            deepButton.BlockDoubleFire = false;
+
+            var volume = MakeData(GrandId, "Volume");
+            volume.Buttons = new[] { new ButtonWire { ButtonPath = "Deep", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "vol/sig" } };
+            Register(volume);
+            var option = MakeData(ChildId, "Option");
+            option.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "Inner", Canvas = IdOf(GrandId) } };
+            Register(option);
+            var parent = MakeParent(
+                new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) },
+                new EmbeddedCanvas { RootPath = "OptionRoot/Inner", Canvas = IdOf(GrandId) });
+
+            var received = new List<SignalArgs>();
+            _manager.OnSignal("vol/sig", a => received.Add(a));
+
+            var handle = _manager.OpenData(parent);
+            Click(_manager.GetComponent<UiButton>(handle, "OptionRoot/Inner/Deep"));
+
+            Assert.AreEqual(1, received.Count, "重なった登録でも、同じ要素の配線は 1 回だけ(ボタン 1 回で 2 回発火しない)");
+            Assert.AreEqual("OptionRoot/Inner", received[0].EmbeddedRootPath, "内側の登録(RootPath が深い方)が先に担当する");
+        }
+
+        [Test]
+        public void OverlappingEmbedRegistrations_ApplyEachElementFxOnlyOnce()
+        {
+            // OptionRoot(A)と OptionRoot/Inner(B)の重なる登録で、同じ要素(OptionRoot/Inner/Deep)に A(5 秒)と B(0.05 秒)の行がある。
+            // 内側の登録 B が先に担当するので、A の行は適用されない(両方適用されると A の 5 秒の Appear が残る)。
+            var a = MakeData(ChildId, "A");
+            a.ElementEffects = new[] { Fx("Inner/Deep", UiPreset.FadeIn, 5f) };
+            Register(a);
+            var b = MakeData(GrandId, "B");
+            b.ElementEffects = new[] { Fx("Deep", UiPreset.FadeIn, 0.05f) };
+            Register(b);
+            var parent = MakeParent(
+                new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) },
+                new EmbeddedCanvas { RootPath = "OptionRoot/Inner", Canvas = IdOf(GrandId) });
+
+            var handle = _manager.OpenData(parent);
+            TickBoth(0.05f, 6); // 0.3 秒
+
+            Assert.IsFalse(_manager.IsOpening(handle), "同じ要素の演出は 1 本だけ(内側の登録 B の 0.05 秒)。A の 5 秒は適用されない");
         }
 
         [Test]

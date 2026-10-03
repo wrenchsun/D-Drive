@@ -73,13 +73,65 @@ namespace DDrive.Editor.CanvasTool
                         code: "DD-CANVAS-EMBED-PREFAB");
                 }
 
-                foreach (var path in OverriddenElements(canvas, embed.RootPath, child))
+                foreach (var message in OverrideMessages(canvas, embed.RootPath, child))
                 {
                     yield return ValidationResult.Info(
-                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 親に '{path}' の行があるため、子 Canvas '{child.DisplayName}' の同じ要素の設定より親の設定が優先されます",
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': {message}",
                         code: "DD-CANVAS-EMBED-OVERRIDE");
                 }
+
+                // 子 Canvas が自分で埋め込んでいる場所(入れ子の入れ子)が、この親でも別の登録として重なっていないか。
+                var overlapJ = FindOverlappingRegistration(canvas, i, child, lookup);
+                if (overlapJ >= 0)
+                {
+                    yield return ValidationResult.Warning(
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{child.DisplayName}' が自分で埋め込んでいる場所が、EmbeddedCanvases[{overlapJ}] '{canvas.EmbeddedCanvases[overlapJ].RootPath}' としても登録されています(埋め込みが重なっています)。" +
+                        "同じ要素は 1 回だけ適用され、先に担当した側(浅い入れ子の側 / 内側の登録)が優先されます。どちらかの登録を外してください",
+                        code: "DD-CANVAS-EMBED-NESTED-ROOT");
+                }
             }
+        }
+
+        // embeds[i] の子 Canvas(child)が入れ子で埋め込む場所(embeds[i].RootPath からの連結パス)のうち、親の別の登録(j != i)の
+        // 配下または同じ場所にあるものがあれば、その j を返す(無ければ -1)。深さ 8 で打ち切り。
+        private static int FindOverlappingRegistration(CanvasData canvas, int i, CanvasData child, CanvasEmbeddedEditing.CanvasLookup lookup)
+        {
+            var visited = new HashSet<CanvasData> { canvas };
+            return FindOverlap(canvas.EmbeddedCanvases, i, canvas.EmbeddedCanvases[i].RootPath, child, lookup, visited, 0);
+        }
+
+        private static int FindOverlap(EmbeddedCanvas[] parentEmbeds, int selfIndex, string prefix, CanvasData node, CanvasEmbeddedEditing.CanvasLookup lookup, HashSet<CanvasData> visited, int depth)
+        {
+            if (depth >= 8 || node?.EmbeddedCanvases == null || !visited.Add(node))
+            {
+                return -1;
+            }
+
+            foreach (var inner in node.EmbeddedCanvases)
+            {
+                if (string.IsNullOrEmpty(inner.RootPath))
+                {
+                    continue;
+                }
+
+                var joined = EmbeddedPaths.Combine(prefix, inner.RootPath);
+                for (var j = 0; j < parentEmbeds.Length; j++)
+                {
+                    if (j != selfIndex && EmbeddedPaths.TryToChildPath(parentEmbeds[j].RootPath, joined, out _))
+                    {
+                        return j;
+                    }
+                }
+
+                var found = FindOverlap(parentEmbeds, selfIndex, joined, lookup.Find(inner.Canvas), lookup, visited, depth + 1);
+                if (found >= 0)
+                {
+                    return found;
+                }
+            }
+
+            visited.Remove(node);
+            return -1;
         }
 
         private static CanvasEmbeddedEditing.CanvasLookup BuildLookup(ValidationContext ctx)
@@ -138,20 +190,21 @@ namespace DDrive.Editor.CanvasTool
                    || PrefabUtility.GetCorrespondingObjectFromOriginalSource(go) == sourcePrefab;
         }
 
-        // 親の ElementEffects / Buttons / Sliders のうち、埋め込みルート配下の、子の行と同じ要素を指しているものの親側のパス。
-        private static IEnumerable<string> OverriddenElements(CanvasData parent, string rootPath, CanvasData child)
+        // 親の ElementEffects / Buttons / Sliders のうち、埋め込みルート配下の、子の行と同じものを指している行がある場合の案内文。
+        // 担当の単位(2026-10-03、レビュー PC-R-08): ElementFx = 要素単位 / ボタン・スライダーの配線 = (要素, トリガー)単位。
+        private static IEnumerable<string> OverrideMessages(CanvasData parent, string rootPath, CanvasData child)
         {
             var seen = new HashSet<string>();
             if (child.ElementEffects != null && parent.ElementEffects != null)
             {
                 foreach (var c in child.ElementEffects)
                 {
-                    var joined = EmbeddedCanvasPaths.Combine(rootPath, c.ElementPath);
+                    var joined = EmbeddedPaths.Combine(rootPath, c.ElementPath);
                     foreach (var p in parent.ElementEffects)
                     {
-                        if (string.Equals(p.ElementPath, joined, System.StringComparison.Ordinal) && seen.Add(joined))
+                        if (string.Equals(p.ElementPath, joined, System.StringComparison.Ordinal) && seen.Add("fx|" + joined))
                         {
-                            yield return joined;
+                            yield return $"親に '{joined}' の ElementFx の行があるため、子 Canvas '{child.DisplayName}' の同じ要素の ElementFx は使われません(ElementFx は要素単位)";
                         }
                     }
                 }
@@ -161,12 +214,12 @@ namespace DDrive.Editor.CanvasTool
             {
                 foreach (var c in child.Buttons)
                 {
-                    var joined = EmbeddedCanvasPaths.Combine(rootPath, c.ButtonPath);
+                    var joined = EmbeddedPaths.Combine(rootPath, c.ButtonPath);
                     foreach (var p in parent.Buttons)
                     {
-                        if (string.Equals(p.ButtonPath, joined, System.StringComparison.Ordinal) && seen.Add(joined))
+                        if (p.Trigger == c.Trigger && string.Equals(p.ButtonPath, joined, System.StringComparison.Ordinal) && seen.Add("btn|" + joined + "|" + c.Trigger))
                         {
-                            yield return joined;
+                            yield return $"親に '{joined}' の {c.Trigger} 配線があるため、子 Canvas '{child.DisplayName}' の同じ要素・同じトリガーの配線は使われません(別のトリガーの配線は子の設定が使われます)";
                         }
                     }
                 }
@@ -176,12 +229,12 @@ namespace DDrive.Editor.CanvasTool
             {
                 foreach (var c in child.Sliders)
                 {
-                    var joined = EmbeddedCanvasPaths.Combine(rootPath, c.ElementPath);
+                    var joined = EmbeddedPaths.Combine(rootPath, c.ElementPath);
                     foreach (var p in parent.Sliders)
                     {
-                        if (string.Equals(p.ElementPath, joined, System.StringComparison.Ordinal) && seen.Add(joined))
+                        if (p.Trigger == c.Trigger && string.Equals(p.ElementPath, joined, System.StringComparison.Ordinal) && seen.Add("sld|" + joined + "|" + c.Trigger))
                         {
-                            yield return joined;
+                            yield return $"親に '{joined}' の {c.Trigger} 配線(スライダー)があるため、子 Canvas '{child.DisplayName}' の同じ要素・同じトリガーの配線は使われません(別のトリガーの配線は子の設定が使われます)";
                         }
                     }
                 }

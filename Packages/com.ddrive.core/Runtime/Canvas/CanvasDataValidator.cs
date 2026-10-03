@@ -98,6 +98,20 @@ namespace DDrive.Runtime.Ui
                         code: "DD-CANVAS-EMBED-DUP");
                 }
 
+                // 重なる登録(一方の RootPath が他方の配下): 同じ要素に 2 つの子 Canvas の設定が届く。実行時は 1 つの要素に 1 回だけ
+                // 適用する(内側の登録が先に担当する)が、意図した形かどうかを知らせる(2026-10-03、レビュー PC-R-04)。
+                for (var j = 0; j < embeds.Length; j++)
+                {
+                    if (j != i && !string.IsNullOrEmpty(embed.RootPath)
+                        && EmbeddedCanvasPaths.TryToChildPath(embeds[j].RootPath, embed.RootPath, out var inner) && inner.Length > 0)
+                    {
+                        yield return ValidationResult.Warning(
+                            $"EmbeddedCanvases[{i}] '{embed.RootPath}' は EmbeddedCanvases[{j}] '{embeds[j].RootPath}' の配下です(埋め込みが重なっています)。" +
+                            "同じ要素は 1 回だけ適用され、内側(この登録)が先に担当します。入れ子の子 Canvas は、子の CanvasData 側で埋め込みを登録するのが基本です",
+                            code: "DD-CANVAS-EMBED-NESTED-ROOT");
+                    }
+                }
+
                 if (!embed.Canvas.IsValid)
                 {
                     yield return ValidationResult.Warning(

@@ -135,7 +135,36 @@ namespace DDrive.Editor.CanvasTool
                 result.Add(new Candidate(path, canvas, IsRegistered(registered, path, canvas)));
             }
 
+            // 重なる登録を提案しない(2026-10-03、レビュー PC-R-04): 他の候補・登録済みの埋め込みルートの配下にある入れ子 Prefab
+            // (= 子 Canvas の Prefab の中にある、入れ子の入れ子)は、その子 Canvas 自身の Canvas Editor で登録するもの。
+            // 親でも登録すると同じ要素に子の設定が重なる。手で追加する(+ 手動で追加)ことは妨げない。
+            var snapshot = new List<Candidate>(result);
+            result.RemoveAll(c => IsInsideOtherRoot(c.RootPath, snapshot, registered));
             return result;
+        }
+
+        private static bool IsInsideOtherRoot(string path, List<Candidate> candidates, EmbeddedCanvas[] registered)
+        {
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                if (candidates[i].RootPath != path && EmbeddedPaths.TryToChildPath(candidates[i].RootPath, path, out var child) && child.Length > 0)
+                {
+                    return true;
+                }
+            }
+
+            if (registered != null)
+            {
+                for (var i = 0; i < registered.Length; i++)
+                {
+                    if (registered[i].RootPath != path && EmbeddedPaths.TryToChildPath(registered[i].RootPath, path, out var child) && child.Length > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private static CanvasData FindCanvasForSource(IReadOnlyList<CanvasData> allCanvases, GameObject source, GameObject original)
@@ -369,7 +398,7 @@ namespace DDrive.Editor.CanvasTool
                     var bestChild = string.Empty;
                     for (var i = 0; i < embeds.Length; i++)
                     {
-                        if (!EmbeddedCanvasPaths.TryToChildPath(embeds[i].RootPath, path, out var childPath) || childPath.Length == 0)
+                        if (!EmbeddedPaths.TryToChildPath(embeds[i].RootPath, path, out var childPath) || childPath.Length == 0)
                         {
                             continue;
                         }
@@ -496,7 +525,7 @@ namespace DDrive.Editor.CanvasTool
                 foreach (var fx in g.Child.ElementEffects)
                 {
                     var childPath = fx.ElementPath ?? string.Empty;
-                    var parentPath = EmbeddedCanvasPaths.Combine(g.RootPath, childPath);
+                    var parentPath = EmbeddedPaths.Combine(g.RootPath, childPath);
                     if (!MatchesFilter(parentPath, filter) && !MatchesFilter(childPath, filter))
                     {
                         continue;
@@ -521,7 +550,7 @@ namespace DDrive.Editor.CanvasTool
                     continue;
                 }
 
-                if (EmbeddedCanvasPaths.TryToChildPath(g.RootPath, parentPath, out var childPath) && childPath.Length > 0
+                if (EmbeddedPaths.TryToChildPath(g.RootPath, parentPath, out var childPath) && childPath.Length > 0
                     && (best == null || g.RootPath.Length > best.RootPath.Length))
                 {
                     best = g;
@@ -569,10 +598,10 @@ namespace DDrive.Editor.CanvasTool
             var prefix = string.Empty;
             for (var i = ancestors.Count - 1; i >= index && i >= 0; i--)
             {
-                prefix = EmbeddedCanvasPaths.Combine(ancestors[i].RootPath, prefix);
+                prefix = EmbeddedPaths.Combine(ancestors[i].RootPath, prefix);
             }
 
-            return EmbeddedCanvasPaths.Combine(prefix, elementPath);
+            return EmbeddedPaths.Combine(prefix, elementPath);
         }
     }
 }

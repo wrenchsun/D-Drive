@@ -441,10 +441,21 @@ namespace DDrive.Editor.CanvasTool
         private static string NameOf(CanvasData data)
             => data == null ? "(なし)" : string.IsNullOrEmpty(data.DisplayName) ? data.name : data.DisplayName;
 
+        // 入力途中(遅延確定)の欄の値を、切り替え前の対象に確定させる(レビュー PC-R-05)。フォーカスを外すと遅延確定の欄が確定し、
+        // そのコールバックは作ったときの対象(owner)に書く。対象を切り替える直前に呼ぶ。
+        private void FlushPendingInput()
+        {
+            if (rootVisualElement?.panel?.focusController?.focusedElement is VisualElement focused)
+            {
+                focused.Blur();
+            }
+        }
+
         private void ApplyTarget(CanvasData target)
         {
             if (target != _target)
             {
+                FlushPendingInput();
                 // ElementFx 直接再生の Handle は (ElementPath, Phase) 文字列だけがキーなので、別の CanvasData に
                 // 切り替えると偶然同じパスの行が「再生中」と誤判定されうる。対象を切り替えたら破棄しておく
                 // (再生自体はプレビューの実体ごと RemovePreview 側で止まるので、ここは辞書のクリアのみでよい)。
@@ -557,7 +568,7 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var rootTransform = stage.prefabContentsRoot.transform;
-            var viewPath = EmbeddedCanvasPaths.Combine(stagePrefix, elementPath);
+            var viewPath = EmbeddedPaths.Combine(stagePrefix, elementPath);
             var found = string.IsNullOrEmpty(viewPath) ? rootTransform : rootTransform.Find(viewPath);
             var label = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
             if (found == null)
@@ -785,7 +796,10 @@ namespace DDrive.Editor.CanvasTool
         // ElementFx 1 行ぶんの編集 UI(Foldout)。index = _target.ElementEffects の添字。
         private VisualElement BuildFxRow(int index, string labelPrefix)
         {
-            var fx = _target.ElementEffects[index];
+            // (レビュー PC-R-05) 各欄のコールバックは、作ったときの対象(owner)に書く。選択に追従して _target が切り替わったあとに
+            // 古い行の UI から確定されても、別の CanvasData には書かない。
+            var owner = _target;
+            var fx = owner.ElementEffects[index];
             // (レビュー対応 2026-09-14) ElementPath が null の行で Dictionary<string, bool> が ArgumentNullException になっていた。
             var elementPath = fx.ElementPath ?? string.Empty;
 
@@ -830,26 +844,26 @@ namespace DDrive.Editor.CanvasTool
             box.Add(BuildPhaseRow(
                 "Appear",
                 elementPath,
-                () => GetFx(index).AppearPreset,
-                v => UpdateFx(index, e => { e.AppearPreset = v; return e; }),
-                () => GetFx(index).Appear,
-                v => UpdateFx(index, e => { e.Appear = v; return e; })));
+                () => GetFx(owner, index).AppearPreset,
+                v => UpdateFx(owner, index, e => { e.AppearPreset = v; return e; }),
+                () => GetFx(owner, index).Appear,
+                v => UpdateFx(owner, index, e => { e.Appear = v; return e; })));
 
             box.Add(BuildPhaseRow(
                 "Idle",
                 elementPath,
-                () => GetFx(index).IdlePreset,
-                v => UpdateFx(index, e => { e.IdlePreset = v; return e; }),
-                () => GetFx(index).Idle,
-                v => UpdateFx(index, e => { e.Idle = v; return e; })));
+                () => GetFx(owner, index).IdlePreset,
+                v => UpdateFx(owner, index, e => { e.IdlePreset = v; return e; }),
+                () => GetFx(owner, index).Idle,
+                v => UpdateFx(owner, index, e => { e.Idle = v; return e; })));
 
             box.Add(BuildPhaseRow(
                 "Disappear",
                 elementPath,
-                () => GetFx(index).DisappearPreset,
-                v => UpdateFx(index, e => { e.DisappearPreset = v; return e; }),
-                () => GetFx(index).Disappear,
-                v => UpdateFx(index, e => { e.Disappear = v; return e; })));
+                () => GetFx(owner, index).DisappearPreset,
+                v => UpdateFx(owner, index, e => { e.DisappearPreset = v; return e; }),
+                () => GetFx(owner, index).Disappear,
+                v => UpdateFx(owner, index, e => { e.Disappear = v; return e; })));
 
             box.Add(new Button(() => CopyRowToOthers(index)) { text = "この要素の設定を他の要素へコピー", style = { marginTop = 4 } });
             return box;
@@ -952,21 +966,27 @@ namespace DDrive.Editor.CanvasTool
 
         private VisualElement BuildEmbeddedRow(int index)
         {
-            var embed = _target.EmbeddedCanvases[index];
+            // (レビュー PC-R-05) 各欄のコールバックは、作ったときの対象(owner)に書く(選択に追従して _target が切り替わったあとに
+            // 遅延確定の欄が確定されても、別の CanvasData には書かない)。
+            var owner = _target;
+            var embed = owner.EmbeddedCanvases[index];
             var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginTop = 2 } };
 
             var pathField = new TextField { value = embed.RootPath ?? string.Empty, isDelayed = true, style = { width = 180 }, tooltip = "親 Prefab ルートからの相対パス(入れ子になっている子 Canvas のルート)。Enter か欄外クリックで確定" };
             pathField.RegisterValueChangedCallback(evt =>
             {
-                if (_target == null || _target.EmbeddedCanvases == null || index >= _target.EmbeddedCanvases.Length)
+                if (owner == null || owner.EmbeddedCanvases == null || index >= owner.EmbeddedCanvases.Length)
                 {
                     return;
                 }
 
-                Undo.RecordObject(_target, "Canvas: 埋め込み Canvas の RootPath");
-                _target.EmbeddedCanvases[index].RootPath = evt.newValue;
-                EditorUtility.SetDirty(_target);
-                RefreshAfterEmbeddedEdit();
+                Undo.RecordObject(owner, "Canvas: 埋め込み Canvas の RootPath");
+                owner.EmbeddedCanvases[index].RootPath = evt.newValue;
+                EditorUtility.SetDirty(owner);
+                if (owner == _target)
+                {
+                    RefreshAfterEmbeddedEdit();
+                }
             });
             row.Add(pathField);
 
@@ -975,7 +995,7 @@ namespace DDrive.Editor.CanvasTool
             canvasField.SetValueWithoutNotify(child);
             canvasField.RegisterValueChangedCallback(evt =>
             {
-                if (_target == null || _target.EmbeddedCanvases == null || index >= _target.EmbeddedCanvases.Length)
+                if (owner == null || owner.EmbeddedCanvases == null || index >= owner.EmbeddedCanvases.Length)
                 {
                     return;
                 }
@@ -988,10 +1008,13 @@ namespace DDrive.Editor.CanvasTool
                     return;
                 }
 
-                Undo.RecordObject(_target, "Canvas: 埋め込み Canvas の子を変更");
-                _target.EmbeddedCanvases[index].Canvas = picked != null ? new AssetId<CanvasMarker>(picked.Id, AssetType.Canvas) : default;
-                EditorUtility.SetDirty(_target);
-                RefreshAfterEmbeddedEdit();
+                Undo.RecordObject(owner, "Canvas: 埋め込み Canvas の子を変更");
+                owner.EmbeddedCanvases[index].Canvas = picked != null ? new AssetId<CanvasMarker>(picked.Id, AssetType.Canvas) : default;
+                EditorUtility.SetDirty(owner);
+                if (owner == _target)
+                {
+                    RefreshAfterEmbeddedEdit();
+                }
             });
             row.Add(canvasField);
 
@@ -1141,20 +1164,20 @@ namespace DDrive.Editor.CanvasTool
         }
 
         // 範囲外(Undo で行が減った等)なら default を返す(レビュー対応 2026-09-14)。
-        private ElementFx GetFx(int index)
-            => _target != null && _target.ElementEffects != null && index >= 0 && index < _target.ElementEffects.Length
-                ? _target.ElementEffects[index]
+        private static ElementFx GetFx(CanvasData owner, int index)
+            => owner != null && owner.ElementEffects != null && index >= 0 && index < owner.ElementEffects.Length
+                ? owner.ElementEffects[index]
                 : default;
 
         // 範囲外なら何もしない(レビュー対応 2026-09-14)。Undo.RecordObject / SetDirty は呼び出し側が行う。
-        private void UpdateFx(int index, Func<ElementFx, ElementFx> mutate)
+        private static void UpdateFx(CanvasData owner, int index, Func<ElementFx, ElementFx> mutate)
         {
-            if (_target == null || _target.ElementEffects == null || index < 0 || index >= _target.ElementEffects.Length)
+            if (owner == null || owner.ElementEffects == null || index < 0 || index >= owner.ElementEffects.Length)
             {
                 return;
             }
 
-            _target.ElementEffects[index] = mutate(_target.ElementEffects[index]);
+            owner.ElementEffects[index] = mutate(owner.ElementEffects[index]);
         }
 
         private VisualElement BuildPhaseRow(
@@ -1162,6 +1185,7 @@ namespace DDrive.Editor.CanvasTool
             System.Func<UiPresetRef> getPreset, System.Action<UiPresetRef> setPreset,
             System.Func<AssetId<UiTweenMarker>> getId, System.Action<AssetId<UiTweenMarker>> setId)
         {
+            var owner = _target; // (レビュー PC-R-05) 確定時に _target が切り替わっていても、作ったときの対象に書く
             var container = new VisualElement();
 
             // [09] §7.1 — ラベル + PopupField + ObjectField(160px 固定) + 「✎ Tween Editor」ボタンを
@@ -1206,12 +1230,12 @@ namespace DDrive.Editor.CanvasTool
             var popup = new PopupField<string>(choices, startIndex >= 0 ? startIndex : 0) { style = { flexGrow = 1f } };
             popup.RegisterValueChangedCallback(evt =>
             {
-                if (_target == null)
+                if (owner == null)
                 {
                     return;
                 }
 
-                Undo.RecordObject(_target, "ElementFx: 割当変更");
+                Undo.RecordObject(owner, "ElementFx: 割当変更");
                 var value = evt.newValue;
                 if (value == NoneChoice)
                 {
@@ -1233,8 +1257,11 @@ namespace DDrive.Editor.CanvasTool
                     }
                 }
 
-                EditorUtility.SetDirty(_target);
-                RebuildElementFxAssignments();
+                EditorUtility.SetDirty(owner);
+                if (owner == _target)
+                {
+                    RebuildElementFxAssignments();
+                }
             });
             row.Add(popup);
 
@@ -1242,12 +1269,12 @@ namespace DDrive.Editor.CanvasTool
             objectField.SetValueWithoutNotify(currentId.IsValid ? FindUiTweenData(currentId.Value) : null);
             objectField.RegisterValueChangedCallback(evt =>
             {
-                if (_target == null)
+                if (owner == null)
                 {
                     return;
                 }
 
-                Undo.RecordObject(_target, "ElementFx: Tween 直接指定");
+                Undo.RecordObject(owner, "ElementFx: Tween 直接指定");
                 if (evt.newValue is UiTweenData tween && tween.Id != 0)
                 {
                     setId(new AssetId<UiTweenMarker>(tween.Id, AssetType.UiTween));
@@ -1258,8 +1285,11 @@ namespace DDrive.Editor.CanvasTool
                     setId(default);
                 }
 
-                EditorUtility.SetDirty(_target);
-                RebuildElementFxAssignments();
+                EditorUtility.SetDirty(owner);
+                if (owner == _target)
+                {
+                    RebuildElementFxAssignments();
+                }
             });
             row.Add(objectField);
 
@@ -1287,7 +1317,7 @@ namespace DDrive.Editor.CanvasTool
                 if (TryGetPreviewPrefix(out var previewPrefix))
                 {
                     collectRoot = _manager.GetGameObject(_previewHandle);
-                    elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, EmbeddedCanvasPaths.Combine(previewPrefix, elementPath));
+                    elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, EmbeddedPaths.Combine(previewPrefix, elementPath));
                 }
 
                 var elementLabel = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
@@ -1432,12 +1462,12 @@ namespace DDrive.Editor.CanvasTool
             if (stage != null)
             {
                 states = _stageStates;
-                return FindInStage(stage, EmbeddedCanvasPaths.Combine(stagePrefix, elementPath));
+                return FindInStage(stage, EmbeddedPaths.Combine(stagePrefix, elementPath));
             }
 
             states = _previewStates;
             return TryGetPreviewPrefix(out var previewPrefix)
-                ? _manager.GetComponent<RectTransform>(_previewHandle, EmbeddedCanvasPaths.Combine(previewPrefix, elementPath))
+                ? _manager.GetComponent<RectTransform>(_previewHandle, EmbeddedPaths.Combine(previewPrefix, elementPath))
                 : null;
         }
 
@@ -1657,7 +1687,7 @@ namespace DDrive.Editor.CanvasTool
 
             foreach (var fx in _target.ElementEffects)
             {
-                _previewStates.Capture(_manager.GetComponent<RectTransform>(_previewHandle, EmbeddedCanvasPaths.Combine(prefix, fx.ElementPath)));
+                _previewStates.Capture(_manager.GetComponent<RectTransform>(_previewHandle, EmbeddedPaths.Combine(prefix, fx.ElementPath)));
             }
         }
 
