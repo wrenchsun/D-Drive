@@ -41,6 +41,11 @@ namespace DDrive.Tests.Runtime
         public double NetworkTime { get; private set; }
         public double LatencySeconds = 0.2;
 
+        // 設定すると、Host 以外が送った Broadcast を実際の NGO と同じく Client → Host → 全員 の 2 区間で配送する
+        // (Host へは 1 区間 = LatencySeconds、送信者自身を含む他の全員へは 2 区間 = LatencySeconds × 2。FY-R-02)。
+        // 既定(null)は従来どおり全員へ 1 区間。
+        public ulong? RelayThroughHostId;
+
         // 送信(EnqueueBroadcast / EnqueueSendTo)された回数。「マーカーの発火でネットへ余計に流れない」ことの確認用(FX-R-01)。
         public int EnqueuedMessageCount { get; private set; }
 
@@ -49,10 +54,12 @@ namespace DDrive.Tests.Runtime
         public void EnqueueBroadcast<T>(ulong senderId, T msg) where T : INetMessage
         {
             EnqueuedMessageCount++;
-            var deliverAt = NetworkTime + LatencySeconds;
+            var viaHost = RelayThroughHostId.HasValue && senderId != RelayThroughHostId.Value;
             foreach (var kv in _bridges)
             {
                 var target = kv.Value;
+                var hops = viaHost && kv.Key != RelayThroughHostId.Value ? 2 : 1;
+                var deliverAt = NetworkTime + LatencySeconds * hops;
                 _queue.Add(new Envelope { DeliverAt = deliverAt, Deliver = () => target.Receive(senderId, msg) });
             }
         }

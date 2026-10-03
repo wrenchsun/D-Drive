@@ -280,9 +280,10 @@ namespace ExternalContract.Tests
             manager.Cancel(handle);
         }
 
-        // E-20(FC-R-03): 途中から始まる再生(Late Join = elapsedSeek > 0)では、開始位置までのマーカー(開始位置ちょうど・0 秒を含む)は無音。
+        // E-20(FC-R-03 / FY-R-02): 途中から始まる再生(Late Join = elapsedSeek > 0)では、開始位置から遡って 0.5 秒以内のマーカー
+        // (開始位置ちょうどを含む)だけ最初の Tick で呼ばれ、それより古い 0 秒のマーカーは無音。
         [Test]
-        public void E20_LateJoin_MarkerAtStartPositionAndAtZero_AreSilent()
+        public void E20_LateJoin_MarkerAtStartPositionFires_MarkerOlderThanGraceIsSilent()
         {
             const ulong CutId = 940102UL;
             var loader = new ExternalContractLoader();
@@ -300,11 +301,44 @@ namespace ExternalContract.Tests
             bridge.InjectReceive(0UL, new CutscenePlayMsg { CutId = CutId, HandleNetKey = 0x55555556u, StartNetTime = 0.0 });
             var active = manager.DebugActiveHandles();
             Assert.AreEqual(1, active.Count);
-            Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "1.0 秒からの途中参加: 0 秒と開始位置ちょうどの 1.0 は無音");
+            Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "Play の呼び出し自体では発火しない(最初の Tick で発火)");
+
+            manager.Tick(0.016f);
+            Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "1.0 秒からの途中参加: 開始位置ちょうどの 1.0 は発火、遡って 0.5 秒を超える 0 秒は無音");
+            Assert.AreEqual(1.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
 
             manager.Tick(1.1f);
-            Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "以降に跨いだ 2.0 だけローカルの Tick で呼ばれる");
-            Assert.AreEqual(2.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+            Assert.AreEqual(2, ExternalFireMarker.Calls.Count, "以降に跨いだ 2.0 は通常どおり");
+            Assert.AreEqual(2.0, ExternalFireMarker.Calls[1].MarkerTime, 1e-6);
+
+            manager.Cancel(active[0]);
+        }
+
+        // E-20(FY-R-02): 受信側の追いつき発火は外部マーカーでも同じ規則(開始位置 - マーカーの時刻 <= 0.5 のものだけ。Event / Signal と同じ)。
+        [Test]
+        public void E20_ReceiverCatchUp_ExternalMarkers_FireOnlyWithinGraceOfTheStartPosition()
+        {
+            const ulong CutId = 940103UL;
+            var loader = new ExternalContractLoader();
+            var registry = new AssetRegistry(loader);
+            var bridge = new ExternalContractBridge { IsServer = false, LocalClientId = 1UL, NetworkTime = 0.75 };
+            var manager = new CutsceneManager(registry, netBridge: bridge);
+
+            var data = BuildMarkersAt(false, 0.0, 0.125, 0.5, 0.75);
+            data.Id = CutId;
+            var flags = data.Flags;
+            flags.Net = NetMode.Cosmetic;
+            data.Flags = flags;
+            ExternalContractRegistry.Register(loader, registry, AssetType.Cutscene, data);
+
+            bridge.InjectReceive(0UL, new CutscenePlayMsg { CutId = CutId, HandleNetKey = 0x55555557u, StartNetTime = 0.0 });
+            var active = manager.DebugActiveHandles();
+            Assert.AreEqual(1, active.Count);
+
+            manager.Tick(0.016f);
+            Assert.AreEqual(2, ExternalFireMarker.Calls.Count, "開始位置 0.75 秒: 遅れ 0.75(0 秒)・0.625(0.125 秒)は無音、遅れ 0.25(0.5 秒)・0(0.75 秒)は発火");
+            Assert.AreEqual(0.5, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+            Assert.AreEqual(0.75, ExternalFireMarker.Calls[1].MarkerTime, 1e-6);
 
             manager.Cancel(active[0]);
         }
@@ -355,7 +389,7 @@ namespace ExternalContract.Tests
         // E-20: ネット受信側(遅延復元 = elapsedSeek > 0)で始まった再生では、既に過ぎたマーカーは無音(Late Join)。
         //       発火は各クライアントのローカル処理(受信側が自分の Tick で跨いだ分だけ呼ぶ)。
         [Test]
-        public void E20_LateJoin_PastMarkersAreSilent_FutureOnesFireLocally()
+        public void E20_LateJoin_MarkersOlderThanGraceAreSilent_RecentAndFutureOnesFireLocally()
         {
             const ulong CutId = 940101UL;
             var loader = new ExternalContractLoader();
@@ -373,11 +407,12 @@ namespace ExternalContract.Tests
             bridge.InjectReceive(0UL, new CutscenePlayMsg { CutId = CutId, HandleNetKey = 0x55555555u, StartNetTime = 0.0 });
             var active = manager.DebugActiveHandles();
             Assert.AreEqual(1, active.Count, "受信側で再生が始まる");
-            Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "2.5 秒からの途中参加: 1.0 / 2.0 は無音");
+            Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "Play の呼び出し自体では発火しない");
 
             manager.Tick(0.6f);
-            Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "以降に跨いだ 3.0 だけ受信側のローカル Tick で呼ばれる");
-            Assert.AreEqual(3.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+            Assert.AreEqual(2, ExternalFireMarker.Calls.Count, "2.5 秒からの途中参加: 遡って 0.5 秒を超える 1.0 は無音、遅れ 0.5 ちょうどの 2.0 と以降に跨いだ 3.0 は受信側のローカル Tick で呼ばれる");
+            Assert.AreEqual(2.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+            Assert.AreEqual(3.0, ExternalFireMarker.Calls[1].MarkerTime, 1e-6);
 
             manager.Cancel(active[0]);
         }
