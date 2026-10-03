@@ -60,6 +60,13 @@ namespace DDrive.Runtime.Anim
                     {
                         yield return ValidationResult.Warning("BlendShape の ShapeName が空の行があります");
                     }
+                    else if (ExternalBlendShapePrefixes.IsOwnedExternally(track.ShapeName))
+                    {
+                        // FC-20: 外部パッケージが管理する接頭辞(FC_ / fcs_)のシェイプ。重さは Warning(追加のみ)。
+                        yield return ValidationResult.Warning(
+                            $"BlendShape '{track.ShapeName}' は外部パッケージが管理するシェイプです。D-Drive の AnimData から書くと衝突します",
+                            code: "DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED");
+                    }
                 }
             }
 

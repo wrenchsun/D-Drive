@@ -107,6 +107,7 @@ static void SetLayerWeight(Animator target, int layer, float weight)</div>
 <li>同じ <code>Animator</code> の同じレイヤーで既に再生中のものがあれば、新しい <code>Play</code> によって自動的に中断（Interrupt）されます</li>
 </ul>
 <p>ドット記法（<code>AnimHandleExtensions</code>）: <code>h.IsPlaying()</code> / <code>h.Stop(fade)</code> / <code>h.SetSpeed(speed)</code> / <code>h.NormalizedTime()</code>。</p>
+<p><strong>外部パッケージが書くブレンドシェイプ:</strong> <code>DDrive.Runtime.Anim.ExternalBlendShapePrefixes</code> は、外部パッケージが LateUpdate などで重みを書くシェイプの接頭辞（既定 <code>FC_</code> / <code>fcs_</code>。大文字小文字を区別する前方一致）を持つ静的クラスです。<code>All</code> が一覧、<code>IsOwnedExternally(string shapeName)</code> が判定です。<code>AnimData.BlendShapes</code> はこれらのシェイプを指定しないでください（指定すると Validation が Warning を出します）。何も指定しなければ D-Drive はこれらのシェイプに触りません。モデルをプールへ返すときは、これらを含む全シェイプが生成時の重みへ戻ります。</p>
 
 <h2>Anim2D（2D スプライトアニメーション）</h2>
 <p>実装: <code>Packages/com.ddrive.core/Runtime/Anim2D/Anim2D.cs:12</code>。再生実体は 3D と同じ <code>AnimManager</code>（<code>Anim2DData</code> は <code>AnimData</code> の派生）で、Handle も共通の <code>Handle&lt;AnimMarker&gt;</code> です。Anim2D 固有の機能は、方向 BlendTree のパラメータ設定です。</p>

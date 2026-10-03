@@ -11,6 +11,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 追加のみ(MINOR): **外部パッケージが所有するブレンドシェイプ接頭辞（2026-10-03、FC-20、[docs/51](docs/51_tdrive_integration.md) §4.21・§3.5・[docs/05](docs/05_model_animation.md) B-6）** — `DDrive.Runtime.Anim` に静的クラス `ExternalBlendShapePrefixes`（`All`〔既定 `FC_`・`fcs_`〕と `IsOwnedExternally(string)`。大文字小文字を区別する前方一致）を追加（`public-api-DDrive.Runtime.txt` を更新。登録口は設けない・実行時の挙動は不変）。`AnimDataValidator` に Warning `DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED`（`AnimData.BlendShapes[].ShapeName` が所有接頭辞のとき。既存の検査・重さは不変）。AnimEditor のモデル情報はこれらのシェイプを既定で隠し件数を出す（Editor、互換性ポリシー対象外）。理由: T-Drive の顔の補正が LateUpdate で `FC_*` / `fcs_*` を書くため、AnimData からの指定と衝突させない。モデル取り込みが名前・ボーンを加工しないことを実コードで再確認（問題なし）
+
 - 追加のみ(MINOR): **モデルの返却時のブレンドシェイプ復元・スポーン / 返却の通知・Pool の複数 `IPoolable`（2026-10-03、FC-2 / FC-12、[docs/05](docs/05_model_animation.md) 2026-10-03 追記・[docs/02](docs/02_core_framework.md) §6・[docs/51](docs/51_tdrive_integration.md) §4.3・§4.13）** — (1) `DDrive.Runtime.Model` に `IModelInstanceListener`（`OnModelSpawned` / `OnModelReturning`）と `ModelInstanceContext`（`Handle` / `Data` / `Root`）を追加（公開型の追加のみ。`public-api-DDrive.Runtime.txt` を更新）。Prefab 上のコンポーネントが実装すると、スロット適用・DefaultAnimation 開始の後と、プールへ戻す（Discard 含む）直前に通知される。(2) `ModelsManager` の返却（`Despawn` / 強制回収）で、モデル配下の `SkinnedMeshRenderer` のブレンドシェイプの重み（`FC_*`・`fcs_*` を含む全シェイプ）をそのモデルを最初に出したときの値へ戻す（`ModelInstancePoolable`〔internal〕。返却の順序は「通知 → 復元」）。**既存モデルの挙動が変わる**: 返却後に再利用されるモデルの表情が次の利用者へ残らなくなる。(3) **`DDrive.Foundation` の `PoolService` が、ルートの全 `IPoolable` に `OnReturn` を呼ぶ**（以前は最初の 1 個だけ。Foundation の挙動追加、U-3 = (a) のユーザー決定）。1 個の `OnReturn` が例外を投げても残りと `SetActive(false)` を続ける（以前は例外が伝播した）。公開 API のシグネチャは不変（`public-api-DDrive.Foundation.txt` に差分なし）。ネットメッセージ・ContentHash・シリアライズ形式は不変
 
 - 追加のみ(MINOR): **カットシーンの「同じ相手へのバインド」（2026-10-03、FC-1、[docs/26](docs/26_timeline.md) §4.2・[docs/51](docs/51_tdrive_integration.md) §4.2）** — `CutsceneBindTarget` の末尾に `SameAsTrack`（= 6）、`CutsceneBinding` の末尾に `SourceTrackName`（string、既定は空）を追加。SpawnModel したキャラに別のトラック（表情など）を、モデルを増やさずに結ぶため。既存の enum 値・フィールド・公開 API・既存 Validator は不変（旧データは `SourceTrackName` が空のまま無影響）。ネットメッセージ・ContentHash は不変（Bindings は各クライアントがローカルに解決）。スナップショット（`enums.txt` に `SameAsTrack=6`、`public-api-DDrive.Runtime.txt` に enum メンバーと `SourceTrackName`）を更新。`CutsceneDataValidator` に Warning を追加（Validation の重さは追加のみ）
@@ -19,6 +21,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- `ExternalBlendShapePrefixes`（外部パッケージが所有するシェイプ接頭辞 `FC_` / `fcs_` の一覧と判定）、`AnimDataValidator` の Warning、AnimEditor のモデル情報で外部管理のシェイプを既定で隠す表示（FC-20）。
 - `MaterialData.DisabledPasses` / `EnabledKeywords`（Material Editor の「Passes / Keywords」欄）: シェーダーのパス（LightMode）を無効にする・シェーダーキーワードを有効にする（FC-11）。
 - カットシーンの Binding に `Target = SameAsTrack` + `SourceTrackName`: 別トラックと同じ相手（Animator / Transform）にバインドする（鎖・並び順非依存・循環や未解決は警告 + そのトラックだけミュート。Edit Mode プレビューも同じ挙動）。`CutsceneDataValidator` の SameAsTrack 検査（Warning 4 種）、Inspector の Binding 入力欄の出し分けと「→ 参照先」の検査表示
 

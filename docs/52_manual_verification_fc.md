@@ -175,7 +175,27 @@
 
 ## 20. FC-20: 所有接頭辞（`FC_` / `fcs_`）の一覧と検査
 
-未実装（実装時に追記）
+[51] §4.21、[05] B-6。自動テストで確認済み: 判定（`FC_x` / `fcs_x` は true、`fc_x` / `Smile` は false）・Validator の Warning 有無・合成 Mesh の Prefab を Spawn → `AnimManager.Tick` → 外部の後書きが次の Tick で上書きされない・名前不変・指定した通常シェイプだけが書かれる（`ExternalBlendShapeOwnershipTests`）。以下は AnimEditor の表示の目視。
+
+### 20.1 モデル情報の一覧で外部管理のシェイプが隠れる
+
+1. `FC_` または `fcs_` で始まるシェイプと通常のシェイプ（例 `Smile`）を持つモデルの Prefab を用意する（顔の補正を使うモデル、または合成メッシュ）
+2. `Tools > D-Drive > Editors` から Anim エディタを開き、確認用モデルとしてその Prefab を対象にする（「モデル Prefab を開く」でも可）
+3. 「モデル情報」の 1 行要約と「モデル情報の詳細（BlendShape 一覧など）」を見る
+4. 詳細の中の「外部管理のシェイプも表示」をオンにする
+
+期待する結果: 手順 3 では要約が「BlendShape N 個（外部管理 M 件を除く）」、詳細の一覧に `FC_*` / `fcs_*` が出ず、末尾に「外部管理 M 件」の説明が出る。手順 4 では `FC_*` / `fcs_*` も一覧に出る。
+
+結果: □ 未
+
+### 20.2 AnimData が外部管理のシェイプを指すと警告
+
+1. AnimData の `BlendShapes` に ShapeName `FC_Test_Neutral_R0_C0` の行を足す（既存の値は消えないことも確認）
+2. Validation（`Tools > D-Drive > Validation > Run All`）を実行する
+
+期待する結果: 「BlendShape 'FC_Test_Neutral_R0_C0' は外部パッケージが管理するシェイプです…」の Warning が出る。`Smile` のような通常名では出ない。
+
+結果: □ 未
 
 ## 22. T-Drive 導入後に確認
 
