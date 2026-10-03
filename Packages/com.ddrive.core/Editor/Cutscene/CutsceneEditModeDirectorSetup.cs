@@ -33,6 +33,7 @@ namespace DDrive.Editor.Cutscene
 
         // FC-1: ApplyBindings の 2 パス用の再利用バッファ(Bindings と同じ添字)。
         private static readonly List<Object> _bindingResolved = new();
+        private static bool _bindingResolvedBusy; // 再入検出(FC-R-05。CutsceneManager.ApplyBindings と同じ「使用中フラグ + 再入時だけ一時リスト」)
 
         public static void OpenTimelineWindow(CutsceneData cutscene)
         {
@@ -210,12 +211,37 @@ namespace DDrive.Editor.Cutscene
 
             var actor = GameObject.Find(CutscenePreviewSceneSetup.ActorName);
 
+            // Spawn は外部の IModelInstanceListener.OnModelSpawned を同期で呼ぶので、その中から再入しても共有バッファを壊さない(FC-R-05)。
+            var ownsShared = !_bindingResolvedBusy;
+            var resolvedList = ownsShared ? _bindingResolved : new List<Object>(cutscene.Bindings.Length);
+            if (ownsShared)
+            {
+                _bindingResolvedBusy = true;
+            }
+
+            try
+            {
+                ApplyBindingsCore(cutscene, director, actor, managers, resolvedList);
+            }
+            finally
+            {
+                resolvedList.Clear();
+                if (ownsShared)
+                {
+                    _bindingResolvedBusy = false;
+                }
+            }
+        }
+
+        private static void ApplyBindingsCore(CutsceneData cutscene, PlayableDirector director, GameObject actor,
+            CutsceneEditModeManagers managers, List<Object> resolvedList)
+        {
             // [51_tdrive_integration.md] §4.2(FC-1) — Play 経路(CutsceneManager.ApplyBindings)と同じ 2 パス。
             var bindings = cutscene.Bindings;
-            _bindingResolved.Clear();
+            resolvedList.Clear();
             for (var i = 0; i < bindings.Length; i++)
             {
-                _bindingResolved.Add(null);
+                resolvedList.Add(null);
             }
 
             for (var i = 0; i < bindings.Length; i++)
@@ -233,7 +259,7 @@ namespace DDrive.Editor.Cutscene
                 }
 
                 var resolved = ResolveBindingObject(in binding, actor, managers, director.transform);
-                _bindingResolved[i] = resolved;
+                resolvedList[i] = resolved;
                 director.SetGenericBinding(track, resolved);
             }
 
@@ -251,7 +277,7 @@ namespace DDrive.Editor.Cutscene
                     continue;
                 }
 
-                var resolved = ResolveSameAsTrack(bindings, i, out var reason);
+                var resolved = ResolveSameAsTrack(bindings, i, resolvedList, out var reason);
                 if (resolved == null)
                 {
                     Debug.LogWarning($"[DDrive] Cutscene '{cutscene.DisplayName}': トラック '{binding.TrackName}' が未解決です({reason})。そのトラックはミュートのままです。");
@@ -259,12 +285,10 @@ namespace DDrive.Editor.Cutscene
 
                 director.SetGenericBinding(track, resolved);
             }
-
-            _bindingResolved.Clear();
         }
 
         // Target=SameAsTrack の解決(CutsceneManager.ResolveSameAsTrack と同じロジック。public を増やさないため 2 箇所に持つ)。
-        private static Object ResolveSameAsTrack(CutsceneBinding[] bindings, int index, out string reason)
+        private static Object ResolveSameAsTrack(CutsceneBinding[] bindings, int index, List<Object> resolvedList, out string reason)
         {
             var cur = index;
             reason = null;
@@ -301,7 +325,7 @@ namespace DDrive.Editor.Cutscene
 
                 if (bindings[next].Target != CutsceneBindTarget.SameAsTrack)
                 {
-                    var found = _bindingResolved[next];
+                    var found = resolvedList[next];
                     if (found == null)
                     {
                         reason = $"参照先 '{src}' が未解決です";

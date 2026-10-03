@@ -313,11 +313,11 @@ public sealed class MyMarker : Marker, ICutsceneMarker
 }</pre>
 <table>
 <tr><th>項目</th><th>内容</th></tr>
-<tr><td>呼ばれるとき</td><td>再生位置が時刻を跨いだ Tick で 1 回。巻き戻しても再発火しません。1 Tick で複数跨いだら時刻順に呼ばれます</td></tr>
-<tr><td>呼ばれないとき</td><td><code>Seek</code> / <code>Skip</code>・ネットワークの途中参加（Late Join）で跨いだ分は無音。Edit Mode ではスクラブ（Timeline ウィンドウが再生中でない）・再生開始の立ち上がり・巻き戻しも無音。<code>CutsceneDirectorContext.FireEnabled</code> が false の間も呼ばれません</td></tr>
+<tr><td>呼ばれるとき</td><td>再生位置が時刻を跨いだ Tick で 1 回。最初から再生したとき（開始位置 0）は、ちょうど 0 秒に置いたマーカーも最初の Tick で呼ばれます。巻き戻しても再発火しません。1 Tick で複数跨いだら時刻順に呼ばれます。Timeline 上端のマーカー領域に置いたマーカーも対象です</td></tr>
+<tr><td>呼ばれないとき</td><td><code>Seek</code> / <code>Skip</code>・ネットワークの途中参加（Late Join）で跨いだ分（開始位置ちょうどを含む）は無音。Edit Mode ではスクラブ（Timeline ウィンドウが再生中でない）・途中からの再生開始位置まで・巻き戻しも無音（先頭からの再生では 0 秒のマーカーも呼ばれます）。<code>Fire</code> の中でカットシーンを止めたときは、同じ Tick の残りのマーカーは呼ばれません。<code>CutsceneDirectorContext.FireEnabled</code> が false の間も呼ばれません</td></tr>
 <tr><td>例外</td><td>マーカーごとに捕まえて Console に出し、他のマーカーと再生は続きます</td></tr>
 <tr><td>ネットワーク</td><td>呼び出しは各クライアントのローカル処理で、ネットワークには流れません（Cosmetic のカットシーンなら各クライアントが同じ時刻に自分で呼びます）。全員で同じ結果が要る処理は、外部側で同期してください</td></tr>
-<tr><td>実装の注意</td><td><code>Fire</code> は Tick 内で呼ばれるので、割り当て・LINQ・クロージャを避けてください。<code>Marker</code> は <code>ScriptableObject</code> なので、<code>Reset</code> など Unity が特別扱いするメソッド名を static で定義しないでください。<code>ICutsceneMarker</code> を実装しない <code>Marker</code> は従来どおり無視されます</td></tr>
+<tr><td>実装の注意</td><td><code>Fire</code> は Tick 内で呼ばれるので、割り当て・LINQ・クロージャを避けてください。<code>Marker</code> は <code>ScriptableObject</code> なので、<code>Reset</code> など Unity が特別扱いするメソッド名を static で定義しないでください。<code>ICutsceneMarker</code> を実装しない <code>Marker</code> は無視されます</td></tr>
 <tr><td>互換</td><td><code>ICutsceneMarker</code> / <code>CutsceneMarkerContext</code> は公開 API で、追加のみです（欄の追加は末尾）。挙動は外部拡張の契約（E-20）としてテストで固定されています</td></tr>
 </table>
 
@@ -378,7 +378,7 @@ public sealed class MyTextureRules : ITextureImportRuleProvider
 <table>
 <tr><th>項目</th><th>内容</th></tr>
 <tr><td>変換表の優先順位</td><td>マテリアル変換ウィンドウは <code>Assets/</code> の表 → 外部が返した表 → D-Drive 同梱の表の順に探します。同じ変換元・変換先の表が複数あれば先に並んだ表が使われます。<code>GetTables()</code> は表を集め直すたびに呼ばれます</td></tr>
-<tr><td>規則の評価位置</td><td>外部の規則は Profile（<code>TextureImportProfile</code>）の <code>Rules</code> の<b>前</b>に評価されます（<code>T_</code> 接頭辞の規則より先に効きます）。Postprocessor・Validation・TextureData・ImportRule・Maya 取り込みのすべてが同じ判定を通ります。対象パス（<code>IncludePathContains</code>）は従来どおり Profile で決まります</td></tr>
+<tr><td>規則の評価位置</td><td>外部の規則は Profile（<code>TextureImportProfile</code>）の <code>Rules</code> の<b>前</b>に評価されます（<code>T_</code> 接頭辞の規則より先に効きます）。Postprocessor・Validation・TextureData・ImportRule・Maya 取り込みのすべてが同じ判定を通ります。対象パス（<code>IncludePathContains</code>）は Profile で決まります</td></tr>
 <tr><td>プロジェクトの上書き</td><td>Profile の <code>Rules</code> に、外部規則と同じ条件（<code>Match</code> の種類と <code>Pattern</code>。大文字小文字は区別しない）の規則があれば、そちらが優先され外部規則は使われません。条件が違う規則は上書きされません</td></tr>
 <tr><td>呼ばれる回数</td><td><code>GetRules()</code> はドメインリロードごとに 1 回です（テクスチャごとには呼びません）</td></tr>
 <tr><td>例外</td><td>提供口ごとに捕まえて Console に出し、他の提供口は有効なままです</td></tr>

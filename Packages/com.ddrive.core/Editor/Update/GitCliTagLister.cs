@@ -22,17 +22,28 @@ namespace DDrive.Editor.Update
                 return null;
             }
 
+            // `-` で始まる URL はオプションとして解釈され得るため実行前に弾く(例外にはしない)。
+            if (!GitArguments.IsSafeValue(repoUrl))
+            {
+                warningMessage = GitArguments.UnsafeWarning("リポジトリ URL");
+                return null;
+            }
+
             try
             {
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "git",
-                    Arguments = "ls-remote --tags " + Quote(repoUrl),
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true,
                 };
+                // 引数は 1 個ずつ渡し、URL の前に `--` を置く(引用符の組み立てをしない)。
+                foreach (var argument in GitArguments.LsRemoteTags(repoUrl))
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
 
                 using var process = new Process { StartInfo = startInfo };
 
@@ -112,7 +123,5 @@ namespace DDrive.Editor.Update
 
             return null;
         }
-
-        private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
     }
 }

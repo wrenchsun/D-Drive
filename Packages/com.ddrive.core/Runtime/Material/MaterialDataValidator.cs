@@ -131,7 +131,7 @@ namespace DDrive.Runtime.Material
                     MaterialShaderInfo.CollectLightModes(mat.Shader, lightModes);
                     foreach (var pass in mat.DisabledPasses)
                     {
-                        if (!string.IsNullOrEmpty(pass) && !MaterialShaderInfo.ContainsIgnoreCase(lightModes, pass))
+                        if (!string.IsNullOrEmpty(pass) && !ContainsIgnoreCase(lightModes, pass))
                         {
                             yield return ValidationResult.Warning(
                                 $"DisabledPasses '{pass}' はシェーダー '{mat.Shader.name}' の LightMode にありません(無視されます)。" +
@@ -178,6 +178,20 @@ namespace DDrive.Runtime.Material
                     }
                 }
             }
+        }
+
+        // LightMode 名は大文字小文字を区別しない(Material.SetShaderPassEnabled と同じ)。
+        private static bool ContainsIgnoreCase(List<string> list, string name)
+        {
+            for (var i = 0; i < list.Count; i++)
+            {
+                if (string.Equals(list[i], name, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

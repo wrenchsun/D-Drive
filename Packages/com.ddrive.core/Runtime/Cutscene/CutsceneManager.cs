@@ -109,6 +109,7 @@ namespace DDrive.Runtime.Cutscene
         private readonly HashSet<string> _unresolvedBindingWarned = new();
         // FC-1: ApplyBindings の 2 パス用の再利用バッファ(Bindings と同じ添字。使用後 Clear)。
         private readonly List<Object> _bindingResolved = new();
+        private bool _bindingResolvedBusy; // ApplyBindings の再入検出(FC-R-05)
         private readonly HashSet<CutsceneData> _skipWarned = new();
 
         // [26_timeline.md] §4.6(6-10b) — Camera クリップを持つ Cutscene のうち、現在カメラを実際に駆動して
@@ -263,9 +264,14 @@ namespace DDrive.Runtime.Cutscene
             ApplyOrigin(instance);
             ApplyBindings(instance);
             CollectMarkers(instance);
-            // elapsedSeek>0(ネット越しの遅延復元等)で始まる場合、既に過ぎたマーカーは無音でスキップする
-            // (PresentationManager の SeekInitialTracks と同じ方針)。elapsedSeek==0 なら何も跨がない。
-            AdvanceMarkers(instance, instance.Elapsed, fire: false);
+            // elapsedSeek>0(ネット越しの遅延復元等)で始まる場合、開始位置までに過ぎたマーカー(開始位置ちょうどを含む)は
+            // 無音でスキップする(PresentationManager の SeekInitialTracks と同じ方針)。
+            // elapsedSeek==0(最初から再生)は何も跨がないので追い付かせない = 時刻 0 のマーカーも最初の Tick で発火する
+            // (2026-10-03、FC-R-03。既存の Event / Signal / Shake / Haptic も同じ)。
+            if (instance.Elapsed > 0d)
+            {
+                AdvanceMarkers(instance, instance.Elapsed, fire: false);
+            }
 
             slot.Director.time = System.Math.Min(instance.Elapsed, System.Math.Max(0d, instance.Duration));
             slot.Director.extrapolationMode = data.Wrap;
@@ -345,14 +351,40 @@ namespace DDrive.Runtime.Cutscene
                 return;
             }
 
+            // 共有バッファ _bindingResolved は再入に耐える形にする(FC-R-05、PoolService.NotifyReturn と同じ「使用中フラグ + 再入時だけ一時リスト」)。
+            // パス 1 の SpawnModel は外部の IModelInstanceListener.OnModelSpawned を同期で呼ぶため、その中から別の Cutscene が Play されると
+            // 入れ子の ApplyBindings が来る。通常経路(再入なし)は共有バッファを使い、割り当てない。
+            var ownsShared = !_bindingResolvedBusy;
+            var resolvedList = ownsShared ? _bindingResolved : new List<Object>(data.Bindings.Length);
+            if (ownsShared)
+            {
+                _bindingResolvedBusy = true;
+            }
+
+            try
+            {
+                ApplyBindingsCore(instance, data, resolvedList);
+            }
+            finally
+            {
+                resolvedList.Clear();
+                if (ownsShared)
+                {
+                    _bindingResolvedBusy = false;
+                }
+            }
+        }
+
+        private void ApplyBindingsCore(CutsceneInstance instance, CutsceneData data, List<Object> resolvedList)
+        {
             var bindings = data.Bindings;
 
             // [51_tdrive_integration.md] §4.2(FC-1) — 2 パス。パス 1 = SameAsTrack 以外を従来どおり解決して
-            // 配列順に _bindingResolved へ控える。パス 2 = SameAsTrack を参照先の解決結果へ結ぶ(並び順に依存しない)。
-            _bindingResolved.Clear();
+            // 配列順に resolvedList へ控える。パス 2 = SameAsTrack を参照先の解決結果へ結ぶ(並び順に依存しない)。
+            resolvedList.Clear();
             for (var i = 0; i < bindings.Length; i++)
             {
-                _bindingResolved.Add(null);
+                resolvedList.Add(null);
             }
 
             for (var i = 0; i < bindings.Length; i++)
@@ -371,7 +403,7 @@ namespace DDrive.Runtime.Cutscene
                 }
 
                 var resolved = ResolveBindingObject(instance, in binding);
-                _bindingResolved[i] = resolved;
+                resolvedList[i] = resolved;
                 instance.Slot.Director.SetGenericBinding(track, resolved);
             }
 
@@ -390,7 +422,7 @@ namespace DDrive.Runtime.Cutscene
                     continue;
                 }
 
-                var resolved = ResolveSameAsTrack(data, i, out var reason);
+                var resolved = ResolveSameAsTrack(data, i, resolvedList, out var reason);
                 if (resolved == null)
                 {
                     WarnUnresolvedBinding(data, binding.TrackName, reason);
@@ -398,12 +430,10 @@ namespace DDrive.Runtime.Cutscene
 
                 instance.Slot.Director.SetGenericBinding(track, resolved);
             }
-
-            _bindingResolved.Clear();
         }
 
         // Target=SameAsTrack の解決(鎖をたどる)。成功時は reason=null。失敗は null + 理由(警告用。失敗時のみ文字列を作る)。
-        private Object ResolveSameAsTrack(CutsceneData data, int index, out string reason)
+        private Object ResolveSameAsTrack(CutsceneData data, int index, List<Object> resolvedList, out string reason)
         {
             var bindings = data.Bindings;
             var cur = index;
@@ -441,7 +471,7 @@ namespace DDrive.Runtime.Cutscene
 
                 if (bindings[next].Target != CutsceneBindTarget.SameAsTrack)
                 {
-                    var found = _bindingResolved[next];
+                    var found = resolvedList[next];
                     if (found == null)
                     {
                         reason = FindTrackByName(data.Timeline, src) == null
@@ -731,6 +761,12 @@ namespace DDrive.Runtime.Cutscene
                 catch (System.Exception e)
                 {
                     Debug.LogException(e);
+                }
+
+                // Fire の中でこのカットシーンが止められた(Stop / 別の Play で枠が再貸出された)なら、残りは呼ばない(FC-R-09)。
+                if (!_instances.IsValidSilent(instance.Handle))
+                {
+                    break;
                 }
             }
         }
@@ -1432,6 +1468,12 @@ namespace DDrive.Runtime.Cutscene
 
                 UpdateCameraForInstance(handle, instance);
                 AdvanceMarkers(instance, instance.Elapsed, fire: true);
+
+                // マーカーの Fire の中で止められた(FC-R-09)なら、この instance にはもう触らない。
+                if (!_instances.IsValidSilent(handle))
+                {
+                    continue;
+                }
 
                 _events.Tick(instance.EventCtx, dt);
 

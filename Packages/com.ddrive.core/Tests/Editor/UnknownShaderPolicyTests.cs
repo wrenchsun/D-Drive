@@ -12,7 +12,7 @@ namespace DDrive.Tests.Editor
 {
     // [51_tdrive_integration.md] §4.16 FC-15(2026-10-03、U-9 = (c)) — 知らないシェーダーを黙って DDrive/Lit に変換しない。
     // 対話的な操作(Ask)では 1 操作 1 回だけ確認し、非対話の経路は従来どおり Lit。KeepSource は確認なしで元のシェーダーを保つ。
-    // 実ダイアログは出さない(UnknownShaderGuard.PromptOverride を差し替える)。実 Profile / 実 GameData は触らない。
+    // 実ダイアログは出さない(UnknownShaderGuard.PromptOverrideForTests を差し替える)。実 Profile / 実 GameData は触らない。
     public class UnknownShaderPolicyTests
     {
         private const string TestRoot = TestTempFolder.Root + "/TempUnknownShaderData";
@@ -39,11 +39,11 @@ namespace DDrive.Tests.Editor
 
             _profile = ScriptableObject.CreateInstance<MayaImportProfile>();
             _profile.hideFlags = HideFlags.HideAndDontSave;
-            MayaImportProfile.TestOverride = _profile; // 実プロジェクトの Profile を読まない
+            MayaImportProfile.ProfileOverrideForTests = _profile; // 実プロジェクトの Profile を読まない
             _prompts = 0;
             _lastPrompt = null;
             _answer = UnknownShaderChoice.Keep;
-            UnknownShaderGuard.PromptOverride = prompt =>
+            UnknownShaderGuard.PromptOverrideForTests = prompt =>
             {
                 _prompts++;
                 _lastPrompt = prompt;
@@ -54,8 +54,8 @@ namespace DDrive.Tests.Editor
         [TearDown]
         public void TearDown()
         {
-            UnknownShaderGuard.PromptOverride = null;
-            MayaImportProfile.TestOverride = null;
+            UnknownShaderGuard.PromptOverrideForTests = null;
+            MayaImportProfile.ProfileOverrideForTests = null;
             if (_profile != null)
             {
                 Object.DestroyImmediate(_profile);
@@ -85,6 +85,42 @@ namespace DDrive.Tests.Editor
             AssetDatabase.CreateAsset(m, path);
             _assets.Add(path);
             return m;
+        }
+
+        // シェーダー参照が欠けた .mat(パッケージ未導入・GUID 切れ)を作る。Unity は shader に Hidden/InternalErrorShader を返す(FC-R-02)。
+        private UnityEngine.Material CreateMissingShaderMaterialAsset(string name)
+        {
+            var path = TempFolder + "/" + name + ".mat";
+            var yaml = string.Join("\n", new[]
+            {
+                "%YAML 1.1",
+                "%TAG !u! tag:unity3d.com,2011:",
+                "--- !u!21 &2100000",
+                "Material:",
+                "  serializedVersion: 8",
+                "  m_ObjectHideFlags: 0",
+                "  m_Name: " + name,
+                "  m_Shader: {fileID: 4800000, guid: 0123456789abcdef0123456789abcdef, type: 3}",
+                "  m_ValidKeywords: []",
+                "  m_InvalidKeywords: []",
+                "  m_LightmapFlags: 4",
+                "  m_EnableInstancingVariants: 0",
+                "  m_DoubleSidedGI: 0",
+                "  m_CustomRenderQueue: -1",
+                "  stringTagMap: {}",
+                "  disabledShaderPasses: []",
+                "  m_SavedProperties:",
+                "    serializedVersion: 3",
+                "    m_TexEnvs: []",
+                "    m_Ints: []",
+                "    m_Floats: []",
+                "    m_Colors: []",
+                "",
+            });
+            System.IO.File.WriteAllText(path, yaml);
+            AssetDatabase.ImportAsset(path);
+            _assets.Add(path);
+            return AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
         }
 
         private static int CountMaterialData()
@@ -174,7 +210,7 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(UnknownShaderGuard.TryResolve(_profile, new[] { a }, false, out var handling));
 
             Assert.AreEqual(0, _prompts);
-            Assert.AreEqual(UnknownShaderHandling.Convert, handling);
+            Assert.AreEqual(UnknownShaderHandling.ConvertKeepingExisting, handling, "Ask の非対話既定は Convert だが既存 Data の知らないシェーダーは上書きしない(FC-R-01)");
         }
 
         [Test]
@@ -269,6 +305,114 @@ namespace DDrive.Tests.Editor
 
             Assert.AreSame(first, again);
             Assert.AreEqual(UnityMaterialMigrator.LitShaderName, again.Shader.name, "Convert は従来どおり上書きする");
+        }
+
+        // ── FC-R-01: 非対話 + Ask では、既存 Data の知らないシェーダー(= 以前「保つ」を選んだもの)を Lit に戻さない ──
+
+        [Test]
+        public void Migrate_AskNonInteractive_DoesNotOverwriteExistingKeptUnknownShader()
+        {
+            var m = CreateMaterialAsset("MigKeptThenAsk", _unknown);
+            var first = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot, UnknownShaderHandling.Keep);
+            Assert.AreSame(_unknown, first.Shader);
+
+            var again = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot); // 非対話・Profile は Ask
+
+            Assert.AreSame(first, again);
+            Assert.AreSame(_unknown, again.Shader, "Keep で作った Data を、後の非対話処理で Lit に戻さない");
+            Assert.AreEqual(0, _prompts);
+        }
+
+        [Test]
+        public void Migrate_ConvertToLitPolicy_NonInteractive_StillOverwritesExistingKeptShader()
+        {
+            var m = CreateMaterialAsset("MigKeptThenConvertPolicy", _unknown);
+            var first = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot, UnknownShaderHandling.Keep);
+            _profile.UnknownShaderPolicy = UnknownShaderPolicy.ConvertToLit;
+
+            var again = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot);
+
+            Assert.AreSame(first, again);
+            Assert.AreEqual(UnityMaterialMigrator.LitShaderName, again.Shader.name, "ConvertToLit は明示の指定なので従来どおり Lit に寄せる");
+        }
+
+        [Test]
+        public void Migrate_AskNonInteractive_ExistingKnownShader_IsStillMovedToLit_LikeBefore()
+        {
+            var urp = Shader.Find("Universal Render Pipeline/Lit");
+            Assume.That(urp != null, "URP Lit が必要");
+            var m = CreateMaterialAsset("MigKnown", urp);
+            var first = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot);
+            first.Shader = urp; // 以前 URP Lit のまま作られた Data
+            EditorUtility.SetDirty(first);
+
+            var again = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot);
+
+            Assert.AreEqual(UnityMaterialMigrator.LitShaderName, again.Shader.name, "変換表にある標準シェーダーの既存 Data は従来どおり寄せる");
+        }
+
+        [Test]
+        public void ContextMenuMaterialCreation_AsksOncePerOperation_AndCancelCreatesNothing()
+        {
+            Assume.That(!Application.isBatchMode, "バッチモードは非対話");
+            var option = DDrive.Editor.Creation.SourceDataCreation.Find(typeof(MaterialData));
+            Assert.IsNotNull(option);
+            Assert.IsNotNull(option.BeginBatch, "右クリックの Material 作成は事前確認(BeginBatch)を持つ");
+            var a = CreateMaterialAsset("CtxA", _unknown);
+            var b = CreateMaterialAsset("CtxB", _unknown);
+            var paths = new List<string> { AssetDatabase.GetAssetPath(a), AssetDatabase.GetAssetPath(b) };
+
+            try
+            {
+                _answer = UnknownShaderChoice.Cancel;
+                Assert.IsFalse(option.BeginBatch(paths), "キャンセルなら false(何も作らない)");
+                Assert.AreEqual(1, _prompts, "2 件でも確認は 1 回");
+                option.EndBatch();
+
+                _answer = UnknownShaderChoice.Keep;
+                Assert.IsTrue(option.BeginBatch(paths));
+                Assert.AreEqual(2, _prompts);
+            }
+            finally
+            {
+                option.EndBatch();
+            }
+        }
+
+        // ── FC-R-02: シェーダーが欠けた Material は「知らないシェーダー」として保たず、警告して Lit にする ──
+
+        [Test]
+        public void MissingShader_IsNotUnknown_AndIsNeverKept()
+        {
+            var m = CreateMissingShaderMaterialAsset("MissingShader");
+            Assume.That(m != null, "欠けたシェーダーの .mat を読めること");
+            Assert.AreEqual(UnknownShaderGuard.MissingShaderName, m.shader.name, "Unity は欠けたシェーダーを Hidden/InternalErrorShader で返す");
+            Assert.IsTrue(UnknownShaderGuard.IsMissing(m.shader));
+            Assert.IsFalse(UnknownShaderGuard.IsUnknown(m.shader), "保つ対象(知らないシェーダー)にしない");
+            Assert.IsNull(UnknownShaderGuard.BuildPrompt(new[] { m }), "確認ダイアログの対象でもない");
+
+            var report = new MayaMaterialImporter.Report();
+            var data = UnityMaterialMigrator.Migrate(m, "Migrate", report, TestRoot, UnknownShaderHandling.Keep);
+
+            Assert.IsNotNull(data, report.ToString());
+            Assert.AreEqual(UnityMaterialMigrator.LitShaderName, data.Shader.name, "Keep でも欠けたシェーダーは Lit に変換する");
+            StringAssert.Contains("見つかりません", string.Join("\n", report.Lines));
+            Assert.AreEqual(UnityMaterialMigrator.LitShaderName, MayaMaterialImporter.ResolveTargetShader(_profile, m, UnknownShaderHandling.Keep).name);
+        }
+
+        [Test]
+        public void MissingShader_IsCountedSeparately_InPrompt()
+        {
+            var missing = CreateMissingShaderMaterialAsset("MissingShader2");
+            Assume.That(missing != null);
+            var unk = CreateMaterialAsset("UnkWithMissing", _unknown);
+
+            var prompt = UnknownShaderGuard.BuildPrompt(new[] { unk, missing });
+
+            Assert.IsNotNull(prompt);
+            Assert.AreEqual(1, prompt.MaterialCount);
+            Assert.AreEqual(1, prompt.MissingShaderMaterialCount);
+            StringAssert.Contains("見つからない", prompt.Message);
         }
 
         // ── MayaMaterialImporter ──

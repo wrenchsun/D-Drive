@@ -232,7 +232,10 @@ namespace ExternalContract.Tests
         public void E22_NoExternalRules_MatchingIsUnchanged()
         {
             Assert.IsEmpty(TextureImportRuleProviders.Rules);
-            var profile = TextureImportProfile.FindOrDefault();
+            // 持ち込み先の実 Profile(規則を編集していることがある)に依存しないよう、既定の規則だけの Profile で確認する(FC-R-21)。
+            var profile = ScriptableObject.CreateInstance<TextureImportProfile>();
+            _objects.Add(profile);
+            profile.Rules = TextureImportProfile.DefaultRules();
             Assert.IsFalse(profile.TryMatch(CharaDir + "Chara_ToonMask.png", out _));
             Assert.IsTrue(profile.TryMatch(CharaDir + "T_Body_N.png", out var normal));
             Assert.AreEqual("NormalMap", normal.Name);

@@ -20,6 +20,9 @@ namespace ExternalPackage.Fake
 
         public static readonly List<Call> Calls = new();
 
+        // Fire の中で何かさせたいテスト用(例: カットシーンを止める)。使い終わったら null に戻す。
+        public static Action<ExternalFireMarker> OnFire;
+
         // true のマーカーは Fire で例外を投げる(例外隔離の確認用)。
         public bool Throw;
 
@@ -36,6 +39,8 @@ namespace ExternalPackage.Fake
                 HasHandle = context.Handle.Index >= 0,
                 IsEditPreview = context.IsEditPreview,
             });
+
+            OnFire?.Invoke(this);
 
             if (Throw)
             {

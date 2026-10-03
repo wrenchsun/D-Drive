@@ -91,8 +91,17 @@ namespace DDrive.Editor.Materials
             if (target == null)
             {
                 target = Shader.Find(LitShaderName);
-                report.Log($"警告: '{source.name}' のシェーダー '{(source.shader != null ? source.shader.name : "null")}' は未対応のため {LitShaderName} として変換します"
-                           + "(Profile の UnknownShaderPolicy を KeepSource にすると元のシェーダーを保てます)");
+                if (UnknownShaderGuard.IsMissing(source.shader))
+                {
+                    // シェーダー参照が欠けている(FC-R-02)。保っても常にピンクなので Policy に関わらず Lit にする。
+                    report.Log($"警告: '{source.name}' のシェーダーが見つかりません(パッケージ未導入・参照切れ)。{LitShaderName} として変換します");
+                }
+                else
+                {
+                    report.Log($"警告: '{source.name}' のシェーダー '{(source.shader != null ? source.shader.name : "null")}' は未対応のため {LitShaderName} として変換します"
+                               + "(Profile の UnknownShaderPolicy を KeepSource にすると元のシェーダーを保てます)");
+                }
+
                 if (target == null)
                 {
                     // [42_distribution.md] §2.3-1(P-4、2026-09-20) — シェーダーはパッケージ側(Packages/com.ddrive.core/Runtime/Shaders)へ移設済み。
@@ -123,7 +132,8 @@ namespace DDrive.Editor.Materials
                 }
 
                 // 知らないシェーダーを保つとき、既に有効なシェーダーが入っている既存 Data は上書きしない(FC-15)。
-                if (data.Shader != target && !(keepSource && data.Shader != null))
+                // 既存 Data のシェーダーが知らないシェーダーで、呼び出しが「既存は上書きしない」Convert(Ask の非対話既定)なら寄せない(FC-R-01)。
+                if (data.Shader != target && !(keepSource && data.Shader != null) && !KeepsExistingUnknownShader(data.Shader, explicitHandling))
                 {
                     // 再実行時に既存 Data のシェーダーが違う(例: 以前 URP Lit のまま作った)場合も D-Drive 標準へ寄せる
                     Undo.RecordObject(data, "Migrate Unity Material");
@@ -145,6 +155,17 @@ namespace DDrive.Editor.Materials
             {
                 Object.DestroyImmediate(profile);
             }
+        }
+
+        private static bool KeepsExistingUnknownShader(Shader existing, UnknownShaderHandling? explicitHandling)
+        {
+            if (!UnknownShaderGuard.IsUnknown(existing))
+            {
+                return false;
+            }
+
+            var handling = explicitHandling ?? UnknownShaderGuard.HandlingFor(MayaImportProfile.FindOrDefault());
+            return handling == UnknownShaderHandling.ConvertKeepingExisting;
         }
 
         // 変換先の固有(Specific に登録済み)のうち、元 Material に同名プロパティがあるものは値を引き継ぐ。戻り値は引き継いだ名前。

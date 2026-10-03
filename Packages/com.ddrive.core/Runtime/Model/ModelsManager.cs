@@ -37,6 +37,7 @@ namespace DDrive.Runtime.Model
             public ModelInstancePoolable Poolable; // FC-2 / FC-12: 通知 + 返却時のブレンドシェイプ復元(生成時キャッシュ)
             public readonly List<Handle<DDrive.Runtime.Anim.AnimMarker>> Anims = new(); // この Instance が所有する再生
             public bool IsPooled; // Flags.Pool.Kind == Pooled のとき true。false(None)は Despawn で Discard する
+            public bool Closing; // CloseInstance の再入防止(FC-R-08。OnModelReturning の中で同じハンドルを Despawn されても再帰しない)
         }
 
         private readonly IPoolService _pool;
@@ -193,7 +194,7 @@ namespace DDrive.Runtime.Model
             poolable.OnReturnedToPool = () => CleanupBookkeeping(handle);
 
             // FC-2 / FC-12(2026-10-03): ブレンドシェイプの既定重みと IModelInstanceListener を生成時に 1 回だけ集める
-            // (冪等。Rent 直後・DefaultAnimation 再生前なので、重みは Prefab 生成時の値)。
+            // (冪等。Rent 直後・DefaultAnimation 再生前なので、重みは最初のスポーン時点(外部コンポーネントの Awake / OnEnable の後)の値)。
             poolable.Capture();
             instance.Poolable = poolable;
 
@@ -223,9 +224,9 @@ namespace DDrive.Runtime.Model
 
         public void Despawn(Handle<ModelMarker> handle)
         {
-            if (!_instances.TryGet(handle, out var instance))
+            if (!_instances.TryGet(handle, out var instance) || instance.Closing)
             {
-                return;
+                return; // 無効なハンドル、または OnModelReturning の中からの再入(FC-R-08。外側の Despawn が最後まで行う)
             }
 
             CloseInstance(handle, instance);
@@ -257,6 +258,14 @@ namespace DDrive.Runtime.Model
         // Despawn / 強制回収に共通の後始末(所有アニメの停止 + 台帳からの削除)。
         private void CloseInstance(Handle<ModelMarker> handle, ModelInstance instance)
         {
+            // 通知(外部コード)の中で同じハンドルが Despawn されても、後始末は 1 回だけ(FC-R-08)。
+            if (instance.Closing)
+            {
+                return;
+            }
+
+            instance.Closing = true;
+
             // FC-12: プールへ戻す(Discard 含む)直前に Prefab 上の IModelInstanceListener へ通知する。
             // アニメ停止・台帳の掃除より前。FC-2 のブレンドシェイプ復元(ModelInstancePoolable.OnReturn)はこの後に走る。
             // Discard 経路は OnReturn を呼ばないので復元は走らない(GameObject ごと破棄されるため不要)。

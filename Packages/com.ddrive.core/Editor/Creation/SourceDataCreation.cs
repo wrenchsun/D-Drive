@@ -47,7 +47,18 @@ namespace DDrive.Editor.Creation
             // 汎用経路(AssetCreationService.Create)ではなく専用の生成処理を持つ種別用(MaterialData)。
             // 設定されていればこちらが優先される。
             public Func<string, string, AssetDataBase> CreateOverride; // (assetPath, category) -> 作られた Data
+
+            // 選択全体について 1 操作 1 回だけ行う事前確認(FC-R-01。知らないシェーダーの確認など)。false を返すと何も作らずに中断する。
+            // 引数は選択中のうち対象拡張子に合うパス。設定されていれば CreateFromSelection が作成の前に 1 回呼ぶ。
+            public Func<IReadOnlyList<string>, bool> BeginBatch;
+
+            // BeginBatch を呼んだ操作の後始末(キャンセル・例外でも呼ばれる)。
+            public Action EndBatch;
         }
+
+        // Material の右クリック作成で、1 操作ぶんに解決した「知らないシェーダー」の扱い(BeginBatch が決め、EndBatch が戻す)。
+        // null = 非対話(バッチモード)なので、Profile の方針に任せる(Ask は Lit に変換するが既存 Data の知らないシェーダーは保つ)。
+        private static UnknownShaderHandling? _materialHandling;
 
         private static List<Option> _options;
 
@@ -123,8 +134,44 @@ namespace DDrive.Editor.Creation
                 CreateOverride = (path, category) =>
                 {
                     var material = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
-                    return material == null ? null : UnityMaterialMigrator.Migrate(material, category);
+                    if (material == null)
+                    {
+                        return null;
+                    }
+
+                    return _materialHandling.HasValue
+                        ? UnityMaterialMigrator.Migrate(material, category, null, AssetCreationService.DefaultGameDataRoot, _materialHandling.Value)
+                        : UnityMaterialMigrator.Migrate(material, category);
                 },
+                // 右クリックの「Material を作成」はユーザーが直接起こす操作なので、知らないシェーダーの確認を 1 操作 1 回出す(FC-R-01)。
+                BeginBatch = paths =>
+                {
+                    _materialHandling = null;
+                    if (!UnknownShaderGuard.IsInteractiveSession())
+                    {
+                        return true;
+                    }
+
+                    var materials = new List<UnityEngine.Material>(paths.Count);
+                    for (var i = 0; i < paths.Count; i++)
+                    {
+                        var m = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(paths[i]);
+                        if (m != null)
+                        {
+                            materials.Add(m);
+                        }
+                    }
+
+                    if (!UnknownShaderGuard.TryResolve(MayaImportProfile.FindOrDefault(), materials, true, out var handling))
+                    {
+                        Debug.Log("[DDrive] 知らないシェーダーの確認でキャンセルされたため、MaterialData の作成を中断しました(何も変更していません)。");
+                        return false;
+                    }
+
+                    _materialHandling = handling;
+                    return true;
+                },
+                EndBatch = () => _materialHandling = null,
             };
 
             // Sprite(画像) → Skin。Normal 状態の見た目だけ入れて、他の状態はデザイナーが Skin Editor で足す。
@@ -185,28 +232,45 @@ namespace DDrive.Editor.Creation
             var created = 0;
             var skipped = 0;
 
+            var targets = new List<string>();
             foreach (var path in SelectedAssetPaths())
             {
-                if (!Matches(option, path))
+                if (Matches(option, path))
                 {
-                    continue;
+                    targets.Add(path);
                 }
+            }
 
-                var result = CreateOne(option, path, out var wasExisting);
-                if (result == null)
-                {
-                    continue;
-                }
+            if (option.BeginBatch != null && targets.Count > 0 && !option.BeginBatch(targets))
+            {
+                option.EndBatch?.Invoke();
+                return;
+            }
 
-                last = result;
-                if (wasExisting)
+            try
+            {
+                foreach (var path in targets)
                 {
-                    skipped++;
+                    var result = CreateOne(option, path, out var wasExisting);
+                    if (result == null)
+                    {
+                        continue;
+                    }
+
+                    last = result;
+                    if (wasExisting)
+                    {
+                        skipped++;
+                    }
+                    else
+                    {
+                        created++;
+                    }
                 }
-                else
-                {
-                    created++;
-                }
+            }
+            finally
+            {
+                option.EndBatch?.Invoke();
             }
 
             if (last == null)

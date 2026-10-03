@@ -213,13 +213,41 @@ namespace DDrive.Tests.Runtime
         {
             var modes = new List<string>();
             MaterialShaderInfo.CollectLightModes(TestShader(), modes);
-            Assert.IsTrue(MaterialShaderInfo.ContainsIgnoreCase(modes, "UniversalForward"));
-            Assert.IsTrue(MaterialShaderInfo.ContainsIgnoreCase(modes, "ShadowCaster"), "Unity は ShadowCaster を SHADOWCASTER で返すことがある");
-            Assert.IsTrue(MaterialShaderInfo.ContainsIgnoreCase(modes, "DepthOnly"));
+            Assert.IsTrue(HasIgnoreCase(modes, "UniversalForward"));
+            Assert.IsTrue(HasIgnoreCase(modes, "ShadowCaster"), "Unity は ShadowCaster を SHADOWCASTER で返すことがある");
+            Assert.IsTrue(HasIgnoreCase(modes, "DepthOnly"));
+            Assert.IsTrue(HasIgnoreCase(modes, "SRPDefaultUnlit"), "LightMode タグの無いパスは SRPDefaultUnlit として数える(FC-R-06)");
 
             var keywords = new List<string>();
             MaterialShaderInfo.CollectKeywords(TestShader(), keywords);
             CollectionAssert.Contains(keywords, Keyword);
+        }
+
+        private static bool HasIgnoreCase(List<string> list, string name)
+        {
+            foreach (var x in list)
+            {
+                if (string.Equals(x, name, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // FC-R-06: LightMode タグの無いパス(URP では SRPDefaultUnlit)は DisabledPasses に SRPDefaultUnlit と書いて止められる。
+        // 実描画で止まること自体は Editor テスト(UntaggedPassRenderTests)で確認している。
+        [Test]
+        public void DisabledPasses_SRPDefaultUnlit_IsAppliedToMaterial_AndNotWarned()
+        {
+            var data = Mat(30, d => d.DisabledPasses = new[] { "SRPDefaultUnlit" });
+            var m = Built(data);
+            Assert.IsFalse(m.GetShaderPassEnabled("SRPDefaultUnlit"));
+            Assert.IsTrue(m.GetShaderPassEnabled("ShadowCaster"), "他のパスは有効のまま");
+
+            var results = Validate(data);
+            Assert.IsFalse(results.Exists(r => r.Message.Contains("DisabledPasses")), "LightMode タグ無しのパス(SRPDefaultUnlit)は既知として扱い、警告しない");
         }
 
         private static List<ValidationResult> Validate(MaterialData mat)
