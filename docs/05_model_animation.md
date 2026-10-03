@@ -343,3 +343,7 @@ Clip 未生成/Missing (Error) / Directions=Eight なのに DirectionClips 不�
 > - **Anim2D**: `SourceAssets/Anim2D/<カテゴリ>/*.anim` または `*.fbx` → `Anim2DData.Clip` のみ設定する Placeholder(Directions=None のまま)。方向づけ(DirectionClips)は既存の Anim2DEditor(C-5)でスプライトから組み立てる運用とした(要判断。[28_manual_verification_phase5.md](28_manual_verification_phase5.md) 参照)
 > - いずれも元ファイル削除時は Data を消さず、本節・B-6・A-4 の既存 Validator の「未設定(または Missing)です」がそのまま欠落表示を担う(新規 Validator は追加していない)
 > - 既存の Maya→Material 経由の MaterialData 自動生成（[06] A-2）とは独立に動く(同じ FBX インポートで両方が発火してよい)
+
+## 追記（2026-10-03、FC チケット）
+
+T-Drive 連携（[51_tdrive_integration.md](51_tdrive_integration.md)、[11](11_tasks.md) FC 節。**いずれも未実装**）: **FC-2** プール返却時にブレンドシェイプの重みを既定へ戻す（`FC_*` を含む全シェイプ。A-3 の返却処理）/ **FC-12** モデルのスポーン・返却の通知（Prefab 上の `IModelInstanceListener`。FC-2 と同一 PR）/ **FC-20** 外部所有シェイプ接頭辞（`FC_` / `fcs_`）の予約と `AnimData.BlendShapes`（B-6 Validation）の警告。旧チケット 7-8（D-Drive 内に Facial を移植）は T-Drive 版を使う方針に変更した。

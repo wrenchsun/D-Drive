@@ -619,3 +619,7 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 - Humanoid + Timeline Animation トラックのオフセットで、Maya のワールド座標と原点(§4.2.1)の合成が期待どおりになるか(ルートモーション / Bake Into Pose の設定) → **未検証**(6-10a の TODO のまま。実キャラ FBX が無いため確認できていない)
 - URP の `Volume.weight` を毎フレーム書き換えたときの DoF の追従(Bokeh モードの `focusDistance` 変更にフレーム遅れが無いか) → **未検証**(6-10b 実装済みの `DDriveCutsceneCameraApplier` の範囲。6-10c では変更していない)
 - (2026-09-18 追加、§4.6.5 検出 2)`RenderPipelineManager.endCameraRendering` 時点の Camera の Transform / `fieldOfView` が「その描画に使われた姿勢」と一致すること(URP 17.3 で `beginCameraRendering` 内の書き込みが同じフレームの描画に反映されるか、`onBeforeRender` の呼び出し位置)。一致しない経路があれば比較点を `Camera.onPostRender` 相当の別コールバックに変える(契約 G-1〜G-5 は変えない) → **未検証**(6-10b 実装済みの範囲。6-10c では変更していない)
+
+## 追記（2026-10-03、FC チケット）
+
+T-Drive の FacialController（`com.tdrive.facial`）との連携のため、Cutscene に次の**追加のみ**の拡張点を計画している（設計 [51_tdrive_integration.md](51_tdrive_integration.md)、チケット [11](11_tasks.md) FC 節。**いずれも未実装**）: **FC-1** 同じモデルへのバインド（`CutsceneBindTarget.SameAsTrack` + `CutsceneBinding.SourceTrackName`。§4.2）/ **FC-4** 外部パッケージのマーカーの受け口（`ICutsceneMarker`。§4.3・§4.4）/ **FC-5** 取り込み完了のリスナー（`ICutsceneImportListener`。§5.2。`CutsceneFbxPostprocessor` は `delayCall` で取り込むため外部の `postprocessOrder` では順序制御できない）/ **FC-3** 現在の視点 API（§4.6.5 の実行順の契約に関係）。外部 Track / Clip を壊さない契約は FC-10 でテストにする。
