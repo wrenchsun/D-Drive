@@ -196,7 +196,7 @@ public sealed class MyImportListener : ICutsceneImportListener
 }</pre>
 <table>
 <tr><th>項目</th><th>内容</th></tr>
-<tr><td>発見</td><td><code>TypeCache</code> で自動。<code>public</code> な型と <code>public</code> な引数なしコンストラクタが必要（登録コードは不要）。名前が <code>DDrive.Tests</code> で始まるアセンブリの実装は除外されます</td></tr>
+<tr><td>発見</td><td><code>TypeCache</code> で自動。<code>public</code> な型（別の型の中に入れた型は、外側の型も <code>public</code> であること）と <code>public</code> な引数なしコンストラクタが必要（登録コードは不要）。名前が <code>DDrive.Tests</code> で始まるアセンブリの実装は除外されます</td></tr>
 <tr><td>呼ばれるとき</td><td>FBX の自動取り込み、<code>Tools &gt; D-Drive &gt; Generate &gt; SourceAssets/Cutscene からインポートルールを再実行</code>、<code>CutsceneImportService.ProcessPaths</code> / <code>ScanAll</code> のすべて。<b>再取り込みのたびに毎回</b>呼ばれます（<code>result.IsNew</code> が false）</td></tr>
 <tr><td>引数 <code>CutsceneImportResult</code></td><td><code>ShotName</code>（ファイル名の &lt;ショット&gt; 部分）・<code>Category</code>・<code>Data</code>・<code>Timeline</code>・<code>TimelinePath</code>・<code>IsNew</code>・<code>Roles</code></td></tr>
 <tr><td>役 <code>CutsceneImportRole</code></td><td><code>RoleName</code>・<code>ModelIdentifier</code>（キャラのみ）・<code>Kind</code>・<code>Track</code>・<code>SourcePath</code>。アニメーションが無くトラックができなかった役は含まれません</td></tr>
