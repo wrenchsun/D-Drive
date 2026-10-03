@@ -136,7 +136,7 @@ namespace DDrive.Editor.Materials
             });
             _root.Add(_shaderField);
 
-            _root.Add(new Button(ReloadTables) { text = "変換テーブルを再読み込み", tooltip = "プロジェクト内の ShaderConversionTable を集め直す" });
+            _root.Add(new Button(ReloadTables) { text = "変換テーブルを再読み込み", tooltip = "プロジェクト内 / 他パッケージが提供する ShaderConversionTable を集め直す" });
 
             BuildPreview(_root);
 
@@ -291,21 +291,9 @@ namespace DDrive.Editor.Materials
 
         private void ReloadTables()
         {
+            // FC-14: Assets/ + 外部パッケージの提供口 + D-Drive 同梱の順に集める(優先順位は ShaderConversionTables.Collect)。
             _tables.Clear();
-            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(ShaderConversionTable)))
-            {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.Contains("/Tests/"))
-                {
-                    continue;
-                }
-
-                var table = AssetDatabase.LoadAssetAtPath<ShaderConversionTable>(path);
-                if (table != null)
-                {
-                    _tables.Add(table);
-                }
-            }
+            _tables.AddRange(ShaderConversionTables.Collect());
 
             Refresh();
         }

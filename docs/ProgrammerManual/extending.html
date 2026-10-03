@@ -231,6 +231,70 @@ public sealed class MyMarker : Marker, ICutsceneMarker
 <tr><td>互換</td><td><code>ICutsceneMarker</code> / <code>CutsceneMarkerContext</code> は公開 API で、追加のみです（欄の追加は末尾）。挙動は外部拡張の契約（E-20）としてテストで固定されています</td></tr>
 </table>
 
+<h2 id="importextension">取り込みルールの外部拡張（IImportRuleHandler / IImportRuleFolderOptOut）</h2>
+<p><code>SourceAssets/&lt;種別&gt;/</code> への配置で Data を作る取り込み（ImportRule）を、外部パッケージから拡張できます。<code>DDrive.Editor</code> を参照するエディタ用コードに書きます。どちらも <code>TypeCache</code> で自動発見されます（<code>public</code> な型と <code>public</code> な引数なしコンストラクタが必要。登録コードは不要。名前が <code>DDrive.Tests</code> で始まるアセンブリは除外）。</p>
+<pre>using DDrive.Editor.Import;
+
+// ハンドラを持たず「SourceAssets/MyKind/ は自分が管理するので案内しないで」とだけ宣言する
+public sealed class MyFolderOptOut : IImportRuleFolderOptOut
+{
+    public IEnumerable&lt;string&gt; FolderNames =&gt; new[] { "MyKind" };
+}
+
+// D-Drive の既存の種別（AssetType）の Data を作るハンドラを足す
+public sealed class MyHandler : IImportRuleHandler
+{
+    public string TypeFolder =&gt; "MyKind";            // SourceAssets/MyKind/&lt;カテゴリ&gt;/
+    public AssetType Target =&gt; AssetType.Se;
+    public Type DataType =&gt; typeof(SeData);
+    public string[] Extensions =&gt; new[] { ".wav" };   // 小文字・ドット付き
+    public string IdentifierFallback =&gt; "My";
+    public UnityEngine.Object LoadSource(string assetPath) =&gt; AssetDatabase.LoadAssetAtPath&lt;AudioClip&gt;(assetPath);
+    public void Configure(AssetDataBase data, UnityEngine.Object source, string assetPath) { ((SeData)data).Clips = new[] { (AudioClip)source }; }
+}</pre>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>順序</td><td>外部ハンドラは組み込みの 9 種別の後ろに、型のフルネーム順で並びます。組み込みの動作は変わりません</td></tr>
+<tr><td>競合</td><td>組み込みの種別フォルダ（<code>Se</code> など）や D-Drive が別経路で使うフォルダ（<code>Shaders</code> / <code>Data</code> / <code>Samples</code> / <code>Cutscene</code>）と同じ名前は、警告を 1 回出して無視されます（組み込み優先）。外部ハンドラ同士が同じ名前なら型名の早い方が使われます</td></tr>
+<tr><td>宣言の規則</td><td><code>FolderNames</code> の空文字・null・空白・区切り文字入り・重複は無視されます。ハンドラの <code>TypeFolder</code> が空の間は名乗っていない扱いです</td></tr>
+<tr><td>例外</td><td>ハンドラの <code>LoadSource</code> / <code>Configure</code> の例外は Console に出して、そのファイルだけ Data を作らずに続行します</td></tr>
+<tr><td>キャッシュ</td><td>発見結果はドメインリロードまで使い回されます（取り込みのたびに走査しません）</td></tr>
+<tr><td>制約</td><td>ハンドラが作れる Data は D-Drive の既存の <code>AssetType</code> に限ります（ファイル名・フォルダ・ID の決まりは既存種別のものを使うため）</td></tr>
+<tr><td>互換</td><td>Editor 契約として固定されています。メンバーは追加のみです</td></tr>
+</table>
+
+<h2 id="textureconvext">変換表・テクスチャ規則の提供口（IShaderConversionTableProvider / ITextureImportRuleProvider）</h2>
+<p>他パッケージが持つシェーダー変換表と、テクスチャのインポート規則（命名 → 設定）を、プロジェクトの <code>Assets/</code> に置かずに D-Drive へ渡せます。どちらも <code>TypeCache</code> で自動発見されます（<code>public</code> な型と引数なしコンストラクタ）。</p>
+<pre>using DDrive.Editor.Materials;
+
+public sealed class MyTables : IShaderConversionTableProvider
+{
+    public IEnumerable&lt;ShaderConversionTable&gt; GetTables()
+        =&gt; new[] { AssetDatabase.LoadAssetAtPath&lt;ShaderConversionTable&gt;("Packages/com.example.toon/Editor/ToonConversion.asset") };
+}
+
+public sealed class MyTextureRules : ITextureImportRuleProvider
+{
+    public IEnumerable&lt;TextureImportProfile.Rule&gt; GetRules()
+    {
+        yield return new TextureImportProfile.Rule
+        {
+            Name = "ToonMask", Match = TextureImportProfile.MatchKind.Suffix, Pattern = "_ToonMask",
+            Type = TextureImporterType.Default, SRgb = false, Mipmaps = true,
+            Compression = TextureImporterCompression.CompressedHQ,
+        };
+    }
+}</pre>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>変換表の優先順位</td><td>マテリアル変換ウィンドウは <code>Assets/</code> の表 → 外部が返した表 → D-Drive 同梱の表の順に探します。同じ変換元・変換先の表が複数あれば先に並んだ表が使われます。<code>GetTables()</code> は表を集め直すたびに呼ばれます</td></tr>
+<tr><td>規則の評価位置</td><td>外部の規則は Profile（<code>TextureImportProfile</code>）の <code>Rules</code> の<b>前</b>に評価されます（<code>T_</code> 接頭辞の規則より先に効きます）。Postprocessor・Validation・TextureData・ImportRule・Maya 取り込みのすべてが同じ判定を通ります。対象パス（<code>IncludePathContains</code>）は従来どおり Profile で決まります</td></tr>
+<tr><td>プロジェクトの上書き</td><td>Profile の <code>Rules</code> に、外部規則と同じ条件（<code>Match</code> の種類と <code>Pattern</code>。大文字小文字は区別しない）の規則があれば、そちらが優先され外部規則は使われません。条件が違う規則は上書きされません</td></tr>
+<tr><td>呼ばれる回数</td><td><code>GetRules()</code> はドメインリロードごとに 1 回です（テクスチャごとには呼びません）</td></tr>
+<tr><td>例外</td><td>提供口ごとに捕まえて Console に出し、他の提供口は有効なままです</td></tr>
+<tr><td>互換</td><td>Editor 契約として固定されています。メンバーは追加のみです</td></tr>
+</table>
+
 <h2>関連ページ</h2>
 <ul>
 <li><a href="Readme.html">トップ（ページ一覧・共通の入口）</a></li>

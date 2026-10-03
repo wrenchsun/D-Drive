@@ -90,7 +90,9 @@ namespace ExternalContract.Tests
             LogAssert.NoUnexpectedReceived();
         }
 
-        // E-7: 未知のフォルダ(例: SourceAssets/Facial/)に置かれても例外は出さない(警告ログが出るかは FC-6 で変わるため固定しない)。
+        // E-7: 未知のフォルダ(例: SourceAssets/Facial/)に置かれても例外は出さない(警告ログの有無は固定しない)。
+        // 外部が IImportRuleFolderOptOut で宣言したフォルダに案内ログが出ないこと・宣言しないフォルダには従来どおり出ることは
+        // ExternalContractImportExtensionTests(E-21、FC-6)で固定する。
         [Test]
         public void E7_UnknownTypeFolder_NoException()
         {

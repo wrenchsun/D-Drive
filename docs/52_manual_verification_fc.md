@@ -112,7 +112,17 @@
 
 ## 6. FC-6: 取り込みルールの外部拡張 / 不明な種別フォルダの扱い
 
-未実装（実装時に追記）
+[51] §4.7、[09] §1.1、[42] §5.9・§5.14（E-21）。**自動テストで確認済み**（EditMode `ExternalContractImportExtensionTests` の `E21_*` 10 件 + `EditorContractSnapshotTests`。外部アセンブリ相当のダミーが、テスト中だけ static フラグで名乗る）: 外部 `IImportRuleHandler` が組み込み 9 件の後ろに載る（組み込みの順序は不変・何も名乗らなければ 9 件のまま）・外部フォルダのファイルから Data が作られ案内ログが出ない・再取り込みで二重生成しない・拡張子違いは従来どおり案内・組み込みの種別フォルダ / `Cutscene` を名乗る外部ハンドラは警告 1 回 + 無視・外部ハンドラ同士の取り合いは型名の早い方・`Configure` / `LoadSource` の例外で取り込みが止まらない（他のファイルは作られる）・`IImportRuleFolderOptOut` で宣言したフォルダは案内が出ず宣言しないフォルダは従来どおり出る・空 / null / 空白 / 区切り入り / 重複の宣言を無視・組み込みの `Shaders` / `Cutscene` は静か。外部拡張は T-Drive が入るまで D-Drive 単体には無いので、**目視で確認する機能は無い**。以下は「既存の取り込みがこれまでどおり動く」ことの確認。
+
+準備: 通常の D-Drive プロジェクト（Test Runner のダミーは名乗らないので影響しない）。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 6-1 | `Assets/SourceAssets/Se/Test/` に wav を 1 つ置く | これまでどおり `SeData` が `Assets/GameData/Audio/SE/Test/` に作られる。Console に ImportRule の警告・エラーは出ない | □ 未 |
+| 6-2 | `Assets/SourceAssets/NotAKind/x.wav` を置く | Console に `[DDrive] ImportRule 案内: 'NotAKind' は種別フォルダではありません(対応フォルダ: Se / Bgm / … / Vfx …)` が 1 回出る（従来どおり。D-Drive 単体では `Facial` も同じ扱い） | □ 未 |
+| 6-3 | メニュー `Tools > D-Drive > Generate > SourceAssets の既定フォルダを作成` を実行する | 組み込み 9 種別 + `Cutscene` のフォルダと README ができる（外部ハンドラがあればそのフォルダも）。エラーは出ない | □ 未 |
+
+**T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-6 の項（`SourceAssets/Facial/` に置いても案内ログが出ない）。
 
 ## 7. FC-7: 依存関係の追跡が Timeline クリップ内の参照まで届くかの調査
 
@@ -184,7 +194,14 @@
 
 ## 14. FC-14: 変換表・テクスチャ規則の提供口
 
-未実装（実装時に追記）
+[51] §4.15、[06] B-3 の 2026-10-03 追記、[42] §5.9・§5.14（E-22）。**自動テストで確認済み**（EditMode `ExternalContractImportExtensionTests` の `E22_*` 8 件 + `EditorContractSnapshotTests`。ダミーの外部提供口がテスト中だけ規則 / 表を返す）: 外部規則 0 件のとき `TryMatch` の結果が従来どおり（`_N` / `T_` 等）・外部規則（接尾辞 `_ToonMask` → sRGB オフ、接頭辞 `T_Toon`）が Profile の `T_` 接頭辞の規則より先に効く・外部規則に当たらない `T_` は従来どおり・Profile に同じ条件の規則があれば Profile 優先（条件が違う外部規則は上書きされない）・実際の `TextureImporter` に `Apply` すると sRGB がオフになり `Diff` が空・提供口の例外が隔離され他の提供口は有効（ログは 1 回）・外部の変換表が `Assets/` の表の後ろ・D-Drive 同梱の表の前に載り null / 重複は無視・`Tests` 配下の表は除外・順序が決定的。T-Drive が入るまで D-Drive 単体には外部提供口が無いので、**目視で確認する機能は無い**。以下は既存機能の確認。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 14-1 | メニュー `Tools > D-Drive > Editors > Material 変換`（`MaterialConvertWindow`）を開き「変換テーブルを再読み込み」を押す | エラーなく開き、変換元 MaterialData を選ぶと従来どおり「(変換テーブル使用)」または「この組の変換テーブル無し。N 件の Table を確認」が出る | □ 未 |
+| 14-2 | `Assets/SourceAssets/` に `Foo_N.png` を置く | これまでどおり Texture Type が NormalMap / sRGB オフになる | □ 未 |
+
+**T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-14 の項（T-Drive の変換表がマテリアル変換ウィンドウに載る・`_ToonMask` が sRGB オフで取り込まれる）。
 
 ## 15. FC-15: 知らないシェーダーを `DDrive/Lit` に変換しない
 
@@ -287,7 +304,9 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - FC-2 / FC-12: `ToonCharacter` が `IModelInstanceListener` でスロット適用後に `CharacterLook` を配る / 返却で後片付けする。`FacialCorrectionRunner` の `OnDisable` と重みの復元が二重になっても表情が壊れない
 - FC-5: T-Drive の fctrack 取り込みを `ICutsceneImportListener` で実装したあと、FBX を置く → `.fctrack` を置く（順序を入れ替えても）→ `Generate > SourceAssets/Cutscene からインポートルールを再実行` で、`.playable` に Facial トラック（`<Model>_Facial(auto)`）が 1 つだけ付き、`CutsceneData.Bindings` に `SameAsTrack` の binding が 1 件だけ入る（FBX の再取り込みで消えず・増えない）
 - FC-4: T-Drive 側で `FacialMarker : Marker, ICutsceneMarker`（`Bridges.DDrive`）を実装したとき、Timeline に置いたマーカーが Play で時刻を跨いだ瞬間に 1 回だけ `Fire` され（Seek / Skip / 途中参加では呼ばれず）、Timeline ウィンドウの再生でも同じ（スクラブでは呼ばれない）
-- FC-3 / FC-14 / FC-15: T-Drive 側の対応が入ったとき
+- FC-6: T-Drive の `IImportRuleFolderOptOut` 実装（`Facial` を宣言）が入ったあと、`Assets/SourceAssets/Facial/<キャラ>/` にファイルを置いても Console に `ImportRule 案内` の警告が出ない（宣言していない名前のフォルダには従来どおり出る）
+- FC-14: T-Drive の `IShaderConversionTableProvider` / `ITextureImportRuleProvider` 実装が入ったあと、(a) マテリアル変換ウィンドウの表に T-Drive パッケージ内の変換表が載り、`Assets/` に同じ組の表を置くとそちらが優先される (b) `*_ToonMask.png` を取り込むと sRGB オフ（`T_` で始まる名前でも）になり、Texture の Validation が Warning を出さない
+- FC-3 / FC-15: T-Drive 側の対応が入ったとき
 - FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 
 ## 要判断（全体）

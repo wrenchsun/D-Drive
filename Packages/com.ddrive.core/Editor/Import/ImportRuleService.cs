@@ -45,7 +45,8 @@ namespace DDrive.Editor.Import
         }
 
         // フォルダ名(SourceAssets/<ここ>/...) → ハンドラ。Cutscene(6-10c)等の追加はここに 1 行足すだけで済む。
-        private static readonly IImportRuleHandler[] AllHandlers =
+        // 組み込みの 9 件。順序・挙動は不変(FC-6 以降も、外部ハンドラはこの後ろに足される)。
+        private static readonly IImportRuleHandler[] BuiltInHandlers =
         {
             new SeImportHandler(),
             new BgmImportHandler(),
@@ -60,25 +61,137 @@ namespace DDrive.Editor.Import
 
         // 既定フォルダ作成(ImportRuleDefaultFolders)・デザイナーマニュアル生成等、種別一覧を横断して
         // 使いたい側への公開窓口。ハンドラの追加(Cutscene 等)がここにも自動で反映される。
-        public static IReadOnlyList<IImportRuleHandler> Handlers => AllHandlers;
-
-        private static Dictionary<string, IImportRuleHandler> _handlersByFolder;
+        // FC-6(2026-10-03): 組み込み 9 件の後ろに、外部アセンブリの IImportRuleHandler 実装(採用されたもの)が並ぶ。
+        public static IReadOnlyList<IImportRuleHandler> Handlers
+        {
+            get
+            {
+                EnsureExtensions();
+                return _allHandlers;
+            }
+        }
 
         private static Dictionary<string, IImportRuleHandler> HandlersByFolder
         {
             get
             {
-                if (_handlersByFolder == null)
-                {
-                    _handlersByFolder = new Dictionary<string, IImportRuleHandler>(StringComparer.Ordinal);
-                    foreach (var handler in AllHandlers)
-                    {
-                        _handlersByFolder[handler.TypeFolder] = handler;
-                    }
-                }
-
+                EnsureExtensions();
                 return _handlersByFolder;
             }
+        }
+
+        // ── 外部拡張(FC-6、[51_tdrive_integration.md] §4.7) ──
+        // 発見は TypeCache(ExtensionPointDiscovery)。結果はドメインリロードまでキャッシュする
+        // (OnPostprocessAllAssets のたびに走査 + インスタンス生成をしない)。
+        private static List<IImportRuleHandler> _allHandlers;
+        private static Dictionary<string, IImportRuleHandler> _handlersByFolder;
+        private static HashSet<string> _externalOptOutFolders;
+        private static string _allowedTypeFolderList;
+
+        // 外部拡張の発見結果を捨てる(テスト専用。テスト用ダミー拡張が static フラグで名乗りを切り替えるため、
+        // フラグを変えたあとに呼んで次回アクセスで作り直させる)。
+        public static void ResetExtensionCacheForTests()
+        {
+            _allHandlers = null;
+            _handlersByFolder = null;
+            _externalOptOutFolders = null;
+            _allowedTypeFolderList = null;
+        }
+
+        // 外部の種別フォルダ宣言(IImportRuleFolderOptOut)で名乗られたフォルダ名。テスト・診断用。
+        public static IReadOnlyCollection<string> ExternalOptOutFolders
+        {
+            get
+            {
+                EnsureExtensions();
+                return _externalOptOutFolders;
+            }
+        }
+
+        private static void EnsureExtensions()
+        {
+            if (_allHandlers != null)
+            {
+                return;
+            }
+
+            var all = new List<IImportRuleHandler>(BuiltInHandlers);
+            var byFolder = new Dictionary<string, IImportRuleHandler>(StringComparer.Ordinal);
+            foreach (var handler in BuiltInHandlers)
+            {
+                byFolder[handler.TypeFolder] = handler;
+            }
+
+            // 外部ハンドラ(組み込みの後ろ。型のフルネーム順 = 決定的)。
+            foreach (var candidate in ExtensionPointDiscovery.Instantiate<IImportRuleHandler>())
+            {
+                var adapter = ExternalImportRuleHandler.TryCreate(candidate);
+                if (adapter == null)
+                {
+                    continue; // 名乗っていない(空のフォルダ名)/ 不正。理由は TryCreate が警告済み
+                }
+
+                var typeName = candidate.GetType().FullName;
+                if (KnownNonTargetTypeFolders.Contains(adapter.TypeFolder))
+                {
+                    Debug.LogWarning(
+                        $"[DDrive] ImportRule: 外部ハンドラ {typeName} の種別フォルダ '{adapter.TypeFolder}' は D-Drive が別経路で使っているフォルダのため無視します(組み込み優先)");
+                    continue;
+                }
+
+                if (byFolder.TryGetValue(adapter.TypeFolder, out var existing))
+                {
+                    var owner = existing is ExternalImportRuleHandler ext ? ext.Inner.GetType().FullName : "組み込み";
+                    Debug.LogWarning(
+                        $"[DDrive] ImportRule: 外部ハンドラ {typeName} の種別フォルダ '{adapter.TypeFolder}' は {owner} のハンドラが先に使っているため無視します(組み込み / 型名の早い方が優先)");
+                    continue;
+                }
+
+                byFolder[adapter.TypeFolder] = adapter;
+                all.Add(adapter);
+            }
+
+            // 種別フォルダ名の宣言(ハンドラを持たない外部パッケージ向け)。
+            var optOut = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var declarer in ExtensionPointDiscovery.Instantiate<IImportRuleFolderOptOut>())
+            {
+                IEnumerable<string> names;
+                try
+                {
+                    names = declarer.FolderNames;
+                    if (names == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var raw in names)
+                    {
+                        var name = raw?.Trim();
+                        if (string.IsNullOrEmpty(name) || name.IndexOf('/') >= 0 || name.IndexOf('\\') >= 0)
+                        {
+                            continue; // 空 / 区切り文字入りは無視(重複は HashSet が吸収)
+                        }
+
+                        if (byFolder.ContainsKey(name) || KnownNonTargetTypeFolders.Contains(name))
+                        {
+                            Debug.LogWarning(
+                                $"[DDrive] ImportRule: {declarer.GetType().FullName} が宣言したフォルダ '{name}' は ImportRule のハンドラ / D-Drive が既に使っているため無視します(組み込み優先)");
+                            continue;
+                        }
+
+                        optOut.Add(name);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
+            }
+
+            _handlersByFolder = byFolder;
+            _externalOptOutFolders = optOut;
+            _allowedTypeFolderList = string.Join(" / ", all.Select(h => h.TypeFolder));
+            _allHandlers = all; // 最後に代入(EnsureExtensions の完了判定)
         }
 
         // SourceAssets 直下にあるが ImportRule の対象ではないと分かっている(=別の経路が既に使っている)フォルダ。
@@ -100,10 +213,14 @@ namespace DDrive.Editor.Import
             "Cutscene",
         };
 
-        private static string _allowedTypeFolderList;
-
         private static string AllowedTypeFolderList
-            => _allowedTypeFolderList ??= string.Join(" / ", AllHandlers.Select(h => h.TypeFolder));
+        {
+            get
+            {
+                EnsureExtensions();
+                return _allowedTypeFolderList;
+            }
+        }
 
         // 案内ログ(下記)をセッション内でパスごとに 1 回だけ出すための既知集合。
         // Editor スクリプトリロード(コンパイル)で静的フィールドは失われるため「セッション内」= このドメインリロードの間、の意味になる。
@@ -201,6 +318,14 @@ namespace DDrive.Editor.Import
             if (KnownNonTargetTypeFolders.Contains(typeFolder))
             {
                 return; // Maya→Material 経路・サンプル資産等、既に用途が決まっているフォルダ → 案内しない
+            }
+
+            // FC-6: 外部パッケージが「自分が管理するフォルダ」と宣言した名前(IImportRuleFolderOptOut)も案内しない。
+            // 外部ハンドラの種別フォルダは HandlersByFolder に入るので、下の「不明な種別フォルダ」には当たらない。
+            EnsureExtensions();
+            if (_externalOptOutFolders.Contains(typeFolder))
+            {
+                return;
             }
 
             if (!HandlersByFolder.ContainsKey(typeFolder))
@@ -358,7 +483,7 @@ namespace DDrive.Editor.Import
                 return;
             }
 
-            var source = handler.LoadSource(assetPath);
+            var source = handler.LoadSource(assetPath); // 外部ハンドラは ExternalImportRuleHandler が例外を隔離して null を返す
             if (source == null)
             {
                 report.Log($"スキップ: {assetPath}(参照できる元データが見つかりません)");
@@ -371,11 +496,33 @@ namespace DDrive.Editor.Import
             var identifier = AssetNamingService.ToIdentifier(rawName, handler.IdentifierFallback);
 
             var capturedSource = source;
-            var created = AssetCreationService.Create(handler.DataType, handler.Target, rawName, category, identifier, data =>
+            AssetDataBase created;
+            if (handler is ExternalImportRuleHandler)
             {
-                data.ImportSourceGuid = guid;
-                handler.Configure(data, capturedSource, assetPath);
-            }, gameDataRoot);
+                // 外部ハンドラの例外(Configure 等)で取り込み全体を止めない(FC-6)。Configure は CreateAsset の前に走るので、
+                // 例外のときアセットは作られない。
+                try
+                {
+                    created = AssetCreationService.Create(handler.DataType, handler.Target, rawName, category, identifier, data =>
+                    {
+                        data.ImportSourceGuid = guid;
+                        handler.Configure(data, capturedSource, assetPath);
+                    }, gameDataRoot);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                    created = null;
+                }
+            }
+            else
+            {
+                created = AssetCreationService.Create(handler.DataType, handler.Target, rawName, category, identifier, data =>
+                {
+                    data.ImportSourceGuid = guid;
+                    handler.Configure(data, capturedSource, assetPath);
+                }, gameDataRoot);
+            }
 
             if (created == null)
             {

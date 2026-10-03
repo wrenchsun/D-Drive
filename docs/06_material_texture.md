@@ -170,6 +170,10 @@ public class TextureData : AssetDataBase
 
 - 規約は `TextureImportProfile` で編集可能。違反は Validation で検出（FixAction=再インポート）
 
+> **2026-10-03 追記（FC-14）— 外部パッケージからの規則の追加**: 他パッケージは `ITextureImportRuleProvider`（`GetRules()` が `TextureImportProfile.Rule` を返す。public・引数なしコンストラクタ、`TypeCache` で自動発見）で規則を足せる。外部規則は **Profile の `Rules` の前**に評価される（例: 接尾辞 `_ToonMask` → sRGB オフが `T_` 接頭辞の規則より先に効く）。`TexturePostprocessor` / `TextureDataValidator` / `TextureDataImporterSync` / ImportRule(Texture) / Maya 取り込み / Material エディタはすべて `TextureImportProfile.TryMatch` を通るので 1 箇所で全てに効く。**プロジェクトの上書き**: Profile の `Rules` に外部規則と同じ条件（`Match` の種類 + `Pattern`、大文字小文字無視）の規則があれば、外部規則は使われず Profile の規則が効く。条件が違う規則は上書きしない。対象パス（`IncludePathContains`）・`Enabled` は従来どおり Profile で決まる。外部規則が無ければ従来と完全に同じ。`GetRules()` はドメインリロードごとに 1 回。
+>
+> **変換表（ShaderConversionTable）の提供口（FC-14）**: マテリアル変換ウィンドウは `ShaderConversionTables.Collect()` で表を集める。`Assets/` と D-Drive 自身のパッケージに加え、他パッケージが `IShaderConversionTableProvider`（`GetTables()`）で返した表も載る（`AssetSearch.Roots` は全検索に効き性能に影響するので広げない）。優先順位は **`Assets/` の表 > 外部提供口の表 > D-Drive 同梱の表**（同じ元 → 先シェーダーの表は先に並んだものが使われる）。
+
 ## B-4. Validation
 
 | 検査 | 重度 |
