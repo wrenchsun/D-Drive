@@ -87,7 +87,16 @@
 
 ## 5. FC-5: カットシーン取り込み完了の公開イベント（Editor）
 
-未実装（実装時に追記）
+[51] §4.6、[26](26_timeline.md) §5.2 の 7、[42] §5.9・§5.14（E-19）。**自動テストで確認済み**（EditMode `ExternalContractCutsceneListenerTests` 8 件 + `EditorContractSnapshotTests`。合成 FBX と外部アセンブリ相当のダミーリスナーで通す）: 外部アセンブリのリスナーが発見される・`Order` 昇順（同値は型名順）・既定では何もしない・例外を投げても後続のリスナーと取り込みが止まらない・ショット 1 つにつき 1 回呼ばれ `Result`（ショット名・カテゴリ・`IsNew`・Data・Timeline・SourceFbxGuids 確定済み）が正しい・リスナーが足した Binding とトラックがディスクに保存される・再取り込みで消えず重複しない（`IsNew = false` で再度呼ばれる）・`ScanAll`（手動の再取り込み）でも呼ばれる・UnityChan の FBX で `Roles` のキャラの役（`RoleName` / `ModelIdentifier` / `Kind` / `Track` / `SourcePath`）が正しい（`DevRepoOnly`）。リスナー本体は T-Drive が入るまで D-Drive 単体には無いので、**目視で確認する機能は無い**。以下は「既存の取り込みがこれまでどおり動く」ことだけを人が確かめる（回帰確認）。
+
+準備: `Assets/SourceAssets/Cutscene/<カテゴリ>/` に Maya の FBX のセット（`<ショット>.fbx` と `<ショット>__<Model識別子>.fbx`）がある状態。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 5-1 | メニュー `Tools > D-Drive > Generate > SourceAssets/Cutscene からインポートルールを再実行` を実行する | Console に `[DDrive] Cutscene 取り込み(再実行): CutsceneData 新規 0 / 更新 N …` が出る。**エラー・例外は出ない**。既存の `CutsceneData` の Bindings・デザイナーが足したトラックはそのまま残る | □ 未 |
+| 5-2 | 同じメニューをもう一度実行する | 結果は 5-1 と同じ（トラック・Bindings が増えない） | □ 未 |
+
+**T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-1 / FC-5 の項（fctrack の取り込みがリスナーで Facial トラックと `SameAsTrack` の binding を足し、再取り込みでも消えず重複しない）。
 
 ## 6. FC-6: 取り込みルールの外部拡張 / 不明な種別フォルダの扱い
 
@@ -264,7 +273,8 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 
 - FC-1: T-Drive の fctrack 取り込み（FC-5 のリスナー）が `SameAsTrack` の binding を足し、Facial トラックがカットシーンのキャラと同じ相手に結ばれる
 - FC-2 / FC-12: `ToonCharacter` が `IModelInstanceListener` でスロット適用後に `CharacterLook` を配る / 返却で後片付けする。`FacialCorrectionRunner` の `OnDisable` と重みの復元が二重になっても表情が壊れない
-- FC-3 / FC-4 / FC-5 / FC-14 / FC-15: T-Drive 側の対応が入ったとき
+- FC-5: T-Drive の fctrack 取り込みを `ICutsceneImportListener` で実装したあと、FBX を置く → `.fctrack` を置く（順序を入れ替えても）→ `Generate > SourceAssets/Cutscene からインポートルールを再実行` で、`.playable` に Facial トラック（`<Model>_Facial(auto)`）が 1 つだけ付き、`CutsceneData.Bindings` に `SameAsTrack` の binding が 1 件だけ入る（FBX の再取り込みで消えず・増えない）
+- FC-3 / FC-4 / FC-14 / FC-15: T-Drive 側の対応が入ったとき
 - FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 
 ## 要判断（全体）

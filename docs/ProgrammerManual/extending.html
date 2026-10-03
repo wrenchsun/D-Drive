@@ -36,6 +36,8 @@
 <tr><td>14</td><td>docs 更新</td><td>該当する <code>docs/0X_*.md</code></td></tr>
 </table>
 
+<p>種別の追加とは別に、外部パッケージが D-Drive の取り込みへ後処理を足す拡張点があります（<a href="#cutsceneimport">カットシーン取り込みリスナー</a>）。</p>
+
 <h2 id="step1">1. AssetType enum への追加</h2>
 <p><code>Foundation/Identity/AssetType.cs</code> の末尾に追記します。</p>
 <pre>public enum AssetType : byte
@@ -172,6 +174,36 @@ public class CameraFxEditorWindow : EditorWindow
 
 <h2 id="step14">14. docs 更新</h2>
 <p>公開 API・データ構造・エディタ機能を変えたら、対応する <code>docs/0X_*.md</code> を同じ PR で更新します（CLAUDE.md §3-4）。変更履歴は該当節に日付付きで追記する慣習です。新しい種別を追加した場合は、この <code>extending.html</code> の実例と食い違いが出ていないかも確認してください。</p>
+
+<h2 id="cutsceneimport">カットシーン取り込みリスナー（ICutsceneImportListener）</h2>
+<p>Maya の FBX から <code>CutsceneData</code> と <code>.playable</code> を作る取り込み（<code>CutsceneImportService</code>）が、ショット 1 つ分を作る・更新し終えるたびに、外部のコードへ知らせる拡張点です。取り込み後に <code>.playable</code> へトラックを足す、<code>Bindings</code> へ binding を追記する、といった後処理を、<code>AssetPostprocessor</code> の実行順に頼らず確実に D-Drive の取り込みの後で行えます（D-Drive の取り込みは <code>EditorApplication.delayCall</code> で後回しに走るため、<code>postprocessOrder</code> では順序を制御できません）。<code>DDrive.Editor</code> アセンブリを参照するエディタ用コードに書きます。</p>
+<pre>using DDrive.Editor.Cutscene;
+
+public sealed class MyImportListener : ICutsceneImportListener
+{
+    public int Order =&gt; 100;   // 小さい順に呼ばれる（同値は型のフルネーム順）
+
+    public void OnCutsceneShotImported(CutsceneImportResult result)
+    {
+        foreach (var role in result.Roles)
+        {
+            // role.RoleName = Bindings の TrackName、role.Kind = Camera / Prop / Character、
+            // role.Track = 生成・更新したトラック、role.SourcePath = 元 FBX のパス
+        }
+        // result.Data（CutsceneData。Bindings に追記してよい）と result.Timeline（.playable）を書き換えてよい。
+        // 保存は不要（全リスナーの呼び出しの後に D-Drive が 1 回保存します）。
+    }
+}</pre>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>発見</td><td><code>TypeCache</code> で自動。<code>public</code> な型と <code>public</code> な引数なしコンストラクタが必要（登録コードは不要）。名前が <code>DDrive.Tests</code> で始まるアセンブリの実装は除外されます</td></tr>
+<tr><td>呼ばれるとき</td><td>FBX の自動取り込み、<code>Tools &gt; D-Drive &gt; Generate &gt; SourceAssets/Cutscene からインポートルールを再実行</code>、<code>CutsceneImportService.ProcessPaths</code> / <code>ScanAll</code> のすべて。<b>再取り込みのたびに毎回</b>呼ばれます（<code>result.IsNew</code> が false）</td></tr>
+<tr><td>引数 <code>CutsceneImportResult</code></td><td><code>ShotName</code>（ファイル名の &lt;ショット&gt; 部分）・<code>Category</code>・<code>Data</code>・<code>Timeline</code>・<code>TimelinePath</code>・<code>IsNew</code>・<code>Roles</code></td></tr>
+<tr><td>役 <code>CutsceneImportRole</code></td><td><code>RoleName</code>・<code>ModelIdentifier</code>（キャラのみ）・<code>Kind</code>・<code>Track</code>・<code>SourcePath</code>。アニメーションが無くトラックができなかった役は含まれません</td></tr>
+<tr><td>例外</td><td>リスナーごとに捕まえて Console に出し、他のリスナーと取り込みは続きます</td></tr>
+<tr><td>重複させない</td><td>再取り込みでは D-Drive が作ったトラックだけ更新し、既存の <code>Bindings</code> と足したトラックは残ります。足す前に <code>result.Data.Bindings</code>（<code>TrackName</code>）と <code>result.Timeline.GetOutputTracks()</code>（名前）で、すでに足してあるかを確認してください</td></tr>
+<tr><td>互換</td><td>Editor 契約として固定されています。メンバー・列挙値は追加のみで、削除や改名は <code>CHANGELOG.md</code> に記載されます</td></tr>
+</table>
 
 <h2>関連ページ</h2>
 <ul>

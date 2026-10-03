@@ -212,17 +212,18 @@ namespace DDrive.Editor.Cutscene
             var guids = new List<string>(data.SourceFbxGuids ?? Array.Empty<string>());
 
             float? detectedFps = null;
+            var roles = new List<CutsceneImportRole>();
 
             if (!string.IsNullOrEmpty(group.CameraPropsPath))
             {
                 AddGuidIfMissing(guids, group.CameraPropsPath);
-                detectedFps = ProcessCameraAndProps(timeline, group.CameraPropsPath, profile, data.SourceFrameRange, bindings, bindingNames, report);
+                detectedFps = ProcessCameraAndProps(timeline, group.CameraPropsPath, profile, data.SourceFrameRange, bindings, bindingNames, roles, report);
             }
 
             foreach (var characterPath in group.CharacterPaths)
             {
                 AddGuidIfMissing(guids, characterPath);
-                var fps = ProcessCharacterFile(timeline, characterPath, data.SourceFrameRange, bindings, bindingNames, report);
+                var fps = ProcessCharacterFile(timeline, characterPath, data.SourceFrameRange, bindings, bindingNames, roles, report);
                 detectedFps ??= fps;
             }
 
@@ -240,6 +241,28 @@ namespace DDrive.Editor.Cutscene
 
             EditorUtility.SetDirty(data);
             EditorUtility.SetDirty(timeline);
+
+            // [51_tdrive_integration.md] §4.6 / FC-5 — Bindings・SourceFbxGuids・Timeline を確定した後、保存の前に
+            // 外部リスナーへ通知する(リスナーが Data / Timeline へ足した分も下の保存 1 回で一緒に保存される)。
+            // 例外は CutsceneImportListeners.Notify がリスナー単位で隔離する。
+            var timelinePathForListeners = AssetDatabase.GetAssetPath(timeline);
+            var notified = CutsceneImportListeners.Notify(new CutsceneImportResult
+            {
+                ShotName = group.ShotRawName,
+                Category = group.Category,
+                Data = data,
+                Timeline = timeline,
+                TimelinePath = timelinePathForListeners,
+                IsNew = isNew,
+                Roles = roles,
+            });
+            if (notified > 0)
+            {
+                // リスナーが書き換えた可能性があるので、リスナー側が SetDirty を忘れていても保存されるようにする。
+                EditorUtility.SetDirty(data);
+                EditorUtility.SetDirty(timeline);
+            }
+
             // [44_review_2026-09-19.md] P1-1: FBX 取り込みの自動構築は「インポート検知の自動生成」なので
             // 版数を進めない(再取り込みのたびに Version が上がるのを防ぐ)。
             DDriveAssetSave.SaveAllSuppressed();
@@ -280,6 +303,7 @@ namespace DDrive.Editor.Cutscene
             FrameRange sourceFrameRange,
             List<CutsceneBinding> bindings,
             HashSet<string> bindingNames,
+            List<CutsceneImportRole> roles,
             Report report)
         {
             var root = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
@@ -320,7 +344,7 @@ namespace DDrive.Editor.Cutscene
                         ? string.Empty
                         : AnimationUtility.CalculateTransformPath(camTransform, root.transform);
 
-                    BuildOrUpdateCameraTrack(timeline, clip, camPath, cameras[0].gameObject.name, profile, bindings, bindingNames, report);
+                    BuildOrUpdateCameraTrack(timeline, clip, camPath, cameras[0].gameObject.name, profile, bindings, bindingNames, roles, assetPath, report);
                 }
             }
 
@@ -332,7 +356,7 @@ namespace DDrive.Editor.Cutscene
                     continue;
                 }
 
-                ProcessPropChild(timeline, clip, child, bindings, bindingNames, report);
+                ProcessPropChild(timeline, clip, child, assetPath, bindings, bindingNames, roles, report);
             }
 
             return clip != null && clip.frameRate > 0f ? clip.frameRate : (float?)null;
@@ -342,8 +366,10 @@ namespace DDrive.Editor.Cutscene
             TimelineAsset timeline,
             AnimationClip clip,
             Transform child,
+            string assetPath,
             List<CutsceneBinding> bindings,
             HashSet<string> bindingNames,
+            List<CutsceneImportRole> roles,
             Report report)
         {
             if (clip == null)
@@ -354,7 +380,7 @@ namespace DDrive.Editor.Cutscene
             var propIdentifierRaw = CutsceneShotParser.StripPropPrefix(child.name);
             var trackName = string.IsNullOrEmpty(propIdentifierRaw) ? child.name : propIdentifierRaw;
 
-            BuildOrUpdateAnimationRoleTrack(timeline, clip, trackName, propIdentifierRaw, bindings, bindingNames, report);
+            BuildOrUpdateAnimationRoleTrack(timeline, clip, trackName, propIdentifierRaw, bindings, bindingNames, report, roles, CutsceneImportRoleKind.Prop, assetPath);
         }
 
         // ── キャラ(1 FBX = 1 キャラ、Humanoid) ──
@@ -365,6 +391,7 @@ namespace DDrive.Editor.Cutscene
             FrameRange sourceFrameRange,
             List<CutsceneBinding> bindings,
             HashSet<string> bindingNames,
+            List<CutsceneImportRole> roles,
             Report report)
         {
             var fileNameNoExt = Path.GetFileNameWithoutExtension(assetPath);
@@ -384,7 +411,7 @@ namespace DDrive.Editor.Cutscene
             }
 
             var modelIdentifier = CutsceneShotParser.StripDuplicateSuffix(modelIdentifierRaw);
-            BuildOrUpdateAnimationRoleTrack(timeline, clip, modelIdentifierRaw, modelIdentifier, bindings, bindingNames, report);
+            BuildOrUpdateAnimationRoleTrack(timeline, clip, modelIdentifierRaw, modelIdentifier, bindings, bindingNames, report, roles, CutsceneImportRoleKind.Character, assetPath);
 
             return clip.frameRate > 0f ? clip.frameRate : (float?)null;
         }
@@ -449,7 +476,10 @@ namespace DDrive.Editor.Cutscene
             string modelIdentifier,
             List<CutsceneBinding> bindings,
             HashSet<string> bindingNames,
-            Report report)
+            Report report,
+            List<CutsceneImportRole> roles = null,
+            CutsceneImportRoleKind kind = CutsceneImportRoleKind.Character,
+            string sourcePath = null)
         {
             var track = FindExistingTrack<AnimationTrack>(timeline, trackName);
             if (track == null)
@@ -475,6 +505,15 @@ namespace DDrive.Editor.Cutscene
             timelineClip.start = 0d;
             timelineClip.duration = Math.Max(0.01, clip.length);
             timelineClip.displayName = trackName;
+
+            roles?.Add(new CutsceneImportRole
+            {
+                RoleName = trackName,
+                ModelIdentifier = kind == CutsceneImportRoleKind.Character ? modelIdentifier ?? string.Empty : string.Empty,
+                Kind = kind,
+                Track = track,
+                SourcePath = sourcePath ?? string.Empty,
+            });
 
             if (!bindingNames.Contains(trackName))
             {
@@ -504,6 +543,8 @@ namespace DDrive.Editor.Cutscene
             CutsceneImportProfile profile,
             List<CutsceneBinding> bindings,
             HashSet<string> bindingNames,
+            List<CutsceneImportRole> roles,
+            string sourcePath,
             Report report)
         {
             var track = FindExistingTrack<CutsceneCameraTrack>(timeline, trackName);
@@ -550,6 +591,15 @@ namespace DDrive.Editor.Cutscene
             timelineClip.start = 0d;
             timelineClip.duration = Math.Max(0.01, clip.length);
             timelineClip.displayName = trackName;
+
+            roles?.Add(new CutsceneImportRole
+            {
+                RoleName = trackName,
+                ModelIdentifier = string.Empty,
+                Kind = CutsceneImportRoleKind.Camera,
+                Track = track,
+                SourcePath = sourcePath ?? string.Empty,
+            });
 
             if (!bindingNames.Contains(trackName))
             {
