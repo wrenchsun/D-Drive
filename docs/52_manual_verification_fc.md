@@ -83,7 +83,19 @@
 
 ## 4. FC-4: 外部パッケージのマーカーの汎用の受け口
 
-未実装（実装時に追記）
+[51] §4.5、[26](26_timeline.md) §4.3 / §4.4、[42] §5.14（E-20）。外部パッケージが `Marker` + `ICutsceneMarker` を実装するための汎用の受け口で、D-Drive 単体には使い手（外部のマーカー）が無いため、**目視で確認する機能は無い**。以下は**自動テストで確認済み**（外部アセンブリ相当のダミー `ExternalPackage.Fake.ExternalFireMarker` を使用）:
+
+- PlayMode `ExternalContractMarkerTests`（7 件）: `E20_ExternalMarker_FiresOncePerCrossing_WithContext`（跨いだ Tick で 1 回・文脈の中身・巻き戻しで再発火しない・`ICutsceneMarker` を実装しない外部マーカーは無視）/ `E20_ExternalMarkers_CrossedInOneTick_FireInTimeOrder` / `E20_SeekAndSkip_AreSilent` / `E20_FireEnabledFalse_DoesNotFire` / `E20_ThrowingMarker_IsIsolated_OthersAndTickContinue` / `E20_CrossingExternalMarker_AllocatesNothingBeyondPlainTick` / `E20_LateJoin_PastMarkersAreSilent_FutureOnesFireLocally`
+- EditMode `ExternalContractMarkerEditModeTests`（3 件）: Edit Mode のプレビューで `IsEditPreview = true`・再生中に 1 回 / スクラブは無音・再生開始の立ち上がりで再発火しない / 巻き戻しは無音
+- 既存 4 種のマーカー（Event / Signal / Shake / Haptic）の発火は、既存の Cutscene テスト（EditMode / PlayMode 全件 green）で不変を確認済み
+
+**回帰確認（人、任意）**: 既存のカットシーンのマーカーがこれまでどおり動くことを、確認用シーンで 1 回見る。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 4-1 | Event / Signal / Shake / Haptic のいずれかのマーカーを置いた `CutsceneData` を、Timeline ウィンドウで開いて再生する（`CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」） | 再生中にマーカーの時刻を跨ぐと従来どおり発火する（Shake / Haptic / Event。Signal は Edit Mode ではコンソールに `Cutscene Signal (Edit Mode プレビュー)` が出る）。スクラブでは発火しない。**エラー・例外は出ない** | □ 未 |
+
+**T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-4 の項（T-Drive 側で `ICutsceneMarker` を実装したマーカーを使うとき）。
 
 ## 5. FC-5: カットシーン取り込み完了の公開イベント（Editor）
 
@@ -274,7 +286,8 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - FC-1: T-Drive の fctrack 取り込み（FC-5 のリスナー）が `SameAsTrack` の binding を足し、Facial トラックがカットシーンのキャラと同じ相手に結ばれる
 - FC-2 / FC-12: `ToonCharacter` が `IModelInstanceListener` でスロット適用後に `CharacterLook` を配る / 返却で後片付けする。`FacialCorrectionRunner` の `OnDisable` と重みの復元が二重になっても表情が壊れない
 - FC-5: T-Drive の fctrack 取り込みを `ICutsceneImportListener` で実装したあと、FBX を置く → `.fctrack` を置く（順序を入れ替えても）→ `Generate > SourceAssets/Cutscene からインポートルールを再実行` で、`.playable` に Facial トラック（`<Model>_Facial(auto)`）が 1 つだけ付き、`CutsceneData.Bindings` に `SameAsTrack` の binding が 1 件だけ入る（FBX の再取り込みで消えず・増えない）
-- FC-3 / FC-4 / FC-14 / FC-15: T-Drive 側の対応が入ったとき
+- FC-4: T-Drive 側で `FacialMarker : Marker, ICutsceneMarker`（`Bridges.DDrive`）を実装したとき、Timeline に置いたマーカーが Play で時刻を跨いだ瞬間に 1 回だけ `Fire` され（Seek / Skip / 途中参加では呼ばれず）、Timeline ウィンドウの再生でも同じ（スクラブでは呼ばれない）
+- FC-3 / FC-14 / FC-15: T-Drive 側の対応が入ったとき
 - FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 
 ## 要判断（全体）

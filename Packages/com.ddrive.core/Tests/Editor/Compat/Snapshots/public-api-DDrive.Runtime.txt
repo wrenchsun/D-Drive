@@ -636,6 +636,13 @@ TYPE class sealed DDrive.Runtime.Cutscene.CutsceneManager
   property OnInputLockChanged : R3.Observable<bool> {get}
   property Type : DDrive.Foundation.Identity.AssetType {get}
 TYPE struct DDrive.Runtime.Cutscene.CutsceneMarker
+TYPE struct DDrive.Runtime.Cutscene.CutsceneMarkerContext
+  ctor CutsceneMarkerContext(double markerTime, double elapsed, UnityEngine.Playables.PlayableDirector director, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, bool isEditPreview)
+  field readonly Director : UnityEngine.Playables.PlayableDirector
+  field readonly Elapsed : double
+  field readonly Handle : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
+  field readonly IsEditPreview : bool
+  field readonly MarkerTime : double
 TYPE class sealed DDrive.Runtime.Cutscene.CutsceneMarkerCursor<TMarker>
   ctor CutsceneMarkerCursor<TMarker>()
   method Advance(double newElapsed, bool fire, Action<TMarker> action) : void
@@ -674,6 +681,8 @@ TYPE class sealed DDrive.Runtime.Cutscene.DDriveCutsceneCameraApplier : UnityEng
 TYPE struct DDrive.Runtime.Cutscene.FrameRange
   field End : int
   field Start : int
+TYPE interface DDrive.Runtime.Cutscene.ICutsceneMarker
+  method Fire(ref DDrive.Runtime.Cutscene.CutsceneMarkerContext context) : void
 TYPE enum DDrive.Runtime.Cutscene.Tracks.CameraFocusMode
   enum-member CameraOnly = 2
   enum-member Off = 0
