@@ -40,6 +40,25 @@ namespace DDrive.Editor.CanvasTool
 
         private CanvasData _target;
         private bool _lockTarget;
+
+        // 2026-10-03(Canvas の埋め込み): _target が別の Canvas(親)に埋め込まれた子として編集されているときの親の連なり
+        // (外側 → 内側。各 Link.RootPath = その Data の Prefab ルートから、次の(内側の)Canvas のルートまでのパス)。
+        // 空 = 単独で編集中。プレビュー再生・「選択」は、この連なりのどれかの Prefab(プレハブモード / 確認用プレビュー)で
+        // 子のパスを親ルート基準へ変換して行う。
+        private List<CanvasEmbeddedEditing.Link> _ancestors = new();
+        private CanvasEmbeddedEditing.CanvasLookup _lookup;
+        private CanvasData _previewData; // 確認用プレビューで OpenData した CanvasData(_target か、その親の連なりの最外側)
+        private const string FollowSelectionPrefKey = "DDrive.CanvasEditor.FollowSelection";
+        private bool _followSelection = true;
+        private string _fxFilter = string.Empty;
+        private string _highlightPath;
+        private int _selfSelectedId; // このウィンドウが選択した GameObject(選択に追従で自分の選択に反応しないため)
+        private VisualElement _contextRow;
+        private Button _backButton;
+        private Label _contextLabel;
+        private Foldout _embeddedFoldout;
+        private VisualElement _embeddedContainer;
+        private readonly Dictionary<string, Foldout> _fxBoxByPath = new();
         private UiManager _manager;
         private AssetRegistry _registry;
         private PoolService _pool;
@@ -175,8 +194,29 @@ namespace DDrive.Editor.CanvasTool
             if (!_lockTarget && Selection.activeObject is CanvasData data && data != _target)
             {
                 SetTarget(data);
+                return;
+            }
+
+            if (_followSelection && !_lockTarget)
+            {
+                FollowSceneSelection();
             }
         }
+
+        // プロジェクトの変更(CanvasData の追加・削除・Prefab の差し替え)があったら、子 CanvasData の引き当て表を作り直す。
+        private void OnProjectChange()
+        {
+            _lookup = null;
+            if (_root != null && _target != null)
+            {
+                RebuildEmbeddedSection();
+            }
+        }
+
+        private CanvasEmbeddedEditing.CanvasLookup Lookup => _lookup ??= CanvasEmbeddedEditing.CanvasLookup.Build();
+
+        // 編集対象を含む「Prefab を表示している側」の CanvasData(親の連なりの最外側、無ければ _target)。
+        private CanvasData ViewData => _ancestors.Count > 0 ? _ancestors[0].Data : _target;
 
         // 4-3: NavNode の編集(SetLink/ClearLink 等)は Undo.RecordObject で包んでいるため、Undo/Redo が
         // 走ったらグラフを作り直す(SerializedObject 側は Bind 済みなので自動で追従する)。
@@ -230,6 +270,27 @@ namespace DDrive.Editor.CanvasTool
             toolbar.Add(new ToolbarButton(OpenPrefab) { text = "Prefab を開く(要素の移動)", tooltip = "CanvasData.Prefab をプレハブモードで開く。要素を選択して Unity 標準の Move/Rotate/Rect ツールで移動・回転・リサイズできる(Ctrl+Z で戻せる)" });
             _root.Add(toolbar);
 
+            // 2026-10-03(Canvas の埋め込み): 親の中から子へ切り替えたときだけ出る「← 親へ戻る」。
+            _contextRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 4, display = DisplayStyle.None } };
+            _backButton = new Button(BackToParent) { text = "← 親へ戻る" };
+            _contextRow.Add(_backButton);
+            _contextLabel = new Label { style = { marginLeft = 6, opacity = 0.8f } };
+            _contextRow.Add(_contextLabel);
+            _root.Add(_contextRow);
+
+            _followSelection = EditorPrefs.GetBool(FollowSelectionPrefKey, true);
+            var followToggle = new Toggle("選択に追従")
+            {
+                value = _followSelection,
+                tooltip = "Hierarchy / プレハブステージ / 確認用プレビューで選んだ GameObject に合わせて編集対象を切り替える(埋め込み Canvas の配下なら子の CanvasData、それ以外は親)。入力中のフィールドがあるあいだは切り替えない。設定はエディタに保存される",
+            };
+            followToggle.RegisterValueChangedCallback(evt =>
+            {
+                _followSelection = evt.newValue;
+                EditorPrefs.SetBool(FollowSelectionPrefKey, evt.newValue);
+            });
+            _root.Add(followToggle);
+
             var navButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
             navButtons.Add(new Button(() => CollectSelectables()) { text = "Selectable を自動収集", tooltip = "Prefab 内の Selectable から Navigation を作る(既存の行は保持する)" });
             _root.Add(navButtons);
@@ -245,8 +306,22 @@ namespace DDrive.Editor.CanvasTool
             bulkRow.Add(new Button(ApplyBulkPresetToButtons) { text = "一括適用: 全ボタンに反映", tooltip = "Prefab 内の全 UiButton の AppearPreset にこのプリセットを設定する" });
             _root.Add(bulkRow);
 
+            _embeddedFoldout = new Foldout { text = "埋め込み Canvas(入れ子の子 Canvas)", value = true, style = { marginTop = 8 } };
+            _root.Add(_embeddedFoldout);
+            _embeddedContainer = new VisualElement();
+            _embeddedFoldout.Add(_embeddedContainer);
+
             _elementFxFoldout = new Foldout { text = "ElementFx 割当(Appear / Idle / Disappear)", value = true, style = { marginTop = 8 } };
             _root.Add(_elementFxFoldout);
+
+            var fxFilterField = new ToolbarSearchField { style = { marginBottom = 4 } };
+            fxFilterField.tooltip = "ElementFx の一覧を要素のパスで絞り込む";
+            fxFilterField.RegisterValueChangedCallback(evt =>
+            {
+                _fxFilter = evt.newValue ?? string.Empty;
+                RebuildElementFxAssignments();
+            });
+            _elementFxFoldout.Add(fxFilterField);
             _elementFxFoldout.Add(new HelpBox("各要素の行でプリセット・プロジェクト独自カタログ([Catalog] 名前)・UiTweenData 直接指定のいずれかを選べます。", HelpBoxMessageType.Info));
 
             // 2026-09-12 ユーザー要望: 登録済みの ElementFx を 1 行ずつ「▶ 再生」するのは数が多いと手間なので、
@@ -312,6 +387,64 @@ namespace DDrive.Editor.CanvasTool
         {
             if (target != _target)
             {
+                _ancestors.Clear(); // 別の Canvas を選び直したら親の文脈は捨てる(同じ対象の再構築では保つ)
+            }
+
+            ApplyTarget(target);
+        }
+
+        // 親の連なり(ancestors。外側 → 内側)付きで子 Canvas を編集対象にする(「この Canvas を編集」・選択に追従・戻る)。
+        private void SetTargetIn(CanvasData target, List<CanvasEmbeddedEditing.Link> ancestors)
+        {
+            _ancestors = ancestors != null ? new List<CanvasEmbeddedEditing.Link>(ancestors) : new List<CanvasEmbeddedEditing.Link>();
+            _highlightPath = null;
+            ApplyTarget(target);
+        }
+
+        private void BackToParent()
+        {
+            if (_ancestors.Count == 0)
+            {
+                return;
+            }
+
+            var last = _ancestors[_ancestors.Count - 1];
+            SetTargetIn(last.Data, _ancestors.GetRange(0, _ancestors.Count - 1));
+        }
+
+        private void UpdateContextRow()
+        {
+            if (_contextRow == null)
+            {
+                return;
+            }
+
+            if (_ancestors.Count == 0 || _target == null)
+            {
+                _contextRow.style.display = DisplayStyle.None;
+                return;
+            }
+
+            _contextRow.style.display = DisplayStyle.Flex;
+            var parent = _ancestors[_ancestors.Count - 1].Data;
+            _backButton.text = $"← {NameOf(parent)} へ戻る";
+            var names = new System.Text.StringBuilder();
+            for (var i = 0; i < _ancestors.Count; i++)
+            {
+                names.Append(NameOf(_ancestors[i].Data)).Append(" > ");
+            }
+
+            names.Append(NameOf(_target));
+            _contextLabel.text = $"埋め込みとして編集中: {names}";
+        }
+
+        private static string NameOf(CanvasData data)
+            => data == null ? "(なし)" : string.IsNullOrEmpty(data.DisplayName) ? data.name : data.DisplayName;
+
+        private void ApplyTarget(CanvasData target)
+        {
+            if (target != _target)
+            {
                 // ElementFx 直接再生の Handle は (ElementPath, Phase) 文字列だけがキーなので、別の CanvasData に
                 // 切り替えると偶然同じパスの行が「再生中」と誤判定されうる。対象を切り替えたら破棄しておく
                 // (再生自体はプレビューの実体ごと RemovePreview 側で止まるので、ここは辞書のクリアのみでよい)。
@@ -332,6 +465,8 @@ namespace DDrive.Editor.CanvasTool
                 _statusLabel.text = "CanvasData を選択してください";
                 _validationFoldout?.Clear();
                 _elementFxContainer?.Clear();
+                _embeddedContainer?.Clear();
+                UpdateContextRow();
                 _phaseRowWidgets.Clear(); // 消した行の UI を毎フレーム更新し続けないように(レビュー対応 2026-09-14)
                 return;
             }
@@ -341,7 +476,9 @@ namespace DDrive.Editor.CanvasTool
             _inspectorContainer.Bind(so);
 
             _statusLabel.text = _manager != null && _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "「確認用シーンを開く」で確認できます";
+            UpdateContextRow();
             RefreshValidation();
+            RebuildEmbeddedSection();
             RebuildElementFxAssignments();
             _simFocusPath = target.FirstSelected;
             RebuildGraph();
@@ -403,13 +540,14 @@ namespace DDrive.Editor.CanvasTool
                 return;
             }
 
-            var prefabPath = AssetDatabase.GetAssetPath(_target.Prefab);
-            var stage = PrefabStageUtility.GetCurrentPrefabStage();
-            if (stage == null || stage.assetPath != prefabPath)
+            // 2026-10-03(Canvas の埋め込み): 対象自身の Prefab、または対象を埋め込んでいる親の Prefab のステージが既に開いて
+            // いればそのまま使う(子のプレハブモードから親へ、親から子へ勝手に切り替えない)。どちらも開いていなければ対象自身の Prefab を開く。
+            var stage = GetTargetStage(out var stagePrefix);
+            if (stage == null)
             {
                 RemovePreview();
                 AssetDatabase.OpenAsset(_target.Prefab);
-                stage = PrefabStageUtility.GetCurrentPrefabStage();
+                stage = GetTargetStage(out stagePrefix);
             }
 
             if (stage == null || stage.prefabContentsRoot == null)
@@ -419,7 +557,8 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var rootTransform = stage.prefabContentsRoot.transform;
-            var found = string.IsNullOrEmpty(elementPath) ? rootTransform : rootTransform.Find(elementPath);
+            var viewPath = EmbeddedCanvasPaths.Combine(stagePrefix, elementPath);
+            var found = string.IsNullOrEmpty(viewPath) ? rootTransform : rootTransform.Find(viewPath);
             var label = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
             if (found == null)
             {
@@ -427,7 +566,7 @@ namespace DDrive.Editor.CanvasTool
                 return;
             }
 
-            Selection.activeGameObject = found.gameObject;
+            SelectGameObject(found.gameObject);
             PreviewPlacement.Focus(found.gameObject);
             _statusLabel.text = $"'{label}' を選択しました。SceneView の移動/回転/リサイズツールで編集できます(Ctrl+Z で戻せます)";
         }
@@ -442,7 +581,8 @@ namespace DDrive.Editor.CanvasTool
                 return false;
             }
 
-            var merged = CanvasElementFxCollector.CollectMerged(_target.Prefab, _target.ElementEffects);
+            // 登録済みの埋め込みルートの配下は子の CanvasData の担当なので集めない(既に親にある行は消えず残る)。
+            var merged = CanvasElementFxCollector.CollectMerged(_target.Prefab, _target.ElementEffects, CanvasEmbeddedEditing.RegisteredRoots(_target));
             if (SameElementFxKeys(_target.ElementEffects, merged))
             {
                 _statusLabel.text = $"ElementFx は収集済みです({merged.Length} 件)";
@@ -501,6 +641,8 @@ namespace DDrive.Editor.CanvasTool
         // 4-10: 各 ElementFx 行の Appear/Idle/Disappear を「なし / 組み込みプリセット / プロジェクトの
         // UiPresetCatalog / UiTweenData 直接指定」から選べる UI(PopupField + ObjectField)。
         // 選択の解決優先順位はランタイム側([15] B-5 実装メモ)と同じ id > Preset。
+        private readonly Dictionary<string, bool> _fxGroupExpanded = new();
+
         private void RebuildElementFxAssignments()
         {
             if (_elementFxContainer == null)
@@ -511,7 +653,10 @@ namespace DDrive.Editor.CanvasTool
             _elementFxContainer.Clear();
             // (レビュー対応 2026-09-14) 早期 return の前に消す(以前は行が 0 になっても古い行の UI を毎フレーム更新していた)。
             _phaseRowWidgets.Clear();
-            if (_target == null || _target.ElementEffects == null || _target.ElementEffects.Length == 0)
+            _fxBoxByPath.Clear();
+            var hasRows = _target != null && _target.ElementEffects != null && _target.ElementEffects.Length > 0;
+            var hasEmbeds = _target != null && _target.EmbeddedCanvases != null && _target.EmbeddedCanvases.Length > 0;
+            if (!hasRows && !hasEmbeds)
             {
                 _elementFxContainer.Add(new Label("ElementFx がありません(上の「要素を自動収集」で追加してください)") { style = { opacity = 0.7f } });
                 return;
@@ -523,72 +668,476 @@ namespace DDrive.Editor.CanvasTool
                 _catalogChoices.Add(($"[Catalog] {name}", tween));
             }
 
-            for (var i = 0; i < _target.ElementEffects.Length; i++)
+            // 2026-10-03(Canvas の埋め込み): 「親の要素」と「埋め込み: 子ごと」に分けて表示する(埋め込みが無ければ従来の平らな一覧)。
+            var groups = CanvasEmbeddedEditing.BuildGroups(_target, Lookup, _fxFilter);
+            if (groups.Embeds.Count == 0)
             {
-                var index = i;
-                var fx = _target.ElementEffects[i];
-                // (レビュー対応 2026-09-14) ElementPath が null の行で Dictionary<string, bool> が ArgumentNullException になっていた。
-                var elementPath = fx.ElementPath ?? string.Empty;
-
-                // 2026-09-12 ユーザー要望: 要素数が多いと縦に長くなりすぎるので、各要素を折りたためるようにする
-                // (デフォルトは折りたたみ)。展開状態は ElementPath をキーに保持し、ドロップダウン変更などで
-                // 再構築が起きても(その行自身の変更でなければ)開閉が飛ばないようにする。
-                var expanded = _elementFxExpanded.TryGetValue(elementPath, out var wasExpanded) && wasExpanded;
-                var box = new Foldout { text = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath, value = expanded, style = { marginBottom = 6 } };
-                box.RegisterValueChangedCallback(evt =>
+                if (groups.ParentRows.Count == 0)
                 {
-                    if (evt.target == box)
-                    {
-                        _elementFxExpanded[elementPath] = evt.newValue;
-                    }
-                });
+                    _elementFxContainer.Add(new Label("絞り込みに一致する行がありません") { style = { opacity = 0.7f } });
+                    return;
+                }
 
-                // (レビュー対応 2026-09-14) getter/setter は GetFx/UpdateFx 経由で範囲チェックする(Undo で行が減った後に
-                // 古い行 UI から呼ばれても例外にしない)。
-                // U-21: この要素を選んで Prefab 上で移動・回転・リサイズできるようにする(選択のみ。実際の
-                // 移動は Unity 標準の Move/Rect ツールで行う。ウィンドウ内に描画しない方針は維持する)。
-                var focusRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginBottom = 4 } };
-                focusRow.Add(new Button(() => SelectElement(elementPath, focus: false))
+                foreach (var index in groups.ParentRows)
                 {
-                    text = "選択",
-                    tooltip = "この要素を選択して Inspector に出す(プレハブモード中はステージ内、確認用シーンの表示中はプレビュー実体、どちらも無ければ Prefab アセット内の要素を Ping)",
-                });
-                focusRow.Add(new Button(() => SelectElement(elementPath, focus: true))
-                {
-                    text = "フォーカス",
-                    tooltip = "この要素を選択し、SceneView のカメラをその要素の矩形へ寄せる(表示中の実体が無いときは選択のみ)",
-                });
-                focusRow.Add(new Button(() => SelectElementForMove(elementPath)) { text = "選択して移動(Prefab を開く)" });
-                box.Add(focusRow);
+                    _elementFxContainer.Add(BuildFxRow(index, null));
+                }
 
-                box.Add(BuildPhaseRow(
-                    "Appear",
-                    elementPath,
-                    () => GetFx(index).AppearPreset,
-                    v => UpdateFx(index, e => { e.AppearPreset = v; return e; }),
-                    () => GetFx(index).Appear,
-                    v => UpdateFx(index, e => { e.Appear = v; return e; })));
-
-                box.Add(BuildPhaseRow(
-                    "Idle",
-                    elementPath,
-                    () => GetFx(index).IdlePreset,
-                    v => UpdateFx(index, e => { e.IdlePreset = v; return e; }),
-                    () => GetFx(index).Idle,
-                    v => UpdateFx(index, e => { e.Idle = v; return e; })));
-
-                box.Add(BuildPhaseRow(
-                    "Disappear",
-                    elementPath,
-                    () => GetFx(index).DisappearPreset,
-                    v => UpdateFx(index, e => { e.DisappearPreset = v; return e; }),
-                    () => GetFx(index).Disappear,
-                    v => UpdateFx(index, e => { e.Disappear = v; return e; })));
-
-                box.Add(new Button(() => CopyRowToOthers(index)) { text = "この要素の設定を他の要素へコピー", style = { marginTop = 4 } });
-
-                _elementFxContainer.Add(box);
+                return;
             }
+
+            var parentKey = "parent";
+            var parentFoldout = new Foldout { text = $"{NameOf(_target)} の要素({groups.ParentRows.Count})", value = !_fxGroupExpanded.TryGetValue(parentKey, out var parentOpen) || parentOpen, style = { marginTop = 4 } };
+            parentFoldout.RegisterValueChangedCallback(evt =>
+            {
+                if (evt.target == parentFoldout)
+                {
+                    _fxGroupExpanded[parentKey] = evt.newValue;
+                }
+            });
+            foreach (var index in groups.ParentRows)
+            {
+                parentFoldout.Add(BuildFxRow(index, null));
+            }
+
+            foreach (var g in groups.Embeds)
+            {
+                if (g.OverrideRows.Count == 0)
+                {
+                    continue;
+                }
+
+                parentFoldout.Add(new Label($"↳ 親での上書き: {NameOf(g.Child)}({g.RootPath})。この行は子の CanvasData の同じ要素の設定より優先されます")
+                {
+                    style = { unityFontStyleAndWeight = FontStyle.Bold, whiteSpace = WhiteSpace.Normal, marginTop = 4, marginBottom = 2 },
+                });
+                foreach (var index in g.OverrideRows)
+                {
+                    parentFoldout.Add(BuildFxRow(index, "[親での上書き] "));
+                }
+            }
+
+            _elementFxContainer.Add(parentFoldout);
+
+            foreach (var g in groups.Embeds)
+            {
+                _elementFxContainer.Add(BuildEmbedGroup(g));
+            }
+        }
+
+        // 埋め込みごとのグループ: 子の CanvasData の ElementFx 行を読み取り表示し、「この Canvas を編集」で編集対象を子へ切り替える。
+        private VisualElement BuildEmbedGroup(CanvasEmbeddedEditing.EmbedGroup g)
+        {
+            var key = "embed:" + g.RootPath;
+            var title = g.Child != null ? $"埋め込み: {NameOf(g.Child)}({g.RootPath})" : $"埋め込み: (未解決)({g.RootPath})";
+            var foldout = new Foldout { text = title, value = !_fxGroupExpanded.TryGetValue(key, out var open) || open, style = { marginTop = 4 } };
+            foldout.RegisterValueChangedCallback(evt =>
+            {
+                if (evt.target == foldout)
+                {
+                    _fxGroupExpanded[key] = evt.newValue;
+                }
+            });
+
+            if (g.Child == null)
+            {
+                foldout.Add(new HelpBox("子の CanvasData が未設定、または見つかりません。上の「埋め込み Canvas」で指定してください。", HelpBoxMessageType.Warning));
+                return foldout;
+            }
+
+            var index = g.EmbedIndex;
+            foldout.Add(new Button(() => EditEmbedded(index))
+            {
+                text = "この Canvas を編集",
+                tooltip = "編集対象をこの子の CanvasData に切り替える(「← 親へ戻る」で戻れる)。▶ 再生・「選択」は親の Prefab(プレハブモード / 確認用プレビュー)の中の埋め込み実体で動く",
+            });
+            foldout.Add(new Label($"子の ElementFx: {g.ChildRows.Count} 行(読み取り表示。編集は「この Canvas を編集」で)") { style = { opacity = 0.7f, marginTop = 2 } });
+            foreach (var row in g.ChildRows)
+            {
+                foldout.Add(new Label($"・{(string.IsNullOrEmpty(row.ElementPath) ? RootElementLabel : row.ElementPath)}   {row.Summary}{(row.OverriddenByParent ? "   [親で上書き]" : string.Empty)}")
+                {
+                    style = { whiteSpace = WhiteSpace.Normal, opacity = row.OverriddenByParent ? 0.5f : 0.85f },
+                });
+            }
+
+            return foldout;
+        }
+
+        private void EditEmbedded(int embedIndex)
+        {
+            if (_target == null || _target.EmbeddedCanvases == null || embedIndex < 0 || embedIndex >= _target.EmbeddedCanvases.Length)
+            {
+                return;
+            }
+
+            var embed = _target.EmbeddedCanvases[embedIndex];
+            var child = Lookup.Find(embed.Canvas);
+            if (child == null)
+            {
+                _statusLabel.text = "子の CanvasData が見つかりません";
+                return;
+            }
+
+            var chain = new List<CanvasEmbeddedEditing.Link>(_ancestors) { new CanvasEmbeddedEditing.Link(_target, embed.RootPath) };
+            SetTargetIn(child, chain);
+        }
+
+        // ElementFx 1 行ぶんの編集 UI(Foldout)。index = _target.ElementEffects の添字。
+        private VisualElement BuildFxRow(int index, string labelPrefix)
+        {
+            var fx = _target.ElementEffects[index];
+            // (レビュー対応 2026-09-14) ElementPath が null の行で Dictionary<string, bool> が ArgumentNullException になっていた。
+            var elementPath = fx.ElementPath ?? string.Empty;
+
+            // 2026-09-12 ユーザー要望: 要素数が多いと縦に長くなりすぎるので、各要素を折りたためるようにする
+            // (デフォルトは折りたたみ)。展開状態は ElementPath をキーに保持し、ドロップダウン変更などで
+            // 再構築が起きても(その行自身の変更でなければ)開閉が飛ばないようにする。
+            var expanded = _elementFxExpanded.TryGetValue(elementPath, out var wasExpanded) && wasExpanded;
+            var isHighlight = _highlightPath != null && _highlightPath == elementPath;
+            var box = new Foldout { text = (labelPrefix ?? string.Empty) + (string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath), value = expanded || isHighlight, style = { marginBottom = 6 } };
+            if (isHighlight)
+            {
+                ApplyHighlight(box, true);
+            }
+
+            _fxBoxByPath[elementPath] = box;
+            box.RegisterValueChangedCallback(evt =>
+            {
+                if (evt.target == box)
+                {
+                    _elementFxExpanded[elementPath] = evt.newValue;
+                }
+            });
+
+            // (レビュー対応 2026-09-14) getter/setter は GetFx/UpdateFx 経由で範囲チェックする(Undo で行が減った後に
+            // 古い行 UI から呼ばれても例外にしない)。
+            // U-21: この要素を選んで Prefab 上で移動・回転・リサイズできるようにする(選択のみ。実際の
+            // 移動は Unity 標準の Move/Rect ツールで行う。ウィンドウ内に描画しない方針は維持する)。
+            var focusRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginBottom = 4 } };
+            focusRow.Add(new Button(() => SelectElement(elementPath, focus: false))
+            {
+                text = "選択",
+                tooltip = "この要素を選択して Inspector に出す(プレハブモード中はステージ内、確認用シーンの表示中はプレビュー実体、どちらも無ければ Prefab アセット内の要素を Ping)",
+            });
+            focusRow.Add(new Button(() => SelectElement(elementPath, focus: true))
+            {
+                text = "フォーカス",
+                tooltip = "この要素を選択し、SceneView のカメラをその要素の矩形へ寄せる(表示中の実体が無いときは選択のみ)",
+            });
+            focusRow.Add(new Button(() => SelectElementForMove(elementPath)) { text = "選択して移動(Prefab を開く)" });
+            box.Add(focusRow);
+
+            box.Add(BuildPhaseRow(
+                "Appear",
+                elementPath,
+                () => GetFx(index).AppearPreset,
+                v => UpdateFx(index, e => { e.AppearPreset = v; return e; }),
+                () => GetFx(index).Appear,
+                v => UpdateFx(index, e => { e.Appear = v; return e; })));
+
+            box.Add(BuildPhaseRow(
+                "Idle",
+                elementPath,
+                () => GetFx(index).IdlePreset,
+                v => UpdateFx(index, e => { e.IdlePreset = v; return e; }),
+                () => GetFx(index).Idle,
+                v => UpdateFx(index, e => { e.Idle = v; return e; })));
+
+            box.Add(BuildPhaseRow(
+                "Disappear",
+                elementPath,
+                () => GetFx(index).DisappearPreset,
+                v => UpdateFx(index, e => { e.DisappearPreset = v; return e; }),
+                () => GetFx(index).Disappear,
+                v => UpdateFx(index, e => { e.Disappear = v; return e; })));
+
+            box.Add(new Button(() => CopyRowToOthers(index)) { text = "この要素の設定を他の要素へコピー", style = { marginTop = 4 } });
+            return box;
+        }
+
+        private static void ApplyHighlight(VisualElement box, bool on)
+        {
+            box.style.borderLeftWidth = on ? 3 : 0;
+            box.style.borderLeftColor = on ? new Color(0.25f, 0.6f, 1f) : Color.clear;
+            box.style.paddingLeft = on ? 4 : 0;
+        }
+
+        // 選択した要素の行を強調して展開し、一覧の該当位置までスクロールする。行が無ければステータスで知らせる。
+        private void HighlightRow(string path)
+        {
+            path ??= string.Empty;
+            _highlightPath = path;
+            foreach (var kv in _fxBoxByPath)
+            {
+                ApplyHighlight(kv.Value, false);
+            }
+
+            if (!_fxBoxByPath.TryGetValue(path, out var box))
+            {
+                _statusLabel.text = $"'{(string.IsNullOrEmpty(path) ? RootElementLabel : path)}' の ElementFx 行はまだありません(「要素を自動収集」で追加できます)";
+                return;
+            }
+
+            ApplyHighlight(box, true);
+            box.value = true;
+            _elementFxExpanded[path] = true;
+            box.schedule.Execute(() => _root?.ScrollTo(box)).StartingIn(50);
+        }
+
+        // ── 埋め込み Canvas セクション(登録・候補の検出・削除) ──
+
+        private void RebuildEmbeddedSection()
+        {
+            if (_embeddedContainer == null)
+            {
+                return;
+            }
+
+            _embeddedContainer.Clear();
+            if (_target == null)
+            {
+                return;
+            }
+
+            _embeddedContainer.Add(new HelpBox(
+                "親 Prefab の中に子 Canvas の Prefab を入れ子で入れたら「埋め込みとして登録」します。子の ElementFx・ボタン配線は子の CanvasData に 1 か所で持ち(「この Canvas を編集」)、親を Open したときも効きます。親の CanvasData に同じ要素の行があれば親が優先されます。",
+                HelpBoxMessageType.Info));
+
+            var rows = _target.EmbeddedCanvases;
+            if (rows != null)
+            {
+                for (var i = 0; i < rows.Length; i++)
+                {
+                    _embeddedContainer.Add(BuildEmbeddedRow(i));
+                }
+            }
+
+            if (_target.Prefab != null)
+            {
+                var candidates = CanvasEmbeddedEditing.DetectCandidates(_target.Prefab, Lookup.All, rows);
+                var unregistered = new List<CanvasEmbeddedEditing.Candidate>();
+                foreach (var c in candidates)
+                {
+                    if (!c.Registered)
+                    {
+                        unregistered.Add(c);
+                    }
+                }
+
+                if (unregistered.Count > 0)
+                {
+                    _embeddedContainer.Add(new Label("入れ子 Prefab から検出(未登録)") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 4 } });
+                    foreach (var c in unregistered)
+                    {
+                        var candidate = c;
+                        var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center } };
+                        row.Add(new Label($"{candidate.RootPath} = {NameOf(candidate.Canvas)}") { style = { flexGrow = 1f } });
+                        row.Add(new Button(() => RegisterEmbedded(candidate.RootPath, candidate.Canvas))
+                        {
+                            text = "埋め込みとして登録",
+                            tooltip = "この入れ子 Prefab を埋め込み Canvas として EmbeddedCanvases に追加する(子の ElementFx・配線は子の CanvasData のものが親の中でも効く)",
+                        });
+                        _embeddedContainer.Add(row);
+                    }
+                }
+            }
+
+            _embeddedContainer.Add(new Button(() =>
+            {
+                CanvasEmbeddedEditing.AddEmpty(_target);
+                RefreshAfterEmbeddedEdit();
+            })
+            { text = "+ 手動で追加", style = { marginTop = 4 } });
+        }
+
+        private VisualElement BuildEmbeddedRow(int index)
+        {
+            var embed = _target.EmbeddedCanvases[index];
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, marginTop = 2 } };
+
+            var pathField = new TextField { value = embed.RootPath ?? string.Empty, isDelayed = true, style = { width = 180 }, tooltip = "親 Prefab ルートからの相対パス(入れ子になっている子 Canvas のルート)。Enter か欄外クリックで確定" };
+            pathField.RegisterValueChangedCallback(evt =>
+            {
+                if (_target == null || _target.EmbeddedCanvases == null || index >= _target.EmbeddedCanvases.Length)
+                {
+                    return;
+                }
+
+                Undo.RecordObject(_target, "Canvas: 埋め込み Canvas の RootPath");
+                _target.EmbeddedCanvases[index].RootPath = evt.newValue;
+                EditorUtility.SetDirty(_target);
+                RefreshAfterEmbeddedEdit();
+            });
+            row.Add(pathField);
+
+            var child = Lookup.Find(embed.Canvas);
+            var canvasField = new ObjectField { objectType = typeof(CanvasData), allowSceneObjects = false, style = { width = 180 } };
+            canvasField.SetValueWithoutNotify(child);
+            canvasField.RegisterValueChangedCallback(evt =>
+            {
+                if (_target == null || _target.EmbeddedCanvases == null || index >= _target.EmbeddedCanvases.Length)
+                {
+                    return;
+                }
+
+                var picked = evt.newValue as CanvasData;
+                if (picked != null && picked.Id == 0)
+                {
+                    _statusLabel.text = "その CanvasData には Id がありません";
+                    canvasField.SetValueWithoutNotify(evt.previousValue);
+                    return;
+                }
+
+                Undo.RecordObject(_target, "Canvas: 埋め込み Canvas の子を変更");
+                _target.EmbeddedCanvases[index].Canvas = picked != null ? new AssetId<CanvasMarker>(picked.Id, AssetType.Canvas) : default;
+                EditorUtility.SetDirty(_target);
+                RefreshAfterEmbeddedEdit();
+            });
+            row.Add(canvasField);
+
+            var editButton = new Button(() => EditEmbedded(index)) { text = "この Canvas を編集", tooltip = "編集対象をこの子の CanvasData に切り替える(「← 親へ戻る」で戻れる)" };
+            editButton.SetEnabled(child != null);
+            row.Add(editButton);
+            row.Add(new Button(() =>
+            {
+                if (CanvasEmbeddedEditing.RemoveAt(_target, index))
+                {
+                    RefreshAfterEmbeddedEdit();
+                }
+            })
+            { text = "削除", tooltip = "この埋め込みの登録を外す(親の ElementFx の行は消えない。子の設定が親の中で効かなくなる)" });
+            return row;
+        }
+
+        private void RegisterEmbedded(string rootPath, CanvasData child)
+        {
+            if (CanvasEmbeddedEditing.Register(_target, rootPath, child))
+            {
+                RefreshAfterEmbeddedEdit();
+                _statusLabel.text = $"'{rootPath}' を埋め込み Canvas(子 = {NameOf(child)})として登録しました";
+            }
+        }
+
+        private void RefreshAfterEmbeddedEdit()
+        {
+            if (_target == null)
+            {
+                return;
+            }
+
+            _inspectorContainer?.Q<InspectorElement>()?.Bind(new SerializedObject(_target));
+            RefreshValidation();
+            RebuildEmbeddedSection();
+            RebuildElementFxAssignments();
+        }
+
+        // ── 選択に追従(Hierarchy / プレハブステージ / 確認用プレビューで選んだ GameObject → 編集対象) ──
+
+        private void FollowSceneSelection()
+        {
+            var go = Selection.activeGameObject;
+            if (go != null && go.GetInstanceID() == _selfSelectedId)
+            {
+                return; // このウィンドウ自身が選んだもの(「選択」「▶ 再生」など)には反応しない
+            }
+
+            _selfSelectedId = 0;
+            if (go == null || _target == null || EditorUtility.IsPersistent(go) || IsEditingText())
+            {
+                return;
+            }
+
+            if (!TryFindViewForSelection(go, out var view, out var viewRoot))
+            {
+                return;
+            }
+
+            var rel = TransformPath.GetRelative(viewRoot, go.transform);
+            var owner = CanvasEmbeddedEditing.ResolveOwner(view, rel, Lookup);
+            if (owner.Data == null)
+            {
+                return;
+            }
+
+            if (owner.Data != _target)
+            {
+                // 既存の文脈の中の祖先へ戻るだけなら、文脈(その外側)は保つ。
+                var index = _ancestors.FindIndex(l => l.Data == owner.Data);
+                SetTargetIn(owner.Data, index >= 0 ? _ancestors.GetRange(0, index) : owner.Ancestors);
+            }
+
+            HighlightRow(owner.Path);
+        }
+
+        // フォーカスのある入力欄(テキスト・数値)がこのウィンドウにあるあいだは切り替えない(入力中の値を失わない)。
+        // このウィンドウ以外(Hierarchy など)にフォーカスがあるときは入力中ではない。
+        private bool IsEditingText()
+        {
+            if (focusedWindow != this)
+            {
+                return false;
+            }
+
+            var focused = rootVisualElement.panel?.focusController?.focusedElement as VisualElement;
+            return focused != null && (focused is TextElement || focused.ClassListContains("unity-base-text-field__input"));
+        }
+
+        // 選んだ GameObject が「どの CanvasData の Prefab を表示している実体」の中にあるか。
+        // プレハブステージ(その Prefab を持つ CanvasData)か、確認用プレビューの実体。
+        private bool TryFindViewForSelection(GameObject go, out CanvasData view, out Transform viewRoot)
+        {
+            view = null;
+            viewRoot = null;
+            var stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage != null && stage.prefabContentsRoot != null && stage.IsPartOfPrefabContents(go))
+            {
+                view = FindCanvasByPrefabPath(stage.assetPath);
+                viewRoot = stage.prefabContentsRoot.transform;
+                return view != null;
+            }
+
+            if (_manager != null && _manager.IsOpen(_previewHandle) && _previewData != null)
+            {
+                var rootGo = _manager.GetGameObject(_previewHandle);
+                if (rootGo != null && go.transform.IsChildOf(rootGo.transform))
+                {
+                    view = _previewData;
+                    viewRoot = rootGo.transform;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private CanvasData FindCanvasByPrefabPath(string assetPath)
+        {
+            if (_target != null && _target.Prefab != null && AssetDatabase.GetAssetPath(_target.Prefab) == assetPath)
+            {
+                return _target;
+            }
+
+            for (var i = _ancestors.Count - 1; i >= 0; i--)
+            {
+                var a = _ancestors[i].Data;
+                if (a != null && a.Prefab != null && AssetDatabase.GetAssetPath(a.Prefab) == assetPath)
+                {
+                    return a;
+                }
+            }
+
+            return Lookup.FindByPrefabPath(assetPath);
+        }
+
+        private void SelectGameObject(GameObject go)
+        {
+            if (go == null)
+            {
+                return;
+            }
+
+            _selfSelectedId = go.GetInstanceID();
+            Selection.activeGameObject = go;
         }
 
         // 範囲外(Undo で行が減った等)なら default を返す(レビュー対応 2026-09-14)。
@@ -728,17 +1277,17 @@ namespace DDrive.Editor.CanvasTool
                     return;
                 }
 
-                if (_manager != null && !_manager.IsOpen(_previewHandle))
+                if (_manager != null && !IsPreviewUsable())
                 {
                     PlacePreview();
                 }
 
                 GameObject collectRoot = null;
                 RectTransform elementTarget = null;
-                if (_manager != null && _manager.IsOpen(_previewHandle))
+                if (TryGetPreviewPrefix(out var previewPrefix))
                 {
                     collectRoot = _manager.GetGameObject(_previewHandle);
-                    elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, elementPath);
+                    elementTarget = _manager.GetComponent<RectTransform>(_previewHandle, EmbeddedCanvasPaths.Combine(previewPrefix, elementPath));
                 }
 
                 var elementLabel = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
@@ -799,11 +1348,16 @@ namespace DDrive.Editor.CanvasTool
             return row;
         }
 
-        // プレハブモードで、このウィンドウの対象 CanvasData の Prefab を開いているときのステージ(それ以外は null)。
-        // 開いているのが別の Prefab のときは対象外(プレビュー実体側で再生する)。
-        private PrefabStage GetTargetStage()
+        // プレハブモードで、このウィンドウの対象 CanvasData の Prefab(または、対象を埋め込んでいる親の Prefab)を
+        // 開いているときのステージ(それ以外は null)。開いているのが無関係な Prefab のときは対象外(プレビュー実体側で再生する)。
+        // prefix = そのステージのルートから見た対象 CanvasData のルートのパス(対象自身の Prefab なら空文字)。
+        // 2026-10-03(Canvas の埋め込み): 以前は「対象 CanvasData の Prefab と完全一致」だけだった。
+        private PrefabStage GetTargetStage() => GetTargetStage(out _);
+
+        private PrefabStage GetTargetStage(out string prefix)
         {
-            if (_target == null || _target.Prefab == null)
+            prefix = string.Empty;
+            if (_target == null)
             {
                 return null;
             }
@@ -814,7 +1368,23 @@ namespace DDrive.Editor.CanvasTool
                 return null;
             }
 
-            return stage.assetPath == AssetDatabase.GetAssetPath(_target.Prefab) ? stage : null;
+            if (_target.Prefab != null && stage.assetPath == AssetDatabase.GetAssetPath(_target.Prefab))
+            {
+                return stage;
+            }
+
+            // 親の連なりを内側から見る(子のプレハブモードから親へ勝手に戻さない。親のプレハブモードでも再生できる)。
+            for (var i = _ancestors.Count - 1; i >= 0; i--)
+            {
+                var ancestor = _ancestors[i].Data;
+                if (ancestor != null && ancestor.Prefab != null && stage.assetPath == AssetDatabase.GetAssetPath(ancestor.Prefab))
+                {
+                    prefix = CanvasEmbeddedEditing.ToAncestorPath(_ancestors, i, string.Empty);
+                    return stage;
+                }
+            }
+
+            return null;
         }
 
         private static RectTransform FindInStage(PrefabStage stage, string elementPath)
@@ -824,20 +1394,50 @@ namespace DDrive.Editor.CanvasTool
             return found as RectTransform;
         }
 
+        // 確認用プレビューが開いていて、その実体が対象(または対象を埋め込んでいる親)の Prefab なら true。
+        // prefix = プレビュー実体のルートから見た対象 CanvasData のルートのパス。
+        private bool TryGetPreviewPrefix(out string prefix)
+        {
+            prefix = string.Empty;
+            if (_manager == null || !_manager.IsOpen(_previewHandle) || _previewData == null)
+            {
+                return false;
+            }
+
+            if (_previewData == _target)
+            {
+                return true;
+            }
+
+            for (var i = _ancestors.Count - 1; i >= 0; i--)
+            {
+                if (_ancestors[i].Data == _previewData)
+                {
+                    prefix = CanvasEmbeddedEditing.ToAncestorPath(_ancestors, i, string.Empty);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsPreviewUsable() => TryGetPreviewPrefix(out _);
+
         // 今「表示されている」再生対象(プレハブモードならステージ内、そうでなければ確認用シーンのプレビュー実体)。
         // 表示されていなければ null。states には対応する初期状態の控えを返す。プレビューの新規配置はしない。
+        // elementPath は対象 CanvasData のルート基準(親の中に埋め込まれているときは、親の実体の中の位置へ変換して探す)。
         private RectTransform FindPlaybackTarget(string elementPath, out ElementFxStateSnapshot states)
         {
-            var stage = GetTargetStage();
+            var stage = GetTargetStage(out var stagePrefix);
             if (stage != null)
             {
                 states = _stageStates;
-                return FindInStage(stage, elementPath);
+                return FindInStage(stage, EmbeddedCanvasPaths.Combine(stagePrefix, elementPath));
             }
 
             states = _previewStates;
-            return _manager != null && _manager.IsOpen(_previewHandle)
-                ? _manager.GetComponent<RectTransform>(_previewHandle, elementPath)
+            return TryGetPreviewPrefix(out var previewPrefix)
+                ? _manager.GetComponent<RectTransform>(_previewHandle, EmbeddedCanvasPaths.Combine(previewPrefix, elementPath))
                 : null;
         }
 
@@ -855,7 +1455,7 @@ namespace DDrive.Editor.CanvasTool
             elementPath ??= string.Empty; // 行 UI 側のキー(null → 空文字に正規化済み)と揃える(レビュー対応 2026-09-14)
 
             var stage = GetTargetStage();
-            if (stage == null && _manager != null && !_manager.IsOpen(_previewHandle))
+            if (stage == null && _manager != null && !IsPreviewUsable())
             {
                 PlacePreview();
             }
@@ -863,7 +1463,7 @@ namespace DDrive.Editor.CanvasTool
             var elementTarget = FindPlaybackTarget(elementPath, out var states);
             if (elementTarget == null)
             {
-                if (stage == null && (_manager == null || !_manager.IsOpen(_previewHandle)))
+                if (stage == null && !IsPreviewUsable())
                 {
                     return false;
                 }
@@ -925,11 +1525,11 @@ namespace DDrive.Editor.CanvasTool
             return true;
         }
 
-        private static void SelectForPlayback(RectTransform target)
+        private void SelectForPlayback(RectTransform target)
         {
             if (target != null && EditorPrefs.GetBool(SelectOnPlayPrefKey, true))
             {
-                Selection.activeGameObject = target.gameObject;
+                SelectGameObject(target.gameObject);
             }
         }
 
@@ -945,7 +1545,7 @@ namespace DDrive.Editor.CanvasTool
             elementPath ??= string.Empty;
             var label = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
             var stage = GetTargetStage();
-            var previewOpen = _manager != null && _manager.IsOpen(_previewHandle);
+            var previewOpen = IsPreviewUsable();
 
             if (stage != null || previewOpen)
             {
@@ -956,7 +1556,7 @@ namespace DDrive.Editor.CanvasTool
                     return;
                 }
 
-                Selection.activeGameObject = displayed.gameObject;
+                SelectGameObject(displayed.gameObject);
                 if (focus)
                 {
                     PreviewPlacement.FocusRect(displayed);
@@ -1044,7 +1644,7 @@ namespace DDrive.Editor.CanvasTool
         private void CapturePreviewBaselines()
         {
             _previewStates.Clear();
-            if (_manager == null || !_manager.IsOpen(_previewHandle))
+            if (!TryGetPreviewPrefix(out var prefix))
             {
                 return;
             }
@@ -1057,7 +1657,7 @@ namespace DDrive.Editor.CanvasTool
 
             foreach (var fx in _target.ElementEffects)
             {
-                _previewStates.Capture(_manager.GetComponent<RectTransform>(_previewHandle, fx.ElementPath ?? string.Empty));
+                _previewStates.Capture(_manager.GetComponent<RectTransform>(_previewHandle, EmbeddedCanvasPaths.Combine(prefix, fx.ElementPath)));
             }
         }
 
@@ -1092,14 +1692,14 @@ namespace DDrive.Editor.CanvasTool
 
             // プレハブモードで対象の Prefab を開いているときはステージ内の実体で再生する(プレビューを置かない)。
             var stageMode = GetTargetStage() != null;
-            if (!stageMode && _manager != null && !_manager.IsOpen(_previewHandle))
+            if (!stageMode && _manager != null && !IsPreviewUsable())
             {
                 PlacePreview();
             }
 
             // (レビュー対応 2026-09-14) 開けなかったときに要素ごとに PlacePreview(RemovePreview/OpenData)を繰り返していた。
             // 1 回で打ち切る。
-            if (!stageMode && (_manager == null || !_manager.IsOpen(_previewHandle)))
+            if (!stageMode && !IsPreviewUsable())
             {
                 _statusLabel.text = $"{phase}: プレビューを開けませんでした";
                 return;
@@ -1251,7 +1851,7 @@ namespace DDrive.Editor.CanvasTool
                 return;
             }
 
-            var merged = CanvasElementFxCollector.ApplyPresetToButtons(_target.Prefab, _target.ElementEffects, _bulkPreset);
+            var merged = CanvasElementFxCollector.ApplyPresetToButtons(_target.Prefab, _target.ElementEffects, _bulkPreset, CanvasEmbeddedEditing.RegisteredRoots(_target));
 
             Undo.RecordObject(_target, "Apply Preset To Buttons");
             _target.ElementEffects = merged;
@@ -1432,7 +2032,7 @@ namespace DDrive.Editor.CanvasTool
 
         private void UpdatePadEnabled()
         {
-            var enabled = _target != null && _manager != null && _manager.IsOpen(_previewHandle);
+            var enabled = _target != null && _manager != null && _manager.IsOpen(_previewHandle) && _previewData == _target;
             if (_padRow != null)
             {
                 _padRow.SetEnabled(enabled);
@@ -1568,7 +2168,11 @@ namespace DDrive.Editor.CanvasTool
             EnsurePreviewRoot();
             EditorAnchorRegistry.Refresh(_registry);
 
-            _previewHandle = _manager.OpenData(_target);
+            // 2026-10-03(Canvas の埋め込み): 子を編集中は、親(連なりの最外側)を Open する。UiManager が親の中の
+            // 埋め込み実体に子の ElementFx・配線を適用するので、本番と同じ見え方で子のパスの再生・選択ができる。
+            var viewData = ViewData;
+            _previewHandle = _manager.OpenData(viewData);
+            _previewData = _manager.IsOpen(_previewHandle) ? viewData : null;
             _statusLabel.text = _manager.IsOpen(_previewHandle) ? "プレビュー表示中" : "表示に失敗しました";
             _simFocusPath = _target.FirstSelected;
             UpdatePadEnabled();
@@ -1618,6 +2222,7 @@ namespace DDrive.Editor.CanvasTool
             _tweenManager?.StopAll(DDrive.Foundation.Manager.StopReason.Manual);
 
             _previewHandle = Handle<CanvasMarker>.Invalid;
+            _previewData = null;
             _previewStates.Clear(); // 実体ごと破棄するので戻さず捨てる
 
             if (_previewRoot != null)
@@ -1656,7 +2261,10 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var any = false;
-            foreach (var result in new CanvasDataValidator().Validate(_target, new ValidationContext(new List<AssetDataBase> { _target })))
+            var validationContext = new ValidationContext(new List<AssetDataBase> { _target });
+            var results = new List<ValidationResult>(new CanvasDataValidator().Validate(_target, validationContext));
+            results.AddRange(new CanvasEmbeddedValidator().Validate(_target, validationContext));
+            foreach (var result in results)
             {
                 any = true;
                 var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };

@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Material Editor の使い方（プレビュー・シェーダー変換）</nav>
 
 <h1>Material Editor の使い方（プレビュー・シェーダー変換）</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-10-03</p>
 
 <p>Material Editor は、<a href="#" data-manual-kind="designer" data-manual-page="material-data">マテリアルデータ / テクスチャデータ</a>を<strong>球のサムネイルで見ながら編集する</strong>ウィンドウです。値を変えると 0.1 秒ほどでサムネイルが描き直され、開いているシーンにプレビューを置けば実際の照明でも確認できます。</p>
 <ul>
@@ -127,6 +127,15 @@
 <tr><td>「共通チャンネルの重複を削除」</td><td>Specific に紛れ込んだ共通チャンネル名（<code>_BaseMap</code> や <code>_Metallic</code> など）や描画ステート名を取り除きます。そのままだと Common の値を上書きしてしまいます。<strong>重複が 1 件以上あるときだけ表示</strong>されます</td></tr>
 <tr><td>ラベル</td><td>「Shader 未設定(既定の Lit で生成)」/「固有 N 件(シェーダーと同期済み)」/「未登録の固有 N 件: _Xxx, _Yyy」/ 末尾の「 / Common を上書きする項目 N 件」。同期直後は「固有: 追加 N / 保持 N / シェーダーに無い N」と内訳が出ます</td></tr>
 </table>
+
+<h3>Passes / Keywords 欄</h3>
+<p>マテリアルデータのときだけ、Inspector の上に「Passes / Keywords」欄が出ます。変更は Undo できます。</p>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>無効にするパス</td><td>選んでいるシェーダーのパス（LightMode 名）がチェックボックスで並びます。<strong>チェックしたパスは描画されません</strong>（例 <code>ShadowCaster</code> にチェック = 影を落とさない）。MaterialData の <code>DisabledPasses</code> に入ります。Unity が返す綴りで出るので <code>SHADOWCASTER</code> のように大文字で表示されることがありますが、同じ意味です。指定済みでシェーダーに無い名前は「（シェーダーに無い）」と出るので、外せます</td></tr>
+<tr><td>有効にするキーワード</td><td>キーワード名を入力して「追加」、または「（候補から追加）」でシェーダーが宣言しているキーワードから選びます。「削除」で外します。MaterialData の <code>EnabledKeywords</code> に入ります</td></tr>
+</table>
+
 
 <h3>テクスチャデータを選んだとき</h3>
 <ul>

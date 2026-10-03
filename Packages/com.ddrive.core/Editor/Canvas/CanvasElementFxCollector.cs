@@ -11,6 +11,12 @@ namespace DDrive.Editor.CanvasTool
     {
         // Prefab 内の Graphic(Image/Text 等)と UiInteractable(UiButton 等)のパスを ElementEffects へ追加する。
         public static ElementFx[] CollectMerged(GameObject prefab, ElementFx[] existing)
+            => CollectMerged(prefab, existing, null);
+
+        // 2026-10-03(Canvas の埋め込み): excludeRoots(登録済みの埋め込みルートのパス)の配下の要素は集めない
+        // (子の CanvasData の担当)。埋め込みルート自身は集める(子の行からは指せない、親の要素のため)。
+        // 既に existing にある行は(配下でも)消さず、そのまま残る(= 親での上書き)。
+        public static ElementFx[] CollectMerged(GameObject prefab, ElementFx[] existing, IReadOnlyList<string> excludeRoots)
         {
             var map = new Dictionary<string, ElementFx>(System.StringComparer.Ordinal);
             var order = new List<string>();
@@ -19,20 +25,21 @@ namespace DDrive.Editor.CanvasTool
             var graphics = prefab.GetComponentsInChildren<Graphic>(true);
             for (var i = 0; i < graphics.Length; i++)
             {
-                AddPathIfMissing(GetPath(prefab.transform, graphics[i].transform), map, order);
+                AddPathIfMissing(GetPath(prefab.transform, graphics[i].transform), map, order, excludeRoots);
             }
 
             var interactables = prefab.GetComponentsInChildren<UiInteractable>(true);
             for (var i = 0; i < interactables.Length; i++)
             {
-                AddPathIfMissing(GetPath(prefab.transform, interactables[i].transform), map, order);
+                AddPathIfMissing(GetPath(prefab.transform, interactables[i].transform), map, order, excludeRoots);
             }
 
             return ToArray(map, order);
         }
 
         // Prefab 内の全 UiButton の AppearPreset を preset に設定する(行が無ければ追加する)。
-        public static ElementFx[] ApplyPresetToButtons(GameObject prefab, ElementFx[] existing, UiPreset preset)
+        // excludeRoots: 登録済みの埋め込みルート(配下のボタンは子の CanvasData の担当なので対象外)。
+        public static ElementFx[] ApplyPresetToButtons(GameObject prefab, ElementFx[] existing, UiPreset preset, IReadOnlyList<string> excludeRoots = null)
         {
             var map = new Dictionary<string, ElementFx>(System.StringComparer.Ordinal);
             var order = new List<string>();
@@ -42,6 +49,11 @@ namespace DDrive.Editor.CanvasTool
             for (var i = 0; i < buttons.Length; i++)
             {
                 var path = GetPath(prefab.transform, buttons[i].transform);
+                if (IsUnderAny(excludeRoots, path))
+                {
+                    continue;
+                }
+
                 if (!map.TryGetValue(path, out var fx))
                 {
                     fx = new ElementFx { ElementPath = path };
@@ -102,15 +114,34 @@ namespace DDrive.Editor.CanvasTool
             }
         }
 
-        private static void AddPathIfMissing(string path, Dictionary<string, ElementFx> map, List<string> order)
+        private static void AddPathIfMissing(string path, Dictionary<string, ElementFx> map, List<string> order, IReadOnlyList<string> excludeRoots = null)
         {
-            if (map.ContainsKey(path))
+            if (map.ContainsKey(path) || IsUnderAny(excludeRoots, path))
             {
                 return;
             }
 
             map[path] = new ElementFx { ElementPath = path };
             order.Add(path);
+        }
+
+        // path が excludeRoots のどれかの「配下」(ルート自身は含まない)か。
+        private static bool IsUnderAny(IReadOnlyList<string> excludeRoots, string path)
+        {
+            if (excludeRoots == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < excludeRoots.Count; i++)
+            {
+                if (EmbeddedCanvasPaths.TryToChildPath(excludeRoots[i], path, out var childPath) && childPath.Length > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static ElementFx[] ToArray(Dictionary<string, ElementFx> map, List<string> order)

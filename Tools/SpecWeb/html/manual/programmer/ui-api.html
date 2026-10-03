@@ -157,6 +157,21 @@ var sub = Ui.OnSignal("shop/buy", args =&gt;
 sub.Dispose();</code></pre>
 <p><code>Ui.OnSignal</code> は R3 の <code>Observable</code> ではなく、<strong><code>IDisposable</code> を返すだけの素の <code>Action&lt;SignalArgs&gt;</code> 購読</strong>です（未 Bind のときは何もしない <code>NullDisposable.Instance</code> を返すので、<code>Dispose()</code> はどちらの場合も安全に呼べます）。<code>SendSignal</code> をゲームコードから直接呼んでコード発の合図を送ることもできます（UI 側は購読していれば受け取ります）。</p>
 
+<h3>入れ子の Canvas（埋め込み Canvas）と Open</h3>
+<p>Hud の Prefab の中に Option の Prefab を入れ子で置き、親の <code>CanvasData.EmbeddedCanvases</code>（<code>RootPath</code> + 子の <code>CanvasData</code>）に登録してあるときは、<strong>親を <code>Ui.Open</code> するだけで子の <code>CanvasData</code> の ElementFx・ボタン / スライダー配線が効きます</strong>。子を別に Open する必要はありません（子の Prefab は新しく生成されず、親の Prefab に入っている実体を使います）。コード側が意識することは次の 3 点です。</p>
+<ul>
+<li><strong>子の <code>CanvasData</code> は Preload しておく</strong>（<code>Flags.Load = Preload</code>）。Open 時に Registry から同期解決するため、読み込まれていないと警告を 1 回出してその埋め込みだけスキップします。</li>
+<li><strong>子の配線は親の <code>Handle</code> に対して実行されます</strong>。<code>SendSignal</code> を購読すると、<code>args.Canvas</code> は親のハンドル、<code>args.ElementPath</code> は親ルート基準のパス（<code>OptionRoot/BtnX</code>）で届きます。子の <code>CloseSelf</code> は<strong>親を閉じます</strong>。</li>
+<li>親の <code>CanvasData</code> に同じ要素（親から見たパス）の ElementFx の行・配線があれば<strong>親の行が優先</strong>されます（子の設定を使う場所ごとに上書きできます）。Navigation / FirstSelected / レイヤー既定 / 開閉演出 / Layer は親のものです。</li>
+</ul>
+<pre><code>// Hud を開くだけで、中に入れ子で入っている Option の演出・配線も効く
+var h = Ui.Open(CANVASID.Hud);
+var sub = Ui.OnSignal("option/apply", args =&gt;
+{
+    // args.Canvas == h(親)、args.ElementPath == "OptionRoot/BtnApply"
+});</code></pre>
+<p>子を単独の画面として <code>Ui.Open(CANVASID.Option)</code> する使い方は従来どおりで、同じ <code>CanvasData</code> を単独でも埋め込みでも使えます。</p>
+
 <h2>UiFx 静的ファサード（UI の動き）</h2>
 <p><code>Runtime/UiTween/UiFx.cs:13</code>。データ化した <code>UiTweenData</code> の再生、約 60 個あるプリセットの 1 行呼び出し、アドホックな Tween、複数 Tween を連結する <code>Sequence()</code> の 4 グループに分かれます。</p>
 

@@ -121,10 +121,31 @@ static Handle&lt;AnimMarker&gt; PlayAnim(Handle&lt;ModelMarker&gt; h, AssetId&lt
 <li><code>Spawn(id, pos, rot)</code> / <code>Spawn(id, parent)</code> の 2 通り。<code>SetMaterial</code> はモデルの指定スロットのマテリアルを <code>MaterialId</code> で差し替える</li>
 <li><code>PlayAnim</code> は内部で <code>AnimManager</code> に委譲するため、<a href="#anim" data-manual-anchor="anim">下記の Anim</a> と同じ再生系に乗ります。<code>ModelsManager</code> に <code>AnimManager</code> が接続されていない構成（テスト等）では no-op になります</li>
 <li><code>fade</code> 省略時（既定 <code>-1f</code>）は <code>AnimData.DefaultCrossFade</code> が使われます（下記 Anim の <code>Play</code> と同じ仕様）</li>
+<li>プールへ返却（<code>Despawn</code>、上限超過の強制回収）するとき、モデル配下の <code>SkinnedMeshRenderer</code> のブレンドシェイプの重みは、そのモデルを初めて出したとき（Prefab の値）へ自動で戻ります。名前の接頭辞（<code>FC_</code> など）にかかわらず全シェイプが対象で、表情が次に出すモデルへ残りません。プールを使わない設定（<code>Pool.Kind = None</code>）のモデルは返却ではなく破棄されます</li>
 </ul>
 <pre><code>var h = Models.Spawn(MODELID.Enemy01, spawnPoint.position, spawnPoint.rotation);
 Models.SetMaterial(h, 0, MATID.EnemyDamaged);
 Models.PlayAnim(h, ANIMID.Idle);</code></pre>
+
+<h3>スポーン / 返却の通知（<code>IModelInstanceListener</code>）</h3>
+<p>モデルの Prefab（ルートまたは子）に付けたコンポーネントが <code>DDrive.Runtime.Model.IModelInstanceListener</code> を実装すると、モデルが出た / 返るときに通知を受けられます。</p>
+<div class="sig">public interface IModelInstanceListener
+{
+    void OnModelSpawned(in ModelInstanceContext context);
+    void OnModelReturning(in ModelInstanceContext context);
+}
+public readonly struct ModelInstanceContext { Handle&lt;ModelMarker&gt; Handle; ModelData Data; GameObject Root; }</div>
+<ul>
+<li><code>OnModelSpawned</code>: スロットのマテリアル適用と <code>DefaultAnimation</code> の開始の後（<code>Models.Spawn</code> の戻り値の直前）に呼ばれます。<code>OnEnable</code> と違い、スロットで差し替わったマテリアルを前提にした初期化ができます</li>
+<li><code>OnModelReturning</code>: プールへ戻す直前（<code>Despawn</code> / 強制回収 / プールしない設定の破棄のすべて）に呼ばれます。アニメの停止より前です。ブレンドシェイプの重みの復元はこの後に行われます</li>
+<li>実装は、モデルの GameObject を初めて出すときに 1 回だけ集めます。実行時に後から足したコンポーネントには通知されません（Prefab に付けておいてください）</li>
+<li>通知は実装ごとに例外を隔離します。1 つが例外を投げても <code>Debug.LogException</code> に出て、ほかの実装の通知と返却は続きます</li>
+</ul>
+<pre><code>public class MyModelHook : MonoBehaviour, IModelInstanceListener
+{
+    public void OnModelSpawned(in ModelInstanceContext context) { /* 初期化 */ }
+    public void OnModelReturning(in ModelInstanceContext context) { /* 後片付け */ }
+}</code></pre>
 
 <h2>Prefabs（汎用 Prefab）</h2>
 <p>実装: <code>Packages/com.ddrive.core/Runtime/Prefab/Prefabs.cs:9</code>。見た目差し替えを持たない、種類・タグ・コリジョンレイヤーだけを管理する汎用 Prefab です（<code>PrefabData</code>、<code>Packages/com.ddrive.core/Runtime/Prefab/PrefabData.cs:28</code>）。</p>
@@ -176,6 +197,7 @@ static void SetLayerWeight(Animator target, int layer, float weight)</div>
 <li>同じ <code>Animator</code> の同じレイヤーで既に再生中のものがあれば、新しい <code>Play</code> によって自動的に中断（Interrupt）されます</li>
 </ul>
 <p>ドット記法（<code>AnimHandleExtensions</code>）: <code>h.IsPlaying()</code> / <code>h.Stop(fade)</code> / <code>h.SetSpeed(speed)</code> / <code>h.NormalizedTime()</code>。</p>
+<p><strong>外部パッケージが書くブレンドシェイプ:</strong> <code>DDrive.Runtime.Anim.ExternalBlendShapePrefixes</code> は、外部パッケージが LateUpdate などで重みを書くシェイプの接頭辞（既定 <code>FC_</code> / <code>fcs_</code>。大文字小文字を区別する前方一致）を持つ静的クラスです。<code>All</code> が一覧、<code>IsOwnedExternally(string shapeName)</code> が判定です。<code>AnimData.BlendShapes</code> はこれらのシェイプを指定しないでください（指定すると Validation が Warning を出します）。何も指定しなければ D-Drive はこれらのシェイプに触りません。モデルをプールへ返すときは、これらを含む全シェイプが生成時の重みへ戻ります。</p>
 
 <h2>Anim2D（2D スプライトアニメーション）</h2>
 <p>実装: <code>Packages/com.ddrive.core/Runtime/Anim2D/Anim2D.cs:12</code>。再生実体は 3D と同じ <code>AnimManager</code>（<code>Anim2DData</code> は <code>AnimData</code> の派生）で、Handle も共通の <code>Handle&lt;AnimMarker&gt;</code> です。Anim2D 固有の機能は、方向 BlendTree のパラメータ設定です。</p>

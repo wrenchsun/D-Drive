@@ -394,6 +394,7 @@ DDrive.Runtime.Ui.CanvasData::CloseTransition : Generic
 DDrive.Runtime.Ui.CanvasData::Description : String
 DDrive.Runtime.Ui.CanvasData::DisplayName : String
 DDrive.Runtime.Ui.CanvasData::ElementEffects : Generic
+DDrive.Runtime.Ui.CanvasData::EmbeddedCanvases : Generic
 DDrive.Runtime.Ui.CanvasData::Events : Generic
 DDrive.Runtime.Ui.CanvasData::FirstSelected : String
 DDrive.Runtime.Ui.CanvasData::Flags : Generic
