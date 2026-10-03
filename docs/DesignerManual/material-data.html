@@ -44,7 +44,7 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <tr><td>Common</td><td>どのシェーダーでも意味が共通するチャンネル。下の「共通チャンネル（Common）」を参照</td></tr>
 <tr><td>Specific</td><td>シェーダー固有のパラメータ。Common に無いものだけを入れます。要素は <code>Property</code>（シェーダープロパティ名。例 <code>_SpecColor</code>）と <code>Value</code>（値。Float / Int / Bool / Color / Vector / Object（テクスチャ等）のうち型に合うものを使う）。<strong>手で埋める必要はほとんどありません</strong> — Shader を設定すると Material Editor が自動で既定値を登録します</td></tr>
 <tr><td>RenderQueueOffset</td><td>描画順のずらし量。Blend から決まる基準（Opaque=2000 / Cutout=2450 / Transparent=3000）に足されます。普段は 0 のまま</td></tr>
-<tr><td>RenderingLayerMask</td><td>Rendering Layer Mask。0 なら Renderer 側の設定を変えません。ライトレイヤーは Renderer 単位の設定なので、モデル側の LightLayerMask（<a href="model-editor.html">モデルの設定</a>）も参照</td></tr>
+<tr><td>RenderingLayerMask</td><td>未使用の欄です（0 以外を入れると検証で Info が出ます）。ライトレイヤーはモデル側の LightLayerMask（<a href="model-editor.html">モデルの設定</a>）で指定します</td></tr>
 <tr><td>DisabledPasses</td><td>無効にするパス。シェーダーの LightMode 名で指定します（例 <code>ShadowCaster</code> = 影を落とさない、<code>DepthOnly</code>）。大文字小文字は区別しません。空欄・シェーダーに無い名前は無視されます。<a href="material-editor.html">Material Editor</a> の「Passes / Keywords」欄でシェーダーのパス一覧から選べます</td></tr>
 <tr><td>EnabledKeywords</td><td>有効にするシェーダーキーワード（例 <code>_MY_FEATURE</code>）。Common / Specific を反映したあとに有効にします。空欄は無視されます。Material Editor の「Passes / Keywords」欄で入力するか、シェーダーが宣言しているキーワードの候補から選べます</td></tr>
 <tr><td>Anims</td><td>常時アニメ（UV スクロール等）。D-Drive が共有 Material に対して一括で動かします。下の「Anims の使い方」を参照</td></tr>
@@ -54,7 +54,7 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <h3>共通チャンネル（Common）</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>Albedo</td><td>ベースカラー（アルベド = 素の色）テクスチャの TextureData ID。未設定は検証で Warning（Tint だけで塗るなら無視して構いません）</td></tr>
+<tr><td>Albedo</td><td>ベースカラー（アルベド = 素の色）テクスチャの TextureData ID。未設定は検証で Warning（AlbedoTint を白以外にして色だけで塗るマテリアルと、Albedo テクスチャの欄を持たないシェーダーでは出ません）</td></tr>
 <tr><td>AlbedoTint</td><td>アルベドに掛ける色（既定: 白 = そのまま）。半透明にするときはここのアルファも使います</td></tr>
 <tr><td>Normal</td><td>ノーマルマップの TextureData ID</td></tr>
 <tr><td>NormalScale</td><td>ノーマルの強度（既定 1）。凹凸を強くしたいときに上げる</td></tr>

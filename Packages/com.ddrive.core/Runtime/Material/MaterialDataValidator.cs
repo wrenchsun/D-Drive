@@ -12,6 +12,17 @@ namespace DDrive.Runtime.Material
     {
         public AssetType Target => AssetType.Material;
 
+        private static bool IsAlbedoIntentionallyUntextured(MaterialData mat)
+        {
+            if (mat.Common.AlbedoTint != UnityEngine.Color.white)
+            {
+                return true;
+            }
+
+            return mat.Shader != null
+                && !MaterialCommonBinding.IsSupported(mat.Shader, MaterialCommonBinding.CommonChannel.Albedo);
+        }
+
         public IEnumerable<ValidationResult> Validate(AssetDataBase data, ValidationContext ctx)
         {
             if (data is not MaterialData mat)
@@ -38,9 +49,21 @@ namespace DDrive.Runtime.Material
                 }
             }
 
-            if (!mat.Common.Albedo.IsValid)
+            // FC-19(2026-10-03、[51] §4.20): 色だけのマテリアルでは出さない(警告を減らす方向のみ)。
+            // AlbedoTint が既定(白)以外なら色で見た目を決めている意図なので出さない。割り当てたシェーダーに
+            // Albedo テクスチャのプロパティ(_BaseMap / _MainTex)が無いときも、テクスチャを入れようが無いので出さない。
+            if (!mat.Common.Albedo.IsValid && !IsAlbedoIntentionallyUntextured(mat))
             {
                 yield return ValidationResult.Warning("Common.Albedo(ベースカラー)が未設定です");
+            }
+
+            // FC-19: RenderingLayerMask は MaterialConverter がコピーするだけで実行時には使われない
+            // (効くのは ModelData.LightLayerMask)。0 以外が入っているときだけ知らせる(Info、新規コード)。
+            if (mat.RenderingLayerMask != 0)
+            {
+                yield return ValidationResult.Info(
+                    $"RenderingLayerMask({mat.RenderingLayerMask})は実行時に使われません。ライトレイヤーは ModelData.LightLayerMask で指定してください",
+                    code: "DD-MAT-RENDERINGLAYERMASK-UNUSED");
             }
 
             if (mat.Common.Blend == BlendType.Transparent && mat.RenderQueue < (int)UnityEngine.Rendering.RenderQueue.Transparent - 500)
