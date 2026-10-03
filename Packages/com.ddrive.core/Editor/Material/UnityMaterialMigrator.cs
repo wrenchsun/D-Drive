@@ -78,6 +78,13 @@ namespace DDrive.Editor.Materials
             // 元の .mat が「知らないシェーダー」か / 欠けているか(FX-R-09 / FX-R-02)。既存 Data の扱いはこの 2 つで決める。
             var sourceUnknown = target == null && UnknownShaderGuard.IsUnknown(source.shader);
             var sourceMissing = UnknownShaderGuard.IsMissing(source.shader);
+            // 元のシェーダーが欠けていて既存の Data があるときは、入口で何も書かずに警告して抜ける(FY-R-01)。
+            // Shader / Specific だけでなく Common(色・テクスチャ等)も、欠けたシェーダーの Material から読み直した値では上書きしない。
+            if (sourceMissing && MayaMaterialImporter.TryKeepExistingWhenShaderMissing(source, SourceKey, report, gameDataRoot, out var keptData))
+            {
+                return keptData;
+            }
+
             // 知らないシェーダーを保つ(FC-15)。Profile の検索は知らないシェーダーのときだけ行う(一括変換での無駄な検索を避ける)。
             var keepSource = false;
             if (sourceUnknown)
@@ -97,9 +104,9 @@ namespace DDrive.Editor.Materials
                 if (UnknownShaderGuard.IsMissing(source.shader))
                 {
                     // シェーダー参照が欠けている(FC-R-02)。保っても常にピンクなので Policy に関わらず、新規の Data は Lit にする。
-                    // 既存の Data があるときはシェーダー参照を書き換えない(FX-R-02。下の isNew の分岐)。
+                    // 既存の Data があるときはここへ来る前の入口で何も書かずに抜けている(FX-R-02 / FY-R-01)。
                     report.Log($"警告: '{source.name}' のシェーダーが見つかりません(パッケージ未導入・参照切れ)。新規の MaterialData は {LitShaderName} として作成します"
-                               + "(既存の MaterialData があればシェーダーは変更しません)");
+                               + "(既存の MaterialData があれば何も変更しません)");
                 }
                 else
                 {
@@ -130,24 +137,15 @@ namespace DDrive.Editor.Materials
                     }
                 }
 
-                var createdBefore = report.Created;
                 var data = MayaMaterialImporter.ImportMaterial(source, category, SourceKey, profile, report, gameDataRoot);
                 if (data == null)
                 {
                     return null;
                 }
 
-                var isNew = report.Created > createdBefore;
-
                 // 知らないシェーダーを保つとき、既に有効なシェーダーが入っている既存 Data は上書きしない(FC-15)。
                 // 既存 Data のシェーダーが知らないシェーダーで、呼び出しが「既存は上書きしない」Convert(Ask の非対話既定)なら寄せない(FC-R-01)。
-                if (!isNew && sourceMissing)
-                {
-                    // FX-R-02: 元のシェーダーが欠けている間に既存 Data を再生成しても、既存 Data のシェーダー参照(Toon 等)を
-                    // Lit に置き換えない(置き換えると、パッケージが戻っても元の参照に戻らない)。方針(Keep / Convert / Ask)に関わらず保つ。
-                    report.Log($"警告: '{source.name}' のシェーダーが見つからないため、既存の MaterialData '{data.name}' のシェーダーと固有の設定は変更しませんでした");
-                }
-                else if (data.Shader != target && !(keepSource && data.Shader != null) && !KeepsExistingUnknownShader(data.Shader, explicitHandling, sourceUnknown))
+                if (data.Shader != target && !(keepSource && data.Shader != null) && !KeepsExistingUnknownShader(data.Shader, explicitHandling, sourceUnknown))
                 {
                     // 再実行時に既存 Data のシェーダーが違う(例: 以前 URP Lit のまま作った)場合も D-Drive 標準へ寄せる
                     Undo.RecordObject(data, "Migrate Unity Material");

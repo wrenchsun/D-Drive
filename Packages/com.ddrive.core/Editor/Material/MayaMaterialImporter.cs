@@ -183,6 +183,12 @@ namespace DDrive.Editor.Materials
                 return null;
             }
 
+            // 元の .mat のシェーダーが欠けていて既存の Data があるときは、何も書き換えずに既存を返す(FY-R-01。FBX の取り込み経路も同じ)。
+            if (TryKeepExistingWhenShaderMissing(source, sourceKey, report, gameDataRoot, out var kept))
+            {
+                return kept;
+            }
+
             var sourceMaterial = BuildSourceMaterial(source, sourceKey);
             var common = BuildCommon(source, category, profile, report, gameDataRoot);
 
@@ -241,6 +247,36 @@ namespace DDrive.Editor.Materials
             }
 
             return created;
+        }
+
+        // 元の Material のシェーダーが欠けている(パッケージ未導入・参照切れ。UnknownShaderGuard.IsMissing)間は、そこから
+        // 読み直した値は信用できない(プロパティがシェーダーの定義で引かれるので既定値になりうる)。同じ元から作られた既存の
+        // MaterialData があれば、Shader / Specific だけでなく Common(色・テクスチャ・Blend 等)も含めて**何も書き換えず**、
+        // 警告を出して既存を返す(FY-R-01)。既存が無ければ false(新規は従来どおり作る)。
+        // 既存の探索は読み取りだけ(旧形式のキーの移行 = SourceMaterial の書き換えもしない)。
+        public static bool TryKeepExistingWhenShaderMissing(UnityEngine.Material source, string sourceKey, Report report, string gameDataRoot, out MaterialData existing)
+        {
+            existing = null;
+            if (source == null || !UnknownShaderGuard.IsMissing(source.shader))
+            {
+                return false;
+            }
+
+            var key = BuildSourceMaterial(source, sourceKey);
+            var legacyKey = BuildLegacySourceMaterial(source, sourceKey);
+            var index = GetMaterialIndex(gameDataRoot);
+            if (string.IsNullOrEmpty(key) || !(index.TryGetValue(key, out existing) && existing != null) &&
+                !(!string.IsNullOrEmpty(legacyKey) && index.TryGetValue(legacyKey, out existing) && existing != null))
+            {
+                existing = null;
+                return false;
+            }
+
+            report ??= new Report();
+            report.Unchanged++;
+            report.Log($"警告: '{source.name}' のシェーダーが見つからないため(パッケージ未導入・参照切れ)、既存の MaterialData '{existing.name}' は"
+                       + "シェーダー・固有・共通(色・テクスチャ等)とも変更しませんでした。パッケージを戻してから取り込み直してください");
+            return true;
         }
 
         // 生成する MaterialData のシェーダー(2026-09-11)。
