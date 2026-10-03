@@ -389,6 +389,7 @@ Volume の書き方:
   - 定数を public にして、ゲーム側が「D-Drive より前」を明示したいときに `DDriveCutsceneCameraApplier.ExecutionOrder - 1` のように参照できるようにする(数値の直書きを避ける。`DDriveMenu` 定数と同じ考え方)
 - Applier 自身の順序が ProjectSettings の Script Execution Order で書き換えられていないことも契約に含める(下の検出 1 で検査)
 - `w = 0` のフレーム(Cutscene 非再生時)は `LateUpdate` で何もしない(§4.6.2)。Applier が付いているだけではゲームカメラに影響しない
+- **現在の視点を「読む」側の契約(2026-10-03 追記、FC-3)**: ゲーム側が「今どこから見ているか」を読むための公開 API `DDrive.Runtime.Viewing.ViewCamera.TryGetCurrent(subject, out ViewPose)`([51](51_tdrive_integration.md) §4.4)を足した。カットシーン中の姿勢は Applier が LateUpdate(実行順 1000)で `Camera.main` に書くので、**そのフレームのカット姿勢が欲しいときは、`LateUpdate` で、実行順が `DDriveCutsceneCameraApplier.ExecutionOrder`(1000)より後のコンポーネントから呼ぶ**(それより前だと 1 フレーム前の姿勢。Update 時点のカットの中間値は返さない)。カットシーンが `Camera.main` を駆動中かは Applier の読み取り専用 `IsDriving`(再生開始時の画角を控えてから `Restore()` するまで true)で判定し、その間は `ViewPose.Source = Cutscene`、そうでなければ `MainCamera`。Edit Mode のスクラブ(`CutsceneEditModeCameraWriter` が `Camera.main` に直接書く)は `MainCamera`。この契約は `ExternalContract.Tests.Runtime` の E-18([42] §5.14)で固定している。ゲーム側が守る G-1〜G-5 は変わらない(読む側の追加のみ)
 
 **ゲーム側(持ち込み先)が守る条件 — 契約**
 
@@ -576,6 +577,7 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 - **ContentHash**: Cutscene カタログを `ContentHashCatalogCoverageValidator` の対象に含める(§4.7)
 - **`DDriveCutsceneCameraApplier` / `DDriveCutsceneVolume`**: ランタイムがシーンに置く永続オブジェクト(CameraFx の `DDriveCameraShakeNode` と同じ流儀。DontDestroyOnLoad のカメラなら追従)。Applier は `[DefaultExecutionOrder(1000)]`(`public const int ExecutionOrder`)で、実行順の契約(§4.6.5)の D-Drive 側の履行。Editor / Development Build では `RenderPipelineManager.endCameraRendering` を購読して上書き検出(§4.6.5 検出 2・3)を行う
 - **`CameraExecutionOrderValidator`(新規 `IValidator`、6-10d)**: 実行順の契約(§4.6.5 検出 1)。全ランタイムスクリプトの実効実行順(ProjectSettings の Script Execution Order > `DefaultExecutionOrder` 属性)を調べ、D-Drive 以外で 1000 以上 → Warning、Applier 自身が 1000 でない → Error、`PlayerLoop` / `onBeforeRender` / 描画コールバックを使うファイル → Info。P-6 の `ProjectSetupValidator` とは別の Validator にする(こちらは Cutscene を使わないプロジェクトには関係ないため、`CutsceneData` が 1 件も無いときは検査を省略)
+  - **2026-10-03 追記(FC-3)**: 実行順 1000 以上のスクリプトを Warning にする (a) の閾値は、`ViewCamera.TryGetCurrent` を呼ぶ側には**逆向き**に働く(視点を読む側は実行順が 1000 より**後**でなければならない)。読む側は「カメラを書く」わけではないので Validator の検査対象ではなく、(a) の Warning は変えない(Validator のコード・重さは変更なし)。読む側が実行順 1000 以上でも、その Warning は「LateUpdate でカメラを書いている場合」の注意なので、書いていなければ無視してよい
 - **`Cutscene` 静的ファサードの入力ロック公開面**(§4.5.1): `Cutscene.IsInputLocked` / `Cutscene.OnInputLockChanged`(R3)/ `CutsceneHandle.IsInputLocked` + EventBus Custom トリガ `cutscene/input_lock` / `input_unlock`。入力を実際に止める API は D-Drive に作らない(ゲーム側の責務)
 - 標準の Audio / Control / Signal トラックは禁止 API 規約(AudioSource.Play / Instantiate 直呼び)と衝突するので、Validation で「D-Drive トラックを使ってください」と Warning を出す。**標準 Animation トラックをカメラにバインドしている**場合も同様に Warning(Camera クリップを使う)
 - `PresentationManager` の `TrackKind.Timeline`(現在は警告 + no-op)を `CutsceneManager` に接続。Presentation → Cutscene → Presentation の循環を `PresentationDataValidator` / `CutsceneDataValidator` の両方で Error にする
@@ -630,7 +632,7 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 
 ## 追記（2026-10-03、FC チケット）
 
-T-Drive の FacialController（`com.tdrive.facial`）との連携のため、Cutscene に次の**追加のみ**の拡張点を計画している（設計 [51_tdrive_integration.md](51_tdrive_integration.md)、チケット [11](11_tasks.md) FC 節。**FC-1・FC-5 は実装済み、他は未実装**）: **FC-1（実装済み）** 同じモデルへのバインド（`CutsceneBindTarget.SameAsTrack` + `CutsceneBinding.SourceTrackName`。§4.2）/ **FC-4** 外部パッケージのマーカーの受け口（`ICutsceneMarker`。§4.3・§4.4）/ **FC-5（実装済み、2026-10-03）** 取り込み完了のリスナー（`ICutsceneImportListener`。§5.2 の 7。`CutsceneFbxPostprocessor` は `delayCall` で取り込むため外部の `postprocessOrder` では順序制御できない）/ **FC-3** 現在の視点 API（§4.6.5 の実行順の契約に関係）。外部 Track / Clip を壊さない契約は FC-10 でテストにする。
+T-Drive の FacialController（`com.tdrive.facial`）との連携のため、Cutscene に次の**追加のみ**の拡張点を計画している（設計 [51_tdrive_integration.md](51_tdrive_integration.md)、チケット [11](11_tasks.md) FC 節。**FC-1・FC-3・FC-5 は実装済み、他は未実装**）: **FC-1（実装済み）** 同じモデルへのバインド（`CutsceneBindTarget.SameAsTrack` + `CutsceneBinding.SourceTrackName`。§4.2）/ **FC-4** 外部パッケージのマーカーの受け口（`ICutsceneMarker`。§4.3・§4.4）/ **FC-5（実装済み、2026-10-03）** 取り込み完了のリスナー（`ICutsceneImportListener`。§5.2 の 7。`CutsceneFbxPostprocessor` は `delayCall` で取り込むため外部の `postprocessOrder` では順序制御できない）/ **FC-3（実装済み、2026-10-03）** 現在の視点 API（`ViewCamera`。§4.6.5 の実行順の契約に関係）。外部 Track / Clip を壊さない契約は FC-10 でテストにする。
 
 **2026-10-03 追記(FC-1)**: `CutsceneBindTarget.SameAsTrack`(= 6、末尾追加)と `CutsceneBinding.SourceTrackName`(末尾追加)を実装した。解決は §4.2(2 パス・鎖・フェイルソフト)、Edit Mode は §4.4。`CutsceneDataValidator` に Warning を 4 種追加(SourceTrackName が空 / Bindings に無い / 自己参照・循環 / 参照先に対応する Timeline トラックが無い)。Inspector は `CutsceneBinding` の PropertyDrawer(Target に応じて Model / SceneObjectName / SourceTrackName を出し分け、SameAsTrack は Bindings のトラック名から選ぶ)と、バインド検査の「→ 参照先」✓/✗ 表示を追加([09_editor_tools.md](09_editor_tools.md))。互換区分は MINOR(追加のみ)。実装メモは [51 §4.2](51_tdrive_integration.md)。
 

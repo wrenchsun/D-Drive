@@ -68,6 +68,7 @@
 <div class="sig">[DefaultExecutionOrder(DDriveCutsceneCameraApplier.ExecutionOrder)]   // ExecutionOrder = 1000
 public sealed class DDriveCutsceneCameraApplier : MonoBehaviour</div>
 <p><code>DDriveRuntimeBootstrap</code> の <code>-1000</code>（誰よりも先に組み立てる）と対称に、<code>+1000</code>（誰よりも後にカメラを書く）を D-Drive が占めます。<strong>ゲームコードの実行順は −1000 より大きく 1000 より小さい範囲に収めてください。</strong> 「D-Drive より前」を明示したいときは数値を直書きせず <code>DDriveCutsceneCameraApplier.ExecutionOrder - 1</code> のように定数を参照してください。カットシーンが再生されていないフレームでは Applier は何もしません（付いているだけではゲームカメラに影響しません）。</p>
+<p>カットシーン中の「今の視点」を読みたい側（顔の補正など）は <code>ViewCamera.TryGetCurrent</code>（<a href="extending.html#viewcamera">現在の視点カメラ</a>）を、<code>LateUpdate</code> で実行順が <code>DDriveCutsceneCameraApplier.ExecutionOrder</code> より<strong>後</strong>のコンポーネントから呼んでください。それより前で呼ぶと 1 フレーム前のカット姿勢になります。</p>
 <table>
 <tr><th>#</th><th>ゲーム側が守る条件</th><th>理由</th></tr>
 <tr><td>G-1</td><td><code>Camera.main</code> の Transform・<code>fieldOfView</code>・物理カメラ値への書き込みは <code>Update</code> / <code>FixedUpdate</code> / <code>LateUpdate</code> のいずれかで行う。<code>LateUpdate</code> の場合、そのスクリプトの実行順は <strong>1000 未満</strong>（<code>DefaultExecutionOrder</code> 属性も、ProjectSettings &gt; Script Execution Order の設定も）</td><td>Applier（1000）が同じフレームの <code>LateUpdate</code> の最後に「ゲームカメラの姿勢」を読んでから上書きするため</td></tr>

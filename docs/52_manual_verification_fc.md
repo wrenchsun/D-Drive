@@ -79,7 +79,19 @@
 
 ## 3. FC-3: 「今の視点カメラ」を返す公開 API
 
-未実装（実装時に追記）
+[51] §4.4、[26](26_timeline.md) §4.6.5、[42] §5.14（E-18）、ProgrammerManual `extending.html#viewcamera`。D-Drive 単体には使い手（視点を読む機能）が無い公開 API なので、**目視で確認するのは確認用シーンでの 1 項目だけ**。以下は**自動テストで確認済み**:
+
+- PlayMode `ExternalContractViewTests`（5 件）: `E18_NoCamera_ReturnsFalse_WithoutWarning`（カメラ無しで `false`・`Source = None`・警告なし）/ `E18_MainCamera_ReturnsWorldValuesUnchanged`（位置・回転・縦画角が `Camera.main` と無変換で一致）/ `E18_ExternalProvider_ResolvesSplitScreenBySubject_PriorityAndUnregister`（外部アセンブリの `IViewProvider` の `subject` 振り分け・優先度・`Unregister`）/ `E18_TryGetCurrent_AllocatesNothing`（割り当て 0）/ `E18_CutsceneOwnsCamera_ReturnsCutSource_FromLaterLateUpdate`（カットシーン所有中は `Source = Cutscene` で姿勢が `Camera.main` と一致。実行順 1000 より後の LateUpdate から読むとそのフレームのカット姿勢）
+- PlayMode `ViewCameraTests`（6 件）: 同優先度の登録順・再登録 / プロバイダの例外隔離 / 破棄済みプロバイダの除去 / `TryGetView` 内からの登録 / 正射影カメラで `fieldOfView` をそのまま返す / 実 `CutsceneManager` が駆動中の `Source = Cutscene`・カットの進行への追従・終了後に `MainCamera`
+- EditMode `ViewCameraEditModeTests`（1 件）: Edit Mode（Timeline ウィンドウのスクラブ中）でも `Camera.main` の現在の姿勢を `MainCamera` で返す
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 3-1 | `CutsceneData` の Inspector の「▶ Cutscene確認用シーンを開く」で開く確認用シーン（[43] §7）で Play し、Camera クリップを持つ `CutsceneData` を再生する。再生中に Console へ `ViewCamera.TryGetCurrent` の結果を出す小さなテスト用コンポーネント（`[DefaultExecutionOrder(1001)]`、`LateUpdate` で呼ぶ）を `Camera.main` に付けておく | カットの区間中は `Source = Cutscene` で、位置・回転が Scene ビューの `Camera.main` と一致する。カットが終わると `Source = MainCamera` に戻る。**エラー・警告は出ない** | □ 未 |
+
+**T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-3 の項。
+
+**要判断（FC-3）**: なし（U-4 は決定済み。[51] §8）。
 
 ## 4. FC-4: 外部パッケージのマーカーの汎用の受け口
 
@@ -306,7 +318,8 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - FC-4: T-Drive 側で `FacialMarker : Marker, ICutsceneMarker`（`Bridges.DDrive`）を実装したとき、Timeline に置いたマーカーが Play で時刻を跨いだ瞬間に 1 回だけ `Fire` され（Seek / Skip / 途中参加では呼ばれず）、Timeline ウィンドウの再生でも同じ（スクラブでは呼ばれない）
 - FC-6: T-Drive の `IImportRuleFolderOptOut` 実装（`Facial` を宣言）が入ったあと、`Assets/SourceAssets/Facial/<キャラ>/` にファイルを置いても Console に `ImportRule 案内` の警告が出ない（宣言していない名前のフォルダには従来どおり出る）
 - FC-14: T-Drive の `IShaderConversionTableProvider` / `ITextureImportRuleProvider` 実装が入ったあと、(a) マテリアル変換ウィンドウの表に T-Drive パッケージ内の変換表が載り、`Assets/` に同じ組の表を置くとそちらが優先される (b) `*_ToonMask.png` を取り込むと sRGB オフ（`T_` で始まる名前でも）になり、Texture の Validation が Warning を出さない
-- FC-3 / FC-15: T-Drive 側の対応が入ったとき
+- FC-3: T-Drive の `Bridges.DDrive` が `ViewCamera.TryGetCurrent` を視点解決の最後のフォールバックに設定したとき、カットシーン中も表情の補正が実際のカット姿勢（ブレンド中を含む）に追従する。Runner の `LateUpdate` の実行順が 1000 より後であること（それより前だとカットシーン中は 1 フレーム遅れる）
+- FC-15: T-Drive 側の対応が入ったとき
 - FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 
 ## 要判断（全体）
