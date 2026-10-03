@@ -14,7 +14,7 @@
 7. **プレビューは実 Manager を Editor から駆動する**（ADR-4）。Editor 専用の再生経路を作らない。**ウィンドウ内での描画確認は避け、確認用シーン / Prefab を開いて SceneView で確認する**（2026-09-10）
 8. **Manager を new するのは `DDriveRuntimeBootstrap`（[docs/02](docs/02_core_framework.md) §14）・テスト・Editor プレビューだけ。** 作成した Data は Addressables に同じ address で登録されていること（AssetBrowser が自動、`Validation > Run All` が検出）
 9. 迷ったら実装せずに聞く。特にシリアライズ形式（フィールド削除・型変更）・asmdef 構成・ProjectSettings
-10. **互換性ポリシー（[docs/42 §5](docs/42_distribution.md)、2026-09-20 P-13 発効）を守る。** D-Drive は `com.ddrive.core` として持ち込み先（MS2026）から git URL で参照されている。シリアライズ形式・enum・ID/定数名・公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・ContentHash・ネットメッセージ・生成コード・Validation の重さは **追加のみ**（削除・改名・型変更は MAJOR = [docs/42 §5.12](docs/42_distribution.md) の手続きとユーザー承認が必須、MS2026 開発中は 0 回）。`Tests/Editor/Compat` のスナップショットテストが赤なら変更しない（意図した追加なら `Tools > D-Drive > Compat > スナップショットを更新` + `CHANGELOG.md` の互換性節に追記。[docs/12 §3「互換性」](docs/12_review.md)）
+10. **互換性ポリシー（[docs/42 §5](docs/42_distribution.md)、2026-09-20 P-13 発効）を守る。** D-Drive は `com.ddrive.core` として持ち込み先（MS2026）から git URL で参照されている。シリアライズ形式・enum・ID/定数名・公開 API（`DDrive.Foundation`/`DDrive.Runtime`）・ContentHash・ネットメッセージ・生成コード・Validation の重さ・外部拡張の契約（[docs/42 §5.14](docs/42_distribution.md)）は **追加のみ**（削除・改名・型変更は MAJOR = [docs/42 §5.12](docs/42_distribution.md) の手続きとユーザー承認が必須、MS2026 開発中は 0 回）。`Tests/Editor/Compat` のスナップショットテストが赤なら変更しない（意図した追加なら `Tools > D-Drive > Compat > スナップショットを更新` + `CHANGELOG.md` の互換性節に追記。[docs/12 §3「互換性」](docs/12_review.md)）
 
 ## 1. プロジェクト概要
 

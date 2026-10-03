@@ -1,0 +1,26 @@
+{
+    "name": "ExternalContract.Tests.Runtime",
+    "rootNamespace": "ExternalContract.Tests",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime",
+        "UniTask",
+        "Unity.Timeline",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "R3.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

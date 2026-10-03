@@ -1,0 +1,243 @@
+; FBX 7.4.0 project file
+; ExternalContract fixture: skinned quad with 3 bones and 3 blend shapes (synthetic, ASCII)
+FBXHeaderExtension:  {
+	FBXHeaderVersion: 1003
+	FBXVersion: 7400
+	Creator: "D-Drive ExternalContract fixture"
+}
+GlobalSettings:  {
+	Version: 1000
+	Properties70:  {
+		P: "UpAxis", "int", "Integer", "",1
+		P: "UpAxisSign", "int", "Integer", "",1
+		P: "FrontAxis", "int", "Integer", "",2
+		P: "FrontAxisSign", "int", "Integer", "",1
+		P: "CoordAxis", "int", "Integer", "",0
+		P: "CoordAxisSign", "int", "Integer", "",1
+		P: "UnitScaleFactor", "double", "Number", "",1
+		P: "OriginalUnitScaleFactor", "double", "Number", "",1
+	}
+}
+Definitions:  {
+	Version: 100
+	Count: 20
+	ObjectType: "GlobalSettings" {
+		Count: 1
+	}
+	ObjectType: "Model" {
+		Count: 4
+	}
+	ObjectType: "Geometry" {
+		Count: 4
+	}
+	ObjectType: "NodeAttribute" {
+		Count: 3
+	}
+	ObjectType: "Deformer" {
+		Count: 8
+	}
+}
+Objects:  {
+	Geometry: 1000, "Geometry::Body", "Mesh" {
+		Vertices: *12 {
+			a: 0,0,0,1,0,0,1,2,0,0,2,0
+		}
+		PolygonVertexIndex: *4 {
+			a: 0,1,2,-4
+		}
+		GeometryVersion: 124
+		LayerElementNormal: 0 {
+			Version: 101
+			Name: ""
+			MappingInformationType: "ByPolygonVertex"
+			ReferenceInformationType: "Direct"
+			Normals: *12 {
+				a: 0,0,1,0,0,1,0,0,1,0,0,1
+			}
+		}
+		Layer: 0 {
+			Version: 100
+			LayerElement:  {
+				Type: "LayerElementNormal"
+				TypedIndex: 0
+			}
+		}
+	}
+	Geometry: 6000, "Geometry::FC_test_Neutral_R0_C0", "Shape" {
+		Version: 100
+		Indexes: *1 {
+			a: 2
+		}
+		Vertices: *3 {
+			a: 0,0,0.5
+		}
+		Normals: *3 {
+			a: 0,0,1
+		}
+	}
+	Geometry: 6001, "Geometry::fcs_test_R0_C0", "Shape" {
+		Version: 100
+		Indexes: *1 {
+			a: 2
+		}
+		Vertices: *3 {
+			a: 0,0,0.5
+		}
+		Normals: *3 {
+			a: 0,0,1
+		}
+	}
+	Geometry: 6002, "Geometry::smile", "Shape" {
+		Version: 100
+		Indexes: *1 {
+			a: 2
+		}
+		Vertices: *3 {
+			a: 0,0,0.5
+		}
+		Normals: *3 {
+			a: 0,0,1
+		}
+	}
+	Model: 2000, "Model::Body", "Mesh" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,0,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 2001, "Model::Hips", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,0,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 2002, "Model::Spine", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,1,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 2003, "Model::head", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,1,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	NodeAttribute: 3000, "NodeAttribute::", "LimbNode" {
+		TypeFlags: "Skeleton"
+	}
+	NodeAttribute: 3001, "NodeAttribute::", "LimbNode" {
+		TypeFlags: "Skeleton"
+	}
+	NodeAttribute: 3002, "NodeAttribute::", "LimbNode" {
+		TypeFlags: "Skeleton"
+	}
+	Deformer: 4000, "Deformer::Skin", "Skin" {
+		Version: 101
+		Link_DeformAcuracy: 50
+	}
+	Deformer: 4001, "SubDeformer::Hips", "Cluster" {
+		Version: 100
+		UserData: "", ""
+		Indexes: *1 {
+			a: 0
+		}
+		Weights: *1 {
+			a: 1
+		}
+		Transform: *16 {
+			a: 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1
+		}
+		TransformLink: *16 {
+			a: 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1
+		}
+	}
+	Deformer: 4002, "SubDeformer::Spine", "Cluster" {
+		Version: 100
+		UserData: "", ""
+		Indexes: *1 {
+			a: 1
+		}
+		Weights: *1 {
+			a: 1
+		}
+		Transform: *16 {
+			a: 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1
+		}
+		TransformLink: *16 {
+			a: 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1,0,1
+		}
+	}
+	Deformer: 4003, "SubDeformer::head", "Cluster" {
+		Version: 100
+		UserData: "", ""
+		Indexes: *2 {
+			a: 2,3
+		}
+		Weights: *2 {
+			a: 1,1
+		}
+		Transform: *16 {
+			a: 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1
+		}
+		TransformLink: *16 {
+			a: 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,2,0,1
+		}
+	}
+	Deformer: 5000, "Deformer::Shapes", "BlendShape" {
+		Version: 100
+	}
+	Deformer: 5001, "SubDeformer::FC_test_Neutral_R0_C0", "BlendShapeChannel" {
+		Version: 100
+		DeformPercent: 0
+		FullWeights: *1 {
+			a: 100
+		}
+	}
+	Deformer: 5002, "SubDeformer::fcs_test_R0_C0", "BlendShapeChannel" {
+		Version: 100
+		DeformPercent: 0
+		FullWeights: *1 {
+			a: 100
+		}
+	}
+	Deformer: 5003, "SubDeformer::smile", "BlendShapeChannel" {
+		Version: 100
+		DeformPercent: 0
+		FullWeights: *1 {
+			a: 100
+		}
+	}
+}
+Connections:  {
+	C: "OO", 2000, 0
+	C: "OO", 2001, 0
+	C: "OO", 2002, 2001
+	C: "OO", 2003, 2002
+	C: "OO", 1000, 2000
+	C: "OO", 3000, 2001
+	C: "OO", 3001, 2002
+	C: "OO", 3002, 2003
+	C: "OO", 4000, 1000
+	C: "OO", 4001, 4000
+	C: "OO", 4002, 4000
+	C: "OO", 4003, 4000
+	C: "OO", 2001, 4001
+	C: "OO", 2002, 4002
+	C: "OO", 2003, 4003
+	C: "OO", 5000, 1000
+	C: "OO", 5001, 5000
+	C: "OO", 6000, 5001
+	C: "OO", 5002, 5000
+	C: "OO", 6001, 5002
+	C: "OO", 5003, 5000
+	C: "OO", 6002, 5003
+}
