@@ -1197,6 +1197,9 @@ TYPE enum DDrive.Runtime.Material.TextureUsage
   enum-member UI = 1
   field const Model : DDrive.Runtime.Material.TextureUsage
   field const UI : DDrive.Runtime.Material.TextureUsage
+TYPE interface DDrive.Runtime.Model.IModelInstanceListener
+  method OnModelReturning(ref DDrive.Runtime.Model.ModelInstanceContext context) : void
+  method OnModelSpawned(ref DDrive.Runtime.Model.ModelInstanceContext context) : void
 TYPE struct DDrive.Runtime.Model.LodProfile
   field Enabled : bool
   field ScreenRelativeTransitionHeights : float[]
@@ -1218,6 +1221,11 @@ TYPE class sealed DDrive.Runtime.Model.ModelDataValidator
   ctor ModelDataValidator()
   method Validate(DDrive.Foundation.Data.AssetDataBase data, DDrive.Foundation.Validation.ValidationContext ctx) : System.Collections.Generic.IEnumerable<DDrive.Foundation.Validation.ValidationResult>
   property Target : DDrive.Foundation.Identity.AssetType {get}
+TYPE struct DDrive.Runtime.Model.ModelInstanceContext
+  ctor ModelInstanceContext(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker> handle, DDrive.Runtime.Model.ModelData data, UnityEngine.GameObject root)
+  field readonly Data : DDrive.Runtime.Model.ModelData
+  field readonly Handle : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Model.ModelMarker>
+  field readonly Root : UnityEngine.GameObject
 TYPE struct DDrive.Runtime.Model.ModelMarker
 TYPE class static DDrive.Runtime.Model.Models
   method static Bind(DDrive.Runtime.Model.ModelsManager instance) : void

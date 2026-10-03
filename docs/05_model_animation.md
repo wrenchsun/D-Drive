@@ -346,4 +346,13 @@ Clip 未生成/Missing (Error) / Directions=Eight なのに DirectionClips 不�
 
 ## 追記（2026-10-03、FC チケット）
 
-T-Drive 連携（[51_tdrive_integration.md](51_tdrive_integration.md)、[11](11_tasks.md) FC 節。**いずれも未実装**）: **FC-2** プール返却時にブレンドシェイプの重みを既定へ戻す（`FC_*` を含む全シェイプ。A-3 の返却処理）/ **FC-12** モデルのスポーン・返却の通知（Prefab 上の `IModelInstanceListener`。FC-2 と同一 PR）/ **FC-20** 外部所有シェイプ接頭辞（`FC_` / `fcs_`）の予約と `AnimData.BlendShapes`（B-6 Validation）の警告。旧チケット 7-8（D-Drive 内に Facial を移植）は T-Drive 版を使う方針に変更した。
+T-Drive 連携（[51_tdrive_integration.md](51_tdrive_integration.md)、[11](11_tasks.md) FC 節。**FC-2 / FC-12 は 2026-10-03 に実装済み（下の追記）、FC-20 は未実装**）: **FC-2** プール返却時にブレンドシェイプの重みを既定へ戻す（`FC_*` を含む全シェイプ。A-3 の返却処理）/ **FC-12** モデルのスポーン・返却の通知（Prefab 上の `IModelInstanceListener`。FC-2 と同一 PR）/ **FC-20** 外部所有シェイプ接頭辞（`FC_` / `fcs_`）の予約と `AnimData.BlendShapes`（B-6 Validation）の警告。旧チケット 7-8（D-Drive 内に Facial を移植）は T-Drive 版を使う方針に変更した。
+
+### 2026-10-03 追記（FC-2 / FC-12: プール返却時のブレンドシェイプ復元・スポーン / 返却の通知。[51](51_tdrive_integration.md) §4.3・§4.13）
+
+A-3 の Spawn / Despawn に次の挙動を追加した（追加のみ。MINOR）。
+
+- **返却時のブレンドシェイプ復元（FC-2）**: `ModelsManager` が Instance の GameObject を初めて Spawn するとき、ルート配下の `SkinnedMeshRenderer` とその全ブレンドシェイプの重み（= Prefab 生成時の値）を 1 回だけ控え、Pool へ返却（`Despawn` / 上限超過の強制回収）するときにその値へ戻す。**`FC_*` / `fcs_*` を含む全シェイプが対象**（接頭辞で除外しない）。`sharedMesh` が無い・シェイプ数が変わった Renderer は飛ばす（例外にしない）。Pool を使わない（`Pool.Kind == None`）モデルは返却ではなく破棄なので復元は走らない
+- **スポーン / 返却の通知（FC-12）**: Prefab（ルート / 子）のコンポーネントが `DDrive.Runtime.Model.IModelInstanceListener`（`OnModelSpawned` / `OnModelReturning`、引数は `ModelInstanceContext`〔`Handle` / `Data` / `Root`〕）を実装すると通知を受ける。`OnModelSpawned` はスロットの Material 適用と DefaultAnimation の開始の後（Spawn の戻り値の直前）、`OnModelReturning` はプールへ戻す（Discard を含む）直前でアニメ停止・台帳の掃除より前。**返却の順序は「`OnModelReturning` → ブレンドシェイプの復元」**（Listener が返却通知で重みを書いても最後は既定に揃う）。Listener は Instance の生成時に 1 回だけ集める（後から足したコンポーネントは対象外）。Listener ごとに `try/catch` で隔離し、例外は `Debug.LogException` で出して他の Listener と返却を続ける
+- **Pool の `IPoolable`（U-3 = (a)）**: `PoolService` はルートの**全** `IPoolable` に `OnReturn` を呼ぶ（以前は最初の 1 個だけ。[02](02_core_framework.md) §6）。外部コンポーネントが同じルートに `IPoolable` を実装しても `ModelInstancePoolable` の処理は呼ばれる
+- 実装: `Runtime/Model/ModelInstancePoolable.cs`（キャッシュ・通知・復元）、`Runtime/Model/IModelInstanceListener.cs`（公開型）、`ModelsManager.SpawnData` / `CloseInstance`、`Foundation/Pool/PoolService.cs`。テスト: PlayMode `ModelsManagerReturnNotifyTests`・`PoolServiceTests`、Performance `ModelReturnAllocTests`

@@ -204,16 +204,62 @@ namespace DDrive.Foundation.Pool
                 return;
             }
 
-            if (obj.GameObject.TryGetComponent<IPoolable>(out var poolable))
-            {
-                poolable.OnReturn();
-            }
+            NotifyReturn(obj.GameObject);
 
             obj.GameObject.SetActive(false);
             // 6-2: ラッパー(obj)自体を Free に積んで次の Rent で再利用する(Priority は次の貸出に
             // 影響しないようクリアしておく。呼び出し側は Rent 直後に必要なら明示的に設定し直す)。
             obj.Priority = 0;
             pool.Free.Push(obj);
+        }
+
+        // FC-2(U-3 = (a)、2026-10-03): ルートの全 IPoolable に OnReturn を呼ぶ(以前は最初の 1 個だけだった)。
+        // 同じルートに外部コンポーネントが IPoolable を実装しても、D-Drive 側の ModelInstancePoolable 等
+        // (台帳掃除・重みの復元)が呼ばれなくなる事故を防ぐ。バッファは共有して割り当てを避ける。
+        // OnReturn の中から別のオブジェクトの Return が走る(再入)ときだけ、共有バッファを壊さないよう
+        // 一時リストに切り替える(まれな経路)。1 個の例外で残りの OnReturn / SetActive(false) を止めない。
+        private static readonly List<IPoolable> s_poolableBuffer = new();
+        private static bool s_poolableBufferBusy;
+
+        private static void NotifyReturn(GameObject go)
+        {
+            var buffer = s_poolableBufferBusy ? new List<IPoolable>() : s_poolableBuffer;
+            var shared = ReferenceEquals(buffer, s_poolableBuffer);
+            if (shared)
+            {
+                s_poolableBufferBusy = true;
+            }
+
+            try
+            {
+                go.GetComponents(buffer);
+                for (var i = 0; i < buffer.Count; i++)
+                {
+                    var poolable = buffer[i];
+                    // 破棄済みコンポーネントは飛ばす(Unity の == null は Object の破棄を検出する)。
+                    if (poolable is Object unityObject && unityObject == null)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        poolable.OnReturn();
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogException(e);
+                    }
+                }
+            }
+            finally
+            {
+                buffer.Clear();
+                if (shared)
+                {
+                    s_poolableBufferBusy = false;
+                }
+            }
         }
 
         private static void PruneDeadActive(List<PooledObject> active)

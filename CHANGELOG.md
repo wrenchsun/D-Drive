@@ -11,6 +11,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 追加のみ(MINOR): **モデルの返却時のブレンドシェイプ復元・スポーン / 返却の通知・Pool の複数 `IPoolable`（2026-10-03、FC-2 / FC-12、[docs/05](docs/05_model_animation.md) 2026-10-03 追記・[docs/02](docs/02_core_framework.md) §6・[docs/51](docs/51_tdrive_integration.md) §4.3・§4.13）** — (1) `DDrive.Runtime.Model` に `IModelInstanceListener`（`OnModelSpawned` / `OnModelReturning`）と `ModelInstanceContext`（`Handle` / `Data` / `Root`）を追加（公開型の追加のみ。`public-api-DDrive.Runtime.txt` を更新）。Prefab 上のコンポーネントが実装すると、スロット適用・DefaultAnimation 開始の後と、プールへ戻す（Discard 含む）直前に通知される。(2) `ModelsManager` の返却（`Despawn` / 強制回収）で、モデル配下の `SkinnedMeshRenderer` のブレンドシェイプの重み（`FC_*`・`fcs_*` を含む全シェイプ）をそのモデルを最初に出したときの値へ戻す（`ModelInstancePoolable`〔internal〕。返却の順序は「通知 → 復元」）。**既存モデルの挙動が変わる**: 返却後に再利用されるモデルの表情が次の利用者へ残らなくなる。(3) **`DDrive.Foundation` の `PoolService` が、ルートの全 `IPoolable` に `OnReturn` を呼ぶ**（以前は最初の 1 個だけ。Foundation の挙動追加、U-3 = (a) のユーザー決定）。1 個の `OnReturn` が例外を投げても残りと `SetActive(false)` を続ける（以前は例外が伝播した）。公開 API のシグネチャは不変（`public-api-DDrive.Foundation.txt` に差分なし）。ネットメッセージ・ContentHash・シリアライズ形式は不変
+
 - 追加のみ(MINOR): **カットシーンの「同じ相手へのバインド」（2026-10-03、FC-1、[docs/26](docs/26_timeline.md) §4.2・[docs/51](docs/51_tdrive_integration.md) §4.2）** — `CutsceneBindTarget` の末尾に `SameAsTrack`（= 6）、`CutsceneBinding` の末尾に `SourceTrackName`（string、既定は空）を追加。SpawnModel したキャラに別のトラック（表情など）を、モデルを増やさずに結ぶため。既存の enum 値・フィールド・公開 API・既存 Validator は不変（旧データは `SourceTrackName` が空のまま無影響）。ネットメッセージ・ContentHash は不変（Bindings は各クライアントがローカルに解決）。スナップショット（`enums.txt` に `SameAsTrack=6`、`public-api-DDrive.Runtime.txt` に enum メンバーと `SourceTrackName`）を更新。`CutsceneDataValidator` に Warning を追加（Validation の重さは追加のみ）
 
 ### 追加
