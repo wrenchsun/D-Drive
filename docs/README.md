@@ -55,7 +55,8 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 41 | [Phase 6 + W/O チケット 自前レビュー結果（2026-09-17）](41_phase6_review_2026-09-17.md) | docs/30 以降の未レビュー分 `b533bf6..HEAD`（139 コミット）を runtime / editor / tests+CI / SpecWeb の 4 系統でレビュー。P1 8 件（Pool の ABA・調整値の全消し・GAS の認可の抜け 3 件・CI の握りつぶし ほか）（2026-09-17） |
 | 42 | [配布・移植・更新・互換性ポリシー（P チケット、設計）](42_distribution.md) | Timeline の後に行う P-1〜P-13 の設計: システム/データの線引き表と境界違反 10 件、配布方式の比較（**UPM git URL + 埋め込み開発を推奨**）、SemVer・スキーマ版・マイグレーション・ロールバックの更新フロー、**P 完了後に発効する互換性ポリシー**（9 互換面 + スナップショットテスト 11 種）、要判断 A/B/C（2026-09-17） |
 | 50 | [持ち込み先向け持ち込み先ガイド（導入・更新・運用、HTML）](50_consumer_guide.md) | 持ち込み先（MS2026 等）のプログラマー向けに、導入手順・更新方法・運用方法を個別 HTML ページにまとめたガイド（`docs/50_consumer_guide/`、DesignerManual/ProgrammerManual と同じ書式）。正本はこのリポジトリで、リリースのたびに `Packages/com.ddrive.core/Documentation~/ConsumerGuide/` へ同期される（2026-09-20） |
-| 51 | [T-Drive 連携（FacialController + Toon マテリアル、FC チケットの設計）](51_tdrive_integration.md) | T-Drive の Facial（`com.tdrive.facial`）と Toon（`com.tdrive.toon`）を D-Drive で使うための FC-0〜FC-20: 方針（旧 7-8 は T-Drive 版を使う）・doc16/17・f27702e の実コードでの裏取りと相違・チケット別設計（同じモデルへのバインド / スポーン・返却の通知 / MaterialData のパス無効化 / 現在の視点 API 他）・不採用の D 群・T-Drive へ返す事項。**実装は未着手（設計のみ）** |
+| 51 | [T-Drive 連携（FacialController + Toon マテリアル、FC チケットの設計）](51_tdrive_integration.md) | T-Drive の Facial（`com.tdrive.facial`）と Toon（`com.tdrive.toon`）を D-Drive で使うための FC-0〜FC-20: 方針（旧 7-8 は T-Drive 版を使う）・doc16/17・f27702e の実コードでの裏取りと相違・チケット別設計（同じモデルへのバインド / スポーン・返却の通知 / MaterialData のパス無効化 / 現在の視点 API 他）・不採用の D 群・T-Drive へ返す事項。**実装済み: FC-1・FC-2・FC-12（2026-10-03）。ほかは未着手** |
+| 52 | [FC チケット（T-Drive 連携）の人による確認手順](52_manual_verification_fc.md) | FC-1〜FC-20 を人が確認する手順書。チケットごとの節（手順 → 期待する結果 → 結果欄）と「T-Drive 導入後に確認」。実装済み = FC-1・FC-2 / FC-12、他は枠のみ（実装した担当が埋める） |
 
 ## デザイナー向けマニュアル
 

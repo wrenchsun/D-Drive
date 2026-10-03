@@ -6,6 +6,7 @@ T-Drive（別リポジトリ。Maya + Unity のトゥーン / 表情ツール）
 
 - 2026-10-03 作成（設計のみ。コード・アセットの変更なし）。**チケット番号の注意**: doc17 の「M-n」は D-Drive 既存の M チケット（M-1 / M-2 / M-3 = MS2026 フィードバック）と衝突するため、本書では「doc17 M-n」と書き、チケットは FC-11〜FC-19 を使う（対応表は [11](11_tasks.md) FC 節の冒頭）。裏取りは `Packages/com.ddrive.core/` の v1.3.1（HEAD `9f40cbb`）を**読んだ結果**であり、Unity は起動しておらずコンパイル・実行は一切していない。確認できなかった点は「未確認」と書く
 - チケット表と日数は [11_tasks.md](11_tasks.md)「FC チケット」節が正本。本書は設計の根拠と詳細
+- 人による確認の手順は [52_manual_verification_fc.md](52_manual_verification_fc.md)
 
 ## 0. 要約
 
@@ -215,6 +216,8 @@ T-Drive の `f27702e`（`naming.py` / `space.py` / `conformance_README.md` / `fc
 **テスト**: PlayMode（`ModelsManagerTests` に追加）= 合成 Mesh（`AddBlendShapeFrame` で 2 シェイプ）の Prefab → Spawn → 重みを書く → Despawn → 再 Spawn で既定値に戻る・強制回収でも戻る・Prefab の初期重みが非 0 でもその値に戻る・`sharedMesh == null` / 非 Skinned の Prefab で例外が出ない。Performance（`Tests/Performance`）に Spawn/Despawn 往復の GC 割り当てが 0 の確認を足せるか検討（任意）
 
 **更新する docs**: [05](05_model_animation.md)（A-3 Manager API・返却の説明）、`docs/ProgrammerManual/model-anim-api.html`（返却時の挙動を機能として 1 行）、[02](02_core_framework.md) §6（Pool / `IPoolable`。U-3 を入れる場合）
+
+**実装メモ（2026-10-03、FC-2 / FC-12 実装）**: U-3 = (a)・U-12 = (a) で実装した。設計（上記 1〜4、§4.13）のとおりで、変えた点・補足は次のとおり。(1) **キャッシュの置き場所**: `ModelInstancePoolable.Capture()`（冪等）が `SkinnedMeshRenderer[]` + 既定重み `float[][]` + `IModelInstanceListener[]` をまとめて 1 回だけ作る。`SpawnData` が `AddComponent`（既にあれば再利用）した直後・スロット適用と DefaultAnimation の前に呼ぶ。プール再利用では 2 回目以降は何もしない（返却のたびに既定へ戻すので、最初に控えた値が常に Prefab 生成時の値）。(2) `ModelInstance`（台帳の内部クラス）に `Poolable` を持たせ、`CloseInstance` から通知する。(3) **復元の対象外**: `Pool.Kind == None`（Discard）は `OnReturn` が呼ばれず GameObject ごと破棄されるので復元しない（通知 `OnModelReturning` は呼ぶ）。(4) **U-3 の実装**（`PoolService`、Foundation）: `ForceReturn` が `GetComponents<IPoolable>(共有 List)` で全 `IPoolable` に `OnReturn` を呼ぶ。バッファは static の共有で、`OnReturn` の中から別オブジェクトの返却が走る再入時だけ一時リストに切り替える。**設計から足した点**: 1 個の `OnReturn` が例外を投げても `Debug.LogException` + 継続（残りの `OnReturn` と `SetActive(false)` を止めない。以前は例外が伝播して後続が止まった）。Rent 側に対になる `OnRent` 等の通知は元から無く、足していない。(5) **割り当て**: 返却時の復元・通知は割り当てなし。ただし `SpawnData` 自体が従来から `ModelInstance`（class）と台帳のクロージャを 1 つずつ作るため、Spawn / Despawn 往復の厳密な 0 alloc は成立しない（VfxAllocTests と同じ既知の扱い）。そのため Performance は `ModelReturnAllocTests` で記録のみとした（`ModelInstancePoolable` が `internal` で `InternalsVisibleTo` が無く、Performance テストから直接測れない）。(6) 公開 API は `IModelInstanceListener` と `ModelInstanceContext`（`Handle` / `Data` / `Root` + コンストラクタ。§4.13 の署名に、テスト・外部から作れるよう公開コンストラクタを足した）のみ。名前空間は `ModelMarker` / `ModelData` と同じ `DDrive.Runtime.Model`（食い違いなし）。テストは PlayMode `ModelsManagerReturnNotifyTests`（11 件）・`PoolServiceTests`（2 件）。
 
 ### 4.4 FC-3（= C-3）: 「今の視点カメラ」を返す公開 API【優先 中】
 
@@ -483,6 +486,8 @@ namespace DDrive.Runtime.Model
 
 **T-Drive 側の使い方**: `ToonCharacter` はスロット適用後に `CharacterLook` を配り（共有 Material に書かず、スロットで差し替わった Material を前提に MPB / バッファへ）、返却で後片付けする。`FacialCorrectionRunner` は返却時の重みの整理に使える（`OnDisable` でも足りる）。doc17 §5 M-2 の「OnEnable に頼ると前後が保証されない」問題が解消する。< 1.4.0 では従来どおり `OnEnable` + 遅延初期化
 
+**実装メモ**: FC-2 の実装メモ（§4.3 末尾）にまとめて記載（同一 PR）。`ModelInstanceContext` に公開コンストラクタを足した点以外は上記の署名どおり。
+
 **テスト・docs**: AC は [11](11_tasks.md) FC-12 行。**更新する docs**: [05] A-3、`ProgrammerManual/model-anim-api.html`。**FC-2 と同一 PR にする理由**: 同じ `ModelInstancePoolable` / `CloseInstance` / `SpawnData` を触り、リセットと通知の順序（通知 → リセット）を 1 つの変更として検証できるため
 
 ### 4.14 FC-13（= doc17 M-3）: インスタンスごとのマテリアル値【優先 中・着手条件付き】
@@ -656,28 +661,31 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 4. **それまでの運用は doc17 §4 のとおりで足りる**。罠ごとの対応は §3.4 の表。**空・無効 ID のスロットが Prefab のマテリアルを触らない挙動は FC-10 E-13 で契約として固定する**ので、回避策（スロットを空にする）に依存してよい
 5. **D-Drive が Renderer Feature に関与しない**こと・`_Toon*` が Specific にそのまま入ること・シェーダーに無いプロパティが飛ばされることも契約テスト（E-10〜E-15）で固定する
 
-## 8. 未決事項（まとめ役の判断が要るもの）
+## 8. 未決事項と決定（まとめ役の判断が要るもの）
 
-| # | 論点 | 選択肢 | 推奨 |
-|---|---|---|---|
-| U-1 | FC-1: 解決結果をトラックの `TrackBindingType` に合わせて変換するか | (a) 既存どおり Animator / Transform の 2 択（初版）/ (b) `TrackBindingTypeAttribute` を見て `GetComponent` で適合 | (a)。Facial は Animator で足りる。独自バインド型が出てから (b) |
-| U-2 | FC-1: Validator の重さ | (a) Warning（[42] §5.8 どおり）/ (b) 最初から Error（新しい Target 値は既存データに現れないため実害は無い） | (a)。次の MINOR で Error に昇格 |
-| U-3 | FC-2: `PoolService.ForceReturn` を全 `IPoolable` に `OnReturn` を呼ぶよう直すか（R-6） | (a) FC-2 に含める（`GetComponents` を共有バッファで。割り当てなし）/ (b) 直さず「ルートで `IPoolable` を実装しない」を契約にして E-1 で固定 | (a)。Foundation の挙動追加（MINOR）だが事故の元を断てる。ただし Foundation の変更なのでユーザー確認 |
-| U-4 | FC-3: 名前空間と型名（`DDrive.Runtime.Viewing` / `ViewCamera` / `IViewProvider` / `ViewPose` / `ViewSource`） | 上記のまま / 別名 | 上記。互換面に入るので PR 前にユーザー確認 |
-| U-5 | HTML マニュアルの置き場所（Cutscene を扱う既存ページが `cutscene-maya-export.html` のみ。ProgrammerManual に Cutscene のページが無い） | (a) 実装時に既存ページへ追記 / (b) Cutscene の新ページ（デザイナー・プログラマー）を作る | (a)。必要になれば (b)。未実装の機能は載せない |
-| U-6 | FC-5 のリスナー API を Editor 契約（[42] §5.9）に載せるか | (a) 載せる（`EditorContractSnapshotTests` 対象）/ (b) 載せない（`DDrive.Editor` の public は互換面外のまま） | (a)。T-Drive が事実上依存するため |
-| U-7 | FC-10: [42] に「外部拡張の契約」を追加するか | (a) 追加する（§5.14 新設。MINOR）/ (b) テストだけ持ち docs/42 は変えない | (a)。ポリシーの追加なのでユーザー承認の上で FC-10 の PR で実施 |
-| U-8 | R-3 の対応主体 | (a) T-Drive 側で前回値を保持（推奨）/ (b) D-Drive が一時停止中も毎フレーム `Evaluate` する（`Paused` 中の Tick の意味が変わる = 他の外部 Track にも影響する大きな変更） | (a)。D-Drive は変えない |
-| U-9 | FC-15: `UnknownShaderPolicy` の既定値と既存挙動の変更 | (a) 既定 `KeepSource`（知らないシェーダーはそのまま。既存の持ち込み先でも次回の再取り込みから挙動が変わる）/ (b) 既定 `ConvertToLit`（従来どおり。T-Drive は Profile で `KeepSource` を設定）/ (c) 確認ダイアログ | (a)。Editor の挙動変更なので CHANGELOG に明記（弱い互換面）。ユーザー確認の上で実施 |
-| U-10 | FC-11: キーワード欄の範囲と検査の重さ | (a) `EnabledKeywords` のみ（無効化は需要が出てから）/ (b) `DisabledKeywords` も同時に。キーワードの未宣言検査はグローバルキーワードで偽陽性があり得るので Info にするか | (a)。検査は Warning（パス名）+ Info（キーワード）の併用 |
-| U-11 | FC-14: 外部のテクスチャ規則の評価位置 | (a) Profile の `Rules` の前（`T_` より前に効く）/ (b) 後ろ | (a)。接尾辞が名前空間付き（`_ToonMask`）の運用で、Profile の上書きを抑える |
-| U-12 | FC-12: 通知の形 | (a) Prefab 上のインターフェース（生成時キャッシュ）/ (b) 静的イベント / (c) `IAssetBehaviour` の配線 | (a)（§4.13） |
-| U-13 | FC-20: 所有接頭辞の登録口と実行時の弾き | (a) 一覧のみ（既定 `FC_`・`fcs_`）+ Validator Warning / (b) + `Register(prefix)` / (c) + 実行時に `FC_*` を弾く（警告 + no-op） | (a)。必要になったら (b)。(c) は挙動の追加なので採らない |
-| U-14 | FC-13: `SetMaterial` でマテリアルを差し替えたときの MPB の値 | (a) 維持 / (b) クリア | 着手時に決める（T-Drive の方式決定後） |
-| U-15 | FC-10 E-17: ボーン・シェイプ名を持つ FBX フィクスチャの用意 | (a) `DevRepoOnly`（開発リポジトリの UnityChan サンプル等を使う。シェイプ名の確認が弱い）/ (b) 合成の小さな FBX（ASCII）をテスト用に用意 / (c) T-Drive が合成の小 FBX を提供（shizuku は規約上コミット不可） | (b)。難しければ (a) + 静的確認 |
+「決定」列は 2026-10-03 のユーザー決定（実装時に記録）。「未決」のものはまだ決まっていない。
+
+| # | 論点 | 選択肢 | 推奨 | 決定 |
+|---|---|---|---|---|
+| U-1 | FC-1: 解決結果をトラックの `TrackBindingType` に合わせて変換するか | (a) 既存どおり Animator / Transform の 2 択（初版）/ (b) `TrackBindingTypeAttribute` を見て `GetComponent` で適合 | (a)。Facial は Animator で足りる。独自バインド型が出てから (b) | **(a)** 変換しない（FC-1 実装時に確定） |
+| U-2 | FC-1: Validator の重さ | (a) Warning（[42] §5.8 どおり）/ (b) 最初から Error（新しい Target 値は既存データに現れないため実害は無い） | (a)。次の MINOR で Error に昇格 | **(a)** Warning（FC-1 実装時に確定） |
+| U-3 | FC-2: `PoolService.ForceReturn` を全 `IPoolable` に `OnReturn` を呼ぶよう直すか（R-6） | (a) FC-2 に含める（`GetComponents` を共有バッファで。割り当てなし）/ (b) 直さず「ルートで `IPoolable` を実装しない」を契約にして E-1 で固定 | (a)。Foundation の挙動追加（MINOR）だが事故の元を断てる。ただし Foundation の変更なのでユーザー確認 | **(a)**（2026-10-03 ユーザー決定。FC-2 で実装） |
+| U-4 | FC-3: 名前空間と型名（`DDrive.Runtime.Viewing` / `ViewCamera` / `IViewProvider` / `ViewPose` / `ViewSource`） | 上記のまま / 別名 | 上記。互換面に入るので PR 前にユーザー確認 | **提案の名前で確定**（`DDrive.Runtime.Viewing` / `ViewCamera` / `IViewProvider` / `ViewPose` / `ViewSource`。2026-10-03 ユーザー決定） |
+| U-5 | HTML マニュアルの置き場所（Cutscene を扱う既存ページが `cutscene-maya-export.html` のみ。ProgrammerManual に Cutscene のページが無い） | (a) 実装時に既存ページへ追記 / (b) Cutscene の新ページ（デザイナー・プログラマー）を作る | (a)。必要になれば (b)。未実装の機能は載せない | **(a)** |
+| U-6 | FC-5 のリスナー API を Editor 契約（[42] §5.9）に載せるか | (a) 載せる（`EditorContractSnapshotTests` 対象）/ (b) 載せない（`DDrive.Editor` の public は互換面外のまま） | (a)。T-Drive が事実上依存するため | **(a)**（U-7 に伴う） |
+| U-7 | FC-10: [42] に「外部拡張の契約」を追加するか | (a) 追加する（§5.14 新設。MINOR）/ (b) テストだけ持ち docs/42 は変えない | (a)。ポリシーの追加なのでユーザー承認の上で FC-10 の PR で実施 | **(a)**（2026-10-03 ユーザー決定） |
+| U-8 | R-3 の対応主体 | (a) T-Drive 側で前回値を保持（推奨）/ (b) D-Drive が一時停止中も毎フレーム `Evaluate` する（`Paused` 中の Tick の意味が変わる = 他の外部 Track にも影響する大きな変更） | (a)。D-Drive は変えない | **(a)** |
+| U-9 | FC-15: `UnknownShaderPolicy` の既定値と既存挙動の変更 | (a) 既定 `KeepSource`（知らないシェーダーはそのまま。既存の持ち込み先でも次回の再取り込みから挙動が変わる）/ (b) 既定 `ConvertToLit`（従来どおり。T-Drive は Profile で `KeepSource` を設定）/ (c) 確認ダイアログ | (a)。Editor の挙動変更なので CHANGELOG に明記（弱い互換面）。ユーザー確認の上で実施 | **(c) 確認ダイアログ**（2026-10-03 ユーザー決定。ダイアログを出せない自動取り込みの経路は従来どおり） |
+| U-10 | FC-11: キーワード欄の範囲と検査の重さ | (a) `EnabledKeywords` のみ（無効化は需要が出てから）/ (b) `DisabledKeywords` も同時に。キーワードの未宣言検査はグローバルキーワードで偽陽性があり得るので Info にするか | (a)。検査は Warning（パス名）+ Info（キーワード）の併用 | **(a)** |
+| U-11 | FC-14: 外部のテクスチャ規則の評価位置 | (a) Profile の `Rules` の前（`T_` より前に効く）/ (b) 後ろ | (a)。接尾辞が名前空間付き（`_ToonMask`）の運用で、Profile の上書きを抑える | **(a)** |
+| U-12 | FC-12: 通知の形 | (a) Prefab 上のインターフェース（生成時キャッシュ）/ (b) 静的イベント / (c) `IAssetBehaviour` の配線 | (a)（§4.13） | **(a)**（FC-12 で実装） |
+| U-13 | FC-20: 所有接頭辞の登録口と実行時の弾き | (a) 一覧のみ（既定 `FC_`・`fcs_`）+ Validator Warning / (b) + `Register(prefix)` / (c) + 実行時に `FC_*` を弾く（警告 + no-op） | (a)。必要になったら (b)。(c) は挙動の追加なので採らない | **(a)** |
+| U-14 | FC-13: `SetMaterial` でマテリアルを差し替えたときの MPB の値 | (a) 維持 / (b) クリア | 着手時に決める（T-Drive の方式決定後） | 未決 |
+| U-15 | FC-10 E-17: ボーン・シェイプ名を持つ FBX フィクスチャの用意 | (a) `DevRepoOnly`（開発リポジトリの UnityChan サンプル等を使う。シェイプ名の確認が弱い）/ (b) 合成の小さな FBX（ASCII）をテスト用に用意 / (c) T-Drive が合成の小 FBX を提供（shizuku は規約上コミット不可） | (b)。難しければ (a) + 静的確認 | 未決 |
 
 ## 9. 変更履歴
 
 - 2026-10-03: 新規作成（設計のみ。コード・アセット・`.meta` の変更なし）。T-Drive の doc14/15/16（出典 `97bed77`）を受けて、`Packages/com.ddrive.core/` の該当コードを grep して読み、A-1〜A-9 の裏取り・相違 R-1〜R-7・FC-1〜FC-10 の設計・D 群の不採用・T-Drive への回答をまとめた。Unity 未起動のためコンパイル・テストは未実施
 - 2026-10-03（同日追記 1）: T-Drive コミット `4d44a32` の doc17（Toon マテリアル）を受けて、D-Drive 側推奨変更 doc17 M-1〜M-9 を FC-11〜FC-19 として起票（ユーザー指示）。節の題と本書を T-Drive 連携全体に広げ、ファイル名を `51_tdrive_facial_integration.md` から `51_tdrive_integration.md` に改名。doc17 §2〜§4 を実コードで裏取りし（§3.3・§3.4）、相違 R-8〜R-11 と罠ごとの対応表を追加。FC-10 に E-10〜E-15 を追加。
 - 2026-10-03（同日追記 2）: T-Drive コミット `f27702e`（FacialController のコア F0-2 / F0-3）が前提にする決まり（シェイプ名・ボーン名・座標系・Runner の書き込み）のうち D-Drive 側が守る / 確認すべきものを「f27702e 由来・まとめ役の抽出」として FC-20 に起票し、FC-2・FC-3・FC-10（E-16〜E-18）に追記。§3.5・§6.1 に対にした表を追加。
+- 2026-10-03（同日追記 3）: FC-2 / FC-12 を実装（§4.3 実装メモ）。§8 に「決定」列を追加（U-1〜U-13 の決定を記録。U-14・U-15 は未決）。人による確認の手順書 [52](52_manual_verification_fc.md) を新設。

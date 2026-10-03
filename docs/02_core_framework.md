@@ -175,7 +175,7 @@ public interface IPoolService
 ```
 
 - 対象: VFX / AudioSource / Prefab / Canvas / Projectile（AssetFlags.Pool で指定）
-- Return 時に `IPoolable.OnReturn()` を呼びリセット（Trail/Particle の Clear 等）
+- Return 時に `IPoolable.OnReturn()` を呼びリセット（Trail/Particle の Clear 等）。**2026-10-03（FC-2、U-3 = (a)）: ルートの全 `IPoolable` に `OnReturn` を呼ぶ**（以前は最初の 1 個だけで、外部コンポーネントが同じルートに `IPoolable` を実装すると `ModelInstancePoolable` 等の台帳掃除・重みの復元が呼ばれなかった）。呼び出し順は `GetComponents` の順（既存 1 個の場合の挙動は不変）。共有の再利用バッファに受けるので割り当てなし（`OnReturn` の中から別オブジェクトの Return が走る再入時だけ一時リストを使う）。1 個の `OnReturn` が例外を投げても `Debug.LogException` で出して残りの `OnReturn` と `SetActive(false)` を続ける。Rent 側に対になる通知（`OnRent` 等）は無い
 - 上限超過時は Priority 最低の稼働 Instance を強制回収（シーン破棄等で GameObject が死んだ Active エントリは先に台帳から外し、回収しても Free に積めなければ新規 Instantiate に落とす。2026-09-10）
 - **`Kind == None` の意味（2026-09-10、Codex レビュー対応）**: `AssetFlags.Pool.Kind` の既定値 `None` は「プールしない」ことを表す。ModelsManager / PrefabsManager はこれを尊重し、`Despawn` 時に `Kind == Pooled` なら `Return`（Free に積んで再利用）、`Kind == None` なら新設の `IPoolService.Discard(PooledObject)` で Active から取り除いた上で即座に破棄する（Play モードは `Object.Destroy`、Edit モードは `DestroyImmediate`。`IPoolable.OnReturn` は「プールに戻って再利用される」通知であり Discard では呼ばない）。Instance の生成自体は `Kind` に関わらず `Rent` 経由に統一し、親付け(`SetInstanceParent`)や上限管理の一貫性を保つ。**VFX（VfxManager）/ SE（AudioManager）はこの区別の対象外で、常にプールする**（短命・高頻度再生のため、Kind の値に関わらず Return する設計を維持）
 

@@ -207,5 +207,58 @@ namespace DDrive.Tests.Runtime
             yield return null;
             Object.DestroyImmediate(prefab);
         }
+
+        private sealed class ThrowingPoolable : MonoBehaviour, IPoolable
+        {
+            public void OnReturn() => throw new System.InvalidOperationException("pool test exception");
+        }
+
+        // FC-2(U-3 = a): ルートの全 IPoolable に OnReturn を呼ぶ(以前は最初の 1 個だけ)。
+        [UnityTest]
+        public IEnumerator Return_CallsOnReturnOnEveryIPoolableOnRoot()
+        {
+            var prefab = new GameObject("Prefab");
+            prefab.AddComponent<Poolable>();
+            prefab.AddComponent<Poolable>();
+            prefab.AddComponent<Poolable>();
+            var pool = new PoolService();
+
+            var rented = pool.Rent(prefab);
+            var all = rented.GameObject.GetComponents<Poolable>();
+            pool.Return(rented);
+
+            Assert.AreEqual(3, all.Length);
+            foreach (var p in all)
+            {
+                Assert.AreEqual(1, p.ReturnCount);
+            }
+
+            Assert.IsFalse(rented.GameObject.activeSelf);
+
+            pool.Clear(PoolScope.Global);
+            yield return null;
+            Object.DestroyImmediate(prefab);
+        }
+
+        [UnityTest]
+        public IEnumerator Return_OnReturnThrowing_DoesNotStopOthersOrDeactivate()
+        {
+            var prefab = new GameObject("Prefab");
+            prefab.AddComponent<ThrowingPoolable>();
+            prefab.AddComponent<Poolable>();
+            var pool = new PoolService();
+
+            var rented = pool.Rent(prefab);
+            var ok = rented.GameObject.GetComponent<Poolable>();
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("pool test exception"));
+            pool.Return(rented);
+
+            Assert.AreEqual(1, ok.ReturnCount);
+            Assert.IsFalse(rented.GameObject.activeSelf);
+
+            pool.Clear(PoolScope.Global);
+            yield return null;
+            Object.DestroyImmediate(prefab);
+        }
     }
 }
