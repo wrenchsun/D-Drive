@@ -148,7 +148,7 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <li>Console に「[DDrive] Unity Material → D-Drive MaterialData: N 件」と出て、最後の 1 件が Project で選択されます</li>
 </ol>
 <ul>
-<li>URP Lit / Simple Lit / Complex Lit / Baked Lit / Standard / Standard (Specular setup) → <code>DDrive/Lit</code>。URP Unlit / Unlit/Texture / Unlit/Color / Unlit/Transparent / Unlit/Transparent Cutout → <code>DDrive/Unlit</code>。それ以外は「警告: … 未対応のため DDrive/Lit として変換します」</li>
+<li>URP Lit / Simple Lit / Complex Lit / Baked Lit / Standard / Standard (Specular setup) → <code>DDrive/Lit</code>。URP Unlit / Unlit/Texture / Unlit/Color / Unlit/Transparent / Unlit/Transparent Cutout → <code>DDrive/Unlit</code>。それ以外（知らないシェーダー）は、既定では確認のダイアログが 1 回だけ出ます（元のシェーダーのまま保つ / DDrive/Lit に変換 / キャンセル）。Maya Import Profile の「Unknown Shader Policy」を KeepSource にすると確認なしで保ち、ConvertToLit にすると確認なしで「警告: … 未対応のため DDrive/Lit として変換します」と DDrive/Lit にします。マテリアルデータのシェーダーがすでに入っている場合、保つ選択では上書きしません</li>
 <li>カテゴリはアセットの親フォルダ名（取れなければ Migrated）。元 Material に同名の固有プロパティがあれば値もコピーされます</li>
 <li>もう一度実行しても増えず、Common だけ更新されます（固有の調整は残る）。別フォルダの同名 .mat は別々のマテリアルデータになります</li>
 </ul>

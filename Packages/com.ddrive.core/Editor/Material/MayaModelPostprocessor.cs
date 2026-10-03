@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Menu;
 using UnityEditor;
 using UnityEngine;
@@ -63,6 +64,35 @@ namespace DDrive.Editor.Materials
         {
             var profile = MayaImportProfile.FindOrDefault();
             var count = 0;
+            // 知らないシェーダーの確認は 1 操作につき 1 回(選択した全モデルの Material を先に走査する。FC-15)。
+            // Profile の TargetShader 指定があれば常にそのシェーダーになるので確認は要らない。
+            var sources = new System.Collections.Generic.List<UnityEngine.Material>();
+            if (profile.TargetShader == null)
+            {
+                foreach (var obj in Selection.objects)
+                {
+                    var p = AssetDatabase.GetAssetPath(obj);
+                    if (string.IsNullOrEmpty(p) || AssetImporter.GetAtPath(p) is not ModelImporter)
+                    {
+                        continue;
+                    }
+
+                    foreach (var sub in AssetDatabase.LoadAllAssetRepresentationsAtPath(p))
+                    {
+                        if (sub is UnityEngine.Material m)
+                        {
+                            sources.Add(m);
+                        }
+                    }
+                }
+            }
+
+            if (!UnknownShaderGuard.TryResolve(profile, sources, UnknownShaderGuard.IsInteractiveSession(), out var unknownShader))
+            {
+                Debug.Log("[DDrive] 知らないシェーダーの確認でキャンセルされたため、MaterialData の生成を中断しました(何も変更していません)。");
+                return;
+            }
+
             foreach (var obj in Selection.objects)
             {
                 var path = AssetDatabase.GetAssetPath(obj);
@@ -71,7 +101,7 @@ namespace DDrive.Editor.Materials
                     continue;
                 }
 
-                var report = MayaMaterialImporter.ImportModel(path, profile);
+                var report = MayaMaterialImporter.ImportModel(path, profile, AssetCreationService.DefaultGameDataRoot, unknownShader);
                 Debug.Log($"[DDrive] Maya インポート(手動): {path}\n{report}{RebindSlots(path)}");
                 count++;
             }

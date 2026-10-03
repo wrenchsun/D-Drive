@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using DDrive.Editor.Anim;
+using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Materials;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
 using DDrive.Foundation.Handle;
@@ -329,7 +331,9 @@ namespace DDrive.Editor.Model
             }
 
             var report = new ModelSlotBinder.Report();
-            var changed = ModelSlotBinder.Rebuild(_target, ensureMaterials, report);
+            // ボタンから直接起こした操作なので対話的(知らないシェーダーがあれば 1 回だけ確認する。FC-15)。
+            var changed = ModelSlotBinder.Rebuild(_target, ensureMaterials, report, AssetCreationService.DefaultGameDataRoot,
+                interactive: UnknownShaderGuard.IsInteractiveSession());
             Debug.Log($"[DDrive] Model Slot {(ensureMaterials ? "再読み込み" : "自動収集")}: {_target.name}\n{report}");
             if (changed)
             {

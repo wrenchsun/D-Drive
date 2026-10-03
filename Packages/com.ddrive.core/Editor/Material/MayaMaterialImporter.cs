@@ -29,7 +29,12 @@ namespace DDrive.Editor.Materials
         }
 
         // モデル(FBX)に含まれる全 Material を処理する。
+        // 知らないシェーダーの扱いは Profile の UnknownShaderPolicy に従う(Ask は非対話なので従来どおり Lit。FC-15)。
         public static Report ImportModel(string modelPath, MayaImportProfile profile, string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
+            => ImportModel(modelPath, profile, gameDataRoot, UnknownShaderGuard.HandlingFor(profile));
+
+        // 呼び出し側が 1 操作分に解決した扱い(UnknownShaderGuard.TryResolve)を明示的に渡す版。
+        public static Report ImportModel(string modelPath, MayaImportProfile profile, string gameDataRoot, UnknownShaderHandling unknownShader)
         {
             var report = new Report();
             if (string.IsNullOrEmpty(modelPath) || profile == null)
@@ -46,7 +51,7 @@ namespace DDrive.Editor.Materials
                 {
                     if (sub is UnityEngine.Material material)
                     {
-                        ImportMaterial(material, category, sourceKey, profile, report, gameDataRoot);
+                        ImportMaterial(material, category, sourceKey, profile, report, gameDataRoot, unknownShader);
                     }
                 }
             }
@@ -167,6 +172,10 @@ namespace DDrive.Editor.Materials
         // 1 マテリアル分。sourceKey は FBX 名(再インポート時の同定に使う)。
         public static MaterialData ImportMaterial(UnityEngine.Material source, string category, string sourceKey, MayaImportProfile profile, Report report,
             string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
+            => ImportMaterial(source, category, sourceKey, profile, report, gameDataRoot, UnknownShaderGuard.HandlingFor(profile));
+
+        public static MaterialData ImportMaterial(UnityEngine.Material source, string category, string sourceKey, MayaImportProfile profile, Report report,
+            string gameDataRoot, UnknownShaderHandling unknownShader)
         {
             report ??= new Report();
             if (source == null || profile == null)
@@ -192,7 +201,7 @@ namespace DDrive.Editor.Materials
                 existing.Common = common;
                 if (existing.Shader == null)
                 {
-                    existing.Shader = ResolveTargetShader(profile, source);
+                    existing.Shader = ResolveTargetShader(profile, source, unknownShader);
                     existing.Specific = MaterialSpecificResolver.Merge(existing.Specific, existing.Shader);
                     UnityMaterialMigrator.CopySpecificValues(source, existing); // 既存アセットなので Undo に積む
                 }
@@ -213,7 +222,7 @@ namespace DDrive.Editor.Materials
             var created = AssetCreationService.Create(typeof(MaterialData), AssetType.Material, source.name, category, identifier, data =>
             {
                 var mat = (MaterialData)data;
-                mat.Shader = ResolveTargetShader(profile, source);
+                mat.Shader = ResolveTargetShader(profile, source, unknownShader);
                 mat.Common = capturedCommon;
                 mat.SourceMaterial = sourceMaterial;
                 // 新規作成時はシェーダーの固有を既定値で登録し、元 Material に同名があれば値を引き継ぐ
@@ -236,8 +245,12 @@ namespace DDrive.Editor.Materials
         // 生成する MaterialData のシェーダー(2026-09-11)。
         //   1. Profile の TargetShader が設定されていればそれ
         //   2. 元 Material が D-Drive のシェーダー(AiStandardSurfacePreprocessor が割り当てた DDrive/AiStandardSurface 等)ならそのまま
-        //   3. それ以外は DDrive/Lit(無ければ null = Manager の既定 Lit)
+        //   3. 知らないシェーダー(変換表にも DDrive/ にも無い)で unknownShader = Keep なら元のシェーダーのまま(FC-15)
+        //   4. それ以外は DDrive/Lit(無ければ null = Manager の既定 Lit)
         public static Shader ResolveTargetShader(MayaImportProfile profile, UnityEngine.Material source)
+            => ResolveTargetShader(profile, source, UnknownShaderGuard.HandlingFor(profile));
+
+        public static Shader ResolveTargetShader(MayaImportProfile profile, UnityEngine.Material source, UnknownShaderHandling unknownShader)
         {
             if (profile != null && profile.TargetShader != null)
             {
@@ -245,6 +258,11 @@ namespace DDrive.Editor.Materials
             }
 
             if (source != null && source.shader != null && source.shader.name.StartsWith("DDrive/", System.StringComparison.Ordinal))
+            {
+                return source.shader;
+            }
+
+            if (unknownShader == UnknownShaderHandling.Keep && source != null && UnknownShaderGuard.IsUnknown(source.shader))
             {
                 return source.shader;
             }
