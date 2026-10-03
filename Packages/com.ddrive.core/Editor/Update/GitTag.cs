@@ -52,7 +52,8 @@ namespace DDrive.Editor.Update
                 return false;
             }
 
-            if (!Version.TryParse(core, out var version))
+            // 版は X.Y.Z の 3 区間だけ(`v1.5`・`v1.5.0.1` は版として読まない。docs/42 §4.2.1 の `vX.Y.Z` 形式。FX-R-08)。
+            if (core.Split('.').Length != 3 || !Version.TryParse(core, out var version))
             {
                 return false;
             }

@@ -91,6 +91,14 @@ namespace DDrive.Tests.Editor
         private UnityEngine.Material CreateMissingShaderMaterialAsset(string name)
         {
             var path = TempFolder + "/" + name + ".mat";
+            WriteMissingShaderMaterial(path, name);
+            _assets.Add(path);
+            return AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
+        }
+
+        // 既にあるパスの .mat(= GUID はそのまま)の中身を「シェーダー参照が欠けた」状態に書き換える(FX-R-02。元のシェーダーが後から欠けた状況)。
+        private static void WriteMissingShaderMaterial(string path, string name)
+        {
             var yaml = string.Join("\n", new[]
             {
                 "%YAML 1.1",
@@ -118,9 +126,7 @@ namespace DDrive.Tests.Editor
                 "",
             });
             System.IO.File.WriteAllText(path, yaml);
-            AssetDatabase.ImportAsset(path);
-            _assets.Add(path);
-            return AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
         }
 
         private static int CountMaterialData()
@@ -398,6 +404,96 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(UnityMaterialMigrator.LitShaderName, data.Shader.name, "Keep でも欠けたシェーダーは Lit に変換する");
             StringAssert.Contains("見つかりません", string.Join("\n", report.Lines));
             Assert.AreEqual(UnityMaterialMigrator.LitShaderName, MayaMaterialImporter.ResolveTargetShader(_profile, m, UnknownShaderHandling.Keep).name);
+        }
+
+        // ── FX-R-02: 元のシェーダーが欠けている間に既存 Data を再生成しても、既存 Data のシェーダー参照を書き換えない ──
+
+        [TestCase(UnknownShaderHandling.Keep)]
+        [TestCase(UnknownShaderHandling.Convert)]
+        [TestCase(UnknownShaderHandling.ConvertKeepingExisting)]
+        public void MissingSource_ExistingData_KeepsItsShaderAndSpecific_RegardlessOfHandling(UnknownShaderHandling handling)
+        {
+            var m = CreateMaterialAsset("MissingAfterKept", _unknown);
+            var data = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot, UnknownShaderHandling.Keep);
+            Assert.AreSame(_unknown, data.Shader);
+            var specificBefore = data.Specific == null ? 0 : data.Specific.Length;
+
+            // 後から元の .mat のシェーダーが欠けた(パッケージの解決失敗・GUID 切れ)状態にして、再生成する。
+            var path = AssetDatabase.GetAssetPath(m);
+            WriteMissingShaderMaterial(path, "MissingAfterKept");
+            var missing = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
+            Assume.That(UnknownShaderGuard.IsMissing(missing.shader), "元の .mat のシェーダーが欠けた状態になること");
+
+            var report = new MayaMaterialImporter.Report();
+            var again = UnityMaterialMigrator.Migrate(missing, "Migrate", report, TestRoot, handling);
+
+            Assert.AreSame(data, again, "同じ MaterialData が見つかる(別の Data を作らない)");
+            Assert.AreSame(_unknown, again.Shader, "欠けている間の再生成で、既存 Data のシェーダーを Lit に置き換えない");
+            Assert.AreEqual(specificBefore, again.Specific == null ? 0 : again.Specific.Length, "固有の設定も触らない");
+            StringAssert.Contains("変更しませんでした", string.Join("\n", report.Lines));
+            Assert.AreEqual(1, CountMaterialData());
+        }
+
+        // 既存 Data 側のシェーダー参照が欠けている(シェーダーのファイルが無くなった)とき、Maya 取り込み経路でも埋め直さない。
+        // ついでに「欠けた参照が Unity の null 比較で null になるか」(docs/55 FX-R-02 の推定)を確かめる。
+        [Test]
+        public void ExistingData_WithMissingShaderReference_IsDetected_AndNotRefilled()
+        {
+            var shaderPath = TempFolder + "/DDriveTempMissingProbe.shader";
+            System.IO.File.WriteAllText(shaderPath, "Shader \"Hidden/DDriveTempMissingProbe\" { SubShader { Pass { } } }");
+            AssetDatabase.ImportAsset(shaderPath, ImportAssetOptions.ForceUpdate);
+            _assets.Add(shaderPath);
+            var probe = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
+            Assume.That(probe != null, "一時シェーダーを読めること");
+
+            var m = CreateMaterialAsset("ProbeMat", probe);
+            var data = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot, UnknownShaderHandling.Keep);
+            Assert.AreSame(probe, data.Shader);
+            Assert.IsFalse(UnknownShaderGuard.HasMissingShaderReference(data), "有効な参照は欠けていない");
+
+            // 参照先のシェーダーを消す = Data の Shader 欄は「欠けた参照」になる(デザイナーが T-Drive を外した状況の再現)。
+            AssetDatabase.DeleteAsset(shaderPath);
+            _assets.Remove(shaderPath);
+            AssetDatabase.Refresh();
+
+            Assert.IsTrue(data.Shader == null, "欠けた参照は Unity の == では null と等しい(docs/55 FX-R-02 の推定の確認)");
+            Assert.IsTrue(UnknownShaderGuard.HasMissingShaderReference(data), "ただし未設定とは区別できる(参照先の ID が残っている)");
+
+            // 元の .mat を変更して Common に差分を作り、Maya の既存 Data 経路(ImportMaterial)へ流す。
+            m.color = Color.red;
+            EditorUtility.SetDirty(m);
+            var profile = ScriptableObject.CreateInstance<MayaImportProfile>();
+            try
+            {
+                var report = new MayaMaterialImporter.Report();
+                var again = MayaMaterialImporter.ImportMaterial(m, "Migrate", UnityMaterialMigrator.SourceKey, profile, report, TestRoot);
+                Assert.AreSame(data, again);
+                Assert.IsTrue(UnknownShaderGuard.HasMissingShaderReference(again), "欠けた参照を Lit で埋め直さない(元の参照を残す)");
+            }
+            finally
+            {
+                Object.DestroyImmediate(profile);
+            }
+        }
+
+        // ── FX-R-09: 既存 Data の「知らないシェーダー」を保つのは、元の .mat も知らないシェーダーのときだけ ──
+
+        [Test]
+        public void ExistingKeptUnknownShader_IsConverted_WhenSourceMaterialWentBackToAStandardShader()
+        {
+            var urp = Shader.Find("Universal Render Pipeline/Lit");
+            Assume.That(urp != null, "URP Lit が必要");
+            var m = CreateMaterialAsset("BackToStandard", _unknown);
+            var data = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot, UnknownShaderHandling.Keep);
+            Assert.AreSame(_unknown, data.Shader);
+
+            m.shader = urp; // 元の .mat を標準シェーダーへ戻した
+            EditorUtility.SetDirty(m);
+            AssetDatabase.SaveAssets();
+            var again = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot); // 非対話・Profile は Ask = ConvertKeepingExisting
+
+            Assert.AreSame(data, again);
+            Assert.AreEqual(UnityMaterialMigrator.LitShaderName, again.Shader.name, "元が標準シェーダーに戻ったので、従来どおり D-Drive 標準へ変換する");
         }
 
         [Test]

@@ -40,7 +40,7 @@ namespace DDrive.Editor.Materials
         public string Message;
         public int MaterialCount;
         public List<string> ShaderNames = new();
-        // シェーダーが欠けている(Hidden/InternalErrorShader)Material の数。これらは「保つ」の対象ではなく、常に DDrive/Lit に変換する(FC-R-02)。
+        // シェーダーが欠けている(Hidden/InternalErrorShader)Material の数。これらは「保つ」の対象ではなく、新規の MaterialData は常に DDrive/Lit にする(FC-R-02)。既存の MaterialData のシェーダーは変えない(FX-R-02)。
         public int MissingShaderMaterialCount;
     }
 
@@ -59,6 +59,21 @@ namespace DDrive.Editor.Materials
 
         public static bool IsMissing(Shader shader)
             => shader != null && string.Equals(shader.name, MissingShaderName, StringComparison.Ordinal);
+
+        // MaterialData のシェーダー欄が「欠けた参照」(値は null だが参照先の ID は残っている = Inspector の Missing)か(FX-R-02)。
+        // C# 上の `data.Shader == null` だけでは「未設定」と区別できないので SerializedObject で見る。
+        public static bool HasMissingShaderReference(DDrive.Runtime.Material.MaterialData data)
+        {
+            if (data == null)
+            {
+                return false;
+            }
+
+            using var serialized = new SerializedObject(data);
+            var property = serialized.FindProperty(nameof(DDrive.Runtime.Material.MaterialData.Shader));
+            return property != null && property.propertyType == SerializedPropertyType.ObjectReference
+                   && property.objectReferenceValue == null && property.objectReferenceInstanceIDValue != 0;
+        }
 
         // 知らないシェーダーか。null と、欠けたシェーダー(IsMissing)は対象外(保つものが無い)。
         public static bool IsUnknown(Shader shader)
@@ -175,7 +190,7 @@ namespace DDrive.Editor.Materials
             if (missing > 0)
             {
                 sb.Append("\nほかに、シェーダーが見つからない(欠けている)Material が ").Append(missing)
-                  .Append(" 件あります。これらはどちらを選んでも DDrive/Lit に変換します。\n");
+                  .Append(" 件あります。新規の MaterialData はどちらを選んでも DDrive/Lit にします。既存の MaterialData があるものはシェーダーを変更しません。\n");
             }
 
             sb.Append("\n「元のシェーダーのまま保つ」: そのシェーダーで MaterialData を作ります(既存の MaterialData のシェーダーは変えません)。\n");

@@ -153,6 +153,25 @@ namespace DDrive.Editor.Update
             EditorApplication.update -= PollAddRequest;
             EditorApplication.update -= PollBusy;
             _busyCts?.Cancel(); // 実行中の git をツリーごと止める
+            // ワーカーは 100 ms ごとにキャンセルを見て KillTree へ進むので、短く待ってから状態を戻す(FX-R-06)。
+            // 戻さないと、ドメインリロードなしの OnDisable → OnEnable で _busyTask が残り、以後の操作が「進行中」で効かなくなる。
+            try
+            {
+                _busyTask?.Wait(1500);
+            }
+            catch (System.Exception)
+            {
+                // 例外で止めない(ワーカー側で握り済み)。
+            }
+
+            _busyTask = null;
+            _busyContinuation = null;
+            _busyCts?.Dispose();
+            _busyCts = null;
+            if (_busyBar != null)
+            {
+                _busyBar.style.display = DisplayStyle.None;
+            }
         }
 
         // ── 非同期(git を呼ぶ処理) ──
@@ -824,8 +843,14 @@ namespace DDrive.Editor.Update
 
             applyButton.clicked += () =>
             {
-                if (dropdown.choices == null || dropdown.choices.Count == 0 || string.IsNullOrEmpty(dropdown.value))
+                if (dropdown.choices == null || dropdown.choices.Count == 0)
                 {
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(dropdown.value))
+                {
+                    Debug.LogWarning("[DDrive][Update] 更新先の版が選ばれていません(正式版が無いときは、使うプレリリースを「更新先の版」から選んでください)。");
                     return;
                 }
 
@@ -967,7 +992,7 @@ namespace DDrive.Editor.Update
 
             if (check.LatestTag == null)
             {
-                resultBody.Add(WrappingLabel("正式版(vX.Y.Z)のタグがありません。プレリリースだけが見つかりました(下の一覧から選べますが、自動では勧めません)。"));
+                resultBody.Add(WrappingLabel("正式版(vX.Y.Z)のタグがありません。プレリリースだけが見つかりました(自動では勧めません。使うときは「更新先の版」から明示的に選んでください)。"));
             }
             else
             {
@@ -1002,7 +1027,15 @@ namespace DDrive.Editor.Update
             dropdown.formatListItemCallback = name => prerelease.Contains(name) ? name + "(プレリリース)" : name;
             dropdown.formatSelectedValueCallback = dropdown.formatListItemCallback;
             dropdown.choices = choices;
-            dropdown.value = check.LatestTag ?? choices[0]; // 勧める最新(正式版)。無ければ降順の先頭
+            // 勧める最新(正式版)。正式版が無い(プレリリースだけ)ときは何も選ばず、使うなら明示的に選ばせる(FX-R-07)。
+            if (check.LatestTag != null)
+            {
+                dropdown.value = check.LatestTag;
+            }
+            else
+            {
+                dropdown.index = -1;
+            }
             dropdown.style.display = DisplayStyle.Flex;
             applyButton.style.display = DisplayStyle.Flex;
 

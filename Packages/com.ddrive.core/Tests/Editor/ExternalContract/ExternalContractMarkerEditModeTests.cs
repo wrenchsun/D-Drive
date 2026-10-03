@@ -206,6 +206,67 @@ namespace ExternalContract.Tests.Editor
             }
         }
 
+        // E-20(FX-R-04): 「先頭からの再生か」は更新の間隔や再生開始後の最初の進みの大きさに依存しない(再生を始める直前の位置で決まる)。
+        // 停止中に 0 にいて再生を始めたなら、最初の更新で director.time が大きく進んでいても(エディタの引っ掛かり等)先頭からの再生。
+        [Test]
+        public void E20_EditPreview_PlayFromZero_IsFromStart_EvenIfFirstUpdateAdvancesALot()
+        {
+            var timeline = ReplaceTimeline(false, 0.0, 0.3, 2.0);
+            try
+            {
+                _director.Pause();
+                _director.time = 0.0;
+                Update(); // 停止中の位置 = 0 を記録
+                Update();
+                Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "停止中は無音");
+
+                _director.Play();
+                _director.time = 0.5; // 最初の更新までに大きく進んだ
+                Update();
+
+                Assert.AreEqual(2, ExternalFireMarker.Calls.Count, "先頭からの再生: 0 秒と 0.3 秒(開始から過ぎた分)が発火する");
+                Assert.AreEqual(0.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+                Assert.AreEqual(0.3, ExternalFireMarker.Calls[1].MarkerTime, 1e-6);
+            }
+            finally
+            {
+                _director.playableAsset = null;
+                Object.DestroyImmediate(timeline);
+            }
+        }
+
+        // E-20(FX-R-04): 0.05 秒付近にスクラブしてから再生した場合は途中からの再生。0 秒のマーカーも、
+        // 0.1 秒以内の位置にあるマーカー(0.04 秒)も無音。再生開始後の最初の進みが小さくても関係ない。
+        [Test]
+        public void E20_EditPreview_ScrubNearZero_ThenPlay_IsFromMiddle_Silent()
+        {
+            var timeline = ReplaceTimeline(false, 0.0, 0.04, 1.0);
+            try
+            {
+                _director.Pause();
+                _director.time = 0.0;
+                Update();
+                _director.time = 0.05; // 0.1 秒以内へスクラブ
+                Update();
+                Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "スクラブは無音");
+
+                _director.Play();
+                _director.time = 0.06;
+                Update();
+                Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "途中からの再生: 開始位置までの 0 秒・0.04 秒は無音");
+
+                _director.time = 1.1;
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count);
+                Assert.AreEqual(1.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+            }
+            finally
+            {
+                _director.playableAsset = null;
+                Object.DestroyImmediate(timeline);
+            }
+        }
+
         // E-20(FC-R-04): Timeline 上端のマーカー領域(markerTrack)に置いた外部マーカーも Edit Mode のプレビューで発火する。
         [Test]
         public void E20_EditPreview_MarkerOnTimelineMarkerTrack_Fires()

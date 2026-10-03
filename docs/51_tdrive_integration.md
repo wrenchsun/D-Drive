@@ -766,7 +766,7 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 ### 7.4 修正ラウンド 1（レビュー [53](53_review_fc_2026-10-03.md) の対応、2026-10-03）で T-Drive に関わる点
 
 1. **`ICutsceneImportListener` の `Roles` は「今回の取り込みに含まれた FBX の分だけ」**（FC-R-15）。キャラの FBX だけ再取り込みすれば `Roles` はそのキャラ 1 件、カメラ FBX だけ先に入れば `Roles` はカメラだけ（キャラのトラックはまだ無い）。全キャラを対象にするリスナーは `Roles` ではなく `CutsceneImportResult.Data.Bindings` / `Timeline.GetOutputTracks()` から役を拾う。
-2. **ショット先頭（0 秒）に置いた `ICutsceneMarker` も発火する**（FC-R-03、1.4.0）: 最初から再生したときだけ。途中参加・Seek・Skip で開始位置に含まれる分は無音。Timeline 上端のマーカー領域に置いたものも拾われる（FC-R-04: `markerTrack` は `GetOutputTracks()` に含まれる）。
+2. **ショット先頭（0 秒）に置いた `ICutsceneMarker` も発火する**（FC-R-03、1.4.0）: 最初から再生したとき。ネット再生の受信側も、新規の再生開始（開始位置 = `NetworkTime − StartNetTime` が 0.5 秒以内）なら、通信遅延の間に過ぎたマーカー（0 秒を含む）が最初の Tick で 1 回ずつ発火し、送信側と同じ回数になる（FX-R-01、2026-10-04）。途中参加（開始位置が 0.5 秒を超える）・Seek・Skip で過ぎた分は無音。Timeline 上端のマーカー領域に置いたものも拾われる（FC-R-04: `markerTrack` は `GetOutputTracks()` に含まれる）。
 3. **輪郭線のパス（`LightMode` タグの無い URP のパス = `SRPDefaultUnlit`）は `MaterialData.DisabledPasses = { "SRPDefaultUnlit" }` で止められる**（FC-R-06。実描画で確認）。`LightMode` を明示しなくてよい。Material Editor の候補にも出る。
 4. **`OnModelSpawned` の中から別のカットシーンを `Play` してよい**（FC-R-05。入れ子の `ApplyBindings` に耐える）。`OnModelReturning` の中で同じハンドルを `Despawn` しても再帰しない（FC-R-08）。
 5. **T-Drive の Toon の `.mat` だけが先に入ってシェーダーが未導入のとき**（シェーダー参照が欠けた Material = `Hidden/InternalErrorShader`）は、`UnknownShaderPolicy = KeepSource` でも保たず警告して `DDrive/Lit` に変換する（FC-R-02）。導入順は「T-Drive → Toon の素材」を推奨（後から入れ直しても既存の Data のシェーダーは上書きしない仕様のため）。

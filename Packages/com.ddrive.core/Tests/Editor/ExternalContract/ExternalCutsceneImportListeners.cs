@@ -43,6 +43,14 @@ namespace ExternalPackage.Fake
         public void OnCutsceneShotImported(CutsceneImportResult result) => ExternalListenerProbe.Sink?.Invoke(nameof(ExternalListenerLast), result);
     }
 
+    // internal な型は発見されない(docs/42 §5.14 E-19 の「public」。FX-R-14)。発見されると呼ばれて Sink に記録する(= テストが赤になる)。
+    internal sealed class ExternalNonPublicListener : ICutsceneImportListener
+    {
+        public int Order => 1;
+
+        public void OnCutsceneShotImported(CutsceneImportResult result) => ExternalListenerProbe.Sink?.Invoke(nameof(ExternalNonPublicListener), result);
+    }
+
     // 一番先に呼ばれ、ThrowEnabled のとき例外を投げる(後続のリスナーと取り込みが止まらないことの確認用)。
     public sealed class ExternalThrowingListener : ICutsceneImportListener
     {

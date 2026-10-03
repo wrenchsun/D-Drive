@@ -41,10 +41,14 @@ namespace DDrive.Tests.Runtime
         public double NetworkTime { get; private set; }
         public double LatencySeconds = 0.2;
 
+        // 送信(EnqueueBroadcast / EnqueueSendTo)された回数。「マーカーの発火でネットへ余計に流れない」ことの確認用(FX-R-01)。
+        public int EnqueuedMessageCount { get; private set; }
+
         public void Register(ulong clientId, DelayedNetBridge bridge) => _bridges[clientId] = bridge;
 
         public void EnqueueBroadcast<T>(ulong senderId, T msg) where T : INetMessage
         {
+            EnqueuedMessageCount++;
             var deliverAt = NetworkTime + LatencySeconds;
             foreach (var kv in _bridges)
             {
@@ -60,6 +64,7 @@ namespace DDrive.Tests.Runtime
                 return;
             }
 
+            EnqueuedMessageCount++;
             var deliverAt = NetworkTime + LatencySeconds;
             _queue.Add(new Envelope { DeliverAt = deliverAt, Deliver = () => target.Receive(senderId, msg) });
         }

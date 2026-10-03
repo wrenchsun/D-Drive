@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</nav>
 
 <h1>Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</h1>
-<p class="lastupdate">最終更新日: 2026-10-03</p>
+<p class="lastupdate">最終更新日: 2026-10-04</p>
 
 <p>Canvas Editor は、<a href="canvas-data.html">Canvas(UI 画面)データ</a>を組み立てるための専用ウィンドウです。パッドのフォーカス移動(ナビゲーション)を<strong>矢印付きの図で編集</strong>し、要素ごとの演出(ElementFx)をまとめて割り当て、実際にシーン上で開いて確かめられます。</p>
 <ul>
@@ -138,7 +138,7 @@
 <tr><td>子の設定が効くもの</td><td>子の Canvas データの <strong>ElementFx / Buttons / Sliders</strong>。子の Prefab の中のパス(例: <code>Panel/BtnX</code>)のまま書けます</td></tr>
 <tr><td>親のものが使われるもの</td><td>Navigation / FirstSelected / レイヤーの既定(Skin・SE・演出)/ 開閉の演出 / Layer・SortOffset / ポーズ・モーダルの設定。子のこれらの設定は<strong>無視</strong>されます(パッドの移動先を子の中まで張りたいときは、親の Navigation に <code>OptionRoot/Panel/BtnX</code> のように書きます)</td></tr>
 <tr><td>親の設定が優先</td><td>親の Canvas データに、<strong>埋め込み配下の同じ要素</strong>(親から見たパス <code>OptionRoot/Panel</code>)の行があるときは、親の行が勝ち、子の同じ要素の設定は使われません。「この画面ではここだけ演出を変えたい」ときの上書きに使えます(一覧では「親での上書き」と表示され、子の欄の該当行には「親で上書き」と付きます)。<strong>優先される単位</strong>: ElementFx は<strong>要素</strong>ごと(1 行 = Appear / Idle / Disappear の組。親に <code>OptionRoot/Panel</code> の行があれば、子の <code>Panel</code> の演出は 3 つとも使われません)。ボタン・スライダーの配線は<strong>要素 + トリガー</strong>ごと(親が <code>OptionRoot/BtnX</code> の Click だけ配線していれば、子の同じボタンの Click は使われませんが、LongPress など別のトリガーの配線は子の設定が使われます)。1 つの要素の設定は 1 回だけ適用されます</td></tr>
-<tr><td>入れ子の入れ子</td><td>子の Canvas データ自身が、自分の中の入れ子を埋め込みとして登録している形(Hud の中の Option の中の Volume)が基本です。優先は「Hud 自身 &gt; Option &gt; Volume」の順。親(Hud)に <code>OptionRoot</code> と <code>OptionRoot/Inner</code> のように<strong>重なる登録</strong>をすると Validation に Warning が出ます(同じ要素は 1 回だけ適用され、内側の登録が先に担当します)。「入れ子 Prefab から検出」は、他の登録の中にある入れ子の入れ子を提案しません(その子の Canvas Editor で登録します)</td></tr>
+<tr><td>入れ子の入れ子</td><td>子の Canvas データ自身が、自分の中の入れ子を埋め込みとして登録している形(Hud の中の Option の中の Volume)が基本です。優先は「Hud 自身 &gt; Option &gt; Volume」の順。親(Hud)に <code>OptionRoot</code> と <code>OptionRoot/Inner</code> のように<strong>重なる登録</strong>をすると Validation に Warning が出ます(設定の誤りです。実行時は、より内側の登録がその配下の要素を担当し、同じ要素は 1 回だけ適用されます。Hud 自身の行は、子の設定より常に優先されます)。「入れ子 Prefab から検出」は、他の登録の中にある入れ子の入れ子を提案しません(その子の Canvas Editor で登録します)</td></tr>
 <tr><td>ボタンの「この Canvas を閉じる」(CloseSelf)</td><td>埋め込み時は<strong>親の Canvas を閉じます</strong>(子は単独の画面ではないため)。「戻る」(CloseTop)・「別の画面を開く」(OpenCanvas)は変わりません</td></tr>
 <tr><td>子を単独で開く</td><td>子の Prefab を単独の画面としても使えます(同じ子の Canvas データを、単独でも埋め込みでも使えます)</td></tr>
 </table>

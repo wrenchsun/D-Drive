@@ -400,8 +400,10 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
-        public void OverlappingEmbedRegistrations_ApplyEachElementOnlyOnce()
+        public void OverlappingEmbedRegistrations_InnerRegistrationOwnsItsSubtree_ButtonWiredOnce()
         {
+            // 重なる登録は設定の誤り(Validator が DD-CANVAS-EMBED-NESTED-ROOT の Warning)。実行時は「より内側(具体的)な登録が、
+            // その配下の要素を担当する」(docs/07「優先順位」の表の B)。「Open した CanvasData 自身の行が子に勝つ」(表の A)とは別の規則。
             // Hud が OptionRoot(Option)と OptionRoot/Inner(Volume)の両方を登録し、Option 自身も Inner(Volume)を埋め込んでいる。
             _prefab.transform.Find("OptionRoot/Inner/Deep").gameObject.AddComponent<UiButton>();
             var deepButton = _prefab.transform.Find("OptionRoot/Inner/Deep").GetComponent<UiButton>();
@@ -429,7 +431,7 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
-        public void OverlappingEmbedRegistrations_ApplyEachElementFxOnlyOnce()
+        public void OverlappingEmbedRegistrations_InnerRegistrationOwnsItsSubtree_FxAppliedOnce()
         {
             // OptionRoot(A)と OptionRoot/Inner(B)の重なる登録で、同じ要素(OptionRoot/Inner/Deep)に A(5 秒)と B(0.05 秒)の行がある。
             // 内側の登録 B が先に担当するので、A の行は適用されない(両方適用されると A の 5 秒の Appear が残る)。

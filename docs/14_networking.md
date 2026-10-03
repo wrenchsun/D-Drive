@@ -1161,3 +1161,15 @@ Instance を外しても Pool 側の「貸出中」カウントは補正され�
 
 `Docs/CodeReview/2026-09-27_PhaseP_review.md` 末尾への追記、`Docs/Spec/03_Network.md` §10.7 直後への追記は
 MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った（D-Drive のコードは変更しない）。
+
+## 21. 実装メモ（2026-10-04、修正ラウンド 3: Cutscene のマーカー発火の送信側 / 受信側の揃え、FX-R-01）
+
+[55](55_review_fix_rounds_2026-10-03.md) FX-R-01 の対応。Cosmetic の Cutscene（[26](26_timeline.md) §4.7）のマーカー（Event / Signal / Shake / Haptic / 外部の `ICutsceneMarker`）を、**送信側（予測再生）・Host・Client で同じ回数発火する**ようにした。
+
+- **発火はローカル処理のまま**: マーカーの発火はネットへ何も流さない。各クライアントが自分の `Tick` で、同じ Timeline の同じ区間のマーカーを 1 回ずつ発火する（二重送信・二重発火の経路はない。`CutsceneNetMarkerSymmetryTests.Delay0ms_*` が送信数の不変を確認）。
+- **問題**: 受信側（`OnReceivePlayMsgInternal`）は `elapsed = max(0, NetworkTime − StartNetTime)`（= 通信遅延ぶん > 0）でシーク開始する。ラウンド 1 は「開始位置 > 0 なら途中参加として開始位置までのマーカーを無音で飛ばす」にしたため、通常の再生でも受信側だけ 0 秒のマーカー（と遅延時間以内のマーカー）が鳴らず、送信側（`elapsedSeek = 0`）とだけ食い違った。
+- **受信側が新規開始と Late Join を区別できるか（調査結果）**: できない。Late Join は Host の台帳（`_activeNetworked`）から**同じ `CutscenePlayMsg`**（元の `StartNetTime` のまま）を `SendTo` で再送するだけで、メッセージの種類・フラグ・チャンネル（どちらも `ReliableOrdered`）・受信経路（`OnReceivePlayMsg` → `OnReceivePlayMsgInternal`）に違いがない。**メッセージの形式は変えない**（フィールド追加なし。互換面）。
+- **決定**: 開始位置（`NetworkTime − StartNetTime`）が **0.5 秒以内**なら新規の再生開始とみなし、`[0, 開始位置]` のマーカーを**最初の `Tick` で 1 回ずつ発火**する（追いつき発火）。それを超えたら Late Join の追いつきとして従来どおり無音（開始位置ちょうどを含む）。しきい値は `CutsceneManager.RemoteFreshStartGraceSec`（1 か所）。根拠: 既存の同種の判断 = `PresentationManager` の遅れて届いたワンショットの猶予 `remoteOneShotGraceSec`（既定 0.5 秒、[§6-0 修正6] の実機 200ms 遅延での確認〔[29](29_network_device_test.md) §8〕で、通信遅延 + 位相誤差が収まる範囲として決めた値）に合わせた。0ms〜200ms の遅延は十分収まり、数秒単位の Late Join は無音のままになる。Late Join の再送が開始から 0.5 秒以内に届くと新規開始と区別できず発火するが、そのクライアントが最初からいたときに発火したはずの区間なので不自然ではない。
+- **実装**: `PlayLocalInternal` に `catchUpFireMarkers`（受信側が新規開始のときだけ true）を足し、true のときは `AdvanceMarkers(..., fire: false)` の無音の追いつきをしない（カーソル 0 のまま始め、最初の `Tick` で `AdvanceMarkers(..., fire: true)` が `[0, Elapsed]` を 1 回ずつ発火する）。発火が最初の `Tick` になるので、受信側のハンドルを取って `OnMarker` を購読してから発火する（`Play` 自体では発火しない）。ローカル再生・予測再生・`Seek` / `Skip` の経路は不変。
+- **挙動の変更（v1.3.1 から）**: v1.3.1 は 0 秒のマーカーがローカルでも鳴らず、遅延時間以内のマーカーは受信側で鳴らなかった。v1.4.0 は送信側・受信側とも 0 秒と遅延時間以内（0.5 秒以内の新規開始）のマーカーが鳴る。CHANGELOG の互換性節（MINOR）に記載。
+- **ネットの実機確認（[docs/29] の流儀）**: 自動テストは `DelayedNetBridge`（遅延 0ms / 200ms の再現）で固定した。実機（Host + Client 2 台、遅延 200ms 設定）で 0 秒に Signal / SE のマーカーを置いた Cosmetic のカットシーンを再生し、両方の端末で 1 回ずつ鳴ることの確認が望ましい（[52] 4-2 の「2 台構成」の項）。

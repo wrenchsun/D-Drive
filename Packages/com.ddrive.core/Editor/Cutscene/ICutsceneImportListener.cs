@@ -102,7 +102,9 @@ namespace DDrive.Editor.Cutscene
             var list = new List<ICutsceneImportListener>();
             foreach (var type in UnityEditor.TypeCache.GetTypesDerivedFrom<ICutsceneImportListener>())
             {
-                if (type == null || type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition)
+                // public(入れ子なら IsNestedPublic)・非 abstract・ジェネリック定義でない型だけ(他の取り込み拡張点
+                // = ExtensionPointDiscovery と同じ規則。docs/42 §5.14 E-19。FX-R-14)。internal / private の型は拾わない。
+                if (type == null || type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition || (!type.IsPublic && !type.IsNestedPublic))
                 {
                     continue;
                 }
