@@ -415,6 +415,8 @@ T-Drive（別リポジトリ。Maya + Unity のトゥーン / 表情ツール）
 
 デザイナーマニュアル用のスクリーンショット撮影（[36 §5](36_manual_screenshot_list.md)）と実機での通し確認で見つかった不具合・要望 26 件（U-1〜U-26）。3D プレビューが透明になる件・FBX のマテリアルスロット未割当・「確認用シーンに配置」の挙動・作成導線（Project / Hierarchy 右クリック）などが含まれる。**Phase 7 より先に片付ける**。一覧と状態は [39](39_usability_fixes_2026-09-17.md) §0。
 
+- **U-28 Canvas の埋め込み(入れ子)対応**（2026-10-03 起票。ユーザー要望「Canvas 入れ子: Hud の中に Option などを入れる場合、ElementFX などの編集がしづらい」。決定 = 埋め込み Canvas（B）+ 一覧のグループ表示（A）+ 選択に追従・プレハブモード対応の拡張（D）。詳細は [07 A-4](07_canvas_prefab.md)・[39](39_usability_fixes_2026-09-17.md) 2026-10-03 追記）: 子 Canvas の設定を子の `CanvasData` に 1 か所で持ち、親の `EmbeddedCanvases` に登録すると親を Open したときも効く（親の同じ要素の行が優先）。Canvas Editor で登録・グループ表示・選択に追従・親の中での再生。**互換 = 追加のみ（MINOR、v1.4.0）**。→ ✅ 実装(2026-10-03): `CanvasData.EmbeddedCanvases`（`EmbeddedCanvas`: `RootPath` + `AssetId<CanvasMarker>`）末尾追加、`UiManager` が Open 時に子の ElementFx / Buttons / Sliders を子ルート基準で適用（入れ子の入れ子・循環/深さ検出・親の行が優先・警告 1 回 + スキップ）、Validator（Runtime 4 + Editor 4 コード、Warning/Info のみ）、Canvas Editor（埋め込みセクション・グループ表示・絞り込み・自動収集の除外・← 親へ戻る・選択に追従・親の中での ▶/選択）、プリセットギャラリーのパス問題を修正。テスト: PlayMode 15 件・EditMode 26 件追加。
+
 ## Phase 7: 推奨拡張 A 群 (M7)  約 3 週　※詳細は [13_extensions.md](13_extensions.md)
 
 > **2026-10-03 注記**: 7-8（FacialController）は T-Drive 版を使う方針に変更し、工数は 26〜29 日 → 約 20 人日（FC チケット）になった。フェーズ見出しの「約 3 週」・サマリの「計 約 41 週」は 7-8 の旧工数を前提にした概算のままで、再集計していない。

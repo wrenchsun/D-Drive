@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › アニメーション（3D）の設定と Anim Editor</nav>
 
 <h1>アニメーション（3D）の設定と Anim Editor</h1>
-<p class="lastupdate">最終更新日: 2026-09-19</p>
+<p class="lastupdate">最終更新日: 2026-10-03</p>
 
 <p>アニメーションデータ（AnimData）は「この Clip を、このステートで、いつ効果音・エフェクトを出しながら再生するか」をまとめたものです。基本の動き（待機・歩き）は Animator Controller に持たせ、攻撃・被弾などの<strong>ワンショット</strong>を D-Drive のアニメーションデータで再生します。</p>
 <ul>
@@ -111,7 +111,7 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 <tr><th>要素</th><th>説明</th></tr>
 <tr><td>確認用モデル</td><td>Animator を持つ ModelData。「確認用シーンを開く」でシーンに置かれます。Controller が無いモデルでも Clip をそのまま再生して確認できます</td></tr>
 <tr><td>シーン上の Animator(対象)</td><td>動かす相手。確認用シーン / モデル Prefab を開くと自動で入ります。「選択から取得」で Hierarchy の選択を入れることもできます</td></tr>
-<tr><td>モデル情報</td><td>1 行の要約（Controller 名 / BlendShape の数）。BlendShape の一覧は「モデル情報の詳細」を開くと出ます</td></tr>
+<tr><td>モデル情報</td><td>1 行の要約（Controller 名 / BlendShape の数）。BlendShape の一覧は「モデル情報の詳細」を開くと出ます。名前が <code>FC_</code> / <code>fcs_</code> で始まるシェイプは外部のツールが管理するため一覧から隠れ、「外部管理 N 件」と件数だけ出ます（「外部管理のシェイプも表示」で見えます）。これらは AnimData の BlendShape には指定しません（指定すると警告が出ます）</td></tr>
 <tr><td>▶ 再生 / ⏸ 一時停止 / ■ 停止 / ↺ ポーズを戻す</td><td>⏸ は音・エフェクトも一緒に止まり、もう一度押すか ▶ で<strong>続きから</strong>再開します（まだ再生していない・終わった状態で ⏸ を押しても何も起きません）。■ 停止はその瞬間のポーズのまま止まり、前に出した音・エフェクト・配置セットは消えます。「↺ ポーズを戻す」で再生前のポーズに</td></tr>
 <tr><td>ループ試聴 / 速度</td><td>ループ試聴は終わったら自動でもう一度（データは変えません）。速度は 0.1〜2 倍</td></tr>
 <tr><td>タイムライン</td><td>フレームごとの目盛り（太い目盛りにはフレーム番号）と再生ヘッド。<strong>クリックでその位置にシークして一時停止</strong>（絵を止めて確認できます。イベントは鳴りません）。イベントのマーカー: 橙 = 効果音・エフェクトなど（PlayAsset）、水色 = それ以外、赤 = Clip の長さを超えている。マーカーの下には「F15 剣の斬撃音」のように時刻と対象の名前が出ます。<strong>マーカーをドラッグすると時刻が変わります</strong>（ドラッグ 1 回が Ctrl+Z 1 回で戻ります）</td></tr>
@@ -194,6 +194,7 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 <tr><td>Frame イベント(…)が Clip 長(… フレーム)を超えています</td><td>マーカーが赤になっています。Clip の長さより手前にドラッグ（Clip の最後のフレームちょうどは OK です）</td></tr>
 <tr><td>StateName '…'(Layer 0) が対象モデルの Controller にありません</td><td>Controller のステート名を確認して合わせる。空にすれば Clip 名が使われます</td></tr>
 <tr><td>BlendShape '…' が対象モデルにありません</td><td>モデル情報に出ている名前から選び直す</td></tr>
+<tr><td>BlendShape '…' は外部パッケージが管理するシェイプです</td><td><code>FC_</code> / <code>fcs_</code> で始まるシェイプは外部のツールが重みを書くため、AnimData の BlendShape から行を消す（通常のシェイプを使う）</td></tr>
 <tr><td>Loop=false ですが OnLoop イベントがあります</td><td>ループしないので鳴りません。Loop を ON にするか行を消す</td></tr>
 </table>
 

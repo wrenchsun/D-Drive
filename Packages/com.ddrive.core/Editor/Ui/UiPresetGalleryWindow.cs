@@ -204,8 +204,32 @@ namespace DDrive.Editor.Ui
                 return;
             }
 
-            _selectedElementPath = TransformPath.GetRelative(selected.root, selected); // 共通ヘルパーへ集約(レビュー対応 2026-09-14)
-            _statusLabel.text = $"要素パスを '{_selectedElementPath}' に設定しました(手動確認してください)";
+            // 2026-10-03: 以前は常に「シーン階層の最上位(selected.root)」からのパスだった。確認用プレビュー(UiManager が
+            // "[D-Drive] UI Root" の下に置く実体)では最上位が UI Root なので "HUD/<Canvas>/..." のように CanvasData の
+            // ルート基準にならなかった。Canvas のルート(プレビュー実体 / プレハブステージのルート / Prefab インスタンス)を
+            // 探してそこからのパスにする(見つからなければ従来どおり最上位)。
+            var canvasRoot = CanvasEmbeddedEditing.FindCanvasRoot(selected, _canvas != null ? _canvas.Prefab : null) ?? selected.root;
+            var path = TransformPath.GetRelative(canvasRoot, selected);
+            var note = string.Empty;
+
+            // 埋め込み Canvas の配下の要素なら、子の CanvasData に子ルート基準のパスで割り当てる。
+            if (_canvas != null && _canvas.EmbeddedCanvases != null && _canvas.EmbeddedCanvases.Length > 0)
+            {
+                var owner = CanvasEmbeddedEditing.ResolveOwner(_canvas, path, CanvasEmbeddedEditing.CanvasLookup.Build());
+                if (owner.Data != null && owner.Data != _canvas)
+                {
+                    _canvas = owner.Data;
+                    _canvasField.SetValueWithoutNotify(owner.Data);
+                    path = owner.Path;
+                    note = $"(埋め込み Canvas '{owner.Data.name}' の要素のため、適用先を子の CanvasData に切り替えました)";
+                    RebuildCatalogChoices();
+                    RebuildGrid();
+                }
+            }
+
+            _selectedElementPath = path;
+            RebuildElementChoices();
+            _statusLabel.text = $"要素パスを '{_selectedElementPath}' に設定しました{note}(手動確認してください)";
         }
 
         private void RebuildElementChoices()

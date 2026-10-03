@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Canvas(UI 画面)データの設定項目</nav>
 
 <h1>Canvas(UI 画面)データの設定項目</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-10-03</p>
 
 <p>Canvas データ(CanvasData)は「<strong>UI の 1 画面</strong>」を 1 個のデータにまとめたものです。タイトル画面・ポーズメニュー・確認ダイアログ・音量設定など、画面 1 枚につき 1 個作ります。1 枚の Canvas データで次のことが全部決まります。</p>
 <ul>
@@ -148,6 +148,14 @@
 <li><strong>強調(単発)</strong>: PunchScale, PunchRotation, Shake, ShakeHard, Flash, ColorFlash, HeartBeat, Jelly, Tada, RubberBand, AttentionJump</li>
 </ul>
 
+<h3>EmbeddedCanvases(埋め込み Canvas)— Prefab の中の子 Canvas</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>RootPath</td><td>親の Prefab ルートからの相対パス(入れ子になっている子 Canvas のルート。例: <code>OptionRoot</code>)</td></tr>
+<tr><td>Canvas</td><td>子の Canvas データ。その ElementFx / Buttons / Sliders が RootPath を基準に、親を開いたときに適用されます(子の Prefab は新しく生成されません。親の Prefab に入っている実体を使います)</td></tr>
+</table>
+<p>子の Navigation・FirstSelected・レイヤー既定・開閉の演出・Layer / SortOffset は<strong>親のものが使われます</strong>。親の Canvas データに同じ要素(<code>OptionRoot/Panel</code> のように親から見たパス)の ElementFx の行・配線があるときは<strong>親の行が優先</strong>されます。登録は Canvas Editor の「埋め込み Canvas」欄で行います(<a href="#" data-manual-kind="designer" data-manual-page="canvas-editor" data-manual-anchor="embedded">入れ子の Canvas を編集する</a>)。</p>
+
 <h3>UiLayerSettings(レイヤーごとの既定)</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
@@ -164,6 +172,7 @@
 <li><strong>モーダル</strong>: <code>Ui.Popup</code> で開いた ModalBlocksInput=ON の画面より下にある画面は、すべて操作できなくなります</li>
 <li><strong>入力ゲート</strong>: 要素の Appear が全部終わるまで、その画面は入力を受け付けません(モーダルとは無関係)。AppearDelay を大きくしすぎると、その分だけ操作できない時間が延びます</li>
 <li><strong>Close の完了</strong>: CloseTransition が終わり、<strong>かつ</strong>全要素の Disappear が終わったとき。Disappear にループ演出を入れると閉じ終わりません</li>
+<li><strong>埋め込み Canvas</strong>: 親を開いたとき、EmbeddedCanvases に登録した子の ElementFx・ボタン・スライダーの設定が子のルート基準で効きます(入れ子の入れ子も辿ります。深さは 8 段まで・循環は警告して打ち切り)。入力ゲートと Close の完了待ちは、子の要素の Appear / Disappear も含めて親が待ちます。子の配線の「CloseSelf」は親を閉じます</li>
 <li><strong>フォーカス移動</strong>: 十字キー / スティックで、uGUI の Button も D-Drive の UiButton / UiSlider も同じようにフォーカスが移ります。順番は Navigation の明示リンクが優先、無ければ開いている画面の中でその方向に一番近い要素へ。スライダーは十字キーが値の操作になり(右・上で増、左・下で減)、端まで行ったときだけ隣へ抜けます(<code>EscapeOnLimit</code> ON のとき)</li>
 </ul>
 
@@ -206,6 +215,12 @@
 <tr><td>ElementFx[i] '…': 出現なし(Appear/AppearPreset が未設定です)</td><td>意図的なら無視可(Info)</td></tr>
 <tr><td>ElementFx[i] '…': Idle には常時系プリセットを推奨します(Pulse/Blink/Float/Sway/Breathe/RotateLoop/ShimmerAlpha/RainbowTint/WobbleLoop)</td><td>常時系に変える</td></tr>
 <tr><td>Layer=Popup ですが ModalBlocksInput が OFF です(背後の入力がブロックされません)</td><td>ダイアログなら ON に(Info)</td></tr>
+<tr><td>EmbeddedCanvases[i] の RootPath '…' が Prefab 内で見つかりません(この埋め込みは無視されます)</td><td>パスを直すか行を消す(Warning)</td></tr>
+<tr><td>EmbeddedCanvases[i] '…': 子の CanvasData が未設定 / 見つかりません(この埋め込みは無視されます)</td><td>子の Canvas データを指定する(Warning)</td></tr>
+<tr><td>EmbeddedCanvases[i] '…': 自分自身 / 入れ子をたどると親に戻る(循環)</td><td>子の指定を直す(Warning)</td></tr>
+<tr><td>EmbeddedCanvases[i] '…' の RootPath が重複しています</td><td>1 行にまとめる(Warning)</td></tr>
+<tr><td>EmbeddedCanvases[i] '…': この場所の実体が、子 Canvas の Prefab のインスタンスではありません</td><td>パスや子の指定が合っているか確認する(Warning)</td></tr>
+<tr><td>EmbeddedCanvases[i] '…': 親に '…' の行があるため、子の同じ要素の設定より親の設定が優先されます</td><td>意図した上書きなら無視可(Info)</td></tr>
 </table>
 <p>このほか、Prefab 内の UiSlider の設定(Min / Max / Step / Notches など)の検査結果も混ざって出ます(<a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Slider Editor</a>)。実行時には「CanvasData '…' の ElementFx[i] '…' が Prefab 内(RectTransform)で見つかりません。この行はスキップします。」がコンソールに出ることがあります(パスを直してください)。</p>
 

@@ -157,6 +157,20 @@ namespace DDrive.Runtime.Ui
         public AssetId<SeMarker> DisappearSe;
     }
 
+    // [07_canvas_prefab.md] A-2 追記(2026-10-03、Canvas の埋め込み) — 親の Canvas Prefab の中に入っている子 Canvas
+    // (別の CanvasData の Prefab を入れ子にしたもの)の指定。親を Open したとき、子の CanvasData の
+    // ElementEffects / Buttons / Sliders を子のルート(RootPath)基準で適用する。子の Prefab は Instantiate しない
+    // (親の Prefab に既に入っている実体を使う)。
+    [Serializable]
+    public struct EmbeddedCanvas
+    {
+        [Tooltip("親 Prefab のルートからの相対パス(= 入れ子になっている子 Canvas のルート。UiManager.OpenData の root.Find 基準)")]
+        public string RootPath;
+
+        [Tooltip("子の CanvasData(その ElementEffects / Buttons / Sliders が RootPath を基準に適用される。Navigation・FirstSelected・レイヤー既定・開閉演出は親のものを使う)")]
+        public AssetId<CanvasMarker> Canvas;
+    }
+
     // [07_canvas_prefab.md] Part A-2 — UI の 1 画面(Canvas Prefab)の設定。Open/Close/スタック/モーダル/
     // ポーズ/ナビゲーション/ボタン配線をまとめて持つ。UiButton/ElementFx 本体は後続チケット(4-2/4-6/4-9)。
     [CreateAssetMenu(menuName = "D-Drive/Ui/Canvas Data", fileName = "CANVAS_New")]
@@ -202,5 +216,9 @@ namespace DDrive.Runtime.Ui
         [Header("ElementFx")]
         [Tooltip("Open/Close 時に個別再生する要素演出(4-9)。Idle は Appear 完了後にループ再生し、Close で停止する。")]
         public ElementFx[] ElementEffects;
+
+        [Header("Embedded Canvas")]
+        [Tooltip("この Prefab の中に入れ子で入っている子 Canvas。子の ElementEffects / Buttons / Sliders を子の CanvasData に 1 か所で持ち、親を Open したときも効かせる(親側に同じ要素の行があれば親が優先)。空 = 従来どおり。")]
+        public EmbeddedCanvas[] EmbeddedCanvases;
     }
 }

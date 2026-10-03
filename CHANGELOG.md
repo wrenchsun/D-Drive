@@ -34,6 +34,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 追加のみ(MINOR): **MaterialData のパスの無効化・キーワードの欄（2026-10-03、FC-11、[docs/51](docs/51_tdrive_integration.md) §4.12・[docs/06](docs/06_material_texture.md)）** — `MaterialData` の末尾に `string[] DisabledPasses`（LightMode タグ値）と `string[] EnabledKeywords` を追加（既定は空 = 従来どおり。`SchemaVersion` 不変、旧版フィクスチャは警告 0 で読める）。`MaterialManager` が Common → Specific の後・renderQueue の前に適用（共有 Material と `FadeTo` の一時 Material）。公開 API に `MaterialData.HasPassesOrKeywords` と静的クラス `MaterialShaderInfo`（`CollectLightModes` / `CollectKeywords` / `ContainsIgnoreCase`）を追加。Validator に Warning `DD-MAT-PASS-UNKNOWN` と Info `DD-MAT-KEYWORD-UNDECLARED` を追加（既存の検査・重さは不変）。ContentHash・ネット・ID/定数は不変。スナップショット: serialized-layout と public-api-DDrive.Runtime の追加のみ。理由: T-Drive が生成シェーダーを増やさずに影・輪郭線のパスを止めるため。
 
+- 追加のみ(MINOR): **Canvas の埋め込み(入れ子)対応（2026-10-03、U-28、[docs/07](docs/07_canvas_prefab.md) A-4・[docs/39](docs/39_usability_fixes_2026-09-17.md)・[docs/09](docs/09_editor_tools.md)）** — `CanvasData` の末尾に `EmbeddedCanvas[] EmbeddedCanvases`（`EmbeddedCanvas` = `RootPath` + `AssetId<CanvasMarker> Canvas`。`[Tooltip]` 付き、既定は空 = 従来どおり。`SchemaVersion` は変えない）、公開 API に `DDrive.Runtime.Ui.EmbeddedCanvas` / `CanvasData.EmbeddedCanvases` / `EmbeddedCanvasPaths`（`Combine` / `TryToChildPath` / `IsJoinedPath`）を追加。`UiManager.OpenData` が Open 時に子の `ElementEffects` / `Buttons` / `Sliders` を子のルート基準で適用する（子の Prefab は Instantiate しない。入れ子の入れ子は再帰、深さ上限 8 + 循環検出。親の同じ要素の行・配線が優先。Navigation / FirstSelected / レイヤー既定 / 開閉演出は親のもの。子の `CloseSelf` は親を閉じる）。`EmbeddedCanvases` が空 / null の既存データは実行時・Editor とも従来どおり（既存テスト無改修）。新規 Validator は Warning / Info のみ（`DD-CANVAS-EMBED-ROOT` / `-DUP` / `-UNSET` / `-SELF`、Editor の `CanvasEmbeddedValidator` に `-MISSING` / `-CYCLE` / `-PREFAB` / `-OVERRIDE`）。ネット・ContentHash（`CatalogEntry` のみが対象）への影響なし。スナップショット差分は `serialized-layout`（`CanvasData::EmbeddedCanvases` の 1 行）と `public-api-DDrive.Runtime`（上記 3 型の 8 行）の追加のみ。
+
 ### 追加
 
 - 更新ウィンドウの「パッケージ」一覧・URL 入力での追加・候補・登録解除、`ddriveUpdate` の依存確認（`PackageDependencyChecker` / `PackageDependencyValidator`）、版上げ前の事前確認（`GitSparsePackageJsonFetcher`）（P-15）。
@@ -48,6 +50,11 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - `ExternalBlendShapePrefixes`（外部パッケージが所有するシェイプ接頭辞 `FC_` / `fcs_` の一覧と判定）、`AnimDataValidator` の Warning、AnimEditor のモデル情報で外部管理のシェイプを既定で隠す表示（FC-20）。
 - `MaterialData.DisabledPasses` / `EnabledKeywords`（Material Editor の「Passes / Keywords」欄）: シェーダーのパス（LightMode）を無効にする・シェーダーキーワードを有効にする（FC-11）。
 - カットシーンの Binding に `Target = SameAsTrack` + `SourceTrackName`: 別トラックと同じ相手（Animator / Transform）にバインドする（鎖・並び順非依存・循環や未解決は警告 + そのトラックだけミュート。Edit Mode プレビューも同じ挙動）。`CutsceneDataValidator` の SameAsTrack 検査（Warning 4 種）、Inspector の Binding 入力欄の出し分けと「→ 参照先」の検査表示
+- Canvas Editor の埋め込み Canvas 対応: 「埋め込み Canvas」セクション（入れ子 Prefab の検出と「埋め込みとして登録」・手動追加・削除）、ElementFx 一覧の「親の要素 / 埋め込み: 子」グループ表示と絞り込み、登録済みの埋め込み配下を親の自動収集から除外、「← 親へ戻る」、「選択に追従」（Hierarchy / プレハブステージ / 確認用プレビューの選択に合わせて編集対象を子 / 親へ切り替え）、子を編集したまま親のプレハブモード / 確認用プレビューで ▶ 再生・「選択」「選択して移動」（U-28）。
+
+### 修正
+
+- プリセットギャラリーの「選択中のシーン要素のパスを使う」が、確認用プレビュー上の要素を選ぶと `HUD/<Canvas名>/…` のようにシーン階層の最上位基準のパスを作っていた（Canvas のルート基準にならなかった）。Canvas のルート（プレハブステージのルート / プレビュー実体のルート / `CanvasData.Prefab` のインスタンス）からのパスにし、埋め込み Canvas の配下なら子の CanvasData に子基準のパスで割り当てる（U-28）。
 
 ## [1.3.1] - 2026-09-29
 

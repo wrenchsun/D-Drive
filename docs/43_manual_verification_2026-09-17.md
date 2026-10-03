@@ -360,3 +360,34 @@ MS2026 チームの要望で追加した `Tools > D-Drive > Editors > Tuning（�
 | 15-13 | **T-Drive 導入後に確認**: T-Drive の git URL（`?path=unity/com.tdrive.toon` 等）で 15-4〜15-11 を実物で行う。T-Drive の `package.json` に `ddriveUpdate.compatibleWith: { "com.ddrive.core": "1.4.0" }` がある状態で、D-Drive を 1.3.1 に「元に戻す」操作をする | 事前確認のダイアログで「T-Drive は D-Drive v1.4.0 以降に対応」の警告が出る。D-Drive を 1.4.0 以降に戻すと警告が消える | □ 未 |
 | 15-14 | `Packages/manifest.json` に既に D-Drive が `#vX.Y.Z` で入っている状態で、「URL を入力して追加」に D-Drive 自身の URL を入れる | 「manifest に同じ URL の com.ddrive.core があります。管理対象に登録します」→ 一覧は 1 行のまま増えない（D-Drive は常に 1 行目） | □ 未 |
 | 15-15 | ウィンドウを狭く・広くする。`ProjectSettings/DDriveProjectSettings.asset` の差分を `git diff` で見る | レイアウトが崩れず全体が `ScrollView` でスクロールできる。登録したパッケージが `_managedPackages` に 1 要素ずつ追加されている（既存フィールドは変わらない） | □ 未 |
+
+## 16. Canvas の埋め込み(入れ子)対応の確認(2026-10-03 追記)
+
+U-28（[39](39_usability_fixes_2026-09-17.md) 2026-10-03 追記・[07_canvas_prefab.md](07_canvas_prefab.md) A-4）。自動テストで確認済み: 親を Open すると子の ElementFx が子ルート基準で効く（Appear → Idle、Close で Disappear・入力ゲート）/ 子のボタン・スライダー配線（SendSignal の ElementPath が親ルート基準、CloseSelf は親を閉じる、SetOption）/ 親の行が子の行に勝つ / 入れ子の入れ子 / 循環・未解決・パス不一致で警告 + 継続 / 子の単独 Open・`EmbeddedCanvases` 空は従来どおり / プール再利用で配線・状態が残らない（PlayMode `EmbeddedCanvasTests` 15 件）、パス変換・Validator 8 コード・埋め込み候補の検出・登録・自動収集の除外・グループ構築・持ち主の解決・Canvas ルートの検出（EditMode `EmbeddedCanvasPathsTests` / `CanvasEmbeddedEditingTests` 26 件）。**目視でしか確認できないのは、SceneView での再生・Hierarchy / プレハブステージでの選択に追従・ウィンドウの見た目**。
+
+準備: ブランチを切ってから行う（作ったアセット・Prefab は確認後に削除してよい）。Hud の中に Option を入れる例を一から作る。
+
+1. **Option**: Prefab `Option_Test`（ルート RectTransform の下に `Panel`（Image）と `BtnX`（Image + `UiButton`、`DoubleClickSec` = 0））。Canvas データ `CANVAS_OptionTest`（Asset Browser の「＋ 新規作成」）を作り、`Prefab` に設定、Flags の Load = Preload。Inspector で ButtonWire を 1 つ（`ButtonPath` = `BtnX`、Trigger = Click、Action = SendSignal、SignalKey = `option/apply`）
+2. **Hud**: Prefab `Hud_Test`（ルート RectTransform + Canvas の下に `Title`（Image））。**Project から `Option_Test` を `Hud_Test` の中へドラッグして入れ子にし、名前を `OptionRoot` に変える**。Canvas データ `CANVAS_HudTest`（`Prefab` に設定、Layer = HUD、Load = Preload）
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 16-1 | `CANVAS_HudTest` を Canvas Editor で開く（Inspector 最上部の「Canvas Editor で開く」） | 「埋め込み Canvas(入れ子の子 Canvas)」欄に「入れ子 Prefab から検出(未登録)」が出て、`OptionRoot = CANVAS_OptionTest` の行に「埋め込みとして登録」ボタンがある | □ 未 |
+| 16-2 | 「埋め込みとして登録」を押す | 登録済みの行（RootPath `OptionRoot`・子 `CANVAS_OptionTest`・「この Canvas を編集」・「削除」）に変わり、検出の欄から消える。ステータスに登録した旨。Ctrl+Z で登録が戻る | □ 未 |
+| 16-3 | 「要素を自動収集(Image / UiButton / パネル)」を押す | ElementFx 一覧が「CANVAS_HudTest の要素(…)」と「埋め込み: CANVAS_OptionTest(OptionRoot)」に分かれる。親の要素には `Title` だけが入り（`OptionRoot` 自身は Image などを持たないので集まらない）、`OptionRoot/Panel`・`OptionRoot/BtnX` は**入らない**（未登録の入れ子なら入る） | □ 未 |
+| 16-4 | 「埋め込み: …」の「この Canvas を編集」を押す | 編集対象が `CANVAS_OptionTest` に切り替わり、ツールバーの下に「← CANVAS_HudTest へ戻る」と「埋め込みとして編集中: CANVAS_HudTest > CANVAS_OptionTest」が出る。Inspector・ElementFx 一覧・Validation も子のものになる | □ 未 |
+| 16-5 | 子の「要素を自動収集」→ `Panel` の Appear に `PopIn`、`BtnX` の Idle に `Pulse` を割り当てる。続けて「← CANVAS_HudTest へ戻る」を押す | 親に戻る（戻る行が消える）。親の一覧の「埋め込み: …」欄に子の行が読み取りで並ぶ（`Panel   Appear: PopIn / Idle: なし / Disappear: なし`、`BtnX   … Idle: Pulse …`） | □ 未 |
+| 16-6 | 親（Hud）で「確認用シーンを開く」を押す | 専用シーンで Hud が開き、**子の Panel が PopIn で現れ、BtnX が Pulse し続ける**（子の CanvasData の設定が親の中で効いている）。ステータスは「プレビュー表示中」 | □ 未 |
+| 16-7 | 16-6 の状態で Hierarchy の `[D-Drive] UI Root` 配下の `…/OptionRoot/Panel` を選ぶ | **編集対象が自動で `CANVAS_OptionTest` に切り替わり**（「← 戻る」が出る）、ElementFx 一覧の `Panel` の行が展開されて青い縦線で強調され、そこまでスクロールする。続けて `…/Title` を選ぶと編集対象が `CANVAS_HudTest` に戻り、`Title` の行が強調される | □ 未 |
+| 16-8 | 子（`CANVAS_OptionTest`）を編集対象にしたまま `Panel` の Appear 行の「▶ 再生」を押す（親の確認用プレビューが開いている状態） | 親の中の `OptionRoot/Panel` が PopIn で動く（Hierarchy 上の実体が選択される）。連打しても毎回同じ位置から始まる。「■ 停止」で元の状態に戻る | □ 未 |
+| 16-9 | Project で `Hud_Test` をダブルクリックして**親のプレハブモード**にし、`CANVAS_OptionTest` を編集対象にして `Panel` の行の「▶ 再生」と「選択」を押す | 親のステージ内の `OptionRoot/Panel` が動く（プレビュー実体は置き直されず、プレハブモードのまま）。「選択」で Hierarchy の `OptionRoot/Panel` が選ばれる。再生後にプレハブモードのタイトルに `*` が付かない（値が元に戻る）。**親の Prefab に勝手に戻されない** | □ 未 |
+| 16-10 | `Option_Test` を単独でダブルクリックして**子のプレハブモード**にし、`CANVAS_OptionTest` を編集対象にして `Panel` の「▶ 再生」・「選択して移動(Prefab を開く)」を押す | 子のステージ内の `Panel` が動く / 選択される。「選択して移動」が親の Prefab に切り替えない（子のステージのまま） | □ 未 |
+| 16-11 | 「選択に追従」のチェックを外し、Hierarchy で別の要素（Panel ⇔ Title）を選ぶ。チェックを入れ直し、今度は ElementFx の絞り込み欄に文字を入力している最中（カーソルが欄にある間）に Hierarchy で要素を選ぶ | チェック OFF のあいだは編集対象が切り替わらない。ON でも、このウィンドウの入力欄にフォーカスがあるあいだは切り替わらず入力中の文字を失わない（フォーカスを外してから選ぶと切り替わる）。行の「選択」「▶ 再生」で自分が選んだ要素には反応して切り替わらない | □ 未 |
+| 16-12 | 絞り込み欄に `Btn` と入れる | 親・子（読み取り表示）とも `Btn` を含む行だけが残る。空に戻すと全部出る | □ 未 |
+| 16-13 | `CANVAS_HudTest` の Inspector の ElementEffects に要素を 1 つ足し、`ElementPath` = `OptionRoot/Panel`、`AppearPreset` = `FadeIn` にする（親での上書き） | 親の一覧に「↳ 親での上書き: CANVAS_OptionTest(OptionRoot)」と `[親での上書き] OptionRoot/Panel` の行が出る。子の欄の `Panel` の行に `[親で上書き]` が付く。Validation に Info「親に 'OptionRoot/Panel' の行があるため、…親の設定が優先されます」。「確認用シーンを開く」をやり直すと Panel が **PopIn ではなく FadeIn** で現れる（親の行が勝つ）。この行の「選択」を押しても編集対象は子に切り替わらない | □ 未 |
+| 16-14 | プリセットギャラリー（`Tools > D-Drive > Editors > UI Tween · Preset Gallery`）を開き、確認用プレビュー（16-6 の状態）の `…/OptionRoot/Panel` を Hierarchy で選んで「選択中のシーン要素のパスを使う」を押す。続けて `…/Title` でも | `OptionRoot/Panel` の場合: 「適用先」の CanvasData が `CANVAS_OptionTest` に切り替わり、要素パスは **`Panel`**（`HUD/Hud_Test(Clone)/…` ではない）。ステータスに「埋め込み Canvas の要素のため…」。`Title` の場合: CanvasData は `CANVAS_HudTest` のまま、パスは `Title` | □ 未 |
+| 16-15 | Canvas Editor の埋め込み行の RootPath を `NoSuch` に変えて Enter。次に RootPath を戻し、子を `CANVAS_HudTest`（自分自身）に変える。次に Option とは別の Canvas データ（無関係な Prefab のもの）に変える | それぞれ Validation に Warning（RootPath が Prefab 内で見つかりません / 自分自身 / この場所の実体が、子 Canvas の Prefab のインスタンスではありません）。いずれも Error ではない。元に戻すと消える | □ 未 |
+| 16-16 | （任意・Play Mode）空のシーンで `Ui.Open(CANVASID.Hud_Test)` を呼ぶ小さな MonoBehaviour を作って再生し、`Ui.OnSignal("option/apply", …)` を購読して `OptionRoot/BtnX` をクリックする | Hud を開くだけで Panel が PopIn・BtnX が Pulse し、クリックで `option/apply` が届く（`args.Canvas` は Hud のハンドル、`args.ElementPath` は `OptionRoot/BtnX`）。子を別に Open していない。自動テストで確認済みのため、実機・実シーンでの通し確認として任意 | □ 未 |
+| 16-17 | Canvas Editor を幅 500px 前後に縮め、埋め込み欄・グループ表示・戻る行を見る | 見切れず、縦にスクロールできる（RootPath / 子の欄は折り返す）。ObjectField の欄が極端に潰れない | □ 未 |
+
+後片付け: `git status` で作ったアセット・Prefab を確認し、不要なら削除する（`ProjectSettings/` や `Assets/AddressableAssetsData/` に改行だけの差分が出たら `git checkout -- <path>`）。

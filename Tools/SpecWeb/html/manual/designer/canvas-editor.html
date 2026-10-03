@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</nav>
 
 <h1>Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</h1>
-<p class="lastupdate">最終更新日: 2026-09-29</p>
+<p class="lastupdate">最終更新日: 2026-10-03</p>
 
 <p>Canvas Editor は、<a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas(UI 画面)データ</a>を組み立てるための専用ウィンドウです。パッドのフォーカス移動(ナビゲーション)を<strong>矢印付きの図で編集</strong>し、要素ごとの演出(ElementFx)をまとめて割り当て、実際にシーン上で開いて確かめられます。</p>
 <ul>
@@ -161,6 +161,37 @@
 リンクは一方通行です。「下へ行ったら上へ戻れる」ようにするには、▼ と ▲ の両方を張ってください。1 方向でも張ったノードは「明示配線」扱いになり、空の方向は行き止まりになります。まったく張らないノードは Unity の自動ナビゲーションのまま動きます。
 </div>
 
+<h2 id="embedded">入れ子の Canvas(埋め込み Canvas)を編集する</h2>
+<p>Hud の中に Option(設定パネル)を入れるように、<strong>ある Canvas の Prefab の中に別の Canvas の Prefab を入れ子で置く</strong>ことができます。子の演出(ElementFx)やボタンの配線は<strong>子の Canvas データに 1 か所で持ち</strong>、親を開いたときもそのまま効きます。同じ子を別の親に入れても書き直す必要がありません。</p>
+<h3>作り方</h3>
+<ol>
+<li>子の Prefab(例: Option)を、親の Prefab(例: Hud)の中にドラッグして入れる(Prefab の入れ子)。子には子の Canvas データ(<a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas データ</a>)を作っておく</li>
+<li>親の Canvas データを Canvas Editor で開く。「<strong>埋め込み Canvas(入れ子の子 Canvas)</strong>」の欄の「入れ子 Prefab から検出(未登録)」に子が出るので「<strong>埋め込みとして登録</strong>」を押す(手で足すときは「+ 手動で追加」で、親 Prefab ルートからのパスと子の Canvas データを入れる)</li>
+<li>ElementFx の一覧が「<strong>親の要素</strong>」と「<strong>埋め込み: 子の名前(パス)</strong>」に分かれる。埋め込みの欄には子の演出が読み取り表示で並ぶ。編集するときは「<strong>この Canvas を編集</strong>」を押して、編集対象を子に切り替える</li>
+<li>子を編集中は、ツールバーの下に「<strong>← 親へ戻る</strong>」と「埋め込みとして編集中: Hud &gt; Option」が出る。子の ElementFx・ボタン・スライダーはここで編集し、「<strong>▶ 再生</strong>」は親の中の埋め込み実体で動く</li>
+<li>確認は親の「確認用シーンを開く」(親を開くと子の演出も本番と同じに効く)、または親の Prefab をプレハブモードで開いたまま「▶ 再生」。子の Prefab 単体のプレハブモード / 確認用シーンでも同じように使えます</li>
+</ol>
+<!-- screenshot: 36-#60 -->
+<h3>ルール</h3>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>子の設定が効くもの</td><td>子の Canvas データの <strong>ElementFx / Buttons / Sliders</strong>。子の Prefab の中のパス(例: <code>Panel/BtnX</code>)のまま書けます</td></tr>
+<tr><td>親のものが使われるもの</td><td>Navigation / FirstSelected / レイヤーの既定(Skin・SE・演出)/ 開閉の演出 / Layer・SortOffset / ポーズ・モーダルの設定。子のこれらの設定は<strong>無視</strong>されます(パッドの移動先を子の中まで張りたいときは、親の Navigation に <code>OptionRoot/Panel/BtnX</code> のように書きます)</td></tr>
+<tr><td>親の設定が優先</td><td>親の Canvas データに、<strong>埋め込み配下の同じ要素</strong>(親から見たパス <code>OptionRoot/Panel</code>)の ElementFx の行・ボタン / スライダーの配線があるときは、親の行が勝ち、子の同じ要素の設定は使われません。「この画面ではここだけ演出を変えたい」ときの上書きに使えます(一覧では「親での上書き」と表示され、子の欄の該当行には「親で上書き」と付きます)</td></tr>
+<tr><td>ボタンの「この Canvas を閉じる」(CloseSelf)</td><td>埋め込み時は<strong>親の Canvas を閉じます</strong>(子は単独の画面ではないため)。「戻る」(CloseTop)・「別の画面を開く」(OpenCanvas)は変わりません</td></tr>
+<tr><td>子を単独で開く</td><td>従来どおり使えます(同じ子の Canvas データを、単独でも埋め込みでも使えます)</td></tr>
+</table>
+<h3>便利な機能</h3>
+<ul>
+<li><strong>選択に追従</strong>(ツールバーの下のチェック。既定オン): Hierarchy・プレハブモード・確認用シーンで要素を選ぶと、それが埋め込みの子の要素なら編集対象が自動で子に、そうでなければ親に切り替わり、該当する ElementFx の行が展開されて青い線で強調されます。このウィンドウで入力中の欄があるあいだは切り替わりません。切り替えたくないときはチェックを外すか、「🔒」を ON にします</li>
+<li><strong>絞り込み</strong>: ElementFx の見出しの下の検索欄に要素のパスの一部を入れると、一覧が絞られます(親・子とも)</li>
+<li><strong>自動収集</strong>: 登録済みの埋め込みの<strong>中</strong>の要素は、親の「要素を自動収集」・「一括適用」に含まれません(子の担当)。親に既にある行は消えません。まだ登録していない入れ子の Prefab は、従来どおり親の一覧に出ます</li>
+<li><strong>プリセットギャラリー</strong>: 確認用シーンやプレハブモードで要素を選んで「選択中のシーン要素のパスを使う」を押すと、Canvas の Prefab ルートからのパスが入ります。埋め込みの子の要素なら、適用先が子の Canvas データに切り替わります</li>
+</ul>
+<div class="tip">
+埋め込みの登録を外す(欄の「削除」)と、子の演出・配線は親の中で効かなくなります。親に書いた行(親での上書き)は消えません。
+</div>
+
 <h2>確認のしかた(チェックリスト)</h2>
 <ul>
 <li>「Selectable を自動収集」で意図した数の行が増えた(UiButton は含まれないので、必要なら手で足す)</li>
@@ -170,6 +201,7 @@
 <li>「パッド操作シミュレーション」の ▲▼◀▶ でフォーカスが期待どおりに巡り、「決定」で配線した動作(画面遷移など)が起きる</li>
 <li>Disappear の行の「▶ 再生」で実際に再生して見た目を確認する(プリセット・直接指定どちらでも押せる。ループ演出を Disappear に入れていないか)</li>
 <li>「Validation」に赤(Error)が無い</li>
+<li>入れ子の Canvas がある場合: 「埋め込み Canvas」の欄に登録されている(「入れ子 Prefab から検出(未登録)」に残っていない)。Validation に「EmbeddedCanvases[…]」の警告が無い</li>
 <li>シーンに EventSystem(InputSystemUIInputModule 付き)がある。無いと Play 中に「シーンに EventSystem がありません。UI の入力(選択/ナビゲーション)が動作しません。」と出ます</li>
 </ul>
 
@@ -181,6 +213,7 @@
 <li>「パッド操作シミュレーション」は「確認用シーンを開く」中だけ。「決定」で押せるのは UiButton(無ければ uGUI のボタン)</li>
 <li>Navigation グラフは配線の図であって、UI の見た目のプレビューではありません。見た目は「確認用シーンを開く」で</li>
 <li>プレビューはシーンに保存されません。シーンを切り替えるとプレビューは消えます</li>
+<li>埋め込み Canvas は、子の Canvas データが<strong>ゲームの起動時に読み込まれている</strong>(Preload)ことが前提です。他の Canvas データと同じく、Flags の Load を Preload にしておいてください</li>
 <li>Buttons / Sliders の配線に専用画面は無く、Inspector の配列を編集します。Action=PlayPresentation はまだ動きません(Phase 5 予定)</li>
 <li>プリセットギャラリーのカードは静止画です。動きは「選択中のシーン要素で再生」か、こちらの「確認用シーンを開く」で見ます</li>
 </ul>

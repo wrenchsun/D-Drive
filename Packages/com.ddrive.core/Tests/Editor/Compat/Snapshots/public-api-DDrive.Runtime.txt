@@ -1822,6 +1822,7 @@ TYPE class DDrive.Runtime.Ui.CanvasData : DDrive.Foundation.Data.AssetDataBase
   field CloseOnBack : bool
   field CloseTransition : DDrive.Runtime.Ui.UiTransition
   field ElementEffects : DDrive.Runtime.Ui.ElementFx[]
+  field EmbeddedCanvases : DDrive.Runtime.Ui.EmbeddedCanvas[]
   field FirstSelected : string
   field Layer : DDrive.Runtime.Ui.UiLayer
   field ModalBlocksInput : bool
@@ -1883,6 +1884,13 @@ TYPE struct DDrive.Runtime.Ui.ElementFx
   field ElementPath : string
   field Idle : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.UiTweenMarker>
   field IdlePreset : DDrive.Runtime.Ui.UiPresetRef
+TYPE struct DDrive.Runtime.Ui.EmbeddedCanvas
+  field Canvas : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker>
+  field RootPath : string
+TYPE class static DDrive.Runtime.Ui.EmbeddedCanvasPaths
+  method static Combine(string prefix, string path) : string
+  method static IsJoinedPath(string rowPath, string prefix, string childPath) : bool
+  method static TryToChildPath(string rootPath, string parentPath, out string childPath) : bool
 TYPE interface DDrive.Runtime.Ui.IOptionStorage
   method TryRead(string key, out float v) : bool
   method Write(string key, float v) : void

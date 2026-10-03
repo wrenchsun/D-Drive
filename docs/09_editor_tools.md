@@ -193,6 +193,18 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 - **初期状態へリセット**: ▶（行ごと・「▶ 全 Appear/Idle/Disappear」）は「実行中の同要素のトゥイーンを止める → 再生前の値へ戻す → 再生」の順で行うので、連打しても位置がずれない。行の「■ 停止」と「■ 全て停止」も初期状態へ戻す。
 - **選択・フォーカス**: ElementFx の各要素の箱に「選択」「フォーカス」を追加（「選択して移動(Prefab を開く)」は従来どおり）。表示中の実体（プレハブモード → プレビュー実体）を `Selection` にし、「フォーカス」は `PreviewPlacement.FocusRect` で SceneView をその矩形へ寄せる。実体がどちらも無いときは Prefab アセット内の該当要素を Ping。行ごとの ▶ で自動的にその要素を選択する（EditorPrefs `DDrive.CanvasEditor.SelectOnPlay`、既定 ON、ElementFx 見出し下のトグルで切替）。詳細は [39 §2026-09-29 追記](39_usability_fixes_2026-09-17.md)。
 
+#### Canvas Editor の埋め込み Canvas（2026-10-03 追記）
+
+Hud の Prefab の中に Option の Prefab を入れ子で置く場合の編集（[07_canvas_prefab.md](07_canvas_prefab.md) A-4「2026-10-03、Canvas の埋め込み」）。新しい EditorWindow は作らず `CanvasEditorWindow` 内に足した（純ロジックは `Editor/Canvas/CanvasEmbeddedEditing.cs`、UI のない部分だけ。EditMode でテスト）。
+
+- **「埋め込み Canvas」セクション**（ElementFx 割当の上）: 登録済みの行（`RootPath` の欄・子の `CanvasData` の欄・「この Canvas を編集」・「削除」）、親 Prefab 内の入れ子 Prefab インスタンスのうち元 Prefab が既存の `CanvasData.Prefab` と一致する未登録のもの（「入れ子 Prefab から検出(未登録)」）に「埋め込みとして登録」、「+ 手動で追加」。編集は `Undo.RecordObject` + `SetDirty`。
+- **ElementFx 一覧のグループ表示**: 埋め込みがある CanvasData では「<親の名前> の要素」と「埋め込み: <子の名前>(RootPath)」の Foldout に分ける（開閉状態を保持）。子の ElementFx は読み取り表示（行数と Appear/Idle/Disappear の要約、親が上書きしている行に `[親で上書き]`）で、「この Canvas を編集」で編集対象を子に切り替える。埋め込み配下を指す親の行は親の一覧に「↳ 親での上書き」として出す。一覧の絞り込み（ElementPath の部分一致）。埋め込みが無い CanvasData は従来の平らな一覧。
+- **編集対象の切り替え**: 親 → 子へ切り替えると「← <親> へ戻る」と「埋め込みとして編集中: Hud > Option」の行が出る（親の連なり `_ancestors` は外側 → 内側。ObjectField・Project での CanvasData の選択では連なりを捨てる）。「選択に追従」トグル（EditorPrefs `DDrive.CanvasEditor.FollowSelection`、既定オン）: Selection が変わったとき、プレハブステージ（そのステージの Prefab を持つ CanvasData）または確認用プレビュー内の GameObject なら `CanvasEmbeddedEditing.ResolveOwner` で持ち主を決めて切り替え、該当の行を展開・スクロール・強調する。このウィンドウ自身が選んだ GameObject（`SelectGameObject`）、🔒 ロック中、このウィンドウの入力欄にフォーカスがあるあいだ（`IsEditingText`）は切り替えない。
+- **プレビュー再生・選択**: 子を編集中は親の連なりの最外側を `OpenData` する（`_previewData`）。プレハブモードのステージは「対象の Prefab、または対象を埋め込んでいる親の Prefab」（`GetTargetStage(out prefix)`）、確認用プレビューは `TryGetPreviewPrefix(out prefix)`。子のパスは `CanvasEmbeddedEditing.ToAncestorPath` / `EmbeddedCanvasPaths.Combine` で実体のルート基準へ変換して探す。再生前の状態の保存 / 復元は既存の `ElementFxStateSnapshot`。プレビューの実体が対象と無関係な Canvas のものなら使わず開き直す。パッド操作シミュレーションは表示している CanvasData 自身を編集しているときだけ。
+- **自動収集**: 登録済みの埋め込みルートの配下は集めない（`CanvasElementFxCollector.CollectMerged(prefab, existing, excludeRoots)` / `ApplyPresetToButtons(…, excludeRoots)`。ルート自身は集める。既存の行は消さない）。
+- **Validation**: ウィンドウの Validation 欄は `CanvasDataValidator` に加えて `CanvasEmbeddedValidator`（Editor。子の存在・循環・Prefab の一致・親子の行の重なり）も実行する。
+- **プリセットギャラリー**: 「選択中のシーン要素のパスを使う」は Canvas のルート（`CanvasEmbeddedEditing.FindCanvasRoot`）からのパスにし、埋め込み配下なら適用先を子の CanvasData に切り替える（以前は常に `selected.root` 基準で、確認用プレビューでは `HUD/<Canvas>/…` になっていた）。
+
 ### 2.2 Anchor 系の SceneView 表示（基準の描画、U-24、2026-09-17）
 
 **ユーザー報告**（そのまま）: 「Anchor のシーン表示で基準がわからないので LocalOffset だけではなく基準（原点）の座標もシーンに描画する」

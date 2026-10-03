@@ -63,6 +63,54 @@ namespace DDrive.Runtime.Ui
             {
                 yield return ValidationResult.Info("Layer=Popup ですが ModalBlocksInput が OFF です(背後の入力がブロックされません)");
             }
+
+            foreach (var result in ValidateEmbeddedStructure(canvas, root))
+            {
+                yield return result;
+            }
+        }
+
+        // [07_canvas_prefab.md] A-4 追記(2026-10-03、Canvas の埋め込み) — EmbeddedCanvases のうち、他のアセットを
+        // 引かずに判定できる検査(新規検査なので Warning のみ。既存の重さは変えない)。子の CanvasData の存在・循環・
+        // 入れ子 Prefab の元との一致・親の行との重なりは Editor 側の CanvasEmbeddedValidator が見る。
+        private static IEnumerable<ValidationResult> ValidateEmbeddedStructure(CanvasData canvas, Transform root)
+        {
+            var embeds = canvas.EmbeddedCanvases;
+            if (embeds == null || embeds.Length == 0)
+            {
+                yield break;
+            }
+
+            var seenRoots = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < embeds.Length; i++)
+            {
+                var embed = embeds[i];
+                if (string.IsNullOrEmpty(embed.RootPath) || root.Find(embed.RootPath) == null)
+                {
+                    yield return ValidationResult.Warning(
+                        $"EmbeddedCanvases[{i}] の RootPath '{embed.RootPath}' が Prefab 内で見つかりません(この埋め込みは無視されます)",
+                        code: "DD-CANVAS-EMBED-ROOT");
+                }
+                else if (!seenRoots.Add(embed.RootPath))
+                {
+                    yield return ValidationResult.Warning(
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}' の RootPath が重複しています(同じ場所に複数の子 Canvas は指定できません)",
+                        code: "DD-CANVAS-EMBED-DUP");
+                }
+
+                if (!embed.Canvas.IsValid)
+                {
+                    yield return ValidationResult.Warning(
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子の CanvasData が未設定です(この埋め込みは無視されます)",
+                        code: "DD-CANVAS-EMBED-UNSET");
+                }
+                else if (canvas.Id != 0 && embed.Canvas.Value == canvas.Id)
+                {
+                    yield return ValidationResult.Warning(
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 自分自身を子 Canvas に指定しています(循環。この埋め込みは無視されます)",
+                        code: "DD-CANVAS-EMBED-SELF");
+                }
+            }
         }
 
         private static IEnumerable<ValidationResult> ValidateNavigation(CanvasData canvas, Transform root)

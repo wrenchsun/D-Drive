@@ -217,6 +217,7 @@
 | #42 / A | `images/canvas-editor-nav-graph.png` | 「Navigation グラフの操作」の見出しの直後 | Navigation グラフ全体: ノード（四角）、色分けされた矢印（水色/オレンジ/黄/紫）、緑枠（FirstSelected） | Selectable を自動収集し、上下左右のリンクを2〜3個張った状態 | グラフ部分を拡大して矢印の色が判別できるようにする |
 | #43 / B | `images/canvas-editor-elementfx-panel.png` | 「ElementFx 割当セクションの行の読み方」の見出しの直後 | ElementFx 割当の折りたたみを1つ展開した状態（ドロップダウン・直接指定欄・▶再生ボタン） | 要素を自動収集し、Appear に PopIn を割り当てた行を展開 | その行の枠を切り出す |
 | #44 / B | `images/canvas-editor-preview-gameview.png` | 「はじめの一歩(タイトル画面を組む)」の手順6（確認用シーンを開く）の直後 | Game ビュー: 開いた画面にボタンが PopIn で現れている瞬間 + パッド操作シミュレーションのパネル | 「確認用シーンを開く」を実行し、Appear 再生中にキャプチャ | Game ビュー + Canvas Editor のパッド操作シミュレーション部分を並べる |
+| #60 / B | `images/canvas-editor-embedded.png` | 「入れ子の Canvas(埋め込み Canvas)を編集する」の「作り方」の手順の直後(2026-10-03 追加) | Canvas Editor: 「埋め込み Canvas」欄に登録済みの行と「入れ子 Prefab から検出(未登録)」+「埋め込みとして登録」ボタン、その下の ElementFx 一覧が「親の要素」と「埋め込み: Option(OptionRoot)」に分かれ、「← Hud へ戻る」が出ている状態 | Hud の Prefab の中に Option の Prefab を入れ、両方の Canvas データを作る。Hud を Canvas Editor で開く(未登録の状態と、登録後の状態の 2 枚を並べてもよい) | Canvas Editor ウィンドウ全体(横 500〜700px) |
 
 ### ui-skin.html
 

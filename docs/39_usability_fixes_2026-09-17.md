@@ -178,6 +178,16 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 - テスト: `Tests/Editor/ElementFxStateSnapshotTests.cs`（控え・復元・追加された CanvasGroup の破棄・破棄済み対象、および「SlideIn を再生途中で 5 回再スタートしても最終位置が 1 回再生と同じ」「SlideOut の後に SlideIn しても画面外を引き継がない」）。
 - 人による確認が必要: プレハブモードのまま ▶ を押して SceneView で動くこと、再生が終わるとプレハブモードのタイトルに `*`（未保存）が付かないこと、「フォーカス」で SceneView が要素へ寄ること。
 
+### 2026-10-03 追記（Canvas の埋め込み(入れ子)対応）
+
+ユーザー要望（2026-10-03）「Canvas 入れ子: Hud の中に Option などを入れる場合、ElementFX などの編集がしづらい」。
+
+- **背景**: D-Drive に Canvas の入れ子の概念が無く、親を Open しても子の `CanvasData`（ElementFx・ボタン配線）は使われない。子の演出を親の中で効かせるには、親の `CanvasData` に長いパス（`OptionRoot/Panel/BtnX`）で行を書くしかなく、「要素を自動収集」は入れ子 Prefab の中まで拾って親の一覧に平らに混ざり、確認用プレビューを開くたびに自動で追加された。編集対象の切り替えは CanvasData アセットを選んだときだけで、プレハブモードの再生・選択は「対象 CanvasData の Prefab と stage の assetPath が完全一致」のときだけ（子のプレハブモードから親の Prefab に戻される・親のプレハブモードでは子を再生できない）。プリセットギャラリーの「選択中のシーン要素」は確認用プレビュー上でシーン最上位から数えたパスを作っていた。
+- **決定（ユーザー「おすすめで作ってみて」）**: **B（埋め込み Canvas）を軸に、A（一覧のグループ表示）と D（選択に合わせた編集対象の自動切り替え・プレハブモード対応の拡張）**。子の設定を子の `CanvasData` に 1 か所で持ち、親の `EmbeddedCanvases` に登録すると親の中でも効く（親の行が優先）。詳細は [07_canvas_prefab.md](07_canvas_prefab.md) A-4「2026-10-03、Canvas の埋め込み」。
+- **不採用（将来の候補）**: (C) 子をスロットへ別 Canvas として Open する方式 — 親の Prefab に子を置く必要は無くなるが、Open 時の生成・Close の連動・Handle の持ち方が増える。(E) ElementFx のコンポーネント化（要素に `UiElementFx` を付けパス文字列を無くす）— Data 駆動・一覧編集の方針とぶつかり、既存データの移行も要る。
+- 実装: `Runtime/Canvas/CanvasData.cs`（`EmbeddedCanvas` / `EmbeddedCanvases`）・`EmbeddedCanvasPaths.cs`・`UiManager.cs`（`SetupEmbeddedCanvases` ほか）・`CanvasDataValidator.cs`、`Editor/Canvas/CanvasEmbeddedEditing.cs` / `CanvasEmbeddedValidator.cs` / `CanvasEditorWindow.cs` / `CanvasElementFxCollector.cs`、`Editor/Ui/UiPresetGalleryWindow.cs`。テスト: PlayMode `EmbeddedCanvasTests` 15 件、EditMode `EmbeddedCanvasPathsTests` / `CanvasEmbeddedEditingTests` 26 件。
+- 人による確認: [43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §16。
+
 ### U-25（Signal を手動で送る導線）
 
 **2026-09-17 実装済み（改善）。** 「Presentation の Signal を手動で送る操作のやり方が分からない」という報告について、機能自体（統合プレビュー内の「Signal レーン(手動発火)」に Signal Key ごとのボタンが並ぶ仕組み）は既に実装済みだったため、**分かりにくさの原因を特定してから直した**。
@@ -210,6 +220,7 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
   `style.height=StyleKeyword.Auto` の併用で解決できることを確認(ただし現状どの Toolbar も 500px で破綻していない
   ため未適用、今後の指針として記録)。点検結果の一覧・誤検出として除外した 2 パターン(GraphView のパン領域、
   TextField 内部のネイティブスクロール)は [09_editor_tools.md §7.1.1/§7.1.2](09_editor_tools.md) を参照。
+- 2026-10-03: Canvas の埋め込み(入れ子)対応（U-28）を実装。詳細は上の「2026-10-03 追記」。
 - 2026-09-29: ElementFx プレビューの使い勝手 3 件（プレハブモードでも ▶ 再生できる／▶ のたびに初期状態へ戻す／「選択」「フォーカス」ボタンと ▶ 時の自動選択）を実装。詳細は上の「2026-09-29 追記」。
 - 2026-09-17: U-25（Presentation の Signal を手動で送る導線を分かりやすくする）を実装。統合プレビューの「Signal レーン(手動発火)」に手順を明文化したラベルを追加し、再生中でなければ Signal ボタンをグレーアウトするようにした(`PresentationEditorWindow.Preview.cs`/`PresentationEditorWindow.cs`)。`docs/DesignerManual/presentation.html` を更新し、スクリーンショット #53 を撮影可能にした([36](36_manual_screenshot_list.md))。
 - 2026-09-17: U-23（ElementFx の「▶ 再生」連打で位置ずれ）を実装。真因は `UiTweenManager.StopAll(RectTransform)` が中断された Tween を完了させずに取り除いていたこと(`Stop(handle, complete)` と違い complete 引数が無かった)。`StopAll` に `complete` 引数を追加し、`CanvasEditorWindow.PlayPhasePreview` を `complete: true` で呼ぶよう変更。再現テスト(`UiTweenTests.RapidReplay_SlideInPreset_WithStopAllComplete_SettlesAtRestPosition`)を先に書いて修正前に赤(実測 -328.05 vs 期待 0)であることを確認してから直した。
