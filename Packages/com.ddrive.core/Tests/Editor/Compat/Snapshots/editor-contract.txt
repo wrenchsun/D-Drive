@@ -43,3 +43,25 @@ DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderEditorWindow "Slider 
 DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderSkinEditorWindow "Skin Editor で開く" order=0
 DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditorWindow "UI Tween Editor で開く" order=0
 DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditorWindow "VFX Editor で開く" order=0
+== CutsceneImportListener ==
+interface DDrive.Editor.Cutscene.ICutsceneImportListener
+  method Void OnCutsceneShotImported(CutsceneImportResult result)
+  property Int32 Order { get; }
+class DDrive.Editor.Cutscene.CutsceneImportResult
+  field Boolean IsNew
+  field CutsceneData Data
+  field IReadOnlyList`1 Roles
+  field String Category
+  field String ShotName
+  field String TimelinePath
+  field TimelineAsset Timeline
+class DDrive.Editor.Cutscene.CutsceneImportRole
+  field CutsceneImportRoleKind Kind
+  field String ModelIdentifier
+  field String RoleName
+  field String SourcePath
+  field TrackAsset Track
+enum DDrive.Editor.Cutscene.CutsceneImportRoleKind
+  Camera = 0
+  Prop = 1
+  Character = 2

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using DDrive.Editor.Cutscene;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 
@@ -52,7 +53,62 @@ namespace DDrive.Editor.Compat
                 sb.Append(line).Append('\n');
             }
 
+            // FC-5(2026-10-03、docs/42 §5.9 / §5.14): 外部パッケージ(T-Drive 等)が実装・参照する取り込みリスナー API。
+            // 追加(メンバー・enum 値の末尾追加)は MINOR、削除・改名・型変更は互換違反(CHANGELOG 必須)。
+            sb.Append("== CutsceneImportListener ==\n");
+            AppendType(sb, typeof(ICutsceneImportListener));
+            AppendType(sb, typeof(CutsceneImportResult));
+            AppendType(sb, typeof(CutsceneImportRole));
+            AppendType(sb, typeof(CutsceneImportRoleKind));
+
             return sb.ToString();
+        }
+
+        // 型の public な公開面(フィールド / プロパティ / メソッド / enum 値)を 1 行ずつ。並びは名前順。
+        private static void AppendType(System.Text.StringBuilder sb, Type type)
+        {
+            var kind = type.IsEnum ? "enum" : type.IsInterface ? "interface" : "class";
+            sb.Append(kind).Append(' ').Append(type.FullName).Append('\n');
+
+            var lines = new List<string>();
+            if (type.IsEnum)
+            {
+                foreach (var name in Enum.GetNames(type))
+                {
+                    lines.Add($"  {name} = {Convert.ToInt64(Enum.Parse(type, name))}");
+                }
+
+                // enum は値の並び(宣言順 = 値順)も契約なので並べ替えずそのまま出す。
+                foreach (var line in lines)
+                {
+                    sb.Append(line).Append('\n');
+                }
+
+                return;
+            }
+
+            const BindingFlags Flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            foreach (var f in type.GetFields(Flags))
+            {
+                lines.Add($"  field {f.FieldType.Name} {f.Name}");
+            }
+
+            foreach (var p in type.GetProperties(Flags))
+            {
+                lines.Add($"  property {p.PropertyType.Name} {p.Name} {{{(p.CanRead ? " get;" : string.Empty)}{(p.CanWrite ? " set;" : string.Empty)} }}");
+            }
+
+            foreach (var m in type.GetMethods(Flags).Where(m => !m.IsSpecialName))
+            {
+                var args = string.Join(", ", m.GetParameters().Select(a => a.ParameterType.Name + " " + a.Name));
+                lines.Add($"  method {m.ReturnType.Name} {m.Name}({args})");
+            }
+
+            lines.Sort(StringComparer.Ordinal);
+            foreach (var line in lines)
+            {
+                sb.Append(line).Append('\n');
+            }
         }
 
         private static IEnumerable<(string name, string value)> PublicConstStrings(Type type)
