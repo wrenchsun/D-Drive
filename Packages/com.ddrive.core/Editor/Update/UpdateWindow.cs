@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Migration;
 using DDrive.Editor.Settings;
@@ -65,11 +67,15 @@ namespace DDrive.Editor.Update
         private Foldout _skillFoldout;
         private Foldout _postCheckFoldout;
 
-        // [42_distribution.md] §4.2/§6 P-14(2026-09-20) — 実 `git` CLI 呼び出しをここで 1 回だけ生成する
-        // (テストからは `IGitTagLister` を差し替えられる設計だが、ウィンドウ自体は EditMode テストの
-        // 対象外なので既定実装を直接持つ)。
-        private readonly IGitTagLister _gitTagLister = new GitCliTagLister();
-        private readonly IRemotePackageJsonFetcher _packageJsonFetcher = new GitSparsePackageJsonFetcher();
+        // [42_distribution.md] §4.2 P-15(2026-10-03、レビュー PC-R-03) — git を呼ぶ処理(タグ一覧・上げ先の package.json の取得)は
+        // バックグラウンドで走らせ、ウィンドウに「確認中…」+ キャンセルを出す(主スレッドを止めない)。1 度に 1 件だけ。
+        // バックグラウンドからは Unity API を呼ばない(必要な値は開始前に主スレッドで取る)。完了は `PollBusy` が主スレッドで拾う。
+        private CancellationTokenSource _busyCts;
+        private Task _busyTask;
+        private System.Action<bool> _busyContinuation;
+        private volatile string _busyText = string.Empty;
+        private VisualElement _busyBar;
+        private Label _busyLabel;
 
         // 一覧の状態(再構築のたびに作り直す)。
         private List<PackageState> _installed = new();
@@ -88,6 +94,24 @@ namespace DDrive.Editor.Update
 
             scrollView.Add(new Label("D-Drive 更新ウィンドウ") { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 14, marginBottom = 4 } });
             scrollView.Add(WrappingLabel("持ち込み先の manifest.json を新しい版に進めた直後に使います([docs/42_distribution.md] §4.2)。D-Drive 以外の git URL パッケージも、URL を入力して管理対象に追加すれば同じ形式で更新できます。"));
+
+            _busyBar = new VisualElement
+            {
+                style =
+                {
+                    flexDirection = FlexDirection.Row,
+                    alignItems = Align.Center,
+                    display = DisplayStyle.None,
+                    backgroundColor = new Color(0.25f, 0.45f, 0.75f, 0.35f),
+                    marginBottom = 4,
+                    paddingLeft = 4,
+                    paddingRight = 4,
+                },
+            };
+            _busyLabel = new Label { style = { flexGrow = 1, flexShrink = 1, whiteSpace = WhiteSpace.Normal } };
+            _busyBar.Add(_busyLabel);
+            _busyBar.Add(new Button(() => _busyCts?.Cancel()) { text = "キャンセル" });
+            scrollView.Add(_busyBar);
 
             scrollView.Add(BuildSection("パッケージ", out _packagesBody));
 
@@ -117,6 +141,9 @@ namespace DDrive.Editor.Update
             scrollView.Add(_skillFoldout);
             scrollView.Add(_postCheckFoldout);
 
+            // 前回のタイムアウト / 異常終了で残った一時フォルダを掃除する(10 分より古いものだけ)。
+            GitPackageJsonFetcher.CleanupStale(GitPackageJsonFetcher.DefaultTempRoot());
+
             ResumePendingAdd();
             RefreshAll();
         }
@@ -124,6 +151,81 @@ namespace DDrive.Editor.Update
         private void OnDisable()
         {
             EditorApplication.update -= PollAddRequest;
+            EditorApplication.update -= PollBusy;
+            _busyCts?.Cancel(); // 実行中の git をツリーごと止める
+        }
+
+        // ── 非同期(git を呼ぶ処理) ──
+
+        // work はバックグラウンドで、onDone は主スレッドで呼ばれる(onDone の引数 = キャンセルされたか)。実行中は新たに始めない(false)。
+        private bool StartBusy(string text, System.Action<CancellationToken> work, System.Action<bool> onDone)
+        {
+            if (_busyTask != null)
+            {
+                Debug.LogWarning("[DDrive][Update] 別の確認が進行中です。完了するか、キャンセルしてから操作してください。");
+                return false;
+            }
+
+            _busyCts = new CancellationTokenSource();
+            var token = _busyCts.Token;
+            _busyText = text;
+            _busyContinuation = onDone;
+            _busyTask = Task.Run(() =>
+            {
+                try
+                {
+                    work(token);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning("[DDrive][Update] git の確認に失敗しました: " + e.Message); // 例外で止めない(CLAUDE.md §0-4)
+                }
+            });
+            _busyLabel.text = text;
+            _busyBar.style.display = DisplayStyle.Flex;
+            EditorApplication.update -= PollBusy;
+            EditorApplication.update += PollBusy;
+            return true;
+        }
+
+        private void PollBusy()
+        {
+            if (_busyTask == null)
+            {
+                EditorApplication.update -= PollBusy;
+                return;
+            }
+
+            if (_busyLabel != null && _busyLabel.text != _busyText)
+            {
+                _busyLabel.text = _busyText;
+            }
+
+            if (!_busyTask.IsCompleted)
+            {
+                return;
+            }
+
+            EditorApplication.update -= PollBusy;
+            var cancelled = _busyCts != null && _busyCts.IsCancellationRequested;
+            var done = _busyContinuation;
+            _busyTask = null;
+            _busyContinuation = null;
+            _busyCts?.Dispose();
+            _busyCts = null;
+            if (_busyBar != null)
+            {
+                _busyBar.style.display = DisplayStyle.None;
+            }
+
+            try
+            {
+                done?.Invoke(cancelled);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         private static Foldout BuildSection(string title, out VisualElement body)
@@ -335,7 +437,7 @@ namespace DDrive.Editor.Update
             {
                 latest = check.LatestVersion == null
                     ? "判定不可"
-                    : $"v{check.LatestVersion}{BumpSuffix(check.Bump)}";
+                    : $"{check.LatestTag ?? "v" + check.LatestVersion}{BumpSuffix(check.Bump)}";
             }
             else
             {
@@ -393,7 +495,12 @@ namespace DDrive.Editor.Update
 
         private void RegisterManaged(string packageId)
         {
-            DDriveProjectSettings.instance.RegisterManagedPackage(packageId);
+            // D-Drive 自身は常に 1 行目なので設定には登録しない(意味の無い要素を残さない。レビュー PC-R-15)。
+            if (packageId != ManagedPackageRows.DDrivePackageId)
+            {
+                DDriveProjectSettings.instance.RegisterManagedPackage(packageId);
+            }
+
             Debug.Log($"[DDrive][Update] {packageId} を管理対象に登録しました。");
             SessionState.SetString(SelectedPackageKey, packageId);
             _addMessage = null;
@@ -402,6 +509,14 @@ namespace DDrive.Editor.Update
 
         private void UnregisterManaged(string packageId)
         {
+            // 解除すると「前の参照に戻す」の情報も消える(レビュー PC-R-15)。
+            var entry = DDriveProjectSettings.instance.FindManagedPackage(packageId);
+            if (entry != null && !string.IsNullOrEmpty(entry.PreviousRef)
+                && !EditorUtility.DisplayDialog("D-Drive 更新", $"{packageId} の登録を解除します。「前の参照に戻す」の情報({entry.PreviousRef})も消えます。\n\nよろしいですか?", "解除する", "キャンセル"))
+            {
+                return;
+            }
+
             DDriveProjectSettings.instance.UnregisterManagedPackage(packageId);
             Debug.Log($"[DDrive][Update] {packageId} を管理対象から外しました(manifest.json からは消していません)。");
             if (SessionState.GetString(SelectedPackageKey, string.Empty) == packageId)
@@ -422,7 +537,23 @@ namespace DDrive.Editor.Update
                 return;
             }
 
-            var plan = new PackageAddPlanner(_gitTagLister).Plan(input, manifest);
+            // 入力の解釈で `git ls-remote`(タグの取得)が走ることがあるので、バックグラウンドで実行する(進捗表示 + キャンセル)。
+            PackageAddPlan plan = default;
+            StartBusy("タグを確認中…", token => { plan = new PackageAddPlanner(new GitCliTagLister(token)).Plan(input, manifest); },
+                cancelled =>
+                {
+                    if (cancelled)
+                    {
+                        SetAddMessage("確認をキャンセルしました。", false);
+                        return;
+                    }
+
+                    ApplyAddPlan(plan);
+                });
+        }
+
+        private void ApplyAddPlan(PackageAddPlan plan)
+        {
             switch (plan.Outcome)
             {
                 case PackageAddOutcome.RegisterExisting:
@@ -439,7 +570,8 @@ namespace DDrive.Editor.Update
 
                     if (!EditorUtility.DisplayDialog(
                             "D-Drive 更新",
-                            $"次の内容でパッケージを導入します(manifest.json に追加されます)。\n\n{plan.ManifestValue}\n\nよろしいですか?",
+                            $"次の内容でパッケージを導入します(manifest.json に追加されます)。\n\n{plan.ManifestValue}\n\n" +
+                            "信頼できる提供元のパッケージだけを導入してください。導入すると、そのパッケージのスクリプトがこの Unity Editor で実行されます。\n\nよろしいですか?",
                             "導入する", "キャンセル"))
                     {
                         return;
@@ -481,7 +613,11 @@ namespace DDrive.Editor.Update
             if (request.Status == StatusCode.Success && request.Result != null)
             {
                 var id = request.Result.name;
-                DDriveProjectSettings.instance.RegisterManagedPackage(id);
+                if (id != ManagedPackageRows.DDrivePackageId)
+                {
+                    DDriveProjectSettings.instance.RegisterManagedPackage(id);
+                }
+
                 Debug.Log($"[DDrive][Update] {id} を導入し、管理対象に登録しました({_addRequestValue})。");
                 SessionState.SetString(SelectedPackageKey, id);
                 _addInput = string.Empty;
@@ -508,7 +644,11 @@ namespace DDrive.Editor.Update
             var plan = new PackageAddPlanner(null).Plan(pending, manifest);
             if (plan.Outcome == PackageAddOutcome.RegisterExisting)
             {
-                DDriveProjectSettings.instance.RegisterManagedPackage(plan.PackageId);
+                if (plan.PackageId != ManagedPackageRows.DDrivePackageId)
+                {
+                    DDriveProjectSettings.instance.RegisterManagedPackage(plan.PackageId);
+                }
+
                 SessionState.SetString(SelectedPackageKey, plan.PackageId);
                 SessionState.EraseString(PendingAddKey);
                 Debug.Log($"[DDrive][Update] 導入が完了していた {plan.PackageId} を管理対象に登録しました。");
@@ -526,32 +666,66 @@ namespace DDrive.Editor.Update
             RefreshPackagesSection();
         }
 
+        // 管理対象の git URL パッケージすべてのタグを順に取得して最新を判定する(バックグラウンド。進捗表示 + キャンセル)。
         private void CheckLatestForAllRows()
         {
+            var targets = new List<KeyValuePair<PackageRow, string>>();
             foreach (var row in _rows)
             {
                 if (row.InManifest && row.IsGit)
                 {
-                    CheckLatest(row, out _);
+                    targets.Add(new KeyValuePair<PackageRow, string>(row, row.Url.CloneUrl));
                 }
             }
 
-            RefreshPackagesSection();
-            RefreshSelectedSections();
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var stdouts = new string[targets.Count];
+            var warnings = new string[targets.Count];
+            StartBusy($"最新の版を確認中…(0/{targets.Count})",
+                token =>
+                {
+                    for (var i = 0; i < targets.Count; i++)
+                    {
+                        if (token.IsCancellationRequested)
+                        {
+                            return;
+                        }
+
+                        _busyText = $"{targets[i].Key.DisplayName} の最新の版を確認中…({i + 1}/{targets.Count})";
+                        stdouts[i] = new GitCliTagLister(token).ListTags(targets[i].Value, out warnings[i]);
+                    }
+                },
+                cancelled =>
+                {
+                    for (var i = 0; i < targets.Count; i++)
+                    {
+                        if (stdouts[i] != null || warnings[i] != null)
+                        {
+                            ApplyTagListing(targets[i].Key, stdouts[i], warnings[i]);
+                        }
+                    }
+
+                    RefreshPackagesSection();
+                    RefreshSelectedSections();
+                });
         }
 
-        // `git ls-remote --tags` を実行して最新を判定し、一覧用にキャッシュする。失敗時は warning を返す(例外で止めない)。
-        private List<System.Version> CheckLatest(PackageRow row, out string warning)
+        // タグ一覧の取得結果を反映する(主スレッド)。一覧用にキャッシュする。失敗時は null(例外で止めない)。
+        private List<GitTag> ApplyTagListing(PackageRow row, string stdout, string warning)
         {
-            var stdout = _gitTagLister.ListTags(row.Url.CloneUrl, out warning);
             if (warning != null)
             {
                 Debug.LogWarning($"[DDrive][Update] 更新チェック({row.Id}): {warning}");
                 return null;
             }
 
-            var tags = row.IsDDrive ? GitTagListParser.Parse(stdout) : GitTagListParser.ParseVersionTags(stdout);
-            _latestById[row.Id] = UpdateCheckLogic.Evaluate(row.Url.Ref, CurrentVersionOf(row), tags);
+            // D-Drive の行は v 無しのタグも採る(従来どおり)。他のパッケージは vX.Y.Z 形式だけ。元のタグ名を保持する。
+            var tags = GitTagListParser.ParseTags(stdout, !row.IsDDrive);
+            _latestById[row.Id] = UpdateCheckLogic.EvaluateTags(row.Url.Ref, CurrentVersionOf(row), tags);
             return tags;
         }
 
@@ -631,50 +805,21 @@ namespace DDrive.Editor.Update
                 dropdown.style.display = DisplayStyle.None;
                 applyButton.style.display = DisplayStyle.None;
 
-                var tags = CheckLatest(row, out var warning);
-                if (warning != null)
-                {
-                    resultBody.Add(ColoredLabel("⚠ " + warning, ErrorColor));
-                    return;
-                }
-
-                var check = _latestById[row.Id];
-
-                if (check.LatestVersion == null)
-                {
-                    resultBody.Add(WrappingLabel(row.IsDDrive
-                        ? "タグを取得できませんでした(vX.Y.Z 形式のタグが見つかりません)。"
-                        : "vX.Y.Z 形式のタグが見つかりません(最新版を判定できません。このパッケージの版上げは URL の #ref を手で書き換えてください)。"));
-                    RefreshPackagesSection();
-                    return;
-                }
-
-                resultBody.Add(WrappingLabel($"最新: v{check.LatestVersion}{BumpSuffix(check.Bump)}"));
-
-                if (check.Bump == UpdateCheckLogic.BumpKind.UpToDate)
-                {
-                    resultBody.Add(WrappingLabel("最新です。"));
-                }
-                else if (check.Bump == UpdateCheckLogic.BumpKind.Major)
-                {
-                    resultBody.Add(ColoredLabel("⚠ MAJOR 更新です。docs/migrations/vN.md(無ければ CHANGELOG の「互換性」)を先に読んでください([docs/42_distribution.md] §5.12)。", ErrorColor));
-                }
-
-                if (tags.Count > 0)
-                {
-                    var choices = new List<string>();
-                    foreach (var v in tags) // GitTagListParser は降順
+                // タグの取得はバックグラウンド(進捗表示 + キャンセル)。結果は主スレッドの onDone で表示する。
+                var cloneUrl = row.Url.CloneUrl;
+                string stdout = null;
+                string warning = null;
+                StartBusy($"{row.DisplayName} の最新の版を確認中…", token => { stdout = new GitCliTagLister(token).ListTags(cloneUrl, out warning); },
+                    cancelled =>
                     {
-                        choices.Add("v" + v);
-                    }
+                        if (cancelled)
+                        {
+                            resultBody.Add(WrappingLabel("確認をキャンセルしました。"));
+                            return;
+                        }
 
-                    dropdown.choices = choices;
-                    dropdown.value = choices[0]; // 最新(降順の先頭)
-                    dropdown.style.display = DisplayStyle.Flex;
-                    applyButton.style.display = DisplayStyle.Flex;
-                }
-
-                RefreshPackagesSection();
+                        ShowCheckResult(row, stdout, warning, resultBody, dropdown, applyButton);
+                    });
             }) { text = "最新の版を確認" };
 
             applyButton.clicked += () =>
@@ -684,38 +829,46 @@ namespace DDrive.Editor.Update
                     return;
                 }
 
+                // dropdown.value は元のタグ名(`v1.5.0-rc.1` など。表示だけ「(プレリリース)」が付く)。manifest にはこの名前を書く。
                 var targetRef = dropdown.value;
-                if (!ConfirmWithPreflight(
-                        row, parsed, targetRef,
-                        $"manifest.json の {row.Id} を {targetRef} に更新します。",
-                        row.IsDDrive
-                            ? "再コンパイル後に「4. 更新を適用」を実行してください。元に戻したいときは「前の参照に戻す」を使えます。"
-                            : "再コンパイル後に「3. 更新後の確認」を実行してください。元に戻したいときは「前の参照に戻す」を使えます。",
-                        "更新する"))
+                var siblings = PackageManifestOps.FindSiblingsAtOtherRef(ManifestJson.LoadProjectManifest(), row.Id, targetRef);
+                var siblingNote = string.Empty;
+                foreach (var sibling in siblings)
                 {
-                    return;
+                    siblingNote += $"\n・同じリポジトリの {sibling.Key} は {(string.IsNullOrEmpty(sibling.Value) ? "(参照なし)" : sibling.Value)} のままです。同じリポジトリのパッケージは同じタグに揃えてください。";
                 }
 
-                var currentManifest = ManifestJson.LoadProjectManifest();
-                if (currentManifest == null)
-                {
-                    Debug.LogError("[DDrive][Update] Packages/manifest.json が読めませんでした。");
-                    return;
-                }
+                ConfirmWithPreflight(
+                    row, parsed, targetRef,
+                    $"manifest.json の {row.Id} を {targetRef} に更新します。",
+                    siblingNote,
+                    row.IsDDrive
+                        ? "再コンパイル後に「4. 更新を適用」を実行してください。元に戻したいときは「前の参照に戻す」を使えます。"
+                        : "再コンパイル後に「3. 更新後の確認」を実行してください。元に戻したいときは「前の参照に戻す」を使えます。",
+                    "更新する",
+                    () =>
+                    {
+                        var currentManifest = ManifestJson.LoadProjectManifest();
+                        if (currentManifest == null)
+                        {
+                            Debug.LogError("[DDrive][Update] Packages/manifest.json が読めませんでした。");
+                            return;
+                        }
 
-                if (!PackageManifestOps.TryBumpRef(currentManifest, row.Id, targetRef, out var previousValue, out _))
-                {
-                    Debug.LogWarning($"[DDrive][Update] {row.Id} は git URL 参照ではないため更新しませんでした。");
-                    return;
-                }
+                        if (!PackageManifestOps.TryBumpRef(currentManifest, row.Id, targetRef, out var previousValue, out _))
+                        {
+                            Debug.LogWarning($"[DDrive][Update] {row.Id} は git URL 参照ではないため更新しませんでした。");
+                            return;
+                        }
 
-                SetPreviousRef(row, previousValue ?? string.Empty);
-                ManifestJson.SaveProjectManifest(currentManifest);
-                AssetDatabase.Refresh();
-                Client.Resolve();
+                        SetPreviousRef(row, previousValue ?? string.Empty);
+                        ManifestJson.SaveProjectManifest(currentManifest);
+                        AssetDatabase.Refresh();
+                        Client.Resolve();
 
-                Debug.Log($"[DDrive][Update] manifest.json の {row.Id} を {targetRef} に更新しました。再コンパイル後に依存を再確認します。");
-                RefreshAll();
+                        Debug.Log($"[DDrive][Update] manifest.json の {row.Id} を {targetRef} に更新しました。再コンパイル後に依存を再確認します。");
+                        RefreshAll();
+                    });
             };
 
             var previous = PreviousRefOf(row);
@@ -741,30 +894,30 @@ namespace DDrive.Editor.Update
                     return;
                 }
 
-                if (!ConfirmWithPreflight(
-                        row, GitPackageUrl.Parse(prev), GitPackageUrl.Parse(prev).Ref,
-                        $"manifest.json の {row.Id} を前の参照に戻します。\n\n{prev}",
-                        string.Empty,
-                        "戻す"))
-                {
-                    return;
-                }
+                ConfirmWithPreflight(
+                    row, GitPackageUrl.Parse(prev), GitPackageUrl.Parse(prev).Ref,
+                    $"manifest.json の {row.Id} を前の参照に戻します。\n\n{prev}",
+                    string.Empty,
+                    string.Empty,
+                    "戻す",
+                    () =>
+                    {
+                        var currentManifest = ManifestJson.LoadProjectManifest();
+                        if (currentManifest == null)
+                        {
+                            Debug.LogError("[DDrive][Update] Packages/manifest.json が読めませんでした。");
+                            return;
+                        }
 
-                var currentManifest = ManifestJson.LoadProjectManifest();
-                if (currentManifest == null)
-                {
-                    Debug.LogError("[DDrive][Update] Packages/manifest.json が読めませんでした。");
-                    return;
-                }
+                        PackageManifestOps.TryRestore(currentManifest, row.Id, prev, out var replaced);
+                        ManifestJson.SaveProjectManifest(currentManifest);
+                        SetPreviousRef(row, replaced ?? string.Empty); // 入れ替え(再度押すと戻せる)
+                        AssetDatabase.Refresh();
+                        Client.Resolve();
 
-                PackageManifestOps.TryRestore(currentManifest, row.Id, prev, out var replaced);
-                ManifestJson.SaveProjectManifest(currentManifest);
-                SetPreviousRef(row, replaced ?? string.Empty); // 入れ替え(再度押すと戻せる)
-                AssetDatabase.Refresh();
-                Client.Resolve();
-
-                Debug.Log($"[DDrive][Update] manifest.json の {row.Id} を前の参照に戻しました。");
-                RefreshAll();
+                        Debug.Log($"[DDrive][Update] manifest.json の {row.Id} を前の参照に戻しました。");
+                        RefreshAll();
+                    });
             })
             { text = broken ? "⚠ 前の参照に戻す(依存を満たしていません)" : "前の参照に戻す" };
             rollbackButton.SetEnabled(hasPrevious);
@@ -791,13 +944,119 @@ namespace DDrive.Editor.Update
                 : "manifest を更新すると Unity が再コンパイルします。再コンパイル後に依存を再確認し、下の「3. 更新後の確認」から Validation > Run All を実行できます。"));
         }
 
-        // 版を上げる(または戻す)前に、上げ先の package.json を取得して依存を事前確認し、結果を添えて確認ダイアログを出す。
-        // 取得に失敗しても続行できる(「事前確認できなかった。更新後に確認します」)。true = 実行してよい。
-        private bool ConfirmWithPreflight(PackageRow row, GitPackageUrl targetUrl, string targetRef, string headline, string footer, string okLabel)
+        // タグ一覧の取得結果を「1. 更新チェック」に表示する(主スレッド)。
+        private void ShowCheckResult(PackageRow row, string stdout, string warning, VisualElement resultBody, DropdownField dropdown, Button applyButton)
         {
-            var url = targetUrl.IsGitUrl ? targetUrl : row.Url;
-            var preflight = UpdatePreflight.Run(_packageJsonFetcher, url, row.Id, targetRef, _installed);
+            var tags = ApplyTagListing(row, stdout, warning);
+            if (tags == null)
+            {
+                resultBody.Add(ColoredLabel("⚠ " + warning, ErrorColor));
+                return;
+            }
 
+            var check = _latestById[row.Id];
+
+            if (tags.Count == 0)
+            {
+                resultBody.Add(WrappingLabel(row.IsDDrive
+                    ? "タグを取得できませんでした(vX.Y.Z 形式のタグが見つかりません)。"
+                    : "vX.Y.Z 形式のタグが見つかりません(最新版を判定できません。このパッケージの版上げは URL の #ref を手で書き換えてください)。"));
+                RefreshPackagesSection();
+                return;
+            }
+
+            if (check.LatestTag == null)
+            {
+                resultBody.Add(WrappingLabel("正式版(vX.Y.Z)のタグがありません。プレリリースだけが見つかりました(下の一覧から選べますが、自動では勧めません)。"));
+            }
+            else
+            {
+                resultBody.Add(WrappingLabel($"最新: {check.LatestTag}{BumpSuffix(check.Bump)}"));
+                if (check.Bump == UpdateCheckLogic.BumpKind.UpToDate)
+                {
+                    resultBody.Add(WrappingLabel("最新です。"));
+                }
+                else if (check.Bump == UpdateCheckLogic.BumpKind.Major)
+                {
+                    resultBody.Add(ColoredLabel("⚠ MAJOR 更新です。docs/migrations/vN.md(無ければ CHANGELOG の「互換性」)を先に読んでください([docs/42_distribution.md] §5.12)。", ErrorColor));
+                }
+            }
+
+            if (check.NewerPrereleaseTag != null)
+            {
+                resultBody.Add(WrappingLabel($"プレリリース {check.NewerPrereleaseTag} もあります(自動では勧めません。使うときは下の「更新先の版」から選びます)。"));
+            }
+
+            // 選択肢は元のタグ名(降順)。プレリリースは表示に「(プレリリース)」を付ける(値は元のタグ名のまま)。
+            var choices = new List<string>();
+            var prerelease = new HashSet<string>();
+            foreach (var tag in tags)
+            {
+                choices.Add(tag.Name);
+                if (tag.IsPrerelease)
+                {
+                    prerelease.Add(tag.Name);
+                }
+            }
+
+            dropdown.formatListItemCallback = name => prerelease.Contains(name) ? name + "(プレリリース)" : name;
+            dropdown.formatSelectedValueCallback = dropdown.formatListItemCallback;
+            dropdown.choices = choices;
+            dropdown.value = check.LatestTag ?? choices[0]; // 勧める最新(正式版)。無ければ降順の先頭
+            dropdown.style.display = DisplayStyle.Flex;
+            applyButton.style.display = DisplayStyle.Flex;
+
+            RefreshPackagesSection();
+        }
+
+        // 版を上げる(または戻す)前に、上げ先の package.json を取得して依存を事前確認し、結果を添えて確認ダイアログを出す。
+        // 取得に失敗しても続行できる(「事前確認できなかった。更新後に確認します」)。確認されたら onConfirmed を呼ぶ。
+        // 2026-10-03(レビュー PC-R-03): 取得はバックグラウンド(進捗表示 + キャンセル。キャンセルしたら「事前確認なしで続けるか」を聞く)。
+        // D-Drive の行は上げ先の package.json を取得しない(D-Drive は ddriveUpdate を宣言しない規約。待ちが入らない)。
+        private void ConfirmWithPreflight(
+            PackageRow row, GitPackageUrl targetUrl, string targetRef, string headline, string extraNote, string footer, string okLabel, System.Action onConfirmed)
+        {
+            // Client.Add の実行中に manifest を書き換えると、Add の書き込みを消しうる(レビュー PC-R-14)ので、完了を待つ。
+            if (_addRequest != null && !_addRequest.IsCompleted)
+            {
+                Debug.LogWarning("[DDrive][Update] パッケージを導入中です。完了してから版を更新してください。");
+                SetAddMessage("パッケージを導入中です。完了してから版を更新してください。", true);
+                return;
+            }
+
+            var url = targetUrl.IsGitUrl ? targetUrl : row.Url;
+            var id = row.Id;
+            var installed = _installed;
+
+            if (row.IsDDrive)
+            {
+                ShowPreflightDialog(UpdatePreflight.Run(null, url, id, targetRef, installed, false), row, targetRef, headline, extraNote, footer, okLabel, onConfirmed);
+                return;
+            }
+
+            PreflightResult result = default;
+            var tempRoot = GitPackageJsonFetcher.DefaultTempRoot(); // 主スレッドで取る(Application.dataPath)
+            StartBusy($"{row.DisplayName} の上げ先の package.json を確認中…(最大 30 秒。キャンセルできます)",
+                token => { result = UpdatePreflight.Run(new GitPackageJsonFetcher(tempRoot, token), url, id, targetRef, installed); },
+                cancelled =>
+                {
+                    if (cancelled)
+                    {
+                        if (!EditorUtility.DisplayDialog("D-Drive 更新", "上げ先の package.json の確認を中止しました。事前確認なしで続けますか?\n\n" + headline, "事前確認なしで続ける", "キャンセル"))
+                        {
+                            return;
+                        }
+
+                        result = UpdatePreflight.Run(null, url, id, targetRef, installed);
+                    }
+
+                    ShowPreflightDialog(result, row, targetRef, headline, extraNote, footer, okLabel, onConfirmed);
+                });
+        }
+
+        private static void ShowPreflightDialog(
+            PreflightResult preflight, PackageRow row, string targetRef, string headline, string extraNote, string footer, string okLabel, System.Action onConfirmed)
+        {
             foreach (var issue in preflight.Issues)
             {
                 Debug.LogWarning($"[DDrive][Update] 事前確認({row.Id} → {targetRef}): {issue.Message}");
@@ -812,6 +1071,11 @@ namespace DDrive.Editor.Update
                 {
                     body += "\n・" + issue.Message;
                 }
+            }
+
+            if (!string.IsNullOrEmpty(extraNote))
+            {
+                body += (preflight.Issues.Count > 0 ? string.Empty : "\n") + extraNote;
             }
 
             if (hasProblem)
@@ -829,7 +1093,10 @@ namespace DDrive.Editor.Update
                 body += "\n\nよろしいですか?";
             }
 
-            return EditorUtility.DisplayDialog("D-Drive 更新", body, hasProblem ? "それでも" + okLabel : okLabel, "キャンセル");
+            if (EditorUtility.DisplayDialog("D-Drive 更新", body, hasProblem ? "それでも" + okLabel : okLabel, "キャンセル"))
+            {
+                onConfirmed();
+            }
         }
 
         private static string BumpSuffix(UpdateCheckLogic.BumpKind bump) => bump switch

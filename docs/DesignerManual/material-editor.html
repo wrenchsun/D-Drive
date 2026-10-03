@@ -92,7 +92,7 @@
 <p>マテリアルデータのときだけ、Inspector の上に「Passes / Keywords」欄が出ます。変更は Undo できます。</p>
 <table>
 <tr><th>項目</th><th>内容</th></tr>
-<tr><td>無効にするパス</td><td>選んでいるシェーダーのパス（LightMode 名）がチェックボックスで並びます。<strong>チェックしたパスは描画されません</strong>（例 <code>ShadowCaster</code> にチェック = 影を落とさない）。MaterialData の <code>DisabledPasses</code> に入ります。Unity が返す綴りで出るので <code>SHADOWCASTER</code> のように大文字で表示されることがありますが、同じ意味です。指定済みでシェーダーに無い名前は「（シェーダーに無い）」と出るので、外せます</td></tr>
+<tr><td>無効にするパス</td><td>選んでいるシェーダーのパス（LightMode 名）がチェックボックスで並びます。<strong>チェックしたパスは描画されません</strong>（例 <code>ShadowCaster</code> にチェック = 影を落とさない）。MaterialData の <code>DisabledPasses</code> に入ります。Unity が返す綴りで出るので <code>SHADOWCASTER</code> のように大文字で表示されることがありますが、同じ意味です。指定済みでシェーダーに無い名前は「（シェーダーに無い）」と出るので、外せます。パスの一覧には、LightMode が書かれていないパスが <code>SRPDefaultUnlit</code> として出ます(輪郭線の描画などに使われるパスで、チェックすると描画されなくなります)</td></tr>
 <tr><td>有効にするキーワード</td><td>キーワード名を入力して「追加」、または「（候補から追加）」でシェーダーが宣言しているキーワードから選びます。「削除」で外します。MaterialData の <code>EnabledKeywords</code> に入ります</td></tr>
 </table>
 

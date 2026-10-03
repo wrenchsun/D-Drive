@@ -14,50 +14,64 @@ namespace DDrive.Tests.Editor
     // [07_canvas_prefab.md] A-4 追記(2026-10-03、Canvas の埋め込み) — パス変換・Validator・埋め込み候補の検出と登録・
     // 自動収集の除外・グループ構築・選択からの持ち主の解決(UI を持たない純ロジック)。
     // 入れ子 Prefab は一時フォルダ(Assets/Tests/DDriveTemp/EmbeddedCanvas)に作って片付ける(実 GameData には触れない)。
+    // 2026-10-03(レビュー PC-R-18): Runtime の EmbeddedCanvasPaths(internal)と Editor の EmbeddedPaths(internal 複製)は
+    // どちらもテスト asmdef から直接は見えない(InternalsVisibleTo を置かない方針)ので、リフレクションで同じ表を両方に当てて
+    // 一致を固定する。
     public class EmbeddedCanvasPathsTests
     {
-        [Test]
-        public void Combine_JoinsWithSlash_AndKeepsEmptySides()
+        private static System.Reflection.MethodInfo RuntimeMethod(string name)
+            => typeof(DDrive.Runtime.Ui.UiManager).Assembly.GetType("DDrive.Runtime.Ui.EmbeddedCanvasPaths").GetMethod(name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+        private static System.Reflection.MethodInfo EditorMethod(string name)
+            => typeof(CanvasEmbeddedEditing).Assembly.GetType("DDrive.Editor.CanvasTool.EmbeddedPaths").GetMethod(name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+        private static string Combine(System.Reflection.MethodInfo m, string a, string b) => (string)m.Invoke(null, new object[] { a, b });
+
+        private static (bool ok, string child) TryToChild(System.Reflection.MethodInfo m, string root, string parent)
         {
-            Assert.AreEqual("A/B", EmbeddedCanvasPaths.Combine("A", "B"));
-            Assert.AreEqual("B", EmbeddedCanvasPaths.Combine("", "B"));
-            Assert.AreEqual("A", EmbeddedCanvasPaths.Combine("A", ""));
-            Assert.AreEqual("A", EmbeddedCanvasPaths.Combine("A", null));
-            Assert.AreEqual(string.Empty, EmbeddedCanvasPaths.Combine(null, null));
+            var args = new object[] { root, parent, null };
+            var ok = (bool)m.Invoke(null, args);
+            return (ok, (string)args[2]);
         }
 
         [Test]
-        public void TryToChildPath_ConvertsParentPathToChildPath()
+        public void RuntimeAndEditorCopies_ExistAndAreNotPublic()
         {
-            Assert.IsTrue(EmbeddedCanvasPaths.TryToChildPath("Option", "Option/Panel/Btn", out var child));
-            Assert.AreEqual("Panel/Btn", child);
+            var runtimeType = typeof(DDrive.Runtime.Ui.UiManager).Assembly.GetType("DDrive.Runtime.Ui.EmbeddedCanvasPaths");
+            var editorType = typeof(CanvasEmbeddedEditing).Assembly.GetType("DDrive.Editor.CanvasTool.EmbeddedPaths");
+            Assert.IsNotNull(runtimeType);
+            Assert.IsNotNull(editorType);
+            Assert.IsFalse(runtimeType.IsPublic, "Runtime の公開 API に残さない");
+            Assert.IsFalse(editorType.IsPublic);
         }
 
-        [Test]
-        public void TryToChildPath_RootItself_IsUnderRoot_WithEmptyChildPath()
+        [TestCase("A", "B", "A/B")]
+        [TestCase("", "B", "B")]
+        [TestCase("A", "", "A")]
+        [TestCase("A", null, "A")]
+        [TestCase(null, null, "")]
+        [TestCase("A/B", "C/D", "A/B/C/D")]
+        public void Combine_JoinsWithSlash_AndKeepsEmptySides_InBothCopies(string a, string b, string expected)
         {
-            Assert.IsTrue(EmbeddedCanvasPaths.TryToChildPath("Option", "Option", out var child));
-            Assert.AreEqual(string.Empty, child);
+            Assert.AreEqual(expected, Combine(RuntimeMethod("Combine"), a, b));
+            Assert.AreEqual(expected, Combine(EditorMethod("Combine"), a, b));
         }
 
-        [Test]
-        public void TryToChildPath_SiblingWithSamePrefix_IsNotUnderRoot()
+        [TestCase("Option", "Option/Panel/Btn", true, "Panel/Btn")]
+        [TestCase("Option", "Option", true, "")] // 埋め込みルート自身
+        [TestCase("Option", "Option2/Panel", false, "")] // 前方一致の誤判定をしない
+        [TestCase("Option", "Other/Panel", false, "")]
+        [TestCase("", "Panel", false, "")]
+        [TestCase("A/B", "A", false, "")]
+        [TestCase("A/B", "A/B/C", true, "C")]
+        [TestCase("A/B", "A/BC", false, "")]
+        [TestCase("A", null, false, "")]
+        public void TryToChildPath_ConvertsParentPathToChildPath_InBothCopies(string root, string parent, bool ok, string child)
         {
-            Assert.IsFalse(EmbeddedCanvasPaths.TryToChildPath("Option", "Option2/Panel", out _));
-            Assert.IsFalse(EmbeddedCanvasPaths.TryToChildPath("Option", "Other/Panel", out _));
-            Assert.IsFalse(EmbeddedCanvasPaths.TryToChildPath("", "Panel", out _));
-            Assert.IsFalse(EmbeddedCanvasPaths.TryToChildPath("A/B", "A", out _));
-        }
-
-        [Test]
-        public void IsJoinedPath_MatchesCombine_WithoutAllocationSemantics()
-        {
-            Assert.IsTrue(EmbeddedCanvasPaths.IsJoinedPath("Option/Panel", "Option", "Panel"));
-            Assert.IsTrue(EmbeddedCanvasPaths.IsJoinedPath("Panel", "", "Panel"));
-            Assert.IsTrue(EmbeddedCanvasPaths.IsJoinedPath("Option", "Option", ""));
-            Assert.IsFalse(EmbeddedCanvasPaths.IsJoinedPath("Option/Panel2", "Option", "Panel"));
-            Assert.IsFalse(EmbeddedCanvasPaths.IsJoinedPath("Option2/Panel", "Option", "Panel"));
-            Assert.IsFalse(EmbeddedCanvasPaths.IsJoinedPath("Option/Panel/X", "Option", "Panel"));
+            var r = TryToChild(RuntimeMethod("TryToChildPath"), root, parent);
+            var e = TryToChild(EditorMethod("TryToChildPath"), root, parent);
+            Assert.AreEqual((ok, child), r);
+            Assert.AreEqual(r, e, "Runtime と Editor の複製が一致している");
         }
     }
 
@@ -245,7 +259,155 @@ namespace DDrive.Tests.Editor
             Assert.IsFalse(results.Exists(r => r.Code == "DD-CANVAS-EMBED-PREFAB"));
         }
 
+        [Test]
+        public void Validator_ParentButtonRow_OnlyOverridesTheSameTrigger()
+        {
+            var optionPrefab = SaveChildPrefab("TOption");
+            var parentPrefab = SaveParentPrefab("THud", optionPrefab, "OptionRoot");
+            var parent = Data(63, "Hud", parentPrefab);
+            var child = Data(64, "Option", optionPrefab);
+            child.Buttons = new[]
+            {
+                new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.Click },
+                new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.LongPress },
+            };
+            parent.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(child) } };
+            parent.Buttons = new[] { new ButtonWire { ButtonPath = "OptionRoot/BtnX", Trigger = WireTrigger.Click } };
+
+            var infos = Validate(parent, child).FindAll(r => r.Code == "DD-CANVAS-EMBED-OVERRIDE");
+
+            Assert.AreEqual(1, infos.Count, "Click だけが親に上書きされる(LongPress は子の設定が使われる)");
+            StringAssert.Contains("Click", infos[0].Message);
+        }
+
+        [Test]
+        public void Validator_OverlappingEmbedRoots_IsWarning_InRuntimeValidator()
+        {
+            var optionPrefab = SaveChildPrefab("NOption");
+            var parentPrefab = SaveParentPrefab("NHud", optionPrefab, "OptionRoot");
+            var a = Data(65, "A", optionPrefab);
+            var b = Data(66, "B", optionPrefab);
+            var parent = Data(67, "Hud", parentPrefab);
+            parent.EmbeddedCanvases = new[]
+            {
+                new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(a) },
+                new EmbeddedCanvas { RootPath = "OptionRoot/Panel", Canvas = IdOf(b) },
+            };
+
+            var results = Validate(parent, a, b);
+
+            Assert.IsTrue(Has(results, "DD-CANVAS-EMBED-NESTED-ROOT", ValidationSeverity.Warning));
+            Assert.AreEqual(1, results.FindAll(r => r.Code == "DD-CANVAS-EMBED-NESTED-ROOT").Count, "内側の登録 1 件だけを報告する");
+        }
+
+        [Test]
+        public void Validator_ChildThatEmbedsTheSamePlaceAsAnotherRegistration_IsWarning()
+        {
+            // Hud が OptionRoot(Option)と OptionRoot/Panel(Volume)の両方を登録し、Option 自身も Panel(Volume)を埋め込んでいる。
+            var optionPrefab = SaveChildPrefab("MOption2");
+            var parentPrefab = SaveParentPrefab("MHud2", optionPrefab, "OptionRoot");
+            var volume = Data(68, "Volume", optionPrefab);
+            var option = Data(69, "Option", optionPrefab);
+            option.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "Panel", Canvas = IdOf(volume) } };
+            var parent = Data(90, "Hud", parentPrefab);
+            parent.EmbeddedCanvases = new[]
+            {
+                new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(option) },
+                new EmbeddedCanvas { RootPath = "OptionRoot/Panel", Canvas = IdOf(volume) },
+            };
+
+            var results = Validate(parent, option, volume);
+
+            Assert.IsTrue(results.Exists(r => r.Code == "DD-CANVAS-EMBED-NESTED-ROOT" && r.Message.Contains("EmbeddedCanvases[0]")), "子が自分で埋め込んでいる場所が別の登録と重なる");
+        }
+
+        [TestCase("/OptionRoot", true)]
+        [TestCase("OptionRoot/", true)]
+        [TestCase("Group\\OptionRoot", true)]
+        [TestCase("Group//OptionRoot", true)]
+        [TestCase("./OptionRoot", true)]
+        [TestCase("Group/./OptionRoot", true)]
+        [TestCase("OptionRoot", false)]
+        [TestCase("Group/OptionRoot", false)]
+        public void Validator_RootPathForm_IsWarning(string rootPath, bool malformed)
+        {
+            var optionPrefab = SaveChildPrefab("FOption");
+            var parentPrefab = SaveParentPrefab("FHud", optionPrefab, "OptionRoot");
+            var child = Data(96, "Option", optionPrefab);
+            var parent = Data(97, "Hud", parentPrefab);
+            parent.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = rootPath, Canvas = IdOf(child) } };
+
+            Assert.AreEqual(malformed, Has(Validate(parent, child), "DD-CANVAS-EMBED-PATH-FORM", ValidationSeverity.Warning));
+        }
+
+        [Test]
+        public void Validator_ChildNotPreload_IsWarning_AndPreloadIsNot()
+        {
+            var optionPrefab = SaveChildPrefab("LOption");
+            var parentPrefab = SaveParentPrefab("LHud", optionPrefab, "OptionRoot");
+            var child = Data(98, "Option", optionPrefab);
+            var parent = Data(99, "Hud", parentPrefab);
+            parent.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(child) } };
+
+            child.Flags.Load = LoadMode.LazyLoad;
+            Assert.IsTrue(Has(Validate(parent, child), "DD-CANVAS-EMBED-NOT-PRELOAD", ValidationSeverity.Warning));
+
+            child.Flags.Load = LoadMode.Preload;
+            Assert.IsFalse(Has(Validate(parent, child), "DD-CANVAS-EMBED-NOT-PRELOAD", ValidationSeverity.Warning));
+        }
+
+        [Test]
+        public void Validator_NonOverlappingSiblingEmbeds_ReportNoOverlap()
+        {
+            var optionPrefab = SaveChildPrefab("SOption");
+            var parentPrefab = SaveParentPrefab("SHud", optionPrefab, "OptionRoot");
+            var a = Data(91, "A", optionPrefab);
+            var b = Data(92, "B", optionPrefab);
+            var parent = Data(93, "Hud", parentPrefab);
+            parent.EmbeddedCanvases = new[]
+            {
+                new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(a) },
+                new EmbeddedCanvas { RootPath = "Title", Canvas = IdOf(b) },
+            };
+
+            Assert.IsFalse(Has(Validate(parent, a, b), "DD-CANVAS-EMBED-NESTED-ROOT", ValidationSeverity.Warning));
+        }
+
         // ── 候補の検出・登録・削除 ──
+
+        [Test]
+        public void DetectCandidates_DoesNotProposeNestedNestedPrefabInstances()
+        {
+            // Hud の中の OptionRoot(Option の Prefab)の、そのまた中の Inner(Volume の Prefab)。
+            // Inner は Option 自身の Canvas Editor で登録するもの。Hud でも登録すると同じ要素に子の設定が重なる。
+            var volumePrefab = SaveChildPrefab("QVolume");
+            var optionRoot = NewRect("QOption");
+            var inner = (GameObject)PrefabUtility.InstantiatePrefab(volumePrefab, optionRoot.transform);
+            inner.name = "Inner";
+            var optionPrefab = PrefabUtility.SaveAsPrefabAsset(optionRoot, $"{_folder}/QOption.prefab");
+            Object.DestroyImmediate(optionRoot);
+            var parentPrefab = SaveParentPrefab("QHud", optionPrefab, "OptionRoot");
+
+            var optionCanvas = Data(94, "Option", optionPrefab);
+            var volumeCanvas = Data(95, "Volume", volumePrefab);
+            var contents = PrefabUtility.LoadPrefabContents($"{_folder}/QHud.prefab");
+            try
+            {
+                var innerInHud = contents.transform.Find("OptionRoot/Inner");
+                Assert.IsNotNull(innerInHud);
+                var innerIsRoot = PrefabUtility.IsAnyPrefabInstanceRoot(innerInHud.gameObject);
+
+                var found = CanvasEmbeddedEditing.DetectCandidates(contents, new[] { optionCanvas, volumeCanvas }, null);
+
+                Assert.IsTrue(found.Exists(c => c.RootPath == "OptionRoot"), "外側の入れ子 Prefab は候補");
+                Assert.IsFalse(found.Exists(c => c.RootPath == "OptionRoot/Inner"),
+                    $"入れ子の入れ子は提案しない(Unity の IsAnyPrefabInstanceRoot = {innerIsRoot})");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contents);
+            }
+        }
 
         [Test]
         public void DetectCandidates_FindsNestedPrefabInstancesMatchingACanvasPrefab()

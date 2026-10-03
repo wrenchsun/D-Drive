@@ -135,7 +135,7 @@ namespace DDrive.Editor.CanvasTool
 
             for (var i = 0; i < excludeRoots.Count; i++)
             {
-                if (EmbeddedCanvasPaths.TryToChildPath(excludeRoots[i], path, out var childPath) && childPath.Length > 0)
+                if (EmbeddedPaths.TryToChildPath(excludeRoots[i], path, out var childPath) && childPath.Length > 0)
                 {
                     return true;
                 }

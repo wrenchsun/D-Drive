@@ -36,7 +36,8 @@ namespace DDrive.Editor.Validation
             }
         }
 
-        // 純関数(テスト用に公開): 検査結果 → ValidationResult(Error は Warning に丸める)。
+        // 純関数(テスト用に公開): 検査結果 → ValidationResult(Error は Warning に丸める)。Editor 契約外(外部から呼ばない)。
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         public static IEnumerable<ValidationResult> ToResults(IReadOnlyList<PackageDependencyIssue> issues)
         {
             for (var i = 0; i < issues.Count; i++)

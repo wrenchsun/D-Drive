@@ -324,10 +324,17 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 
 **URL を入力して追加**: 「URL を入力して追加」に、現在と同じ git URL（`https://github.com/<owner>/<repo>.git?path=<dir>` / `git+https://…` / `git+ssh://…` / `ssh://…`、末尾の `#vX.Y.Z` は付けても付けなくてもよい。`GitPackageUrl` が解釈できるもの）かパッケージ ID を入れる（`PackageAddPlanner`）。
 - manifest に同じリポジトリ + 同じ `?path=` の依存、または入力と同じ ID の git 依存が既にある → 管理対象に**登録するだけ**（manifest は変えない）
-- manifest に無い → `#ref` 指定があればそれ、無ければ `git ls-remote --tags` の最新の `vX.Y.Z` を使い、確認ダイアログの後に `PackageManager.Client.Add("<url>#vX.Y.Z")` で導入し、返ってきた `PackageInfo.name` で登録する（導入後にドメインリロードで結果を受け取れなかった場合は、ウィンドウを開き直したときに manifest に入っていれば登録する）
+- manifest に無い → `#ref` 指定があればそれ（書いたとおりに使う）、無ければ `git ls-remote --tags` の最新の**正式版**の `vX.Y.Z`（元のタグ名のまま。プレリリースは勧めない。下の「タグとプレリリース」）を使い、確認ダイアログの後に `PackageManager.Client.Add("<url>#vX.Y.Z")` で導入し、返ってきた `PackageInfo.name` で登録する（導入後にドメインリロードで結果を受け取れなかった場合は、ウィンドウを開き直したときに manifest に入っていれば登録する）
 - 解釈できない入力・`vX.Y.Z` 形式のタグが 1 つも無い URL・`git` の失敗・導入失敗は、警告を出して何も変えない（例外で止めない）
 - manifest にある git URL 依存のうち未登録のものは「候補」として一覧の下に出て、1 クリックで登録できる。UniTask / R3 のように ref が `vX.Y.Z` 形式でない（`2.5.11` 等）ものは「最新版は判定できません」と表示し、最新版の判定・版上げの対象にはしない（壊れない）
 - 登録の解除（「登録解除」）は設定から外すだけで、manifest・パッケージ自体は消さない（パッケージの削除はこのウィンドウではしない）
+
+**タグとプレリリース（2026-10-03 追記、レビュー PC-R-02）**: manifest の `#ref` と `PackageManager.Client.Add` には、**リモートのタグ名をそのまま**使う（`v1.5.0-rc.1` を `v1.5.0` に丸めない。`v01.2.0` も `1.5.0`〔`v` 無し。D-Drive の行のみ〕も元の表記のまま。`GitTag` / `GitTagListParser.ParseTags`）。規則:
+- **既定では正式版（`vX.Y.Z`）だけを「最新」の候補にする**。プレリリース（`vX.Y.Z-<識別子>`、例 `v1.5.0-rc.1`）は「更新先の版」の一覧に「（プレリリース）」付きで出すが、自動では勧めない（「最新」にしない・URL 入力の既定にしない）。勧めていないプレリリースのほうが新しいときは「プレリリース v… もあります」と知らせる。正式版が 1 つも無く、プレリリースだけのとき: 最新は判定せず（URL 入力の導入は「`#<タグ名>` を付けて入力してください」と案内して止める）、一覧から選べば版上げはできる。
+- **現在の参照（または package.json の版）がプレリリース**のときだけ、プレリリースも最新の候補に含める（同じ版の正式版・より新しい rc へ進めるため）。
+- 比較は SemVer の優先順位: `X.Y.Z` → 正式版 > プレリリース（`1.5.0-rc.1 < 1.5.0`）→ プレリリース同士は `.` 区切りの区間ごと（数字は数値比較・数字 < 英字・短い方が小さい）。`X.Y.Z` が同じで正式版 / プレリリースだけが違う更新は PATCH 扱い。`v1.5.0` と `v01.5.0` のような表記違いは別のタグ名として両方出る。
+- `ddriveUpdate` の宣言の比較（依存の確認）では、プレリリース部を**無視して `X.Y.Z` で比べる**（下の拡張規則）。
+- 修正の注記: 以前（P-14 / P-15 初版）は、プレリリースのタグを `vX.Y.Z` に丸めて manifest に書く経路があり、存在しないタグを書くことがあった（D-Drive 自身の版上げも同じ）。この版で元のタグ名を使うように直した。
 
 **設定**: `DDriveProjectSettings.ManagedPackages`（`ManagedPackageEntry` の一覧。要素 = `PackageId` / `PreviousRef`〔元に戻す用〕/ `LastAppliedVersion`〔確認を済ませた版〕）。**追加フィールドのみ**で、D-Drive 用の単数フィールド（`LastAppliedVersion` / `PreviousPackageRef`）はそのまま残る。旧設定ファイルは空の一覧として読める。
 
@@ -345,20 +352,30 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 - `requires` = 必須。そのパッケージが導入済みで、版が指定以上であること（未導入・古い = **Error 表示**）
 - `compatibleWith` = 任意の相手。**相手が導入済みの場合だけ**、版が指定以上であること（古い = **Warning**「〜は <相手> vX.Y.Z 以降に対応」。導入されていなければ何も言わない）。T-Drive のように D-Drive 無しでも動くパッケージが D-Drive への条件を書くときはこちらを使う
 - 値は**最低版** `X.Y.Z`（上限は書かない）。相手の MAJOR が宣言より大きいときは Info（「MAJOR が上がっているので CHANGELOG を確認」）。値を `X.Y.Z` として読めないときは Warning（`DD-PKGDEP-BAD-DECLARATION`、その項目は無視）
-- D-Drive 自身の `package.json` にも同じフィールドを書ける（現状は省略）
+- D-Drive 自身の `package.json` にも同じフィールドを書ける（**現状は省略**。D-Drive は `ddriveUpdate` を宣言しない規約で、D-Drive の版上げでは上げ先の `package.json` を取得しない = ネットワークの待ちが入らない。他のパッケージの宣言との照合はタグの版だけで行う）
+
+**形式の拡張規則（v1.4.0 で固定、2026-10-03、レビュー PC-R-07）**: 旧版の D-Drive が、将来の拡張された宣言を読んでも壊れない（例外を出さない・誤検出しない）ための規則。`DdriveUpdateFormatCompatTests` で固定している。
+1. **値は今後も `X.Y.Z` の文字列だけ**（`1.4` と `1.4.0-rc.1` も読める）。範囲・上限・条件は**新しいキー**で足す（例: `"below": { "com.ddrive.core": "2.0.0" }`）。値の書式を広げない（旧版で BAD-DECLARATION になり、最低版の検査まで無視されるため）。`X.Y.Z` として読めない**文字列**（範囲指定 `">=1.4.0 <2.0.0"`・`"1.4.0 - 1.x"`・`"latest"` など）だけ `DD-PKGDEP-BAD-DECLARATION`（Warning）にして無視する。
+2. **未知のキーは黙って無視する**（警告しない）。`ddriveUpdate` 直下の未知のキー（将来の `below` / `platforms` 等）も、`requires` / `compatibleWith` の中の未知のパッケージ ID も同じ。新しいキーは旧い D-Drive では効かない、が許容される。
+3. **値が文字列でない項目（オブジェクト・配列・数値・真偽・null）は将来用の予約**として黙って無視する（BAD-DECLARATION にしない）。`ddriveUpdate` 自体や `requires` / `compatibleWith` がオブジェクトでないときは空の宣言として扱う。
+4. **プレリリースは比較で無視する**（宣言側の値も導入済みの版も、`X.Y.Z` に丸めて比べる。`1.4.0-rc.1` が入っていれば `requires: "1.4.0"` を満たす）。
+5. **同じリポジトリの複数パッケージ（T-Drive の toon / facial など）は同じタグ `vX.Y.Z` で揃える**前提（タグはリポジトリ単位）。片方だけ上げようとすると、版上げの確認ダイアログに「同じリポジトリの <ID> は <ref> のままです。同じタグに揃えてください」と案内する（自動では揃えない）。
+6. 実装の拡張（新しいキーの読み取り）は追加のみ。既存のキー名・意味の変更は MAJOR。
 - 検査は純関数 `PackageDependencyChecker`（入力 = 各パッケージの ID・版・宣言、出力 = 問題の一覧。自己参照は無視・循環しても再帰しない・フィールド無しや壊れた JSON は空の宣言として扱う）
 
 **確認のタイミング**: (a) ウィンドウを開いたとき・「依存を再検査」のとき: 導入済みの全パッケージ（git / 埋め込み / ローカルのもの）の `package.json` を読み、今の組み合わせを検査して一覧の行と「依存の確認」に出す。(b) **版を上げる / 元に戻す前**: 上げ先の版の `package.json` を取得して宣言ごと検査し、確認ダイアログに「新しく生じる問題」を添える（「それでも更新する」で続行できる）。**D-Drive を上げる / 下げるときも**、他のパッケージの `requires` / `compatibleWith` が満たされなくなる場合は同じダイアログで警告する。(c) 版を上げた後（再解決後）: (a) を再実行し、満たさない場合は「前の参照に戻す」を赤く目立たせる。
 
-**版上げ前の `package.json` の取得（`GitSparsePackageJsonFetcher`）**: `git clone --depth 1 --filter=blob:none --sparse --no-tags --branch <タグ> <url> Temp/DDriveUpdate/<guid>` → `git sparse-checkout set <?path=>` → `package.json` を読む → 一時フォルダを削除。ユーザーの git 認証（認証ヘルパー・SSH 鍵）をそのまま使うので private リポジトリでも動く（認証プロンプトで固まらないよう `GIT_TERMINAL_PROMPT=0`）。全体 30 秒のタイムアウト。失敗しても例外は投げず、「事前確認できなかった。更新後に確認します」と表示して続行できる（取得できなくても、他のパッケージの宣言を上げ先の版に当てる確認だけは行う）。`IRemotePackageJsonFetcher` 越しなのでテストでは差し替える。
+**版上げ前の `package.json` の取得（`GitPackageJsonFetcher`。2026-10-03 に作業ツリーを作らない方式へ変更、レビュー PC-R-01）**: `git clone --depth 1 --filter=blob:none --no-checkout --no-tags --branch <タグ> -- <url> Temp/DDriveUpdate/<guid>` → `git show HEAD:<?path=>/package.json`（blob 1 個だけを遅延取得。チェックアウト時のフィルター〔LFS の smudge 等〕・シンボリックリンク・パスの解決が一切動かない）→ 一時フォルダ（`.git` だけ）を削除。引数は `ProcessStartInfo.ArgumentList` に 1 個ずつ渡し、位置引数の前に `--` を置く（`GitArguments`）。`?path=` は検査する（`..`・`.`・空の区間・ドライブ名やコロン・UNC・`-` 始まり・制御文字は取得せず警告。UPM の `?path=/sub`(リポジトリ直下基準の先頭 `/`)は許す）。ユーザーの git 認証（認証ヘルパー・SSH 鍵）をそのまま使うので private リポジトリでも動く（認証プロンプトで固まらないよう `GIT_TERMINAL_PROMPT=0` / `GCM_INTERACTIVE=never`、標準入力は閉じる）。全体 30 秒のタイムアウトとキャンセルで、**子プロセスごと止め**（Windows は `taskkill /T`、他は `pkill -P` + `Kill`。`GitProcess`）、一時フォルダを消す。消せなかった分はウィンドウを開いたときに掃除する（10 分より古いもの）。失敗しても例外は投げず、「事前確認できなかった。更新後に確認します」と表示して続行できる（取得できなくても、他のパッケージの宣言を上げ先の版に当てる確認だけは行う）。`IRemotePackageJsonFetcher` 越しなのでテストでは差し替える。
+
+**待ち・進捗・キャンセル（2026-10-03、レビュー PC-R-03）**: git を呼ぶ処理（「最新の版を確認」・「一覧の最新版をまとめて確認」〔行ごとに順番〕・URL 入力のタグ取得・版上げ / 元に戻すの事前確認の取得）は**バックグラウンド**で実行し、ウィンドウ上部に「確認中…」と「キャンセル」を出す（Editor は止まらない。1 度に 1 件だけ。ウィンドウを閉じるとキャンセル扱い）。事前確認の取得をキャンセルしたときは「事前確認なしで続けるか」を聞く。**D-Drive の版上げ / 元に戻すは上げ先の `package.json` を取得しない**ので、D-Drive だけのプロジェクトの従来の手順に待ちは入らない（他のパッケージの宣言との照合はタグの版だけで行う）。バックグラウンドスレッドから Unity API は呼ばない（作業フォルダの場所など必要な値は開始前に主スレッドで取る）。`GitCliTagLister` も同じ起動（`GitProcess`）を使う。
 
 **Validation**: `PackageDependencyValidator`（`Validation > Run All` と CI に載る）が同じ検査を行い、**新規コード**の Warning（`DD-PKGDEP-REQUIRES-MISSING` / `DD-PKGDEP-REQUIRES-OLD` / `DD-PKGDEP-COMPAT-OLD` / `DD-PKGDEP-BAD-DECLARATION`）と Info（`DD-PKGDEP-MAJOR-AHEAD`）を出す。`requires` の未充足は更新ウィンドウ上では Error 表示だが、Validation では §5.8「新しい検査は Warning 始まり」に従い Warning（次の MINOR 以降で Error に昇格し得る。昇格時は CHANGELOG に明記）。
 
 **適用手順**: D-Drive の 4 段（マイグレーション → ID/Tuning 再生成 → Addressables 同期 → Validation）は D-Drive 専用のまま。追加パッケージは「版を上げる → 再コンパイル → 依存の再確認 → `Validation > Run All` を実行して確認済みにする（ボタン）」まで。外部パッケージ固有の更新後処理の拡張点（インターフェース）は作っていない（必要になったら追加する）。
 
-**互換性**: `DDrive.Editor` のみの追加（`DDrive.Foundation` / `DDrive.Runtime` の公開 API・シリアライズ形式・生成コード・ネットメッセージには触れない）。`DDriveProjectSettings`（ProjectSettings 配下）へのフィールド追加、`GitTagListParser` / `ChangelogLocator` へのメソッド追加のみ。MINOR。**`ddriveUpdate` のフィールド名・`requires` / `compatibleWith`・値の意味は外部パッケージが書く契約なので、リリース後の変更は MAJOR 扱い（追加のみ）**。
+**互換性**: `DDrive.Editor` のみの追加（`DDrive.Foundation` / `DDrive.Runtime` の公開 API・シリアライズ形式・生成コード・ネットメッセージには触れない）。`DDriveProjectSettings`（ProjectSettings 配下）へのフィールド追加、`GitTagListParser`（`ParseTags` = 元のタグ名を保つ新メソッド。既存の `Parse` / `ParseVersionTags` の戻り値は変えない）/ `ChangelogLocator` へのメソッド追加のみ。MINOR。**`ddriveUpdate` のフィールド名・`requires` / `compatibleWith`・値の意味は外部パッケージが書く契約なので、リリース後の変更は MAJOR 扱い（追加のみ）**。
 
-**テスト**: `Tests/Editor/Update/{PackageDependencyCheckerTests,PackageAddPlannerTests,ManagedPackageRowsTests}`（URL 入力の解釈・既存 manifest の登録・候補・設定の往復・依存検査・事前確認・v タグだけの解析・CHANGELOG 探索）。実 `git` / 実 `Client.Add` / 実 manifest には触れない。実ネットワークを使う確認は人の確認（[43] §15）。
+**テスト**: `Tests/Editor/Update/{PackageDependencyCheckerTests,PackageAddPlannerTests,ManagedPackageRowsTests,GitArgumentsTests,PrereleaseTagTests,DdriveUpdateFormatCompatTests}`（URL 入力の解釈・既存 manifest の登録・候補・設定の往復・依存検査・事前確認・v タグだけの解析・CHANGELOG 探索）。実 `git` / 実 `Client.Add` / 実 manifest には触れない。実ネットワークを使う確認は人の確認（[43] §15）。
 
 ### 4.3 データマイグレーション（スキーマ版）
 

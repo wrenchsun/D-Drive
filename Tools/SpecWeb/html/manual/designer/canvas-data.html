@@ -220,7 +220,10 @@
 <tr><td>EmbeddedCanvases[i] '…': 自分自身 / 入れ子をたどると親に戻る(循環)</td><td>子の指定を直す(Warning)</td></tr>
 <tr><td>EmbeddedCanvases[i] '…' の RootPath が重複しています</td><td>1 行にまとめる(Warning)</td></tr>
 <tr><td>EmbeddedCanvases[i] '…': この場所の実体が、子 Canvas の Prefab のインスタンスではありません</td><td>パスや子の指定が合っているか確認する(Warning)</td></tr>
-<tr><td>EmbeddedCanvases[i] '…': 親に '…' の行があるため、子の同じ要素の設定より親の設定が優先されます</td><td>意図した上書きなら無視可(Info)</td></tr>
+<tr><td>EmbeddedCanvases[i] '…': 親に '…' の ElementFx の行 / Click 配線などがあるため、子の同じ要素(・同じトリガー)の設定は使われません</td><td>意図した上書きなら無視可(Info)。ElementFx は要素ごと、ボタン・スライダーの配線は要素 + トリガーごとに親が優先されます</td></tr>
+<tr><td>EmbeddedCanvases[i] '…' は EmbeddedCanvases[j] '…' の配下です(埋め込みが重なっています) / 子 Canvas が自分で埋め込んでいる場所が、別の登録と重なる</td><td>どちらかの登録を外す(Warning)。同じ要素は 1 回だけ適用され、内側の登録・浅い入れ子の側が優先されます</td></tr>
+<tr><td>EmbeddedCanvases[i] の RootPath '…' の書式が不正です</td><td>先頭・末尾の <code>/</code>、<code>\</code>、<code>//</code>、<code>./</code> を使わない(例 <code>Group/OptionRoot</code>。Canvas Editor の欄は確定時に自動で直します)(Warning)</td></tr>
+<tr><td>EmbeddedCanvases[i] '…': 子 Canvas の Load が Preload ではありません</td><td>子の Canvas データの Load を Preload にする(親を Open した時点で読み込まれていないと埋め込みがスキップされます)(Warning)</td></tr>
 </table>
 <p>このほか、Prefab 内の UiSlider の設定(Min / Max / Step / Notches など)の検査結果も混ざって出ます(<a href="#" data-manual-kind="designer" data-manual-page="ui-skin">Slider Editor</a>)。実行時には「CanvasData '…' の ElementFx[i] '…' が Prefab 内(RectTransform)で見つかりません。この行はスキップします。」がコンソールに出ることがあります(パスを直してください)。</p>
 

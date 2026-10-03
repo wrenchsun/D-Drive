@@ -19,19 +19,33 @@ using EventTrigger = DDrive.Foundation.Event.EventTrigger; // UnityEngine.EventS
 namespace DDrive.Runtime.Ui
 {
     // OnSignal の購読先へ渡す引数。Value は SliderWire.Action=SendSignal のとき現在値が入る(4-16)。
+    //
+    // 埋め込み Canvas(2026-10-03。[07] A-3 追記)の配線が送るシグナルでは:
+    //   ・ElementPath = **配線を持っている子 CanvasData のルート基準**(その子を単独で Open したときと同じ値)
+    //   ・EmbeddedRootPath = Open した Canvas(Canvas)のルートから見た、その子の埋め込みルートのパス
+    //     (入れ子の入れ子は最外のルートからの連結パス。単独で Open したとき・親自身の配線は空文字)
+    //   ・Canvas = Open した(親の)ハンドル
+    // = 受け手は Key / ElementPath で、子を単独で開いても親に埋め込んでも同じ書き方で動く。どこに埋め込まれたかは EmbeddedRootPath で分かる。
     public readonly struct SignalArgs
     {
         public readonly string Key;
         public readonly Handle<CanvasMarker> Canvas;
         public readonly string ElementPath;
         public readonly float Value;
+        public readonly string EmbeddedRootPath;
 
         public SignalArgs(string key, Handle<CanvasMarker> canvas, string elementPath, float value = 0f)
+            : this(key, canvas, elementPath, value, string.Empty)
+        {
+        }
+
+        public SignalArgs(string key, Handle<CanvasMarker> canvas, string elementPath, float value, string embeddedRootPath)
         {
             Key = key;
             Canvas = canvas;
             ElementPath = elementPath;
             Value = value;
+            EmbeddedRootPath = embeddedRootPath ?? string.Empty;
         }
     }
 
@@ -1064,11 +1078,12 @@ namespace DDrive.Runtime.Ui
         private void WireButtons(Transform root, CanvasData data, CanvasInstance instance, Handle<CanvasMarker> handle)
             => WireButtonRows(root, data.Buttons, instance, handle, null, null);
 
-        // wires を root 基準で配線する。埋め込み子 Canvas(2026-10-03)のときは frames(祖先フレーム。親の同じ要素の
-        // 配線があればそちらが優先)と instance ルートからの接頭辞(frames[0].Prefix。SendSignal の ElementPath を
-        // 親ルート基準にそろえる)を渡す。frames が null = 通常の(親自身の)配線。
+        // wires を root 基準で配線する。埋め込み子 Canvas(2026-10-03)のときは claims(その要素 + トリガーを既に担当している配線の表)と
+        // embedRoot(instance ルートから見た、この子の埋め込みルートのパス)を渡す。担当済みの(要素, トリガー)は適用しない
+        // (親が勝つ。1 つの(要素, トリガー)は 1 回だけ配線される)。SendSignal の ElementPath は子のルート基準のまま、
+        // 埋め込みの位置は SignalArgs.EmbeddedRootPath で渡す。claims が null = 通常の(親自身の)配線。
         private void WireButtonRows(Transform root, ButtonWire[] wires, CanvasInstance instance, Handle<CanvasMarker> handle,
-            List<EmbedFrame> frames, string pathPrefix)
+            EmbedClaims claims, string embedRoot)
         {
             if (wires == null || wires.Length == 0)
             {
@@ -1079,9 +1094,9 @@ namespace DDrive.Runtime.Ui
             for (var i = 0; i < wires.Length; i++)
             {
                 var wire = wires[i];
-                if (frames != null && AncestorHasButtonRow(frames, wire.ButtonPath))
+                if (claims != null && !claims.Buttons.Add((EmbeddedCanvasPaths.Combine(embedRoot, wire.ButtonPath), (int)wire.Trigger)))
                 {
-                    continue; // 親(祖先)の CanvasData が同じ要素を配線している: 親が優先
+                    continue; // 親(先に担当した側)が同じ(要素, トリガー)を配線している: そちらが優先
                 }
 
                 var target = FindTransform(root, wire.ButtonPath);
@@ -1091,13 +1106,8 @@ namespace DDrive.Runtime.Ui
                     continue;
                 }
 
-                if (frames != null)
-                {
-                    wire.ButtonPath = EmbeddedCanvasPaths.Combine(pathPrefix, wire.ButtonPath);
-                }
-
                 // クロージャは Open 時に配線の数だけ生成される(Tick 経路ではないため許容。[12]§3)。
-                void Handler() => ExecuteButtonWire(wire, handle);
+                void Handler() => ExecuteButtonWire(wire, handle, embedRoot);
                 SubscribeWire(button, wire.Trigger, Handler, instance.WireUnsubscribers);
             }
         }
@@ -1125,7 +1135,7 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        private void ExecuteButtonWire(ButtonWire wire, Handle<CanvasMarker> from)
+        private void ExecuteButtonWire(ButtonWire wire, Handle<CanvasMarker> from, string embedRoot)
         {
             if (wire.ClickSe.IsValid)
             {
@@ -1151,7 +1161,7 @@ namespace DDrive.Runtime.Ui
                     break;
 
                 case UiAction.SendSignal:
-                    SendSignal(wire.SignalKey, from, wire.ButtonPath);
+                    SendSignal(wire.SignalKey, from, wire.ButtonPath, 0f, embedRoot);
                     break;
 
                 case UiAction.PlayPresentation:
@@ -1165,9 +1175,9 @@ namespace DDrive.Runtime.Ui
         private void WireSliders(Transform root, CanvasData data, CanvasInstance instance, Handle<CanvasMarker> handle)
             => WireSliderRows(root, data.Sliders, instance, handle, null, null);
 
-        // WireButtonRows と同じ(埋め込み子 Canvas の Sliders 用)。
+        // WireButtonRows と同じ(埋め込み子 Canvas の Sliders 用。担当は(要素, トリガー)単位)。
         private void WireSliderRows(Transform root, SliderWire[] wires, CanvasInstance instance, Handle<CanvasMarker> handle,
-            List<EmbedFrame> frames, string pathPrefix)
+            EmbedClaims claims, string embedRoot)
         {
             if (wires == null || wires.Length == 0)
             {
@@ -1178,9 +1188,9 @@ namespace DDrive.Runtime.Ui
             for (var i = 0; i < wires.Length; i++)
             {
                 var wire = wires[i];
-                if (frames != null && AncestorHasSliderRow(frames, wire.ElementPath))
+                if (claims != null && !claims.Sliders.Add((EmbeddedCanvasPaths.Combine(embedRoot, wire.ElementPath), (int)wire.Trigger)))
                 {
-                    continue; // 親(祖先)の CanvasData が同じ要素を配線している: 親が優先
+                    continue; // 親(先に担当した側)が同じ(要素, トリガー)を配線している: そちらが優先
                 }
 
                 var target = FindTransform(root, wire.ElementPath);
@@ -1188,11 +1198,6 @@ namespace DDrive.Runtime.Ui
                 if (slider == null)
                 {
                     continue;
-                }
-
-                if (frames != null)
-                {
-                    wire.ElementPath = EmbeddedCanvasPaths.Combine(pathPrefix, wire.ElementPath);
                 }
 
                 if (wire.Action == UiAction.SetOption && wire.Option != OptionKey.None && _options != null)
@@ -1206,17 +1211,17 @@ namespace DDrive.Runtime.Ui
                     slider.ChangeThrottleSec = wire.ThrottleSec;
                 }
 
-                SubscribeSliderWire(slider, wire, handle, instance.WireUnsubscribers);
+                SubscribeSliderWire(slider, wire, handle, instance.WireUnsubscribers, embedRoot);
             }
         }
 
-        private void SubscribeSliderWire(UiSlider slider, SliderWire wire, Handle<CanvasMarker> handle, List<Action> unsubscribers)
+        private void SubscribeSliderWire(UiSlider slider, SliderWire wire, Handle<CanvasMarker> handle, List<Action> unsubscribers, string embedRoot)
         {
             switch (wire.Trigger)
             {
                 case SliderTrigger.Changed:
                 {
-                    void OnChanged(float v) => ExecuteSliderWire(wire, handle, slider, v);
+                    void OnChanged(float v) => ExecuteSliderWire(wire, handle, slider, v, embedRoot);
                     slider.OnValueChanged += OnChanged;
                     unsubscribers.Add(() => slider.OnValueChanged -= OnChanged);
                     break;
@@ -1224,7 +1229,7 @@ namespace DDrive.Runtime.Ui
 
                 case SliderTrigger.Commit:
                 {
-                    void OnCommit(float v) => ExecuteSliderWire(wire, handle, slider, v);
+                    void OnCommit(float v) => ExecuteSliderWire(wire, handle, slider, v, embedRoot);
                     slider.OnCommit += OnCommit;
                     unsubscribers.Add(() => slider.OnCommit -= OnCommit);
                     break;
@@ -1232,7 +1237,7 @@ namespace DDrive.Runtime.Ui
 
                 case SliderTrigger.NotchPassed:
                 {
-                    void OnNotch(int idx) => ExecuteSliderWire(wire, handle, slider, idx);
+                    void OnNotch(int idx) => ExecuteSliderWire(wire, handle, slider, idx, embedRoot);
                     slider.OnNotchPassed += OnNotch;
                     unsubscribers.Add(() => slider.OnNotchPassed -= OnNotch);
                     break;
@@ -1240,7 +1245,7 @@ namespace DDrive.Runtime.Ui
 
                 case SliderTrigger.LimitReached:
                 {
-                    void OnLimit(bool isMax) => ExecuteSliderWire(wire, handle, slider, isMax ? 1f : 0f);
+                    void OnLimit(bool isMax) => ExecuteSliderWire(wire, handle, slider, isMax ? 1f : 0f, embedRoot);
                     slider.OnLimitReached += OnLimit;
                     unsubscribers.Add(() => slider.OnLimitReached -= OnLimit);
                     break;
@@ -1248,7 +1253,7 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        private void ExecuteSliderWire(SliderWire wire, Handle<CanvasMarker> from, UiSlider slider, float value)
+        private void ExecuteSliderWire(SliderWire wire, Handle<CanvasMarker> from, UiSlider slider, float value, string embedRoot)
         {
             switch (wire.Action)
             {
@@ -1261,7 +1266,7 @@ namespace DDrive.Runtime.Ui
                     break;
 
                 case UiAction.SendSignal:
-                    SendSignal(wire.SignalKey, from, wire.ElementPath, value);
+                    SendSignal(wire.SignalKey, from, wire.ElementPath, value, embedRoot);
                     break;
 
                 case UiAction.PlayPresentation:
@@ -1333,13 +1338,13 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            AppendElementFx(instance, data, data.ElementEffects, root, null);
+            AppendElementFx(instance, data, data.ElementEffects, root, null, null);
         }
 
         // rows を root 基準で解決してランタイム一覧(instance.ElementFx)へ足す。owner = 警告に出す CanvasData。
-        // 埋め込み子 Canvas(2026-10-03)のときは frames(祖先フレーム)を渡し、祖先の CanvasData に同じ要素の行が
-        // あればその行(親の行)が優先されるので子の行は足さない。
-        private void AppendElementFx(CanvasInstance instance, CanvasData owner, ElementFx[] rows, Transform root, List<EmbedFrame> frames)
+        // 埋め込み子 Canvas(2026-10-03)のときは claims と embedRoot を渡し、先に担当している行(親・浅い入れ子・内側の登録)が
+        // 同じ要素にあればその行が優先されるので子の行は足さない(ElementFx は要素単位 = 1 行が Appear / Idle / Disappear の組)。
+        private void AppendElementFx(CanvasInstance instance, CanvasData owner, ElementFx[] rows, Transform root, EmbedClaims claims, string embedRoot)
         {
             var layerDefaults = default(UiLayerDefaultEntry);
             _layerSettings?.TryGet(instance.Data.Layer, out layerDefaults);
@@ -1349,9 +1354,9 @@ namespace DDrive.Runtime.Ui
             for (var i = 0; i < rows.Length; i++)
             {
                 var def = rows[i];
-                if (frames != null && AncestorHasFxRow(frames, def.ElementPath))
+                if (claims != null && !claims.Fx.Add(EmbeddedCanvasPaths.Combine(embedRoot, def.ElementPath)))
                 {
-                    continue; // 親(祖先)の CanvasData が同じ要素の行を持つ: 親が優先
+                    continue; // 先に担当した側が同じ要素の行を持つ: そちらが優先
                 }
 
                 var target = FindTransform(root, def.ElementPath) as RectTransform;
@@ -1379,18 +1384,32 @@ namespace DDrive.Runtime.Ui
 
         private const int MaxEmbedDepth = 8;
 
-        // 祖先ごとの「その CanvasData」と「その Prefab ルートから、いま処理中の埋め込みルートまでのパス」。
-        // frames の最後 = いま処理中の CanvasData 自身(Prefix は空文字)。先頭 = Open した CanvasData(instance.Data)。
-        private struct EmbedFrame
+        // 埋め込み処理の 1 ノード(= Prefab 内の 1 つの CanvasData)。Prefix = Open した Canvas のルートから、このノードのルートまでのパス。
+        private sealed class EmbedNode
         {
             public CanvasData Data;
+            public Transform Root;
             public string Prefix;
+            public EmbedNode Parent;
+            public int Depth; // 自分を含む入れ子の段数(Open した CanvasData = 1)
+        }
+
+        // 「1 つの要素は 1 回だけ適用」のための担当表(Open した Canvas のルート基準のパス)。先に登録した側が担当する。
+        // 優先順: Open した CanvasData 自身 > 浅い入れ子の子 > 深い入れ子の子。同じ CanvasData が重なる登録
+        // (OptionRoot と OptionRoot/Inner)を持つときは、内側(RootPath が深い方)の登録が先に担当する。
+        //   ・ElementFx = 要素単位(1 行 = Appear / Idle / Disappear の組)
+        //   ・ボタン / スライダーの配線 = (要素, トリガー)単位(親が Click だけ配線していれば、子の同じ要素の LongPress は適用される)
+        private sealed class EmbedClaims
+        {
+            public readonly HashSet<string> Fx = new(StringComparer.Ordinal);
+            public readonly HashSet<(string path, int trigger)> Buttons = new();
+            public readonly HashSet<(string path, int trigger)> Sliders = new();
         }
 
         // 親を Open した直後に 1 回だけ呼ぶ。data.EmbeddedCanvases の各子について、子のルートを見つけ、子の CanvasData
         // (Registry から同期解決。Canvas は Preload 前提)の ElementEffects / Buttons / Sliders を子のルート基準で適用する。
         // Navigation / FirstSelected / レイヤー既定 / 開閉演出 / Layer・SortOffset は親(instance.Data)のものをそのまま使う。
-        // 子の Prefab は Instantiate しない。入れ子の入れ子は再帰で辿る(深さ上限 MaxEmbedDepth + 循環検出)。
+        // 子の Prefab は Instantiate しない。入れ子の入れ子は浅い段から順に辿る(深さ上限 MaxEmbedDepth + 循環検出)。
         // 設定不備は警告 1 回 + スキップ(例外で止めない)。EmbeddedCanvases が空なら何もしない(割り当ても無い)。
         private void SetupEmbeddedCanvases(CanvasInstance instance, Handle<CanvasMarker> handle, CanvasData data, Transform root)
         {
@@ -1400,22 +1419,80 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            var frames = new List<EmbedFrame>(2) { new EmbedFrame { Data = data, Prefix = string.Empty } };
-            SetupEmbeddedFrom(instance, handle, data, root, frames);
+            var claims = new EmbedClaims();
+            SeedClaims(claims, data);
+
+            var level = new List<EmbedNode>(2) { new EmbedNode { Data = data, Root = root, Prefix = string.Empty, Depth = 1 } };
+            var nextLevel = new List<EmbedNode>(2);
+            while (level.Count > 0)
+            {
+                nextLevel.Clear();
+                for (var n = 0; n < level.Count; n++)
+                {
+                    SetupEmbedsOf(instance, handle, level[n], claims, nextLevel);
+                }
+
+                (level, nextLevel) = (nextLevel, level);
+            }
         }
 
-        private void SetupEmbeddedFrom(CanvasInstance instance, Handle<CanvasMarker> handle, CanvasData data, Transform nodeRoot, List<EmbedFrame> frames)
+        // Open した CanvasData 自身の行(適用できたかに関わらず)を担当表に入れる(親が常に勝つ)。
+        private static void SeedClaims(EmbedClaims claims, CanvasData data)
         {
+            if (data.ElementEffects != null)
+            {
+                for (var i = 0; i < data.ElementEffects.Length; i++)
+                {
+                    claims.Fx.Add(data.ElementEffects[i].ElementPath ?? string.Empty);
+                }
+            }
+
+            if (data.Buttons != null)
+            {
+                for (var i = 0; i < data.Buttons.Length; i++)
+                {
+                    claims.Buttons.Add((data.Buttons[i].ButtonPath ?? string.Empty, (int)data.Buttons[i].Trigger));
+                }
+            }
+
+            if (data.Sliders != null)
+            {
+                for (var i = 0; i < data.Sliders.Length; i++)
+                {
+                    claims.Sliders.Add((data.Sliders[i].ElementPath ?? string.Empty, (int)data.Sliders[i].Trigger));
+                }
+            }
+        }
+
+        private void SetupEmbedsOf(CanvasInstance instance, Handle<CanvasMarker> handle, EmbedNode node, EmbedClaims claims, List<EmbedNode> nextLevel)
+        {
+            var data = node.Data;
             var embeds = data.EmbeddedCanvases;
-            if (embeds == null)
+            if (embeds == null || embeds.Length == 0)
             {
                 return;
             }
 
-            for (var i = 0; i < embeds.Length; i++)
+            // 内側(RootPath が深い)の登録を先に処理する(同じ要素を担当する行は先に処理した側が勝つ)。深さが同じなら配列順。
+            var order = new int[embeds.Length];
+            for (var i = 0; i < order.Length; i++)
             {
+                var d = PathDepth(embeds[i].RootPath);
+                var j = i;
+                while (j > 0 && PathDepth(embeds[order[j - 1]].RootPath) < d)
+                {
+                    order[j] = order[j - 1];
+                    j--;
+                }
+
+                order[j] = i;
+            }
+
+            for (var k = 0; k < order.Length; k++)
+            {
+                var i = order[k];
                 var embed = embeds[i];
-                var childRoot = FindTransform(nodeRoot, embed.RootPath);
+                var childRoot = FindTransform(node.Root, embed.RootPath);
                 if (childRoot == null)
                 {
                     WarnEmbedOnce(data, "root:" + embed.RootPath, $"CanvasData '{data.DisplayName}' の EmbeddedCanvases[{i}] の RootPath '{embed.RootPath}' が Prefab 内で見つかりません。この埋め込みはスキップします。");
@@ -1429,39 +1506,50 @@ namespace DDrive.Runtime.Ui
                     continue;
                 }
 
-                if (FramesContain(frames, child))
+                if (ChainContains(node, child))
                 {
                     WarnEmbedOnce(data, "cycle:" + embed.RootPath, $"CanvasData '{data.DisplayName}' の EmbeddedCanvases[{i}] ('{embed.RootPath}') が循環しています('{child.DisplayName}' が既に親側にあります)。この埋め込みはスキップします。");
                     continue;
                 }
 
-                if (frames.Count >= MaxEmbedDepth)
+                if (node.Depth >= MaxEmbedDepth)
                 {
                     WarnEmbedOnce(data, "depth:" + embed.RootPath, $"CanvasData '{data.DisplayName}' の EmbeddedCanvases[{i}] ('{embed.RootPath}') は入れ子が深すぎます(上限 {MaxEmbedDepth})。この埋め込みはスキップします。");
                     continue;
                 }
 
-                // 祖先それぞれの Prefab ルートから見た子ルートのパスへ接頭辞を伸ばした、新しいフレーム列。
-                var next = new List<EmbedFrame>(frames.Count + 1);
-                for (var f = 0; f < frames.Count; f++)
-                {
-                    next.Add(new EmbedFrame { Data = frames[f].Data, Prefix = EmbeddedCanvasPaths.Combine(frames[f].Prefix, embed.RootPath) });
-                }
+                // Open した Canvas のルートから見た、この子の埋め込みルートのパス(入れ子の入れ子は最外のルートからの連結)。
+                var childPrefix = EmbeddedCanvasPaths.Combine(node.Prefix, embed.RootPath);
 
-                next.Add(new EmbedFrame { Data = child, Prefix = string.Empty });
-
-                // 優先判定に使う祖先 = 子自身(末尾)を除いた next。AncestorHas*Row は末尾を見ない。
                 if (child.ElementEffects != null && child.ElementEffects.Length > 0)
                 {
-                    AppendElementFx(instance, child, child.ElementEffects, childRoot, next);
+                    AppendElementFx(instance, child, child.ElementEffects, childRoot, claims, childPrefix);
                 }
 
-                var instancePrefix = next[0].Prefix;
-                WireButtonRows(childRoot, child.Buttons, instance, handle, next, instancePrefix);
-                WireSliderRows(childRoot, child.Sliders, instance, handle, next, instancePrefix);
+                WireButtonRows(childRoot, child.Buttons, instance, handle, claims, childPrefix);
+                WireSliderRows(childRoot, child.Sliders, instance, handle, claims, childPrefix);
 
-                SetupEmbeddedFrom(instance, handle, child, childRoot, next);
+                nextLevel.Add(new EmbedNode { Data = child, Root = childRoot, Prefix = childPrefix, Parent = node, Depth = node.Depth + 1 });
             }
+        }
+
+        private static int PathDepth(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return 0;
+            }
+
+            var count = 0;
+            for (var i = 0; i < path.Length; i++)
+            {
+                if (path[i] == '/')
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private void WarnEmbedOnce(CanvasData owner, string key, string message)
@@ -1472,81 +1560,13 @@ namespace DDrive.Runtime.Ui
             }
         }
 
-        private static bool FramesContain(List<EmbedFrame> frames, CanvasData data)
+        private static bool ChainContains(EmbedNode node, CanvasData data)
         {
-            for (var i = 0; i < frames.Count; i++)
+            for (var n = node; n != null; n = n.Parent)
             {
-                if (frames[i].Data == data)
+                if (n.Data == data)
                 {
                     return true;
-                }
-            }
-
-            return false;
-        }
-
-        // frames の末尾(= 子自身)を除く祖先の CanvasData が、childPath と同じ要素(祖先ルート基準 = 祖先の Prefix + childPath)
-        // を指す行を持つか。持つなら祖先(親)の行が勝つので、子の同じ要素の設定は適用しない。
-        private static bool AncestorHasFxRow(List<EmbedFrame> frames, string childPath)
-        {
-            for (var f = 0; f < frames.Count - 1; f++)
-            {
-                var rows = frames[f].Data.ElementEffects;
-                if (rows == null)
-                {
-                    continue;
-                }
-
-                for (var r = 0; r < rows.Length; r++)
-                {
-                    if (EmbeddedCanvasPaths.IsJoinedPath(rows[r].ElementPath, frames[f].Prefix, childPath))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        private static bool AncestorHasButtonRow(List<EmbedFrame> frames, string childPath)
-        {
-            for (var f = 0; f < frames.Count - 1; f++)
-            {
-                var rows = frames[f].Data.Buttons;
-                if (rows == null)
-                {
-                    continue;
-                }
-
-                for (var r = 0; r < rows.Length; r++)
-                {
-                    if (EmbeddedCanvasPaths.IsJoinedPath(rows[r].ButtonPath, frames[f].Prefix, childPath))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        private static bool AncestorHasSliderRow(List<EmbedFrame> frames, string childPath)
-        {
-            for (var f = 0; f < frames.Count - 1; f++)
-            {
-                var rows = frames[f].Data.Sliders;
-                if (rows == null)
-                {
-                    continue;
-                }
-
-                for (var r = 0; r < rows.Length; r++)
-                {
-                    if (EmbeddedCanvasPaths.IsJoinedPath(rows[r].ElementPath, frames[f].Prefix, childPath))
-                    {
-                        return true;
-                    }
                 }
             }
 
@@ -1838,13 +1858,17 @@ namespace DDrive.Runtime.Ui
         }
 
         public void SendSignal(string key, Handle<CanvasMarker> from, string elementPath = null, float value = 0f)
+            => SendSignal(key, from, elementPath, value, string.Empty);
+
+        // embeddedRootPath = 埋め込み子 Canvas の配線が送るときの、埋め込みルートのパス(SignalArgs.EmbeddedRootPath)。
+        public void SendSignal(string key, Handle<CanvasMarker> from, string elementPath, float value, string embeddedRootPath)
         {
             if (string.IsNullOrEmpty(key) || !_signalSubs.TryGetValue(key, out var list))
             {
                 return;
             }
 
-            var args = new SignalArgs(key, from, elementPath, value);
+            var args = new SignalArgs(key, from, elementPath, value, embeddedRootPath);
             for (var i = 0; i < list.Count; i++)
             {
                 list[i]?.Invoke(args);

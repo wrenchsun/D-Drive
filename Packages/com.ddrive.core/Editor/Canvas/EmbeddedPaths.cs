@@ -1,16 +1,15 @@
 using System;
 
-namespace DDrive.Runtime.Ui
+namespace DDrive.Editor.CanvasTool
 {
-    // [07_canvas_prefab.md] A-2/A-3 追記(2026-10-03、Canvas の埋め込み) — 親 Prefab ルート基準のパスと、
-    // 埋め込み子 Canvas のルート(EmbeddedCanvas.RootPath)基準のパスを相互に変換する純ロジック。
-    // UiManager(担当表のキー・SignalArgs.EmbeddedRootPath)が使う。Transform には依存しない(文字列だけ)。
-    // 2026-10-03(レビュー PC-R-18): 公開 API に汎用の文字列ユーティリティを残さないため internal。Editor は同じ規則の
-    // 複製(Editor/Canvas/EmbeddedPaths.cs)を持つ。両者が一致することは EmbeddedCanvasPathsTests(リフレクション)で固定している。
-    // 以前の public 版にあった IsJoinedPath(親の行との照合)は、担当表(UiManager.EmbedClaims)方式に変えて不要になった。
-    internal static class EmbeddedCanvasPaths
+    // [07_canvas_prefab.md] A-4 追記(2026-10-03、レビュー PC-R-18) — Canvas の埋め込みのパス変換(Editor 側の複製)。
+    // Runtime の EmbeddedCanvasPaths(internal。DDrive.Runtime の公開 API に汎用の文字列ユーティリティを残さないため)と
+    // **同じ規則**。Editor アセンブリからは Runtime の internal が見えない(InternalsVisibleTo を置かない方針)ので複製している。
+    // 両者が一致することは EmbeddedCanvasPathsTests(Combine / TryToChildPath の表をリフレクションで両方に当てる)で固定している。
+    // 規則を変えるときは必ず両方を直す。
+    internal static class EmbeddedPaths
     {
-        // "a" + "b" → "a/b"。どちらかが空ならもう片方をそのまま返す(新しい文字列を作らない)。
+        // "a" + "b" → "a/b"。どちらかが空ならもう片方をそのまま返す。
         public static string Combine(string prefix, string path)
         {
             if (string.IsNullOrEmpty(prefix))

@@ -298,7 +298,7 @@ public static class Ui
 
 **データ（追加のみ）**: `CanvasData` の末尾に `EmbeddedCanvas[] EmbeddedCanvases`。`EmbeddedCanvas`（`[Serializable]` struct）= `string RootPath`（親 Prefab ルートからの相対パス = 子のルート。`root.Find` 基準）+ `AssetId<CanvasMarker> Canvas`（子の `CanvasData`。`Open(CanvasId)` と同じ型。設計では `ButtonWire.Target` と同じ `AssetRef` に合わせる案だったが、Inspector のピッカーが Canvas 種別に絞られる `AssetId<CanvasMarker>` にした）。既定は空 = 従来どおり。`SchemaVersion` は上げない。
 
-**実行時（`UiManager.OpenData`、Open の最後に 1 回）**: `EmbeddedCanvases` の各要素について `RootPath` で子のルートを見つけ、子の `CanvasData` を `AssetRegistry.TryResolveSync` で同期解決（Canvas は Preload 前提）し、**子の `ElementEffects` / `Buttons` / `Sliders` を子のルート基準のパスで適用する**。子の Prefab は Instantiate しない（親 Prefab に既に入っている実体を使う）。適用先は親の `CanvasInstance` と同じ（ElementFx は同じ `ElementFx` リストに乗るので Appear の入力ゲート・Close の Disappear 待ち・Idle の停止・プール返却時の後始末は親のものがそのまま子の分も働く。配線の購読解除も同じリスト）。入れ子の入れ子は再帰（深さ上限 8 + 循環検出 = 警告 1 回 + その埋め込みだけ打ち切り）。`EmbeddedCanvases` が空なら何もしない（割り当ても無い）。子を**単独で** Open する従来の使い方は変えない（同じ `CanvasData` を単独でも埋め込みでも使える）。
+**実行時（`UiManager.OpenData`、Open の最後に 1 回）**: `EmbeddedCanvases` の各要素について `RootPath` で子のルートを見つけ、子の `CanvasData` を `AssetRegistry.TryResolveSync` で同期解決（Canvas は Preload 前提）し、**子の `ElementEffects` / `Buttons` / `Sliders` を子のルート基準のパスで適用する**。子の Prefab は Instantiate しない（親 Prefab に既に入っている実体を使う）。適用先は親の `CanvasInstance` と同じ（ElementFx は同じ `ElementFx` リストに乗るので Appear の入力ゲート・Close の Disappear 待ち・Idle の停止・プール返却時の後始末は親のものがそのまま子の分も働く。配線の購読解除も同じリスト）。入れ子の入れ子は浅い段から順に辿る（深さ上限 8 + 循環検出 = 警告 1 回 + その埋め込みだけ打ち切り）。`EmbeddedCanvases` が空なら何もしない（割り当ても無い）。子を**単独で** Open する従来の使い方は変えない（同じ `CanvasData` を単独でも埋め込みでも使える）。
 
 **親のものを使うもの / 子のものを使うもの**:
 
@@ -310,16 +310,26 @@ public static class Ui
 | Canvas 全体の開閉演出（`OpenTransition` / `CloseTransition`）・`CloseOnBack`・`ModalBlocksInput`・`PauseGameWhileOpen` | 親のもの |
 | `Layer` / `SortOffset` / `Flags`（プール方針等） | 親のもの |
 
-**優先順位（親の行が勝つ）**: 親（外側）の `CanvasData` に、埋め込みルート配下の同じ要素（親から見たパス = `RootPath/子のパス`）を指す `ElementFx` 行・`ButtonWire`・`SliderWire` があるときは、**親の行が勝ち、子の同じ要素の設定は適用しない**（要素単位。親が `Click` だけ配線していれば子の `LongPress` 配線も適用されない）。= 既存データ（長いパスの行）はそのまま動き、使う場所ごとの上書きにも使える。入れ子の入れ子では外側ほど強い（孫の行 < 子の行 < 親の行）。判定は文字列の比較だけ（割り当てなし。`EmbeddedCanvasPaths.IsJoinedPath`）。子の `ElementPath` が空（子のルート自身）の行は従来どおり対象外（`root.Find("")` は null）。子ルート自身を動かしたいときは親側に `RootPath` を `ElementPath` にした行を書く。
+**優先順位（親の行が勝つ。担当の単位 = 2026-10-03 レビュー PC-R-08 で確定）**: 1 つの要素の設定は 1 回だけ適用する。先に担当した側が勝ち、後の側の同じ設定は適用しない。**担当の単位**は次のとおり。
+
+| 種類 | 担当の単位 | 例 |
+|---|---|---|
+| `ElementFx` | **要素**（1 行 = Appear / Idle / Disappear の組） | 親に `OptionRoot/Panel` の行があれば、子の `Panel` の行は（Appear だけ・Idle だけでも）使われない |
+| `ButtonWire` | **(要素, トリガー)**（`Click` / `DoubleClick` / `LongPress` / `Repeat`） | 親が `OptionRoot/BtnX` の `Click` だけ配線していれば、子の同じ要素の `Click` は使われないが、子の `LongPress` の配線は使われる |
+| `SliderWire` | **(要素, トリガー)**（`Changed` / `Commit` / `NotchPassed` / `LimitReached`） | ボタンと同じ |
+
+**優先順**: Open した `CanvasData` 自身の行 > 浅い入れ子の子 > 深い入れ子の子（外側ほど強い = 孫 < 子 < 親）。親の行は、その要素が見つからなくても（適用できなくても）担当として数える。同じ `CanvasData` が**重なる登録**（`OptionRoot` と `OptionRoot/Inner` の両方）を持つときは、**内側（`RootPath` が深い方）の登録が先に担当する**。= 既存データ（長いパスの行）はそのまま動き、使う場所ごとの上書きにも使える。実装は Open 時に作る担当表（`UiManager.EmbedClaims`。Open した Canvas のルート基準のパス + トリガーの集合）で、同じ要素に配線・演出が二重に付かない（ボタン 1 回で `OpenCanvas` / `SendSignal` が 2 回走らない）。子の `ElementPath` が空（子のルート自身）の行は従来どおり対象外（`root.Find("")` は null）。子ルート自身を動かしたいときは親側に `RootPath` を `ElementPath` にした行を書く。
+
+**入れ子の入れ子と重なる登録の関係**: 入れ子の入れ子は、**子の `CanvasData` 自身が `Inner` を埋め込みとして持つ**形（Hud → Option → Volume）が基本。親（Hud）の `EmbeddedCanvases` に `OptionRoot` と `OptionRoot/Inner` の両方を登録すると同じ要素に Option と Volume の設定が重なる。実行時は上のとおり 1 回だけ適用する（内側の登録が先）が、Validator が `DD-CANVAS-EMBED-NESTED-ROOT`（Warning）で知らせ、Canvas Editor の「入れ子 Prefab から検出」は、他の候補・登録済みの埋め込みルートの**配下**にある入れ子 Prefab（= 入れ子の入れ子）を提案しない（その子 Canvas 自身の Canvas Editor で登録する。手で「+ 手動で追加」することは妨げない）。Unity の `PrefabUtility.IsAnyPrefabInstanceRoot` は、親 Prefab の中の入れ子の入れ子の Prefab インスタンスでも真になる（実際に確認した）ので、この除外が要る。
 
 **子の `ButtonWire` / `SliderWire` のアクションの意味（埋め込み時）**: 子の配線は「親を Open した `CanvasInstance` のハンドル」に対して実行される。
 
 | アクション | 埋め込み時の意味 |
 |---|---|
 | `OpenCanvas` | 変わらない（`Target` の Canvas を開く。親・子に依存しない） |
-| `CloseSelf` | **埋め込み先の親（開いている Canvas）を閉じる**。子は単独のハンドルを持たないため。「子のパネルだけ閉じる」ではない（子のパネルだけ閉じたいときは親側のロジックか、親の `Navigation`/表示切り替えで行う） |
+| `CloseSelf` | **埋め込み先の親（開いている Canvas）を閉じる**（確定。子は単独のハンドルを持たないため）。「子のパネルだけ閉じる」ではない（子のパネルだけ閉じたいときは親側のロジックか、親の `Navigation`/表示切り替えで行う） |
 | `CloseTop` | 変わらない（スタック最上位を閉じる） |
-| `SendSignal` | `SignalArgs.Canvas` = 親のハンドル、`SignalArgs.ElementPath` = **親ルート基準のパス**（`RootPath/子のパス`。入れ子の入れ子でも Open した Canvas のルート基準）。ボタンもスライダーも同じ |
+| `SendSignal` | `SignalArgs.Canvas` = 親のハンドル（Open した Canvas）、`SignalArgs.ElementPath` = **配線を持っている子 `CanvasData` のルート基準のパス**（その子を単独で Open したときと同じ値。入れ子の入れ子では孫のルート基準）、`SignalArgs.EmbeddedRootPath` = **Open した Canvas のルートから見た、その子の埋め込みルートのパス**（入れ子の入れ子は最外のルートからの連結 `OptionRoot/Inner`。親自身の配線・単独で Open したときは空文字）。ボタンもスライダーも同じ。受け手は埋め込みでも単独でも同じ書き方（`Key` / `ElementPath`）で動き、どこに埋め込まれたかが要るときだけ `EmbeddedRootPath` を使う |
 | `PlayPresentation` | 変わらない（Phase 5 で実装予定の警告） |
 | `SetOption`（スライダー） | 変わらない（`OptionStore` との直結。Open 時の初期値設定も子のスライダーに行われる） |
 
@@ -327,14 +337,14 @@ public static class Ui
 
 **ネット・ContentHash への影響**: なし。Canvas はローカル表示の前提（`CanvasData` はネット同期の対象ではなく、ContentHash は `CatalogEntry`（Id/Type/Address/NetMode）だけから作られるため、`CanvasData` の欄が増えても変わらない — `CatalogContentHasher` の定義を確認済み）。
 
-**Validator（新規コードの Warning / Info のみ。既存の重さは変えない）**: `CanvasDataValidator` に `DD-CANVAS-EMBED-ROOT`（`RootPath` が親 Prefab に無い）/ `-DUP`（同じ `RootPath` の重複）/ `-UNSET`（子が未設定）/ `-SELF`（自分自身）。Editor の `CanvasEmbeddedValidator`（`Editor/Canvas/`。他アセットを引く検査）に `DD-CANVAS-EMBED-MISSING`（子の CanvasData が見つからない）/ `-CYCLE`（入れ子をたどると親に戻る）/ `-PREFAB`（`RootPath` の実体が子の `CanvasData.Prefab` のインスタンスでない）、Info `-OVERRIDE`（親と子が同じ要素を指す = 親の設定が優先）。
+**Validator（新規コードの Warning / Info のみ。既存の重さは変えない）**: `CanvasDataValidator` に `DD-CANVAS-EMBED-ROOT`（`RootPath` が親 Prefab に無い）/ `-DUP`（同じ `RootPath` の重複）/ `-UNSET`（子が未設定）/ `-SELF`（自分自身）。2026-10-03 のレビュー対応で `-NESTED-ROOT`（埋め込みが重なる = 一方の `RootPath` が他方の配下）と `-PATH-FORM`（`RootPath` の書式: 先頭・末尾の `/`・`\`・`//`・`./`）を足した。Editor の `CanvasEmbeddedValidator`（`Editor/Canvas/`。他アセットを引く検査）に `DD-CANVAS-EMBED-MISSING`（子の CanvasData が見つからない）/ `-CYCLE`（入れ子をたどると親に戻る）/ `-PREFAB`（`RootPath` の実体が子の `CanvasData.Prefab` のインスタンスでない）/ `-NOT-PRELOAD`（子の `CanvasData` が Preload でない = 親を Open した時点で読み込まれていないとスキップされる）/ `-NESTED-ROOT`（子 Canvas が自分で埋め込んでいる場所が、親の別の登録と重なる）、Info `-OVERRIDE`（親と子が同じ要素を指す = 親の設定が優先）。
 
 **Canvas Editor（`CanvasEditorWindow` 内。新しい EditorWindow は作らない）**: 純ロジックは `Editor/Canvas/CanvasEmbeddedEditing.cs` に分けた（EditMode でテスト）。
 
 - **埋め込み Canvas セクション**: 登録済みの行（`RootPath` / 子の `CanvasData` / 「この Canvas を編集」/ 削除）と、親 Prefab の中の入れ子 Prefab インスタンスのうち元 Prefab が既存の `CanvasData.Prefab` と一致する未登録のもの（「入れ子 Prefab から検出」）に「埋め込みとして登録」ボタン。「+ 手動で追加」も可。`Undo.RecordObject` + `SetDirty`。
 - **一覧のグループ表示**: ElementFx の一覧を「親の要素」と「埋め込み: 子の名前(RootPath)」に分けて折りたたみ可能にした（埋め込みが無い CanvasData は従来どおりの平らな一覧）。埋め込みグループには子の `ElementEffects` を**読み取り表示**（行数と各行の Appear/Idle/Disappear の要約）し、親が上書きしている行に `[親で上書き]` を付ける。「この Canvas を編集」で編集対象を子に切り替える。埋め込みルート配下を指す親の行は親の一覧に「↳ 親での上書き: …」として出す。ElementFx 見出しの下に絞り込み（要素のパスの部分一致）を追加した。
 - **自動収集**: 登録済みの埋め込みルートの**配下**の要素は親の自動収集（「要素を自動収集」・確認用プレビューを開いたときの自動収集・「一括適用: 全ボタンに反映」）に入れない（子の `CanvasData` の担当。埋め込みルート自身は親の要素として集める）。既に親にある行は消さない（上書きとして残る）。未登録の入れ子 Prefab は従来どおり拾う。
-- **編集対象の切り替え**: 親から子へ切り替えると「← <親の名前> へ戻る」と「埋め込みとして編集中: Hud > Option」が出る（親の連なり = `_ancestors`。入れ子の入れ子も外側から内側への連なりで保持）。ツールバー下の「選択に追従」トグル（既定オン、EditorPrefs `DDrive.CanvasEditor.FollowSelection`）: Hierarchy / プレハブステージ / 確認用プレビューで選んだ GameObject が埋め込みルート配下なら編集対象を子の `CanvasData` に、配下でなければ親に切り替え、該当の ElementFx 行を展開してスクロール・青い縦線で強調する。**このウィンドウ自身が選んだもの（行の「選択」・▶ 再生時の自動選択）には反応しない**（親での上書き行の「選択」で子へ切り替わらないように）。このウィンドウの入力欄（テキスト・数値）にフォーカスがあるあいだは切り替えない（入力中の値を失わない）。🔒 ロックが ON のときも切り替えない。
+- **編集対象の切り替え**: 親から子へ切り替えると「← <親の名前> へ戻る」と「埋め込みとして編集中: Hud > Option」が出る（親の連なり = `_ancestors`。入れ子の入れ子も外側から内側への連なりで保持）。ツールバー下の「選択に追従」トグル（既定オン、EditorPrefs `DDrive.CanvasEditor.FollowSelection`）: Hierarchy / プレハブステージ / 確認用プレビューで選んだ GameObject が埋め込みルート配下なら編集対象を子の `CanvasData` に、配下でなければ親に切り替え、該当の ElementFx 行を展開してスクロール・青い縦線で強調する。**このウィンドウ自身が選んだもの（行の「選択」・▶ 再生時の自動選択）には反応しない**（親での上書き行の「選択」で子へ切り替わらないように）。このウィンドウの入力欄（テキスト・数値）にフォーカスがあるあいだは切り替えない（入力中の値を失わない）。ウィンドウの外（Hierarchy など）へフォーカスが移ってから切り替わるときは、入力途中（遅延確定）の欄を**切り替え前の Canvas に確定してから**切り替える（各欄の確定は作ったときの対象に書く。別の `CanvasData` には書かれない）。別の Canvas の Prefab をプレハブモードで開いて要素を選んだときも、その Canvas に切り替わる（埋め込みを使わない場合も同じ）。🔒 ロックが ON のときも切り替えない。
 - **プレビュー再生（▶）・「選択」・「選択して移動」**: 子を編集対象にしたまま、(a) 親の Prefab のプレハブモード、(b) 親の確認用プレビュー（子を編集中は親の連なりの最外側を `OpenData` する = UiManager が子の設定を本番と同じに適用する）、(c) 子自身のプレハブモード / プレビュー、のどれでも動く。子のパスは親の実体の中の位置へ変換して解決する（`CanvasEmbeddedEditing.ToAncestorPath`）。以前の「対象 CanvasData の Prefab とステージの `assetPath` が完全一致のときだけ」は「対象の Prefab、または対象を埋め込んでいる親の Prefab」に広げた。「選択して移動」は、対象自身か親のステージが既に開いていればそのまま使い（子のプレハブモードから親へ勝手に戻さない）、どちらも開いていなければ対象自身の Prefab を開く。再生前の状態の保存 / 復元は既存の `ElementFxStateSnapshot` を使う。確認用プレビューの実体が対象と無関係な Canvas のものなら使わず、▶ 時に開き直す。パッド操作シミュレーション（▲▼◀▶決定）は、プレビューに開いている `CanvasData` 自身を編集しているときだけ有効。
 - **プリセットギャラリーの「選択中のシーン要素のパスを使う」**: 以前は常に「シーン階層の最上位（`selected.root`）」からのパスだったため、確認用プレビュー（UiManager が `[D-Drive] UI Root/<レイヤー>/<Canvas>` の下に置く実体）で選ぶと `HUD/<Canvas名>/…` のように CanvasData のルート基準にならなかった（**実在した問題**。`CanvasEmbeddedEditing.FindCanvasRoot` のテストで再現・修正を確認）。Canvas のルート（プレハブステージのルート / プレビュー実体の 3 段目 / `CanvasData.Prefab` のインスタンス）からのパスにし、見つからなければ従来どおり最上位。埋め込みルート配下の要素を選んだ場合は適用先を子の `CanvasData` に切り替えて子基準のパスにする。
 
@@ -411,3 +421,10 @@ Prefab Missing (Error) / CollisionLayer 未定義値 (Error) / Kind=Projectile �
 ### 実装メモ（2026-09-14、5-11 ImportRule）
 
 > `Assets/SourceAssets/Prefab/<カテゴリ>/*.prefab` に Prefab を置くだけでも `PrefabData`(Prefab のみ設定、Kind/Tags 等は既定値)が自動生成される（[09_editor_tools.md](09_editor_tools.md) §1.1）。元ファイル削除時は Data を消さず、本節の既存 Validator の「Prefab が未設定(または Missing)です」がそのまま欠落表示を担う。
+
+### 追記（2026-10-03、レビュー [54] PC-R-04/06/08/18 の対応 — 埋め込みの確定仕様）
+
+- **担当の単位・優先順・重なる登録**は上の「優先順位」のとおり確定（ElementFx は要素単位、ボタン / スライダーは (要素, トリガー) 単位。重なる登録は内側が先。実行時は 1 要素 1 回）。
+- **`SendSignal` の `ElementPath` は子のルート基準**（以前は親ルート基準で、受け手が「単独で開いたとき」と「埋め込まれたとき」の両対応を迫られた）。埋め込みの位置は新しい `SignalArgs.EmbeddedRootPath` に分けた（`SignalArgs` に欄と 5 引数のコンストラクタ、`UiManager.SendSignal` に 5 引数のオーバーロードを追加。既存の署名は変えていない = 追加のみ）。v1.4.0 のタグ前の変更で、v1.3.1 以前の挙動（親自身の配線・単独 Open）は変わらない。
+- `CloseSelf`（子の配線）= 開いた親を閉じる、のまま（確定）。
+- `EmbeddedCanvasPaths`（`Combine` / `TryToChildPath` / `IsJoinedPath`）は **internal 化**（`DDrive.Runtime` の公開 API に汎用の文字列ユーティリティを残さない）。`IsJoinedPath` は担当表方式で不要になり削除。Editor は同じ規則の internal 複製（`Editor/Canvas/EmbeddedPaths.cs`）を持ち、両者の一致はリフレクションのテストで固定。

@@ -32,12 +32,26 @@ namespace DDrive.Editor.Update
 
             public readonly BumpKind Bump;
 
+            // [42] §4.2.1(2026-10-03、レビュー PC-R-02) — `EvaluateTags` が埋める。元のタグ名(`#ref` に書く値)。
+            // 「最新」として勧めるタグの名前(null なら勧められるタグが無い)。
+            public readonly string LatestTag;
+
+            // 現在が正式版のとき、勧めていない(自動では選ばない)プレリリースのうち最も新しいタグ名(`LatestTag` より新しいものだけ。無ければ null)。
+            public readonly string NewerPrereleaseTag;
+
             public Result(Version currentVersion, bool currentIsFromPackageJson, Version latestVersion, BumpKind bump)
+                : this(currentVersion, currentIsFromPackageJson, latestVersion, bump, null, null)
+            {
+            }
+
+            public Result(Version currentVersion, bool currentIsFromPackageJson, Version latestVersion, BumpKind bump, string latestTag, string newerPrereleaseTag)
             {
                 CurrentVersion = currentVersion;
                 CurrentIsFromPackageJson = currentIsFromPackageJson;
                 LatestVersion = latestVersion;
                 Bump = bump;
+                LatestTag = latestTag;
+                NewerPrereleaseTag = newerPrereleaseTag;
             }
         }
 
@@ -85,6 +99,86 @@ namespace DDrive.Editor.Update
             }
 
             return new Result(current, usedPackageJson, latest, bump);
+        }
+
+        // [42] §4.2.1(2026-10-03、レビュー PC-R-02) — 元のタグ名を保つ版。「最新」の規則:
+        //   ・既定では**正式版(`vX.Y.Z`)だけ**を最新候補にする。プレリリース(`vX.Y.Z-rc.1` 等)は一覧には出すが自動では勧めない。
+        //   ・**現在の参照(または現在の package.json の版)がプレリリース**のときだけ、プレリリースも最新候補にする
+        //     (同じ版の正式版・より新しい rc へ進めるため)。
+        //   ・比較は SemVer の優先順位(`X.Y.Z-rc.1` < `X.Y.Z`。プレリリース同士は区間ごと)。X.Y.Z が同じで正式版 / プレリリースだけが
+        //     違う更新は PATCH 扱い。
+        public static Result EvaluateTags(string currentRef, string currentPackageJsonVersion, IReadOnlyList<GitTag> availableTags)
+        {
+            var currentIsTag = GitTag.TryParseRef(currentRef, out var current);
+            if (!currentIsTag && !GitTag.TryParse(currentPackageJsonVersion, false, out current))
+            {
+                currentIsTag = false;
+                current = default;
+            }
+
+            var haveCurrent = current.Version != null;
+            var usedPackageJson = !currentIsTag;
+            var includePrerelease = haveCurrent && current.IsPrerelease;
+
+            GitTag? latest = null;
+            GitTag? newerPre = null;
+            if (availableTags != null)
+            {
+                for (var i = 0; i < availableTags.Count; i++)
+                {
+                    var tag = availableTags[i];
+                    if (tag.Version == null)
+                    {
+                        continue;
+                    }
+
+                    if (includePrerelease || !tag.IsPrerelease)
+                    {
+                        if (latest == null || GitTag.Compare(tag, latest.Value) > 0)
+                        {
+                            latest = tag;
+                        }
+                    }
+                    else if (newerPre == null || GitTag.Compare(tag, newerPre.Value) > 0)
+                    {
+                        newerPre = tag;
+                    }
+                }
+            }
+
+            if (newerPre != null && latest != null && GitTag.Compare(newerPre.Value, latest.Value) <= 0)
+            {
+                newerPre = null; // 勧めている最新より古いプレリリースは知らせない
+            }
+
+            var latestName = latest?.Name;
+            var latestVersion = latest?.Version;
+            var preName = newerPre?.Name;
+            if (!haveCurrent || latest == null)
+            {
+                return new Result(haveCurrent ? current.Version : null, usedPackageJson, latestVersion, BumpKind.Unknown, latestName, preName);
+            }
+
+            if (GitTag.Compare(latest.Value, current) <= 0)
+            {
+                return new Result(current.Version, usedPackageJson, latestVersion, BumpKind.UpToDate, latestName, preName);
+            }
+
+            BumpKind bump;
+            if (latestVersion.Major != current.Version.Major)
+            {
+                bump = BumpKind.Major;
+            }
+            else if (latestVersion.Minor != current.Version.Minor)
+            {
+                bump = BumpKind.Minor;
+            }
+            else
+            {
+                bump = BumpKind.Patch;
+            }
+
+            return new Result(current.Version, usedPackageJson, latestVersion, bump, latestName, preName);
         }
 
         private static Version FindLatest(IReadOnlyList<Version> availableTags)

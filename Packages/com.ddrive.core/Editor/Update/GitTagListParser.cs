@@ -26,12 +26,57 @@ namespace DDrive.Editor.Update
         // ため「タグ運用ではない」として除外する)。
         public static List<Version> ParseVersionTags(string lsRemoteOutput) => ParseCore(lsRemoteOutput, true);
 
+        // [42_distribution.md] §4.2 P-15(2026-10-03、レビュー PC-R-02) — 元のタグ名を保持した一覧(降順 = SemVer の優先順位。
+        // 正式版はプレリリースより新しい)。manifest の `#ref` / `Client.Add` にはここの `Name` をそのまま使う
+        // (`v1.5.0-rc.1` を `v1.5.0` に丸めない)。`requireVPrefix` の意味は `ParseVersionTags` と同じ。
+        public static List<GitTag> ParseTags(string lsRemoteOutput, bool requireVPrefix)
+        {
+            var result = new List<GitTag>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var tagName in EnumerateTagNames(lsRemoteOutput))
+            {
+                if (GitTag.TryParse(tagName, requireVPrefix, out var tag) && seen.Add(tag.Name))
+                {
+                    result.Add(tag);
+                }
+            }
+
+            result.Sort((a, b) =>
+            {
+                var cmp = GitTag.Compare(b, a); // 降順
+                return cmp != 0 ? cmp : string.CompareOrdinal(a.Name, b.Name);
+            });
+            return result;
+        }
+
         private static List<Version> ParseCore(string lsRemoteOutput, bool requireVPrefix)
         {
             var result = new List<Version>();
+            foreach (var tagName in EnumerateTagNames(lsRemoteOutput))
+            {
+                var hasV = tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase);
+                if (requireVPrefix && !hasV)
+                {
+                    continue;
+                }
+
+                var body = hasV ? tagName.Substring(1) : tagName;
+                if (SemVer.TryParse(body, out var version))
+                {
+                    result.Add(version);
+                }
+            }
+
+            result.Sort((a, b) => b.CompareTo(a)); // 降順
+            return result;
+        }
+
+        // `refs/tags/<名前>` の名前だけを取り出す(peeled 行・タグ以外の行は除く)。
+        private static IEnumerable<string> EnumerateTagNames(string lsRemoteOutput)
+        {
             if (string.IsNullOrEmpty(lsRemoteOutput))
             {
-                return result;
+                yield break;
             }
 
             const string tagsPrefix = "refs/tags/";
@@ -70,21 +115,8 @@ namespace DDrive.Editor.Update
                     continue;
                 }
 
-                var hasV = tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase);
-                if (requireVPrefix && !hasV)
-                {
-                    continue;
-                }
-
-                var body = hasV ? tagName.Substring(1) : tagName;
-                if (SemVer.TryParse(body, out var version))
-                {
-                    result.Add(version);
-                }
+                yield return tagName;
             }
-
-            result.Sort((a, b) => b.CompareTo(a)); // 降順
-            return result;
         }
     }
 }
