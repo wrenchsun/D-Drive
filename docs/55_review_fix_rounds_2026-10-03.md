@@ -31,6 +31,27 @@
 
 ---
 
+## 修正ラウンド 3 の対応状況（2026-10-04、`fix/review-round-3`）
+
+| 指摘 | 結果 | コミット |
+|---|---|---|
+| FX-R-01 受信側の 0 秒のマーカー | 修正（開始位置 0.5 秒以内なら新規開始とみなし追いつき発火。メッセージ形式は不変） | `daf6807` |
+| FX-R-02 欠けたシェーダーで既存 Data を上書き | 修正（既存 Data は保持 + 警告）。推定（欠けた参照の null 比較）は確認済み | `c26e7cf` |
+| FX-R-03 購読者の Stop / Play で Tick の添字ずれ | 修正（写しを走査 + 各段で有効性確認）。他の Manager の同形は報告のみ | `daf6807` |
+| FX-R-04 Edit Mode の「先頭から」判定 | 修正（再生開始直前の位置で決定） | `b5aabf5` |
+| FX-R-05 `WaitForExit()` の上限・孫プロセス | 修正（5 秒の上限・`pgrep -P` で子孫）。非 Windows は未検証 | `1f2f20d` |
+| FX-R-06 ドメインリロード / 終了 / ウィンドウを閉じたとき | 修正（台帳 + 各フック・`OnDisable` で状態を戻す） | `1f2f20d` |
+| FX-R-07 プレリリースだけのとき既定選択 | 修正（未選択） | `1f2f20d` |
+| FX-R-08 `GitTag` の 2 / 4 区間 | 修正（3 区間だけ） | `1f2f20d` |
+| FX-R-09 標準シェーダーへ戻した後も保つ | 修正 | `c26e7cf` |
+| FX-R-10 重なる登録の規則 | 規則を 2 つに整理（挙動は不変）・docs/テスト名 | `f505e23` + docs |
+| FX-R-11 認証プロンプトの記載漏れ | CHANGELOG・consumer guide・[42] に記載 | docs |
+| FX-R-12 CHANGELOG の古い記述 | 矛盾する 4 か所を訂正（全面再編は見送り） | docs |
+| FX-R-13 テストの抜け | 追加（`CreateFromSelection` の流れは見送り） | 各コミット |
+| FX-R-14 リスナーの発見規則 | public のみに決定・§5.14 に明文化 | `8c92dee` + docs |
+
+テスト: EditMode 1528 / 1528 green、PlayMode 918 / 918 green（Unity 6000.3.13f1、開いている Editor の MCP で実行）。互換スナップショット: `git diff 9f40cbb..HEAD -- …/Compat/Snapshots/` は `+120 / −0`（v1.3.1 の行の削除 0 件）。
+
 ## 元の指摘 13 件の解消確認
 
 「解消」= 元の失敗の筋書きが起きなくなり、対応記録が実装と一致し、別の経路を壊していない。「一部」= 書かれた経路は直ったが、同じ指摘の範囲に残りがある。
@@ -64,6 +85,13 @@
 - **失敗の筋書き**: 4 人対戦（A Host / B・C Client）で、A の操作で Cosmetic の `CutsceneData`（`PredictLocal` 有効）を再生 → 0 秒に置いた Event マーカー（SE）・外部の `FacialMarker`（表情の初期化）が A だけで鳴り、B・C では鳴らない。T-Drive が「ショット先頭で表情を初期化する」用途（[53] FC-R-03 の失敗の筋書きそのもの）は、ネット越しの端末では直っていない。
 - **直し方の案**: (a) 受信側でも「最初から再生」と見なせる範囲を決める。例: `elapsed` が小さい（遅延の許容 = 例えば 0.5 秒、または `NetBridge` の RTT から決める）なら `[0, elapsed]` のマーカーを**最初の Tick でまとめて発火**（追い付き発火）、それより大きければ Late Join として無音。`CutscenePlayMsg` に欄は足さない（ネットメッセージの互換）。(b) 直さないなら、E-20・docs/26・CHANGELOG・[51] の T-Drive 宛てに「ネット受信側では、開始から遅延時間以内（0 秒を含む）のマーカーは鳴らない。0 秒での初期化はマーカーではなく `OnModelSpawned` / Play 直後のコードで行う」と明記する。どちらにしても PlayMode テストを 1 件（`OnReceivePlayMsg` 相当で `StartNetTime` を少し過去にした受信 → 0 秒のマーカーの発火回数）。
 - **確度**: 確認済み（コード読み。受信の `elapsed` の式と `Elapsed > 0` の分岐から一意に決まる）
+- → 対応（修正ラウンド 3、2026-10-04、`daf6807`）: **修正**（まとめ役の決定「新規の再生開始なら受信側も追いつき発火、Late Join・Seek・Skip は無音」）。
+  - **受信側が新規開始と Late Join を区別できるか（調査）**: できない。Host の Late Join 再送（`OnClientConnected`）は台帳から**同じ `CutscenePlayMsg`**（元の `StartNetTime` のまま）を `SendTo` するだけで、メッセージの種類・フラグ・チャンネル（どちらも `ReliableOrdered`）・受信経路（`OnReceivePlayMsg`）に違いが無い。**ネットメッセージの形式は変えていない**（フィールド追加なし）。
+  - **採った規則**: 開始位置（`NetworkTime − StartNetTime`）が **0.5 秒以内**（`CutsceneManager.RemoteFreshStartGraceSec`、定数 1 か所）なら新規開始とみなし、`PlayLocalInternal(catchUpFireMarkers: true)` で無音の追いつきをせず（カーソル 0 のまま）、最初の `Tick` で `[0, 開始位置]` のマーカーを 1 回ずつ発火する。0.5 秒を超えたら従来どおり無音。値の根拠: `PresentationManager` の `remoteOneShotGraceSec`（既定 0.5 秒。[14] 6-0 修正6 で実機 200ms 遅延の確認 = [29] §8 により決めた「遅れて届いただけ」の範囲）と同じ。0ms〜200ms は十分収まり、数秒単位の Late Join は無音のまま。副作用: Late Join の再送が開始から 0.5 秒以内に届くと新規開始と区別できず発火する（最初からいたクライアントが発火したはずの区間なので不自然ではない）。
+  - **二重送信・二重発火**: 発火は各クライアントのローカル処理でネットへ何も流れない（`DelayedNetworkRelay` に送信数カウンタを足し、マーカー発火の前後で不変であることをテスト）。受信側の `Play` 自体では発火せず最初の `Tick`（ハンドルを取って `OnMarker` を購読してから発火）。予測再生・ローカル再生・`Seek` / `Skip` の経路は不変。
+  - **テスト**（PlayMode `CutsceneNetMarkerSymmetryTests`、`DelayedNetBridge` / `DelayedNetworkRelay` 使用）: 遅延 0ms（送信側・受信側とも `z0` が 1 回ずつ・以降二重なし・送信数不変）/ 遅延 200ms（送信側 `z0, z1` = 受信側 `z0, z1`）/ 境界（0.4 秒 = 発火、0.6 秒 = 無音で以降の 1.0 秒だけ）/ Host の Late Join 再送（1.5 秒時点で接続 = 無音）/ 受信側の `Seek` = 無音。既存の `E20_LateJoin_*`（1.0 秒・2.5 秒からの途中参加 = 無音）は不変で green。
+  - **挙動の変更（v1.3.1 から）**: 受信側で、再生開始直後（0.5 秒以内）の遅延区間のマーカー（0 秒を含む）が発火するようになった。E-20・[26]・[14] §21・CHANGELOG の互換性節（MINOR）・[51]・[52] 4-5 に正確に書いた。ラウンド 1 の誤った記述（「Host / Client とも同じ」「Late Join = 開始位置 > 0」）は [53] FC-R-03 に訂正を注記。
+  - **ネットの実機確認**: 要（[docs/29] の流儀。Host + Client の 2 台、遅延 200ms。[52] 4-5）。自動テストは遅延の再現までで、実 NGO の ServerTime 推定のずれ（[29] §8 の気になる点①）は実機でしか見られない。しきい値 0.5 秒はその実測に合わせた値だが、実機で遅延が 0.5 秒を超える（ホットスポット等）と受信側は無音になる。
 
 ### FX-R-02. 【FC-R-02】シェーダーが一時的に欠けている間に既存の MaterialData を再生成すると、既存 Data の Shader 参照が DDrive/Lit に置き換わる（「保つ」を選んでも）
 
@@ -72,6 +100,10 @@
 - **失敗の筋書き**: MS2026 で T-Drive の Toon を使った MaterialData がある。別のメンバーが T-Drive のリポジトリへのアクセス権が無い状態でプロジェクトを開き（UPM はエラーを出すがプロジェクトは開く）、Model エディタで「元ファイルを再読み込み」→ その Model が使う Toon の `.mat` の MaterialData が Lit に書き換わり、コミットされる。または、[52] 15.6 の手順 3（「パッケージを外した Toon など」の `.mat` で右クリック作成）を、手順 1 で作った実データに対してそのまま行う → 期待結果「そのデータは `DDrive/Lit` になる」のとおり既存 Data が Lit になる（手順書が既存データの破壊を期待結果にしている）。
 - **直し方の案**: (a) `MigrateCore` で、元の `.mat` が `IsMissing` で既存 Data があるときは `Shader` / `Specific` に触れず、警告「シェーダーが見つからないため、既存の MaterialData のシェーダーは変更しませんでした」だけにする（新規作成だけ Lit）。(b) 既存 Data の `Shader` が「欠けた参照」（`SerializedObject` の `objectReferenceInstanceIDValue != 0` なのに値が null、または `!ReferenceEquals(data.Shader, null) && data.Shader == null`）のときも同様に保つ。`MayaMaterialImporter` の既存 Data 経路（`MayaMaterialImporter.cs:202` `if (existing.Shader == null)`）も同じ判定にする（こちらは FC-15 以前からの経路で、Common に差分があるときだけ書く）。(c) テスト: 「Toon で作った既存 Data → シェーダーを欠けさせた `.mat` で `Migrate`（Ask / KeepSource / 明示 Keep）→ 既存 Data の `Shader` 参照が変わらない」。(d) [52] 15.6 の手順 3 を「新規の `.mat`（既存 Data が無いもの）で」に直す。BuildPrompt が欠けた Material だけのときにも案内を出すか（ダイアログを出すか、Console の警告で足りるか）を決める。
 - **確度**: コードの分岐は確認済み。欠けた参照が Unity の `==` で null になる点は**推定**
+- → 対応（修正ラウンド 3、2026-10-04、`c26e7cf`）: **修正**。元の `.mat` が `IsMissing` で**既存の MaterialData があるとき**は、方針（`Ask` / `KeepSource` / `ConvertToLit`）・ダイアログの選択に関わらず、シェーダー参照・固有（`Specific`）に触れず警告「…のシェーダーが見つからないため、既存の MaterialData … のシェーダーと固有の設定は変更しませんでした」だけにする（`MigrateCore` で `ImportMaterial` の前後の `report.Created` を見て新規 / 既存を判定）。新規の Data だけ従来どおり Lit。`MayaMaterialImporter.ImportMaterial` の既存 Data 経路（`existing.Shader == null` で埋め直す所）も、`UnknownShaderGuard.HasMissingShaderReference`（`SerializedObject` の `objectReferenceValue == null && objectReferenceInstanceIDValue != 0`）が真のとき埋め直さない。確認ダイアログの文面は「新規の MaterialData は Lit にします。既存の MaterialData があるものはシェーダーを変更しません」に直した（欠けた Material だけの操作でダイアログを出すかは、Console の警告で足りると判断して**見送り**: ダイアログの出る条件〔知らないシェーダーが 1 件以上〕は変えていない）。
+  - **推定の確認結果（欠けた参照が Unity の `==` で null になるか）**: **確認した**。`UnknownShaderPolicyTests.ExistingData_WithMissingShaderReference_IsDetected_AndNotRefilled`（一時シェーダーの `.shader` を作って MaterialData に参照させ、`.shader` を削除して欠けた参照を作る）で、`data.Shader == null` は **true**、`HasMissingShaderReference(data)` も true（= 未設定と区別できる）、Maya 取り込み経路が埋め直さないことを実 Editor で確認（EditMode 全件 green）。
+  - **テスト**: `MissingSource_ExistingData_KeepsItsShaderAndSpecific_RegardlessOfHandling`（`Keep` / `Convert` / `ConvertKeepingExisting` の 3 方針で、元の `.mat` のシェーダーを後から欠けさせて再生成 → 既存 Data の `Shader` / `Specific` が変わらず、別の Data も作られない）、既存の `MissingShader_IsNotUnknown_AndIsNeverKept`（新規は Lit）は不変。
+  - **docs/52 15.6**: 手順 3 は「まだ MaterialData が無い欠けた `.mat`」に直し、既存 Data がある状態でパッケージを外して再生成する手順 4 と期待結果（Shader 欄・固有が変わらない）を足した。[06]・CHANGELOG（互換性節）に記載。
 
 ---
 
@@ -81,46 +113,61 @@
 
 - **場所**: `Runtime/Cutscene/CutsceneManager.cs:694-707`（`AdvanceSignalMarkers` は `MarkerSubject.OnNext` = `CutsceneHandle.OnMarker` の購読者を同期で呼ぶ。止められても残りを続ける）、`:662-669`（`AdvanceMarkers` は Event → Signal → Shake → Haptic → 外部の順に全部回る）、`:1445-1485`（`Tick` は `_active` を後ろから添字で回す）、`:1607`（`Cleanup` が `_active.Remove(handle)`）
 - (a) 対応記録の「既存 4 種は発火の中でカットシーンを止める経路が無い（外部コードを呼ばない）」は誤りで、Signal マーカーは `OnMarker` の購読者を呼ぶ。購読者が `Cutscene.Cancel` / `Stop` すると `Cleanup` が `MarkerSubject` を `Dispose` した後も、同じ Tick で跨いだ残りの Signal（破棄済みの Subject への `OnNext`。R3 が例外にするかは**推定**で未確認）・Shake（カメラが揺れる）・Haptic・外部マーカーが呼ばれる。(b) **外部マーカーの `Fire` / Signal の購読者が「別の」カットシーンを止める**と、`_active` から添字の小さい要素が消えて、いま処理中の instance が 1 つ前の添字にずれ、`for (i--)` の次の周回で**同じ Tick に 2 回進む**（`Elapsed += dt` が 2 回、マーカーとイベントも 2 回分）。FC-4 で外部コードを呼ぶ口が増えたので起きやすくなった。直し方: `AdvanceMarkers` の 5 つの間とループの中で `_instances.IsValidSilent` を見る。`Tick` は `_active` の数の変化を見て添字を補正する（または開始時の写しを回す。割り当てを避けるなら再利用リスト）。テストを 2 件（Signal の購読者の中で Cancel / 外部マーカーの中で別のカットシーンを Stop）。確度: (a)(b) の経路はコード読みで確認済み、R3 の破棄後 `OnNext` の挙動は推定
+- → 対応（修正ラウンド 3、2026-10-04、`daf6807`）: **修正**。(a)(b) とも。`Tick` の走査を写し（`_tickBuffer`、再利用・割り当てなし）に対して行い、写しの Handle が無効なら飛ばす（`TryGetQuiet`。入れ子の `Tick` は無視）。`AdvanceMarkers` は Event・Signal の後と、Event / Signal の各マーカーの発火の後に `_instances.IsValidSilent` を見て、止められたら残り（破棄済み Subject への `OnNext`・Shake・Haptic・外部）を呼ばない。`StopAll` / `CancelAllNetworked` も写し（`ToArray`）を走査（完了 / 中止通知の購読者が他を止めても範囲外にならない）。Tick 中に `Play` されたものは写しに無く次の Tick から進む。
+  - **推定の確認結果**: R3 の破棄済み `Subject.OnNext` の挙動は確認していない（止められたら呼ばない形にしたので踏まない）。
+  - **テスト**（PlayMode `CutsceneNetMarkerSymmetryTests`）: Signal の購読者が自分を Cancel（同じ Tick の残りの Signal は届かない）/ 購読者が別のカットシーンを Cancel（処理中のものは 0.5 秒だけ進み、二重に 1.0 秒進まない。マーカーも 1 回）/ 購読者が新しい Cutscene を Play（その Tick では進まず次の Tick から進む）/ `StopAll` 中に中止通知の購読者が他を止める。
+  - **訂正**: [53] FC-R-09 の対応記録「既存 4 種は外部コードを呼ばない」は誤り（Signal の購読者はゲームのコード）。[53] に訂正を注記。
+  - **他の Manager の同形の走査（確認のみ、触らず報告）**: `PresentationManager.Tick`（`_active` を後ろから添字で走査。`:1338` 付近）が同じ形で、Signal / イベントの購読者が他の Presentation を止めると添字がずれる可能性がある。v1.3.1 から変更なし（`9f40cbb..HEAD` で `PresentationManager.cs` の差分なし）の既存の形。`VfxManager` / `AudioManager` / `AnimManager` / `MaterialManager` の `RemoveAt(i)` は自分の管理リストの完了掃除で、外部の購読者を走査中に呼ばない形に見えた（詳細未確認）。必要なら別チケット。
 
 ### FX-R-04. 【FC-R-03】Edit Mode の「先頭からの再生」判定が更新の間隔に依存する
 
 - **場所**: `Editor/Cutscene/CutsceneEditModePreviewProvider.cs:148-150`（`dt` = 前回の `EditorApplication.update` からの時間）、`:205`（`elapsed <= Math.Min(dt, 0.1) + 1e-4` なら「先頭から」）
 - 判定が「再生開始後の最初の更新で `director.time` がこの監視役の `dt` 以内しか進んでいないか」なので、(a) Timeline ウィンドウ側の 1 回目の進みが監視役の `dt` より大きいと、先頭から再生しても 0 秒のマーカーが無音になる、(b) スクラブで 0.1 秒以内の位置に置いてから再生すると、その位置までのマーカーが発火する（「途中からは無音」の規則に反する）。どちらになるかは更新の順序と間隔次第（**推定**）。自動テスト（`ExternalContractMarkerEditModeTests.cs:154`）は `director.time = 0` ちょうどで呼ぶので、この判定の幅は検証されていない。直し方: 再生していなかった直前の更新の `session.LastTime`（停止中の再生位置）が 0（≦ 1e-4）なら「先頭から」とする（間隔に依存しない）。確度: 推定
+- → 対応（修正ラウンド 3、2026-10-04、`b5aabf5`）: **修正**。「先頭から」の判定を `elapsed <= min(dt, 0.1)` から、**再生を始める直前（停止中）の位置**に変えた: `session.LastTime`（停止中の更新ごとに記録した位置）が 0（≦ 1e-4。浮動小数の誤差の吸収だけ）、または再生開始で位置が巻き戻った（尺の末尾から始まる等）なら先頭から。0 以外へスクラブしてから再生した場合は、更新の間隔・再生開始後の最初の進みの大きさに関係なく途中から（無音）。`MaxStartFrameSeconds`（0.1 秒）は廃止。ループは `WasPlaying` が true のままなので誤発火しない（既存の巻き戻し検出の経路）。
+  - **推定の確認結果**: Timeline ウィンドウと監視役の更新順は実 Editor 上では未確認（Timeline ウィンドウの再生ボタンの実操作は [52] 4-4 の人による確認）。判定が更新順・間隔に依存しないことはテストで固定した。
+  - **テスト**（EditMode `ExternalContractMarkerEditModeTests`）: 0 で停止 → 再生 + 最初の更新で `director.time` が 0.5 まで進む → 先頭からとして 0 秒と 0.3 秒が発火 / 0.05 秒へスクラブ → 再生 → 0 秒・0.04 秒は無音（既存の `PlayFromStart_FiresMarkerAtZero_Once`・`ScrubToMarkerTime_ThenPlay_IsSilentAtStartPosition` も green）。
 
 ### FX-R-05. 【PC-R-01 / 03】`GitProcess` の終了後の `WaitForExit()` が無期限・`pkill -P` は直下の子だけ
 
 - **場所**: `Editor/Update/GitProcess.cs:233`（ループを抜けた後の `process.WaitForExit()`。タイムアウトなし）、`:291-296`（Windows 以外は `pkill -KILL -P <pid>`）
 - (a) .NET の `WaitForExit()`（引数なし）は、リダイレクトした標準出力 / エラーが EOF になるまで待つ。git の子孫プロセスがパイプを継承したまま残る場合（ssh の `ControlPersist` のマスター、認証ヘルパーの常駐等）、git 本体が終わってもここで止まり、`_busyTask` が完了せず、ウィンドウが「確認中…」のまま「キャンセル」も効かない（キャンセルの確認はループの中だけ）。(b) `pkill -P` は直下の子だけを止め、孫（`git-remote-https` → `fetch-pack` / `index-pack` 等）は残りうる。直し方: (a) `WaitForExit(5000)` にして、戻らなければ読み取り途中のまま結果を返す。(b) Windows 以外は子を再帰的に集めて止める（`pgrep -P` を繰り返す）か、残っても一時フォルダは次回 `CleanupStale` が消すことを docs/42 に書く。確度: 推定（.NET / Mono の `WaitForExit()` の仕様と ssh の挙動から）
+- → 対応（修正ラウンド 3、2026-10-04、`1f2f20d`）: (a) **修正**: 終了後の `WaitForExit()` を `Task.Run` に包んで 5 秒で打ち切る（超えたら `KillTree` して読めた分で結果を返す。待っていたスレッドはパイプが閉じられた時点で終わる）。(b) **修正**: Windows 以外は `pkill -P`（直下の子だけ）をやめ、`pgrep -P` で子孫を再帰的に（深さ 6 まで）集めて葉の側から `kill -KILL` + `Process.Kill()`。確度は推定のまま（.NET / Mono の `WaitForExit()` の仕様と ssh の挙動。実際にパイプを掴む子孫を作って再現はしていない。Windows 上の開発 PC では非 Windows の分岐は未実行 = **未検証**）。テスト: `GitProcessTests`（`git --version` の成功と台帳が空に戻ること・キャンセル済みトークンで到達しない宛先へ → 15 秒以内に戻り台帳が空）。
 
 ### FX-R-06. 【PC-R-03】ドメインリロード中の後始末と `_busyTask` の残り
 
 - **場所**: `Editor/Update/UpdateWindow.cs:151-156`（`OnDisable` は `Cancel` するだけで終わりを待たず、`_busyTask` も null に戻さない）
 - (a) スクリプトの再コンパイル（または Play Mode 突入時のドメインリロード）で `OnDisable` → `Cancel` の直後にドメインが破棄されると、`GitProcess` のループ（100 ms ごとに確認）が `KillTree` に届く前にワーカースレッドが止まり、git が孤児として残る（タイムアウトの監視も消える。到達できないホストへの接続なら長く残る）。(b) ドメインリロードを伴わない `OnDisable` → `OnEnable` が起きた場合、`_busyTask` が非 null のまま `PollBusy` の購読が外れているので、以後のボタンが「別の確認が進行中です」で動かない（ウィンドウを閉じ直すまで）。Unity がドメインリロードなしに EditorWindow の `OnDisable` を呼ぶ場面があるかは**推定**。直し方: `OnDisable`（と `AssemblyReloadEvents.beforeAssemblyReload`）で `Cancel` の後に `_busyTask.Wait(1000)` 程度だけ待ち（`GitProcess` は 100 ms で気づく）、`_busyTask` / `_busyContinuation` を null にする。確度: 推定（Mono のドメイン破棄時のスレッドの扱い）
+- → 対応（修正ラウンド 3、2026-10-04、`1f2f20d`）: **修正**。(a) `GitProcess` が実行中の `Process` を台帳（`Running`）に持ち、`AssemblyReloadEvents.beforeAssemblyReload` と `EditorApplication.quitting`（`[InitializeOnLoadMethod]` で登録）で `KillAllRunning()` を呼んでツリーごと止める。`OnDisable` は `Cancel` の後に `_busyTask.Wait(1500)` で短く待つ。(b) `OnDisable` で `_busyTask` / `_busyContinuation` / `_busyCts` を戻し、進捗バーを隠す（ドメインリロードなしの `OnDisable` → `OnEnable` で操作が「進行中」で効かなくなるのを防ぐ）。確度: 推定（Unity が `OnDisable` をドメインリロードなしで呼ぶ場面があるか、Mono のドメイン破棄時のスレッドの扱い）。実際の再コンパイル中の `git` の残り方は未確認（[43] 15-17a の人による確認）。
 
 ### FX-R-07. 【PC-R-02】正式版が無くプレリリースだけのとき、「更新先の版」の既定がプレリリースになり 1 クリックで書ける
 
 - **場所**: `Editor/Update/UpdateWindow.cs:1005`（`dropdown.value = check.LatestTag ?? choices[0];`）・`:1006-1007`（更新ボタンを出す）
 - 「自動では勧めない」と表示しつつ、既定の選択値が最新のプレリリースで、そのまま「manifest を選んだ版に更新する」を押せる。URL 入力の新規導入（`PackageAddPlanner`）は「`#<タグ名>` を付けて入力」で止めているのと揃っていない。直し方: `LatestTag == null` のときは既定を空（または「選んでください」）にしてボタンを無効にする、または確認ダイアログの見出しに「（プレリリース）」を出す。確度: 確認済み
+- → 対応（修正ラウンド 3、2026-10-04、`1f2f20d`）: **修正**。`LatestTag == null`（正式版が無くプレリリースだけ）のとき、「更新先の版」を `index = -1`（何も選ばない）にし、「manifest を選んだ版に更新する」を未選択で押したら警告して何もしない。メッセージも「使うときは『更新先の版』から明示的に選んでください」に。[42] §4.2.1・consumer guide に記載。
 
 ### FX-R-08. 【PC-R-02】`GitTag.TryParse` は 2 区間・4 区間の版（`v1.5`・`v1.5.0.1`）も受け付ける（コメントと食い違う）
 
 - **場所**: `Editor/Update/GitTag.cs:30-31`（コメント「`v1.5` は false」）・`:55`（`Version.TryParse(core, …)` は 2〜4 区間を受け付ける）
 - `v1.5` は `Version(1,5)`（Build = -1 で `v1.5.0` より小さい）、`v1.5.0.1` は `v1.5.0` より新しい PATCH として「最新」に勧められる。旧 `SemVer.TryParse` も同じだったので P-14 からの変化ではないが、`vX.Y.Z` 形式だけを扱う、という [42] §4.2.1 の記述と揃えるなら 3 区間だけにする（または docs とコメントを実装に合わせる）。テスト（`PrereleaseTagTests` の拒否表）に `v1.5` / `v1.5.0.1` を足す。確度: 確認済み
+- → 対応（修正ラウンド 3、2026-10-04、`1f2f20d`）: **修正**（`vX.Y.Z` だけを版として扱う = P-15 の規則に実装を合わせた）。`GitTag.TryParse` が数値部を `.` で分けて 3 区間でなければ読まない（`v1.5`・`v1.5.0.1` は false）。`PrereleaseTagTests` の拒否表に 2 件追加。CHANGELOG に記載（P-14 の `SemVer.TryParse` は 2〜4 区間を受け付けていたが、そのようなタグは通常存在しない）。
 
 ### FX-R-09. 【FC-R-01】`KeepsExistingUnknownShader` は、元の `.mat` を標準シェーダーに戻したときにも効く
 
 - **場所**: `Editor/Material/UnityMaterialMigrator.cs:136`・`:160-169`
 - 判定は「既存 Data のシェーダーが知らないシェーダーか」だけで、元の `.mat` のシェーダーを見ない。デザイナーが `.mat` を Toon から URP Lit に戻して右クリック作成をやり直すと、ダイアログは出ず（知らないシェーダーが無い）、`Ask` の既定 `ConvertKeepingExisting` で既存 Data は Toon のまま変わらない（ログも出ない）。直し方: 「既存を保つ」のは元の `.mat` も知らないシェーダー（または欠けている = FX-R-02）のときだけにする。CHANGELOG の FC-R-01 の項の「非対話 + `Ask`」は、対話的な操作でもダイアログが出なかった場合に同じ扱いになることを含めて書く。確度: 確認済み
+- → 対応（修正ラウンド 3、2026-10-04、`c26e7cf`）: **修正**。`KeepsExistingUnknownShader` は、元の `.mat` 自身も知らないシェーダー（`target == null && IsUnknown(source.shader)`）のときだけ保つ。元の `.mat` を URP Lit 等へ戻したときは従来どおり `DDrive/Lit` へ変換し、保ったときは変換ログに記録する。CHANGELOG の FC-R-01 の項に「ダイアログが出なかった対話的な操作も同じ扱い」「元の `.mat` が知らないシェーダーのときだけ」を明記。テスト: `ExistingKeptUnknownShader_IsConverted_WhenSourceMaterialWentBackToAStandardShader`。
 
 ### FX-R-10. 【PC-R-04 設計】重なる登録の「内側が先」は、「外側ほど強い」と逆向きになる組み合わせがある
 
 - **場所**: `Runtime/Canvas/UiManager.cs:1476-1489`（段の中は `RootPath` の深い順）、`Tests/Runtime/EmbeddedCanvasTests.cs:432`（`OverlappingEmbedRegistrations_ApplyEachElementFxOnlyOnce`）、docs/07 優先順位
 - Hud が `OptionRoot`（Option）と `OptionRoot/Inner`（Volume）を重ねて登録すると、Option 自身の行 `Inner/Deep` と Volume の行 `Deep`（同じ要素）では **Volume が勝つ**。一方、正しい形（Option 自身が `Inner` に Volume を埋め込む）では外側の Option が勝つ。つまり、冗長な登録を 1 本足すと Option と Volume の優先が入れ替わる。上記テストはこの「入れ替わり」を固定している。docs/07 には書かれており Validator も Warning（`DD-CANVAS-EMBED-NESTED-ROOT`）を出すので実害は小さいが、v1.4.0 で意味が固定されるので、意図した規則かをタグ前に確認したい（「外側ほど強い」に揃えるなら、同じ親の重なる登録は浅い方を先にし、二重適用は担当表で防げる）。確度: 確認済み（コード読み）
+- → 対応（修正ラウンド 3、2026-10-04、`f505e23` + docs 更新コミット）: **まとめ役の決定どおり**。実行時の挙動は変えず、規則を 2 つに分けて [07] の「優先順位」に表で書いた（(A) **外側が勝つ** = Open した CanvasData 自身の行・配線は埋め込みの子の設定に勝つ。外側ほど強い / (B) 同じ親の中で重なる登録は**設定の誤り**（Validator の Warning `DD-CANVAS-EMBED-NESTED-ROOT` のまま）で、実行時は**より内側（具体的）な登録がその配下の要素を担当**する。(B) の中では「外側が勝つ」ではない）。`UiManager` のコメント・テスト名（`OverlappingEmbedRegistrations_InnerRegistrationOwnsItsSubtree_ButtonWiredOnce` / `_FxAppliedOnce`）を合わせ、CHANGELOG の U-28 の項・DesignerManual（canvas-data / canvas-editor）・ProgrammerManual（ui-api）の文言も揃えた。[43] 16-25 に確認項目を追加（重なる形と正しい形で、どちらが効くか）。
 
 ### FX-R-11. 【互換・CHANGELOG】D-Drive 自身の更新チェックで認証プロンプトが出なくなった（記載漏れ）
 
 - **場所**: `Editor/Update/GitProcess.cs:163-165`（`GIT_TERMINAL_PROMPT=0` / `GCM_INTERACTIVE=never` / `GIT_LFS_SKIP_SMUDGE=1`・標準入力を閉じる）、`GitCliTagLister.cs`（v1.3.1 の P-14 は環境変数なしで `git ls-remote` を起動していた）
 - v1.3.1 では、D-Drive の「最新の版を確認」で資格情報が切れていると Git Credential Manager のログイン画面が出て、入力すれば続けられた。v1.4.0 では出ずに「git ls-remote: …Authentication failed」等の警告で終わる（認証ヘルパーのキャッシュが有効なら従来どおり動く）。docs/42 §4.2.1 には書かれているが、CHANGELOG の「互換性」節（PC-R-01・03・21 の項）は「Editor を止めずに実行」としか書いておらず、MS2026 で「更新チェックが急に失敗するようになった」と受け取られうる。項に 1 文（「認証の対話プロンプトは出さない。失敗したら一度 `git fetch` 等で資格情報を更新してから押し直す」）を足す。確度: 確認済み（コード読み。GCM の画面が出なくなることは環境変数の仕様からの推定）
+- → 対応（修正ラウンド 3、2026-10-04、docs 更新コミット）: **修正**（記載漏れ）。CHANGELOG の互換性節（P-15・PC-R-01 の項）に「認証の対話プロンプトは出さない（`GIT_TERMINAL_PROMPT=0` / `GCM_INTERACTIVE=never`）。未認証だと警告で失敗する。先に `git ls-remote` / `git fetch` で資格情報を更新してから押し直す」を v1.3.1 との差として追記。`docs/50_consumer_guide/update.html` に「認証が必要なリポジトリ（private）の前提」を機能として追記（以前との比較は書かない）。[42] §4.2.1 にも明記。[43] 15-17a に確認項目。
 
 ### FX-R-12. 【docs】CHANGELOG・対応記録の古い記述・食い違い
 
@@ -130,6 +177,7 @@
 - [53] FC-R-09 の対応記録「既存 4 種は外部コードを呼ばない」（FX-R-03）、FC-R-03 の対応記録「Host / Client とも同じ」（FX-R-01）
 - `GitTag.cs:30-31` のコメント（FX-R-08）
 - 直し方: タグ前に `[Unreleased]` を「v1.3.1 から見た最終形」に整理する（未リリースの中間状態の打ち消しを畳む）。確度: 確認済み
+- → 対応（修正ラウンド 3、2026-10-04、docs 更新コミット）: **修正**。CHANGELOG: FC-15 の「非対話の経路は従来どおり（結果は不変）」→ 新規は従来どおり Lit・既存 Data の知らないシェーダーは保つ、に訂正 / FC-11 の項から internal / private にしたメンバー（`HasPassesOrKeywords`・`ContainsIgnoreCase`）の「公開 API に追加」を削除 / P-15 の「浅い sparse clone」→ `--no-checkout` + `git show` / U-28 の「以前は…」（未リリースの中間状態との比較）→ v1.3.1 から見た最終形（優先の 2 つの規則）/ FC-R-03 の項を最終形に。[53] FC-R-03・FC-R-09 の対応記録に訂正を注記。`GitTag.cs` のコメントは実装に一致（FX-R-08）。`[Unreleased]` 全体の再編（未リリースの中間状態の打ち消しを完全に畳む）は、記述の矛盾が残る 4 か所を直す範囲にとどめた（**見送り**: 全項目の書き直しは情報量が大きく、内容の欠落リスクがあるため）。
 
 ### FX-R-13. 【テスト】修正に対するテストの抜け
 
@@ -141,11 +189,13 @@
 - `EmbeddedCanvasPathsTests` のリフレクションは型名・メソッド名の改名で `GetType` が null → `NullReferenceException` になる（`RuntimeAndEditorCopies_ExistAndAreNotPublic` が先に存在を確かめるので理由は分かる）。表で当てる方式は妥当
 - 修正前に失敗し修正後に通るか: `Markers_AtZero_FireOnFirstTick_WhenPlayedFromStart`・`E20_MarkerAtZero_FiresOnFirstTick_*`・`Migrate_AskNonInteractive_DoesNotOverwriteExistingKeptUnknownShader`・`MissingShader_IsNotUnknown_AndIsNeverKept`・`OverlappingEmbedRegistrations_*`・`ParentButtonWire_OnlyWinsForTheSameTrigger_*`・`ChildButtonWire_SendSignal_ElementPathIsChildRooted_*`・`PrereleaseTagTests` の主要ケースは、いずれも修正前のコードでは失敗する内容（読んだ範囲）。`UntaggedPassRenderTests` は GPU の無い環境で Inconclusive（CI では実質検証されない）。実 git・実ネットワーク・実 manifest に触れるテストは無い（`ManagedPackageRowsTests` の実設定ファイルは [54] PC-R-17 のとおり `TearDown` 付きで残る）。static の差し替え口（`PromptOverrideForTests` / `ProfileOverrideForTests` / `SourceDataCreation._materialHandling`）はテストの `TearDown` / `finally` で戻る
 - 確度: 確認済み
+- → 対応（修正ラウンド 3、2026-10-04）: FX-R-01 = `CutsceneNetMarkerSymmetryTests`（受信のテスト 5 件）/ FX-R-02 = `UnknownShaderPolicyTests` の 2 系統（3 方針の既存 Data 保持・欠けた参照の検出）/ FX-R-04 = Edit Mode の判定の幅 2 件 / FX-R-03 = 再入 4 件 / FX-R-14 = `E19_NonPublicListener_IsNotDiscovered` / FX-R-08 = 拒否表 2 件。**見送り**: FC-R-01 の `CreateFromSelection` の流れ（キャンセルで何も作らない・`EndBatch` が必ず呼ばれる）のテスト — `Selection` の差し替えか対象パスを渡す内部の入口が要り、小さく安全とは言えないため（`BeginBatch` の回数・戻り値のテストは既存）。`EmbeddedCanvasPathsTests` のリフレクションは現状維持（改名時に理由が分かる形）。`UntaggedPassRenderTests` が GPU の無い環境で Inconclusive な点は変更なし。
 
 ### FX-R-14. 【FC-R-14 の見送り】リスナーの発見規則（internal 型も拾う）はタグ前に決める方が安い
 
 - **場所**: `Editor/Cutscene/ICutsceneImportListener.cs`（`Discover` が `IsPublic` を見ない）、docs/42 §5.14 E-19（「public な `ICutsceneImportListener`」）
 - 見送りの理由「発見規則を変えると外部の既存実装の挙動が変わりうる」は、v1.4.0 が未リリースで外部実装がまだ無い今は当たらない。タグ後に「public だけ」に絞ると、internal で書かれた外部リスナーが黙って呼ばれなくなる（E-19 の文面どおりにするための変更が、実質的な挙動の変更になる）。タグ前に `ExtensionPointDiscovery` に寄せる（public だけ）か、E-19 の文面を「internal 型も含む」に直すかのどちらかに決める。キャッシュ（毎回発見し直す件）は後回しでよい。確度: 確認済み
+- → 対応（修正ラウンド 3、2026-10-04、`8c92dee` + docs 更新コミット）: **タグ前に決めた**。`CutsceneImportListeners.Discover` を **public な型だけ**（入れ子なら public な入れ子）にし（他の取り込み拡張点 = `ExtensionPointDiscovery` と同じ。E-19 の文面どおり。v1.4.0 が未リリースなので v1.3.1 から見て挙動の変更ではない）、[42] §5.14 に外部拡張点の**発見規則**を明文化した: (1) public な型 (2) 非 abstract・非 interface・ジェネリック型定義でない (3) public な引数なしコンストラクタ (4) アセンブリ名が `DDrive.Tests` で始まらない。internal / private・引数付きだけの型は黙って対象外。コンストラクタの例外は隔離。並びは `Order` 昇順 / 型のフルネーム順。インスタンスの生存期間は規定しない（毎回新しい / 使い回しのどちらもありうる = 状態を持たない。キャッシュを後で入れても契約を破らない）。テスト: `E19_NonPublicListener_IsNotDiscovered`（internal のダミーが発見されない）。
 
 ---
 

@@ -318,9 +318,16 @@ public static class Ui
 | `ButtonWire` | **(要素, トリガー)**（`Click` / `DoubleClick` / `LongPress` / `Repeat`） | 親が `OptionRoot/BtnX` の `Click` だけ配線していれば、子の同じ要素の `Click` は使われないが、子の `LongPress` の配線は使われる |
 | `SliderWire` | **(要素, トリガー)**（`Changed` / `Commit` / `NotchPassed` / `LimitReached`） | ボタンと同じ |
 
-**優先順**: Open した `CanvasData` 自身の行 > 浅い入れ子の子 > 深い入れ子の子（外側ほど強い = 孫 < 子 < 親）。親の行は、その要素が見つからなくても（適用できなくても）担当として数える。同じ `CanvasData` が**重なる登録**（`OptionRoot` と `OptionRoot/Inner` の両方）を持つときは、**内側（`RootPath` が深い方）の登録が先に担当する**。= 既存データ（長いパスの行）はそのまま動き、使う場所ごとの上書きにも使える。実装は Open 時に作る担当表（`UiManager.EmbedClaims`。Open した Canvas のルート基準のパス + トリガーの集合）で、同じ要素に配線・演出が二重に付かない（ボタン 1 回で `OpenCanvas` / `SendSignal` が 2 回走らない）。子の `ElementPath` が空（子のルート自身）の行は従来どおり対象外（`root.Find("")` は null）。子ルート自身を動かしたいときは親側に `RootPath` を `ElementPath` にした行を書く。
+**優先順は 2 つの別の規則（2026-10-04 ラウンド 3、レビュー FX-R-10 で整理）**:
 
-**入れ子の入れ子と重なる登録の関係**: 入れ子の入れ子は、**子の `CanvasData` 自身が `Inner` を埋め込みとして持つ**形（Hud → Option → Volume）が基本。親（Hud）の `EmbeddedCanvases` に `OptionRoot` と `OptionRoot/Inner` の両方を登録すると同じ要素に Option と Volume の設定が重なる。実行時は上のとおり 1 回だけ適用する（内側の登録が先）が、Validator が `DD-CANVAS-EMBED-NESTED-ROOT`（Warning）で知らせ、Canvas Editor の「入れ子 Prefab から検出」は、他の候補・登録済みの埋め込みルートの**配下**にある入れ子 Prefab（= 入れ子の入れ子）を提案しない（その子 Canvas 自身の Canvas Editor で登録する。手で「+ 手動で追加」することは妨げない）。Unity の `PrefabUtility.IsAnyPrefabInstanceRoot` は、親 Prefab の中の入れ子の入れ子の Prefab インスタンスでも真になる（実際に確認した）ので、この除外が要る。
+| | 規則 | 対象 | 内容 |
+|---|---|---|---|
+| (A) | **外側が勝つ** | Open した `CanvasData` 自身の行・配線 vs 埋め込みの子の設定 | Open した `CanvasData` 自身の行 > 浅い入れ子の子 > 深い入れ子の子（外側ほど強い = 孫 < 子 < 親）。親の行は、その要素が見つからなくても（適用できなくても）担当として数える。子の設定を使う場所ごとに上書きできる。**これが正しい使い方**（Hud → Option → Volume のように、子が自分の入れ子を持つ形も同じ規則） |
+| (B) | **内側（具体的）が配下を担当する** | 同じ親の中で**重なる登録**（`OptionRoot` と `OptionRoot/Inner` の両方を親の `EmbeddedCanvases` に書く） | **設定の誤り**（Validator が `DD-CANVAS-EMBED-NESTED-ROOT` の Warning）。実行時は壊れないよう、`RootPath` が深い方（より具体的な登録）がその配下の要素を先に担当する。= 既存データ（長いパスの行）はそのまま動く。(A) とは別の規則で、(B) の中での優先は「外側が勝つ」ではない（`OptionRoot/Inner` 配下の要素では、`OptionRoot` の Option の行より `OptionRoot/Inner` の Volume の行が先）。重なる登録を直す（Option 自身が `Inner` に Volume を埋め込む形にする）と、(A) の規則に戻る |
+
+上の 2 つのどちらでも、1 つの要素（ボタン / スライダーは (要素, トリガー)）は 1 回だけ適用される。実装は Open 時に作る担当表（`UiManager.EmbedClaims`。Open した Canvas のルート基準のパス + トリガーの集合）で、同じ要素に配線・演出が二重に付かない（ボタン 1 回で `OpenCanvas` / `SendSignal` が 2 回走らない）。子の `ElementPath` が空（子のルート自身）の行は従来どおり対象外（`root.Find("")` は null）。子ルート自身を動かしたいときは親側に `RootPath` を `ElementPath` にした行を書く。
+
+**入れ子の入れ子と重なる登録の関係**: 入れ子の入れ子は、**子の `CanvasData` 自身が `Inner` を埋め込みとして持つ**形（Hud → Option → Volume）が基本。親（Hud）の `EmbeddedCanvases` に `OptionRoot` と `OptionRoot/Inner` の両方を登録すると同じ要素に Option と Volume の設定が重なる。実行時は上の (B) のとおり 1 回だけ適用する（内側の登録が先）が、Validator が `DD-CANVAS-EMBED-NESTED-ROOT`（Warning）で知らせ、Canvas Editor の「入れ子 Prefab から検出」は、他の候補・登録済みの埋め込みルートの**配下**にある入れ子 Prefab（= 入れ子の入れ子）を提案しない（その子 Canvas 自身の Canvas Editor で登録する。手で「+ 手動で追加」することは妨げない）。Unity の `PrefabUtility.IsAnyPrefabInstanceRoot` は、親 Prefab の中の入れ子の入れ子の Prefab インスタンスでも真になる（実際に確認した）ので、この除外が要る。
 
 **子の `ButtonWire` / `SliderWire` のアクションの意味（埋め込み時）**: 子の配線は「親を Open した `CanvasInstance` のハンドル」に対して実行される。
 
@@ -424,7 +431,7 @@ Prefab Missing (Error) / CollisionLayer 未定義値 (Error) / Kind=Projectile �
 
 ### 追記（2026-10-03、レビュー [54] PC-R-04/06/08/18 の対応 — 埋め込みの確定仕様）
 
-- **担当の単位・優先順・重なる登録**は上の「優先順位」のとおり確定（ElementFx は要素単位、ボタン / スライダーは (要素, トリガー) 単位。重なる登録は内側が先。実行時は 1 要素 1 回）。
+- **担当の単位・優先順・重なる登録**は上の「優先順位」のとおり確定（ElementFx は要素単位、ボタン / スライダーは (要素, トリガー) 単位。優先の規則 (A) 外側が勝つ・(B) 重なる登録は内側が配下を担当（設定の誤り）。実行時は 1 要素 1 回）。
 - **`SendSignal` の `ElementPath` は子のルート基準**（以前は親ルート基準で、受け手が「単独で開いたとき」と「埋め込まれたとき」の両対応を迫られた）。埋め込みの位置は新しい `SignalArgs.EmbeddedRootPath` に分けた（`SignalArgs` に欄と 5 引数のコンストラクタ、`UiManager.SendSignal` に 5 引数のオーバーロードを追加。既存の署名は変えていない = 追加のみ）。v1.4.0 のタグ前の変更で、v1.3.1 以前の挙動（親自身の配線・単独 Open）は変わらない。
 - `CloseSelf`（子の配線）= 開いた親を閉じる、のまま（確定）。
 - `EmbeddedCanvasPaths`（`Combine` / `TryToChildPath` / `IsJoinedPath`）は **internal 化**（`DDrive.Runtime` の公開 API に汎用の文字列ユーティリティを残さない）。`IsJoinedPath` は担当表方式で不要になり削除。Editor は同じ規則の internal 複製（`Editor/Canvas/EmbeddedPaths.cs`）を持ち、両者の一致はリフレクションのテストで固定。

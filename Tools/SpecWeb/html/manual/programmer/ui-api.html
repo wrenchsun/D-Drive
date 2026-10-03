@@ -163,7 +163,7 @@ sub.Dispose();</code></pre>
 <ul>
 <li><strong>子の <code>CanvasData</code> は Preload しておく</strong>（<code>Flags.Load = Preload</code>）。Open 時に Registry から同期解決するため、読み込まれていないと警告を 1 回出してその埋め込みだけスキップします。</li>
 <li><strong>子の配線は親の <code>Handle</code> に対して実行されます</strong>。<code>SendSignal</code> を購読すると、<code>args.Canvas</code> は親のハンドル（開いた Canvas）、<code>args.ElementPath</code> は<strong>子の <code>CanvasData</code> のルート基準のパス</strong>（<code>BtnX</code>。子を単独で開いたときと同じ値）、<code>args.EmbeddedRootPath</code> は<strong>開いた Canvas のルートから見た、その子の埋め込みルートのパス</strong>（<code>OptionRoot</code>。入れ子の入れ子は最外のルートからの連結 <code>OptionRoot/Inner</code>。親自身の配線・単独で開いたときは空文字）で届きます。= 受け手は <code>Key</code> / <code>ElementPath</code> で、単独でも埋め込みでも同じ書き方で動きます。どこに埋め込まれたかが要るときだけ <code>EmbeddedRootPath</code> を使います。子の <code>CloseSelf</code> は<strong>親を閉じます</strong>。</li>
-<li>親の <code>CanvasData</code> に同じ要素（親から見たパス）の行があれば<strong>親の行が優先</strong>されます（子の設定を使う場所ごとに上書きできます）。優先の単位は、ElementFx が<strong>要素</strong>、ボタン・スライダーの配線が<strong>要素 + トリガー</strong>（親が Click だけ配線していれば子の LongPress の配線は使われます）で、1 つの要素の設定は 1 回だけ適用されます（優先順は、開いた Canvas 自身 &gt; 浅い入れ子の子 &gt; 深い入れ子の子。重なる登録は内側が先）。Navigation / FirstSelected / レイヤー既定 / 開閉演出 / Layer は親のものです。</li>
+<li>親の <code>CanvasData</code> に同じ要素（親から見たパス）の行があれば<strong>親の行が優先</strong>されます（子の設定を使う場所ごとに上書きできます）。優先の単位は、ElementFx が<strong>要素</strong>、ボタン・スライダーの配線が<strong>要素 + トリガー</strong>（親が Click だけ配線していれば子の LongPress の配線は使われます）で、1 つの要素の設定は 1 回だけ適用されます（優先順は、開いた Canvas 自身 &gt; 浅い入れ子の子 &gt; 深い入れ子の子。同じ親の中で重なる登録は設定の誤りで、実行時はより内側の登録がその配下の要素を担当します）。Navigation / FirstSelected / レイヤー既定 / 開閉演出 / Layer は親のものです。</li>
 </ul>
 <pre><code>// Hud を開くだけで、中に入れ子で入っている Option の演出・配線も効く
 var h = Ui.Open(CANVASID.Hud);

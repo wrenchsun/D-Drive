@@ -223,8 +223,8 @@ public sealed class MyMarker : Marker, ICutsceneMarker
 }</pre>
 <table>
 <tr><th>項目</th><th>内容</th></tr>
-<tr><td>呼ばれるとき</td><td>再生位置が時刻を跨いだ Tick で 1 回。最初から再生したとき（開始位置 0）は、ちょうど 0 秒に置いたマーカーも最初の Tick で呼ばれます。巻き戻しても再発火しません。1 Tick で複数跨いだら時刻順に呼ばれます。Timeline 上端のマーカー領域に置いたマーカーも対象です</td></tr>
-<tr><td>呼ばれないとき</td><td><code>Seek</code> / <code>Skip</code>・ネットワークの途中参加（Late Join）で跨いだ分（開始位置ちょうどを含む）は無音。Edit Mode ではスクラブ（Timeline ウィンドウが再生中でない）・途中からの再生開始位置まで・巻き戻しも無音（先頭からの再生では 0 秒のマーカーも呼ばれます）。<code>Fire</code> の中でカットシーンを止めたときは、同じ Tick の残りのマーカーは呼ばれません。<code>CutsceneDirectorContext.FireEnabled</code> が false の間も呼ばれません</td></tr>
+<tr><td>呼ばれるとき</td><td>再生位置が時刻を跨いだ Tick で 1 回。最初から再生したとき（開始位置 0）は、ちょうど 0 秒に置いたマーカーも最初の Tick で呼ばれます。ネットワーク再生（Cosmetic）の受信側も、新規の再生開始（開始位置が 0.5 秒以内）なら通信遅延の間に過ぎたマーカー（0 秒を含む）が最初の Tick で 1 回ずつ呼ばれ、送信側と同じ回数になります。巻き戻しても再発火しません。1 Tick で複数跨いだら時刻順に呼ばれます。Timeline 上端のマーカー領域に置いたマーカーも対象です</td></tr>
+<tr><td>呼ばれないとき</td><td><code>Seek</code> / <code>Skip</code>・ネットワークの途中参加（Late Join。開始位置が 0.5 秒を超える受信）で跨いだ分（開始位置ちょうどを含む）は無音。Edit Mode ではスクラブ（Timeline ウィンドウが再生中でない）・途中からの再生開始位置まで・巻き戻しも無音（再生を始める直前の位置が先頭（0 秒）のときは 0 秒のマーカーも呼ばれます）。<code>Fire</code> の中でカットシーンを止めたときは、同じ Tick の残りのマーカーは呼ばれません（他のカットシーンを止めても、再生中のカットシーンの進行は乱れません）。<code>CutsceneDirectorContext.FireEnabled</code> が false の間も呼ばれません</td></tr>
 <tr><td>例外</td><td>マーカーごとに捕まえて Console に出し、他のマーカーと再生は続きます</td></tr>
 <tr><td>ネットワーク</td><td>呼び出しは各クライアントのローカル処理で、ネットワークには流れません（Cosmetic のカットシーンなら各クライアントが同じ時刻に自分で呼びます）。全員で同じ結果が要る処理は、外部側で同期してください</td></tr>
 <tr><td>実装の注意</td><td><code>Fire</code> は Tick 内で呼ばれるので、割り当て・LINQ・クロージャを避けてください。<code>Marker</code> は <code>ScriptableObject</code> なので、<code>Reset</code> など Unity が特別扱いするメソッド名を static で定義しないでください。<code>ICutsceneMarker</code> を実装しない <code>Marker</code> は無視されます</td></tr>
