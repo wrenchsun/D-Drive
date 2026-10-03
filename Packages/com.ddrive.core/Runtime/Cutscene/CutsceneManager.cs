@@ -105,6 +105,15 @@ namespace DDrive.Runtime.Cutscene
 
         private readonly InstanceStore<CutsceneMarker, CutsceneInstance> _instances = new();
         private readonly List<Handle<CutsceneMarker>> _active = new();
+
+        // 受信した CutscenePlayMsg の開始位置(NetworkTime − StartNetTime)がこの秒数以内なら「新規の再生開始」とみなす
+        // (FX-R-01、2026-10-03)。値は PresentationManager の remoteOneShotGraceSec(既定 0.5 秒、docs/14「6-0 修正6」。
+        // 実機 200ms 遅延の確認 = docs/29 §8 で、通信遅延 + 位相誤差が収まる範囲として決めた値)に合わせる。
+        private const double RemoteFreshStartGraceSec = 0.5d;
+
+        // Tick の走査用の写し(再利用。マーカー / イベントの購読者が走査中に Stop / Play しても添字がずれない。FX-R-03)。
+        private readonly List<Handle<CutsceneMarker>> _tickBuffer = new();
+        private bool _inTick;
         private readonly Stack<CutsceneDirectorSlot> _freeDirectors = new();
         private readonly HashSet<string> _unresolvedBindingWarned = new();
         // FC-1: ApplyBindings の 2 パス用の再利用バッファ(Bindings と同じ添字。使用後 Clear)。
@@ -235,7 +244,8 @@ namespace DDrive.Runtime.Cutscene
             ushort seed,
             uint handleNetKey,
             bool isNetworked,
-            bool playedViaNetworkReceive)
+            bool playedViaNetworkReceive,
+            bool catchUpFireMarkers = false)
         {
             var slot = RentDirector();
             var duration = data.Timeline != null ? data.Timeline.duration : 0d;
@@ -268,7 +278,10 @@ namespace DDrive.Runtime.Cutscene
             // 無音でスキップする(PresentationManager の SeekInitialTracks と同じ方針)。
             // elapsedSeek==0(最初から再生)は何も跨がないので追い付かせない = 時刻 0 のマーカーも最初の Tick で発火する
             // (2026-10-03、FC-R-03。既存の Event / Signal / Shake / Haptic も同じ)。
-            if (instance.Elapsed > 0d)
+            // catchUpFireMarkers(2026-10-03 ラウンド 3、FX-R-01): ネット受信側の「新規の再生開始」(開始位置 =
+            // 通信遅延ぶん。RemoteFreshStartGraceSec 以内)は、開始位置までの区間 [0, 開始位置] のマーカーを無音で飛ばさず
+            // カーソル 0 のまま始め、最初の Tick で 1 回ずつ発火する(送信側の予測再生と発火回数を揃える)。
+            if (instance.Elapsed > 0d && !catchUpFireMarkers)
             {
                 AdvanceMarkers(instance, instance.Elapsed, fire: false);
             }
@@ -661,8 +674,20 @@ namespace DDrive.Runtime.Cutscene
         // カーソルだけ進める(PresentationManager の SeekInitialTracks/ワンショットスキップと同じ方針)。
         private void AdvanceMarkers(CutsceneInstance instance, double newElapsed, bool fire)
         {
+            // 各段の発火で外部コード(Event の購読者・Signal の OnMarker・外部マーカー)が呼ばれ、このカットシーンが
+            // 止められうる(FX-R-03)。止められたら、残りの段(破棄済みの Subject への OnNext・Shake・Haptic 等)は呼ばない。
             AdvanceEventMarkers(instance, newElapsed, fire);
+            if (fire && !_instances.IsValidSilent(instance.Handle))
+            {
+                return;
+            }
+
             AdvanceSignalMarkers(instance, newElapsed, fire);
+            if (fire && !_instances.IsValidSilent(instance.Handle))
+            {
+                return;
+            }
+
             AdvanceShakeMarkers(instance, newElapsed, fire);
             AdvanceHapticMarkers(instance, newElapsed, fire);
             AdvanceExternalMarkers(instance, newElapsed, fire);
@@ -687,6 +712,10 @@ namespace DDrive.Runtime.Cutscene
                 if (fire && IsFireEnabled(instance))
                 {
                     _events.RaiseAdHoc(instance.EventCtx, marker.Event);
+                    if (!_instances.IsValidSilent(instance.Handle))
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -702,6 +731,10 @@ namespace DDrive.Runtime.Cutscene
                 if (fire && IsFireEnabled(instance))
                 {
                     instance.MarkerSubject.OnNext(marker.Key);
+                    if (!_instances.IsValidSilent(instance.Handle))
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -1043,7 +1076,11 @@ namespace DDrive.Runtime.Cutscene
                 }
             }
 
-            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true);
+            // FX-R-01: CutscenePlayMsg は「新規の再生開始」と「Host の Late Join 再送」で同じ形(再送も元の StartNetTime のまま)
+            // なので、受信側は種類では区別できない。開始位置(= 発信からの経過時間)が通信遅延として妥当な範囲なら新規開始とみなし、
+            // 開始までに過ぎたマーカーも発火する。それより大きければ Late Join として無音(従来どおり)。
+            var freshStart = elapsed <= RemoteFreshStartGraceSec;
+            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true, catchUpFireMarkers: freshStart);
 
             if (_instances.TryGet(handle, out var instance))
             {
@@ -1173,10 +1210,12 @@ namespace DDrive.Runtime.Cutscene
         // (PresentationManager.CancelAllNetworked と同じ設計。呼び出しは Bootstrap から)。
         public void CancelAllNetworked()
         {
-            for (var i = _active.Count - 1; i >= 0; i--)
+            // 完了 / 中止通知の購読者が他のカットシーンを止めても添字がずれないよう、写しを回す(FX-R-03)。
+            var snapshot = _active.ToArray();
+            for (var i = snapshot.Length - 1; i >= 0; i--)
             {
-                var handle = _active[i];
-                if (_instances.TryGet(handle, out var instance) && !instance.Done && instance.IsNetworked)
+                var handle = snapshot[i];
+                if (_instances.TryGetQuiet(handle, out var instance) && !instance.Done && instance.IsNetworked)
                 {
                     CancelInternal(handle, instance);
                 }
@@ -1444,43 +1483,64 @@ namespace DDrive.Runtime.Cutscene
 
         public void Tick(float dt)
         {
-            for (var i = _active.Count - 1; i >= 0; i--)
+            // 走査は写し(_tickBuffer)に対して行う(FX-R-03、2026-10-03)。マーカー / イベント / 完了通知の購読者が
+            // Tick 中に自分・他のカットシーンを Stop し、または新しく Play しても、添字がずれて同じ Tick で二重に進む・
+            // 飛ばす・範囲外になることがない。写しにある Handle が既に無効なら飛ばし、Tick 中に Play されたものは
+            // 次の Tick から進める。写しは再利用なので定常経路で割り当てない。
+            if (_inTick)
             {
-                var handle = _active[i];
-                if (!_instances.TryGet(handle, out var instance))
+                return; // 購読者の中から Tick を呼び直された場合(通常は無い)。入れ子で二重に進めない。
+            }
+
+            _inTick = true;
+            try
+            {
+                _tickBuffer.Clear();
+                _tickBuffer.AddRange(_active);
+
+                for (var i = _tickBuffer.Count - 1; i >= 0; i--)
                 {
-                    _active.RemoveAt(i);
-                    continue;
+                    var handle = _tickBuffer[i];
+                    if (!_instances.TryGetQuiet(handle, out var instance))
+                    {
+                        _active.Remove(handle);
+                        continue;
+                    }
+
+                    if (instance.Paused)
+                    {
+                        continue;
+                    }
+
+                    instance.Elapsed += (double)dt * instance.Speed;
+
+                    if (instance.Slot?.Director != null)
+                    {
+                        instance.Slot.Director.time = System.Math.Min(instance.Elapsed, System.Math.Max(0d, instance.Duration));
+                        instance.Slot.Director.Evaluate();
+                    }
+
+                    UpdateCameraForInstance(handle, instance);
+                    AdvanceMarkers(instance, instance.Elapsed, fire: true);
+
+                    // マーカーの Fire の中で止められた(FC-R-09)なら、この instance にはもう触らない。
+                    if (!_instances.IsValidSilent(handle))
+                    {
+                        continue;
+                    }
+
+                    _events.Tick(instance.EventCtx, dt);
+
+                    if (!instance.Done && instance.Elapsed >= instance.Duration)
+                    {
+                        Complete(handle, instance);
+                    }
                 }
-
-                if (instance.Paused)
-                {
-                    continue;
-                }
-
-                instance.Elapsed += (double)dt * instance.Speed;
-
-                if (instance.Slot?.Director != null)
-                {
-                    instance.Slot.Director.time = System.Math.Min(instance.Elapsed, System.Math.Max(0d, instance.Duration));
-                    instance.Slot.Director.Evaluate();
-                }
-
-                UpdateCameraForInstance(handle, instance);
-                AdvanceMarkers(instance, instance.Elapsed, fire: true);
-
-                // マーカーの Fire の中で止められた(FC-R-09)なら、この instance にはもう触らない。
-                if (!_instances.IsValidSilent(handle))
-                {
-                    continue;
-                }
-
-                _events.Tick(instance.EventCtx, dt);
-
-                if (!instance.Done && instance.Elapsed >= instance.Duration)
-                {
-                    Complete(handle, instance);
-                }
+            }
+            finally
+            {
+                _tickBuffer.Clear();
+                _inTick = false;
             }
         }
 
@@ -1648,15 +1708,16 @@ namespace DDrive.Runtime.Cutscene
 
         public void StopAll(StopReason reason)
         {
-            for (var i = _active.Count - 1; i >= 0; i--)
+            var snapshot = _active.ToArray(); // 購読者が他を止めても添字がずれない(FX-R-03)
+            for (var i = snapshot.Length - 1; i >= 0; i--)
             {
-                if (_instances.TryGet(_active[i], out var instance) && !instance.Done)
+                if (_instances.TryGetQuiet(snapshot[i], out var instance) && !instance.Done)
                 {
-                    CancelInternal(_active[i], instance);
+                    CancelInternal(snapshot[i], instance);
                 }
                 else
                 {
-                    _active.RemoveAt(i);
+                    _active.Remove(snapshot[i]);
                 }
             }
         }
