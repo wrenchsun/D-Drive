@@ -46,6 +46,8 @@ namespace DDrive.Tests.Editor.Update
         [TestCase("v1.5.0-rc 1", false)]
         [TestCase("v1.5.0+build", false)]
         [TestCase("vX", false)]
+        [TestCase("v1.5", false)] // 2 区間(FX-R-08)
+        [TestCase("v1.5.0.1", false)] // 4 区間(FX-R-08)
         [TestCase("", false)]
         [TestCase(null, false)]
         public void GitTag_TryParse_RejectsNonVersionTags(string name, bool requireV)
