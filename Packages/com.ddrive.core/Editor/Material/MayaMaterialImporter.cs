@@ -199,7 +199,8 @@ namespace DDrive.Editor.Materials
 
                 Undo.RecordObject(existing, "Reimport Maya Material");
                 existing.Common = common;
-                if (existing.Shader == null)
+                // 欠けたシェーダー参照(パッケージ未導入・GUID 切れ。FX-R-02)は「未設定」ではないので埋め直さない。
+                if (existing.Shader == null && !UnknownShaderGuard.HasMissingShaderReference(existing))
                 {
                     existing.Shader = ResolveTargetShader(profile, source, unknownShader);
                     existing.Specific = MaterialSpecificResolver.Merge(existing.Specific, existing.Shader);
