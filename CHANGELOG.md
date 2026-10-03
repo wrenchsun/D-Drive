@@ -11,6 +11,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 追加のみ(MINOR): **外部拡張の契約（2026-10-03、FC-10、[docs/42](docs/42_distribution.md) §5.14・[docs/51](docs/51_tdrive_integration.md) §4.11）** — 外部パッケージ（T-Drive 等）が「D-Drive を変更しなくても動く」前提で依存している挙動（Prefab 上の外部コンポーネントのプール往復・外部 Timeline Track / Clip / Marker の評価・シーク・インスタンス一時停止中は Evaluate されない〔現挙動を固定〕・検証 0 件・外部アセンブリの `IValidator` の発見・`AnimData` の Update と外部 LateUpdate のブレンドシェイプ書き込みの非衝突・`GameLoop.Register`・`MaterialData.Specific` の `_Toon*` の書き込み・`ModelData.Slots` の空 / 無効 ID・取り込みと Spawn がボーン・名前・スケールを変えないこと 等）を互換面に加え、契約テスト `Tests/{Runtime,Editor}/ExternalContract/` で固定した。契約を壊す変更は MAJOR、契約の追加は MINOR。公開 API・シリアライズ形式・Validation の重さの変更なし（テスト + docs + 合成 FBX フィクスチャ + テスト専用 asmdef 2 つ）。スナップショット差分なし。
+
 - 追加のみ(MINOR): **外部パッケージが所有するブレンドシェイプ接頭辞（2026-10-03、FC-20、[docs/51](docs/51_tdrive_integration.md) §4.21・§3.5・[docs/05](docs/05_model_animation.md) B-6）** — `DDrive.Runtime.Anim` に静的クラス `ExternalBlendShapePrefixes`（`All`〔既定 `FC_`・`fcs_`〕と `IsOwnedExternally(string)`。大文字小文字を区別する前方一致）を追加（`public-api-DDrive.Runtime.txt` を更新。登録口は設けない・実行時の挙動は不変）。`AnimDataValidator` に Warning `DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED`（`AnimData.BlendShapes[].ShapeName` が所有接頭辞のとき。既存の検査・重さは不変）。AnimEditor のモデル情報はこれらのシェイプを既定で隠し件数を出す（Editor、互換性ポリシー対象外）。理由: T-Drive の顔の補正が LateUpdate で `FC_*` / `fcs_*` を書くため、AnimData からの指定と衝突させない。モデル取り込みが名前・ボーンを加工しないことを実コードで再確認（問題なし）
 
 - 追加のみ(MINOR): **モデルの返却時のブレンドシェイプ復元・スポーン / 返却の通知・Pool の複数 `IPoolable`（2026-10-03、FC-2 / FC-12、[docs/05](docs/05_model_animation.md) 2026-10-03 追記・[docs/02](docs/02_core_framework.md) §6・[docs/51](docs/51_tdrive_integration.md) §4.3・§4.13）** — (1) `DDrive.Runtime.Model` に `IModelInstanceListener`（`OnModelSpawned` / `OnModelReturning`）と `ModelInstanceContext`（`Handle` / `Data` / `Root`）を追加（公開型の追加のみ。`public-api-DDrive.Runtime.txt` を更新）。Prefab 上のコンポーネントが実装すると、スロット適用・DefaultAnimation 開始の後と、プールへ戻す（Discard 含む）直前に通知される。(2) `ModelsManager` の返却（`Despawn` / 強制回収）で、モデル配下の `SkinnedMeshRenderer` のブレンドシェイプの重み（`FC_*`・`fcs_*` を含む全シェイプ）をそのモデルを最初に出したときの値へ戻す（`ModelInstancePoolable`〔internal〕。返却の順序は「通知 → 復元」）。**既存モデルの挙動が変わる**: 返却後に再利用されるモデルの表情が次の利用者へ残らなくなる。(3) **`DDrive.Foundation` の `PoolService` が、ルートの全 `IPoolable` に `OnReturn` を呼ぶ**（以前は最初の 1 個だけ。Foundation の挙動追加、U-3 = (a) のユーザー決定）。1 個の `OnReturn` が例外を投げても残りと `SetActive(false)` を続ける（以前は例外が伝播した）。公開 API のシグネチャは不変（`public-api-DDrive.Foundation.txt` に差分なし）。ネットメッセージ・ContentHash・シリアライズ形式は不変
@@ -21,6 +23,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- 外部拡張の契約テスト（`Tests/Runtime/ExternalContract/` PlayMode 14 件・`Tests/Editor/ExternalContract/` EditMode 16 件）と、契約の一覧 [docs/42](docs/42_distribution.md) §5.14（FC-10）。
 - `ExternalBlendShapePrefixes`（外部パッケージが所有するシェイプ接頭辞 `FC_` / `fcs_` の一覧と判定）、`AnimDataValidator` の Warning、AnimEditor のモデル情報で外部管理のシェイプを既定で隠す表示（FC-20）。
 - `MaterialData.DisabledPasses` / `EnabledKeywords`（Material Editor の「Passes / Keywords」欄）: シェーダーのパス（LightMode）を無効にする・シェーダーキーワードを有効にする（FC-11）。
 - カットシーンの Binding に `Target = SameAsTrack` + `SourceTrackName`: 別トラックと同じ相手（Animator / Transform）にバインドする（鎖・並び順非依存・循環や未解決は警告 + そのトラックだけミュート。Edit Mode プレビューも同じ挙動）。`CutsceneDataValidator` の SameAsTrack 検査（Warning 4 種）、Inspector の Binding 入力欄の出し分けと「→ 参照先」の検査表示

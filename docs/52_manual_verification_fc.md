@@ -107,7 +107,19 @@
 
 ## 10. FC-10: 外部拡張の契約テスト
 
-未実装（実装時に追記）
+**目視で確認する項目は無い**。契約は全て自動テストで固定済み（[42](42_distribution.md) §5.14 の表。`Tests/Runtime/ExternalContract/`・`Tests/Editor/ExternalContract/`）:
+
+- E-1 / E-13（Prefab 上の外部コンポーネントのプール往復・Slots の空 / 無効 ID）: `ExternalContractModelTests`
+- E-2 / E-3 / E-5（外部 Track・Clip・Marker の評価・シーク・一時停止中は Evaluate されない・検証 0 件）: `ExternalContractTimelineTests`
+- E-4 / E-7 / E-17（再取り込みで外部トラック・Binding が残る・未知の拡張子 / フォルダで例外なし・取り込みがボーン / シェイプ名 / スケールを変えない）: `ExternalContractImportTests`（E-4 は `DevRepoOnly`）
+- E-6（外部アセンブリの `IValidator` が発見される）: `ExternalContractValidatorTests`
+- E-8 / E-9（Update と外部 LateUpdate の書き込みが衝突しない・外部 `IAssetManager` が `GameLoop` に駆動される）: `ExternalContractLoopTests`
+- E-10 / E-11 / E-12 / E-15（`_Toon*` の Specific が Material へそのまま書かれる・予約名と衝突しない・Merge が登録する）: `ExternalContractMaterialTests` / `ExternalContractMaterialNamingTests`
+- E-14 / E-17（静的）: `ExternalContractStaticScanTests`
+
+実際の確認は Test Runner（EditMode と PlayMode の両方で `ExternalContract` を検索して全件 Pass）。実 FBX（UnityChan 等）・実 T-Drive での確認は「22. T-Drive 導入後に確認」へ。
+
+結果: ☑ 自動テストで確認済み（EditMode 16 件・PlayMode 14 件）
 
 ## 11. FC-11: MaterialData にパスの無効化・キーワードの欄の確認
 
@@ -204,7 +216,8 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - FC-1: T-Drive の fctrack 取り込み（FC-5 のリスナー）が `SameAsTrack` の binding を足し、Facial トラックがカットシーンのキャラと同じ相手に結ばれる
 - FC-2 / FC-12: `ToonCharacter` が `IModelInstanceListener` でスロット適用後に `CharacterLook` を配る / 返却で後片付けする。`FacialCorrectionRunner` の `OnDisable` と重みの復元が二重になっても表情が壊れない
 - FC-3 / FC-4 / FC-5 / FC-14 / FC-15: T-Drive 側の対応が入ったとき
+- FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 
 ## 要判断（全体）
 
-- なし（実装済みチケットの要判断は各節末尾。未決は [51] §8 の U-14・U-15）
+- なし（実装済みチケットの要判断は各節末尾。未決は [51] §8 の U-14。U-15 は FC-10 で決定済み）

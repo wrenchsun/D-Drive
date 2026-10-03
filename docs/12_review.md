@@ -81,6 +81,7 @@
 | ContentHash・ネットメッセージ（§5.6） | 新しいメッセージ型の追加、既存メッセージへのフィールド追加（欠落時は安全な既定値） | 同左（MINOR） | ハッシュの算法・対象フィールド変更、メッセージの改名・削除・型変更、`NetChannel`/直列化方式の変更 | `CatalogContentHasherGoldenTests` / `NetMessageSnapshotTests` |
 | 生成コード（`AssetIds.g.cs`/`Tuning.g.cs`、§5.7） | 新 AssetType の定数クラス追加（データが増えた結果） | 同左（MINOR） | クラス名・名前空間・命名規則・`static readonly` の形の変更、`KnownPrefixes` への追加 | `CodegenGoldenTests` |
 | Validation の重さ（Error/Warning、§5.8） | 新しい検査を Warning として追加 | 次の MINOR 以降で Warning→Error に昇格（CHANGELOG に「Error 昇格: XxxValidator」を明記） | 新規検査をいきなり Error にする（緊急時のみ §5.12 の手続きで例外） | `ValidatorSeverityRegistryTests` |
+| 外部拡張の契約（外部パッケージ〔T-Drive 等〕が依存してよい D-Drive の挙動、§5.14。2026-10-03 追加） | 変更しないことがやってよいこと | 契約の追加（外部の要望を実装する PR で `Tests/{Runtime,Editor}/ExternalContract/` にテストを足し、§5.14 の表に 1 行追記） | 契約を壊す変更（Timeline の評価順・一時停止中の扱い、Prefab 上の外部コンポーネントのプール往復、`IValidator` の発見条件、Specific の書き込み規則、`GameLoop.Register` の駆動、取り込みのボーン・名前・スケール不変 ほか。表の全項目） | `Tests/Runtime/ExternalContract/` の PlayMode テスト・`Tests/Editor/ExternalContract/` の EditMode テスト |
 | 依存パッケージ・Unity 版（§5.10） | Unity パッチ版更新、依存の PATCH/MINOR 更新 | 依存追加・Unity マイナー版更新・既存依存の参照範囲拡大（Editor→Runtime 等）（CHANGELOG 必須） | Unity メジャー版更新 | `package.json`/manifest 一致テスト（`PackageVersionConsistencyTests`） |
 
 **手続きの要点**（詳細は [42] §5.12）: MAJOR は (1) issue/設計メモでユーザー承認 → (2) `[Obsolete]`/Warning/移行ツールを 2 MINOR 分先出し → (3) MAJOR で削除 + `CHANGELOG.md`「破壊あり」+ `docs/migrations/vN.md` → (4) スナップショット更新 → (5) 持ち込み先（MS2026）で更新手順を実施し結果を移行ガイドに追記。**MAJOR は年 1 回まで**（MS2026 開発フェーズ中は 0 回）。

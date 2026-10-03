@@ -259,8 +259,8 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 
 | 区分 | 上げる桁 | 例 |
 |---|---|---|
-| 互換面のいずれかを**破壊**する（§5 各表の「禁止」を、手続き §5.12 を踏んで行う） | MAJOR | 公開 API の削除、シリアライズ形式の非自動移行、ContentHash 算法変更、`ToConstantName` 規則変更 |
-| 互換面に**追加**する / 自動マイグレーションを伴う変更 / `[Obsolete]` 付与 / Validation の新 Warning | MINOR | 新 AssetType（末尾追加）、Data の新フィールド、新 API、新メッセージ型 |
+| 互換面のいずれかを**破壊**する（§5 各表の「禁止」を、手続き §5.12 を踏んで行う） | MAJOR | 公開 API の削除、シリアライズ形式の非自動移行、ContentHash 算法変更、`ToConstantName` 規則変更、外部拡張の契約（§5.14）を壊す変更 |
+| 互換面に**追加**する / 自動マイグレーションを伴う変更 / `[Obsolete]` 付与 / Validation の新 Warning | MINOR | 新 AssetType（末尾追加）、Data の新フィールド、新 API、新メッセージ型、外部拡張の契約（§5.14）の追加 |
 | 互換面に触れないバグ修正・Editor UI の改善 | PATCH | ウィンドウの見た目、Validator の誤検知修正 |
 
 - 版の置き場: `package.json` の `version`（正）+ `Foundation/DDriveVersion.cs` の `public const string Value`（ランタイムから読める写し。**両者の一致を EditMode テストで固定**: `PackageInfo.FindForAssembly(typeof(DDriveVersion).Assembly).version == DDriveVersion.Value`）
@@ -379,7 +379,7 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 3. **「追加」は常に安全側の既定値で**（[12] §3 Data/シリアライズ「デフォルト値が安全側」）。追加した瞬間から互換面に入る（後から消せない）ので、追加前に名前・型を吟味する（CLAUDE.md §0-9「迷ったら聞く」はこの意味で維持）
 4. 互換面の外（Editor ウィンドウの見た目、内部クラス、`internal` メンバ、テストコード、docs）は自由に変えてよい。**`public` にする＝互換面に入れる**と理解する。互換面に入れたくないものは `internal` にする（既存: `AssetIdGenerator.ToConstantName` は `internal`。ただし**出力**は互換面 §5.7）
 
-互換面の一覧: §5.1 シリアライズ形式 / §5.2 シリアライズされる enum / §5.3 ID・Address・定数名 / §5.4 公開 API / §5.5（予約: Handle の意味論、§5.4 に含む）/ §5.6 ContentHash / §5.6 ネットメッセージ / §5.7 生成コード / §5.8 Validation の重さ / §5.9 Editor 契約・SpecWeb / §5.10 依存とバージョン。
+互換面の一覧: §5.1 シリアライズ形式 / §5.2 シリアライズされる enum / §5.3 ID・Address・定数名 / §5.4 公開 API / §5.5（予約: Handle の意味論、§5.4 に含む）/ §5.6 ContentHash / §5.6 ネットメッセージ / §5.7 生成コード / §5.8 Validation の重さ / §5.9 Editor 契約・SpecWeb / §5.10 依存とバージョン / §5.14 外部拡張の契約（外部パッケージが依存してよい挙動、2026-10-03 追加）。
 
 ### 5.1 シリアライズ互換（`.asset` / `.prefab` / `.unity` に書かれるもの）
 
@@ -551,6 +551,7 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 | 9 | `PackageVersionConsistencyTests` | §4.1 | `package.json` ↔ `DDriveVersion.Value` ↔ 直近 CHANGELOG 見出し ↔ manifest の依存版 |
 | 10 | CHANGELOG ガード（`Tools/CI/Check-Changelog.ps1`。`run-ci.cmd` と `ci.yml` に 1 段追加） | 全部 | `Tests/Editor/Snapshots/**` のいずれかが変わった PR で `CHANGELOG.md` が変わっていなければ fail。**`version` が上がっていなければ fail、は「リリース PR」を想定した条件で、日々の開発コミットには適用しない**（2026-09-20 修正、[47_review_p_tickets_2026-09-20.md] P2-6。`run-ci.cmd`/`ci.yml` から呼ぶ `check-release.ps1 -GuardOnly` は CHANGELOG.md の変更有無だけを見る。version の一致検査は `check-release.ps1`(`-GuardOnly` 無し = リリース時)だけで行う。実装は `Test-ChangelogGuard -RequireVersionBump` スイッチ） |
 | 11 | 消費側スモーク（`Tools/CI/run-consumer-smoke.cmd`、P-11） | 導入手順全体 | 空プロジェクトを `Unity -createProject` で作り、manifest にローカルパス（`file:` で開発リポジトリの `Packages/com.ddrive.core`）+ 依存を書き、`DDrive.Editor.CI.ConsumerSmoke`（Addressables 初期化 → ウィザード相当 → SeData を 1 件 `AssetCreationService.Create` → カタログ・Addressables 登録・ID 再生成・`ValidateAll` Error 0）を実行 |
+| 12 | `ExternalContract*` テスト（`Tests/Runtime/ExternalContract/` PlayMode + `Tests/Editor/ExternalContract/` EditMode。FC-10、§5.14） | §5.14 外部拡張の契約 | 赤 = 契約を壊している（テストを変えず D-Drive を直す。変えるなら §5.12） |
 
 **実装メモ（P-3、2026-09-20）**: 1〜9 は `Assets/DDrive/Tests/Editor/Compat/`（EditMode、asmdef は既存の `DDrive.Tests.Editor` のまま）に実装済み。
 
@@ -589,6 +590,44 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 - [25] の P3 後半の整理項目のうち API に触るもの。**決定（2026-09-20、P-1）: 据え置き（互換面 §5.4 の対象外）**。根拠: [25] の未対応「整理項目」を全て確認した結果、公開 API に触れるのは M-1「`AssetSearch.Roots` が書き換え可能な `public static readonly string[]`」のみで、これは `DDrive.Editor` の public であり §5.4 は `DDrive.Foundation`/`DDrive.Runtime` のみを対象とする（§5.4 冒頭「`DDrive.Editor` の `public` は互換面に含めない」）ため互換性ポリシーの対象外。残りの項目（Anim2DFacing のキャッシュ、AnimEditorWindow のラベル更新、Anim2DPreviewObject の走査、MaterialEditorWindow/MaterialIconProvider/MaterialDataValidator/MaterialConvertWindow、shader 内部）もすべて Editor 内部・UI・shader 実装であり、通常のバックログとして扱ってよい
 - `com.cysharp.unitask` のタグ固定（§2.3-8）。**決定（2026-09-20、P-1）: やる（P-4 で対応）**。固定コミット `ceac8d6946b1125fe782cd171fbcb245b567dbf9` が属するタグの特定と、`package.json`/manifest への反映を P-4 で行う（§2.3 #8）。**✅ 対応済み 2026-09-20**: §2.3 #8 参照(一致するタグが無く `#2.5.11` へ更新)
 - **【✅ 済み・bba1308、2026-09-19】** CLAUDE.md §1 の「NGO 2.2」表記の修正（実体は 2.13.2。docs の誤記なので互換性とは無関係だが P-1 で直す）
+
+### 5.14 外部拡張の契約（2026-10-03 追加、FC-10・[51](51_tdrive_integration.md) §4.11・U-7 = (a)）
+
+**外部パッケージ（T-Drive 等）が「D-Drive を変更しなくても動く」前提で依存してよい D-Drive の挙動**を互換面に加える。§5.4「挙動の互換」の拡張で、公開 API のシグネチャではなく**動き**を固定する。持ち込み先（MS2026）が D-Drive を更新したとき、外部パッケージが黙って壊れないようにするのが目的。
+
+- 対象は下表の 1 行ずつ。**各契約は 1 つ以上のテストで固定し、テストが赤なら変更しない**（§5.0-2）。契約を壊す変更は **MAJOR（§5.12 の手続き + ユーザー承認）**。**契約の追加は MINOR**（追加した瞬間から互換面に入る。§5.0-3）
+- 契約テストは `Tests/Runtime/ExternalContract/`（PlayMode）と `Tests/Editor/ExternalContract/`（EditMode）にまとめる。名前空間・クラス名に `ExternalContract` を含む。ダミーの外部型（`ExternalPackage.Fake`）は `DDrive.Tests*` ではない名前の**専用テスト asmdef**（`ExternalContract.Tests.Runtime` / `ExternalContract.Tests.Editor`）に置き、`DDrive.Foundation` / `DDrive.Runtime` の公開 API だけで書く（D-Drive の `internal` には触れない。`InternalsVisibleTo` は元から無い）
+- **契約にしないもの**（外部が依存してはならない / D-Drive が固定しない）: `ImportRuleService` のフォルダ未知時の**案内ログの有無**（FC-6 で変わる。例外が出ないことだけ契約）、`IValidator` の検査対象が `AssetDataBase` に限られること（R-4）、`CutsceneImportService` の `delayCall` による取り込み順（R-1。FC-5 で公開イベントを足す）、`Camera.main` が実行順 1000 の後にカット姿勢になること（R-2。FC-3 で API 化）、依存グラフが `.playable` 内を歩かないこと（R-5。FC-7 で調査）、外部 `ScriptedImporter` / `AssetPostprocessor` の動作（Unity 標準の仕組み。D-Drive 側の制約なし）
+
+| # | 外部が依存してよい挙動（契約） | 固定するテスト | 出典 |
+|---|---|---|---|
+| E-1 | Prefab に付けた外部 `MonoBehaviour` が `ModelsManager` の Spawn → Despawn → 再 Spawn で生きる（同一インスタンス・`Awake` は 1 回・`OnEnable` / `OnDisable` は往復ごとに 1 回・`Destroy` されない）。外部の `IModelInstanceListener` が Spawn / 返却で通知される | PlayMode `ExternalContractModelTests.E1_ExternalComponentOnPrefab_SurvivesPoolRoundTrip_AndListenerIsNotified` | A-1 |
+| E-1b | ルートに外部の `IPoolable` があっても `ModelInstancePoolable.OnReturn` も呼ばれる（全 `IPoolable` に `OnReturn`） | PlayMode `ModelsManagerReturnNotifyTests.ExternalIPoolableOnRoot_BothOnReturnsRun`（FC-2。重複させない） | R-6 / U-3 |
+| E-2 | 外部の `TrackAsset` / `PlayableAsset` クリップ / Mixer が `CutsceneManager` の再生で毎 Tick `ProcessFrame` され、`playerData` がバインド先（Animator）。Evaluate は Update（`GameLoop` 経由）で行われ、同じフレームの LateUpdate から結果を読める | PlayMode `ExternalContractTimelineTests.E2_ExternalTrack_IsProcessedEveryFrame_BoundToAnimator_AndReadableInLateUpdate` | A-2 |
+| E-3 | `Seek` は即 Evaluate、`Skip`（Immediate）は末尾で Evaluate、`SetSpeed` は dt に乗る。ネット受信側は `NetworkTime - StartNetTime` の位置から始まり初回 Evaluate がその時刻。**インスタンス単位の一時停止中は Evaluate されない（`Seek` は一時停止中でも Evaluate する）= 現挙動を契約として固定**（U-8 = (a)。外部は前回値を保持して対応する） | PlayMode `ExternalContractTimelineTests.E3_Seek_Skip_SetSpeed_FollowImmediately` / `E3_PausedInstance_IsNotEvaluated_ButSeekStillIs` / `E3_NetworkReceive_StartsAtElapsedSeek` | A-3 / R-3 |
+| E-4 | 再取り込み（`CutsceneImportService.ProcessPaths`）で、外部型の `TrackAsset` と外部が足した `CutsceneBinding` が消えず重複もしない | EditMode `ExternalContractImportTests.E4_Reimport_PreservesExternalTrackAndExternalBinding`（`DevRepoOnly`） | A-4 |
+| E-5 | 知らない Track / Clip / Marker を持つ Timeline で `CutsceneDataValidator` の結果が 0 件（対照: 標準 `AudioTrack` は警告される） | PlayMode `ExternalContractTimelineTests.E5_UnknownTrackClipMarker_ProducesNoValidationResults` / `E5_Control_StandardAudioTrack_IsStillWarned` | A-5 |
+| E-6 | 名前が `DDrive.Tests` で始まらないアセンブリの `IValidator`（public・引数なしコンストラクタ）が `CI.DiscoverValidators()` に出て `ValidatorRegistry` で実行される。`DDrive.Tests*` のアセンブリは発見されない（現仕様） | EditMode `ExternalContractValidatorTests`（3 件） | A-6 |
+| E-7 | `SourceAssets/Cutscene/` 配下の未知の拡張子は案内ログも例外も出ない。未知の種別フォルダ（`SourceAssets/Facial/` 等）で例外が出ず Data は作られない。`CutsceneImportService` は `.fbx` 以外を無視する | EditMode `ExternalContractImportTests.E7_*`（3 件） | A-7 |
+| E-8 | `AnimManager`（Update、`GameLoop` 経由）は `AnimData.BlendShapes` に指定した名前のシェイプだけを書く。外部の実行順 10000 の LateUpdate が書いた重みを次フレームの Update が上書きしない。同名を外部が LateUpdate で書けばそのフレームの最終値は外部 | PlayMode `ExternalContractLoopTests.E8_AnimUpdateAndExternalLateUpdate_DoNotClobberEachOther_OverRealFrames`、同期 Tick 版は `ExternalBlendShapeOwnershipTests.AnimTick_WritesOnlySpecifiedShape_AndExternalLateWritesSurvive`（FC-20） | A-8 / (d) |
+| E-9 | 外部の `IAssetManager` を `GameLoop.Register` すると `Tick` / `OnPause` / `StopAll` / `OnSceneUnload` が届く（二重登録は 1 回扱い・`Unregister` で止まる） | PlayMode `ExternalContractLoopTests.E9_ExternalAssetManager_RegisteredOnGameLoop_ReceivesTickPauseStopAndUnload` | A-9 |
+| E-10 | `MaterialData.Specific` の `_Toon*` など未知の接頭辞の項目が、名前を絞られずに実行時 Material へそのまま書かれる（Float / Int / Bool = 0/1 の Float / Color / Vector / テクスチャ）。書かれなかった項目はシェーダー既定値のまま | PlayMode `ExternalContractMaterialTests.E10_*`（2 件） | doc17 §1 / §3 #1 |
+| E-11 | シェーダーに無いプロパティ名・空名の Specific 項目は飛ばされ、例外もログも出ず、他の項目は適用される | PlayMode `ExternalContractMaterialTests.E11_PropertyNotInShader_IsSkipped_WithoutExceptionOrLog_AndOthersStillApply` | doc17 §3 |
+| E-12 | `_Toon*` が `MaterialCommonNaming` の予約名（共通チャンネル / 描画ステート / 付随名 / Unity 予約）と衝突しない（`Classify` = Specific・`IsSpecific` = true）。`MaterialDataValidator` が `_Toon*` に衝突警告を出さない | EditMode `ExternalContractMaterialNamingTests.E12_*`（2 件） | doc17 §3 |
+| E-13 | `ModelData.Slots` が空 / `Material` が無効 ID のスロットは Prefab の `sharedMaterials` を触らない。有効 ID のスロットだけ差し替わる | PlayMode `ExternalContractModelTests.E13_EmptyOrInvalidSlots_KeepPrefabMaterials_ValidSlotIsReplaced` | doc17 §4 罠 1 の回避策 |
+| E-14 | D-Drive は URP の Renderer / Renderer Feature に関与しない（Foundation / Runtime / Editor のソースに `ScriptableRendererFeature` / `ScriptableRendererData` / `ScriptableRenderPass` が無い） | EditMode `ExternalContractStaticScanTests.E14_NoRendererFeatureReferences_InRuntimeOrEditor` | doc17 §3 #4 |
+| E-15 | `MaterialSpecificResolver.Merge` が `_Toon*` を既定値付きで `Specific` に登録し、既存の値は上書きせず重複もしない | EditMode `ExternalContractMaterialNamingTests.E15_*`（2 件） | doc17 §3 |
+| E-16 | `FC_` / `fcs_` 接頭辞のシェイプは、Spawn〜`AnimManager.Tick`〜プール往復で名前が変わらず、D-Drive が重みを書かない。返却時の復元は `FC_*` も含む全シェイプ。外部所有接頭辞の一覧・`AnimData` が指す場合の Warning | PlayMode `ExternalContractLoopTests.E8_*`（実フレーム）・`ExternalBlendShapeOwnershipTests`・`ModelsManagerReturnNotifyTests`（FC-2 / FC-20） | f27702e (a)(d) |
+| E-17 | 取り込みと Spawn がボーン・名前・スケールを変えない。(a) 取り込み（`ImportRuleService`）後の `ModelData.Prefab` のボーン名・ブレンドシェイプ名・ボーンのローカル姿勢・スケールが元ファイルと一致し、`ModelImporter` の設定（`importBlendShapes` / `optimizeGameObjects` / `meshCompression` / `globalScale` / `useFileScale` ほか）が既定のまま。(b) `ModelsManager` の Spawn〜返却〜再 Spawn で同じ。(c) 静的: D-Drive が `ModelImporter` に書くのは `animationType` / `avatarSetup`（+ `sourceAvatar`）だけ・Runtime がボーン / メッシュを書かない・Model / Cutscene がスケールを書かない | EditMode `ExternalContractImportTests.E17_ImportRuleService_KeepsBonesShapeNamesScaleAndImporterSettings`、PlayMode `ExternalContractModelTests.E17_ImportedFbx_SpawnedThroughModelsManager_KeepsBonesShapesAndScale_AcrossPoolRoundTrip`、EditMode `ExternalContractStaticScanTests.E17_*`（3 件）。フィクスチャ: `Tests/Editor/ExternalContract/Fixtures/ExternalContractRig.fbx`（合成の ASCII FBX） | f27702e (b) / U-15 = (b) |
+| （既存） | FC-1（`SameAsTrack` の鎖・並び順非依存）・FC-11（パス無効化・キーワード）・FC-2 / FC-12（返却時の復元・通知）の挙動も契約（外部が依存するため）。既存テストが固定済み | `CutsceneSameAsTrackTests` / `MaterialPassKeywordTests` / `ModelsManagerReturnNotifyTests` | FC-1 / FC-11 / FC-2 / FC-12 |
+| （予定） | FC-3 の `ViewCamera` がワールド値を無変換で返す（E-18）/ FC-4 の `ICutsceneMarker` の発火 / FC-6 の取り込みルール外部登録 / FC-14 の変換表・テクスチャ規則の提供口 / FC-15 の知らないシェーダーを変換しない | **各チケットで追加**（契約テストは `ExternalContract` 配下に足し、本表に 1 行ずつ追記 = MINOR） | FC-3 / 4 / 6 / 14 / 15 |
+| （予定） | FC-5 の `ICutsceneImportListener` / `CutsceneImportResult`（Editor 契約。[42] §5.9 の `EditorContractSnapshotTests` への掲載は FC-5 の PR で行う。U-6 = (a)） | **FC-5 で追加予定** | FC-5 |
+
+**運用**:
+
+- 契約テストが赤くなったら、D-Drive 側のコードを直す（テストを変えない）。意図して契約を変える場合は §5.12（MAJOR）の手続きと、持ち込み先で外部パッケージ（T-Drive）への影響確認を行う
+- 契約を足すとき: 外部パッケージの要望（[51]）を実装する PR で、対応する契約テストを `Tests/{Runtime,Editor}/ExternalContract/` に足し、本表に 1 行追記して CHANGELOG の互換性節に「外部拡張の契約を追加（MINOR）」と書く
+- E-6 のダミー `IValidator`（`ExternalPackage.Fake.ExternalDummyValidator`）は持ち込み先で `testables` を有効にしたときも発見されるため、`Target = AssetType.None` + `ExternalDummyData` 以外では何も報告しない実装にしてある（実プロジェクトの「Validation > Run All」を汚さない）。`defineConstraints: UNITY_INCLUDE_TESTS` で通常ビルドには入らない
 
 ## 6. チケット分割（P-1〜P-13。[11_tasks.md] に同じ表を追記）
 
