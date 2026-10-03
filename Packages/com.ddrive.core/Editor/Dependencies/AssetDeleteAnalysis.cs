@@ -27,6 +27,7 @@ namespace DDrive.Editor.Dependencies
         Data,
         Prefab,
         Scene,
+        Timeline, // FC-7: .playable(Timeline のクリップ / マーカー内の参照)。末尾追加。
     }
 
     // 「このアセットを使っている場所」1 件。削除対象どうしの参照(まとめて消すなら問題ない)かどうかを
@@ -64,6 +65,11 @@ namespace DDrive.Editor.Dependencies
             if (path.EndsWith(".asset", System.StringComparison.OrdinalIgnoreCase))
             {
                 return ReferenceFileKind.Data;
+            }
+
+            if (path.EndsWith(".playable", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return ReferenceFileKind.Timeline;
             }
 
             return ReferenceFileKind.Unknown;

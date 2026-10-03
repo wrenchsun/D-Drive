@@ -12,6 +12,41 @@ namespace DDrive.Editor.Dependencies
     {
         private const string CacheDir = "Library/DDriveDeps";
 
+        // キャッシュ形式 / 収集対象の版(FC-7、2026-10-03)。1 = .asset / .prefab / .unity、
+        // 2 = + .playable(Timeline)。版ファイルが無い / 古いときは DependencyGraphService が .playable だけを補完する。
+        public const int CurrentVersion = 2;
+        private const string VersionFile = CacheDir + "/_version.txt";
+
+        public static int ReadVersion()
+        {
+            try
+            {
+                if (File.Exists(VersionFile) && int.TryParse(File.ReadAllText(VersionFile).Trim(), out var v))
+                {
+                    return v;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] DependencyGraph: キャッシュの版を読めませんでした: {e.Message}");
+            }
+
+            return 1;
+        }
+
+        public static void WriteVersion(int version)
+        {
+            try
+            {
+                EnsureDir();
+                File.WriteAllText(VersionFile, version.ToString());
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive] DependencyGraph: キャッシュの版を保存できませんでした: {e.Message}");
+            }
+        }
+
         public static void ClearAll()
         {
             try

@@ -15,7 +15,7 @@ namespace DDrive.Editor.Dependencies
     // [11_tasks.md] 5-5 — 依存関係グラフ(収集/キャッシュ/差分更新)。5-6(使用箇所検索 / 未使用検出 /
     // 依存ツリー UI)・5-7(Preload 自動集計)・7-1(MissingAssetLog)がこの API を使う想定。
     //
-    // 収集対象: 全 Data(.asset の AssetDataBase)・Prefab・Scene 内の AssetId<TMarker> / AssetRef フィールド。
+    // 収集対象: 全 Data(.asset の AssetDataBase)・Prefab・Scene・Timeline(.playable、FC-7)内の AssetId<TMarker> / AssetRef フィールド。
     // 保存先: Library/DDriveDeps/(コミットしない。DependencyGraphCache 参照)。
     // 更新: RebuildAll() で全件、UpdatePaths() で差分(DependencyGraphPostprocessor が AssetPostprocessor から呼ぶ)。
     //
@@ -40,6 +40,51 @@ namespace DDrive.Editor.Dependencies
             return _reverseIndex.TryGetValue((type, id), out var list)
                 ? list
                 : Array.Empty<DependencyReference>();
+        }
+
+        // [51] §4.8(FC-7) — Timeline(.playable)を Timeline に持っている CutsceneData のパス一覧。
+        // 使用箇所の参照元は .playable(どのクリップ / マーカーかまで分かる)なので、デザイナーが「どの Cutscene が
+        // 使っているか」を辿れるよう、UI(使用箇所ウィンドウ・削除確認)が参照元の横に添える。CutsceneData の
+        // Timeline は UnityEngine.Object の直接参照(AssetId ではない)なので、辺ではなくここで引く(UI 表示時のみ)。
+        public static IReadOnlyList<string> FindCutscenePathsUsing(string playablePath)
+        {
+            if (string.IsNullOrEmpty(playablePath)
+                || !playablePath.EndsWith(".playable", StringComparison.OrdinalIgnoreCase))
+            {
+                return Array.Empty<string>();
+            }
+
+            var result = new List<string>();
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(DDrive.Runtime.Cutscene.CutsceneData)))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var cutscene = AssetDatabase.LoadAssetAtPath<DDrive.Runtime.Cutscene.CutsceneData>(path);
+                if (cutscene != null && cutscene.Timeline != null
+                    && AssetDatabase.GetAssetPath(cutscene.Timeline) == playablePath)
+                {
+                    result.Add(path);
+                }
+            }
+
+            return result;
+        }
+
+        // 参照元の表示用ラベルの付記(.playable の場合だけ「 (Cutscene: 名前, ...)」。それ以外は空文字)。
+        public static string DescribeCutscenes(string sourcePath)
+        {
+            var owners = FindCutscenePathsUsing(sourcePath);
+            if (owners.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var names = new List<string>(owners.Count);
+            foreach (var o in owners)
+            {
+                names.Add(Path.GetFileNameWithoutExtension(o));
+            }
+
+            return $" (Cutscene: {string.Join(", ", names)})";
         }
 
         // 「このアセットが参照する ID 一覧」(assetPath は .asset/.prefab/.unity のいずれか)
@@ -173,6 +218,9 @@ namespace DDrive.Editor.Dependencies
                 fileCount++;
             }
 
+            fileCount += BackfillPlayables();
+            DependencyGraphCache.WriteVersion(DependencyGraphCache.CurrentVersion);
+
             Debug.Log($"[DDrive] DependencyGraph: 再構築完了(対象 {fileCount} ファイル, 参照 {CachedEdgeCount} 件)");
         }
 
@@ -230,6 +278,37 @@ namespace DDrive.Editor.Dependencies
             }
         }
 
+        // FC-7: .playable(TimelineAsset)だけを走査して索引に足す。全体の再構築(シーンの Open/Close)は伴わない。
+        // 版が古い Library キャッシュの補完と RebuildAll から使う。AssetSearch の列挙に乗せる(FindAssets を直接呼ばない)。
+        private static int BackfillPlayables()
+        {
+            var count = 0;
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(UnityEngine.Timeline.TimelineAsset)))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.EndsWith(".playable", StringComparison.OrdinalIgnoreCase) || !IsScannablePath(path))
+                {
+                    continue;
+                }
+
+                if (_byGuid.TryGetValue(guid, out var previous))
+                {
+                    Unindex(previous);
+                }
+
+                SaveAndIndex(BuildRecord(guid, path, DependencyGraphCollector.CollectFromTimeline(path)));
+                count++;
+            }
+
+            return count;
+        }
+
+        // テスト専用: Library のキャッシュ版を旧版(.playable を知らない 1)に戻す。
+        public static void MarkCacheOutdatedForTests()
+        {
+            DependencyGraphCache.WriteVersion(1);
+        }
+
         // テスト専用: プロセス内キャッシュを空にする(Library 上のファイルは変更しない。
         // 次回 EnsureLoaded で Library から読み直される)。実 Assets を伴わないため本番からは呼ばない。
         // public(NewAssetDialog.TestGameDataRootOverride と同じ理由: InternalsVisibleTo 未設定のため、
@@ -253,6 +332,11 @@ namespace DDrive.Editor.Dependencies
             if (path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase))
             {
                 return DependencyGraphCollector.CollectFromScene(path);
+            }
+
+            if (path.EndsWith(".playable", StringComparison.OrdinalIgnoreCase))
+            {
+                return DependencyGraphCollector.CollectFromTimeline(path);
             }
 
             if (path.EndsWith(".asset", StringComparison.OrdinalIgnoreCase))
@@ -281,7 +365,8 @@ namespace DDrive.Editor.Dependencies
 
             var isCandidateExtension = path.EndsWith(".asset", StringComparison.OrdinalIgnoreCase)
                 || path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)
-                || path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase);
+                || path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".playable", StringComparison.OrdinalIgnoreCase);
 
             return isCandidateExtension && IsScannablePath(path);
         }
@@ -337,6 +422,13 @@ namespace DDrive.Editor.Dependencies
             foreach (var record in DependencyGraphCache.LoadAll())
             {
                 Index(record);
+            }
+
+            // FC-7: 版が古い(.playable を収集する前に作られた)キャッシュは、.playable だけ補完して版を上げる。
+            if (DependencyGraphCache.ReadVersion() < DependencyGraphCache.CurrentVersion)
+            {
+                BackfillPlayables();
+                DependencyGraphCache.WriteVersion(DependencyGraphCache.CurrentVersion);
             }
         }
 
