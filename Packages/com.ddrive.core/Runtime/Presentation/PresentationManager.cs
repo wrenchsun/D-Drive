@@ -119,6 +119,10 @@ namespace DDrive.Runtime.Presentation
 
         private readonly InstanceStore<PresentationMarker, PresentationInstance> _instances = new();
         private readonly List<Handle<PresentationMarker>> _active = new();
+
+        // Tick の走査用の写し(再利用。購読者が走査中に Cancel / Play しても添字がずれない。FY-R-03)。
+        private readonly List<Handle<PresentationMarker>> _tickBuffer = new();
+        private bool _inTick;
         private readonly HashSet<PresentationData> _nonInterruptibleWarned = new();
         private readonly HashSet<TrackKind> _unimplementedWarned = new();
         private readonly HashSet<TrackKind> _missingManagerWarned = new();
@@ -1185,10 +1189,11 @@ namespace DDrive.Runtime.Presentation
         // ─ Client が Host との接続を失った ─ のときだけ呼ぶ。Host 視点の「相手が抜けた」は対象外)。
         public void CancelAllNetworked()
         {
-            for (var i = _active.Count - 1; i >= 0; i--)
+            var snapshot = _active.ToArray(); // 購読者が他を止めても添字がずれない(FY-R-03)
+            for (var i = snapshot.Length - 1; i >= 0; i--)
             {
-                var handle = _active[i];
-                if (_instances.TryGet(handle, out var instance) && !instance.Done && instance.IsNetworked)
+                var handle = snapshot[i];
+                if (_instances.TryGetQuiet(handle, out var instance) && !instance.Done && instance.IsNetworked)
                 {
                     CancelInternal(handle, instance);
                 }
@@ -1335,27 +1340,48 @@ namespace DDrive.Runtime.Presentation
                 SweepExpiredPendingUnknownKey();
             }
 
-            for (var i = _active.Count - 1; i >= 0; i--)
+            // 走査は写し(_tickBuffer)に対して行う(FY-R-03、2026-10-04。CutsceneManager.Tick と同じ方式)。Signal / 完了 / Cancel の
+            // 購読者や WaitAsync の続きが Tick 中に自分・他の Presentation を Cancel し、または新しく Play しても、
+            // 添字がずれて同じ Tick で二重に進む・飛ばす・範囲外になることがない。写しにある Handle が既に無効なら飛ばし、
+            // Tick 中に Play されたものは次の Tick から進める(順序は従来どおり後ろから)。写しは再利用なので定常経路で割り当てない。
+            if (_inTick)
             {
-                var handle = _active[i];
-                if (!_instances.TryGet(handle, out var instance))
-                {
-                    _active.RemoveAt(i);
-                    continue;
-                }
+                return; // 購読者の中から Tick を呼び直された場合(通常は無い)。入れ子で二重に進めない。
+            }
 
-                if (instance.Paused)
-                {
-                    continue;
-                }
+            _inTick = true;
+            try
+            {
+                _tickBuffer.Clear();
+                _tickBuffer.AddRange(_active);
 
-                instance.Elapsed += dt * instance.Speed;
-                FireDueTracks(handle, instance);
-
-                if (!instance.Done && instance.Elapsed >= PresentationTiming.EffectiveDuration(instance.Data))
+                for (var i = _tickBuffer.Count - 1; i >= 0; i--)
                 {
-                    Complete(handle, instance);
+                    var handle = _tickBuffer[i];
+                    if (!_instances.TryGetQuiet(handle, out var instance))
+                    {
+                        _active.Remove(handle);
+                        continue;
+                    }
+
+                    if (instance.Paused)
+                    {
+                        continue;
+                    }
+
+                    instance.Elapsed += dt * instance.Speed;
+                    FireDueTracks(handle, instance);
+
+                    if (!instance.Done && instance.Elapsed >= PresentationTiming.EffectiveDuration(instance.Data))
+                    {
+                        Complete(handle, instance);
+                    }
                 }
+            }
+            finally
+            {
+                _tickBuffer.Clear();
+                _inTick = false;
             }
         }
 
@@ -1412,15 +1438,16 @@ namespace DDrive.Runtime.Presentation
         // シーン破棄等の強制停止。Interruptible=false でも止める(通常の Cancel() とは別経路)。
         public void StopAll(StopReason reason)
         {
-            for (var i = _active.Count - 1; i >= 0; i--)
+            var snapshot = _active.ToArray(); // 購読者が他を止めても添字がずれない(FY-R-03)。定常経路ではない
+            for (var i = snapshot.Length - 1; i >= 0; i--)
             {
-                if (_instances.TryGet(_active[i], out var instance) && !instance.Done)
+                if (_instances.TryGetQuiet(snapshot[i], out var instance) && !instance.Done)
                 {
-                    CancelInternal(_active[i], instance);
+                    CancelInternal(snapshot[i], instance);
                 }
                 else
                 {
-                    _active.RemoveAt(i);
+                    _active.Remove(snapshot[i]);
                 }
             }
         }

@@ -178,12 +178,11 @@ namespace DDrive.Editor.Update
 
                 // WaitForExit(int) はストリームの読み切りを保証しないため、明示的に待つ(Microsoft 推奨パターン)。
                 // ただし引数なしの WaitForExit() は、git の子孫がパイプを掴んだままだと無期限に止まる(FX-R-05)ので、上限を付ける。
-                // 超えたら読めた分で結果を返す(待っていたスレッドはパイプが閉じられた時点で自然に終わる)。
+                // 超えたら読めた分で結果を返す。この時点で git 本体は終了済みで、パイプを掴んでいる子孫(ssh の ControlPersist 等)は
+                // 親を失って git の子ではなくなっているため、止められない(KillTree は HasExited で何もしないので呼ばない。FY-R-04)。
+                // 待っていたスレッドプールのスレッドは、子孫がパイプを閉じた時点(または終了した時点)で自然に終わる。
                 var drain = Task.Run(() => process.WaitForExit());
-                if (!drain.Wait(DrainTimeoutMs))
-                {
-                    KillTree(process);
-                }
+                drain.Wait(DrainTimeoutMs);
 
                 if (process.ExitCode != 0)
                 {

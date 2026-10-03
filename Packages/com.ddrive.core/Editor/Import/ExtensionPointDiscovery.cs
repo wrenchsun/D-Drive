@@ -7,8 +7,8 @@ namespace DDrive.Editor.Import
 {
     // [51_tdrive_integration.md] §4.7(FC-6)/§4.15(FC-14) — 取り込みまわりの外部拡張点(IImportRuleHandler /
     // IImportRuleFolderOptOut / IShaderConversionTableProvider / ITextureImportRuleProvider)に共通の発見規則。
-    // FC-5 の CutsceneImportListeners.Discover と同じ規則: TypeCache で派生型を集め、public・非 abstract・
-    // 引数なしコンストラクタを持つ型だけをインスタンス化する。`DDrive.Tests*` で始まるアセンブリの実装は除外する
+    // FC-5 の CutsceneImportListeners.Discover と同じ規則: TypeCache で派生型を集め、public(入れ子なら外側まで含めて外部から
+    // 見える型 = Type.IsVisible。FY-R-07)・非 abstract・引数なしコンストラクタを持つ型だけをインスタンス化する。`DDrive.Tests*` で始まるアセンブリの実装は除外する
     // (CI.DiscoverValidators / DDriveMigrationRunner と同じ。D-Drive 自身のテスト用ダミーが実運用に混ざらない)。
     // 並びは型のフルネーム(序数比較)順で決定的。コンストラクタの例外は隔離する(Debug.LogException + 継続)。
     // 結果のキャッシュは呼び出し側が持つ(取り込みのたびに TypeCache 走査 + インスタンス生成をしないため)。
@@ -19,7 +19,7 @@ namespace DDrive.Editor.Import
             var types = new List<Type>();
             foreach (var type in TypeCache.GetTypesDerivedFrom<T>())
             {
-                if (type == null || type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition || !type.IsPublic && !type.IsNestedPublic)
+                if (type == null || type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition || !type.IsVisible)
                 {
                     continue;
                 }

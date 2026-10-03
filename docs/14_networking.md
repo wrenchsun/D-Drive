@@ -1166,6 +1166,8 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 
 [55](55_review_fix_rounds_2026-10-03.md) FX-R-01 の対応。Cosmetic の Cutscene（[26](26_timeline.md) §4.7）のマーカー（Event / Signal / Shake / Haptic / 外部の `ICutsceneMarker`）を、**送信側（予測再生）・Host・Client で同じ回数発火する**ようにした。
 
+> **2026-10-04 訂正（修正ラウンド 4、[56](56_review_fix_round3_2026-10-04.md) FY-R-02）**: 以下の「決定」（開始位置が 0.5 秒以内なら `[0, 開始位置]` を全部発火、超えたら全部無音）は、**§22 で「開始位置から遡って 0.5 秒以内のマーカーだけ発火」に改めた**。「回数が揃う」は各端末の開始位置が猶予以内のときの話で、「0ms〜200ms の遅延は十分収まり」は Host 送信の 1 区間のこと（Client 送信が別の Client に届くときは 2 区間 = 片道の約 2 倍）。
+
 - **発火はローカル処理のまま**: マーカーの発火はネットへ何も流さない。各クライアントが自分の `Tick` で、同じ Timeline の同じ区間のマーカーを 1 回ずつ発火する（二重送信・二重発火の経路はない。`CutsceneNetMarkerSymmetryTests.Delay0ms_*` が送信数の不変を確認）。
 - **問題**: 受信側（`OnReceivePlayMsgInternal`）は `elapsed = max(0, NetworkTime − StartNetTime)`（= 通信遅延ぶん > 0）でシーク開始する。ラウンド 1 は「開始位置 > 0 なら途中参加として開始位置までのマーカーを無音で飛ばす」にしたため、通常の再生でも受信側だけ 0 秒のマーカー（と遅延時間以内のマーカー）が鳴らず、送信側（`elapsedSeek = 0`）とだけ食い違った。
 - **受信側が新規開始と Late Join を区別できるか（調査結果）**: できない。Late Join は Host の台帳（`_activeNetworked`）から**同じ `CutscenePlayMsg`**（元の `StartNetTime` のまま）を `SendTo` で再送するだけで、メッセージの種類・フラグ・チャンネル（どちらも `ReliableOrdered`）・受信経路（`OnReceivePlayMsg` → `OnReceivePlayMsgInternal`）に違いがない。**メッセージの形式は変えない**（フィールド追加なし。互換面）。
@@ -1173,3 +1175,28 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 - **実装**: `PlayLocalInternal` に `catchUpFireMarkers`（受信側が新規開始のときだけ true）を足し、true のときは `AdvanceMarkers(..., fire: false)` の無音の追いつきをしない（カーソル 0 のまま始め、最初の `Tick` で `AdvanceMarkers(..., fire: true)` が `[0, Elapsed]` を 1 回ずつ発火する）。発火が最初の `Tick` になるので、受信側のハンドルを取って `OnMarker` を購読してから発火する（`Play` 自体では発火しない）。ローカル再生・予測再生・`Seek` / `Skip` の経路は不変。
 - **挙動の変更（v1.3.1 から）**: v1.3.1 は 0 秒のマーカーがローカルでも鳴らず、遅延時間以内のマーカーは受信側で鳴らなかった。v1.4.0 は送信側・受信側とも 0 秒と遅延時間以内（0.5 秒以内の新規開始）のマーカーが鳴る。CHANGELOG の互換性節（MINOR）に記載。
 - **ネットの実機確認（[docs/29] の流儀）**: 自動テストは `DelayedNetBridge`（遅延 0ms / 200ms の再現）で固定した。実機（Host + Client 2 台、遅延 200ms 設定）で 0 秒に Signal / SE のマーカーを置いた Cosmetic のカットシーンを再生し、両方の端末で 1 回ずつ鳴ることの確認が望ましい（[52] 4-2 の「2 台構成」の項）。
+
+## 22. 実装メモ（2026-10-04、修正ラウンド 4: Cutscene の受信側の追いつき発火を「位置ごとの猶予」に、FY-R-02 / FY-R-03）
+
+[56](56_review_fix_round3_2026-10-04.md) FY-R-02 の対応。§21 の「全か無か」を、`PresentationManager` の遅れて届いたワンショットの猶予（`remoteOneShotGraceSec`、§6-0 修正6）と**同じ規則・同じ値**にした。
+
+- **規則**: 受信側（`OnReceivePlayMsgInternal`。Late Join の再送を含む）は、開始位置 `elapsed = max(0, NetworkTime − StartNetTime)` から遡って猶予（**0.5 秒**）以内にあるマーカーだけを最初の `Tick` で 1 回ずつ発火する。それより古いマーカーは無音で飛ばす。**判定式**: 無音 ⇔ `elapsed − マーカーの時刻 > 0.5`（発火 ⇔ `≤ 0.5`。**ちょうど 0.5 秒は発火**）。Presentation の `SeekInitialTracks`（`lateBySec = elapsed − track.Time; lateBySec > grace` ならスキップ）と境界まで一致。定数は Cutscene 側に 1 つ（`CutsceneManager.RemoteMarkerGraceSec` = 0.5、private。旧 `RemoteFreshStartGraceSec` は未リリースなので改名）で、Presentation の定数と値は共有しない（同じ値であることをこの節と [26] に書く）。
+- **効果**（Signal / Event / Shake / Haptic / 外部 `ICutsceneMarker` 共通。同じカーソル方式）:
+
+| 受信した端末の開始位置 | マーカー 0 秒 | 0.1 秒 | 0.4 秒 | 0.6 秒 |
+|---|---|---|---|---|
+| 0.3 秒 | 発火 | 発火 | （未到達） | （未到達） |
+| 0.5 秒（ちょうど） | 発火 | 発火 | 発火 | （未到達） |
+| 0.7 秒 | 無音 | 無音 | 発火 | 発火 |
+| 2.0 秒 | 無音 | 無音 | 無音 | 無音 |
+
+- **立場別**: Host 送信の 1 区間・Client 送信を Host が受信する 1 区間は開始位置が片道遅延 L 前後で、**L が 0.5 秒以内なら `[0, 開始位置]` が全部発火**する（従来と同じ。送信者の予測再生・Host・Client で回数が揃う）。**Client が送って Host が中継し別の Client が受ける 2 区間**は開始位置が約 2L で、2L が 0.5 秒を少し超えても直近 0.5 秒分は発火し、全部が無音にはならない（**0 秒のマーカーは遅延が 0.5 秒を超えた端末では無音 = 仕様**。マーカーは各端末の見た目専用で、権威的な処理を載せない前提は従来どおり）。Late Join は参加時点から遡って 0.5 秒以内のマーカーだけ発火（参加直前 0.5 秒に何も無ければ無音）。Seek / Skip（`CutsceneSeekMsg`）で跨いだ分は開始位置ちょうどを含めて無音。
+- **実装**: `PlayLocalInternal` の `catchUpFireMarkers`（受信側の再生開始で常に true）のとき、`SkipMarkersOlderThan(instance, elapsed, 猶予)` が 5 種のカーソルを `elapsed − 時刻 > 猶予` の間だけ無音で進める（割り当てなし）。残りは最初の `Tick`（`AdvanceMarkers(fire: true)`）で発火する。ローカル再生・予測再生・`Seek` / `Skip` の経路は不変。ネットメッセージの形式は不変。
+- **狭い二重発火の防止**: 予測再生した送信者が、自分のメッセージが戻る前にカットシーンをローカルで止めた（`StopAll` = シーンのアンロード。ネットを通らない終わり方）と、戻ったメッセージが新規再生として扱われ冒頭のマーカーがもう一度鳴っていた。自分が予測再生した再生キーを `_predictedKeys`（上限 256 で破棄・`ResetNetworkedState` で空）に覚え、戻ったメッセージで除き、**既存のインスタンスが無ければ再生し直さない**。予測再生なしの送信者は自分のメッセージで再生する（影響なし）。既知の制限: メッセージが戻らないまま 256 件を超えて予測再生を重ねると（切断等）覚えが捨てられる。
+- **テスト**: PlayMode `CutsceneNetMarkerSymmetryTests`（開始位置 × マーカー時刻の表〔Signal 4 + Event 2〕・Client → Host → 別の Client の 3 者〔`DelayedNetworkRelay.RelayThroughHostId`〕・Late Join〔0.5 秒以内 / 0.5 秒より後〕・Skip / Seek・予測再生の送信者が止めた後の再生し直し防止）、`ExternalContractMarkerTests`（外部マーカー）。
+- **実機確認**: [52] 4-5（Client が送信者のときに別の Client で確認・開始位置が 0.5 秒にどれだけ近づくかの記録・0.5 秒より後の Late Join・`host_migration` 後の再生）。
+- **挙動の変更（v1.3.1 から）**: CHANGELOG の互換性節（MINOR）。
+
+### 22.1 `PresentationManager.Tick` の走査（FY-R-03、v1.3.1 から既存の不具合・挙動の変更なし）
+
+`Tick` / `StopAll` / `CancelAllNetworked` が `_active` を添字で走査していたため、`OnCompleted` の購読者・`OnMarker` の購読者・`WaitAsync` の続きが走査中に他の Presentation を Cancel すると、添字がずれて同じ `Tick` で二重に進む・飛ばす・`ArgumentOutOfRangeException` になりえた。`CutsceneManager` と同じ「再利用の写し（`_tickBuffer`）+ `TryGetQuiet`（世代つき Handle の有効性確認）+ 入れ子の `Tick` を弾く（`_inTick`）」に変えた（`StopAll` / `CancelAllNetworked` は `ToArray()` の写し）。発火順・完了通知の順・1 `Tick` で進む量は不変。Tick 中に Play されたものは次の `Tick` から進む。ネット同期（中継・Late Join）には触れていない。テスト: PlayMode `PresentationTickReentrancyTests`。

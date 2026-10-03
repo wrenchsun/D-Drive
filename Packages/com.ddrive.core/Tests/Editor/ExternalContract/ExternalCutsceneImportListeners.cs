@@ -51,6 +51,28 @@ namespace ExternalPackage.Fake
         public void OnCutsceneShotImported(CutsceneImportResult result) => ExternalListenerProbe.Sink?.Invoke(nameof(ExternalNonPublicListener), result);
     }
 
+    // 入れ子の型(FY-R-07): 外側が internal の中の public な入れ子型は、外部アセンブリから見えない(Type.IsVisible = false)ので発見されない。
+    internal static class ExternalHiddenListenerHost
+    {
+        public sealed class ExternalHiddenNestedListener : ICutsceneImportListener
+        {
+            public int Order => 2;
+
+            public void OnCutsceneShotImported(CutsceneImportResult result) => ExternalListenerProbe.Sink?.Invoke(nameof(ExternalHiddenNestedListener), result);
+        }
+    }
+
+    // 外側も public なら、入れ子の public 型は外部から見える(Type.IsVisible = true)ので発見される。
+    public static class ExternalVisibleListenerHost
+    {
+        public sealed class ExternalVisibleNestedListener : ICutsceneImportListener
+        {
+            public int Order => 60;
+
+            public void OnCutsceneShotImported(CutsceneImportResult result) => ExternalListenerProbe.Sink?.Invoke(nameof(ExternalVisibleNestedListener), result);
+        }
+    }
+
     // 一番先に呼ばれ、ThrowEnabled のとき例外を投げる(後続のリスナーと取り込みが止まらないことの確認用)。
     public sealed class ExternalThrowingListener : ICutsceneImportListener
     {

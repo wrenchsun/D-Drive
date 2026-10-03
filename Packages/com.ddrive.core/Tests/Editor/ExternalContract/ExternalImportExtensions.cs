@@ -30,6 +30,8 @@ namespace ExternalPackage.Fake
         public static bool RuleProviderThrows;      // ExternalThrowingRuleProvider が例外を投げる
         public static IReadOnlyList<ShaderConversionTable> Tables; // ExternalTableProvider が返す表(null で空)
         public static bool TableProviderThrows;     // ExternalThrowingTableProvider が例外を投げる
+        public static int HiddenNestedProviderCalls;  // 外側が internal の入れ子の提供口(発見されないので 0 のまま。FY-R-07)
+        public static int VisibleNestedProviderCalls; // 外側も public の入れ子の提供口(発見されるので呼ばれる。FY-R-07)
 
         public static void Reset()
         {
@@ -43,6 +45,8 @@ namespace ExternalPackage.Fake
             RuleProviderThrows = false;
             Tables = null;
             TableProviderThrows = false;
+            HiddenNestedProviderCalls = 0;
+            VisibleNestedProviderCalls = 0;
             ImportRuleService.ResetExtensionCacheForTests();
             TextureImportRuleProviders.ResetCacheForTests();
             ShaderConversionTables.ResetProviderCacheForTests();
@@ -152,6 +156,31 @@ namespace ExternalPackage.Fake
     public sealed class ExternalTableProvider : IShaderConversionTableProvider
     {
         public IEnumerable<ShaderConversionTable> GetTables() => ExternalImportProbe.Tables ?? Array.Empty<ShaderConversionTable>();
+    }
+
+    // FY-R-07: 入れ子の提供口。外側が internal なら外部から見えない(Type.IsVisible = false)ので発見されない。
+    internal static class ExternalHiddenProviderHost
+    {
+        public sealed class ExternalHiddenNestedTableProvider : IShaderConversionTableProvider
+        {
+            public IEnumerable<ShaderConversionTable> GetTables()
+            {
+                ExternalImportProbe.HiddenNestedProviderCalls++;
+                return Array.Empty<ShaderConversionTable>();
+            }
+        }
+    }
+
+    public static class ExternalVisibleProviderHost
+    {
+        public sealed class ExternalVisibleNestedTableProvider : IShaderConversionTableProvider
+        {
+            public IEnumerable<ShaderConversionTable> GetTables()
+            {
+                ExternalImportProbe.VisibleNestedProviderCalls++;
+                return Array.Empty<ShaderConversionTable>();
+            }
+        }
     }
 
     public sealed class ExternalThrowingTableProvider : IShaderConversionTableProvider

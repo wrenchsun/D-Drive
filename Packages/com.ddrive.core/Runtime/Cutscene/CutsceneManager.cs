@@ -106,10 +106,11 @@ namespace DDrive.Runtime.Cutscene
         private readonly InstanceStore<CutsceneMarker, CutsceneInstance> _instances = new();
         private readonly List<Handle<CutsceneMarker>> _active = new();
 
-        // 受信した CutscenePlayMsg の開始位置(NetworkTime − StartNetTime)がこの秒数以内なら「新規の再生開始」とみなす
-        // (FX-R-01、2026-10-03)。値は PresentationManager の remoteOneShotGraceSec(既定 0.5 秒、docs/14「6-0 修正6」。
-        // 実機 200ms 遅延の確認 = docs/29 §8 で、通信遅延 + 位相誤差が収まる範囲として決めた値)に合わせる。
-        private const double RemoteFreshStartGraceSec = 0.5d;
+        // 受信した CutscenePlayMsg の開始位置(NetworkTime − StartNetTime)から遡ってこの秒数以内にあるマーカーだけを、
+        // 受信側の最初の Tick で発火する(それより古いマーカーは無音。FY-R-02、2026-10-04。FX-R-01 の「全か無か」を改めた)。
+        // PresentationManager の remoteOneShotGraceSec(既定 0.5 秒、docs/14「6-0 修正6」)と同じ規則・同じ値
+        // (開始位置 − マーカーの時刻 ≤ 猶予なら発火。ちょうどは含む。定数は共有しない)。
+        private const double RemoteMarkerGraceSec = 0.5d;
 
         // Tick の走査用の写し(再利用。マーカー / イベントの購読者が走査中に Stop / Play しても添字がずれない。FX-R-03)。
         private readonly List<Handle<CutsceneMarker>> _tickBuffer = new();
@@ -134,6 +135,12 @@ namespace DDrive.Runtime.Cutscene
         private readonly Subject<bool> _inputLockChangedSubject = new();
 
         private readonly Dictionary<uint, Handle<CutsceneMarker>> _networkedHandles = new();
+
+        // 自分が予測再生した再生キー(自分の CutscenePlayMsg が戻ったら除く)。戻る前に予測再生がローカルで止められた
+        // (StopAll = シーンのアンロード等)とき、戻ったメッセージを新規開始として再生し直して冒頭のマーカーが二重に
+        // 鳴るのを防ぐ(FY-R-02)。上限を超えたら捨てる(メッセージが戻らない切断等で膨らまないように)。
+        private readonly HashSet<uint> _predictedKeys = new();
+        private const int PredictedKeysCap = 256;
         private readonly Dictionary<uint, ActiveNetworkedEntry> _activeNetworked = new();
         private readonly uint _instanceSalt;
         private uint _nextLocalSeq;
@@ -278,12 +285,19 @@ namespace DDrive.Runtime.Cutscene
             // 無音でスキップする(PresentationManager の SeekInitialTracks と同じ方針)。
             // elapsedSeek==0(最初から再生)は何も跨がないので追い付かせない = 時刻 0 のマーカーも最初の Tick で発火する
             // (2026-10-03、FC-R-03。既存の Event / Signal / Shake / Haptic も同じ)。
-            // catchUpFireMarkers(2026-10-03 ラウンド 3、FX-R-01): ネット受信側の「新規の再生開始」(開始位置 =
-            // 通信遅延ぶん。RemoteFreshStartGraceSec 以内)は、開始位置までの区間 [0, 開始位置] のマーカーを無音で飛ばさず
-            // カーソル 0 のまま始め、最初の Tick で 1 回ずつ発火する(送信側の予測再生と発火回数を揃える)。
-            if (instance.Elapsed > 0d && !catchUpFireMarkers)
+            // catchUpFireMarkers(FY-R-02、2026-10-04): ネット受信側(開始位置 = 通信遅延 + Late Join の経過)は、
+            // 開始位置から遡って RemoteMarkerGraceSec 以内のマーカーを無音で飛ばさず、最初の Tick で 1 回ずつ発火する
+            // (開始位置 − マーカーの時刻 > 猶予 のものだけ無音。PresentationManager の SeekInitialTracks と同じ規則)。
+            if (instance.Elapsed > 0d)
             {
-                AdvanceMarkers(instance, instance.Elapsed, fire: false);
+                if (catchUpFireMarkers)
+                {
+                    SkipMarkersOlderThan(instance, instance.Elapsed, RemoteMarkerGraceSec);
+                }
+                else
+                {
+                    AdvanceMarkers(instance, instance.Elapsed, fire: false);
+                }
             }
 
             slot.Director.time = System.Math.Min(instance.Elapsed, System.Math.Max(0d, instance.Duration));
@@ -693,6 +707,22 @@ namespace DDrive.Runtime.Cutscene
             AdvanceExternalMarkers(instance, newElapsed, fire);
         }
 
+        // 受信側の追いつき用(FY-R-02): 開始位置 elapsed より graceSec を超えて古いマーカー(elapsed − 時刻 > graceSec)の
+        // カーソルだけを無音で進める。残りは最初の Tick(AdvanceMarkers fire=true)で発火する。割り当てなし。
+        private static void SkipMarkersOlderThan(CutsceneInstance instance, double elapsed, double graceSec)
+        {
+            var e = instance.EventMarkers;
+            while (instance.EventMarkerCursor < e.Count && elapsed - e[instance.EventMarkerCursor].Item1 > graceSec) { instance.EventMarkerCursor++; }
+            var s = instance.SignalMarkers;
+            while (instance.SignalMarkerCursor < s.Count && elapsed - s[instance.SignalMarkerCursor].Item1 > graceSec) { instance.SignalMarkerCursor++; }
+            var k = instance.ShakeMarkers;
+            while (instance.ShakeMarkerCursor < k.Count && elapsed - k[instance.ShakeMarkerCursor].Item1 > graceSec) { instance.ShakeMarkerCursor++; }
+            var h = instance.HapticMarkers;
+            while (instance.HapticMarkerCursor < h.Count && elapsed - h[instance.HapticMarkerCursor].Item1 > graceSec) { instance.HapticMarkerCursor++; }
+            var x = instance.ExternalMarkers;
+            while (instance.ExternalMarkerCursor < x.Count && elapsed - x[instance.ExternalMarkerCursor].Item1 > graceSec) { instance.ExternalMarkerCursor++; }
+        }
+
         // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — `Application.isPlaying` の代わりに
         // Slot に付けた `CutsceneDirectorContext.FireEnabled` を見る(RentDirector が常に true を入れるため、
         // Play Mode/テストでの挙動は変わらない)。Edit Mode 側は CutsceneManager を経由しない(TL;DR どおり
@@ -904,6 +934,12 @@ namespace DDrive.Runtime.Cutscene
             if (data.PredictLocal)
             {
                 predicted = PlayLocalInternal(data, in ctx, elapsedSeek: 0d, seed: seed, handleNetKey: handleNetKey, isNetworked: true, playedViaNetworkReceive: false);
+                if (_predictedKeys.Count >= PredictedKeysCap)
+                {
+                    _predictedKeys.Clear();
+                }
+
+                _predictedKeys.Add(handleNetKey);
 
                 if (_netBridge.IsServer)
                 {
@@ -1030,6 +1066,8 @@ namespace DDrive.Runtime.Cutscene
                 return;
             }
 
+            var wasPredicted = _predictedKeys.Remove(msg.HandleNetKey);
+
             if (_networkedHandles.TryGetValue(msg.HandleNetKey, out var existingHandle) && _instances.TryGet(existingHandle, out var existingInstance))
             {
                 if (existingInstance.Data.Id != msg.CutId)
@@ -1040,6 +1078,11 @@ namespace DDrive.Runtime.Cutscene
 
                 RegisterActiveIfServer(msg.HandleNetKey, existingInstance.Data, existingInstance.Ctx, msg.StartNetTime, msg.Seed);
                 return;
+            }
+
+            if (wasPredicted)
+            {
+                return; // 自分が予測再生したカットシーンが、自分のメッセージが戻る前にローカルで止められた。再生し直さない(FY-R-02)。
             }
 
             if (!_registry.IsRegistered(msg.CutId, AssetType.Cutscene))
@@ -1076,11 +1119,9 @@ namespace DDrive.Runtime.Cutscene
                 }
             }
 
-            // FX-R-01: CutscenePlayMsg は「新規の再生開始」と「Host の Late Join 再送」で同じ形(再送も元の StartNetTime のまま)
-            // なので、受信側は種類では区別できない。開始位置(= 発信からの経過時間)が通信遅延として妥当な範囲なら新規開始とみなし、
-            // 開始までに過ぎたマーカーも発火する。それより大きければ Late Join として無音(従来どおり)。
-            var freshStart = elapsed <= RemoteFreshStartGraceSec;
-            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true, catchUpFireMarkers: freshStart);
+            // FY-R-02: CutscenePlayMsg は「新規の再生開始」と「Host の Late Join 再送」で同じ形(再送も元の StartNetTime のまま)
+            // で、どちらも同じ規則: 開始位置から遡って RemoteMarkerGraceSec 以内のマーカーだけ最初の Tick で発火、古いものは無音。
+            var handle = PlayLocalInternal(data, in ctx, elapsedSeek: elapsed, seed: msg.Seed, handleNetKey: msg.HandleNetKey, isNetworked: true, playedViaNetworkReceive: true, catchUpFireMarkers: true);
 
             if (_instances.TryGet(handle, out var instance))
             {
@@ -1231,6 +1272,7 @@ namespace DDrive.Runtime.Cutscene
             CancelAllNetworked();
 
             _networkedHandles.Clear();
+            _predictedKeys.Clear();
             _activeNetworked.Clear();
             _pendingNetMessages.Clear();
             _seekCancelBudgets.Clear();

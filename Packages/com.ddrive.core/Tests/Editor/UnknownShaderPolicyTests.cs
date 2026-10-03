@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DDrive.Editor.AssetBrowser;
+using DDrive.Foundation.Identity;
 using DDrive.Editor.Materials;
 using DDrive.Editor.Model;
 using DDrive.Runtime.Material;
@@ -97,7 +98,7 @@ namespace DDrive.Tests.Editor
         }
 
         // 既にあるパスの .mat(= GUID はそのまま)の中身を「シェーダー参照が欠けた」状態に書き換える(FX-R-02。元のシェーダーが後から欠けた状況)。
-        private static void WriteMissingShaderMaterial(string path, string name)
+        private static void WriteMissingShaderMaterial(string path, string name, bool withSavedProperties = false)
         {
             var yaml = string.Join("\n", new[]
             {
@@ -121,8 +122,8 @@ namespace DDrive.Tests.Editor
                 "    serializedVersion: 3",
                 "    m_TexEnvs: []",
                 "    m_Ints: []",
-                "    m_Floats: []",
-                "    m_Colors: []",
+                withSavedProperties ? "    m_Floats:\n    - _Metallic: 0.9\n    - _Glossiness: 0.8" : "    m_Floats: []",
+                withSavedProperties ? "    m_Colors:\n    - _BaseColor: {r: 1, g: 0, b: 0, a: 1}\n    - _Color: {r: 0, g: 1, b: 0, a: 1}" : "    m_Colors: []",
                 "",
             });
             System.IO.File.WriteAllText(path, yaml);
@@ -408,19 +409,42 @@ namespace DDrive.Tests.Editor
 
         // ── FX-R-02: 元のシェーダーが欠けている間に既存 Data を再生成しても、既存 Data のシェーダー参照を書き換えない ──
 
+        // FY-R-01: Shader / Specific だけでなく Common(色・テクスチャ参照・Blend 等)も含めて、既存 Data を一切書き換えない
+        // (Data の内容・IsDirty・.asset ファイルの中身が変わらない)。
         [TestCase(UnknownShaderHandling.Keep)]
         [TestCase(UnknownShaderHandling.Convert)]
         [TestCase(UnknownShaderHandling.ConvertKeepingExisting)]
-        public void MissingSource_ExistingData_KeepsItsShaderAndSpecific_RegardlessOfHandling(UnknownShaderHandling handling)
+        public void MissingSource_ExistingData_IsNotModifiedAtAll_IncludingCommon_RegardlessOfHandling(UnknownShaderHandling handling)
         {
             var m = CreateMaterialAsset("MissingAfterKept", _unknown);
             var data = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot, UnknownShaderHandling.Keep);
             Assert.AreSame(_unknown, data.Shader);
             var specificBefore = data.Specific == null ? 0 : data.Specific.Length;
 
+            // 既存 Data の Common を、既定値と違う値(色・テクスチャ参照・Blend 等)にしておく。
+            var common = MaterialCommon.Default;
+            common.Albedo = new AssetId<TextureMarker>(0xABCD01UL, AssetType.Texture);
+            common.AlbedoTint = new Color(1f, 0.25f, 0.5f, 1f);
+            common.Normal = new AssetId<TextureMarker>(0xABCD02UL, AssetType.Texture);
+            common.NormalScale = 2f;
+            common.Mask = new AssetId<TextureMarker>(0xABCD03UL, AssetType.Texture);
+            common.Metallic = 0.7f;
+            common.Smoothness = 0.3f;
+            common.Emission = new AssetId<TextureMarker>(0xABCD04UL, AssetType.Texture);
+            common.EmissionColor = new Color(0.1f, 0.2f, 0.3f, 1f);
+            common.EmissionIntensity = 1.5f;
+            common.Blend = BlendType.Transparent;
+            common.Cutoff = 0.4f;
+            common.DoubleSided = true;
+            data.Common = common;
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssetIfDirty(data);
+            var dataPath = AssetDatabase.GetAssetPath(data);
+            var fileBefore = System.IO.File.ReadAllBytes(dataPath);
+
             // 後から元の .mat のシェーダーが欠けた(パッケージの解決失敗・GUID 切れ)状態にして、再生成する。
             var path = AssetDatabase.GetAssetPath(m);
-            WriteMissingShaderMaterial(path, "MissingAfterKept");
+            WriteMissingShaderMaterial(path, "MissingAfterKept", withSavedProperties: true);
             var missing = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
             Assume.That(UnknownShaderGuard.IsMissing(missing.shader), "元の .mat のシェーダーが欠けた状態になること");
 
@@ -430,8 +454,87 @@ namespace DDrive.Tests.Editor
             Assert.AreSame(data, again, "同じ MaterialData が見つかる(別の Data を作らない)");
             Assert.AreSame(_unknown, again.Shader, "欠けている間の再生成で、既存 Data のシェーダーを Lit に置き換えない");
             Assert.AreEqual(specificBefore, again.Specific == null ? 0 : again.Specific.Length, "固有の設定も触らない");
-            StringAssert.Contains("変更しませんでした", string.Join("\n", report.Lines));
+            var after = again.Common;
+            Assert.AreEqual(common.Albedo, after.Albedo, "Albedo(テクスチャ参照)");
+            Assert.AreEqual(common.AlbedoTint, after.AlbedoTint, "色");
+            Assert.AreEqual(common.Normal, after.Normal);
+            Assert.AreEqual(common.NormalScale, after.NormalScale);
+            Assert.AreEqual(common.Mask, after.Mask);
+            Assert.AreEqual(common.Metallic, after.Metallic);
+            Assert.AreEqual(common.Smoothness, after.Smoothness);
+            Assert.AreEqual(common.Emission, after.Emission);
+            Assert.AreEqual(common.EmissionColor, after.EmissionColor);
+            Assert.AreEqual(common.EmissionIntensity, after.EmissionIntensity);
+            Assert.AreEqual(common.Blend, after.Blend, "Blend");
+            Assert.AreEqual(common.Cutoff, after.Cutoff);
+            Assert.AreEqual(common.DoubleSided, after.DoubleSided);
+            Assert.IsFalse(EditorUtility.IsDirty(again), "Data を書き換えていない(IsDirty でない)");
+            CollectionAssert.AreEqual(fileBefore, System.IO.File.ReadAllBytes(dataPath), ".asset ファイルの中身が変わらない");
+            var log = string.Join("\n", report.Lines);
+            StringAssert.Contains("変更しませんでした", log);
+            StringAssert.Contains("共通", log);
             Assert.AreEqual(1, CountMaterialData());
+        }
+
+        // FY-R-01: FBX の取り込み経路(ImportModel が呼ぶ ImportMaterial)も、欠けたシェーダーの .mat から Common を作り直して
+        // 既存 Data の Common を上書きしない。
+        [Test]
+        public void MissingSource_ImportMaterial_DoesNotOverwriteExistingCommon()
+        {
+            var m = CreateMaterialAsset("MissingViaImport", _unknown);
+            var data = UnityMaterialMigrator.Migrate(m, "Migrate", null, TestRoot, UnknownShaderHandling.Keep);
+            var common = MaterialCommon.Default;
+            common.AlbedoTint = new Color(0.9f, 0.1f, 0.1f, 1f);
+            common.Metallic = 0.6f;
+            data.Common = common;
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssetIfDirty(data);
+
+            var path = AssetDatabase.GetAssetPath(m);
+            WriteMissingShaderMaterial(path, "MissingViaImport", withSavedProperties: true);
+            var missing = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
+            Assume.That(UnknownShaderGuard.IsMissing(missing.shader));
+
+            var report = new MayaMaterialImporter.Report();
+            var again = MayaMaterialImporter.ImportMaterial(missing, "Migrate", UnityMaterialMigrator.SourceKey, _profile, report, TestRoot);
+
+            Assert.AreSame(data, again);
+            Assert.AreEqual(common.AlbedoTint, again.Common.AlbedoTint);
+            Assert.AreEqual(common.Metallic, again.Common.Metallic);
+            Assert.IsFalse(EditorUtility.IsDirty(again));
+            Assert.AreEqual(0, report.Updated);
+            Assert.AreEqual(1, report.Unchanged);
+        }
+
+        // 既存 Data が無いなら、欠けたシェーダーでも従来どおり新規に作る(Lit)。
+        [Test]
+        public void MissingSource_NoExistingData_StillCreatesNewLitData()
+        {
+            var m = CreateMissingShaderMaterialAsset("MissingFresh");
+            var report = new MayaMaterialImporter.Report();
+
+            var data = UnityMaterialMigrator.Migrate(m, "Migrate", report, TestRoot, UnknownShaderHandling.Keep);
+
+            Assert.IsNotNull(data);
+            Assert.AreEqual(UnityMaterialMigrator.LitShaderName, data.Shader.name);
+            Assert.AreEqual(1, report.Created);
+        }
+
+        // FY-R-01 の推定の確認(docs/56): 欠けたシェーダーの Material は、.mat に保存されたプロパティがあっても
+        // HasProperty が偽になる(プロパティはシェーダーの定義で引かれる)= 元の値から Common は作れない。
+        [Test]
+        public void MissingShaderMaterial_PropertiesAreNotReadable_EvenIfSavedInTheFile()
+        {
+            var name = "MissingProbe";
+            var path = TempFolder + "/" + name + ".mat";
+            WriteMissingShaderMaterial(path, name, withSavedProperties: true);
+            _assets.Add(path);
+            var missing = AssetDatabase.LoadAssetAtPath<UnityEngine.Material>(path);
+            Assume.That(UnknownShaderGuard.IsMissing(missing.shader));
+
+            Assert.IsFalse(missing.HasProperty("_BaseColor"), "保存された色でも HasProperty は偽");
+            Assert.IsFalse(missing.HasProperty("_Color"));
+            Assert.AreEqual(0, missing.GetTexturePropertyNames().Length, "テクスチャのプロパティ名もシェーダーから取られるので空");
         }
 
         // 既存 Data 側のシェーダー参照が欠けている(シェーダーのファイルが無くなった)とき、Maya 取り込み経路でも埋め直さない。

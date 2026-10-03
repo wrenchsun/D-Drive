@@ -217,8 +217,15 @@ namespace DDrive.Editor.Cutscene
                     }
                     else
                     {
-                        // 途中から(スクラブしてから再生)。開始位置までは無音で追い付く(開始位置ちょうどのマーカーも無音)。
-                        session.SilentAdvanceTo(elapsed);
+                        // 途中から(スクラブしてから再生・一時停止からの再開)。再生を始める直前の位置(session.LastTime)までは
+                        // 無音で追い付く(その位置ちょうどのマーカーも無音)。最初の更新までに進んだ区間(LastTime より後)のマーカーは
+                        // 発火する(Play Mode の Seek + Tick と同じ。FY-R-05)。
+                        session.SilentAdvanceTo(session.LastTime);
+                        session.EventCursor.Advance(elapsed, true, FireEvent);
+                        session.SignalCursor.Advance(elapsed, true, FireSignal);
+                        session.ShakeCursor.Advance(elapsed, true, FireShake);
+                        session.HapticCursor.Advance(elapsed, true, FireHaptic);
+                        session.ExternalCursor.Advance(elapsed, true, director);
                     }
                 }
                 else if (elapsed + 1e-4d < session.LastTime)
