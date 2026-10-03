@@ -35,16 +35,24 @@ namespace DDrive.Editor.Update
                 var deadline = DateTime.UtcNow.AddMilliseconds(TotalTimeoutMs);
                 var cleanPath = string.IsNullOrEmpty(subPath) ? null : subPath.Replace('\\', '/').Trim('/');
 
-                if (!Run(
-                        "clone --depth 1 --filter=blob:none --sparse --no-tags --branch " + Quote(reference) + " " + Quote(cloneUrl) + " " + Quote(workDir),
-                        null, deadline, out var error))
+                // 外から来る値(URL・版・パス)が `-` で始まるとオプションとして解釈され得るため、実行前に弾く(例外にはしない)。
+                var unsafeName = GitArguments.FirstUnsafe(
+                    new[] { "リポジトリ URL", "版(タグ)", "パッケージのパス" },
+                    new[] { cloneUrl, reference, cleanPath ?? "." });
+                if (unsafeName != null)
+                {
+                    warningMessage = GitArguments.UnsafeWarning(unsafeName);
+                    return null;
+                }
+
+                if (!Run(GitArguments.SparseClone(cloneUrl, reference, workDir), null, deadline, out var error))
                 {
                     warningMessage = error;
                     return null;
                 }
 
                 if (cleanPath != null
-                    && !Run("sparse-checkout set " + Quote(cleanPath), workDir, deadline, out error))
+                    && !Run(GitArguments.SparseCheckoutSet(cleanPath), workDir, deadline, out error))
                 {
                     warningMessage = error;
                     return null;
@@ -71,7 +79,7 @@ namespace DDrive.Editor.Update
         }
 
         // 全体の期限(deadline)までに終わらなければ強制終了する。
-        private static bool Run(string arguments, string workingDirectory, DateTime deadline, out string error)
+        private static bool Run(string[] arguments, string workingDirectory, DateTime deadline, out string error)
         {
             error = null;
             var remainingMs = (int)(deadline - DateTime.UtcNow).TotalMilliseconds;
@@ -84,12 +92,17 @@ namespace DDrive.Editor.Update
             var startInfo = new ProcessStartInfo
             {
                 FileName = "git",
-                Arguments = arguments,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true,
             };
+            // 引数は 1 個ずつ渡す(引用符の組み立てをしない)。
+            foreach (var argument in arguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
             if (!string.IsNullOrEmpty(workingDirectory))
             {
                 startInfo.WorkingDirectory = workingDirectory;
@@ -181,7 +194,5 @@ namespace DDrive.Editor.Update
 
             return null;
         }
-
-        private static string Quote(string value) => "\"" + value.Replace("\"", "\\\"") + "\"";
     }
 }
