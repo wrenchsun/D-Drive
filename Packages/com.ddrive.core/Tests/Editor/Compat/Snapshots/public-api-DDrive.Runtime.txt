@@ -678,6 +678,7 @@ TYPE class sealed DDrive.Runtime.Cutscene.DDriveCutsceneCameraApplier : UnityEng
   method Restore() : void
   method Submit(ref DDrive.Runtime.Cutscene.CutsceneCameraWriteRequest req, object ownerKey) : bool
   method static EnsureOn(UnityEngine.Camera camera) : DDrive.Runtime.Cutscene.DDriveCutsceneCameraApplier
+  property IsDriving : bool {get}
 TYPE struct DDrive.Runtime.Cutscene.FrameRange
   field End : int
   field Start : int
@@ -2692,3 +2693,25 @@ TYPE enum DDrive.Runtime.Vfx.VfxRenderMode
   enum-member World3D = 0
   field const UIOverlay : DDrive.Runtime.Vfx.VfxRenderMode
   field const World3D : DDrive.Runtime.Vfx.VfxRenderMode
+TYPE interface DDrive.Runtime.Viewing.IViewProvider
+  method TryGetView(UnityEngine.Transform subject, out DDrive.Runtime.Viewing.ViewPose pose) : bool
+TYPE class static DDrive.Runtime.Viewing.ViewCamera
+  method static Register(DDrive.Runtime.Viewing.IViewProvider provider, int priority = 0) : void
+  method static TryGetCurrent(UnityEngine.Transform subject, out DDrive.Runtime.Viewing.ViewPose pose) : bool
+  method static Unregister(DDrive.Runtime.Viewing.IViewProvider provider) : void
+TYPE struct DDrive.Runtime.Viewing.ViewPose
+  ctor ViewPose(UnityEngine.Vector3 position, UnityEngine.Quaternion rotation, float verticalFovDegrees, DDrive.Runtime.Viewing.ViewSource source, UnityEngine.Camera camera)
+  field readonly Camera : UnityEngine.Camera
+  field readonly Position : UnityEngine.Vector3
+  field readonly Rotation : UnityEngine.Quaternion
+  field readonly Source : DDrive.Runtime.Viewing.ViewSource
+  field readonly VerticalFovDegrees : float
+TYPE enum DDrive.Runtime.Viewing.ViewSource
+  enum-member Cutscene = 2
+  enum-member MainCamera = 1
+  enum-member None = 0
+  enum-member Override = 3
+  field const Cutscene : DDrive.Runtime.Viewing.ViewSource
+  field const MainCamera : DDrive.Runtime.Viewing.ViewSource
+  field const None : DDrive.Runtime.Viewing.ViewSource
+  field const Override : DDrive.Runtime.Viewing.ViewSource

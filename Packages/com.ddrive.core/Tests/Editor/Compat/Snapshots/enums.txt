@@ -393,3 +393,7 @@ DDrive.Runtime.Vfx.VfxParamType.Texture=5
 DDrive.Runtime.Vfx.VfxParamType.Vector=6
 DDrive.Runtime.Vfx.VfxRenderMode.UIOverlay=1
 DDrive.Runtime.Vfx.VfxRenderMode.World3D=0
+DDrive.Runtime.Viewing.ViewSource.Cutscene=2
+DDrive.Runtime.Viewing.ViewSource.MainCamera=1
+DDrive.Runtime.Viewing.ViewSource.None=0
+DDrive.Runtime.Viewing.ViewSource.Override=3

@@ -61,6 +61,10 @@ namespace DDrive.Runtime.Cutscene
         private bool _hasEverSubmitted;
         private bool _ranLateUpdateSinceLastSubmit;
 
+        // [51_tdrive_integration.md] §4.4(FC-3) — Cutscene がこのカメラを駆動中(再生開始時の画角を控えてから
+        // Restore() するまで)なら true。ViewCamera が ViewSource.Cutscene を判定するのに使う読み取り専用の値。
+        public bool IsDriving => _restoreValid;
+
         public static DDriveCutsceneCameraApplier EnsureOn(Camera camera)
         {
             if (camera == null)

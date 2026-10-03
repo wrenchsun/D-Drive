@@ -36,7 +36,7 @@
 <tr><td>14</td><td>docs 更新</td><td>該当する <code>docs/0X_*.md</code></td></tr>
 </table>
 
-<p>種別の追加とは別に、外部パッケージが D-Drive の取り込みへ後処理を足す拡張点があります（<a href="#cutsceneimport">カットシーン取り込みリスナー</a>）と、Timeline に外部のマーカーを置ける拡張点があります（<a href="#cutscenemarker">カットシーン・マーカー</a>）。</p>
+<p>種別の追加とは別に、外部パッケージが D-Drive の取り込みへ後処理を足す拡張点があります（<a href="#cutsceneimport">カットシーン取り込みリスナー</a>）と、Timeline に外部のマーカーを置ける拡張点があります（<a href="#cutscenemarker">カットシーン・マーカー</a>）、「今どこから見ているか」を取り出す・差し替える口があります（<a href="#viewcamera">現在の視点カメラ</a>）。</p>
 
 <h2 id="step1">1. AssetType enum への追加</h2>
 <p><code>Foundation/Identity/AssetType.cs</code> の末尾に追記します。</p>
@@ -293,6 +293,38 @@ public sealed class MyTextureRules : ITextureImportRuleProvider
 <tr><td>呼ばれる回数</td><td><code>GetRules()</code> はドメインリロードごとに 1 回です（テクスチャごとには呼びません）</td></tr>
 <tr><td>例外</td><td>提供口ごとに捕まえて Console に出し、他の提供口は有効なままです</td></tr>
 <tr><td>互換</td><td>Editor 契約として固定されています。メンバーは追加のみです</td></tr>
+</table>
+
+<h2 id="viewcamera">現在の視点カメラ（ViewCamera / IViewProvider）</h2>
+<p>「今の視点」（位置・回転・縦画角）を取り出す静的ファサードです。顔の補正やビルボードのように「どこから見られているか」で結果が決まる処理が、<code>Camera.main</code> を直接読まずに済みます。分割画面のように視点が複数あるときは、<code>IViewProvider</code> を登録して視点を差し替えます。名前空間は <code>DDrive.Runtime.Viewing</code>。Manager は無く、<code>DDriveRuntimeBootstrap</code> への配線も要りません。</p>
+<pre>using DDrive.Runtime.Viewing;
+
+// 取り出す側
+if (ViewCamera.TryGetCurrent(subject, out ViewPose pose))   // subject = 補正をかける対象の Transform（null 可）
+{
+    // pose.Position / pose.Rotation（ワールド）、pose.VerticalFovDegrees（度）、pose.Source、pose.Camera
+}
+
+// 差し替える側（分割画面など）
+public sealed class SplitScreenViews : IViewProvider
+{
+    public bool TryGetView(Transform subject, out ViewPose pose)
+    {
+        // subject を担当するプレイヤーのカメラが見つかれば true を返す
+        // pose = new ViewPose(cam.transform.position, cam.transform.rotation, cam.fieldOfView, ViewSource.Override, cam);
+        pose = default;
+        return false;   // 担当でなければ false（次のプロバイダ / Camera.main へ進む）
+    }
+}
+ViewCamera.Register(provider, priority: 10);   // 優先度が高いほど先に問い合わせる。解除は ViewCamera.Unregister(provider)</pre>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>解決順</td><td>登録された <code>IViewProvider</code>（優先度の降順、同じ優先度は登録順）→ カットシーンが <code>Camera.main</code> を駆動中ならその現在の姿勢（<code>Source = Cutscene</code>）→ <code>Camera.main</code>（<code>Source = MainCamera</code>）→ どれも無ければ <code>false</code>（<code>Source = None</code>。警告は出しません）</td></tr>
+<tr><td>値</td><td>Unity のワールド座標（m / Y-up / 左手）の位置・回転と、縦画角（度、<code>Camera.fieldOfView</code> そのまま）。単位・座標系の変換はしません。正射影カメラでも <code>fieldOfView</code> の値をそのまま返します（正射影の大きさは返しません）。物理カメラ（焦点距離）の値は返しません</td></tr>
+<tr><td>呼ぶタイミング</td><td>カットシーン中のカメラは <code>DDriveCutsceneCameraApplier</code>（実行順 <code>DDriveCutsceneCameraApplier.ExecutionOrder</code> = 1000）が <code>LateUpdate</code> で書きます。<strong>そのフレームのカット姿勢が欲しいときは、<code>LateUpdate</code> で、実行順が 1000 より後のコンポーネントから呼んでください</strong>。それより前（<code>Update</code> や実行順 1000 未満）で呼ぶと、1 フレーム前の姿勢です。ブレンド中は途中の姿勢がそのまま返ります（ブレンドの割合は返しません）</td></tr>
+<tr><td>例外・破棄</td><td><code>TryGetView</code> の例外は Console に出して次のプロバイダへ進みます。破棄された <code>MonoBehaviour</code> のプロバイダは飛ばして取り除きます。登録した側は不要になったら <code>Unregister</code> してください（ドメインリロードを無効にした Play Mode でも、Play の開始時に登録は空になります）</td></tr>
+<tr><td>性能</td><td><code>TryGetCurrent</code> は割り当てなしで、1 フレームに何度呼んでもよい（結果は保持せず、呼んだ時点のカメラの姿勢）</td></tr>
+<tr><td>Edit Mode</td><td>Timeline ウィンドウのスクラブ中は <code>Camera.main</code> に直接書かれるため、<code>Source = MainCamera</code> でその姿勢が返ります</td></tr>
 </table>
 
 <h2>関連ページ</h2>
