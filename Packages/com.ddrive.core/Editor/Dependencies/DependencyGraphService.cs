@@ -70,7 +70,7 @@ namespace DDrive.Editor.Dependencies
         }
 
         // 参照元の表示用ラベルの付記(.playable の場合だけ「 (Cutscene: 名前, ...)」。それ以外は空文字)。
-        public static string DescribeCutscenes(string sourcePath)
+        internal static string DescribeCutscenes(string sourcePath)
         {
             var owners = FindCutscenePathsUsing(sourcePath);
             if (owners.Count == 0)

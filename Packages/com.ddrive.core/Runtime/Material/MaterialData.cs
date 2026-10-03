@@ -93,7 +93,7 @@ namespace DDrive.Runtime.Material
 
         public int RenderQueue => BaseRenderQueue + RenderQueueOffset;
 
-        public bool HasPassesOrKeywords
+        internal bool HasPassesOrKeywords
             => (DisabledPasses != null && DisabledPasses.Length > 0) || (EnabledKeywords != null && EnabledKeywords.Length > 0);
 
         public bool HasAnims => Anims != null && Anims.Length > 0;

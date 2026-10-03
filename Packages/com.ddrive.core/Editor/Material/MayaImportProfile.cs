@@ -68,13 +68,13 @@ namespace DDrive.Editor.Materials
         // テスト用の差し替え口(実プロジェクトの Profile を読まずに方針を指定する)。null なら通常どおり探す。
         // public(InternalsVisibleTo 未設定のため、NewAssetDialog.TestGameDataRootOverride と同じくテスト asmdef から差し替えられるようにする)。
         // テストは使い終わったら必ず null に戻すこと。
-        public static MayaImportProfile TestOverride;
+        public static MayaImportProfile ProfileOverrideForTests;
 
         public static MayaImportProfile FindOrDefault()
         {
-            if (TestOverride != null)
+            if (ProfileOverrideForTests != null)
             {
-                return TestOverride;
+                return ProfileOverrideForTests;
             }
 
             foreach (var guid in AssetSearch.FindAssets("t:" + nameof(MayaImportProfile)))
