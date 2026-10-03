@@ -267,6 +267,73 @@ namespace ExternalContract.Tests.Editor
             }
         }
 
+        // E-20(FY-R-05): 途中(2.0 秒)から再生を始めたとき、再生を始める位置(2.0)ちょうどは無音、最初の更新までに進んだ区間
+        // (2.0 より後・最初の更新の位置以内)のマーカーは発火する。
+        [Test]
+        public void E20_EditPreview_ScrubThenPlay_FiresMarkersPassedBeforeTheFirstUpdate()
+        {
+            var timeline = ReplaceTimeline(false, 1.0, 2.0, 2.01, 2.5);
+            try
+            {
+                _director.Pause();
+                _director.time = 0.0;
+                Update();
+                _director.time = 2.0;
+                Update();
+                Assert.AreEqual(0, ExternalFireMarker.Calls.Count, "スクラブは無音");
+
+                _director.Play();
+                _director.time = 2.03; // 最初の更新までに少し進んだ
+                Update();
+
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "開始位置(2.0)ちょうどまでは無音、その後の 2.01 は発火");
+                Assert.AreEqual(2.01, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "二重発火しない");
+
+                _director.time = 2.6;
+                Update();
+                Assert.AreEqual(2, ExternalFireMarker.Calls.Count);
+                Assert.AreEqual(2.5, ExternalFireMarker.Calls[1].MarkerTime, 1e-6);
+            }
+            finally
+            {
+                _director.playableAsset = null;
+                Object.DestroyImmediate(timeline);
+            }
+        }
+
+        // E-20(FY-R-05): 一時停止からの再開も同じ(再開の最初の更新までに進んだ区間のマーカーを飛ばさない)。
+        [Test]
+        public void E20_EditPreview_ResumeFromPause_FiresMarkersPassedBeforeTheFirstUpdate()
+        {
+            var timeline = ReplaceTimeline(false, 1.0, 1.51, 3.0);
+            try
+            {
+                _director.time = 0.0;
+                _director.Play();
+                Update();
+                _director.time = 1.5;
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "1.0 秒は再生中に発火");
+
+                _director.Pause();
+                Update(); // 停止中の位置 1.5 を記録
+                _director.Play();
+                _director.time = 1.52; // 再開の最初の更新までに進んだ
+                Update();
+
+                Assert.AreEqual(2, ExternalFireMarker.Calls.Count, "再開直後に跨いだ 1.51 も発火する");
+                Assert.AreEqual(1.51, ExternalFireMarker.Calls[1].MarkerTime, 1e-6);
+            }
+            finally
+            {
+                _director.playableAsset = null;
+                Object.DestroyImmediate(timeline);
+            }
+        }
+
         // E-20(FC-R-04): Timeline 上端のマーカー領域(markerTrack)に置いた外部マーカーも Edit Mode のプレビューで発火する。
         [Test]
         public void E20_EditPreview_MarkerOnTimelineMarkerTrack_Fires()
