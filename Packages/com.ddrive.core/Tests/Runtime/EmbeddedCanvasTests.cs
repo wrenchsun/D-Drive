@@ -450,6 +450,36 @@ namespace DDrive.Tests.Runtime
         }
 
         [Test]
+        public void SameChildEmbeddedAtTwoPlaces_BothApplyIndependently()
+        {
+            // 同じ子 CanvasData を兄弟の 2 か所(OptionRoot と OptionRoot2)に埋め込む。どちらも自分のルート基準で配線される(循環ではない)。
+            var second = Child(_prefab.transform, "OptionRoot2");
+            var secondButton = Child(second, "BtnX", typeof(Image), typeof(UiButton)).GetComponent<UiButton>();
+            secondButton.DoubleClickSec = 0f;
+            secondButton.BlockDoubleFire = false;
+
+            var child = MakeData(ChildId, "Option");
+            child.Buttons = new[] { new ButtonWire { ButtonPath = "BtnX", Trigger = WireTrigger.Click, Action = UiAction.SendSignal, SignalKey = "two/sig" } };
+            Register(child);
+            var parent = MakeParent(
+                new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) },
+                new EmbeddedCanvas { RootPath = "OptionRoot2", Canvas = IdOf(ChildId) });
+
+            var received = new List<SignalArgs>();
+            _manager.OnSignal("two/sig", a => received.Add(a));
+
+            var handle = _manager.OpenData(parent);
+            Click(_manager.GetComponent<UiButton>(handle, "OptionRoot/BtnX"));
+            Click(_manager.GetComponent<UiButton>(handle, "OptionRoot2/BtnX"));
+
+            Assert.AreEqual(2, received.Count, "2 か所とも 1 回ずつ");
+            Assert.AreEqual("OptionRoot", received[0].EmbeddedRootPath);
+            Assert.AreEqual("OptionRoot2", received[1].EmbeddedRootPath);
+            Assert.AreEqual("BtnX", received[0].ElementPath);
+            Assert.AreEqual("BtnX", received[1].ElementPath);
+        }
+
+        [Test]
         public void ParentRowForAnotherElement_DoesNotSuppressChildRow()
         {
             var child = MakeData(ChildId, "Option");

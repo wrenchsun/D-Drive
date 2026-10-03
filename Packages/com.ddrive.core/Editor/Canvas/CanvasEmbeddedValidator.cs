@@ -47,6 +47,14 @@ namespace DDrive.Editor.CanvasTool
                     continue; // 自己参照は CanvasDataValidator が報告する
                 }
 
+                // 子 Canvas は親を Open した時点で読み込まれている必要がある(Registry から同期解決する。2026-10-03、レビュー PC-R-10)。
+                if (child.Flags.Load != LoadMode.Preload)
+                {
+                    yield return ValidationResult.Warning(
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{child.DisplayName}' の Load が Preload ではありません(親を Open した時点で読み込まれていないと、この埋め込みは「読み込まれていません」の警告でスキップされます。子の CanvasData を Preload にしてください)",
+                        code: "DD-CANVAS-EMBED-NOT-PRELOAD");
+                }
+
                 if (ReachesBack(child, canvas, lookup, 0))
                 {
                     yield return ValidationResult.Warning(
@@ -134,7 +142,13 @@ namespace DDrive.Editor.CanvasTool
             return -1;
         }
 
+        // 1 回の検証(= 1 つの ValidationContext)で 1 回だけ作る(CanvasData 1 件ごとにプロジェクト全体を読み直さない。レビュー PC-R-11)。
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ValidationContext, CanvasEmbeddedEditing.CanvasLookup> LookupCache = new();
+
         private static CanvasEmbeddedEditing.CanvasLookup BuildLookup(ValidationContext ctx)
+            => ctx == null ? BuildLookupUncached(null) : LookupCache.GetValue(ctx, BuildLookupUncached);
+
+        private static CanvasEmbeddedEditing.CanvasLookup BuildLookupUncached(ValidationContext ctx)
         {
             var list = new List<CanvasData>();
             if (ctx?.AllAssets != null)

@@ -495,7 +495,12 @@ namespace DDrive.Editor.Update
 
         private void RegisterManaged(string packageId)
         {
-            DDriveProjectSettings.instance.RegisterManagedPackage(packageId);
+            // D-Drive 自身は常に 1 行目なので設定には登録しない(意味の無い要素を残さない。レビュー PC-R-15)。
+            if (packageId != ManagedPackageRows.DDrivePackageId)
+            {
+                DDriveProjectSettings.instance.RegisterManagedPackage(packageId);
+            }
+
             Debug.Log($"[DDrive][Update] {packageId} を管理対象に登録しました。");
             SessionState.SetString(SelectedPackageKey, packageId);
             _addMessage = null;
@@ -504,6 +509,14 @@ namespace DDrive.Editor.Update
 
         private void UnregisterManaged(string packageId)
         {
+            // 解除すると「前の参照に戻す」の情報も消える(レビュー PC-R-15)。
+            var entry = DDriveProjectSettings.instance.FindManagedPackage(packageId);
+            if (entry != null && !string.IsNullOrEmpty(entry.PreviousRef)
+                && !EditorUtility.DisplayDialog("D-Drive 更新", $"{packageId} の登録を解除します。「前の参照に戻す」の情報({entry.PreviousRef})も消えます。\n\nよろしいですか?", "解除する", "キャンセル"))
+            {
+                return;
+            }
+
             DDriveProjectSettings.instance.UnregisterManagedPackage(packageId);
             Debug.Log($"[DDrive][Update] {packageId} を管理対象から外しました(manifest.json からは消していません)。");
             if (SessionState.GetString(SelectedPackageKey, string.Empty) == packageId)
@@ -600,7 +613,11 @@ namespace DDrive.Editor.Update
             if (request.Status == StatusCode.Success && request.Result != null)
             {
                 var id = request.Result.name;
-                DDriveProjectSettings.instance.RegisterManagedPackage(id);
+                if (id != ManagedPackageRows.DDrivePackageId)
+                {
+                    DDriveProjectSettings.instance.RegisterManagedPackage(id);
+                }
+
                 Debug.Log($"[DDrive][Update] {id} を導入し、管理対象に登録しました({_addRequestValue})。");
                 SessionState.SetString(SelectedPackageKey, id);
                 _addInput = string.Empty;
@@ -627,7 +644,11 @@ namespace DDrive.Editor.Update
             var plan = new PackageAddPlanner(null).Plan(pending, manifest);
             if (plan.Outcome == PackageAddOutcome.RegisterExisting)
             {
-                DDriveProjectSettings.instance.RegisterManagedPackage(plan.PackageId);
+                if (plan.PackageId != ManagedPackageRows.DDrivePackageId)
+                {
+                    DDriveProjectSettings.instance.RegisterManagedPackage(plan.PackageId);
+                }
+
                 SessionState.SetString(SelectedPackageKey, plan.PackageId);
                 SessionState.EraseString(PendingAddKey);
                 Debug.Log($"[DDrive][Update] 導入が完了していた {plan.PackageId} を管理対象に登録しました。");
@@ -995,6 +1016,14 @@ namespace DDrive.Editor.Update
         private void ConfirmWithPreflight(
             PackageRow row, GitPackageUrl targetUrl, string targetRef, string headline, string extraNote, string footer, string okLabel, System.Action onConfirmed)
         {
+            // Client.Add の実行中に manifest を書き換えると、Add の書き込みを消しうる(レビュー PC-R-14)ので、完了を待つ。
+            if (_addRequest != null && !_addRequest.IsCompleted)
+            {
+                Debug.LogWarning("[DDrive][Update] パッケージを導入中です。完了してから版を更新してください。");
+                SetAddMessage("パッケージを導入中です。完了してから版を更新してください。", true);
+                return;
+            }
+
             var url = targetUrl.IsGitUrl ? targetUrl : row.Url;
             var id = row.Id;
             var installed = _installed;

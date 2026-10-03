@@ -98,6 +98,15 @@ namespace DDrive.Runtime.Ui
                         code: "DD-CANVAS-EMBED-DUP");
                 }
 
+                // RootPath の書式(2026-10-03、レビュー PC-R-09): `/` で始まる・終わる、`\`・`//`・`./` を含むと、実行時の Transform.Find と
+                // Editor のパス判定(追従・グループ表示・自動収集の除外)で食い違うことがある。
+                if (!string.IsNullOrEmpty(embed.RootPath) && IsMalformedRootPath(embed.RootPath))
+                {
+                    yield return ValidationResult.Warning(
+                        $"EmbeddedCanvases[{i}] の RootPath '{embed.RootPath}' の書式が不正です(先頭・末尾の `/`、`\\`、`//`、`./` は使えません。例: Group/OptionRoot)",
+                        code: "DD-CANVAS-EMBED-PATH-FORM");
+                }
+
                 // 重なる登録(一方の RootPath が他方の配下): 同じ要素に 2 つの子 Canvas の設定が届く。実行時は 1 つの要素に 1 回だけ
                 // 適用する(内側の登録が先に担当する)が、意図した形かどうかを知らせる(2026-10-03、レビュー PC-R-04)。
                 for (var j = 0; j < embeds.Length; j++)
@@ -126,6 +135,11 @@ namespace DDrive.Runtime.Ui
                 }
             }
         }
+
+        private static bool IsMalformedRootPath(string path)
+            => path[0] == '/' || path[path.Length - 1] == '/' || path.IndexOf('\\') >= 0
+               || path.IndexOf("//", StringComparison.Ordinal) >= 0 || path.StartsWith("./", StringComparison.Ordinal)
+               || path.IndexOf("/./", StringComparison.Ordinal) >= 0;
 
         private static IEnumerable<ValidationResult> ValidateNavigation(CanvasData canvas, Transform root)
         {

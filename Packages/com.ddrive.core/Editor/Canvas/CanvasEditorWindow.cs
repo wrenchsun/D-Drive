@@ -981,7 +981,8 @@ namespace DDrive.Editor.CanvasTool
                 }
 
                 Undo.RecordObject(owner, "Canvas: 埋め込み Canvas の RootPath");
-                owner.EmbeddedCanvases[index].RootPath = evt.newValue;
+                // 確定時に正規化する(`\` → `/`、先頭・末尾の `/` を除く。レビュー PC-R-09)。
+                owner.EmbeddedCanvases[index].RootPath = (evt.newValue ?? string.Empty).Replace('\\', '/').Trim('/');
                 EditorUtility.SetDirty(owner);
                 if (owner == _target)
                 {

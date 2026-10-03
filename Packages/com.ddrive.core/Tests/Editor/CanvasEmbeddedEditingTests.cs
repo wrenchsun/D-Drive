@@ -321,6 +321,41 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(results.Exists(r => r.Code == "DD-CANVAS-EMBED-NESTED-ROOT" && r.Message.Contains("EmbeddedCanvases[0]")), "子が自分で埋め込んでいる場所が別の登録と重なる");
         }
 
+        [TestCase("/OptionRoot", true)]
+        [TestCase("OptionRoot/", true)]
+        [TestCase("Group\\OptionRoot", true)]
+        [TestCase("Group//OptionRoot", true)]
+        [TestCase("./OptionRoot", true)]
+        [TestCase("Group/./OptionRoot", true)]
+        [TestCase("OptionRoot", false)]
+        [TestCase("Group/OptionRoot", false)]
+        public void Validator_RootPathForm_IsWarning(string rootPath, bool malformed)
+        {
+            var optionPrefab = SaveChildPrefab("FOption");
+            var parentPrefab = SaveParentPrefab("FHud", optionPrefab, "OptionRoot");
+            var child = Data(96, "Option", optionPrefab);
+            var parent = Data(97, "Hud", parentPrefab);
+            parent.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = rootPath, Canvas = IdOf(child) } };
+
+            Assert.AreEqual(malformed, Has(Validate(parent, child), "DD-CANVAS-EMBED-PATH-FORM", ValidationSeverity.Warning));
+        }
+
+        [Test]
+        public void Validator_ChildNotPreload_IsWarning_AndPreloadIsNot()
+        {
+            var optionPrefab = SaveChildPrefab("LOption");
+            var parentPrefab = SaveParentPrefab("LHud", optionPrefab, "OptionRoot");
+            var child = Data(98, "Option", optionPrefab);
+            var parent = Data(99, "Hud", parentPrefab);
+            parent.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(child) } };
+
+            child.Flags.Load = LoadMode.LazyLoad;
+            Assert.IsTrue(Has(Validate(parent, child), "DD-CANVAS-EMBED-NOT-PRELOAD", ValidationSeverity.Warning));
+
+            child.Flags.Load = LoadMode.Preload;
+            Assert.IsFalse(Has(Validate(parent, child), "DD-CANVAS-EMBED-NOT-PRELOAD", ValidationSeverity.Warning));
+        }
+
         [Test]
         public void Validator_NonOverlappingSiblingEmbeds_ReportNoOverlap()
         {

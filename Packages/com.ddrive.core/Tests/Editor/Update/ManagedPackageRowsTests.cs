@@ -140,6 +140,20 @@ namespace DDrive.Tests.Editor.Update
 
         // ── 設定の往復(実設定ファイルに保存するため、DDriveProjectSettingsTests と同じく元に戻す) ──
 
+        // 途中で落ちても要素を残さない(レビュー PC-R-17)。
+        [TearDown]
+        public void RemoveTestEntries()
+        {
+            var settings = DDriveProjectSettings.instance;
+            foreach (var id in new[] { "com.test.p15.roundtrip", "com.test.p15.unknown" })
+            {
+                if (settings.FindManagedPackage(id) != null)
+                {
+                    settings.UnregisterManagedPackage(id);
+                }
+            }
+        }
+
         [Test]
         public void Settings_ManagedPackages_RoundTrip_ThenRestore()
         {
