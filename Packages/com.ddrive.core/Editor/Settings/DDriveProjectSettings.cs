@@ -73,6 +73,64 @@ namespace DDrive.Editor.Settings
         // このフィールドと現在の manifest 値を入れ替える(2 回押すと元に戻せる)。
         [SerializeField] private string _previousPackageRef = string.Empty;
 
+        // [42_distribution.md] §4.2 P-15(2026-10-03) — 更新ウィンドウに「管理対象」として登録した
+        // D-Drive 以外の git URL パッケージ(追加のみ。旧設定ファイルには無いので空で読まれる)。
+        [SerializeField] private List<ManagedPackageEntry> _managedPackages = new();
+
+        public IReadOnlyList<ManagedPackageEntry> ManagedPackages
+            => _managedPackages ?? (_managedPackages = new List<ManagedPackageEntry>());
+
+        public bool RegisterManagedPackage(string packageId)
+        {
+            _managedPackages ??= new List<ManagedPackageEntry>();
+            var added = ManagedPackageList.Register(_managedPackages, packageId);
+            if (added)
+            {
+                Save(true);
+            }
+
+            return added;
+        }
+
+        public bool UnregisterManagedPackage(string packageId)
+        {
+            _managedPackages ??= new List<ManagedPackageEntry>();
+            var removed = ManagedPackageList.Unregister(_managedPackages, packageId);
+            if (removed)
+            {
+                Save(true);
+            }
+
+            return removed;
+        }
+
+        public ManagedPackageEntry FindManagedPackage(string packageId)
+            => ManagedPackageList.Find(_managedPackages, packageId);
+
+        public void SetManagedPackagePreviousRef(string packageId, string value)
+        {
+            var entry = FindManagedPackage(packageId);
+            if (entry == null)
+            {
+                return;
+            }
+
+            entry.PreviousRef = value ?? string.Empty;
+            Save(true);
+        }
+
+        public void SetManagedPackageLastAppliedVersion(string packageId, string value)
+        {
+            var entry = FindManagedPackage(packageId);
+            if (entry == null)
+            {
+                return;
+            }
+
+            entry.LastAppliedVersion = value ?? string.Empty;
+            Save(true);
+        }
+
         public string LastAppliedVersion
         {
             get => _lastAppliedVersion ?? string.Empty;
