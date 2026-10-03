@@ -1473,7 +1473,9 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
-            // 内側(RootPath が深い)の登録を先に処理する(同じ要素を担当する行は先に処理した側が勝つ)。深さが同じなら配列順。
+            // 重なる登録(同じ親の中で一方の RootPath が他方の配下 = 設定の誤り)では、より内側(RootPath が深い)の登録を先に処理し、
+            // 配下の要素を担当させる(先に処理した側が担当表で勝つ)。深さが同じなら配列順。これは「Open した CanvasData 自身の行が
+            // 埋め込みの子の設定に勝つ」規則とは別(そちらは Open 側の行を先に担当表へ入れる。docs/07「優先順位」の表)。
             var order = new int[embeds.Length];
             for (var i = 0; i < order.Length; i++)
             {
