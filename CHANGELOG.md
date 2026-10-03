@@ -11,7 +11,11 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 追加のみ(MINOR): **カットシーンの「同じ相手へのバインド」（2026-10-03、FC-1、[docs/26](docs/26_timeline.md) §4.2・[docs/51](docs/51_tdrive_integration.md) §4.2）** — `CutsceneBindTarget` の末尾に `SameAsTrack`（= 6）、`CutsceneBinding` の末尾に `SourceTrackName`（string、既定は空）を追加。SpawnModel したキャラに別のトラック（表情など）を、モデルを増やさずに結ぶため。既存の enum 値・フィールド・公開 API・既存 Validator は不変（旧データは `SourceTrackName` が空のまま無影響）。ネットメッセージ・ContentHash は不変（Bindings は各クライアントがローカルに解決）。スナップショット（`enums.txt` に `SameAsTrack=6`、`public-api-DDrive.Runtime.txt` に enum メンバーと `SourceTrackName`）を更新。`CutsceneDataValidator` に Warning を追加（Validation の重さは追加のみ）
+
+### 追加
+
+- カットシーンの Binding に `Target = SameAsTrack` + `SourceTrackName`: 別トラックと同じ相手（Animator / Transform）にバインドする（鎖・並び順非依存・循環や未解決は警告 + そのトラックだけミュート。Edit Mode プレビューも同じ挙動）。`CutsceneDataValidator` の SameAsTrack 検査（Warning 4 種）、Inspector の Binding 入力欄の出し分けと「→ 参照先」の検査表示
 
 ## [1.3.1] - 2026-09-29
 

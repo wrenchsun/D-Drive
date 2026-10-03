@@ -217,8 +217,11 @@ public struct FrameRange { public int Start; public int End; }   // End は含�
 | SpawnModel | ModelData を ModelsManager で生成して結び、終了時に返却 | カットシーン専用の登場人物・小物 |
 | SceneObjectByName | シーン内の名前一致 | 背景ギミック |
 | AnchorPoint | AnchorPoint([21])の位置に置く | 「右手に剣を持たせる」等 |
+| SameAsTrack(2026-10-03、FC-1) | `SourceTrackName` で指す**別の Binding と同じ相手**(その解決結果の Animator / Transform)。モデルは増えない | SpawnModel したキャラに表情トラックなど別のトラックを結ぶ |
 
 未解決は **警告 + そのトラックだけミュートで続行**(TL;DR #4)。Validation で事前に検出する。
+
+**SameAsTrack の解決(2026-10-03 追記、FC-1)**: `ApplyBindings` は 2 パスで解決する。パス 1 = SameAsTrack 以外を従来どおり解決(SpawnModel の Spawn はここで binding ごとに 1 回)、パス 2 = SameAsTrack を、`SourceTrackName` と TrackName が一致する最初の Binding の解決結果へ結ぶ(参照先が SameAsTrack なら鎖をたどる。**配列の並び順に依存しない**)。`SourceTrackName` が空 / 一致する Binding が無い / 自己参照・循環 / 参照先が未解決(Timeline にトラックが無い・Model 無効など)のときは、警告 1 回 + そのトラックだけ `null` バインド(再生は継続・例外なし)。解決結果は既存の規則(Animator があれば Animator、無ければ Transform)のままで、トラックのバインド型への変換はしない。ネット(`CutscenePlayMsg`)・ContentHash は不変(Bindings は各クライアントがローカルに解決する)。取り込み(`CutsceneImportService`)は SameAsTrack の Binding を自動では作らない(再取り込みは既存 Bindings を保持するので、外部や手で足した分は残る)。
 
 #### 4.2.1 原点(Maya のワールド座標をゲームのどこに置くか)(2026-09-18 追記)
 
@@ -255,6 +258,7 @@ Maya のカメラ・キャラ・小物は Maya シーンのワールド座標で
 - Timeline ウィンドウでの再生・スクラブ中も **実 Manager を駆動する**(ADR-4)。確認用シーン `CutscenePreviewScene` に Editor 用 Manager 群を置き、`PreviewService` と同じ仕組みで動かす
 - 巻き戻し・飛ばし: SE は「区間に入った瞬間」だけ鳴らし、スクラブで同じ点を何度も通っても連打しない(ドラッグ中は無音、再生ボタン中のみ発音)。VFX は `SceneVfxPreviewDriver` の手動 Simulate で「クリップ開始からの経過秒」に合わせる
 - Maya カメラのトラックは Game ビューで確認できるように、プレビュー中はメインカメラにバインドする。**ブレンドの確認**: 再生開始時のカメラ姿勢を「ゲームカメラの姿勢」とみなしてブレンドインし、終了時にそこへ戻る(確認用シーンのカメラを手で動かしておけば、その位置からの繋ぎを確認できる)。スクラブ中はブレンド無し(Timeline カメラの姿勢そのもの)にする — スクラブで「繋ぎ」は確認できない、と割り切る
+- **SameAsTrack(2026-10-03 追記、FC-1)**: Edit Mode の `CutsceneEditModeDirectorSetup.ApplyBindings` も §4.2 と同じ 2 パス(同じ短いロジックを `public` を増やさず 2 箇所に持つ)。SpawnModel は参照先の 1 回だけで、`_spawnedModels` の返却(押し直し・`TearDown`)も不変。未解決は `Debug.LogWarning` + `null` バインド
 - ステップ fps(§4.6.3)はスクラブ時にも効く(量子化は評価関数の中で行うため、Timeline ウィンドウの再生でもそのまま見える)
 
 ### 4.5 ランタイム(CutsceneManager)
@@ -622,4 +626,6 @@ Cosmetic の中身(Presentation 5-8/5-9 の設計をそのまま流用。新規�
 
 ## 追記（2026-10-03、FC チケット）
 
-T-Drive の FacialController（`com.tdrive.facial`）との連携のため、Cutscene に次の**追加のみ**の拡張点を計画している（設計 [51_tdrive_integration.md](51_tdrive_integration.md)、チケット [11](11_tasks.md) FC 節。**いずれも未実装**）: **FC-1** 同じモデルへのバインド（`CutsceneBindTarget.SameAsTrack` + `CutsceneBinding.SourceTrackName`。§4.2）/ **FC-4** 外部パッケージのマーカーの受け口（`ICutsceneMarker`。§4.3・§4.4）/ **FC-5** 取り込み完了のリスナー（`ICutsceneImportListener`。§5.2。`CutsceneFbxPostprocessor` は `delayCall` で取り込むため外部の `postprocessOrder` では順序制御できない）/ **FC-3** 現在の視点 API（§4.6.5 の実行順の契約に関係）。外部 Track / Clip を壊さない契約は FC-10 でテストにする。
+T-Drive の FacialController（`com.tdrive.facial`）との連携のため、Cutscene に次の**追加のみ**の拡張点を計画している（設計 [51_tdrive_integration.md](51_tdrive_integration.md)、チケット [11](11_tasks.md) FC 節。**FC-1 は実装済み（下記）、他は未実装**）: **FC-1（実装済み）** 同じモデルへのバインド（`CutsceneBindTarget.SameAsTrack` + `CutsceneBinding.SourceTrackName`。§4.2）/ **FC-4** 外部パッケージのマーカーの受け口（`ICutsceneMarker`。§4.3・§4.4）/ **FC-5** 取り込み完了のリスナー（`ICutsceneImportListener`。§5.2。`CutsceneFbxPostprocessor` は `delayCall` で取り込むため外部の `postprocessOrder` では順序制御できない）/ **FC-3** 現在の視点 API（§4.6.5 の実行順の契約に関係）。外部 Track / Clip を壊さない契約は FC-10 でテストにする。
+
+**2026-10-03 追記(FC-1)**: `CutsceneBindTarget.SameAsTrack`(= 6、末尾追加)と `CutsceneBinding.SourceTrackName`(末尾追加)を実装した。解決は §4.2(2 パス・鎖・フェイルソフト)、Edit Mode は §4.4。`CutsceneDataValidator` に Warning を 4 種追加(SourceTrackName が空 / Bindings に無い / 自己参照・循環 / 参照先に対応する Timeline トラックが無い)。Inspector は `CutsceneBinding` の PropertyDrawer(Target に応じて Model / SceneObjectName / SourceTrackName を出し分け、SameAsTrack は Bindings のトラック名から選ぶ)と、バインド検査の「→ 参照先」✓/✗ 表示を追加([09_editor_tools.md](09_editor_tools.md))。互換区分は MINOR(追加のみ)。実装メモは [51 §4.2](51_tdrive_integration.md)。

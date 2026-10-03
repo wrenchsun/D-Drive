@@ -31,6 +31,9 @@ namespace DDrive.Editor.Cutscene
         // Despawn してから新しく Spawn する(溜めない)。ドメインリロードで自動的に空になる。
         private static readonly List<Handle<ModelMarker>> _spawnedModels = new();
 
+        // FC-1: ApplyBindings の 2 パス用の再利用バッファ(Bindings と同じ添字)。
+        private static readonly List<Object> _bindingResolved = new();
+
         public static void OpenTimelineWindow(CutsceneData cutscene)
         {
             if (cutscene == null || cutscene.Timeline == null)
@@ -207,9 +210,18 @@ namespace DDrive.Editor.Cutscene
 
             var actor = GameObject.Find(CutscenePreviewSceneSetup.ActorName);
 
-            foreach (var binding in cutscene.Bindings)
+            // [51_tdrive_integration.md] §4.2(FC-1) — Play 経路(CutsceneManager.ApplyBindings)と同じ 2 パス。
+            var bindings = cutscene.Bindings;
+            _bindingResolved.Clear();
+            for (var i = 0; i < bindings.Length; i++)
             {
-                if (string.IsNullOrEmpty(binding.TrackName))
+                _bindingResolved.Add(null);
+            }
+
+            for (var i = 0; i < bindings.Length; i++)
+            {
+                var binding = bindings[i];
+                if (string.IsNullOrEmpty(binding.TrackName) || binding.Target == CutsceneBindTarget.SameAsTrack)
                 {
                     continue;
                 }
@@ -221,8 +233,88 @@ namespace DDrive.Editor.Cutscene
                 }
 
                 var resolved = ResolveBindingObject(in binding, actor, managers, director.transform);
+                _bindingResolved[i] = resolved;
                 director.SetGenericBinding(track, resolved);
             }
+
+            for (var i = 0; i < bindings.Length; i++)
+            {
+                var binding = bindings[i];
+                if (string.IsNullOrEmpty(binding.TrackName) || binding.Target != CutsceneBindTarget.SameAsTrack)
+                {
+                    continue;
+                }
+
+                var track = FindTrackByName(cutscene.Timeline, binding.TrackName);
+                if (track == null)
+                {
+                    continue;
+                }
+
+                var resolved = ResolveSameAsTrack(bindings, i, out var reason);
+                if (resolved == null)
+                {
+                    Debug.LogWarning($"[DDrive] Cutscene '{cutscene.DisplayName}': トラック '{binding.TrackName}' が未解決です({reason})。そのトラックはミュートのままです。");
+                }
+
+                director.SetGenericBinding(track, resolved);
+            }
+
+            _bindingResolved.Clear();
+        }
+
+        // Target=SameAsTrack の解決(CutsceneManager.ResolveSameAsTrack と同じロジック。public を増やさないため 2 箇所に持つ)。
+        private static Object ResolveSameAsTrack(CutsceneBinding[] bindings, int index, out string reason)
+        {
+            var cur = index;
+            reason = null;
+            for (var depth = 0; depth <= bindings.Length; depth++)
+            {
+                var src = bindings[cur].SourceTrackName;
+                if (string.IsNullOrEmpty(src))
+                {
+                    reason = "Target=SameAsTrack ですが SourceTrackName が空です";
+                    return null;
+                }
+
+                var next = -1;
+                for (var j = 0; j < bindings.Length; j++)
+                {
+                    if (bindings[j].TrackName == src)
+                    {
+                        next = j;
+                        break;
+                    }
+                }
+
+                if (next < 0)
+                {
+                    reason = $"SourceTrackName('{src}') に一致する Binding がありません";
+                    return null;
+                }
+
+                if (next == cur)
+                {
+                    reason = $"SourceTrackName('{src}') が自分自身を指しています";
+                    return null;
+                }
+
+                if (bindings[next].Target != CutsceneBindTarget.SameAsTrack)
+                {
+                    var found = _bindingResolved[next];
+                    if (found == null)
+                    {
+                        reason = $"参照先 '{src}' が未解決です";
+                    }
+
+                    return found;
+                }
+
+                cur = next;
+            }
+
+            reason = "SourceTrackName の参照が循環しています";
+            return null;
         }
 
         private static TrackAsset FindTrackByName(TimelineAsset timeline, string name)

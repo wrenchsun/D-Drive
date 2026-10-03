@@ -526,12 +526,14 @@ TYPE class static DDrive.Runtime.Cutscene.Cutscene
 TYPE enum DDrive.Runtime.Cutscene.CutsceneBindTarget
   enum-member AnchorPoint = 5
   enum-member MainCamera = 0
+  enum-member SameAsTrack = 6
   enum-member SceneObjectByName = 4
   enum-member Self = 1
   enum-member SpawnModel = 3
   enum-member Target = 2
   field const AnchorPoint : DDrive.Runtime.Cutscene.CutsceneBindTarget
   field const MainCamera : DDrive.Runtime.Cutscene.CutsceneBindTarget
+  field const SameAsTrack : DDrive.Runtime.Cutscene.CutsceneBindTarget
   field const SceneObjectByName : DDrive.Runtime.Cutscene.CutsceneBindTarget
   field const Self : DDrive.Runtime.Cutscene.CutsceneBindTarget
   field const SpawnModel : DDrive.Runtime.Cutscene.CutsceneBindTarget
@@ -539,6 +541,7 @@ TYPE enum DDrive.Runtime.Cutscene.CutsceneBindTarget
 TYPE struct DDrive.Runtime.Cutscene.CutsceneBinding
   field Model : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Model.ModelMarker>
   field SceneObjectName : string
+  field SourceTrackName : string
   field Target : DDrive.Runtime.Cutscene.CutsceneBindTarget
   field TrackName : string
 TYPE struct DDrive.Runtime.Cutscene.CutsceneCameraWriteRequest

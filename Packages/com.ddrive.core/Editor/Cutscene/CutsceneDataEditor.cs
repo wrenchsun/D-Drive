@@ -140,7 +140,66 @@ namespace DDrive.Editor.Cutscene
                         EditorGUILayout.HelpBox($"Bindings の '{binding.TrackName}' に一致する Timeline トラックがありません(削除された可能性)。", MessageType.Warning);
                     }
                 }
+
+                // [51_tdrive_integration.md] §4.2(FC-1) — SameAsTrack の参照先(→ 参照先、✓ 解決できる / ✗ 未解決・循環)。
+                for (var i = 0; i < cutscene.Bindings.Length; i++)
+                {
+                    var binding = cutscene.Bindings[i];
+                    if (binding.Target != CutsceneBindTarget.SameAsTrack)
+                    {
+                        continue;
+                    }
+
+                    var problem = DescribeSameAsTrackProblem(cutscene.Bindings, i, trackNames);
+                    var source = string.IsNullOrEmpty(binding.SourceTrackName) ? "(未設定)" : binding.SourceTrackName;
+                    EditorGUILayout.LabelField(problem == null
+                        ? $"✓ {binding.TrackName} → {source}(同じ相手にバインド)"
+                        : $"✗ {binding.TrackName} → {source}({problem})");
+                }
             }
+        }
+
+        // CutsceneDataValidator.FindSameAsTrackProblem(private)と同じ判定の表示用版。
+        private static string DescribeSameAsTrackProblem(CutsceneBinding[] bindings, int index, List<string> trackNames)
+        {
+            var cur = index;
+            for (var depth = 0; depth <= bindings.Length; depth++)
+            {
+                var src = bindings[cur].SourceTrackName;
+                if (string.IsNullOrEmpty(src))
+                {
+                    return "参照先が未設定";
+                }
+
+                var next = -1;
+                for (var j = 0; j < bindings.Length; j++)
+                {
+                    if (bindings[j].TrackName == src)
+                    {
+                        next = j;
+                        break;
+                    }
+                }
+
+                if (next < 0)
+                {
+                    return "参照先の Binding が無い";
+                }
+
+                if (next == cur)
+                {
+                    return "自己参照";
+                }
+
+                if (bindings[next].Target != CutsceneBindTarget.SameAsTrack)
+                {
+                    return trackNames.Contains(src) ? null : "参照先のトラックが Timeline に無い";
+                }
+
+                cur = next;
+            }
+
+            return "循環参照";
         }
     }
 }

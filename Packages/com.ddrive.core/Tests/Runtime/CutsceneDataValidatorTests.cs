@@ -291,5 +291,74 @@ namespace DDrive.Tests.Runtime
             var results = Validate(data, presentation);
             Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("循環参照")));
         }
+
+        // ── FC-1([51_tdrive_integration.md] §4.2) — SameAsTrack の参照検査(Warning) ──
+
+        private List<ValidationResult> ValidateSameAs(string timelineTrack, params CutsceneBinding[] bindings)
+        {
+            var timeline = CreateTimeline();
+            timeline.CreateTrack<AnimationTrack>(null, timelineTrack);
+            var data = ValidData();
+            data.Timeline = timeline;
+            data.Bindings = bindings;
+            return Validate(data);
+        }
+
+        private static bool HasSameAsWarning(List<ValidationResult> results, string contains) =>
+            results.Exists(r => r.Severity == ValidationSeverity.Warning && r.Message.Contains("SameAsTrack") && r.Message.Contains(contains));
+
+        [Test]
+        public void SameAsTrack_EmptySourceTrackName_IsWarning()
+        {
+            var results = ValidateSameAs("Hero", new CutsceneBinding { TrackName = "Hero_Ext", Target = CutsceneBindTarget.SameAsTrack });
+            Assert.IsTrue(HasSameAsWarning(results, "SourceTrackName が空"));
+            Assert.IsFalse(results.Exists(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        [Test]
+        public void SameAsTrack_SourceNotInBindings_IsWarning()
+        {
+            var results = ValidateSameAs("Hero", new CutsceneBinding { TrackName = "Hero_Ext", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "Nobody" });
+            Assert.IsTrue(HasSameAsWarning(results, "一致する Binding がありません"));
+        }
+
+        [Test]
+        public void SameAsTrack_SelfReferenceAndCycle_AreWarnings()
+        {
+            var self = ValidateSameAs("Hero", new CutsceneBinding { TrackName = "A", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "A" });
+            Assert.IsTrue(HasSameAsWarning(self, "自己参照"));
+
+            var cycle = ValidateSameAs(
+                "Hero",
+                new CutsceneBinding { TrackName = "A", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "B" },
+                new CutsceneBinding { TrackName = "B", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "A" });
+            Assert.IsTrue(HasSameAsWarning(cycle, "循環"));
+        }
+
+        [Test]
+        public void SameAsTrack_SourceTrackMissingFromTimeline_IsWarning()
+        {
+            var results = ValidateSameAs(
+                "Hero_Ext",
+                new CutsceneBinding { TrackName = "Hero", Target = CutsceneBindTarget.Self },
+                new CutsceneBinding { TrackName = "Hero_Ext", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "Hero" });
+            Assert.IsTrue(HasSameAsWarning(results, "Timeline にありません"));
+        }
+
+        [Test]
+        public void SameAsTrack_ValidChain_HasNoWarning()
+        {
+            var timeline = CreateTimeline();
+            timeline.CreateTrack<AnimationTrack>(null, "Hero");
+            var data = ValidData();
+            data.Timeline = timeline;
+            data.Bindings = new[]
+            {
+                new CutsceneBinding { TrackName = "Hero_Ext", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "Hero" },
+                new CutsceneBinding { TrackName = "Hero", Target = CutsceneBindTarget.Self },
+            };
+            var results = Validate(data);
+            Assert.IsFalse(results.Exists(r => r.Message.Contains("SameAsTrack")));
+        }
     }
 }

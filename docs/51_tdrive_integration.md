@@ -189,6 +189,8 @@ T-Drive の `f27702e`（`naming.py` / `space.py` / `conformance_README.md` / `fc
 
 **未決**: U-1（バインド型への適合）・U-2（Validator を最初から Error にするか。既存データに現れない新しい Target 値なので実害は無いが、§5.8 は Warning 始まり）・U-5（マニュアルの置き場所）
 
+**実装メモ（2026-10-03、FC-1 実装）**: U-1 = (a)（変換しない）・U-2 = (a)（Warning）・U-5 = (a)（`docs/DesignerManual` に Cutscene の Binding を扱うページが無いため HTML は今回触らない）で実装した。設計（上記 1〜11）のとおりで、変えた点は次の 3 つ。(1) パス 1 の解決結果は `Dictionary` ではなく **Bindings と同じ添字の `List<Object>`**（`CutsceneManager._bindingResolved` / Editor 側は static）に控える（TrackName 重複でも配列順の最初の一致で決まり、割り当てなし）。(2) 参照先の探索（TrackName 一致の最初の Binding）と鎖の打ち切り（深さ `Bindings.Length`）は `ResolveSameAsTrack`（Runtime は instance メソッド、Editor は static。`public` を増やさず 2 箇所に同じロジック）に切り出した。警告文の文字列は失敗時にしか作らない。(3) `serialized-layout.txt` は変更なし — このスナップショットは `CutsceneData` の最上位フィールド（`Bindings : Generic`）までで、`CutsceneBinding` の中身は載らないため（`SourceTrackName` の追加は `public-api-DDrive.Runtime.txt` の struct フィールドと `enums.txt` に出る）。Inspector は `CutsceneBindingDrawer`（IMGUI の PropertyDrawer）。テストは PlayMode `CutsceneSameAsTrackTests`（新規ファイル。10 件）・`CutsceneDataValidatorTests`（SameAsTrack 5 件追加）、EditMode `CutsceneEditModeDirectorSetupTests`（2 件追加）。
+
 ### 4.3 FC-2（= C-2）: プール返却時にブレンドシェイプの重みを戻す【優先 高】
 
 **現状のコード**
