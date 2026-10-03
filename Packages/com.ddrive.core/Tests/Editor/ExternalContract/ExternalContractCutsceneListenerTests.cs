@@ -125,6 +125,14 @@ namespace ExternalContract.Tests
             CollectionAssert.AreEqual(ExpectedOrder, own, "Order 昇順(-10 → 0 → 0 → 50)、同値は型のフルネーム順(A → B)");
         }
 
+        // E-19(FX-R-14): public でない型(internal)の実装は発見されない(public のみという契約。他の取り込み拡張点と同じ)。
+        [Test]
+        public void E19_NonPublicListener_IsNotDiscovered()
+        {
+            var names = CutsceneImportListeners.Discover().Select(l => l.GetType().Name).ToList();
+            CollectionAssert.DoesNotContain(names, "ExternalNonPublicListener");
+        }
+
         [Test]
         public void E19_Listeners_AreInactiveByDefault_AndNotifyDoesNotThrow()
         {
