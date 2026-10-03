@@ -62,6 +62,7 @@ namespace DDrive.Editor.Anim
         private Label _modelSummaryLabel;
         private Foldout _modelDetailFoldout;
         private Label _modelDetailLabel;
+        private Toggle _showExternalShapesToggle;
         private VisualElement _fieldsContainer;
         private Foldout _validationFoldout;
         private IMGUIContainer _timelineContainer;
@@ -274,6 +275,10 @@ namespace DDrive.Editor.Anim
             _modelDetailFoldout = new Foldout { text = "モデル情報の詳細(BlendShape 一覧など)", value = false };
             _modelDetailLabel = new Label { style = { opacity = 0.75f, whiteSpace = WhiteSpace.Normal } };
             _modelDetailFoldout.Add(_modelDetailLabel);
+            // FC-20: 外部パッケージが管理するシェイプ(FC_ / fcs_)は既定で一覧から隠す。
+            _showExternalShapesToggle = new Toggle("外部管理のシェイプも表示") { value = false };
+            _showExternalShapesToggle.RegisterValueChangedCallback(_ => RefreshModelInfo());
+            _modelDetailFoldout.Add(_showExternalShapesToggle);
             root.Add(_modelDetailFoldout);
 
             BuildSourceSection(root);
@@ -758,15 +763,38 @@ namespace DDrive.Editor.Anim
                 }
             }
 
+            // FC-20: 所有接頭辞のシェイプは既定で隠し、件数だけ出す(Data に入っている値は触らない)。
+            var showExternal = _showExternalShapesToggle != null && _showExternalShapesToggle.value;
+            var externalCount = 0;
+            var listed = new List<string>(shapes.Count);
+            foreach (var shape in shapes)
+            {
+                if (ExternalBlendShapePrefixes.IsOwnedExternally(shape))
+                {
+                    externalCount++;
+                    if (!showExternal)
+                    {
+                        continue;
+                    }
+                }
+
+                listed.Add(shape);
+            }
+
             var controller = animator.runtimeAnimatorController != null ? animator.runtimeAnimatorController.name : "なし(Clip を直接サンプリング)";
             var proxy = animator.GetComponent<AnimatorProxy>();
             var ik = proxy != null && (proxy.LeftHandTarget != null || proxy.RightHandTarget != null || proxy.LeftFootTarget != null || proxy.RightFootTarget != null) ? " / IK ターゲットあり" : string.Empty;
-            _modelSummaryLabel.text = $"Controller: {controller} / BlendShape {shapes.Count} 個{ik}";
+            _modelSummaryLabel.text = $"Controller: {controller} / BlendShape {shapes.Count - externalCount} 個{(externalCount > 0 ? $"(外部管理 {externalCount} 件を除く)" : string.Empty)}{ik}";
 
             var sb = new StringBuilder();
             sb.Append("Animator: ").Append(animator.name).Append('\n');
             sb.Append("Controller: ").Append(controller).Append('\n');
-            sb.Append(shapes.Count > 0 ? "BlendShape: " + string.Join(", ", shapes) : "BlendShape: なし");
+            sb.Append(listed.Count > 0 ? "BlendShape: " + string.Join(", ", listed) : "BlendShape: なし");
+            if (externalCount > 0 && !showExternal)
+            {
+                sb.Append('\n').Append($"外部管理 {externalCount} 件(FC_ / fcs_ で始まるシェイプ。外部パッケージが書くため AnimData では指定しません)");
+            }
+
             _modelDetailLabel.text = sb.ToString();
             _modelDetailFoldout.style.display = DisplayStyle.Flex;
         }

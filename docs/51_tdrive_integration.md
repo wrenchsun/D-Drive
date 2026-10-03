@@ -587,6 +587,8 @@ T-Drive の `f27702e` が前提にする (a) シェイプ名・(b) ボーン名�
 
 **互換区分**: MINOR（新しい public 静的クラス = `public-api-DDrive.Runtime.txt` 更新・Warning の追加。Editor の表示変更は互換面外）。**テスト**: AC は [11](11_tasks.md) FC-20 行。**更新する docs**: [05] B-6（Validation）・[05] A-3（BlendShape の節）、`ProgrammerManual/model-anim-api.html`・`DesignerManual/anim-editor.html`（機能として）
 
+**実装メモ（2026-10-03、FC-20 実装）**: U-13 = (a) で実装。`Runtime/Anim/ExternalBlendShapePrefixes.cs`（`public static class`。`All`〔`IReadOnlyList<string>`、`FC_`・`fcs_`〕・`IsOwnedExternally(string)`）。設計との差: (1) 名前は案どおり。登録口・実行時の弾きは作らない。(2) 確認項目 1〜6 を実コードで再確認し、前回の読みと変わらず問題なし（`SetBlendShapeWeight` は `AnimatorProxy` の AnimData 指定名、FC-2 の `ModelInstancePoolable` の返却時復元、Editor プレビューの復元の 3 箇所のみ。`ModelImporter` を書くのは `CutsceneFbxPostprocessor` のみ）。(3) 「BlendShape 名の入力補助」は実コードに無い（`BlendShapes` は Inspector の素の配列）ため、Editor の変更はモデル情報の BlendShape 一覧（`AnimEditorWindow.RefreshModelInfo`）だけ。所有接頭辞のシェイプを既定で隠し「外部管理 N 件」を出す。詳細の折りたたみ内トグル「外部管理のシェイプも表示」で表示できる。AnimData の既存の値は消さない。(4) Validator のコードは `DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED`（Warning）。(5) D-Drive がブレンドシェイプ名を指定して書く Data は `AnimData.BlendShapes` だけ（grep: `ShapeName` / `SetBlendShapeWeight` / `GetBlendShapeIndex`）。(6) テスト: PlayMode `ExternalBlendShapeOwnershipTests`（判定の大文字小文字・Validator・合成 Mesh に `FC_Hero_Neutral_R0_C0` / `_Ex` / `FC_Hero_Persp_K0` / `Smile` を持つ Prefab を Spawn → `AnimManager.Tick` → 外部の後書きが次の Tick で上書きされない・名前が変わらない・AnimData 指定の通常シェイプだけが書かれる・プール往復）。FBX フィクスチャを要する E-17 は FC-10。
+
 ## 5. D 群（doc16 §5）= 不採用（doc17 に D 群に当たるものは無い）
 
 doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式）は**やらない**。チケットにしない。
@@ -692,3 +694,4 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 - 2026-10-03（同日追記 2）: T-Drive コミット `f27702e`（FacialController のコア F0-2 / F0-3）が前提にする決まり（シェイプ名・ボーン名・座標系・Runner の書き込み）のうち D-Drive 側が守る / 確認すべきものを「f27702e 由来・まとめ役の抽出」として FC-20 に起票し、FC-2・FC-3・FC-10（E-16〜E-18）に追記。§3.5・§6.1 に対にした表を追加。
 - 2026-10-03（同日追記 3）: FC-2 / FC-12 を実装（§4.3 実装メモ）。§8 に「決定」列を追加（U-1〜U-13 の決定を記録。U-14・U-15 は未決）。人による確認の手順書 [52](52_manual_verification_fc.md) を新設。
 - 2026-10-03（同日追記 4）: FC-11 を実装（§4.12 実装メモ。実機で「未確認」だった `SetShaderPassEnabled` の挙動・`new Material(from)` / `Lerp` の扱い・パス列挙の API を確認）。U-10 を決定列に記録。
+- 2026-10-03（同日追記 5）: FC-20 を実装（§4.21 実装メモ。確認項目 1〜6 を再確認、`ExternalBlendShapePrefixes` + Validator Warning + AnimEditor の表示）。

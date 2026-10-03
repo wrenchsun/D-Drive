@@ -256,6 +256,9 @@ TYPE class sealed DDrive.Runtime.Anim.AnimatorProxy : UnityEngine.MonoBehaviour
 TYPE struct DDrive.Runtime.Anim.BlendShapeTrack
   field ShapeName : string
   field Weight : UnityEngine.AnimationCurve
+TYPE class static DDrive.Runtime.Anim.ExternalBlendShapePrefixes
+  method static IsOwnedExternally(string shapeName) : bool
+  property static All : System.Collections.Generic.IReadOnlyList<string> {get}
 TYPE struct DDrive.Runtime.Anim.IkProfile
   field LeftFoot : bool
   field LeftHand : bool

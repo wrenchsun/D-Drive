@@ -198,6 +198,7 @@ h.Stop(fade); h.SetSpeed(1.5f); h.NormalizedTime; h.OnEnd(callback);
 | StateName が Controller に存在しない | Error |
 | Frame イベントが Clip 長を超過 | Error |
 | BlendShape 名が対象モデルに無い | Warning |
+| `AnimData.BlendShapes` が外部所有の接頭辞（`FC_` / `fcs_`）のシェイプを指している（FC-20、Code `DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED`） | Warning |
 | Loop=false なのに OnLoop イベントあり | Warning |
 
 ---
@@ -346,7 +347,7 @@ Clip 未生成/Missing (Error) / Directions=Eight なのに DirectionClips 不�
 
 ## 追記（2026-10-03、FC チケット）
 
-T-Drive 連携（[51_tdrive_integration.md](51_tdrive_integration.md)、[11](11_tasks.md) FC 節。**FC-2 / FC-12 は 2026-10-03 に実装済み（下の追記）、FC-20 は未実装**）: **FC-2** プール返却時にブレンドシェイプの重みを既定へ戻す（`FC_*` を含む全シェイプ。A-3 の返却処理）/ **FC-12** モデルのスポーン・返却の通知（Prefab 上の `IModelInstanceListener`。FC-2 と同一 PR）/ **FC-20** 外部所有シェイプ接頭辞（`FC_` / `fcs_`）の予約と `AnimData.BlendShapes`（B-6 Validation）の警告。旧チケット 7-8（D-Drive 内に Facial を移植）は T-Drive 版を使う方針に変更した。
+T-Drive 連携（[51_tdrive_integration.md](51_tdrive_integration.md)、[11](11_tasks.md) FC 節。**FC-2 / FC-12 / FC-20 は 2026-10-03 に実装済み（下の追記）**）: **FC-2** プール返却時にブレンドシェイプの重みを既定へ戻す（`FC_*` を含む全シェイプ。A-3 の返却処理）/ **FC-12** モデルのスポーン・返却の通知（Prefab 上の `IModelInstanceListener`。FC-2 と同一 PR）/ **FC-20** 外部所有シェイプ接頭辞（`FC_` / `fcs_`）の予約と `AnimData.BlendShapes`（B-6 Validation）の警告。旧チケット 7-8（D-Drive 内に Facial を移植）は T-Drive 版を使う方針に変更した。
 
 ### 2026-10-03 追記（FC-2 / FC-12: プール返却時のブレンドシェイプ復元・スポーン / 返却の通知。[51](51_tdrive_integration.md) §4.3・§4.13）
 
@@ -356,3 +357,11 @@ A-3 の Spawn / Despawn に次の挙動を追加した（追加のみ。MINOR）
 - **スポーン / 返却の通知（FC-12）**: Prefab（ルート / 子）のコンポーネントが `DDrive.Runtime.Model.IModelInstanceListener`（`OnModelSpawned` / `OnModelReturning`、引数は `ModelInstanceContext`〔`Handle` / `Data` / `Root`〕）を実装すると通知を受ける。`OnModelSpawned` はスロットの Material 適用と DefaultAnimation の開始の後（Spawn の戻り値の直前）、`OnModelReturning` はプールへ戻す（Discard を含む）直前でアニメ停止・台帳の掃除より前。**返却の順序は「`OnModelReturning` → ブレンドシェイプの復元」**（Listener が返却通知で重みを書いても最後は既定に揃う）。Listener は Instance の生成時に 1 回だけ集める（後から足したコンポーネントは対象外）。Listener ごとに `try/catch` で隔離し、例外は `Debug.LogException` で出して他の Listener と返却を続ける
 - **Pool の `IPoolable`（U-3 = (a)）**: `PoolService` はルートの**全** `IPoolable` に `OnReturn` を呼ぶ（以前は最初の 1 個だけ。[02](02_core_framework.md) §6）。外部コンポーネントが同じルートに `IPoolable` を実装しても `ModelInstancePoolable` の処理は呼ばれる
 - 実装: `Runtime/Model/ModelInstancePoolable.cs`（キャッシュ・通知・復元）、`Runtime/Model/IModelInstanceListener.cs`（公開型）、`ModelsManager.SpawnData` / `CloseInstance`、`Foundation/Pool/PoolService.cs`。テスト: PlayMode `ModelsManagerReturnNotifyTests`・`PoolServiceTests`、Performance `ModelReturnAllocTests`
+
+### 2026-10-03 追記（FC-20: 外部所有のシェイプ接頭辞。[51](51_tdrive_integration.md) §4.21）
+
+- **一覧（A-3 / B-6）**: `DDrive.Runtime.Anim.ExternalBlendShapePrefixes`（静的クラス。`All` = `FC_`・`fcs_`、`IsOwnedExternally(name)` = 大文字小文字を区別する前方一致）が「外部パッケージが LateUpdate で書くシェイプの接頭辞」を 1 か所で持つ。外部パッケージ側の型は参照しない。登録口は無い（U-13 = (a)）。実行時の書き込みは弾かない（`AnimatorProxy` は `AnimData.BlendShapes` に書かれた名前だけを書くので、何も指定しなければ `FC_*` には触れない）。
+- **Validator（B-6）**: `AnimData.BlendShapes[].ShapeName` が所有接頭辞で始まると Warning（`DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED`）。
+- **AnimEditor**: モデル情報の BlendShape 一覧は所有接頭辞のシェイプを既定で隠し「外部管理 N 件」と件数を出す（詳細の折りたたみ内の「外部管理のシェイプも表示」で見える。AnimData に既に入っている値は消さない）。
+- **取り込みの確認（実コード、[51] §3.5・§4.21）**: D-Drive は一般モデル FBX の `ModelImporter` 設定を書かず（Cutscene のキャラ FBX の `animationType` / `avatarSetup` のみ）、シェイプ名・ボーン・メッシュ・スケールを加工しない。`SetBlendShapeWeight` の呼び出しは `AnimatorProxy`（`AnimData.BlendShapes` 指定名）と `ModelInstancePoolable`（返却時の復元）・Editor のプレビュー復元だけ。再確認の結果、問題なし。FBX フィクスチャを使う確認（U-15）は FC-10 E-17。
+- テスト: PlayMode `ExternalBlendShapeOwnershipTests`（判定・Validator・合成 Mesh の Prefab を Spawn → `AnimManager.Tick` → 外部の後書きが次の Tick で上書きされない・名前が変わらない・プール往復）。
