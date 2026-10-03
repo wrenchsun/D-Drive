@@ -138,5 +138,69 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(1, director.gameObject.transform.childCount,
                 "押し直すたびに前回の SpawnModel を返却してから作り直すこと([26_timeline.md] §4.4、docs/45 P1-5)");
         }
+
+        // ── FC-1([51_tdrive_integration.md] §4.2) — SameAsTrack(Edit Mode も Play と同じ 2 パス) ──
+
+        [Test]
+        public void EnsureDirector_SameAsTrack_ReferencingSpawnModel_SpawnsOnce_AndSharesBinding()
+        {
+            var model = CreateModelData(900000000003UL);
+            var data = CreateCutsceneWithSpawnModelBinding(model);
+            _timeline.CreateTrack<AnimationTrack>(null, "Hero_Ext");
+            // 参照元(Hero_Ext)を参照先(Hero)より前に置いても解決できる。
+            data.Bindings = new[]
+            {
+                new CutsceneBinding { TrackName = "Hero_Ext", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "Hero" },
+                data.Bindings[0],
+            };
+
+            var director = CutsceneEditModeDirectorSetup.EnsureDirector(data);
+
+            Assert.AreEqual(1, director.gameObject.transform.childCount, "SameAsTrack は Spawn しない(モデルは 1 体)");
+            var hero = director.GetGenericBinding(FindTrack("Hero"));
+            Assert.IsNotNull(hero);
+            Assert.AreSame(hero, director.GetGenericBinding(FindTrack("Hero_Ext")));
+
+            // 押し直しても溜まらない(返却は参照先の 1 件だけ)。
+            director = CutsceneEditModeDirectorSetup.EnsureDirector(data);
+            Assert.AreEqual(1, director.gameObject.transform.childCount);
+        }
+
+        [Test]
+        public void EnsureDirector_SameAsTrack_Unresolvable_BindsNull_WithoutThrowing()
+        {
+            var model = CreateModelData(900000000004UL);
+            var data = CreateCutsceneWithSpawnModelBinding(model);
+            _timeline.CreateTrack<AnimationTrack>(null, "A");
+            _timeline.CreateTrack<AnimationTrack>(null, "B");
+            data.Bindings = new[]
+            {
+                data.Bindings[0],
+                new CutsceneBinding { TrackName = "A", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "B" },
+                new CutsceneBinding { TrackName = "B", Target = CutsceneBindTarget.SameAsTrack, SourceTrackName = "A" },
+            };
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("トラック 'A' が未解決です"));
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("トラック 'B' が未解決です"));
+            var director = CutsceneEditModeDirectorSetup.EnsureDirector(data);
+
+            Assert.IsNull(director.GetGenericBinding(FindTrack("A")));
+            Assert.IsNull(director.GetGenericBinding(FindTrack("B")));
+            Assert.IsNotNull(director.GetGenericBinding(FindTrack("Hero")));
+        }
+
+        private TrackAsset FindTrack(string name)
+        {
+            foreach (var track in _timeline.GetOutputTracks())
+            {
+                if (track.name == name)
+                {
+                    return track;
+                }
+            }
+
+            Assert.Fail($"トラック {name} が無い");
+            return null;
+        }
     }
 }

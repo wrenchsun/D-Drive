@@ -149,6 +149,7 @@ DDrive.Runtime.CameraShake.ShakeSpace.FromSource=2
 DDrive.Runtime.CameraShake.ShakeSpace.World=1
 DDrive.Runtime.Cutscene.CutsceneBindTarget.AnchorPoint=5
 DDrive.Runtime.Cutscene.CutsceneBindTarget.MainCamera=0
+DDrive.Runtime.Cutscene.CutsceneBindTarget.SameAsTrack=6
 DDrive.Runtime.Cutscene.CutsceneBindTarget.SceneObjectByName=4
 DDrive.Runtime.Cutscene.CutsceneBindTarget.Self=1
 DDrive.Runtime.Cutscene.CutsceneBindTarget.SpawnModel=3

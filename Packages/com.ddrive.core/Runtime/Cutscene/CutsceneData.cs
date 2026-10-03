@@ -20,6 +20,9 @@ namespace DDrive.Runtime.Cutscene
         SpawnModel,
         SceneObjectByName,
         AnchorPoint,
+        // [51_tdrive_integration.md] §4.2(FC-1) — SourceTrackName で指す別トラックと同じ相手(Animator/Transform)にバインドする。
+        // SpawnModel を参照しても Model は増えない。末尾追加のみ(値は 6)。
+        SameAsTrack,
     }
 
     // [26_timeline.md] §4.2.1 — Maya のワールド座標をゲームのどこに置くか。
@@ -61,6 +64,9 @@ namespace DDrive.Runtime.Cutscene
 
         [Tooltip("Target=SceneObjectByName/AnchorPoint のとき使う名前。")]
         public string SceneObjectName;
+
+        [Tooltip("Target=SameAsTrack のとき使う、同じ相手にバインドする別トラックの TrackName。")]
+        public string SourceTrackName;
     }
 
     // [26_timeline.md] §4.1 — Maya FBX 取り込み + D-Drive トラックの基盤データ(6-10a)。

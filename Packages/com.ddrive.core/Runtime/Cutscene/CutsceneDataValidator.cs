@@ -92,6 +92,16 @@ namespace DDrive.Runtime.Cutscene
                     {
                         yield return ValidationResult.Error($"Bindings[{i}]({binding.TrackName}) は Target={binding.Target} ですが SceneObjectName が空です");
                     }
+
+                    // [51_tdrive_integration.md] §4.2(FC-1) — SameAsTrack の参照検査(Warning。実行時は警告 + そのトラックだけミュート)。
+                    if (binding.Target == CutsceneBindTarget.SameAsTrack)
+                    {
+                        var problem = FindSameAsTrackProblem(bindings, i, cutscene.Timeline);
+                        if (problem != null)
+                        {
+                            yield return ValidationResult.Warning($"Bindings[{i}]({binding.TrackName}) は Target=SameAsTrack ですが{problem}(実行時はそのトラックだけミュートされます)");
+                        }
+                    }
                 }
             }
 
@@ -129,6 +139,67 @@ namespace DDrive.Runtime.Cutscene
             {
                 yield return result;
             }
+        }
+
+        // SameAsTrack の参照チェーンをたどり、問題があれば説明文を、無ければ null を返す。
+        private static string FindSameAsTrackProblem(CutsceneBinding[] bindings, int index, TimelineAsset timeline)
+        {
+            var cur = index;
+            for (var depth = 0; depth <= bindings.Length; depth++)
+            {
+                var src = bindings[cur].SourceTrackName;
+                if (string.IsNullOrEmpty(src))
+                {
+                    return " SourceTrackName が空です";
+                }
+
+                var next = -1;
+                for (var j = 0; j < bindings.Length; j++)
+                {
+                    if (bindings[j].TrackName == src)
+                    {
+                        next = j;
+                        break;
+                    }
+                }
+
+                if (next < 0)
+                {
+                    return $" SourceTrackName '{src}' に一致する Binding がありません";
+                }
+
+                if (next == cur)
+                {
+                    return $" SourceTrackName '{src}' が自分自身を指しています(自己参照)";
+                }
+
+                if (bindings[next].Target != CutsceneBindTarget.SameAsTrack)
+                {
+                    if (timeline != null && !HasTrack(timeline, src))
+                    {
+                        return $" 参照先 '{src}' に対応するトラックが Timeline にありません";
+                    }
+
+                    return null;
+                }
+
+                cur = next;
+            }
+
+            return " SourceTrackName の参照が循環しています";
+        }
+
+        private static bool HasTrack(TimelineAsset timeline, string name)
+        {
+            foreach (var track in timeline.GetOutputTracks())
+            {
+                if (track != null && track.name == name)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasSignalMarker(TimelineAsset timeline, string key)
