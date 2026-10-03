@@ -1067,6 +1067,8 @@ TYPE class DDrive.Runtime.Material.MaterialData : DDrive.Foundation.Data.AssetDa
   ctor MaterialData()
   field Anims : DDrive.Runtime.Material.MaterialAnim[]
   field Common : DDrive.Runtime.Material.MaterialCommon
+  field DisabledPasses : string[]
+  field EnabledKeywords : string[]
   field RenderQueueOffset : int
   field RenderingLayerMask : uint
   field Shader : UnityEngine.Shader
@@ -1074,6 +1076,7 @@ TYPE class DDrive.Runtime.Material.MaterialData : DDrive.Foundation.Data.AssetDa
   field Specific : DDrive.Runtime.Material.ShaderParam[]
   property BaseRenderQueue : int {get}
   property HasAnims : bool {get}
+  property HasPassesOrKeywords : bool {get}
   property RenderQueue : int {get}
 TYPE class sealed DDrive.Runtime.Material.MaterialDataValidator
   ctor MaterialDataValidator()
@@ -1107,6 +1110,10 @@ TYPE class sealed DDrive.Runtime.Material.MaterialManager
   property DefaultShader : UnityEngine.Shader {get}
   property Type : DDrive.Foundation.Identity.AssetType {get}
 TYPE struct DDrive.Runtime.Material.MaterialMarker
+TYPE class static DDrive.Runtime.Material.MaterialShaderInfo
+  method static CollectKeywords(UnityEngine.Shader shader, System.Collections.Generic.List<string> result) : void
+  method static CollectLightModes(UnityEngine.Shader shader, System.Collections.Generic.List<string> result) : void
+  method static ContainsIgnoreCase(System.Collections.Generic.List<string> list, string name) : bool
 TYPE class static DDrive.Runtime.Material.MaterialSpecificResolver
   method static FindUnregistered(DDrive.Runtime.Material.ShaderParam[] existing, UnityEngine.Shader shader) : System.Collections.Generic.List<string>
   method static IsConflicting(UnityEngine.Shader shader, string property) : bool

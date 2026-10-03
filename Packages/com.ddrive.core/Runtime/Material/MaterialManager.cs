@@ -225,6 +225,8 @@ namespace DDrive.Runtime.Material
             var temp = from != null ? new UnityEngine.Material(from) : new UnityEngine.Material(toBuilt.Material);
             temp.name = (from != null ? from.name : "None") + "->" + toBuilt.Material.name + " (fade)";
             temp.hideFlags = HideFlags.DontSave;
+            // FC-11: 複製元(from)の状態は引き継がれるが、フェード先(to)のパス / キーワード指定を重ねて、フェード中も to の見た目に寄せる。
+            ApplyPassesAndKeywords(temp, toData);
 
             materials = renderer.sharedMaterials;
             materials[slot] = temp;
@@ -419,6 +421,7 @@ namespace DDrive.Runtime.Material
 
             MaterialCommonBinding.Apply(material, data.Common, ResolveTexture);
             ApplySpecific(material, data.Specific);
+            ApplyPassesAndKeywords(material, data);
             material.renderQueue = data.RenderQueue;
 
             built = new Built { Data = data, Material = material };
@@ -440,6 +443,34 @@ namespace DDrive.Runtime.Material
 
             _built[data] = built;
             return built;
+        }
+
+        // FC-11: Common → Specific の後・renderQueue の前。空文字・存在しない名前は無視(例外にしない)。
+        internal static void ApplyPassesAndKeywords(UnityEngine.Material material, MaterialData data)
+        {
+            var passes = data.DisabledPasses;
+            if (passes != null)
+            {
+                for (var i = 0; i < passes.Length; i++)
+                {
+                    if (!string.IsNullOrEmpty(passes[i]))
+                    {
+                        material.SetShaderPassEnabled(passes[i], false);
+                    }
+                }
+            }
+
+            var keywords = data.EnabledKeywords;
+            if (keywords != null)
+            {
+                for (var i = 0; i < keywords.Length; i++)
+                {
+                    if (!string.IsNullOrEmpty(keywords[i]))
+                    {
+                        material.EnableKeyword(keywords[i]);
+                    }
+                }
+            }
         }
 
         private Texture ResolveTexture(AssetId<TextureMarker> id)
