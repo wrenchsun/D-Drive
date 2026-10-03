@@ -92,6 +92,46 @@ namespace ExternalContract.Tests
             models.Despawn(h2);
         }
 
+        // OnModelReturning の中で同じハンドルを Despawn されても無限再帰せず、二重返却にもならない(FC-R-08)。
+        [Test]
+        public void ListenerDespawningSameHandleInOnModelReturning_DoesNotRecurse()
+        {
+            var registry = new AssetRegistry(new ExternalContractLoader());
+            var models = new ModelsManager(_pool, registry);
+
+            var prefab = Own(new GameObject("ExternalContractSelfDespawnPrefab"));
+            var listener = prefab.AddComponent<SelfDespawnListener>();
+            var data = Own(ScriptableObject.CreateInstance<ModelData>());
+            data.Id = 2;
+            data.Prefab = prefab;
+            data.Flags.Pool = PoolPolicy.Pooled(0, 4);
+
+            var handle = models.SpawnData(data, Vector3.zero, Quaternion.identity);
+            var root = models.GetGameObject(handle);
+            var instanceListener = root.GetComponent<SelfDespawnListener>();
+            instanceListener.Models = models;
+
+            Assert.DoesNotThrow(() => models.Despawn(handle));
+
+            Assert.AreEqual(1, instanceListener.ReturningCount, "通知は 1 回だけ");
+            Assert.IsFalse(root.activeSelf, "プールへ 1 回だけ返却される");
+            Assert.IsNotNull(listener);
+        }
+
+        private sealed class SelfDespawnListener : MonoBehaviour, IModelInstanceListener
+        {
+            public ModelsManager Models;
+            public int ReturningCount;
+
+            public void OnModelSpawned(in ModelInstanceContext context) { }
+
+            public void OnModelReturning(in ModelInstanceContext context)
+            {
+                ReturningCount++;
+                Models?.Despawn(context.Handle);
+            }
+        }
+
         // E-13: ModelData.Slots が空 / Material が無効 ID のスロットは Prefab の sharedMaterials を触らない。有効 ID のスロットだけ差し替わる。
         [Test]
         public void E13_EmptyOrInvalidSlots_KeepPrefabMaterials_ValidSlotIsReplaced()
