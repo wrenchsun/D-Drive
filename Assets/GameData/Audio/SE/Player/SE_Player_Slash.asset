@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 2
   Author: yamag
-  UpdatedAt: 2026-09-16T10:33:21
+  UpdatedAt: 2026-10-06T02:32:43
   ChangeNote: 
   Flags:
     Pause: 0
@@ -38,7 +38,8 @@ MonoBehaviour:
   Events: []
   ImportSourceGuid: 
   SchemaVersion: 1
-  Clips: []
+  Clips:
+  - {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   Sources: []
   StartOffsetSec: 0
   SelectMode: 0
