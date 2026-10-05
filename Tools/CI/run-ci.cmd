@@ -29,6 +29,14 @@ REM
 REM Usage:
 REM   Tools\CI\run-ci.cmd
 REM   Tools\CI\run-ci.cmd "C:\Program Files\Unity\Hub\Editor\6000.3.13f1\Editor\Unity.exe"
+REM   From Git Bash use forward slashes: ./Tools/CI/run-ci.cmd   (bash eats the backslashes of Tools\CI\...).
+REM   Through cmd from Git Bash the double backslash form also works: cmd //c "Tools\\CI\\run-ci.cmd"
+REM   After the run, that console keeps code page 65001 (chcp is not undone by setlocal). Display only.
+REM
+REM 2026-10-06 (docs/61 review): git runs with --no-pager, step 4 also looks at untracked files, an unexpected
+REM exit code of check-test-result.cmd is a FAIL, Skipped tests are read like Inconclusive ones, the old
+REM NetCheck results are deleted at the start, and the result summary shows every count of each test step.
+REM Compare the counts with the expected numbers in docs\60_release_1_4_0_prep.md before you trust a green run.
 REM
 REM Run it from the repository root. Inside a parenthesized block %ERRORLEVEL% is frozen at the
 REM value it had before the block, so always read !ERRORLEVEL! and copy it to a variable right away.
@@ -71,7 +79,7 @@ if exist "%LOCKFILE%" (
 )
 
 REM Delete the products of the previous run, so that the file exists means this run made it.
-for %%F in (migrate-check.log validate.log ddrive-validation.junit.xml regenerate-ids.log editmode.log editmode-results.xml playmode.log playmode-results.xml performance.log performance-results.xml) do (
+for %%F in (migrate-check.log validate.log ddrive-validation.junit.xml regenerate-ids.log editmode.log editmode-results.xml playmode.log playmode-results.xml performance.log performance-results.xml NetCheck\results.json NetCheck\summary.md) do (
     if exist "%RESULTS_DIR%\%%F" del /q "%RESULTS_DIR%\%%F" >nul 2>nul
     if exist "%RESULTS_DIR%\%%F" (
         echo [FAIL] could not delete the previous result: %RESULTS_DIR%\%%F
@@ -115,7 +123,17 @@ if not exist "%RESULTS_DIR%\migrate-check.log" (
     echo [FAIL] step 2 Migrate check: log file was not produced, Unity did not run
     set "OVERALL_EXIT=1"
 ) else if not "!STEP_EXIT!"=="0" (
-    echo [FAIL] step 2 Migrate check: there are pending migrations. Run Tools ^> D-Drive ^> Update ^> Migration. Log: %RESULTS_DIR%\migrate-check.log
+    REM CI.MigrateCheck writes its own lines with the ASCII prefix [DDrive][Migration] (the pending message is
+    REM in Japanese, so the prefix is the only marker that works in an ASCII file). Without the prefix in the
+    REM log, Unity itself failed before or while running the method.
+    findstr /c:"[DDrive][Migration]" "%RESULTS_DIR%\migrate-check.log" >nul 2>nul
+    set "MARKER_EXIT=!ERRORLEVEL!"
+    if "!MARKER_EXIT!"=="0" (
+        echo [FAIL] step 2 Migrate check: exit code !STEP_EXIT!, probably pending migrations. Run Tools ^> D-Drive ^> Update ^> Migration. Log: %RESULTS_DIR%\migrate-check.log
+    ) else (
+        echo [FAIL] step 2 Migrate check: Unity failed, exit code !STEP_EXIT!, and the log has no migration line.
+        echo        Possible causes: license, compile error, another Unity instance on this project. Read: %RESULTS_DIR%\migrate-check.log
+    )
     set "OVERALL_EXIT=1"
 ) else (
     echo [OK] Migration check
@@ -151,11 +169,19 @@ if not exist "%RESULTS_DIR%\regenerate-ids.log" (
     echo [FAIL] step 4 Regenerate IDs: regeneration failed, for example duplicate IDs. Log: %RESULTS_DIR%\regenerate-ids.log
     set "OVERALL_EXIT=1"
 ) else (
-    git diff --exit-code
+    git --no-pager diff --exit-code --stat
     set "DIFF_EXIT=!ERRORLEVEL!"
+    set "STATUS_DIRTY=0"
+    for /f "delims=" %%L in ('git --no-pager status --porcelain') do set "STATUS_DIRTY=1"
     if not "!DIFF_EXIT!"=="0" (
         echo [FAIL] step 4 Regenerate IDs: ID regeneration left uncommitted changes. This includes Data assets that got a new Id,
         echo        not only Assets\Generated. Run Tools/D-Drive/Generate/Regenerate Asset IDs in the Editor and commit the result.
+        echo        Unity may also save unrelated files when it starts in batch mode, read the list above.
+        set "OVERALL_EXIT=1"
+    ) else if "!STATUS_DIRTY!"=="1" (
+        echo [FAIL] step 4 Regenerate IDs: the working tree is not clean after regeneration, for example new untracked files:
+        git --no-pager status --short
+        echo        Run Tools/D-Drive/Generate/Regenerate Asset IDs in the Editor and commit the result.
         set "OVERALL_EXIT=1"
     ) else (
         echo [OK] Asset ID: no diff
@@ -235,9 +261,11 @@ exit /b !OVERALL_EXIT!
 
 REM ---------------------------------------------------------------------------
 REM :judge_tests  step-number  name  result-xml  log  unity-exit-code
-REM Unity returns exit code 2 when there are Inconclusive tests, so the XML decides, not the code:
-REM OK when the result file exists and failed is 0, and the Inconclusive count is shown.
-REM FAIL when failed is 1 or more, the result file is missing, or the Unity exit code is not 0 or 2.
+REM Unity returns exit code 2 when there are Inconclusive or Skipped tests, so the XML decides, not the code:
+REM OK when the result file exists and failed is 0, and the counts are shown.
+REM FAIL when failed is 1 or more, the result file is missing, the Unity exit code is not 0 or 2,
+REM or check-test-result.cmd returned a code other than 0 or 10 (for example 255 after a syntax error).
+REM Unity exit code 2 with failed 0 and no Inconclusive and no Skipped tests is also a FAIL (unexplained).
 REM ---------------------------------------------------------------------------
 :judge_tests
 set "J_STEP=%~1"
@@ -262,18 +290,23 @@ if "!J_XML_EXIT!"=="1" (
     set "OVERALL_EXIT=1"
     exit /b 0
 )
+if not "!J_XML_EXIT!"=="0" if not "!J_XML_EXIT!"=="10" (
+    echo [FAIL] step %J_STEP% %J_NAME%: check-test-result.cmd returned an unexpected exit code !J_XML_EXIT!. Log: %J_LOG%
+    set "OVERALL_EXIT=1"
+    exit /b 0
+)
 if not "%J_UNITY_EXIT%"=="0" if not "%J_UNITY_EXIT%"=="2" (
     echo [FAIL] step %J_STEP% %J_NAME%: Unity exit code %J_UNITY_EXIT%. Log: %J_LOG%
     set "OVERALL_EXIT=1"
     exit /b 0
 )
 if "%J_UNITY_EXIT%"=="2" if "!J_XML_EXIT!"=="0" (
-    echo [FAIL] step %J_STEP% %J_NAME%: Unity exit code 2 but the result file has no failed or inconclusive tests. Log: %J_LOG%
+    echo [FAIL] step %J_STEP% %J_NAME%: Unity exit code 2 but the result file has no failed, inconclusive or skipped tests. Log: %J_LOG%
     set "OVERALL_EXIT=1"
     exit /b 0
 )
 if "!J_XML_EXIT!"=="10" (
-    echo [OK] %J_NAME% tests: failed 0, with Inconclusive tests which is normal in a run without graphics
+    echo [OK] %J_NAME% tests: failed 0, with Inconclusive or Skipped tests, normal in a run without graphics
 ) else (
     echo [OK] %J_NAME% tests
 )

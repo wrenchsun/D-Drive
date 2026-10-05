@@ -7,8 +7,9 @@ REM see the note at the top of run-ci.cmd.
 REM
 REM Usage:  Tools\CI\check-test-result.cmd path-to-result.xml
 REM Exit code:
-REM   0  = OK, failed is 0 and nothing is inconclusive
-REM   10 = OK, failed is 0 and some tests are Inconclusive. Normal for rendering tests without graphics.
+REM   0  = OK, failed is 0 and nothing is inconclusive or skipped
+REM   10 = OK, failed is 0 and some tests are Inconclusive or Skipped (Assert.Ignore). Normal for
+REM        rendering tests without graphics. The counts are printed.
 REM   1  = FAIL: file missing or unreadable, failed is 1 or more, result is Failed, or zero tests ran
 REM
 REM Only the attributes of the first test-run element are read. Attribute values with spaces or
@@ -41,6 +42,7 @@ set "LINE=!LINE:>= !"
 
 set "R_FAILED="
 set "R_INCONC=0"
+set "R_SKIPPED=0"
 set "R_TOTAL="
 set "R_PASSED="
 set "R_RESULT="
@@ -49,6 +51,7 @@ for %%T in (!LINE!) do (
     if defined PREV (
         if "!PREV!"=="failed" set "R_FAILED=%%~T"
         if "!PREV!"=="inconclusive" set "R_INCONC=%%~T"
+        if "!PREV!"=="skipped" set "R_SKIPPED=%%~T"
         if "!PREV!"=="total" set "R_TOTAL=%%~T"
         if "!PREV!"=="passed" set "R_PASSED=%%~T"
         if "!PREV!"=="result" set "R_RESULT=%%~T"
@@ -62,7 +65,7 @@ if not defined R_FAILED (
     echo [FAIL] could not read the failed attribute: %XML%
     exit /b 1
 )
-echo   result=!R_RESULT! total=!R_TOTAL! passed=!R_PASSED! failed=!R_FAILED! inconclusive=!R_INCONC!
+echo   result=!R_RESULT! total=!R_TOTAL! passed=!R_PASSED! failed=!R_FAILED! inconclusive=!R_INCONC! skipped=!R_SKIPPED!
 
 if not "!R_FAILED!"=="0" exit /b 1
 if "!R_TOTAL!"=="" exit /b 1
@@ -73,4 +76,5 @@ if "!R_TOTAL!"=="0" (
 echo !R_RESULT!| findstr /i /c:"Failed" >nul
 if "!ERRORLEVEL!"=="0" exit /b 1
 if not "!R_INCONC!"=="0" exit /b 10
+if not "!R_SKIPPED!"=="0" exit /b 10
 exit /b 0

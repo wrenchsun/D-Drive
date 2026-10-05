@@ -16,9 +16,11 @@
        - CHANGELOG.md: "## [Unreleased]" を "## [x.y.z] - YYYY-MM-DD" に変え、
          新しい空の "## [Unreleased]" を上に追加する
     3. 同梱物の同期(§2.1・§2.2。バージョンが変わらないときも常に実行する):
-       - docs/DesignerManual/  -> Packages/com.ddrive.core/Documentation~/DesignerManual/(ミラー)
-       - docs/ProgrammerManual/ -> Packages/com.ddrive.core/Documentation~/ProgrammerManual/(ミラー)
-       - CHANGELOG.md          -> Packages/com.ddrive.core/CHANGELOG.md(単一ファイルコピー)
+       - docs/DesignerManual/    -> Packages/com.ddrive.core/Documentation~/DesignerManual/(ミラー)
+       - docs/ProgrammerManual/  -> Packages/com.ddrive.core/Documentation~/ProgrammerManual/(ミラー)
+       - docs/migrations/        -> Packages/com.ddrive.core/Documentation~/migrations/(ミラー)
+       - docs/50_consumer_guide/ -> Packages/com.ddrive.core/Documentation~/ConsumerGuide/(ミラー)
+       - CHANGELOG.md            -> Packages/com.ddrive.core/CHANGELOG.md(単一ファイルコピー)
        .claude/skills は同期しない(消費側スキルは P-10 で Documentation~/skills/ddrive-consumer/ に別途用意する)。
     4. -Tag を付けたときだけ、明示パスで `git add` + `git commit -m "Release vX.Y.Z"` してから
        `git tag -a vX.Y.Z` を作成する(push はしない)。

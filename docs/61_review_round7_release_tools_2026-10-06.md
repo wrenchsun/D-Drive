@@ -80,6 +80,7 @@
 - **失敗の筋書き**: (a) 60 秒の仮 BGM で `LoopStartSec = 12 / LoopEndSec = 48` を Audio エディタで決めた後、`LoopBody` を 10 秒の本番素材に差し替える → Validation は Error 0 → 実機で BGM がブツッという 1 サンプルの繰り返し（ほぼ無音 + クリック）になる。(b) Inspector で `LoopStartSec` に負の値を打つ（Audio エディタの波形は 0 未満を作らないので、Inspector の直接入力のときだけ）。
 - **直し方の案**: 実行時と同じ丸めをサンプル単位で再現して、**区間が潰れる・丸められる**ときに知らせる。既存の Error 条件（メッセージ・重さ）は変えず、新しい Code の **Warning**（[42] §5.8 の「新しい検査は Warning 始まり」。例 `DD-BGM-LOOP-OUT-OF-CLIP`）で、`LoopBody != null` のとき `startSample = Round(Start × f)` が `< 0` または `>= samples`（= Start がクリップの外）を出す。(b) は「`LoopStartSec` / `LoopEndSec` が負」の Warning でも足りる。Error を増やさないので MINOR の範囲でタグ前にも入れられるが、既存の穴なので v1.4.1 でもよい。
 - **確度**: 確認済み（コード読み。実機の音は未確認）
+- **→ 見送り**（2026-10-06）。v1.0.0 からの既存の穴で今回悪化していないため、**v1.4.1 で新しい Code の Warning（例 `DD-BGM-LOOP-OUT-OF-CLIP`）を足す**（まとめ役の決定）。起票は [60](60_release_1_4_0_prep.md) 第 6 章。コードは変えていない。
 
 ---
 
@@ -91,6 +92,7 @@
 - **細部**: 判定は `J_XML_EXIT == 1` → FAIL、`== 10` → OK（Inconclusive あり）、**それ以外は全部 `[OK]`**。`check-test-result.cmd` が構文エラー（`exit 255`）で落ちても OK になる。実測（scratchpad、2026-10-06）: パスに `)` を含む XML を渡すと `check-test-result.cmd` は「… was unexpected at this time.」で 255 を返す。ただし同じパスなら `run-ci.cmd` 自身が 74 行目の `for` ブロック（`%RESULTS_DIR%` を括弧の中で展開）で先に構文エラーになり 1 段も実行しないので、**現実の偽陽性の筋書きにはならない**（防御の甘さ）。空白・日本語を含むパスは実測で正しく読めた。
 - **直し方の案**: `if not "!J_XML_EXIT!"=="0" if not "!J_XML_EXIT!"=="10"` を FAIL にする（白リスト）。あわせて、括弧の中の `echo` で `%RESULTS_DIR%` 等を展開しない（ブロックの外で `set` してから `!VAR!` で出す）と、`)` を含むパスでも止まらなくなる。
 - **確度**: 確認済み（コード読み + 単体実行）
+- **→ 対応**（2026-10-06、PR `chore/release-tools-polish`）。`run-ci.cmd` の `:judge_tests` は `check-test-result.cmd` の戻り値を 0 / 10 の白リストで判定し、それ以外（255 等）は `[FAIL] … returned an unexpected exit code` にした。偽の `check-test-result.cmd`（`exit /b 255`）で FAIL・終了コード 1 を確認。括弧内の `%RESULTS_DIR%` の展開（`)` を含むパスで構文エラー）は直していない（このリポジトリのパスは該当しない。1 段も実行せず止まる側）。
 
 ### GC-R-03. 【#118】4 段目の `git diff --exit-code` はページャで止まりうる・未追跡のファイルを見ない
 
@@ -98,6 +100,7 @@
 - **細部**: (1) 差分があると、対話コンソールでは git が `less` を起動し、`q` を押すまでスクリプトが止まる（差分がある = FAIL の場面なので結果は正しいが、無人で回すと戻ってこない）。全差分を画面に流すのも読みにくい。(2) `git diff` は未追跡のファイルを見ないので、ID 再生成が新しいファイル（新しい `.g.cs` / `.meta`）を作っても検出しない（CI の yml も同じ）。(3) docs/60 §2.1 の (c) のとおり、Unity のバッチ起動が保存しただけの差分（ProjectSettings・`packages-lock.json`・Addressables の設定）でも「ID 再生成で差分」と出る。
 - **直し方の案**: `git --no-pager diff --exit-code --stat` に変え、`git status --porcelain` が空かも見る。メッセージを「ID 再生成の後に作業ツリーが clean でない」に寄せる。
 - **確度**: (1)(2) 確認済み（git の既定の挙動）、(3) 推定（Unity が何を保存するか次第）
+- **→ 対応**（2026-10-06、同 PR）。4 段目の `git diff` を `git --no-pager diff --exit-code --stat` に変更（ページャで止まらない・全文を流さない）。あわせて `git --no-pager status --porcelain` が空かも見て、未追跡ファイルが増えたとき（`[FAIL] … the working tree is not clean after regeneration, for example new untracked files:` + `git status --short`）も FAIL にした（対象は従来の差分確認と同じ = リポジトリ全体。`TestResults/`・`Builds/` は gitignore 済み）。git を呼ぶ他の箇所は `run-ci.cmd` に無い。偽のリポジトリで「4 段目の再生成が未追跡ファイルを作る」を FAIL・終了コード 1 で確認。(3) の Unity が保存しただけの差分は推定のままで、FAIL のメッセージに「無関係なファイルかもしれない。上の一覧を読む」を足した。
 
 ### GC-R-04. 【#118】Unity の終了コード 2 で `failed=0`・`inconclusive=0` のときを FAIL にする規則は、Ignore（Skipped）だけの実行で偽陰性になりうる
 
@@ -105,6 +108,7 @@
 - **細部**: Unity Test Framework が終了コード 2 を返す条件が「失敗あり」だけでなく「結果が Passed でない」なら、`Assert.Ignore`（このリポジトリに多数。Addressables 設定が無い・開発リポジトリ専用）で Skipped だけが出た実行は 2 を返し、この規則で FAIL になる。開発リポジトリでは Addressables の設定があり DevRepoOnlyGuard は Inconclusive を使うので、**通常は起きない**。
 - **直し方の案**: `check-test-result.cmd` で `skipped` も読み、`skipped > 0` なら 10 と同じ扱いにする。または、この規則自体（「2 なのに何も無い」を FAIL）を「警告して OK」に下げる。
 - **確度**: 推定（Unity の終了コード 2 の条件）
+- **→ 対応**（2026-10-06、同 PR）。`check-test-result.cmd` が `skipped` も読み（無ければ 0）、件数行に `skipped=` を出す。戻り値の意味: **0 = failed 0 で Inconclusive も Skipped も無い / 10 = failed 0 で Inconclusive または Skipped がある（OK）/ 1 = FAIL**（10 の意味を「Inconclusive または Skipped」に広げた。呼び出し側・コメント・docs/11 P-16・docs/60 を一致させた）。`run-ci.cmd` は「終了コード 2 かつ failed 0 かつ（Inconclusive > 0 または Skipped > 0）」を OK、「終了コード 2 かつ全部 0」を従来どおり FAIL。偽の Unity で skipped だけ（終了コード 2）= OK、終了コード 2 + 全部 0 = FAIL を確認。
 
 ### GC-R-05. 【#118】8 段目を飛ばしたときも、結果の要約は前回の `TestResults\NetCheck\results.json` を読む
 
@@ -112,6 +116,7 @@
 - **細部**: 古い成果物の削除は 10 ファイルだけで、`TestResults\NetCheck\results.json` / `summary.md` は残る。exe が無くて 8 段目を飛ばしても、`Summarize-Results.ps1` には前回の NetCheck の結果が渡り、要約に古い PASS が出る。合否（`ALL GREEN`）は段ごとの判定で決まり要約の終了コードは読まないので、**表示が紛らわしいだけ**。
 - **直し方の案**: 最初の削除に `NetCheck\results.json` を足す（または 8 段目を飛ばしたときは `-NetCheckResultsPath` を渡さない）。
 - **確度**: 確認済み（コード読み）
+- **→ 対応**（2026-10-06、同 PR）。実行開始時の古い成果物の削除に `TestResults\NetCheck\results.json` と `summary.md` を足した（小さい方）。あわせて `Summarize-Results.ps1` の NetCheck の行を「skipped（結果ファイルなし。NetCheck は任意ステップで、今回は実行していない）」に変えた。前回の結果ファイルを置いたうえで 8 段目をスキップする実行で、古い PASS が出ずに skipped と表示されることを確認。
 
 ### GC-R-06. 【docs】docs/12 §7 と `bump-version.ps1` 冒頭のコメントは、同期対象を 2 つしか書いていない
 
@@ -119,6 +124,7 @@
 - **細部**: 実装は `DesignerManual`・`ProgrammerManual`・`migrations`・`50_consumer_guide → ConsumerGuide` の 4 つ + `CHANGELOG.md` を同期し、`-Tag` の `git add` も 8 パス。docs/60 §2.1 の手順 5 はこれと一致しているが、docs/12 §7 の手順 5 とスクリプト冒頭のコメントは `DesignerManual`・`ProgrammerManual`（と CHANGELOG）だけ。docs/12 §7 は check-release（手順 3）→ run-ci（手順 4）、docs/60 は run-ci（3）→ check-release（4）と順序も違う（どちらでも結果は同じ）。
 - **直し方の案**: docs/12 §7 の手順 5 とコメントに 2 つを足し、§7 から docs/60 §2.1 を正本として参照する。
 - **確度**: 確認済み
+- **→ 対応**（2026-10-06、同 PR）。`docs/12_review.md` §7 の手順 5 と `bump-version.ps1` 冒頭のコメントを、実コード（`bump-version.ps1` の同期ブロック）どおり `DesignerManual`・`ProgrammerManual`・`migrations`（→ `Documentation~/migrations`）・`50_consumer_guide`（→ `Documentation~/ConsumerGuide`）の 4 つのミラー + `CHANGELOG.md`（→ パッケージの `CHANGELOG.md`）に直した。`bump-version.ps1` は**コメントだけ**で処理は変えていない。docs/12 §7 の先頭に「当日の手順の正本は docs/60 §2.1（順序は run-ci → check-release）」を足した。
 
 ### GC-R-07. 【GB-R-01】新しい Code 2 つの重さが `validator-severity.txt` で固定されていない
 
@@ -126,6 +132,7 @@
 - **細部**: 汎用の収集は「新規作成直後のインスタンス」に各 Validator を当てて Code の付いた結果を拾うが、既定値（0.3 / 0.2 秒）では尺 0 の Warning が出ないので、`DD-SHAKE-ENVELOPE-ZERO-DURATION` / `DD-HAPTICS-ZERO-DURATION` はゴールデンに載らない。後で誰かが Error に上げても互換テストは赤にならない（[42] §5.8 の「Error への昇格は CHANGELOG 必須」を機械で守れない）。既存の他の Code（`DD-MAT-*`・`DD-CANVAS-EMBED-*` 等）も同じ事情で、本ラウンド固有ではない。
 - **直し方の案**: `AddressablesRegistrationValidator` と同じく、尺 0 の Data を組んで当てる個別の収集を足す（ゴールデンに 2 行追加 = 追加のみ）。他の Code もまとめて扱うなら v1.4.x で。
 - **確度**: 確認済み
+- **→ 見送り**（2026-10-06）。後で誰かが Error に上げても互換テストが赤にならない点は、他の Code も同じ事情（本ラウンド固有ではない）。コードは変えない。**v1.4.x の候補**として [60](60_release_1_4_0_prep.md) 第 6 章に起票（`AddressablesRegistrationValidator` と同じく尺 0 の Data を組んで当てる個別の収集を足し、ゴールデンに 2 行追加 = 追加のみ）。
 
 ### GC-R-08. 【GB-R-04】コード例は、Bootstrap が作り直されたとき（`DontDestroyOnLoad` の Manager が古い `GameLoop` を握ったまま）を扱わない
 
@@ -133,6 +140,7 @@
 - **細部**: docs/59 GB-R-04 (1) は「Bootstrap の作り直し」も挙げていたが、対応は起動順だけ。持ち込み先の Manager が `DontDestroyOnLoad` で、Bootstrap が `KeepAcrossScenes = false` で作り直される構成では、`_loop` は破棄された Bootstrap の `GameLoop` を指したまま `OnDisable` も走らないので、新しい Bootstrap の `Tick` は来ず、警告も出ない。MS2026 は `KeepAcrossScenes` を使う前提なら実害なし。
 - **直し方の案**: 案内に 1 文（「Bootstrap をシーンごとに作り直す構成では、Manager もシーンに置く（`DontDestroyOnLoad` にしない）」）。コードで扱うなら `TryRegister` で `_loop != boot.Loop.GameLoop` のとき付け替える。
 - **確度**: 確認済み（コード読み。`DDriveRuntimeBootstrap.OnDestroy` で `Instance = null`）
+- **→ 対応**（2026-10-06、同 PR。案内の 1 文だけ。コードは変えない）。「Bootstrap をシーンごとに作り直す構成（`KeepAcrossScenes` を使わない）では、Manager も同じシーンに置く（`DontDestroyOnLoad` にしない）。残ると破棄された Bootstrap の `GameLoop` を握ったまま `Tick` が来ず、警告も出ない」を、運用ページ（`docs/50_consumer_guide/operation.html`）の Tick の案内、`Documentation~/AGENTS_CONSUMER.md`、`Documentation~/skills/ddrive-consumer/references/common-warnings.md` の 3 か所に足した。`build-manual.js` の再生成が要るページ（DesignerManual / ProgrammerManual）ではない。`Documentation~/ConsumerGuide/` へのミラーはリリース時の `bump-version.ps1` が行う。`TryRegister` で `_loop != boot.Loop.GameLoop` のとき付け替えるコード側の対応は、コード例を契約テスト（E-9b）と揃える必要があるため見送り。
 
 ### GC-R-09. 【リリース道具】CHANGELOG ガードは、リリース当日（`main == origin/main`）には何も検査しない
 
@@ -140,6 +148,7 @@
 - **細部**: ガードは `git diff --name-only origin/main..HEAD` でスナップショットの変更を探す。docs/60 §2.1 の手順 2（`git pull --ff-only`）の後は差分が空なので、1 段目も check-release のガードも常に「対象外で OK」になる。リリースの判定としては `[Unreleased]` の互換性節が空でない検査（check-release・bump-version）が実質の守り。今回は CHANGELOG を整理済みなので実害なし。
 - **直し方の案**: リリース当日は `check-release.ps1 -Base v1.3.1`（前のタグ）で実行する、と docs/60 に 1 行。
 - **確度**: 確認済み（コード読み）
+- **→ 対応**（2026-10-06、同 PR。docs だけ）。`check-release.ps1` には比較の起点を指定する **`-Base`（既定 `origin/main`）が既にある**ので、スクリプトは変えず、当日の手順を「直近のリリースタグ（`v1.3.1`）を起点に `-GuardOnly -Base v1.3.1` で実行する」に直した（[12](12_review.md) §7・[60](60_release_1_4_0_prep.md) 2.1）。実行結果（版上げ前）: `-GuardOnly -Base v1.3.1` は green（スナップショットが変わり `CHANGELOG.md` も変わっている）、通常実行（`-RequireVersionBump` 付き）の `-Base v1.3.1` は**版が上がっていないので FAIL が想定どおり**（`package.json` の version が v1.3.1 時点から上がっていません）。版上げ（`bump-version.ps1 -Tag`）の後に同じ `-Base v1.3.1` で通常実行すると green になる想定（未確認。版は上げていない）。
 
 ---
 
@@ -155,6 +164,13 @@
 6. **8 段目**: exe を最新のコードから作り直していること（古い exe は古いコードを検査する）、`pwsh` があること、UDP 7801〜7881 が空いていること。作り直した exe の初回起動で Windows のファイアウォールの確認が出ることがある（推定。127.0.0.1 だけなら拒否でも動く見込み）。飛ばすと要約に前回の NetCheck の結果が出る（GC-R-05）。
 7. **起動のしかた**: Git Bash からは `./Tools/CI/run-ci.cmd`（`Tools\CI\…` は bash がバックスラッシュを消す）。docs/60 の「Git Bash からでも可」はこの書き方の前提。実行後、そのコンソールのコードページは 65001 のままになる（`chcp` は `setlocal` で戻らない。表示だけの問題）。
 8. **パス**: 空白・日本語を含むパスは問題なし（`check-test-result.cmd` で実測）。`)` を含むプロジェクトパスでは 74 行目で構文エラーになり 1 段も実行しない（このリポジトリのパスは該当しない）。
+
+### `run-ci.cmd` の初回実行で止まりそうな点への対応（2026-10-06、PR `chore/release-tools-polish`）
+
+- **3（2 段目のメッセージ）→ 対応**: `CI.MigrateCheck` は `[DDrive][Migration] …` で始まる行を出す（`Editor/Validation/CI.cs`。未適用のときは Error、無いときは Log。本文は日本語）。ASCII の .cmd で使える目印はこの接頭辞だけなので、終了コードが 0 以外のときに `findstr` で `migrate-check.log` を調べ、**接頭辞の行があれば `exit code N, probably pending migrations`、無ければ `Unity failed, exit code N, and the log has no migration line`（ライセンス・コンパイルエラー・別インスタンスの可能性。ログを読む）**と区別して表示する。プロダクトコードは変えていない。偽の Unity で「接頭辞つきで exit 1」「接頭辞なしで exit 1」の 2 通りを確認。
+- **5（件数）→ 対応**: 最後の要約（`Summarize-Results.ps1`）の各テスト段の行に `全 N 件 / Passed / Failed / Inconclusive / Skipped` を出す（期待値との比較はしない。[60](60_release_1_4_0_prep.md) の目安の件数と見比べる）。各段の直後にも `result=… total=… passed=… failed=… inconclusive=… skipped=…` が出る。
+- **7（起動のしかた）→ 対応**: `run-ci.cmd` のヘッダのコメントと [60](60_release_1_4_0_prep.md)・[12](12_review.md) に、Git Bash からは `./Tools/CI/run-ci.cmd`、`cmd //c "Tools\\CI\\run-ci.cmd"` でも動くことを明記。PowerShell の `cmd /c`・`chcp 932`・`chcp 437`・Git Bash の 2 通りの計 5 通りの起動で、文字化けのエラーが出ず、Unity が開いている今は `[FAIL] Unity Editor is open` で終了コード 1 になることを確認した。
+- **1（ロックファイル）・2（4 段目）・4（終了コード 2）・6（8 段目）・8（`)` を含むパス）**: 2・4 は上の GC-R-03・04 で対応。1・6・8 は推定・環境依存のため手順の注意のまま（変更なし）。
 
 ---
 
