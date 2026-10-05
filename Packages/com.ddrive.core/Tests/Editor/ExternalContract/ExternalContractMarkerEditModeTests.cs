@@ -355,5 +355,50 @@ namespace ExternalContract.Tests.Editor
                 Object.DestroyImmediate(timeline);
             }
         }
+
+        // 実際の経路(「▶ Timeline ウィンドウで開く」)の Director で発火する。CutsceneEditModeDirectorSetup.EnsureDirector が作る
+        // プレビュー用 Director は HideFlags.DontSave で、Object.FindObjectsByType では見つからない。検索だけに頼ると
+        // プレビューが何も駆動しない(マーカーが 1 つも発火しない)ため、PrepareContext で用意した Context を直接駆動する。
+        [Test]
+        public void E20_EditPreview_DontSaveDirectorFromSetup_Fires()
+        {
+            var cutscene = ScriptableObject.CreateInstance<CutsceneData>();
+            cutscene.Timeline = _timeline;
+            PlayableDirector director = null;
+            try
+            {
+                director = CutsceneEditModeDirectorSetup.EnsureDirector(cutscene);
+                Assert.IsNotNull(director);
+                Assert.AreNotEqual(HideFlags.None, director.gameObject.hideFlags & HideFlags.DontSave,
+                    "プレビュー用 Director は DontSave で作られる前提(変わったらこのテストの意味を見直す)");
+                Assert.AreEqual(0, Object.FindObjectsByType<CutsceneDirectorContext>(FindObjectsSortMode.None).Length - 1,
+                    "DontSave の Director は検索に出ない(出るのは SetUp の Director の 1 件だけ)");
+
+                // SetUp の Director は止めたままにして、プレビュー用 Director だけを再生する。
+                _director.Pause();
+                director.extrapolationMode = DirectorWrapMode.Hold;
+                CutsceneEditModePreviewProvider.PrepareContext(director.gameObject);
+
+                director.time = 0.0;
+                director.Play();
+                Update();
+                Assert.AreEqual(0, ExternalFireMarker.Calls.Count);
+
+                director.time = 1.2;
+                Update();
+                Assert.AreEqual(1, ExternalFireMarker.Calls.Count, "DontSave の Director でも、時刻を跨いだマーカーが発火する");
+                Assert.IsTrue(ExternalFireMarker.Calls[0].IsEditPreview);
+                Assert.AreEqual(1.0, ExternalFireMarker.Calls[0].MarkerTime, 1e-6);
+
+                var context = director.GetComponent<CutsceneDirectorContext>();
+                Assert.IsNotNull(context.ManagerRefs, "クリップ(SE / VFX / UI)に渡す Manager の参照が入っている");
+                Assert.IsTrue(context.FireEnabled, "再生中は FireEnabled が立つ");
+            }
+            finally
+            {
+                CutsceneEditModeDirectorSetup.TearDown();
+                Object.DestroyImmediate(cutscene);
+            }
+        }
     }
 }

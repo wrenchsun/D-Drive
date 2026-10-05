@@ -76,6 +76,12 @@ namespace DDrive.Editor.Cutscene
         private static CutsceneEditModeManagers _managers;
         private static readonly Dictionary<int, Session> _sessions = new();
         private static readonly List<int> _staleIds = new();
+
+        // PrepareContext で用意したプレビュー用 Director の Context。プレビュー用 Director は HideFlags.DontSave で作られ
+        // (CutsceneEditModeDirectorSetup.EnsureDirector)、Object.FindObjectsByType は DontSave のオブジェクトを返さないため、
+        // 検索だけに頼ると見つからず何も駆動されない。用意した時点でここに覚えておき、毎フレームの検索結果に足す。
+        private static readonly List<CutsceneDirectorContext> _preparedContexts = new();
+        private static readonly List<CutsceneDirectorContext> _contextBuffer = new();
         private static double _lastTick;
 
         // 停止中の再生位置がこの秒数以下なら「先頭(0 秒)」とみなす(浮動小数の誤差の吸収だけ。更新間隔とは無関係)。
@@ -106,6 +112,11 @@ namespace DDrive.Editor.Cutscene
 
             context.ManagerRefs = BuildManagerRefs();
             context.FireEnabled = false;
+            if (!_preparedContexts.Contains(context))
+            {
+                _preparedContexts.Add(context);
+            }
+
             return context;
         }
 
@@ -135,6 +146,30 @@ namespace DDrive.Editor.Cutscene
             Groups = _managers.Groups,
         };
 
+        // 駆動する Context の一覧: シーン内の検索結果 + PrepareContext で用意したもの(DontSave で検索に出ないもの)。
+        // 破棄済みの登録はここで外す。戻り値は使い回しのバッファ(呼び出しのたびに作り直す)。
+        private static List<CutsceneDirectorContext> CollectContexts()
+        {
+            _contextBuffer.Clear();
+            _contextBuffer.AddRange(Object.FindObjectsByType<CutsceneDirectorContext>(FindObjectsSortMode.None));
+            for (var i = _preparedContexts.Count - 1; i >= 0; i--)
+            {
+                var prepared = _preparedContexts[i];
+                if (prepared == null)
+                {
+                    _preparedContexts.RemoveAt(i);
+                    continue;
+                }
+
+                if (prepared.isActiveAndEnabled && !_contextBuffer.Contains(prepared))
+                {
+                    _contextBuffer.Add(prepared);
+                }
+            }
+
+            return _contextBuffer;
+        }
+
         private static void OnEditorUpdate()
         {
             // Play Mode は CutsceneManager が別経路で駆動する([26] §4.4 決定)。二重駆動を避けるため、
@@ -149,8 +184,8 @@ namespace DDrive.Editor.Cutscene
             var dt = Mathf.Clamp((float)(now - _lastTick), 0f, 0.25f);
             _lastTick = now;
 
-            var contexts = Object.FindObjectsByType<CutsceneDirectorContext>(FindObjectsSortMode.None);
-            if (contexts.Length == 0)
+            var contexts = CollectContexts();
+            if (contexts.Count == 0)
             {
                 return;
             }
@@ -374,6 +409,7 @@ namespace DDrive.Editor.Cutscene
         private static void TearDown()
         {
             ResetSessions();
+            _preparedContexts.Clear();
             _managers?.Dispose();
             _managers = null;
         }
