@@ -15,9 +15,18 @@ namespace DDrive.Editor.Validation
     // `ProjectSetupValidator` と同じ制約: IUniversalValidator は ValidatorRegistry.RunAll が Data 1 件以上のときに
     // 呼ぶ(0 件のときは asset=null で 1 回だけ呼ばれる)ため、1 回の Run All(= 1 つの ValidationContext)に
     // つき 1 回だけ報告する。
+    //
+    // 2026-10-06(P-15 確認 Q-3): この検査はプロジェクト全体の指摘で、どの Data にも属さない。`ValidatorRegistry.RunAll` に渡すと
+    // 「最初に呼ばれた Data」(例: ANC_Anim_Jump.asset)に紐付いて無関係なアセットのパスが付くため、`CI.RunValidation` は
+    // この Validator を RunAll に載せず asset = null で 1 回だけ実行する(コンソール・JUnit は「(project)」と表示)。
+    // 1 アセットの個別検証(DataValidationSection)にも出さない。
     public sealed class PackageDependencyValidator : IUniversalValidator
     {
         private static ValidationContext _reportedForCtx;
+
+        // テスト用フック(CameraExecutionOrderValidator.ScriptOrderProvider と同じ流儀): 既定は実際の導入済みパッケージ。
+        // 実 PackageManager に触れずに、検査の結果と報告の紐付け(CI.RunValidation)をテストするために差し替える。
+        public static System.Func<IReadOnlyList<PackageState>> PackagesProvider = () => InstalledPackages.Load();
 
         public AssetType Target => AssetType.None;
 
@@ -30,7 +39,7 @@ namespace DDrive.Editor.Validation
 
             _reportedForCtx = ctx;
 
-            foreach (var result in ToResults(PackageDependencyChecker.Check(InstalledPackages.Load())))
+            foreach (var result in ToResults(PackageDependencyChecker.Check(PackagesProvider())))
             {
                 yield return result;
             }

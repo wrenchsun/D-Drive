@@ -472,23 +472,8 @@ namespace DDrive.Editor.Update
                 }
             }
 
-            string dependency;
-            if (PackageDependencyChecker.HasAtLeast(issues, DependencyIssueSeverity.Error))
-            {
-                dependency = "✗ 依存を満たしていません";
-            }
-            else if (PackageDependencyChecker.HasAtLeast(issues, DependencyIssueSeverity.Warning))
-            {
-                dependency = "⚠ 依存に注意";
-            }
-            else if (issues.Count > 0)
-            {
-                dependency = "ℹ 確認事項あり";
-            }
-            else
-            {
-                dependency = "依存 OK";
-            }
+            // 宣言した側の行に主表示、相手側の行は原因の手がかり(Q-2。文言は ManagedPackageRows.DescribeDependency)。
+            var dependency = ManagedPackageRows.DescribeDependency(row.Id, issues);
 
             return $"{row.DisplayName}({row.Id})  現在 {version} / 最新 {latest} / {dependency}";
         }
@@ -512,7 +497,8 @@ namespace DDrive.Editor.Update
             }
         }
 
-        private void RegisterManaged(string packageId)
+        // message: 登録後にウィンドウの追加欄へ出す文(null なら何も出さない。2026-10-06 Q-1: RegisterExisting の文を消さない)。
+        private void RegisterManaged(string packageId, string message = null)
         {
             // D-Drive 自身は常に 1 行目なので設定には登録しない(意味の無い要素を残さない。レビュー PC-R-15)。
             if (packageId != ManagedPackageRows.DDrivePackageId)
@@ -522,7 +508,7 @@ namespace DDrive.Editor.Update
 
             Debug.Log($"[DDrive][Update] {packageId} を管理対象に登録しました。");
             SessionState.SetString(SelectedPackageKey, packageId);
-            _addMessage = null;
+            _addMessage = message;
             RefreshAll();
         }
 
@@ -576,9 +562,16 @@ namespace DDrive.Editor.Update
             switch (plan.Outcome)
             {
                 case PackageAddOutcome.RegisterExisting:
-                    RegisterManaged(plan.PackageId);
+                {
+                    // 既に管理対象のものを再追加したときは「登録しました」と言わず、何も増えないことを伝える(Q-1)。
+                    var already = plan.PackageId == ManagedPackageRows.DDrivePackageId
+                                  || DDriveProjectSettings.instance.FindManagedPackage(plan.PackageId) != null;
+                    RegisterManaged(
+                        plan.PackageId,
+                        already ? $"{plan.PackageId} は既に管理対象に登録されています(manifest は変わりません)。" : plan.Message);
                     _addInput = string.Empty;
                     return;
+                }
 
                 case PackageAddOutcome.AddNew:
                     if (_addRequest != null && !_addRequest.IsCompleted)

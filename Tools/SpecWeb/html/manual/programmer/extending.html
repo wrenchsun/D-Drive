@@ -385,6 +385,28 @@ public sealed class MyTextureRules : ITextureImportRuleProvider
 <tr><td>互換</td><td>Editor 契約として固定されています。メンバーは追加のみです</td></tr>
 </table>
 
+<h2 id="camexempt">実行順の検査から「カメラを読むだけ」の型を外す（ICameraExecutionOrderExemptionProvider）</h2>
+<p><code>Validation &gt; Run All</code> の実行順の検査は、D-Drive 以外のスクリプトの実行順が 1000（Cutscene のカメラ適用）以上だと「LateUpdate でカメラを書いている場合、Cutscene のカメラが効きません（契約 G-1）」の Warning を出します。カメラを<b>読むだけ</b>で、あえて 1000 より後に動くスクリプトは書き込みの契約の対象ではないので、検査から外せます。外部パッケージの Editor アセンブリに次のクラスを置くと、<code>TypeCache</code> で自動的に見つかります（外部のランタイムが D-Drive を参照する必要はありません）。</p>
+<pre>using DDrive.Editor.Validation;
+
+public sealed class MyCameraReaderExemptions : ICameraExecutionOrderExemptionProvider
+{
+    public IEnumerable&lt;CameraExecutionOrderExemption&gt; GetExemptions()
+    {
+        yield return new CameraExecutionOrderExemption(typeof(MyCorrectionRunner), "カメラを読むだけ（書き込みはしない）");
+        // 型を参照できないときは完全修飾名の文字列でも渡せます: new CameraExecutionOrderExemption("My.Ns.Runner", "理由")
+    }
+}</pre>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>理由</td><td>必須です。理由が空・型が未指定・存在しない型名（文字列で渡したとき）の宣言は無効になり、除外されずに Warning（<code>DD-CAMEXEC-EXEMPT-INVALID</code>）が出ます</td></tr>
+<tr><td>除外したときの表示</td><td>除外された型は Warning が出ません。代わりに Info（<code>DD-CAMEXEC-EXEMPT</code>）が 1 件、除外した型・理由・宣言元とともに出ます。宣言していない他のスクリプトの検査は変わりません。何も宣言していなければ従来と同じ結果です</td></tr>
+<tr><td>照合</td><td>型の完全修飾名（<code>Type.FullName</code>）で照合します。入れ子の型の <code>+</code> と <code>.</code> は同じ扱いです</td></tr>
+<tr><td>手動の除外</td><td><code>Project Settings &gt; D-Drive &gt; 実行順の検査の除外</code> に、型の完全修飾名と理由（必須）を書いても同じ扱いになります（外部パッケージの宣言が先、同じ型は先に並んだ方が有効）</td></tr>
+<tr><td>範囲</td><td>実行順の検査（Applier の実行順が 1000 でない Error など）のうち、「1000 以上の Warning」だけを外します。カメラを<b>書く</b>スクリプトが守る契約（G-1〜G-5）は変わりません</td></tr>
+<tr><td>発見・例外</td><td>他の外部拡張点と同じ規則です（public な型・public な引数なしコンストラクタ・アセンブリ名が <code>DDrive.Tests</code> で始まらない）。実装の例外は提供口ごとに捕まえて Console に出し、他の提供口は有効なままです</td></tr>
+<tr><td>互換</td><td>Editor 契約として固定されています。メンバーは追加のみです</td></tr>
+</table>
 <h2 id="viewcamera">現在の視点カメラ（ViewCamera / IViewProvider）</h2>
 <p>「今の視点」（位置・回転・縦画角）を取り出す静的ファサードです。顔の補正やビルボードのように「どこから見られているか」で結果が決まる処理が、<code>Camera.main</code> を直接読まずに済みます。分割画面のように視点が複数あるときは、<code>IViewProvider</code> を登録して視点を差し替えます。名前空間は <code>DDrive.Runtime.Viewing</code>。Manager は無く、<code>DDriveRuntimeBootstrap</code> への配線も要りません。</p>
 <pre>using DDrive.Runtime.Viewing;

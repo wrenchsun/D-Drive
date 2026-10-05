@@ -87,6 +87,18 @@ namespace DDrive.Editor.Settings
         // SerializedObject 経由で _forbiddenApiAllowEntries を編集した後、保存するために呼ぶ。
         public void SaveForbiddenApiAllowEntries() => Save(true);
 
+        // [26_timeline.md] §4.6.5 契約 G-1(2026-10-06、P-15 確認 Q-4) — 実行順の検査(CameraExecutionOrderValidator)から
+        // 「カメラを読むだけ」の型を外す一覧(完全修飾型名 + 理由[必須]。追加のみ。旧設定ファイルには無いので空で読まれる)。
+        // 外部パッケージの型は、そのパッケージの Editor 側が ICameraExecutionOrderExemptionProvider で宣言するのが本筋(これは手動の逃げ道)。
+        // 編集は Project Settings > D-Drive > 実行順の検査の除外。
+        [SerializeField] private List<CameraExecutionOrderExemptionEntry> _cameraExecutionOrderExemptions = new();
+
+        public IReadOnlyList<CameraExecutionOrderExemptionEntry> CameraExecutionOrderExemptions
+            => _cameraExecutionOrderExemptions ?? (_cameraExecutionOrderExemptions = new List<CameraExecutionOrderExemptionEntry>());
+
+        // SerializedObject 経由で _cameraExecutionOrderExemptions を編集した後、保存するために呼ぶ。
+        public void SaveCameraExecutionOrderExemptions() => Save(true);
+
         public IReadOnlyList<ManagedPackageEntry> ManagedPackages
             => _managedPackages ?? (_managedPackages = new List<ManagedPackageEntry>());
 

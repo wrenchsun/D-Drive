@@ -168,6 +168,9 @@ namespace DDrive.Editor.Validation
             // テキスト走査を行うプロジェクト全体の検査。個別アセットの「検証」セクションに出しても
             // 無関係なアセットに紐付くだけなので Run All 専用にする(上のコメントと同じ理由)。
             "CameraExecutionOrderValidator",
+            // [42_distribution.md] §4.2.1(2026-10-06 Q-3) — 導入済みパッケージの依存の宣言(プロジェクト全体の指摘)。
+            // 1 アセットの個別検証に出すと、毎回すべてのアセットの結果として現れてしまう。Run All ではアセットに紐付けず報告する(CI.RunValidation)。
+            "PackageDependencyValidator",
         };
 
         private static List<IValidator> _validators;

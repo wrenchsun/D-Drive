@@ -120,9 +120,16 @@ namespace DDrive.Editor
         // 1 アセット単位で意味がある `IUniversalValidator`(ValueDef / Addressables 登録 / NetMode)は残す)。
         // 本筋は「全体結果は Asset を持たない別経路にする」だが、`ValidatorRegistry` は Foundation
         // (本チケットの担当範囲外)にあるため、ここでは呼び出し側で除外する方式にした。
+        //
+        // 2026-10-06(P-15 確認 Q-3): `PackageDependencyValidator`(導入済みパッケージの依存の宣言)は**プロジェクト全体の指摘**で、
+        // どの Data にも属さない。これも `RunAll` に渡すと「たまたま最初に呼ばれた Data」(例: Anchor/Anim/ANC_Anim_Jump.asset)に
+        // 紐付いて、無関係なアセットのパスが付いた警告になっていた。そのため `RunAll` には載せず、Data 0 件のときの
+        // `RunAll` と同じ形(asset = null)で 1 回だけ実行して報告に足す(Run All 1 回につき 1 回。Validator 自身の
+        // ValidationContext ガードも効く)。表示は `DescribeReportLocation`(asset が無ければ「(project)」)。
         public static IReadOnlyList<ValidationReport> RunValidation(bool includeProjectWideValidators)
         {
             var registry = new ValidatorRegistry();
+            var projectScoped = new List<IValidator>();
             foreach (var validator in DiscoverValidators())
             {
                 if (!includeProjectWideValidators && DataValidationRunner.IsProjectWide(validator))
@@ -130,11 +137,43 @@ namespace DDrive.Editor
                     continue;
                 }
 
+                if (IsProjectScoped(validator))
+                {
+                    projectScoped.Add(validator);
+                    continue;
+                }
+
                 registry.Register(validator);
             }
 
-            return registry.RunAll(LoadAllAssetDataAssets());
+            var assets = LoadAllAssetDataAssets();
+            var reports = new List<ValidationReport>(registry.RunAll(assets));
+            if (projectScoped.Count > 0)
+            {
+                var context = new ValidationContext(assets);
+                foreach (var validator in projectScoped)
+                {
+                    if (validator is not IUniversalValidator universal)
+                    {
+                        continue;
+                    }
+
+                    foreach (var result in universal.Validate(null, context))
+                    {
+                        reports.Add(new ValidationReport(null, result));
+                    }
+                }
+            }
+
+            return reports;
         }
+
+        // Data に紐付けず、プロジェクト全体として報告する Validator(asset = null で呼ぶ)。
+        private static bool IsProjectScoped(IValidator validator) => validator is PackageDependencyValidator;
+
+        // 報告の場所の表示(コンソール・JUnit の classname)。Data が無い(プロジェクト全体の)報告は「(project)」。
+        private static string DescribeReportLocation(ValidationReport report)
+            => report.Asset != null ? AssetDatabase.GetAssetPath(report.Asset) : "(project)";
 
         // 2026-09-17(U-13): 各専用エディタの「個別検証」(DataValidationRunner)からも同じ発見規則を
         // 使うため public にした。ここが唯一の IValidator 発見経路(重複実装を作らない)。
@@ -248,7 +287,7 @@ namespace DDrive.Editor
             var entries = new List<(string assetPath, ValidationResult result)>(reports.Count + forbiddenApiViolations.Count);
             foreach (var report in reports)
             {
-                var assetPath = report.Asset != null ? AssetDatabase.GetAssetPath(report.Asset) : "(unknown)";
+                var assetPath = DescribeReportLocation(report);
                 entries.Add((assetPath, report.Result));
             }
 
@@ -348,7 +387,7 @@ namespace DDrive.Editor
 
             foreach (var report in reports)
             {
-                var assetPath = report.Asset != null ? AssetDatabase.GetAssetPath(report.Asset) : "(unknown)";
+                var assetPath = DescribeReportLocation(report);
                 switch (report.Result.Severity)
                 {
                     case ValidationSeverity.Error:
