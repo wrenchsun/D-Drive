@@ -126,12 +126,16 @@ namespace DDrive.Foundation.Validation
                 yield return ValidationResult.Error($"{path}: Mode=Parametric(CustomBezier) だが制御点が未設定です");
             }
 
-            if (def.Time.Mode == TimeMode.Duration && def.Time.Value <= 0f)
+            // Constant は Evaluate が Time を使わない(Parametric / Curve だけが t を使う)ため、
+            // Time の欄(Duration の Value・SpeedScale)は検査しない。Constant01() は Time を 0 のまま返す。
+            var usesTime = def.Mode != ValueMode.Constant;
+
+            if (usesTime && def.Time.Mode == TimeMode.Duration && def.Time.Value <= 0f)
             {
                 yield return ValidationResult.Error($"{path}: TimeMode=Duration ですが Value が 0 以下です");
             }
 
-            if ((def.Loop == LoopMode.Loop || def.Loop == LoopMode.PingPong) &&
+            if (usesTime && (def.Loop == LoopMode.Loop || def.Loop == LoopMode.PingPong) &&
                 def.Time.Mode == TimeMode.Duration && def.Time.Value == 0f)
             {
                 yield return ValidationResult.Error($"{path}: 無限ループのまま Duration=0 のためフリーズします");
@@ -153,7 +157,7 @@ namespace DDrive.Foundation.Validation
                 yield return ValidationResult.Warning($"{path}: TimeMode=Rate なのに Loop=Once です(終端がない動きのはずです)");
             }
 
-            if (def.Time.SpeedScale <= 0f)
+            if (usesTime && def.Time.SpeedScale <= 0f)
             {
                 yield return ValidationResult.Error($"{path}: SpeedScale が 0 以下です");
             }
