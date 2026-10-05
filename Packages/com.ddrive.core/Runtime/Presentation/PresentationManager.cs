@@ -928,6 +928,13 @@ namespace DDrive.Runtime.Presentation
                 }
 
                 FireTrack(handle, instance, t, in tracks[t]);
+
+                // 購読者(Marker / TrackFired 等)が自分の Presentation を止めたら、残りの OnSignal トラックは発火しない
+                // (FireDueTracks と同じ保護。[58] GA-R-02)。ネットへの送信は呼び出し側で済んでおり、回数・順序は変わらない。
+                if (!_instances.IsValidSilent(handle))
+                {
+                    return;
+                }
             }
         }
 
@@ -989,6 +996,12 @@ namespace DDrive.Runtime.Presentation
                 }
 
                 FireTrack(handle, instance, t, in tracks[t]);
+
+                // SignalLocal と同じ保護(受信した Signal でも、自分が止められたら残りは発火しない。[58] GA-R-02)。
+                if (!_instances.IsValidSilent(handle))
+                {
+                    return;
+                }
             }
         }
 
