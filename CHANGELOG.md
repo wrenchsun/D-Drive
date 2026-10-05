@@ -11,6 +11,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 挙動の変更(PATCH 相当。検査の Error が減る方向のみ): **固定値(`Mode=Constant`)の ValueDef の Time を検査しない（2026-10-06、[docs/17](docs/17_value_definition.md) §6）** — `ValueDefValidator` が、`Mode=Constant`（`Evaluate` が `Time` を使わないモード）のとき Time の欄（`TimeMode=Duration` の Value・SpeedScale・無限ループ + Duration=0）を検査しない。Parametric / Curve の検査は従来どおり。既存の検査コード・メッセージ・Warning / Info は変えず、Error が減る方向だけの変更（[docs/42](docs/42_distribution.md) §5.8 に反しない）。シリアライズされる既定値（`ValueDef.Constant01()`・`TimeDef`）・enum・公開 API・生成コード・互換性スナップショットは変更なし。
 - 変更なし(Editor の更新ウィンドウ。未リリースの P-15 の確定仕様、互換性ポリシー対象外): **P-15 の人による確認での修正（2026-10-06、BUG-1・Q-1〜Q-3、[docs/42](docs/42_distribution.md) §4.2.1・[docs/43](docs/43_manual_verification_2026-09-17.md) §15）** — (1) git の標準出力 / エラーを UTF-8 で読む（日本語 Windows では日本語を含む `package.json` が文字化けして JSON が壊れ、版上げ前の事前確認が警告を見逃していた）。(2) 取得した `package.json` が JSON として読めない / `ddriveUpdate` の形が読めないときは「宣言なし」と区別し、事前確認は「事前確認できませんでした（上げ先の package.json を読めませんでした）。更新後に確認します。」、更新後の検査は `DD-PKGDEP-BAD-DECLARATION`（既存コード・Warning）で知らせる（`DdriveUpdateDeclaration.TryParse` / `IsUnreadable` を追加。`Parse` は従来どおり）。(3) 同じ URL の再追加のメッセージをウィンドウに出す（既に管理対象なら「<ID> は既に管理対象に登録されています(manifest は変わりません)。」、manifest にあって未登録なら「manifest に同じ URL の <ID> があります。管理対象に登録しました。」の 2 通り）。(4) 一覧の行は、宣言した側が「⚠ 依存に注意（…）」、相手側が「ℹ <宣言した側> が vX.Y.Z 以降を要求しています（現在 vA.B.C）」。(5) 依存の警告をアセットに紐付けず「(project)」と表示（下の「プロジェクト全体の指摘の表示」の項を参照）。
 - 追加のみ(Editor の契約スナップショット): **Editor 契約の対象型の public コンストラクタをスナップショットに入れた（2026-10-06、修正ラウンド 6、docs/58 GA-R-03、[docs/42](docs/42_distribution.md) §5.9 / §5.14 E-23）** — `EditorContractSnapshotBuilder` が `ctor(型 名, …)` の行を出す。`CameraExecutionOrderExemption`（外部が値を作る手段は 2 つのコンストラクタだけ）ほか、`editor-contract.txt` に**行が増えるだけ**（既存の行の削除・表記の変更なし）。
 - 挙動の変更(PATCH 相当。Editor の出力): **プロジェクト全体の指摘の表示（2026-10-06、修正ラウンド 6、docs/58 GA-R-07、P-15 確認 Q-3 の拡張）** — `Run All` / `CI.ValidateAll` で、プロジェクト全体の指摘を出す Validator（`PackageDependencyValidator`・`ProjectSetupValidator`・`SpecDiffValidator` の全体の指摘・`ContentHashCatalogCoverageValidator`・`CatalogAddressCoverageValidator`・`CameraExecutionOrderValidator`）の結果が、「たまたま最初の Data」のパス付きではなく、アセットに紐付けず 1 回だけ「(project)」と表示される。指摘の件数・重さ・コードは変わらない（`SpecDiffValidator` の Data ごとの指摘は従来どおり該当の Data に紐付く）。コンソール・JUnit の表示が `(unknown)` / 最初の Data のパス から `(project)` に変わるので、JUnit の classname で絞り込んでいる持ち込み先の CI があれば見直す。
@@ -85,6 +86,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 修正
 
+- 固定値(Constant)の ValueDef が検査で「TimeMode=Duration ですが Value が 0 以下です」「SpeedScale が 0 以下です」の Error になり、ツールで新規作成した Anim2D・Skin・CameraShake がすべて Error になっていた（v1.0.0 から。実行時は 0 を安全に扱うため実害は検査のみ）。Constant では Time の欄を検査しない。
 - 0 秒に置いたカットシーンのマーカーが発火しない（最初から再生したとき）。右クリックの「Material を作成」が知らないシェーダー確認を出さず、一度「保つ」を選んだ MaterialData を後の非対話処理で `DDrive/Lit` に戻していた。シェーダー参照が欠けた Material を「保つ」にするとピンクのまま保存されていた。LightMode タグの無いパス（輪郭線）が Material Editor の候補に出ず、Validator が誤って警告していた（レビュー FC-R-01〜06）。
 - プリセットギャラリーの「選択中のシーン要素のパスを使う」が、確認用プレビュー上の要素を選ぶと `HUD/<Canvas名>/…` のようにシーン階層の最上位基準のパスを作っていた（Canvas のルート基準にならなかった）。Canvas のルート（プレハブステージのルート / プレビュー実体のルート / `CanvasData.Prefab` のインスタンス）からのパスにし、埋め込み Canvas の配下なら子の CanvasData に子基準のパスで割り当てる（U-28）。
 
