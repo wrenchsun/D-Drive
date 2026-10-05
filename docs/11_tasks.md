@@ -364,14 +364,16 @@ MS2026 の Phase P コードレビューが D-Drive 側への依頼 9 件（DD-1
 
 ## M-4 チケット: 禁止 API の検査に、プロジェクト側から除外を指定する仕組み（2026-10-05 追加、v1.4.0 MINOR。詳細は [docs/12_review.md] §3・[docs/42_distribution.md] §5.8 / §5.9）
 
-**背景（MS2026 からのフィードバック、2026-10-05）**: MS2026 で `CI.ValidateAll`（Run All 相当）を実行すると 53 件。内訳は (1) **24 件 =「アセットの読み込み設定が Preload でない」**（`Flags.Load が Preload ではありません`。MS2026 のデータの修正であり D-Drive の検査は正しい。対象外）、(2) **29 件 = 禁止 API**（`Time` の直接参照・`Instantiate` の直接呼び出し）。(2) は、許可するファイル名が `ForbiddenApiScanner` の中に直接書かれていて（`PoolService.cs` 等）、除外できるのが `/Samples/`・`/Tests/` 等のフォルダだけで、プロジェクト側から除外を指定する手段が無かった。MS2026 の該当箇所には正当な理由があるものがある: **`Instantiate`** = NGO の `NetworkObject` は Instantiate してから Spawn するのが正規の手順で `PoolService` 経由にできない / **`Time`** = Host 引き継ぎや LAN 探索のタイムアウト計測は、ゲーム内時間（ポーズ・ヒットストップの影響を受ける）ではなく実時間で測る必要がある。一方ゲームプレイ側の `Time` 参照は `ITimeSource` に直すのが本来の姿かもしれない（仕組みが入った後に MS2026 側で 1 件ずつ「直す / 許可する」を仕分ける）。
+**背景（MS2026 からのフィードバック、2026-10-05）**: MS2026 で `CI.ValidateAll`（バッチの検査。`Validation > Run All` は禁止 API を走査しないので、禁止 API の 29 件は含まれない）を実行すると 53 件。内訳は (1) **24 件 =「アセットの読み込み設定が Preload でない」**（`Flags.Load が Preload ではありません`。MS2026 のデータの修正であり D-Drive の検査は正しい。対象外）、(2) **29 件 = 禁止 API**（`Time` の直接参照・`Instantiate` の直接呼び出し）。(2) は、許可するファイル名が `ForbiddenApiScanner` の中に直接書かれていて（`PoolService.cs` 等）、除外できるのが `/Samples/`・`/Tests/` 等のフォルダだけで、プロジェクト側から除外を指定する手段が無かった。MS2026 の該当箇所には正当な理由があるものがある: **`Instantiate`** = NGO の `NetworkObject` は Instantiate してから Spawn するのが正規の手順で `PoolService` 経由にできない / **`Time`** = Host 引き継ぎや LAN 探索のタイムアウト計測は、ゲーム内時間（ポーズ・ヒットストップの影響を受ける）ではなく実時間で測る必要がある。一方ゲームプレイ側の `Time` 参照は、D-Drive の Tick(`dt`)に乗せるか、ゲーム側の時間源に集めて直すのが本来の姿（仕組みが入った後に MS2026 側で 1 件ずつ「直す / 許可する」を仕分ける。`ITimeSource` に置き換えても挙動は変わらない = 2026-10-05 修正ラウンド 5 で訂正）。
 
 | # | チケット | 担当 | 日数 | 依存 | AC |
 |---|---|---|---|---|---|
 | M-4a | **行単位の許可コメント**: `// ddrive-allow: 規則名(理由)` を、同じ行の行末コメントまたは直前の行（コメントだけの行）に書くと、その行の該当規則の当たりだけを許可する。理由必須（空・括弧なしは無効で、元の当たりをそのまま報告し「許可コメントに理由が必要」の文言を添える）。規則名は `Time` / `Instantiate` / `ResourcesLoad` / `AddressablesLoad` / `AudioSourcePlay`（大文字小文字は区別しない）。不明な規則名は無効 + Warning、使われていない許可は Info | ED | 1 | なし | 同じ行 / 直前行の許可・別の規則名では許可されない・理由なし/括弧なし/不明な規則名は無効で分かるメッセージ・未使用は Info・全角括弧・1 行に 2 規則・直前行コメントが 2 行先には効かない・文字列リテラル内の誤認なし。許可が 1 つも無いプロジェクトでは結果が従来と完全に同じ |
-| M-4b | **設定の許可リスト**: `DDriveProjectSettings.ForbiddenApiAllowEntries`（パスの前方一致 + 規則名〔空 = 全規則〕+ 理由〔必須〕）。用途は自分で書き換えられない外部コード・生成コード。Project Settings > D-Drive > 禁止 API の除外 で編集。理由なし・パスなし・不明な規則名の要素は無効（効かない）+ `ProjectSetupValidator` に Warning `DD-FORBIDDEN-ALLOW-SETTINGS-INVALID` | ED | 0.5 | M-4a | フォルダ・1 ファイル・規則指定・理由なしは無効。旧設定ファイルがそのまま読める |
+| M-4b | **設定の許可リスト**: `DDriveProjectSettings.ForbiddenApiAllowEntries`（パス〔区切り単位の一致。2026-10-05 修正ラウンド 5 で文字列の前方一致から変更〕+ 規則名〔空 = 全規則〕+ 理由〔必須〕）。用途は自分で書き換えられない外部コード・生成コード。Project Settings > D-Drive > 禁止 API の除外 で編集。理由なし・パスなし・不明な規則名の要素は無効（効かない）+ `ProjectSetupValidator` に Warning `DD-FORBIDDEN-ALLOW-SETTINGS-INVALID` | ED | 0.5 | M-4a | フォルダ・1 ファイル・規則指定・理由なしは無効。旧設定ファイルがそのまま読める |
 | M-4c | **見える化・CI**: `CI.ValidateAll` が同じ許可（コメント + 設定）を反映し、許可件数を Info 1 件（`DD-FORBIDDEN-ALLOW-SUMMARY`「禁止 API の許可: N 件(コメント n、設定 m)」）で出す。許可した箇所の一覧は `Tools > D-Drive > Validation > Forbidden API 許可一覧`（Console 出力） | ED | 0.5 | M-4a / M-4b | CI の JUnit XML・ログに Warning / Info が載り、Error 件数は許可の分だけ減る |
 | M-4d | **docs・マニュアル・MS2026 への返答**: docs/12 §3・docs/02・docs/42 §5.8 / §5.9（書式は**形式の契約**）・CHANGELOG・docs/50 運用ページ・消費側スキル・ProgrammerManual `rules.html`・[docs/43] §17 | 基盤 | 0.5 | M-4a〜c | 下の返答文が MS2026 に渡せる |
+| M-4e | **修正ラウンド 5（docs/57 FZ-R-01〜12）**: 返答文の `ITimeSource` の訂正・設定の許可リストのパス一致を区切り単位に・Editor の検査ウィンドウ・D-Drive 自身の禁止 API 12 件を 0 に・契約の追記 | 基盤 | 1 | M-4a〜d | 下記の対応記録 |
+| M-5（案・未着手） | **ゲームのコード向けの時間源の公開 API**: HitStop・ポーズ込みの `dt` を、`GameLoop` に登録しなくても読める形で配る（例: `DDrive.Runtime` に `GameTime.DeltaTime` = 直近の GameLoop の `dt`。追加のみ・MINOR。今は返答文の (a)(b) が唯一の手段。`Time` 規則の Message もこのとき差し替える）。**ユーザー判断が要る（v1.4.0 には入れない）** | 基盤 | 1 | なし | 持ち込み先がゲームプレイの時間を 1 行で D-Drive の時間に揃えられる |
 
 **MS2026 へ返す文面（2026-10-05）**
 
@@ -381,15 +383,17 @@ MS2026 の Phase P コードレビューが D-Drive 側への依頼 9 件（DD-1
 >
 > | 当たり | 判断 | やること |
 > |---|---|---|
-> | ゲームプレイの時間（演出・移動・クールタイム・アニメ等。ポーズ・ヒットストップに従うべきもの） | **直す** | `Time.deltaTime` / `Time.time` → `ITimeSource`（`Time` 規則。[docs/02] §9.5） |
-> | 実時間で測りたい計測（Host 引き継ぎ・LAN 探索・通信タイムアウト・ログのタイムスタンプ等。ポーズの影響を受けてはいけないもの） | **許可** | `// ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)` |
+> | ゲームプレイの時間（演出・移動・クールタイム・アニメ等。ポーズ・ヒットストップに従わせたいもの） | **D-Drive の Tick に乗せる**（乗せにくければ 1 か所に集めて許可） | (a) `IAssetManager` を実装し `DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(...)` で登録、`Tick(float dt)` の `dt`（ヒットストップ込み）を使う。ポーズは `OnPause` で受ける。(b) 乗せにくいときは、ゲーム側の時間源を 1 か所（例: `GameTime`）に作り、その中だけで `Time.unscaledDeltaTime * Loop.TimeService.TimeScale` を読んで許可コメントを 1 行書く（`Loop.PauseService.IsPaused(PauseChannel.Gameplay)` で 0 にもできる）。**`ITimeSource` はゲームのコード向けではない**（Foundation 内部向け。実体は `Time.deltaTime` を返すだけでヒットストップ・ポーズに従わない。置き換えても当たりが消えるだけで挙動は変わらない） |
+> | 実時間で測りたい計測（Host 引き継ぎ・LAN 探索・通信タイムアウト・ログのタイムスタンプ等。ポーズの影響を受けてはいけないもの） | **許可、または対象外の API に替える** | `// ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)`。または `Time.realtimeSinceStartupAsDouble` / `Stopwatch` に替える（`Time` 規則の対象外なので許可コメントが要らない）。`Time` 規則が当たるのは `Time.time` / `deltaTime` / `unscaledDeltaTime` / `timeAsDouble` / `unscaledTime` だけ |
 > | NGO の `NetworkObject` の生成（Instantiate → Spawn が正規手順で `PoolService` 経由にできない） | **許可** | `// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)` |
 > | それ以外の `Instantiate`（Prefab を置く・演出の実体を出す） | **直す** | `Prefabs.Spawn` / プール（`PoolService`）経由 |
 > | 自分で書き換えられない外部コード・生成コード | **設定の許可リスト** | Project Settings > D-Drive > 禁止 API の除外 にフォルダ + 理由を足す |
 >
-> 許可コメントは**同じ行の行末**か**直前の行（コメントだけの行）**に書き、**その 1 行の当たりだけ**を許可します（ファイル全体・ブロック全体は許可されません）。**理由（括弧内）は必須**で、空・括弧なしは無効のままです。1 行に 2 規則あるときは `// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)` と接頭辞ごと繰り返します。使われていない許可は Info で出るので、直した後に残った許可は消してください。許可した箇所の一覧は `Tools > D-Drive > Validation > Forbidden API 許可一覧` で確認でき、**レビューでは「許可の理由が妥当か」を見てください**。
+> 許可コメントは**同じ行の行末**か**直前の行（コメントだけの行）**に書き、**その 1 行の当たりだけ**を許可します（ファイル全体・ブロック全体は許可されません）。**理由（括弧内）は必須**で、空・括弧なしは無効のままです。1 行に 2 規則あるときは `// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)` と接頭辞ごと繰り返します。使われていない許可は Info で出るので、直した後に残った許可は消してください。Editor では `Tools > D-Drive > Validation > 禁止 API の検査`（ウィンドウ。許可されていない当たり・許可済み・無効 / 未使用の許可を一覧し、クリックでその行を開く。再走査ボタンあり）で確認でき（`Forbidden API 許可一覧` は同じ内容の Console 出力）、CI ではバッチの `CI.ValidateAll` が同じ走査をします。**レビューでは「許可の理由が妥当か」を見てください**。
 
 → ✅ 2026-10-05 実装（M-4a〜d、`feat/m-4-forbidden-api-allow`）: `ForbiddenApiScanner` に `ScanDetailed(root, 設定の許可リスト)` / `ScanReport`（`Violations` / `Notices` / `Allowed`）を追加（既存の `Scan(root)` は同じ戻り値のまま、許可コメントだけ効く）。規則に `Name` を付与（上の 5 つ）。CI は `ScanDetailed` を使い、Warning / Info を Console と JUnit XML に出す（Error 件数・終了コードは許可された分だけ減る）。Editor 契約（[42] §5.9）に許可コメントの書式を載せた。EditMode テスト `ForbiddenApiAllowanceTests` 23 件。
+
+→ ✅ 2026-10-05 修正ラウンド 5（[57](57_review_round4_m4_2026-10-05.md) FZ-R-01〜12、`fix/review-round-5`）: (1) 返答文の `ITimeSource` を実コードで確認して書き直した（上の表。`ITimeSource` は使用箇所 0 でヒットストップ・ポーズに従わない / 使える手段は `GameLoop.Register` の Tick と、ゲーム側の時間源 + 許可コメント / 実時間は対象外の API に替えれば許可不要）。(2) 設定の許可リストのパスを区切り単位の一致に（完全一致 or 配下。大文字小文字無視。絶対パス・`..`・1 階層・走査ルートそのものまたは親は無効 + Warning）。(3) `Tools > D-Drive > Validation > 禁止 API の検査` ウィンドウを追加（`Run All` には混ぜない）。(4) D-Drive 自身の当たり 12 件を 0 件に（11 件は理由付きの許可コメント、1 件はコメントの言い換え。挙動の変更なし）。(5) §5.9 に契約 4 点 + パス一致 + 規則の実体 + 書き方の表を追記。(6) `PresentationManager.FireDueTracks` / `SeekInitialTracks` に「自分が止められたら残りは発火しない」保護（v1.3.1 からの挙動の変更）。(7) 受信側の Cutscene の開始位置と無音にしたマーカー数を開発ビルド / Editor のログに 1 行。M-5（案）は未着手。
 
 ## FC チケット: T-Drive 連携（FacialController + Toon マテリアル）（2026-10-03 追加。詳細は [51](51_tdrive_integration.md)）
 
