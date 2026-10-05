@@ -205,6 +205,13 @@ Hud の Prefab の中に Option の Prefab を入れ子で置く場合の編集�
 - **Validation**: ウィンドウの Validation 欄は `CanvasDataValidator` に加えて `CanvasEmbeddedValidator`（Editor。子の存在・循環・Prefab の一致・親子の行の重なり）も実行する。
 - **2026-10-03 追記（レビュー [54] PC-R-04/05/09/10）**: 「入れ子 Prefab から検出」は、他の候補・登録済みの埋め込みルートの配下にある入れ子 Prefab（入れ子の入れ子）を提案しない。`RootPath` 欄は確定時に `\`→`/`・先頭末尾の `/` を除いて正規化する。対象を切り替える前に入力途中（遅延確定）の欄を確定し、各欄の確定は作ったときの対象に書く（選択に追従して対象が切り替わっても別の CanvasData には書かない）。`CanvasEmbeddedValidator` は 1 回の検証につき CanvasData の検索を 1 回だけ行い、新しい検査（子が Preload でない `-NOT-PRELOAD`・重なる登録 `-NESTED-ROOT`）を持つ。パスの変換は Editor 側の internal 複製 `EmbeddedPaths`（Runtime の `EmbeddedCanvasPaths` は internal）。
 - **プリセットギャラリー**: 「選択中のシーン要素のパスを使う」は Canvas のルート（`CanvasEmbeddedEditing.FindCanvasRoot`）からのパスにし、埋め込み配下なら適用先を子の CanvasData に切り替える（以前は常に `selected.root` 基準で、確認用プレビューでは `HUD/<Canvas>/…` になっていた）。
+- **2026-10-06 追記（人による確認 [43] §16・16-2 / 16-24）**: Undo / Redo のあと、埋め込み Canvas 欄（登録済みの行・`RootPath` 欄・子の欄・「入れ子 Prefab から検出」）・親の連なりのヘッダー・ElementFx 一覧（グループ分け・「親での上書き」）・Validation を現在のデータで描き直す（`CanvasEditorWindow.RefreshAfterUndoRedo`。以前はグラフ・ElementFx・Validation だけで、埋め込み欄は古い表示のまま残っていた）。編集対象の `CanvasData` は変えない。各欄は作成時の対象に書く（PC-R-05）ままで、再構築は欄を作り直すだけ。EditMode `CanvasEditorWindowUndoTests`。
+- **2026-10-06 追記（🔒 と「選択に追従」、[43] §16・16-7）**: ツールバーの 🔒（選択に追従しない）が ON の間は、「選択に追従」のチェックを無効（灰色）にし、横に「🔒 がオンの間は追従しません」を出す（狭い幅では折り返す）。チェックの値と EditorPrefs はそのまま保持し、🔒 を OFF にすると元に戻る。動作（`_followSelection && !_lockTarget`）は変えていない。
+
+#### 禁止 API の検査ウィンドウの行（2026-10-06 追記）
+
+`Tools > D-Drive > Validation > 禁止 API の検査`（`ForbiddenApiWindow`）の各行は縦に積む（場所のボタン → 本文 → 案内）。ボタンは幅を超えたら先頭を「…」で省略し（末尾のファイル名と行番号は残す。ツールチップにフルパス）、本文・案内は折り返すので、ウィンドウ幅を 400px 程度まで縮めても重ならない。「許可されていない当たり」の案内（規則の説明・「許可コメントに理由が必要です」など）は行の本文として別行に出す（以前はツールチップだけ）。行の文言は純関数 `ForbiddenApiRowText`（`DisplayPath` / `ViolationLines`）で作る（EditMode `ForbiddenApiRowTextTests`）。走査のタイミング（メニューから開いたときだけ）は変えていない。
+
 
 ### 2.2 Anchor 系の SceneView 表示（基準の描画、U-24、2026-09-17）
 

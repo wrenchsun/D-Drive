@@ -87,7 +87,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 #### Canvas
 
-- **Canvas の埋め込み（入れ子）対応**: `CanvasData.EmbeddedCanvases`（`RootPath` + `Canvas`）。`UiManager.OpenData` が Open 時に子の `ElementEffects` / `Buttons` / `Sliders` を子のルート基準で適用する（子の Prefab は Instantiate しない。入れ子の入れ子は再帰、深さ上限 8 + 循環検出。Navigation / FirstSelected / レイヤー既定 / 開閉演出は親のもの。子の `CloseSelf` は親を閉じる）。`EmbeddedCanvases` の新しい欄は `[Tooltip]` 付き、空 / null の既存データは実行時・Editor とも従来どおり。ネット・ContentHash（`CatalogEntry` のみが対象）への影響なし。優先規則と `SendSignal` のパスは「挙動の変更」。`EmbeddedCanvasPaths`（`Combine` / `TryToChildPath`。担当表方式で不要になった `IsJoinedPath` は削除）は internal（v1.3.1 以前に無い型で、公開面ではない。Editor は同じ規則の internal 複製を持つ。U-28、レビュー PC-R-18）。
+- **Canvas の埋め込み（入れ子）対応**: `CanvasData.EmbeddedCanvases`（`RootPath` + `Canvas`）。`UiManager.OpenData` が Open 時に子の `ElementEffects` / `Buttons` / `Sliders` を子のルート基準で適用する（子の Prefab は Instantiate しない。入れ子の入れ子は再帰、深さ上限 8 + 循環検出。Navigation / FirstSelected / レイヤー既定 / 開閉演出は親のもの。子の `CloseSelf` は親を閉じる）。`EmbeddedCanvases` の新しい欄は `[Tooltip]` 付き、空 / null の既存データは実行時・Editor とも従来どおり。ネット・ContentHash（`CatalogEntry` のみが対象）への影響なし。優先規則と `SendSignal` のパスは「挙動の変更」。`EmbeddedCanvasPaths`（`Combine` / `TryToChildPath`。担当表方式で不要になった `IsJoinedPath` は削除）は internal（v1.3.1 以前に無い型で、公開面ではない。Editor は同じ規則の internal 複製を持つ。U-28、レビュー PC-R-18）。 Canvas Editor では、Undo / Redo のあとも埋め込み欄・ElementFx 一覧・Validation が現在のデータで表示され、ツールバーの 🔒 が ON の間は「選択に追従」が灰色になって理由が出る。
 - **Canvas Editor の埋め込み Canvas 対応**: 「埋め込み Canvas」セクション（入れ子 Prefab の検出と「埋め込みとして登録」・手動追加・削除）、ElementFx 一覧の「親の要素 / 埋め込み: 子」グループ表示と絞り込み、登録済みの埋め込み配下を親の自動収集から除外、「← 親へ戻る」、「選択に追従」（Hierarchy / プレハブステージ / 確認用プレビューの選択に合わせて編集対象を子 / 親へ切り替え）、子を編集したまま親のプレハブモード / 確認用プレビューで ▶ 再生・「選択」「選択して移動」。
 
 #### 取り込み
@@ -104,7 +104,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 #### Validation / 禁止 API
 
 - **禁止 API の検査に、プロジェクト側から除外を指定する仕組み（M-4、[docs/12](docs/12_review.md) §3・[docs/42](docs/42_distribution.md) §5.8 / §5.9）**: 行単位の許可コメント `// ddrive-allow: 規則名(理由)` と、`DDriveProjectSettings.ForbiddenApiAllowEntries`（パス + 規則名〔空 = 全規則〕+ 理由〔必須〕。Project Settings > D-Drive > 禁止 API の除外。用途は自分で書き換えられない外部コード・生成コード）。書式の契約は「追加された互換面」。`CI.ValidateAll` が同じ許可（コメント + 設定）を反映し、許可件数を Info `DD-FORBIDDEN-ALLOW-SUMMARY`（「禁止 API の許可: N 件(コメント n、設定 m)」）で出す（Error 件数・終了コードは許可された分だけ減る）。`ForbiddenApiScanner.ScanDetailed` / `ScanReport`（`Violations` / `Notices` / `Allowed`）を追加（`DDrive.Editor` は互換面に含めない。既存の `Scan(root)` は同じ戻り値で許可コメントだけ効く）。`Violation` に `RuleName` / `Excerpt` を追加。
-- **`Tools > D-Drive > Validation > 禁止 API の検査` ウィンドウ**（許可されていない当たり〔ファイル:行・規則名・該当行〕・許可済み・無効 / 未使用の許可。ボタンでその行を開く。`Validation > Run All` には混ぜていない）と、`Forbidden API 許可一覧`（許可した箇所の Console 出力）。
+- **`Tools > D-Drive > Validation > 禁止 API の検査` ウィンドウ**（許可されていない当たり〔ファイル:行・規則名・該当行〕・許可済み・無効 / 未使用の許可。ボタンでその行を開く。`Validation > Run All` には混ぜていない）と、`Forbidden API 許可一覧`（許可した箇所の Console 出力）。 各行は縦に並び、長いパスはボタンの先頭を省略して表示し、許可されていない当たりの案内（理由が必要、など）は行の本文に出る。
 - D-Drive 自身の禁止 API の当たり 12 件を理由付きの許可コメント 11 件とコメントの言い換え 1 件で 0 件にした（挙動の変更なし）。
 
 #### その他

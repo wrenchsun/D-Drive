@@ -222,9 +222,23 @@ namespace DDrive.Editor.CanvasTool
         // 走ったらグラフを作り直す(SerializedObject 側は Bind 済みなので自動で追従する)。
         // (レビュー対応 2026-09-14) グラフだけ作り直していたため、Undo で ElementFx の行が減ると古い行 UI の
         // ▶ / プリセット選択が範囲外の index を引いていた。ElementFx 割当と Validation も作り直す。
-        private void OnUndoRedoPerformed()
+        // 2026-10-06(docs/43 16-2 / 16-24): 埋め込み Canvas 欄(登録済みの行・RootPath 欄・子 CanvasData 欄・入れ子 Prefab から
+        // の検出結果)も作り直す。以前は作り直しておらず、Undo / Redo のあとデータは戻っても欄の表示が古いままだった。
+        // 親の連なりのヘッダー(UpdateContextRow)・ElementFx 一覧のグループ分け(RebuildElementFxAssignments が
+        // EmbeddedCanvases から作る)・Validation もここで現在のデータから描き直す。編集対象(_target)自体は変えない。
+        private void OnUndoRedoPerformed() => RefreshAfterUndoRedo();
+
+        // テストから直接呼べるよう public(Undo イベントを経由せず、再構築だけを検証する)。
+        public void RefreshAfterUndoRedo()
         {
+            if (_root == null)
+            {
+                return;
+            }
+
+            UpdateContextRow();
             RebuildGraph();
+            RebuildEmbeddedSection();
             RebuildElementFxAssignments();
             RefreshValidation();
         }
@@ -259,7 +273,11 @@ namespace DDrive.Editor.CanvasTool
             });
             toolbar.Add(_targetField);
             var lockToggle = new ToolbarToggle { text = "🔒", tooltip = "選択に追従しない" };
-            lockToggle.RegisterValueChangedCallback(evt => _lockTarget = evt.newValue);
+            lockToggle.RegisterValueChangedCallback(evt =>
+            {
+                _lockTarget = evt.newValue;
+                UpdateFollowLockUi();
+            });
             toolbar.Add(lockToggle);
             toolbar.Add(DDrive.Editor.Inspector.NewAssetToolbarButton.CreateToolbarButton(typeof(CanvasEditorWindow)));
             // U-21([39_usability_fixes_2026-09-17.md]): Canvas Editor には要素(RectTransform)を移動する手段が
@@ -289,7 +307,18 @@ namespace DDrive.Editor.CanvasTool
                 _followSelection = evt.newValue;
                 EditorPrefs.SetBool(FollowSelectionPrefKey, evt.newValue);
             });
-            _root.Add(followToggle);
+            // 2026-10-06(docs/43 16-7): 🔒 が ON の間は「選択に追従」が効かない(動作は `_followSelection && !_lockTarget` のまま)。
+            // 2 つの関係が画面から分かるよう、🔒 が ON の間はチェックを灰色にして理由を出す(チェックの値は保持する)。
+            _followToggle = followToggle;
+            _followLockHint = new Label("🔒 がオンの間は追従しません")
+            {
+                style = { whiteSpace = WhiteSpace.Normal, flexShrink = 1, marginLeft = 4, opacity = 0.8f, display = DisplayStyle.None },
+            };
+            var followRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center } };
+            followRow.Add(followToggle);
+            followRow.Add(_followLockHint);
+            _root.Add(followRow);
+            UpdateFollowLockUi();
 
             var navButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 4 } };
             navButtons.Add(new Button(() => CollectSelectables()) { text = "Selectable を自動収集", tooltip = "Prefab 内の Selectable から Navigation を作る(既存の行は保持する)" });
@@ -410,6 +439,18 @@ namespace DDrive.Editor.CanvasTool
 
             var last = _ancestors[_ancestors.Count - 1];
             SetTargetIn(last.Data, _ancestors.GetRange(0, _ancestors.Count - 1));
+        }
+
+        private Toggle _followToggle;
+        private Label _followLockHint;
+
+        private void UpdateFollowLockUi()
+        {
+            _followToggle?.SetEnabled(!_lockTarget);
+            if (_followLockHint != null)
+            {
+                _followLockHint.style.display = _lockTarget ? DisplayStyle.Flex : DisplayStyle.None;
+            }
         }
 
         private void UpdateContextRow()

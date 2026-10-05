@@ -188,6 +188,7 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 - 実装: `Runtime/Canvas/CanvasData.cs`（`EmbeddedCanvas` / `EmbeddedCanvases`）・`EmbeddedCanvasPaths.cs`・`UiManager.cs`（`SetupEmbeddedCanvases` ほか）・`CanvasDataValidator.cs`、`Editor/Canvas/CanvasEmbeddedEditing.cs` / `CanvasEmbeddedValidator.cs` / `CanvasEditorWindow.cs` / `CanvasElementFxCollector.cs`、`Editor/Ui/UiPresetGalleryWindow.cs`。テスト: PlayMode `EmbeddedCanvasTests` 15 件、EditMode `EmbeddedCanvasPathsTests` / `CanvasEmbeddedEditingTests` 26 件。
 - 人による確認: [43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §16。
 - **2026-10-03 レビュー対応（[54](54_review_p15_canvas_2026-10-03.md)）**: 重なる登録の二重適用を担当表方式で解消（1 要素 1 回。内側の登録が先）、担当の単位は ElementFx = 要素 / ボタン・スライダー = (要素, トリガー)、`SendSignal` の `ElementPath` は子のルート基準 + 新しい `SignalArgs.EmbeddedRootPath`、`EmbeddedCanvasPaths` は internal 化、選択に追従の入力途中の値は切り替え前の対象に確定。詳細は [07](07_canvas_prefab.md) の「追記（2026-10-03、レビュー [54]）」。
+- **2026-10-06 人による確認の対応（[43] §16、16-2 / 16-24 / 16-7）**: Undo / Redo のあと埋め込み Canvas 欄が描き直されなかった不具合を修正（`RefreshAfterUndoRedo`。[09 §2.1](09_editor_tools.md) 追記）。🔒 が ON の間は「選択に追従」を灰色にして理由を表示（動作は不変）。
 
 ### U-25（Signal を手動で送る導線）
 

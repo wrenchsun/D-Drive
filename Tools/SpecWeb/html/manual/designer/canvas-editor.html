@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</nav>
 
 <h1>Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</h1>
-<p class="lastupdate">最終更新日: 2026-10-04</p>
+<p class="lastupdate">最終更新日: 2026-10-06</p>
 
 <p>Canvas Editor は、<a href="#" data-manual-kind="designer" data-manual-page="canvas-data">Canvas(UI 画面)データ</a>を組み立てるための専用ウィンドウです。パッドのフォーカス移動(ナビゲーション)を<strong>矢印付きの図で編集</strong>し、要素ごとの演出(ElementFx)をまとめて割り当て、実際にシーン上で開いて確かめられます。</p>
 <ul>
@@ -89,7 +89,7 @@
 <p>上から順に並んでいます。ウィンドウの中に UI の絵は出ません。<strong>見た目の確認は「確認用シーンを開く」で Game / Scene ビューを見ます</strong>。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>ツールバー(対象 / 🔒 / Prefab を開く(要素の移動))</td><td>編集する Canvas データ。「🔒」= 選択に追従しない。「<strong>Prefab を開く(要素の移動)</strong>」を押すと確認用プレビューを片付けてから、この Canvas の Prefab をプレハブモード(編集用の専用画面)で開きます。ここで要素を選んで Unity 標準の移動 / 回転 / リサイズツールで動かせます(Ctrl+Z で戻せます)。確認用シーンのプレビューを動かしても Prefab には反映されないため、実際に配置を変えたいときは必ずこちらを使ってください</td></tr>
+<tr><td>ツールバー(対象 / 🔒 / Prefab を開く(要素の移動))</td><td>編集する Canvas データ。「🔒」= 選択に追従しない(ON の間は下の「選択に追従」が灰色になります)。「<strong>Prefab を開く(要素の移動)</strong>」を押すと確認用プレビューを片付けてから、この Canvas の Prefab をプレハブモード(編集用の専用画面)で開きます。ここで要素を選んで Unity 標準の移動 / 回転 / リサイズツールで動かせます(Ctrl+Z で戻せます)。確認用シーンのプレビューを動かしても Prefab には反映されないため、実際に配置を変えたいときは必ずこちらを使ってください</td></tr>
 <tr><td>Selectable を自動収集</td><td>Prefab 内の <strong>uGUI の Selectable</strong>(Button / Slider / Toggle など)を探して Navigation に行を足します(既存の行は残ります。4 方向は空 = Unity 自動のまま)。<strong>D-Drive の UiButton / UiSlider は拾いません</strong>。UiButton はグラフにはノードとして出るので、グラフでリンクを張るか、Inspector の Navigation に手で行を足してください。Prefab 未設定なら「Prefab を設定してください」</td></tr>
 <tr><td>要素を自動収集(Image / UiButton / パネル)/ プリセット / 一括適用: 全ボタンに反映</td><td>「要素を自動収集」は Prefab 内の画像・UiButton・パネルから ElementFx の行を作ります(既存の行は保持)。「プリセット」で選んだ演出を「一括適用: 全ボタンに反映」で全 UiButton の Appear にまとめて入れます(「全ボタンの AppearPreset に … を設定しました」)</td></tr>
 <tr><td>ElementFx 割当(Appear / Idle / Disappear)</td><td>要素ごとに 1 箱(折りたたみ、初期状態は畳んだまま)で演出を割り当てます。上部の「▶ 全 Appear」「▶ 全 Idle」「▶ 全 Disappear」「■ 全て停止」で、登録済みの全要素のうち割り当てがあるものだけをまとめて再生・停止できます(停止すると再生前の状態に戻ります)。その下の「▶ 再生時にその要素を選択」にチェックを入れておくと(初期状態はチェックあり)、各行の「▶ 再生」を押したときにその要素が自動で選択され、Inspector で確認できます。まとめ再生では選択は変わりません。読み方は下の「ElementFx 割当セクションの行の読み方」を参照。行が無いときは「ElementFx がありません(上の「要素を自動収集」で追加してください)」</td></tr>
@@ -184,7 +184,7 @@
 </table>
 <h3>便利な機能</h3>
 <ul>
-<li><strong>選択に追従</strong>(ツールバーの下のチェック。既定オン): Hierarchy・プレハブモード・確認用シーンで要素を選ぶと、それが埋め込みの子の要素なら編集対象が自動で子に、そうでなければ親に切り替わり、該当する ElementFx の行が展開されて青い線で強調されます。このウィンドウで入力中の欄があるあいだは切り替わりません。ほかのウィンドウ(Hierarchy など)へ移ってから切り替わるときは、入力途中の値は<strong>切り替え前の Canvas に確定</strong>されます(切り替わった先の別の Canvas には書かれません)。別の Canvas の Prefab をプレハブモードで開いて要素を選んだときも、その Canvas に切り替わります(埋め込みを使わない場合も同じ)。切り替えたくないときはチェックを外すか、「🔒」を ON にします</li>
+<li><strong>選択に追従</strong>(ツールバーの下のチェック。既定オン): Hierarchy・プレハブモード・確認用シーンで要素を選ぶと、それが埋め込みの子の要素なら編集対象が自動で子に、そうでなければ親に切り替わり、該当する ElementFx の行が展開されて青い線で強調されます。このウィンドウで入力中の欄があるあいだは切り替わりません。ほかのウィンドウ(Hierarchy など)へ移ってから切り替わるときは、入力途中の値は<strong>切り替え前の Canvas に確定</strong>されます(切り替わった先の別の Canvas には書かれません)。別の Canvas の Prefab をプレハブモードで開いて要素を選んだときも、その Canvas に切り替わります(埋め込みを使わない場合も同じ)。切り替えたくないときはチェックを外すか、「🔒」を ON にします。「🔒」が ON の間は「選択に追従」のチェックが灰色になり、「🔒 がオンの間は追従しません」と表示されます(チェックの状態はそのまま保たれ、「🔒」を OFF に戻すと元どおり使えます)</li>
 <li><strong>絞り込み</strong>: ElementFx の見出しの下の検索欄に要素のパスの一部を入れると、一覧が絞られます(親・子とも)</li>
 <li><strong>自動収集</strong>: 登録済みの埋め込みの<strong>中</strong>の要素は、親の「要素を自動収集」・「一括適用」に含まれません(子の担当)。親に既にある行は消えません。まだ登録していない入れ子の Prefab は、親の一覧に出ます</li>
 <li><strong>プリセットギャラリー</strong>: 確認用シーンやプレハブモードで要素を選んで「選択中のシーン要素のパスを使う」を押すと、Canvas の Prefab ルートからのパスが入ります。埋め込みの子の要素なら、適用先が子の Canvas データに切り替わります</li>
