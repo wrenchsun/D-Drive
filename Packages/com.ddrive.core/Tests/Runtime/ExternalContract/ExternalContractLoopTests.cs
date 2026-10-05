@@ -181,7 +181,28 @@ namespace ExternalContract.Tests
             var orphanGo = new GameObject("ExternalGameTimeOrphan");
             var orphan = orphanGo.AddComponent<ExternalGameTimeBehaviour>();
             Assert.IsFalse(orphan.Registered, "Instance が null のときは登録しない");
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("DDriveRuntimeBootstrap が無い"));
+            yield return null; // Start で再試行しても Bootstrap が無ければ登録せず、警告を 1 行出す(例外は出さない)
+            Assert.IsFalse(orphan.Registered, "Start で再試行しても Bootstrap が無ければ登録されない");
             Object.DestroyImmediate(orphanGo);
+
+            // Bootstrap より先に OnEnable が走った場合(実行順が小さい・同じシーンの初期オブジェクトなど)は、Start の再試行で登録される。
+            var lateBootGo = new GameObject("ExternalGameTimeLateBootstrap");
+            lateBootGo.SetActive(false);
+            var lateBootstrap = lateBootGo.AddComponent<DDriveRuntimeBootstrap>();
+            lateBootstrap.CatalogLabel = string.Empty;
+            lateBootstrap.KeepAcrossScenes = false;
+            var earlyGo = new GameObject("ExternalGameTimeEarly");
+            var early = earlyGo.AddComponent<ExternalGameTimeBehaviour>(); // OnEnable の時点では Instance が null
+            Assert.IsFalse(early.Registered, "OnEnable の時点では Bootstrap が無く登録されない");
+            lateBootGo.SetActive(true);                                    // Bootstrap の Awake が走る
+            yield return null;                                             // early の Start が走る
+            Assert.IsTrue(early.Registered, "Start の再試行で登録される");
+            yield return null;
+            Assert.GreaterOrEqual(early.TickCount, 1, "登録後は Tick が届く");
+            Object.DestroyImmediate(earlyGo);
+            Object.DestroyImmediate(lateBootGo);
+            yield return null;
 
             var bootGo = new GameObject("ExternalGameTimeBootstrap");
             bootGo.SetActive(false);
