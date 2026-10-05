@@ -85,7 +85,7 @@ namespace DDrive.Editor.Update
         // JSON が壊れていた。git は blob のバイト列をそのまま出し(`git show` は変換しない)、エラーメッセージも UTF-8 で出す。
         // `core.quotepath` は diff / status 等のパス表示にだけ効き、本ツールが使う clone / show / ls-remote には関係しないので足さない。
         // `LC_ALL` も足さない(git のメッセージの言語はユーザーの設定に任せる。理由の 1 行は `ErrorLine` が `fatal:` / `error:` で
-        // 見つけられなければ最初の非空行を使うので、日本語のメッセージでも読める)。BOM なしで扱う(BOM があれば StreamReader が読み捨てる)。
+        // 見つけられなければ最初の非空行を使うので、日本語のメッセージでも読める)。BOM なしで扱う(非同期読み取りでは BOM が読み捨てられず先頭に残ることがあるので、package.json の解析側 `DdriveUpdateDeclaration.TryParse` が先頭の U+FEFF を取り除く)。
         public static ProcessStartInfo BuildStartInfo(string[] arguments, string workingDirectory)
         {
             var startInfo = new ProcessStartInfo
