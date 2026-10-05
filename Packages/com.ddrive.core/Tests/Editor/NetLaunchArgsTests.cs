@@ -225,5 +225,36 @@ namespace DDrive.Tests.Editor
         {
             Assert.AreEqual(NetLaunchRole.Manual, NetLaunchArgs.ResolveEffectiveRole(NetLaunchRole.Unspecified, defaultBridgeIsNgo: true, defaultStartIsManual: true));
         }
+
+        // [14_networking.md] §22(N-8) — Cutscene のマーカーの NetCheck シナリオ用の引数。
+        [Test]
+        public void Parse_CutsceneTestArgs()
+        {
+            var o = NetLaunchArgs.Parse(new[]
+            {
+                "-ddrive-cutscene-test", "trigger", "-ddrive-cutscene-plays", "4", "-ddrive-cutscene-interval", "4.5",
+                "-ddrive-cutscene-start-delay", "2", "-ddrive-cutscene-expect-plays", "3",
+            });
+            Assert.AreEqual("trigger", o.CutsceneTest);
+            Assert.AreEqual(4, o.CutscenePlays);
+            Assert.AreEqual(4.5f, o.CutsceneIntervalSec);
+            Assert.AreEqual(2f, o.CutsceneStartDelaySec);
+            Assert.AreEqual(3, o.CutsceneExpectPlays);
+        }
+
+        [Test]
+        public void Parse_CutsceneTestArgs_Unspecified_AreNullAndInvalidValuesIgnored()
+        {
+            var none = NetLaunchArgs.Parse(new[] { "-ddrive-net", "host" });
+            Assert.IsNull(none.CutsceneTest);
+            Assert.IsNull(none.CutscenePlays);
+            Assert.IsNull(none.CutsceneIntervalSec);
+            Assert.IsNull(none.CutsceneStartDelaySec);
+            Assert.IsNull(none.CutsceneExpectPlays);
+
+            var bad = NetLaunchArgs.Parse(new[] { "-ddrive-cutscene-plays", "abc", "-ddrive-cutscene-interval", "x" });
+            Assert.IsNull(bad.CutscenePlays);
+            Assert.IsNull(bad.CutsceneIntervalSec);
+        }
     }
 }

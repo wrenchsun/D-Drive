@@ -105,7 +105,7 @@ namespace DDrive.Editor.Materials
                 {
                     // シェーダー参照が欠けている(FC-R-02)。保っても常にピンクなので Policy に関わらず、新規の Data は Lit にする。
                     // 既存の Data があるときはここへ来る前の入口で何も書かずに抜けている(FX-R-02 / FY-R-01)。
-                    report.Log($"警告: '{source.name}' のシェーダーが見つかりません(パッケージ未導入・参照切れ)。新規の MaterialData は {LitShaderName} として作成します"
+                    report.Warn($"'{source.name}' のシェーダーが見つかりません(パッケージ未導入・参照切れ)。新規の MaterialData は {LitShaderName} として作成します"
                                + "(既存の MaterialData があれば何も変更しません)");
                 }
                 else

@@ -170,6 +170,30 @@ namespace DDrive.Editor.Cutscene
             return _contextBuffer;
         }
 
+        // Timeline ウィンドウが今開いている Director(`UnityEditor.Timeline.TimelineEditor.inspectedDirector`)。この asmdef は
+        // Unity.Timeline.Editor を参照していないので、reflection で読む(CutsceneEditModeDirectorSetup.FocusTimelineWindowOn と同じ事情)。
+        private static readonly System.Reflection.PropertyInfo InspectedDirectorProperty =
+            System.Type.GetType("UnityEditor.Timeline.TimelineEditor, Unity.Timeline.Editor")
+                ?.GetProperty("inspectedDirector", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+        // テスト用の差し替え口(Timeline ウィンドウを開かずに「開いている / いない」を切り替える)。null なら実際の Timeline ウィンドウを見る。
+        public static System.Func<PlayableDirector, bool> IsInspectedOverrideForTests;
+
+        private static bool IsInspectedByTimelineWindow(PlayableDirector director)
+        {
+            if (IsInspectedOverrideForTests != null)
+            {
+                return IsInspectedOverrideForTests(director);
+            }
+
+            if (InspectedDirectorProperty == null)
+            {
+                return true; // 判定できない Unity の版では、従来どおり書く(片付けのときの復元は効く)
+            }
+
+            return (InspectedDirectorProperty.GetValue(null) as PlayableDirector) == director;
+        }
+
         private static void OnEditorUpdate()
         {
             // Play Mode は CutsceneManager が別経路で駆動する([26] §4.4 決定)。二重駆動を避けるため、
@@ -187,8 +211,12 @@ namespace DDrive.Editor.Cutscene
             var contexts = CollectContexts();
             if (contexts.Count == 0)
             {
+                // 駆動する Director が無くなった(破棄された)。カメラへ書いていたなら元の姿勢へ戻す。
+                CutsceneEditModeCameraWriter.ResetCapture();
                 return;
             }
+
+            var cameraWritten = false;
 
             EnsureManagers();
             _managers.Tick(dt);
@@ -279,7 +307,21 @@ namespace DDrive.Editor.Cutscene
 
                 session.WasPlaying = playing;
                 session.LastTime = elapsed;
-                CutsceneEditModeCameraWriter.Apply(director.gameObject);
+
+                // カメラへ書くのは、Timeline ウィンドウがこの Director を開いている間だけ。プレビュー用 Director は Timeline ウィンドウを
+                // 閉じても残る(片付くのはシーン切替・Play Mode 突入など)ので、残っている間じゅう書き続けると、確認用シーンのカメラを
+                // 手で動かせず、保存するとカットシーンの姿勢が残る。
+                if (IsInspectedByTimelineWindow(director))
+                {
+                    CutsceneEditModeCameraWriter.Apply(director.gameObject);
+                    cameraWritten = true;
+                }
+            }
+
+            if (!cameraWritten)
+            {
+                // どの Director も Timeline ウィンドウで開かれていない(閉じた・別のものを開いた)。書いていたなら元の姿勢へ戻す。
+                CutsceneEditModeCameraWriter.ResetCapture();
             }
 
             foreach (var staleId in _staleIds)
@@ -352,7 +394,19 @@ namespace DDrive.Editor.Cutscene
             }
         }
 
-        private static void FireEvent(CutsceneEventNotification marker) => _managers.RaiseEvent(in marker.Event);
+        // マーカーの発火は 1 件ずつ例外を隔離する(外部マーカーと同じ)。発火が例外で抜けると、その更新でカーソルと
+        // 「再生中か」の記録が進まず、次の更新で同じマーカーを鳴らし直してしまう。
+        private static void FireEvent(CutsceneEventNotification marker)
+        {
+            try
+            {
+                _managers.RaiseEvent(in marker.Event);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+            }
+        }
 
         private static void FireSignal(CutsceneSignalNotification marker)
             => Debug.Log($"[DDrive] Cutscene Signal (Edit Mode プレビュー): '{marker.Key}'");
@@ -364,8 +418,15 @@ namespace DDrive.Editor.Cutscene
                 return;
             }
 
-            var data = _managers.Registry.ResolveOrPlaceholder<CameraShakeData>(marker.ShakeId.Value);
-            _managers.ShakeDriver.Play(data);
+            try
+            {
+                var data = _managers.Registry.ResolveOrPlaceholder<CameraShakeData>(marker.ShakeId.Value);
+                _managers.ShakeDriver.Play(data);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         private static void FireHaptic(CutsceneHapticNotification marker)
@@ -375,8 +436,15 @@ namespace DDrive.Editor.Cutscene
                 return;
             }
 
-            var data = _managers.Registry.ResolveOrPlaceholder<HapticsData>(marker.HapticId.Value);
-            _managers.HapticsDriver.Play(data);
+            try
+            {
+                var data = _managers.Registry.ResolveOrPlaceholder<HapticsData>(marker.HapticId.Value);
+                _managers.HapticsDriver.Play(data);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         private static void OnPlayModeStateChanged(PlayModeStateChange change)
@@ -410,6 +478,7 @@ namespace DDrive.Editor.Cutscene
         {
             ResetSessions();
             _preparedContexts.Clear();
+            IsInspectedOverrideForTests = null;
             _managers?.Dispose();
             _managers = null;
         }

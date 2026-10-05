@@ -27,3 +27,17 @@ MonoBehaviour:
       Persistent: 0
       Domain: 0
       Net: 0
+  - Id: 15818765898107614611
+    Type: 18
+    Address: CUT_NetCheck_Markers
+    Flags:
+      Pause: 0
+      Load: 1
+      Pool:
+        Kind: 0
+        InitialCount: 0
+        MaxCount: 0
+      Priority: 0
+      Persistent: 0
+      Domain: 0
+      Net: 1

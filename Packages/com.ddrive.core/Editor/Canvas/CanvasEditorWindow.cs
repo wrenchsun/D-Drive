@@ -815,7 +815,7 @@ namespace DDrive.Editor.CanvasTool
                 parentFoldout.Add(new Button(() => CleanUpOverrides(cleanupGroup))
                 {
                     text = "上書きをまとめて整理…",
-                    tooltip = "この埋め込みの配下を指す親の行のうち、中身が既定のままの行(自動収集されただけの行)を取り除く。設定が入っている行があれば、取り除く / 残す / キャンセルを 1 回確認する。Ctrl+Z 1 回で戻せる",
+                    tooltip = "この埋め込みの配下を指す親の行を整理する。対象の行を一覧した確認が 1 回出る(中身が既定のままの行だけなら 取り除く / キャンセル、設定が入っている行があれば 取り除く / 残す / キャンセル)。Ctrl+Z 1 回で戻せる",
                 });
                 foreach (var index in g.OverrideRows)
                 {
@@ -2059,6 +2059,14 @@ namespace DDrive.Editor.CanvasTool
                     : suspended > 0
                         ? $"● {count} 件の要素で Idle を流しています(選択した要素 {suspended} 件は止めて元の値にしています。選択を外すと再開します)"
                         : $"● {count} 件の要素で Idle を流しています(要素を選択すると、その要素だけ止まります)";
+
+                // 入れ子 Prefab(埋め込みの子など)の要素を流している間は、その値が「入れ子インスタンスへの上書き」に見える。
+                // その状態で Overrides の Apply をすると、Idle の途中の値が子の Prefab に書かれる(Apply の前に止める手段が無い)。
+                var nested = _idleFlow != null ? _idleFlow.NestedInstanceCount : 0;
+                if (count > 0 && nested > 0)
+                {
+                    text += $"\n⚠ うち {nested} 件は入れ子 Prefab(埋め込みの子など)の要素です。流している間は Hierarchy で太字(上書きあり)に見えます。Overrides の「Apply」は、このトグルをオフにしてから行ってください(流したまま Apply すると、途中の値が子の Prefab に書かれます)";
+                }
             }
 
             if (_idleFlowHint.text != text)

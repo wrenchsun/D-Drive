@@ -22,7 +22,17 @@ namespace DDrive.Editor.Materials
             public int Unchanged;
             public int TexturesCreated;
 
+            // 利用者に必ず伝えたい警告(欠けたシェーダーなど)。Lines にも「警告: 」付きで入る(従来の一覧の見え方は変えない)。
+            // 対話的な操作(右クリックの作成など)は、この一覧を Console に Warning で出す。
+            public readonly List<string> Warnings = new();
+
             public void Log(string line) => Lines.Add(line);
+
+            public void Warn(string line)
+            {
+                Warnings.Add(line);
+                Lines.Add("警告: " + line);
+            }
 
             public override string ToString()
                 => $"MaterialData 新規 {Created} / 更新 {Updated} / 変更なし {Unchanged}、TextureData 新規 {TexturesCreated}\n" + string.Join("\n", Lines);
@@ -274,7 +284,7 @@ namespace DDrive.Editor.Materials
 
             report ??= new Report();
             report.Unchanged++;
-            report.Log($"警告: '{source.name}' のシェーダーが見つからないため(パッケージ未導入・参照切れ)、既存の MaterialData '{existing.name}' は"
+            report.Warn($"'{source.name}' のシェーダーが見つからないため(パッケージ未導入・参照切れ)、既存の MaterialData '{existing.name}' は"
                        + "シェーダー・固有・共通(色・テクスチャ等)とも変更しませんでした。パッケージを戻してから取り込み直してください");
             return true;
         }

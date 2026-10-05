@@ -449,7 +449,8 @@ namespace DDrive.Editor.CanvasTool
 
             if (plan.DefaultRows.Count > 0)
             {
-                sb.Append($"\n(中身が既定のままの行 {plan.DefaultRows.Count} 件は、確認なしで取り除きます)\n");
+                sb.Append($"\n中身が既定のままの行 {plan.DefaultRows.Count} 件は、「取り除く」「残す」のどちらでも取り除きます:\n");
+                AppendRowPaths(sb, rows, plan.DefaultRows);
             }
 
             sb.Append("\n「取り除く」: 設定のある行も取り除き、子の CanvasData の設定を使います。\n");
@@ -458,12 +459,56 @@ namespace DDrive.Editor.CanvasTool
             return sb.ToString();
         }
 
+        private static void AppendRowPaths(System.Text.StringBuilder sb, ElementFx[] rows, List<int> indices)
+        {
+            for (var i = 0; i < indices.Count && i < MaxListedRows; i++)
+            {
+                sb.Append("・").Append(rows[indices[i]].ElementPath).Append('\n');
+            }
+
+            if (indices.Count > MaxListedRows)
+            {
+                sb.Append($"・ほか {indices.Count - MaxListedRows} 件\n");
+            }
+        }
+
+        // 既定のままの行だけがあるときの確認の本文(「上書きをまとめて整理…」用)。
+        public static string BuildDefaultOnlyConfirmMessage(CanvasData parent, OverridePlan plan)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"埋め込み '{plan.RootPath}' の配下に、中身が既定のまま(何も割り当てていない)の親の ElementFx の行が {plan.DefaultRows.Count} 件あります。\n");
+            sb.Append("親の行は、中身が空でも子の CanvasData の同じ要素の設定より優先されます(子の演出がこの親の中では効きません)。\n\n");
+            AppendRowPaths(sb, parent.ElementEffects, plan.DefaultRows);
+            sb.Append("\n「取り除く」: これらの行を取り除き、子の CanvasData の設定を使います。\n");
+            sb.Append("「キャンセル」: 何も変更しません(子の演出をこの親の中でだけ止めるために、わざと置いた行なら残してください)。");
+            return sb.ToString();
+        }
+
         // 設定のある行があれば 1 回だけ確認する(無ければ確認なしで Remove)。
         public static OverrideChoice ConfirmOverrides(CanvasData parent, OverridePlan plan, string title)
+            => ConfirmOverrides(parent, plan, title, confirmDefaultOnly: false);
+
+        // confirmDefaultOnly = true: 設定のある行が無く、既定のままの行だけのときも 1 回確認する(取り除く / キャンセル)。
+        // 登録の操作では false(自動収集で集まった行を黙って片付ける)、利用者が自分で押す「上書きをまとめて整理…」では true
+        // (子の演出を止めるためにわざと置いた空の行を、確認なしで消さない)。
+        public static OverrideChoice ConfirmOverrides(CanvasData parent, OverridePlan plan, string title, bool confirmDefaultOnly)
         {
             if (plan.CustomRows.Count == 0)
             {
-                return OverrideChoice.Remove;
+                if (!confirmDefaultOnly || plan.DefaultRows.Count == 0)
+                {
+                    return OverrideChoice.Remove;
+                }
+
+                var defaultOnlyMessage = BuildDefaultOnlyConfirmMessage(parent, plan);
+                if (ConfirmOverrideCleanupForTests != null)
+                {
+                    return ConfirmOverrideCleanupForTests(title, defaultOnlyMessage);
+                }
+
+                return EditorUtility.DisplayDialog(title, defaultOnlyMessage, "取り除く(子の CanvasData の設定を使う)", "キャンセル")
+                    ? OverrideChoice.Remove
+                    : OverrideChoice.Cancel;
             }
 
             var message = BuildConfirmMessage(parent, plan);
@@ -569,7 +614,7 @@ namespace DDrive.Editor.CanvasTool
                 return default;
             }
 
-            var choice = ConfirmOverrides(parent, plan, "親での上書きの整理");
+            var choice = ConfirmOverrides(parent, plan, "親での上書きの整理", confirmDefaultOnly: true);
             Undo.IncrementCurrentGroup();
             Undo.SetCurrentGroupName(undoName);
             var group = Undo.GetCurrentGroup();
@@ -612,6 +657,14 @@ namespace DDrive.Editor.CanvasTool
             cleanup = default;
             var rows = parent != null ? parent.EmbeddedCanvases : null;
             if (rows == null || index < 0 || index >= rows.Length)
+            {
+                return false;
+            }
+
+            // 値が変わらない(正規化したら同じ RootPath になった・同じ子を選び直した)ときは、整理も確認もしない。
+            var newId = newChild != null ? newChild.Id : 0UL;
+            if (string.Equals(rows[index].RootPath ?? string.Empty, newRootPath ?? string.Empty, StringComparison.Ordinal)
+                && rows[index].Canvas.Value == newId)
             {
                 return false;
             }
