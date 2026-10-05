@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-10-06T02:01:41
   ChangeNote: 
   Flags:
     Pause: 0
@@ -74,8 +74,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -120,8 +120,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -166,8 +166,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -212,8 +212,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -258,8 +258,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -304,8 +304,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -353,8 +353,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -399,8 +399,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -445,8 +445,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -491,8 +491,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
