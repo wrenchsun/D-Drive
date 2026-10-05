@@ -54,11 +54,20 @@ namespace DDrive.Editor.Creation
 
             // BeginBatch を呼んだ操作の後始末(キャンセル・例外でも呼ばれる)。
             public Action EndBatch;
+
+            // CreateOverride を使う種別用: 直前の CreateOverride が返した Data が「既にあったもの」なら true。
+            // 設定されていれば、CreateFromSelection が「新規 N 件 / 既存 M 件」の集計に使う(未設定なら新規として数える)。
+            public Func<bool> LastCreateWasExisting;
         }
 
         // Material の右クリック作成で、1 操作ぶんに解決した「知らないシェーダー」の扱い(BeginBatch が決め、EndBatch が戻す)。
         // null = 非対話(バッチモード)なので、Profile の方針に任せる(Ask は Lit に変換するが既存 Data の知らないシェーダーは保つ)。
         private static UnknownShaderHandling? _materialHandling;
+
+        // Material の右クリック作成 1 操作ぶんの取り込みの記録(新規 / 更新 / 変更なしの件数と、警告の行)。
+        // EndBatch で警告の行を Console に出す(欠けたシェーダーで Lit にした / 既存の Data を変更しなかった、など)。
+        private static MayaMaterialImporter.Report _materialReport;
+        private static bool _materialLastWasExisting;
 
         private static List<Option> _options;
 
@@ -139,14 +148,20 @@ namespace DDrive.Editor.Creation
                         return null;
                     }
 
-                    return _materialHandling.HasValue
-                        ? UnityMaterialMigrator.Migrate(material, category, null, AssetCreationService.DefaultGameDataRoot, _materialHandling.Value)
-                        : UnityMaterialMigrator.Migrate(material, category);
+                    _materialReport ??= new MayaMaterialImporter.Report();
+                    var createdBefore = _materialReport.Created;
+                    var data = _materialHandling.HasValue
+                        ? UnityMaterialMigrator.Migrate(material, category, _materialReport, AssetCreationService.DefaultGameDataRoot, _materialHandling.Value)
+                        : UnityMaterialMigrator.Migrate(material, category, _materialReport);
+                    _materialLastWasExisting = data != null && _materialReport.Created == createdBefore;
+                    return data;
                 },
+                LastCreateWasExisting = () => _materialLastWasExisting,
                 // 右クリックの「Material を作成」はユーザーが直接起こす操作なので、知らないシェーダーの確認を 1 操作 1 回出す(FC-R-01)。
                 BeginBatch = paths =>
                 {
                     _materialHandling = null;
+                    _materialReport = new MayaMaterialImporter.Report();
                     if (!UnknownShaderGuard.IsInteractiveSession())
                     {
                         return true;
@@ -171,7 +186,11 @@ namespace DDrive.Editor.Creation
                     _materialHandling = handling;
                     return true;
                 },
-                EndBatch = () => _materialHandling = null,
+                EndBatch = () =>
+                {
+                    FlushMaterialReportWarnings();
+                    _materialHandling = null;
+                },
             };
 
             // Sprite(画像) → Skin。Normal 状態の見た目だけ入れて、他の状態はデザイナーが Skin Editor で足す。
@@ -194,6 +213,27 @@ namespace DDrive.Editor.Creation
                 LoadSource = path => AssetDatabase.LoadAssetAtPath<Sprite>(path),
                 Configure = (data, source, path) => ((ControlSkinData)data).Normal.OverrideSprite = (Sprite)source,
             };
+        }
+
+        // 取り込みの記録のうち「警告:」で始まる行を Console に Warning で出す(1 操作ぶん。出したら記録を捨てる)。
+        private static void FlushMaterialReportWarnings()
+        {
+            var report = _materialReport;
+            _materialReport = null;
+            _materialLastWasExisting = false;
+            if (report == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < report.Lines.Count; i++)
+            {
+                var line = report.Lines[i];
+                if (line != null && line.TrimStart().StartsWith("警告", StringComparison.Ordinal))
+                {
+                    Debug.LogWarning("[DDrive] " + line.Trim());
+                }
+            }
         }
 
         // ── メニューからの呼び出し ──
@@ -293,7 +333,9 @@ namespace DDrive.Editor.Creation
             if (option.CreateOverride != null)
             {
                 // 専用経路(Material)。重複判定・カタログ登録はあちら側の責務。
-                return option.CreateOverride(assetPath, category);
+                var overridden = option.CreateOverride(assetPath, category);
+                wasExisting = overridden != null && option.LastCreateWasExisting != null && option.LastCreateWasExisting();
+                return overridden;
             }
 
             var guid = AssetDatabase.AssetPathToGUID(assetPath);

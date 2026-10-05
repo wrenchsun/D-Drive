@@ -48,7 +48,7 @@ namespace DDrive.Editor.Model
             string gameDataRoot = AssetCreationService.DefaultGameDataRoot)
             => Rebuild(data, ensureMaterials, report, gameDataRoot, interactive: false);
 
-        // interactive = ユーザーが Editor で直接起こした操作(Model エディタの「元ファイルを再読み込み」など)。
+        // interactive = ユーザーが Editor で直接起こした操作(Model エディタの「元ファイル再読み込み」など)。
         // ensureMaterials かつ Profile の UnknownShaderPolicy が Ask で、知らないシェーダーの Material があるときだけ、
         // 作り直す前に 1 回だけ確認ダイアログを出す。キャンセルなら何も書き換えずに false を返す(FC-15)。
         // 非対話(自動取り込み・バッチ・テスト)は false を渡す = 従来どおり DDrive/Lit に変換する。

@@ -77,6 +77,30 @@ namespace DDrive.Tests.Editor
 
     public class CanvasEmbeddedEditingTests
     {
+        // 入力中の判定: Unity 6 ではフォーカス中の要素は欄そのもの(TextField / 数値欄 / 検索欄)。内側の入力部品でも、
+        // その中の文字の要素でも「入力中」と判定する。ボタンやラベルは入力欄ではない。
+        [Test]
+        public void IsTextInputElement_TextAndSearchFields_AreInput_ButtonsAreNot()
+        {
+            var text = new UnityEngine.UIElements.TextField();
+            var number = new UnityEngine.UIElements.IntegerField();
+            var search = new UnityEditor.UIElements.ToolbarSearchField();
+            Assert.IsTrue(CanvasEmbeddedEditing.IsTextInputElement(text), "TextField そのもの");
+            Assert.IsTrue(CanvasEmbeddedEditing.IsTextInputElement(number), "数値欄そのもの");
+            Assert.IsTrue(CanvasEmbeddedEditing.IsTextInputElement(search), "検索欄そのもの");
+
+            var inner = UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.VisualElement>(text, className: "unity-base-text-field__input");
+            Assert.IsNotNull(inner);
+            Assert.IsTrue(CanvasEmbeddedEditing.IsTextInputElement(inner), "内側の入力部品");
+            var innerText = UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.TextElement>(search);
+            Assert.IsNotNull(innerText);
+            Assert.IsTrue(CanvasEmbeddedEditing.IsTextInputElement(innerText), "検索欄の中の文字の要素");
+
+            Assert.IsFalse(CanvasEmbeddedEditing.IsTextInputElement(new UnityEngine.UIElements.Button()), "ボタンは入力欄ではない");
+            Assert.IsFalse(CanvasEmbeddedEditing.IsTextInputElement(new UnityEngine.UIElements.Label("x")));
+            Assert.IsFalse(CanvasEmbeddedEditing.IsTextInputElement(new UnityEngine.UIElements.Toggle("x")));
+            Assert.IsFalse(CanvasEmbeddedEditing.IsTextInputElement(null));
+        }
         private const string TempName = "EmbeddedCanvas";
         private string _folder;
         private readonly List<Object> _objects = new();

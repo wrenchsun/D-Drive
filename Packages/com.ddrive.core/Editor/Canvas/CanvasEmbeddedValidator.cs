@@ -51,14 +51,14 @@ namespace DDrive.Editor.CanvasTool
                 if (child.Flags.Load != LoadMode.Preload)
                 {
                     yield return ValidationResult.Warning(
-                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{child.DisplayName}' の Load が Preload ではありません(親を Open した時点で読み込まれていないと、この埋め込みは「読み込まれていません」の警告でスキップされます。子の CanvasData を Preload にしてください)",
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{ChildName(child)}' の Load が Preload ではありません(親を Open した時点で読み込まれていないと、この埋め込みは「読み込まれていません」の警告でスキップされます。子の CanvasData を Preload にしてください)",
                         code: "DD-CANVAS-EMBED-NOT-PRELOAD");
                 }
 
                 if (ReachesBack(child, canvas, lookup, 0))
                 {
                     yield return ValidationResult.Warning(
-                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{child.DisplayName}' が(入れ子をたどると)この Canvas を埋め込んでいます(循環。この埋め込みは無視されます)",
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{ChildName(child)}' が(入れ子をたどると)この Canvas を埋め込んでいます(循環。この埋め込みは無視されます)",
                         code: "DD-CANVAS-EMBED-CYCLE");
                     continue;
                 }
@@ -77,7 +77,7 @@ namespace DDrive.Editor.CanvasTool
                 if (child.Prefab != null && !IsInstanceOf(rootTransform.gameObject, child.Prefab))
                 {
                     yield return ValidationResult.Warning(
-                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': この場所の実体が、子 Canvas '{child.DisplayName}' の Prefab のインスタンスではありません(パスや子の CanvasData の指定違いかもしれません)",
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': この場所の実体が、子 Canvas '{ChildName(child)}' の Prefab のインスタンスではありません(パスや子の CanvasData の指定違いかもしれません)",
                         code: "DD-CANVAS-EMBED-PREFAB");
                 }
 
@@ -93,7 +93,7 @@ namespace DDrive.Editor.CanvasTool
                 if (overlapJ >= 0)
                 {
                     yield return ValidationResult.Warning(
-                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{child.DisplayName}' が自分で埋め込んでいる場所が、EmbeddedCanvases[{overlapJ}] '{canvas.EmbeddedCanvases[overlapJ].RootPath}' としても登録されています(埋め込みが重なっています)。" +
+                        $"EmbeddedCanvases[{i}] '{embed.RootPath}': 子 Canvas '{ChildName(child)}' が自分で埋め込んでいる場所が、EmbeddedCanvases[{overlapJ}] '{canvas.EmbeddedCanvases[overlapJ].RootPath}' としても登録されています(埋め込みが重なっています)。" +
                         "同じ要素は 1 回だけ適用され、先に担当した側(浅い入れ子の側 / 内側の登録)が優先されます。どちらかの登録を外してください",
                         code: "DD-CANVAS-EMBED-NESTED-ROOT");
                 }
@@ -102,6 +102,10 @@ namespace DDrive.Editor.CanvasTool
 
         // embeds[i] の子 Canvas(child)が入れ子で埋め込む場所(embeds[i].RootPath からの連結パス)のうち、親の別の登録(j != i)の
         // 配下または同じ場所にあるものがあれば、その j を返す(無ければ -1)。深さ 8 で打ち切り。
+        // メッセージに出す子 Canvas の名前。DisplayName が空の Data は、アセット名で代替する(空の引用符だけが出ないように)。
+        private static string ChildName(CanvasData child)
+            => child == null ? string.Empty : string.IsNullOrEmpty(child.DisplayName) ? child.name : child.DisplayName;
+
         private static int FindOverlappingRegistration(CanvasData canvas, int i, CanvasData child, CanvasEmbeddedEditing.CanvasLookup lookup)
         {
             var visited = new HashSet<CanvasData> { canvas };
@@ -218,7 +222,7 @@ namespace DDrive.Editor.CanvasTool
                     {
                         if (string.Equals(p.ElementPath, joined, System.StringComparison.Ordinal) && seen.Add("fx|" + joined))
                         {
-                            yield return $"親に '{joined}' の ElementFx の行があるため、子 Canvas '{child.DisplayName}' の同じ要素の ElementFx は使われません(ElementFx は要素単位)";
+                            yield return $"親に '{joined}' の ElementFx の行があるため、子 Canvas '{ChildName(child)}' の同じ要素の ElementFx は使われません(ElementFx は要素単位)";
                         }
                     }
                 }
@@ -233,7 +237,7 @@ namespace DDrive.Editor.CanvasTool
                     {
                         if (p.Trigger == c.Trigger && string.Equals(p.ButtonPath, joined, System.StringComparison.Ordinal) && seen.Add("btn|" + joined + "|" + c.Trigger))
                         {
-                            yield return $"親に '{joined}' の {c.Trigger} 配線があるため、子 Canvas '{child.DisplayName}' の同じ要素・同じトリガーの配線は使われません(別のトリガーの配線は子の設定が使われます)";
+                            yield return $"親に '{joined}' の {c.Trigger} 配線があるため、子 Canvas '{ChildName(child)}' の同じ要素・同じトリガーの配線は使われません(別のトリガーの配線は子の設定が使われます)";
                         }
                     }
                 }
@@ -248,7 +252,7 @@ namespace DDrive.Editor.CanvasTool
                     {
                         if (p.Trigger == c.Trigger && string.Equals(p.ElementPath, joined, System.StringComparison.Ordinal) && seen.Add("sld|" + joined + "|" + c.Trigger))
                         {
-                            yield return $"親に '{joined}' の {c.Trigger} 配線(スライダー)があるため、子 Canvas '{child.DisplayName}' の同じ要素・同じトリガーの配線は使われません(別のトリガーの配線は子の設定が使われます)";
+                            yield return $"親に '{joined}' の {c.Trigger} 配線(スライダー)があるため、子 Canvas '{ChildName(child)}' の同じ要素・同じトリガーの配線は使われません(別のトリガーの配線は子の設定が使われます)";
                         }
                     }
                 }

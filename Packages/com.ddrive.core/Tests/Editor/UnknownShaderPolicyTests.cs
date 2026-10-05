@@ -644,7 +644,7 @@ namespace DDrive.Tests.Editor
             }
         }
 
-        // ── ModelSlotBinder.Rebuild(Model エディタの「元ファイルを再読み込み」) ──
+        // ── ModelSlotBinder.Rebuild(Model エディタの「元ファイル再読み込み」) ──
 
         private ModelData CreateModelWithUnknownMaterial()
         {
