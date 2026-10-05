@@ -446,6 +446,24 @@ T-Drive（別リポジトリ。Maya + Unity のトゥーン / 表情ツール）
 | FC-18 | **= doc17 M-8【優先 低】プロジェクト設定の検証の拡張点**: 外部パッケージが「プロジェクト設定の検証」（必要な Renderer Feature が入っているか等）を D-Drive のセットアップ検証と同じ場所に出せるようにする。**今でも `IUniversalValidator`（public・引数なしコンストラクタで `CI.DiscoverValidators` が発見）で代用できる**（`ProjectSetupValidator` と同じ仕組み）ため、まず代用方法の文書化と E-6 での固定で足りる。ウィザード（`ProjectSetupWizardWindow`）に外部の検査を出したい場合のみ `TypeCache` 発見の登録口（例 `IProjectSetupCheck`）を追加 | ED | 0.5 | FC-10 | **後回し**。想定 AC: 外部の `IUniversalValidator` の結果が `Run All` と（追加するなら）ウィザードに出る・外部の例外で検査が止まらない・Data が 0 件でも 1 回呼ばれる（既存挙動の確認） |
 | FC-19 | **= doc17 M-9【優先 低】検証の警告の調整**（PATCH 見立て）: (a) `MaterialDataValidator` の「`Common.Albedo` が未設定」を、色だけのマテリアル（`AlbedoTint` が白以外）では出さない。(b) `MaterialData.RenderingLayerMask` は欄があるだけで実行時に使われていない（`MaterialConverter` がコピーするだけ。`ModelData.LightLayerMask` が効く）ため、Tooltip を「未使用。ライトレイヤーは ModelData.LightLayerMask」に直し、値が 0 以外のときは Info を出す（実装する案は `LightLayerMask` と意味が衝突するため不採用）。警告を減らす変更は自由（[42] §5.8）、Info の追加は Warning ではないので 2 段階不要 | 基盤 | 0.5 | なし | EditMode / PlayMode（`MaterialDataValidatorTests`）: Albedo 無し + `AlbedoTint` 白で従来どおり Warning・`AlbedoTint` が白以外で Warning なし・`RenderingLayerMask` が 0 以外で Info・`ValidatorSeverityRegistryTests` のスナップショット更新。CHANGELOG 互換性節（PATCH 相当）。[06] A-4 追記。EditMode + PlayMode 両方 green | → ✅ 実装（2026-10-03）: (a) `MaterialDataValidator` の Albedo 未設定 Warning を、`AlbedoTint` が白以外、または割り当てシェーダーに Albedo のプロパティが無い（`MaterialCommonBinding.IsSupported` で判定できた）ときは出さない。(b) `RenderingLayerMask` の Tooltip を「未使用。ライトレイヤーは ModelData.LightLayerMask を使う」に直し、0 以外のときだけ Info（新規コード `DD-MAT-RENDERINGLAYERMASK-UNUSED`。既存の `.asset` に 0 以外は無く Info は増えない）。フィールド名・型・シリアライズは不変（スナップショット差分なし）。PlayMode `MaterialDataValidatorTests` 4 件。EditMode 1289/1289 / PlayMode 876/876 green。詳細は [51] §4.20 実装メモ
 
+## 開発リポジトリの確認用データの整理（2026-10-06、run-ci [2/8]・[3/8] を green にするため。`chore/dev-repo-gamedata-cleanup`）
+
+v1.4.0 のリリース手順（[12_review.md] §7）の `Tools/CI/run-ci.cmd` を通すため、`Assets/GameData`（開発リポジトリの確認用データ。パッケージには入らない）の Validation Error を整理した。パッケージのコード・Validator・テストは変更していない（`CHANGELOG.md` も変更なし）。
+
+| 段階 | Error | 内容 |
+|---|---|---|
+| 着手前（マイグレーション適用後） | 118 | Preload 50 / Retiming 56 / Canvas 7 / その他 5 |
+| 1. マイグレーション適用 | 118 | Data 70 件の `SchemaVersion` 0 → 1（`MigrationMenu.ApplyMenuItem`）。`CI.MigrateCheck` が green |
+| 2. Preload | 68 | Validator の FixAction で `Flags.Load` を Preload に（50 件） |
+| 3. Retiming | 12 | `Mode=Constant` の ValueDef の `Time` が既定値 0（Duration / Value=0 / SpeedScale=0）だった 28 欄を Value=1・SpeedScale=1 に（Anim2D の Retiming 5・ButtonSkin/SliderSkin の Scale・CameraShake の Frequency）。Constant では Time は評価に使われず、Constant の値は変えていないので実行時の見た目は変わらない |
+| 4. Canvas | 10 | `CANVAS_Can_Vas` の `ElementEffects[1]`（全項目が既定値で `ElementPath` 空）と `CANVAS_Can_Popup` の `Navigation[0]`（`BtnOption`・方向がすべて空）を除去 |
+| 5. その他 | 8 | `BGM_Title_Test` の `LoopEndSec` を LoopBody の長さ（3.422 秒、全体ループ）に。`TEX_Jam_House` の Usage を UI → Model（取り込み設定が Default テクスチャのままで、Sprite 化は .meta の変更になるため） |
+
+最終の `CI.ValidateAll`: Error 8 / Warning 21 / Info 35（ForbiddenApi 0）。直さず残したもの（ユーザー判断待ち）:
+- `SE_Player_Slash`（Clips が空）・`VFX_Player_Slash2`（Prefab 未設定）: 作成時から一度も設定されたことが無いデモ用データ。差し替え候補が一意に決まらない。
+- `CANVAS_Can_Vas` の `Navigation`（行 0・1）と `FirstSelected`: `Button1` / `Button2` を指すが、参照先の Prefab（`Panel.prefab`）には作成時から `BtnStart` / `BtnOption` / `BtnQuit` / `Slider1` しかなく、対応関係が決められない（5 件）。
+- カタログ `AnchorCatalog` の孤児 Address `ANC_Can_Vas`: Data が無く、`AddressablesSync.SyncAll` では消えない（カタログの `entries` から該当行を除く必要がある）。
+
 ## U チケット: 使い勝手の修正（2026-09-17 追加。詳細は [39](39_usability_fixes_2026-09-17.md)）
 
 デザイナーマニュアル用のスクリーンショット撮影（[36 §5](36_manual_screenshot_list.md)）と実機での通し確認で見つかった不具合・要望 26 件（U-1〜U-26）。3D プレビューが透明になる件・FBX のマテリアルスロット未割当・「確認用シーンに配置」の挙動・作成導線（Project / Hierarchy 右クリック）などが含まれる。**Phase 7 より先に片付ける**。一覧と状態は [39](39_usability_fixes_2026-09-17.md) §0。
