@@ -190,6 +190,32 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
 - **2026-10-03 レビュー対応（[54](54_review_p15_canvas_2026-10-03.md)）**: 重なる登録の二重適用を担当表方式で解消（1 要素 1 回。内側の登録が先）、担当の単位は ElementFx = 要素 / ボタン・スライダー = (要素, トリガー)、`SendSignal` の `ElementPath` は子のルート基準 + 新しい `SignalArgs.EmbeddedRootPath`、`EmbeddedCanvasPaths` は internal 化、選択に追従の入力途中の値は切り替え前の対象に確定。詳細は [07](07_canvas_prefab.md) の「追記（2026-10-03、レビュー [54]）」。
 - **2026-10-06 人による確認の対応（[43] §16、16-2 / 16-24 / 16-7）**: Undo / Redo のあと埋め込み Canvas 欄が描き直されなかった不具合を修正（`RefreshAfterUndoRedo`。[09 §2.1](09_editor_tools.md) 追記）。🔒 が ON の間は「選択に追従」を灰色にして理由を表示（動作は不変）。
 
+### 2026-10-06 追記（U-29: 埋め込みの登録時の行の整理 / プレハブモードで Idle を流す）
+
+タグ前の人による確認（[43] §16）で出た要望 7 と分かりにくい点 4（ユーザーが v1.4.0 に入れると決定）。**Editor のみの変更**（Runtime・シリアライズ・公開 API は無変更）。
+
+**a. 埋め込みの登録時に、親に入っているその子の配下の行を整理する**
+
+- **問題**: 登録の前に親で「要素を自動収集」を押すと、入れ子の中の要素も親の ElementFx の行として集まる（`Inner/Deep` など）。そのあと埋め込みとして登録すると、それらは「親での上書き」として残り、規則 A（Open した CanvasData 自身の行が子に勝つ）により子の CanvasData の設定より優先される。中身が空の行でも要素単位で上書きになるため、子の演出が黙って効かなくなる。
+- **整理の対象**: 登録する埋め込みルートの**配下**（ルート自身の行は対象外 = U-28 の決まり）を指す親の `ElementEffects` の行。
+  - **既定のままの行** = `ElementPath` 以外の全欄が `default`（Appear / Idle / Disappear の直接指定 Id が無効、3 つのプリセットが種類 `None` かつ Duration = 0・Distance = 0・EaseOverride = 既定・Se 無効、`AppearDelay` = 0、`AppearSe` / `DisappearSe` 無効）。**確認なしで取り除く**。`ElementFx` / `UiPresetRef` / `EaseDef` に欄が増えたら `CanvasOverrideCleanupTests.IsDefaultFx_CoversEveryField_FieldCountsAreFixed` が落ちて判定の見直しを促す。
+  - **設定が入っている行**がある場合は確認ダイアログを 1 回（`EditorUtility.DisplayDialogComplex`）。本文に設定のある行のパスを先頭 5 件 +「ほか N 件」で列挙し、既定のままの行は件数だけ添える。ボタン = 「取り除く(子の CanvasData の設定を使う)」/「残す(親での上書きとして残る)」/「キャンセル(登録しない)」。「残す」は既定のままの行だけ取り除く。
+  - 親の `Buttons` / `Sliders` の配線は自動収集されないので**削除しない**。配下を指す配線があれば、ステータスに件数（「親の配線(Buttons n 件 / Sliders m 件)がこの配下を指しています」）を出すだけ。
+- **契機**: 「埋め込みとして登録」（検出からの 1 クリック）、登録済みの行の RootPath 欄・子 CanvasData 欄の変更（新しい配下を整理。確認でキャンセルしたら欄の値を元に戻し何も変更しない）、既に登録済みの埋め込みの「親での上書き」グループの **「上書きをまとめて整理…」**（U-28 より前に作ったデータを直す用。同じ規則）。子 CanvasData が未設定の行は整理しない（子の設定が無いので上書きにならない）。
+- **Undo**: 登録（または欄の変更）と行の整理は 1 つの Undo グループ（`Undo.IncrementCurrentGroup` → `RecordObject` + `SetDirty` → `CollapseUndoOperations`）。Ctrl+Z 1 回で登録前に戻る。取り除いた件数はウィンドウのステータスに出す。
+- **テスト用の差し替え口**: `CanvasEmbeddedEditing.ConfirmOverrideCleanupForTests`（`Func<題, 本文, OverrideChoice>`。null なら実ダイアログ。テストは使い終わったら null に戻す）。
+
+**b. プレハブモードでも Idle を流せるようにする（「Idle を流す」トグル）**
+
+- **現状**: 確認用シーン（実 `UiManager` が開いた実体）では Idle は元から流れる。プレハブモードでは自動では動かず、行の ▶ 再生で 1 つずつ確認するだけだった。
+- **仕様**: ElementFx 見出しの下に「Idle を流す(プレハブモード)」（既定オフ。**保存しない** = 開き直すとオフ。Play Mode に入るときもオフに戻す）。オンにすると、プレハブモード（対象の Prefab、または対象を埋め込んでいる親の Prefab）のステージ内で、Idle が割り当てられた**全要素**の Idle を流し続ける。割り当ての解決は実行時と同じ（`CanvasIdleFlow.CollectEntries`: Open した CanvasData 自身 > 浅い入れ子の子 > 深い入れ子の子。親の行は空でも勝つ。循環・深さ 8 超は無視）。子を編集対象にして親のプレハブモードに居るときは、ステージの持ち主（親）の全体の Idle を流す。トグルの下に状態の 1 行（流している件数・止めている要素の数・「プレハブモードで…開いているときに流せます」）を出す。**確認用プレビューのみのときはトグルを灰色にして「確認用プレビューでは Idle は常に流れています」と表示**（流れるのは元から）。
+- **再生の実体**: Editor 専用の再生経路は作っていない（ADR-4）。ウィンドウ専用の実 `UiTweenManager` に、`UiManager.StartIdle` と同じ形（直接指定 Id → `PlayData`、なければ `UiPresetFactory.Build` → `PlayTracks`）で流す。Tick は既存の `EditorApplication.update`（`OnEditorUpdate`）に相乗りしており、**新しい update 購読は増やしていない**（ウィンドウを閉じる `OnDisable` で解除される既存のもの）。オフのときは Idle の処理は走らず、状態表示の更新（4Hz）だけ。SceneView の再描画は、実際に動いている Idle があるときだけ 30Hz まで。
+- **プレハブを汚さない（後始末の経路）**: 流す前の値（位置・サイズ・スケール・回転・CanvasGroup の alpha・Graphic の色・Image の fillAmount）を専用の `ElementFxStateSnapshot` に控え、`CanvasIdleFlow.Stop()` が**止めてから元の値へ戻す**。`Stop()` を呼ぶ契機: トグルをオフ / **保存の直前**（`PrefabStage.prefabSaving`。保存後は 0.25 秒以内の更新で流し直す）/ **プレハブモードを閉じる**（`prefabStageClosing`）/ 編集対象の切り替え（`ApplyTarget`）/ **Play Mode に入る**（`ExitingEditMode`。トグルもオフ）/ **ウィンドウを閉じる・ドメインリロード**（`OnDisable`）/ 対象の Prefab のステージでなくなったとき（更新で検出）。Undo には積まない。実機（MCP の `execute_code`）で、流している途中の `SavePrefab` の直前に元の値へ戻り、保存された Prefab に途中の値が入らないこと、流している間もステージが dirty にならないこと、プレハブモードを閉じたあとも元の値のままであることを確認した。
+- **編集とぶつからない（選んだ対処）**: 流している間にユーザーが要素を動かすと Idle の値と編集の値が混ざる。**選択した要素（とその祖先）の Idle だけ止めて元の値へ戻し、選択を外すと値を取り直して再開する**（`CanvasIdleFlow.SuspendFor`）。祖先も止めるのは、親の Idle のスケール・位置が選択した子のハンドル位置を揺らすため。再開時に取り直すので、止めている間にユーザーが動かした値が新しい基準になり失われない（Idle の値が混ざらない）。選択の変化は `OnSelectionChange` に加えて毎フレームの軽い比較（active と本数）でも拾う（コード経由・非アクティブ時の選択変更で `OnSelectionChange` が遅れるのを実機で確認したため）。もう一つの案（編集操作の検出で全体を自動オフ）は、Undo の記録を拾う公式の手段が散らばっていて確実さに欠けるため採らなかった。行の「▶ 再生」（Appear / Disappear / Idle の個別・まとめ再生）を押すと、その間は Idle 全体を止めて元の値へ戻し（再生前の値として Idle の途中の値を控えないため）、再生が終わって値が戻ったら再開する。
+- **実装**: `Editor/Canvas/CanvasIdleFlow.cs`（新規。流す対象の解決・開始・停止・選択による一時停止）、`CanvasEditorWindow.cs`（トグル・`PollIdleFlow`・保存 / 閉じる / Play Mode のフック・`AnyPhasePreviewActive`）、`ElementFxStateSnapshot.Remove`。
+- **テスト**: EditMode `CanvasOverrideCleanupTests`（既定の判定・全欄の網羅・配下の抽出・ダイアログの 3 択・Undo 1 回・欄の変更・まとめて整理）、`CanvasIdleFlowTests`（流す → 止めたら元の値へ・ループのどの時点でも戻る・選択で止める / 取り直す・何を流すか〔親の行が勝つ・入れ子・循環〕・署名・ウィンドウのトグル）。プレハブステージを開く確認は上記の実機確認と [43] §16 の目視。
+- 人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-26〜16-35。
+
 ### U-25（Signal を手動で送る導線）
 
 **2026-09-17 実装済み（改善）。** 「Presentation の Signal を手動で送る操作のやり方が分からない」という報告について、機能自体（統合プレビュー内の「Signal レーン(手動発火)」に Signal Key ごとのボタンが並ぶ仕組み）は既に実装済みだったため、**分かりにくさの原因を特定してから直した**。
@@ -222,6 +248,7 @@ U-10（Button Skin Editor の「SE も鳴らす」が見切れる）はこの条
   `style.height=StyleKeyword.Auto` の併用で解決できることを確認(ただし現状どの Toolbar も 500px で破綻していない
   ため未適用、今後の指針として記録)。点検結果の一覧・誤検出として除外した 2 パターン(GraphView のパン領域、
   TextField 内部のネイティブスクロール)は [09_editor_tools.md §7.1.1/§7.1.2](09_editor_tools.md) を参照。
+- 2026-10-06: U-29（埋め込みの登録時に配下の行を整理 / プレハブモードで Idle を流す）を実装。詳細は上の「2026-10-06 追記」。
 - 2026-10-03: Canvas の埋め込み(入れ子)対応（U-28）を実装。詳細は上の「2026-10-03 追記」。
 - 2026-09-29: ElementFx プレビューの使い勝手 3 件（プレハブモードでも ▶ 再生できる／▶ のたびに初期状態へ戻す／「選択」「フォーカス」ボタンと ▶ 時の自動選択）を実装。詳細は上の「2026-09-29 追記」。
 - 2026-09-17: U-25（Presentation の Signal を手動で送る導線を分かりやすくする）を実装。統合プレビューの「Signal レーン(手動発火)」に手順を明文化したラベルを追加し、再生中でなければ Signal ボタンをグレーアウトするようにした(`PresentationEditorWindow.Preview.cs`/`PresentationEditorWindow.cs`)。`docs/DesignerManual/presentation.html` を更新し、スクリーンショット #53 を撮影可能にした([36](36_manual_screenshot_list.md))。

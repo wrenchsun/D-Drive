@@ -106,6 +106,23 @@ namespace DDrive.Editor.CanvasTool
         private readonly ElementFxStateSnapshot _stageStates = new();
         private readonly List<RectTransform> _targetScratch = new();
 
+        // 2026-10-06(U-29b): 「Idle を流す」(プレハブモードで Idle が割り当てられた全要素の Idle を流し続ける)。
+        // トグルの状態はウィンドウのセッション内だけ(保存しない。開き直すとオフ)。実体は CanvasIdleFlow(流す前の値を控えて必ず戻す)。
+        private CanvasIdleFlow _idleFlow;
+        private bool _idleFlowOn;
+        private bool _idleHeldByPhase;          // 行の ▶ 再生(Appear / Disappear 等の個別再生)の間は Idle を止めて、終わったら再開する
+        private int _idleSignature;             // 今流している内容(ステージ + 割り当て)の署名。変わったら作り直す
+        private bool _idleBuilt;
+        private double _lastIdlePoll;
+        private double _lastIdleRepaint;
+        private int _idleSelectionActiveId;
+        private int _idleSelectionCount;
+        private readonly List<CanvasIdleFlow.Entry> _idleEntries = new();
+        private Toggle _idleFlowToggle;
+        private Label _idleFlowHint;
+        private const double IdlePollInterval = 0.25;
+        private const double IdleRepaintInterval = 1.0 / 30.0;
+
         // (レビュー対応 2026-09-14) FindUiTweenData が ▶ のたびに(「▶ 全〜」では要素数ぶん)AssetDatabase を
         // 全走査していた。Id → アセットの対応を 1 回の走査でまとめて作り、ヒットしなかったときだけ作り直す。
         private readonly Dictionary<ulong, UiTweenData> _tweenLookup = new();
@@ -145,6 +162,8 @@ namespace DDrive.Editor.CanvasTool
             Undo.undoRedoPerformed += OnUndoRedoPerformed;
             PrefabStage.prefabStageClosing += OnPrefabStageClosing;
             PrefabStage.prefabSaving += OnPrefabSaving;
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+            _idleFlow = new CanvasIdleFlow(_tweenManager, FindUiTweenData);
 
             // (レビュー対応 2026-09-14) 前回閉じ損ねた・ドメインリロードで参照を失ったプレビュールートの残骸を消す。
             EditorPreviewRoots.DestroyAll(PreviewRootName);
@@ -155,8 +174,11 @@ namespace DDrive.Editor.CanvasTool
             Undo.undoRedoPerformed -= OnUndoRedoPerformed;
             PrefabStage.prefabStageClosing -= OnPrefabStageClosing;
             PrefabStage.prefabSaving -= OnPrefabSaving;
+            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
             EditorApplication.update -= OnEditorUpdate;
             EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
+            StopIdleFlow(); // 流していた Idle の値をプレハブに残さない(ドメインリロード・ウィンドウを閉じる前にも通る)
+            _idleFlow = null;
             ReleaseStageStates(); // プレハブモードで再生した値をプレハブに残さない(ドメインリロード前にも通る)
             RemovePreview();
             // (レビュー対応 2026-09-14) 閉じても "[D-Drive] UI Root"(レイヤー 5 枚 + プールに戻った Canvas 実体)が
@@ -187,10 +209,18 @@ namespace DDrive.Editor.CanvasTool
             _manager.Tick(dt);
             RefreshPhaseRowStatuses();
             ReleaseStageStatesIfIdle();
+            UpdateIdleFlow(now);
         }
 
         private void OnSelectionChange()
         {
+            // 流している Idle のうち、選択した要素(とその祖先)の分だけ止めて元の値へ戻す(U-29b。編集と値が混ざらないように)。
+            if (_idleFlowOn && _idleFlow != null && _idleFlow.IsActive)
+            {
+                _idleFlow.SuspendFor(Selection.transforms);
+                UpdateIdleFlowUi();
+            }
+
             if (!_lockTarget && Selection.activeObject is CanvasData data && data != _target)
             {
                 SetTarget(data);
@@ -363,6 +393,18 @@ namespace DDrive.Editor.CanvasTool
             batchPlayRow.Add(new Button(StopAllPhasePreview) { text = "■ 全て停止", tooltip = "再生中の ElementFx プレビューをまとめて止め、再生前の状態(初期位置など)へ戻す" });
             _elementFxFoldout.Add(batchPlayRow);
 
+            // 2026-10-06(U-29b): プレハブモードでも Idle を流し続ける(確認用プレビューでは元から流れる)。
+            _idleFlowToggle = new Toggle("Idle を流す(プレハブモード)")
+            {
+                value = _idleFlowOn,
+                tooltip = "プレハブモードで、Idle が割り当てられた全要素(埋め込みの子の分を含む)の Idle を流し続ける。止める・保存の直前・プレハブモードを閉じる・対象の切り替え・Play Mode に入るときは、流す前の値へ戻す(Prefab に途中の値は残らない)。設定は保存されない(開き直すとオフ)",
+            };
+            _idleFlowToggle.RegisterValueChangedCallback(evt => SetIdleFlow(evt.newValue));
+            _idleFlowHint = new Label { style = { whiteSpace = WhiteSpace.Normal, opacity = 0.8f, marginLeft = 4, marginBottom = 4 } };
+            _elementFxFoldout.Add(_idleFlowToggle);
+            _elementFxFoldout.Add(_idleFlowHint);
+            UpdateIdleFlowUi();
+
             // 2026-09-29: 行ごとの ▶ を押したとき、その要素を Selection にして Inspector / Hierarchy で
             // どの要素か分かるようにする(既定 ON。全 Appear 等のまとめ再生では選択を変えない)。
             var selectOnPlayToggle = new Toggle("▶ 再生時にその要素を選択")
@@ -500,6 +542,7 @@ namespace DDrive.Editor.CanvasTool
                 // ElementFx 直接再生の Handle は (ElementPath, Phase) 文字列だけがキーなので、別の CanvasData に
                 // 切り替えると偶然同じパスの行が「再生中」と誤判定されうる。対象を切り替えたら破棄しておく
                 // (再生自体はプレビューの実体ごと RemovePreview 側で止まるので、ここは辞書のクリアのみでよい)。
+                StopIdleFlow(); // 対象を切り替えたら流していた Idle を戻す(必要なら次の更新で新しい対象の分を流し直す)
                 ReleaseStageStates();
                 _phasePreviewHandles.Clear();
             }
@@ -763,6 +806,12 @@ namespace DDrive.Editor.CanvasTool
                 {
                     style = { unityFontStyleAndWeight = FontStyle.Bold, whiteSpace = WhiteSpace.Normal, marginTop = 4, marginBottom = 2 },
                 });
+                var cleanupGroup = g;
+                parentFoldout.Add(new Button(() => CleanUpOverrides(cleanupGroup))
+                {
+                    text = "上書きをまとめて整理…",
+                    tooltip = "この埋め込みの配下を指す親の行のうち、中身が既定のままの行(自動収集されただけの行)を取り除く。設定が入っている行があれば、取り除く / 残す / キャンセルを 1 回確認する。Ctrl+Z 1 回で戻せる",
+                });
                 foreach (var index in g.OverrideRows)
                 {
                     parentFoldout.Add(BuildFxRow(index, "[親での上書き] "));
@@ -1021,13 +1070,29 @@ namespace DDrive.Editor.CanvasTool
                     return;
                 }
 
-                Undo.RecordObject(owner, "Canvas: 埋め込み Canvas の RootPath");
                 // 確定時に正規化する(`\` → `/`、先頭・末尾の `/` を除く。レビュー PC-R-09)。
-                owner.EmbeddedCanvases[index].RootPath = (evt.newValue ?? string.Empty).Replace('\\', '/').Trim('/');
-                EditorUtility.SetDirty(owner);
+                // 2026-10-06(U-29a): 新しい配下の「親での上書き」の行を整理する(キャンセルしたら変更しない)。1 つの Undo グループ。
+                var newPath = (evt.newValue ?? string.Empty).Replace('\\', '/').Trim('/');
+                var current = owner.EmbeddedCanvases[index];
+                if (!CanvasEmbeddedEditing.ChangeEmbedWithCleanup(owner, index, newPath, Lookup.Find(current.Canvas), out var cleanup))
+                {
+                    if (cleanup.Cancelled)
+                    {
+                        pathField.SetValueWithoutNotify(evt.previousValue);
+                        _statusLabel.text = "RootPath の変更をキャンセルしました(何も変更していません)";
+                    }
+
+                    return;
+                }
+
                 if (owner == _target)
                 {
                     RefreshAfterEmbeddedEdit();
+                    var detail = cleanup.Describe();
+                    if (!string.IsNullOrEmpty(detail))
+                    {
+                        _statusLabel.text = detail;
+                    }
                 }
             });
             row.Add(pathField);
@@ -1050,12 +1115,26 @@ namespace DDrive.Editor.CanvasTool
                     return;
                 }
 
-                Undo.RecordObject(owner, "Canvas: 埋め込み Canvas の子を変更");
-                owner.EmbeddedCanvases[index].Canvas = picked != null ? new AssetId<CanvasMarker>(picked.Id, AssetType.Canvas) : default;
-                EditorUtility.SetDirty(owner);
+                // 2026-10-06(U-29a): 子を選び直したら、その配下の「親での上書き」の行を整理する(キャンセルしたら変更しない)。
+                if (!CanvasEmbeddedEditing.ChangeEmbedWithCleanup(owner, index, owner.EmbeddedCanvases[index].RootPath, picked, out var cleanup))
+                {
+                    if (cleanup.Cancelled)
+                    {
+                        canvasField.SetValueWithoutNotify(evt.previousValue);
+                        _statusLabel.text = "子 CanvasData の変更をキャンセルしました(何も変更していません)";
+                    }
+
+                    return;
+                }
+
                 if (owner == _target)
                 {
                     RefreshAfterEmbeddedEdit();
+                    var detail = cleanup.Describe();
+                    if (!string.IsNullOrEmpty(detail))
+                    {
+                        _statusLabel.text = detail;
+                    }
                 }
             });
             row.Add(canvasField);
@@ -1074,13 +1153,52 @@ namespace DDrive.Editor.CanvasTool
             return row;
         }
 
+        // 2026-10-06(U-29a): 登録と同時に、その配下を指す親の ElementFx の行を整理する(既定のままの行は確認なしで取り除き、
+        // 設定のある行は 1 回確認。1 つの Undo グループ)。キャンセルしたら登録しない。
         private void RegisterEmbedded(string rootPath, CanvasData child)
         {
-            if (CanvasEmbeddedEditing.Register(_target, rootPath, child))
+            if (CanvasEmbeddedEditing.RegisterWithCleanup(_target, rootPath, child, out var cleanup))
             {
                 RefreshAfterEmbeddedEdit();
-                _statusLabel.text = $"'{rootPath}' を埋め込み Canvas(子 = {NameOf(child)})として登録しました";
+                _statusLabel.text = JoinStatus($"'{rootPath}' を埋め込み Canvas(子 = {NameOf(child)})として登録しました", cleanup);
             }
+            else if (cleanup.Cancelled)
+            {
+                _statusLabel.text = $"'{rootPath}' の登録をキャンセルしました(何も変更していません)";
+            }
+        }
+
+        private static string JoinStatus(string head, CanvasEmbeddedEditing.CleanupResult cleanup)
+        {
+            var detail = cleanup.Describe();
+            return string.IsNullOrEmpty(detail) ? head : head + "。" + detail;
+        }
+
+        // 「親での上書き」グループの「上書きをまとめて整理…」: 登録済みの埋め込みについて、同じ整理(既定のままの行は取り除き、
+        // 設定のある行は確認)をする。以前に登録した / 自動収集のあとで登録したデータを直すためのもの。
+        private void CleanUpOverrides(CanvasEmbeddedEditing.EmbedGroup g)
+        {
+            var owner = _target;
+            if (owner == null || g.Child == null)
+            {
+                return;
+            }
+
+            var cleanup = CanvasEmbeddedEditing.CleanUpOverrides(owner, g.RootPath, g.Child);
+            if (owner != _target)
+            {
+                return;
+            }
+
+            if (cleanup.Cancelled)
+            {
+                _statusLabel.text = $"'{g.RootPath}' の整理をキャンセルしました(何も変更していません)";
+                return;
+            }
+
+            RefreshAfterEmbeddedEdit();
+            var detail = cleanup.Describe();
+            _statusLabel.text = string.IsNullOrEmpty(detail) ? $"'{g.RootPath}' の配下に整理する行はありませんでした" : detail;
         }
 
         private void RefreshAfterEmbeddedEdit()
@@ -1424,11 +1542,15 @@ namespace DDrive.Editor.CanvasTool
         // 開いているときのステージ(それ以外は null)。開いているのが無関係な Prefab のときは対象外(プレビュー実体側で再生する)。
         // prefix = そのステージのルートから見た対象 CanvasData のルートのパス(対象自身の Prefab なら空文字)。
         // 2026-10-03(Canvas の埋め込み): 以前は「対象 CanvasData の Prefab と完全一致」だけだった。
-        private PrefabStage GetTargetStage() => GetTargetStage(out _);
+        private PrefabStage GetTargetStage() => GetTargetStage(out _, out _);
 
-        private PrefabStage GetTargetStage(out string prefix)
+        private PrefabStage GetTargetStage(out string prefix) => GetTargetStage(out prefix, out _);
+
+        // owner = そのステージの Prefab を持つ CanvasData(対象自身か、対象を埋め込んでいる親)。
+        private PrefabStage GetTargetStage(out string prefix, out CanvasData owner)
         {
             prefix = string.Empty;
+            owner = null;
             if (_target == null)
             {
                 return null;
@@ -1442,6 +1564,7 @@ namespace DDrive.Editor.CanvasTool
 
             if (_target.Prefab != null && stage.assetPath == AssetDatabase.GetAssetPath(_target.Prefab))
             {
+                owner = _target;
                 return stage;
             }
 
@@ -1452,6 +1575,7 @@ namespace DDrive.Editor.CanvasTool
                 if (ancestor != null && ancestor.Prefab != null && stage.assetPath == AssetDatabase.GetAssetPath(ancestor.Prefab))
                 {
                     prefix = CanvasEmbeddedEditing.ToAncestorPath(_ancestors, i, string.Empty);
+                    owner = ancestor;
                     return stage;
                 }
             }
@@ -1530,6 +1654,13 @@ namespace DDrive.Editor.CanvasTool
             if (stage == null && _manager != null && !IsPreviewUsable())
             {
                 PlacePreview();
+            }
+
+            // 「Idle を流す」がオンなら、この再生の間は Idle を止めて元の値へ戻す(終わったら UpdateIdleFlow が再開する)。
+            // Idle の途中の値を再生前の状態として控えてしまわないよう、控える前に止める。
+            if (stage != null)
+            {
+                HoldIdleFlowForPhasePreview();
             }
 
             var elementTarget = FindPlaybackTarget(elementPath, out var states);
@@ -1685,19 +1816,250 @@ namespace DDrive.Editor.CanvasTool
         // 再生が全部終わった(停止した)ら、プレハブモードの値を元へ戻す(プレハブに値を残さない)。
         private void ReleaseStageStatesIfIdle()
         {
-            if (_stageStates.Count > 0 && _phasePreviewHandles.Count == 0)
+            if (_stageStates.Count > 0 && !AnyPhasePreviewActive())
             {
                 ReleaseStageStates();
             }
         }
 
+        // 行の ▶ 再生がまだ動いているか(終わった Handle はここで掃除する)。
+        private bool AnyPhasePreviewActive()
+        {
+            if (_phasePreviewHandles.Count == 0)
+            {
+                return false;
+            }
+
+            if (_tweenManager == null)
+            {
+                _phasePreviewHandles.Clear();
+                return false;
+            }
+
+            _handleScratch.Clear();
+            foreach (var kv in _phasePreviewHandles)
+            {
+                if (!_tweenManager.IsPlaying(kv.Value))
+                {
+                    _handleScratch.Add(kv.Key);
+                }
+            }
+
+            for (var i = 0; i < _handleScratch.Count; i++)
+            {
+                _phasePreviewHandles.Remove(_handleScratch[i]);
+            }
+
+            return _phasePreviewHandles.Count > 0;
+        }
+
+        private readonly List<(string path, string phase)> _handleScratch = new();
+
         private void OnPrefabStageClosing(PrefabStage stage)
         {
+            StopIdleFlow(); // プレハブモードを閉じる前に Idle の値を戻す(閉じる時の保存確認にも途中の値を残さない)
             ReleaseStageStates();
             _phasePreviewHandles.Clear();
         }
 
-        private void OnPrefabSaving(GameObject prefabRoot) => ReleaseStageStates();
+        private void OnPrefabSaving(GameObject prefabRoot)
+        {
+            // 保存の直前に Idle・再生の途中の値を元へ戻す(Prefab に途中の値を書かない)。保存後は UpdateIdleFlow が作り直して再開する。
+            StopIdleFlow();
+            ReleaseStageStates();
+        }
+
+        private void OnPlayModeStateChanged(PlayModeStateChange change)
+        {
+            if (change == PlayModeStateChange.ExitingEditMode)
+            {
+                SetIdleFlow(false); // Play Mode に入る前に Idle の値を戻し、トグルもオフにする
+            }
+        }
+
+        // ── 「Idle を流す」(U-29b) ──
+        //
+        // 後始末の経路(どの契機でも CanvasIdleFlow.Stop() = 流す前の値へ戻してから止める):
+        //   トグルをオフ / 保存の直前(prefabSaving。保存後は更新で自動再開)/ プレハブモードを閉じる(prefabStageClosing)/
+        //   編集対象の切り替え(ApplyTarget)/ Play Mode に入る(ExitingEditMode。トグルもオフ)/ ウィンドウを閉じる・ドメインリロード(OnDisable)/
+        //   対象の Prefab のステージでなくなった(更新の確認で検出)。
+        // 編集とぶつからない対処: 選択した要素(とその祖先)の Idle だけ止めて元の値へ戻し、選択が外れたら取り直して再開する(OnSelectionChange)。
+        // 行の ▶ 再生中は Idle 全体を止めて、終わったら再開する。
+
+        private bool IdleFlowActive => _idleFlowOn && _idleFlow != null && _idleFlow.IsActive;
+
+        // テストから呼べるよう public(ウィンドウを画面に出さず、トグルと同じ経路を検証する)。
+        public void SetIdleFlow(bool on)
+        {
+            _idleFlowOn = on;
+            _idleFlowToggle?.SetValueWithoutNotify(on);
+            if (!on)
+            {
+                _idleHeldByPhase = false;
+                StopIdleFlow();
+                UpdateIdleFlowUi();
+                return;
+            }
+
+            PollIdleFlow();
+        }
+
+        private void StopIdleFlow()
+        {
+            _idleFlow?.Stop();
+            _idleBuilt = false;
+        }
+
+        private void HoldIdleFlowForPhasePreview()
+        {
+            if (!_idleFlowOn)
+            {
+                return;
+            }
+
+            StopIdleFlow();
+            _idleHeldByPhase = true;
+        }
+
+        private void UpdateIdleFlow(double now)
+        {
+            if (_idleFlow == null)
+            {
+                return;
+            }
+
+            if (now - _lastIdlePoll >= IdlePollInterval)
+            {
+                _lastIdlePoll = now;
+                if (_idleFlowOn)
+                {
+                    PollIdleFlow();
+                }
+                else
+                {
+                    UpdateIdleFlowUi();
+                }
+            }
+
+            // 選択の変化は OnSelectionChange に加えて毎フレーム確認する(OnSelectionChange はウィンドウが非アクティブなときや
+            // コード経由の選択変更で遅れることがあるため。active と本数だけの軽い比較)。
+            if (_idleFlowOn && _idleFlow.IsActive)
+            {
+                var activeId = Selection.activeInstanceID;
+                var count = Selection.count;
+                if (activeId != _idleSelectionActiveId || count != _idleSelectionCount)
+                {
+                    _idleSelectionActiveId = activeId;
+                    _idleSelectionCount = count;
+                    _idleFlow.SuspendFor(Selection.transforms);
+                    UpdateIdleFlowUi();
+                }
+            }
+
+            // 再描画は必要最小限: 実際に動いている Idle があるときだけ、30Hz まで。
+            if (_idleFlowOn && _idleFlow.HasRunning && now - _lastIdleRepaint >= IdleRepaintInterval)
+            {
+                _lastIdleRepaint = now;
+                SceneView.RepaintAll();
+            }
+        }
+
+        // いまの表示先(プレハブモードのステージ)と割り当てに合わせて Idle を流す / 流し直す / 止める。
+        // 署名(ステージ + 割り当ての内容)が変わらない限り流し直さない(絞り込み入力などでアニメが途切れないように)。
+        private void PollIdleFlow()
+        {
+            if (_idleFlow == null)
+            {
+                return;
+            }
+
+            var stage = GetTargetStage(out _, out var owner);
+            if (stage == null || owner == null || stage.prefabContentsRoot == null)
+            {
+                if (_idleBuilt)
+                {
+                    StopIdleFlow(); // 対象の Prefab のステージでなくなった
+                }
+
+                UpdateIdleFlowUi();
+                return;
+            }
+
+            if (_idleHeldByPhase)
+            {
+                if (AnyPhasePreviewActive() || _stageStates.Count > 0)
+                {
+                    UpdateIdleFlowUi();
+                    return;
+                }
+
+                _idleHeldByPhase = false; // 個別再生が終わって元の値へ戻った: 再開
+            }
+
+            CanvasIdleFlow.CollectEntries(owner, Lookup, _idleEntries);
+            var signature = CanvasIdleFlow.Signature(stage.GetInstanceID(), _idleEntries);
+            if (_idleBuilt && signature == _idleSignature && !_idleFlow.HasDestroyedTargets)
+            {
+                UpdateIdleFlowUi();
+                return;
+            }
+
+            _idleFlow.Stop();
+            _idleFlow.Start(stage.prefabContentsRoot.transform, _idleEntries);
+            _idleFlow.SuspendFor(Selection.transforms);
+            _idleSignature = signature;
+            _idleBuilt = true;
+            UpdateIdleFlowUi();
+        }
+
+        private void UpdateIdleFlowUi()
+        {
+            if (_idleFlowToggle == null || _idleFlowHint == null)
+            {
+                return;
+            }
+
+            var stage = _target != null ? GetTargetStage() : null;
+            var previewOnly = _target != null && stage == null && IsPreviewUsable();
+            _idleFlowToggle.SetEnabled(!previewOnly);
+
+            string text;
+            if (_target == null)
+            {
+                text = string.Empty;
+            }
+            else if (previewOnly)
+            {
+                text = "確認用プレビューでは Idle は常に流れています(このトグルはプレハブモード用)";
+            }
+            else if (stage == null)
+            {
+                text = "プレハブモードで対象の Prefab(または対象を埋め込んでいる親)を開いているときに流せます";
+            }
+            else if (!_idleFlowOn)
+            {
+                text = "オンにすると、このプレハブモードの中で Idle が割り当てられた全要素の Idle を流します(止めると元の値へ戻ります)";
+            }
+            else if (_idleHeldByPhase)
+            {
+                text = "行の ▶ 再生が終わるまで Idle を止めています(終わったら再開します)";
+            }
+            else
+            {
+                var count = _idleFlow != null ? _idleFlow.Count : 0;
+                var suspended = _idleFlow != null ? _idleFlow.SuspendedCount : 0;
+                text = count == 0
+                    ? "Idle が割り当てられた要素がありません"
+                    : suspended > 0
+                        ? $"● {count} 件の要素で Idle を流しています(選択した要素 {suspended} 件は止めて元の値にしています。選択を外すと再開します)"
+                        : $"● {count} 件の要素で Idle を流しています(要素を選択すると、その要素だけ止まります)";
+            }
+
+            if (_idleFlowHint.text != text)
+            {
+                _idleFlowHint.text = text;
+            }
+        }
 
         // 行の「■ 停止」: 止めて再生前の状態へ戻す。
         private void StopPhasePreviewAndReset(string elementPath, string phase)

@@ -301,6 +301,333 @@ namespace DDrive.Editor.CanvasTool
             return roots;
         }
 
+        // ── 登録時の「親での上書き」の整理(2026-10-06、U-29a) ──
+        //
+        // 登録の前に親で「要素を自動収集」を押すと、入れ子の中の要素も親の ElementFx の行として集まる。登録したあとそれらの行は
+        // 「親での上書き」として残り、子の CanvasData の設定より優先される(規則 A)。中身が空の行でも要素単位で上書きになるため、
+        // 子の演出が黙って効かなくなる。登録するとき(と「上書きをまとめて整理」)に、埋め込みルートの配下(ルート自身を除く)の行を整理する:
+        //  ・既定のままの行 = 自動収集されただけの行 → 確認なしで取り除く
+        //  ・設定が入っている行 → 1 回だけ確認(取り除く / 残す / キャンセル)
+        // 親の Buttons / Sliders の配線は自動収集されないので削除せず、件数だけ知らせる。
+
+        // 「中身が既定のまま」の ElementFx か。ElementPath 以外の全欄(Appear / Idle / Disappear の直接指定 Id・プリセット
+        // = 種類 / Duration / Distance / EaseOverride / Se、AppearDelay、AppearSe、DisappearSe)が `default` のとき true。
+        // ElementFx に欄が増えたら IsDefaultFx のテスト(全欄の網羅)が落ちるようにしてある。
+        public static bool IsDefaultFx(in ElementFx fx)
+            => !fx.Appear.IsValid && !fx.Idle.IsValid && !fx.Disappear.IsValid
+               && IsDefaultPreset(in fx.AppearPreset) && IsDefaultPreset(in fx.IdlePreset) && IsDefaultPreset(in fx.DisappearPreset)
+               && fx.AppearDelay == 0f
+               && !fx.AppearSe.IsValid && !fx.DisappearSe.IsValid;
+
+        private static bool IsDefaultPreset(in UiPresetRef p)
+            => p.Preset == UiPreset.None && p.Duration == 0f && p.Distance == 0f && !p.Se.IsValid
+               && p.EaseOverride.Kind == default && p.EaseOverride.Ease == default
+               && p.EaseOverride.BezierP1 == Vector2.zero && p.EaseOverride.BezierP2 == Vector2.zero;
+
+        // 埋め込みルート rootPath の配下(ルート自身は含まない)を指す親の ElementEffects の行を、既定のまま / 設定ありに分けて返す。
+        public sealed class OverridePlan
+        {
+            public string RootPath = string.Empty;
+            public readonly List<int> DefaultRows = new();   // 既定のまま(取り除いても子の設定が効くだけ)
+            public readonly List<int> CustomRows = new();    // 設定が入っている(取り除くと親での指定が失われる)
+            public int ButtonWires;                          // 配下を指す親の Buttons の配線数(削除しない)
+            public int SliderWires;                          // 同 Sliders
+
+            public int Total => DefaultRows.Count + CustomRows.Count;
+            public bool IsEmpty => Total == 0 && ButtonWires == 0 && SliderWires == 0;
+        }
+
+        public static OverridePlan PlanOverrides(CanvasData parent, string rootPath)
+        {
+            var plan = new OverridePlan { RootPath = rootPath ?? string.Empty };
+            if (parent == null || string.IsNullOrEmpty(rootPath))
+            {
+                return plan;
+            }
+
+            var rows = parent.ElementEffects;
+            for (var i = 0; rows != null && i < rows.Length; i++)
+            {
+                if (!EmbeddedPaths.TryToChildPath(rootPath, rows[i].ElementPath ?? string.Empty, out var child) || child.Length == 0)
+                {
+                    continue;
+                }
+
+                (IsDefaultFx(in rows[i]) ? plan.DefaultRows : plan.CustomRows).Add(i);
+            }
+
+            var buttons = parent.Buttons;
+            for (var i = 0; buttons != null && i < buttons.Length; i++)
+            {
+                if (EmbeddedPaths.TryToChildPath(rootPath, buttons[i].ButtonPath ?? string.Empty, out var child) && child.Length > 0)
+                {
+                    plan.ButtonWires++;
+                }
+            }
+
+            var sliders = parent.Sliders;
+            for (var i = 0; sliders != null && i < sliders.Length; i++)
+            {
+                if (EmbeddedPaths.TryToChildPath(rootPath, sliders[i].ElementPath ?? string.Empty, out var child) && child.Length > 0)
+                {
+                    plan.SliderWires++;
+                }
+            }
+
+            return plan;
+        }
+
+        // rows から indices(昇順でなくてよい)の行を除いた配列(順序は保つ)。
+        public static ElementFx[] WithoutRows(ElementFx[] rows, IReadOnlyCollection<int> indices)
+        {
+            if (rows == null)
+            {
+                return Array.Empty<ElementFx>();
+            }
+
+            var remove = new HashSet<int>(indices);
+            var next = new List<ElementFx>(rows.Length);
+            for (var i = 0; i < rows.Length; i++)
+            {
+                if (!remove.Contains(i))
+                {
+                    next.Add(rows[i]);
+                }
+            }
+
+            return next.ToArray();
+        }
+
+        public enum OverrideChoice
+        {
+            Remove,   // 設定のある行も取り除く(子の CanvasData の設定を使う)
+            Keep,     // 設定のある行は親での上書きとして残す(既定のままの行だけ取り除く)
+            Cancel,   // 何もしない(登録もしない)
+        }
+
+        // テスト用の差し替え口。null なら実ダイアログ(EditorUtility.DisplayDialogComplex)を出す。
+        // public(テスト asmdef から差し替えるため)。テストは使い終わったら必ず null に戻すこと。引数 = (ダイアログの題, 本文)。
+        public static Func<string, string, OverrideChoice> ConfirmOverrideCleanupForTests;
+
+        private const int MaxListedRows = 5;
+
+        public static string BuildConfirmMessage(CanvasData parent, OverridePlan plan)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"埋め込み '{plan.RootPath}' の配下に、親の ElementFx の行が設定付きで {plan.CustomRows.Count} 件あります。\n");
+            sb.Append("親の行は子の CanvasData の同じ要素の設定より優先されるため、残すと子の演出は効きません。\n\n");
+            var rows = parent.ElementEffects;
+            for (var i = 0; i < plan.CustomRows.Count && i < MaxListedRows; i++)
+            {
+                sb.Append("・").Append(rows[plan.CustomRows[i]].ElementPath).Append('\n');
+            }
+
+            if (plan.CustomRows.Count > MaxListedRows)
+            {
+                sb.Append($"・ほか {plan.CustomRows.Count - MaxListedRows} 件\n");
+            }
+
+            if (plan.DefaultRows.Count > 0)
+            {
+                sb.Append($"\n(中身が既定のままの行 {plan.DefaultRows.Count} 件は、確認なしで取り除きます)\n");
+            }
+
+            sb.Append("\n「取り除く」: 設定のある行も取り除き、子の CanvasData の設定を使います。\n");
+            sb.Append("「残す」: 設定のある行は親での上書きとして残します。\n");
+            sb.Append("「キャンセル」: 何も変更しません。");
+            return sb.ToString();
+        }
+
+        // 設定のある行があれば 1 回だけ確認する(無ければ確認なしで Remove)。
+        public static OverrideChoice ConfirmOverrides(CanvasData parent, OverridePlan plan, string title)
+        {
+            if (plan.CustomRows.Count == 0)
+            {
+                return OverrideChoice.Remove;
+            }
+
+            var message = BuildConfirmMessage(parent, plan);
+            if (ConfirmOverrideCleanupForTests != null)
+            {
+                return ConfirmOverrideCleanupForTests(title, message);
+            }
+
+            // DisplayDialogComplex の戻り値: 0 = ok、1 = cancel、2 = alt(Esc は 1)。
+            switch (EditorUtility.DisplayDialogComplex(title, message,
+                "取り除く(子の CanvasData の設定を使う)", "キャンセル(登録しない)", "残す(親での上書きとして残る)"))
+            {
+                case 0: return OverrideChoice.Remove;
+                case 2: return OverrideChoice.Keep;
+                default: return OverrideChoice.Cancel;
+            }
+        }
+
+        public readonly struct CleanupResult
+        {
+            public readonly bool Cancelled;
+            public readonly int RemovedDefault;
+            public readonly int RemovedCustom;
+            public readonly int KeptCustom;
+            public readonly int ButtonWires;
+            public readonly int SliderWires;
+
+            public CleanupResult(bool cancelled, int removedDefault, int removedCustom, int keptCustom, int buttonWires, int sliderWires)
+            {
+                Cancelled = cancelled;
+                RemovedDefault = removedDefault;
+                RemovedCustom = removedCustom;
+                KeptCustom = keptCustom;
+                ButtonWires = buttonWires;
+                SliderWires = sliderWires;
+            }
+
+            public int Removed => RemovedDefault + RemovedCustom;
+
+            // ウィンドウのステータスに出す 1 行(何も整理していなければ空文字)。
+            public string Describe()
+            {
+                var parts = new List<string>();
+                if (Removed > 0)
+                {
+                    parts.Add($"親の ElementFx の行を {Removed} 件取り除きました(子の CanvasData の設定を使います)");
+                }
+
+                if (KeptCustom > 0)
+                {
+                    parts.Add($"設定のある行 {KeptCustom} 件は親での上書きとして残しています");
+                }
+
+                if (ButtonWires + SliderWires > 0)
+                {
+                    parts.Add($"親の配線(Buttons {ButtonWires} 件 / Sliders {SliderWires} 件)がこの配下を指しています(削除していません)");
+                }
+
+                return string.Join("。", parts);
+            }
+        }
+
+        // 登録(または「まとめて整理」)の本体。plan と選択済みの choice から、親の ElementEffects を書き換える
+        // (Undo.RecordObject + SetDirty。呼び出し側が作った Undo グループの中で呼ぶ)。
+        public static CleanupResult ApplyCleanup(CanvasData parent, OverridePlan plan, OverrideChoice choice)
+        {
+            if (choice == OverrideChoice.Cancel)
+            {
+                return new CleanupResult(true, 0, 0, plan.CustomRows.Count, plan.ButtonWires, plan.SliderWires);
+            }
+
+            var remove = new List<int>(plan.DefaultRows);
+            var removedCustom = 0;
+            if (choice == OverrideChoice.Remove)
+            {
+                remove.AddRange(plan.CustomRows);
+                removedCustom = plan.CustomRows.Count;
+            }
+
+            if (remove.Count > 0)
+            {
+                Undo.RecordObject(parent, "Canvas: 親での上書きを整理");
+                parent.ElementEffects = WithoutRows(parent.ElementEffects, remove);
+                EditorUtility.SetDirty(parent);
+            }
+
+            return new CleanupResult(false, plan.DefaultRows.Count, removedCustom,
+                choice == OverrideChoice.Keep ? plan.CustomRows.Count : 0, plan.ButtonWires, plan.SliderWires);
+        }
+
+        // 登録済み(または登録しようとしている)埋め込みの「親での上書き」を整理する(確認 → 適用)。Undo グループ 1 つ。
+        // child が解決できないときは何もしない(子の設定が無いので上書きにならない)。
+        public static CleanupResult CleanUpOverrides(CanvasData parent, string rootPath, CanvasData child, string undoName = "Canvas: 親での上書きを整理")
+        {
+            if (parent == null || child == null || string.IsNullOrEmpty(rootPath))
+            {
+                return default;
+            }
+
+            var plan = PlanOverrides(parent, rootPath);
+            if (plan.IsEmpty)
+            {
+                return default;
+            }
+
+            var choice = ConfirmOverrides(parent, plan, "親での上書きの整理");
+            Undo.IncrementCurrentGroup();
+            Undo.SetCurrentGroupName(undoName);
+            var group = Undo.GetCurrentGroup();
+            var result = ApplyCleanup(parent, plan, choice);
+            Undo.CollapseUndoOperations(group);
+            return result;
+        }
+
+        // 「埋め込みとして登録」+ 配下の行の整理を 1 つの Undo グループで行う(Ctrl+Z 1 回で登録前に戻る)。
+        // 設定のある行の確認でキャンセルしたら、登録もしない(Cancelled = true)。
+        public static bool RegisterWithCleanup(CanvasData parent, string rootPath, CanvasData child, out CleanupResult cleanup)
+        {
+            cleanup = default;
+            if (parent == null || child == null || string.IsNullOrEmpty(rootPath) || child == parent)
+            {
+                return false;
+            }
+
+            var plan = PlanOverrides(parent, rootPath);
+            var choice = ConfirmOverrides(parent, plan, "埋め込みとして登録");
+            if (choice == OverrideChoice.Cancel)
+            {
+                cleanup = ApplyCleanup(parent, plan, choice);
+                return false;
+            }
+
+            Undo.IncrementCurrentGroup();
+            Undo.SetCurrentGroupName("Canvas: 埋め込み Canvas を登録");
+            var group = Undo.GetCurrentGroup();
+            var registered = Register(parent, rootPath, child);
+            cleanup = ApplyCleanup(parent, plan, choice);
+            Undo.CollapseUndoOperations(group);
+            return registered;
+        }
+
+        // 登録済みの行 index の RootPath / 子 CanvasData を書き換える(欄の変更)+ 新しい配下の行の整理を 1 つの Undo グループで。
+        // newChild が null なら子の指定を外す(整理なし)。戻り値: 書き換えたか(キャンセルや範囲外は false。cleanup.Cancelled で区別)。
+        public static bool ChangeEmbedWithCleanup(CanvasData parent, int index, string newRootPath, CanvasData newChild, out CleanupResult cleanup)
+        {
+            cleanup = default;
+            var rows = parent != null ? parent.EmbeddedCanvases : null;
+            if (rows == null || index < 0 || index >= rows.Length)
+            {
+                return false;
+            }
+
+            OverridePlan plan = null;
+            var choice = OverrideChoice.Remove;
+            if (newChild != null && newChild != parent && !string.IsNullOrEmpty(newRootPath))
+            {
+                plan = PlanOverrides(parent, newRootPath);
+                choice = ConfirmOverrides(parent, plan, "埋め込み Canvas の変更");
+                if (choice == OverrideChoice.Cancel)
+                {
+                    cleanup = ApplyCleanup(parent, plan, choice);
+                    return false;
+                }
+            }
+
+            Undo.IncrementCurrentGroup();
+            Undo.SetCurrentGroupName("Canvas: 埋め込み Canvas を変更");
+            var group = Undo.GetCurrentGroup();
+            Undo.RecordObject(parent, "Canvas: 埋め込み Canvas を変更");
+            parent.EmbeddedCanvases[index] = new EmbeddedCanvas
+            {
+                RootPath = newRootPath ?? string.Empty,
+                Canvas = newChild != null ? new AssetId<CanvasMarker>(newChild.Id, AssetType.Canvas) : default,
+            };
+            EditorUtility.SetDirty(parent);
+            if (plan != null)
+            {
+                cleanup = ApplyCleanup(parent, plan, choice);
+            }
+
+            Undo.CollapseUndoOperations(group);
+            return true;
+        }
+
         // ── 選択した Transform が属する Canvas のルート ──
 
         // selected が属している Canvas の「ルート」(CanvasData.Prefab のルートに当たる実体)を返す。
