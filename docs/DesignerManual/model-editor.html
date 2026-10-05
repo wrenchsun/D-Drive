@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › モデルの設定と Model Editor</nav>
 
 <h1>モデルの設定と Model Editor</h1>
-<p class="lastupdate">最終更新日: 2026-10-03</p>
+<p class="lastupdate">最終更新日: 2026-10-06</p>
 
 <p>モデルデータ（ModelData）は「このキャラクター / 物体の Prefab を、どのマテリアル・どのアニメーションで出すか」をまとめたものです。プログラマーは <code>Models.Spawn(MODELID.Player, 位置, 向き)</code> と書くだけで、Prefab の差し替え・マテリアルの入れ替え・最初に再生するアニメーションはデータ側で決められます。</p>
 
@@ -32,8 +32,8 @@ Model Editor を先に開いてしまった場合は、ツールバーの<strong
 <li>「Slot 自動収集」→ Prefab の中の Renderer が一覧になり、マテリアルを ID で差し替えられる準備ができます</li>
 <li>「Default Animation」に待機モーションのアニメーションデータを入れて「▶ 配置して DefaultAnimation を再生」→ 出した瞬間からそのモーションで動きます</li>
 </ol>
-<h3>「元ファイルを再読み込み」と知らないシェーダー</h3>
-<p>「元ファイルを再読み込み」は、Prefab の元になった FBX や Material から<a href="material-data.html">マテリアルデータ</a>を作り直してからスロットに結び付けます。元の Material のシェーダーが D-Drive の標準シェーダー（DDrive/Lit・Unlit）に対応づけられないもの（独自のトゥーンシェーダーなど）のとき、確認のダイアログが<strong>1 回だけ</strong>出ます（Material ごとには出ません。見つかったシェーダー名と件数が表示されます）。</p>
+<h3>「元ファイル再読み込み」と知らないシェーダー</h3>
+<p>「元ファイル再読み込み」は、Prefab の元になった FBX や Material から<a href="material-data.html">マテリアルデータ</a>を作り直してからスロットに結び付けます。元の Material のシェーダーが D-Drive の標準シェーダー（DDrive/Lit・Unlit）に対応づけられないもの（独自のトゥーンシェーダーなど）のとき、確認のダイアログが<strong>1 回だけ</strong>出ます（Material ごとには出ません。見つかったシェーダー名と件数が表示されます）。</p>
 <table>
 <tr><th>選択肢</th><th>結果</th></tr>
 <tr><td>元のシェーダーのまま保つ</td><td>そのシェーダーでマテリアルデータを作ります（同じ名前のプロパティの値は固有欄に引き継がれます）。すでにシェーダーが入っているマテリアルデータのシェーダーは変えません</td></tr>
