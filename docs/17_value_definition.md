@@ -168,6 +168,8 @@ public enum TimeMode
 
 **2026-10-06 追記（固定値の Time 検査）**: `Mode=Constant` の `Evaluate` は `Time` を使わない（`Constant01()` も `Time` を設定せず、`TimeMode=Duration` / `Value=0` / `SpeedScale=0` のまま）。実行時は `Duration<=0` を t=1、`SpeedScale<=0` を 1 として安全に扱う。そのため `ValueDefValidator` は **Constant のとき Time の欄（Duration の Value・SpeedScale・無限ループ + Duration=0）を検査しない**。Parametric / Curve の検査は従来どおりで、Value / SpeedScale が 0 以下なら Error のまま。ツールで新規作成した Anim2D・ControlSkin・CameraShake などの固定値が Error になっていた不具合の修正で、シリアライズされる既定値（`TimeDef` の初期化子・ファクトリ）は変えていない。
 
+**2026-10-06 追記（寿命として Time を読む種別、[59](59_review_round6_valuedef_2026-10-06.md) GB-R-01）**: Constant では `ValueDefValidator` が Time を検査しない。**`Time` の尺（`Duration`）を `Mode` に関係なく演出の寿命として読む種別は、種別側の Validator が見る**: `CameraShakeData.Envelope`（`CameraFxManager.IsExpired`）と `HapticsData.LowFreq` / `HighFreq`（`HapticsManager.IsExpired`）は、尺が 0 以下だと最初の `Tick` で失効して何も起きない。そこで `CameraShakeDataValidator`（Warning `DD-SHAKE-ENVELOPE-ZERO-DURATION`）と `HapticsDataValidator`（Warning `DD-HAPTICS-ZERO-DURATION`）が、Mode に関係なく `Duration <= 0` のとき知らせる（Time を使うモードで `TimeMode=Duration` の Value が 0 以下のときは上の `ValueDefValidator` の Error が既に出るので重ねない）。BGM のフェードの長さ（`BgmData.FadeIn` / `FadeOut`）と `UiTweenData` の `Motion` は、尺 0 が「フェードしない」「即完了」という正当な意味を持つので検査しない。`ValueDefColor` の `Mode=Curve` は Alpha の Time を Gradient の時間軸に使う（Alpha が Constant でも）が、D-Drive の Data には `ValueDefColor` の欄が無いので検査は足していない。持ち込み先が自分の Data に使うときは Alpha の尺を 0 にしない。
+
 ## 7. ネットワーク・決定性（[14] との整合）
 
 - `Evaluate` は入力（正規化時間）だけで決まる純関数とし、内部状態を持たない → 全クライアントで同一結果

@@ -165,6 +165,8 @@ Validator（本書 §7）の結果がエディタ内でそのまま見える。
 | Anchor.BoneName がプレビューモデルに無い | Warning |
 | MaxDistance ≤ MinDistance | Error |
 | DopplerEnabled かつ Loop=false | Warning（ワンショットでは知覚されにくい） |
-| LoopEnd ≤ LoopStart | Error |
+| LoopEnd ≤ LoopStart | Error（SeData。BgmData は下の注） |
 | MaxConcurrent ≤ 0 | Error |
 | Volume=0（鳴らない設定） | Warning |
+
+**2026-10-06 追記（BGM のループ位置の意味と検査、修正ラウンド 7、docs/59 GB-R-02）**: `BgmData.LoopStartSec` / `LoopEndSec` の意味は `BgmManager.StartLoopBody` と Audio エディタが決めている。**`LoopEndSec = 0`（既定）は「`LoopStartSec` からクリップ末尾まで」**（0 / 0 はクリップ全体のループ）、`LoopEndSec` がクリップ長以上なら末尾に丸める。`BgmDataValidator` はこの意味に合わせ、**実効の終端が確定していて `LoopStartSec` 以下のときだけ Error**（「LoopEndSec が LoopStartSec 以下です」）にする: (a) `LoopEndSec > 0` なのに `LoopStartSec` 以下（End が無視され意図と違う範囲になる）、(b) `LoopEndSec = 0` でも `LoopStartSec` がクリップ末尾（`LoopBody.length`）以上（1 サンプルのループになる）。取り込んだ直後（`LoopBody` だけ設定）・新規作成直後の BgmData は Error にならない。

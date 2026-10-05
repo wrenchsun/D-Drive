@@ -7,8 +7,8 @@
 
 | 項目 | 状態 | 備考 |
 |---|---|---|
-| 自前レビュー docs/53〜58 | **完了**（6 本） | docs/59 は別の担当が作成中 = **実施中**。結果が出たら P2 以上の指摘の対応を確認してからタグ |
-| 修正ラウンド 1〜6 | **完了** | 経緯は docs/53〜58 の対応記録。CHANGELOG には最終的な状態だけを書いた |
+| 自前レビュー docs/53〜59 | **実施済み**（7 本。docs/59 は 2026-10-06、指摘 8 件 = P2 が 2 件・P3 が 6 件、P1 は 0 件） | docs/59 の指摘は修正ラウンド 7 で対応（GB-R-01・02 を修正、GB-R-03 は見送り、GB-R-04〜08 は対応または理由つきで見送り）。**修正ラウンド 7 の差分は新たに未レビュー**（小さい。Validator の条件 2 か所と案内・テストが中心） |
+| 修正ラウンド 1〜7 | **完了** | 経緯は docs/53〜59 の対応記録。CHANGELOG には最終的な状態だけを書いた |
 | CHANGELOG の整理 | **完了**（本 PR） | `[Unreleased]` を「互換性（破壊の有無 / 挙動の変更 / 追加された互換面 / 検査の追加 / 持ち込み先での作業）→ 追加（機能別）→ 修正」に再編。`check-release.ps1` は green（作業ツリーがクリーンな状態で実行） |
 | `run-ci.cmd` の修正 | **完了**（本 PR、[11](11_tasks.md) P-16） | 文字化けで何も実行せず green と出る問題・結果ファイルの検査・Unity が開いているときの FAIL。下の 2.2 |
 | バッチモードでの全段の確認 | **2026-10-06 に 1 段ずつ直接実行して OK**。**ただし PR #115・#116 のマージ後の main（`a6fc496`）では全段を通し直していない** | CHANGELOG ガード OK / マイグレーション: 未適用あり → 確認用データを修正して green / Validation: Error 118 → 0（PR #114・#116）/ Asset ID 差分なし / EditMode 失敗 0（成功 1599・保留 21）/ PlayMode 失敗 0（成功 941・保留 1）/ Performance 11 件 OK / NetCheck 9 シナリオ PASS（ビルドし直した exe）。**リリース直前に Unity を閉じて `run-ci.cmd` を全段通し直す（必須）** |
@@ -39,7 +39,7 @@
 ### 2.2 `run-ci.cmd` の変更（P-16）で知っておくこと
 
 - ファイルは **ASCII だけ**にした。UTF-8 の日本語を含む .cmd は、コードページ 932（日本語 Windows の既定）で起動した cmd.exe が行の境目を読み違え、コメントの断片をコマンドとして実行して「何も実行せず green」になった。`chcp 65001` を先頭に置くだけでは、932 で起動したときも、ファイルが長いときも直らなかった（実測）。日本語の説明は docs に置く。
-- 同じ問題が `run-netcheck.cmd`（UTF-8 の日本語入り）にも残っている。8 段目（NetCheck）の判定には影響しないが、出力が文字化けすることがある（本 PR は判定を変えない方針のため未修正。直すなら ASCII 化が確実）。
+- `run-netcheck.cmd`（8 段目から呼ばれる）も、2026-10-06 の修正ラウンド 7 で**全 ASCII**にした（メッセージは英語、`chcp` は外した。引数・終了コード・`Run-NetCheck.ps1` の呼び出しは同じ）。932 のコンソールから存在しないシナリオ名で起動して、cmd 側の出力が化けないことと終了コード 1 を確認した（NetCheck の実行そのものはしていない）。pwsh が出す日本語のメッセージ（`Run-NetCheck.ps1`）は 932 のコンソールでは化けることがあるが、判定には影響しない。
 - 補助スクリプト `Tools\CI\check-test-result.cmd`（結果 XML の `failed` を読む。pwsh 不要）は単体でも使える。終了コード 0 = OK、10 = OK（Inconclusive あり）、1 = FAIL。
 
 ## 3. GitHub のリリースノートの下書き（v1.4.0）
@@ -90,13 +90,13 @@ D-Drive v1.4.0 のリリースに合わせて、`CI.ValidateAll` の 53 件（24
 
 | 当たり | 判断 | やること |
 |---|---|---|
-| ゲームプレイの時間（演出・移動・クールタイム・アニメ等。ポーズ・ヒットストップに従わせたいもの） | **D-Drive の Tick に乗せる**（乗せにくければ 1 か所に集めて許可） | (a) `IAssetManager` を実装し `DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(...)` で登録、`Tick(float dt)` の `dt`（ヒットストップ込み）を使う。ポーズは `OnPause` で受ける（ポーズ中も `Tick` は呼ばれ、`dt` は 0 にならない）。**登録は `OnEnable`、解除は `OnDisable` で必ず対にする**（`GameLoop` は破棄されたオブジェクトを自動では外さない。外し忘れると破棄後も毎フレーム `Tick` が呼ばれ、`Tick` に例外の隔離は無いので、例外が出るとその後ろに登録された Manager のそのフレームの `Tick` も止まる）。`DDriveRuntimeBootstrap.Instance` / `Loop` が null（Bootstrap の無いシーン・起動前・終了時）のときは登録せず何もしない。登録に `IsReady` は要らない（`Loop` は Bootstrap の `Awake` で揃う。`IsReady` はカタログ登録の完了）。`Tick` の中で例外を出さない。(b) 乗せにくいときは、ゲーム側の時間源を 1 か所（例: `GameTime`）に作り、その中だけで `Time.unscaledDeltaTime * Loop.TimeService.TimeScale` を読んで許可コメントを 1 行書く（`Loop.PauseService.IsPaused(PauseChannel.Gameplay)` で 0 にもできる）。**`ITimeSource` はゲームのコード向けではない**（Foundation 内部向け。実体は `Time.deltaTime` を返すだけでヒットストップ・ポーズに従わない。置き換えても当たりが消えるだけで挙動は変わらない） |
+| ゲームプレイの時間（演出・移動・クールタイム・アニメ等。ポーズ・ヒットストップに従わせたいもの） | **D-Drive の Tick に乗せる**（乗せにくければ 1 か所に集めて許可） | (a) `IAssetManager` を実装し `DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(...)` で登録、`Tick(float dt)` の `dt`（ヒットストップ込み）を使う。ポーズは `OnPause` で受ける（ポーズ中も `Tick` は呼ばれ、`dt` は 0 にならない）。**登録は `OnEnable`、解除は `OnDisable` で必ず対にする**（`GameLoop` は破棄されたオブジェクトを自動では外さない。外し忘れると破棄後も毎フレーム `Tick` が呼ばれ、`Tick` に例外の隔離は無いので、例外が出るとその後ろに登録された Manager のそのフレームの `Tick` も止まる）。`DDriveRuntimeBootstrap.Instance` / `Loop` が null（Bootstrap の無いシーン・起動前・終了時）のときは登録せず何もしない。登録に `IsReady` は要らない（`Loop` は Bootstrap の `Awake` で揃う。`IsReady` はカタログ登録の完了）。`Tick` の中で例外を出さない。同じシーンに最初から置くスクリプトで実行順が Bootstrap（`[DefaultExecutionOrder(-1000)]`、`Awake` で起動配線）より小さいとき、または Bootstrap が後からロードされるシーン構成では、`OnEnable` の時点で `Instance` が null のため登録されず、例外も警告も出ないまま `Tick` が一度も来ません。`OnEnable` に加えて `Start` でも未登録なら登録を試し（`Register` は二重登録しても 1 回扱い）、それでも無ければ警告ログを 1 行出してください（コード例のとおり）。`Tick` の中で自分自身や他の登録済み Manager を無効化したり `Unregister` したりしないでください。`GameLoop` は登録順の添字で走査するため、走査中に外すと直後の Manager 1 つがそのフレームだけ `Tick` されません（例外は出ません。`Destroy` は遅延するので影響しません）。外したいときはフラグを立てて、次のフレームの頭か `LateUpdate` で外します。コードを自分の asmdef に置く場合は `DDrive.Foundation` と `DDrive.Runtime` への参照が必要です（asmdef なしの `Assembly-CSharp` なら不要）。(b) 乗せにくいときは、ゲーム側の時間源を 1 か所（例: `GameTime`）に作り、その中だけで `Time.unscaledDeltaTime * Loop.TimeService.TimeScale` を読んで許可コメントを 1 行書く（`Loop.PauseService.IsPaused(PauseChannel.Gameplay)` で 0 にもできる）。**`ITimeSource` はゲームのコード向けではない**（Foundation 内部向け。実体は `Time.deltaTime` を返すだけでヒットストップ・ポーズに従わない。置き換えても当たりが消えるだけで挙動は変わらない） |
 | 実時間で測りたい計測（Host 引き継ぎ・LAN 探索・通信タイムアウト・ログのタイムスタンプ等。ポーズの影響を受けてはいけないもの） | **許可、または対象外の API に替える** | `// ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)`。または `Time.realtimeSinceStartupAsDouble` / `Stopwatch` に替える（`Time` 規則の対象外なので許可コメントが要らない）。`Time` 規則が当たるのは `Time.time` / `deltaTime` / `unscaledDeltaTime` / `timeAsDouble` / `unscaledTime` だけ |
 | NGO の `NetworkObject` の生成（Instantiate → Spawn が正規手順で `PoolService` 経由にできない） | **許可** | `// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)` |
 | それ以外の `Instantiate`（Prefab を置く・演出の実体を出す） | **直す** | `Prefabs.Spawn` / プール（`PoolService`）経由 |
 | 自分で書き換えられない外部コード・生成コード | **設定の許可リスト** | Project Settings > D-Drive > 禁止 API の除外 にフォルダ + 理由を足す |
 
-**Tick に乗せるときの登録 / 解除の例**（`OnEnable` で登録、`OnDisable` で必ず解除。登録した `GameLoop` を覚えておけば、終了時に `Instance` が null でも解除できます）:
+**Tick に乗せるときの登録 / 解除の例**（`OnEnable` で登録、`OnDisable` で必ず解除。登録した `GameLoop` を覚えておけば、終了時に `Instance` が null でも解除できます。Bootstrap より先に `OnEnable` が走る場合に備えて `Start` でも登録を試します）:
 
 ```csharp
 using DDrive.Foundation.Identity;
@@ -111,16 +111,33 @@ public sealed class GameCooldownManager : MonoBehaviour, IAssetManager
 
     public AssetType Type => AssetType.None;
 
-    private void OnEnable()
+    private void OnEnable() => TryRegister();
+
+    private void Start()
     {
+        // 実行順が Bootstrap より前だったときの再試行(Register は二重登録しても 1 回扱い)
+        if (_loop == null && !TryRegister())
+        {
+            Debug.LogWarning("DDriveRuntimeBootstrap が無いため GameLoop に登録できませんでした(Tick は来ません)", this);
+        }
+    }
+
+    private bool TryRegister()
+    {
+        if (_loop != null)
+        {
+            return true;
+        }
+
         var boot = DDriveRuntimeBootstrap.Instance;
         if (boot == null || boot.Loop == null)
         {
-            return; // Bootstrap の無いシーン・起動前は何もしない
+            return false; // Bootstrap の無いシーン・起動前は登録しない
         }
 
         _loop = boot.Loop.GameLoop;
         _loop.Register(this);
+        return true;
     }
 
     private void OnDisable()
@@ -218,7 +235,8 @@ docs/11 に既にあるものは参照だけ。
 |---|---|---|
 | M-5 | ゲーム向けの時間源の公開 API（`GameLoop` に登録しなくてもヒットストップ・ポーズ込みの `dt` を読める形。追加のみ・MINOR。ユーザー判断が要る。`Time` 規則のメッセージもこのとき差し替え） | [11](11_tasks.md) M-4 節の M-5（案） |
 | UI の Tick の再入 | `UiTweenManager.Tick` / `UiManager.Tick` の添字走査が、`WaitAsync` の続きが走査中に走ると崩れる（v1.3.1 から既存。`PresentationManager` は修正済み） | [56] FY-R-03・[57] |
-| BgmData のループ位置 | 新規作成直後の BgmData が、ループ位置の設定で Error になる | 2026-10-06 のまとめ役の確認（docs/11 には未記載。起票が要る） |
+| `GameLoop` の走査中の `Unregister` | `GameLoop.Tick` / `BroadcastPause` / `StopAll` / `NotifySceneUnload` は添字で走査するため、走査中に自分や前の Manager を外すと直後の Manager 1 つがそのフレーム飛ばされる（案内では「Tick の中で外さない」と書いた。D-Drive 自身の Manager は影響を受けない。直すなら `PresentationManager` / `CutsceneManager` と同じ写しの走査 = Foundation の挙動変更なので MINOR 以降） | [59] GB-R-04 |
+| ~~BgmData のループ位置~~ | 修正ラウンド 7 で対応済み（`LoopEndSec = 0` は末尾まで。取り込み直後も Error 0） | [59] GB-R-02 |
 | EditMode 初回の Undo 系 6 件 | 初回だけ一時的に失敗する（`AudioEditorWindow.DrawListenerPad` の例外。再現せず） | 2026-10-06 のまとめ役の確認（docs/11 には未記載。起票が要る） |
 | `CANVAS_Can_Vas` の編集用配置 | 確認用データの編集用配置（`NavigationNodeLayout` 等）の残り | [11](11_tasks.md) 確認用データの整理の記録（#8） |
 | FC-16・FC-17・FC-18 | 名前付きスロットセット / 外部データへの汎用参照欄 / プロジェクト設定の検証の拡張点 | [51] §4.17〜4.19 |
@@ -232,4 +250,5 @@ docs/11 に既にあるものは参照だけ。
 - [55]: FX-R-13 の `CreateFromSelection` の流れのテスト
 - [57]: FZ-R-09 の残り（それらしい形の Warning・束ね・設定の未使用 Info）・FZ-R-11（予測再生キーの上限が「全部捨てる」）
 - [58]: GA-R-01〜12 は修正ラウンド 6 で対応済み。残るのは GA-R-04（Q-1 の文面「この文面でよいか」のユーザー確認。動作は変えていない）だけ
+- [59]: GB-R-03（`ValueDefColor` の Alpha。D-Drive の Data に使用箇所が無い。持ち込み先が使うときだけ）・GB-R-05 の細部（`TimeMode=Rate なのに Loop=Once` の Warning を Constant で出さない）・GB-R-06 の `SpecDiffValidator` の Data ごとの指摘のテスト・GB-R-08 の E-9b の順序依存
 - 人による確認に残るもの: [43] §7・§10（Timeline。FBX の到着後）、[43] §15 の 15-30（Q-4。T-Drive のブリッジ対応後）、[52] §22（T-Drive 導入後）

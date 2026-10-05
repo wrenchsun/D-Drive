@@ -26,7 +26,11 @@ namespace DDrive.Runtime.Audio
                 yield return ValidationResult.Warning("Mixer が未割当です");
             }
 
-            if (bgm.LoopEndSec <= bgm.LoopStartSec)
+            // GB-R-02(2026-10-06): LoopEndSec = 0(既定)は「LoopStartSec からクリップ末尾まで」の意味で、BgmManager.StartLoopBody も
+            // Audio エディタもそう扱う。実行時に破綻するのは、(a) End を指定したのに Start 以下(End が無視され意図と違う範囲になる)、
+            // (b) End=0 でも Start がクリップ末尾以上(実質の終端が Start 以下 = 1 サンプルのループになる)のとき。
+            var effectiveEnd = bgm.LoopEndSec > 0.0 ? bgm.LoopEndSec : (bgm.LoopBody != null ? bgm.LoopBody.length : 0.0);
+            if (effectiveEnd > 0.0 && effectiveEnd <= bgm.LoopStartSec)
             {
                 yield return ValidationResult.Error("LoopEndSec が LoopStartSec 以下です");
             }

@@ -17,15 +17,14 @@ namespace DDrive.Tests.Editor
     // Error にならないことを、全 Data 型の新規作成直後と v1.0.0 フィクスチャで固定する。
     public class ConstantTimeValidationTests
     {
-        private static bool IsTimeError(ValidationResult r)
-            => r.Severity == ValidationSeverity.Error &&
-               (r.Message.Contains("TimeMode=Duration") || r.Message.Contains("SpeedScale") || r.Message.Contains("Duration=0"));
-
+        // GB-R-07(2026-10-06): 検査の対象は ValueDefValidator の結果だけ(持ち込み先の Validator・Data 型・ログに左右されない)。
+        // 新規作成直後の Data に ValueDef 由来の Error が出ないことを、メッセージの部分一致ではなく「ValueDefValidator が Error を返さない」で判定する。
+        // 型の列挙は D-Drive の Data 型だけ(ConcreteDataTypes は DDrive.* のアセンブリ・テスト用を除く)。
         [Test]
-        public void FreshlyCreatedData_OfEveryConcreteType_HasNoValueDefTimeError()
+        public void FreshlyCreatedData_OfEveryConcreteType_HasNoValueDefError()
         {
-            var otherErrors = new List<string>();
-            var timeErrors = new List<string>();
+            var errors = new List<string>();
+            var checkedTypes = 0;
 
             foreach (var type in SerializedLayoutSnapshotBuilder.ConcreteDataTypes())
             {
@@ -41,20 +40,13 @@ namespace DDrive.Tests.Editor
 
                 try
                 {
-                    foreach (var r in DataValidationRunner.Run((AssetDataBase)instance))
+                    var data = (AssetDataBase)instance;
+                    checkedTypes++;
+                    foreach (var r in new ValueDefValidator().Validate(data, new ValidationContext(new List<AssetDataBase> { data })))
                     {
-                        if (r.Severity != ValidationSeverity.Error)
+                        if (r.Severity == ValidationSeverity.Error)
                         {
-                            continue;
-                        }
-
-                        if (IsTimeError(r))
-                        {
-                            timeErrors.Add($"{type.Name}: {r.Message}");
-                        }
-                        else
-                        {
-                            otherErrors.Add($"{type.Name}: {r.Message}");
+                            errors.Add($"{type.Name}: {r.Message}");
                         }
                     }
                 }
@@ -64,9 +56,8 @@ namespace DDrive.Tests.Editor
                 }
             }
 
-            // 「未設定」(Clip / Prefab 未設定など)を理由にした Error は新規作成直後に出てよい。参考として出力する。
-            TestContext.Out.WriteLine("新規作成直後の Data に出る他の Error(参考):\n" + string.Join("\n", otherErrors));
-            Assert.IsEmpty(timeErrors, "ValueDef の Time 由来の Error が出ています:\n" + string.Join("\n", timeErrors));
+            Assert.Greater(checkedTypes, 0);
+            Assert.IsEmpty(errors, "新規作成直後に ValueDef の Error が出ています: " + string.Join(" / ", errors));
         }
 
         [Test]

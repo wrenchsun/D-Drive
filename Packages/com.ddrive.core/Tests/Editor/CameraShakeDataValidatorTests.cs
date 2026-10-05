@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Validation;
+using DDrive.Foundation.Values;
 using DDrive.Runtime.CameraShake;
 using NUnit.Framework;
 using UnityEngine;
@@ -104,6 +105,57 @@ namespace DDrive.Tests.Editor
             var results = Validate(data);
 
             Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Warning && r.Message.Contains("TraumaWeight")));
+        }
+
+        // GB-R-01(2026-10-06): Constant は ValueDefValidator が Time を検査しない。CameraFxManager は Mode に関係なく
+        // Envelope.Duration を寿命として読むので、尺 0 の固定値の揺れは種別の Validator が Warning で知らせる。
+        [Test]
+        public void ConstantEnvelope_WithZeroDuration_IsWarning_AndNotError()
+        {
+            var data = ValidShake();
+            data.Envelope = ValueDef.Constant01(1f);
+
+            var results = Validate(data);
+
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Warning && r.Code == "DD-SHAKE-ENVELOPE-ZERO-DURATION"));
+            Assert.IsFalse(results.Exists(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        [Test]
+        public void ConstantEnvelope_WithDuration_HasNoWarning()
+        {
+            var data = ValidShake();
+            var envelope = ValueDef.Constant01(1f);
+            envelope.Time = TimeDef.Duration(0.4f);
+            data.Envelope = envelope;
+
+            Assert.IsEmpty(Validate(data));
+        }
+
+        [Test]
+        public void ParametricEnvelope_WithZeroDurationMode_DoesNotDuplicateTheValueDefError()
+        {
+            var data = ValidShake();
+            var envelope = data.Envelope;
+            envelope.Mode = ValueMode.Parametric;
+            envelope.Time = TimeDef.Duration(0f);
+            data.Envelope = envelope;
+
+            Assert.IsFalse(Validate(data).Exists(r => r.Code == "DD-SHAKE-ENVELOPE-ZERO-DURATION"), "Time を使うモードは ValueDefValidator の Error が担当する");
+            Assert.IsTrue(new ValueDefValidator()
+                .Validate(data, new ValidationContext(new List<AssetDataBase> { data }))
+                .Any(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        [Test]
+        public void SpeedModeWithZeroValue_IsWarning()
+        {
+            var data = ValidShake();
+            var envelope = data.Envelope;
+            envelope.Time = new TimeDef { Mode = TimeMode.Speed, Value = 0f, SpeedScale = 1f };
+            data.Envelope = envelope;
+
+            Assert.IsTrue(Validate(data).Exists(r => r.Code == "DD-SHAKE-ENVELOPE-ZERO-DURATION"));
         }
     }
 }

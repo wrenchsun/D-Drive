@@ -1,64 +1,58 @@
 @echo off
-REM 2026-09-15 修正(6-7): このファイルは UTF-8(BOM 無し)で保存されている。cmd.exe は既定のコード
-REM ページ(日本語 Windows では通常 932 = Shift-JIS)でバッチファイルを読むため、コードページが 65001
-REM (UTF-8)以外だと以下の日本語コメント・echo 行が文字化けし、稀に「コマンドとして認識されない」
-REM エラーになる(実行時に確認済み)。ファイル先頭でコードページを揃えることで回避する。
-chcp 65001 >nul
+REM This file is ASCII only on purpose (2026-10-06, docs/59).
+REM cmd.exe reads a batch file with the console code page (932 on Japanese Windows), so a UTF-8 file
+REM with Japanese text can print garbage. The detailed Japanese description lives in docs/29 section 24
+REM and docs/60 section 2.2. Judging logic is in Tools\CI\Run-NetCheck.ps1 (unchanged).
 setlocal EnableDelayedExpansion
-REM D-Drive: 6-7 の 2 クライアント自動テスト。ローカル 2 プロセスで Loopback から差し替えた NGO ブリッジを確認する。
+REM D-Drive NetCheck: automatic multi-process network check over 127.0.0.1 (Loopback and NGO bridges).
 REM
-REM 前提:
-REM   - ビルド済みの Builds\DDriveNetCheck\DDriveNetCheck.exe が存在すること。
-REM     Unity Editor で「Tools ^> D-Drive ^> Build ^> 実機確認用 Windows 開発ビルド」を先に実行する。
-REM     このスクリプト自体はビルドしない。
-REM   - pwsh(PowerShell 7+)が入っていること。判定ロジック一式を Tools\CI\Run-NetCheck.ps1 に置き、
-REM     プロセス起動・待機・強制終了・2 プロセスのログ突き合わせを行うため、run-ci.cmd の
-REM     Summarize-Results.ps1 呼び出しと違って pwsh は必須。無い場合はエラーで終了する。
+REM Prerequisites:
+REM   - Builds\DDriveNetCheck\DDriveNetCheck.exe must exist. Build it first in the Unity Editor with the
+REM     menu Tools ^> D-Drive ^> Build ^> (Windows development build for device check).
+REM     This script does not build.
+REM   - pwsh (PowerShell 7 or later) must be installed. The judging logic, process start/wait/kill and
+REM     log comparison are all in Tools\CI\Run-NetCheck.ps1, so pwsh is required.
 REM
-REM 使い方:
-REM   Tools\CI\run-netcheck.cmd                 全シナリオ(pair0 / pair200 / latejoin / disconnect /
+REM Usage:
+REM   Tools\CI\run-netcheck.cmd                 all scenarios (pair0 / pair200 / latejoin / disconnect /
 REM                                              quad0 / quad_latejoin / quad_leave / quad_hostquit /
 REM                                              host_migration)
-REM   Tools\CI\run-netcheck.cmd pair0            1 シナリオだけ実行(1 Host + 1 Client)
-REM   Tools\CI\run-netcheck.cmd quad0            Host 1 + Client 3、全員 0ms(N-3、docs/29 §24)
-REM   Tools\CI\run-netcheck.cmd quad_latejoin    Host 1 + Client 3、うち 1 人が 12 秒遅れて参加
-REM   Tools\CI\run-netcheck.cmd quad_leave       Host 1 + Client 3、うち 1 人が先に正常終了して抜ける
-REM   Tools\CI\run-netcheck.cmd quad_hostquit    Host 1 + Client 3、Host が先に終了する
-REM   Tools\CI\run-netcheck.cmd host_migration   旧 Host が 12 秒で終了 → Client1 が successor として Host に
-REM                                              昇格、Client2/3 が follower として再接続する(N-6、docs/29 §26)
+REM   Tools\CI\run-netcheck.cmd pair0            one scenario only (1 Host + 1 Client)
+REM   Tools\CI\run-netcheck.cmd quad0            1 Host + 3 Clients, all at 0 ms
+REM   Tools\CI\run-netcheck.cmd quad_latejoin    1 Host + 3 Clients, one joins 12 s late
+REM   Tools\CI\run-netcheck.cmd quad_leave       1 Host + 3 Clients, one leaves normally first
+REM   Tools\CI\run-netcheck.cmd quad_hostquit    1 Host + 3 Clients, the Host quits first
+REM   Tools\CI\run-netcheck.cmd host_migration   old Host quits at 12 s, Client1 is promoted to Host,
+REM                                              Client2 and Client3 reconnect as followers
 REM
-REM .ps1 を主にしない理由は run-ci.cmd と同じ。この PC の PowerShell 5.1 は既定の実行ポリシーで
-REM .ps1 実行がブロックされる、BOM 無し UTF-8 のコメントが化けることがあるため、内部で pwsh を
-REM 明示的に -ExecutionPolicy Bypass 付きで呼ぶことでこれを回避している。
-REM
-REM 半角の丸括弧はコメント中で使わない。cmd.exe のパーサが日本語コメント直後の半角の丸括弧を
-REM 誤って別コマンドの開始と解釈することがあるため、全角の（）に統一する。
+REM Exit code: 0 = all scenarios passed, otherwise the exit code of Run-NetCheck.ps1 (1 if the exe or pwsh is missing).
+REM Do not use parentheses in REM comments; cmd.exe can misread them.
 
 set "EXE=%CD%\Builds\DDriveNetCheck\DDriveNetCheck.exe"
 if not exist "%EXE%" (
-    echo [ERROR] ビルド済み exe が見つかりません: %EXE%
-    echo   先に Unity Editor で「Tools ^> D-Drive ^> Build ^> 実機確認用 Windows 開発ビルド」を実行してください。
+    echo [ERROR] Built exe not found: %EXE%
+    echo   Build it first in the Unity Editor: Tools ^> D-Drive ^> Build ^> Windows development build for device check.
     exit /b 1
 )
 
 where pwsh >nul 2>nul
 if not "%ERRORLEVEL%"=="0" (
-    echo [ERROR] pwsh が見つかりません。PowerShell 7 以上をインストールしてください。
-    echo   判定ロジック一式は Tools\CI\Run-NetCheck.ps1 にあり、pwsh の実行が必要です。
-    echo   https://github.com/PowerShell/PowerShell からインストールできます。
+    echo [ERROR] pwsh not found. Install PowerShell 7 or later.
+    echo   The judging logic is in Tools\CI\Run-NetCheck.ps1 and needs pwsh.
+    echo   https://github.com/PowerShell/PowerShell
     exit /b 1
 )
 
 set "SCENARIO=%~1"
 
-echo === D-Drive 6-7 NetCheck ===
+echo === D-Drive NetCheck ===
 echo Exe        : %EXE%
 echo Project    : %CD%
 if not "%SCENARIO%"=="" echo Scenario   : %SCENARIO%
 echo.
-echo [注意] このプロジェクトを Unity Editor で開いていても実行はできますが、127.0.0.1 の UDP ポート
-echo        7801/7811/7821/7831(1v1)・7841/7851/7861/7871(quad、N-3)・7881(host_migration、N-6)が
-echo        他プロセスで使用中でないことを確認してください。
+echo [NOTE] You can run this while the project is open in the Unity Editor, but make sure the UDP ports
+echo        7801/7811/7821/7831 for 1v1, 7841/7851/7861/7871 for quad and 7881 for host_migration
+echo        on 127.0.0.1 are not used by another process.
 echo.
 
 pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0Run-NetCheck.ps1" -OnlyScenario "%SCENARIO%"

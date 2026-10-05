@@ -135,6 +135,7 @@ ValueDef を持つ欄（`grep "public ValueDef"` と `ValueDefValidator` の走�
 - **失敗の筋書き**: プログラマーがコードで `shake.Envelope = ValueDef.Constant01(1f)`（Time は既定 0）と書く、またはデザイナーが Envelope を Constant にして尺を 0 にする → Validation は Error 0 → 実機で揺れない / 振動しない。Haptics は 2 モーターのどちらかに尺があれば起きない。新規作成の既定値（Parametric 0.3 / 0.2 秒）では起きない。
 - **直し方の案**: `ValueDefValidator` は今の形（Constant では Time を見ない）のままにし、**種別の Validator に「尺が 0 以下で再生されない」Warning を足す**（`CameraShakeDataValidator`: `shake.Envelope.Duration <= 0f` / `HapticsDataValidator`: `Max(LowFreq.Duration, HighFreq.Duration) <= 0f`）。Mode を問わず `Duration` で判定すれば、TimeMode=Speed / Rate で Value=0 の場合（以前から未検出）も拾える。新しい検査は Warning（[42] §5.8 の「新しい検査は Warning 始まり」）なので MINOR の範囲でタグ前に入れられる（Code を付けるなら `validator-severity.txt` に行が増えるだけ）。
 - **確度**: 確認済み（コード読み）。新規作成の既定値では起きないことも確認済み
+- → **対応（2026-10-06 修正ラウンド 7、b4c9624）**: `ValueDefValidator` は #115 のまま（戻さない）。種別の Validator に **新規コード**の Warning を足した。`CameraShakeDataValidator`: `DD-SHAKE-ENVELOPE-ZERO-DURATION`（`Envelope.Duration <= 0`。「Envelope の尺(Duration)が 0 以下のため、再生してもすぐ終わり何も起きません」）、`HapticsDataValidator`: `DD-HAPTICS-ZERO-DURATION`（`Max(LowFreq.Duration, HighFreq.Duration) <= 0`）。判定は Mode に関係なく `Duration`（TimeMode=Speed / Rate で Value=0 も拾う）。**二重に出さない**: 「Time を使うモード（Constant 以外）+ `TimeMode=Duration` + Value <= 0」は `ValueDefValidator` の Error が既に出るので、その形のときは Warning を出さない（Haptics は 2 モーターのどちらかがその形なら出さない）。新規作成直後の既定値（Parametric 0.3 / 0.2 秒）では出ない。重さは Warning（[42] §5.8）。v1.3.1 ではこの形は Error だったので「Error → Warning に下がる」ことを CHANGELOG の挙動の変更に明記。Code は `private const`（公開 API を増やさない）。**他の「Time を寿命 / 完了時刻として読む」欄の確認（実コード）**: `BgmData.FadeIn` / `FadeOut`（`BgmManager` の `Duration > 0` / `Max(Duration, 0.0001)`）= 尺 0 は「フェードしない」で正当、`UiTweenData.Tracks[].Motion`（`UiTweenManager.IsTrackFinished` = `trackElapsed >= Motion.Duration`）= 尺 0 は「即座に終値をセットして完了」で正当（無限ループで完了しない形は `UiTweenDataValidator` の Warning が Mode を問わず残る）→ **「Constant + 尺 0 で黙って無効になる」形は成立しないので Warning は足さない**。テスト: `CameraShakeDataValidatorTests`（Constant + 尺 0 = Warning のみ・Error なし / Constant + 尺あり = 何も出ない / Parametric + Duration 0 = Warning なし（`ValueDefValidator` が Error）/ Speed + Value 0 = Warning）、`HapticsDataValidatorTests`（両モーター Constant + 尺 0 = Warning のみ / 片方に尺あり = 何も出ない / Parametric + Duration 0 = Warning なし）。
 
 ### GB-R-02. 【#115 と同じ種類】新規作成・取り込み直後の BgmData が必ず「LoopEndSec が LoopStartSec 以下です」の Error になる（実行時は 0 / 0 を全体ループとして正しく扱う）
 
@@ -143,6 +144,18 @@ ValueDef を持つ欄（`grep "public ValueDef"` と `ValueDefValidator` の走�
 - **失敗の筋書き**: 持ち込み先（MS2026）で BGM を 1 曲取り込む → `CI.ValidateAll` が Error で fail（[42] §5.8 のとおり持ち込み先の CI は「Error があれば fail」）。SpecWeb の送信で `isPlaceholder = true`（`SpecWebSender.cs:146-171`）となり、Web 側で「インポート済」に進めない。開発リポジトリでは #114 で `BGM_Title_Test` の `LoopEndSec` をクリップ長に直して回避しただけ。
 - **直し方の案**: 条件を `bgm.LoopEndSec > 0 && bgm.LoopEndSec <= bgm.LoopStartSec` に絞る（0 は「末尾まで」）。Error が減る方向だけの変更で [42] §5.8 の PATCH（自由）。#115 と同じく CHANGELOG の互換性節（挙動の変更・PATCH 相当）と修正節に 1 行、`BgmDataValidator` のテストに 0 / 0・Start>0 / End=0 → Error なし、End>0 かつ End<=Start → Error を足す。v1.4.0 に入れるのを推奨（タグを止める理由ではない）。
 - **確度**: 確認済み（コード読み。実行時の 0 / 0 の再生結果は実機未確認だが、分岐は明確）
+- → **対応（2026-10-06 修正ラウンド 7、652df75）**: Error の条件を実行時（`BgmManager.StartLoopBody`）の意味に合わせた。実効の終端 = `LoopEndSec > 0` ならそれ、0 以下なら `LoopBody.length`（`LoopBody` が null なら不明）。**実効の終端が確定していて `LoopStartSec` 以下のときだけ Error**（メッセージ・重さ・コードは従来のまま）。各組み合わせの実行時の扱いと検査:
+
+| LoopStartSec / LoopEndSec | 実行時（`StartLoopBody`） | 検査 |
+|---|---|---|
+| 0 / 0（既定。取り込み直後） | `endSample = samples` → クリップ全体をループ | Error なし（以前は Error） |
+| Start > 0 / End = 0（Start がクリップ内） | `endSample = samples` → Start から末尾までをループ | Error なし（以前は Error） |
+| Start >= クリップ長 / End = 0 | `startSample` が `samples - 1` に丸められ、1 サンプルのループになる（破綻） | **Error のまま**（実効の終端 = クリップ長 <= Start） |
+| End > 0 かつ End <= Start（例 5.0 / 2.0、2.0 / 2.0） | End が無視され Start から末尾までになる（指定と違う範囲） | **Error のまま** |
+| End > クリップ長（Start < クリップ長） | `endSample` を `samples` に丸める | Error なし（従来も Error ではない） |
+| `LoopBody` 未設定 / End = 0 / Start > 0 | クリップが無く鳴らない | この検査は出さない（`LoopBody` 未設定の Error が別にある） |
+
+テスト（`BgmDataValidatorTests`）: `LoopBody` だけ設定した BgmData が Error 0・Start>0 / End=0 が Error なし・Start >= クリップ長 / End=0 が Error・End がクリップ長超過が Error なし・End == Start > 0 が Error。`FreshlyCreatedData_OfEveryConcreteType_…`（GB-R-07 の直し後は `ValueDefValidator` の Error 0 を見る）に加え、全具象 Data 型の新規作成直後に `DataValidationRunner` を回して Error を一覧すると（`execute_code`）、残るのは「未設定」系（ModelData・CanvasData・VfxData・PrefabData の Prefab、BgmData の `LoopBody`、SeData・AnimData の Clip、TextureData の Texture、Anim2DData の Clip 未生成、AnimData の StateName）だけで、**値の範囲系の Error は 0**（Anim2D / Skin / CameraShake / BGM とも）。`BGM_Title_Test` は #114 のままで触っていない。
 
 ---
 
@@ -154,6 +167,7 @@ ValueDef を持つ欄（`grep "public ValueDef"` と `ValueDefValidator` の走�
 - **何が問題か**: `ValueDefColor { Mode = Curve, Curve = <Gradient>, Alpha = Constant01(1) }`（色は変えたいが透明度は一定）は自然な書き方だが、Alpha の Time が 0 だと Gradient が常に t=1。以前は Alpha の Error で見つかった。D-Drive の Data には ValueDefColor の欄が無い（grep 0 件）ので D-Drive 自身は影響を受けず、Foundation の公開型を持ち込み先が自分の Data に使ったときだけ起きる。
 - **直し方の案**: `ValueDefValidator` で ValueDefColor の Alpha を検査するとき、`ValueDefColor.Mode == Curve` なら Alpha を「Time を使う」扱いにする（`CheckValueDef` に `forceUsesTime` 引数）。Error を戻す方向だが、v1.4.0 のタグ前なら v1.3.1 と同じ重さに戻すだけ。またはタグ後に Warning で。
 - **確度**: 確認済み（コード読み）
+- → **見送り（2026-10-06 修正ラウンド 7）**: 指示どおり検査は足さない（D-Drive の Data に `ValueDefColor` の欄が無い）。`docs/17` §6 に「Constant では Time を検査しない。寿命として Time を読む種別は種別側の Validator が見る」と書いた。`ValueDefColor.Alpha` が Constant でも Gradient の時間軸として Time を使う点は、持ち込み先が使ったときの注意として `docs/17` に 1 行。
 
 ### GB-R-04. 【GA-R-01】案内に「Bootstrap より先に `OnEnable` が走ると黙って登録されない」「`Tick` の中で自分を無効にすると次の Manager がそのフレーム飛ばされる」「asmdef の参照」が無い
 
@@ -161,24 +175,28 @@ ValueDef を持つ欄（`grep "public ValueDef"` と `ValueDefValidator` の走�
 - **何が問題か**: (1) コード例は `Instance` が null なら `return` するだけで、後から登録し直す手段も知らせる手段も無い。`[DefaultExecutionOrder(-2000)]` のゲーム側スクリプト・Bootstrap を後からロードする構成・Bootstrap の作り直しで、`Tick` が一度も来ないまま気づけない（例外も警告も出ない）。(2) `Tick` 中に `OnDisable` が走ると（`SetActive(false)` / `enabled = false`）、`List.Remove` で後ろが詰まり、直後の 1 つがそのフレーム飛ばされる。(3) 持ち込み先が asmdef を使う場合は `DDrive.Foundation` / `DDrive.Runtime` の参照が要る（MS2026 は現状 Assembly-CSharp だが、[49] では asmdef の有無で `DDrive.Generated.asmdef` を判断している）。
 - **直し方の案（コード変更なし）**: 運用ページの例の `return` の前に `Debug.LogWarning("… Bootstrap が無いので Tick に登録しません")` を 1 行入れる（または「起動順が Bootstrap より前になりうるなら `Start` でも登録を試す」と 1 文）。「`Tick` の中で自分を無効にしない（必要なら次のフレームに回す）」と「asmdef なら 2 つを参照」を 1 文ずつ。D-Drive 側で `GameLoop` を写しの走査にする（`PresentationManager` / `CutsceneManager` と同じ形）のは挙動の変更なので M-5（案）と一緒に。
 - **確度**: (1)(3) 確認済み、(2) 確認済み（コード読み。`OnDisable` が即時に呼ばれるのは Unity の仕様）
+- → **対応（2026-10-06 修正ラウンド 7、d95cf10）**: (1) 起動順: コード例を `OnEnable` + `Start` の再試行 + 警告ログに変更（`TryRegister()` を共通化。`Register` は `Contains` で二重登録を防ぐので `OnEnable` と `Start` で 2 回呼んでも 1 回扱い）。成立は実コードで確認: Bootstrap は `[DefaultExecutionOrder(-1000)]` の `Awake`、`OnEnable` は実行順の小さいスクリプトでは先に走り `Instance` が null、`Start` は同じシーンの全 `Awake` / `OnEnable` の後。**Bootstrap が後からロードされるシーン構成は `Start` でも間に合わない**ので警告ログで気づけるようにしている（案内に明記）。E-9b の外部 Manager（`ExternalGameTimeBehaviour`）も同じ形に変え、テストに「Bootstrap の `Awake` より後に `Start` が走ると登録される」「`Start` でも Bootstrap が無ければ警告 1 行」を追加。(2) `Tick` 中の `Unregister`: **事実を確認した**。`GameLoop.Tick` は `for (i = 0; i < _managers.Count; i++) _managers[i].Tick(dt)`（`GameLoop.cs:36-42`）で、`Unregister` は `List.Remove`。自分または前にいる Manager を外すと後ろが詰まり、直後の 1 つがそのフレームだけ `Tick` されない（後ろの Manager を外す場合は飛ばない）。`BroadcastPause` / `StopAll` / `NotifySceneUnload` も同じ形。例外は出ない。案内に「`Tick` の中で `Unregister` / 無効化しない。フラグを立てて次のフレームの頭か `LateUpdate` で外す」を追記。**`GameLoop` 自体は直さない**（Foundation の挙動変更になるため。リリース後のチケット候補として docs/60 §6 に 1 行）。(3) asmdef: `DDrive.Foundation` と `DDrive.Runtime` への参照が要る（asmdef なしの `Assembly-CSharp` なら不要）を追記。追記先: 運用ページ（コード例も差し替え）・docs/11 M-4 節の返答文・消費側スキル `common-warnings.md`・`AGENTS_CONSUMER.md`・docs/12 §3・ProgrammerManual `rules.html`・docs/60 第 4 章。`Documentation~/ConsumerGuide` と `Documentation~/ProgrammerManual` は `bump-version.ps1` の同期で置き換わる（手では編集していない）。
 
 ### GB-R-05. 【#115】CHANGELOG に SpecWeb の Placeholder 判定への影響が無い・`ValueDefValidatorTests` の残りの細部
 
 - **場所**: `CHANGELOG.md:14,89`、`Editor/Spec/SpecWebSender.cs:146-171,518-530`、`ValueDefValidator.cs:155-158`
 - **細部**: (1) SpecWeb は「Error があるアセット = Placeholder」で送る。#115 で、Time の Error だけを持っていた Anim2D / Skin / CameraShake（持ち込み先で確認用データを直していないもの）は `isPlaceholder = false` に変わり、SpecDiff の「まだ Placeholder のようです」Warning も消える。正しい方向の変化だが、CHANGELOG の互換性節には「CI の Error が減る」しか無い。「SpecWeb への送信で Placeholder 扱いでなくなる Data がある」を 1 語足すと SpecWeb の担当者に伝わる。(2) `TimeMode=Rate なのに Loop=Once` の Warning（`:155-158`）は Constant でも出る（Time を使わないのに）。#115 の考え方に合わせるなら `usesTime` で絞る（Warning を減らす変更 = 自由）。実害は小さい。
 - **確度**: 確認済み
+- → **対応（2026-10-06 修正ラウンド 7、本 PR の docs コミット）**: (1) 実コードで事実を確認した。`SpecWebSender.FindAssetPathsWithValidationErrors` は `CI.RunValidation(includeProjectWideValidators: false)` の Error を持つアセットのパスを集め、それが `isPlaceholder = true` になる。`assetParams` の items は `isPlaceholder = false` のものだけ。`SpecDiffValidator` も同じ判定を使って「インポート済なのにまだ Placeholder のようです」Warning を出す。よって #115 と GB-R-02 で Error が減ると、**原因が ValueDef の Time（Constant）か BGM の `LoopEndSec` だけだった Data は Placeholder でなくなり、`assetParams` にも載り、上の Warning も出なくなる**。CHANGELOG の「挙動の変更」に 1 項を追加。(2) `TimeMode=Rate なのに Loop=Once` の Warning を `usesTime` で絞る件は、Warning を減らす方向だが指摘に「実害は小さい」とあり、今回のラウンドは指示の範囲に絞って**見送り**（次の機会に）。
 
 ### GB-R-06. 【GA-R-07】テストが「紐付かないこと」を固定できているのは Code のある 3 種だけ・名前での判定
 
 - **場所**: `Tests/Editor/Update/P15VerificationFixTests.cs:388-433`、`DataValidationSection.cs:161-173,183-192`
 - **細部**: (1) `RunValidation_ProjectScopedFindings_…` は `DD-SETUP-` / `DD-CAMEXEC` / `DD-PKGDEP-` のコードで「全体の指摘」を見分けるが、`SpecDiffValidator`（全体の指摘）・`ContentHashCatalogCoverageValidator`・`CatalogAddressCoverageValidator`・`CameraExecutionOrderValidator` の G-1 Warning は Code を持たないので、これらが Data に紐付いても赤にならない。`SpecDiffValidator` の Data ごとの指摘が今も Data に紐付くこと、新旧で件数が同じことのテストも無い。偽の `SpecDiffValidator`（`RepoRootOverride` / `TuningTableOverride`）で全体 1 件 + Data ごと 1 件を作り、`Asset == null` が 1 件・Data 付きが 1 件、を固定すると安い。(2) 判定は型の**単純名**（`GetType().Name`）なので、持ち込み先が同じ名前の別の Validator（例 `MyGame.SpecDiffValidator`）を書くと、`IUniversalValidator` でなければ `Run All` で**黙って実行されなくなる**（`CI.cs:157-160` の `continue`）。`typeof(…)` での比較にするか、`IUniversalValidator` でないものは対象外にする（まれ）。
 - **確度**: 確認済み（コード読み）
+- → **対応（2026-10-06 修正ラウンド 7、3676f12）**: (2) 判定を型の単純名から**型そのもの**に変えた（`DataValidationRunner` の `ProjectWideValidatorNames`（`HashSet<string>`）→ `ProjectWideValidatorTypes`（`HashSet<Type>`）。5 つとも `DDrive.Editor` 内の型なので `typeof` で書ける。`IsProjectWide` / `IsProjectScopedInRunAll` / 個別検証の発見の 3 経路が同じ集合を使う。公開シグネチャは不変）。持ち込み先が同じ名前の別の Validator を書いても取り違えない（Run All から黙って落ちることも、個別検証から外れることもない）。本体コードの変更はこの 1 か所だけ（指摘 (2) への直接の対応で最小）。(1) テスト: `SameNamedValidatorsFromOtherNamespaces_AreNotTreatedAsProjectScoped`（同名の偽 Validator が全体用として扱われない）、`EveryProjectScopedValidator_IsAnIUniversalValidator_SoRunAllNeverDropsIt`（6 つが `IUniversalValidator`）、`RunValidation_GlobalFindingsOfCodelessValidators_AreNotAttachedToAnyAsset`（Code を持たない 3 つ〔ContentHash・CatalogAddress・CameraExecutionOrder〕の全体の指摘を空の context で出し、同じメッセージが Run All で Data に紐付かないことを見る。context が違えばメッセージも違いうるため一致したものだけを見る弱い確認）。**`SpecDiffValidator` の Data ごとの指摘が従来どおり Data に紐付くことの専用テスト（偽の `RepoRootOverride` / `TuningTableOverride`）は、仕様書スナップショットの JSON を組み立てる必要があり今回は見送り**（型の判定と `CI.RunValidation` の分岐は変えていない）。
 
 ### GB-R-07. 【#115】`ConstantTimeValidationTests` の壊れやすさ（持ち込み先で有効にしたとき）
 
 - **場所**: `Tests/Editor/ConstantTimeValidationTests.cs:20-22,30,46,75`
 - **細部**: (1) 型の列挙は `SerializedLayoutSnapshotBuilder.ConcreteDataTypes()`（`DDrive.*` のアセンブリだけ・`DDrive.Tests*` と抽象型を除く）なので、持ち込み先固有の Data 型・テスト用 Data（`HolderData` / `TestAssetData`）・外部契約のダミー（`ExternalContract.*`）は入らない。○ (2) 一方で検査は `DataValidationRunner.Run` = **持ち込み先の `IValidator` も含む全 Validator** なので、持ち込み先の Validator が D-Drive の型に「SpeedScale」「Duration=0」「TimeMode=Duration」を含む Error を出す、または `Debug.LogError` を出すと（Unity Test Framework は想定外の Error ログで失敗にする）このテストが落ちる。目的は ValueDef の検査なので、`new ValueDefValidator().Validate(...)` だけを呼ぶ方が狙いに合い、壊れにくい（2 つ目のテストはそうしている）。(3) Error の見分けがメッセージの部分一致（`IsTimeError`）なので、文言を変えると黙って通る。(4) フィクスチャのパス `Packages/com.ddrive.core/…` を `Directory.GetFiles` で読むのは既存の `LegacyAssetFixtureTests` と同じ形（P-11 / P-12 の持ち込み先の実行でも同じテストは落ちていない記録なので問題ない見込み = **推定**）。
 - **確度**: (1)(3) 確認済み、(2) 推定（持ち込み先の Validator 次第）、(4) 推定
+- → **対応（2026-10-06 修正ラウンド 7、3676f12）**: (1) 型の列挙は D-Drive の Data 型だけ（`ConcreteDataTypes`。変更なし）。(2)(3) 検査を `DataValidationRunner.Run`（持ち込み先の Validator 込み）から `new ValueDefValidator().Validate(...)` だけに変え、判定を「メッセージの部分一致」から「**`ValueDefValidator` が Error を 1 件も返さないこと**」に変えた（テスト名 `FreshlyCreatedData_OfEveryConcreteType_HasNoValueDefError`。持ち込み先の Validator・`Debug.LogError` に左右されない。文言を変えても黙って通らない）。「他の Error（参考）」の出力は削除（一覧が必要なときは `execute_code` で取れる = GB-R-02 の確認で実施）。(4) 推定のまま（`LegacyAssetFixtureTests` と同じ形）。
 
 ### GB-R-08. 細部（検査ウィンドウの初回の二重走査・`ParseVersion` の BOM・E-9b の順序依存）
 
@@ -186,6 +204,7 @@ ValueDef を持つ欄（`grep "public ValueDef"` と `ValueDefValidator` の走�
 - **`ParseVersion`**（`PackageDependencyChecker.cs:130-140`）: BOM を取り除かない。読めなければタグの版にフォールバックするので結果は変わらない（揃えるなら同じ `TrimStart`）。
 - **E-9b**（`ExternalContractLoopTests.cs:177-181`）: 最初の「Bootstrap が無ければ登録しない」は、前のテストが Bootstrap を残していると失敗する（既存の E-9 の後始末に依存）。
 - **確度**: 1 つ目は推定、他は確認済み
+- → **対応（2026-10-06 修正ラウンド 7、8a57324）**: (a) `ForbiddenApiWindow.Open`: `GetWindow` の**前**に `HasOpenInstances<ForbiddenApiWindow>()` で既に開いていたかを調べ、**既に開いていたときだけ**再走査する形にした（初めて開くときは `CreateGUI` が 1 回だけ走査する。`CreateGUI` が `GetWindow` の中で同期的に呼ばれても後から呼ばれても 1 回）。**Unity 6 の `CreateGUI` の時機は推定のまま**で、自動テストは無い（EditorWindow の生成時機に依存するため）。どちらの時機でも結果は正しく、走査回数が減るだけの安全な変更。(b) `ParseVersion` に `TrimStart('\uFEFF')` を追加（`TryParse` と揃えた。`PackageDependencyCheckerTests.ParseVersion_ReadsVersionOrNull` に BOM 付きを追加）。(c) E-9b の「Bootstrap が無ければ登録しない」が前のテストの残りに依存する件は**見送り**: 既存の E-9 と同じ前提で、全件実行で 2 回とも green。クリーンアップで隠すより、残りがあれば落ちて分かる方を残す。
 
 ---
 

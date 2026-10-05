@@ -374,6 +374,16 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - 修正ラウンド 4（レビュー [56]）: (a) Client の操作で再生したカットシーンが別の Client でも、直近 0.5 秒のマーカーが鳴る・途中参加は参加時点から遡って 0.5 秒以内だけ鳴る（4-5）。(b) Edit Mode で途中から再生・再開したとき最初の 1 フレーム分を飛ばさない（4-4 の (c)）。(c) 欠けたシェーダーの間、既存 MaterialData の色・テクスチャ等も変わらない（15.6 の 4）
 - FC-10: T-Drive のパッケージを入れたうえで、MS2026 の Test Runner で `ExternalContract` の全件 Pass（外部パッケージが入った状態でも、ダミーの `IValidator` が Run All を汚さない・実 FBX〔T-Drive のキャラ〕でボーン名 / シェイプ名 / スケールが取り込み〜Spawn で変わらない、を実物でも見る。E-17 の実 FBX 版は [51] §4.11 実装メモ (3)）
 
+## 23. 検査の調整（2026-10-06、修正ラウンド 7）
+
+[59](59_review_round6_valuedef_2026-10-06.md) GB-R-01 / GB-R-02。自動テストで確認済み（`CameraShakeDataValidatorTests`・`HapticsDataValidatorTests`・`BgmDataValidatorTests`・`ConstantTimeValidationTests`）。目視は次の 3 点だけ。確認用の Data は確認後に削除してください。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 23-1 | Anim2D・ControlSkin（Button / Slider）・CameraShake の Data を AssetBrowser などで新規作成して保存し（設定は触らない）、`Tools > D-Drive > Validation > Run All` を実行する | 新規作成しただけのこれらの Data が Error にならない（Clip 等の「未設定」系は出てよい） | □ 未 |
+| 23-2 | Audio エディタで BGM の音源を 1 本取り込む（`SourceAssets/Bgm/` に置く → BgmData が作られる）。LoopStart / LoopEnd は 0 / 0 のまま Run All | その BgmData に「LoopEndSec が LoopStartSec 以下です」の Error が出ない。LoopStart に 5、LoopEnd に 2 を入れると Error が出る | □ 未 |
+| 23-3 | CameraShake の Envelope を固定値（Mode=Constant）にして尺（Time）を 0 にし、Run All を実行する | 「Envelope の尺(Duration)が 0 以下のため、再生してもすぐ終わり何も起きません」の Warning が出る（Error は出ない）。尺に 0.4 を入れると消える | □ 未 |
+
 ## 要判断（全体）
 
 - なし（実装済みチケットの要判断は各節末尾。未決は [51] §8 の U-14。U-15 は FC-10 で決定済み）

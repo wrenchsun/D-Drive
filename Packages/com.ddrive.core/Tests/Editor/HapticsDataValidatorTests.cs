@@ -83,5 +83,42 @@ namespace DDrive.Tests.Editor
 
             Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Info && r.Message.Contains("PlatformKey")));
         }
+
+        // GB-R-01(2026-10-06): HapticsManager は Mode に関係なく Max(Low, High の Duration) を寿命として読む。
+        [Test]
+        public void BothConstantMotors_WithZeroDuration_IsWarning_AndNotError()
+        {
+            var data = ValidHaptic();
+            data.LowFreq = ValueDef.Constant01(1f);
+            data.HighFreq = ValueDef.Constant01(1f);
+
+            var results = Validate(data);
+
+            Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Warning && r.Code == "DD-HAPTICS-ZERO-DURATION"));
+            Assert.IsFalse(results.Exists(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        [Test]
+        public void OneMotorWithDuration_HasNoWarning()
+        {
+            var data = ValidHaptic();
+            data.LowFreq = ValueDef.Constant01(1f); // 尺 0
+            // HighFreq は既定(Parametric 0.2 秒)のまま = 寿命は 0.2 秒
+            Assert.IsEmpty(Validate(data));
+        }
+
+        [Test]
+        public void ParametricZeroDurationMode_DoesNotDuplicateTheValueDefError()
+        {
+            var data = ValidHaptic();
+            var low = data.LowFreq;
+            low.Time = TimeDef.Duration(0f);
+            data.LowFreq = low;
+            var high = data.HighFreq;
+            high.Time = TimeDef.Duration(0f);
+            data.HighFreq = high;
+
+            Assert.IsFalse(Validate(data).Exists(r => r.Code == "DD-HAPTICS-ZERO-DURATION"));
+        }
     }
 }

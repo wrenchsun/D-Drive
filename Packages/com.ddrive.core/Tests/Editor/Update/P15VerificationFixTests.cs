@@ -439,5 +439,83 @@ namespace DDrive.Tests.Editor.Update
                 "1 アセットの個別検証には出さない(全アセットの結果として現れてしまう)");
             Assert.IsTrue(DataValidationRunner.IsProjectWide(new PackageDependencyValidator()));
         }
+
+        // ── GB-R-06(2026-10-06、docs/59): 全体用の判定は型そのもの。持ち込み先の同名の Validator と取り違えない ──
+
+        private static class Lookalikes
+        {
+            // 単純名だけが D-Drive の全体用 Validator と同じ。IUniversalValidator ではない(単純名で判定していると Run All で黙って落ちる)。
+            public sealed class SpecDiffValidator : IValidator
+            {
+                public DDrive.Foundation.Identity.AssetType Target => DDrive.Foundation.Identity.AssetType.None;
+
+                public IEnumerable<ValidationResult> Validate(DDrive.Foundation.Data.AssetDataBase data, ValidationContext ctx)
+                {
+                    yield break;
+                }
+            }
+
+            public sealed class PackageDependencyValidator : IValidator
+            {
+                public DDrive.Foundation.Identity.AssetType Target => DDrive.Foundation.Identity.AssetType.None;
+
+                public IEnumerable<ValidationResult> Validate(DDrive.Foundation.Data.AssetDataBase data, ValidationContext ctx)
+                {
+                    yield break;
+                }
+            }
+        }
+
+        [Test]
+        public void SameNamedValidatorsFromOtherNamespaces_AreNotTreatedAsProjectScoped()
+        {
+            Assert.IsFalse(DataValidationRunner.IsProjectWide(new Lookalikes.SpecDiffValidator()));
+            Assert.IsFalse(DataValidationRunner.IsProjectScopedInRunAll(new Lookalikes.SpecDiffValidator()));
+            Assert.IsFalse(DataValidationRunner.IsProjectWide(new Lookalikes.PackageDependencyValidator()));
+            Assert.IsFalse(DataValidationRunner.IsProjectScopedInRunAll(new Lookalikes.PackageDependencyValidator()));
+        }
+
+        [Test]
+        public void EveryProjectScopedValidator_IsAnIUniversalValidator_SoRunAllNeverDropsIt()
+        {
+            // CI.RunValidation は IUniversalValidator でないものを黙って飛ばす。D-Drive 自身の全体用の 6 つは全部が対象。
+            var all = new IValidator[]
+            {
+                new PackageDependencyValidator(), new ProjectSetupValidator(), new SpecDiffValidator(),
+                new ContentHashCatalogCoverageValidator(), new CatalogAddressCoverageValidator(), new CameraExecutionOrderValidator(),
+            };
+            foreach (var validator in all)
+            {
+                Assert.IsTrue(DataValidationRunner.IsProjectScopedInRunAll(validator), validator.GetType().Name);
+                Assert.IsInstanceOf<IUniversalValidator>(validator, validator.GetType().Name);
+            }
+        }
+
+        // Code を持たない全体用の Validator(SpecDiff の全体の指摘・カタログ網羅・実行順の G-1)も Data に紐付かない。
+        // 空の context で全体用の Validator を asset = null で呼んだときのメッセージが、Run All でどの Data にも紐付かないことを見る
+        // (context が違えば出るメッセージも違いうるので、一致したものだけを見る弱い確認。主な保証は上の型の判定)。
+        [Test]
+        public void RunValidation_GlobalFindingsOfCodelessValidators_AreNotAttachedToAnyAsset()
+        {
+            var empty = new ValidationContext(new List<DDrive.Foundation.Data.AssetDataBase>());
+            var globalMessages = new HashSet<string>();
+            foreach (var validator in new IUniversalValidator[]
+            {
+                new ContentHashCatalogCoverageValidator(), new CatalogAddressCoverageValidator(), new CameraExecutionOrderValidator(),
+            })
+            {
+                foreach (var result in validator.Validate(null, empty))
+                {
+                    if (string.IsNullOrEmpty(result.Code))
+                    {
+                        globalMessages.Add(result.Message);
+                    }
+                }
+            }
+
+            var reports = CI.RunValidation();
+            var attached = reports.Where(r => r.Asset != null && globalMessages.Contains(r.Result.Message)).Select(r => r.Result.Message).ToList();
+            Assert.IsEmpty(attached, "全体の指摘が Data に紐付いている: " + string.Join(" / ", attached));
+        }
     }
 }

@@ -72,6 +72,7 @@ namespace DDrive.Tests.Editor.Update
             Assert.IsNull(DdriveUpdateDeclaration.ParseVersion("{ }"));
             Assert.IsNull(DdriveUpdateDeclaration.ParseVersion("not json"));
             Assert.IsNull(DdriveUpdateDeclaration.ParseVersion(null));
+            Assert.AreEqual("1.2.3", DdriveUpdateDeclaration.ParseVersion("\uFEFF{ \"version\": \"1.2.3\" }"), "BOM 付きでも読める(GB-R-08)");
         }
 
         // ── requires ──
