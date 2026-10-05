@@ -18,11 +18,22 @@ namespace DDrive.Editor.Validation
         private ScrollView _body;
         private Label _status;
 
+        // メニューから開いたときだけ走査する(ドメインリロード後の CreateGUI では走査しない。static はリロードで false に戻る)。
+        // ウィンドウを開いたままスクリプトを保存するたびに、Assets 配下の全 .cs を読み直さないため(docs/58 GA-R-08)。
+        private static bool s_scanOnCreate;
+
         [MenuItem(DDriveMenu.Validation + "禁止 API の検査")]
         public static void Open()
         {
+            s_scanOnCreate = true;
             var window = GetWindow<ForbiddenApiWindow>("禁止 API の検査");
             window.minSize = new Vector2(560, 320);
+            if (window._body != null)
+            {
+                // 既に開いていた(CreateGUI 済み)ときは、開き直しの操作として再走査する。
+                s_scanOnCreate = false;
+                window.Rescan();
+            }
         }
 
         private void CreateGUI()
@@ -43,7 +54,15 @@ namespace DDrive.Editor.Validation
             _body = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
             root.Add(_body);
 
-            Rescan();
+            if (s_scanOnCreate)
+            {
+                s_scanOnCreate = false;
+                Rescan();
+            }
+            else
+            {
+                _status.text = "スクリプトの再コンパイル後は自動では走査しません。「再走査」を押すと検査します。";
+            }
         }
 
         private void Rescan()
