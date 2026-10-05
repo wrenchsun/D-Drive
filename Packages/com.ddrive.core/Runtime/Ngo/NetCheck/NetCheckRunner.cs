@@ -4,14 +4,17 @@
 // `DDrive.Samples` から `DDrive.Runtime.Net` に揃えた(DDrive.Runtime.Ngo.asmdef の rootNamespace と同じ)。
 #if DDRIVE_NGO
 using System.Collections.Generic;
+using System.Globalization;
 using Cysharp.Threading.Tasks;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Net;
+using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Loop;
 using DDrive.Runtime.Presentation;
 using R3;
 using UnityEngine;
+using UnityEngine.Timeline;
 
 namespace DDrive.Runtime.Net
 {
@@ -24,6 +27,9 @@ namespace DDrive.Runtime.Net
     // (DDrive.Runtime の子ではないため)。using エイリアスを namespace ブロックの内側(このスコープ自身)に
     // 置くことで、このスコープの解決を DDrive.Runtime レベルまで探しに行く前に確定させる。
     using Presentation = DDrive.Runtime.Presentation.Presentation;
+
+    // [14_networking.md] §22/N-8 — 同じ理由(DDrive.Runtime.Cutscene namespace と静的ファサード Cutscene の衝突)。
+    using CutsceneApi = DDrive.Runtime.Cutscene.Cutscene;
 
     // [11_tasks.md] 6-0(D) — 実機確認用の自動チェック。Host が剣攻撃デモ(PRES_Demo_SkillSlash)を
     // 一定間隔で Play → Signal("hit") し、各端末で位相差・Signal 受信・HitStop 発火をログ出力する。
@@ -213,6 +219,8 @@ namespace DDrive.Runtime.Net
             // NgoNetBridge 内部の Debug.Log*)で発生するため、標準ログを直接フックして数える。
             Application.logMessageReceived += OnLogMessageReceived;
 
+            SetupCutsceneTest(bootstrap);
+
             var autoTestName = bootstrap != null ? bootstrap.LaunchOptions.AutoTestName : null;
             if (!string.IsNullOrEmpty(autoTestName))
             {
@@ -228,7 +236,9 @@ namespace DDrive.Runtime.Net
 
                 // "latejoin" シナリオは Client 側でだけ意味を持つ判定(Host は「後から接続してくる相手」を
                 // 待つだけで、自分の activeCount が 0→復元 になるわけではない)。
-                _requireLateJoinRestore = _role == "client" && autoTestName.IndexOf("latejoin", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                // [14_networking.md] §22/N-8 — cut_latejoin は Presentation を動かさない(Cutscene の判定は cutscene_* 行)ので対象外。
+                _requireLateJoinRestore = _role == "client" && string.IsNullOrEmpty(bootstrap?.LaunchOptions.CutsceneTest)
+                    && autoTestName.IndexOf("latejoin", System.StringComparison.OrdinalIgnoreCase) >= 0;
                 var autoTestSeconds = bootstrap != null ? bootstrap.LaunchOptions.AutoTestSeconds : null;
 
                 // [11_tasks.md] 6-7 判定バグ修正(2026-09-15) — 偽造 Cancel の in-flight 除外マージン。
@@ -258,6 +268,7 @@ namespace DDrive.Runtime.Net
             }
 
             Application.logMessageReceived -= OnLogMessageReceived;
+            NetCheckCutsceneMarker.Fired -= OnCutsceneMarkerFired;
         }
 
         // [11_tasks.md] 6-7 — 標準ログをフックして、この Runner のイベント購読では観測できない箇所
@@ -275,6 +286,13 @@ namespace DDrive.Runtime.Net
 
             if (type != LogType.Warning && type != LogType.Log)
             {
+                return;
+            }
+
+            // [14_networking.md] §22/N-8 — 本体の「受信した再生の開始位置 s=…」ログ(開発ビルド / Editor)を拾う。
+            if (_cutMode != null && type == LogType.Log && condition.Contains("Cutscene: 受信した再生の開始位置 s="))
+            {
+                OnCutsceneReceiveLogged(condition);
                 return;
             }
 
@@ -356,6 +374,12 @@ namespace DDrive.Runtime.Net
             }
 
             Heartbeat(bootstrap);
+
+            // [14_networking.md] §22/N-8 — Cutscene のシナリオ中は Presentation のデモ再生・偽造 Cancel を止める。
+            if (_cutMode != null)
+            {
+                return;
+            }
 
             if (bootstrap.NetBridge.IsServer)
             {
@@ -829,6 +853,7 @@ namespace DDrive.Runtime.Net
             LogCheck("autotest_done", name);
 
             var result = EvaluateResult();
+            result = ApplyCutsceneVerdict(result);
             LogCheck("RESULT", result.Pass ? "PASS" : "FAIL", "scenario", name, "reason", result.Reason ?? "n/a");
 
             var exitCode = result.Pass ? 0 : 1;
@@ -856,7 +881,7 @@ namespace DDrive.Runtime.Net
                 ConnectedAtEnd = bootstrap != null && Connected(bootstrap),
                 IsOffRole = isOffRole,
                 ExceptionOrErrorCount = _exceptionOrErrorCount,
-                RequireSignalActivity = !isOffRole,
+                RequireSignalActivity = !isOffRole && _cutMode == null,
                 SignalFireCount = _signalFireCount,
                 SignalRecvCount = _signalRecvCount,
                 ForgedCancelSentCount = _forgedCancelSentCount,
@@ -887,6 +912,311 @@ namespace DDrive.Runtime.Net
             };
 
             return NetCheckJudge.Evaluate(counters);
+        }
+
+        // ───────────────────────────────────────────────────────────────────────────────────────────────
+        // [14_networking.md] §22/N-8(2026-10-06) — Cutscene のマーカーの実 NGO 確認(docs/52 4-5、docs/29 §27)。
+        // `-ddrive-cutscene-test trigger|observe` が指定されたときだけ有効(未指定の既存 9 シナリオは無改修)。
+        // 有効な間は Presentation のデモ再生・偽造 Cancel を止め、`[NetCheck] cutscene_*` の行を出す。
+        // 終了時にそれらの行をそのまま NetCheckCutsceneJudge.EvaluateLog に渡して自己判定する。
+        // ───────────────────────────────────────────────────────────────────────────────────────────────
+
+        // CUT_NetCheck_Markers.asset の Id(生成定数 CUTID.CUT_NetCheck_Markers と同じ値。PRES_Demo_SkillSlash と同じ流儀)。
+        private static readonly AssetId<CutsceneMarker> NetCheckCutsceneId = new(0xDB878BC5DDC47593UL, AssetType.Cutscene);
+
+        private string _cutMode;
+        private int _cutPlays = 4;
+        private float _cutInterval = 4f;
+        private float _cutStartDelay = 3f;
+        private readonly List<string> _cutLines = new();
+        private readonly HashSet<long> _cutKnownHandles = new();
+        private readonly List<string> _cutOwnHandles = new();
+        private readonly List<uint> _cutOwnKeys = new();
+        private int _cutOwnKeyIndex;
+        private System.IDisposable _cutMsgSub;
+
+        private static string HandleText(Handle<CutsceneMarker> h) => $"{h.Index}.{h.Generation}";
+
+        private static long HandleId(Handle<CutsceneMarker> h) => ((long)h.Index << 32) | (uint)h.Generation;
+
+        private static string F3(double v) => v.ToString("F3", CultureInfo.InvariantCulture);
+
+        private void LogCut(string text)
+        {
+            var line = NetCheckCutsceneJudge.Tag + text;
+            _cutLines.Add(line);
+            Debug.Log(line);
+        }
+
+        private void SetupCutsceneTest(DDriveRuntimeBootstrap bootstrap)
+        {
+            var opt = bootstrap != null ? bootstrap.LaunchOptions : default;
+            var mode = opt.CutsceneTest?.ToLowerInvariant();
+            if (string.IsNullOrEmpty(mode))
+            {
+                return;
+            }
+
+            if (mode != "trigger" && mode != "observe")
+            {
+                Debug.LogWarning($"[NetCheck] -ddrive-cutscene-test の値 '{opt.CutsceneTest}' は未対応です(trigger / observe)。Cutscene のシナリオは無効のまま続けます。");
+                return;
+            }
+
+            _cutMode = mode;
+            _cutPlays = opt.CutscenePlays ?? 4;
+            _cutInterval = opt.CutsceneIntervalSec ?? 4f;
+            _cutStartDelay = opt.CutsceneStartDelaySec ?? 3f;
+
+            NetCheckCutsceneMarker.Fired += OnCutsceneMarkerFired;
+            if (bootstrap.NetBridge != null)
+            {
+                _cutMsgSub = bootstrap.NetBridge.Subscribe<CutscenePlayMsg>(OnCutscenePlayMsg);
+            }
+
+            var specs = NetCheckCutsceneJudge.DefaultMarkers();
+            var markerText = new System.Text.StringBuilder();
+            for (var i = 0; i < specs.Length; i++)
+            {
+                if (i > 0)
+                {
+                    markerText.Append(',');
+                }
+
+                markerText.Append(specs[i].Key).Append(':').Append(specs[i].Time.ToString("F1", CultureInfo.InvariantCulture));
+            }
+
+            LogCut($"cutscene_config role={mode} plays={(mode == "trigger" ? _cutPlays : 0)} " +
+                   $"interval={_cutInterval.ToString("F1", CultureInfo.InvariantCulture)} startDelay={_cutStartDelay.ToString("F1", CultureInfo.InvariantCulture)} " +
+                   $"expectPlays={(mode == "observe" ? (opt.CutsceneExpectPlays ?? -1) : -1)} kinds={NetCheckCutsceneJudge.DefaultKindsPerTime} markers={markerText} " +
+                   $"grace={NetCheckCutsceneJudge.GraceSec.ToString("F1", CultureInfo.InvariantCulture)}");
+            LogCutsceneTimeline(bootstrap);
+
+            if (mode == "trigger")
+            {
+                CutsceneTriggerLoopAsync(bootstrap).Forget();
+            }
+        }
+
+        // Player が Timeline から集められるトラック / マーカーの型名と件数(切り分け用。docs/29 §27)。
+        // ok=1 は NetCheck 用の外部マーカー(ファイル名一致)が 1 件以上読めたこと、signal=1 は Signal マーカー(クラス名とファイル名が違う型)が読めたこと。
+        private void LogCutsceneTimeline(DDriveRuntimeBootstrap bootstrap)
+        {
+            var data = bootstrap.Registry != null ? bootstrap.Registry.ResolveOrPlaceholder<CutsceneData>(NetCheckCutsceneId.Value) : null;
+            var timeline = data != null ? data.Timeline : null;
+            if (timeline == null)
+            {
+                LogCut("cutscene_timeline ok=0 signal=0 tracks=none markers=none");
+                return;
+            }
+
+            var trackCounts = new SortedDictionary<string, int>();
+            var markerCounts = new SortedDictionary<string, int>();
+            foreach (var track in timeline.GetOutputTracks())
+            {
+                var tn = track != null ? track.GetType().Name : "null";
+                trackCounts.TryGetValue(tn, out var tc);
+                trackCounts[tn] = tc + 1;
+                if (track == null)
+                {
+                    continue;
+                }
+
+                foreach (var marker in track.GetMarkers())
+                {
+                    var mn = marker != null ? marker.GetType().Name : "null";
+                    markerCounts.TryGetValue(mn, out var mc);
+                    markerCounts[mn] = mc + 1;
+                }
+            }
+
+            string Join(SortedDictionary<string, int> d)
+            {
+                if (d.Count == 0)
+                {
+                    return "none";
+                }
+
+                var sb = new System.Text.StringBuilder();
+                foreach (var kv in d)
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Append(',');
+                    }
+
+                    sb.Append(kv.Key).Append(':').Append(kv.Value);
+                }
+
+                return sb.ToString();
+            }
+
+            markerCounts.TryGetValue("CutsceneSignalNotification", out var sig);
+            markerCounts.TryGetValue("NetCheckCutsceneMarker", out var ext);
+            // ok=1: NetCheck 用の外部マーカー(ファイル名一致)が読めた。signal=1: Signal マーカー(クラス名とファイル名が違う型)も読めた。
+            var okAll = ext > 0 && !trackCounts.ContainsKey("null") && !markerCounts.ContainsKey("null");
+            LogCut($"cutscene_timeline ok={(okAll ? 1 : 0)} signal={(sig > 0 ? 1 : 0)} duration={F3(timeline.duration)} tracks={Join(trackCounts)} markers={Join(markerCounts)}");
+        }
+
+        private async UniTaskVoid CutsceneTriggerLoopAsync(DDriveRuntimeBootstrap bootstrap)
+        {
+            // 接続が確立し(Host は期待人数が揃い、Host 引き継ぎのシナリオでは引き継ぎが完了し)てから、さらに
+            // -ddrive-cutscene-start-delay 秒待って再生を始める(Client が trigger のときは期待人数を見られないので待ち時間で揃える)。
+            var waited = 0f;
+            while (true)
+            {
+                var ready = Connected(bootstrap);
+                if (ready && _migrationRole != NetMigrationRole.None)
+                {
+                    ready = _migrationCompleted && !_migratedLogPending;
+                }
+
+                if (ready && bootstrap.NetBridge.IsServer && _expectedClientCount > 0 && _ngoBridge != null)
+                {
+                    ready = _ngoBridge.ConnectedClientCount >= _expectedClientCount;
+                }
+
+                if (ready)
+                {
+                    break;
+                }
+
+                await UniTask.Delay(System.TimeSpan.FromMilliseconds(200));
+                waited += 0.2f;
+                if (waited > 60f)
+                {
+                    LogCut("cutscene_trigger_timeout waited=60");
+                    return;
+                }
+            }
+
+            LogCut($"cutscene_trigger_ready role={RoleOf(bootstrap)} netTime={F3(bootstrap.NetBridge.NetworkTime)}");
+            await UniTask.Delay(System.TimeSpan.FromSeconds(_cutStartDelay));
+
+            for (var seq = 1; seq <= _cutPlays; seq++)
+            {
+                var netTime = bootstrap.NetBridge.NetworkTime;
+                var ctx = new PlayContext { Self = actor, Position = actor.position };
+                var handle = CutsceneApi.Play(NetCheckCutsceneId, in ctx);
+                if (handle.Raw.Index < 0)
+                {
+                    LogCut($"cutscene_play_failed seq={seq}");
+                }
+                else
+                {
+                    var text = HandleText(handle.Raw);
+                    _cutKnownHandles.Add(HandleId(handle.Raw));
+                    _cutOwnHandles.Add(text);
+                    SubscribeCutsceneSignals(handle.Raw, text);
+                    LogCut($"cutscene_play seq={seq} netKey=pending localTime={F3(netTime)} handle={text}");
+                    PairCutsceneOwnKeys();
+                }
+
+                await UniTask.Delay(System.TimeSpan.FromSeconds(_cutInterval));
+            }
+        }
+
+        private void SubscribeCutsceneSignals(Handle<CutsceneMarker> raw, string text)
+        {
+            CutsceneApi.OnMarker(raw).Subscribe(key => LogCut($"cutscene_signal key={key} handle={text}"));
+        }
+
+        private void OnCutsceneMarkerFired(string key, double markerTime, double elapsed, Handle<CutsceneMarker> handle)
+        {
+            LogCut($"cutscene_marker key={key} markerTime={F3(markerTime)} elapsed={F3(elapsed)} handle={HandleText(handle)}");
+        }
+
+        // 自分の購読で見える CutscenePlayMsg(送信者の netKey 対応づけ用。本体の挙動には関与しない)。
+        private void OnCutscenePlayMsg(ulong senderId, CutscenePlayMsg msg)
+        {
+            var bootstrap = DDriveRuntimeBootstrap.Instance;
+            var recvTime = bootstrap != null && bootstrap.NetBridge != null ? bootstrap.NetBridge.NetworkTime : 0d;
+            LogCut($"cutscene_msg netKey={KeyText(msg.HandleNetKey)} startNetTime={F3(msg.StartNetTime)} recvNetTime={F3(recvTime)} sender={senderId}");
+
+            var localId = bootstrap != null && bootstrap.NetBridge != null ? bootstrap.NetBridge.LocalClientId : 0UL;
+            var issuer = (msg.HandleNetKey >> 24) & 0xFFu;
+            if (issuer == (localId & 0xFFu))
+            {
+                _cutOwnKeys.Add(msg.HandleNetKey);
+                PairCutsceneOwnKeys();
+            }
+        }
+
+        // Host が trigger のときは自分の Broadcast が同期で自分に戻る(Play が返る前)ので、「再生したハンドル」と
+        // 「自分が発行した netKey」はどちらが先に揃ってもよいよう、揃った分だけ順番に対応づける。
+        private void PairCutsceneOwnKeys()
+        {
+            while (_cutOwnKeyIndex < _cutOwnHandles.Count && _cutOwnKeyIndex < _cutOwnKeys.Count)
+            {
+                LogCut($"cutscene_own_key handle={_cutOwnHandles[_cutOwnKeyIndex]} netKey={KeyText(_cutOwnKeys[_cutOwnKeyIndex])}");
+                _cutOwnKeyIndex++;
+            }
+        }
+
+        // 本体の受信ログ(logMessageReceived から同期で呼ばれる = 受信したインスタンスの生成直後・最初の Tick の前)。
+        // 新しく増えた再生中ハンドルをこのログの再生に対応づけ、開始位置 s・無音件数・netKey を cutscene_recv に出す。
+        private void OnCutsceneReceiveLogged(string condition)
+        {
+            if (!NetCheckCutsceneJudge.TryParseEngineReceiveLine(condition, out var s, out var silent, out var netKey))
+            {
+                return;
+            }
+
+            var bootstrap = DDriveRuntimeBootstrap.Instance;
+            var found = Handle<CutsceneMarker>.Invalid;
+            if (bootstrap != null && bootstrap.Cutscene != null)
+            {
+                var active = bootstrap.Cutscene.DebugActiveHandles();
+                for (var i = 0; i < active.Count; i++)
+                {
+                    if (!_cutKnownHandles.Contains(HandleId(active[i])))
+                    {
+                        found = active[i];
+                    }
+                }
+            }
+
+            var text = found.Index >= 0 ? HandleText(found) : "unknown";
+            if (found.Index >= 0)
+            {
+                _cutKnownHandles.Add(HandleId(found));
+                SubscribeCutsceneSignals(found, text);
+            }
+
+            // Host 引き継ぎ(follower)の「引き継ぎ後に新 Host からの演出を受信できた」判定(NetCheckJudge の
+            // no_signal_recv_after_migration)は、Cutscene のシナリオでは受信した再生で数える(Presentation のデモは止めてあるため)。
+            if (_migrationCompleted && _role == "client")
+            {
+                _signalRecvAfterMigrationCount++;
+            }
+
+            LogCut($"cutscene_recv netKey={netKey ?? "n/a"} s={F3(s)} silent={silent} handle={text}");
+        }
+
+        private NetCheckResult ApplyCutsceneVerdict(NetCheckResult result)
+        {
+            if (_cutMode == null)
+            {
+                return result;
+            }
+
+            var summary = NetCheckCutsceneJudge.EvaluateLog(_cutLines);
+            foreach (var p in summary.Plays)
+            {
+                LogCut($"cutscene_play_verdict handle={p.Handle} netKey={p.NetKey} role={(p.IsSender ? "sender" : "receiver")} s={F3(p.S)} " +
+                       $"silent={p.SilentReported} fired={p.Fired} result={(p.Pass ? "PASS" : "FAIL")} reason={p.Reason.Replace(' ', '_')}");
+            }
+
+            Debug.Log(NetCheckCutsceneJudge.FormatSummaryLine(summary));
+
+            if (!result.Pass)
+            {
+                return result;
+            }
+
+            return summary.Pass
+                ? NetCheckResult.PassResult($"{result.Reason} cutscene=ok sender_plays={summary.SenderPlays} recv_plays={summary.ReceivedPlays}")
+                : NetCheckResult.FailResult($"cutscene_{summary.Reason.Replace(' ', '_')}");
         }
 
         private static string RoleOf(DDriveRuntimeBootstrap bootstrap)

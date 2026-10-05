@@ -26,10 +26,33 @@
 param(
     [string]$ExePath = "Builds/DDriveNetCheck/DDriveNetCheck.exe",
     [string]$ResultsDir = "TestResults/NetCheck",
-    [string]$OnlyScenario = ""
+    [string]$OnlyScenario = "",
+    [switch]$JudgeOnly,
+    [string[]]$Logs = @()
 )
 
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "NetCheckCutscene.ps1")
+
+# [14_networking.md] §22(N-8、2026-10-06) — 判定だけ行うモード(ビルド・プロセス起動なし)。実機の各 PC のログを 1 か所に集めて渡す。
+#   例: pwsh -File Tools/CI/Run-NetCheck.ps1 -JudgeOnly -Logs C:\DDriveTest\*.log
+if ($JudgeOnly) {
+    if ($Logs.Count -eq 0) {
+        Write-Host "[ERROR] -JudgeOnly には -Logs <ログファイル...> が必要です。"
+        exit 1
+    }
+    $judgeExpanded = @()
+    foreach ($l in $Logs) { $judgeExpanded += @(Get-ChildItem -Path $l -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }) }
+    if ($judgeExpanded.Count -eq 0) {
+        Write-Host "[ERROR] 指定されたログが見つかりません: $($Logs -join ', ')"
+        exit 1
+    }
+    $judgePass = Invoke-CutsceneJudgeOnly -LogPaths $judgeExpanded
+    Write-Host ""
+    Write-Host $(if ($judgePass) { "=== 判定: すべて PASS ===" } else { "=== 判定: FAIL があります ===" })
+    exit $(if ($judgePass) { 0 } else { 1 })
+}
 
 $repoRoot = (Get-Location).Path
 $exeFull = Join-Path $repoRoot $ExePath
@@ -120,21 +143,82 @@ $migrationScenarios = @(
     }
 )
 
+# [14_networking.md] §22(N-8、2026-10-06) — Cutscene のマーカーの確認(cut_local / cut_pair0 / cut_pair200 / cut_client200 /
+# cut_latejoin)。Host / Client ごとに -ddrive-cutscene-test(trigger = 再生する / observe = 観測だけ)と再生回数・間隔・
+# 開始待ち・期待受信回数を渡す。Host の ExpectClients は -ddrive-expect-clients。秒数は「接続(数秒)+ 開始待ち +
+# 再生回数 x 間隔 + 最後の再生の尺 3 秒 + 余裕」から決めてある。判定は各プロセスの RESULT 行(プロセス内の自己判定)と、
+# `[NetCheck] cutscene_*` 行の NetCheckCutscene.ps1 による再判定の両方。詳細は docs/29 §27。
+$cutScenarios = @(
+    [pscustomobject]@{
+        Name = "cut_local"; LatencyMs = 0; Port = 7901; HostSeconds = 18
+        Host = [pscustomobject]@{ Cut = "trigger"; Plays = 2; Interval = 4; StartDelay = 2; ExpectPlays = -1; ExpectClients = 0 }
+        Clients = @()
+    }
+    [pscustomobject]@{
+        Name = "cut_pair0"; LatencyMs = 0; Port = 7911; HostSeconds = 32
+        Host = [pscustomobject]@{ Cut = "trigger"; Plays = 4; Interval = 4; StartDelay = 2; ExpectPlays = -1; ExpectClients = 1 }
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0; Seconds = 28; Cut = "observe"; Plays = 0; Interval = 4; StartDelay = 2; ExpectPlays = 4 }
+        )
+    }
+    [pscustomobject]@{
+        Name = "cut_pair200"; LatencyMs = 200; Port = 7921; HostSeconds = 32
+        Host = [pscustomobject]@{ Cut = "trigger"; Plays = 4; Interval = 4; StartDelay = 2; ExpectPlays = -1; ExpectClients = 1 }
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0; Seconds = 28; Cut = "observe"; Plays = 0; Interval = 4; StartDelay = 2; ExpectPlays = 4 }
+        )
+    }
+    [pscustomobject]@{
+        Name = "cut_client200"; LatencyMs = 200; Port = 7931; HostSeconds = 34
+        Host = [pscustomobject]@{ Cut = "observe"; Plays = 0; Interval = 4; StartDelay = 2; ExpectPlays = 4; ExpectClients = 2 }
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0; Seconds = 30; Cut = "trigger"; Plays = 4; Interval = 4; StartDelay = 4; ExpectPlays = -1 }
+            [pscustomobject]@{ DelaySec = 0; Seconds = 30; Cut = "observe"; Plays = 0; Interval = 4; StartDelay = 2; ExpectPlays = 4 }
+        )
+    }
+    [pscustomobject]@{
+        Name = "cut_latejoin"; LatencyMs = 0; Port = 7941; HostSeconds = 34
+        Host = [pscustomobject]@{ Cut = "trigger"; Plays = 14; Interval = 1; StartDelay = 2; ExpectPlays = -1; ExpectClients = 1 }
+        Clients = @(
+            [pscustomobject]@{ DelaySec = 0;  Seconds = 30; Cut = "observe"; Plays = 0; Interval = 1; StartDelay = 2; ExpectPlays = 14 }
+            [pscustomobject]@{ DelaySec = 10; Seconds = 22; Cut = "observe"; Plays = 0; Interval = 1; StartDelay = 2; ExpectPlays = -1 }
+        )
+    }
+)
+
+# [14_networking.md] §22(N-8) — Host 引き継ぎの後に Cutscene を再生する。旧 Host は観測だけ(12 秒で終了)。Client1 が
+# successor として Host になり、移行完了 + 期待人数(follower x 2)が揃ってから 3 回再生する。follower は 3 回受信する。
+$cutMigrationScenarios = @(
+    [pscustomobject]@{
+        Name = "cut_migration"; Port = 7951; HostSeconds = 12
+        ExpectClientsHost = 3; ExpectClientsSuccessor = 2
+        Clients = @(
+            [pscustomobject]@{ Migrate = "successor"; Seconds = 50; Cut = "trigger"; Plays = 3; Interval = 4; StartDelay = 2; ExpectPlays = -1 }
+            [pscustomobject]@{ Migrate = "follower";  Seconds = 50; Cut = "observe"; Plays = 0; Interval = 4; StartDelay = 2; ExpectPlays = 3 }
+            [pscustomobject]@{ Migrate = "follower";  Seconds = 50; Cut = "observe"; Plays = 0; Interval = 4; StartDelay = 2; ExpectPlays = 3 }
+        )
+    }
+)
+
 if ($OnlyScenario) {
+    $matchedCut = $cutScenarios | Where-Object { $_.Name -eq $OnlyScenario }
+    $matchedCutMigration = $cutMigrationScenarios | Where-Object { $_.Name -eq $OnlyScenario }
     $matchedPair = $scenarios | Where-Object { $_.Name -eq $OnlyScenario }
     $matchedQuad = $quadScenarios | Where-Object { $_.Name -eq $OnlyScenario }
     $matchedMigration = $migrationScenarios | Where-Object { $_.Name -eq $OnlyScenario }
     $scenarios = @($matchedPair)
     $quadScenarios = @($matchedQuad)
     $migrationScenarios = @($matchedMigration)
-    if ($matchedPair.Count -eq 0 -and $matchedQuad.Count -eq 0 -and $matchedMigration.Count -eq 0) {
+    $cutScenarios = @($matchedCut)
+    $cutMigrationScenarios = @($matchedCutMigration)
+    if ($matchedPair.Count -eq 0 -and $matchedQuad.Count -eq 0 -and $matchedMigration.Count -eq 0 -and $matchedCut.Count -eq 0 -and $matchedCutMigration.Count -eq 0) {
         Write-Host "[ERROR] 不明なシナリオ名: $OnlyScenario"
         exit 1
     }
 }
 
 function Build-Args {
-    param($Role, $Port, $LatencyMs, $Scenario, $Seconds, $LogPath, $ExpectClients = 0, $Migrate = "")
+    param($Role, $Port, $LatencyMs, $Scenario, $Seconds, $LogPath, $ExpectClients = 0, $Migrate = "", $Cut = $null)
 
     $argList = @(
         "-ddrive-net", $Role,
@@ -162,6 +246,18 @@ function Build-Args {
     # 〔-ddrive-host/-ddrive-port にフォールバック〕で足りる)。
     if ($Migrate) {
         $argList += @("-ddrive-migrate", $Migrate)
+    }
+
+    # [14_networking.md] §22(N-8) — Cutscene のシナリオだけ付与する(既存シナリオは $Cut を渡さない = 起動引数は不変)。
+    if ($null -ne $Cut -and $Cut.Cut) {
+        $argList += @("-ddrive-cutscene-test", $Cut.Cut)
+        if ($Cut.Cut -eq "trigger") {
+            $argList += @("-ddrive-cutscene-plays", $Cut.Plays)
+        }
+        $argList += @("-ddrive-cutscene-interval", $Cut.Interval, "-ddrive-cutscene-start-delay", $Cut.StartDelay)
+        if ($Cut.Cut -eq "observe" -and $Cut.ExpectPlays -ge 0) {
+            $argList += @("-ddrive-cutscene-expect-plays", $Cut.ExpectPlays)
+        }
     }
 
     return $argList
@@ -639,6 +735,147 @@ foreach ($scenario in $migrationScenarios) {
     })
 }
 
+# [14_networking.md] §22(N-8、2026-10-06) — Cutscene のマーカー。Host + Client(0〜2 本)を起動し、各プロセスの
+# RESULT 行(プロセス内の自己判定)に加えて、`[NetCheck] cutscene_*` 行を NetCheckCutscene.ps1 で再判定する
+# (PowerShell 側の独立した実装。C# 側と食い違えば FAIL)。
+function Get-CutLogPath {
+    param($Dir, $Name, $Index)
+    if ($Index -eq 0) { return (Join-Path $Dir "$($Name)_host.log") }
+    return (Join-Path $Dir "$($Name)_client$Index.log")
+}
+
+function Write-CutsceneScenarioResult {
+    param([string[]]$LogPaths, [string[]]$Labels, $ProcResults)
+
+    $allPass = $true
+    $reasons = @()
+    $cutResults = @()
+    for ($i = 0; $i -lt $LogPaths.Count; $i++) {
+        $cut = Test-CutsceneLog -LogPath $LogPaths[$i]
+        $proc = $ProcResults[$i]
+        $ok = $cut.Pass -and $proc.Pass
+        if (-not $ok) { $allPass = $false }
+        Write-Host "  $($Labels[$i]) : $(if ($ok) {'PASS'} else {'FAIL'}) process=$(if ($proc.Pass) {'PASS'} else {'FAIL'}) ($($proc.Reason)) / cutscene=$($cut.Reason) / $(Format-CutSummary $cut)"
+        if ($cut.Timeline) { Write-Host "      $($cut.Timeline)" }
+        foreach ($pl in $cut.Plays) {
+            Write-Host "      $($pl.Role) handle=$($pl.Handle) netKey=$($pl.NetKey) s=$($pl.S.ToString('F3',[cultureinfo]::InvariantCulture)) silent=$($pl.Silent) fired=$($pl.Fired) => $(if ($pl.Pass) {'PASS'} else {'FAIL ' + $pl.Reason})"
+        }
+        $reasons += "$($Labels[$i])=$($proc.Reason)/$($cut.Reason)/$(Format-CutSummary $cut)"
+        $cutResults += $cut
+    }
+
+    # 受信した netKey がすべて trigger の送信者側の own_key に含まれる(own_key が取れた分だけ)。
+    $own = @()
+    foreach ($c in $cutResults) { if ($c.Role -eq "trigger") { $own += $c.OwnKeys } }
+    if ($own.Count -gt 0) {
+        foreach ($c in $cutResults) {
+            if ($c.Role -ne "trigger") {
+                $unknown = @($c.NetKeys | Where-Object { $_ -ne "n/a" -and $own -notcontains $_ })
+                if ($unknown.Count -gt 0) {
+                    $allPass = $false
+                    Write-Host "  [FAIL] 受信した netKey が trigger の送信 netKey に無い: $($unknown -join ',')"
+                    $reasons += "unknown_netKey=$($unknown -join ',')"
+                }
+            }
+        }
+    }
+
+    return [pscustomobject]@{ Pass = $allPass; Reasons = ($reasons -join " / "); Cut = $cutResults }
+}
+
+function Add-CutsceneSummary {
+    param($Name, $R)
+    $verdict = if ($R.Pass) { "PASS" } else { "FAIL" }
+    Write-Host "  => $verdict"
+    $inv = [cultureinfo]::InvariantCulture
+    $sRange = ($R.Cut | Where-Object { $_.ReceivedPlays -gt 0 } | ForEach-Object { "s=$($_.MinS.ToString('F3',$inv))..$($_.MaxS.ToString('F3',$inv))" }) -join " "
+    $script:summaryRows.Add("| $Name | $verdict | cutscene $sRange | $($R.Reasons) |")
+    $script:jsonResults.Add([pscustomobject]@{ scenario = $Name; pass = $R.Pass; cutscene = $R.Cut; reasons = $R.Reasons })
+}
+
+foreach ($scenario in $cutScenarios) {
+    $clientCount = $scenario.Clients.Count
+    Write-Host ""
+    Write-Host "=== シナリオ: $($scenario.Name) (Cutscene, latency=$($scenario.LatencyMs)ms, host=$($scenario.HostSeconds)s, clients=$clientCount) ==="
+
+    $logPaths = @()
+    for ($i = 0; $i -le $clientCount; $i++) { $logPaths += Get-CutLogPath -Dir $resultsFull -Name $scenario.Name -Index $i }
+    Remove-Item -Path $logPaths -ErrorAction SilentlyContinue
+
+    $hostArgs = Build-Args -Role "host" -Port $scenario.Port -LatencyMs $scenario.LatencyMs -Scenario $scenario.Name -Seconds $scenario.HostSeconds -LogPath $logPaths[0] -ExpectClients $scenario.Host.ExpectClients -Cut $scenario.Host
+    $hostProc = Start-Process -FilePath $exeFull -ArgumentList $hostArgs -PassThru -WindowStyle Hidden
+    Write-Host "  Host($($scenario.Host.Cut)) 起動($($hostProc.Id))。"
+
+    $clientProcs = @()
+    $elapsed = 0
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        $cfg = $scenario.Clients[$i]
+        if ($cfg.DelaySec -gt $elapsed) {
+            Write-Host "  Client$($i+1) を $($cfg.DelaySec - $elapsed) 秒後に起動します(遅延参加)。"
+            Start-Sleep -Seconds ($cfg.DelaySec - $elapsed)
+            $elapsed = $cfg.DelaySec
+        }
+        $clientArgs = Build-Args -Role "client" -Port $scenario.Port -LatencyMs $scenario.LatencyMs -Scenario $scenario.Name -Seconds $cfg.Seconds -LogPath $logPaths[$i + 1] -Cut $cfg
+        $proc = Start-Process -FilePath $exeFull -ArgumentList $clientArgs -PassThru -WindowStyle Hidden
+        Write-Host "  Client$($i+1)($($cfg.Cut)) 起動($($proc.Id))。"
+        $clientProcs += $proc
+    }
+
+    $maxEnd = $scenario.HostSeconds
+    foreach ($cfg in $scenario.Clients) { if ($cfg.DelaySec + $cfg.Seconds -gt $maxEnd) { $maxEnd = $cfg.DelaySec + $cfg.Seconds } }
+    $timeoutSec = $maxEnd + 30
+    Wait-ForExitOrKill -Process $hostProc -TimeoutSec $timeoutSec -Label "Host"
+    for ($i = 0; $i -lt $clientProcs.Count; $i++) { Wait-ForExitOrKill -Process $clientProcs[$i] -TimeoutSec $timeoutSec -Label "Client$($i+1)" }
+
+    $labels = @("Host($($scenario.Host.Cut))")
+    for ($i = 0; $i -lt $clientCount; $i++) { $labels += "Client$($i+1)($($scenario.Clients[$i].Cut))" }
+    $procResults = @()
+    foreach ($lp in $logPaths) { $procResults += Parse-ResultLine -LogPath $lp }
+
+    $r = Write-CutsceneScenarioResult -LogPaths $logPaths -Labels $labels -ProcResults $procResults
+    if (-not $r.Pass) { $overallPass = $false }
+    Add-CutsceneSummary -Name $scenario.Name -R $r
+}
+
+foreach ($scenario in $cutMigrationScenarios) {
+    $clientCount = $scenario.Clients.Count
+    Write-Host ""
+    Write-Host "=== シナリオ: $($scenario.Name) (Cutscene + Host 引き継ぎ, 旧host=$($scenario.HostSeconds)s, clients=$clientCount) ==="
+
+    $logPaths = @()
+    for ($i = 0; $i -le $clientCount; $i++) { $logPaths += Get-CutLogPath -Dir $resultsFull -Name $scenario.Name -Index $i }
+    Remove-Item -Path $logPaths -ErrorAction SilentlyContinue
+
+    $oldHostCut = [pscustomobject]@{ Cut = "observe"; Plays = 0; Interval = 4; StartDelay = 2; ExpectPlays = 0 }
+    $hostArgs = Build-Args -Role "host" -Port $scenario.Port -LatencyMs 0 -Scenario $scenario.Name -Seconds $scenario.HostSeconds -LogPath $logPaths[0] -ExpectClients $scenario.ExpectClientsHost -Cut $oldHostCut
+    $hostProc = Start-Process -FilePath $exeFull -ArgumentList $hostArgs -PassThru -WindowStyle Hidden
+    Write-Host "  旧 Host 起動($($hostProc.Id))。$($scenario.HostSeconds) 秒で終了予定。"
+
+    $clientProcs = @()
+    for ($i = 0; $i -lt $clientCount; $i++) {
+        $cfg = $scenario.Clients[$i]
+        $expectClients = if ($cfg.Migrate -eq "successor") { $scenario.ExpectClientsSuccessor } else { 0 }
+        $clientArgs = Build-Args -Role "client" -Port $scenario.Port -LatencyMs 0 -Scenario $scenario.Name -Seconds $cfg.Seconds -LogPath $logPaths[$i + 1] -ExpectClients $expectClients -Migrate $cfg.Migrate -Cut $cfg
+        $proc = Start-Process -FilePath $exeFull -ArgumentList $clientArgs -PassThru -WindowStyle Hidden
+        Write-Host "  Client$($i+1)($($cfg.Migrate)/$($cfg.Cut)) 起動($($proc.Id))。"
+        $clientProcs += $proc
+    }
+
+    $maxClientSeconds = ($scenario.Clients | ForEach-Object { $_.Seconds } | Measure-Object -Maximum).Maximum
+    $timeoutSec = [Math]::Max($scenario.HostSeconds, $maxClientSeconds) + 30
+    Wait-ForExitOrKill -Process $hostProc -TimeoutSec $timeoutSec -Label "旧Host"
+    for ($i = 0; $i -lt $clientProcs.Count; $i++) { Wait-ForExitOrKill -Process $clientProcs[$i] -TimeoutSec $timeoutSec -Label "Client$($i+1)" }
+
+    $labels = @("旧Host(observe)")
+    for ($i = 0; $i -lt $clientCount; $i++) { $labels += "Client$($i+1)($($scenario.Clients[$i].Migrate)/$($scenario.Clients[$i].Cut))" }
+    $procResults = @()
+    foreach ($lp in $logPaths) { $procResults += Parse-ResultLine -LogPath $lp }
+
+    $r = Write-CutsceneScenarioResult -LogPaths $logPaths -Labels $labels -ProcResults $procResults
+    if (-not $r.Pass) { $overallPass = $false }
+    Add-CutsceneSummary -Name $scenario.Name -R $r
+}
+
 $summaryPath = Join-Path $resultsFull "summary.md"
 $summaryLines = @("# D-Drive 6-7 NetCheck 結果", "", "| シナリオ | 結果 | 内訳 | 理由 |", "|---|---|---|---|") + $summaryRows
 Set-Content -Path $summaryPath -Value ($summaryLines -join "`n")
@@ -647,7 +884,7 @@ Set-Content -Path $summaryPath -Value ($summaryLines -join "`n")
 # として呼ばれた場合、Validation/EditMode/PlayMode/Performance と同じ表に載せられるようにする。
 $resultsJsonPath = Join-Path $resultsFull "results.json"
 # -AsArray: シナリオが 1 件だけ(-OnlyScenario 指定時)でも配列として書き出す(読む側の分岐を減らす)。
-ConvertTo-Json -InputObject $jsonResults -AsArray | Set-Content -Path $resultsJsonPath
+ConvertTo-Json -InputObject $jsonResults -AsArray -Depth 8 | Set-Content -Path $resultsJsonPath
 
 Write-Host ""
 Write-Host "=== 要約 (詳細: $summaryPath) ==="
