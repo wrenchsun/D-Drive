@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 2
+  Version: 3
   Author: yamag
-  UpdatedAt: 2026-09-17T16:15:04
+  UpdatedAt: 2026-10-06T02:01:41
   ChangeNote: 
   Flags:
     Pause: 0
@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Pattern: 1
   PosAmplitude: {x: 0.02, y: 0.02, z: 0}
   RotAmplitude: {x: 0, y: 0, z: 0.3}
@@ -59,8 +60,8 @@ MonoBehaviour:
     Normalized: 0
     Time:
       Mode: 0
-      Value: 0
-      SpeedScale: 0
+      Value: 1
+      SpeedScale: 1
       IgnoreTimeScale: 0
     Loop: 0
     LoopCount: 0

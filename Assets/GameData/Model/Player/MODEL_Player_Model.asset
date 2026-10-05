@@ -20,13 +20,13 @@ MonoBehaviour:
   Icon: {fileID: 2800000, guid: a8bf58e0d2dc62d49aaf5c6985b446ba, type: 3}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 3
   Author: yamag
-  UpdatedAt: 2026-09-18T10:39:42
+  UpdatedAt: 2026-10-06T02:01:02
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Prefab: {fileID: 100096, guid: 412b92d4feeb9c548bfa98f62c4d1022, type: 3}
   Slots:
   - RendererPath: Character1_Reference/Character1_Hips/Character1_Spine/Character1_Spine1/Character1_Spine2/Character1_Neck/Character1_Head/BLW_DEF

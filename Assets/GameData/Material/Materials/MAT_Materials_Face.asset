@@ -20,13 +20,13 @@ MonoBehaviour:
   Icon: {fileID: 2800000, guid: c3ae7f2a390da36448c806f691bd8bd3, type: 3}
   Assignee: 
   SpecUrl: 
-  Version: 4
+  Version: 6
   Author: yamag
-  UpdatedAt: 2026-09-18T11:21:06
+  UpdatedAt: 2026-10-06T02:01:02
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Shader: {fileID: 4800000, guid: 62adc820ab9e0874cad42b2118cc6b00, type: 3}
   Common:
     Albedo:
@@ -111,3 +112,5 @@ MonoBehaviour:
   RenderingLayerMask: 0
   Anims: []
   SourceMaterial: UnityMaterial/4d83bd267b90e934e88637afcd02cb8a/face
+  DisabledPasses: []
+  EnabledKeywords: []

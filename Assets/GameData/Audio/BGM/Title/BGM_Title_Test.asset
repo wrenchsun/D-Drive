@@ -20,13 +20,13 @@ MonoBehaviour:
   Icon: {fileID: 2800000, guid: 388d3f9b82583cc4fa57b49b9f3491b1, type: 3}
   Assignee: 
   SpecUrl: 
-  Version: 1
+  Version: 4
   Author: yamag
-  UpdatedAt: 2026-09-16T10:33:21
+  UpdatedAt: 2026-10-06T02:04:23
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -37,10 +37,11 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Intro: {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   LoopBody: {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   LoopStartSec: 0
-  LoopEndSec: 0
+  LoopEndSec: 3.4220407009124756
   Mixer: {fileID: 0}
   Volume: 1
   FadeIn:

@@ -18,13 +18,15 @@ MonoBehaviour:
   Category: FBX
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 2
+  Author: yamag
+  UpdatedAt: 2026-10-06T02:01:02
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -34,6 +36,8 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
+  SchemaVersion: 1
   Shader: {fileID: 0}
   Common:
     Albedo:
@@ -62,3 +66,5 @@ MonoBehaviour:
   RenderingLayerMask: 0
   Anims: []
   SourceMaterial: shizuku_eyeCaveCover/7d654f8f9e518d74d9002a050d228574/shizuku_blendShape_mat_body01
+  DisabledPasses: []
+  EnabledKeywords: []

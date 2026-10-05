@@ -18,13 +18,15 @@ MonoBehaviour:
   Category: FBX
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 2
+  Author: yamag
+  UpdatedAt: 2026-10-06T02:01:02
   ChangeNote: 
   Flags:
     Pause: 0
-    Load: 0
+    Load: 1
     Pool:
       Kind: 0
       InitialCount: 0
@@ -34,6 +36,8 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
+  SchemaVersion: 1
   Texture: {fileID: 2800000, guid: d5268ea1d0262ac488d0ae875fff4530, type: 3}
   Usage: 0
   Sprite: {fileID: 0}

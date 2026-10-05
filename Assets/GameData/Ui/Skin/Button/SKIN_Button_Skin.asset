@@ -18,9 +18,11 @@ MonoBehaviour:
   Category: Button
   Tags: []
   Icon: {fileID: 0}
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Assignee: 
+  SpecUrl: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-10-06T02:01:41
   ChangeNote: 
   Flags:
     Pause: 0
@@ -34,6 +36,8 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
+  SchemaVersion: 1
   Normal:
     EnterTween:
       value: 11105237152147224749
@@ -70,8 +74,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -116,8 +120,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -162,8 +166,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -208,8 +212,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -254,8 +258,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
@@ -300,8 +304,8 @@ MonoBehaviour:
       Normalized: 0
       Time:
         Mode: 0
-        Value: 0
-        SpeedScale: 0
+        Value: 1
+        SpeedScale: 1
         IgnoreTimeScale: 0
       Loop: 0
       LoopCount: 0
