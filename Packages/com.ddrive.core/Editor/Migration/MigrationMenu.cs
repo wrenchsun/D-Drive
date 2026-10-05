@@ -30,6 +30,14 @@ namespace DDrive.Editor.Migration
             foreach (var migration in plan.ProjectMigrations)
             {
                 sb.Append($"  - {migration.Id}: プロジェクト全体のマイグレーション\n");
+                // M-6: Timeline のスクリプト参照の書き換えは、対象の .playable を一覧で出す(ドライランでは書き換えない)
+                if (migration is CutsceneTimelineScriptReferenceMigration)
+                {
+                    foreach (var path in CutsceneTimelineScriptReferenceMigration.FindTargetPaths())
+                    {
+                        sb.Append($"      対象: {path}\n");
+                    }
+                }
             }
 
             Debug.Log(sb.ToString());

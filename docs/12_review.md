@@ -51,6 +51,7 @@
 ### Data / シリアライズ
 - [ ] フィールド追加のみ（削除・型変更は移行コード + 移行手順書必須）
 - [ ] 既存アセットのデシリアライズ互換テスト
+- [ ] **アセットになる型（`ScriptableObject` / `MonoBehaviour` / Timeline の `TrackAsset`・`Marker`・`PlayableAsset` 派生）は、クラス名と同じ名前のファイルに 1 型 1 ファイルで置く**（違うと MonoScript が無く、`.playable` / `.asset` に `m_Script: {fileID: 0}` で保存され、**Player ビルドで読み込まれない**。Editor では動いて見える。M-6、`MonoScriptFileNameTests` が検出）
 - [ ] 新フィールドに対応する Validator 追加
 - [ ] デフォルト値が「安全側」（音量 1、Loop off 等）
 - [ ] 調整パラメータが ValueDef で定義されている（生の float + AnimationCurve でない）

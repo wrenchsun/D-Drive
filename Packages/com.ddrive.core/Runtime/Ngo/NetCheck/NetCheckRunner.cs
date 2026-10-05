@@ -1012,6 +1012,7 @@ namespace DDrive.Runtime.Net
 
             var trackCounts = new SortedDictionary<string, int>();
             var markerCounts = new SortedDictionary<string, int>();
+            var clipCounts = new SortedDictionary<string, int>();
             foreach (var track in timeline.GetOutputTracks())
             {
                 var tn = track != null ? track.GetType().Name : "null";
@@ -1027,6 +1028,13 @@ namespace DDrive.Runtime.Net
                     var mn = marker != null ? marker.GetType().Name : "null";
                     markerCounts.TryGetValue(mn, out var mc);
                     markerCounts[mn] = mc + 1;
+                }
+
+                foreach (var clip in track.GetClips())
+                {
+                    var cn = clip != null && clip.asset != null ? clip.asset.GetType().Name : "null";
+                    clipCounts.TryGetValue(cn, out var cc);
+                    clipCounts[cn] = cc + 1;
                 }
             }
 
@@ -1051,11 +1059,32 @@ namespace DDrive.Runtime.Net
                 return sb.ToString();
             }
 
+            // M-6: 期待する全種別(NetCheckCutsceneJudge.Expected*)のうち、Timeline から読めなかったもの(型名をカンマ区切り)。
+            var missing = new System.Text.StringBuilder();
+            void AddMissing(string[] expected, SortedDictionary<string, int> got)
+            {
+                for (var i = 0; i < expected.Length; i++)
+                {
+                    if (!got.ContainsKey(expected[i]))
+                    {
+                        if (missing.Length > 0)
+                        {
+                            missing.Append(',');
+                        }
+
+                        missing.Append(expected[i]);
+                    }
+                }
+            }
+
+            AddMissing(NetCheckCutsceneJudge.ExpectedTrackTypes, trackCounts);
+            AddMissing(NetCheckCutsceneJudge.ExpectedMarkerTypes, markerCounts);
+            AddMissing(NetCheckCutsceneJudge.ExpectedClipTypes, clipCounts);
             markerCounts.TryGetValue("CutsceneSignalNotification", out var sig);
             markerCounts.TryGetValue("NetCheckCutsceneMarker", out var ext);
             // ok=1: NetCheck 用の外部マーカー(ファイル名一致)が読めた。signal=1: Signal マーカー(クラス名とファイル名が違う型)も読めた。
-            var okAll = ext > 0 && !trackCounts.ContainsKey("null") && !markerCounts.ContainsKey("null");
-            LogCut($"cutscene_timeline ok={(okAll ? 1 : 0)} signal={(sig > 0 ? 1 : 0)} duration={F3(timeline.duration)} tracks={Join(trackCounts)} markers={Join(markerCounts)}");
+            var okAll = ext > 0 && !trackCounts.ContainsKey("null") && !markerCounts.ContainsKey("null") && !clipCounts.ContainsKey("null") && missing.Length == 0;
+            LogCut($"cutscene_timeline ok={(okAll ? 1 : 0)} signal={(sig > 0 ? 1 : 0)} duration={F3(timeline.duration)} tracks={Join(trackCounts)} markers={Join(markerCounts)} clips={Join(clipCounts)} missing={(missing.Length == 0 ? "none" : missing.ToString())}");
         }
 
         private async UniTaskVoid CutsceneTriggerLoopAsync(DDriveRuntimeBootstrap bootstrap)

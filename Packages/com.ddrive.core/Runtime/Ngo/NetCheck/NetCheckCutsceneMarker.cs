@@ -12,6 +12,7 @@ using UnityEngine.Timeline;
 namespace DDrive.Runtime.Net
 {
     [Serializable]
+    [HideInMenu] // 持ち込み先の Timeline の「Add Marker」に出さない(開発用の確認道具。既存アセットの読み込みには影響しない)
     public sealed class NetCheckCutsceneMarker : Marker, ICutsceneMarker
     {
         [Tooltip("マーカーを区別するキー(m0 / m1 / m4 / m6 / m15)。")]

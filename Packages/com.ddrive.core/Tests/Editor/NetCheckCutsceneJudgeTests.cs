@@ -278,11 +278,11 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
-        public void EvaluateLog_SignalNotLoaded_JudgesExternalMarkersOnly()
+        public void EvaluateLog_SignalNotLoaded_Fails()
         {
-            // Player で Signal マーカーが読めない場合(signal=0)は Signal を判定しない。外部マーカーだけで PASS できる。
+            // M-6: Player で Signal マーカーが読めない(signal=0)のは本体の不具合(MonoScript が無い型)。判定は FAIL にする。
             var lines = Config("observe", 0, -1);
-            lines.Add("[NetCheck] cutscene_timeline ok=1 signal=0 duration=3.000 tracks=MarkerTrack:1 markers=NetCheckCutsceneMarker:5");
+            lines.Add("[NetCheck] cutscene_timeline ok=1 signal=0 duration=3.000 tracks=MarkerTrack:1 markers=NetCheckCutsceneMarker:5 clips=none missing=CutsceneSignalTrack,CutsceneSignalNotification");
             lines.Add("[NetCheck] cutscene_recv netKey=0x01000001 s=0.300 silent=0 handle=3.1");
             foreach (var key in Keys)
             {
@@ -290,26 +290,67 @@ namespace DDrive.Tests.Editor
             }
 
             var summary = NetCheckCutsceneJudge.EvaluateLog(lines);
-            Assert.IsTrue(summary.Pass, summary.Reason);
+            Assert.IsFalse(summary.Pass);
+            Assert.AreEqual("timeline_signal_not_loaded", summary.Reason);
             Assert.IsFalse(summary.SignalLoaded);
             StringAssert.Contains("signal=NOT_LOADED", NetCheckCutsceneJudge.FormatSummaryLine(summary));
         }
 
         [Test]
-        public void EvaluateLog_SignalNotLoaded_SilentCountIsOneKindPerTime()
+        public void EvaluateLog_KindsMissing_Fails_AndAllLoaded_Passes()
         {
-            // s=0.7 で 0 と 0.1 が無音。Signal が読めていないので 1 種類 x 2 時刻 = 2 件(読めているときは 4 件)。
             var lines = Config("observe", 0, -1);
-            lines.Add("[NetCheck] cutscene_timeline ok=1 signal=0 duration=3.000 tracks=MarkerTrack:1 markers=NetCheckCutsceneMarker:5");
-            lines.Add("[NetCheck] cutscene_recv netKey=0x01000001 s=0.700 silent=2 handle=3.1");
-            foreach (var key in new[] { "m4", "m6", "m15" })
+            lines.Add("[NetCheck] cutscene_timeline ok=0 signal=1 duration=3.000 tracks=MarkerTrack:1 markers=NetCheckCutsceneMarker:5 clips=none missing=CutsceneCameraTrack");
+            lines.Add("[NetCheck] cutscene_recv netKey=0x01000001 s=0.300 silent=0 handle=3.1");
+            Assert.IsFalse(NetCheckCutsceneJudge.EvaluateLog(lines).Pass);
+
+            // ok=1 でも missing に型名があれば FAIL(理由に型名を出す)
+            lines[1] = "[NetCheck] cutscene_timeline ok=1 signal=1 duration=3.000 tracks=MarkerTrack:1 markers=NetCheckCutsceneMarker:5 clips=none missing=CutsceneCameraTrack";
+            var summary = NetCheckCutsceneJudge.EvaluateLog(lines);
+            Assert.IsFalse(summary.Pass);
+            Assert.AreEqual("timeline_kinds_missing:CutsceneCameraTrack", summary.Reason);
+
+            // missing=none なら読み込みは OK(発火の判定は別)
+            lines[1] = "[NetCheck] cutscene_timeline ok=1 signal=1 duration=3.000 tracks=MarkerTrack:1 markers=NetCheckCutsceneMarker:5 clips=none missing=none";
+            foreach (var key in Keys)
             {
                 lines.Add($"[NetCheck] cutscene_marker key={key} markerTime=0.000 elapsed=0.000 handle=3.1");
+                lines.Add($"[NetCheck] cutscene_signal key={key} handle=3.1");
             }
 
             Assert.IsTrue(NetCheckCutsceneJudge.EvaluateLog(lines).Pass);
-            lines[2] = "[NetCheck] cutscene_recv netKey=0x01000001 s=0.700 silent=4 handle=3.1";
-            Assert.IsFalse(NetCheckCutsceneJudge.EvaluateLog(lines).Pass);
+        }
+
+        [Test]
+        public void EvaluateLog_Observer_PlayWithoutReceiveLog_Fails_UnmatchedPlay()
+        {
+            // GD-R-12: observe のプロセスに送信者はありえない。受信ログの無い再生は判定を飛ばさず FAIL
+            var lines = Config("observe", 0, -1);
+            AddMarkers(lines, "3.1", Keys);
+            var summary = NetCheckCutsceneJudge.EvaluateLog(lines);
+            Assert.IsFalse(summary.Pass);
+            StringAssert.Contains("unmatched_play", summary.Reason);
+        }
+
+        [Test]
+        public void EvaluateLog_Observer_SameNetKeyTwice_Fails()
+        {
+            var lines = Receiver(0.0, 0, Keys);
+            lines.Add("[NetCheck] cutscene_recv netKey=0x01000001 s=0.000 silent=0 handle=3.2");
+            AddMarkers(lines, "3.2", Keys);
+            var summary = NetCheckCutsceneJudge.EvaluateLog(lines);
+            Assert.IsFalse(summary.Pass);
+            StringAssert.Contains("duplicate_netkey", summary.Reason);
+        }
+
+        [Test]
+        public void ExpectedKinds_CoverEveryDDriveTrackType()
+        {
+            // 新しい D-Drive のトラック種別を足したら、NetCheck の Timeline と Expected* にも足す(M-6)。
+            CollectionAssert.Contains(NetCheckCutsceneJudge.ExpectedTrackTypes, "CutsceneSignalTrack");
+            Assert.AreEqual(11, NetCheckCutsceneJudge.ExpectedTrackTypes.Length);
+            Assert.AreEqual(5, NetCheckCutsceneJudge.ExpectedMarkerTypes.Length);
+            Assert.AreEqual(6, NetCheckCutsceneJudge.ExpectedClipTypes.Length);
         }
 
         [Test]

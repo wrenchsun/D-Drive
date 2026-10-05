@@ -77,11 +77,4 @@ namespace DDrive.Runtime.Cutscene.Tracks
             return null;
         }
     }
-
-    [TrackClipType(typeof(CutscenePresentationClip))]
-    [TrackBindingType(typeof(Transform))]
-    [TrackColor(0.4f, 0.4f, 0.9f)]
-    public sealed class CutscenePresentationTrack : TrackAsset
-    {
-    }
 }

@@ -71,18 +71,6 @@ namespace DDrive.Runtime.Cutscene.Tracks
         public CutsceneCameraClip Clip;
     }
 
-    [TrackClipType(typeof(CutsceneCameraClip))]
-    [TrackColor(0.95f, 0.85f, 0.2f)]
-    public sealed class CutsceneCameraTrack : TrackAsset
-    {
-        public override Playable CreateTrackMixer(PlayableGraph graph, GameObject go, int inputCount)
-        {
-            var mixer = ScriptPlayable<CutsceneCameraMixerBehaviour>.Create(graph, inputCount);
-            mixer.GetBehaviour().Owner = go;
-            return mixer;
-        }
-    }
-
     // [26_timeline.md] §4.6.2/§4.6.3 — 複数クリップ(ショット切替)の重み付き合成 + StepFps 量子化。
     // 定常経路(毎フレーム評価)のため LINQ・クロージャ・boxing を避ける(CLAUDE.md §0-3)。
     public sealed class CutsceneCameraMixerBehaviour : PlayableBehaviour
@@ -212,21 +200,5 @@ namespace DDrive.Runtime.Cutscene.Tracks
             var invLen = 1f / Mathf.Sqrt(lenSq);
             return new Quaternion(q.x * invLen, q.y * invLen, q.z * invLen, q.w * invLen);
         }
-    }
-
-    // [26_timeline.md] §4.6.2 — CutsceneCameraMixerBehaviour(Update フェーズ)と DDriveCutsceneCameraApplier
-    // (LateUpdate フェーズ、実行順 1000)の間で 1 フレーム分の計算結果を橋渡しする素朴なデータ置き場。
-    // CutsceneManager.RentDirector が CutsceneRoot に 1 つ付ける(free-list で再利用されるため使い回す)。
-    public sealed class CutsceneCameraStateHolder : MonoBehaviour
-    {
-        public bool HasData;
-        public Vector3 LocalPos;
-        public Quaternion LocalRot = Quaternion.identity;
-        public float Fov = 60f;
-        public float FocusDistance;
-        public float Aperture;
-        public float FocalLength;
-        public float GameBlendWeight;
-        public CameraFocusMode Focus = CameraFocusMode.Off;
     }
 }
