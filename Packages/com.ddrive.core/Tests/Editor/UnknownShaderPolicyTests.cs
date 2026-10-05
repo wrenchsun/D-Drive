@@ -358,6 +358,25 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(UnityMaterialMigrator.LitShaderName, again.Shader.name, "変換表にある標準シェーダーの既存 Data は従来どおり寄せる");
         }
 
+        // 取り込みの記録: 欠けたシェーダーの警告は Warnings(対話的な操作が Console に出す一覧)にも入る。
+        // 「未対応のシェーダーを Lit に変換した」の案内は Lines だけ(利用者が確認で選んだ結果なので Console には出さない)。
+        [Test]
+        public void Report_Warnings_HoldOnlyMissingShaderWarnings()
+        {
+            var missing = CreateMissingShaderMaterialAsset("WarnMissing");
+            var report = new MayaMaterialImporter.Report();
+            UnityMaterialMigrator.Migrate(missing, "Migrate", report, TestRoot, UnknownShaderHandling.Keep);
+            Assert.AreEqual(1, report.Warnings.Count);
+            StringAssert.Contains("見つかりません", report.Warnings[0]);
+            Assert.IsTrue(report.Lines.Exists(l => l.StartsWith("警告: ")), "記録の一覧には従来どおり「警告: 」付きで残る");
+
+            var unknown = CreateMaterialAsset("WarnUnknown", _unknown);
+            var converted = new MayaMaterialImporter.Report();
+            UnityMaterialMigrator.Migrate(unknown, "Migrate", converted, TestRoot, UnknownShaderHandling.Convert);
+            Assert.AreEqual(0, converted.Warnings.Count, "Lit への変換の案内は Console 用の警告にしない");
+            Assert.IsTrue(converted.Lines.Exists(l => l.Contains("未対応のため")));
+        }
+
         [Test]
         public void ContextMenuMaterialCreation_AsksOncePerOperation_AndCancelCreatesNothing()
         {
