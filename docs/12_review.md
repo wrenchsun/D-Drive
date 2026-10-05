@@ -136,7 +136,7 @@ D-Drive（`com.ddrive.core`）のバージョンを 1 つ進めて配布する�
    ```
    pwsh Tools/Release/check-release.ps1
    ```
-4. **`Tools/CI/run-ci.cmd` を実行**して green を確認する（`[1/8]` として組み込んだ CHANGELOG ガードに加え、Migrate チェック・Validation・ID 再生成差分・EditMode/PlayMode/Performance テストが通ること）
+4. **`Tools/CI/run-ci.cmd` を実行**して green を確認する（`[1/8]` として組み込んだ CHANGELOG ガードに加え、Migrate チェック・Validation・ID 再生成差分・EditMode/PlayMode/Performance テストが通ること）。**注意（2026-10-06、P-16）**: (a) **先に Unity Editor を閉じる**（同じプロジェクトを開いていると、`run-ci.cmd` は最初に「Unity Editor is open」と出して FAIL で終わる。NetCheck の exe を使うなら、閉じる前に最新のコードから作り直す）。(b) **各段は成果物（ログ・結果 XML）が今回作られたかを検査される**ので、`[FAIL] step N …: result file was not produced` は「Unity が起動しなかった / 結果が出なかった」の意味。**最後の `=== ALL GREEN: ran N steps, skipped M steps ===` の `skipped` が 0 でないときは、その段（pwsh が無い 1 段目・ビルド済み exe が無い 8 段目）が実行されていない**ので、リリースの判定には 0 にしてから臨む。(c) **画面なし（`-nographics`）では描画系のテスト（EditMode 21 件・PlayMode 1 件）が Inconclusive になるのが正常**で、Unity の終了コードは 2 になるが、`run-ci.cmd` は結果 XML の `failed` が 0 なら OK として扱い、Inconclusive の件数を表示する（`failed` が 1 以上・結果ファイル無しは FAIL）。(d) **確認用データ（`Assets/GameData/`）の Validation の Error が 0 であること**: 3 段目はこれを検査する（2026-10-06 に Error 118 を 0 にした。新しい Data を足したら `Validation > Run All` で確認）。2 段目の「マイグレーション未適用」は確認用データが古い形のときに出る。4 段目の `git diff --exit-code` は、Unity が何かを保存しただけの差分（ID と無関係）でも失敗するので、出たら `git diff --stat` で中身を見る。(e) `.cmd` は ASCII だけにする（UTF-8 の日本語入りの .cmd は、コードページ 932 の cmd.exe で行が壊れて何も実行されないことがある。詳細は [11_tasks.md](11_tasks.md) P-16）。リリース当日の手順の全体は [60_release_1_4_0_prep.md](60_release_1_4_0_prep.md) §2。
 5. **`Tools/Release/bump-version.ps1` を実行**して版を進める:
    ```
    pwsh Tools/Release/bump-version.ps1 -Version x.y.z -DryRun   # まず差分だけ確認

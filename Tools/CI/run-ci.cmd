@@ -1,173 +1,212 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableDelayedExpansion
-REM D-Drive: CI(.github\workflows\ci.yml)と同じ検査をこの PC でローカル実行する。
+REM D-Drive: run the same checks as CI (.github\workflows\ci.yml) locally on this PC.
 REM
-REM 前提:
-REM   - Unity Editor 6000.3.13f1 がインストール済み(Unity Hub からアクティベート済み)
-REM   - このリポジトリを "Unity Editor で開いていない"(同じプロジェクトを 2 つの Unity で
-REM     開くことはできないため。開いている場合は Unity を閉じるか、別の checkout で実行する)
-REM   - pwsh(PowerShell 7+)が入っている(結果サマリの整形に使う。無ければ Summarize は自動でスキップ)
+REM This file is ASCII only on purpose. It used to contain Japanese text in UTF-8 without BOM.
+REM cmd.exe reads batch files in the console code page and mis-splits UTF-8 text:
+REM measured on 2026-10-06, lines were cut at wrong byte offsets, comment fragments were
+REM executed as commands, no step ran, and the script still printed all green and returned 0.
+REM A chcp 65001 line alone did not fix it when the console started in code page 932,
+REM and filler lines after it did not fix it for a longer file. Do not add non-ASCII text here.
 REM
-REM 使い方:
+REM 2026-10-06 fixes for the v1.4.0 release preparation:
+REM   - Every step is checked for its own products. Old logs and result files are deleted at the
+REM     start, and after each step the log and the result file must exist, otherwise that step FAILS
+REM     with a line that starts with [FAIL] step N.
+REM   - Test results are judged from the XML failed attribute by Tools\CI\check-test-result.cmd,
+REM     not from the Unity exit code alone. Unity returns exit code 2 when there are Inconclusive
+REM     tests. With -nographics the rendering tests are Inconclusive, 21 plus 1 tests, which is normal.
+REM   - The final green line is printed only when every step ran or was skipped on purpose and all
+REM     of them are OK. Skipped steps are counted and shown.
+REM   - If Unity Editor has this project open, the script says so first and FAILS.
+REM
+REM Prerequisites:
+REM   - Unity Editor 6000.3.13f1 installed and activated by Unity Hub.
+REM   - Unity Editor must NOT have this project open. One project cannot be opened twice.
+REM   - pwsh, PowerShell 7 or later, enables step 1 and the result summary. Without it they are skipped.
+REM
+REM Usage:
 REM   Tools\CI\run-ci.cmd
 REM   Tools\CI\run-ci.cmd "C:\Program Files\Unity\Hub\Editor\6000.3.13f1\Editor\Unity.exe"
 REM
-REM .ps1 を主にしない理由: この PC の PowerShell 5.1(powershell.exe)は既定の実行ポリシーで
-REM .ps1 実行がブロックされる/BOM 無し UTF-8 のコメントが化けることがあるため、.cmd を主経路にする。
-REM (内部で pwsh を明示的に -ExecutionPolicy Bypass 付きで呼ぶので、この問題を回避している)
+REM Run it from the repository root. Inside a parenthesized block %ERRORLEVEL% is frozen at the
+REM value it had before the block, so always read !ERRORLEVEL! and copy it to a variable right away.
+REM Do not use parentheses in echo text unless they are escaped with a caret.
 
 set "UNITY_EXE=%~1"
 if "%UNITY_EXE%"=="" set "UNITY_EXE=C:\Program Files\Unity\Hub\Editor\6000.3.13f1\Editor\Unity.exe"
 
 if not exist "%UNITY_EXE%" (
-    echo [ERROR] Unity実行ファイルが見つかりません: %UNITY_EXE%
-    echo   引数で明示するか、環境変数 UNITY_EXE を設定してください。例:
+    echo [ERROR] Unity executable was not found: %UNITY_EXE%
+    echo   Pass the path as the first argument. Example:
     echo   Tools\CI\run-ci.cmd "C:\Program Files\Unity\Hub\Editor\6000.3.13f1\Editor\Unity.exe"
     exit /b 1
 )
 
-REM %CD% はこのバッチを呼んだディレクトリ。リポジトリ直下から実行することを前提にする。
 set "PROJECT_PATH=%CD%"
 set "RESULTS_DIR=%PROJECT_PATH%\TestResults"
 if not exist "%RESULTS_DIR%" mkdir "%RESULTS_DIR%"
 
-echo === D-Drive ローカル CI ===
+echo === D-Drive local CI ===
 echo Unity      : %UNITY_EXE%
 echo Project    : %PROJECT_PATH%
 echo Results    : %RESULTS_DIR%
 echo.
-echo [注意] Unity Editor でこのプロジェクトを開いたままだと失敗します(多重起動不可)。
-echo.
+
+REM Unity Editor holds Temp\UnityLockfile open while it has the project open, so it cannot be read.
+REM If it can be read, it is a leftover of a crashed Unity: warn and continue.
+set "LOCKFILE=%PROJECT_PATH%\Temp\UnityLockfile"
+if exist "%LOCKFILE%" (
+    type "%LOCKFILE%" >nul 2>nul
+    if not "!ERRORLEVEL!"=="0" (
+        echo [FAIL] Unity Editor is open on this project. Close Unity and run this script again.
+        echo        Lock file: %LOCKFILE%
+        echo === NOT RUN: no step was executed ===
+        exit /b 1
+    ) else (
+        echo [WARN] Temp\UnityLockfile exists but is not locked: a leftover of a crashed Unity. Continuing.
+        echo.
+    )
+)
+
+REM Delete the products of the previous run, so that the file exists means this run made it.
+for %%F in (migrate-check.log validate.log ddrive-validation.junit.xml regenerate-ids.log editmode.log editmode-results.xml playmode.log playmode-results.xml performance.log performance-results.xml) do (
+    if exist "%RESULTS_DIR%\%%F" del /q "%RESULTS_DIR%\%%F" >nul 2>nul
+    if exist "%RESULTS_DIR%\%%F" (
+        echo [FAIL] could not delete the previous result: %RESULTS_DIR%\%%F
+        exit /b 1
+    )
+)
 
 set "OVERALL_EXIT=0"
+set "STEPS_EXPECTED=8"
+set "STEPS_RAN=0"
+set "STEPS_SKIPPED=0"
 
-REM P-9([11_tasks.md]、[42_distribution.md] §5.11-10)— CHANGELOG ガード。互換性スナップショット
-REM (Packages/com.ddrive.core/Tests/Editor/Compat/Snapshots/**)が変わっているのに CHANGELOG.md/version
-REM が変わっていなければ fail する。Unity を起動しないため最初に実行する(pwsh が無ければスキップするだけ
-REM で CI 全体は落とさない。ローカル環境に pwsh が無いことがあるため)。
+REM Step 1 - P-9, docs/42_distribution.md 5.11-10: CHANGELOG guard. Fails if a compatibility
+REM snapshot changed but CHANGELOG.md or the version did not. It does not start Unity.
+REM Skipped when pwsh is missing.
 where pwsh >nul 2>nul
-if "%ERRORLEVEL%"=="0" (
-    echo [1/8] CHANGELOG ガード (check-release.ps1 -GuardOnly) を実行します...
+set "PWSH_FOUND=!ERRORLEVEL!"
+if "!PWSH_FOUND!"=="0" (
+    echo [1/8] CHANGELOG guard, check-release.ps1 -GuardOnly ...
     pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\Release\check-release.ps1" -GuardOnly
-    REM [47_review_p_tickets_2026-09-20.md] P1-6(2026-09-20 修正) — 括弧ブロックの中では %ERRORLEVEL% は
-    REM ブロックに入る前の値(ここでは直前の "where pwsh" の結果 = 0)に固定される(:146 付近の NetCheck の
-    REM コメントで既に踏んだのと同じ罠が、この [1/8] で再発していた)。!ERRORLEVEL!(遅延展開)で読み、
-    REM さらに直後に CHANGELOG_GUARD_EXIT へ退避してから判定する。
-    set "CHANGELOG_GUARD_EXIT=!ERRORLEVEL!"
-    if not "!CHANGELOG_GUARD_EXIT!"=="0" (
-        echo [FAIL] CHANGELOG ガード。互換性スナップショットの変更に対して CHANGELOG.md/version の更新が不足しています。
+    set "STEP_EXIT=!ERRORLEVEL!"
+    set /a STEPS_RAN+=1
+    if not "!STEP_EXIT!"=="0" (
+        echo [FAIL] step 1 CHANGELOG guard: a compatibility snapshot changed but CHANGELOG.md or the version did not.
         set "OVERALL_EXIT=1"
     ) else (
-        echo [OK] CHANGELOG ガード
+        echo [OK] CHANGELOG guard
     )
 ) else (
-    echo [1/8] CHANGELOG ガード: pwsh が見つからないためスキップします
+    set /a STEPS_SKIPPED+=1
+    echo [1/8] CHANGELOG guard: SKIPPED because pwsh was not found
 )
 echo.
 
-REM P-7([11_tasks.md]、[42_distribution.md] §4.3・§4.2 手順 6)— 未適用のマイグレーション
-REM (DDriveMigrationRunner)があれば、Validation より前に検知して fail する。ValidateAll だけだと
-REM 「SchemaVersion が古い」は Warning 止まり(§5.8 の 2 段階ルール)で CI を落とさないため、
-REM 別ステップとして先に強く検知する。
-echo [2/8] マイグレーションの未適用チェック (CI.MigrateCheck) を実行します...
+REM Step 2 - P-7: pending migrations are detected before Validation.
+echo [2/8] Migration check, CI.MigrateCheck ...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.MigrateCheck -logFile "%RESULTS_DIR%\migrate-check.log"
-if not "%ERRORLEVEL%"=="0" (
-    echo [FAIL] 未適用のマイグレーションがあります。Tools ^> D-Drive ^> Update ^> マイグレーション^(適用^) を実行してください。ログ: %RESULTS_DIR%\migrate-check.log
+set "STEP_EXIT=!ERRORLEVEL!"
+set /a STEPS_RAN+=1
+if not exist "%RESULTS_DIR%\migrate-check.log" (
+    echo [FAIL] step 2 Migrate check: log file was not produced, Unity did not run
+    set "OVERALL_EXIT=1"
+) else if not "!STEP_EXIT!"=="0" (
+    echo [FAIL] step 2 Migrate check: there are pending migrations. Run Tools ^> D-Drive ^> Update ^> Migration. Log: %RESULTS_DIR%\migrate-check.log
     set "OVERALL_EXIT=1"
 ) else (
-    echo [OK] マイグレーション未適用チェック
+    echo [OK] Migration check
 )
 echo.
 
-echo [3/8] Validation (CI.ValidateAll) を実行します...
+echo [3/8] Validation, CI.ValidateAll ...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.ValidateAll -ddriveOutput "%RESULTS_DIR%\ddrive-validation.junit.xml" -logFile "%RESULTS_DIR%\validate.log"
-if not "%ERRORLEVEL%"=="0" (
-    echo [FAIL] Validation で Error が見つかりました。ログ: %RESULTS_DIR%\validate.log
+set "STEP_EXIT=!ERRORLEVEL!"
+set /a STEPS_RAN+=1
+if not exist "%RESULTS_DIR%\validate.log" (
+    echo [FAIL] step 3 Validation: log file was not produced, Unity did not run
+    set "OVERALL_EXIT=1"
+) else if not exist "%RESULTS_DIR%\ddrive-validation.junit.xml" (
+    echo [FAIL] step 3 Validation: result file was not produced. Log: %RESULTS_DIR%\validate.log
+    set "OVERALL_EXIT=1"
+) else if not "!STEP_EXIT!"=="0" (
+    echo [FAIL] step 3 Validation: Errors were found. Log: %RESULTS_DIR%\validate.log
     set "OVERALL_EXIT=1"
 ) else (
     echo [OK] Validation
 )
 echo.
 
-echo [4/8] Asset ID 再生成 ^(CI.RegenerateIds^) + git diff 確認 を実行します...
+echo [4/8] Asset ID regeneration, CI.RegenerateIds, and git diff check ...
 "%UNITY_EXE%" -batchmode -nographics -quit -projectPath "%PROJECT_PATH%" -executeMethod DDrive.Editor.CI.RegenerateIds -logFile "%RESULTS_DIR%\regenerate-ids.log"
-if not "%ERRORLEVEL%"=="0" (
-    echo [FAIL] Asset ID 再生成に失敗しました^(重複 ID 等^)。ログ: %RESULTS_DIR%\regenerate-ids.log
+set "STEP_EXIT=!ERRORLEVEL!"
+set /a STEPS_RAN+=1
+if not exist "%RESULTS_DIR%\regenerate-ids.log" (
+    echo [FAIL] step 4 Regenerate IDs: log file was not produced, Unity did not run
+    set "OVERALL_EXIT=1"
+) else if not "!STEP_EXIT!"=="0" (
+    echo [FAIL] step 4 Regenerate IDs: regeneration failed, for example duplicate IDs. Log: %RESULTS_DIR%\regenerate-ids.log
     set "OVERALL_EXIT=1"
 ) else (
     git diff --exit-code
-    if not "!ERRORLEVEL!"=="0" (
-        echo [FAIL] ID 再生成でコミットされていない差分が出ました。Assets\Generated だけでなく、
-        echo        新規 Id が割り当てられた Data アセット自体の変更も含みます。ローカルで
-        echo        "Tools/D-Drive/Generate/Regenerate Asset IDs" を実行してからコミットしてください。
+    set "DIFF_EXIT=!ERRORLEVEL!"
+    if not "!DIFF_EXIT!"=="0" (
+        echo [FAIL] step 4 Regenerate IDs: ID regeneration left uncommitted changes. This includes Data assets that got a new Id,
+        echo        not only Assets\Generated. Run Tools/D-Drive/Generate/Regenerate Asset IDs in the Editor and commit the result.
         set "OVERALL_EXIT=1"
     ) else (
-        echo [OK] Asset ID 差分なし
+        echo [OK] Asset ID: no diff
     )
 )
 echo.
 
-echo [5/8] EditMode テストを実行します...
+echo [5/8] EditMode tests ...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform EditMode -testResults "%RESULTS_DIR%\editmode-results.xml" -logFile "%RESULTS_DIR%\editmode.log"
-if not "%ERRORLEVEL%"=="0" (
-    echo [FAIL] EditMode テスト。ログ: %RESULTS_DIR%\editmode.log
-    set "OVERALL_EXIT=1"
-) else (
-    echo [OK] EditMode テスト
-)
+set "STEP_EXIT=!ERRORLEVEL!"
+set /a STEPS_RAN+=1
+call :judge_tests 5 EditMode "%RESULTS_DIR%\editmode-results.xml" "%RESULTS_DIR%\editmode.log" !STEP_EXIT!
 echo.
 
-echo [6/8] PlayMode テストを実行します...
+echo [6/8] PlayMode tests ...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testResults "%RESULTS_DIR%\playmode-results.xml" -logFile "%RESULTS_DIR%\playmode.log"
-if not "%ERRORLEVEL%"=="0" (
-    echo [FAIL] PlayMode テスト。ログ: %RESULTS_DIR%\playmode.log
-    set "OVERALL_EXIT=1"
-) else (
-    echo [OK] PlayMode テスト
-)
+set "STEP_EXIT=!ERRORLEVEL!"
+set /a STEPS_RAN+=1
+call :judge_tests 6 PlayMode "%RESULTS_DIR%\playmode-results.xml" "%RESULTS_DIR%\playmode.log" !STEP_EXIT!
 echo.
 
-REM 6-2(パフォーマンス計測・0 alloc 検証): DDrive.Tests.Performance(category=Performance)のみを
-REM PlayMode で実行する。GitHub Actions 側の CI(.github\workflows\ci.yml)は P7 末の CI 導入まで
-REM このステップを実処理化しない(2026-09-15 ユーザー決定)ため、当面はローカル実行がこの一式の
-REM 唯一の実行経路になる。
-echo [7/8] Performance テスト(0 alloc 検証、DDrive.Tests.Performance)を実行します...
+REM Step 7 - 6-2: only DDrive.Tests.Performance, category Performance, 0 alloc checks, in PlayMode.
+echo [7/8] Performance tests, 0 alloc, DDrive.Tests.Performance ...
 "%UNITY_EXE%" -batchmode -nographics -projectPath "%PROJECT_PATH%" -runTests -testPlatform PlayMode -testCategory "Performance" -testResults "%RESULTS_DIR%\performance-results.xml" -logFile "%RESULTS_DIR%\performance.log"
-if not "%ERRORLEVEL%"=="0" (
-    echo [FAIL] Performance テスト。ログ: %RESULTS_DIR%\performance.log
-    set "OVERALL_EXIT=1"
-) else (
-    echo [OK] Performance テスト
-)
+set "STEP_EXIT=!ERRORLEVEL!"
+set /a STEPS_RAN+=1
+call :judge_tests 7 Performance "%RESULTS_DIR%\performance-results.xml" "%RESULTS_DIR%\performance.log" !STEP_EXIT!
 echo.
 
-REM 6-7(任意ステップ): ビルド済みの Builds\DDriveNetCheck\DDriveNetCheck.exe があるときだけ、
-REM 2 クライアント自動テスト(Tools\CI\run-netcheck.cmd)を実行する。ビルドが無い場合は
-REM(このステップは Unity Editor でのビルドを前提にしており、run-ci.cmd 自体はビルドしないため)
-REM スキップするだけで CI 全体を失敗させない([11_tasks.md] 6-7、CI 本稼働は P7 末のため任意ステップ扱い)。
+REM Step 8 - 6-7, optional: the 2-client NetCheck runs only when Builds\DDriveNetCheck\DDriveNetCheck.exe
+REM exists. Its own judgment lives in run-netcheck.cmd and Run-NetCheck.ps1 and is not changed here.
 if exist "%PROJECT_PATH%\Builds\DDriveNetCheck\DDriveNetCheck.exe" (
-    echo [8/8] NetCheck^(6-7、2 クライアント自動テスト^)を実行します...
+    echo [8/8] NetCheck, 2-client automatic test ...
     call "%~dp0run-netcheck.cmd"
-    REM 2026-09-17 修正: 括弧ブロックの中では %ERRORLEVEL% はブロックに入る前の値
-    REM ＝ここでは [7/8] Performance の結果 に展開されるため、call の結果は
-    REM !ERRORLEVEL!＝遅延展開 で読む。さらに call 先の chcp 等で ERRORLEVEL が
-    REM 上書きされる余地を潰すため、直後に NETCHECK_EXIT へ退避してから判定する。
     set "NETCHECK_EXIT=!ERRORLEVEL!"
+    set /a STEPS_RAN+=1
     if not "!NETCHECK_EXIT!"=="0" (
-        echo [FAIL] NetCheck。ログ: %RESULTS_DIR%\NetCheck\summary.md
+        echo [FAIL] step 8 NetCheck. Log: %RESULTS_DIR%\NetCheck\summary.md
         set "OVERALL_EXIT=1"
     ) else (
         echo [OK] NetCheck
     )
 ) else (
-    echo [8/8] NetCheck: ビルド済み exe が無いためスキップします
-    echo        ^(Tools ^> D-Drive ^> Build ^> 実機確認用 Windows 開発ビルド の後に Tools\CI\run-netcheck.cmd を単体実行できます^)
+    set /a STEPS_SKIPPED+=1
+    echo [8/8] NetCheck: SKIPPED because Builds\DDriveNetCheck\DDriveNetCheck.exe does not exist
+    echo        Build it with Tools ^> D-Drive ^> Build, then run Tools\CI\run-netcheck.cmd alone.
 )
 echo.
 
-where pwsh >nul 2>nul
-if "%ERRORLEVEL%"=="0" (
-    echo === 結果サマリ ===
+if "!PWSH_FOUND!"=="0" (
+    echo === Result summary ===
     pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0Summarize-Results.ps1" ^
         -ValidationJUnitPath "%RESULTS_DIR%\ddrive-validation.junit.xml" ^
         -EditModeResultsPath "%RESULTS_DIR%\editmode-results.xml" ^
@@ -175,15 +214,67 @@ if "%ERRORLEVEL%"=="0" (
         -PerformanceResultsPath "%RESULTS_DIR%\performance-results.xml" ^
         -NetCheckResultsPath "%RESULTS_DIR%\NetCheck\results.json"
 ) else (
-    echo [注意] pwsh が見つからないため、結果サマリの整形はスキップしました。
-    echo         %RESULTS_DIR% 配下の XML / ログを直接確認してください。
+    echo [NOTE] pwsh was not found, the result summary was skipped. Read the XML and logs in %RESULTS_DIR% directly.
+)
+
+REM Every step must be accounted for as ran or skipped. If the numbers do not add up, it is not green.
+set /a STEPS_ACCOUNTED=STEPS_RAN+STEPS_SKIPPED
+if not "!STEPS_ACCOUNTED!"=="!STEPS_EXPECTED!" (
+    echo [FAIL] step count mismatch: ran=!STEPS_RAN! skipped=!STEPS_SKIPPED! expected=!STEPS_EXPECTED!
+    set "OVERALL_EXIT=1"
 )
 
 echo.
-if "%OVERALL_EXIT%"=="0" (
-    echo === すべて green です ===
+if "!OVERALL_EXIT!"=="0" (
+    echo === ALL GREEN: ran !STEPS_RAN! steps, skipped !STEPS_SKIPPED! steps ===
 ) else (
-    echo === 失敗があります^(上のログを確認してください^) ===
+    echo === FAILED: ran !STEPS_RAN! steps, skipped !STEPS_SKIPPED! steps. See the lines above and the logs ===
 )
 
-exit /b %OVERALL_EXIT%
+exit /b !OVERALL_EXIT!
+
+REM ---------------------------------------------------------------------------
+REM :judge_tests  step-number  name  result-xml  log  unity-exit-code
+REM Unity returns exit code 2 when there are Inconclusive tests, so the XML decides, not the code:
+REM OK when the result file exists and failed is 0, and the Inconclusive count is shown.
+REM FAIL when failed is 1 or more, the result file is missing, or the Unity exit code is not 0 or 2.
+REM ---------------------------------------------------------------------------
+:judge_tests
+set "J_STEP=%~1"
+set "J_NAME=%~2"
+set "J_XML=%~3"
+set "J_LOG=%~4"
+set "J_UNITY_EXIT=%~5"
+if not exist "%J_LOG%" (
+    echo [FAIL] step %J_STEP% %J_NAME%: log file was not produced, Unity did not run
+    set "OVERALL_EXIT=1"
+    exit /b 0
+)
+if not exist "%J_XML%" (
+    echo [FAIL] step %J_STEP% %J_NAME%: result file was not produced. Log: %J_LOG%
+    set "OVERALL_EXIT=1"
+    exit /b 0
+)
+call "%~dp0check-test-result.cmd" "%J_XML%"
+set "J_XML_EXIT=!ERRORLEVEL!"
+if "!J_XML_EXIT!"=="1" (
+    echo [FAIL] step %J_STEP% %J_NAME%: failed tests or an unreadable result file. Log: %J_LOG%
+    set "OVERALL_EXIT=1"
+    exit /b 0
+)
+if not "%J_UNITY_EXIT%"=="0" if not "%J_UNITY_EXIT%"=="2" (
+    echo [FAIL] step %J_STEP% %J_NAME%: Unity exit code %J_UNITY_EXIT%. Log: %J_LOG%
+    set "OVERALL_EXIT=1"
+    exit /b 0
+)
+if "%J_UNITY_EXIT%"=="2" if "!J_XML_EXIT!"=="0" (
+    echo [FAIL] step %J_STEP% %J_NAME%: Unity exit code 2 but the result file has no failed or inconclusive tests. Log: %J_LOG%
+    set "OVERALL_EXIT=1"
+    exit /b 0
+)
+if "!J_XML_EXIT!"=="10" (
+    echo [OK] %J_NAME% tests: failed 0, with Inconclusive tests which is normal in a run without graphics
+) else (
+    echo [OK] %J_NAME% tests
+)
+exit /b 0
