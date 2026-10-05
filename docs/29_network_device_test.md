@@ -1477,6 +1477,15 @@ follower 専用のカウンタのため 0/false のままで正しい（[14_netw
 - **Signal マーカー**: 上の全シナリオで Player の `cutscene_timeline` は `signal=0`（Signal トラック / マーカーが Player で読み込まれていない。[14_networking.md] §23.1）。判定は外部マーカーだけで行い（`[WARN]`）、本体の「無音にしたマーカー n 件」は 1 種類で数えた。
 - 実行時間: 15 シナリオで約 30 分（既存 9 ≒ 15 分 + `cut_*` ≒ 15 分）。EditMode 1730/1730・PlayMode 951/951 green。
 
+### M-6 後の判定（2026-10-06）: Signal も含む全トラック種別が判定に入る
+
+M-6 で Signal を含む D-Drive の全トラック / マーカー / クリップ種別が Player で読み込まれるようになったため、判定を次のとおり厳しくした（旧: `signal=0` は `[WARN]` で外部マーカーだけで判定）。
+
+- `NetCheck` の Timeline（`CUT_NetCheck_Markers`）に **Event / Signal / Shake / Haptic / SE / VFX / UI / Camera / Presentation / AnchorGroup の各トラック + 外部マーカー**を 1 本ずつ足した（Event / Shake / Haptic のマーカーは **2.9 秒**に 1 個ずつ置き、0〜1.5 秒の判定の時刻と「無音にしたマーカー n 件」= 2 × 無音の時刻数には影響しない。クリップは 0.2〜0.7 秒・参照先は未設定 = 読み込みの確認用）。既存の Signal 5 個 + 外部マーカー 5 個の時刻は不変。
+- `cutscene_timeline` の行に `clips=<型名:件数,…>` と `missing=<読めなかった種別 | none>` が加わった。**`cut_local` の自己判定（と `Run-NetCheck.ps1` の判定・`-JudgeOnly`）は、`signal=0` か `missing` に型名があれば FAIL**（`timeline_signal_not_loaded` / `timeline_kinds_missing:<型名>`）。期待する種別は `NetCheckCutsceneJudge.ExpectedTrackTypes` / `ExpectedMarkerTypes` / `ExpectedClipTypes`。抜け道のフラグは無い。
+- 判定の穴（レビュー GD-R-12）: observe のプロセスで受信ログの無い再生は `unmatched_play`、同じ netKey の受信 2 回は `duplicate_netkey`、`-JudgeOnly` に trigger のログが無いと「不足」で FAIL。
+- 結果: 開発ビルドで **全 15 シナリオ PASS**。`cut_local` は 11 トラック・マーカー 5 種・クリップ 6 種を読み込み（`missing=none`）、`referenced script … missing` は 0 件。Signal の観測は 5 キー × 再生回数（`cut_local` 10 回、`cut_pair0` / `cut_pair200` / `cut_client200` は各プロセス 20 回、`cut_latejoin` Host / Client1 70 回・途中参加の Client2 34 回、`cut_migration` follower 15 回）。受信側の `s`: `cut_pair200` 0.322〜0.350、`cut_client200` Host 0.451〜0.498 / Client2 0.401〜0.433、`cut_latejoin` Client2 0.000〜2.846。上の「ローカルの結果」の表の「Signal マーカー」の行（`signal=0`）は N-8 時点の記録で、M-6 の修正前の状態。
+
 ### 実機の手順（この PC = Host、別 PC = Client 3 プロセス）
 
 構成: Host = この PC（名前 wrench、モバイルホットスポット側 **192.168.137.1**、UDP 7777）。Client = 別 PC（WRENCH_2ND、192.168.137.74）の 3 プロセス。各プロセスのログは別々のファイル（`C:\DDriveTest\R1_c1.log` 等）。別 PC には `DDriveNetCheck.zip` を `C:\DDriveTest\DDriveNetCheck\` に展開しておく（`DDriveNetCheck.exe` がそこにある）。

@@ -20,7 +20,8 @@ MonoBehaviour:
   _isDevelopmentRepo: 1
   _emitGeneratedAsmdef: 0
   _lastAppliedVersion: 
-  _appliedMigrationIds: []
+  _appliedMigrationIds:
+  - cutscene-timeline-monoscript-v1
   _previousPackageRef: 
   _managedPackages: []
   _forbiddenApiAllowEntries: []

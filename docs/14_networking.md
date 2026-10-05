@@ -1216,7 +1216,9 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 - **`Run-NetCheck.ps1`**: `cut_local`（Host 単体）・`cut_pair0`・`cut_pair200`・`cut_client200`（Client が再生。Host 1 + Client 2・遅延 200ms の 3 立場）・`cut_latejoin`（Host が 1 秒おきに 14 回再生し、10 秒遅れの Client が参加）・`cut_migration`（旧 Host 12 秒で終了 → successor が引き継ぎ後に 3 回再生）を追加。判定だけ行うモード `-JudgeOnly -Logs <ログ...>`（別 PC のログを集めた後。時刻ではなく `handle` / `netKey` / `s` で判定）。
 - **後始末**: `cut_migration` の follower は、`NetCheckJudge` の既存の「引き継ぎ後に演出を受信できたか」（`no_signal_recv_after_migration`）を Presentation の Signal ではなく受信した Cutscene の再生で数える（Cutscene のシナリオでは Presentation のデモを止めているため）。
 
-### 23.1 **Player ビルドで Signal トラック / マーカーが読み込まれない（D-Drive 本体の不具合の疑い。要判断・本体は未修正）**
+### 23.1 **Player ビルドで Signal トラック / マーカーが読み込まれない（D-Drive 本体の不具合。2026-10-06 の M-6 で修正済み）**
+
+> **2026-10-06 追記（M-6）**: 下の「要確認」は **M-6 で修正した**（[11_tasks.md] M-6、[26_timeline.md] 2026-10-06 追記）。(1) 原因は推定どおり（クラス名と違う名前のファイルにある型は MonoScript を持てない）。Signal 以外（Event / Shake / Haptic / SE / VFX / UI / Camera / Presentation / AnchorGroup のトラック）も同じ機構（MonoScript が無い型）で、再発防止のテスト `MonoScriptFileNameTests` は修正前のコードで 14 型（トラック 10 + マーカー 3〔`CutsceneEventNotification` は先頭の型なので MonoScript があり、Signal / Shake / Haptic の 3 つ〕+ `CutsceneCameraStateHolder`）を赤で列挙した。**Signal 以外が修正前の Player で実際に読めなかったかは、修正前のコードで全種別を載せた Player ビルドを作っていないので実測していない**（同じ機構なので読めなかったと判断している）。(2) **型を 1 型 1 ファイルに分け**、既存の `.playable` は**マイグレーション `cutscene-timeline-monoscript-v1` で `m_Script` を GUID 参照に直す**（再インポート・`ForceReserializeAssets`・`SerializedObject` では直らないことを実測）。(3) NetCheck の `CUT_NetCheck_Markers` の Timeline に **D-Drive の全トラック種別を 1 本ずつ**足し、`cutscene_timeline` の行に `clips=` と `missing=`（読み込めなかった種別）を出すようにした。`cut_local` の自己判定は **全種別が読めていなければ `RESULT=FAIL`**（`signal=0` を [WARN] で許す作りは廃止）。結果は [29_network_device_test.md] §27。以下は N-8 時点の記録（修正前の状態）。
 
 NetCheck の開発ビルドで `cutscene_timeline` を出したところ、**Editor では読める Signal マーカー（`CutsceneSignalTrack` / `CutsceneSignalNotification`）が Player では読み込まれなかった**。同じ Timeline の外部マーカー（`MarkerTrack` + `NetCheckCutsceneMarker`）は読み込まれ、発火した。
 

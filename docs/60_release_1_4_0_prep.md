@@ -15,6 +15,7 @@
 | バッチモードでの全段の確認 | **2026-10-06 に 1 段ずつ直接実行して OK**。**ただし PR #115・#116 のマージ後の main（`a6fc496`）では全段を通し直していない** | CHANGELOG ガード OK / マイグレーション: 未適用あり → 確認用データを修正して green / Validation: Error 118 → 0（PR #114・#116）/ Asset ID 差分なし / EditMode 失敗 0（成功 1599・保留 21）/ PlayMode 失敗 0（成功 941・保留 1）/ Performance 11 件 OK / NetCheck 9 シナリオ PASS（ビルドし直した exe）。**リリース直前に Unity を閉じて `run-ci.cmd` を全段通し直す（必須）** |
 | 人による確認（別 PC。2026-10-06 に一部の結果が出た） | **一部完了・再確認待ち**。**[43] §17 = 17-1〜17-8 OK**（未実施 = バッチの `CI.ValidateAll`・行のボタンで外部エディタ・Editor の開き直し）。**[43] §16 = 必須項目 OK**（16-1・16-3〜16-6・16-8〜16-10・16-16・16-18〜16-21・16-24）、**16-2 は一部 NG**（Undo で埋め込み欄が描き直されない）。**未着手 = [43] §15 の 15-5・15-25〜15-29、[52] の必須分** | 見つかった不具合（Canvas Editor の Undo の表示・`禁止 API の検査` ウィンドウの表示）と、🔒 の表示の分かりにくさは PR `fix/verification-canvas-undo-forbidden-window` で修正。**再確認 = 16-2・16-7・16-11・16-24・17-1・17-7**。§16 の「できれば」（16-11〜16-15・16-17・16-22・16-23・16-25）は未確認。**対応予定（v1.4.0、別の PR）**: プレハブモードで Idle を自動で流す・親の Canvas 側で埋め込んだ子の既定の有効 / 無効（作業用の一時切り替えも）・子を埋め込みとして登録したとき親の ElementFx にある子の配下の行を自動で削除する・ButtonWire を Canvas Editor の画面で編集する。必須の範囲（残り）= [43] §15 の 15-5・15-25〜15-29、[52] §1 の 1-1〜1-15、§4 の 4-2・4-4・4-5、§11.2 の 11-8〜11-10、§15 の 15.1・15.2・15.6。結果が NG のものは修正してから再確認 |
 | Canvas Editor の埋め込みの整理・プレハブモードで Idle（U-29、Editor のみ） | **実装済み・PR 待ち**（2026-10-06）。EditMode 全件 1700/1700・PlayMode 全件 951/951 green（新規 60 件を含む）。人による確認 = [43] §16 の 16-26〜16-35 | 互換性への影響なし（Editor のみ・追加のみ）。CHANGELOG `[Unreleased]` の「Canvas」に記載済み |
+| **Player ビルドでカットシーンのトラック / マーカーが読み込まれない不具合（M-6、2026-10-06）** | **修正済み・PR 待ち**。型を 1 型 1 ファイルに分け、既存の `.playable` はマイグレーション `cutscene-timeline-monoscript-v1` で直す（**v1.4.0 は「マイグレーションあり（自動）」になった**）。NetCheck の `cut_local` が全トラック種別の読み込みを見る。結果は [11](11_tasks.md) M-6・[29](29_network_device_test.md) §27 | v1.0.0 からの不具合。**v1.4.0 のタグ前に MS2026 でマイグレーションの動作を確認する**（`.playable` が無ければ何も起きない） |
 | Cutscene のマーカーの NetCheck シナリオ（N-8、開発用の確認道具） | **実装済み・PR 待ち**（2026-10-06）。ローカル複数プロセス（実 NGO）で既存 9 + 新 6 = 15 シナリオ PASS、EditMode 1730/1730・PlayMode 951/951 green。**実機（[29] §27 R1〜R5）は未実施 = [52] 4-5 の確認待ち** | **Player ビルドで Signal トラック / マーカー（`CutsceneSignalTrack` 等、クラス名とファイル名が違う型）が読み込まれない不具合の疑い**を発見（本体は未修正）。v1.4.0 のタグ前に判断が要る = [14] §23.1 |
 | SpecWeb（HTML マニュアル） | 再生成済み（`Tools/SpecWeb/html/manual/**` はコミット済み）。**デプロイ未実施** | リリース後に `push.cmd` + デプロイ ①②（下の 2.1 手順 8） |
 | Timeline の人による確認（[43] §7・§10） | v1.4.0 の後でよい | [46](46_cutscene_fbx_request_unitychan.md) の FBX の到着後 |
@@ -64,7 +65,7 @@ T-Drive（Facial / Toon）との連携のための汎用の拡張点、Canvas �
 - そのほか: 埋め込み Canvas の優先規則と `SendSignal` のパス、シェーダー変換表の優先順位（`Assets/` > 外部 > 同梱）、検査の警告の調整（Warning が減る方向）など。詳細は CHANGELOG の「互換性」節。
 
 **更新後にやること**
-- 必須の作業はありません。タグを `v1.4.0` にして `Tools > D-Drive > Update > 更新ウィンドウ` を実行してください。
+- **カットシーン（Timeline）を使っているプロジェクトは、更新後に「更新を適用」（マイグレーション `cutscene-timeline-monoscript-v1`）を実行してください**（Timeline の `.playable` に差分が出るのでコミットする。実行しないと Player ビルドで D-Drive のトラック / マーカーが読み込まれない）。それ以外に必須の作業はありません。タグを `v1.4.0` にして `Tools > D-Drive > Update > 更新ウィンドウ` を実行してください。
 - 更新後に `Validation > Run All` と `Tools > D-Drive > Validation > 禁止 API の検査` を実行し、禁止 API の指摘を 1 件ずつ「D-Drive の API に直す / 許可コメントを書く」に仕分けてください（手順は持ち込み先ガイドの運用ページ「禁止 API の指摘への対処」）。「アセットの読み込み設定が Preload でない」は Validation の「自動修正」で直ります。
 
 **追加されたもの**
@@ -75,6 +76,7 @@ T-Drive（Facial / Toon）との連携のための汎用の拡張点、Canvas �
 - 検査（Validation）の Warning / Info を追加（既存の検査の重さは変えません）。
 
 **修正**
+- **Player ビルドでカットシーンの D-Drive トラック / マーカー（Signal / Event / Shake / Haptic / SE / VFX / UI / Camera / Presentation / AnchorGroup）が読み込まれない**不具合（v1.0.0 から。Editor では動く）。型を同名のファイルに分け、既存の Timeline はマイグレーションで直す（上の「更新後にやること」）。
 - Presentation / Cutscene の購読者が走査中に自分や他を止めたときの二重進行・例外、プレリリースのタグを丸めて存在しないタグを manifest に書く不具合、元の `.mat` のシェーダーが欠けているときに既存 MaterialData の色・テクスチャを上書きする不具合、プリセットギャラリーのパス、ほか。
 
 全文は `CHANGELOG.md` の `[1.4.0]`。
@@ -172,7 +174,9 @@ var now = Time.unscaledTime; // ddrive-allow: Time(Host 引き継ぎのタイム
 
 確認は Editor の `Tools > D-Drive > Validation > 禁止 API の検査`（許可されていない当たり・許可済み・無効 / 未使用の許可を一覧し、クリックでその行を開く。再走査ボタンあり。`Forbidden API 許可一覧` は同じ内容の Console 出力）、CI ではバッチの `CI.ValidateAll` が同じ走査をします（`Validation > Run All` は禁止 API を走査しません）。**レビューでは「許可の理由が妥当か」を見てください。**
 
-更新は `manifest.json` を `#v1.4.0` にして `Tools > D-Drive > Update > 更新ウィンドウ`（更新の前に CHANGELOG の「互換性」節をご覧ください。必須の作業はありません。0 秒に置いたカットシーンのマーカーが最初に鳴るようになる点と、更新ウィンドウが認証のログイン画面を出さなくなる点〔資格情報が切れているときは先に `git ls-remote <URL>` を一度実行〕が挙動の変更です）。
+**(c) カットシーン（Timeline）を使っている場合: 更新後にマイグレーションが走ります（M-6）。** D-Drive v1.0.0〜v1.3.1 は、カットシーンの Timeline のトラック / マーカーの型（Signal / Event / Shake / Haptic / SE / VFX / UI / Camera / Presentation / AnchorGroup）がクラス名と違う名前のファイルにあり、**Player ビルド（開発ビルド / 製品ビルド）ではカットシーンの D-Drive トラック / マーカーが読み込まれませんでした**（Editor では動くので気づきにくい不具合です。ログに `The referenced script on this Behaviour is missing!`）。v1.4.0 で型を同名のファイルに分けました。**既存の Timeline（`.playable`）は、更新ウィンドウの「更新を適用」（または `Tools > D-Drive > Update > マイグレーション(適用)`）を実行すると直ります**（`cutscene-timeline-monoscript-v1`。`.playable` の `m_Script` の行だけが書き換わるので、Timeline の `.playable` に差分が出ます。そのままコミットしてください。ドライランで対象の `.playable` の一覧が出ます）。実行しないと Player では今までどおり読み込まれません。カットシーンを使っていなければ何も変わりません。T-Drive など外部パッケージの `Marker` / `TrackAsset` 派生クラスも、クラス名と同じ名前のファイルに置いてください（ProgrammerManual `extending.html`）。
+
+更新は `manifest.json` を `#v1.4.0` にして `Tools > D-Drive > Update > 更新ウィンドウ`（更新の前に CHANGELOG の「互換性」節をご覧ください。**カットシーンを使っている場合は更新後に「更新を適用」（マイグレーション）が必要です**〔上の (c)〕。0 秒に置いたカットシーンのマーカーが最初に鳴るようになる点と、更新ウィンドウが認証のログイン画面を出さなくなる点〔資格情報が切れているときは先に `git ls-remote <URL>` を一度実行〕が挙動の変更です）。
 
 ---
 
