@@ -124,7 +124,7 @@ namespace DDrive.Runtime.Net
             public ulong SenderOrOriginId;
             public ulong TargetClientId; // _delayedSendToQueue のみ使用
             public NetChannel Channel;
-            public float ReleaseAtTime; // Time.time 基準(元の UniTask.Delay の既定挙動=スケール済み時間に揃える)
+            public float ReleaseAtTime; // スケール済みの時刻(UnityEngine.Time の time)基準(元の UniTask.Delay の既定挙動に揃える)
         }
 
         private readonly Queue<AppLayerQueueEntry> _delayedSendToAllQueue = new();
@@ -210,6 +210,7 @@ namespace DDrive.Runtime.Net
         // ─ 早期 break してよい ─ という前提で FIFO を保ったまま排出する。
         private void Update()
         {
+            // ddrive-allow: Time(開発ビルド専用の擬似遅延キュー(-ddrive-sim-latency)。元の UniTask.Delay の既定と同じスケール済み時間で揃える)
             var now = Time.time;
 
             while (_delayedSendToAllQueue.Count > 0 && _delayedSendToAllQueue.Peek().ReleaseAtTime <= now)
@@ -434,6 +435,7 @@ namespace DDrive.Runtime.Net
                 TargetClientId = clientId,
                 Channel = channel,
                 SenderOrOriginId = originClientId,
+                // ddrive-allow: Time(開発ビルド専用の擬似遅延キュー(-ddrive-sim-latency)。元の UniTask.Delay の既定と同じスケール済み時間で揃える)
                 ReleaseAtTime = Time.time + _appLayerSimLatencyMs / 1000f,
             });
         }
@@ -582,6 +584,7 @@ namespace DDrive.Runtime.Net
                 Json = json,
                 Channel = channel,
                 SenderOrOriginId = originClientId,
+                // ddrive-allow: Time(開発ビルド専用の擬似遅延キュー(-ddrive-sim-latency)。元の UniTask.Delay の既定と同じスケール済み時間で揃える)
                 ReleaseAtTime = Time.time + _appLayerSimLatencyMs / 1000f,
             });
         }
@@ -697,6 +700,7 @@ namespace DDrive.Runtime.Net
                 Key = key,
                 Json = json,
                 SenderOrOriginId = senderId,
+                // ddrive-allow: Time(開発ビルド専用の擬似遅延キュー(-ddrive-sim-latency)。元の UniTask.Delay の既定と同じスケール済み時間で揃える)
                 ReleaseAtTime = Time.time + _appLayerSimLatencyMs / 1000f,
             });
         }

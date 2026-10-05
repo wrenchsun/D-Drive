@@ -124,6 +124,7 @@ namespace DDrive.Runtime.Anim2D
             _hashY = Anim2D.ResolveFloatParameterHash(Target, ParamY);
         }
 
+        // ddrive-allow: Time(GameLoop に載らない単独の MonoBehaviour。Animator と同じ Unity の timeScale に従う見た目の補間で、D-Drive の HitStop には揃えない)
         private void Update() => Tick(Time.deltaTime);
 
         /// <summary>平滑化と Animator への反映を 1 ステップ進める(通常は Update から呼ばれる。テスト / 独自ループ用に公開)。</summary>

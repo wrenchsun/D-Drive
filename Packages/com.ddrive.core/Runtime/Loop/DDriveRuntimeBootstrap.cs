@@ -710,6 +710,7 @@ namespace DDrive.Runtime.Loop
 
             try
             {
+                // ddrive-allow: AddressablesLoad(起動配線: IAssetLoader が組み上がる前に、カタログのラベルでアドレスを列挙する唯一の箇所)
                 var locations = Addressables.LoadResourceLocationsAsync(CatalogLabel, typeof(AssetCatalog));
                 await UniTask.WaitUntil(() => locations.IsDone);
                 if (locations.Status != UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded || locations.Result == null || locations.Result.Count == 0)
@@ -718,6 +719,7 @@ namespace DDrive.Runtime.Loop
                     return 0;
                 }
 
+                // ddrive-allow: AddressablesLoad(起動配線: IAssetLoader が組み上がる前に、カタログ(AssetCatalog)を読み込む唯一の箇所)
                 var load = Addressables.LoadAssetsAsync<AssetCatalog>(locations.Result, null);
                 await UniTask.WaitUntil(() => load.IsDone);
                 var count = 0;
@@ -796,6 +798,7 @@ namespace DDrive.Runtime.Loop
 
             public Foundation.Identity.AssetType Type => Foundation.Identity.AssetType.Shake;
 
+            // ddrive-allow: Time(CameraFx は HitStop 中も揺れを止めないため unscaled で駆動する(docs/16 Part A))
             public void Tick(float dt) => _cameraFx.Tick(Time.unscaledDeltaTime);
 
             public void OnPause(PauseChannel channel, bool paused) => _cameraFx.OnPause(channel, paused);

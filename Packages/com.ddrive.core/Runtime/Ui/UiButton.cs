@@ -188,6 +188,7 @@ namespace DDrive.Runtime.Ui
             }
         }
 
+        // ddrive-allow: Time(UI の押下アニメ・長押し判定はポーズ中も反応させるため実時間で進める)
         private void Update() => Advance(Time.unscaledDeltaTime);
 
         private void BeginClickOrDouble()

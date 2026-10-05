@@ -361,6 +361,7 @@ namespace DDrive.Runtime.Ui
             _notchSeElapsed += unscaledDt;
         }
 
+        // ddrive-allow: Time(UI の押下アニメ・長押し判定はポーズ中も反応させるため実時間で進める)
         private void Update() => Advance(Time.unscaledDeltaTime);
 
         // ── 内部: 値の適用 ──
