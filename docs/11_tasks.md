@@ -362,6 +362,35 @@ MS2026 の Phase P コードレビューが D-Drive 側への依頼 9 件（DD-1
 | M-3e | **DD-9: 日本語 TMP フォント（要判断）**: D-Drive のフォント資産 / TMP 既定フォントに日本語グリフを含むフォントを登録できるようにする（AssetBrowser 側）。MS2026 は `JapaneseFontFallback`（OS フォント動的フォールバック）で運用継続を 2026-09-26 に決定済みのため**着手しない**。フォント資産をどう持つか（同梱するフォントのライセンス・サイズ）はユーザー判断 | ED | - | なし | 要判断として記録のみ |
 | M-3f | **DD-2: Stop → 再 Start の PlayMode テスト（Host 単体）**: NGO は 1 プロセスに NetworkManager 1 つのためインプロセス Host+Client は不可だが、Host 単体の `StartHost` → `Shutdown` → 再 `StartHost` で in-scene の `NgoNetBridge` が再 Spawn・`IsConnected` に戻るかは検証できる | 基盤 | 0.5 | N-5, N-6 | `NgoNetBridgeRestartTests`（`Tests/Runtime/Ngo`）が green → ✅ 2026-09-27 実装（PR #83）: 2 件（素の再 StartHost / `ResetSessionState()` を挟む `DoManualStop` 相当の順序）。実測: **NGO の自動スイープだけで再 Spawn し、`DoManualStartHost` の明示 Spawn 保険は発火しない**。実行時生成の NetworkObject は `InScenePlaced=false` で Shutdown 時に破棄されるため、reflection で `InScenePlaced=true` を立てて常駐配置を再現。PlayMode 792/792 green。Client を含む役割入れ替えは引き続き run-netcheck `host_migration` + MS2026 実機（[14] §19/§20） |
 
+## M-4 チケット: 禁止 API の検査に、プロジェクト側から除外を指定する仕組み（2026-10-05 追加、v1.4.0 MINOR。詳細は [docs/12_review.md] §3・[docs/42_distribution.md] §5.8 / §5.9）
+
+**背景（MS2026 からのフィードバック、2026-10-05）**: MS2026 で `CI.ValidateAll`（Run All 相当）を実行すると 53 件。内訳は (1) **24 件 =「アセットの読み込み設定が Preload でない」**（`Flags.Load が Preload ではありません`。MS2026 のデータの修正であり D-Drive の検査は正しい。対象外）、(2) **29 件 = 禁止 API**（`Time` の直接参照・`Instantiate` の直接呼び出し）。(2) は、許可するファイル名が `ForbiddenApiScanner` の中に直接書かれていて（`PoolService.cs` 等）、除外できるのが `/Samples/`・`/Tests/` 等のフォルダだけで、プロジェクト側から除外を指定する手段が無かった。MS2026 の該当箇所には正当な理由があるものがある: **`Instantiate`** = NGO の `NetworkObject` は Instantiate してから Spawn するのが正規の手順で `PoolService` 経由にできない / **`Time`** = Host 引き継ぎや LAN 探索のタイムアウト計測は、ゲーム内時間（ポーズ・ヒットストップの影響を受ける）ではなく実時間で測る必要がある。一方ゲームプレイ側の `Time` 参照は `ITimeSource` に直すのが本来の姿かもしれない（仕組みが入った後に MS2026 側で 1 件ずつ「直す / 許可する」を仕分ける）。
+
+| # | チケット | 担当 | 日数 | 依存 | AC |
+|---|---|---|---|---|---|
+| M-4a | **行単位の許可コメント**: `// ddrive-allow: 規則名(理由)` を、同じ行の行末コメントまたは直前の行（コメントだけの行）に書くと、その行の該当規則の当たりだけを許可する。理由必須（空・括弧なしは無効で、元の当たりをそのまま報告し「許可コメントに理由が必要」の文言を添える）。規則名は `Time` / `Instantiate` / `ResourcesLoad` / `AddressablesLoad` / `AudioSourcePlay`（大文字小文字は区別しない）。不明な規則名は無効 + Warning、使われていない許可は Info | ED | 1 | なし | 同じ行 / 直前行の許可・別の規則名では許可されない・理由なし/括弧なし/不明な規則名は無効で分かるメッセージ・未使用は Info・全角括弧・1 行に 2 規則・直前行コメントが 2 行先には効かない・文字列リテラル内の誤認なし。許可が 1 つも無いプロジェクトでは結果が従来と完全に同じ |
+| M-4b | **設定の許可リスト**: `DDriveProjectSettings.ForbiddenApiAllowEntries`（パスの前方一致 + 規則名〔空 = 全規則〕+ 理由〔必須〕）。用途は自分で書き換えられない外部コード・生成コード。Project Settings > D-Drive > 禁止 API の除外 で編集。理由なし・パスなし・不明な規則名の要素は無効（効かない）+ `ProjectSetupValidator` に Warning `DD-FORBIDDEN-ALLOW-SETTINGS-INVALID` | ED | 0.5 | M-4a | フォルダ・1 ファイル・規則指定・理由なしは無効。旧設定ファイルがそのまま読める |
+| M-4c | **見える化・CI**: `CI.ValidateAll` が同じ許可（コメント + 設定）を反映し、許可件数を Info 1 件（`DD-FORBIDDEN-ALLOW-SUMMARY`「禁止 API の許可: N 件(コメント n、設定 m)」）で出す。許可した箇所の一覧は `Tools > D-Drive > Validation > Forbidden API 許可一覧`（Console 出力） | ED | 0.5 | M-4a / M-4b | CI の JUnit XML・ログに Warning / Info が載り、Error 件数は許可の分だけ減る |
+| M-4d | **docs・マニュアル・MS2026 への返答**: docs/12 §3・docs/02・docs/42 §5.8 / §5.9（書式は**形式の契約**）・CHANGELOG・docs/50 運用ページ・消費側スキル・ProgrammerManual `rules.html`・[docs/43] §17 | 基盤 | 0.5 | M-4a〜c | 下の返答文が MS2026 に渡せる |
+
+**MS2026 へ返す文面（2026-10-05）**
+
+> **(a) 24 件（`Flags.Load が Preload ではありません`）は MS2026 側のデータ修正です。** `Tools > D-Drive > Validation > Run All` を実行し、該当エラーの「自動修正」（FixAction。内部は `FixPreload`）を押すと対象 Data の `Flags.Load` が `Preload` に直ります。放置すると**ビルドで音などが Placeholder になります**（同期解決 API は Preload でないと引けないため）。D-Drive の検査は正しいので D-Drive 側の変更はありません。
+>
+> **(b) 29 件（禁止 API）は、D-Drive v1.4.0 に更新した後、1 件ずつ「D-Drive の API に直す / 許可コメントを書く」を仕分けてください。** 判断基準:
+>
+> | 当たり | 判断 | やること |
+> |---|---|---|
+> | ゲームプレイの時間（演出・移動・クールタイム・アニメ等。ポーズ・ヒットストップに従うべきもの） | **直す** | `Time.deltaTime` / `Time.time` → `ITimeSource`（`Time` 規則。[docs/02] §9.5） |
+> | 実時間で測りたい計測（Host 引き継ぎ・LAN 探索・通信タイムアウト・ログのタイムスタンプ等。ポーズの影響を受けてはいけないもの） | **許可** | `// ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)` |
+> | NGO の `NetworkObject` の生成（Instantiate → Spawn が正規手順で `PoolService` 経由にできない） | **許可** | `// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)` |
+> | それ以外の `Instantiate`（Prefab を置く・演出の実体を出す） | **直す** | `Prefabs.Spawn` / プール（`PoolService`）経由 |
+> | 自分で書き換えられない外部コード・生成コード | **設定の許可リスト** | Project Settings > D-Drive > 禁止 API の除外 にフォルダ + 理由を足す |
+>
+> 許可コメントは**同じ行の行末**か**直前の行（コメントだけの行）**に書き、**その 1 行の当たりだけ**を許可します（ファイル全体・ブロック全体は許可されません）。**理由（括弧内）は必須**で、空・括弧なしは無効のままです。1 行に 2 規則あるときは `// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)` と接頭辞ごと繰り返します。使われていない許可は Info で出るので、直した後に残った許可は消してください。許可した箇所の一覧は `Tools > D-Drive > Validation > Forbidden API 許可一覧` で確認でき、**レビューでは「許可の理由が妥当か」を見てください**。
+
+→ ✅ 2026-10-05 実装（M-4a〜d、`feat/m-4-forbidden-api-allow`）: `ForbiddenApiScanner` に `ScanDetailed(root, 設定の許可リスト)` / `ScanReport`（`Violations` / `Notices` / `Allowed`）を追加（既存の `Scan(root)` は同じ戻り値のまま、許可コメントだけ効く）。規則に `Name` を付与（上の 5 つ）。CI は `ScanDetailed` を使い、Warning / Info を Console と JUnit XML に出す（Error 件数・終了コードは許可された分だけ減る）。Editor 契約（[42] §5.9）に許可コメントの書式を載せた。EditMode テスト `ForbiddenApiAllowanceTests` 23 件。
+
 ## FC チケット: T-Drive 連携（FacialController + Toon マテリアル）（2026-10-03 追加。詳細は [51](51_tdrive_integration.md)）
 
 > **人による確認は [52_manual_verification_fc.md](52_manual_verification_fc.md)**（FC チケットごとの手順書。実装したチケットの担当が自分の節を埋める）。

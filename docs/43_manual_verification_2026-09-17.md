@@ -410,3 +410,42 @@ U-28（[39](39_usability_fixes_2026-09-17.md) 2026-10-03 追記・[07_canvas_pre
 | 16-25 | **優先の 2 つの規則（2026-10-04 追加、修正ラウンド 3、FX-R-10）**: 16-18 で重ねた状態で、Option 自身の行（`Inner/Deep` の ElementFx）と Volume の行（`Deep`）が同じ要素を指すようにして Hud を開く。続けて、重なる登録をやめて Option 自身が `Inner` に Volume を埋め込む形に直し、同じ確認をする | 重なる登録（Warning）のときは、より内側の登録（Volume）の行が `OptionRoot/Inner` 配下の要素を担当する。正しい形（Option が Volume を埋め込む）に直すと、外側（Option）の行が勝つ（Volume の行は Info `DD-CANVAS-EMBED-OVERRIDE`）。Hud 自身の行はどちらの形でも子の設定に勝つ。[07] の優先の表（A / B）のとおり | □ 未 |
 
 後片付け: `git status` で作ったアセット・Prefab を確認し、不要なら削除する（`ProjectSettings/` や `Assets/AddressableAssetsData/` に改行だけの差分が出たら `git checkout -- <path>`）。
+
+## 17. M-4 禁止 API の許可の確認(2026-10-05 追記)
+
+M-4（[11_tasks.md] M-4 節・[42_distribution.md] §5.9）。自動テストで確認済み（`ForbiddenApiAllowanceTests` 23 件）: 同じ行 / 直前行の許可・別の規則名では許可されない・理由なし / 空の括弧 / 不明な規則名は無効で分かるメッセージ・未使用は Info・全角括弧と大文字小文字・理由に括弧を含む・1 行に 2 規則・直前行コメントが 2 行先と別コメント行越しには効かない・文字列リテラル内と `/* */` は無視・設定の許可リスト（フォルダ / 1 ファイル / 規則指定 / 理由なし・不明な規則名は無効）・許可が無いときの結果が従来と同じ・許可件数の集計・D-Drive 自身のソースに誤認が無いこと。ここでは **実際の Unity と CI の経路で、人の目で見て確認する部分**だけを書く。
+
+準備: ブランチを切ってから行う（`Assets/` に確認用スクリプトと、`ProjectSettings/DDriveProjectSettings.asset` が変わる）。持ち込み先の形に揃えるため、`DDriveProjectSettings.IsDevelopmentRepo` が false のプロジェクト（空プロジェクト / MS2026）で行うのが望ましい（このリポジトリでは CI の走査ルートが `Packages/com.ddrive.core` になり、`Assets/` の確認用スクリプトは走査されない）。`Assets/Scratch/AllowTest.cs` を作り、次の内容にする。
+
+```csharp
+using UnityEngine;
+public class AllowTest : MonoBehaviour
+{
+    void Update()
+    {
+        var a = Time.unscaledTime;                                   // 行 7: 許可なし
+        var b = Time.unscaledTime; // ddrive-allow: Time(実時間で測る)  // 行 8: 理由つき
+        var c = Time.unscaledTime; // ddrive-allow: Time               // 行 9: 理由なし
+        // ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)
+        var d = Instantiate(gameObject);                             // 行 11: 直前行の許可
+        var e = 0; // ddrive-allow: Time(この行には当たりが無い)         // 行 12: 未使用
+        var f = Time.unscaledTime; // ddrive-allow: Tiem(綴り違い)     // 行 13: 不明な規則名
+    }
+}
+```
+
+実行は `Unity -batchmode -nographics -projectPath <プロジェクト> -executeMethod DDrive.Editor.CI.ValidateAll`。結果は `TestResults/ddrive-validation.junit.xml` とログで見る（Editor を開いたままでも、`Tools > D-Drive > Validation > Forbidden API 許可一覧` で許可の一覧・無効な許可の Warning・当たりの件数は見られる）。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 17-1 | 上のスクリプトで `CI.ValidateAll` を実行し、ログ / Console の `[DDrive][ForbiddenApi]` の行を見る | **Error（禁止 API）になるのは行 7（許可なし）と行 9（理由なし。メッセージの末尾に「許可コメントに理由が必要です」の案内が付く）と行 13（綴り違いの許可は無効）の 3 件**。行 8（理由つき）と行 11（直前行の許可）は Error にならない | □ 未 |
+| 17-2 | 同じログの Warning / Info を見る | Warning: 行 13 に「規則名 'Tiem' は存在しません(使える規則名: …)」（`DD-FORBIDDEN-ALLOW-UNKNOWN-RULE`）。Info: 行 12 に「使われていない許可コメントです(Time)」（`DD-FORBIDDEN-ALLOW-UNUSED`）、「禁止 API の許可: 2 件(コメント 2、設定 0)」（`DD-FORBIDDEN-ALLOW-SUMMARY`） | □ 未 |
+| 17-3 | 行 9 を `// ddrive-allow: Time(実時間で測る)` に直し、行 13 の `Tiem` を `Time` に、行 12 のコメントを消して、もう一度実行する | 行 7 だけが Error。Warning と未使用の Info は消え、許可は 4 件（コメント 4、設定 0）。行 7 も許可すると Error が 0 になり終了コードが 0 | □ 未 |
+| 17-4 | 行 11 の直前行の許可コメントと `var d = …` の間に空行（または別のコメント行）を入れて実行する | 行 11 が Error に戻る（許可は次の 1 行だけに効く）。空行を消すと許可される | □ 未 |
+| 17-5 | `Project Settings > D-Drive > 禁止 API の除外` を開く。要素を 1 つ足し、パス = `Assets/Scratch/`、規則名 = 空、理由 = 空 のまま保存する | 「除外の一覧」が表示され、要素の各欄にツールチップ（パス = 前方一致、規則名 = 空欄で全規則、理由 = 必須）が出る。理由が空の要素の下に Warning の枠（理由が空です）。`Validation > Run All` に `DD-FORBIDDEN-ALLOW-SETTINGS-INVALID` の Warning が出る（Data が 1 件以上あるとき）。`CI.ValidateAll` を実行しても行 7 は Error のまま（無効な要素は効かない） | □ 未 |
+| 17-6 | 理由を `確認用` と入れる（規則名は空のまま）。`CI.ValidateAll` を実行する | `Assets/Scratch/` の当たりがすべて許可に変わり、Error が 0（許可件数の Info の「設定 n」が増える）。Warning の枠と Run All の Warning が消える。規則名を `Instantiate` にすると `Time` の当たりは Error に戻り、`Instantiate` の行だけ許可される。規則名に綴り違いを入れると無効の Warning が出る | □ 未 |
+| 17-7 | `Tools > D-Drive > Validation > Forbidden API 許可一覧` を実行する | Console に「禁止 API の許可: N 件(コメント n、設定 m)」と、許可した箇所ごとの 1 行（`[comment]` / `[settings]`・ファイル:行・規則名・理由）が出る。Warning（無効な許可）があれば続けて出る | □ 未 |
+| 17-8 | `DDriveProjectSettings` の旧い設定ファイル（この機能の前に作った `ProjectSettings/DDriveProjectSettings.asset`）のまま Editor を開く | 他の設定（GameData ルート等）がそのまま読め、除外の一覧が空で表示される | □ 未 |
+| 17-9 | **MS2026 で v1.4.0 に更新した後の 29 件の仕分け**: MS2026 で `Tools > D-Drive > Update > 更新ウィンドウ` から v1.4.0 に更新し、`CI.ValidateAll` を実行する。禁止 API の 29 件を 1 件ずつ、[11_tasks.md] M-4 節の「MS2026 へ返す文面」の判断基準で仕分ける（ゲームプレイの `Time` → `ITimeSource` / 実時間の計測と NGO の `NetworkObject` の Instantiate → 許可コメント / それ以外の `Instantiate` → `Prefabs.Spawn`・プール / 外部コード → 設定） | 直したものは当たりが消え、許可したものは Error から Info の件数に移る。最終的に禁止 API の Error が 0 になる。許可コメントの理由が具体的で、レビューで妥当と言える（`Forbidden API 許可一覧` で一覧して確認）。24 件の `Flags.Load が Preload ではありません` は別に、`Validation > Run All` の自動修正で直す | □ 未 |
+
+後片付け: `Assets/Scratch/` を削除し、`git status` で `ProjectSettings/DDriveProjectSettings.asset` を確認する（除外の要素を足した差分は `git checkout -- ProjectSettings/DDriveProjectSettings.asset` で戻す。改行だけの差分も同様）。

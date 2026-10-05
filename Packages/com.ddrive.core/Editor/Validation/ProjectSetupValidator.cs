@@ -125,6 +125,20 @@ namespace DDrive.Editor.Validation
                     code: "DD-SETUP-EMBEDDED-MODIFIED");
             }
 
+            // [11_tasks.md] M-4(2026-10-05) — 禁止 API の除外設定(Project Settings > D-Drive > 禁止 API の除外)の
+            // 無効な要素(理由なし・パスなし・不明な規則名)。無効な要素は除外として効かない。
+            var allowEntries = DDriveProjectSettings.instance.ForbiddenApiAllowEntries;
+            for (var i = 0; i < allowEntries.Count; i++)
+            {
+                var problem = ForbiddenApiScanner.DescribeEntryProblem(allowEntries[i]);
+                if (problem != null)
+                {
+                    yield return ValidationResult.Warning(
+                        $"禁止 API の除外設定(#{i + 1}、パス '{allowEntries[i]?.Path}')が無効です: {problem}",
+                        code: ForbiddenApiScanner.CodeAllowSettingsInvalid);
+                }
+            }
+
             // [42_distribution.md] §6 P-8(2026-09-20) — LastAppliedVersion が現在のパッケージ版より古い
             // (または「未適用」のまま)なら、更新ツール(Tools > D-Drive > Update > 更新ウィンドウ)の
             // 「更新を適用」がまだ実行されていない可能性がある。§5.8 の 2 段階ルールに従い Warning にする。

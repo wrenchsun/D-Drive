@@ -30,8 +30,25 @@
 </div>
 
 <div class="warn">
-<strong>ゲームコード（<code>Assembly-CSharp</code> 等）はこのスキャナの対象外です。</strong> <code>Editor/Validation/CI.cs</code> は <code>ForbiddenApiScanner.Scan(CI.ResolveForbiddenApiScanRoot())</code>（D-Drive 自身が属するパッケージの実パスを <code>PackageInfo</code> から解決。2026-09-20 の P-5 でパッケージ化された後は <code>Packages/com.ddrive.core</code> の絶対パスになる）でしか呼んでおらず、D-Drive 本体以外のフォルダは走査しません。それでも <code>CLAUDE.md</code> §0-3 は同じ禁止事項（<code>Instantiate</code> / <code>Resources.Load</code> / <code>AudioSource.Play</code> の直接呼び出し）をゲームコードにも適用すると定めています。<strong>ゲームコードでこれらの API を直接呼んでも CI は検出しません。人が守るしかない</strong>ことを理解したうえでレビューしてください。
+<strong>走査の範囲。</strong> 禁止 API の走査は <code>CI.ValidateAll</code>（<code>-executeMethod DDrive.Editor.CI.ValidateAll</code>）が行います（<code>Validation &gt; Run All</code> のメニューは走査しません）。走査ルートは <code>CI.ResolveForbiddenApiScanRoot()</code> で決まり、D-Drive を開発するリポジトリでは <code>Packages/com.ddrive.core</code>、持ち込み先では <code>Assets</code> 配下のゲームコード全体です。<code>Samples</code> / <code>Tests</code> 等のフォルダは対象外です。
 </div>
+
+<h3 id="forbidden-api-allow">許可する（理由を書く）</h3>
+<p>正当な理由があるときは、直せない当たりを<strong>行単位の許可コメント</strong>で許可できます。直せるもの（ゲームプレイの時間は <code>ITimeSource</code>、Prefab を置く <code>Instantiate</code> は <code>Prefabs.Spawn</code> / プール）は、許可ではなく直してください。</p>
+<ul>
+<li>書式: <code>// ddrive-allow: 規則名(理由)</code>。接頭辞 <code>ddrive-allow:</code> の大文字小文字は区別しません。理由には括弧を含めても構いません（最後の閉じ括弧までが理由）。半角 <code>( )</code> と全角 <code>（ ）</code> のどちらでも書けます。</li>
+<li>規則名: <code>Time</code>（#1）/ <code>ResourcesLoad</code>（#2）/ <code>AddressablesLoad</code>（#3）/ <code>Instantiate</code>（#4）/ <code>AudioSourcePlay</code>（#5）。大文字小文字は区別しません。規則名は今後も追加のみで、改名・削除しません。</li>
+<li><strong>理由は必須</strong>です。理由が空・括弧なしの許可コメントは無効で、元の当たりがそのまま Error になり、メッセージに「許可コメントに理由が必要」と添えられます。存在しない規則名も無効で、Warning（<code>DD-FORBIDDEN-ALLOW-UNKNOWN-RULE</code>）が出ます。</li>
+<li>効く範囲: <strong>同じ行の行末の <code>//</code> コメント</strong>、または<strong>直前の行（<code>//</code> コメントだけの行）</strong>。その 1 行の、規則名が一致する当たりだけが許可されます。間に空行・別の行・別のコメント行を挟むと効きません。ファイル全体・ブロック全体は許可できません。<code>/* */</code> 形式は認識しません。文字列リテラルの中の <code>// ddrive-allow:</code> は無視されます。</li>
+<li>1 つの許可コメントは 1 規則です。同じ行に 2 規則の当たりがあるときは <code>// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)</code> のように接頭辞ごと繰り返します（カンマ区切りは使えません）。</li>
+<li>使われていない許可（その行に該当する当たりが無い）は Info（<code>DD-FORBIDDEN-ALLOW-UNUSED</code>）で報告されます。直した後に残った許可は消してください。</li>
+</ul>
+<pre>// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)
+var netObj = Instantiate(networkPrefab);
+
+var now = Time.unscaledTime; // ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)</pre>
+<p>自分で書き換えられない外部コード・生成コードは、<code>Project Settings &gt; D-Drive &gt; 禁止 API の除外</code> にフォルダまたはファイルのパス（前方一致）・規則名（空欄 = 全規則）・理由（必須）を足します。理由が空の要素は無効で、<code>Validation &gt; Run All</code> に Warning（<code>DD-FORBIDDEN-ALLOW-SETTINGS-INVALID</code>）が出ます。</p>
+<p>許可した件数は検査結果に Info（<code>DD-FORBIDDEN-ALLOW-SUMMARY</code>）で出て、許可した箇所の一覧は <code>Tools &gt; D-Drive &gt; Validation &gt; Forbidden API 許可一覧</code> で Console に出せます。PR のレビューでは「許可の理由が妥当か」を確認します（<code>docs/12_review.md</code> §3）。</p>
 
 <h2 id="performance">定常経路（Tick / Spawn / Play）でのパフォーマンス規約</h2>
 <p>毎フレーム、または高頻度に呼ばれる経路（<code>Tick</code> / <code>Spawn</code> / <code>Play</code>）では <strong>LINQ・クロージャ・boxing を禁止</strong>します（<code>docs/12_review.md</code> §3）。</p>

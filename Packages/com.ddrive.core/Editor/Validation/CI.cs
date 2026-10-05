@@ -30,11 +30,15 @@ namespace DDrive.Editor
         public static void ValidateAll()
         {
             var reports = RunValidation();
-            var forbiddenApiViolations = ForbiddenApiScanner.Scan(ResolveForbiddenApiScanRoot());
+            // [11_tasks.md] M-4 — 行単位の許可コメントと設定の許可リストを反映した走査結果を使う。
+            var forbiddenApiReport = ForbiddenApiScanner.ScanDetailed(
+                ResolveForbiddenApiScanRoot(), DDriveProjectSettings.instance.ForbiddenApiAllowEntries);
+            var forbiddenApiViolations = forbiddenApiReport.Violations;
 
-            WriteJUnitXml(reports, forbiddenApiViolations, ResolveOutputPath());
+            WriteJUnitXml(reports, forbiddenApiViolations, ResolveOutputPath(), forbiddenApiReport.Notices);
             LogSummary(reports);
             LogForbiddenApiViolations(forbiddenApiViolations);
+            LogForbiddenApiNotices(forbiddenApiReport.Notices);
 
             var hasError = forbiddenApiViolations.Count > 0;
             for (var i = 0; i < reports.Count; i++)
@@ -233,7 +237,7 @@ namespace DDrive.Editor
             return DefaultOutputPath;
         }
 
-        private static void WriteJUnitXml(IReadOnlyList<ValidationReport> reports, IReadOnlyList<ForbiddenApiScanner.Violation> forbiddenApiViolations, string outputPath)
+        private static void WriteJUnitXml(IReadOnlyList<ValidationReport> reports, IReadOnlyList<ForbiddenApiScanner.Violation> forbiddenApiViolations, string outputPath, IReadOnlyList<ForbiddenApiScanner.Notice> notices = null)
         {
             var dir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
@@ -253,6 +257,14 @@ namespace DDrive.Editor
                 entries.Add((violation.FilePath + ":" + violation.Line, ValidationResult.Error(violation.Message)));
             }
 
+            if (notices != null)
+            {
+                foreach (var notice in notices)
+                {
+                    entries.Add((notice.FilePath + ":" + notice.Line, new ValidationResult(notice.Severity, notice.Message, null, notice.Code)));
+                }
+            }
+
             File.WriteAllText(outputPath, BuildJUnitXml(entries));
         }
 
@@ -261,6 +273,23 @@ namespace DDrive.Editor
             foreach (var violation in violations)
             {
                 Debug.LogError($"[DDrive][ForbiddenApi] {violation.FilePath}:{violation.Line}: {violation.Message}");
+            }
+        }
+
+        // [11_tasks.md] M-4 — 許可まわりの Warning / Info(CI を fail させない)をログに出す。
+        private static void LogForbiddenApiNotices(IReadOnlyList<ForbiddenApiScanner.Notice> notices)
+        {
+            foreach (var notice in notices)
+            {
+                var text = $"[DDrive][ForbiddenApi] {notice.FilePath}:{notice.Line}: {notice.Message} ({notice.Code})";
+                if (notice.Severity == ValidationSeverity.Warning)
+                {
+                    Debug.LogWarning(text);
+                }
+                else
+                {
+                    Debug.Log(text);
+                }
             }
         }
 
