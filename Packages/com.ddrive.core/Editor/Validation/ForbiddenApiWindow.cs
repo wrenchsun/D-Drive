@@ -99,8 +99,8 @@ namespace DDrive.Editor.Validation
 
             foreach (var v in report.Violations)
             {
-                var head = string.IsNullOrEmpty(v.RuleName) ? string.Empty : $"[{v.RuleName}] ";
-                AddRow(violations, v.FilePath, v.Line, head + (v.Excerpt ?? v.Message), v.Message);
+                ForbiddenApiRowText.ViolationLines(v.RuleName, v.Excerpt, v.Message, out var body, out var guidance);
+                AddRow(violations, v.FilePath, v.Line, body, guidance);
             }
 
             var allowed = AddSection($"許可済み({report.Allowed.Count})", false);
@@ -135,23 +135,29 @@ namespace DDrive.Editor.Validation
             return foldout;
         }
 
-        private static void AddRow(VisualElement parent, string path, int line, string text, string tooltip)
+        // 行は縦に積む(1 行目 = 場所のボタン、2 行目 = 本文、3 行目 = 案内)。横に並べると、長いパスのボタンが本文に被さる
+        // (ウィンドウ幅を縮めても重ならないように、ボタンは幅を超えたら先頭を省略表示、本文・案内は折り返す)。
+        private static void AddRow(VisualElement parent, string path, int line, string text, string guidance)
         {
-            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 2 } };
-            var label = line > 0 ? $"{path}:{line}" : path;
-            var button = new Button(() => OpenAt(path, line)) { text = ShortPath(path) + (line > 0 ? ":" + line : string.Empty), tooltip = label };
-            button.style.flexShrink = 0;
-            button.style.maxWidth = 300;
-            row.Add(button);
-            var body = new Label(text) { tooltip = tooltip ?? text, style = { whiteSpace = WhiteSpace.Normal, flexGrow = 1, flexShrink = 1, marginLeft = 6 } };
-            row.Add(body);
-            parent.Add(row);
-        }
-
-        private static string ShortPath(string path)
-        {
+            var row = new VisualElement { style = { flexDirection = FlexDirection.Column, marginBottom = 4 } };
             var normalized = ForbiddenApiScanner.ToProjectRelative((path ?? string.Empty).Replace('\\', '/'));
-            return normalized.Length <= 60 ? normalized : "…" + normalized.Substring(normalized.Length - 59);
+            var full = line > 0 ? $"{normalized}:{line}" : normalized;
+            var button = new Button(() => OpenAt(path, line)) { text = ForbiddenApiRowText.DisplayPath(normalized, line), tooltip = full };
+            button.style.alignSelf = Align.FlexStart;
+            button.style.maxWidth = Length.Percent(100);
+            button.style.flexShrink = 1;
+            button.style.overflow = Overflow.Hidden;
+            button.style.whiteSpace = WhiteSpace.NoWrap;
+            button.style.textOverflow = TextOverflow.Ellipsis;
+            button.style.unityTextOverflowPosition = TextOverflowPosition.Start;
+            row.Add(button);
+            row.Add(new Label(text) { tooltip = text, style = { whiteSpace = WhiteSpace.Normal, flexShrink = 1, marginLeft = 4 } });
+            if (!string.IsNullOrEmpty(guidance))
+            {
+                row.Add(new Label(guidance) { tooltip = guidance, style = { whiteSpace = WhiteSpace.Normal, flexShrink = 1, marginLeft = 4, opacity = 0.8f } });
+            }
+
+            parent.Add(row);
         }
 
         // クリックで該当ファイルの該当行を外部エディタで開く。MonoScript として読めれば Unity の標準の開き方、
