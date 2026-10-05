@@ -365,6 +365,7 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 - FC-6: T-Drive の `IImportRuleFolderOptOut` 実装（`Facial` を宣言）が入ったあと、`Assets/SourceAssets/Facial/<キャラ>/` にファイルを置いても Console に `ImportRule 案内` の警告が出ない（宣言していない名前のフォルダには従来どおり出る）
 - FC-14: T-Drive の `IShaderConversionTableProvider` / `ITextureImportRuleProvider` 実装が入ったあと、(a) マテリアル変換ウィンドウの表に T-Drive パッケージ内の変換表が載り、`Assets/` に同じ組の表を置くとそちらが優先される (b) `*_ToonMask.png` を取り込むと sRGB オフ（`T_` で始まる名前でも）になり、Texture の Validation が Warning を出さない
 - FC-3: T-Drive の `Bridges.DDrive` が `ViewCamera.TryGetCurrent` を視点解決の最後のフォールバックに設定したとき、カットシーン中も表情の補正が実際のカット姿勢（ブレンド中を含む）に追従する。Runner の `LateUpdate` の実行順が 1000 より後であること（それより前だとカットシーン中は 1 フレーム遅れる）
+- FC-3(実行順の検査の除外。2026-10-06、P-15 確認 Q-4): T-Drive の `Bridges.DDrive`(Editor)が `ICameraExecutionOrderExemptionProvider` で `FacialCorrectionRunner` を宣言したあと、CutsceneData が 1 件以上ある状態で `Tools > D-Drive > Validation > Run All` → Runner に実行順(10000)の Warning が出ず、Info「実行順の検査から除外: 1 型 — …FacialCorrectionRunner(理由: …。宣言元: …)」が 1 件出る。宣言していない他のスクリプトの Warning は従来どおり。ブリッジが無い状態では従来どおり Runner に Warning が出る。手順は [43] §15 の 15-30。解決のロジック・Validator への組み込み・外部アセンブリのダミーの自動発見は自動テストで確認済み(`CameraExecutionOrderExemptionTests` / `ExternalContractCameraExemptionTests`)
 - FC-7: T-Drive の Timeline クリップ・マーカー（外部パッケージのもの）が `AssetId` / `AssetRef` で SE・VFX 等を参照しているとき、それらが使用箇所に `.playable` として出る（`UnityEngine.Object` の直接参照の Facial データは出ない。出さない仕様）
 - FC-19: T-Drive の Toon シェーダー（`_BaseMap` を持たないものがあれば）の MaterialData で、Albedo が空でも「Common.Albedo が未設定」の Warning が出ない
 - FC-15: T-Drive 側の対応が入ったとき
