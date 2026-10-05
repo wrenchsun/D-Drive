@@ -65,10 +65,20 @@ namespace DDrive.Tests.Editor.Update
                 const string json = "{\n  \"name\": \"com.test.jp\",\n  \"version\": \"1.0.0\",\n  \"displayName\": \"日本語パッケージ\",\n  \"description\": \"表情コントローラー\",\n  \"ddriveUpdate\": { \"requires\": { \"com.ddrive.core\": \"9.0.0\" } }\n}\n";
                 File.WriteAllBytes(Path.Combine(dir, "package.json"), new UTF8Encoding(false).GetBytes(json));
 
-                var common = new[] { "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false" };
-                Assert.IsTrue(GitProcess.Run(new[] { "init", "-q" }, dir, 20000, CancellationToken.None).Success);
-                Assert.IsTrue(GitProcess.Run(common.Concat(new[] { "add", "package.json" }).ToArray(), dir, 20000, CancellationToken.None).Success);
-                Assert.IsTrue(GitProcess.Run(common.Concat(new[] { "commit", "-q", "-m", "jp" }).ToArray(), dir, 20000, CancellationToken.None).Success);
+                // 開発機のグローバル設定(コミットフック・署名必須・ユーザー名未設定・テンプレート等)でこのテストが赤にならないよう、
+                // 一時リポジトリへの操作はコマンド単位の -c で隔離する。環境のせいで準備に失敗したときは Inconclusive(GA-R-06)。
+                var common = new[]
+                {
+                    "-c", "user.name=t", "-c", "user.email=t@example.com",
+                    "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", "-c", "core.autocrlf=false",
+                    "-c", "core.hooksPath=" + dir.Replace('\\', '/') + "/.nohooks", "-c", "init.templateDir=",
+                };
+                var init = GitProcess.Run(common.Concat(new[] { "init", "-q" }).ToArray(), dir, 20000, CancellationToken.None);
+                Assume.That(init.Success, "一時リポジトリを作れること: " + init.Error);
+                var add = GitProcess.Run(common.Concat(new[] { "add", "package.json" }).ToArray(), dir, 20000, CancellationToken.None);
+                Assume.That(add.Success, "git add できること: " + add.Error);
+                var commit = GitProcess.Run(common.Concat(new[] { "commit", "-q", "--no-verify", "-m", "jp" }).ToArray(), dir, 20000, CancellationToken.None);
+                Assume.That(commit.Success, "git commit できること(フック・署名・設定の影響を受けていない環境): " + commit.Error);
 
                 var show = GitProcess.Run(GitArguments.ShowPackageJson(null), dir, 20000, CancellationToken.None);
 
@@ -356,6 +366,69 @@ namespace DDrive.Tests.Editor.Update
             {
                 PackageDependencyValidator.PackagesProvider = original;
             }
+        }
+
+        // ── GA-R-07(2026-10-06、docs/58): プロジェクト全体の Validator は Run All でアセットに紐付けず 1 回だけ報告する ──
+
+        [Test]
+        public void IsProjectScopedInRunAll_CoversProjectWideValidators_AndProjectSetup_ButNotPerAssetOnes()
+        {
+            Assert.IsTrue(DataValidationRunner.IsProjectScopedInRunAll(new PackageDependencyValidator()));
+            Assert.IsTrue(DataValidationRunner.IsProjectScopedInRunAll(new ProjectSetupValidator()));
+            Assert.IsTrue(DataValidationRunner.IsProjectScopedInRunAll(new SpecDiffValidator()));
+            Assert.IsTrue(DataValidationRunner.IsProjectScopedInRunAll(new ContentHashCatalogCoverageValidator()));
+            Assert.IsTrue(DataValidationRunner.IsProjectScopedInRunAll(new CatalogAddressCoverageValidator()));
+            Assert.IsTrue(DataValidationRunner.IsProjectScopedInRunAll(new CameraExecutionOrderValidator()));
+
+            // 1 アセット単位で意味がある検査は従来どおり Data に紐付く。
+            Assert.IsFalse(DataValidationRunner.IsProjectScopedInRunAll(new SchemaVersionValidator()));
+            Assert.IsFalse(DataValidationRunner.IsProjectScopedInRunAll(new AddressablesRegistrationValidator()));
+            Assert.IsFalse(DataValidationRunner.IsProjectScopedInRunAll(new ValueDefValidator()));
+
+            // 個別検証 / SpecWeb の判定(IsProjectWide)の一覧は変えていない(ProjectSetupValidator は従来どおり個別検証に出る)。
+            Assert.IsFalse(DataValidationRunner.IsProjectWide(new ProjectSetupValidator()));
+        }
+
+        [Test]
+        public void RunValidation_ProjectScopedFindings_AreNotAttachedToAnyAsset_AndNotDuplicated()
+        {
+            var original = PackageDependencyValidator.PackagesProvider;
+            try
+            {
+                PackageDependencyValidator.PackagesProvider = () => new List<PackageState> { State("com.ddrive.core", "1.3.1", null, "D-Drive") };
+
+                var reports = CI.RunValidation();
+
+                // 全体の指摘のコード(プロジェクトのセットアップ・実行順の検査・依存)はどのアセットのパスも付かない。
+                var projectCodes = new[] { "DD-SETUP-", "DD-CAMEXEC", "DD-PKGDEP-" };
+                bool IsProjectLevel(ValidationReport r)
+                    => projectCodes.Any(c => (r.Result.Code ?? string.Empty).StartsWith(c, StringComparison.Ordinal));
+                Assert.IsFalse(reports.Any(r => r.Asset != null && IsProjectLevel(r)), "全体の指摘が無関係なアセットに紐付かない");
+
+                // 二重報告が無い(同じコード・同じメッセージが 2 回出ない)。
+                var duplicates = reports.Where(r => r.Asset == null && IsProjectLevel(r))
+                    .GroupBy(r => (r.Result.Code, r.Result.Message))
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key.Code + ": " + g.Key.Message)
+                    .ToList();
+                Assert.IsEmpty(duplicates, "二重報告: " + string.Join(" / ", duplicates));
+            }
+            finally
+            {
+                PackageDependencyValidator.PackagesProvider = original;
+            }
+        }
+
+        [Test]
+        public void RunValidation_WithoutProjectWideValidators_StillExcludesThemAll_AndKeepsProjectSetupOutOfAssetReports()
+        {
+            var reports = CI.RunValidation(includeProjectWideValidators: false);
+
+            // SpecWeb の判定用(Asset ごとの Error だけを見る)。全体の検査は実行されず、ProjectSetup は asset = null で出るだけ。
+            Assert.IsFalse(reports.Any(r => r.Asset != null
+                && ((r.Result.Code ?? string.Empty).StartsWith("DD-CAMEXEC", StringComparison.Ordinal)
+                    || (r.Result.Code ?? string.Empty).StartsWith("DD-PKGDEP-", StringComparison.Ordinal)
+                    || (r.Result.Code ?? string.Empty).StartsWith("DD-SETUP-", StringComparison.Ordinal))));
         }
 
         [Test]
