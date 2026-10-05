@@ -165,6 +165,11 @@ namespace DDrive.Editor.CanvasTool
                 case UiAction.SendSignal:
                     detail = string.IsNullOrEmpty(wire.SignalKey) ? " (キー未設定)" : $" '{wire.SignalKey}'";
                     break;
+                case UiAction.ActivateEmbedded:
+                case UiAction.DeactivateEmbedded:
+                case UiAction.ToggleEmbedded:
+                    detail = string.IsNullOrEmpty(wire.EmbeddedRootPath) ? " (自分が属する埋め込み)" : $" '{wire.EmbeddedRootPath}'";
+                    break;
             }
 
             return $"{wire.Trigger} → {wire.Action}{detail}";
@@ -235,6 +240,30 @@ namespace DDrive.Editor.CanvasTool
 
         public static bool UsesSignalKey(UiAction action) => action == UiAction.SendSignal;
 
+        // 埋め込みの有効 / 無効を切り替えるアクションか(EmbeddedRootPath の欄を使う)。
+        public static bool UsesEmbeddedRootPath(UiAction action)
+            => action == UiAction.ActivateEmbedded || action == UiAction.DeactivateEmbedded || action == UiAction.ToggleEmbedded;
+
+        // その CanvasData に、RootPath がちょうど rootPath の埋め込みが登録されているか。
+        public static bool HasEmbed(CanvasData canvas, string rootPath)
+        {
+            var embeds = canvas != null ? canvas.EmbeddedCanvases : null;
+            if (embeds == null || string.IsNullOrEmpty(rootPath))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < embeds.Length; i++)
+            {
+                if (string.Equals(embeds[i].RootPath ?? string.Empty, rootPath, System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // ボタンの配線で選べるアクション(SetOption はスライダー専用。PlayPresentation は実行時に未対応の警告になる)。
         public static bool IsButtonAction(UiAction action) => action != UiAction.SetOption;
 
@@ -260,6 +289,11 @@ namespace DDrive.Editor.CanvasTool
             if (wire.Action == UiAction.SetOption)
             {
                 return "SetOption はスライダーの配線用です(ボタンでは何も起きません)";
+            }
+
+            if (UsesEmbeddedRootPath(wire.Action) && !string.IsNullOrEmpty(wire.EmbeddedRootPath) && !HasEmbed(canvas, wire.EmbeddedRootPath))
+            {
+                return $"埋め込み '{wire.EmbeddedRootPath}' は、この CanvasData に登録されていません";
             }
 
             var path = wire.ButtonPath ?? string.Empty;

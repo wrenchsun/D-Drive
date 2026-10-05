@@ -1858,6 +1858,7 @@ TYPE struct DDrive.Runtime.Ui.ButtonWire
   field Action : DDrive.Runtime.Ui.UiAction
   field ButtonPath : string
   field ClickSe : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Audio.SeMarker>
+  field EmbeddedRootPath : string
   field SignalKey : string
   field Target : DDrive.Foundation.Data.AssetRef
   field Trigger : DDrive.Runtime.Ui.WireTrigger
@@ -1932,6 +1933,7 @@ TYPE struct DDrive.Runtime.Ui.ElementFx
 TYPE struct DDrive.Runtime.Ui.EmbeddedCanvas
   field Canvas : DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker>
   field RootPath : string
+  field StartInactive : bool
 TYPE interface DDrive.Runtime.Ui.IOptionStorage
   method TryRead(string key, out float v) : bool
   method Write(string key, float v) : void
@@ -2136,6 +2138,7 @@ TYPE class static DDrive.Runtime.Ui.Ui
   method static CloseTop() : bool
   method static CloseTopAsync() : Cysharp.Threading.Tasks.UniTask<bool>
   method static GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : UnityEngine.GameObject
+  method static IsEmbeddedActive(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> canvas, string rootPath) : bool
   method static IsOpen(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : bool
   method static MoveFocus(UnityEngine.Vector2 dir) : bool
   method static OnSignal(string key, System.Action<DDrive.Runtime.Ui.SignalArgs> cb) : System.IDisposable
@@ -2144,23 +2147,30 @@ TYPE class static DDrive.Runtime.Ui.Ui
   method static Popup(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
   method static PopupAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
   method static SendSignal(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> from, string elementPath = null) : void
+  method static SetEmbeddedActive(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> canvas, string rootPath, bool active) : void
   method static SetLayerVisible(DDrive.Runtime.Ui.UiLayer layer, bool visible) : void
   property static IsBound : bool {get}
 TYPE enum DDrive.Runtime.Ui.UiAction
+  enum-member ActivateEmbedded = 7
   enum-member CloseSelf = 2
   enum-member CloseTop = 3
+  enum-member DeactivateEmbedded = 8
   enum-member None = 0
   enum-member OpenCanvas = 1
   enum-member PlayPresentation = 5
   enum-member SendSignal = 4
   enum-member SetOption = 6
+  enum-member ToggleEmbedded = 9
+  field const ActivateEmbedded : DDrive.Runtime.Ui.UiAction
   field const CloseSelf : DDrive.Runtime.Ui.UiAction
   field const CloseTop : DDrive.Runtime.Ui.UiAction
+  field const DeactivateEmbedded : DDrive.Runtime.Ui.UiAction
   field const None : DDrive.Runtime.Ui.UiAction
   field const OpenCanvas : DDrive.Runtime.Ui.UiAction
   field const PlayPresentation : DDrive.Runtime.Ui.UiAction
   field const SendSignal : DDrive.Runtime.Ui.UiAction
   field const SetOption : DDrive.Runtime.Ui.UiAction
+  field const ToggleEmbedded : DDrive.Runtime.Ui.UiAction
 TYPE class sealed DDrive.Runtime.Ui.UiButton : DDrive.Runtime.Ui.UiInteractable
   ctor UiButton()
   event OnClick : System.Action
@@ -2334,6 +2344,7 @@ TYPE class sealed DDrive.Runtime.Ui.UiManager
   method GetContextTransform(DDrive.Foundation.Manager.InstanceContext ctx) : UnityEngine.Transform
   method GetGameObject(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : UnityEngine.GameObject
   method IsClosing(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : bool
+  method IsEmbeddedActive(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle, string rootPath) : bool
   method IsOpen(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : bool
   method IsOpening(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : bool
   method MoveFocus(UnityEngine.Vector2 dir) : bool
@@ -2348,6 +2359,7 @@ TYPE class sealed DDrive.Runtime.Ui.UiManager
   method PopupAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
   method SendSignal(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> from, string elementPath = null, float value = 0) : void
   method SendSignal(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> from, string elementPath, float value, string embeddedRootPath) : void
+  method SetEmbeddedActive(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle, string rootPath, bool active) : void
   method SetLayerSettings(DDrive.Runtime.Ui.UiLayerSettings settings) : void
   method SetLayerVisible(DDrive.Runtime.Ui.UiLayer layer, bool visible) : void
   method SetOptionStore(DDrive.Runtime.Ui.OptionStore options) : void

@@ -93,6 +93,11 @@ namespace DDrive.Runtime.Ui
         PlayPresentation,
         // [18_ui_controls.md] B-4(4-16) — SliderWire 専用。OptionStore(Option)へ現在値を書く。
         SetOption,
+        // [07_canvas_prefab.md] A-3 追記(2026-10-06、埋め込みの有効 / 無効) — ButtonWire 専用。EmbeddedRootPath の埋め込み Canvas を
+        // 有効にする / 無効にする / 切り替える(Ui.SetEmbeddedActive と同じ動作)。
+        ActivateEmbedded,
+        DeactivateEmbedded,
+        ToggleEmbedded,
     }
 
     // ボタン配線。UiButton 本体の実装(4-2/4-6)より先にデータだけ持たせておく(現時点ではコードから
@@ -106,6 +111,9 @@ namespace DDrive.Runtime.Ui
         public AssetRef Target;
         public string SignalKey;
         public AssetId<SeMarker> ClickSe;
+
+        [Tooltip("Action = ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded のとき、切り替える埋め込み Canvas の RootPath(この配線を持つ CanvasData のルート基準 = その CanvasData の EmbeddedCanvases の RootPath)。空 = このボタンが属している埋め込み(自分自身。埋め込みの子の CanvasData の配線で「自分を隠す」に使う)")]
+        public string EmbeddedRootPath;
     }
 
     // [18_ui_controls.md] B-4 — UiSlider の入力種別(4-16)。
@@ -169,6 +177,9 @@ namespace DDrive.Runtime.Ui
 
         [Tooltip("子の CanvasData(その ElementEffects / Buttons / Sliders が RootPath を基準に適用される。Navigation・FirstSelected・レイヤー既定・開閉演出は親のものを使う)")]
         public AssetId<CanvasMarker> Canvas;
+
+        [Tooltip("親を開いたとき、この子を無効(非表示)で始める。Ui.SetEmbeddedActive か、ボタンの配線(ActivateEmbedded / ToggleEmbedded)で有効にすると、子の Appear → Idle が始まる。オフ(既定)= 従来どおり有効で始まる")]
+        public bool StartInactive;
     }
 
     // [07_canvas_prefab.md] Part A-2 — UI の 1 画面(Canvas Prefab)の設定。Open/Close/スタック/モーダル/

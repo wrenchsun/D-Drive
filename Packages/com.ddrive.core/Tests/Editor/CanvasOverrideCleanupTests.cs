@@ -342,6 +342,21 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(0, cleanup.Removed);
         }
 
+        // RootPath / 子の変更は、その行の他の設定(StartInactive)を保つ(2026-10-06、埋め込みの有効 / 無効)。
+        [Test]
+        public void ChangeEmbedWithCleanup_KeepsStartInactive()
+        {
+            CanvasEmbeddedEditing.Register(_parent, "Inner", _child);
+            var embed = _parent.EmbeddedCanvases[0];
+            embed.StartInactive = true;
+            _parent.EmbeddedCanvases[0] = embed;
+
+            Assert.IsTrue(CanvasEmbeddedEditing.ChangeEmbedWithCleanup(_parent, 0, "Other", _child, out _));
+
+            Assert.AreEqual("Other", _parent.EmbeddedCanvases[0].RootPath);
+            Assert.IsTrue(_parent.EmbeddedCanvases[0].StartInactive);
+        }
+
         [Test]
         public void Describe_MentionsWires_WhenPresent()
         {

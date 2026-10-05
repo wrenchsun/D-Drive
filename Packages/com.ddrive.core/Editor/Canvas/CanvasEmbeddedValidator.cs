@@ -259,4 +259,78 @@ namespace DDrive.Editor.CanvasTool
             }
         }
     }
+
+    // [07_canvas_prefab.md] A-3 追記(2026-10-06、埋め込みの有効 / 無効) — StartInactive と、配線の ActivateEmbedded /
+    // DeactivateEmbedded / ToggleEmbedded の設定の検査。新しい欄だけを見る(既存の検査の結果は変えない)。
+    public sealed class CanvasEmbeddedActiveValidator : IValidator
+    {
+        public AssetType Target => AssetType.Canvas;
+
+        public IEnumerable<ValidationResult> Validate(AssetDataBase data, ValidationContext ctx)
+        {
+            if (data is not CanvasData canvas)
+            {
+                yield break;
+            }
+
+            var embeds = canvas.EmbeddedCanvases;
+
+            // 配線が指す埋め込みが、この CanvasData に登録されているか(空 = 自分が属する埋め込み。実行時に決まるので検査しない)。
+            if (canvas.Buttons != null)
+            {
+                for (var i = 0; i < canvas.Buttons.Length; i++)
+                {
+                    var wire = canvas.Buttons[i];
+                    if (!IsEmbeddedAction(wire.Action) || string.IsNullOrEmpty(wire.EmbeddedRootPath))
+                    {
+                        continue;
+                    }
+
+                    if (!IsRegistered(embeds, wire.EmbeddedRootPath))
+                    {
+                        yield return ValidationResult.Warning(
+                            $"ButtonWire[{i}] '{wire.ButtonPath}': Action={wire.Action} の EmbeddedRootPath '{wire.EmbeddedRootPath}' は、この CanvasData の EmbeddedCanvases に登録されていません(押しても何も起きません)",
+                            code: "DD-CANVAS-WIRE-EMBED-UNKNOWN");
+                    }
+                }
+            }
+
+            // 最初に選択する要素が、無効で始まる埋め込みの配下にある(開いた直後は選択できない)。
+            if (embeds != null && !string.IsNullOrEmpty(canvas.FirstSelected))
+            {
+                for (var i = 0; i < embeds.Length; i++)
+                {
+                    if (embeds[i].StartInactive && !string.IsNullOrEmpty(embeds[i].RootPath)
+                        && EmbeddedPaths.TryToChildPath(embeds[i].RootPath, canvas.FirstSelected, out _))
+                    {
+                        yield return ValidationResult.Warning(
+                            $"FirstSelected '{canvas.FirstSelected}' は、無効で始まる埋め込み EmbeddedCanvases[{i}] '{embeds[i].RootPath}'(StartInactive)の配下です(開いた直後は選択できません)",
+                            code: "DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE");
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static bool IsEmbeddedAction(UiAction action)
+            => action == UiAction.ActivateEmbedded || action == UiAction.DeactivateEmbedded || action == UiAction.ToggleEmbedded;
+
+        private static bool IsRegistered(EmbeddedCanvas[] embeds, string rootPath)
+        {
+            if (embeds == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < embeds.Length; i++)
+            {
+                if (string.Equals(embeds[i].RootPath ?? string.Empty, rootPath, System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 }

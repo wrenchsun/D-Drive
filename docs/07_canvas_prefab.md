@@ -378,6 +378,54 @@ public static class Ui
 - **入れていないもの**: スライダーの配線（`Sliders` / SliderWire）の編集欄（従来どおり Inspector）。配線のアクションを増やすとき（子の表示 / 非表示の切り替えなど）は、`CanvasButtonWireEditing.UsesTarget` 等と `BuildWireRow` の出し分けに足す。
 - 人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-36〜16-40。
 
+### 追記（2026-10-06、埋め込んだ子 Canvas の有効 / 無効）— 山口さんの確認待ちの案
+
+2026-10-06 の確認で出た要望「親で子のデフォルト enable を設定可能、作業用に一時 on/off 切り替え可能」への対応。**名前と一部の動作は山口さんの確認待ち**（下の「決めてほしい点」）。互換面は追加のみ（MINOR）。
+
+**データ（末尾に追加）**
+
+| 場所 | 欄 | 意味 |
+|---|---|---|
+| `EmbeddedCanvas` | `bool StartInactive` | 親を開いたとき、この子を無効（非表示）で始める。既定 false = 従来どおり有効で始まる |
+| `ButtonWire` | `string EmbeddedRootPath` | `ActivateEmbedded` / `DeactivateEmbedded` / `ToggleEmbedded` の対象。その配線を持つ CanvasData のルート基準の RootPath。空 = このボタンが属している埋め込み（自分自身） |
+| `UiAction` | `ActivateEmbedded = 7` / `DeactivateEmbedded = 8` / `ToggleEmbedded = 9` | 配線から埋め込みを有効 / 無効 / 切り替え |
+
+**API**: `Ui.SetEmbeddedActive(handle, rootPath, active)` / `Ui.IsEmbeddedActive(handle, rootPath)`（`UiManager` に同名）。`rootPath` は Open した Canvas のルート基準（入れ子の入れ子は `OptionRoot/Inner` のように最外のルートから連結した形）。
+
+**動作**
+
+- **無効で始まる子**: ルートの GameObject を無効にし、配下の要素の Appear は始めない。親の入力ゲート（Appear が終わるまで入力を止める）の数にも入れない（無効の子が親の操作を止めない）。
+- **有効化**: GameObject を有効にし、配下の要素を Open した時点の見た目に戻して Appear → Idle を始める。子の CanvasData に `FirstSelected` があればそれを選択する。親の入力は止めない。
+- **無効化**: 配下の Idle を止めて Disappear を再生し、終わったら GameObject を無効にする（Disappear が無ければ即）。配下に今の選択があれば、親の `FirstSelected` へ移す（無ければ選択を外す）。
+- **入れ子の入れ子**: 外側が無効の間に内側を切り替えたときは状態だけ覚え、外側を有効にしたときに、有効な内側だけ Appear を始める。
+- **Prefab 側の状態との関係**: 登録済みの埋め込みは、データ（`StartInactive`）が Prefab 側の有効 / 無効に勝つ（Prefab で無効にしてあっても、`StartInactive` がオフなら開いたときに有効になる）。プールへ返すときに Open した時点の状態へ戻し、次の Open はデータから決め直す（前回の切り替えを持ち越さない）。未登録の入れ子 Prefab には触らない。
+- **配線**: 親の配線は `EmbeddedRootPath` に登録済みの RootPath を書く。子の配線で空にすると「自分が属する埋め込み」（子の「閉じる」ボタンで自分を隠す）。子を単独で開いているとき（属する埋め込みが無い）は警告 1 回 + 何もしない。
+- **例外で止めない**: 登録されていない rootPath・無効なハンドル・閉じている途中の Canvas は、警告（1 回）+ no-op。
+
+**Editor**
+
+- 埋め込み行に「無効で始める」（`StartInactive`。Undo 対応）と「表示 / 非表示(作業用)」（保存しない。確認用プレビューでは実 `UiManager.SetEmbeddedActive` を呼ぶので子の Appear / Disappear も再生される。プレハブモードでは `SceneVisibilityManager` で SceneView の表示だけを切り替え、Prefab を汚さない）。実装 = `CanvasEditorWindow.EmbedActive.cs`。
+- 「ボタンの配線」欄: 3 つのアクションのとき、対象の埋め込みを選ぶ欄（先頭「(このボタンが属する埋め込み)」= 空、以下は登録済みの RootPath）が出る。
+- RootPath / 子の変更（`ChangeEmbedWithCleanup`）は、その行の `StartInactive` を保つ。
+
+**Validation（新規。Warning のみ。既存の検査の重さは変えない）**: `CanvasEmbeddedActiveValidator`
+
+| コード | 内容 |
+|---|---|
+| `DD-CANVAS-WIRE-EMBED-UNKNOWN` | 配線の `EmbeddedRootPath` が、その CanvasData の EmbeddedCanvases に登録されていない |
+| `DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE` | `FirstSelected` が、無効で始まる埋め込みの配下にある |
+
+**テスト**: PlayMode `EmbeddedCanvasTests` に 8 件（無効で始まる・有効化 / 無効化の演出・演出なし・Prefab 側が無効・開き直し・入れ子・配線 2 件）、EditMode に 3 件（配線の欄のロジック・検査・`StartInactive` の保持）。
+
+**決めてほしい点（山口さん）**
+
+1. 名前: `StartInactive` / `SetEmbeddedActive`・`IsEmbeddedActive` / `EmbeddedRootPath` / `ActivateEmbedded`・`DeactivateEmbedded`・`ToggleEmbedded`（リリース後は改名できない）。
+2. 配線のアクション 3 つを入れるか（API だけにする案もある）。
+3. 有効化のとき、子の `FirstSelected` を選択するか。
+4. Prefab 側で無効にしてある子と `StartInactive` のどちらが勝つか（現在の実装 = データが勝つ）。
+
+人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-41〜16-45。
+
 ## B-1. 要件
 
 - 種類 / タグ / コリジョンレイヤーを管理。Spawn/Despawn/Pool/Preload

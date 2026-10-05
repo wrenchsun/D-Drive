@@ -633,11 +633,11 @@ namespace DDrive.Editor.CanvasTool
             Undo.SetCurrentGroupName("Canvas: 埋め込み Canvas を変更");
             var group = Undo.GetCurrentGroup();
             Undo.RecordObject(parent, "Canvas: 埋め込み Canvas を変更");
-            parent.EmbeddedCanvases[index] = new EmbeddedCanvas
-            {
-                RootPath = newRootPath ?? string.Empty,
-                Canvas = newChild != null ? new AssetId<CanvasMarker>(newChild.Id, AssetType.Canvas) : default,
-            };
+            // RootPath と子だけを書き換える(同じ行のほかの欄 = StartInactive などは保つ)。
+            var changed = parent.EmbeddedCanvases[index];
+            changed.RootPath = newRootPath ?? string.Empty;
+            changed.Canvas = newChild != null ? new AssetId<CanvasMarker>(newChild.Id, AssetType.Canvas) : default;
+            parent.EmbeddedCanvases[index] = changed;
             EditorUtility.SetDirty(parent);
             if (plan != null)
             {

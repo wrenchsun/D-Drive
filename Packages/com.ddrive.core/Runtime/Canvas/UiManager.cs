@@ -92,6 +92,21 @@ namespace DDrive.Runtime.Ui
             // ElementFx.Disappear の完了を待たずに CloseAsync が返っていた。FinalizeClose(実際に閉じ切った瞬間)
             // で確実に解決される専用の CompletionSource を持たせる。
             public UniTaskCompletionSource CloseCompletion;
+
+            // 埋め込み Canvas の有効 / 無効の状態(2026-10-06)。EmbeddedCanvases が空なら null のまま。
+            public List<EmbedState> Embeds;
+        }
+
+        // 登録済みの埋め込み 1 つぶんの実行時の状態。Prefix = Open した Canvas のルートから、この埋め込みのルートまでのパス。
+        private sealed class EmbedState
+        {
+            public string Prefix;
+            public Transform Root;
+            public CanvasData Child;
+            public int Parent = -1;        // 外側の埋め込み(Embeds の添字。無ければ -1)
+            public bool OriginalActive;    // Open した時点の GameObject の有効 / 無効(プールへ返すときに戻す)
+            public bool Active;            // 今の指定(true = 有効)。外側が無効なら、true でも画面には出ていない
+            public bool Deactivating;      // 無効化の Disappear を待っている(終わったら GameObject を無効にする)
         }
 
         // 1 ElementFx 行ぶんのランタイム状態(4-9)。
@@ -108,6 +123,18 @@ namespace DDrive.Runtime.Ui
             public Handle<UiTweenMarker> AppearHandle = Handle<UiTweenMarker>.Invalid;
             public Handle<UiTweenMarker> IdleHandle = Handle<UiTweenMarker>.Invalid;
             public Handle<UiTweenMarker> DisappearHandle = Handle<UiTweenMarker>.Invalid;
+
+            // 埋め込みの有効 / 無効(2026-10-06)。
+            public int EmbedIndex = -1;    // この要素が属するいちばん内側の埋め込み(instance.Embeds の添字。属さなければ -1)
+            public bool Held;              // 属する埋め込み(または外側の埋め込み)が無効なので、演出を始めずに待っている
+            public bool CountsForGate;     // Open の入力ゲート(PendingAppearCount)に数えている Appear か
+            public float AppearNotBefore;  // ElementFxElapsed がこの値に達するまで Appear を始めない(Open は AppearDelay、有効化はその時点 + AppearDelay)
+
+            // Open した時点の見た目(埋め込みを有効にし直すとき、前回の Disappear の終端値〔alpha 0・scale 0 など〕を残さないために戻す)。
+            public Vector2 BaseAnchoredPosition;
+            public Vector3 BaseScale;
+            public Quaternion BaseRotation;
+            public float BaseAlpha = 1f;
         }
 
         // Tick で毎フレーム進める演出。Kind=None または Duration<=0 は即完了として生成しない。
@@ -633,6 +660,8 @@ namespace DDrive.Runtime.Ui
 
                 instance.WireUnsubscribers.Clear();
             }
+
+            RestoreEmbedObjects(instance);
 
             _events.Fire(instance.Context, EventTrigger.OnDisable);
             _events.Fire(instance.Context, EventTrigger.OnDestroy);
@@ -1167,7 +1196,36 @@ namespace DDrive.Runtime.Ui
                 case UiAction.PlayPresentation:
                     Debug.LogWarning("[DDrive] ButtonWire.Action=PlayPresentation は Phase 5 で実装予定です");
                     break;
+
+                case UiAction.ActivateEmbedded:
+                case UiAction.DeactivateEmbedded:
+                case UiAction.ToggleEmbedded:
+                    ExecuteEmbeddedWire(wire, from, embedRoot);
+                    break;
             }
+        }
+
+        // 配線から埋め込みの有効 / 無効を切り替える。EmbeddedRootPath は「その配線を持つ CanvasData のルート基準」なので、
+        // 配線が属する埋め込みのパス(embedRoot。親自身の配線なら null)に連結して、Open した Canvas のルート基準にする。
+        // EmbeddedRootPath が空 = このボタンが属している埋め込み(自分自身)。属する埋め込みが無い(子を単独で開いている)ときは
+        // 警告 1 回 + 何もしない(単独で閉じたいときは CloseSelf を別の配線にする)。
+        private void ExecuteEmbeddedWire(ButtonWire wire, Handle<CanvasMarker> from, string embedRoot)
+        {
+            if (!_instances.TryGetQuiet(from, out var instance))
+            {
+                return;
+            }
+
+            var path = string.IsNullOrEmpty(wire.EmbeddedRootPath) ? embedRoot : EmbeddedCanvasPaths.Combine(embedRoot, wire.EmbeddedRootPath);
+            if (string.IsNullOrEmpty(path))
+            {
+                WarnEmbedOnce(instance.Data, "wire-self:" + wire.ButtonPath, $"CanvasData '{instance.Data.DisplayName}' のボタン '{wire.ButtonPath}' の配線({wire.Action})は EmbeddedRootPath が空ですが、このボタンは埋め込みの中にありません(子の CanvasData を単独で開いた場合など)。何もしません。");
+                return;
+            }
+
+            var active = wire.Action == UiAction.ActivateEmbedded
+                || (wire.Action == UiAction.ToggleEmbedded && !IsEmbeddedActive(from, path));
+            SetEmbeddedActive(from, path, active);
         }
 
         // ── スライダー配線(SliderWire, 4-16) ──
@@ -1371,7 +1429,7 @@ namespace DDrive.Runtime.Ui
                 }
 
                 var hasAppear = def.Appear.IsValid || def.AppearPreset.Preset != UiPreset.None || hasLayerAppear;
-                var runtime = new ElementFxRuntime { Target = target, Def = def, HasAppear = hasAppear };
+                var runtime = new ElementFxRuntime { Target = target, Def = def, HasAppear = hasAppear, CountsForGate = hasAppear, AppearNotBefore = def.AppearDelay };
                 list.Add(runtime);
                 if (hasAppear)
                 {
@@ -1392,6 +1450,7 @@ namespace DDrive.Runtime.Ui
             public string Prefix;
             public EmbedNode Parent;
             public int Depth; // 自分を含む入れ子の段数(Open した CanvasData = 1)
+            public int EmbedIndex = -1; // このノードの埋め込みの状態(instance.Embeds の添字。Open した CanvasData 自身は -1)
         }
 
         // 「1 つの要素は 1 回だけ適用」のための担当表(Open した Canvas のルート基準のパス)。先に登録した側が担当する。
@@ -1434,6 +1493,8 @@ namespace DDrive.Runtime.Ui
 
                 (level, nextLevel) = (nextLevel, level);
             }
+
+            ApplyInitialEmbedStates(instance);
         }
 
         // Open した CanvasData 自身の行(適用できたかに関わらず)を担当表に入れる(親が常に勝つ)。
@@ -1523,6 +1584,19 @@ namespace DDrive.Runtime.Ui
                 // Open した Canvas のルートから見た、この子の埋め込みルートのパス(入れ子の入れ子は最外のルートからの連結)。
                 var childPrefix = EmbeddedCanvasPaths.Combine(node.Prefix, embed.RootPath);
 
+                // 有効 / 無効の状態(2026-10-06)。StartInactive = false(既定)なら有効で始まる = 従来どおり。
+                var states = instance.Embeds ??= new List<EmbedState>(2);
+                states.Add(new EmbedState
+                {
+                    Prefix = childPrefix,
+                    Root = childRoot,
+                    Child = child,
+                    Parent = node.EmbedIndex,
+                    OriginalActive = childRoot.gameObject.activeSelf,
+                    Active = !embed.StartInactive,
+                });
+                var embedIndex = states.Count - 1;
+
                 if (child.ElementEffects != null && child.ElementEffects.Length > 0)
                 {
                     AppendElementFx(instance, child, child.ElementEffects, childRoot, claims, childPrefix);
@@ -1531,8 +1605,427 @@ namespace DDrive.Runtime.Ui
                 WireButtonRows(childRoot, child.Buttons, instance, handle, claims, childPrefix);
                 WireSliderRows(childRoot, child.Sliders, instance, handle, claims, childPrefix);
 
-                nextLevel.Add(new EmbedNode { Data = child, Root = childRoot, Prefix = childPrefix, Parent = node, Depth = node.Depth + 1 });
+                nextLevel.Add(new EmbedNode { Data = child, Root = childRoot, Prefix = childPrefix, Parent = node, Depth = node.Depth + 1, EmbedIndex = embedIndex });
             }
+        }
+
+        // ── 埋め込み Canvas の有効 / 無効(2026-10-06。docs/07 A-3 追記) ──
+
+        // Open の最後に 1 回: 各 ElementFx がどの埋め込みに属するかを決め、登録済みの埋め込みのルートを指定どおり(StartInactive)に
+        // 有効 / 無効にする。無効な埋め込み(または外側が無効)の要素は演出を始めずに待たせ、入力ゲートの数からも外す。
+        // 対象は EmbeddedCanvases に登録された埋め込みだけ(未登録の入れ子 Prefab には触らない)。
+        private void ApplyInitialEmbedStates(CanvasInstance instance)
+        {
+            var embeds = instance.Embeds;
+            if (embeds == null || embeds.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < embeds.Count; i++)
+            {
+                var e = embeds[i];
+                if (e.Root != null && e.Root.gameObject.activeSelf != e.Active)
+                {
+                    e.Root.gameObject.SetActive(e.Active); // データ(StartInactive)が Prefab の状態に勝つ
+                }
+            }
+
+            var list = instance.ElementFx;
+            if (list == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                var r = list[i];
+                r.EmbedIndex = FindInnermostEmbed(embeds, r.Target);
+                r.BaseAnchoredPosition = r.Target.anchoredPosition;
+                r.BaseScale = r.Target.localScale;
+                r.BaseRotation = r.Target.localRotation;
+                var group = r.Target.GetComponent<CanvasGroup>();
+                r.BaseAlpha = group != null ? group.alpha : 1f;
+                if (r.EmbedIndex >= 0 && !IsEmbedShown(embeds, r.EmbedIndex))
+                {
+                    r.Held = true;
+                    if (r.CountsForGate)
+                    {
+                        r.CountsForGate = false;
+                        instance.PendingAppearCount = Mathf.Max(0, instance.PendingAppearCount - 1);
+                    }
+                }
+            }
+        }
+
+        // target を含むいちばん内側の埋め込み(無ければ -1)。
+        private static int FindInnermostEmbed(List<EmbedState> embeds, Transform target)
+        {
+            var best = -1;
+            for (var i = 0; i < embeds.Count; i++)
+            {
+                var root = embeds[i].Root;
+                if (root == null || (target != root && !target.IsChildOf(root)))
+                {
+                    continue;
+                }
+
+                if (best < 0 || root.IsChildOf(embeds[best].Root))
+                {
+                    best = i;
+                }
+            }
+
+            return best;
+        }
+
+        // その埋め込みが実際に表示される状態か(自分と、外側の埋め込みが全部有効)。
+        private static bool IsEmbedShown(List<EmbedState> embeds, int index)
+        {
+            for (var i = index; i >= 0; i = embeds[i].Parent)
+            {
+                if (!embeds[i].Active)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // 埋め込み index が、埋め込み ancestor 自身か、その内側か。
+        private static bool IsEmbedWithin(List<EmbedState> embeds, int index, int ancestor)
+        {
+            for (var i = index; i >= 0; i = embeds[i].Parent)
+            {
+                if (i == ancestor)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static int FindEmbedIndex(CanvasInstance instance, string rootPath)
+        {
+            var embeds = instance.Embeds;
+            if (embeds == null || string.IsNullOrEmpty(rootPath))
+            {
+                return -1;
+            }
+
+            for (var i = 0; i < embeds.Count; i++)
+            {
+                if (string.Equals(embeds[i].Prefix, rootPath, StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        // 開いている Canvas の中の埋め込み Canvas を有効 / 無効にする。rootPath = Open した Canvas のルート基準のパス
+        // (= EmbeddedCanvases の RootPath。入れ子の入れ子は "OptionRoot/Inner" のように最外のルートから連結した形)。
+        // 有効化: GameObject を有効にし、配下の要素の Appear → Idle を始める。子の CanvasData の FirstSelected があれば選択する。
+        // 無効化: 配下の Idle を止めて Disappear を再生し、終わったら GameObject を無効にする(Disappear が無ければ即)。
+        // 配下に今の選択があれば、親の FirstSelected へ移す(無ければ選択を外す)。
+        // 同じ状態への指定・閉じている途中 / 閉じた後の Canvas・無効なハンドルは何もしない。登録されていない rootPath は警告 1 回 + 何もしない。
+        // 外側の埋め込みが無効の間に内側を切り替えたときは、状態だけ覚える(外側を有効にしたときに、有効な内側だけ Appear を始める)。
+        public void SetEmbeddedActive(Handle<CanvasMarker> handle, string rootPath, bool active)
+        {
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Closing)
+            {
+                return;
+            }
+
+            var index = FindEmbedIndex(instance, rootPath);
+            if (index < 0)
+            {
+                WarnEmbedOnce(instance.Data, "active:" + rootPath, $"CanvasData '{instance.Data.DisplayName}' に埋め込み '{rootPath}' が登録されていない(または解決できなかった)ため、有効 / 無効を切り替えられません。");
+                return;
+            }
+
+            var embeds = instance.Embeds;
+            var e = embeds[index];
+            if (active)
+            {
+                if (e.Active && !e.Deactivating)
+                {
+                    return;
+                }
+
+                e.Active = true;
+                e.Deactivating = false;
+                if (e.Root != null)
+                {
+                    e.Root.gameObject.SetActive(true);
+                }
+
+                if (IsEmbedShown(embeds, index))
+                {
+                    RestartEmbedFx(instance, index);
+                    SelectFirstOfEmbed(e);
+                }
+            }
+            else
+            {
+                if (!e.Active)
+                {
+                    return;
+                }
+
+                var wasShown = IsEmbedShown(embeds, index);
+                e.Active = false;
+                if (!wasShown)
+                {
+                    if (e.Root != null)
+                    {
+                        e.Root.gameObject.SetActive(false);
+                    }
+
+                    return;
+                }
+
+                MoveSelectionOutOf(instance, e);
+                if (StartEmbedDisappear(instance, index))
+                {
+                    e.Deactivating = true; // Tick が Disappear の完了を見て GameObject を無効にする
+                }
+                else
+                {
+                    CompleteEmbedDeactivation(instance, index);
+                }
+            }
+        }
+
+        // 埋め込みが有効の指定か(外側が無効でも、自分の指定が有効なら true)。開いていない Canvas・登録されていない rootPath は false。
+        public bool IsEmbeddedActive(Handle<CanvasMarker> handle, string rootPath)
+        {
+            if (!_instances.TryGetQuiet(handle, out var instance))
+            {
+                return false;
+            }
+
+            var index = FindEmbedIndex(instance, rootPath);
+            return index >= 0 && instance.Embeds[index].Active;
+        }
+
+        // 有効化した埋め込み(とその内側の、表示される埋め込み)の要素を、Open した時点の見た目に戻して Appear からやり直す。
+        // 入力ゲート(PendingAppearCount)には数えない(親は既に操作できる状態なので、子の出現で親の入力を止めない)。
+        private void RestartEmbedFx(CanvasInstance instance, int index)
+        {
+            var list = instance.ElementFx;
+            if (list == null)
+            {
+                return;
+            }
+
+            var embeds = instance.Embeds;
+            for (var i = 0; i < list.Count; i++)
+            {
+                var r = list[i];
+                if (r.EmbedIndex < 0 || !IsEmbedWithin(embeds, r.EmbedIndex, index) || !IsEmbedShown(embeds, r.EmbedIndex))
+                {
+                    continue;
+                }
+
+                _tweens?.Stop(r.AppearHandle);
+                _tweens?.Stop(r.IdleHandle);
+                _tweens?.Stop(r.DisappearHandle);
+                r.AppearHandle = Handle<UiTweenMarker>.Invalid;
+                r.IdleHandle = Handle<UiTweenMarker>.Invalid;
+                r.DisappearHandle = Handle<UiTweenMarker>.Invalid;
+
+                r.Target.anchoredPosition = r.BaseAnchoredPosition;
+                r.Target.localScale = r.BaseScale;
+                r.Target.localRotation = r.BaseRotation;
+                var group = r.Target.GetComponent<CanvasGroup>();
+                if (group != null)
+                {
+                    group.alpha = r.BaseAlpha;
+                }
+
+                r.Held = false;
+                r.AppearStarted = false;
+                r.AppearCompleted = false;
+                r.IdleStarted = false;
+                r.DisappearStarted = false;
+                r.DisappearDone = false;
+                r.AppearNotBefore = instance.ElementFxElapsed + r.Def.AppearDelay;
+            }
+        }
+
+        // 無効化する埋め込み(とその内側)の、表示中の要素の Disappear を始める。戻り値 = 完了を待つ Disappear があるか。
+        private bool StartEmbedDisappear(CanvasInstance instance, int index)
+        {
+            var list = instance.ElementFx;
+            if (list == null)
+            {
+                return false;
+            }
+
+            var embeds = instance.Embeds;
+            var waiting = false;
+            for (var i = 0; i < list.Count; i++)
+            {
+                var r = list[i];
+                if (r.EmbedIndex < 0 || r.Held || r.DisappearStarted || !IsEmbedWithin(embeds, r.EmbedIndex, index))
+                {
+                    continue;
+                }
+
+                if (r.CountsForGate)
+                {
+                    // Open の Appear の途中で無効化された: 入力ゲートの数から外す。
+                    r.CountsForGate = false;
+                    instance.PendingAppearCount = Mathf.Max(0, instance.PendingAppearCount - 1);
+                }
+
+                r.DisappearStarted = true;
+                _tweens?.Stop(r.IdleHandle);
+                r.IdleHandle = Handle<UiTweenMarker>.Invalid;
+                _tweens?.Stop(r.AppearHandle);
+
+                Handle<UiTweenMarker> handle;
+                if (r.Def.Disappear.IsValid)
+                {
+                    handle = _tweens?.Play(r.Def.Disappear, r.Target) ?? Handle<UiTweenMarker>.Invalid;
+                }
+                else if (r.Def.DisappearPreset.Preset != UiPreset.None)
+                {
+                    handle = PlayPreset(r.Def.DisappearPreset, r.Target);
+                }
+                else
+                {
+                    handle = PlayLayerDefaultDisappear(instance, r);
+                }
+
+                r.DisappearHandle = handle;
+                if (r.Def.DisappearSe.IsValid)
+                {
+                    Runtime.Audio.Audio.PlaySe(r.Def.DisappearSe);
+                }
+
+                r.DisappearDone = !IsTweenPlaying(handle);
+                waiting |= !r.DisappearDone;
+            }
+
+            return waiting;
+        }
+
+        // 無効化の Disappear が終わった埋め込みの GameObject を無効にする(Tick から)。
+        private void FinishEmbedDeactivations(CanvasInstance instance)
+        {
+            var embeds = instance.Embeds;
+            var list = instance.ElementFx;
+            for (var e = 0; e < embeds.Count; e++)
+            {
+                if (!embeds[e].Deactivating)
+                {
+                    continue;
+                }
+
+                var playing = false;
+                for (var i = 0; i < list.Count && !playing; i++)
+                {
+                    var r = list[i];
+                    playing = r.EmbedIndex >= 0 && r.DisappearStarted && !r.Held && IsEmbedWithin(embeds, r.EmbedIndex, e) && IsTweenPlaying(r.DisappearHandle);
+                }
+
+                if (!playing)
+                {
+                    CompleteEmbedDeactivation(instance, e);
+                }
+            }
+        }
+
+        private void CompleteEmbedDeactivation(CanvasInstance instance, int index)
+        {
+            var embeds = instance.Embeds;
+            var e = embeds[index];
+            e.Deactivating = false;
+            if (e.Root != null)
+            {
+                e.Root.gameObject.SetActive(false);
+            }
+
+            var list = instance.ElementFx;
+            if (list == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                var r = list[i];
+                if (r.EmbedIndex >= 0 && IsEmbedWithin(embeds, r.EmbedIndex, index))
+                {
+                    r.Held = true;
+                    r.DisappearStarted = false;
+                    r.DisappearDone = false;
+                }
+            }
+        }
+
+        // 有効化した埋め込みの子の CanvasData に FirstSelected があれば、子のルート基準で解決して選択する(未設定なら何もしない)。
+        // Open のときの Navigation / FirstSelected は親のものを使う決まりのまま。これは「有効化した瞬間」だけの扱い
+        // (パッド操作で子を出した直後に、フォーカスが親に残って操作できなくならないように)。
+        private static void SelectFirstOfEmbed(EmbedState e)
+        {
+            if (e.Child == null || e.Root == null || string.IsNullOrEmpty(e.Child.FirstSelected) || EventSystem.current == null)
+            {
+                return;
+            }
+
+            var target = e.Root.Find(e.Child.FirstSelected);
+            if (target != null)
+            {
+                EventSystem.current.SetSelectedGameObject(target.gameObject);
+            }
+        }
+
+        // 無効にする埋め込みの配下に今の選択があれば、親の FirstSelected(無ければ選択なし)へ移す。
+        private static void MoveSelectionOutOf(CanvasInstance instance, EmbedState e)
+        {
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null || e.Root == null)
+            {
+                return;
+            }
+
+            var selected = eventSystem.currentSelectedGameObject;
+            if (selected == null || (selected.transform != e.Root && !selected.transform.IsChildOf(e.Root)))
+            {
+                return;
+            }
+
+            var fallback = instance.Root != null ? FindTransform(instance.Root.transform, instance.Data.FirstSelected) : null;
+            var keep = fallback != null && fallback != e.Root && !fallback.IsChildOf(e.Root);
+            eventSystem.SetSelectedGameObject(keep ? fallback.gameObject : null);
+        }
+
+        // プールへ返す前に、登録済みの埋め込みのルートの有効 / 無効を Open した時点の状態へ戻す
+        // (次の Open はデータの StartInactive から決め直す。前回の切り替えを持ち越さない)。
+        private static void RestoreEmbedObjects(CanvasInstance instance)
+        {
+            var embeds = instance.Embeds;
+            if (embeds == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < embeds.Count; i++)
+            {
+                var e = embeds[i];
+                if (e.Root != null && e.Root.gameObject.activeSelf != e.OriginalActive)
+                {
+                    e.Root.gameObject.SetActive(e.OriginalActive);
+                }
+            }
+
+            embeds.Clear();
         }
 
         private static int PathDepth(string path)
@@ -1587,9 +2080,14 @@ namespace DDrive.Runtime.Ui
                 for (var i = 0; i < list.Count; i++)
                 {
                     var r = list[i];
+                    if (r.Held || r.DisappearStarted)
+                    {
+                        continue; // 無効な埋め込みの要素(演出を始めない)/ 埋め込みの無効化の Disappear 中
+                    }
+
                     if (!r.AppearStarted)
                     {
-                        if (instance.ElementFxElapsed < r.Def.AppearDelay)
+                        if (instance.ElementFxElapsed < r.AppearNotBefore)
                         {
                             continue;
                         }
@@ -1601,6 +2099,11 @@ namespace DDrive.Runtime.Ui
                     {
                         gateChanged |= OnAppearCompleted(instance, r);
                     }
+                }
+
+                if (instance.Embeds != null)
+                {
+                    FinishEmbedDeactivations(instance);
                 }
             }
             else
@@ -1655,11 +2158,13 @@ namespace DDrive.Runtime.Ui
         {
             r.AppearCompleted = true;
             var changed = false;
-            if (r.HasAppear && instance.PendingAppearCount > 0)
+            if (r.CountsForGate && instance.PendingAppearCount > 0)
             {
                 instance.PendingAppearCount--;
                 changed = true;
             }
+
+            r.CountsForGate = false;
 
             StartIdle(r);
             return changed;
@@ -1703,6 +2208,14 @@ namespace DDrive.Runtime.Ui
         {
             if (r.DisappearStarted)
             {
+                return;
+            }
+
+            if (r.Held)
+            {
+                // 無効な埋め込みの要素は見えていないので、閉じるときの Disappear は待たない。
+                r.DisappearStarted = true;
+                r.DisappearDone = true;
                 return;
             }
 
