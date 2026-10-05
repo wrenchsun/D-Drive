@@ -86,13 +86,22 @@ namespace DDrive.Editor.Cutscene
             _capturedCamera = null;
         }
 
-        // シーン切替・セッション終了・ドメインリロード前に呼ぶ(前の Camera.main への参照を捨てるだけ。
-        // 姿勢の復元自体は次に Apply() が「HasData=false」を見たときに自然に行われるため、ここでは
-        // 強制復元しない — 既にシーンが切り替わっていれば cam 自体が別物になっている)。
+        // 書き込みをやめるときに呼ぶ(Timeline ウィンドウがそのプレビュー用 Director を見なくなった・Director が無くなった・
+        // シーン切替・プレハブステージの出入り・Play Mode 突入・ドメインリロード前)。控えたカメラがまだ生きていれば
+        // 書き込む前の姿勢へ戻してから、控えを捨てる。戻さずに捨てると、カメラがカットシーンの姿勢のまま残り、
+        // その状態でシーンを保存すると姿勢が保存されてしまう。カメラが既に破棄されていれば(シーン切替後)何もしない。
         public static void ResetCapture()
         {
+            if (_hasOriginal && _capturedCamera != null)
+            {
+                _capturedCamera.transform.SetPositionAndRotation(_originalPos, _originalRot);
+                _capturedCamera.fieldOfView = _originalFov;
+                _capturedCamera.focusDistance = _originalFocusDistance;
+            }
+
             _hasOriginal = false;
             _capturedCamera = null;
         }
+
     }
 }

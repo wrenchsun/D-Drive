@@ -58,6 +58,10 @@ namespace DDrive.Editor.Creation
             // CreateOverride を使う種別用: 直前の CreateOverride が返した Data が「既にあったもの」なら true。
             // 設定されていれば、CreateFromSelection が「新規 N 件 / 既存 M 件」の集計に使う(未設定なら新規として数える)。
             public Func<bool> LastCreateWasExisting;
+
+            // 1 操作ぶんの結果の要約(「新規 1 件 / 更新 1 件 / 変更なし 0 件」など)。設定されていて空でない文字列を返せば、
+            // CreateFromSelection は既定の「新規 N 件(既存 M 件は…)」の代わりにそれを Console に出す。EndBatch の後に 1 回呼ばれる。
+            public Func<string> BatchSummary;
         }
 
         // Material の右クリック作成で、1 操作ぶんに解決した「知らないシェーダー」の扱い(BeginBatch が決め、EndBatch が戻す)。
@@ -68,6 +72,7 @@ namespace DDrive.Editor.Creation
         // EndBatch で警告の行を Console に出す(欠けたシェーダーで Lit にした / 既存の Data を変更しなかった、など)。
         private static MayaMaterialImporter.Report _materialReport;
         private static bool _materialLastWasExisting;
+        private static string _materialSummary;
 
         private static List<Option> _options;
 
@@ -157,6 +162,12 @@ namespace DDrive.Editor.Creation
                     return data;
                 },
                 LastCreateWasExisting = () => _materialLastWasExisting,
+                BatchSummary = () =>
+                {
+                    var summary = _materialSummary;
+                    _materialSummary = null;
+                    return summary;
+                },
                 // 右クリックの「Material を作成」はユーザーが直接起こす操作なので、知らないシェーダーの確認を 1 操作 1 回出す(FC-R-01)。
                 BeginBatch = paths =>
                 {
@@ -215,24 +226,28 @@ namespace DDrive.Editor.Creation
             };
         }
 
-        // 取り込みの記録のうち「警告:」で始まる行を Console に Warning で出す(1 操作ぶん。出したら記録を捨てる)。
+        // 取り込みの記録の警告(Report.Warnings = 欠けたシェーダーで Lit にした / 既存の Data を変更しなかった)を Console に
+        // Warning で出し、件数の要約を作る(1 操作ぶん。終わったら記録を捨てる)。「未対応のシェーダーを Lit に変換した」の案内は
+        // 利用者が確認ダイアログで選んだ結果なので、記録(Lines)に残すだけで Console には出さない。
         private static void FlushMaterialReportWarnings()
         {
             var report = _materialReport;
             _materialReport = null;
             _materialLastWasExisting = false;
+            _materialSummary = null;
             if (report == null)
             {
                 return;
             }
 
-            for (var i = 0; i < report.Lines.Count; i++)
+            for (var i = 0; i < report.Warnings.Count; i++)
             {
-                var line = report.Lines[i];
-                if (line != null && line.TrimStart().StartsWith("警告", StringComparison.Ordinal))
-                {
-                    Debug.LogWarning("[DDrive] " + line.Trim());
-                }
+                Debug.LogWarning("[DDrive] " + report.Warnings[i]);
+            }
+
+            if (report.Created + report.Updated + report.Unchanged > 0)
+            {
+                _materialSummary = $"新規 {report.Created} 件 / 更新 {report.Updated} 件 / 変更なし {report.Unchanged} 件";
             }
         }
 
@@ -281,14 +296,14 @@ namespace DDrive.Editor.Creation
                 }
             }
 
-            if (option.BeginBatch != null && targets.Count > 0 && !option.BeginBatch(targets))
-            {
-                option.EndBatch?.Invoke();
-                return;
-            }
-
             try
             {
+                // 事前確認(BeginBatch)も try の中で呼ぶ(BeginBatch 自身が例外を出しても、後始末の EndBatch を必ず通す)。
+                if (option.BeginBatch != null && targets.Count > 0 && !option.BeginBatch(targets))
+                {
+                    return;
+                }
+
                 foreach (var path in targets)
                 {
                     var result = CreateOne(option, path, out var wasExisting);
@@ -319,7 +334,10 @@ namespace DDrive.Editor.Creation
                 return;
             }
 
-            Debug.Log($"[DDrive] {dataType.Name}: 新規 {created} 件{(skipped > 0 ? $"(既存 {skipped} 件はそのまま開きます)" : string.Empty)}");
+            var summary = option.BatchSummary?.Invoke();
+            Debug.Log(string.IsNullOrEmpty(summary)
+                ? $"[DDrive] {dataType.Name}: 新規 {created} 件{(skipped > 0 ? $"(既存 {skipped} 件はそのまま開きます)" : string.Empty)}"
+                : $"[DDrive] {dataType.Name}: {summary}");
             CreatedAssetOpener.Reveal(last);
         }
 

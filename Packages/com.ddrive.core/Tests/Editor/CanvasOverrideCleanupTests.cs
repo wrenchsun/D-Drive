@@ -205,7 +205,7 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(ok);
             Assert.AreEqual(1, asked);
             StringAssert.Contains("Inner/BtnV", message, "設定のある行のパスを列挙する");
-            StringAssert.DoesNotContain("Inner/Deep", message, "既定のままの行は列挙しない(件数だけ)");
+            StringAssert.Contains("Inner/Deep", message, "一緒に取り除く既定のままの行のパスも並べる(何が消えるか分かるように)");
             CollectionAssert.AreEqual(new[] { "Title" }, Paths(_parent));
             Assert.AreEqual(2, cleanup.RemovedDefault);
             Assert.AreEqual(1, cleanup.RemovedCustom);
@@ -306,6 +306,72 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(string.Empty, cleanup.Describe());
         }
 
+        // 利用者が自分で押す「上書きをまとめて整理…」は、既定のままの行だけのときも 1 回確認する
+        // (子の演出をこの親の中でだけ止めるために、わざと置いた空の行を黙って消さない)。本文には行のパスを並べる。
+        [Test]
+        public void CleanUpOverrides_DefaultRowsOnly_AsksOnce_ListsPaths_CancelKeepsRows()
+        {
+            _parent.ElementEffects = new[] { Row("Title"), Row("Inner/Deep"), Row("Inner/BtnV") };
+            CanvasEmbeddedEditing.Register(_parent, "Inner", _child);
+            var asked = 0;
+            string message = null;
+            CanvasEmbeddedEditing.ConfirmOverrideCleanupForTests = (t, m) => { asked++; message = m; return CanvasEmbeddedEditing.OverrideChoice.Cancel; };
+
+            var cancelled = CanvasEmbeddedEditing.CleanUpOverrides(_parent, "Inner", _child);
+
+            Assert.AreEqual(1, asked);
+            StringAssert.Contains("Inner/Deep", message);
+            StringAssert.Contains("Inner/BtnV", message);
+            Assert.IsTrue(cancelled.Cancelled);
+            CollectionAssert.AreEqual(new[] { "Title", "Inner/Deep", "Inner/BtnV" }, Paths(_parent), "キャンセルなら空の行も残る");
+
+            CanvasEmbeddedEditing.ConfirmOverrideCleanupForTests = (t, m) => { asked++; return CanvasEmbeddedEditing.OverrideChoice.Remove; };
+            var removed = CanvasEmbeddedEditing.CleanUpOverrides(_parent, "Inner", _child);
+            Assert.AreEqual(2, asked);
+            Assert.AreEqual(2, removed.RemovedDefault);
+            CollectionAssert.AreEqual(new[] { "Title" }, Paths(_parent));
+        }
+
+        // 登録の操作は従来どおり: 既定のままの行だけなら確認なしで取り除く(自動収集で集まった行の片付け)。
+        [Test]
+        public void RegisterWithCleanup_DefaultRowsOnly_StillDoesNotAsk()
+        {
+            _parent.ElementEffects = new[] { Row("Title"), Row("Inner/Deep") };
+            CanvasEmbeddedEditing.ConfirmOverrideCleanupForTests = (t, m) => { Assert.Fail("登録では、既定のままの行だけなら確認は出ない"); return CanvasEmbeddedEditing.OverrideChoice.Cancel; };
+
+            Assert.IsTrue(CanvasEmbeddedEditing.RegisterWithCleanup(_parent, "Inner", _child, out var cleanup));
+
+            Assert.AreEqual(1, cleanup.RemovedDefault);
+            CollectionAssert.AreEqual(new[] { "Title" }, Paths(_parent));
+        }
+
+        // 設定のある行の確認の本文には、一緒に取り除く既定のままの行のパスも並ぶ(件数だけにしない)。
+        [Test]
+        public void ConfirmMessage_ListsDefaultRowPaths_Too()
+        {
+            _parent.ElementEffects = new[] { Row("Inner/Deep"), Custom("Inner/BtnV") };
+            var plan = CanvasEmbeddedEditing.PlanOverrides(_parent, "Inner");
+
+            var message = CanvasEmbeddedEditing.BuildConfirmMessage(_parent, plan);
+
+            StringAssert.Contains("Inner/BtnV", message);
+            StringAssert.Contains("Inner/Deep", message);
+        }
+
+        // 欄の値が変わらないとき(正規化したら同じ RootPath・同じ子の選び直し)は、整理も確認もしない。
+        [Test]
+        public void ChangeEmbedWithCleanup_SameValues_DoesNothing_AndNeverAsks()
+        {
+            _parent.ElementEffects = new[] { Row("Inner/Deep"), Custom("Inner/BtnV") };
+            CanvasEmbeddedEditing.Register(_parent, "Inner", _child);
+            CanvasEmbeddedEditing.ConfirmOverrideCleanupForTests = (t, m) => { Assert.Fail("値が変わらないのに確認が出た"); return CanvasEmbeddedEditing.OverrideChoice.Cancel; };
+
+            Assert.IsFalse(CanvasEmbeddedEditing.ChangeEmbedWithCleanup(_parent, 0, "Inner", _child, out var cleanup));
+
+            Assert.IsFalse(cleanup.Cancelled);
+            Assert.AreEqual(0, cleanup.Removed);
+            Assert.AreEqual(2, _parent.ElementEffects.Length, "行は触らない");
+        }
         [Test]
         public void ChangeEmbedWithCleanup_NewRootPath_CleansNewSubtree_Cancel_KeepsOldValues()
         {

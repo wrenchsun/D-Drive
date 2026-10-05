@@ -41,6 +41,9 @@ namespace DDrive.Editor.CanvasTool
             public AssetId<UiTweenMarker> Id;
             public Handle<UiTweenMarker> Handle = Handle<UiTweenMarker>.Invalid;
             public bool Suspended;
+
+            // ステージの Prefab 自身ではなく、その中の入れ子 Prefab インスタンス(埋め込みの子など)に属する要素か。
+            public bool InNestedInstance;
         }
 
         private const int MaxEmbedDepth = 8; // UiManager.MaxEmbedDepth と同じ
@@ -60,6 +63,26 @@ namespace DDrive.Editor.CanvasTool
 
         // 流している(または選択のため一時停止している)要素の数。
         public int Count => _items.Count;
+
+        // そのうち、入れ子 Prefab インスタンス(埋め込みの子など)に属する要素の数。流している間、これらの値は Unity からは
+        // 「入れ子インスタンスへの上書き」に見えるので、Overrides の Apply をすると途中の値が子の Prefab に書かれる。
+        // Apply を止める手段は無いため、ウィンドウで注意を出すのに使う。
+        public int NestedInstanceCount
+        {
+            get
+            {
+                var count = 0;
+                for (var i = 0; i < _items.Count; i++)
+                {
+                    if (_items[i].InNestedInstance)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
 
         public bool IsActive => _items.Count > 0;
 
@@ -220,6 +243,10 @@ namespace DDrive.Editor.CanvasTool
                 h.Add((int)e.Preset.Preset);
                 h.Add(e.Preset.Duration);
                 h.Add(e.Preset.Distance);
+                h.Add((int)e.Preset.EaseOverride.Kind);
+                h.Add((int)e.Preset.EaseOverride.Ease);
+                h.Add(e.Preset.EaseOverride.BezierP1);
+                h.Add(e.Preset.EaseOverride.BezierP2);
                 h.Add(e.Id.Value);
             }
 
@@ -246,7 +273,7 @@ namespace DDrive.Editor.CanvasTool
                     continue;
                 }
 
-                var item = new Item { Target = target, Preset = e.Preset, Id = e.Id };
+                var item = new Item { Target = target, Preset = e.Preset, Id = e.Id, InNestedInstance = UnityEditor.PrefabUtility.IsPartOfPrefabInstance(target) };
                 _items.Add(item);
                 if (StartItem(item))
                 {
