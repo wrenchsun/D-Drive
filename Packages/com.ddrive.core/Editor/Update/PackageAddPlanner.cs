@@ -9,6 +9,7 @@ namespace DDrive.Editor.Update
         Invalid,
 
         // manifest に既にある git URL 依存。管理対象に登録するだけ(`PackageId`)。
+        // `Message` は登録した後にウィンドウへ出す文(2026-10-06 Q-1。過去形)。
         RegisterExisting,
 
         // manifest に無い。`ManifestValue`(#ref 付き)で `PackageManager.Client.Add` する。
@@ -62,7 +63,7 @@ namespace DDrive.Editor.Update
             {
                 var existing = GitPackageUrl.Parse(ManifestJson.GetDependencyValue(manifest, text));
                 return existing.IsGitUrl
-                    ? new PackageAddPlan(PackageAddOutcome.RegisterExisting, text, null, $"{text} を管理対象に登録します。")
+                    ? new PackageAddPlan(PackageAddOutcome.RegisterExisting, text, null, $"{text} を管理対象に登録しました。")
                     : Invalid($"{text} は git URL で導入されたパッケージではないため、更新ウィンドウでは扱えません。");
             }
 
@@ -76,7 +77,7 @@ namespace DDrive.Editor.Update
             var sameId = PackageManifestOps.FindDependencyIdByUrl(manifest, parsed);
             if (sameId != null)
             {
-                return new PackageAddPlan(PackageAddOutcome.RegisterExisting, sameId, null, $"manifest に同じ URL の {sameId} があります。管理対象に登録します。");
+                return new PackageAddPlan(PackageAddOutcome.RegisterExisting, sameId, null, $"manifest に同じ URL の {sameId} があります。管理対象に登録しました。");
             }
 
             // 3. manifest に無い → 導入する。#ref 指定があればそれ、無ければ最新の vX.Y.Z。
