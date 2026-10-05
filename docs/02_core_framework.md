@@ -221,6 +221,7 @@ public interface IAssetManager
 - 具象 API は種別ごと（各設計書参照）だが、命名を統一する:
   `Play/Spawn(id, ctx) → Handle` / `Stop(handle)` / `Preload(ids)`
 - static ファサード（`Vfx.Spawn(...)` 等）を用意し、内部で DI コンテナから実体を引く。テストでは実体を差し替え
+- **持ち込み先の `IAssetManager`（2026-10-06 追記、GA-R-01）**: `DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(this)` で登録すると `Tick(dt)`（ヒットストップ込み）が届く。**登録は `OnEnable`、解除は `OnDisable` で必ず対にする**（`GameLoop` は破棄されたオブジェクトを自動で外さず、`Tick` に例外の隔離も無い）。`Instance` / `Loop` が null のとき（Bootstrap の無いシーン・起動前・終了時）は登録しない。登録に `IsReady` は不要（`Loop` は Bootstrap の `Awake` で揃う）。`Tick` で例外を出さない。ポーズ中も `Tick` は呼ばれ `dt` は 0 にならない（`OnPause` で受けて自分で止める）。コード例は `docs/50_consumer_guide/operation.html`、契約テストは `ExternalContractLoopTests`（E-9 / E-9b）
 
 ## 9. IAssetBehaviour（特殊制御の拡張点）
 
