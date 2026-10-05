@@ -127,6 +127,9 @@ namespace DDrive.Tests.Editor
             var resolution = CameraExecutionOrderExemptions.Resolve(new ICameraExecutionOrderExemptionProvider[] { bad, good }, null, AllExist);
 
             Assert.AreEqual(1, resolution.Valid.Count);
+            Assert.AreEqual(1, resolution.Problems.Count, "提供口の例外は Console だけでなく Warning としても結果に出る(GA-R-10)");
+            StringAssert.Contains("boom", resolution.Problems[0]);
+            Assert.IsTrue(resolution.ToResults().Any(r => r.Severity == DDrive.Foundation.Validation.ValidationSeverity.Warning));
         }
 
         [Test]

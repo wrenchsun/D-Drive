@@ -16,6 +16,9 @@ namespace DDrive.Editor.Settings
 
         private static SerializedObject _serialized;
 
+        // 無効な要素の表示。描画のたびに全アセンブリの GetType をしない(開いたとき・変更時・Undo / Redo 時だけ作り直す。docs/58 GA-R-09)。
+        private static readonly System.Collections.Generic.List<string> _problems = new();
+
         [SettingsProvider]
         public static SettingsProvider Create()
         {
@@ -34,7 +37,19 @@ namespace DDrive.Editor.Settings
             var settings = DDriveProjectSettings.instance;
             settings.hideFlags &= ~HideFlags.NotEditable;
             _serialized = new SerializedObject(settings);
+            Undo.undoRedoPerformed -= OnUndoRedo; // 二重購読しない(OnDeactivate の解除は 1 回)
             Undo.undoRedoPerformed += OnUndoRedo;
+            RefreshProblems();
+        }
+
+        private static void RefreshProblems()
+        {
+            _problems.Clear();
+            var resolution = CameraExecutionOrderExemptions.Resolve(
+                System.Array.Empty<ICameraExecutionOrderExemptionProvider>(),
+                DDriveProjectSettings.instance.CameraExecutionOrderExemptions,
+                CameraExecutionOrderExemptions.TypeExistsInLoadedAssemblies);
+            _problems.AddRange(resolution.Problems);
         }
 
         private static void OnDeactivate()
@@ -46,6 +61,7 @@ namespace DDrive.Editor.Settings
         private static void OnUndoRedo()
         {
             DDriveProjectSettings.instance.SaveCameraExecutionOrderExemptions();
+            RefreshProblems();
         }
 
         private static void DrawGui()
@@ -73,13 +89,10 @@ namespace DDrive.Editor.Settings
                 Undo.RecordObject(settings, "Edit Camera Execution Order Exemptions");
                 so.ApplyModifiedProperties();
                 settings.SaveCameraExecutionOrderExemptions();
+                RefreshProblems();
             }
 
-            var resolution = CameraExecutionOrderExemptions.Resolve(
-                System.Array.Empty<ICameraExecutionOrderExemptionProvider>(),
-                settings.CameraExecutionOrderExemptions,
-                CameraExecutionOrderExemptions.TypeExistsInLoadedAssemblies);
-            foreach (var problem in resolution.Problems)
+            foreach (var problem in _problems)
             {
                 EditorGUILayout.HelpBox(problem, MessageType.Warning);
             }
