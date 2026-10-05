@@ -7,6 +7,7 @@ using DDrive.Editor.Import;
 using DDrive.Editor.Materials;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
+using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.Compat
 {
@@ -73,6 +74,11 @@ namespace DDrive.Editor.Compat
             AppendType(sb, typeof(ITextureImportRuleProvider));
             AppendType(sb, typeof(TextureImportProfile.Rule));
             AppendType(sb, typeof(TextureImportProfile.MatchKind));
+
+            // Q-4(2026-10-06、docs/42 §5.9 / §5.14 E-23): 実行順の検査(契約 G-1)から「カメラを読むだけ」の型を外す拡張点。追加のみ。
+            sb.Append("== CameraExecutionOrderExemption ==\n");
+            AppendType(sb, typeof(ICameraExecutionOrderExemptionProvider));
+            AppendType(sb, typeof(CameraExecutionOrderExemption));
 
             return sb.ToString();
         }

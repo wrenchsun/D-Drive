@@ -97,3 +97,10 @@ enum DDrive.Editor.Materials.TextureImportProfile+MatchKind
   Suffix = 0
   Prefix = 1
   Contains = 2
+== CameraExecutionOrderExemption ==
+interface DDrive.Editor.Validation.ICameraExecutionOrderExemptionProvider
+  method IEnumerable`1 GetExemptions()
+class DDrive.Editor.Validation.CameraExecutionOrderExemption
+  field String Reason
+  field String TypeName
+  field Type Type

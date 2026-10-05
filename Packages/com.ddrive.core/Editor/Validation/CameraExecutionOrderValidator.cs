@@ -27,6 +27,11 @@ namespace DDrive.Editor.Validation
     // ValidationContext につき 1 回だけ実行する」ガードを使う(RunAll は Validator を asset ごとに
     // 呼ぶため、asset 数分重複報告しないようにする)。
     //
+    // (d) 2026-10-06(P-15 確認 Q-4): 「カメラを読むだけ」と宣言された型は (a) から除外する(CameraExecutionOrderExemptions)。
+    //     宣言元 = 外部パッケージの Editor が実装する ICameraExecutionOrderExemptionProvider(自動発見。理由必須)と、
+    //     プロジェクト設定(DDriveProjectSettings.CameraExecutionOrderExemptions)。除外があれば Info を 1 件(型名と理由)、
+    //     無効な宣言(理由なし・存在しない型名)は Warning。除外されていない他の型の検査は従来どおり。
+    //
     // テスト用フック: 実際の ProjectSettings / MonoImporter を書き換えずに (a)/(b) をテストできるよう、
     // スクリプト一覧の取得を差し替え可能にしている(EditMode テストが独自の ScriptOrderInfo 列を注入する)。
     // (c) はファイルシステムの走査のみで ProjectSettings に依存しないため差し替えは用意していない。
@@ -38,11 +43,15 @@ namespace DDrive.Editor.Validation
             public readonly string TypeName;
             public readonly int EffectiveOrder;
 
-            public ScriptOrderInfo(string assetPath, string typeName, int effectiveOrder)
+            // 完全修飾名(Type.FullName)。除外(CameraExecutionOrderExemptions)の照合に使う。null のときは TypeName(短い名前)で照合する。
+            public readonly string FullTypeName;
+
+            public ScriptOrderInfo(string assetPath, string typeName, int effectiveOrder, string fullTypeName = null)
             {
                 AssetPath = assetPath;
                 TypeName = typeName;
                 EffectiveOrder = effectiveOrder;
+                FullTypeName = fullTypeName;
             }
         }
 
@@ -72,6 +81,10 @@ namespace DDrive.Editor.Validation
 
             var applierFound = false;
 
+            // 2026-10-06(P-15 確認 Q-4) — 「カメラを読むだけ」と宣言された型(外部パッケージの ICameraExecutionOrderExemptionProvider /
+            // プロジェクト設定)は (a) の Warning から外す。宣言が 1 つも無いとき(Valid / Problems とも空)は従来と完全に同じ結果。
+            var exemptions = CameraExecutionOrderExemptions.ResolveCurrent();
+
             foreach (var info in ScriptOrderProvider())
             {
                 if (info.TypeName == ApplierTypeName)
@@ -87,6 +100,11 @@ namespace DDrive.Editor.Validation
 
                 if (!IsDDrivePath(info.AssetPath) && info.EffectiveOrder >= DDriveCutsceneCameraApplier.ExecutionOrder)
                 {
+                    if (exemptions.IsExempt(info.FullTypeName, info.TypeName))
+                    {
+                        continue;
+                    }
+
                     yield return ValidationResult.Warning($"スクリプト '{info.AssetPath}'({info.TypeName})の実効実行順が {info.EffectiveOrder} です(D-Drive の Cutscene カメラ適用順 {DDriveCutsceneCameraApplier.ExecutionOrder} 以上)。LateUpdate でカメラを書いている場合、Cutscene のカメラが効きません([26_timeline.md] §4.6.5 契約 G-1)。");
                 }
             }
@@ -94,6 +112,11 @@ namespace DDrive.Editor.Validation
             // DDriveCutsceneCameraApplier が一覧に見つからない(=まだシーンに追加されていない等)場合は
             // 判定不能として黙る。エラーにはしない(Applier は Camera.main に初回自動追加されるだけの
             // コンポーネントで、常に存在するとは限らない)。
+
+            foreach (var result in exemptions.ToResults())
+            {
+                yield return result;
+            }
 
             foreach (var result in ScanRiskyPatternFiles())
             {
@@ -176,7 +199,7 @@ namespace DDrive.Editor.Validation
                     }
                 }
 
-                yield return new ScriptOrderInfo(path, cls.Name, order);
+                yield return new ScriptOrderInfo(path, cls.Name, order, cls.FullName);
             }
         }
 
