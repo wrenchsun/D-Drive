@@ -48,6 +48,7 @@ interface DDrive.Editor.Cutscene.ICutsceneImportListener
   method Void OnCutsceneShotImported(CutsceneImportResult result)
   property Int32 Order { get; }
 class DDrive.Editor.Cutscene.CutsceneImportResult
+  ctor()
   field Boolean IsNew
   field CutsceneData Data
   field IReadOnlyList`1 Roles
@@ -56,6 +57,7 @@ class DDrive.Editor.Cutscene.CutsceneImportResult
   field String TimelinePath
   field TimelineAsset Timeline
 class DDrive.Editor.Cutscene.CutsceneImportRole
+  ctor()
   field CutsceneImportRoleKind Kind
   field String ModelIdentifier
   field String RoleName
@@ -101,6 +103,8 @@ enum DDrive.Editor.Materials.TextureImportProfile+MatchKind
 interface DDrive.Editor.Validation.ICameraExecutionOrderExemptionProvider
   method IEnumerable`1 GetExemptions()
 class DDrive.Editor.Validation.CameraExecutionOrderExemption
+  ctor(String typeName, String reason)
+  ctor(Type type, String reason)
   field String Reason
   field String TypeName
   field Type Type

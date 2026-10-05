@@ -83,7 +83,7 @@ namespace DDrive.Editor.Compat
             return sb.ToString();
         }
 
-        // 型の public な公開面(フィールド / プロパティ / メソッド / enum 値)を 1 行ずつ。並びは名前順。
+        // 型の public な公開面(コンストラクタ / フィールド / プロパティ / メソッド / enum 値)を 1 行ずつ。並びは名前順。
         private static void AppendType(System.Text.StringBuilder sb, Type type)
         {
             var kind = type.IsEnum ? "enum" : type.IsInterface ? "interface" : "class";
@@ -107,6 +107,14 @@ namespace DDrive.Editor.Compat
             }
 
             const BindingFlags Flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            // public コンストラクタ(GA-R-03、2026-10-06): struct / 値だけのクラスは外部がコンストラクタで値を作るので、
+            // 消す・引数の型を変えると互換違反。行の追加のみ(既存の行の表記は変えない)。
+            foreach (var c in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var ctorArgs = string.Join(", ", c.GetParameters().Select(a => a.ParameterType.Name + " " + a.Name));
+                lines.Add($"  ctor({ctorArgs})");
+            }
+
             foreach (var f in type.GetFields(Flags))
             {
                 lines.Add($"  field {f.FieldType.Name} {f.Name}");
