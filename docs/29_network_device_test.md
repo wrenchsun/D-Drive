@@ -712,6 +712,7 @@ Client の最初の `heartbeat=1 role=client` 行の `networkTime` 以降の `si
 `echo`/`REM` 行が文字化けする(cmd 側が UTF-8 のバイト列を Shift-JIS として誤読するため。実際に
 `chcp 932` を強制した状態で再現し、`chcp 65001 >nul` で解消することを確認した)。`.gitattributes` の
 CRLF 指定はそのまま維持し、ファイル先頭(`@echo off` の直後)に `chcp 65001 >nul` を追加して対応した。
+**2026-10-06 追記**: `chcp 65001` では 932 のコンソールから起動したときに直らない場合があった(`run-ci.cmd` と同じ問題。[60](60_release_1_4_0_prep.md) §2.2)ため、`run-netcheck.cmd` も **全 ASCII**(メッセージは英語)にし `chcp` を外した。引数・終了コード・`Run-NetCheck.ps1` の呼び出しは変えていない。日本語の説明（シナリオの意味・前提）は本書の §24・§26 にある。`Run-NetCheck.ps1`（pwsh）が出す日本語メッセージは、932 のコンソールでは化けることがあるが、判定には影響しない。
 
 これらの修正はいずれも判定条件・シナリオ設定・この自動テスト専用コード(`NetCheckRunner`)側の不備で、
 Host/Client 間の実プレゼンテーション同期・偽造メッセージ検証・Late Join 復元・切断検知そのものは

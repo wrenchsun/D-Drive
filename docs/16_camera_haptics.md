@@ -120,6 +120,8 @@ public static class Haptics
 | PosAmplitude・RotAmplitude 両方ゼロ | Warning（揺れない） |
 | 振幅が規定値超（酔いリスク、BudgetProfile で閾値定義） | Warning |
 | Haptic Duration > 2s | Warning（長すぎる振動） |
+| CameraShake の Envelope の尺（Duration）<= 0（Mode に関係なく。2026-10-06） | Warning `DD-SHAKE-ENVELOPE-ZERO-DURATION`（すぐ終わり揺れない。Time を使うモードで Duration 指定の Value <= 0 は [17] §6 の Error が出るので重ねない） |
+| Haptics の LowFreq / HighFreq の尺がどちらも <= 0（Mode に関係なく。2026-10-06） | Warning `DD-HAPTICS-ZERO-DURATION`（すぐ終わり振動しない。同上） |
 | Presentation の CameraShake/Haptic トラックが直値（ID なし） | Error（ID 参照に統一） |
 
 ## 実装メモ（2026-09-14、5-2 整理）
@@ -309,3 +311,5 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
   `ComposeAndOutput` を呼ばず出力を 0 に固定するようにした(再生中の Instance の進行・失効は止めない。
   復帰後の自然な減衰という既存方針は変えない)。`OnApplicationFocus` は `Haptics.SetFocusLost(!hasFocus)`
   を呼ぶ形に変更した。テスト: `HapticsManagerTests.SetFocusLost_True_KeepsOutputZero_AcrossMultipleTicks_UntilRestored`。
+
+**2026-10-06 追記（修正ラウンド 7、docs/59 GB-R-01）**: `CameraFxManager.IsExpired` は `Envelope.Duration`、`HapticsManager.IsExpired` は `Max(LowFreq.Duration, HighFreq.Duration)` を、`Mode` に関係なく演出の寿命として読む。固定値（`Mode=Constant`）は `ValueDefValidator` が Time を検査しない（[17] §6）ので、尺が 0 以下の揺れ / 振動（最初の `Tick` で消える）は `CameraShakeDataValidator` の `DD-SHAKE-ENVELOPE-ZERO-DURATION` と `HapticsDataValidator` の `DD-HAPTICS-ZERO-DURATION`（どちらも Warning）が知らせる。新規作成直後の既定値（Parametric 0.3 / 0.2 秒）では出ない。
