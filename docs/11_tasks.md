@@ -464,6 +464,15 @@ v1.4.0 のリリース手順（[12_review.md] §7）の `Tools/CI/run-ci.cmd` �
 - `CANVAS_Can_Vas` の `Navigation`（行 0・1）と `FirstSelected`: `Button1` / `Button2` を指すが、参照先の Prefab（`Panel.prefab`）には作成時から `BtnStart` / `BtnOption` / `BtnQuit` / `Slider1` しかなく、対応関係が決められない（5 件）。
 - カタログ `AnchorCatalog` の孤児 Address `ANC_Can_Vas`: Data が無く、`AddressablesSync.SyncAll` では消えない（カタログの `entries` から該当行を除く必要がある）。
 
+### 不具合: 固定値(Constant)の ValueDef が検査で Error になる（2026-10-06、`fix/valuedef-constant-time-validation`）
+
+上の「3. Retiming」で値を直した 28 欄の原因。`ValueDef.Constant01()`・`TimeDef` の既定値（`TimeMode=Duration` / `Value=0` / `SpeedScale=0`）のまま作られる `Mode=Constant` の ValueDef を、`ValueDefValidator` が `Mode` を見ずに検査し「Duration が 0 以下」「SpeedScale が 0 以下」の Error にしていた。ツールで新規作成した Anim2D・ControlSkin・CameraShake が全部 Error になる（v1.0.0 から。実行時は `Duration<=0` を t=1、`SpeedScale<=0` を 1 として安全に扱い、Constant の `Evaluate` は `Time` を使わないため実害は検査のみ）。
+
+- 修正: `ValueDefValidator` が **`Mode=Constant` のとき Time の欄（Duration の Value・SpeedScale・無限ループ + Duration=0）を検査しない**。「Time を使わないモード」は `ValueDef.Evaluate` の分岐で特定（Parametric / Curve だけが t を使う）。Parametric / Curve で Value・SpeedScale が 0 以下は従来どおり Error。シリアライズされる既定値・ファクトリ・`TimeDef` は変更なし（互換スナップショットの差分なし）。
+- docs/17 §6 の表と「SpeedScale 既定 1」の記述を実コードに合わせた。
+- テスト: `ValueDefValidatorTests` に Constant01 / Constant + Loop / Time を使うモードは従来どおり Error / 新規作成直後の Anim2D・CameraShake・ButtonSkin を追加。`ConstantTimeValidationTests`（EditMode）が全具象 Data 型の新規作成直後と v1.0.0 フィクスチャに Time 由来の Error が無いことを固定。既存の Duration / SpeedScale の Error を期待するテストは、Time を使う Parametric に直した。
+- 新規作成直後の Data が出す他の Error（参考。直さない）: 「未設定」系（ModelData / CanvasData / VfxData / PrefabData / AnimData の Prefab・Clip、BgmData の LoopBody、SeData の Clip、Anim2DData の Clip 未生成、TextureData の Texture）と、**BgmData の「LoopEndSec が LoopStartSec 以下です」**（既定の 0 / 0）。
+
 ## U チケット: 使い勝手の修正（2026-09-17 追加。詳細は [39](39_usability_fixes_2026-09-17.md)）
 
 デザイナーマニュアル用のスクリーンショット撮影（[36 §5](36_manual_screenshot_list.md)）と実機での通し確認で見つかった不具合・要望 26 件（U-1〜U-26）。3D プレビューが透明になる件・FBX のマテリアルスロット未割当・「確認用シーンに配置」の挙動・作成導線（Project / Hierarchy 右クリック）などが含まれる。**Phase 7 より先に片付ける**。一覧と状態は [39](39_usability_fixes_2026-09-17.md) §0。

@@ -62,7 +62,7 @@ public struct TimeDef             // ★「スピード」の統一表現
 {
     public TimeMode Mode;         // Duration / Speed / Rate
     public float Value;
-    public float SpeedScale;      // 既定 1。実行時倍率（Handle.SetSpeed 等と合成）
+    public float SpeedScale;      // 実行時倍率（Handle.SetSpeed 等と合成）。実コードの既定は 0 で、実行時は 0 以下を 1 として扱う（2026-10-06 修正注記参照）
     public bool  IgnoreTimeScale; // ポーズ・スロー演出中も等速で進めるか
 }
 
@@ -158,13 +158,15 @@ public enum TimeMode
 |---|---|
 | Mode=Curve でキーが 0 本 / null | Error |
 | Mode=Parametric で EaseDef 未設定 | Error |
-| TimeMode=Duration で Value ≤ 0 | Error |
-| Loop=Loop / PingPong かつ TimeMode=Duration で Value=0 | Error（無限ループでフリーズ） |
+| TimeMode=Duration で Value ≤ 0（Mode=Constant は対象外） | Error |
+| Loop=Loop / PingPong かつ TimeMode=Duration で Value=0（Mode=Constant は対象外） | Error（無限ループでフリーズ） |
 | From == To（変化しない設定） | Warning |
 | Mode=Constant なのに Loop 指定 | Info（無意味な設定） |
 | TimeMode=Rate なのに Loop=Once | Warning |
-| SpeedScale ≤ 0 | Error |
+| SpeedScale ≤ 0（Mode=Constant は対象外） | Error |
 | 実尺が BudgetProfile の上限超過（[13] A-4 と連動） | Warning |
+
+**2026-10-06 追記（固定値の Time 検査）**: `Mode=Constant` の `Evaluate` は `Time` を使わない（`Constant01()` も `Time` を設定せず、`TimeMode=Duration` / `Value=0` / `SpeedScale=0` のまま）。実行時は `Duration<=0` を t=1、`SpeedScale<=0` を 1 として安全に扱う。そのため `ValueDefValidator` は **Constant のとき Time の欄（Duration の Value・SpeedScale・無限ループ + Duration=0）を検査しない**。Parametric / Curve の検査は従来どおりで、Value / SpeedScale が 0 以下なら Error のまま。ツールで新規作成した Anim2D・ControlSkin・CameraShake などの固定値が Error になっていた不具合の修正で、シリアライズされる既定値（`TimeDef` の初期化子・ファクトリ）は変えていない。
 
 ## 7. ネットワーク・決定性（[14] との整合）
 
