@@ -20,7 +20,7 @@ namespace DDrive.Editor.Validation
     // - 実行する Validator は「その Data の AssetType に一致するもの」+「1 アセット単位で意味がある
     //   IUniversalValidator」(ValueDef / Addressables 登録 / NetMode)。プロジェクト全体を対象にする
     //   Validator(仕様書差分・カタログ網羅)は Run All / CI 側の担当なので個別検証には出さない
-    //   (DataValidationRunner.ProjectWideValidatorNames)
+    //   (DataValidationRunner.ProjectWideValidatorTypes)
     // - FixAction 付きの結果には「修正」ボタンを出す(AssetBrowser の Validation 一覧と同じ)
     // - Validator が例外を投げてもセクション全体を落とさない(CLAUDE.md §0-4: 警告 + 継続)
     // - 横幅 500px でも見切れない([09] §7.1): HelpBox は折り返し、ボタン行は flexWrap で 2 段になる
@@ -159,18 +159,22 @@ namespace DDrive.Editor.Validation
         // プロジェクト全体を 1 回まとめて見る Validator。1 アセットの「個別検証」に出しても意味が無く、
         // ファイル I/O(Specs/*.json)やカタログ全走査を編集のたびに行うことになるため除外する。
         // Run All(CI.RunValidation)には従来どおり出る。
-        private static readonly HashSet<string> ProjectWideValidatorNames = new(StringComparer.Ordinal)
+        //
+        // 2026-10-06(docs/59 GB-R-06): 型の単純名ではなく型そのもので判定する。持ち込み先が同じ名前の別の Validator
+        // (例: MyGame.SpecDiffValidator)を書いても、D-Drive の全体用の Validator と取り違えて個別検証から外したり、
+        // IUniversalValidator でないために Run All で黙って落としたりしない。ここに挙げる 5 つは DDrive.Editor 内の型。
+        private static readonly HashSet<Type> ProjectWideValidatorTypes = new()
         {
-            "SpecDiffValidator",
-            "ContentHashCatalogCoverageValidator",
-            "CatalogAddressCoverageValidator",
+            typeof(SpecDiffValidator),
+            typeof(ContentHashCatalogCoverageValidator),
+            typeof(CatalogAddressCoverageValidator),
             // [26_timeline.md] §4.6.5 検出1(6-10d) — 全ランタイムスクリプトの実行順走査 + Assets/ 全体の
             // テキスト走査を行うプロジェクト全体の検査。個別アセットの「検証」セクションに出しても
             // 無関係なアセットに紐付くだけなので Run All 専用にする(上のコメントと同じ理由)。
-            "CameraExecutionOrderValidator",
+            typeof(CameraExecutionOrderValidator),
             // [42_distribution.md] §4.2.1(2026-10-06 Q-3) — 導入済みパッケージの依存の宣言(プロジェクト全体の指摘)。
             // 1 アセットの個別検証に出すと、毎回すべてのアセットの結果として現れてしまう。Run All ではアセットに紐付けず報告する(CI.RunValidation)。
-            "PackageDependencyValidator",
+            typeof(PackageDependencyValidator),
         };
 
         private static List<IValidator> _validators;
@@ -183,7 +187,7 @@ namespace DDrive.Editor.Validation
         // 使う。全体結果は `ValidatorRegistry.RunAll` が「その時渡されたアセット」に紐付けてしまうため、
         // アセット単位の判定に混ぜると無関係なアセットの結果として現れる。
         public static bool IsProjectWide(IValidator validator)
-            => validator != null && ProjectWideValidatorNames.Contains(validator.GetType().Name);
+            => validator != null && ProjectWideValidatorTypes.Contains(validator.GetType());
 
         // 2026-10-06(docs/58 GA-R-07): `Run All`(CI.RunValidation)で「Data に紐付けず(project)として 1 回だけ」実行する Validator か。
         // `IsProjectWide`(個別検証から外す・SpecWeb の判定から外す一覧)に加えて、`ProjectSetupValidator`(セットアップの指摘。
@@ -258,7 +262,7 @@ namespace DDrive.Editor.Validation
             var list = new List<IValidator>();
             foreach (var validator in CI.DiscoverValidators())
             {
-                if (ProjectWideValidatorNames.Contains(validator.GetType().Name))
+                if (ProjectWideValidatorTypes.Contains(validator.GetType()))
                 {
                     continue;
                 }
