@@ -65,6 +65,28 @@ namespace DDrive.Runtime.Net
 
         public const string Tag = "[NetCheck] ";
 
+        // M-6(2026-10-06): NetCheck のテスト用 Timeline(CUT_NetCheck_Markers)に置いた「D-Drive の全トラック / マーカー / クリップ種別」。
+        // Player がこの全種別を Timeline から読み込めたことを cut_local の自己判定に含める(読めない種別があれば FAIL)。
+        // 型名は Type.Name(Player のログで Unity が名前を解決できなかった型は "null" になる)。
+        public static readonly string[] ExpectedTrackTypes =
+        {
+            "CutsceneEventTrack", "CutsceneSignalTrack", "CutsceneShakeTrack", "CutsceneHapticTrack",
+            "CutsceneSeTrack", "CutsceneVfxTrack", "CutsceneUiTrack", "CutsceneCameraTrack",
+            "CutscenePresentationTrack", "CutsceneAnchorGroupTrack", "MarkerTrack",
+        };
+
+        public static readonly string[] ExpectedMarkerTypes =
+        {
+            "CutsceneEventNotification", "CutsceneSignalNotification", "CutsceneShakeNotification",
+            "CutsceneHapticNotification", "NetCheckCutsceneMarker",
+        };
+
+        public static readonly string[] ExpectedClipTypes =
+        {
+            "CutsceneSeClip", "CutsceneVfxClip", "CutsceneUiClip", "CutsceneCameraClip",
+            "CutscenePresentationClip", "CutsceneAnchorGroupClip",
+        };
+
         public static NetCheckCutsceneMarkerSpec[] DefaultMarkers()
         {
             return new[]
@@ -293,6 +315,14 @@ namespace DDrive.Runtime.Net
                         if (kv.TryGetValue("signal", out var sg) && sg != "1")
                         {
                             signalLoaded = false;
+                            if (timelineOk) { timelineOk = false; timelineReason = "timeline_signal_not_loaded"; }
+                        }
+
+                        // M-6: 期待する全種別(ExpectedTrackTypes / ExpectedMarkerTypes / ExpectedClipTypes)のうち読めなかったもの。
+                        if (kv.TryGetValue("missing", out var ms) && ms != "none" && timelineOk)
+                        {
+                            timelineOk = false;
+                            timelineReason = "timeline_kinds_missing:" + ms;
                         }
 
                         break;
@@ -339,6 +369,7 @@ namespace DDrive.Runtime.Net
 
             var sumS = 0d;
             var failReason = timelineOk ? null : timelineReason;
+            var seenNetKeys = new HashSet<string>();
             foreach (var a in order)
             {
                 var v = new NetCheckCutscenePlayVerdict
@@ -362,6 +393,9 @@ namespace DDrive.Runtime.Net
 
                 var sb = new StringBuilder();
                 var reasons = new List<string>();
+                // GD-R-12: observe のプロセスに送信者はありえない(受信ログの無い再生は判定できない)。同じ netKey の受信は 1 回だけ。
+                if (v.IsSender && role != "trigger") { reasons.Add("unmatched_play"); }
+                if (!v.IsSender && v.NetKey != "n/a" && !seenNetKeys.Add(v.NetKey)) { reasons.Add($"duplicate_netkey {v.NetKey}"); }
                 for (var i = 0; i < markers.Length; i++)
                 {
                     ExpectedCount(markers[i].Time, v.IsSender, v.S, out var lo, out var hi);

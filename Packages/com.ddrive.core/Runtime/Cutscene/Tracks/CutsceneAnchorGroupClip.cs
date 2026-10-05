@@ -94,11 +94,4 @@ namespace DDrive.Runtime.Cutscene.Tracks
             return null;
         }
     }
-
-    [TrackClipType(typeof(CutsceneAnchorGroupClip))]
-    [TrackBindingType(typeof(Transform))]
-    [TrackColor(0.6f, 0.8f, 0.4f)]
-    public sealed class CutsceneAnchorGroupTrack : TrackAsset
-    {
-    }
 }
