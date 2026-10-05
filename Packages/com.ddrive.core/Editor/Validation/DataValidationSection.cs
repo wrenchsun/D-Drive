@@ -185,6 +185,12 @@ namespace DDrive.Editor.Validation
         public static bool IsProjectWide(IValidator validator)
             => validator != null && ProjectWideValidatorNames.Contains(validator.GetType().Name);
 
+        // 2026-10-06(docs/58 GA-R-07): `Run All`(CI.RunValidation)で「Data に紐付けず(project)として 1 回だけ」実行する Validator か。
+        // `IsProjectWide`(個別検証から外す・SpecWeb の判定から外す一覧)に加えて、`ProjectSetupValidator`(セットアップの指摘。
+        // 個別検証には従来どおり出る)を含む。表示の違い(アセットのパスが付くか "(project)" か)だけで、件数・重さ・コードは同じ。
+        public static bool IsProjectScopedInRunAll(IValidator validator)
+            => IsProjectWide(validator) || validator is ProjectSetupValidator;
+
         public static List<ValidationResult> Run(AssetDataBase data, bool includeSameTypeAssets = false)
         {
             var results = new List<ValidationResult>();

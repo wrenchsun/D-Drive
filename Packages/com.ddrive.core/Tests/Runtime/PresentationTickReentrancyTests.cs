@@ -157,6 +157,45 @@ namespace DDrive.Tests.Runtime
             CollectionAssert.IsEmpty(signals, "止められた後の残りのトラックは発火しない");
         }
 
+        // 修正ラウンド 6(2026-10-06、docs/58 GA-R-02): Signal(OnSignal トラック)の購読者が自分の Presentation を止めたら、
+        // 同じ Signal の残りの OnSignal トラックは発火しない。止められなければ従来どおり全部発火する。
+        [Test]
+        public void Signal_WhenMarkerSubscriberCancelsItself_RemainingOnSignalTracksDoNotFire()
+        {
+            var signals = new List<string>();
+            var ctx = new PlayContext { OnSignal = k => signals.Add(k) };
+            var self = _manager.PlayData(
+                Data(10f,
+                    new PresentationTrack { Trigger = TrackTrigger.OnSignal, Kind = TrackKind.Marker, SignalKey = "go" },
+                    new PresentationTrack { Trigger = TrackTrigger.OnSignal, Kind = TrackKind.Signal, SignalKey = "go" }),
+                ctx);
+            _manager.OnMarker(self).Subscribe(_ => _manager.Cancel(self));
+
+            Assert.DoesNotThrow(() => _manager.Signal(self, "go"));
+
+            Assert.IsFalse(_manager.IsPlaying(self), "購読者が止めた");
+            CollectionAssert.IsEmpty(signals, "止められた後の残りの OnSignal トラックは発火しない");
+        }
+
+        [Test]
+        public void Signal_WhenNotStopped_AllOnSignalTracksFire()
+        {
+            var signals = new List<string>();
+            var ctx = new PlayContext { OnSignal = k => signals.Add(k) };
+            var h = _manager.PlayData(
+                Data(10f,
+                    new PresentationTrack { Trigger = TrackTrigger.OnSignal, Kind = TrackKind.Marker, SignalKey = "go" },
+                    new PresentationTrack { Trigger = TrackTrigger.OnSignal, Kind = TrackKind.Signal, SignalKey = "go" }),
+                ctx);
+            var keys = new List<string>();
+            _manager.OnMarker(h).Subscribe(k => keys.Add(k));
+
+            _manager.Signal(h, "go");
+
+            CollectionAssert.AreEqual(new[] { "go" }, keys);
+            CollectionAssert.AreEqual(new[] { "go" }, signals);
+        }
+
         // 止められなければ、同じ時刻の後ろのトラックも従来どおり同じ Tick で発火する(保護が通常の発火を妨げない)。
         [Test]
         public void SameTimeTracks_WhenNotStopped_AllFireInOneTick()

@@ -84,7 +84,9 @@
 | 11 | `Runtime/Ui/UiButton.cs:192` | Time | UI の押下アニメ・長押し判定はポーズ中も反応させるため実時間 | 事実（`Advance(unscaledDt)` が `_heldSec`・LongPress / Repeat・見た目を進める） | **妥当** |
 | 12 | `Runtime/Ui/UiSlider.cs:365` | Time | 同上（UiButton と同文） | 実時間で進めるのは正しいが、UiSlider に「長押し判定」は無い（実際はパッド入力のリピート・スロットル・値の追従アニメ・ノッチ SE の間隔、`:344-362`） | **妥当**（理由の文言だけ不正確。直すなら「UI のリピート・追従アニメはポーズ中も実時間で進める」） |
 
-**直すべきバグが許可で隠れているもの: なし**。4 の CameraFx・7〜10 の擬似遅延は「スケール済みか実時間か」の選択がコメント・docs に記録された設計で、許可はそれを変えない。
+**直すべきバグが許可で隠れているもの: なし**。4 の CameraFx・7〜10 の擬似遅延は「スケール済みか実時間か」の選択がコメント・docs に記録された設計で、許可はそれを変えない。
+
+→ **対応（2026-10-06、修正ラウンド 6）**: 許可コメントの理由 2 件を実態に合わせた（コメントのみ。`UiSlider.cs` = 「UI のパッド入力のリピート・値の追従アニメ・ノッチ SE の間隔はポーズ中も反応させるため実時間で進める」、`Anim2DFacing.cs` = 「…D-Drive の HitStop には揃えず、D-Drive のポーズ中も補間は進む。入力が止まるので実害は無い」。理由の中に括弧を使うと閉じ括弧で切れるので使っていない）。
 
 ---
 
@@ -199,6 +201,8 @@
 - **直し方の案（コード変更なし。返答を送る前に）**: 案内 (a) に 1 文足す: 「`OnEnable` で `Register`、`OnDisable`（または `OnDestroy`）で `DDriveRuntimeBootstrap.Instance?.Loop.GameLoop.Unregister(this)` する。`Instance` が null（Bootstrap の無いシーン）のときは何もしない。Tick 中の例外は他の Manager に波及するので Tick の中で握る。ポーズ中も Tick は呼ばれ dt は 0 にならない（`OnPause` で自分で止める）」。返答文・運用ページ・消費側スキルの 3 か所に入れ、AGENTS / rules.html / docs/12 は「詳細は運用ページ」でよい。D-Drive 側で `GameLoop.Tick` に例外の隔離を足すのは挙動の変更なので M-5（案）と一緒に検討。
 - **確度**: 確認済み（コード読み）。`MissingReferenceException` の出方は Manager の中身次第
 
+→ **対応（2026-10-06、修正ラウンド 6、96c5b09）**: 案内 6 か所（`docs/11` M-4 の返答文・運用ページ・消費側スキル `common-warnings.md`・`AGENTS_CONSUMER.md`・`docs/12` §3・ProgrammerManual `rules.html`）と docs/02 §8・スキャナのメッセージ（参照先を §10 から §8 + 運用ページへ）に、「`OnEnable` で `Register`・`OnDisable` で必ず `Unregister`（`GameLoop` は自動で外さず `Tick` に例外の隔離も無い）」「`Instance` / `Loop` が null のとき（Bootstrap の無いシーン・起動前・終了時）は登録しない」「登録に `IsReady` は不要（`Loop` は Bootstrap の `Awake` = 実行順 -1000 で揃う。`IsReady` はカタログ登録の完了）」「`Tick` で例外を出さない」「ポーズ中も `Tick` は呼ばれ `dt` は 0 にならない」を追記。コード例（登録 / 解除の対）は運用ページ（`docs/50_consumer_guide/operation.html`）に 1 つだけ載せ、他は参照。`AGENTS_CONSUMER.md` の検出対象の列挙も 5 つに直した。`Documentation~/ProgrammerManual/` は生成物なので手で触らず、リリース時の同期に任せる（`docs/ProgrammerManual/rules.html` と `Tools/SpecWeb/html/manual/programmer/rules.html` は `build-manual.js` で再生成済み）。**契約テスト E-9b**（`ExternalContract.Tests.Runtime`、実 `DDriveRuntimeBootstrap` + 案内どおりの外部 `MonoBehaviour`）: Bootstrap が無いと登録しない / `Tick` で `dt` が届く / `HitStop` 静止中は `dt = 0`・スローは `unscaledDeltaTime × 0.5` / 破棄（`OnDisable`）後は `Tick` されない。docs/42 §5.14 E-9 の行を更新。
+
 ---
 
 ## P3 — 整理・改善
@@ -210,12 +214,16 @@
 - **直し方**: 2 つのループの `FireTrack` の後にも `if (!_instances.IsValidSilent(handle)) return;`、`PlayLocalInternal` は `SeekInitialTracks` の後で無効なら `_active.Add` / `FlushPendingUnknownKey` を飛ばす。v1.4.x の PATCH で可（FZ-R-07 と同じ扱い）。
 - **確度**: 確認済み（コード読み）
 
+→ **対応（2026-10-06、修正ラウンド 6、dd06368）**: `SignalLocal` と `ApplySignal` の `FireTrack` の後にも `IsValidSilent(handle)` の確認を追加（FZ-R-07 と同じ形）。ネットへの送信は呼び出し側で済んでおり回数・順序は変わらない。テスト 2 件（購読者が自分を止めたら残りの `OnSignal` は発火しない / 止められなければ全部発火）。**`PlayLocalInternal` 側（`SeekInitialTracks` の後に無効な Handle が `_active` に入る）は直していない**: 次の `Tick` で除かれて無害で、`FlushPendingUnknownKey` を飛ばすと保留中の Signal / Cancel が期限切れの警告を出す副作用があるため（まれなケースで、レビューも「まれ」としている）。CHANGELOG は既存の FZ-R-07 の項に追記。
+
 ### GA-R-03. E-23 の契約の柱である 2 つのコンストラクタがスナップショットに入っていない（docs/42 は「シグネチャを固定する」と書いている）
 
 - **場所**: `Editor/Compat/EditorContractSnapshotBuilder.cs:87-117`（`AppendType` は public なインスタンスのフィールド・プロパティ・メソッドだけを出し、コンストラクタを出さない）、`Tests/Editor/Compat/Snapshots/editor-contract.txt:100-106`、`docs/42_distribution.md:597`（「`EditorContractSnapshotTests` が … シグネチャを固定する」「2 つのコンストラクタ」）
 - **何が問題か**: `CameraExecutionOrderExemption` は readonly フィールドだけの struct なので、外部パッケージが値を作る手段は 2 つのコンストラクタだけ。そこを消す・引数の型を変えても `editor-contract.txt` は変わらず、互換テストが通ってしまう。他の型も同じ（`CutsceneImportResult` 等、コンストラクタで作る Editor 契約の型）。表示上は struct が `class` と出る（`AppendType` の種別判定）。
 - **直し方**: `AppendType` に public コンストラクタ（`ctor(Type, String)` 形式）を足す（全型のスナップショットに行が**増えるだけ**なので追加のみ）。タグ前に入れれば v1.4.0 の基準に入る。少なくとも docs/42 の「シグネチャを固定」を「フィールド / メソッドを固定（コンストラクタは対象外）」に直す。
 - **確度**: 確認済み（コード読み）
+
+→ **対応（2026-10-06、修正ラウンド 6、8eef472）**: `EditorContractSnapshotBuilder.AppendType` が public コンストラクタを `ctor(型 名, …)` の行として出すようにした（前者を採用）。`editor-contract.txt` は **+4 行、削除・変更 0**（`ctor()` 2 行 = 引数なしの型、`CameraExecutionOrderExemption` の 2 つ）。`9f40cbb..HEAD` の Compat スナップショットは `+127 → +131`、削除 0。既存の行の表記は変えていない（`ctor` は名前順で各型の先頭に入るだけ）。docs/42 §5.9 と E-23 に追記。
 
 ### GA-R-04. Q-1 の文面が承認された決定と違う（15-5 の手順では承認された文が出ない）
 
@@ -224,12 +232,16 @@
 - **見立て**: 実装の文の方が事実に合っている（何も増えない）ので、変えるべきは決定の方かもしれない。ユーザーに「この文面でよいか」を確認し、よければ報告の決定に追記する。
 - **確度**: 確認済み
 
+→ **対応（2026-10-06、修正ラウンド 6、5ea6e30）**: 動作はそのまま（確認済み: `UpdateWindow.ApplyAddPlan` は既に登録済みなら「<ID> は既に管理対象に登録されています(manifest は変わりません)。」、manifest にあって未登録なら `PackageAddPlanner` の「manifest に同じ URL の <ID> があります。管理対象に登録しました。」）。docs/43 15-5 は「15-4 の時点で既に登録済みなので前者が出る」と状態を明記し、承認された文は 15-27 (a)（未登録の状態を作ってから確認）で見る形に直した。15-27 の (a) / (b) の状態の作り方も明記。**ユーザーに「この文面でよいか」の確認が要る**（まとめ役の決定は上記の 2 通りで確定）。
+
 ### GA-R-05. `ddriveUpdate` 自体が文字列 / 配列のときの扱いを変えたのに、形式の固定テストは旧い `Parse` を見たまま。docs/42 §4.2.1 の最後の 1 行も旧い記述
 
 - **場所**: `Tests/Editor/Update/DdriveUpdateFormatCompatTests.cs:117-124`（`DdriveUpdateItself_NotAnObject_IsEmpty` は `Parse(...).IsEmpty` を確認。`Parse` は `Unreadable` を `Empty` に丸めるので今も通る）、`docs/42_distribution.md:360`（規則 3 は書き換え済み）・`:364`（「フィールド無しや壊れた JSON は空の宣言として扱う」= 旧記述）
 - **何が問題か**: 規則 3 の書き換え（`ddriveUpdate` が null 以外のオブジェクトでなければ「読めなかった」= Warning）は実際の経路（`InstalledPackages` / `UpdatePreflight` の `TryParse`）にだけ効き、「v1.4.0 で固定」のためのテストは名前どおり「空になる」を固定している。後で誰かが `TryParse` を「空」に戻しても固定テストは通る。互換の観点では、v1.4.0 が `ddriveUpdate` を読む最初の版（v1.3.1 には無い）で、型の変更は規則 6 で MAJOR 扱いなので、「読めない」にしたこと自体は将来の拡張の余地を潰さない（新しい形は新しいキーで足す規則のまま）。
 - **直し方**: 固定テストを `TryParse` で 4 入力（`[]` / `"x"` → false、`null` / `{ "requires": "x" }` → true + 空）に直し、名前を変える。docs/42 `:364` を「フィールド無しは空、壊れた JSON・`ddriveUpdate` が不正な形は『読めなかった』（Warning）」に直す。
 - **確度**: 確認済み
+
+→ **対応（2026-10-06、修正ラウンド 6、3b29577）**: **規則を 1 つに決めた**（まとめ役の決定）: `ddriveUpdate` の値はオブジェクト。無い・`null` は宣言なし、オブジェクトでない値は「この版では読めない宣言」として Warning `DD-PKGDEP-BAD-DECLARATION` + 事前確認は「確認できませんでした」（黙って無視しない = 警告の見逃しを防ぐ方を優先）。将来の拡張は `ddriveUpdate` オブジェクトの中のキー追加か別のトップレベルキー。「値が文字列でない項目は黙って無視」は `requires` / `compatibleWith` の中の項目の規則で、`ddriveUpdate` 自体には適用しない（矛盾しない）。docs/42 §4.2.1 の規則 3 と最後の行を直し、CHANGELOG の `ddriveUpdate` 拡張規則の項に追記。`DdriveUpdateFormatCompatTests` の `Pkg` ヘルパーを実際の経路（`TryParse`）に変え、4 入力（`[]` / `"x"` / 数値 / 真偽 → 読めない + Warning）・6 入力（無し / `null` / `{}` / `requires` が文字列・配列・値が数値 → 読めた + 空）・旧 `Parse` の互換・BOM を固定。
 
 ### GA-R-06. git の出力の細部（BOM・日本語ロケール・実 git のテストの環境依存）
 
@@ -238,6 +250,8 @@
 - **実 git のテスト**: `Run_ReadsUtf8Output_OfRealGit_InTemporaryRepository` は git の有無は `Assume` で見るが、`init` / `add` / `commit` の成否は `Assert`。グローバル設定の `core.hooksPath`（コミットフック）などで commit が失敗する開発機では赤になる（`commit.gpgsign` は `-c` で外してある）。直すなら commit に `-c core.hooksPath=` を足すか、失敗を `Assume` にする。一時フォルダの後始末は `finally` で行っていて問題なし。
 - **確度**: BOM と Json.NET は**推定**、他は確認済み
 
+→ **対応（2026-10-06、修正ラウンド 6、3b29577 / ef21994）**: **推定の確認**: BOM と Json.NET の挙動は Unity 上で再現していないが、`TryParse` の先頭で U+FEFF を取り除くようにし（テスト `TryParse_AcceptsLeadingByteOrderMark` で固定。取り除かなくても通る環境でも害はない）、`GitProcess` のコメントを実態に合わせた。実 git のテスト: `init` / `add` / `commit` を `-c core.hooksPath=<存在しないフォルダ> -c init.templateDir= -c commit.gpgsign=false -c tag.gpgsign=false -c user.name/email` と `--no-verify` で隔離し、準備に失敗したら `Assume`（Inconclusive）に。後始末は従来どおり `finally`。日本語ロケールの理由の 1 行は表示だけの問題で見送り。
+
 ### GA-R-07. Q-3 と同じ「最初の Data に紐付く」問題が、他のプロジェクト全体の Validator に残る（新しい Info `DD-CAMEXEC-EXEMPT` もその 1 つ）
 
 - **場所**: `CI.cs:172`（`IsProjectScoped` は `PackageDependencyValidator` だけ）、`DataValidationSection.cs:162-174`（`ProjectWideValidatorNames` = `ProjectSetupValidator` / `SpecDiffValidator` / `ContentHashCatalogCoverageValidator` / `CameraExecutionOrderValidator` / `PackageDependencyValidator` …）
@@ -245,11 +259,15 @@
 - **直し方**: `IsProjectScoped` を `DataValidationRunner.IsProjectWide` と同じ一覧にする（`RunValidation(includeProjectWideValidators: false)` の経路は先に除外されるので影響なし）。表示が `(project)` に変わるだけで件数・重さは同じ。タグ後の PATCH でも可。
 - **確度**: 確認済み（コード読み）
 
+→ **対応（2026-10-06、修正ラウンド 6、ef21994）**: 共通の判定 `DataValidationRunner.IsProjectScopedInRunAll`（= `IsProjectWide` の一覧 + `ProjectSetupValidator`）を 1 か所に作り、`CI.RunValidation` の「Data に紐付けず asset = null で 1 回」の経路をそれに揃えた（`IsProjectWide` 自体は個別検証・SpecWeb 用なので変えていない）。対象: `PackageDependencyValidator`・`ProjectSetupValidator`・`SpecDiffValidator`・`ContentHashCatalogCoverageValidator`・`CatalogAddressCoverageValidator`・`CameraExecutionOrderValidator`。**`SpecDiffValidator` だけは Data ごとの指摘（仕様書との差分）も出すので、null の呼び出しの後に同じ context で各 Data にも呼び、Data ごとの指摘は従来どおり Data に紐付ける**（報告漏れなし）。件数・重さ・コードは不変。SpecWeb（`includeProjectWideValidators: false`）は `IsProjectWide` のものは従来どおり除外、`ProjectSetupValidator`（Warning / Info のみで Error なし）は asset = null になるだけで isPlaceholder 判定（Error のみ・asset 付きのみを見る）に影響しない。個別検証（Validation ウィンドウ相当 = Inspector の「検証」節）は変えていない。テスト 3 件（対象の判定 / Run All でアセットに紐付かず二重報告もない / 除外時も asset 付きで出ない）。既存テストの期待値の変更は不要だった。CHANGELOG に「挙動の変更(PATCH 相当。Editor の出力)」として記載。
+
 ### GA-R-08. `ForbiddenApiWindow` の細部（ドメインリロードのたびの全走査・`ScrollView` の外の状態行・大量の当たり）
 
 - **場所**: `Editor/Validation/ForbiddenApiWindow.cs:28-47`
 - **細部**: (1) `CreateGUI` で同期的に `Rescan()` するので、ウィンドウを開いたまま（ドッキングしたまま）だとスクリプトを保存するたびにドメインリロード後の `CreateGUI` で `Assets` 配下の全 `.cs` を読み直す（持ち込み先の規模次第で毎回のコンパイル待ちが伸びる）。開いた直後だけ自動で走査し、ドメインリロード後は「再走査」を押すまで前回の結果（または空）にする方が軽い。(2) 状態の `Label` が `ScrollView` の外にある（docs/09 §7 は Toolbar 以外を `ScrollView` に積む規約。高さの小さいウィンドウで状態行が長いと切れる）。(3) 当たり 1 件ごとに `Button` + `Label` を作る（仮想化なし）。29 件なら問題ないが、数千件では重い。
 - **確度**: 確認済み（コード読み。体感の重さは未測定）
+
+→ **対応（2026-10-06、修正ラウンド 6、3f4f587）**: (1) メニューから開いたとき（`Open()`）だけ走査し、ドメインリロード後の `CreateGUI` では走査せず「スクリプトの再コンパイル後は自動では走査しません。「再走査」を押すと検査します。」と表示。既に開いているウィンドウをメニューで開き直したときは再走査する。(2)(3) は見送り: 状態の `Label` は docs/09 §7 の規約（Toolbar 以外を ScrollView）に厳密には反するが、短い 1 行の状態で、当たりが 29 件規模なら問題がないため（数千件規模になれば仮想化を検討）。
 
 ### GA-R-09. 2 つの設定画面の細部（OnGUI ごとの重い処理・Undo の保存・購読の重複）
 
@@ -257,11 +275,15 @@
 - **細部**: (1) 描画のたびに `CI.ResolveForbiddenApiScanRoot()`（開発リポジトリでは `PackageInfo.FindForAssembly`）と、要素ごとに `TypeExistsInLoadedAssemblies`（全アセンブリの `GetType`）を呼ぶ。マウスを動かすだけで再描画されるので、要素が多いと重くなる。変更時だけ計算してキャッシュするのが安い。(2) `OnUndoRedo` は**どの** Undo / Redo でも保存する（画面が開いている間）。逆に画面を閉じた後の Undo は保存されない。(3) `DrawGui` の「`_serialized` が無ければ `OnActivate()`」は `undoRedoPerformed` に重ねて購読しうる（解除は 1 回）。いずれも実害は小さい。
 - **確度**: 確認済み（コード読み）
 
+→ **対応（2026-10-06、修正ラウンド 6、69ace40）**: (1) 2 つの設定画面とも、要素ごとの問題の表示を開いたとき・変更時・Undo / Redo 時にだけ作り直す（描画のたびに走査ルートの解決・全アセンブリの `GetType` をしない）。(3) 購読は `-=` してから `+=`（二重購読しない）。**(2) は見送り**: 画面が開いている間の Undo / Redo で毎回保存するのは、他の設定の変更の Undo でも保存されるだけで害がなく、`SerializedObject` 側の変更検知で絞ると取りこぼす恐れがあるため。
+
 ### GA-R-10. Q-4 の照合の細部
 
 - **場所**: `CameraExecutionOrderExemptions.cs:82-103,221`
 - **細部**: (1) `+` → `.` の正規化で、入れ子 `A.B+C` と名前空間 `A.B.C` が同じ名前になり、片方の除外がもう片方にも効く（まれ）。(2) 同じ完全修飾名の型が別のアセンブリにあると、両方とも除外される（名前だけで照合）。(3) 提供口の例外は Console の `LogException` だけで、Validation の結果（Warning）には出ない（`Run All` の結果だけ見ている人は「宣言したのに効いていない」理由が分からない）。(4) `IsExempt` の短い名前での照合（`fullTypeName` が空のとき）はテスト専用の経路だが、実際の `ScriptOrderInfo` が `FullName` を持たない場合にも働き、名前空間違いの同名の型を除外しうる（実際の経路では `GetClass()` が null の型は一覧に入らないので起きない）。(5) Q-2 の補足: 宣言した側に問題が複数あっても行には最も重い 1 件しか出ない（件数なし）。どれも小さい。
 - **確度**: 確認済み（コード読み）
+
+→ **対応（2026-10-06、修正ラウンド 6、69ace40）**: (3) 提供口の例外を Console に加えて Warning `DD-CAMEXEC-EXEMPT-INVALID` にも出すようにした（既存コード・Warning。追加のみ）。テスト拡張。(1)(2)(4) は**見送り（まれ・安全側）**で、docs/42 §5.14 E-23 に「既知の限界」として記載（照合は完全修飾名だけ）。(4) は `GetClass()` が null の型は検査の一覧に入らないので実際の経路では起きない。(5) Q-2 の「最も重い 1 件だけ」は表示を短く保つための仕様で、詳細は Validation の結果に出るため見送り。
 
 ### GA-R-11. CHANGELOG `[Unreleased]` の細部
 
@@ -269,11 +291,15 @@
 - **細部**: (1) `### 追加` に `Tools > D-Drive > Validation > 禁止 API の検査`（FZ-R-03）と `ICameraExecutionOrderExemptionProvider` / Project Settings の「実行順の検査の除外」（Q-4）が無い（互換性節には書いてある）。(2) 修正ラウンド 5 の項の「(6) … 開発リポジトリの `CI.ValidateAll` が緑になる」は、確認したのは禁止 API の段だけ（実装者の記録どおり `run-ci.cmd` の他の段は未実行。開発リポジトリの GameData に Validation の Error が無いかは誰も見ていない）。「禁止 API の段が緑になる」に直すのが正確。(3) `(unknown)` → `(project)` は Validation の出力（JUnit の classname）の変更なので、区分「変更なし」より「挙動の変更(Editor の出力)」の方が持ち込み先の CI 担当に伝わる。(4) 「`ddriveUpdate` の拡張規則」の項（`:28`）は「文字列でない値は黙って無視」のままで、P-15 確認の項の「`ddriveUpdate` の形が読めない → Warning」と並べると読み手が迷う。前者に「`ddriveUpdate` 自体がオブジェクトでないときは読めなかった扱い（2026-10-06）」を 1 語足す。
 - **確度**: 確認済み
 
+→ **対応（2026-10-06、修正ラウンド 6）**: (1) `### 追加` に検査ウィンドウと `ICameraExecutionOrderExemptionProvider` / 設定を追記。(2) 「CI.ValidateAll が緑」→「禁止 API の走査の当たりが 0 件（確認したのは禁止 API の段だけ）」。(3) `(unknown)` → `(project)` を「挙動の変更(PATCH 相当。Editor の出力)」の独立した項に（GA-R-07 と合わせて）。(4) `ddriveUpdate` の拡張規則の項に「`ddriveUpdate` 自体はオブジェクト、そうでなければ読めない宣言」を追記。
+
 ### GA-R-12. コミットされている設定ファイルが今のスキーマより古い・案内の細かい食い違い
 
 - **設定ファイル**: `ProjectSettings/DDriveProjectSettings.asset` は `_managedPackages: []` まであり、`_forbiddenApiAllowEntries` / `_cameraExecutionOrderExemptions` が無い（最後の更新は `eddc805`）。読むときは初期化子で空の一覧になるので**挙動の問題は無い**。ただし Unity がこのファイルを保存する操作（設定画面・更新ウィンドウの登録・マイグレーションの適用・MCP での確認）のたびに 2 行が足され、実装者は毎回 `git checkout` で戻している。リリース手順の `check-release.ps1` / `bump-version.ps1` は作業ツリーがクリーンであることを求めるので、手順の途中で Unity が保存すると止まる（下の「リリース手順」）。持ち込み先では自分の設定ファイルに初回保存で 2 行足されるだけ（正常）。**タグ前に、Unity で設定画面を 1 度開いて保存し（テキスト編集はしない = CLAUDE.md §0-1）、2 行が足されたファイルをコミットする**のを推奨。
 - **案内**: `AGENTS_CONSUMER.md:12` の「検出するもの」が 3 つのまま（`Time` / `Addressables.Load*` が無い）。スキャナのメッセージの参照先 `[02_core_framework.md] §10` に `IAssetManager` の登録方法が無い（§8 か運用ページを指す方がよい）。`DD-FORBIDDEN-ALLOW-SUMMARY` のメッセージ（`ForbiddenApiScanner.cs:285`）は旧メニュー「Forbidden API 許可一覧」だけを案内している（新しいウィンドウの方が便利）。
 - **確度**: 確認済み
+
+→ **対応（2026-10-06、修正ラウンド 6、8eb9d6a）**: MCP の `execute_code` で `DDriveProjectSettings.instance.SaveForbiddenApiAllowEntries()` を呼び、**Unity が書き出した内容をそのままコミット**（`.asset` のテキスト編集なし）。差分は `_forbiddenApiAllowEntries: []` と `_cameraExecutionOrderExemptions: []` の 2 行の追加のみ。案内の食い違い（`AGENTS_CONSUMER.md` の列挙・スキャナのメッセージの参照先）は GA-R-01 で直した。`DD-FORBIDDEN-ALLOW-SUMMARY` のメッセージを新ウィンドウへ案内する件は未対応（旧メニューも有効で害がないため見送り）。許可コメントの理由（UiSlider = パッド入力のリピート・値の追従アニメ・ノッチ SE の間隔 / Anim2DFacing = D-Drive のポーズ中も補間は進む旨）は d9c91e2（コメントのみ）。
 
 ---
 

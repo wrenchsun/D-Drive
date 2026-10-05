@@ -76,7 +76,8 @@ namespace DDrive.Editor.Update
 
             try
             {
-                if (JToken.Parse(packageJsonText) is not JObject root)
+                // 先頭の BOM(U+FEFF)は取り除く(git show の非同期読み取りでは BOM が読み捨てられず残ることがある。GA-R-06)。
+                if (JToken.Parse(packageJsonText.TrimStart('\uFEFF')) is not JObject root)
                 {
                     return false;
                 }

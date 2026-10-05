@@ -30,7 +30,7 @@ namespace DDrive.Editor.Validation
             {
                 Name = "Time",
                 Pattern = @"\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b",
-                Message = "UnityEngine.Time の time / deltaTime / unscaledDeltaTime / timeAsDouble / unscaledTime を直接参照しない。ゲームプレイの時間は D-Drive の Tick(dt) が渡す dt を使う(IAssetManager を GameLoop に登録。[02_core_framework.md] §10)。実時間の計測は Time.realtimeSinceStartupAsDouble / Stopwatch(検査の対象外)か、理由を書いて許可する([42_distribution.md] §5.9)",
+                Message = "UnityEngine.Time の time / deltaTime / unscaledDeltaTime / timeAsDouble / unscaledTime を直接参照しない。ゲームプレイの時間は D-Drive の Tick(dt) が渡す dt を使う(IAssetManager を GameLoop に登録して Tick の dt を使う。[02_core_framework.md] §8 と持ち込み先ガイドの運用ページ「禁止 API の指摘への対処」)。実時間の計測は Time.realtimeSinceStartupAsDouble / Stopwatch(検査の対象外)か、理由を書いて許可する([42_distribution.md] §5.9)",
                 AllowedFileSuffixes = new[] { "LocalTimeSource.cs", "NetworkTimeSource.cs", "GameLoopDriver.cs", "ForbiddenApiScanner.cs" },
             },
             new Rule

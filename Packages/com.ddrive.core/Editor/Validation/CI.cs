@@ -162,6 +162,19 @@ namespace DDrive.Editor
                     {
                         reports.Add(new ValidationReport(null, result));
                     }
+
+                    // SpecDiffValidator だけは「全体の指摘」(上の null の呼び出しで 1 回)に加えて、Data ごとの指摘(仕様書との差分・
+                    // Placeholder の不一致)も出す。後者は従来どおり該当の Data に紐付ける(同じ context なので全体の指摘は繰り返さない)。
+                    if (validator is SpecDiffValidator)
+                    {
+                        foreach (var asset in assets)
+                        {
+                            foreach (var result in universal.Validate(asset, context))
+                            {
+                                reports.Add(new ValidationReport(asset, result));
+                            }
+                        }
+                    }
                 }
             }
 
@@ -169,7 +182,10 @@ namespace DDrive.Editor
         }
 
         // Data に紐付けず、プロジェクト全体として報告する Validator(asset = null で呼ぶ)。
-        private static bool IsProjectScoped(IValidator validator) => validator is PackageDependencyValidator;
+        // 2026-10-06(docs/58 GA-R-07): PackageDependencyValidator だけだった対象を、「プロジェクト全体の指摘」を出す Validator 全部
+        // (`DataValidationRunner.IsProjectWide` の一覧 + `ProjectSetupValidator`)に広げた。件数・重さ・コードは変えず、紐付け先だけが
+        // 「たまたま最初の Data」から「(project)」になる。判定は `DataValidationRunner.IsProjectScopedInRunAll` が唯一の定義。
+        private static bool IsProjectScoped(IValidator validator) => DataValidationRunner.IsProjectScopedInRunAll(validator);
 
         // 報告の場所の表示(コンソール・JUnit の classname)。Data が無い(プロジェクト全体の)報告は「(project)」。
         private static string DescribeReportLocation(ValidationReport report)

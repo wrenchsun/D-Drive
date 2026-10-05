@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="index.html">🏠 目次</a> › 運用方法</nav>
 
 <h1>運用方法</h1>
-<p class="lastupdate">最終更新日: 2026-10-05</p>
+<p class="lastupdate">最終更新日: 2026-10-06</p>
 
 <p>導入（<a href="install.html">導入手順</a>）が終わったあと、このプロジェクトで D-Drive を日常的に使い続けるための運用ノウハウです。所要時間の目安は 10 分。</p>
 
@@ -102,7 +102,47 @@
 <h3 id="forbidden-api-allow">禁止 API の指摘への対処</h3>
 <p>禁止 API の検出（<code>CI.ValidateAll</code> が <code>Assets</code> 配下のゲームコードを走査して Error にする）は、次の順で対処します。</p>
 <ol>
-<li><strong>D-Drive の API に直す。</strong> Prefab を置く <code>Instantiate</code> は <code>Prefabs.Spawn</code> またはプール（<code>PoolService</code>）、<code>Resources.Load</code> / <code>Addressables.Load*</code> は <code>IAssetLoader</code>、<code>AudioSource.Play</code> は <code>Audio</code> 経由にします。<strong>ゲームプレイの時間</strong>（ポーズ・ヒットストップに従わせたいもの）の <code>Time.deltaTime</code> 等は、(a) <code>IAssetManager</code> を実装して <code>DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(...)</code> で登録し、<code>Tick(float dt)</code> の <code>dt</code>（ヒットストップ込み。ポーズは <code>OnPause</code> で受ける）を使います。(b) Tick に乗せにくいときは、ゲーム側の時間源を 1 か所（例: <code>GameTime</code>）に作り、その中だけで <code>Time.unscaledDeltaTime * DDriveRuntimeBootstrap.Instance.Loop.TimeService.TimeScale</code> を読んで許可コメントを 1 行書きます（ポーズに従わせるなら <code>Loop.PauseService.IsPaused(PauseChannel.Gameplay)</code> のとき 0 にします）。<code>ITimeSource</code> は Foundation 内部向けで、ゲームのコードが使ってもヒットストップ・ポーズに従わない（<code>Time.deltaTime</code> を返すだけ）ので、直し方にはなりません。<strong>実時間の計測</strong>（タイムアウト等）は、検査の対象外の <code>Time.realtimeSinceStartupAsDouble</code> / <code>Stopwatch</code> に替えれば許可コメントが要りません。<code>Time</code> 規則が当たるのは <code>Time.time</code> / <code>deltaTime</code> / <code>unscaledDeltaTime</code> / <code>timeAsDouble</code> / <code>unscaledTime</code> だけです。</li>
+<li><strong>D-Drive の API に直す。</strong> Prefab を置く <code>Instantiate</code> は <code>Prefabs.Spawn</code> またはプール（<code>PoolService</code>）、<code>Resources.Load</code> / <code>Addressables.Load*</code> は <code>IAssetLoader</code>、<code>AudioSource.Play</code> は <code>Audio</code> 経由にします。<strong>ゲームプレイの時間</strong>（ポーズ・ヒットストップに従わせたいもの）の <code>Time.deltaTime</code> 等は、(a) <code>IAssetManager</code> を実装して <code>DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(...)</code> で登録し、<code>Tick(float dt)</code> の <code>dt</code>（ヒットストップ込み。ポーズは <code>OnPause</code> で受ける。ポーズ中も <code>Tick</code> は呼ばれ <code>dt</code> は 0 になりません）を使います。<strong>登録は <code>OnEnable</code>、解除は <code>OnDisable</code> で必ず対にしてください</strong>（<code>GameLoop</code> は破棄されたオブジェクトを自動では外しません。外し忘れると破棄後も毎フレーム <code>Tick</code> が呼ばれ、<code>Tick</code> に例外の隔離は無いので、例外が出るとその後ろに登録された Manager のそのフレームの <code>Tick</code> も止まります）。<code>DDriveRuntimeBootstrap.Instance</code> / <code>Loop</code> が null（Bootstrap の無いシーン・起動前・終了時）のときは登録せず何もしません。登録に <code>IsReady</code> は要りません（<code>Loop</code> は Bootstrap の <code>Awake</code> で揃います。<code>IsReady</code> はカタログ登録の完了です）。<code>Tick</code> の中で例外を出さないでください（コード例は下）。(b) Tick に乗せにくいときは、ゲーム側の時間源を 1 か所（例: <code>GameTime</code>）に作り、その中だけで <code>Time.unscaledDeltaTime * DDriveRuntimeBootstrap.Instance.Loop.TimeService.TimeScale</code> を読んで許可コメントを 1 行書きます（ポーズに従わせるなら <code>Loop.PauseService.IsPaused(PauseChannel.Gameplay)</code> のとき 0 にします）。<code>ITimeSource</code> は Foundation 内部向けで、ゲームのコードが使ってもヒットストップ・ポーズに従わない（<code>Time.deltaTime</code> を返すだけ）ので、直し方にはなりません。<strong>実時間の計測</strong>（タイムアウト等）は、検査の対象外の <code>Time.realtimeSinceStartupAsDouble</code> / <code>Stopwatch</code> に替えれば許可コメントが要りません。<code>Time</code> 規則が当たるのは <code>Time.time</code> / <code>deltaTime</code> / <code>unscaledDeltaTime</code> / <code>timeAsDouble</code> / <code>unscaledTime</code> だけです。
+<p>(a) の登録 / 解除の例（<code>OnEnable</code> で登録、<code>OnDisable</code> で必ず解除。登録した <code>GameLoop</code> を覚えておけば、終了時に <code>Instance</code> が null でも解除できます）:</p>
+<pre>using DDrive.Foundation.Identity;
+using DDrive.Foundation.Manager;
+using DDrive.Foundation.Pause;
+using DDrive.Runtime.Loop;
+using UnityEngine;
+
+public sealed class GameCooldownManager : MonoBehaviour, IAssetManager
+{
+    private GameLoop _loop;
+
+    public AssetType Type =&gt; AssetType.None;
+
+    private void OnEnable()
+    {
+        var boot = DDriveRuntimeBootstrap.Instance;
+        if (boot == null || boot.Loop == null)
+        {
+            return; // Bootstrap の無いシーン・起動前は何もしない
+        }
+
+        _loop = boot.Loop.GameLoop;
+        _loop.Register(this);
+    }
+
+    private void OnDisable()
+    {
+        if (_loop != null)
+        {
+            _loop.Unregister(this); // 外し忘れると破棄後も毎フレーム Tick される
+            _loop = null;
+        }
+    }
+
+    public void Tick(float dt) { /* ヒットストップ込みの dt。例外を出さない */ }
+    public void OnPause(PauseChannel channel, bool paused) { /* ポーズ中も Tick は来る。自分で止める */ }
+    public void StopAll(StopReason reason) { }
+    public void OnSceneUnload() { }
+}</pre>
+</li>
 <li><strong>正当な理由があるときは、その行に許可コメントを書く。</strong> 同じ行の行末、または直前の行（コメントだけの行）に <code>// ddrive-allow: 規則名(理由)</code> を書くと、<strong>その 1 行の、規則名が一致する当たりだけ</strong>が許可されます（ファイル全体・ブロック全体は許可されません）。<strong>理由（括弧内）は必須</strong>で、空・括弧なしの許可は無効のままです（半角 <code>( )</code> と全角 <code>（ ）</code> のどちらでも書けます）。規則名は <code>Time</code> / <code>Instantiate</code> / <code>ResourcesLoad</code> / <code>AddressablesLoad</code> / <code>AudioSourcePlay</code>（大文字小文字は区別しません）。1 行に 2 規則あるときは <code>// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)</code> と接頭辞ごと繰り返します。
 <pre>// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)
 var go = Object.Instantiate(networkPrefab);

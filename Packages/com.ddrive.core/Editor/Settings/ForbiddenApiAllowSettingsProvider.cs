@@ -18,6 +18,10 @@ namespace DDrive.Editor.Settings
 
         private static SerializedObject _serialized;
 
+        // 要素ごとの問題の表示。描画のたびに走査ルートの解決・要素の検査をしない(マウスを動かすだけで再描画されるため)。
+        // 開いたとき・一覧を変更したとき・Undo / Redo のときだけ作り直す(docs/58 GA-R-09)。
+        private static readonly System.Collections.Generic.List<string> _problemTexts = new();
+
         [SettingsProvider]
         public static SettingsProvider Create()
         {
@@ -36,7 +40,23 @@ namespace DDrive.Editor.Settings
             var settings = DDriveProjectSettings.instance;
             settings.hideFlags &= ~HideFlags.NotEditable;
             _serialized = new SerializedObject(settings);
+            Undo.undoRedoPerformed -= OnUndoRedo; // 二重購読しない(OnDeactivate の解除は 1 回)
             Undo.undoRedoPerformed += OnUndoRedo;
+            RefreshProblems();
+        }
+
+        private static void RefreshProblems()
+        {
+            _problemTexts.Clear();
+            var scanRoot = CI.ResolveForbiddenApiScanRoot();
+            foreach (var entry in DDriveProjectSettings.instance.ForbiddenApiAllowEntries)
+            {
+                var problem = ForbiddenApiScanner.DescribeEntryProblem(entry, scanRoot);
+                if (problem != null)
+                {
+                    _problemTexts.Add($"'{entry?.Path}': {problem}");
+                }
+            }
         }
 
         private static void OnDeactivate()
@@ -49,6 +69,7 @@ namespace DDrive.Editor.Settings
         {
             // Undo / Redo で一覧が変わったらファイルにも反映する。
             DDriveProjectSettings.instance.SaveForbiddenApiAllowEntries();
+            RefreshProblems();
         }
 
         private static void DrawGui()
@@ -77,16 +98,12 @@ namespace DDrive.Editor.Settings
                 Undo.RecordObject(settings, "Edit Forbidden API Allow Entries");
                 so.ApplyModifiedProperties();
                 settings.SaveForbiddenApiAllowEntries();
+                RefreshProblems();
             }
 
-            var scanRoot = CI.ResolveForbiddenApiScanRoot();
-            foreach (var entry in settings.ForbiddenApiAllowEntries)
+            foreach (var text in _problemTexts)
             {
-                var problem = ForbiddenApiScanner.DescribeEntryProblem(entry, scanRoot);
-                if (problem != null)
-                {
-                    EditorGUILayout.HelpBox($"'{entry?.Path}': {problem}", MessageType.Warning);
-                }
+                EditorGUILayout.HelpBox(text, MessageType.Warning);
             }
         }
     }

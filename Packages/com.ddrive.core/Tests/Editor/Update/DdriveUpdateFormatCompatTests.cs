@@ -8,8 +8,19 @@ namespace DDrive.Tests.Editor.Update
     // 旧版の D-Drive が将来の拡張された宣言(新しいキー・オブジェクト値・範囲指定)を読んでも壊れない(例外・誤検出が無い)こと。
     public class DdriveUpdateFormatCompatTests
     {
+        // 実際の経路(InstalledPackages / UpdatePreflight)と同じ TryParse で宣言を作る。読めなかった(IsUnreadable)ものは
+        // そのまま PackageState に入り、Check が DD-PKGDEP-BAD-DECLARATION(Warning)にする。
         private static PackageState Pkg(string id, string version, string packageJson = null)
-            => new(id, id, version, null, DdriveUpdateDeclaration.Parse(packageJson));
+        {
+            // package.json を持たない(宣言なし)パッケージは Empty。テキストがあるものは実際の経路と同じ TryParse。
+            var declaration = DdriveUpdateDeclaration.Empty;
+            if (packageJson != null)
+            {
+                DdriveUpdateDeclaration.TryParse(packageJson, out declaration);
+            }
+
+            return new PackageState(id, id, version, null, declaration);
+        }
 
         // 将来の宣言の例: 未知のキー(below / platforms)・値がオブジェクト・配列・数値・真偽・null の項目。
         private const string FutureJson = @"{
@@ -33,7 +44,8 @@ namespace DDrive.Tests.Editor.Update
         [Test]
         public void FutureDeclaration_IsReadWithoutThrowing_UnknownKeysAndNonStringValuesAreIgnored()
         {
-            var d = DdriveUpdateDeclaration.Parse(FutureJson);
+            Assert.IsTrue(DdriveUpdateDeclaration.TryParse(FutureJson, out var d), "将来の宣言も「読めた」扱い");
+            Assert.IsFalse(d.IsUnreadable);
 
             Assert.AreEqual(1, d.Requires.Count, "文字列の値だけ読む");
             Assert.AreEqual("1.4.0", d.Requires["com.a"]);
@@ -114,13 +126,57 @@ namespace DDrive.Tests.Editor.Update
             Assert.AreEqual(PackageDependencyIssue.CodeRequiresOld, old[0].Code);
         }
 
-        [Test]
-        public void DdriveUpdateItself_NotAnObject_IsEmpty()
+        // 規則 3(2026-10-06 確定): `ddriveUpdate` の値はオブジェクト。null / 無しは「宣言なし」(読めた)。
+        // オブジェクトでない値は「この版では読めない宣言」= 読めなかった扱い(黙って無視しない)。実際の経路 TryParse で固定する。
+        [TestCase("{ \"ddriveUpdate\": [] }")]
+        [TestCase("{ \"ddriveUpdate\": \"x\" }")]
+        [TestCase("{ \"ddriveUpdate\": 7 }")]
+        [TestCase("{ \"ddriveUpdate\": true }")]
+        public void DdriveUpdateItself_NotAnObject_IsUnreadable_AndBecomesBadDeclarationWarning(string json)
         {
-            foreach (var json in new[] { "{ \"ddriveUpdate\": [] }", "{ \"ddriveUpdate\": \"x\" }", "{ \"ddriveUpdate\": null }", "{ \"ddriveUpdate\": { \"requires\": \"x\" } }" })
+            Assert.IsFalse(DdriveUpdateDeclaration.TryParse(json, out var d), json);
+            Assert.IsTrue(d.IsUnreadable, json);
+
+            var issues = PackageDependencyChecker.Check(new[] { Pkg("com.t", "1.0.0", json) });
+
+            Assert.AreEqual(1, issues.Count, json);
+            Assert.AreEqual(PackageDependencyIssue.CodeBadDeclaration, issues[0].Code);
+            Assert.AreEqual(DependencyIssueSeverity.Warning, issues[0].Severity);
+        }
+
+        [TestCase("{ }")]
+        [TestCase("{ \"ddriveUpdate\": null }")]
+        [TestCase("{ \"ddriveUpdate\": {} }")]
+        [TestCase("{ \"ddriveUpdate\": { \"requires\": \"x\" } }")]
+        [TestCase("{ \"ddriveUpdate\": { \"requires\": [1], \"compatibleWith\": 7 } }")]
+        [TestCase("{ \"ddriveUpdate\": { \"requires\": { \"com.a\": 1 }, \"unknownKey\": { \"a\": 1 } } }")]
+        public void DdriveUpdate_AbsentOrObjectWithIgnorableContent_IsReadableAndEmpty(string json)
+        {
+            Assert.IsTrue(DdriveUpdateDeclaration.TryParse(json, out var d), json);
+            Assert.IsFalse(d.IsUnreadable, json);
+            Assert.IsTrue(d.IsEmpty, json);
+            Assert.IsEmpty(PackageDependencyChecker.Check(new[] { Pkg("com.t", "1.0.0", json) }), json);
+        }
+
+        // 互換用の Parse は従来どおり「読めなかった」も空の宣言として返す(例外を投げない)。
+        [Test]
+        public void Parse_LegacyApi_StillReturnsEmptyForUnreadable()
+        {
+            foreach (var json in new[] { "{ \"ddriveUpdate\": [] }", "{ \"ddriveUpdate\": \"x\" }", "not json" })
             {
                 Assert.IsTrue(DdriveUpdateDeclaration.Parse(json).IsEmpty, json);
+                Assert.IsFalse(DdriveUpdateDeclaration.Parse(json).IsUnreadable, json);
             }
+        }
+
+        // BOM 付き UTF-8 の package.json(git show の出力に U+FEFF が残る場合を含む)も読める(GA-R-06)。
+        [Test]
+        public void TryParse_AcceptsLeadingByteOrderMark()
+        {
+            var json = "\uFEFF{ \"ddriveUpdate\": { \"requires\": { \"com.a\": \"1.4.0\" } } }";
+
+            Assert.IsTrue(DdriveUpdateDeclaration.TryParse(json, out var d));
+            Assert.AreEqual("1.4.0", d.Requires["com.a"]);
         }
     }
 }

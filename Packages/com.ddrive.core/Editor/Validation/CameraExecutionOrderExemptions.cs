@@ -173,6 +173,8 @@ namespace DDrive.Editor.Validation
                     catch (Exception ex)
                     {
                         Debug.LogException(ex);
+                        // Run All の結果だけを見ている人にも「宣言したのに効いていない」理由が分かるよう、Warning にも出す(docs/58 GA-R-10)。
+                        resolution.Problems.Add($"実行順の検査の除外の提供口 {source} が例外を出したため、その宣言は無視されます: {ex.GetType().Name}: {ex.Message}");
                     }
                 }
             }

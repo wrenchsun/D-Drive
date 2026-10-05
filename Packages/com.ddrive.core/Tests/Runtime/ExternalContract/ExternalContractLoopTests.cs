@@ -171,5 +171,58 @@ namespace ExternalContract.Tests
             Object.DestroyImmediate(driverGo);
             Assert.AreEqual(1, external.SceneUnloadCount, "GameLoopDriver の破棄で OnSceneUnload が届く");
         }
+
+        // E-9b(GA-R-01): 持ち込み先ガイドの案内どおり(OnEnable で Register・OnDisable で Unregister・Instance が null なら何もしない)に
+        // 書いた外部 Manager に、Tick で dt が届き、HitStop(TimeService.TimeScale)が dt に反映され、破棄後は Tick されない。
+        [UnityTest]
+        public IEnumerator E9b_ConsumerGuidePattern_RegisterOnEnable_ReceivesScaledDt_AndUnregisterOnDisable()
+        {
+            // Bootstrap が無いときは何もしない(例外なし・登録なし)。
+            var orphanGo = new GameObject("ExternalGameTimeOrphan");
+            var orphan = orphanGo.AddComponent<ExternalGameTimeBehaviour>();
+            Assert.IsFalse(orphan.Registered, "Instance が null のときは登録しない");
+            Object.DestroyImmediate(orphanGo);
+
+            var bootGo = new GameObject("ExternalGameTimeBootstrap");
+            bootGo.SetActive(false);
+            var bootstrap = bootGo.AddComponent<DDriveRuntimeBootstrap>();
+            bootstrap.CatalogLabel = string.Empty;
+            bootstrap.KeepAcrossScenes = false;
+            bootGo.SetActive(true);
+            Assert.AreSame(bootstrap, DDriveRuntimeBootstrap.Instance);
+
+            var gameGo = new GameObject("ExternalGameTimeBehaviour");
+            var game = gameGo.AddComponent<ExternalGameTimeBehaviour>();
+            Assert.IsTrue(game.Registered, "Bootstrap があれば OnEnable で登録される(IsReady は不要)");
+
+            yield return null;
+            yield return null;
+            Assert.GreaterOrEqual(game.TickCount, 1, "Tick が届く");
+            Assert.Greater(game.LastDt, 0f, "通常時の dt は 0 より大きい");
+
+            // HitStop(静止): dt が 0 になる。
+            bootstrap.Loop.TimeService.HitStop(30f, 0f);
+            yield return null;
+            var ticksDuringStop = game.TickCount;
+            yield return null;
+            Assert.Greater(game.TickCount, ticksDuringStop, "HitStop 中も Tick は呼ばれる");
+            Assert.AreEqual(0f, game.LastDt, "HitStop(静止)中の dt は 0");
+
+            // HitStop(スロー): dt が unscaledDeltaTime * TimeScale になる。
+            bootstrap.Loop.TimeService.HitStop(30f, 0.5f);
+            yield return null;
+            Assert.AreEqual(Time.unscaledDeltaTime * 0.5f, game.LastDt, 1e-4f, "スロー中の dt は unscaledDeltaTime × TimeScale");
+
+            // 破棄(OnDisable)で解除され、以降は Tick されない。GameLoop 側の他の Tick は動き続ける。
+            var loop = bootstrap.Loop;
+            var ticksBefore = game.TickCount;
+            Object.DestroyImmediate(gameGo);
+            yield return null;
+            yield return null;
+            Assert.AreEqual(ticksBefore, game.TickCount, "OnDisable の Unregister 後は Tick が来ない");
+            Assert.IsNotNull(loop, "GameLoop は動き続ける(例外で止まらない)");
+
+            Object.DestroyImmediate(bootGo);
+        }
     }
 }
