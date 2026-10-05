@@ -127,6 +127,9 @@ namespace DDrive.Editor.CanvasTool
             _states.Clear();
         }
 
+        // 1 要素だけ記録を捨てる(戻さない。Idle を流す機能が、選択した要素だけ止めて取り直すのに使う)。
+        public bool Remove(RectTransform target) => target != null && _states.Remove(target);
+
         // 戻さずに捨てる(実体ごと破棄するとき)。
         public void Clear() => _states.Clear();
 
