@@ -24,18 +24,25 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-IntAttribute {
+    param($Node, [string]$Name)
+    $v = $Node.GetAttribute($Name)
+    if ([string]::IsNullOrEmpty($v)) { return 0 }
+    return [int]$v
+}
+
 function Read-NUnitSummary {
     param([string]$Path, [string]$Label)
 
     if (-not (Test-Path $Path)) {
-        return [pscustomobject]@{ Label = $Label; Found = $false; Total = 0; Passed = 0; Failed = 0; FailedNames = @() }
+        return [pscustomobject]@{ Label = $Label; Found = $false; Total = 0; Passed = 0; Failed = 0; Inconclusive = 0; Skipped = 0; FailedNames = @() }
     }
 
     [xml]$xml = Get-Content -Raw -Path $Path
     $root = $xml.SelectSingleNode("//test-run")
     if ($null -eq $root) {
         # -runTests が異常終了して不完全な XML しか残らなかったケース。件数不明として扱う。
-        return [pscustomobject]@{ Label = $Label; Found = $true; Total = -1; Passed = -1; Failed = -1; FailedNames = @() }
+        return [pscustomobject]@{ Label = $Label; Found = $true; Total = -1; Passed = -1; Failed = -1; Inconclusive = -1; Skipped = -1; FailedNames = @() }
     }
 
     $failedNames = @()
@@ -49,6 +56,9 @@ function Read-NUnitSummary {
         Total       = [int]$root.GetAttribute("total")
         Passed      = [int]$root.GetAttribute("passed")
         Failed      = [int]$root.GetAttribute("failed")
+        # 2026-10-06(docs/61 GC-R-04): inconclusive / skipped は属性が無い版でも落ちないよう 0 扱い。
+        Inconclusive = Get-IntAttribute -Node $root -Name "inconclusive"
+        Skipped     = Get-IntAttribute -Node $root -Name "skipped"
         FailedNames = $failedNames
     }
 }
@@ -124,7 +134,7 @@ if ($validation.Found) {
 
 foreach ($r in @($editMode, $playMode, $performance)) {
     if ($r.Found) {
-        $lines.Add("| $($r.Label) テスト | 全 $($r.Total) 件 / Passed $($r.Passed) / Failed $($r.Failed) |")
+        $lines.Add("| $($r.Label) テスト | 全 $($r.Total) 件 / Passed $($r.Passed) / Failed $($r.Failed) / Inconclusive $($r.Inconclusive) / Skipped $($r.Skipped) |")
     } else {
         $lines.Add("| $($r.Label) テスト | 結果ファイルなし(ステップ未実行/失敗) |")
     }
@@ -133,7 +143,7 @@ foreach ($r in @($editMode, $playMode, $performance)) {
 if ($netCheck.Found) {
     $lines.Add("| NetCheck (6-7、2 クライアント自動テスト) | 全 $($netCheck.Total) シナリオ / Passed $($netCheck.Passed) / Failed $($netCheck.Failed) |")
 } else {
-    $lines.Add("| NetCheck (6-7) | 結果ファイルなし(任意ステップ未実行) |")
+    $lines.Add("| NetCheck (6-7) | skipped(結果ファイルなし。NetCheck は任意ステップで、今回は実行していない) |")
 }
 
 $lines.Add("")
