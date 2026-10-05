@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 2
+  Version: 3
   Author: yamag
-  UpdatedAt: 2026-09-15T15:50:31
+  UpdatedAt: 2026-10-06T02:03:31
   ChangeNote: 
   Flags:
     Pause: 0
@@ -175,59 +175,6 @@ MonoBehaviour:
     Appear:
       value: 11105237152147224749
       type: 13
-    Idle:
-      value: 0
-      type: 0
-    Disappear:
-      value: 0
-      type: 0
-    AppearDelay: 0
-    AppearSe:
-      value: 0
-      type: 0
-    DisappearSe:
-      value: 0
-      type: 0
-  - ElementPath: 
-    AppearPreset:
-      Preset: 0
-      Duration: 0
-      Distance: 0
-      EaseOverride:
-        Kind: 0
-        Ease: 0
-        BezierP1: {x: 0, y: 0}
-        BezierP2: {x: 0, y: 0}
-      Se:
-        value: 0
-        type: 0
-    IdlePreset:
-      Preset: 0
-      Duration: 0
-      Distance: 0
-      EaseOverride:
-        Kind: 0
-        Ease: 0
-        BezierP1: {x: 0, y: 0}
-        BezierP2: {x: 0, y: 0}
-      Se:
-        value: 0
-        type: 0
-    DisappearPreset:
-      Preset: 0
-      Duration: 0
-      Distance: 0
-      EaseOverride:
-        Kind: 0
-        Ease: 0
-        BezierP1: {x: 0, y: 0}
-        BezierP2: {x: 0, y: 0}
-      Se:
-        value: 0
-        type: 0
-    Appear:
-      value: 0
-      type: 0
     Idle:
       value: 0
       type: 0

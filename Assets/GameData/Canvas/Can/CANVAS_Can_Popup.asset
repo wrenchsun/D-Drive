@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 0
-  Author: 
-  UpdatedAt: 
+  Version: 1
+  Author: yamag
+  UpdatedAt: 2026-10-06T02:03:31
   ChangeNote: 
   Flags:
     Pause: 0
@@ -68,12 +68,7 @@ MonoBehaviour:
   CloseOnBack: 1
   ModalBlocksInput: 1
   PauseGameWhileOpen: 0
-  Navigation:
-  - Element: BtnOption
-    Up: 
-    Down: 
-    Left: 
-    Right: 
+  Navigation: []
   FirstSelected: 
   NavigationNodeLayout:
   - Element: BtnQuit
