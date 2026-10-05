@@ -365,6 +365,20 @@ public static class Ui
 
 # Part B — 汎用 Prefab
 
+### 追記（2026-10-06、Canvas Editor の「ボタンの配線」欄）
+
+`CanvasData.Buttons`（ButtonWire）を Canvas Editor の画面で編集できるようにした（Editor のみ。データ形式・実行時の動作は変えない）。それまでは Inspector の `Buttons` 配列に、パス・トリガー・アクション・対象の ID を手で書いていた。
+
+- **一覧**: Prefab 内の `UiButton` を全部並べる（配線の無いボタンも出る。ここから「+ 配線を追加」で足す）。Prefab に無いパスを指す配線は、注意を付けた行として残す（勝手に消さない）。
+- **1 本の配線**: トリガー → アクション、アクションに応じた欄（`OpenCanvas` = 開く Canvas を `CanvasData` で選ぶ / `SendSignal` = キー）、クリック SE（`SeData` で選ぶ）、削除。アクションに関係のない欄は出さない。`AssetRef` / `AssetId` の ID はアセットを選ぶ形で入れる（数値を書かせない）。
+- **追加の既定**: トリガーはそのボタンでまだ使っていないもの（Click → DoubleClick → LongPress → Repeat の順）、アクションは None。
+- **その場の注意**: 対象の未設定・キーの未設定・同じボタン + 同じトリガーの重複・`SetOption`（スライダー専用）を行の下に出す（Validation の欄にも従来どおり出る）。`PlayPresentation` は実行時に未対応なので、その旨を行に出す。
+- **埋め込み**: ElementFx の一覧と同じグループ分け。親自身のボタン / 「↳ 親での上書き」（埋め込みの配下のボタンを指す親の配線。編集できる）/ 「埋め込み: 子」（子の配線の読み取り表示と「この Canvas を編集」）。子の配線は子の CanvasData で編集する。親での上書きは要素 + トリガー単位なので、子の同じトリガーの行にだけ `[親で上書き]` が付く。重なる登録では内側（長い RootPath）の登録の配下として扱う。
+- **書き込み**: 各欄は作ったときの対象（owner）に `Undo.RecordObject` + `SetDirty` で書く（選択に追従して編集対象が切り替わった後に、古い行から別の CanvasData へ書かない）。
+- **実装**: ロジック = `CanvasButtonWireEditing`（`BuildGroups` / `AddWire` / `RemoveWire` / `FirstFreeTrigger` / `DescribeProblem` / `Summarize`。EditMode テスト `CanvasEmbeddedEditingTests.ButtonWires_*` 4 件）、画面 = `CanvasEditorWindow.ButtonWires.cs`（`CanvasEditorWindow` を partial にして分けた）。
+- **入れていないもの**: スライダーの配線（`Sliders` / SliderWire）の編集欄（従来どおり Inspector）。配線のアクションを増やすとき（子の表示 / 非表示の切り替えなど）は、`CanvasButtonWireEditing.UsesTarget` 等と `BuildWireRow` の出し分けに足す。
+- 人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-36〜16-40。
+
 ## B-1. 要件
 
 - 種類 / タグ / コリジョンレイヤーを管理。Spawn/Despawn/Pool/Preload

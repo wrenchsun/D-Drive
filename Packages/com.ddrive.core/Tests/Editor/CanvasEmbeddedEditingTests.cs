@@ -175,6 +175,139 @@ namespace DDrive.Tests.Editor
 
         private static AssetId<CanvasMarker> IdOf(CanvasData d) => new(d.Id, AssetType.Canvas);
 
+        // ── ボタンの配線(CanvasButtonWireEditing。Canvas Editor の「ボタンの配線」欄のロジック) ──
+
+        private static ButtonWire Wire(string path, WireTrigger trigger, UiAction action, string key = null)
+            => new() { ButtonPath = path, Trigger = trigger, Action = action, SignalKey = key };
+
+        // 子(ルート直下に BtnX〔UiButton〕)と、親(ParentBtn〔UiButton〕+ 入れ子の子を OptionRoot で配置)を作る。
+        private (CanvasData parent, CanvasData child) WiredParentAndChild()
+        {
+            var childRoot = NewRect("WireChild");
+            NewRect("BtnX", childRoot.transform, typeof(Image), typeof(UiButton));
+            var childPrefab = PrefabUtility.SaveAsPrefabAsset(childRoot, $"{_folder}/WireChild.prefab");
+            Object.DestroyImmediate(childRoot);
+
+            var parentRoot = NewRect("WireParent");
+            NewRect("ParentBtn", parentRoot.transform, typeof(Image), typeof(UiButton));
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(childPrefab, parentRoot.transform);
+            instance.name = "OptionRoot";
+            var parentPrefab = PrefabUtility.SaveAsPrefabAsset(parentRoot, $"{_folder}/WireParent.prefab");
+            Object.DestroyImmediate(parentRoot);
+
+            var child = Data(9101, "WireChildData", childPrefab);
+            child.Buttons = new[] { Wire("BtnX", WireTrigger.Click, UiAction.SendSignal, "child/click"), Wire("BtnX", WireTrigger.LongPress, UiAction.SendSignal, "child/long") };
+            var parent = Data(9102, "WireParentData", parentPrefab);
+            parent.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(child) } };
+            return (parent, child);
+        }
+
+        [Test]
+        public void ButtonWires_BuildGroups_SplitsParentButtons_ParentOverrides_AndChildWires()
+        {
+            var (parent, child) = WiredParentAndChild();
+            parent.Buttons = new[]
+            {
+                Wire("ParentBtn", WireTrigger.Click, UiAction.CloseSelf),
+                Wire("OptionRoot/BtnX", WireTrigger.Click, UiAction.SendSignal, "parent/click"),
+                Wire("Ghost", WireTrigger.Click, UiAction.None),
+            };
+            var lookup = CanvasEmbeddedEditing.CanvasLookup.From(new[] { parent, child });
+
+            var groups = CanvasButtonWireEditing.BuildGroups(parent, lookup);
+
+            Assert.AreEqual(2, groups.ParentRows.Count, "親の行 = 親自身の UiButton + Prefab に無いパスを指す配線。埋め込みの配下のボタンは親の行にしない");
+            Assert.AreEqual("ParentBtn", groups.ParentRows[0].ButtonPath);
+            Assert.IsTrue(groups.ParentRows[0].InPrefab);
+            CollectionAssert.AreEqual(new[] { 0 }, groups.ParentRows[0].WireIndices);
+            Assert.AreEqual("Ghost", groups.ParentRows[1].ButtonPath);
+            Assert.IsFalse(groups.ParentRows[1].InPrefab, "Prefab に無いパスの配線は、見つからない旨を出せるよう印を付ける");
+
+            Assert.AreEqual(1, groups.Embeds.Count);
+            var embed = groups.Embeds[0];
+            Assert.AreSame(child, embed.Child);
+            Assert.AreEqual(1, embed.OverrideRows.Count, "埋め込みの配下を指す親の配線は「親での上書き」");
+            Assert.AreEqual("OptionRoot/BtnX", embed.OverrideRows[0].ButtonPath);
+            CollectionAssert.AreEqual(new[] { 1 }, embed.OverrideRows[0].WireIndices);
+
+            Assert.AreEqual(2, embed.ChildWires.Count);
+            Assert.AreEqual(WireTrigger.Click, embed.ChildWires[0].Trigger);
+            Assert.IsTrue(embed.ChildWires[0].OverriddenByParent, "親に同じ要素 + 同じトリガーの配線がある");
+            Assert.AreEqual(WireTrigger.LongPress, embed.ChildWires[1].Trigger);
+            Assert.IsFalse(embed.ChildWires[1].OverriddenByParent, "別のトリガーの配線は子の設定が使われる");
+            StringAssert.Contains("child/long", embed.ChildWires[1].Summary);
+        }
+
+        [Test]
+        public void ButtonWires_NoEmbeds_ListsEveryUiButton_EvenWithoutWires()
+        {
+            var (_, child) = WiredParentAndChild();
+            child.Buttons = null;
+
+            var groups = CanvasButtonWireEditing.BuildGroups(child, CanvasEmbeddedEditing.CanvasLookup.From(new[] { child }));
+
+            Assert.AreEqual(0, groups.Embeds.Count);
+            Assert.AreEqual(1, groups.ParentRows.Count);
+            Assert.AreEqual("BtnX", groups.ParentRows[0].ButtonPath);
+            Assert.AreEqual(0, groups.ParentRows[0].WireIndices.Count, "配線の無いボタンも一覧に出る(ここから足せる)");
+            Assert.AreEqual(0, CanvasButtonWireEditing.BuildGroups(null, null).ParentRows.Count, "null でも例外にしない");
+        }
+
+        [Test]
+        public void ButtonWires_AddAndRemove_UseFreeTrigger_AndKeepOtherRows()
+        {
+            var (_, child) = WiredParentAndChild();
+            Assert.AreEqual(WireTrigger.DoubleClick, CanvasButtonWireEditing.FirstFreeTrigger(child, "BtnX"), "Click と LongPress は使用済み");
+
+            var added = CanvasButtonWireEditing.AddWire(child, "BtnX");
+            Assert.AreEqual(2, added);
+            Assert.AreEqual(3, child.Buttons.Length);
+            Assert.AreEqual("BtnX", child.Buttons[2].ButtonPath);
+            Assert.AreEqual(WireTrigger.DoubleClick, child.Buttons[2].Trigger);
+            Assert.AreEqual(UiAction.None, child.Buttons[2].Action);
+
+            Assert.IsTrue(CanvasButtonWireEditing.RemoveWire(child, 0));
+            Assert.AreEqual(2, child.Buttons.Length);
+            Assert.AreEqual(WireTrigger.LongPress, child.Buttons[0].Trigger, "残りの行は順序も中身も変わらない");
+            Assert.AreEqual("child/long", child.Buttons[0].SignalKey);
+            Assert.IsFalse(CanvasButtonWireEditing.RemoveWire(child, 99), "範囲外は何もしない");
+            Assert.AreEqual(-1, CanvasButtonWireEditing.AddWire(null, "BtnX"));
+
+            var empty = Data(9103, "WireEmpty");
+            Assert.AreEqual(0, CanvasButtonWireEditing.AddWire(empty, "A"), "Buttons が null でも足せる");
+            Assert.AreEqual(WireTrigger.Click, empty.Buttons[0].Trigger);
+        }
+
+        [Test]
+        public void ButtonWires_DescribeProblem_AndSummary()
+        {
+            var target = Data(9104, "WireTarget");
+            var data = Data(9105, "WireProblems");
+            data.Buttons = new[]
+            {
+                Wire("A", WireTrigger.Click, UiAction.OpenCanvas),
+                Wire("A", WireTrigger.LongPress, UiAction.SendSignal),
+                Wire("A", WireTrigger.Click, UiAction.CloseSelf),
+                Wire("B", WireTrigger.Click, UiAction.SetOption),
+                Wire("B", WireTrigger.Repeat, UiAction.SendSignal, "b/repeat"),
+            };
+            StringAssert.Contains("未設定", CanvasButtonWireEditing.DescribeProblem(data, 0));
+            StringAssert.Contains("キー", CanvasButtonWireEditing.DescribeProblem(data, 1));
+            StringAssert.Contains("重複", CanvasButtonWireEditing.DescribeProblem(data, 2));
+            StringAssert.Contains("スライダー", CanvasButtonWireEditing.DescribeProblem(data, 3));
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(data, 4));
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(data, 99));
+
+            data.Buttons[0].Target = new AssetRef { Type = AssetType.Canvas, Id = target.Id };
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(data, 0));
+            var lookup = CanvasEmbeddedEditing.CanvasLookup.From(new[] { target, data });
+            StringAssert.Contains("WireTarget", CanvasButtonWireEditing.Summarize(data.Buttons[0], lookup));
+            Assert.AreEqual("Repeat → SendSignal 'b/repeat'", CanvasButtonWireEditing.Summarize(data.Buttons[4], lookup));
+
+            Assert.IsFalse(CanvasButtonWireEditing.IsButtonAction(UiAction.SetOption), "SetOption はスライダー専用");
+            Assert.IsTrue(CanvasButtonWireEditing.UsesTarget(UiAction.OpenCanvas));
+            Assert.IsTrue(CanvasButtonWireEditing.UsesSignalKey(UiAction.SendSignal));
+        }
         private static ElementFx Fx(string path) => new() { ElementPath = path };
 
         private static List<ValidationResult> Validate(CanvasData data, params CanvasData[] others)
