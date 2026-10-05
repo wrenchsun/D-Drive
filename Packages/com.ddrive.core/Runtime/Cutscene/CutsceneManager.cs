@@ -1126,6 +1126,16 @@ namespace DDrive.Runtime.Cutscene
             if (_instances.TryGet(handle, out var instance))
             {
                 RegisterActiveIfServer(msg.HandleNetKey, instance.Data, instance.Ctx, msg.StartNetTime, msg.Seed);
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                // [57_review_round4_m4_2026-10-05.md] FZ-R-10 — 実機確認用(docs/52 4-5)。受信した端末での開始位置
+                // (NetworkTime − StartNetTime)と、猶予(RemoteMarkerGraceSec)を超えて無音にしたマーカーの数。
+                // 最初の Tick の前なので、各カーソルの位置 = 無音にした数。開発ビルド / Editor だけ(定常経路ではない)。
+                var skippedMarkers = instance.EventMarkerCursor + instance.SignalMarkerCursor + instance.ShakeMarkerCursor
+                    + instance.HapticMarkerCursor + instance.ExternalMarkerCursor;
+                Debug.Log($"[Net/{(_netBridge.IsServer ? "Host" : "Client")}] Cutscene: 受信した再生の開始位置 s={elapsed:F3} 秒(NetworkTime − StartNetTime)・" +
+                          $"猶予({RemoteMarkerGraceSec:F1} 秒)を超えて無音にしたマーカー {skippedMarkers} 件(HandleNetKey=0x{msg.HandleNetKey:X8}、'{data.DisplayName}')。");
+#endif
             }
         }
 

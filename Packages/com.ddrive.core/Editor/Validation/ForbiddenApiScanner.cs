@@ -30,7 +30,7 @@ namespace DDrive.Editor.Validation
             {
                 Name = "Time",
                 Pattern = @"\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b",
-                Message = "UnityEngine.Time を直接参照しない。ITimeSource を使う([02_core_framework.md] §9.5)",
+                Message = "UnityEngine.Time の time / deltaTime / unscaledDeltaTime / timeAsDouble / unscaledTime を直接参照しない。ゲームプレイの時間は D-Drive の Tick(dt) が渡す dt を使う(IAssetManager を GameLoop に登録。[02_core_framework.md] §10)。実時間の計測は Time.realtimeSinceStartupAsDouble / Stopwatch(検査の対象外)か、理由を書いて許可する([42_distribution.md] §5.9)",
                 AllowedFileSuffixes = new[] { "LocalTimeSource.cs", "NetworkTimeSource.cs", "GameLoopDriver.cs", "ForbiddenApiScanner.cs" },
             },
             new Rule
@@ -70,11 +70,24 @@ namespace DDrive.Editor.Validation
             public readonly int Line;
             public readonly string Message;
 
+            // FZ-R-03(2026-10-05、追加のみ) — 検査の入口(Tools > D-Drive > Validation > 禁止 API の検査)が
+            // 「どの規則の・どの行か」を一覧するための情報。ScanFile の当たりでだけ入る(走査ルートが無い等の
+            // 全体エラーでは null)。
+            public readonly string RuleName;
+            public readonly string Excerpt;
+
             public Violation(string filePath, int line, string message)
+                : this(filePath, line, message, null, null)
+            {
+            }
+
+            public Violation(string filePath, int line, string message, string ruleName, string excerpt)
             {
                 FilePath = filePath;
                 Line = line;
                 Message = message;
+                RuleName = ruleName;
+                Excerpt = excerpt;
             }
         }
 
@@ -208,7 +221,8 @@ namespace DDrive.Editor.Validation
 
         private static string RuleNameList() => string.Join(" / ", RuleNames);
 
-        // 既存の挙動と同じ(許可コメントは効くが、設定の許可リストは渡さない = 実設定に依存しない)。
+        // 許可コメントは効くが、設定の許可リストは渡さない(= 実設定に依存しない)。許可コメントが 1 つも
+        // 無ければ M-4 より前の `Scan` と同じ結果になる。
         public static List<Violation> Scan(string rootFolder) => ScanDetailed(rootFolder, null).Violations;
 
         // [42_distribution.md] §2.3-2(P-4、2026-09-20) — 走査ルートが見つからない/`.cs` が 0 件のときは
@@ -236,7 +250,7 @@ namespace DDrive.Editor.Validation
                 return report;
             }
 
-            var settingsAllows = ResolveSettingsEntries(settingsEntries, report.Notices);
+            var settingsAllows = ResolveSettingsEntries(settingsEntries, report.Notices, rootFolder);
 
             foreach (var file in files)
             {
@@ -344,7 +358,7 @@ namespace DDrive.Editor.Validation
                         message += " [許可コメントに理由が必要です。`" + AllowPrefix + " " + rule.Name + "(理由)` の形で括弧内に理由を書いてください]";
                     }
 
-                    report.Violations.Add(new Violation(normalized, lineIndex + 1, message));
+                    report.Violations.Add(new Violation(normalized, lineIndex + 1, message, rule.Name, MakeExcerpt(line)));
                 }
 
                 prev.Clear();
@@ -504,7 +518,7 @@ namespace DDrive.Editor.Validation
         }
 
         // 設定の許可リストの要素を検査して有効なものだけ返す(無効な要素は Notice を積む)。
-        private static List<SettingsAllow> ResolveSettingsEntries(IReadOnlyList<ForbiddenApiAllowEntry> entries, List<Notice> notices)
+        private static List<SettingsAllow> ResolveSettingsEntries(IReadOnlyList<ForbiddenApiAllowEntry> entries, List<Notice> notices, string scanRoot)
         {
             var result = new List<SettingsAllow>();
             if (entries == null)
@@ -512,6 +526,7 @@ namespace DDrive.Editor.Validation
                 return result;
             }
 
+            var scanRootRelative = NormalizeEntryPath(ToProjectRelative(scanRoot.Replace('\\', '/')), out _);
             for (var i = 0; i < entries.Count; i++)
             {
                 var e = entries[i];
@@ -520,7 +535,7 @@ namespace DDrive.Editor.Validation
                     continue;
                 }
 
-                var problem = DescribeEntryProblem(e, out var rule);
+                var problem = DescribeEntryProblem(e, out var rule, out var path, scanRootRelative);
                 if (problem != null)
                 {
                     notices.Add(new Notice(ValidationSeverity.Warning, CodeAllowSettingsInvalid,
@@ -529,32 +544,53 @@ namespace DDrive.Editor.Validation
                     continue;
                 }
 
-                var path = e.Path.Trim().Replace('\\', '/');
-                if (path.StartsWith("./", StringComparison.Ordinal))
-                {
-                    path = path.Substring(2);
-                }
-
                 result.Add(new SettingsAllow { Path = path, Rule = rule, Reason = e.Reason.Trim() });
             }
 
             return result;
         }
 
-        // 設定の 1 要素の問題点(有効なら null)。ProjectSetupValidator からも使う。
+        // 設定の 1 要素の問題点(有効なら null)。ProjectSetupValidator / Project Settings の画面からも使う。
+        // scanRoot(走査ルートそのもの・その親の指定を無効にするため)は省略できる。
         public static string DescribeEntryProblem(ForbiddenApiAllowEntry entry)
-            => DescribeEntryProblem(entry, out _);
+            => DescribeEntryProblem(entry, null);
 
-        private static string DescribeEntryProblem(ForbiddenApiAllowEntry entry, out Rule rule)
+        public static string DescribeEntryProblem(ForbiddenApiAllowEntry entry, string scanRoot)
+        {
+            var scanRootRelative = string.IsNullOrEmpty(scanRoot)
+                ? null
+                : NormalizeEntryPath(ToProjectRelative(scanRoot.Replace('\\', '/')), out _);
+            return DescribeEntryProblem(entry, out _, out _, scanRootRelative);
+        }
+
+        private static string DescribeEntryProblem(ForbiddenApiAllowEntry entry, out Rule rule, out string normalizedPath, string scanRootRelative)
         {
             rule = null;
+            normalizedPath = null;
             if (entry == null || string.IsNullOrWhiteSpace(entry.Path))
             {
                 return "パスが空です。";
             }
 
+            normalizedPath = NormalizeEntryPath(entry.Path, out var pathProblem);
+            if (pathProblem != null)
+            {
+                normalizedPath = null;
+                return pathProblem;
+            }
+
+            // 走査ルートそのもの(またはその親)の指定は、走査対象を丸ごと許可する抜け道になる。
+            if (!string.IsNullOrEmpty(scanRootRelative) &&
+                (string.Equals(normalizedPath, scanRootRelative, StringComparison.OrdinalIgnoreCase) ||
+                 scanRootRelative.StartsWith(normalizedPath + "/", StringComparison.OrdinalIgnoreCase)))
+            {
+                normalizedPath = null;
+                return $"走査ルート('{scanRootRelative}')そのもの、またはその親の指定は、検査対象を丸ごと許可してしまうため無効です。ルートの中のフォルダ/ファイルを指定してください。";
+            }
+
             if (string.IsNullOrWhiteSpace(entry.Reason))
             {
+                normalizedPath = null;
                 return "理由が空です(理由は必須。この除外は無効です)。";
             }
 
@@ -563,11 +599,73 @@ namespace DDrive.Editor.Validation
                 rule = FindRule(entry.Rule.Trim());
                 if (rule == null)
                 {
+                    normalizedPath = null;
                     return $"規則名 '{entry.Rule}' は存在しません(使える規則名: {RuleNameList()}。空欄なら全規則)。";
                 }
             }
 
             return null;
+        }
+
+        // 設定の許可リストのパスの正規化(docs/42 §5.9 の契約): `\` と `/` は同一視、先頭の `./`・空の要素・
+        // 末尾の `/` は無視。無効(= null を返し problem を埋める): 絶対パス(`/` 始まり・`X:` 始まり)・`..` を含む・
+        // 1 階層だけ(`Assets` など。走査ルートの外側を丸ごと許可する抜け道になる)。
+        // 返す値は要素を `/` でつないだ形(大文字小文字は元のまま。照合は大文字小文字を区別しない)。
+        private static string NormalizeEntryPath(string raw, out string problem)
+        {
+            problem = null;
+            var p = (raw ?? string.Empty).Trim().Replace('\\', '/');
+            if (p.StartsWith("/", StringComparison.Ordinal) || (p.Length >= 2 && p[1] == ':'))
+            {
+                problem = "絶対パスは無効です。プロジェクトルートからの相対パス(例: Assets/Plugins/ThirdParty)で書いてください。";
+                return null;
+            }
+
+            var parts = p.Split('/');
+            var kept = new List<string>(parts.Length);
+            foreach (var part in parts)
+            {
+                var seg = part.Trim();
+                if (seg.Length == 0 || seg == ".")
+                {
+                    continue;
+                }
+
+                if (seg == "..")
+                {
+                    problem = "'..' を含むパスは無効です。プロジェクトルートからの相対パスで書いてください。";
+                    return null;
+                }
+
+                kept.Add(seg);
+            }
+
+            if (kept.Count < 2)
+            {
+                problem = "パスが広すぎます(1 階層だけの指定は検査対象を丸ごと許可してしまうため無効です)。Assets/Plugins/ThirdParty のように 2 階層以上のフォルダ/ファイルを指定してください。";
+                return null;
+            }
+
+            return string.Join("/", kept);
+        }
+
+        // 要素のパスと対象ファイルのパス(どちらも `/` 区切り・正規化済み)が一致するか。
+        // 一致 = ファイルのパスと完全一致、またはフォルダとして対象ファイルがその配下(`<要素>/…`)にある。
+        // 文字列の前方一致ではない(`Assets/Foo` は `Assets/FooBar/x.cs` に当たらない)。大文字小文字は区別しない。
+        internal static bool EntryPathMatches(string entryPath, string filePath)
+        {
+            var file = filePath;
+            while (file.StartsWith("./", StringComparison.Ordinal))
+            {
+                file = file.Substring(2);
+            }
+
+            if (file.Length < entryPath.Length || !file.StartsWith(entryPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return file.Length == entryPath.Length || file[entryPath.Length] == '/';
         }
 
         private static string FindSettingsAllow(List<SettingsAllow> allows, string normalized, string relative, Rule rule)
@@ -579,7 +677,7 @@ namespace DDrive.Editor.Validation
                     continue;
                 }
 
-                if (normalized.StartsWith(a.Path, StringComparison.Ordinal) || relative.StartsWith(a.Path, StringComparison.Ordinal))
+                if (EntryPathMatches(a.Path, relative) || EntryPathMatches(a.Path, normalized))
                 {
                     return a.Reason;
                 }
@@ -588,7 +686,15 @@ namespace DDrive.Editor.Validation
             return null;
         }
 
-        private static string ToProjectRelative(string normalized)
+        // 一覧表示用の該当行の抜粋(前後の空白を除き、長すぎるときは切る)。
+        private static string MakeExcerpt(string line)
+        {
+            var t = line.Trim();
+            return t.Length <= 160 ? t : t.Substring(0, 160) + "…";
+        }
+
+        // 走査したファイルのパスを、プロジェクトルートからの相対パスにする(外なら元のまま)。
+        internal static string ToProjectRelative(string normalized)
         {
             try
             {

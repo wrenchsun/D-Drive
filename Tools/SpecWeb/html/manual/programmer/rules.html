@@ -107,12 +107,13 @@
 <p><code>Packages/com.ddrive.core/Editor/Validation/ForbiddenApiScanner.cs</code> が、D-Drive 本体（<code>Packages/com.ddrive.core</code>。2026-09-20 の P-5 で <code>Assets/DDrive</code> から移設）配下の全 <code>.cs</code> ファイルをテキストパターン一致（正規表現）で走査します。Roslyn Analyzer ではなく簡易的なテキスト走査です。</p>
 <table>
 <tr><th>#</th><th>禁止パターン（正規表現）</th><th>代わりに使うもの</th><th>許可されているファイル</th></tr>
-<tr><td>1</td><td><code>\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b</code></td><td><code>ITimeSource</code>（<code>docs/02_core_framework.md</code> §9.5）</td><td><code>LocalTimeSource.cs</code> / <code>NetworkTimeSource.cs</code> / <code>GameLoopDriver.cs</code></td></tr>
+<tr><td>1</td><td><code>\bTime\.(time|deltaTime|unscaledDeltaTime|timeAsDouble|unscaledTime)\b</code></td><td>ゲームプレイの時間は D-Drive の <code>Tick(dt)</code> が渡す <code>dt</code>（<code>IAssetManager</code> を <code>GameLoop</code> に登録。<code>docs/02_core_framework.md</code> §10）。実時間の計測は検査の対象外の <code>Time.realtimeSinceStartupAsDouble</code> / <code>Stopwatch</code></td><td><code>LocalTimeSource.cs</code> / <code>NetworkTimeSource.cs</code> / <code>GameLoopDriver.cs</code></td></tr>
 <tr><td>2</td><td><code>\bResources\.Load\b</code></td><td>Addressables 経由（<code>IAssetLoader</code>）</td><td>（例外なし）</td></tr>
 <tr><td>3</td><td><code>\bAddressables\.Load\w*\b</code></td><td><code>IAssetLoader</code> 経由</td><td><code>AddressablesAssetLoader.cs</code></td></tr>
 <tr><td>4</td><td><code>\b(?:UnityEngine\.)?Object\.Instantiate\s*\(|(?&lt;![.\w])Instantiate\s*\(</code></td><td><code>PoolService</code> 経由</td><td><code>PoolService.cs</code> / <code>PreviewService.cs</code>（非破壊ループ試聴用の ScriptableObject コピーを許可）</td></tr>
 <tr><td>5</td><td><code>\bAudioSource\.Play\b</code></td><td><code>AudioManager</code> 経由</td><td>（例外なし）</td></tr>
 </table>
+<p><strong>何が当たらないか。</strong> <code>Time</code> は上の 5 つだけで、<code>Time.fixedDeltaTime</code> / <code>Time.realtimeSinceStartup(AsDouble)</code> / <code>Time.unscaledTimeAsDouble</code> / <code>Time.timeScale</code> / <code>Time.frameCount</code> / <code>Stopwatch</code> / <code>DateTime.Now</code> は当たりません。<code>Instantiate</code> はジェネリックの <code>Instantiate&lt;T&gt;(</code>・<code>GameObject.Instantiate(</code>・<code>InstantiateAsync(</code>・複数行にまたがる呼び出しの 2 行目に当たりません。<code>AudioSource.Play</code> は静的な呼び出しの形の文字列だけで、インスタンスの <code>_source.Play()</code> や <code>PlayOneShot</code> は検出しません（人が守ります）。</p>
 <p>いずれのルールも <code>ForbiddenApiScanner.cs</code> 自身は常に例外扱いです（このファイルの Message 文字列がパターンに一致してしまうため、自己検出を避ける自己参照の除外）。<code>//</code> で始まる行（コメント）はどのルールも対象外です。</p>
 
 <div class="warn">
@@ -120,16 +121,17 @@
 </div>
 
 <div class="warn">
-<strong>走査の範囲。</strong> 禁止 API の走査は <code>CI.ValidateAll</code>（<code>-executeMethod DDrive.Editor.CI.ValidateAll</code>）が行います（<code>Validation &gt; Run All</code> のメニューは走査しません）。走査ルートは <code>CI.ResolveForbiddenApiScanRoot()</code> で決まり、D-Drive を開発するリポジトリでは <code>Packages/com.ddrive.core</code>、持ち込み先では <code>Assets</code> 配下のゲームコード全体です。<code>Samples</code> / <code>Tests</code> 等のフォルダは対象外です。
+<strong>走査の範囲。</strong> 禁止 API の走査は <code>CI.ValidateAll</code>（<code>-executeMethod DDrive.Editor.CI.ValidateAll</code>。バッチ）と、Editor の <code>Tools &gt; D-Drive &gt; Validation &gt; 禁止 API の検査</code> が行います（<code>Validation &gt; Run All</code> のメニューは走査しません）。走査ルートは <code>CI.ResolveForbiddenApiScanRoot()</code> で決まり、D-Drive を開発するリポジトリでは <code>Packages/com.ddrive.core</code>、持ち込み先では <code>Assets</code> 配下のゲームコード全体です。<code>Samples</code> / <code>Tests</code> 等のフォルダは対象外です。
 </div>
 
 <h3 id="forbidden-api-allow">許可する（理由を書く）</h3>
-<p>正当な理由があるときは、直せない当たりを<strong>行単位の許可コメント</strong>で許可できます。直せるもの（ゲームプレイの時間は <code>ITimeSource</code>、Prefab を置く <code>Instantiate</code> は <code>Prefabs.Spawn</code> / プール）は、許可ではなく直してください。</p>
+<p>正当な理由があるときは、直せない当たりを<strong>行単位の許可コメント</strong>で許可できます。直せるもの（Prefab を置く <code>Instantiate</code> は <code>Prefabs.Spawn</code> / プール、ポーズ・ヒットストップに従わせたいゲームプレイの時間は <code>GameLoop</code> に登録した <code>IAssetManager</code> の <code>Tick(float dt)</code>）は、許可ではなく直してください。Tick に乗せにくい時間処理は、ゲーム側の時間源を 1 か所（例: <code>GameTime</code>）に作り、その中だけで <code>Time.unscaledDeltaTime * DDriveRuntimeBootstrap.Instance.Loop.TimeService.TimeScale</code> を読んで許可コメントを 1 行書きます（ポーズに従わせるなら <code>Loop.PauseService.IsPaused(PauseChannel.Gameplay)</code> のとき 0 にします）。<code>ITimeSource</code> はゲームのコード向けではありません（Foundation 内部向けで、<code>Time.deltaTime</code> を返すだけ。ヒットストップ・ポーズに従わず、置き換えても当たりが消えるだけです）。実時間の計測（タイムアウト等）は、検査の対象外の <code>Time.realtimeSinceStartupAsDouble</code> / <code>Stopwatch</code> に替えれば許可が要りません。</p>
 <ul>
 <li>書式: <code>// ddrive-allow: 規則名(理由)</code>。接頭辞 <code>ddrive-allow:</code> の大文字小文字は区別しません。理由には括弧を含めても構いません（最後の閉じ括弧までが理由）。半角 <code>( )</code> と全角 <code>（ ）</code> のどちらでも書けます。</li>
 <li>規則名: <code>Time</code>（#1）/ <code>ResourcesLoad</code>（#2）/ <code>AddressablesLoad</code>（#3）/ <code>Instantiate</code>（#4）/ <code>AudioSourcePlay</code>（#5）。大文字小文字は区別しません。規則名は今後も追加のみで、改名・削除しません。</li>
 <li><strong>理由は必須</strong>です。理由が空・括弧なしの許可コメントは無効で、元の当たりがそのまま Error になり、メッセージに「許可コメントに理由が必要」と添えられます。存在しない規則名も無効で、Warning（<code>DD-FORBIDDEN-ALLOW-UNKNOWN-RULE</code>）が出ます。</li>
 <li>効く範囲: <strong>同じ行の行末の <code>//</code> コメント</strong>、または<strong>直前の行（<code>//</code> コメントだけの行）</strong>。その 1 行の、規則名が一致する当たりだけが許可されます。間に空行・別の行・別のコメント行を挟むと効きません。ファイル全体・ブロック全体は許可できません。<code>/* */</code> 形式は認識しません。文字列リテラルの中の <code>// ddrive-allow:</code> は無視されます。</li>
+<li>理由の閉じ括弧より<strong>後ろの文字列は無視</strong>されます（期限などの修飾は付けられません）。接頭辞は <code>//</code> コメントの中のどこにあってもよく（<code>// TODO: … ddrive-allow: Time(…)</code> も効く）、<code>ddrive-allow-file:</code> のように <code>ddrive-allow:</code> と違う接頭辞は許可コメントとして扱われません（当たりは Error のまま）。「直前の行」は当たりの出た行の<strong>1 行上</strong>で、複数行の文の当たりが 2 行目のときは 2 行目の 1 行上に書きます。</li>
 <li>1 つの許可コメントは 1 規則です。同じ行に 2 規則の当たりがあるときは <code>// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)</code> のように接頭辞ごと繰り返します（カンマ区切りは使えません）。</li>
 <li>使われていない許可（その行に該当する当たりが無い）は Info（<code>DD-FORBIDDEN-ALLOW-UNUSED</code>）で報告されます。直した後に残った許可は消してください。</li>
 </ul>
@@ -137,8 +139,21 @@
 var netObj = Instantiate(networkPrefab);
 
 var now = Time.unscaledTime; // ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)</pre>
-<p>自分で書き換えられない外部コード・生成コードは、<code>Project Settings &gt; D-Drive &gt; 禁止 API の除外</code> にフォルダまたはファイルのパス（前方一致）・規則名（空欄 = 全規則）・理由（必須）を足します。理由が空の要素は無効で、<code>Validation &gt; Run All</code> に Warning（<code>DD-FORBIDDEN-ALLOW-SETTINGS-INVALID</code>）が出ます。</p>
-<p>許可した件数は検査結果に Info（<code>DD-FORBIDDEN-ALLOW-SUMMARY</code>）で出て、許可した箇所の一覧は <code>Tools &gt; D-Drive &gt; Validation &gt; Forbidden API 許可一覧</code> で Console に出せます。PR のレビューでは「許可の理由が妥当か」を確認します（<code>docs/12_review.md</code> §3）。</p>
+<table>
+<tr><th>書き方</th><th>結果</th></tr>
+<tr><td><code>//ddrive-allow: Time(x)</code>（空白なし）/ <code>// DDRIVE-ALLOW: TIME(x)</code></td><td>効く（大文字小文字は区別しません）</td></tr>
+<tr><td><code>// ddrive-allow : Time(x)</code>（コロンの前に空白）/ <code>/* ddrive-allow: Time(x) */</code></td><td><strong>効かない</strong>（黙って無視。当たりは Error のまま）</td></tr>
+<tr><td><code>… // ddrive-allow: Time(実時間) 5 秒で切る</code></td><td>効く（理由は <code>実時間</code>。後ろは無視）</td></tr>
+<tr><td><code>/// ddrive-allow: Time(x)</code>（XML doc コメントの行）</td><td>コメントだけの行として次の 1 行に効く</td></tr>
+<tr><td>許可コメント → 属性行 <code>[SerializeField]</code> → 当たりの行</td><td><strong>効かない</strong>（許可は属性行に使われ、未使用の Info が出る）</td></tr>
+<tr><td>許可コメントと当たりの間に空行・別のコメント行・<code>#region</code></td><td><strong>効かない</strong>（許可コメントを続けて 2 行書いても、効くのは当たりの直前の 1 行だけ）</td></tr>
+<tr><td>1 文が複数行で当たりが 2 行目、許可を文の先頭の上に書く</td><td><strong>効かない</strong>（当たりの 1 行上に書く）</td></tr>
+<tr><td>ラムダの中の当たり + 同じ行の行末の許可</td><td>効く</td></tr>
+<tr><td>行に同じ規則の当たりが 2 つ（<code>a = Time.time; b = Time.deltaTime;</code>）</td><td>1 つの許可で両方</td></tr>
+<tr><td>理由なし（<code>Time</code> / <code>Time()</code> / <code>Time( )</code>）</td><td>無効（当たりがあれば Error の末尾に案内、無ければ Warning）</td></tr>
+</table>
+<p>自分で書き換えられない外部コード・生成コードは、<code>Project Settings &gt; D-Drive &gt; 禁止 API の除外</code> にフォルダまたはファイルのパス・規則名（空欄 = 全規則）・理由（必須）を足します。パスはプロジェクトルートからの相対パス（2 階層以上）で、ファイルと完全一致するか、フォルダの配下に一致します（文字列の前方一致ではありません。<code>Assets/Foo</code> は <code>Assets/FooBar/</code> に当たりません）。<code>/</code> と <code>\</code> は同じ扱い、末尾の <code>/</code> と大文字小文字は区別しません。<code>Assets</code> 単独・走査ルートそのもの・絶対パス・<code>..</code> は無効（Warning）です。理由が空の要素は無効で、<code>Validation &gt; Run All</code> に Warning（<code>DD-FORBIDDEN-ALLOW-SETTINGS-INVALID</code>）が出ます。</p>
+<p>許可した件数は検査結果に Info（<code>DD-FORBIDDEN-ALLOW-SUMMARY</code>）で出て、Editor では <code>Tools &gt; D-Drive &gt; Validation &gt; 禁止 API の検査</code> のウィンドウで、許可されていない当たり（ファイル:行・規則名・該当行。ボタンでその行を開く）・許可済み（理由つき）・無効 / 未使用の許可を一覧できます（再走査ボタンあり。<code>Validation &gt; Run All</code> には混ぜていません）。同じ内容の Console 出力は <code>Tools &gt; D-Drive &gt; Validation &gt; Forbidden API 許可一覧</code> です。PR のレビューでは「許可の理由が妥当か」を確認します（<code>docs/12_review.md</code> §3）。</p>
 
 <h2 id="performance">定常経路（Tick / Spawn / Play）でのパフォーマンス規約</h2>
 <p>毎フレーム、または高頻度に呼ばれる経路（<code>Tick</code> / <code>Spawn</code> / <code>Play</code>）では <strong>LINQ・クロージャ・boxing を禁止</strong>します（<code>docs/12_review.md</code> §3）。</p>

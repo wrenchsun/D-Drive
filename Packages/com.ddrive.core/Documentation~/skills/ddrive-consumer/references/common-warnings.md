@@ -26,8 +26,8 @@
 
 ## 禁止 API の指摘への対処（順番に）
 
-1. **D-Drive の API に直す**: ゲームプレイの時間は `ITimeSource`、Prefab を置く `Instantiate` は `Prefabs.Spawn` / プール、`Resources.Load` / `Addressables.Load*` は `IAssetLoader`、`AudioSource.Play` は `Audio` 経由
+1. **D-Drive の API に直す**: Prefab を置く `Instantiate` は `Prefabs.Spawn` / プール、`Resources.Load` / `Addressables.Load*` は `IAssetLoader`、`AudioSource.Play` は `Audio` 経由。**ゲームプレイの時間**（ポーズ・ヒットストップに従わせたいもの）は、(a) `IAssetManager` を実装して `DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(...)` で登録し、`Tick(float dt)` の `dt`（ヒットストップ込み。ポーズは `OnPause` で受ける）を使う、(b) Tick に乗せにくければ、ゲーム側の時間源を 1 か所（例: `GameTime`）に作り、その中だけで `Time.unscaledDeltaTime * DDriveRuntimeBootstrap.Instance.Loop.TimeService.TimeScale` を読んで許可コメントを 1 行書く（ポーズに従わせるなら `Loop.PauseService.IsPaused(PauseChannel.Gameplay)` で 0 にする）。**`ITimeSource` はゲームのコード向けではない**（Foundation 内部向け。`Time.deltaTime` を返すだけでヒットストップ・ポーズに従わず、置き換えても当たりが消えるだけ）。**実時間の計測**（タイムアウト等）は、検査の対象外の `Time.realtimeSinceStartupAsDouble` / `Stopwatch` に替えれば許可が要らない。`Time` 規則が当たるのは `Time.time` / `deltaTime` / `unscaledDeltaTime` / `timeAsDouble` / `unscaledTime` だけ
 2. **正当な理由があれば、その行に許可コメント**: 同じ行の行末、または直前の行（コメントだけの行）に `// ddrive-allow: 規則名(理由)`。その 1 行の、規則名が一致する当たりだけが許可される。**理由（括弧内）は必須**（空・括弧なしは無効）。規則名は `Time` / `Instantiate` / `ResourcesLoad` / `AddressablesLoad` / `AudioSourcePlay`（大文字小文字は区別しない）。1 行に 2 規則なら接頭辞ごと繰り返す。例: `// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)`、`// ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)`。使われていない許可は Info で出るので、直した後に残った許可は消す
-3. **自分で書き換えられない外部コード・生成コードは設定の許可リスト**: `Project Settings > D-Drive > 禁止 API の除外` にパス（前方一致）・規則名・理由（必須）を足す
+3. **自分で書き換えられない外部コード・生成コードは設定の許可リスト**: `Project Settings > D-Drive > 禁止 API の除外` にパス（プロジェクトルートからの相対パス、2 階層以上。ファイルと完全一致、またはフォルダの配下に一致。`Assets/Foo` は `Assets/FooBar/` に当たらない。大文字小文字は区別しない。`Assets` 単独・走査ルートそのもの・絶対パス・`..` は無効）・規則名・理由（必須）を足す
 
-エージェントは、本来 1 で直せるものを 2 の許可で済ませない。許可を足すときは理由を具体的に書き、人に伝える。許可の一覧は `Tools > D-Drive > Validation > Forbidden API 許可一覧`。
+エージェントは、本来 1 で直せるものを 2 の許可で済ませない。許可を足すときは理由を具体的に書き、人に伝える。当たりと許可の一覧は `Tools > D-Drive > Validation > 禁止 API の検査`（ウィンドウ。許可されていない当たり・許可済み・無効 / 未使用の許可。`Validation > Run All` は禁止 API を走査しない）。許可コメントの書き方の注意: 理由の閉じ括弧より後ろは無視される / `ddrive-allow-file:` のような別の接頭辞は許可として扱われない / 「直前の行」は当たりの出た行の 1 行上（複数行の文は当たりの行の上に書く）。

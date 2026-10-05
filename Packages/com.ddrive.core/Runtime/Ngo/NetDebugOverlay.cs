@@ -112,6 +112,7 @@ namespace DDrive.Runtime.Net
         {
             var current = Bridge is NgoNetBridge ngo ? ngo.ReceivedMessageCount : (Bridge is LocalLoopbackBridge loop ? loop.ReceivedMessageCount : 0);
 
+            // ddrive-allow: Time(デバッグ表示の受信レートを、実時間の 1 秒窓で数える)
             var now = Time.unscaledTime;
             if (now - _rateWindowStart >= 1f)
             {

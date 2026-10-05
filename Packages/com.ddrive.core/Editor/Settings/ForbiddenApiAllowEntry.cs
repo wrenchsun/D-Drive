@@ -10,7 +10,7 @@ namespace DDrive.Editor.Settings
     [Serializable]
     public sealed class ForbiddenApiAllowEntry
     {
-        [Tooltip("除外するフォルダまたはファイルのパス(前方一致)。プロジェクトルートからの相対パス(例: Assets/Plugins/ThirdParty/)。区切りは / でも \\ でもよい。")]
+        [Tooltip("除外するフォルダまたはファイルのパス。プロジェクトルートからの相対パス(例: Assets/Plugins/ThirdParty)で 2 階層以上。ファイルのパスと完全一致するか、フォルダとして配下のファイルに一致する(Assets/Foo は Assets/FooBar/ には当たらない)。区切りは / でも \\ でもよく、末尾の / と大文字小文字は区別しない。絶対パス・..・Assets 単独・走査ルートそのものは無効。")]
         public string Path = string.Empty;
 
         [Tooltip("除外する規則名(Time / Instantiate / ResourcesLoad / AddressablesLoad / AudioSourcePlay。大文字小文字は区別しない)。空欄なら全ての規則を除外する。")]

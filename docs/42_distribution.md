@@ -587,6 +587,34 @@ Packages/com.ddrive.core/                ← 現 Assets/DDrive/ を移設（.met
 - **カットシーン取り込みリスナー API（2026-10-03 追加、FC-5。[51] §4.6・[26] §5.2 の 7）**: 外部パッケージ（T-Drive の `Bridges.DDrive.Editor` 等）が `DDrive.Editor` を参照して実装・使用する Editor 契約。`ICutsceneImportListener`（`Order` / `OnCutsceneShotImported`）、`CutsceneImportResult`（`ShotName` / `Category` / `Data` / `Timeline` / `TimelinePath` / `IsNew` / `Roles`）、`CutsceneImportRole`（`RoleName` / `ModelIdentifier` / `Kind` / `Track` / `SourcePath`）、`CutsceneImportRoleKind`（`Camera` = 0 / `Prop` = 1 / `Character` = 2）。**追加のみ**（メンバーの追加・enum 値の末尾追加は MINOR。削除・改名・型変更・並べ替えは CHANGELOG 必須 + 持ち込み先の外部パッケージへの影響確認）。`EditorContractSnapshotTests` が `editor-contract.txt` の「== CutsceneImportListener ==」節でシグネチャを固定する（U-6 = (a)）。呼び出しの意味論（`Order` 順・例外隔離・呼び出し後に 1 回保存・手動の再取り込みも同じ経路）は §5.14 の E-19
 - **取り込みまわりの外部拡張点（2026-10-03 追加、FC-6 / FC-14。[51] §4.7・§4.15）**: 外部パッケージが `DDrive.Editor` を参照して実装する Editor 契約。`IImportRuleHandler`（`TypeFolder` / `Target` / `DataType` / `Extensions` / `IdentifierFallback` / `LoadSource` / `Configure`。FC-6 で外部アセンブリから登録可能になった。`TypeCache` で発見され `ImportRuleService.Handlers` の組み込み 9 件の後ろに並ぶ。**既存の `AssetType` の Data を作る場合に限り使える**）、`IImportRuleFolderOptOut`（`FolderNames`。ハンドラ無しで「`SourceAssets/<名前>/` は自分が管理する」と宣言し、不明な種別フォルダの案内を出さない）、`IShaderConversionTableProvider`（`GetTables()`。他パッケージの `ShaderConversionTable` をマテリアル変換ウィンドウに載せる）、`ITextureImportRuleProvider`（`GetRules()`。`TextureImportProfile.Rule` を Profile の `Rules` の前に評価。Profile に同じ条件の規則があれば Profile 優先）、および規則の型 `TextureImportProfile.Rule` / `MatchKind`。**追加のみ**。`EditorContractSnapshotTests` が `editor-contract.txt` の「== ImportExtension ==」節でシグネチャを固定する。意味論（発見・競合は組み込み優先・例外隔離・優先順位）は §5.14 の E-21 / E-22
 - **禁止 API の許可コメントの書式（2026-10-05 追加、M-4。形式の契約）**: 持ち込み先のソースに書かれたコメントが依存するため、**v1.4.0 のタグ後は変えられない**（変えると持ち込み先の許可が無効になり CI が赤くなる）。契約は次のとおり。(1) 接頭辞 `ddrive-allow:`（大文字小文字は区別しない）+ `規則名(理由)`。(2) **規則名**は `Time` / `Instantiate` / `ResourcesLoad` / `AddressablesLoad` / `AudioSourcePlay`（大文字小文字は区別しない。**今後は追加のみ**、削除・改名しない）。(3) **理由は必須**（括弧内。半角 `(…)` と全角 `（…）` のどちらでもよい。理由に括弧を含んでよい = 最後の閉じ括弧までを理由とする）。理由が空・括弧なしの許可は無効。(4) **効く範囲**: 同じ行の行末 `//` コメント、または直前の行（`//` コメントだけの行）。**その 1 行の当たりのうち、規則名が一致するものだけ**。間に空行・別の行・別のコメント行を挟むと効かない。ファイル全体・ブロック全体は許可できない。(5) **1 つの許可コメント = 1 規則**。同じ行に 2 規則あるときは接頭辞ごと繰り返す（`ddrive-allow: Time(…) ddrive-allow: Instantiate(…)`）。カンマ区切りは認めない。(6) `//` コメントだけを認識する（`/* */` は認識しない）。文字列リテラル内の接頭辞は無視する（複数行の verbatim 文字列・raw 文字列は追わない）。(7) 設定側の許可リスト（`DDriveProjectSettings.ForbiddenApiAllowEntries` の `Path` / `Rule` / `Reason`）はシリアライズ形式として追加のみ（§5.1）。Code `DD-FORBIDDEN-ALLOW-*` は §5.8 のとおり追加のみ。テスト: `ForbiddenApiAllowanceTests`（`RuleNames_AreStable` が規則名の一覧を固定する）
+- **許可コメントの契約の追記(2026-10-05 修正ラウンド 5、[57](57_review_round4_m4_2026-10-05.md) FZ-R-02 / 06 / 08。いずれも v1.4.0 のタグ前に確定)**: (8) 理由の閉じ括弧より**後ろの文字列は無視**する(期限・範囲などの修飾を後ろに足さない。将来も意味を持たせない)。`TextAfterTheClosingParenthesis_IsIgnored`。(9) **将来の拡張は新しい接頭辞(`ddrive-allow-<種類>:`)で行い、`ddrive-allow:` の意味は変えない**。`ddrive-allow-file:` のような接頭辞は、この版では許可コメントとして扱わない(当たりは Error のまま・Warning も出ない = 誤って許可しない)。`FutureStylePrefixes_AreNotRecognizedAsAllowComments` が固定する。(10) 接頭辞は `//` コメントの中の**どこにあってもよい**(`// TODO: … ddrive-allow: Time(…)` も効く)。`PrefixAnywhereInTheComment_Works`。(11) 「直前の行」は当たりの出た**物理行の 1 行上**(複数行の文で当たりが 2 行目のとき、文の先頭の上に書いても効かず、未使用の Info になる)。`PreviousLine_IsThePhysicalLineAboveTheHit`。(12) **設定の許可リストのパスの一致**: `Path` はプロジェクトルートからの相対パス(2 階層以上)で、対象ファイルのパスと**完全一致**するか、フォルダとして対象ファイルがその**配下**(`<Path>/…`)にあるときだけ一致する(**文字列の前方一致ではない**。`Assets/Foo` は `Assets/FooBar/x.cs` に当たらない)。`/` と `\` は同一視、先頭の `./`・末尾の `/`・連続した `/` は無視、**大文字小文字は区別しない**(Windows / macOS の既定のファイルシステムに合わせる)。**無効**(効かず Warning `DD-FORBIDDEN-ALLOW-SETTINGS-INVALID`。全体を一括で許可する抜け道にしない): 空・絶対パス(`/` 始まり・`C:` 始まり)・`..` を含む・1 階層だけ(`Assets` 等)・走査ルートそのものまたはその親(開発リポジトリでは `Packages/com.ddrive.core`、持ち込み先では `Assets`)・理由が空・規則名が不明。`Settings_PathMatch_*`・`Settings_TooBroadOrUnsafePaths_AreInvalid_AndDoNotAllowAnything`。(13) **規則の実体**(CI と Editor の検査が検出するのはこの範囲だけ。規則を広げるときは §5.8 の 2 段階):
+
+| 規則名 | 当たるもの | 当たらないもの(人が守る) |
+|---|---|---|
+| `Time` | `Time.time` / `Time.deltaTime` / `Time.unscaledDeltaTime` / `Time.timeAsDouble` / `Time.unscaledTime`(`UnityEngine.Time.…` も) | `Time.fixedDeltaTime` / `Time.realtimeSinceStartup(AsDouble)` / `Time.unscaledTimeAsDouble` / `Time.timeScale` / `Time.frameCount` / `Stopwatch` / `DateTime.Now`(実時間の計測はこれらに替えれば許可コメントが要らない) |
+| `ResourcesLoad` | `Resources.Load…` | – |
+| `AddressablesLoad` | `Addressables.Load*`(`LoadAssetAsync` / `LoadAssetsAsync` / `LoadResourceLocationsAsync` / `LoadSceneAsync` 等) | – |
+| `Instantiate` | `Instantiate(` / `Object.Instantiate(` / `UnityEngine.Object.Instantiate(` | ジェネリックの `Instantiate<T>(` / `GameObject.Instantiate(` / `InstantiateAsync(` / 複数行にまたがる呼び出しの 2 行目 |
+| `AudioSourcePlay` | 文字列 `AudioSource.Play`(静的な呼び出しの形) | インスタンスの `_source.Play()` / `GetComponent<AudioSource>().Play()` / `PlayOneShot`(実質ほとんど検出しない) |
+
+  走査から外れるフォルダ: `/Samples/` / `/Samples~/` / `/Tests/` / `/Tools~/` / `/Documentation~/` / `/Runtime/Ngo/NetCheck/`。`//` で始まる行は対象外。規則ごとの許可ファイル名(`PoolService.cs` 等)は走査側の直書き(持ち込み先の許可は許可コメント / 設定)。
+- **許可コメントの書き方の表(自然に書きそうな変形。2026-10-05、実装を読んで確認)**:
+
+| 書き方 | 結果 |
+|---|---|
+| `//ddrive-allow: Time(x)`(空白なし) / `// DDRIVE-ALLOW: TIME(x)` | 効く(接頭辞・規則名とも大文字小文字を区別しない) |
+| `// ddrive-allow : Time(x)`(コロンの前に空白) / `/* ddrive-allow: Time(x) */` | **効かない**(黙って無視。当たりは Error のまま) |
+| `… // ddrive-allow: Time(実時間) 5 秒で切る` | 効く(理由 = `実時間`。後ろは無視) |
+| `… // ddrive-allow: Time(実時間) 後で見直す(TODO)` | 効く(理由は最後の閉じ括弧までなので `実時間) 後で見直す(TODO` になる。効き方は同じ) |
+| `… // ddrive-allow: Time(x)  // メモ`(行末コメントの後ろに別コメント) | 効く |
+| `/// ddrive-allow: Time(x)`(XML doc コメントの行) | コメントだけの行として次の 1 行に効く |
+| 許可コメント → 属性行 `[SerializeField]` → 当たりの行 | **効かない**(許可は属性行に使われ、未使用の Info + Error) |
+| 許可コメントと当たりの間に空行・別のコメント行・`#region` 等 | **効かない**(許可コメントを続けて 2 行書いても、効くのは当たりの直前の 1 行だけ) |
+| 1 文が複数行で当たりが 2 行目、許可を文の先頭の上に書く | **効かない**(許可は当たりの 1 行上に書く) |
+| ラムダの中の当たり + 同じ行の行末の許可 | 効く |
+| 文字列の中の `"// ddrive-allow: Time(x)"` | 無視される |
+| 行に同じ規則の当たりが 2 つ(`a = Time.time; b = Time.deltaTime;`) | 1 つの許可で両方 |
+| 理由なし(`Time` / `Time()` / `Time( )` / `Time(`) | 無効。当たりがあれば Error の末尾に案内、無ければ Warning |
 
 ### 5.10 依存パッケージと Unity バージョン
 

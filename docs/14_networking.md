@@ -1178,7 +1178,7 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 
 ## 22. 実装メモ（2026-10-04、修正ラウンド 4: Cutscene の受信側の追いつき発火を「位置ごとの猶予」に、FY-R-02 / FY-R-03）
 
-[56](56_review_fix_round3_2026-10-04.md) FY-R-02 の対応。§21 の「全か無か」を、`PresentationManager` の遅れて届いたワンショットの猶予（`remoteOneShotGraceSec`、§6-0 修正6）と**同じ規則・同じ値**にした。
+[56](56_review_fix_round3_2026-10-04.md) FY-R-02 の対応。§21 の「全か無か」を、`PresentationManager` の遅れて届いたワンショットの猶予（`remoteOneShotGraceSec`、§6-0 修正6）と**同じ規則・同じ既定値**(0.5 秒。Presentation の猶予はコンストラクタ引数 `remoteOneShotGraceSec`、Cutscene は定数 `RemoteMarkerGraceSec`。`DDriveRuntimeBootstrap` はどちらも既定値のまま)にした。
 
 - **規則**: 受信側（`OnReceivePlayMsgInternal`。Late Join の再送を含む）は、開始位置 `elapsed = max(0, NetworkTime − StartNetTime)` から遡って猶予（**0.5 秒**）以内にあるマーカーだけを最初の `Tick` で 1 回ずつ発火する。それより古いマーカーは無音で飛ばす。**判定式**: 無音 ⇔ `elapsed − マーカーの時刻 > 0.5`（発火 ⇔ `≤ 0.5`。**ちょうど 0.5 秒は発火**）。Presentation の `SeekInitialTracks`（`lateBySec = elapsed − track.Time; lateBySec > grace` ならスキップ）と境界まで一致。定数は Cutscene 側に 1 つ（`CutsceneManager.RemoteMarkerGraceSec` = 0.5、private。旧 `RemoteFreshStartGraceSec` は未リリースなので改名）で、Presentation の定数と値は共有しない（同じ値であることをこの節と [26] に書く）。
 - **効果**（Signal / Event / Shake / Haptic / 外部 `ICutsceneMarker` 共通。同じカーソル方式）:
@@ -1194,6 +1194,7 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 - **実装**: `PlayLocalInternal` の `catchUpFireMarkers`（受信側の再生開始で常に true）のとき、`SkipMarkersOlderThan(instance, elapsed, 猶予)` が 5 種のカーソルを `elapsed − 時刻 > 猶予` の間だけ無音で進める（割り当てなし）。残りは最初の `Tick`（`AdvanceMarkers(fire: true)`）で発火する。ローカル再生・予測再生・`Seek` / `Skip` の経路は不変。ネットメッセージの形式は不変。
 - **狭い二重発火の防止**: 予測再生した送信者が、自分のメッセージが戻る前にカットシーンをローカルで止めた（`StopAll` = シーンのアンロード。ネットを通らない終わり方）と、戻ったメッセージが新規再生として扱われ冒頭のマーカーがもう一度鳴っていた。自分が予測再生した再生キーを `_predictedKeys`（上限 256 で破棄・`ResetNetworkedState` で空）に覚え、戻ったメッセージで除き、**既存のインスタンスが無ければ再生し直さない**。予測再生なしの送信者は自分のメッセージで再生する（影響なし）。既知の制限: メッセージが戻らないまま 256 件を超えて予測再生を重ねると（切断等）覚えが捨てられる。
 - **テスト**: PlayMode `CutsceneNetMarkerSymmetryTests`（開始位置 × マーカー時刻の表〔Signal 4 + Event 2〕・Client → Host → 別の Client の 3 者〔`DelayedNetworkRelay.RelayThroughHostId`〕・Late Join〔0.5 秒以内 / 0.5 秒より後〕・Skip / Seek・予測再生の送信者が止めた後の再生し直し防止）、`ExternalContractMarkerTests`（外部マーカー）。
+- **開始位置のログ(2026-10-05 修正ラウンド 5、FZ-R-10)**: 開発ビルド / Editor だけ、`OnReceivePlayMsgInternal` が受信した再生ごとに `[Net/Host|Client] Cutscene: 受信した再生の開始位置 s=… 秒(NetworkTime − StartNetTime)・猶予(0.5 秒)を超えて無音にしたマーカー n 件(HandleNetKey=…、'表示名')` を `Debug.Log` で 1 行出す(`#if DEVELOPMENT_BUILD || UNITY_EDITOR`。定常経路〔Tick / Play〕には文字列を作らない)。実機確認の開始位置の記録はこの行を使う。
 - **実機確認**: [52] 4-5（Client が送信者のときに別の Client で確認・開始位置が 0.5 秒にどれだけ近づくかの記録・0.5 秒より後の Late Join・`host_migration` 後の再生）。
 - **挙動の変更（v1.3.1 から）**: CHANGELOG の互換性節（MINOR）。
 

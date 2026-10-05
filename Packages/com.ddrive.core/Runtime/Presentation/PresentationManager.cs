@@ -1538,6 +1538,13 @@ namespace DDrive.Runtime.Presentation
                 }
 
                 FireTrack(handle, instance, t, in tracks[t]);
+
+                // 購読者(Marker / Signal / TrackFired 等)が自分の Presentation を止めたら、残りのトラックは
+                // 発火しない(止めた後に VFX / SE を新しく出して取り残さない。CutsceneManager のマーカー段と同じ保護)。
+                if (!_instances.IsValidSilent(handle))
+                {
+                    return;
+                }
             }
         }
 
@@ -1583,6 +1590,12 @@ namespace DDrive.Runtime.Presentation
                 }
 
                 FireTrack(handle, instance, t, in tracks[t]);
+
+                // FireDueTracks と同じ保護(購読者が自分を止めたら残りは発火しない)。
+                if (!_instances.IsValidSilent(handle))
+                {
+                    return;
+                }
             }
         }
 
@@ -1671,6 +1684,13 @@ namespace DDrive.Runtime.Presentation
                 case TrackKind.AnchorGroup:
                     FireAnchorGroup(instance, trackIndex, in track);
                     break;
+            }
+
+            // 購読者(Marker / Signal の OnSignal 等)が自分の Presentation を止めていたら、Cleanup が Subject を
+            // Dispose 済み(R3 は Dispose 後の OnNext で ObjectDisposedException を投げる)なので、ここで終える。
+            if (!_instances.IsValidSilent(handle))
+            {
+                return;
             }
 
             instance.TrackFiredSubject.OnNext(track);

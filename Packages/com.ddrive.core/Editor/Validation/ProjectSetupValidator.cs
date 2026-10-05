@@ -130,7 +130,7 @@ namespace DDrive.Editor.Validation
             var allowEntries = DDriveProjectSettings.instance.ForbiddenApiAllowEntries;
             for (var i = 0; i < allowEntries.Count; i++)
             {
-                var problem = ForbiddenApiScanner.DescribeEntryProblem(allowEntries[i]);
+                var problem = ForbiddenApiScanner.DescribeEntryProblem(allowEntries[i], CI.ResolveForbiddenApiScanRoot());
                 if (problem != null)
                 {
                     yield return ValidationResult.Warning(

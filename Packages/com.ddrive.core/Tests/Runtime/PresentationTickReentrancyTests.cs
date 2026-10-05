@@ -139,6 +139,42 @@ namespace DDrive.Tests.Runtime
             CollectionAssert.AreEqual(new[] { "n" }, newKeys, "次の Tick から進む");
         }
 
+        // 修正ラウンド 5(2026-10-05、docs/57 FZ-R-07): Marker の購読者が自分の Presentation を止めたら、同じ Tick で
+        // 残りのトラック(後ろの Signal)は発火しない(止めた後に取り残さない。CutsceneManager のマーカー段と同じ保護)。
+        [Test]
+        public void MarkerSubscriber_CancelsItself_RemainingTracksOfThatPresentationDoNotFire()
+        {
+            var signals = new List<string>();
+            var ctx = new PlayContext { OnSignal = k => signals.Add(k) };
+            var self = _manager.PlayData(
+                Data(10f, Marker(0.1f, "stop"), new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0.1f, Kind = TrackKind.Signal, SignalKey = "after" }),
+                ctx);
+            _manager.OnMarker(self).Subscribe(_ => _manager.Cancel(self));
+
+            Assert.DoesNotThrow(() => _manager.Tick(0.5f));
+
+            Assert.IsFalse(_manager.IsPlaying(self), "購読者が止めた");
+            CollectionAssert.IsEmpty(signals, "止められた後の残りのトラックは発火しない");
+        }
+
+        // 止められなければ、同じ時刻の後ろのトラックも従来どおり同じ Tick で発火する(保護が通常の発火を妨げない)。
+        [Test]
+        public void SameTimeTracks_WhenNotStopped_AllFireInOneTick()
+        {
+            var signals = new List<string>();
+            var ctx = new PlayContext { OnSignal = k => signals.Add(k) };
+            var h = _manager.PlayData(
+                Data(10f, Marker(0.1f, "m"), new PresentationTrack { Trigger = TrackTrigger.AtTime, Time = 0.1f, Kind = TrackKind.Signal, SignalKey = "after" }),
+                ctx);
+            var keys = new List<string>();
+            _manager.OnMarker(h).Subscribe(k => keys.Add(k));
+
+            _manager.Tick(0.5f);
+
+            CollectionAssert.AreEqual(new[] { "m" }, keys);
+            CollectionAssert.AreEqual(new[] { "after" }, signals);
+        }
+
         // StopAll の最中に、中止通知の購読者が別の Presentation を止めても範囲外にならない。
         [Test]
         public void StopAll_WhenCancelSubscriberStopsAnother_DoesNotThrow()
