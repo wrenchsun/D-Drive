@@ -77,6 +77,16 @@ namespace DDrive.Editor.Settings
         // D-Drive 以外の git URL パッケージ(追加のみ。旧設定ファイルには無いので空で読まれる)。
         [SerializeField] private List<ManagedPackageEntry> _managedPackages = new();
 
+        // [11_tasks.md] M-4(2026-10-05) — 禁止 API 検査(ForbiddenApiScanner)から外すフォルダ/ファイルの一覧
+        // (追加のみ。旧設定ファイルには無いので空で読まれる)。編集は Project Settings > D-Drive > 禁止 API の除外。
+        [SerializeField] private List<ForbiddenApiAllowEntry> _forbiddenApiAllowEntries = new();
+
+        public IReadOnlyList<ForbiddenApiAllowEntry> ForbiddenApiAllowEntries
+            => _forbiddenApiAllowEntries ?? (_forbiddenApiAllowEntries = new List<ForbiddenApiAllowEntry>());
+
+        // SerializedObject 経由で _forbiddenApiAllowEntries を編集した後、保存するために呼ぶ。
+        public void SaveForbiddenApiAllowEntries() => Save(true);
+
         public IReadOnlyList<ManagedPackageEntry> ManagedPackages
             => _managedPackages ?? (_managedPackages = new List<ManagedPackageEntry>());
 

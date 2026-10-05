@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="index.html">🏠 目次</a> › 運用方法</nav>
 
 <h1>運用方法</h1>
-<p class="lastupdate">最終更新日: 2026-09-20</p>
+<p class="lastupdate">最終更新日: 2026-10-05</p>
 
 <p>導入（<a href="install.html">導入手順</a>）が終わったあと、このプロジェクトで D-Drive を日常的に使い続けるための運用ノウハウです。所要時間の目安は 10 分。</p>
 
@@ -90,7 +90,7 @@
 <tr><td><code>カタログ未登録: '...'(ID 0x...)がどのカタログにもありません</code>（Error）</td><td>Asset Browser 以外の方法でアセットを作成した</td><td>Asset Browser 経由で作り直すか、<code>Regenerate Asset IDs</code> を実行してカタログ登録を揃える</td></tr>
 <tr><td><code>Addressables 未登録: '...' がグループに入っていません</code>（Error）</td><td>Addressables への同期を実行していない</td><td>上記「3. Addressables 同期」を実行する</td></tr>
 <tr><td><code>Flags.Load が Preload ではありません</code>（Error）</td><td>同期解決 API（Audio・Vfx・Anim・Presentation 等）の Data で <code>Load</code> が <code>Preload</code> 以外</td><td>対象 Data の Inspector で <code>Flags.Load</code> を <code>Preload</code> に変更する</td></tr>
-<tr><td>禁止 API の検出（<code>ForbiddenApiScanner</code>）</td><td>ゲームコードで <code>Instantiate</code>/<code>Resources.Load</code>/<code>AudioSource.Play</code> を直接呼んでいる</td><td>D-Drive の静的ファサード（<code>Prefabs</code>/<code>Audio</code> 等）経由に置き換える</td></tr>
+<tr><td>禁止 API の検出（<code>ForbiddenApiScanner</code>）</td><td>ゲームコードで <code>Instantiate</code>/<code>Resources.Load</code>/<code>AudioSource.Play</code>/<code>Time.time</code> 等を直接呼んでいる</td><td>下の「禁止 API の指摘への対処」の順に対処する（1. D-Drive の API に直す → 2. 正当な理由があれば許可コメント → 3. 外部コードは設定の許可リスト）</td></tr>
 <tr><td><code>DD-SETUP-*</code>（Warning）</td><td>依存パッケージ・ProjectSettings・置き場所等の不足</td><td>セットアップウィザードの該当ステップの「直す」を実行する</td></tr>
 <tr><td><code>DD-SETUP-UPDATE-PENDING</code>（Warning）</td><td>更新がまだ適用されていない</td><td><a href="update.html">更新方法</a>の「更新を適用」を実行する</td></tr>
 <tr><td><code>DD-SCHEMA-OUTDATED</code>（Warning）</td><td>Data の形式が古い</td><td>更新ウィンドウの「更新を適用」がマイグレーションも実行するので、通常はこの手順で解消する</td></tr>
@@ -98,6 +98,20 @@
 <tr><td><code>DD-SETUP-EMBEDDED-MODIFIED</code>（Warning）</td><td>パッケージが埋め込み（改造可能な状態）になっている</td><td>通常の git URL 参照に戻す。どうしても改造が必要な場合は開発リポジトリへの提案を検討する</td></tr>
 <tr><td>Console に <code>[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.</code></td><td>未登録 ID を Play/Spawn した（例外にはならない）</td><td>デザイナー側の作業がまだ完了していないだけの可能性が高い。慌てて実装を変えない</td></tr>
 </table>
+
+<h3 id="forbidden-api-allow">禁止 API の指摘への対処</h3>
+<p>禁止 API の検出（<code>CI.ValidateAll</code> が <code>Assets</code> 配下のゲームコードを走査して Error にする）は、次の順で対処します。</p>
+<ol>
+<li><strong>D-Drive の API に直す。</strong> ゲームプレイの時間（ポーズ・ヒットストップに従うもの）の <code>Time.time</code> / <code>Time.deltaTime</code> は <code>ITimeSource</code>、Prefab を置く <code>Instantiate</code> は <code>Prefabs.Spawn</code> またはプール（<code>PoolService</code>）、<code>Resources.Load</code> / <code>Addressables.Load*</code> は <code>IAssetLoader</code>、<code>AudioSource.Play</code> は <code>Audio</code> 経由にします。</li>
+<li><strong>正当な理由があるときは、その行に許可コメントを書く。</strong> 同じ行の行末、または直前の行（コメントだけの行）に <code>// ddrive-allow: 規則名(理由)</code> を書くと、<strong>その 1 行の、規則名が一致する当たりだけ</strong>が許可されます（ファイル全体・ブロック全体は許可されません）。<strong>理由（括弧内）は必須</strong>で、空・括弧なしの許可は無効のままです（半角 <code>( )</code> と全角 <code>（ ）</code> のどちらでも書けます）。規則名は <code>Time</code> / <code>Instantiate</code> / <code>ResourcesLoad</code> / <code>AddressablesLoad</code> / <code>AudioSourcePlay</code>（大文字小文字は区別しません）。1 行に 2 規則あるときは <code>// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)</code> と接頭辞ごと繰り返します。
+<pre>// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)
+var go = Object.Instantiate(networkPrefab);
+
+var now = Time.unscaledTime; // ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)</pre>
+例: NGO の <code>NetworkObject</code> は Instantiate してから Spawn するのが正規の手順で <code>PoolService</code> 経由にできないため許可、Host 引き継ぎや LAN 探索のタイムアウトのようにポーズ・ヒットストップの影響を受けず<strong>実時間で測る必要がある計測</strong>の <code>Time</code> は許可、という使い方です。使われていない許可（その行に該当する当たりが無い）は Info で報告されるので、直した後に残った許可は消してください。</li>
+<li><strong>自分で書き換えられない外部コード・生成コードは、設定の許可リストへ。</strong> <code>Project Settings &gt; D-Drive &gt; 禁止 API の除外</code> に、フォルダまたはファイルのパス（前方一致）・規則名（空欄 = 全規則）・理由（必須）を足します。理由が空の要素は無効で、<code>Validation &gt; Run All</code> に Warning（<code>DD-FORBIDDEN-ALLOW-SETTINGS-INVALID</code>）が出ます。</li>
+</ol>
+<p>許可した件数は検査結果に Info（<code>DD-FORBIDDEN-ALLOW-SUMMARY</code>「禁止 API の許可: N 件(コメント n、設定 m)」）で出ます。許可した箇所の一覧は <code>Tools &gt; D-Drive &gt; Validation &gt; Forbidden API 許可一覧</code> で Console に出せます（レビューで「何を許可しているか」を確認する用途）。</p>
 
 <h2>関連ページ</h2>
 <ul>

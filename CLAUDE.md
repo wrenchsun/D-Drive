@@ -7,7 +7,7 @@
 
 1. **`.unity` / `.prefab` / `.asset` / 画像 / 音 をテキスト編集しない。** Unity Editor（MCP ツール or 人）経由で行う。`.meta` を手で作らない・消さない・GUID を書き換えない
 2. **`Library/ Temp/ Logs/ UserSettings/ obj/ *.csproj *.sln` は生成物。** 読むのは可、編集・コミット不可
-3. **禁止 API**: `Instantiate` / `Resources.Load` / `AudioSource.Play` の直接呼び出し（`ForbiddenApiScanner` が検出）。ランタイム asmdef から `UnityEditor` 参照禁止。定常経路（Tick/Spawn/Play）で LINQ・クロージャ・boxing 禁止（[docs/12_review.md](docs/12_review.md) §3）
+3. **禁止 API**: `Instantiate` / `Resources.Load` / `AudioSource.Play` の直接呼び出し（`ForbiddenApiScanner` が検出。正当な理由があるときだけ行単位の許可コメント `// ddrive-allow: 規則名(理由)`、理由必須・レビューで確認、[docs/42 §5.9](docs/42_distribution.md)）。ランタイム asmdef から `UnityEditor` 参照禁止。定常経路（Tick/Spawn/Play）で LINQ・クロージャ・boxing 禁止（[docs/12_review.md](docs/12_review.md) §3）
 4. **例外で止めない。** 警告 + no-op / Placeholder で継続する（デザイナーの作業を止めない）
 5. **Data は読み取り専用。** Manager が Data を書き換えない。エディタが書き換えるときは必ず `Undo.RecordObject` + `EditorUtility.SetDirty`
 6. **メニューパス直書き禁止。** `DDriveMenu` 定数経由。新規 EditorWindow は `ScrollView` ルート必須（[docs/09_editor_tools.md](docs/09_editor_tools.md) §6-7）。Data 専用エディタには `[DataEditor(typeof(XxxData), "…で開く")]` を付ける（Inspector 最上部の「エディターで開く」が自動で付く。§8）

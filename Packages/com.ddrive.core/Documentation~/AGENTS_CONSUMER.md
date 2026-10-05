@@ -9,7 +9,7 @@ Claude Code を使っている場合は、より詳しい手順書として `Doc
 ## 1. やってはいけないこと
 
 1. **`.unity` / `.prefab` / `.asset` / 画像 / 音声ファイルをテキストエディタで直接編集しない。** すべて Unity Editor（MCP ツールまたは人の手作業）経由で変更する。`.meta` ファイルを手で作らない・消さない・GUID を書き換えない
-2. **禁止 API を直接呼び出さない**: `Instantiate` / `Resources.Load` / `AudioSource.Play` の直接呼び出しは D-Drive の `ForbiddenApiScanner`（Validation の一部）が検出します。D-Drive の管理下にあるアセット・オブジェクトは、D-Drive の静的ファサード（`Audio` / `Vfx` / `Anim` / `Presentation` 等）経由で扱ってください
+2. **禁止 API を直接呼び出さない**: `Instantiate` / `Resources.Load` / `AudioSource.Play` の直接呼び出しは D-Drive の `ForbiddenApiScanner`（Validation の一部）が検出します。D-Drive の管理下にあるアセット・オブジェクトは、D-Drive の静的ファサード（`Audio` / `Vfx` / `Anim` / `Presentation` 等）経由で扱ってください。正当な理由（NGO の `NetworkObject` の Instantiate → Spawn、実時間で測るタイムアウトの `Time` 等）があるときだけ、その行の行末または直前の行に `// ddrive-allow: 規則名(理由)`（理由は必須）を書けます。外部コード・生成コードは Project Settings > D-Drive > 禁止 API の除外
 3. **Data（`.asset`）は読み取り専用として扱う。** ゲームコードが D-Drive の Data アセット（`AssetDataBase` 派生）のフィールドを実行時に書き換えることは想定されていません。デザイナーが専用エディタで編集するものです。エディタ拡張から Data を書き換える必要がある場合のみ `Undo.RecordObject` + `EditorUtility.SetDirty` を使う
 4. **パッケージ（`Packages/com.ddrive.core/`）を改造しない。** git URL 参照で導入したパッケージは読み取り専用として扱い、直接編集しない（`Library/PackageCache` 内の変更は次回の解決で消えます）。機能を拡張したい場合は、D-Drive が提供する拡張点（`IValidator` の自動発見、`ImportRule` ハンドラ、`IHapticOutput`、`INetBridge`、`IAssetBehaviour`、`[DataEditor]`）を使うか、開発リポジトリへ変更を提案してください
 5. **`DDrive.*` の asmdef を触らない。** 持ち込み先固有のコード（ゲーム側のファサード呼び出し、独自 Validator 等）は自分のプロジェクトの asmdef に置き、`DDrive.*` という名前空間は持ち込み先で使わない
