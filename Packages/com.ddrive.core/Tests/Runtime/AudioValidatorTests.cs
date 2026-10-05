@@ -164,6 +164,56 @@ namespace DDrive.Tests.Runtime
             Assert.IsTrue(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("LoopEndSec")));
         }
 
+        // GB-R-02(2026-10-06): LoopEndSec = 0 は「LoopStartSec からクリップ末尾まで」(BgmManager.StartLoopBody・Audio エディタと同じ解釈)。
+        [Test]
+        public void ImportedBgm_OnlyLoopBodySet_HasNoError()
+        {
+            var data = ScriptableObject.CreateInstance<BgmData>();
+            data.LoopBody = AudioClip.Create("loop", 44100, 1, 44100, false);
+            // LoopStartSec / LoopEndSec / Volume は既定(0 / 0 / 1)。Mixer 未割当は Warning。
+            var results = Validate(data);
+            Assert.IsFalse(results.Exists(r => r.Severity == ValidationSeverity.Error), string.Join(" / ", results.ConvertAll(r => r.Message)));
+        }
+
+        [Test]
+        public void StartPositive_EndZero_StartInsideClip_HasNoError()
+        {
+            var data = ValidBgm();
+            data.LoopBody = AudioClip.Create("loop", 44100 * 10, 1, 44100, false); // 10 秒
+            data.LoopStartSec = 3.0;
+            data.LoopEndSec = 0.0;
+            Assert.IsFalse(Validate(data).Exists(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        [Test]
+        public void StartAtOrBeyondClipEnd_EndZero_IsError()
+        {
+            var data = ValidBgm();
+            data.LoopBody = AudioClip.Create("loop", 44100 * 10, 1, 44100, false); // 10 秒
+            data.LoopStartSec = 10.0;
+            data.LoopEndSec = 0.0;
+            Assert.IsTrue(Validate(data).Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("LoopEndSec")));
+        }
+
+        [Test]
+        public void EndBeyondClipLength_IsNotError()
+        {
+            var data = ValidBgm();
+            data.LoopBody = AudioClip.Create("loop", 44100, 1, 44100, false); // 1 秒
+            data.LoopStartSec = 0.0;
+            data.LoopEndSec = 99.0; // 実行時は endSample を clip.samples に丸める
+            Assert.IsFalse(Validate(data).Exists(r => r.Severity == ValidationSeverity.Error));
+        }
+
+        [Test]
+        public void EndEqualToStart_Positive_IsError()
+        {
+            var data = ValidBgm();
+            data.LoopStartSec = 2.0;
+            data.LoopEndSec = 2.0;
+            Assert.IsTrue(Validate(data).Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("LoopEndSec")));
+        }
+
         [Test]
         public void ZeroVolume_IsWarning()
         {
