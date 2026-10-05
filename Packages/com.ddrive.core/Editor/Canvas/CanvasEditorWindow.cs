@@ -1262,7 +1262,7 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var focused = rootVisualElement.panel?.focusController?.focusedElement as VisualElement;
-            return focused != null && (focused is TextElement || focused.ClassListContains("unity-base-text-field__input"));
+            return CanvasEmbeddedEditing.IsTextInputElement(focused);
         }
 
         // 選んだ GameObject が「どの CanvasData の Prefab を表示している実体」の中にあるか。

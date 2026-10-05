@@ -12,6 +12,26 @@ namespace DDrive.Editor.CanvasTool
     // CanvasEditorWindow が肥大化しないよう、UI を持たない部分だけをここに切り出した(EditMode で単体テストできる)。
     public static class CanvasEmbeddedEditing
     {
+        // ── 入力中の判定 ──
+
+        // フォーカス中の要素が「文字や数値を入力する欄」か。Canvas Editor が、入力の途中で編集対象を切り替えないために使う。
+        // Unity 6 では、フォーカス中の要素として返るのは欄そのもの(TextField / 数値欄 / 検索欄)で、内側の入力部品ではない。
+        // 欄そのもの・内側の入力部品のどちらが返っても判定できるよう、要素とその祖先のクラス名で見る。
+        // ボタンなど、入力欄でないものは対象外(ボタンも文字を持つ要素なので、型だけでは見分けない)。
+        public static bool IsTextInputElement(UnityEngine.UIElements.VisualElement focused)
+        {
+            for (var e = focused; e != null; e = e.parent)
+            {
+                if (e.ClassListContains("unity-base-text-field")
+                    || e.ClassListContains("unity-base-text-field__input")
+                    || e.ClassListContains("unity-search-field-base"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
         // ── 子 CanvasData の引き当て ──
 
         // Id → CanvasData の対応表(プロジェクト内の全 CanvasData。AssetSearch のキャッシュ経由)。

@@ -47,7 +47,7 @@ namespace DDrive.Editor.Materials
         public bool PreserveSpecificOnReimport = true;
 
         [Tooltip("D-Drive の変換表(URP Lit / Standard 等)にも DDrive/ にも当たらないシェーダーの Material の扱い。"
-                 + "Ask = 対話的な操作(Model エディタの「元ファイルを再読み込み」・メニューからの変換)では 1 操作 1 回だけ確認し、自動取り込みは DDrive/Lit に変換。"
+                 + "Ask = 対話的な操作(Model エディタの「元ファイル再読み込み」・メニューからの変換)では 1 操作 1 回だけ確認し、自動取り込みは DDrive/Lit に変換。"
                  + "KeepSource = 確認せず元のシェーダーのまま MaterialData を作る(T-Drive など独自シェーダーを使うプロジェクト向け)。"
                  + "ConvertToLit = 確認せず常に DDrive/Lit に変換。")]
         public UnknownShaderPolicy UnknownShaderPolicy = UnknownShaderPolicy.Ask;

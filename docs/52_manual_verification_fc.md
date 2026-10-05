@@ -15,6 +15,8 @@
 - **書式**: 各項目は「手順 → 期待する結果 → 結果欄」。結果欄は `□ 未 / OK / NG` のいずれかに書き換え、NG はメモを残す
 - 自動テストで担保済みで目視が要らないものは「自動テストで確認済み（テスト名）」と書いてある（再確認は不要）
 
+**確認の記録(2026-10-06 追記)**: 確認日 2026-10-06、環境 = 別 PC・ブランチ `fix/valuedef-constant-time-validation`(修正後の再確認は `fix/verification-findings-2026-10-06`)・日本語 Windows 11・Unity 6000.3.13f1。Editor の操作(実際のクリック・キー入力・実ダイアログ)と画面キャプチャ・画面の文字の読み取りで確認した(15.2 のキャンセルは山口が実際に押した)。**カットシーンは素材(FBX)が無くても組めるものだけが今回の対象**(Activation トラックと Signal マーカーを手で組んだ確認用データ)。結果: §1(1-1〜1-15)・§2(2-2)・§6・§11.1・§11.2・§14・§15.1〜15.4・§19・§20 は OK。**§4(4-1〜4-4)は NG → 修正後 OK**(Edit Mode のプレビューでマーカーが発火しなかった。v1.3.1 からある不具合)。**§15.6 は一部 NG → 修正後 OK**(右クリック作成で警告が Console に出なかった)。未確認: 2-1、4-5(実機)、§15.5 と「素材が必要」と書いた行(3-1・§5・§7。FBX の到着後)。
+
 ## 1. FC-1: 同じ相手へのバインド（`CutsceneBindTarget.SameAsTrack`）の確認
 
 [51] §4.2、[26](26_timeline.md) §4.2・§4.4。自動テストで確認済み: 2 パス解決・並び順非依存・鎖・循環と未解決の警告 + no-op・モデルが 1 体（`CutsceneSameAsTrackTests`）、Edit Mode の解決（`CutsceneEditModeDirectorSetupTests`）、Validator の 4 検査（`CutsceneDataValidatorTests`）。以下は Inspector と実際の再生の目視。
@@ -25,12 +27,12 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 1-1 | 2 件目の `Target` を `SameAsTrack` にする | その要素の下に **`Source Track Name`** のプルダウンだけが出る。`Model` と `Scene Object Name` は出ない | □ 未 |
-| 1-2 | `Target` を `SpawnModel` に戻す | `Model` だけが出る（`Source Track Name` は消える） | □ 未 |
-| 1-3 | `Target` を `SceneObjectByName`、続けて `AnchorPoint` にする | `Scene Object Name` だけが出る | □ 未 |
-| 1-4 | `Target` を `MainCamera` / `Self` / `Target` にする | 追加の項目は何も出ない | □ 未 |
-| 1-5 | `SameAsTrack` に戻し、`Source Track Name` のプルダウンを開く | 候補は**同じ CutsceneData の Bindings の TrackName**（重複なし）。先頭に「(未設定)」。選ぶと値が入る | □ 未 |
-| 1-6 | `Source Track Name` に候補に無い名前（Bindings を `Hero2` などに書き換えて typo にする等）が入っている状態にする | 値は消されずプルダウンに残って見える（検査・Validator で警告される。§1.2・§1.3） | □ 未 |
+| 1-1 | 2 件目の `Target` を `SameAsTrack` にする | その要素の下に **`Source Track Name`** のプルダウンだけが出る。`Model` と `Scene Object Name` は出ない | **OK**(2026-10-06、`fix/valuedef-constant-time-validation`。素材が無いため、Activation トラック 2 本(`Hero` / `Hero_Ext`)を手で組んだ Timeline と確認用の CutsceneData で確認。Inspector は画面キャプチャ): `SameAsTrack` で `Source Track Name` のプルダウンだけが出る |
+| 1-2 | `Target` を `SpawnModel` に戻す | `Model` だけが出る（`Source Track Name` は消える） | **OK**(2026-10-06): `SpawnModel` で `Model` だけが出る |
+| 1-3 | `Target` を `SceneObjectByName`、続けて `AnchorPoint` にする | `Scene Object Name` だけが出る | **OK**(2026-10-06): `SceneObjectByName`・`AnchorPoint` で `Scene Object Name` だけが出る |
+| 1-4 | `Target` を `MainCamera` / `Self` / `Target` にする | 追加の項目は何も出ない | **OK**(2026-10-06): `MainCamera`・`Self` で追加の項目なし(`Target` は未確認) |
+| 1-5 | `SameAsTrack` に戻し、`Source Track Name` のプルダウンを開く | 候補は**同じ CutsceneData の Bindings の TrackName**（重複なし）。先頭に「(未設定)」。選ぶと値が入る | **一部 OK**(2026-10-06): 未設定のとき「(未設定)」と表示され、値(`Hero` 等)を入れるとその名前が表示される。**プルダウンを開いて候補の一覧を見ることは未実施**(値はスクリプトから入れた) |
+| 1-6 | `Source Track Name` に候補に無い名前（Bindings を `Hero2` などに書き換えて typo にする等）が入っている状態にする | 値は消されずプルダウンに残って見える（検査・Validator で警告される。§1.2・§1.3） | **OK**(2026-10-06): 候補に無い名前(`HeroX`)を入れても消されず、プルダウンに `HeroX` と表示される |
 
 ### 1.2 バインド検査の表示
 
@@ -38,16 +40,16 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 1-7 | `Hero_Ext`（Timeline に同名のトラックがあること）を `SameAsTrack` + `Source Track Name = Hero` にする | 検査に `✓ Hero_Ext → Hero(同じ相手にバインド)` が出る | □ 未 |
-| 1-8 | `Source Track Name` を自分自身（`Hero_Ext`）にする | `✗ Hero_Ext → Hero_Ext(…)` と問題の説明が出る | □ 未 |
-| 1-9 | `Source Track Name` を Bindings に無い名前にする | `✗ …(…)` で未解決の説明が出る | □ 未 |
-| 1-10 | 2 つの binding を互いに `SameAsTrack` で参照させる（A → B、B → A） | どちらも `✗`（循環）になる | □ 未 |
+| 1-7 | `Hero_Ext`（Timeline に同名のトラックがあること）を `SameAsTrack` + `Source Track Name = Hero` にする | 検査に `✓ Hero_Ext → Hero(同じ相手にバインド)` が出る | **OK**(2026-10-06): 検査に「✓ Hero_Ext → Hero(同じ相手にバインド)」 |
+| 1-8 | `Source Track Name` を自分自身（`Hero_Ext`）にする | `✗ Hero_Ext → Hero_Ext(…)` と問題の説明が出る | **OK**(2026-10-06): 「✗ Hero_Ext → Hero_Ext(自己参照)」 |
+| 1-9 | `Source Track Name` を Bindings に無い名前にする | `✗ …(…)` で未解決の説明が出る | **OK**(2026-10-06): 「✗ Hero_Ext → HeroX(参照先の Binding が無い)」 |
+| 1-10 | 2 つの binding を互いに `SameAsTrack` で参照させる（A → B、B → A） | どちらも `✗`（循環）になる | **OK**(2026-10-06): 「✗ Hero → Hero_Ext(循環参照)」「✗ Hero_Ext → Hero(循環参照)」の両方 |
 
 ### 1.3 Validation の警告
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 1-11 | §1.1〜1.2 の不正な状態（空 / 自己参照 / 存在しない参照先 / 循環）を作ったまま、`Tools > D-Drive > Validation > Run All` を実行する | Console に該当の CutsceneData について **Warning**（Error ではない）が出る。正しい設定（1-7）に戻して再実行すると消える | □ 未 |
+| 1-11 | §1.1〜1.2 の不正な状態（空 / 自己参照 / 存在しない参照先 / 循環）を作ったまま、`Tools > D-Drive > Validation > Run All` を実行する | Console に該当の CutsceneData について **Warning**（Error ではない）が出る。正しい設定（1-7）に戻して再実行すると消える | **OK**(2026-10-06): 空 / 自己参照 / 存在しない参照先 / 循環のそれぞれで `Run All` に Warning(「Bindings[1](Hero_Ext) は Target=SameAsTrack ですが SourceTrackName … (実行時はそのトラックだけミュートされます)」。循環は 2 件)。Error ではない。正しい設定に戻すと消える |
 
 ### 1.4 実際の再生（モデルが 1 体だけ出る）
 
@@ -55,10 +57,10 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 1-12 | Play Mode に入り、確認用シーンの Cutscene 再生導線（Inspector の「Play Mode 中の再生」）で再生する | **モデルは 1 体だけ**出る（Hierarchy にも 1 体）。2 体目は出ない。`Hero_Ext` のトラックのバインド先が `Hero` と同じモデル（Timeline ウィンドウでトラックを選ぶと同じオブジェクトが入っている） | □ 未 |
-| 1-13 | 再生終了 / 停止後 | モデルが片付く（1 体とも消える） | □ 未 |
-| 1-14 | Edit Mode に戻り、Cutscene の Inspector の「▶ Timeline ウィンドウで開く」を押し、Timeline ウィンドウでスクラブする | Edit Mode のプレビューでもモデルは **1 体**。`Hero_Ext` のトラックも同じ相手にバインドされる（Timeline ウィンドウを閉じる / 別のアセットを選ぶと片付く） | □ 未 |
-| 1-15 | `Hero_Ext` の `Source Track Name` を壊して（空にして）1-12 を再度行う | Console に警告が **1 回**出る。`Hero_Ext` のトラックだけが動かない（ミュート）。`Hero` のトラックと Cutscene の再生は継続する。例外は出ない | □ 未 |
+| 1-12 | Play Mode に入り、確認用シーンの Cutscene 再生導線（Inspector の「Play Mode 中の再生」）で再生する | **モデルは 1 体だけ**出る（Hierarchy にも 1 体）。2 体目は出ない。`Hero_Ext` のトラックのバインド先が `Hero` と同じモデル（Timeline ウィンドウでトラックを選ぶと同じオブジェクトが入っている） | **OK**(2026-10-06): 確認用シーンで Play し、確認用の再生導線(`CutscenePreviewHarness.Play`)で再生。**モデルは 1 体だけ**(`CubeModel(Clone)`)。`Hero` と `Hero_Ext` のトラックのバインド先が同じオブジェクト(同じ InstanceID)。補足: 確認用モデルは自作の小さな Prefab(既存の `MODEL_Player_Model` はこの環境では読み込めず「Unregistered AssetId … resolved to Placeholder」になったため。その場合は `Hero` が未解決 → `Hero_Ext` も「参照先 'Hero' が未解決」で、警告 1 回ずつ・ミュートで継続・例外なしを確認)。確認用シーンの起動オブジェクトにカタログを直接指定して実行 |
+| 1-13 | 再生終了 / 停止後 | モデルが片付く（1 体とも消える） | **OK**(2026-10-06): 再生終了後、モデルも Director も残らない |
+| 1-14 | Edit Mode に戻り、Cutscene の Inspector の「▶ Timeline ウィンドウで開く」を押し、Timeline ウィンドウでスクラブする | Edit Mode のプレビューでもモデルは **1 体**。`Hero_Ext` のトラックも同じ相手にバインドされる（プレビュー用の Director とモデルは、シーンを切り替える・プレハブモードに出入りする・Play Mode に入る・再コンパイルのときに片付く。Timeline ウィンドウを閉じる / 別のアセットを選ぶだけでは残る） | **OK**(2026-10-06): 「▶ Timeline ウィンドウで開く」で Edit Mode のプレビュー用 Director ができ、モデルは **1 体**、`Hero` / `Hero_Ext` とも同じオブジェクトにバインドされる(時刻を動かしても 1 体のまま)。片付くタイミングは、確認時点の手順書の記載(Timeline ウィンドウを閉じる / 別のアセットを選ぶ)と違い、シーン切替・プレハブモードの出入り・Play Mode 突入・再コンパイルのとき(手順の記載を実装に合わせて直した) |
+| 1-15 | `Hero_Ext` の `Source Track Name` を壊して（空にして）1-12 を再度行う | Console に警告が **1 回**出る。`Hero_Ext` のトラックだけが動かない（ミュート）。`Hero` のトラックと Cutscene の再生は継続する。例外は出ない | **OK**(2026-10-06): `Source Track Name` を空にして再生 → Console に警告が 1 回(「トラック 'Hero_Ext' が未解決です(Target=SameAsTrack ですが SourceTrackName が空です)。そのトラックはミュートのまま継続します。」)。`Hero` は従来どおりモデルにバインドされ、再生は継続。例外なし |
 
 **要判断（FC-1）**: なし（U-1 / U-2 / U-5 は決定済み。[51] §8）。
 
@@ -70,8 +72,8 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 2-1 | ブレンドシェイプ（表情）を持つモデルの ModelData を用意する（Prefab に `SkinnedMeshRenderer` + ブレンドシェイプのあるメッシュ）。Model エディタ（`Tools > D-Drive > Editors > Model`）でその ModelData を開き、`Flags` の Pool を **Pooled**（Max 1 以上）にする。「▶ シーンに配置」で配置し、Hierarchy で配置されたモデルの `SkinnedMeshRenderer` を選んで、Inspector の `BlendShapes` のスライダーを動かして表情を変える（例: 全部 100）。「■ 撤去」を押し、もう一度「▶ シーンに配置」する | 再配置されたモデルの表情が**元の状態に戻っている**（スライダーが Prefab の値。前の表情が残っていない）。**プレビューが毎回新しい GameObject を作る実装のときは、この項目は意味を持たない**（その場合は 2-2 で確認する。どちらだったかをメモに書く） | □ 未 |
-| 2-2 | 同じモデルを Play Mode で `Models.Spawn` する簡単なテスト用シーン（または既存の確認用シーン）で、Spawn → Inspector で表情を変える → `Models.Despawn` → もう一度 Spawn する | 再 Spawn したモデルの表情が Prefab の値に戻っている | □ 未 |
+| 2-1 | ブレンドシェイプ（表情）を持つモデルの ModelData を用意する（Prefab に `SkinnedMeshRenderer` + ブレンドシェイプのあるメッシュ）。Model エディタ（`Tools > D-Drive > Editors > Model`）でその ModelData を開き、`Flags` の Pool を **Pooled**（Max 1 以上）にする。「▶ シーンに配置」で配置し、Hierarchy で配置されたモデルの `SkinnedMeshRenderer` を選んで、Inspector の `BlendShapes` のスライダーを動かして表情を変える（例: 全部 100）。「■ 撤去」を押し、もう一度「▶ シーンに配置」する | 再配置されたモデルの表情が**元の状態に戻っている**（スライダーが Prefab の値。前の表情が残っていない）。**プレビューが毎回新しい GameObject を作る実装のときは、この項目は意味を持たない**（その場合は 2-2 で確認する。どちらだったかをメモに書く） | **未実施**(2026-10-06): Model エディタの「▶ シーンに配置」/「■ 撤去」経由は行っていない(2-2 の Play Mode で確認) |
+| 2-2 | 同じモデルを Play Mode で `Models.Spawn` する簡単なテスト用シーン（または既存の確認用シーン）で、Spawn → Inspector で表情を変える → `Models.Despawn` → もう一度 Spawn する | 再 Spawn したモデルの表情が Prefab の値に戻っている | **OK**(2026-10-06、`fix/valuedef-constant-time-validation`): 合成メッシュ(シェイプ `Smile`・`FC_Test_Neutral_R0_C0`・`fcs_test`。Prefab の初期値は `Smile` = 30)の ModelData(Pooled、Max 2)を Play Mode で `Models.Spawn` → 3 つとも 100 に変更 → `Models.Despawn` → 再 Spawn。**同じ GameObject が再利用され、重みは Prefab の値(`Smile` = 30、他 0)に戻る**(`FC_` / `fcs_` も戻る) |
 
 目視が要らないもの: `FC_*` / `fcs_*` の扱い（接頭辞で除外しない = 自動テストで確認済み）、通知の順序・例外隔離（自動テストで確認済み）、プールの強制回収（上限超過）経路（自動テストで確認済み）。`IModelInstanceListener` は Prefab に付けたコンポーネントが実装するインターフェースで、画面に出るものではない（T-Drive の `ToonCharacter` が使う。§22）。
 
@@ -87,7 +89,7 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 3-1 | `CutsceneData` の Inspector の「▶ Cutscene確認用シーンを開く」で開く確認用シーン（[43] §7）で Play し、Camera クリップを持つ `CutsceneData` を再生する。再生中に Console へ `ViewCamera.TryGetCurrent` の結果を出す小さなテスト用コンポーネント（`[DefaultExecutionOrder(1001)]`、`LateUpdate` で呼ぶ）を `Camera.main` に付けておく | カットの区間中は `Source = Cutscene` で、位置・回転が Scene ビューの `Camera.main` と一致する。カットが終わると `Source = MainCamera` に戻る。**エラー・警告は出ない** | □ 未 |
+| 3-1 | `CutsceneData` の Inspector の「▶ Cutscene確認用シーンを開く」で開く確認用シーン（[43] §7）で Play し、Camera クリップを持つ `CutsceneData` を再生する。再生中に Console へ `ViewCamera.TryGetCurrent` の結果を出す小さなテスト用コンポーネント（`[DefaultExecutionOrder(1001)]`、`LateUpdate` で呼ぶ）を `Camera.main` に付けておく | カットの区間中は `Source = Cutscene` で、位置・回転が Scene ビューの `Camera.main` と一致する。カットが終わると `Source = MainCamera` に戻る。**エラー・警告は出ない** | □ 未(**素材が必要**: Camera クリップを持つ CutsceneData。FBX の到着後) |
 
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-3 の項。
 
@@ -105,12 +107,12 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 4-1 | Event / Signal / Shake / Haptic のいずれかのマーカーを置いた `CutsceneData` を、Timeline ウィンドウで開いて再生する（`CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」） | 再生中にマーカーの時刻を跨ぐと従来どおり発火する（Shake / Haptic / Event。Signal は Edit Mode ではコンソールに `Cutscene Signal (Edit Mode プレビュー)` が出る）。スクラブでは発火しない。**エラー・例外は出ない** | □ 未 |
+| 4-1 | Event / Signal / Shake / Haptic のいずれかのマーカーを置いた `CutsceneData` を、Timeline ウィンドウで開いて再生する（`CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」） | 再生中にマーカーの時刻を跨ぐと従来どおり発火する（Shake / Haptic / Event。Signal は Edit Mode ではコンソールに `Cutscene Signal (Edit Mode プレビュー)` が出る）。スクラブでは発火しない。**エラー・例外は出ない** | **NG → 修正後 OK**(2026-10-06): 確認時点(`fix/valuedef-constant-time-validation`)では、Signal マーカー(トラック上 + 上端のマーカー領域)を置いた Timeline を「▶ Timeline ウィンドウで開く」で開いて再生しても**マーカーが 1 つも発火しなかった**(Console に何も出ない)。原因: Edit Mode のプレビュー役がプレビュー用 Director を `Object.FindObjectsByType` で探していたが、その Director は `HideFlags.DontSave` で作られていて検索に出ない(2026-09-20 の docs/45 P1-5 対応から。v1.3.1 にも含まれる)。**修正(用意した Director を直接覚えて駆動する)後に同じ手順で再確認**: 0 から再生すると、トラック上の 0 秒・0.04 秒と上端のマーカー領域の 1.0 秒が 1 回ずつ発火する。スクラブでは発火しない。エラーなし。Shake / Haptic / Event、SE / VFX / UI / Camera クリップが Edit Mode で鳴る・動くことは未確認(音と見た目の確認が要る。[43] §10) |
 
-| 4-2 | （2026-10-03 追記、レビュー FC-R-03）Signal マーカーを **0 秒ちょうど**に置いた `CutsceneData` を Timeline ウィンドウで開き、再生位置を 0 に戻して再生する。続けて、再生位置を途中（例: 2 秒）へスクラブしてから再生する | 先頭から再生したときは 0 秒のマーカーが再生の最初に発火する（Signal はコンソールに `Cutscene Signal (Edit Mode プレビュー)` が 1 回出る）。スクラブしただけでは発火せず、途中からの再生でも 0 秒のマーカーは出ない。Play Mode で `Cutscene.Play` したときも、最初の Tick で 0 秒のマーカーが 1 回発火する（Event / Signal / Shake / Haptic いずれも） | □ 未 |
-| 4-3 | （同上、FC-R-04）Timeline ウィンドウの**上端のマーカー領域**（トラックではなく、時間軸の上の帯）に Signal マーカーを置いて再生する | トラック上に置いたときと同じように発火する（自動テストでも `markerTrack` が収集されることを確認済み） | □ 未 |
+| 4-2 | （2026-10-03 追記、レビュー FC-R-03）Signal マーカーを **0 秒ちょうど**に置いた `CutsceneData` を Timeline ウィンドウで開き、再生位置を 0 に戻して再生する。続けて、再生位置を途中（例: 2 秒）へスクラブしてから再生する | 先頭から再生したときは 0 秒のマーカーが再生の最初に発火する（Signal はコンソールに `Cutscene Signal (Edit Mode プレビュー)` が 1 回出る）。スクラブしただけでは発火せず、途中からの再生でも 0 秒のマーカーは出ない。Play Mode で `Cutscene.Play` したときも、最初の Tick で 0 秒のマーカーが 1 回発火する（Event / Signal / Shake / Haptic いずれも） | **NG → 修正後 OK**(2026-10-06): 原因は 4-1 と同じ。修正後、先頭から再生すると 0 秒のマーカーが 1 回発火し、スクラブだけでは発火せず、途中(0.05 秒)からの再生では 0 秒のマーカーは出ない。Play Mode の `Cutscene.Play` での 0 秒のマーカーは未確認 |
+| 4-3 | （同上、FC-R-04）Timeline ウィンドウの**上端のマーカー領域**（トラックではなく、時間軸の上の帯）に Signal マーカーを置いて再生する | トラック上に置いたときと同じように発火する（自動テストでも `markerTrack` が収集されることを確認済み） | **NG → 修正後 OK**(2026-10-06): 原因は 4-1 と同じ。修正後、上端のマーカー領域(`markerTrack`)に置いた Signal もトラック上と同じように発火する |
 
-| 4-4 | （2026-10-04 追記、修正ラウンド 3、FX-R-01 / FX-R-04）**Edit Mode の先頭判定**: 0 秒と 0.04 秒に Signal マーカーを置いた `CutsceneData` を Timeline ウィンドウで開く。(a) 再生位置を 0 にして再生する（数回繰り返す。毎回、再生位置を 0 に戻してから）。(b) 再生位置を **0.05 秒付近**へスクラブしてから再生する。(c) （修正ラウンド 4、FY-R-05）2.0 秒ちょうどと 2.01 秒（最初の更新で進む範囲）に Signal を置き、再生位置を 2.0 秒へスクラブしてから再生する。続けて一時停止 → 再開（再開位置のすぐ後〔0.01 秒後など〕にもマーカーを置く）も試す | (a) 毎回、再生の最初に 0 秒のマーカーが **1 回**発火する（コンソールに Signal が出る）。(b) 0 秒・0.04 秒のマーカーは**発火しない**（途中からの再生）。どちらも更新の間隔や PC の重さで結果が変わらない。(c) 再生を始めた位置（2.0 秒）ちょうどのマーカーは**出ず**、再生を始めてすぐの 2.01 秒は **1 回**出る（最初の 1 フレーム分を飛ばさない）。一時停止からの再開も同じ（再開位置ちょうどは出ず、そのすぐ後は出る）。自動テストでも確認済み（`ExternalContractMarkerEditModeTests.E20_EditPreview_ScrubThenPlay_*` / `ResumeFromPause_*`） | □ 未 |
+| 4-4 | （2026-10-04 追記、修正ラウンド 3、FX-R-01 / FX-R-04）**Edit Mode の先頭判定**: 0 秒と 0.04 秒に Signal マーカーを置いた `CutsceneData` を Timeline ウィンドウで開く。(a) 再生位置を 0 にして再生する（数回繰り返す。毎回、再生位置を 0 に戻してから）。(b) 再生位置を **0.05 秒付近**へスクラブしてから再生する。(c) （修正ラウンド 4、FY-R-05）2.0 秒ちょうどと 2.01 秒（最初の更新で進む範囲）に Signal を置き、再生位置を 2.0 秒へスクラブしてから再生する。続けて一時停止 → 再開（再開位置のすぐ後〔0.01 秒後など〕にもマーカーを置く）も試す | (a) 毎回、再生の最初に 0 秒のマーカーが **1 回**発火する（コンソールに Signal が出る）。(b) 0 秒・0.04 秒のマーカーは**発火しない**（途中からの再生）。どちらも更新の間隔や PC の重さで結果が変わらない。(c) 再生を始めた位置（2.0 秒）ちょうどのマーカーは**出ず**、再生を始めてすぐの 2.01 秒は **1 回**出る（最初の 1 フレーム分を飛ばさない）。一時停止からの再開も同じ（再開位置ちょうどは出ず、そのすぐ後は出る）。自動テストでも確認済み（`ExternalContractMarkerEditModeTests.E20_EditPreview_ScrubThenPlay_*` / `ResumeFromPause_*`） | **NG → 修正後 OK**(2026-10-06): 原因は 4-1 と同じ。修正後、(a) 0 から再生を 2 回 → 毎回 0 秒と 0.04 秒が 1 回ずつ。(b) 0.05 秒から再生 → 0 秒・0.04 秒は出ない。(c) 2.0 秒から再生 → 2.0 秒ちょうどは出ず、2.01 秒は 1 回出る。一時停止からの再開は未確認(自動テストで確認済み) |
 | 4-5 | （2026-10-04 追記、修正ラウンド 3・4、FX-R-01 / FY-R-02）**ネットの構成**（2 台: PC-A Host + PC-B Client、できれば [29] §25 の 4 台: A Host / B・C Client / D Client。遅延 200ms 設定。[29] の手順）。0 秒・0.1 秒・0.4 秒・0.6 秒に Signal（または SE）マーカーを置いた Cosmetic の `CutsceneData`（PredictLocal 有効）を使う。(a) **Host の操作**で再生し、Host と Client の両方で見る。(b) **Client の操作**で再生し、**別の Client**（Client → Host → Client の 2 区間）でも見る。`NetDebugOverlay` 等で、受信した端末の**開始位置（`NetworkTime − StartNetTime`）が 0.5 秒にどれだけ近づくか**を記録する（遅延 200ms で 0.4〜0.5 秒台になりうる）。(c) 再生開始から **0.5 秒より後に途中参加**した端末（3 台目、または一度切断して再接続した Client）で見る。(d) [29] §25 の `host_migration` シナリオの**後**に同じカットシーンを再生し、二重に鳴らない・鳴り損ねないことを見る | (a) Host（送信側）と Client（受信側）の**両方**で、0 秒と 0.1 秒のマーカーが 1 回ずつ鳴る（遅延 200ms でも Client が鳴らないことがない）。(b) 送信した Client・Host・別の Client で、開始位置が 0.5 秒以内の端末は 0 / 0.1 / 0.4 秒が全部鳴る。**0.5 秒を超えた端末は、遡って 0.5 秒以内のマーカーだけ鳴り（例: 開始位置 0.7 秒なら 0.4 / 0.6 秒。0 / 0.1 秒は鳴らない）、全部が無音にはならない**（0 秒のマーカーは遅延が 0.5 秒を超えた端末では鳴らない = 仕様）。記録した開始位置と鳴ったマーカーが [14] §22 の表と合う。(c) 途中参加した端末では、参加時点から遡って 0.5 秒以内のマーカーだけ鳴り、それより前（開始直後のマーカー）は鳴らない。(d) `host_migration` 後も、再生したカットシーンのマーカーが各端末で 1 回ずつ鳴る（古いカットシーンが再送されて鳴り直さない）。ログに破棄・警告が出ない。**(e)（2026-10-05 修正ラウンド 5、FZ-R-10）**開発ビルド / Editor のログに、受信した端末ごとに 1 行 `[Net/Host|Client] Cutscene: 受信した再生の開始位置 s=… 秒(NetworkTime − StartNetTime)・猶予(0.5 秒)を超えて無音にしたマーカー n 件(HandleNetKey=…)` が出る。**この行の `s` を各端末の開始位置として記録し**、鳴ったマーカーの組と [14] §22 の表（`s − マーカーの時刻 > 0.5` のものだけ無音）が合うこと、`n` が無音にしたマーカーの数と一致することを見る **（2026-10-06 追記、N-8）この確認は NetCheck の `cut_*` シナリオと [29] §27（R1〜R5 の起動コマンド・ログの抜き出し・`Run-NetCheck.ps1 -JudgeOnly` での判定）を使う。**メモ: ローカル複数プロセス（実 NGO・127.0.0.1）では PASS（2026-10-06。[14] §22・§23） | □ 未（自動テストは `CutsceneNetMarkerSymmetryTests` で遅延 0ms / 200ms・Client → Host → 別の Client の 2 区間・Late Join・Skip / Seek・予測再生を止めた後の再生し直し防止を確認済み。実機は要確認） |
 
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-4 の項（T-Drive 側で `ICutsceneMarker` を実装したマーカーを使うとき）。
@@ -123,8 +125,8 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 5-1 | メニュー `Tools > D-Drive > Generate > SourceAssets/Cutscene からインポートルールを再実行` を実行する | Console に `[DDrive] Cutscene 取り込み(再実行): CutsceneData 新規 0 / 更新 N …` が出る。**エラー・例外は出ない**。既存の `CutsceneData` の Bindings・デザイナーが足したトラックはそのまま残る | □ 未 |
-| 5-2 | 同じメニューをもう一度実行する | 結果は 5-1 と同じ（トラック・Bindings が増えない） | □ 未 |
+| 5-1 | メニュー `Tools > D-Drive > Generate > SourceAssets/Cutscene からインポートルールを再実行` を実行する | Console に `[DDrive] Cutscene 取り込み(再実行): CutsceneData 新規 0 / 更新 N …` が出る。**エラー・例外は出ない**。既存の `CutsceneData` の Bindings・デザイナーが足したトラックはそのまま残る | □ 未(**素材が必要**: Maya の FBX のセット。FBX の到着後) |
+| 5-2 | 同じメニューをもう一度実行する | 結果は 5-1 と同じ（トラック・Bindings が増えない） | □ 未(**素材が必要**: 同上) |
 
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-1 / FC-5 の項（fctrack の取り込みがリスナーで Facial トラックと `SameAsTrack` の binding を足し、再取り込みでも消えず重複しない）。
 
@@ -136,9 +138,9 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 6-1 | `Assets/SourceAssets/Se/Test/` に wav を 1 つ置く | これまでどおり `SeData` が `Assets/GameData/Audio/SE/Test/` に作られる。Console に ImportRule の警告・エラーは出ない | □ 未 |
-| 6-2 | `Assets/SourceAssets/NotAKind/x.wav` を置く | Console に `[DDrive] ImportRule 案内: 'NotAKind' は種別フォルダではありません(対応フォルダ: Se / Bgm / … / Vfx …)` が 1 回出る（従来どおり。D-Drive 単体では `Facial` も同じ扱い） | □ 未 |
-| 6-3 | メニュー `Tools > D-Drive > Generate > SourceAssets の既定フォルダを作成` を実行する | 組み込み 9 種別 + `Cutscene` のフォルダと README ができる（外部ハンドラがあればそのフォルダも）。エラーは出ない | □ 未 |
+| 6-1 | `Assets/SourceAssets/Se/Test/` に wav を 1 つ置く | これまでどおり `SeData` が `Assets/GameData/Audio/SE/Test/` に作られる。Console に ImportRule の警告・エラーは出ない | **OK**(2026-10-06、`fix/valuedef-constant-time-validation`): `Assets/SourceAssets/Se/Test/` に wav を置くと `SE_Test_ScratchBeep` が `Assets/GameData/Audio/SE/` のカテゴリのフォルダに作られる。ImportRule の警告・エラーなし。二重には作られない。補足: Unity が背面にあって Editor の更新が止まっている間は、置いただけでは作られず(取り込みの後処理が次の Editor の更新待ちになる)、Unity が動き出した時点で処理された |
+| 6-2 | `Assets/SourceAssets/NotAKind/x.wav` を置く | Console に `[DDrive] ImportRule 案内: 'NotAKind' は種別フォルダではありません(対応フォルダ: Se / Bgm / … / Vfx …)` が 1 回出る（従来どおり。D-Drive 単体では `Facial` も同じ扱い） | **OK**(2026-10-06): `Assets/SourceAssets/NotAKind/x.wav` で Warning「[DDrive] ImportRule 案内: 'NotAKind' は種別フォルダではありません(対応フォルダ: Se / Bgm / Texture / Model / Anim / Anim2D / Prefab / Canvas / Vfx。大文字・小文字も一致させてください)(1件: …)」が 1 回 |
+| 6-3 | メニュー `Tools > D-Drive > Generate > SourceAssets の既定フォルダを作成` を実行する | 組み込み 9 種別 + `Cutscene` のフォルダと README ができる（外部ハンドラがあればそのフォルダも）。エラーは出ない | **OK**(2026-10-06): メニュー実行で「[DDrive] SourceAssets 既定フォルダ: フォルダ新規 1 / README 新規 1」(無かった `Cutscene` フォルダと README が作られた。他は既存)。エラーなし |
 
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-6 の項（`SourceAssets/Facial/` に置いても案内ログが出ない）。
 
@@ -148,11 +150,11 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 7-1 | SE を使うクリップ（SE トラックの `CutsceneSeClip`）を持つ Timeline の `CutsceneData` を用意する（確認用に作ったものでよい）。`Tools > D-Drive > Generate > 依存関係グラフを再構築` を実行する | Console に「DependencyGraph: 再構築完了」が出る | □ 未 |
-| 7-2 | Asset Browser でそのクリップが使っている SE を右クリック →「使用箇所を表示」 | 参照元に `.playable` のパスが出て、行の横に `(Cutscene: CUT_xxx)` が付く。`SeId` の項目名とトラック名 / クリップ名が見える。行をダブルクリックすると Project ウィンドウでその `.playable` が選ばれる | □ 未 |
-| 7-3 | ツールバーの「未使用...」を開く | 7-2 の SE は一覧に**出ない**（Cutscene から使われているため）。どこからも使われていない別の SE は従来どおり出る | □ 未 |
-| 7-4 | 7-2 の SE を右クリック →「削除...」 | 削除ウィンドウの参照元に「Timeline」の欄が出て、`.playable` が外部参照として載り、そのまま削除は進められない（「参照を差し替えてから削除」でも Timeline の中は自動では変わらず、結果画面の「手動で直す」一覧に残る）。確認だけにしてキャンセルで閉じる | □ 未 |
-| 7-5 | Timeline ウィンドウでクリップの SE を別の SE に変えて保存し、7-2 を別の SE と元の SE の両方で見る | 元の SE の使用箇所から `.playable` が消え、新しい SE に出る（再構築なしで更新される） | □ 未 |
+| 7-1 | SE を使うクリップ（SE トラックの `CutsceneSeClip`）を持つ Timeline の `CutsceneData` を用意する（確認用に作ったものでよい）。`Tools > D-Drive > Generate > 依存関係グラフを再構築` を実行する | Console に「DependencyGraph: 再構築完了」が出る | □ 未(**素材が必要**: SE クリップを持つ Timeline の CutsceneData。今回は未実施) |
+| 7-2 | Asset Browser でそのクリップが使っている SE を右クリック →「使用箇所を表示」 | 参照元に `.playable` のパスが出て、行の横に `(Cutscene: CUT_xxx)` が付く。`SeId` の項目名とトラック名 / クリップ名が見える。行をダブルクリックすると Project ウィンドウでその `.playable` が選ばれる | □ 未(**素材が必要**: 同上) |
+| 7-3 | ツールバーの「未使用...」を開く | 7-2 の SE は一覧に**出ない**（Cutscene から使われているため）。どこからも使われていない別の SE は従来どおり出る | □ 未(**素材が必要**: 同上) |
+| 7-4 | 7-2 の SE を右クリック →「削除...」 | 削除ウィンドウの参照元に「Timeline」の欄が出て、`.playable` が外部参照として載り、そのまま削除は進められない（「参照を差し替えてから削除」でも Timeline の中は自動では変わらず、結果画面の「手動で直す」一覧に残る）。確認だけにしてキャンセルで閉じる | □ 未(**素材が必要**: 同上) |
+| 7-5 | Timeline ウィンドウでクリップの SE を別の SE に変えて保存し、7-2 を別の SE と元の SE の両方で見る | 元の SE の使用箇所から `.playable` が消え、新しい SE に出る（再構築なしで更新される） | □ 未(**素材が必要**: 同上) |
 
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-7 の項。
 
@@ -192,13 +194,13 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 11-1 | MaterialData を選ぶ（TextureData を選ぶと欄が消えることも確認） | ウィンドウの Inspector の上に「Passes / Keywords」欄が出る。パスの一覧に `UniversalForward` / `SHADOWCASTER` / `DepthOnly` などシェーダーのパスが並ぶ（Unity が返す綴りで、`SHADOWCASTER` のように大文字のことがある）。TextureData のときは欄が出ない | □ 未 |
-| 11-2 | `SHADOWCASTER`（`ShadowCaster`）にチェックを入れる | Inspector の `Disabled Passes` に 1 件入る。Ctrl+Z で戻る（チェックも外れる） | □ 未 |
-| 11-3 | キーワード欄のテキストに任意の名前（例 `_MY_FEATURE`）を入れて「追加」 | キーワードの行が 1 件増え、Inspector の `Enabled Keywords` にも入る。もう一度「削除」で消える。空欄で「追加」しても何も起きない | □ 未 |
-| 11-4 | 「（候補から追加）」を開く | そのシェーダーが宣言しているキーワード（`_NORMALMAP` など）が並び、選ぶと追加される（Shader が宣言キーワードを持たなければ候補欄自体が出ない） | □ 未 |
-| 11-5 | Inspector の `Disabled Passes` に存在しない名前（`NoSuchPass`）を手で足す | パス欄に「NoSuchPass（シェーダーに無い）」のチェック済み項目が出て、外せる。`Tools > D-Drive > Validation > Run All` でその MaterialData に Warning「DisabledPasses 'NoSuchPass' は…LightMode にありません」が出る | □ 未 |
-| 11-6 | `Enabled Keywords` にシェーダーが宣言していない名前（`_NO_SUCH_KEYWORD`）を足し、Validation を実行 | **Info**「EnabledKeywords '…' はシェーダー '…' が宣言していないキーワードです」が出る（Warning ではない） | □ 未 |
-| 11-7 | Shader を別のシェーダーに変える | パスの一覧が新しいシェーダーのものに変わる | □ 未 |
+| 11-1 | MaterialData を選ぶ（TextureData を選ぶと欄が消えることも確認） | ウィンドウの Inspector の上に「Passes / Keywords」欄が出る。パスの一覧に `UniversalForward` / `SHADOWCASTER` / `DepthOnly` などシェーダーのパスが並ぶ（Unity が返す綴りで、`SHADOWCASTER` のように大文字のことがある）。TextureData のときは欄が出ない | **OK**(2026-10-06): MaterialData(`DDrive/Lit`)で「Passes / Keywords」欄が出て、`UniversalForward` / `SHADOWCASTER` / `UniversalGBuffer` / `DepthOnly` / `DepthNormals` / `META` / `Universal2D` / `MOTIONVECTORS` / `XRMotionVectors` が並ぶ。TextureData を選ぶと欄が出ない |
+| 11-2 | `SHADOWCASTER`（`ShadowCaster`）にチェックを入れる | Inspector の `Disabled Passes` に 1 件入る。Ctrl+Z で戻る（チェックも外れる） | **OK**(2026-10-06): `SHADOWCASTER` を実際のクリックでチェック → `Disabled Passes` に 1 件。Undo でデータもチェックも戻る |
+| 11-3 | キーワード欄のテキストに任意の名前（例 `_MY_FEATURE`）を入れて「追加」 | キーワードの行が 1 件増え、Inspector の `Enabled Keywords` にも入る。もう一度「削除」で消える。空欄で「追加」しても何も起きない | **OK**(2026-10-06): `_MY_FEATURE` を入れて「追加」→ キーワードの行と `Enabled Keywords` に入る。「削除」で消える。空欄で「追加」は何も起きない |
+| 11-4 | 「（候補から追加）」を開く | そのシェーダーが宣言しているキーワード（`_NORMALMAP` など）が並び、選ぶと追加される（Shader が宣言キーワードを持たなければ候補欄自体が出ない） | **OK**(2026-10-06): 「(候補から追加)」にシェーダーの宣言キーワード(`_MAIN_LIGHT_SHADOWS` など)が並び、選ぶと追加される |
+| 11-5 | Inspector の `Disabled Passes` に存在しない名前（`NoSuchPass`）を手で足す | パス欄に「NoSuchPass（シェーダーに無い）」のチェック済み項目が出て、外せる。`Tools > D-Drive > Validation > Run All` でその MaterialData に Warning「DisabledPasses 'NoSuchPass' は…LightMode にありません」が出る | **OK**(2026-10-06): `NoSuchPass` を足すと「NoSuchPass(シェーダーに無い)」のチェック済み項目が出る。`Run All` に Warning「DisabledPasses 'NoSuchPass' はシェーダー 'DDrive/Lit' の LightMode にありません(無視されます)。使える値: …」。チェックを外す操作は未確認 |
+| 11-6 | `Enabled Keywords` にシェーダーが宣言していない名前（`_NO_SUCH_KEYWORD`）を足し、Validation を実行 | **Info**「EnabledKeywords '…' はシェーダー '…' が宣言していないキーワードです」が出る（Warning ではない） | **OK**(2026-10-06): `_NO_SUCH_KEYWORD` で `Run All` に Info「EnabledKeywords '_NO_SUCH_KEYWORD' はシェーダー 'DDrive/Lit' が宣言していないキーワードです(…)」(Warning ではない) |
+| 11-7 | Shader を別のシェーダーに変える | パスの一覧が新しいシェーダーのものに変わる | **OK**(2026-10-06): Shader を `DDrive/Unlit` に変えると、パスの一覧が `SRPDefaultUnlit` / `UniversalGBuffer` / `DepthOnly` / `DepthNormalsOnly` / `META` / `MOTIONVECTORS` / `XRMotionVectors` に変わる |
 
 ### 11.2 影が実際に消える（目視）
 
@@ -206,9 +208,9 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 11-8 | `DisabledPasses` が空の MaterialData を適用して Play（または配置） | 床に影が落ちる | □ 未 |
-| 11-9 | `DisabledPasses` に `ShadowCaster` を入れて再生成（Material Editor の「再生成」）または再度適用 | **影が消える**（本体は描画されたまま）。URP の SRP Batcher 有効 / 無効の両方で消えるか（影が残る場合は報告。コードでは `Material.SetShaderPassEnabled` の状態が false になるところまでしか確認できていない） | □ 未 |
-| 11-10 | `FadeTo` で 11-8 の Material から 11-9 の Material へフェードさせる（`Mats.FadeTo` を呼ぶ簡単なボタン等） | フェード開始直後から影が消える。フェード完了後も消えたまま | □ 未 |
+| 11-8 | `DisabledPasses` が空の MaterialData を適用して Play（または配置） | 床に影が落ちる | **OK**(2026-10-06、`fix/valuedef-constant-time-validation`、Unity 6000.3.13f1、URP `PC_RPAsset`): 床 + Directional Light(Soft Shadows)の確認用シーンで Play し、立方体に `DisabledPasses` が空の MaterialData(`DDrive/Lit`)を `Mats.Apply`。Game ビューの画面キャプチャで床に影が落ちることを確認 |
+| 11-9 | `DisabledPasses` に `ShadowCaster` を入れて再生成（Material Editor の「再生成」）または再度適用 | **影が消える**（本体は描画されたまま）。URP の SRP Batcher 有効 / 無効の両方で消えるか（影が残る場合は報告。コードでは `Material.SetShaderPassEnabled` の状態が false になるところまでしか確認できていない） | **OK**(2026-10-06): `DisabledPasses = { ShadowCaster }` の MaterialData を `Mats.Apply` すると**影が消え、本体は描画されたまま**(Game ビューの画面キャプチャ)。`Material.GetShaderPassEnabled("ShadowCaster")` は false。**SRP Batcher 有効 / 無効の両方で消える**(`GraphicsSettings.useScriptableRenderPipelineBatching` を切り替えて確認)。Material Editor の「再生成」経由は未実施(`Mats.Apply` で確認) |
+| 11-10 | `FadeTo` で 11-8 の Material から 11-9 の Material へフェードさせる（`Mats.FadeTo` を呼ぶ簡単なボタン等） | フェード開始直後から影が消える。フェード完了後も消えたまま | **OK**(2026-10-06): 影あり → 影なしへ `Mats.FadeTo`(6 秒)。開始直後(約 0.2 秒後)の画面で既に影が無く、途中(色が混ざっている間)も完了後も消えたまま。フェード中の一時 Material(`DD_ShadowOn->DD_ShadowOff (fade)`)と完了後の共有 Material の両方で `ShadowCaster` が無効 |
 
 **要判断（FC-11）**: なし（U-10 は決定済み。[51] §8）。11-9 で影が消えない場合は SRP の仕様の問題なので、欄の意味（「LightMode のパスを `SetShaderPassEnabled` で止める」）を [51] §4.12 に追記したうえで別の手段（RendererShadowCastingMode 等）を検討する。
 
@@ -235,8 +237,8 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 14-1 | メニュー `Tools > D-Drive > Editors > Material 変換`（`MaterialConvertWindow`）を開き「変換テーブルを再読み込み」を押す | エラーなく開き、変換元 MaterialData を選ぶと従来どおり「(変換テーブル使用)」または「この組の変換テーブル無し。N 件の Table を確認」が出る | □ 未 |
-| 14-2 | `Assets/SourceAssets/` に `Foo_N.png` を置く | これまでどおり Texture Type が NormalMap / sRGB オフになる | □ 未 |
+| 14-1 | メニュー `Tools > D-Drive > Editors > Material 変換`（`MaterialConvertWindow`）を開き「変換テーブルを再読み込み」を押す | エラーなく開き、変換元 MaterialData を選ぶと従来どおり「(変換テーブル使用)」または「この組の変換テーブル無し。N 件の Table を確認」が出る | **OK**(2026-10-06): `Material 変換` ウィンドウがエラーなく開く。「変換テーブルを再読み込み」後、変換元(`DDrive/Unlit` の MaterialData)と変換先(`DDrive/Lit`)を選ぶと「…(この組の変換テーブル無し。0 件の Table を確認)」と出る |
+| 14-2 | `Assets/SourceAssets/` に `Foo_N.png` を置く | これまでどおり Texture Type が NormalMap / sRGB オフになる | **OK**(2026-10-06): `Assets/SourceAssets/Foo_N.png` を置くと Texture Type = NormalMap、sRGB オフになる |
 
 **T-Drive 導入後に確認**: [52] 末尾「T-Drive 導入後に確認」の FC-14 の項（T-Drive の変換表がマテリアル変換ウィンドウに載る・`_ToonMask` が sRGB オフで取り込まれる）。
 
@@ -246,14 +248,14 @@
 
 準備: 知らないシェーダー（例: T-Drive の Toon、または Sprites/Default などの変換表に無いシェーダー）を使う Material を持つ Prefab（または FBX）を `ModelData` の `Prefab` にする。Project に `MayaImportProfile` が無ければ `Create > D-Drive > Material > Maya Import Profile` で作る（Inspector の「Unknown Shader Policy」の既定が `Ask`、ツールチップに説明が出ること）。
 
-### 15.1 Ask: 「元ファイルを再読み込み」で確認ダイアログが 1 回出る
+### 15.1 Ask: 「元ファイル再読み込み」で確認ダイアログが 1 回出る
 
 1. Profile の Unknown Shader Policy = `Ask` にする
-2. `Tools > D-Drive > Editors` から Model エディタを開き、上の `ModelData` を選んで「元ファイルを再読み込み」を押す（知らないシェーダーの Material が複数あっても同様）
+2. `Tools > D-Drive > Editors` から Model エディタを開き、上の `ModelData` を選んで「元ファイル再読み込み」を押す（知らないシェーダーの Material が複数あっても同様）
 
 期待する結果: 「知らないシェーダーが見つかりました」のダイアログが **1 回だけ**出る。本文にシェーダー名と件数（6 種類以上なら「ほか N 種類」）、3 択の説明、Profile の欄の案内がある。ボタンは「元のシェーダーのまま保つ」「キャンセル（何もしない）」「DDrive/Lit に変換」。
 
-結果: □ 未
+結果: **OK**(2026-10-06、`fix/valuedef-constant-time-validation`、実ダイアログ): 知らないシェーダー(`Sprites/Default`)の Material を 2 つ持つ Prefab の ModelData で、Model エディタの「元ファイル再読み込み」を実際のクリックで押すと、「知らないシェーダーが見つかりました」のダイアログが **1 回だけ**出る。本文は「…Material が 2 件あります」「・Sprites/Default(2 件)」、3 択の説明、Profile の欄の案内。ボタンは「元のシェーダーのまま保つ」「DDrive/Lit に変換」「キャンセル(何もしない)」。Profile の既定が `Ask` であること・ツールチップの文面も確認。6 種類以上のときの「ほか N 種類」は未確認。補足: ボタンの表示名は「元ファイル再読み込み」(手順書は「元ファイル**を**再読み込み」)
 
 ### 15.2 3 択それぞれ
 
@@ -263,17 +265,17 @@
 
 期待する結果: 上記のとおり。キャンセルで途中まで書き換えた状態が残らない。
 
-結果: □ 未
+結果: **OK**(2026-10-06、実ダイアログ): (1)「元のシェーダーのまま保つ」→ MaterialData 2 件が `Sprites/Default` で作られ、Slots に結び付く。(2) MaterialData を消してから「DDrive/Lit に変換」→ 2 件とも `DDrive/Lit`。(3)「キャンセル(何もしない)」(山口が実際に押した)→ MaterialData は作られず Slots も 0 件のまま、Console に「知らないシェーダーの確認でキャンセルされたため、再読み込みを中断しました(何も変更していません)。」。いずれもダイアログは 1 回。Esc での確認は未実施
 
 ### 15.3 KeepSource / ConvertToLit ではダイアログが出ない
 
 1. Profile の Unknown Shader Policy を `KeepSource` にして 15.1 の操作 → ダイアログは出ず、Shader は元のシェーダーのまま
 2. `ConvertToLit` にして同様 → ダイアログは出ず、`DDrive/Lit`
-3. `KeepSource` のまま、すでに Shader が入っている MaterialData（15.2 の 2 で作った Lit のもの）に対して再度「元ファイルを再読み込み」→ Shader は Lit のまま（上書きされない）
+3. `KeepSource` のまま、すでに Shader が入っている MaterialData（15.2 の 2 で作った Lit のもの）に対して再度「元ファイル再読み込み」→ Shader は Lit のまま（上書きされない）
 
 期待する結果: 上記のとおり。
 
-結果: □ 未
+結果: **OK**(2026-10-06、`fix/valuedef-constant-time-validation`): (1) `KeepSource` → ダイアログは出ず、新規の MaterialData は元のシェーダー(`Sprites/Default`)のまま。(2) `ConvertToLit` → ダイアログは出ず `DDrive/Lit`。(3) `KeepSource` のまま、既に `DDrive/Lit` の MaterialData がある状態で再読み込み → ダイアログは出ず、Shader は `DDrive/Lit` のまま(上書きされない)。ダイアログの有無は Editor のダイアログ一覧で確認
 
 ### 15.4 メニューからの変換でも 1 回だけ
 
@@ -281,7 +283,7 @@
 
 期待する結果: ダイアログは 1 回だけ（Material の数だけ出ない）。選択に応じて保つ / 変換 / キャンセル（キャンセルなら MaterialData が作られず Console に中断のログ）。`選択したモデルから MaterialData を生成` も同様。
 
-結果: □ 未
+結果: **OK**(2026-10-06、`fix/valuedef-constant-time-validation`、実ダイアログ): 知らないシェーダー(`Sprites/Default`)の Material を 3 つ選んで `選択した Material を D-Drive/Lit・Unlit の MaterialData に変換` → ダイアログは **1 回だけ**(本文「…Material が 3 件あります」)。「キャンセル」→ MaterialData は作られず Console に「…Material の変換を中断しました(何も変更していません)。」。「保つ」→ 3 件とも `Sprites/Default` で作られる。`選択したモデルから MaterialData を生成` は未実施
 
 ### 15.5 自動取り込み（非対話）は従来どおり
 
@@ -289,7 +291,7 @@
 
 期待する結果: ダイアログは出ず、`DDrive/Lit` の MaterialData が作られる（従来と同じ）。Profile を `KeepSource` にして再インポートすると、新規に作られる MaterialData は元のシェーダーのまま（既存の Data の Shader は変わらない）。
 
-結果: □ 未
+結果: □ 未(**素材が必要**: 知らないシェーダーの Material を含む FBX。FBX 内蔵の Material は取り込み時に既知のシェーダーになるため、手元の素材では確認できない)
 
 ### 15.6 右クリックの「Material を作成」でも 1 回だけ確認される（2026-10-03 追記、レビュー FC-R-01）
 
@@ -298,11 +300,11 @@
 1. Profile = `Ask`。15.2 の 1 で「保つ」を選んで作った MaterialData が既にある、知らないシェーダーの `.mat` を Project で選び、右クリック > `Assets > D-Drive > Data を作成 > MaterialData を作成`（`AssetContextMenu`。Project の右クリックメニューにも同じ項目が出る）
 2. 複数の `.mat`（知らないシェーダー）を選んで同じ操作をする
 3. シェーダー参照が欠けた `.mat`（パッケージを外した Toon など。Inspector のシェーダーが `Hidden/InternalErrorShader` でピンク）で、**まだ MaterialData が無いもの**を含めて同じ操作をする
-4. （2026-10-04 追加、FX-R-02）手順 1 の「保つ」で作った MaterialData（Toon 等）が既にある状態で、T-Drive のパッケージを一時的に外す（または `manifest.json` から外して解決できなくする）→ その `.mat`（シェーダーが欠けてピンクになる）で右クリック作成、または Model エディタの「元ファイルを再読み込み」を行う。パッケージを戻して再度確認する。**実データの複製で行い、事前に MaterialData の色（AlbedoTint）・Albedo 等のテクスチャ・Blend を既定と違う値にしておく**
+4. （2026-10-04 追加、FX-R-02）手順 1 の「保つ」で作った MaterialData（Toon 等）が既にある状態で、T-Drive のパッケージを一時的に外す（または `manifest.json` から外して解決できなくする）→ その `.mat`（シェーダーが欠けてピンクになる）で右クリック作成、または Model エディタの「元ファイル再読み込み」を行う。パッケージを戻して再度確認する。**実データの複製で行い、事前に MaterialData の色（AlbedoTint）・Albedo 等のテクスチャ・Blend を既定と違う値にしておく**
 
 期待する結果: 1・2 は確認ダイアログが **1 回だけ**出る（Material の数だけ出ない）。「保つ」なら既存の MaterialData の Shader は変わらない。「キャンセル」なら何も作られず Console に中断のログが出る。3 は、ダイアログに「シェーダーが見つからない（欠けている）Material が N 件」の行が出て、**新規の** MaterialData は `DDrive/Lit` になる（Console に警告）。4 は、既存の MaterialData の **Shader 欄・固有の設定に加えて、共通（色・テクスチャ参照・Blend 等）も変わらない**（Console に「既存の MaterialData … はシェーダー・固有・共通(色・テクスチャ等)とも変更しませんでした」の警告）。パッケージを戻したあと、その MaterialData は元の Toon のまま使える。
 
-結果: □ 未
+結果: **一部 NG → 修正後 OK**(2026-10-06、実ダイアログ。知らないシェーダー = `Sprites/Default` と、確認用に作って削除した自作シェーダー): 手順 1・2 は OK(右クリックの `MaterialData を作成` でダイアログは 1 回だけ。`.mat` 1 つでも 2 つでも 1 回。「保つ」で既存の MaterialData の Shader は変わらない。「キャンセル」で何も作られず Console に「…MaterialData の作成を中断しました(何も変更していません)。」)。手順 3 は、ダイアログに「ほかに、シェーダーが見つからない(欠けている)Material が 1 件あります。…」の行が出て、**新規の** MaterialData は `DDrive/Lit` になる(OK。欠けた Material だけを選んだときはダイアログは出ない)。手順 4 は、既存の MaterialData(「保つ」で作成、AlbedoTint を既定と違う値に変更)が **Shader 参照(欠けたまま)・共通の色とも変わらず、`.asset` のバイト列も同一**(OK。T-Drive のパッケージの付け外しではなく、自作シェーダーを削除して再現。パッケージを戻した後の確認と、Model エディタ経由の確認は未実施)。**NG: 右クリック作成の経路では、手順 3 の「Console に警告」・手順 4 の「既存の MaterialData … は変更しませんでした」の警告が Console に出ない**(`SourceDataCreation` が取り込みの Report を Console に出していない。出るのは「[DDrive] MaterialData: 新規 N 件」だけ)。あわせて、既存のデータをそのままにした場合も「新規 N 件」に数えられる(既存 1 + 新規 1 で「新規 2 件」、既存 1 だけで「新規 1 件」)。→ **2026-10-06 修正。修正後に再確認して OK**: 欠けたシェーダーの `.mat`(既存あり 1 + 新規 1)で右クリック作成 → Console に Warning が 2 件(「…新規の MaterialData は DDrive/Lit として作成します…」「…既存の MaterialData … はシェーダー・固有・共通(色・テクスチャ等)とも変更しませんでした…」)と「MaterialData: 新規 1 件(既存 1 件はそのまま開きます)」。既存だけを選ぶと「新規 0 件(既存 1 件はそのまま開きます)」
 
 **要判断（FC-15）**: なし。実装の範囲外として残した点は [51] §4.16 実装メモ 7（単体 .mat の `DDrive/AiStandardSurface` 等は従来どおり Lit に変換される）。`SourceDataCreation` の .mat 取り込み（右クリック作成）は 2026-10-03 のレビュー対応で対話的な操作として扱うようになった（15.6）。
 
@@ -324,9 +326,9 @@
 
 | # | 手順 | 期待する結果 | 結果 |
 |---|---|---|---|
-| 19-1 | 確認用の MaterialData（Albedo 未設定・AlbedoTint 白・Shader `DDrive/Lit`）を作り `Tools > D-Drive > Validation > Run All` を実行する | 「Common.Albedo（ベースカラー）が未設定です」が Warning で出る | □ 未 |
-| 19-2 | 19-1 の MaterialData の AlbedoTint を赤などにして再度 Run All | 上の Warning が消える | □ 未 |
-| 19-3 | MaterialData の `RenderingLayerMask` にマウスを載せる。次に 4 など 0 以外を入れて Run All | ツールチップに「未使用。ライトレイヤーは ModelData.LightLayerMask を使う」とある。Run All に Info（RenderingLayerMask は実行時に使われません…）が 1 件出る（Warning / Error は増えない）。0 に戻すと消える | □ 未 |
+| 19-1 | 確認用の MaterialData（Albedo 未設定・AlbedoTint 白・Shader `DDrive/Lit`）を作り `Tools > D-Drive > Validation > Run All` を実行する | 「Common.Albedo（ベースカラー）が未設定です」が Warning で出る | **OK**(2026-10-06、`fix/valuedef-constant-time-validation`): Albedo 未設定・AlbedoTint 白・`DDrive/Lit` の MaterialData で `Run All` に Warning「Common.Albedo(ベースカラー)が未設定です」 |
+| 19-2 | 19-1 の MaterialData の AlbedoTint を赤などにして再度 Run All | 上の Warning が消える | **OK**(2026-10-06): AlbedoTint を赤にして `Run All` し直すと、上の Warning が消える(Console を消してから実行して確認) |
+| 19-3 | MaterialData の `RenderingLayerMask` にマウスを載せる。次に 4 など 0 以外を入れて Run All | ツールチップに「未使用。ライトレイヤーは ModelData.LightLayerMask を使う」とある。Run All に Info（RenderingLayerMask は実行時に使われません…）が 1 件出る（Warning / Error は増えない）。0 に戻すと消える | **OK**(2026-10-06): `RenderingLayerMask` のツールチップは「未使用。ライトレイヤーは ModelData.LightLayerMask を使う(…)」(属性の文面で確認。マウスを載せた表示は未確認)。4 を入れると `Run All` に Info「RenderingLayerMask(4)は実行時に使われません。ライトレイヤーは ModelData.LightLayerMask で指定してください」が 1 件(Warning / Error は増えない)。0 に戻すと消える |
 
 確認後、確認用の MaterialData は削除してください。
 
@@ -343,7 +345,7 @@
 
 期待する結果: 手順 3 では要約が「BlendShape N 個（外部管理 M 件を除く）」、詳細の一覧に `FC_*` / `fcs_*` が出ず、末尾に「外部管理 M 件」の説明が出る。手順 4 では `FC_*` / `fcs_*` も一覧に出る。
 
-結果: □ 未
+結果: **OK**(2026-10-06、`fix/valuedef-constant-time-validation`、合成メッシュ `Smile` / `FC_Test_Neutral_R0_C0` / `fcs_test`): Anim エディタで確認用モデルを指定して「モデル Prefab を開く」。要約は「BlendShape 1 個(外部管理 2 件を除く)」、詳細の一覧は `Smile` だけで、末尾に「外部管理 2 件(FC_ / fcs_ で始まるシェイプ。外部パッケージが書くため AnimData では指定しません)」。「外部管理のシェイプも表示」をオンにすると 3 つとも一覧に出る(画面の文字を読み取って確認)
 
 ### 20.2 AnimData が外部管理のシェイプを指すと警告
 
@@ -352,7 +354,7 @@
 
 期待する結果: 「BlendShape 'FC_Test_Neutral_R0_C0' は外部パッケージが管理するシェイプです…」の Warning が出る。`Smile` のような通常名では出ない。
 
-結果: □ 未
+結果: **OK**(2026-10-06): AnimData の `BlendShapes` に `FC_Test_Neutral_R0_C0` と `Smile` の行を足して `Run All` → Warning「BlendShape 'FC_Test_Neutral_R0_C0' は外部パッケージが管理するシェイプです。D-Drive の AnimData から書くと衝突します」が出る。`Smile` には出ない
 
 ## 22. T-Drive 導入後に確認
 

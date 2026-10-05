@@ -194,9 +194,13 @@ namespace DDrive.Foundation.Registry
                 // NGO 接続でカタログ登録前にネット経由の Spawn/Play が来た」ことが原因なので、原因に気付ける
                 // よう理由を一言添える。登録後に本当に未登録の ID を渡した場合は _index に何か入っているため
                 // このメッセージは出ない(既存の警告文自体は変えない。末尾に追記のみ)。
+                // カタログには登録されているが読み込まれていない ID(Flags.Load が Preload でない Data を同期の経路で引いた /
+                // 読み込みに失敗した)も同じ Placeholder になる。「未登録」と区別できるよう理由を添える(文面の末尾に追記のみ)。
                 var reason = _index.Count == 0
                     ? "(カタログ登録前。DDriveRuntimeBootstrap.IsReady を待ってください)"
-                    : string.Empty;
+                    : _index.ContainsKey(id)
+                        ? "(カタログには登録済みですが、読み込まれていません。Flags.Load が Preload でないか、読み込みに失敗した可能性があります)"
+                        : string.Empty;
                 Debug.LogWarning($"[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.{reason}");
             }
         }
