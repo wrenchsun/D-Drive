@@ -27,7 +27,7 @@ namespace DDrive.Editor.Validation
 
             if (report.Violations.Count > 0)
             {
-                Debug.Log($"[DDrive][ForbiddenApi] 許可されていない禁止 API の当たり: {report.Violations.Count} 件(Tools > D-Drive > Validation > Run All ではなく CI.ValidateAll で Error になります)。");
+                Debug.Log($"[DDrive][ForbiddenApi] 許可されていない禁止 API の当たり: {report.Violations.Count} 件(CI.ValidateAll で Error になります)。一覧は Tools > D-Drive > Validation > 禁止 API の検査 で見られます。");
             }
         }
     }
