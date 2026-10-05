@@ -86,6 +86,7 @@ namespace DDrive.Generated
 
     public static class CUTID
     {
+        public static readonly AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> NetCheckMarkers = new(0xDB878BC5DDC47593UL, AssetType.Cutscene);
         public static readonly AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> TestCutscene = new(0x46FDF1A4BFDA1A3AUL, AssetType.Cutscene);
     }
 

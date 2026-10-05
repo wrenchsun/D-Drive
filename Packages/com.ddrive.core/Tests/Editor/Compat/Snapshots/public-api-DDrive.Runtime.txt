@@ -1354,6 +1354,43 @@ TYPE struct DDrive.Runtime.Net.NetCheckCounters
   field SignalRecvCount : int
   field TrackFiredOverGraceCount : int
   field TrackSkippedWithinGraceCount : int
+TYPE class static DDrive.Runtime.Net.NetCheckCutsceneJudge
+  field const BoundaryTolerance : double
+  field const DefaultKindsPerTime : int
+  field const GraceSec : double
+  field const Tag : string
+  method static DefaultMarkers() : DDrive.Runtime.Net.NetCheckCutsceneMarkerSpec[]
+  method static EvaluateLog(System.Collections.Generic.IEnumerable<string> lines) : DDrive.Runtime.Net.NetCheckCutsceneSummary
+  method static ExpectedCount(double t, bool isSender, double s, out int min, out int max) : void
+  method static ExpectedSilentCount(System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Net.NetCheckCutsceneMarkerSpec> markers, double s, int kindsPerTime, out int min, out int max) : void
+  method static FormatSummaryLine(DDrive.Runtime.Net.NetCheckCutsceneSummary s) : string
+  method static TryParseEngineReceiveLine(string line, out double s, out int silent, out string netKey) : bool
+  method static TryParseLine(string line, out string kind, System.Collections.Generic.Dictionary<string, string> kv) : bool
+TYPE struct DDrive.Runtime.Net.NetCheckCutsceneMarkerSpec
+  ctor NetCheckCutsceneMarkerSpec(string key, double time)
+  field Key : string
+  field Time : double
+TYPE class sealed DDrive.Runtime.Net.NetCheckCutscenePlayVerdict
+  ctor NetCheckCutscenePlayVerdict()
+  field Fired : string
+  field Handle : string
+  field IsSender : bool
+  field NetKey : string
+  field Pass : bool
+  field Reason : string
+  field S : double
+  field SilentReported : int
+TYPE class sealed DDrive.Runtime.Net.NetCheckCutsceneSummary
+  ctor NetCheckCutsceneSummary()
+  field MaxS : double
+  field MeanS : double
+  field MinS : double
+  field Pass : bool
+  field Reason : string
+  field ReceivedPlays : int
+  field SenderPlays : int
+  field SignalLoaded : bool
+  field readonly Plays : System.Collections.Generic.List<DDrive.Runtime.Net.NetCheckCutscenePlayVerdict>
 TYPE class static DDrive.Runtime.Net.NetCheckJudge
   method static Evaluate(ref DDrive.Runtime.Net.NetCheckCounters c) : DDrive.Runtime.Net.NetCheckResult
 TYPE struct DDrive.Runtime.Net.NetCheckResult
@@ -1364,6 +1401,11 @@ TYPE struct DDrive.Runtime.Net.NetCheckResult
 TYPE class static DDrive.Runtime.Net.NetLaunchArgs
   field const AutoTestFlag : string
   field const AutoTestSecondsFlag : string
+  field const CutsceneExpectPlaysFlag : string
+  field const CutsceneIntervalFlag : string
+  field const CutscenePlaysFlag : string
+  field const CutsceneStartDelayFlag : string
+  field const CutsceneTestFlag : string
   field const ExpectClientsFlag : string
   field const HostFlag : string
   field const MigrateFlag : string
@@ -1378,6 +1420,11 @@ TYPE class static DDrive.Runtime.Net.NetLaunchArgs
 TYPE struct DDrive.Runtime.Net.NetLaunchOptions
   field AutoTestName : string
   field AutoTestSeconds : System.Nullable<float>
+  field CutsceneExpectPlays : System.Nullable<int>
+  field CutsceneIntervalSec : System.Nullable<float>
+  field CutscenePlays : System.Nullable<int>
+  field CutsceneStartDelaySec : System.Nullable<float>
+  field CutsceneTest : string
   field ExpectedClientCount : System.Nullable<int>
   field Host : string
   field MigrationHost : string
