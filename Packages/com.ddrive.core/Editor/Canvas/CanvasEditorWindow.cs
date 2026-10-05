@@ -30,7 +30,7 @@ namespace DDrive.Editor.CanvasTool
     // 「切り替え」と「配置」を別ボタンにしていたが、切り替えたら必ず置きたいだけなので統合した)。
     // Disappear の見た目は UI Tween Editor 側(実要素をプレビュー対象に自動割り当てして再生できる)で確認する。
     [DDrive.Editor.Inspector.DataEditor(typeof(CanvasData), "Canvas Editor で開く")]
-    public sealed class CanvasEditorWindow : EditorWindow
+    public sealed partial class CanvasEditorWindow : EditorWindow
     {
         private const string NoneChoice = "なし";
         // (レビュー対応 2026-09-14) 生の new GameObject をやめ EditorPreviewRoots で生成し、OnEnable で同名の残骸を掃除する。
@@ -270,6 +270,7 @@ namespace DDrive.Editor.CanvasTool
             RebuildGraph();
             RebuildEmbeddedSection();
             RebuildElementFxAssignments();
+            RebuildButtonWires();
             RefreshValidation();
         }
 
@@ -418,6 +419,8 @@ namespace DDrive.Editor.CanvasTool
             _elementFxContainer = new VisualElement();
             _elementFxFoldout.Add(_elementFxContainer);
 
+            BuildButtonWireSection();
+
             var previewButtons = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, marginTop = 4, marginBottom = 4 } }; // [09] §7.1
             // 2026-09-12 レビュー対応: 「確認用シーンを開く」と「ここに配置」を分けていたが、専用シーンに
             // 切り替えたら必ず置きたいだけなので手間なだけだった(ユーザー指摘)。1 ボタンに統合する
@@ -560,6 +563,7 @@ namespace DDrive.Editor.CanvasTool
                 _statusLabel.text = "CanvasData を選択してください";
                 _validationFoldout?.Clear();
                 _elementFxContainer?.Clear();
+                _buttonWireContainer?.Clear();
                 _embeddedContainer?.Clear();
                 UpdateContextRow();
                 _phaseRowWidgets.Clear(); // 消した行の UI を毎フレーム更新し続けないように(レビュー対応 2026-09-14)
@@ -575,6 +579,7 @@ namespace DDrive.Editor.CanvasTool
             RefreshValidation();
             RebuildEmbeddedSection();
             RebuildElementFxAssignments();
+            RebuildButtonWires();
             _simFocusPath = target.FirstSelected;
             RebuildGraph();
         }
@@ -1212,6 +1217,7 @@ namespace DDrive.Editor.CanvasTool
             RefreshValidation();
             RebuildEmbeddedSection();
             RebuildElementFxAssignments();
+            RebuildButtonWires();
         }
 
         // ── 選択に追従(Hierarchy / プレハブステージ / 確認用プレビューで選んだ GameObject → 編集対象) ──
