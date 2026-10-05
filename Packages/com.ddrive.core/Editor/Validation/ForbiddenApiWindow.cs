@@ -25,12 +25,14 @@ namespace DDrive.Editor.Validation
         [MenuItem(DDriveMenu.Validation + "禁止 API の検査")]
         public static void Open()
         {
+            // 2026-10-06(docs/59 GB-R-08): 初めて開くときは CreateGUI が 1 回だけ走査する(CreateGUI が GetWindow の中で同期的に呼ばれても、
+            // 後から呼ばれても 2 回走査しない)。既に開いていたときだけ、開き直しの操作として再走査する。
+            var alreadyOpen = HasOpenInstances<ForbiddenApiWindow>();
             s_scanOnCreate = true;
             var window = GetWindow<ForbiddenApiWindow>("禁止 API の検査");
             window.minSize = new Vector2(560, 320);
-            if (window._body != null)
+            if (alreadyOpen && window._body != null)
             {
-                // 既に開いていた(CreateGUI 済み)ときは、開き直しの操作として再走査する。
                 s_scanOnCreate = false;
                 window.Rescan();
             }

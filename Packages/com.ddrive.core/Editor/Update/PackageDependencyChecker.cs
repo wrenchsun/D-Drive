@@ -134,6 +134,9 @@ namespace DDrive.Editor.Update
                 return null;
             }
 
+            // BOM 付きの package.json も読む(TryParse と同じ。docs/59 GB-R-08)。
+            packageJsonText = packageJsonText.TrimStart('\uFEFF');
+
             try
             {
                 return JToken.Parse(packageJsonText) is JObject root && root["version"]?.Type == JTokenType.String
