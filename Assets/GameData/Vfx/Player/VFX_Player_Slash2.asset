@@ -20,9 +20,9 @@ MonoBehaviour:
   Icon: {fileID: 0}
   Assignee: 
   SpecUrl: 
-  Version: 4
+  Version: 5
   Author: yamag
-  UpdatedAt: 2026-10-06T02:01:02
+  UpdatedAt: 2026-10-06T02:32:43
   ChangeNote: 
   Flags:
     Pause: 0
@@ -38,7 +38,7 @@ MonoBehaviour:
   Events: []
   ImportSourceGuid: 
   SchemaVersion: 1
-  Prefab: {fileID: 0}
+  Prefab: {fileID: 3812690369844406658, guid: 13208d05f2da16d4f9a56d5c44705946, type: 3}
   AnchorId:
     value: 0
     type: 0
