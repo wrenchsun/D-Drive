@@ -5,6 +5,7 @@
         "DDrive.Foundation",
         "DDrive.Runtime",
         "UniTask",
+        "Unity.Timeline",
         "Unity.Netcode.Runtime"
     ],
     "includePlatforms": [],

@@ -51,6 +51,14 @@ namespace DDrive.Runtime.Net
         public NetMigrationRole MigrationRole; // -ddrive-migrate successor|follower
         public string MigrationHost;           // -ddrive-migrate-host(follower の再接続先。未指定なら Host を使う)
         public int? MigrationPort;             // -ddrive-migrate-port(未指定なら Port を使う)
+
+        // [14_networking.md] §22/N-8(2026-10-06) — Cutscene のマーカーの NetCheck シナリオ(cut_*)用。
+        // CutsceneTest が null/空なら NetCheckRunner は従来どおり Presentation のデモだけを動かす(既存 9 シナリオは無改修)。
+        public string CutsceneTest;      // -ddrive-cutscene-test trigger|observe
+        public int? CutscenePlays;       // -ddrive-cutscene-plays(trigger の再生回数)
+        public float? CutsceneIntervalSec;   // -ddrive-cutscene-interval(再生の間隔)
+        public float? CutsceneStartDelaySec; // -ddrive-cutscene-start-delay(接続 + 期待人数が揃ってから最初の再生までの待ち)
+        public int? CutsceneExpectPlays;     // -ddrive-cutscene-expect-plays(observe が受信するはずの再生回数。未指定は 1 回以上)
     }
 
     // [11_tasks.md] 6-0(B) — コマンドライン引数パーサ。Unity API に依存しない純関数のため、
@@ -68,6 +76,11 @@ namespace DDrive.Runtime.Net
         public const string MigrateFlag = "-ddrive-migrate"; // [14_networking.md] §18/N-6
         public const string MigrateHostFlag = "-ddrive-migrate-host";
         public const string MigratePortFlag = "-ddrive-migrate-port";
+        public const string CutsceneTestFlag = "-ddrive-cutscene-test"; // [14_networking.md] §22/N-8
+        public const string CutscenePlaysFlag = "-ddrive-cutscene-plays";
+        public const string CutsceneIntervalFlag = "-ddrive-cutscene-interval";
+        public const string CutsceneStartDelayFlag = "-ddrive-cutscene-start-delay";
+        public const string CutsceneExpectPlaysFlag = "-ddrive-cutscene-expect-plays";
 
         public static NetLaunchOptions Parse(string[] args)
         {
@@ -145,6 +158,42 @@ namespace DDrive.Runtime.Net
                         if (int.TryParse(NextValue(args, ref i), NumberStyles.Integer, CultureInfo.InvariantCulture, out var migratePort))
                         {
                             result.MigrationPort = migratePort;
+                        }
+
+                        break;
+
+                    case CutsceneTestFlag:
+                        result.CutsceneTest = NextValue(args, ref i);
+                        break;
+
+                    case CutscenePlaysFlag:
+                        if (int.TryParse(NextValue(args, ref i), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cutPlays))
+                        {
+                            result.CutscenePlays = cutPlays;
+                        }
+
+                        break;
+
+                    case CutsceneIntervalFlag:
+                        if (float.TryParse(NextValue(args, ref i), NumberStyles.Float, CultureInfo.InvariantCulture, out var cutInterval))
+                        {
+                            result.CutsceneIntervalSec = cutInterval;
+                        }
+
+                        break;
+
+                    case CutsceneStartDelayFlag:
+                        if (float.TryParse(NextValue(args, ref i), NumberStyles.Float, CultureInfo.InvariantCulture, out var cutDelay))
+                        {
+                            result.CutsceneStartDelaySec = cutDelay;
+                        }
+
+                        break;
+
+                    case CutsceneExpectPlaysFlag:
+                        if (int.TryParse(NextValue(args, ref i), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cutExpect))
+                        {
+                            result.CutsceneExpectPlays = cutExpect;
                         }
 
                         break;
