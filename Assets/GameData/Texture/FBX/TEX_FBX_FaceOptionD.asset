@@ -18,6 +18,8 @@ MonoBehaviour:
   Category: FBX
   Tags: []
   Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
   Version: 0
   Author: 
   UpdatedAt: 
@@ -34,6 +36,8 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
+  SchemaVersion: 1
   Texture: {fileID: 2800000, guid: 8d611ccba9c84514bbef516b2ce0a00a, type: 3}
   Usage: 0
   Sprite: {fileID: 0}

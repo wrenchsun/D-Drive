@@ -18,6 +18,8 @@ MonoBehaviour:
   Category: Test
   Tags: []
   Icon: {fileID: 2800000, guid: f8235f572a5143c4c8d88a0f6c76c9bd, type: 3}
+  Assignee: 
+  SpecUrl: 
   Version: 0
   Author: 
   UpdatedAt: 
@@ -34,6 +36,8 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
+  SchemaVersion: 1
   Texture: {fileID: 2800000, guid: f9c6074c5a78e71448f9efd3013cadda, type: 3}
   Usage: 0
   Sprite: {fileID: 0}

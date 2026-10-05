@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Parent:
     value: 0
     type: 0

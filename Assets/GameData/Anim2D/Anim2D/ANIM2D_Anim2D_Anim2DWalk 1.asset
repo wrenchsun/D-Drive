@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Clip: {fileID: 7400000, guid: c8970e4f3d4ca2240947a45111fb417a, type: 2}
   StateName: Walk
   Layer: 0

@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Shader: {fileID: 4800000, guid: 7d44ec01d8fb16f46be6a0ea64f942f6, type: 3}
   Common:
     Albedo:
@@ -1077,3 +1078,5 @@ MonoBehaviour:
   RenderingLayerMask: 0
   Anims: []
   SourceMaterial: shizuku/8eec6fc01b2caec4595018fb246ff973/mat_wear01
+  DisabledPasses: []
+  EnabledKeywords: []

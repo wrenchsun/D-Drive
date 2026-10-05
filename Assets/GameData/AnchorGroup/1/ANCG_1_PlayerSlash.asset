@@ -18,6 +18,8 @@ MonoBehaviour:
   Category: "\u65AC\u64831"
   Tags: []
   Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
   Version: 0
   Author: 
   UpdatedAt: 
@@ -34,6 +36,8 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
+  SchemaVersion: 1
   OriginAnchorId:
     value: 0
     type: 0

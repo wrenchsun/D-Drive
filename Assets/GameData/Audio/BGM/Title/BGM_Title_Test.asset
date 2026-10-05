@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Intro: {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   LoopBody: {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   LoopStartSec: 0

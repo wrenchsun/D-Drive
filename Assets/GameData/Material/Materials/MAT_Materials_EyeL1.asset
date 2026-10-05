@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Shader: {fileID: 4800000, guid: 62adc820ab9e0874cad42b2118cc6b00, type: 3}
   Common:
     Albedo:
@@ -111,3 +112,5 @@ MonoBehaviour:
   RenderingLayerMask: 0
   Anims: []
   SourceMaterial: UnityMaterial/4987862c1c195e74c86994ba4bcbd812/eye_L1
+  DisabledPasses: []
+  EnabledKeywords: []

@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 1
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Tracks:
   - Trigger: 0
     Time: 0
@@ -56,6 +57,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 1
+    Scope: 0
   - Trigger: 0
     Time: 0
     SignalKey: 
@@ -74,6 +76,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 0
+    Scope: 0
   - Trigger: 1
     Time: 0
     SignalKey: hit
@@ -136,6 +139,7 @@ MonoBehaviour:
       StringValue: 
       ObjectValue: {fileID: 0}
     StopOnCancel: 0
+    Scope: 0
   - Trigger: 1
     Time: 0
     SignalKey: hit
@@ -154,6 +158,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 0
+    Scope: 0
   - Trigger: 1
     Time: 0
     SignalKey: hit
@@ -172,6 +177,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 1
+    Scope: 0
   - Trigger: 1
     Time: 0
     SignalKey: hit
@@ -190,6 +196,7 @@ MonoBehaviour:
       DetachOnStop: 0
     Params: []
     StopOnCancel: 1
+    Scope: 0
   TotalDuration: 15
   Interruptible: 1
   PredictLocal: 1

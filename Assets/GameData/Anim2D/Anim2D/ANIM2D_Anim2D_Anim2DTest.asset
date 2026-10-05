@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Clip: {fileID: 7400000, guid: 723a35bdca8dc1548808f3aea0ae8514, type: 2}
   StateName: Test
   Layer: 0

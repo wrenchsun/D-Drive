@@ -143,6 +143,7 @@ MonoBehaviour:
       ObjectValue: {fileID: 0}
     Repeat: 0
   ImportSourceGuid: 
+  SchemaVersion: 1
   Clip: {fileID: 7400000, guid: ac75d16809dc0054d8e3449e7ba665f2, type: 3}
   StateName: 
   Layer: 0

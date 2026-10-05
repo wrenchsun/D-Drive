@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Prefab: {fileID: 3812690369844406658, guid: 13208d05f2da16d4f9a56d5c44705946, type: 3}
   AnchorId:
     value: 14359323102462893152

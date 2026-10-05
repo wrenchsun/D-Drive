@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Prefab: {fileID: 2144447545384852608, guid: 4798eed72fcd8984fb28572c7c203dbc, type: 3}
   Layer: 1
   SortOffset: 0
@@ -611,3 +612,4 @@ MonoBehaviour:
     DisappearSe:
       value: 0
       type: 0
+  EmbeddedCanvases: []

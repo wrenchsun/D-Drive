@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Texture: {fileID: 2800000, guid: 66f06726158899242adaf95180360b7b, type: 3}
   Usage: 0
   Sprite: {fileID: 0}

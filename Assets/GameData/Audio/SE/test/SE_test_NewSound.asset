@@ -108,7 +108,7 @@ MonoBehaviour:
       ObjectValue: {fileID: 0}
     Repeat: 0
   ImportSourceGuid: 
-  SchemaVersion: 0
+  SchemaVersion: 1
   Clips:
   - {fileID: 8300000, guid: 2b5a6a2cc734de841b7b183f8ce8cdad, type: 3}
   Sources: []

@@ -18,6 +18,8 @@ MonoBehaviour:
   Category: 
   Tags: []
   Icon: {fileID: 0}
+  Assignee: 
+  SpecUrl: 
   Version: 0
   Author: 
   UpdatedAt: 
@@ -34,6 +36,8 @@ MonoBehaviour:
     Domain: 0
     Net: 0
   Events: []
+  ImportSourceGuid: 
+  SchemaVersion: 1
   Normal:
     EnterTween:
       value: 0
@@ -76,6 +80,10 @@ MonoBehaviour:
       Loop: 0
       LoopCount: 0
     OverrideSprite: {fileID: 0}
+    AnimFrames: []
+    AnimFps: 12
+    AnimLoop: 1
+    ScrollSpeed: {x: 0, y: 0}
   Hover:
     EnterTween:
       value: 0
@@ -118,6 +126,10 @@ MonoBehaviour:
       Loop: 0
       LoopCount: 0
     OverrideSprite: {fileID: 0}
+    AnimFrames: []
+    AnimFps: 12
+    AnimLoop: 1
+    ScrollSpeed: {x: 0, y: 0}
   Pressed:
     EnterTween:
       value: 0
@@ -160,6 +172,10 @@ MonoBehaviour:
       Loop: 0
       LoopCount: 0
     OverrideSprite: {fileID: 0}
+    AnimFrames: []
+    AnimFps: 12
+    AnimLoop: 1
+    ScrollSpeed: {x: 0, y: 0}
   Selected:
     EnterTween:
       value: 0
@@ -202,6 +218,10 @@ MonoBehaviour:
       Loop: 0
       LoopCount: 0
     OverrideSprite: {fileID: 0}
+    AnimFrames: []
+    AnimFps: 12
+    AnimLoop: 1
+    ScrollSpeed: {x: 0, y: 0}
   Disabled:
     EnterTween:
       value: 0
@@ -244,6 +264,10 @@ MonoBehaviour:
       Loop: 0
       LoopCount: 0
     OverrideSprite: {fileID: 0}
+    AnimFrames: []
+    AnimFps: 12
+    AnimLoop: 1
+    ScrollSpeed: {x: 0, y: 0}
   Locked:
     EnterTween:
       value: 0
@@ -286,6 +310,13 @@ MonoBehaviour:
       Loop: 0
       LoopCount: 0
     OverrideSprite: {fileID: 0}
+    AnimFrames: []
+    AnimFps: 12
+    AnimLoop: 1
+    ScrollSpeed: {x: 0, y: 0}
+  HitAreaExpand: {x: 0, y: 0, z: 0, w: 0}
+  AlphaHitThreshold: 0
+  ScrollMaterial: {fileID: 0}
   HoverSe:
     value: 0
     type: 0

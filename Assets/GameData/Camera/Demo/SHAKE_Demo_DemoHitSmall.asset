@@ -37,6 +37,7 @@ MonoBehaviour:
     Net: 0
   Events: []
   ImportSourceGuid: 
+  SchemaVersion: 1
   Pattern: 1
   PosAmplitude: {x: 0.02, y: 0.02, z: 0}
   RotAmplitude: {x: 0, y: 0, z: 0.3}
