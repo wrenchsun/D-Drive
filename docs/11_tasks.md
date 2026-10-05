@@ -464,6 +464,17 @@ v1.4.0 のリリース手順（[12_review.md] §7）の `Tools/CI/run-ci.cmd` �
 - `CANVAS_Can_Vas` の `Navigation`（行 0・1）と `FirstSelected`: `Button1` / `Button2` を指すが、参照先の Prefab（`Panel.prefab`）には作成時から `BtnStart` / `BtnOption` / `BtnQuit` / `Slider1` しかなく、対応関係が決められない（5 件）。
 - カタログ `AnchorCatalog` の孤児 Address `ANC_Can_Vas`: Data が無く、`AddressablesSync.SyncAll` では消えない（カタログの `entries` から該当行を除く必要がある）。
 
+**残り 8 件の対応（2026-10-06、ユーザー決定、`chore/dev-repo-gamedata-cleanup-2`。データ・アセットのファイルは削除せず、Prefab・`Assets/SourceAssets`・プロダクトコードは変更なし）**:
+
+| # | 対象 | 対応 |
+|---|---|---|
+| 6 | `SE_Player_Slash`（Clip 未設定） | `Clips` に既存の音源 `Assets/SourceAssets/Data/SE_Player_Clean.mp3`（`SE_test_NewSound` が使うもの）を 1 本入れた（**仮の設定**。デザイナーが本来の音源に差し替える） |
+| 7 | `VFX_Player_Slash2`（Prefab 未設定） | `VFX_Player_Slash` と同じ Prefab（`Assets/SourceAssets/Data/vfx_sample.prefab`）を設定（**仮の設定**） |
+| 8 | `CANVAS_Can_Vas`（Error 5 件） | `Navigation` の 2 行を取り除き、`FirstSelected` を空に。Buttons・ElementEffects 等は触っていない。なお編集用のグラフ配置 `NavigationNodeLayout`（Button1 / Button2 の位置）・`NavigationEdgeWaypoints`（Button2 の Down）は同じ名前を指したまま残っている（検査対象外・実行時に影響しない。Canvas Editor で開き直して整理するか、そのままでよい） |
+| 9 | `AnchorCatalog` の孤児 `ANC_Can_Vas` | `entries` の該当 1 行だけを除いた（`SerializedObject` + `SetDirty` + 保存。4 → 3 件）。Addressables グループに同名の残骸は無く、`Assets/Generated/AssetIds.g.cs` にも `ANC_Can_Vas` は元から無い（`CI.RegenerateIds` 相当で差分なし）。コードからの参照も無い |
+
+最終の `CI.ValidateAll`: **Error 0** / Warning 22 / Info 35（`VFX_Player_Slash2` に Prefab を設定したことで、`VFX_Player_Slash` と同じ「マテリアルのシェーダーが Built-in RP 用」の Warning が 1 件増えた）。`CI.MigrateCheck` green、EditMode 1620 / PlayMode 942 green。
+
 ## U チケット: 使い勝手の修正（2026-09-17 追加。詳細は [39](39_usability_fixes_2026-09-17.md)）
 
 デザイナーマニュアル用のスクリーンショット撮影（[36 §5](36_manual_screenshot_list.md)）と実機での通し確認で見つかった不具合・要望 26 件（U-1〜U-26）。3D プレビューが透明になる件・FBX のマテリアルスロット未割当・「確認用シーンに配置」の挙動・作成導線（Project / Hierarchy 右クリック）などが含まれる。**Phase 7 より先に片付ける**。一覧と状態は [39](39_usability_fixes_2026-09-17.md) §0。
