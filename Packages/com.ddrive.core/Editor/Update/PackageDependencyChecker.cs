@@ -28,40 +28,79 @@ namespace DDrive.Editor.Update
         public static readonly DdriveUpdateDeclaration Empty = new(
             new Dictionary<string, string>(), new Dictionary<string, string>());
 
+        // 2026-10-06(P-15 確認 BUG-1): package.json が JSON として読めない / `ddriveUpdate` の形が読めないとき(= 宣言が「無い」のではなく
+        // 「読めなかった」)を表す。Requires / CompatibleWith は空。`Parse` は従来どおり Empty 相当(例外を投げない)を返すが、
+        // 呼び出し側が「宣言なし」と「読めなかった」を区別できるよう `TryParse` と `IsUnreadable` を足した。
+        public static readonly DdriveUpdateDeclaration Unreadable = new(
+            new Dictionary<string, string>(), new Dictionary<string, string>(), true);
+
         public readonly IReadOnlyDictionary<string, string> Requires;
         public readonly IReadOnlyDictionary<string, string> CompatibleWith;
 
+        // true: package.json を読めなかった(壊れた JSON・根がオブジェクトでない・`ddriveUpdate` がオブジェクトでない)。
+        public readonly bool IsUnreadable;
+
         public DdriveUpdateDeclaration(IReadOnlyDictionary<string, string> requires, IReadOnlyDictionary<string, string> compatibleWith)
+            : this(requires, compatibleWith, false)
+        {
+        }
+
+        private DdriveUpdateDeclaration(IReadOnlyDictionary<string, string> requires, IReadOnlyDictionary<string, string> compatibleWith, bool unreadable)
         {
             Requires = requires ?? new Dictionary<string, string>();
             CompatibleWith = compatibleWith ?? new Dictionary<string, string>();
+            IsUnreadable = unreadable;
         }
 
         public bool IsEmpty => Requires.Count == 0 && CompatibleWith.Count == 0;
 
         // package.json のテキストから宣言を読む。フィールド無し・壊れた JSON・想定外の型は Empty(例外を投げない)。
+        // 「無い」と「読めなかった」を区別したいときは `TryParse` を使う。
         public static DdriveUpdateDeclaration Parse(string packageJsonText)
         {
+            TryParse(packageJsonText, out var declaration);
+            return declaration.IsUnreadable ? Empty : declaration;
+        }
+
+        // package.json のテキストから宣言を読み、読めたかどうかを返す(2026-10-06、BUG-1)。
+        //   ・true: JSON オブジェクトとして読めた。`ddriveUpdate` が無い(または null)ときは Empty(= 宣言なし。従来どおり)。
+        //   ・false: 空文字・壊れた JSON・根がオブジェクトでない・`ddriveUpdate` がオブジェクトでない。declaration は `Unreadable`。
+        // 取得した package.json の文字化け(文字コードの取り違え)はたいてい JSON の壊れとして現れるので、事前確認はこれで見逃さない。
+        public static bool TryParse(string packageJsonText, out DdriveUpdateDeclaration declaration)
+        {
+            declaration = Unreadable;
             if (string.IsNullOrWhiteSpace(packageJsonText))
             {
-                return Empty;
+                return false;
             }
 
             try
             {
-                if (JToken.Parse(packageJsonText) is not JObject root
-                    || root[FieldName] is not JObject field)
+                if (JToken.Parse(packageJsonText) is not JObject root)
                 {
-                    return Empty;
+                    return false;
+                }
+
+                var token = root[FieldName];
+                if (token == null || token.Type == JTokenType.Null)
+                {
+                    declaration = Empty;
+                    return true;
+                }
+
+                if (token is not JObject field)
+                {
+                    return false;
                 }
 
                 var requires = ReadMap(field[RequiresKey]);
                 var compat = ReadMap(field[CompatibleWithKey]);
-                return requires.Count == 0 && compat.Count == 0 ? Empty : new DdriveUpdateDeclaration(requires, compat);
+                declaration = requires.Count == 0 && compat.Count == 0 ? Empty : new DdriveUpdateDeclaration(requires, compat);
+                return true;
             }
             catch (Exception)
             {
-                return Empty;
+                return false;
             }
         }
 
@@ -151,13 +190,31 @@ namespace DDrive.Editor.Update
         public readonly string TargetId;
         public readonly string Message;
 
+        // 2026-10-06(P-15 確認 Q-2): 一覧の行に「どちらの宣言が原因か」を短く出すための付帯情報(未設定のものは null)。
+        // 宣言した側の表示名 / 相手側の表示名 / 宣言された最低版(X.Y.Z)/ 相手の導入済みの版(未導入なら null)。
+        public readonly string OwnerDisplayName;
+        public readonly string TargetDisplayName;
+        public readonly string MinimumVersion;
+        public readonly string ActualVersion;
+
         public PackageDependencyIssue(DependencyIssueSeverity severity, string code, string packageId, string targetId, string message)
+            : this(severity, code, packageId, targetId, message, null, null, null, null)
+        {
+        }
+
+        public PackageDependencyIssue(
+            DependencyIssueSeverity severity, string code, string packageId, string targetId, string message,
+            string ownerDisplayName, string targetDisplayName, string minimumVersion, string actualVersion)
         {
             Severity = severity;
             Code = code;
             PackageId = packageId;
             TargetId = targetId;
             Message = message;
+            OwnerDisplayName = ownerDisplayName;
+            TargetDisplayName = targetDisplayName;
+            MinimumVersion = minimumVersion;
+            ActualVersion = actualVersion;
         }
 
         public bool SameAs(PackageDependencyIssue other)
@@ -183,6 +240,18 @@ namespace DDrive.Editor.Update
                 var owner = packages[i];
                 if (owner == null || string.IsNullOrEmpty(owner.Id))
                 {
+                    continue;
+                }
+
+                if (owner.Declaration.IsUnreadable)
+                {
+                    // 2026-10-06(BUG-1): 壊れた package.json を「宣言なし」として黙って通さない(BAD-DECLARATION の範囲。Warning)。
+                    issues.Add(new PackageDependencyIssue(
+                        DependencyIssueSeverity.Warning,
+                        PackageDependencyIssue.CodeBadDeclaration,
+                        owner.Id,
+                        string.Empty,
+                        $"{owner.DisplayName} の package.json を読めませんでした(JSON として壊れている、または ddriveUpdate の形が不正です)。依存の宣言は確認できていません。"));
                     continue;
                 }
 
@@ -294,7 +363,8 @@ namespace DDrive.Editor.Update
                     PackageDependencyIssue.CodeBadDeclaration,
                     owner.Id,
                     targetId,
-                    $"{owner.DisplayName} の package.json の ddriveUpdate に書かれた {targetId} の版「{minimum}」を X.Y.Z として読めませんでした(無視します)。"));
+                    $"{owner.DisplayName} の package.json の ddriveUpdate に書かれた {targetId} の版「{minimum}」を X.Y.Z として読めませんでした(無視します)。",
+                    owner.DisplayName, targetId, null, null));
                 return;
             }
 
@@ -317,7 +387,8 @@ namespace DDrive.Editor.Update
                         PackageDependencyIssue.CodeRequiresMissing,
                         owner.Id,
                         targetId,
-                        $"{owner.DisplayName} は {targetId} v{min} 以降が必要ですが、導入されていません。"));
+                        $"{owner.DisplayName} は {targetId} v{min} 以降が必要ですが、導入されていません。",
+                        owner.DisplayName, targetId, min.ToString(), null));
                 }
 
                 return; // compatibleWith は相手が入っていなければ何も言わない。
@@ -336,13 +407,15 @@ namespace DDrive.Editor.Update
                         PackageDependencyIssue.CodeRequiresOld,
                         owner.Id,
                         targetId,
-                        $"{owner.DisplayName} は {target.DisplayName} v{min} 以降が必要ですが、v{actual} が入っています。")
+                        $"{owner.DisplayName} は {target.DisplayName} v{min} 以降が必要ですが、v{actual} が入っています。",
+                        owner.DisplayName, target.DisplayName, min.ToString(), actual.ToString())
                     : new PackageDependencyIssue(
                         DependencyIssueSeverity.Warning,
                         PackageDependencyIssue.CodeCompatibleOld,
                         owner.Id,
                         targetId,
-                        $"{owner.DisplayName} は {target.DisplayName} v{min} 以降に対応していますが、v{actual} が入っています。"));
+                        $"{owner.DisplayName} は {target.DisplayName} v{min} 以降に対応していますが、v{actual} が入っています。",
+                        owner.DisplayName, target.DisplayName, min.ToString(), actual.ToString()));
                 return;
             }
 
@@ -353,7 +426,8 @@ namespace DDrive.Editor.Update
                     PackageDependencyIssue.CodeMajorAhead,
                     owner.Id,
                     targetId,
-                    $"{target.DisplayName} の MAJOR が上がっています(v{actual}。{owner.DisplayName} が宣言しているのは v{min} 以降)。CHANGELOG の「互換性」を確認してください。"));
+                    $"{target.DisplayName} の MAJOR が上がっています(v{actual}。{owner.DisplayName} が宣言しているのは v{min} 以降)。CHANGELOG の「互換性」を確認してください。",
+                    owner.DisplayName, target.DisplayName, min.ToString(), actual.ToString()));
             }
         }
 

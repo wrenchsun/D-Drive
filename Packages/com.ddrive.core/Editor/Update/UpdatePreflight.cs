@@ -72,6 +72,7 @@ namespace DDrive.Editor.Update
             }
 
             var fetched = fetchedText != null;
+            DdriveUpdateDeclaration declaration = null;
             var fetchedVersion = fetched ? DdriveUpdateDeclaration.ParseVersion(fetchedText) : null;
             var newVersion = SemVer.TryParse(fetchedVersion, out _) ? fetchedVersion : tagVersion;
 
@@ -83,8 +84,19 @@ namespace DDrive.Editor.Update
                     Array.Empty<PackageDependencyIssue>());
             }
 
-            var declaration = fetched ? DdriveUpdateDeclaration.Parse(fetchedText) : null;
-            var issues = PackageDependencyChecker.CheckPlanned(current, packageId, newVersion, declaration);
+            // 2026-10-06(P-15 確認 BUG-1): 取得はできたが JSON として読めない(文字化け・壊れた package.json)/ ddriveUpdate の形が読めない
+            // ときは「宣言なし」と区別する。宣言なしなら従来どおり「確認しました」、読めなかったなら警告を見逃さないよう
+            // 「事前確認できませんでした」にして更新後の検査に回す(宣言は null として、他パッケージの宣言との照合だけ行う)。
+            var readable = fetched && DdriveUpdateDeclaration.TryParse(fetchedText, out declaration);
+            var issues = PackageDependencyChecker.CheckPlanned(current, packageId, newVersion, readable ? declaration : null);
+
+            if (fetched && !readable)
+            {
+                return new PreflightResult(
+                    false,
+                    "事前確認できませんでした(上げ先の package.json を読めませんでした)。更新後に確認します。",
+                    issues);
+            }
 
             if (!fetched)
             {

@@ -78,33 +78,52 @@ namespace DDrive.Editor.Update
             }
         }
 
+        // git の起動情報(純粋な組み立て。実プロセスは起動しない)。git を呼ぶ経路はすべてこれを通る(`GitPackageJsonFetcher` の
+        // clone / show、`GitCliTagLister` の ls-remote)。
+        // 標準出力 / エラーは **UTF-8 で読む**(2026-10-06、P-15 確認 BUG-1)。`ProcessStartInfo` の既定は OS の既定コードページ
+        // (日本語 Windows では Shift_JIS)で、`git show` が出す UTF-8 の package.json(description の日本語等)が文字化けして
+        // JSON が壊れていた。git は blob のバイト列をそのまま出し(`git show` は変換しない)、エラーメッセージも UTF-8 で出す。
+        // `core.quotepath` は diff / status 等のパス表示にだけ効き、本ツールが使う clone / show / ls-remote には関係しないので足さない。
+        // `LC_ALL` も足さない(git のメッセージの言語はユーザーの設定に任せる。理由の 1 行は `ErrorLine` が `fatal:` / `error:` で
+        // 見つけられなければ最初の非空行を使うので、日本語のメッセージでも読める)。BOM なしで扱う(BOM があれば StreamReader が読み捨てる)。
+        public static ProcessStartInfo BuildStartInfo(string[] arguments, string workingDirectory)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "git",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+                StandardOutputEncoding = new UTF8Encoding(false),
+                StandardErrorEncoding = new UTF8Encoding(false),
+                CreateNoWindow = true,
+            };
+            if (arguments != null)
+            {
+                foreach (var argument in arguments)
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(workingDirectory))
+            {
+                startInfo.WorkingDirectory = workingDirectory;
+            }
+
+            startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+            startInfo.Environment["GCM_INTERACTIVE"] = "never";
+            startInfo.Environment["GIT_LFS_SKIP_SMUDGE"] = "1";
+            return startInfo;
+        }
+
         // maxStdoutChars: 標準出力の上限(超えたら失敗)。0 以下で無制限。
         public static Outcome Run(string[] arguments, string workingDirectory, int timeoutMs, CancellationToken cancellation, int maxStdoutChars = 0)
         {
             try
             {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "git",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    RedirectStandardInput = true,
-                    CreateNoWindow = true,
-                };
-                foreach (var argument in arguments)
-                {
-                    startInfo.ArgumentList.Add(argument);
-                }
-
-                if (!string.IsNullOrEmpty(workingDirectory))
-                {
-                    startInfo.WorkingDirectory = workingDirectory;
-                }
-
-                startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
-                startInfo.Environment["GCM_INTERACTIVE"] = "never";
-                startInfo.Environment["GIT_LFS_SKIP_SMUDGE"] = "1";
+                var startInfo = BuildStartInfo(arguments, workingDirectory);
 
                 using var process = new Process { StartInfo = startInfo };
                 var stdout = new StringBuilder();

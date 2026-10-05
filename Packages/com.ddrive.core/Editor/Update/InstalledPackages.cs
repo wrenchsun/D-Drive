@@ -52,11 +52,17 @@ namespace DDrive.Editor.Update
             try
             {
                 var path = Path.Combine(resolvedPath, "package.json");
-                return File.Exists(path) ? DdriveUpdateDeclaration.Parse(File.ReadAllText(path)) : DdriveUpdateDeclaration.Empty;
+                if (!File.Exists(path))
+                {
+                    return DdriveUpdateDeclaration.Empty;
+                }
+
+                // 読めなかった(壊れた JSON 等)ときは「宣言なし」にせず Unreadable にする(更新後の検査が Warning で知らせる。2026-10-06 BUG-1)。
+                return DdriveUpdateDeclaration.TryParse(File.ReadAllText(path), out var declaration) ? declaration : DdriveUpdateDeclaration.Unreadable;
             }
             catch (Exception)
             {
-                return DdriveUpdateDeclaration.Empty;
+                return DdriveUpdateDeclaration.Empty; // ファイルを読めない(権限等)ときは従来どおり宣言なし
             }
         }
     }
