@@ -26,47 +26,4 @@ namespace DDrive.Runtime.Cutscene.Tracks
         [Tooltip("通過時に発火する AssetEvent(Action=PlayAsset のみ AssetEventDispatcher が処理する。他の Action は現状 no-op)。")]
         public AssetEvent Event;
     }
-
-    [TrackColor(0.5f, 0.7f, 0.9f)]
-    public sealed class CutsceneEventTrack : MarkerTrack
-    {
-    }
-
-    // ── D-Drive Signal マーカー: 文字列キーをコードへ通知する(CutsceneHandle.OnMarker)。
-    //    Skip=ToMarker の目標(CutsceneData.SkipToMarkerKey)としても使う([26] §4.1/§4.3) ──
-    [Serializable]
-    public sealed class CutsceneSignalNotification : Marker
-    {
-        [Tooltip("cutscene/xxx 規約のキー(CutsceneHandle.OnMarker(key) で受け取る)。")]
-        public string Key;
-    }
-
-    [TrackColor(0.9f, 0.6f, 0.2f)]
-    public sealed class CutsceneSignalTrack : MarkerTrack
-    {
-    }
-
-    // ── D-Drive Shake マーカー: CameraFx.Shake(id) を委譲する([26] §4.3 の「Shake/Haptic マーカー」) ──
-    [Serializable]
-    public sealed class CutsceneShakeNotification : Marker
-    {
-        public DDrive.Foundation.Identity.AssetId<DDrive.Runtime.CameraShake.ShakeMarker> ShakeId;
-    }
-
-    [TrackColor(0.8f, 0.3f, 0.3f)]
-    public sealed class CutsceneShakeTrack : MarkerTrack
-    {
-    }
-
-    // ── D-Drive Haptic マーカー: Haptics.Play(id) を委譲する ──
-    [Serializable]
-    public sealed class CutsceneHapticNotification : Marker
-    {
-        public DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Haptics.HapticMarker> HapticId;
-    }
-
-    [TrackColor(0.3f, 0.6f, 0.3f)]
-    public sealed class CutsceneHapticTrack : MarkerTrack
-    {
-    }
 }

@@ -37,7 +37,7 @@ function Test-CutsceneLog {
 
     $role = "observe"; $expectPlays = -1; $configuredPlays = -1; $kinds = 2
     $markers = @(@("m0", 0.0), @("m1", 0.1), @("m4", 0.4), @("m6", 0.6), @("m15", 1.5))
-    $timelineLine = ""; $timelineOk = $true; $signalLoaded = $true
+    $timelineLine = ""; $timelineOk = $true; $timelineReason = ""; $signalLoaded = $true
     $accs = [ordered]@{}
     $found = $false
 
@@ -70,8 +70,13 @@ function Test-CutsceneLog {
             }
             "cutscene_timeline" {
                 $timelineLine = $line.Substring($line.IndexOf("cutscene_timeline")).Trim()
-                if ($kv.ok -and $kv.ok -ne "1") { $timelineOk = $false }
-                if ($kv.signal -and $kv.signal -ne "1") { $signalLoaded = $false }
+                if ($kv.ok -and $kv.ok -ne "1") { $timelineOk = $false; $timelineReason = "timeline_markers_not_loaded" }
+                if ($kv.signal -and $kv.signal -ne "1") {
+                    $signalLoaded = $false
+                    if ($timelineOk) { $timelineOk = $false; $timelineReason = "timeline_signal_not_loaded" }
+                }
+                # M-6: 期待する全種別のうち読めなかったもの(missing=none なら全部読めた)
+                if ($kv.missing -and $kv.missing -ne "none" -and $timelineOk) { $timelineOk = $false; $timelineReason = "timeline_kinds_missing:" + $kv.missing }
             }
             "cutscene_play" { if ($kv.handle) { [void](Get-Acc $kv.handle) } }
             "cutscene_own_key" { if ($kv.handle -and $kv.netKey) { (Get-Acc $kv.handle).NetKey = $kv.netKey } }
@@ -101,13 +106,20 @@ function Test-CutsceneLog {
     if (-not $signalLoaded) { $kinds = 1 }
 
     $fail = $null
-    if (-not $timelineOk) { $fail = "timeline_markers_not_loaded" }
+    if (-not $timelineOk) { $fail = $timelineReason }
     $senderPlays = 0; $recvPlays = 0; $sumS = 0.0; $minS = -1.0; $maxS = -1.0
     $playRows = @(); $netKeys = @(); $ownKeys = @()
+    $seenNetKeys = @{}
 
     foreach ($a in $accs.Values) {
         $isSender = -not $a.HasRecv
         $reasons = @()
+        # GD-R-12: observe のプロセスに送信者はありえない(受信ログの無い再生 = 判定できない)。同じ netKey の受信は 1 回だけ
+        if ($isSender -and $role -ne "trigger") { $reasons += "unmatched_play" }
+        if (-not $isSender -and $a.NetKey -ne "n/a") {
+            if ($seenNetKeys.ContainsKey($a.NetKey)) { $reasons += "duplicate_netkey($($a.NetKey))" }
+            $seenNetKeys[$a.NetKey] = $true
+        }
         if ($isSender) {
             $senderPlays++
             if ($a.NetKey -ne "n/a") { $ownKeys += $a.NetKey }
@@ -167,7 +179,7 @@ function Format-CutSummary {
     param($R)
     $inv = [cultureinfo]::InvariantCulture
     $s = if ($R.ReceivedPlays -gt 0) { "s=$($R.MinS.ToString('F3',$inv))..$($R.MaxS.ToString('F3',$inv)) (mean $($R.MeanS.ToString('F3',$inv)))" } else { "s=n/a" }
-    $sig = if ($R.SignalLoaded -eq $false) { " [WARN] Signal マーカーが Player で読み込まれていません(外部マーカーだけで判定)" } else { "" }
+    $sig = if ($R.SignalLoaded -eq $false) { " [FAIL] Signal マーカーが Player で読み込まれていません" } else { "" }
     return "role=$($R.Role)$sig sender_plays=$($R.SenderPlays) recv_plays=$($R.ReceivedPlays) $s"
 }
 
@@ -215,5 +227,10 @@ function Invoke-CutsceneJudgeOnly {
     }
 
     if ($triggerPlays -ge 0) { Write-Host "trigger の再生回数: $triggerPlays" }
+    else {
+        # GD-R-12: 実機では別々の PC のログを集める。trigger のログが無いと netKey の突き合わせができない = 不足
+        Write-Host "[FAIL] trigger のログがありません(不足。送信側の PC のログも -Logs に渡してください)"
+        $overall = $false
+    }
     return $overall
 }
