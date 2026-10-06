@@ -206,3 +206,87 @@
 | GG-R-11 | (1)〜(4) と (5) の `Register` 分を追加（上記）。「無効で始める」トグルの Undo は UI の `Undo.RecordObject` 経由で、EditMode テストは置いていない（16-41 の人による確認） |
 | GG-R-12 | (1) ツールチップを「もう一度押すか目のアイコンで戻る」+「プレハブモードを優先」に変更（ステージを閉じたときに戻るかは 16-43 で確認）。(2) **見送り**（定常経路ではない）。(3) DesignerManual は本体セッションがまとめて更新 |
 
+## 再レビュー（2026-10-06、`a0a9e2a`）
+
+> **対象**: PR #133 の `origin/feat/embedded-canvas-active` の先頭 `a0a9e2a`（「fix(canvas): 埋め込みの有効 / 無効のレビュー [65] 対応」）。前回のレビュー時点 `fc9e00a` からの差分 `git diff fc9e00a..a0a9e2a`（13 ファイル、+609 / -58。コードは `UiManager.cs`・`CanvasData.cs`〔Tooltip〕・Editor 5 ファイル・テスト 3 ファイル）。実装側の対応表（「対応」節）は PR #133 のブランチ側の docs/65 にある。
+>
+> **方法**: 専用 worktree で `git fetch` し、差分と変更後のファイルを**読むだけ**。`UiManager` は `SetEmbeddedActive`・`CanSelectInto`・`RestartEmbedFx`・`StartEmbedDisappear`・`FinishEmbedDeactivations`・`CompleteEmbedDeactivation`・`SettleInactiveInner`・`TickElementFx`（開いている間 / 閉じている間）・`StartAllDisappearFx` / `StartDisappear`・`RecomputeBlocking`・`OpenData`・`Close` / `TryFinalizeClose` / `FinalizeClose`・`SetupEmbedsOf`（`MaxEmbedDepth` と循環の扱い）を通して読んだ。Editor は `CanvasButtonWireEditing.CollectEmbedPaths` / `HasEmbed` / `DescribeProblem`、`CanvasEmbeddedEditing.Register` / `ChangeEmbedWithCleanup` / `RetargetEmbeddedWires`、`CanvasEmbeddedActiveValidator`、`CanvasDataValidator` の `DD-CANVAS-EMBED-NESTED-ROOT`。**Unity は起動しておらず、コンパイル・テストは実行していない**（実装側の報告 EditMode 1755/1755・PlayMode 964/964 は未確認）。
+
+### 結論
+
+**マージしてよい**。前回の P1（GG-R-01）・P2（GG-R-02・GG-R-03）は解消した。新しく出た指摘は P3 の 5 件（GG-R-13〜GG-R-17）だけで、どれも操作不能・データ破損につながるものではない。GG-R-16（CHANGELOG の検査の件数と docs/43 の確認手順）は文言だけなので、**v1.4.0 のタグ前**に直すのを勧める。残りはマージ後・v1.4.x でよい。
+
+| 重大度 | 件数 | 内容 |
+|---|---|---|
+| P1 | **0** | — |
+| P2 | **0** | — |
+| P3 | **5** | GG-R-13〜GG-R-17 |
+
+### 前回の指摘の状態
+
+| 指摘 | 状態 | 確認したこと |
+|---|---|---|
+| GG-R-01（P1） | **解消** | `SetEmbeddedActive` の無効化の枝で、`MoveSelectionOutOf` の後・`StartEmbedDisappear` の前に `PendingAppearCount` を控え、数が変わったら `RecomputeBlocking()`（Disappear が無く `CompleteEmbedDeactivation` に進む場合も、ゲートから外すのは `StartEmbedDisappear` の中なので拾える）。**境界**: (a) Appear の tween が終わった直後・その Tick の前に無効化した場合、要素は `AppearCompleted = false`・`DisappearStarted = false` なので `StartEmbedDisappear` がゲートから外し、その場で再計算する。次の Tick は `DisappearStarted` で飛ばすので二重に減らさない。(b) 同じ Tick で `OnAppearCompleted` が先に減らした場合は `CountsForGate = false` で `StartEmbedDisappear` は減らさず、Tick の `gateChanged` で再計算される。(c) `!wasShown`（外側が無効 / 無効化の途中）の枝は、要素が既に `Held` か `DisappearStarted`（ゲートから外れている）なので数は変わらず、再計算は要らない。(d) 他の埋め込みの Appear が残っていれば `RecomputeBlocking` は入力不可のまま（正しい）。テスト `SetEmbeddedActive_DeactivateDuringOpenAppear_ReleasesParentInputGate` は、Tick が再計算しない状況（数の変化は `SetEmbeddedActive` の中だけ）で `interactable` を見ており、直しの有無を区別できる |
+| GG-R-02（P2） | **解消** | 案 (a)。`StartDisappear` で `DisappearStarted && !DisappearDone` の要素は、再生中なら `PendingDisappearCount++`、止まっていれば `DisappearDone = true`。**二重カウント**: 閉じている間の Tick が減らすのは `DisappearStarted && !DisappearDone && !IsTweenPlaying` の要素で、減らした時点で `DisappearDone = true` にするので 1 要素 1 回。`StartAllDisappearFx` は `Close` の `Closing` ガードで 1 回だけ、最初に 0 から数え直す。無効化の Disappear が最初から無かった要素（`DisappearDone = true`）は数えず減らさない。閉じている間は `SetEmbeddedActive`（`Closing` で早期 return）・`FinishEmbedDeactivations`（開いている間の枝だけ）・`SettleInactiveInner` が走らないので、数えた後に状態を書き換える経路は無い。テスト `Close_DuringEmbedDisappear_WaitsForParentDisappear` は 0.25 秒（子 0.1 秒・親 0.5 秒）で `IsOpen` を見ており、直す前のコードでは落ちる |
+| GG-R-03（P2） | **解消**（条件の細部は GG-R-15） | `CanSelectInto` = 閉じていない・`PendingAppearCount == 0`・`_stack` の最上位。`RecomputeBlocking` が入力不可にするのは「閉じていないモーダルより下」か「`PendingAppearCount > 0`」なので、**最上位で Appear 待ちでなければ親の `CanvasGroup` は必ず入力可**で、EventSystem 上も選択して操作できる状態と一致する（最上位なら上にモーダルは無い）。逆向き（入力可なのに選ばない）は GG-R-15。テストはモーダルの下で選択を奪わないことを見ている |
+| GG-R-04 | **解消** | CHANGELOG「互換性」節のデータの欄・公開 API の列挙に追記し、「挙動の変更には当たらない」も書いた。ただし「追加」節の検査の件数が古い（GG-R-16） |
+| GG-R-05 | **解消** | `Register` の差し替えは `row.Canvas = id` だけ。テストあり |
+| GG-R-06 | **解消**（範囲は GG-R-14） | `ChangeEmbedWithCleanup` の `Undo.RecordObject(parent)` の後・同じ Undo グループの中で `RetargetEmbeddedWires`。旧 RootPath 自身とその配下（`TryToChildPath` の区切り単位。`InnerX` は触らない）を付け替える。配列の長さを変えないので、先に作った整理の計画（`ApplyCleanup`）の添字はずれない |
+| GG-R-07 | **解消**（深さと循環の扱いは GG-R-13） | `CollectEmbedPaths` を欄・`DescribeProblem`・`CanvasEmbeddedActiveValidator` で共有。検査は配線に埋め込みのアクションがあるときだけ遅延して 1 回集め、lookup は `ValidationContext` ごとのキャッシュ（`BuildLookup` を internal にして共有）なので、検査の重さは CanvasData 1 件あたり 1 回の再帰で済む |
+| GG-R-08 (1) | **解消**（端の挙動は GG-R-17） | 無効化の `!wasShown` の枝で、外側が `Deactivating` なら GameObject を無効にしない（`HasDeactivatingAncestor`）。外側の完了（`CompleteEmbedDeactivation`）と、表示される状態での再有効化の両方から `SettleInactiveInner` が内側を無効にし、要素を `Held` に戻す |
+| GG-R-08 (2) | **見送りは妥当** | 同じ親に `A` と `A/B` を両方登録する形は、`CanvasDataValidator` の `DD-CANVAS-EMBED-NESTED-ROOT`（Warning。同じ親の登録どうしを `TryToChildPath` で比べる）が検出する。docs/07 に「保証しない」と明記済み。実行時の判定を変えると担当表（内側の登録が先に担当）との整合も見直しになり、設定の誤りのために入れる重さではない |
+| GG-R-09 | **解消** | Warning `DD-CANVAS-SLIDER-EMBED-ACTION`。docs/07 の表にも追加。CHANGELOG「追加」節は未反映（GG-R-16） |
+| GG-R-10 | **解消** | `ButtonWire.EmbeddedRootPath` の Tooltip と docs/07「配線」に基準の違いを追記（名前は変えていない = 決定 1 どおり。Tooltip は属性の文字列だけで、シリアライズ形式・スナップショットに影響しない） |
+| GG-R-11 | **解消**（足りない分は GG-R-17） | PlayMode 5 件（入力ゲートの復帰・Disappear 途中の Close・Disappear 途中の再有効化・FirstSelected の条件・外側の Disappear 中の内側の無効化）、EditMode 2 件 + 既存テストへのスライダーの検査の追加。「無効で始める」トグルの Undo を人の確認（16-41）に回したのは、UI のコールバックの中の `Undo.RecordObject` で切り出したロジックの関数が無いため妥当 |
+| GG-R-12 | (1) **解消**（16-43 の手順は GG-R-16）／ (2) **見送りは妥当** ／ (3) **未**（別担当） | (2): 文字列を作るのは「未登録のパス」「属する埋め込みが無い」という設定の誤りの経路だけで、正しい設定の定常経路（Tick・Open・正しいパスの切り替え）では作らない。毎フレーム呼ぶ使い方でも設定を直せば消える。(3): DesignerManual は本体セッションが更新する（このレビューでは見ていない） |
+
+### 新しいコードの確認（問題なしだった観点）
+
+- **定常経路**: Tick に増えたものは無い（`FinishEmbedDeactivations` は前回のまま）。`HasDeactivatingAncestor`・`SettleInactiveInner`・`CanSelectInto` は `SetEmbeddedActive` と無効化の完了（1 回）からだけ呼ばれ、LINQ・クロージャ・boxing・アロケーションは無い。`RecomputeBlocking` はゲートの数が変わったときだけ。
+- **再入**: 新しく外へ出る呼び出しは `SelectFirstOfEmbed`（`SetSelectedGameObject`）だけで、状態を書き換え終わった後（`RestartEmbedFx`・`SettleInactiveInner` の後）に呼ぶ。`MoveSelectionOutOf` の位置は前回から変わっていない。
+- **Undo**: `Register` は差し替えの前に `Undo.RecordObject(parent)`、`RetargetEmbeddedWires` は呼び出し側の `RecordObject(parent)` の後・`CollapseUndoOperations` の前なので、RootPath の変更と配線の付け替えが 1 回の Ctrl+Z で戻る。`RetargetEmbeddedWires` は public だが単体で呼ぶ場合の Undo は呼び出し側の責任（コメントに明記）。
+- **Validator の重さ**: 新しい検査 1 種は Warning だけ（既存の検査の重さは変えない）。`CollectEmbedPaths` は lookup のキャッシュを使い、プロジェクト全体を読み直さない。
+- **互換**: 差分にスナップショットの変更は無い（Runtime 側は Tooltip の文字列だけ。`CanvasButtonWireEditing` は Editor の公開クラスだが互換スナップショットの対象外で、`HasEmbed` / `DescribeProblem` の引数もこの PR〔未リリース〕で追加したもの）。
+- **docs/07 とコードの一致**: 有効化の FirstSelected の条件（最上位・閉じていない・Appear 待ちでない）、無効化でのゲートの再計算、Disappear 途中の Close、外側の Disappear 中の内側の無効化、`DD-CANVAS-EMBED-NESTED-ROOT` の扱い、配線の入れ子の入れ子と欄、RootPath の変更での付け替え、`DD-CANVAS-SLIDER-EMBED-ACTION`、テストの件数（PlayMode 8 + 5 = 13、EditMode 3 + 2 = 5）はコードと一致。
+
+### GG-R-13（P3）. 配線の対象の候補（`CollectEmbedPaths`）が、実行時の深さの上限・循環の扱いと一致しない
+
+- **場所**: `Editor/Canvas/CanvasButtonWireEditing.cs:265-292`（`depth >= 8` で打ち切り、循環は `child != canvas` だけ）、`Runtime/Canvas/UiManager.cs:1443`・`:1572-1582`（`MaxEmbedDepth = 8` は Open した CanvasData を 1 段目と数え、`ChainContains` で親側の連鎖にある CanvasData を飛ばす）
+- **内容**: (1) 深さ: 実行時は Open した CanvasData から 7 段下までしか埋め込まない。Editor は配線を持つ CanvasData（それ自体が埋め込みの子のこともある）から 8 段下まで候補に出す。上限を超えたパスは欄で選べ、`DD-CANVAS-WIRE-EMBED-UNKNOWN` も出ないが、実行時は未登録の警告 + 何もしない。(2) 循環: `A → B → A` のような 2 段以上の循環では、実行時には存在しない `OptionRoot/Inner/OptionRoot/Inner/…` が深さ 8 まで候補に並び、そのパスを指す配線の検査も黙る（循環そのものは `DD-CANVAS-EMBED-CYCLE` が出るので気付けはする）。どちらも設定の誤りか極端な深さのときだけで、正しい設定には影響しない。
+- **直し方**: `FindOverlappingRegistration` と同じく、たどってきた CanvasData の `HashSet` で循環を止める。深さは実行時に合わせて `MaxEmbedDepth - 1`（少なくとも「配線を持つ CanvasData が Open される場合」と一致させる）にし、Runtime と Editor の別々の定数をコメントで相互参照する。
+- **確度**: コード読みで確認
+
+### GG-R-14（P3）. RootPath の付け替え（GG-R-06）は同じ CanvasData の配線だけで、上の CanvasData の入れ子の入れ子のパスは追従しない。付け替えたことも表示されない
+
+- **場所**: `Editor/Canvas/CanvasEmbeddedEditing.cs:697`・`:710-734`（`RetargetEmbeddedWires` は `parent.Buttons` だけ。`ChangeEmbedWithCleanup` は戻り値〔付け替えた本数〕を使っていない）
+- **内容**: GG-R-07 で親の配線から `OptionRoot/Inner` を指せるようになったため、子 `Option` の埋め込み `Inner` を `Inner2` に変えると、親 `Hud` の配線 `OptionRoot/Inner` は古いまま残る（`DD-CANVAS-WIRE-EMBED-UNKNOWN` と行の ⚠ が出るので気付ける）。また、付け替えが起きたことはステータスに出ないので、デザイナーは配線が書き換わったことに気付かない（Undo では戻る）。前回の GG-R-06 で勧めた「件数をステータスに出す」が入っていない。
+- **直し方**: 付け替えた本数が 1 以上ならステータスに「配線 N 本の対象を付け替えました」を出す。上の CanvasData の追従は docs/07 に「付け替えるのは同じ CanvasData の配線だけ（上の CanvasData の `…/Inner` は検査の ⚠ を見て選び直す）」と範囲を書けば十分。
+- **確度**: コード読みで確認
+
+### GG-R-15（P3）. FirstSelected を選ぶ条件「スタックの最上位」は、入力できる親でも選ばない場合がある
+
+- **場所**: `Runtime/Canvas/UiManager.cs:1833-1841`（`CanSelectInto`）
+- **内容**: 安全側（選択を奪わない）に倒した判定で、GG-R-03 の不具合は無い。ただし `_stack` は開いた順なので、親より後に**モーダルでない** Canvas（通知・トースト・後から開いた HUD など）が開いていると、親は入力できるのに子の FirstSelected を選ばない。閉じている途中のモーダルが上に残っている間（`RecomputeBlocking` は閉じている途中のモーダルをブロックに数えない）も同じ。パッドで操作中に通知が出ていると、子を出してもフォーカスが親に残る（決定 3 の意図が満たされない場面がある）。
+- **直し方**: 今の条件のままでよければ、docs/07 の「有効化」の行に「モーダルでない Canvas が後から開いている場合も選ばない」を 1 文足す。広げるなら「`_stack` で親より上の Canvas がすべて閉じている途中かモーダルでない」かつ「今の選択が null か親の Canvas の配下」のときに選ぶ（前回の直し方の後半）。決定 3 の範囲の判断なので、人の確認（16-44 のパッド操作）で困るかを見て決めればよい。
+- **確度**: コード読みで確認（実際の画面構成で困るかは未確認）
+
+### GG-R-16（P3、タグ前）. CHANGELOG と docs/43 の文言が今回の対応に追いついていない
+
+- **場所**: `CHANGELOG.md:99`（「検査 2 件（Warning: `DD-CANVAS-WIRE-EMBED-UNKNOWN` / `DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE`）」）、`docs/43_manual_verification_2026-09-17.md` 16-43
+- **内容**: (1) CHANGELOG の「追加」節は検査 2 件のままで、`DD-CANVAS-SLIDER-EMBED-ACTION` が無い（docs/07 の表には入っている）。(2) docs/07 と PR 側の docs/65「対応」は「ステージを閉じたときに戻るかは 16-43 で確認」としているが、16-43 の期待結果は「消える / 戻る」「`*` が付かない」だけで、**非表示のまま閉じてもう一度プレハブモードを開いたとき非表示が残るか**を見る手順が無い。このままだと確認が抜ける。
+- **直し方**: (1) 「検査 3 件」にして `DD-CANVAS-SLIDER-EMBED-ACTION` を足す。(2) 16-43 に「非表示のままプレハブモードを閉じ、もう一度開く → 表示が戻っているか（残る場合は目のアイコンで戻せるか）」を足す。あわせて、入れ子の入れ子を欄で選ぶ・RootPath の変更で配線が付け替わる、の 2 つを 16-44 / 16-45 に 1 行ずつ足すとよい（自動テストはロジックだけで、欄の表示は見ていない）。
+- **確度**: 読んで確認
+
+### GG-R-17（P3）. 入れ子の端の挙動とテストの抜け
+
+- **場所**: `Runtime/Canvas/UiManager.cs:2016-2051`（`SettleInactiveInner`）、`Tests/Runtime/EmbeddedCanvasTests.cs`
+- **内容**: (1) `SettleInactiveInner` は内側の `Deactivating` を下ろさない。内側 `I` を先に無効化（`I` の Disappear 再生中、`I.Deactivating = true`）→ 外側 `O` を無効化（`O` 自身に Disappear が無く即完了）、または `O` をすぐ有効に戻す、の順だと、`SettleInactiveInner(O)` が `I` の Disappear を途中で止めて即無効にする（`I` 自身の Disappear が切れる）。`I.Deactivating` は残るが、次の Tick の `FinishEmbedDeactivations` が（要素は `Held` なので）`CompleteEmbedDeactivation(I)` を呼んで下ろすだけで、実害は無い。(2) テストは外側の Disappear の**完了後**に外側を有効に戻す場合だけを見ていて、外側の **Disappear の途中**で有効に戻す経路（`SetEmbeddedActive(true)` の中の `SettleInactiveInner`。GG-R-08 (1) のもう半分）を見ていない。`CanSelectInto` の `PendingAppearCount > 0`（親の Appear 待ち）で選ばない場合も無い。
+- **直し方**: (1) `SettleInactiveInner` で `inner.Deactivating = false` を下ろす（1 行）。内側の Disappear が切れることは docs/07 の端の挙動として許容してよい。(2) PlayMode を 2 件足す（外側の Disappear 中に内側を無効化 → 外側を有効に戻す → 外側は有効・内側は無効・内側の tween が止まっている／親の Appear の途中で子を有効化 → 選択は変わらない）。
+- **確度**: コード読みで確認
+
+### 再レビューで見られなかった範囲
+
+- Unity 上での実行（コンパイル・EditMode / PlayMode テスト・Canvas Editor の欄・プレハブモードの作業用表示）。実装側の報告（EditMode 1755/1755・PlayMode 964/964）は**未確認**。
+- `SetSelectedGameObject` と `CanvasGroup.interactable` の組み合わせの実挙動（uGUI の仕様からの推定のまま）。`SceneVisibilityManager` の状態の寿命（16-43 待ち）。
+- DesignerManual（GG-R-12 (3)、別担当）。
+- メインの checkout と、そこで開いている Unity には触れていない。
