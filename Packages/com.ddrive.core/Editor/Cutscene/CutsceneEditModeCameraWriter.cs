@@ -1,6 +1,7 @@
 using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Cutscene.Tracks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace DDrive.Editor.Cutscene
 {
@@ -14,7 +15,7 @@ namespace DDrive.Editor.Cutscene
     // Play Mode の `DDriveCutsceneCameraApplier`(実行順 1000 の LateUpdate)とは完全に別経路(二重に書かない
     // ため `Application.isPlaying` で自分自身を止める)。ゲームカメラ制御との実行順契約([26] §4.6.5)は
     // Play Mode 専用の話であり、Edit Mode の確認用シーンにはゲームのカメラ制御自体が存在しないため対象外。
-    internal static class CutsceneEditModeCameraWriter
+    public static class CutsceneEditModeCameraWriter
     {
         private static bool _hasOriginal;
         private static Camera _capturedCamera;
@@ -22,6 +23,9 @@ namespace DDrive.Editor.Cutscene
         private static Quaternion _originalRot;
         private static float _originalFov;
         private static float _originalFocusDistance;
+
+        // GE-R-01(docs/63): シーンの保存の直前に元の姿勢へ戻した間 true(保存の後に書き直す)。
+        private static bool _suspendedForSave;
 
         // Director のいる GameObject の Transform を原点として Camera.main に直接書く。
         // holder.HasData が false(カメラクリップの区間外)なら、書き込む前の姿勢へ戻す。
@@ -46,6 +50,7 @@ namespace DDrive.Editor.Cutscene
             }
 
             CaptureIfNeeded(cam);
+            _suspendedForSave = false;
 
             var root = directorRoot.transform;
             cam.transform.SetPositionAndRotation(root.TransformPoint(holder.LocalPos), root.rotation * holder.LocalRot);
@@ -64,6 +69,13 @@ namespace DDrive.Editor.Cutscene
                 return;
             }
 
+            // 書いている途中で Camera.main が別のカメラに替わった: 前のカメラがカットシーンの姿勢のまま残らないよう、
+            // 先に元の姿勢へ戻してから控え直す(docs/66 GH-R-02。前のカメラが破棄済みなら ResetCapture は何もしない)。
+            if (_hasOriginal)
+            {
+                ResetCapture();
+            }
+
             _capturedCamera = cam;
             _originalPos = cam.transform.position;
             _originalRot = cam.transform.rotation;
@@ -79,11 +91,18 @@ namespace DDrive.Editor.Cutscene
                 return;
             }
 
+            RestoreOriginalPose(cam);
+            _hasOriginal = false;
+            _capturedCamera = null;
+            _suspendedForSave = false;
+        }
+
+        // 位置・回転・画角・ピント距離(Apply が書く全項目。Edit Mode では Volume には書かない)を、書き込む前の値へ戻す。
+        private static void RestoreOriginalPose(Camera cam)
+        {
             cam.transform.SetPositionAndRotation(_originalPos, _originalRot);
             cam.fieldOfView = _originalFov;
             cam.focusDistance = _originalFocusDistance;
-            _hasOriginal = false;
-            _capturedCamera = null;
         }
 
         // 書き込みをやめるときに呼ぶ(Timeline ウィンドウがそのプレビュー用 Director を見なくなった・Director が無くなった・
@@ -94,14 +113,49 @@ namespace DDrive.Editor.Cutscene
         {
             if (_hasOriginal && _capturedCamera != null)
             {
-                _capturedCamera.transform.SetPositionAndRotation(_originalPos, _originalRot);
-                _capturedCamera.fieldOfView = _originalFov;
-                _capturedCamera.focusDistance = _originalFocusDistance;
+                RestoreOriginalPose(_capturedCamera);
             }
 
             _hasOriginal = false;
             _capturedCamera = null;
+            _suspendedForSave = false;
         }
 
+        // GE-R-01(docs/63) — シーンの保存の直前(`EditorSceneManager.sceneSaving`)に呼ぶ: 書き込み中のカメラが保存するシーンに
+        // あれば、カットシーンの姿勢が保存されないよう元の姿勢へ戻す(控えは残す)。戻したら true。
+        public static bool SuspendForSave(Scene scene)
+        {
+            if (!_hasOriginal || _capturedCamera == null || _suspendedForSave)
+            {
+                return false;
+            }
+
+            if (_capturedCamera.gameObject.scene != scene)
+            {
+                return false;
+            }
+
+            RestoreOriginalPose(_capturedCamera);
+            _suspendedForSave = true;
+            return true;
+        }
+
+        // 保存の後(`sceneSaved`)に呼ぶ: `SuspendForSave` で戻していたら true を返して印を下ろす(書き直しは呼び出し側が
+        // `Apply` で行う。まだ Timeline ウィンドウが開いていなければ呼び出し側が `ResetCapture` する)。
+        public static bool ConsumeSuspendedForSave(Scene scene)
+        {
+            if (!_suspendedForSave)
+            {
+                return false;
+            }
+
+            if (_capturedCamera == null || _capturedCamera.gameObject.scene != scene)
+            {
+                return false;
+            }
+
+            _suspendedForSave = false;
+            return true;
+        }
     }
 }

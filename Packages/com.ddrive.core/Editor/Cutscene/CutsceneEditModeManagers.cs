@@ -61,7 +61,7 @@ namespace DDrive.Editor.Cutscene
         public CutsceneEditModeManagers(AssetRegistry registry = null)
         {
             Registry = registry ?? EditorAnchorRegistry.Build();
-            ShakeDriver = new SceneCameraShakePreviewDriver(Registry);
+            ShakeDriver = new SceneCameraShakePreviewDriver(Registry, ownsCameraLifecycle: false);
             HapticsDriver = new EditorHapticsPreviewDriver(Registry);
             EnsureManagers();
         }

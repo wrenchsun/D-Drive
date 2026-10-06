@@ -95,7 +95,9 @@ namespace DDrive.Editor.Cutscene
             EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
             PrefabStage.prefabStageOpened += OnPrefabStageChanged;
             PrefabStage.prefabStageClosing += OnPrefabStageChanged;
-            AssemblyReloadEvents.beforeAssemblyReload += TearDown;
+            EditorSceneManager.sceneSaving += OnSceneSaving;
+            EditorSceneManager.sceneSaved += OnSceneSaved;
+            AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
         }
 
         // `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」から呼ぶ: プレビュー用 Director の
@@ -170,28 +172,102 @@ namespace DDrive.Editor.Cutscene
             return _contextBuffer;
         }
 
-        // Timeline ウィンドウが今開いている Director(`UnityEditor.Timeline.TimelineEditor.inspectedDirector`)。この asmdef は
-        // Unity.Timeline.Editor を参照していないので、reflection で読む(CutsceneEditModeDirectorSetup.FocusTimelineWindowOn と同じ事情)。
-        private static readonly System.Reflection.PropertyInfo InspectedDirectorProperty =
-            System.Type.GetType("UnityEditor.Timeline.TimelineEditor, Unity.Timeline.Editor")
-                ?.GetProperty("inspectedDirector", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        // Timeline ウィンドウが今開いている Director(`UnityEditor.Timeline.TimelineEditor.inspectedDirector`)と、その親(入れ子の
+        // Timeline を編集しているときの最上位 = `masterDirector`)。この asmdef は Unity.Timeline.Editor を参照していないので
+        // (asmdef の構成は変えない。CLAUDE.md §0-9)、reflection で読む(CutsceneEditModeDirectorSetup.FocusTimelineWindowOn と同じ事情)。
+        // 見つからない / 読めないときは「書かない」側に倒す(GE-R-02): 以前の不具合(閉じてもカメラが上書きされ続ける)が黙って
+        // 戻らないように、Edit Mode のカメラのプレビューを無効にして警告を 1 回だけ出す。
+        private static readonly System.Reflection.PropertyInfo InspectedDirectorProperty = FindTimelineEditorProperty("inspectedDirector");
+        private static readonly System.Reflection.PropertyInfo MasterDirectorProperty = FindTimelineEditorProperty("masterDirector");
+        private static bool _warnedTimelineApiUnavailable;
+        // 一度例外になったら、以降は GetValue を呼ばない(毎更新で例外を作り続けない)。戻るのはドメインリロードのときだけ
+        // (Timeline の版はドメインリロードを跨がないと変わらないため。テストは ResetTimelineApiStateForTests)。
+        private static bool _timelineApiBroken;
+
+        private static System.Reflection.PropertyInfo FindTimelineEditorProperty(string name)
+            => System.Type.GetType("UnityEditor.Timeline.TimelineEditor, Unity.Timeline.Editor")
+                ?.GetProperty(name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
 
         // テスト用の差し替え口(Timeline ウィンドウを開かずに「開いている / いない」を切り替える)。null なら実際の Timeline ウィンドウを見る。
         public static System.Func<PlayableDirector, bool> IsInspectedOverrideForTests;
 
-        private static bool IsInspectedByTimelineWindow(PlayableDirector director)
+        // この Director を Timeline ウィンドウが開いているか(入れ子の Timeline を編集中でも、その最上位がこの Director なら true)。
+        // Timeline の API が使えないときは false(警告は 1 回だけ)。
+        public static bool IsInspectedByTimelineWindow(PlayableDirector director)
         {
             if (IsInspectedOverrideForTests != null)
             {
                 return IsInspectedOverrideForTests(director);
             }
 
-            if (InspectedDirectorProperty == null)
+            return IsInspectedByOrWarn(InspectedDirectorProperty, MasterDirectorProperty, director);
+        }
+
+        // `IsInspectedBy` に「API が無い・読めない → 書かない(false)+ 警告 1 回」を足したもの。PropertyInfo を渡せるのはテスト用。
+        public static bool IsInspectedByOrWarn(System.Reflection.PropertyInfo inspectedProperty, System.Reflection.PropertyInfo masterProperty, PlayableDirector director)
+        {
+            if (inspectedProperty == null || _timelineApiBroken)
             {
-                return true; // 判定できない Unity の版では、従来どおり書く(片付けのときの復元は効く)
+                WarnTimelineApiUnavailableOnce();
+                return false;
             }
 
-            return (InspectedDirectorProperty.GetValue(null) as PlayableDirector) == director;
+            try
+            {
+                return IsInspectedBy(inspectedProperty, masterProperty, director);
+            }
+            catch (System.Exception e)
+            {
+                // 型は見つかったが読めない(Timeline の版の変更など)。書く側に倒さない。
+                _timelineApiBroken = true;
+                WarnTimelineApiUnavailableOnce(e);
+                return false;
+            }
+        }
+
+        // テスト用: 警告済み・読めない印を戻す。
+        public static void ResetTimelineApiStateForTests()
+        {
+            _warnedTimelineApiUnavailable = false;
+            _timelineApiBroken = false;
+        }
+
+        // `inspectedDirector` か `masterDirector` がこの Director なら true。`inspectedProperty` が null(API が見つからない)なら false。
+        // テストが「見つからないときは書かない側」を直接確かめられるよう public(PropertyInfo を渡せる形)。
+        public static bool IsInspectedBy(System.Reflection.PropertyInfo inspectedProperty, System.Reflection.PropertyInfo masterProperty, PlayableDirector director)
+        {
+            if (inspectedProperty == null || director == null)
+            {
+                return false;
+            }
+
+            if ((inspectedProperty.GetValue(null) as PlayableDirector) == director)
+            {
+                return true;
+            }
+
+            return masterProperty != null && (masterProperty.GetValue(null) as PlayableDirector) == director;
+        }
+
+        // テスト用: Timeline の公開 API(inspectedDirector / masterDirector)を reflection で解決できているか、
+        // 現在の値(Timeline ウィンドウを開いていなければどちらも null)。
+        public static bool IsTimelineWindowApiResolved => InspectedDirectorProperty != null && MasterDirectorProperty != null;
+
+        public static PlayableDirector ReadInspectedDirectorForTests() => InspectedDirectorProperty?.GetValue(null) as PlayableDirector;
+
+        public static PlayableDirector ReadMasterDirectorForTests() => MasterDirectorProperty?.GetValue(null) as PlayableDirector;
+
+        private static void WarnTimelineApiUnavailableOnce(System.Exception e = null)
+        {
+            if (_warnedTimelineApiUnavailable)
+            {
+                return;
+            }
+
+            _warnedTimelineApiUnavailable = true;
+            Debug.LogWarning("[DDrive] Timeline ウィンドウの状態を取得できないため、Edit Mode のカメラのプレビューを無効にします"
+                             + "(Timeline パッケージの版が変わった可能性があります。マーカー・SE・VFX のプレビューは影響しません)"
+                             + (e != null ? $"。{(e.InnerException ?? e).GetType().Name}: {(e.InnerException ?? e).Message}" : string.Empty));
         }
 
         private static void OnEditorUpdate()
@@ -453,6 +529,7 @@ namespace DDrive.Editor.Cutscene
             {
                 // Play Mode に入る直前に、Shake/Haptics の出力とカメラの書き込みを止める
                 // (SceneCameraShakePreviewDriver/EditorHapticsPreviewDriver 自身も同じ通知で自浄する)。
+                RestoreCameraAfterShake();
                 CutsceneEditModeCameraWriter.ResetCapture();
                 // docs/45 P1-5(2026-09-20) — プレビュー用 Director(playOnAwake=true のまま保存された
                 // シーンで Play Mode に入ると CutsceneManager を経由せず勝手に再生してしまう)と、そこに
@@ -464,14 +541,75 @@ namespace DDrive.Editor.Cutscene
 
         private static void OnActiveSceneChanged(Scene previous, Scene current) => ResetSessions();
 
+        // GE-R-01(docs/63) — Timeline ウィンドウでプレビューを開いたまま(= カメラがカットシーンの姿勢のまま)シーンを保存すると、
+        // その姿勢が Camera.main に保存されてしまう。保存の直前(Ctrl+S・File > Save・SaveOpenScenes のどれも `sceneSaving` が呼ばれる)に
+        // 書き込む前の姿勢へ戻し、保存の後に(まだ開いていれば)書き直す。テストが直接呼べるよう public。
+        public static void SuspendCameraForSave(Scene scene)
+        {
+            if (Application.isPlaying)
+            {
+                return;
+            }
+
+            // docs/66 GH-R-01 — Shake ドライバは Shake を鳴らし始めた時点のカメラのローカル姿勢(= そのときのカットシーンの姿勢)を
+            // 控えていて、自分の復元でそれを書き戻す。Writer の復元(ワールドの元の姿勢)より**先**に Shake の復元を済ませ、
+            // 最後に Writer が元の姿勢にする(Shake ドライバは `ownsCameraLifecycle: false` で、保存・後始末を自分では購読しない)。
+            _managers?.ShakeDriver.RestoreCameraForSave(scene);
+            CutsceneEditModeCameraWriter.SuspendForSave(scene);
+        }
+
+        // Shake ドライバのカメラの復元(ティックも止める)。必ず `CutsceneEditModeCameraWriter.ResetCapture` の前に呼ぶ。
+        private static void RestoreCameraAfterShake() => _managers?.ShakeDriver.StopAndRestore();
+
+        public static void ResumeCameraAfterSave(Scene scene)
+        {
+            if (Application.isPlaying || !CutsceneEditModeCameraWriter.ConsumeSuspendedForSave(scene))
+            {
+                return;
+            }
+
+            // まだ Timeline ウィンドウがプレビュー用 Director を開いていれば書き直す。開いていなければ(控えは元の姿勢のままなので)捨てる。
+            var contexts = CollectContexts();
+            for (var i = 0; i < contexts.Count; i++)
+            {
+                var director = contexts[i] != null ? contexts[i].GetComponent<PlayableDirector>() : null;
+                if (director != null && IsInspectedByTimelineWindow(director))
+                {
+                    CutsceneEditModeCameraWriter.Apply(director.gameObject);
+                    return;
+                }
+            }
+
+            CutsceneEditModeCameraWriter.ResetCapture();
+        }
+
+        private static void OnSceneSaving(Scene scene, string path) => SuspendCameraForSave(scene);
+
+        private static void OnSceneSaved(Scene scene) => ResumeCameraAfterSave(scene);
+
         private static void OnPrefabStageChanged(PrefabStage stage) => ResetSessions();
 
         private static void ResetSessions()
         {
             _sessions.Clear();
+            RestoreCameraAfterShake();
             CutsceneEditModeCameraWriter.ResetCapture();
             // docs/45 P1-5(2026-09-20) — シーン切替・Prefab ステージ切替でプレビュー用 Director を残さない。
             CutsceneEditModeDirectorSetup.TearDown();
+        }
+
+        // ドメインリロード前: 後始末をして、この型が登録したイベントの購読を外す(リロード後は静的コンストラクターが付け直す)。
+        private static void OnBeforeAssemblyReload()
+        {
+            TearDown();
+            EditorApplication.update -= OnEditorUpdate;
+            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+            EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
+            PrefabStage.prefabStageOpened -= OnPrefabStageChanged;
+            PrefabStage.prefabStageClosing -= OnPrefabStageChanged;
+            EditorSceneManager.sceneSaving -= OnSceneSaving;
+            EditorSceneManager.sceneSaved -= OnSceneSaved;
+            AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
         }
 
         private static void TearDown()

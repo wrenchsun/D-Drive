@@ -138,6 +138,18 @@
 - SpecWeb の生成物は差分の行数と DesignerManual との対応だけ（中身の 1 行ずつの照合はしていない）。デプロイは PR 本文どおり未実施。
 - メインの checkout と、そこで開いている Unity には触れていない。
 
+## 対応状況（2026-10-06、PR #135 に追加コミット）
+
+| 指摘 | 対応 |
+|---|---|
+| GH-R-01 | **対応済み**。Edit Mode プレビュー用の Shake ドライバは保存・後始末を自分では購読せず（`SceneCameraShakePreviewDriver(registry, ownsCameraLifecycle: false)`、既定 true で単体のドライバの動作は不変）、`CutsceneEditModePreviewProvider` が「Shake の復元（`RestoreCameraForSave` / `StopAndRestore`）→ Writer の復元」の順で呼ぶ（保存・`ResetSessions`・Play Mode 突入）。購読順に依存しない。テスト `RealSave_AfterShakeStarted_DoesNotStorePreviewPose`（旧い配線へ戻すと赤になることを確認）・`TearDown_AfterShakeStarted_RestoresOriginalPose` |
+| GH-R-02 | **対応済み**。`CaptureIfNeeded` が控えと違うカメラなら先に `ResetCapture()`。テスト `MainCameraChangedMidway_RestoresPreviousCamera`。docs/63 の見出しにも反映 |
+| GH-R-03 | **対応済み（案と少し違う）**。(1)(2) 実際のシーン保存を通すテスト（作業中のシーンを `saveAsCopy` で一時パスへ保存。未保存の無題シーンでは追加シーンを作れず `NewScene(Additive)` が使えないため）・別シーン・保存の失敗からの復帰。(3) `IsInspectedByOrWarn(PropertyInfo…)` に切り出して、例外を投げるプロパティで「false・警告 1 回・以降は読まない」を固定。テスト名も内容に合わせた |
+| GH-R-04 | **対応済み**。一度例外になったら `_timelineApiBroken` で以降は読まない、警告に `InnerException` の型とメッセージ、リセット条件（ドメインリロードのみ）をコメントに |
+| GH-R-05 | **対応済み**。docs/52 §24 に「先にシーンを変更済みにする」、24-3 の「自動保存」を削除、24-4（Shake を通過してから保存）を追加。コードのコメントの「自動保存」も直した |
+| GH-R-06 | **対応済み**。CHANGELOG の独立した行を消し、既存の Edit Mode プレビューの行に統合 |
+| GH-R-07 | **対応済み**。material-data（変更なしの説明）・canvas-editor（⚠ の引用・PlayPresentation の古い予定）・canvas-data（同）・cutscene-maya-export（保存時の挙動と警告の意味）。マニュアル再生成済み |
+
 ---
 
 ## 再レビュー（2026-10-06、729cd48）
@@ -241,3 +253,12 @@
 - `saveAsCopy` で `sceneSaving` / `sceneSaved` が呼ばれること（実装側の「旧い配線へ戻すと赤」を根拠に信頼）、バッチモードでの動作（**推定**）。
 - SpecWeb の生成物は DesignerManual との差分の対応だけ。
 - メインの checkout と、そこで開いている Unity には触れていない。
+
+## 対応状況（再レビュー 729cd48 への対応、2026-10-06）
+
+| 指摘 | 対応 |
+|---|---|
+| GH-R-08 | **対応済み**。`ownsCameraLifecycle: false` のとき、Shake ドライバの `RestoreCameraNow` はカメラのローカル姿勢を書かず、`Manager.StopAll`（`CameraFxManager` が揺れのオフセットを基準へ戻し、今のワールド姿勢のまま元の親へ付け直してノードを破棄）だけにした。姿勢の持ち主は Writer だけ。単体のドライバ（既定 true）は不変。テスト `RealSave_AfterShake_ThenPreviewClosed_KeepsOriginalPose`・`TearDown_AfterShake_ThenPreviewClosed_KeepsOriginalPose` |
+| GH-R-09 | **見送り**。揺れの振幅ぶん（数 cm・数度）のずれで、Camera クリップより前に置いた Shake が揺れている最中に区間へ入る場合に限られる。直すには Writer に Shake の基準姿勢を渡す配線が要り、GH-R-08 の修正で姿勢の持ち主が Writer だけになった後は、v1.4.x で Writer の控えの取り方（ノードの基準を引く）と一緒に直すほうが安全 |
+| GH-R-10 | **対応済み（(1) のみ）**。テストの位置をテスト固有の値（`{x: 1.25, y: 2.5, z: 3.75}` など）にして、作業中のシーンの内容と衝突しにくくした。(2) の一時パスは、既存の保存系テストに専用の置き場が無いため現状のまま |
+| GH-R-11 | **対応済み**。canvas-data の引用の末尾に「(開いた直後は選択できません)」を足し、マニュアルを再生成 |
