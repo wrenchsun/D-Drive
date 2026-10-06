@@ -2702,6 +2702,12 @@ namespace DDrive.Editor.CanvasTool
 
         // ── Validation ──
 
+        // この欄に出す検査の結果。Validator を手で並べず、ほかの専用エディタと同じ共通の実行部(DataValidationRunner.Run =
+        // Target == Canvas の全 Validator + 1 アセット単位の IUniversalValidator。持ち込み先の Validator も含む)から取る
+        // (16-45 で CanvasEmbeddedActiveValidator の抜けが見つかった。レビュー [63] GE-R-19)。描画と Undo 付きの「修正」は独自のまま。
+        public static List<ValidationResult> CollectValidation(CanvasData target)
+            => DDrive.Editor.Validation.DataValidationRunner.Run(target);
+
         private void RefreshValidation()
         {
             if (_validationFoldout == null)
@@ -2716,10 +2722,7 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var any = false;
-            var validationContext = new ValidationContext(new List<AssetDataBase> { _target });
-            var results = new List<ValidationResult>(new CanvasDataValidator().Validate(_target, validationContext));
-            results.AddRange(new CanvasEmbeddedValidator().Validate(_target, validationContext));
-            results.AddRange(new CanvasEmbeddedActiveValidator().Validate(_target, validationContext)); // 埋め込みの有効 / 無効の検査(16-45 で抜けが見つかった。2026-10-06)
+            var results = CollectValidation(_target);
             foreach (var result in results)
             {
                 any = true;

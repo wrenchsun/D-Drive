@@ -350,14 +350,15 @@ namespace DDrive.Editor.CanvasTool
             line.Add(new Button(() =>
             {
                 // 「削除」も各欄と同じく、行を作ったときの配線か確かめてから消す(並べ替え後に別の配線を消さない。GE-R-14)。
-                if (owner == null || owner.Buttons == null || index < 0 || index >= owner.Buttons.Length
-                    || !CanvasButtonWireEditing.SameWire(owner.Buttons[index], expected))
+                switch (CanvasButtonWireEditing.TryRemoveWire(owner, index, expected))
                 {
-                    NotifyWireRowsStale(owner);
-                    return;
+                    case CanvasButtonWireEditing.RemoveOutcome.Removed:
+                        AfterButtonWireEdit(owner, "配線を削除しました");
+                        break;
+                    case CanvasButtonWireEditing.RemoveOutcome.Stale:
+                        NotifyWireRowsStale(owner);
+                        break;
                 }
-
-                AfterButtonWireEdit(owner, CanvasButtonWireEditing.RemoveWire(owner, index) ? "配線を削除しました" : null);
             })
             {
                 text = "削除",
