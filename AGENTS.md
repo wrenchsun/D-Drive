@@ -47,7 +47,7 @@ Tools/SpecWeb/                 発注ツール(Google Apps Script、clasp 管理
 - isuzu-unity MCP: `compile_request` → 20〜25 秒待つ → `compile_status` で `succeeded` 確認 → `test_run mode=edit`/`mode=play` → `test_results` をポーリング（EditMode 20〜30 秒、PlayMode 1〜2 分）
 - **テスト実行前に空きメモリを確認する**（低メモリで Unity がクラッシュした実例がある。目安 1GB 未満なら待つ）
 - テストは実 `Assets/GameData/` のカタログ・Addressables グループを汚してはいけない。テスト前後で `git status`/`git diff` に差分が出ないことを確認する（特に `Assets/AddressableAssetsData/AssetGroups/*.asset`）
-- ネットワーク機能（NGO/`INetBridge`）は PlayMode テストに加えて実機確認が必要（`docs/29_network_device_test.md`）。ユニットテストだけでは検出できない実バグが複数回見つかっている
+- ネットワーク機能（NGO/`INetBridge`）は PlayMode テストに加えて実機確認が必要（`docs/verification/29_network_device_test.md`）。ユニットテストだけでは検出できない実バグが複数回見つかっている
 - Unity 再起動でポート/トークンが変わって MCP が繋がらなくなったら、`%LOCALAPPDATA%\UnityMCP\instances\<hash>.json` から port/token を読み直し、Bearer トークン付きで直接 JSON-RPC を POST するフォールバックがある（`docs/20_mcp_setup.md` 参照）
 
 ## 5. コミット・PR の慣習
@@ -77,6 +77,6 @@ Tools/SpecWeb/                 発注ツール(Google Apps Script、clasp 管理
 | [docs/10_workflow.md](docs/10_workflow.md) | ロール・命名・配置規約 |
 | [docs/12_review.md](docs/12_review.md) | PR チェックリスト |
 | [docs/20_mcp_setup.md](docs/20_mcp_setup.md) | Unity MCP セットアップ・運用ルール |
-| [docs/29_network_device_test.md](docs/29_network_device_test.md) | 実機ネットワーク確認手順 |
+| [docs/verification/29_network_device_test.md](docs/verification/29_network_device_test.md) | 実機ネットワーク確認手順 |
 | [docs/32_spec_web.md](docs/32_spec_web.md) | 発注ツール（GAS）設計・実装メモ |
 | [.claude/skills/ddrive-agent-workflow/SKILL.md](.claude/skills/ddrive-agent-workflow/SKILL.md) | Claude Code 向けの同内容の詳細版（本ファイルはこちらの要約） |

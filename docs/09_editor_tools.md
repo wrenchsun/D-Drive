@@ -76,11 +76,11 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 - **既定フォルダの作成(2026-09-14 追加、2026-09-18 Cutscene 追加)**: `Tools/D-Drive/Generate/SourceAssets の既定フォルダを作成`(`ImportRuleDefaultFolders.EnsureDefaultFolders`)が上記 9 種別のフォルダを `SourceAssets/` 直下に作る(既にあれば何もしない、冪等)。各フォルダ(と `SourceAssets/` 自体)に置き方を説明する `README.md` を入れる(git は空フォルダを保存できず `.meta` だけが残ると clone 先で Unity が警告して消してしまうための対策も兼ねる。Unity では TextAsset として読み込まれるだけの内容)。既存の `Shaders`/`Data` 等の他フォルダには触らない。README は既存があれば上書きしない(デザイナーが書き換えている可能性があるため)。種別一覧は `ImportRuleService.Handlers` から取るためハードコードしていない。**`Cutscene` フォルダは `ImportRuleService.Handlers` に無い(§1.1 のとおり専用パイプライン)ため、同じ関数内で別枠として `SourceAssets/Cutscene/` + README を用意している**(命名規則を説明する専用の README 文面)
 - **外部パッケージからの拡張（2026-10-03 追記、FC-6。[51] §4.7）**: `IImportRuleHandler` の外部実装（public・引数なしコンストラクタ）を `TypeCache` で発見して `ImportRuleService.Handlers` の**組み込み 9 件の後ろ**に足す（既定フォルダ作成・ソース指定作成にも自動で反映）。組み込み / `Shaders・Data・Samples・Cutscene` と同じ種別フォルダを名乗ると警告 1 回 + 無視（組み込み優先）。外部ハンドラの例外は隔離（Data は作られず他のファイルは続行）。作れる Data は既存の `AssetType` に限る。ハンドラを持たない外部パッケージは `IImportRuleFolderOptOut`（`FolderNames`）で「`SourceAssets/<名前>/` は自分が管理する」と宣言でき、宣言された名前は「不明な種別フォルダ」の案内対象外。D-Drive 本体に外部固有の名前は書かない。API は Editor 契約（[42] §5.9 / §5.14 E-21）。
 - **置き方を間違えたときの案内ログ(2026-09-14 追加)**: `SourceAssets/` 配下だがルールに合わないファイル(種別フォルダの直下・不明な種別フォルダ・対応外拡張子)を置くと、Data は作らずに Console へ `[DDrive] ImportRule 案内: ...` の `Debug.LogWarning` を出す(例外にはしない)。同じファイルパスはセッション内(ドメインリロードまで)で 1 回だけ警告し、`ProcessPaths` 1 回の呼び出し内ではカテゴリ(直下/不明フォルダ名ごと/種別ごと)にまとめて 1 行にする(`ScanAll` でまとめて大量に流し込んでも Console が荒れない)。`Shaders`/`Data`/`Samples`(Maya→Material 経路・サンプル資産が既に使っている既知の非対象フォルダ、`ImportRuleService.KnownNonTargetTypeFolders`。`Samples` はサンプル素材の退避先 = [10_workflow.md](10_workflow.md) §3.3、2026-09-14)、フォルダ自体、隠しファイル(`.`/`~` 始まり)、`README.md`、`.meta` は警告の対象外
-- **Model の Material スロット自動割当(2026-09-17、U-2。[39](39_usability_fixes_2026-09-17.md))**: FBX 配置で `ModelData` を作るとき、`Slots` も同時に埋める。`MayaModelPostprocessor`(FBX インポート・手動生成の直後)も `ModelSlotBinder.RebindForModelPath` で既存の `ModelData` の Slots を貼り直す。作り直しの導線は Model Editor の「元ファイル再読み込み」(U-3)。詳細は [05 A-4](05_model_animation.md) / [06 A-2](06_material_texture.md) の実装メモ
+- **Model の Material スロット自動割当(2026-09-17、U-2。[39](archive/39_usability_fixes_2026-09-17.md))**: FBX 配置で `ModelData` を作るとき、`Slots` も同時に埋める。`MayaModelPostprocessor`(FBX インポート・手動生成の直後)も `ModelSlotBinder.RebindForModelPath` で既存の `ModelData` の Slots を貼り直す。作り直しの導線は Model Editor の「元ファイル再読み込み」(U-3)。詳細は [05 A-4](05_model_animation.md) / [06 A-2](06_material_texture.md) の実装メモ
 - **知らないシェーダーの確認(2026-10-03、FC-15。[51](51_tdrive_integration.md) §4.16・[06](06_material_texture.md) A-2)**: Model エディタの「元ファイルを再読み込み」と `Generate` メニューの「選択した Material を D-Drive/Lit・Unlit の MaterialData に変換」「選択したモデルから MaterialData を生成」は、`MayaImportProfile.UnknownShaderPolicy` が `Ask`(既定)のとき、変換表にも `DDrive/` にも当たらないシェーダーの Material があれば **1 操作につき 1 回だけ** `DisplayDialogComplex`(保つ / `DDrive/Lit` に変換 / キャンセル)を出す。キャンセルは何も書き換えない。FBX の自動取り込み・バッチ・テストは非対話で従来どおり Lit に変換する。`KeepSource` / `ConvertToLit` ではダイアログを出さない。実装 = `UnknownShaderGuard`(`Editor/Material/`。テストは `PromptOverrideForTests` で差し替える)
 - **「欠落」表示**: 元ファイルを削除しても Data は消えない(参照フィールドが null になるだけ)。各種別の既存 Validator(`SeDataValidator`/`BgmDataValidator`/`TextureDataValidator`/`ModelDataValidator`/`AnimDataValidator`/`Anim2DDataValidator`/`PrefabDataValidator`/`CanvasDataValidator`/`VfxDataValidator`)がすでに「未設定(または Missing)です」の Error を出す実装だったため、新規 Validator は追加していない(AssetBrowser の Validation 一覧・⚠に既存のまま出る)
 - **対象外の種別**(元ファイルが無い): Presentation / Shake / Haptics / UiTween / Anchor / AnchorGroup / ControlSkin(5-13 で別枠)。**Cutscene(2026-09-18、6-10c で実装)**: `IImportRuleHandler` は「1 元ファイル = 1 Data」の `Configure` しか持たないため採用せず、`MayaModelPostprocessor` と同じ位置付けの専用パイプライン(`CutsceneFbxPostprocessor`/`CutsceneImportService`、`Assets/DDrive/Editor/Cutscene/`)として実装した(「1 ショット = カメラ+小物 FBX 1 本 + キャラごとの FBX N 本 → CutsceneData 1 個」の N:1 対応・再取り込みでの個別更新が `IImportRuleHandler` では表現できないため。詳細は [26_timeline.md] §6 実装メモ)。`ImportRuleService.KnownNonTargetTypeFolders` に `"Cutscene"` を加え、汎用の案内ログ対象からは外している(`"Shaders"` と同じ扱い)。**2026-10-03 追記(FC-5)**: Cutscene の取り込み完了は外部パッケージ向けに `ICutsceneImportListener`(`Editor/Cutscene/ICutsceneImportListener.cs`)で通知する(取り込み後の後処理の拡張点。`TypeCache` で発見、`Order` 順、保存はリスナー後に D-Drive が 1 回。[26_timeline.md] §5.2 の 7・[51] §4.6)
-- 要判断は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-11」節末尾を参照(Anim2D の元ファイル解釈・複数テイク FBX 等)
+- 要判断は [28_manual_verification_phase5.md](verification/28_manual_verification_phase5.md) の「5-11」節末尾を参照(Anim2D の元ファイル解釈・複数テイク FBX 等)
 - テスト: `Tests/Editor/ImportRuleServiceTests.cs`(ルーティング/カテゴリ抽出/9 種別の生成/再取り込みでの二重生成防止/元ファイル削除後も Data が残ることの確認/置き方を間違えた場合の案内ログが 1 回だけ出ること・既知の非対象フォルダでは出ないこと、18 件)、`Tests/Editor/ImportRuleDefaultFoldersTests.cs`(既定フォルダ+README 生成・冪等性・既存 README を上書きしないこと・生成された README がインポート対象/案内ログ対象にならないこと、4 件)
 - **レビュー対応(2026-09-14、P5 レビュー第 1 弾、整理)**: `ImportRulePostprocessor.AddPending` の重複チェックが
   `List<string>.Contains`(O(n))で、大量ファイルの一括インポート/移動時に O(n²) になっていた
@@ -129,7 +129,7 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 - 共通 UI: 再生 / 停止 / ループ / 速度（0.1x–2x）/ シーク / 背景切替（暗室・グレー・屋外・任意シーン）/ ライト切替 / ポスプロ ON-OFF / **比較表示（2 ペイン同期再生）** / スクリーンショット→PreviewImage 保存
 - 種別固有プレビューは各設計書（03〜08）の仕様に従い、この基盤上に実装
 - **SceneView 方式**（2026-09-08 VFX / 2026-09-09 Anim）: 独自ビューポートではなく、開いているシーン / プレハブモードに直接スポーン（Anim は借用した Animator をその場で駆動）して SceneView で確認する。VFX は `SceneVfxPreviewDriver`、Anim は `SceneAnimPreviewDriver`（`Editor/Anim/`）。どちらも実 Manager を駆動し、配置物は `[D-Drive] … Preview` ルート（`HideFlags.DontSave`）にまとめてシーン / Prefab に保存しない。Anim は再生前のポーズをスナップショットし、停止・対象解除・ステージ切替・Prefab 保存の直前に復元する。VFX / Anim はこの方式のみ（AnimEditor のウィンドウ内ビューポートは 2026-09-09 に廃止）。`PreviewService` のプレビューシーンは Audio / Model / Anchor 系が使う
-- **AssetBrowser 下部のプレビューバー（`AudioPreviewPane`）のレイアウト（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-12）**:
+- **AssetBrowser 下部のプレビューバー（`AudioPreviewPane`）のレイアウト（2026-09-17、[39](archive/39_usability_fixes_2026-09-17.md) U-12）**:
   「▶ 再生 / ■ 停止 / ループ / 速度」を 1 行に並べるバー。崩れていた原因は (1) `Toggle` / `Slider` は `BaseField` で、
   ラベル部に USS 既定の `min-width: 120px` が付くため「ループ」「速度」の 2〜3 文字でも 120px を占めてコントロールを
   右へ押し出す (2) 行が `flex-wrap: nowrap` のうえ速度スライダーが固定幅 180px で、バーが狭いと折り返さず右側が見切れる、の 2 点。
@@ -191,8 +191,8 @@ UI Toolkit で実装（Unity 6 前提）。すべての操作は Undo 対応（N
 
 - **再生対象**: 対象 CanvasData の Prefab を**プレハブモードで開いているときはステージ内の実体**（`prefabContentsRoot` から `ElementPath` で Find）、そうでなければ確認用シーンのプレビュー実体（従来どおり）を、同じ実 `UiTweenManager` で再生する。ステージ内で再生した値は `ElementFxStateSnapshot` に控えておき、再生のたび・停止・全再生の終了・プレハブモードを閉じる／保存する・ウィンドウを閉じるときに元へ戻す（Undo に積まない。プレハブに値を残さない）。
 - **初期状態へリセット**: ▶（行ごと・「▶ 全 Appear/Idle/Disappear」）は「実行中の同要素のトゥイーンを止める → 再生前の値へ戻す → 再生」の順で行うので、連打しても位置がずれない。行の「■ 停止」と「■ 全て停止」も初期状態へ戻す。
-- **選択・フォーカス**: ElementFx の各要素の箱に「選択」「フォーカス」を追加（「選択して移動(Prefab を開く)」は従来どおり）。表示中の実体（プレハブモード → プレビュー実体）を `Selection` にし、「フォーカス」は `PreviewPlacement.FocusRect` で SceneView をその矩形へ寄せる。実体がどちらも無いときは Prefab アセット内の該当要素を Ping。行ごとの ▶ で自動的にその要素を選択する（EditorPrefs `DDrive.CanvasEditor.SelectOnPlay`、既定 ON、ElementFx 見出し下のトグルで切替）。詳細は [39 §2026-09-29 追記](39_usability_fixes_2026-09-17.md)。
-- **「Idle を流す(プレハブモード)」（2026-10-06、U-29b）**: ElementFx 見出し下のトグル（既定オフ・保存しない）。プレハブモードのステージ内で Idle が割り当てられた全要素（埋め込みの子の分を含む）の Idle を流し続ける。確認用プレビューでは元から流れるのでトグルは灰色（理由を表示）。実体は `CanvasIdleFlow`（実 `UiTweenManager` を既存の `OnEditorUpdate` で Tick。新しい update 購読なし）。流す前の値を `ElementFxStateSnapshot` に控え、オフ・保存の直前・プレハブモードを閉じる・対象の切り替え・Play Mode に入る・ウィンドウを閉じる／ドメインリロードで元へ戻す。選択した要素（とその祖先）だけ止めて元の値へ戻し、選択を外すと取り直して再開。行の ▶ 再生中は Idle を止めて終わったら再開。詳細は [39](39_usability_fixes_2026-09-17.md) 2026-10-06 追記。
+- **選択・フォーカス**: ElementFx の各要素の箱に「選択」「フォーカス」を追加（「選択して移動(Prefab を開く)」は従来どおり）。表示中の実体（プレハブモード → プレビュー実体）を `Selection` にし、「フォーカス」は `PreviewPlacement.FocusRect` で SceneView をその矩形へ寄せる。実体がどちらも無いときは Prefab アセット内の該当要素を Ping。行ごとの ▶ で自動的にその要素を選択する（EditorPrefs `DDrive.CanvasEditor.SelectOnPlay`、既定 ON、ElementFx 見出し下のトグルで切替）。詳細は [39 §2026-09-29 追記](archive/39_usability_fixes_2026-09-17.md)。
+- **「Idle を流す(プレハブモード)」（2026-10-06、U-29b）**: ElementFx 見出し下のトグル（既定オフ・保存しない）。プレハブモードのステージ内で Idle が割り当てられた全要素（埋め込みの子の分を含む）の Idle を流し続ける。確認用プレビューでは元から流れるのでトグルは灰色（理由を表示）。実体は `CanvasIdleFlow`（実 `UiTweenManager` を既存の `OnEditorUpdate` で Tick。新しい update 購読なし）。流す前の値を `ElementFxStateSnapshot` に控え、オフ・保存の直前・プレハブモードを閉じる・対象の切り替え・Play Mode に入る・ウィンドウを閉じる／ドメインリロードで元へ戻す。選択した要素（とその祖先）だけ止めて元の値へ戻し、選択を外すと取り直して再開。行の ▶ 再生中は Idle を止めて終わったら再開。詳細は [39](archive/39_usability_fixes_2026-09-17.md) 2026-10-06 追記。
 
 **2026-10-06 追記（レビュー [62] GD-R-02 / GD-R-10 / GD-R-11）**: (1) 親のプレハブモードで Idle を流している要素のうち、入れ子 Prefab インスタンス（埋め込みの子など）に属するものは、流している間その値が Unity から「入れ子インスタンスへの上書き」に見える（Hierarchy で太字・Overrides に出る。実測: `m_LocalScale` の上書きが Idle の値になる）。Overrides の「Apply」は親の保存を通らずに子の Prefab へ直接書くので、**流したまま Apply すると途中の値が子の Prefab に書かれる**。Apply の前に止める手段が Unity に無いため、該当する要素があるときはトグルの下に「⚠ うち N 件は入れ子 Prefab の要素です…Apply はトグルをオフにしてから」と出す（`CanvasIdleFlow.NestedInstanceCount`）。流している間に保存すると、元の値が入れ子インスタンスの上書きとして残ることがある（値は Prefab と同じで見た目は変わらない）。(2) 作り直しの判定（`CanvasIdleFlow.Signature`）に Ease の上書きも含める。(3) 未対応: 選択していない要素の値が Undo / Redo で変わった場合、Idle を止めるときに控え（Undo 前）の値へ戻してしまう件は残っている（Undo の時点で流れを止めると、その場で控えの値に戻してしまい直らない。Undo が変えた値だけを控え直す仕組みが要る）。`RefreshAfterUndoRedo` が入力途中の欄を作り直す件も現状のまま。
 
@@ -205,7 +205,7 @@ Hud の Prefab の中に Option の Prefab を入れ子で置く場合の編集�
 - **編集対象の切り替え**: 親 → 子へ切り替えると「← <親> へ戻る」と「埋め込みとして編集中: Hud > Option」の行が出る（親の連なり `_ancestors` は外側 → 内側。ObjectField・Project での CanvasData の選択では連なりを捨てる）。「選択に追従」トグル（EditorPrefs `DDrive.CanvasEditor.FollowSelection`、既定オン）: Selection が変わったとき、プレハブステージ（そのステージの Prefab を持つ CanvasData）または確認用プレビュー内の GameObject なら `CanvasEmbeddedEditing.ResolveOwner` で持ち主を決めて切り替え、該当の行を展開・スクロール・強調する。このウィンドウ自身が選んだ GameObject（`SelectGameObject`）、🔒 ロック中、このウィンドウの入力欄にフォーカスがあるあいだ（`IsEditingText`）は切り替えない。
 - **プレビュー再生・選択**: 子を編集中は親の連なりの最外側を `OpenData` する（`_previewData`）。プレハブモードのステージは「対象の Prefab、または対象を埋め込んでいる親の Prefab」（`GetTargetStage(out prefix)`）、確認用プレビューは `TryGetPreviewPrefix(out prefix)`。子のパスは `CanvasEmbeddedEditing.ToAncestorPath` / `EmbeddedCanvasPaths.Combine` で実体のルート基準へ変換して探す。再生前の状態の保存 / 復元は既存の `ElementFxStateSnapshot`。プレビューの実体が対象と無関係な Canvas のものなら使わず開き直す。パッド操作シミュレーションは表示している CanvasData 自身を編集しているときだけ。
 - **自動収集**: 登録済みの埋め込みルートの配下は集めない（`CanvasElementFxCollector.CollectMerged(prefab, existing, excludeRoots)` / `ApplyPresetToButtons(…, excludeRoots)`。ルート自身は集める。既存の行は消さない）。
-- **登録時の「親での上書き」の整理（2026-10-06、U-29a）**: 「埋め込みとして登録」・RootPath 欄 / 子 CanvasData 欄の変更で、親の ElementFx のうち埋め込みルート配下の行を整理する（既定のままの行は確認なしで取り除き、設定のある行があれば取り除く / 残す / キャンセルを 1 回確認。1 つの Undo グループ。親の配線は件数の表示のみ）。「親での上書き」グループに「上書きをまとめて整理…」。純ロジックは `CanvasEmbeddedEditing`（`IsDefaultFx` / `PlanOverrides` / `RegisterWithCleanup` ほか）、確認の差し替え口は `ConfirmOverrideCleanupForTests`。詳細は [39](39_usability_fixes_2026-09-17.md) 2026-10-06 追記。
+- **登録時の「親での上書き」の整理（2026-10-06、U-29a）**: 「埋め込みとして登録」・RootPath 欄 / 子 CanvasData 欄の変更で、親の ElementFx のうち埋め込みルート配下の行を整理する（既定のままの行は確認なしで取り除き、設定のある行があれば取り除く / 残す / キャンセルを 1 回確認。1 つの Undo グループ。親の配線は件数の表示のみ）。「親での上書き」グループに「上書きをまとめて整理…」。純ロジックは `CanvasEmbeddedEditing`（`IsDefaultFx` / `PlanOverrides` / `RegisterWithCleanup` ほか）、確認の差し替え口は `ConfirmOverrideCleanupForTests`。詳細は [39](archive/39_usability_fixes_2026-09-17.md) 2026-10-06 追記。
 - **Validation**: ウィンドウの Validation 欄は `CanvasDataValidator` に加えて `CanvasEmbeddedValidator`（Editor。子の存在・循環・Prefab の一致・親子の行の重なり）も実行する。
 - **2026-10-03 追記（レビュー [54] PC-R-04/05/09/10）**: 「入れ子 Prefab から検出」は、他の候補・登録済みの埋め込みルートの配下にある入れ子 Prefab（入れ子の入れ子）を提案しない。`RootPath` 欄は確定時に `\`→`/`・先頭末尾の `/` を除いて正規化する。対象を切り替える前に入力途中（遅延確定）の欄を確定し、各欄の確定は作ったときの対象に書く（選択に追従して対象が切り替わっても別の CanvasData には書かない）。`CanvasEmbeddedValidator` は 1 回の検証につき CanvasData の検索を 1 回だけ行い、新しい検査（子が Preload でない `-NOT-PRELOAD`・重なる登録 `-NESTED-ROOT`）を持つ。パスの変換は Editor 側の internal 複製 `EmbeddedPaths`（Runtime の `EmbeddedCanvasPaths` は internal）。
 - **プリセットギャラリー**: 「選択中のシーン要素のパスを使う」は Canvas のルート（`CanvasEmbeddedEditing.FindCanvasRoot`）からのパスにし、埋め込み配下なら適用先を子の CanvasData に切り替える（以前は常に `selected.root` 基準で、確認用プレビューでは `HUD/<Canvas>/…` になっていた）。
@@ -221,7 +221,7 @@ Hud の Prefab の中に Option の Prefab を入れ子で置く場合の編集�
 
 **ユーザー報告**（そのまま）: 「Anchor のシーン表示で基準がわからないので LocalOffset だけではなく基準（原点）の座標もシーンに描画する」
 
-SceneView に最終位置しか描かれておらず、そのオフセットが**何を起点にしているか**が読み取れなかった（[36 §5.4](36_manual_screenshot_list.md) の #19 / #20 / #23 がこれ待ちだった）。共通描画 `Editor/Preview/AnchorSceneHandles.cs` に次の 3 つを追加し、**Anchor Editor / VFX Editor（埋め込み Anchor）/ Anchor Group Editor（原点）の 3 か所が同じ経路を通す**。
+SceneView に最終位置しか描かれておらず、そのオフセットが**何を起点にしているか**が読み取れなかった（[36 §5.4](archive/36_manual_screenshot_list.md) の #19 / #20 / #23 がこれ待ちだった）。共通描画 `Editor/Preview/AnchorSceneHandles.cs` に次の 3 つを追加し、**Anchor Editor / VFX Editor（埋め込み Anchor）/ Anchor Group Editor（原点）の 3 か所が同じ経路を通す**。
 
 | メソッド | 描くもの |
 |---|---|
@@ -271,7 +271,7 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 
 - **抑止スコープ（`VersionStampSuppression`）**: `using (VersionStampSuppression.Scope())` で囲むと、その間に走る保存では版数を上げない（参照カウント方式で入れ子安全）。**ツールによる一括処理（大量のアセットの版数が機械的に上がってノイズになるのを防ぐ）専用**。
 
-- **保存ヘルパー（`DDriveAssetSave`、[docs/44](44_review_2026-09-19.md) P1-1、2026-09-19 追加）**: `Editor/Versioning/DDriveAssetSave.cs`。Editor コードから `AssetDatabase.SaveAssets()` を直接呼ぶことを禁止し、必ずこのヘルパー経由にする（理由: 引数なし `SaveAssets()` は「呼んだ瞬間にプロジェクト全体で dirty な `AssetDataBase` すべて」を無差別に保存フックへ巻き込むため、実アセットを開いて編集中にテストや一括処理が走ると無関係な版数が進んでしまう不具合が実際に起きた、[docs/41](41_phase6_review_2026-09-17.md)「テストが実データを汚す不具合」参照）。
+- **保存ヘルパー（`DDriveAssetSave`、[docs/44](reviews/44_review_2026-09-19.md) P1-1、2026-09-19 追加）**: `Editor/Versioning/DDriveAssetSave.cs`。Editor コードから `AssetDatabase.SaveAssets()` を直接呼ぶことを禁止し、必ずこのヘルパー経由にする（理由: 引数なし `SaveAssets()` は「呼んだ瞬間にプロジェクト全体で dirty な `AssetDataBase` すべて」を無差別に保存フックへ巻き込むため、実アセットを開いて編集中にテストや一括処理が走ると無関係な版数が進んでしまう不具合が実際に起きた、[docs/41](reviews/41_phase6_review_2026-09-17.md)「テストが実データを汚す不具合」参照）。
   - **`SaveAllSuppressed()`**: `VersionStampSuppression.Scope()` で囲んで `AssetDatabase.SaveAssets()` する。「一括処理」用（版数を進めない）。
   - **`SaveDirty(Object obj)`**: `AssetDatabase.SaveAssetIfDirty(obj)`。「デザイナーが対象 1 個を編集して保存する」本来の経路用（抑止しないので通常どおり版数が進む。対象を 1 個に絞ることで、他に開いていた無関係な実アセットの dirty を巻き込まない）。
 
@@ -288,7 +288,7 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 
   - **既知の制約**: `AssetDatabase.SaveAssets()`（グローバル版）はパスの呼び出し元を区別しないため、`SaveAllSuppressed()` の間に偶然「他の dirty な `AssetDataBase`」が同じ保存に乗ると、それも一時的に加算対象から外れる。実運用では上記の呼び出し元はほぼ単発 or 同種アセットの一括処理でしか呼ばないため実害は小さいと判断し、パス単位の判定は行っていない（要判断: 将来問題になれば、抑止対象パスの集合を明示的に渡す設計に変える）。
   - `ImportRuleService`（インポート検知による自動生成）と Maya→Material 経由の新規作成は、`AssetCreationService.Create` を再利用しているため個別の対応は不要。既存アセットを機械的に上書きする Maya 再インポート（`MayaMaterialImporter`）は対象外（Maya 側の実データ変更を反映するものなので、版数が上がるのは意図した挙動として扱う。`AssetDatabase.SaveAssetIfDirty` を使っており元から直呼びではない）。
-  - **再発防止**: `Tests/Editor/NoDirectSaveAssetsCallTests.cs` が `Assets/DDrive/Editor/**/*.cs`（ヘルパー本体を除く）に引数なし `AssetDatabase.SaveAssets(` が無いことを grep する。`Assets/DDrive/Tests/Editor/**/*.cs` は対象外（テスト自身の一時アセット/Addressables 設定の後始末として `using (VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }` の直呼びが既に 55+ 箇所に意図的に残っている。理由は上記テストのコメント、[docs/41](41_phase6_review_2026-09-17.md) の「残り経路(2026-09-19)」参照）。
+  - **再発防止**: `Tests/Editor/NoDirectSaveAssetsCallTests.cs` が `Assets/DDrive/Editor/**/*.cs`（ヘルパー本体を除く）に引数なし `AssetDatabase.SaveAssets(` が無いことを grep する。`Assets/DDrive/Tests/Editor/**/*.cs` は対象外（テスト自身の一時アセット/Addressables 設定の後始末として `using (VersionStampSuppression.Scope()) { AssetDatabase.SaveAssets(); }` の直呼びが既に 55+ 箇所に意図的に残っている。理由は上記テストのコメント、[docs/41](reviews/41_phase6_review_2026-09-17.md) の「残り経路(2026-09-19)」参照）。
 
 - **表示（今の値だけ、履歴は持たない）**: `Editor/Inspector/VersionStampGui.cs`。`AssetDataInspector.DrawOpenEditorHeader()`（[09] §8）が `DataEditorHeader.Draw` の直後に `VersionStampGui.Draw(target)` を呼び、「エディターで開く」ボタンの直下に `v12 ・ yamag ・ 2026-09-15 14:03` の形式で 1 行表示する（`UpdatedAt` の ISO 8601 を `yyyy-MM-dd HH:mm` に整形。パースできなければ生の文字列をそのまま出す）。`ChangeNote` が入っていればその下にもう 1 行表示する。未保存（`Version <= 0`）なら「未保存(保存すると v1 になります)」と出す。UI Toolkit 製の専用エディタから使う場合向けに `VersionStampGui.Build(target)`（`VisualElement` 版、`DataEditorHeader.Build` と同じ位置付け）も用意している（現時点でどの専用エディタからも未使用。IMGUI の `AssetDataInspector` だけが実際に呼んでいる）。
 - **AssetBrowser の一覧**（要望: 更新日時・更新者列、できれば並べ替え可能）: `AssetBrowserWindow` の各行に「更新者」「更新日時」の 2 ラベルを追加した(`MakeRowElement`/`BindRowElement`)。**並べ替えは未実装**——現状の一覧は単一列の仮想化 `ListView`（[09] §1）であり、列ヘッダーでのソートには `MultiColumnListView` への切り替えが必要。今回は最小限の変更で表示のみ足すに留め、ソート対応は次回チケットに回す。
@@ -299,7 +299,7 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 
 [42_distribution.md] §4.3 のとおり、`Version`(保存回数)とは別に「今のコードが期待するデータ形式の版」を表す `AssetDataBase.SchemaVersion`(`[HideInInspector] public int`)を持つ。**同じ `VersionStampProcessor` が書き込む**が、Version とは別の関心事(保存回数ではなくスキーマの版)であるため別フィールドにしている。
 
-- **2026-09-20 修正([47_review_p_tickets_2026-09-20.md] P1-4)**: `OnWillSaveAssets` はもう `SchemaVersion` を**書かない**(`Version++`/`Author`/`UpdatedAt` の更新だけを行う)。以前は保存のたびに `asset.SchemaVersion = DDriveSchema.Current` を書いていたため、マイグレーション未適用のまま 1 文字編集して保存しただけで「適用済み」に化け、`DDriveMigrationRunner.Plan`(`SchemaVersion < ToSchema` で対象を選ぶ)が永久にそのアセットを対象外にしてしまう静かなデータ破損の危険があった
+- **2026-09-20 修正([reviews/47_review_p_tickets_2026-09-20.md] P1-4)**: `OnWillSaveAssets` はもう `SchemaVersion` を**書かない**(`Version++`/`Author`/`UpdatedAt` の更新だけを行う)。以前は保存のたびに `asset.SchemaVersion = DDriveSchema.Current` を書いていたため、マイグレーション未適用のまま 1 文字編集して保存しただけで「適用済み」に化け、`DDriveMigrationRunner.Plan`(`SchemaVersion < ToSchema` で対象を選ぶ)が永久にそのアセットを対象外にしてしまう静かなデータ破損の危険があった
 - `StampNew`(新規作成時の v1 記録)は従来どおり `SchemaVersion = DDriveSchema.Current` を付ける(新規作成したアセットは作成した瞬間から現行コードの形式に適合しているため。`SchemaVersion` を書いてよいのはこれと `DDriveMigrationRunner.Apply` だけ)
 - 既存 .asset(このフィールド追加前に保存されたもの)は `SchemaVersion` が既定値の `0` のまま読まれる。これは「1.0.0 以前の形式」を意味し、`SchemaVersionValidator`(`IUniversalValidator`、Code `DD-SCHEMA-OUTDATED`)が AssetBrowser の Validation(§1)に Warning を出す。**2026-09-20 修正(P1-5)**: `DDriveMigrationRunner.Apply` は「適用すべき `IDataMigration` が無くても、`SchemaVersion < DDriveSchema.Current` の Data を Current まで直接引き上げる」刻印段を持つため、`Tools > D-Drive > Update > マイグレーション(適用)`(`DDriveMigrationRunner`、[docs/migrations/README.md](../docs/migrations/README.md))を実行すれば対象となる `IDataMigration` が無くても必ず Warning は解消する
 
@@ -315,7 +315,7 @@ Unity -batchmode -executeMethod DDrive.Editor.CI.RegenerateIds
 
 ### 5.1 禁止 API 走査ルートのパッケージ対応（2026-09-20、P-4）
 
-`CI.ValidateAll` の `ForbiddenApiScanner` 走査ルートは `CI.ResolveForbiddenApiScanRoot()` で決める。**2026-09-20 修正([47_review_p_tickets_2026-09-20.md] P1-2)**: `DDriveProjectSettings.IsDevelopmentRepo` で分岐し、開発リポジトリでは `UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(CI).Assembly)` で自分自身(`DDrive.Editor`)が属するパッケージの実パスを、持ち込み先(`IsDevelopmentRepo == false`)では `"Assets"` を走査する(持ち込み先で D-Drive 自身のパッケージを走査すると、既存の当たり + `Samples~`/`Tests` の誤検出分だけ必ず Error が出て、消費側 CI が初日から赤くなるため)。`ForbiddenApiScanner.Scan` は走査対象フォルダが無い、または `.cs` が 0 件のときに Error 相当の `Violation` を返す(以前は「違反 0 件」として静かに通っていた。パッケージ化でルートが変わって禁止 API チェックが恒久的に無効化される事故を防ぐ、[42_distribution.md] §2.3-2)。除外パターンも `/Samples/` に加えて `/Samples~/`・`/Tests/`・`/Tools~/`・`/Documentation~/` に拡張した。
+`CI.ValidateAll` の `ForbiddenApiScanner` 走査ルートは `CI.ResolveForbiddenApiScanRoot()` で決める。**2026-09-20 修正([reviews/47_review_p_tickets_2026-09-20.md] P1-2)**: `DDriveProjectSettings.IsDevelopmentRepo` で分岐し、開発リポジトリでは `UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(CI).Assembly)` で自分自身(`DDrive.Editor`)が属するパッケージの実パスを、持ち込み先(`IsDevelopmentRepo == false`)では `"Assets"` を走査する(持ち込み先で D-Drive 自身のパッケージを走査すると、既存の当たり + `Samples~`/`Tests` の誤検出分だけ必ず Error が出て、消費側 CI が初日から赤くなるため)。`ForbiddenApiScanner.Scan` は走査対象フォルダが無い、または `.cs` が 0 件のときに Error 相当の `Violation` を返す(以前は「違反 0 件」として静かに通っていた。パッケージ化でルートが変わって禁止 API チェックが恒久的に無効化される事故を防ぐ、[42_distribution.md] §2.3-2)。除外パターンも `/Samples/` に加えて `/Samples~/`・`/Tests/`・`/Tools~/`・`/Documentation~/` に拡張した。
 
 ## 6. メニュー構成
 
@@ -477,7 +477,7 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
 - テスト: `Tests/Editor/ManualPagesTests.cs` に `ManualKind.Programmer` を渡す対の照合テストを追加
   （`docs/ProgrammerManual/*.html` の実ファイルと `DiscoverPages` の結果、`<title>` からの表示名解決）。
   デザイナー側の既存テストはそのまま残している
-- **2026-09-20 修正([47_review_p_tickets_2026-09-20.md] P2-2)**: `GetManualFolder` は `DDriveProjectSettings.IsDevelopmentRepo` で分岐するようにした。開発リポジトリでは `docs/DesignerManual`/`docs/ProgrammerManual` を先に見る(存在すればそちらを使う)。持ち込み先(`IsDevelopmentRepo == false`)は従来どおりパッケージ同梱の `Documentation~/…Manual` を優先する。P-9 で `Documentation~` に実体が同梱されるようになった結果、開発リポジトリで `docs/` を編集しても `bump-version.ps1` で同期するまでマニュアルボタンに反映されない問題を解消した(テスト追加)
+- **2026-09-20 修正([reviews/47_review_p_tickets_2026-09-20.md] P2-2)**: `GetManualFolder` は `DDriveProjectSettings.IsDevelopmentRepo` で分岐するようにした。開発リポジトリでは `docs/DesignerManual`/`docs/ProgrammerManual` を先に見る(存在すればそちらを使う)。持ち込み先(`IsDevelopmentRepo == false`)は従来どおりパッケージ同梱の `Documentation~/…Manual` を優先する。P-9 で `Documentation~` に実体が同梱されるようになった結果、開発リポジトリで `docs/` を編集しても `bump-version.ps1` で同期するまでマニュアルボタンに反映されない問題を解消した(テスト追加)
 - `Tools/SpecWeb/tools/build-manual.js` はこの変更（4-1）の時点では対象外だった（`docs/DesignerManual` のみを
   正本として扱うドリフト検出だった）。**2026-09-17 追記（SpecWeb へのプログラマーマニュアル配信対応）**:
   `Tools/SpecWeb/tools/build-manual.js` が `docs/DesignerManual`・`docs/ProgrammerManual` の両方を
@@ -560,7 +560,7 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
   - ラベルが長い項目は短くするか、`tooltip` に逃がす。横に並べる必要のないものは縦に積む
   - `minSize` を 500px より大きくして回避しない（§7 と同じ理由）
 - 確認のしかた: ウィンドウをフローティングにして横幅 500px まで縮め、上から下まで見て切れている箇所が無いことを見る。新規エディタ・レイアウト変更のときは毎回行う
-- 発見の経緯: Button Skin Editor の「SE も鳴らす」が見切れていた（[39](39_usability_fixes_2026-09-17.md) U-10）。個別の 1 件ではなく全エディタ共通の条件として決めた
+- 発見の経緯: Button Skin Editor の「SE も鳴らす」が見切れていた（[39](archive/39_usability_fixes_2026-09-17.md) U-10）。個別の 1 件ではなく全エディタ共通の条件として決めた
 - **共通の小物**: `DDrive.Editor.Common.CompactFieldLayout.ShrinkLabel(field.labelElement)`（2026-09-17 追加）。
   `BaseField<T>`（`Toggle` / `Slider` / `TextField` …）のラベル部には USS 既定で `min-width: 120px` / `flex-basis: 120px` が付く。
   Inspector のように縦に積むときは列が揃って都合が良いが、**1 行に複数のフィールドを並べる行では 2 文字のラベルでも 120px を占め、
@@ -568,7 +568,7 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
 - 2026-09-17 に直した箇所（1 巡目）: Button Skin / Slider Skin Editor の状態遷移行（`ControlSkinPreviewSection.Row()` を
   `flexWrap` 対応にし、この行のラベルを短縮 + tooltip 化。U-10）、Asset Browser 下部のプレビューバー（`AudioPreviewPane`。U-12）、
   UI Tween Editor のプリセット行（U-9 でボタンが 1 つ増えるため）。**全エディタの横断点検は U-27** で別途行う
-- 2026-09-17 に直した箇所（2 巡目、[41](41_phase6_review_2026-09-17.md) P2-9）:
+- 2026-09-17 に直した箇所（2 巡目、[41](reviews/41_phase6_review_2026-09-17.md) P2-9）:
   - **`AssetDeleteWindow`（削除の確認ウィンドウ）**: `minSize` を `(620, 480)` → `(480, 360)` にした
     （500px を下回れず、そもそも下限を確認できなかった）。説明・パス・結果文言の `Label` は
     `WrappingLabel()`（`whiteSpace = Normal` + `flexShrink=1` / `minWidth=0`）に通し、
@@ -580,7 +580,7 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
 
 #### 7.1.1 全エディタ横断点検（2026-09-17、U-27・3 巡目）
 
-[39](39_usability_fixes_2026-09-17.md) U-27 の本体。`docs/09_editor_tools.md` に載っている**全 28 EditorWindow**を対象に、
+[39](archive/39_usability_fixes_2026-09-17.md) U-27 の本体。`docs/09_editor_tools.md` に載っている**全 28 EditorWindow**を対象に、
 Unity MCP（`execute_code`）でウィンドウを幅 500px のフローティングで開き、`rootVisualElement` を歩いて
 `resolvedStyle` / `worldBound` を数値で比較する方法で機械的に検出した（目視ではない）。まず対象データを割り当てず
 ブランクで 28 件全部を通し、そのあと U-21/U-25/U-8 で増えたボタンを含む主要 15 件は実データ（`Assets/GameData/` の
@@ -649,7 +649,7 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 
 **専用エディタを持つ Data アセットは、Inspector の最上部に「〜で開く」ボタンが出る。既存・今後追加する種別すべてに適用する。**
 
-> **Data 共通 Inspector の本文は UI Toolkit（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-14）**
+> **Data 共通 Inspector の本文は UI Toolkit（2026-09-17、[39](archive/39_usability_fixes_2026-09-17.md) U-14）**
 > `AssetDataInspector` は `OnInspectorGUI` + `DrawDefaultInspector()`（IMGUI）で本文を描いていたが、
 > `ValueDefDrawer`（[17_value_definition.md](17_value_definition.md) §5）は 2026-07-27 に `CreatePropertyGUI`（UI Toolkit）専用へ
 > 書き直されていて `OnGUI` を持たない。IMGUI の Inspector から描かれると Unity は `PropertyDrawer.OnGUI` の既定実装に落ち、
@@ -713,7 +713,7 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 - **配置**: 既存の `BuildToolbar`(`Toolbar`)を持つエディタ(Anchor / Anchor Group / Anim / Model / VFX)はそこに追加。`CreateGUI` 内で直接 `Toolbar` を組んでいるエディタ(Canvas / Material / Material プレビュー / Prefab)も同様。トップレベルの `Toolbar` を持たなかったエディタ(Audio / Anim2D(当時は既存の作成/編集モードトグルの Toolbar に相乗り。U-8(2026-09-17)でその作成タブ自体を `Anim2DCreateWindow` ポップアップへ分離したため、現在はトグルの無い `Toolbar` に「スプライトから新規作成…」と並んで乗っている) / Button Skin / Slider / Slider Skin / UI Tween / Material 変換)は新しく 1 行だけの `Toolbar`(または `MaterialConvertWindow` のみ `Toolbar` 1 個だけの行)を `CreateGUI` の先頭(スクロールしても隠れない `rootVisualElement` 直下)に追加した
 - **対応済みの全 16 宣言**: AudioEditorWindow(SeData/BgmData)、VfxEditorWindow、ModelEditorWindow、AnimEditorWindow、Anim2DEditorWindow、PrefabEditorWindow、CanvasEditorWindow、MaterialEditorWindow(MaterialData/TextureData)、MaterialConvertWindow、MaterialThumbnailWindow、AnchorEditorWindow、AnchorGroupEditorWindow、ButtonSkinEditorWindow、SliderEditorWindow、SliderSkinEditorWindow、UiTweenEditorWindow
 - テスト: `Tests/Editor/NewAssetToolbarButtonTests.cs`(`GetDataTypes` が既存の全 `[DataEditor]` ウィンドウで 1 つ以上の `AssetDataBase` 派生型を返すこと、既知の対応(Audio/Material 等)、`SwitchToCreated` が実際にウィンドウを開いて対象を切り替えること・対応が無くても例外にしないこと、`NewAssetDialog.Open(Type[], ...)` が種別ロックを内部状態に反映すること)
-- 要判断: [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-15」節末尾を参照(MaterialConvertWindow / MaterialThumbnailWindow / SliderEditorWindow のような二次的な専用エディタにまで同じボタンを付けるべきか)
+- 要判断: [28_manual_verification_phase5.md](verification/28_manual_verification_phase5.md) の「5-15」節末尾を参照(MaterialConvertWindow / MaterialThumbnailWindow / SliderEditorWindow のような二次的な専用エディタにまで同じボタンを付けるべきか)
 
 ### 8.4 「仕様書を開く」ボタン + AssetBrowser の変更バッジ（2026-09-14、5-13/5-14）
 
@@ -730,7 +730,7 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 (ネットへ行かず既存キャッシュから差分だけ再計算)でその行が一覧から消える。設定 URL 未設定時は案内文のみ。
 詳細・要判断は [27_spec_sheet.md](27_spec_sheet.md) §4.5.1/§9.1 を参照。
 
-**2026-09-17 修正（[39](39_usability_fixes_2026-09-17.md) U-15「仕様書 URL を設定したのに未設定と出る」）**:
+**2026-09-17 修正（[39](archive/39_usability_fixes_2026-09-17.md) U-15「仕様書 URL を設定したのに未設定と出る」）**:
 「設定 URL 未設定」の判定だけが W-9（Web アプリ方式への移行、[32](32_spec_web.md) §5.1）以前の旧フィールド
 `DDriveSpecSettings.SpreadsheetUrl` を見たままだった。取得・同期の実装（`SpecAutoSync` / `SpecSyncWindow`）は
 すべて新フィールド `WebAppUrl` を見ているため、「仕様書と同期」で Web API URL を設定しても、このダイアログだけ
@@ -741,7 +741,7 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 開閉状態は `EditorPrefs`（キー `DDrive.NewAssetDialog.SpecFoldout`）に保存し、既定は開いた状態。内側の一覧・検索欄・
 選択中インジケータ（`_specSection` 以下）は変更なし。
 
-### 8.6 Inspector の編集可否を分離（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-11）
+### 8.6 Inspector の編集可否を分離（2026-09-17、[39](archive/39_usability_fixes_2026-09-17.md) U-11）
 
 **課題**: `AssetDataInspector`（§8）の本文は「全部出す」だけで、`AssetDataBase` の `Id` / `Version` / `Author` / `UpdatedAt` のように
 コメントで「手編集しないこと」と書いてあるだけの項目も、実際には普通のテキストフィールドとして編集できてしまっていた。
@@ -796,7 +796,7 @@ disabled になること、`DisplayName` 等の通常フィールドは有効な
 - `AssetSearch` は同じ (filter, folders) の結果をキャッシュし、`EditorApplication.projectChanged` と `AssetPostprocessor.OnPostprocessAllAssets`（import / delete / move）で無効化する。アセットを作った直後に同じフレームで検索するコード（`AssetCreationService.Create` など）は `AssetSearch.Invalidate()` を明示的に呼ぶ
 - 2026-09-11 に `Assets/DDrive` 内の 22 か所を `AssetSearch` 経由に一括置換。合わせて `MaterialEditorWindow` の「再生成」から `EditorAnchorRegistry.Refresh` を外し、`projectChanged` で dirty を立てたときだけ再走査する（[06] A 実装メモ）
 - **レビュー対応（2026-09-11）**: 置換漏れだった `AssetReorganizer.Reorganize`（GameData 全走査）と `AddressablesSync.RemoveEntriesUnder`（フォルダ配下の全 GUID）、`AssetIconServiceTests` を `AssetSearch` 経由に直した。テストは `AssetSearchTests`（キャッシュ／フォルダ別エントリ／**作成直後でも手動 `Invalidate` 無しで見つかる**＝`ImportWatcher` の自動無効化）
-- **2026-09-20 修正([47_review_p_tickets_2026-09-20.md] P2-1)**: `AssetSearch.FindAssets` 自身が P-3 の互換性スナップショット用「旧版フィクスチャ」(`Tests/Editor/Compat/Fixtures/`)を結果から除外するようにした(`AssetSearch.IsCompatFixturePath`)。これが唯一の `AssetDatabase.FindAssets` 呼び出し口であることを利用し、`AssetBrowser`・仕様書インデックス・ID ピッカー・Addressables 同期・各 Validator/Codegen がこれ 1 箇所を通るだけでフィクスチャの混入を防げるようになった(`AssetIdGenerator`/`DDriveMigrationRunner`/`CI.cs` にあった個別除外は重複のため削除)
+- **2026-09-20 修正([reviews/47_review_p_tickets_2026-09-20.md] P2-1)**: `AssetSearch.FindAssets` 自身が P-3 の互換性スナップショット用「旧版フィクスチャ」(`Tests/Editor/Compat/Fixtures/`)を結果から除外するようにした(`AssetSearch.IsCompatFixturePath`)。これが唯一の `AssetDatabase.FindAssets` 呼び出し口であることを利用し、`AssetBrowser`・仕様書インデックス・ID ピッカー・Addressables 同期・各 Validator/Codegen がこれ 1 箇所を通るだけでフィクスチャの混入を防げるようになった(`AssetIdGenerator`/`DDriveMigrationRunner`/`CI.cs` にあった個別除外は重複のため削除)
 
 ## 10. 依存関係グラフ（DependencyGraphService、チケット 5-5、2026-09-14）
 
@@ -886,7 +886,7 @@ disabled になること、`DisplayName` 等の通常フィールドは有効な
 - **依存ツリーは事前に全展開**(遅延展開・仮想化 TreeView にしていない)。1個のアセットが数百件を再帰的に参照するような極端なケースでは初回表示が重くなり得るが、5-5 のコメント同様このプロジェクト規模(Scene 17・Data 数百件)では実測上問題にならなかった。将来重くなったら `TreeView` の遅延展開(`IsExpanded` に応じてその場で `FindReferencesIn` する)に切り替える
 - **コード参照チェック(`CodeReferenceScan`)は grep ベースの best-effort**: 生成定数名(`ToConstantName` と同じ規則で組み立てた文字列)を `Assets/DDrive`・`Assets/Generated` 配下の .cs から単純文字列検索するだけで、コメント内・文字列内・別名 using・部分一致等での誤検知/見逃しがあり得る。削除を止める判定には使わず、確認ダイアログの注意書きに留めた
 - **「グラフ未構築」の判定は `CachedFileCount == 0` のみ**: 「古いかもしれない(Library はあるが最新の変更を反映していない)」ケースは検出できない(5-5 の要判断と同じ制約を引き継ぐ)
-- **Scene ジャンプは自動テスト対象外**: `EditorSceneManager.OpenScene(Single)` はアクティブシーンを差し替える副作用があり、共有の Test Runner セッションを不安定にし得るため、`DependencyJumpServiceTests` は `.asset`/`.prefab` 分岐のみを自動テストし、Scene 分岐は手動検証([28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-6」節)に委ねた
+- **Scene ジャンプは自動テスト対象外**: `EditorSceneManager.OpenScene(Single)` はアクティブシーンを差し替える副作用があり、共有の Test Runner セッションを不安定にし得るため、`DependencyJumpServiceTests` は `.asset`/`.prefab` 分岐のみを自動テストし、Scene 分岐は手動検証([28_manual_verification_phase5.md](verification/28_manual_verification_phase5.md) の「5-6」節)に委ねた
 - **Archived というタグ名の予約語化**: `AssetDataBase.Tags` は本来 TagCatalog(未実装)からの選択制だが、`"Archived"` という文字列を予約語にした。将来 TagCatalog を実装する際はこの文字列を辞書から除外する(またはタグでなく専用の bool フィールドに移行する)必要がある
 
 ### 実装メモ(2026-09-14、削除の確認画面: Unreal Engine の Delete Assets 相当)
@@ -905,10 +905,10 @@ disabled になること、`DisplayName` 等の通常フィールドは有効な
 要判断:
 - **「一緒に削除」はカスケードが1段のみ**: `WouldBecomeUnused` のチェックで選んだ依存先を削除しても、その依存先がさらに使っていたもの(孫依存先)の未使用判定は再計算しない。孫依存先も片付けたい場合は削除後にもう一度「未使用アセット」または安全な削除を実行する運用になる
 - **Prefab の参照差し替えは Ctrl+Z で戻せない**: `PrefabUtility.LoadPrefabContents`→`SaveAsPrefabAsset` は通常の Undo スタックに乗らないため、Data 側(戻せる)と非対称になっている。結果画面ではその旨を明記するだけに留め、Prefab 用の独自 Undo 機構は実装していない(スコープ超過と判断)
-- **`AssetDeleteWindow` 自体は自動テスト対象外**: `UsagesWindow`/`DependencyTreeWindow`/`UnusedAssetsWindow` と同じ前例に合わせ、EditMode テストは `AssetDeleteAnalysisService`/`ReferenceReplaceService`/`AssetDeleteExecutionService` のみを対象にした。ウィンドウの実際の見た目・操作感は [28_manual_verification_phase5.md] の手動確認に委ねる
+- **`AssetDeleteWindow` 自体は自動テスト対象外**: `UsagesWindow`/`DependencyTreeWindow`/`UnusedAssetsWindow` と同じ前例に合わせ、EditMode テストは `AssetDeleteAnalysisService`/`ReferenceReplaceService`/`AssetDeleteExecutionService` のみを対象にした。ウィンドウの実際の見た目・操作感は [verification/28_manual_verification_phase5.md] の手動確認に委ねる
 - **複数選択の削除で置き換え先の候補選択 UI は「対象ごとに 1 つの `ObjectField`」**: 一括で同じ置き換え先を割り当てる UI(例: 「全部同じ置き換え先にする」チェックボックス)は無い。対象が多い場合は 1 件ずつ選ぶ必要がある
 
-#### レビュー対応（2026-09-17、[41](41_phase6_review_2026-09-17.md) P2-7 / P2-8 / P2-9）
+#### レビュー対応（2026-09-17、[41](reviews/41_phase6_review_2026-09-17.md) P2-7 / P2-8 / P2-9）
 
 - **P2-7: 結果画面の「コード参照のファイル:行（開くボタン）」が絶対に出なかった**。ヒット一覧を削除**後**に
   `CodeReferenceScan.FindPossibleReferenceHits` で取り直しており、条件の `r.Target.Asset != null` が
@@ -942,7 +942,7 @@ disabled になること、`DisplayName` 等の通常フィールドは有効な
 
 要判断:
 - **シーン→Preload リストの対応付けは「シーンに置いた `SceneLoadingScreen` が直参照する」方式のみ**: `Catalogs[]`(Bootstrap 直参照配列)のような「シーン名→リスト」の中央インデックスは作らなかった(スコープ超過と判断)。複数シーンを一括で扱うロード画面(タイトル→複数シーンをまとめて Preload 等)が要る場合は、`DDriveRuntimeBootstrap` に `ScenePreloadList[]` を足して名前引きする仕組みを追加検討してほしい
-- **`GenerateForAllBuildScenes` / `ScenePreloadBuildPreprocessor` は自動テスト対象外**: `EditorBuildSettings.scenes` は `ProjectSettings/EditorBuildSettings.asset`(git 管理下)を書き換えるため、テストが失敗して復元できなかった場合に実プロジェクトの設定を汚しかねない。自動テストは `ScenePreloadGenerator.GenerateForScene`(パス直接指定)のみとし、全ビルドシーン一括・ビルド前フックの経路は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の手動確認に委ねた
+- **`GenerateForAllBuildScenes` / `ScenePreloadBuildPreprocessor` は自動テスト対象外**: `EditorBuildSettings.scenes` は `ProjectSettings/EditorBuildSettings.asset`(git 管理下)を書き換えるため、テストが失敗して復元できなかった場合に実プロジェクトの設定を汚しかねない。自動テストは `ScenePreloadGenerator.GenerateForScene`(パス直接指定)のみとし、全ビルドシーン一括・ビルド前フックの経路は [28_manual_verification_phase5.md](verification/28_manual_verification_phase5.md) の手動確認に委ねた
 - **Preload の粒度は「Data(.asset)そのもの」まで**: Data が内部で持つ AudioClip/Texture/Prefab 等のサブアセットを個別に先読みする API は無い(Addressables が Data の依存関係として同じ/依存バンドルに含めてロードする前提)。極端に重いサブアセットを持つ Data がある場合、体感のロード時間短縮効果が薄い可能性がある(要実測)
 - **`PreloadIdsAsync` で確保した参照カウントの解放漏れリスク**: `ScenePreload.Release` を呼び忘れる(例: `SceneLoadingScreen` を使わず `RunAsync` だけ直接呼ぶ)と `IAssetLoader` 内の参照が張られたままになる。`SceneLoadingScreen.OnDisable` では解放するが、他の呼び出し経路を追加する場合は対で `Release` を呼ぶ運用を徹底する必要がある
 
@@ -958,7 +958,7 @@ disabled になること、`DisplayName` 等の通常フィールドは有効な
 - **判定方針**: 部分一致(コメント・文字列リテラル内も含む)で誤検知の余地はあるが、見逃し(Preload されないまま Placeholder になる)より安全側に倒す。逆に、定数を変数に代入して間接的に使う・reflection 経由で組み立てる等は静的なテキスト走査の限界として見逃す
 - テスト: `Tests/Editor/ScenePreloadCodeReferenceScannerTests.cs`(`CountReferences` の境界条件を EditMode で直接検証)
 
-## 11. 各専用エディタ共通の「検証」セクション（2026-09-17、[39](39_usability_fixes_2026-09-17.md) U-13）
+## 11. 各専用エディタ共通の「検証」セクション（2026-09-17、[39](archive/39_usability_fixes_2026-09-17.md) U-13）
 
 **専用エディタを持つ Data 種別には、すべて同じ「検証」セクション（`DataValidationSection`）を出す。**
 それまでは Vfx / Anchor / AnchorGroup / Anim / Anim2D / Canvas / Presentation が「`Foldout` を作って種別の Validator を
@@ -985,7 +985,7 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
   出しており、そのまま置き換えると情報が減るため今回は触っていない
   （Presentation は同時に別チケット U-6 で改修中だったため見送り）。移行は後続で行う。
   **Canvas は 2026-10-06 に結果の取得だけ共通化した**（`CanvasEditorWindow.CollectValidation` = `DataValidationRunner.Run`。
-  描画と Undo 付きの個別の Fix ボタンは独自のまま。Validator を手で並べていたため新しい Validator が抜けた実バグ = [63](63_review_pr126_pr129_2026-10-06.md) GE-R-19）
+  描画と Undo 付きの個別の Fix ボタンは独自のまま。Validator を手で並べていたため新しい Validator が抜けた実バグ = [63](reviews/63_review_pr126_pr129_2026-10-06.md) GE-R-19）
 - **VFX Editor で「検証」を展開しても何も出なかった件（同じ U-13 の別不具合）**:
   原因は検証セクション自体ではなく、その手前で例外が出て `RefreshValidation()` に到達していなかったこと。
   `VfxEditorWindow.RefreshAnchorUi()` が `_serializedTarget.FindProperty("AnchorId")` の結果をそのまま
@@ -997,7 +997,7 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **テスト**: `Tests/Editor/DataValidationRunnerTests.cs`（null で落ちないこと / 種別 Validator が走ること /
   プロジェクト全体向け Validator が除外されていること / 1 アセット単位の `IUniversalValidator` は含まれること）
 
-> **2026-09-17 追補（[41](41_phase6_review_2026-09-17.md) P2-6）**: 「プロジェクト全体を 1 回まとめて見る
+> **2026-09-17 追補（[41](reviews/41_phase6_review_2026-09-17.md) P2-6）**: 「プロジェクト全体を 1 回まとめて見る
 > Validator か」の判定を `DataValidationRunner.IsProjectWide(IValidator)` として `public` にし、
 > **アセット単位で Validation 結果を見る他の経路からも共用する**ようにした（定義はここ 1 箇所）。
 > `ValidatorRegistry.RunAll`（Foundation）は `IUniversalValidator` の結果も「その時渡されたアセット」の
@@ -1026,7 +1026,7 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **設計**: 検査/計算ロジックはウィンドウに依存しない `ProjectSetupInspector`（純関数。git 依存の不足検出・URP/Input System/API Compatibility Level の検査・Addressables 初期化検査・既定フォルダ検査・フォルダ配置プリセットの計算・A-9 の改造検出）に、副作用のある適用は `ProjectSetupActions`（`Client.Add` の呼び出し・`Packages/manifest.json` の編集・既定フォルダ/カタログ/`UiLayerSettings`/`DDriveSpecSettings` の生成・ID/Tuning 再生成・Addressables 初期化・`testables` の切り替え・消費側スキルのコピー）に分離。`manifest.json` の読み書きは `ManifestJson`（Newtonsoft.Json、`dependencies`/`scopedRegistries`/`testables` の各操作）に集約した
 - **Active Input Handling の読み取り**: `PlayerSettings` に公開 getter が無い（`GetPropertyInt("activeInputHandler")` は不正な値を返すことを確認済み）ため、`ProjectSettings/ProjectSettings.asset` 自体を `SerializedObject` で読む（`ProjectSetupInspector.ReadActiveInputHandler`）。書き込みは行わない（検査のみ、[42] §3.6 の方針どおり）
 - **scoped registry の追加**: `UnityEditor.PackageManager.Client` に `AddScopedRegistry` は無い（2026-09-20 に `unity_reflect` で確認）ため、`ManifestJson.AddScopedRegistry` で `manifest.json` を直接編集する
-- **`ProjectSetupValidator`**（`Editor/Validation/ProjectSetupValidator.cs`、`IUniversalValidator`）: ウィザードの検査 1（依存）・2（ProjectSettings）・4（既定フォルダ・設定）・5（Addressables 初期化）+ A-9（改造の可能性）と同じ判定を `Validation > Run All` にも載せる。新設した Code（すべて Warning、[42] §5.8 の「新しい検査は Warning から」方針）: `DD-SETUP-DEP-UNITASK` / `DD-SETUP-DEP-R3` / `DD-SETUP-DEP-R3-NUGET-REGISTRY` / `DD-SETUP-DEP-R3-NUGET` / `DD-SETUP-URP` / `DD-SETUP-INPUT` / `DD-SETUP-API-LEVEL` / `DD-SETUP-ADDRESSABLES` / `DD-SETUP-GAMEDATA-ROOT` / `DD-SETUP-UI-LAYER-SETTINGS` / `DD-SETUP-SPEC-SETTINGS` / `DD-SETUP-EMBEDDED-MODIFIED`。**2026-09-20 修正([47_review_p_tickets_2026-09-20.md] P2-5)**: 以前は他の `IUniversalValidator`（`AddressablesRegistrationValidator` 等)と同じ制約で `AssetDataBase` が 1 件も無いプロジェクトでは一度も実行されず(`ValidatorRegistry.RunAll` が資産 0 件のとき foreach が回らないため)、空プロジェクトの「Run All で Error 0」が「何も検査していないから」に過ぎない状態だった。`ValidatorRegistry.RunAll`(Foundation)に「`AllAssets` が 0 件のときだけ `IUniversalValidator` を `data=null` で 1 回呼ぶ」分岐を追加し、`ProjectSetupValidator` を含む全 `IUniversalValidator` が空プロジェクトでも確実に 1 回走るようにした(`SchemaVersionValidator` 等、`data` を直接参照する実装には null ガードを追加済み)
+- **`ProjectSetupValidator`**（`Editor/Validation/ProjectSetupValidator.cs`、`IUniversalValidator`）: ウィザードの検査 1（依存）・2（ProjectSettings）・4（既定フォルダ・設定）・5（Addressables 初期化）+ A-9（改造の可能性）と同じ判定を `Validation > Run All` にも載せる。新設した Code（すべて Warning、[42] §5.8 の「新しい検査は Warning から」方針）: `DD-SETUP-DEP-UNITASK` / `DD-SETUP-DEP-R3` / `DD-SETUP-DEP-R3-NUGET-REGISTRY` / `DD-SETUP-DEP-R3-NUGET` / `DD-SETUP-URP` / `DD-SETUP-INPUT` / `DD-SETUP-API-LEVEL` / `DD-SETUP-ADDRESSABLES` / `DD-SETUP-GAMEDATA-ROOT` / `DD-SETUP-UI-LAYER-SETTINGS` / `DD-SETUP-SPEC-SETTINGS` / `DD-SETUP-EMBEDDED-MODIFIED`。**2026-09-20 修正([reviews/47_review_p_tickets_2026-09-20.md] P2-5)**: 以前は他の `IUniversalValidator`（`AddressablesRegistrationValidator` 等)と同じ制約で `AssetDataBase` が 1 件も無いプロジェクトでは一度も実行されず(`ValidatorRegistry.RunAll` が資産 0 件のとき foreach が回らないため)、空プロジェクトの「Run All で Error 0」が「何も検査していないから」に過ぎない状態だった。`ValidatorRegistry.RunAll`(Foundation)に「`AllAssets` が 0 件のときだけ `IUniversalValidator` を `data=null` で 1 回呼ぶ」分岐を追加し、`ProjectSetupValidator` を含む全 `IUniversalValidator` が空プロジェクトでも確実に 1 回走るようにした(`SchemaVersionValidator` 等、`data` を直接参照する実装には null ガードを追加済み)
 - **テスト**: `Tests/Editor/Setup/`（`ManifestJsonTests` / `ProjectSetupInspectorTests` / `ProjectSetupActionsTests` / `GeneratedAsmdefWriterTests` / `ProjectSetupValidatorTests`）。開発リポジトリの実 `manifest.json`・実 `GameData` を書き換える `ProjectSetupActions` のメソッド（`EnsureDefaultFoldersAndSettings`/`RegenerateGeneratedCode`/`AddDependency`/`AddScopedRegistryToProjectManifest`/`SetTestablesEnabled`/`CopyConsumerSkillIfBundled`）は EditMode テストから直接呼ばない（検査・純関数・実データに影響しない範囲の関数だけを検証する）
 
 ## 14. 更新ウィンドウ（`UpdateWindow`、2026-09-20、P-8）
@@ -1035,7 +1035,7 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 
 - **UI**: `ScrollView` ルート + 6 個の `Foldout`（1. 更新チェック 2. 版と CHANGELOG 3. マイグレーション〔プレビュー〕 4. 更新を適用 5. テストを有効化する 6. エージェント向けスキルを更新）。「1. 更新チェック」は P-14(2026-09-20)で追加した最上段のセクション(下記)
 - **設計**: 「更新を適用」の 4 段（マイグレーション → ID/Tuning 再生成 → Addressables 同期 → Validation）+ `LastAppliedVersion` 更新は、ウィンドウに依存しない `UpdateActions.Apply(UpdateActions.Steps)`（`Editor/Update/UpdateActions.cs`、純粋な `Func<StepOutcome>` の並び）に委譲する。実際の Unity API 呼び出しは `UpdateStepsFactory.CreateRealSteps` が組み立てる（`DDriveMigrationRunner`・`AssetIdGenerator`/`TuningCodegen`・`AddressablesSync`・`CI.RunValidation` をそのまま使う。新しい生成ロジックは無い）。**途中の段が失敗したら以降を実行しない**（`UpdateActions.Apply` がループを打ち切り、全段成功したときだけ `LastAppliedVersion` を更新する）
-- **CHANGELOG 表示**: `ChangelogLocator.ResolvePath`(`resolvedPath`, `preferDevRepoRoot`)・`ChangelogRangeReader`（`## [X.Y.Z]` 見出しで版ごとの節に分解し、「前回適用した版〔排他〕→ 現在の版〔含む〕」を切り出す純関数）・`ChangelogCompatibilityAnalyzer`（各節の `### 互換性` から「破壊あり」を検出）の 3 つに分けている（いずれも Unity API 非依存で EditMode テストから直接検証できる）。**2026-09-20 修正([47_review_p_tickets_2026-09-20.md] P2-4)**: `ResolvePath` の探索順を反転した。既定(`preferDevRepoRoot=false`、持ち込み先)は**パッケージ直下**(`resolvedPath`)を先に見る(P-9 で `CHANGELOG.md` がパッケージに同梱されたため正本になった。埋め込み配置の持ち込み先で `resolvedPath` の 2 階層上を先に見ると、持ち込み先自身の `CHANGELOG.md` を D-Drive のものと誤認する事故があった)。開発リポジトリ(`preferDevRepoRoot=true`、`UpdateWindow` が `DDriveProjectSettings.IsDevelopmentRepo` を渡す)だけ 2 階層上(リポジトリ直下)を先に見る
+- **CHANGELOG 表示**: `ChangelogLocator.ResolvePath`(`resolvedPath`, `preferDevRepoRoot`)・`ChangelogRangeReader`（`## [X.Y.Z]` 見出しで版ごとの節に分解し、「前回適用した版〔排他〕→ 現在の版〔含む〕」を切り出す純関数）・`ChangelogCompatibilityAnalyzer`（各節の `### 互換性` から「破壊あり」を検出）の 3 つに分けている（いずれも Unity API 非依存で EditMode テストから直接検証できる）。**2026-09-20 修正([reviews/47_review_p_tickets_2026-09-20.md] P2-4)**: `ResolvePath` の探索順を反転した。既定(`preferDevRepoRoot=false`、持ち込み先)は**パッケージ直下**(`resolvedPath`)を先に見る(P-9 で `CHANGELOG.md` がパッケージに同梱されたため正本になった。埋め込み配置の持ち込み先で `resolvedPath` の 2 階層上を先に見ると、持ち込み先自身の `CHANGELOG.md` を D-Drive のものと誤認する事故があった)。開発リポジトリ(`preferDevRepoRoot=true`、`UpdateWindow` が `DDriveProjectSettings.IsDevelopmentRepo` を渡す)だけ 2 階層上(リポジトリ直下)を先に見る
 - **テストを有効化する / エージェント向けスキルを更新**: 新しいロジックは追加していない。P-6 の `ProjectSetupActions.SetTestablesEnabled`/`IsTestablesEnabled`/`CopyConsumerSkillIfBundled` をそのまま呼ぶ（§13 参照）
 - **2026-10-03 追記（レビュー [54] PC-R-01/02/03/14/15、[42] §4.2.1）**: git を呼ぶ処理（タグ一覧・上げ先の `package.json` の取得・URL 入力のタグ取得）は**バックグラウンド**で実行し、ウィンドウ上部に「確認中…」+「キャンセル」を出す（`StartBusy` / `PollBusy`。1 度に 1 件。ウィンドウを閉じるとキャンセル）。D-Drive の版上げ / 元に戻すは上げ先の取得をしない。タグは元の名前（`GitTag`）で扱い、プレリリースは「（プレリリース）」付きで出して自動では勧めない。`Client.Add` の実行中は版上げ・元に戻すを始めない。D-Drive 自身は管理対象の設定に登録しない。登録解除で「前の参照に戻す」の情報が消えるときは確認する。
 - **マイグレーション専用メニュー**: P-7 の `Tools > D-Drive > Update > マイグレーション(ドライラン/適用)`（`MigrationMenu`）はそのまま残している。更新ウィンドウの「更新を適用」に統合されているが、単体でドライラン/適用したいとき用に併存させた

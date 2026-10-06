@@ -74,7 +74,7 @@ Unity Editor を再起動するとポート・Bearer トークンが変わり、
 
 - **Unity Editor が開いているのはメインのリポジトリ**（`C:\Users\yamag\wrench\D-Drive`）。`.claude/worktrees/` 配下のワークツリーで作業しているときは Unity MCP を使わない（Unity は別プロセスのメイン checkout を見ている）。ワークツリーでの作業は docs のみ、あるいはコンパイル・テストを親セッション（メイン checkout）に任せる形にする
 - `.cs` の新規作成は Unity が `.meta` を自動生成するので**手で作らない**。ワークツリーで `.cs` を書いた場合、マージ後にメインで一度コンパイル・テストを通す
-- 複数エージェントが同時に触るとコンフリクトしやすいファイル（`docs/11_tasks.md`、`docs/28_manual_verification_phase5.md`、Addressables グループ 2 ファイル）は並行担当に触らせず、まとめ役が最後に 1 回だけ追記する
+- 複数エージェントが同時に触るとコンフリクトしやすいファイル（`docs/11_tasks.md`、`docs/verification/28_manual_verification_phase5.md`、Addressables グループ 2 ファイル）は並行担当に触らせず、まとめ役が最後に 1 回だけ追記する
 - テスト用の一時アセット・大量ファイルの下書きは scratchpad に置き、Assets 配下へのコピーはテストが終わってから行う（Assets への書き込みは自動リフレッシュで再コンパイルが走り、実行中のテストを壊すことがある）
 
 ## 4. コミット・docs の慣習

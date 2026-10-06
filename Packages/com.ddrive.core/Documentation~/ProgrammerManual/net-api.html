@@ -96,7 +96,7 @@
 <li>入力検証は <code>Runtime/Net/NetManualConnectInput.cs</code>（Unity API 非依存の静的クラス）の <code>TryParsePort</code>/<code>TryParse</code> が行います。IP は<strong>IPv4 のドット表記のみ</strong>受け付け（ホスト名不可）、<code>"localhost"</code> だけ例外的に <code>"127.0.0.1"</code> に読み替えます。Port は 1〜65535 の数値のみ</li>
 <li>最後に接続した IP/Port は <code>PlayerPrefs</code>（<code>DDrive.Net.Manual.LastAddress</code>/<code>DDrive.Net.Manual.LastPort</code>）に保存し、次回起動時の初期値にします</li>
 </ul>
-<p>詳細な設計・実機確認手順は <code>docs/14_networking.md</code> §14・§15、<code>docs/29_network_device_test.md</code> §23 を参照してください。</p>
+<p>詳細な設計・実機確認手順は <code>docs/14_networking.md</code> §14・§15、<code>docs/verification/29_network_device_test.md</code> §23 を参照してください。</p>
 
 <h2 id="host-migration">Host 引き継ぎ時の呼び出し順</h2>
 <p>複数人対戦で Host が切断した際、別の端末が Host を引き継いで試合を続ける構成向けに、D-Drive は「同一プロセスで <code>StopNetworking()</code> → 別ロールで <code>StartHost</code>/<code>StartClient</code> をやり直す」手順を前提として設計されています。呼び出し順序と、その際に内部で何が起こるかをまとめます。</p>
@@ -162,7 +162,7 @@
 <p>詳細な設計・互換性ルールは <code>docs/14_networking.md</code> §7・<code>docs/42_distribution.md</code> §5.6 を参照してください。持ち込み先の更新手順は <code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code>（<code>docs/09_editor_tools.md</code> §14）から行います。</p>
 
 <h2 id="device-test">実機確認（PC 2 台）</h2>
-<p>この仕組みは<strong>実機 2 台（PC-A Host + PC-B Client）での確認が済んでいます</strong>。詳細な手順・ログの見方は <code>docs/29_network_device_test.md</code>、確認済みの内容は以下のとおりです（最終版 v3）。</p>
+<p>この仕組みは<strong>実機 2 台（PC-A Host + PC-B Client）での確認が済んでいます</strong>。詳細な手順・ログの見方は <code>docs/verification/29_network_device_test.md</code>、確認済みの内容は以下のとおりです（最終版 v3）。</p>
 <ul>
 <li><strong>遅延 0ms / 200ms</strong>: 接続・剣攻撃デモの Play/Signal・VFX 描画・アプリ層 RTT 計測（<code>rtt_app_ms</code>）を確認。<code>UnityTransport.SetDebugSimulatorParameters</code> が Obsolete で no-op になっているため、遅延は <code>NgoNetBridge</code> のアプリ層送受信キュー（<code>ConfigureAppLayerSimLatency</code>、開発ビルド限定）で代替実装している</li>
 <li><strong>Late Join</strong>: 接続直後に Host が保持する「アクティブ演出台帳」をスナップショット送信し、Client 側で復元されることを確認</li>
@@ -185,7 +185,7 @@
 
 <h2 id="known-gaps">既知の制約</h2>
 <div class="tip">
-<strong>ネット系のテストの穴 5 件は解消済みです</strong>（<code>docs/41_phase6_review_2026-09-17.md</code>「テストの穴」節、2026-09-18 対応）。偽造 <code>CatalogContentHashResultMsg</code>（上記「Host 権威モデルと偽造メッセージの検証」参照）・Host のカタログ登録前に届いたハッシュの保留のフラッシュ・タイムアウト経由の切断時の <code>ClientDisconnectedForMismatch</code> 発火・保留バッファ経由の偽造 Signal/Cancel・Cancel のレート制限（非 Host の Client 発）の 5 件すべてに回帰テストを追加済みです。実バグが見つかったのは <code>CatalogContentHashResultMsg</code>（送信元検証漏れ）の 1 件のみで、残り 4 件は追加したテストも green（実装は元々正しかった）でした。
+<strong>ネット系のテストの穴 5 件は解消済みです</strong>（<code>docs/reviews/41_phase6_review_2026-09-17.md</code>「テストの穴」節、2026-09-18 対応）。偽造 <code>CatalogContentHashResultMsg</code>（上記「Host 権威モデルと偽造メッセージの検証」参照）・Host のカタログ登録前に届いたハッシュの保留のフラッシュ・タイムアウト経由の切断時の <code>ClientDisconnectedForMismatch</code> 発火・保留バッファ経由の偽造 Signal/Cancel・Cancel のレート制限（非 Host の Client 発）の 5 件すべてに回帰テストを追加済みです。実バグが見つかったのは <code>CatalogContentHashResultMsg</code>（送信元検証漏れ）の 1 件のみで、残り 4 件は追加したテストも green（実装は元々正しかった）でした。
 </div>
 
 <h2 id="see-also">見送り事項（現状のスコープ外）</h2>

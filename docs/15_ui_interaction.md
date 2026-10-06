@@ -97,7 +97,7 @@ ButtonWire の Trigger 重複 (Warning) / LongPressSec≤0 なのに LongPress �
 - **2026-09-14 改修(ユーザー指摘: プレビューと設定が離れすぎ / ▶ でプレビューされない)**: (1) 別枠の一覧 + `InspectorElement` の二段構成をやめ、`ControlSkinPreviewSection` が設定欄そのものを組む。`SerializedObject` を元の順に走査し、6 状態は「見出し行(要約 + ▶/⏸/■)→ Enter Tween(右に ✎ Tween Editor)→ Enter Preset → 折りたたみ『見た目(Tint / Scale / 画像)』」の箱、SE 欄は同じ行に ▶/■、それ以外は通常の `PropertyField`。欄は作り直さず要約とボタンの可否だけ追従させる(入力中のフォーカスを奪わない)。(2) 演出は正しく進んでいたが、Edit Mode の Game ビューは自動で再描画されず最後の姿しか見えなかったため、演出中は `InternalEditorUtility.RepaintAllViews()` で毎フレーム描き直す。(3) 終了済み Handle に `Stop` すると `InstanceStore` が「Invalid handle access」を警告していたので、`IsPlaying` のときだけ止める
 - **2026-09-14 追記(ユーザー要望: 状態遷移によるテクスチャプレビュー / 当たり判定の調整)**:
   - **当たり判定(Data 追加。ユーザー承認済みのシリアライズ追加)**: `ControlSkinData` に `HitAreaExpand`(Vector4、四辺を広げる px。X=左/Y=下/Z=右/W=上)と `AlphaHitThreshold`(0〜1)を追加し、`EffectiveHitAreaExpand`(virtual、`SliderSkinData` は既存の未接続だった `ExtraHitPadding` を左右・上下に足す)を新設。`UiInteractable.ApplySkinForCurrentState` が `TargetGraphic.raycastPadding = -EffectiveHitAreaExpand`(Unity の raycastPadding は内側へ縮める量が正)と、`Image.alphaHitTestMinimumThreshold` を適用する。透明判定は Sprite の Texture が読めないと Image が毎回エラーを出すため、`isReadable=false` のときは警告 1 回 + 無効(0)で続行(TL;DR #4)。**注意**: `Image.alphaHitTestMinimumThreshold` の setter は画像が読めないと**値に関係なく(0 でも)** `InvalidOperationException` を投げる。読めない画像が大半の通常のボタンで状態変化・`OnDisable` のたびに例外になっていたため(テストで発見)、値が変わるときだけ書き、書けない場合は例外を握りつぶして続行する(`SetAlphaHitThreshold`)。`ControlSkinHitAreaValidation`(両 Validator から呼ぶ)が「閾値 > 0 かつ Override Sprite の画像が Read/Write 無効」を Warning にする
-  - **2026-09-17 修正（[39](39_usability_fixes_2026-09-17.md) U-10、[09] §7.1）**: 「状態遷移」ブロックの 2 段目にある
+  - **2026-09-17 修正（[39](archive/39_usability_fixes_2026-09-17.md) U-10、[09] §7.1）**: 「状態遷移」ブロックの 2 段目にある
     **「SE も鳴らす」チェックが横 500px で見切れていた**。原因は (a) `ControlSkinPreviewSection.Row()` が
     `flex-wrap: nowrap` で折り返さない (b) `Toggle` / `Slider` のラベルが USS 既定の 120px 幅を占める
     (c) 見出しラベルが固定幅 70px、の 3 点。`Row()` を `flexWrap = Wrap.Wrap` にして（このヘルパーを通る行すべてが
@@ -260,8 +260,8 @@ public static class UiFx
 ### 実装メモ（2026-09-11、4-12 プリセットギャラリー）
 
 > - `Assets/DDrive/Editor/Ui/UiPresetGalleryWindow.cs`（`Tools/D-Drive/Editors/UI Tween · Preset Gallery`）: 出現 / 常時 / 消滅 / 強調 / カタログ のタブ、検索、お気に入り（EditorPrefs）、カードは名前 + カテゴリ + **静的なイージング曲線**（実再生サムネイルは「ウィンドウ内描画をしない」方針に合わせて廃止）。カードの操作は「この要素に適用（Appear / Idle / Disappear）」「Canvas 内一括適用」「選択中のシーン要素で再生」「独自プリセットとして登録（UiPresetCatalog）」。補助: `UiPresetGalleryFilter` / `UiPresetGalleryFavorites` / `UiPresetCatalogEditing` / `ElementFxAssignment`（CanvasEditor と共用）
-> - 自動テスト: `UiPresetGalleryTests`(EditMode 237 / PlayMode 466 green、Unity 再起動後に確認)。人による確認手順は [23_manual_verification_2026-09-11.md](23_manual_verification_2026-09-11.md)
-> - **2026-09-17 追加（[39](39_usability_fixes_2026-09-17.md) U-9）**: UI Tween Editor から開く導線を追加した。
+> - 自動テスト: `UiPresetGalleryTests`(EditMode 237 / PlayMode 466 green、Unity 再起動後に確認)。人による確認手順は [23_manual_verification_2026-09-11.md](verification/23_manual_verification_2026-09-11.md)
+> - **2026-09-17 追加（[39](archive/39_usability_fixes_2026-09-17.md) U-9）**: UI Tween Editor から開く導線を追加した。
 >   これまではメニュー `Tools > D-Drive > Editors > UI Tween · Preset Gallery` からしか開けず、Tween を編集しながら
 >   「どんなプリセットがあるか」を見る流れに入れなかった。`UiTweenEditorWindow` のプリセット行の下に
 >   **「プリセットギャラリーを開く」ボタン**を置き、メニュー項目と同じ `UiPresetGalleryWindow.Open(UiTweenData)` を呼ぶ

@@ -226,7 +226,7 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
   `Editor/AssetBrowser/AssetCreationService.GetCatalogName` の既存マッピングどおり作成した（コード変更
   不要、既に対応表にあった）。デモアセット作成に伴う Addressables グループ（`DDrive_GameData.asset` /
   `DDrive_Catalogs.asset`）への追記はユーザーの未コミット変更と同じファイルのためコミットしていない
-  （追加された行は `docs/28_manual_verification_phase5.md` の要判断に列挙）。
+  （追加された行は `docs/verification/28_manual_verification_phase5.md` の要判断に列挙）。
 
 ## 実装メモ（2026-09-14、5-2c）
 
@@ -269,7 +269,7 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
 - **プリセット 10 種**: `CameraFxPresets`(Pulse/Rumble/Heartbeat/Explosion/Hit_Small/Hit_Large/Landing/
   Earthquake/Alarm/Engine、Shake/Haptics それぞれに実装)。適用は `Undo.RecordObject` +
   `EditorUtility.SetDirty` で対象アセットへ直接書き込む（新規アセットは作らない）。**数値は暫定値**
-  （要判断: 実プレイでのバランス調整前のたたき台。`docs/28_manual_verification_phase5.md` 5-2c 節参照）
+  （要判断: 実プレイでのバランス調整前のたたき台。`docs/verification/28_manual_verification_phase5.md` 5-2c 節参照）
 - **`DataEditorRegistryTests` の Exempt から `CameraShakeData`/`HapticsData` を外した**（専用エディタが
   揃ったため）
 - **テスト**: `SceneCameraShakePreviewDriverTests`(ノード挿入 + DontSave 付与・連打での Trauma 合成・
