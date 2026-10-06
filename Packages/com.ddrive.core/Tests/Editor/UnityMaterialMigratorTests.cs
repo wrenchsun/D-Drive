@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Materials;
 using DDrive.Foundation.Data;
@@ -94,6 +95,38 @@ namespace DDrive.Tests.Editor
             // 再実行: 同じ Data を更新し、増えない
             var again = UnityMaterialMigrator.Migrate(material, "Migrate", report, TestRoot);
             Assert.AreSame(data, again);
+        }
+
+        // レビュー [63] GE-R-18 / GE-R-20: 欠けた参照(破棄済みのテクスチャ)→ null は「更新」に数え、値は本物の null になる。
+        [Test]
+        public void Migrate_Rerun_MissingTextureReference_IsReplacedWithNull_AndCountsUpdated()
+        {
+            var lit = Shader.Find("Universal Render Pipeline/Lit");
+            Assume.That(lit != null && Shader.Find(UnityMaterialMigrator.LitShaderName) != null);
+            var material = new UnityEngine.Material(lit) { name = "MigrateMissingTex" };
+            AssetDatabase.CreateAsset(material, LitMaterialPath);
+            var data = UnityMaterialMigrator.Migrate(material, "Migrate", new MayaMaterialImporter.Report(), TestRoot);
+            Assert.IsNotNull(data);
+
+            // 固有に、元 .mat にもあるテクスチャの欄(_BaseMap。URP Lit 側は未割り当て = null)を 1 つ足し、破棄済みのテクスチャを入れておく
+            var texture = new Texture2D(2, 2);
+            var specific = new List<DDrive.Runtime.Material.ShaderParam>(data.Specific ?? System.Array.Empty<DDrive.Runtime.Material.ShaderParam>())
+            {
+                new() { Property = "_BaseMap", Value = new DDrive.Foundation.Data.ParamValue { Type = DDrive.Foundation.Data.ParamValueType.Object, ObjectValue = texture } },
+            };
+            data.Specific = specific.ToArray();
+            var texIndex = data.Specific.Length - 1;
+            Object.DestroyImmediate(texture); // 外殻だけが残る(== null だが本物の null ではない)
+            Assume.That(data.Specific[texIndex].Value.ObjectValue == null && !ReferenceEquals(data.Specific[texIndex].Value.ObjectValue, null));
+
+            var report = new MayaMaterialImporter.Report();
+            Assert.AreSame(data, UnityMaterialMigrator.Migrate(material, "Migrate", report, TestRoot));
+            Assert.AreEqual(1, report.Updated, "欠けた参照 → null(元の .mat にテクスチャ無し)は書き換え = 更新");
+            Assert.IsTrue(ReferenceEquals(data.Specific[texIndex].Value.ObjectValue, null), "本物の null に置き換わる");
+
+            var again = new MayaMaterialImporter.Report();
+            UnityMaterialMigrator.Migrate(material, "Migrate", again, TestRoot);
+            Assert.AreEqual(1, again.Unchanged, "null どうしは変更なし");
         }
 
         // レビュー [63] GE-R-09: 何も変えていない .mat の再実行は「変更なし」に数える(固有の値が同じなら引き継ぎに入れない)。

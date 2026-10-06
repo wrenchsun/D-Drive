@@ -194,6 +194,9 @@ namespace DDrive.Editor.Materials
             return handling == UnknownShaderHandling.ConvertKeepingExisting;
         }
 
+        // null(本物・偽の null とも)は 0。破棄済みの外殻でも GetInstanceID は例外にならない。
+        private static int InstanceIdOf(Object o) => ReferenceEquals(o, null) ? 0 : o.GetInstanceID();
+
         // 変換先の固有(Specific に登録済み)のうち、元 Material に同名プロパティがあるものは値を引き継ぐ。戻り値は引き継いだ名前。
         // recordUndo=false は「まだアセットになっていない Data」用(AssetCreationService.Create の configure は CreateAsset の
         // 前に呼ばれるため、Undo.RecordObject が意味を持たない。2026-09-11 レビュー対応)。
@@ -282,8 +285,9 @@ namespace DDrive.Editor.Materials
         }
 
         // ParamValue の等価(型と、その型の値だけを比べる)。Float / Int は完全一致(Material から読んだ値をそのまま書くため)、
-        // Color / Vector は Unity の ==(近似)。Object は参照そのもの(ReferenceEquals)で比べ、欠けた参照(missing)と null を
-        // 同じとみなさない = 元の .mat からテクスチャを外したとき、Data の欠けた参照は null で書き換える(レビュー [63] GE-R-18)。
+        // Color / Vector は Unity の ==(近似)。Object はインスタンス ID で比べる(null と Editor の「偽の null」は 0 で同じ、
+        // 欠けた参照(missing。ID は残る)と null は違う = 元の .mat からテクスチャを外したとき、Data の欠けた参照は null で
+        // 書き換える。レビュー [63] GE-R-18 / GE-R-20)。
         private static bool SameValue(in ParamValue a, in ParamValue b)
         {
             if (a.Type != b.Type)
@@ -297,7 +301,7 @@ namespace DDrive.Editor.Materials
                 case ParamValueType.Int: return a.IntValue == b.IntValue;
                 case ParamValueType.Color: return a.ColorValue == b.ColorValue;
                 case ParamValueType.Vector: return a.VectorValue == b.VectorValue;
-                case ParamValueType.Object: return ReferenceEquals(a.ObjectValue, b.ObjectValue);
+                case ParamValueType.Object: return InstanceIdOf(a.ObjectValue) == InstanceIdOf(b.ObjectValue);
                 default: return false;
             }
         }

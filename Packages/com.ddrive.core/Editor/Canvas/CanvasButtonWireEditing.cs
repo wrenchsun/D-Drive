@@ -327,6 +327,26 @@ namespace DDrive.Editor.CanvasTool
             return true;
         }
 
+        // 「削除」の結果(GE-R-14 / GE-R-21): Removed = 消した、Stale = 行を作ったときと配線が違う(並べ替え・削除の後)ので消さなかった、
+        // None = 対象が無い。
+        public enum RemoveOutcome { None, Removed, Stale }
+
+        // 行を作ったときの配線(expected)と同じ添字の配線がまだ同じなら消す。違えば消さずに Stale(画面は欄を作り直して知らせる)。
+        public static RemoveOutcome TryRemoveWire(CanvasData canvas, int index, in ButtonWire expected)
+        {
+            if (canvas == null)
+            {
+                return RemoveOutcome.None;
+            }
+
+            if (canvas.Buttons == null || index < 0 || index >= canvas.Buttons.Length || !SameWire(canvas.Buttons[index], expected))
+            {
+                return RemoveOutcome.Stale;
+            }
+
+            return RemoveWire(canvas, index) ? RemoveOutcome.Removed : RemoveOutcome.None;
+        }
+
         // 行を作ったときの配線と同じか(ButtonPath + Trigger。ほかの欄の変更は同じ配線とみなす。画面の UpdateWire の照合。GE-R-08 / GE-R-12)。
         public static bool SameWire(in ButtonWire current, in ButtonWire expected)
             => current.Trigger == expected.Trigger
