@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › マテリアル / テクスチャの設定項目</nav>
 
 <h1>マテリアル / テクスチャの設定項目</h1>
-<p class="lastupdate">最終更新日: 2026-10-03</p>
+<p class="lastupdate">最終更新日: 2026-10-06</p>
 
 <p>マテリアルデータ（MaterialData）は、<strong>Unity の Material の代わりに D-Drive で編集する「素材」のデータ</strong>です。色・テクスチャ・光り方・透け方をここに書いておくと、Unity の Material 実体は D-Drive が自動で作って共有します。デザイナーが Unity の Material を直接作る必要はありません。</p>
 <ul>
@@ -149,7 +149,7 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 </ol>
 <ul>
 <li>URP Lit / Simple Lit / Complex Lit / Baked Lit / Standard / Standard (Specular setup) → <code>DDrive/Lit</code>。URP Unlit / Unlit/Texture / Unlit/Color / Unlit/Transparent / Unlit/Transparent Cutout → <code>DDrive/Unlit</code>。それ以外（知らないシェーダー）は、既定では確認のダイアログが 1 回だけ出ます（元のシェーダーのまま保つ / DDrive/Lit に変換 / キャンセル）。Maya Import Profile の「Unknown Shader Policy」を KeepSource にすると確認なしで保ち、ConvertToLit にすると確認なしで「警告: … 未対応のため DDrive/Lit として変換します」と DDrive/Lit にします。マテリアルデータのシェーダーがすでに入っている場合、保つ選択では上書きしません</li>
-<li>Project で知らないシェーダーの <code>.mat</code> を選び、右クリックの <code>Assets &gt; D-Drive &gt; Data を作成 &gt; MaterialData を作成</code> で作るときも、同じ確認のダイアログが<strong>選択全体で 1 回だけ</strong>出ます(キャンセルで何も作られません)。シェーダーが見つからない Material(パッケージ未導入・参照切れ)は「シェーダーが見つかりません」の警告のうえ <code>DDrive/Lit</code> のマテリアルデータになります(元のシェーダーのまま保つ対象にはなりません)。確認ダイアログでは、見つからないシェーダーの Material を別の行で件数表示します</li>
+<li>Project で知らないシェーダーの <code>.mat</code> を選び、右クリックの <code>Assets &gt; D-Drive &gt; Data を作成 &gt; MaterialData を作成</code> で作るときも、同じ確認のダイアログが<strong>選択全体で 1 回だけ</strong>出ます(キャンセルで何も作られません)。シェーダーが見つからない Material(パッケージ未導入・参照切れ)は「シェーダーが見つかりません」の警告のうえ <code>DDrive/Lit</code> のマテリアルデータになります(元のシェーダーのまま保つ対象にはなりません)。確認ダイアログでは、見つからないシェーダーの Material を別の行で件数表示します。作り終わると Console に「[DDrive] MaterialData: 新規 N 件 / 更新 N 件 / 変更なし N 件」と要約が出ます(同じ Material をもう一度選ぶと、Common に違いが無ければ「変更なし」に数えます。Common だけが更新され、固有の調整は残ります)。シェーダーが見つからない Material は、要約とは別に Console に Warning で出ます</li>
 <li>カテゴリはアセットの親フォルダ名（取れなければ Migrated）。元 Material に同名の固有プロパティがあれば値もコピーされます</li>
 <li>もう一度実行しても増えず、Common だけ更新されます（固有の調整は残る）。別フォルダの同名 .mat は別々のマテリアルデータになります</li>
 </ul>
