@@ -16,8 +16,8 @@ namespace DDrive.Tests.Editor
     // Timeline の API が解決できないときは書かないことを、Timeline ウィンドウを開かずに確認する。
     public class CutsceneEditModeCameraSaveTests
     {
-        private static readonly Vector3 OriginalPos = new Vector3(1f, 2f, 3f);
-        private static readonly Vector3 PreviewPos = new Vector3(10f, 20f, 30f);
+        private static readonly Vector3 OriginalPos = new Vector3(1.25f, 2.5f, 3.75f);
+        private static readonly Vector3 PreviewPos = new Vector3(10.25f, 20.5f, 30.75f);
 
         private GameObject _camGo;
         private GameObject _directorGo;
@@ -162,8 +162,8 @@ namespace DDrive.Tests.Editor
             try
             {
                 var text = SaveCameraSceneAndReadText(out scene);
-                StringAssert.Contains("m_LocalPosition: {x: 1, y: 2, z: 3}", text);
-                StringAssert.DoesNotContain("m_LocalPosition: {x: 10, y: 20, z: 30}", text);
+                StringAssert.Contains("m_LocalPosition: {x: 1.25, y: 2.5, z: 3.75}", text);
+                StringAssert.DoesNotContain("m_LocalPosition: {x: 10.25, y: 20.5, z: 30.75}", text);
                 Assert.AreEqual(PreviewPos, _camGo.transform.position, "保存の後に書き直される");
             }
             finally
@@ -186,13 +186,64 @@ namespace DDrive.Tests.Editor
                 shake.Play(data);
                 shake.Tick(0.05f);
                 var text = SaveCameraSceneAndReadText(out scene);
-                StringAssert.Contains("m_LocalPosition: {x: 1, y: 2, z: 3}", text);
-                StringAssert.DoesNotContain("m_LocalPosition: {x: 10, y: 20, z: 30}", text);
+                StringAssert.Contains("m_LocalPosition: {x: 1.25, y: 2.5, z: 3.75}", text);
+                StringAssert.DoesNotContain("m_LocalPosition: {x: 10.25, y: 20.5, z: 30.75}", text);
             }
             finally
             {
                 Object.DestroyImmediate(data);
                 CleanupTempScene(scene);
+            }
+        }
+
+        // docs/66 GH-R-08: Shake を鳴らした後に Timeline ウィンドウを閉じる(= Writer が控えを手放す)と、
+        // その後の保存・後始末でも Shake ドライバがカットシーンの姿勢を書き戻さない。
+        private void PlayShakeThenClosePreview(out CameraShakeData data)
+        {
+            CutsceneEditModePreviewProvider.IsInspectedOverrideForTests = d => true;
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            var shake = CutsceneEditModePreviewProvider.EnsureAndGetManagers().ShakeDriver;
+            data = ScriptableObject.CreateInstance<CameraShakeData>();
+            shake.Play(data);
+            shake.Tick(0.05f);
+
+            // Timeline ウィンドウを閉じた相当: Writer が元の姿勢へ戻して控えを捨てる。
+            CutsceneEditModeCameraWriter.ResetCapture();
+            Assert.AreEqual(OriginalPos, _camGo.transform.position);
+        }
+
+        [Test]
+        public void RealSave_AfterShake_ThenPreviewClosed_KeepsOriginalPose()
+        {
+            PlayShakeThenClosePreview(out var data);
+            Scene scene = default;
+            try
+            {
+                var text = SaveCameraSceneAndReadText(out scene);
+                StringAssert.Contains("m_LocalPosition: {x: 1.25, y: 2.5, z: 3.75}", text);
+                StringAssert.DoesNotContain("m_LocalPosition: {x: 10.25, y: 20.5, z: 30.75}", text);
+                Assert.AreEqual(OriginalPos, _camGo.transform.position, "保存の後もカメラは元の姿勢のまま");
+            }
+            finally
+            {
+                Object.DestroyImmediate(data);
+                CleanupTempScene(scene);
+            }
+        }
+
+        [Test]
+        public void TearDown_AfterShake_ThenPreviewClosed_KeepsOriginalPose()
+        {
+            PlayShakeThenClosePreview(out var data);
+            try
+            {
+                CutsceneEditModePreviewProvider.TearDownForTests();
+                Assert.AreEqual(OriginalPos, _camGo.transform.position);
+                Assert.IsNull(_camGo.transform.parent, "揺れ用ノードは片付く(カメラは元の親へ戻る)");
+            }
+            finally
+            {
+                Object.DestroyImmediate(data);
             }
         }
 

@@ -253,3 +253,12 @@
 - `saveAsCopy` で `sceneSaving` / `sceneSaved` が呼ばれること（実装側の「旧い配線へ戻すと赤」を根拠に信頼）、バッチモードでの動作（**推定**）。
 - SpecWeb の生成物は DesignerManual との差分の対応だけ。
 - メインの checkout と、そこで開いている Unity には触れていない。
+
+## 対応状況（再レビュー 729cd48 への対応、2026-10-06）
+
+| 指摘 | 対応 |
+|---|---|
+| GH-R-08 | **対応済み**。`ownsCameraLifecycle: false` のとき、Shake ドライバの `RestoreCameraNow` はカメラのローカル姿勢を書かず、`Manager.StopAll`（`CameraFxManager` が揺れのオフセットを基準へ戻し、今のワールド姿勢のまま元の親へ付け直してノードを破棄）だけにした。姿勢の持ち主は Writer だけ。単体のドライバ（既定 true）は不変。テスト `RealSave_AfterShake_ThenPreviewClosed_KeepsOriginalPose`・`TearDown_AfterShake_ThenPreviewClosed_KeepsOriginalPose` |
+| GH-R-09 | **見送り**。揺れの振幅ぶん（数 cm・数度）のずれで、Camera クリップより前に置いた Shake が揺れている最中に区間へ入る場合に限られる。直すには Writer に Shake の基準姿勢を渡す配線が要り、GH-R-08 の修正で姿勢の持ち主が Writer だけになった後は、v1.4.x で Writer の控えの取り方（ノードの基準を引く）と一緒に直すほうが安全 |
+| GH-R-10 | **対応済み（(1) のみ）**。テストの位置をテスト固有の値（`{x: 1.25, y: 2.5, z: 3.75}` など）にして、作業中のシーンの内容と衝突しにくくした。(2) の一時パスは、既存の保存系テストに専用の置き場が無いため現状のまま |
+| GH-R-11 | **対応済み**。canvas-data の引用の末尾に「(開いた直後は選択できません)」を足し、マニュアルを再生成 |

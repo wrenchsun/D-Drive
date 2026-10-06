@@ -36,6 +36,7 @@ namespace DDrive.Editor.CameraFx
         private double _lastTick;
         private bool _ticking;
         private bool _subscribed;
+        private bool _ownsCameraLifecycle = true;
 
         private Transform _cameraTransform;
         private Transform _originalParent;
@@ -57,6 +58,7 @@ namespace DDrive.Editor.CameraFx
         {
             _registry = registry ?? EditorAnchorRegistry.Build();
             Manager = new CameraFxManager(_registry);
+            _ownsCameraLifecycle = ownsCameraLifecycle;
             if (!ownsCameraLifecycle)
             {
                 return;
@@ -173,6 +175,18 @@ namespace DDrive.Editor.CameraFx
                 return;
             }
 
+            if (!_ownsCameraLifecycle)
+            {
+                // docs/66 GH-R-08 — カメラの姿勢の持ち主は呼び出し側(Cutscene の Writer)。控えた時点のローカル姿勢は
+                // 「Writer が書いたカットシーンの姿勢」で、Writer が控えを手放した後に書き戻すとそれが残る / 保存されるため、
+                // 姿勢は書かない。親子構造とノードだけを戻す(CameraFxManager が揺れのオフセットを基準へ戻してから、
+                // 今のワールド姿勢のまま元の親へ付け直し、ノードを破棄する。揺れ中の Instance は止まる)。
+                // ノードの揺れを基準へ戻すとカメラの見た目の姿勢がずれるので、今見えているワールド姿勢はそのまま保つ。
+                StopAllKeepingWorldPose();
+                _shakeNode = null;
+                return;
+            }
+
             _cameraTransform.SetParent(_originalParent, false);
             _cameraTransform.SetSiblingIndex(_originalSiblingIndex);
             _cameraTransform.localPosition = _originalLocalPos;
@@ -186,6 +200,21 @@ namespace DDrive.Editor.CameraFx
             _shakeNode = null;
         }
 
+        // 揺れを止めてノードを外す。ノードの揺れを基準へ戻すとカメラの見た目の姿勢がずれるので、今見えているワールド姿勢は保つ。
+        private void StopAllKeepingWorldPose()
+        {
+            if (_cameraTransform == null)
+            {
+                Manager.StopAll(StopReason.Manual);
+                return;
+            }
+
+            var worldPos = _cameraTransform.position;
+            var worldRot = _cameraTransform.rotation;
+            Manager.StopAll(StopReason.Manual);
+            _cameraTransform.SetPositionAndRotation(worldPos, worldRot);
+        }
+
         // ティックも止めて完全に手を離す(ウィンドウを閉じる・シーン切替・Play Mode 突入の直前)。
         public void StopAndRestore()
         {
@@ -196,7 +225,15 @@ namespace DDrive.Editor.CameraFx
 
             _ticking = false;
             EditorApplication.update -= EditorTick;
-            Manager.StopAll(StopReason.Manual);
+            if (_ownsCameraLifecycle)
+            {
+                Manager.StopAll(StopReason.Manual);
+            }
+            else
+            {
+                StopAllKeepingWorldPose();
+            }
+
             RestoreCameraNow();
             _cameraTransform = null;
         }

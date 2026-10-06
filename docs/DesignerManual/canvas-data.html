@@ -186,7 +186,7 @@
 <tr><td>EmbeddedCanvases[i] '…': 親に '…' の ElementFx の行 / Click 配線などがあるため、子の同じ要素(・同じトリガー)の設定は使われません</td><td>意図した上書きなら無視可(Info)。ElementFx は要素ごと、ボタン・スライダーの配線は要素 + トリガーごとに親が優先されます</td></tr>
 <tr><td>EmbeddedCanvases[i] '…' は EmbeddedCanvases[j] '…' の配下です(埋め込みが重なっています) / 子 Canvas が自分で埋め込んでいる場所が、別の登録と重なる</td><td>どちらかの登録を外す(Warning)。同じ要素は 1 回だけ適用されます(実行時は、より内側の登録がその配下の要素を担当します)</td></tr>
 <tr><td>ButtonWire[i] '…': Action=… の EmbeddedRootPath '…' は、この CanvasData の EmbeddedCanvases に登録されていません(押しても何も起きません)</td><td>登録済みの RootPath を選ぶ(Warning。<code>DD-CANVAS-WIRE-EMBED-UNKNOWN</code>)</td></tr>
-<tr><td>FirstSelected '…' は、無効で始まる埋め込み EmbeddedCanvases[i] '…'(StartInactive)の配下です</td><td>FirstSelected を無効で始まらない要素にするか、StartInactive をオフにする(Warning。<code>DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE</code>)</td></tr>
+<tr><td>FirstSelected '…' は、無効で始まる埋め込み EmbeddedCanvases[i] '…'(StartInactive)の配下です(開いた直後は選択できません)</td><td>FirstSelected を無効で始まらない要素にするか、StartInactive をオフにする(Warning。<code>DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE</code>)</td></tr>
 <tr><td>SliderWire[i] '…': Action=… はボタンの配線専用です(スライダーでは何も起きません)</td><td>スライダーの Action を SetOption / SendSignal にする(Warning。<code>DD-CANVAS-SLIDER-EMBED-ACTION</code>)</td></tr>
 <tr><td>EmbeddedCanvases[i] の RootPath '…' の書式が不正です</td><td>先頭・末尾の <code>/</code>、<code>\</code>、<code>//</code>、<code>./</code> を使わない(例 <code>Group/OptionRoot</code>。Canvas Editor の欄は確定時に自動で直します)(Warning)</td></tr>
 <tr><td>EmbeddedCanvases[i] '…': 子 Canvas の Load が Preload ではありません</td><td>子の Canvas データの Load を Preload にする(親を Open した時点で読み込まれていないと埋め込みがスキップされます)(Warning)</td></tr>
