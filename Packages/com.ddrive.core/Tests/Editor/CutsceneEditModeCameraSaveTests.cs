@@ -207,7 +207,8 @@ namespace DDrive.Tests.Editor
             shake.Play(data);
             shake.Tick(0.05f);
 
-            // Timeline ウィンドウを閉じた相当: Writer が元の姿勢へ戻して控えを捨てる。
+            // Timeline ウィンドウを閉じた相当(Provider の Tick 中の経路と同じ順: Shake の復元 → Writer の復元。docs/66 GH-R-12)。
+            shake.StopAndRestore();
             CutsceneEditModeCameraWriter.ResetCapture();
             Assert.AreEqual(OriginalPos, _camGo.transform.position);
         }
@@ -264,6 +265,45 @@ namespace DDrive.Tests.Editor
             finally
             {
                 Object.DestroyImmediate(data);
+            }
+        }
+
+        // docs/66 GH-R-12: Writer が控えを持たない(Camera クリップの外)状態で、揺れの途中に保存・後始末しても、
+        // 揺れの振幅がカメラの姿勢に残らない(Shake は素の StopAll = 揺れの無い姿勢へ戻る。その後 Tick を続けても積み上がらない)。
+        [Test]
+        public void SaveAndTearDown_MidShake_WithoutWriterCapture_LeaveNoAmplitude()
+        {
+            var shake = CutsceneEditModePreviewProvider.EnsureAndGetManagers().ShakeDriver;
+            var data = ScriptableObject.CreateInstance<CameraShakeData>();
+            data.PosAmplitude = new Vector3(1f, 1f, 1f);
+            Scene scene = default;
+            try
+            {
+                shake.Play(data);
+                for (var i = 0; i < 5; i++)
+                {
+                    shake.Tick(0.05f);
+                }
+
+                Assert.AreEqual("DDriveCameraShakeNode", _camGo.transform.parent != null ? _camGo.transform.parent.name : null, "揺れ用ノードが付いている");
+
+                var text = SaveCameraSceneAndReadText(out scene);
+                StringAssert.Contains("m_LocalPosition: {x: 1.25, y: 2.5, z: 3.75}", text);
+                Assert.IsNull(_camGo.transform.parent, "保存の後は揺れ用ノードが外れている");
+                Assert.AreEqual(OriginalPos.x, _camGo.transform.position.x, 1e-4f);
+                Assert.AreEqual(OriginalPos.y, _camGo.transform.position.y, 1e-4f);
+                Assert.AreEqual(OriginalPos.z, _camGo.transform.position.z, 1e-4f);
+
+                shake.Tick(0.05f);
+                CutsceneEditModePreviewProvider.TearDownForTests();
+                Assert.AreEqual(OriginalPos.x, _camGo.transform.position.x, 1e-4f, "後始末の後も振幅が残らない");
+                Assert.AreEqual(OriginalPos.y, _camGo.transform.position.y, 1e-4f);
+                Assert.AreEqual(OriginalPos.z, _camGo.transform.position.z, 1e-4f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(data);
+                CleanupTempScene(scene);
             }
         }
 

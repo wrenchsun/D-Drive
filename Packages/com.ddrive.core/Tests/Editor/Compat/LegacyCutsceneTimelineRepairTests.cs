@@ -35,9 +35,19 @@ namespace DDrive.Tests.Editor.Compat
             _tempDir = null;
             // [64] GF-R-17 — 件数を `Assets/` 全体で数えるテストがあるので、旧形式の .playable が既に残っているプロジェクト
             // (= 「更新を適用」の前の持ち込み先)では前提を満たさない。実プロジェクトの状態に依存して赤くならないよう保留にする。
-            if (CutsceneTimelineScriptReferenceMigration.FindTargetPaths().Count > 0)
+            var legacy = CutsceneTimelineScriptReferenceMigration.FindTargetPaths();
+            if (legacy.Count > 0)
             {
-                Assert.Ignore("プロジェクトに旧形式の .playable が既に残っている(マイグレーションを適用してから実行する)");
+                // [64] GF-R-21 — 開発リポジトリでは黙って飛ばさず Fail にする(M-6 の回帰テストが Ignore の黄色 1 行で流れるのを防ぐ)。
+                // 持ち込み先(「更新を適用」の前)では前提を満たさないだけなので Ignore のまま。
+                var message = "プロジェクトに旧形式の .playable が Assets/ に残っている: " + string.Join(", ", legacy)
+                    + "。マイグレーション(Tools > D-Drive > Update > マイグレーション(適用))を適用するか、確認用のコピーを消してから実行する";
+                if (DDriveProjectSettings.instance.IsDevelopmentRepo)
+                {
+                    Assert.Fail(message);
+                }
+
+                Assert.Ignore(message);
             }
 
             _savedProbe = CutsceneTimelineScriptReferenceMigration.IsDirtyProbe;

@@ -288,6 +288,8 @@ namespace DDrive.Editor.Cutscene
             if (contexts.Count == 0)
             {
                 // 駆動する Director が無くなった(破棄された)。カメラへ書いていたなら元の姿勢へ戻す。
+                // docs/66 GH-R-12 — 揺れの途中なら先に Shake を戻す(Shake → Writer の順)。
+                RestoreCameraAfterShake();
                 CutsceneEditModeCameraWriter.ResetCapture();
                 return;
             }
@@ -397,6 +399,8 @@ namespace DDrive.Editor.Cutscene
             if (!cameraWritten)
             {
                 // どの Director も Timeline ウィンドウで開かれていない(閉じた・別のものを開いた)。書いていたなら元の姿勢へ戻す。
+                // docs/66 GH-R-12 — 揺れの途中で閉じても振幅を残さないよう、先に Shake を戻す(Shake → Writer の順)。
+                RestoreCameraAfterShake();
                 CutsceneEditModeCameraWriter.ResetCapture();
             }
 

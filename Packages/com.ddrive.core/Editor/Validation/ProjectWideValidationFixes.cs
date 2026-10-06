@@ -20,6 +20,13 @@ namespace DDrive.Editor.Validation
         [MenuItem(DDriveMenu.Validation + MenuName)]
         public static void ApplyMenuItem()
         {
+            // [64] GF-R-20 — Play Mode 中はファイル・Addressables・アセット名を書き換えない。
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Debug.LogWarning("[DDrive][Validation] Play Mode 中は全体の指摘を修正できません。Play Mode を止めてから実行してください。");
+                return;
+            }
+
             var fixable = FindFixable(CI.RunValidation());
             if (fixable.Count == 0)
             {
@@ -32,10 +39,14 @@ namespace DDrive.Editor.Validation
                 var sb = new StringBuilder();
                 foreach (var report in fixable)
                 {
-                    sb.Append("・").Append(report.Result.Message).Append('\n');
+                    // [64] GF-R-20 — メッセージ(旧形式の .playable の全パス等)は 1 件 1 行に切り詰め、ダイアログが縦に伸びないようにする。
+                    sb.Append("・").Append(Shorten(report.Result.Message)).Append('\n');
                 }
 
-                if (!EditorUtility.DisplayDialog("全体の指摘を修正", $"次の {fixable.Count} 件を修正します。\n\n{sb}", "修正する", "キャンセル"))
+                if (!EditorUtility.DisplayDialog("全体の指摘を修正",
+                        $"次の {fixable.Count} 件を修正します。\n\n{sb}\n" +
+                        "この修正は Undo できません(ファイルの書き換え・Addressables の登録・アセットのリネームを含む)。先にコミットし、開いている Timeline は保存してください。",
+                        "修正する", "キャンセル"))
                 {
                     return;
                 }
@@ -67,12 +78,53 @@ namespace DDrive.Editor.Validation
             return result;
         }
 
+        // M-6 の Timeline 修正(`.playable` のみ書き換える)は Addressables 系(`SaveAssets` を呼ぶ)より先に回す(GF-R-20)。
+        // 開いて未保存の Timeline が先に保存されて「未保存なので書き換えない」警告(GF-R-04)が出ないまま書き換わるのを避ける。
+        // 同順位は元の並びを保つ。
+        public static List<ValidationReport> OrderForApply(IReadOnlyList<ValidationReport> fixable)
+        {
+            var first = new List<ValidationReport>();
+            var rest = new List<ValidationReport>();
+            if (fixable == null)
+            {
+                return first;
+            }
+
+            foreach (var report in fixable)
+            {
+                if (report.Result.Code == CutsceneTimelineLegacyReferenceValidator.Code)
+                {
+                    first.Add(report);
+                }
+                else
+                {
+                    rest.Add(report);
+                }
+            }
+
+            first.AddRange(rest);
+            return first;
+        }
+
         // 戻り値: 例外なく完了した修正の数(例外は警告にして次へ進む = 例外で止めない)。
+        // ログの件数には、修正が警告を出して実際には書き換えなかった数も添える(GF-R-24)。
         public static int Apply(IReadOnlyList<ValidationReport> fixable)
         {
             var done = 0;
-            foreach (var report in fixable)
+            var warned = 0;
+            var current = 0;
+            Application.LogCallback counter = (_, __, type) =>
             {
+                if (type == LogType.Warning)
+                {
+                    current++;
+                }
+            };
+
+            foreach (var report in OrderForApply(fixable))
+            {
+                current = 0;
+                Application.logMessageReceived += counter;
                 try
                 {
                     report.Result.FixAction();
@@ -82,10 +134,31 @@ namespace DDrive.Editor.Validation
                 {
                     Debug.LogWarning($"[DDrive][Validation] 修正に失敗しました({report.Result.Code}): {e.GetType().Name}: {e.Message}");
                 }
+                finally
+                {
+                    Application.logMessageReceived -= counter;
+                }
+
+                if (current > 0)
+                {
+                    warned++;
+                }
             }
 
-            Debug.Log($"[DDrive][Validation] 全体の指摘の修正を {done}/{fixable.Count} 件実行しました。");
+            Debug.Log($"[DDrive][Validation] 全体の指摘の修正を {done}/{fixable.Count} 件実行しました(うち警告を出した修正 {warned} 件。直後の Run All の結果で確認してください)。");
             return done;
+        }
+
+        private static string Shorten(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return string.Empty;
+            }
+
+            var nl = message.IndexOf('\n');
+            var line = nl >= 0 ? message.Substring(0, nl) + " …" : message;
+            return line.Length > 120 ? line.Substring(0, 120) + "…" : line;
         }
     }
 }
