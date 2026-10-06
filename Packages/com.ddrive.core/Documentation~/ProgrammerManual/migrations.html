@@ -64,6 +64,7 @@
     string Id { get; }
     void Migrate(MigrationContext context);
 }</pre>
+<p><code>context.Warn(message)</code> で「一部の対象を処理できなかった」ことを伝えられます。警告が 1 件でもある(または <code>Migrate</code> が例外を投げた)と、Runner は <code>Id</code> を記録せず、メニューと更新ウィンドウは「適用しました」と出さず、次回の実行でも計画に入ります。<code>Id</code> を記録した後でも対象が残りうるマイグレーション(他のブランチから古い形式のファイルが入ってくる場合など)は、<code>IProjectMigration</code> に加えて <code>IRepeatableProjectMigration</code> の <code>HasPendingWork()</code> を実装すると、対象が残っている間は計画に入ります。これらの動作は持ち込み先・外部パッケージ向けの固定された契約ではありません(docs/42 §5.14)。</p>
 
 <h2 id="runner">Runner の動かし方</h2>
 <table>
