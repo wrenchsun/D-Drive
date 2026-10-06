@@ -46,5 +46,40 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(1, done);
             Assert.AreEqual(1, ran);
         }
+
+        // [64] GF-R-20 — M-6 の Timeline 修正は SaveAssets を呼ぶ Addressables 系より先に回す。
+        [Test]
+        public void Apply_RunsTheLegacyTimelineFixBeforeOtherFixes()
+        {
+            var order = new List<string>();
+            var reports = new List<ValidationReport>
+            {
+                new ValidationReport(null, ValidationResult.Error("a", () => order.Add("A"), "A")),
+                new ValidationReport(null, ValidationResult.Error("m6", () => order.Add("M6"), CutsceneTimelineLegacyReferenceValidator.Code)),
+                new ValidationReport(null, ValidationResult.Error("b", () => order.Add("B"), "B")),
+            };
+
+            var ordered = ProjectWideValidationFixes.OrderForApply(reports);
+            Assert.AreEqual(CutsceneTimelineLegacyReferenceValidator.Code, ordered[0].Result.Code);
+            Assert.AreEqual("A", ordered[1].Result.Code, "それ以外は元の並びを保つ");
+
+            ProjectWideValidationFixes.Apply(reports);
+            CollectionAssert.AreEqual(new[] { "M6", "A", "B" }, order);
+        }
+
+        // [64] GF-R-24 — 警告を出した修正の件数をログに添える。
+        [Test]
+        public void Apply_ReportsHowManyFixesWarned()
+        {
+            var reports = new List<ValidationReport>
+            {
+                new ValidationReport(null, ValidationResult.Error("w", () => Debug.LogWarning("skipped"), "A")),
+                new ValidationReport(null, ValidationResult.Error("ok", () => { }, "B")),
+            };
+
+            LogAssert.Expect(LogType.Warning, "skipped");
+            LogAssert.Expect(LogType.Log, new System.Text.RegularExpressions.Regex("2/2 件実行しました[(]うち警告を出した修正 1 件"));
+            Assert.AreEqual(2, ProjectWideValidationFixes.Apply(reports));
+        }
     }
 }

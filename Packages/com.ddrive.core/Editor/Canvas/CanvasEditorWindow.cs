@@ -2735,8 +2735,22 @@ namespace DDrive.Editor.CanvasTool
                     {
                         // Codex レビュー対応(2026-09-11): Undo.RecordObject 無しで fixAction が _target を
                         // 書き換えていたため、Ctrl+Z で元に戻せなかった([CLAUDE.md] #5)。
+                        // レビュー [63] GE-R-24: 共通の Validator の修正(カタログ登録・Addressables 等)も押せるので、
+                        // 例外で UI のコールバックを抜けず、警告 + ステータス表示にして欄を再描画する(CLAUDE.md §0-4)。
                         Undo.RecordObject(_target, "Canvas Validation 修正");
-                        fixAction();
+                        try
+                        {
+                            fixAction();
+                        }
+                        catch (System.Exception e)
+                        {
+                            Debug.LogWarning($"[DDrive] 検証の「修正」に失敗しました: {e.Message}");
+                            if (_statusLabel != null)
+                            {
+                                _statusLabel.text = $"修正に失敗しました: {e.Message}";
+                            }
+                        }
+
                         EditorUtility.SetDirty(_target);
                         RefreshValidation();
                     })
