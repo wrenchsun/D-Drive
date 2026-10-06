@@ -15,7 +15,7 @@ namespace DDrive.Editor.Cutscene
     // Play Mode の `DDriveCutsceneCameraApplier`(実行順 1000 の LateUpdate)とは完全に別経路(二重に書かない
     // ため `Application.isPlaying` で自分自身を止める)。ゲームカメラ制御との実行順契約([26] §4.6.5)は
     // Play Mode 専用の話であり、Edit Mode の確認用シーンにはゲームのカメラ制御自体が存在しないため対象外。
-    internal static class CutsceneEditModeCameraWriter
+    public static class CutsceneEditModeCameraWriter
     {
         private static bool _hasOriginal;
         private static Camera _capturedCamera;

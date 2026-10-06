@@ -387,6 +387,16 @@ T-Drive のパッケージ（`TDrive.*`）が入ってから、T-Drive 側と合
 | 23-2 | Audio エディタで BGM の音源を 1 本取り込む（`SourceAssets/Bgm/` に置く → BgmData が作られる）。LoopStart / LoopEnd は 0 / 0 のまま Run All | その BgmData に「LoopEndSec が LoopStartSec 以下です」の Error が出ない。LoopStart に 5、LoopEnd に 2 を入れると Error が出る | □ 未 |
 | 23-3 | CameraShake の Envelope を固定値（Mode=Constant）にして尺（Time）を 0 にし、Run All を実行する | 「Envelope の尺(Duration)が 0 以下のため、再生してもすぐ終わり何も起きません」の Warning が出る（Error は出ない）。尺に 0.4 を入れると消える | □ 未 |
 
+## 24. Edit Mode プレビュー中の保存（2026-10-06、レビュー [63] GE-R-01・GE-R-02）
+
+自動テスト `CutsceneEditModeCameraSaveTests` で、保存時の退避と書き直し・Timeline の API の解決は確認済み。実際のシーンの保存は次の目視で確認する（確認用シーンはユーザーの作業物なので、確認後に元へ戻すか破棄すること）。
+
+| # | 手順 | 期待する結果 | 結果 |
+|---|---|---|---|
+| 24-1 | CutsceneData の「▶ Timeline ウィンドウで開く」でプレビューを開き、Camera クリップの区間にカーソルを置いて（SceneView / Game ビューでカメラが動いた状態で）Ctrl+S でシーンを保存する | 保存後もカーソル位置のプレビューのカメラ姿勢が見える（書き直される）。Timeline ウィンドウを閉じると `Camera.main` が元の位置へ戻る | |
+| 24-2 | 24-1 の保存の後、Timeline ウィンドウを閉じてから、シーンを開き直す（または `git diff` で確認用シーンの `.unity` を見る） | 保存された `Camera.main` の位置・回転・画角がプレビュー前の値のまま（カットシーンの姿勢が保存されていない） | |
+| 24-3 | プレビューを開いたまま、`File > Save`（またはシーンの自動保存）でも保存し、24-2 と同じ確認をする | 保存されたカメラ姿勢はプレビュー前の値 | |
+
 ## 要判断（全体）
 
 - なし（実装済みチケットの要判断は各節末尾。未決は [51] §8 の U-14。U-15 は FC-10 で決定済み）
