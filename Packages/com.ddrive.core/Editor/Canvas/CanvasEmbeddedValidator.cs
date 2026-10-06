@@ -149,7 +149,7 @@ namespace DDrive.Editor.CanvasTool
         // 1 回の検証(= 1 つの ValidationContext)で 1 回だけ作る(CanvasData 1 件ごとにプロジェクト全体を読み直さない。レビュー PC-R-11)。
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ValidationContext, CanvasEmbeddedEditing.CanvasLookup> LookupCache = new();
 
-        private static CanvasEmbeddedEditing.CanvasLookup BuildLookup(ValidationContext ctx)
+        internal static CanvasEmbeddedEditing.CanvasLookup BuildLookup(ValidationContext ctx)
             => ctx == null ? BuildLookupUncached(null) : LookupCache.GetValue(ctx, BuildLookupUncached);
 
         private static CanvasEmbeddedEditing.CanvasLookup BuildLookupUncached(ValidationContext ctx)
@@ -258,5 +258,83 @@ namespace DDrive.Editor.CanvasTool
                 }
             }
         }
+    }
+
+    // [07_canvas_prefab.md] A-3 追記(2026-10-06、埋め込みの有効 / 無効) — StartInactive と、配線の ActivateEmbedded /
+    // DeactivateEmbedded / ToggleEmbedded の設定の検査。新しい欄だけを見る(既存の検査の結果は変えない)。
+    public sealed class CanvasEmbeddedActiveValidator : IValidator
+    {
+        public AssetType Target => AssetType.Canvas;
+
+        public IEnumerable<ValidationResult> Validate(AssetDataBase data, ValidationContext ctx)
+        {
+            if (data is not CanvasData canvas)
+            {
+                yield break;
+            }
+
+            var embeds = canvas.EmbeddedCanvases;
+
+            // 配線が指す埋め込みが、この CanvasData から切り替えられるか(直下の登録 + 子の登録を連結した入れ子の入れ子。
+            // 空 = 自分が属する埋め込み。実行時に決まるので検査しない)。
+            if (canvas.Buttons != null)
+            {
+                List<string> paths = null;
+                for (var i = 0; i < canvas.Buttons.Length; i++)
+                {
+                    var wire = canvas.Buttons[i];
+                    if (!IsEmbeddedAction(wire.Action) || string.IsNullOrEmpty(wire.EmbeddedRootPath))
+                    {
+                        continue;
+                    }
+
+                    if (paths == null)
+                    {
+                        paths = new List<string>();
+                        CanvasButtonWireEditing.CollectEmbedPaths(canvas, CanvasEmbeddedValidator.BuildLookup(ctx), paths);
+                    }
+
+                    if (!paths.Contains(wire.EmbeddedRootPath))
+                    {
+                        yield return ValidationResult.Warning(
+                            $"ButtonWire[{i}] '{wire.ButtonPath}': Action={wire.Action} の EmbeddedRootPath '{wire.EmbeddedRootPath}' は、この CanvasData の EmbeddedCanvases に登録されていません(押しても何も起きません)",
+                            code: "DD-CANVAS-WIRE-EMBED-UNKNOWN");
+                    }
+                }
+            }
+
+            // スライダーの配線に埋め込みのアクションは効かない(SliderWire に EmbeddedRootPath が無く、実行時は何もしない。レビュー [65] GG-R-09)。
+            if (canvas.Sliders != null)
+            {
+                for (var i = 0; i < canvas.Sliders.Length; i++)
+                {
+                    if (IsEmbeddedAction(canvas.Sliders[i].Action))
+                    {
+                        yield return ValidationResult.Warning(
+                            $"SliderWire[{i}] '{canvas.Sliders[i].ElementPath}': Action={canvas.Sliders[i].Action} はボタンの配線専用です(スライダーでは何も起きません)",
+                            code: "DD-CANVAS-SLIDER-EMBED-ACTION");
+                    }
+                }
+            }
+
+            // 最初に選択する要素が、無効で始まる埋め込みの配下にある(開いた直後は選択できない)。
+            if (embeds != null && !string.IsNullOrEmpty(canvas.FirstSelected))
+            {
+                for (var i = 0; i < embeds.Length; i++)
+                {
+                    if (embeds[i].StartInactive && !string.IsNullOrEmpty(embeds[i].RootPath)
+                        && EmbeddedPaths.TryToChildPath(embeds[i].RootPath, canvas.FirstSelected, out _))
+                    {
+                        yield return ValidationResult.Warning(
+                            $"FirstSelected '{canvas.FirstSelected}' は、無効で始まる埋め込み EmbeddedCanvases[{i}] '{embeds[i].RootPath}'(StartInactive)の配下です(開いた直後は選択できません)",
+                            code: "DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE");
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static bool IsEmbeddedAction(UiAction action)
+            => action == UiAction.ActivateEmbedded || action == UiAction.DeactivateEmbedded || action == UiAction.ToggleEmbedded;
     }
 }

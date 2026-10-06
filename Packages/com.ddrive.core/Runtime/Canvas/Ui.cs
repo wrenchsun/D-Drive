@@ -40,6 +40,15 @@ namespace DDrive.Runtime.Ui
 
         public static void SetLayerVisible(UiLayer layer, bool visible) => _instance?.SetLayerVisible(layer, visible);
 
+        // 開いている Canvas の中の埋め込み Canvas を有効 / 無効にする([07_canvas_prefab.md] A-3、2026-10-06)。
+        // rootPath = Open した Canvas のルート基準のパス(EmbeddedCanvases の RootPath。入れ子の入れ子は "OptionRoot/Inner" の形)。
+        // 有効化で子の Appear → Idle、無効化で Disappear の後に非表示。登録されていない rootPath は警告 1 回 + 何もしない。
+        public static void SetEmbeddedActive(Handle<CanvasMarker> canvas, string rootPath, bool active)
+            => _instance?.SetEmbeddedActive(canvas, rootPath, active);
+
+        public static bool IsEmbeddedActive(Handle<CanvasMarker> canvas, string rootPath)
+            => _instance?.IsEmbeddedActive(canvas, rootPath) ?? false;
+
         // 十字キー / スティックのフォーカス移動(NavNode の明示リンク → 開いている Canvas 内で方向の最寄り)。
         // UiInteractable.OnMove が EventSystem の Navigate から呼ぶほか、ゲームコードから直接呼んでもよい。
         public static bool MoveFocus(Vector2 dir) => _instance?.MoveFocus(dir) ?? false;

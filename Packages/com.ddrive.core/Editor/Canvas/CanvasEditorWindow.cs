@@ -1147,6 +1147,7 @@ namespace DDrive.Editor.CanvasTool
             var editButton = new Button(() => EditEmbedded(index)) { text = "この Canvas を編集", tooltip = "編集対象をこの子の CanvasData に切り替える(「← 親へ戻る」で戻れる)" };
             editButton.SetEnabled(child != null);
             row.Add(editButton);
+            AddEmbedActiveControls(row, owner, index);
             row.Add(new Button(() =>
             {
                 if (CanvasEmbeddedEditing.RemoveAt(_target, index))
