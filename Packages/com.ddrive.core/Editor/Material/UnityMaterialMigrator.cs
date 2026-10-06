@@ -281,7 +281,9 @@ namespace DDrive.Editor.Materials
             return copied;
         }
 
-        // ParamValue の等価(型と、その型の値だけを比べる。Float は完全一致 = Material から読んだ値をそのまま書くため)。
+        // ParamValue の等価(型と、その型の値だけを比べる)。Float / Int は完全一致(Material から読んだ値をそのまま書くため)、
+        // Color / Vector は Unity の ==(近似)。Object は参照そのもの(ReferenceEquals)で比べ、欠けた参照(missing)と null を
+        // 同じとみなさない = 元の .mat からテクスチャを外したとき、Data の欠けた参照は null で書き換える(レビュー [63] GE-R-18)。
         private static bool SameValue(in ParamValue a, in ParamValue b)
         {
             if (a.Type != b.Type)
@@ -295,7 +297,7 @@ namespace DDrive.Editor.Materials
                 case ParamValueType.Int: return a.IntValue == b.IntValue;
                 case ParamValueType.Color: return a.ColorValue == b.ColorValue;
                 case ParamValueType.Vector: return a.VectorValue == b.VectorValue;
-                case ParamValueType.Object: return a.ObjectValue == b.ObjectValue;
+                case ParamValueType.Object: return ReferenceEquals(a.ObjectValue, b.ObjectValue);
                 default: return false;
             }
         }

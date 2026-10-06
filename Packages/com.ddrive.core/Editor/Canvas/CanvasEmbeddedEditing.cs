@@ -494,7 +494,13 @@ namespace DDrive.Editor.CanvasTool
         // 登録の操作では false(自動収集で集まった行を黙って片付ける)、利用者が自分で押す「上書きをまとめて整理…」では true
         // (子の演出を止めるためにわざと置いた空の行を、確認なしで消さない)。
         public static OverrideChoice ConfirmOverrides(CanvasData parent, OverridePlan plan, string title, bool confirmDefaultOnly)
+            => ConfirmOverrides(parent, plan, title, confirmDefaultOnly, cancelMeansNotRegister: false);
+
+        // cancelMeansNotRegister: 「キャンセル」の意味を呼び出し側で明示する(登録 = 「登録しない」、整理・変更 = 「何も変更しない」。
+        // タイトルの文字列で分けない。レビュー [63] GE-R-17)。既定のままの行だけの確認も同じ文言。
+        public static OverrideChoice ConfirmOverrides(CanvasData parent, OverridePlan plan, string title, bool confirmDefaultOnly, bool cancelMeansNotRegister)
         {
+            var cancelLabel = cancelMeansNotRegister ? "キャンセル(登録しない)" : "キャンセル(何も変更しない)";
             if (plan.CustomRows.Count == 0)
             {
                 if (!confirmDefaultOnly || plan.DefaultRows.Count == 0)
@@ -508,7 +514,7 @@ namespace DDrive.Editor.CanvasTool
                     return ConfirmOverrideCleanupForTests(title, defaultOnlyMessage);
                 }
 
-                return EditorUtility.DisplayDialog(title, defaultOnlyMessage, "取り除く(子の CanvasData の設定を使う)", "キャンセル")
+                return EditorUtility.DisplayDialog(title, defaultOnlyMessage, "取り除く(子の CanvasData の設定を使う)", cancelLabel)
                     ? OverrideChoice.Remove
                     : OverrideChoice.Cancel;
             }
@@ -520,8 +526,6 @@ namespace DDrive.Editor.CanvasTool
             }
 
             // DisplayDialogComplex の戻り値: 0 = ok、1 = cancel、2 = alt(Esc は 1)。
-            // キャンセルの文言は場面で変える(登録のときだけ「登録しない」。整理・変更では「何も変更しない」。2026-10-06、16-29 の気づき)。
-            var cancelLabel = title.Contains("登録") ? "キャンセル(登録しない)" : "キャンセル(何も変更しない)";
             switch (EditorUtility.DisplayDialogComplex(title, message,
                 "取り除く(子の CanvasData の設定を使う)", cancelLabel, "残す(親での上書きとして残る)"))
             {
@@ -638,7 +642,7 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var plan = PlanOverrides(parent, rootPath);
-            var choice = ConfirmOverrides(parent, plan, "埋め込みとして登録");
+            var choice = ConfirmOverrides(parent, plan, "埋め込みとして登録", confirmDefaultOnly: false, cancelMeansNotRegister: true);
             if (choice == OverrideChoice.Cancel)
             {
                 cleanup = ApplyCleanup(parent, plan, choice);
