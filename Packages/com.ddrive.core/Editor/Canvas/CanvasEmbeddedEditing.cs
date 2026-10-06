@@ -520,8 +520,10 @@ namespace DDrive.Editor.CanvasTool
             }
 
             // DisplayDialogComplex の戻り値: 0 = ok、1 = cancel、2 = alt(Esc は 1)。
+            // キャンセルの文言は場面で変える(登録のときだけ「登録しない」。整理・変更では「何も変更しない」。2026-10-06、16-29 の気づき)。
+            var cancelLabel = title.Contains("登録") ? "キャンセル(登録しない)" : "キャンセル(何も変更しない)";
             switch (EditorUtility.DisplayDialogComplex(title, message,
-                "取り除く(子の CanvasData の設定を使う)", "キャンセル(登録しない)", "残す(親での上書きとして残る)"))
+                "取り除く(子の CanvasData の設定を使う)", cancelLabel, "残す(親での上書きとして残る)"))
             {
                 case 0: return OverrideChoice.Remove;
                 case 2: return OverrideChoice.Keep;

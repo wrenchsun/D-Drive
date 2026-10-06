@@ -96,6 +96,36 @@ namespace DDrive.Tests.Editor
             Assert.AreSame(data, again);
         }
 
+        // レビュー [63] GE-R-09: 何も変えていない .mat の再実行は「変更なし」に数える(固有の値が同じなら引き継ぎに入れない)。
+        // 固有の値だけを変えた .mat の再実行は、Common に差分が無くても「更新」に数える(GE-R-03)。
+        [Test]
+        public void Migrate_Rerun_CountsUnchanged_UnlessSpecificValuesDiffer()
+        {
+            var lit = Shader.Find("Universal Render Pipeline/Lit");
+            Assume.That(lit != null && Shader.Find(UnityMaterialMigrator.LitShaderName) != null);
+            var material = new UnityEngine.Material(lit) { name = "MigrateRerun" };
+            material.SetFloat("_OcclusionStrength", 0.4f);
+            AssetDatabase.CreateAsset(material, LitMaterialPath);
+
+            var first = new MayaMaterialImporter.Report();
+            var data = UnityMaterialMigrator.Migrate(material, "Migrate", first, TestRoot);
+            Assert.IsNotNull(data);
+            Assert.AreEqual(1, first.Created);
+
+            var unchanged = new MayaMaterialImporter.Report();
+            Assert.AreSame(data, UnityMaterialMigrator.Migrate(material, "Migrate", unchanged, TestRoot));
+            Assert.AreEqual(1, unchanged.Unchanged, "変えていない .mat の再実行は「変更なし」");
+            Assert.AreEqual(0, unchanged.Updated);
+            Assert.IsFalse(unchanged.Lines.Exists(l => l.Contains("固有を引き継ぎ")), "値が同じなら引き継ぎの行も出ない");
+
+            material.SetFloat("_OcclusionStrength", 0.9f);
+            var updated = new MayaMaterialImporter.Report();
+            Assert.AreSame(data, UnityMaterialMigrator.Migrate(material, "Migrate", updated, TestRoot));
+            Assert.AreEqual(1, updated.Updated, "Common は同じでも固有の値が変わったら「更新」");
+            Assert.AreEqual(0, updated.Unchanged);
+            Assert.AreEqual(0.9f, System.Array.Find(data.Specific, p => p.Property == "_OcclusionStrength").Value.FloatValue, 0.001f);
+        }
+
         [Test]
         public void Migrate_UrpUnlit_CreatesDDriveUnlitData()
         {

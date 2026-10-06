@@ -252,6 +252,12 @@ namespace DDrive.Editor.Materials
                         continue;
                 }
 
+                // 値が同じなら書かない・引き継いだ名前にも入れない(変えていない .mat の再実行が「更新」に数えられないように。レビュー [63] GE-R-09)。
+                if (SameValue(specific[i].Value, value))
+                {
+                    continue;
+                }
+
                 if (!changed)
                 {
                     if (recordUndo)
@@ -273,6 +279,25 @@ namespace DDrive.Editor.Materials
             }
 
             return copied;
+        }
+
+        // ParamValue の等価(型と、その型の値だけを比べる。Float は完全一致 = Material から読んだ値をそのまま書くため)。
+        private static bool SameValue(in ParamValue a, in ParamValue b)
+        {
+            if (a.Type != b.Type)
+            {
+                return false;
+            }
+
+            switch (a.Type)
+            {
+                case ParamValueType.Float: return a.FloatValue == b.FloatValue;
+                case ParamValueType.Int: return a.IntValue == b.IntValue;
+                case ParamValueType.Color: return a.ColorValue == b.ColorValue;
+                case ParamValueType.Vector: return a.VectorValue == b.VectorValue;
+                case ParamValueType.Object: return a.ObjectValue == b.ObjectValue;
+                default: return false;
+            }
         }
 
         // 選択(Material アセット / Prefab・モデルの Renderer)から対象 Material を集める。重複なし。
