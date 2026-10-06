@@ -149,3 +149,107 @@
 | GH-R-05 | **対応済み**。docs/52 §24 に「先にシーンを変更済みにする」、24-3 の「自動保存」を削除、24-4（Shake を通過してから保存）を追加。コードのコメントの「自動保存」も直した |
 | GH-R-06 | **対応済み**。CHANGELOG の独立した行を消し、既存の Edit Mode プレビューの行に統合 |
 | GH-R-07 | **対応済み**。material-data（変更なしの説明）・canvas-editor（⚠ の引用・PlayPresentation の古い予定）・canvas-data（同）・cutscene-maya-export（保存時の挙動と警告の意味）。マニュアル再生成済み |
+
+---
+
+## 再レビュー（2026-10-06、729cd48）
+
+> **対象**: PR #135 の追加コミット `729cd48`（前回 `3e0d9e6` から。main のマージ分〔#133 の埋め込み Canvas の有効 / 無効・docs/65 等〕は `git diff origin/main...HEAD` と突き合わせて除外し、#133 のマニュアル追記〔canvas-editor / canvas-data〕だけ見た）。
+>
+> **方法**: 専用 worktree で `git diff 3e0d9e6..729cd48` と変更後のファイル全体を**読むだけ**。読んだもの: `SceneCameraShakePreviewDriver`（全体）・`CutsceneEditModePreviewProvider`（全体）・`CutsceneEditModeCameraWriter`（全体）・`CutsceneEditModeManagers`・`CameraFxManager`（揺れ用ノードの付け外し）・`CutsceneEditModeCameraSaveTests`（全体）・`SceneCameraShakePreviewDriver` の他の利用箇所（`CameraFxEditorWindow`・`ScenePresentationPreviewDriver`）・CHANGELOG・docs/26 §4.4・docs/52 §24・docs/63 の見出し・DesignerManual 4 ページの差分と UI / Validator の文字列。**Unity は起動しておらず、コンパイル・テストは実行していない**（実装側の「EditMode 1767/1767・PlayMode 964/964」は未確認）。
+
+### 総評（再レビュー）
+
+- **GH-R-02〜07 は解消**。GH-R-01 も**報告された筋書き（Shake を鳴らした後、Writer がカメラを書いている間に保存・後始末）は解消**し、テスト `RealSave_AfterShakeStarted_DoesNotStorePreviewPose` / `TearDown_AfterShakeStarted_RestoresOriginalPose` で固定された。`ownsCameraLifecycle: false` は `CutsceneEditModeManagers` だけが使い（`CameraFxEditorWindow`・`ScenePresentationPreviewDriver` は既定 true のまま = 単体の動作は不変）、Provider の保存・`ResetSessions`（シーン切替・プレハブステージ・`TearDown` = ドメインリロード前 / テスト）・Play Mode 突入のすべてで「Shake → Writer」の順になっている。減衰中の保存も、Shake の復元（ノード破棄 + 親へ戻す）→ Writer がワールドの元の姿勢を書く、で揺れのオフセットは残らない。
+- ただし **同じ根（Shake ドライバの控え = 鳴らした時点のカットシーンの姿勢を、自分の復元でローカル姿勢として書き戻す）が、Writer が控えを手放した後に残る**（GH-R-08、P2）。Shake ドライバは一度鳴らすと `ResetSessions` まで `_ticking` のままなので、「Shake マーカーを再生で通過 → Timeline ウィンドウを閉じる（またはカーソルを Camera クリップの外へ）→ 後で Ctrl+S / Play Mode 突入 / 再コンパイル」で、カットシーンの姿勢が保存される・カメラがその姿勢へ飛んで残る。前回の GH-R-01 の筋書きより起きやすい（閉じた後の保存のほうが普通）。CHANGELOG・docs/26 の「Shake マーカーを鳴らした後も同じ」はこの範囲では成り立たない。
+- **GH-R-04 の「以降読まない」をドメインリロードまで続けるのは妥当**。Timeline パッケージの版はドメインリロードを跨がないと変わらず、`inspectedDirector` / `masterDirector` の getter（`state?.…`）は一時的な状態で投げる形ではない。万一一時的な例外でも、無効になるのはカメラのプレビューだけ（書かない側）で、警告に原因（`InnerException`）が出て、再コンパイルで戻る。
+- **GH-R-03 の `saveAsCopy` テスト**: 作業中のシーンのパス・dirty の状態は変わらない（`saveAsCopy: true`）、一時ファイルは `finally` の `AssetDatabase.DeleteAsset` で `.meta` ごと消える（保存に失敗しても `DeleteAsset` は false を返すだけ）。バッチモードでも `SaveScene` は動く（**推定**。無題シーンのコピー保存はバッチでも可）。細部は GH-R-09。
+- **互換**: 追加の public はすべて `DDrive.Editor`（`ownsCameraLifecycle` 引数〔既定値付きの末尾追加〕・`RestoreCameraForSave`・`IsInspectedByOrWarn`・`ResetTimelineApiStateForTests`）。`Runtime/` と Compat スナップショットの差分は main 側（#133）の分だけで、本 PR の追加コミットには無い。
+- **マニュアル**: 機能だけ（経緯・以前との違いなし）。#133 の追記（「無効で始める」「表示 / 非表示(作業用)」「(このボタンが属する埋め込み)」・3 アクション・Warning 3 種のコード・「子を単独で開いているときは警告が 1 回」）は `CanvasEditorWindow.EmbedActive.cs`・`CanvasEditorWindow.ButtonWires.cs`・`CanvasEmbeddedValidator.cs`・`UiManager.WarnEmbedOnce` と一致。細部 1 点（GH-R-10）。
+
+| 重大度 | 件数 | 内容 |
+|---|---|---|
+| P1 | **0** | – |
+| P2 | **1** | GH-R-08 |
+| P3 | **3** | GH-R-09〜11 |
+
+### 解消した指摘
+
+| 指摘 | 確認 |
+|---|---|
+| GH-R-01 | **報告の筋書きは解消**（Writer が書いている間の保存・`TearDown`・Play Mode 突入・シーン / プレハブステージ切替で Shake → Writer の順。購読順に依存しない）。テスト 2 件で固定。Writer が控えを手放した後は GH-R-08 |
+| GH-R-02 | 解消。`CaptureIfNeeded` が控えと違うカメラなら先に `ResetCapture()`（破棄済みなら戻さない）。テスト `MainCameraChangedMidway_RestoresPreviousCamera`。docs/63 の見出しも更新 |
+| GH-R-03 | 解消。実保存（`saveAsCopy`）で `sceneSaving` / `sceneSaved` の購読を通る・別シーン・保存失敗からの復帰・`IsInspectedByOrWarn` で「false・警告 1 回・以降読まない」（`LogAssert.Expect` + 読み出し回数）。テスト名も内容どおり |
+| GH-R-04 | 解消。`_timelineApiBroken`・`InnerException ?? e` の型名とメッセージ・リセット条件のコメント |
+| GH-R-05 | 解消。24-1 に「先に変更済み（`*`）にする」、24-3 の「自動保存」削除（コードのコメントも）、24-4（Shake 通過後の保存）追加 |
+| GH-R-06 | 解消。独立行を消して既存の Edit Mode プレビューの行に統合 |
+| GH-R-07 | 解消。material-data（「Common に違いが無ければ変更なし」）・canvas-editor（⚠ を表示どおり引用、PlayPresentation の古い予定）・canvas-data（同）・cutscene-maya-export（保存時の挙動と警告の意味） |
+
+### P2 — 直すべき不具合
+
+#### GH-R-08. Shake を鳴らした後、Writer が控えを手放してから（Timeline ウィンドウを閉じる / Camera クリップの外へ出る）保存・後始末すると、Shake ドライバがカットシーンの姿勢を書き戻す
+
+- **場所**: `Editor/Camera/SceneCameraShakePreviewDriver.cs:106-120`（`CaptureOriginalCameraState`）・`169-187`（`RestoreCameraNow` が `localPosition / localRotation = 控え` を書く）、`Editor/Cutscene/CutsceneEditModePreviewProvider.cs:557`（`SuspendCameraForSave`）・`562`（`RestoreCameraAfterShake`）・`397-401`（閉じたら `ResetCapture`）、`Editor/Cutscene/CutsceneEditModeCameraWriter.cs:87-98`（区間外で `RestoreIfNeeded` が控えを捨てる）・`126-141`（控えが無ければ `SuspendForSave` は何もしない）
+- **細部**:
+  1. Camera クリップの区間内で Shake マーカーが鳴ると、Shake ドライバは**その時点の**カメラのローカル姿勢（= カットシーンの姿勢 P_c）を控え、`CameraFxManager` はカメラを揺れ用ノード（DontSave）の子にする。Shake ドライバは `ResetSessions` / `Dispose` まで `_ticking` のまま（揺れが終わっても控えは捨てない）。
+  2. Timeline ウィンドウを閉じる（または再生 / スクラブで Camera クリップの外へ出る）と、Writer は**ワールドの元の姿勢 P_o** を書いて控えを捨てる（カメラはノードの子のまま、見た目は P_o）。
+  3. その後の保存: Provider は Shake の `RestoreCameraForSave` → カメラを元の親へ戻して**ローカル = P_c** を書く → Writer の `SuspendForSave` は控えが無いので何もしない → **P_c が保存される**。`sceneSaved` でも Writer は何もしない（`ConsumeSuspendedForSave` が false）ので、保存の後もカメラは P_c に飛んだまま（次の Shake の Tick がノードを付け直しても P_c 基準）。
+  4. 後始末も同じ: Play Mode 突入（`ExitingEditMode`）・シーン切替前のプレハブステージの出入り・再コンパイル（`TearDown`）で `StopAndRestore` が P_c を書き、Writer の `ResetCapture` は何もしない → カメラは P_c で Play Mode に入る / 残る（dirty にはならない見込みなので、次に他の変更と一緒に保存したときに焼き込まれる）。
+  - 前回 GH-R-01 と根は同じ（Cutscene の文脈では Shake ドライバの控えは「元の姿勢」ではない）。今回の直し方は「Writer が控えを持っている間」だけ成り立つ。CHANGELOG（「Shake マーカーを鳴らした後も同じ」）・docs/26 §4.4・[52] 24-4 の期待はこの経路を含まない。テストも Writer が書いている状態だけ。
+- **直し方の案**（どれか 1 つ）:
+  1. **推奨**: `ownsCameraLifecycle: false` のとき、Shake ドライバの復元は**親子構造とノードだけ**を戻し、カメラのローカル姿勢は書かない（`CameraFxManager.DetachCurrentCamera` と同じく、ノードの揺れのオフセットを基準へ戻してから `SetParent(original, worldPositionStays: true)` + Sibling Index、ノード破棄）。姿勢の持ち主は Writer だけになり、Writer が控えを持っていれば元の姿勢へ、持っていなければ今見えている姿勢（= Writer が戻した P_o）のまま。単体のドライバ（既定 true）の動作は変えない。
+  2. Writer が控えを手放す箇所（Provider の `ResetCapture` 呼び出し・`Apply` の区間外）の前に必ず `ShakeDriver.StopAndRestore()` を呼び、その後 Writer が戻す。ただし `RestoreIfNeeded` は Writer の内部なので、Writer に「手放す前」のコールバックを足すか、Provider 側で区間外を判定する必要があり、1 より配線が増える。
+  - テスト: `Apply` → `ShakeDriver.Play` + `Tick` → `IsInspectedOverrideForTests = _ => false` で `ResetCapture()`（閉じた相当）→ (a) 実保存（`saveAsCopy`）で `{x: 1, y: 2, z: 3}`、(b) `TearDownForTests()` 後に `OriginalPos`。区間外（`holder.HasData = false` で `Apply`）でも同じ。[52] §24 に「24-4 のあと Timeline ウィンドウを閉じてから保存 → 元の姿勢」を 1 行。
+- **確度**: コード読みで確認（`RestoreCameraNow` が `SetParent(_originalParent, false)` の後にローカル姿勢を控えで上書きすること、`_ticking` が揺れの終了で下りないこと、Writer が控えを捨てた後の `SuspendForSave` が false を返すこと）。実機での再現は未確認。
+
+### P3 — 整理・改善
+
+#### GH-R-09. Shake の揺れの途中で Writer が控えを取ると、揺れのオフセットが「元の姿勢」に混ざる
+
+- **場所**: `Editor/Cutscene/CutsceneEditModeCameraWriter.cs:79-83`（`CaptureIfNeeded` が `cam.transform.position / rotation` = ワールドを控える）
+- **細部**: Camera クリップより前に置いた Shake マーカーが鳴り、揺れている最中に Camera クリップの区間へ入ると、Writer はノードのオフセット込みのワールド姿勢を「元の姿勢」として控える。保存・閉じる・後始末でその姿勢（元の位置から揺れの振幅ぶんずれた位置）へ戻り、保存されうる。ずれは揺れの振幅（通常は数 cm・数度）で、GH-R-08 よりずっと小さい。
+- **直し方の案**: GH-R-08 の案 1 と合わせ、Writer の控えを取る前に Shake ドライバのノードを基準へ戻す（Provider が `Apply` の前に「Shake が揺れ用ノードを持っていればそのオフセットを除いた姿勢」を渡す）か、`ownsCameraLifecycle: false` のドライバに「カメラの基準姿勢（ノードの基準 × カメラのローカル）」を返す読み取りを足して Writer が使う。優先度は低い。
+- **確度**: コード読みで確認（`AttachNode` はノードをカメラの姿勢に置き、`ApplyOffsetToNode` がノードに揺れを足す）。
+
+#### GH-R-10. 実保存テストの判定がシーン全体の文字列検索で、作業中のシーンの内容に左右されうる / 一時パスが `Assets/` 直下
+
+- **場所**: `Tests/Editor/CutsceneEditModeCameraSaveTests.cs:140-154, 165-166, 189-190`
+- **細部**: (1) `saveAsCopy` は**作業中のシーン全体**を書き出すので、`StringAssert.Contains("m_LocalPosition: {x: 1, y: 2, z: 3}")` は作業中のシーンに同じ位置のオブジェクトがあれば、カメラが正しく保存されなくても緑になりうる（逆に `{x: 10, y: 20, z: 30}` のオブジェクトがあれば赤）。確認用シーンを開いたまま MCP からテストを流す運用なので起こりうる。(2) 一時パス `Assets/__GeSaveTest.unity` は `Assets/` 直下に取り込まれ、他のポストプロセッサ（D-Drive の取り込み系を含む）を一瞬通る。`finally` で消えるので実害は小さい。
+- **直し方の案**: (1) 位置をテスト固有の値（例 `{x: 1.234, y: 5.678, z: 9.012}`）にするか、保存したテキストからカメラの GameObject 名（`CamSaveTestCamera`）を含む塊の `Transform` だけを見る。(2) `Assets/__DDriveTemp/` のように既存テストの一時置き場があればそれに合わせる（無ければ現状でよい）。
+- **確度**: コード読みで確認。
+
+#### GH-R-11. canvas-data の Warning の引用が実際の文言の末尾を省いている
+
+- **場所**: `docs/DesignerManual/canvas-data.html`（`Tools/SpecWeb/html/manual/designer/canvas-data.html` も）の検査の表、「FirstSelected '…' は、無効で始まる埋め込み EmbeddedCanvases[i] '…'(StartInactive)の配下です」
+- **細部**: 実際の文言（`CanvasEmbeddedValidator.cs:329`）は末尾に「(開いた直後は選択できません)」が付く。前回 GH-R-07 の 2 と同じ種類（省略するなら「…」を付ける）。他の 2 件は全文一致。
+- **直し方の案**: 末尾の括弧まで引用する。
+- **確度**: 文言を突き合わせて確認。
+
+### 確認して問題なしだった観点（再レビュー）
+
+| 観点 | 結果 |
+|---|---|
+| `ownsCameraLifecycle: false` の利用者 | `CutsceneEditModeManagers` のみ。`CameraFxEditorWindow`・`ScenePresentationPreviewDriver`・既存テストは既定 true ○ |
+| 購読しない Shake ドライバの後始末の漏れ | Provider が保存（`SuspendCameraForSave`）・`ResetSessions`（シーン切替・プレハブステージ 2 件・`TearDown`）・`ExitingEditMode` で呼ぶ。`Dispose` は `StopAndRestore` のあと `_subscribed` のときだけ解除（二重解除なし）○ |
+| アセンブリリロード | `OnBeforeAssemblyReload` → `TearDown` → `ResetSessions`（Shake → Writer）→ `_managers.Dispose()`（Shake は既に停止済みで `StopAndRestore` は no-op）○ |
+| 減衰中の保存 | `RestoreCameraNow` がノードを破棄して元の親へ戻し、その後 Writer がワールドの元の姿勢を書くので揺れのオフセットは保存されない ○（Writer が控えを持っている場合。持っていなければ GH-R-08） |
+| 保存後の再開 | `sceneSaved` で Writer が書き直し、次の Shake の Tick で `CameraFxManager` がノードを付け直す（`_shakeNode` は破棄済み = Unity の null）○ |
+| GH-R-02 の分岐 | 前のカメラが破棄済みなら `ResetCapture` は戻さず控えだけ捨てる ○ |
+| `saveAsCopy` と作業中のシーン | パス・dirty は変わらない。一時ファイルは `finally` で `DeleteAsset`（`.meta` ごと）○（判定の細部は GH-R-10） |
+| GH-R-04 の持続 | ドメインリロードまで。版の変更はリロードを伴い、書かない側に倒れるだけ ○ |
+| テストの後始末 | `TearDown` で `IsInspectedOverrideForTests` / Timeline API の印 / Writer / Provider を戻し、無効にした既存の MainCamera を戻す ○ |
+| 互換 | 本 PR の追加コミットの public 追加は `DDrive.Editor` のみ。コンストラクタ引数は既定値付きの末尾追加 ○ |
+| マニュアル | 機能だけ。cutscene-maya-export の保存・警告の説明、canvas の埋め込みの有効 / 無効は UI / コードと一致 ○（GH-R-11 のみ） |
+
+### 結論: マージしてよいか（再レビュー）
+
+**マージしてよい（条件付き）**。前回の 7 件はすべて解消し、退行は無い。ただし **GH-R-08（P2）は v1.4.0 のタグ前に直す**こと。直す場所は `SceneCameraShakePreviewDriver` の復元（`ownsCameraLifecycle: false` のときローカル姿勢を書かない）でほぼ閉じ、テスト 1〜2 件で足りるので、**この PR に足してからマージするのが望ましい**。別 PR にする場合は、CHANGELOG と docs/26 §4.4 の「Shake マーカーを鳴らした後も同じ」に「Timeline ウィンドウを開いている間」の限定を付けるか、修正まで [52] 24-4 の確認を保留する。
+
+- マージ後・v1.4.x でよいもの: GH-R-09・10・11。
+
+### 見られなかった範囲（再レビュー）
+
+- Unity 上での実行（コンパイル・テスト・Timeline ウィンドウでの保存・Shake 後に閉じてからの保存）。「EditMode 1767/1767・PlayMode 964/964」は**未確認**。
+- `saveAsCopy` で `sceneSaving` / `sceneSaved` が呼ばれること（実装側の「旧い配線へ戻すと赤」を根拠に信頼）、バッチモードでの動作（**推定**）。
+- SpecWeb の生成物は DesignerManual との差分の対応だけ。
+- メインの checkout と、そこで開いている Unity には触れていない。

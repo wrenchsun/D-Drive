@@ -382,6 +382,64 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(Has(slider, "DD-CANVAS-SLIDER-EMBED-ACTION", ValidationSeverity.Warning));
         }
 
+        // レビュー [63] GE-R-05: 「親での上書き」の行からの追加は、子が使っているトリガーも避ける。Action = None の上書きには注意を出す。
+        [Test]
+        public void ButtonWires_AddOnOverrideRow_AvoidsChildTriggers_AndNoneOverrideIsFlagged()
+        {
+            var (parent, child) = WiredParentAndChild(); // 子の BtnX: Click + LongPress
+            var lookup = CanvasEmbeddedEditing.CanvasLookup.From(new[] { parent, child });
+
+            Assert.AreEqual(WireTrigger.Click, CanvasButtonWireEditing.FirstFreeTrigger(parent, "OptionRoot/BtnX"), "lookup 無しは親の配線だけを見る(従来)");
+            Assert.AreEqual(WireTrigger.DoubleClick, CanvasButtonWireEditing.FirstFreeTrigger(parent, "OptionRoot/BtnX", lookup), "子の Click / LongPress を避ける");
+
+            var added = CanvasButtonWireEditing.AddWire(parent, "OptionRoot/BtnX", lookup);
+            Assert.AreEqual(0, added);
+            Assert.AreEqual(WireTrigger.DoubleClick, parent.Buttons[0].Trigger);
+            Assert.AreEqual(1, CanvasButtonWireEditing.AddWire(parent, "OptionRoot/BtnX", lookup));
+            Assert.AreEqual(WireTrigger.Repeat, parent.Buttons[1].Trigger);
+            Assert.AreEqual(-1, CanvasButtonWireEditing.AddWire(parent, "OptionRoot/BtnX", lookup), "4 つとも使われていたら足さない");
+            Assert.AreEqual(2, parent.Buttons.Length);
+
+            // 親の上書きが Action = None で、子の同じトリガーの配線を止めている
+            parent.Buttons = new[] { Wire("OptionRoot/BtnX", WireTrigger.Click, UiAction.None), Wire("OptionRoot/BtnX", WireTrigger.DoubleClick, UiAction.None), Wire("ParentBtn", WireTrigger.Click, UiAction.None) };
+            StringAssert.Contains("止めています", CanvasButtonWireEditing.DescribeProblem(parent, 0, lookup));
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 1, lookup), "子に無いトリガーの None は止めていない");
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 2, lookup), "親自身のボタンの None は従来どおり問題にしない");
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 0), "lookup 無しでは判定できないので出さない");
+        }
+
+        // レビュー [63] GE-R-06: 行の ⚠ と検査の食い違いを減らす(LongPressSec・CooldownSec・上書き行の存在しないパス・UiButton 無し)。
+        [Test]
+        public void ButtonWires_DescribeProblem_ButtonSettings_AndOverrideRowMissingPath_AndValidatorNoUiButton()
+        {
+            var (parent, child) = WiredParentAndChild();
+            var button = parent.Prefab.transform.Find("ParentBtn").GetComponent<UiButton>();
+            parent.Buttons = new[]
+            {
+                Wire("ParentBtn", WireTrigger.LongPress, UiAction.CloseSelf),
+                Wire("ParentBtn", WireTrigger.Click, UiAction.OpenCanvas),
+                Wire("OptionRoot/Ghost", WireTrigger.Click, UiAction.CloseSelf),
+            };
+            parent.Buttons[1].Target = new AssetRef { Type = AssetType.Canvas, Id = child.Id };
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 0), "LongPressSec 0.5(既定)なら問題なし");
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 1), "CooldownSec 0.15(既定)なら問題なし");
+
+            button.LongPressSec = 0f;
+            button.CooldownSec = 0f;
+            StringAssert.Contains("LongPressSec", CanvasButtonWireEditing.DescribeProblem(parent, 0));
+            StringAssert.Contains("CooldownSec", CanvasButtonWireEditing.DescribeProblem(parent, 1));
+
+            var groups = CanvasButtonWireEditing.BuildGroups(parent, CanvasEmbeddedEditing.CanvasLookup.From(new[] { parent, child }));
+            Assert.AreEqual(1, groups.Embeds[0].OverrideRows.Count);
+            Assert.IsFalse(groups.Embeds[0].OverrideRows[0].InPrefab, "上書きの行でも、存在しないパスには注意の印を付ける");
+
+            // 検査: 要素はあるが UiButton が付いていない(Warning。既存の Error の重さは変えない)
+            parent.Buttons = new[] { Wire("OptionRoot", WireTrigger.Click, UiAction.CloseSelf) };
+            var results = new List<ValidationResult>(new CanvasDataValidator().Validate(parent, new ValidationContext(new List<AssetDataBase> { parent })));
+            Assert.IsTrue(Has(results, "DD-CANVAS-WIRE-NO-UIBUTTON", ValidationSeverity.Warning));
+            Assert.IsFalse(results.Exists(r => r.Severity == ValidationSeverity.Error && r.Message.Contains("ButtonPath")), "要素はあるので「見つかりません」の Error は出ない");
+        }
+
         // レビュー [65] GG-R-07: 配線の対象は、直下の登録に加えて子の登録を連結した入れ子の入れ子も選べる(検査も誤って警告しない)。
         [Test]
         public void EmbeddedActions_NestedPaths_AreSelectable_AndNotWarned()

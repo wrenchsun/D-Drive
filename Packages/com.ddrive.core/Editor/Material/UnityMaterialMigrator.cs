@@ -137,11 +137,15 @@ namespace DDrive.Editor.Materials
                     }
                 }
 
+                var unchangedBefore = report.Unchanged;
                 var data = MayaMaterialImporter.ImportMaterial(source, category, SourceKey, profile, report, gameDataRoot);
                 if (data == null)
                 {
                     return null;
                 }
+
+                var countedUnchanged = report.Unchanged > unchangedBefore; // Common に差分が無く「変更なし」に数えられた
+                var shaderChanged = false;
 
                 // 知らないシェーダーを保つとき、既に有効なシェーダーが入っている既存 Data は上書きしない(FC-15)。
                 // 既存 Data のシェーダーが知らないシェーダーで、呼び出しが「既存は上書きしない」Convert(Ask の非対話既定)なら寄せない(FC-R-01)。
@@ -152,12 +156,20 @@ namespace DDrive.Editor.Materials
                     data.Shader = target;
                     data.Specific = MaterialSpecificResolver.Merge(data.Specific, target);
                     EditorUtility.SetDirty(data);
+                    shaderChanged = true;
                 }
 
                 var copied = CopySpecificValues(source, data);
                 if (copied.Count > 0)
                 {
                     report.Log($"固有を引き継ぎ: {data.name} ← {string.Join(", ", copied)}");
+                }
+
+                // Common は同じでも、シェーダーの寄せ・固有の引き継ぎで既存 Data を書き換えたなら「更新」に数え直す(レビュー [63] GE-R-03)。
+                if (countedUnchanged && (shaderChanged || copied.Count > 0))
+                {
+                    report.Unchanged--;
+                    report.Updated++;
                 }
 
                 AssetDatabase.SaveAssetIfDirty(data);

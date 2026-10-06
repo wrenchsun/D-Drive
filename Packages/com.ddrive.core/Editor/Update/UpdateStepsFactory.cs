@@ -37,6 +37,12 @@ namespace DDrive.Editor.Update
                 }
 
                 var context = DDriveMigrationRunner.Apply(plan, DDriveProjectSettings.instance);
+                // [64_review_m6] GF-R-03 — 一部の対象を処理できなかったときは「適用しました」と出さない(以降の段も実行しない)。
+                if (context.WarningCount > 0)
+                {
+                    return new UpdateActions.StepOutcome(name, false, $"一部の対象を処理できませんでした({context.WarningCount} 件の警告)。原因を解消してからもう一度「更新を適用」を実行してください。\n" + string.Join("\n", context.Log));
+                }
+
                 return new UpdateActions.StepOutcome(name, true, $"{plan.TotalCount} 件を適用しました。\n" + string.Join("\n", context.Log));
             }
             catch (Exception e)
