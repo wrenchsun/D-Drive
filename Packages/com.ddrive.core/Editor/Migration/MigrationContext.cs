@@ -13,11 +13,24 @@ namespace DDrive.Editor.Migration
 
         public IReadOnlyList<string> Log => _log;
 
+        // 一部の対象を処理できなかったときの警告数([64_review_m6] GF-R-03)。Log にも「警告: …」として残る。
+        // 1 件でもあれば、Runner はそのプロジェクトマイグレーションを適用済みとして記録しない(もう一度実行できるように)。
+        public int WarningCount { get; private set; }
+
         private readonly List<string> _log = new();
 
         public MigrationContext(bool dryRun)
         {
             DryRun = dryRun;
+        }
+
+        public void Warn(string message)
+        {
+            if (!string.IsNullOrEmpty(message))
+            {
+                WarningCount++;
+                _log.Add("警告: " + message);
+            }
         }
 
         public void Note(string message)

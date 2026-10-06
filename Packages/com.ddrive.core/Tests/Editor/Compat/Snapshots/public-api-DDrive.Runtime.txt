@@ -1359,9 +1359,6 @@ TYPE class static DDrive.Runtime.Net.NetCheckCutsceneJudge
   field const DefaultKindsPerTime : int
   field const GraceSec : double
   field const Tag : string
-  field static readonly ExpectedClipTypes : string[]
-  field static readonly ExpectedMarkerTypes : string[]
-  field static readonly ExpectedTrackTypes : string[]
   method static DefaultMarkers() : DDrive.Runtime.Net.NetCheckCutsceneMarkerSpec[]
   method static EvaluateLog(System.Collections.Generic.IEnumerable<string> lines) : DDrive.Runtime.Net.NetCheckCutsceneSummary
   method static ExpectedCount(double t, bool isSender, double s, out int min, out int max) : void
@@ -1369,6 +1366,9 @@ TYPE class static DDrive.Runtime.Net.NetCheckCutsceneJudge
   method static FormatSummaryLine(DDrive.Runtime.Net.NetCheckCutsceneSummary s) : string
   method static TryParseEngineReceiveLine(string line, out double s, out int silent, out string netKey) : bool
   method static TryParseLine(string line, out string kind, System.Collections.Generic.Dictionary<string, string> kv) : bool
+  property static ExpectedClipTypes : System.Collections.Generic.IReadOnlyList<string> {get}
+  property static ExpectedMarkerTypes : System.Collections.Generic.IReadOnlyList<string> {get}
+  property static ExpectedTrackTypes : System.Collections.Generic.IReadOnlyList<string> {get}
 TYPE struct DDrive.Runtime.Net.NetCheckCutsceneMarkerSpec
   ctor NetCheckCutsceneMarkerSpec(string key, double time)
   field Key : string

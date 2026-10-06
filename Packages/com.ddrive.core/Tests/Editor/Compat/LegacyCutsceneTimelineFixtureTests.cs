@@ -28,7 +28,7 @@ namespace DDrive.Tests.Editor.Compat
             _tempDir = "Assets/__M6LegacyFixture_" + Guid.NewGuid().ToString("N").Substring(0, 8);
             Directory.CreateDirectory(_tempDir);
             _tempAsset = _tempDir + "/Legacy.playable";
-            File.Copy(FixturePath, _tempAsset);
+            File.Copy(Path.GetFullPath(FixturePath), _tempAsset); // 絶対パス(持ち込み先の PackageCache でも届く。GF-R-07)
             AssetDatabase.ImportAsset(_tempAsset, ImportAssetOptions.ForceUpdate);
         }
 

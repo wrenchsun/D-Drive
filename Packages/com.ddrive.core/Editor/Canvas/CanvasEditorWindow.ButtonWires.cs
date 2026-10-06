@@ -20,6 +20,7 @@ namespace DDrive.Editor.CanvasTool
         private VisualElement _buttonWireContainer;
         private readonly Dictionary<string, bool> _wireGroupExpanded = new();
         private readonly Dictionary<ulong, SeData> _seLookup = new();
+        private bool _seLookupRebuiltThisPass;
 
         private static readonly List<UiAction> ButtonActionChoices = BuildButtonActionChoices();
 
@@ -56,6 +57,7 @@ namespace DDrive.Editor.CanvasTool
             }
 
             _buttonWireContainer.Clear();
+            _seLookupRebuiltThisPass = false; // 見つからない Id があっても、全 SeData の走査は 1 回の再構築につき 1 回まで(GE-R-07)
             if (_target == null)
             {
                 return;
@@ -176,12 +178,13 @@ namespace DDrive.Editor.CanvasTool
             });
             header.Add(new Button(() =>
             {
-                CanvasButtonWireEditing.AddWire(owner, path);
-                AfterButtonWireEdit(owner, "配線を追加しました");
+                // 埋め込みの配下では子が使っているトリガーも避ける(親の配線は Action に関係なく子の同じトリガーを止めるため。GE-R-05)。
+                var added = CanvasButtonWireEditing.AddWire(owner, path, Lookup);
+                AfterButtonWireEdit(owner, added >= 0 ? "配線を追加しました" : $"'{path}' にはこれ以上足せるトリガーがありません(Click / DoubleClick / LongPress / Repeat が全部使われています。埋め込みの配下では子の配線の分も含みます)");
             })
             {
                 text = "+ 配線を追加",
-                tooltip = "このボタンに配線を 1 本足す(トリガーはまだ使っていないもの。Ctrl+Z で戻せる)",
+                tooltip = "このボタンに配線を 1 本足す(トリガーはまだ使っていないもの。埋め込みの配下では、子の CanvasData が使っているトリガーも避ける。Ctrl+Z で戻せる)",
             });
             box.Add(header);
 
@@ -207,13 +210,14 @@ namespace DDrive.Editor.CanvasTool
         private VisualElement BuildWireRow(CanvasData owner, int index)
         {
             var wire = GetWire(owner, index);
+            var expected = wire; // この行を作ったときの値。書く前に同じ配線か確かめる(GE-R-08)
             var container = new VisualElement { style = { marginLeft = 4, marginTop = 2 } };
             var line = new VisualElement { style = { flexDirection = FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center } };
 
             var trigger = new EnumField(wire.Trigger) { style = { width = 110 }, tooltip = "どの操作で動くか(Click / DoubleClick / LongPress / Repeat)" };
             trigger.RegisterValueChangedCallback(evt =>
             {
-                UpdateWire(owner, index, w => { w.Trigger = (WireTrigger)evt.newValue; return w; });
+                UpdateWire(owner, index, expected, w => { w.Trigger = (WireTrigger)evt.newValue; return w; });
                 AfterButtonWireEdit(owner, null);
             });
             line.Add(trigger);
@@ -229,7 +233,7 @@ namespace DDrive.Editor.CanvasTool
             var action = new PopupField<UiAction>(choices, wire.Action) { style = { width = 150 }, tooltip = "押したときの動作" };
             action.RegisterValueChangedCallback(evt =>
             {
-                UpdateWire(owner, index, w => { w.Action = evt.newValue; return w; });
+                UpdateWire(owner, index, expected, w => { w.Action = evt.newValue; return w; });
                 AfterButtonWireEdit(owner, null); // アクションで出す欄が変わるので作り直す
             });
             line.Add(action);
@@ -241,12 +245,24 @@ namespace DDrive.Editor.CanvasTool
                 target.RegisterValueChangedCallback(evt =>
                 {
                     var picked = evt.newValue as CanvasData;
-                    UpdateWire(owner, index, w =>
+                    if (picked != null && picked.Id == 0)
                     {
-                        w.Target = picked != null && picked.Id != 0 ? new AssetRef { Type = AssetType.Canvas, Id = picked.Id } : default;
+                        // Id の無い CanvasData は書かず、欄を前の値へ戻す(それまでの対象を消さない。GE-R-07)。
+                        target.SetValueWithoutNotify(evt.previousValue);
+                        if (owner == _target && _statusLabel != null)
+                        {
+                            _statusLabel.text = "その CanvasData には Id がありません(対象は変えていません)";
+                        }
+
+                        return;
+                    }
+
+                    UpdateWire(owner, index, expected, w =>
+                    {
+                        w.Target = picked != null ? new AssetRef { Type = AssetType.Canvas, Id = picked.Id } : default;
                         return w;
                     });
-                    AfterButtonWireEdit(owner, picked != null && picked.Id == 0 ? "その CanvasData には Id がありません" : null);
+                    AfterButtonWireEdit(owner, null);
                 });
                 line.Add(target);
                 if (wire.Target.IsAssigned && current == null)
@@ -260,7 +276,7 @@ namespace DDrive.Editor.CanvasTool
                 var key = new TextField { value = wire.SignalKey ?? string.Empty, isDelayed = true, style = { width = 200 }, tooltip = "シグナルのキー(Ui.OnSignal(key, …) で受け取る)。Enter か欄外クリックで確定" };
                 key.RegisterValueChangedCallback(evt =>
                 {
-                    UpdateWire(owner, index, w => { w.SignalKey = evt.newValue; return w; });
+                    UpdateWire(owner, index, expected, w => { w.SignalKey = evt.newValue; return w; });
                     AfterButtonWireEdit(owner, null);
                 });
                 line.Add(key);
@@ -287,18 +303,19 @@ namespace DDrive.Editor.CanvasTool
                 var embedPath = new PopupField<string>(paths, currentPath) { style = { width = 200 }, tooltip = "有効 / 無効を切り替える埋め込み Canvas(この CanvasData の「埋め込み Canvas」に登録した RootPath)。先頭は、埋め込みの子の配線で「自分を隠す」ときに使う" };
                 embedPath.RegisterValueChangedCallback(evt =>
                 {
-                    UpdateWire(owner, index, w => { w.EmbeddedRootPath = evt.newValue == SelfLabel ? string.Empty : evt.newValue; return w; });
+                    UpdateWire(owner, index, expected, w => { w.EmbeddedRootPath = evt.newValue == SelfLabel ? string.Empty : evt.newValue; return w; });
                     AfterButtonWireEdit(owner, null);
                 });
                 line.Add(embedPath);
             }
 
             line.Add(new Label("SE") { style = { marginLeft = 6, marginRight = 2, opacity = 0.8f } });
-            var se = new ObjectField { objectType = typeof(SeData), allowSceneObjects = false, value = FindSeData(wire.ClickSe.Value), style = { width = 150 }, tooltip = "押したときに鳴らす SE(任意)" };
+            var currentSe = FindSeData(wire.ClickSe.Value);
+            var se = new ObjectField { objectType = typeof(SeData), allowSceneObjects = false, value = currentSe, style = { width = 150 }, tooltip = "押したときに鳴らす SE(任意)" };
             se.RegisterValueChangedCallback(evt =>
             {
                 var picked = evt.newValue as SeData;
-                UpdateWire(owner, index, w =>
+                UpdateWire(owner, index, expected, w =>
                 {
                     w.ClickSe = picked != null && picked.Id != 0 ? new AssetId<SeMarker>(picked.Id, AssetType.Se) : default;
                     return w;
@@ -306,6 +323,10 @@ namespace DDrive.Editor.CanvasTool
                 AfterButtonWireEdit(owner, null);
             });
             line.Add(se);
+            if (wire.ClickSe.IsValid && currentSe == null)
+            {
+                line.Add(new Label($"(Id 0x{wire.ClickSe.Value:X} の SeData が見つかりません。実行時は Placeholder)") { style = { opacity = 0.7f } });
+            }
 
             line.Add(new Button(() =>
             {
@@ -332,10 +353,27 @@ namespace DDrive.Editor.CanvasTool
             => owner != null && owner.Buttons != null && index >= 0 && index < owner.Buttons.Length ? owner.Buttons[index] : default;
 
         // 範囲外なら何もしない(Undo で行が減った後に、古い行の UI から呼ばれても例外にしない)。
-        private static void UpdateWire(CanvasData owner, int index, Func<ButtonWire, ButtonWire> mutate)
+        // 同じ添字が別の配線になっていたら(Inspector で Buttons を並べ替え・削除した後。GE-R-08)書かずに欄を作り直す。
+        private void UpdateWire(CanvasData owner, int index, in ButtonWire expected, Func<ButtonWire, ButtonWire> mutate)
         {
             if (owner == null || owner.Buttons == null || index < 0 || index >= owner.Buttons.Length)
             {
+                return;
+            }
+
+            var current = owner.Buttons[index];
+            if (current.Trigger != expected.Trigger
+                || !string.Equals(current.ButtonPath ?? string.Empty, expected.ButtonPath ?? string.Empty, StringComparison.Ordinal))
+            {
+                if (owner == _target)
+                {
+                    RebuildButtonWires();
+                    if (_statusLabel != null)
+                    {
+                        _statusLabel.text = "配線の並びが変わっていたため、欄を作り直しました(もう一度操作してください)";
+                    }
+                }
+
                 return;
             }
 
@@ -372,6 +410,12 @@ namespace DDrive.Editor.CanvasTool
                 return cached;
             }
 
+            if (_seLookupRebuiltThisPass)
+            {
+                return null;
+            }
+
+            _seLookupRebuiltThisPass = true;
             _seLookup.Clear();
             foreach (var guid in AssetSearch.FindAssets("t:" + nameof(SeData)))
             {
