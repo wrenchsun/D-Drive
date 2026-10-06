@@ -290,7 +290,8 @@ namespace DDrive.Editor.CanvasTool
             rootVisualElement.Add(_root);
 
             var toolbar = new Toolbar();
-            _targetField = new ObjectField("対象") { objectType = typeof(CanvasData), allowSceneObjects = false, style = { flexGrow = 1 } };
+            // 幅を縮めたとき(500px 前後)に右端のボタンが欄に重ならないよう、欄の側を縮める(2026-10-06、16-40 の気づき)。
+            _targetField = new ObjectField("対象") { objectType = typeof(CanvasData), allowSceneObjects = false, style = { flexGrow = 1, flexShrink = 1, flexBasis = 0, minWidth = 120, overflow = Overflow.Hidden } };
             _targetField.RegisterValueChangedCallback(evt =>
             {
                 if (evt.newValue is CanvasData data)

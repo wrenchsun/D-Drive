@@ -372,6 +372,9 @@ Tools/
     │   └─ Tuning（調整値）              ← 2026-09-27 実装(M-2a。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
     ├─ Validation/
     │   ├─ Run All
+    │   ├─ 全体の指摘を修正              ← 2026-10-06 追加(`ProjectWideValidationFixes`。Run All の「プロジェクト全体の指摘」のうち修正ボタン(`FixAction`)付きのものを、確認ダイアログの後にまとめて実行する。Undo には載らない)
+    │   ├─ 禁止 API の検査               ← 禁止 API の当たり・許可済み・無効な許可の一覧ウィンドウ([42] §5.9)
+    │   ├─ Forbidden API 許可一覧         ← 許可の内容を Console に出す
     │   └─ Report Window
     ├─ Generate/
     │   ├─ Regenerate Asset IDs
