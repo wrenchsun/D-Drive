@@ -1086,6 +1086,11 @@ namespace DDrive.Editor.CanvasTool
                         pathField.SetValueWithoutNotify(evt.previousValue);
                         _statusLabel.text = "RootPath の変更をキャンセルしました(何も変更していません)";
                     }
+                    else
+                    {
+                        // 正規化したら同じ値(例: 'OptionRoot/' → 'OptionRoot'): データは変えないが、欄の表示は正規化後に揃える(レビュー [63] GE-R-04)。
+                        pathField.SetValueWithoutNotify(newPath);
+                    }
 
                     return;
                 }
@@ -2066,7 +2071,7 @@ namespace DDrive.Editor.CanvasTool
                 var nested = _idleFlow != null ? _idleFlow.NestedInstanceCount : 0;
                 if (count > 0 && nested > 0)
                 {
-                    text += $"\n⚠ うち {nested} 件は入れ子 Prefab(埋め込みの子など)の要素です。流している間は Hierarchy で太字(上書きあり)に見えます。Overrides の「Apply」は、このトグルをオフにしてから行ってください(流したまま Apply すると、途中の値が子の Prefab に書かれます)";
+                    text += $"\n⚠ うち {nested} 件は入れ子 Prefab(埋め込みの子など)、または Prefab Variant の base に属する要素です。流している間は Hierarchy で太字(上書きあり)に見えます。Overrides の「Apply」は、このトグルをオフにしてから行ってください(流したまま Apply すると、途中の値が子の Prefab に書かれます)";
                 }
             }
 

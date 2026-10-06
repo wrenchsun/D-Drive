@@ -118,7 +118,8 @@ namespace DDrive.Editor.CanvasTool
                     var row = FindRow(rows, path);
                     if (row == null)
                     {
-                        row = new ButtonRow { ButtonPath = path, InPrefab = embed != null || ExistsInPrefab(canvas, path) };
+                        // 親での上書きの行も、Prefab(入れ子のインスタンスの中)に UiButton があるかを見る(レビュー [63] GE-R-06)。
+                        row = new ButtonRow { ButtonPath = path, InPrefab = ExistsInPrefab(canvas, path) };
                         rows.Add(row);
                     }
 
@@ -176,23 +177,66 @@ namespace DDrive.Editor.CanvasTool
         }
 
         // そのボタンでまだ使っていないトリガー(Click → DoubleClick → LongPress → Repeat の順)。全部使用済みなら Click。
-        public static WireTrigger FirstFreeTrigger(CanvasData canvas, string buttonPath)
+        // lookup があれば、埋め込みの配下のボタンでは子の CanvasData が使っているトリガーも避ける(親の配線は Action に関係なく
+        // 子の同じトリガーの配線を止めるため。レビュー [63] GE-R-05)。
+        public static WireTrigger FirstFreeTrigger(CanvasData canvas, string buttonPath, CanvasEmbeddedEditing.CanvasLookup lookup = null)
+            => TryFirstFreeTrigger(canvas, buttonPath, lookup, out var trigger) ? trigger : WireTrigger.Click;
+
+        // FirstFreeTrigger の「全部使用済み」を区別する形。
+        public static bool TryFirstFreeTrigger(CanvasData canvas, string buttonPath, CanvasEmbeddedEditing.CanvasLookup lookup, out WireTrigger trigger)
         {
             var wires = canvas != null ? canvas.Buttons : null;
+            var path = buttonPath ?? string.Empty;
+            var child = FindChildForButton(canvas, path, lookup, out var childPath);
             var triggers = (WireTrigger[])System.Enum.GetValues(typeof(WireTrigger));
             for (var i = 0; i < triggers.Length; i++)
             {
-                if (!HasWire(wires, buttonPath ?? string.Empty, triggers[i]))
+                if (!HasWire(wires, path, triggers[i]) && (child == null || !HasWire(child.Buttons, childPath, triggers[i])))
                 {
-                    return triggers[i];
+                    trigger = triggers[i];
+                    return true;
                 }
             }
 
-            return WireTrigger.Click;
+            trigger = WireTrigger.Click;
+            return false;
         }
 
-        // 配線を 1 本足す(Undo 可)。トリガーはそのボタンでまだ使っていないもの、アクションは None。戻り値 = 足した行の添字(失敗は -1)。
-        public static int AddWire(CanvasData canvas, string buttonPath)
+        // 親のルート基準のパス path が属する埋め込み(最も内側の登録)の子 CanvasData と、子のルート基準のパス。属さなければ null。
+        public static CanvasData FindChildForButton(CanvasData canvas, string path, CanvasEmbeddedEditing.CanvasLookup lookup, out string childPath)
+        {
+            childPath = null;
+            var embeds = canvas != null ? canvas.EmbeddedCanvases : null;
+            if (embeds == null || lookup == null)
+            {
+                return null;
+            }
+
+            CanvasData best = null;
+            var bestLength = -1;
+            for (var i = 0; i < embeds.Length; i++)
+            {
+                if (string.IsNullOrEmpty(embeds[i].RootPath) || embeds[i].RootPath.Length <= bestLength
+                    || !EmbeddedPaths.TryToChildPath(embeds[i].RootPath, path ?? string.Empty, out var rest))
+                {
+                    continue;
+                }
+
+                var child = lookup.Find(embeds[i].Canvas);
+                if (child != null && child != canvas)
+                {
+                    best = child;
+                    bestLength = embeds[i].RootPath.Length;
+                    childPath = rest;
+                }
+            }
+
+            return best;
+        }
+
+        // 配線を 1 本足す(Undo 可)。トリガーはそのボタンでまだ使っていないもの(埋め込みの配下では子の分も避ける)、アクションは None。
+        // 戻り値 = 足した行の添字。失敗(null)や、使えるトリガーが残っていないときは -1(足さない)。
+        public static int AddWire(CanvasData canvas, string buttonPath, CanvasEmbeddedEditing.CanvasLookup lookup = null)
         {
             if (canvas == null)
             {
@@ -200,7 +244,11 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var path = buttonPath ?? string.Empty;
-            var trigger = FirstFreeTrigger(canvas, path);
+            if (!TryFirstFreeTrigger(canvas, path, lookup, out var trigger))
+            {
+                return -1;
+            }
+
             Undo.RecordObject(canvas, "Canvas: ボタンの配線を追加");
             var old = canvas.Buttons ?? System.Array.Empty<ButtonWire>();
             var next = new ButtonWire[old.Length + 1];
@@ -333,7 +381,44 @@ namespace DDrive.Editor.CanvasTool
                 }
             }
 
+            // 親での上書きが Action = None: 子の同じトリガーの配線を黙って止めている(レビュー [63] GE-R-05)。
+            if (wire.Action == UiAction.None)
+            {
+                var child = FindChildForButton(canvas, path, lookup, out var childPath);
+                if (child != null && HasWire(child.Buttons, childPath, wire.Trigger))
+                {
+                    return $"親での上書きが Action = None です(子 '{child.name}' の {wire.Trigger} の配線を止めています。子の配線を使うならこの行を削除してください)";
+                }
+            }
+
+            // 対象の UiButton の設定とのずれ(検査〔CanvasDataValidator〕と同じ観点。レビュー [63] GE-R-06)。
+            var button = FindUiButton(canvas, path);
+            if (button != null)
+            {
+                if (wire.Trigger == WireTrigger.LongPress && button.LongPressSec <= 0f)
+                {
+                    return "対象の UiButton の LongPressSec が 0 以下です(LongPress は起きません)";
+                }
+
+                if (wire.Action == UiAction.OpenCanvas && button.CooldownSec <= 0f)
+                {
+                    return "対象の UiButton の CooldownSec が 0 です(連打で多重に開くおそれがあります)";
+                }
+            }
+
             return null;
+        }
+
+        // Prefab の中(入れ子の Prefab インスタンスの中も含む)の、パスの UiButton。無ければ null。
+        private static UiButton FindUiButton(CanvasData canvas, string path)
+        {
+            if (canvas == null || canvas.Prefab == null)
+            {
+                return null;
+            }
+
+            var t = string.IsNullOrEmpty(path) ? canvas.Prefab.transform : canvas.Prefab.transform.Find(path);
+            return t != null ? t.GetComponent<UiButton>() : null;
         }
         private static EmbedWireGroup FindEmbed(WireGroups groups, string path, out string childPath)
         {
@@ -389,15 +474,6 @@ namespace DDrive.Editor.CanvasTool
             return false;
         }
 
-        private static bool ExistsInPrefab(CanvasData canvas, string path)
-        {
-            if (canvas.Prefab == null)
-            {
-                return false;
-            }
-
-            var t = string.IsNullOrEmpty(path) ? canvas.Prefab.transform : canvas.Prefab.transform.Find(path);
-            return t != null && t.GetComponent<UiButton>() != null;
-        }
+        private static bool ExistsInPrefab(CanvasData canvas, string path) => FindUiButton(canvas, path) != null;
     }
 }
