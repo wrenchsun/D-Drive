@@ -2719,6 +2719,7 @@ namespace DDrive.Editor.CanvasTool
             var validationContext = new ValidationContext(new List<AssetDataBase> { _target });
             var results = new List<ValidationResult>(new CanvasDataValidator().Validate(_target, validationContext));
             results.AddRange(new CanvasEmbeddedValidator().Validate(_target, validationContext));
+            results.AddRange(new CanvasEmbeddedActiveValidator().Validate(_target, validationContext)); // 埋め込みの有効 / 無効の検査(16-45 で抜けが見つかった。2026-10-06)
             foreach (var result in results)
             {
                 any = true;
