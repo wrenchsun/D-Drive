@@ -64,7 +64,15 @@
     string Id { get; }
     void Migrate(MigrationContext context);
 }</pre>
-<p><code>context.Warn(message)</code> で「一部の対象を処理できなかった」ことを伝えられます。警告が 1 件でもある(または <code>Migrate</code> が例外を投げた)と、Runner は <code>Id</code> を記録せず、メニューと更新ウィンドウは「適用しました」と出さず、次回の実行でも計画に入ります。<code>Id</code> を記録した後でも対象が残りうるマイグレーション(他のブランチから古い形式のファイルが入ってくる場合など)は、<code>IProjectMigration</code> に加えて <code>IRepeatableProjectMigration</code> の <code>HasPendingWork()</code> を実装すると、対象が残っている間は計画に入ります。これらの動作は持ち込み先・外部パッケージ向けの固定された契約ではありません(docs/42 §5.14)。</p>
+
+<p><strong>適用後にも対象が増える種類の処理</strong>(取り込み済みのアセットの再インポート・古いブランチのマージなどで、<code>Id</code> を記録した後にも対象が現れうるもの)は、任意の <code>IRepeatableProjectMigration</code> も実装します。<code>HasPendingWork()</code> が true の間は、<code>Id</code> が記録済みでも計画に入ります(<code>CI.MigrateCheck</code> も赤になります)。<code>Migrate</code> は冪等に書き、対象が無いときは軽く false を返してください。</p>
+<pre>public interface IRepeatableProjectMigration
+{
+    bool HasPendingWork();
+}</pre>
+<p>一部の対象を処理できなかったときは <code>context.Warn(...)</code> で知らせます。警告が 1 件でもある(または <code>Migrate</code> が例外を投げた)と、Runner はその <code>Id</code> を記録せず、更新ウィンドウとメニューは「適用しました」ではなく失敗として表示し、次回の実行でも計画に入ります(ファイル単位で続行し、成功した分は反映されます)。</p>
+<p><code>IProjectMigration</code> / <code>IRepeatableProjectMigration</code> / <code>MigrationContext</code> と Runner の動作は、持ち込み先・外部パッケージ向けの固定された契約ではありません(docs/42 §5.14)。</p>
+<p>Run All の「プロジェクト全体の指摘」に修正ボタン付きのものがあるときは、<code>Tools &gt; D-Drive &gt; Validation &gt; 全体の指摘を修正</code> でまとめて実行できます(確認ダイアログの後に実行します。元に戻せないので、先にコミットしてください)。</p>
 
 <h2 id="runner">Runner の動かし方</h2>
 <table>

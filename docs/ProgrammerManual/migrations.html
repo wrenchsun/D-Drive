@@ -70,7 +70,9 @@
 {
     bool HasPendingWork();
 }</pre>
-<p>一部の対象を処理できなかったときは <code>context.Warn(...)</code> で知らせます。1 件でも警告があると、Runner はその <code>Id</code> を記録せず、更新ウィンドウとメニューは「適用しました」ではなく失敗として表示します(ファイル単位で続行し、成功した分は反映されます)。</p>
+<p>一部の対象を処理できなかったときは <code>context.Warn(...)</code> で知らせます。警告が 1 件でもある(または <code>Migrate</code> が例外を投げた)と、Runner はその <code>Id</code> を記録せず、更新ウィンドウとメニューは「適用しました」ではなく失敗として表示し、次回の実行でも計画に入ります(ファイル単位で続行し、成功した分は反映されます)。</p>
+<p><code>IProjectMigration</code> / <code>IRepeatableProjectMigration</code> / <code>MigrationContext</code> と Runner の動作は、持ち込み先・外部パッケージ向けの固定された契約ではありません(docs/42 §5.14)。</p>
+<p>Run All の「プロジェクト全体の指摘」に修正ボタン付きのものがあるときは、<code>Tools &gt; D-Drive &gt; Validation &gt; 全体の指摘を修正</code> でまとめて実行できます(確認ダイアログの後に実行します。元に戻せないので、先にコミットしてください)。</p>
 
 <h2 id="runner">Runner の動かし方</h2>
 <table>
