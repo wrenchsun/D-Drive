@@ -438,6 +438,54 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(WireTrigger.Click, CanvasButtonWireEditing.FirstFreeTrigger(parent, "OptionRoot/Inner/BtnY", unresolvedLookup), "孫が未解決なら孫の配線は見ない(子の DoubleClick だけ避ける)");
         }
 
+        // レビュー [63] GE-R-19: Canvas Editor の Validation の欄は共通の実行部(DataValidationRunner.Run)から取るので、
+        // Canvas を対象にする Validator(埋め込みの有効 / 無効の検査を含む)が全部出る(16-45 の実バグの再発防止)。
+        [Test]
+        public void CanvasEditorValidation_UsesCommonRunner_AndIncludesEmbeddedActiveValidator()
+        {
+            var (parent, child) = WiredParentAndChild();
+            parent.Buttons = new[] { new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.Click, Action = UiAction.ToggleEmbedded, EmbeddedRootPath = "Nowhere" } };
+
+            var results = CanvasEditorWindow.CollectValidation(parent);
+            Assert.IsTrue(Has(results, "DD-CANVAS-WIRE-EMBED-UNKNOWN", ValidationSeverity.Warning), "CanvasEmbeddedActiveValidator の結果が欄に出る");
+            Assert.IsTrue(results.Exists(r => r.Message.Contains("EmbeddedCanvases") || r.Message.Contains("ButtonWire")), "CanvasDataValidator / CanvasEmbeddedValidator も走る");
+
+            // 柵: Target == Canvas の全 Validator(持ち込み先が足したものも)が、共通の実行部の対象に入っている
+            var canvasValidators = new List<string>();
+            foreach (var v in DDrive.Editor.Validation.DataValidationRunner.Validators)
+            {
+                if (v.Target == AssetType.Canvas)
+                {
+                    canvasValidators.Add(v.GetType().Name);
+                }
+            }
+
+            CollectionAssert.Contains(canvasValidators, nameof(CanvasDataValidator));
+            CollectionAssert.Contains(canvasValidators, nameof(CanvasEmbeddedValidator));
+            CollectionAssert.Contains(canvasValidators, nameof(CanvasEmbeddedActiveValidator));
+            Assert.AreEqual(0, CanvasEditorWindow.CollectValidation(null).Count, "null でも例外にしない");
+        }
+
+        // レビュー [63] GE-R-14 / GE-R-21: 「削除」は行を作ったときの配線と同じときだけ消す(並べ替えた後の古い行では消さない)。
+        [Test]
+        public void ButtonWires_TryRemoveWire_RemovesOnlyWhenRowStillMatches()
+        {
+            var (_, child) = WiredParentAndChild(); // BtnX: Click(0) + LongPress(1)
+            var rowForIndex0 = child.Buttons[0];
+
+            // Inspector で並べ替えた相当: 添字 0 が LongPress になる
+            child.Buttons = new[] { child.Buttons[1], child.Buttons[0] };
+            Assert.AreEqual(CanvasButtonWireEditing.RemoveOutcome.Stale, CanvasButtonWireEditing.TryRemoveWire(child, 0, rowForIndex0), "古い行(Click)から添字 0(LongPress)は消さない");
+            Assert.AreEqual(2, child.Buttons.Length);
+
+            Assert.AreEqual(CanvasButtonWireEditing.RemoveOutcome.Stale, CanvasButtonWireEditing.TryRemoveWire(child, 5, rowForIndex0), "範囲外も Stale(黙って捨てない)");
+
+            Assert.AreEqual(CanvasButtonWireEditing.RemoveOutcome.Removed, CanvasButtonWireEditing.TryRemoveWire(child, 1, rowForIndex0), "同じ配線が同じ添字にあれば消す");
+            Assert.AreEqual(1, child.Buttons.Length);
+            Assert.AreEqual(WireTrigger.LongPress, child.Buttons[0].Trigger);
+            Assert.AreEqual(CanvasButtonWireEditing.RemoveOutcome.None, CanvasButtonWireEditing.TryRemoveWire(null, 0, rowForIndex0));
+        }
+
         // レビュー [63] GE-R-12 / GE-R-13: 行の照合(ButtonPath + Trigger)と、ルートの UiButton は配線できない扱い。
         [Test]
         public void ButtonWires_SameWire_AndRootUiButtonIsNotWirable()

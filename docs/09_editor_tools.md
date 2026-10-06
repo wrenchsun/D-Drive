@@ -980,10 +980,12 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **例外で止めない**（CLAUDE.md §0-4）: 1 つの Validator が例外を投げても `Debug.LogWarning` だけ出して他の結果は表示する
 - **付けたエディタ**: Vfx（独自実装から置き換え）/ Anchor / Anchor Group（同）/ Audio / Shake · Haptics / Material /
   Model / Prefab / Button Skin / Slider Skin（新規に追加）
-- **まだ独自実装のままのエディタ**: Anim / Anim2D / Canvas / Presentation。いずれも種別 Validator の結果に加えて
-  **エディタ固有の追加検査**（Anim: StateName / BlendShape が対象モデルにあるか、Anim2D: 3 Validator の合成、
-  Canvas: 個別の Fix ボタン）を出しており、そのまま置き換えると情報が減るため今回は触っていない
-  （Presentation は同時に別チケット U-6 で改修中だったため見送り）。移行は後続で行う
+- **まだ独自実装のままのエディタ**: Anim / Anim2D / Presentation。いずれも種別 Validator の結果に加えて
+  **エディタ固有の追加検査**（Anim: StateName / BlendShape が対象モデルにあるか、Anim2D: 3 Validator の合成）を
+  出しており、そのまま置き換えると情報が減るため今回は触っていない
+  （Presentation は同時に別チケット U-6 で改修中だったため見送り）。移行は後続で行う。
+  **Canvas は 2026-10-06 に結果の取得だけ共通化した**（`CanvasEditorWindow.CollectValidation` = `DataValidationRunner.Run`。
+  描画と Undo 付きの個別の Fix ボタンは独自のまま。Validator を手で並べていたため新しい Validator が抜けた実バグ = [63](63_review_pr126_pr129_2026-10-06.md) GE-R-19）
 - **VFX Editor で「検証」を展開しても何も出なかった件（同じ U-13 の別不具合）**:
   原因は検証セクション自体ではなく、その手前で例外が出て `RefreshValidation()` に到達していなかったこと。
   `VfxEditorWindow.RefreshAnchorUi()` が `_serializedTarget.FindProperty("AnchorId")` の結果をそのまま
