@@ -308,6 +308,102 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(CanvasButtonWireEditing.UsesTarget(UiAction.OpenCanvas));
             Assert.IsTrue(CanvasButtonWireEditing.UsesSignalKey(UiAction.SendSignal));
         }
+
+        // ── 埋め込みの有効 / 無効(2026-10-06。StartInactive と配線の 3 アクション) ──
+
+        [Test]
+        public void ButtonWires_EmbeddedActions_UseEmbeddedRootPath_ProblemAndSummary()
+        {
+            var (parent, _) = WiredParentAndChild();
+            parent.Buttons = new[]
+            {
+                new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.Click, Action = UiAction.ToggleEmbedded, EmbeddedRootPath = "OptionRoot" },
+                new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.LongPress, Action = UiAction.ActivateEmbedded, EmbeddedRootPath = "Ghost" },
+                new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.DoubleClick, Action = UiAction.DeactivateEmbedded },
+            };
+
+            Assert.IsTrue(CanvasButtonWireEditing.UsesEmbeddedRootPath(UiAction.ActivateEmbedded));
+            Assert.IsTrue(CanvasButtonWireEditing.UsesEmbeddedRootPath(UiAction.DeactivateEmbedded));
+            Assert.IsTrue(CanvasButtonWireEditing.UsesEmbeddedRootPath(UiAction.ToggleEmbedded));
+            Assert.IsFalse(CanvasButtonWireEditing.UsesEmbeddedRootPath(UiAction.CloseSelf));
+            Assert.IsTrue(CanvasButtonWireEditing.IsButtonAction(UiAction.ToggleEmbedded));
+
+            Assert.IsTrue(CanvasButtonWireEditing.HasEmbed(parent, "OptionRoot"));
+            Assert.IsFalse(CanvasButtonWireEditing.HasEmbed(parent, "Ghost"));
+            Assert.IsFalse(CanvasButtonWireEditing.HasEmbed(parent, null));
+            Assert.IsFalse(CanvasButtonWireEditing.HasEmbed(null, "OptionRoot"));
+
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 0), "登録済みの埋め込みを指す配線は問題なし");
+            StringAssert.Contains("登録されていません", CanvasButtonWireEditing.DescribeProblem(parent, 1));
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 2), "空 = 自分が属する埋め込み(実行時に決まる)は問題にしない");
+
+            Assert.AreEqual("Click → ToggleEmbedded 'OptionRoot'", CanvasButtonWireEditing.Summarize(parent.Buttons[0], null));
+            StringAssert.Contains("自分が属する埋め込み", CanvasButtonWireEditing.Summarize(parent.Buttons[2], null));
+        }
+
+        [Test]
+        public void EmbeddedActiveValidator_WarnsUnknownEmbed_AndFirstSelectedUnderStartInactive()
+        {
+            var (parent, child) = WiredParentAndChild();
+            var ctx = new ValidationContext(new List<AssetDataBase> { parent, child });
+            List<ValidationResult> Run() => new(new CanvasEmbeddedActiveValidator().Validate(parent, ctx));
+
+            parent.Buttons = new[]
+            {
+                new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.Click, Action = UiAction.ToggleEmbedded, EmbeddedRootPath = "OptionRoot" },
+                new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.LongPress, Action = UiAction.DeactivateEmbedded },
+            };
+            parent.FirstSelected = "OptionRoot/BtnX";
+            Assert.AreEqual(0, Run().Count, "登録済みの埋め込み・空の指定・有効で始まる埋め込みの配下の FirstSelected は何も出さない");
+
+            parent.Buttons[0].EmbeddedRootPath = "Ghost";
+            // EmbeddedRootPath は埋め込みのアクションのときだけ見る(他のアクションに値が残っていても何も出さない)
+            parent.Buttons[1] = new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.LongPress, Action = UiAction.CloseSelf, EmbeddedRootPath = "Ghost" };
+            var unknown = Run();
+            Assert.AreEqual(1, unknown.Count);
+            Assert.IsTrue(Has(unknown, "DD-CANVAS-WIRE-EMBED-UNKNOWN", ValidationSeverity.Warning));
+
+            parent.Buttons = null;
+            var embed = parent.EmbeddedCanvases[0];
+            embed.StartInactive = true;
+            parent.EmbeddedCanvases[0] = embed;
+            var first = Run();
+            Assert.AreEqual(1, first.Count);
+            Assert.IsTrue(Has(first, "DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE", ValidationSeverity.Warning));
+
+            parent.FirstSelected = "ParentBtn";
+            Assert.AreEqual(0, Run().Count, "埋め込みの外の FirstSelected は対象外");
+            Assert.AreEqual(0, new List<ValidationResult>(new CanvasEmbeddedActiveValidator().Validate(child, ctx)).Count, "埋め込みの無い CanvasData では何も出さない");
+
+            // GG-R-09: スライダーの配線に埋め込みのアクション
+            parent.Sliders = new[] { new SliderWire { ElementPath = "Sld", Action = UiAction.ToggleEmbedded } };
+            var slider = Run();
+            Assert.AreEqual(1, slider.Count);
+            Assert.IsTrue(Has(slider, "DD-CANVAS-SLIDER-EMBED-ACTION", ValidationSeverity.Warning));
+        }
+
+        // レビュー [65] GG-R-07: 配線の対象は、直下の登録に加えて子の登録を連結した入れ子の入れ子も選べる(検査も誤って警告しない)。
+        [Test]
+        public void EmbeddedActions_NestedPaths_AreSelectable_AndNotWarned()
+        {
+            var (parent, child) = WiredParentAndChild();
+            var grand = Data(9106, "Grand");
+            child.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "Inner", Canvas = IdOf(grand) } };
+            var lookup = CanvasEmbeddedEditing.CanvasLookup.From(new[] { parent, child, grand });
+
+            var paths = new List<string>();
+            CanvasButtonWireEditing.CollectEmbedPaths(parent, lookup, paths);
+            CollectionAssert.AreEqual(new[] { "OptionRoot", "OptionRoot/Inner" }, paths);
+            Assert.IsTrue(CanvasButtonWireEditing.HasEmbed(parent, "OptionRoot/Inner", lookup));
+            Assert.IsFalse(CanvasButtonWireEditing.HasEmbed(parent, "OptionRoot/Inner"), "lookup 無しでは直下だけ");
+            Assert.IsFalse(CanvasButtonWireEditing.HasEmbed(parent, "Inner", lookup), "子のルート基準の名前は親からは指せない");
+
+            parent.Buttons = new[] { new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.Click, Action = UiAction.ToggleEmbedded, EmbeddedRootPath = "OptionRoot/Inner" } };
+            Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 0, lookup));
+            var ctx = new ValidationContext(new List<AssetDataBase> { parent, child, grand });
+            var results = new List<ValidationResult>(new CanvasEmbeddedActiveValidator().Validate(parent, ctx));
+            Assert.AreEqual(0, results.Count, "入れ子の入れ子を指す配線に DD-CANVAS-WIRE-EMBED-UNKNOWN を出さない");
+        }
         private static ElementFx Fx(string path) => new() { ElementPath = path };
 
         private static List<ValidationResult> Validate(CanvasData data, params CanvasData[] others)

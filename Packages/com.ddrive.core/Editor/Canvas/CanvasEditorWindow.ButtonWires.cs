@@ -271,6 +271,28 @@ namespace DDrive.Editor.CanvasTool
                 line.Add(new Label("(実行時は未対応。警告だけが出ます)") { style = { opacity = 0.7f } });
             }
 
+            if (CanvasButtonWireEditing.UsesEmbeddedRootPath(wire.Action))
+            {
+                // 切り替える埋め込み: この CanvasData に登録された RootPath から選ぶ。先頭 = 空(このボタンが属している埋め込み = 自分自身)。
+                const string SelfLabel = "(このボタンが属する埋め込み)";
+                var paths = new List<string> { SelfLabel };
+                CanvasButtonWireEditing.CollectEmbedPaths(owner, Lookup, paths); // 直下 + 入れ子の入れ子("OptionRoot/Inner")
+
+                var currentPath = string.IsNullOrEmpty(wire.EmbeddedRootPath) ? SelfLabel : wire.EmbeddedRootPath;
+                if (!paths.Contains(currentPath))
+                {
+                    paths.Add(currentPath); // 登録に無い値が入っていても消さずに見せる(下に注意が出る)
+                }
+
+                var embedPath = new PopupField<string>(paths, currentPath) { style = { width = 200 }, tooltip = "有効 / 無効を切り替える埋め込み Canvas(この CanvasData の「埋め込み Canvas」に登録した RootPath)。先頭は、埋め込みの子の配線で「自分を隠す」ときに使う" };
+                embedPath.RegisterValueChangedCallback(evt =>
+                {
+                    UpdateWire(owner, index, w => { w.EmbeddedRootPath = evt.newValue == SelfLabel ? string.Empty : evt.newValue; return w; });
+                    AfterButtonWireEdit(owner, null);
+                });
+                line.Add(embedPath);
+            }
+
             line.Add(new Label("SE") { style = { marginLeft = 6, marginRight = 2, opacity = 0.8f } });
             var se = new ObjectField { objectType = typeof(SeData), allowSceneObjects = false, value = FindSeData(wire.ClickSe.Value), style = { width = 150 }, tooltip = "押したときに鳴らす SE(任意)" };
             se.RegisterValueChangedCallback(evt =>
@@ -297,7 +319,7 @@ namespace DDrive.Editor.CanvasTool
 
             container.Add(line);
 
-            var problem = CanvasButtonWireEditing.DescribeProblem(owner, index);
+            var problem = CanvasButtonWireEditing.DescribeProblem(owner, index, Lookup);
             if (problem != null)
             {
                 container.Add(new Label("⚠ " + problem) { style = { color = new Color(0.95f, 0.75f, 0.25f), whiteSpace = WhiteSpace.Normal, marginLeft = 2 } });
