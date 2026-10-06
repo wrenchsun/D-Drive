@@ -379,9 +379,9 @@ public static class Ui
 - **入れていないもの**: スライダーの配線（`Sliders` / SliderWire）の編集欄（従来どおり Inspector）。配線のアクションを増やすとき（子の表示 / 非表示の切り替えなど）は、`CanvasButtonWireEditing.UsesTarget` 等と `BuildWireRow` の出し分けに足す。
 - 人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-36〜16-40。
 
-### 追記（2026-10-06、埋め込んだ子 Canvas の有効 / 無効）— 山口さんの確認待ちの案
+### 追記（2026-10-06、埋め込んだ子 Canvas の有効 / 無効）
 
-2026-10-06 の確認で出た要望「親で子のデフォルト enable を設定可能、作業用に一時 on/off 切り替え可能」への対応。**名前と一部の動作は山口さんの確認待ち**（下の「決めてほしい点」）。互換面は追加のみ（MINOR）。
+2026-10-06 の確認で出た要望「親で子のデフォルト enable を設定可能、作業用に一時 on/off 切り替え可能」への対応。名前と動作は 2026-10-06 に山口さんが決定（下の「決定事項」）。互換面は追加のみ（MINOR）。
 
 **データ（末尾に追加）**
 
@@ -418,12 +418,12 @@ public static class Ui
 
 **テスト**: PlayMode `EmbeddedCanvasTests` に 8 件（無効で始まる・有効化 / 無効化の演出・演出なし・Prefab 側が無効・開き直し・入れ子・配線 2 件）、EditMode に 3 件（配線の欄のロジック・検査・`StartInactive` の保持）。
 
-**決めてほしい点（山口さん）**
+**決定事項（2026-10-06、山口）**
 
-1. 名前: `StartInactive` / `SetEmbeddedActive`・`IsEmbeddedActive` / `EmbeddedRootPath` / `ActivateEmbedded`・`DeactivateEmbedded`・`ToggleEmbedded`（リリース後は改名できない）。
-2. 配線のアクション 3 つを入れるか（API だけにする案もある）。
-3. 有効化のとき、子の `FirstSelected` を選択するか。
-4. Prefab 側で無効にしてある子と `StartInactive` のどちらが勝つか（現在の実装 = データが勝つ）。
+1. 名前は上記のとおり確定: `StartInactive` / `SetEmbeddedActive`・`IsEmbeddedActive` / `EmbeddedRootPath` / `ActivateEmbedded`・`DeactivateEmbedded`・`ToggleEmbedded`（以降は互換性ポリシーの対象。改名しない）。
+2. 配線のアクション 3 つを入れる。
+3. 有効化のとき、子の `FirstSelected` を選択する（パッド操作で子を出した直後にフォーカスが親に残らないようにする、の推奨案を採用）。
+4. 登録済みの埋め込みは、データ（`StartInactive`）が Prefab 側の有効 / 無効に勝つ。
 
 人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-41〜16-45。
 
