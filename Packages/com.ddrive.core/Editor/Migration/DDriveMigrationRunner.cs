@@ -290,6 +290,8 @@ namespace DDrive.Editor.Migration
                     {
                         // P2-3 — 1 つの実装が投げても Apply 全体を落とさない(CLAUDE.md §0-4)。
                         Debug.LogWarning($"[DDrive][Migration] {AssetDatabase.GetAssetPath(asset)} のマイグレーションに失敗したためスキップしました: {e.Message}");
+                        // [64_review_m6] GF-R-13 — 例外も失敗として数える(メニュー・更新ウィンドウが「適用しました」と出さない)。
+                        context.Warn($"{AssetDatabase.GetAssetPath(asset)}: マイグレーションに失敗しました({e.GetType().Name}: {e.Message})");
                         continue;
                     }
 
@@ -316,6 +318,9 @@ namespace DDrive.Editor.Migration
                     catch (Exception e)
                     {
                         Debug.LogWarning($"[DDrive][Migration] プロジェクトマイグレーション '{migration.Id}' に失敗したためスキップしました: {e.Message}");
+                        // [64_review_m6] GF-R-13 — 例外も失敗として数える。Id は記録しない(MarkMigrationApplied は try の末尾なので通らない)。
+                        context.Warn($"{migration.Id}: 失敗しました({e.GetType().Name}: {e.Message})");
+                        context.Note($"{migration.Id}: 適用済みとして記録しませんでした");
                     }
                 }
 
