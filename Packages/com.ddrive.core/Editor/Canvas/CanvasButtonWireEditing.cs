@@ -94,9 +94,9 @@ namespace DDrive.Editor.CanvasTool
                 for (var i = 0; i < buttons.Length; i++)
                 {
                     var path = TransformPath.GetRelative(root, buttons[i].transform) ?? string.Empty;
-                    if (FindEmbed(groups, path, out _) != null)
+                    if (string.IsNullOrEmpty(path) || FindEmbed(groups, path, out _) != null)
                     {
-                        continue;
+                        continue; // ルートの UiButton は実行時に配線されない(FindTransform が空のパスで null)ので行にしない(GE-R-13)
                     }
 
                     if (FindRow(groups.ParentRows, path) == null)
@@ -187,11 +187,12 @@ namespace DDrive.Editor.CanvasTool
         {
             var wires = canvas != null ? canvas.Buttons : null;
             var path = buttonPath ?? string.Empty;
-            var child = FindChildForButton(canvas, path, lookup, out var childPath);
+            var stages = new List<WireStage>();
+            CollectWireStages(canvas, path, lookup, stages);
             var triggers = (WireTrigger[])System.Enum.GetValues(typeof(WireTrigger));
             for (var i = 0; i < triggers.Length; i++)
             {
-                if (!HasWire(wires, path, triggers[i]) && (child == null || !HasWire(child.Buttons, childPath, triggers[i])))
+                if (!HasWire(wires, path, triggers[i]) && FindStageWithWire(stages, triggers[i]) == null)
                 {
                     trigger = triggers[i];
                     return true;
@@ -202,36 +203,79 @@ namespace DDrive.Editor.CanvasTool
             return false;
         }
 
-        // 親のルート基準のパス path が属する埋め込み(最も内側の登録)の子 CanvasData と、子のルート基準のパス。属さなければ null。
-        public static CanvasData FindChildForButton(CanvasData canvas, string path, CanvasEmbeddedEditing.CanvasLookup lookup, out string childPath)
+        // path(親のルート基準)が属する埋め込みの、子・孫…の CanvasData と、その段のルート基準のパス(レビュー [63] GE-R-10)。
+        public readonly struct WireStage
         {
-            childPath = null;
-            var embeds = canvas != null ? canvas.EmbeddedCanvases : null;
-            if (embeds == null || lookup == null)
-            {
-                return null;
-            }
+            public readonly CanvasData Canvas;
+            public readonly string Path;
 
-            CanvasData best = null;
-            var bestLength = -1;
-            for (var i = 0; i < embeds.Length; i++)
+            public WireStage(CanvasData canvas, string path)
             {
-                if (string.IsNullOrEmpty(embeds[i].RootPath) || embeds[i].RootPath.Length <= bestLength
-                    || !EmbeddedPaths.TryToChildPath(embeds[i].RootPath, path ?? string.Empty, out var rest))
+                Canvas = canvas;
+                Path = path;
+            }
+        }
+
+        // path が属する埋め込みを、親の直下の登録 → その子の登録 → … と内側へたどって into に集める(深さ 8 まで)。
+        // 実行時(UiManager)は親の担当を結合したパスで孫の(要素, トリガー)まで止めるので、避けるトリガーも全段を見る。
+        // 内側の登録の子が未解決(lookup に無い)なら、そこで打ち切る(外側の段へは落とさない)。
+        public static void CollectWireStages(CanvasData canvas, string path, CanvasEmbeddedEditing.CanvasLookup lookup, List<WireStage> into)
+        {
+            var current = canvas;
+            var currentPath = path ?? string.Empty;
+            for (var depth = 0; depth < 8 && current != null && lookup != null; depth++)
+            {
+                var embeds = current.EmbeddedCanvases;
+                if (embeds == null)
                 {
-                    continue;
+                    return;
                 }
 
-                var child = lookup.Find(embeds[i].Canvas);
-                if (child != null && child != canvas)
+                var bestIndex = -1;
+                var bestLength = -1;
+                string bestRest = null;
+                for (var i = 0; i < embeds.Length; i++)
                 {
-                    best = child;
+                    if (string.IsNullOrEmpty(embeds[i].RootPath) || embeds[i].RootPath.Length <= bestLength
+                        || !EmbeddedPaths.TryToChildPath(embeds[i].RootPath, currentPath, out var rest))
+                    {
+                        continue;
+                    }
+
+                    bestIndex = i;
                     bestLength = embeds[i].RootPath.Length;
-                    childPath = rest;
+                    bestRest = rest;
+                }
+
+                if (bestIndex < 0)
+                {
+                    return;
+                }
+
+                var child = lookup.Find(embeds[bestIndex].Canvas);
+                if (child == null || child == current || into.Exists(st => st.Canvas == child))
+                {
+                    return; // 未解決・自己参照・循環はそこまで
+                }
+
+                into.Add(new WireStage(child, bestRest));
+                current = child;
+                currentPath = bestRest;
+            }
+        }
+
+        // 段のうち、その段の基準のパス + trigger の配線を持つ最初の CanvasData(無ければ null)。
+        private static CanvasData FindStageWithWire(List<WireStage> stages, WireTrigger trigger)
+        {
+            for (var i = 0; i < stages.Count; i++)
+            {
+                if (HasWire(stages[i].Canvas.Buttons, stages[i].Path, trigger))
+                {
+                    return stages[i].Canvas;
                 }
             }
 
-            return best;
+            return null;
         }
 
         // 配線を 1 本足す(Undo 可)。トリガーはそのボタンでまだ使っていないもの(埋め込みの配下では子の分も避ける)、アクションは None。
@@ -282,6 +326,11 @@ namespace DDrive.Editor.CanvasTool
             EditorUtility.SetDirty(canvas);
             return true;
         }
+
+        // 行を作ったときの配線と同じか(ButtonPath + Trigger。ほかの欄の変更は同じ配線とみなす。画面の UpdateWire の照合。GE-R-08 / GE-R-12)。
+        public static bool SameWire(in ButtonWire current, in ButtonWire expected)
+            => current.Trigger == expected.Trigger
+               && string.Equals(current.ButtonPath ?? string.Empty, expected.ButtonPath ?? string.Empty, System.StringComparison.Ordinal);
 
         // アクションごとに、配線のどの欄を使うか(使わない欄は画面に出さない)。
         public static bool UsesTarget(UiAction action) => action == UiAction.OpenCanvas;
@@ -384,10 +433,12 @@ namespace DDrive.Editor.CanvasTool
             // 親での上書きが Action = None: 子の同じトリガーの配線を黙って止めている(レビュー [63] GE-R-05)。
             if (wire.Action == UiAction.None)
             {
-                var child = FindChildForButton(canvas, path, lookup, out var childPath);
-                if (child != null && HasWire(child.Buttons, childPath, wire.Trigger))
+                var stages = new List<WireStage>();
+                CollectWireStages(canvas, path, lookup, stages);
+                var stopped = FindStageWithWire(stages, wire.Trigger);
+                if (stopped != null)
                 {
-                    return $"親での上書きが Action = None です(子 '{child.name}' の {wire.Trigger} の配線を止めています。子の配線を使うならこの行を削除してください)";
+                    return $"親での上書きが Action = None です(子 '{stopped.name}' の {wire.Trigger} の配線を止めています。子の配線を使うならこの行を削除してください)";
                 }
             }
 
@@ -412,12 +463,12 @@ namespace DDrive.Editor.CanvasTool
         // Prefab の中(入れ子の Prefab インスタンスの中も含む)の、パスの UiButton。無ければ null。
         private static UiButton FindUiButton(CanvasData canvas, string path)
         {
-            if (canvas == null || canvas.Prefab == null)
+            if (canvas == null || canvas.Prefab == null || string.IsNullOrEmpty(path))
             {
-                return null;
+                return null; // 空のパス(ルート)は実行時に解決されないので「無い」扱い(GE-R-13)
             }
 
-            var t = string.IsNullOrEmpty(path) ? canvas.Prefab.transform : canvas.Prefab.transform.Find(path);
+            var t = canvas.Prefab.transform.Find(path);
             return t != null ? t.GetComponent<UiButton>() : null;
         }
         private static EmbedWireGroup FindEmbed(WireGroups groups, string path, out string childPath)

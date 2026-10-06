@@ -408,6 +408,59 @@ namespace DDrive.Tests.Editor
             Assert.IsNull(CanvasButtonWireEditing.DescribeProblem(parent, 0), "lookup 無しでは判定できないので出さない");
         }
 
+        // レビュー [63] GE-R-10: 入れ子の入れ子では、孫の CanvasData の配線のトリガーも避け、None の注意も孫を見る。内側が未解決なら外側へ落とさない。
+        [Test]
+        public void ButtonWires_NestedEmbed_AvoidsGrandchildTriggers_AndUnresolvedInnerStopsLookup()
+        {
+            var (parent, child) = WiredParentAndChild(); // 子: BtnX に Click + LongPress
+            var grand = Data(9107, "Grand");
+            grand.Buttons = new[] { Wire("BtnY", WireTrigger.Click, UiAction.SendSignal, "grand/click"), Wire("BtnY", WireTrigger.Repeat, UiAction.SendSignal, "grand/repeat") };
+            child.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "Inner", Canvas = IdOf(grand) } };
+            child.Buttons = new[] { child.Buttons[0], child.Buttons[1], Wire("Inner/BtnY", WireTrigger.DoubleClick, UiAction.CloseSelf) }; // 子での上書き
+            var lookup = CanvasEmbeddedEditing.CanvasLookup.From(new[] { parent, child, grand });
+
+            var stages = new List<CanvasButtonWireEditing.WireStage>();
+            CanvasButtonWireEditing.CollectWireStages(parent, "OptionRoot/Inner/BtnY", lookup, stages);
+            Assert.AreEqual(2, stages.Count);
+            Assert.AreSame(child, stages[0].Canvas); Assert.AreEqual("Inner/BtnY", stages[0].Path);
+            Assert.AreSame(grand, stages[1].Canvas); Assert.AreEqual("BtnY", stages[1].Path);
+
+            Assert.AreEqual(WireTrigger.LongPress, CanvasButtonWireEditing.FirstFreeTrigger(parent, "OptionRoot/Inner/BtnY", lookup), "孫の Click / Repeat と子の DoubleClick を避ける");
+
+            parent.Buttons = new[] { Wire("OptionRoot/Inner/BtnY", WireTrigger.Repeat, UiAction.None) };
+            StringAssert.Contains("Grand", CanvasButtonWireEditing.DescribeProblem(parent, 0, lookup), "孫の配線を止めている旨(孫の名前)");
+
+            // 内側の登録の子が未解決: 外側(子)の配線へは落とさない
+            var unresolvedLookup = CanvasEmbeddedEditing.CanvasLookup.From(new[] { parent, child });
+            stages.Clear();
+            CanvasButtonWireEditing.CollectWireStages(parent, "OptionRoot/Inner/BtnY", unresolvedLookup, stages);
+            Assert.AreEqual(1, stages.Count, "解決できた段(子)までは集める");
+            Assert.AreEqual(WireTrigger.Click, CanvasButtonWireEditing.FirstFreeTrigger(parent, "OptionRoot/Inner/BtnY", unresolvedLookup), "孫が未解決なら孫の配線は見ない(子の DoubleClick だけ避ける)");
+        }
+
+        // レビュー [63] GE-R-12 / GE-R-13: 行の照合(ButtonPath + Trigger)と、ルートの UiButton は配線できない扱い。
+        [Test]
+        public void ButtonWires_SameWire_AndRootUiButtonIsNotWirable()
+        {
+            var a = Wire("A", WireTrigger.Click, UiAction.None);
+            Assert.IsTrue(CanvasButtonWireEditing.SameWire(a, Wire("A", WireTrigger.Click, UiAction.SendSignal, "x")), "ほかの欄が違っても同じ配線");
+            Assert.IsFalse(CanvasButtonWireEditing.SameWire(a, Wire("A", WireTrigger.LongPress, UiAction.None)));
+            Assert.IsFalse(CanvasButtonWireEditing.SameWire(a, Wire("B", WireTrigger.Click, UiAction.None)));
+            Assert.IsTrue(CanvasButtonWireEditing.SameWire(Wire(null, WireTrigger.Click, UiAction.None), Wire(string.Empty, WireTrigger.Click, UiAction.None)), "null と空は同じ");
+
+            var rootPrefabGo = NewRect("RootBtn", null, typeof(Image), typeof(UiButton));
+            var rootPrefab = PrefabUtility.SaveAsPrefabAsset(rootPrefabGo, $"{_folder}/RootBtn.prefab");
+            Object.DestroyImmediate(rootPrefabGo);
+            var data = Data(9108, "RootBtnData", rootPrefab);
+            var groups = CanvasButtonWireEditing.BuildGroups(data, CanvasEmbeddedEditing.CanvasLookup.From(new[] { data }));
+            Assert.AreEqual(0, groups.ParentRows.Count, "ルートの UiButton は行にしない(実行時に配線されない)");
+
+            data.Buttons = new[] { Wire(string.Empty, WireTrigger.Click, UiAction.CloseSelf) };
+            groups = CanvasButtonWireEditing.BuildGroups(data, CanvasEmbeddedEditing.CanvasLookup.From(new[] { data }));
+            Assert.AreEqual(1, groups.ParentRows.Count);
+            Assert.IsFalse(groups.ParentRows[0].InPrefab, "空のパスの配線は「見つからない」扱いで注意が出る");
+        }
+
         // レビュー [63] GE-R-06: 行の ⚠ と検査の食い違いを減らす(LongPressSec・CooldownSec・上書き行の存在しないパス・UiButton 無し)。
         [Test]
         public void ButtonWires_DescribeProblem_ButtonSettings_AndOverrideRowMissingPath_AndValidatorNoUiButton()

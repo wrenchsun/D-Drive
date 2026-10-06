@@ -190,7 +190,9 @@ namespace DDrive.Editor.CanvasTool
 
             if (!row.InPrefab)
             {
-                box.Add(new HelpBox($"Prefab の中に '{path}' の UiButton が見つかりません(パスの違い、または UiButton が付いていません)。", HelpBoxMessageType.Warning));
+                box.Add(new HelpBox(string.IsNullOrEmpty(path)
+                    ? "Canvas のルート要素には配線できません(実行時に配線されません。子の要素に UiButton を付けて、そのパスを指定してください)。"
+                    : $"Prefab の中に '{path}' の UiButton が見つかりません(パスの違い、または UiButton が付いていません)。", HelpBoxMessageType.Warning));
             }
 
             if (row.WireIndices.Count == 0)
@@ -315,9 +317,21 @@ namespace DDrive.Editor.CanvasTool
             se.RegisterValueChangedCallback(evt =>
             {
                 var picked = evt.newValue as SeData;
+                if (picked != null && picked.Id == 0)
+                {
+                    // Id の無い SeData は書かず、欄を前の値へ戻す(それまでの SE を消さない。GE-R-11)。
+                    se.SetValueWithoutNotify(evt.previousValue);
+                    if (owner == _target && _statusLabel != null)
+                    {
+                        _statusLabel.text = "その SeData には Id がありません(クリック SE は変えていません)";
+                    }
+
+                    return;
+                }
+
                 UpdateWire(owner, index, expected, w =>
                 {
-                    w.ClickSe = picked != null && picked.Id != 0 ? new AssetId<SeMarker>(picked.Id, AssetType.Se) : default;
+                    w.ClickSe = picked != null ? new AssetId<SeMarker>(picked.Id, AssetType.Se) : default;
                     return w;
                 });
                 AfterButtonWireEdit(owner, null);
@@ -356,14 +370,14 @@ namespace DDrive.Editor.CanvasTool
         // 同じ添字が別の配線になっていたら(Inspector で Buttons を並べ替え・削除した後。GE-R-08)書かずに欄を作り直す。
         private void UpdateWire(CanvasData owner, int index, in ButtonWire expected, Func<ButtonWire, ButtonWire> mutate)
         {
-            if (owner == null || owner.Buttons == null || index < 0 || index >= owner.Buttons.Length)
+            if (owner == null)
             {
                 return;
             }
 
-            var current = owner.Buttons[index];
-            if (current.Trigger != expected.Trigger
-                || !string.Equals(current.ButtonPath ?? string.Empty, expected.ButtonPath ?? string.Empty, StringComparison.Ordinal))
+            // 範囲外(Inspector で配線を減らした後)も、照合で弾いたときと同じく欄を作り直して知らせる(GE-R-12)。
+            var outOfRange = owner.Buttons == null || index < 0 || index >= owner.Buttons.Length;
+            if (outOfRange || !CanvasButtonWireEditing.SameWire(owner.Buttons[index], expected))
             {
                 if (owner == _target)
                 {
