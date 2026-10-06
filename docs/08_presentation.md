@@ -146,7 +146,7 @@ Timeline 風の複数トラック UI。
 - **AtTime(0.00) は `Play()`/`PlayData()` 呼び出し中に同期的に発火する**(§3 のとおり)。そのため `var h = Presentation.Play(id, ctx); h.OnMarker.Subscribe(...)` のように Handle を受け取ってから購読しても、Time=0 のトラックは観測できない(Vfx/Se 等の副作用は Play 前提で即時実行されるべきという既存 Manager 群と同じ考え方を踏襲した)。ゲームコードが Time=0 の通知を確実に受け取りたい場合は `PlayContext.OnSignal`(Kind=Signal)を使うこと。
 - **完了判定**: `TotalDuration`(0 なら Trigger=AtTime の最大 `Time` から自動算出、`PresentationTiming.EffectiveDuration`)に `Elapsed` が到達したら `Complete()`。**要判断**: OnSignal のみで構成され `TotalDuration` を明示していない Presentation は、最初の `Tick` で(尺 0 とみなされ)即完了してしまう。Signal 待ちだけの演出を作る場合は `TotalDuration` を明示すること(Validator では検出していない)。
 - **`Tick` / `StopAll` / `CancelAllNetworked` の走査は写しで行う(2026-10-04 修正ラウンド 4、FY-R-03。挙動は変えない)**: 購読者(`OnCompleted` / `OnMarker` / `OnCancelled`)や `WaitAsync` の続きが走査中に他の Presentation を `Cancel` / `Play` しても、添字ずれ(二重進行・飛ばし)・範囲外にならない。再利用の写し `_tickBuffer`(割り当てなし)を後ろから走査し、各 Handle を世代つきの有効性確認(`TryGetQuiet`)で確かめる。Tick 中に `Play` されたものは次の `Tick` から進む。発火順・完了通知の順・1 `Tick` で進む量は従来どおり。`CutsceneManager.Tick` と同じ方式。
-- **自分が止められたら残りのトラックを発火しない(2026-10-05 修正ラウンド 5、[57](57_review_round4_m4_2026-10-05.md) FZ-R-07。v1.3.1 からの挙動の変更・不具合修正)**: `FireDueTracks` / `SeekInitialTracks` は、`Marker` / `Signal` / `TrackFired` の購読者が自分の Presentation を `Cancel` したとき、同じ呼び出しの残りのトラックを発火しない(各トラックの発火の後に世代つきの有効性確認 `IsValidSilent`。`CutsceneManager` のマーカー段と同じ保護)。`FireTrack` の末尾(`TrackFiredSubject.OnNext` の前)にも同じ確認を入れた。以前は、Marker の購読者が自分を止めると、Cleanup が Dispose した Subject への `OnNext`(R3 は Dispose 後の `OnNext` で `ObjectDisposedException` を投げる)で例外になり `Tick` 全体が中断し、例外にならない経路(`Seek`)では残りの VFX / SE が新しく出て、止める対象に入らないまま取り残された(ループ VFX は残り続けた)。止められなければ従来どおり同じ時刻の全トラックが同じ Tick で発火する。ネット中継(`Broadcast` / 受信)・Cancel の送信には影響しない。`OnSignal` 経由の `SignalLocal` / `ApplySignal` のループは変更していない(`FireTrack` 末尾の確認は共通なので、購読者が止めたときの例外は出なくなる)。テスト: `PresentationTickReentrancyTests.MarkerSubscriber_CancelsItself_RemainingTracksOfThatPresentationDoNotFire` / `SameTimeTracks_WhenNotStopped_AllFireInOneTick`。
+- **自分が止められたら残りのトラックを発火しない(2026-10-05 修正ラウンド 5、[57](reviews/57_review_round4_m4_2026-10-05.md) FZ-R-07。v1.3.1 からの挙動の変更・不具合修正)**: `FireDueTracks` / `SeekInitialTracks` は、`Marker` / `Signal` / `TrackFired` の購読者が自分の Presentation を `Cancel` したとき、同じ呼び出しの残りのトラックを発火しない(各トラックの発火の後に世代つきの有効性確認 `IsValidSilent`。`CutsceneManager` のマーカー段と同じ保護)。`FireTrack` の末尾(`TrackFiredSubject.OnNext` の前)にも同じ確認を入れた。以前は、Marker の購読者が自分を止めると、Cleanup が Dispose した Subject への `OnNext`(R3 は Dispose 後の `OnNext` で `ObjectDisposedException` を投げる)で例外になり `Tick` 全体が中断し、例外にならない経路(`Seek`)では残りの VFX / SE が新しく出て、止める対象に入らないまま取り残された(ループ VFX は残り続けた)。止められなければ従来どおり同じ時刻の全トラックが同じ Tick で発火する。ネット中継(`Broadcast` / 受信)・Cancel の送信には影響しない。`OnSignal` 経由の `SignalLocal` / `ApplySignal` のループは変更していない(`FireTrack` 末尾の確認は共通なので、購読者が止めたときの例外は出なくなる)。テスト: `PresentationTickReentrancyTests.MarkerSubscriber_CancelsItself_RemainingTracksOfThatPresentationDoNotFire` / `SameTimeTracks_WhenNotStopped_AllFireInOneTick`。
 - **剣攻撃デモ**: `Assets/GameData/Presentation/Demo/PRES_Demo_SkillSlash.asset`(既存の `VFX_Player_Slash`/`SE_Player_Slash` を Target=Self で参照。AtTime(0.00) に Vfx+Se、OnSignal("hit") に HitStop(0.08s)+Se を配置)。確認用シーンは `Assets/GameData/PreviewScenes/PresentationSkillSlashPreviewScene.unity`(`DDriveRuntimeBootstrap` + `PresentationSkillSlashDemo`(`Assets/DDrive/Samples/`、P キーで Play・Space で Signal("hit")・C で Cancel)。**要判断**: `VFX_Player_Slash`/`SE_Player_Slash`/`PRES_Demo_SkillSlash` の `Flags.Load` を `LazyLoad`(既定)から `Preload` に変更した — `PresentationManager` も他の Manager と同じく `ResolveOrPlaceholder` で同期解決するため、LazyLoad のままだと(何かが先に `ResolveAsync` を呼んでいない限り)常に Placeholder になる Canvas/ControlSkin と同種の問題(`Editor/AssetBrowser/AssetCreationService.cs` の `Create` 内コメント、2026-09-12 対応分を参照。Presentation は当時のケース分けに含まれていなかった)。この 2 つの既存アセットは他の用途(AnchorGroup デモ等)でも使われているため、Preload 化の影響範囲は要確認。
 - Addressables グループ(`DDrive_GameData.asset`/`DDrive_Catalogs.asset`)はユーザーの未コミット変更と混ざるため、デモアセット作成に伴う変更はコミットしていない(下記コミット範囲を参照)。
 - **2026-09-14(5-2/5-2b) 追記**: 同じ `PRES_Demo_SkillSlash.asset` の `onHit`(`SignalKey="hit"`)に `CameraShake`(`SHAKE_Demo_DemoHitSmall`)と `Haptic`(`HAPTIC_Demo_DemoHitPunch`)のトラックを追記した(`StopOnCancel=true`)。詳細は [16_camera_haptics.md] 実装メモを参照。
@@ -190,7 +190,7 @@ Timeline 風の複数トラック UI。
 
 ## 追補（2026-09-14、タイムラインのズーム・尺 0 対応・一時停止からの再開)
 
-デザイナーが実際に PresentationEditor を使って確認した結果の 2 件のフィードバックに対応した。人による確認手順は [28_manual_verification_phase5.md](28_manual_verification_phase5.md) の「5-4 追補」節。
+デザイナーが実際に PresentationEditor を使って確認した結果の 2 件のフィードバックに対応した。人による確認手順は [28_manual_verification_phase5.md](verification/28_manual_verification_phase5.md) の「5-4 追補」節。
 
 **(A) タイムラインのズーム(報告: 「シークバーでどこにいるか分からない。目盛りの表示範囲が狭すぎる」)**:
 
@@ -221,7 +221,7 @@ Timeline 風の複数トラック UI。
 
 ## 追補（2026-09-17、U-7 — シークバーを Anim Editor と同じ形に）
 
-要望([39_usability_fixes_2026-09-17.md](39_usability_fixes_2026-09-17.md) U-7)「Presentation Editor のシークバーを Anim Editor のシークバーと同じ形にする」対応。統合プレビューの「シーク」は UI Toolkit の丸ノブ `Slider` で、`AnimEditorWindow`(3-3)の暗い背景 + 目盛り付きバー + 白い再生ヘッド + クリックでシークという「バー」の見た目とは違う形をしていた。
+要望([39_usability_fixes_2026-09-17.md](archive/39_usability_fixes_2026-09-17.md) U-7)「Presentation Editor のシークバーを Anim Editor のシークバーと同じ形にする」対応。統合プレビューの「シーク」は UI Toolkit の丸ノブ `Slider` で、`AnimEditorWindow`(3-3)の暗い背景 + 目盛り付きバー + 白い再生ヘッド + クリックでシークという「バー」の見た目とは違う形をしていた。
 
 - **`SeekBarGui`(`Editor/Common/SeekBarGui.cs`、新規)**: `AnimEditorWindow.DrawTimeline` から「背景(暗い矩形)」「目盛り付きバー(`TimelineRulerGui.DrawTicks` を内部で呼ぶ)」「白い再生ヘッド」「バー領域のクリックを 0..1 の位置に変換する」の 4 つを共通ヘルパーとして切り出した(`DrawBackground`/`DrawBar`/`DrawPlayhead`/`TryHandleClickSeek`)。既定のピクセル位置(マージン 8px・バー開始 y=18px・バー高さ 8px・再生ヘッドのはみ出し 8px)は `AnimEditorWindow.DrawTimeline` の元の値をそのまま既定値にしており、**Anim Editor 側の見た目は変えていない**(イベントマーカー・SE 波形・イベントのドラッグなど Anim 固有の描画/操作はこれまでどおり `AnimEditorWindow.DrawTimeline` 側に残る)。
 - **`PresentationEditorWindow.Preview.cs`**: `_seekSlider`(`Slider`)と `_seekSliderDragging` を廃止し、`_seekBarContainer`(`IMGUIContainer` → `DrawSeekBar`)に置き換えた。`DrawSeekBar` は `SeekBarGui` で背景・バー(目盛りは 1 秒刻み)・再生ヘッド(`_preview.NormalizedTime`。Handle 無効なら -1 で非表示、Anim と同じ判定)を描き、クリックで `SeekToTime` を呼ぶ。UI Toolkit の値変更イベントを使わなくなったため、ドラッグ中フラグでの上書き防止(`PointerDownEvent`/`PointerUpEvent`)は不要になった(クリックのみでドラッグでの連続シークは元々無い、Anim と同じ)。
@@ -230,7 +230,7 @@ Timeline 風の複数トラック UI。
 
 ## 追補（2026-09-17、U-25 — Signal を手動で送る導線を分かりやすくする）
 
-要望([39_usability_fixes_2026-09-17.md](39_usability_fixes_2026-09-17.md) U-25、[36_manual_screenshot_list.md](36_manual_screenshot_list.md) #53)「Presentation の Signal を手動で送る操作のやり方が分からない」対応。§4 の「Signal レーン」自体(`PresentationEditorWindow.Preview.cs` の `RefreshSignalButtons`)は既に実装済みで、Trigger=On Signal のトラックがあれば統合プレビュー内に `Signal Key` ごとのボタンが並んでいたが、次の 2 点が伝わりづらかった。
+要望([39_usability_fixes_2026-09-17.md](archive/39_usability_fixes_2026-09-17.md) U-25、[36_manual_screenshot_list.md](archive/36_manual_screenshot_list.md) #53)「Presentation の Signal を手動で送る操作のやり方が分からない」対応。§4 の「Signal レーン」自体(`PresentationEditorWindow.Preview.cs` の `RefreshSignalButtons`)は既に実装済みで、Trigger=On Signal のトラックがあれば統合プレビュー内に `Signal Key` ごとのボタンが並んでいたが、次の 2 点が伝わりづらかった。
 
 - 再生していない間にボタンを押しても `Manager.Signal(Current, key)` が無効な Handle への no-op になるだけで、見た目には何も起きない(ボタン自体は押せる状態のまま、成功したのか失敗したのか区別がつかない)
 - ボタンが出る場所(「統合プレビュー」フォールドアウトの中の、さらに「Signal レーン(手動発火)」フォールドアウトの中)へたどり着く手順がマニュアルの文章だけでは分かりにくかった
@@ -240,7 +240,7 @@ Timeline 風の複数トラック UI。
 - **`PresentationEditorWindow.Preview.cs`**: 「Signal レーン(手動発火)」フォールドアウトの先頭に、手順(①上の「▶ 再生」を押す → ②再生中に Signal ボタンを押す)を明文化した `Label` を追加した
 - 各 Signal ボタンに `tooltip = "再生中のみ有効です。まず上の「▶ 再生」を押してください。"` を追加し、**再生中でなければボタンを `SetEnabled(false)` でグレーアウト**するようにした(`RefreshSignalButtons` が構築時点の再生状態を反映し、`UpdateSignalButtonsEnabledState(bool playing)` を新設して `PresentationEditorWindow.OnEditorUpdate`(既存の毎フレーム更新ループ、ステータスラベルやシークバーの追従と同じ場所)から呼び、再生開始/停止のたびに追従させる)
 - OnSignal トラックが 1 つも無いときの案内文を「(OnSignal トラックがありません)」→「(On Signal のトラックがありません。Trigger=On Signal のトラックを追加するとここにボタンが出ます)」に変更し、そもそも表示条件が何かも分かるようにした
-- **`docs/DesignerManual/presentation.html`**: 「Signal を手動で送る」の段落を 2 段階の手順(①再生 ②Signal ボタン)として書き直し、停止中はグレーアウトすることも明記した。スクリーンショット #53 のプレースホルダを撮影可能な `<figure>` に差し替えた(実際の撮影はユーザー作業。[36_manual_screenshot_list.md] 側の該当行から「U-25 が未着手」の但し書きを外した)
+- **`docs/DesignerManual/presentation.html`**: 「Signal を手動で送る」の段落を 2 段階の手順(①再生 ②Signal ボタン)として書き直し、停止中はグレーアウトすることも明記した。スクリーンショット #53 のプレースホルダを撮影可能な `<figure>` に差し替えた(実際の撮影はユーザー作業。[archive/36_manual_screenshot_list.md] 側の該当行から「U-25 が未着手」の但し書きを外した)
 - ランタイム API(`Presentation.Signal`/`PresentationHandle.Signal`)・`ScenePresentationPreviewDriver.Signal` 自体の挙動は変更していない(UI 側の分かりやすさのみの改善)
 
 ## 実装メモ（2026-09-14、5-8）
@@ -264,7 +264,7 @@ Timeline 風の複数トラック UI。
 | Se | あり | 同上 |
 | Anim / Anim2D / Bgm / CameraShake / Haptic / HitStop / Timeline / Canvas / UiTween / Marker / Signal | なし | `Target` は Animator/RectTransform の検索先やアニメーションの再生対象を決めるのに使うことはあるが、空間上の「出す位置」は持たない(CameraShake は `PlayContext.Position` を直接使うのみで `Anchor` を消費しない) |
 
-根拠: `PresentationManager.FireVfx`/`FireSe` は必ず `AnchorSpawnSpec.FromDef(track.Anchor)` を「合成済み(presolved)」として `VfxManager.SpawnData(data, in spec, root)` / `AudioManager.PlaySeData(data, in spec, root, seed)` へ渡す。この経路(`SpawnDataLocal` の `presolved` 引数)は `anchorOverride > Data.AnchorId > Data.Anchor` の優先順位を解く `ResolveAnchorSpec` を一切呼ばない。**つまり参照先 VfxData/SeData 自身の `AnchorId` も埋め込み `Anchor` も、Presentation 経由の再生では絶対に使われない。** これは新しい発見ではなく、[43_manual_verification_2026-09-17.md](43_manual_verification_2026-09-17.md) §6「Presentation に Anchor 上書きが無い」で既に指摘されていた既知事象と一致する。
+根拠: `PresentationManager.FireVfx`/`FireSe` は必ず `AnchorSpawnSpec.FromDef(track.Anchor)` を「合成済み(presolved)」として `VfxManager.SpawnData(data, in spec, root)` / `AudioManager.PlaySeData(data, in spec, root, seed)` へ渡す。この経路(`SpawnDataLocal` の `presolved` 引数)は `anchorOverride > Data.AnchorId > Data.Anchor` の優先順位を解く `ResolveAnchorSpec` を一切呼ばない。**つまり参照先 VfxData/SeData 自身の `AnchorId` も埋め込み `Anchor` も、Presentation 経由の再生では絶対に使われない。** これは新しい発見ではなく、[43_manual_verification_2026-09-17.md](verification/43_manual_verification_2026-09-17.md) §6「Presentation に Anchor 上書きが無い」で既に指摘されていた既知事象と一致する。
 
 **→ 2026-09-19、同日中にユーザー決定により仕様変更した。最新の優先順位・合成規則は下の「実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)」を参照。**
 
@@ -293,7 +293,7 @@ Timeline 風の複数トラック UI。
 | Runtime | `Runtime/Presentation/PresentationManager.cs`(`ResolveContextRoot` を `public static` 化。ロジック自体は無変更) |
 | Editor | `Editor/Presentation/PresentationTrackAnchorResolver.cs`(新規)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(新規、partial)、`Editor/Presentation/PresentationEditorWindow.cs`(SceneView 購読の配線・UI 呼び出し追加) |
 | Tests | `Tests/Editor/PresentationTrackAnchorResolverTests.cs`(新規)、`Tests/Runtime/PresentationManagerTests.cs`(`ResolveContextRoot` の回帰テスト追加) |
-| docs | 本節、[09_editor_tools.md] §2.3、`docs/DesignerManual/presentation.html`、[43_manual_verification_2026-09-17.md] |
+| docs | 本節、[09_editor_tools.md] §2.3、`docs/DesignerManual/presentation.html`、[verification/43_manual_verification_2026-09-17.md] |
 
 ### 未確認・要判断
 
@@ -326,14 +326,14 @@ Timeline 風の複数トラック UI。
 | Runtime | `Runtime/Presentation/PresentationTrack.cs`(`TrackKind.AnchorGroup` 追加)、`Runtime/Presentation/PresentationManager.cs`(`FireAnchorGroup`/`FiredAnchorGroup`/`OnAnchorGroupPlayed`/コンストラクタ引数 `groups`)、`Runtime/Presentation/PresentationDataValidator.cs`(Asset 種別不一致 Error)、`Runtime/Loop/DDriveRuntimeBootstrap.cs`(`groups: Groups` を渡す 1 行) |
 | Editor | `Editor/Presentation/PresentationTrackKindMapping.cs`、`Editor/Presentation/PresentationEditorWindow.Tracks.cs`(レーン)、`Editor/Presentation/PresentationTrackAnchorResolver.cs`(`HasPosition`/`ResolveAnchorGroupPoints` 追加)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(`DrawAnchorGroupPoints` 追加)、`Editor/Presentation/ScenePresentationPreviewDriver.cs`(Groups 注入・Adopt)、`Editor/Anim/SceneAnimPreviewDriver.cs`(`Groups` プロパティ新設) |
 | Tests | `Tests/Runtime/PresentationAnchorGroupTests.cs`(新規)、`Tests/Runtime/PresentationDataValidatorTests.cs`、`Tests/Editor/PresentationTrackAnchorResolverTests.cs`、`Tests/Editor/PresentationTrackKindMappingTests.cs` |
-| docs | 本節、[22_anchor_group.md] §5、[02_core_framework.md] §14、`docs/DesignerManual/presentation.html`・`anchor-group.html`、[43_manual_verification_2026-09-17.md] |
+| docs | 本節、[22_anchor_group.md] §5、[02_core_framework.md] §14、`docs/DesignerManual/presentation.html`・`anchor-group.html`、[verification/43_manual_verification_2026-09-17.md] |
 
 ### 未確認・要判断(2026-09-19、AnchorGroup トラック)
 
 - Unity MCP(CoplayDev)でのコンパイル・EditMode/PlayMode テストの実行結果は本節末尾の報告を参照(未検証ならその旨明記する)
-- SceneView での実際の見た目(全点の番号付き表示・色・ラベル)・統合プレビューでの Adopt(VFX が SceneView で実際に動いて見えるか)は人による確認が必要([43_manual_verification_2026-09-17.md] に項番追記)
+- SceneView での実際の見た目(全点の番号付き表示・色・ラベル)・統合プレビューでの Adopt(VFX が SceneView で実際に動いて見えるか)は人による確認が必要([verification/43_manual_verification_2026-09-17.md] に項番追記)
 - 既存の Vfx/Se トラックが統合プレビューの EditMode で Adopt されていない疑い(上記)は本チケットのスコープ外のまま
-- コンパイル・EditMode(879/879)・PlayMode(721/721)はいずれも green(Unity MCP、CoplayDev 版)。**SceneView での実際の見た目・ハンドル操作・複数ウィンドウの描画権切替は未確認**([43_manual_verification_2026-09-17.md] §8 の手順を参照)
+- コンパイル・EditMode(879/879)・PlayMode(721/721)はいずれも green(Unity MCP、CoplayDev 版)。**SceneView での実際の見た目・ハンドル操作・複数ウィンドウの描画権切替は未確認**([verification/43_manual_verification_2026-09-17.md] §8 の手順を参照)
 
 ## 実装メモ(2026-09-19、トラック/アセット両方の Anchor 参照)
 
@@ -388,7 +388,7 @@ Timeline 風の複数トラック UI。
 | Runtime | `Runtime/Anchoring/AnchorChain.cs`(`AnchorChainNode` 新規、`ComposeNodes`/`CollectChainInto` 追加、既存 `Compose`/`CollectChain` は薄いラッパー化)、`Runtime/Presentation/PresentationTrackAnchorComposer.cs`(新規)、`Runtime/Presentation/PresentationManager.cs`(`FireVfx`/`FireSe` が Composer 経由に)、`Runtime/Presentation/PresentationDataValidator.cs`(ケース3 Info、`TryFindTrackAsset` 追加) |
 | Editor | `Editor/Preview/AnchorSceneHandles.cs`(`DrawChainNode` 新設。`DrawChain` はこれを呼ぶだけに整理、見た目は無変更)、`Editor/Presentation/PresentationTrackAnchorResolver.cs`(`ResolveEffective`/`EffectiveResult` 追加)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(ケース別描画に分岐)、`Editor/Presentation/PresentationEditorWindow.Tracks.cs`(Anchor 欄見出しにケース表示) |
 | Tests | `Tests/Editor/AnchorDefTests.cs`(新規)、`Tests/Runtime/PresentationTrackAnchorComposerTests.cs`(新規)、`Tests/Runtime/PresentationManagerTests.cs`(FireVfx の 3 ケース + AnchorId 連鎖の統合テスト追加)、`Tests/Editor/PresentationTrackAnchorResolverTests.cs`(`ResolveEffective` の 3 ケース追加)、`Tests/Runtime/PresentationDataValidatorTests.cs`(ケース3 Info の追加) |
-| docs | 本節、[21_anchor_spec.md] §3.3、[43_manual_verification_2026-09-17.md] §6、`docs/DesignerManual/presentation.html` |
+| docs | 本節、[21_anchor_spec.md] §3.3、[verification/43_manual_verification_2026-09-17.md] §6、`docs/DesignerManual/presentation.html` |
 
 ### コンパイル・テスト(2026-09-19、Unity MCP CoplayDev 版)
 
@@ -396,7 +396,7 @@ Timeline 風の複数トラック UI。
 
 ### 未確認・要判断
 
-- SceneView での実際の見た目(ケース1の注記表示・ケース3のチェーン表示・トラック一覧の見出し文言)は人による確認が必要([43_manual_verification_2026-09-17.md] §11 に手順を追記した)
+- SceneView での実際の見た目(ケース1の注記表示・ケース3のチェーン表示・トラック一覧の見出し文言)は人による確認が必要([verification/43_manual_verification_2026-09-17.md] §11 に手順を追記した)
 - 既存プロジェクトの `PresentationData` のうち、今回の仕様変更で実際に出る位置が変わるものが無いか(`Validation > Run All` の Info)は未確認
 
 ## 実装メモ(2026-09-20、ユーザーの確認作業〔[43] §8/§11〕で出た指摘 4 件)
@@ -467,7 +467,7 @@ trackPos = desiredPos - trackRot * childPos
 | Runtime | `Runtime/Presentation/PresentationTrackAnchorComposer.cs`(`ComposeAssetOnly`/`SolveTrackLocal` 追加、`Compose` の `Case.AssetOnly` 分岐を `ComposeAssetOnly` 呼び出しに整理) |
 | Editor | `Editor/Preview/AnchorSceneHandles.cs`(`DrawClickableMarker` 新設)、`Editor/Presentation/PresentationEditorWindow.SceneAnchors.cs`(クリック選択・ケース1/3のハンドル・逆算呼び出し)、`Editor/Presentation/PresentationEditorWindow.cs`(`_mainScrollView` 追加)、`Editor/Vfx/VfxEditorWindow.cs`(`Open(VfxData, GameObject)` 追加)、`Editor/Vfx/VfxEditorWindow.Anchor.cs`(薄い目印をクリック可能に)、`Editor/Anchor/AnchorGroupEditorWindow.cs`(`Open(AnchorGroupData, GameObject)` 追加)、`Editor/Anchor/AnchorEditorWindow.cs`(薄い目印をクリック可能に)、`Editor/Anim/AnimEditorWindow.cs`(`Open(AnimData, GameObject)` 追加)、`Editor/Presentation/PresentationTrackEditorRouting.cs`(新規)、`Editor/Presentation/PresentationEditorWindow.TrackEditors.cs`(新規)、`Editor/Presentation/PresentationEditorWindow.Tracks.cs`(行に導線を追加) |
 | Tests | `Tests/Runtime/PresentationTrackAnchorComposerTests.cs`(`SolveTrackLocal`/`ComposeAssetOnly` のテスト追加)、`Tests/Editor/PresentationTrackEditorRoutingTests.cs`(新規) |
-| docs | 本節、[09_editor_tools.md] §2.3、[43_manual_verification_2026-09-17.md] §8/§11/§12、`docs/DesignerManual/presentation.html` |
+| docs | 本節、[09_editor_tools.md] §2.3、[verification/43_manual_verification_2026-09-17.md] §8/§11/§12、`docs/DesignerManual/presentation.html` |
 
 ### 未確認・要判断
 

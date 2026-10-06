@@ -136,7 +136,7 @@ AssetBrowser から開く Inspector 拡張 + プレビューペイン。
 プレビューは実 AudioManager を EditMode で駆動する（[01] ADR-4）。
 現状の実装（Phase 1）はドラッグ操作前の数値入力ベース GUI（`SeDataEditor`）まで。波形上のドラッグ編集は本 AudioEditor（1-7）で波形表示と統合する。
 
-**2026-09-17（[39](39_usability_fixes_2026-09-17.md) U-14）**: `BgmData` の Fade In / Fade Out（`ValueDef`）が Inspector で
+**2026-09-17（[39](archive/39_usability_fixes_2026-09-17.md) U-14）**: `BgmData` の Fade In / Fade Out（`ValueDef`）が Inspector で
 `No GUI Implementation` としか出ず編集できなかった。`ValueDefDrawer` が UI Toolkit（`CreatePropertyGUI`）専用なのに、
 Data 共通 Inspector（`AssetDataInspector`）が IMGUI（`DrawDefaultInspector`）で描いていたのが原因。共通 Inspector を
 UI Toolkit 化して解消した（詳細は [09_editor_tools.md](09_editor_tools.md) §8 の注記）。`SeData` は `SeDataEditor` が

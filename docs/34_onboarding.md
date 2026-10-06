@@ -88,7 +88,7 @@ D-Drive の一番大事な考え方は、**プログラマーは中身（音・�
 - `compile_request` → 20〜25 秒待つ → `compile_status` で `succeeded` を確認
 - `test_run mode=edit` → `test_results`（EditMode、20〜30 秒） / `test_run mode=play` → `test_results`（PlayMode、1〜2 分。`Tests/Runtime` は asmdef が全プラットフォーム対象のため PlayMode でしか走らない）
 - **EditMode と PlayMode の両方が green になるまで完了報告しない**。Unity MCP に接続できていなければ「未検証」と明示する（[CLAUDE.md] §3、§4）
-- ネットワーク機能（NGO/`INetBridge`）は PlayMode テストに加えて実機確認が必要（[29_network_device_test.md](29_network_device_test.md)）。ユニットテストだけでは検出できない実バグが複数回見つかっている
+- ネットワーク機能（NGO/`INetBridge`）は PlayMode テストに加えて実機確認が必要（[29_network_device_test.md](verification/29_network_device_test.md)）。ユニットテストだけでは検出できない実バグが複数回見つかっている
 - テスト前後で `git status`/`git diff` に差分が出ないことを確認する（特に `Assets/AddressableAssetsData/AssetGroups/*.asset`）。テストが実データを汚していないかの確認
 
 ---

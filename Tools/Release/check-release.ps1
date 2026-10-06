@@ -89,7 +89,7 @@ catch {
 $protoCheck = Test-ProtocolVersionChangeNoted -RepoRoot $repoRoot -ProtocolCsRelativePath $protocolCsRelativePath -ChangelogPath $changelogPath -CompareRef $protoRef
 $checks.Add([pscustomobject]@{ Name = 'ネットメッセージ版(ProtocolVersion)の変更記録'; Ok = $protoCheck.Ok; Message = $protoCheck.Message })
 
-# [47_review_p_tickets_2026-09-20.md] P2-6(2026-09-20 修正) — この通常実行(-GuardOnly 無し = リリース時)
+# [docs/reviews/47_review_p_tickets_2026-09-20.md] P2-6(2026-09-20 修正) — この通常実行(-GuardOnly 無し = リリース時)
 # だけ version の一致検査も行う(-RequireVersionBump)。run-ci.cmd から呼ぶ -GuardOnly はスナップショット
 # と CHANGELOG.md の対応だけを見る(上の -GuardOnly 分岐、$RequireVersionBump を渡していない)。
 $guardCheck = Test-ChangelogGuard -RepoRoot $repoRoot -BaseRef $Base -RequireVersionBump

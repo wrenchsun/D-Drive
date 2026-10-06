@@ -163,7 +163,7 @@ function Test-ProtocolVersionChangeNoted {
 
     Push-Location -LiteralPath $RepoRoot
     try {
-        # [47_review_p_tickets_2026-09-20.md] P2-7(2026-09-20 修正) — `2>&1` を外し、失敗は try/catch で
+        # [docs/reviews/47_review_p_tickets_2026-09-20.md] P2-7(2026-09-20 修正) — `2>&1` を外し、失敗は try/catch で
         # 拾う(Windows PowerShell 5.1 + $ErrorActionPreference='Stop' の組み合わせで NativeCommandError に
         # なり $LASTEXITCODE 判定に到達できない問題を避ける)。
         $diffOutput = $null
@@ -211,7 +211,7 @@ function Test-ChangelogGuard {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
         [Parameter(Mandatory = $true)][string]$BaseRef,
-        # [47_review_p_tickets_2026-09-20.md] P2-6(2026-09-20 修正) — package.json の version が
+        # [docs/reviews/47_review_p_tickets_2026-09-20.md] P2-6(2026-09-20 修正) — package.json の version が
         # $BaseRef から上がっているかの検査は「リリース PR」を想定した条件であって、日々の開発コミット
         # には合わない(スナップショットに差分があるだけで、リリースする前の通常コミットが必ず fail する
         # 設計になっていた)。既定は $false(CHANGELOG.md の変更有無だけを見る)にし、
@@ -221,7 +221,7 @@ function Test-ChangelogGuard {
 
     Push-Location -LiteralPath $RepoRoot
     try {
-        # [47_review_p_tickets_2026-09-20.md] P2-7(2026-09-20 修正) — Windows PowerShell 5.1 は
+        # [docs/reviews/47_review_p_tickets_2026-09-20.md] P2-7(2026-09-20 修正) — Windows PowerShell 5.1 は
         # $ErrorActionPreference='Stop' の下で外部コマンドの stderr を `2>&1` でパイプに載せると
         # NativeCommandError として終了エラーになり、後続の $LASTEXITCODE 判定に到達できない
         # (shallow clone・detached HEAD・origin/main が無い CI で踏む)。`2>&1` を外し、

@@ -142,18 +142,18 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
 - **A（ブリッジ選択）**: `DDriveRuntimeBootstrap.NetBridgeMode`(`Loopback`/`Ngo`。既定 `Loopback`)を Inspector に追加。`ResolveNetBridge()` が `NetLaunchArgs.Parse(Environment.GetCommandLineArgs())` の結果(未指定なら Inspector 既定値)で最終ロールを決め、`Loopback` なら `LocalLoopbackBridge` を new する(既存どおり)。`Ngo` のときは **Bootstrap 自身は `NetworkManager` を生成しない**(シーンに `NetworkManager`+`UnityTransport`+`NetworkObject`+`NgoNetBridge` を置く設計を選んだ。`NetworkManagerRef`/`NgoBridgeRef` の Inspector 直参照、未設定なら `FindAnyObjectByType` で自動検索)。見つからなければ警告して `LocalLoopbackBridge` にフォールバックする(例外で止めない)。見つかった場合は `NgoTransportConfigurator.TryConfigure` で IP/Port/シミュレータを設定してから `NetworkManager.StartHost()`/`StartClient()` を呼ぶ。**要判断**: 「NetworkManager をシーンに置く」と「Bootstrap が実行時に動的生成する」のどちらにするかは要判断だったが、UnityTransport の設定(ConnectionData 等)をあらかじめシーン上で調整できる・NGO の一般的な使い方に近い、という理由でシーン配置を選んだ。
 - **B（起動引数・オーバーレイ）**: `NetLaunchArgs`(Unity API 非依存の純関数パーサ、EditMode テストで検証)が `-ddrive-net host|client|off`/`-ddrive-host`/`-ddrive-port`/`-ddrive-sim-latency`/`-ddrive-sim-loss`/`-ddrive-autotest` を解釈する。`NgoTransportConfigurator` が IP/Port とシミュレータ(`UnityTransport.SetDebugSimulatorParameters(packetDelay, packetJitter, dropRate)`。`dropRate` は 0-100 の%そのもの、実行時リフレクションで確認済み)を設定する。**要判断(asmdef)**: `UnityTransport` クラス自体は `Unity.Netcode.Runtime`(既参照)に同梱されているが、そのメソッドの一部オーバーロードが `Unity.Networking.Transport.NetworkEndpoint`(未参照アセンブリ)を引数に取るため、素直に `using Unity.Netcode.Transports.UTP;` して直接呼ぶとコンパイラがオーバーロード解決のために未参照アセンブリの読み込みを要求し `CS0012` でコンパイルエラーになる(実際に確認した)。asmdef に `Unity.Networking.Transport` を追加すれば解決するが、6-0 では asmdef 変更を避け、リフレクションで名前解決して呼ぶことで回避した(型/メソッドが見つからない場合は警告 1 回のみで no-op)。`NetDebugOverlay`(`OnGUI`。画面左上に役割/ClientId/NetworkTime/RTT/受信数)は `ShowNetDebugOverlay`(既定 ON)で Ngo モードのときだけ追加される。RTT は `NetworkTransport.GetCurrentRtt(clientId)`(基底クラス API、`ulong`/`NetworkEndpoint` を経由しないため未参照アセンブリの問題が起きない)。
 
-**2026-09-25 修正(M-1d)**: `ShowNetDebugOverlay=true`(既定 ON)のままリリースビルドしても `NetDebugOverlay` が出てしまう不具合を修正した(MS2026 実機テスト TeamNotes 2026-09-25「リリース前に `Boot.unity` の `DDriveRuntimeBootstrap.ShowNetDebugOverlay` を false にする」の本修正)。`NgoBridgeFactory.Create`(`Runtime/Ngo/NgoBridgeFactoryInstaller.cs`)のオーバーレイ生成条件を `args.ShowDebugOverlay` だけでなく `Debug.isDebugBuild || Application.isEditor || args.ShowDebugOverlayInRelease` にした(`NetManualConnectOverlay`/手動接続 UI と同じ判定基準)。`DDriveRuntimeBootstrap` に `public bool ShowNetDebugOverlayInRelease = false`(追加のみ)を新設し、リリースビルドでもオーバーレイを出したい場合だけ ON にする opt-in にした。`NgoBridgeCreateArgs` にも同名フィールド + それを受け取る新しいコンストラクタ overload を追加(既存の 6 引数コンストラクタは残したまま。[42_distribution.md] §5.4 MINOR)。**互換性への影響**: リリースビルドでの既定挙動が変わる(オーバーレイが既定で非表示になる)。個別プロジェクトが `ShowNetDebugOverlay` を手動で false にする運用をしていた場合は影響なし。実機での確認は本チケットの自動テストの範囲外([docs/29](29_network_device_test.md) の実機確認手順に委ねる)。
+**2026-09-25 修正(M-1d)**: `ShowNetDebugOverlay=true`(既定 ON)のままリリースビルドしても `NetDebugOverlay` が出てしまう不具合を修正した(MS2026 実機テスト TeamNotes 2026-09-25「リリース前に `Boot.unity` の `DDriveRuntimeBootstrap.ShowNetDebugOverlay` を false にする」の本修正)。`NgoBridgeFactory.Create`(`Runtime/Ngo/NgoBridgeFactoryInstaller.cs`)のオーバーレイ生成条件を `args.ShowDebugOverlay` だけでなく `Debug.isDebugBuild || Application.isEditor || args.ShowDebugOverlayInRelease` にした(`NetManualConnectOverlay`/手動接続 UI と同じ判定基準)。`DDriveRuntimeBootstrap` に `public bool ShowNetDebugOverlayInRelease = false`(追加のみ)を新設し、リリースビルドでもオーバーレイを出したい場合だけ ON にする opt-in にした。`NgoBridgeCreateArgs` にも同名フィールド + それを受け取る新しいコンストラクタ overload を追加(既存の 6 引数コンストラクタは残したまま。[42_distribution.md] §5.4 MINOR)。**互換性への影響**: リリースビルドでの既定挙動が変わる(オーバーレイが既定で非表示になる)。個別プロジェクトが `ShowNetDebugOverlay` を手動で false にする運用をしていた場合は影響なし。実機での確認は本チケットの自動テストの範囲外([docs/29](verification/29_network_device_test.md) の実機確認手順に委ねる)。
 - **C（NetId 実解決）**: `INetBridge.ResolveNetId(Transform)`(`ResolveNetObject` の逆方向)を追加。`LocalLoopbackBridge` は `RegisterNetObject` 時に逆引き辞書も同時に埋める。`NgoNetBridge` は `transform.GetComponentInParent<NetworkObject>()` が `IsSpawned` なら `NetworkObjectId` を返す(それ以外は 0、既存の Position フォールバックへ)。`VfxNetMsg`/`SeNetMsg` の `AnchorNetId` は `contextRoot` から解決した実値を送るようになり(§4 の 2026-07-27 実装メモの制約を解消)、受信側も `AnchorNetId!=0` のときはそこへ**追従再生**する(解決できないときは既存どおり送信時点の Position 固定)。`PresentationPlayMsg.SelfNetId`/`TargetNetId` も同様に `ctx.Self`/`ctx.Target` から解決する。**Haptics の LocalPlayerOnly**: `INetBridge.IsLocalPlayerObject(Transform)`(NGO は `NetworkObject.OwnerClientId == LocalClientId`、Loopback は常に true)を追加し、`FireHaptic` は `PlayedViaNetworkReceive && LocalPlayerOnly` のとき「`ctx.Self`/`ctx.Target` が解決できて、かつ自分の所有物」であれば再生し、それ以外(未解決 or 自分ではない)は従来どおり安全側で再生しない(2026-09-14 の要判断を解消)。**Simulated Prefab の Host 生成**: `INetBridge.SpawnNetworked(GameObject root)`/`DespawnNetworked(ulong,bool)` を追加。`PrefabsManager.SpawnData` は Host かつ `NetMode.Simulated` のとき、Pool から借りた `root`(既存の Instantiate 経路のまま)に対して `SpawnNetworked` を呼び、返ってきた `NetworkObjectId` を `PrefabSpawnedMsg.NetObjectId` に載せる(`LocalLoopbackBridge` は常に 0 = 挙動不変)。`Despawn` は `IsPooled` かどうかで `destroy` フラグを分ける(Pool へ戻す場合は `destroy:false`)。**要判断**: Pool から再度 Rent されたときに NetworkObject を再 Spawn する経路はまだ無い(Pooled な Simulated Prefab を Despawn→再 Rent する運用がある場合は追加実装が必要)。
-- **D（実機確認シーン + 自動確認）**: `Assets/GameData/PreviewScenes/NetCheckScene.unity`(Editor API で作成)。`[D-Drive] Runtime`(`GameLoopDriver`+`DDriveRuntimeBootstrap`、`DefaultNetBridge=Ngo`)、`NetworkManager`(`NetworkManager`+`UnityTransport`+`NetworkObject`+`NgoNetBridge`+`NetBridgeSmokeTest`。`NetworkConfig.Prefabs` に既存の `Assets/DefaultNetworkPrefabs.asset` を割り当て)、`Actor`(`NetCheckRunner`)。`NetCheckRunner` は Host なら `PRES_Demo_SkillSlash` を周期再生 → `Signal("hit")`、全ピアで `[DDriveNetCheck] key=value` 形式のハートビート(`activeCount`/`NetworkTime` 等)を出す。Client 役は定期的に偽造 `PresentationCancelMsg`(存在しない `HandleNetKey`)を `Broadcast` し、F の発行者検証で破棄されることをログ(`[Net/Host]`/`[Net/Client]` の警告)で確認できるようにした。`-ddrive-autotest <name>` 指定時は一定時間後に自動終了する。判定基準・起動コマンドは [docs/29](29_network_device_test.md) §3/§4。
+- **D（実機確認シーン + 自動確認）**: `Assets/GameData/PreviewScenes/NetCheckScene.unity`(Editor API で作成)。`[D-Drive] Runtime`(`GameLoopDriver`+`DDriveRuntimeBootstrap`、`DefaultNetBridge=Ngo`)、`NetworkManager`(`NetworkManager`+`UnityTransport`+`NetworkObject`+`NgoNetBridge`+`NetBridgeSmokeTest`。`NetworkConfig.Prefabs` に既存の `Assets/DefaultNetworkPrefabs.asset` を割り当て)、`Actor`(`NetCheckRunner`)。`NetCheckRunner` は Host なら `PRES_Demo_SkillSlash` を周期再生 → `Signal("hit")`、全ピアで `[DDriveNetCheck] key=value` 形式のハートビート(`activeCount`/`NetworkTime` 等)を出す。Client 役は定期的に偽造 `PresentationCancelMsg`(存在しない `HandleNetKey`)を `Broadcast` し、F の発行者検証で破棄されることをログ(`[Net/Host]`/`[Net/Client]` の警告)で確認できるようにした。`-ddrive-autotest <name>` 指定時は一定時間後に自動終了する。判定基準・起動コマンドは [docs/29](verification/29_network_device_test.md) §3/§4。
 - **E（ビルド）**: `DDrive.Editor.Build.NetCheckBuilder`(`Tools > D-Drive > Build > 実機確認用 Windows 開発ビルド` + `Build()` static メソッド)。`BuildPlayerOptions.scenes = [NetCheckScene のパス]` を明示指定するため `EditorBuildSettings.scenes` は変更しない。出力 `Builds/DDriveNetCheck/DDriveNetCheck.exe`(development build)→ `Builds/DDriveNetCheck.zip`(`System.IO.Compression.ZipArchive` で手動圧縮。`ZipFile.CreateFromDirectory`/`CreateEntryFromFile` は `System.IO.Compression.FileSystem` アセンブリの拡張メソッドで asmdef 変更が必要になるため避けた)。`Builds/` は `.gitignore` に追加した。
-- **F（P5 レビュー第 2 弾対応）**: 詳細は `docs/30_phase5_review_2026-09-14.md` の「第 2 弾（ネット）」節。要旨: `HandleNetKey` の上位 8bit に発行者(`LocalClientId` の下位 8bit)を埋め込み、`PresentationManager.IsAuthorizedSender(senderId, handleNetKey)`(発行者一致 or Host=0 からの信頼された中継/再送)で Signal/Cancel/Play(既知キー分岐)を検証してから処理する(不一致は警告して破棄)。受信 Cancel は `Interruptible` を再チェックする。`PredictLocal && IsServer` は確定エコーを待たず即時台帳登録。`OnClientConnected` は自己接続を early-return し、台帳をスナップショット配列にしてから送る。テスト用 `DelayedNetBridge`/`FakeNetBridge` に `LocalClientId` と(`FakeNetBridge`)Client→Host 依頼経路相当の検証(型登録+レート制限)を追加し、Client 行為者の Play/Signal/Cancel と偽造メッセージ破棄のテストを追加した。SE の `Seed` は `AudioManager.PlaySeData(..., seed:)` → `SelectClip`/`ConfigureSource` が `System.Random(seed)` から Clip/Pitch を決定的に選ぶよう接続した(ローカル再生は未指定のまま `UnityEngine.Random` を使い続けるため挙動不変)。
+- **F（P5 レビュー第 2 弾対応）**: 詳細は `docs/reviews/30_phase5_review_2026-09-14.md` の「第 2 弾（ネット）」節。要旨: `HandleNetKey` の上位 8bit に発行者(`LocalClientId` の下位 8bit)を埋め込み、`PresentationManager.IsAuthorizedSender(senderId, handleNetKey)`(発行者一致 or Host=0 からの信頼された中継/再送)で Signal/Cancel/Play(既知キー分岐)を検証してから処理する(不一致は警告して破棄)。受信 Cancel は `Interruptible` を再チェックする。`PredictLocal && IsServer` は確定エコーを待たず即時台帳登録。`OnClientConnected` は自己接続を early-return し、台帳をスナップショット配列にしてから送る。テスト用 `DelayedNetBridge`/`FakeNetBridge` に `LocalClientId` と(`FakeNetBridge`)Client→Host 依頼経路相当の検証(型登録+レート制限)を追加し、Client 行為者の Play/Signal/Cancel と偽造メッセージ破棄のテストを追加した。SE の `Seed` は `AudioManager.PlaySeData(..., seed:)` → `SelectClip`/`ConfigureSource` が `System.Random(seed)` から Clip/Pitch を決定的に選ぶよう接続した(ローカル再生は未指定のまま `UnityEngine.Random` を使い続けるため挙動不変)。
 - **NgoNetBridge の発行者伝達バグ修正(P1-2 の前提)**: 6-0 着手前の `NgoNetBridge.Dispatch` は受信メッセージの `senderId` を常に `NetworkManager.ServerClientId` としていたため、Client 発のメッセージが Host 経由で中継された後は全ピアで「Host から来た」ものとして見えてしまい、発行者検証が原理的に機能しなかった。`ReceiveRpc`/`ReceiveUnreliableRpc`/`ReceiveToRpc`/`ReceiveUnreliableToRpc` に `originClientId` パラメータを追加し、`RequestBroadcastRpc` が `rpcParams.Receive.SenderClientId`(トランスポートが付与する真の値。クライアントは偽装できない)をそのまま中継するよう変更した。
 - **見送り(6-0 のスコープ外)**: カタログ ContentHash 照合(Phase 6-5)、Simulated Prefab のプール再利用時の再 Spawn、`NetworkPrefabsList` への D-Drive 側 Prefab の実登録(NetCheckScene では既存の空リストを割り当てただけ)、`-ddrive-autotest` の詳細な成否判定(現状はログ出力のみで pass/fail の自動判定はしない)。
-- **ローカル結合確認で見つかった実バグ 2 件(重要)**: (1) `NetworkManager.StartHost()`/`StartClient()` を `DDriveRuntimeBootstrap.Awake()`(`DefaultExecutionOrder(-1000)`)から直接呼ぶと、`NetworkManager` 自身の `Awake()`/`OnEnable()` が済む前に呼ばれてしまい `NullReferenceException` になる。→ `ResolveNetBridge()`(Awake 内)は役割決定・Transport 設定のみを行い、実際の `StartHost()`/`StartClient()` 呼び出しは `Start()`(全オブジェクトの Awake 完了が保証される)まで遅延させる(`StartNetworkingIfPending()`)。(2) `NetworkManager` と `NetworkObject` を同じ GameObject に置くと NGO が `[OnValidate] NetworkManager cannot be a NetworkObject` を警告し機能しない → `NgoNetBridge`(`NetworkObject` が必要)は別 GameObject(`NgoBridge`)に置く。いずれもユニットテスト(Fake/Delayed ブリッジ)では検出できず、実プレイヤー2プロセスでのローカル結合確認で初めて見つかった。詳細・ログ抜粋は [docs/29](29_network_device_test.md) §7。
+- **ローカル結合確認で見つかった実バグ 2 件(重要)**: (1) `NetworkManager.StartHost()`/`StartClient()` を `DDriveRuntimeBootstrap.Awake()`(`DefaultExecutionOrder(-1000)`)から直接呼ぶと、`NetworkManager` 自身の `Awake()`/`OnEnable()` が済む前に呼ばれてしまい `NullReferenceException` になる。→ `ResolveNetBridge()`(Awake 内)は役割決定・Transport 設定のみを行い、実際の `StartHost()`/`StartClient()` 呼び出しは `Start()`(全オブジェクトの Awake 完了が保証される)まで遅延させる(`StartNetworkingIfPending()`)。(2) `NetworkManager` と `NetworkObject` を同じ GameObject に置くと NGO が `[OnValidate] NetworkManager cannot be a NetworkObject` を警告し機能しない → `NgoNetBridge`(`NetworkObject` が必要)は別 GameObject(`NgoBridge`)に置く。いずれもユニットテスト(Fake/Delayed ブリッジ)では検出できず、実プレイヤー2プロセスでのローカル結合確認で初めて見つかった。詳細・ログ抜粋は [docs/29](verification/29_network_device_test.md) §7。
 
 ## 実装メモ（2026-09-14、6-0 実機確認で見つかった課題の修正）
 
-実機 2 台（PC-A Host + PC-B Client、[docs/29](29_network_device_test.md) §8）で見つかった課題 5 件を修正した。
+実機 2 台（PC-A Host + PC-B Client、[docs/29](verification/29_network_device_test.md) §8）で見つかった課題 5 件を修正した。
 実装: `Runtime/Net/NgoNetBridge.cs`（アプリ層送受信キュー遅延・Ping/Pong による App RTT 計測・切断通知）、
 `Runtime/Net/NetPingMessages.cs`（新規、`NetPingMsg`/`NetPongMsg`）、`Runtime/Net/NgoTransportConfigurator.cs`
 （コメント更新のみ）、`Runtime/Net/NetDebugOverlay.cs`（App RTT 併記）、`Runtime/Loop/DDriveRuntimeBootstrap.cs`
@@ -245,14 +245,14 @@ Presentation.Play(PRESENTID.SkillSlash, ctx);
 
 ## 実装メモ（2026-09-14、6-0 修正6: 実機確認 v2 で発見した「遅延時にワンショットが一切発火しない」実バグの修正）
 
-[docs/29](29_network_device_test.md) §8「修正版 v2 での再確認」で見つかった、遅延 200ms 環境で剣攻撃デモの
+[docs/29](verification/29_network_device_test.md) §8「修正版 v2 での再確認」で見つかった、遅延 200ms 環境で剣攻撃デモの
 VFX が Client に一切描画されない実バグの修正。加えて、その後の切断確認で見つかった 4 件の小さな課題も
 同じ PR で対応した。
 
 - **原因**: `PresentationManager.OnReceivePlayMsgInternal` が `elapsed = Max(0, NetworkTime - StartNetTime)`
   でシーク開始し、`SeekInitialTracks`(旧称。実装は変わらず本節でリネームはしていない)が `elapsed > 0` かつ
   `IsContinuousAtSeek` でないワンショット(Time=0 の VFX/SE 等)を無条件にスキップしていた。遅延 0ms では
-  Client の ServerTime 推定が Host より約 80ms 遅れて見える([docs/29](29_network_device_test.md) §8 の
+  Client の ServerTime 推定が Host より約 80ms 遅れて見える([docs/29](verification/29_network_device_test.md) §8 の
   気になる点①)ため差が負になり `Max(0, ...)` で 0 にクランプされて偶然発火していたが、実際に遅延がある
   と差が正の値になり、開始直後のワンショット演出がリモートでは常にスキップされていた。
 - **修正**: `SeekInitialTracks` のワンショットスキップ判定に猶予(`_remoteOneShotGraceSec`)を追加した。
@@ -260,7 +260,7 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
   そのまま `FireTrack` を呼んで遅れて発火させる(VFX はシーク相当ではなく頭から再生になるが、要判断: 秒数が
   短いワンショットでは実用上問題ないと判断した。厳密なシーク再生が必要になったら見直すこと)。`lateBySec` が
   猶予を超えるものだけ従来どおり `Fired[t]=true` にしてスキップする(Late Join で大幅に古い演出を復元する
-  ケースなど)。**猶予の既定値は 0.5 秒**とした(要判断の詳細は [docs/31](31_phase5_decisions.md) 参照)。
+  ケースなど)。**猶予の既定値は 0.5 秒**とした(要判断の詳細は [docs/31](archive/31_phase5_decisions.md) 参照)。
   シリアライズフィールドは増やさず、`PresentationManager` のコンストラクタの任意引数
   `remoteOneShotGraceSec = 0.5f` として渡す(`DDriveRuntimeBootstrap` は明示せず既定値のまま使う)。
   Late Join のスナップショット再送(5-9)は `OnReceivePlayMsg` と全く同じコード経路(`SeekInitialTracks`)を
@@ -281,7 +281,7 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
   `OnAtTimeTrackFired` から `track_fired kind=<Kind> time=<Time> key=<HandleNetKey>
   late_ms=<(elapsed-Time)*1000> networkTime=...` を、`OnRemoteOneShotSkipped` から(開発ビルドのみ)
   `track_skipped kind=<Kind> time=<Time> key=<HandleNetKey> late_ms=...` を出す
-  ([docs/29](29_network_device_test.md) §4 参照)。OnSignal トラック(`signal_recv`)は元々 `Play()` の
+  ([docs/29](verification/29_network_device_test.md) §4 参照)。OnSignal トラック(`signal_recv`)は元々 `Play()` の
   戻り後にしか発火しないため、この問題の影響を受けず既存の Handle 単位購読のままでよい。
 - **切断確認(オーケストレーター追加指示)で見つかった追加課題 4 件**:
   1. 切断後も `rtt_app_ms` が最後の値を表示し続ける → `NgoNetBridge.HandleClientDisconnected` が
@@ -316,7 +316,7 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
 
 ## 実装メモ（2026-09-14、6-0 修正7: 実機確認 v3 で発見した「切断後も VFX が消えずに描画し続ける」実バグの修正）
 
-[docs/29](29_network_device_test.md) §8「修正版 v3 での再確認」の「切断」で見つかった実バグの修正。
+[docs/29](verification/29_network_device_test.md) §8「修正版 v3 での再確認」の「切断」で見つかった実バグの修正。
 
 - **原因(2 つが重なって発生)**:
   1. **切断時に何もクリーンアップしていなかった**: `ClientDisconnected` イベント自体は 6-0 修正5 で
@@ -325,7 +325,7 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
      の途中(=まだ `_active` に残っている)ネット経由 Presentation は、切断後もタイマーが進み続けて
      普通に `Complete()` するだけで、`FiredVfx`/`FiredSe` 等は一切止められない
      (`Complete()` は `Cancel()` 経由の `StopFiredForCancel` を通らない。この「通常完了時に Fired 済みの
-     ものを止めない」設計自体は本チケットのスコープ外の広い論点として [docs/31](31_phase5_decisions.md) に
+     ものを止めない」設計自体は本チケットのスコープ外の広い論点として [docs/31](archive/31_phase5_decisions.md) に
      残した)。
   2. **デモアセット側の見落とし**: `PRES_Demo_SkillSlash.asset` の Vfx トラック(`VFX_Player_Slash` を
      再生する Time=0 のトラック)が `StopOnCancel=false` のままだった。`StopOnCancel=true` の他トラック
@@ -337,7 +337,7 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
      (切断しなくても、Cancel されない限り永遠に再生され続ける)**。実機確認 v3 で「接続中の 5 枚は白画素
      76〜82 で安定」していたのは、Host が 3 秒おきに Play する `PRES_Demo_SkillSlash` それぞれの VFX が
      ループしたまま溜まり続けている状態(単純に短時間の観測窓では大きな変化として見えなかった)と考えられる
-     (要判断として残した点は [docs/31](31_phase5_decisions.md) 参照)。
+     (要判断として残した点は [docs/31](archive/31_phase5_decisions.md) 参照)。
 - **修正**:
   1. `PresentationManager.CancelAllNetworked()` を追加。`_active` のうち `IsNetworked=true` かつ未完了の
      Instance だけを `CancelInternal()` で強制終了する(既存の `StopAll()` と同じく `Interruptible` を見ない。
@@ -351,7 +351,7 @@ VFX が Client に一切描画されない実バグの修正。加えて、そ�
      `Undo.RecordObject`+`EditorUtility.SetDirty`+`AssetDatabase.SaveAssets`)。これが無いと上の 1./2. の
      コード修正だけでは(このデモに限っては)`StopFiredForCancel` が対象を見つけられず無意味になるため、
      コード修正と対にして直した(`vfx_sample.prefab` の `looping=true` 自体は直していない。要判断は
-     [docs/31](31_phase5_decisions.md) 参照)。
+     [docs/31](archive/31_phase5_decisions.md) 参照)。
   4. **判定用ログ**: `NetCheckRunner` の heartbeat に `vfx_active=<VfxManager.ActiveCount>`(生存中の VFX
      インスタンス数。既存の公開プロパティで、新規 API 追加は不要だった)を追加した。`activeCount`
      (Presentation)だけが変化したときだけでなく `vfx_active` だけが変化したときも heartbeat を出すよう
@@ -476,11 +476,11 @@ NGO の `ServerClientId` は常に 0)を追加し、`OnReceiveResultMsg` の先�
 も、`bridge.SendTo(42, ...)`(実質「自分自身から」という非現実的な模擬になっていた)から
 `bridge.InjectReceive(0UL, ...)`(Host から、を明示)に修正した。
 
-同じレビュー([docs/41](41_phase6_review_2026-09-17.md) テストの穴 2〜5)で追加した他 4 件のテスト
+同じレビュー([docs/41](reviews/41_phase6_review_2026-09-17.md) テストの穴 2〜5)で追加した他 4 件のテスト
 (保留のフラッシュ・タイムアウト時のイベント発火・保留バッファ経由の偽造/保留 Cancel の Play 後適用・
 Cancel のレート制限)はすべて green で、実装側の修正は不要だった。
 
-### 実装メモ（2026-09-19、[docs/44](44_review_2026-09-19.md) P2-1: `NgoNetBridge.OnPongMsgReceived` の送信元検証）
+### 実装メモ（2026-09-19、[docs/44](reviews/44_review_2026-09-19.md) P2-1: `NgoNetBridge.OnPongMsgReceived` の送信元検証）
 
 `CatalogContentHashResultMsg` に対して上の実装メモで塞いだのとまったく同じ形の穴が `NetPongMsg` にも
 残っていた。`NgoNetBridge.OnPongMsgReceived` は `senderId` を一切見ずに
@@ -499,13 +499,13 @@ Cancel のレート制限)はすべて green で、実装側の修正は不要�
 `CatalogContentHashGate` の修正と異なり、送信元との一致判定・状態更新そのものは
 `AppRoundTripTracker.OnPongReceived(double measuredMs, ulong senderId, ulong trustedSenderId)`
 (新規オーバーロード、既存の `OnPongReceived(double)` はそのまま残す)に委ねた。`NgoNetBridge` は
-`NetworkBehaviour` 派生で EditMode から直接テストできない([docs/29](29_network_device_test.md)
+`NetworkBehaviour` 派生で EditMode から直接テストできない([docs/29](verification/29_network_device_test.md)
 §7/§9/§11 の既存の慣習)ため、「送信元が信頼できる相手と一致しない Pong は状態を変えずに無視する」
 という不変条件を Unity API 非依存の `AppRoundTripTracker` 側に持たせることで、
 `Tests/Editor/AppRoundTripTrackerTests.cs` の
 `OnPongReceived_WithSenderValidation_IgnoresPongFromUntrustedSender` で EditMode のまま固定できるように
 した。`NgoNetBridge` 側の `IsServer`/`senderId` 分岐そのもの(NGO 接続が要る部分)は
-[docs/29](29_network_device_test.md) の次回実機確認項目に追加した(「偽 Pong の破棄」)。
+[docs/29](verification/29_network_device_test.md) の次回実機確認項目に追加した(「偽 Pong の破棄」)。
 
 ### 実装メモ(2026-09-20、[docs/42_distribution.md](42_distribution.md) §5.6/P-8: `ProtocolVersion` による版照合)
 
@@ -731,7 +731,7 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 
 ## 13. NGO を任意依存にする asmdef 分離（2026-09-20、P1-1）
 
-[42_distribution.md] §2.3-9/§7 A-7 の決定（`versionDefines` で `DDRIVE_NGO` を切る）を実際に asmdef 分離まで進めた。従来は `DDrive.Runtime.asmdef` が `Unity.Netcode.Runtime` を直接 `references` していたため、`versionDefines` で `DDRIVE_NGO` シンボルを立てても **参照自体は外れておらず**、NGO 未導入の持ち込み先では `DDrive.Runtime` アセンブリごとコンパイル対象外になり、D-Drive 全体が動かなくなる欠陥があった（[47_review_p_tickets_2026-09-20.md] P1-1）。
+[42_distribution.md] §2.3-9/§7 A-7 の決定（`versionDefines` で `DDRIVE_NGO` を切る）を実際に asmdef 分離まで進めた。従来は `DDrive.Runtime.asmdef` が `Unity.Netcode.Runtime` を直接 `references` していたため、`versionDefines` で `DDRIVE_NGO` シンボルを立てても **参照自体は外れておらず**、NGO 未導入の持ち込み先では `DDrive.Runtime` アセンブリごとコンパイル対象外になり、D-Drive 全体が動かなくなる欠陥があった（[reviews/47_review_p_tickets_2026-09-20.md] P1-1）。
 
 **構成**:
 
@@ -778,7 +778,7 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 - N-3: `NetCheckScene`/`NetCheckRunner` の N クライアント対応（現状は 1v1 前提）。`NetDebugOverlay`/Host 側の heartbeat ログに接続クライアント数を出す。
 - N-4: 1v1 前提で書かれている当事者判定（HitStop 等、[14_networking.md] 各所の「Client」を単数として扱っている箇所）の 4 人（Host+3 Client）対応。
 
-**テスト**: `Packages/com.ddrive.core/Tests/Editor/NetLaunchArgsTests.cs` に `-ddrive-net manual` のパースと `ResolveEffectiveRole` の 4 パターン（CLI 優先・既定 Loopback は常に Off・Ngo+Auto=Host・Ngo+Manual=Manual）を追加。`NgoNetBridge`/`NgoBridgeFactoryInstaller` は `NetworkBehaviour`/`NetworkManager` 依存のため EditMode 化できず、実機/PlayMode での手動確認が必要（[29_network_device_test.md] の手順を流用可能）。
+**テスト**: `Packages/com.ddrive.core/Tests/Editor/NetLaunchArgsTests.cs` に `-ddrive-net manual` のパースと `ResolveEffectiveRole` の 4 パターン（CLI 優先・既定 Loopback は常に Off・Ngo+Auto=Host・Ngo+Manual=Manual）を追加。`NgoNetBridge`/`NgoBridgeFactoryInstaller` は `NetworkBehaviour`/`NetworkManager` 依存のため EditMode 化できず、実機/PlayMode での手動確認が必要（[verification/29_network_device_test.md] の手順を流用可能）。
 
 **実機確認が必要な項目（未検証、レビュー指摘 2026-09-22 追記）**:
 
@@ -804,13 +804,13 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
   - 最後に接続した IP/Port は `PlayerPrefs`（キー `DDrive.Net.Manual.LastAddress`/`DDrive.Net.Manual.LastPort`）に保存し、次回の初期値にする（開発用ツールのため簡易な永続化で十分。`OptionStore`/`DDriveProjectSettings` 等の正式な永続化とは無関係）。
 - `Runtime/Ngo/NgoBridgeFactoryInstaller.cs`（`NgoBridgeFactory.Create`）に生成箇所を追加: `role == NetLaunchRole.Manual` のときだけ、`Debug.isDebugBuild || Application.isEditor` を満たせば `NetManualConnectOverlay` を生成する（`NetDebugOverlay` と同じ場所、別の `GameObject` に `AddComponent`）。満たさない（= 開発ビルド/エディタ以外でリリースビルドに `-ddrive-net manual` が渡された）場合は生成せず、`NgoBridgeFactory` 内の `static bool` フラグで警告を 1 回だけ出す（`NgoTransportConfigurator.WarnOnce` と同じ考え方）。`DDriveRuntimeBootstrap` に新しい Inspector フィールドは追加していない（Manual 役割そのものが開発用のため）。
 
-**テスト**: `Tests/Editor/NetManualConnectInputTests.cs`（EditMode、新規 25 件）。`NetManualConnectOverlay`/`NgoBridgeFactoryInstaller` の変更は `NetworkBehaviour`/`NetworkManager`/`OnGUI` 依存のため EditMode 化できず、実機/PlayMode での目視確認が必要（[29_network_device_test.md] §23 に手順を追加）。EditMode 1148/1148・PlayMode（`DDrive.Tests.Runtime`）754/754 green（Unity MCP 経由で確認済み）。互換性スナップショット（`public-api-DDrive.Runtime.txt`）は `NetManualConnectInput` の追加のみを反映して更新済み（`Tools > D-Drive > Compat > スナップショットを更新`）。
+**テスト**: `Tests/Editor/NetManualConnectInputTests.cs`（EditMode、新規 25 件）。`NetManualConnectOverlay`/`NgoBridgeFactoryInstaller` の変更は `NetworkBehaviour`/`NetworkManager`/`OnGUI` 依存のため EditMode 化できず、実機/PlayMode での目視確認が必要（[verification/29_network_device_test.md] §23 に手順を追加）。EditMode 1148/1148・PlayMode（`DDrive.Tests.Runtime`）754/754 green（Unity MCP 経由で確認済み）。互換性スナップショット（`public-api-DDrive.Runtime.txt`）は `NetManualConnectInput` の追加のみを反映して更新済み（`Tools > D-Drive > Compat > スナップショットを更新`）。
 
 **未実施（メモリ制約）**: `NetCheckBuilder.Build()` での開発ビルド作成 → 2 プロセス（両方 `-ddrive-net manual`）での Host 開始/Client 接続/切断/`StopNetworking()` → 再 `StartHost` の実機確認は、実装完了時点で空きメモリが約 1.2GB（閾値 1.3GB 未満）だったため見送った。次回、空きメモリに余裕があるときに実施すること。`NetCheckRunner`（`Samples~/NetCheck/`）は `_role` を `Start()` 時点で 1 度だけ確定させており、Manual モードで `WhenReady` 完了時点ではまだ `StartHost`/`StartClient` を呼んでいないため `RoleOf(bootstrap)` が `"off"` に固定される問題があるが、これは `-ddrive-autotest` 経由の自動判定シナリオでのみ意味を持ち、本チケットの手動 UI 経由の接続確認では `NetCheckRunner` を使わないため、N-3 の範囲として手を付けなかった。
 
 ## 16. 実装メモ（2026-09-22、N-3: NetCheckScene/NetCheckRunner の N クライアント対応）
 
-**背景**: MS2026 は Host 1 + Client 3 の 4 人対戦。6-7 で作った自動確認（`NetCheckRunner`/`Tools/CI/run-netcheck.cmd`）は Host 1 + Client 1 の 2 プロセス前提だった。加えて P-5/[47_review_p_tickets_2026-09-20.md] 対応（2026-09-20）で `NetCheckRunner`/`NetBridgeSmokeTest` が `Samples~/NetCheck/`（Unity が import しない領域）へ移されたため、開発リポジトリでは未コンパイルの状態になっており、`Assets/GameData/PreviewScenes/NetCheckScene.unity` が Runner（GUID `d282ccc47598e5d4bbf65db83cf4e65c`）を missing script として参照する状態になっていた。本チケットはこの復旧と N クライアント対応を合わせて行う。
+**背景**: MS2026 は Host 1 + Client 3 の 4 人対戦。6-7 で作った自動確認（`NetCheckRunner`/`Tools/CI/run-netcheck.cmd`）は Host 1 + Client 1 の 2 プロセス前提だった。加えて P-5/[reviews/47_review_p_tickets_2026-09-20.md] 対応（2026-09-20）で `NetCheckRunner`/`NetBridgeSmokeTest` が `Samples~/NetCheck/`（Unity が import しない領域）へ移されたため、開発リポジトリでは未コンパイルの状態になっており、`Assets/GameData/PreviewScenes/NetCheckScene.unity` が Runner（GUID `d282ccc47598e5d4bbf65db83cf4e65c`）を missing script として参照する状態になっていた。本チケットはこの復旧と N クライアント対応を合わせて行う。
 
 **復旧（移設）**: `Samples~/NetCheck/NetCheckRunner.cs`/`NetBridgeSmokeTest.cs`（+ `.meta`）を `git mv` で `Runtime/Ngo/NetCheck/` へ移し、既存の `DDrive.Runtime.Ngo` アセンブリ（`defineConstraints: ["DDRIVE_NGO"]`、`autoReferenced: true` のため R3 は versionDefines 経由で自動参照される）に含めた。`.meta` を一緒に移動したため GUID は不変（`NetCheckScene.unity` の参照は壊れない）。名前空間を `DDrive.Samples` から `DDrive.Runtime.Net`（`DDrive.Runtime.Ngo.asmdef` の `rootNamespace` と同じ）に揃えた。`Samples~/NetCheck/DDrive.Samples.NetCheck.asmdef` は削除し、`package.json` の `samples` から NetCheck エントリを削除した（Demo のみ残る）。理由: MS2026 側でも同じ Runner を 4 人対戦の確認に使いたい・開発リポジトリの `run-netcheck.cmd` を常にコンパイル可能な状態に保ちたいため。
 
@@ -824,11 +824,11 @@ MS2026 側の `Docs/Networking.md` が `[ServerRpc]`/`[ClientRpc]` を主要 API
 
 **互換性への影響**: `NetLaunchOptions`（フィールド追加 `ExpectedClientCount`）・`NetCheckCounters`（フィールド追加 `ExpectedClientCount`/`MaxConnectedClientsObserved`）・`NetLaunchArgs`（定数追加 `ExpectClientsFlag`）はいずれも `DDrive.Runtime` の公開 API への**追加のみ**（MINOR）。`public-api-DDrive.Runtime.txt` を更新した。`NgoNetBridge.ConnectedClientCount`・`NetDebugOverlay`/`NetCheckRunner`/`NetBridgeSmokeTest` の変更は `DDrive.Runtime.Ngo` アセンブリ（互換性スナップショット対象外）。`Samples~/NetCheck` をパッケージ本体（`DDrive.Runtime.Ngo`）へ移動し `package.json` の `samples` から削除したことも記録する（[42_distribution.md] §2.1/§2.2 の該当箇所を更新済み）。
 
-**テスト**: `Tests/Editor/NetLaunchArgsTests.cs`（`-ddrive-expect-clients` のパース 3 件 + 既存の「全フラグ together」テストへの追加）・`Tests/Editor/NetCheckJudgeTests.cs`（`ExpectedClientCount`/`MaxConnectedClientsObserved` の 4 パターン）・`Tests/Editor/ForbiddenApiScannerTests.cs`（`Runtime/Ngo/NetCheck/` 除外の回帰）を追加。`NetCheckRunner`/`NgoNetBridge.ConnectedClientCount`/`NetDebugOverlay` の変更自体は `NetworkBehaviour`/`NetworkManager`/`OnGUI` 依存のため EditMode 化できず、`Tools/CI/run-netcheck.cmd` の quad シナリオ（[29_network_device_test.md] §24）と実機（§25）での確認が必要。
+**テスト**: `Tests/Editor/NetLaunchArgsTests.cs`（`-ddrive-expect-clients` のパース 3 件 + 既存の「全フラグ together」テストへの追加）・`Tests/Editor/NetCheckJudgeTests.cs`（`ExpectedClientCount`/`MaxConnectedClientsObserved` の 4 パターン）・`Tests/Editor/ForbiddenApiScannerTests.cs`（`Runtime/Ngo/NetCheck/` 除外の回帰）を追加。`NetCheckRunner`/`NgoNetBridge.ConnectedClientCount`/`NetDebugOverlay` の変更自体は `NetworkBehaviour`/`NetworkManager`/`OnGUI` 依存のため EditMode 化できず、`Tools/CI/run-netcheck.cmd` の quad シナリオ（[verification/29_network_device_test.md] §24）と実機（§25）での確認が必要。
 
-**シナリオ**: `Tools/CI/Run-NetCheck.ps1` に既存 4 シナリオ（`pair0`/`pair200`/`latejoin`/`disconnect`、無改修）とは別の配列 `$quadScenarios` で `quad0`/`quad_latejoin`/`quad_leave`/`quad_hostquit`（Host 1 + Client 3）を追加した。ポートは既存（7801/7811/7821/7831）と重ならない 7841/7851/7861/7871 を使う。判定は既存と同じ 2 段構え（各プロセス自身の `RESULT=PASS|FAIL` 行 + このスクリプトによるクロスログの Signal 位相差）を Client 3 本ぶん繰り返し、`quad_leave` だけ追加で Host の `client_left`/`clients` 減少を確認する（`Test-ClientLeftAndCountDecrease`）。詳細・実行結果は [29_network_device_test.md] §24。
+**シナリオ**: `Tools/CI/Run-NetCheck.ps1` に既存 4 シナリオ（`pair0`/`pair200`/`latejoin`/`disconnect`、無改修）とは別の配列 `$quadScenarios` で `quad0`/`quad_latejoin`/`quad_leave`/`quad_hostquit`（Host 1 + Client 3）を追加した。ポートは既存（7801/7811/7821/7831）と重ならない 7841/7851/7861/7871 を使う。判定は既存と同じ 2 段構え（各プロセス自身の `RESULT=PASS|FAIL` 行 + このスクリプトによるクロスログの Signal 位相差）を Client 3 本ぶん繰り返し、`quad_leave` だけ追加で Host の `client_left`/`clients` 減少を確認する（`Test-ClientLeftAndCountDecrease`）。詳細・実行結果は [verification/29_network_device_test.md] §24。
 
-**検証状況（2026-09-22、PR レビュー対応時点）**: 実装完了直後は空きメモリが 1GB を切って不安定だったが、設定済みの MCP クライアント（isuzu-unity/CoplayDev）のポートが Unity 側の実ポートとズレていたため、instance ファイル（`%LOCALAPPDATA%\UnityMCP\instances\*.json`）から直接 JSON-RPC 経由で接続し、軽量な確認だけ先に実施した。**compile_request → error 0（1 件の実バグを発見・修正。下記「実装メモ（レビュー対応）」参照）**。**EditMode を絞って実行（`Compat|NetCheckJudge|NetLaunchArgs|ForbiddenApiScanner`）→ 99/99 green**（`DDrive.Tests.Editor.Compat.PublicApiSnapshotTests.Runtime_MatchesGolden` を含み、手動更新した `public-api-DDrive.Runtime.txt` が実際のリフレクション結果と一致することを確認できた）。**2026-09-22 追記（main〔N-4 マージ済み〕を取り込み後の再検証）**: `git merge main` で N-4（HitStop/CameraShake/Haptic の Scope）を取り込み（ファイルが異なるため衝突は docs/CHANGELOG のみ）、再度 `compile_status → error 0` を確認した上で **EditMode 全件 → 1164/1164 green**・**PlayMode 全件（`DDrive.Tests.Runtime`）→ 775/775 green** を実施した（詳細・所要時間は [29_network_device_test.md] §24）。**2026-09-22 追記（空きメモリ回復後、ビルド・run-netcheck を実施 → 原因切り分け → 修正 → 最終確認）**: `NetCheckBuilder.Build()` は成功。初回の `Tools\CI\run-netcheck.cmd`（8 シナリオ全部）は**8 件とも FAIL** し、原因は `placeholder_observed`（`ANC_Player_VFXPlayerSlashAnchor`/`SE_test_NewSound` が `Flags.Load=LazyLoad` のままで、同期解決経路〔`AnchorChain.Resolve`/`AssetEventDispatcher`〕では Placeholder に落ちる仕様どおりの挙動。データ側の実バグ）と、新規 quad シナリオの判定ロジック側の設計漏れ（`Test-SignalPhase` の分母が Client の退出時刻を考慮していなかった）の 2 種類と判明した。**両方を修正**（① Data の `Flags.Load` を Preload に変更 + カタログエントリを `AssetCreationService.RegisterExisting` で再同期、② `Test-SignalPhase` に `Get-ClientLastNetworkTime`〔当初「最後の行」ベースで disconnect シナリオに回帰を起こし、「最大値」ベースに再修正〕を追加して分母を Client の生存時間窓に限定）した上で再ビルド・再実行し、**既存 4 シナリオは全て PASS、quad 4 シナリオは新たに判明した別種の判定側の設計漏れ（`forged_cancel_mismatch`。quad 構成では各 Client のログに他 Client 分の破棄ログも見えるため 1v1 前提の集計が破綻する。実プロダクトは正常、判定ロジックのみの問題）だけが残り、それ以外（`placeholder_observed`・Signal 位相差・`client_left`/`clients` 減少）はすべて解消**したことを確認した。追加でユーザー報告に基づき `-ddrive-autotest` 実行時だけ `AudioListener.volume=0f` にする無音化も行った。詳細・ログ抜粋・`forged_cancel_mismatch` の分析は [29_network_device_test.md] §24。**2026-09-22 追記（`forged_cancel_mismatch` も修正）**: `NetCheckRunner` が自分の送った偽造キーを `HashSet<uint>` で覚え、破棄ログに含まれる `HandleNetKey`（`PresentationManager` 側の破棄ログに既に同じ書式で出力済み）がその鍵のときだけ `ForgedCancelDiscardedCount` を数えるよう修正（`NetCheckJudge` は無改修）。詳細は [29_network_device_test.md] §24。**2026-09-22 追記（鍵一致だけでは quad で残存した分の修正）**: 複数 Client が偶然同じ実キーを偽造対象に選ぶと鍵一致だけでは他 Client 分まで数えてしまうため、`NetCheckRunner.OnLogMessageReceived` は発行者不一致の破棄ログ（`PresentationManager` の「送信元 ClientId(N)」を含む文言。`N` は `RequestBroadcastRpc` が伝える真の発行者で Host 中継後も保持される）については `ClientId({自分の LocalClientId})` のときだけカウントするよう追加修正した（未知キー側の破棄ログには送信元が無いため鍵一致のみで判定、`PresentationManager` 側の文言変更は不要だった）。
+**検証状況（2026-09-22、PR レビュー対応時点）**: 実装完了直後は空きメモリが 1GB を切って不安定だったが、設定済みの MCP クライアント（isuzu-unity/CoplayDev）のポートが Unity 側の実ポートとズレていたため、instance ファイル（`%LOCALAPPDATA%\UnityMCP\instances\*.json`）から直接 JSON-RPC 経由で接続し、軽量な確認だけ先に実施した。**compile_request → error 0（1 件の実バグを発見・修正。下記「実装メモ（レビュー対応）」参照）**。**EditMode を絞って実行（`Compat|NetCheckJudge|NetLaunchArgs|ForbiddenApiScanner`）→ 99/99 green**（`DDrive.Tests.Editor.Compat.PublicApiSnapshotTests.Runtime_MatchesGolden` を含み、手動更新した `public-api-DDrive.Runtime.txt` が実際のリフレクション結果と一致することを確認できた）。**2026-09-22 追記（main〔N-4 マージ済み〕を取り込み後の再検証）**: `git merge main` で N-4（HitStop/CameraShake/Haptic の Scope）を取り込み（ファイルが異なるため衝突は docs/CHANGELOG のみ）、再度 `compile_status → error 0` を確認した上で **EditMode 全件 → 1164/1164 green**・**PlayMode 全件（`DDrive.Tests.Runtime`）→ 775/775 green** を実施した（詳細・所要時間は [verification/29_network_device_test.md] §24）。**2026-09-22 追記（空きメモリ回復後、ビルド・run-netcheck を実施 → 原因切り分け → 修正 → 最終確認）**: `NetCheckBuilder.Build()` は成功。初回の `Tools\CI\run-netcheck.cmd`（8 シナリオ全部）は**8 件とも FAIL** し、原因は `placeholder_observed`（`ANC_Player_VFXPlayerSlashAnchor`/`SE_test_NewSound` が `Flags.Load=LazyLoad` のままで、同期解決経路〔`AnchorChain.Resolve`/`AssetEventDispatcher`〕では Placeholder に落ちる仕様どおりの挙動。データ側の実バグ）と、新規 quad シナリオの判定ロジック側の設計漏れ（`Test-SignalPhase` の分母が Client の退出時刻を考慮していなかった）の 2 種類と判明した。**両方を修正**（① Data の `Flags.Load` を Preload に変更 + カタログエントリを `AssetCreationService.RegisterExisting` で再同期、② `Test-SignalPhase` に `Get-ClientLastNetworkTime`〔当初「最後の行」ベースで disconnect シナリオに回帰を起こし、「最大値」ベースに再修正〕を追加して分母を Client の生存時間窓に限定）した上で再ビルド・再実行し、**既存 4 シナリオは全て PASS、quad 4 シナリオは新たに判明した別種の判定側の設計漏れ（`forged_cancel_mismatch`。quad 構成では各 Client のログに他 Client 分の破棄ログも見えるため 1v1 前提の集計が破綻する。実プロダクトは正常、判定ロジックのみの問題）だけが残り、それ以外（`placeholder_observed`・Signal 位相差・`client_left`/`clients` 減少）はすべて解消**したことを確認した。追加でユーザー報告に基づき `-ddrive-autotest` 実行時だけ `AudioListener.volume=0f` にする無音化も行った。詳細・ログ抜粋・`forged_cancel_mismatch` の分析は [verification/29_network_device_test.md] §24。**2026-09-22 追記（`forged_cancel_mismatch` も修正）**: `NetCheckRunner` が自分の送った偽造キーを `HashSet<uint>` で覚え、破棄ログに含まれる `HandleNetKey`（`PresentationManager` 側の破棄ログに既に同じ書式で出力済み）がその鍵のときだけ `ForgedCancelDiscardedCount` を数えるよう修正（`NetCheckJudge` は無改修）。詳細は [verification/29_network_device_test.md] §24。**2026-09-22 追記（鍵一致だけでは quad で残存した分の修正）**: 複数 Client が偶然同じ実キーを偽造対象に選ぶと鍵一致だけでは他 Client 分まで数えてしまうため、`NetCheckRunner.OnLogMessageReceived` は発行者不一致の破棄ログ（`PresentationManager` の「送信元 ClientId(N)」を含む文言。`N` は `RequestBroadcastRpc` が伝える真の発行者で Host 中継後も保持される）については `ClientId({自分の LocalClientId})` のときだけカウントするよう追加修正した（未知キー側の破棄ログには送信元が無いため鍵一致のみで判定、`PresentationManager` 側の文言変更は不要だった）。
 
 **実装メモ（レビュー対応、2026-09-22）**: 上記のコンパイル確認で、`Samples~/NetCheck/` から `Runtime/Ngo/NetCheck/` への namespace 変更（`DDrive.Samples` → `DDrive.Runtime.Net`）が原因の実コンパイルエラー（`error CS0234`）を発見した。`DDrive.Runtime.Net` は `DDrive.Runtime` の子 namespace であり、`DDrive.Runtime.Presentation`（Presentation 静的ファサードクラスと同名の兄弟 namespace）も同じ親の下にあるため、未修飾の `Presentation.Play(...)` が namespace `DDrive.Runtime.Presentation` 自身に解決されてしまい、同名の静的クラスに解決されなかった（namespace メンバの直接解決は、ファイル先頭のコンパイル単位スコープにある `using` より優先順位が高いため）。`DDrive.Samples` 名前空間だったときはこの衝突が起きていなかった。`using Presentation = DDrive.Runtime.Presentation.Presentation;` という using エイリアスを **namespace ブロックの内側**に置くことで、この namespace 自身のスコープで先に解決されるようにして修正した（`NetCheckRunner.cs` 冒頭のコメント参照）。
 ## 17. 実装メモ（2026-09-22、N-4: HitStop/CameraShake/Haptic の Scope=ParticipantsOnly）
@@ -1109,7 +1109,7 @@ Instance を外しても Pool 側の「貸出中」カウントは補正され�
 
 ### 実装メモ（2026-09-24、N-7: `migrated` ログの表示修正 + 起動時 migrate 構成ログ）
 
-実機 4 台テスト（[docs/29_network_device_test.md] §25 ラウンド2「気づいた点」）で見つかった軽微な 2 件を
+実機 4 台テスト（[docs/verification/29_network_device_test.md] §25 ラウンド2「気づいた点」）で見つかった軽微な 2 件を
 `NetCheckRunner`（確認用コードのみ、公開 API は変えない）で対応した。
 
 - **`migrated` の `newClientId` 表示バグ**: `RunHostMigrationAsync` は `StartHost`/`StartClient` が `true`
@@ -1130,7 +1130,7 @@ Instance を外しても Pool 側の「貸出中」カウントは補正され�
   ポート）を 1 行ログすると切り分けが楽」という指摘を受け、`Start()` の `ready=1` ログの直後に
   `migrate_config=1 role=successor|follower host=<再接続先> port=<port>` を追加した（`-ddrive-migrate`
   未指定なら出さない。値の解決ロジック自体は N-6 から変更していない）。
-- ログ仕様の詳細は [docs/29_network_device_test.md] §4。既存 8 シナリオ・`host_migration` シナリオの
+- ログ仕様の詳細は [docs/verification/29_network_device_test.md] §4。既存 8 シナリオ・`host_migration` シナリオの
   判定条件（`NetCheckJudge`）・`Tools/CI/Run-NetCheck.ps1` は無改修（`migrated=` 行を直接パースしていない
   ため、出力タイミングを変えても既存シナリオの PASS/FAIL 判定に影響しない）。
 
@@ -1164,21 +1164,21 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 
 ## 21. 実装メモ（2026-10-04、修正ラウンド 3: Cutscene のマーカー発火の送信側 / 受信側の揃え、FX-R-01）
 
-[55](55_review_fix_rounds_2026-10-03.md) FX-R-01 の対応。Cosmetic の Cutscene（[26](26_timeline.md) §4.7）のマーカー（Event / Signal / Shake / Haptic / 外部の `ICutsceneMarker`）を、**送信側（予測再生）・Host・Client で同じ回数発火する**ようにした。
+[55](reviews/55_review_fix_rounds_2026-10-03.md) FX-R-01 の対応。Cosmetic の Cutscene（[26](26_timeline.md) §4.7）のマーカー（Event / Signal / Shake / Haptic / 外部の `ICutsceneMarker`）を、**送信側（予測再生）・Host・Client で同じ回数発火する**ようにした。
 
-> **2026-10-04 訂正（修正ラウンド 4、[56](56_review_fix_round3_2026-10-04.md) FY-R-02）**: 以下の「決定」（開始位置が 0.5 秒以内なら `[0, 開始位置]` を全部発火、超えたら全部無音）は、**§22 で「開始位置から遡って 0.5 秒以内のマーカーだけ発火」に改めた**。「回数が揃う」は各端末の開始位置が猶予以内のときの話で、「0ms〜200ms の遅延は十分収まり」は Host 送信の 1 区間のこと（Client 送信が別の Client に届くときは 2 区間 = 片道の約 2 倍）。
+> **2026-10-04 訂正（修正ラウンド 4、[56](reviews/56_review_fix_round3_2026-10-04.md) FY-R-02）**: 以下の「決定」（開始位置が 0.5 秒以内なら `[0, 開始位置]` を全部発火、超えたら全部無音）は、**§22 で「開始位置から遡って 0.5 秒以内のマーカーだけ発火」に改めた**。「回数が揃う」は各端末の開始位置が猶予以内のときの話で、「0ms〜200ms の遅延は十分収まり」は Host 送信の 1 区間のこと（Client 送信が別の Client に届くときは 2 区間 = 片道の約 2 倍）。
 
 - **発火はローカル処理のまま**: マーカーの発火はネットへ何も流さない。各クライアントが自分の `Tick` で、同じ Timeline の同じ区間のマーカーを 1 回ずつ発火する（二重送信・二重発火の経路はない。`CutsceneNetMarkerSymmetryTests.Delay0ms_*` が送信数の不変を確認）。
 - **問題**: 受信側（`OnReceivePlayMsgInternal`）は `elapsed = max(0, NetworkTime − StartNetTime)`（= 通信遅延ぶん > 0）でシーク開始する。ラウンド 1 は「開始位置 > 0 なら途中参加として開始位置までのマーカーを無音で飛ばす」にしたため、通常の再生でも受信側だけ 0 秒のマーカー（と遅延時間以内のマーカー）が鳴らず、送信側（`elapsedSeek = 0`）とだけ食い違った。
 - **受信側が新規開始と Late Join を区別できるか（調査結果）**: できない。Late Join は Host の台帳（`_activeNetworked`）から**同じ `CutscenePlayMsg`**（元の `StartNetTime` のまま）を `SendTo` で再送するだけで、メッセージの種類・フラグ・チャンネル（どちらも `ReliableOrdered`）・受信経路（`OnReceivePlayMsg` → `OnReceivePlayMsgInternal`）に違いがない。**メッセージの形式は変えない**（フィールド追加なし。互換面）。
-- **決定**: 開始位置（`NetworkTime − StartNetTime`）が **0.5 秒以内**なら新規の再生開始とみなし、`[0, 開始位置]` のマーカーを**最初の `Tick` で 1 回ずつ発火**する（追いつき発火）。それを超えたら Late Join の追いつきとして従来どおり無音（開始位置ちょうどを含む）。しきい値は `CutsceneManager.RemoteFreshStartGraceSec`（1 か所）。根拠: 既存の同種の判断 = `PresentationManager` の遅れて届いたワンショットの猶予 `remoteOneShotGraceSec`（既定 0.5 秒、[§6-0 修正6] の実機 200ms 遅延での確認〔[29](29_network_device_test.md) §8〕で、通信遅延 + 位相誤差が収まる範囲として決めた値）に合わせた。0ms〜200ms の遅延は十分収まり、数秒単位の Late Join は無音のままになる。Late Join の再送が開始から 0.5 秒以内に届くと新規開始と区別できず発火するが、そのクライアントが最初からいたときに発火したはずの区間なので不自然ではない。
+- **決定**: 開始位置（`NetworkTime − StartNetTime`）が **0.5 秒以内**なら新規の再生開始とみなし、`[0, 開始位置]` のマーカーを**最初の `Tick` で 1 回ずつ発火**する（追いつき発火）。それを超えたら Late Join の追いつきとして従来どおり無音（開始位置ちょうどを含む）。しきい値は `CutsceneManager.RemoteFreshStartGraceSec`（1 か所）。根拠: 既存の同種の判断 = `PresentationManager` の遅れて届いたワンショットの猶予 `remoteOneShotGraceSec`（既定 0.5 秒、[§6-0 修正6] の実機 200ms 遅延での確認〔[29](verification/29_network_device_test.md) §8〕で、通信遅延 + 位相誤差が収まる範囲として決めた値）に合わせた。0ms〜200ms の遅延は十分収まり、数秒単位の Late Join は無音のままになる。Late Join の再送が開始から 0.5 秒以内に届くと新規開始と区別できず発火するが、そのクライアントが最初からいたときに発火したはずの区間なので不自然ではない。
 - **実装**: `PlayLocalInternal` に `catchUpFireMarkers`（受信側が新規開始のときだけ true）を足し、true のときは `AdvanceMarkers(..., fire: false)` の無音の追いつきをしない（カーソル 0 のまま始め、最初の `Tick` で `AdvanceMarkers(..., fire: true)` が `[0, Elapsed]` を 1 回ずつ発火する）。発火が最初の `Tick` になるので、受信側のハンドルを取って `OnMarker` を購読してから発火する（`Play` 自体では発火しない）。ローカル再生・予測再生・`Seek` / `Skip` の経路は不変。
 - **挙動の変更（v1.3.1 から）**: v1.3.1 は 0 秒のマーカーがローカルでも鳴らず、遅延時間以内のマーカーは受信側で鳴らなかった。v1.4.0 は送信側・受信側とも 0 秒と遅延時間以内（0.5 秒以内の新規開始）のマーカーが鳴る。CHANGELOG の互換性節（MINOR）に記載。
 - **ネットの実機確認（[docs/29] の流儀）**: 自動テストは `DelayedNetBridge`（遅延 0ms / 200ms の再現）で固定した。実機（Host + Client 2 台、遅延 200ms 設定）で 0 秒に Signal / SE のマーカーを置いた Cosmetic のカットシーンを再生し、両方の端末で 1 回ずつ鳴ることの確認が望ましい（[52] 4-2 の「2 台構成」の項）。
 
 ## 22. 実装メモ（2026-10-04、修正ラウンド 4: Cutscene の受信側の追いつき発火を「位置ごとの猶予」に、FY-R-02 / FY-R-03）
 
-[56](56_review_fix_round3_2026-10-04.md) FY-R-02 の対応。§21 の「全か無か」を、`PresentationManager` の遅れて届いたワンショットの猶予（`remoteOneShotGraceSec`、§6-0 修正6）と**同じ規則・同じ既定値**(0.5 秒。Presentation の猶予はコンストラクタ引数 `remoteOneShotGraceSec`、Cutscene は定数 `RemoteMarkerGraceSec`。`DDriveRuntimeBootstrap` はどちらも既定値のまま)にした。
+[56](reviews/56_review_fix_round3_2026-10-04.md) FY-R-02 の対応。§21 の「全か無か」を、`PresentationManager` の遅れて届いたワンショットの猶予（`remoteOneShotGraceSec`、§6-0 修正6）と**同じ規則・同じ既定値**(0.5 秒。Presentation の猶予はコンストラクタ引数 `remoteOneShotGraceSec`、Cutscene は定数 `RemoteMarkerGraceSec`。`DDriveRuntimeBootstrap` はどちらも既定値のまま)にした。
 
 - **規則**: 受信側（`OnReceivePlayMsgInternal`。Late Join の再送を含む）は、開始位置 `elapsed = max(0, NetworkTime − StartNetTime)` から遡って猶予（**0.5 秒**）以内にあるマーカーだけを最初の `Tick` で 1 回ずつ発火する。それより古いマーカーは無音で飛ばす。**判定式**: 無音 ⇔ `elapsed − マーカーの時刻 > 0.5`（発火 ⇔ `≤ 0.5`。**ちょうど 0.5 秒は発火**）。Presentation の `SeekInitialTracks`（`lateBySec = elapsed − track.Time; lateBySec > grace` ならスキップ）と境界まで一致。定数は Cutscene 側に 1 つ（`CutsceneManager.RemoteMarkerGraceSec` = 0.5、private。旧 `RemoteFreshStartGraceSec` は未リリースなので改名）で、Presentation の定数と値は共有しない（同じ値であることをこの節と [26] に書く）。
 - **効果**（Signal / Event / Shake / Haptic / 外部 `ICutsceneMarker` 共通。同じカーソル方式）:
@@ -1198,7 +1198,7 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 - **実機確認**: [52] 4-5（Client が送信者のときに別の Client で確認・開始位置が 0.5 秒にどれだけ近づくかの記録・0.5 秒より後の Late Join・`host_migration` 後の再生）。
 - **挙動の変更（v1.3.1 から）**: CHANGELOG の互換性節（MINOR）。
 
-**実 NGO でのローカルの結果（2026-10-06、N-8）**: §22 の表（`s` に対する発火・無音）を、この PC のローカル複数プロセス（実 NGO・127.0.0.1）で NetCheck の `cut_*` シナリオとして確認した。`cut_local` / `cut_pair0` / `cut_pair200` / `cut_client200` / `cut_latejoin` / `cut_migration` が **すべて PASS**（既存 9 シナリオも PASS）。受信側の開始位置は、遅延 0ms で 0.000、Host 送信 + 遅延 200ms で 0.316〜0.350、Client 送信 + 遅延 200ms で Host 0.451〜0.494・別の Client 0.401〜0.424（0.5 にいちばん近づいたのは 0.494。**0.5 秒をまたぐ再生はこの実行では出なかった**）。途中参加（`s` = 0.96 / 1.96 / 0.0）は表どおり「`s` から遡って 0.5 秒以内 + それ以降」だけが 1 回ずつ発火し、無音の件数は本体のログと一致。Host 引き継ぎの後の再生は follower 2 つで各 1 回ずつ（再送による鳴り直し・二重発火 0）。送信者（予測再生）は全再生で全マーカー 1 回ずつ。実機（別 PC・実際の通信の遅れ）での確認は [29_network_device_test.md] §27 の R1〜R5 と [52] 4-5。詳細は §23。
+**実 NGO でのローカルの結果（2026-10-06、N-8）**: §22 の表（`s` に対する発火・無音）を、この PC のローカル複数プロセス（実 NGO・127.0.0.1）で NetCheck の `cut_*` シナリオとして確認した。`cut_local` / `cut_pair0` / `cut_pair200` / `cut_client200` / `cut_latejoin` / `cut_migration` が **すべて PASS**（既存 9 シナリオも PASS）。受信側の開始位置は、遅延 0ms で 0.000、Host 送信 + 遅延 200ms で 0.316〜0.350、Client 送信 + 遅延 200ms で Host 0.451〜0.494・別の Client 0.401〜0.424（0.5 にいちばん近づいたのは 0.494。**0.5 秒をまたぐ再生はこの実行では出なかった**）。途中参加（`s` = 0.96 / 1.96 / 0.0）は表どおり「`s` から遡って 0.5 秒以内 + それ以降」だけが 1 回ずつ発火し、無音の件数は本体のログと一致。Host 引き継ぎの後の再生は follower 2 つで各 1 回ずつ（再送による鳴り直し・二重発火 0）。送信者（予測再生）は全再生で全マーカー 1 回ずつ。実機（別 PC・実際の通信の遅れ）での確認は [verification/29_network_device_test.md] §27 の R1〜R5 と [52] 4-5。詳細は §23。
 
 ### 22.1 `PresentationManager.Tick` の走査（FY-R-03、v1.3.1 から既存の不具合・挙動の変更なし）
 
@@ -1206,10 +1206,10 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 
 ## 23. 実装メモ（2026-10-06、N-8: Cutscene のマーカーの NetCheck シナリオ `cut_*` と実機確認の準備）
 
-[52_manual_verification_fc.md] 4-5（§22 の実機確認）のための開発用の確認道具。**D-Drive 本体（`CutsceneManager`・`NgoNetBridge`・ネットメッセージの形式・本体のログの文言）は変えていない**。変更は NetCheck（`Runtime/Ngo/NetCheck/`）・`Runtime/Net/` の純関数・`Tools/CI/`・確認用データ・テスト・docs だけ。
+[verification/52_manual_verification_fc.md] 4-5（§22 の実機確認）のための開発用の確認道具。**D-Drive 本体（`CutsceneManager`・`NgoNetBridge`・ネットメッセージの形式・本体のログの文言）は変えていない**。変更は NetCheck（`Runtime/Ngo/NetCheck/`）・`Runtime/Net/` の純関数・`Tools/CI/`・確認用データ・テスト・docs だけ。
 
 - **確認用データ**: `Assets/GameData/Cutscene/NetCheck/CUT_NetCheck_Markers`（+ `_Timeline.playable`、長さ 3 秒固定、Cosmetic、PredictLocal、Preload。AssetBrowser と同じ作成経路で作り、Addressables / `CutsceneCatalog` に登録。`Assets/Generated/AssetIds.g.cs` に `CUTID.NetCheckMarkers` が増える）。マーカーは 0.0 / 0.1 / 0.4 / 0.6 / 1.5 秒に **Signal マーカー（`CutsceneSignalTrack`、キー `m0 m1 m4 m6 m15`）と NetCheck 用の外部マーカー（`MarkerTrack` + `NetCheckCutsceneMarker : Marker, ICutsceneMarker`）**を同じ時刻に置く。外部マーカーは `Fire` で `[NetCheck] cutscene_marker key=… markerTime=… elapsed=… handle=…` を出す（クラス名と同じファイル名 `NetCheckCutsceneMarker.cs` に 1 クラス 1 ファイル）。
-- **起動引数**（`NetLaunchArgs` に追加。`NetLaunchOptions` のフィールドと定数の追加のみ）: `-ddrive-cutscene-test trigger|observe` / `-ddrive-cutscene-plays` / `-ddrive-cutscene-interval` / `-ddrive-cutscene-start-delay` / `-ddrive-cutscene-expect-plays`。詳細は [29_network_device_test.md] §27。指定したプロセスだけ Presentation のデモ再生・偽造 Cancel を止める（既存 9 シナリオは無改修）。
+- **起動引数**（`NetLaunchArgs` に追加。`NetLaunchOptions` のフィールドと定数の追加のみ）: `-ddrive-cutscene-test trigger|observe` / `-ddrive-cutscene-plays` / `-ddrive-cutscene-interval` / `-ddrive-cutscene-start-delay` / `-ddrive-cutscene-expect-plays`。詳細は [verification/29_network_device_test.md] §27。指定したプロセスだけ Presentation のデモ再生・偽造 Cancel を止める（既存 9 シナリオは無改修）。
 - **擬似遅延（`-ddrive-sim-latency`）は Cutscene のメッセージにも掛かる**: `NgoNetBridge.Broadcast<T>` / `SendTo<T>` が、型を見ずに共通の送信キュー（`_appLayerSimLatencyMs`、開発ビルド）へ積むため。**本体は変えていない**。ローカルの `cut_pair200` / `cut_client200` で実測した（開始位置 s が遅延 0ms の 0.0 秒台から 0.3〜0.5 秒台に上がる。下の結果）。
 - **ログと対応づけ**: `cutscene_recv`（受信側の `s`・無音件数・`HandleNetKey`）は、本体の `[Net/Host|Client] Cutscene: 受信した再生の開始位置 s=…` を `Application.logMessageReceived` で取り込み、そのログの直後（インスタンスの生成直後・最初の Tick の前）に増えた再生中のハンドルを `CutsceneManager.DebugActiveHandles()` の差分で対応づける。送信者の `netKey` は、自分の購読（`INetBridge.Subscribe<CutscenePlayMsg>`）で見える自分発行のメッセージの `HandleNetKey` を、再生した順に `cutscene_own_key` で結ぶ（Host が trigger のときは自分の Broadcast が `Play` の戻りより前に同期で戻るので、揃った分から順番に対応づける）。
 - **判定**: `NetCheckCutsceneJudge`（`Runtime/Net/`、純関数、EditMode `NetCheckCutsceneJudgeTests` 28 件・`NetLaunchArgsTests` 2 件追加）と `Tools/CI/NetCheckCutscene.ps1`（PowerShell の独立した再実装）。規則は §22 の表そのもの（`t > s` は 1 回、`s − t ≤ 0.5` は 1 回、`s − t > 0.5` は 0 回、送信者は全部 1 回、二重発火 0、本体の「無音にしたマーカー n 件」= 読み込めたマーカーの種類数 × 無音にした時刻の数）。ログの `s` は 3 桁なので、境界（`s − t = 0.5`）の ±0.6ms は 0 回 / 1 回のどちらも許す。
@@ -1218,7 +1218,7 @@ MS2026 側リポジトリ（`ddrive/m3-review-reply` ブランチ）で行った
 
 ### 23.1 **Player ビルドで Signal トラック / マーカーが読み込まれない（D-Drive 本体の不具合。2026-10-06 の M-6 で修正済み）**
 
-> **2026-10-06 追記（M-6）**: 下の「要確認」は **M-6 で修正した**（[11_tasks.md] M-6、[26_timeline.md] 2026-10-06 追記）。(1) 原因は推定どおり（クラス名と違う名前のファイルにある型は MonoScript を持てない）。Signal 以外（Event / Shake / Haptic / SE / VFX / UI / Camera / Presentation / AnchorGroup のトラック）も同じ機構（MonoScript が無い型）で、再発防止のテスト `MonoScriptFileNameTests` は修正前のコードで 14 型（トラック 10 + マーカー 3〔`CutsceneEventNotification` は先頭の型なので MonoScript があり、Signal / Shake / Haptic の 3 つ〕+ `CutsceneCameraStateHolder`）を赤で列挙した。**Signal 以外が修正前の Player で実際に読めなかったかは、修正前のコードで全種別を載せた Player ビルドを作っていないので実測していない**（同じ機構なので読めなかったと判断している）。(2) **型を 1 型 1 ファイルに分け**、既存の `.playable` は**マイグレーション `cutscene-timeline-monoscript-v1` で `m_Script` を GUID 参照に直す**（再インポート・`ForceReserializeAssets`・`SerializedObject` では直らないことを実測）。(3) NetCheck の `CUT_NetCheck_Markers` の Timeline に **D-Drive の全トラック種別を 1 本ずつ**足し、`cutscene_timeline` の行に `clips=` と `missing=`（読み込めなかった種別）を出すようにした。`cut_local` の自己判定は **全種別が読めていなければ `RESULT=FAIL`**（`signal=0` を [WARN] で許す作りは廃止）。結果は [29_network_device_test.md] §27。以下は N-8 時点の記録（修正前の状態）。
+> **2026-10-06 追記（M-6）**: 下の「要確認」は **M-6 で修正した**（[11_tasks.md] M-6、[26_timeline.md] 2026-10-06 追記）。(1) 原因は推定どおり（クラス名と違う名前のファイルにある型は MonoScript を持てない）。Signal 以外（Event / Shake / Haptic / SE / VFX / UI / Camera / Presentation / AnchorGroup のトラック）も同じ機構（MonoScript が無い型）で、再発防止のテスト `MonoScriptFileNameTests` は修正前のコードで 14 型（トラック 10 + マーカー 3〔`CutsceneEventNotification` は先頭の型なので MonoScript があり、Signal / Shake / Haptic の 3 つ〕+ `CutsceneCameraStateHolder`）を赤で列挙した。**Signal 以外が修正前の Player で実際に読めなかったかは、修正前のコードで全種別を載せた Player ビルドを作っていないので実測していない**（同じ機構なので読めなかったと判断している）。(2) **型を 1 型 1 ファイルに分け**、既存の `.playable` は**マイグレーション `cutscene-timeline-monoscript-v1` で `m_Script` を GUID 参照に直す**（再インポート・`ForceReserializeAssets`・`SerializedObject` では直らないことを実測）。(3) NetCheck の `CUT_NetCheck_Markers` の Timeline に **D-Drive の全トラック種別を 1 本ずつ**足し、`cutscene_timeline` の行に `clips=` と `missing=`（読み込めなかった種別）を出すようにした。`cut_local` の自己判定は **全種別が読めていなければ `RESULT=FAIL`**（`signal=0` を [WARN] で許す作りは廃止）。結果は [verification/29_network_device_test.md] §27。以下は N-8 時点の記録（修正前の状態）。
 
 NetCheck の開発ビルドで `cutscene_timeline` を出したところ、**Editor では読める Signal マーカー（`CutsceneSignalTrack` / `CutsceneSignalNotification`）が Player では読み込まれなかった**。同じ Timeline の外部マーカー（`MarkerTrack` + `NetCheckCutsceneMarker`）は読み込まれ、発火した。
 

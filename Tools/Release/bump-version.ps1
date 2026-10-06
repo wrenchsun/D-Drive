@@ -24,7 +24,7 @@
        .claude/skills は同期しない(消費側スキルは P-10 で Documentation~/skills/ddrive-consumer/ に別途用意する)。
     4. -Tag を付けたときだけ、明示パスで `git add` + `git commit -m "Release vX.Y.Z"` してから
        `git tag -a vX.Y.Z` を作成する(push はしない)。
-       [47_review_p_tickets_2026-09-20.md] P1-7(2026-09-20 修正) — 以前は「版を書き換える(コミットしない)
+       [docs/reviews/47_review_p_tickets_2026-09-20.md] P1-7(2026-09-20 修正) — 以前は「版を書き換える(コミットしない)
        →タグを打つ」の順だったため、タグが指す HEAD は常に「版を上げる前」のコミットだった
        (`#vX.Y.Z` で参照した持ち込み先に旧版の package.json が届く実バグ)。`-NoCommit` を付けると
        コミットを省略し、従来どおり現在の HEAD にタグだけを打つ(タグ対象のコミットを自分で用意済みの
@@ -253,7 +253,7 @@ $designerResult = Sync-MirrorDirectory -Source $designerSrc -Destination $design
 Write-Host "docs/DesignerManual    -> Documentation~/DesignerManual  (robocopy 終了コード=$($designerResult.ExitCode))"
 $programmerResult = Sync-MirrorDirectory -Source $programmerSrc -Destination $programmerDst -DryRun:$DryRun
 Write-Host "docs/ProgrammerManual  -> Documentation~/ProgrammerManual(robocopy 終了コード=$($programmerResult.ExitCode))"
-# [47_review_p_tickets_2026-09-20.md] P2-9(2026-09-20 修正) — 消費側ドキュメント(README/AGENTS_CONSUMER/
+# [docs/reviews/47_review_p_tickets_2026-09-20.md] P2-9(2026-09-20 修正) — 消費側ドキュメント(README/AGENTS_CONSUMER/
 # ddrive-consumer スキル)が「破壊あり」の移行ガイドの参照先として docs/migrations/ を案内しているが、
 # パッケージにも Documentation~ にも同梱されていなかった(持ち込み先からは辿れない)。DesignerManual/
 # ProgrammerManual と同じミラー同期の対象に加える。

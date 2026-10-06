@@ -132,7 +132,7 @@ graph TB
 
 - 両デプロイは**同じ `doGet`/`doPost` 関数**を指す（コードは 1 つ）。`?api=1` があれば② の経路（**API トークン必須**）、無ければ① の経路（Google アカウント許可リスト → SPA テンプレート）に分岐する
 
-#### 2.3.1 セキュリティ修正（2026-09-17、[41](41_phase6_review_2026-09-17.md) P1-3〜P1-5）
+#### 2.3.1 セキュリティ修正（2026-09-17、[41](reviews/41_phase6_review_2026-09-17.md) P1-3〜P1-5）
 
 自前レビューで**独立に admin 権限を奪える経路が 3 つ**見つかったため塞いだ。**以後この 3 種類の穴を開けないことが SpecWeb を触るときの前提**になる。
 
@@ -177,7 +177,7 @@ GAS では**末尾 `_` の無いグローバル関数はすべて `google.script
 
 | 制限 | 値 | 出典 | この設計での扱い |
 |---|---|---|---|
-| スクリプトの実行時間 | 6 分/実行 | [Apps Script quotas](https://developers.google.com/apps-script/guides/services/quotas) | 1 回の `doGet`/`doPost` は JSON 読み込み・パース・書き込みのみ（数百 KB）。数百ミリ秒〜数秒で終わる想定。6 分に到達する余地はない。**2026-09-17（[41](41_phase6_review_2026-09-17.md) P2-11）**: `assetState` / `assetParams` / `members.importPaste` は 1 件ごとに読み書きしており、D-Drive が毎回全アセットを送るため数百件でこの前提を破っていた。`Storage.mutateMany`（1 ロック内で 1 読み・N 件更新・1 書き）に直して前提へ戻した（本書末尾の実装メモ参照） |
+| スクリプトの実行時間 | 6 分/実行 | [Apps Script quotas](https://developers.google.com/apps-script/guides/services/quotas) | 1 回の `doGet`/`doPost` は JSON 読み込み・パース・書き込みのみ（数百 KB）。数百ミリ秒〜数秒で終わる想定。6 分に到達する余地はない。**2026-09-17（[41](reviews/41_phase6_review_2026-09-17.md) P2-11）**: `assetState` / `assetParams` / `members.importPaste` は 1 件ごとに読み書きしており、D-Drive が毎回全アセットを送るため数百件でこの前提を破っていた。`Storage.mutateMany`（1 ロック内で 1 読み・N 件更新・1 書き）に直して前提へ戻した（本書末尾の実装メモ参照） |
 | 同時実行数 | 30 / user | 同上 | チーム規模（数名〜十数名）なら 1 人あたり同時に複数タブを開いても上限に達しない |
 | URL Fetch 呼び出し | 20,000/日（個人）、100,000/日（Workspace） | 同上 | **GAS コード自身が外部 URL を `UrlFetchApp` で呼ぶ場合の上限**であり、D-Drive → Web アプリの着信リクエスト数には掛からない（着信は「Web アプリの実行」であり URL Fetch ではない）。本設計は `UrlFetchApp` を使わない（画像は `DriveApp` 直接操作のため） |
 | トリガーの合計実行時間 | 90 分/日（個人）、6 時間/日（Workspace） | 同上 | v3 の「通知」（§8）で時間主導トリガーを使う場合のみ関係。1 日 1〜2 回の軽いチェックなら十分収まる |
@@ -528,7 +528,7 @@ public sealed class TuningTable : ScriptableObject
 | 5-12（`.xlsx` テンプレート） | **廃止**。Web アプリの入力フォームに統合されるため、テンプレート配布は不要になる |
 | 5-13（gviz CSV 取得・差分・Placeholder 作成・`TuningTable` 取り込み） | **§5.1 のとおり部分的に置き換え**（取得・パース層のみ差し替え、差分・適用層は再利用） |
 | 5-14（`AssetDataBase.SpecUrl` + Inspector「仕様書を開く」） | **そのまま活用**。`SpecUrl` の値を「Web アプリのアセット詳細ページの URL」に変える（同期時に自動設定、値の意味が変わるだけでフィールド自体は変更不要）。2026-09-14: `SpecWebParser.BuildSpecLink` を `?page=order&id=<種別::識別子>` 形式（§10.8 の O-13 ディープリンクと同じ）に変更した。旧形式（`#/assets/<id>`）は同期（取得→適用）を1回通せば `SpecSyncService.ApplyExtraFields`/`SpecDiffService` が「仕様リンク変更あり」として検出し、新形式で上書きされる |
-| 5-16（新規作成ダイアログ「仕様書から選ぶ」= `SpecCache.GetUncreatedRows`） | **そのまま活用**。`SpecCache` の入力元が Web API に変わるだけで、`NewAssetDialog` 側のロジックは変更不要。**2026-09-17 修正（[39](39_usability_fixes_2026-09-17.md) U-15）**: 1 箇所だけ移行漏れがあった — 「設定 URL 未設定」の判定が旧 `SpreadsheetUrl` のままで、`WebAppUrl` を設定しても「仕様書の URL が未設定です」と出続けていた。判定を `WebAppUrl` に統一（`NewAssetDialog.RebuildSpecSection`、[09] §8.5） |
+| 5-16（新規作成ダイアログ「仕様書から選ぶ」= `SpecCache.GetUncreatedRows`） | **そのまま活用**。`SpecCache` の入力元が Web API に変わるだけで、`NewAssetDialog` 側のロジックは変更不要。**2026-09-17 修正（[39](archive/39_usability_fixes_2026-09-17.md) U-15）**: 1 箇所だけ移行漏れがあった — 「設定 URL 未設定」の判定が旧 `SpreadsheetUrl` のままで、`WebAppUrl` を設定しても「仕様書の URL が未設定です」と出続けていた。判定を `WebAppUrl` に統一（`NewAssetDialog.RebuildSpecSection`、[09] §8.5） |
 | `DDriveSpecSettings` / `SpecCache` | **再利用**（§5.1 のとおりフィールドのみ変更） |
 | docs/27 本体 | **削除しない。冒頭に「旧方式」の注記を追加**し、実装が新方式へ移行し終えるまでの参照として残す（本 PR で対応、§0） |
 | Google スプレッドシートからの初期データ取り込み | Web アプリに「CSV インポート」機能を用意し、既存スプレッドシートの `アセット`/`調整値` タブから 1 回だけ流し込む（v2、§8）。移行期間中は旧シートと Web アプリが並行稼働しないよう、**移行日を決めてシートを凍結**する運用を推奨（§9-8） |
@@ -540,7 +540,7 @@ public sealed class TuningTable : ScriptableObject
 - **メンバー限定の公開範囲**: §2.3 のとおり、個人アカウントではデプロイ側の「ドメイン限定」が使えないため、**アプリのコードで許可リスト（`users.json`）を照合する**。Web アプリの URL 自体が漏れても、許可リストに無い Google アカウントは「メンバーのみ利用できます」で弾かれる
 - **API トークンの扱い（確定、2026-09-14 ユーザー回答。詳細は §5.2）**:
   - 読み取り用・書き込み用を分ける（§2.3）。**書き込みトークンはチーム全員の D-Drive に配る**（同期担当者だけに限定しない、§9-9 決定）。全員に配っても安全なように、書き込みトークンで呼べる API を `choices`/`assetState`/`tuningUsage` の送信のみに絞り、アセット仕様・調整値の値・機能仕様ページ・コメントの書き換えには使えないようサーバー側で分離する（§5.2）
-  - 送信 API にはレート制限を設ける（§5.2。誤動作による過剰送信の防止）。対象は `choices` / `assetState` / `tuningUsage` / `assetParams` の 4 つ（同一 principal + API 名で 10 回/分。**`assetParams` は 2026-09-17（[41](41_phase6_review_2026-09-17.md) P2-12）で追加**。実装は `src/DDriveSync.js` の `specWebCheckRateLimit_`）
+  - 送信 API にはレート制限を設ける（§5.2。誤動作による過剰送信の防止）。対象は `choices` / `assetState` / `tuningUsage` / `assetParams` の 4 つ（同一 principal + API 名で 10 回/分。**`assetParams` は 2026-09-17（[41](reviews/41_phase6_review_2026-09-17.md) P2-12）で追加**。実装は `src/DDriveSync.js` の `specWebCheckRateLimit_`）
   - トークンは git に入れない。D-Drive 側は既存の `DDriveSpecSettings` と同様の SO に URL だけを持ち、トークンの実値は Unity の `EditorPrefs`（マシンごと）に保持する。配布は Web アプリの管理画面（`admin` ロール）で発行 → 既存の連絡手段でチームへ配布 → 各メンバーが `EditorPrefs` に貼り付ける
   - **定期ローテーション**（推奨 3 か月ごと、または漏洩が疑われた時点で即時。手順は §5.2）: 新トークン発行 → 配布・猶予期間 → 旧トークン失効。漏洩時は猶予期間を設けず即時失効させる
 - **Drive の共有設定**: 画像フォルダ・JSON ファイルは「特定のユーザー（チームメンバーの Google アカウント）」に共有する。デプロイ①（実行者=アクセスした人）で Drive へアクセスするため、**各メンバー個人にも Drive 上のファイルへの編集権限が必要**（実行者がアクセスした人自身になるため、スクリプト所有者の権限を代理できない。§9-10）
@@ -1171,7 +1171,7 @@ Web の生応答（`items` 配列 or マップ）を取り、
 
 失敗（`ok:false` の応答）した部分は書き込まず警告を返す（同期全体を止めない。CLAUDE.md §0-4）。
 
-> **2026-09-17 修正（[41](41_phase6_review_2026-09-17.md) P2-5）**: 実装は「両方失敗したときだけスキップ、
+> **2026-09-17 修正（[41](reviews/41_phase6_review_2026-09-17.md) P2-5）**: 実装は「両方失敗したときだけスキップ、
 > 片方だけ失敗したら失敗した側を空配列 `[]` で書き出す」になっていて、この記述と食い違っていた
 > （`Specs/tuning.json` の git diff に「全スカラー削除」が現れ、`SpecDiffValidator` の範囲チェックも
 > 黙って無効になっていた）。**片方だけ失敗したときは既存ファイルの該当配列をそのまま温存する**ようにし、
@@ -1303,7 +1303,7 @@ Google スプレッドシート製ガントチャート（WBS1〜3・タスク�
 
 **旧 `assets.json` フィールドの削除**: `assignee` は物理的に削除せず**残置**し `contractor` の別名として同じ意味で読める間だけ残す案と、`orderer`/`contractor` 追加時に `assignee` を廃止して移行スクリプトで置き換える案があるが、**§10.7 の要判断 1 として実装時に決める**（このプロジェクトの CLAUDE.md §0-9・docs/32 §9-11/12 と同じ「シリアライズ形式変更は保守的に」の方針を Web 側の JSON にも適用するかどうかの判断）。
 
-**D-Drive 側が読むフィールド（2026-09-17 追記、[41](41_phase6_review_2026-09-17.md) P1-7）**:
+**D-Drive 側が読むフィールド（2026-09-17 追記、[41](reviews/41_phase6_review_2026-09-17.md) P1-7）**:
 `SpecWebParser.ParseAssets` は `contractor` → `Assignee`、`referenceMd` → `Description`（`SpecAssetRow.Note`）
 として読む。どちらも**空のときだけ**旧名（`assignee` / `note`）にフォールバックする（GAS の物理移行
 `migrateLegacyOrdersToNewSchema` を実行していないデータが残っていても読めるようにするため。読み込み時の
@@ -1462,7 +1462,7 @@ MVP（W-4〜W-12）はすでに実装・マージ済みだが、実データ投�
 「納品済」への進行は**受注者が手動でボタンを押す**（納品日が自動記録される）。「インポート済」への進行は
 **ボタンが無く**、D-Drive の同期結果でのみ進む（§10.4）。
 
-> **2026-09-17 修正（[41](41_phase6_review_2026-09-17.md) P1-6）: 状態は保存の patch に載せない。**
+> **2026-09-17 修正（[41](reviews/41_phase6_review_2026-09-17.md) P1-6）: 状態は保存の patch に載せない。**
 > 詳細パネルの「保存」は `status` を送らず（`html/Assets.html` の `restPatch` から削除）、状態を動かすのは
 > 「次へ進める」（`advanceStatus`）だけに限定した。サーバー側も `assets.update` で
 > **`status` が現在値と同じなら検証から外す**（`src/Assets.js`）。
@@ -1622,7 +1622,7 @@ O-12〜O-13 も MVP 後の追加要望（合計 4 人日、別枠）。O-15〜O-
 | 6 | Presentation 発注グループから `PresentationData` を自動作成する連携（O-11） | (a) 実装する (b) 当面見送り、発注グループはあくまで Web 側だけの整理単位に留める | **(b)**（§10.4.3 のリスクのため）。ユーザーが必要と判断した時点で O-11 に着手 | **決定（(b) を採用）**。O-11 は今回実装しない。`orderGroups.create` は D-Drive への書き込みを一切行わない |
 | 7 | メンバー取り込み方式 | (a) 貼り付け（案A、O-9） (b) ガントを直接読む（案B、v2） | **(a)** を MVP。共有設定の懸念が無く実装コストも低い | **決定（(a) を採用）**。`Members.js` の `members.importPaste` を実装。ガントのスプレッドシートへは一切アクセスしない |
 | 8 | 既存データへの移行スクリプト（O-1 の一部）の必要性 | (a) 必要（実データがすでに投入されている） (b) 不要（まだ実データが無いため新スキーマで作り直せば済む） | 実装時にユーザー/運用担当に確認（**本書では判断できない**。W-1〜W-12 は実装済みだが実運用開始の有無は未確認） | **決定（最小限の(a)を採用）**。実運用データはまだ無いという前提のもと、移行スクリプトは最小限にした: 旧 `assignee`→`contractor`、旧 `status`（未着手/仮/本番→発注済/納品済/インポート済、保留→発注済+コメント退避）を読み込み時に変換する `specWebNormalizeLegacyOrderItem_`（副作用なし）+ 一度だけ実データを物理変換する `migrateLegacyOrdersToNewSchema`（`Migration.js`、admin のみ、冪等）を実装した。旧フィールドは書き込み時には一切使わない |
-| 10 | D-Drive で削除したアセットの `ddriveState.created` が `true` のまま残る（**2026-09-17 追加、[41](41_phase6_review_2026-09-17.md) 整理項目**） | (a) 現状のまま（`DDriveSync.js` の「`created===false` なら納品済へ戻す」分岐は到達しない。`SpecWebSender.cs` はプロジェクトに存在するアセットしか送らないため、削除されたアセットについては何も送られてこない） (b) D-Drive 側が「削除した（存在しない）アセット」も `created:false` で送るようにする (c) Web 側に「D-Drive から一定期間 assetState が来ていない」を検出する仕組みを足す | **未判断**。影響: 一度 D-Drive で作られたアセットを削除しても Web 側は `created:true` のままなので、その発注は `assets.rename`（O-15）が永久に拒否され、状態も「インポート済」から動かない。(b) は Unity 側の送信契約の変更（`SpecWebSender` が「Web には在るが D-Drive に無い id」を送る）になるため、Web 側だけでは決められない | **要判断（ユーザー / オーケストレーター）**。当面は運用回避（発注を作り直す）で足りるか確認したい |
+| 10 | D-Drive で削除したアセットの `ddriveState.created` が `true` のまま残る（**2026-09-17 追加、[41](reviews/41_phase6_review_2026-09-17.md) 整理項目**） | (a) 現状のまま（`DDriveSync.js` の「`created===false` なら納品済へ戻す」分岐は到達しない。`SpecWebSender.cs` はプロジェクトに存在するアセットしか送らないため、削除されたアセットについては何も送られてこない） (b) D-Drive 側が「削除した（存在しない）アセット」も `created:false` で送るようにする (c) Web 側に「D-Drive から一定期間 assetState が来ていない」を検出する仕組みを足す | **未判断**。影響: 一度 D-Drive で作られたアセットを削除しても Web 側は `created:true` のままなので、その発注は `assets.rename`（O-15）が永久に拒否され、状態も「インポート済」から動かない。(b) は Unity 側の送信契約の変更（`SpecWebSender` が「Web には在るが D-Drive に無い id」を送る）になるため、Web 側だけでは決められない | **要判断（ユーザー / オーケストレーター）**。当面は運用回避（発注を作り直す）で足りるか確認したい |
 | 9 | `wbsNo` の入力形式 | (a) 自由文字列（本節の既定案） (b) ガント側の実際の書式（`3.2.1` のような階層番号）に対する検証を追加 | **(a)** で MVP。ガント側の書式が変わっても発注ツール側の変更が要らない | **決定（(a) を採用）**。`orderGroups.js` の `wbsNo` は自由入力の文字列のまま検証を加えない。ガントの URL は `Settings.js`（`settings.setGanttUrl`、admin のみ）で設定し、WBS 番号でシート内を自動スクロールする機能は実装しない（最低限「ガントを開く」だけで要件を満たす、§10.5②の記載どおり） |
 
 ---
@@ -2879,7 +2879,7 @@ EditMode/PlayMode の両方のテスト実行とコンパイル確認を行う�
 
 - `docs/32_spec_web.md`（このファイル）: §10.2.1 に `orderer`/`contractor` の入力 UI 変更を追記、
   §10.3.3 に廃止の注記を追加、§10.6 のチケット一覧 O-4 行に廃止の注記を追加、本節を追加
-- `docs/28_manual_verification_phase5.md`: O-4（私の発注）関連の目視確認手順を「廃止（一覧の
+- `docs/verification/28_manual_verification_phase5.md`: O-4（私の発注）関連の目視確認手順を「廃止（一覧の
   絞り込み・並べ替えで代替）」に更新
 - `docs/DesignerManual/spec-sync.html`（デザイナーマニュアル、真実はこちら）を更新し、
   `node Tools/SpecWeb/tools/build-manual.js` で `Tools/SpecWeb/html/manual/spec-sync.html`・
@@ -2896,9 +2896,9 @@ EditMode/PlayMode の両方のテスト実行とコンパイル確認を行う�
 
 ---
 
-## 実装メモ（2026-09-17、[41](41_phase6_review_2026-09-17.md) editor 系レビュー対応）
+## 実装メモ（2026-09-17、[41](reviews/41_phase6_review_2026-09-17.md) editor 系レビュー対応）
 
-2026-09-17 の自前レビュー（[41](41_phase6_review_2026-09-17.md)）で出た editor 系の指摘のうち、
+2026-09-17 の自前レビュー（[41](reviews/41_phase6_review_2026-09-17.md)）で出た editor 系の指摘のうち、
 仕様書 Web 連携にかかわる分（P1-2 / P2-4 / P2-5 / P2-6 / P2-10）の対応。
 **この節の主題は「Web API の失敗を D-Drive 側が失敗として扱い、画面に出す」こと。**
 
@@ -2986,9 +2986,9 @@ GAS は HTTP ステータスを設定できず**常に 200 で返す**（`Tools/
 
 ---
 
-## 実装メモ（2026-09-17、[41](41_phase6_review_2026-09-17.md) P2 の修正 = SpecWeb 分）
+## 実装メモ（2026-09-17、[41](reviews/41_phase6_review_2026-09-17.md) P2 の修正 = SpecWeb 分）
 
-自前レビュー [41](41_phase6_review_2026-09-17.md) の **P2-11〜P2-17（specweb 節）+ 整理項目**を直した。
+自前レビュー [41](reviews/41_phase6_review_2026-09-17.md) の **P2-11〜P2-17（specweb 節）+ 整理項目**を直した。
 P1（公開名グローバル関数の認可・CSRF・XSS・インポート済の保存不能）は別途対応済み（§2.3.1）。
 
 **このセッションでは `Tools/SpecWeb/` の外（`Assets/DDrive/`・`docs/DesignerManual/`）を触っていない。**
@@ -3143,7 +3143,7 @@ X が再び実在する id になった瞬間（新規作成された / リネ�
 3. D-Drive の「Web に送信」で `assetState` / `assetParams` が従来どおり反映されること（P2-11 の書き換え）
 ---
 
-## 実装メモ（2026-09-17、[41](41_phase6_review_2026-09-17.md) P1-7: Unity と GAS の契約ずれ）
+## 実装メモ（2026-09-17、[41](reviews/41_phase6_review_2026-09-17.md) P1-7: Unity と GAS の契約ずれ）
 
 **症状**: 発注を同期して「変更を反映」を押すたびに、D-Drive 側の `Assignee`（担当）と
 `Description`（説明）が**空で上書きされていた**。差分プレビューにも毎回「担当 / 備考」が変更として出る。

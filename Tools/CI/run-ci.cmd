@@ -36,7 +36,7 @@ REM
 REM 2026-10-06 (docs/61 review): git runs with --no-pager, step 4 also looks at untracked files, an unexpected
 REM exit code of check-test-result.cmd is a FAIL, Skipped tests are read like Inconclusive ones, the old
 REM NetCheck results are deleted at the start, and the result summary shows every count of each test step.
-REM Compare the counts with the expected numbers in docs\60_release_1_4_0_prep.md before you trust a green run.
+REM Compare the counts with the expected numbers in docs\archive\60_release_1_4_0_prep.md before you trust a green run.
 REM
 REM Run it from the repository root. Inside a parenthesized block %ERRORLEVEL% is frozen at the
 REM value it had before the block, so always read !ERRORLEVEL! and copy it to a variable right away.

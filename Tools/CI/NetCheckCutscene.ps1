@@ -1,4 +1,4 @@
-# [14_networking.md] §22 / [29_network_device_test.md] §27(N-8、2026-10-06) — Cutscene のマーカーの NetCheck 判定(PowerShell 版)。
+# [14_networking.md] §22 / [docs/verification/29_network_device_test.md] §27(N-8、2026-10-06) — Cutscene のマーカーの NetCheck 判定(PowerShell 版)。
 # Run-NetCheck.ps1 から dot-source される(関数だけ。単体では何もしない)。
 #
 # 各プロセスのログ(`[NetCheck] cutscene_xxx key=value ...`)から、DDrive.Runtime.Net.NetCheckCutsceneJudge(C#、
