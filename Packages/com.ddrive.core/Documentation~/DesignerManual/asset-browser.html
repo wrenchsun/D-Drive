@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Asset Browser の使い方</nav>
 
 <h1>Asset Browser の使い方</h1>
-<p class="lastupdate">最終更新日: 2026-09-25</p>
+<p class="lastupdate">最終更新日: 2026-10-03</p>
 
 <p>Asset Browser は D-Drive の<strong>入口になるウィンドウ</strong>です。登録済みの素材（<span class="term" title="ゲームで使う音・エフェクトなどの素材データのこと">アセット</span>）を一覧で見たり、検索したり、新しく登録したりできます。</p>
 
@@ -223,6 +223,7 @@ NG: <code>sword_slash</code> / <code>剣斬撃</code> / <code>1Slash</code> → 
 </figure>
 
 <p>「どこからも参照されていません（未使用）」と出たら、そのアセットは今のところ誰にも使われていません。</p>
+<p><strong>カットシーン（Timeline）の中での使われ方も調べます。</strong>Timeline のクリップやマーカー（SE・VFX・シェイク・演出など、ID で指定しているもの）から使われている場合は、参照元が <code>.playable</code> ファイルとして、どのトラックのどのクリップかとあわせて出ます。その横の <code>(Cutscene: CUT_xxx)</code> が、その Timeline を使っているカットシーンです。カットシーンからだけ使われているアセットは「未使用」にならず、「削除...」でも参照元として扱われます（削除ウィンドウでは「Timeline」の欄に出ます。Timeline の中の参照は自動では差し替えられないので、必要なら Timeline ウィンドウで直してください）。</p>
 
 <h3>依存ツリーを見る</h3>
 <p>右クリック →「依存ツリーを表示」で、選んだアセットが<strong>さらに何を使っているか</strong>をツリー（木構造）で確認できます。例えば Prefab がマテリアルを使い、マテリアルがテクスチャを使い…という連なりが一目で分かります。</p>

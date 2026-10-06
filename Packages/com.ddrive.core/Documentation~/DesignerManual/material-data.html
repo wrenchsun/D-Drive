@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › マテリアル / テクスチャの設定項目</nav>
 
 <h1>マテリアル / テクスチャの設定項目</h1>
-<p class="lastupdate">最終更新日: 2026-09-19</p>
+<p class="lastupdate">最終更新日: 2026-10-06</p>
 
 <p>マテリアルデータ（MaterialData）は、<strong>Unity の Material の代わりに D-Drive で編集する「素材」のデータ</strong>です。色・テクスチャ・光り方・透け方をここに書いておくと、Unity の Material 実体は D-Drive が自動で作って共有します。デザイナーが Unity の Material を直接作る必要はありません。</p>
 <ul>
@@ -44,7 +44,9 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <tr><td>Common</td><td>どのシェーダーでも意味が共通するチャンネル。下の「共通チャンネル（Common）」を参照</td></tr>
 <tr><td>Specific</td><td>シェーダー固有のパラメータ。Common に無いものだけを入れます。要素は <code>Property</code>（シェーダープロパティ名。例 <code>_SpecColor</code>）と <code>Value</code>（値。Float / Int / Bool / Color / Vector / Object（テクスチャ等）のうち型に合うものを使う）。<strong>手で埋める必要はほとんどありません</strong> — Shader を設定すると Material Editor が自動で既定値を登録します</td></tr>
 <tr><td>RenderQueueOffset</td><td>描画順のずらし量。Blend から決まる基準（Opaque=2000 / Cutout=2450 / Transparent=3000）に足されます。普段は 0 のまま</td></tr>
-<tr><td>RenderingLayerMask</td><td>Rendering Layer Mask。0 なら Renderer 側の設定を変えません。ライトレイヤーは Renderer 単位の設定なので、モデル側の LightLayerMask（<a href="model-editor.html">モデルの設定</a>）も参照</td></tr>
+<tr><td>RenderingLayerMask</td><td>未使用の欄です（0 以外を入れると検証で Info が出ます）。ライトレイヤーはモデル側の LightLayerMask（<a href="model-editor.html">モデルの設定</a>）で指定します</td></tr>
+<tr><td>DisabledPasses</td><td>無効にするパス。シェーダーの LightMode 名で指定します（例 <code>ShadowCaster</code> = 影を落とさない、<code>DepthOnly</code>）。大文字小文字は区別しません。空欄・シェーダーに無い名前は無視されます。<a href="material-editor.html">Material Editor</a> の「Passes / Keywords」欄でシェーダーのパス一覧から選べます</td></tr>
+<tr><td>EnabledKeywords</td><td>有効にするシェーダーキーワード（例 <code>_MY_FEATURE</code>）。Common / Specific を反映したあとに有効にします。空欄は無視されます。Material Editor の「Passes / Keywords」欄で入力するか、シェーダーが宣言しているキーワードの候補から選べます</td></tr>
 <tr><td>Anims</td><td>常時アニメ（UV スクロール等）。D-Drive が共有 Material に対して一括で動かします。下の「Anims の使い方」を参照</td></tr>
 <tr><td>SourceMaterial</td><td>Maya FBX 自動生成の由来（どの FBX のどのマテリアルから作られたか）。再インポート時の同定に使います。手動で作ったデータは空。<strong>手で編集しない項目</strong>です</td></tr>
 </table>
@@ -52,7 +54,7 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <h3>共通チャンネル（Common）</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>Albedo</td><td>ベースカラー（アルベド = 素の色）テクスチャの TextureData ID。未設定は検証で Warning（Tint だけで塗るなら無視して構いません）</td></tr>
+<tr><td>Albedo</td><td>ベースカラー（アルベド = 素の色）テクスチャの TextureData ID。未設定は検証で Warning（AlbedoTint を白以外にして色だけで塗るマテリアルと、Albedo テクスチャの欄を持たないシェーダーでは出ません）</td></tr>
 <tr><td>AlbedoTint</td><td>アルベドに掛ける色（既定: 白 = そのまま）。半透明にするときはここのアルファも使います</td></tr>
 <tr><td>Normal</td><td>ノーマルマップの TextureData ID</td></tr>
 <tr><td>NormalScale</td><td>ノーマルの強度（既定 1）。凹凸を強くしたいときに上げる</td></tr>
@@ -146,7 +148,8 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <li>Console に「[DDrive] Unity Material → D-Drive MaterialData: N 件」と出て、最後の 1 件が Project で選択されます</li>
 </ol>
 <ul>
-<li>URP Lit / Simple Lit / Complex Lit / Baked Lit / Standard / Standard (Specular setup) → <code>DDrive/Lit</code>。URP Unlit / Unlit/Texture / Unlit/Color / Unlit/Transparent / Unlit/Transparent Cutout → <code>DDrive/Unlit</code>。それ以外は「警告: … 未対応のため DDrive/Lit として変換します」</li>
+<li>URP Lit / Simple Lit / Complex Lit / Baked Lit / Standard / Standard (Specular setup) → <code>DDrive/Lit</code>。URP Unlit / Unlit/Texture / Unlit/Color / Unlit/Transparent / Unlit/Transparent Cutout → <code>DDrive/Unlit</code>。それ以外（知らないシェーダー）は、既定では確認のダイアログが 1 回だけ出ます（元のシェーダーのまま保つ / DDrive/Lit に変換 / キャンセル）。Maya Import Profile の「Unknown Shader Policy」を KeepSource にすると確認なしで保ち、ConvertToLit にすると確認なしで「警告: … 未対応のため DDrive/Lit として変換します」と DDrive/Lit にします。マテリアルデータのシェーダーがすでに入っている場合、保つ選択では上書きしません</li>
+<li>Project で知らないシェーダーの <code>.mat</code> を選び、右クリックの <code>Assets &gt; D-Drive &gt; Data を作成 &gt; MaterialData を作成</code> で作るときも、同じ確認のダイアログが<strong>選択全体で 1 回だけ</strong>出ます(キャンセルで何も作られません)。シェーダーが見つからない Material(パッケージ未導入・参照切れ)は「シェーダーが見つかりません」の警告のうえ <code>DDrive/Lit</code> のマテリアルデータになります(元のシェーダーのまま保つ対象にはなりません)。確認ダイアログでは、見つからないシェーダーの Material を別の行で件数表示します。作り終わると Console に「[DDrive] MaterialData: 新規 N 件 / 更新 N 件 / 変更なし N 件」と要約が出ます(同じ Material をもう一度選ぶと、Common に違いが無ければ「変更なし」に数えます。Common だけが更新され、固有の調整は残ります)。シェーダーが見つからない Material は、要約とは別に Console に Warning で出ます</li>
 <li>カテゴリはアセットの親フォルダ名（取れなければ Migrated）。元 Material に同名の固有プロパティがあれば値もコピーされます</li>
 <li>もう一度実行しても増えず、Common だけ更新されます（固有の調整は残る）。別フォルダの同名 .mat は別々のマテリアルデータになります</li>
 </ul>
@@ -174,6 +177,8 @@ Asset Browser への<strong>ドラッグ&amp;ドロップは現状 AudioClip だ
 <tr><td>EmissionIntensity &gt; 0 ですが Emission テクスチャも EmissionColor も無いため発光しません</td><td>EmissionColor を黒以外にするか、Intensity を 0 に</td></tr>
 <tr><td>Specific にプロパティ名が空の項目があります / Anims にプロパティ名が空の項目があります</td><td>空の要素を削除</td></tr>
 <tr><td>Specific '…' はシェーダー '…' にありません(無視されます)</td><td>別シェーダー由来の残り。消しても放置しても可（値は失われません）</td></tr>
+<tr><td>DisabledPasses '…' はシェーダー '…' の LightMode にありません(無視されます)</td><td>パス名の綴りを確認するか、Material Editor の「Passes / Keywords」欄の一覧から選び直す</td></tr>
+<tr><td>EnabledKeywords '…' はシェーダー '…' が宣言していないキーワードです(情報)</td><td>綴りを確認。<code>Shader.EnableKeyword</code> 用のグローバルキーワードなら、そのままで問題ありません</td></tr>
 <tr><td>Specific '…' は共通チャンネル名です。Common の値を上書きします(…)</td><td><strong>Material Editor の「共通チャンネルの重複を削除」を押す</strong>。「共通チャンネル」の部分は「描画ステート」「Unity 予約」などに変わることがあります</td></tr>
 <tr><td>シェーダー '…' の固有プロパティが Specific に未登録です(既定値で描画): …（Info）</td><td>必要なら Material Editor の「シェーダーから固有を同期」。放置してもシェーダーの既定値で描かれます</td></tr>
 <tr><td>Anims '…' の Value が Constant です(動きません)</td><td>Mode を Parametric か Curve に</td></tr>

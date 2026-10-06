@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.4.0] - 2026-10-06
+
 > v1.4.0 の内容。FC チケット（T-Drive 連携、[docs/51](docs/51_tdrive_integration.md)）・P-15（更新ウィンドウが他の git URL パッケージにも対応）・U-28（Canvas の埋め込み）・M-4（禁止 API の許可）と、そのレビュー・修正ラウンド 1〜6 の結果。レビューと修正の経緯は [docs/53](docs/53_review_fc_2026-10-03.md)〜[docs/58](docs/58_review_round5_p15fix_2026-10-06.md)・[docs/11](docs/11_tasks.md) にある（ここには最終的な状態だけを書く）。
 
 ### 互換性

@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › モデルの設定と Model Editor</nav>
 
 <h1>モデルの設定と Model Editor</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-10-06</p>
 
 <p>モデルデータ（ModelData）は「このキャラクター / 物体の Prefab を、どのマテリアル・どのアニメーションで出すか」をまとめたものです。プログラマーは <code>Models.Spawn(MODELID.Player, 位置, 向き)</code> と書くだけで、Prefab の差し替え・マテリアルの入れ替え・最初に再生するアニメーションはデータ側で決められます。</p>
 
@@ -32,6 +32,15 @@ Model Editor を先に開いてしまった場合は、ツールバーの<strong
 <li>「Slot 自動収集」→ Prefab の中の Renderer が一覧になり、マテリアルを ID で差し替えられる準備ができます</li>
 <li>「Default Animation」に待機モーションのアニメーションデータを入れて「▶ 配置して DefaultAnimation を再生」→ 出した瞬間からそのモーションで動きます</li>
 </ol>
+<h3>「元ファイル再読み込み」と知らないシェーダー</h3>
+<p>「元ファイル再読み込み」は、Prefab の元になった FBX や Material から<a href="material-data.html">マテリアルデータ</a>を作り直してからスロットに結び付けます。元の Material のシェーダーが D-Drive の標準シェーダー（DDrive/Lit・Unlit）に対応づけられないもの（独自のトゥーンシェーダーなど）のとき、確認のダイアログが<strong>1 回だけ</strong>出ます（Material ごとには出ません。見つかったシェーダー名と件数が表示されます）。</p>
+<table>
+<tr><th>選択肢</th><th>結果</th></tr>
+<tr><td>元のシェーダーのまま保つ</td><td>そのシェーダーでマテリアルデータを作ります（同じ名前のプロパティの値は固有欄に引き継がれます）。すでにシェーダーが入っているマテリアルデータのシェーダーは変えません</td></tr>
+<tr><td>DDrive/Lit に変換</td><td>DDrive/Lit のマテリアルデータにします</td></tr>
+<tr><td>キャンセル（何もしない）</td><td>マテリアルデータもスロットも何も変更せず中断します</td></tr>
+</table>
+<p>毎回聞かれたくないときは、<code>Create &gt; D-Drive &gt; Material &gt; Maya Import Profile</code> で作った Profile の「Unknown Shader Policy」を変えます。<strong>KeepSource</strong> は確認なしで元のシェーダーを保ち、<strong>ConvertToLit</strong> は確認なしで DDrive/Lit に変換します（既定の <strong>Ask</strong> は上の確認を出します）。モデルを取り込んだときの自動生成のように確認を出せない場面では、Ask のときは DDrive/Lit に変換します。<code>Tools &gt; D-Drive &gt; Generate</code> の「選択した Material を D-Drive/Lit・Unlit の MaterialData に変換」「選択したモデルから MaterialData を生成」でも同じ確認が出ます。</p>
 <!-- screenshot: 36-#26 -->
 <figure>
 <img src="images/model-editor-window.png" alt="Model Editor ウィンドウ全体">

@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="index.html">🏠 目次</a> › 運用方法</nav>
 
 <h1>運用方法</h1>
-<p class="lastupdate">最終更新日: 2026-09-20</p>
+<p class="lastupdate">最終更新日: 2026-10-06</p>
 
 <p>導入（<a href="install.html">導入手順</a>）が終わったあと、このプロジェクトで D-Drive を日常的に使い続けるための運用ノウハウです。所要時間の目安は 10 分。</p>
 
@@ -20,6 +20,7 @@
 <li><strong>Error（赤）</strong>: 実行時に Placeholder になる・コンパイルが壊れる等、実害のある問題。CI ではこれを fail 条件にする</li>
 <li><strong>Warning（黄）</strong>: すぐには困らないが直したほうがよい項目。<code>DD-SETUP-</code> で始まる警告はセットアップウィザードの該当ステップを開くと直せる</li>
 </ul>
+<p>Run All の「プロジェクト全体の指摘」(特定の Data に紐付かないもの)のうち、修正ボタンに当たる自動修正が付いているものは、<code>Tools &gt; D-Drive &gt; Validation &gt; 全体の指摘を修正</code> でまとめて実行できます。実行前に対象の一覧が確認ダイアログに出ます。修正は元に戻せないので、先にコミットしてください。</p>
 <p>D-Drive の更新直後は新しい Warning が増えることがあります（仕様変更の周知が目的）。Error は更新直後には増えない設計（2 段階ルール）なので、更新した直後に Error が増えた場合はまず「<a href="update.html">更新手順</a>を最後まで終えたか」を確認してください。</p>
 
 <h2>2. ID・調整値の再生成</h2>
@@ -90,13 +91,85 @@
 <tr><td><code>カタログ未登録: '...'(ID 0x...)がどのカタログにもありません</code>（Error）</td><td>Asset Browser 以外の方法でアセットを作成した</td><td>Asset Browser 経由で作り直すか、<code>Regenerate Asset IDs</code> を実行してカタログ登録を揃える</td></tr>
 <tr><td><code>Addressables 未登録: '...' がグループに入っていません</code>（Error）</td><td>Addressables への同期を実行していない</td><td>上記「3. Addressables 同期」を実行する</td></tr>
 <tr><td><code>Flags.Load が Preload ではありません</code>（Error）</td><td>同期解決 API（Audio・Vfx・Anim・Presentation 等）の Data で <code>Load</code> が <code>Preload</code> 以外</td><td>対象 Data の Inspector で <code>Flags.Load</code> を <code>Preload</code> に変更する</td></tr>
-<tr><td>禁止 API の検出（<code>ForbiddenApiScanner</code>）</td><td>ゲームコードで <code>Instantiate</code>/<code>Resources.Load</code>/<code>AudioSource.Play</code> を直接呼んでいる</td><td>D-Drive の静的ファサード（<code>Prefabs</code>/<code>Audio</code> 等）経由に置き換える</td></tr>
+<tr><td>禁止 API の検出（<code>ForbiddenApiScanner</code>）</td><td>ゲームコードで <code>Instantiate</code>/<code>Resources.Load</code>/<code>AudioSource.Play</code>/<code>Time.time</code> 等を直接呼んでいる</td><td>下の「禁止 API の指摘への対処」の順に対処する（1. D-Drive の API に直す → 2. 正当な理由があれば許可コメント → 3. 外部コードは設定の許可リスト）</td></tr>
 <tr><td><code>DD-SETUP-*</code>（Warning）</td><td>依存パッケージ・ProjectSettings・置き場所等の不足</td><td>セットアップウィザードの該当ステップの「直す」を実行する</td></tr>
 <tr><td><code>DD-SETUP-UPDATE-PENDING</code>（Warning）</td><td>更新がまだ適用されていない</td><td><a href="update.html">更新方法</a>の「更新を適用」を実行する</td></tr>
 <tr><td><code>DD-SCHEMA-OUTDATED</code>（Warning）</td><td>Data の形式が古い</td><td>更新ウィンドウの「更新を適用」がマイグレーションも実行するので、通常はこの手順で解消する</td></tr>
+<tr><td><code>DD-PKGDEP-COMPAT-OLD</code> / <code>DD-PKGDEP-REQUIRES-OLD</code> / <code>DD-PKGDEP-REQUIRES-MISSING</code>（Warning）</td><td>導入済みのパッケージが宣言している「vX.Y.Z 以降に対応」を、今の組み合わせが満たしていない</td><td>更新ウィンドウの「依存の確認」で相手の名前・必要な版を確認し、相手のパッケージを上げる（または今のパッケージを戻す）。<a href="update.html#other-packages">更新方法</a>参照</td></tr>
 <tr><td><code>DD-SETUP-EMBEDDED-MODIFIED</code>（Warning）</td><td>パッケージが埋め込み（改造可能な状態）になっている</td><td>通常の git URL 参照に戻す。どうしても改造が必要な場合は開発リポジトリへの提案を検討する</td></tr>
 <tr><td>Console に <code>[DDrive] Unregistered AssetId 0x{id:X} resolved to Placeholder.</code></td><td>未登録 ID を Play/Spawn した（例外にはならない）</td><td>デザイナー側の作業がまだ完了していないだけの可能性が高い。慌てて実装を変えない</td></tr>
 </table>
+
+<h3 id="forbidden-api-allow">禁止 API の指摘への対処</h3>
+<p>禁止 API の検出（<code>CI.ValidateAll</code> が <code>Assets</code> 配下のゲームコードを走査して Error にする）は、次の順で対処します。</p>
+<ol>
+<li><strong>D-Drive の API に直す。</strong> Prefab を置く <code>Instantiate</code> は <code>Prefabs.Spawn</code> またはプール（<code>PoolService</code>）、<code>Resources.Load</code> / <code>Addressables.Load*</code> は <code>IAssetLoader</code>、<code>AudioSource.Play</code> は <code>Audio</code> 経由にします。<strong>ゲームプレイの時間</strong>（ポーズ・ヒットストップに従わせたいもの）の <code>Time.deltaTime</code> 等は、(a) <code>IAssetManager</code> を実装して <code>DDriveRuntimeBootstrap.Instance.Loop.GameLoop.Register(...)</code> で登録し、<code>Tick(float dt)</code> の <code>dt</code>（ヒットストップ込み。ポーズは <code>OnPause</code> で受ける。ポーズ中も <code>Tick</code> は呼ばれ <code>dt</code> は 0 になりません）を使います。<strong>登録は <code>OnEnable</code>、解除は <code>OnDisable</code> で必ず対にしてください</strong>（<code>GameLoop</code> は破棄されたオブジェクトを自動では外しません。外し忘れると破棄後も毎フレーム <code>Tick</code> が呼ばれ、<code>Tick</code> に例外の隔離は無いので、例外が出るとその後ろに登録された Manager のそのフレームの <code>Tick</code> も止まります）。<code>DDriveRuntimeBootstrap.Instance</code> / <code>Loop</code> が null（Bootstrap の無いシーン・起動前・終了時）のときは登録せず何もしません。登録に <code>IsReady</code> は要りません（<code>Loop</code> は Bootstrap の <code>Awake</code> で揃います。<code>IsReady</code> はカタログ登録の完了です）。<code>Tick</code> の中で例外を出さないでください（コード例は下）。同じシーンに最初から置くスクリプトで実行順が Bootstrap（<code>[DefaultExecutionOrder(-1000)]</code>、<code>Awake</code> で起動配線）より小さいとき、または Bootstrap が後からロードされるシーン構成では、<code>OnEnable</code> の時点で <code>Instance</code> が null のため登録されず、例外も警告も出ないまま <code>Tick</code> が一度も来ません。<code>OnEnable</code> に加えて <code>Start</code> でも未登録なら登録を試し（<code>Register</code> は二重登録しても 1 回扱い）、それでも無ければ警告ログを 1 行出してください（コード例のとおり）。<code>Tick</code> の中で自分自身や他の登録済み Manager を無効化したり <code>Unregister</code> したりしないでください。<code>GameLoop</code> は登録順の添字で走査するため、走査中に外すと直後の Manager 1 つがそのフレームだけ <code>Tick</code> されません（例外は出ません。<code>Destroy</code> は遅延するので影響しません）。外したいときはフラグを立てて、次のフレームの頭か <code>LateUpdate</code> で外します。コードを自分の asmdef に置く場合は <code>DDrive.Foundation</code> と <code>DDrive.Runtime</code> への参照が必要です（asmdef なしの <code>Assembly-CSharp</code> なら不要）。Bootstrap をシーンごとに作り直す構成（<code>KeepAcrossScenes</code> を使わない）では、Manager も同じシーンに置いてください（<code>DontDestroyOnLoad</code> にしない）。Manager だけが残ると、破棄された Bootstrap の <code>GameLoop</code> を握ったまま新しい Bootstrap の <code>Tick</code> が来ず、警告も出ません。(b) Tick に乗せにくいときは、ゲーム側の時間源を 1 か所（例: <code>GameTime</code>）に作り、その中だけで <code>Time.unscaledDeltaTime * DDriveRuntimeBootstrap.Instance.Loop.TimeService.TimeScale</code> を読んで許可コメントを 1 行書きます（ポーズに従わせるなら <code>Loop.PauseService.IsPaused(PauseChannel.Gameplay)</code> のとき 0 にします）。<code>ITimeSource</code> は Foundation 内部向けで、ゲームのコードが使ってもヒットストップ・ポーズに従わない（<code>Time.deltaTime</code> を返すだけ）ので、直し方にはなりません。<strong>実時間の計測</strong>（タイムアウト等）は、検査の対象外の <code>Time.realtimeSinceStartupAsDouble</code> / <code>Stopwatch</code> に替えれば許可コメントが要りません。<code>Time</code> 規則が当たるのは <code>Time.time</code> / <code>deltaTime</code> / <code>unscaledDeltaTime</code> / <code>timeAsDouble</code> / <code>unscaledTime</code> だけです。
+<p>(a) の登録 / 解除の例（<code>OnEnable</code> で登録、<code>OnDisable</code> で必ず解除。登録した <code>GameLoop</code> を覚えておけば、終了時に <code>Instance</code> が null でも解除できます。Bootstrap より先に <code>OnEnable</code> が走る場合に備えて <code>Start</code> でも登録を試します）:</p>
+<pre>using DDrive.Foundation.Identity;
+using DDrive.Foundation.Manager;
+using DDrive.Foundation.Pause;
+using DDrive.Runtime.Loop;
+using UnityEngine;
+
+public sealed class GameCooldownManager : MonoBehaviour, IAssetManager
+{
+    private GameLoop _loop;
+
+    public AssetType Type =&gt; AssetType.None;
+
+    private void OnEnable() =&gt; TryRegister();
+
+    private void Start()
+    {
+        // 実行順が Bootstrap より前だったときの再試行(Register は二重登録しても 1 回扱い)
+        if (_loop == null &amp;&amp; !TryRegister())
+        {
+            Debug.LogWarning("DDriveRuntimeBootstrap が無いため GameLoop に登録できませんでした(Tick は来ません)", this);
+        }
+    }
+
+    private bool TryRegister()
+    {
+        if (_loop != null)
+        {
+            return true;
+        }
+
+        var boot = DDriveRuntimeBootstrap.Instance;
+        if (boot == null || boot.Loop == null)
+        {
+            return false; // Bootstrap の無いシーン・起動前は登録しない
+        }
+
+        _loop = boot.Loop.GameLoop;
+        _loop.Register(this);
+        return true;
+    }
+
+    private void OnDisable()
+    {
+        if (_loop != null)
+        {
+            _loop.Unregister(this); // 外し忘れると破棄後も毎フレーム Tick される
+            _loop = null;
+        }
+    }
+
+    public void Tick(float dt) { /* ヒットストップ込みの dt。例外を出さない */ }
+    public void OnPause(PauseChannel channel, bool paused) { /* ポーズ中も Tick は来る。自分で止める */ }
+    public void StopAll(StopReason reason) { }
+    public void OnSceneUnload() { }
+}</pre>
+</li>
+<li><strong>正当な理由があるときは、その行に許可コメントを書く。</strong> 同じ行の行末、または直前の行（コメントだけの行）に <code>// ddrive-allow: 規則名(理由)</code> を書くと、<strong>その 1 行の、規則名が一致する当たりだけ</strong>が許可されます（ファイル全体・ブロック全体は許可されません）。<strong>理由（括弧内）は必須</strong>で、空・括弧なしの許可は無効のままです（半角 <code>( )</code> と全角 <code>（ ）</code> のどちらでも書けます）。規則名は <code>Time</code> / <code>Instantiate</code> / <code>ResourcesLoad</code> / <code>AddressablesLoad</code> / <code>AudioSourcePlay</code>（大文字小文字は区別しません）。1 行に 2 規則あるときは <code>// ddrive-allow: Time(…) ddrive-allow: Instantiate(…)</code> と接頭辞ごと繰り返します。
+<pre>// ddrive-allow: Instantiate(NGO の NetworkObject は Instantiate → Spawn が正規手順)
+var go = Object.Instantiate(networkPrefab);
+
+var now = Time.unscaledTime; // ddrive-allow: Time(Host 引き継ぎのタイムアウトは実時間で測る)</pre>
+例: NGO の <code>NetworkObject</code> は Instantiate してから Spawn するのが正規の手順で <code>PoolService</code> 経由にできないため許可、Host 引き継ぎや LAN 探索のタイムアウトのようにポーズ・ヒットストップの影響を受けず<strong>実時間で測る必要がある計測</strong>の <code>Time</code> は許可、という使い方です。使われていない許可（その行に該当する当たりが無い）は Info で報告されるので、直した後に残った許可は消してください。</li>
+<li><strong>自分で書き換えられない外部コード・生成コードは、設定の許可リストへ。</strong> <code>Project Settings &gt; D-Drive &gt; 禁止 API の除外</code> に、フォルダまたはファイルのパス（プロジェクトルートからの相対パス、2 階層以上。ファイルと完全一致、またはフォルダの配下に一致。<code>Assets/Foo</code> は <code>Assets/FooBar/</code> に当たらない。大文字小文字は区別しない。<code>Assets</code> 単独・走査ルートそのもの・絶対パス・<code>..</code> は無効）・規則名（空欄 = 全規則）・理由（必須）を足します。理由が空の要素は無効で、<code>Validation &gt; Run All</code> に Warning（<code>DD-FORBIDDEN-ALLOW-SETTINGS-INVALID</code>）が出ます。</li>
+</ol>
+<p>許可した件数は検査結果に Info（<code>DD-FORBIDDEN-ALLOW-SUMMARY</code>「禁止 API の許可: N 件(コメント n、設定 m)」）で出ます。Editor では <code>Tools &gt; D-Drive &gt; Validation &gt; 禁止 API の検査</code> のウィンドウで、<strong>許可されていない当たり</strong>（ファイル:行・規則名・該当行。ボタンでその行を開く）・<strong>許可済み</strong>（理由つき）・<strong>無効 / 未使用の許可</strong>を一覧できます（再走査ボタンあり。<code>Validation &gt; Run All</code> は禁止 API を走査しません）。レビューで「何を許可しているか」を確認する用途には、同じ内容を Console に出す <code>Tools &gt; D-Drive &gt; Validation &gt; Forbidden API 許可一覧</code> もあります。</p>
 
 <h2>関連ページ</h2>
 <ul>
