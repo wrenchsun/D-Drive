@@ -165,6 +165,11 @@ namespace DDrive.Editor.CanvasTool
                 case UiAction.SendSignal:
                     detail = string.IsNullOrEmpty(wire.SignalKey) ? " (キー未設定)" : $" '{wire.SignalKey}'";
                     break;
+                case UiAction.ActivateEmbedded:
+                case UiAction.DeactivateEmbedded:
+                case UiAction.ToggleEmbedded:
+                    detail = string.IsNullOrEmpty(wire.EmbeddedRootPath) ? " (自分が属する埋め込み)" : $" '{wire.EmbeddedRootPath}'";
+                    break;
             }
 
             return $"{wire.Trigger} → {wire.Action}{detail}";
@@ -235,11 +240,62 @@ namespace DDrive.Editor.CanvasTool
 
         public static bool UsesSignalKey(UiAction action) => action == UiAction.SendSignal;
 
+        // 埋め込みの有効 / 無効を切り替えるアクションか(EmbeddedRootPath の欄を使う)。
+        public static bool UsesEmbeddedRootPath(UiAction action)
+            => action == UiAction.ActivateEmbedded || action == UiAction.DeactivateEmbedded || action == UiAction.ToggleEmbedded;
+
+        // その CanvasData の配線から切り替えられる埋め込みの RootPath か。直下の登録と、lookup があれば子 CanvasData の登録を
+        // 連結した入れ子の入れ子("OptionRoot/Inner"。実行時はこの形で動く。レビュー [65] GG-R-07)。
+        public static bool HasEmbed(CanvasData canvas, string rootPath, CanvasEmbeddedEditing.CanvasLookup lookup = null)
+        {
+            if (canvas == null || string.IsNullOrEmpty(rootPath))
+            {
+                return false;
+            }
+
+            var paths = new List<string>();
+            CollectEmbedPaths(canvas, lookup, paths);
+            return paths.Contains(rootPath);
+        }
+
+        // 配線の対象に選べる埋め込みの RootPath を into に集める(直下 → 入れ子の順。重複なし。入れ子は深さ 8 まで)。
+        public static void CollectEmbedPaths(CanvasData canvas, CanvasEmbeddedEditing.CanvasLookup lookup, List<string> into)
+            => CollectEmbedPaths(canvas, lookup, into, string.Empty, 0);
+
+        private static void CollectEmbedPaths(CanvasData canvas, CanvasEmbeddedEditing.CanvasLookup lookup, List<string> into, string prefix, int depth)
+        {
+            var embeds = canvas != null ? canvas.EmbeddedCanvases : null;
+            if (embeds == null || depth >= 8)
+            {
+                return;
+            }
+
+            for (var i = 0; i < embeds.Length; i++)
+            {
+                if (string.IsNullOrEmpty(embeds[i].RootPath))
+                {
+                    continue;
+                }
+
+                var joined = EmbeddedPaths.Combine(prefix, embeds[i].RootPath);
+                if (!into.Contains(joined))
+                {
+                    into.Add(joined);
+                }
+
+                var child = lookup?.Find(embeds[i].Canvas);
+                if (child != null && child != canvas)
+                {
+                    CollectEmbedPaths(child, lookup, into, joined, depth + 1);
+                }
+            }
+        }
+
         // ボタンの配線で選べるアクション(SetOption はスライダー専用。PlayPresentation は実行時に未対応の警告になる)。
         public static bool IsButtonAction(UiAction action) => action != UiAction.SetOption;
 
         // 配線 1 本の「その場で分かる問題」(無ければ null)。検査(CanvasDataValidator)と同じ観点のうち、欄を見れば直せるものだけ。
-        public static string DescribeProblem(CanvasData canvas, int index)
+        public static string DescribeProblem(CanvasData canvas, int index, CanvasEmbeddedEditing.CanvasLookup lookup = null)
         {
             if (canvas == null || canvas.Buttons == null || index < 0 || index >= canvas.Buttons.Length)
             {
@@ -260,6 +316,11 @@ namespace DDrive.Editor.CanvasTool
             if (wire.Action == UiAction.SetOption)
             {
                 return "SetOption はスライダーの配線用です(ボタンでは何も起きません)";
+            }
+
+            if (UsesEmbeddedRootPath(wire.Action) && !string.IsNullOrEmpty(wire.EmbeddedRootPath) && !HasEmbed(canvas, wire.EmbeddedRootPath, lookup))
+            {
+                return $"埋め込み '{wire.EmbeddedRootPath}' は、この CanvasData に登録されていません";
             }
 
             var path = wire.ButtonPath ?? string.Empty;

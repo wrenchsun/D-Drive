@@ -379,6 +379,56 @@ public static class Ui
 - **入れていないもの**: スライダーの配線（`Sliders` / SliderWire）の編集欄（従来どおり Inspector）。配線のアクションを増やすとき（子の表示 / 非表示の切り替えなど）は、`CanvasButtonWireEditing.UsesTarget` 等と `BuildWireRow` の出し分けに足す。
 - 人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-36〜16-40。
 
+### 追記（2026-10-06、埋め込んだ子 Canvas の有効 / 無効）
+
+2026-10-06 の確認で出た要望「親で子のデフォルト enable を設定可能、作業用に一時 on/off 切り替え可能」への対応。名前と動作は 2026-10-06 に山口さんが決定（下の「決定事項」）。互換面は追加のみ（MINOR）。
+
+**データ（末尾に追加）**
+
+| 場所 | 欄 | 意味 |
+|---|---|---|
+| `EmbeddedCanvas` | `bool StartInactive` | 親を開いたとき、この子を無効（非表示）で始める。既定 false = 従来どおり有効で始まる |
+| `ButtonWire` | `string EmbeddedRootPath` | `ActivateEmbedded` / `DeactivateEmbedded` / `ToggleEmbedded` の対象。その配線を持つ CanvasData のルート基準の RootPath。空 = このボタンが属している埋め込み（自分自身） |
+| `UiAction` | `ActivateEmbedded = 7` / `DeactivateEmbedded = 8` / `ToggleEmbedded = 9` | 配線から埋め込みを有効 / 無効 / 切り替え |
+
+**API**: `Ui.SetEmbeddedActive(handle, rootPath, active)` / `Ui.IsEmbeddedActive(handle, rootPath)`（`UiManager` に同名）。`rootPath` は Open した Canvas のルート基準（入れ子の入れ子は `OptionRoot/Inner` のように最外のルートから連結した形）。
+
+**動作**
+
+- **無効で始まる子**: ルートの GameObject を無効にし、配下の要素の Appear は始めない。親の入力ゲート（Appear が終わるまで入力を止める）の数にも入れない（無効の子が親の操作を止めない）。
+- **有効化**: GameObject を有効にし、配下の要素を Open した時点の見た目に戻して Appear → Idle を始める。子の CanvasData に `FirstSelected` があればそれを選択する（親がスタックの最上位で、閉じておらず、Appear 待ちでもないときだけ。上にモーダルがある・入力ブロック中の親からは選択を奪わない。レビュー [65] GG-R-03）。親の入力は止めない。Disappear の途中で有効に戻した場合も、Appear からやり直して無効にならない。
+- **無効化**: 配下の Idle を止めて Disappear を再生し、終わったら GameObject を無効にする（Disappear が無ければ即）。配下に今の選択があれば、親の `FirstSelected` へ移す（無ければ選択を外す）。Open の Appear の途中で無効にした要素は入力ゲートから外し、その場で親の入力を再計算する（GG-R-01）。子の Disappear の途中で親を Close しても、親の Disappear が終わるまで閉じ切らない（GG-R-02）。
+- **入れ子の入れ子**: 外側が無効の間に内側を切り替えたときは状態だけ覚え、外側を有効にしたときに、有効な内側だけ Appear を始める。外側の Disappear の途中で内側を無効にしたときは、内側だけ先に消さず外側の完了で一緒に無効にする（GG-R-08）。同じ親の中で `A` と `A/B` の両方を登録する設定の誤り（`DD-CANVAS-EMBED-NESTED-ROOT`）での外側 / 内側の扱いは保証しない。
+- **Prefab 側の状態との関係**: 登録済みの埋め込みは、データ（`StartInactive`）が Prefab 側の有効 / 無効に勝つ（Prefab で無効にしてあっても、`StartInactive` がオフなら開いたときに有効になる）。プールへ返すときに Open した時点の状態へ戻し、次の Open はデータから決め直す（前回の切り替えを持ち越さない）。未登録の入れ子 Prefab には触らない。**ゲームコードは登録済みの埋め込みのルートを直接 `SetActive` せず、`Ui.SetEmbeddedActive` を使う**（直接切り替えた状態はプール返却で戻る）。
+- **配線**: 親の配線は `EmbeddedRootPath` に登録済みの RootPath を書く（入れ子の入れ子は `OptionRoot/Inner` のように連結。Canvas Editor の欄でも選べる）。子の配線で空にすると「自分が属する埋め込み」（子の「閉じる」ボタンで自分を隠す）。子を単独で開いているとき（属する埋め込みが無い）は警告 1 回 + 何もしない。**`ButtonWire.EmbeddedRootPath`（切り替える対象。その配線を持つ CanvasData のルート基準）と `SignalArgs.EmbeddedRootPath`（送り手が属する埋め込み。Open した Canvas のルート基準）は同じ名前だが基準が違う**ので、子の配線の値をそのまま `Ui.SetEmbeddedActive` に渡さない（GG-R-10）。埋め込みの RootPath を Canvas Editor で変えると、同じ CanvasData の配線の `EmbeddedRootPath`（旧 RootPath とその配下）は新しい RootPath に付け替わる（GG-R-06）。`SliderWire` でこれらのアクションを選んでも何も起きない（Warning `DD-CANVAS-SLIDER-EMBED-ACTION`。GG-R-09）。
+- **例外で止めない**: 登録されていない rootPath・無効なハンドル・閉じている途中の Canvas は、警告（1 回）+ no-op。
+
+**Editor**
+
+- 埋め込み行に「無効で始める」（`StartInactive`。Undo 対応）と「表示 / 非表示(作業用)」（保存しない。確認用プレビューでは実 `UiManager.SetEmbeddedActive` を呼ぶので子の Appear / Disappear も再生される。プレハブモードでは `SceneVisibilityManager` で SceneView の表示だけを切り替え、Prefab を汚さない）。実装 = `CanvasEditorWindow.EmbedActive.cs`。
+- 「ボタンの配線」欄: 3 つのアクションのとき、対象の埋め込みを選ぶ欄（先頭「(このボタンが属する埋め込み)」= 空、以下は登録済みの RootPath）が出る。
+- RootPath / 子の変更（`ChangeEmbedWithCleanup`）と、検出からの登録での子の差し替え（`Register`）は、その行の `StartInactive` を保つ。
+- レビュー [65](65_review_pr133_embedded_active_2026-10-06.md) の対応（2026-10-06）: GG-R-01〜03・05〜10 は上記のとおり。見送り = GG-R-08 (2)（同じ親に `A` と `A/B` を登録する設定の誤りは既存の Warning で検出する）、GG-R-12 (2)（警告キーの文字列生成。定常経路ではない）、GG-R-12 (3) DesignerManual（本体セッションがまとめて更新）。GG-R-12 (1) はツールチップの文言を「もう一度押す / 目のアイコンで戻る」に変えた（ステージを閉じたときに戻るかは 16-43 で確認）。
+
+**Validation（新規。Warning のみ。既存の検査の重さは変えない）**: `CanvasEmbeddedActiveValidator`
+
+| コード | 内容 |
+|---|---|
+| `DD-CANVAS-WIRE-EMBED-UNKNOWN` | 配線の `EmbeddedRootPath` が、その CanvasData の EmbeddedCanvases に登録されていない |
+| `DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE` | `FirstSelected` が、無効で始まる埋め込みの配下にある |
+| `DD-CANVAS-SLIDER-EMBED-ACTION` | `SliderWire` の Action が埋め込みのアクション（スライダーでは何も起きない） |
+
+**テスト**: PlayMode `EmbeddedCanvasTests` に 13 件（無効で始まる・有効化 / 無効化の演出・演出なし・Prefab 側が無効・開き直し・入れ子・配線 2 件、レビュー [65] 対応で入力ゲートの復帰・Disappear 途中の Close・Disappear 途中の再有効化・FirstSelected の選択条件・外側の Disappear 中の内側の無効化）、EditMode に 5 件（配線の欄のロジック・検査・`StartInactive` の保持 2 件・入れ子の入れ子のパス）。
+
+**決定事項（2026-10-06、山口）**
+
+1. 名前は上記のとおり確定: `StartInactive` / `SetEmbeddedActive`・`IsEmbeddedActive` / `EmbeddedRootPath` / `ActivateEmbedded`・`DeactivateEmbedded`・`ToggleEmbedded`（以降は互換性ポリシーの対象。改名しない）。
+2. 配線のアクション 3 つを入れる。
+3. 有効化のとき、子の `FirstSelected` を選択する（パッド操作で子を出した直後にフォーカスが親に残らないようにする、の推奨案を採用）。
+4. 登録済みの埋め込みは、データ（`StartInactive`）が Prefab 側の有効 / 無効に勝つ。
+
+人による確認: [43](43_manual_verification_2026-09-17.md) §16 の 16-41〜16-45。
+
 ## B-1. 要件
 
 - 種類 / タグ / コリジョンレイヤーを管理。Spawn/Despawn/Pool/Preload
