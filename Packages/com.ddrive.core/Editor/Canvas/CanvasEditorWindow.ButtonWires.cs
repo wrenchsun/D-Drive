@@ -73,7 +73,11 @@ namespace DDrive.Editor.CanvasTool
             var groups = CanvasButtonWireEditing.BuildGroups(owner, Lookup);
             if (groups.ParentRows.Count == 0 && groups.Embeds.Count == 0)
             {
-                _buttonWireContainer.Add(new Label("Prefab に UiButton がありません") { style = { opacity = 0.7f } });
+                // ルートにだけ UiButton がある Prefab は行が 0 になる。「無い」ではなく「配線できない」と案内する(GE-R-16)。
+                var rootHasButton = _target.Prefab.GetComponent<UiButton>() != null;
+                _buttonWireContainer.Add(new Label(rootHasButton
+                    ? "ルート要素の UiButton には配線できません(子の要素に UiButton を付けてください)"
+                    : "Prefab に UiButton がありません") { style = { opacity = 0.7f, whiteSpace = WhiteSpace.Normal } });
                 return;
             }
 
@@ -151,7 +155,8 @@ namespace DDrive.Editor.CanvasTool
             foldout.Add(new Label($"子の配線: {g.ChildWires.Count} 本(読み取り表示。編集は「この Canvas を編集」で)") { style = { opacity = 0.7f, marginTop = 2 } });
             foreach (var wire in g.ChildWires)
             {
-                foldout.Add(new Label($"・{(string.IsNullOrEmpty(wire.ButtonPath) ? RootElementLabel : wire.ButtonPath)}   {wire.Summary}{(wire.OverriddenByParent ? "   [親で上書き]" : string.Empty)}")
+                var rootNote = string.IsNullOrEmpty(wire.ButtonPath) ? "   (ルート要素の配線は実行時に効きません)" : string.Empty;
+                foldout.Add(new Label($"・{(string.IsNullOrEmpty(wire.ButtonPath) ? RootElementLabel : wire.ButtonPath)}   {wire.Summary}{(wire.OverriddenByParent ? "   [親で上書き]" : string.Empty)}{rootNote}")
                 {
                     style = { whiteSpace = WhiteSpace.Normal, opacity = wire.OverriddenByParent ? 0.5f : 0.85f },
                 });
@@ -344,8 +349,15 @@ namespace DDrive.Editor.CanvasTool
 
             line.Add(new Button(() =>
             {
-                CanvasButtonWireEditing.RemoveWire(owner, index);
-                AfterButtonWireEdit(owner, "配線を削除しました");
+                // 「削除」も各欄と同じく、行を作ったときの配線か確かめてから消す(並べ替え後に別の配線を消さない。GE-R-14)。
+                if (owner == null || owner.Buttons == null || index < 0 || index >= owner.Buttons.Length
+                    || !CanvasButtonWireEditing.SameWire(owner.Buttons[index], expected))
+                {
+                    NotifyWireRowsStale(owner);
+                    return;
+                }
+
+                AfterButtonWireEdit(owner, CanvasButtonWireEditing.RemoveWire(owner, index) ? "配線を削除しました" : null);
             })
             {
                 text = "削除",
@@ -366,8 +378,8 @@ namespace DDrive.Editor.CanvasTool
         private static ButtonWire GetWire(CanvasData owner, int index)
             => owner != null && owner.Buttons != null && index >= 0 && index < owner.Buttons.Length ? owner.Buttons[index] : default;
 
-        // 範囲外なら何もしない(Undo で行が減った後に、古い行の UI から呼ばれても例外にしない)。
-        // 同じ添字が別の配線になっていたら(Inspector で Buttons を並べ替え・削除した後。GE-R-08)書かずに欄を作り直す。
+        // 範囲外(Inspector で配線を減らした後)や、同じ添字が別の配線になっていたら(並べ替えた後。GE-R-08 / GE-R-12)
+        // 書かずに欄を作り直して知らせる(Undo で行が減った後に古い行の UI から呼ばれても例外にしない)。
         private void UpdateWire(CanvasData owner, int index, in ButtonWire expected, Func<ButtonWire, ButtonWire> mutate)
         {
             if (owner == null)
@@ -379,21 +391,28 @@ namespace DDrive.Editor.CanvasTool
             var outOfRange = owner.Buttons == null || index < 0 || index >= owner.Buttons.Length;
             if (outOfRange || !CanvasButtonWireEditing.SameWire(owner.Buttons[index], expected))
             {
-                if (owner == _target)
-                {
-                    RebuildButtonWires();
-                    if (_statusLabel != null)
-                    {
-                        _statusLabel.text = "配線の並びが変わっていたため、欄を作り直しました(もう一度操作してください)";
-                    }
-                }
-
+                NotifyWireRowsStale(owner);
                 return;
             }
 
             Undo.RecordObject(owner, "Canvas: ボタンの配線");
             owner.Buttons[index] = mutate(owner.Buttons[index]);
             EditorUtility.SetDirty(owner);
+        }
+
+        // 行を作ったときと配線の並びが違っていた: 表示中の対象なら欄を作り直して知らせる(書き込みはしない)。
+        private void NotifyWireRowsStale(CanvasData owner)
+        {
+            if (owner != _target)
+            {
+                return;
+            }
+
+            RebuildButtonWires();
+            if (_statusLabel != null)
+            {
+                _statusLabel.text = "配線の並びが変わっていたため、欄を作り直しました(もう一度操作してください)";
+            }
         }
 
         // 配線を変えた後: 表示中の対象ならこの欄と検査を作り直す(選択に追従して別の Canvas に切り替わっていたら何もしない)。
