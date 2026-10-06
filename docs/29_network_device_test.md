@@ -1497,6 +1497,7 @@ M-6 で Signal を含む D-Drive の全トラック / マーカー / クリッ�
 - 全プロセスが `-ddrive-autotest <名前> -ddrive-autotest-seconds <秒>` で**自分で終了**する（手で止めない）。起動の順番は **Host → すぐ Client 3 つ**（Host が listen する前に Client が起動すると接続できない。Client 側は Host の起動から 5 秒以内に起動する）。
 - ラウンドの間は、前のラウンドの全プロセスが終了している（`Get-Process DDriveNetCheck` が空）ことを確認してから次を始める。
 - Host の受信許可（UDP 7777）は過去の実機テストで許可済み（§25）。アドレスが 192.168.137.1 でも、ファイアウォールの許可は **プログラム（`DDriveNetCheck.exe`）単位**で効くので追加の操作は不要。ビルドを更新して `.exe` の場所が変わった場合は、初回起動のダイアログが出る（**パブリック / プライベートのどちらでも、許可する**）。ホットスポットのアドレスは DHCP で変わることがあるので、Host 側で `ipconfig` を見て `192.168.137.1` であることを確認する。
+- **別 PC の起動は、合図（Host の起動を伝える連絡）を受けてから起動するまで約 10 秒かかる前提で枠（`-ddrive-autotest-seconds`）を取る**（2026-10-06 の実機で、Client の起動が Host の 22 秒後になり、枠 45 秒では 6 回目の再生が入らず FAIL した。下の結果節）。Host の枠は Client の起動の遅れ + 再生の全時間より長く、Client の枠は Host の再生が終わるまでを含める。
 - 別 PC は Windows PowerShell 5.1。下のコマンドはそのまま貼れる（`$exe` と `$net` を最初に 1 回だけ定義する）。
 
 別 PC（Client）の準備（最初に 1 回）:
@@ -1520,16 +1521,16 @@ New-Item -ItemType Directory -Force C:\DDriveTest | Out-Null
 Host（この PC。先に起動）:
 
 ```powershell
-Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r1","-ddrive-autotest-seconds","45","-ddrive-expect-clients","3","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","6","-ddrive-cutscene-interval","4","-ddrive-cutscene-start-delay","3","-logFile","C:\DDriveTest\R1_host.log"))
+Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r1","-ddrive-autotest-seconds","60","-ddrive-expect-clients","3","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","6","-ddrive-cutscene-interval","4","-ddrive-cutscene-start-delay","3","-logFile","C:\DDriveTest\R1_host.log"))
 ```
 
 Client 3 つ（別 PC。Host の起動の直後に、3 行をまとめて貼る）:
 
 ```powershell
-1..3 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r1","-ddrive-autotest-seconds","40","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","6","-logFile","C:\DDriveTest\R1_c$_.log")) }
+1..3 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r1","-ddrive-autotest-seconds","55","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","6","-logFile","C:\DDriveTest\R1_c$_.log")) }
 ```
 
-終了: 約 50 秒で全プロセスが自動終了する。合格の基準: Host は送信者として全 6 回で 5 マーカーが 1 回ずつ。Client 3 つは各 6 回受信し、各再生で開始位置 s（遅延 0ms なら 0.0 秒台〜数十 ms）に対して 0 秒のマーカーを含め全部 1 回ずつ（無音 0 件）。`RESULT=PASS`。
+終了: 約 60 秒で全プロセスが自動終了する。合格の基準: Host は送信者として全 6 回で 5 マーカーが 1 回ずつ。Client 3 つは各 6 回受信し、各再生で開始位置 s（遅延 0ms なら 0.0 秒台〜数十 ms）に対して 0 秒のマーカーを含め全部 1 回ずつ（無音 0 件）。`RESULT=PASS`。
 
 #### R2: Host が再生・遅延 200ms
 
@@ -1537,9 +1538,9 @@ R1 と同じ。**全プロセスに `-ddrive-sim-latency 200` を足す**（Host
 
 ```powershell
 # Host（この PC）
-Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r2","-ddrive-autotest-seconds","45","-ddrive-expect-clients","3","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","6","-ddrive-cutscene-interval","4","-ddrive-cutscene-start-delay","3","-logFile","C:\DDriveTest\R2_host.log"))
+Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r2","-ddrive-autotest-seconds","60","-ddrive-expect-clients","3","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","6","-ddrive-cutscene-interval","4","-ddrive-cutscene-start-delay","3","-logFile","C:\DDriveTest\R2_host.log"))
 # Client 3 つ（別 PC）
-1..3 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r2","-ddrive-autotest-seconds","40","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","6","-logFile","C:\DDriveTest\R2_c$_.log")) }
+1..3 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r2","-ddrive-autotest-seconds","55","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","6","-logFile","C:\DDriveTest\R2_c$_.log")) }
 ```
 
 合格の基準: 各 Client の開始位置 s が 0.2 秒前後〜（実際の通信の遅れが加わる）で、全再生で 0 秒のマーカーが鳴る（s ≤ 0.5 のうち）。s が 0.5 を超えた再生があれば、超えた分だけ古いマーカーが無音（判定が自動で見る）。
@@ -1550,11 +1551,11 @@ Host は観測だけ。Client 1 が再生する（別 PC の `c1`）。Client 2�
 
 ```powershell
 # Host（この PC）
-Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r3","-ddrive-autotest-seconds","45","-ddrive-expect-clients","3","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","4","-logFile","C:\DDriveTest\R3_host.log"))
+Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r3","-ddrive-autotest-seconds","60","-ddrive-expect-clients","3","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","4","-logFile","C:\DDriveTest\R3_host.log"))
 # Client 1（別 PC。再生する側）
-Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r3","-ddrive-autotest-seconds","40","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","4","-ddrive-cutscene-interval","4","-ddrive-cutscene-start-delay","5","-logFile","C:\DDriveTest\R3_c1.log"))
+Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r3","-ddrive-autotest-seconds","55","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","4","-ddrive-cutscene-interval","4","-ddrive-cutscene-start-delay","5","-logFile","C:\DDriveTest\R3_c1.log"))
 # Client 2・3（別 PC。観測）
-2..3 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r3","-ddrive-autotest-seconds","40","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","4","-logFile","C:\DDriveTest\R3_c$_.log")) }
+2..3 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-sim-latency","200","-ddrive-autotest","cut_r3","-ddrive-autotest-seconds","55","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","4","-logFile","C:\DDriveTest\R3_c$_.log")) }
 ```
 
 合格の基準: Client 1（送信者）は全 4 回で 5 マーカーが 1 回ずつ（自分のメッセージが戻っても鳴り直さない）。Host・Client 2・Client 3 は 4 回ずつ受信し、各再生の実際の `s` から期待集合が一致（**0.5 秒をまたぐ再生では `s − 0.5` より古いマーカーだけ無音**）。
@@ -1565,22 +1566,22 @@ Host は 1 秒おきに 14 回再生する（再生中のものが常に 3 つ�
 
 ```powershell
 # Host（この PC。先に起動）
-Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r4","-ddrive-autotest-seconds","40","-ddrive-expect-clients","2","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","14","-ddrive-cutscene-interval","1","-ddrive-cutscene-start-delay","2","-logFile","C:\DDriveTest\R4_host.log"))
+Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r4","-ddrive-autotest-seconds","50","-ddrive-expect-clients","2","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","14","-ddrive-cutscene-interval","1","-ddrive-cutscene-start-delay","2","-logFile","C:\DDriveTest\R4_host.log"))
 # Client 1・2（別 PC。Host の直後）
-1..2 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r4","-ddrive-autotest-seconds","35","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","14","-logFile","C:\DDriveTest\R4_c$_.log")) }
+1..2 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r4","-ddrive-autotest-seconds","50","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","14","-logFile","C:\DDriveTest\R4_c$_.log")) }
 # Client 3（別 PC。上の 2 つを起動してから約 10 秒後）
-Start-Sleep -Seconds 10; Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r4","-ddrive-autotest-seconds","25","-ddrive-cutscene-test","observe","-logFile","C:\DDriveTest\R4_c3.log"))
+Start-Sleep -Seconds 10; Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r4","-ddrive-autotest-seconds","40","-ddrive-cutscene-test","observe","-logFile","C:\DDriveTest\R4_c3.log"))
 ```
 
 合格の基準: Client 3 は、参加時点で再生中だった再生を `s` 付きで受信し（`cutscene_recv` が複数）、各再生で「参加時点の `s` から遡って 0.5 秒以内のマーカー + それ以降のマーカー」だけが 1 回ずつ（それより古いものは無音）、以後の新しい再生は全部鳴る。二重発火 0。
 
 #### R5: Host 引き継ぎの後に再生
 
-この PC の Host は 12 秒で自分で終了する（= 旧 Host が抜ける）。別 PC の 3 プロセスだけで続行する: `c1` が successor（新 Host になる）、`c2`・`c3` が follower（新 Host = 別 PC の 192.168.137.74 へ再接続）。引き継ぎの後、新 Host（`c1`）が 3 回再生し、`c2`・`c3` が観測する。**別 PC で新 Host になる `c1` の初回起動時に、ファイアウォールの受信許可のダイアログが出ることがある（許可する）**。
+この PC の Host は 25 秒で自分で終了する（= 旧 Host が抜ける）。別 PC の 3 プロセスだけで続行する: `c1` が successor（新 Host になる）、`c2`・`c3` が follower（新 Host = 別 PC の 192.168.137.74 へ再接続）。引き継ぎの後、新 Host（`c1`）が 3 回再生し、`c2`・`c3` が観測する。**別 PC で新 Host になる `c1` の初回起動時に、ファイアウォールの受信許可のダイアログが出ることがある（許可する）**。
 
 ```powershell
-# 旧 Host（この PC。先に起動。12 秒で終了）
-Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r5","-ddrive-autotest-seconds","12","-ddrive-expect-clients","3","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","0","-logFile","C:\DDriveTest\R5_host.log"))
+# 旧 Host（この PC。先に起動。25 秒で終了）
+Start-Process $exe -ArgumentList ($net + @("-ddrive-autotest","cut_r5","-ddrive-autotest-seconds","25","-ddrive-expect-clients","3","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","0","-logFile","C:\DDriveTest\R5_host.log"))
 # successor + follower 2 つ（別 PC。Host の直後に 3 行をまとめて）
 Start-Process $exe -ArgumentList ($net + @("-ddrive-migrate","successor","-ddrive-autotest","cut_r5","-ddrive-autotest-seconds","60","-ddrive-expect-clients","2","-ddrive-cutscene-test","trigger","-ddrive-cutscene-plays","3","-ddrive-cutscene-interval","4","-ddrive-cutscene-start-delay","2","-logFile","C:\DDriveTest\R5_c1.log"))
 2..3 | ForEach-Object { Start-Process $exe -ArgumentList ($net + @("-ddrive-migrate","follower","-ddrive-migrate-host","192.168.137.74","-ddrive-autotest","cut_r5","-ddrive-autotest-seconds","60","-ddrive-cutscene-test","observe","-ddrive-cutscene-expect-plays","3","-logFile","C:\DDriveTest\R5_c$_.log")) }
@@ -1607,6 +1608,31 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File Tools/CI/Run-NetCheck.ps1 -JudgeOn
 ```
 
 ラウンドごとに実行する（`R1` を `R2`…に変える）。各ログの `[PASS|FAIL]`・`s=最小..最大 (mean)`・各再生の発火の集合・プロセスの自己判定（`RESULT=`）が表示される。受信した `netKey` がすべて trigger のログの送信 `netKey`（`cutscene_own_key`）に含まれることも確認する。終了コード 0 = すべて PASS。
+
+### 実機の結果（2026-10-06、Host 1 + Client 3）— 合格
+
+- 構成: Host = この PC（wrench、192.168.137.1、UDP 7777）、Client ×3 = 別 PC（WRENCH_2ND、192.168.137.74）。ビルド = main `5d386a3`（`Builds/DDriveNetCheck.zip` 109,810,190 バイト、SHA-256 `072005C0E1709080F73EBA5208F7D1461C153F09AA2BB5A04AFC261B20E5895D`）。実施 12:18〜12:29。元ログ 20 本を `C:\DDriveTest\collected\R?_*.log` に集め、`Run-NetCheck.ps1 -JudgeOnly` で判定 → **R1〜R5 全 PASS、終了コード 0**。全ログの `cutscene_timeline` は `ok=1 signal=1 … missing=none`（Signal を含む全トラック種別が Player で読めた）。
+
+| R | 条件（枠 秒） | 立場 | 受信 / 再生数 | 開始位置 `s` | 発火・無音 | 結果 |
+|---|---|---|---|---|---|---|
+| R1 | Host 再生・遅延 0ms（Host 60 / Client 55） | Host（送信者） | 送信 6 | — | 全再生で `m0 m1 m4 m6 m15` を 1 回ずつ | PASS |
+| | | Client ×3 | 各 6 | 0.000 | 全再生・全マーカー 1 回ずつ（無音 0） | PASS |
+| R2 | Host 再生・遅延 200ms（Host 60 / Client 55） | Host（送信者） | 送信 6 | — | 全マーカー 1 回ずつ | PASS |
+| | | Client ×3 | 各 6 | 0.343〜0.351（mean 0.349） | 0.5 超なし。0 秒のマーカーも毎回 1 回 | PASS |
+| R3 | Client 1 が再生・遅延 200ms（Host 60 / Client 55） | c1（送信者） | 送信 4 | — | 5 マーカー 1 回ずつ（自分のメッセージが戻っても鳴り直しなし） | PASS |
+| | | Host | 4 | 0.509 / 0.457 / 0.455 / 0.455 | 1 回目だけ 0.5 超 → `m0` のみ無音（残り 4 つは鳴った）。他 3 回は全部鳴った | PASS |
+| | | c2 / c3 | 各 4 | c2 0.404〜0.438 / c3 0.404〜0.444 | 全部鳴った | PASS |
+| R4 | 途中参加（Host 50 / c1・c2 50 / c3 40、c3 は 10 秒遅れ） | Host（送信者） | 送信 14 | — | c1・c2 接続 11.1 秒、c3 接続 21.1 秒（再生 13.2〜26.2 秒の途中） | PASS |
+| | | c1 / c2 | 各 14 | 0.000 | 全部鳴った | PASS |
+| | | c3（途中参加） | 9 | 再送 3 本 = 0.917 / 1.917 / 2.917、以後の新規 6 本 = 0.000 | 0.917 → 無音 6 件（`m6` `m15` のみ鳴る）、1.917 → 無音 8 件（`m15` のみ）、2.917 → 無音 10 件（全部無音）、新規 6 本は全部鳴った。二重発火 0（発火行 33 = 1 + 2 + 0 + 6×5） | PASS |
+| R5 | Host 引き継ぎ（旧 Host 25 / c1〜c3 60） | 旧 Host | 受信 0 | — | 3 Client 接続（12.5 秒）の後 25 秒で退出 | PASS |
+| | | c1（successor） | 送信 3 | — | `migrated=1 role=host newClientId=0`。全マーカー 1 回ずつ | PASS |
+| | | c2 / c3 | 各 3 | 0.000 | c2 `newClientId=2`、c3 `newClientId=1`（`migrated=1 role=client`）。各 3 回ちょうど受信、全マーカー 1 回ずつ、鳴り直し 0・重複 0 | PASS |
+
+- **R1 の 1 回目は FAIL → 枠を延ばして再実行で PASS**（製品の不具合ではない）: 別 PC の Client の起動が Host の 22 秒後（合図の受信〜起動に約 10 秒かかる）になり、6 回目の再生が 45 秒の枠に入らず、Host 5/6・Client 5/6 で FAIL した（ログは `attempt1/`）。Host 60 秒 / Client 55 秒にして再実行 → 上の表のとおり PASS。この教訓を「共通の注意」に反映し、R1〜R5 のコマンドの枠を実測に合わせた。
+- **0.5 秒規則（[14] §22）が実機で表のとおりに働いた**: R3 の Host（Client → Host の 1 区間 + 遅延 200ms）で `s` = 0.509 が出て、0 秒のマーカーだけが無音になった（`s − t > 0.5` のものだけ）。別の Client は 0.40〜0.44 で全部鳴った。R4 の途中参加は `s` = 0.917 / 1.917 / 2.917 で、「無音にしたマーカー n 件」= 2 × 無音の時刻数（Signal と外部マーカーの 2 種類）と一致した。受信した netKey は送信者の `own_key` と一致した。
+- **Host 引き継ぎ（R5）**: 引き継ぎの後に新 Host が再生したカットシーンが、follower で各 1 回ずつ鳴った（古い再生の再送による鳴り直しなし）。別 PC でファイアウォールのダイアログは出なかった。
+- 気づき（製品の問題ではない）: (1) 別 PC の Client ログの `content_hash=` の値が、こちらで読むと文字化けして見える（別 PC の Player ログの文字コードの違い。Host 側は `OK`）。(2) R1〜R3 で Client の `disconnected=True` は、Client の枠（55 秒）が Host（60 秒、ただし Client が 11 秒遅れで起動）より後に終わるため Host 退出を見たもの。判定は PASS。
 
 ### 注意（Player ビルドで Signal マーカーが読めない件）
 
