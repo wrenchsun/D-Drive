@@ -68,24 +68,25 @@ namespace DDrive.Runtime.Net
         // M-6(2026-10-06): NetCheck のテスト用 Timeline(CUT_NetCheck_Markers)に置いた「D-Drive の全トラック / マーカー / クリップ種別」。
         // Player がこの全種別を Timeline から読み込めたことを cut_local の自己判定に含める(読めない種別があれば FAIL)。
         // 型名は Type.Name(Player のログで Unity が名前を解決できなかった型は "null" になる)。
-        public static readonly string[] ExpectedTrackTypes =
+        // [64_review_m6] GF-R-06 — 外から書き換えられないよう読み取り専用(v1.4.0 のタグ前に型を確定)。
+        public static IReadOnlyList<string> ExpectedTrackTypes { get; } = Array.AsReadOnly(new[]
         {
             "CutsceneEventTrack", "CutsceneSignalTrack", "CutsceneShakeTrack", "CutsceneHapticTrack",
             "CutsceneSeTrack", "CutsceneVfxTrack", "CutsceneUiTrack", "CutsceneCameraTrack",
             "CutscenePresentationTrack", "CutsceneAnchorGroupTrack", "MarkerTrack",
-        };
+        });
 
-        public static readonly string[] ExpectedMarkerTypes =
+        public static IReadOnlyList<string> ExpectedMarkerTypes { get; } = Array.AsReadOnly(new[]
         {
             "CutsceneEventNotification", "CutsceneSignalNotification", "CutsceneShakeNotification",
             "CutsceneHapticNotification", "NetCheckCutsceneMarker",
-        };
+        });
 
-        public static readonly string[] ExpectedClipTypes =
+        public static IReadOnlyList<string> ExpectedClipTypes { get; } = Array.AsReadOnly(new[]
         {
             "CutsceneSeClip", "CutsceneVfxClip", "CutsceneUiClip", "CutsceneCameraClip",
             "CutscenePresentationClip", "CutsceneAnchorGroupClip",
-        };
+        });
 
         public static NetCheckCutsceneMarkerSpec[] DefaultMarkers()
         {

@@ -1259,6 +1259,13 @@ namespace DDrive.Editor.Update
             _migrationBody.Add(WrappingLabel(plan.TotalCount == 0
                 ? "未適用のマイグレーションはありません。"
                 : $"未適用のマイグレーションが {plan.TotalCount} 件あります(Data {plan.DataMigrations.Count} 件 / プロジェクト {plan.ProjectMigrations.Count} 件)。"));
+            // [64_review_m6] GF-R-10 — Timeline(.playable)のテキスト書き換えは Undo で戻らないので、対象の一覧と「先にコミット」の案内を出す。
+            var legacyTimelines = DDrive.Editor.Migration.CutsceneTimelineScriptReferenceMigration.FindTargetPaths();
+            if (legacyTimelines.Count > 0)
+            {
+                _migrationBody.Add(WrappingLabel($"書き換わる Timeline(.playable。スクリプト参照の行だけ。Undo では戻せないので、適用の前にコミットしてください。Timeline を開いている場合は先に保存してください): {string.Join(", ", legacyTimelines)}"));
+            }
+
             _migrationBody.Add(WrappingLabel("実際の適用は下の「更新を適用」に含まれます。ここでは件数の確認のみできます。"));
             _migrationBody.Add(new Button(RefreshMigrationSection) { text = "再検査" });
         }

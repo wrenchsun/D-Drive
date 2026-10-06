@@ -65,6 +65,13 @@
     void Migrate(MigrationContext context);
 }</pre>
 
+<p><strong>適用後にも対象が増える種類の処理</strong>(取り込み済みのアセットの再インポート・古いブランチのマージなどで、<code>Id</code> を記録した後にも対象が現れうるもの)は、任意の <code>IRepeatableProjectMigration</code> も実装します。<code>HasPendingWork()</code> が true の間は、<code>Id</code> が記録済みでも計画に入ります(<code>CI.MigrateCheck</code> も赤になります)。<code>Migrate</code> は冪等に書き、対象が無いときは軽く false を返してください。</p>
+<pre>public interface IRepeatableProjectMigration
+{
+    bool HasPendingWork();
+}</pre>
+<p>一部の対象を処理できなかったときは <code>context.Warn(...)</code> で知らせます。1 件でも警告があると、Runner はその <code>Id</code> を記録せず、更新ウィンドウとメニューは「適用しました」ではなく失敗として表示します(ファイル単位で続行し、成功した分は反映されます)。</p>
+
 <h2 id="runner">Runner の動かし方</h2>
 <table>
 <tr><th>操作</th><th>メニュー</th><th>挙動</th></tr>
