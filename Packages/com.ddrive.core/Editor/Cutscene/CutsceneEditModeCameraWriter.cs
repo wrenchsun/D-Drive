@@ -69,6 +69,13 @@ namespace DDrive.Editor.Cutscene
                 return;
             }
 
+            // 書いている途中で Camera.main が別のカメラに替わった: 前のカメラがカットシーンの姿勢のまま残らないよう、
+            // 先に元の姿勢へ戻してから控え直す(docs/66 GH-R-02。前のカメラが破棄済みなら ResetCapture は何もしない)。
+            if (_hasOriginal)
+            {
+                ResetCapture();
+            }
+
             _capturedCamera = cam;
             _originalPos = cam.transform.position;
             _originalRot = cam.transform.rotation;

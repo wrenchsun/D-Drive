@@ -180,6 +180,9 @@ namespace DDrive.Editor.Cutscene
         private static readonly System.Reflection.PropertyInfo InspectedDirectorProperty = FindTimelineEditorProperty("inspectedDirector");
         private static readonly System.Reflection.PropertyInfo MasterDirectorProperty = FindTimelineEditorProperty("masterDirector");
         private static bool _warnedTimelineApiUnavailable;
+        // 一度例外になったら、以降は GetValue を呼ばない(毎更新で例外を作り続けない)。戻るのはドメインリロードのときだけ
+        // (Timeline の版はドメインリロードを跨がないと変わらないため。テストは ResetTimelineApiStateForTests)。
+        private static bool _timelineApiBroken;
 
         private static System.Reflection.PropertyInfo FindTimelineEditorProperty(string name)
             => System.Type.GetType("UnityEditor.Timeline.TimelineEditor, Unity.Timeline.Editor")
@@ -197,7 +200,13 @@ namespace DDrive.Editor.Cutscene
                 return IsInspectedOverrideForTests(director);
             }
 
-            if (InspectedDirectorProperty == null)
+            return IsInspectedByOrWarn(InspectedDirectorProperty, MasterDirectorProperty, director);
+        }
+
+        // `IsInspectedBy` に「API が無い・読めない → 書かない(false)+ 警告 1 回」を足したもの。PropertyInfo を渡せるのはテスト用。
+        public static bool IsInspectedByOrWarn(System.Reflection.PropertyInfo inspectedProperty, System.Reflection.PropertyInfo masterProperty, PlayableDirector director)
+        {
+            if (inspectedProperty == null || _timelineApiBroken)
             {
                 WarnTimelineApiUnavailableOnce();
                 return false;
@@ -205,14 +214,22 @@ namespace DDrive.Editor.Cutscene
 
             try
             {
-                return IsInspectedBy(InspectedDirectorProperty, MasterDirectorProperty, director);
+                return IsInspectedBy(inspectedProperty, masterProperty, director);
             }
             catch (System.Exception e)
             {
                 // 型は見つかったが読めない(Timeline の版の変更など)。書く側に倒さない。
+                _timelineApiBroken = true;
                 WarnTimelineApiUnavailableOnce(e);
                 return false;
             }
+        }
+
+        // テスト用: 警告済み・読めない印を戻す。
+        public static void ResetTimelineApiStateForTests()
+        {
+            _warnedTimelineApiUnavailable = false;
+            _timelineApiBroken = false;
         }
 
         // `inspectedDirector` か `masterDirector` がこの Director なら true。`inspectedProperty` が null(API が見つからない)なら false。
@@ -250,7 +267,7 @@ namespace DDrive.Editor.Cutscene
             _warnedTimelineApiUnavailable = true;
             Debug.LogWarning("[DDrive] Timeline ウィンドウの状態を取得できないため、Edit Mode のカメラのプレビューを無効にします"
                              + "(Timeline パッケージの版が変わった可能性があります。マーカー・SE・VFX のプレビューは影響しません)"
-                             + (e != null ? $"。{e.GetType().Name}: {e.Message}" : string.Empty));
+                             + (e != null ? $"。{(e.InnerException ?? e).GetType().Name}: {(e.InnerException ?? e).Message}" : string.Empty));
         }
 
         private static void OnEditorUpdate()
@@ -512,6 +529,7 @@ namespace DDrive.Editor.Cutscene
             {
                 // Play Mode に入る直前に、Shake/Haptics の出力とカメラの書き込みを止める
                 // (SceneCameraShakePreviewDriver/EditorHapticsPreviewDriver 自身も同じ通知で自浄する)。
+                RestoreCameraAfterShake();
                 CutsceneEditModeCameraWriter.ResetCapture();
                 // docs/45 P1-5(2026-09-20) — プレビュー用 Director(playOnAwake=true のまま保存された
                 // シーンで Play Mode に入ると CutsceneManager を経由せず勝手に再生してしまう)と、そこに
@@ -524,7 +542,7 @@ namespace DDrive.Editor.Cutscene
         private static void OnActiveSceneChanged(Scene previous, Scene current) => ResetSessions();
 
         // GE-R-01(docs/63) — Timeline ウィンドウでプレビューを開いたまま(= カメラがカットシーンの姿勢のまま)シーンを保存すると、
-        // その姿勢が Camera.main に保存されてしまう。保存の直前(自動保存・Ctrl+S・SaveOpenScenes のどれも `sceneSaving` が呼ばれる)に
+        // その姿勢が Camera.main に保存されてしまう。保存の直前(Ctrl+S・File > Save・SaveOpenScenes のどれも `sceneSaving` が呼ばれる)に
         // 書き込む前の姿勢へ戻し、保存の後に(まだ開いていれば)書き直す。テストが直接呼べるよう public。
         public static void SuspendCameraForSave(Scene scene)
         {
@@ -533,8 +551,15 @@ namespace DDrive.Editor.Cutscene
                 return;
             }
 
+            // docs/66 GH-R-01 — Shake ドライバは Shake を鳴らし始めた時点のカメラのローカル姿勢(= そのときのカットシーンの姿勢)を
+            // 控えていて、自分の復元でそれを書き戻す。Writer の復元(ワールドの元の姿勢)より**先**に Shake の復元を済ませ、
+            // 最後に Writer が元の姿勢にする(Shake ドライバは `ownsCameraLifecycle: false` で、保存・後始末を自分では購読しない)。
+            _managers?.ShakeDriver.RestoreCameraForSave(scene);
             CutsceneEditModeCameraWriter.SuspendForSave(scene);
         }
+
+        // Shake ドライバのカメラの復元(ティックも止める)。必ず `CutsceneEditModeCameraWriter.ResetCapture` の前に呼ぶ。
+        private static void RestoreCameraAfterShake() => _managers?.ShakeDriver.StopAndRestore();
 
         public static void ResumeCameraAfterSave(Scene scene)
         {
@@ -567,6 +592,7 @@ namespace DDrive.Editor.Cutscene
         private static void ResetSessions()
         {
             _sessions.Clear();
+            RestoreCameraAfterShake();
             CutsceneEditModeCameraWriter.ResetCapture();
             // docs/45 P1-5(2026-09-20) — シーン切替・Prefab ステージ切替でプレビュー用 Director を残さない。
             CutsceneEditModeDirectorSetup.TearDown();

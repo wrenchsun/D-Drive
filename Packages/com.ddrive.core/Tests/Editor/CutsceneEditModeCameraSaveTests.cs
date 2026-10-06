@@ -1,9 +1,14 @@
 using DDrive.Editor.Cutscene;
 using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Cutscene.Tracks;
+using DDrive.Runtime.CameraShake;
 using NUnit.Framework;
+using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Playables;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
 
 namespace DDrive.Tests.Editor
 {
@@ -52,6 +57,7 @@ namespace DDrive.Tests.Editor
         public void TearDown()
         {
             CutsceneEditModePreviewProvider.IsInspectedOverrideForTests = null;
+            CutsceneEditModePreviewProvider.ResetTimelineApiStateForTests();
             CutsceneEditModeCameraWriter.ResetCapture();
             CutsceneEditModePreviewProvider.TearDownForTests();
             if (_directorGo != null) Object.DestroyImmediate(_directorGo);
@@ -107,7 +113,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
-        public void IsInspectedBy_NullProperty_ReturnsFalse_AndNeverWrites()
+        public void IsInspectedBy_NullProperty_ReturnsFalse()
         {
             Assert.IsFalse(CutsceneEditModePreviewProvider.IsInspectedBy(null, null, _directorGo.GetComponent<PlayableDirector>()));
         }
@@ -127,6 +133,168 @@ namespace DDrive.Tests.Editor
             {
                 Assert.IsFalse(CutsceneEditModePreviewProvider.IsInspectedByTimelineWindow(director));
             }
+        }
+
+        // ---- 実際のシーン保存(sceneSaving / sceneSaved の購読を通す)。追加シーンだけを一時パスへ保存し、作業中のシーンには触れない ----
+
+        private const string TempScenePath = "Assets/__GeSaveTest.unity";
+
+        // 作業中のシーン(カメラはここに作る)を「コピーとして」一時パスへ保存する。シーン自体の保存状態・パスは変わらない
+        // (未保存の無題シーンのときは追加シーンを作れないため、既存の保存系テストと同じ saveAsCopy を使う)。
+        private string SaveCameraSceneAndReadText(out Scene scene)
+        {
+            scene = _camGo.scene;
+            Assert.IsTrue(EditorSceneManager.SaveScene(scene, TempScenePath, saveAsCopy: true));
+            return System.IO.File.ReadAllText(TempScenePath);
+        }
+
+        private void CleanupTempScene(Scene scene)
+        {
+            AssetDatabase.DeleteAsset(TempScenePath);
+        }
+
+        [Test]
+        public void RealSave_DoesNotStorePreviewPose_AndRewritesAfter()
+        {
+            CutsceneEditModePreviewProvider.IsInspectedOverrideForTests = d => true;
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            Scene scene = default;
+            try
+            {
+                var text = SaveCameraSceneAndReadText(out scene);
+                StringAssert.Contains("m_LocalPosition: {x: 1, y: 2, z: 3}", text);
+                StringAssert.DoesNotContain("m_LocalPosition: {x: 10, y: 20, z: 30}", text);
+                Assert.AreEqual(PreviewPos, _camGo.transform.position, "保存の後に書き直される");
+            }
+            finally
+            {
+                CleanupTempScene(scene);
+            }
+        }
+
+        [Test]
+        public void RealSave_AfterShakeStarted_DoesNotStorePreviewPose()
+        {
+            // docs/66 GH-R-01: Shake を鳴らした後の保存でも、Shake ドライバの復元が Cutscene の姿勢を書き戻さない。
+            CutsceneEditModePreviewProvider.IsInspectedOverrideForTests = d => true;
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            var shake = CutsceneEditModePreviewProvider.EnsureAndGetManagers().ShakeDriver;
+            var data = ScriptableObject.CreateInstance<CameraShakeData>();
+            Scene scene = default;
+            try
+            {
+                shake.Play(data);
+                shake.Tick(0.05f);
+                var text = SaveCameraSceneAndReadText(out scene);
+                StringAssert.Contains("m_LocalPosition: {x: 1, y: 2, z: 3}", text);
+                StringAssert.DoesNotContain("m_LocalPosition: {x: 10, y: 20, z: 30}", text);
+            }
+            finally
+            {
+                Object.DestroyImmediate(data);
+                CleanupTempScene(scene);
+            }
+        }
+
+        [Test]
+        public void TearDown_AfterShakeStarted_RestoresOriginalPose()
+        {
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            var shake = CutsceneEditModePreviewProvider.EnsureAndGetManagers().ShakeDriver;
+            var data = ScriptableObject.CreateInstance<CameraShakeData>();
+            try
+            {
+                shake.Play(data);
+                shake.Tick(0.05f);
+                CutsceneEditModePreviewProvider.TearDownForTests();
+                Assert.AreEqual(OriginalPos, _camGo.transform.position, "後始末の後にカットシーンの姿勢が残らない");
+                Assert.AreEqual(55f, _cam.fieldOfView, 0.001f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(data);
+            }
+        }
+
+        [Test]
+        public void SaveOfAnotherScene_DoesNotTouchCamera()
+        {
+            CutsceneEditModePreviewProvider.IsInspectedOverrideForTests = d => true;
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            // カメラのあるシーンとは別のシーンの保存(default = どのシーンでもない)
+            CutsceneEditModePreviewProvider.SuspendCameraForSave(default(Scene));
+            Assert.AreEqual(PreviewPos, _camGo.transform.position, "カメラのあるシーンではない保存では戻さない");
+        }
+
+        [Test]
+        public void SaveFailed_NextApplyRecovers()
+        {
+            // sceneSaved が来ない(保存の失敗)場合: 次の Apply が書き直す。
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            CutsceneEditModePreviewProvider.SuspendCameraForSave(_camGo.scene);
+            Assert.AreEqual(OriginalPos, _camGo.transform.position);
+
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            Assert.AreEqual(PreviewPos, _camGo.transform.position);
+
+            // その後に別の保存が来ても、また元の姿勢へ戻せる(印が下りている)。
+            CutsceneEditModePreviewProvider.SuspendCameraForSave(_camGo.scene);
+            Assert.AreEqual(OriginalPos, _camGo.transform.position);
+        }
+
+        [Test]
+        public void MainCameraChangedMidway_RestoresPreviousCamera()
+        {
+            // docs/66 GH-R-02
+            CutsceneEditModeCameraWriter.Apply(_directorGo);
+            Assert.AreEqual(PreviewPos, _camGo.transform.position);
+
+            var second = new GameObject("CamSaveTestCamera2", typeof(Camera));
+            try
+            {
+                _camGo.tag = "Untagged";
+                second.tag = "MainCamera";
+                second.transform.position = new Vector3(7f, 7f, 7f);
+
+                CutsceneEditModeCameraWriter.Apply(_directorGo);
+
+                Assert.AreEqual(OriginalPos, _camGo.transform.position, "前のカメラはカットシーンの姿勢のまま残らない");
+                Assert.AreEqual(PreviewPos, second.transform.position);
+            }
+            finally
+            {
+                CutsceneEditModeCameraWriter.ResetCapture();
+                Object.DestroyImmediate(second);
+            }
+        }
+
+        private static int ThrowingCount;
+
+        public static object ThrowingProperty
+        {
+            get
+            {
+                ThrowingCount++;
+                throw new System.InvalidOperationException("boom");
+            }
+        }
+
+        [Test]
+        public void UnreadableTimelineApi_ReturnsFalse_WarnsOnce_AndStopsReading()
+        {
+            var director = _directorGo.GetComponent<PlayableDirector>();
+            var prop = typeof(CutsceneEditModeCameraSaveTests).GetProperty(nameof(ThrowingProperty));
+            ThrowingCount = 0;
+            CutsceneEditModePreviewProvider.ResetTimelineApiStateForTests();
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("Timeline ウィンドウの状態を取得できない.*InvalidOperationException: boom"));
+            Assert.IsFalse(CutsceneEditModePreviewProvider.IsInspectedByOrWarn(prop, null, director));
+            Assert.IsFalse(CutsceneEditModePreviewProvider.IsInspectedByOrWarn(prop, null, director), "2 回目も false で、警告は出ない");
+            Assert.AreEqual(1, ThrowingCount, "一度読めなかったら以降は読まない");
+
+            // プロパティが無い場合も、警告済みなら出ない。
+            Assert.IsFalse(CutsceneEditModePreviewProvider.IsInspectedByOrWarn(null, null, director));
+            LogAssert.NoUnexpectedReceived();
         }
     }
 }

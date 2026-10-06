@@ -35,6 +35,7 @@ namespace DDrive.Editor.CameraFx
         private readonly ViewRepaintThrottle _repaint = new();
         private double _lastTick;
         private bool _ticking;
+        private bool _subscribed;
 
         private Transform _cameraTransform;
         private Transform _originalParent;
@@ -47,10 +48,21 @@ namespace DDrive.Editor.CameraFx
 
         // registry: 省略時はプロジェクト内アセットを登録した EditorAnchorRegistry(Shake/Haptics 自体は
         // ID 解決を経由しない ShakeData/PlayData を使うため、実質何を渡しても良い)。テストは差し替える。
-        public SceneCameraShakePreviewDriver(AssetRegistry registry = null)
+        //
+        // ownsCameraLifecycle: false にすると、保存の直前・シーン切替・プレハブステージ切替・Play Mode 突入での
+        // カメラの復元を自分では購読しない(呼び出し側が `RestoreCameraForSave` / `StopAndRestore` を、
+        // 自分のカメラ復元より**前**に呼ぶ)。Cutscene の Edit Mode プレビューは、カメラを Cutscene の Writer も書くため、
+        // 購読の順序に依存せず「Shake の復元 → Writer の復元」の順を固定するのに使う(docs/66 GH-R-01)。
+        public SceneCameraShakePreviewDriver(AssetRegistry registry = null, bool ownsCameraLifecycle = true)
         {
             _registry = registry ?? EditorAnchorRegistry.Build();
             Manager = new CameraFxManager(_registry);
+            if (!ownsCameraLifecycle)
+            {
+                return;
+            }
+
+            _subscribed = true;
             EditorSceneManager.activeSceneChangedInEditMode += OnStageChanged;
             PrefabStage.prefabStageOpened += OnPrefabStageChanged;
             PrefabStage.prefabStageClosing += OnPrefabStageChanged;
@@ -191,7 +203,10 @@ namespace DDrive.Editor.CameraFx
 
         // シーン保存の直前に、揺れたオフセット/ノードの親子構造がシーンへ焼き込まれないよう元に戻す。
         // 再生中なら次の Tick で再度ノードが挿入されて揺れは続く(SceneAnimPreviewDriver.OnSceneSaving と同じ方針)。
-        private void OnSceneSaving(Scene scene, string path)
+        private void OnSceneSaving(Scene scene, string path) => RestoreCameraForSave(scene);
+
+        // 揺らしているカメラが `scene` にあれば、元の親子構造・ローカル姿勢へ戻す(保存の直前に呼ぶ)。
+        public void RestoreCameraForSave(Scene scene)
         {
             if (_cameraTransform == null || _cameraTransform.gameObject.scene != scene)
             {
@@ -216,6 +231,12 @@ namespace DDrive.Editor.CameraFx
         public void Dispose()
         {
             StopAndRestore();
+            if (!_subscribed)
+            {
+                return;
+            }
+
+            _subscribed = false;
             EditorSceneManager.activeSceneChangedInEditMode -= OnStageChanged;
             PrefabStage.prefabStageOpened -= OnPrefabStageChanged;
             PrefabStage.prefabStageClosing -= OnPrefabStageChanged;

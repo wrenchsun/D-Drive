@@ -408,7 +408,7 @@ public static class Ui
 - 埋め込み行に「無効で始める」（`StartInactive`。Undo 対応）と「表示 / 非表示(作業用)」（保存しない。確認用プレビューでは実 `UiManager.SetEmbeddedActive` を呼ぶので子の Appear / Disappear も再生される。プレハブモードでは `SceneVisibilityManager` で SceneView の表示だけを切り替え、Prefab を汚さない）。実装 = `CanvasEditorWindow.EmbedActive.cs`。
 - 「ボタンの配線」欄: 3 つのアクションのとき、対象の埋め込みを選ぶ欄（先頭「(このボタンが属する埋め込み)」= 空、以下は登録済みの RootPath）が出る。
 - RootPath / 子の変更（`ChangeEmbedWithCleanup`）と、検出からの登録での子の差し替え（`Register`）は、その行の `StartInactive` を保つ。
-- レビュー [65](65_review_pr133_embedded_active_2026-10-06.md) の対応（2026-10-06）: GG-R-01〜03・05〜10 は上記のとおり。見送り = GG-R-08 (2)（同じ親に `A` と `A/B` を登録する設定の誤りは既存の Warning で検出する）、GG-R-12 (2)（警告キーの文字列生成。定常経路ではない）、GG-R-12 (3) DesignerManual（本体セッションがまとめて更新）。GG-R-12 (1) はツールチップの文言を「もう一度押す / 目のアイコンで戻る」に変えた（ステージを閉じたときに戻るかは 16-43 で確認）。
+- レビュー [65](65_review_pr133_embedded_active_2026-10-06.md) の対応（2026-10-06）: GG-R-01〜03・05〜10 は上記のとおり。見送り = GG-R-08 (2)（同じ親に `A` と `A/B` を登録する設定の誤りは既存の Warning で検出する）、GG-R-12 (2)（警告キーの文字列生成。定常経路ではない）、GG-R-12 (3) DesignerManual（2026-10-06 に canvas-editor / canvas-data へ追記済み）。GG-R-12 (1) はツールチップの文言を「もう一度押す / 目のアイコンで戻る」に変えた（ステージを閉じたときに戻るかは 16-43 で確認）。
 
 **Validation（新規。Warning のみ。既存の検査の重さは変えない）**: `CanvasEmbeddedActiveValidator`
 

@@ -73,8 +73,9 @@
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>ButtonPath</td><td>Prefab ルートからの相対パス(例 <code>Panel/StartButton</code>)</td></tr>
+<tr><td>EmbeddedRootPath</td><td>Action が ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded のときの対象。この Canvas データの「EmbeddedCanvases」に登録した RootPath(入れ子の入れ子は <code>OptionRoot/Inner</code> のように連結)。<strong>空 = このボタンが属している埋め込み(自分自身)</strong>。スライダーの配線では使えません</td></tr>
 <tr><td>Trigger</td><td><strong>Click</strong>(押した)/ <strong>DoubleClick</strong>(2 回押し)/ <strong>LongPress</strong>(長押し。UiButton の LongPressSec が必要)/ <strong>Repeat</strong>(押しっぱなしの連射)</td></tr>
-<tr><td>Action</td><td><strong>None</strong>(何もしない)/ <strong>OpenCanvas</strong>(Target の画面を開く)/ <strong>CloseSelf</strong>(この画面を閉じる)/ <strong>CloseTop</strong>(「戻る」= 一番上の閉じられる画面を閉じる)/ <strong>SendSignal</strong>(SignalKey でプログラマーに通知)/ <strong>PlayPresentation</strong>(<strong>未実装</strong>。Phase 5 予定。押すと「ButtonWire.Action=PlayPresentation は Phase 5 で実装予定です」と警告が出るだけ)/ <strong>SetOption</strong>(スライダー専用)</td></tr>
+<tr><td>Action</td><td><strong>None</strong>(何もしない)/ <strong>OpenCanvas</strong>(Target の画面を開く)/ <strong>CloseSelf</strong>(この画面を閉じる)/ <strong>CloseTop</strong>(「戻る」= 一番上の閉じられる画面を閉じる)/ <strong>SendSignal</strong>(SignalKey でプログラマーに通知)/ <strong>PlayPresentation</strong>(実行時は未対応。押すと警告が出るだけ)/ <strong>SetOption</strong>(スライダー専用)/ <strong>ActivateEmbedded</strong>(埋め込み Canvas を有効にする)/ <strong>DeactivateEmbedded</strong>(埋め込み Canvas を無効にする)/ <strong>ToggleEmbedded</strong>(有効 / 無効を切り替える)</td></tr>
 <tr><td>Target</td><td>Action=OpenCanvas のときに開く Canvas データ</td></tr>
 <tr><td>SignalKey</td><td>Action=SendSignal のときの通知名(例 <code>shop/buy</code>)。プログラマーと名前を決めておきます</td></tr>
 <tr><td>ClickSe</td><td>押したときの効果音。空ならレイヤー既定の SE / Skin の SE が使われます</td></tr>
@@ -113,6 +114,7 @@
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>RootPath</td><td>親の Prefab ルートからの相対パス(入れ子になっている子 Canvas のルート。例: <code>OptionRoot</code>)</td></tr>
+<tr><td>StartInactive</td><td>オンにすると、親を開いたときにこの子を無効(非表示)で始めます。既定(オフ)は有効で始まります。Prefab 側で子のルートが無効でも、登録済みの埋め込みはこの設定が優先されます。後から出し入れするには、ボタンの配線の ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded を使います(<a href="canvas-editor.html#embedded-active">埋め込みを出し入れする</a>)</td></tr>
 <tr><td>Canvas</td><td>子の Canvas データ。その ElementFx / Buttons / Sliders が RootPath を基準に、親を開いたときに適用されます(子の Prefab は新しく生成されません。親の Prefab に入っている実体を使います)</td></tr>
 </table>
 <p>子の Navigation・FirstSelected・レイヤー既定・開閉の演出・Layer / SortOffset は<strong>親のものが使われます</strong>。親の Canvas データに同じ要素(<code>OptionRoot/Panel</code> のように親から見たパス)の ElementFx の行・配線があるときは<strong>親の行が優先</strong>されます。登録は Canvas Editor の「埋め込み Canvas」欄で行います(<a href="canvas-editor.html#embedded">入れ子の Canvas を編集する</a>)。</p>
@@ -183,6 +185,9 @@
 <tr><td>EmbeddedCanvases[i] '…': この場所の実体が、子 Canvas の Prefab のインスタンスではありません</td><td>パスや子の指定が合っているか確認する(Warning)</td></tr>
 <tr><td>EmbeddedCanvases[i] '…': 親に '…' の ElementFx の行 / Click 配線などがあるため、子の同じ要素(・同じトリガー)の設定は使われません</td><td>意図した上書きなら無視可(Info)。ElementFx は要素ごと、ボタン・スライダーの配線は要素 + トリガーごとに親が優先されます</td></tr>
 <tr><td>EmbeddedCanvases[i] '…' は EmbeddedCanvases[j] '…' の配下です(埋め込みが重なっています) / 子 Canvas が自分で埋め込んでいる場所が、別の登録と重なる</td><td>どちらかの登録を外す(Warning)。同じ要素は 1 回だけ適用されます(実行時は、より内側の登録がその配下の要素を担当します)</td></tr>
+<tr><td>ButtonWire[i] '…': Action=… の EmbeddedRootPath '…' は、この CanvasData の EmbeddedCanvases に登録されていません(押しても何も起きません)</td><td>登録済みの RootPath を選ぶ(Warning。<code>DD-CANVAS-WIRE-EMBED-UNKNOWN</code>)</td></tr>
+<tr><td>FirstSelected '…' は、無効で始まる埋め込み EmbeddedCanvases[i] '…'(StartInactive)の配下です</td><td>FirstSelected を無効で始まらない要素にするか、StartInactive をオフにする(Warning。<code>DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE</code>)</td></tr>
+<tr><td>SliderWire[i] '…': Action=… はボタンの配線専用です(スライダーでは何も起きません)</td><td>スライダーの Action を SetOption / SendSignal にする(Warning。<code>DD-CANVAS-SLIDER-EMBED-ACTION</code>)</td></tr>
 <tr><td>EmbeddedCanvases[i] の RootPath '…' の書式が不正です</td><td>先頭・末尾の <code>/</code>、<code>\</code>、<code>//</code>、<code>./</code> を使わない(例 <code>Group/OptionRoot</code>。Canvas Editor の欄は確定時に自動で直します)(Warning)</td></tr>
 <tr><td>EmbeddedCanvases[i] '…': 子 Canvas の Load が Preload ではありません</td><td>子の Canvas データの Load を Preload にする(親を Open した時点で読み込まれていないと埋め込みがスキップされます)(Warning)</td></tr>
 </table>
@@ -190,7 +195,7 @@
 
 <h2>注意点</h2>
 <ul>
-<li><strong>Action=PlayPresentation は未実装</strong>(Phase 5 予定)。押しても警告が出るだけです</li>
+<li><strong>Action=PlayPresentation は実行時に未対応</strong>です。押しても警告が出るだけです</li>
 <li><strong>Navigation の 4 方向はむやみに全部埋めない</strong>。全部空なら Unity の自動ナビゲーションのままで、レイアウト変更にも追従します</li>
 <li><strong>ModalBlocksInput は <code>Ui.Popup</code> で開いたときだけ</strong>効きます。Layer=Popup でも OFF なら背後は操作できます</li>
 <li><strong>Idle にレイヤー既定はありません</strong>。単発プリセットを Idle に入れると警告になります</li>
