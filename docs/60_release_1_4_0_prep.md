@@ -243,6 +243,8 @@ docs/11 に既にあるものは参照だけ。
 | M-5 | ゲーム向けの時間源の公開 API（`GameLoop` に登録しなくてもヒットストップ・ポーズ込みの `dt` を読める形。追加のみ・MINOR。ユーザー判断が要る。`Time` 規則のメッセージもこのとき差し替え） | [11](11_tasks.md) M-4 節の M-5（案） |
 | **GC-R-01**（BGM のループ位置の検査） | `BgmDataValidator` が、`LoopStartSec` がクリップ長以上で End > Start の場合・`LoopStartSec` < 0 で End = 0 の場合に黙る（実行時は 1 サンプルのループに潰れる）。v1.0.0 からの穴で今回悪化していない。**v1.4.1 で新しい Code の Warning（例 `DD-BGM-LOOP-OUT-OF-CLIP`）を足す**（まとめ役の決定。既存の Error の条件・重さは変えない） | [61] GC-R-01 |
 | GC-R-07（ゴールデンの抜け） | 尺 0 の Warning 2 件（`DD-SHAKE-ENVELOPE-ZERO-DURATION` / `DD-HAPTICS-ZERO-DURATION`）の重さが `validator-severity.txt` に固定されていない。尺 0 の Data を組んで当てる個別の収集を足し、ゴールデンに 2 行追加（追加のみ）。v1.4.x | [61] GC-R-07 |
+| Canvas Editor のツールバーの重なり | 幅 500px で最上段の「Prefab を開く(要素の移動)」ボタンが「対象」欄と重なる(563px では出ない) | [43](43_manual_verification_2026-09-17.md) 16-40 |
+| 確認ダイアログのキャンセル文言 | 整理 / RootPath 変更の確認のキャンセルが「キャンセル(登録しない)」(登録ダイアログと共通)。「キャンセル(何も変更しない)」が合う | [43](43_manual_verification_2026-09-17.md) 16-29 |
 | UI の Tick の再入 | `UiTweenManager.Tick` / `UiManager.Tick` の添字走査が、`WaitAsync` の続きが走査中に走ると崩れる（v1.3.1 から既存。`PresentationManager` は修正済み） | [56] FY-R-03・[57] |
 | `GameLoop` の走査中の `Unregister` | `GameLoop.Tick` / `BroadcastPause` / `StopAll` / `NotifySceneUnload` は添字で走査するため、走査中に自分や前の Manager を外すと直後の Manager 1 つがそのフレーム飛ばされる（案内では「Tick の中で外さない」と書いた。D-Drive 自身の Manager は影響を受けない。直すなら `PresentationManager` / `CutsceneManager` と同じ写しの走査 = Foundation の挙動変更なので MINOR 以降） | [59] GB-R-04 |
 | ~~BgmData のループ位置~~ | 修正ラウンド 7 で対応済み（`LoopEndSec = 0` は末尾まで。取り込み直後も Error 0） | [59] GB-R-02 |
