@@ -252,6 +252,12 @@ namespace DDrive.Runtime.Ui
                 }
 
                 var button = ResolveUiButton(root, wire.ButtonPath);
+                // 要素はあるが UiButton が付いていない: 実行時は黙って配線されない(新規検査なので Warning。レビュー [63] GE-R-06)。
+                if (button == null && ResolvesTo<Transform>(root, wire.ButtonPath))
+                {
+                    yield return ValidationResult.Warning($"ButtonWire[{i}] '{wire.ButtonPath}': この要素に UiButton が付いていません(配線は効きません)", code: "DD-CANVAS-WIRE-NO-UIBUTTON");
+                }
+
                 if (wire.Trigger == WireTrigger.LongPress && button != null && button.LongPressSec <= 0f)
                 {
                     yield return ValidationResult.Error($"ButtonWire[{i}] '{wire.ButtonPath}': Trigger=LongPress なのに対象 UiButton の LongPressSec が 0 以下です");
