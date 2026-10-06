@@ -149,7 +149,7 @@ namespace DDrive.Editor.CanvasTool
         // 1 回の検証(= 1 つの ValidationContext)で 1 回だけ作る(CanvasData 1 件ごとにプロジェクト全体を読み直さない。レビュー PC-R-11)。
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ValidationContext, CanvasEmbeddedEditing.CanvasLookup> LookupCache = new();
 
-        private static CanvasEmbeddedEditing.CanvasLookup BuildLookup(ValidationContext ctx)
+        internal static CanvasEmbeddedEditing.CanvasLookup BuildLookup(ValidationContext ctx)
             => ctx == null ? BuildLookupUncached(null) : LookupCache.GetValue(ctx, BuildLookupUncached);
 
         private static CanvasEmbeddedEditing.CanvasLookup BuildLookupUncached(ValidationContext ctx)
@@ -275,9 +275,11 @@ namespace DDrive.Editor.CanvasTool
 
             var embeds = canvas.EmbeddedCanvases;
 
-            // 配線が指す埋め込みが、この CanvasData に登録されているか(空 = 自分が属する埋め込み。実行時に決まるので検査しない)。
+            // 配線が指す埋め込みが、この CanvasData から切り替えられるか(直下の登録 + 子の登録を連結した入れ子の入れ子。
+            // 空 = 自分が属する埋め込み。実行時に決まるので検査しない)。
             if (canvas.Buttons != null)
             {
+                List<string> paths = null;
                 for (var i = 0; i < canvas.Buttons.Length; i++)
                 {
                     var wire = canvas.Buttons[i];
@@ -286,11 +288,31 @@ namespace DDrive.Editor.CanvasTool
                         continue;
                     }
 
-                    if (!IsRegistered(embeds, wire.EmbeddedRootPath))
+                    if (paths == null)
+                    {
+                        paths = new List<string>();
+                        CanvasButtonWireEditing.CollectEmbedPaths(canvas, CanvasEmbeddedValidator.BuildLookup(ctx), paths);
+                    }
+
+                    if (!paths.Contains(wire.EmbeddedRootPath))
                     {
                         yield return ValidationResult.Warning(
                             $"ButtonWire[{i}] '{wire.ButtonPath}': Action={wire.Action} の EmbeddedRootPath '{wire.EmbeddedRootPath}' は、この CanvasData の EmbeddedCanvases に登録されていません(押しても何も起きません)",
                             code: "DD-CANVAS-WIRE-EMBED-UNKNOWN");
+                    }
+                }
+            }
+
+            // スライダーの配線に埋め込みのアクションは効かない(SliderWire に EmbeddedRootPath が無く、実行時は何もしない。レビュー [65] GG-R-09)。
+            if (canvas.Sliders != null)
+            {
+                for (var i = 0; i < canvas.Sliders.Length; i++)
+                {
+                    if (IsEmbeddedAction(canvas.Sliders[i].Action))
+                    {
+                        yield return ValidationResult.Warning(
+                            $"SliderWire[{i}] '{canvas.Sliders[i].ElementPath}': Action={canvas.Sliders[i].Action} はボタンの配線専用です(スライダーでは何も起きません)",
+                            code: "DD-CANVAS-SLIDER-EMBED-ACTION");
                     }
                 }
             }
@@ -314,23 +336,5 @@ namespace DDrive.Editor.CanvasTool
 
         private static bool IsEmbeddedAction(UiAction action)
             => action == UiAction.ActivateEmbedded || action == UiAction.DeactivateEmbedded || action == UiAction.ToggleEmbedded;
-
-        private static bool IsRegistered(EmbeddedCanvas[] embeds, string rootPath)
-        {
-            if (embeds == null)
-            {
-                return false;
-            }
-
-            for (var i = 0; i < embeds.Length; i++)
-            {
-                if (string.Equals(embeds[i].RootPath ?? string.Empty, rootPath, System.StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
     }
 }

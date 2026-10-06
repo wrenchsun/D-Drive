@@ -276,17 +276,7 @@ namespace DDrive.Editor.CanvasTool
                 // 切り替える埋め込み: この CanvasData に登録された RootPath から選ぶ。先頭 = 空(このボタンが属している埋め込み = 自分自身)。
                 const string SelfLabel = "(このボタンが属する埋め込み)";
                 var paths = new List<string> { SelfLabel };
-                var embeds = owner.EmbeddedCanvases;
-                if (embeds != null)
-                {
-                    for (var e = 0; e < embeds.Length; e++)
-                    {
-                        if (!string.IsNullOrEmpty(embeds[e].RootPath) && !paths.Contains(embeds[e].RootPath))
-                        {
-                            paths.Add(embeds[e].RootPath);
-                        }
-                    }
-                }
+                CanvasButtonWireEditing.CollectEmbedPaths(owner, Lookup, paths); // 直下 + 入れ子の入れ子("OptionRoot/Inner")
 
                 var currentPath = string.IsNullOrEmpty(wire.EmbeddedRootPath) ? SelfLabel : wire.EmbeddedRootPath;
                 if (!paths.Contains(currentPath))
@@ -329,7 +319,7 @@ namespace DDrive.Editor.CanvasTool
 
             container.Add(line);
 
-            var problem = CanvasButtonWireEditing.DescribeProblem(owner, index);
+            var problem = CanvasButtonWireEditing.DescribeProblem(owner, index, Lookup);
             if (problem != null)
             {
                 container.Add(new Label("⚠ " + problem) { style = { color = new Color(0.95f, 0.75f, 0.25f), whiteSpace = WhiteSpace.Normal, marginLeft = 2 } });

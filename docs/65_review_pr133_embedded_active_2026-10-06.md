@@ -185,3 +185,24 @@
 - `UiTweenManager` のプリセットの from / to の扱い（Open 時に控えた見た目へ戻す `RestartEmbedFx` が、相対のプリセットでも期待どおりになるか）は読んでいない。
 - DesignerManual・`Packages/com.ddrive.core/Documentation~` は差分なし（未更新）を確認しただけ。
 - メインの checkout と、そこで開いている Unity には触れていない。
+
+---
+
+## 対応（2026-10-06、同じブランチ `feat/embedded-canvas-active` で実施）
+
+| 指摘 | 対応 |
+|---|---|
+| GG-R-01（P1） | `SetEmbeddedActive` の無効化で `PendingAppearCount` が変わったら `RecomputeBlocking()` を呼ぶ。テスト `SetEmbeddedActive_DeactivateDuringOpenAppear_ReleasesParentInputGate` |
+| GG-R-02（P2） | 案 (a)。`StartDisappear` で `DisappearStarted && !DisappearDone` の要素は、再生中なら `PendingDisappearCount++`、止まっていれば `DisappearDone = true`。テスト `Close_DuringEmbedDisappear_WaitsForParentDisappear` |
+| GG-R-03（P2） | `CanSelectInto`（親が `_stack` の最上位・閉じていない・`PendingAppearCount == 0`）のときだけ `SelectFirstOfEmbed`。docs/07 に条件を追記。テスト `SetEmbeddedActive_SelectsChildFirstSelected_OnlyWhenParentIsTopAndInteractive`（モーダルが上にあるときは選択を奪わない） |
+| GG-R-04 | CHANGELOG「互換性」節のデータの欄・公開 API の列挙に追記（「挙動の変更」には当たらない旨も） |
+| GG-R-05 | `Register` の差し替えは `row.Canvas = id` だけ書く。テスト `Register_SameRootPath_KeepsStartInactive_AndRootPathChange_RetargetsWires` |
+| GG-R-06 | `ChangeEmbedWithCleanup` が `RetargetEmbeddedWires`（旧 RootPath とその配下を指す `EmbeddedRootPath` を付け替え）を同じ Undo グループで行う。同上のテスト |
+| GG-R-07 | 前者の案。`CanvasButtonWireEditing.CollectEmbedPaths`（直下 + 子の登録の連結、深さ 8）を欄・`DescribeProblem`・`CanvasEmbeddedActiveValidator` で共有。テスト `EmbeddedActions_NestedPaths_AreSelectable_AndNotWarned` |
+| GG-R-08 (1) | 外側が `Deactivating` の間の内側の無効化は GameObject を外側の完了に任せ（`HasDeactivatingAncestor`）、外側の完了 / 再有効化で `SettleInactiveInner` が内側を消し切る（要素は Held に戻す）。テスト `NestedEmbed_DeactivateInner_WhileOuterIsDisappearing_WaitsForOuter` |
+| GG-R-08 (2) | **見送り**。同じ親に `A` と `A/B` を登録するのは設定の誤りで、既存の Warning `DD-CANVAS-EMBED-NESTED-ROOT` が検出する。docs/07 に「保証しない」と明記 |
+| GG-R-09 | `CanvasEmbeddedActiveValidator` に Warning `DD-CANVAS-SLIDER-EMBED-ACTION` |
+| GG-R-10 | `ButtonWire.EmbeddedRootPath` の Tooltip と docs/07 の「配線」に基準の違いを追記 |
+| GG-R-11 | (1)〜(4) と (5) の `Register` 分を追加（上記）。「無効で始める」トグルの Undo は UI の `Undo.RecordObject` 経由で、EditMode テストは置いていない（16-41 の人による確認） |
+| GG-R-12 | (1) ツールチップを「もう一度押すか目のアイコンで戻る」+「プレハブモードを優先」に変更（ステージを閉じたときに戻るかは 16-43 で確認）。(2) **見送り**（定常経路ではない）。(3) DesignerManual は本体セッションがまとめて更新 |
+

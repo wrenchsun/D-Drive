@@ -1693,6 +1693,20 @@ namespace DDrive.Runtime.Ui
             return true;
         }
 
+        // 埋め込み index の外側(自分を含まない)に、Disappear の途中(Deactivating)の埋め込みがあるか。
+        private static bool HasDeactivatingAncestor(List<EmbedState> embeds, int index)
+        {
+            for (var i = embeds[index].Parent; i >= 0; i = embeds[i].Parent)
+            {
+                if (embeds[i].Deactivating)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // 埋め込み index が、埋め込み ancestor 自身か、その内側か。
         private static bool IsEmbedWithin(List<EmbedState> embeds, int index, int ancestor)
         {
@@ -1766,7 +1780,11 @@ namespace DDrive.Runtime.Ui
                 if (IsEmbedShown(embeds, index))
                 {
                     RestartEmbedFx(instance, index);
-                    SelectFirstOfEmbed(e);
+                    SettleInactiveInner(instance, index); // Disappear の途中で有効に戻した: 無効の指定の内側を消し切る(GG-R-08)
+                    if (CanSelectInto(instance))
+                    {
+                        SelectFirstOfEmbed(e);
+                    }
                 }
             }
             else
@@ -1780,7 +1798,9 @@ namespace DDrive.Runtime.Ui
                 e.Active = false;
                 if (!wasShown)
                 {
-                    if (e.Root != null)
+                    // 外側が Disappear の途中(Deactivating)なら、GameObject は外側の完了(CompleteEmbedDeactivation)に任せる
+                    // (内側だけ先に消えないように。レビュー [65] GG-R-08)。外側が既に無効なら今すぐ無効にしてよい。
+                    if (e.Root != null && !HasDeactivatingAncestor(embeds, index))
                     {
                         e.Root.gameObject.SetActive(false);
                     }
@@ -1789,6 +1809,7 @@ namespace DDrive.Runtime.Ui
                 }
 
                 MoveSelectionOutOf(instance, e);
+                var pendingBefore = instance.PendingAppearCount;
                 if (StartEmbedDisappear(instance, index))
                 {
                     e.Deactivating = true; // Tick が Disappear の完了を見て GameObject を無効にする
@@ -1797,7 +1818,26 @@ namespace DDrive.Runtime.Ui
                 {
                     CompleteEmbedDeactivation(instance, index);
                 }
+
+                // Open の Appear の途中で無効にして入力ゲートの数が減ったら、その場で再計算する(レビュー [65] GG-R-01。
+                // Tick は OnAppearCompleted が数を減らしたときしか再計算しないので、ここで呼ばないと親が操作できないまま残る)。
+                if (instance.PendingAppearCount != pendingBefore)
+                {
+                    RecomputeBlocking();
+                }
             }
+        }
+
+        // 有効化した埋め込みの子の FirstSelected を選んでよいか(レビュー [65] GG-R-03): 親がスタックの最上位の、閉じていない
+        // Canvas で、入力ゲートにもモーダルにもブロックされていないときだけ(上にモーダルがある・Appear 待ちの親から選択を奪わない)。
+        private bool CanSelectInto(CanvasInstance instance)
+        {
+            if (instance.Closing || instance.PendingAppearCount > 0 || _stack.Count == 0)
+            {
+                return false;
+            }
+
+            return _instances.TryGet(_stack[_stack.Count - 1], out var top) && ReferenceEquals(top, instance);
         }
 
         // 埋め込みが有効の指定か(外側が無効でも、自分の指定が有効なら true)。開いていない Canvas・登録されていない rootPath は false。
@@ -1951,6 +1991,8 @@ namespace DDrive.Runtime.Ui
                 e.Root.gameObject.SetActive(false);
             }
 
+            SettleInactiveInner(instance, index);
+
             var list = instance.ElementFx;
             if (list == null)
             {
@@ -1965,6 +2007,45 @@ namespace DDrive.Runtime.Ui
                     r.Held = true;
                     r.DisappearStarted = false;
                     r.DisappearDone = false;
+                }
+            }
+        }
+
+        // 埋め込み index の内側で、Disappear の途中に無効の指定を受けた埋め込み(GameObject の無効化を待たせていた。GG-R-08)を
+        // 無効にし、その要素を待機(Held)に戻す。外側の無効化の完了と、外側を Disappear の途中で有効に戻したときの両方から呼ぶ。
+        private void SettleInactiveInner(CanvasInstance instance, int index)
+        {
+            var embeds = instance.Embeds;
+            var list = instance.ElementFx;
+            for (var i = 0; i < embeds.Count; i++)
+            {
+                var inner = embeds[i];
+                if (i == index || inner.Active || !IsEmbedWithin(embeds, i, index))
+                {
+                    continue;
+                }
+
+                if (inner.Root != null)
+                {
+                    inner.Root.gameObject.SetActive(false);
+                }
+
+                if (list == null)
+                {
+                    continue;
+                }
+
+                for (var k = 0; k < list.Count; k++)
+                {
+                    var r = list[k];
+                    if (r.EmbedIndex >= 0 && IsEmbedWithin(embeds, r.EmbedIndex, i))
+                    {
+                        _tweens?.Stop(r.DisappearHandle);
+                        r.DisappearHandle = Handle<UiTweenMarker>.Invalid;
+                        r.Held = true;
+                        r.DisappearStarted = false;
+                        r.DisappearDone = false;
+                    }
                 }
             }
         }
@@ -2208,6 +2289,20 @@ namespace DDrive.Runtime.Ui
         {
             if (r.DisappearStarted)
             {
+                // 埋め込みの無効化で Disappear が始まっている要素(レビュー [65] GG-R-02): まだ再生中なら閉じ待ちに数え直す
+                // (閉じている間の Tick が完了を見て 1 減らすため。数えないと親の Disappear の途中で閉じ切る)。止まっていれば完了扱い。
+                if (!r.DisappearDone)
+                {
+                    if (IsTweenPlaying(r.DisappearHandle))
+                    {
+                        instance.PendingDisappearCount++;
+                    }
+                    else
+                    {
+                        r.DisappearDone = true;
+                    }
+                }
+
                 return;
             }
 

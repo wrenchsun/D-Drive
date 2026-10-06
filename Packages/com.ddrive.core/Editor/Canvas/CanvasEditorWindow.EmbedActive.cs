@@ -46,12 +46,12 @@ namespace DDrive.Editor.CanvasTool
             row.Add(new Button(() => ToggleEmbedWorkVisibility(owner, index))
             {
                 text = "表示 / 非表示(作業用)",
-                tooltip = "作業のために、この子の表示を一時的に切り替える(データにも Prefab にも保存しない)。確認用プレビューでは実際に有効 / 無効を切り替え(子の Appear / Disappear も再生される)、プレハブモードでは SceneView での表示だけを切り替える",
+                tooltip = "作業のために、この子の表示を一時的に切り替える(データにも Prefab にも保存しない)。プレハブモードを開いていればそちらを優先し、SceneView での表示だけを切り替える(もう一度押すか、Hierarchy の目のアイコンで戻る)。確認用プレビューだけのときは実際に有効 / 無効を切り替える(子の Appear / Disappear も再生される)",
             });
         }
 
         // 作業用の表示切り替え(保存しない)。確認用プレビュー: 実 UiManager の SetEmbeddedActive(演出つき)。
-        // プレハブモード: SceneVisibilityManager(Prefab を汚さない。ステージを閉じると戻る)。
+        // プレハブモード: SceneVisibilityManager(Prefab を汚さない。もう一度押すか目のアイコンで戻る)。両方開いていればプレハブモードを優先。
         private void ToggleEmbedWorkVisibility(CanvasData owner, int index)
         {
             if (owner != _target || owner.EmbeddedCanvases == null || index >= owner.EmbeddedCanvases.Length)

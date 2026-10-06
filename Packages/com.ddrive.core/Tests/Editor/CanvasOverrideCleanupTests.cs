@@ -423,6 +423,43 @@ namespace DDrive.Tests.Editor
             Assert.IsTrue(_parent.EmbeddedCanvases[0].StartInactive);
         }
 
+        // レビュー [65] GG-R-05 / GG-R-06: 同じ RootPath の子の差し替えは StartInactive を保つ。RootPath の変更は配線の対象も付け替える。
+        [Test]
+        public void Register_SameRootPath_KeepsStartInactive_AndRootPathChange_RetargetsWires()
+        {
+            CanvasEmbeddedEditing.Register(_parent, "Inner", _child);
+            var embed = _parent.EmbeddedCanvases[0];
+            embed.StartInactive = true;
+            _parent.EmbeddedCanvases[0] = embed;
+
+            var other = ScriptableObject.CreateInstance<CanvasData>();
+            other.Id = 7777;
+            try
+            {
+                Assert.IsTrue(CanvasEmbeddedEditing.Register(_parent, "Inner", other));
+                Assert.AreEqual(1, _parent.EmbeddedCanvases.Length);
+                Assert.AreEqual(7777UL, _parent.EmbeddedCanvases[0].Canvas.Value);
+                Assert.IsTrue(_parent.EmbeddedCanvases[0].StartInactive, "子だけ差し替え、StartInactive は保つ");
+            }
+            finally
+            {
+                Object.DestroyImmediate(other);
+            }
+
+            _parent.Buttons = new[]
+            {
+                new ButtonWire { ButtonPath = "Title", Trigger = WireTrigger.Click, Action = UiAction.ToggleEmbedded, EmbeddedRootPath = "Inner" },
+                new ButtonWire { ButtonPath = "Title", Trigger = WireTrigger.LongPress, Action = UiAction.ActivateEmbedded, EmbeddedRootPath = "Inner/Deep" },
+                new ButtonWire { ButtonPath = "Title", Trigger = WireTrigger.Repeat, Action = UiAction.ActivateEmbedded, EmbeddedRootPath = "InnerX" },
+                new ButtonWire { ButtonPath = "Title", Trigger = WireTrigger.DoubleClick, Action = UiAction.SendSignal, EmbeddedRootPath = "Inner" },
+            };
+            Assert.IsTrue(CanvasEmbeddedEditing.ChangeEmbedWithCleanup(_parent, 0, "Other", _child, out _));
+            Assert.AreEqual("Other", _parent.Buttons[0].EmbeddedRootPath, "旧 RootPath を指す配線は新しい RootPath へ");
+            Assert.AreEqual("Other/Deep", _parent.Buttons[1].EmbeddedRootPath, "配下(入れ子の入れ子)も付け替える");
+            Assert.AreEqual("InnerX", _parent.Buttons[2].EmbeddedRootPath, "名前が前方一致するだけの別のパスは触らない");
+            Assert.AreEqual("Other", _parent.Buttons[3].EmbeddedRootPath, "アクションに関係なく同じ欄は付け替える(使われない欄でも古い値を残さない)");
+        }
+
         [Test]
         public void Describe_MentionsWires_WhenPresent()
         {

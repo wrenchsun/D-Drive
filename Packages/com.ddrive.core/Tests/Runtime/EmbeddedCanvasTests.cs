@@ -801,6 +801,133 @@ namespace DDrive.Tests.Runtime
             Assert.AreEqual(0, _tweens.ActiveCount, "無効にした内側の Idle は止まる");
         }
 
+        // レビュー [65] GG-R-01: Open の Appear の途中で子を無効にすると、入力ゲートの数が減った時点で親の入力が戻る。
+        [Test]
+        public void SetEmbeddedActive_DeactivateDuringOpenAppear_ReleasesParentInputGate()
+        {
+            var child = MakeData(ChildId, "Option");
+            child.ElementEffects = new[] { Fx("Panel", UiPreset.FadeIn, 5f) }; // 親自身には Appear が無い
+            Register(child);
+            var parent = MakeParent(new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) });
+
+            var handle = _manager.OpenData(parent);
+            var group = _manager.GetComponent<CanvasGroup>(handle);
+            Assert.IsFalse(group.interactable, "子の Appear(5 秒)が終わるまで親は入力不可");
+
+            _manager.SetEmbeddedActive(handle, "OptionRoot", false);
+            TickBoth(0.05f, 2);
+            Assert.IsTrue(group.interactable, "無効にした子の Appear はゲートから外れ、親の入力がその場で戻る");
+            Assert.IsTrue(group.blocksRaycasts);
+            Assert.IsFalse(_manager.IsOpening(handle));
+        }
+
+        // レビュー [65] GG-R-02: 子の Disappear の途中で親を閉じても、親の Disappear が終わるまで閉じ切らない。
+        [Test]
+        public void Close_DuringEmbedDisappear_WaitsForParentDisappear()
+        {
+            var child = MakeData(ChildId, "Option");
+            child.ElementEffects = new[] { new ElementFx { ElementPath = "Panel", DisappearPreset = new UiPresetRef { Preset = UiPreset.FadeOut, Duration = 0.1f } } };
+            Register(child);
+            var parent = MakeParent(new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) });
+            parent.ElementEffects = new[] { new ElementFx { ElementPath = "Title", DisappearPreset = new UiPresetRef { Preset = UiPreset.FadeOut, Duration = 0.5f } } };
+
+            var handle = _manager.OpenData(parent);
+            TickBoth(0.05f, 1);
+            _manager.SetEmbeddedActive(handle, "OptionRoot", false); // 子の Disappear(0.1 秒)が始まる
+            _manager.Close(handle);                                   // 直後に親を閉じる(親の Disappear は 0.5 秒)
+            TickBoth(0.05f, 5);                                       // 0.25 秒: 子の Disappear は終わり、親はまだ途中
+            Assert.IsTrue(_manager.IsOpen(handle), "子の Disappear の完了で閉じ切らず、親の Disappear を待つ");
+            TickBoth(0.05f, 8);
+            Assert.IsFalse(_manager.IsOpen(handle), "親の Disappear が終わったら閉じる");
+        }
+
+        // GG-R-11 (3): Disappear の途中で有効に戻す → Appear からやり直し、最後に無効にならない。
+        [Test]
+        public void SetEmbeddedActive_ReactivateDuringDisappear_RestartsAppear_AndStaysActive()
+        {
+            var child = MakeData(ChildId, "Option");
+            child.ElementEffects = new[] { Fx("Panel", UiPreset.FadeIn, 0.1f, UiPreset.Pulse, UiPreset.FadeOut) };
+            Register(child);
+            var parent = MakeParent(new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) });
+            var handle = _manager.OpenData(parent);
+            TickBoth(0.05f, 6);
+            var root = OpenedChild(handle, "OptionRoot").gameObject;
+
+            _manager.SetEmbeddedActive(handle, "OptionRoot", false);
+            TickBoth(0.05f, 1); // Disappear の途中
+            Assert.IsTrue(root.activeSelf);
+            _manager.SetEmbeddedActive(handle, "OptionRoot", true);
+            Assert.IsTrue(_manager.IsEmbeddedActive(handle, "OptionRoot"));
+            TickBoth(0.05f, 10);
+            Assert.IsTrue(root.activeSelf, "Disappear の途中で有効に戻したら、無効にならない");
+            Assert.Greater(_tweens.ActiveCount, 0, "Appear からやり直して Idle が流れている");
+            var panelGroup = OpenedChild(handle, "OptionRoot/Panel").GetComponent<CanvasGroup>();
+            Assert.IsTrue(panelGroup == null || panelGroup.alpha > 0.9f, "Disappear の途中の透明度を引きずらない");
+        }
+
+        // GG-R-11 (4) + GG-R-03: 有効化で子の FirstSelected を選ぶのは親が最上位で入力できるときだけ。無効化で親の FirstSelected へ移す。
+        [Test]
+        public void SetEmbeddedActive_SelectsChildFirstSelected_OnlyWhenParentIsTopAndInteractive()
+        {
+            var eventSystemGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem));
+            _created.Add(eventSystemGo);
+            var eventSystem = eventSystemGo.GetComponent<UnityEngine.EventSystems.EventSystem>();
+
+            var child = MakeData(ChildId, "Option");
+            child.FirstSelected = "BtnX";
+            Register(child);
+            var parent = MakeParent(new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId), StartInactive = true });
+            parent.FirstSelected = "Title";
+            var handle = _manager.OpenData(parent);
+            var title = OpenedChild(handle, "Title").gameObject;
+            var btn = OpenedChild(handle, "OptionRoot/BtnX").gameObject;
+
+            _manager.SetEmbeddedActive(handle, "OptionRoot", true);
+            Assert.AreSame(btn, eventSystem.currentSelectedGameObject, "有効化で子の FirstSelected を選ぶ");
+            _manager.SetEmbeddedActive(handle, "OptionRoot", false);
+            Assert.AreSame(title, eventSystem.currentSelectedGameObject, "無効化で親の FirstSelected へ移す");
+
+            // 上にモーダルがあるときは選択を奪わない。
+            var modalPrefab = new GameObject("Modal", typeof(RectTransform), typeof(Canvas), typeof(CanvasGroup));
+            _created.Add(modalPrefab);
+            var modalData = MakeData(GrandId, "Modal", modalPrefab);
+            modalData.ModalBlocksInput = true;
+            var modal = _manager.OpenData(modalData, modal: true);
+            var modalRoot = _manager.GetGameObject(modal);
+            eventSystem.SetSelectedGameObject(modalRoot);
+            _manager.SetEmbeddedActive(handle, "OptionRoot", true);
+            Assert.AreSame(modalRoot, eventSystem.currentSelectedGameObject, "モーダルの下の親の埋め込みを有効にしても、選択を奪わない");
+            Assert.IsTrue(OpenedChild(handle, "OptionRoot").gameObject.activeSelf, "有効化そのものは行われる");
+        }
+
+        // GG-R-08: 外側の Disappear の途中で内側を無効にしても内側だけ先に消えず、外側の完了で一緒に無効になる。
+        [Test]
+        public void NestedEmbed_DeactivateInner_WhileOuterIsDisappearing_WaitsForOuter()
+        {
+            var grand = MakeData(GrandId, "Volume");
+            Register(grand);
+            var child = MakeData(ChildId, "Option");
+            child.ElementEffects = new[] { Fx("Panel", UiPreset.None, 0.1f, UiPreset.None, UiPreset.FadeOut) };
+            child.EmbeddedCanvases = new[] { new EmbeddedCanvas { RootPath = "Inner", Canvas = IdOf(GrandId) } };
+            Register(child);
+            var parent = MakeParent(new EmbeddedCanvas { RootPath = "OptionRoot", Canvas = IdOf(ChildId) });
+            var handle = _manager.OpenData(parent);
+            var outer = OpenedChild(handle, "OptionRoot").gameObject;
+            var inner = OpenedChild(handle, "OptionRoot/Inner").gameObject;
+
+            _manager.SetEmbeddedActive(handle, "OptionRoot", false); // 外側の Disappear(0.1 秒)が始まる
+            _manager.SetEmbeddedActive(handle, "OptionRoot/Inner", false);
+            Assert.IsTrue(inner.activeSelf, "外側の Disappear の途中は、内側だけ先に消えない");
+            TickBoth(0.05f, 6);
+            Assert.IsFalse(outer.activeSelf);
+            Assert.IsFalse(inner.activeSelf, "外側の完了で内側も無効になる");
+
+            // 外側を有効に戻しても、無効の指定の内側は出ない。
+            _manager.SetEmbeddedActive(handle, "OptionRoot", true);
+            Assert.IsTrue(outer.activeSelf);
+            Assert.IsFalse(inner.activeSelf);
+        }
+
         [Test]
         public void ButtonWire_EmbeddedActions_ToggleFromParent_AndHideSelfFromChild()
         {

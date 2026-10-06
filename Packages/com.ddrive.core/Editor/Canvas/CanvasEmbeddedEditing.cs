@@ -247,7 +247,9 @@ namespace DDrive.Editor.CanvasTool
                 }
 
                 Undo.RecordObject(parent, "Canvas: 埋め込み Canvas を更新");
-                parent.EmbeddedCanvases[i] = new EmbeddedCanvas { RootPath = rootPath, Canvas = id };
+                var row = rows[i]; // 子だけ差し替える(StartInactive などは保つ。レビュー [65] GG-R-05)
+                row.Canvas = id;
+                parent.EmbeddedCanvases[i] = row;
                 EditorUtility.SetDirty(parent);
                 return true;
             }
@@ -688,9 +690,11 @@ namespace DDrive.Editor.CanvasTool
             Undo.RecordObject(parent, "Canvas: 埋め込み Canvas を変更");
             // RootPath と子だけを書き換える(同じ行のほかの欄 = StartInactive などは保つ)。
             var changed = parent.EmbeddedCanvases[index];
+            var oldRootPath = changed.RootPath ?? string.Empty;
             changed.RootPath = newRootPath ?? string.Empty;
             changed.Canvas = newChild != null ? new AssetId<CanvasMarker>(newChild.Id, AssetType.Canvas) : default;
             parent.EmbeddedCanvases[index] = changed;
+            RetargetEmbeddedWires(parent, oldRootPath, changed.RootPath);
             EditorUtility.SetDirty(parent);
             if (plan != null)
             {
@@ -699,6 +703,34 @@ namespace DDrive.Editor.CanvasTool
 
             Undo.CollapseUndoOperations(group);
             return true;
+        }
+
+        // RootPath を変えたとき、同じ CanvasData の配線(Buttons)で旧 RootPath(またはその配下)を指す EmbeddedRootPath を
+        // 新しい RootPath に付け替える(レビュー [65] GG-R-06。呼び出し側が Undo.RecordObject 済み)。戻り値 = 付け替えた本数。
+        public static int RetargetEmbeddedWires(CanvasData parent, string oldRootPath, string newRootPath)
+        {
+            var wires = parent != null ? parent.Buttons : null;
+            if (wires == null || string.IsNullOrEmpty(oldRootPath) || string.IsNullOrEmpty(newRootPath)
+                || string.Equals(oldRootPath, newRootPath, StringComparison.Ordinal))
+            {
+                return 0;
+            }
+
+            var count = 0;
+            for (var i = 0; i < wires.Length; i++)
+            {
+                var w = wires[i];
+                if (string.IsNullOrEmpty(w.EmbeddedRootPath) || !EmbeddedPaths.TryToChildPath(oldRootPath, w.EmbeddedRootPath, out var rest))
+                {
+                    continue;
+                }
+
+                w.EmbeddedRootPath = EmbeddedPaths.Combine(newRootPath, rest);
+                wires[i] = w;
+                count++;
+            }
+
+            return count;
         }
 
         // ── 選択した Transform が属する Canvas のルート ──

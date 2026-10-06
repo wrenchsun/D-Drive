@@ -112,7 +112,7 @@ namespace DDrive.Runtime.Ui
         public string SignalKey;
         public AssetId<SeMarker> ClickSe;
 
-        [Tooltip("Action = ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded のとき、切り替える埋め込み Canvas の RootPath(この配線を持つ CanvasData のルート基準 = その CanvasData の EmbeddedCanvases の RootPath)。空 = このボタンが属している埋め込み(自分自身。埋め込みの子の CanvasData の配線で「自分を隠す」に使う)")]
+        [Tooltip("Action = ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded のとき、切り替える埋め込み Canvas の RootPath(この配線を持つ CanvasData のルート基準 = その CanvasData の EmbeddedCanvases の RootPath。入れ子の入れ子は 'OptionRoot/Inner' のように連結)。空 = このボタンが属している埋め込み(自分自身。埋め込みの子の CanvasData の配線で「自分を隠す」に使う)。SignalArgs.EmbeddedRootPath(送り手が属する埋め込み。Open した Canvas のルート基準)とは基準が違う")]
         public string EmbeddedRootPath;
     }
 
