@@ -28,7 +28,8 @@ namespace DDrive.Editor.Migration
     {
         public string Id => "cutscene-timeline-monoscript-v1";
 
-        // GF-R-04 — 対象 .playable が開かれていて未保存の変更を持つかの判定(テスト用に差し替え可能)。
+        // GF-R-04 — 対象 .playable が開かれていて未保存の変更を持つかの判定。
+        // **テスト専用の差し替え口で、契約ではない**(GF-R-15。持ち込み先・外部パッケージのコードは触らない。変更・削除は互換性の対象外)。
         // 既定: メインアセットが読み込み済みで、そのアセットかサブアセットのどれかが dirty。
         // 書き換え直後の SaveAssets がメモリ上の古い内容を書き戻して「適用済みなのに元に戻る」ことを避ける。
         public static Func<string, bool> IsDirtyProbe = DefaultIsDirty;
@@ -81,7 +82,7 @@ namespace DDrive.Editor.Migration
 
         // 指定した .playable だけを書き換える(テスト・FindTargetPaths 用に Migrate から分けた)。
         // ファイル単位で続行する(GF-R-03): 1 件の失敗(read-only・ロック・未保存の変更)で全体を止めず、成功した分は必ず再インポートし、
-        // 失敗は context.Warn で集めて最後にまとめて報告する。失敗が 1 件でもあれば Runner は Id を記録しない(= 次回も計画に入る)。
+        // 失敗は context.Warn(ファイルごとに 1 件 = WarningCount は失敗件数)で集め、最後のまとめは Note で報告する。失敗が 1 件でもあれば Runner は Id を記録しない(= 次回も計画に入る)。
         // 戻り値: 書き換えたファイル数。
         public static int MigratePaths(MigrationContext context, IEnumerable<string> paths)
         {
@@ -131,7 +132,7 @@ namespace DDrive.Editor.Migration
 
             if (failed > 0)
             {
-                context?.Warn($"{failed} 件の .playable を書き換えられませんでした(書き換えた {changedPaths.Count} 件は反映済み)");
+                context?.Note($"{failed} 件の .playable を書き換えられませんでした(書き換えた {changedPaths.Count} 件は反映済み)");
             }
 
             return changedPaths.Count;

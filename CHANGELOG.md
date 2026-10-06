@@ -51,9 +51,9 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 #### 検査（Validation）の追加
 
-すべて Warning / Info の追加で、既存コードの重さ・件数は変えない（[docs/42](docs/42_distribution.md) §5.8）。
+Warning / Info の追加（`DD-CUTSCENE-LEGACY-SCRIPT-REF` だけは下記の理由で緊急の例外として Error）で、既存コードの重さ・件数は変えない（[docs/42](docs/42_distribution.md) §5.8）。
 
-- `CutsceneTimelineLegacyReferenceValidator`（M-6、`Validation > Run All` / `CI.ValidateAll`）: **Error** `DD-CUTSCENE-LEGACY-SCRIPT-REF`（旧形式のスクリプト参照を持つ Timeline が Assets/ に残っている。修正ボタンで `MigratePaths`）。v1.4.0 で新設する検査で、公開済みの検査の昇格ではないため（§5.8 の 2 段階は公開済みの検査が対象）最初から Error。
+- `CutsceneTimelineLegacyReferenceValidator`（M-6、`Validation > Run All` / `CI.ValidateAll`）: **Error** `DD-CUTSCENE-LEGACY-SCRIPT-REF`（旧形式のスクリプト参照を持つ Timeline が Assets/ に残っている。直し方は `Tools > D-Drive > Update > マイグレーション(適用)`、または `Tools > D-Drive > Validation > 全体の指摘を修正`）。**緊急の例外として最初から Error**（§5.8 の但し書き「緊急（データ破損を招く等）で最初から Error」。理由: 検出される状態では Player ビルドでカットシーンのトラック / マーカーが読み込まれず、Warning では CI を通ってそのまま Player に出る。移行: 「更新を適用」＝ docs/60 (c)。同じ状態では `CI.MigrateCheck` も赤で、同じ操作で両方消える）。新しい検査を最初から Error にしてよいという前例ではない（通常は Warning で追加し、次の MINOR 以降で昇格）。
 - `MaterialDataValidator`: Warning `DD-MAT-PASS-UNKNOWN`、Info `DD-MAT-KEYWORD-UNDECLARED`・`DD-MAT-RENDERINGLAYERMASK-UNUSED`（`RenderingLayerMask` が 0 以外）。
 - `CameraShakeDataValidator`: Warning `DD-SHAKE-ENVELOPE-ZERO-DURATION`（`Envelope` の尺が 0 以下で、すぐ終わる）。`HapticsDataValidator`: Warning `DD-HAPTICS-ZERO-DURATION`（`LowFreq` / `HighFreq` の尺がどちらも 0 以下）。固定値の ValueDef は `ValueDefValidator` が Time を見ないため、`Duration` を寿命として読む種別の Validator が知らせる（Time を使うモードの Duration 指定は `ValueDefValidator` の Error があるので出さない）。
 - `AnimDataValidator`: Warning `DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED`（`AnimData.BlendShapes[].ShapeName` が外部所有の接頭辞のとき）。
@@ -113,6 +113,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 #### Validation / 禁止 API
 
+- **`Tools > D-Drive > Validation > 全体の指摘を修正`**: `Validation > Run All` の「プロジェクト全体の指摘」（`(project)` と表示されるもの）のうち、修正（`FixAction`）を持つものを、一覧の確認ダイアログの後にまとめて実行する（`ProjectWideValidationFixes`。Data ごとの個別検証には全体の指摘が出ないため、ここから押す）。Run All のコンソール出力にも、修正できる件数とこのメニューが出る。修正が警告を出したとき（開いて未保存の Timeline・ロック中など）は捨てずにコンソールへ出す。
 - **禁止 API の検査に、プロジェクト側から除外を指定する仕組み（M-4、[docs/12](docs/12_review.md) §3・[docs/42](docs/42_distribution.md) §5.8 / §5.9）**: 行単位の許可コメント `// ddrive-allow: 規則名(理由)` と、`DDriveProjectSettings.ForbiddenApiAllowEntries`（パス + 規則名〔空 = 全規則〕+ 理由〔必須〕。Project Settings > D-Drive > 禁止 API の除外。用途は自分で書き換えられない外部コード・生成コード）。書式の契約は「追加された互換面」。`CI.ValidateAll` が同じ許可（コメント + 設定）を反映し、許可件数を Info `DD-FORBIDDEN-ALLOW-SUMMARY`（「禁止 API の許可: N 件(コメント n、設定 m)」）で出す（Error 件数・終了コードは許可された分だけ減る）。`ForbiddenApiScanner.ScanDetailed` / `ScanReport`（`Violations` / `Notices` / `Allowed`）を追加（`DDrive.Editor` は互換面に含めない。既存の `Scan(root)` は同じ戻り値で許可コメントだけ効く）。`Violation` に `RuleName` / `Excerpt` を追加。
 - **`Tools > D-Drive > Validation > 禁止 API の検査` ウィンドウ**（許可されていない当たり〔ファイル:行・規則名・該当行〕・許可済み・無効 / 未使用の許可。ボタンでその行を開く。`Validation > Run All` には混ぜていない）と、`Forbidden API 許可一覧`（許可した箇所の Console 出力）。 各行は縦に並び、長いパスはボタンの先頭を省略して表示し、許可されていない当たりの案内（理由が必要、など）は行の本文に出る。
 - D-Drive 自身の禁止 API の当たり 12 件を理由付きの許可コメント 11 件とコメントの言い換え 1 件で 0 件にした（挙動の変更なし）。

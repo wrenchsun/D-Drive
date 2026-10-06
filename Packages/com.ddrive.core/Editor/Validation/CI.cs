@@ -420,6 +420,13 @@ namespace DDrive.Editor
                 }
             }
 
+            // [64_review_m6] GF-R-11 — Data に紐付かない全体の指摘に修正(FixAction)があれば、押せる場所を案内する。
+            var fixableCount = ProjectWideValidationFixes.FindFixable(reports).Count;
+            if (fixableCount > 0)
+            {
+                Debug.Log($"[DDrive][Validation] 全体の指摘のうち {fixableCount} 件は自動で修正できます: Tools > D-Drive > Validation > {ProjectWideValidationFixes.MenuName}");
+            }
+
             Debug.Log($"[DDrive] Validation complete: {reports.Count} results, {errors} errors, {warnings} warnings.");
         }
     }

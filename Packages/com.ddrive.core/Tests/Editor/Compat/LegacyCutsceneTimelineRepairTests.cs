@@ -12,6 +12,7 @@ using DDrive.Runtime.Cutscene.Tracks;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.Timeline;
 
 namespace DDrive.Tests.Editor.Compat
@@ -31,6 +32,14 @@ namespace DDrive.Tests.Editor.Compat
         [SetUp]
         public void SetUp()
         {
+            _tempDir = null;
+            // [64] GF-R-17 — 件数を `Assets/` 全体で数えるテストがあるので、旧形式の .playable が既に残っているプロジェクト
+            // (= 「更新を適用」の前の持ち込み先)では前提を満たさない。実プロジェクトの状態に依存して赤くならないよう保留にする。
+            if (CutsceneTimelineScriptReferenceMigration.FindTargetPaths().Count > 0)
+            {
+                Assert.Ignore("プロジェクトに旧形式の .playable が既に残っている(マイグレーションを適用してから実行する)");
+            }
+
             _savedProbe = CutsceneTimelineScriptReferenceMigration.IsDirtyProbe;
             _tempDir = "Assets/__M6RepairTest_" + Guid.NewGuid().ToString("N").Substring(0, 8);
             Directory.CreateDirectory(_tempDir);
@@ -39,6 +48,11 @@ namespace DDrive.Tests.Editor.Compat
         [TearDown]
         public void TearDown()
         {
+            if (_tempDir == null)
+            {
+                return;
+            }
+
             CutsceneTimelineScriptReferenceMigration.IsDirtyProbe = _savedProbe;
             AssetDatabase.DeleteAsset(_tempDir);
             if (Directory.Exists(_tempDir))
@@ -81,6 +95,21 @@ namespace DDrive.Tests.Editor.Compat
             results[0].FixAction();
 
             Assert.IsEmpty(new List<ValidationResult>(new CutsceneTimelineLegacyReferenceValidator().Validate(null, NewContext())));
+        }
+
+        [Test]
+        public void Validator_FixAction_WarnsInsteadOfSilentNoOp_WhenTheTimelineCannotBeRewritten()
+        {
+            var path = CopyFixture("Legacy");
+            var before = File.ReadAllText(path);
+            var results = new List<ValidationResult>(new CutsceneTimelineLegacyReferenceValidator().Validate(null, NewContext()));
+            Assert.AreEqual(1, results.Count);
+
+            CutsceneTimelineScriptReferenceMigration.IsDirtyProbe = _ => true;
+            LogAssert.Expect(LogType.Warning, new Regex(@"DD-CUTSCENE-LEGACY-SCRIPT-REF: 一部の Timeline を修正できませんでした"));
+            results[0].FixAction();
+
+            Assert.AreEqual(before, File.ReadAllText(path), "書き換えられないときはファイルを変えない");
         }
 
         [Test]
@@ -181,7 +210,8 @@ namespace DDrive.Tests.Editor.Compat
             StringAssert.Contains(locked, string.Join("\n", ctx.Log));
             Assert.AreEqual(lockedBefore, File.ReadAllText(locked));
             Assert.IsNull(CutsceneTimelineScriptReferenceMigration.Rewrite(File.ReadAllText(ok), (a, n) => "x", out _), "成功した 1 件は直っている");
-            Assert.AreEqual(1, CutsceneTimelineScriptReferenceMigration.FindTargetPaths().Count);
+            var remaining = CutsceneTimelineScriptReferenceMigration.FindTargetPaths().FindAll(p => p.StartsWith(_tempDir + "/", StringComparison.Ordinal));
+            Assert.AreEqual(1, remaining.Count, "書き換えられなかった 1 件だけが残る(このテストの一時フォルダ内で数える)");
         }
 
         [Test]
@@ -197,6 +227,34 @@ namespace DDrive.Tests.Editor.Compat
             var log = string.Join("\n", ctx.Log);
             StringAssert.Contains("適用済みとして記録しませんでした", log);
             StringAssert.DoesNotContain("プロジェクト全体のマイグレーション", log.Replace("適用済みとして記録しませんでした", string.Empty), "成功の記録(Note)を出さない");
+        }
+
+        // GF-R-13: 例外も失敗として数える
+        [Test]
+        public void Apply_DoesNotReportSuccessOrRecord_WhenAMigrationThrows()
+        {
+            var migration = new ThrowingProjectMigration();
+            var settings = DDriveProjectSettings.instance;
+            var plan = DDriveMigrationRunner.Plan(
+                Array.Empty<IDataMigration>(), Array.Empty<AssetDataBase>(), new IProjectMigration[] { migration }, settings);
+            Assert.AreEqual(1, plan.ProjectMigrations.Count);
+
+            LogAssert.ignoreFailingMessages = true;
+            MigrationContext ctx;
+            try
+            {
+                ctx = DDriveMigrationRunner.Apply(plan, settings);
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+            }
+
+            Assert.AreEqual(1, ctx.WarningCount, "例外も警告として数える(メニュー・更新ウィンドウが成功と出さない)");
+            var log = string.Join("\n", ctx.Log);
+            StringAssert.Contains("InvalidOperationException", log);
+            StringAssert.Contains("適用済みとして記録しませんでした", log);
+            Assert.IsFalse(settings.HasAppliedMigration(migration.Id), "例外のときは Id を記録しない");
         }
 
         [Test]
@@ -357,6 +415,13 @@ namespace DDrive.Tests.Editor.Compat
             }
 
             return n;
+        }
+
+        private sealed class ThrowingProjectMigration : IProjectMigration
+        {
+            public string Id => "test-throwing-project-migration-do-not-record";
+
+            public void Migrate(MigrationContext context) => throw new InvalidOperationException("boom");
         }
 
         private sealed class WarningMigration : IProjectMigration
