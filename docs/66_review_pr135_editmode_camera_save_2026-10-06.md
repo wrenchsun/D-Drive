@@ -306,3 +306,11 @@
 - Unity 上での実行（コンパイル・テスト・Timeline ウィンドウでの手順）。テスト件数は**未確認**
 - main のマージ分（92a195c）の中身は対象外
 - メインの checkout と、そこで開いている Unity には触れていない
+
+### 対応（2026-10-06、`fix/review-p3-leftovers-2026-10-06`。GH-R-12）
+
+| 指摘 | 対応 |
+|---|---|
+| GH-R-12 | **対応**。(1) `SceneCameraShakePreviewDriver`: `ownsCameraLifecycle: false` の復元から `StopAllKeepingWorldPose` を外し、素の `Manager.StopAll(Manual)` にした（`CameraFxManager` が揺れのオフセットを基準へ戻してからワールド姿勢を保って元の親へ付け直す = 揺れの無い姿勢。揺れの途中で保存しても振幅が残らず、続けて保存しても積み上がらない）。(2) `CutsceneEditModePreviewProvider` の Tick 中の `ResetCapture` 2 か所（駆動する Director が無い / どれも Timeline で開かれていない）の前に `RestoreCameraAfterShake()` を追加。保存・Play Mode 突入・シーン切替・後始末はもともと「Shake → Writer」の順なので、**全経路で順がそろった**（Writer が控えを持つときは Writer が最後に元の姿勢を書き、持たないときは揺れの無い姿勢になる）。テスト: `SaveAndTearDown_MidShake_WithoutWriterCapture_LeaveNoAmplitude`（Writer 無しで揺れの途中に保存・後始末しても元の位置、保存の後に Tick を続けても積み上がらない）。既存の `PlayShakeThenClosePreview` は Provider と同じ順（Shake の復元 → `ResetCapture`）に直した。Tick 中の経路そのもの（`OnEditorUpdate`）は Timeline ウィンドウが要るため自動テストは無く、docs/52 24-5 の目視で確認する。docs/26 の該当節の文言を合わせた |
+| GH-R-09 | **見送りのまま**。Writer の控えの取り方（揺れ中に区間へ入るときのノードの基準）の話で、今回の直し（復元の順）では変わらない。Writer に Shake の基準姿勢を渡す配線が要るため v1.4.x |
+| GH-R-13 | 記録のみ（変更なし） |

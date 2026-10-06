@@ -445,10 +445,18 @@ namespace DDrive.Tests.Editor
         {
             var (parent, child) = WiredParentAndChild();
             parent.Buttons = new[] { new ButtonWire { ButtonPath = "ParentBtn", Trigger = WireTrigger.Click, Action = UiAction.ToggleEmbedded, EmbeddedRootPath = "Nowhere" } };
+            // 存在しない RootPath + 存在しない子 Canvas = CanvasDataValidator(EMBED-ROOT)と CanvasEmbeddedValidator(EMBED-MISSING)の両方が出る形
+            parent.EmbeddedCanvases = new[]
+            {
+                parent.EmbeddedCanvases[0],
+                new EmbeddedCanvas { RootPath = "NoSuchRoot", Canvas = new AssetId<CanvasMarker>(0x7777_0002UL, AssetType.Canvas) },
+            };
 
             var results = CanvasEditorWindow.CollectValidation(parent);
+            // レビュー [63] GE-R-25: 3 つの Validator を、それぞれ固有のコードで確かめる
             Assert.IsTrue(Has(results, "DD-CANVAS-WIRE-EMBED-UNKNOWN", ValidationSeverity.Warning), "CanvasEmbeddedActiveValidator の結果が欄に出る");
-            Assert.IsTrue(results.Exists(r => r.Message.Contains("EmbeddedCanvases") || r.Message.Contains("ButtonWire")), "CanvasDataValidator / CanvasEmbeddedValidator も走る");
+            Assert.IsTrue(Has(results, "DD-CANVAS-EMBED-ROOT", ValidationSeverity.Warning), "CanvasDataValidator の結果が欄に出る");
+            Assert.IsTrue(Has(results, "DD-CANVAS-EMBED-MISSING", ValidationSeverity.Warning), "CanvasEmbeddedValidator の結果が欄に出る");
 
             // 柵: Target == Canvas の全 Validator(持ち込み先が足したものも)が、共通の実行部の対象に入っている
             var canvasValidators = new List<string>();

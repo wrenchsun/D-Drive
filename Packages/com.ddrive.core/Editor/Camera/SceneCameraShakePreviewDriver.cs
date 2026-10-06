@@ -177,12 +177,12 @@ namespace DDrive.Editor.CameraFx
 
             if (!_ownsCameraLifecycle)
             {
-                // docs/66 GH-R-08 — カメラの姿勢の持ち主は呼び出し側(Cutscene の Writer)。控えた時点のローカル姿勢は
+                // docs/66 GH-R-08 / GH-R-12 — カメラの姿勢の持ち主は呼び出し側(Cutscene の Writer)。控えた時点のローカル姿勢は
                 // 「Writer が書いたカットシーンの姿勢」で、Writer が控えを手放した後に書き戻すとそれが残る / 保存されるため、
-                // 姿勢は書かない。親子構造とノードだけを戻す(CameraFxManager が揺れのオフセットを基準へ戻してから、
-                // 今のワールド姿勢のまま元の親へ付け直し、ノードを破棄する。揺れ中の Instance は止まる)。
-                // ノードの揺れを基準へ戻すとカメラの見た目の姿勢がずれるので、今見えているワールド姿勢はそのまま保つ。
-                StopAllKeepingWorldPose();
+                // 姿勢は書かない。素の `StopAll` だけにする(CameraFxManager が揺れのオフセットを基準へ戻してから、ワールド姿勢を保って
+                // 元の親へ付け直し、ノードを破棄する = 揺れの無い姿勢になる。揺れ中の Instance は止まる)。
+                // 呼び出し側は「Shake の復元 → Writer の復元」の順で呼ぶので、Writer が控えを持つときは Writer が最後に元の姿勢を書く。
+                Manager.StopAll(StopReason.Manual);
                 _shakeNode = null;
                 return;
             }
@@ -200,21 +200,6 @@ namespace DDrive.Editor.CameraFx
             _shakeNode = null;
         }
 
-        // 揺れを止めてノードを外す。ノードの揺れを基準へ戻すとカメラの見た目の姿勢がずれるので、今見えているワールド姿勢は保つ。
-        private void StopAllKeepingWorldPose()
-        {
-            if (_cameraTransform == null)
-            {
-                Manager.StopAll(StopReason.Manual);
-                return;
-            }
-
-            var worldPos = _cameraTransform.position;
-            var worldRot = _cameraTransform.rotation;
-            Manager.StopAll(StopReason.Manual);
-            _cameraTransform.SetPositionAndRotation(worldPos, worldRot);
-        }
-
         // ティックも止めて完全に手を離す(ウィンドウを閉じる・シーン切替・Play Mode 突入の直前)。
         public void StopAndRestore()
         {
@@ -225,15 +210,7 @@ namespace DDrive.Editor.CameraFx
 
             _ticking = false;
             EditorApplication.update -= EditorTick;
-            if (_ownsCameraLifecycle)
-            {
-                Manager.StopAll(StopReason.Manual);
-            }
-            else
-            {
-                StopAllKeepingWorldPose();
-            }
-
+            Manager.StopAll(StopReason.Manual);
             RestoreCameraNow();
             _cameraTransform = null;
         }
