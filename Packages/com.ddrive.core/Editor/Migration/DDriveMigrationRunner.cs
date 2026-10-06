@@ -201,7 +201,10 @@ namespace DDrive.Editor.Migration
                         continue;
                     }
 
-                    if (settings == null || !settings.HasAppliedMigration(migration.Id))
+                    // [64_review_m6] GF-R-01(c) — Id が記録済みでも、対象が残っていれば(IRepeatableProjectMigration)再度計画に入れる。
+                    if (settings == null
+                        || !settings.HasAppliedMigration(migration.Id)
+                        || (migration is IRepeatableProjectMigration repeatable && SafeHasPendingWork(repeatable)))
                     {
                         projectPlan.Add(migration);
                     }
@@ -220,6 +223,19 @@ namespace DDrive.Editor.Migration
                 FindAllProjectAssets(),
                 new List<IProjectMigration>(DiscoverProjectMigrations()),
                 DDriveProjectSettings.instance);
+        }
+
+        private static bool SafeHasPendingWork(IRepeatableProjectMigration migration)
+        {
+            try
+            {
+                return migration.HasPendingWork();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[DDrive][Migration] '{migration.GetType().Name}' の再判定に失敗したため対象なしとして扱います: {e.Message}");
+                return false;
+            }
         }
 
         public static bool HasPendingMigrations() => PlanProject().TotalCount > 0;
@@ -284,7 +300,16 @@ namespace DDrive.Editor.Migration
                 {
                     try
                     {
+                        var warningsBefore = context.WarningCount;
                         migration.Migrate(context);
+                        if (context.WarningCount > warningsBefore)
+                        {
+                            // 一部の対象を処理できなかった: 適用済みとして記録しない(もう一度実行できるように)
+                            context.Note($"{migration.Id}: 一部の対象を処理できなかったため、適用済みとして記録しませんでした");
+                            Debug.LogWarning($"[DDrive][Migration] プロジェクトマイグレーション '{migration.Id}' は一部の対象を処理できませんでした。\n" + string.Join("\n", context.Log));
+                            continue;
+                        }
+
                         settings?.MarkMigrationApplied(migration.Id);
                         context.Note($"{migration.Id}: プロジェクト全体のマイグレーション");
                     }

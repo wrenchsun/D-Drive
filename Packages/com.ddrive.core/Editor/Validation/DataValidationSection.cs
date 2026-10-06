@@ -175,6 +175,8 @@ namespace DDrive.Editor.Validation
             // [42_distribution.md] §4.2.1(2026-10-06 Q-3) — 導入済みパッケージの依存の宣言(プロジェクト全体の指摘)。
             // 1 アセットの個別検証に出すと、毎回すべてのアセットの結果として現れてしまう。Run All ではアセットに紐付けず報告する(CI.RunValidation)。
             typeof(PackageDependencyValidator),
+            // [64_review_m6] GF-R-01(a) — 旧形式の Timeline(.playable)の検出(Assets/ 全体の走査)。プロジェクト全体の指摘なので Run All 専用。
+            typeof(CutsceneTimelineLegacyReferenceValidator),
         };
 
         private static List<IValidator> _validators;

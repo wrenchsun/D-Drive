@@ -54,8 +54,15 @@ namespace DDrive.Editor.Migration
             }
 
             var context = DDriveMigrationRunner.Apply(plan, DDriveProjectSettings.instance);
-            Debug.Log($"[DDrive][Migration] {plan.TotalCount} 件のマイグレーションを適用しました。\n" +
-                      string.Join("\n", context.Log));
+            var message = string.Join("\n", context.Log);
+            if (context.WarningCount > 0)
+            {
+                // [64_review_m6] GF-R-03 — 失敗があるときは「適用しました」と出さない。
+                Debug.LogWarning($"[DDrive][Migration] 一部の対象を処理できませんでした({context.WarningCount} 件の警告)。\n" + message);
+                return;
+            }
+
+            Debug.Log($"[DDrive][Migration] {plan.TotalCount} 件のマイグレーションを適用しました。\n" + message);
         }
     }
 }

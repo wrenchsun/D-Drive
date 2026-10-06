@@ -348,9 +348,9 @@ namespace DDrive.Tests.Editor
         {
             // 新しい D-Drive のトラック種別を足したら、NetCheck の Timeline と Expected* にも足す(M-6)。
             CollectionAssert.Contains(NetCheckCutsceneJudge.ExpectedTrackTypes, "CutsceneSignalTrack");
-            Assert.AreEqual(11, NetCheckCutsceneJudge.ExpectedTrackTypes.Length);
-            Assert.AreEqual(5, NetCheckCutsceneJudge.ExpectedMarkerTypes.Length);
-            Assert.AreEqual(6, NetCheckCutsceneJudge.ExpectedClipTypes.Length);
+            Assert.AreEqual(11, NetCheckCutsceneJudge.ExpectedTrackTypes.Count);
+            Assert.AreEqual(5, NetCheckCutsceneJudge.ExpectedMarkerTypes.Count);
+            Assert.AreEqual(6, NetCheckCutsceneJudge.ExpectedClipTypes.Count);
         }
 
         [Test]

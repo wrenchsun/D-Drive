@@ -20,9 +20,26 @@ namespace DDrive.Editor.Migration
     //
     // 規則: `m_Script: {fileID: 0}` の行の近く(同じオブジェクトの中)に `m_EditorClassIdentifier: DDrive.*:<名前空間>:<クラス名>` が
     // あり、その型の MonoScript が見つかるときだけ書き換える(他の行・他のアセンブリの型は触らない)。冪等(書き換え後は対象が無い)。
-    public sealed class CutsceneTimelineScriptReferenceMigration : IProjectMigration
+    //
+    // [64_review_m6_2026-10-06.md] GF-R-01〜04 の対応: (1) IRepeatableProjectMigration — Id が記録済みでも旧形式が残っていれば再度計画に入る。
+    // (2) 走査は Assets/ だけ(PackageCache は対象外)。(3) ファイル単位で続行し、失敗は MigrationContext.Warn でまとめて報告(失敗があれば Id を記録しない)。
+    // (4) 開いて未保存の Timeline は書き換えない(先に保存してもらう)。
+    public sealed class CutsceneTimelineScriptReferenceMigration : IProjectMigration, IRepeatableProjectMigration
     {
         public string Id => "cutscene-timeline-monoscript-v1";
+
+        // GF-R-04 — 対象 .playable が開かれていて未保存の変更を持つかの判定(テスト用に差し替え可能)。
+        // 既定: メインアセットが読み込み済みで、そのアセットかサブアセットのどれかが dirty。
+        // 書き換え直後の SaveAssets がメモリ上の古い内容を書き戻して「適用済みなのに元に戻る」ことを避ける。
+        public static Func<string, bool> IsDirtyProbe = DefaultIsDirty;
+
+        // GF-R-03 — 走査の範囲は Assets/ だけ。Packages/ は PackageCache(read-only)や他パッケージのファイルを含むため対象外。
+        private static bool IsTargetPath(string path)
+            => path.StartsWith("Assets/", StringComparison.Ordinal)
+               && path.EndsWith(".playable", StringComparison.OrdinalIgnoreCase);
+
+        // GF-R-01(c) — Id が記録済みでも、旧形式の .playable が残っていれば未適用扱いにする(Runner.Plan が呼ぶ)。
+        public bool HasPendingWork() => FindTargetPaths().Count > 0;
 
         // 書き換え対象の .playable のパス(ドライラン・テスト・ログ用。対象が無ければ空)。
         public static List<string> FindTargetPaths()
@@ -32,7 +49,7 @@ namespace DDrive.Editor.Migration
             foreach (var guid in AssetDatabase.FindAssets("t:TimelineAsset"))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (!path.EndsWith(".playable", StringComparison.OrdinalIgnoreCase))
+                if (!IsTargetPath(path))
                 {
                     continue;
                 }
@@ -53,7 +70,7 @@ namespace DDrive.Editor.Migration
             foreach (var guid in AssetDatabase.FindAssets("t:TimelineAsset"))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.EndsWith(".playable", StringComparison.OrdinalIgnoreCase))
+                if (IsTargetPath(path))
                 {
                     paths.Add(path);
                 }
@@ -63,33 +80,86 @@ namespace DDrive.Editor.Migration
         }
 
         // 指定した .playable だけを書き換える(テスト・FindTargetPaths 用に Migrate から分けた)。
-        public static void MigratePaths(MigrationContext context, IEnumerable<string> paths)
+        // ファイル単位で続行する(GF-R-03): 1 件の失敗(read-only・ロック・未保存の変更)で全体を止めず、成功した分は必ず再インポートし、
+        // 失敗は context.Warn で集めて最後にまとめて報告する。失敗が 1 件でもあれば Runner は Id を記録しない(= 次回も計画に入る)。
+        // 戻り値: 書き換えたファイル数。
+        public static int MigratePaths(MigrationContext context, IEnumerable<string> paths)
         {
             var resolver = new ScriptGuidResolver();
             var changedPaths = new List<string>();
+            var failed = 0;
             foreach (var path in paths)
             {
-                var text = ReadText(path);
-                if (text == null)
+                try
                 {
-                    continue;
-                }
+                    var text = ReadText(path);
+                    if (text == null)
+                    {
+                        continue;
+                    }
 
-                var rewritten = Rewrite(text, resolver.Resolve, out var count);
-                if (rewritten == null)
+                    var rewritten = Rewrite(text, resolver.Resolve, out var count);
+                    if (rewritten == null)
+                    {
+                        continue;
+                    }
+
+                    // GF-R-04 — 開いて未保存の Timeline は書き換えない(先に保存してもらう)。
+                    if (IsDirtyProbe != null && IsDirtyProbe(path))
+                    {
+                        failed++;
+                        context?.Warn($"{path}: 開いていて未保存の変更があるため書き換えませんでした。保存(または破棄)してから、もう一度マイグレーションを実行してください");
+                        continue;
+                    }
+
+                    AssetDatabase.MakeEditable(path); // バージョン管理のロック(Perforce 等)。取れなくても書き込みを試みる
+                    File.WriteAllText(Path.GetFullPath(path), rewritten, new UTF8Encoding(false));
+                    changedPaths.Add(path);
+                    context?.Note($"{path}: スクリプト参照を {count} 件、MonoScript の GUID 参照に書き換えました");
+                }
+                catch (Exception e)
                 {
-                    continue;
+                    failed++;
+                    context?.Warn($"{path}: 書き換えに失敗しました({e.GetType().Name}: {e.Message})。読み取り専用・ロック中でないか確認して、もう一度実行してください");
                 }
-
-                File.WriteAllText(Path.GetFullPath(path), rewritten, new UTF8Encoding(false));
-                changedPaths.Add(path);
-                context?.Note($"{path}: スクリプト参照を {count} 件、MonoScript の GUID 参照に書き換えました");
             }
 
             foreach (var path in changedPaths)
             {
                 AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
+
+            if (failed > 0)
+            {
+                context?.Warn($"{failed} 件の .playable を書き換えられませんでした(書き換えた {changedPaths.Count} 件は反映済み)");
+            }
+
+            return changedPaths.Count;
+        }
+
+        private static bool DefaultIsDirty(string path)
+        {
+            try
+            {
+                if (!AssetDatabase.IsMainAssetAtPathLoaded(path))
+                {
+                    return false;
+                }
+
+                foreach (var o in AssetDatabase.LoadAllAssetsAtPath(path))
+                {
+                    if (o != null && EditorUtility.IsDirty(o))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // 判定できなければ書き換えを進める(例外で止めない)
+            }
+
+            return false;
         }
 
         private static string ReadText(string assetPath)
@@ -140,7 +210,7 @@ namespace DDrive.Editor.Migration
                         continue;
                     }
 
-                    // 形式: `<アセンブリ>:<名前空間>:<クラス名>`(クラス名とファイル名が違う型。名前空間が空なら `<アセンブリ>::<クラス名>`)
+                    // 形式: `<アセンブリ>:<名前空間>:<クラス名>`(旧形式。Unity 6 が MonoScript ありで書く `<アセンブリ>::<フルネーム>` は名前空間の位置が空 = 3 つ目にフルネームを持つ)
                     var parts = trimmed.Substring(key.Length).Split(':');
                     if (parts.Length == 3 && parts[0].StartsWith("DDrive.", StringComparison.Ordinal) && parts[2].Length > 0)
                     {
@@ -173,7 +243,13 @@ namespace DDrive.Editor.Migration
                     _byAssemblyAndName = new Dictionary<string, string>();
                     foreach (var guid in AssetDatabase.FindAssets("t:MonoScript"))
                     {
-                        var script = AssetDatabase.LoadAssetAtPath<MonoScript>(AssetDatabase.GUIDToAssetPath(guid));
+                        var scriptPath = AssetDatabase.GUIDToAssetPath(guid);
+                        if (!scriptPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue; // fileID 11500000 は .cs の MonoScript の値(DLL の型には使えない。GF-R-09)
+                        }
+
+                        var script = AssetDatabase.LoadAssetAtPath<MonoScript>(scriptPath);
                         var type = script != null ? script.GetClass() : null;
                         if (type != null)
                         {

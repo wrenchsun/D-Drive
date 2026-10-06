@@ -1061,9 +1061,9 @@ namespace DDrive.Runtime.Net
 
             // M-6: 期待する全種別(NetCheckCutsceneJudge.Expected*)のうち、Timeline から読めなかったもの(型名をカンマ区切り)。
             var missing = new System.Text.StringBuilder();
-            void AddMissing(string[] expected, SortedDictionary<string, int> got)
+            void AddMissing(IReadOnlyList<string> expected, SortedDictionary<string, int> got)
             {
-                for (var i = 0; i < expected.Length; i++)
+                for (var i = 0; i < expected.Count; i++)
                 {
                     if (!got.ContainsKey(expected[i]))
                     {
