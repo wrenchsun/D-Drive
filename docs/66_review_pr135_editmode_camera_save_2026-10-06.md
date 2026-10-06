@@ -138,6 +138,18 @@
 - SpecWeb の生成物は差分の行数と DesignerManual との対応だけ（中身の 1 行ずつの照合はしていない）。デプロイは PR 本文どおり未実施。
 - メインの checkout と、そこで開いている Unity には触れていない。
 
+## 対応状況（2026-10-06、PR #135 に追加コミット）
+
+| 指摘 | 対応 |
+|---|---|
+| GH-R-01 | **対応済み**。Edit Mode プレビュー用の Shake ドライバは保存・後始末を自分では購読せず（`SceneCameraShakePreviewDriver(registry, ownsCameraLifecycle: false)`、既定 true で単体のドライバの動作は不変）、`CutsceneEditModePreviewProvider` が「Shake の復元（`RestoreCameraForSave` / `StopAndRestore`）→ Writer の復元」の順で呼ぶ（保存・`ResetSessions`・Play Mode 突入）。購読順に依存しない。テスト `RealSave_AfterShakeStarted_DoesNotStorePreviewPose`（旧い配線へ戻すと赤になることを確認）・`TearDown_AfterShakeStarted_RestoresOriginalPose` |
+| GH-R-02 | **対応済み**。`CaptureIfNeeded` が控えと違うカメラなら先に `ResetCapture()`。テスト `MainCameraChangedMidway_RestoresPreviousCamera`。docs/63 の見出しにも反映 |
+| GH-R-03 | **対応済み（案と少し違う）**。(1)(2) 実際のシーン保存を通すテスト（作業中のシーンを `saveAsCopy` で一時パスへ保存。未保存の無題シーンでは追加シーンを作れず `NewScene(Additive)` が使えないため）・別シーン・保存の失敗からの復帰。(3) `IsInspectedByOrWarn(PropertyInfo…)` に切り出して、例外を投げるプロパティで「false・警告 1 回・以降は読まない」を固定。テスト名も内容に合わせた |
+| GH-R-04 | **対応済み**。一度例外になったら `_timelineApiBroken` で以降は読まない、警告に `InnerException` の型とメッセージ、リセット条件（ドメインリロードのみ）をコメントに |
+| GH-R-05 | **対応済み**。docs/52 §24 に「先にシーンを変更済みにする」、24-3 の「自動保存」を削除、24-4（Shake を通過してから保存）を追加。コードのコメントの「自動保存」も直した |
+| GH-R-06 | **対応済み**。CHANGELOG の独立した行を消し、既存の Edit Mode プレビューの行に統合 |
+| GH-R-07 | **対応済み**。material-data（変更なしの説明）・canvas-editor（⚠ の引用・PlayPresentation の古い予定）・canvas-data（同）・cutscene-maya-export（保存時の挙動と警告の意味）。マニュアル再生成済み |
+
 ---
 
 ## 再レビュー（2026-10-06、729cd48）
@@ -241,3 +253,55 @@
 - `saveAsCopy` で `sceneSaving` / `sceneSaved` が呼ばれること（実装側の「旧い配線へ戻すと赤」を根拠に信頼）、バッチモードでの動作（**推定**）。
 - SpecWeb の生成物は DesignerManual との差分の対応だけ。
 - メインの checkout と、そこで開いている Unity には触れていない。
+
+## 対応状況（再レビュー 729cd48 への対応、2026-10-06）
+
+| 指摘 | 対応 |
+|---|---|
+| GH-R-08 | **対応済み**。`ownsCameraLifecycle: false` のとき、Shake ドライバの `RestoreCameraNow` はカメラのローカル姿勢を書かず、`Manager.StopAll`（`CameraFxManager` が揺れのオフセットを基準へ戻し、今のワールド姿勢のまま元の親へ付け直してノードを破棄）だけにした。姿勢の持ち主は Writer だけ。単体のドライバ（既定 true）は不変。テスト `RealSave_AfterShake_ThenPreviewClosed_KeepsOriginalPose`・`TearDown_AfterShake_ThenPreviewClosed_KeepsOriginalPose` |
+| GH-R-09 | **見送り**。揺れの振幅ぶん（数 cm・数度）のずれで、Camera クリップより前に置いた Shake が揺れている最中に区間へ入る場合に限られる。直すには Writer に Shake の基準姿勢を渡す配線が要り、GH-R-08 の修正で姿勢の持ち主が Writer だけになった後は、v1.4.x で Writer の控えの取り方（ノードの基準を引く）と一緒に直すほうが安全 |
+| GH-R-10 | **対応済み（(1) のみ）**。テストの位置をテスト固有の値（`{x: 1.25, y: 2.5, z: 3.75}` など）にして、作業中のシーンの内容と衝突しにくくした。(2) の一時パスは、既存の保存系テストに専用の置き場が無いため現状のまま |
+| GH-R-11 | **対応済み**。canvas-data の引用の末尾に「(開いた直後は選択できません)」を足し、マニュアルを再生成 |
+
+## 3 回目（2026-10-06、c85c943）
+
+対象は 729cd48 からの差分のうち main のマージ（92a195c）を除いた c85c943 だけ（`SceneCameraShakePreviewDriver`・`CutsceneEditModeCameraSaveTests`・docs/26・docs/52 24-5・canvas-data）。GH-R-08 の対応に絞って読んだ。Unity での実行はしていない（「EditMode 1783/1783・PlayMode 964/964」は**未確認**）。
+
+### GH-R-08 の判定: **解消**（カットシーンの姿勢が残る / 保存される問題は閉じた）
+
+- `ownsCameraLifecycle: false` のとき `RestoreCameraNow` は控えたローカル姿勢（= Shake を鳴らした時点のカットシーンの姿勢）を書かなくなった。Shake → Timeline を閉じる（Writer が `ResetCapture`）→ 保存 / Play Mode 突入（`ExitingEditMode` → Shake → Writer）/ 再コンパイル（`TearDown` → `ResetSessions`）のどれでも、カットシーンの姿勢（数 m 単位）へ戻る経路は無くなった ○
+- 単体ドライバ（既定 true）の経路は 1 行も変わっていない ○。`ownsCameraLifecycle` の利用者は引き続き `CutsceneEditModeManagers` のみ ○
+- 揺れのノードを外す瞬間: `StopAllKeepingWorldPose` は外す前のワールド姿勢を控えて書き戻すので、外した瞬間にカメラは動かない（見た目のジャンプは無い）○。ただしその代わりに揺れのオフセットが姿勢に残る（GH-R-12）
+- 親が動いている最中: 控え → `StopAll` → 書き戻しは同じフレーム内で完結し、`CameraFxManager.DetachCurrentCamera` は `SetParent(…, true)` なので、親の動きでずれることはない ○
+- ノードが既に破棄されている場合: カメラごと消えていれば `_cameraTransform` が Unity の null で素の `StopAll` に落ちる。カメラだけ手で外してノードを消した場合も `DetachCurrentCamera` はノードの null を飛ばして元の親へ付け直すだけ ○。なお `StopAndRestore` は `StopAllKeepingWorldPose` を 2 回通る（直後の `RestoreCameraNow` でもう一度）が、2 回目は `_camera == null` で no-op なので害は無い
+- 追加テスト 2 件は「Tick 1 回 → `ResetCapture` → 保存 / 後始末」で、修正前のコードなら赤になる形 ○（ただし下の GH-R-12 の経路は通らない）
+
+### GH-R-09 の見送り: **妥当**
+
+ずれは揺れの振幅ぶんで、「Camera クリップより前の Shake が揺れている最中に区間へ入る」ときに限られる。直し方は Writer の控えの取り方（ノードの基準を引く）か Provider の呼び順で、下の GH-R-12 と同じ場所・同じ大きさの話なので、v1.4.x で一緒に直すのがよい。
+
+### 残り（新規）
+
+#### GH-R-12（P3）. 「ワールド姿勢を保持」で揺れのオフセットがカメラの姿勢に焼き込まれる経路が 2 つある
+
+- **場所**: `Editor/Camera/SceneCameraShakePreviewDriver.cs` `StopAllKeepingWorldPose`、`Editor/Cutscene/CutsceneEditModePreviewProvider.cs:291, 400`（Tick 中の `ResetCapture`）
+- **細部**:
+  1. **Writer が控えを持っていない（Camera クリップの外 / Camera トラックが無い）ときに、揺れの途中で保存・Play Mode 突入・再コンパイル**: 今見えているワールド姿勢 = 基準 + 揺れのオフセットをそのまま書くので、オフセットぶんずれた姿勢が保存される / 残る。729cd48 では控えたローカル姿勢（この場合は正しい元の姿勢）へ戻っていたので、この経路だけは小さな退行。保存の後もティックは続き、次のノードはずれた姿勢を基準に付くので、揺れの途中で保存を繰り返すと積み上がる
+  2. **Timeline を閉じた（Tick の中の `ResetCapture`）のが揺れの途中**: Provider は Tick 中の `ResetCapture`（291 / 400 行）の前に Shake の復元を呼ばないので、Writer は「その瞬間のオフセット o(t0) が乗ったノード」の子としてワールドの元の姿勢を書く。その後も Shake のティックは続き、揺れが収まってノードが基準へ戻ると、カメラは元の姿勢から o(t0) ぶんずれたまま残る（保存すればそれが保存される）。追加テストは `ResetCapture` の後に Tick しないので通る
+  - どちらもずれは揺れの振幅（通常は数 cm・数度）で、GH-R-08 の本体（数 m 単位）より小さく、GH-R-09 と同じ大きさ。[52] 24-5 は Shake が収まってから閉じれば起きない
+- **直し方の案**: `ownsCameraLifecycle: false` でも `Manager.StopAll` だけ（揺れを基準へ戻してから `SetParent(…, true)` = 揺れの無い姿勢。書き戻しはしない）にし、Provider の Tick 中の `ResetCapture`（291 / 400 行）の前にも `_managers.ShakeDriver.RestoreCameraNow()` を呼ぶ（保存・後始末と同じ「Shake → Writer」の順）。こうすると、Writer が控えを持つときは Writer が最後に元の姿勢を書き、持たないときは揺れの無い姿勢になる。GH-R-09（Writer の控えの取り方）と同じ PR で直し、テストは「`ResetCapture` の後に揺れが収まるまで Tick してから保存」「Writer 無しで揺れの途中に保存」の 2 件を足す。docs/26 §4.4 の「カメラの姿勢は書かない」も、実際はワールド姿勢を書き戻しているので文言を合わせる
+- **確度**: コード読みで確認（`CameraFxManager.DetachCurrentCamera` / `AttachNode` / `ApplyOffsetToNode` と Provider の呼び順）。Unity では未実行
+
+#### GH-R-13（P3、記録のみ）. Cutscene プレビューでは保存すると揺れが止まる
+
+- `ownsCameraLifecycle: false` の `RestoreCameraForSave` は `Manager.StopAll` を通るので、揺れの途中で保存するとその揺れは打ち切られる（単体ドライバは保存後も揺れが続く）。コメントには書かれており、保存を優先する方針として受け入れてよい。マニュアルに書くほどではない
+
+### 結論: マージしてよいか（3 回目）
+
+**マージしてよい**。GH-R-08 は解消し、前回までの指摘の退行も無い。残りは GH-R-09・GH-R-12（いずれも揺れの振幅ぶんのずれ、P3）と GH-R-13（記録のみ）で、v1.4.x でまとめて直せばよい。v1.4.0 のタグ前に直す必要は無いが、[52] 24-4 / 24-5 は「揺れが収まってから閉じる / 保存する」手順で確認すること（揺れの途中だと GH-R-12 の数 cm のずれが見えうる）。
+
+### 見られなかった範囲（3 回目）
+
+- Unity 上での実行（コンパイル・テスト・Timeline ウィンドウでの手順）。テスト件数は**未確認**
+- main のマージ分（92a195c）の中身は対象外
+- メインの checkout と、そこで開いている Unity には触れていない
