@@ -264,6 +264,12 @@ Write-Host "docs/migrations        -> Documentation~/migrations      (robocopy �
 $consumerGuideResult = Sync-MirrorDirectory -Source $consumerGuideSrc -Destination $consumerGuideDst -DryRun:$DryRun
 Write-Host "docs/50_consumer_guide -> Documentation~/ConsumerGuide    (robocopy 終了コード=$($consumerGuideResult.ExitCode))"
 # CHANGELOG.md 自体は今回の更新(あれば)を反映した後の内容を同期する。DryRun のときは元ファイルのままで比較する。
+# [1002_ddrive_mcp.md] §6.2 MCP-12(2026-10-07) — 持ち込み先が isuzu MCP の登録に使う register-mcp.ps1 を Tools~/Mcp/ に同梱する
+# (正本は Tools/Mcp/。measure-tokens.py と scenarios.json は開発リポジトリ専用なので除外)。
+$mcpToolsSrc = Join-Path $repoRoot 'Tools/Mcp'
+$mcpToolsDst = Join-Path $packageDir 'Tools~/Mcp'
+$mcpToolsResult = Sync-MirrorDirectory -Source $mcpToolsSrc -Destination $mcpToolsDst -DryRun:$DryRun -ExcludeFiles @('measure-tokens.py', 'scenarios.json')
+Write-Host "Tools/Mcp              -> Tools~/Mcp                     (robocopy 終了コード=$($mcpToolsResult.ExitCode))"
 $changelogResult = Sync-SingleFile -Source $changelogPath -Destination $changelogDst -DryRun:$DryRun
 Write-Host "CHANGELOG.md           -> Packages/com.ddrive.core/CHANGELOG.md (変更=$($changelogResult.Changed))"
 Write-Host ''
