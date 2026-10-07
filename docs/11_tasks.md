@@ -571,25 +571,9 @@ docs/11 に既にあるものは参照だけ。
 
 **M7 デモ**: 実機接続で VFX の色・Anchor をエディタから即時調整 → 書き戻し。未実装アセット一覧が発注書として出力される。
 
-## MCP チケット: D-Drive MCP（v1.5.0 MINOR、2026-10-07 追加。詳細は [1002](1002_ddrive_mcp.md)）
+## MCP チケット（v1.5.0）→ [1004_tasks.md](1004_tasks.md) へ移動（2026-10-07）
 
-> AI エージェントが D-Drive の Editor 機能（Data の作成・値の変更・検査・生成・マイグレーション・確認用シーン・リリース前チェック）を MCP ツールとして直接呼べるようにする。サーバーは新設せず、Editor 組み込みの `jp.shiranui-isuzu.unity-mcp` の `[McpTool]` に乗る。設計の軸は「トークン最小」（[1002](1002_ddrive_mcp.md) §5）と「ポート競合ゼロ」（同 §6）。決め事 Q-1〜Q-12 は同 §9。実装は Sonnet のエージェントに 1 チケットずつ委任し、レビュー・リリース判断は上位モデルが行う。
-
-| ID | 内容 | 人日 | 依存 | AC |
-|---|---|---|---|---|
-| MCP-0 | 決め事 Q-1〜Q-12 の回答を [1002](1002_ddrive_mcp.md) §9 に反映。CoplayDev 版を外す（`manifest.json`・`.mcp.json`・CLAUDE.md §4・[20](20_mcp_setup.md)） | 0.5 | — | 固定ポートがリポジトリのどこにも無い → ✅ 実装（2026-10-07）: Q 全件確定（§9.1）。manifest から `com.coplaydev.unity-mcp` を削除、`.mcp.json` 削除、docs/20 を isuzu 版のみに書き換え（旧内容は [archive/1003](archive/1003_coplaydev_mcp_setup.md)）、CLAUDE.md §4 / AGENTS.md / SKILL.md / docs/34 / docs/42 / パッケージ README を更新 |
-| MCP-1 | `DDrive.Editor.Mcp` asmdef（Version Defines `DDRIVE_UNITY_MCP` / defineConstraints）、共通ガード `McpGuard`（Play Mode・読み取り専用欄・`max_chars`・`dry_run`・例外の畳み込み）、返り値圧縮 `McpJson` | 1 | MCP-0 | isuzu が無いプロジェクトでアセンブリが外れる。ガードの EditMode テスト green |
-| MCP-2 | `ddrive_status` / `ddrive_help`（カード `rules` / `types` / `validation:<code>` / `tool:<name>` / `menu` の初版） | 1 | MCP-1 | `ddrive_status` 1 回でコンパイル・テスト・検査・マイグレーション・Addressables・MCP 接続情報が揃う |
-| MCP-3 | `ddrive_asset_list` / `get` / `create` / `set` + `FieldTables`（全 18 種別の主要欄・読み取り専用欄） | 2 | MCP-1 | `create` は `AssetCreationService` 経由 + Addressables 登録 + 検査結果を 1 回で返す。`set` は Undo + SetDirty、読み取り専用欄は拒否 |
-| MCP-4 | `ddrive_asset_usages` / `unused` / `delete` / `ddrive_editor_open` | 1 | MCP-3 | `delete` は `SafeDeleteService`、ダイアログを出さず JSON で返す |
-| MCP-5 | `ddrive_validate` / `validate_fix` / `forbidden_api` | 1 | MCP-1 | `summary` が既定、`byCode` の表、`FixAction` 付きだけ適用 |
-| MCP-6 | `ddrive_generate`（ids / tuning / addressables / preload / prefabs / deps / icons）/ `ddrive_migrate` / `ddrive_compat` / `ddrive_release_check` | 1.5 | MCP-1 | `compat diff` で removed > 0 に warning。`release_check` は `ReleaseChecks.ps1` のラッパー、`bump-version` はツール化しない |
-| MCP-7 | `ddrive_preview_open` / `preview_play` / `preview_sweep` / `ddrive_build_netcheck`（ジョブ化） | 1.5 | MCP-3 | 確認用シーン + 配置を 1 回で。実 Manager 駆動（ADR-4）。Play Mode 中は拒否 |
-| MCP-8 | `Tools/Mcp/register-mcp.ps1`（記述子 → `claude mcp add` 上書き、pid 生存確認）+ `McpPortPolicyTests` + Info `DD-MCP-FIXED-PORT` | 0.5 | MCP-1 | トークン・ポートをリポジトリに書かない。D-Drive と MS2026 のパスでポートが異なることをテストで検算 → 🔶 一部実装（2026-10-07）: `register-mcp.ps1` + README。`McpPortPolicyTests` と `DD-MCP-FIXED-PORT` は MCP-1 の asmdef の後 |
-| MCP-9 | スナップショット `mcp-tools.txt` + Compat テスト + [42](42_distribution.md) §5.14 E-21 | 0.5 | MCP-2〜7 | 行が減ったら赤 |
-| MCP-10 | トークン計測 `Tools/Mcp/measure-tokens.py`（代表 5 シナリオ、[1002](1002_ddrive_mcp.md) §10 に結果） | 0.5 | MCP-2〜7 | 前比 1/3 以下（G-2）。満たさないツールは返り値を見直す |
-| MCP-11 | docs（[20](20_mcp_setup.md) 書き換え・[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・SKILL.md・ProgrammerManual `mcp.html`）・CHANGELOG・人による確認手順 `verification/1003_manual_verification_mcp.md` | 1 | MCP-9 | — |
-| MCP-12 | 自前レビュー → 修正 → v1.5.0 リリース（[12](12_review.md) §7） | 1 | MCP-11 | run-ci 全段 green、`check-release -Base v1.4.1` green |
+> 2026-10-07 以降のチケットは [1004_tasks.md](1004_tasks.md) に一本化した（ユーザー指示）。本書には追記しない。
 
 ## サマリ
 
