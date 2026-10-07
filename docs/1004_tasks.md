@@ -18,7 +18,7 @@
 | ID | 状態 | 内容 | 人日 | 依存 | AC |
 |---|---|---|---|---|---|
 | MCP-0 | ✅ 完了（2026-10-07、PR #165） | 決め事 Q-1〜Q-12 の回答を [1002](1002_ddrive_mcp.md) §9 に反映。CoplayDev 版を外す（`manifest.json`・`.mcp.json`・CLAUDE.md §4・[20](20_mcp_setup.md)） | 0.5 | — | 固定ポートがリポジトリのどこにも無い |
-| MCP-1 | 🔧 実装中（Sonnet、ブランチ `mcp/mcp-1-infra`） | `DDrive.Editor.Mcp` asmdef（Version Defines `DDRIVE_UNITY_MCP` / defineConstraints）、共通ガード `McpGuard`（Play Mode・読み取り専用欄・`max_chars`・`dry_run`・例外の畳み込み）、返り値圧縮 `McpJson` | 1 | MCP-0 | isuzu が無いプロジェクトでアセンブリが外れる。ガードの EditMode テスト green |
+| MCP-1 | ✅ 完了（2026-10-07、ブランチ mcp/mcp-1-infra） | `DDrive.Editor.Mcp` asmdef（Version Defines `DDRIVE_UNITY_MCP` / defineConstraints）、共通ガード `McpGuard`（Play Mode・読み取り専用欄・`max_chars`・`dry_run`・例外の畳み込み）、返り値圧縮 `McpJson` | 1 | MCP-0 | isuzu が無いプロジェクトでアセンブリが外れる。ガードの EditMode テスト green。→ 実装: `Editor/Mcp/`（asmdef・`McpGuard`・`McpJson`・`Tools/DDriveStatusTools`）、設定 `McpAllowWrite`（Project Settings > D-Drive > MCP・ウィザード）、`Tests/Editor/Mcp/`。EditMode 1831 / PlayMode 964 green、`tools/list` に `ddrive_status` 確認（[1002](1002_ddrive_mcp.md) §3 実装メモ） |
 | MCP-2 | ⬜ 未着手 | `ddrive_status` / `ddrive_help`（カード `rules` / `types` / `validation:<code>` / `tool:<name>` / `menu` の初版） | 1 | MCP-1 | `ddrive_status` 1 回でコンパイル・テスト・検査・マイグレーション・Addressables・MCP 接続情報が揃う |
 | MCP-3 | ⬜ 未着手 | `ddrive_asset_list` / `get` / `create` / `set` + `FieldTables`（全 18 種別の主要欄・読み取り専用欄） | 2 | MCP-1 | `create` は `AssetCreationService` 経由 + Addressables 登録 + 検査結果を 1 回で返す。`set` は Undo + SetDirty、読み取り専用欄は拒否 |
 | MCP-4 | ⬜ 未着手 | `ddrive_asset_usages` / `unused` / `delete` / `ddrive_editor_open` | 1 | MCP-3 | `delete` は `SafeDeleteService`、ダイアログを出さず JSON で返す |
