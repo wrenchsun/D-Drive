@@ -25,6 +25,8 @@ pwsh Tools/Mcp/register-mcp.ps1 -ProjectPath D:\work\MS2026   # 別プロジェ�
 
 ハッシュ規則: `Application.dataPath`（`/` 区切り・末尾スラッシュ無し）の UTF-8 を SHA256 し、先頭 8 バイトを小文字 16 進 16 文字にする（isuzu `McpInstanceDescriptor.HashProjectPath` と同じ）。
 
+**ポート固定の検出**: Preferences で `httpPort` を固定すると他プロジェクト・他アプリと衝突する元になる。`ProjectSetupValidator` が Info `DD-MCP-FIXED-PORT`、`ddrive_status.mcp` が `fixedPort:true` + `warning` で知らせる。ハッシュ・ポートの規則が isuzu と一致することは `McpPortPolicyTests`(EditMode)が実物とリフレクションで突き合わせて検出する。
+
 ## 規則
 
 **ポート・トークンはリポジトリに書かない。** `.mcp.json` にも置かない。接続先は常に記述子の `mcpUrl` から読む。

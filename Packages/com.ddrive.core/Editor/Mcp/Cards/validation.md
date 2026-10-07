@@ -54,6 +54,9 @@ Warning。D-Drive が埋め込みパッケージなのに開発リポジトリ�
 ## DD-SETUP-UPDATE-PENDING
 Warning。D-Drive の更新が未適用の可能性。直し方: Tools/D-Drive/Update > 更新ウィンドウで「更新を適用」。
 
+## DD-MCP-FIXED-PORT
+Info。Unity MCP のポートが Preferences で固定されている(他プロジェクト・他アプリと衝突する元)。直し方: Preferences > MCP の httpPort を 0 に戻す(パスから自動で決まる)。
+
 ## DD-CANVAS-EMBED-ROOT
 Warning。EmbeddedCanvases の RootPath が Prefab 内に無い(この埋め込みは無視)。直し方: RootPath を Prefab の階層に合わせる。
 

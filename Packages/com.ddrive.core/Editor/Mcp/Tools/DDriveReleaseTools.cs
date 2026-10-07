@@ -31,6 +31,7 @@ namespace DDrive.Editor.Mcp.Tools
             Idempotency = McpIdempotency.Safe,
             Group = "build",
             Examples = new[] { "{\"guard_only\":true,\"base\":\"v1.4.1\"}" })]
+        [McpReturns("ok", "checks", "raw", "exitCode")]
         public static JObject ReleaseCheck(
             [McpArg("base", "比較対象のタグ/ブランチ(例 v1.4.1)。省略で origin/main")]
             string @base = null,

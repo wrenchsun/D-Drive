@@ -23,6 +23,7 @@ namespace DDrive.Editor.Mcp.Tools
             "実機確認用 Windows ビルド(Builds/DDriveNetCheck を置換、1〜3 分)",
             Group = "build",
             MaxResultSizeChars = 2000)]
+        [McpReturns("success", "exe", "zip", "error", "seconds")]
         public static JObject BuildNetCheck(
             [McpArg("development", "true(既定)=Development ビルド。false=リリース相当")]
             bool development = true)

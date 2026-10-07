@@ -55,6 +55,7 @@ namespace DDrive.Editor.Mcp.Tools
             "確認用シーンを開く・実 Manager で再生/停止・残骸掃除・状態(action で選ぶ)",
             Group = "authoring",
             Examples = new[] { "{\"action\":\"play\",\"type\":\"Se\",\"id\":\"1253036813875978544\"}" })]
+        [McpReturns("scene", "placed", "hint", "handle", "blocked", "scenes", "ok", "stopped", "destroyed", "previewScene", "playing", "playMode")]
         public static JObject Preview(
             [McpArg("action", "open / play / stop / stop_all / sweep / status", Required = true)]
             string action,

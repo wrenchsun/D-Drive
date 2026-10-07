@@ -18,11 +18,14 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - MCP-4: `ddrive_asset_usages`（参照元の一覧。グラフ未構築は `needsRebuild`）/ `ddrive_asset_unused`（未使用 Data、`archived` の印）/ `ddrive_asset_delete`（`preview` で分析だけ、実行は参照・コード参照が無いときだけ `SafeDeleteService.TryDelete`、`confirm` 必須）/ `ddrive_editor_open`（専用エディタを開く）。`AddressablesSync.IsGuidRegistered(string)` を追加（[docs/1002](docs/1002_ddrive_mcp.md) §4.2）
 - MCP-6: `ddrive_generate`（`ids` / `tuning` / `addressables` / `preload` / `prefabs` / `deps` / `icons`、`preview` あり）/ `ddrive_migrate`（`plan` / `apply`、`confirm` 必須）/ `ddrive_compat`（互換性スナップショットの差分、removed > 0 で警告）/ `ddrive_compat_update`（スナップショット更新、`confirm` 必須）/ `ddrive_release_check`（`check-release.ps1` のラッパー）。`Tools/Release/check-release.ps1` に `-Json` スイッチを追加（人向けの出力は変更なし）（[docs/1002](docs/1002_ddrive_mcp.md) §4.3）
 - MCP-7: `ddrive_preview`（`action` = open / play / stop / stop_all / sweep / status。確認用シーンを保存ダイアログなしで開く〔未保存シーンがあれば `blocked`〕・Se / Bgm / Vfx / Presentation を実 Manager で再生・孤児プレビューの掃除）と `ddrive_build_netcheck`（実機確認用 Windows ビルド、同期実行）。ツールは 20 個ちょうど（上限）。互換性スナップショットの更新は無し
+- MCP-8 後半: `McpPortProbe`(`DDrive.Editor`)/ `McpInstanceInfo`(`DDrive.Editor.Mcp`)でポート・ハッシュ規則を 1 箇所に集約、EditMode `McpPortPolicyTests`(isuzu `McpPortPolicy` と実物突き合わせ・D-Drive と MS2026 でポートが異なる)、ProjectSetupValidator の Info `DD-MCP-FIXED-PORT`(Preferences でポート固定)、`ddrive_status.mcp.fixedPort:true` のとき `warning`。
+- MCP-9: 互換性スナップショット `mcp-tools.txt`(ddrive_* ツールの名前・引数名と型・必須・Destructive・返り値の上位キー)、`[McpReturns]` 属性、`McpToolsSnapshotBuilder`、`McpToolsSnapshotTests`。[docs/42](docs/42_distribution.md) §5.14 に E-24(ddrive_* ツールは追加のみ)・§5.11 に 7 つ目のスナップショットを追記。
 - MCP-10: `Tools/Mcp/measure-tokens.py` + `scenarios.json`（MCP のトークン計測。ツール定義の文字数と代表 5 シナリオの引数 + 返り値の文字数を測り、[docs/1002](docs/1002_ddrive_mcp.md) §10 に表を書き出す。パッケージ本体は変更なし）
 
 ### 互換性
 
 - 破壊なし（MINOR 相当、追加のみ）。`DDriveProjectSettings` に `_mcpAllowWrite`（既定 false）を追加、新 asmdef `DDrive.Editor.Mcp`（isuzu 版 MCP が無いプロジェクトではコンパイルされない）を追加。公開 API（`DDrive.Foundation` / `DDrive.Runtime`）・Data のシリアライズ形式は変更なし。互換性スナップショットは差分なし（更新不要）。MCP-2 も Editor（`DDrive.Editor.Mcp` と `AddressablesSync` への追加メソッド 1 個）のみの追加で、契約への影響なし。MCP-3 も Editor のみ（`AddressablesSync.IsRegistered`、`DDrive.Editor.Mcp` のツール・表）で、Data のシリアライズ形式・`DDrive.Foundation` / `DDrive.Runtime` の公開 API は変更なし。互換性スナップショットは差分なし。MCP-4 も Editor のみ（`DDrive.Editor.Mcp` のツール、`AddressablesSync.IsGuidRegistered`）で、公開 API・シリアライズ形式は変更なし（スナップショット更新不要）。MCP-6 も Editor（`DDrive.Editor.Mcp` のツール）と開発用スクリプト `check-release.ps1 -Json` の追加のみで、公開 API・シリアライズ形式は変更なし（互換性スナップショットは差分なし、更新していない）
+- 新しいスナップショット `mcp-tools.txt`(7 つ目。追加のみ)と新しい Validator Code `DD-MCP-FIXED-PORT`(Info。追加のみ)。`[McpReturns]` 属性・`McpPortProbe`・`McpInstanceInfo`・`CompatSnapshotPaths.McpTools` は Editor の追加で、`DDrive.Foundation` / `DDrive.Runtime` の公開 API は変えない。ddrive_* ツールの名前・引数・返り値キーは以後 §5.14 E-24 の契約(追加のみ)。
 
 ### その他
 

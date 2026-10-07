@@ -88,6 +88,8 @@
 
 **手続きの要点**（詳細は [42] §5.12）: MAJOR は (1) issue/設計メモでユーザー承認 → (2) `[Obsolete]`/Warning/移行ツールを 2 MINOR 分先出し → (3) MAJOR で削除 + `CHANGELOG.md`「破壊あり」+ `docs/migrations/vN.md` → (4) スナップショット更新 → (5) 持ち込み先（MS2026）で更新手順を実施し結果を移行ガイドに追記。**MAJOR は年 1 回まで**（MS2026 開発フェーズ中は 0 回）。
 
+`ddrive_*` MCP ツール（名前・引数・Destructive・返り値の上位キー・`ddrive_help` の topic 名、[42] §5.14 E-24）に触れる PR は `Tests/Editor/Compat/Snapshots/mcp-tools.txt`（`McpToolsSnapshotTests`）の差分が追加のみであることを確認する（返り値のキーは `[McpReturns]` に書く）。
+
 CHANGELOG ガード（[42] §5.11-10）: `Tests/Editor/Snapshots/**` が変わった PR で `CHANGELOG.md` が変わっていなければ fail。
 
 **ゴールデンの更新手順（2026-09-20 追加、P-3）**: 上表のスナップショットテストが赤くなったら、まず「意図した変更か」を確認する（MINOR=追加のみ→更新して進める / MAJOR=削除・改名・変更→[42] §5.12 の手続きが必須）。意図した変更なら:

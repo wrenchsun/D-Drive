@@ -29,6 +29,8 @@ namespace DDrive.Editor.Validation
         // (AddressablesRegistrationValidator の `_noSettingsReported` と同じ手筋)。
         private static ValidationContext _reportedForCtx;
 
+        public const string CodeMcpFixedPort = "DD-MCP-FIXED-PORT";
+
         public AssetType Target => AssetType.None;
 
         public IEnumerable<ValidationResult> Validate(AssetDataBase data, ValidationContext ctx)
@@ -123,6 +125,16 @@ namespace DDrive.Editor.Validation
                     "パッケージを直接改造している可能性があります([docs/42_distribution.md] §4.5)。改造は更新が取り込めなくなるため、" +
                     "拡張点(IValidator/ImportRule/IHapticOutput/INetBridge/IAssetBehaviour/[DataEditor])での解決か、開発リポジトリへの PR を検討してください。",
                     code: "DD-SETUP-EMBEDDED-MODIFIED");
+            }
+
+            // [1002_ddrive_mcp.md] §6.1 (c) MCP-8 後半(2026-10-07) — Unity MCP(isuzu 版)のポートが Preferences で固定されている
+            // (記述子の preferredPort がパスから導いたポートと違う)。固定は他プロジェクト・他アプリとの衝突の元。
+            // isuzu が無い(記述子が無い)プロジェクトでは何も出さない。DDrive.Editor は isuzu を参照しないので記述子だけで判断する。
+            if (McpPortProbe.LooksFixed(UnityEngine.Application.dataPath))
+            {
+                yield return ValidationResult.Info(
+                    "Unity MCP のポートが Preferences で固定されています(他プロジェクト・他アプリと衝突する元。[1002] §6.1 (c))",
+                    code: CodeMcpFixedPort);
             }
 
             // [11_tasks.md] M-4(2026-10-05) — 禁止 API の除外設定(Project Settings > D-Drive > 禁止 API の除外)の

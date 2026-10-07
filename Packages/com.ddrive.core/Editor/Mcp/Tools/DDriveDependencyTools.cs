@@ -42,6 +42,7 @@ namespace DDrive.Editor.Mcp.Tools
             "Data を参照している場所(Data / Prefab / Scene / Timeline)の一覧。削除前の確認に",
             Idempotency = McpIdempotency.Safe,
             Group = "diagnostics")]
+        [McpReturns("count", "usages", "next", "truncated", "needsRebuild", "hint")]
         public static JObject Usages(
             [McpArg("type", TypeArgText, Required = true)]
             string type,
@@ -109,6 +110,7 @@ namespace DDrive.Editor.Mcp.Tools
             "どこからも参照されていない Data の一覧(削除候補)。archived は Archived タグ付き",
             Idempotency = McpIdempotency.Safe,
             Group = "diagnostics")]
+        [McpReturns("count", "items", "next", "truncated", "needsRebuild", "hint")]
         public static JObject Unused(
             [McpArg("type", "種別名で絞る。省略で全種別")]
             string type = null,
@@ -169,6 +171,7 @@ namespace DDrive.Editor.Mcp.Tools
             Destructive = true,
             UndoGroup = "D-Drive MCP: Data の削除",
             Group = "authoring")]
+        [McpReturns("deleted", "path", "blockers", "blockerCount", "codeRefs", "wouldDelete", "blocked", "needsRebuild", "hint")]
         public static JObject Delete(
             [McpArg("type", TypeArgText, Required = true)]
             string type,
@@ -353,6 +356,7 @@ namespace DDrive.Editor.Mcp.Tools
             "Data の専用エディタを Editor で開く(人が見るため)。無ければ Inspector で選択する",
             Idempotency = McpIdempotency.Safe,
             Group = "authoring")]
+        [McpReturns("opened", "inspector")]
         public static JObject EditorOpen(
             [McpArg("type", TypeArgText, Required = true)]
             string type,

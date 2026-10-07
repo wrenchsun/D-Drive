@@ -30,6 +30,7 @@ namespace DDrive.Editor.Mcp.Tools
             "D-Drive の検査(Validation)を実行して要約を返す。既定は件数と Code 別の表だけ。指摘の本文は detail=errors/all で",
             Idempotency = McpIdempotency.Safe,
             Group = "diagnostics")]
+        [McpReturns("scope", "errors", "warnings", "infos", "byCode", "fixable", "items", "next", "truncated")]
         public static JObject Validate(
             [McpArg("scope", "all(既定) / project(全体の指摘のみ) / type:<種別名> / asset:<種別名>:<id>")]
             string scope = null,
@@ -146,6 +147,7 @@ namespace DDrive.Editor.Mcp.Tools
             Destructive = true,
             UndoGroup = "D-Drive MCP: 検査の修正",
             Group = "authoring")]
+        [McpReturns("applied", "wouldApply", "skipped", "after")]
         public static JObject ValidateFix(
             [McpArg("codes", "直す Code のカンマ区切り。省略で FixAction 付きを全部")]
             string codes = null,
@@ -266,6 +268,7 @@ namespace DDrive.Editor.Mcp.Tools
             "禁止 API の静的検査。規則別の件数。detail=all で file:line も",
             Idempotency = McpIdempotency.Safe,
             Group = "diagnostics")]
+        [McpReturns("root", "violations", "notices", "byRule", "items", "next", "truncated")]
         public static JObject ForbiddenApi(
             [McpArg("root", "走査するフォルダ。省略で CI.ResolveForbiddenApiScanRoot()")]
             string root = null,

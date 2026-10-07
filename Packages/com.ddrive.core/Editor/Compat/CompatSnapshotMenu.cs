@@ -29,10 +29,30 @@ namespace DDrive.Editor.Compat
             WriteIfChanged(CompatSnapshotPaths.NetMessages, NetMessageSnapshotBuilder.Build());
             WriteIfChanged(CompatSnapshotPaths.EditorContract, EditorContractSnapshotBuilder.Build());
 
+            // [1002_ddrive_mcp.md] §7 MCP-9: ddrive_* ツールの契約。DDrive.Editor.Mcp(isuzu 版 Unity MCP が有るときだけコンパイルされる)
+            // のビルダーを型名で呼ぶ(DDrive.Editor から DDrive.Editor.Mcp への参照を作らない)。無ければ何もしない。
+            var mcpTools = BuildMcpToolsSnapshot();
+            if (mcpTools != null)
+            {
+                WriteIfChanged(CompatSnapshotPaths.McpTools, mcpTools);
+            }
+            else
+            {
+                Debug.Log("[DDrive][Compat] DDrive.Editor.Mcp が無いため mcp-tools.txt は更新しません(Unity MCP 未導入)。");
+            }
+
             AssetDatabase.Refresh();
             Debug.Log("[DDrive][Compat] スナップショットを更新しました(" + CompatSnapshotPaths.Root + ")。" +
                 "差分が意図したもの(MINOR=追加のみ / MAJOR=削除・変更、docs/42 §5.12)か確認し、" +
                 "CHANGELOG.md の [Unreleased] 互換性節に追記してください。");
+        }
+
+        // null = Mcp アセンブリが無い。
+        internal static string BuildMcpToolsSnapshot()
+        {
+            var type = System.Type.GetType("DDrive.Editor.Mcp.McpToolsSnapshotBuilder, DDrive.Editor.Mcp");
+            var method = type?.GetMethod("Build", System.Type.EmptyTypes);
+            return method?.Invoke(null, null) as string;
         }
 
         private static void WriteIfChanged(string path, string content)

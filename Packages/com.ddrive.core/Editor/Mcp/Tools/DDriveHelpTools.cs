@@ -36,6 +36,7 @@ namespace DDrive.Editor.Mcp.Tools
             Idempotency = McpIdempotency.Safe,
             Group = "diagnostics",
             Examples = new[] { "{\"topic\":\"validation:DD-ADDR-MISSING\"}" })]
+        [McpReturns("topic", "text", "truncated")]
         public static JObject Help(
             [McpArg("topic", "rules|types|menu|tool:名|validation:コード", Required = true)]
             string topic,
