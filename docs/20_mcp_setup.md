@@ -106,7 +106,7 @@ Unity の再起動でトークンが変わると、開いているセッショ�
 
 ## 4. 持ち込み先（MS2026 等）での扱い
 
-- `jp.shiranui-isuzu.unity-mcp` は開発専用で、`com.ddrive.core` の `package.json` の依存には**入れない**（[42_distribution.md](42_distribution.md) §4.3）。持ち込み先が AI 連携を使うときは自分の `manifest.json` に足す。
+- `jp.shiranui-isuzu.unity-mcp` は開発専用で、`com.ddrive.core` の `package.json` の依存には**入れない**（[42_distribution.md](42_distribution.md) §4.3）。持ち込み先が AI 連携を使うときは、**更新ウィンドウ（`Tools > D-Drive > Update > 更新ウィンドウ` の「Unity MCP（isuzu）」の「導入」）かセットアップウィザードの「9. AI 連携（MCP）」から導入する**（MCP-14。manifest.json に推奨版のタグ固定で足し、管理対象に登録する。CoplayDev 等の他の MCP が入っていれば確認ダイアログが出て、CoplayDev は「外して続行」できる。導入後の画面から `register-mcp.ps1` も実行できる）。手で `manifest.json` に足してもよい。
 - v1.5.0 の `DDrive.Editor.Mcp`（`ddrive_*` ツール）はパッケージに同梱されるが、isuzu が無いプロジェクトではコンパイルされない（Version Defines）。書き込みツールは既定で無効で、セットアップウィザードが「有効にしますか」と聞く（[1002](1002_ddrive_mcp.md) §9.1 Q-3 / Q-4）。
 
 ---

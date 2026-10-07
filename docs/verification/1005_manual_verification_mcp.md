@@ -90,10 +90,21 @@
 
 ## 9. 持ち込み先（MS2026）
 
+> MCP-14（2026-10-07）で、isuzu の導入は更新ウィンドウに統合した（[1002](../1002_ddrive_mcp.md) §11）。manifest.json を手で編集せず、更新ウィンドウから導入する。
+
 | # | 操作 | 期待 | 結果 |
 |---|---|---|---|
-| 9-1 | isuzu を入れていない MS2026（または空プロジェクト）に v1.5.0 を導入 | コンパイルエラー無し。`DDrive.Editor.Mcp` アセンブリが存在しない（`Library/ScriptAssemblies` に無い） | □ 未 |
-| 9-2 | isuzu v4.2.0 を `manifest.json` に足して導入 → `register-mcp.ps1 -ProjectPath <MS2026>` → `ddrive_status` | `DDrive.Editor.Mcp` がコンパイルされ、`mcp.project` が MS2026、`mcp.port` が D-Drive と違う（同時に開いても競合しない） | □ 未 |
+| 9-1 | isuzu を入れていない MS2026（または空プロジェクト）に v1.5.x を導入 | コンパイルエラー無し。`DDrive.Editor.Mcp` アセンブリが存在しない（`Library/ScriptAssemblies` に無い）。`Tools > D-Drive > Update > 更新ウィンドウ` の「パッケージ」に「Unity MCP（isuzu）— D-Drive の AI 連携に必要」と「導入」ボタンが出る | □ 未 |
+| 9-2 | 「導入」を押す（他の MCP は無い状態） | ダイアログ無しで `manifest.json` に `jp.shiranui-isuzu.unity-mcp` が `#v4.4.2` 付きで 1 行だけ増える。一覧に管理対象として出る。導入後の案内パネル（解決待ち・登録スクリプト・書き込み設定）が出る | □ 未 |
+| 9-3 | 案内パネルの「登録スクリプトを実行」→ `ddrive_status` | Unity の解決後に実行すると「登録しました」。`ddrive_status` の `mcp.project` が MS2026、`mcp.port` が D-Drive と違う、`mcp.isuzuVersion` が `4.4.2`、`otherMcp` が無い。`DDrive.Editor.Mcp` がコンパイルされる。解決前なら失敗の理由（記述子なし）が出て、再実行できる | □ 未 |
+| 9-4 | 「書き込みツールの設定を開く」 | Project Settings > D-Drive > MCP が開く（既定 OFF） | □ 未 |
+| 9-5 | 導入済みで更新ウィンドウを開く | 行は「導入済み（v4.4.2、推奨 v4.4.2）」の表示だけで「導入」ボタンは出ない | □ 未 |
+| 9-6 | CoplayDev（`com.coplaydev.unity-mcp`）を入れた状態で isuzu 未導入 →「導入」 | 確認ダイアログ「続行（両方残す）/ CoplayDev … を外して続行 / キャンセル」。「キャンセル」で manifest は変わらない | □ 未 |
+| 9-7 | 9-6 で「外して続行」 | manifest から `com.coplaydev.unity-mcp` の 1 行だけが消え isuzu が増える。`.mcp.json` は変わらず、案内パネルに「手で消してください」が出る | □ 未 |
+| 9-8 | 9-6 で「続行（両方残す）」→ `Validation > Run All` | Info `DD-MCP-MULTIPLE` が出る。`ddrive_status.mcp.otherMcp` に CoplayDev の id | □ 未 |
+| 9-9 | 未知の MCP（例 `com.foo.mcp-bridge`）を入れて「導入」 | 「外して続行」は出ず 2 択（続行 / キャンセル）。未知のものは manifest に残る | □ 未 |
+| 9-10 | isuzu を古いタグ（例 `#v4.2.0`）にして Run All | Info `DD-MCP-ISUZU-OUTDATED`。`#main` やコミットにすると出ない | □ 未 |
+| 9-11 | セットアップウィザードの「9. AI 連携（MCP、任意）」 | 既定 OFF。ON +「適用」で 9-2 と同じ処理（他の MCP があれば同じダイアログ） | □ 未 |
 
 ## 10. トークン
 

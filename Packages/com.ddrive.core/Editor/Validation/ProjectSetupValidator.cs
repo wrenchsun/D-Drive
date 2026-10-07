@@ -30,6 +30,11 @@ namespace DDrive.Editor.Validation
         private static ValidationContext _reportedForCtx;
 
         public const string CodeMcpFixedPort = "DD-MCP-FIXED-PORT";
+        public const string CodeMcpMultiple = "DD-MCP-MULTIPLE";
+        public const string CodeMcpIsuzuOutdated = "DD-MCP-ISUZU-OUTDATED";
+
+        // テスト用: MCP 系の検査が読む manifest の差し替え(null で既定 = Packages/manifest.json)。
+        public static System.Func<Newtonsoft.Json.Linq.JObject> McpManifestReaderOverride;
 
         public AssetType Target => AssetType.None;
 
@@ -137,6 +142,12 @@ namespace DDrive.Editor.Validation
                     code: CodeMcpFixedPort);
             }
 
+            // [1002_ddrive_mcp.md] §11.2 D MCP-14(2026-10-07) — MCP パッケージが 2 つ以上 / isuzu が推奨版より古い(どちらも Info)。
+            foreach (var mcpResult in InspectMcpPackages(McpManifestReaderOverride != null ? McpManifestReaderOverride() : manifest))
+            {
+                yield return mcpResult;
+            }
+
             // [11_tasks.md] M-4(2026-10-05) — 禁止 API の除外設定(Project Settings > D-Drive > 禁止 API の除外)の
             // 無効な要素(理由なし・パスなし・不明な規則名)。無効な要素は除外として効かない。
             var allowEntries = DDriveProjectSettings.instance.ForbiddenApiAllowEntries;
@@ -168,6 +179,39 @@ namespace DDrive.Editor.Validation
                         "Tools > D-Drive > Update > 更新ウィンドウ から「更新を適用」を実行してください。",
                         code: "DD-SETUP-UPDATE-PENDING");
                 }
+            }
+        }
+
+        // MCP パッケージの検査(純関数。manifest は JObject で受け取る)。isuzu が無い / 他の MCP が無いプロジェクトでは何も出さない。
+        public static IEnumerable<ValidationResult> InspectMcpPackages(Newtonsoft.Json.Linq.JObject manifest)
+        {
+            var scan = McpPackageSupport.ScanManifest(manifest);
+            var ids = new List<string>();
+            if (scan.IsuzuInstalled)
+            {
+                ids.Add(McpPackageSupport.IsuzuPackageId);
+            }
+
+            foreach (var other in scan.Others)
+            {
+                ids.Add(other.Id);
+            }
+
+            if (ids.Count >= 2)
+            {
+                yield return ValidationResult.Info(
+                    $"MCP パッケージが {ids.Count} つ入っています({string.Join(", ", ids)})。同じ Editor を同時に操作でき、固定ポートのものは衝突の元です。" +
+                    "不要なものは manifest.json から外してください([docs/1002] §11)",
+                    code: CodeMcpMultiple);
+            }
+
+            if (scan.IsuzuInstalled
+                && McpPackageSupport.CompareToRecommended(scan.IsuzuRef) == McpPackageSupport.RefComparison.Older)
+            {
+                yield return ValidationResult.Info(
+                    $"Unity MCP(isuzu)の版が D-Drive の推奨より古いです(導入 {scan.IsuzuRef} / 推奨 {McpPackageSupport.RecommendedIsuzuRef})。" +
+                    "更新ウィンドウの「更新チェック」で上げられます([docs/1002] §11)",
+                    code: CodeMcpIsuzuOutdated);
             }
         }
     }

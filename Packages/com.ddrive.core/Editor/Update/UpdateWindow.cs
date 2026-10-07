@@ -366,6 +366,8 @@ namespace DDrive.Editor.Update
             var checkAll = new Button(CheckLatestForAllRows) { text = "一覧の最新版をまとめて確認" };
             _packagesBody.Add(checkAll);
 
+            AddMcpSection(manifest);
+
             // URL を入力して追加
             _packagesBody.Add(new Label("URL を入力して追加") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 6 } });
             _packagesBody.Add(WrappingLabel("git URL(https://github.com/<owner>/<repo>.git?path=<dir>、git+https://…、ssh://…。末尾に #vX.Y.Z を付けても可)、または manifest にあるパッケージ ID を入力します。manifest に無い URL は、最新の vX.Y.Z で導入してから管理対象に登録します。"));
@@ -414,6 +416,69 @@ namespace DDrive.Editor.Update
             }
 
             _packagesBody.Add(new Button(RefreshAll) { text = "依存を再検査" });
+        }
+
+        // [1002_ddrive_mcp.md] §11 MCP-14(2026-10-07) — Unity MCP(isuzu)の導入行。判断は `McpPackageSupport`(純関数)、
+        // 副作用(ダイアログ・manifest 保存・Resolve・管理対象登録)は `McpInstallActions`。ここは配線だけ。
+        private const string McpPanelKey = "DDrive.Update.McpPanel";
+        private const string McpPanelRemovedKey = "DDrive.Update.McpPanelRemoved";
+
+        private void AddMcpSection(Newtonsoft.Json.Linq.JObject manifest)
+        {
+            var scan = McpPackageSupport.ScanManifest(manifest);
+            _packagesBody.Add(new Label("Unity MCP(isuzu)— D-Drive の AI 連携に必要") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 6 } });
+            if (scan.IsuzuInstalled)
+            {
+                string version = null;
+                foreach (var state in _installed)
+                {
+                    if (state.Id == McpPackageSupport.IsuzuPackageId)
+                    {
+                        version = state.Version;
+                        break;
+                    }
+                }
+
+                var shown = !string.IsNullOrEmpty(version) ? "v" + version : (scan.IsuzuRef ?? "版不明");
+                var text = $"導入済み({shown}、推奨 {McpPackageSupport.RecommendedIsuzuRef})";
+                if (McpPackageSupport.CompareToRecommended(scan.IsuzuRef ?? ("v" + version)) == McpPackageSupport.RefComparison.Older)
+                {
+                    text += " — 推奨より古い版です。上の一覧の「更新チェック」で上げられます";
+                }
+
+                _packagesBody.Add(WrappingLabel(text));
+            }
+            else
+            {
+                _packagesBody.Add(WrappingLabel($"未導入です。「導入」で manifest.json に {McpPackageSupport.IsuzuPackageId}({McpPackageSupport.RecommendedIsuzuRef})を追加し、管理対象に登録します。D-Drive 本体の依存には入りません(任意機能)。"));
+                _packagesBody.Add(new Button(InstallMcp) { text = "導入" });
+            }
+
+            if (SessionState.GetBool(McpPanelKey, false))
+            {
+                var removed = SessionState.GetString(McpPanelRemovedKey, string.Empty);
+                var ids = string.IsNullOrEmpty(removed) ? new string[0] : removed.Split(',');
+                _packagesBody.Add(McpInstallActions.BuildPostInstallPanel(
+                    new McpPackageSupport.McpPlan(false, null, null, ids, new string[0], McpPackageSupport.IsuzuPackageId)));
+                _packagesBody.Add(new Button(() =>
+                {
+                    SessionState.SetBool(McpPanelKey, false);
+                    RefreshPackagesSection();
+                }) { text = "案内を閉じる" });
+            }
+        }
+
+        private void InstallMcp()
+        {
+            var plan = McpInstallActions.InstallFromUserClick();
+            if (plan == null)
+            {
+                return;
+            }
+
+            SessionState.SetBool(McpPanelKey, true);
+            SessionState.SetString(McpPanelRemovedKey, string.Join(",", plan.Value.RemoveIds));
+            RefreshAll();
         }
 
         private VisualElement BuildRowElement(PackageRow row, bool selected)

@@ -83,7 +83,7 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
   - `validation` = `McpValidationCache`（`Editor/Mcp/McpValidationCache.cs`、SessionState に `{errors,warnings,infos,at}`）。**`ddrive_status` は Validator を走らせない**。`CI.RunValidation` の結果を `McpValidationCache.Record(reports)` で書くのは `ddrive_validate`（MCP-5）の役目。未実行なら `{cached:false}`
   - `migration` = `{pending:n}`（`DDriveMigrationRunner.PlanProject().TotalCount`）。このプロジェクトでは HTTP 込みで 0.25 秒（本体は十分速い）なので、`HasPendingMigrations()` の bool への縮退は不要だった
   - `addressables` = `{missing:n}`。`AddressablesSync.CountMissingEntries()`（新規・読み取り専用。`SyncAll` が直す `fixedAssets` と同じ判定: カタログに ID があるのに Addressables 未登録 / address 不一致の Data 数）。Addressables 設定が無ければセクションごと省略
-  - `mcp` = `{writeEnabled, playing, project, port, preferredPort, portMismatch, fixedPort, pid}`。isuzu の記述子 `%LOCALAPPDATA%/UnityMCP/instances/<hash>.json`（ハッシュ = `Application.dataPath` の UTF-8 の SHA256 先頭 8 バイトの小文字 16 進。`register-mcp.ps1` と同じ）を読み、**トークンは読み捨てる**。`fixedPort` = isuzu `McpSettings.instance.httpPort > 0`（公開 API）
+  - `mcp` = `{writeEnabled, playing, project, port, preferredPort, portMismatch, fixedPort, pid, otherMcp?, isuzuVersion?}`（`otherMcp` = manifest にある他の MCP パッケージ id の配列で無ければ省略、`isuzuVersion` = 解決済みの isuzu の版〔無ければ manifest の `#ref`〕。MCP-14 で追加。入れ子のキーなので `mcp-tools.txt` の上位キーは変わらない）。isuzu の記述子 `%LOCALAPPDATA%/UnityMCP/instances/<hash>.json`（ハッシュ = `Application.dataPath` の UTF-8 の SHA256 先頭 8 バイトの小文字 16 進。`register-mcp.ps1` と同じ）を読み、**トークンは読み捨てる**。`fixedPort` = isuzu `McpSettings.instance.httpPort > 0`（公開 API）
   - 未知の `sections` は**無視**（将来の追加に古いクライアントが耐える。MCP-1 では `invalid_params` だったのを変更）
 - **`ddrive_help`**（`Editor/Mcp/Tools/DDriveHelpTools.cs`）: `rules`（カード）/ `types`（`[AssetIdDefinition]` を反射で集めた「種別 / Data クラス / ID 定数 / ファイル接頭辞」+ `McpGuard.ReadOnlyFields`）/ `menu`（`TypeCache` で `[MenuItem]` を集め `Tools/D-Drive/` 以降のパスだけ。ショートカット指定は落とす）/ `tool:<name>`（`[McpTool]`/`[McpArg]` から生成。必須判定は `Required` または既定値なし）/ `validation:<code>`（カードの `## <CODE>` 節。大小文字無視。`validation` だけなら code 一覧）。未知の topic・tool・code は `invalid_params`（topic 一覧つき）。返り値 `{topic,text,truncated?}`、`max_chars` 既定 4000
 - **カードの正本は `Packages/com.ddrive.core/Editor/Mcp/Cards/{rules,validation}.md`**（Q-10 の変更。§5.4 参照）。`PackageInfo.FindForAssembly(...).resolvedPath` から引くので、埋め込み・git URL（`Library/PackageCache`）のどちらでも読める。`rules.md` は 600 文字以内（テストが固定）。`validation.md` は実在する `DD-*` コード 43 件（Addressables・Setup・Schema・Cutscene・Canvas・Anim・Shake・Haptics・Material・ForbiddenApi）を各 1〜2 行で。**意味と直し方は各 Validator のメッセージ文から取った**（新しい Code を足したらカードにも足す）
@@ -196,7 +196,7 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 
 | ツール | 種別 | 引数 | 返り値（要点） | 呼ぶ先 |
 |---|---|---|---|---|
-| `ddrive_status` | R | `sections?`（`version,compile,tests,validation,migration,addressables,mcp` のカンマ区切り。既定は全部。未知の名前は無視） | `{version, schema, compile:{ok}, tests:{last:{mode,passed,failed,inconclusive,at}}, validation:{errors,warnings,infos,at}（前回の `ddrive_validate all` の要約。未実行は `{cached:false}`）, migration:{pending}, addressables:{missing}, mcp:{writeEnabled,playing,project,port,preferredPort,portMismatch,fixedPort,pid,warning?}}` | `DDriveVersion` / `DDriveSchema`、`EditorUtility.scriptCompilationFailed`、isuzu のテスト結果、`McpValidationCache`、`DDriveMigrationRunner.PlanProject`、`AddressablesSync.CountMissingEntries`、isuzu の記述子（トークンは読まない） |
+| `ddrive_status` | R | `sections?`（`version,compile,tests,validation,migration,addressables,mcp` のカンマ区切り。既定は全部。未知の名前は無視） | `{version, schema, compile:{ok}, tests:{last:{mode,passed,failed,inconclusive,at}}, validation:{errors,warnings,infos,at}（前回の `ddrive_validate all` の要約。未実行は `{cached:false}`）, migration:{pending}, addressables:{missing}, mcp:{writeEnabled,playing,project,port,preferredPort,portMismatch,fixedPort,pid,warning?,otherMcp?,isuzuVersion?}}` | `DDriveVersion` / `DDriveSchema`、`EditorUtility.scriptCompilationFailed`、isuzu のテスト結果、`McpValidationCache`、`DDriveMigrationRunner.PlanProject`、`AddressablesSync.CountMissingEntries`、isuzu の記述子（トークンは読まない） |
 | `ddrive_help` | R | `topic`（`rules` / `types` / `menu` / `tool:<name>` / `validation:<code>`）、`max_chars?` | `{topic, text, truncated?}`。`rules` = 禁止事項 10 行 + MCP の使い方、`types` = AssetType と ID 接頭辞・読み取り専用欄、`menu` = `Tools/D-Drive/` のメニューパス、`tool:<name>` = そのツールの引数、`validation:<code>` = その Code の意味と直し方 1〜2 行 | `Editor/Mcp/Cards/{rules,validation}.md`（`PackageInfo` から解決）と反射（`[AssetIdDefinition]` / `[MenuItem]` / `[McpTool]`） |
 
 ### 4.2 Data の操作（authoring）
@@ -499,8 +499,28 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 - [42](42_distribution.md) §4.2.1 と §4.3（isuzu は任意依存。導入は更新ウィンドウから）、[50_consumer_guide](50_consumer_guide.md) の導入ページ、ProgrammerManual `mcp.html` の「セットアップ」節、[20](20_mcp_setup.md) §4、`Documentation~/skills/ddrive-consumer/SKILL.md` §6、[verification/1005](verification/1005_manual_verification_mcp.md) §9（持ち込み先）を「更新ウィンドウから導入」に書き換える。
 - MS2026 での確認: isuzu 未導入 → 更新ウィンドウで導入 → 登録 → `ddrive_status`。CoplayDev が入っている状態で導入 → 確認ダイアログ → 「外して続行」。
 
+### 11.4 実装メモ（2026-10-07、MCP-14）
+
+実装済み。EditMode 2075（新規 45）・PlayMode 964 green。
+
+- **構成**: `Editor/Update/McpPackageSupport.cs`（純関数。`IsuzuPackageId` / `RecommendedIsuzuRef = "v4.4.2"` / `RecommendedIsuzuUrl` / `KnownMcpPackages`〔isuzu 自身 + `com.coplaydev.unity-mcp`（固定ポート・外してよい）〕/ `ScanManifest` / `BuildPlan` / `ApplyToManifest` / `BuildConfirmText` / `CompareToRecommended`）、`Editor/Update/McpInstallActions.cs`（副作用: ダイアログ → manifest 保存 → `Client.Resolve()` → `RegisterManagedPackage` → 案内パネル → `pwsh` 非同期起動）。`UpdateWindow` の「パッケージ」に行を足し、`ProjectSetupWizardWindow` に節「9. AI 連携（MCP、任意）」を足した（完了チェックは 10 に繰り下げ）。どちらも配線だけ。
+- **決めたこと（仕様の余白）**:
+  - 導入は `Client.Add` ではなく **manifest を直接書いて `Client.Resolve()`**（「他の MCP を外す」と「isuzu を足す」を 1 回の保存で行うため。既存の `ManifestJson` / `PackageManifestOps` と同じ流儀）。manifest の保存は**ボタンを押したときだけ**。
+  - ダイアログ: 外してよい MCP がある → 3 択（続行〔両方残す〕/ <表示名> を外して続行 / キャンセル。`DisplayDialogComplex`）、無い（未知のみ）→ 2 択（続行 / キャンセル。`DisplayDialog`）。他の MCP が無ければダイアログ無し。複数の外してよい MCP がある場合は表の全部を外す（現在の表では 1 つだけ）。
+  - 既に isuzu がある（開発リポジトリ・導入済み）ときは「導入」ボタンを出さず「導入済み（v…、推奨 …）」の表示だけ。推奨より古いタグなら「更新チェックで上げられます」を添える。`BuildPlan` は isuzu が既にあれば manifest に足さない（上書きしない）。
+  - 版の比較: `vX.Y.Z` と `X.Y.Z` を数値で比べる。ブランチ・コミット・HEAD・未指定は `Unknown`（古いとは言わない）。pre-release サフィックスは既存の `SemVer` に合わせて切り捨てる。
+  - 登録スクリプトは**パッケージ同梱の `Tools~/Mcp/register-mcp.ps1`**（`PackageInfo.FindForAssembly(...).resolvedPath`）を先に探し、無ければ `<プロジェクト>/Tools/Mcp/register-mcp.ps1`。`-ProjectPath` を**必ず渡す**（スクリプトの既定 `..\..` はパッケージ内から実行するとプロジェクトルートにならないため）。起動は `-NoProfile -NonInteractive -File`、60 秒のタイムアウト、キャンセル・タイムアウトは `GitProcess.KillTree` でツリーごと止める。`pwsh` が無ければ起動失敗として手動コマンドを表示。出力は末尾 12 行（トークンはスクリプトが出さない）。
+  - 案内パネルの表示は `SessionState` に覚え、ドメインリロード（isuzu のコンパイルで起きる）をまたいで残す。「案内を閉じる」で消す。ウィザード側は同じ画面内のメモリ保持。
+  - Validator は `InspectMcpPackages(JObject)`（純関数）と、`McpManifestReaderOverride`（テスト用の差し替え）で manifest を読む。`Validate` の既定は既に読んでいる `Packages/manifest.json`。
+  - `ddrive_status.mcp.isuzuVersion` は `PackageInfo.FindForAssembly(typeof(McpSettings).Assembly).version`（解決済みの版。開発リポジトリは `4.4.2`）、取れなければ manifest の `#vX.Y.Z` から `v` を除いたもの。
+  - `ddrive_help` の `validation:` カードに `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED` を追加（`Cards/validation.md`）。`ddrive_status` のツール説明・`mcp-tools.txt` は無変更（上位キーが変わらないため。スナップショットテストは green のまま）。
+  - [42](42_distribution.md) の §4.3 は「データマイグレーション」で、isuzu の扱いは §3 の依存表と §4.2.1 に書いた（§4.2.1 に節を足した）。
+- **確認したこと**: EditMode / PlayMode green、開発リポジトリで `ddrive_status {"sections":"mcp"}` → `isuzuVersion:"4.4.2"`（`otherMcp` なし）、`ddrive_validate` に `DD-MCP-*` なし、`ddrive_help validation:DD-MCP-MULTIPLE` が返る。更新ウィンドウの行は「導入済み（v4.4.2、推奨 v4.4.2）」と表示され「導入」ボタンは出ない（ビジュアルツリーを `execute_code` で読んで確認。ウィンドウのスクリーンショットは他アプリが手前にあり撮れなかった）。
+- **未検証（持ち込み先が必要）**: 「導入」ボタンの実押下（manifest 保存 → 解決 → 管理対象登録）、確認ダイアログの 3 択 / 2 択の見た目と各分岐、案内パネルの「登録スクリプトを実行」の実機、ウィザードの節。手順は [verification/1005](verification/1005_manual_verification_mcp.md) §9。開発リポジトリは isuzu 導入済みのため、押すと何も起きない（行ごと出ない）。
+
 ## 更新履歴
 
+- 2026-10-07（MCP-14）: §11 を実装（isuzu の導入を更新ウィンドウ・ウィザードに統合、他の MCP の確認、Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`、`ddrive_status.mcp.otherMcp` / `isuzuVersion`）。§11.4 に実装メモ
 - 2026-10-07（同日 3）: §11 MCP-14（isuzu の導入を更新ウィンドウに統合、他の MCP があるときの処理）を起票。MCP-13（isuzu v4.4.2）に着手
 
 - 2026-10-07（MCP-11）: 状態を「実装済み」に。§4 の冒頭に「表は起票時の案を出荷形に直したもの」の注記を足し、§4.1〜4.4 を出荷したツール（20 個・`preview` / `kind` / 文字列 ID / `compat_update` の分割 / `cursor`・`limit`・`max_chars`）に合わせた。E-21 → E-24 の表記ゆれを直した。docs（[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・SKILL.md・AGENTS.md・ProgrammerManual `mcp.html`・CHANGELOG・人による確認手順 [verification/1005](verification/1005_manual_verification_mcp.md)）を整備
