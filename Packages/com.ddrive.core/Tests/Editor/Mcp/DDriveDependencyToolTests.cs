@@ -154,7 +154,7 @@ namespace DDrive.Tests.Editor.Mcp
         {
             var r = DDriveDependencyTools.NeedsRebuild();
             Assert.IsTrue((bool)r["needsRebuild"]);
-            Assert.AreEqual("ddrive_generate target=deps", (string)r["hint"]);
+            Assert.AreEqual("ddrive_generate kind=deps", (string)r["hint"]);
         }
 
         [Test]
