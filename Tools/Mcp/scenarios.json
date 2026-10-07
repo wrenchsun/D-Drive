@@ -1,0 +1,62 @@
+{
+  "_comment": "measure-tokens.py の入力。calls は読み取り / preview だけ。'$first_id' は直前の ddrive_asset_list の items[0].id に置換する。before_chars は従来の execute_code 方式の見積もり(実測ではない)。",
+  "scenarios": [
+    {
+      "id": "S1",
+      "name": "SE を 1 件作成 → 検査 → 試聴",
+      "calls": [
+        {"tool": "ddrive_help", "args": {"topic": "rules"}},
+        {"tool": "ddrive_asset_create", "args": {"type": "Se", "name": "McpMeasure", "category": "Test", "preview": true}},
+        {"tool": "ddrive_validate", "args": {"scope": "type:Se"}},
+        {"tool": "ddrive_preview", "args": {"action": "status"}}
+      ],
+      "before_chars": 14000,
+      "rationale": "CLAUDE.md §0 1,500 + docs/03 データ構造節 3,000 + execute_code 要求 3 回(作成・Addressables 登録・試聴) 3x600=1,800 + その応答 3x500=1,500 + compile_status/read_console 1,500 + Validation メニュー実行と Console ログ読み 2,500 + 作成後の再確認 execute_code 要求/応答 2,200 = 14,000"
+    },
+    {
+      "id": "S2",
+      "name": "Validation の Error を 1 件直す",
+      "calls": [
+        {"tool": "ddrive_validate", "args": {}},
+        {"tool": "ddrive_validate", "args": {"detail": "errors", "limit": 5}},
+        {"tool": "ddrive_help", "args": {"topic": "validation:DD-CANVAS-EMBED-ROOT"}},
+        {"tool": "ddrive_validate_fix", "args": {"preview": true, "confirm": true}}
+      ],
+      "before_chars": 12000,
+      "rationale": "Validation メニュー実行 execute_code 要求 600 + read_console 全件の応答 5,000(Warning 含む) + 該当 docs 節(docs/02 Validation 節 + 該当 Validator の説明)3,000 + 修正用 execute_code 要求 700 + 応答 500 + 再実行と再読み 2,200 = 12,000"
+    },
+    {
+      "id": "S3",
+      "name": "Data の値を 3 つ変える",
+      "calls": [
+        {"tool": "ddrive_asset_list", "args": {"type": "Se", "limit": 3}},
+        {"tool": "ddrive_asset_get", "args": {"type": "Se", "id": "$first_id"}},
+        {"tool": "ddrive_asset_set", "args": {"type": "Se", "id": "$first_id", "fields": {"Description": "x", "Volume": 0.8, "Loop": false}, "preview": true}}
+      ],
+      "before_chars": 9000,
+      "rationale": "docs/03 データ構造節 3,000 + 探索用 execute_code 要求 600 + 応答(AssetDatabase 検索結果)1,200 + SerializedObject で全欄ダンプする execute_code 要求 800 + 応答 1,500 + 書き込み execute_code 要求 700 + 応答 300 + 確認の再読み 900 = 9,000"
+    },
+    {
+      "id": "S4",
+      "name": "マイグレーションの確認",
+      "calls": [
+        {"tool": "ddrive_status", "args": {"sections": "migration,version"}},
+        {"tool": "ddrive_migrate", "args": {"mode": "plan", "confirm": true}}
+      ],
+      "before_chars": 7000,
+      "rationale": "docs/42 §7(スキーマ版・マイグレーション)の該当節 3,000 + メニューを探す execute_code 要求 600 + 応答 600 + Plan 実行 execute_code 要求 700 + read_console の出力 2,100 = 7,000"
+    },
+    {
+      "id": "S5",
+      "name": "リリース前チェック",
+      "calls": [
+        {"tool": "ddrive_status", "args": {}},
+        {"tool": "ddrive_compat", "args": {}},
+        {"tool": "ddrive_release_check", "args": {"guard_only": true, "base": "v1.4.1"}},
+        {"tool": "ddrive_forbidden_api", "args": {}}
+      ],
+      "before_chars": 18000,
+      "rationale": "docs/12 §7 リリース手順 4,000 + compile_status/console 2,000 + Compat 差分用 execute_code 要求 600 + 応答 2,500 + check-release.ps1 を Bash で実行した出力(整形済みの全文)5,000 + ForbiddenApiScanner 用 execute_code 要求 600 + 応答 / ログ 3,300 = 18,000"
+    }
+  ]
+}
