@@ -13,6 +13,37 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 破壊なし(このリリース以降の変更はまだありません)
 
+## [1.5.0] - 2026-10-07
+
+> v1.5.0（MINOR、追加のみ）の予定。内容は **D-Drive MCP**: AI エージェントが D-Drive の Editor 機能を MCP ツール `ddrive_*` として直接呼べる（仕様と各ツールの実装メモ = [docs/1002](docs/1002_ddrive_mcp.md)、使い方 = [ProgrammerManual/mcp.html](docs/ProgrammerManual/mcp.html)、人による確認 = [docs/verification/1005](docs/verification/1005_manual_verification_mcp.md)）。
+
+### 追加
+
+- **D-Drive MCP ツール `ddrive_*` 20 個**（Editor 組み込みの isuzu 版 `jp.shiranui-isuzu.unity-mcp` の `[McpTool]` に乗る。新 asmdef `DDrive.Editor.Mcp`、ロジックは持たず既存の Editor サービスを呼ぶ薄いアダプタ）。ID は JSON では 10 進文字列、返り値は `max_chars`（既定 4000）に収まるまで末尾の項目を丸ごと落として `next`（ページ切り）を付ける。
+  - 状態・案内: `ddrive_status`（version/schema・compile・tests・validation・migration・addressables・mcp の 7 セクション）、`ddrive_help`（`rules` / `types` / `menu` / `tool:<name>` / `validation:<code>` の短いカード。カードの正本は `Packages/com.ddrive.core/Editor/Mcp/Cards/`）
+  - Data: `ddrive_asset_list` / `ddrive_asset_get` / `ddrive_asset_create`（作成 + カタログ + Addressables 登録 + 検査件数を 1 回で返す。`preview` あり）/ `ddrive_asset_set`（全欄が書けるときだけ書く、Undo、読み取り専用欄は `read_only_field`、`ChangeNote` に `[mcp] ` を前置。`preview` あり）/ `ddrive_editor_open`。種別ごとの既定の欄の表 `FieldTables`（全 18 種別）と SerializedProperty ⇄ JSON の `SerializedFieldIo`
+  - 依存・削除: `ddrive_asset_usages` / `ddrive_asset_unused`（グラフ未構築は `needsRebuild`）/ `ddrive_asset_delete`（`preview` で分析だけ、実行は参照・コード参照が無いときだけ、`confirm` 必須）
+  - 検査: `ddrive_validate`（scope `all` / `project` / `type:<T>` / `asset:<T>:<id>`、既定は件数と Code 別の表だけ）/ `ddrive_validate_fix`（`FixAction` だけ適用、`confirm` 必須、`preview` で件数確認）/ `ddrive_forbidden_api`
+  - 生成・更新: `ddrive_generate`（`kind` = ids / tuning / addressables / preload / prefabs / deps / icons、`preview` あり）/ `ddrive_migrate`（`plan` / `apply`、`confirm` 必須）/ `ddrive_compat`（互換性スナップショットの差分、removed > 0 で警告）/ `ddrive_compat_update`（`confirm` 必須）/ `ddrive_release_check`（`check-release.ps1` のラッパー）
+  - プレビュー・ビルド: `ddrive_preview`（`action` = open / play / stop / stop_all / sweep / status。確認用シーンを保存ダイアログなしで開く〔未保存シーンがあれば `blocked`〕・Se / Bgm / Vfx / Presentation を実 Manager で再生・孤児プレビューの掃除）/ `ddrive_build_netcheck`（実機確認用 Windows ビルド、同期実行。isuzu が自動でジョブ化）
+  - 共通ガード `McpGuard`（Play Mode 中の書き込みは `play_mode`、書き込み設定 OFF は `write_disabled`、例外は `{error:{code,msg}}` に畳む）と返り値ヘルパー `McpJson`。ツールは 20 個が上限（`McpToolBudgetTests`）
+- **書き込みツールの許可設定 `DDriveProjectSettings.McpAllowWrite`**（既定 OFF。Project Settings > D-Drive > MCP とセットアップウィザード「4. 既定フォルダ・設定の生成」で切り替え。開発リポジトリは `DevRepoSettingsSync` が自動で ON）
+- **ポート競合を起こさない仕組み**: `Tools/Mcp/register-mcp.ps1`（isuzu の接続情報から `claude mcp add` を実行。`-Print` / `-DryRun` / `-ProjectPath`）、`McpPortProbe`（`DDrive.Editor`）/ `McpInstanceInfo`（`DDrive.Editor.Mcp`）でポート・ハッシュ規則を 1 箇所に集約、EditMode `McpPortPolicyTests`（isuzu `McpPortPolicy` と実物突き合わせ・D-Drive と MS2026 でポートが異なる）、ProjectSetupValidator の Info `DD-MCP-FIXED-PORT`（Preferences でポート固定）、`ddrive_status.mcp.fixedPort:true` のとき `warning`
+- **互換性スナップショット `mcp-tools.txt`**（7 つ目。ツールの名前・引数名と型・必須・Destructive・返り値のキー）、`[McpReturns]` 属性、`McpToolsSnapshotBuilder`、`McpToolsSnapshotTests`。[docs/42](docs/42_distribution.md) §5.14 に E-24（`ddrive_*` ツールは追加のみ）・§5.11 に 7 つ目のスナップショットを追記
+- `Tools/Mcp/measure-tokens.py` + `scenarios.json`（MCP のトークン計測。ツール定義と代表 5 シナリオの引数 + 返り値の文字数を測り、[docs/1002](docs/1002_ddrive_mcp.md) §10 に表を書き出す）。`Tools/Release/check-release.ps1` に `-Json` スイッチ（人向けの出力は変更なし）
+- Editor の小さな追加: `AddressablesSync.CountMissingEntries()` / `IsRegistered(Object)` / `IsGuidRegistered(string)`（読み取り専用）
+
+### 互換性
+
+- **破壊なし・追加のみ（MINOR）**。公開 API（`DDrive.Foundation` / `DDrive.Runtime`）・Data のシリアライズ形式・enum・ID/定数名・ContentHash・ネットメッセージ・生成コード・既存の Validation の重さに変更は無い。追加したのは Editor 側だけ: `DDriveProjectSettings` の `_mcpAllowWrite`（既定 false）、新 asmdef `DDrive.Editor.Mcp`（**isuzu 版 MCP v4.2.0 以上があるプロジェクトでだけコンパイルされる**。無いプロジェクトでは何も増えない。`package.json` の `dependencies` には入れない）、`McpPortProbe` / `McpInstanceInfo` / `McpReturns` / `CompatSnapshotPaths.McpTools`、`AddressablesSync` の読み取りメソッド 3 個。
+- **新しいスナップショット `mcp-tools.txt`**（7 つ目。追加のみ）と**新しい Validator Code `DD-MCP-FIXED-PORT`**（Info。追加のみ）。既存のスナップショットは差分なし（更新していない）。`ddrive_*` ツールの名前・引数・返り値キー・`ddrive_help` の topic 名は以後 [docs/42](docs/42_distribution.md) §5.14 **E-24** の契約（追加のみ。削除・改名・型変更は MAJOR）。
+- 持ち込み先で MCP を使うときは `manifest.json` に isuzu v4.2.0 を足し、`pwsh Tools/Mcp/register-mcp.ps1` で登録する（[docs/20](docs/20_mcp_setup.md)）。使わない持ち込み先は何もしなくてよい。
+
+### その他
+
+- **開発リポジトリだけ** Unity MCP を isuzu 版のみにし、CoplayDev 版（`com.coplaydev.unity-mcp` v10.2.0、別プロセスの Python サーバー・固定ポート 8081・`.mcp.json`）を `Packages/manifest.json` から外した（MCP-0、[docs/1002](docs/1002_ddrive_mcp.md) §9 Q-1 のユーザー決定。パッケージ `com.ddrive.core` には関係なく、持ち込み先には影響しない。手順は [docs/20](docs/20_mcp_setup.md)、戻し方は [docs/archive/1003](docs/archive/1003_coplaydev_mcp_setup.md)）
+- docs: 未完了事項の索引 [docs/1001](docs/1001_open_items.md)、v1.5.0 の仕様 [docs/1002](docs/1002_ddrive_mcp.md)、全チケットの一覧 [docs/1004](docs/1004_tasks.md)、人による確認手順 [docs/verification/1005](docs/verification/1005_manual_verification_mcp.md) を追加。[docs/09](docs/09_editor_tools.md) §15「MCP ツール」・[docs/20](docs/20_mcp_setup.md)・[docs/34](docs/34_onboarding.md) §7・`AGENTS.md`・`SKILL.md` に AI エージェント向けの使い方を追記、プログラマーマニュアルに `mcp.html` を追加。新規文書の番号は `10xx` に統一
+
 ## [1.4.1] - 2026-10-07
 
 ### 互換性

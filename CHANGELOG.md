@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.5.0] - 2026-10-07
+
 > v1.5.0（MINOR、追加のみ）の予定。内容は **D-Drive MCP**: AI エージェントが D-Drive の Editor 機能を MCP ツール `ddrive_*` として直接呼べる（仕様と各ツールの実装メモ = [docs/1002](docs/1002_ddrive_mcp.md)、使い方 = [ProgrammerManual/mcp.html](docs/ProgrammerManual/mcp.html)、人による確認 = [docs/verification/1005](docs/verification/1005_manual_verification_mcp.md)）。
 
 ### 追加
