@@ -40,7 +40,7 @@ namespace DDrive.Editor.CanvasTool
 
         private void BuildButtonWireSection()
         {
-            _buttonWireFoldout = new Foldout { text = "ボタンの配線(Buttons)", value = true, style = { marginTop = 8 } };
+            _buttonWireFoldout = new Foldout { text = "ボタンの配線(Buttons)", value = false, style = { marginTop = 8 } }; // 既定は折りたたみ(v1.4.1。配線するときだけ開く)
             _root.Add(_buttonWireFoldout);
             _buttonWireFoldout.Add(new HelpBox(
                 "Prefab 内の UiButton ごとに、押したときの動作(トリガー → アクション)を設定します。埋め込みの子の配線は子の CanvasData に持ちます(「この Canvas を編集」)。親に同じ要素・同じトリガーの配線があれば親が優先されます。",

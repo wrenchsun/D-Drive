@@ -367,7 +367,7 @@ namespace DDrive.Editor.CanvasTool
             bulkRow.Add(new Button(ApplyBulkPresetToButtons) { text = "一括適用: 全ボタンに反映", tooltip = "Prefab 内の全 UiButton の AppearPreset にこのプリセットを設定する" });
             _root.Add(bulkRow);
 
-            _embeddedFoldout = new Foldout { text = "埋め込み Canvas(入れ子の子 Canvas)", value = true, style = { marginTop = 8 } };
+            _embeddedFoldout = new Foldout { text = "埋め込み Canvas(入れ子の子 Canvas)", value = false, style = { marginTop = 8 } }; // 既定は折りたたみ(v1.4.1。使う Canvas だけ開く)
             _root.Add(_embeddedFoldout);
             _embeddedContainer = new VisualElement();
             _embeddedFoldout.Add(_embeddedContainer);

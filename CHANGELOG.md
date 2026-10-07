@@ -11,7 +11,11 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- **破壊なし（PATCH）**。Editor の表示だけの変更で、公開 API・シリアライズ形式・enum・ID/定数名・ContentHash・ネットメッセージ・生成コード・Validation の重さに変更は無い。互換性スナップショットに差分なし。
+
+### 変更
+
+- **Canvas Editor の「埋め込み Canvas(入れ子の子 Canvas)」欄と「ボタンの配線(Buttons)」欄を、既定で折りたたんだ状態にした**（[docs/07](docs/07_canvas_prefab.md) 2026-10-07 追記）。使う Canvas だけ開く。中のグループの開閉記憶は従来どおり。
 
 ### その他
 
