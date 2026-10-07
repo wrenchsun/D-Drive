@@ -61,7 +61,23 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 - **`McpGuard` / `McpToolError`**（`Editor/Mcp/McpGuard.cs`）: ガードは `McpToolError(code, msg)` を投げ、`McpGuard.Run(() => JObject)` が `{"error":{"code":..,"msg":..}}`（msg は 200 文字まで、スタックトレース無し）に畳む。コード一覧: `play_mode`（Play Mode 中の書き込み。読み取りは可）/ `write_disabled`（`McpAllowWrite == false`）/ `read_only_field`（`Id` `SchemaVersion` `ImportSourceGuid` `Version` `UpdatedAt` `Icon`。`AssetDataBase` の実フィールド名で、`Icon.Array...` のようにパスの先頭で判定）/ `invalid_params` / `exception`（上記以外の例外。msg は `<型名>: <本文>`）。`truncated` はエラーではなく、`McpGuard.Truncate(json, maxChars=4000)` が返す `(text, truncated)` を見てツールが返り値に付ける印。
 - **`McpJson`**（`Editor/Mcp/McpJson.cs`）: `Obj`（null・false・空配列を省く。出すときは `McpJson.Keep(value)`）/ `Page`（引数順は `items, cursor, limit, map, maxLimit=200`。`cursor` = 整数オフセットの文字列、`next` は続きがあるときだけ。`limit` 既定 50）/ `Compact`（インデント無し）。
 - **設定の置き場所**: `DDriveProjectSettings.McpAllowWrite`（既定 false、Q-4 (c)）。開発リポジトリでは `DevRepoSettingsSync` が ON にする。UI は Project Settings > D-Drive > MCP（`McpSettingsProvider`）とセットアップウィザード「4. 既定フォルダ・設定の生成」のチェックボックス。
-- `ddrive_status` は version / compile / mcp の 3 セクションのみ（残りは MCP-2）。
+- `ddrive_status` は version / compile / mcp の 3 セクションのみ（残りは MCP-2、下の「実装メモ（MCP-2）」）。
+
+### 実装メモ（2026-10-07、MCP-2）
+
+- **`ddrive_status` の各セクションが読むもの**（どれも「安く・書かずに」読む。全部入りで HTTP 往復 0.2〜0.9 秒）:
+  - `version` = `DDriveVersion.Value` + `schema`（`DDriveSchema.Current`）
+  - `compile` = `{ok}`（`EditorUtility.scriptCompilationFailed`）。`errors`（件数）は**省略**: コンソールの件数は UnityEditor 内部 API（`LogEntries`）でしか取れず、AI は `compile_status` の `errorCount` を見れば足りるため
+  - `tests` = `{last:{mode,passed,failed,inconclusive,at}}`。isuzu の `TestRunnerTools`（internal）が `SessionState["UnityMCP.LastTestRun"]` に保存する JSON のうち `status=completed` のものを読む。無ければ `TestResults/{editmode,playmode}-results.xml` の新しい方のルート要素（`XmlReader` で先頭だけ）。どちらも無ければ省略。**既知の癖**: ドメインリロード（PlayMode 実行後など）を挟むと isuzu 側が `mode` を復元しないため、`mode` が欠けることがある
+  - `validation` = `McpValidationCache`（`Editor/Mcp/McpValidationCache.cs`、SessionState に `{errors,warnings,infos,at}`）。**`ddrive_status` は Validator を走らせない**。`CI.RunValidation` の結果を `McpValidationCache.Record(reports)` で書くのは `ddrive_validate`（MCP-5）の役目。未実行なら `{cached:false}`
+  - `migration` = `{pending:n}`（`DDriveMigrationRunner.PlanProject().TotalCount`）。このプロジェクトでは HTTP 込みで 0.25 秒（本体は十分速い）なので、`HasPendingMigrations()` の bool への縮退は不要だった
+  - `addressables` = `{missing:n}`。`AddressablesSync.CountMissingEntries()`（新規・読み取り専用。`SyncAll` が直す `fixedAssets` と同じ判定: カタログに ID があるのに Addressables 未登録 / address 不一致の Data 数）。Addressables 設定が無ければセクションごと省略
+  - `mcp` = `{writeEnabled, playing, project, port, preferredPort, portMismatch, fixedPort, pid}`。isuzu の記述子 `%LOCALAPPDATA%/UnityMCP/instances/<hash>.json`（ハッシュ = `Application.dataPath` の UTF-8 の SHA256 先頭 8 バイトの小文字 16 進。`register-mcp.ps1` と同じ）を読み、**トークンは読み捨てる**。`fixedPort` = isuzu `McpSettings.instance.httpPort > 0`（公開 API）
+  - 未知の `sections` は**無視**（将来の追加に古いクライアントが耐える。MCP-1 では `invalid_params` だったのを変更）
+- **`ddrive_help`**（`Editor/Mcp/Tools/DDriveHelpTools.cs`）: `rules`（カード）/ `types`（`[AssetIdDefinition]` を反射で集めた「種別 / Data クラス / ID 定数 / ファイル接頭辞」+ `McpGuard.ReadOnlyFields`）/ `menu`（`TypeCache` で `[MenuItem]` を集め `Tools/D-Drive/` 以降のパスだけ。ショートカット指定は落とす）/ `tool:<name>`（`[McpTool]`/`[McpArg]` から生成。必須判定は `Required` または既定値なし）/ `validation:<code>`（カードの `## <CODE>` 節。大小文字無視。`validation` だけなら code 一覧）。未知の topic・tool・code は `invalid_params`（topic 一覧つき）。返り値 `{topic,text,truncated?}`、`max_chars` 既定 4000
+- **カードの正本は `Packages/com.ddrive.core/Editor/Mcp/Cards/{rules,validation}.md`**（Q-10 の変更。§5.4 参照）。`PackageInfo.FindForAssembly(...).resolvedPath` から引くので、埋め込み・git URL（`Library/PackageCache`）のどちらでも読める。`rules.md` は 600 文字以内（テストが固定）。`validation.md` は実在する `DD-*` コード 43 件（Addressables・Setup・Schema・Cutscene・Canvas・Anim・Shake・Haptics・Material・ForbiddenApi）を各 1〜2 行で。**意味と直し方は各 Validator のメッセージ文から取った**（新しい Code を足したらカードにも足す）
+- **Validator の Code の元データ**: 指示では `Tests/Editor/Compat/Snapshots/validator-severity.txt` を「よく出るコード 25 件」の元にする想定だったが、そのスナップショットは `DD-ADDR-CATALOG-MISSING=Error` の 1 行だけ（Code 付き Validator は少数。[42](42_distribution.md) §5.11-8）。そこで `Editor` / `Runtime` のソースにある `code: "DD-…"` の全件を拾った（ContentHash / Spec 系の検査は Code 未設定のためカード対象外）
+- `McpJson.Parse(string)` を追加: `JObject.Parse` は日付形式の文字列を `DateTime` に変換してしまい `at` が壊れるため、`DateParseHandling.None` で読む
 
 ---
 
@@ -154,6 +170,7 @@ AI が消費するトークンは「ツール定義（毎ターン送られる�
 ### 5.4 docs 参照を減らす（AI 向けカード）
 
 - AI が作業前に読む `CLAUDE.md` §0（約 1,500 字）と各設計 doc の該当節（数千字）を、`ddrive_help` の**短いカード**（各 300〜600 字）に置き換える: `rules`（禁止事項 10 行）・`types`（AssetType / ID 接頭辞 / Data クラス名の表）・`validation:<code>`（Code の意味と直し方）・`tool:<name>`（引数と例）・`menu`（メニュー一覧）。
+- **決定（MCP-2）: カードの正本は `Packages/com.ddrive.core/Editor/Mcp/Cards/`**（Q-10 の「`docs/1002_ddrive_mcp/cards/`」から変更。同期の手間をなくし、git URL で入れた持ち込み先でもそのまま読めるため）。以下は当初の方針:
 - カードの正本は `docs/1002_ddrive_mcp/cards/*.md`（この文書の隣。P-9 の同梱物の同期で `Documentation~/Mcp/cards/` へ）。**docs と二重管理にしない**: カードは「docs のどの節の要約か」を先頭行に書き、docs 側を変えたらカードも同じ PR で直す（[12](12_review.md) §3 に 1 行足す）。
 - `.claude/skills/ddrive-agent-workflow/SKILL.md` に「MCP が繋がっているときは `ddrive_help rules` と `ddrive_status` から始める。`execute_code` で D-Drive のサービスを直接呼ぶのは、ツールに無い操作だけ」を追記する。
 

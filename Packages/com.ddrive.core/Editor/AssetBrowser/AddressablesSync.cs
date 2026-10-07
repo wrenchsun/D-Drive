@@ -153,6 +153,51 @@ namespace DDrive.Editor.AssetBrowser
             return result;
         }
 
+        // [1002_ddrive_mcp.md] §4.1 MCP-2(2026-10-07) — SyncAll と同じ判定の「読み取り専用」版。
+        // 何も書かずに「カタログにあるのに Addressables 未登録 / address 不一致の Data」の件数だけ数える
+        // (ddrive_status の addressables.missing。SyncAll が直す fixedAssets と同じ数)。設定が無ければ -1。
+        public static int CountMissingEntries()
+        {
+            if (!IsAvailable)
+            {
+                return -1;
+            }
+
+            var byId = new Dictionary<ulong, string>();
+            foreach (var catalog in FindCatalogs(includeTestFolders: false))
+            {
+                var entries = catalog.Entries;
+                for (var i = 0; i < entries.Count; i++)
+                {
+                    byId[entries[i].Id] = entries[i].Address;
+                }
+            }
+
+            var missing = 0;
+            foreach (var guid in AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path.Contains("/Tests/"))
+                {
+                    continue;
+                }
+
+                var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
+                if (asset == null || asset.Id == 0 || !byId.TryGetValue(asset.Id, out var address))
+                {
+                    continue;
+                }
+
+                var entry = FindEntry(asset);
+                if (entry == null || entry.address != address)
+                {
+                    missing++;
+                }
+            }
+
+            return missing;
+        }
+
         [MenuItem(DDriveMenu.Generate + "Addressables 登録を同期(カタログ → グループ)")]
         public static void SyncAllMenuItem() => SyncAll(log: true);
 
