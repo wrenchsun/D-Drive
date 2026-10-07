@@ -29,6 +29,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_validate",
             "D-Drive の検査(Validation)を実行して要約を返す。既定は件数と Code 別の表だけ。指摘の本文は detail=errors/all で",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "diagnostics")]
         [McpReturns("scope", "errors", "warnings", "infos", "byCode", "fixable", "items", "next", "truncated")]
         public static JObject Validate(
@@ -267,6 +268,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_forbidden_api",
             "禁止 API の静的検査。規則別の件数。detail=all で file:line も",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "diagnostics")]
         [McpReturns("root", "violations", "notices", "byRule", "items", "next", "truncated")]
         public static JObject ForbiddenApi(
@@ -610,7 +612,7 @@ namespace DDrive.Editor.Mcp.Tools
             if (mode == DetailMode.Summary)
             {
                 // byCode が極端に多く max_chars を超えるときは、件数だけに縮めて印を付ける(黙って切らない)。
-                var limitChars = maxChars <= 0 ? McpGuard.DefaultMaxChars : maxChars;
+                var limitChars = McpGuard.ClampMaxChars(maxChars);
                 if (McpJson.Compact(head).Length <= limitChars)
                 {
                     return head;
@@ -659,10 +661,7 @@ namespace DDrive.Editor.Mcp.Tools
         public static JObject Fit<T>(
             JObject head, IReadOnlyList<T> rows, string cursor, int limit, int maxChars, Func<T, JObject> map)
         {
-            if (maxChars <= 0)
-            {
-                maxChars = McpGuard.DefaultMaxChars;
-            }
+            maxChars = McpGuard.ClampMaxChars(maxChars);
 
             var offset = 0;
             if (!string.IsNullOrEmpty(cursor) && (!int.TryParse(cursor, out offset) || offset < 0))

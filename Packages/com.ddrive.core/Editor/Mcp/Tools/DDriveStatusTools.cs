@@ -41,6 +41,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_status",
             "D-Drive の状態を 1 回で返す(compile/tests/validation/mcp 等)。sections で絞る",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "diagnostics")]
         [McpReturns("version", "schema", "compile", "tests", "validation", "migration", "addressables", "mcp")]
         public static JObject Status(

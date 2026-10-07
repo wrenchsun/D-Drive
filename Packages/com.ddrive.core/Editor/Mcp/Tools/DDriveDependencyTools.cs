@@ -41,6 +41,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_asset_usages",
             "Data を参照している場所(Data / Prefab / Scene / Timeline)の一覧。削除前の確認に",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "diagnostics")]
         [McpReturns("count", "usages", "next", "truncated", "needsRebuild", "hint")]
         public static JObject Usages(
@@ -109,6 +110,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_asset_unused",
             "どこからも参照されていない Data の一覧(削除候補)。archived は Archived タグ付き",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "diagnostics")]
         [McpReturns("count", "items", "next", "truncated", "needsRebuild", "hint")]
         public static JObject Unused(

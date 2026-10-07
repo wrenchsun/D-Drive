@@ -11,7 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 破壊なし(開発リポジトリの isuzu を v4.4.2 に上げた。`DDrive.Editor.Mcp` の Version Defines の最小版は 4.2.0 のまま。`mcp-tools.txt` は無変更)
+
+### 変更
+
+- **MCP: `max_chars` の上限を 16000 に**(AI 向けの挙動の変更): `ddrive_asset_list` / `ddrive_asset_get` / `ddrive_asset_usages` / `ddrive_asset_unused` / `ddrive_help` / `ddrive_validate` / `ddrive_forbidden_api` の `max_chars` は 16000 を超えると 16000 に丸める(既定 4000 は変えない)。isuzu v4.3.0 から返り値が `MaxResultSizeChars` を超えると `isError` になるため、これらと `ddrive_status` の `MaxResultSizeChars` を 16000 に明示した
+- 開発リポジトリの isuzu MCP を v4.2.0 → v4.4.2 に更新(MCP-13)。`console_read_logs` はスタックトレースを `stack_trace:true` のときだけ返す(SKILL.md・docs/20 を更新)
 
 ## [1.5.0] - 2026-10-07
 

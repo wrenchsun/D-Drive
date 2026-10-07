@@ -8,13 +8,13 @@ AI エージェント（Claude Code 等）が **起動中の Unity Editor を直
 
 ```
 [Claude Code] ──streamable HTTP + Bearer トークン── [Unity Editor 内の MCP サーバー(jp.shiranui-isuzu.unity-mcp)]
-   各自の ~/.claude.json(claude mcp add)                    Packages/manifest.json(リポジトリ同梱、タグ固定 v4.2.0)
+   各自の ~/.claude.json(claude mcp add)                    Packages/manifest.json(リポジトリ同梱、タグ固定 v4.4.2)
    ↑ 接続先は %LOCALAPPDATA%\UnityMCP\instances\<hash>.json から読む(ポートはプロジェクトごとに自動)
 ```
 
 | 部品 | 実体 | バージョン | 管理場所 |
 |---|---|---|---|
-| MCP サーバー（Editor 組み込み） | `jp.shiranui-isuzu.unity-mcp`（[isuzu-shiranui/UnityMCP](https://github.com/isuzu-shiranui/UnityMCP)、MIT） | **v4.2.0**（タグ固定） | `Packages/manifest.json`（`?path=jp.shiranui-isuzu.unity-mcp#v4.2.0`） |
+| MCP サーバー（Editor 組み込み） | `jp.shiranui-isuzu.unity-mcp`（[isuzu-shiranui/UnityMCP](https://github.com/isuzu-shiranui/UnityMCP)、MIT） | **v4.4.2**（タグ固定） | `Packages/manifest.json`（`?path=jp.shiranui-isuzu.unity-mcp#v4.4.2`） |
 | 接続情報（ポート・トークン） | `%LOCALAPPDATA%\UnityMCP\instances\<hash>.json`、`tokens\<hash>.token` | — | 各自の PC（Editor が起動時に書く。**リポジトリには入れない**） |
 | クライアント登録 | `claude mcp add --transport http isuzu-unity <mcpUrl> --header "Authorization: Bearer <token>"` | — | 各自の `~/.claude.json`（プロジェクト配下）。`.mcp.json` は置かない（トークンが入るため） |
 
@@ -76,7 +76,7 @@ AI エージェント（Claude Code 等）が **起動中の Unity Editor を直
 | 用途 | ツール |
 |---|---|
 | コンパイル | `compile_request` → `compile_status`（`succeeded` / `errorCount` / `messages`） |
-| コンソール | `console_read_logs`（type=error 等）/ `console_get_count` / `console_clear` |
+| コンソール | `console_read_logs`（type=error 等。スタックトレースは既定で付かない。要るときだけ `stack_trace:true`、v4.3.0 から）/ `console_get_count` / `console_clear` |
 | テスト | `test_run`（mode=edit / play、filter=正規表現）→ `test_results`（失敗の message と stackTrace を含む。ポーリング可） |
 | C# 実行 | `execute_code`（Roslyn。System / Linq / UnityEngine / UnityEditor は import 済み、`using` は書けない。長い処理は `job_status` で結果を取る） |
 | メニュー | `menu_execute` |
@@ -95,7 +95,12 @@ Unity の再起動でトークンが変わると、開いているセッショ�
 2. Unity を開き直す（解決後にスクリプトの再コンパイルが走らないことがある。その場合は `Client.Resolve()` + `RequestScriptCompilation` を明示、2026-09-10 の実測）
 3. 本ドキュメントと [CLAUDE.md](../CLAUDE.md) §4 のバージョン表記を更新
 4. v1.5.0 以降は、`[McpTool]` の発見規則・ポート規則が変わっていないかを `McpPortPolicyTests` と `mcp-tools.txt` のスナップショットで確認する（[1002](1002_ddrive_mcp.md) §6.3・§7）
-5. 同一 PC で複数プロジェクト（MS2026 等）を運用している場合も、サーバーはプロジェクトごとに別なので揃える必要は無い（揃えた方が運用は楽）
+5. **2026-10-07: v4.2.0 → v4.4.2（MCP-13）。確認した点**:
+   - `McpPortPolicyTests` 9/9（isuzu `McpPortPolicy.Derive` との反射比較 + ハッシュ `a26b71fdfd662823`）と `McpToolsSnapshotTests` 3/3 が変更なしで green。`tools/list` に `ddrive_*` ちょうど 20 個。`mcp-tools.txt` は無変更
+   - `[McpTool]` の属性・予約引数（`confirm` / `dry_run` / `target`）・記述子 JSON・`McpSettings.httpPort`・テスト結果の SessionState（`UnityMCP.LastTestRun`、`total` / `ranAny` が増えただけ）は D-Drive の使い方のまま
+   - 4.3.0 の破壊的変更: 返り値が `[McpTool]` の `MaxResultSizeChars` を超えると切り詰めず `isError`（既定 0 = 無制限なので既存の `ddrive_*` は当たらないが、`max_chars` は AI が大きくできるため **上限を `McpGuard.MaxMaxChars` = 16000 に丸め、`max_chars` を受けるツールと `ddrive_status` の `MaxResultSizeChars` も 16000 に明示**した）。宣言していない引数はエラー。`console_read_logs` は `stack_trace:true` が無いとスタックを返さない
+   - `DDrive.Editor.Mcp` の Version Defines の最小版は `4.2.0` のまま（4.4 でしか無い API は使っていない）
+6. 同一 PC で複数プロジェクト（MS2026 等）を運用している場合も、サーバーはプロジェクトごとに別なので揃える必要は無い（揃えた方が運用は楽）
 
 ---
 
