@@ -53,6 +53,7 @@ namespace DDrive.Editor.Mcp.Tools
             UndoGroup = "D-Drive MCP: 再生成",
             Group = "build",
             Examples = new[] { "{\"kind\":\"ids\",\"preview\":true}", "{\"kind\":\"preload\",\"scene\":\"all\"}" })]
+        [McpReturns("target", "ok", "preview", "changed", "summary", "needsRebuild", "hint")]
         public static JObject Generate(
             [McpArg("kind", "ids / tuning / addressables / preload / prefabs / deps / icons(isuzu が target を予約しているので kind)", Required = true)]
             string kind,

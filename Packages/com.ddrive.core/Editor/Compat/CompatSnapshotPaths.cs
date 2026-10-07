@@ -13,6 +13,8 @@ namespace DDrive.Editor.Compat
         public const string Enums = Root + "/enums.txt";
         public const string NetMessages = Root + "/net-messages.txt";
         public const string EditorContract = Root + "/editor-contract.txt";
+        // [1002_ddrive_mcp.md] §7 MCP-9: ddrive_* ツールの契約(DDrive.Editor.Mcp が isuzu 版 Unity MCP 導入時だけ有効)。
+        public const string McpTools = Root + "/mcp-tools.txt";
 
         // 一時フィクスチャ依存のゴールデン(メニューでは更新できず、環境変数 DDRIVE_UPDATE_COMPAT_SNAPSHOTS=1
         // でテストを再実行して更新する。CompatSnapshotMenu の doc コメント参照)。

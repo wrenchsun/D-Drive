@@ -105,9 +105,9 @@ namespace DDrive.Tests.Editor.Mcp
         }
 
         [Test]
-        public void Snapshots_AreTheSixMenuUpdatedKinds()
+        public void Snapshots_AreTheSevenMenuUpdatedKinds()
         {
-            Assert.AreEqual(6, DDriveCompatTools.Snapshots.Count);
+            Assert.AreEqual(7, DDriveCompatTools.Snapshots.Count);
         }
 
         // この assert はブランチが互換性を保っていることの実検査(removed 行が出たら MAJOR の疑い)。

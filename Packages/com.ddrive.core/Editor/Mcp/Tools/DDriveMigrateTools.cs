@@ -41,6 +41,7 @@ namespace DDrive.Editor.Mcp.Tools
             Destructive = true,
             UndoGroup = "D-Drive MCP: マイグレーション",
             Group = "build")]
+        [McpReturns("pending", "count", "applied", "failed", "after", "warnings", "log")]
         public static JObject Migrate(
             [McpArg("mode", "plan(既定。読み取りだけ) / apply(適用。書き込み許可が要る)")]
             string mode = null)

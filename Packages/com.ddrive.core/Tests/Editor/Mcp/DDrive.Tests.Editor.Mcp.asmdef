@@ -6,6 +6,7 @@
         "DDrive.Runtime",
         "DDrive.Editor",
         "DDrive.Editor.Mcp",
+        "DDrive.Tests.Editor",
         "UnityMCP.Editor",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"

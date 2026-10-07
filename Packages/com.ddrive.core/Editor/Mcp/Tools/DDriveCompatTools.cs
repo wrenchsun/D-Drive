@@ -10,7 +10,7 @@ using UnityMCP.Editor.Core.Attributes;
 namespace DDrive.Editor.Mcp.Tools
 {
     // [1002_ddrive_mcp.md] §4.3 MCP-6(2026-10-07) — ddrive_compat(読み取り専用の差分)/ ddrive_compat_update(Destructive)。
-    // 差分は Tests/Editor/Compat/*Tests.cs と同じビルダー(CompatSnapshotMenu.UpdateAll が書くのと同じ 6 種)で現在の文字列を作り、
+    // 差分は Tests/Editor/Compat/*Tests.cs と同じビルダー(CompatSnapshotMenu.UpdateAll が書くのと同じ 7 種)で現在の文字列を作り、
     // 保存済みファイルと行集合で比べる。removed > 0 は互換性違反の疑い(MAJOR、docs/42 §5.12)。
     // 一時フィクスチャ依存の 2 種(tuning-codegen / validator-severity)はテスト側でしか作れないので対象外。
     public static class DDriveCompatTools
@@ -31,7 +31,7 @@ namespace DDrive.Editor.Mcp.Tools
             }
         }
 
-        // CompatSnapshotMenu.UpdateAll と同じ 6 種(順序も同じ)。
+        // CompatSnapshotMenu.UpdateAll と同じ 7 種(順序も同じ。7 つ目 mcp-tools は MCP-9)。
         public static IReadOnlyList<Snapshot> Snapshots { get; } = new List<Snapshot>
         {
             new Snapshot("public-api-DDrive.Foundation", CompatSnapshotPaths.PublicApiFoundation, () => PublicApiSnapshotBuilder.Build("DDrive.Foundation")),
@@ -40,6 +40,7 @@ namespace DDrive.Editor.Mcp.Tools
             new Snapshot("enums", CompatSnapshotPaths.Enums, SerializedEnumSnapshotBuilder.Build),
             new Snapshot("net-messages", CompatSnapshotPaths.NetMessages, NetMessageSnapshotBuilder.Build),
             new Snapshot("editor-contract", CompatSnapshotPaths.EditorContract, EditorContractSnapshotBuilder.Build),
+            new Snapshot("mcp-tools", CompatSnapshotPaths.McpTools, McpToolsSnapshotBuilder.Build),
         };
 
         public const string RemovedWarning = "removed 行は互換性違反の疑い(MAJOR。docs/42 §5.12)。意図した変更でなければ戻す";
@@ -58,6 +59,7 @@ namespace DDrive.Editor.Mcp.Tools
             "互換性スナップショットと現在のコードの差分(added/removed)。読み取り専用",
             Idempotency = McpIdempotency.Safe,
             Group = "diagnostics")]
+        [McpReturns("ok", "changed", "warning")]
         public static JObject Compat()
         {
             return McpGuard.Run(() => DiffJson(DiffAll()));
@@ -68,6 +70,7 @@ namespace DDrive.Editor.Mcp.Tools
             "互換性スナップショットを現在のコードで上書き(意図した追加のときだけ)",
             Destructive = true,
             Group = "build")]
+        [McpReturns("updated", "hint", "warning")]
         public static JObject CompatUpdate()
         {
             return McpGuard.Run(() =>

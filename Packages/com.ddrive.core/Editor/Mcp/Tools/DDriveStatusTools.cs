@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
 using System.Xml;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Migration;
@@ -44,6 +42,7 @@ namespace DDrive.Editor.Mcp.Tools
             "D-Drive の状態を 1 回で返す(compile/tests/validation/mcp 等)。sections で絞る",
             Idempotency = McpIdempotency.Safe,
             Group = "diagnostics")]
+        [McpReturns("version", "schema", "compile", "tests", "validation", "migration", "addressables", "mcp")]
         public static JObject Status(
             [McpArg("sections", "カンマ区切り。省略で全部(version,compile,tests,…)")]
             string sections = null)
@@ -224,9 +223,8 @@ namespace DDrive.Editor.Mcp.Tools
 
         private static JObject BuildMcpSection()
         {
-            var descriptor = ReadDescriptor();
-            var preferred = (int?)descriptor?["preferredPort"];
-            var port = (int?)descriptor?["port"];
+            McpInstanceInfo.TryReadDescriptor(
+                Application.dataPath, out var port, out var preferred, out var portMismatch, out var pid, out var projectName);
             var fixedPort = false;
             try
             {
@@ -237,49 +235,25 @@ namespace DDrive.Editor.Mcp.Tools
                 // isuzu の設定が読めなければ fixedPort は出さない。
             }
 
-            return McpJson.Obj(
+            var section = McpJson.Obj(
                 ("writeEnabled", McpJson.Keep(DDriveProjectSettings.instance.McpAllowWrite)),
                 ("playing", McpGuard.IsPlaying),
-                ("project", (string)descriptor?["projectName"] ?? Application.productName),
+                ("project", projectName ?? Application.productName),
                 ("port", port),
                 ("preferredPort", preferred),
-                ("portMismatch", port.HasValue && preferred.HasValue && port.Value != preferred.Value),
+                ("portMismatch", portMismatch),
                 ("fixedPort", fixedPort),
-                ("pid", (int?)descriptor?["pid"]));
-        }
-
-        // この Editor の記述子を読む(トークンは返り値に入れない)。ハッシュ規則は Tools/Mcp/register-mcp.ps1 と同じ。
-        private static JObject ReadDescriptor()
-        {
-            try
+                ("pid", pid));
+            if (fixedPort)
             {
-                var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                if (string.IsNullOrEmpty(root))
-                {
-                    root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
-                }
-
-                var path = Path.Combine(root, "UnityMCP", "instances", HashDataPath(Application.dataPath) + ".json");
-                return File.Exists(path) ? JObject.Parse(File.ReadAllText(path)) : null;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-        }
-
-        private static string HashDataPath(string dataPath)
-        {
-            using var sha = SHA256.Create();
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(dataPath ?? string.Empty));
-            var sb = new StringBuilder(16);
-            for (var i = 0; i < 8; i++)
-            {
-                sb.Append(bytes[i].ToString("x2"));
+                // [1002] §6.1 (c): 固定すると他プロジェクト・他アプリのポートと衝突しうる。ProjectSetupValidator の DD-MCP-FIXED-PORT と対。
+                section["warning"] = FixedPortWarning;
             }
 
-            return sb.ToString();
+            return section;
         }
+
+        public const string FixedPortWarning = "ポート固定は衝突の元";
 
         private static string ProjectRoot() => Path.GetDirectoryName(Application.dataPath);
     }

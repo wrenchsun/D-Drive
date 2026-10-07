@@ -34,6 +34,7 @@ namespace DDrive.Editor.Mcp.Tools
             "種別ごとの Data 一覧。fields で返す欄を選ぶ(既定 id,name,category)",
             Idempotency = McpIdempotency.Safe,
             Group = "authoring")]
+        [McpReturns("total", "items", "next", "truncated")]
         public static JObject List(
             [McpArg("type", TypeArgText, Required = true)]
             string type,
@@ -181,6 +182,7 @@ namespace DDrive.Editor.Mcp.Tools
             "Data 1 件の欄の値と検査件数を返す。fields 省略=主要欄、*=全欄",
             Idempotency = McpIdempotency.Safe,
             Group = "authoring")]
+        [McpReturns("id", "name", "path", "fields", "validation", "truncated", "omitted")]
         public static JObject Get(
             [McpArg("type", TypeArgText, Required = true)]
             string type,
@@ -288,6 +290,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_asset_create",
             "Data を新規作成(カタログ+Addressables 登録・検査まで 1 回)。preview=true で作らず確認",
             Group = "authoring")]
+        [McpReturns("id", "path", "addressable", "validation", "wouldCreate", "identifier")]
         public static JObject Create(
             [McpArg("type", TypeArgText, Required = true)]
             string type,
@@ -408,6 +411,7 @@ namespace DDrive.Editor.Mcp.Tools
             "Data の欄を書き換える(Undo 可)。読み取り専用欄は拒否。preview=true で差分だけ",
             UndoGroup = UndoName,
             Group = "authoring")]
+        [McpReturns("changed", "validation", "wouldChange")]
         public static JObject Set(
             [McpArg("type", TypeArgText, Required = true)]
             string type,
