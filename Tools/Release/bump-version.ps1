@@ -287,7 +287,7 @@ if ($Tag) {
         Write-Host '--- git commit(バージョン更新 + 同梱物の同期) ---'
         # [47] P1-7 — タグが指すコミットに版の更新を含めるため、-Tag のときは明示パスでコミットしてから
         # タグを打つ(git add -A/-. は使わず、このスクリプトが実際に書き換えた/同期したパスだけを add する)。
-        $addPaths = @($packageJsonPath, $versionCsPath, $changelogPath, $designerDst, $programmerDst, $migrationsDst, $consumerGuideDst, $changelogDst) |
+        $addPaths = @($packageJsonPath, $versionCsPath, $changelogPath, $designerDst, $programmerDst, $migrationsDst, $consumerGuideDst, $mcpToolsDst, $changelogDst) |
             Where-Object { Test-Path -LiteralPath $_ }
 
         if ($addPaths.Count -gt 0) {
