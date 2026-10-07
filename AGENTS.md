@@ -38,7 +38,7 @@ Tools/SpecWeb/                 発注ツール(Google Apps Script、clasp 管理
 
 1. 関連する `docs/0X_*.md` と既存コード（似た種別の実装）を grep してから書く。重複実装が最大の事故要因
 2. 実装 → `docs/12_review.md` §3 のチェックリストで自己レビュー
-3. コンパイル・テスト確認: Unity MCP（isuzu-unity 優先、無ければ CoplayDev）が繋がっていれば `read_console`/コンソール確認でエラー 0、テストを EditMode と PlayMode の両方で green にする。**繋がっていなければ「未検証」と明示する**（Unity を操作した/確認したと嘘をつかない）
+3. コンパイル・テスト確認: Unity MCP（`isuzu-unity`。2026-10-07 から isuzu 版のみ）が繋がっていれば `compile_status`/`console_read_logs` でエラー 0、テストを EditMode と PlayMode の両方で green にする。**繋がっていなければ「未検証」と明示する**（Unity を操作した/確認したと嘘をつかない）
 4. 公開 API / データ構造 / エディタ機能を変えたら、対応する `docs/` を同じ PR で更新する（変更履歴は該当節に日付付きで追記する慣習）
 5. 新しい `AssetType` を追加する場合の手順は `.claude/skills/ddrive-agent-workflow/references/new-asset-type-checklist.md` を参照（enum 末尾追加のみ・`[AssetIdDefinition]` 属性で ID 生成が自動化される・`AssetNamingService`/`AssetCreationService` への switch 追加・Validator は `IValidator` を実装するだけで自動検出される、等）
 

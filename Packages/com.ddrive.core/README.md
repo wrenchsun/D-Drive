@@ -86,7 +86,7 @@ Audio.PlaySe(SEID.X);
 | レジストリ配布（`package.json` で自動解決） | `com.unity.addressables` 2.3.1 / `com.unity.inputsystem` 1.19.0 / `com.unity.nuget.newtonsoft-json` 3.2.1 / `com.unity.render-pipelines.universal` 17.3.0 / `com.unity.timeline` 1.8.12 / `com.unity.ugui` 2.0.0 | Package Manager が自動解決する。URP と Timeline は `DDrive.Runtime` の必須依存（ゲーム実行時にも必要） |
 | git 配布（手順 1 で `manifest.json` にまとめて追加する） | `com.cysharp.unitask`（`#2.5.11`）/ `com.cysharp.r3`（`#1.3.1`）+ scoped registry `org.nuget.r3`（`https://unitynuget-registry.openupm.com`） | `package.json` の `dependencies` には書けない種類の依存のため、手順 1 の manifest 断片に含めて最初から追加する。書き忘れた場合はセットアップウィザードの「1. 依存パッケージ」が不足を検出し「追加」ボタンで導入できる(事後の保険) |
 | 任意（NGO を使う場合のみ。別 asmdef `DDrive.Runtime.Ngo`） | `com.unity.netcode.gameobjects` 2.13.2 | 導入すると `versionDefines` の `DDRIVE_NGO` が自動で有効になり、`DDrive.Runtime.Ngo`(NGO 連携コード一式)がコンパイルされて Bootstrap がそれを使う。**導入しなくても D-Drive 本体(`DDrive.Foundation`/`DDrive.Runtime`/`DDrive.Editor`)のコンパイルには一切影響しない**(未導入時は `DDrive.Runtime.Ngo` アセンブリごとコンパイル対象外になるだけ)。導入しない場合は D-Drive はシングルプレイ相当（`LocalLoopbackBridge`）で動く。NGO を使う場合は Host/Client 全員が同じ版を導入すること |
-| 開発専用（持ち込み先には不要） | Unity MCP（`com.coplaydev.unity-mcp` / `jp.shiranui-isuzu.unity-mcp`）、テスト用パッケージ | パッケージには含まれない。**Unity の操作（コンパイル確認・テスト実行等）は持ち込み先自身の MCP 構成に従う** |
+| 開発専用（持ち込み先には不要） | Unity MCP（`jp.shiranui-isuzu.unity-mcp`。2026-10-07 以降は isuzu 版のみ）、テスト用パッケージ | パッケージには含まれない。**Unity の操作（コンパイル確認・テスト実行等）は持ち込み先自身の MCP 構成に従う** |
 
 ## 既知の制約
 

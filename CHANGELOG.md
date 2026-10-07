@@ -11,7 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 破壊なし。開発リポジトリの MCP 構成の変更のみ（`com.ddrive.core` のコード・データ形式・公開 API・Validation に変更なし）
+
+### その他
+
+- 開発リポジトリの Unity MCP を isuzu 版（`jp.shiranui-isuzu.unity-mcp` v4.2.0、Editor 組み込み）のみにし、CoplayDev 版（`com.coplaydev.unity-mcp` v10.2.0、別プロセスの Python サーバー・固定ポート 8081・`.mcp.json`）を `Packages/manifest.json` から外した（MCP-0、[docs/1002](docs/1002_ddrive_mcp.md) §9 Q-1 のユーザー決定。手順は [docs/20](docs/20_mcp_setup.md)、戻し方は [docs/archive/1003](docs/archive/1003_coplaydev_mcp_setup.md)）
+- docs: 未完了事項の索引 [docs/1001](docs/1001_open_items.md)、v1.5.0（D-Drive MCP）の仕様 [docs/1002](docs/1002_ddrive_mcp.md) を追加。新規文書の番号は `10xx` に統一
 
 ## [1.4.1] - 2026-10-07
 

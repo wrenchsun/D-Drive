@@ -1,6 +1,6 @@
 ---
 name: ddrive-agent-workflow
-description: D-Drive（Unity 6 プロジェクト）でコード・データ・ドキュメントを変更するときに読む運用手順。新しい AssetType（種別）を追加する、Unity MCP（isuzu-unity / CoplayDev）でコンパイル・テストを確認する、git worktree で並行作業する、コミット・PR・docs 更新の慣習に従う、Tools/SpecWeb（発注ツール、GAS）を検証する――のいずれかを行うときに使う。D-Drive のリポジトリでの実装作業に着手する前に必ず参照すること。
+description: D-Drive（Unity 6 プロジェクト）でコード・データ・ドキュメントを変更するときに読む運用手順。新しい AssetType（種別）を追加する、Unity MCP（isuzu-unity）でコンパイル・テストを確認する、git worktree で並行作業する、コミット・PR・docs 更新の慣習に従う、Tools/SpecWeb（発注ツール、GAS）を検証する――のいずれかを行うときに使う。D-Drive のリポジトリでの実装作業に着手する前に必ず参照すること。
 ---
 
 # D-Drive エージェント作業手順
@@ -39,7 +39,7 @@ D-Drive の設計の真実は `docs/` にあり、TL;DR の禁止事項は `CLAU
 
 ## 2. 検証ループ（Unity MCP）
 
-D-Drive には isuzu-unity（組み込み、ポート 27725、`mcp__isuzu-unity__*`）と CoplayDev（別プロセス、HTTP）の 2 系統がある。**両方繋がっているときは isuzu-unity を優先する**（[`../../docs/20_mcp_setup.md`](../../docs/20_mcp_setup.md) §4）。
+D-Drive の MCP は isuzu-unity（Editor 組み込み、ポートはプロジェクトパスから自動〔D-Drive は 27725〕、`mcp__isuzu-unity__*`）**のみ**（2026-10-07 に CoplayDev 版を廃止。[`../../docs/20_mcp_setup.md`](../../docs/20_mcp_setup.md)）。ポートを直書きせず、接続先は `%LOCALAPPDATA%/UnityMCP/instances/<hash>.json` から読む。
 
 ### 基本ループ
 

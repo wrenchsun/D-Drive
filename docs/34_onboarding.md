@@ -12,7 +12,7 @@
 |---|---|
 | Unity Editor | **6000.3.13f1**（Unity Hub からこのバージョンだけを入れる。勝手に上げない。[CLAUDE.md] §1） |
 | Git | PATH に必要（Package Manager の git URL 解決・Unity MCP 導入に使う） |
-| `uv` / `uvx` | CoplayDev 版 Unity MCP サーバーの起動に使う（<https://docs.astral.sh/uv/>）。isuzu-unity 版（組み込み）を使うだけなら必須ではない |
+| `uv` / `uvx` | 不要（2026-10-07 に CoplayDev 版 MCP を廃止。MCP は Editor 組み込みの isuzu 版のみ、[20](20_mcp_setup.md)） |
 | Node.js | `Tools/SpecWeb`（発注ツール、Google Apps Script）のロジックをローカルテストするときのみ必要。バージョンはリポジトリの `.nvmrc`/CI 設定に無ければ LTS で問題ない |
 | clasp | `Tools/SpecWeb` を実際に Apps Script へデプロイする（`push.cmd`）ときのみ必要。**通常のゲーム開発作業では不要**（発注ツールの改修を担当する人だけ） |
 
