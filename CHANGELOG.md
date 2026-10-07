@@ -13,6 +13,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - MCP-1: `DDrive.Editor.Mcp` asmdef（Version Defines `DDRIVE_UNITY_MCP`）、共通ガード `McpGuard`、返り値ヘルパー `McpJson`、最小の `ddrive_status`。MCP の書き込みツールの許可設定 `McpAllowWrite`（既定 OFF、Project Settings > D-Drive > MCP / セットアップウィザード。開発リポジトリは自動 ON）（[docs/1002](docs/1002_ddrive_mcp.md) §3）
 - MCP-2: `ddrive_status` を完成（version/schema・compile・tests・validation〔`McpValidationCache`〕・migration・addressables・mcp の 7 セクション）、`ddrive_help`（`rules` / `types` / `menu` / `tool:<name>` / `validation:<code>` の短いカード）。カードの正本は `Packages/com.ddrive.core/Editor/Mcp/Cards/`（Q-10 を変更）。`AddressablesSync.CountMissingEntries()`（読み取り専用の件数）、`McpJson.Parse`（日付文字列を DateTime にしない読み込み）（[docs/1002](docs/1002_ddrive_mcp.md) §4.1・§5.4）
+- MCP-5: `ddrive_validate`（scope `all` / `project` / `type:<T>` / `asset:<T>:<id>`、既定は件数と Code 別の表だけ、`all` で `ddrive_status` の検査キャッシュを更新）、`ddrive_validate_fix`（全体の指摘の `FixAction` だけ適用、`confirm` 必須、`preview` で件数確認）、`ddrive_forbidden_api`（規則別の件数 + file:line）。返り値は `max_chars` に収まるまで末尾の項目を丸ごと落として `next` を付ける（[docs/1002](docs/1002_ddrive_mcp.md) §4.3・§5.2）
 
 ### 互換性
 
