@@ -89,3 +89,5 @@ Data の配置フォルダ・ファイル名はツールが決めるものです
 ## 6. Unity の操作について
 
 Unity Editor の操作（コンパイル確認・テスト実行等）は、このプロジェクト自身の MCP 構成に従ってください。D-Drive 独自の MCP セットアップはありません。
+
+**v1.5.0 以降**: このプロジェクトが Editor 組み込みの Unity MCP サーバー `jp.shiranui-isuzu.unity-mcp`（v4.2.0 以上）を `manifest.json` に入れている場合だけ、D-Drive のツール群 `ddrive_*`（20 個。状態・案内・Data の一覧/取得/作成/変更・使用箇所/未使用/削除・検査・生成/マイグレーション/互換/リリース前チェック・プレビュー/ビルド）が自動で使えます。最初に `ddrive_help topic=rules` と `ddrive_status` を呼び、D-Drive の操作は `execute_code` より `ddrive_*` を優先してください。書き込み系は Project Settings > D-Drive > MCP の「書き込みを許可」が ON のときだけ動き（既定 OFF。セットアップウィザードで確認）、Destructive なツールは `confirm:true` が要ります。接続の登録は `Tools~/Mcp/register-mcp.ps1`。詳細は `Documentation~/ProgrammerManual/mcp.html`。

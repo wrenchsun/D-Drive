@@ -29,7 +29,7 @@
 | MCP-9 | ✅ 2026-10-07（`mcp-tools.txt` = 7 つ目のスナップショット、`McpToolsSnapshotBuilder` + `[McpReturns]` を 20 ツールに、`McpToolsSnapshotTests`、E-21 は FC-6 が使用済みのため [42] §5.14 **E-24**） | スナップショット `mcp-tools.txt` + Compat テスト + [42](42_distribution.md) §5.14 E-21 | 0.5 | MCP-2〜7 | 行が減ったら赤 |
 | MCP-10 | ✅ 完了 2026-10-07 | トークン計測 `Tools/Mcp/measure-tokens.py`（代表 5 シナリオ、[1002](1002_ddrive_mcp.md) §10 に結果） | 0.5 | MCP-2〜7 | 前比 1/3 以下（G-2）。満たさないツールは返り値を見直す。結果: 呼んだツールの定義だけなら 0.12〜0.31 で達成、毎ターン全 20 定義（10,275 字）を再送する見方では 2.3〜3.5 倍で未達（遅延ロード前提。[1002](1002_ddrive_mcp.md) §10） |
 | MCP-11 | ✅ 完了（2026-10-07、ブランチ mcp/mcp-11-docs） | docs（[20](20_mcp_setup.md) は MCP-0 で書き換え済み・[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・`AGENTS.md` §3.1・SKILL.md §2・[1002](1002_ddrive_mcp.md) の §4 を出荷形に整合・ProgrammerManual `mcp.html` + SpecWeb 再生成）・CHANGELOG `[Unreleased]` を v1.5.0 の 1 ブロックに整理・人による確認手順 [verification/1005](verification/1005_manual_verification_mcp.md)（番号は 1003 が archive に使用済みのため 1005） | 1 | MCP-9 | docs 間のリンク切れ無し（`Tools/Docs/check_links.py`）、SpecWeb のテスト green |
-| MCP-12 | ⬜ 未着手 | 自前レビュー → 修正 → v1.5.0 リリース（[12](12_review.md) §7） | 1 | MCP-11 | run-ci 全段 green、`check-release -Base v1.4.1` green |
+| MCP-12 | 🔧 実施中（2026-10-07、自前レビュー済み → run-ci → bump 1.5.0） | 自前レビュー → 修正 → v1.5.0 リリース（[12](12_review.md) §7） | 1 | MCP-11 | run-ci 全段 green、`check-release -Base v1.4.1` green |
 
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 

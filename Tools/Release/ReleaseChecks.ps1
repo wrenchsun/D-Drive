@@ -324,13 +324,16 @@ function Sync-MirrorDirectory {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
         [Parameter(Mandatory = $true)][string]$Destination,
-        [switch]$DryRun
+        [switch]$DryRun,
+        [string[]]$ExcludeFiles = @()
     )
     if (-not (Test-Path -LiteralPath $Source)) {
         throw "同期元が見つかりません: $Source"
     }
 
     $roboArgs = @($Source, $Destination, '/MIR', '/NP', '/NJH')
+    # /XF で除外したファイルは /MIR でも同期先から消されない(Tools~/Mcp の開発専用スクリプト除外に使う。MCP-12)。
+    if ($ExcludeFiles.Count -gt 0) { $roboArgs += '/XF'; $roboArgs += $ExcludeFiles }
     if ($DryRun) { $roboArgs += '/L' }
 
     $output = & robocopy @roboArgs
