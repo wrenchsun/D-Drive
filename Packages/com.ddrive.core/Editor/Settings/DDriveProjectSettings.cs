@@ -81,6 +81,23 @@ namespace DDrive.Editor.Settings
         // (追加のみ。旧設定ファイルには無いので空で読まれる)。編集は Project Settings > D-Drive > 禁止 API の除外。
         [SerializeField] private List<ForbiddenApiAllowEntry> _forbiddenApiAllowEntries = new();
 
+        // [1002_ddrive_mcp.md] §9.1 Q-4 (c)(MCP-1、2026-10-07) — MCP の書き込みツール(ddrive_* の作成・変更・削除・生成)を
+        // 許可するか。既定 OFF(追加のみ。旧設定ファイルには無いので false で読まれる)。開発リポジトリでは
+        // `DevRepoSettingsSync` が ON にし、持ち込み先ではセットアップウィザード / Project Settings > D-Drive > MCP で選ぶ。
+        // 読み取りツールはこの設定に関係なく使える。
+        [SerializeField] private bool _mcpAllowWrite;
+
+        public bool McpAllowWrite => _mcpAllowWrite;
+
+        public void SetMcpAllowWrite(bool value, bool save = true)
+        {
+            _mcpAllowWrite = value;
+            if (save)
+            {
+                Save(true);
+            }
+        }
+
         public IReadOnlyList<ForbiddenApiAllowEntry> ForbiddenApiAllowEntries
             => _forbiddenApiAllowEntries ?? (_forbiddenApiAllowEntries = new List<ForbiddenApiAllowEntry>());
 

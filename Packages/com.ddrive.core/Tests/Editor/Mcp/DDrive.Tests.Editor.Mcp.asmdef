@@ -1,0 +1,36 @@
+{
+    "name": "DDrive.Tests.Editor.Mcp",
+    "rootNamespace": "DDrive.Tests.Editor.Mcp",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime",
+        "DDrive.Editor",
+        "DDrive.Editor.Mcp",
+        "UnityMCP.Editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "DDRIVE_UNITY_MCP"
+    ],
+    "versionDefines": [
+        {
+            "name": "jp.shiranui-isuzu.unity-mcp",
+            "expression": "4.2.0",
+            "define": "DDRIVE_UNITY_MCP"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -1,0 +1,29 @@
+{
+    "name": "DDrive.Editor.Mcp",
+    "rootNamespace": "DDrive.Editor.Mcp",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime",
+        "DDrive.Editor",
+        "UnityMCP.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "DDRIVE_UNITY_MCP"
+    ],
+    "versionDefines": [
+        {
+            "name": "jp.shiranui-isuzu.unity-mcp",
+            "expression": "4.2.0",
+            "define": "DDRIVE_UNITY_MCP"
+        }
+    ],
+    "noEngineReferences": false
+}
