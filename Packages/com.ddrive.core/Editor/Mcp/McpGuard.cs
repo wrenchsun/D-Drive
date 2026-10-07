@@ -18,6 +18,22 @@ namespace DDrive.Editor.Mcp
     {
         public const int DefaultMaxChars = 4000;
 
+        // MCP-13(2026-10-07): max_chars の上限。isuzu v4.3.0 から、返り値が [McpTool] の MaxResultSizeChars を超えると
+        // 切り詰めずに isError になる。AI が max_chars を際限なく上げても isError にならないよう、ここで丸め、
+        // max_chars を受けるツールの MaxResultSizeChars を同じ値にする(= McpTool 属性側は定数 MaxMaxChars を参照)。
+        public const int MaxMaxChars = 16000;
+
+        // max_chars の正規化。0 以下 = 既定値、MaxMaxChars 超 = MaxMaxChars。
+        public static int ClampMaxChars(int maxChars)
+        {
+            if (maxChars <= 0)
+            {
+                return DefaultMaxChars;
+            }
+
+            return maxChars > MaxMaxChars ? MaxMaxChars : maxChars;
+        }
+
         public const string CodePlayMode = "play_mode";
         public const string CodeWriteDisabled = "write_disabled";
         public const string CodeReadOnlyField = "read_only_field";
@@ -93,13 +109,10 @@ namespace DDrive.Editor.Mcp
         }
 
         // maxChars 以下なら無加工。超えたら先頭 maxChars 文字に切り、truncated=true を返す(黙って切らない。呼び出し側が印を付ける)。
-        // maxChars <= 0 は既定値(4000)として扱う。
+        // maxChars <= 0 は既定値(4000)、MaxMaxChars(16000)超は MaxMaxChars として扱う。
         public static (string text, bool truncated) Truncate(string json, int maxChars = DefaultMaxChars)
         {
-            if (maxChars <= 0)
-            {
-                maxChars = DefaultMaxChars;
-            }
+            maxChars = ClampMaxChars(maxChars);
 
             if (json == null)
             {

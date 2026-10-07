@@ -24,7 +24,7 @@
 
 | 項目 | 現状（2026-10-07） | 出典 |
 |---|---|---|
-| MCP サーバー | 2 系統を併用: **CoplayDev** `com.coplaydev.unity-mcp` v10.2.0（別プロセスの Python サーバー、固定ポート 8080 → 8081 に変更した経緯あり）と **isuzu** `jp.shiranui-isuzu.unity-mcp` v4.2.0（Editor 組み込み、ポートはプロジェクトパスから自動決定、Bearer トークン必須） | [20](20_mcp_setup.md) §1・§4、`Packages/manifest.json` |
+| MCP サーバー | 2 系統を併用: **CoplayDev** `com.coplaydev.unity-mcp` v10.2.0（別プロセスの Python サーバー、固定ポート 8080 → 8081 に変更した経緯あり）と **isuzu** `jp.shiranui-isuzu.unity-mcp` v4.2.0 → 2026-10-07 に v4.4.2（Editor 組み込み、ポートはプロジェクトパスから自動決定、Bearer トークン必須） | [20](20_mcp_setup.md) §1・§4、`Packages/manifest.json` |
 | 運用上の優先 | 両方繋がっているときは isuzu 版を優先（`test_run`/`compile_status`/`execute_code`/`menu_execute`）。「3 セッション問題なければ CoplayDev を外す」の判断が未了 | [CLAUDE.md](../CLAUDE.md) §4、[20](20_mcp_setup.md)「切り替えの判断基準」、[1001](1001_open_items.md) §5 |
 | D-Drive 側の MCP 専用コード | **0 件**。AI は `execute_code`（Roslyn）で `AssetCreationService.Create(...)` 等の static メソッドを直接呼んでいる | 調査（2026-10-07） |
 | isuzu の拡張 API | `[McpTool(name, description)]` を付けた **public static メソッド**を、全アセンブリから自動発見（`ToolCatalog.Build`。`DDrive.*` は除外されない）。引数は `[McpArg]`、`Destructive=true` で `confirm` / `dry_run` が自動注入、`MainThread`（既定 true）、`Idempotency`、`Group`、`MaxResultSizeChars`、`Examples`。名前は `^[a-z][a-z0-9_]{0,63}$` | `Library/PackageCache/jp.shiranui-isuzu.unity-mcp@*/Editor/Core/Attributes/McpToolAttribute.cs`、`ToolCatalog.cs` |
@@ -53,7 +53,7 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 
 - **`DDrive.Editor.Mcp` asmdef**（`Packages/com.ddrive.core/Editor/Mcp/`）: `UnityMCP.Editor` を参照し、**Version Defines** `jp.shiranui-isuzu.unity-mcp >= 4.2.0` → `DDRIVE_UNITY_MCP` を定義、`defineConstraints: ["DDRIVE_UNITY_MCP"]`。**isuzu パッケージが無いプロジェクトではアセンブリごとコンパイルされない**（持ち込み先が MCP を使わなければ何も増えない）。`DDrive.Editor` 本体は `DDrive.Editor.Mcp` を参照しない（逆方向のみ）。
 - **ツールはアダプタに徹する**: 引数の検証 → 共通ガード（§4.3）→ 既存サービス呼び出し → 返り値の圧縮（§5）。新しいロジックを `Mcp/` に書かない（書きたくなったら `DDrive.Editor` 側のサービスに足し、ツールはそれを呼ぶ。EditMode テストはサービス側で書く）。
-- **ツール名の接頭辞は `ddrive_`**（isuzu 同梱の 141 ツールと混ざらない。`Group` は `authoring` / `diagnostics` / `build` のいずれかを明示）。
+- **ツール名の接頭辞は `ddrive_`**（isuzu 同梱の 100 超のツールと混ざらない。`Group` は `authoring` / `diagnostics` / `build` のいずれかを明示）。
 
 ### 実装メモ（2026-10-07、MCP-1）
 
@@ -175,6 +175,14 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 - **`mcp-tools.txt`（MCP-9）**: `Editor/Mcp/McpToolsSnapshotBuilder.cs`（`DDrive.Editor.Mcp`）が `[McpTool]`（`ddrive_*`）を反射で集め、1 ツール 1 行・名前順で出力: `name|group=…|destructive=…|args=名:型(任意は ?、名前順)|returns=キー(名前順)`。返り値キーは新設の `[McpReturns("a","b",…)]`（`Editor/Mcp/McpReturnsAttribute.cs`）を 20 ツール全部に付けて明示（状況によって出ないキーも含めた和集合）。`CompatSnapshotMenu.UpdateAll` は `Type.GetType("DDrive.Editor.Mcp.McpToolsSnapshotBuilder, DDrive.Editor.Mcp")` のリフレクションで呼ぶ（`DDrive.Editor` に参照を作らない。Mcp アセンブリが無ければログだけ出して飛ばす）。`ddrive_compat` / `ddrive_compat_update` の対象も 6 → 7 種に。
 - **E-21 → E-24**: [42] §5.14 の E-21 は FC-6（取り込みルールの外部登録）で使用済みのため、MCP の契約は **E-24** として追加した（起票時の「E-21」は E-24 の意味）。
 - **テスト**: `McpToolsSnapshotTests`（`CompatGoldenAssert.AssertMatches` = 他の Compat テストと同じ完全一致。削除・改名・型変更・追加のどれでも赤）・`McpPortPolicyTests`（9 件）。`DDrive.Tests.Editor.Mcp` が `DDrive.Tests.Editor`（`CompatGoldenAssert`）を参照するようになった。
+
+### 実装メモ（2026-10-07、MCP-13）
+
+- **isuzu v4.2.0 → v4.4.2**（`Packages/manifest.json` のタグだけ。`DDrive.Editor.Mcp` のコンパイルエラー 0、API の追従は不要だった）。EditMode 2030/2030（`McpPortPolicyTests` 9/9・`McpToolsSnapshotTests` 3/3 は期待値を変えずに green）・PlayMode 964/964。`tools/list` は 127 個（isuzu 107 + `ddrive_*` 20。4.2.0 時点は 106）。`mcp-tools.txt` は無変更。
+- **`max_chars` の上限 16000**（挙動の変更）: v4.3.0 から返り値が `[McpTool]` の `MaxResultSizeChars` を超えると切り詰めず `isError`。既定は 0（無制限）なので D-Drive のツールは当たらないが、AI が `max_chars` を大きくすれば返り値も大きくなる。`McpGuard.MaxMaxChars = 16000` と `ClampMaxChars`（0 以下 = 4000、16000 超 = 16000）を追加し、`Truncate` / `ItemPaging.Fit` / `FitFields` / `ValidateSummary.ToJson` の丸めを集約。`max_chars` を受ける 7 ツール（`asset_list` / `asset_get` / `asset_usages` / `asset_unused` / `help` / `validate` / `forbidden_api`）と `ddrive_status`（返り値が小さい）の `MaxResultSizeChars` を同じ 16000 に明示（`_meta.anthropic/maxResultSizeChars` として `tools/list` に載る。`ddrive_build_netcheck` は isuzu がジョブ化するツールの既定で 2000）。`ddrive_help topic=types max_chars=20000` が `isError` にならず、16000 で丸めた結果が返ることを HTTP で確認。
+- **`DDrive.Editor.Mcp` / テスト asmdef の Version Defines は `>= 4.2.0` のまま**: 4.3.0 以降にしか無い API を使っていない。上げると、MS2026 のように 4.2.0 のままの持ち込み先でアセンブリごと消える（互換性ポリシー §0-10 の「公開 API は追加のみ」に反する）。
+- **D-Drive が依存している isuzu の内部の再確認（4.4.2 の PackageCache を読んだ）**: `McpPortPolicy.Derive`（`RangeStart 27200`・範囲 800・先頭 4 バイト LE・正規化）は同一。`McpSettings.httpPort`・テスト結果の SessionState キー `UnityMCP.LastTestRun`（`status` / `mode` / `passed` / `failed` / `inconclusive` / `completedAt`。`total` と `ranAny` が増えただけ）・記述子 JSON も使う欄は同じ。予約引数は `confirm` / `dry_run` / `target`（`ToolCatalog.ReservedParameterNames`）で、`ddrive_*` は宣言していない。
+- **`console_read_logs` はスタックトレースが既定でオフ**（`stack_trace:true`）: SKILL.md §2 と docs/20 §2 を更新。
 
 ---
 
@@ -437,23 +445,23 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 | S2 Validation の Error を 1 件直す | 4 | 12000・4000 | 41759・13920 | 2938・979 | 3.48 / 0.24 |
 | S3 Data の値を 3 つ変える | 3 | 9000・3000 | 31653・10551 | 2803・934 | 3.52 / 0.31 |
 | S4 マイグレーションの確認 | 2 | 7000・2333 | 20719・6906 | 871・290 | 2.96 / 0.12 |
-| S5 リリース前チェック | 4 | 18000・6000 | 41954・13985 | 2113・704 | 2.33 / 0.12 |
+| S5 リリース前チェック | 4 | 18000・6000 | 41880・13960 | 2039・680 | 2.33 / 0.11 |
 
 | 項目 | ツール数 | 定義の文字数 | 概算トークン |
 |---|---|---|---|
 | `ddrive_*` | 20 | 10275 | 3425 |
-| isuzu 標準（`ddrive_` 以外） | 86 | 83677 | 27892 |
-| 合計 | 106 | 93952 | 31317 |
+| isuzu 標準（`ddrive_` 以外） | 107 | 121944 | 40648 |
+| 合計 | 127 | 132219 | 44073 |
 
 呼び出しごとの内訳（引数文字数 / 返り値文字数 / 秒）。引数 + 返り値だけの合計（定義抜き）は括弧内:
 
-- S1（1124）: `ddrive_help` 28 / 634 / 0.0s、`ddrive_asset_create` 85 / 98 / 0.0s、`ddrive_validate` 34 / 149 / 1.9s、`ddrive_preview` 33 / 63 / 0.0s
-- S2（659）: `ddrive_validate` 17 / 149 / 2.1s、`ddrive_validate` 44 / 160 / 2.4s、`ddrive_help` 54 / 168 / 0.0s、`ddrive_validate_fix` 50 / 17 / 1.8s
-- S3（828）: `ddrive_asset_list` 40 / 145 / 0.0s、`ddrive_asset_get` 56 / 364 / 0.0s、`ddrive_asset_set` 126 / 97 / 0.0s
+- S1（1124）: `ddrive_help` 28 / 634 / 0.0s、`ddrive_asset_create` 85 / 98 / 0.0s、`ddrive_validate` 34 / 149 / 1.0s、`ddrive_preview` 33 / 63 / 0.0s
+- S2（659）: `ddrive_validate` 17 / 149 / 1.1s、`ddrive_validate` 44 / 160 / 1.0s、`ddrive_help` 54 / 168 / 0.0s、`ddrive_validate_fix` 50 / 17 / 1.0s
+- S3（828）: `ddrive_asset_list` 40 / 145 / 0.0s、`ddrive_asset_get` 56 / 364 / 0.1s、`ddrive_asset_set` 126 / 97 / 0.0s
 - S4（169）: `ddrive_status` 45 / 56 / 0.0s、`ddrive_migrate` 44 / 24 / 0.0s
-- S5（854）: `ddrive_status` 15 / 377 / 0.1s、`ddrive_compat` 15 / 24 / 0.1s、`ddrive_release_check` 55 / 121 / 0.6s、`ddrive_forbidden_api` 22 / 225 / 3.0s
+- S5（780）: `ddrive_status` 15 / 377 / 0.1s、`ddrive_compat` 15 / 24 / 0.1s、`ddrive_release_check` 55 / 151 / 0.7s、`ddrive_forbidden_api` 22 / 121 / 1.5s
 
-計測日 2026-10-07（`python Tools/Mcp/measure-tokens.py --write-doc`、再試行 0 回）。トークン = 文字数 / 3 の一律近似。
+計測日 2026-10-07（isuzu v4.4.2 で再計測〔MCP-13〕。isuzu 標準は 86 → 107 個・定義 83,677 → 121,944 字に増えたが `ddrive_*` 側の数字は変わらない。`python Tools/Mcp/measure-tokens.py --write-doc`、再試行 0 回）。トークン = 文字数 / 3 の一律近似。
 
 「前」は実測ではなく**見積もり**（従来の `execute_code` / `read_console` / docs 参照の流れ。算式は `Tools/Mcp/scenarios.json` の `rationale`）。「後（定義コスト込み）」は 1 呼び出し = 1 ターンとして毎ターン `ddrive_*` の全定義を再送する前提（上限）、「呼んだツールの定義だけ」は遅延ロード時の下限。
 <!-- measure-tokens:end -->

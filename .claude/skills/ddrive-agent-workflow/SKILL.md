@@ -63,7 +63,7 @@ D-Drive の MCP は isuzu-unity（Editor 組み込み、ポートはプロジェ
 ### 基本ループ
 
 1. `compile_request` → 約 20〜25 秒待つ（`run_in_background: true` の `sleep`。ドメインリロード中は接続エラーになるので即座にポーリングしない）
-2. `compile_status` で `succeeded` を確認。エラーがあれば `console_read_logs`（type=error）でスタックトレースを読む
+2. `compile_status` で `succeeded` を確認。エラーがあれば `console_read_logs`（type=error）でファイルと行を読む。スタックトレースが要るときだけ `stack_trace:true` を付ける（isuzu v4.3.0 から既定は付かない。20 件で約 3,500 トークン対 650 トークン）
 3. **テスト実行前に空きメモリを確認する**（このマシンは低メモリ時に Unity がクラッシュした実例がある。目安: 空きメモリが 1GB を切っているならテストを待つ／ユーザーに他アプリを閉じるよう依頼する）
 4. `test_run mode=edit` → `test_results` をポーリング（EditMode 全件で概ね 20〜30 秒）。green を確認
 5. `test_run mode=play` → `test_results` をポーリング（PlayMode 全件で概ね 1〜2 分。`Tests/Runtime` は asmdef が全プラットフォーム対象のため PlayMode でしか走らない）。green を確認

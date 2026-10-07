@@ -33,6 +33,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_asset_list",
             "種別ごとの Data 一覧。fields で返す欄を選ぶ(既定 id,name,category)",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "authoring")]
         [McpReturns("total", "items", "next", "truncated")]
         public static JObject List(
@@ -181,6 +182,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_asset_get",
             "Data 1 件の欄の値と検査件数を返す。fields 省略=主要欄、*=全欄",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "authoring")]
         [McpReturns("id", "name", "path", "fields", "validation", "truncated", "omitted")]
         public static JObject Get(
@@ -256,10 +258,7 @@ namespace DDrive.Editor.Mcp.Tools
         // 落とした欄名は omitted(カンマ区切り、150 文字まで)に出す。落とした先は fields に狭めて読み直せる。
         private static JObject FitFields(JObject result, JObject values, int maxChars)
         {
-            if (maxChars <= 0)
-            {
-                maxChars = McpGuard.DefaultMaxChars;
-            }
+            maxChars = McpGuard.ClampMaxChars(maxChars);
 
             var omitted = new List<string>();
             while (values.Count > 0 && McpJson.Compact(result).Length + OmittedReserve > maxChars)

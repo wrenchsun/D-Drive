@@ -34,6 +34,7 @@ namespace DDrive.Editor.Mcp.Tools
             "ddrive_help",
             "短い案内カード。topic=rules|types|menu|tool:<name>|validation:<code>",
             Idempotency = McpIdempotency.Safe,
+            MaxResultSizeChars = McpGuard.MaxMaxChars,
             Group = "diagnostics",
             Examples = new[] { "{\"topic\":\"validation:DD-ADDR-MISSING\"}" })]
         [McpReturns("topic", "text", "truncated")]

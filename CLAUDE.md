@@ -58,7 +58,7 @@ CHANGELOG.md                    ← D-Drive(com.ddrive.core)の変更履歴(リ�
 
 ## 4. Unity MCP
 
-**状態（2026-10-07、MCP-0）**: Editor 組み込みの **`jp.shiranui-isuzu.unity-mcp` v4.2.0 のみ**（サーバー名 `isuzu-unity`、ポートはプロジェクトパスから自動〔D-Drive は 27725〕、Bearer トークン必須。登録は各自の `claude mcp add`、[docs/20](docs/20_mcp_setup.md) §1）。CoplayDev 版（`com.coplaydev.unity-mcp`、固定ポート 8081、`.mcp.json`）は 2026-10-07 に外した（[docs/1002](docs/1002_ddrive_mcp.md) §9 Q-1。戻し方は [docs/archive/1003](docs/archive/1003_coplaydev_mcp_setup.md)）。v1.5.0 で D-Drive 自身のツール群 `ddrive_*` をこのサーバーに載せる（[docs/1002](docs/1002_ddrive_mcp.md)）。
+**状態（2026-10-07、MCP-0）**: Editor 組み込みの **`jp.shiranui-isuzu.unity-mcp` v4.4.2 のみ**（2026-10-07 に v4.2.0 から上げた、MCP-13）（サーバー名 `isuzu-unity`、ポートはプロジェクトパスから自動〔D-Drive は 27725〕、Bearer トークン必須。登録は各自の `claude mcp add`、[docs/20](docs/20_mcp_setup.md) §1）。CoplayDev 版（`com.coplaydev.unity-mcp`、固定ポート 8081、`.mcp.json`）は 2026-10-07 に外した（[docs/1002](docs/1002_ddrive_mcp.md) §9 Q-1。戻し方は [docs/archive/1003](docs/archive/1003_coplaydev_mcp_setup.md)）。v1.5.0 で D-Drive 自身のツール群 `ddrive_*` をこのサーバーに載せる（[docs/1002](docs/1002_ddrive_mcp.md)）。
 セットアップ手順・運用ルールは [docs/20_mcp_setup.md](docs/20_mcp_setup.md)。
 
 - 接続前提: Unity 起動中（サーバーは自動起動）+ `%LOCALAPPDATA%/UnityMCP/instances/<hash>.json` の `mcpUrl` / `token` で登録済み。**ポートをリポジトリ・docs に直書きしない、Preferences でポートを固定しない**

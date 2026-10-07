@@ -292,13 +292,13 @@
       "url": "https://packages.unity.com"
     },
     "jp.shiranui-isuzu.unity-mcp": {
-      "version": "https://github.com/isuzu-shiranui/UnityMCP.git?path=jp.shiranui-isuzu.unity-mcp#v4.2.0",
+      "version": "https://github.com/isuzu-shiranui/UnityMCP.git?path=jp.shiranui-isuzu.unity-mcp#v4.4.2",
       "depth": 0,
       "source": "git",
       "dependencies": {
         "com.unity.nuget.newtonsoft-json": "3.2.1"
       },
-      "hash": "a18d8b0a4c992ebc711fa0080a7a6bc436b2ca51"
+      "hash": "444f1a3cb10d7a3d49694cb8a4902343b124b635"
     },
     "org.nuget.microsoft.bcl.asyncinterfaces": {
       "version": "6.0.0",
