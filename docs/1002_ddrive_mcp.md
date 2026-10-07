@@ -466,7 +466,34 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ---
 
+## 11. MCP-14: isuzu MCP の導入を「更新ウィンドウ」に統合する（2026-10-07 起票、v1.5.1 以降の MINOR）
+
+> ユーザー指示（2026-10-07）: 「isuzu MCP の導入を D-Drive の Update に入れたい。D-Drive の MCP を使うならセットで導入できるように。他の MCP が入っている場合の処理も」。
+
+### 11.1 ねらい
+
+持ち込み先が `ddrive_*` を使うとき、`manifest.json` を手で編集せずに **`Tools > D-Drive > Update` の更新ウィンドウ（P-15 の「パッケージ」一覧）から isuzu MCP を 1 クリックで導入し、以後の版上げも同じ一覧で管理できる**ようにする。D-Drive 本体の `package.json` の依存には**入れない**（§7 の方針のまま。MCP は任意機能）。
+
+### 11.2 仕様
+
+| # | 内容 |
+|---|---|
+| A | **導入ボタン**: 更新ウィンドウの「パッケージ」一覧に、未導入のときだけ行「Unity MCP（isuzu）— D-Drive の AI 連携に必要」と「導入」ボタンを出す。押すと `jp.shiranui-isuzu.unity-mcp` を **D-Drive が推奨する版のタグ固定 git URL**（`McpPackageSupport.RecommendedIsuzuRef`、v1.5.x では `#v4.4.2`〔MCP-13 後〕）で `manifest.json` に足し（既存の `PackageAddPlanner` / `PackageManifestOps` の経路）、P-15 の管理対象（`DDriveProjectSettings.ManagedPackages`）にも登録する → 以後の版上げ・戻しは既存の「更新チェック」で行える。セットアップウィザード（P-6）にも同じ「AI 連携（MCP）を導入する」チェックを足し、ON なら同じ処理を行う |
+| B | **導入後の案内**: 導入後に (1) 「Unity を開き直す（または Package Manager の解決を待つ）」、(2) `Tools~/Mcp/register-mcp.ps1` で Claude Code に登録する（ボタン「登録スクリプトを実行」= `pwsh` を非同期で起動〔更新ウィンドウの git 起動と同じ方式〕、無ければ手動コマンドを表示）、(3) 書き込みツールの可否（§9.1 Q-4 (c)。既定 OFF のまま、ウィザードの既存チェックへ誘導）を 1 画面にまとめて出す |
+| C | **他の MCP が入っているとき**: 導入前に `manifest.json` を走査し、**既知の MCP パッケージ**（`com.coplaydev.unity-mcp`、その他は `McpPackageSupport.KnownMcpPackages` の表 = パッケージ id・表示名・固定ポートかどうか・外してよいか）と、id に `mcp` を含む未知のパッケージを列挙する。1 つでもあれば確認ダイアログ:「他の MCP（X）が入っています。2 つの MCP は同じ Editor を同時に操作でき、固定ポートのものは衝突の元です。『続行（両方残す）』『X を外して続行』『キャンセル』」。**外すのは既知で「外してよい」と表に書いたものだけ**（CoplayDev は可。未知のものは「両方残す / キャンセル」の 2 択）。外すときも manifest から 1 行消すだけで `.mcp.json` 等の持ち込み先のファイルには触らない（画面に「`.mcp.json` に残っている設定は手で消してください」と出す） |
+| D | **Validation**: `ProjectSetupValidator` に Info `DD-MCP-MULTIPLE`（MCP パッケージが 2 つ以上）と Info `DD-MCP-ISUZU-OUTDATED`（isuzu の版が推奨より古い。推奨 = `RecommendedIsuzuRef`）を追加（追加のみ）。`ddrive_status.mcp` に `otherMcp:[ids]` と `isuzuVersion` を追加（返り値キーの追加 = E-24 の範囲内） |
+| E | **isuzu 自体の版上げ**は既存の P-15 の流れ（管理対象の「更新チェック」→ タグを選んで適用）。D-Drive の推奨版と違うときは行に「推奨 vX.Y.Z」を添える。D-Drive の版上げに**連動させない**（MCP-13 のように D-Drive 側で確認してから推奨版を上げる） |
+| F | **開発リポジトリ**では既に manifest にあるので行は「導入済み（v4.x.y、推奨 vX）」の表示だけ |
+| G | 純関数側（`McpPackageSupport`: 既知表・走査・計画の作成・確認文面）を `DDrive.Editor` に置き、ウィンドウは配線だけ（P-15 と同じ分け方）。EditMode テスト: 走査（既知 / 未知 / 無し）、計画（導入のみ / 外して導入 / キャンセル）、推奨版の比較、`.mcp.json` に触れないこと |
+
+### 11.3 docs・確認
+
+- [42](42_distribution.md) §4.2.1 と §4.3（isuzu は任意依存。導入は更新ウィンドウから）、[50_consumer_guide](50_consumer_guide.md) の導入ページ、ProgrammerManual `mcp.html` の「セットアップ」節、[20](20_mcp_setup.md) §4、`Documentation~/skills/ddrive-consumer/SKILL.md` §6、[verification/1005](verification/1005_manual_verification_mcp.md) §9（持ち込み先）を「更新ウィンドウから導入」に書き換える。
+- MS2026 での確認: isuzu 未導入 → 更新ウィンドウで導入 → 登録 → `ddrive_status`。CoplayDev が入っている状態で導入 → 確認ダイアログ → 「外して続行」。
+
 ## 更新履歴
+
+- 2026-10-07（同日 3）: §11 MCP-14（isuzu の導入を更新ウィンドウに統合、他の MCP があるときの処理）を起票。MCP-13（isuzu v4.4.2）に着手
 
 - 2026-10-07（MCP-11）: 状態を「実装済み」に。§4 の冒頭に「表は起票時の案を出荷形に直したもの」の注記を足し、§4.1〜4.4 を出荷したツール（20 個・`preview` / `kind` / 文字列 ID / `compat_update` の分割 / `cursor`・`limit`・`max_chars`）に合わせた。E-21 → E-24 の表記ゆれを直した。docs（[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・SKILL.md・AGENTS.md・ProgrammerManual `mcp.html`・CHANGELOG・人による確認手順 [verification/1005](verification/1005_manual_verification_mcp.md)）を整備
 - 2026-10-07（MCP-10）: `Tools/Mcp/measure-tokens.py` を実装し §10 に結果を記入。定義込みでは G-2 未達（2.3〜3.5 倍）、呼んだツールの定義だけなら達成（0.12〜0.31）。§5.5 を実装に合わせた（÷3.5 → ÷3）

@@ -30,7 +30,8 @@
 | MCP-10 | ✅ 完了 2026-10-07 | トークン計測 `Tools/Mcp/measure-tokens.py`（代表 5 シナリオ、[1002](1002_ddrive_mcp.md) §10 に結果） | 0.5 | MCP-2〜7 | 前比 1/3 以下（G-2）。満たさないツールは返り値を見直す。結果: 呼んだツールの定義だけなら 0.12〜0.31 で達成、毎ターン全 20 定義（10,275 字）を再送する見方では 2.3〜3.5 倍で未達（遅延ロード前提。[1002](1002_ddrive_mcp.md) §10） |
 | MCP-11 | ✅ 完了（2026-10-07、ブランチ mcp/mcp-11-docs） | docs（[20](20_mcp_setup.md) は MCP-0 で書き換え済み・[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・`AGENTS.md` §3.1・SKILL.md §2・[1002](1002_ddrive_mcp.md) の §4 を出荷形に整合・ProgrammerManual `mcp.html` + SpecWeb 再生成）・CHANGELOG `[Unreleased]` を v1.5.0 の 1 ブロックに整理・人による確認手順 [verification/1005](verification/1005_manual_verification_mcp.md)（番号は 1003 が archive に使用済みのため 1005） | 1 | MCP-9 | docs 間のリンク切れ無し（`Tools/Docs/check_links.py`）、SpecWeb のテスト green |
 | MCP-12 | ✅ 完了（2026-10-07、Release v1.5.0。記録 = [archive/1006](archive/1006_release_1_5_0.md)） | 自前レビュー → 修正 → v1.5.0 リリース（[12](12_review.md) §7） | 1 | MCP-11 | run-ci 全段 green、`check-release -Base v1.4.1` green |
-| MCP-13 | ⬜ 未着手 | isuzu MCP を v4.2.0 → **v4.4.2** に上げる（[archive/1006](archive/1006_release_1_5_0.md) §4 の検討結果。`McpPortPolicyTests` / `McpToolsSnapshotTests` / `tools/list` 20 個 / `measure-tokens.py` 再実行、`console_read_logs` の `stack_trace:true` を SKILL.md に追記、`MaxResultSizeChars` の明示を検討）。MS2026 は別タイミング | 0.5 | MCP-12 | 4 テストと HTTP スモーク green、docs/20 §3 更新 |
+| MCP-13 | 🔧 実装中（Sonnet、ブランチ `mcp/mcp-13-isuzu-4-4-2`） | isuzu MCP を v4.2.0 → **v4.4.2** に上げる（[archive/1006](archive/1006_release_1_5_0.md) §4 の検討結果。`McpPortPolicyTests` / `McpToolsSnapshotTests` / `tools/list` 20 個 / `measure-tokens.py` 再実行、`console_read_logs` の `stack_trace:true` を SKILL.md に追記、`MaxResultSizeChars` の明示を検討）。MS2026 は別タイミング | 0.5 | MCP-12 | 4 テストと HTTP スモーク green、docs/20 §3 更新 |
+| MCP-14 | ⬜ 未着手 | **isuzu MCP の導入を更新ウィンドウに統合**（[1002](1002_ddrive_mcp.md) §11）: 「パッケージ」一覧の「導入」ボタン（推奨版のタグ固定で manifest に追加 + 管理対象に登録）、ウィザードのチェック、導入後の案内（開き直し・`register-mcp.ps1` 実行・書き込み可否）、**他の MCP が入っているときの確認（続行 / 既知のものを外して続行 / キャンセル。未知のものは外さない）**、Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`、`ddrive_status.mcp.otherMcp` / `isuzuVersion`。docs（42 / 50 / mcp.html / 20 / 消費者 SKILL / 1005 §9） | 1.5 | MCP-13 | MS2026 で未導入 → 導入 → 登録 → `ddrive_status` が通る。CoplayDev 入りで「外して続行」が manifest の 1 行だけ消す。ユーザー指示 2026-10-07 |
 
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
@@ -51,3 +52,4 @@
 - 2026-10-07: MCP-11 ✅（docs・CHANGELOG・人による確認手順 1005）。§0 の v1.5.0 を「MCP-12 待ち」に。§2 に MCP 実装中に見つかった後続候補 5 件を追記
 - 2026-10-07: 作成。docs/11 の「MCP チケット」節をここへ移した（docs/11 には参照だけ残す）。MCP-0 ✅・MCP-8 前半 🔶 を反映
 - 2026-10-07: v1.5.0 リリース（MCP-12 ✅）。MCP-13（isuzu v4.4.2 への更新）を起票
+- 2026-10-07: MCP-14（isuzu 導入の更新ウィンドウ統合、ユーザー指示）を起票。MCP-13 着手
