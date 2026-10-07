@@ -9,9 +9,13 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 追加
+
+- MCP-1: `DDrive.Editor.Mcp` asmdef（Version Defines `DDRIVE_UNITY_MCP`）、共通ガード `McpGuard`、返り値ヘルパー `McpJson`、最小の `ddrive_status`。MCP の書き込みツールの許可設定 `McpAllowWrite`（既定 OFF、Project Settings > D-Drive > MCP / セットアップウィザード。開発リポジトリは自動 ON）（[docs/1002](docs/1002_ddrive_mcp.md) §3）
+
 ### 互換性
 
-- 破壊なし。開発リポジトリの MCP 構成の変更のみ（`com.ddrive.core` のコード・データ形式・公開 API・Validation に変更なし）
+- 破壊なし（MINOR 相当、追加のみ）。`DDriveProjectSettings` に `_mcpAllowWrite`（既定 false）を追加、新 asmdef `DDrive.Editor.Mcp`（isuzu 版 MCP が無いプロジェクトではコンパイルされない）を追加。公開 API（`DDrive.Foundation` / `DDrive.Runtime`）・Data のシリアライズ形式は変更なし。互換性スナップショットは差分なし（更新不要）
 
 ### その他
 

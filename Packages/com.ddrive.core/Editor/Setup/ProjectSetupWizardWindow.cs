@@ -272,6 +272,12 @@ namespace DDrive.Editor.Setup
             asmdefToggle.RegisterValueChangedCallback(evt => settings.EmitGeneratedAsmdef = evt.newValue);
             _defaultsBody.Add(asmdefToggle);
 
+            // [1002_ddrive_mcp.md] §9.1 Q-4 (c)(MCP-1) — MCP の書き込みツールの既定は OFF。開発リポジトリは DevRepoSettingsSync が ON にする。
+            var mcpToggle = new Toggle("AI（MCP）の書き込みツールを有効にする") { value = settings.McpAllowWrite };
+            mcpToggle.RegisterValueChangedCallback(evt => settings.SetMcpAllowWrite(evt.newValue));
+            _defaultsBody.Add(mcpToggle);
+            _defaultsBody.Add(WrappingLabel("ON にすると AI が ddrive_* ツールで Data の作成・変更・削除・生成を行えます(OFF でも読み取りは可能)。あとから Project Settings > D-Drive > MCP で変えられます。"));
+
             _defaultsBody.Add(new Button(ApplyDefaults) { text = "生成(SourceAssets/UiLayerSettings/DDriveSpecSettings/カタログ + ID/Tuning 再生成)" });
         }
 

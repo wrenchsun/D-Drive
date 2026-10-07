@@ -55,6 +55,14 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 - **ツールはアダプタに徹する**: 引数の検証 → 共通ガード（§4.3）→ 既存サービス呼び出し → 返り値の圧縮（§5）。新しいロジックを `Mcp/` に書かない（書きたくなったら `DDrive.Editor` 側のサービスに足し、ツールはそれを呼ぶ。EditMode テストはサービス側で書く）。
 - **ツール名の接頭辞は `ddrive_`**（isuzu 同梱の 141 ツールと混ざらない。`Group` は `authoring` / `diagnostics` / `build` のいずれかを明示）。
 
+### 実装メモ（2026-10-07、MCP-1）
+
+- **asmdef**: `DDrive.Editor.Mcp`（`Packages/com.ddrive.core/Editor/Mcp/`、Editor 専用）。参照は `DDrive.Foundation` / `DDrive.Runtime` / `DDrive.Editor` / `UnityMCP.Editor`（Newtonsoft は `DDrive.Editor` と同じく自動参照）。Version Defines `jp.shiranui-isuzu.unity-mcp >= 4.2.0` → `DDRIVE_UNITY_MCP`、`defineConstraints: ["DDRIVE_UNITY_MCP"]`。テスト asmdef は `DDrive.Tests.Editor.Mcp`（`Tests/Editor/Mcp/`、同じ Version Defines）。
+- **`McpGuard` / `McpToolError`**（`Editor/Mcp/McpGuard.cs`）: ガードは `McpToolError(code, msg)` を投げ、`McpGuard.Run(() => JObject)` が `{"error":{"code":..,"msg":..}}`（msg は 200 文字まで、スタックトレース無し）に畳む。コード一覧: `play_mode`（Play Mode 中の書き込み。読み取りは可）/ `write_disabled`（`McpAllowWrite == false`）/ `read_only_field`（`Id` `SchemaVersion` `ImportSourceGuid` `Version` `UpdatedAt` `Icon`。`AssetDataBase` の実フィールド名で、`Icon.Array...` のようにパスの先頭で判定）/ `invalid_params` / `exception`（上記以外の例外。msg は `<型名>: <本文>`）。`truncated` はエラーではなく、`McpGuard.Truncate(json, maxChars=4000)` が返す `(text, truncated)` を見てツールが返り値に付ける印。
+- **`McpJson`**（`Editor/Mcp/McpJson.cs`）: `Obj`（null・false・空配列を省く。出すときは `McpJson.Keep(value)`）/ `Page`（引数順は `items, cursor, limit, map, maxLimit=200`。`cursor` = 整数オフセットの文字列、`next` は続きがあるときだけ。`limit` 既定 50）/ `Compact`（インデント無し）。
+- **設定の置き場所**: `DDriveProjectSettings.McpAllowWrite`（既定 false、Q-4 (c)）。開発リポジトリでは `DevRepoSettingsSync` が ON にする。UI は Project Settings > D-Drive > MCP（`McpSettingsProvider`）とセットアップウィザード「4. 既定フォルダ・設定の生成」のチェックボックス。
+- `ddrive_status` は version / compile / mcp の 3 セクションのみ（残りは MCP-2）。
+
 ---
 
 ## 4. ツール一覧（v1.5.0）

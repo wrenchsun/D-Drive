@@ -12,6 +12,8 @@ namespace DDrive.Editor.Settings
     [InitializeOnLoad]
     internal static class DevRepoSettingsSync
     {
+        private const string McpSyncKey = "DDrive.DevRepoSettingsSync.McpAllowWrite";
+
         static DevRepoSettingsSync()
         {
 #if DDRIVE_DEV_REPO
@@ -26,6 +28,16 @@ namespace DDrive.Editor.Settings
                 // しまう。開発リポジトリ初回検出時だけ明示的に OFF にする(持ち込み先の既定値には
                 // 影響しない。DDriveProjectSettings のインスタンスはプロジェクトごとに別)。
                 DDriveProjectSettings.instance.EmitGeneratedAsmdef = false;
+            }
+
+            // [1002_ddrive_mcp.md] §9.1 Q-4 (c)(MCP-1) — 開発リポジトリでは MCP の書き込みツールを ON にする。
+            // 既存の設定ファイル(初回検出済み)にも効くよう、IsDevelopmentRepo の判定とは別に行う。
+            // 同じ Editor セッション内で人が OFF にした選択を戻さないよう、ドメインリロードをまたいで
+            // 1 セッション 1 回だけ ON にする(SessionState)。
+            if (!DDriveProjectSettings.instance.McpAllowWrite && !SessionState.GetBool(McpSyncKey, false))
+            {
+                SessionState.SetBool(McpSyncKey, true);
+                DDriveProjectSettings.instance.SetMcpAllowWrite(true);
             }
 #endif
         }
