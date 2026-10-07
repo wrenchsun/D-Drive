@@ -430,6 +430,10 @@ public static class Ui
 
 人による確認: [43](verification/43_manual_verification_2026-09-17.md) §16 の 16-41〜16-45。
 
+### 追記（2026-10-07、v1.4.1: Canvas Editor の「埋め込み Canvas」「ボタンの配線」を既定で折りたたみ）
+
+Canvas Editor の「埋め込み Canvas(入れ子の子 Canvas)」欄と「ボタンの配線(Buttons)」欄の Foldout を、ウィンドウを開いたときは**閉じた状態**にした（`CanvasEditorWindow` / `CanvasEditorWindow.ButtonWires`）。埋め込みも配線も使わない Canvas が大半で、両欄が展開されていると ElementFx 割当までが遠くなっていたため。開閉は従来どおり自由で、中のグループ（親のボタン / 埋め込みごと）の開閉記憶（`_wireGroupExpanded`）は変えていない。データ形式・公開 API の変更なし（PATCH）。
+
 ## B-1. 要件
 
 - 種類 / タグ / コリジョンレイヤーを管理。Spawn/Despawn/Pool/Preload
