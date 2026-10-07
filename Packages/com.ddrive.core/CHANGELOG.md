@@ -13,6 +13,29 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 破壊なし(このリリース以降の変更はまだありません)
 
+## [1.6.0] - 2026-10-08
+
+### 互換性
+
+- 破壊なし・追加のみ（MINOR。MCP-14）: 新しい Validator Code `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`（どちらも Info）。`ddrive_status` の `mcp` オブジェクトにキー `otherMcp` / `isuzuVersion` を追加（入れ子のキーなので `mcp-tools.txt` の上位の返り値キーは無変更）。`DDrive.Editor` に型 `McpPackageSupport` / `McpInstallActions` を追加（公開 API〔`DDrive.Foundation` / `DDrive.Runtime`〕・シリアライズ形式・ネットメッセージ・生成コードは無変更）。isuzu は引き続き `package.json` の依存に入れない
+- 破壊なし(開発リポジトリの isuzu を v4.4.2 に上げた。`DDrive.Editor.Mcp` の Version Defines の最小版は 4.2.0 のまま。`mcp-tools.txt` は無変更)
+
+### 追加
+
+- **isuzu MCP の導入を更新ウィンドウに統合**（MCP-14）: `Tools > D-Drive > Update > 更新ウィンドウ` の「パッケージ」に「Unity MCP（isuzu）」の行を追加。未導入なら「導入」ボタンで `jp.shiranui-isuzu.unity-mcp` を推奨版（`v4.4.2`）のタグ固定で manifest に追加して管理対象に登録する（以後の版上げは「更新チェック」）。入っていれば「導入済み（vX、推奨 vY）」の表示だけ。導入後の案内（解決待ち・「登録スクリプトを実行」〔`pwsh` を非同期起動、無ければ手動コマンド〕・書き込みツールの設定を開く）を同じ画面に表示。セットアップウィザードにも「9. AI 連携（MCP、任意）」（既定 OFF）を追加
+- **他の MCP が入っているときの確認**: 導入前に manifest を走査し、あれば「続行（両方残す）/ <X> を外して続行 / キャンセル」を出す。外せるのは既知で「外してよい」と表にあるもの（`com.coplaydev.unity-mcp`）だけで、未知の MCP（id に `mcp` を含む）は外さない。外すのは manifest の 1 行だけで `.mcp.json` には触れない
+- Validation（Info）: `DD-MCP-MULTIPLE`（MCP パッケージが 2 つ以上）/ `DD-MCP-ISUZU-OUTDATED`（isuzu のタグが推奨より古い。ブランチ・コミット固定は対象外）。`ddrive_status.mcp` に `otherMcp`（他の MCP の id、無ければ省略）と `isuzuVersion`
+
+### 修正
+
+- `ddrive_asset_create` の `preview:true` が返す `wouldCreate` のパスを、実作成と同じ(既存フォルダの大小文字に寄せた)綴りにそろえた
+- `ddrive_build_netcheck` の確認: `Builds/DDriveNetCheck/DDriveNetCheck.exe` の更新時刻が古いままなのは、Unity が内容の変わらないプレイヤー雛形を書き直さないためで不具合ではない(更新は `DDriveNetCheck_Data` 側と zip)。手順書(docs/1005 7-1)の期待欄をその実態に合わせた
+
+### 変更
+
+- **MCP: `max_chars` の上限を 16000 に**(AI 向けの挙動の変更): `ddrive_asset_list` / `ddrive_asset_get` / `ddrive_asset_usages` / `ddrive_asset_unused` / `ddrive_help` / `ddrive_validate` / `ddrive_forbidden_api` の `max_chars` は 16000 を超えると 16000 に丸める(既定 4000 は変えない)。isuzu v4.3.0 から返り値が `MaxResultSizeChars` を超えると `isError` になるため、これらと `ddrive_status` の `MaxResultSizeChars` を 16000 に明示した
+- 開発リポジトリの isuzu MCP を v4.2.0 → v4.4.2 に更新(MCP-13)。`console_read_logs` はスタックトレースを `stack_trace:true` のときだけ返す(SKILL.md・docs/20 を更新)
+
 ## [1.5.0] - 2026-10-07
 
 > v1.5.0（MINOR、追加のみ）の予定。内容は **D-Drive MCP**: AI エージェントが D-Drive の Editor 機能を MCP ツール `ddrive_*` として直接呼べる（仕様と各ツールの実装メモ = [docs/1002](docs/1002_ddrive_mcp.md)、使い方 = [ProgrammerManual/mcp.html](docs/ProgrammerManual/mcp.html)、人による確認 = [docs/verification/1005](docs/verification/1005_manual_verification_mcp.md)）。

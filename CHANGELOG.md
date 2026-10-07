@@ -11,6 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.6.0] - 2026-10-08
+
+### 互換性
+
 - 破壊なし・追加のみ（MINOR。MCP-14）: 新しい Validator Code `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`（どちらも Info）。`ddrive_status` の `mcp` オブジェクトにキー `otherMcp` / `isuzuVersion` を追加（入れ子のキーなので `mcp-tools.txt` の上位の返り値キーは無変更）。`DDrive.Editor` に型 `McpPackageSupport` / `McpInstallActions` を追加（公開 API〔`DDrive.Foundation` / `DDrive.Runtime`〕・シリアライズ形式・ネットメッセージ・生成コードは無変更）。isuzu は引き続き `package.json` の依存に入れない
 - 破壊なし(開発リポジトリの isuzu を v4.4.2 に上げた。`DDrive.Editor.Mcp` の Version Defines の最小版は 4.2.0 のまま。`mcp-tools.txt` は無変更)
 
