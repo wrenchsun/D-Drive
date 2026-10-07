@@ -125,6 +125,18 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 - **テスト**: `FieldTablesTests` / `SerializedFieldIoTests`（全型の往復。`McpIoProbe` = テスト専用の ScriptableObject）/ `DDriveAssetToolTests`（一時 GameData ルート `Assets/Tests/DDriveTemp/McpAssetToolsGameData` で create → set → get → list の実往復。`AssetCreationService.Create` は実 Addressables グループへ一時ルートのアセットを登録するので、TearDown で `AddressablesSync.RemoveEntriesUnder` + `DeleteAsset` + 保存して持ち越さない。AssetCreationServiceTests と同じ後始末）。
 - **既知の制限**: `Gradient` と、新しい型の `ManagedReference` の生成は対象外。`ddrive_asset_set` は 1 アセット単位で、複数アセットの一括変更・複製・改名は無い。
 
+### 実装メモ（2026-10-07、MCP-4）
+
+- **ファイル**: `Editor/Mcp/Tools/DDriveDependencyTools.cs`（ツール 4 個 + 純粋関数 `UsagesJson` / `UnusedJson` / `ResultJson` / `PreviewJson` / `KindOf` / `ToProjectRelative`）。type / id の解決は MCP-3 の `DDriveAssetTools.Locate` を使う（新規ロジックなし）。`AddressablesSync.IsGuidRegistered(string)` を追加（テスト用。削除後に控えた GUID で Addressables の残りを確かめる。`DDrive.Editor.Mcp` の asmdef は Addressables を参照しないので bool で返す）。
+- **グラフ未構築**: `DependencyGraphService.CachedFileCount == 0`（UsagesWindow / UnusedAssetsWindow と同じ判定）なら `usages` / `unused` / `delete`（`preview` も）が `{needsRebuild:true, hint:"ddrive_generate target=deps"}` を返す（例外にしない）。`ddrive_generate` は MCP-6 で実装予定（それまでは Tools > D-Drive > Generate > 依存関係グラフを再構築）。テストは `DDriveDependencyTools.GraphBuiltOverride`（テスト専用の差し替え）で未構築を作り、実グラフは再構築しない。
+- **`ddrive_asset_usages`**: `{count, usages:[{path, objectPath?, kind?}], next?, truncated?}`（`ItemPaging.Fit` の `items` を `usages` に改名）。`kind` = 参照元のファイル種別（`ClassifiedReference.ClassifyPath`）: `scene` / `prefab` / `playable`（FC-7 の Timeline）、`.asset`（Data）は参照元の Data 型名（`DependencyReference.ComponentType`。例 `PresentationData`）。判定できないときは省略。
+- **`ddrive_asset_unused`**: `{count, items:[{type,id,name,archived?}], next?}`。`UnusedAssetsWindow` は Archived を**除外せず**一覧し Archived 列を出すので、それに合わせて除外せず `archived:true` の印だけ付ける（`ArchiveTagService.IsArchived`）。並びはパス順（窓と同じ）。`type` で絞る。
+- **`ddrive_asset_delete`**（`Destructive`。`confirm` は isuzu が注入しメソッドには渡らない = `ToolInvoker` で確認済み。`confirm` なしは `confirmation_required`。`preview` だけ自前の引数）: `EnsureCanWrite` → Locate → グラフ検査 → **読み取り専用の分析**（blockers = `FindUsages`、codeRefs = `CodeReferenceScan.FindPossibleReferenceHits`。`TryDelete` が削除前に見るものと同じ。`TryDelete` は確認の前に Archived タグを付けるので、分析は先に自前で行い、拒否・preview では何も書かない）。`preview` → `{path, wouldDelete, blocked?, blockers?, blockerCount?, codeRefs?}`。実行 → blockers か codeRefs があれば `{deleted:false, path, blockers, codeRefs}`（削除しない）、無ければ `SafeDeleteService.TryDelete(requireGraphBuilt:true, scanCodeReferences:false)`（コード参照は分析済み）を、`ConfirmDialogOverride`（常に続行）/ `InfoDialogOverride`（握りつぶす）を差してから呼び、`finally` で元の差し替えに戻す → `{deleted:true, path}`。Addressables のエントリ・カタログ登録は `TryDelete` の `PerformDelete` が外す（テストで確認）。OS のゴミ箱へ移動なのでファイルは復元できるが、カタログ / Addressables 登録は自動では戻らない。`blockers` は `{kind, path, objectPath?}`、`codeRefs` は `{file, line}`（プロジェクト相対。`CodeReferenceScan.Hit` がパッケージ内を絶対パスで返すので揃える）、どちらも 20 件まで（超えた分は `blockerCount`）。**コード参照がある Data はコードを直すまで消せない**（`scan_code=false` で検査を外せる）。コード参照の検出は定数名・ファイル名の文字列一致なので、コメントや生成器の文字列にも当たる（偽陽性あり。既存の削除ダイアログと同じ挙動）。`UndoGroup` は付けたが、ゴミ箱移動は Undo では戻らない。
+- **`ddrive_editor_open`**: `DataEditorRegistry.TryGetPrimary` → `Entry.Open`（`OpenDefault` と同じ。ウィンドウ名を返すため分けて呼ぶ）→ `{opened:"AudioEditorWindow"}`。専用エディタが無ければ `Selection.activeObject` + `PingObject` → `{opened:null, inspector:true}`。モーダルは出さない。Play Mode でも書き込みではないので拒否しない。
+- **テスト**: `DDriveDependencyToolTests`（16 件。整形は合成データ、削除は一時 GameData ルートに作った Se で preview / 実削除〔ファイル・Addressables の消去〕/ `write_disabled` / 差し替えの復元、`ddrive_editor_open` は Audio Editor を開いて閉じる。バッチモードでは Ignore）。
+- **所要時間**（HTTP 往復）: usages 0.3 秒、unused 0.7 秒、delete `preview`（コード参照走査込み）0.25 秒。
+- **既知の制限**: 参照されている Data は `delete` で消せない（差し替え・強制削除は Asset Browser の削除画面〔`AssetDeleteWindow`〕の仕事で、MCP には出さない）。複数アセットの一括削除は無い。
+
 ---
 
 ## 4. ツール一覧（v1.5.0）
@@ -388,6 +400,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ## 更新履歴
 
+- 2026-10-07（MCP-4）: `ddrive_asset_usages` / `unused` / `delete` / `ddrive_editor_open` を実装。`dry_run` → `preview`、`delete` は分析 → 実行の 2 段（コード参照があれば拒否）。実装メモ（MCP-4）を追加
 - 2026-10-07（MCP-3）: `ddrive_asset_list/get/create/set` + `FieldTables` を実装。ID を 10 進文字列に決定（MCP-5 の `items[].id` も変更）、§4.2・§4.5 を実装に合わせた（`dry_run` → `preview`、読み取り専用欄は `read_only_field` エラー）。実装メモ（MCP-3）を追加
 - 2026-10-07（同日 2）: Q-1 = 外す、Q-4 = (c) で確定（ユーザー回答）。全 Q 確定、MCP-0 に着手
 - 2026-10-07（同日）: ユーザー回答を §9.1 に記録（Q-2 案で確定・Q-3 同梱・Q-5〜12 案で確定・Q-1 / Q-4 は詳細 §9.2 / §9.3 を書いて説明待ち）。文書番号を 68 → 1002 に変更（docs の番号は 10xx に統一）

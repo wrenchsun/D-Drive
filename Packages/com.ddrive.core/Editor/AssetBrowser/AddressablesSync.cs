@@ -31,6 +31,10 @@ namespace DDrive.Editor.AssetBrowser
         // Addressables に登録済みか(設定が無ければ false)。AddressableAssetEntry 型を参照できない asmdef(DDrive.Editor.Mcp 等)用。
         public static bool IsRegistered(Object asset) => FindEntry(asset) != null;
 
+        // GUID で登録済みか(削除後にアセット本体が無くなっていても、控えた GUID で確かめられる。MCP-4 のテスト用)。
+        public static bool IsGuidRegistered(string guid)
+            => IsAvailable && !string.IsNullOrEmpty(guid) && AddressableAssetSettingsDefaultObject.Settings.FindAssetEntry(guid) != null;
+
         public static AddressableAssetEntry FindEntry(Object asset)
         {
             if (!IsAvailable || asset == null)
