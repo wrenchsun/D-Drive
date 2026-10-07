@@ -179,6 +179,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 - `Application.dataPath`（= `<リポジトリ>/Assets`）から isuzu と同じ規則でハッシュを計算し、`%LOCALAPPDATA%\UnityMCP\instances\<hash>.json` を読む。`pid` が生きていることを確認してから `claude mcp remove isuzu-unity; claude mcp add --transport http isuzu-unity <mcpUrl> --header "Authorization: Bearer <token>"` を実行する（登録先は `~/.claude.json` のプロジェクト配下 = 既存運用と同じ。**リポジトリにはトークンもポートも入らない**）。
 - `.mcp.json` には isuzu のエントリを置かない（トークンが入るため。既存方針のまま）。CoplayDev のエントリは削除する（Q-1）。
 - MS2026 側も同じスクリプトで登録できる（パッケージの `Tools~/Mcp/` に同梱、P-9 の同期対象に追加）。
+- **実装メモ（2026-10-07）**: ハッシュ規則は isuzu v4.2.0 `McpInstanceDescriptor.HashProjectPath` と同一 = `SHA256(UTF-8(Application.dataPath))` の先頭 8 バイトを小文字 16 進 16 文字にする。`dataPath` は `/` 区切り・末尾スラッシュ無し・大小文字そのまま・正規化なし（`C:/Users/yamag/wrench/D-Drive/Assets` → `a26b71fdfd662823` で実機の記述子と一致を確認）。ハッシュで見つからなければ `instances\*.json` を `projectPath`（大小無視）で走査し、警告を出す。終了コード: 0 成功 / 2 記述子なし / 3 pid 死亡 / 4 `claude` が PATH に無い / 5 `claude mcp add` 失敗。`-Print`（トークン非表示で表示のみ）・`-DryRun`・`-ProjectPath`・`-Name`・`-Scope` あり。`McpPortPolicyTests` と `DD-MCP-FIXED-PORT` は MCP-1 の asmdef の後。
 
 ### 6.3 D-Drive 側で確認できること
 
@@ -198,7 +199,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ---
 
-## 8. チケット分割（v1.5.0、[11](11_tasks.md) の「MCP チケット」節に転記）
+## 8. チケット分割（v1.5.0。状態の正本は [1004_tasks.md](1004_tasks.md) §1。ここは起票時の案）
 
 | ID | 内容 | 人日 | 依存 |
 |---|---|---|---|

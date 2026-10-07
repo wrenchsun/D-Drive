@@ -23,7 +23,7 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 08 | [Presentation](08_presentation.md) | 複数アセット統合演出（Anim+SE+VFX+Shake+HitStop） |
 | 09 | [エディタツール](09_editor_tools.md) | AssetBrowser・プレビュー基盤・依存関係・CI |
 | 10 | [運用フロー・規約](10_workflow.md) | ロール別責務・開発フロー・命名規約・ブランチ運用 |
-| 11 | [タスク分割](11_tasks.md) | Phase 0〜7・チケット（1〜3 人日）・約 36 週 |
+| 11 | [タスク分割（2026-10-07 まで）](11_tasks.md) | Phase 0〜7・P/N/M/FC/U チケットの記録。**新しいチケットは 1004 へ** |
 | 12 | [レビュープロセス](12_review.md) | PR ルール・チェックリスト・マイルストーン基準 |
 | 13 | [推奨拡張機能](13_extensions.md) | 発注リスト・デバッグオーバーレイ・Live Tuning・予算管理・バリアント ほか |
 | 14 | [ネットワーク設計](14_networking.md) | INetBridge・NetMode・Presentation 同期再生・Late Join・ContentHash 照合 |
@@ -43,6 +43,7 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 | 50 | [持ち込み先向け持ち込み先ガイド（導入・更新・運用、HTML）](50_consumer_guide.md) | 持ち込み先（MS2026 等）のプログラマー向けに、導入手順・更新方法・運用方法を個別 HTML ページにまとめたガイド（`docs/50_consumer_guide/`、DesignerManual/ProgrammerManual と同じ書式）。正本はこのリポジトリで、リリースのたびに `Packages/com.ddrive.core/Documentation~/ConsumerGuide/` へ同期される（2026-09-20） |
 | 1001 | [未完了事項の一覧](1001_open_items.md) | 未確認・未実装・既知の不具合・レビューで見送った項目・ユーザーの判断待ち・次の MAJOR 候補を 1 枚に集約した索引（正本は 11 / verification / reviews）。新しい未完了事項はここにも 1 行足し、終わったら消す（2026-10-07） |
 | 1002 | [D-Drive MCP（v1.5.0 仕様書）](1002_ddrive_mcp.md) | AI 向けの Editor 操作ツール群: isuzu 版 `[McpTool]` に乗る方式、ツール 19 個の一覧と引数・返り値、トークンを減らす設計、ポート競合を起こさない設計、互換性（`mcp-tools.txt`）、チケット MCP-0〜12、決め事 Q-1〜Q-12（2026-10-07 起票・未実装） |
+| 1004 | [タスク一覧（2026-10-07 以降）](1004_tasks.md) | **これ以降のチケットはすべてここ**（MCP チケットなど）。過去のチケットは 11 のまま。状態列つき（2026-10-07） |
 
 ## 文書番号の付け方（2026-10-07 から）
 
