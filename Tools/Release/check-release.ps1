@@ -24,6 +24,10 @@
 .PARAMETER GuardOnly
   CHANGELOG ガードだけを実行する(Tools/CI/run-ci.cmd から呼ぶときに使う)。
 
+.PARAMETER Json
+  人向けの表示を出さず、標準出力に JSON 1 個だけを出す: {"ok":bool,"checks":[{"name":..,"ok":..,"msg":..}]}
+  (MCP の ddrive_release_check が読む。[1002_ddrive_mcp.md] §4.3)。終了コードは通常実行と同じ(失敗 = 1)。
+
 .EXAMPLE
   pwsh Tools/Release/check-release.ps1
 
@@ -34,10 +38,34 @@
 param(
     [string]$Base = 'origin/main',
     [switch]$SkipCleanCheck,
-    [switch]$GuardOnly
+    [switch]$GuardOnly,
+    [switch]$Json
 )
 
 $ErrorActionPreference = 'Stop'
+
+# -Json のときは標準出力を JSON 1 個だけにする(ReleaseChecks.ps1 側の Write-Host も含めて握りつぶす)。
+if ($Json) {
+    function Write-Host { }
+}
+
+function Write-CheckJson {
+    param([object[]]$Items, [bool]$Ok)
+    $rows = @()
+    foreach ($i in $Items) { $rows += [ordered]@{ name = $i.Name; ok = [bool]$i.Ok; msg = [string]$i.Message } }
+    # 非 ASCII は エスケープして出す(呼び出し側のコードページに依らず読めるように)。
+    $payload = [ordered]@{ ok = $Ok; checks = $rows }
+    [Console]::Out.WriteLine(($payload | ConvertTo-Json -Depth 5 -Compress -EscapeHandling EscapeNonAscii))
+}
+
+# -Json 中の想定外の例外も JSON 1 個で返す(呼び出し側が必ず読めるように)。
+trap {
+    if ($Json) {
+        Write-CheckJson -Items @([pscustomobject]@{ Name = 'check-release の実行'; Ok = $false; Message = $_.Exception.Message }) -Ok $false
+        exit 1
+    }
+    throw
+}
 . (Join-Path $PSScriptRoot 'ReleaseChecks.ps1')
 
 $repoRoot = Get-DDriveRepoRoot -ScriptRoot $PSScriptRoot
@@ -55,6 +83,10 @@ if ($GuardOnly) {
     if (-not $guardCheck.Ok) { $mark = '[FAIL]' }
     Write-Host "$mark CHANGELOG ガード([42_distribution.md] §5.11-10): $($guardCheck.Message)"
     Write-Host ''
+    if ($Json) {
+        Write-CheckJson -Items @([pscustomobject]@{ Name = 'CHANGELOG ガード'; Ok = $guardCheck.Ok; Message = $guardCheck.Message }) -Ok ([bool]$guardCheck.Ok)
+        if ($guardCheck.Ok) { exit 0 } else { exit 1 }
+    }
     if (-not $guardCheck.Ok) {
         Write-Host '=== check-release(-GuardOnly): 失敗 ==='
         exit 1
@@ -102,6 +134,11 @@ foreach ($c in $checks) {
     Write-Host "$mark $($c.Name): $($c.Message)"
 }
 Write-Host ''
+
+if ($Json) {
+    Write-CheckJson -Items $checks.ToArray() -Ok (-not $anyFailed)
+    if ($anyFailed) { exit 1 } else { exit 0 }
+}
 
 if ($anyFailed) {
     Write-Host '=== check-release: 失敗があります ==='

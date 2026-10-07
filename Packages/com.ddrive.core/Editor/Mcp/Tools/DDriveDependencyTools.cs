@@ -15,11 +15,11 @@ namespace DDrive.Editor.Mcp.Tools
     // ツールはアダプタに徹する。参照の検索は DependencyGraphService、削除は SafeDeleteService.TryDelete、
     // コード参照は CodeReferenceScan、エディタを開くのは DataEditorRegistry を呼ぶだけ。
     //  - 依存グラフが未構築(CachedFileCount == 0。UsagesWindow / UnusedAssetsWindow と同じ判定)なら
-    //    例外にせず {needsRebuild:true, hint:"ddrive_generate target=deps"} を返す
+    //    例外にせず {needsRebuild:true, hint:"ddrive_generate kind=deps"} を返す
     //  - ID は MCP-3 と同じ 10 進文字列。type / id の解決は DDriveAssetTools.Locate を使う
     public static class DDriveDependencyTools
     {
-        public const string RebuildHint = "ddrive_generate target=deps";
+        public const string RebuildHint = "ddrive_generate kind=deps";
 
         // 一覧に出す blockers / codeRefs の最大件数(超えた分は件数だけ)。返り値を小さく保つため。
         public const int MaxListed = 20;
