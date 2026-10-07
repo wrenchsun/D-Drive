@@ -1,6 +1,6 @@
-# 68. D-Drive MCP（v1.5.0 仕様書）
+# 1002. D-Drive MCP（v1.5.0 仕様書）
 
-> **状態**: 仕様書（2026-10-07 起票、未実装）。v1.5.0（MINOR、追加のみ）の実装内容。チケットは [11_tasks.md](11_tasks.md) の「MCP チケット」節、未完了事項の索引は [67_open_items.md](67_open_items.md)。
+> **状態**: 仕様書（2026-10-07 起票、未実装）。v1.5.0（MINOR、追加のみ）の実装内容。チケットは [11_tasks.md](11_tasks.md) の「MCP チケット」節、未完了事項の索引は [1001_open_items.md](1001_open_items.md)。
 > **要点**: D-Drive の Editor 機能（AssetBrowser・専用エディタ・Validation・生成・マイグレーション・確認用シーン・リリース道具）を **AI エージェントが MCP ツールとして直接呼べる**ようにする。**サーバーは新設しない**（Editor 組み込みの `jp.shiranui-isuzu.unity-mcp` にツールを足す）。**AI が使うトークンを最小にする**ことと、**ポート競合を構造的に起こさない**ことを設計の軸にする。
 > **決めてほしいこと**は §9（Q-1〜Q-12）。それ以外はこの文書の案で進める。
 
@@ -25,7 +25,7 @@
 | 項目 | 現状（2026-10-07） | 出典 |
 |---|---|---|
 | MCP サーバー | 2 系統を併用: **CoplayDev** `com.coplaydev.unity-mcp` v10.2.0（別プロセスの Python サーバー、固定ポート 8080 → 8081 に変更した経緯あり）と **isuzu** `jp.shiranui-isuzu.unity-mcp` v4.2.0（Editor 組み込み、ポートはプロジェクトパスから自動決定、Bearer トークン必須） | [20](20_mcp_setup.md) §1・§4、`Packages/manifest.json` |
-| 運用上の優先 | 両方繋がっているときは isuzu 版を優先（`test_run`/`compile_status`/`execute_code`/`menu_execute`）。「3 セッション問題なければ CoplayDev を外す」の判断が未了 | [CLAUDE.md](../CLAUDE.md) §4、[20](20_mcp_setup.md)「切り替えの判断基準」、[67](67_open_items.md) §5 |
+| 運用上の優先 | 両方繋がっているときは isuzu 版を優先（`test_run`/`compile_status`/`execute_code`/`menu_execute`）。「3 セッション問題なければ CoplayDev を外す」の判断が未了 | [CLAUDE.md](../CLAUDE.md) §4、[20](20_mcp_setup.md)「切り替えの判断基準」、[1001](1001_open_items.md) §5 |
 | D-Drive 側の MCP 専用コード | **0 件**。AI は `execute_code`（Roslyn）で `AssetCreationService.Create(...)` 等の static メソッドを直接呼んでいる | 調査（2026-10-07） |
 | isuzu の拡張 API | `[McpTool(name, description)]` を付けた **public static メソッド**を、全アセンブリから自動発見（`ToolCatalog.Build`。`DDrive.*` は除外されない）。引数は `[McpArg]`、`Destructive=true` で `confirm` / `dry_run` が自動注入、`MainThread`（既定 true）、`Idempotency`、`Group`、`MaxResultSizeChars`、`Examples`。名前は `^[a-z][a-z0-9_]{0,63}$` | `Library/PackageCache/jp.shiranui-isuzu.unity-mcp@*/Editor/Core/Attributes/McpToolAttribute.cs`、`ToolCatalog.cs` |
 | isuzu のポート決定 | `Application.dataPath` を正規化（`\`→`/`、末尾 `/` 除去、Windows は小文字化）→ UTF-8 SHA256 → 先頭 4 バイト LE uint → `27200 + value % 800`。バインドは希望ポートを 200ms × 5 回試し、だめなら 27200〜27999 を走査して最初の空きを使う。希望と違えば記述子に `portMismatch=true`。Preferences の `httpPort` が正なら優先 | `McpPortPolicy.cs`、`McpHttpServer.cs` |
@@ -146,7 +146,7 @@ AI が消費するトークンは「ツール定義（毎ターン送られる�
 ### 5.4 docs 参照を減らす（AI 向けカード）
 
 - AI が作業前に読む `CLAUDE.md` §0（約 1,500 字）と各設計 doc の該当節（数千字）を、`ddrive_help` の**短いカード**（各 300〜600 字）に置き換える: `rules`（禁止事項 10 行）・`types`（AssetType / ID 接頭辞 / Data クラス名の表）・`validation:<code>`（Code の意味と直し方）・`tool:<name>`（引数と例）・`menu`（メニュー一覧）。
-- カードの正本は `docs/68_ddrive_mcp/cards/*.md`（この文書の隣。P-9 の同梱物の同期で `Documentation~/Mcp/cards/` へ）。**docs と二重管理にしない**: カードは「docs のどの節の要約か」を先頭行に書き、docs 側を変えたらカードも同じ PR で直す（[12](12_review.md) §3 に 1 行足す）。
+- カードの正本は `docs/1002_ddrive_mcp/cards/*.md`（この文書の隣。P-9 の同梱物の同期で `Documentation~/Mcp/cards/` へ）。**docs と二重管理にしない**: カードは「docs のどの節の要約か」を先頭行に書き、docs 側を変えたらカードも同じ PR で直す（[12](12_review.md) §3 に 1 行足す）。
 - `.claude/skills/ddrive-agent-workflow/SKILL.md` に「MCP が繋がっているときは `ddrive_help rules` と `ddrive_status` から始める。`execute_code` で D-Drive のサービスを直接呼ぶのは、ツールに無い操作だけ」を追記する。
 
 ### 5.5 計測
@@ -213,7 +213,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 | MCP-8 | `Tools/Mcp/register-mcp.ps1` + `McpPortPolicyTests` + `DD-MCP-FIXED-PORT` | 0.5 | MCP-1 |
 | MCP-9 | スナップショット `mcp-tools.txt` + Compat テスト + §5.14 E-21 | 0.5 | MCP-2〜7 |
 | MCP-10 | トークン計測（`measure-tokens.py`、代表 5 シナリオ、§10 に結果） | 0.5 | MCP-2〜7 |
-| MCP-11 | docs / SKILL.md / ProgrammerManual / CHANGELOG、人による確認手順（`verification/69_manual_verification_mcp.md`） | 1 | MCP-9 |
+| MCP-11 | docs / SKILL.md / ProgrammerManual / CHANGELOG、人による確認手順（`verification/1003_manual_verification_mcp.md`） | 1 | MCP-9 |
 | MCP-12 | 自前レビュー → 修正 → v1.5.0 リリース（[12](12_review.md) §7） | 1 | MCP-11 |
 
 合計 約 12 人日。実装は Sonnet のエージェントに 1 チケットずつ委任し、レビューとリリース判断は上位モデルが行う（2026-10-07 の運用指示）。
@@ -226,20 +226,80 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 | # | 問い | 案（推奨） | 理由・影響 |
 |---|---|---|---|
-| Q-1 | **CoplayDev 版を外すか**（v1.5.0 で isuzu 版に一本化） | **外す** | 固定ポートの競合源（§6.1 (a)）。isuzu 版で 3 セッション以上問題なく運用済み（docs/20 §4 の基準を満たしている）。MS2026 も同時に外す |
+| Q-1 | **CoplayDev 版を外すか**（詳細 §9.2）（v1.5.0 で isuzu 版に一本化） | **外す** | 固定ポートの競合源（§6.1 (a)）。isuzu 版で 3 セッション以上問題なく運用済み（docs/20 §4 の基準を満たしている）。MS2026 も同時に外す |
 | Q-2 | **isuzu のタグを v4.2.0 のまま固定するか、最新に上げるか** | **v4.2.0 のまま**で実装し、MCP-12 の直前に最新を 1 回だけ評価 | `[McpTool]` の属性名・`ToolCatalog` の発見規則が変わると全ツールに影響する。上げるなら `McpPortPolicyTests` と `mcp-tools.txt` で差分を検出できる |
 | Q-3 | **持ち込み先（MS2026）にも配るか** | **配る**（同梱・既定は無効 = isuzu が無ければ何も増えない） | MS2026 の AI 作業でも同じツールが使える。isuzu を入れるかは MS2026 の判断 |
-| Q-4 | **書き込みツール（W / D）を既定で有効にするか** | **有効**。ただし `DDriveProjectSettings.McpAllowWrite`（既定 true）で**プロジェクト単位に無効化**できる | デザイナーの作業ファイルを AI が触るのを止めたいプロジェクト向け。無効時は W / D が `{error:{code:"write_disabled"}}` を返す |
+| Q-4 | **書き込みツール（W / D）を既定で有効にするか**（詳細 §9.3） | **有効**。ただし `DDriveProjectSettings.McpAllowWrite`（既定 true）で**プロジェクト単位に無効化**できる | デザイナーの作業ファイルを AI が触るのを止めたいプロジェクト向け。無効時は W / D が `{error:{code:"write_disabled"}}` を返す |
 | Q-5 | **返り値のメッセージの言語** | **キーは英語、本文（Validation の `msg` 等）は既存の日本語のまま** | 翻訳の二重管理を避ける。英語本文の方がトークンは少し減るが、docs・マニュアルと食い違う方が損 |
 | Q-6 | **`ddrive_asset_set` が書ける欄の範囲** | **シリアライズされた全欄**（読み取り専用欄を除く）。`Flags.Load` 等の「変えると Preload / 同期 API に影響する欄」は変更後の検査結果を必ず返す | 欄ごとのホワイトリストは保守が重い。検査で守る |
 | Q-7 | **AI が変えた Data に印を付けるか**（`ChangeNote` に `[mcp]` を前置、`Author` を `mcp:<client>` に） | **`ChangeNote` の先頭に `[mcp] ` を付ける**（`Author` は触らない） | 誰が変えたかを AssetBrowser と SpecWeb で追える。`VersionStampProcessor` の `Version` / `UpdatedAt` は従来どおり自動 |
 | Q-8 | **Play Mode 中の読み取り（R）を許すか** | **許す**（W / D は拒否） | 実機確認中に状態を読めると便利。書き込みは変更が破棄されるので拒否（[20](20_mcp_setup.md) §2 の規約） |
 | Q-9 | **`ddrive_release_check` / `ddrive_build_netcheck` のような「Editor の外の道具」をツールにするか** | **する**（`pwsh` 起動の薄いラッパー）。`git tag` / `push` を伴う `bump-version.ps1` は**ツールにしない** | リリースの判断と push は人の操作のまま（[12](12_review.md) §7 の原則） |
-| Q-10 | **`ddrive_help` のカードの正本の置き場** | `docs/68_ddrive_mcp/cards/*.md`（docs と同じ PR で更新） | §5.4。二重管理を避けるため docs 側の節を要約した形にし、要約元を先頭行に書く |
+| Q-10 | **`ddrive_help` のカードの正本の置き場** | `docs/1002_ddrive_mcp/cards/*.md`（docs と同じ PR で更新） | §5.4。二重管理を避けるため docs 側の節を要約した形にし、要約元を先頭行に書く |
 | Q-11 | **SpecWeb（GAS）との連携ツール**（`ddrive_spec_sync`）を v1.5.0 に入れるか | **入れない**（v1.5.x で検討） | 書き込みトークンを AI に渡す設計が要る。[32](32_spec_web.md) §7 のセキュリティ節と一緒に決める |
 | Q-12 | **ツール名の接頭辞と最大数** | `ddrive_`、**20 個以内**（増やすときは既存ツールの `mode` に足すのを先に検討） | §5.1。ツール定義は毎ターン送られるので、数が増えるほど常時コストになる |
 
 ---
+
+### 9.1 決定状況（2026-10-07、ユーザー回答）
+
+| # | 状態 |
+|---|---|
+| Q-1 | **説明待ち**（§9.2 を読んで決める） |
+| Q-2 | **案で確定**（v4.2.0 固定のまま実装。ユーザー「どっちでも OK」） |
+| Q-3 | **確定: 同梱**（isuzu が無ければ無効） |
+| Q-4 | **説明待ち**（§9.3 を読んで決める） |
+| Q-5〜Q-12 | **案で確定** |
+
+### 9.2 Q-1 の詳細: CoplayDev 版を外すとどうなるか
+
+**今の状態**: `Packages/manifest.json` に CoplayDev（`com.coplaydev.unity-mcp` v10.2.0）と isuzu（v4.2.0）の両方が入り、`.mcp.json` に CoplayDev のエントリ（HTTP 8081）がある。Claude Code は両方に接続し、両方のツール定義（CoplayDev 約 30 個 + isuzu 141 個のうち常時ロード分）を**毎ターン**コンテキストに載せている。
+
+**CoplayDev にしか無いもの**: 実質的に無い。`read_console` / `run_tests` / `execute_menu_item` / `manage_*` は isuzu の `console_read_logs` / `test_run` + `test_results` / `menu_execute` / `gameobject_*` `asset_*` `prefab_*` で置き換え済み（[20](20_mcp_setup.md) §4 の対応表）。CoplayDev で困っていた点（別プロセスの Python サーバー、固定ポートの衝突、`run_tests` の初期化タイムアウト、失敗テストのスタックトレースが返らない）は isuzu で解消している。CI（`run-ci.cmd`）はどちらにも依存しない。
+
+**外すと得られるもの**:
+1. ポート競合の唯一の固定ポート源（8081）が消える（§6.1 (a)）。
+2. 毎ターンのツール定義が減る（トークン最小化の G-2 に直接効く。CoplayDev の約 30 ツールぶん）。
+3. Python サーバー（`uvx mcpforunityserver`）の起動・更新・Python 環境の管理が不要になる（[20](20_mcp_setup.md) §1・§3 が丸ごと消える）。
+4. 2 つのサーバーが同じ Editor を同時に操作する事故（片方がテスト実行中にもう片方が書き込む）が構造的に起きなくなる。
+5. manifest から 1 パッケージ減る（Roslyn DLL の重複供給も無くなる）。
+
+**外すリスクと対策**:
+1. isuzu は個人保守のプロジェクトで、破壊的変更が多い時期（v4.0.0 が 2026-09-04）。→ タグ固定（Q-2）と、`McpPortPolicyTests` / `mcp-tools.txt` で上げたときの差分を検出する。壊れたら CoplayDev を manifest に戻すだけで元の運用に戻れる（手順は [20](20_mcp_setup.md) §1 を archive に残す）。
+2. isuzu のトークンが Unity 再起動のたびに変わり、登録し直しが要る。→ `register-mcp.ps1`（MCP-8）で 1 コマンドにする。CoplayDev は固定ポート・認証無しだったので登録し直し不要だったが、それがポート競合の原因でもある。
+3. MS2026 側でも CoplayDev を使っている場合、外すタイミングを揃える必要がある（PC で Python サーバーは 1 つなので、片方だけ残しても動く）。→ MS2026 の manifest から外すのは MS2026 の担当の作業（v1.5.0 の案内に書く）。
+4. isuzu は Bearer トークン必須なので、`.mcp.json`（リポジトリ共有）に書けず、各自 1 回の登録が要る。→ 既にそういう運用（2026-09-10〜）。
+
+**外さない場合**: manifest と `.mcp.json` は現状維持。ただし §6.1 (a) の「固定ポートをどこにも書かない」は満たせないので、G-3 は「isuzu 側だけ競合ゼロ」に弱まる。トークンも CoplayDev のツール定義ぶん毎ターン余計にかかる。**折衷案**: manifest には残すが `.mcp.json` のエントリを消して**既定では接続しない**（必要な人だけ `claude mcp add` で足す）。これなら固定ポートの衝突も毎ターンのトークンも避けつつ、戻すのが速い。
+
+**推奨**: 外す。折衷案でも可。
+
+### 9.3 Q-4 の詳細: 書き込みツールを既定で有効にするか
+
+**対象**: 種別 W / D のツール（`ddrive_asset_create` / `set` / `delete`、`ddrive_validate_fix`、`ddrive_generate`、`ddrive_migrate`、`ddrive_compat update`、`ddrive_preview_open` / `play` / `sweep`、`ddrive_build_netcheck`）。R（読み取り）は常に有効。
+
+**CLAUDE.md §0-5「Data は読み取り専用」との関係**: あの規則は**実行時に Manager が Data を書き換えない**こと。Editor（人の操作・専用エディタ）が Data を書くのは正当で、条件は `Undo.RecordObject` + `EditorUtility.SetDirty`。MCP の W ツールも同じ条件で書く（AI が専用エディタを操作するのと同じ経路）。
+
+**既に入れる安全装置**（有効・無効に関わらず全部入る）:
+1. `Undo` + `SetDirty` + `DDriveAssetSave.SaveDirty`（人が Ctrl+Z で戻せる）。
+2. `dry_run`（何も書かずに「こうなる」を返す）。D は加えて `confirm` 必須（isuzu が注入）。
+3. Play Mode 中は拒否（変更が破棄されるため）。
+4. 読み取り専用欄（`Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon`）は拒否。
+5. 作成は `AssetCreationService` 経由（命名・配置・Addressables 登録が規約どおりになる）。削除は `SafeDeleteService`（使用中なら止まる）。
+6. YAML を直接触らない（`SerializedProperty` 経由。`.unity` / `.prefab` / `.meta` には触れない）。
+7. 変えた Data の `ChangeNote` に `[mcp] ` を前置（Q-7。誰が変えたか追える）。
+8. Validation の結果を書き込みの返り値に必ず付ける（壊したらその場で分かる）。
+
+**残るリスク**: (a) デザイナーが**未コミットで編集中**の `.asset` を AI が上書きする（Undo は AI 側の Editor でしか効かない。別 PC なら git で衝突）。→ 運用規則「書く前に `git status` で他人の未コミット変更を見る」（SKILL.md §4）は AI の判断に依存する。(b) AI の誤った一括変更（`ddrive_generate` / `validate_fix` / `migrate apply`）。→ `dry_run` と `confirm`、そして git で戻せる。
+
+**選択肢**:
+| 案 | 内容 | 向くプロジェクト |
+|---|---|---|
+| (a) 既定で有効 | `DDriveProjectSettings.McpAllowWrite = true` が既定。止めたいプロジェクトは設定で false にする（`ProjectSettings/` に入るので git で共有される） | 開発リポジトリ（D-Drive 自身）。AI に Data を作らせる前提の運用 |
+| (b) 既定で無効 | 既定 false。使うプロジェクトが明示的に true にする。無効時は W / D が `{error:{code:"write_disabled"}}` を返す | 持ち込み先（MS2026）でデザイナーの作業ファイルを守りたい場合 |
+| (c) 開発リポジトリは有効・持ち込み先は無効 | 既定値は (b) と同じ false だが、セットアップウィザード（P-6）が開発リポジトリでは true を書き、持ち込み先では「有効にしますか」と聞く | 両方。設定の意味を導入時に 1 回見せられる |
+
+**推奨**: (c)。理由は、持ち込み先ではデザイナーが Data を直接編集しているので「AI が勝手に書けない」が既定として安全で、開発リポジトリでは AI に書かせる運用が前提だから。(a) でも実害は小さい（安全装置 1〜8 は同じ）。(b) は「使うときに毎回設定を探す」手間が開発リポジトリで無駄になる。
 
 ## 10. 計測結果（MCP-10 で記入）
 
@@ -255,4 +315,5 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ## 更新履歴
 
+- 2026-10-07（同日）: ユーザー回答を §9.1 に記録（Q-2 案で確定・Q-3 同梱・Q-5〜12 案で確定・Q-1 / Q-4 は詳細 §9.2 / §9.3 を書いて説明待ち）。文書番号を 68 → 1002 に変更（docs の番号は 10xx に統一）
 - 2026-10-07: 起票（v1.5.0 の仕様。ユーザー指示「D-Drive MCP: D-Drive 周りを全面サポート、トークン最小、ポート競合ゼロ」を受けて作成。Editor 機能の棚卸しと isuzu 版の拡張 API・ポート規則の調査結果に基づく）
