@@ -199,7 +199,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ---
 
-## 8. チケット分割（v1.5.0、[11](11_tasks.md) の「MCP チケット」節に転記）
+## 8. チケット分割（v1.5.0。状態の正本は [1004_tasks.md](1004_tasks.md) §1。ここは起票時の案）
 
 | ID | 内容 | 人日 | 依存 |
 |---|---|---|---|
