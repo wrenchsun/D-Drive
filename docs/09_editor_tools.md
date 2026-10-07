@@ -1045,6 +1045,45 @@ Slider Skin には無い、というばらつきがあった（ユーザー報�
 - **「1. 更新チェック」（P-14、2026-09-20）**: `Packages/manifest.json` の `com.ddrive.core` の値を `GitPackageUrl.Parse`（`Editor/Update/GitPackageUrl.cs`、純関数）で URL・`?path=`・`#ref` に分解する。`file:`/レジストリ配布の値なら `IsGitUrl=false` になり「更新チェック対象外(git URL 参照ではありません)」を表示して no-op にする。「最新の版を確認」ボタンは `IGitTagLister`(既定実装 `GitCliTagLister`、`System.Diagnostics.Process` で `git ls-remote --tags` をタイムアウト 30 秒で起動。git が PATH に無い/タイムアウト/非 0 終了/例外はいずれも警告表示 + no-op)→ `GitTagListParser.Parse`(標準出力を解析、peeled 行〔`^{}`〕と非 SemVer タグを除外し降順に整列)→ `UpdateCheckLogic.Evaluate`(現在の参照 vs 最新のタグを比較し `UpToDate`/`Patch`/`Minor`/`Major`/`Unknown` を判定。現在の参照がタグとして解釈できない〔コミットハッシュ指定〕ときは package.json の版にフォールバックする)の順に呼ぶ。取得したタグを `DropdownField` に降順で並べ、「manifest を選んだ版に更新する」ボタン(`EditorUtility.DisplayDialog` で確認)で `GitPackageUrl.WithRef` を使い `#ref` だけを差し替えて保存し `AssetDatabase.Refresh()` + `Client.Resolve()` を実行する。差し替え前の値は `DDriveProjectSettings.PreviousPackageRef`(新設フィールド)に退避し、「前の参照に戻す」ボタンで現在値と入れ替えて戻せる(2 回押すと元に戻る簡易 1 段 undo)。「起動時に確認」トグルは作らない(手動のみ)。manifest を書き換えた後の再コンパイル・「4. 更新を適用」の実行は本セクションの範囲外(案内ラベルを出すだけ)。テスト: `Tests/Editor/Update/`(`GitPackageUrlTests`・`GitTagListParserTests`・`UpdateCheckLogicTests`)+ `DDriveProjectSettingsTests` の `PreviousPackageRef` 往復テスト。`GitCliTagLister`・`UpdateWindow` 自体は他の実配線クラスと同じく EditMode テスト対象外
 - **「パッケージ」一覧と D-Drive 以外のパッケージ（P-15、2026-10-03）**: ウィンドウ先頭に管理対象の一覧（1 行目は常に D-Drive）・「URL を入力して追加」・manifest にある未登録の git URL 依存の「候補」・「依存の確認」を追加した。行を選ぶと「1. 更新チェック」「2. 版と CHANGELOG」が選んだパッケージのものになり、D-Drive 専用の「3〜6」は D-Drive を選んだときだけ出る（追加パッケージは「3. 更新後の確認」= `Validation > Run All` の実行ボタン）。ウィンドウは配線と表示だけを持ち、ロジックは純関数側（`PackageAddPlanner` / `PackageManifestOps` / `ManagedPackageRows` / `PackageDependencyChecker` / `UpdatePreflight`）。詳細は [42_distribution.md](42_distribution.md) §4.2.1。節番号は P-14 / P-15 で繰り下がった現状のもの（上の「6 個の `Foldout`」の記述は P-8 時点）。
 
+## 15. MCP ツール（`ddrive_*`、v1.5.0、2026-10-07）
+
+AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP ツールとして直接呼べる**ようにしたもの。サーバーは新設せず、Editor 組み込みの `jp.shiranui-isuzu.unity-mcp`（isuzu 版）の `[McpTool]` に乗る。ツール本体は新 asmdef `DDrive.Editor.Mcp`（`Packages/com.ddrive.core/Editor/Mcp/`）の**薄いアダプタ**で、ロジックは持たず既存の static サービス（`AssetCreationService` / `CI` / `DDriveMigrationRunner` / `DependencyGraphService` / `*PreviewSceneSetup` など）を呼ぶ。isuzu のパッケージが無いプロジェクトでは asmdef ごとコンパイルされない（Version Defines `DDRIVE_UNITY_MCP`）。設計・経緯・トークン計測は [1002_ddrive_mcp.md](1002_ddrive_mcp.md)、セットアップは [20_mcp_setup.md](20_mcp_setup.md)、AI 向けの使い方は [ProgrammerManual/mcp.html](ProgrammerManual/mcp.html)。
+
+### ツール一覧（20 個。名前・引数・返り値の正本は `mcp-tools.txt`）
+
+凡例: R = 読み取りのみ（書き込み設定 OFF でも動く）/ W = 書き込み（`McpAllowWrite` 必須）/ D = Destructive（W + `confirm:true` 必須）。
+
+| ツール | グループ | 読み書き | 一言 |
+|---|---|---|---|
+| `ddrive_status` | diagnostics | R | バージョン・コンパイル・テスト・検査・マイグレーション・Addressables・MCP の現状を 1 回で |
+| `ddrive_help` | diagnostics | R | 短い案内カード（`rules` / `types` / `menu` / `tool:<name>` / `validation:<code>`） |
+| `ddrive_asset_list` | authoring | R | 種別ごとの Data 一覧（絞り込み・ページ切り） |
+| `ddrive_asset_get` | authoring | R | Data 1 件の欄の値と検査件数 |
+| `ddrive_asset_create` | authoring | W | Data を新規作成（カタログ・Addressables 登録まで。`preview` あり） |
+| `ddrive_asset_set` | authoring | W | 欄の値を変更（全欄が書けるときだけ書く、Undo、`preview` あり） |
+| `ddrive_asset_usages` | diagnostics | R | その ID の参照元 |
+| `ddrive_asset_unused` | diagnostics | R | どこからも参照されていない Data |
+| `ddrive_asset_delete` | authoring | D | 参照が無い Data を削除（`preview` で分析だけ） |
+| `ddrive_editor_open` | authoring | R | 専用エディタを開く（人が見る用） |
+| `ddrive_validate` | diagnostics | R | 検査。既定は件数と Code 別の表だけ |
+| `ddrive_validate_fix` | authoring | D | `FixAction` 付きの指摘を直す（`preview` あり） |
+| `ddrive_forbidden_api` | diagnostics | R | 禁止 API の走査 |
+| `ddrive_generate` | build | W | `kind` = ids / tuning / addressables / preload / prefabs / deps / icons の生成・同期 |
+| `ddrive_migrate` | build | D | マイグレーションの計画（`plan`）と適用（`apply`） |
+| `ddrive_compat` | diagnostics | R | 互換性スナップショット 7 種の差分 |
+| `ddrive_compat_update` | build | D | スナップショットの更新 |
+| `ddrive_release_check` | build | R | `check-release.ps1` の結果 |
+| `ddrive_preview` | authoring | W（`status` は R） | `action` = open / play / stop / stop_all / sweep / status。確認用シーンを開く・実 Manager で再生 |
+| `ddrive_build_netcheck` | build | W | NetCheck ビルド（同期実行。isuzu が自動でジョブ化） |
+
+### 設定・共通ルール
+
+- **設定の置き場所**: `Project Settings > D-Drive > MCP`（`McpSettingsProvider`）の「MCP の書き込みツールを許可する」（`DDriveProjectSettings.McpAllowWrite`、既定 OFF。開発リポジトリは `DevRepoSettingsSync` が ON）。§13 のセットアップウィザードの「4. 既定フォルダ・設定の生成」にも同じチェックボックスがある。OFF のとき W / D のツールは `{error:{code:"write_disabled"}}` を返す。
+- **共通ガード（`McpGuard`）**: Play Mode 中の書き込みは `play_mode` で拒否、読み取り専用欄（`Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon`）は `read_only_field`、例外は `{error:{code,msg}}` に畳む（スタックトレースは返さない）。返り値は `max_chars`（既定 4000）で収め、ページ切りは `cursor` / `next`。
+- **ポート**: ポートはプロジェクトのパスから自動決定（27200〜27999）。固定すると Validation の Info `DD-MCP-FIXED-PORT` が出る（[1002](1002_ddrive_mcp.md) §6）。クライアント登録は `Tools/Mcp/register-mcp.ps1`。
+- **契約（互換性）**: ツール名・引数名と型・Destructive か・返り値のキー・`ddrive_help` の topic 名は契約で、**追加のみ**（[42](42_distribution.md) §5.14 **E-24**）。スナップショット `Packages/com.ddrive.core/Tests/Editor/Compat/Snapshots/mcp-tools.txt` を `McpToolsSnapshotTests` が完全一致で検査する。意図した追加は `Tools > D-Drive > Compat > スナップショットを更新`（または `ddrive_compat_update`）+ CHANGELOG の互換性節。ツールは 20 個が上限（`McpToolBudgetTests`）。足したいときは既存ツールの引数にする。
+- **持ち込み先の拡張**: 接頭辞 `ddrive_` は予約。持ち込み先は自分の Editor asmdef に `[McpTool("ms2026_xxx", ...)]` を書けば同じサーバーに載る（[1002](1002_ddrive_mcp.md) §4.6）。
+
 ## Tuning ウィンドウ（M-2a、2026-09-27 実装）
 
 MS2026 チームからの要望（[11_tasks.md](11_tasks.md) M-2 チケット）。`TuningTable`（[02] §14 の 5-13 追記）は現状 Unity 既定の配列 Inspector でしか編集できず、キーが 46 件を超えたところで「目的のキーに辿り着けない」「Player 担当と Match 担当が同じ `.asset` を触って競合する」が問題になった。データ形式は変えず（案 A 継続）、閲覧・編集の単位だけをカテゴリにする。

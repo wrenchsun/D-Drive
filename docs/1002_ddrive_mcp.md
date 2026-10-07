@@ -1,6 +1,6 @@
 # 1002. D-Drive MCP（v1.5.0 仕様書）
 
-> **状態**: 仕様書（2026-10-07 起票、未実装）。v1.5.0（MINOR、追加のみ）の実装内容。チケットは [11_tasks.md](11_tasks.md) の「MCP チケット」節、未完了事項の索引は [1001_open_items.md](1001_open_items.md)。
+> **状態**: 実装済み（2026-10-07、MCP-0〜10 完了。docs 整備 = MCP-11、次はレビューとリリース = MCP-12）。v1.5.0（MINOR、追加のみ）の仕様と実装メモ。**出荷した形は §4 の表 + 各「実装メモ」+ スナップショット `Packages/com.ddrive.core/Tests/Editor/Compat/Snapshots/mcp-tools.txt` が正本**（§2〜3・§5〜9 は起票時の案を含む）。チケットは [1004_tasks.md](1004_tasks.md) §1、未完了事項の索引は [1001_open_items.md](1001_open_items.md)。
 > **要点**: D-Drive の Editor 機能（AssetBrowser・専用エディタ・Validation・生成・マイグレーション・確認用シーン・リリース道具）を **AI エージェントが MCP ツールとして直接呼べる**ようにする。**サーバーは新設しない**（Editor 組み込みの `jp.shiranui-isuzu.unity-mcp` にツールを足す）。**AI が使うトークンを最小にする**ことと、**ポート競合を構造的に起こさない**ことを設計の軸にする。
 > **決めてほしいこと**は §9（Q-1〜Q-12）。それ以外はこの文書の案で進める。
 
@@ -180,39 +180,42 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 
 ## 4. ツール一覧（v1.5.0）
 
-凡例: **R** = 読み取りのみ（`Idempotency=Idempotent`）、**W** = 書き込み（Undo + SetDirty、`dry_run` 対応）、**D** = `Destructive=true`（`confirm` / `dry_run` 自動注入）、**J** = 長時間なのでジョブ化（isuzu の `job_status` で結果を取る）。
+> **§4 の表は起票時の案を、出荷した形に合わせて直したもの。** 経緯（統合・改名・分割）は各「実装メモ」、引数名・型・返り値キーの正本は `mcp-tools.txt`（契約 E-24）。出荷での主な差: ツールは**ちょうど 20 個**（`ddrive_preview` は `action` 引数で 1 つに統合、`ddrive_compat` は `ddrive_compat` + `ddrive_compat_update` に分割）、`ddrive_generate` の引数名は `kind`（isuzu が `target` を予約語にしているため）、`dry_run` ではなく自前の `preview`（isuzu の `dry_run` は Destructive だけに注入される定型のため）、ID は 10 進**文字列**、`confirm` は Destructive のツールだけに isuzu が自動で注入する。
+
+凡例: **R** = 読み取りのみ（書き込み設定 OFF でも動く）、**W** = 書き込み（`McpAllowWrite` 必須、Undo + SetDirty、`preview` 対応のものは何も書かずに結果だけ返せる）、**D** = `Destructive=true`（`confirm:true` 必須。isuzu が `confirm` / `dry_run` を自動注入）、**J** = 長時間なのでジョブ化（isuzu の `job_status` で結果を取る）。
 
 ### 4.1 状態・案内（diagnostics）
 
 | ツール | 種別 | 引数 | 返り値（要点） | 呼ぶ先 |
 |---|---|---|---|---|
-| `ddrive_status` | R | `sections?`（`compile,tests,validation,migration,addressables,mcp` のカンマ区切り。既定は全部） | `{version, schema, compile:{ok,errors}, tests:{last:{mode,passed,failed,at}}, validation:{errors,warnings,infos,at}, migration:{pending}, addressables:{missing}, mcp:{port,portMismatch,project}}` | `DDriveVersion`、`compile_status` 相当、前回の `ddrive_validate` の要約キャッシュ、`DDriveMigrationRunner.HasPendingMigrations`、`AddressablesSync`（dry）、`McpInstanceDescriptor` |
-| `ddrive_help` | R | `topic`（`rules` / `types` / `tool:<name>` / `validation:<code>` / `menu`）、`max_chars?` | 短い案内文（§5.4 の「AI 向けカード」）。`rules` = CLAUDE.md §0 の禁止事項 10 行、`types` = AssetType と ID 接頭辞の表、`validation:<code>` = その Code の意味と直し方 1〜3 行 | 文字列テーブル（`Documentation~/Mcp/*.md` を `Resources` に埋めず、Editor の `TextAsset` 参照で持つ） |
+| `ddrive_status` | R | `sections?`（`version,compile,tests,validation,migration,addressables,mcp` のカンマ区切り。既定は全部。未知の名前は無視） | `{version, schema, compile:{ok}, tests:{last:{mode,passed,failed,inconclusive,at}}, validation:{errors,warnings,infos,at}（前回の `ddrive_validate all` の要約。未実行は `{cached:false}`）, migration:{pending}, addressables:{missing}, mcp:{writeEnabled,playing,project,port,preferredPort,portMismatch,fixedPort,pid,warning?}}` | `DDriveVersion` / `DDriveSchema`、`EditorUtility.scriptCompilationFailed`、isuzu のテスト結果、`McpValidationCache`、`DDriveMigrationRunner.PlanProject`、`AddressablesSync.CountMissingEntries`、isuzu の記述子（トークンは読まない） |
+| `ddrive_help` | R | `topic`（`rules` / `types` / `menu` / `tool:<name>` / `validation:<code>`）、`max_chars?` | `{topic, text, truncated?}`。`rules` = 禁止事項 10 行 + MCP の使い方、`types` = AssetType と ID 接頭辞・読み取り専用欄、`menu` = `Tools/D-Drive/` のメニューパス、`tool:<name>` = そのツールの引数、`validation:<code>` = その Code の意味と直し方 1〜2 行 | `Editor/Mcp/Cards/{rules,validation}.md`（`PackageInfo` から解決）と反射（`[AssetIdDefinition]` / `[MenuItem]` / `[McpTool]`） |
 
 ### 4.2 Data の操作（authoring）
 
 | ツール | 種別 | 引数 | 返り値（要点） | 呼ぶ先 |
 |---|---|---|---|---|
-| `ddrive_asset_list` | R | `type`（AssetType 名）、`category?`、`query?`（DisplayName / identifier の部分一致）、`fields?`（既定 `id,name,category`）、`cursor?`、`limit?`（既定 50、最大 200） | `{total, items:[{id,name,category,...}], next?}`（`id` は 10 進文字列） | `AssetSearch.FindAssets` |
-| `ddrive_asset_get` | R | `type`、`id`（10 進文字列。`0x` 16 進・JSON の整数も受ける）または `path`、`fields?`（既定: 共通欄 + 種別の主要欄。`*` で全部） | `{id,name,path,fields:{...}, validation:{errors,warnings}}`（`id` は 10 進文字列。`max_chars` を超える分は末尾の欄を丸ごと落として `truncated` + `omitted`） | `SerializedObject` を読む（型ごとの欄の表は §4.5） |
-| `ddrive_asset_create` | W | `type`、`name`（DisplayName）、`category`、`identifier?`（省略時は `AssetNamingService.ToIdentifier(name)`）、`data_class?`（ControlSkin のみ）、`fields?`（作成時に設定する欄）、`preview?` | `{id, path, addressable:true, validation:{errors,warnings}}`（`id` は 10 進文字列。preview なら `{wouldCreate:path, identifier}`） | `AssetCreationService.Create` → `AddressablesSync.EnsureEntry`。**`CreateAssetMenu` 直叩きはしない**（[20](20_mcp_setup.md) §2 の規約） |
-| `ddrive_asset_set` | W | `type`、`id`、`fields`（`{欄名: 値}`。入れ子は `Common.Color` のようなドット区切り。配列は全体置換）、`preview?` | `{changed:[{field,from,to}], validation:{errors,warnings}}`（preview なら `{wouldChange:[...]}`） | `SerializedProperty` 経由で書く。**`Undo.RecordObject` + `EditorUtility.SetDirty` + `DDriveAssetSave.SaveDirty`**。`Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon` は `read_only_field` で拒否（読み取り専用欄の一覧は §4.5）。`ChangeNote` の先頭に `[mcp] ` を付ける（Q-7） |
-| `ddrive_asset_usages` | R | `type`、`id` | `{usages:[{path,objectPath}], count}` | `DependencyGraphService.FindUsages`（グラフ未構築なら `{needsRebuild:true}` を返し、`ddrive_generate(deps)` を案内） |
-| `ddrive_asset_unused` | R | `type?`、`limit?` | `{items:[{type,id,name}], count}` | `DependencyGraphService.FindUnusedIds` |
-| `ddrive_asset_delete` | D | `type`、`id`、`confirm`、`dry_run` | `{deleted:bool, blockers:[...]}` | `SafeDeleteService.TryDelete`（ダイアログは `ConfirmDialogOverride` で無効化し、結果を JSON で返す） |
-| `ddrive_editor_open` | R | `type`、`id` | `{opened:"<Window 名>"}` | `DataEditorRegistry.OpenDefault`（人が見るためのもの。AI の返り値は 1 行） |
+| `ddrive_asset_list` | R | `type`（AssetType 名）、`category?`、`query?`（DisplayName / 識別子の部分一致）、`fields?`（既定 `id,name,category`。`*` で全欄）、`cursor?`、`limit?`（既定 50、最大 200）、`max_chars?` | `{total, items:[{id,name,category,...}], next?, truncated?}`（`id` は 10 進文字列） | `AssetSearch.FindAssets` |
+| `ddrive_asset_get` | R | `type`、`id`（10 進文字列。`0x` 16 進・JSON の整数も受ける）または `path`、`fields?`（既定: 共通 4 欄 + 種別の主要欄。`*` で全部）、`max_chars?` | `{id,name,path,fields:{...}, validation:{errors,warnings}, truncated?, omitted?}`（`max_chars` を超える分は末尾の欄を丸ごと落とし `truncated` + `omitted`） | `SerializedObject` を読む（型ごとの欄の表は §4.5） |
+| `ddrive_asset_create` | W | `type`、`name`（DisplayName）、`category?`、`identifier?`（省略時は `AssetNamingService.ToIdentifier(name)`）、`data_class?`（ControlSkin のみ必須）、`fields?`（作成時に設定する欄）、`preview?` | `{id, identifier, path, addressable, validation:{errors,warnings}}`（`preview` なら `{wouldCreate:path, identifier}`） | `AssetCreationService.Create` → Addressables 登録。**`CreateAssetMenu` 直叩きはしない**（[20](20_mcp_setup.md) §2 の規約） |
+| `ddrive_asset_set` | W | `type`、`id`、`fields`（`{欄名: 値}`。入れ子は `Common.Color` のようなドット区切り。配列は全体置換）、`preview?` | `{changed:[{field,from,to}], validation:{errors,warnings}}`（`preview` なら `{wouldChange:[...]}`） | `SerializedProperty` 経由で書く。**`Undo.RecordObject` + `EditorUtility.SetDirty` + `DDriveAssetSave.SaveDirty`**。**全欄が書けるときだけ書く**。`Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon` は `read_only_field` で拒否（§4.5）。`ChangeNote` の先頭に `[mcp] ` を付ける（Q-7） |
+| `ddrive_asset_usages` | R | `type`、`id`、`cursor?`、`limit?`、`max_chars?` | `{count, usages:[{path,objectPath?,kind?}], next?, truncated?}`（グラフ未構築なら `{needsRebuild:true, hint}`。`ddrive_generate kind=deps` を案内） | `DependencyGraphService.FindUsages` |
+| `ddrive_asset_unused` | R | `type?`、`cursor?`、`limit?`、`max_chars?` | `{count, items:[{type,id,name,archived?}], next?, truncated?}`（未構築は `needsRebuild`） | `DependencyGraphService.FindUnusedIds` |
+| `ddrive_asset_delete` | D | `type`、`id`、`preview?`（分析だけ）、`scan_code?`（コード参照の走査。既定 true） | `{deleted, path, needsRebuild?, hint?}`。`preview` / 拒否時は `{wouldDelete, blocked?, blockerCount, blockers, codeRefs?}`。参照・コード参照があれば削除しない | `SafeDeleteService` 相当の分析 + `TryDelete`（ダイアログは出さず JSON で返す）。`confirm` は isuzu が注入 |
+| `ddrive_editor_open` | R | `type`、`id` | `{opened:"<Window 名>"}`。専用エディタが無ければ `{opened:null, inspector:true}`（Inspector で選択） | `DataEditorRegistry.TryGetPrimary` → `Entry.Open`。Play Mode でも拒否しない |
 
 ### 4.3 検査・生成・更新（diagnostics / authoring）
 
 | ツール | 種別 | 引数 | 返り値（要点） | 呼ぶ先 |
 |---|---|---|---|---|
-| `ddrive_validate` | R | `scope`（`all` / `type:<name>` / `asset:<type>:<id>` / `project`）、`detail?`（`summary` 既定 / `errors` / `all`）、`codes?`（絞り込み）、`limit?` | `summary`: `{errors,warnings,infos, byCode:[{code,severity,count}]}`。`errors` / `all`: 加えて `items:[{code,sev,type,id,name,msg}]`（msg は 200 文字で切る） | `CI.RunValidation` / `DataValidationRunner.Run`。結果は `ddrive_status` 用にキャッシュ |
-| `ddrive_validate_fix` | W | `codes?`、`dry_run?` | `{applied:[{code,count}], skipped:[...]}` | `ProjectWideValidationFixes.FindFixable` → `Apply`。`FixAction` 付きの指摘だけ |
-| `ddrive_forbidden_api` | R | `root?`、`detail?` | `{violations:n, notices:n, items?:[{rule,file,line}]}` | `ForbiddenApiScanner.ScanDetailed` |
-| `ddrive_generate` | W | `target`（`ids` / `tuning` / `addressables` / `preload` / `prefabs` / `deps` / `icons`）、`dry_run?` | `{target, changed:bool, summary}`（`ids` は `{total,assigned,duplicates:[...]}`） | `AssetIdGenerator.Regenerate` / `TuningCodegen.Regenerate` / `AddressablesSync.SyncAll` / `ScenePreloadGenerator` / `DefaultPrefabs.GenerateAll` / `DependencyGraphService.RebuildAll` / `AssetIconService.CreateDefaultIconsForAll(onlyMissing:true)` |
-| `ddrive_migrate` | D | `mode`（`plan` / `apply`）、`confirm`、`dry_run` | `plan`: `{pending:[{id,targets}]}`。`apply`: `{applied:[...], failed:[...]}` | `DDriveMigrationRunner.PlanProject` / `ApplyToProject` |
-| `ddrive_compat` | R / D | `mode`（`diff` 既定 / `update`）、`confirm`（update のみ） | `diff`: `{changed:[{snapshot, added:n, removed:n, sample:[...]}]}`。removed > 0 は互換性違反の疑いとして `warning` を付ける | `EditorContractSnapshotBuilder` 等の既存ビルダーで生成し、保存済みファイルと比較。`update` = `CompatSnapshotMenu.UpdateAll` |
-| `ddrive_release_check` | R | `base?`（タグ名。既定 `origin/main`）、`guard_only?` | `{ok, checks:[{name,ok,msg}]}` | `Tools/Release/ReleaseChecks.ps1` を `pwsh` で起動し JSON を読む（Editor 内で再実装しない） |
+| `ddrive_validate` | R | `scope`（`all` / `type:<name>` / `asset:<type>:<id>` / `project`）、`detail?`（`summary` 既定 / `errors` / `all`）、`codes?`（絞り込み）、`cursor?`、`limit?`、`max_chars?` | `{scope, errors, warnings, infos, byCode:[{code,sev,count}], fixable?:[{code,count}], items?:[{code,sev,type?,id?,name?,msg}], next?, truncated?}`（`msg` は 200 文字で切る。Code 無しの指摘は `byCode` で `(none)` にまとまる） | `CI.RunValidation` / `DataValidationRunner.Run`。`all` の結果は `ddrive_status` 用にキャッシュ |
+| `ddrive_validate_fix` | D | `codes?`、`preview?` | `{applied:[{code,count}], skipped:[{code,count,reason}], after:{errors,warnings}}`（`preview` なら `{wouldApply:[{code,count}]}`） | `ProjectWideValidationFixes.FindFixable` → `Apply`。`FixAction` 付きの指摘だけ。`confirm:true` 必須（プレビューにも） |
+| `ddrive_forbidden_api` | R | `root?`、`detail?`、`cursor?`、`limit?`、`max_chars?` | `{root, violations, notices, byRule:[{rule,count}], items?:[{rule,file,line,msg?,notice?}], next?, truncated?}` | `ForbiddenApiScanner.ScanDetailed`（`CI.ValidateAll` と同じ許可の反映） |
+| `ddrive_generate` | W | `kind`（`ids` / `tuning` / `addressables` / `preload` / `prefabs` / `deps` / `icons`）、`preview?`、`scene?`（`preload` のみ。`current` 既定 / `all`） | `{target, changed?, preview?, ok?, summary, needsRebuild?, hint?}`（`summary` は kind ごとの形。`ids` は `{total,assigned,duplicates,path}`） | `AssetIdGenerator.Regenerate` / `TuningCodegen.Regenerate` / `AddressablesSync.SyncAll` / `ScenePreloadGenerator` / `DefaultPrefabs.EnsureSeEmitterPrefab` / `DependencyGraphService.RebuildAll` / `AssetIconService.CreateDefaultIconsForAll(onlyMissing:true)` |
+| `ddrive_migrate` | D | `mode?`（`plan` 既定 / `apply`。`apply` だけ `McpAllowWrite` 必須） | `plan`: `{pending:[{id,kind,targets,description?}], count}`。`apply`: `{applied:[{id,targets}], failed:[{id,msg}], after:{pending}, warnings?, log?}` | `DDriveMigrationRunner.PlanProject` / `ApplyToProject` |
+| `ddrive_compat` | R | （引数なし） | `{ok, changed:[{snapshot,added,removed,sample,missingFile?}], warning?}`。removed があれば MAJOR の疑いとして `warning` | 7 種のスナップショットを現在の API / 形式から作り直して保存済みファイルと行集合で比較（`mcp-tools.txt` を含む） |
+| `ddrive_compat_update` | D | （引数なし） | `{updated:[...], hint, warning?}` | `CompatSnapshotMenu.UpdateAll`。書き込み許可 + `confirm:true` が要る |
+| `ddrive_release_check` | R | `base?`（タグ名。既定 `origin/main`）、`guard_only?` | `{ok, checks:[{name,ok,msg}]}`（`pwsh` が JSON を読めないときは `{ok:false, raw, exitCode?}`） | `Tools/Release/check-release.ps1 -Json` を `pwsh` で起動（120 秒のタイムアウト。Editor 内で再実装しない） |
 
 ### 4.4 プレビュー・ビルド（authoring / build）
 
@@ -313,12 +316,12 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ## 7. 互換性・テスト・配布
 
-- **版**: v1.5.0（MINOR、追加のみ）。`DDrive.Foundation` / `DDrive.Runtime` の公開 API は変えない。Editor の追加は契約外だが、**ツール名・引数名・返り値のキー・`ddrive_help` の topic 名は契約**（[42](42_distribution.md) §5.14 に E-21 として追加）。
+- **版**: v1.5.0（MINOR、追加のみ）。`DDrive.Foundation` / `DDrive.Runtime` の公開 API は変えない。Editor の追加は契約外だが、**ツール名・引数名・返り値のキー・`ddrive_help` の topic 名は契約**（[42](42_distribution.md) §5.14 に **E-24** として追加。起票時は E-21 だったが FC-6 が使用済みのため E-24）。
 - **スナップショット**: `Tests/Editor/Compat/Snapshots/mcp-tools.txt`（新規。ツール名 / 引数名と型 / 必須か / Destructive か / 返り値の上位キー）。`EditorContractSnapshotBuilder` と同じ方式で `[McpTool]` を反射で集める。行が減ったら赤（削除・改名は MAJOR）。
 - **テスト**（`Tests/Editor/Mcp/`）: 各ツールの static メソッドを **MCP を通さず直接呼ぶ**（isuzu のトランスポートはテストしない）。一時 `TestRoot` と `ScriptableObject.CreateInstance` だけ使い、実 `Assets/GameData/` と Addressables グループを汚さない（SKILL.md §2）。共通ガード（Play Mode 中の拒否・読み取り専用欄の拒否・`max_chars` の切り詰め・`dry_run` で何も書かない）は 1 つのテストクラスにまとめる。`DDRIVE_UNITY_MCP` が無い環境ではテスト asmdef ごと外れる（同じ Version Defines）。
 - **CI**: `run-ci.cmd` の EditMode 段に自動で載る（追加の段は作らない）。
 - **配布**: `DDrive.Editor.Mcp` はパッケージに同梱するが、isuzu が無ければコンパイルされない。持ち込み先が使うときは `manifest.json` に isuzu を足す（`Tools > D-Drive > Update` の「他パッケージ」対応 P-15 で版管理できる。Q-3）。`package.json` の `dependencies` には**入れない**（必須依存にしない）。
-- **docs**: [20](20_mcp_setup.md) を「isuzu 版のみ + register-mcp.ps1」に書き換え、[09](09_editor_tools.md) に §15「MCP ツール」を追加、[42](42_distribution.md) §5.14 に E-21、[34](34_onboarding.md) §7 と SKILL.md を更新、ProgrammerManual に 1 ページ（`mcp.html`）。[CLAUDE.md](../CLAUDE.md) §4 を isuzu 版のみに。
+- **docs**: [20](20_mcp_setup.md) を「isuzu 版のみ + register-mcp.ps1」に書き換え、[09](09_editor_tools.md) に §15「MCP ツール」を追加、[42](42_distribution.md) §5.14 に E-24、[34](34_onboarding.md) §7 と SKILL.md を更新、ProgrammerManual に 1 ページ（`mcp.html`）。[CLAUDE.md](../CLAUDE.md) §4 を isuzu 版のみに。
 
 ---
 
@@ -335,9 +338,9 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 | MCP-6 | `ddrive_generate`（7 種）/ `ddrive_migrate` / `ddrive_compat` / `ddrive_release_check` | 1.5 | MCP-1 |
 | MCP-7 | `ddrive_preview`（open / play / stop / stop_all / sweep / status）/ `ddrive_build_netcheck` | 1.5 | MCP-3 |
 | MCP-8 | `Tools/Mcp/register-mcp.ps1` + `McpPortPolicyTests` + `DD-MCP-FIXED-PORT` | 0.5 | MCP-1 |
-| MCP-9 | スナップショット `mcp-tools.txt` + Compat テスト + §5.14 E-21 | 0.5 | MCP-2〜7 |
+| MCP-9 | スナップショット `mcp-tools.txt` + Compat テスト + §5.14 E-24（起票時は E-21） | 0.5 | MCP-2〜7 |
 | MCP-10 | トークン計測（`measure-tokens.py`、代表 5 シナリオ、§10 に結果） | 0.5 | MCP-2〜7 |
-| MCP-11 | docs / SKILL.md / ProgrammerManual / CHANGELOG、人による確認手順（`verification/1003_manual_verification_mcp.md`） | 1 | MCP-9 |
+| MCP-11 | docs / SKILL.md / ProgrammerManual / CHANGELOG、人による確認手順（`verification/1005_manual_verification_mcp.md`） | 1 | MCP-9 |
 | MCP-12 | 自前レビュー → 修正 → v1.5.0 リリース（[12](12_review.md) §7） | 1 | MCP-11 |
 
 合計 約 12 人日。実装は Sonnet のエージェントに 1 チケットずつ委任し、レビューとリリース判断は上位モデルが行う（2026-10-07 の運用指示）。
@@ -465,6 +468,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ## 更新履歴
 
+- 2026-10-07（MCP-11）: 状態を「実装済み」に。§4 の冒頭に「表は起票時の案を出荷形に直したもの」の注記を足し、§4.1〜4.4 を出荷したツール（20 個・`preview` / `kind` / 文字列 ID / `compat_update` の分割 / `cursor`・`limit`・`max_chars`）に合わせた。E-21 → E-24 の表記ゆれを直した。docs（[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・SKILL.md・AGENTS.md・ProgrammerManual `mcp.html`・CHANGELOG・人による確認手順 [verification/1005](verification/1005_manual_verification_mcp.md)）を整備
 - 2026-10-07（MCP-10）: `Tools/Mcp/measure-tokens.py` を実装し §10 に結果を記入。定義込みでは G-2 未達（2.3〜3.5 倍）、呼んだツールの定義だけなら達成（0.12〜0.31）。§5.5 を実装に合わせた（÷3.5 → ÷3）
 - 2026-10-07（MCP-7）: `ddrive_preview`（open / play / stop / stop_all / sweep / status。spec の 3 ツールを統合）と `ddrive_build_netcheck`（同期実行、isuzu が自動でジョブ化）を実装。ツールは 20 個ちょうど（§5.1 の上限）。実装メモ（MCP-7）を追加
 - 2026-10-07（MCP-6）: `ddrive_generate`（7 種。引数名は `kind`、`preview` は kind ごとに意味が違う）/ `ddrive_migrate` / `ddrive_compat`（Safe）+ `ddrive_compat_update`（Destructive、分割）/ `ddrive_release_check` を実装。`check-release.ps1` に `-Json` を追加。ツールは 18 個になり MCP-7 の 4 個を足すと 22 個（§5.1 の上限超過）。実装メモ（MCP-6）を追加

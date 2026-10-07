@@ -48,6 +48,7 @@ var SPEC_WEB_MANUAL_PAGE_NAMES = {
     "extending",
     "getting-started",
     "handle",
+    "mcp",
     "migrations",
     "model-anim-api",
     "net-api",

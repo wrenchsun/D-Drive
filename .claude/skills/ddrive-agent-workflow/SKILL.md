@@ -41,6 +41,25 @@ D-Drive の設計の真実は `docs/` にあり、TL;DR の禁止事項は `CLAU
 
 D-Drive の MCP は isuzu-unity（Editor 組み込み、ポートはプロジェクトパスから自動〔D-Drive は 27725〕、`mcp__isuzu-unity__*`）**のみ**（2026-10-07 に CoplayDev 版を廃止。[`../../docs/20_mcp_setup.md`](../../docs/20_mcp_setup.md)）。ポートを直書きせず、接続先は `%LOCALAPPDATA%/UnityMCP/instances/<hash>.json` から読む。
 
+### D-Drive の操作は `ddrive_*` ツールで（v1.5.0）
+
+| やりたいこと | 使うツール（`mcp__isuzu-unity__ddrive_*`） |
+|---|---|
+| Data の一覧・取得・作成・値の変更・削除 | `ddrive_asset_list` / `get` / `create` / `set` / `delete`（`execute_code` で `AssetCreationService` を呼ばない） |
+| 参照元・未使用 Data の確認、専用エディタを開く | `ddrive_asset_usages` / `unused` / `ddrive_editor_open` |
+| 検査・自動修正・禁止 API の走査 | `ddrive_validate`（既定は件数と Code 別の表）/ `ddrive_validate_fix` / `ddrive_forbidden_api` |
+| ID・Tuning・Addressables・依存グラフ等の生成、マイグレーション | `ddrive_generate`（`kind` = ids / tuning / addressables / preload / prefabs / deps / icons）/ `ddrive_migrate` |
+| 互換性スナップショット・リリース前チェック | `ddrive_compat` / `ddrive_compat_update` / `ddrive_release_check` |
+| 確認用シーン・実 Manager での再生、NetCheck ビルド | `ddrive_preview`（`action` = open / play / stop / stop_all / sweep / status）/ `ddrive_build_netcheck` |
+
+- **最初に `ddrive_help topic=rules` と `ddrive_status`** を 1 回ずつ呼ぶ（禁止事項の要約と、コンパイル・検査・マイグレーション・書き込み許可の現状が分かる）。`ddrive_help topic=tool:<name>` / `validation:<code>` で個別の案内
+- **`execute_code` より `ddrive_*` を優先**する（Undo・SetDirty・Addressables 登録・検査・読み取り専用欄の保護が入っており、返り値も小さい）。`ddrive_*` で足りない操作だけ `execute_code` / `menu_execute`
+- **書き込みツールは Project Settings > D-Drive > MCP の「書き込みツールを許可する」（`McpAllowWrite`）が ON のときだけ動く**（OFF は `write_disabled`。開発リポジトリは ON）。Play Mode 中の書き込みは `play_mode` で拒否される。`preview:true` を持つツール（`asset_create` / `set` / `delete` / `generate` / `validate_fix`）は先に `preview` で確認してから実行する
+- **Destructive のツール**（`ddrive_asset_delete` / `ddrive_validate_fix` / `ddrive_migrate` / `ddrive_compat_update`）は `confirm:true` が必須。ユーザーの意図が明確なときだけ付ける
+- **クライアント登録**は `pwsh Tools/Mcp/register-mcp.ps1`（記述子から接続情報を読んで `claude mcp add`。Unity 再起動のあと 401 になったら再実行）。ポートを直書き・固定しない
+- **コンパイル・テストの確認ループは今までどおり** isuzu の `compile_request` / `compile_status` / `test_run` / `test_results`（`ddrive_status` は結果の要約を見るだけで、実行はしない）
+- ツールの契約は `Tests/Editor/Compat/Snapshots/mcp-tools.txt`（追加のみ。[docs/42](../../docs/42_distribution.md) §5.14 E-24）。詳細は [docs/1002](../../docs/1002_ddrive_mcp.md)・[docs/09](../../docs/09_editor_tools.md) §15
+
 ### 基本ループ
 
 1. `compile_request` → 約 20〜25 秒待つ（`run_in_background: true` の `sleep`。ドメインリロード中は接続エラーになるので即座にポーリングしない）

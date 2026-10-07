@@ -114,6 +114,27 @@ D-Drive の実装作業は Claude Code / Codex 等の AI エージェントに�
 | [.claude/skills/ddrive-agent-workflow/SKILL.md](../.claude/skills/ddrive-agent-workflow/SKILL.md) | Claude Code | 上記と同内容の詳細版。新種別追加のフルチェックリスト・MCP 検証ループの具体的なコマンド列・ワークツリー運用の注意 |
 | [.claude/skills/ddrive-agent-workflow/references/new-asset-type-checklist.md](../.claude/skills/ddrive-agent-workflow/references/new-asset-type-checklist.md) | 同上 | 新しい `AssetType` を追加するときの 11 項目 + 他システム統合の任意項目 |
 
+**D-Drive の操作は MCP ツール `ddrive_*`（v1.5.0）で行う。** Data の作成・値の変更・検査・生成・プレビューなどを、`execute_code` で C# を書かずに 1 ツール 1 操作で呼べる（コンパイル・テストの確認ループは従来どおり isuzu の `compile_request` / `test_run`）。AI エージェントに作業を頼むときの要点:
+
+| やりたいこと | 使うツール（`mcp__isuzu-unity__ddrive_*`） |
+|---|---|
+| Data の一覧・取得・作成・値の変更・削除 | `ddrive_asset_list` / `get` / `create` / `set` / `delete`（`execute_code` で `AssetCreationService` を呼ばない） |
+| 参照元・未使用 Data の確認、専用エディタを開く | `ddrive_asset_usages` / `unused` / `ddrive_editor_open` |
+| 検査・自動修正・禁止 API の走査 | `ddrive_validate`（既定は件数と Code 別の表）/ `ddrive_validate_fix` / `ddrive_forbidden_api` |
+| ID・Tuning・Addressables・依存グラフ等の生成、マイグレーション | `ddrive_generate`（`kind` = ids / tuning / addressables / preload / prefabs / deps / icons）/ `ddrive_migrate` |
+| 互換性スナップショット・リリース前チェック | `ddrive_compat` / `ddrive_compat_update` / `ddrive_release_check` |
+| 確認用シーン・実 Manager での再生、NetCheck ビルド | `ddrive_preview`（`action` = open / play / stop / stop_all / sweep / status）/ `ddrive_build_netcheck` |
+
+- **最初に `ddrive_help topic=rules` と `ddrive_status`** を 1 回ずつ呼ぶ（禁止事項の要約と、コンパイル・検査・マイグレーション・書き込み許可の現状が分かる）。`ddrive_help topic=tool:<name>` / `validation:<code>` で個別の案内
+- **`execute_code` より `ddrive_*` を優先**する（Undo・SetDirty・Addressables 登録・検査・読み取り専用欄の保護が入っており、返り値も小さい）。`ddrive_*` で足りない操作だけ `execute_code` / `menu_execute`
+- **書き込みツールは Project Settings > D-Drive > MCP の「書き込みツールを許可する」（`McpAllowWrite`）が ON のときだけ動く**（OFF は `write_disabled`。開発リポジトリは ON）。Play Mode 中の書き込みは `play_mode` で拒否される。`preview:true` を持つツール（`asset_create` / `set` / `delete` / `generate` / `validate_fix`）は先に `preview` で確認してから実行する
+- **Destructive のツール**（`ddrive_asset_delete` / `ddrive_validate_fix` / `ddrive_migrate` / `ddrive_compat_update`）は `confirm:true` が必須。ユーザーの意図が明確なときだけ付ける
+- **クライアント登録**は `pwsh Tools/Mcp/register-mcp.ps1`（記述子から接続情報を読んで `claude mcp add`。Unity 再起動のあと 401 になったら再実行）。ポートを直書き・固定しない
+- **コンパイル・テストの確認ループは今までどおり** isuzu の `compile_request` / `compile_status` / `test_run` / `test_results`（`ddrive_status` は結果の要約を見るだけで、実行はしない）
+- ツールの契約は `Tests/Editor/Compat/Snapshots/mcp-tools.txt`（追加のみ。[docs/42](42_distribution.md) §5.14 E-24）。詳細は [docs/1002](1002_ddrive_mcp.md)・[docs/09](09_editor_tools.md) §15
+
+ツール一覧と設定は [09_editor_tools.md](09_editor_tools.md) §15、人間向けの説明は [ProgrammerManual/mcp.html](ProgrammerManual/mcp.html)。
+
 一次情報は常に [CLAUDE.md](../CLAUDE.md) と `docs/`。AI エージェントが書いたコード・docs も、通常の PR と同じレビュー（[12_review.md](12_review.md)）を通す（「AI がやった」はレビュー省略の理由にならない）。
 
 ---
