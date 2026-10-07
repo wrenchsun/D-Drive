@@ -156,6 +156,17 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 - **ツール数**: ここまでで 18 個（`ddrive_status` / `help` / `validate` / `validate_fix` / `forbidden_api` / `asset_list` / `get` / `create` / `set` / `usages` / `unused` / `delete` / `editor_open` + 本チケット 5 個）。**MCP-7 の 4 個を足すと 22 個で §5.1 の「20 個以内」を超える**（`ddrive_compat_update` の分割が +1）。MCP-7 着手前に統合（例: `ddrive_asset_usages` / `unused` を 1 ツール化、`ddrive_editor_open` を `ddrive_asset_get` に統合）を決める必要がある。
 - **テスト**: `DDriveGenerateToolTests` / `DDriveMigrateToolTests` / `DDriveCompatToolTests` / `DDriveReleaseToolTests`。実 `Assets/Generated`・実依存グラフ・実スナップショットは書かない（`ids` / `tuning` の `preview` が実ファイルの内容・更新時刻を変えないことを確認、`compat` は実スナップショットとの差分が空であることの実検査、`release_check` は `pwsh` があるときだけ形を検証）。
 
+### 実装メモ（2026-10-07、MCP-7）
+
+- **ツール数の決定**: MCP-6 で 18 個になり、spec どおり 4 個（`preview_open` / `preview_play` / `preview_sweep` / `build_netcheck`）を足すと 22 個で §5.1 の 20 個を超えるため、**プレビュー 3 つを `ddrive_preview` 1 つ（`action` 引数）に統合**し、ビルドと合わせて +2 = **ちょうど 20 個**にした。これ以上ツールは足せない（足すなら既存ツールの引数に）。`McpToolBudgetTests`（20 個ちょうど・説明 80 文字以内・Group あり・名前重複なし）が固定する。
+- **ファイル**: `Editor/Mcp/Tools/DDrivePreviewTools.cs`（Group `authoring`）/ `DDriveBuildTools.cs`（Group `build`）。引数名は isuzu の予約語（`confirm` / `dry_run` / `target`）を避け、`action` / `scene` / `type` / `id` / `handle`。
+- **`open`**: `scene` の `*PreviewSceneSetup.TryOpenOrCreate` を呼ぶ。`TryOpenOrCreate` は `SaveCurrentModifiedScenesIfUserWantsTo`（保存ダイアログ）を出すため、**呼ぶ前に** 読み込み済みシーンの `isDirty` を調べ、1 つでもあれば何も開かず `{blocked:"unsaved scene", scenes:[path]}`（無題は `(untitled)`）。目的のシーンが既に開いていれば（`TryOpenOrCreate` も開き直さない）dirty でも続行する。`type` / `id` を付けると配置まで行う: **Vfx** は `VfxEditorWindow` の「確認用シーンで開く」と同じ `SceneVfxPreviewDriver.Play`（SceneView を寄せる）で `{placed:"[D-Drive] VFX Preview", handle}`。それ以外は配置経路がウィンドウ内部（インスタンスメソッド）にあり再利用できないため `{placed:false, hint}`（Se / Bgm / Presentation は `play` を案内、他は `ddrive_editor_open` を案内）。本配置（シーンを保存して残す）は MCP には出さない。
+- **`play` / `stop` / `stop_all`**: 対応は **Se / Bgm（`PreviewService`）・Vfx（`SceneVfxPreviewDriver`）・Presentation（`ScenePresentationPreviewDriver`）** の 4 種。いずれも各エディタが使う実 Manager のドライバをそのまま使う（ADR-4）。Shake / Haptics / Anim / UiTween / Cutscene / Canvas などは対象オブジェクトの配置や専用ウィンドウの状態が前提で、MCP から呼べる形の共有サービスが無いため **`invalid_params`**（対応種別を列挙）。再生できなかった（Clip / Prefab 未設定など）ときは `{ok:false, hint}` で、登録簿には載せない。`handle` は MCP 側の連番文字列（"1", "2", …）で、静的な登録簿に持つ（ドメインリロードで消える。そのとき Manager も消える）。`status` は鳴り終わった・消えたものを登録簿から外す。
+- **`sweep`**: `EditorPreviewSweeper.DestroyOrphans()`（どのシーンにも属さない `[D-Drive]` の DontSave ルートだけ）→ `{destroyed}`。
+- **`ddrive_build_netcheck`**: **同期実行を採用**（`mode=start|status` や `delayCall` は使わない）。isuzu は長いメインスレッド処理を自動で「ジョブ」にして 202 + `jobId` を先に返し、`job_status` で結果を取れるため、HTTP がタイムアウトで切れてもビルドは完走する。返り値は `{success, exe?, zip?, error?, seconds}`（パスはプロジェクト相対）。`development=false` でリリース相当。出力は `Builds/DDriveNetCheck`（.gitignore 済み）を置き換える。
+- **テスト**: `DDrivePreviewToolTests`（action / scene の解釈、`status` の形と書き込み OFF でも通ること、書き込み系 5 action の `write_disabled`、非対応種別、`stop` の handle 検査、`stop_all` 0 件、Clip 無し SE の `ok:false`、`sweep` がシーン内のプレビューを消さないこと、未保存シーンで `open` が `blocked`〔無題シーンが未保存だと追加ロードのシーンを作れないため、未保存の一覧は `DirtyScenesOverride` で差し替える〕）/ `DDriveBuildToolTests`（`BuildOverride` で実ビルドを差し替え。`write_disabled`・成功・失敗・例外・`development` の受け渡し）/ `McpToolBudgetTests`。孤児のプレビュー（シーン外の DontSave 実体）はテスト内で作れないため、`DestroyOrphans` の判定そのものは `EditorPreviewSweeperTests` に任せた。
+- **実機確認（HTTP、2026-10-07）**: `status` → `open scene=common type=Se`（`{scene, placed:false, hint}`）→ `play Se`（`{handle:"1", ok:true}`、`status` の `playing` に載る）→ `stop_all`（`{stopped:1}`）→ `sweep`（`{destroyed:0}`）。`open type=Vfx` は `{placed:"[D-Drive] VFX Preview", handle:"2"}`、`play type=Canvas` は `invalid_params`。`ddrive_build_netcheck` は HTTP の 3.6 秒後に isuzu が「ジョブ `ddrive_build_netcheck-1` として実行中」と返し、`job_status` で約 75 秒後に `{success:true, exe, zip, seconds:74.7}`（`DDrive.Runtime.dll` の更新時刻が新しくなったことも確認）。ビルド中は Editor が固まり、Unity の「Compiling Scripts」進捗バーが出る（ダイアログではない）。
+
 ---
 
 ## 4. ツール一覧（v1.5.0）
@@ -198,10 +209,8 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 
 | ツール | 種別 | 引数 | 返り値（要点） | 呼ぶ先 |
 |---|---|---|---|---|
-| `ddrive_preview_open` | W | `scene`（`common` / `canvas` / `cutscene` / `shake`）、`type?`、`id?`（開いた後に対象を配置する） | `{scene:path, placed?:objectPath}` | `VfxPreviewSceneSetup` / `CanvasPreviewSceneSetup` / `CutscenePreviewSceneSetup` / `CameraShakePreviewSceneSetup` の `TryOpenOrCreate`（保存確認ダイアログは**出さず**、未保存シーンがあれば `{blocked:"unsaved scene"}` で返す） |
-| `ddrive_preview_play` | W | `type`、`id`、`action`（`play` / `stop` / `stop_all`） | `{handle?:int, ok}` | 各ファサード（`Audio.Play` / `Vfx.Play` / `Presentation.Play` ...）を **Editor プレビュー経路（実 Manager、ADR-4）**で呼ぶ。Play Mode 中は拒否 |
-| `ddrive_preview_sweep` | W | — | `{destroyed:n}` | `EditorPreviewSweeper.DestroyOrphans` |
-| `ddrive_build_netcheck` | J | `development?`（既定 true） | ジョブ ID → `job_status` で `{success, exe, zip, error}` | `NetCheckBuilder.Build` |
+| `ddrive_preview` | W（`status` は読み取りのみ） | `action`（`open` / `play` / `stop` / `stop_all` / `sweep` / `status`）、`scene?`（`common` 既定 / `canvas` / `cutscene` / `shake`。open 用）、`type?` / `id?`（open は配置、play は対象）、`handle?`（stop 用） | `open`: `{scene, placed?, hint?}` または `{blocked:"unsaved scene", scenes}`。`play`: `{handle, ok}`。`stop`: `{stopped}`。`sweep`: `{destroyed}`。`status`: `{scene, previewScene, playing:[{handle,type,id}], playMode}` | 各 `*PreviewSceneSetup.TryOpenOrCreate`（保存確認ダイアログは**出さず**、未保存シーンがあれば `blocked`）/ `PreviewService`・`SceneVfxPreviewDriver`・`ScenePresentationPreviewDriver`（実 Manager、ADR-4）/ `EditorPreviewSweeper.DestroyOrphans`。Play Mode 中は `status` 以外を拒否 |
+| `ddrive_build_netcheck` | W | `development?`（既定 true） | `{success, exe?, zip?, error?, seconds}` | `NetCheckBuilder.Build`。メインスレッドで同期実行（1〜3 分）。isuzu が長い処理を自動でジョブにするので、ツール側にジョブ管理は持たない（`job_status` で結果を取る） |
 
 ### 4.5 型ごとの欄の表（`ddrive_asset_get` / `ddrive_asset_set` の `fields`）
 
@@ -223,7 +232,7 @@ AI が消費するトークンは「ツール定義（毎ターン送られる�
 
 ### 5.1 ツール定義を小さく
 
-- **ツール数は 20 個以内**（§4 は 19 個）。似た操作は 1 ツール + `mode` / `target` 引数にまとめる（`ddrive_generate` の 7 種、`ddrive_validate` の `scope`）。
+- **ツール数は 20 個以内**（MCP-7 完了時点でちょうど 20 個。`ddrive_preview` は spec の 3 ツールを `action` 1 つにまとめた。`McpToolBudgetTests` が数・説明 80 文字・Group を固定する）。似た操作は 1 ツール + `mode` / `target` 引数にまとめる（`ddrive_generate` の 7 種、`ddrive_validate` の `scope`）。
 - **説明文は 1 行 80 文字以内**、引数の説明は 40 文字以内。詳しい説明は `ddrive_help topic=tool:<name>` に逃がす（必要なときだけ読む）。
 - `AlwaysLoad=false`（既定）。isuzu のツール遅延ロードに乗る。
 - `Examples` は 1 ツール 1 個まで（JSON 1 行）。
@@ -243,7 +252,7 @@ AI が消費するトークンは「ツール定義（毎ターン送られる�
 
 - `ddrive_status` 1 回で「コンパイル・最後のテスト・検査の要約・未適用マイグレーション・Addressables 欠落・MCP の接続情報」が揃う（従来は `compile_status` + `read_console` + Validation メニュー実行 + ログ読み = 4 往復以上）。
 - `ddrive_asset_create` は作成 + Addressables 登録 + その 1 件の検査結果を**まとめて返す**（作って → 検査して、の 2 往復を 1 回に）。`ddrive_asset_set` も同じ。
-- `ddrive_preview_open` は「シーンを開く + 対象を配置」を 1 回で。
+- `ddrive_preview action=open` は「シーンを開く + 対象を配置」を 1 回で。
 
 ### 5.4 docs 参照を減らす（AI 向けカード）
 
@@ -313,7 +322,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 | MCP-4 | `ddrive_asset_usages` / `unused` / `delete` / `ddrive_editor_open` | 1 | MCP-3 |
 | MCP-5 | `ddrive_validate` / `validate_fix` / `forbidden_api`（要約キャッシュ含む） | 1 | MCP-1 |
 | MCP-6 | `ddrive_generate`（7 種）/ `ddrive_migrate` / `ddrive_compat` / `ddrive_release_check` | 1.5 | MCP-1 |
-| MCP-7 | `ddrive_preview_open` / `preview_play` / `preview_sweep` / `ddrive_build_netcheck`（ジョブ化） | 1.5 | MCP-3 |
+| MCP-7 | `ddrive_preview`（open / play / stop / stop_all / sweep / status）/ `ddrive_build_netcheck` | 1.5 | MCP-3 |
 | MCP-8 | `Tools/Mcp/register-mcp.ps1` + `McpPortPolicyTests` + `DD-MCP-FIXED-PORT` | 0.5 | MCP-1 |
 | MCP-9 | スナップショット `mcp-tools.txt` + Compat テスト + §5.14 E-21 | 0.5 | MCP-2〜7 |
 | MCP-10 | トークン計測（`measure-tokens.py`、代表 5 シナリオ、§10 に結果） | 0.5 | MCP-2〜7 |
@@ -419,6 +428,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ## 更新履歴
 
+- 2026-10-07（MCP-7）: `ddrive_preview`（open / play / stop / stop_all / sweep / status。spec の 3 ツールを統合）と `ddrive_build_netcheck`（同期実行、isuzu が自動でジョブ化）を実装。ツールは 20 個ちょうど（§5.1 の上限）。実装メモ（MCP-7）を追加
 - 2026-10-07（MCP-6）: `ddrive_generate`（7 種。引数名は `kind`、`preview` は kind ごとに意味が違う）/ `ddrive_migrate` / `ddrive_compat`（Safe）+ `ddrive_compat_update`（Destructive、分割）/ `ddrive_release_check` を実装。`check-release.ps1` に `-Json` を追加。ツールは 18 個になり MCP-7 の 4 個を足すと 22 個（§5.1 の上限超過）。実装メモ（MCP-6）を追加
 - 2026-10-07（MCP-4）: `ddrive_asset_usages` / `unused` / `delete` / `ddrive_editor_open` を実装。`dry_run` → `preview`、`delete` は分析 → 実行の 2 段（コード参照があれば拒否）。実装メモ（MCP-4）を追加
 - 2026-10-07（MCP-3）: `ddrive_asset_list/get/create/set` + `FieldTables` を実装。ID を 10 進文字列に決定（MCP-5 の `items[].id` も変更）、§4.2・§4.5 を実装に合わせた（`dry_run` → `preview`、読み取り専用欄は `read_only_field` エラー）。実装メモ（MCP-3）を追加
