@@ -9,7 +9,7 @@
 |---|---|---|
 | v1.4.1 | Canvas Editor の折りたたみ | ✅ 2026-10-07 リリース済み（タグ push 済み） |
 | **v1.5.0** | D-Drive MCP（下の §1） | ✅ 2026-10-07 リリース（タグ push 済み）。次は MCP-13（isuzu v4.4.2）と人による確認 [verification/1005](verification/1005_manual_verification_mcp.md) |
-| **v1.6.0** | MCP-13（isuzu v4.4.2）/ MCP-14（isuzu 導入を更新ウィンドウに統合）/ 1005 の修正（記録 = [archive/1007](archive/1007_release_1_6_0.md)） | リリース中（完了時に日付） |
+| **v1.6.0** | MCP-13（isuzu v4.4.2）/ MCP-14（isuzu 導入を更新ウィンドウに統合）/ 1005 の修正（記録 = [archive/1007](archive/1007_release_1_6_0.md)） | ✅ 2026-10-08 リリース（タグ push 済み） |
 | v1.4.x / 1.5.x 候補 | [11](11_tasks.md)「v1.4.1 候補」表と [1001](1001_open_items.md) §2 の候補。着手するときにここへ起票 | ⬜ |
 
 ## 1. MCP チケット: D-Drive MCP（v1.5.0 MINOR。仕様 = [1002](1002_ddrive_mcp.md)）
