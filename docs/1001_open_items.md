@@ -1,10 +1,10 @@
-# 67. 未完了事項の一覧（未確認・未実装・既知の不具合・判断待ち）
+# 1001. 未完了事項の一覧（未確認・未実装・既知の不具合・判断待ち）
 
 > **目的**: docs が増えて「何がまだ終わっていないか」が 11・verification・reviews・archive に散らばったため、**未完了のものだけ**を 1 枚に集めた（2026-10-07、v1.4.1 リリース時に作成）。完了したものはここから消し、出典の文書には触らない。
 > **運用**: 新しい未完了事項（確認の NG・レビューの見送り・保留チケット）が出たら、出典の文書に書いたうえで**この文書にも 1 行足す**。終わったら行を消す（履歴は git にある）。チケットの正本は [11_tasks.md](11_tasks.md)、確認手順の正本は [verification/](verification/README.md)、レビューの正本は [reviews/](reviews/README.md) のまま。ここは索引であって正本ではない。
 > **凡例**: 「(状態不明)」= 出典に結果の記載が無く、終わったかどうか本文から判断できないもの。確認して消すか残すか決める。
 
-関連: v1.5.0 の実装内容（D-Drive MCP）は [68_ddrive_mcp.md](68_ddrive_mcp.md)。
+関連: v1.5.0 の実装内容（D-Drive MCP）は [1002_ddrive_mcp.md](1002_ddrive_mcp.md)。
 
 ---
 
@@ -99,7 +99,7 @@
 
 | ID | 内容 | 状態 | 出典 | 着手の条件 |
 |---|---|---|---|---|
-| **MCP-1〜**（v1.5.0） | D-Drive MCP（AI 向けの Editor 操作ツール群） | 仕様書あり・未着手 | [68](68_ddrive_mcp.md) | 2026-10-07 起票 |
+| **MCP-1〜**（v1.5.0） | D-Drive MCP（AI 向けの Editor 操作ツール群） | 仕様書あり・未着手 | [1002](1002_ddrive_mcp.md) | 2026-10-07 起票 |
 | FC-8 | カットシーンのキャラ FBX でブレンドシェイプのカーブを通す | 保留 | [51](51_tdrive_integration.md) §4.9 | 表情アニメの運用が決まったら |
 | FC-9 | 7-3/7-4 から外部コンポーネントの値を触る口 | 保留 | [51](51_tdrive_integration.md) §4.10 | 7-3/7-4 に着手するとき |
 | FC-13 | インスタンスごとのマテリアル値（MPB） | 保留 | [51](51_tdrive_integration.md) §4.14 | MS2026 で表情パラメータを使い始め、方式が決まったら |
@@ -183,14 +183,14 @@
 
 | 問い | 出典 |
 |---|---|
-| **D-Drive MCP（v1.5.0）の決め事 Q-1〜Q-12**（isuzu 依存の正式化・書き込みツールの既定・持ち込み先への配布 ほか） | [68](68_ddrive_mcp.md) §9 |
+| **D-Drive MCP（v1.5.0）の決め事 Q-1（CoplayDev を外すか）・Q-4（書き込みツールの既定）**。他は 2026-10-07 に確定 | [1002](1002_ddrive_mcp.md) §9.1〜9.3 |
 | M-5: 時間源の公開 API を作るか | [11](11_tasks.md) M-5 |
 | M-2b: TuningTable を分割するか（MS2026 の判断） | [11](11_tasks.md) M-2b |
 | M-3e: 日本語フォントをどう持つか | [11](11_tasks.md) M-3e |
 | GA-R-04: Q-1 の文面でよいか（動作は変えていない） | [58](reviews/58_review_round5_p15fix_2026-10-06.md) |
 | U-14: FC-13 で `SetMaterial` したときに MPB を維持するかクリアするか | [51](51_tdrive_integration.md) §8 |
 | ContentHash の照合前に Late Join を送る件: 案 A（現状）か B か | [29](verification/29_network_device_test.md) §22.1 |
-| CoplayDev の MCP を外すか（「3 セッション問題なければ外す」の基準のまま。v1.5.0 の D-Drive MCP で isuzu 版に一本化する提案 → [68](68_ddrive_mcp.md) §9 Q-1） | [20](20_mcp_setup.md)「切り替えの判断基準」、[CLAUDE.md](../CLAUDE.md) §4 |
+| CoplayDev の MCP を外すか（「3 セッション問題なければ外す」の基準のまま。v1.5.0 の D-Drive MCP で isuzu 版に一本化する提案 → [1002](1002_ddrive_mcp.md) §9 Q-1） | [20](20_mcp_setup.md)「切り替えの判断基準」、[CLAUDE.md](../CLAUDE.md) §4 |
 | 6-8 のリードへの確認 1〜4（CI をローカル実行で代える・位相の基準・⑤の時期・実施者と日時） | [archive/38](archive/38_acceptance_demo.md) §4 |
 | 42 §7 B の暫定のまま: B-1 URP 以外・B-2 Unity の版・B-3 SpecWeb の展開・B-5 CI の提供形・B-8 2 段階ルール・B-9 サンプルの中身 | [42](42_distribution.md) §7 B |
 | Phase 5 の「使ってみて決める」B1〜B14、「後回しでよい」C の残り（C14 BGM の Seek API・C16 常駐 VFX/BGM の Late Join・C18 NetworkManager の動的生成・C32 Bgm/Canvas/UiTween のプレビュー・C10 正式なロード画面・C34/C35 削除の Undo とカスケード。C11・C13・C17 は実装済み） | [archive/31](archive/31_phase5_decisions.md) B・C |
@@ -214,4 +214,5 @@
 
 ## 更新履歴
 
+- 2026-10-07（同日）: 文書番号を 67 → 1001 に変更（docs の番号は 10xx に統一）
 - 2026-10-07: 作成（v1.4.1 リリース時。docs/11・verification・reviews・archive・51・26・42・13・09・14・20・32 から未完了分を収集）
