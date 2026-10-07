@@ -577,7 +577,7 @@ docs/11 に既にあるものは参照だけ。
 
 | ID | 内容 | 人日 | 依存 | AC |
 |---|---|---|---|---|
-| MCP-0 | 決め事 Q-1〜Q-12 の回答を [1002](1002_ddrive_mcp.md) §9 に反映。CoplayDev 版を外す（`manifest.json`・`.mcp.json`・CLAUDE.md §4・[20](20_mcp_setup.md)） | 0.5 | — | 固定ポートがリポジトリのどこにも無い |
+| MCP-0 | 決め事 Q-1〜Q-12 の回答を [1002](1002_ddrive_mcp.md) §9 に反映。CoplayDev 版を外す（`manifest.json`・`.mcp.json`・CLAUDE.md §4・[20](20_mcp_setup.md)） | 0.5 | — | 固定ポートがリポジトリのどこにも無い → ✅ 実装（2026-10-07）: Q 全件確定（§9.1）。manifest から `com.coplaydev.unity-mcp` を削除、`.mcp.json` 削除、docs/20 を isuzu 版のみに書き換え（旧内容は [archive/1003](archive/1003_coplaydev_mcp_setup.md)）、CLAUDE.md §4 / AGENTS.md / SKILL.md / docs/34 / docs/42 / パッケージ README を更新 |
 | MCP-1 | `DDrive.Editor.Mcp` asmdef（Version Defines `DDRIVE_UNITY_MCP` / defineConstraints）、共通ガード `McpGuard`（Play Mode・読み取り専用欄・`max_chars`・`dry_run`・例外の畳み込み）、返り値圧縮 `McpJson` | 1 | MCP-0 | isuzu が無いプロジェクトでアセンブリが外れる。ガードの EditMode テスト green |
 | MCP-2 | `ddrive_status` / `ddrive_help`（カード `rules` / `types` / `validation:<code>` / `tool:<name>` / `menu` の初版） | 1 | MCP-1 | `ddrive_status` 1 回でコンパイル・テスト・検査・マイグレーション・Addressables・MCP 接続情報が揃う |
 | MCP-3 | `ddrive_asset_list` / `get` / `create` / `set` + `FieldTables`（全 18 種別の主要欄・読み取り専用欄） | 2 | MCP-1 | `create` は `AssetCreationService` 経由 + Addressables 登録 + 検査結果を 1 回で返す。`set` は Undo + SetDirty、読み取り専用欄は拒否 |

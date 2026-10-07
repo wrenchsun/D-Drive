@@ -58,14 +58,13 @@ CHANGELOG.md                    ← D-Drive(com.ddrive.core)の変更履歴(リ�
 
 ## 4. Unity MCP
 
-**状態**: ブリッジ `com.coplaydev.unity-mcp` **v10.2.0** を `Packages/manifest.json` に導入済み。クライアント設定はリポジトリ直下の `.mcp.json`（HTTP `http://127.0.0.1:8081/mcp`。8080 は別アプリが使用中のため 2026-09-08 に変更）。
-**2026-09-10 から組み込み型 `jp.shiranui-isuzu.unity-mcp` v4.2.0 を併用評価中**（サーバー名 `isuzu-unity`、ポート 27725、Bearer トークン必須。登録は各自の `claude mcp add`、[docs/20](docs/20_mcp_setup.md) §4）。両方が繋がっているときは isuzu 版を優先して使う（`test_run` + `test_results`、`compile_status`、`console_read_logs`、`execute_code`、`menu_execute`）。
+**状態（2026-10-07、MCP-0）**: Editor 組み込みの **`jp.shiranui-isuzu.unity-mcp` v4.2.0 のみ**（サーバー名 `isuzu-unity`、ポートはプロジェクトパスから自動〔D-Drive は 27725〕、Bearer トークン必須。登録は各自の `claude mcp add`、[docs/20](docs/20_mcp_setup.md) §1）。CoplayDev 版（`com.coplaydev.unity-mcp`、固定ポート 8081、`.mcp.json`）は 2026-10-07 に外した（[docs/1002](docs/1002_ddrive_mcp.md) §9 Q-1。戻し方は [docs/archive/1003](docs/archive/1003_coplaydev_mcp_setup.md)）。v1.5.0 で D-Drive 自身のツール群 `ddrive_*` をこのサーバーに載せる（[docs/1002](docs/1002_ddrive_mcp.md)）。
 セットアップ手順・運用ルールは [docs/20_mcp_setup.md](docs/20_mcp_setup.md)。
 
-- 接続前提: Unity 起動中 + MCP ウィンドウ（`Window > MCP for Unity`）で HTTP サーバ起動 + Connect
-- 取得は resource（`mcpforunity://editor/state` 等）、変更は tool（`manage_scene` / `manage_gameobject` / `manage_asset` / `execute_menu_item` / `run_tests` / `read_console`）
-- **Play Mode 中は書き込み系を実行しない**。同一 PC で別プロジェクト（MS2026）の Unity も開いている場合は対象インスタンスを明示する
-- **接続できていないのに Unity を操作した／確認したと報告しない**
+- 接続前提: Unity 起動中（サーバーは自動起動）+ `%LOCALAPPDATA%/UnityMCP/instances/<hash>.json` の `mcpUrl` / `token` で登録済み。**ポートをリポジトリ・docs に直書きしない、Preferences でポートを固定しない**
+- 主なツール: `compile_request` → `compile_status`、`console_read_logs`、`test_run` + `test_results`、`execute_code`（Roslyn）、`menu_execute`、`gameobject_*` / `asset_*` / `prefab_*`
+- **Play Mode 中は書き込み系を実行しない**。テスト実行中は `test_results` 以外を呼ばない。同一 PC で別プロジェクト（MS2026）の Unity も開いている場合は記述子の `projectPath` で対象を確認する
+- **接続できていないのに Unity を操作した／確認したと報告しない**。セッションにツールが載っていなければ HTTP 直叩き（SKILL.md §2）で続ける
 
 ## 5. 参照ドキュメント（抜粋）
 
