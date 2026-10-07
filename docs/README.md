@@ -47,7 +47,7 @@ Unity 6 / URP / Addressables / UniTask+R3 前提。ネットワークは NGO 2.1
 
 ## 文書番号の付け方（2026-10-07 から）
 
-**新しい文書は `10xx` の 4 桁の通し番号で作る**（`1001_open_items.md`、`1002_ddrive_mcp.md`、`1005_manual_verification_mcp.md`、次は `1006`。`1003` は archive、`1005` は verification にある）。`docs/` 直下・`reviews/`・`verification/`・`archive/` で**番号は共通**（フォルダが違っても重複させない）。既存の 2 桁番号（00〜66）はそのまま（改名しない。リンク切れを防ぐため）。番号から探すときは、2 桁なら上の表と各フォルダの README、`10xx` なら作成順。
+**新しい文書は `10xx` の 4 桁の通し番号で作る**（`1001_open_items.md`、`1002_ddrive_mcp.md`、`1005_manual_verification_mcp.md`、次は `1008`。`1003` は archive、`1005` は verification にある）。`docs/` 直下・`reviews/`・`verification/`・`archive/` で**番号は共通**（フォルダが違っても重複させない）。既存の 2 桁番号（00〜66）はそのまま（改名しない。リンク切れを防ぐため）。番号から探すときは、2 桁なら上の表と各フォルダの README、`10xx` なら作成順。
 
 ## ディレクトリの構成（reviews / verification / archive）
 
