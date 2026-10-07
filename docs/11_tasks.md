@@ -585,7 +585,7 @@ docs/11 に既にあるものは参照だけ。
 | MCP-5 | `ddrive_validate` / `validate_fix` / `forbidden_api` | 1 | MCP-1 | `summary` が既定、`byCode` の表、`FixAction` 付きだけ適用 |
 | MCP-6 | `ddrive_generate`（ids / tuning / addressables / preload / prefabs / deps / icons）/ `ddrive_migrate` / `ddrive_compat` / `ddrive_release_check` | 1.5 | MCP-1 | `compat diff` で removed > 0 に warning。`release_check` は `ReleaseChecks.ps1` のラッパー、`bump-version` はツール化しない |
 | MCP-7 | `ddrive_preview_open` / `preview_play` / `preview_sweep` / `ddrive_build_netcheck`（ジョブ化） | 1.5 | MCP-3 | 確認用シーン + 配置を 1 回で。実 Manager 駆動（ADR-4）。Play Mode 中は拒否 |
-| MCP-8 | `Tools/Mcp/register-mcp.ps1`（記述子 → `claude mcp add` 上書き、pid 生存確認）+ `McpPortPolicyTests` + Info `DD-MCP-FIXED-PORT` | 0.5 | MCP-1 | トークン・ポートをリポジトリに書かない。D-Drive と MS2026 のパスでポートが異なることをテストで検算 |
+| MCP-8 | `Tools/Mcp/register-mcp.ps1`（記述子 → `claude mcp add` 上書き、pid 生存確認）+ `McpPortPolicyTests` + Info `DD-MCP-FIXED-PORT` | 0.5 | MCP-1 | トークン・ポートをリポジトリに書かない。D-Drive と MS2026 のパスでポートが異なることをテストで検算 → 🔶 一部実装（2026-10-07）: `register-mcp.ps1` + README。`McpPortPolicyTests` と `DD-MCP-FIXED-PORT` は MCP-1 の asmdef の後 |
 | MCP-9 | スナップショット `mcp-tools.txt` + Compat テスト + [42](42_distribution.md) §5.14 E-21 | 0.5 | MCP-2〜7 | 行が減ったら赤 |
 | MCP-10 | トークン計測 `Tools/Mcp/measure-tokens.py`（代表 5 シナリオ、[1002](1002_ddrive_mcp.md) §10 に結果） | 0.5 | MCP-2〜7 | 前比 1/3 以下（G-2）。満たさないツールは返り値を見直す |
 | MCP-11 | docs（[20](20_mcp_setup.md) 書き換え・[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・SKILL.md・ProgrammerManual `mcp.html`）・CHANGELOG・人による確認手順 `verification/1003_manual_verification_mcp.md` | 1 | MCP-9 | — |

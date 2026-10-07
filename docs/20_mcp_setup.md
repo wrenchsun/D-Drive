@@ -25,11 +25,10 @@ AI エージェント（Claude Code 等）が **起動中の Unity Editor を直
 1. **前提**: Git が PATH にある（manifest の git URL 解決に使う）。Python や `uv` は不要。
 2. `git pull` 後に Unity を開く → Package Manager が `jp.shiranui-isuzu.unity-mcp` を取得してコンパイルする。サーバーは **Editor 起動時に自動起動**する（`Preferences > Unity MCP` で確認・停止・トークン再生成ができる）。
 3. 接続情報を読む: `%LOCALAPPDATA%\UnityMCP\instances\` にある、`projectPath` が `C:/.../D-Drive/Assets` の JSON を開き、`mcpUrl`（例 `http://127.0.0.1:27725/mcp`）と `token` を控える。
-4. Claude Code に登録する（プロジェクト直下で）:
+4. Claude Code に登録する（プロジェクト直下で）: **`pwsh Tools/Mcp/register-mcp.ps1`**（記述子を読み、pid の生存を確認して `claude mcp remove` → `add` で上書き登録する。`-Print` で接続情報の確認のみ、`-DryRun` でコマンドの確認のみ。[Tools/Mcp/README.md](../Tools/Mcp/README.md)）。手動で行うときのフォールバック:
    ```bash
    claude mcp add --transport http isuzu-unity http://127.0.0.1:27725/mcp --header "Authorization: Bearer <token>"
    ```
-   v1.5.0 の MCP-8 で、この手順を `Tools/Mcp/register-mcp.ps1` の 1 コマンドにする（記述子を読んで上書き登録。[1002](1002_ddrive_mcp.md) §6.2）。
 5. Claude Code のセッションを開き直すと `mcp__isuzu-unity__*` ツールが載る。`claude mcp list` で `isuzu-unity ✓ Connected` になること。
 
 ### ポートについて（競合しない仕組み）
@@ -43,7 +42,7 @@ AI エージェント（Claude Code 等）が **起動中の Unity Editor を直
 | 症状 | 原因 | 対処 |
 |---|---|---|
 | ツールが `ECONNREFUSED` | Unity が起動していない / サーバーが停止している | Unity を起動する。`Preferences > Unity MCP` で Running を確認 |
-| 401 / 認証エラー | **Unity を再起動してトークンが変わった**（起動のたびに再生成される設定の場合） | `instances/<hash>.json` を読み直し、`claude mcp remove isuzu-unity` → `add` で登録し直す（MCP-8 のスクリプトで 1 コマンド化予定）。セッションに載っていないときは HTTP 直叩き（§2 のフォールバック）で続けられる |
+| 401 / 認証エラー | **Unity を再起動してトークンが変わった**（起動のたびに再生成される設定の場合） | `instances/<hash>.json` を読み直し、`claude mcp remove isuzu-unity` → `add` で登録し直す（`pwsh Tools/Mcp/register-mcp.ps1` で 1 コマンド）。セッションに載っていないときは HTTP 直叩き（§2 のフォールバック）で続けられる |
 | 記述子の `pid` のプロセスが無い | Editor のクラッシュ後の古い記述子 | Unity を起動し直すと上書きされる |
 | 別プロジェクト（MS2026 等）に繋がっている | 記述子を取り違えた | `projectPath` を見て D-Drive の記述子を使う。v1.5.0 の `ddrive_status.mcp.project` で AI 側でも確認できる |
 | ドメインリロード中にエラー | `compile_request` / テスト実行の直後 | 20〜25 秒待ってから `compile_status` / `test_results` をポーリングする（§2） |
