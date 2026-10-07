@@ -110,6 +110,17 @@ namespace DDrive.Tests.Editor.Mcp
         }
 
         [Test]
+        public void MapRow_AssetRowId_IsADecimalString()
+        {
+            // MCP-3(2026-10-07): ID は JSON では 10 進文字列(ulong が 2^53 を超えると JS で桁落ちするため)。
+            var row = new ValidationSummary.Row(
+                "E-1", ValidationSeverity.Error, DDrive.Foundation.Identity.AssetType.Se, 18446744073709551615UL, "n", "m", false);
+            var json = ValidationSummary.MapRow(row);
+            Assert.AreEqual(JTokenType.String, json["id"].Type);
+            Assert.AreEqual("18446744073709551615", (string)json["id"]);
+        }
+
+        [Test]
         public void MapRow_CutsMessageTo200Chars()
         {
             var long300 = new string('x', 300);

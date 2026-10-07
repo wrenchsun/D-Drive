@@ -638,7 +638,7 @@ namespace DDrive.Editor.Mcp.Tools
             if (!row.IsProject)
             {
                 obj["type"] = row.Type.ToString();
-                obj["id"] = row.Id;
+                obj["id"] = McpJson.FormatId(row.Id);
                 obj["name"] = row.Name ?? string.Empty;
             }
 

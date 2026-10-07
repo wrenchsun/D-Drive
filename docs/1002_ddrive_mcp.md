@@ -90,6 +90,41 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 - **Validator の Code の元データ**: 指示では `Tests/Editor/Compat/Snapshots/validator-severity.txt` を「よく出るコード 25 件」の元にする想定だったが、そのスナップショットは `DD-ADDR-CATALOG-MISSING=Error` の 1 行だけ（Code 付き Validator は少数。[42](42_distribution.md) §5.11-8）。そこで `Editor` / `Runtime` のソースにある `code: "DD-…"` の全件を拾った（ContentHash / Spec 系の検査は Code 未設定のためカード対象外）
 - `McpJson.Parse(string)` を追加: `JObject.Parse` は日付形式の文字列を `DateTime` に変換してしまい `at` が壊れるため、`DateParseHandling.None` で読む
 
+### 実装メモ（2026-10-07、MCP-3）
+
+- **ファイル**: `Editor/Mcp/FieldTables.cs`（種別 → Data クラス・既定の欄）/ `Editor/Mcp/SerializedFieldIo.cs`（SerializedProperty ⇄ JSON）/ `Editor/Mcp/Tools/DDriveAssetTools.cs`（ツール 4 個）。`McpJson` に `FormatId` / `TryParseId`（10 進・`0x` 16 進・JSON 整数）を追加。`AddressablesSync.IsRegistered(Object)`（bool）を追加（`DDrive.Editor.Mcp` asmdef は Addressables を参照しないため、`AddressableAssetEntry` を返す `FindEntry` を直接呼べない。asmdef は変えていない）。
+- **ID は 10 進文字列**（決定）: 出力 `"id":"1234567890123"`、入力は 10 進 / `0x` 16 進の文字列か JSON の整数（整数は 2^53 超で送り側が桁落ちするので推奨しない）。MCP-5 の `ddrive_validate` の `items[].id` を文字列に変更した（`MapRow`。MCP-5 は未リリースなので契約の変更ではない）。`AssetId` 型の欄の `{type,id}` も `id` は文字列。
+- **`FieldTables`**: 全 18 種別を持ち、既定の欄 = 共通 4 欄（`DisplayName,Category,Tags,Description`）+ 種別の主要欄（6 個まで、合計 10 以内）。`FieldTablesTests` が、全 `AssetType` が載っていること・Runtime の `[AssetIdDefinition]` 付き具象クラスが全部載っていること・既定の欄名が実在すること（`SerializedObject.FindProperty`）を固定する（新しい種別・Data クラスを足すと赤くなる）。
+
+  | 種別 | Data クラス | 主要欄（共通 4 欄に足す） |
+  |---|---|---|
+  | Se | SeData | Clips, Volume, PitchRange, Loop, Spatial, MaxConcurrent |
+  | Bgm | BgmData | Intro, LoopBody, Volume, FadeIn, FadeOut, Bpm |
+  | Vfx | VfxData | Prefab, AnchorId, LifeMode, Duration, FadeOutSec, Render |
+  | Anim | AnimData | Clip, StateName, Layer, Loop, DefaultCrossFade, Mask |
+  | Anim2D | Anim2DData | Clip, StateName, Loop, DefaultCrossFade, Directions, DirectionClips |
+  | Material | MaterialData | Shader, Common, RenderQueueOffset, RenderingLayerMask, EnabledKeywords |
+  | Texture | TextureData | Texture, Usage, Sprite, AllowScale, SliceBorder, Channel |
+  | Canvas | CanvasData | Prefab, Layer, SortOffset, CloseOnBack, ModalBlocksInput, PauseGameWhileOpen |
+  | Prefab | PrefabData | Prefab, Kind, GameplayTags, CollisionLayer, Lod |
+  | Presentation | PresentationData | TotalDuration, Interruptible, PredictLocal, Tracks |
+  | Shake | CameraShakeData | Pattern, PosAmplitude, RotAmplitude, Frequency, Envelope, Space |
+  | Haptics | HapticsData | LowFreq, HighFreq, Priority, LocalPlayerOnly |
+  | UiTween | UiTweenData | TotalDuration, Tracks |
+  | Model | ModelData | Prefab, Slots, DefaultAnimation, Avatar, RenderLayer, Lod |
+  | Anchor | AnchorData | Parent, Space, Path, LocalOffset, LocalEuler, LocalScale |
+  | AnchorGroup | AnchorGroupData | OriginAnchorId, Layout, GridCountX, GridCountY, CircleCount, CircleRadius |
+  | ControlSkin | ButtonSkinData / SliderSkinData | Button: HoverSe, ClickSe, LongPressSe, DeniedSe / Slider: GrabSe, ReleaseSe, NotchSe, LimitSe, DeniedSe |
+  | Cutscene | CutsceneData | Timeline, Origin, FrameRate, Skip, Wrap, LockInput |
+
+  ControlSkin だけ Data クラスが 2 つあるため、`ddrive_asset_create` は `data_class`（`ButtonSkinData` / `SliderSkinData`）が必須（無ければ `invalid_params`）。`get` の既定の欄は、そのアセットの実クラスの表を使う。Anim2D は `AnimData` の派生なので、`list` / `get` は `t:AnimData` が Anim2D を拾っても `[AssetIdDefinition]` の種別で絞り直す。
+- **`SerializedFieldIo` が対応する型**（Read の出力 = Write の入力）: int 系（int/uint/long/short/byte…。範囲検査あり）・**ulong は 10 進文字列**・float/double（float は `0.1f → 0.1` の最短表記、整数値は `1` と出す）・bool・string・char・LayerMask・enum（名前は大小無視、数値も可）・Color（`{r,g,b,a}`、Write は `"#RRGGBB[AA]"` も可）・Vector2/3/4・Quaternion・Vector2Int/3Int（`{x,y,..}`、Write は配列も可、無い成分は既存値のまま）・Rect（`{x,y,w,h}`）・Bounds・AnimationCurve（`{keys:[{t,v,in,out}]}`）・Object 参照（アセットパス文字列 / サブアセットは `path#名前` / null。Write は型検査あり。`PPtr<$型>` から必要な型を読む）・`AssetId<T>`（`{type,id}`、未設定は null。Write は `id` だけでも既存の type を保って入る）・`ValueDef`（最小 JSON: `{mode:"Constant",value}` / `{mode:"Parametric",ease|bezier,from,to,time:{mode,value,speed?,ignoreTimeScale?},loop?,loopCount?}` / `{mode:"Curve",curve,from,to|normalized,time,...}`。`mode` を省くと渡したキーから決まる。Write は渡したキーだけ上書き）・その他の struct/class（入れ子オブジェクト。**Write は渡したキーだけを上書きするパッチ**）・配列（JArray。**Write は全体置換のみ**で、`Tags[0]` / `Tags.Array.data[0]` は `invalid_params`。増やした要素は直前の要素の複製から始まるので、struct の配列は全キーを渡すのが安全）・ManagedReference（Read は `$type` 付き、Write は既存インスタンスのパッチと null のみ）。対応外（Gradient 等）は Read が `"<unsupported:型>"`、Write が `invalid_params`。エラー文は欄のパスと期待する形を含む。
+- **`ddrive_asset_set` の流れ**: `EnsureCanWrite` → 欄名の検査（読み取り専用 = `read_only_field`、存在しない・要素単位 = `invalid_params`）→ `SerializedObject` に全欄を書く（ここで型が合わなければ例外。まだ `ApplyModifiedProperties` していないので何も変わらない = **全欄が書けるときだけ書く**）→ 変わった欄だけ `changed` に（値が同じなら `changed:[]` で何も保存せず、`Version` も進めない）→ `ChangeNote` に `[mcp] ` を前置（既に付いていれば何もしない。`fields` に `ChangeNote` があれば新しい値の先頭に付ける。**空のときは `[mcp] 変更: <欄名,...>`** を入れる）→ `Undo.RecordObject` + `ApplyModifiedProperties` + `SetDirty` + `DDriveAssetSave.SaveDirty`（`VersionStampProcessor` が `Version` / `UpdatedAt` を付ける）。`from` / `to` は 200 文字で切る。`preview` は同じ検査と差分計算までで何も書かない（`Destructive=false` なので isuzu の `dry_run` ではなく自前の引数。MCP-5 と同じ理由）。
+- **`ddrive_asset_create` の流れ**: 引数検査（`identifier` 省略は `AssetNamingService.ToIdentifier(name, 種別名)`、`IsValidIdentifier` でなければ `invalid_params`）→ 予定パスが既にあれば `invalid_params`（`AssetPathToGUID` は `OnlyExistingAssets` を付ける。既定だと直前に削除したパスを「ある」と返す）→ `fields` を使い捨てのインスタンスで先に書いてみる（書けなければ何も作らない）→ `preview` なら `{wouldCreate, identifier}` → `AssetCreationService.Create(configure: fields を適用 + ChangeNote = "[mcp] 作成")`。**Addressables 登録は `Create` が済ませる**（カタログ登録 + `AddressablesSync.EnsureEntry` + カタログのエントリ + 保存）ので、ツール側では二重に呼ばない（`addressable` は `AddressablesSync.IsRegistered` で確かめた結果）。`StampNew` により `Version` は 1 のまま（作成後に `SaveDirty` は呼ばない = 版が 2 に進まない）。`CreateIn(gameDataRoot, ...)` は MCP に出さないテスト用の入口。
+- **`ddrive_asset_list`**: `fields` は `id` / `name` / `category` / `path` と欄名（`*` で全欄）。`name` は `DisplayName`、空ならアセット名。`query` は `DisplayName` とアセット名（= 識別子を含むファイル名）の部分一致。`category` は完全一致か配下（`Pg` で `Pg/One` も）。パス順で安定、`{total, items, next?, truncated?}`。ページ切り・`max_chars` は MCP-5 の `ItemPaging.Fit`。
+- **テスト**: `FieldTablesTests` / `SerializedFieldIoTests`（全型の往復。`McpIoProbe` = テスト専用の ScriptableObject）/ `DDriveAssetToolTests`（一時 GameData ルート `Assets/Tests/DDriveTemp/McpAssetToolsGameData` で create → set → get → list の実往復。`AssetCreationService.Create` は実 Addressables グループへ一時ルートのアセットを登録するので、TearDown で `AddressablesSync.RemoveEntriesUnder` + `DeleteAsset` + 保存して持ち越さない。AssetCreationServiceTests と同じ後始末）。
+- **既知の制限**: `Gradient` と、新しい型の `ManagedReference` の生成は対象外。`ddrive_asset_set` は 1 アセット単位で、複数アセットの一括変更・複製・改名は無い。
+
 ---
 
 ## 4. ツール一覧（v1.5.0）
@@ -107,10 +142,10 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 
 | ツール | 種別 | 引数 | 返り値（要点） | 呼ぶ先 |
 |---|---|---|---|---|
-| `ddrive_asset_list` | R | `type`（AssetType 名）、`category?`、`query?`（DisplayName / identifier の部分一致）、`fields?`（既定 `id,name,category`）、`cursor?`、`limit?`（既定 50、最大 200） | `{items:[{id,name,category,...}], next?}` | `AssetSearch.FindAssets` |
-| `ddrive_asset_get` | R | `type`、`id`（ulong）または `path`、`fields?`（既定: 共通欄 + 種別の主要欄。`*` で全部） | `{id,name,path,fields:{...}, validation:{errors,warnings}}` | `SerializedObject` を読む（型ごとの欄の表は §4.5） |
-| `ddrive_asset_create` | W | `type`、`name`（DisplayName）、`category`、`identifier?`（省略時は `AssetNamingService.ToIdentifier(name)`）、`fields?`（作成時に設定する欄）、`dry_run?` | `{id, path, addressable:true}`（dry_run なら `{wouldCreate:path}`） | `AssetCreationService.Create` → `AddressablesSync.EnsureEntry`。**`CreateAssetMenu` 直叩きはしない**（[20](20_mcp_setup.md) §2 の規約） |
-| `ddrive_asset_set` | W | `type`、`id`、`fields`（`{欄名: 値}`。入れ子は `Common.Color` のようなドット区切り）、`dry_run?` | `{changed:[{field,from,to}], validation:{errors,warnings}}` | `SerializedProperty` 経由で書く。**`Undo.RecordObject` + `EditorUtility.SetDirty` + `DDriveAssetSave.SaveDirty`**。`Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` は拒否（読み取り専用欄の一覧は §4.5） |
+| `ddrive_asset_list` | R | `type`（AssetType 名）、`category?`、`query?`（DisplayName / identifier の部分一致）、`fields?`（既定 `id,name,category`）、`cursor?`、`limit?`（既定 50、最大 200） | `{total, items:[{id,name,category,...}], next?}`（`id` は 10 進文字列） | `AssetSearch.FindAssets` |
+| `ddrive_asset_get` | R | `type`、`id`（10 進文字列。`0x` 16 進・JSON の整数も受ける）または `path`、`fields?`（既定: 共通欄 + 種別の主要欄。`*` で全部） | `{id,name,path,fields:{...}, validation:{errors,warnings}}`（`id` は 10 進文字列。`max_chars` を超える分は末尾の欄を丸ごと落として `truncated` + `omitted`） | `SerializedObject` を読む（型ごとの欄の表は §4.5） |
+| `ddrive_asset_create` | W | `type`、`name`（DisplayName）、`category`、`identifier?`（省略時は `AssetNamingService.ToIdentifier(name)`）、`data_class?`（ControlSkin のみ）、`fields?`（作成時に設定する欄）、`preview?` | `{id, path, addressable:true, validation:{errors,warnings}}`（`id` は 10 進文字列。preview なら `{wouldCreate:path, identifier}`） | `AssetCreationService.Create` → `AddressablesSync.EnsureEntry`。**`CreateAssetMenu` 直叩きはしない**（[20](20_mcp_setup.md) §2 の規約） |
+| `ddrive_asset_set` | W | `type`、`id`、`fields`（`{欄名: 値}`。入れ子は `Common.Color` のようなドット区切り。配列は全体置換）、`preview?` | `{changed:[{field,from,to}], validation:{errors,warnings}}`（preview なら `{wouldChange:[...]}`） | `SerializedProperty` 経由で書く。**`Undo.RecordObject` + `EditorUtility.SetDirty` + `DDriveAssetSave.SaveDirty`**。`Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon` は `read_only_field` で拒否（読み取り専用欄の一覧は §4.5）。`ChangeNote` の先頭に `[mcp] ` を付ける（Q-7） |
 | `ddrive_asset_usages` | R | `type`、`id` | `{usages:[{path,objectPath}], count}` | `DependencyGraphService.FindUsages`（グラフ未構築なら `{needsRebuild:true}` を返し、`ddrive_generate(deps)` を案内） |
 | `ddrive_asset_unused` | R | `type?`、`limit?` | `{items:[{type,id,name}], count}` | `DependencyGraphService.FindUnusedIds` |
 | `ddrive_asset_delete` | D | `type`、`id`、`confirm`、`dry_run` | `{deleted:bool, blockers:[...]}` | `SafeDeleteService.TryDelete`（ダイアログは `ConfirmDialogOverride` で無効化し、結果を JSON で返す） |
@@ -139,8 +174,9 @@ DDrive.Editor(AssetCreationService / CI / DDriveMigrationRunner / DependencyGrap
 
 ### 4.5 型ごとの欄の表（`ddrive_asset_get` / `ddrive_asset_set` の `fields`）
 
-- **共通欄**（`AssetDataBase`）: `DisplayName` / `Description` / `Category` / `Tags` / `Assignee` / `SpecUrl` / `Author` / `ChangeNote` / `Flags.*` / `Events.*`。**読み取り専用**: `Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon`（`ddrive_asset_set` は拒否して `{rejected:[field]}` を返す）。
+- **共通欄**（`AssetDataBase`）: `DisplayName` / `Description` / `Category` / `Tags` / `Assignee` / `SpecUrl` / `Author` / `ChangeNote` / `Flags.*` / `Events.*`。**読み取り専用**: `Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon`（`ddrive_asset_set` は `{error:{code:"read_only_field"}}` で拒否し、何も書かない）。
 - **種別ごとの主要欄**（既定で返すもの）は、各種別の設計 doc の「データ構造」節の**先頭 10 欄以内**とし、実装時に `Editor/Mcp/FieldTables.cs` に表で持つ（例: SeData = `Clip,Volume,Pitch,Loop,Spatial,Priority,Category`、VfxData = `Prefab,Anchor,Duration,RenderMode,Scale`）。`fields:"*"` で全欄。欄名はシリアライズ名そのまま（`m_` を付けない。`SerializedProperty` のパス）。
+- **ID は JSON では 10 進文字列**（`"id":"1234567890123"`。ulong が 2^53 を超えると JS のクライアントで桁落ちするため。入力は 10 進 / `0x` 16 進の文字列か JSON の整数）。MCP-5 の `ddrive_validate` の `items[].id` も同じく文字列（MCP-3 で変更）。
 - 値の型: `ValueDef` は `{mode:"Constant",value:1.0}` / `{mode:"Curve",...}` の最小 JSON（[17](17_value_definition.md) の形式をそのまま）。`AssetId` 参照は `{type,id}`。Unity オブジェクト参照はアセットパス文字列。
 
 ### 4.6 拡張点（持ち込み先がツールを足す）
@@ -352,6 +388,7 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 ## 更新履歴
 
+- 2026-10-07（MCP-3）: `ddrive_asset_list/get/create/set` + `FieldTables` を実装。ID を 10 進文字列に決定（MCP-5 の `items[].id` も変更）、§4.2・§4.5 を実装に合わせた（`dry_run` → `preview`、読み取り専用欄は `read_only_field` エラー）。実装メモ（MCP-3）を追加
 - 2026-10-07（同日 2）: Q-1 = 外す、Q-4 = (c) で確定（ユーザー回答）。全 Q 確定、MCP-0 に着手
 - 2026-10-07（同日）: ユーザー回答を §9.1 に記録（Q-2 案で確定・Q-3 同梱・Q-5〜12 案で確定・Q-1 / Q-4 は詳細 §9.2 / §9.3 を書いて説明待ち）。文書番号を 68 → 1002 に変更（docs の番号は 10xx に統一）
 - 2026-10-07: 起票（v1.5.0 の仕様。ユーザー指示「D-Drive MCP: D-Drive 周りを全面サポート、トークン最小、ポート競合ゼロ」を受けて作成。Editor 機能の棚卸しと isuzu 版の拡張 API・ポート規則の調査結果に基づく）
