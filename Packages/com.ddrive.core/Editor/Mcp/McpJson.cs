@@ -114,6 +114,12 @@ namespace DDrive.Editor.Mcp
             return result;
         }
 
+        // ISO 日時の文字列を DateTime に化けさせずに読む(JObject.Parse は既定で日付形式の文字列を DateTime にする)。
+        public static JObject Parse(string json)
+        {
+            return JsonConvert.DeserializeObject<JObject>(json, new JsonSerializerSettings { DateParseHandling = DateParseHandling.None });
+        }
+
         public static string Compact(JObject obj) => obj == null ? "{}" : obj.ToString(Formatting.None);
     }
 }

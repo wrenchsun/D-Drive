@@ -12,10 +12,11 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 ### 追加
 
 - MCP-1: `DDrive.Editor.Mcp` asmdef（Version Defines `DDRIVE_UNITY_MCP`）、共通ガード `McpGuard`、返り値ヘルパー `McpJson`、最小の `ddrive_status`。MCP の書き込みツールの許可設定 `McpAllowWrite`（既定 OFF、Project Settings > D-Drive > MCP / セットアップウィザード。開発リポジトリは自動 ON）（[docs/1002](docs/1002_ddrive_mcp.md) §3）
+- MCP-2: `ddrive_status` を完成（version/schema・compile・tests・validation〔`McpValidationCache`〕・migration・addressables・mcp の 7 セクション）、`ddrive_help`（`rules` / `types` / `menu` / `tool:<name>` / `validation:<code>` の短いカード）。カードの正本は `Packages/com.ddrive.core/Editor/Mcp/Cards/`（Q-10 を変更）。`AddressablesSync.CountMissingEntries()`（読み取り専用の件数）、`McpJson.Parse`（日付文字列を DateTime にしない読み込み）（[docs/1002](docs/1002_ddrive_mcp.md) §4.1・§5.4）
 
 ### 互換性
 
-- 破壊なし（MINOR 相当、追加のみ）。`DDriveProjectSettings` に `_mcpAllowWrite`（既定 false）を追加、新 asmdef `DDrive.Editor.Mcp`（isuzu 版 MCP が無いプロジェクトではコンパイルされない）を追加。公開 API（`DDrive.Foundation` / `DDrive.Runtime`）・Data のシリアライズ形式は変更なし。互換性スナップショットは差分なし（更新不要）
+- 破壊なし（MINOR 相当、追加のみ）。`DDriveProjectSettings` に `_mcpAllowWrite`（既定 false）を追加、新 asmdef `DDrive.Editor.Mcp`（isuzu 版 MCP が無いプロジェクトではコンパイルされない）を追加。公開 API（`DDrive.Foundation` / `DDrive.Runtime`）・Data のシリアライズ形式は変更なし。互換性スナップショットは差分なし（更新不要）。MCP-2 も Editor（`DDrive.Editor.Mcp` と `AddressablesSync` への追加メソッド 1 個）のみの追加で、契約への影響なし
 
 ### その他
 

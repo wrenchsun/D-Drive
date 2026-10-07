@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using DDrive.Editor.Mcp;
 using DDrive.Editor.Mcp.Tools;
 using DDrive.Editor.Settings;
+using DDrive.Foundation.Validation;
 using DDrive.Runtime;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
@@ -56,10 +58,78 @@ namespace DDrive.Tests.Editor.Mcp
         }
 
         [Test]
-        public void Status_UnknownSection_FoldsToInvalidParams()
+        public void Status_UnknownSection_IsIgnored()
         {
-            var r = DDriveStatusTools.Status("bogus");
-            Assert.AreEqual(McpGuard.CodeInvalidParams, (string)r["error"]["code"]);
+            var r = DDriveStatusTools.Status("bogus,version");
+            Assert.IsNull(r["error"]);
+            Assert.IsNotNull(r["version"]);
+            Assert.IsNull(r["mcp"]);
+
+            var onlyUnknown = DDriveStatusTools.Status("bogus");
+            Assert.IsNull(onlyUnknown["error"]);
+            Assert.AreEqual(0, onlyUnknown.Count);
+        }
+
+        [Test]
+        public void Status_AllSections_DefaultContainsEveryKey()
+        {
+            var r = DDriveStatusTools.Status();
+            Assert.IsNull(r["error"]);
+            foreach (var key in new[] { "version", "schema", "compile", "validation", "migration", "mcp" })
+            {
+                Assert.IsNotNull(r[key], key);
+            }
+        }
+
+        [Test]
+        public void Status_Mcp_HasProjectAndNeverLeaksToken()
+        {
+            var mcp = DDriveStatusTools.Status("mcp")["mcp"];
+            Assert.IsFalse(string.IsNullOrEmpty((string)mcp["project"]));
+            Assert.IsNull(mcp["token"]);
+            StringAssert.DoesNotContain("token", mcp.ToString().ToLowerInvariant());
+        }
+
+        [Test]
+        public void Status_Validation_NotCachedWhenEmpty()
+        {
+            McpValidationCache.Clear();
+            var v = DDriveStatusTools.Status("validation")["validation"];
+            Assert.AreEqual(false, (bool)v["cached"]);
+            Assert.IsNull(v["errors"]);
+        }
+
+        [Test]
+        public void Status_Validation_ReflectsRecordedSummary()
+        {
+            McpValidationCache.Clear();
+            try
+            {
+                McpValidationCache.Record(new List<ValidationReport>
+                {
+                    new ValidationReport(null, ValidationResult.Error("e1")),
+                    new ValidationReport(null, ValidationResult.Error("e2")),
+                    new ValidationReport(null, ValidationResult.Warning("w")),
+                    new ValidationReport(null, ValidationResult.Info("i")),
+                });
+                var v = DDriveStatusTools.Status("validation")["validation"];
+                Assert.AreEqual(2, (int)v["errors"]);
+                Assert.AreEqual(1, (int)v["warnings"]);
+                Assert.AreEqual(1, (int)v["infos"]);
+                Assert.IsFalse(string.IsNullOrEmpty((string)v["at"]));
+                Assert.IsNull(v["cached"]);
+            }
+            finally
+            {
+                McpValidationCache.Clear();
+            }
+        }
+
+        [Test]
+        public void Status_Migration_PendingIsNumber()
+        {
+            var m = DDriveStatusTools.Status("migration")["migration"];
+            Assert.AreEqual(JTokenType.Integer, m["pending"].Type);
         }
 
         [Test]
