@@ -272,7 +272,9 @@ AI が消費するトークンは「ツール定義（毎ターン送られる�
 
 ### 5.5 計測
 
-- `Tools/Mcp/measure-tokens.py`（新規）: 代表シナリオ 5 本（SE 作成→検査→試聴 / Validation の Error を 1 件直す / Data の値を 3 つ変える / マイグレーション確認 / リリース前チェック）を、**ツール定義 + 引数 + 返り値の文字数**で前（`execute_code` 方式の実測ログ）と後（新ツール）を比べる。文字数 ÷ 3.5 をトークンの近似とし、結果を本文書 §10 に表で残す。G-2 の 1/3 を満たさないツールは返り値を見直す。
+- `Tools/Mcp/measure-tokens.py` + `Tools/Mcp/scenarios.json`（MCP-10、Python 3.8・標準ライブラリのみ）: 起動済みの isuzu サーバーに HTTP で接続し、(1) `tools/list` の定義（name + description + inputSchema の JSON）の文字数を `ddrive_*` / isuzu 標準 / 合計で、(2) 代表シナリオ 5 本（SE 作成→検査→試聴 / Validation の Error を 1 件直す / Data の値を 3 つ変える / マイグレーション確認 / リリース前チェック）の**引数 + 返り値の文字数**を測る。呼ぶのは読み取りと `preview:true` の呼び出しだけ（作成・変更・削除・`ddrive_build_netcheck`・`ddrive_preview` の open / play はしない。`confirm:true` は読み取りの `ddrive_migrate mode=plan` と `ddrive_validate_fix preview:true` だけ）。
+- 実行: `python Tools/Mcp/measure-tokens.py`（表を標準出力へ）、`--write-doc` で §10 の `<!-- measure-tokens:begin/end -->` の間を置き換える。サーバーが忙しい（接続拒否・メインスレッド待ち）ときは 10 秒おき最大 5 回再試行し、それでも駄目なシナリオは「未計測（サーバー使用中）」と書く。
+- トークンは**文字数 ÷ 3 で一律に近似**（英数字 JSON と日本語が混ざるため。当初案の ÷3.5 から変更）。「前」は実測ログではなく**見積もり**で、従来の `execute_code` / `read_console` / docs 参照の流れの文字数を `scenarios.json` の `rationale` に算式で残した。「後」は 1 呼び出し = 1 ターンとして `ddrive_*` 全定義を毎ターン再送する上限と、呼んだツールの定義だけを数える下限（遅延ロード）の 2 通りを出す。G-2 の 1/3 を満たさないツールは返り値を見直す。
 
 ---
 
@@ -423,20 +425,47 @@ pwsh Tools/Mcp/register-mcp.ps1 -Print     # mcpUrl と pid だけ表示(トー�
 
 **推奨**: (c)。理由は、持ち込み先ではデザイナーが Data を直接編集しているので「AI が勝手に書けない」が既定として安全で、開発リポジトリでは AI に書かせる運用が前提だから。(a) でも実害は小さい（安全装置 1〜8 は同じ）。(b) は「使うときに毎回設定を探す」手間が開発リポジトリで無駄になる。
 
-## 10. 計測結果（MCP-10 で記入）
+## 10. 計測結果（MCP-10、2026-10-07）
 
-| シナリオ | 前（文字数 / 概算トークン） | 後 | 比 |
+<!-- measure-tokens:begin -->
+| シナリオ | 呼び出し数 | 前（文字・概算トークン） | 後（文字・概算トークン、定義コスト込み） | 後（呼んだツールの定義だけ） | 比（定義込み / 呼んだ分だけ） |
+|---|---|---|---|---|---|
+| S1 SE を 1 件作成 → 検査 → 試聴 | 4 | 14000・4667 | 42224・14075 | 3612・1204 | 3.02 / 0.26 |
+| S2 Validation の Error を 1 件直す | 4 | 12000・4000 | 41759・13920 | 2938・979 | 3.48 / 0.24 |
+| S3 Data の値を 3 つ変える | 3 | 9000・3000 | 31653・10551 | 2803・934 | 3.52 / 0.31 |
+| S4 マイグレーションの確認 | 2 | 7000・2333 | 20719・6906 | 871・290 | 2.96 / 0.12 |
+| S5 リリース前チェック | 4 | 18000・6000 | 41954・13985 | 2113・704 | 2.33 / 0.12 |
+
+| 項目 | ツール数 | 定義の文字数 | 概算トークン |
 |---|---|---|---|
-| SE を 1 件作成 → 検査 → 試聴 | — | — | — |
-| Validation の Error を 1 件直す | — | — | — |
-| Data の値を 3 つ変える | — | — | — |
-| マイグレーションの確認 | — | — | — |
-| リリース前チェック | — | — | — |
+| `ddrive_*` | 20 | 10275 | 3425 |
+| isuzu 標準（`ddrive_` 以外） | 86 | 83677 | 27892 |
+| 合計 | 106 | 93952 | 31317 |
+
+呼び出しごとの内訳（引数文字数 / 返り値文字数 / 秒）。引数 + 返り値だけの合計（定義抜き）は括弧内:
+
+- S1（1124）: `ddrive_help` 28 / 634 / 0.0s、`ddrive_asset_create` 85 / 98 / 0.0s、`ddrive_validate` 34 / 149 / 1.9s、`ddrive_preview` 33 / 63 / 0.0s
+- S2（659）: `ddrive_validate` 17 / 149 / 2.1s、`ddrive_validate` 44 / 160 / 2.4s、`ddrive_help` 54 / 168 / 0.0s、`ddrive_validate_fix` 50 / 17 / 1.8s
+- S3（828）: `ddrive_asset_list` 40 / 145 / 0.0s、`ddrive_asset_get` 56 / 364 / 0.0s、`ddrive_asset_set` 126 / 97 / 0.0s
+- S4（169）: `ddrive_status` 45 / 56 / 0.0s、`ddrive_migrate` 44 / 24 / 0.0s
+- S5（854）: `ddrive_status` 15 / 377 / 0.1s、`ddrive_compat` 15 / 24 / 0.1s、`ddrive_release_check` 55 / 121 / 0.6s、`ddrive_forbidden_api` 22 / 225 / 3.0s
+
+計測日 2026-10-07（`python Tools/Mcp/measure-tokens.py --write-doc`、再試行 0 回）。トークン = 文字数 / 3 の一律近似。
+
+「前」は実測ではなく**見積もり**（従来の `execute_code` / `read_console` / docs 参照の流れ。算式は `Tools/Mcp/scenarios.json` の `rationale`）。「後（定義コスト込み）」は 1 呼び出し = 1 ターンとして毎ターン `ddrive_*` の全定義を再送する前提（上限）、「呼んだツールの定義だけ」は遅延ロード時の下限。
+<!-- measure-tokens:end -->
+
+**読み取り（2026-10-07）**:
+
+1. **G-2（前の 1/3 以下）は「呼んだツールの定義だけ」の見方なら全シナリオで満たす（0.12〜0.31）が、毎ターン `ddrive_*` 全 20 定義（10,275 字）を再送する見方では満たさない（2.3〜3.5 倍）。** 引数 + 返り値だけなら 169〜1,124 字で、前の 1/10 以下。定義 10,275 字が 1 ターンあたりの固定費として効くので、`AlwaysLoad=false` の遅延ロード（§5.1）に乗ることが G-2 の前提になる。前の流れにも isuzu 標準 86 ツール（83,677 字）の定義が毎ターン載るが表の「前」には含めていない（含めれば ddrive 追加分 10,275 字は +12%）。
+2. 返り値が最大なのは `ddrive_help`（`rules` カード 634 字。docs 参照の置き換えなので想定どおり）、`ddrive_status {}`（377 字、7 セクション）、`ddrive_asset_get`（364 字、欄の一覧）。いずれも `max_chars` 4,000 の十分内側。`validate` / `compat` / `migrate` は指摘 0 件・差分 0 件・未適用 0 件の**クリーンな状態**で測ったため 20〜160 字で、Error や差分があるときは大きくなる（S2 は Error 0 件で、実際の「1 件直す」より小さい）。
+3. 所要時間は検査系（`ddrive_validate` 1.7〜1.9 秒、`ddrive_forbidden_api` 3.0 秒）が最長で、それ以外は 1 秒未満。
 
 ---
 
 ## 更新履歴
 
+- 2026-10-07（MCP-10）: `Tools/Mcp/measure-tokens.py` を実装し §10 に結果を記入。定義込みでは G-2 未達（2.3〜3.5 倍）、呼んだツールの定義だけなら達成（0.12〜0.31）。§5.5 を実装に合わせた（÷3.5 → ÷3）
 - 2026-10-07（MCP-7）: `ddrive_preview`（open / play / stop / stop_all / sweep / status。spec の 3 ツールを統合）と `ddrive_build_netcheck`（同期実行、isuzu が自動でジョブ化）を実装。ツールは 20 個ちょうど（§5.1 の上限）。実装メモ（MCP-7）を追加
 - 2026-10-07（MCP-6）: `ddrive_generate`（7 種。引数名は `kind`、`preview` は kind ごとに意味が違う）/ `ddrive_migrate` / `ddrive_compat`（Safe）+ `ddrive_compat_update`（Destructive、分割）/ `ddrive_release_check` を実装。`check-release.ps1` に `-Json` を追加。ツールは 18 個になり MCP-7 の 4 個を足すと 22 個（§5.1 の上限超過）。実装メモ（MCP-6）を追加
 - 2026-10-07（MCP-4）: `ddrive_asset_usages` / `unused` / `delete` / `ddrive_editor_open` を実装。`dry_run` → `preview`、`delete` は分析 → 実行の 2 段（コード参照があれば拒否）。実装メモ（MCP-4）を追加
