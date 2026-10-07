@@ -15,7 +15,7 @@ T-Drive（別リポジトリ。Maya + Unity のトゥーン / 表情ツール）
 | 決定 | Facial は **T-Drive 版（`com.tdrive.facial`）が正**。D-Drive 内に `Facial` 種別は作らない。旧チケット 7-8（D-Drive 内に Facial を移植、26〜29 日）は「T-Drive 版を使う。D-Drive 側は FC チケットの小さな追加のみ」に書き換える |
 | 範囲 | Facial（doc16 → FC-1〜FC-10）、Toon マテリアル（doc17 → FC-11〜FC-19）、f27702e 由来の契約（FC-20）。FC-0〜FC-20 の 21 チケット、実装対象は約 20 人日 |
 | 追加するもの | すべて **追加のみ**（互換区分 MINOR）。Facial 専用ではなく**汎用の拡張点**として作る（Facial 以外の外部パッケージにも効く） |
-| 状況 | **実装済み = FC-0〜FC-7・FC-10〜FC-12・FC-14・FC-15・FC-19・FC-20**（2026-10-03）。保留 = FC-8（表情アニメの運用決定後）・FC-9（7-3 / 7-4 着手時）・FC-13（表情パラメータを MS2026 で使い始めるとき）、後回し = FC-16・FC-17・FC-18。v1.4.0 のタグは未実施。人による確認は [52](verification/52_manual_verification_fc.md) |
+| 状況 | **実装済み = FC-0〜FC-7・FC-10〜FC-12・FC-14・FC-15・FC-19・FC-20**（2026-10-03）。保留 = FC-8（表情アニメの運用決定後）・FC-9（7-3 / 7-4 着手時）・FC-13（表情パラメータを MS2026 で使い始めるとき）、後回し = FC-16・FC-17・FC-18。v1.4.0 は 2026-10-06 にリリース済み（タグ push 済み）。人による確認は [52](verification/52_manual_verification_fc.md) |
 | 優先 | 推奨順 **FC-1 → FC-2 + FC-12（同一 PR）→ FC-11 → FC-20 → FC-10 → FC-15 → FC-5 → FC-4 → FC-6 → FC-14 → FC-3 → FC-7 → FC-19**。条件付き / 保留 = FC-8・FC-9・FC-13、低優先で後回し = FC-16・FC-17・FC-18 |
 | 版 | **v1.4.0（MINOR）** 見込み |
 | 実装方式 | 実装者は Sonnet サブエージェント、1 チケット = 1 PR、Unity 検証（コンパイル・EditMode/PlayMode）はまとめ役がメイン checkout で行う |
@@ -784,7 +784,7 @@ doc16 §5 の D-1〜D-7（Facial を D-Drive の一級の種別にする一式�
 - 2026-10-03（同日追記 6）: FC-10 を実装（§4.11 実装メモ。契約テスト `ExternalContract*` を EditMode 16 件 + PlayMode 14 件、[42] §5.14 を新設〔U-7 = (a)〕、合成 FBX フィクスチャ〔U-15 = (b)〕）。U-15 を決定列に記録。
 - 2026-10-03（同日追記 8）: FC-5 を実装（§4.6 実装メモ。U-6 = (a) で Editor 契約に掲載、保存はリスナー後に 1 回、`Result` に追加項目なし）。§7.1 に T-Drive 向けの案内（1.4.0 以降は `ICutsceneImportListener`）を追記。
 - 2026-10-03（同日追記 9）: FC-4 を実装（§4.5 実装メモ。`CutsceneMarkerContext` は `Context` を渡さず `Handle` を足した最小の 5 欄、Edit Mode のカーソルは public を増やさず Editor asm 内 internal、契約 E-20）。§7.1 に案内を追記。
-- 2026-10-03（同日追記 11）: FC-7 / FC-19 を実装（§4.8・§4.20 実装メモ。FC-7 は調査で穴が実在 → `.playable` の走査・グラフの参照元は `.playable` + UI が Cutscene を添える・キャッシュ版 2、FC-19 は Albedo Warning の条件緩和と `RenderingLayerMask` の Info）。§7.1 / §7.2 に T-Drive 宛ての案内を追記。**FC の実装対象はこれで完了**（実装済み = FC-0〜FC-7・FC-10〜FC-12・FC-14・FC-15・FC-19・FC-20、保留 = FC-8・FC-9・FC-13、後回し = FC-16・FC-17・FC-18、v1.4.0 のタグは未実施）。
+- 2026-10-03（同日追記 11）: FC-7 / FC-19 を実装（§4.8・§4.20 実装メモ。FC-7 は調査で穴が実在 → `.playable` の走査・グラフの参照元は `.playable` + UI が Cutscene を添える・キャッシュ版 2、FC-19 は Albedo Warning の条件緩和と `RenderingLayerMask` の Info）。§7.1 / §7.2 に T-Drive 宛ての案内を追記。**FC の実装対象はこれで完了**（実装済み = FC-0〜FC-7・FC-10〜FC-12・FC-14・FC-15・FC-19・FC-20、保留 = FC-8・FC-9・FC-13、後回し = FC-16・FC-17・FC-18、v1.4.0 は 2026-10-06 にリリース済み）。
 - 2026-10-03（同日追記 10）: FC-3 を実装（§4.4 実装メモ。`DDrive.Runtime.Viewing` の 4 型、カットシーン所有の判定は Applier に読み取り専用 `IsDriving` を 1 行足しただけ、公開は §4.4 の署名 + `ViewPose` の public コンストラクタ。契約 E-18。既存の `Camera.main` 直参照は置き換えず）。§7.1 に FT-4 / FU-3 宛ての案内を追記。
 - 2026-10-03（同日追記 7）: FC-15 を実装（§4.16 実装メモ。**推奨案の既定 `KeepSource` は不採用、U-9 = (c) 確認ダイアログ + `MayaImportProfile.UnknownShaderPolicy`**）。U-9 の決定列を具体化、§7.2 に T-Drive 向けの案内を追記。
 - 2026-10-03（同日追記 修正ラウンド 1）: レビュー [53](reviews/53_review_fc_2026-10-03.md) の P2（FC-R-01〜06）と小さな P3・公開面の整理・P-15 の git 引数修正を実装。推定だった FC-R-02 は実在（欠けたシェーダーは `Hidden/InternalErrorShader`）・FC-R-04 は実在せず（`markerTrack` は `GetOutputTracks()` に含まれる）・FC-R-06 は効く（タグ無しのパスは `SRPDefaultUnlit` で実描画から止まる）。§7.4 に T-Drive に関わる点をまとめた。
