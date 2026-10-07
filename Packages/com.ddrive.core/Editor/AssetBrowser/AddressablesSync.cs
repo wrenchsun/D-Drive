@@ -28,6 +28,9 @@ namespace DDrive.Editor.AssetBrowser
 
         public static bool IsAvailable => AddressableAssetSettingsDefaultObject.SettingsExists;
 
+        // Addressables に登録済みか(設定が無ければ false)。AddressableAssetEntry 型を参照できない asmdef(DDrive.Editor.Mcp 等)用。
+        public static bool IsRegistered(Object asset) => FindEntry(asset) != null;
+
         public static AddressableAssetEntry FindEntry(Object asset)
         {
             if (!IsAvailable || asset == null)

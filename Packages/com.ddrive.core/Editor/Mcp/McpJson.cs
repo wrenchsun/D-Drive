@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -112,6 +113,45 @@ namespace DDrive.Editor.Mcp
             }
 
             return result;
+        }
+
+        // ID は JSON では 10 進文字列(ulong が 2^53 を超えると JS のクライアントで桁落ちするため)。MCP-3 で決定。
+        public static string FormatId(ulong id) => id.ToString(CultureInfo.InvariantCulture);
+
+        // 10 進または 0x 16 進の文字列。0 は不可(未設定の ID を指すため)。前後の空白は許す。
+        public static bool TryParseId(string text, out ulong id)
+        {
+            id = 0;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            var s = text.Trim();
+            var ok = s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? ulong.TryParse(s.Substring(2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out id)
+                : ulong.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out id);
+            return ok && id != 0;
+        }
+
+        // 文字列に加え、JSON の整数(ulong の範囲)も許す(許容。2^53 を超える数は送り側で桁落ちするので文字列を推奨)。
+        public static bool TryParseId(JToken token, out ulong id)
+        {
+            id = 0;
+            if (token == null)
+            {
+                return false;
+            }
+
+            switch (token.Type)
+            {
+                case JTokenType.String:
+                    return TryParseId((string)token, out id);
+                case JTokenType.Integer:
+                    return TryParseId(token.ToString(), out id);
+                default:
+                    return false;
+            }
         }
 
         // ISO 日時の文字列を DateTime に化けさせずに読む(JObject.Parse は既定で日付形式の文字列を DateTime にする)。
