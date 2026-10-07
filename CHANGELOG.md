@@ -18,6 +18,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - MCP-4: `ddrive_asset_usages`（参照元の一覧。グラフ未構築は `needsRebuild`）/ `ddrive_asset_unused`（未使用 Data、`archived` の印）/ `ddrive_asset_delete`（`preview` で分析だけ、実行は参照・コード参照が無いときだけ `SafeDeleteService.TryDelete`、`confirm` 必須）/ `ddrive_editor_open`（専用エディタを開く）。`AddressablesSync.IsGuidRegistered(string)` を追加（[docs/1002](docs/1002_ddrive_mcp.md) §4.2）
 - MCP-6: `ddrive_generate`（`ids` / `tuning` / `addressables` / `preload` / `prefabs` / `deps` / `icons`、`preview` あり）/ `ddrive_migrate`（`plan` / `apply`、`confirm` 必須）/ `ddrive_compat`（互換性スナップショットの差分、removed > 0 で警告）/ `ddrive_compat_update`（スナップショット更新、`confirm` 必須）/ `ddrive_release_check`（`check-release.ps1` のラッパー）。`Tools/Release/check-release.ps1` に `-Json` スイッチを追加（人向けの出力は変更なし）（[docs/1002](docs/1002_ddrive_mcp.md) §4.3）
 - MCP-7: `ddrive_preview`（`action` = open / play / stop / stop_all / sweep / status。確認用シーンを保存ダイアログなしで開く〔未保存シーンがあれば `blocked`〕・Se / Bgm / Vfx / Presentation を実 Manager で再生・孤児プレビューの掃除）と `ddrive_build_netcheck`（実機確認用 Windows ビルド、同期実行）。ツールは 20 個ちょうど（上限）。互換性スナップショットの更新は無し
+- MCP-10: `Tools/Mcp/measure-tokens.py` + `scenarios.json`（MCP のトークン計測。ツール定義の文字数と代表 5 シナリオの引数 + 返り値の文字数を測り、[docs/1002](docs/1002_ddrive_mcp.md) §10 に表を書き出す。パッケージ本体は変更なし）
 
 ### 互換性
 
