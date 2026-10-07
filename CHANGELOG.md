@@ -11,6 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.4.1] - 2026-10-07
+
+### 互換性
+
 - **破壊なし（PATCH）**。Editor の表示だけの変更で、公開 API・シリアライズ形式・enum・ID/定数名・ContentHash・ネットメッセージ・生成コード・Validation の重さに変更は無い。互換性スナップショットに差分なし。
 
 ### 変更
