@@ -32,7 +32,7 @@
 <p><code>Project Settings &gt; D-Drive &gt; MCP</code> の「MCP の書き込みツールを許可する」（<code>DDriveProjectSettings.McpAllowWrite</code>）が ON のときだけ、書き込みを伴うツールが動きます。既定は <strong>OFF</strong>（持ち込み先で勝手に Data が書き換わらないため）。同じチェックボックスがセットアップウィザードの「4. 既定フォルダ・設定の生成」にもあります。OFF のときは書き込みツールが <code>{"error":{"code":"write_disabled"}}</code> を返し、何も変更しません。読み取りだけのツールは OFF でも使えます。</p>
 
 <h2 id="tools">ツール一覧（20 個）</h2>
-<p>凡例: <strong>R</strong> = 読み取りのみ / <strong>W</strong> = 書き込み（<code>McpAllowWrite</code> が必要）/ <strong>D</strong> = Destructive（W に加えて <code>confirm:true</code> が必要）。ID は JSON では <strong>10 進の文字列</strong>（<code>"id":"1234567890123"</code>）で、<code>0x</code> 付きの 16 進文字列も受けます。長い一覧は <code>limit</code> / <code>cursor</code>（返り値の <code>next</code> を渡す）と <code>max_chars</code>（既定 4000、上限 16000）で収まります。</p>
+<p>凡例: <strong>R</strong> = 読み取りのみ / <strong>W</strong> = 書き込み（<code>McpAllowWrite</code> が必要）/ <strong>D</strong> = Destructive（W に加えて <code>confirm:true</code> が必要）。ID は JSON では <strong>10 進の文字列</strong>（<code>"id":"1234567890123"</code>）で、<code>0x</code> 付きの 16 進文字列も受けます。長い一覧は <code>limit</code> / <code>cursor</code>（返り値の <code>next</code> を渡す）と <code>max_chars</code>（既定 4000）で収まります。</p>
 
 <h3 id="g-status">状態・案内</h3>
 <table>
