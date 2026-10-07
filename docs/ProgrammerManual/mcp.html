@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>AI エージェント連携（D-Drive MCP） | D-Drive プログラマーマニュアル</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › AI エージェント連携（D-Drive MCP）</nav>
+
+<h1>AI エージェント連携（D-Drive MCP）</h1>
+<p class="lastupdate">最終更新日: 2026-10-07</p>
+
+<p>D-Drive の Editor 機能（Data の作成・値の変更・検査・生成・マイグレーション・確認用シーン・リリース前チェック）を、AI エージェント（Claude Code など）が <strong>MCP ツール <code>ddrive_*</code> として直接呼べる</strong>仕組みです（v1.5.0）。<code>execute_code</code> で C# を書かなくても、1 回のツール呼び出しで 1 つの操作が終わります。返り値は件数と要点だけに絞ってあり、AI が使うトークンは少なくなります。</p>
+<p>サーバーは Editor 組み込みの <code>jp.shiranui-isuzu.unity-mcp</code>（isuzu 版）を使います。D-Drive が持つのはツール本体（<code>Packages/com.ddrive.core/Editor/Mcp/</code>、asmdef <code>DDrive.Editor.Mcp</code>）だけで、既存の Editor サービスを呼ぶ薄いアダプタです。isuzu 版のパッケージが入っていないプロジェクトでは、この asmdef はコンパイルされません（何も増えません）。設計・経緯・計測結果は <code>docs/1002_ddrive_mcp.md</code> にあります。</p>
+
+<div class="tip">
+<strong>コンパイル・テストの確認は従来どおり</strong> isuzu の <code>compile_request</code> / <code>compile_status</code> / <code>test_run</code> / <code>test_results</code> で行います。<code>ddrive_*</code> は D-Drive の操作（Data・検査・生成・確認用シーンなど）を担当します。
+</div>
+
+<h2 id="setup">セットアップ</h2>
+<ol>
+<li><code>Packages/manifest.json</code> に <code>jp.shiranui-isuzu.unity-mcp</code>（v4.2.0 以上）が入っていること。Unity を開くとサーバーが自動で起動します（<code>Preferences &gt; Unity MCP</code> で確認できます）</li>
+<li>プロジェクト直下で <code>pwsh Tools/Mcp/register-mcp.ps1</code> を実行します。Unity が書く接続情報（<code>%LOCALAPPDATA%\UnityMCP\instances\&lt;hash&gt;.json</code>）を読み、生存を確認して <code>claude mcp add</code> で登録し直します。<code>-Print</code> は接続情報の確認だけ、<code>-DryRun</code> は実行するコマンドの確認だけです</li>
+<li>Claude Code を開き直し、<code>claude mcp list</code> で <code>isuzu-unity ✓ Connected</code> を確認します。Unity を再起動してトークンが変わったときは、1. をやり直す必要はなく <code>register-mcp.ps1</code> をもう一度実行します</li>
+<li>最初に <code>ddrive_help</code>（<code>topic=rules</code>）と <code>ddrive_status</code> を呼ぶと、禁止事項の要約と現状（コンパイル・検査・マイグレーション・書き込み許可）が分かります</li>
+</ol>
+<p><strong>ポートは自動</strong>です。プロジェクトのパスから 27200〜27999 のポートが決まり、別のプロジェクト（MS2026 など）を同時に開いても重なりません。<code>Preferences &gt; Unity MCP</code> でポートを固定すると他と衝突しやすくなるため、固定しないでください（固定すると Validation の Info <code>DD-MCP-FIXED-PORT</code> と <code>ddrive_status</code> の警告が出ます）。ポート番号をスクリプトや docs に直書きせず、接続先は常に接続情報から読みます。</p>
+
+<h2 id="setting">書き込みを許可する設定</h2>
+<p><code>Project Settings &gt; D-Drive &gt; MCP</code> の「MCP の書き込みツールを許可する」（<code>DDriveProjectSettings.McpAllowWrite</code>）が ON のときだけ、書き込みを伴うツールが動きます。既定は <strong>OFF</strong>（持ち込み先で勝手に Data が書き換わらないため）。同じチェックボックスがセットアップウィザードの「4. 既定フォルダ・設定の生成」にもあります。OFF のときは書き込みツールが <code>{"error":{"code":"write_disabled"}}</code> を返し、何も変更しません。読み取りだけのツールは OFF でも使えます。</p>
+
+<h2 id="tools">ツール一覧（20 個）</h2>
+<p>凡例: <strong>R</strong> = 読み取りのみ / <strong>W</strong> = 書き込み（<code>McpAllowWrite</code> が必要）/ <strong>D</strong> = Destructive（W に加えて <code>confirm:true</code> が必要）。ID は JSON では <strong>10 進の文字列</strong>（<code>"id":"1234567890123"</code>）で、<code>0x</code> 付きの 16 進文字列も受けます。長い一覧は <code>limit</code> / <code>cursor</code>（返り値の <code>next</code> を渡す）と <code>max_chars</code>（既定 4000）で収まります。</p>
+
+<h3 id="g-status">状態・案内</h3>
+<table>
+<tr><th>ツール</th><th>種別</th><th>内容</th></tr>
+<tr><td><code>ddrive_status</code></td><td>R</td><td>バージョン・スキーマ・コンパイル・直近のテスト・検査の要約・未適用マイグレーション・Addressables 未登録・MCP の状態（<code>sections</code> で絞れます）</td></tr>
+<tr><td><code>ddrive_help</code></td><td>R</td><td>短い案内カード。<code>topic</code> = <code>rules</code> / <code>types</code> / <code>menu</code> / <code>tool:&lt;名前&gt;</code> / <code>validation:&lt;Code&gt;</code></td></tr>
+</table>
+<pre><code>// ddrive_status
+{ "sections": "version,mcp" }
+// → { "version": "...", "mcp": { "writeEnabled": true, "port": ..., "portMismatch": false, ... } }
+
+// ddrive_help
+{ "topic": "validation:DD-ADDR-CATALOG-MISSING" }</code></pre>
+
+<h3 id="g-data">Data</h3>
+<table>
+<tr><th>ツール</th><th>種別</th><th>内容</th></tr>
+<tr><td><code>ddrive_asset_list</code></td><td>R</td><td>種別（<code>type</code>）ごとの一覧。<code>category</code> / <code>query</code>（表示名・識別子の部分一致）/ <code>fields</code> で絞り込み</td></tr>
+<tr><td><code>ddrive_asset_get</code></td><td>R</td><td>1 件の欄の値と検査件数。<code>fields</code> 省略は共通欄 + 種別の主要欄、<code>"*"</code> で全欄</td></tr>
+<tr><td><code>ddrive_asset_create</code></td><td>W</td><td>新規作成。命名・置き場所・カタログ・Addressables 登録まで 1 回で行い、検査件数を返す。<code>preview</code> あり</td></tr>
+<tr><td><code>ddrive_asset_set</code></td><td>W</td><td>欄の値を変更。全欄が書けるときだけ書く。<code>preview</code> あり</td></tr>
+<tr><td><code>ddrive_editor_open</code></td><td>R</td><td>種別の専用エディタを開く（人が見るため）</td></tr>
+</table>
+<pre><code>// ddrive_asset_create（まず preview で確認）
+{ "type": "Se", "name": "Player Slash", "category": "Player", "preview": true }
+// → { "wouldCreate": "Assets/GameData/.../....asset", "identifier": "PlayerSlash" }
+
+// ddrive_asset_set（欄名はシリアライズ名。入れ子はドット区切り、配列は全体置換）
+{ "type": "Se", "id": "1234567890123", "fields": { "Description": "斬撃音" } }
+// → { "changed": [ { "field": "Description", "from": "", "to": "斬撃音" } ], "validation": { "errors": 0, "warnings": 0 } }</code></pre>
+<p>変更した欄の <code>ChangeNote</code> には AI の変更だと分かるよう <code>[mcp] </code> が先頭に付きます。型ごとの欄の一覧は <code>ddrive_help</code> と <code>docs/1002_ddrive_mcp.md</code> §4.5 にあります。</p>
+
+<h3 id="g-deps">依存・削除</h3>
+<table>
+<tr><th>ツール</th><th>種別</th><th>内容</th></tr>
+<tr><td><code>ddrive_asset_usages</code></td><td>R</td><td>その ID の参照元（シーン・Prefab・Timeline・他の Data）</td></tr>
+<tr><td><code>ddrive_asset_unused</code></td><td>R</td><td>どこからも参照されていない Data（<code>archived</code> の印つき）</td></tr>
+<tr><td><code>ddrive_asset_delete</code></td><td>D</td><td>参照もコード参照も無い Data の削除。<code>preview</code> は分析だけ</td></tr>
+</table>
+<p>依存グラフが未構築のときは、これらは <code>{"needsRebuild":true}</code> を返します（<code>ddrive_generate</code> の <code>kind=deps</code> で構築します）。参照されている Data は削除できず、<code>blockers</code> に参照元が並びます。</p>
+<pre><code>// ddrive_asset_delete（分析だけ）
+{ "type": "Se", "id": "1234567890123", "preview": true, "confirm": true }
+// → { "path": "...", "wouldDelete": true, "blockerCount": 0 }</code></pre>
+
+<h3 id="g-validate">検査</h3>
+<table>
+<tr><th>ツール</th><th>種別</th><th>内容</th></tr>
+<tr><td><code>ddrive_validate</code></td><td>R</td><td>検査。<code>scope</code> = <code>all</code> / <code>project</code> / <code>type:&lt;種別&gt;</code> / <code>asset:&lt;種別&gt;:&lt;id&gt;</code>。<code>detail</code> = <code>summary</code>（既定。件数と Code 別の表）/ <code>errors</code> / <code>all</code></td></tr>
+<tr><td><code>ddrive_validate_fix</code></td><td>D</td><td>自動修正（<code>FixAction</code> を持つ指摘だけ）。<code>preview</code> で件数だけ確認</td></tr>
+<tr><td><code>ddrive_forbidden_api</code></td><td>R</td><td>禁止 API の走査（規則別の件数と該当行）</td></tr>
+</table>
+<pre><code>// ddrive_validate
+{ "scope": "type:Se", "detail": "errors", "limit": 20 }
+// → { "scope": "type:Se", "errors": 1, "warnings": 3, "byCode": [ { "code": "DD-...", "sev": "Error", "count": 1 }, ... ], "items": [ ... ] }</code></pre>
+
+<h3 id="g-generate">生成・更新</h3>
+<table>
+<tr><th>ツール</th><th>種別</th><th>内容</th></tr>
+<tr><td><code>ddrive_generate</code></td><td>W</td><td><code>kind</code> = <code>ids</code>（ID 定数）/ <code>tuning</code> / <code>addressables</code>（同期）/ <code>preload</code> / <code>prefabs</code> / <code>deps</code>（依存グラフ）/ <code>icons</code>。<code>preview</code> あり（意味は kind ごと）</td></tr>
+<tr><td><code>ddrive_migrate</code></td><td>D</td><td><code>mode</code> = <code>plan</code>（既定。未適用の一覧）/ <code>apply</code>（適用。書き込み許可が必要）</td></tr>
+<tr><td><code>ddrive_compat</code></td><td>R</td><td>互換性スナップショット 7 種の差分。削除された行があれば <code>warning</code></td></tr>
+<tr><td><code>ddrive_compat_update</code></td><td>D</td><td>スナップショットを現在の形に更新（意図した追加のときだけ）</td></tr>
+<tr><td><code>ddrive_release_check</code></td><td>R</td><td><code>Tools/Release/check-release.ps1</code> の結果（<code>base</code> = 比較するタグ、<code>guard_only</code>）</td></tr>
+</table>
+<pre><code>// ddrive_generate
+{ "kind": "ids", "preview": true }
+// → { "target": "ids", "preview": true, ... }（何も書かれません）
+
+// ddrive_migrate（計画だけ。Destructive のツールなので confirm が要る）
+{ "mode": "plan", "confirm": true }</code></pre>
+
+<h3 id="g-preview">プレビュー・ビルド</h3>
+<table>
+<tr><th>ツール</th><th>種別</th><th>内容</th></tr>
+<tr><td><code>ddrive_preview</code></td><td>W（<code>status</code> は R）</td><td><code>action</code> = <code>open</code>（確認用シーンを開く。<code>scene</code> = <code>common</code> / <code>canvas</code> / <code>cutscene</code> / <code>shake</code>）/ <code>play</code> / <code>stop</code> / <code>stop_all</code> / <code>sweep</code>（孤児の掃除）/ <code>status</code></td></tr>
+<tr><td><code>ddrive_build_netcheck</code></td><td>W</td><td>NetCheck の Windows ビルド（<code>Builds/DDriveNetCheck</code>）。1〜3 分かかる同期実行で、isuzu が自動でジョブ化します（<code>job_status</code> で結果を取る）</td></tr>
+</table>
+<pre><code>// ddrive_preview（確認用シーンを開き、VFX を置いて再生）
+{ "action": "open", "scene": "common", "type": "Vfx", "id": "1234567890123" }
+// → { "scene": "common", "placed": "[D-Drive] VFX Preview", "handle": "1" }
+
+// ddrive_preview（SE を鳴らす → 止める）
+{ "action": "play", "type": "Se", "id": "1234567890123" }
+{ "action": "stop", "handle": "1" }</code></pre>
+<p>再生は各エディタが使うのと同じ <strong>実 Manager</strong> で行います（Editor 専用の再生経路はありません）。<code>play</code> の対象は Se / Bgm / Vfx / Presentation で、それ以外の種別は <code>ddrive_editor_open</code> で専用エディタを開いてください。<code>open</code> は、保存確認のダイアログを出さない代わりに、未保存のシーンがあると何も開かず <code>{"blocked":"unsaved scene"}</code> を返します。</p>
+
+<h2 id="safety">安全装置</h2>
+<table>
+<tr><th>仕組み</th><th>内容</th></tr>
+<tr><td>preview</td><td><code>asset_create</code> / <code>asset_set</code> / <code>asset_delete</code> / <code>generate</code> / <code>validate_fix</code> は <code>preview:true</code> で、何も書かずに「こうなる」だけを返します</td></tr>
+<tr><td>confirm</td><td><code>ddrive_asset_delete</code> / <code>ddrive_validate_fix</code> / <code>ddrive_migrate</code> / <code>ddrive_compat_update</code> は <code>confirm:true</code> が無いと <code>confirmation_required</code> を返して実行しません</td></tr>
+<tr><td>Undo と保存</td><td>Data の変更は <code>Undo.RecordObject</code> + <code>EditorUtility.SetDirty</code> + 保存フック経由で、人が Inspector で編集したのと同じ扱いです</td></tr>
+<tr><td>読み取り専用欄</td><td><code>Id</code> / <code>SchemaVersion</code> / <code>ImportSourceGuid</code> / <code>Version</code> / <code>UpdatedAt</code> / <code>Icon</code> は <code>read_only_field</code> で拒否されます。YAML や <code>.meta</code> を直接触るツールはありません</td></tr>
+<tr><td>Play Mode</td><td>Play Mode 中の書き込みは <code>play_mode</code> で拒否されます（変更が破棄されるため）。読み取りは使えます</td></tr>
+<tr><td>例外</td><td>例外はスタックトレースを返さず <code>{"error":{"code":"...","msg":"..."}}</code> の 1 行にまとめます。コードは <code>play_mode</code> / <code>write_disabled</code> / <code>read_only_field</code> / <code>invalid_params</code> / <code>exception</code></td></tr>
+</table>
+
+<h2 id="contract">互換性（追加のみ）</h2>
+<p>ツール名・引数名と型・Destructive かどうか・返り値のキー・<code>ddrive_help</code> の topic 名は<strong>契約</strong>で、<strong>追加だけ</strong>が許されます（削除・改名・型変更は MAJOR）。<code>Packages/com.ddrive.core/Tests/Editor/Compat/Snapshots/mcp-tools.txt</code> が現在の一覧で、<code>McpToolsSnapshotTests</code> が完全一致で検査します（<code>docs/42_distribution.md</code> §5.14 E-24）。ツールの上限は 20 個で、機能を足すときは既存ツールの引数に足します。</p>
+<p>持ち込み先が自分のツールを足すこともできます。自分の Editor asmdef に <code>[McpTool("ms2026_xxx", ...)]</code> を付けた static メソッドを書けば同じサーバーに載ります（接頭辞 <code>ddrive_</code> は D-Drive が予約しています）。</p>
+
+<h2 id="more">もっと詳しく</h2>
+<ul>
+<li><code>docs/1002_ddrive_mcp.md</code> — 仕様・各ツールの実装メモ・トークン計測結果</li>
+<li><code>docs/20_mcp_setup.md</code> — セットアップとトラブルシューティング</li>
+<li><code>docs/09_editor_tools.md</code> §15 — ツール一覧と設定</li>
+</ul>
+
+<footer>D-Drive プログラマーマニュアル | <a href="Readme.html">トップ</a> | <a href="../DesignerManual/Readme.html">デザイナーマニュアル</a></footer>
+</body>
+</html>

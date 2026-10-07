@@ -8,7 +8,7 @@
 | 版 | 内容 | 状態 |
 |---|---|---|
 | v1.4.1 | Canvas Editor の折りたたみ | ✅ 2026-10-07 リリース済み（タグ push 済み） |
-| **v1.5.0** | D-Drive MCP（下の §1） | 🔧 実装中（MCP-0・MCP-1・MCP-2・MCP-3・MCP-4・MCP-5・MCP-8・MCP-9 完了） |
+| **v1.5.0** | D-Drive MCP（下の §1） | 🔍 MCP-12（レビュー → リリース）待ち（MCP-0〜11 完了） |
 | v1.4.x / 1.5.x 候補 | [11](11_tasks.md)「v1.4.1 候補」表と [1001](1001_open_items.md) §2 の候補。着手するときにここへ起票 | ⬜ |
 
 ## 1. MCP チケット: D-Drive MCP（v1.5.0 MINOR。仕様 = [1002](1002_ddrive_mcp.md)）
@@ -28,7 +28,7 @@
 | MCP-8 | ✅ 2026-10-07（前半 `register-mcp.ps1` = PR #166、後半 = `McpPortProbe` / `McpInstanceInfo` / `McpPortPolicyTests` / Info `DD-MCP-FIXED-PORT` + `ddrive_status.mcp.warning`。[1002] 実装メモ「MCP-8 後半 / MCP-9」） | `Tools/Mcp/register-mcp.ps1`（記述子 → `claude mcp add` 上書き、pid 生存確認）+ `McpPortPolicyTests` + Info `DD-MCP-FIXED-PORT` | 0.5 | MCP-1 | トークン・ポートをリポジトリに書かない。D-Drive と MS2026 のパスでポートが異なることをテストで検算  |
 | MCP-9 | ✅ 2026-10-07（`mcp-tools.txt` = 7 つ目のスナップショット、`McpToolsSnapshotBuilder` + `[McpReturns]` を 20 ツールに、`McpToolsSnapshotTests`、E-21 は FC-6 が使用済みのため [42] §5.14 **E-24**） | スナップショット `mcp-tools.txt` + Compat テスト + [42](42_distribution.md) §5.14 E-21 | 0.5 | MCP-2〜7 | 行が減ったら赤 |
 | MCP-10 | ✅ 完了 2026-10-07 | トークン計測 `Tools/Mcp/measure-tokens.py`（代表 5 シナリオ、[1002](1002_ddrive_mcp.md) §10 に結果） | 0.5 | MCP-2〜7 | 前比 1/3 以下（G-2）。満たさないツールは返り値を見直す。結果: 呼んだツールの定義だけなら 0.12〜0.31 で達成、毎ターン全 20 定義（10,275 字）を再送する見方では 2.3〜3.5 倍で未達（遅延ロード前提。[1002](1002_ddrive_mcp.md) §10） |
-| MCP-11 | ⬜ 未着手 | docs（[20](20_mcp_setup.md) 書き換え・[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・SKILL.md・ProgrammerManual `mcp.html`）・CHANGELOG・人による確認手順 `verification/1003_manual_verification_mcp.md` | 1 | MCP-9 | — |
+| MCP-11 | ✅ 完了（2026-10-07、ブランチ mcp/mcp-11-docs） | docs（[20](20_mcp_setup.md) は MCP-0 で書き換え済み・[09](09_editor_tools.md) §15・[34](34_onboarding.md) §7・`AGENTS.md` §3.1・SKILL.md §2・[1002](1002_ddrive_mcp.md) の §4 を出荷形に整合・ProgrammerManual `mcp.html` + SpecWeb 再生成）・CHANGELOG `[Unreleased]` を v1.5.0 の 1 ブロックに整理・人による確認手順 [verification/1005](verification/1005_manual_verification_mcp.md)（番号は 1003 が archive に使用済みのため 1005） | 1 | MCP-9 | docs 間のリンク切れ無し（`Tools/Docs/check_links.py`）、SpecWeb のテスト green |
 | MCP-12 | ⬜ 未着手 | 自前レビュー → 修正 → v1.5.0 リリース（[12](12_review.md) §7） | 1 | MCP-11 | run-ci 全段 green、`check-release -Base v1.4.1` green |
 
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
@@ -37,6 +37,15 @@
 - `UiTweenManager.Tick` / `UiManager.Tick` の再入耐性（v1.3.1 からの不具合）
 - M-5（時間源の公開 API）: ユーザー判断待ち
 
+**MCP の実装中に見つかった後続候補（v1.5.0 には含めない。MCP-12 のレビューで優先度を決める）**:
+
+- Validator への Code 付与: `ddrive_validate` の `byCode` が、Code を持たない既存 Validator の指摘を `(none)` にまとめてしまう（このプロジェクトでは Warning 22 / Info 35 がほぼ `(none)` の 2 行）。主要な Validator から順に `DD-*` の Code を付ければ、AI が `byCode` と `ddrive_help validation:<code>` で原因を絞れる（追加のみ）
+- `ddrive_preview play` の対応種別を広げる: いまは Se / Bgm / Vfx / Presentation だけ。Shake / Haptics / Anim / UiTween / Cutscene は再生の経路が各エディタのウィンドウ内部にあり、MCP から呼べる共有サービスが無い。サービスを `DDrive.Editor` へ抽出すれば、ウィンドウと MCP の両方が使える
+- `ddrive_preview open` の配置を Vfx 以外にも広げる（Se / Bgm 以外の種別で `{placed:false, hint}` になっている。同じく配置経路がウィンドウ内部のため、サービスの抽出が前提）
+- ツール定義の圧縮: `ddrive_*` 20 個の定義で 10,275 文字（[1002](1002_ddrive_mcp.md) §10）。毎ターン再送する見方では G-2（前の 1/3 以下）が未達なので、説明・引数の説明文を詰める、または isuzu の `AlwaysLoad=false`（遅延ロード）に乗せられるかの確認
+- `DD-MCP-FIXED-PORT` の検出精度: Validator は記述子の `preferredPort` が導出ポートと違うかで判定するため、固定値がたまたま導出ポートと同じだと検出できない（`ddrive_status.mcp.fixedPort` は `McpSettings` を直接読むので正確）。`ddrive_status` と同じ精度に揃える
+
 ## 更新履歴
 
+- 2026-10-07: MCP-11 ✅（docs・CHANGELOG・人による確認手順 1005）。§0 の v1.5.0 を「MCP-12 待ち」に。§2 に MCP 実装中に見つかった後続候補 5 件を追記
 - 2026-10-07: 作成。docs/11 の「MCP チケット」節をここへ移した（docs/11 には参照だけ残す）。MCP-0 ✅・MCP-8 前半 🔶 を反映
