@@ -20,6 +20,11 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - **他の MCP が入っているときの確認**: 導入前に manifest を走査し、あれば「続行（両方残す）/ <X> を外して続行 / キャンセル」を出す。外せるのは既知で「外してよい」と表にあるもの（`com.coplaydev.unity-mcp`）だけで、未知の MCP（id に `mcp` を含む）は外さない。外すのは manifest の 1 行だけで `.mcp.json` には触れない
 - Validation（Info）: `DD-MCP-MULTIPLE`（MCP パッケージが 2 つ以上）/ `DD-MCP-ISUZU-OUTDATED`（isuzu のタグが推奨より古い。ブランチ・コミット固定は対象外）。`ddrive_status.mcp` に `otherMcp`（他の MCP の id、無ければ省略）と `isuzuVersion`
 
+### 修正
+
+- `ddrive_asset_create` の `preview:true` が返す `wouldCreate` のパスを、実作成と同じ(既存フォルダの大小文字に寄せた)綴りにそろえた
+- `ddrive_build_netcheck` の確認: `Builds/DDriveNetCheck/DDriveNetCheck.exe` の更新時刻が古いままなのは、Unity が内容の変わらないプレイヤー雛形を書き直さないためで不具合ではない(更新は `DDriveNetCheck_Data` 側と zip)。手順書(docs/1005 7-1)の期待欄をその実態に合わせた
+
 ### 変更
 
 - **MCP: `max_chars` の上限を 16000 に**(AI 向けの挙動の変更): `ddrive_asset_list` / `ddrive_asset_get` / `ddrive_asset_usages` / `ddrive_asset_unused` / `ddrive_help` / `ddrive_validate` / `ddrive_forbidden_api` の `max_chars` は 16000 を超えると 16000 に丸める(既定 4000 は変えない)。isuzu v4.3.0 から返り値が `MaxResultSizeChars` を超えると `isError` になるため、これらと `ddrive_status` の `MaxResultSizeChars` を 16000 に明示した

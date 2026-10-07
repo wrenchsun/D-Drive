@@ -309,6 +309,37 @@ namespace DDrive.Editor.Mcp.Tools
             return CreateIn(AssetCreationService.DefaultGameDataRoot, type, name, category, identifier, data_class, fields, preview);
         }
 
+        // 既存フォルダ(大小無視で一致)の綴りに寄せる。存在しない階層から先は引数のまま。
+        private static string MatchExistingFolderCase(string folderPath)
+        {
+            var parts = folderPath.Split('/');
+            var current = parts[0];
+            for (var i = 1; i < parts.Length; i++)
+            {
+                var next = $"{current}/{parts[i]}";
+                if (!AssetDatabase.IsValidFolder(next))
+                {
+                    return current + "/" + string.Join("/", parts, i, parts.Length - i);
+                }
+
+                // IsValidFolder は大小無視。実際の綴りは親の子フォルダ一覧から取る。
+                var actual = parts[i];
+                foreach (var sub in AssetDatabase.GetSubFolders(current))
+                {
+                    var name = sub.Substring(sub.LastIndexOf('/') + 1);
+                    if (string.Equals(name, parts[i], System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        actual = name;
+                        break;
+                    }
+                }
+
+                current = $"{current}/{actual}";
+            }
+
+            return current;
+        }
+
         // gameDataRoot を指定できる本体(テストが一時フォルダで実作成を検証するため。MCP には出さない)。
         public static JObject CreateIn(
             string gameDataRoot, string type, string name, string category, string identifier,
@@ -344,7 +375,8 @@ namespace DDrive.Editor.Mcp.Tools
                 }
 
                 var root = AssetCreationService.ResolveGameDataRoot(gameDataRoot);
-                var folder = $"{root}/{AssetNamingService.GetTargetFolder(entry.Type, category)}";
+                // 実作成は Unity が既存フォルダの大小文字に寄せるので、preview の path も同じ綴りにそろえる。
+                var folder = MatchExistingFolderCase($"{root}/{AssetNamingService.GetTargetFolder(entry.Type, category)}");
                 var path = $"{folder}/{AssetNamingService.BuildFileName(entry.Type, category, ident)}.asset";
                 if (AssetDatabase.LoadMainAssetAtPath(path) != null || !string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path, AssetPathToGUIDOptions.OnlyExistingAssets)))
                 {

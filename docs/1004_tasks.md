@@ -55,3 +55,4 @@
 - 2026-10-07: MCP-13 完了（isuzu v4.4.2）
 - 2026-10-07: MCP-14（isuzu 導入の更新ウィンドウ統合、ユーザー指示）を起票。MCP-13 着手
 - 2026-10-07: MCP-14 を実装（`McpPackageSupport` / `McpInstallActions`、更新ウィンドウの「導入」、ウィザード節、Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`、`ddrive_status.mcp.otherMcp` / `isuzuVersion`）
+- 2026-10-08: docs/1005 の人による確認を実施(§0〜§8・§10。§9 はユーザー判断でスキップ)。修正 2 件(`ddrive_asset_create` の preview パスの大小文字、1005 7-1 の期待欄)

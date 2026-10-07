@@ -69,6 +69,17 @@ namespace DDrive.Tests.Editor.Mcp
         }
 
         [Test]
+        public void Create_Preview_Path_MatchesRealCreate_WhenExistingCategoryDiffersInCase()
+        {
+            Assert.IsNull(CreateSe("McpCaseSeed", category: "casefolder")["error"]);
+            var preview = CreateSe("McpCaseProbe", category: "CaseFolder", preview: true);
+            Assert.IsNull(preview["error"], preview.ToString());
+            var real = CreateSe("McpCaseProbe", category: "CaseFolder");
+            Assert.IsNull(real["error"], real.ToString());
+            Assert.AreEqual((string)real["path"], (string)preview["wouldCreate"]);
+        }
+
+        [Test]
         public void Create_Set_Get_List_RoundTrip()
         {
             var created = CreateSe(
