@@ -57,6 +57,12 @@ Warning。D-Drive の更新が未適用の可能性。直し方: Tools/D-Drive/U
 ## DD-MCP-FIXED-PORT
 Info。Unity MCP のポートが Preferences で固定されている(他プロジェクト・他アプリと衝突する元)。直し方: Preferences > MCP の httpPort を 0 に戻す(パスから自動で決まる)。
 
+## DD-MCP-MULTIPLE
+Info。MCP パッケージが 2 つ以上 manifest にある(isuzu + CoplayDev 等。同じ Editor を同時に操作でき、固定ポートは衝突の元)。直し方: 不要な方を manifest.json から外す(更新ウィンドウの「導入」は CoplayDev を外して続行できる)。
+
+## DD-MCP-ISUZU-OUTDATED
+Info。Unity MCP(isuzu)の版が D-Drive の推奨より古い(推奨はタグ vX.Y.Z で比較。ブランチ・コミット固定は対象外)。直し方: 更新ウィンドウの「更新チェック」で推奨のタグへ上げる。
+
 ## DD-CANVAS-EMBED-ROOT
 Warning。EmbeddedCanvases の RootPath が Prefab 内に無い(この埋め込みは無視)。直し方: RootPath を Prefab の階層に合わせる。
 

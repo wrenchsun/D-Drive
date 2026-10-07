@@ -91,6 +91,20 @@ namespace DDrive.Tests.Editor.Mcp
         }
 
         [Test]
+        public void Status_Mcp_HasIsuzuVersion_AndOtherMcpIsArrayWhenPresent()
+        {
+            // [1002] §11.2 D MCP-14: isuzuVersion は isuzu が manifest にあるとき必ず出る(この Editor は isuzu で動いている)。
+            // otherMcp は他の MCP があるときだけ出る配列(無ければ省略)。
+            var mcp = DDriveStatusTools.Status("mcp")["mcp"];
+            Assert.IsFalse(string.IsNullOrEmpty((string)mcp["isuzuVersion"]));
+            if (mcp["otherMcp"] != null)
+            {
+                Assert.AreEqual(JTokenType.Array, mcp["otherMcp"].Type);
+                Assert.Greater(((JArray)mcp["otherMcp"]).Count, 0);
+            }
+        }
+
+        [Test]
         public void Status_Validation_NotCachedWhenEmpty()
         {
             McpValidationCache.Clear();

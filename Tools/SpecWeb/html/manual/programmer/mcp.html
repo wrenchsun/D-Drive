@@ -116,8 +116,8 @@
 
 <h2 id="setup">セットアップ</h2>
 <ol>
-<li><code>Packages/manifest.json</code> に <code>jp.shiranui-isuzu.unity-mcp</code>（v4.2.0 以上）が入っていること。Unity を開くとサーバーが自動で起動します（<code>Preferences &gt; Unity MCP</code> で確認できます）</li>
-<li>プロジェクト直下で <code>pwsh Tools/Mcp/register-mcp.ps1</code> を実行します。Unity が書く接続情報（<code>%LOCALAPPDATA%\UnityMCP\instances\&lt;hash&gt;.json</code>）を読み、生存を確認して <code>claude mcp add</code> で登録し直します。<code>-Print</code> は接続情報の確認だけ、<code>-DryRun</code> は実行するコマンドの確認だけです</li>
+<li><code>Packages/manifest.json</code> に <code>jp.shiranui-isuzu.unity-mcp</code>（v4.2.0 以上）が入っていること。入っていなければ <code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code> の「Unity MCP（isuzu）」の「導入」（またはセットアップウィザードの「AI 連携（MCP）」）で入れます。推奨版のタグ固定で追加し、更新ウィンドウの管理対象に登録します。CoplayDev 等の他の MCP が入っていれば確認ダイアログが出ます（CoplayDev は「外して続行」できます。<code>.mcp.json</code> に残った設定は手で消してください）。Unity を開くとサーバーが自動で起動します（<code>Preferences &gt; Unity MCP</code> で確認できます）</li>
+<li>プロジェクト直下で <code>pwsh Tools/Mcp/register-mcp.ps1</code> を実行します（更新ウィンドウで導入した直後の案内パネルの「登録スクリプトを実行」でも同じです。パッケージ導入先では <code>Packages/com.ddrive.core/Tools~/Mcp/register-mcp.ps1 -ProjectPath &lt;プロジェクト&gt;</code>）。Unity が書く接続情報（<code>%LOCALAPPDATA%\UnityMCP\instances\&lt;hash&gt;.json</code>）を読み、生存を確認して <code>claude mcp add</code> で登録し直します。<code>-Print</code> は接続情報の確認だけ、<code>-DryRun</code> は実行するコマンドの確認だけです</li>
 <li>Claude Code を開き直し、<code>claude mcp list</code> で <code>isuzu-unity ✓ Connected</code> を確認します。Unity を再起動してトークンが変わったときは、1. をやり直す必要はなく <code>register-mcp.ps1</code> をもう一度実行します</li>
 <li>最初に <code>ddrive_help</code>（<code>topic=rules</code>）と <code>ddrive_status</code> を呼ぶと、禁止事項の要約と現状（コンパイル・検査・マイグレーション・書き込み許可）が分かります</li>
 </ol>

@@ -251,7 +251,50 @@ namespace DDrive.Editor.Mcp.Tools
                 section["warning"] = FixedPortWarning;
             }
 
+            // [1002] §11.2 D MCP-14(2026-10-07): 他の MCP パッケージ(ids。無ければ省略)と isuzu の版(解決済みの版 → 無ければ manifest の #ref)。
+            try
+            {
+                var scan = DDrive.Editor.Update.McpPackageSupport.ScanManifest(DDrive.Editor.Setup.ManifestJson.LoadProjectManifest());
+                if (scan.HasOthers)
+                {
+                    var others = new JArray();
+                    foreach (var other in scan.Others)
+                    {
+                        others.Add(other.Id);
+                    }
+
+                    section["otherMcp"] = others;
+                }
+
+                var version = ResolveIsuzuVersion(scan);
+                if (version != null)
+                {
+                    section["isuzuVersion"] = version;
+                }
+            }
+            catch (Exception)
+            {
+                // manifest が読めなければ省略(status は止めない)。
+            }
+
             return section;
+        }
+
+        private static string ResolveIsuzuVersion(DDrive.Editor.Update.McpPackageSupport.McpScan scan)
+        {
+            if (!scan.IsuzuInstalled)
+            {
+                return null;
+            }
+
+            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(McpSettings).Assembly);
+            if (info != null && info.name == DDrive.Editor.Update.McpPackageSupport.IsuzuPackageId && !string.IsNullOrEmpty(info.version))
+            {
+                return info.version;
+            }
+
+            var reference = scan.IsuzuRef;
+            return !string.IsNullOrEmpty(reference) && (reference[0] == 'v' || reference[0] == 'V') ? reference.Substring(1) : reference;
         }
 
         public const string FixedPortWarning = "ポート固定は衝突の元";

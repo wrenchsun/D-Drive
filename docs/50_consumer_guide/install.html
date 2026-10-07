@@ -56,8 +56,12 @@
 <tr><td>レジストリ配布（自動解決）</td><td><code>com.unity.addressables</code> / <code>com.unity.inputsystem</code> / <code>com.unity.render-pipelines.universal</code>（URP）/ <code>com.unity.timeline</code> / <code>com.unity.nuget.newtonsoft-json</code> / <code>com.unity.ugui</code></td><td>Package Manager が <code>package.json</code> の依存として自動解決する。URP と Timeline は <code>DDrive.Runtime</code> の必須依存（ゲーム実行時にも必要）</td></tr>
 <tr><td>git 配布（手順 1 でまとめて追加）</td><td><code>com.cysharp.unitask</code> / <code>com.cysharp.r3</code> + scoped registry <code>org.nuget.r3</code></td><td><code>package.json</code> に書けない種類の依存。書き忘れてもセットアップウィザードの「1. 依存パッケージ」が不足を検出し「追加」ボタンで導入できる</td></tr>
 <tr><td>任意（NGO を使う場合のみ）</td><td><code>com.unity.netcode.gameobjects</code></td><td>導入すると <code>DDrive.Runtime.Ngo</code> が自動でコンパイル対象になる。Host/Client 全員が同じ版を導入すること</td></tr>
-<tr><td>開発専用（持ち込み先には不要）</td><td>Unity MCP 各種、D-Drive のテスト用パッケージ</td><td>パッケージには含まれない。Unity の操作は持ち込み先自身の環境に従う</td></tr>
+<tr><td>任意（AI 連携を使う場合のみ）</td><td><code>jp.shiranui-isuzu.unity-mcp</code>（Unity MCP）</td><td>D-Drive の依存には入らない。更新ウィンドウの「Unity MCP（isuzu）」の「導入」で入れる（下の「AI 連携（任意）」）</td></tr>
+<tr><td>開発専用（持ち込み先には不要）</td><td>D-Drive のテスト用パッケージ</td><td>パッケージには含まれない</td></tr>
 </table>
+
+<h2>AI 連携（任意）</h2>
+<p>AI エージェント（Claude Code 等）から D-Drive の操作を使う場合だけ、Unity MCP（isuzu）を導入します。<code>Tools &gt; D-Drive &gt; Update &gt; 更新ウィンドウ</code> の「Unity MCP（isuzu）」の「導入」を押すと、<code>manifest.json</code> に推奨版（タグ固定）を追加して管理対象に登録します（セットアップウィザードの「AI 連携（MCP）」でも同じです）。CoplayDev 等の他の MCP が入っていれば確認が出ます。導入後は、同じ画面の「登録スクリプトを実行」で Claude Code に登録し、書き込みツールの設定（既定 OFF）を必要に応じて開きます。使わなければ何もしなくて構いません。</p>
 
 <h2>2. Unity を開く</h2>
 <p>Package Manager が git URL をすべて解決し、レジストリ配布の依存も自動解決します。ここまでで D-Drive の全アセンブリがコンパイルできる状態になります。コンパイルエラーが出た場合は、依存の追加漏れ（手順 1）か、次に説明するステップの前提（<code>DDrive.Generated</code> を参照するコードを先に置いていないか等）を確認してください。</p>

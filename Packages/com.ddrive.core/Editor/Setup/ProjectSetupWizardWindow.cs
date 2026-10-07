@@ -35,6 +35,10 @@ namespace DDrive.Editor.Setup
         private VisualElement _bootstrapBody;
         private VisualElement _testablesBody;
         private VisualElement _skillBody;
+        private VisualElement _mcpBody;
+        private bool _installMcp; // 既定 OFF(任意機能)
+        private bool _showMcpPanel;
+        private DDrive.Editor.Update.McpPackageSupport.McpPlan _mcpPlan;
         private VisualElement _summaryBody;
 
         private FolderLayoutPreset _preset = FolderLayoutPreset.Default;
@@ -93,7 +97,8 @@ namespace DDrive.Editor.Setup
             scrollView.Add(BuildSection("6. 起動オブジェクト", out _bootstrapBody));
             scrollView.Add(BuildSection("7. テストを有効化する(既定 OFF)", out _testablesBody));
             scrollView.Add(BuildSection("8. エージェント向けスキル", out _skillBody));
-            scrollView.Add(BuildSection("9. 完了チェック", out _summaryBody));
+            scrollView.Add(BuildSection("9. AI 連携(MCP、任意)", out _mcpBody));
+            scrollView.Add(BuildSection("10. 完了チェック", out _summaryBody));
 
             RefreshDependenciesSection();
             RefreshProjectSettingsSection();
@@ -103,6 +108,7 @@ namespace DDrive.Editor.Setup
             RefreshBootstrapSection();
             RefreshTestablesSection();
             RefreshSkillSection();
+            RefreshMcpSection();
             RefreshSummarySection();
         }
 
@@ -429,7 +435,51 @@ namespace DDrive.Editor.Setup
             }
         }
 
-        // ── 9. 完了チェック ──
+        // ── 9. AI 連携(MCP、任意) ──
+        // [1002_ddrive_mcp.md] §11 MCP-14(2026-10-07) — 更新ウィンドウの「導入」と同じ処理(`McpInstallActions`)。
+        // チェックを入れて「適用」を押したときだけ manifest.json に isuzu を足す(他の MCP があれば確認ダイアログ)。
+
+        private void RefreshMcpSection()
+        {
+            _mcpBody.Clear();
+            var scan = DDrive.Editor.Update.McpPackageSupport.ScanManifest(ManifestJson.LoadProjectManifest());
+            if (scan.IsuzuInstalled)
+            {
+                _mcpBody.Add(WrappingLabel($"導入済み({scan.IsuzuRef ?? "版不明"}、推奨 {DDrive.Editor.Update.McpPackageSupport.RecommendedIsuzuRef})。版上げは更新ウィンドウの「更新チェック」で行います。"));
+            }
+            else
+            {
+                var toggle = new Toggle($"AI 連携(MCP)を導入する(isuzu {DDrive.Editor.Update.McpPackageSupport.RecommendedIsuzuRef} を manifest に追加)") { value = _installMcp };
+                toggle.RegisterValueChangedCallback(evt => _installMcp = evt.newValue);
+                _mcpBody.Add(toggle);
+                _mcpBody.Add(WrappingLabel("既定 OFF。ON にして「適用」を押すと manifest.json に jp.shiranui-isuzu.unity-mcp を追加し、更新ウィンドウの管理対象に登録します。他の MCP が入っていれば確認ダイアログを出します。"));
+                _mcpBody.Add(new Button(() =>
+                {
+                    if (!_installMcp)
+                    {
+                        Debug.Log("[DDrive] AI 連携(MCP)のチェックが OFF のため何もしませんでした。");
+                        return;
+                    }
+
+                    var plan = DDrive.Editor.Update.McpInstallActions.InstallFromUserClick();
+                    if (plan != null)
+                    {
+                        _mcpPlan = plan.Value;
+                        _showMcpPanel = true;
+                        _installMcp = false;
+                        RefreshMcpSection();
+                    }
+                })
+                { text = "適用" });
+            }
+
+            if (_showMcpPanel)
+            {
+                _mcpBody.Add(DDrive.Editor.Update.McpInstallActions.BuildPostInstallPanel(_mcpPlan));
+            }
+        }
+
+        // ── 10. 完了チェック ──
 
         private void RefreshSummarySection()
         {
@@ -455,6 +505,7 @@ namespace DDrive.Editor.Setup
                 RefreshBootstrapSection();
                 RefreshTestablesSection();
                 RefreshSkillSection();
+                RefreshMcpSection();
                 RefreshSummarySection();
             })
             { text = "すべて再検査" });
