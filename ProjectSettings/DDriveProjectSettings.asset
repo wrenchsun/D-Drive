@@ -25,4 +25,5 @@ MonoBehaviour:
   _previousPackageRef: 
   _managedPackages: []
   _forbiddenApiAllowEntries: []
+  _mcpAllowWrite: 1
   _cameraExecutionOrderExemptions: []
