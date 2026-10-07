@@ -1,5 +1,7 @@
 # 20. MCP（AI ⇄ Unity Editor 連携）セットアップ
 
+> **2026-10-07 追記**: v1.5.0 で D-Drive 自身の MCP ツール群（`ddrive_*`）を isuzu 版の `[McpTool]` に乗せる計画。仕様・ポート競合対策・CoplayDev 版を外す提案は [68_ddrive_mcp.md](68_ddrive_mcp.md)（決め事 Q-1〜Q-12 は同 §9）。本書の §1〜§3（CoplayDev 版）は MCP-0 で isuzu 版のみに書き換える予定。
+
 関連: [09_editor_tools.md](09_editor_tools.md) / [12_review.md](12_review.md) / ルートの [CLAUDE.md](../CLAUDE.md)
 
 AI エージェント（Claude Code 等）が **起動中の Unity Editor を直接操作・観測**できるようにする仕組み。
