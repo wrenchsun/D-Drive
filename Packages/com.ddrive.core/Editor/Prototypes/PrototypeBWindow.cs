@@ -218,8 +218,7 @@ namespace DDrive.EditorPrototypes
 
             var save = new Button(() =>
             {
-                EditorUtility.SetDirty(Target);
-                DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
+                SaveTarget();
                 Debug.Log($"[Prototype B] 保存しました: {Target.name}");
             }) { text = "保存" };
             page.Add(save);

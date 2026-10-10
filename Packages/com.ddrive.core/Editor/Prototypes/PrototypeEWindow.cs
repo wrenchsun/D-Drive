@@ -1,13 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using DDrive.Editor.Anchor;
 using DDrive.Editor.Manual;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Validation;
+using DDrive.Editor.Vfx;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Handle;
+using DDrive.Foundation.Identity;
+using DDrive.Runtime.Anchoring;
 using DDrive.Foundation.Validation;
 using DDrive.Runtime.Vfx;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -70,9 +76,29 @@ namespace DDrive.EditorPrototypes
         private int _tick;
         private string _extraKey = string.Empty;
         private bool _wasPlaying;
+        private Toggle _autoToggle;
+        private Slider _speedSlider;
+        private HelpBox _sceneHelp;
+        private string _sceneHelpKey;
+        private PeAnchorToolsRow _toolsRow;
+        private PeAnchorIdRow _idRow;
+        private readonly VfxData[] _slotData = new VfxData[PeSlotsRow.MaxSlots];
+        private readonly Handle<VfxMarker>[] _slotHandle = NewInvalidHandles();
+
+        private static Handle<VfxMarker>[] NewInvalidHandles()
+        {
+            var a = new Handle<VfxMarker>[PeSlotsRow.MaxSlots];
+            for (var i = 0; i < a.Length; i++)
+            {
+                a[i] = Handle<VfxMarker>.Invalid;
+            }
+
+            return a;
+        }
 
         protected override string Aim => "E フィードバック反映: D をベースに、下部の固定バー・未調整の折りたたみ・Params の調整つまみ・Data 切替を足した案。";
         protected override bool CustomChrome => true;
+        protected override bool UsesSavePrompt => true;
 
         public static void Open() => OpenWindow<PrototypeEWindow>("E フィードバック反映");
 
@@ -93,6 +119,10 @@ namespace DDrive.EditorPrototypes
             _repeatToggle.AddToClassList("pe-bar__repeat");
             _repeatToggle.RegisterValueChangedCallback(e => Repeat = e.newValue);
             bar.Add(_repeatToggle);
+            _speedSlider = new Slider("速度", 0.1f, 2f) { value = Speed, showInputField = false, tooltip = "再生の速さ(0.1〜2 倍)" };
+            _speedSlider.AddToClassList("pe-bar__speed");
+            _speedSlider.RegisterValueChangedCallback(e => Speed = e.newValue);
+            bar.Add(_speedSlider);
             var spacer = new VisualElement();
             spacer.AddToClassList("pe-bar__spacer");
             bar.Add(spacer);
@@ -100,7 +130,11 @@ namespace DDrive.EditorPrototypes
             _barMod.AddToClassList("pd-chip");
             _barMod.AddToClassList("pe-bar__mod");
             bar.Add(_barMod);
-            _btnSave = MakeButton("保存", null, SaveTarget, "AssetDatabase.SaveAssets");
+            _autoToggle = new Toggle("自動保存") { value = AutoSave, tooltip = "ON: 編集が止まって 1 秒たつと自動で保存する(再生中でも)。保存のたびに版数が進む" };
+            _autoToggle.AddToClassList("pe-bar__repeat");
+            _autoToggle.RegisterValueChangedCallback(e => AutoSave = e.newValue);
+            bar.Add(_autoToggle);
+            _btnSave = MakeButton("保存", null, SaveTarget, "この Data を保存する(版数が進む)。Ctrl+S(File > Save)でも保存されます");
             bar.Add(_btnSave);
             return bar;
         }
@@ -196,6 +230,10 @@ namespace DDrive.EditorPrototypes
             _anchorRow = null;
             _title = _idLabel = _chipCategory = _chipStatus = _chipMod = _hit = null;
             _btnLock = _btnResetAll = null;
+            _sceneHelp = null;
+            _sceneHelpKey = null;
+            _toolsRow = null;
+            _idRow = null;
             _switcher = null;
             _hideUntouched = EditorPrefs.GetBool(HideUntouchedKey, true);
             _bar?.EnableInClassList("pe-hidden", Target == null);
@@ -219,6 +257,10 @@ namespace DDrive.EditorPrototypes
 
             _mode = Mathf.Clamp(_mode, 0, 2);
             page.Add(BuildHero());
+            _sceneHelp = new HelpBox(string.Empty, HelpBoxMessageType.Warning);
+            _sceneHelp.AddToClassList("pe-scenehelp");
+            _sceneHelp.style.display = DisplayStyle.None;
+            page.Add(_sceneHelp);
             BuildCards(page);
             RunValidation();
             RefreshAll(false);
@@ -425,6 +467,9 @@ namespace DDrive.EditorPrototypes
             var scene = PreviewPlacementButton.Create("確認用シーン", "ライト / カメラ / 床を備えた確認用シーンを開き、対象をそこで再生する", OpenPreviewScene);
             scene.AddToClassList("pd-btn");
             actions.Add(scene);
+            actions.Add(MakeButton("Prefab で開く", null, OpenPrefab, "VfxData.Prefab をプレハブモードで開く(パーティクルの中身を編集)"));
+            actions.Add(MakeButton("Project", null, PingTarget, "この Data を Project ウィンドウで表示する"));
+            actions.Add(MakeButton("＋ 新規", null, NewAsset, "命名規則どおりの新しい VfxData を作り、このエディタで開く"));
             var spacer = new VisualElement();
             spacer.AddToClassList("pd-hero__spacer");
             actions.Add(spacer);
@@ -522,21 +567,39 @@ namespace DDrive.EditorPrototypes
             return box;
         }
 
+        private void OpenPrefab()
+        {
+            if (Target != null && Target.Prefab != null)
+            {
+                AssetDatabase.OpenAsset(Target.Prefab);
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("Prefab で開く", "この Data には Prefab が設定されていません。「エフェクトの実体(Prefab)」に Prefab を入れてください。", "OK");
+            }
+        }
+
+        private void PingTarget()
+        {
+            if (Target != null)
+            {
+                EditorGUIUtility.PingObject(Target);
+            }
+        }
+
+        private void NewAsset() =>
+            DDrive.Editor.AssetBrowser.NewAssetDialog.Open(new[] { typeof(VfxData) }, created =>
+            {
+                if (created is VfxData d)
+                {
+                    SetTarget(d);
+                }
+            });
+
         private void ToggleLock()
         {
             Locked = !Locked;
             _btnLock.EnableInClassList("pd-btn--on", Locked);
-        }
-
-        private void SaveTarget()
-        {
-            if (Target == null)
-            {
-                return;
-            }
-
-            EditorUtility.SetDirty(Target);
-            DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
         }
 
         // ── カードと欄 ──
@@ -558,6 +621,11 @@ namespace DDrive.EditorPrototypes
         {
             foreach (var purpose in Guide.Purposes)
             {
+                if (purpose == VfxFieldGuide.PurAdmin)
+                {
+                    AddSlotCard(page);
+                }
+
                 var card = new PdCard(purpose, CardDesc(purpose), () => ManualLauncher.OpenPage(ManualPage));
                 var isAdmin = purpose == VfxFieldGuide.PurAdmin;
                 var ordered = new List<FieldGuideEntry>();
@@ -592,6 +660,26 @@ namespace DDrive.EditorPrototypes
             _extraCard = new PdCard("その他の検証", "どの欄にも当てはまらない検査結果", () => ManualLauncher.OpenPage(ManualPage));
             _extraCard.style.display = DisplayStyle.None;
             page.Add(_extraCard);
+        }
+
+        private void AddSlotCard(VisualElement page)
+        {
+            var slotCard = new PdCard("複数同時再生", "打撃 + 火花 + 煙など、重なりの確認(最大 " + PeSlotsRow.MaxSlots + ")", () => ManualLauncher.OpenPage(ManualPage));
+            var slotEntry = new FieldGuideEntry
+            {
+                Field = "(slots)",
+                Label = "複数同時再生",
+                Hint = "ほかの VFX も同時に鳴らして、重なり方を確かめます。スポーン先はメインと共通です。",
+                Tier = FieldTier.Advanced,
+                Section = VfxFieldGuide.SecEvents,
+                Purpose = VfxFieldGuide.PurLink,
+                Keywords = new[] { "同時", "重ねる", "複数", "スロット" },
+            };
+            var slots = new PeSlotsRow(slotEntry, i => _slotData[i], (i, d) => _slotData[i] = d, i => Driver != null && Driver.IsPlaying(_slotHandle[i]), ToggleSlot);
+            slotCard.AddRow(slots);
+            _rows.Add(slots);
+            _cards.Add(slotCard);
+            page.Add(slotCard);
         }
 
         private void AddRow(PdCard card, PdRow row, bool isAdmin)
@@ -647,7 +735,16 @@ namespace DDrive.EditorPrototypes
                 case nameof(VfxData.Render):
                 {
                     var entries = new[] { e, Guide.Find(nameof(VfxData.RenderLayer)) };
-                    return new PdRenderRow(So, DefaultSo, entries, "通常のシーンに出すか、UI の上に重ねて出すか。詳細では表示レイヤーも選べます。", RowChanged);
+                    return new PdRenderRow(So, DefaultSo, entries, "通常のシーンに出すか、UI の上に重ねて出すか。右の表示レイヤー(スポーン物の Layer)も、ここで選べます。", RowChanged) { LayerAlways = true, NoFold = true };
+                }
+
+                case nameof(VfxData.LightLayerMask):
+                    return new PeLightLayerRow(So, DefaultSo, e, RowChanged2);
+
+                case nameof(VfxData.AnchorId):
+                {
+                    _idRow = new PeAnchorIdRow(So, DefaultSo, e, () => Target != null && Target.AnchorId.IsValid, AnchorAssetText, OpenAnchorEditor, ConvertEmbeddedAnchorToAsset, RowChanged);
+                    return _idRow;
                 }
 
                 case nameof(VfxData.Anchor):
@@ -673,6 +770,28 @@ namespace DDrive.EditorPrototypes
                     _rows.Add(_anchorRow);
                     _rowByField[e.Field] = _anchorRow;
                     _changeRows.Add(_anchorRow);
+
+                    var toolsEntry = new FieldGuideEntry
+                    {
+                        Field = "(attach)",
+                        Label = "出る場所の基準",
+                        Hint = "スポーン先・Path・SceneView 表示",
+                        Tier = FieldTier.Common,
+                        Section = VfxFieldGuide.SecAnchor,
+                        Purpose = VfxFieldGuide.PurPlace,
+                        Keywords = new[] { "スポーン先", "ボーン", "Path", "SceneView", "ハンドル", "AnchorPoint", "キャラクター" },
+                    };
+                    _toolsRow = new PeAnchorToolsRow(
+                        toolsEntry,
+                        () => AttachTarget,
+                        SetAttach,
+                        () => SceneHandleEnabled,
+                        v => SceneHandleEnabled = v,
+                        () => VfxAnchorSceneGui.DescribeResolution(Target, AttachTarget),
+                        () => SceneGuiOwner.DescribeFor(this),
+                        (menu, attach) => VfxAnchorSceneGui.FillPathMenu(menu.menu, attach, SelectAnchorPath));
+                    card.AddRow(_toolsRow);
+                    _rows.Add(_toolsRow);
                     return full;
                 }
 
@@ -690,6 +809,173 @@ namespace DDrive.EditorPrototypes
             box.AddToClassList("pd-card__empty");
             box.Add(new Label($"Id {Target.Id}   Version {Target.Version}   最終更新者 {(string.IsNullOrEmpty(Target.Author) ? "-" : Target.Author)}   最終更新日時 {(string.IsNullOrEmpty(Target.UpdatedAt) ? "-" : Target.UpdatedAt)}"));
             return box;
+        }
+
+        // ── 旧 VFX Editor と同じ操作(Anchor / スポーン先 / 複数再生) ──
+
+        private void RowChanged2()
+        {
+            RowChanged();
+            RestartIfPlaying();
+        }
+
+        private void SetAttach(GameObject go)
+        {
+            AttachTarget = go;
+            RestartIfPlaying();
+            _toolsRow?.Sync();
+        }
+
+        private void ApplyAnchorChange(Func<AnchorDef, AnchorDef> mutate)
+        {
+            if (Target == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(Target, "Change VFX Anchor");
+            Target.Anchor = mutate(Target.Anchor);
+            EditorUtility.SetDirty(Target);
+            So?.Update();
+            ReapplyAnchor();
+            RefreshAll(true);
+            SceneView.RepaintAll();
+        }
+
+        private void SelectAnchorPath(string name)
+        {
+            ApplyAnchorChange(a =>
+            {
+                a.Path = name;
+                if (a.Space == AnchorSpace.World || a.Space == AnchorSpace.ContextTarget)
+                {
+                    a.Space = AnchorSpace.NamedObject;
+                }
+
+                return a;
+            });
+            RestartIfPlaying();
+        }
+
+        protected override void DrawSceneGui() =>
+            VfxAnchorSceneGui.Draw(this, Target, Driver, MainHandle, AttachTarget, ApplyAnchorChange, () => RefreshAll(true));
+
+        private string AnchorAssetText()
+        {
+            if (Target == null || !Target.AnchorId.IsValid)
+            {
+                return string.Empty;
+            }
+
+            var asset = EditorAnchorRegistry.Find(Target.AnchorId.Value);
+            return asset != null
+                ? $"Anchor アセット '{asset.name}' を使用中(埋め込みの位置は無視されます)。位置・ランダム・ディレイの調整は「Anchor Editor で開く」から。"
+                : $"⚠ AnchorId 0x{Target.AnchorId.Value:X} のアセットが見つかりません(World 原点扱い)。";
+        }
+
+        private void OpenAnchorEditor()
+        {
+            var asset = Target != null && Target.AnchorId.IsValid ? EditorAnchorRegistry.Find(Target.AnchorId.Value) : null;
+            if (asset != null)
+            {
+                AnchorEditorWindow.Open(asset);
+            }
+        }
+
+        // 埋め込み Anchor → Anchor アセット化(移行補助)。埋め込み値は残す。
+        private void ConvertEmbeddedAnchorToAsset()
+        {
+            if (Target == null || Target.AnchorId.IsValid)
+            {
+                return;
+            }
+
+            var category = string.IsNullOrEmpty(Target.Category) ? AnchorAssetFactory.DefaultCategory : AnchorAssetFactory.ToIdentifier(Target.Category);
+            var identifier = AnchorAssetFactory.ToIdentifier(Target.name) + "Anchor";
+            var asset = AnchorAssetFactory.CreateFromDef(Target.Anchor, $"{(Target.DisplayName ?? Target.name)} の Anchor", category, identifier);
+            if (asset == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(Target, "Set VFX AnchorId");
+            Target.AnchorId = new AssetId<AnchorMarker>(asset.Id, AssetType.Anchor);
+            EditorUtility.SetDirty(Target);
+            So?.Update();
+            EditorAnchorRegistry.Refresh(Driver?.Registry);
+            RestartIfPlaying();
+            RowChanged();
+            EditorGUIUtility.PingObject(asset);
+        }
+
+        private void ToggleSlot(int i)
+        {
+            if (Driver == null)
+            {
+                return;
+            }
+
+            if (Driver.IsPlaying(_slotHandle[i]))
+            {
+                Driver.Stop(_slotHandle[i]);
+                _slotHandle[i] = Handle<VfxMarker>.Invalid;
+                return;
+            }
+
+            if (_slotData[i] != null)
+            {
+                _slotHandle[i] = Driver.Play(_slotData[i], AttachTransform);
+            }
+        }
+
+        protected override void OnPlaybackReset()
+        {
+            for (var i = 0; i < _slotHandle.Length; i++)
+            {
+                _slotHandle[i] = Handle<VfxMarker>.Invalid;
+            }
+        }
+
+        // 再生先の案内(旧 VFX Editor の「シーンにカメラ / ライトが無い」警告とプレハブモードの説明)。
+        private void RefreshSceneHelp()
+        {
+            if (_sceneHelp == null)
+            {
+                return;
+            }
+
+            string text = null;
+            var type = HelpBoxMessageType.Warning;
+            var stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage != null)
+            {
+                type = HelpBoxMessageType.Info;
+                var stageName = System.IO.Path.GetFileNameWithoutExtension(stage.assetPath);
+                text = Driver != null && Driver.IsInPlaceTarget(Target)
+                    ? $"プレハブモード '{stageName}' はこの VFX の Prefab 自身なので、ステージ内の実体をその場で再生します。Anchor・パラメータの即時反映は対象外です。"
+                    : $"プレハブモード '{stageName}' の中で再生します。スポーン物はプレハブには保存されません。プレハブの編集内容は保存(Ctrl+S)すると再生中の実体に反映されます。";
+            }
+            else
+            {
+                var hasCamera = Camera.main != null || FindFirstObjectByType<Camera>() != null;
+                var hasLight = FindFirstObjectByType<Light>() != null;
+                if (!hasCamera || !hasLight)
+                {
+                    var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                    text = $"開いているシーン '{scene.name}' に{(hasCamera ? string.Empty : "カメラ")}{(!hasCamera && !hasLight ? "・" : string.Empty)}{(hasLight ? string.Empty : "ライト")}がありません。見た目の確認には「確認用シーン」を開いてください。";
+                }
+            }
+
+            var key = type + "|" + text;
+            if (key == _sceneHelpKey)
+            {
+                return;
+            }
+
+            _sceneHelpKey = key;
+            _sceneHelp.messageType = type;
+            _sceneHelp.text = text ?? string.Empty;
+            _sceneHelp.style.display = string.IsNullOrEmpty(text) ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
         // ── 編集のあと ──
@@ -1189,6 +1475,19 @@ namespace DDrive.EditorPrototypes
             if (_btnSave != null && _btnSave.text != saveText)
             {
                 _btnSave.text = saveText;
+                _btnSave.tooltip = dirty
+                    ? "未保存の変更があります。Ctrl+S（File > Save）でも保存されます"
+                    : "この Data を保存する(版数が進む)。Ctrl+S(File > Save)でも保存されます";
+            }
+
+            if (_autoToggle != null && _autoToggle.value != AutoSave)
+            {
+                _autoToggle.SetValueWithoutNotify(AutoSave);
+            }
+
+            if (_speedSlider != null && !Mathf.Approximately(_speedSlider.value, Speed))
+            {
+                _speedSlider.SetValueWithoutNotify(Speed);
             }
 
             So.Update();
@@ -1214,6 +1513,7 @@ namespace DDrive.EditorPrototypes
             if (_tick % 7 == 0)
             {
                 RunValidation();
+                RefreshSceneHelp();
             }
         }
     }

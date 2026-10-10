@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DDrive.Editor.Preview;
+using DDrive.Editor.Versioning;
 using DDrive.Editor.Validation;
 using DDrive.Editor.Vfx;
 using DDrive.Foundation.Handle;
@@ -22,6 +23,8 @@ namespace DDrive.EditorPrototypes
         [SerializeField] private bool _lock;
         [SerializeField] private bool _repeat;
         [SerializeField] private float _speed = 1f;
+        [SerializeField] private GameObject _attachTarget;
+        [SerializeField] private bool _sceneHandle = true;
 
         private SceneVfxPreviewDriver _driver;
         private Handle<VfxMarker> _handle;
@@ -37,6 +40,53 @@ namespace DDrive.EditorPrototypes
         protected DataValidationSection Validation { get; private set; }
         protected VfxData Target => _target;
         protected VfxFieldGuide Guide => VfxFieldGuide.Instance;
+        protected SceneVfxPreviewDriver Driver => _driver;
+        protected Handle<VfxMarker> MainHandle => _handle;
+
+        // スポーン先(Anchor のボーン / AnchorPoint の検索起点。シーン内オブジェクト)。
+        protected GameObject AttachTarget
+        {
+            get => _attachTarget;
+            set => _attachTarget = value;
+        }
+
+        protected Transform AttachTransform => _attachTarget != null ? _attachTarget.transform : null;
+
+        // SceneView に Anchor の目印・ハンドルを描くか。
+        protected bool SceneHandleEnabled
+        {
+            get => _sceneHandle;
+            set
+            {
+                _sceneHandle = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        protected float Speed
+        {
+            get => _speed;
+            set
+            {
+                _speed = value;
+                if (_driver != null)
+                {
+                    _driver.Speed = value;
+                }
+            }
+        }
+
+        // 保存の確認(未保存のまま対象を切り替える・閉じるとき)を行う窓だけ true(E)。
+        protected virtual bool UsesSavePrompt => false;
+
+        // 自動保存(E のフッターのトグル。EditorPrefs)。
+        protected virtual string AutoSaveKey => "DDrive.PrototypeE.AutoSave";
+
+        protected bool AutoSave
+        {
+            get => EditorPrefs.GetBool(AutoSaveKey, false);
+            set => EditorPrefs.SetBool(AutoSaveKey, value);
+        }
 
         // 対象を切り替えてから再生ボタンを一度でも押したか(A の「次にやること」が使う)。
         protected bool Played { get; private set; }
@@ -104,12 +154,52 @@ namespace DDrive.EditorPrototypes
             DefaultSo = new SerializedObject(_defaultInstance);
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorSceneManager.activeSceneChangedInEditMode += OnSceneChanged;
+            PrefabStage.prefabStageOpened += OnPrefabStageChanged;
+            PrefabStage.prefabStageClosing += OnPrefabStageChanged;
+            PrefabStage.prefabSaved += OnPrefabSaved;
+            SceneView.duringSceneGui += OnSceneGuiInternal;
         }
+
+        // SceneView の描画権: 最後にフォーカスしたウィンドウだけがハンドルを描く(SceneGuiOwner)。
+        private void OnFocus() => SceneGuiOwner.Claim(this);
+
+        private void OnPrefabStageChanged(PrefabStage stage) => OnSceneChanged(default, default);
+
+        // プレハブモードで対象の Prefab を保存したら、再生中の実体を撮り直して編集内容を反映する。
+        private void OnPrefabSaved(GameObject prefabRoot)
+        {
+            var stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage == null || _target == null || _target.Prefab == null)
+            {
+                return;
+            }
+
+            if (stage.assetPath == AssetDatabase.GetAssetPath(_target.Prefab))
+            {
+                RestartIfPlaying();
+            }
+        }
+
+        private void OnSceneGuiInternal(SceneView view)
+        {
+            if (_sceneHandle && _target != null && _driver != null && So != null)
+            {
+                DrawSceneGui();
+            }
+        }
+
+        // SceneView 上の Anchor 表示(E が実装する)。
+        protected virtual void DrawSceneGui() { }
 
         private void OnDisable()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorSceneManager.activeSceneChangedInEditMode -= OnSceneChanged;
+            PrefabStage.prefabStageOpened -= OnPrefabStageChanged;
+            PrefabStage.prefabStageClosing -= OnPrefabStageChanged;
+            PrefabStage.prefabSaved -= OnPrefabSaved;
+            SceneView.duringSceneGui -= OnSceneGuiInternal;
+            SceneGuiOwner.Release(this);
             _wantPlaying = false;
             _driver?.Dispose();
             _driver = null;
@@ -120,11 +210,82 @@ namespace DDrive.EditorPrototypes
             }
         }
 
+        // ウィンドウを閉じるとき: 未保存なら聞く(自動保存 ON なら聞かずに保存)。ドメインリロードでは呼ばれない。
+        private void OnDestroy()
+        {
+            if (UsesSavePrompt)
+            {
+                ConfirmSaveBeforeLeave(_target, "ウィンドウを閉じます。");
+            }
+        }
+
+        // ── 保存 ──
+        // デザイナーの編集の保存は SaveDirty(対象 1 個だけ。版数・UpdatedAt が進む本来の経路)。
+
+        protected void SaveTarget() => SaveAsset(_target);
+
+        private static void SaveAsset(VfxData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            EditorUtility.SetDirty(data);
+            DDriveAssetSave.SaveDirty(data);
+        }
+
+        // 別の Data へ移る前・閉じる前: 未保存なら「保存する / 保存しない」を聞く(自動保存 ON なら聞かず保存)。
+        protected void ConfirmSaveBeforeLeave(VfxData data, string reason)
+        {
+            if (data == null || !EditorUtility.IsDirty(data))
+            {
+                return;
+            }
+
+            if (AutoSave || EditorUtility.DisplayDialog("未保存の変更があります", $"{reason}\n'{data.name}' に未保存の変更があります。保存しますか?", "保存する", "保存しない"))
+            {
+                SaveAsset(data);
+            }
+        }
+
+        private int _autoUndoGroup = -1;
+        private bool _autoWasDirty;
+        private double _autoEditTime;
+
+        // 自動保存: 編集(Undo グループの増加 / dirty になった瞬間)から 1 秒何も起きなければ SaveDirty。
+        private void AutoSaveTick()
+        {
+            if (!UsesSavePrompt || _target == null)
+            {
+                return;
+            }
+
+            var dirty = EditorUtility.IsDirty(_target);
+            var group = Undo.GetCurrentGroup();
+            var now = EditorApplication.timeSinceStartup;
+            if (group != _autoUndoGroup || (dirty && !_autoWasDirty))
+            {
+                _autoEditTime = now;
+            }
+
+            _autoUndoGroup = group;
+            _autoWasDirty = dirty;
+            if (dirty && AutoSave && now - _autoEditTime >= 1.0 && !EditorApplication.isCompiling)
+            {
+                SaveAsset(_target);
+                _autoWasDirty = false;
+            }
+        }
+
         private void OnSceneChanged(UnityEngine.SceneManagement.Scene a, UnityEngine.SceneManagement.Scene b)
         {
             _handle = Handle<VfxMarker>.Invalid;
             _wantPlaying = false;
+            OnPlaybackReset();
         }
+
+        protected virtual void OnPlaybackReset() { }
 
         private void OnSelectionChange()
         {
@@ -136,6 +297,7 @@ namespace DDrive.EditorPrototypes
 
         private void OnUndoRedo()
         {
+            _autoEditTime = EditorApplication.timeSinceStartup;
             EnsureSo();
             RefreshStates();
             Validation?.Refresh();
@@ -213,6 +375,11 @@ namespace DDrive.EditorPrototypes
 
         protected void SetTarget(VfxData data)
         {
+            if (UsesSavePrompt && _target != null && data != _target)
+            {
+                ConfirmSaveBeforeLeave(_target, "別の Data に切り替えます。");
+            }
+
             StopMain();
             _target = data;
             Played = false;
@@ -280,6 +447,11 @@ namespace DDrive.EditorPrototypes
             var path = evt.changedProperty?.propertyPath ?? string.Empty;
             if (path == "Prefab")
             {
+                RestartIfPlaying();
+            }
+            else if (path.StartsWith("AnchorId") || path == "Anchor.Space" || path == "Anchor.Path")
+            {
+                _driver?.ReapplyAnchorToAll();
                 RestartIfPlaying();
             }
             else if (path.StartsWith("Anchor"))
@@ -379,7 +551,7 @@ namespace DDrive.EditorPrototypes
             _wantPlaying = true;
             Played = true;
             _repeatWaitStart = -1;
-            _handle = _driver.Play(_target, null);
+            _handle = _driver.Play(_target, AttachTransform);
             if (focus)
             {
                 PreviewPlacement.Focus(_driver.Manager.GetGameObject(_handle));
@@ -403,7 +575,7 @@ namespace DDrive.EditorPrototypes
             _handle = Handle<VfxMarker>.Invalid;
         }
 
-        private void RestartIfPlaying()
+        protected void RestartIfPlaying()
         {
             if (_wantPlaying && _driver != null && _driver.IsPlaying(_handle))
             {
@@ -481,6 +653,7 @@ namespace DDrive.EditorPrototypes
                 }
             }
 
+            AutoSaveTick();
             OnTick();
         }
     }

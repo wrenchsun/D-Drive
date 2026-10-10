@@ -266,51 +266,7 @@ namespace DDrive.Editor.Vfx
                 return;
             }
 
-            if (UsesAnchorAsset)
-            {
-                _anchorStatusLabel.text = string.Empty;
-                return;
-            }
-
-            var anchor = _target.Anchor;
-            var attach = _attachTarget != null ? _attachTarget.transform : null;
-
-            switch (anchor.Space)
-            {
-                case AnchorSpace.World:
-                    _anchorStatusLabel.text = "解決: World 固定(スポーン先は使いません。オフセット = ワールド座標)";
-                    return;
-
-                case AnchorSpace.ContextTarget:
-                    _anchorStatusLabel.text = attach != null
-                        ? $"解決: ✓ スポーン先 '{attach.name}' そのもの"
-                        : "解決: ⚠ スポーン先が未指定のため、ワールド固定として扱われます";
-                    return;
-
-                default:
-                    if (attach == null)
-                    {
-                        _anchorStatusLabel.text = "解決: ⚠ スポーン先が未指定のため Path を検索できません(ワールド固定扱い)。上の「スポーン先」にキャラクターや AnchorRig を指定してください";
-                        return;
-                    }
-
-                    if (string.IsNullOrEmpty(anchor.Path))
-                    {
-                        _anchorStatusLabel.text = "解決: ⚠ Path が空です。「一覧から選択」でボーンか ★AnchorPoint を選んでください";
-                        return;
-                    }
-
-                    var resolved = AnchorResolver.Resolve(anchor, attach);
-                    if (resolved == null)
-                    {
-                        _anchorStatusLabel.text = $"解決: ⚠ '{anchor.Path}' がスポーン先 '{attach.name}' の階層に見つかりません(ワールド固定扱い)";
-                        return;
-                    }
-
-                    var isPoint = resolved.TryGetComponent<AnchorPoint>(out _);
-                    _anchorStatusLabel.text = $"解決: ✓ '{resolved.name}'{(isPoint ? "(★AnchorPoint: SpawnOffset/ランダム散らばりが追加適用されます)" : string.Empty)}";
-                    return;
-            }
+            _anchorStatusLabel.text = VfxAnchorSceneGui.DescribeResolution(_target, _attachTarget);
         }
 
         // ToolbarMenu はクリック時に「その時点の menu の中身」を開くだけなので、選択元の
@@ -324,27 +280,7 @@ namespace DDrive.Editor.Vfx
                 return;
             }
 
-            _boneDropdown.menu.MenuItems().Clear();
-
-            if (_attachTarget == null)
-            {
-                _boneDropdown.menu.AppendAction("(「スポーン先」にシーン内のキャラクターや AnchorRig を指定してください)", _ => { }, DropdownMenuAction.Status.Disabled);
-                return;
-            }
-
-            foreach (var point in _attachTarget.GetComponentsInChildren<AnchorPoint>(true))
-            {
-                var name = point.name;
-                _boneDropdown.menu.AppendAction($"★ {name}", _ => SelectAnchorPath(name));
-            }
-
-            _boneDropdown.menu.AppendSeparator();
-
-            foreach (var t in _attachTarget.GetComponentsInChildren<Transform>(true))
-            {
-                var name = t.name;
-                _boneDropdown.menu.AppendAction(name, _ => SelectAnchorPath(name));
-            }
+            VfxAnchorSceneGui.FillPathMenu(_boneDropdown.menu, _attachTarget, SelectAnchorPath);
         }
 
         private void SelectAnchorPath(string name)
@@ -464,132 +400,7 @@ namespace DDrive.Editor.Vfx
                 return; // 表示オフ
             }
 
-            // AnchorId 使用時は AnchorEditor と同じ連鎖表示(基準 → 各段 → 最終位置)+ ハンドル編集にする。
-            // ハンドルは参照先の AnchorData アセットを書き換える(同じ Anchor を使う他の VFX / SE にも効く)。
-            List<AnchorData> assetChain = null;
-            if (UsesAnchorAsset)
-            {
-                var asset = EditorAnchorRegistry.Find(_target.AnchorId.Value);
-                assetChain = asset != null ? AnchorChainEditor.CollectRootToTarget(asset) : null;
-                if (assetChain == null || assetChain.Count == 0)
-                {
-                    return;
-                }
-            }
-
-            var anchor = assetChain != null ? assetChain[0].ToDef() : _target.Anchor;
-            Transform baseTransform;
-            var extraOffset = Vector3.zero;
-
-            if (_driver.IsPlaying(_mainHandle) && _driver.Manager.TryGetAnchorTarget(_mainHandle, out var followTarget))
-            {
-                baseTransform = followTarget;
-                extraOffset = _driver.Manager.GetAnchorExtraOffset(_mainHandle);
-            }
-            else
-            {
-                baseTransform = AnchorResolver.Resolve(anchor, _attachTarget != null ? _attachTarget.transform : null);
-                if (baseTransform != null && baseTransform.TryGetComponent<AnchorPoint>(out var point))
-                {
-                    extraOffset = point.SpawnOffset;
-                }
-            }
-
-            // 描画権が他のウィンドウにあるときは薄い目印だけ(重なりを避ける)。
-            var vfxColor = new Color(0.35f, 0.85f, 0.65f);
-            if (assetChain != null)
-            {
-                var targetDef = AnchorChainEditor.ComposeUpTo(assetChain, assetChain.Count - 1);
-                var vfxName = _target.DisplayName ?? _target.name;
-                if (!SceneGuiOwner.IsOwner(this))
-                {
-                    // 2026-09-20(指摘1): 薄い目印もクリック可能にし、押したらこのウィンドウが描画権を持つ
-                    // ようにする(AnchorSceneHandles.DrawClickableMarker、PresentationEditorWindow と共通)。
-                    if (AnchorSceneHandles.DrawClickableMarker(targetDef, baseTransform, extraOffset, $"VFX: {vfxName}", vfxColor, active: false))
-                    {
-                        SceneGuiOwner.Claim(this);
-                        Focus();
-                    }
-
-                    return;
-                }
-
-                var chainOrigin = AnchorSceneHandles.DrawOrigin(baseTransform, extraOffset, AnchorSceneHandles.DescribeBase(anchor, baseTransform), anchor.FollowRotation);
-                var chainParent = AnchorSceneHandles.DrawChain(assetChain, baseTransform, extraOffset, chainOrigin, vfxColor);
-                AnchorSceneHandles.DrawOffsetLink(chainParent, AnchorPose.WorldPosition(targetDef, baseTransform, extraOffset), assetChain[assetChain.Count - 1].LocalOffset, vfxColor);
-                var chainResult = AnchorSceneHandles.Draw(targetDef, baseTransform, extraOffset, $"VFX Anchor: {vfxName}(Anchor アセットを編集)", vfxColor);
-                if (chainResult.PositionChanged || chainResult.RotationChanged)
-                {
-                    ApplyAnchorAssetHandle(assetChain, chainResult);
-                }
-
-                return;
-            }
-
-            if (!SceneGuiOwner.IsOwner(this))
-            {
-                if (AnchorSceneHandles.DrawClickableMarker(anchor, baseTransform, extraOffset, $"VFX: {(_target.DisplayName ?? _target.name)}", vfxColor, active: false))
-                {
-                    SceneGuiOwner.Claim(this);
-                    Focus();
-                }
-
-                return;
-            }
-
-            // 描画と逆変換は AnchorEditor と共通(AnchorSceneHandles)。
-            // 最終位置だけだと「何を基準にしたオフセットか」が分からないので、基準(解決先 Transform。
-            // 未解決ならワールド原点)にも 3 軸とラベルを描き、基準 → 最終位置を線で結ぶ(U-24)。
-            var originWorld = AnchorSceneHandles.DrawOrigin(baseTransform, extraOffset, AnchorSceneHandles.DescribeBase(anchor, baseTransform), anchor.FollowRotation);
-            AnchorSceneHandles.DrawOffsetLink(originWorld, AnchorPose.WorldPosition(anchor, baseTransform, extraOffset), anchor.LocalOffset, vfxColor);
-            var result = AnchorSceneHandles.Draw(anchor, baseTransform, extraOffset, $"VFX Anchor: {(_target.DisplayName ?? _target.name)}", vfxColor);
-            if (result.RotationChanged)
-            {
-                var euler = result.LocalEuler;
-                ApplyAnchorChange(a =>
-                {
-                    a.LocalEuler = euler;
-                    return a;
-                });
-                RefreshAnchorUi();
-            }
-
-            if (result.PositionChanged)
-            {
-                var local = result.LocalOffset;
-                ApplyAnchorChange(a =>
-                {
-                    a.LocalOffset = local;
-                    return a;
-                });
-                RefreshAnchorUi();
-            }
-        }
-
-        // ハンドルの結果を参照先 AnchorData(連鎖の最終段)へ書き戻す。合成済みの値を親基準に変換するのは
-        // AnchorEditor と同じ(AnchorChainEditor.ToChildLocal*)。
-        private void ApplyAnchorAssetHandle(List<AnchorData> chain, AnchorSceneHandles.Result result)
-        {
-            var asset = chain[chain.Count - 1];
-            AnchorDef? parentDef = chain.Count > 1 ? AnchorChainEditor.ComposeUpTo(chain, chain.Count - 2) : null;
-
-            Undo.RecordObject(asset, "Move Anchor");
-            if (result.PositionChanged)
-            {
-                asset.LocalOffset = AnchorChainEditor.ToChildLocalOffset(parentDef, result.LocalOffset);
-            }
-
-            if (result.RotationChanged)
-            {
-                asset.LocalEuler = AnchorChainEditor.ToChildLocalEuler(parentDef, result.LocalEuler);
-            }
-
-            EditorUtility.SetDirty(asset);
-            // Registry は同じ AnchorData インスタンスを既に持っているので Refresh(全アセット走査)は不要
-            // (ドラッグ中は毎フレーム呼ばれる。docs/44 P2-2)。再生中の実体への反映だけ行う。
-            _driver?.ReapplyAnchorToAll();
-            RefreshAnchorUi();
-            SceneView.RepaintAll();
+            VfxAnchorSceneGui.Draw(this, _target, _driver, _mainHandle, _attachTarget, ApplyAnchorChange, RefreshAnchorUi);
         }
 
         // 埋め込み Anchor → AnchorData アセット化(移行補助)。埋め込み値は残す。

@@ -53,9 +53,9 @@ namespace DDrive.EditorPrototypes
                 FieldTier.Advanced, SecLife, PurLife, "プール", "ポーズ", "ネット", "優先度", "同期", "ロード", "ドメイン"),
 
             E(nameof(VfxData.RenderLayer), "表示レイヤー", "出した実体に付ける Layer(カメラの映す / 映さない用)。UI の上に出すときは VfxUI レイヤー。",
-                FieldTier.Advanced, SecRender, PurLook, "レイヤー", "カリング", "カメラ"),
+                FieldTier.Advanced, SecRender, PurShow, "レイヤー", "カリング", "カメラ"),
             E(nameof(VfxData.LightLayerMask), "ライトの当たり方(Light Layer)", "どのライトを受けるか。0 なら Prefab の設定をそのまま使います。",
-                FieldTier.Advanced, SecRender, PurLook, "ライト", "レイヤー", "明るさ", "照明"),
+                FieldTier.Advanced, SecRender, PurShow, "ライト", "レイヤー", "明るさ", "照明"),
 
             E(nameof(VfxData.Params), "調整つまみ(Params)", "コードや演出から色・サイズなどを変えるための公開項目。名前を付けて登録します。",
                 FieldTier.Common, SecParams, PurLook, "色", "パラメータ", "サイズ", "調整", "変数", "Color", "つまみ", "プロパティ"),
