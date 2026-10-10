@@ -67,7 +67,7 @@ D-Drive の MCP は isuzu-unity（Editor 組み込み、ポートはプロジェ
 3. **テスト実行前に空きメモリを確認する**（このマシンは低メモリ時に Unity がクラッシュした実例がある。目安: 空きメモリが 1GB を切っているならテストを待つ／ユーザーに他アプリを閉じるよう依頼する）
 4. `test_run mode=edit` → `test_results` をポーリング（EditMode 全件で概ね 20〜30 秒）。green を確認
 5. `test_run mode=play` → `test_results` をポーリング（PlayMode 全件で概ね 1〜2 分。`Tests/Runtime` は asmdef が全プラットフォーム対象のため PlayMode でしか走らない）。green を確認
-6. **EditMode と PlayMode の両方が green になるまで完了報告しない**（[`../../CLAUDE.md`](../../CLAUDE.md) §3）
+6. **EditMode と PlayMode の両方が green になるまで完了報告しない**（[`../../CLAUDE.md`](../../CLAUDE.md) §3）。例外: **Editor 専用の自明な変更**（簡単なバグ修正・エディターのちょっとした修正。ランタイム・ネット・Data 形式・公開 API に触れない）は EditMode のみで可。試験版（プレリリース）と自明な変更のリリースは `run-ci` 全段を省く軽い経路（[`../../docs/12_review.md`](../../docs/12_review.md) §7 手順 4 の末尾、2026-10-10）
 
 ### テストで実データを汚さない確認
 

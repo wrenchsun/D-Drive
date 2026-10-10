@@ -52,7 +52,7 @@ CHANGELOG.md                    ← D-Drive(com.ddrive.core)の変更履歴(リ�
 
 1. 関連する設計書（`docs/0X_*.md`）と既存コードを **grep してから** 書く。似たクラスの重複が最大の事故要因
 2. 実装 → [docs/12_review.md](docs/12_review.md) §3 のチェックリストで自己レビュー
-3. **コンパイル・テスト確認**: Unity MCP が繋がっていれば `read_console` でエラー 0、`run_tests` を **EditMode と PlayMode の両方**で green にする（Tests/Runtime は PlayMode でしか走らない）。繋がっていなければ「未検証」と明示する
+3. **コンパイル・テスト確認**: Unity MCP が繋がっていれば `read_console` でエラー 0、`run_tests` を **EditMode と PlayMode の両方**で green にする（Tests/Runtime は PlayMode でしか走らない）。**Editor 専用の自明な変更（簡単なバグ修正・エディターのちょっとした修正）は EditMode のみで可**（2026-10-10 指示。試験版・自明な変更のリリースは run-ci 全段を省略する軽い経路 = [docs/12 §7](docs/12_review.md) 手順 4 の末尾）。繋がっていなければ「未検証」と明示する
 4. 公開 API / データ構造 / エディタ機能を変えたら、対応する `docs/` を同じ PR で更新する（変更履歴は該当節に日付付きで追記する慣習）
 5. コミットは `main` 直接でよい（現状 1 人開発）。ただし 1 コミット = 1 チケット単位を意識する
 
