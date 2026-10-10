@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.7.0-preview.3] - 2026-10-11
+
 ### 追加
 
 - 試験版サンプル E を旧 VFX Editor と機能同等にした（Prefab で開く・Anchor Editor で開く・SceneView の Anchor ハンドル・スポーン先・速度・複数同時再生・RenderLayer / LightLayerMask の常時編集など。[docs/1008](docs/1008_editor_ux_redesign.md) §5 の対応表）。サンプルの保存ボタンを `SaveDirty`（版数が進む経路）に直し、E に自動保存・未保存の確認を追加
