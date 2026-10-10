@@ -48,6 +48,16 @@ namespace DDrive.EditorPrototypes
         protected virtual void OnTick() { }
         protected virtual void OnTargetChanged() { }
 
+        // true の窓(D)は、ツールバー・狙い・対象欄・未選択の案内を自前で作る。BuildBody は対象が無くても呼ばれる。
+        protected virtual bool CustomChrome => false;
+        protected virtual void ConfigureRoot(VisualElement root) { }
+
+        protected bool Locked
+        {
+            get => _lock;
+            set => _lock = value;
+        }
+
         protected static T OpenWindow<T>(string title) where T : PrototypeWindowBase
         {
             var w = GetWindow<T>(title);
@@ -113,6 +123,24 @@ namespace DDrive.EditorPrototypes
         private void CreateGUI()
         {
             var root = rootVisualElement;
+
+            if (CustomChrome)
+            {
+                _body = new ScrollView(ScrollViewMode.Vertical);
+                root.Add(_body);
+                _body.RegisterCallback<SerializedPropertyChangeEvent>(OnPropertyChanged);
+                Validation = new DataValidationSection();
+                root.schedule.Execute(Tick).Every(150);
+                if (_target == null && Selection.activeObject is VfxData selD)
+                {
+                    _target = selD;
+                }
+
+                EnsureSo();
+                ConfigureRoot(root);
+                RebuildBody();
+                return;
+            }
 
             var toolbar = new Toolbar();
             var lockToggle = new ToolbarToggle { text = "🔒 対象を固定", value = _lock, tooltip = "ON: Project ウィンドウの選択に追従しない" };
@@ -192,6 +220,12 @@ namespace DDrive.EditorPrototypes
             _body.Clear();
             _status = null;
             _playButton = null;
+
+            if (CustomChrome)
+            {
+                BuildBody(_body);
+                return;
+            }
 
             var title = new ObjectField("対象アセット") { objectType = typeof(VfxData) };
             title.SetValueWithoutNotify(_target);

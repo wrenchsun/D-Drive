@@ -1,0 +1,985 @@
+/* docs/1008 3-D - サンプル D(デザイン重視)の専用テーマ。
+   Light / Dark は root に付く .pd-dark / .pd-light の変数だけで切り替える(C# は色を持たない)。
+   --pd-p-* は Painter2D(DurationBar / AnchorPad / ドロップ領域)が CustomStyleProperty で読む色。
+   8px グリッド: 余白は 4 / 8 / 12 / 16 を使う。見出し 14px 太字 / 本文 12px / 補足 11px。 */
+
+.pd-root.pd-dark {
+    --pd-bg: #232428;
+    --pd-surface: #2c2e34;
+    --pd-surface-2: #373a42;
+    --pd-input: #202227;
+    --pd-border: #41444d;
+    --pd-border-strong: #5a5e69;
+    --pd-text: #e7e9ee;
+    --pd-dim: #9ba1ad;
+    --pd-accent: #4a8cff;
+    --pd-accent-hover: #6aa1ff;
+    --pd-accent-soft: rgba(74, 140, 255, 0.18);
+    --pd-on-accent: #ffffff;
+    --pd-ok: #46c08a;
+    --pd-ok-bg: rgba(70, 192, 138, 0.16);
+    --pd-warn: #eab04a;
+    --pd-warn-bg: rgba(234, 176, 74, 0.16);
+    --pd-err: #f06a6a;
+    --pd-err-bg: rgba(240, 106, 106, 0.16);
+    --pd-mod: #f2a03d;
+    --pd-mod-bg: rgba(242, 160, 61, 0.16);
+    --pd-badge-req: #f27d7d;
+    --pd-badge-req-bg: rgba(240, 106, 106, 0.18);
+    --pd-badge-com: #7db0ff;
+    --pd-badge-com-bg: rgba(74, 140, 255, 0.18);
+    --pd-badge-adv: #a2a8b4;
+    --pd-badge-adv-bg: rgba(160, 166, 180, 0.16);
+    --pd-hero-bg: #2a2f3b;
+    --pd-icon-bg: #3a4560;
+    --pd-p-track: #202227;
+    --pd-p-line: rgba(255, 255, 255, 0.07);
+    --pd-p-line-strong: rgba(255, 255, 255, 0.20);
+    --pd-p-fill: #4a8cff;
+    --pd-p-fill-hi: #7db0ff;
+    --pd-p-fade: #4a8cff;
+    --pd-p-handle: #ffffff;
+    --pd-p-dot: #f2a03d;
+    --pd-p-halo: rgba(242, 160, 61, 0.28);
+    --pd-p-dim: #9ba1ad;
+    --pd-p-warn: #f06a6a;
+    --pd-p-drop: rgba(155, 161, 173, 0.55);
+}
+
+.pd-root.pd-light {
+    --pd-bg: #eceef2;
+    --pd-surface: #ffffff;
+    --pd-surface-2: #e4e7ed;
+    --pd-input: #f6f7f9;
+    --pd-border: #d3d7df;
+    --pd-border-strong: #aab0bd;
+    --pd-text: #1f2430;
+    --pd-dim: #667085;
+    --pd-accent: #2f6fe4;
+    --pd-accent-hover: #1f5acb;
+    --pd-accent-soft: rgba(47, 111, 228, 0.12);
+    --pd-on-accent: #ffffff;
+    --pd-ok: #1f9d68;
+    --pd-ok-bg: rgba(31, 157, 104, 0.14);
+    --pd-warn: #b87a0c;
+    --pd-warn-bg: rgba(217, 150, 20, 0.18);
+    --pd-err: #d23f3f;
+    --pd-err-bg: rgba(210, 63, 63, 0.12);
+    --pd-mod: #d9770d;
+    --pd-mod-bg: rgba(217, 119, 13, 0.14);
+    --pd-badge-req: #c43a3a;
+    --pd-badge-req-bg: rgba(210, 63, 63, 0.12);
+    --pd-badge-com: #2a63cc;
+    --pd-badge-com-bg: rgba(47, 111, 228, 0.12);
+    --pd-badge-adv: #667085;
+    --pd-badge-adv-bg: rgba(102, 112, 133, 0.14);
+    --pd-hero-bg: #f4f7ff;
+    --pd-icon-bg: #dbe6ff;
+    --pd-p-track: #f1f3f7;
+    --pd-p-line: rgba(0, 0, 0, 0.07);
+    --pd-p-line-strong: rgba(0, 0, 0, 0.22);
+    --pd-p-fill: #2f6fe4;
+    --pd-p-fill-hi: #5f95f0;
+    --pd-p-fade: #2f6fe4;
+    --pd-p-handle: #1f2430;
+    --pd-p-dot: #e07b10;
+    --pd-p-halo: rgba(224, 123, 16, 0.25);
+    --pd-p-dim: #667085;
+    --pd-p-warn: #d23f3f;
+    --pd-p-drop: rgba(102, 112, 133, 0.6);
+}
+
+/* 土台 */
+.pd-root {
+    flex-grow: 1;
+    background-color: var(--pd-bg);
+    font-size: 12px;
+}
+
+.pd-root .unity-label {
+    color: var(--pd-text);
+    font-size: 12px;
+}
+
+.pd-root .pd-scroll {
+    flex-grow: 1;
+}
+
+.pd-root .pd-page {
+    padding: 16px;
+}
+
+.pd-root .pd-dim {
+    color: var(--pd-dim);
+    font-size: 11px;
+}
+
+/* ボタン */
+.pd-root .pd-btn {
+    height: 28px;
+    min-width: 0;
+    flex-shrink: 1;
+    margin: 0 8px 8px 0;
+    padding: 0 12px;
+    border-width: 1px;
+    border-radius: 6px;
+    border-color: var(--pd-border-strong);
+    background-color: transparent;
+    color: var(--pd-text);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    transition-property: background-color, border-color;
+    transition-duration: 0.12s;
+}
+
+.pd-root .pd-btn:hover {
+    background-color: var(--pd-surface-2);
+    border-color: var(--pd-dim);
+}
+
+.pd-root .pd-btn:active {
+    background-color: var(--pd-border);
+}
+
+.pd-root .pd-btn:disabled {
+    opacity: 0.4;
+}
+
+.pd-root .pd-btn--primary {
+    background-color: var(--pd-accent);
+    border-color: var(--pd-accent);
+    color: var(--pd-on-accent);
+    -unity-font-style: bold;
+}
+
+.pd-root .pd-btn--primary:hover {
+    background-color: var(--pd-accent-hover);
+    border-color: var(--pd-accent-hover);
+}
+
+.pd-root .pd-btn--primary:active {
+    background-color: var(--pd-accent);
+}
+
+.pd-root .pd-btn--playing,
+.pd-root .pd-btn--playing:hover {
+    background-color: var(--pd-ok);
+    border-color: var(--pd-ok);
+}
+
+.pd-root .pd-btn--ghost {
+    border-width: 0;
+    color: var(--pd-dim);
+}
+
+.pd-root .pd-btn--on,
+.pd-root .pd-btn--on:hover {
+    background-color: var(--pd-accent-soft);
+    border-color: var(--pd-accent);
+    color: var(--pd-accent);
+}
+
+.pd-root .pd-btn--small {
+    height: 22px;
+    margin: 0 0 0 8px;
+    padding: 0 8px;
+    font-size: 11px;
+}
+
+.pd-root .pd-btn--icon {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    margin: 0;
+    border-radius: 12px;
+    color: var(--pd-dim);
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+/* セグメントコントロール */
+.pd-root .pd-seg {
+    flex-direction: row;
+    padding: 2px;
+    border-radius: 8px;
+    background-color: var(--pd-surface-2);
+}
+
+.pd-root .pd-seg__btn {
+    flex-grow: 1;
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    height: 26px;
+    margin: 0;
+    padding: 0 8px;
+    border-width: 0;
+    border-radius: 6px;
+    background-color: transparent;
+    color: var(--pd-dim);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    transition-property: background-color, color;
+    transition-duration: 0.12s;
+}
+
+.pd-root .pd-seg__btn:hover {
+    color: var(--pd-text);
+}
+
+.pd-root .pd-seg__btn--on,
+.pd-root .pd-seg__btn--on:hover {
+    background-color: var(--pd-accent);
+    color: var(--pd-on-accent);
+    -unity-font-style: bold;
+}
+
+/* ヒーロー */
+.pd-root .pd-hero {
+    margin-bottom: 16px;
+    padding: 16px;
+    border-width: 1px;
+    border-radius: 12px;
+    border-color: var(--pd-border);
+    background-color: var(--pd-hero-bg);
+}
+
+.pd-root .pd-hero__top {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.pd-root .pd-hero__icon {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background-color: var(--pd-icon-bg);
+}
+
+.pd-root .pd-hero__img {
+    width: 36px;
+    height: 36px;
+}
+
+.pd-root .pd-hero__info {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0 12px;
+}
+
+.pd-root .pd-hero__title {
+    font-size: 18px;
+    -unity-font-style: bold;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pd-root .pd-hero__id {
+    margin: 0 0 8px 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pd-root .pd-hero__chips {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.pd-root .pd-hero__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.pd-root .pd-hero__spacer {
+    flex-grow: 1;
+}
+
+.pd-root .pd-hero__modes {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.pd-root .pd-hero__modes .pd-seg {
+    flex-grow: 1;
+    flex-basis: 220px;
+    margin: 0 8px 0 0;
+}
+
+.pd-root .pd-hero__modes .pd-btn {
+    margin: 0;
+}
+
+.pd-root .pd-hit {
+    margin-top: 8px;
+    min-height: 14px;
+}
+
+/* 検索 */
+.pd-root .pd-searchbox {
+    flex-direction: row;
+    align-items: center;
+    width: 168px;
+    min-width: 104px;
+    height: 28px;
+    flex-shrink: 1;
+    padding: 0 4px 0 8px;
+    border-width: 1px;
+    border-radius: 14px;
+    border-color: var(--pd-border-strong);
+    background-color: var(--pd-input);
+}
+
+.pd-root .pd-searchbox--focus {
+    border-color: var(--pd-accent);
+}
+
+.pd-root .pd-searchbox__icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
+.pd-root .pd-searchbox__field {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0 0 0 4px;
+}
+
+.pd-root .pd-searchbox__field .unity-base-text-field__input {
+    height: 24px;
+    margin: 0;
+    padding: 0 4px;
+    border-width: 0;
+    background-color: transparent;
+    color: var(--pd-text);
+}
+
+.pd-root .pd-searchbox__clear {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-radius: 10px;
+    background-color: transparent;
+    color: var(--pd-dim);
+    font-size: 12px;
+}
+
+.pd-root .pd-searchbox__clear:hover {
+    background-color: var(--pd-surface-2);
+    color: var(--pd-text);
+}
+
+/* チップ / バッジ */
+.pd-root .pd-chip {
+    margin: 0 8px 4px 0;
+    padding: 2px 8px;
+    border-width: 1px;
+    border-radius: 10px;
+    border-color: var(--pd-border);
+    background-color: var(--pd-surface-2);
+    color: var(--pd-dim);
+    font-size: 11px;
+    -unity-text-align: middle-center;
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pd-root .pd-chip--ok {
+    border-color: var(--pd-ok);
+    background-color: var(--pd-ok-bg);
+    color: var(--pd-ok);
+}
+
+.pd-root .pd-chip--warn {
+    border-color: var(--pd-warn);
+    background-color: var(--pd-warn-bg);
+    color: var(--pd-warn);
+}
+
+.pd-root .pd-chip--err {
+    border-color: var(--pd-err);
+    background-color: var(--pd-err-bg);
+    color: var(--pd-err);
+}
+
+.pd-root .pd-chip--mod {
+    border-color: var(--pd-mod);
+    background-color: var(--pd-mod-bg);
+    color: var(--pd-mod);
+}
+
+.pd-root .pd-chip--clickable:hover {
+    border-color: var(--pd-text);
+}
+
+.pd-root .pd-chip--on {
+    background-color: var(--pd-mod);
+    color: var(--pd-bg);
+    -unity-font-style: bold;
+}
+
+.pd-root .pd-badge {
+    flex-shrink: 0;
+    margin: 0 8px 0 0;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.pd-root .pd-badge--req {
+    background-color: var(--pd-badge-req-bg);
+    color: var(--pd-badge-req);
+}
+
+.pd-root .pd-badge--com {
+    background-color: var(--pd-badge-com-bg);
+    color: var(--pd-badge-com);
+}
+
+.pd-root .pd-badge--adv {
+    background-color: var(--pd-badge-adv-bg);
+    color: var(--pd-badge-adv);
+}
+
+/* カード */
+.pd-root .pd-card {
+    margin-bottom: 16px;
+    border-width: 1px;
+    border-radius: 12px;
+    border-color: var(--pd-border);
+    background-color: var(--pd-surface);
+}
+
+.pd-root .pd-card--empty {
+    opacity: 0.75;
+}
+
+.pd-root .pd-card__head {
+    flex-direction: row;
+    align-items: flex-start;
+    padding: 12px 12px 8px 16px;
+}
+
+.pd-root .pd-card__titles {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.pd-root .pd-card__title {
+    font-size: 14px;
+    -unity-font-style: bold;
+}
+
+.pd-root .pd-card__desc {
+    white-space: normal;
+}
+
+.pd-root .pd-card__body {
+    padding: 0 16px 8px 8px;
+}
+
+.pd-root .pd-card__empty {
+    margin: 0 16px 12px 16px;
+    padding: 8px;
+    border-radius: 8px;
+    background-color: var(--pd-input);
+    color: var(--pd-dim);
+    white-space: normal;
+    -unity-text-align: middle-left;
+}
+
+/* 欄 */
+.pd-root .pd-row {
+    flex-direction: row;
+    margin-bottom: 4px;
+}
+
+.pd-root .pd-row__bar {
+    width: 3px;
+    flex-shrink: 0;
+    margin: 4px 8px 4px 0;
+    border-radius: 2px;
+    background-color: transparent;
+}
+
+.pd-root .pd-row--mod .pd-row__bar {
+    background-color: var(--pd-mod);
+}
+
+.pd-root .pd-row__main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    padding: 4px 0;
+}
+
+.pd-root .pd-row__line {
+    flex-direction: row;
+    align-items: center;
+}
+
+.pd-root .pd-row--stacked .pd-row__line {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.pd-root .pd-row__labelcol {
+    width: 172px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    padding-right: 8px;
+}
+
+.pd-root .pd-row--stacked .pd-row__labelcol {
+    width: auto;
+    margin-bottom: 4px;
+}
+
+.pd-root .pd-row__label {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pd-root .pd-row__inputrow {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.pd-root .pd-row__input {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.pd-root .pd-row__reset {
+    flex-shrink: 0;
+    margin-left: 4px;
+    display: none;
+}
+
+.pd-root .pd-row--mod .pd-row__reset {
+    display: flex;
+}
+
+.pd-root .pd-row__hint {
+    margin: 4px 0 0 172px;
+    white-space: normal;
+}
+
+.pd-root .pd-row--stacked .pd-row__hint {
+    margin-left: 0;
+}
+
+.pd-root .pd-row__input .unity-base-field {
+    margin: 0;
+}
+
+.pd-root .pd-row__input > .unity-base-field > .unity-base-field__label {
+    display: none;
+}
+
+.pd-root .pd-row__input .unity-base-field__label {
+    color: var(--pd-dim);
+}
+
+.pd-root .pd-row--stacked .pd-row__inputrow {
+    align-items: flex-start;
+}
+
+.pd-root .pd-row__input .unity-base-field__input,
+.pd-root .pd-row__input .unity-base-text-field__input,
+.pd-root .pd-row__input .unity-base-popup-field__input,
+.pd-root .pd-row__input .unity-object-field-display {
+    min-height: 24px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--pd-border);
+    background-color: var(--pd-input);
+    color: var(--pd-text);
+}
+
+.pd-root .pd-row__input .unity-base-field__input:hover,
+.pd-root .pd-row__input .unity-base-text-field__input:hover,
+.pd-root .pd-row__input .unity-base-popup-field__input:hover,
+.pd-root .pd-row__input .unity-object-field-display:hover {
+    border-color: var(--pd-border-strong);
+}
+
+.pd-root .pd-row__input .unity-base-field__input:focus,
+.pd-root .pd-row__input .unity-base-text-field__input:focus {
+    border-color: var(--pd-accent);
+}
+
+.pd-root .pd-row__input .unity-object-field__selector {
+    border-radius: 6px;
+    background-color: var(--pd-surface-2);
+    border-width: 1px;
+    border-color: var(--pd-border);
+}
+
+.pd-root .pd-missing {
+    color: var(--pd-err);
+}
+
+/* 検証のインライン表示 */
+.pd-root .pd-issues {
+    margin-top: 4px;
+}
+
+.pd-root .pd-issue {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border-left-width: 3px;
+}
+
+.pd-root .pd-issue--err {
+    border-left-color: var(--pd-err);
+    background-color: var(--pd-err-bg);
+}
+
+.pd-root .pd-issue--warn {
+    border-left-color: var(--pd-warn);
+    background-color: var(--pd-warn-bg);
+}
+
+.pd-root .pd-issue--info {
+    border-left-color: var(--pd-accent);
+    background-color: var(--pd-accent-soft);
+}
+
+.pd-root .pd-issue__icon {
+    width: 16px;
+    flex-shrink: 0;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.pd-root .pd-issue--err .pd-issue__icon {
+    color: var(--pd-err);
+}
+
+.pd-root .pd-issue--warn .pd-issue__icon {
+    color: var(--pd-warn);
+}
+
+.pd-root .pd-issue--info .pd-issue__icon {
+    color: var(--pd-accent);
+}
+
+.pd-root .pd-issue__msg {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin-left: 4px;
+    white-space: normal;
+}
+
+/* DurationBar */
+.pd-root .pd-durbar {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.pd-root .pd-durbar__modes {
+    margin-bottom: 8px;
+}
+
+.pd-root .pd-durbar__track {
+    height: 64px;
+    flex-shrink: 0;
+    border-radius: 8px;
+}
+
+.pd-root .pd-durbar__track--grab {
+    cursor: resize-horizontal;
+}
+
+.pd-root .pd-durbar__axis {
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 4px 4px 0 4px;
+}
+
+.pd-root .pd-durbar__readout {
+    margin-top: 4px;
+    white-space: normal;
+}
+
+.pd-root .pd-durbar__nums {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.pd-root .pd-durbar__nums .unity-property-field {
+    flex-grow: 1;
+    flex-basis: 140px;
+    margin: 0 8px 4px 0;
+}
+
+.pd-root .pd-durbar__nums .unity-base-field__label {
+    display: flex;
+    min-width: 72px;
+    width: 72px;
+    color: var(--pd-dim);
+}
+
+/* AnchorPad */
+.pd-root .pd-anchor {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.pd-root .pd-anchor__main {
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.pd-root .pd-anchor__padwrap {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.pd-root .pd-anchor__pad {
+    height: 200px;
+    border-radius: 8px;
+}
+
+.pd-root .pd-anchor__tag {
+    position: absolute;
+    color: var(--pd-dim);
+    font-size: 10px;
+}
+
+.pd-root .pd-anchor__tag--top {
+    top: 4px;
+    left: 0;
+    right: 0;
+    -unity-text-align: upper-center;
+}
+
+.pd-root .pd-anchor__tag--bottom {
+    bottom: 4px;
+    left: 0;
+    right: 0;
+    -unity-text-align: lower-center;
+}
+
+.pd-root .pd-anchor__tag--left {
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    -unity-text-align: middle-left;
+}
+
+.pd-root .pd-anchor__tag--right {
+    right: 8px;
+    top: 0;
+    bottom: 0;
+    -unity-text-align: middle-right;
+}
+
+.pd-root .pd-anchor__height {
+    width: 56px;
+    flex-shrink: 0;
+    align-items: center;
+    margin-left: 8px;
+    padding: 8px 0;
+    border-radius: 8px;
+    background-color: var(--pd-input);
+}
+
+.pd-root .pd-anchor__vslider {
+    flex-grow: 1;
+    width: 24px;
+    min-height: 120px;
+    margin: 8px 0;
+}
+
+.pd-root .pd-anchor__nums {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.pd-root .pd-anchor__nums .unity-base-field {
+    flex-grow: 1;
+    flex-basis: 96px;
+    margin: 0 8px 4px 0;
+}
+
+.pd-root .pd-anchor__nums .unity-base-field__label {
+    display: flex;
+    min-width: 40px;
+    width: 40px;
+    color: var(--pd-dim);
+}
+
+.pd-root .pd-anchor__note {
+    margin-top: 4px;
+    white-space: normal;
+}
+
+/* レイヤー行 */
+.pd-root .pd-layerrow {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.pd-root .pd-layerrow .pd-seg {
+    flex-grow: 3;
+    flex-basis: 0;
+    flex-shrink: 0;
+    min-width: 168px;
+}
+
+.pd-root .pd-layerrow__layer {
+    flex-grow: 2;
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    margin-left: 8px;
+}
+
+/* 空状態 */
+.pd-root .pd-empty {
+    flex-grow: 1;
+    padding: 16px;
+}
+
+.pd-root .pd-empty__zone {
+    align-items: center;
+    min-height: 260px;
+    padding: 32px 16px;
+    border-radius: 16px;
+    background-color: var(--pd-surface);
+    transition-property: background-color;
+    transition-duration: 0.12s;
+}
+
+.pd-root .pd-empty__zone--hover {
+    background-color: var(--pd-accent-soft);
+}
+
+.pd-root .pd-empty__icon {
+    width: 72px;
+    height: 72px;
+    margin-bottom: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 36px;
+    background-color: var(--pd-icon-bg);
+}
+
+.pd-root .pd-empty__img {
+    width: 40px;
+    height: 40px;
+}
+
+.pd-root .pd-empty__headline {
+    font-size: 18px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+.pd-root .pd-empty__sub {
+    margin: 8px 0 16px 0;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.pd-root .pd-empty__picker {
+    align-self: center;
+    width: 100%;
+    max-width: 320px;
+}
+
+.pd-root .pd-empty__recent {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.pd-root .pd-empty__recent .pd-btn {
+    margin: 0 8px 8px 0;
+}
+
+.pd-root .pd-empty__picker .unity-base-field__input,
+.pd-root .pd-empty__picker .unity-object-field-display {
+    border-radius: 6px;
+    border-color: var(--pd-border);
+    background-color: var(--pd-input);
+}
+
+.pd-root .pd-anchor--dim .pd-anchor__main {
+    opacity: 0.5;
+}
+
+.pd-root .pd-row__input .unity-decorator-drawers-container {
+    display: none;
+}
+
+/* Painter2D 用の色見本(0 サイズ。C# が resolvedStyle で読む) */
+.pd-root .pd-pal {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.pd-root .pd-pal--track { background-color: var(--pd-p-track); }
+.pd-root .pd-pal--line { background-color: var(--pd-p-line); }
+.pd-root .pd-pal--line-strong { background-color: var(--pd-p-line-strong); }
+.pd-root .pd-pal--fill { background-color: var(--pd-p-fill); }
+.pd-root .pd-pal--fill-hi { background-color: var(--pd-p-fill-hi); }
+.pd-root .pd-pal--fade { background-color: var(--pd-p-fade); }
+.pd-root .pd-pal--handle { background-color: var(--pd-p-handle); }
+.pd-root .pd-pal--dot { background-color: var(--pd-p-dot); }
+.pd-root .pd-pal--halo { background-color: var(--pd-p-halo); }
+.pd-root .pd-pal--dim { background-color: var(--pd-p-dim); }
+.pd-root .pd-pal--warn { background-color: var(--pd-p-warn); }
+.pd-root .pd-pal--drop { background-color: var(--pd-p-drop); }
+
+.pd-root .pd-empty__border {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    right: 8px;
+    bottom: 8px;
+}

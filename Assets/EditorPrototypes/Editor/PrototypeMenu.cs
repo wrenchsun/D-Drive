@@ -3,7 +3,7 @@ using UnityEditor;
 
 namespace DDrive.EditorPrototypes
 {
-    // docs/1008 §3 — サンプルエディター 3 本の入口。[DataEditor] は付けない(既存 VFX Editor の「〜で開く」を奪わない)。
+    // docs/1008 §3 — サンプルエディター 4 本の入口。[DataEditor] は付けない(既存 VFX Editor の「〜で開く」を奪わない)。
     public static class PrototypeMenu
     {
         public const string Prototypes = DDriveMenu.Root + "Prototypes/";
@@ -16,5 +16,8 @@ namespace DDrive.EditorPrototypes
 
         [MenuItem(Prototypes + "C 目的別カード")]
         public static void OpenC() => PrototypeCWindow.Open();
+
+        [MenuItem(Prototypes + "D デザイン重視")]
+        public static void OpenD() => PrototypeDWindow.Open();
     }
 }

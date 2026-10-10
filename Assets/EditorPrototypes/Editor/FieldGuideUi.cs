@@ -96,7 +96,7 @@ namespace DDrive.EditorPrototypes
         {
             var prop = _so.FindProperty(Entry.Field);
             var def = _defaultSo?.FindProperty(Entry.Field);
-            IsModified = prop != null && def != null && !SerializedProperty.EqualContents(prop, def);
+            IsModified = prop != null && def != null && !SerializedProperty.DataEquals(prop, def);
             _marker.text = IsModified ? "●" : string.Empty;
             _reset.style.display = IsModified && _showReset ? DisplayStyle.Flex : DisplayStyle.None;
         }

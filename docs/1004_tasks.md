@@ -39,6 +39,7 @@
 | # | 状態 | 内容 | 工数(日) | 依存 | AC |
 |---|---|---|---|---|---|
 | UX-0 | ✅ 2026-10-10（PR #187、EditMode 2077 green） | サンプルエディター 3 本（A 段階表示 / B ステップ型 / C 目的別カード）+ 共通部品 `FieldGuide`。`Assets/EditorPrototypes/Editor/`、実装メモ = [1008](1008_editor_ux_redesign.md) §5 | 1 | なし | ユーザーが 3 本を同じ VfxData で開いて方向を決められる |
+| UX-0b | ✅ 2026-10-10 | サンプル D（デザイン重視）。専用 USS テーマ + `DurationBar` / `AnchorPad` + ヒーロー・カード・検索・インライン検証・空状態。`PrototypeDWindow.cs`、実装メモ = [1008](1008_editor_ux_redesign.md) §5 | 1 | UX-0 | ユーザーが D を A〜C と同じ VfxData で開いて見た目の方向を決められる |
 
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
