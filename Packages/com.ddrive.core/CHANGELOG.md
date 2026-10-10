@@ -13,6 +13,21 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 破壊なし(このリリース以降の変更はまだありません)
 
+## [1.7.0-preview.1] - 2026-10-10
+
+### 追加
+
+- **試験版: 専用エディターのサンプル A〜D**（`Tools > D-Drive > Prototypes`、VfxData のみ。同梱の `vfx_sample` と、空状態の「サンプル VfxData を作る」ボタン付き。方向を決めるためのもので、確認後に削除する。[docs/1008](docs/1008_editor_ux_redesign.md)）
+
+### 変更
+
+- Canvas Editor: すべての節(ElementFx 割当・Navigation グラフなど)と、節の中のグループ(要素のグループ・埋め込みごとのグループ)を、開いた直後は折りたたんだ状態にした
+
+### 互換性
+
+- 破壊なし・追加のみ（試験版。`DDrive.Editor.Prototypes` は internal のみで公開契約・スナップショットに変更なし。削除時も互換性に影響しない）
+- 破壊なし(Editor の表示のみ。Canvas Editor の折りたたみ)
+
 ## [1.6.0] - 2026-10-08
 
 ### 互換性

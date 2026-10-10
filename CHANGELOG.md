@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.7.0-preview.1] - 2026-10-10
+
 ### 追加
 
 - **試験版: 専用エディターのサンプル A〜D**（`Tools > D-Drive > Prototypes`、VfxData のみ。同梱の `vfx_sample` と、空状態の「サンプル VfxData を作る」ボタン付き。方向を決めるためのもので、確認後に削除する。[docs/1008](docs/1008_editor_ux_redesign.md)）
