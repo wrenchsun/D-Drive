@@ -7,7 +7,7 @@ using UnityEngine.UIElements;
 namespace DDrive.EditorPrototypes
 {
     // C. 目的別カード + 設定の検索(docs/1008 §3-C)。
-    public sealed class PrototypeCWindow : PrototypeWindowBase
+    internal sealed class PrototypeCWindow : PrototypeWindowBase
     {
         private const string ManualPage = "vfx-editor";
 

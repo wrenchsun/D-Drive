@@ -11,9 +11,9 @@ namespace DDrive.EditorPrototypes
     //    バーの右の空き地のドラッグで FadeOut。
     //  - Loop: ∞ 表示(止めるまで続く)。右端の余韻だけドラッグできる。
     // 書き込みは Undo.RecordObject + SetDirty(1 回のドラッグは 1 回の Undo にまとめる)。外部変更・Undo は Sync() で再描画する。
-    public sealed class DurationBar : VisualElement
+    internal sealed class DurationBar : VisualElement
     {
-        public struct Values : IEquatable<Values>
+        internal struct Values : IEquatable<Values>
         {
             public VfxLifeMode Mode;
             public float Duration;

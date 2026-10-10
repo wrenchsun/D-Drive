@@ -16,7 +16,7 @@ namespace DDrive.EditorPrototypes
     // D. デザイン重視(専用 USS テーマ + ビジュアル部品)(docs/1008 §3-D)。
     // 構造は A の段階表示(かんたん / 標準 / 詳細)+ C の目的別カード + 検索。見た目は Theme/PrototypeD.uss に集め、
     // C# 側はクラス名を付けるだけ(インラインスタイルなし)。長さは DurationBar、位置は AnchorPad で編集する。
-    public sealed class PrototypeDWindow : PrototypeWindowBase
+    internal sealed class PrototypeDWindow : PrototypeWindowBase
     {
         private const string ManualPage = "vfx-editor";
         private const string SheetName = "PrototypeD";
@@ -129,6 +129,7 @@ namespace DDrive.EditorPrototypes
             var page = new VisualElement();
             page.AddToClassList("pd-page");
             body.Add(page);
+            page.Add(new Label(TrialNotice) { style = { opacity = 0.6f, whiteSpace = WhiteSpace.Normal, marginBottom = 4 } });
 
             if (Target == null || So == null)
             {
@@ -183,6 +184,7 @@ namespace DDrive.EditorPrototypes
                 }
             });
             zone.Add(picker);
+            zone.Add(SampleVfx.CreateButton(SetTarget));
 
             var recent = new VisualElement();
             recent.AddToClassList("pd-empty__recent");
@@ -444,7 +446,7 @@ namespace DDrive.EditorPrototypes
             }
 
             EditorUtility.SetDirty(Target);
-            AssetDatabase.SaveAssets();
+            DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
         }
 
         // ── カードと欄 ──

@@ -10,7 +10,7 @@ namespace DDrive.EditorPrototypes
     // B のパッドより大きく、1m ごとのグリッド・原点・距離リング・現在位置の点・原点からの破線・ホバー位置を描く。
     // パッドの縮尺は縦 ±3m 固定で、横は幅に応じて広がる(同じ縮尺)。範囲外の値は端に寄せて警告色にする。
     // 書き込みは Undo.RecordObject + SetDirty(1 回のドラッグは 1 回の Undo)。外部変更・Undo は Sync() で再描画する。
-    public sealed class AnchorPad : VisualElement
+    internal sealed class AnchorPad : VisualElement
     {
         private const float RangeZ = 3f;
         private const float MinY = -1f;

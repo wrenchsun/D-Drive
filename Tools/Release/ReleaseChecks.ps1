@@ -33,15 +33,17 @@ function Get-PackageJsonVersion {
 
 function ConvertTo-SemVer {
     param([Parameter(Mandatory = $true)][string]$Version)
-    $m = [regex]::Match($Version, '^(\d+)\.(\d+)\.(\d+)$')
+    # プレリリース(例 1.7.0-preview.1)も受ける(2026-10-10)。PreRelease は '-' を除いた文字列、無ければ ''。
+    $m = [regex]::Match($Version, '^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z][0-9A-Za-z.-]*)?$')
     if (-not $m.Success) {
-        throw "SemVer(MAJOR.MINOR.PATCH)形式ではありません: '$Version'"
+        throw "SemVer(MAJOR.MINOR.PATCH[-prerelease])形式ではありません: '$Version'"
     }
     return [pscustomobject]@{
-        Major    = [int]$m.Groups[1].Value
-        Minor    = [int]$m.Groups[2].Value
-        Patch    = [int]$m.Groups[3].Value
-        Original = $Version
+        Major      = [int]$m.Groups[1].Value
+        Minor      = [int]$m.Groups[2].Value
+        Patch      = [int]$m.Groups[3].Value
+        PreRelease = $m.Groups[4].Value.TrimStart('-')
+        Original   = $Version
     }
 }
 
@@ -51,7 +53,29 @@ function Compare-SemVer {
     if ($A.Major -ne $B.Major) { return [Math]::Sign($A.Major - $B.Major) }
     if ($A.Minor -ne $B.Minor) { return [Math]::Sign($A.Minor - $B.Minor) }
     if ($A.Patch -ne $B.Patch) { return [Math]::Sign($A.Patch - $B.Patch) }
-    return 0
+    # プレリリースは同じ MAJOR.MINOR.PATCH の正式版より小さい。両方プレリリースなら識別子を '.' ごとに比べる。
+    $pa = [string]$A.PreRelease
+    $pb = [string]$B.PreRelease
+    if ($pa -eq $pb) { return 0 }
+    if ($pa -eq '') { return 1 }
+    if ($pb -eq '') { return -1 }
+    $ia = $pa.Split('.')
+    $ib = $pb.Split('.')
+    $n = [Math]::Min($ia.Length, $ib.Length)
+    for ($k = 0; $k -lt $n; $k++) {
+        $xa = $ia[$k]; $xb = $ib[$k]
+        $na = $xa -match '^\d+$'; $nb = $xb -match '^\d+$'
+        if ($na -and $nb) {
+            if ([long]$xa -ne [long]$xb) { return [Math]::Sign([long]$xa - [long]$xb) }
+        }
+        elseif ($na) { return -1 }
+        elseif ($nb) { return 1 }
+        else {
+            $c = [string]::CompareOrdinal($xa, $xb)
+            if ($c -ne 0) { return [Math]::Sign($c) }
+        }
+    }
+    return [Math]::Sign($ia.Length - $ib.Length)
 }
 
 # 'Major' | 'Minor' | 'Patch' | 'None' | 'Downgrade' のいずれかを返す。

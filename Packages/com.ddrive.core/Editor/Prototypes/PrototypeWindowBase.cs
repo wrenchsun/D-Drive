@@ -14,7 +14,7 @@ namespace DDrive.EditorPrototypes
 {
     // 3 サンプルの共通土台: 対象選択(Project 選択に追従 + 固定)、▶ プレビュー(SceneVfxPreviewDriver)、検証、既定値比較。
     // サンプルごとの違いは「欄の見せ方」だけにするため、それ以外はここに集める。
-    public abstract class PrototypeWindowBase : EditorWindow
+    internal abstract class PrototypeWindowBase : EditorWindow
     {
         private const float RepeatGapSec = 0.35f;
 
@@ -42,6 +42,7 @@ namespace DDrive.EditorPrototypes
         protected bool Played { get; private set; }
 
         // 各サンプルの狙い(1 行)。ウィンドウ最上部に出す。
+        protected const string TrialNotice = "試験版（v1.7.0-preview.1）: 方向を決めるためのサンプル。確認後に削除予定";
         protected abstract string Aim { get; }
         protected abstract void BuildBody(VisualElement body);
         protected virtual void OnDataEdited() { }
@@ -158,7 +159,7 @@ namespace DDrive.EditorPrototypes
             }) { text = "Project で表示" });
             root.Add(toolbar);
 
-            var aim = new HelpBox(Aim, HelpBoxMessageType.Info);
+            var aim = new HelpBox(TrialNotice + "\n" + Aim, HelpBoxMessageType.Info);
             aim.style.marginLeft = aim.style.marginRight = 6;
             aim.style.marginTop = 4;
             aim.name = "aim";
@@ -235,6 +236,7 @@ namespace DDrive.EditorPrototypes
             if (_target == null || So == null)
             {
                 _body.Add(new Label("Project ウィンドウで VfxData を選択してください(選択に追従します)。") { style = { opacity = 0.6f, whiteSpace = WhiteSpace.Normal, marginTop = 6 } });
+                _body.Add(SampleVfx.CreateButton(SetTarget));
                 Validation.Bind(null);
                 return;
             }

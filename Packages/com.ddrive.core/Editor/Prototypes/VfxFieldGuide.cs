@@ -6,7 +6,7 @@ namespace DDrive.EditorPrototypes
 {
     // VfxData の案内表。段の根拠: VfxDataValidator が Error にする = Prefab のみ → 必須。
     // 普段触る / Validator の Warning 対象(LifeMode・Render・Anchor)= よく使う。既定のままで警告が出ない = 詳細。
-    public sealed class VfxFieldGuide : FieldGuide
+    internal sealed class VfxFieldGuide : FieldGuide
     {
         public const string SecPrefab = "Prefab";
         public const string SecAnchor = "出る場所(Anchor)";

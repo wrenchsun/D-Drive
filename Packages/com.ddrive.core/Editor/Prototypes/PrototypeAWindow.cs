@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 namespace DDrive.EditorPrototypes
 {
     // A. 段階表示(かんたん / 標準 / 詳細) + 「次にやること」(docs/1008 §3-A)。
-    public sealed class PrototypeAWindow : PrototypeWindowBase
+    internal sealed class PrototypeAWindow : PrototypeWindowBase
     {
         private const string ModePrefKey = "DDrive.EditorPrototypes.A.Mode";
         private static readonly string[] ModeNames = { "かんたん", "標準", "詳細" };
@@ -122,7 +122,7 @@ namespace DDrive.EditorPrototypes
                 if (Target != null)
                 {
                     EditorUtility.SetDirty(Target);
-                    AssetDatabase.SaveAssets();
+                    DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
                     UpdateNext();
                 }
             }) { text = "保存", tooltip = "AssetDatabase.SaveAssets" };

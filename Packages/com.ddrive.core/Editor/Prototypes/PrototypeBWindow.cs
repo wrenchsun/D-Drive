@@ -9,7 +9,7 @@ using UnityEngine.UIElements;
 namespace DDrive.EditorPrototypes
 {
     // B. ステップ型(選ぶ → 見る → 整える → 登録) + 雛形から始める(docs/1008 §3-B)。
-    public sealed class PrototypeBWindow : PrototypeWindowBase
+    internal sealed class PrototypeBWindow : PrototypeWindowBase
     {
         private static readonly string[] StepNames = { "選ぶ", "見る", "整える", "登録" };
 
@@ -219,7 +219,7 @@ namespace DDrive.EditorPrototypes
             var save = new Button(() =>
             {
                 EditorUtility.SetDirty(Target);
-                AssetDatabase.SaveAssets();
+                DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
                 Debug.Log($"[Prototype B] 保存しました: {Target.name}");
             }) { text = "保存" };
             page.Add(save);

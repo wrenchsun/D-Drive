@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 namespace DDrive.EditorPrototypes
 {
     // 案内付きの 1 欄: [● 変更済み目印] [PropertyField] [↺ 既定に戻す] + 一言説明。
-    public sealed class GuidedField : VisualElement
+    internal sealed class GuidedField : VisualElement
     {
         private static readonly Color ModifiedColor = new Color(1f, 0.65f, 0.15f);
 
@@ -118,7 +118,7 @@ namespace DDrive.EditorPrototypes
         }
     }
 
-    public static class FieldGuideUi
+    internal static class FieldGuideUi
     {
         // FieldGuideEntry.Field から FindProperty して案内付きの欄を作る共通ヘルパー。
         public static GuidedField MakeField(SerializedObject so, SerializedObject defaultSo, FieldGuideEntry entry, bool showResetButton, bool tierBadge = false, Action changed = null)
