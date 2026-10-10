@@ -31,6 +31,9 @@ namespace DDrive.EditorPrototypes
         public bool IsDuplicate { get; set; }
         public bool HasIssues { get; private set; }
 
+        // E: 未調整の折りたたみの対象にしない欄(調整つまみ)。
+        public bool NoFold { get; set; }
+
         // Error / Warning がある(Info だけなら false)。モードで隠れていても見せる条件に使う。
         public bool NeedsAttention { get; private set; }
 
@@ -526,6 +529,92 @@ namespace DDrive.EditorPrototypes
         {
             Rows.Add(row);
             _body.Add(row);
+        }
+
+        // ── E: 未調整の設定の折りたたみ ──
+
+        private VisualElement _foldBox;
+        private VisualElement _foldBody;
+        private Button _foldHead;
+        private bool _foldOpen;
+        private int _foldShown;
+
+        private void EnsureFold()
+        {
+            if (_foldBox != null)
+            {
+                return;
+            }
+
+            _foldBox = new VisualElement();
+            _foldBox.AddToClassList("pe-fold");
+            _foldHead = new Button(() =>
+            {
+                _foldOpen = !_foldOpen;
+                UpdateFold();
+            });
+            _foldHead.AddToClassList("pe-fold__head");
+            _foldBox.Add(_foldHead);
+            _foldBody = new VisualElement();
+            _foldBody.AddToClassList("pe-fold__body");
+            _foldBox.Add(_foldBody);
+            Insert(IndexOf(_body) + 1, _foldBox);
+            _foldBox.style.display = DisplayStyle.None;
+        }
+
+        // row を折りたたみ側(folded)か通常側へ移す。
+        public void SetFolded(PdRow row, bool folded)
+        {
+            if (folded)
+            {
+                EnsureFold();
+                if (row.parent != _foldBody)
+                {
+                    _foldBody.Add(row);
+                }
+            }
+            else if (_foldBody != null && row.parent == _foldBody)
+            {
+                _body.Add(row);
+                // 元の並びに戻す。
+                for (var i = 0; i < Rows.Count; i++)
+                {
+                    if (Rows[i].parent == _body)
+                    {
+                        Rows[i].BringToFront();
+                    }
+                }
+
+                for (var i = Rows.Count - 1; i >= 0; i--)
+                {
+                    if (Rows[i].parent == _body)
+                    {
+                        Rows[i].SendToBack();
+                    }
+                }
+            }
+        }
+
+        public bool IsFolded(PdRow row) => _foldBody != null && row.parent == _foldBody;
+
+        // 折りたたみ内で表示対象になっている欄の数(重複欄を除く)。0 なら見出しごと隠す。
+        public void SetFoldShown(int shown)
+        {
+            _foldShown = shown;
+            UpdateFold();
+        }
+
+        private void UpdateFold()
+        {
+            if (_foldBox == null)
+            {
+                return;
+            }
+
+            _foldBox.style.display = _foldShown > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            _foldBody.style.display = _foldOpen ? DisplayStyle.Flex : DisplayStyle.None;
+            _foldHead.text = (_foldOpen ? "▾ " : "▸ ") + "未調整の設定（" + _foldShown + "）";
+            _foldHead.tooltip = "既定値のままの設定です。クリックで開きます";
         }
 
         // visibleRows: 表示する欄の数。filtering = 検索 / 変更済みだけで絞っている。

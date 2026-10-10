@@ -1,0 +1,280 @@
+/* docs/1008 3-E - サンプル E(D + フィードバック反映)の追加スタイル。色・余白は PrototypeD.uss の変数を使う。 */
+
+.pd-root .pe-hidden {
+    display: none;
+}
+
+.pd-root .pe-notice {
+    margin-bottom: 4px;
+    white-space: normal;
+    color: var(--pd-dim);
+    font-size: 11px;
+}
+
+/* 固定アクションバー(ScrollView の外) */
+.pd-root .pe-bar {
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    padding: 8px 16px 0 16px;
+    border-top-width: 1px;
+    border-top-color: var(--pd-border-strong);
+    background-color: var(--pd-surface);
+}
+
+.pd-root .pe-bar .pd-btn {
+    margin-bottom: 8px;
+}
+
+.pd-root .pe-bar__repeat {
+    margin: 0 8px 8px 4px;
+}
+
+.pd-root .pe-bar__spacer {
+    flex-grow: 1;
+}
+
+.pd-root .pe-bar__mod {
+    margin: 0 8px 8px 0;
+}
+
+.pd-root .pe-btn--stop-on,
+.pd-root .pe-btn--stop-on:hover {
+    background-color: var(--pd-err);
+    border-color: var(--pd-err);
+    color: var(--pd-on-accent);
+    -unity-font-style: bold;
+}
+
+/* トグル(未調整を隠す / リピート): ラベルを入力の隣に寄せる */
+.pd-root .pe-hidetoggle {
+    margin: 0 0 8px 8px;
+    flex-shrink: 0;
+}
+
+.pd-root .pe-hidetoggle > .unity-base-field__label,
+.pd-root .pe-bar__repeat > .unity-base-field__label {
+    min-width: 0;
+    width: auto;
+    margin-right: 6px;
+}
+
+.pd-root .pe-hidetoggle > .unity-base-field__input,
+.pd-root .pe-bar__repeat > .unity-base-field__input {
+    flex-grow: 0;
+}
+
+/* 未調整の設定(カード内の折りたたみ) */
+.pd-root .pe-fold {
+    margin: 0 16px 12px 16px;
+    border-width: 1px;
+    border-radius: 8px;
+    border-color: var(--pd-border);
+    background-color: var(--pd-input);
+}
+
+.pd-root .pe-fold__head {
+    height: 28px;
+    margin: 0;
+    padding: 0 12px;
+    border-width: 0;
+    border-radius: 8px;
+    background-color: transparent;
+    color: var(--pd-dim);
+    -unity-text-align: middle-left;
+}
+
+.pd-root .pe-fold__head:hover {
+    color: var(--pd-text);
+}
+
+.pd-root .pe-fold__body {
+    padding: 4px 8px 4px 0;
+}
+
+/* Data 切替 */
+.pd-root .pe-switch {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.pd-root .pe-switch .pd-btn {
+    height: 24px;
+    margin: 0 4px 0 0;
+}
+
+.pd-root .pe-switch__step {
+    width: 28px;
+    padding: 0;
+}
+
+.pd-root .pe-switch__drop {
+    flex-shrink: 1;
+    min-width: 120px;
+    max-width: 260px;
+    overflow: hidden;
+    -unity-text-align: middle-left;
+}
+
+/* 調整つまみ */
+.pd-root .pe-tune .pd-row__reset,
+.pd-root .pe-tune.pd-row--mod .pd-row__reset {
+    display: none;
+}
+
+.pd-root .pe-tune.pd-row--mod .pd-row__bar {
+    background-color: transparent;
+}
+
+.pd-root .pe-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.pd-root .pe-filter {
+    height: 22px;
+    margin: 0 4px 4px 0;
+    padding: 0 8px;
+    border-width: 1px;
+    border-radius: 11px;
+    border-color: var(--pd-border);
+    background-color: var(--pd-surface-2);
+    color: var(--pd-dim);
+    font-size: 11px;
+}
+
+.pd-root .pe-filter:hover {
+    color: var(--pd-text);
+}
+
+.pd-root .pe-filter--on,
+.pd-root .pe-filter--on:hover {
+    border-color: var(--pd-accent);
+    background-color: var(--pd-accent);
+    color: var(--pd-on-accent);
+    -unity-font-style: bold;
+}
+
+.pd-root .pe-knob {
+    flex-direction: row;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    background-color: var(--pd-surface-2);
+}
+
+.pd-root .pe-knob__bar {
+    width: 3px;
+    flex-shrink: 0;
+    margin: 4px 8px 4px 4px;
+    border-radius: 2px;
+    background-color: transparent;
+}
+
+.pd-root .pe-knob--mod .pe-knob__bar {
+    background-color: var(--pd-mod);
+}
+
+.pd-root .pe-knob__main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    padding: 4px 4px 4px 0;
+}
+
+.pd-root .pe-knob__line {
+    flex-direction: row;
+    align-items: center;
+}
+
+.pd-root .pe-cat {
+    width: 60px;
+    flex-shrink: 0;
+    margin: 0 8px 0 0;
+    padding: 2px 0;
+    border-color: var(--pd-border-strong);
+    background-color: transparent;
+    color: var(--pd-text);
+}
+
+.pd-root .pe-cat--0 { border-color: var(--pd-accent); color: var(--pd-accent); }
+.pd-root .pe-cat--1 { border-color: var(--pd-ok); color: var(--pd-ok); }
+.pd-root .pe-cat--2 { border-color: var(--pd-warn); color: var(--pd-warn); }
+.pd-root .pe-cat--3 { border-color: var(--pd-err); color: var(--pd-err); }
+.pd-root .pe-cat--4 { border-color: var(--pd-badge-com); color: var(--pd-badge-com); }
+.pd-root .pe-cat--5 { border-color: var(--pd-badge-adv); color: var(--pd-badge-adv); }
+
+.pd-root .pe-knob__name {
+    width: 84px;
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pd-root .pe-knob--nolink .pe-knob__name {
+    color: var(--pd-warn);
+}
+
+.pd-root .pe-knob__control {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+.pd-root .pe-knob__reset {
+    flex-shrink: 0;
+    margin-left: 4px;
+    display: none;
+}
+
+.pd-root .pe-knob--mod .pe-knob__reset {
+    display: flex;
+}
+
+.pd-root .pe-knob .pd-btn--icon {
+    flex-shrink: 0;
+    margin: 0 0 0 4px;
+}
+
+.pd-root .pe-details {
+    margin: 8px 0 4px 0;
+    padding: 8px;
+    border-radius: 6px;
+    background-color: var(--pd-input);
+}
+
+.pd-root .pe-addrow {
+    flex-direction: row;
+    margin-top: 4px;
+}
+
+.pd-root .pe-palette {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.pd-root .pe-palette__btn {
+    margin: 0 4px 4px 0;
+}
+
+.pd-root .pe-message {
+    margin-top: 4px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background-color: var(--pd-warn-bg);
+    color: var(--pd-warn);
+    white-space: normal;
+}
+
+.pd-root .pe-empty {
+    white-space: normal;
+    margin-bottom: 4px;
+}
+
+.pd-root .pd-card__empty > .unity-label {
+    white-space: normal;
+}

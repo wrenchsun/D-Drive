@@ -53,6 +53,28 @@ namespace DDrive.EditorPrototypes
         protected virtual bool CustomChrome => false;
         protected virtual void ConfigureRoot(VisualElement root) { }
 
+        // CustomChrome の窓だけ: ScrollView の外(ウィンドウ下部)に常時置く要素。E の固定アクションバー。
+        protected virtual VisualElement CreateFooter() => null;
+
+        protected bool Repeat
+        {
+            get => _repeat;
+            set
+            {
+                _repeat = value;
+                _repeatWaitStart = -1;
+            }
+        }
+
+        // 再生中のインスタンスへ Params の値を即時反映する(VfxEditorWindow の Params 節と同じ SetParam)。
+        protected void ApplyParamLive(string label, DDrive.Foundation.Data.ParamValue value)
+        {
+            if (_driver != null && _driver.IsPlaying(_handle))
+            {
+                _driver.Manager.SetParam(_handle, label, value);
+            }
+        }
+
         protected bool Locked
         {
             get => _lock;
@@ -129,6 +151,12 @@ namespace DDrive.EditorPrototypes
             {
                 _body = new ScrollView(ScrollViewMode.Vertical);
                 root.Add(_body);
+                var footer = CreateFooter();
+                if (footer != null)
+                {
+                    root.Add(footer);
+                }
+
                 _body.RegisterCallback<SerializedPropertyChangeEvent>(OnPropertyChanged);
                 Validation = new DataValidationSection();
                 root.schedule.Execute(Tick).Every(150);

@@ -81,6 +81,7 @@ A〜C は「情報の出し方」の比較だったが、D は **見た目と触
 | 未調整の折りたたみ | 「詳細」モードで、**既定値のままの欄はカードごとに「未調整の設定（N）」として自動で折りたたむ**。変更した欄・必須・検証に引っかかった欄は開いたまま。ヘッダー近くにトグル「未調整を隠す」（既定 ON、EditorPrefs に記憶）。「標準」「かんたん」は従来どおり |
 | Params を「調整つまみ」に作り直す | Unity 既定の配列 Inspector をやめ、**つまみ 1 つ = 1 行**で、左に**カテゴリのチップ**（色 / サイズ / 速度 / 強さ / 不透明度 / その他。`Type` と `Label` / `TargetProperty` の語〔color, size, speed, scale, alpha, intensity, strength, rate 等〕から自動判定、手で変更可）、中央に **デザイナー向けの調整部品**（Color → ColorField、Float → Slider〔範囲は Default から自動: 0〜Default×4 または 0〜1〕、Int → SliderInt、Vector → 3 欄、Texture → ObjectField、Curve/Gradient は表示のみ。値は `Default` に書く）、右に ↺。行の「⚙」で **定義の詳細**（Label / Type / TargetProperty / Anim）を開く（上級者向け、既定で閉じる）。上部に **カテゴリのフィルタ**（チップに件数、押すとそのカテゴリだけ）。再生中は既存の「即時反映」（`VfxEditorWindow` の Params 節がやっていること）を使い、動かしながら見える |
 | つまみを足す | 「＋ つまみを追加」でパレット（色 / サイズ / 速度 / 強さ / 不透明度 / 寿命 / 自由入力）。パレットの各項目は Label / Type / **TargetProperty の候補**を埋める。候補は **Prefab から実際に取れるもの**（[04](04_vfx.md): Shader プロパティ名 or VFX Graph の exposed 名。`VfxDataValidator` が「TargetProperty が Prefab に存在しない」を Error にする判定と同じ列挙を使い、無いものは勧めない）。候補が複数あればドロップダウン、無ければ「この Prefab には色のプロパティがありません」と出して追加しない |
+| Data の切替 | ヒーロー（表示名の上）に **◀ [名前 ▾] ▶**。ドロップダウンは検索付き（`AdvancedDropdown`）で、先頭に「最近開いた」（最大 5 件、SessionState）、続けて `Category` 別に全 VfxData を並べる。◀ ▶ は同じカテゴリ内を表示名順に移る（端で止まり、tooltip に前後の名前）。🔒 固定中でも切り替えられる（Project 選択への追従とは独立）。切替時は再生中のプレビューを止める（Data は SerializedObject 経由で書くので破棄する変更は無い） |
 | 視覚部品の継続 | AnchorPad / DurationBar は D のまま。つまみの Color / Float は変更すると行の左端に色バー（D と同じ変更の可視化） |
 
 狙い: 「調整 → 再生」の往復を 0 スクロールにし、Params をデザイナーが「選んで回すだけ」にする。採用時は Params の行 UI を既存 `VfxEditorWindow` の Params 節にも移植する。
@@ -129,11 +130,25 @@ A〜C は「情報の出し方」の比較だったが、D は **見た目と触
 - 見つけた不具合（A〜C にも影響）: `SerializedProperty.EqualContents` は「同じプロパティか」の比較で値の比較ではないため、UX-0 の既定値との比較（`GuidedField.UpdateState`）は常に「変更あり」になっていた。`SerializedProperty.DataEquals` に直した（A〜C の「●」「↺」が実際に違う欄にだけ出るようになる）。
 - 検証: コンパイル 0 エラー、スクリーンショットで Dark / Light 両方を確認、モード切替（かんたん / 標準 / 詳細）・検索・DurationBar と AnchorPad のドラッグ（ポインタイベントを送って値と Undo を確認）・外部変更の再描画・「すべて既定に戻す」のダイアログ・空状態を確認。
 
+
+**2026-10-10 追記（UX-0d、サンプル E = D + フィードバック反映）**
+
+![サンプル E（Dark / 詳細モード、Params の調整つまみと下部バー）](images/1008_prototype_e.png)
+
+- 追加ファイル（`Packages/com.ddrive.core/Editor/Prototypes/`、全型 internal）: `PrototypeEWindow.cs`（D のコードをコピーして改変した窓本体）/ `PeTune.cs`（`PeTunePanel` = 調整つまみの一覧・フィルタ・追加・削除、`PeTuneRow` = `PdRow` 派生）/ `PeProps.cs`（TargetProperty 候補の列挙・カテゴリ推定）/ `DataSwitcher.cs`（Data 切替部品）/ `Theme/PrototypeE.uss`（E 専用の追加。D の `PrototypeD.uss` の変数を共有）。`PrototypeMenu.cs` に `E フィードバック反映` を追加。土台への追加: `PrototypeWindowBase` に `CreateFooter()`（ScrollView の外に置く要素）・`Repeat`・`ApplyParamLive()`、`PdRow.NoFold`、`PdCard` の折りたたみ（`SetFolded` / `SetFoldShown` / `IsFolded`）。D の見た目・動作は変えていない。
+- 固定アクションバー: ▶ 再生（再生中は「▶ やり直し」）/ ■ 停止（再生中は赤の塗り）/ リピート / 変更 N 件 / 保存（未保存は「●」）。ルート直下で ScrollView の下に置いた兄弟要素なので、スクロール領域とは重ならず、末尾まで普通にスクロールできる（下余白は不要）。対象が無い空状態では隠す。ヒーローの ▶ ■ 保存はバーに移した（確認用シーンと 🔒 固定は残した）。
+- 未調整の折りたたみ: 詳細モードで、必須でなく・既定値のままで・検証に引っかからない欄をカードごとの「▸ 未調整の設定（N）」へ移す。ヒーローのトグル「未調整を隠す」（既定 ON、`EditorPrefs`）。検索中・「変更した設定だけ」中は畳まない。編集中に欄が動かないよう、振り分けは構築・モード切替・トグル・Undo・一括リセットのときだけ行う（折りたたみの中で変更した欄は次の振り分けまでそこに残る。検証の Error / Warning が付いた欄だけは即座に外へ出る）。
+- 調整つまみ: 1 つまみ 1 行（分類チップ / 名前 / 部品 / ↺ / ⚙）。部品は Color → `ColorField`（HDR は値が 1 を超えるとき）、Float → `Slider`（範囲は開いたときの値から: 1 以下は 0〜1、超えるなら 0〜値×4。負なら下限も×4）、Int → `SliderInt`、Vector → 3 欄（W は保持）、Texture → `ObjectField`、Curve / Gradient は表示のみ。値は `Default` に書く（`Undo.RecordObject` + `SetDirty`、1.2 秒以内の連続操作は 1 回の Undo にまとめる）。再生中は `ApplyParamLive` が `VfxManager.SetParam`（`VfxEditorWindow` の Params 節と同じ）で即時反映。左端の色バーと ↺ は「このウィンドウで開いたときの値」との差。⚙ は Label / Type / TargetProperty / Anim と「削除」（既定で閉じる）。分類（色 / サイズ / 速度 / 強さ / 不透明度 / その他）は Type と Label / TargetProperty の語から推定し、チップをクリックして手で変えられる（上書きは `SessionState`。`VfxParam` にフィールドは足していないのでシリアライズ形式は不変）。上部のフィルタは件数付き。
+- つまみを足す: 「＋ つまみを追加」→ 色 / サイズ / 速度 / 強さ / 不透明度 / 寿命 / 自由入力。TargetProperty の候補は、`VfxDataValidator` が TargetProperty の存在を判定するのと同じ列挙（Prefab の全 `Renderer` の `sharedMaterial`）から、`Shader.GetPropertyName` で実在するプロパティだけを返す（`PeProps.Enumerate`。Validator の `AnyRendererHasProperty` は `DDrive.Runtime` の private で Editor から見えず `InternalsVisibleTo` も無いため、同じ列挙を Editor 側に持った。Validator 側は変更していない）。色 = Color 型、他 = Float / Range 型で名前に size / speed / intensity / alpha / life などの語を含むもの（既に使っている TargetProperty は除く）。候補 1 つなら即追加、複数ならドロップダウン、無ければ「この Prefab には色のプロパティがありません」と出して追加しない。追加する値は材質の現在値。自由入力は TargetProperty 空の Float を足して ⚙ を開く。
+- Data の切替: `DataSwitcher`（◀ [名前 ▾] ▶）。E のみ（A〜C は既存の対象 ObjectField、D は空状態の最近一覧で切り替え。`PrototypeWindowBase` には載せていない）。
+- 割り切った点: 対象は VfxData のみ。VFX Graph の Exposed 名は候補に出さない（Validator と同じ判定のため）。寿命は材質に該当プロパティが無いことが多く、その場合は追加できない。つまみの分類の手動上書きは Label ごと（Label を変えると推定に戻る）。つまみの ↺ の基準はウィンドウを開き直す・対象を切り替えると更新される。
+- 検証: コンパイル 0 エラー。`capture_screenshot` は他アプリが前面で使えなかったため `GUIView.GrabPixels` で窓を画像化して確認（Dark）。下部バーがスクロールで動かない・「未調整を隠す」の ON / OFF で折りたたみが出入りする・フィルタ・追加パレット（サイズ候補なしの文言、不透明度 = `_InvFade`、自由入力）・Slider 3 回の変更が Undo 1 回で戻る・再生中の Slider 操作が実インスタンスの MaterialPropertyBlock に即時反映される・Data 切替（ドロップダウンの項目数 = VfxData 件数 3、◀ ▶ で対象が変わる）を確認。
+
 ## 6. 試験版（v1.7.0-preview.1、2026-10-10）
 
-サンプル A〜D を持ち込み先（MS2026 等）で試せるよう、プレリリース `v1.7.0-preview.1` として配布する。確認後にタグとサンプルは削除する（後始末 = [1001](1001_open_items.md)）。
+サンプル A〜D（E は 2026-10-10 に追加、次の試験版に含める）を持ち込み先（MS2026 等）で試せるよう、プレリリース `v1.7.0-preview.1` として配布する。確認後にタグとサンプルは削除する（後始末 = [1001](1001_open_items.md)）。
 
 - 場所: `Packages/com.ddrive.core/Editor/Prototypes/`（asmdef `DDrive.Editor.Prototypes`、Editor のみ・全型 internal。公開契約・互換性スナップショットには影響しない）。
-- 試し方: 更新ウィンドウ（`Tools > D-Drive > Update`）の「更新先の版」一覧からプレリリースを明示選択 → manifest が `#v1.7.0-preview.1` になる。`Tools > D-Drive > Prototypes` の 4 本を VfxData で開いて比べる。
+- 試し方: 更新ウィンドウ（`Tools > D-Drive > Update`）の「更新先の版」一覧からプレリリースを明示選択 → manifest が `#v1.7.0-preview.1` になる。`Tools > D-Drive > Prototypes` の 5 本（A〜E）を VfxData で開いて比べる。
 - サンプル VfxData は、各ウィンドウの空状態（対象未選択）の「サンプル VfxData を作る（vfx_sample）」ボタンで作れる（同梱の `Samples/vfx_sample.prefab` を使う `VFX_Sample_Hit`。既にあれば選ぶだけ）。
 - 比べる観点は §4。
