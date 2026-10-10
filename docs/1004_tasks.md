@@ -34,6 +34,12 @@
 | MCP-13 | ✅ 2026-10-07（ブランチ `mcp/mcp-13-isuzu-4-4-2`。EditMode 2030・PlayMode 964 green、`tools/list` に `ddrive_*` 20 個、`max_chars` を 16000 に丸めて `MaxResultSizeChars` を明示、Version Defines の最小は 4.2.0 のまま、実装メモ = [1002](1002_ddrive_mcp.md)） | isuzu MCP を v4.2.0 → **v4.4.2** に上げる（[archive/1006](archive/1006_release_1_5_0.md) §4 の検討結果。`McpPortPolicyTests` / `McpToolsSnapshotTests` / `tools/list` 20 個 / `measure-tokens.py` 再実行、`console_read_logs` の `stack_trace:true` を SKILL.md に追記、`MaxResultSizeChars` の明示を検討）。MS2026 は別タイミング | 0.5 | MCP-12 | 4 テストと HTTP スモーク green、docs/20 §3 更新 |
 | MCP-14 | ✅ 実装 2026-10-07（ブランチ `mcp/mcp-14-isuzu-install`。EditMode 2075・PlayMode 964 green。持ち込み先での実押下は未検証 = [1005](verification/1005_manual_verification_mcp.md) §9。実装メモ = [1002](1002_ddrive_mcp.md) §11.4） | **isuzu MCP の導入を更新ウィンドウに統合**（[1002](1002_ddrive_mcp.md) §11）: 「パッケージ」一覧の「導入」ボタン（推奨版のタグ固定で manifest に追加 + 管理対象に登録）、ウィザードのチェック、導入後の案内（開き直し・`register-mcp.ps1` 実行・書き込み可否）、**他の MCP が入っているときの確認（続行 / 既知のものを外して続行 / キャンセル。未知のものは外さない）**、Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`、`ddrive_status.mcp.otherMcp` / `isuzuVersion`。docs（42 / 50 / mcp.html / 20 / 消費者 SKILL / 1005 §9） | 1.5 | MCP-13 | MS2026 で未導入 → 導入 → 登録 → `ddrive_status` が通る。CoplayDev 入りで「外して続行」が manifest の 1 行だけ消す。ユーザー指示 2026-10-07 |
 
+## UX（専用エディターの UI/UX 見直し、[1008](1008_editor_ux_redesign.md)）
+
+| # | 状態 | 内容 | 工数(日) | 依存 | AC |
+|---|---|---|---|---|---|
+| UX-0 | ✅ 2026-10-10（PR #187、EditMode 2077 green） | サンプルエディター 3 本（A 段階表示 / B ステップ型 / C 目的別カード）+ 共通部品 `FieldGuide`。`Assets/EditorPrototypes/Editor/`、実装メモ = [1008](1008_editor_ux_redesign.md) §5 | 1 | なし | ユーザーが 3 本を同じ VfxData で開いて方向を決められる |
+
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
 - GC-R-01（BGM ループ位置の Warning）・GC-R-07（尺 0 のゴールデン）: v1.5.0 に同梱するか、次の PATCH か
@@ -57,3 +63,4 @@
 - 2026-10-07: MCP-14（isuzu 導入の更新ウィンドウ統合、ユーザー指示）を起票。MCP-13 着手
 - 2026-10-07: MCP-14 を実装（`McpPackageSupport` / `McpInstallActions`、更新ウィンドウの「導入」、ウィザード節、Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`、`ddrive_status.mcp.otherMcp` / `isuzuVersion`）
 - 2026-10-08: docs/1005 の人による確認を実施(§0〜§8・§10。§9 はユーザー判断でスキップ)。修正 2 件(`ddrive_asset_create` の preview パスの大小文字、1005 7-1 の期待欄)
+- 2026-10-10: UX 節を追加。UX-0（サンプルエディター 3 本）✅
