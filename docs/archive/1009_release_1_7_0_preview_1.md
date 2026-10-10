@@ -25,3 +25,20 @@
 ## 後始末
 
 [1001](../1001_open_items.md) の「試験版 v1.7.0-preview.1 の後始末」を参照。
+
+## §5 v1.7.0-preview.2（2026-10-10）
+
+サンプル E（D をベースにフィードバックを反映: 下部の固定アクションバー・未調整の折りたたみ・Params の調整つまみ〔つまみの追加を含む〕・Data 切替。PR #190）を追加した試験版。**軽い経路**（[12](../12_review.md) §7 手順 4 末尾）で出した。
+
+| 手順 | 結果 |
+|---|---|
+| コンパイル | 成功、エラー 0 |
+| `ddrive_compat` | `changed: []` |
+| EditMode | 2078/2078 green |
+| `check-release.ps1 -GuardOnly -Base v1.7.0-preview.1` / bump 後の `-Base v1.7.0-preview.1` | いずれも green |
+| タグが指すコミット | `0f74532`（`Release v1.7.0-preview.2`） |
+| push | `main` と `v1.7.0-preview.2`（GitHub Release・SpecWeb は無し） |
+
+PlayMode・Performance・NetCheck・Validation・ID 再生成差分は回していない（Editor 専用のサンプルのみの変更のため）。
+
+MS2026 向け: 更新ウィンドウの「更新先の版」で `v1.7.0-preview.2` を選び直し、`Tools > D-Drive > Prototypes > E フィードバック反映` を試す。確認後に試験版とサンプルは削除し、manifest を正式版に戻す（後始末 = [1001](../1001_open_items.md)）。
