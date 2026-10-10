@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace DDrive.EditorPrototypes
 {
     // 欄の重要度(docs/1008 §2)。Required = Validator が Error にする / Common = よく触る・Warning の対象 / Advanced = 既定のままでよい。
-    public enum FieldTier
+    internal enum FieldTier
     {
         Required = 0,
         Common = 1,
@@ -12,7 +12,7 @@ namespace DDrive.EditorPrototypes
     }
 
     // 1 欄ぶんの案内。Field は SerializedObject.FindProperty に渡すフィールド名(入れ子は "Anchor" のようにルート名)。
-    public sealed class FieldGuideEntry
+    internal sealed class FieldGuideEntry
     {
         public string Field;
         public string Label;
@@ -24,7 +24,7 @@ namespace DDrive.EditorPrototypes
     }
 
     // 種別ごとの静的な表。どのサンプルも同じ表を使う(将来はパッケージ側の共通基盤にする前提で、種別に依存しない形)。
-    public abstract class FieldGuide
+    internal abstract class FieldGuide
     {
         public abstract Type DataType { get; }
         public abstract IReadOnlyList<FieldGuideEntry> Entries { get; }

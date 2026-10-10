@@ -4,7 +4,7 @@ using UnityEditor;
 namespace DDrive.EditorPrototypes
 {
     // docs/1008 §3 — サンプルエディター 4 本の入口。[DataEditor] は付けない(既存 VFX Editor の「〜で開く」を奪わない)。
-    public static class PrototypeMenu
+    internal static class PrototypeMenu
     {
         public const string Prototypes = DDriveMenu.Root + "Prototypes/";
 

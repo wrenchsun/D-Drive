@@ -65,8 +65,17 @@ namespace DDrive.Tests.Editor.Compat
         // "[Unreleased]" は数字にマッチしないため自然に読み飛ばされる。
         private static string FindLatestChangelogVersion(string changelog)
         {
-            var match = Regex.Match(changelog, @"^##\s*\[(\d+\.\d+\.\d+)\]", RegexOptions.Multiline);
+            var match = Regex.Match(changelog, @"^##\s*\[(\d+\.\d+\.\d+)(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?\]", RegexOptions.Multiline);
             return match.Success ? match.Groups[1].Value : null;
+        }
+
+        // 試験版(2026-10-10): プレリリース見出しでも基底版(1.7.0)に一致する。
+        [Test]
+        public void PrereleaseVersion_IsConsistentByBaseVersion()
+        {
+            var heading = "## [Unreleased]\n\n## [1.7.0-preview.1] - 2026-10-10\n\n## [1.6.0] - 2026-10-08\n";
+            Assert.AreEqual("1.7.0", FindLatestChangelogVersion(heading));
+            Assert.AreEqual("1.7.0", StripPrerelease("1.7.0-preview.1"));
         }
 
         private static string StripPrerelease(string version)

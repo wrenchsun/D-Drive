@@ -1,6 +1,6 @@
 {
-    "name": "DDrive.EditorPrototypes",
-    "rootNamespace": "DDrive.EditorPrototypes",
+    "name": "DDrive.Editor.Prototypes",
+    "rootNamespace": "DDrive.Editor.Prototypes",
     "references": [
         "DDrive.Foundation",
         "DDrive.Runtime",
