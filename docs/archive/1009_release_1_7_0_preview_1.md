@@ -42,3 +42,20 @@
 PlayMode・Performance・NetCheck・Validation・ID 再生成差分は回していない（Editor 専用のサンプルのみの変更のため）。
 
 MS2026 向け: 更新ウィンドウの「更新先の版」で `v1.7.0-preview.2` を選び直し、`Tools > D-Drive > Prototypes > E フィードバック反映` を試す。確認後に試験版とサンプルは削除し、manifest を正式版に戻す（後始末 = [1001](../1001_open_items.md)）。
+
+## §6 v1.7.0-preview.3（2026-10-11）
+
+サンプル E の機能同等（Prefab で開く・Anchor Editor で開く・SceneView ハンドル・RenderLayer / LightLayerMask・速度・複数同時再生）と保存まわり（`SaveDirty`・自動保存・切替時の未保存確認。PR #191）を入れた試験版。**軽い経路**（[12](../12_review.md) §7 手順 4 末尾）で出した。
+
+| 手順 | 結果 |
+|---|---|
+| コンパイル | 成功、エラー 0 |
+| `ddrive_compat` | `changed: []` |
+| EditMode | 2078/2078 green |
+| `check-release.ps1 -GuardOnly -Base v1.7.0-preview.2` / bump 後の `-Base v1.7.0-preview.2` | いずれも green |
+| タグが指すコミット | `4bb4c06`（`Release v1.7.0-preview.3`） |
+| push | `main` と `v1.7.0-preview.3`（GitHub Release・SpecWeb は無し） |
+
+PlayMode・Performance・NetCheck・Validation・ID 再生成差分は回していない（Editor 専用のサンプルのみの変更のため）。
+
+MS2026 向け: 更新ウィンドウの「更新先の版」で `v1.7.0-preview.3` を選び直す。
