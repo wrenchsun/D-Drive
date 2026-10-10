@@ -94,6 +94,10 @@ namespace DDrive.EditorPrototypes
             reset.AddToClassList("pd-btn");
             reset.AddToClassList("pd-btn--icon");
             reset.AddToClassList("pd-row__reset");
+            if (so == null)
+            {
+                reset.style.display = DisplayStyle.None; // E: 対応する Data の欄を持たない補助欄
+            }
             inputRow.Add(reset);
             line.Add(inputRow);
 
@@ -150,6 +154,11 @@ namespace DDrive.EditorPrototypes
 
         public void UpdateState()
         {
+            if (_so == null)
+            {
+                return;
+            }
+
             var modified = false;
             for (var i = 0; i < Entries.Count; i++)
             {
@@ -245,6 +254,11 @@ namespace DDrive.EditorPrototypes
         // 既定値へ戻す(Undo / 保存通知は呼び出し側)。
         public void ApplyDefault()
         {
+            if (_so == null)
+            {
+                return;
+            }
+
             for (var i = 0; i < Entries.Count; i++)
             {
                 var def = _defaultSo?.FindProperty(Entries[i].Field);
@@ -411,6 +425,20 @@ namespace DDrive.EditorPrototypes
         private readonly Button[] _buttons = new Button[2];
         private readonly VisualElement _layer;
         private readonly Action _changed;
+        private readonly Label _uiNote;
+        private bool _layerAlways;
+
+        // E: 表示レイヤーをモードに関係なく常に出す(3D のときは薄く表示し、理由を tooltip で示す)。
+        public bool LayerAlways
+        {
+            get => _layerAlways;
+            set
+            {
+                _layerAlways = value;
+                _layer.style.display = DisplayStyle.Flex;
+                Refresh();
+            }
+        }
 
         public PdRenderRow(SerializedObject so, SerializedObject defaultSo, IReadOnlyList<FieldGuideEntry> entries, string hint, Action changed)
             : base(so, defaultSo, entries, "表示先", hint, FieldTier.Common, false, Build(so, out var buttons, out var layer, changed), changed)
@@ -419,6 +447,7 @@ namespace DDrive.EditorPrototypes
             _changed = changed;
             _buttons = buttons;
             _layer = layer;
+            _uiNote = this.Q<Label>("pe-uinote");
             for (var i = 0; i < 2; i++)
             {
                 var index = i;
@@ -447,7 +476,14 @@ namespace DDrive.EditorPrototypes
             layer.AddToClassList("pd-layerrow__layer");
             layer.tooltip = "表示レイヤー(カメラの映す / 映さない用)";
             row.Add(layer);
-            return row;
+            var note = new Label("UI の上に出すときは、表示レイヤーに VfxUI レイヤーを選びます(実機では UI カメラで合成されます)。") { name = "pe-uinote" };
+            note.AddToClassList("pd-dim");
+            note.style.whiteSpace = WhiteSpace.Normal;
+            note.style.display = DisplayStyle.None;
+            var wrap = new VisualElement();
+            wrap.Add(row);
+            wrap.Add(note);
+            return wrap;
         }
 
         private void SetRender(int index)
@@ -474,11 +510,24 @@ namespace DDrive.EditorPrototypes
             {
                 _buttons[i].EnableInClassList("pd-seg__btn--on", i == index);
             }
+
+            if (_layerAlways && _layer != null)
+            {
+                var ui = index == 1;
+                _layer.style.opacity = ui ? 1f : 0.55f;
+                _layer.tooltip = ui
+                    ? "表示レイヤー(UI の上に出すときは VfxUI レイヤーを選ぶ)"
+                    : "表示レイヤー(スポーン物の Layer。表示先が「UI の上」のときに主に使います。3D ワールドでも設定できます)";
+                if (_uiNote != null)
+                {
+                    _uiNote.style.display = ui ? DisplayStyle.Flex : DisplayStyle.None;
+                }
+            }
         }
 
         public override void Sync() => Refresh();
 
-        public override void OnModeChanged(int mode) => _layer.style.display = mode >= 2 ? DisplayStyle.Flex : DisplayStyle.None;
+        public override void OnModeChanged(int mode) => _layer.style.display = _layerAlways || mode >= 2 ? DisplayStyle.Flex : DisplayStyle.None;
     }
 
     // カード: 角丸の枠 + 見出し(14px 太字)+ 一言説明 + 右上「？」。表示できる欄が無いときは既定のままで大丈夫の案内。

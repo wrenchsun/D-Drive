@@ -144,6 +144,63 @@ A〜C は「情報の出し方」の比較だったが、D は **見た目と触
 - 割り切った点: 対象は VfxData のみ。VFX Graph の Exposed 名は候補に出さない（Validator と同じ判定のため）。寿命は材質に該当プロパティが無いことが多く、その場合は追加できない。つまみの分類の手動上書きは Label ごと（Label を変えると推定に戻る）。つまみの ↺ の基準はウィンドウを開き直す・対象を切り替えると更新される。
 - 検証: コンパイル 0 エラー。`capture_screenshot` は他アプリが前面で使えなかったため `GUIView.GrabPixels` で窓を画像化して確認（Dark）。下部バーがスクロールで動かない・「未調整を隠す」の ON / OFF で折りたたみが出入りする・フィルタ・追加パレット（サイズ候補なしの文言、不透明度 = `_InvFade`、自由入力）・Slider 3 回の変更が Undo 1 回で戻る・再生中の Slider 操作が実インスタンスの MaterialPropertyBlock に即時反映される・Data 切替（ドロップダウンの項目数 = VfxData 件数 3、◀ ▶ で対象が変わる）を確認。
 
+**2026-10-10 追記（UX-0f、E を旧 VFX Editor と機能同等にする）**
+
+ユーザーのフィードバック: 「Prefab で開くボタンが無い」「RenderLayer など調整できない項目がある」「Anchor Editor で開くなど、旧エディターの便利機能が消えている」。旧 `VfxEditorWindow`（`VfxEditorWindow*.cs`）の全機能を棚卸しし、無い・一部のものをすべて E に入れた。
+
+| 機能 | 旧エディターの場所 | E の場所 | 状態 |
+|---|---|---|---|
+| 🔒 対象を固定 / Project の選択に追従 | ツールバー | ヒーローの主操作列「🔒 固定」 | あり |
+| 確認用シーンを開く（右クリックで配置） | ツールバー | ヒーローの主操作列「確認用シーン」 | あり |
+| **Prefab を開く**（プレハブモード） | ツールバー | ヒーローの主操作列「Prefab で開く」（Prefab 未設定なら案内ダイアログ） | **追加** |
+| Project で表示 | ツールバー | ヒーローの「Project」（アイコンのクリックも従来どおり） | **追加** |
+| ＋ 新規作成（`NewAssetDialog`） | ツールバー | ヒーローの「＋ 新規」（作成した Data をそのまま開く） | **追加** |
+| 対象アセット欄 / Data 切替 | 上部の ObjectField | ◀ [名前 ▾] ▶ と空状態のピッカー | あり |
+| 再生 / 停止 / やり直し | 再生行 | 下部の固定バー | あり |
+| リピート | 再生行 | 下部の固定バー | あり |
+| **速度**（0.1〜2） | 再生行 | 下部の固定バー「速度」 | **追加** |
+| 再生状態の表示 | ステータス文 | ▶ ボタンの文言（やり直し）と ■ の塗り | あり |
+| **スポーン先**（シーン内オブジェクト） | 上部の ObjectField | 「出る場所を変える」カードの「出る場所の基準」 | **追加** |
+| **Path を一覧から選ぶ**（ボーン / ★AnchorPoint、World なら NamedObject に切替） | Anchor 節 | 同上（`VfxAnchorSceneGui.FillPathMenu`） | **追加** |
+| **解決の状況の文**（✓ / ⚠ どこに出るか） | Anchor 節 | 同上（`VfxAnchorSceneGui.DescribeResolution`） | **追加** |
+| Space / Path / 高さ / 向き / スケール / 回転追従 / 親消滅後も残す | Anchor 節 | AnchorPad（X / Z / 高さ）+ 詳細の「位置の全設定」（全フィールド） | あり |
+| **Anchor Editor で開く** | Anchor 節（AnchorId の横） | 「共通の出る位置（Anchor アセット）」欄の下（AnchorId の設定が無いと灰色） | **追加** |
+| **埋め込みをアセット化** | Anchor 節 | 同上 | **追加** |
+| Anchor アセット使用中の案内 / 見つからない警告 | Anchor 節 | 同上、AnchorPad の注記 | **追加**（案内文） |
+| **SceneView の Anchor 目印・ハンドル**（移動 / 回転、AnchorId なら連鎖表示、描画権 `SceneGuiOwner`） | Anchor 節のトグル + `OnSceneGui` | 「出る場所の基準」の「SceneView に表示」トグル + `PrototypeWindowBase` の `duringSceneGui`。描画は旧エディターと共通の `VfxAnchorSceneGui.Draw` | **追加** |
+| AnchorId / Space / Path の変更で再生中の実体を撮り直す | `RestartMainIfPlaying` | `PrototypeWindowBase.OnPropertyChanged` | **追加** |
+| Prefab 差し替えで再スポーン | 基本設定 | 同 | あり |
+| **カメラ / ライトが無い警告、プレハブモード中の案内** | `RefreshSceneHelp` | ヒーロー直下の HelpBox | **追加** |
+| **プレハブモードの開閉・保存で台帳リセット / 再撮り** | `PrefabStage` 購読 | `PrototypeWindowBase` | **追加** |
+| 基本設定: Prefab / 寿命モード / Duration / FadeOutSec | 基本設定 | 「出す」カード・DurationBar | あり |
+| 描画モード（Render） | 基本設定 | 「出す」カードの「表示先」（詳細でも畳まない） | あり |
+| **レイヤー（RenderLayer）** | 基本設定 | 表示先の右に**常に表示**（3D のときは薄く + tooltip） | **直した** |
+| **ライトレイヤー（LightLayerMask）** | 基本設定（`MaskField`） | 「出す」カードの `MaskField`（層名付き） | **直した** |
+| 共通フラグ（Pool / Pause / Net） | 基本設定 | 「長さ・消え方」カードの Flags | あり |
+| UIOverlay のときの注意文 | 上部のラベル | 表示先の下に注意文 | **追加** |
+| Params の即時反映 | パラメータ節 | 調整つまみ（E 独自の UI） | あり |
+| Params の定義の追加・削除（Label / Type / TargetProperty / Anim） | 「定義の追加・削除」 | 「＋ つまみを追加」と行の「⚙」 | あり |
+| イベント（OnSpawn / OnLoop / OnDestroy → SE / VFX 連携） | イベント節 | 「音・イベントと合わせる」カード | あり |
+| **複数同時再生**（最大 8 スロット） | 複数同時再生節 | 「複数同時再生」カード（詳細。▶ / ■） | **追加** |
+| 検証（Validator と同じ結果、修正ボタン） | 検証節 | 欄の下のインライン表示 + ヒーローの状態チップ | あり |
+| マニュアルを開く | （ツールバーに無い） | 各カードの「？」 | あり |
+| Undo / Redo の同期 | `OnUndoRedo` | `OnUndoRedo`（再描画 + 検証 + Anchor 反映） | あり |
+| 再コンパイル / PlayMode 遷移に耐える状態 | `[SerializeField]` | 対象・固定・リピート・速度・スポーン先・SceneView 表示を `[SerializeField]` | あり |
+| シーン切替でプレビューを止める | `OnActiveSceneChanged` | 同 | あり |
+
+「調整できない欄」の確認: `VfxData`（`AssetDataBase` を含む）の全フィールドを `VfxFieldGuide` の表と `SerializedObject` の全プロパティで突き合わせた。編集できない欄は Id / Version / Author / UpdatedAt（保存時に自動記録）と、HideInInspector の ImportSourceGuid / SchemaVersion だけ。それ以外はいずれかのカードに出る（詳細の「未調整の設定」に畳まれていても開けば編集できる）。直したのは RenderLayer（詳細モードでしか出ず、未調整だと畳まれていた）と LightLayerMask（数値欄だった）。表の RenderLayer / LightLayerMask の目的カードは「出す」にした。
+
+**保存の仕組み（E）**
+
+- 欄を編集すると Data が dirty になり、フッターの「保存 ●」が点く。保存は 3 つの経路: 「保存」ボタン / Ctrl+S（File > Save）/ 自動保存。いずれも `DDriveAssetSave.SaveDirty(Target)`（対象 1 個だけ）で、**版数・最終更新者・日時は保存時に進む**（機械的な一括処理用の `SaveAllSuppressed` は使わない。A〜D の保存ボタンも同じ経路に直した）。
+- 自動保存はフッターの「自動保存」（既定 OFF、EditorPrefs）。ON なら、Undo の 1 ステップが確定してから 1 秒何も起きなければ保存する（スライダーのドラッグ中は保存しない。再生中でも可）。
+- 未保存のまま別の Data へ切り替える（◀ ▶・ドロップダウン・選択追従）・ウィンドウを閉じるときは「保存する / 保存しない」を聞く（自動保存 ON なら聞かずに保存）。
+
+- 共通部品: 旧エディターの SceneView 描画・解決の文・Path 一覧を `DDrive.Editor.Vfx.VfxAnchorSceneGui`（Editor アセンブリの static。公開 API ではない）に切り出し、`VfxEditorWindow` もこれを使う。互換性スナップショットは変わらない。追加ファイル: `PeAnchorTools.cs`（出る場所の基準 / Anchor アセット / ライトレイヤー / 複数同時再生の行）。
+- 検証: コンパイル 0 エラー。`execute_code` で Prefab で開く（プレハブモードに入る）・Anchor Editor で開く（窓が開く）・RenderLayer と LightLayerMask の変更と Undo・速度・スポーン先と Path 一覧・複数再生の ▶ / ■・自動保存（1 秒後に版数が進む）と切替時の保存を確認、`GUIView.GrabPixels` の画像で崩れを確認。
+
+![サンプル E（機能同等、「出る場所を変える」カード）](images/1008_prototype_e.png)
+
 ## 6. 試験版（v1.7.0-preview.1、2026-10-10）
 
 サンプル A〜D（E は 2026-10-10 に追加、次の試験版に含める）を持ち込み先（MS2026 等）で試せるよう、プレリリース `v1.7.0-preview.1` として配布する。確認後にタグとサンプルは削除する（後始末 = [1001](1001_open_items.md)）。

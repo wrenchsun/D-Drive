@@ -43,6 +43,7 @@
 | UX-0c | ✅ 2026-10-10 | 試験版リリース `v1.7.0-preview.1`。サンプル A〜D を `Packages/com.ddrive.core/Editor/Prototypes/`（asmdef `DDrive.Editor.Prototypes`、全型 internal）へ移し、`vfx_sample` 同梱 + 空状態のサンプル作成ボタン。確認後に削除（[1001](1001_open_items.md)） | 0.5 | UX-0b | 持ち込み先でプレリリースを入れて A〜D を試せる |
 | UX-0e | ✅ 2026-10-10 | 試験版リリース `v1.7.0-preview.2`（サンプル E を含む。軽い経路 = docs/12 §7 手順 4。記録 = [1009](archive/1009_release_1_7_0_preview_1.md) §5） | 0.2 | UX-0c | 持ち込み先で E を試せる |
 | UX-0d | ✅ 2026-10-10 | サンプル E（D + フィードバック反映）。下部の固定アクションバー・未調整の折りたたみ・Params の調整つまみ（カテゴリチップ / 型別部品 / 追加パレット）・Data 切替（◀ ▶ + 検索付きドロップダウン + 最近）。`PrototypeEWindow.cs` ほか、実装メモ = [1008](1008_editor_ux_redesign.md) §5 | 1 | UX-0c | ユーザーが E を D と比べ、フィードバックの反映を判断できる |
+| UX-0f | ✅ 2026-10-10 | サンプル E の機能同等。旧 VFX Editor の全機能を棚卸しし、Prefab で開く / Anchor Editor で開く / SceneView ハンドル / スポーン先 / 速度 / 複数同時再生 / RenderLayer・LightLayerMask の常時編集などを E に追加。保存を `SaveDirty` に直し、E に自動保存と未保存の確認を追加。対応表 = [1008](1008_editor_ux_redesign.md) §5 | 1 | UX-0e | E が旧エディターと同じことをすべてできる |
 
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 

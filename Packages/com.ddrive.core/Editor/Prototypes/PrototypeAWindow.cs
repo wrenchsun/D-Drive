@@ -121,11 +121,10 @@ namespace DDrive.EditorPrototypes
             {
                 if (Target != null)
                 {
-                    EditorUtility.SetDirty(Target);
-                    DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
+                    SaveTarget();
                     UpdateNext();
                 }
-            }) { text = "保存", tooltip = "AssetDatabase.SaveAssets" };
+            }) { text = "保存", tooltip = "この Data を保存する(版数が進む)" };
             save.style.alignSelf = Align.FlexStart;
             content.Add(save);
             return card;

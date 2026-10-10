@@ -343,7 +343,7 @@ namespace DDrive.EditorPrototypes
             var scene = PreviewPlacementButton.Create("確認用シーン", "ライト / カメラ / 床を備えた確認用シーンを開き、対象をそこで再生する", OpenPreviewScene);
             scene.AddToClassList("pd-btn");
             actions.Add(scene);
-            _btnSave = MakeButton("保存", null, SaveTarget, "AssetDatabase.SaveAssets");
+            _btnSave = MakeButton("保存", null, SaveTarget, "この Data を保存する(版数が進む)");
             actions.Add(_btnSave);
             var spacer = new VisualElement();
             spacer.AddToClassList("pd-hero__spacer");
@@ -436,17 +436,6 @@ namespace DDrive.EditorPrototypes
         {
             Locked = !Locked;
             _btnLock.EnableInClassList("pd-btn--on", Locked);
-        }
-
-        private void SaveTarget()
-        {
-            if (Target == null)
-            {
-                return;
-            }
-
-            EditorUtility.SetDirty(Target);
-            DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
         }
 
         // ── カードと欄 ──
