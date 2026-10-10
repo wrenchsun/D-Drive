@@ -124,7 +124,7 @@ namespace DDrive.Editor.CanvasTool
 
         private Foldout NewWireGroupFoldout(string key, string title)
         {
-            var foldout = new Foldout { text = title, value = !_wireGroupExpanded.TryGetValue(key, out var open) || open, style = { marginTop = 4 } };
+            var foldout = new Foldout { text = title, value = _wireGroupExpanded.TryGetValue(key, out var open) && open, style = { marginTop = 4 } };
             foldout.RegisterValueChangedCallback(evt =>
             {
                 if (evt.target == foldout)

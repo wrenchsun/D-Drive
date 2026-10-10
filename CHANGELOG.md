@@ -9,9 +9,13 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 変更
+
+- Canvas Editor: すべての節(ElementFx 割当・Navigation グラフなど)と、節の中のグループ(要素のグループ・埋め込みごとのグループ)を、開いた直後は折りたたんだ状態にした
+
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 破壊なし(Editor の表示のみ)
 
 ## [1.6.0] - 2026-10-08
 

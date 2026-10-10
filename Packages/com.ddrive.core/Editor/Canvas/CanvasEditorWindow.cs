@@ -372,7 +372,7 @@ namespace DDrive.Editor.CanvasTool
             _embeddedContainer = new VisualElement();
             _embeddedFoldout.Add(_embeddedContainer);
 
-            _elementFxFoldout = new Foldout { text = "ElementFx 割当(Appear / Idle / Disappear)", value = true, style = { marginTop = 8 } };
+            _elementFxFoldout = new Foldout { text = "ElementFx 割当(Appear / Idle / Disappear)", value = false, style = { marginTop = 8 } };
             _root.Add(_elementFxFoldout);
 
             var fxFilterField = new ToolbarSearchField { style = { marginBottom = 4 } };
@@ -788,7 +788,7 @@ namespace DDrive.Editor.CanvasTool
             }
 
             var parentKey = "parent";
-            var parentFoldout = new Foldout { text = $"{NameOf(_target)} の要素({groups.ParentRows.Count})", value = !_fxGroupExpanded.TryGetValue(parentKey, out var parentOpen) || parentOpen, style = { marginTop = 4 } };
+            var parentFoldout = new Foldout { text = $"{NameOf(_target)} の要素({groups.ParentRows.Count})", value = _fxGroupExpanded.TryGetValue(parentKey, out var parentOpen) && parentOpen, style = { marginTop = 4 } };
             parentFoldout.RegisterValueChangedCallback(evt =>
             {
                 if (evt.target == parentFoldout)
@@ -837,7 +837,7 @@ namespace DDrive.Editor.CanvasTool
         {
             var key = "embed:" + g.RootPath;
             var title = g.Child != null ? $"埋め込み: {NameOf(g.Child)}({g.RootPath})" : $"埋め込み: (未解決)({g.RootPath})";
-            var foldout = new Foldout { text = title, value = !_fxGroupExpanded.TryGetValue(key, out var open) || open, style = { marginTop = 4 } };
+            var foldout = new Foldout { text = title, value = _fxGroupExpanded.TryGetValue(key, out var open) && open, style = { marginTop = 4 } };
             foldout.RegisterValueChangedCallback(evt =>
             {
                 if (evt.target == foldout)
@@ -2320,7 +2320,7 @@ namespace DDrive.Editor.CanvasTool
 
         private void BuildNavigationGraphSection()
         {
-            _graphFoldout = new Foldout { text = "Navigation グラフ", value = true, style = { marginTop = 8 } };
+            _graphFoldout = new Foldout { text = "Navigation グラフ", value = false, style = { marginTop = 8 } };
             _root.Add(_graphFoldout);
 
             var toolRow = new VisualElement { style = { flexDirection = FlexDirection.Row, marginBottom = 4 } };

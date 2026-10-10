@@ -115,6 +115,21 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        public void AllFoldouts_AreCollapsedByDefault()
+        {
+            OpenWindowOrInconclusive();
+            var opened = new System.Collections.Generic.List<string>();
+            _window.rootVisualElement.Query<Foldout>().ForEach(f =>
+            {
+                if (f.value && f.GetFirstAncestorOfType<UnityEditor.UIElements.InspectorElement>() == null) // 既定 Inspector(Tags / Flags の配列)は Unity 標準なので対象外
+                {
+                    opened.Add(f.text);
+                }
+            });
+            Assert.IsEmpty(opened, "開いた直後はすべての節・グループが折りたたみ: " + string.Join(", ", opened));
+        }
+
+        [Test]
         public void LockToggle_GraysOutFollowSelection_AndKeepsItsValue()
         {
             OpenWindowOrInconclusive();

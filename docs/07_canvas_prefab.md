@@ -434,6 +434,8 @@ public static class Ui
 
 Canvas Editor の「埋め込み Canvas(入れ子の子 Canvas)」欄と「ボタンの配線(Buttons)」欄の Foldout を、ウィンドウを開いたときは**閉じた状態**にした（`CanvasEditorWindow` / `CanvasEditorWindow.ButtonWires`）。埋め込みも配線も使わない Canvas が大半で、両欄が展開されていると ElementFx 割当までが遠くなっていたため。開閉は従来どおり自由で、中のグループ（親のボタン / 埋め込みごと）の開閉記憶（`_wireGroupExpanded`）は変えていない。データ形式・公開 API の変更なし（PATCH）。
 
+**追記（2026-10-10）**: ElementFx 割当・Navigation グラフを含む**すべての節と、節の中のグループ（要素のグループ・埋め込みごとのグループ）を、開いた直後は閉じた状態**にした（開閉の記憶〔`_fxGroupExpanded` / `_wireGroupExpanded`〕が無いときの初期値だけを false にした。ウィンドウ内で開閉した状態は従来どおり保持）。Editor の表示のみで互換性への影響なし。
+
 ## B-1. 要件
 
 - 種類 / タグ / コリジョンレイヤーを管理。Spawn/Despawn/Pool/Preload
