@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.7.0-preview.2] - 2026-10-10
+
 ### 追加
 
 - **試験版: サンプル E**（`Tools > D-Drive > Prototypes > E フィードバック反映`。D をベースに、下部の固定アクションバー・未調整の折りたたみ・Params の調整つまみ・Data 切替を追加。[docs/1008](docs/1008_editor_ux_redesign.md)）
