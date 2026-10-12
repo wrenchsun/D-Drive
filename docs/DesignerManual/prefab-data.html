@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Prefab データ(ゲーム中に出す物)の設定と Prefab Editor</nav>
 
 <h1>Prefab データ(ゲーム中に出す物)の設定と Prefab Editor</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
 <p>Prefab データ(PrefabData)は、ギミック・弾・拾い物・背景オブジェクト・キャラクターなど「<strong>ゲーム中に出したり消したりする Prefab</strong>」を 1 個ずつ登録するデータです。登録しておくと、次のことがすべてデータだけで決まります。</p>
 <ul>
@@ -32,44 +32,47 @@
 <ol>
 <li><a href="asset-browser.html">Asset Browser</a>(<code>Tools &gt; D-Drive &gt; Asset Browser</code>)のツールバー「新規」→「新規アセット作成」ダイアログで、「種別」に <strong>Prefab (PrefabData)</strong> を選び、「表示名(日本語可)」「カテゴリ」「識別子(英語)」を入れて「作成」。ファイル名・ID・カタログ登録はツールが自動で行います(生成先は <code>Assets/GameData/Prefab/カテゴリ/</code>、ファイル名は <code>PREFAB_カテゴリ_識別子</code>)</li>
 <li>Project で Prefab データを選び、<strong>Inspector の一番上の「Prefab Editor で開く」</strong>を押す</li>
-<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Prefab</code>。Project で Prefab データを選ぶと自動で入ります(「🔒」を ON にすると追従しません)</li>
+<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Prefab</code>。Project で Prefab データを選ぶと自動で入ります(「🔒 固定」を ON にすると追従しません)</li>
 </ol>
 <div class="warn">
 <strong>.prefab ファイルを Asset Browser にドラッグ&amp;ドロップしても何も起きません</strong>(ドラッグで作れるのは音源ファイルだけ)。必ず「新規」から作り、あとで Prefab 欄に入れてください。識別子は英語の PascalCase(例: PlayerSlash)で。違う形式だと「識別子は英語 PascalCase(例: PlayerSlash)で入力してください」と出ます。
 </div>
 
-<h2>はじめの一歩(壊せる箱を登録する)</h2>
+<h2 id="prefab">はじめの一歩(壊せる箱を登録する)</h2>
 <ol>
 <li>Asset Browser の「新規」で種別 Prefab、表示名「壊せる箱」、識別子 <code>BreakableBox</code> で作成</li>
 <li>Inspector の「Prefab Editor で開く」→ 設定の <code>Prefab</code> に箱の Prefab を入れる</li>
 <li><code>Kind</code> を <strong>Gimmick</strong>、<code>GameplayTags</code> に <code>Destructible</code> を 1 行追加(プログラマーが「壊せるか」を判定する目印になります)</li>
-<li>「<strong>確認用シーンに配置</strong>」→ 開いているシーンの SceneView の中心あたりに箱が置かれる。ステータスが「プレビュー配置中」になる</li>
-<li>見た目・大きさ・レイヤーを SceneView / Game ビューで確認。直したら「撤去」→ もう一度「確認用シーンに配置」</li>
+<li>「<strong>確認用シーン</strong>」→ 確認用シーンが開き、SceneView の中心あたりに箱が置かれる。「確認する」の欄の状態が「プレビュー配置中」になる</li>
+<li>見た目・大きさ・レイヤーを SceneView / Game ビューで確認。直したら「撤去」→ もう一度「確認用シーン」</li>
 <li>使いたい場面(ID は <code>PREFABID.BreakableBox</code>)をプログラマーに伝える</li>
 </ol>
 <!-- screenshot: 36-#39 -->
 <figure>
 <img src="images/prefab-editor-window.png" alt="Prefab Editor ウィンドウ全体">
-<figcaption>Prefab Editor。対象・確認用シーンに配置/撤去・Kind / GameplayTags などの設定</figcaption>
+<figcaption>Prefab Editor(爆発する樽)。ヒーロー・「見た目(Prefab)」・「ゲームでの扱い」(Kind・GameplayTags・コリジョンレイヤー・Flags)。重複タグの警告は該当の欄の下に出ます</figcaption>
 </figure>
 
 
-<h2>画面の説明(Prefab Editor)</h2>
+<h2 id="check">画面の説明(Prefab Editor)</h2>
 <p>ウィンドウの中に 3D の絵は出ません。<strong>確認は必ず SceneView / Game ビューで行います</strong>。プレビューはゲーム実行時とまったく同じ仕組み(PrefabsManager)で出すので、Pool 設定・レイヤーの強制・LOD の上書きもそのまま再現されます。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>対象</td><td>編集する Prefab データ。Prefab データ以外(シーン上の物など)は入りません</td></tr>
-<tr><td>🔒</td><td>「選択に追従しない」。OFF のときは Project で別の Prefab データを選ぶとウィンドウの中身も切り替わります</td></tr>
-<tr><td>確認用シーンに配置</td><td>開いているシーン(またはプレハブモード)に、実際のゲームと同じ仕組みで Prefab を出します。Hierarchy に <code>[D-Drive] Prefab Preview</code> が出ますが<strong>シーンには保存されません</strong>。押すたびに前のプレビューは消えて置き直されます</td></tr>
-<tr><td>撤去</td><td>プレビューを消します。撤去せずにシーンを切り替えても残骸は残りません</td></tr>
-<tr><td>ステータス</td><td>「PrefabData を選択してください」→「「確認用シーンに配置」で確認できます」→「プレビュー配置中」。「配置に失敗しました」が出たらコンソールを確認</td></tr>
-<tr><td>設定(Inspector)</td><td>Prefab データの全項目をそのまま編集。Ctrl+Z で戻せます</td></tr>
+<tr><td>◀ ▶ と名前の欄</td><td>編集する Prefab データを切り替えます(名前の欄で検索もできます)。Project で別の Prefab データを選ぶと、ウィンドウの中身も切り替わります</td></tr>
+<tr><td>🔒 固定</td><td>ON のあいだは、Project の選択に追従しません</td></tr>
+<tr><td>＋ 新規 / Project</td><td>その場で新しい Prefab データを作る / Project でこのデータをハイライト</td></tr>
+<tr><td>かんたん / 標準 / 詳細</td><td>出す欄の量(かんたん = Prefab だけ、標準 = よく使う欄まで、詳細 = すべて)。右上の検索で欄の名前・説明からも探せます</td></tr>
+<tr><td>確認用シーン</td><td>確認用シーンを開き、実際のゲームと同じ仕組みで Prefab を出します。Hierarchy に <code>[D-Drive] Prefab Preview</code> が出ますが<strong>シーンには保存されません</strong>。押すたびに前のプレビューは消えて置き直されます。右クリックで、いま開いているシーンへの配置・本配置も選べます</td></tr>
+<tr><td>今のシーンに配置 / 撤去</td><td>確認用シーンへ移らず、開いているシーン(またはプレハブモード)の SceneView の中心に出す / プレビューを消す。撤去せずにシーンを切り替えても残骸は残りません</td></tr>
+<tr><td>Prefab で開く</td><td>Prefab をプレハブモードで開きます</td></tr>
+<tr><td>状態の表示</td><td>「「確認用シーン」で確認できます」→「● プレビュー配置中(保存されません)」。「配置に失敗しました」が出たらコンソールを確認</td></tr>
+<tr><td>固定バー</td><td>変更の件数・自動保存・保存(Ctrl+S でも保存できます)</td></tr>
 </table>
-<div class="warn">
-Prefab Editor には「検証」の表示や「修正」ボタンは<strong>ありません</strong>(Canvas Editor にはあります)。警告の確認は <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> で行います(<a href="validation.html">Validation の見方</a>)。
+<div class="tip">
+エラー・警告は<strong>該当する欄の下</strong>に出ます(ヒーローの「✕ エラー」「⚠ 警告」のチップでも件数が分かります)。まとめて見るときは <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code>(<a href="validation.html">Validation の見方</a>)。
 </div>
 
-<h2>設定項目</h2>
+<h2 id="game">設定項目</h2>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Prefab</td><td>実際に出す Prefab。未設定でもゲームは止まらず、<code>&lt;Placeholder:PREFAB&gt;</code> という空のオブジェクトが出ます(エディタでは 1 回だけ警告)。本番に出す前には必ず入れてください</td></tr>
@@ -80,7 +83,7 @@ Prefab Editor には「検証」の表示や「修正」ボタンは<strong>あ�
 <tr><td>Events</td><td>出た瞬間(OnSpawn)・消える瞬間(OnDespawn)などに鳴らす効果音・出すエフェクト。使い方は <a href="anim-editor.html">Anim Editor</a> の Events と同じです</td></tr>
 </table>
 
-<h3>共通項目(すべてのデータに共通)</h3>
+<h3 id="admin">共通項目(すべてのデータに共通)</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Id / Version / Author / UpdatedAt</td><td>ツールが自動で付けます。<strong>手で編集しないでください</strong>。Id は名前を変えても変わりません</td></tr>
@@ -105,18 +108,18 @@ Pooled のときの目安: 弾なら InitialCount=32、MaxCount=128(検証も同
 <h2>よくある使い方</h2>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>壊せる箱</td><td>Kind=Gimmick、GameplayTags に <code>Destructible</code>。「確認用シーンに配置」で見た目確認</td></tr>
+<tr><td>壊せる箱</td><td>Kind=Gimmick、GameplayTags に <code>Destructible</code>。「確認用シーン」で見た目確認</td></tr>
 <tr><td>弾を大量に撃つ</td><td>Kind=Projectile、Pool.Kind=Pooled、InitialCount=32、MaxCount=128。シーン開始時に温めてもらう</td></tr>
 <tr><td>出た瞬間に煙と音</td><td>Events に OnSpawn の行を足し、SE と VFX を入れる(スクリプト不要)</td></tr>
 <tr><td>当たり判定用のレイヤーを強制する</td><td>CollisionLayer にそのレイヤー番号(子まで全部変わります)</td></tr>
 <tr><td>遠景の切り替えタイミングを調整</td><td>Lod.Enabled を ON、ScreenRelativeTransitionHeights を LODGroup の段数ぶん入れる</td></tr>
 <tr><td>拾い物(コイン等)</td><td>Kind=Pickup、Pool.Kind=Pooled、GameplayTags に <code>Pickup</code> など</td></tr>
 <tr><td>マルチ対戦で結果に影響する物</td><td>Net=Simulated + Prefab に NetworkObject。クライアント側からの Spawn はサーバーへの要求になり、その場には出ません</td></tr>
-<tr><td>見た目だけ試す</td><td>Prefab Editor →「確認用シーンに配置」→ 調整 →「撤去」</td></tr>
+<tr><td>見た目だけ試す</td><td>Prefab Editor →「確認用シーン」→ 調整 →「撤去」</td></tr>
 </table>
 
 <h2>よくある警告</h2>
-<p>表示場所は <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(Prefab Editor 内には出ません)。</p>
+<p>Prefab Editor では該当する欄の下に出ます。<code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> でも一覧に出ます。</p>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Prefab が未設定(または Missing)です</td><td>Prefab 欄に Prefab を入れる。空のままでも動きますが本番には出せません</td></tr>
@@ -136,7 +139,6 @@ Pooled のときの目安: 弾なら InitialCount=32、MaxCount=128(検証も同
 <li><strong>Pool=None は破棄です</strong>。MaxCount / Priority を入れても効きません。使い回したいときは Pooled に</li>
 <li><strong>Net=Simulated は NetworkObject が必須</strong>。また Simulated + Pooled は警告になります</li>
 <li>Simulated の物はクライアント側では直接出ません(サーバーへの要求だけ)。実際のネットワーク複製は Phase 6 で接続予定です</li>
-<li>Prefab Editor に検証表示は無いので、<code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> で確認する習慣を</li>
 <li>プレビューはシーンに保存されません。保存したい配置は自分でシーンに置いてください</li>
 </ul>
 

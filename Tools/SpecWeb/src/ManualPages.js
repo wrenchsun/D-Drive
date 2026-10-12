@@ -21,6 +21,8 @@ var SPEC_WEB_MANUAL_PAGE_NAMES = {
     "archive-audio-editor",
     "archive-canvas-editor",
     "archive-material-editor",
+    "archive-model-editor",
+    "archive-prefab-editor",
     "archive-presentation-editor",
     "archive-vfx-editor",
     "asset-browser",

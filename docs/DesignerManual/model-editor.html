@@ -10,91 +10,123 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › モデルの設定と Model Editor</nav>
 
 <h1>モデルの設定と Model Editor</h1>
-<p class="lastupdate">最終更新日: 2026-10-06</p>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
 <p>モデルデータ（ModelData）は「このキャラクター / 物体の Prefab を、どのマテリアル・どのアニメーションで出すか」をまとめたものです。プログラマーは <code>Models.Spawn(MODELID.Player, 位置, 向き)</code> と書くだけで、Prefab の差し替え・マテリアルの入れ替え・最初に再生するアニメーションはデータ側で決められます。</p>
 
-<h2>開き方</h2>
+<h2 id="open">開き方</h2>
 <ol>
 <li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Model (ModelData)</strong> を選んで作る（表示名は日本語 OK）。Prefab のドラッグ＆ドロップでは作れません（ドラッグ＆ドロップで登録できるのは音声ファイルだけです）</li>
-<li>モデルデータを Project で選び、<strong>Inspector の一番上の「▶ Model Editor で開く」</strong>を押す</li>
+<li>モデルデータを Project で選び、<strong>Inspector の一番上の「Model Editor で開く」</strong>を押す</li>
 <li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Model</code></li>
 </ol>
 <div class="tip">
-Model Editor を先に開いてしまった場合は、ツールバーの<strong>「＋ 新規作成」</strong>ボタンでも Asset Browser を開かずにその場でモデルデータを作れます（作成後は自動でそのデータが対象になります。詳しくは<a href="asset-browser.html">Asset Browser の使い方</a>）。
+Model Editor を先に開いてしまった場合は、画面上部の<strong>「＋ 新規」</strong>ボタンでも Asset Browser を開かずにその場でモデルデータを作れます（作成後は自動でそのデータが対象になります。詳しくは<a href="asset-browser.html">Asset Browser の使い方</a>）。
 </div>
 
-<h2>はじめの一歩（キャラクターを登録して確認する）</h2>
-<ol>
-<li>モデルデータを作り、設定の <code>Prefab</code> にキャラクターの Prefab を入れる</li>
-<li>Model Editor のツールバー「<strong>確認用シーンを開く</strong>」→ ライト・カメラ・床の揃ったシーンが開き、モデルが原点に置かれます（Hierarchy に <code>[D-Drive] Anim Preview</code> が出ますが、<strong>シーンには保存されません</strong>）</li>
-<li>「ターンテーブル自動回転」を ON → SceneView でぐるっと回して見た目を確認</li>
-<li>「Slot 自動収集」→ Prefab の中の Renderer が一覧になり、マテリアルを ID で差し替えられる準備ができます</li>
-<li>「Default Animation」に待機モーションのアニメーションデータを入れて「▶ 配置して DefaultAnimation を再生」→ 出した瞬間からそのモーションで動きます</li>
-</ol>
+<h2 id="screen">画面の見方</h2>
+<figure>
+<img src="images/model-editor-window.png" alt="Model Editor の初期の画面">
+<figcaption>Model Editor（ユニティちゃん）。上から ヒーロー（名前・検証の結果・変更の件数・確認用シーン / Prefab で開く）・「見た目（Prefab）」・「Material スロット」。一番下の固定バーに ▶ 再生と保存</figcaption>
+</figure>
+<ul>
+<li><strong>かんたん / 標準 / 詳細</strong>: 出す欄の量を切り替えます（かんたん = Prefab だけ、標準 = よく使う欄まで、詳細 = すべて）。右上の検索ボックスで、欄の名前・説明、スロットの Renderer 名・Material 名から探せます</li>
+<li><strong>ヒーロー</strong>: ◀ ▶ で別のモデルデータへ切り替え（名前の欄で検索もできます）。「確認用シーン」「Prefab で開く」「Project」「＋ 新規」「🔒 固定」</li>
+<li><strong>固定バー</strong>: ▶ 再生 / ■ 停止 / リピート / 速度（<code>×1.0</code> に吸着）/ 変更の件数 / 自動保存 / 保存（Ctrl+S でも保存できます）。▶ は「モデルを置いて Default Animation を流す」です</li>
+<li>各欄の左の色の帯と「↺」は、既定値と違うことと、既定へ戻すことを表します。エラー・警告は該当する欄の下に出ます</li>
+</ul>
+
+<div class="tip">
+見た目は<strong>ウィンドウの中ではなく SceneView で確認します</strong>（VFX Editor / Anim Editor と同じ）。SceneView を好きな角度・大きさにして見てください。
+</div>
+
+<h2 id="prefab">見た目（Prefab）</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>Prefab</td><td>出す Prefab。未設定は Error。設定すると Prefab の見た目から<strong>アイコンが自動で作られます</strong>（Inspector の「自動生成」で作り直せます）</td></tr>
+<tr><td>モデルの情報</td><td>Prefab を調べた結果です（読み取り専用）。Renderer の数（Skinned / Mesh）・Material スロットの数・BlendShape（表情）の数・Animator の有無・Prefab に付いた <code>IModelInstanceListener</code>（出現・返却の節目で通知を受ける部品）</td></tr>
+</table>
+
+<h2 id="slots">Material スロット</h2>
+<figure>
+<img src="images/model-editor-slots.png" alt="Material スロットの一覧">
+<figcaption>Material スロット。1 スロット = 1 行（番号・Renderer の種類・Renderer 名 [スロット番号]・MaterialData・開く・↺）。割り当てていない行には ⚠</figcaption>
+</figure>
+<p>Renderer ごとに「どの<a href="material-data.html">マテリアル</a>を貼るか」を決めます。スロットが多いモデルでも見通せるよう、<strong>1 スロット = 1 行</strong>で並びます。ゲーム実行時（Spawn）には、ここで選んだマテリアルに差し替わります。</p>
+<table>
+<tr><th>操作</th><th>説明</th></tr>
+<tr><td>Slot 自動収集</td><td>Prefab の Renderer を走査して一覧を作り、Renderer が使っている Material から作られた MaterialData を割り当てます。すでに割り当て済みのスロットは変更しません</td></tr>
+<tr><td>元ファイル再読み込み</td><td>Prefab の元になった FBX や Material から<a href="material-data.html">マテリアルデータ</a>を作り直してから、スロットに結び付けます（FBX を差し替えたあとに使います。マテリアルデータの固有の調整は保たれます）</td></tr>
+<tr><td>配置中のモデルに反映</td><td>シーンに置いたモデルに、スロットのマテリアルをゲームと同じ経路で適用して、見た目を確かめます（モデルを置いていないときは押せません）</td></tr>
+<tr><td>マテリアルの選び箱</td><td>行の MaterialData 欄に、別のマテリアルデータをドラッグするか、右の ◎ で選びます。空にすると未割り当てに戻ります</td></tr>
+<tr><td>開く</td><td>その行のマテリアルを <a href="material-editor.html">Material Editor</a> で開きます（色・つや・固有の調整）</td></tr>
+<tr><td>↺</td><td>Prefab の Renderer が使っている Material から、対応するマテリアルデータを割り当て直します（対応するものが無いときは何も変えません）</td></tr>
+<tr><td>絞り込み</td><td>一覧の上の検索（Renderer 名・Material 名）と、<strong>すべて / 割当済み / 未割当 / Skinned / Mesh / ほか / 見つからない</strong>のボタン。件数（「24 スロット中 割当済み 21」）が出ます。20 行を超えると一覧の中でスクロールします</td></tr>
+</table>
+<p>行のチップが<strong>見つからない</strong>のときは、その Renderer が Prefab から無くなっています（階層の名前を変えた・消した）。「Slot 自動収集」をやり直してください。</p>
 <h3>「元ファイル再読み込み」と知らないシェーダー</h3>
-<p>「元ファイル再読み込み」は、Prefab の元になった FBX や Material から<a href="material-data.html">マテリアルデータ</a>を作り直してからスロットに結び付けます。元の Material のシェーダーが D-Drive の標準シェーダー（DDrive/Lit・Unlit）に対応づけられないもの（独自のトゥーンシェーダーなど）のとき、確認のダイアログが<strong>1 回だけ</strong>出ます（Material ごとには出ません。見つかったシェーダー名と件数が表示されます）。</p>
+<p>元の Material のシェーダーが D-Drive の標準シェーダー（DDrive/Lit・Unlit）に対応づけられないもの（独自のトゥーンシェーダーなど）のとき、確認のダイアログが<strong>1 回だけ</strong>出ます（Material ごとには出ません。見つかったシェーダー名と件数が表示されます）。</p>
 <table>
 <tr><th>選択肢</th><th>結果</th></tr>
 <tr><td>元のシェーダーのまま保つ</td><td>そのシェーダーでマテリアルデータを作ります（同じ名前のプロパティの値は固有欄に引き継がれます）。すでにシェーダーが入っているマテリアルデータのシェーダーは変えません</td></tr>
 <tr><td>DDrive/Lit に変換</td><td>DDrive/Lit のマテリアルデータにします</td></tr>
 <tr><td>キャンセル（何もしない）</td><td>マテリアルデータもスロットも何も変更せず中断します</td></tr>
 </table>
-<p>毎回聞かれたくないときは、<code>Create &gt; D-Drive &gt; Material &gt; Maya Import Profile</code> で作った Profile の「Unknown Shader Policy」を変えます。<strong>KeepSource</strong> は確認なしで元のシェーダーを保ち、<strong>ConvertToLit</strong> は確認なしで DDrive/Lit に変換します（既定の <strong>Ask</strong> は上の確認を出します）。モデルを取り込んだときの自動生成のように確認を出せない場面では、Ask のときは DDrive/Lit に変換します。<code>Tools &gt; D-Drive &gt; Generate</code> の「選択した Material を D-Drive/Lit・Unlit の MaterialData に変換」「選択したモデルから MaterialData を生成」でも同じ確認が出ます。</p>
-<!-- screenshot: 36-#26 -->
-<figure>
-<img src="images/model-editor-window.png" alt="Model Editor ウィンドウ全体">
-<figcaption>Model Editor。ツールバー・配置/撤去・ターンテーブル・Material スロット一覧・Default Animation</figcaption>
-</figure>
+<p>毎回聞かれたくないときは、<code>Create &gt; D-Drive &gt; Material &gt; Maya Import Profile</code> で作った Profile の「Unknown Shader Policy」を変えます。<strong>KeepSource</strong> は確認なしで元のシェーダーを保ち、<strong>ConvertToLit</strong> は確認なしで DDrive/Lit に変換します（既定の <strong>Ask</strong> は上の確認を出します）。モデルを取り込んだときの自動生成のように確認を出せない場面では、Ask のときは DDrive/Lit に変換します。</p>
 
-<div class="tip">
-見た目は<strong>ウィンドウの中ではなく SceneView で確認します</strong>（VFX Editor / Anim Editor と同じ）。SceneView を好きな角度・大きさにして見てください。
-</div>
-
-<h2>ツールバー</h2>
-<table>
-<tr><th>ボタン</th><th>説明</th></tr>
-<tr><td>🔒 対象を固定</td><td>Project で別のモデルデータを選んでも対象を切り替えない</td></tr>
-<tr><td>確認用シーンを開く</td><td>確認用シーン（VFX / Anim と共通）を開いて、対象を原点に配置します。無ければ自動で作られます</td></tr>
-<tr><td>Prefab を開く</td><td>モデルの Prefab を<span class="term" title="Prefab の中身だけを編集する専用モード">プレハブモード</span>で開きます。Renderer やマテリアルをその場で編集して Ctrl+S</td></tr>
-<tr><td>Project で表示</td><td>対象のモデルデータを Project でハイライト</td></tr>
-</table>
-
-<h2>画面の説明</h2>
-<table>
-<tr><th>要素</th><th>説明</th></tr>
-<tr><td>▶ シーンに配置 / ■ 撤去</td><td>開いているシーン（またはプレハブモード）の原点に対象を置く / 消す。置いたモデルは Hierarchy で選択された状態になります</td></tr>
-<tr><td>ターンテーブル自動回転</td><td>置いたモデルを Y 軸で回します（速度は度/秒、マイナスで逆回転）。プレハブモードの実体は回しません</td></tr>
-<tr><td>複数モデル並列表示</td><td>最大 4 体を対象の隣に 2m 間隔で並べます。サイズ感や色味の比較に。「配置」/「撤去」で個別に</td></tr>
-<tr><td>Material スロット</td><td>「Slot 自動収集」で Prefab の Renderer を走査して一覧化。各スロットに<a href="material-data.html">マテリアル</a>の ID を入れます。ゲーム実行時（Spawn）にはそのマテリアルに差し替わり、配置中のモデルにも「配置中のモデルに反映」で同じ経路で適用して見た目を確かめられます</td></tr>
-<tr><td>Default Animation</td><td>出した瞬間に再生するアニメーションデータ。「▶ 配置して DefaultAnimation を再生」で確認、細かい調整は <a href="anim-editor.html">Anim Editor</a> で</td></tr>
-</table>
-
-<h2>設定項目</h2>
+<h2 id="anim">アニメーションと Avatar</h2>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>Prefab</td><td>出す Prefab。未設定は Error。設定すると Prefab の見た目から<strong>アイコンが自動で作られます</strong>（Inspector の「自動生成」で作り直せます）</td></tr>
-<tr><td>Slots</td><td>Renderer のパス / スロット番号 / マテリアル ID の組。「Slot 自動収集」で作り、ID だけ選びます。手で Renderer のパスを書く必要はありません</td></tr>
-<tr><td>Default Animation</td><td>任意。Spawn 直後に自動再生するアニメーションデータ</td></tr>
-<tr><td>Avatar</td><td>Humanoid のときの Avatar（情報用）</td></tr>
-<tr><td>Render Layer / Light Layer Mask</td><td>出したときのレイヤーと、どのライトの影響を受けるか（<a href="glossary.html#lightlayer">用語集</a>）</td></tr>
-<tr><td>Lod</td><td>LOD の切替距離。Prefab に LODGroup があるときだけ効きます</td></tr>
+<tr><td>最初に流すアニメ（Default Animation）</td><td>任意。出した瞬間に再生するアニメーションデータ。右の「Anim Editor で開く」で、そのアニメの中身（クリップ・ステート・イベント）を <a href="anim-editor.html">Anim Editor</a> で調整できます</td></tr>
+<tr><td>Avatar（Humanoid）</td><td>Humanoid のときの Avatar。Animator があるのに Avatar が無いと Error です。Cutscene で Humanoid のアニメを使うモデルには、この欄に Humanoid の Avatar が必要です</td></tr>
+<tr><td>Avatar の情報</td><td>このデータの Avatar と、Prefab の Animator が持つ Avatar を見比べた結果です（読み取り専用）。「Cutscene の Humanoid アニメ: 使えます / 使えません」も出ます。Animator 側に Humanoid の Avatar があるのにこの欄が空のときは、「Animator の Avatar を入れる」ボタンが出ます</td></tr>
 </table>
 
-<h2>よくある警告</h2>
+<h2 id="render">描画</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>描画のレイヤー番号（Render Layer）</td><td>出したときの描画のレイヤー</td></tr>
+<tr><td>ライトレイヤー（Light Layer Mask）</td><td>どのライトの影響を受けるか（<a href="glossary.html#lightlayer">用語集</a>）。<strong>0 は「Prefab の Renderer の設定をそのまま使う」</strong>で、上書きしません。既定は 1（Default）</td></tr>
+<tr><td>LOD の閾値の上書き（Lod）</td><td>LOD の切替距離。Prefab に LODGroup があるときだけ効きます（詳細モード）</td></tr>
+</table>
+
+<h2 id="check">確認する</h2>
+<figure>
+<img src="images/model-editor-check.png" alt="確認するの欄">
+<figcaption>確認する。並べて確認（最大 4 体）と、シーンで確認（配置・撤去・ターンテーブル）</figcaption>
+</figure>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>確認用シーン</td><td>確認用シーン（VFX / Anim と共通）を開いて、対象を原点に配置します。無ければ自動で作られます（Hierarchy に <code>[D-Drive] Anim Preview</code> が出ますが、<strong>シーンには保存されません</strong>）。右クリックで、いま開いているシーンへの配置・本配置を選べます</td></tr>
+<tr><td>今のシーンに配置 / 撤去</td><td>開いているシーン（またはプレハブモード）の原点に対象を置く / 消す。撤去は並べて確認の分も消します。置いたモデルは Hierarchy で選択された状態になります</td></tr>
+<tr><td>Prefab で開く</td><td>モデルの Prefab を<span class="term" title="Prefab の中身だけを編集する専用モード">プレハブモード</span>で開きます。Renderer やマテリアルをその場で編集して Ctrl+S</td></tr>
+<tr><td>ターンテーブル</td><td>「自動で回す」を ON にすると、置いたモデルを Y 軸で回します（速さは度/秒、マイナスで逆回転）。プレハブモードの実体は回しません</td></tr>
+<tr><td>並べて確認</td><td>別のモデルデータを最大 4 つ選び、「配置」で対象の隣に 2m 間隔で並べます（サイズ感や色味の比較に）。「撤去」で個別に消せます</td></tr>
+<tr><td>固定バーの ▶</td><td>モデルを置いて Default Animation を流します（置いてあれば最初から流し直し）。Default Animation が未設定のときは、その旨が出ます</td></tr>
+</table>
+
+<h2 id="admin">管理情報</h2>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>表示名 / カテゴリ / 説明 / タグ / アイコン / 担当者 / 仕様書 URL / 変更メモ</td><td>Asset Browser での表示名・フォルダ分け・検索用のメモなど。Id / Version / 最終更新者 / 最終更新日時はツールが自動で付けます（手で編集しないでください）</td></tr>
+<tr><td>動作の取り決め / イベント</td><td>Pool・ポーズ・ネット配送などの共通設定と、出現・終了の節目で鳴らすもの（詳細モード）</td></tr>
+</table>
+
+<h2 id="warn">よくある警告</h2>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Prefab が未設定(または Missing)です</td><td>Prefab を設定する</td></tr>
-<tr><td>Animator がありますが Avatar が未設定です</td><td>Prefab の Animator に Avatar を割り当てる（静的なモデルなら Animator を外す）</td></tr>
+<tr><td>Animator がありますが Avatar が未設定です</td><td>Avatar の欄に Avatar を入れる（「Animator の Avatar を入れる」が出ていれば 1 回で入ります。静的なモデルなら Animator を外す）</td></tr>
 <tr><td>Slots[0] の RendererPath '…' が Prefab 内で見つかりません</td><td>Prefab の階層が変わっています。「Slot 自動収集」をやり直す</td></tr>
-<tr><td>Slots[0] に Material が未割当です</td><td>そのスロットに <a href="material-data.html">マテリアル</a>の ID を入れる（Prefab のマテリアルのままで良ければそのままでも動きます）</td></tr>
+<tr><td>Slots[0] に Material が未割当です</td><td>そのスロットに<a href="material-data.html">マテリアル</a>を入れる（Prefab のマテリアルのままで良ければそのままでも動きます）</td></tr>
 <tr><td>マテリアル '…' のシェーダーは Built-in 用です</td><td>URP 用のシェーダーに差し替える（Scene / Game でピンクや透明になります）</td></tr>
 </table>
-<p>これらは <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> でも一覧に出ます（<a href="validation.html">Validation の使い方</a>）。</p>
+<p>これらは該当する欄の下に出るほか、<code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> でも一覧に出ます（<a href="validation.html">Validation の使い方</a>）。</p>
 
 <h2>関連ページ</h2>
 <ul>
 <li><a href="anim-editor.html">アニメーション（3D）の設定と Anim Editor</a> — このモデルを動かして音・エフェクトを付ける</li>
+<li><a href="material-editor.html">Material Editor の使い方</a> — スロットに入れるマテリアルを調整する</li>
 <li><a href="vfx-editor.html">VFX Editor の使い方</a> — 同じ確認用シーンでエフェクトを確認</li>
 <li><a href="material-data.html">マテリアル / テクスチャの設定項目</a> — スロットに入れるマテリアルを作る</li>
 <li><a href="prefab-data.html">Prefab データ</a> — 見た目の差し替えが要らない小物・弾はこちら</li>

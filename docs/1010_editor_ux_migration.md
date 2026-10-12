@@ -480,3 +480,63 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
   `execute_code`（実ウィンドウ・「敵キャラ トゥーン」サンプル）: Inspector の登録表（新 MaterialEditor / TextureEditor が先頭・旧が「(旧)」）、全 Foldout が既定で閉じている、Specific の 1 つまみの変更（`_OutlineWidth` のスライダー）と Undo、パスのチェックとキーワードの追加と Undo、Shader を `DDrive/Lit` に替えると固有が自動同期されつまみのチップが作り直される、Data を外から書き換える（`_ToonShadeColor` を緑に）とサムネイルの中心の色が 0.1 秒後に変わる、⚙ を ListView の中で開くと高さが取り直される。実データは保存せず、サンプルは一時フォルダで作って削除した。
   スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①(passkw) の行が表にない `DisabledPasses` / `EnabledKeywords` を参照して本体の組み立てが途中で止まり、パス以降のカードが出なかった（表に 2 欄を足した）②サムネイルが真っ灰（検証用シェーダーの頂点を 0 に潰していた。実際に描くシェーダーにした）③AssetId の欄が構造体なので縦積みになっていた（1 行の選び箱にした）④Toggle のラベルが左・チェックが右に伸びていた（`text` を使う）⑤X 反転 / Y 反転の既存部品がインラインスタイルで浮いていた（USS のトグルにした）。2 周目 = ⑥Light で比較 / 形状のラベルが薄すぎた（本文色に）⑦幅 500px でつまみの部品が潰れた（分類 70px・名前 128px・部品の最小幅 + 折り返し）⑧「発光の絵」のラベルが切れた（短くした）。Dark / Light とも、ヒーロー・各カード・つまみ・固定バー・Texture Editor・変換 / ポップアップのテーマを確認。
 - **割り切り**: ①サムネイルは窓の中（`PreviewRenderUtility`）のまま。docs/09 §2 の Material の例外（2026-09-11）に従う（SceneView での確認は「確認用シーン」「今のシーンに配置」）②「このシーンに本配置」（右クリック）は共有 Material がシーンに保存されないため一時配置にする（文言で知らせる）③ListView は内側スクロールを持つ（20 行超のときだけ）④つまみの ⚙ の Value は ParamValue 構造体の通常欄（型ごとの欄が並ぶ）⑤旧 `MaterialPassKeywordSection` は旧エディター用に残し、新は `MaterialPassKeywordView` として重複して持つ（旧は Archive の中で閉じる）⑥分類の付け替え（チップを押す）はこの Unity を開いている間だけ覚える（Vfx のつまみと同じ）⑦Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑧マニュアルは `material-editor.html`（Material Editor の操作の説明。`material-data.html` は設定項目の説明のままで、リンクだけ更新）⑨サンプルは「その他の検証」にカタログ未登録・スキーマ版の指摘が出る（一時フォルダのため）⑩Model Editor から新 Material Editor を開く導線の整理は UX-9。
+
+**2026-10-13 追記（UX-9 / UX-14、Model / Prefab の新エディター。D-10 対応）**
+
+![新 ModelEditor / PrefabEditor（左 = Dark、右 = Light。上から Model の初期の画面・Material スロットと Default Animation・確認する / Prefab の初期の画面。「ユニティちゃん」「爆発する樽」サンプルデータ）](images/1010_model.png)
+
+- **使ったサンプルデータ（D-10）**: **「ユニティちゃん」を作るヘルパー `Editor/Ux/Samples/ModelSample.cs`**（internal。`Build(folder)`）と、**「爆発する樽」を作る `Editor/Ux/Samples/PrefabSample.cs`**。ModelSample は `Assets/SourceAssets/Data/UnityChan/Prefabs/unitychan.prefab`（SkinnedMeshRenderer 19 + MeshRenderer 4 = Renderer 23・BlendShape 31 本・Humanoid の Avatar。無ければ MeshRenderer 12 個の簡易 Prefab を一時フォルダに作る）を使い、一時フォルダに MaterialData 8・AnimData 1（Default Animation）・ModelData 2 を作る。**対象の ModelData はスロット 24 行**（割当済み 21 / 未割当 3 / Renderer が見つからない 1）・Default Animation あり・Avatar あり。PrefabSample は円柱の簡易 Prefab・PrefabData 2（対象は Kind = Gimmick・GameplayTags 4〔重複 1〕・CollisionLayer = Default・Pool = Pooled）。どちらも `Assets/GameData` には作らず、Addressables にも登録しない（呼び出し側がフォルダごと消す）。スクリーンショット（上の画像）とテスト（`ModelEditorUxTests`）はこのサンプルで開く。
+- **D-10 の基準をどう満たしたか**:
+  (1) **初期表示が 1〜2 画面に収まる**: Model の標準モードは 1 画面目 = ヒーロー + 「見た目（Prefab）」+ 「Material スロット」の頭、2 画面目 = スロットの一覧の続き・「アニメーションと Avatar」・「描画」、3 画面目 = 「確認する」「管理情報」（全体で約 3 画面〔760×1000〕）。「かんたん」なら Prefab の 1 行だけ。Prefab は約 1.5 画面。構造体・配列の欄が作る Foldout は、行を作る前に展開状態を閉じ（`GuidedField.Collapse`）、組み終えたあとにも閉じる（テスト `ModelSample_AllFoldoutsAreClosedByDefault` / `PrefabSample_AllFoldoutsAreClosedByDefault`）。
+  (2) **一覧は 1 要素 = 1 行**: スロット = 「# ・Renderer の種類のチップ・Renderer 名 [スロット番号]・MaterialData の選び箱・開く・↺」の 1 行（未割当・Renderer が見つからない行には ⚠）。展開する行は無い。
+  (3) **絞り込みと件数**: 一覧の上に検索（Renderer 名・Material 名）・「すべて / 割当済み / 未割当」・種類のチップ（Skinned / Mesh / ほか / 見つからない）と件数（「24 スロット中 割当済み 21」）。ウィンドウの検索ボックスもスロットに一致する。
+  (4) 入れ子・埋め込みはない（MaterialData は ID 参照）。
+  (5) **一括操作は一覧の上**: 「Slot 自動収集」「元ファイル再読み込み」「配置中のモデルに反映」。
+  (6) **20 行を超えたら ListView**: `CanvasItemList`。24 行のスロットが実際に ListView になる（テスト `ModelSample_SlotList_IsOneRowPerSlot_WithCountsChipsAndListView`）。**割り切り**: 内側にスクロールバーを持つ。
+  (7) **500px 幅で崩れない**: 行の見出しは折り返さず、Renderer 名・Material 名は省略表示、DefaultAnimation の「Anim Editor で開く」は下へ折り返す。確認: 幅 500px の Dark / Light で、ヒーロー・各カード・スロット行・固定バーが切れないこと。
+- **機能対応表（旧 `ModelEditorWindow` → 新 `ModelEditor`、全行あり）**: 旧のコード（`Toolbar` / `ToolbarToggle` / `Button` / `Toggle` / `Slider` / `ObjectField` / `Foldout` / `PropertyField` / `DataValidationSection` と全メソッド）を 1 行ずつ、新エディターの全ラベルと突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| 対象 ObjectField（ModelData 以外は弾く）・選択への追従 | ◀ [名前 ▾] ▶・空状態のピッカー・Project の選択に追従 | あり |
+| 🔒 対象を固定 | ヒーローの「🔒 固定」 | あり |
+| ＋ 新規作成（`NewAssetToolbarButton`） | ヒーローの「＋ 新規」 | あり |
+| 確認用シーンを開く（左 = 確認用シーン、右 = このシーンに配置 / 本配置） | ヒーローと 確認する > シーンで確認の「確認用シーン」（同じ `PreviewPlacementButton`・`PreviewPlacement`） | あり |
+| Prefab を開く | ヒーローと 確認する の「Prefab で開く」 | あり |
+| Project で表示 | ヒーローの「Project」 | あり |
+| ▶ シーンに配置 / ■ 撤去・状態の文 | 確認する > 「今のシーンに配置」「撤去」・状態の文（同じ文言） | あり |
+| ターンテーブル自動回転 + 速度（度/秒） | 確認する > ターンテーブル「自動で回す」+「回る速さ(度/秒)」 | あり |
+| 複数モデル並列表示（最大 4・2m 間隔・配置 / 撤去） | 確認する > 並べて確認（4 行・同じ `SpawnExtraModel`） | あり |
+| Material スロット: Slot 自動収集 / 元ファイル再読み込み（知らないシェーダーの確認つき） | Material スロット > スロットの自動収集（同じ `ModelSlotBinder`・同じ確認） | あり |
+| Material スロット: Slots の配列欄（RendererPath / SlotIndex / Material） | 1 スロット = 1 行の一覧（Renderer 名 [スロット番号]・MaterialData の選び箱）。RendererPath は行の名前と tooltip | あり（1 行化） |
+| 配置中のモデルに反映 | スロットの自動収集の行の同名ボタン（配置中だけ押せる） | あり |
+| 元ファイル再読み込みのあとの Registry 再走査・配置し直し | 同じ（`RefreshRegistry` → `PlaceMain`） | あり |
+| Default Animation（ID 欄） | アニメーションと Avatar > 最初に流すアニメ | あり |
+| ▶ 配置して DefaultAnimation を再生 / ■ 停止 | 固定バーの ▶ ■（配置済みなら流し直し。リピート・速度も使える。未設定なら理由を出す） | あり（拡張） |
+| 検証 Foldout（`DataValidationSection`） | 欄の下のインライン表示 + ヒーローのチップ + 「その他の検証」 | あり |
+| Inspector の全欄（Prefab / Avatar / RenderLayer / LightLayerMask / Lod / 管理情報 / Flags / Events） | 見た目・アニメーションと Avatar・描画・管理情報の各カード（表 `ModelFieldGuide` が編集できる全フィールドを持つ） | あり |
+| シーン・プレハブモードの切替で配置の状態を戻す | 同じ（`OnStageChanged`） | あり |
+
+  新エディターで増えたもの: かんたん / 標準 / 詳細・未調整の折りたたみ・設定の検索（スロットにも一致）・変更の色バーと ↺・スロットの絞り込みと件数と ⚠・スロットから「Material Editor で開く」・↺（Prefab の Material から割り当て直し）・「Anim Editor で開く」・モデルの情報（Renderer / BlendShape / Animator / `IModelInstanceListener`）・Avatar の情報と「Animator の Avatar を入れる」・保存と自動保存・未保存の確認・カードの「?」・Light / Dark。
+- **機能対応表（旧 `PrefabEditorWindow` → 新 `PrefabEditor`、全行あり）**:
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| 対象 ObjectField（PrefabData 以外は弾く） | ◀ [名前 ▾] ▶・空状態のピッカー・Project の選択に追従 | あり |
+| 🔒 | ヒーローの「🔒 固定」 | あり |
+| ＋ 新規作成 | ヒーローの「＋ 新規」 | あり |
+| 確認用シーンに配置（左 = 確認用シーン、右 = このシーンに配置 / 本配置） | ヒーローと 確認する の「確認用シーン」（同じ `PreviewPlacementButton`）+ 「今のシーンに配置」 | あり |
+| 撤去 | 確認する の「撤去」 | あり |
+| ステータスの文 | 確認する の状態の文 | あり |
+| 設定（InspectorElement の全欄: Prefab / Kind / GameplayTags / CollisionLayer / Lod / Flags / Events / 管理情報） | 見た目・ゲームでの扱い・管理情報の各カード（表 `PrefabFieldGuide` が編集できる全フィールドを持つ） | あり |
+| 検証 Foldout | 欄の下のインライン表示 + ヒーローのチップ | あり |
+| （無し） | Prefab で開く・保存と自動保存・かんたん / 標準 / 詳細・検索 | 追加 |
+
+- **欄の表**（編集不可は Id / Version / Author / UpdatedAt と `HideInInspector` だけ）: `ModelFieldGuide` = 見た目 = Prefab（**必須** = Validator が Error にする）・`(info)` / Material スロット = `(slottools)`・Slots（よく使う）/ アニメーションと Avatar = DefaultAnimation・Avatar（よく使う。Avatar は Animator があるときだけ Error なので必須にはしない）・`(avatar)` / 描画 = RenderLayer・LightLayerMask（よく使う）・Lod（詳細）/ 確認する = `(parallel)`・`(scene)` / 管理情報 = 共通基盤 + Flags・Events（詳細）。`PrefabFieldGuide` = 見た目 = Prefab（**必須**）/ ゲームでの扱い = Kind・GameplayTags・CollisionLayer・Flags（よく使う。Pool / ネットに検査があるため）・Lod（詳細）/ 確認する = `(scene)` / 管理情報 = 共通基盤 + Events。名前が `(` で始まる欄は補助の行。
+- **ファイル**（新規はすべて internal）: `Editor/Model/ModelEditor.cs`（入口・土台への指定・ライフサイクル・欄の振り分け・Default Animation）/ `.Slots.cs`（スロットの一覧・自動収集・Material の変更 / 開く / ↺）/ `.Preview.cs`（情報行・並べて確認・シーンで確認・▶・ターンテーブル）/ `ModelFieldGuide.cs`、`Editor/Prefab/PrefabEditor.cs` / `PrefabFieldGuide.cs`、`Editor/Ux/Samples/ModelSample.cs` / `PrefabSample.cs`、`Tests/Editor/ModelEditorUxTests.cs`。共通基盤の追加: `GuidedField.Collapse`（展開状態を閉じる）、`DDriveUx.uss` に `ux-mdl-*`。旧 `ModelEditorWindow` / `PrefabEditorWindow` は属性・メニュー・題だけ変更（`(旧) … で開く` Order 100・`Archive/Model Editor` / `Archive/Prefab Editor`）。Runtime / Foundation と `ModelDataValidator` / `PrefabDataValidator` は触っていない（検証の欄への結びつけは `ValidationTokens` とメッセージの先頭の欄名で行う）。
+- **向け直した呼び出し元**: `grep -rn "ModelEditorWindow\|PrefabEditorWindow" Packages/com.ddrive.core/Editor` は旧自身（Archive 内）・コメントだけで、旧を直接呼ぶ箇所は無かった。Anim Editor の「Model Editor で開く」・Inspector・Asset Browser のダブルクリック・MCP の `ddrive_editor_open`・新規作成のあとに開く導線は `DataEditorRegistry`（Order 0 = 新）経由なので、`[DataEditor]` の付け替えで新へ向く。UX-8 で残した「Material Editor のプレビュー用モデル欄」は ModelData の選び箱だけで、Model Editor の呼び出しは無い。新 Model Editor のスロット行から新 `MaterialEditor.Open` を、Default Animation から `DataEditorRegistry.OpenDefault`（新 AnimEditor）を呼ぶ。テストは新に追従（`DataEditorRegistryTests`）、旧は開けること（題が `(旧)`）の確認を足した。
+- **互換性（editor-contract.txt）**: 追加 4 行（`ModelData -> ModelEditor "Model Editor で開く" order=0` / `PrefabData -> PrefabEditor "Prefab Editor で開く" order=0` / 旧 `ModelEditorWindow` の `(旧) Model Editor で開く` order=100 / 旧 `PrefabEditorWindow` の `(旧) Prefab Editor で開く` order=100）と**削除 2 行**（旧の order=0 の 2 行）。UX-2〜UX-8 と同じ扱い。更新前に red だったのは `EditorContractSnapshotTests.MatchesGolden` と `DDriveCompatToolTests.Compat_RealSnapshots_HaveNoDifference` の 2 件だけで、`ddrive_compat_update` のあと `ddrive_compat` は `changed:[]`。CHANGELOG の互換性節に追記済み。
+- **確認**: コンパイル 0、**EditMode は 4 つに分けて実行し 2132 件すべて green**（空きメモリ不足のため。全件を 1 回で走らせると Unity が極端に遅くなったので、クラス名の頭文字 A-C 546 / D-H 146 / I-R 702〔`ModelEditorUxTests` を含む〕/ S-Z 738 に分け、Unity を作り直して実行。UX-8 の 2171 件との差 62 件は集計の差で、落ちたテストは無い。更新前に意図した 2 件〔`EditorContractSnapshotTests.MatchesGolden`・`DDriveCompatToolTests.Compat_RealSnapshots_HaveNoDifference`〕が red → `ddrive_compat_update` のあと green。Unity は途中で作り直した〔再起動、シーン復元は No〕）。 `ModelEditorUxTests` 23 件（欄の表が編集できる全フィールドを持つ〔Model / Prefab〕・登録表〔新が先頭・旧が(旧) Order 100〕・ヒーロー / 固定バー〔Model は速度あり・Prefab はなし〕/ カード数・全 Foldout が既定で閉じている・スロット 24 行の件数 / チップ / ListView・未割当 / 見つからないの絞り込み・1 スロットの Material 変更と Undo・「開く」で新 MaterialEditor・Default Animation の「開く」で新 AnimEditor・情報 / Avatar の文と「Animator の Avatar を入れる」・並べて確認の配置 / 撤去・▶ の配置と未設定の理由・インライン検証・空状態・旧ウィンドウが開く・Prefab の配置 / 撤去・重複タグの警告）。機械点検（`UxFoundationTests`）に新 4 ファイルを足した。**PlayMode は実行していない**（Runtime を触っていない）。
+  `execute_code`（実ウィンドウ・「ユニティちゃん」「爆発する樽」サンプル）: Inspector の登録表、確認用シーンへの配置（PreviewScene に unitychan が置かれ、並べて確認の 1 体目が 2m 隣に出る）、ほか上記テストの操作。実データは保存せず、サンプルは一時フォルダで作って削除した。
+  スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①Prefab Editor で GameplayTags と Flags の Foldout が開いたまま（バインドが遅れて後から開く。行を作る前に展開状態を閉じる `GuidedField.Collapse` を足した）②ターンテーブルの行でチェックとラベルが詰まっていた（ラベル + 部品の 2 行に）③並べて確認の説明が 2 か所に重複（表の説明に寄せた）④「最初に流すアニメ(Default Animation)」のラベルが切れた（短くした）。2 周目 = 幅 500px の Dark / Light でヒーロー・スロット行・DefaultAnimation・固定バーを確認（スロット行の Renderer 名 / Material 名は省略表示、ボタンは下へ折り返し）。Dark / Light とも崩れなし。
+- **割り切り**: ①スロットの Material の選び箱は `ObjectField`（MaterialData。IMGUI の AssetId ドロワーは行ごとに全 MaterialData を探すので 24 行では重くなるため）。表示はアセット名で、表示名は検索とツールチップに使う ②ListView は内側スクロールを持つ（20 行超のときだけ）③並べて確認は旧と同じ `SpawnExtraModel`（確認用シーンにモデルを置き直すと消える）④旧の「ツールバーの Prefab を開く」は固定バー外のヒーロー + 確認する に 2 か所 ⑤配置時に Selection を配置したモデルへ向けるのは旧と同じ（「今のシーンに配置」「確認用シーン」のとき）⑥Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑦マニュアルは `model-editor.html` / `prefab-data.html`（機能の説明のみ。旧は `archive-model-editor.html` / `archive-prefab-editor.html`）。
