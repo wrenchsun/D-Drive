@@ -322,7 +322,7 @@ namespace DDrive.Tests.Editor.Mcp
         // ── ddrive_editor_open ──
 
         [Test]
-        public void EditorOpen_OpensAudioEditorForSe()
+        public void EditorOpen_OpensSeEditorForSe()
         {
             if (Application.isBatchMode)
             {
@@ -336,7 +336,7 @@ namespace DDrive.Tests.Editor.Mcp
                 Assert.IsNull(r["error"], r.ToString());
                 Assert.IsNotNull(r["opened"], r.ToString());
                 Assert.AreEqual(JTokenType.String, r["opened"].Type);
-                StringAssert.Contains("Audio", (string)r["opened"]);
+                Assert.AreEqual("SeEditor", (string)r["opened"], "SE は新デザインの SeEditor(UX-3)が開く");
             }
             finally
             {

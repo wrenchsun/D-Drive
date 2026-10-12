@@ -145,6 +145,8 @@ UI Toolkit 化して解消した（詳細は [09_editor_tools.md](09_editor_tool
 **2026-09-17（[39] U-13）**: Audio Editor に共通の「検証」セクションを追加した（[09] §11）。`SeData` / `BgmData` の
 Validator（本書 §7）の結果がエディタ内でそのまま見える。
 
+**2026-10-12（[1010](1010_editor_ux_migration.md) UX-3）**: Audio Editor を新デザインにした（SE = `SeEditor`、BGM = `BgmEditor`。メニュー `Tools > D-Drive > Editors > Audio Editor`、旧は `Archive > Audio Editor`）。波形・トリム・ループ範囲・3D サウンド確認パッドは上の仕様のまま、やりたいことごとのカードと固定バー（▶ ■ リピート 速度 保存）に載せ替えた。機能対応表は 1010 §5。
+
 ## 6. 運用方法
 
 1. デザイナー: AssetBrowser →「新規 SE」→ Clip を D&D → **表示名（「剣の斬撃音」等）・カテゴリ・識別子を入力** → ファイル名 `SE_Player_Slash` 等・ID・カタログ登録はツールが自動生成（[10] §3）→ パラメータ調整 → 試聴 → 保存

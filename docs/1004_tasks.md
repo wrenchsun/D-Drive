@@ -48,7 +48,7 @@
 | UX-0h | ✅ 2026-10-12 | E の速度スライダーに ×1.0 のデテント + 値ラベル（ユーザー指摘）。**デザイン承認（2026-10-12）** | 0.1 | UX-0g | ×1.0 で一旦止まる |
 | UX-1 | ✅ 2026-10-12（EditMode 2085 green、実装メモ = [1010](1010_editor_ux_migration.md) §5） | **共通基盤 `Editor/Ux/`**（[1010](1010_editor_ux_migration.md) §2）: E を種別非依存に移植（テーマ USS 1 本・`UxEditorWindow<TData>`・`FieldGuide<TData>`・`UxRow`/`UxCard`・`DataSwitcher`・固定バー〔速度デテント込み〕・`DurationBar`/`AnchorPad`/`TuneKnobs`・保存 D-5・`UxScreenshot`）。U-27 に「Ux 配下のインラインスタイル禁止」を追加 | 3 | UX-0h | VFX を題材に E と同じ画面が共通基盤だけで組める。EditMode green |
 | UX-2 | ✅ | VFX の新エディター（E の正式化、`[DataEditor]` Order 0、旧は `(旧)` Order 100 + Archive メニュー） | 1 | UX-1 | 対応表全行あり、Dark/Light のスクリーンショット |
-| UX-3 | 🔧 実装中（Sonnet、ux/ux-3-audio） | Audio（Se / Bgm）の新エディター: 波形・トリム・ループ点・3D 確認・Mixer・`AudioPreviewPane` | 2 | UX-2 | 同上 |
+| UX-3 | ✅ | Audio（Se / Bgm）の新エディター: 波形・トリム・ループ点・3D 確認・Mixer・`AudioPreviewPane` | 2 | UX-2 | 同上 |
 | UX-4 | ⬜ | Canvas の新エディター: 自動収集・ElementFx 割当（プリセット一括・プレハブモード）・ボタン/スライダー配線・埋め込み・Navigation グラフ・FirstSelected | 4 | UX-2 | 同上。欄が最も多いので未調整の折りたたみ・検索が効く |
 | UX-5 | ⬜ | Presentation の新エディター: トラック一覧（タイムライン）・Signal・環境切替・統合プレビュー・トラックの Anchor/Params・Scope・ログ・SceneView 表示・「専用エディタで開く」は新エディターへ | 4 | UX-2 | 同上 |
 | UX-6 | ⬜ | Anim(3D) の新エディター: Clip/StateMachine/IK/BlendShape/イベント・イベントログ・ブレンド確認・Animator から選択・SE/VFX イベント | 3 | UX-2 | 同上 |
