@@ -24,8 +24,9 @@ namespace DDrive.Editor.CameraFx
     //   EditorHapticsPreviewDriver が実 Manager を駆動する(ADR-4)。ウィンドウ自身は SceneView /
     //   Game ビューに何も描かない(CLAUDE.md §0-7)
     // - プリセット 10 種は CameraFxPresets(Undo 対応)
-    [DDrive.Editor.Inspector.DataEditor(typeof(CameraShakeData), "Shake Editor で開く")]
-    [DDrive.Editor.Inspector.DataEditor(typeof(HapticsData), "Haptics Editor で開く")]
+    // 2026-10-13(docs/1010 UX-10): 新デザインの ShakeEditor / HapticsEditor に置き換え。この旧エディターはメニュー Archive から開く(バグ修正のみ)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(CameraShakeData), "(旧) Shake Editor で開く", Order = 100)]
+    [DDrive.Editor.Inspector.DataEditor(typeof(HapticsData), "(旧) Haptics Editor で開く", Order = 100)]
     public sealed class CameraFxEditorWindow : EditorWindow
     {
         private const int WaveformSampleCount = 64;
@@ -48,12 +49,12 @@ namespace DDrive.Editor.CameraFx
         private IMGUIContainer _shakeWaveform;
         private IMGUIContainer _hapticsWaveform;
 
-        [MenuItem(DDriveMenu.Editors + "Shake / Haptics")]
+        [MenuItem(DDriveMenu.Archive + "Shake / Haptics")]
         public static void OpenFromMenu() => Open(Selection.activeObject as AssetDataBase);
 
         public static void Open(AssetDataBase target)
         {
-            var window = GetWindow<CameraFxEditorWindow>("Shake / Haptics Editor");
+            var window = GetWindow<CameraFxEditorWindow>("(旧) Shake / Haptics Editor");
             window.minSize = new Vector2(500, 420); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target is CameraShakeData or HapticsData)
             {

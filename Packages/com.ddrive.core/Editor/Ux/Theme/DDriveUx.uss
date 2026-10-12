@@ -2163,3 +2163,87 @@
     width: 56px;
     flex-shrink: 0;
 }
+
+/* Shake / Haptics(UX-10): 波形グラフ(CameraFxGraphView)と雛形のボタン列 */
+.ux-root .ux-fxg {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-fxg__legend {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.ux-root .ux-fxg__legenditem {
+    flex-direction: row;
+    align-items: center;
+    margin: 0 12px 2px 0;
+}
+
+.ux-root .ux-fxg__swatch {
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
+    border-radius: 5px;
+}
+
+.ux-root .ux-fxg__swatch--0 {
+    background-color: var(--ux-p-handle);
+}
+
+.ux-root .ux-fxg__swatch--1 {
+    background-color: var(--ux-p-fill);
+}
+
+.ux-root .ux-fxg__swatch--2 {
+    background-color: var(--ux-p-dot);
+}
+
+.ux-root .ux-fxg__track {
+    height: 140px;
+    flex-shrink: 0;
+    border-radius: 8px;
+}
+
+.ux-root .ux-fxg__track--grab {
+    cursor: resize-horizontal;
+}
+
+.ux-root .ux-fxg__message {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 0;
+    bottom: 0;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-fxg__axis {
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 4px 4px 0 4px;
+}
+
+.ux-root .ux-fxg__readout {
+    margin-top: 4px;
+    white-space: normal;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-fxp {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-fxp__line {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-fxp__btn {
+    min-width: 76px;
+    margin: 0 6px 6px 0;
+}
