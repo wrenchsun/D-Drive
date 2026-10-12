@@ -21,12 +21,12 @@ namespace DDrive.Runtime.Anim
 
             if (anim.Clip == null)
             {
-                yield return ValidationResult.Error("Clip が未設定(または Missing)です");
+                yield return ValidationResult.Error("Clip が未設定(または Missing)です").WithField(nameof(AnimData.Clip));
             }
 
             if (string.IsNullOrEmpty(anim.ResolvedStateName))
             {
-                yield return ValidationResult.Error("StateName が空で Clip も無いため、再生するステートが決まりません");
+                yield return ValidationResult.Error("StateName が空で Clip も無いため、再生するステートが決まりません").WithField(nameof(AnimData.StateName));
             }
 
             if (anim.Events != null)
@@ -37,17 +37,17 @@ namespace DDrive.Runtime.Anim
                 {
                     if (evt.Trigger == EventTrigger.Frame && anim.Clip != null && evt.Time > frames + 0.001f)
                     {
-                        yield return ValidationResult.Error($"Frame イベント({evt.Time:0})が Clip 長({frames:0} フレーム)を超えています");
+                        yield return ValidationResult.Error($"Frame イベント({evt.Time:0})が Clip 長({frames:0} フレーム)を超えています").WithField(nameof(AnimData.Events));
                     }
 
                     if (evt.Trigger == EventTrigger.Time && anim.Clip != null && evt.Time > length + 0.001f)
                     {
-                        yield return ValidationResult.Error($"Time イベント({evt.Time:0.##}s)が Clip 長({length:0.##}s)を超えています");
+                        yield return ValidationResult.Error($"Time イベント({evt.Time:0.##}s)が Clip 長({length:0.##}s)を超えています").WithField(nameof(AnimData.Events));
                     }
 
                     if (evt.Trigger == EventTrigger.OnLoop && !anim.Loop)
                     {
-                        yield return ValidationResult.Warning("Loop=false ですが OnLoop イベントがあります(発火しません)");
+                        yield return ValidationResult.Warning("Loop=false ですが OnLoop イベントがあります(発火しません)").WithField(nameof(AnimData.Events));
                     }
                 }
             }
@@ -58,21 +58,21 @@ namespace DDrive.Runtime.Anim
                 {
                     if (string.IsNullOrEmpty(track.ShapeName))
                     {
-                        yield return ValidationResult.Warning("BlendShape の ShapeName が空の行があります");
+                        yield return ValidationResult.Warning("BlendShape の ShapeName が空の行があります").WithField(nameof(AnimData.BlendShapes));
                     }
                     else if (ExternalBlendShapePrefixes.IsOwnedExternally(track.ShapeName))
                     {
                         // FC-20: 外部パッケージが管理する接頭辞(FC_ / fcs_)のシェイプ。重さは Warning(追加のみ)。
                         yield return ValidationResult.Warning(
                             $"BlendShape '{track.ShapeName}' は外部パッケージが管理するシェイプです。D-Drive の AnimData から書くと衝突します",
-                            code: "DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED");
+                            code: "DD-ANIM-BLENDSHAPE-EXTERNAL-OWNED").WithField(nameof(AnimData.BlendShapes));
                     }
                 }
             }
 
             if (anim.DefaultCrossFade > 2f)
             {
-                yield return ValidationResult.Warning("DefaultCrossFade が 2 秒を超えています");
+                yield return ValidationResult.Warning("DefaultCrossFade が 2 秒を超えています").WithField(nameof(AnimData.DefaultCrossFade));
             }
         }
     }

@@ -172,6 +172,12 @@ namespace DDrive.Editor.Ux
 
         protected virtual void DrawSceneGui() { }
 
+        // この窓で編集できる対象か。false の Data は選択への追従・SetTarget・OpenWindow で無視する(例: 派生型の Data を別の窓に任せる種別。Anim = Anim2DData)。
+        protected virtual bool AcceptsTarget(TData data) => true;
+
+        // AcceptsTarget が false の Data を渡されたとき(例: 別の窓で開き直す)。
+        protected virtual void OnTargetRejected(TData data) { }
+
         // ── 公開してよい状態 ──
 
         protected bool Locked
@@ -216,7 +222,7 @@ namespace DDrive.Editor.Ux
         {
             var w = GetWindow<T>(title);
             w.minSize = new Vector2(500, 380); // [09] §7.1: 横幅 500px を minSize で回避しない
-            if (w._target == null && Selection.activeObject is TData sel)
+            if (w._target == null && Selection.activeObject is TData sel && w.AcceptsTarget(sel))
             {
                 w.SetTarget(sel);
             }
@@ -267,7 +273,7 @@ namespace DDrive.Editor.Ux
 
         private void OnSelectionChange()
         {
-            if (!_lock && Selection.activeObject is TData sel && sel != _target)
+            if (!_lock && Selection.activeObject is TData sel && sel != _target && AcceptsTarget(sel))
             {
                 SetTarget(sel);
             }
@@ -303,7 +309,7 @@ namespace DDrive.Editor.Ux
             root.Add(_footer);
             _body.RegisterCallback<SerializedPropertyChangeEvent>(OnPropertyChanged);
             root.schedule.Execute(Tick).Every(150);
-            if (_target == null && Selection.activeObject is TData sel)
+            if (_target == null && Selection.activeObject is TData sel && AcceptsTarget(sel))
             {
                 _target = sel;
             }
@@ -318,6 +324,12 @@ namespace DDrive.Editor.Ux
         // confirmSave = false: 未保存の確認を出さずに切り替える(Data を手放さない切替。例: Canvas の「親の中の子 Canvas へ」)。
         protected void SetTarget(TData data, bool confirmSave = true)
         {
+            if (data != null && !AcceptsTarget(data))
+            {
+                OnTargetRejected(data);
+                return;
+            }
+
             if (confirmSave && _target != null && data != _target)
             {
                 ConfirmSaveBeforeLeave(_target, "別の Data に切り替えます。");

@@ -21,6 +21,8 @@ using UnityEngine.UIElements;
 
 namespace DDrive.Editor.Anim
 {
+    // 【アーカイブ】docs/1010 UX-6: 新デザインの AnimEditor(Editor/Anim/AnimEditor*.cs)に置き換え、メニューは Tools > D-Drive > Archive へ退避した。
+    // 旧エディターへの機能追加はしない(バグ修正のみ)。Anim2DData は Anim2D の新エディター(UX-7)までこのウィンドウで開く。
     // [05_model_animation.md] B-4 — AnimEditor(3-3/3-4)。
     // 開いているシーン / プレハブモードのモデルを実 AnimManager でその場で動かし(SceneAnimPreviewDriver)、
     // SceneView で確認しながらタイムライン(シーク・イベントマーカーのドラッグ)、ブレンド確認(A → B を CrossFade)、
@@ -29,7 +31,7 @@ namespace DDrive.Editor.Anim
     //
     // 対象の Animator は自動で決まる: 「確認用シーンを開く」→ 確認用モデルをシーンに配置して対象にする、
     // 「モデル Prefab を開く」/ プレハブモードに入る → その Prefab の Animator を対象にする。手動で差し替えも可。
-    [DataEditor(typeof(AnimData), "Anim Editor で開く")]
+    [DataEditor(typeof(AnimData), "(旧) Anim Editor で開く", Order = 100)]
     public sealed partial class AnimEditorWindow : EditorWindow
     {
         private const float TimelineHeight = 62f; // 2026-09-11: フレーム番号の行(bar.yMax + 22)を追加したため 44 → 62
@@ -68,12 +70,12 @@ namespace DDrive.Editor.Anim
         private IMGUIContainer _timelineContainer;
         private Button _playButton;
 
-        [MenuItem(DDriveMenu.Editors + "Animation (3D)")]
+        [MenuItem(DDriveMenu.Archive + "Animation (3D)")]
         public static void Open() => Open(Selection.activeObject as AnimData);
 
         public static void Open(AnimData target)
         {
-            var window = GetWindow<AnimEditorWindow>("Anim Editor");
+            var window = GetWindow<AnimEditorWindow>("(旧) Anim Editor");
             window.minSize = new Vector2(500, 480); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target != null)
             {
@@ -87,7 +89,7 @@ namespace DDrive.Editor.Anim
         // 何もしない(3D 用の対象のため、2D 専用モデルを渡された場合は無視して通常の Open(AnimData) と同じ)。
         public static void Open(AnimData target, GameObject attachTarget)
         {
-            var window = GetWindow<AnimEditorWindow>("Anim Editor");
+            var window = GetWindow<AnimEditorWindow>("(旧) Anim Editor");
             window.minSize = new Vector2(500, 480);
             if (target != null)
             {

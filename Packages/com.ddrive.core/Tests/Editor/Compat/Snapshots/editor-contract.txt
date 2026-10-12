@@ -24,8 +24,10 @@ ValidateAll
 == DataEditor ==
 DDrive.Runtime.Anchoring.AnchorData -> DDrive.Editor.Anchor.AnchorEditorWindow "Anchor Editor で開く" order=0
 DDrive.Runtime.Anchoring.AnchorGroupData -> DDrive.Editor.Anchor.AnchorGroupEditorWindow "Anchor Group Editor で開く" order=0
-DDrive.Runtime.Anim.AnimData -> DDrive.Editor.Anim.AnimEditorWindow "Anim Editor で開く" order=0
-DDrive.Runtime.Anim2D.Anim2DData -> DDrive.Editor.Anim.AnimEditorWindow "Anim Editor で開く" order=0
+DDrive.Runtime.Anim.AnimData -> DDrive.Editor.Anim.AnimEditor "Anim Editor で開く" order=0
+DDrive.Runtime.Anim.AnimData -> DDrive.Editor.Anim.AnimEditorWindow "(旧) Anim Editor で開く" order=100
+DDrive.Runtime.Anim2D.Anim2DData -> DDrive.Editor.Anim.AnimEditor "Anim Editor で開く" order=0
+DDrive.Runtime.Anim2D.Anim2DData -> DDrive.Editor.Anim.AnimEditorWindow "(旧) Anim Editor で開く" order=100
 DDrive.Runtime.Anim2D.Anim2DData -> DDrive.Editor.Anim2D.Anim2DEditorWindow "Anim2D Editor で開く" order=0
 DDrive.Runtime.Audio.BgmData -> DDrive.Editor.Audio.AudioEditorWindow "(旧) Audio Editor で開く(波形・ループ編集)" order=100
 DDrive.Runtime.Audio.BgmData -> DDrive.Editor.Audio.BgmEditor "Audio Editor で開く(波形・ループ編集)" order=0
