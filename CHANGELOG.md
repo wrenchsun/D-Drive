@@ -9,9 +9,16 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 追加
+
+- **専用エディターの新デザインの共通基盤 `Editor/Ux`**（[docs/1010](docs/1010_editor_ux_migration.md) §2、`DDrive.Editor` 内・全型 internal）: テーマ `DDriveUx.uss`・`UxEditorWindow<TData>`・`FieldGuide<TData>`・`UxRow` / `UxCard`・`DataSwitcher`・`DurationBar` / `AnchorPad` / `TuneKnobs`・`UxScreenshot`。題材として `VfxEditor`（メニュー `Tools > D-Drive > Editors > VFX Editor (新)`。`[DataEditor]` は付けない。UX-2 で正式化）
+- `ValidationResult.Field` と `WithField`（Validator が結果を欄に結びつけるための任意の付加情報。`VfxDataValidator` の Prefab / Params の結果に付与）
+- `ManualLauncher.OpenPage(page, anchor)`（マニュアルの節まで開く）
+
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 追加のみ（MINOR）: `ValidationResult.Field`（`public readonly string`、既定 null）と `ValidationResult.WithField(string)`。`public-api-DDrive.Foundation.txt` に 2 行増えるだけで、既存の `ValidationResult` の構造・コンストラクタ・`Code` / `Severity` / `Message` / `FixAction`・Validator の結果の重さは変えない
+- 追加のみ: `ManualLauncher.OpenPage(string, string)`（Editor。既存の `OpenPage(string)` は変えない）。`Editor/Ux` は internal で公開契約・スナップショットに影響しない
 
 ## [1.7.0-preview.3] - 2026-10-11
 

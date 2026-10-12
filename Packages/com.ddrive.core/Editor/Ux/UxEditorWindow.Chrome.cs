@@ -190,6 +190,7 @@ namespace DDrive.Editor.Ux
                     }
                 }) { text = SampleLabel, tooltip = "サンプルの Data を作って選びます(既にあればそれを選びます)" };
                 sample.AddToClassList("ux-btn");
+                sample.AddToClassList("ux-empty__sample");
                 zone.Add(sample);
             }
 

@@ -1319,6 +1319,11 @@
     margin: 0 0 8px 0;
 }
 
+/* 空状態の「サンプルを作る」: ピッカーとの間を空ける */
+.ux-root .ux-empty__sample {
+    margin: 8px 0 0 0;
+}
+
 /* ── 共通の小物(C# のインラインスタイルの代わり) ── */
 .ux-root .ux-faded {
     opacity: 0.55;
