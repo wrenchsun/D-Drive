@@ -34,7 +34,7 @@
 | MCP-13 | ✅ 2026-10-07（ブランチ `mcp/mcp-13-isuzu-4-4-2`。EditMode 2030・PlayMode 964 green、`tools/list` に `ddrive_*` 20 個、`max_chars` を 16000 に丸めて `MaxResultSizeChars` を明示、Version Defines の最小は 4.2.0 のまま、実装メモ = [1002](1002_ddrive_mcp.md)） | isuzu MCP を v4.2.0 → **v4.4.2** に上げる（[archive/1006](archive/1006_release_1_5_0.md) §4 の検討結果。`McpPortPolicyTests` / `McpToolsSnapshotTests` / `tools/list` 20 個 / `measure-tokens.py` 再実行、`console_read_logs` の `stack_trace:true` を SKILL.md に追記、`MaxResultSizeChars` の明示を検討）。MS2026 は別タイミング | 0.5 | MCP-12 | 4 テストと HTTP スモーク green、docs/20 §3 更新 |
 | MCP-14 | ✅ 実装 2026-10-07（ブランチ `mcp/mcp-14-isuzu-install`。EditMode 2075・PlayMode 964 green。持ち込み先での実押下は未検証 = [1005](verification/1005_manual_verification_mcp.md) §9。実装メモ = [1002](1002_ddrive_mcp.md) §11.4） | **isuzu MCP の導入を更新ウィンドウに統合**（[1002](1002_ddrive_mcp.md) §11）: 「パッケージ」一覧の「導入」ボタン（推奨版のタグ固定で manifest に追加 + 管理対象に登録）、ウィザードのチェック、導入後の案内（開き直し・`register-mcp.ps1` 実行・書き込み可否）、**他の MCP が入っているときの確認（続行 / 既知のものを外して続行 / キャンセル。未知のものは外さない）**、Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`、`ddrive_status.mcp.otherMcp` / `isuzuVersion`。docs（42 / 50 / mcp.html / 20 / 消費者 SKILL / 1005 §9） | 1.5 | MCP-13 | MS2026 で未導入 → 導入 → 登録 → `ddrive_status` が通る。CoplayDev 入りで「外して続行」が manifest の 1 行だけ消す。ユーザー指示 2026-10-07 |
 
-## UX（専用エディターの UI/UX 見直し、[1008](1008_editor_ux_redesign.md)）
+## UX（専用エディターの UI/UX 見直し、[1008](1008_editor_ux_redesign.md) → 新デザイン移行の仕様 [1010](1010_editor_ux_migration.md)。2026-10-12 デザイン承認）
 
 | # | 状態 | 内容 | 工数(日) | 依存 | AC |
 |---|---|---|---|---|---|
@@ -45,6 +45,26 @@
 | UX-0d | ✅ 2026-10-10 | サンプル E（D + フィードバック反映）。下部の固定アクションバー・未調整の折りたたみ・Params の調整つまみ（カテゴリチップ / 型別部品 / 追加パレット）・Data 切替（◀ ▶ + 検索付きドロップダウン + 最近）。`PrototypeEWindow.cs` ほか、実装メモ = [1008](1008_editor_ux_redesign.md) §5 | 1 | UX-0c | ユーザーが E を D と比べ、フィードバックの反映を判断できる |
 | UX-0f | ✅ 2026-10-10 | サンプル E の機能同等。旧 VFX Editor の全機能を棚卸しし、Prefab で開く / Anchor Editor で開く / SceneView ハンドル / スポーン先 / 速度 / 複数同時再生 / RenderLayer・LightLayerMask の常時編集などを E に追加。保存を `SaveDirty` に直し、E に自動保存と未保存の確認を追加。対応表 = [1008](1008_editor_ux_redesign.md) §5 | 1 | UX-0e | E が旧エディターと同じことをすべてできる |
 | UX-0g | ✅ 2026-10-11 | 試験版リリース `v1.7.0-preview.3`（サンプル E の機能同等 + 保存。軽い経路。記録 = [1009](archive/1009_release_1_7_0_preview_1.md) §6） | 0.2 | UX-0f | 持ち込み先で E の機能同等を試せる |
+| UX-0h | ✅ 2026-10-12 | E の速度スライダーに ×1.0 のデテント + 値ラベル（ユーザー指摘）。**デザイン承認（2026-10-12）** | 0.1 | UX-0g | ×1.0 で一旦止まる |
+| UX-1 | ⬜ | **共通基盤 `Editor/Ux/`**（[1010](1010_editor_ux_migration.md) §2）: E を種別非依存に移植（テーマ USS 1 本・`UxEditorWindow<TData>`・`FieldGuide<TData>`・`UxRow`/`UxCard`・`DataSwitcher`・固定バー〔速度デテント込み〕・`DurationBar`/`AnchorPad`/`TuneKnobs`・保存 D-5・`UxScreenshot`）。U-27 に「Ux 配下のインラインスタイル禁止」を追加 | 3 | UX-0h | VFX を題材に E と同じ画面が共通基盤だけで組める。EditMode green |
+| UX-2 | ⬜ | VFX の新エディター（E の正式化、`[DataEditor]` Order 0、旧は `(旧)` Order 100 + Archive メニュー） | 1 | UX-1 | 対応表全行あり、Dark/Light のスクリーンショット |
+| UX-3 | ⬜ | Audio（Se / Bgm）の新エディター: 波形・トリム・ループ点・3D 確認・Mixer・`AudioPreviewPane` | 2 | UX-2 | 同上 |
+| UX-4 | ⬜ | Canvas の新エディター: 自動収集・ElementFx 割当（プリセット一括・プレハブモード）・ボタン/スライダー配線・埋め込み・Navigation グラフ・FirstSelected | 4 | UX-2 | 同上。欄が最も多いので未調整の折りたたみ・検索が効く |
+| UX-5 | ⬜ | Presentation の新エディター: トラック一覧（タイムライン）・Signal・環境切替・統合プレビュー・トラックの Anchor/Params・Scope・ログ・SceneView 表示・「専用エディタで開く」は新エディターへ | 4 | UX-2 | 同上 |
+| UX-6 | ⬜ | Anim(3D) の新エディター: Clip/StateMachine/IK/BlendShape/イベント・イベントログ・ブレンド確認・Animator から選択・SE/VFX イベント | 3 | UX-2 | 同上 |
+| UX-7 | ⬜ | Anim2D の新エディター + 作成ウィザード（B の雛形方式）。ウィンドウ内プレビューは現状維持 | 2 | UX-2 | 同上 |
+| UX-8 | ⬜ | Material / Texture の新エディター: Specific を TuneKnobs、Pass/Keyword。Convert・Thumbnail はテーマのみ | 2 | UX-1 | 同上 |
+| UX-9 | ⬜ | Model + Prefab の新エディター（並列表示・Material スロット→新 Material エディターへ・Default Animation） | 1.5 | UX-8 | 同上 |
+| UX-10 | ⬜ | Shake / Haptics の新エディター（プリセット 10 種・波形グラフ・Haptics プレビュー） | 1 | UX-2 | 同上 |
+| UX-11 | ⬜ | Anchor + Anchor Group の新エディター（試し出し・ヒエラルキーから作る・SceneView ハンドル。AnchorPad が主部品） | 2 | UX-2 | 同上 |
+| UX-12 | ⬜ | UI Tween + Preset Gallery の新エディター（トラック・実要素 ▶・ギャラリーのお気に入り/フィルタ/検索） | 2 | UX-2 | 同上 |
+| UX-13 | ⬜ | Slider / Slider Skin / Button Skin の新エディター（プリセット 5 種・`ControlSkinPreviewSection`） | 2 | UX-12 | 同上 |
+| UX-15 | ⬜ | Tuning の新エディター（カテゴリ + 検索 + Tables・Play 中の再読込通知・値は TuneKnobs・再生無し） | 1.5 | UX-1 | 同上 |
+| UX-16 | ⬜ | Cutscene の Inspector にテーマを当て、導線を新エディターへ（ウィンドウ化しない） | 0.5 | UX-5 | 導線が旧を指さない |
+| UX-17 | ⬜ | AssetBrowser / NewAssetDialog にテーマ、「開く」の向き先と空状態を新エディターに | 1 | UX-2〜13 | 同上 |
+| UX-18 | ⬜ | Archive メニュー（`DDriveMenu.Archive`）への旧エディター移動、`(旧)` の `[DataEditor]`、配線の総点検（`GetWindow<旧>` = 0）、`editor-contract.txt` 追加更新、マニュアル（D-9）、[09](09_editor_tools.md) §6/§8 | 2 | UX-2〜17 | 新エディター間に旧への導線が無い。CHANGELOG に Editor 契約の 3 点 |
+| UX-19 | ⬜ | 試験版の後始末: `Editor/Prototypes/` 削除、`vfx_sample` を `Editor/Ux/Samples/` へ、タグ `v1.7.0-preview.*` 削除、[1001](1001_open_items.md) の行を消す | 0.5 | UX-18 | `git tag -l 'v1.7.0-preview*'` が空 |
+| UX-20 | ⬜ | **v1.8.0 リリース**（MINOR、run-ci 全段、[12](12_review.md) §7）。MS2026 への案内（manifest を正式版へ） | 0.5 | UX-19 | run-ci ALL GREEN skipped 0 |
 
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
@@ -70,3 +90,4 @@
 - 2026-10-07: MCP-14 を実装（`McpPackageSupport` / `McpInstallActions`、更新ウィンドウの「導入」、ウィザード節、Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`、`ddrive_status.mcp.otherMcp` / `isuzuVersion`）
 - 2026-10-08: docs/1005 の人による確認を実施(§0〜§8・§10。§9 はユーザー判断でスキップ)。修正 2 件(`ddrive_asset_create` の preview パスの大小文字、1005 7-1 の期待欄)
 - 2026-10-10: UX 節を追加。UX-0（サンプルエディター 3 本）✅
+- 2026-10-12: ユーザーが E のデザインを承認（速度の ×1.0 デテントのみ修正）。全エディターの移行仕様 [1010](1010_editor_ux_migration.md) を起票し、UX-1〜UX-20 を切った（旧エディターは Archive メニューへ、新エディター間の配線は新のみ、機能同等が完了条件、v1.8.0 で正式リリース）
