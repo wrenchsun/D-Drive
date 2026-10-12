@@ -1853,6 +1853,151 @@
     margin-right: 4px;
 }
 
+/* ── Anim2D Editor(docs/1010 UX-7): コマ・方向 Clip・プレビューの絵・作成ウィザード ── */
+.ux-root .ux-a2d-thumb {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    margin: 0 8px 0 0;
+    border-radius: 4px;
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-a2d-mirror {
+    width: 128px;
+    height: 128px;
+    margin: 4px 0 8px 0;
+    border-width: 1px;
+    border-radius: 8px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-a2d-modefield {
+    min-width: 200px;
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-a2d-angle {
+    min-width: 48px;
+}
+
+.ux-root .ux-a2d-clipfield {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 160px;
+    margin: 0 8px 0 0;
+}
+
+.ux-root.ux-wz {
+    flex-grow: 1;
+}
+
+.ux-root .ux-wz__steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.ux-root .ux-wz__step {
+    margin: 0 8px 4px 0;
+    padding: 4px 12px;
+    border-width: 1px;
+    border-radius: 12px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-surface-2);
+    color: var(--ux-dim);
+    font-size: 11px;
+}
+
+.ux-root .ux-wz__step--on {
+    border-color: var(--ux-accent);
+    background-color: var(--ux-accent-soft);
+    color: var(--ux-text);
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-wz__step--done {
+    color: var(--ux-ok);
+}
+
+.ux-root .ux-wz__tiles {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-wz__tile {
+    flex-grow: 1;
+    flex-basis: 200px;
+    min-width: 200px;
+    margin: 0 8px 8px 0;
+    padding: 12px;
+    border-width: 1px;
+    border-radius: 8px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-surface-2);
+    align-items: flex-start;
+    -unity-text-align: upper-left;
+}
+
+.ux-root .ux-wz__tile:hover {
+    border-color: var(--ux-border-strong);
+}
+
+.ux-root .ux-wz__tile--on {
+    border-color: var(--ux-accent);
+    background-color: var(--ux-accent-soft);
+}
+
+.ux-root .ux-wz__tile-title {
+    -unity-font-style: bold;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-wz__tile-desc {
+    color: var(--ux-dim);
+    font-size: 11px;
+    white-space: normal;
+}
+
+.ux-root .ux-wz__nav {
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 8px 16px 12px 16px;
+    border-top-width: 1px;
+    border-top-color: var(--ux-border);
+    background-color: var(--ux-bg);
+}
+
+.ux-root .ux-wz__nav .ux-btn {
+    margin: 0 0 0 8px;
+}
+
+.ux-root .ux-wz__navspace {
+    flex-grow: 1;
+}
+
+.ux-root .ux-wz__line {
+    white-space: normal;
+    margin: 0 12px 4px 12px;
+}
+
+.ux-root .ux-wz__issues {
+    margin-bottom: 12px;
+}
+
+.ux-root .ux-wz__detect {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-wz__list {
+    margin-top: 4px;
+}
+
 /* 表示 / 非表示の切り替え。他の display 指定より必ず勝たせるため、クラスを重ねて詳細度を上げる。末尾に置く */
 .ux-root .ux-hidden.ux-hidden {
     display: none;

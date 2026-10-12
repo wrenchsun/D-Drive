@@ -233,6 +233,7 @@ namespace DDrive.Editor.Ux
             }
 
             var results = DataValidationRunner.Run(Target);
+            AppendValidation(results);
             _errors = 0;
             _warnings = 0;
             var byRow = new Dictionary<UxRow, List<ValidationResult>>();
@@ -297,6 +298,9 @@ namespace DDrive.Editor.Ux
             _extraCard?.Show(extra.Count > 0);
             UpdateChips();
         }
+
+        // 共通の検査(DataValidationRunner)に、種別が足したい検査結果を加える(例: 基底型の Validator も通したい派生型。docs/1010 UX-7)。
+        protected virtual void AppendValidation(List<ValidationResult> results) { }
 
         // 検査のたびに全結果を受け取る(種別が持つ一覧の行ごとの印に使う)。
         protected virtual void OnValidated(IReadOnlyList<ValidationResult> results) { }

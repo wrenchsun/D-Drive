@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DDrive.Editor.Anim2D;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
@@ -25,8 +26,9 @@ namespace DDrive.Editor.Anim
     // 対象の Animator は自動で決まる: 「確認用シーン」→ 確認用モデルをシーンに配置して対象にする、「Prefab で開く」/ プレハブモードに入る → その Prefab の Animator を対象にする。手動で差し替えも可。
     // 部品ごとにファイルを分けている: .Scene.cs = 対象・モデル・再生・ログ / .Events.cs = イベントとタイムライン / .Source.cs = Animator から選択 /
     // .Body.cs = IK・BlendShape / .Blend.cs = ブレンド確認 / AnimEditorRows.cs = 固有の行。
-    // Anim2DData(AnimData の派生)はこのエディターの対象外で、Anim2D の新エディター(UX-7)までは旧 AnimEditorWindow で開く。
-    [DataEditor(typeof(AnimData), "Anim Editor で開く")]
+    // Anim2DData(AnimData の派生)は Anim2D の新エディター(Anim2DEditor、UX-7)で開く(この登録は Anim2DData に引き継がない)。
+    // Anim2DEditor の「イベントを Anim Editor で編集」だけは OpenForAnim2D で Anim2DData を対象にできる(タイムライン上のマーカー D&D・SE / VFX の同時再生。動かす相手は SpriteRenderer + Animator のプレビュー物)。
+    [DataEditor(typeof(AnimData), "Anim Editor で開く", ExceptFor = typeof(Anim2DData))]
     internal sealed partial class AnimEditor : UxEditorWindow<AnimData>
     {
         private const string Page = "anim-editor";
@@ -34,6 +36,7 @@ namespace DDrive.Editor.Anim
 
         [SerializeField] private ModelData _model;
         [SerializeField] private Animator _sceneTarget;
+        [SerializeField] private bool _allowAnim2D; // OpenForAnim2D で開かれたとき true(対象が Anim2DData の間)
 
         private SceneAnimPreviewDriver _scene;
         private Handle<AnimMarker> _animHandle = Handle<AnimMarker>.Invalid;
@@ -46,13 +49,24 @@ namespace DDrive.Editor.Anim
 
         public static void Open(AnimData target)
         {
-            if (target is Anim2DData)
+            if (target is Anim2DData a2d)
             {
-                AnimEditorWindow.Open(target); // Anim2D の新エディター(UX-7)までは旧のまま
+                Anim2DEditor.Open(a2d);
                 return;
             }
 
             var w = OpenWindow<AnimEditor>("Anim Editor");
+            if (target != null)
+            {
+                w.SetTarget(target);
+            }
+        }
+
+        // Anim2D の新エディターから: イベントのタイムライン編集・SE / VFX の同時再生のために、Anim2DData をこのエディターで開く。
+        public static void OpenForAnim2D(Anim2DData target)
+        {
+            var w = OpenWindow<AnimEditor>("Anim Editor");
+            w._allowAnim2D = true;
             if (target != null)
             {
                 w.SetTarget(target);
@@ -81,14 +95,14 @@ namespace DDrive.Editor.Anim
         protected override Texture DefaultIcon => EditorGUIUtility.IconContent("AnimationClip Icon").image;
         protected override string SearchHint => "ラベル・説明・検索語、イベント・BlendShape・ステートの名前に一致する設定だけ出す(例: SE / 表情 / Walk)";
 
-        // Anim2DData は対象外(旧 AnimEditorWindow に任せる)。
-        protected override bool AcceptsTarget(AnimData data) => data != null && data is not Anim2DData;
+        // Anim2DData は Anim2DEditor に任せる(OpenForAnim2D で開かれたときだけ対象にできる)。
+        protected override bool AcceptsTarget(AnimData data) => data != null && (data is not Anim2DData || _allowAnim2D);
 
         protected override void OnTargetRejected(AnimData data)
         {
-            if (data is Anim2DData)
+            if (data is Anim2DData a2d)
             {
-                AnimEditorWindow.Open(data);
+                Anim2DEditor.Open(a2d);
             }
         }
 
@@ -192,6 +206,12 @@ namespace DDrive.Editor.Anim
 
         protected override void OnTargetChanged()
         {
+            _allowAnim2D = Target is Anim2DData;
+            if (Target is Anim2DData a2d && _sceneTarget != null && _sceneTarget.gameObject.name == DDrive.Editor.Anim2D.Anim2DPreviewObject.Name)
+            {
+                DDrive.Editor.Anim2D.Anim2DPreviewObject.ApplyFirstSprite(_sceneTarget.gameObject, a2d); // 前の対象の絵を残さない
+            }
+
             _animHandle = Handle<AnimMarker>.Invalid;
             _seqIndex = -1;
             _openEvent = -1;

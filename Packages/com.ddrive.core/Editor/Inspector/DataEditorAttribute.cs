@@ -18,6 +18,9 @@ namespace DDrive.Editor.Inspector
         // 同じ Data に複数のボタンが付くときの並び順(小さい順)。
         public int Order { get; set; }
 
+        // この登録を引き継がない派生型(基底型に付けた登録が、別の専用エディターを持つ派生型の Inspector に並ばないようにする。例: AnimData の登録を Anim2DData は引き継がない)。
+        public Type ExceptFor { get; set; }
+
         public DataEditorAttribute(Type dataType, string label, string openMethod = "Open")
         {
             DataType = dataType;

@@ -158,10 +158,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
-        public void Anim2DData_StillOpensInOldEditors_UntilUx7()
+        public void Anim2DData_OpensInAnim2DEditor_AndAnimEditorOnlyAcceptsItViaOpenForAnim2D()
         {
             var entries = new List<DataEditorRegistry.Entry>(DataEditorRegistry.GetEntries(typeof(Anim2DData)));
-            Assert.AreEqual(typeof(AnimEditorWindow).Assembly.GetType("DDrive.Editor.Anim2D.Anim2DEditorWindow", true), entries[0].WindowType, "Anim2D の主エディターは変えない");
+            Assert.AreEqual(typeof(AnimEditorWindow).Assembly.GetType("DDrive.Editor.Anim2D.Anim2DEditor", true), entries[0].WindowType, "Anim2D の主エディターは新 Anim2DEditor");
             var data = ScriptableObject.CreateInstance<Anim2DData>();
             try
             {

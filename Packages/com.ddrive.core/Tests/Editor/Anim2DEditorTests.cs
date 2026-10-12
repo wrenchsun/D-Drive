@@ -209,14 +209,25 @@ namespace DDrive.Tests.Editor
             Assert.IsEmpty(results);
         }
 
-        // ── DataEditorRegistry: Anim2DData → Anim2DEditorWindow + AnimEditorWindow(基底型継承) ──
+        // ── DataEditorRegistry: Anim2DData → 新 Anim2DEditor(先頭)+ 旧 Anim2DEditorWindow + 旧 AnimEditorWindow(基底型継承)。新 AnimEditor は引き継がない(UX-7) ──
 
         [Test]
-        public void DataEditorRegistry_ResolvesAnim2DData_ToBothEditors()
+        public void DataEditorRegistry_ResolvesAnim2DData_ToNewEditorFirst_AndOldOnes()
         {
             var entries = DataEditorRegistry.GetEntries(typeof(Anim2DData));
-            Assert.IsTrue(HasWindow(entries, typeof(Anim2DEditorWindow)), "Anim2DEditorWindow が登録されていません");
-            Assert.IsTrue(HasWindow(entries, typeof(AnimEditorWindow)), "基底 AnimData の AnimEditorWindow が継承で引けていません");
+            Assert.AreEqual("Anim2DEditor", entries[0].WindowType.Name, "新 Anim2DEditor が先頭");
+            Assert.AreEqual(0, entries[0].Order);
+            Assert.IsTrue(HasWindow(entries, typeof(Anim2DEditorWindow)), "旧 Anim2DEditorWindow が登録されていません");
+            Assert.IsTrue(HasWindow(entries, typeof(AnimEditorWindow)), "基底 AnimData の旧 AnimEditorWindow が継承で引けていません");
+            foreach (var entry in entries)
+            {
+                Assert.AreNotEqual("AnimEditor", entry.WindowType.Name, "新 AnimEditor のボタンが Anim2DData に並んでいます");
+                if (entry.WindowType == typeof(Anim2DEditorWindow) || entry.WindowType == typeof(AnimEditorWindow))
+                {
+                    Assert.AreEqual(100, entry.Order);
+                    StringAssert.StartsWith("(旧)", entry.Label);
+                }
+            }
         }
 
         private static bool HasWindow(IReadOnlyList<DataEditorRegistry.Entry> entries, Type windowType)

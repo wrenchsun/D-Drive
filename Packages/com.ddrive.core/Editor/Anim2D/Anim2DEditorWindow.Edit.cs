@@ -97,7 +97,7 @@ namespace DDrive.Editor.Anim2D
                         _previewStatusLabel.text = "Anim Editor に引き渡し済み";
                     }
 
-                    AnimEditorWindow.Open(_editTarget);
+                    DDrive.Editor.Anim.AnimEditor.OpenForAnim2D(_editTarget);
                 }
             })
             {

@@ -6,6 +6,7 @@ using DDrive.Foundation.Event;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Validation;
 using DDrive.Runtime.Anim;
+using DDrive.Runtime.Anim2D;
 using DDrive.Runtime.Model;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -309,6 +310,23 @@ namespace DDrive.Editor.Anim
             if (_scene.Current != null && _scene.OwnsCurrent)
             {
                 return _scene.Current;
+            }
+
+            // Anim2DData(OpenForAnim2D): 3D の確認用モデルではなく、SpriteRenderer + Animator のプレビュー物(Anim2D Editor と共有)で動かす。
+            if (Target is Anim2DData a2d)
+            {
+                var go = DDrive.Editor.Anim2D.Anim2DPreviewObject.FindOrCreate(a2d);
+                var sprite = go != null ? go.GetComponent<Animator>() : null;
+                if (sprite != null)
+                {
+                    _sceneTarget = sprite;
+                    _sceneTargetField?.SetValueWithoutNotify(sprite);
+                    _scene.SetTarget(sprite);
+                    AppendLog("確認用 Anim2D プレビュー物(SpriteRenderer + Animator)を配置");
+                }
+
+                RefreshSceneUi();
+                return sprite;
             }
 
             if (_model != null)

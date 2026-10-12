@@ -19,17 +19,19 @@ namespace DDrive.Editor.Anim2D
     // Create: スプライト分割(Grid/Automatic/既存) → 命名 → AnimationClip 生成 → BlendTree 登録 →
     //         Anim2DData 自動生成(AssetCreationService、ID 発行)まで一括 → Anim2DCreateWindow 側の実装。
     // Edit  : 既存 Anim2DData / AnimationClip のスプライト配置(Retiming)を編集し、Clip に焼き込む(このウィンドウ)。
-    [DataEditor(typeof(Anim2DData), "Anim2D Editor で開く")]
+    // 【アーカイブ】docs/1010 UX-7: 新デザインの Anim2DEditor(Editor/Anim2D/Anim2DEditor*.cs)に置き換え、メニューは Tools > D-Drive > Archive へ退避した。
+    // 旧エディターへの機能追加はしない(バグ修正のみ)。
+    [DataEditor(typeof(Anim2DData), "(旧) Anim2D Editor で開く", Order = 100)]
     public sealed partial class Anim2DEditorWindow : EditorWindow
     {
         private VisualElement _editRoot;
 
-        [MenuItem(DDriveMenu.Editors + "Animation (2D)")]
+        [MenuItem(DDriveMenu.Archive + "Animation (2D)")]
         public static void Open() => Open(Selection.activeObject as Anim2DData);
 
         public static void Open(Anim2DData target)
         {
-            var window = GetWindow<Anim2DEditorWindow>("Anim2D Editor");
+            var window = GetWindow<Anim2DEditorWindow>("(旧) Anim2D Editor");
             window.minSize = new Vector2(480, 480);
             if (target != null)
             {
@@ -56,7 +58,7 @@ namespace DDrive.Editor.Anim2D
             var scroll = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
             rootVisualElement.Add(scroll);
 
-            scroll.Add(new Label("D-Drive Anim2D Editor") { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 14, marginBottom = 6 } });
+            scroll.Add(new Label("D-Drive (旧) Anim2D Editor") { style = { unityFontStyleAndWeight = FontStyle.Bold, fontSize = 14, marginBottom = 6 } });
 
             var toolbar = new Toolbar();
             // U-8(2026-09-17): 「作成」はタブではなくポップアップ(Anim2DCreateWindow)にした。
