@@ -50,7 +50,7 @@
 | UX-2 | ✅ | VFX の新エディター（E の正式化、`[DataEditor]` Order 0、旧は `(旧)` Order 100 + Archive メニュー） | 1 | UX-1 | 対応表全行あり、Dark/Light のスクリーンショット |
 | UX-3 | ✅ | Audio（Se / Bgm）の新エディター: 波形・トリム・ループ点・3D 確認・Mixer・`AudioPreviewPane` | 2 | UX-2 | 同上 |
 | UX-4 | ✅ | Canvas の新エディター: 自動収集・ElementFx 割当（プリセット一括・プレハブモード）・ボタン/スライダー配線・埋め込み・Navigation グラフ・FirstSelected | 4 | UX-2 | 同上。欄が最も多いので未調整の折りたたみ・検索が効く |
-| UX-5 | ⬜ | Presentation の新エディター: トラック一覧（タイムライン）・Signal・環境切替・統合プレビュー・トラックの Anchor/Params・Scope・ログ・SceneView 表示・「専用エディタで開く」は新エディターへ | 4 | UX-2 | 同上 |
+| UX-5 | 🔧 実装中（Sonnet、ux/ux-5-presentation） | Presentation の新エディター: トラック一覧（タイムライン）・Signal・環境切替・統合プレビュー・トラックの Anchor/Params・Scope・ログ・SceneView 表示・「専用エディタで開く」は新エディターへ | 4 | UX-2 | 同上 |
 | UX-6 | ⬜ | Anim(3D) の新エディター: Clip/StateMachine/IK/BlendShape/イベント・イベントログ・ブレンド確認・Animator から選択・SE/VFX イベント | 3 | UX-2 | 同上 |
 | UX-7 | ⬜ | Anim2D の新エディター + 作成ウィザード（B の雛形方式）。ウィンドウ内プレビューは現状維持 | 2 | UX-2 | 同上 |
 | UX-8 | ⬜ | Material / Texture の新エディター: Specific を TuneKnobs、Pass/Keyword。Convert・Thumbnail はテーマのみ | 2 | UX-1 | 同上 |
