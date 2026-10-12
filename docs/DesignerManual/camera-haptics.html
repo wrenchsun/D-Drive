@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 画面の揺れ・コントローラーの振動</nav>
 
 <h1>画面の揺れ・コントローラーの振動</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
 <p>攻撃が当たった・爆発が起きた、といった「手応え」を出す 2 つの仕組みです。どちらも <strong>ID(番号札)で管理するデータ</strong>で、<a href="presentation.html">演出(Presentation)</a> の中の 1 トラックとして使うことも、プログラム側から直接鳴らすこともできます。</p>
 <ul>
@@ -19,7 +19,7 @@
 </ul>
 
 <div class="tip">
-<strong>専用エディタがあります</strong>: <code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code>(または Asset Browser でデータを開く)から、波形を見ながらの調整・「実際にカメラを揺らす」「パッドを実際に振動させて試す(Test on Pad)」・プリセット 10 種からの適用ができます。使い方は下の「専用エディタ(Shake / Haptics Editor)の使い方」を参照してください。
+<strong>専用エディタがあります</strong>: <code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code>(または Asset Browser でデータを開く)から、波形を見ながらの調整・「実際にカメラを揺らす」「パッドを実際に振動させて試す」・雛形 10 種からの適用ができます。使い方は下の「Shake Editor / Haptics Editor の使い方」を参照してください。
 </div>
 
 <h2>カメラシェイクの設定項目(Camera Shake Data)</h2>
@@ -76,21 +76,59 @@
 <tr><td>Extensions は未実装です</td><td>プラットフォーム別の特殊な振動はまだ使えません。基本の 2 モーターカーブだけで表現してください</td></tr>
 </table>
 
-<h2>専用エディタ(Shake / Haptics Editor)の使い方</h2>
-<p><code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code> で開きます。1 つのウィンドウで Camera Shake Data / Haptics Data の両方を編集でき、上の「対象アセット」欄に開きたいデータを入れると、それぞれの項目が出てきます(Asset Browser や Project ウィンドウで選ぶと自動で追従します)。まだデータが無ければ、ツールバーの「＋ 新規作成」から Camera Shake / Haptics のどちらを作るか選んで、その場で新規作成できます(<a href="asset-browser.html">Asset Browser の使い方</a>参照)。</p>
-<!-- screenshot: 36-#55 -->
-<figure>
-<img src="images/shake-haptics-editor-window.png" alt="Shake / Haptics Editor ウィンドウ全体">
-<figcaption>Shake / Haptics Editor。波形プレビューで減衰の形を確認する</figcaption>
-</figure>
+<h2>Shake Editor / Haptics Editor の使い方</h2>
+<p><code>Tools &gt; D-Drive &gt; Editors &gt; Shake / Haptics</code>、または Asset Browser・Inspector の「Shake Editor で開く」「Haptics Editor で開く」から開きます。カメラの揺れは <strong>Shake Editor</strong>、パッドの振動は <strong>Haptics Editor</strong> の別ウィンドウで、上部の「Haptics Editor へ」「Shake Editor へ」のボタンで行き来できます(Project ウィンドウで選んだデータにも自動で追従します。まだデータが無ければ「＋ 新規」から作れます。<a href="asset-browser.html">Asset Browser の使い方</a>参照)。</p>
+<p>どちらも、やりたいことごとの「カード」に設定が並びます。上の「かんたん / 標準 / 詳細」で表示する欄の量を切り替え、右上の検索で設定を探せます。ウィンドウ下の固定バーに ▶ 再生・■ 停止・リピート・変更件数・自動保存・保存があります。</p>
 
+<h3 id="shake-preset">雛形から始める(Shake)</h3>
+<figure>
+<img src="images/shake-editor-window.png" alt="Shake Editor ウィンドウ">
+<figcaption>Shake Editor。上から、雛形・波形グラフ・揺れ方・強さ・重なったとき・確認する</figcaption>
+</figure>
+<p>Pulse(軽い一撃) / Rumble(持続する揺れ) / Heartbeat(心拍のような二拍) / Explosion(爆発) / Hit_Small・Hit_Large(被弾小・大) / Landing(着地) / Earthquake(地震・持続) / Alarm(警報・持続) / Engine(エンジンのアイドリング・持続)の 10 種。ボタン 1 つで波形・揺れ幅・減衰・重なりの設定を一式書き換えます(Undo で元に戻せます)。マウスを乗せると説明が出ます。数値はたたき台なので、実際のプレイ感に合わせて調整してください。</p>
+
+<h3 id="shake-graph">波形を見る(Shake)</h3>
+<p>減衰(Envelope)と、位置・回転の揺れの形を時間軸に重ねて表示します(位置と回転は同じ形で、大きさだけ違うので 1 本です。凡例に最大の振れ幅が出ます)。数値の欄を変えると描き直されます。<strong>右端の縦棒をドラッグ</strong>すると揺れの長さ(Envelope の尺)が変わります(Shift で 0.25 秒刻み)。尺が Speed / Rate で決まっているデータではドラッグできません。あくまで参考表示で、実際の揺れ方(ランダムな位相のずれ等)を完全に再現するものではありません。</p>
+
+<h3 id="shake-shape">揺れ方 / <span id="shake-power">強さ</span> / <span id="shake-stack">重なったとき</span></h3>
 <ul>
-<li><strong>確認用シーンを開く</strong>: ツールバーのボタンで、カメラ・ライト・目印になる箱を置いた専用の確認用シーンを開きます(無ければ自動で作られます)。揺れの確認はこのシーン(または今開いているシーン)の SceneView / Game ビューで行います(ウィンドウの中に絵は出ません)</li>
-<li><strong>波形プレビュー</strong>: Envelope(減衰)や Low/High の強さが時間とともにどう変わるかを見た目で確認できます(数値を直接編集するのはこのグラフの下にある「パラメータ」欄です)。あくまで参考表示で、実際の揺れ方(ランダムな位相のずれ等)を完全に再現するものではありません</li>
-<li><strong>Shake 再生(連打可)</strong>: 押すたびに実際のカメラが揺れます。連打すると、複数のシェイクが重なったときの合成(揺れすぎない仕組み)を確認できます。ウィンドウを閉じる・シーンを保存する・Play ボタンを押す、いずれのタイミングでもカメラは必ず揺れる前の位置に戻ります(揺れたままシーンに保存されることはありません)</li>
-<li><strong>Test on Pad</strong>: パッドを接続した状態で押すと、実際にパッドが振動します。停止ボタンを押す・ウィンドウを閉じる・別の画面に切り替える(フォーカスが外れる)・Play ボタンを押す、いずれの場合も振動は必ず止まります。パッドが未接続のときは波形の確認だけができます</li>
-<li><strong>プリセット(10種)</strong>: Pulse(軽い一撃) / Rumble(持続する揺れ) / Heartbeat(心拍のような二拍) / Explosion(爆発) / Hit_Small・Hit_Large(被弾小・大) / Landing(着地) / Earthquake(地震・持続) / Alarm(警報・持続) / Engine(エンジンのアイドリング・持続)。ボタン 1 つで数値一式を書き換えます(Undo で元に戻せます)。数値はたたき台なので、実際のプレイ感に合わせて調整してください</li>
+<li><strong>揺れ方</strong>: 波形の種類(Pattern)・揺れの速さ(Frequency)・減衰と長さ(Envelope)・揺れる向きの基準(Space。詳細)</li>
+<li><strong>強さ</strong>: 位置の揺れ幅(m)・回転の揺れ幅(度)</li>
+<li><strong>重なったとき</strong>: 重なったときの強さ(TraumaWeight)・同時に重ねられる数(MaxStack)</li>
 </ul>
+<p>各欄の意味は上の「カメラシェイクの設定項目」の表と同じです。設定に問題がある欄(揺れ幅がゼロ・大きすぎる・尺が 0 など)は、その欄の下に警告が出ます。</p>
+
+<h3 id="shake-check">確認する(Shake)</h3>
+<ul>
+<li><strong>▶ 再生(固定バー)</strong>: 実際のカメラを揺らします。揺れは確認用シーン(または今開いているシーンの Camera.main)で起きます。ヒーローの「確認用シーン」で、カメラ・ライト・目印の箱を置いた専用のシーンを開けます(無ければ自動で作られます)。Camera.main が無いシーンでは案内が出ます。ウィンドウを閉じる・シーンを保存する・Play ボタンを押す、いずれのタイミングでもカメラは必ず揺れる前の位置に戻ります</li>
+<li><strong>▶ 重ねて再生(連打可)</strong>: いまの揺れを止めずにもう 1 つ重ねます。連打すると、複数のシェイクが重なったときの合成(揺れすぎない仕組み)を確認できます。「合成中の揺れ」に重なっている数が出ます</li>
+<li><strong>■ 全停止(フェード)</strong>: 揺れを 0.1 秒でフェードアウトして止めます</li>
+</ul>
+
+<h3 id="haptics-preset">雛形から始める(Haptics)</h3>
+<figure>
+<img src="images/haptics-editor-window.png" alt="Haptics Editor ウィンドウ">
+<figcaption>Haptics Editor。波形グラフの点と縦棒をドラッグして強さ・長さを変える</figcaption>
+</figure>
+<p>Shake と同じ 10 種の雛形を、2 つのモーターのカーブと優先度として一式書き換えます(Undo で戻せます)。</p>
+
+<h3 id="haptics-graph">波形を見る(Haptics)</h3>
+<p>低周波(ドスン)と高周波(ビリビリ)の強さを時間軸に重ねて表示します。<strong>左端の点をドラッグ</strong>すると、そのモーターの強さ(固定値、または始まりの値)が、<strong>右端の縦棒をドラッグ</strong>すると振動の長さ(両方のモーターを同じ比率で)が変わります(Shift で刻みが粗くなります)。カーブ(AnimationCurve)で指定した強さは、点ではなく下の欄で編集します。</p>
+
+<h3 id="haptics-motor">モーター / <span id="haptics-control">同時に鳴ったとき・配送</span></h3>
+<ul>
+<li><strong>モーター</strong>: 低周波モーター(LowFreq)・高周波モーター(HighFreq)の強さのカーブと長さ</li>
+<li><strong>同時に鳴ったとき・配送</strong>(詳細): 優先度(Priority)・自分のときだけ振動(LocalPlayerOnly)・機種別の拡張(Extensions。未対応)</li>
+</ul>
+
+<h3 id="haptics-check">確認する(Haptics)</h3>
+<ul>
+<li><strong>▶ 再生(固定バー)</strong> / 「▶ パッドで振動(Test on Pad)」: 接続中のゲームパッドを実際に振動させます(Edit Mode のままで動きます)。停止ボタンを押す・ウィンドウを閉じる・別の画面に切り替える(フォーカスが外れる)・Play ボタンを押す、いずれの場合も振動は必ず止まります</li>
+<li>パッドの状態は「パッド: 接続中(名前)」「パッド: 接続なし」で出ます。未接続のときは波形の確認だけができます</li>
+</ul>
+
+<h3 id="admin">管理情報</h3>
+<p>表示名・カテゴリ・説明・タグ・担当者・仕様書 URL など、一覧での見え方とメモ。詳細モードでは動作の取り決め(Flags)・イベント(Events)も出ます。</p>
 
 <h2>関連ページ</h2>
 <ul>

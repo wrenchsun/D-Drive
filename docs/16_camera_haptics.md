@@ -313,3 +313,9 @@ Exempt に `CameraShakeData` / `HapticsData` を追加した（Inspector から�
   を呼ぶ形に変更した。テスト: `HapticsManagerTests.SetFocusLost_True_KeepsOutputZero_AcrossMultipleTicks_UntilRestored`。
 
 **2026-10-06 追記（修正ラウンド 7、docs/59 GB-R-01）**: `CameraFxManager.IsExpired` は `Envelope.Duration`、`HapticsManager.IsExpired` は `Max(LowFreq.Duration, HighFreq.Duration)` を、`Mode` に関係なく演出の寿命として読む。固定値（`Mode=Constant`）は `ValueDefValidator` が Time を検査しない（[17] §6）ので、尺が 0 以下の揺れ / 振動（最初の `Tick` で消える）は `CameraShakeDataValidator` の `DD-SHAKE-ENVELOPE-ZERO-DURATION` と `HapticsDataValidator` の `DD-HAPTICS-ZERO-DURATION`（どちらも Warning）が知らせる。新規作成直後の既定値（Parametric 0.3 / 0.2 秒）では出ない。
+
+**2026-10-13 追記（UX-10、Shake / Haptics の新デザインのエディター）**: データ構造・Manager・プリセットの数値は変えていない（Editor のみ）。専用エディターを 2 ウィンドウに分けた: **新 `ShakeEditor`（CameraShakeData）/ `HapticsEditor`（HapticsData）**（`Editor/Camera/`、`UxEditorWindow<TData>`。ヒーローの「Haptics Editor へ / Shake Editor へ」で行き来）。旧 `CameraFxEditorWindow`（1 ウィンドウで両方）は `Archive > Shake / Haptics`・`(旧)` Order 100 で残す（バグ修正のみ）。
+- **雛形 10 種**（`CameraFxPresets`）は「雛形から始める」カードのボタン列。押すと Undo 1 回で一式を書き換える。
+- **波形グラフ**は Painter2D の `CameraFxGraphView`（Shake = 減衰 + 揺れの形〔位置 / 回転は同じ形なので 1 本、凡例に峰値〕/ Haptics = Low・High）。**ドラッグで編集**: 右端の縦棒 = 長さ（Shake は Envelope の尺、Haptics は両モーターを同じ比率で。尺が Speed / Rate のデータは書かない）、Haptics は時間 0 の点 = 強さ（固定値 / 始まりの値。Curve 指定のモーターは書かない）。1 ドラッグ = Undo 1 回。
+- **確認**: Shake は固定バーの ▶ ■ + 「重ねて再生(連打可)」「全停止」（実カメラ。`SceneCameraShakePreviewDriver`）、Haptics は固定バーの ▶ ■（接続中のパッド。`EditorHapticsPreviewDriver`。パッド無しは「パッド: 接続なし」と案内）。
+- 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/CameraFxSample.cs`（雛形 10 種それぞれの Shake 10 + Haptics 10）。対応表 = [1010](1010_editor_ux_migration.md) §5 UX-10。

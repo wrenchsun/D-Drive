@@ -100,6 +100,10 @@ namespace DDrive.Tests.Editor
                 Path.Combine(PackageRoot, "Editor", "Model", "ModelEditor.Slots.cs"),
                 Path.Combine(PackageRoot, "Editor", "Model", "ModelEditor.Preview.cs"),
                 Path.Combine(PackageRoot, "Editor", "Prefab", "PrefabEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Camera", "ShakeEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Camera", "HapticsEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Camera", "CameraFxGraphView.cs"),
+                Path.Combine(PackageRoot, "Editor", "Camera", "CameraFxEditorParts.cs"),
             });
             // 見た目を持たない目印のクラス(USS に規則が無くてよい)。
             var markers = new HashSet<string> { "ux-root", "ux-dark", "ux-light", "ux-knobs", "ux-panel" };

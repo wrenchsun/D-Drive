@@ -540,3 +540,44 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
   `execute_code`（実ウィンドウ・「ユニティちゃん」「爆発する樽」サンプル）: Inspector の登録表、確認用シーンへの配置（PreviewScene に unitychan が置かれ、並べて確認の 1 体目が 2m 隣に出る）、ほか上記テストの操作。実データは保存せず、サンプルは一時フォルダで作って削除した。
   スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①Prefab Editor で GameplayTags と Flags の Foldout が開いたまま（バインドが遅れて後から開く。行を作る前に展開状態を閉じる `GuidedField.Collapse` を足した）②ターンテーブルの行でチェックとラベルが詰まっていた（ラベル + 部品の 2 行に）③並べて確認の説明が 2 か所に重複（表の説明に寄せた）④「最初に流すアニメ(Default Animation)」のラベルが切れた（短くした）。2 周目 = 幅 500px の Dark / Light でヒーロー・スロット行・DefaultAnimation・固定バーを確認（スロット行の Renderer 名 / Material 名は省略表示、ボタンは下へ折り返し）。Dark / Light とも崩れなし。
 - **割り切り**: ①スロットの Material の選び箱は `ObjectField`（MaterialData。IMGUI の AssetId ドロワーは行ごとに全 MaterialData を探すので 24 行では重くなるため）。表示はアセット名で、表示名は検索とツールチップに使う ②ListView は内側スクロールを持つ（20 行超のときだけ）③並べて確認は旧と同じ `SpawnExtraModel`（確認用シーンにモデルを置き直すと消える）④旧の「ツールバーの Prefab を開く」は固定バー外のヒーロー + 確認する に 2 か所 ⑤配置時に Selection を配置したモデルへ向けるのは旧と同じ（「今のシーンに配置」「確認用シーン」のとき）⑥Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑦マニュアルは `model-editor.html` / `prefab-data.html`（機能の説明のみ。旧は `archive-model-editor.html` / `archive-prefab-editor.html`）。
+
+
+**2026-10-13 追記（UX-10、Shake / Haptics の新エディター。D-10 対応）**
+
+![新 ShakeEditor / HapticsEditor（左 = Dark、右 = Light。上から Shake の初期の画面〔爆発〕・Haptics の初期の画面〔心拍〕・Data 切替で行き来した雛形 10 種のグラフ〔Shake 10 件〕）](images/1010_camerafx.png)
+
+- **構成**: Se / Bgm（UX-3）と同じく **`ShakeEditor : UxEditorWindow<CameraShakeData>` と `HapticsEditor : UxEditorWindow<HapticsData>` の 2 ウィンドウ**。ヒーローの「Haptics Editor へ / Shake Editor へ」で行き来（`SwitchFrom`。選択中の Data か最近開いた Data を入れる）。メニュー `Tools > D-Drive > Editors > Shake / Haptics` は Haptics を選んでいれば HapticsEditor、それ以外は ShakeEditor。旧 `CameraFxEditorWindow` は `Archive > Shake / Haptics`・題 `(旧) Shake / Haptics Editor`・`(旧) Shake Editor で開く` / `(旧) Haptics Editor で開く` Order 100。
+- **ファイル**（`Editor/Camera/`）: `ShakeEditor.cs` / `HapticsEditor.cs`（土台への指定・再生・欄の組み立て）/ `ShakeFieldGuide.cs` / `HapticsFieldGuide.cs`（欄の表）/ `CameraFxGraphView.cs`（Painter2D の波形グラフ。internal）/ `CameraFxGraphSources.cs`（グラフが読み書く窓口 `ShakeGraphSource` / `HapticsGraphSource`。Data を書く部分をテストできるよう public）/ `CameraFxEditorParts.cs`（雛形のボタン列 `CameraFxPresetsRow`・補助行 `CameraFxUi`）、`Editor/Ux/Samples/CameraFxSample.cs`、`DDriveUx.uss` に `ux-fxg*` / `ux-fxp*`、`Tests/Editor/CameraFxEditorUxTests.cs`。旧 `WaveformGraphGui` は旧ウィンドウが使い続ける。Runtime / Foundation と Validator は触っていない（検証の欄への結びつけは `ValidationTokens` と、メッセージ中の欄名）。
+- **目的別カード**（段の根拠: 両 Validator に Error は無く Warning / Info のみなので「必須」の欄は無い。Warning の対象 = よく使う、既定のままでよい欄 = 詳細）: Shake = 雛形から始める（`(presets)`）・波形を見る（`(graph)`）・揺れ方（Pattern / Frequency / Envelope〔よく使う〕・Space〔詳細〕）・強さ（PosAmplitude / RotAmplitude）・重なったとき（TraumaWeight / MaxStack）・確認する(カメラ)（`(check)`）・管理情報（共通基盤 + Flags・Events〔詳細〕）。Haptics = 雛形から始める・波形を見る・モーター（LowFreq / HighFreq）・同時に鳴ったとき・配送（Priority / LocalPlayerOnly / Extensions〔詳細〕）・確認する(パッド)・管理情報。雛形と波形グラフの行は「かんたん」でも見えるよう必須の段に置き、「必須」バッジは出さない。名前が `(` で始まる欄は補助の行。
+- **D-10 の基準をどう満たしたか**: 欄が少ない種別なので一覧の仮想化などは要らない。代わりに **雛形 10 種をすべて使ったサンプル群**（`CameraFxSample.Build(folder)` = Shake 10 + Haptics 10。internal、一時フォルダに作って削除）で、Data 切替（◀ [名前 ▾] ▶）で 10 件を行き来して波形グラフが雛形ごとに変わること（Pulse の短い減衰・Heartbeat の二拍・Explosion の素早い減衰と細かい波・Earthquake の 3 秒の大きなうねり・Alarm の規則的な正弦・Engine の細かい振動 ほか）を確かめた（上の画像の下段 = 10 件の一覧）。(1) 標準モードで約 2.5 画面（760×1000。かんたん = 雛形 + 波形の 2 行だけ）(2)〜(6) は一覧が無いので該当なし (7) 幅 500px の Dark / Light でヒーロー・雛形ボタン列（折り返し）・グラフ・ValueDef の欄・固定バーが切れない。
+- **機能対応表（旧 `CameraFxEditorWindow` → 新 `ShakeEditor` / `HapticsEditor`、全行あり）**: 旧 `CameraFxEditorWindow.cs` の UI 要素（ツールバー・`ObjectField`・`Label`・`HelpBox` 2 つ・`Button` 6 つ・波形 2 つ・`Foldout`・プリセット 10 + 10・検証）を 1 行ずつ、新エディターの詳細モードの全ラベルと突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバー「🔒 対象を固定」 | ヒーローの「固定」 | あり |
+| ツールバー「確認用シーンを開く」 | ヒーローと 確認する の「確認用シーン」（同じ `CameraShakePreviewSceneSetup.OpenOrCreate`） | あり |
+| ツールバー「Project で表示」 | ヒーローの「Project」・アイコンのクリック | あり |
+| ツールバー「＋ 新規作成」（Shake / Haptics を選ぶ） | ヒーローの「＋ 新規」（各ウィンドウの種別。Shake ⇄ Haptics は切替ボタン） | あり |
+| 対象アセット ObjectField（Shake / Haptics 以外は弾く） | ◀ [名前 ▾] ▶・空状態のピッカー・ドロップ・最近のデータ。Project の選択に追従、🔒 固定 | あり |
+| 状態の文（Shake: 合成中の Instance 数 / Camera.main なし、Haptics: パッド接続中 / 未接続） | 確認する の状態の文（「合成中の揺れ: N」「パッド: 接続中(名前) / 接続なし」） | あり |
+| Camera.main が無い HelpBox / パッドが無い HelpBox | ヒーロー直下の案内（Shake = 警告 / Haptics = 情報） | あり |
+| Shake「▶ Shake 再生(連打可)」 | 固定バーの ▶（再生中は「▶ やり直し」）+ 確認する の「▶ 重ねて再生(連打可)」（止めずに重ねる = 旧の連打と同じ） | あり |
+| Shake「■ 全停止(フェード)」 | 固定バーの ■ + 確認する の「■ 全停止(フェード)」 | あり |
+| Haptics「▶ Test on Pad」/「■ 停止」 | 固定バーの ▶ ■ + 確認する の「▶ パッドで振動(Test on Pad)」「■ 停止」（止め忘れ防止は同じ `EditorHapticsPreviewDriver`） | あり |
+| リピート（旧には無い） | 固定バーのリピート | 追加 |
+| 波形グラフ（Shake = Envelope + Pos + Rot の 3 本。IMGUI・読み取り専用） | 波形を見る（Painter2D。Envelope + 揺れの形の 2 本。位置と回転は同じ形で大きさだけ違うので 1 本にまとめ、凡例に峰値） | あり（整理） |
+| 波形グラフ（Haptics = Low + High。読み取り専用） | 波形を見る（Low / High。左端の点で強さ・右端の縦棒で長さをドラッグ） | あり（拡張） |
+| Shake パラメータ: Pattern / PosAmplitude / RotAmplitude / Frequency / Envelope / Space / TraumaWeight / MaxStack | 揺れ方 / 強さ / 重なったとき の各カード | あり |
+| Haptics パラメータ: LowFreq / HighFreq / Priority / LocalPlayerOnly / Extensions | モーター / 同時に鳴ったとき・配送 の各カード | あり |
+| プリセット 10 種（Pulse〜Engine。Shake / Haptics 別。Undo 対応） | 雛形から始める のボタン列（同じ `CameraFxPresets`。Undo 1 回） | あり |
+| 検証（Foldout） | 欄の下のインライン表示 + ヒーローのチップ + 「その他の検証」 | あり |
+| Undo / Redo の同期 | 土台の `OnUndoRedo`（再描画 + 検証 + グラフの再描画） | あり |
+| 再コンパイルに耐える状態（`_target` / `_lockTarget`） | 対象・固定・リピートを `[SerializeField]` | あり |
+
+  新エディターで増えたもの: かんたん / 標準 / 詳細・設定の検索・変更の色バーと ↺・保存と自動保存・未保存の確認・カードの「?」・Light / Dark。
+- **向け直した呼び出し元**: `grep -rn CameraFxEditorWindow Packages/com.ddrive.core` は旧自身・コメント・テスト・`editor-contract.txt` だけで、旧を直接呼ぶ箇所（Presentation の Shake / Haptics トラック・Cutscene のマーカーなど）は無かった。Inspector の「エディターで開く」・Asset Browser のダブルクリック・Presentation / Cutscene・MCP の `ddrive_editor_open` は `DataEditorRegistry`（Order 0 = 新）経由なので、`[DataEditor]` の付け替えで新へ向く。テストは新に追従（`DataEditorRegistryTests`）、旧は開けること（題が `(旧)`）の確認を足した。
+- **互換性（editor-contract.txt）**: 追加 4 行（`CameraShakeData -> ShakeEditor "Shake Editor で開く" order=0` / `HapticsData -> HapticsEditor "Haptics Editor で開く" order=0` / 旧 `CameraFxEditorWindow` の `(旧) Shake Editor で開く` order=100・`(旧) Haptics Editor で開く` order=100）と**削除 2 行**（旧の order=0 の 2 行）。UX-2〜UX-9 と同じ扱い。更新前に red だったのは `EditorContractSnapshotTests.MatchesGolden` と `DDriveCompatToolTests.Compat_RealSnapshots_HaveNoDifference` の 2 件だけで、`ddrive_compat_update` のあと `ddrive_compat` は `changed:[]`。CHANGELOG の互換性節に追記済み。
+- **確認**: コンパイル 0、**EditMode は全件を 1 回で実行して 2210 / 2210 green**（実行前に空きメモリ約 1.0GB だったので `UnloadUnusedAssetsImmediate` + `GC.Collect` を行った。約 10 分で完走、分割は不要だった。総数の確認: `TestRunnerApi.RetrieveTestList(EditMode)` の列挙が 2210 件で、名前空間別の合計〔DDrive.Tests.Editor 1468 + CanvasOverrideCleanupTests の TestCase 展開 24 + Compat 44 + Mcp 236 + Migration 12 + Setup 45 + Update 316 + Validation 3 + ExternalContract.Tests 61 + AddressableAssets.DocExampleCode 1〕がランナーの総数と一致。UX-9 の 2132 件は分割実行の取りこぼしだった）。`CameraFxEditorUxTests` 16 件（欄の表が編集できる全フィールドを持つ〔Shake / Haptics〕・登録表〔新が先頭・旧が(旧) Order 100〕・旧ウィンドウが開く・サンプル 10 + 10・ヒーロー / 固定バー / カード / 雛形 10 ボタン / グラフ・雛形の適用と Undo 1 回〔Shake / Haptics〕・Shake の ▶ ■ と連打の重なり・Shake ⇄ Haptics の切替と戻り・インライン警告・パッド無しの ▶ と「接続」表示・グラフの窓口〔長さ・強さの書き込みと Undo、Speed の尺は書かない、Curve のモーターは書かない〕・ドラッグ 1 回 = Undo 1 回・かんたんは雛形と波形の 2 行だけ）。機械点検（`UxFoundationTests`）に新 4 ファイルを足した。`ddrive_compat` は更新後 `changed:[]`。Unity の再起動は 0 回。**PlayMode は実行していない**（Runtime を触っていない）。
+  `execute_code`（実ウィンドウ・雛形 10 種のサンプル）: Inspector の登録表（新が先頭・旧が `(旧)`）、プリセット適用と Undo、Shake の ▶（確認用シーンのカメラが揺れ ActiveCount = 1・■ で 0 に戻り、IsPlaying が false）、Haptics の ▶（パッド無しで「パッド: 接続なし」。▶ ■ が例外なく動く）、Shake ⇄ Haptics の切替（Shake 側が残り Haptics が隣に開く）。実データは保存せず、サンプルと確認用シーンは作って削除した。
+  スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①Shake の位置と回転が同じ形で重なって 1 本に見えていた（1 本に統合し凡例に峰値）②波形が荒いので標本を 64 → 192 に ③雛形の行に説明が二重（行の下の注記を「マウスを乗せると説明が出ます」に）④グラフの読み取り行の文が欄の説明と重複（短く）⑤ValueDef の欄が閉じたままで編集に 1 手間（Envelope と Haptics のモーターは最初から開く、Frequency は閉じる）⑥ラベルの切れ（「重なったときの強さ」「同時に重ねられる数」に短縮）。2 周目 = 幅 500px の Dark / Light でヒーロー・雛形ボタン列（折り返し）・グラフ・ValueDef の欄・固定バーが切れないこと、雛形 10 件を Data 切替で行き来して全グラフが雛形ごとに変わることを確認。
+- **割り切り**: ①グラフのドラッグは Shake = 長さだけ（強さは位置 / 回転の 2 つの軸を持つので数値の欄で編集）、Haptics = 強さ（固定値 / 始まりの値）と長さ。Curve（AnimationCurve）指定のモーターの強さと、尺が Speed / Rate のデータの長さはドラッグで書かない ②グラフは 1 周期（Loop のデータも最初の 1 周期だけ）③位置と回転は 1 本の「揺れの形」にまとめた（旧は同じ形を正規化して 2 本重ねており、実際には重なって 1 本に見えていた）④空状態の「サンプルを作る」は UX-19 でまとめて足す ⑤Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑥マニュアルは `camera-haptics.html`（データの項目の説明 + 新エディターの説明。旧の説明は `archive-camerafx-editor.html`）。

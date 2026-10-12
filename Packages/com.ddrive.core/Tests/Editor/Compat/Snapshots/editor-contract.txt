@@ -33,8 +33,10 @@ DDrive.Runtime.Audio.BgmData -> DDrive.Editor.Audio.AudioEditorWindow "(旧) Aud
 DDrive.Runtime.Audio.BgmData -> DDrive.Editor.Audio.BgmEditor "Audio Editor で開く(波形・ループ編集)" order=0
 DDrive.Runtime.Audio.SeData -> DDrive.Editor.Audio.AudioEditorWindow "(旧) Audio Editor で開く(波形・トリム編集)" order=100
 DDrive.Runtime.Audio.SeData -> DDrive.Editor.Audio.SeEditor "Audio Editor で開く(波形・トリム編集)" order=0
-DDrive.Runtime.CameraShake.CameraShakeData -> DDrive.Editor.CameraFx.CameraFxEditorWindow "Shake Editor で開く" order=0
-DDrive.Runtime.Haptics.HapticsData -> DDrive.Editor.CameraFx.CameraFxEditorWindow "Haptics Editor で開く" order=0
+DDrive.Runtime.CameraShake.CameraShakeData -> DDrive.Editor.CameraFx.CameraFxEditorWindow "(旧) Shake Editor で開く" order=100
+DDrive.Runtime.CameraShake.CameraShakeData -> DDrive.Editor.CameraFx.ShakeEditor "Shake Editor で開く" order=0
+DDrive.Runtime.Haptics.HapticsData -> DDrive.Editor.CameraFx.CameraFxEditorWindow "(旧) Haptics Editor で開く" order=100
+DDrive.Runtime.Haptics.HapticsData -> DDrive.Editor.CameraFx.HapticsEditor "Haptics Editor で開く" order=0
 DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialConvertWindow "シェーダー変換" order=10
 DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialEditor "Material Editor で開く" order=0
 DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialEditorWindow "(旧) Material Editor で開く" order=100

@@ -90,8 +90,10 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(Anim2DData), typeof(DDrive.Editor.Anim2D.Anim2DEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(AnchorData), typeof(AnchorEditorWindow));
             AssertWindow(typeof(AnchorGroupData), typeof(AnchorGroupEditorWindow));
-            AssertWindow(typeof(CameraShakeData), typeof(CameraFxEditorWindow));
-            AssertWindow(typeof(HapticsData), typeof(CameraFxEditorWindow));
+            AssertWindow(typeof(CameraShakeData), typeof(CameraFxEditorWindow).Assembly.GetType("DDrive.Editor.CameraFx.ShakeEditor", true));
+            AssertWindow(typeof(CameraShakeData), typeof(CameraFxEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(HapticsData), typeof(CameraFxEditorWindow).Assembly.GetType("DDrive.Editor.CameraFx.HapticsEditor", true));
+            AssertWindow(typeof(HapticsData), typeof(CameraFxEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow).Assembly.GetType("DDrive.Editor.Presentation.PresentationEditor", true));
             AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow)); // (旧) Order 100
         }
