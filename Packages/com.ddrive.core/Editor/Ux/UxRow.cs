@@ -34,6 +34,26 @@ namespace DDrive.Editor.Ux
         // 未調整の折りたたみの対象にしない欄(調整つまみなど)。
         public bool NoFold { get; set; }
 
+        // 「すべて既定に戻す」の対象にしない欄(要素の一覧など。全部消えてしまう欄)。行の ↺ も出さない。
+        public bool NoBulkReset
+        {
+            get => _noBulkReset;
+            set
+            {
+                _noBulkReset = value;
+                _reset?.Show(!value && _so != null);
+            }
+        }
+
+        // 検索で、表の語(ラベル・説明・検索語)のほかに一致とみなす判定(一覧の中の要素名など。null = 使わない)。
+        public Func<string, bool> ExtraMatch { get; set; }
+
+        // 欄の下に出す検査の最大件数(一覧の欄で、行ごとの印に任せて件数を絞る。超えた分は「ほか N 件」)。
+        public int MaxIssues { get; set; } = int.MaxValue;
+
+        private bool _noBulkReset;
+        private Button _reset;
+
         // Error / Warning がある(Info だけなら false)。モードで隠れていても見せる条件に使う。
         public bool NeedsAttention { get; private set; }
 
@@ -91,6 +111,7 @@ namespace DDrive.Editor.Ux
             input.AddToClassList("ux-row__input");
             inputRow.Add(input);
             var reset = new Button(ResetClicked) { text = "↺", tooltip = "既定値に戻す" };
+            _reset = reset;
             reset.AddToClassList("ux-btn");
             reset.AddToClassList("ux-btn--icon");
             reset.AddToClassList("ux-row__reset");
@@ -167,7 +188,7 @@ namespace DDrive.Editor.Ux
                 }
             }
 
-            return false;
+            return ExtraMatch != null && ExtraMatch(query);
         }
 
         // 一致した語をラベル / 説明の中で強調する(リッチテキストの <mark>)。検索語だけに一致したときは説明の末尾に出す。
@@ -296,9 +317,17 @@ namespace DDrive.Editor.Ux
                 return;
             }
 
-            for (var i = 0; i < results.Count; i++)
+            for (var i = 0; i < results.Count && i < MaxIssues; i++)
             {
                 _issues.Add(MakeIssue(results[i], _changed));
+            }
+
+            if (results.Count > MaxIssues)
+            {
+                var more = new Label($"ほか {results.Count - MaxIssues} 件の検査結果があります(該当する行の ⚠ にマウスを合わせると内容が出ます)");
+                more.AddToClassList("ux-dim");
+                more.AddToClassList("ux-note");
+                _issues.Add(more);
             }
         }
 
