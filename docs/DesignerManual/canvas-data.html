@@ -69,7 +69,7 @@
 </table>
 
 <h3>Buttons(ButtonWire)— 「この要素のこの操作で、これをする」</h3>
-<p>Canvas Editor の「<a href="canvas-editor.html#button-wires">ボタンの配線</a>」欄で、下の項目を Inspector を開かずに編集できます。</p>
+<p>Canvas Editor の「<a href="canvas-editor.html#wire">ボタン・スライダーの配線</a>」欄で、下の項目を Inspector を開かずに編集できます(1 ボタン = 1 行、⚙ で配線を 1 本ずつ)。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>ButtonPath</td><td>Prefab ルートからの相対パス(例 <code>Panel/StartButton</code>)</td></tr>
@@ -142,18 +142,18 @@
 <h2>よくある使い方</h2>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>タイトル画面</td><td>Prefab を設定、Layer=Menu。Canvas Editor で「Selectable を自動収集」→ グラフで上下リンク → 右クリック「FirstSelected にする」→「確認用シーンで開く」</td></tr>
+<tr><td>タイトル画面</td><td>Prefab を設定、Layer=Menu。Canvas Editor で「Selectable を自動収集」→ グラフで上下リンク → 右クリック「FirstSelected にする」→「確認用シーン」</td></tr>
 <tr><td>ボタンで別の画面へ(コード 0 行)</td><td>Buttons に 1 行: ButtonPath、Trigger=Click、Action=OpenCanvas、Target=遷移先。UiButton の CooldownSec を 0.2 秒ほど入れて連打対策</td></tr>
 <tr><td>確認ダイアログ(モーダル)</td><td>Layer=Popup、ModalBlocksInput=ON、CloseOnBack=ON。プログラマーは <code>Ui.Popup</code> で開く。「はい」は Action=SendSignal + SignalKey <code>confirm/yes</code>、「いいえ」は Action=CloseSelf</td></tr>
 <tr><td>ポーズメニュー</td><td>Layer=Menu、PauseGameWhileOpen=ON、CloseOnBack=ON</td></tr>
 <tr><td>音量設定画面(コード 0 行)</td><td>Prefab に UiSlider → Sliders に 1 行: Trigger=Commit、Action=SetOption、Option=MasterVolume。保存 / 復元は自動</td></tr>
 <tr><td>項目を順番に出す(スタッガー)</td><td>Canvas Editor の「要素を自動収集」→ 各行の Appear に SlideFadeInLeft など → AppearDelay を 0.05 / 0.10 / 0.15 … と段差を付ける</td></tr>
-<tr><td>全ボタンに同じ出現演出</td><td>Canvas Editor の「プリセット」で PopIn を選び「一括適用: 全ボタンに反映」。またはプリセットギャラリーの「Canvas 内一括適用(全ボタン)」</td></tr>
+<tr><td>全ボタンに同じ出現演出</td><td>Canvas Editor の「要素の動き」で「プリセット」に PopIn を選び「全ボタンに反映」。またはプリセットギャラリーの「Canvas 内一括適用(全ボタン)」</td></tr>
 <tr><td>レイヤーごとの既定演出・既定 SE</td><td>UI_LayerSettings を 1 個作り、DDriveRuntimeBootstrap の LayerSettings に割り当て</td></tr>
 </table>
 
 <h2>よくある警告</h2>
-<p>表示場所は Canvas Editor の「Validation」と <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(<a href="validation.html">Validation の見方</a>)。</p>
+<p>表示場所は Canvas Editor(該当する欄の下と、ヒーローの検証チップ)と <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(<a href="validation.html">Validation の見方</a>)。</p>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Prefab が未設定(または Missing)です</td><td>Prefab を設定する。これが出ている間はパスに関する検査は全部止まります</td></tr>
@@ -206,7 +206,7 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="canvas-editor.html">Canvas Editor の使い方</a> — ナビゲーション・演出・プレビュー</li>
+<li><a href="canvas-editor.html">Canvas Editor の使い方</a> — 要素の動き・配線・埋め込み・ナビゲーション・プレビュー</li>
 <li><a href="ui-skin.html">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
 <li><a href="ui-tween.html">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方と割り当て</li>
 <li><a href="prefab-data.html">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>

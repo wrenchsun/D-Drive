@@ -20,6 +20,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - **VFX Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-2）: やりたいことごとのカード・かんたん / 標準 / 詳細の 3 モード・設定の検索・保存と自動保存つきの固定バー。メニューは `Tools > D-Drive > Editors > VFX Editor`、Inspector の「VFX Editor で開く」と Presentation の「専用エディタで開く」「一緒に調整」も新エディターを開く。旧エディターは `Tools > D-Drive > Archive > VFX Editor` と Inspector の「(旧) VFX Editor で開く」に残した。マニュアル `vfx-editor.html` を新エディターの説明に書き換え、旧の説明は `archive-vfx-editor.html`
 - **Audio Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-3）: SE は `SeEditor`、BGM は `BgmEditor`（ヒーローの「BGM Editor へ / SE Editor へ」で行き来）。波形の端をドラッグしてトリム範囲 / ループ範囲を決める・無音の自動検出・トリミングの適用・再生開始位置・Mixer・3D（Spatial・距離・Anchor の位置パッド）・3D サウンド確認パッド・同時再生の上限・BGM のフェード、をやりたいことごとのカードに並べ、固定バーの ▶ ■ で実 AudioManager / BgmManager で試聴する。メニューは `Tools > D-Drive > Editors > Audio Editor`、Inspector の「Audio Editor で開く」は新エディターを開く
 - `SeDataValidator` / `BgmDataValidator` の結果に `ValidationResult.Field`（欄名）を付与した（メッセージ・Code・重さは変えない。新エディターが欄の下に表示するため）
+- **Canvas Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-4・D-10）: `CanvasEditor`。やりたいことごとのカード（出す / 要素の動き / ボタン・スライダーの配線 / 埋め込み Canvas / カーソル移動 / 音・イベント）・かんたん / 標準 / 詳細・検索（要素・ボタンのパスにも一致）。**一覧は 1 要素 = 1 行**（要素名・種類のチップ・「Appear: PopIn / Idle: Pulse / Disappear: FadeOut」の 1 行要約・▶・↺・⚙。展開はその行だけ）で、一覧の上に絞り込み（検索・設定済み / 未設定・種類のチップ）と件数（「15 要素中 設定済み 6」）。20 行を超える一覧は `ListView`（仮想化）。**埋め込みの子は展開せず「1 行の要約 + 開く」**。配線・埋め込み・Navigation も同じ流儀。既定はすべて折りたたみ（v1.4.1 の決定を維持）。固定バーの ▶ ■ で確認用シーン（実 UiManager）に表示し、要素の自動収集・プリセット一括・全 Appear / Idle / Disappear / 全て停止・Idle を流す（プレハブモード）・選択に追従・埋め込みの有効 / 無効・Navigation グラフとパッド操作は旧エディターと同じ機能。メニューは `Tools > D-Drive > Editors > Canvas Editor`、Inspector の「Canvas Editor で開く」は新エディターを開く。旧は `Tools > D-Drive > Archive > Canvas Editor`
+- 共通基盤（`Editor/Ux`、internal）に、種別が持つ一覧の絞り込み・件数・検査の行ごとの印のための拡張点を追加した（`SetTarget(data, confirmSave)`・`SupportsRepeat`・`OnValidated`・`OnFiltersApplied`・`OnBodyBuilt`・`UxRow.NoBulkReset / ExtraMatch / MaxIssues`）。既定の挙動は変えない
 - 固定バーの速度スライダーを種別ごとに出し分ける（`UxEditorWindow<TData>.SupportsSpeed`、既定 true。BGM は false）
 
 ### 互換性
@@ -28,6 +30,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - 追加のみ: `ManualLauncher.OpenPage(string, string)`（Editor。既存の `OpenPage(string)` は変えない）。`Editor/Ux` は internal で公開契約・スナップショットに影響しない
 - Editor 契約（弱い互換面、[docs/42](docs/42_distribution.md) §5.9）: `DDriveMenu.Archive` 追加、`[DataEditor]` 対応表に新 `VfxEditor`（Order 0）と旧 `(旧) VFX Editor で開く`（Order 100）を追加。旧の行はラベル・Order が変わる（削除 1 行 + 追加）。公開 API・シリアライズ形式・Validator は無変更。MINOR
 - Editor 契約（UX-3）: `[DataEditor]` 対応表に新 `SeEditor` / `BgmEditor`（Order 0、ラベルは従来と同じ）と旧 `AudioEditorWindow` の `(旧) Audio Editor で開く`（Order 100）を追加。旧の 2 行はラベル・Order が変わる（削除 2 行 + 追加 4 行、`editor-contract.txt`）。メニュー `Tools > D-Drive > Editors > Audio` は `Editors > Audio Editor`（新）と `Archive > Audio Editor`（旧）に分かれる。`SeDataValidator` / `BgmDataValidator` は結果に欄名を付けただけで、メッセージ・Code・Severity・件数は変えない。MINOR
+- Editor 契約（UX-4）: `[DataEditor]` 対応表に新 `CanvasEditor`（Order 0、ラベルは従来と同じ）と旧 `CanvasEditorWindow` の `(旧) Canvas Editor で開く`（Order 100）を追加。旧の 1 行はラベル・Order が変わる（削除 1 行 + 追加 2 行、`editor-contract.txt`）。メニュー `Tools > D-Drive > Editors > Canvas` は `Editors > Canvas Editor`（新）と `Archive > Canvas Editor`（旧）に分かれる。`CanvasData` の形式・Validator は変えない。MINOR
 
 ## [1.7.0-preview.3] - 2026-10-11
 

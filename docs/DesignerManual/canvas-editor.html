@@ -2,42 +2,66 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Canvas Editor の使い方(ナビゲーション・演出・プレビュー) | D-Drive デザイナーマニュアル</title>
+<title>Canvas Editor の使い方 | D-Drive デザイナーマニュアル</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</nav>
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Canvas Editor の使い方</nav>
 
-<h1>Canvas Editor の使い方(ナビゲーション・演出・プレビュー)</h1>
-<p class="lastupdate">最終更新日: 2026-10-06</p>
+<h1>Canvas Editor の使い方</h1>
+<p class="lastupdate">最終更新日: 2026-10-12</p>
 
-<p>Canvas Editor は、<a href="canvas-data.html">Canvas(UI 画面)データ</a>を組み立てるための専用ウィンドウです。パッドのフォーカス移動(ナビゲーション)を<strong>矢印付きの図で編集</strong>し、要素ごとの演出(ElementFx)をまとめて割り当て、実際にシーン上で開いて確かめられます。</p>
+<p>Canvas Editor は、<a href="canvas-data.html">Canvas(UI 画面)データ</a>を組み立てるためのウィンドウです。設定は「やりたいこと」ごとのカードに分かれていて、<strong>要素やボタンが何十あっても、1 要素 = 1 行の一覧</strong>で見渡せます。できること:</p>
 <ul>
-<li>「ナビゲーション」= 十字キー / スティックでフォーカス(選択枠)がどのボタンへ移るかの配線</li>
-<li>「ElementFx」= ボタンやパネルごとの出現(Appear)/ 常時(Idle)/ 消滅(Disappear)の演出</li>
-<li>ボタンの配線(Buttons)は専用の「ボタンの配線」欄で、スライダーの配線(Sliders)はウィンドウ下部の Inspector で編集します</li>
+<li>画面の Prefab・レイヤー・開く / 閉じる演出の設定</li>
+<li>要素ごとの出現(Appear)/ 常時(Idle)/ 消滅(Disappear)の動き(ElementFx)の割り当てと、その場での再生確認</li>
+<li>ボタンを押したときの動作(配線)の編集</li>
+<li>入れ子になっている子の Canvas(埋め込み Canvas)の登録と有効 / 無効</li>
+<li>十字キー / スティックでのカーソルの移動先(Navigation)を矢印付きの図で編集し、パッド操作を試す</li>
+<li>確認用シーンで、実際のゲームと同じ仕組みで画面を開いて確認</li>
 </ul>
 
 <h2>開き方</h2>
 <ol>
-<li>Canvas データを Project で選び、<strong>Inspector の一番上の「Canvas Editor で開く」</strong>を押す</li>
-<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Canvas</code>。Project で Canvas データを選ぶと自動で入ります(「🔒」を ON にすると追従しません)</li>
-<li>まだ Canvas データが無いときは、ツールバーの<strong>「＋ 新規作成」</strong>ボタンでその場で作れます(詳しくは<a href="asset-browser.html">Asset Browser の使い方</a>)</li>
-<li>演出をカードで選びたいときは <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>(<a href="ui-tween.html">プリセットギャラリー</a>)</li>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Canvas Editor</code>、または Canvas データの Inspector の一番上にある「Canvas Editor で開く」、または <a href="asset-browser.html">Asset Browser</a> でダブルクリック</li>
+<li>編集したい Canvas データを Project ウィンドウで選ぶ(選ぶと自動で入ります)。何も選んでいないときは、ウィンドウの真ん中の枠にドロップするか、最近使ったものを選びます</li>
+<li>まだ Canvas データが無いときは、上部の「＋ 新規」でその場で作れます(詳しくは <a href="asset-browser.html">Asset Browser の使い方</a>)</li>
 </ol>
+
+<figure>
+<img src="images/canvas-editor-ux.png" alt="Canvas Editor(左 = ダーク、右 = ライト。HUD 相当の画面で、要素・配線の一覧を開いたところ)">
+<figcaption>Canvas Editor(左 = ダーク、右 = ライト)。上から「ヒーロー」「カード」。要素や配線は 1 つ 1 行で並び、行の ⚙ でその行だけ展開できる</figcaption>
+</figure>
+
+<h2 id="header">ウィンドウ上部と固定バー</h2>
+<table>
+<tr><th>部品</th><th>説明</th></tr>
+<tr><td>◀ ▶ と名前のボタン</td><td>同じカテゴリの Canvas データを順に切り替えます。名前のボタンで最近使ったものも選べます。</td></tr>
+<tr><td>設定を検索</td><td>欄の名前・説明・検索語に加えて、<strong>要素・ボタン・埋め込みのパスにも一致</strong>する設定だけを出します(例: Start / ボタン / 入れ子)。一致する要素があるときは、その一覧が自動で開いて絞り込まれます。</td></tr>
+<tr><td>警告・変更のチップ</td><td>検証の警告数と、まだ保存していない変更の数。</td></tr>
+<tr><td>確認用シーン</td><td>EventSystem だけを置いた専用の空シーン(CanvasPreviewScene)に切り替え、そのまま画面を開きます(Selectable / 要素の自動収集も実行します)。すでに確認用シーンにいるときは、シーンは開き直さず表示だけやり直します(Appear / Idle をやり直す)。右クリックで「このシーンに配置」も選べます。</td></tr>
+<tr><td>Prefab で開く</td><td>この Canvas の Prefab をプレハブモードで開きます。要素を選んで Unity 標準の移動 / 回転 / リサイズツールで動かせます(Ctrl+Z で戻せます)。</td></tr>
+<tr><td>Project / ＋ 新規 / 固定</td><td>Project でハイライト / 新しい Canvas データを作る / 固定を ON にすると Project の選択が変わっても対象が切り替わりません。</td></tr>
+<tr><td>かんたん / 標準 / 詳細</td><td>見せる欄の量。<strong>かんたん</strong>=必須の欄だけ(Prefab)/ <strong>標準</strong>=よく使う欄まで / <strong>詳細</strong>=すべて(埋め込み・スライダー・重ね順など)。</td></tr>
+<tr><td>未調整を隠す</td><td>詳細モードで、既定値のままの設定をカードごとの「未調整の設定」に折りたたみます。</td></tr>
+<tr><td>↺ すべて既定に戻す</td><td>既定値と違う設定を既定に戻します(確認あり。管理情報と、要素・配線・埋め込みの一覧は対象外)。各欄の右の ↺ でその欄だけ戻せます。</td></tr>
+<tr><td>選択に追従</td><td>Hierarchy・プレハブモード・確認用プレビューで選んだ GameObject に合わせて、編集対象を自動で切り替えます(埋め込みの子の要素なら子の Canvas データ、それ以外は親。該当する要素の行が強調されます)。入力中の欄があるあいだは切り替えません。「固定」が ON の間は追従しません(チェックが灰色になります)。</td></tr>
+<tr><td>▶ 再生 / ■ 停止(下部の固定バー)</td><td>いま開いているシーン(プレハブモードのときはそのステージ)に、実際のゲームと同じ仕組み(UiManager)で画面を開く / 片付けます。再生中の ▶ は「やり直し」になります。</td></tr>
+<tr><td>変更 N 件 / 自動保存 / 保存</td><td>まだ保存していない変更の数。「保存」でアセットに書き込みます(保存のたびに版数が進みます)。ウィンドウを閉じる・対象を切り替えるときに未保存なら確認します(自動保存が ON なら聞かずに保存)。</td></tr>
+</table>
+<p>Ctrl+Z / Ctrl+Y で戻せます。ステータス行(ヒーローの下)には、操作の結果や「プレビュー表示中」が出ます。</p>
 
 <h2>はじめの一歩(タイトル画面を組む)</h2>
 <ol>
-<li>Canvas Prefab(ルート RectTransform + ボタン数個)と Canvas データを作り、<code>Prefab</code> と <code>Layer=Menu</code> を設定する(<a href="canvas-data.html">作り方</a>)</li>
-<li>「<strong>Selectable を自動収集</strong>」→ ステータスに「Selectable を n 件収集しました」。Navigation に行が増える(uGUI の Button などが対象。UiButton は拾われませんが、グラフにはノードとして出ます)</li>
-<li>「Navigation グラフ」で、ノードの下側の丸(▼)を<strong>ドラッグして次のボタンの上で離す</strong> → オレンジの矢印(Down)ができる。上方向(▲)も同様につないで往復できるようにする</li>
+<li>Canvas Prefab(ルート RectTransform + ボタン数個)と Canvas データを作り、「出す」の <code>画面の実体(Prefab)</code> と <code>表示レイヤー</code> を設定する(<a href="canvas-data.html">作り方</a>)</li>
+<li>「カーソル移動」の「<strong>Selectable を自動収集</strong>」を開いて押す。Navigation に行が増える</li>
+<li>グラフで、ノードの下側の丸(▼)を<strong>ドラッグして次のボタンの上で離す</strong> → オレンジの矢印(Down)ができる。上方向(▲)も同様につないで往復できるようにする</li>
 <li>一番上のボタンを右クリック →「<strong>FirstSelected にする</strong>」→ 緑の枠になる</li>
-<li>「<strong>要素を自動収集(Image / UiButton / パネル)</strong>」→ ElementFx の行が増える。「プリセット」で PopIn を選び「一括適用: 全ボタンに反映」</li>
-<li>「<strong>確認用シーンを開く</strong>」→ Game ビューに画面が出て、ボタンが跳ねて現れる</li>
-<!-- screenshot: 36-#44 -->
-<li>「パッド操作シミュレーション」の「▼」「▲」を押してフォーカスが移ることを確認、「決定」でボタンが押される</li>
-<li>「Validation」に赤(Error)が無いことを確認 →「閉じる」</li>
+<li>「要素の動き」の「<strong>要素を自動収集</strong>」を押す → 要素の行が増える。「プリセット」で PopIn を選んで「全ボタンに反映」</li>
+<li>「<strong>確認用シーン</strong>」→ Game ビューに画面が出て、ボタンが跳ねて現れる</li>
+<li>グラフの下の「パッド操作シミュレーション」の「▼」「▲」を押してフォーカスが移ることを確認、「決定」でボタンが押される</li>
+<li>ヒーローの検証チップが「✓ 検証 OK」になっていることを確認 →「■ 停止」</li>
 </ol>
 
 <figure>
@@ -45,188 +69,183 @@
 <figcaption>確認用シーン。Game ビューで実際の見た目と動きを確認する</figcaption>
 </figure>
 
-<h2>画面の説明</h2>
-<p>上から順に並んでいます。ウィンドウの中に UI の絵は出ません。<strong>見た目の確認は「確認用シーンを開く」で Game / Scene ビューを見ます</strong>。</p>
+<h2>一覧の見方(要素・配線・埋め込み・Navigation 共通)</h2>
+<p>「要素の動き」「ボタンの配線」「埋め込み Canvas」「カーソル移動」の 4 つの欄は、見出しに要約(例: <code>15 要素・設定済み 6・埋め込み 3</code>)を出した<strong>折りたたみ</strong>です。<strong>開いた直後はすべて畳んであります</strong>(使う欄だけ開きます)。</p>
 <table>
-<tr><th>要素</th><th>説明</th></tr>
-<tr><td>ツールバー(対象 / 🔒 / Prefab を開く(要素の移動))</td><td>編集する Canvas データ。「🔒」= 選択に追従しない(ON の間は下の「選択に追従」が灰色になります)。「<strong>Prefab を開く(要素の移動)</strong>」を押すと確認用プレビューを片付けてから、この Canvas の Prefab をプレハブモード(編集用の専用画面)で開きます。ここで要素を選んで Unity 標準の移動 / 回転 / リサイズツールで動かせます(Ctrl+Z で戻せます)。確認用シーンのプレビューを動かしても Prefab には反映されないため、実際に配置を変えたいときは必ずこちらを使ってください</td></tr>
-<tr><td>Selectable を自動収集</td><td>Prefab 内の <strong>uGUI の Selectable</strong>(Button / Slider / Toggle など)を探して Navigation に行を足します(既存の行は残ります。4 方向は空 = Unity 自動のまま)。<strong>D-Drive の UiButton / UiSlider は拾いません</strong>。UiButton はグラフにはノードとして出るので、グラフでリンクを張るか、Inspector の Navigation に手で行を足してください。Prefab 未設定なら「Prefab を設定してください」</td></tr>
-<tr><td>要素を自動収集(Image / UiButton / パネル)/ プリセット / 一括適用: 全ボタンに反映</td><td>「要素を自動収集」は Prefab 内の画像・UiButton・パネルから ElementFx の行を作ります(既存の行は保持)。「プリセット」で選んだ演出を「一括適用: 全ボタンに反映」で全 UiButton の Appear にまとめて入れます(「全ボタンの AppearPreset に … を設定しました」)</td></tr>
-<tr><td>ElementFx 割当(Appear / Idle / Disappear)</td><td>節そのものも、中の「(Canvas 名) の要素」「埋め込み: …」のグループも、開いた直後は畳んであります(使う節だけ開きます)。要素ごとに 1 箱(折りたたみ、初期状態は畳んだまま)で演出を割り当てます。上部の「▶ 全 Appear」「▶ 全 Idle」「▶ 全 Disappear」「■ 全て停止」で、登録済みの全要素のうち割り当てがあるものだけをまとめて再生・停止できます(停止すると再生前の状態に戻ります)。その下の「▶ 再生時にその要素を選択」にチェックを入れておくと(初期状態はチェックあり)、各行の「▶ 再生」を押したときにその要素が自動で選択され、Inspector で確認できます。まとめ再生では選択は変わりません。読み方は下の「ElementFx 割当セクションの行の読み方」を参照。行が無いときは「ElementFx がありません(上の「要素を自動収集」で追加してください)」</td></tr>
-<tr><td>確認用シーンを開く / 閉じる</td><td><strong>EventSystem だけを置いた専用の空シーン(CanvasPreviewScene)に切り替え、そのまま画面を開きます</strong>(自分の Canvas 等と重ならずに確認できます)。すでに確認用シーンにいるときにもう一度押すと、<strong>シーンは開き直さず画面の表示だけやり直します</strong>(設定を変えた後の見直しに)。Hierarchy に <code>[D-Drive] Canvas Preview</code> と <code>[D-Drive] UI Root</code> が出ますが<strong>シーンには保存されず、ウィンドウを閉じる・別のシーンに移ると消えます</strong>。Appear / Idle の演出はエディタ上で実際に動きます。<strong>「閉じる」は演出を待たず即座に消します</strong>(Disappear の動きそのものを見たいときは、ElementFx 割当の各行にある「▶ 再生」で個別に確認してください)。ステータス: 「CanvasData を選択してください」→「「確認用シーンを開く」で確認できます」→「プレビュー表示中」/「表示に失敗しました」</td></tr>
-<tr><td>Navigation グラフ</td><td>下の「Navigation グラフの操作」を参照</td></tr>
-<tr><td>パッド操作シミュレーション</td><td>「▲」「▼」「◀」「▶」「決定」でパッド操作を再現します。<strong>「確認用シーンを開く」で開いている間だけ</strong>押せます。詳細は下の「パッド操作シミュレーション」を参照</td></tr>
-<tr><td>Inspector 埋め込み</td><td>Canvas データの全項目(Layer / Transition / Navigation / <strong>Buttons</strong> / <strong>Sliders</strong> / ElementEffects)を標準の Inspector として編集。ボタンの配線は専用の「<a href="#button-wires">ボタンの配線</a>」欄でも編集できます。スライダーの配線はここの配列に行を足します。Ctrl+Z 対応</td></tr>
-<tr><td>Validation</td><td>問題ごとに色付きの箱(赤 = Error、黄 = Warning、青 = Info)。文言と対処は <a href="canvas-data.html">Canvas データのよくある警告</a>。自動で直せる項目には右に「修正」ボタンが出ますが、現在の Canvas データの検査には無く、Prefab 内の UiSlider の検査結果にだけ出ることがあります。問題なしなら「Validation に問題はありません。」</td></tr>
-<tr><td>プリセットギャラリーとの行き来</td><td>ギャラリー(<code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>)で「適用先」に同じ Canvas データを選び、カードの「この要素に適用」を押すと、Canvas Editor の ElementFx の行に反映されます。逆にギャラリーには Canvas Editor から飛ぶボタンはありません</td></tr>
+<tr><th>部品</th><th>説明</th></tr>
+<tr><td>1 件 = 1 行</td><td>要素名(クリックでその要素を選択)・種類のチップ・要約・操作ボタンが 1 行に並びます。行の「⚙」で<strong>その行だけ</strong>が展開します。</td></tr>
+<tr><td>絞り込み</td><td>一覧の上の欄にパスや内容の一部を入れる / 「すべて・設定済み・未設定」 / 種類のチップ(ボタン・スライダー・テキスト・画像・パネル・埋め込み)。</td></tr>
+<tr><td>件数</td><td>「15 要素中 設定済み 6」のように出ます(絞り込み中は「表示 n」も)。</td></tr>
+<tr><td>20 行を超えたら</td><td>一覧は必要な行だけを描く表示になり、スクロールしても軽く動きます。</td></tr>
+<tr><td>行の ⚠</td><td>その行に検証の警告・エラーがあるときに出ます。マウスを合わせると内容が出ます。</td></tr>
+<tr><td>一覧そのもの(詳細モード)</td><td>各欄の最後に、リストを直接編集する欄(要素の追加・削除・並べ替え、すべてのフィールド)があります。</td></tr>
 </table>
 
-<!-- screenshot: 36-#43 -->
-<figure>
-<img src="images/canvas-editor-elementfx-panel.png" alt="ElementFx 割当の行">
-<figcaption>ElementFx 割当。折りたたみを開くと、割当・直接指定・▶再生が出る</figcaption>
-</figure>
-
-<h3>ElementFx 割当セクションの行の読み方</h3>
-<p>見出し「ElementFx 割当(Appear / Idle / Disappear)」の下に、要素ごとの折りたたみ箱が並びます(初期状態は畳んだまま。要素のパスをクリックすると展開)。箱の見出しが要素のパス(Prefab ルート自身は「(ルート)」)で、展開すると中に 3 行あります。</p>
+<h2 id="show">出す</h2>
 <table>
-<tr><th>要素</th><th>説明</th></tr>
-<tr><td>「選択」/「フォーカス」ボタン</td><td>箱の一番上にあります。どの要素の箱かを確かめるためのボタンです。「選択」は今表示されている実際の要素(Prefab をプレハブモードで開いているときはその中の要素、「確認用シーンを開く」で表示中のときはその要素)を選択して Inspector に出します。どちらも開いていないときは Prefab の中のその要素を選択してハイライトします。「フォーカス」は同じ要素を選択したうえで、Scene ビューのカメラをその要素の枠へ寄せます(表示中の要素が無いときは選択だけで、Scene ビューは動きません)</td></tr>
-<tr><td>「選択して移動(Prefab を開く)」ボタン</td><td>箱の一番上にあります。押すとこの要素の Prefab をプレハブモードで開き(まだ開いていなければ自動で開きます)、この要素そのものを選択して Scene ビューへ寄せます。あとは Unity 標準の移動 / 回転 / リサイズツールでそのまま動かせます(Ctrl+Z で戻せます)</td></tr>
-<tr><td>Appear / Idle / Disappear のラベル</td><td>出現 / 常時(ループ)/ 消滅の 3 区間。Idle は Appear が終わってから始まり、閉じ始めで止まります</td></tr>
-<tr><td>ドロップダウン</td><td>「なし」/ 組み込みプリセット名 / <code>[Catalog] 名前</code>(プロジェクト独自に登録した演出)。「なし」を選ぶとその区間の設定は両方消えます。プリセットを選ぶと右の直接指定は消えます</td></tr>
-<tr><td>直接指定の欄</td><td>UI Tween データをドラッグして入れる欄。入れるとドロップダウン側のプリセットは消えます(どちらか一方だけが有効)</td></tr>
-<tr><td>「✎ Tween Editor」ボタン</td><td>直接指定(UI Tween データ)があるときだけ押せます。押すと<a href="ui-tween.html">UI Tween Editor</a>が開き、<strong>この行が担当している実際の要素が自動でプレビュー対象に選ばれた状態</strong>で Track を編集できます。「確認用シーンを開く」がまだのときは自動で開いてから割り当てます</td></tr>
-<tr><td>「▶ 再生」/「⏸ 一時停止」/「■ 停止」</td><td>UI Tween Editor を開かずに、この区間をその場で確認します。プリセット指定・直接指定のどちらでも押せます。「確認用シーンを開く」がまだのときは自動で開きます。「▶ 再生」は今の設定で確認用シーンの実要素に再生し(その要素で動いている他の演出、たとえば自動で流れている Idle は先に止めるので、混ざらずにその区間だけ見られます)、「⏸ 一時停止」は再生中だけ押せてその場で止め(もう一度押すか「▶ 再開」で続きから)、「■ 停止」は止めて、再生前の状態(元の位置・大きさ・回転・透明度・色)に戻します。「▶ 再生」は押すたびに、動いている演出を止めて再生前の状態へ戻してから再生し直すので、連打しても位置がずれません(「■ 全て停止」も同様に戻します)。対象の Prefab を<strong>プレハブモードで開いているときは、そのプレハブの中の要素でそのまま再生できます</strong>(確認用シーンには切り替わりません)。再生が終わる・止める・プレハブモードを閉じる・プレハブを保存するときに元の値へ戻すので、プレハブに再生の途中の値は残りません。右のラベルに「● 再生中」/「⏸ 一時停止」/「■ 停止中」が出ます</td></tr>
-<tr><td>「Idle を流す(プレハブモード)」(ElementFx 見出しの下のチェック)</td><td>オンにすると、<strong>プレハブモードのまま</strong>、Idle を割り当てた全要素(入れ子の子 Canvas の分も含む)の Idle が SceneView で動き続けます(確認用シーンでは Idle は最初から流れるので、このチェックはプレハブモード用です。確認用シーンだけを開いているときは灰色になります)。入れ子の Prefab(埋め込みの子など)の要素を流している間は、チェックの下に「⚠ うち N 件は入れ子 Prefab(埋め込みの子など)の要素です。…」と出ます。<strong>Hierarchy の Overrides で「Apply」をするときは、先にこのチェックをオフにしてください</strong>(流したまま Apply すると、Idle の途中の値が子の Prefab に書かれます)。チェックを外す・保存・プレハブモードを閉じる・編集する Canvas を切り替える・Play Mode に入る・ウィンドウを閉じるときは、<strong>流す前の位置・大きさ・回転・透明度・色に必ず戻る</strong>ので、プレハブに途中の値は残りません。流している間に要素を選ぶと、<strong>選んだ要素(とその親)の Idle だけが止まって元の位置に戻る</strong>ので、そのまま移動ツールで動かせます(選択を外すと、動かした位置を基準に再開します)。行の「▶ 再生」を押している間は Idle を止め、終わると再開します。チェックは保存されません(ウィンドウを開き直すとオフ)</td></tr>
-<tr><td>この要素の設定を他の要素へコピー</td><td>この箱の 3 区間の設定を、同じ Canvas の他の要素へまとめて配ります(「設定を他の要素へコピーしました」)</td></tr>
+<tr><th>欄</th><th>説明</th></tr>
+<tr><td>画面の実体(Prefab)【必須】</td><td>開く Canvas の Prefab。未設定だと空の Placeholder になります。</td></tr>
+<tr><td>表示レイヤー / 同じレイヤー内の重ね順</td><td>HUD / Menu / Popup / Overlay / Loading。あとのレイヤーほど手前に積まれます。重ね順(SortOffset)は同じレイヤーの中の微調整です。</td></tr>
+<tr><td>開くとき / 閉じるときの演出</td><td>None / Fade / Slide / Scale / Anim。秒数・イージング・スライドの移動量(Anim は AnimId)も決められます。</td></tr>
+<tr><td>戻る操作で閉じる / 背後の入力をブロック(モーダル)/ 開いている間ゲームを止める</td><td>戻る操作(CloseTop)で閉じる対象に含める / Popup として開いたとき背後の入力を受け付けない / 開いている間 Gameplay を止める。</td></tr>
+<tr><td>動作の取り決め(Pool / ポーズ / ネット)</td><td>詳細モード。共通の動作設定です。</td></tr>
 </table>
-<div class="tip">
-どれも設定しない区間は「レイヤー既定」(UiLayerSettings の DefaultAppear / DefaultDisappear)が使われます。Idle に既定は無いので、光らせたいボタンだけ Idle に Pulse などを入れてください。
-</div>
 
-<h3>パッド操作シミュレーション</h3>
-<table>
-<tr><th>要素</th><th>説明</th></tr>
-<tr><td>▲ ▼ ◀ ▶</td><td>フォーカスをその方向へ移します。Navigation に明示リンクがあればそれに従い、無ければその方向で一番近いボタン・スライダーへ。グラフでは現在位置が白い太枠になります</td></tr>
-<tr><td>決定</td><td>フォーカス中の UiButton を押します(配線した OpenCanvas などが実際に動きます)。UiButton が無ければ uGUI のボタンに決定を送ります</td></tr>
-<tr><td>フォーカス: …</td><td>現在フォーカスしている要素のパス。まだ動かしていないときは「フォーカス: (未確認)」</td></tr>
-</table>
-<div class="tip">
-実機(Play)でも、EventSystem がシーンにあれば十字キー / スティックで同じ順にフォーカスが移ります(uGUI の Button も D-Drive の UiButton / UiSlider も同じ扱い。リンクが無い方向は、開いている画面の中でその方向に一番近い要素へ移ります)。スライダーは十字キーを値の操作に使い(右・上で増、左・下で減)、端まで行ったときだけ隣へ抜けます(<code>EscapeOnLimit</code> が ON のとき)。
-</div>
-
-<!-- screenshot: 36-#42 -->
-<figure>
-<img src="images/canvas-editor-nav-graph.png" alt="Navigation グラフ">
-<figcaption>Navigation グラフ。四角がノード、矢印の色が上下左右、緑枠が最初に選ばれる要素</figcaption>
-</figure>
-
-<h2>Navigation グラフの操作</h2>
-<p>「Navigation グラフ」の折りたたみ(最初は畳んであり、使うときに開きます)。Prefab 内の全ボタン・スライダーが、画面上の位置とだいたい同じ配置でノード(四角)として出ます(位置情報が無いものは 4 列に並びます)。<strong>これは配線を編集するための図であり、UI の見た目のプレビューではありません</strong>。</p>
+<h2 id="fx">要素の動き(ElementFx)</h2>
+<p>Prefab の中の要素ごとに、出るとき(Appear)・出ている間(Idle。Appear が終わってから始まり、閉じ始めで止まります)・消えるとき(Disappear)の動きを決めます。どれも設定しない区間は「レイヤー既定」(UiLayerSettings の DefaultAppear / DefaultDisappear)が使われます。Idle に既定は無いので、光らせたいボタンだけ Pulse などを入れてください。</p>
+<h3>一覧の上の操作(1 行)</h3>
 <table>
 <tr><th>操作</th><th>説明</th></tr>
-<tr><td>自動レイアウトを更新</td><td>Prefab を変えたあとなどにノードを並べ直します</td></tr>
-<tr><td>到達不能を検出</td><td>どこからもフォーカスが来られない要素を赤枠にして一覧します(「到達不能な要素が n 件あります(赤枠のノード):」)。無ければ「到達不能な要素はありません。」</td></tr>
-<tr><td>未配線を自動リンク</td><td><strong>名前と違い、リンクは張りません</strong>。4 方向とも空(Unity 自動のまま)の要素を一覧するだけです(「未配線(Automatic のまま)の要素が n 件あります。Unity の自動ナビゲーションのまま動作します:」)。機械的にリンクを書くとレイアウト変更に追従しなくなるため、あえて書き換えない設計です</td></tr>
-<tr><td>表示高さ</td><td>グラフの高さ(320〜900)</td></tr>
-<tr><td>リンクを張る</td><td>ノードの四辺にある丸いポート(▲上 / ▼下 / ◀左 / ▶右)を<strong>左ドラッグして、別のノードの上で離す</strong>。ドラッグ中は白い仮の矢印が出ます</td></tr>
-<tr><td>矢印の色 / 向き</td><td><strong>水色 = Up</strong> / <strong>オレンジ = Down</strong> / <strong>黄色 = Left</strong> / <strong>紫 = Right</strong>。矢印はノードとノードの隙間に描かれ、先端の三角(矢頭)が行き先を指します。行き来(例: A の Down と B の Up)を両方つないでいるときは、2 本の線がノード同士のちょうど真ん中で重ならないよう少しずらして並びます</td></tr>
-<tr><td>ノードの枠色</td><td>通常 = ほぼ黒(Navigation に行が無いノードは背景が少し暗い)/ <strong>黄土色</strong> = Navigation には書かれているが Prefab 内に実体が無い(パス不整合)/ <strong>緑</strong> = FirstSelected / <strong>赤</strong> = 到達不能 / <strong>白い太枠</strong> = パッド操作シミュレーションの現在フォーカス</td></tr>
-<tr><td>パン / ズーム</td><td>マウス中ボタンドラッグ、または Alt + 左ドラッグで移動。ホイールで拡大縮小(0.25〜2.5 倍)</td></tr>
-<tr><td>ダブルクリック</td><td>その要素を Hierarchy で強調表示(Ping)</td></tr>
-<tr><td>右クリックメニュー</td><td>「FirstSelected にする」/「Up を削除」「Down を削除」「Left を削除」「Right を削除」(無い方向は押せません)/「リンクを全て削除」(Navigation の行自体は残る)/「要素を Hierarchy で Ping」</td></tr>
-<tr><td>Undo</td><td>グラフの編集はすべて Ctrl+Z / Ctrl+Y で戻せます(グラフも描き直されます)</td></tr>
+<tr><td>要素を自動収集</td><td>Prefab 内の Graphic(画像・テキスト)/ UiButton などから要素の行を作ります(既存の行は保持します。登録済みの埋め込みの配下は子の担当なので集めません)。</td></tr>
+<tr><td>プリセット / 全ボタンに反映</td><td>選んだプリセットを、Prefab 内の全 UiButton の Appear にまとめて入れます(行が無ければ足します)。</td></tr>
+<tr><td>▶ 全 Appear / ▶ 全 Idle / ▶ 全 Disappear / ■ 全て停止</td><td>設定済みの全要素の同じ区間をまとめて再生します。「全て停止」は止めて再生前の状態(初期位置など)へ戻します。</td></tr>
+<tr><td>Idle を流す(プレハブモード)</td><td>オンにすると、<strong>プレハブモードのまま</strong>、Idle を割り当てた全要素(埋め込みの子の分も含む)の Idle が SceneView で動き続けます。選んだ要素の Idle だけ止まり、編集の邪魔になりません。止める・保存の直前・プレハブモードを閉じる・対象の切り替え・Play Mode に入るときに、流す前の値へ戻ります(Prefab に途中の値は残りません)。確認用シーンでは Idle は最初から流れます。入れ子 Prefab の要素を流している間は、Overrides の Apply をする前にオフにしてください。</td></tr>
+<tr><td>▶ 再生時にその要素を選択</td><td>行の ▶ を押したとき、再生する要素を選択状態にします(設定はエディターに保存されます)。</td></tr>
 </table>
-<div class="tip">
-リンクは一方通行です。「下へ行ったら上へ戻れる」ようにするには、▼ と ▲ の両方を張ってください。1 方向でも張ったノードは「明示配線」扱いになり、空の方向は行き止まりになります。まったく張らないノードは Unity の自動ナビゲーションのまま動きます。
-</div>
-
-<h2 id="button-wires">ボタンの配線(Buttons)を編集する</h2>
-<p>ウィンドウの折りたたみ「<strong>ボタンの配線(Buttons)</strong>」で、Canvas データの Buttons(「このボタンのこの操作で、これをする」)を、Inspector の配列を開かずに編集できます。Prefab 内の UiButton が 1 つずつ並び、押したときの動作(トリガー → アクション)をそのボタンの下の行で設定します。</p>
-<!-- screenshot: 36-#61 -->
+<h3>1 行の読み方</h3>
 <table>
-<tr><th>場所</th><th>説明</th></tr>
-<tr><td>ボタンの見出し行</td><td>ボタンのパスと「選択」「+ 配線を追加」。「選択」はそのボタンを選んで Inspector に出します(プレハブモード中はステージ内、確認用シーンの表示中はプレビューの実体、どちらも無いときは Prefab アセット内の要素を Ping)。「+ 配線を追加」は、そのボタンでまだ使っていないトリガーで配線を 1 本足します(アクションは None)</td></tr>
-<tr><td>トリガー</td><td>どの操作で動くか: Click / DoubleClick / LongPress(UiButton の LongPressSec が必要)/ Repeat</td></tr>
-<tr><td>アクション</td><td>None / OpenCanvas / CloseSelf / CloseTop / SendSignal / PlayPresentation(実行時は未対応で、行に「(実行時は未対応。警告だけが出ます)」と出ます)。スライダー用の SetOption は選べません</td></tr>
-<tr><td>対象(Canvas)</td><td>アクションが OpenCanvas のときだけ出る欄。開く Canvas データを入れます</td></tr>
-<tr><td>シグナルのキー</td><td>アクションが SendSignal のときだけ出る欄。通知名を入れて Enter(または欄の外をクリック)で確定します。プログラマーと名前を決めておきます</td></tr>
-<tr><td>SE(クリック SE)</td><td>押したときに鳴らす効果音(任意)。空ならレイヤー既定の SE / Skin の SE が使われます</td></tr>
-<tr><td>削除</td><td>その配線を 1 本取り除きます(ほかの配線の順序は変わりません)</td></tr>
-<tr><td>行の下の「⚠」</td><td>その場で直せる問題です。「開く Canvas が未設定です」「シグナルのキーが未設定です」「同じボタンに Click の配線が重複しています」「SetOption はスライダーの配線用です(ボタンでは何も起きません)」。ほかの検査は「Validation」の欄に出ます</td></tr>
-<tr><td>「Prefab の中に '…' の UiButton が見つかりません」</td><td>配線のパスが Prefab とずれているとき(パスの違い、または UiButton が付いていないとき)に、そのパスの見出しの下に黄色い注意が出ます。配線は消えずに残ります</td></tr>
+<tr><th>部品</th><th>説明</th></tr>
+<tr><td>要素名</td><td>Prefab ルートからのパス(ルート自身は「(ルート)」)。クリックでその要素を選択して Inspector に出します(プレハブモード中はステージ内、確認用シーンの表示中はプレビューの実体、どちらも無ければ Prefab アセット内の要素を Ping)。</td></tr>
+<tr><td>種類のチップ</td><td>ボタン / スライダー / テキスト / 画像 / パネル。</td></tr>
+<tr><td>要約</td><td>「Appear: PopIn / Idle: Pulse / Disappear: FadeOut」。[Catalog] の名前や UiTweenData の名前もそのまま出ます。</td></tr>
+<tr><td>▶ / ■</td><td>最初に割り当てた区間を、確認用シーン(プレハブモードならステージ内の実要素)で再生 / 止めて再生前の状態へ戻す。未表示なら自動で画面を開きます。</td></tr>
+<tr><td>↺</td><td>この要素の動き・出現の遅れ・SE を未設定に戻します(Ctrl+Z で戻せます)。</td></tr>
+<tr><td>⚙(展開)</td><td>その行だけが展開し、下の詳細が出ます。</td></tr>
 </table>
-<p>入れ子の Canvas(埋め込み)があるときは、ボタンの配線がグループに分かれます。</p>
+<h3>展開したとき</h3>
 <table>
-<tr><th>グループ</th><th>説明</th></tr>
-<tr><td>「(この Canvas の名前) のボタン」</td><td>この Canvas 自身のボタン。ここで編集します</td></tr>
-<tr><td>「↳ 親での上書き: (子)」</td><td>親の Buttons に書いた、埋め込みの中のボタンを指す配線(行の頭に「[親での上書き]」)。同じボタン・同じトリガーの配線は、子の Canvas データの設定より優先されます。ここで編集します</td></tr>
-<tr><td>「埋め込み: (子)」</td><td>子の Canvas データの配線を<strong>読み取り表示</strong>します(親で上書きされている行は「[親で上書き]」と出ます)。編集は同じグループの「<strong>この Canvas を編集</strong>」で編集対象を子に切り替えて行います(「← 親へ戻る」で戻れます)</td></tr>
+<tr><th>部品</th><th>説明</th></tr>
+<tr><td>選択 / フォーカス / 選択して移動(Prefab を開く)</td><td>要素を選択 / 選択して SceneView のカメラをその要素の矩形へ寄せる / Prefab をプレハブモードで開いてその要素を選ぶ(Unity 標準の移動 / リサイズツールでそのまま動かせます)。</td></tr>
+<tr><td>他の要素へコピー</td><td>この要素の 3 区間の設定を、同じ Canvas の他の要素へまとめて配ります。</td></tr>
+<tr><td>Appear / Idle / Disappear のドロップダウン</td><td>「なし」/ 組み込みプリセット名 / <code>[Catalog] 名前</code>(プロジェクト独自に登録した動き)。「なし」を選ぶとその区間の設定は消えます。</td></tr>
+<tr><td>UiTweenData の直接指定</td><td>UI Tween データを入れる欄。入れるとドロップダウン側のプリセットは消えます(どちらか一方だけが有効)。</td></tr>
+<tr><td>✎ Tween Editor</td><td>直接指定があるときだけ押せます。<a href="ui-tween.html">UI Tween Editor</a> が開き、<strong>この行の実際の要素が自動でプレビュー対象に選ばれた状態</strong>で Track を編集できます。</td></tr>
+<tr><td>▶ / ■ / ⏸ 一時停止 / 状態表示</td><td>その区間だけを実要素で再生・一時停止・停止します。押すたびに再生前の状態へ戻してから再生します。</td></tr>
+<tr><td>出現の遅れ(秒)/ 出現の SE / 消えるときの SE</td><td>Open 開始からこの秒数だけ遅らせて Appear を始めます(スタッガー演出用)/ 出現・消滅のときに鳴らす効果音。</td></tr>
 </table>
-<p>配線の追加・変更・削除は、どれも Ctrl+Z で元に戻せます。</p>
+<h3>埋め込みの子</h3>
+<p>埋め込みの子の要素は、親の一覧には<strong>展開されません</strong>。子ごとに 1 行の要約(<code>パス → 子の名前: 子の ElementFx n 行(親で上書き n 行)</code>)と「<strong>開く</strong>」が出ます。「開く」で編集対象が子の Canvas データに切り替わり、子の中身は子のエディターで見ます。親から見たパスで書いた「親での上書き」の行は、一覧に通常の行として出ます。同じ行の「上書きを整理…」で、対象の行を一覧した確認のあとにまとめて整理できます(Ctrl+Z 1 回で戻せます)。</p>
 
-<h2 id="embedded">入れ子の Canvas(埋め込み Canvas)を編集する</h2>
-<p>Hud の中に Option(設定パネル)を入れるように、<strong>ある Canvas の Prefab の中に別の Canvas の Prefab を入れ子で置く</strong>ことができます。子の演出(ElementFx)やボタンの配線は<strong>子の Canvas データに 1 か所で持ち</strong>、親を開いたときもそのまま効きます。同じ子を別の親に入れても書き直す必要がありません。</p>
+<h2 id="wire">ボタン・スライダーの配線</h2>
+<span id="button-wires"></span>
+<p>「ボタンの配線(Buttons)」の一覧は、Prefab 内の UiButton ごとに 1 行です。</p>
+<table>
+<tr><th>部品</th><th>説明</th></tr>
+<tr><td>パス / 種類のチップ / 要約</td><td>ボタンのパス(クリックで選択)・「ボタン」(Prefab の中に無いときは「見つからない」)・「Click → SendSignal 'pause' / LongPress → CloseSelf」のような配線の要約。</td></tr>
+<tr><td>＋ 配線</td><td>そのボタンに配線を 1 本足します(トリガーはまだ使っていないもの。埋め込みの配下では子が使っているトリガーも避けます)。Ctrl+Z で戻せます。</td></tr>
+<tr><td>⚙(展開)</td><td>そのボタンの<strong>配線 1 本 = 1 行</strong>が出ます。</td></tr>
+</table>
+<p>展開した配線の行:</p>
+<table>
+<tr><th>部品</th><th>説明</th></tr>
+<tr><td>トリガー</td><td>どの操作で動くか: Click / DoubleClick / LongPress(UiButton の LongPressSec が必要)/ Repeat。</td></tr>
+<tr><td>アクション</td><td>None / OpenCanvas / CloseSelf / CloseTop / SendSignal / PlayPresentation(実行時は未対応で、行に注記が出ます)/ ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded。スライダー用の SetOption はここでは選べません。</td></tr>
+<tr><td>対象(Canvas)</td><td>OpenCanvas のときだけ出る欄。開く Canvas データを入れます。</td></tr>
+<tr><td>シグナルのキー</td><td>SendSignal のときだけ出る欄。通知名を入れて Enter(または欄の外をクリック)で確定します。プログラマーと名前を決めておきます。</td></tr>
+<tr><td>切り替える埋め込み</td><td>埋め込みを出し入れするアクションのときだけ出る欄。この Canvas に登録した埋め込みの RootPath から選びます。先頭の「(このボタンが属する埋め込み)」は、子の中のボタンで自分自身を隠すときに使います。</td></tr>
+<tr><td>SE</td><td>押したときに鳴らす効果音(任意)。空ならレイヤー既定の SE / Skin の SE が使われます。</td></tr>
+<tr><td>削除</td><td>その配線を 1 本取り除きます。</td></tr>
+<tr><td>行の下の ⚠</td><td>その場で直せる問題です(開く Canvas が未設定 / シグナルのキーが未設定 / 同じトリガーの重複 など)。</td></tr>
+</table>
+<p>Prefab の中に UiButton が見つからない配線(パスのずれ)は、「見つからない」のチップ付きの行として残ります(展開すると注意が出ます)。埋め込みの子の配線は展開されず、1 行の要約と「開く」だけが出ます。スライダーの配線(Sliders)は、詳細モードの通常のリスト欄(Trigger・Action・SignalKey・Option・ThrottleSec)で編集します。</p>
+
+<h2 id="embed">埋め込み Canvas</h2>
+<span id="embedded"></span>
+<p>ある Canvas の Prefab の中に別の Canvas の Prefab を入れ子で置くとき、子の動き(ElementFx)や配線は<strong>子の Canvas データに 1 か所で持ち</strong>、親を開いたときもそのまま効きます。同じ子を別の親に入れても書き直す必要がありません。</p>
 <h3>作り方</h3>
 <ol>
-<li>子の Prefab(例: Option)を、親の Prefab(例: Hud)の中にドラッグして入れる(Prefab の入れ子)。子には子の Canvas データ(<a href="canvas-data.html">Canvas データ</a>)を作っておく</li>
-<li>親の Canvas データを Canvas Editor で開く。「<strong>埋め込み Canvas(入れ子の子 Canvas)</strong>」の欄の「入れ子 Prefab から検出(未登録)」に子が出るので「<strong>埋め込みとして登録</strong>」を押す(手で足すときは「+ 手動で追加」で、親 Prefab ルートからのパスと子の Canvas データを入れる)</li>
-<li>ElementFx の一覧が「<strong>親の要素</strong>」と「<strong>埋め込み: 子の名前(パス)</strong>」に分かれる。埋め込みの欄には子の演出が読み取り表示で並ぶ。編集するときは「<strong>この Canvas を編集</strong>」を押して、編集対象を子に切り替える</li>
-<li>子を編集中は、ツールバーの下に「<strong>← 親へ戻る</strong>」と「埋め込みとして編集中: Hud &gt; Option」が出る。子の ElementFx・ボタン・スライダーはここで編集し、「<strong>▶ 再生</strong>」は親の中の埋め込み実体で動く</li>
-<li>確認は親の「確認用シーンを開く」(親を開くと子の演出も本番と同じに効く)、または親の Prefab をプレハブモードで開いたまま「▶ 再生」。子の Prefab 単体のプレハブモード / 確認用シーンでも同じように使えます</li>
+<li>子の Prefab を、親の Prefab の中にドラッグして入れる(Prefab の入れ子)。子には子の Canvas データを作っておく</li>
+<li>親の Canvas データを開き、「埋め込み Canvas」(詳細モード)の一覧に「未登録」の行として子が検出されるので「<strong>登録</strong>」を押す(手で足すときは「＋ 手動で追加」で、行の ⚙ から RootPath と子の Canvas データを入れる)</li>
+<li>1 埋め込み = 1 行(「RootPath」・「有効で始まる / 無効で始める」・「→ 子の名前(子の中身は子のエディターで)」・「開く」・⚙)。「<strong>開く</strong>」で編集対象が子に切り替わる</li>
+<li>子を編集中は、ヒーローの下に「<strong>← 親へ戻る</strong>」と「埋め込みとして編集中: Hud &gt; Option」が出る。確認用プレビューは残り、「▶ 再生」・選択は親の中の埋め込み実体で動く</li>
 </ol>
-<!-- screenshot: 36-#60 -->
+<p>展開(⚙)で出る欄: RootPath(親 Prefab ルートからの相対パス。Enter で確定、`\` は `/` に直します)・子の Canvas データ・<strong>無効で始める</strong>・<strong>表示 / 非表示(作業用)</strong>・削除(登録を外す。親の ElementFx の行は消えません)。</p>
 <h3>ルール</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>子の設定が効くもの</td><td>子の Canvas データの <strong>ElementFx / Buttons / Sliders</strong>。子の Prefab の中のパス(例: <code>Panel/BtnX</code>)のまま書けます</td></tr>
-<tr><td>親のものが使われるもの</td><td>Navigation / FirstSelected / レイヤーの既定(Skin・SE・演出)/ 開閉の演出 / Layer・SortOffset / ポーズ・モーダルの設定。子のこれらの設定は<strong>無視</strong>されます(パッドの移動先を子の中まで張りたいときは、親の Navigation に <code>OptionRoot/Panel/BtnX</code> のように書きます)</td></tr>
-<tr><td>親の設定が優先</td><td>親の Canvas データに、<strong>埋め込み配下の同じ要素</strong>(親から見たパス <code>OptionRoot/Panel</code>)の行があるときは、親の行が勝ち、子の同じ要素の設定は使われません。「この画面ではここだけ演出を変えたい」ときの上書きに使えます(一覧では「親での上書き」と表示され、子の欄の該当行には「親で上書き」と付きます)。<strong>優先される単位</strong>: ElementFx は<strong>要素</strong>ごと(1 行 = Appear / Idle / Disappear の組。親に <code>OptionRoot/Panel</code> の行があれば、子の <code>Panel</code> の演出は 3 つとも使われません)。ボタン・スライダーの配線は<strong>要素 + トリガー</strong>ごと(親が <code>OptionRoot/BtnX</code> の Click だけ配線していれば、子の同じボタンの Click は使われませんが、LongPress など別のトリガーの配線は子の設定が使われます)。1 つの要素の設定は 1 回だけ適用されます</td></tr>
-<tr><td>入れ子の入れ子</td><td>子の Canvas データ自身が、自分の中の入れ子を埋め込みとして登録している形(Hud の中の Option の中の Volume)が基本です。優先は「Hud 自身 &gt; Option &gt; Volume」の順。親(Hud)に <code>OptionRoot</code> と <code>OptionRoot/Inner</code> のように<strong>重なる登録</strong>をすると Validation に Warning が出ます(設定の誤りです。実行時は、より内側の登録がその配下の要素を担当し、同じ要素は 1 回だけ適用されます。Hud 自身の行は、子の設定より常に優先されます)。「入れ子 Prefab から検出」は、他の登録の中にある入れ子の入れ子を提案しません(その子の Canvas Editor で登録します)</td></tr>
-<tr><td>ボタンの「この Canvas を閉じる」(CloseSelf)</td><td>埋め込み時は<strong>親の Canvas を閉じます</strong>(子は単独の画面ではないため)。「戻る」(CloseTop)・「別の画面を開く」(OpenCanvas)は変わりません</td></tr>
-<tr><td>無効で始める</td><td>埋め込みの行の「<strong>無効で始める</strong>」(<code>StartInactive</code>)をオンにすると、親を開いたときにその子を無効(非表示)で始めます(子の Appear も始まりません)。オフ(既定)は有効で始まります。Prefab 側で子のルートを無効にしてあっても、登録済みの埋め込みはこの設定が優先されます。<a href="#embedded-active">下記「埋め込みを出し入れする」</a>を参照</td></tr>
-<tr><td>子を単独で開く</td><td>子の Prefab を単独の画面としても使えます(同じ子の Canvas データを、単独でも埋め込みでも使えます)</td></tr>
+<tr><td>子の設定が効くもの</td><td>子の Canvas データの ElementFx / Buttons / Sliders。子の Prefab の中のパス(例: <code>Panel/BtnX</code>)のまま書けます。</td></tr>
+<tr><td>親のものが使われるもの</td><td>Navigation / FirstSelected / レイヤーの既定 / 開閉の演出 / Layer・SortOffset / ポーズ・モーダルの設定。子のこれらは無視されます(パッドの移動先を子の中まで張りたいときは、親の Navigation に <code>OptionRoot/Panel/BtnX</code> のように書きます)。</td></tr>
+<tr><td>親の設定が優先</td><td>親の Canvas データに、埋め込み配下の同じ要素(親から見たパス)の行があるときは、親の行が勝ちます(「親での上書き」)。「この画面ではここだけ演出を変えたい」ときに使います。</td></tr>
+<tr><td>登録するときの整理</td><td>登録の前に親で自動収集していると、入れ子の中の要素が親の行として集まっています。「登録」を押す(または RootPath / 子を変える)と、既定のままの行は確認なしで取り除き、設定のある行は 1 回確認します。1 つの Undo グループです(キャンセルすると何も変えません)。</td></tr>
+<tr><td>CloseSelf</td><td>埋め込み時は親の Canvas を閉じます。CloseTop・OpenCanvas は変わりません。</td></tr>
+<tr><td>子を単独で開く</td><td>同じ子の Canvas データを、単独の画面としても埋め込みとしても使えます。</td></tr>
 </table>
 <h3 id="embedded-active">埋め込みを出し入れする(有効 / 無効)</h3>
-<p>登録した埋め込みの子は、親を開いたあとにボタンの配線から出したり隠したりできます。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>無効で始める</td><td>埋め込みの行のチェック(Undo 対応)。オンの子は、親を開いても出ません。変更した内容は確認用プレビューを開き直すと反映されます</td></tr>
-<tr><td>表示 / 非表示(作業用)</td><td>埋め込みの行のボタン。作業のために子の表示を一時的に切り替えます(<strong>データにも Prefab にも保存されません</strong>)。プレハブモードを開いていればそちらが優先で、SceneView の表示だけを切り替えます(もう一度押すか、Hierarchy の目のアイコンで戻ります)。確認用プレビューだけのときは実際に有効 / 無効を切り替え、子の Appear / Disappear も再生されます</td></tr>
-<tr><td>配線のアクション(ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded)</td><td>「ボタンの配線」欄でこの 3 つを選ぶと、対象の埋め込みを選ぶ欄が出ます。先頭の「(このボタンが属する埋め込み)」は、子の中のボタンで自分自身を隠す(閉じる)ときに使います。そのほかは、その Canvas データに登録した埋め込みの RootPath から選べます(入れ子の入れ子は <code>OptionRoot/Inner</code> のように連結した形でも選べます)</td></tr>
+<tr><td>無効で始める</td><td>展開した行のチェック(Undo 対応)。オンの子は、親を開いても出ません(子の Appear も始まりません)。確認用プレビューは開き直すと反映されます。</td></tr>
+<tr><td>表示 / 非表示(作業用)</td><td>作業のために子の表示を一時的に切り替えます(<strong>データにも Prefab にも保存されません</strong>)。プレハブモードを開いていればそちらが優先で、SceneView の表示だけを切り替えます(もう一度押すか、Hierarchy の目のアイコンで戻ります)。確認用プレビューだけのときは実際に有効 / 無効を切り替えます(子の Appear / Disappear も再生されます)。</td></tr>
+<tr><td>配線のアクション</td><td>ActivateEmbedded / DeactivateEmbedded / ToggleEmbedded を選ぶと、対象の埋め込みを選ぶ欄が出ます。</td></tr>
 </table>
 <ul>
 <li>有効にすると、子の Appear → Idle が始まります。子の Canvas データに FirstSelected があれば、それを選択します(親が一番上で操作できる状態のときだけ)</li>
 <li>無効にすると、子の Disappear を再生してから無効になります。子の中が選ばれていたら、親の FirstSelected へ移ります</li>
-<li>入れ子の入れ子は、外側が無効の間に内側を切り替えても、外側を有効にしたときに有効な内側だけが Appear を始めます</li>
 <li>子を単独で開いているとき(属する埋め込みが無いとき)は、「自分を隠す」配線は警告が 1 回出るだけで何も起きません</li>
 </ul>
-<p>Validation の Warning: 配線の対象が「埋め込み Canvas」に登録されていないとき(<code>DD-CANVAS-WIRE-EMBED-UNKNOWN</code>)/ FirstSelected が無効で始まる埋め込みの中にあるとき(<code>DD-CANVAS-EMBED-FIRSTSELECTED-INACTIVE</code>)/ スライダーの配線にこの 3 つのアクションを選んだとき(<code>DD-CANVAS-SLIDER-EMBED-ACTION</code>。スライダーでは何も起きません)。</p>
-<h3>便利な機能</h3>
-<ul>
-<li><strong>選択に追従</strong>(ツールバーの下のチェック。既定オン): Hierarchy・プレハブモード・確認用シーンで要素を選ぶと、それが埋め込みの子の要素なら編集対象が自動で子に、そうでなければ親に切り替わり、該当する ElementFx の行が展開されて青い線で強調されます。このウィンドウで入力中の欄があるあいだは切り替わりません。ほかのウィンドウ(Hierarchy など)へ移ってから切り替わるときは、入力途中の値は<strong>切り替え前の Canvas に確定</strong>されます(切り替わった先の別の Canvas には書かれません)。別の Canvas の Prefab をプレハブモードで開いて要素を選んだときも、その Canvas に切り替わります(埋め込みを使わない場合も同じ)。切り替えたくないときはチェックを外すか、「🔒」を ON にします。「🔒」が ON の間は「選択に追従」のチェックが灰色になり、「🔒 がオンの間は追従しません」と表示されます(チェックの状態はそのまま保たれ、「🔒」を OFF に戻すと元どおり使えます)</li>
-<li><strong>登録するときの「親での上書き」の整理</strong>: 登録の前に親で「要素を自動収集」を押していると、入れ子の中の要素が親の ElementFx の行として集まっています。親の行は子の設定より優先されるため、そのままだと子の演出が効かなくなります。そこで「埋め込みとして登録」を押す(または RootPath 欄・子の Canvas データ欄を変える)と、その埋め込みの<strong>中</strong>の親の行を整理します。何も割り当てていない行(自動収集されただけの行)は<strong>確認なしで取り除かれ</strong>(登録のとき)、演出を割り当てた行があるときは「取り除く(子の Canvas データの設定を使う)/ 残す(親での上書きとして残る)/ キャンセル(登録しない)」を 1 回だけ確認します。登録と整理は Ctrl+Z 1 回で元に戻せ、取り除いた件数は画面のメッセージに出ます。親のボタン・スライダーの配線は消さず、この埋め込みの中を指す配線があるときは件数だけ知らせます。すでに登録してある埋め込みは、ElementFx 一覧の「親での上書き」の見出しの下の「<strong>上書きをまとめて整理…</strong>」で整理できます。こちらは自分で押す操作なので、対象の行を一覧した確認が<strong>必ず 1 回</strong>出ます(中身が既定のままの行だけのときは「取り除く / キャンセル」、設定が入っている行があるときは「取り除く / 残す / キャンセル」。子の演出をその親の中でだけ止めるためにわざと置いた行を、確認なしで消さないためです)。Ctrl+Z 1 回で元に戻せます</li>
-<li><strong>絞り込み</strong>: ElementFx の見出しの下の検索欄に要素のパスの一部を入れると、一覧が絞られます(親・子とも)</li>
-<li><strong>自動収集</strong>: 登録済みの埋め込みの<strong>中</strong>の要素は、親の「要素を自動収集」・「一括適用」に含まれません(子の担当)。親に既にある行は消えません。まだ登録していない入れ子の Prefab は、親の一覧に出ます</li>
-<li><strong>プリセットギャラリー</strong>: 確認用シーンやプレハブモードで要素を選んで「選択中のシーン要素のパスを使う」を押すと、Canvas の Prefab ルートからのパスが入ります。埋め込みの子の要素なら、適用先が子の Canvas データに切り替わります</li>
-</ul>
+
+<h2 id="nav">カーソル移動(Navigation)</h2>
+<p>見出しに「8 要素・リンク 14 本・最初 = Panel/BtnPause」のような要約が出ます。開くと、次の部品があります。</p>
+<table>
+<tr><th>部品</th><th>説明</th></tr>
+<tr><td>Selectable を自動収集</td><td>Prefab 内の <strong>uGUI の Selectable</strong>(Button / Slider / Toggle など)を探して Navigation に行を足します(既存の行は残ります。4 方向は空 = Unity 自動のまま)。UiButton / UiSlider は拾いません。UiButton はグラフにはノードとして出るので、グラフでリンクを張ってください。</td></tr>
+<tr><td>自動レイアウトを更新</td><td>ドラッグで動かしたノード位置・追加した Reroute point を破棄し、Prefab のレイアウトどおりに戻します。</td></tr>
+<tr><td>到達不能を検出</td><td>どこからもフォーカスが来られない要素を赤枠にして一覧します。</td></tr>
+<tr><td>未配線を一覧</td><td>リンクは張りません。4 方向とも空(Unity 自動のまま)の要素を一覧するだけです。</td></tr>
+<tr><td>表示高さ</td><td>グラフの高さ(320〜900)。</td></tr>
+<tr><td>パッド操作シミュレーション</td><td>「▲」「▼」「◀」「▶」でフォーカスを移し、「決定」でフォーカス中の UiButton(無ければ uGUI のボタン)を押します(配線した OpenCanvas などが実際に動きます)。<strong>確認用シーンで開いている間だけ</strong>押せます。グラフでは現在位置が白い太枠になり、下に「フォーカス: …」が出ます。</td></tr>
+<tr><td>最初に選ばれる要素(FirstSelected)</td><td>欄の下の文字欄。開いた直後にカーソルが乗る要素のパスです。Prefab の中に無い名前はエラーになります。グラフの右クリックでも設定できます。</td></tr>
+</table>
+<h3>グラフの操作</h3>
+<p>Prefab 内の全ボタン・スライダーが、画面上の位置とだいたい同じ配置でノード(四角)として出ます。<strong>配線を編集するための図であり、UI の見た目のプレビューではありません</strong>。</p>
+<table>
+<tr><th>操作</th><th>説明</th></tr>
+<tr><td>リンクを張る</td><td>ノードの四辺の丸いポート(▲上 / ▼下 / ◀左 / ▶右)を<strong>左ドラッグして、別のノードの上で離す</strong>。</td></tr>
+<tr><td>矢印の色</td><td><strong>水色 = Up</strong> / <strong>オレンジ = Down</strong> / <strong>黄色 = Left</strong> / <strong>紫 = Right</strong>。先端の三角が行き先を指します。</td></tr>
+<tr><td>ノードの枠色</td><td>黄土色 = Navigation にあるが Prefab 内に実体が無い / 緑 = FirstSelected / 赤 = 到達不能 / 白い太枠 = パッド操作の現在フォーカス。</td></tr>
+<tr><td>パン / ズーム</td><td>マウス中ボタンドラッグ、または Alt + 左ドラッグで移動。ホイールで拡大縮小。</td></tr>
+<tr><td>配線を切る</td><td>Ctrl + 左ドラッグで、切りたい配線をなぞる。</td></tr>
+<tr><td>Reroute point</td><td>配線をダブルクリックで追加(移動はドラッグ、削除は右クリック)。ノード位置・Reroute point は Canvas データに保存されます(実行時の動作には使いません)。</td></tr>
+<tr><td>ダブルクリック</td><td>その要素を Hierarchy で強調表示(Ping)。</td></tr>
+<tr><td>右クリックメニュー</td><td>FirstSelected にする / 各方向のリンクを削除 / リンクを全て削除 / 要素を Ping。</td></tr>
+</table>
 <div class="tip">
-埋め込みの登録を外す(欄の「削除」)と、子の演出・配線は親の中で効かなくなります。親に書いた行(親での上書き)は消えません。
+リンクは一方通行です。「下へ行ったら上へ戻れる」ようにするには、▼ と ▲ の両方を張ってください。1 方向でも張ったノードは「明示配線」扱いになり、空の方向は行き止まりになります。まったく張らないノードは Unity の自動ナビゲーションのまま動きます。実機の十字キー / スティックは、シーンに EventSystem(InputSystemUIInputModule 付き)があるときだけ動きます。
 </div>
+
+<h2 id="link">音・イベントと合わせる</h2>
+<p>詳細モードのカード。出現・終了などの節目で、別の SE / VFX などを一緒に再生する設定(Events)です。</p>
+
+<h2 id="admin">管理情報</h2>
+<p>一覧に出る名前・カテゴリ・説明・タグ・アイコン・担当者・仕様書 URL・変更メモ。Id / 版数 / 最終更新者 / 最終更新日時は読み取り専用で一行に出ます。</p>
+
+<h2 id="validation">検証(Validation)</h2>
+<p>問題は、該当する欄の下に色付きの 1 行(赤 = Error、黄 = Warning、青 = Info)で出ます。一覧の欄(要素・配線・埋め込み)では、欄の下には最大 3 件までで、該当する行の ⚠ に内容が出ます。どの欄にも当てはまらない問題は「その他の検証」に集まります。自動で直せるものには右に「修正」ボタンが出ます。文言と対処は <a href="canvas-data.html">Canvas データのよくある警告</a>。</p>
 
 <h2>確認のしかた(チェックリスト)</h2>
 <ul>
 <li>「Selectable を自動収集」で意図した数の行が増えた(UiButton は含まれないので、必要なら手で足す)</li>
-<li>グラフに黄土色の枠が無い(あればパスがずれています)</li>
-<li>「到達不能を検出」で赤枠が無い、FirstSelected(緑枠)が 1 つある</li>
-<li>「確認用シーンを開く」で Game ビューに画面が出て、Appear の演出が想定どおり。演出が終わるまでは入力を受け付けない仕様なので、AppearDelay が大きすぎないか</li>
-<li>「パッド操作シミュレーション」の ▲▼◀▶ でフォーカスが期待どおりに巡り、「決定」で配線した動作(画面遷移など)が起きる</li>
-<li>Disappear の行の「▶ 再生」で実際に再生して見た目を確認する(プリセット・直接指定どちらでも押せる。ループ演出を Disappear に入れていないか)</li>
-<li>「Validation」に赤(Error)が無い</li>
-<li>プレハブモードで Idle を確認するときは「Idle を流す(プレハブモード)」をオンにして、動きと位置を見る。確認後は外すか、そのまま保存してよい(保存の直前に元の値へ戻る)</li>
-<li>「ボタンの配線」欄の各配線に ⚠ が出ていない(開く Canvas・シグナルのキーの未設定、同じトリガーの重複)</li>
-<li>入れ子の Canvas がある場合: 「埋め込み Canvas」の欄に登録されている(「入れ子 Prefab から検出(未登録)」に残っていない)。Validation に「EmbeddedCanvases[…]」の警告が無い</li>
+<li>グラフに黄土色の枠が無い(あればパスがずれています)。「到達不能を検出」で赤枠が無く、FirstSelected(緑枠)が 1 つある</li>
+<li>「確認用シーン」で Game ビューに画面が出て、Appear の演出が想定どおり。演出が終わるまでは入力を受け付けない仕様なので、AppearDelay が大きすぎないか</li>
+<li>パッド操作シミュレーションの ▲▼◀▶ でフォーカスが期待どおりに巡り、「決定」で配線した動作が起きる</li>
+<li>要素の行の ▶ で Appear / Idle / Disappear を実際に再生して見た目を確認する(ループ演出を Disappear に入れていないか)</li>
+<li>ヒーローのチップが「✓ 検証 OK」、一覧の行に ⚠ が出ていない</li>
+<li>入れ子の Canvas がある場合: 「埋め込み Canvas」に登録されている(「未登録」の行が残っていない)</li>
 <li>シーンに EventSystem(InputSystemUIInputModule 付き)がある。無いと Play 中に「シーンに EventSystem がありません。UI の入力(選択/ナビゲーション)が動作しません。」と出ます</li>
 </ul>
 
 <h2>注意点</h2>
 <ul>
-<li><strong>「Selectable を自動収集」は uGUI の Selectable だけ</strong>を拾います。UiButton / UiSlider はグラフにはノードとして出るので、リンクを張るか Inspector の Navigation に行を足してください</li>
-<li>実機の十字キー / スティックは、シーンに EventSystem(InputSystemUIInputModule 付き)があるときだけ動きます。無い場合は「パッド操作シミュレーション」で配線を確かめてください</li>
-<li><strong>「未配線を自動リンク」はリンクを張りません</strong>(一覧するだけ)</li>
-<li>「パッド操作シミュレーション」は「確認用シーンを開く」中だけ。「決定」で押せるのは UiButton(無ければ uGUI のボタン)</li>
-<li>Navigation グラフは配線の図であって、UI の見た目のプレビューではありません。見た目は「確認用シーンを開く」で</li>
+<li>ウィンドウの中に UI の絵は出ません。見た目の確認は「確認用シーン」で Game / SceneView を見ます</li>
 <li>プレビューはシーンに保存されません。シーンを切り替えるとプレビューは消えます</li>
 <li>埋め込み Canvas は、子の Canvas データが<strong>ゲームの起動時に読み込まれている</strong>(Preload)ことが前提です。他の Canvas データと同じく、Flags の Load を Preload にしておいてください</li>
-<li>ボタンの配線は「ボタンの配線」欄、スライダーの配線は Inspector の配列で編集します。Action=PlayPresentation は実行時に未対応です(警告だけが出ます)</li>
-<li>プリセットギャラリーのカードは静止画です。動きは「選択中のシーン要素で再生」か、こちらの「確認用シーンを開く」で見ます</li>
+<li>Action = PlayPresentation は実行時に未対応です(警告だけが出ます)</li>
+<li>プリセットギャラリーのカードは静止画です。動きは行の ▶ か「確認用シーン」で見ます。ギャラリーで「適用先」に同じ Canvas データを選び、カードの「この要素に適用」を押すと、要素の行に反映されます</li>
 </ul>
 
 <h2>関連ページ</h2>
 <ul>
 <li><a href="canvas-data.html">Canvas(UI 画面)データの設定項目</a> — 各項目の意味・警告の一覧・実行時の挙動</li>
-<li><a href="ui-tween.html">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方とカードからの割り当て</li>
+<li><a href="ui-tween.html">UI Tween / プリセットギャラリー / ElementFx</a> — 動きの作り方とカードからの割り当て</li>
 <li><a href="ui-skin.html">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
 <li><a href="prefab-data.html">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>
 <li><a href="validation.html">Validation の見方</a> / <a href="glossary.html">用語集</a></li>
