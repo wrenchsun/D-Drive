@@ -1481,6 +1481,227 @@
     bottom: 0;
 }
 
+/* ── Canvas Editor(docs/1010 UX-4 / D-10): 一覧の欄・1 要素 1 行 ── */
+.ux-root .ux-sec {
+    flex-grow: 1;
+}
+
+.ux-root .ux-sec__fold > .unity-foldout__toggle > .unity-toggle__input > .unity-label {
+    color: var(--ux-text);
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-sec__fold > .unity-foldout__content {
+    margin-left: 0;
+}
+
+.ux-root .ux-sec__list {
+    flex-grow: 1;
+}
+
+.ux-root .ux-itemlist {
+    flex-grow: 1;
+}
+
+.ux-root .ux-sec__static {
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-itemlist__bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-itemlist__search {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 140px;
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-itemlist__host {
+    flex-grow: 1;
+}
+
+.ux-root .ux-itemlist__count {
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-itemlist__lv {
+    height: 420px;
+}
+
+.ux-root .ux-fxrow {
+    margin-bottom: 2px;
+    border-radius: 8px;
+    background-color: var(--ux-surface-2);
+}
+
+.ux-root .ux-fxrow--open {
+    border-width: 1px;
+    border-color: var(--ux-border-strong);
+}
+
+.ux-root .ux-fxrow--hl {
+    border-left-width: 3px;
+    border-left-color: var(--ux-accent);
+}
+
+.ux-root .ux-fxrow__head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 2px 4px 2px 8px;
+    min-height: 32px;
+}
+
+.ux-root .ux-fxrow__name {
+    flex-shrink: 1;
+    min-width: 80px;
+    max-width: 220px;
+    margin-right: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: link;
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-fxrow__chip {
+    flex-shrink: 0;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-fxrow__summary {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 120px;
+    margin-right: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-fxrow__head .ux-btn {
+    margin: 2px 0 2px 4px;
+}
+
+.ux-root .ux-fxrow__details {
+    padding: 4px 8px 8px 8px;
+}
+
+.ux-root .ux-fxrow__props {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.ux-root .ux-fxrow__prop {
+    flex-grow: 1;
+    min-width: 200px;
+    margin-right: 8px;
+}
+
+.ux-root .ux-fxphase {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.ux-root .ux-fxphase__caption {
+    width: 72px;
+    flex-shrink: 0;
+    color: var(--ux-dim);
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-fxphase__popup {
+    width: 170px;
+    flex-shrink: 1;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-fxphase__object {
+    width: 170px;
+    flex-shrink: 1;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-fxphase .ux-btn {
+    margin: 0 4px 0 0;
+}
+
+.ux-root .ux-fxphase .unity-base-field__label {
+    display: none;
+}
+
+.ux-root .ux-wireline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 2px;
+}
+
+.ux-root .ux-wireline__trigger {
+    width: 110px;
+    margin: 0 4px 0 0;
+}
+
+.ux-root .ux-wireline__action {
+    width: 150px;
+    margin: 0 8px 0 4px;
+}
+
+.ux-root .ux-wireline__field {
+    width: 180px;
+    flex-shrink: 1;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-wireline .unity-base-field__label {
+    display: none;
+}
+
+.ux-root .ux-wireline .ux-btn {
+    margin: 0 4px 0 0;
+}
+
+.ux-root .ux-lineflag {
+    color: var(--ux-warn);
+    margin-right: 4px;
+}
+
+.ux-root .ux-ctxrow {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.ux-root .ux-followrow {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-canvas-status {
+    margin-bottom: 8px;
+}
+
+.ux-root .ux-navheight {
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-navgraph {
+    height: 320px;
+    min-height: 320px;
+}
+
 /* 表示 / 非表示の切り替え。他の display 指定より必ず勝たせるため、クラスを重ねて詳細度を上げる。末尾に置く */
 .ux-root .ux-hidden.ux-hidden {
     display: none;

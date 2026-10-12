@@ -281,6 +281,8 @@ namespace DDrive.Editor.Ux
                 }
             }
 
+            OnValidated(results);
+
             var extraKey = UxRow.IssueKey(extra);
             if (_extraCard != null && extraKey != _extraKey)
             {
@@ -295,6 +297,9 @@ namespace DDrive.Editor.Ux
             _extraCard?.Show(extra.Count > 0);
             UpdateChips();
         }
+
+        // 検査のたびに全結果を受け取る(種別が持つ一覧の行ごとの印に使う)。
+        protected virtual void OnValidated(IReadOnlyList<ValidationResult> results) { }
 
         // 結果を欄に結びつける。第一に ValidationResult.Field(Validator が欄名を持たせたもの)、
         // 無ければ旧来のメッセージ照合(Field を付けていない Validator の救済)。
@@ -438,6 +443,8 @@ namespace DDrive.Editor.Ux
                 card.SetVisibility(foldShown > 0 ? visible + 1 : visible, filtering);
             }
 
+            OnFiltersApplied(searching ? q : string.Empty);
+
             if (_hit != null)
             {
                 var sb = new StringBuilder();
@@ -459,6 +466,9 @@ namespace DDrive.Editor.Ux
                 _hit.Show(filtering);
             }
         }
+
+        // 検索・モードの絞り込みを反映したあと(種別が持つ一覧の行を query で絞り込む。空 = 検索していない)。
+        protected virtual void OnFiltersApplied(string query) { }
 
         // ── チップ・一括リセット ──
 
@@ -542,7 +552,7 @@ namespace DDrive.Editor.Ux
             var names = new List<string>();
             for (var i = 0; i < _changeRows.Count; i++)
             {
-                if (_changeRows[i].IsModified)
+                if (_changeRows[i].IsModified && !_changeRows[i].NoBulkReset)
                 {
                     names.Add(_changeRows[i].Label);
                 }
@@ -575,7 +585,7 @@ namespace DDrive.Editor.Ux
             So.Update();
             for (var i = 0; i < _changeRows.Count; i++)
             {
-                if (_changeRows[i].IsModified)
+                if (_changeRows[i].IsModified && !_changeRows[i].NoBulkReset)
                 {
                     _changeRows[i].ApplyDefault();
                 }

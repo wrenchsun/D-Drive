@@ -105,8 +105,25 @@ namespace DDrive.Editor.Ux
         // 検索語が一致するときのヒント文に出す、Data の種類名(例: "VfxData")。
         protected string DataKindName => typeof(TData).Name;
 
+        // 検索ボックスの現在の語(空 = 検索していない)と表示モード(0 かんたん / 1 標準 / 2 詳細)。種別が持つ一覧の絞り込みに使う。
+        protected string SearchQuery => (_query ?? string.Empty).Trim();
+
+        protected int ViewMode => _mode;
+
+        // 本体(ScrollView)の中の要素までスクロールする。
+        protected void ScrollToElement(VisualElement element)
+        {
+            if (element != null)
+            {
+                _body?.ScrollTo(element);
+            }
+        }
+
         // 再生(▶ ■ リピート 速度)を持つ種別だけ true。持たない種別(Tuning・Material など)は固定バーに再生を出さない。
         protected virtual bool SupportsPlayback => false;
+
+        // リピート(終わったら自動で再生し直す)を固定バーに出すか。再生が「開きっぱなし」の種別(例: Canvas)は false。
+        protected virtual bool SupportsRepeat => true;
 
         protected virtual bool IsPlaying => false;
 
@@ -298,9 +315,10 @@ namespace DDrive.Editor.Ux
 
         // ── 対象 ──
 
-        protected void SetTarget(TData data)
+        // confirmSave = false: 未保存の確認を出さずに切り替える(Data を手放さない切替。例: Canvas の「親の中の子 Canvas へ」)。
+        protected void SetTarget(TData data, bool confirmSave = true)
         {
-            if (_target != null && data != _target)
+            if (confirmSave && _target != null && data != _target)
             {
                 ConfirmSaveBeforeLeave(_target, "別の Data に切り替えます。");
             }

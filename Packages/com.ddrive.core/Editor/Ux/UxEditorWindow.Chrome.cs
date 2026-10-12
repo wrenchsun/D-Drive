@@ -135,7 +135,11 @@ namespace DDrive.Editor.Ux
             Reclassify();
             ApplyFilters();
             DataSwitcher.Record(typeof(TData), Target);
+            OnBodyBuilt(page);
         }
+
+        // 本体(ヒーロー・カード)を組み終えたあと。
+        protected virtual void OnBodyBuilt(VisualElement page) { }
 
         // ── 空状態 ──
 
@@ -487,10 +491,13 @@ namespace DDrive.Editor.Ux
                 bar.Add(_btnPlay);
                 _btnStop = MakeButton("■ 停止", null, StopMain, "再生を止める");
                 bar.Add(_btnStop);
-                _repeatToggle = new Toggle("リピート") { value = Repeat, tooltip = "終わったら自動で再生し直す(調整中に何度も押さなくてよい)" };
-                _repeatToggle.AddToClassList("ux-bar__repeat");
-                _repeatToggle.RegisterValueChangedCallback(e => Repeat = e.newValue);
-                bar.Add(_repeatToggle);
+                if (SupportsRepeat)
+                {
+                    _repeatToggle = new Toggle("リピート") { value = Repeat, tooltip = "終わったら自動で再生し直す(調整中に何度も押さなくてよい)" };
+                    _repeatToggle.AddToClassList("ux-bar__repeat");
+                    _repeatToggle.RegisterValueChangedCallback(e => Repeat = e.newValue);
+                    bar.Add(_repeatToggle);
+                }
                 if (SupportsSpeed)
                 {
                     _speedSlider = new Slider("速度", SpeedMin, SpeedMax) { value = Speed, showInputField = false, tooltip = "再生の速さ(0.1〜2 倍)" };

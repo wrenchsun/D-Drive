@@ -29,7 +29,7 @@ namespace DDrive.Editor.CanvasTool
     // 切り替えたうえで、その場で OpenData まで行う(ユーザー自身の Canvas 等と重ならずに確認できる。以前は
     // 「切り替え」と「配置」を別ボタンにしていたが、切り替えたら必ず置きたいだけなので統合した)。
     // Disappear の見た目は UI Tween Editor 側(実要素をプレビュー対象に自動割り当てして再生できる)で確認する。
-    [DDrive.Editor.Inspector.DataEditor(typeof(CanvasData), "Canvas Editor で開く")]
+    [DDrive.Editor.Inspector.DataEditor(typeof(CanvasData), "(旧) Canvas Editor で開く", Order = 100)]
     public sealed partial class CanvasEditorWindow : EditorWindow
     {
         private const string NoneChoice = "なし";
@@ -137,12 +137,12 @@ namespace DDrive.Editor.CanvasTool
             public Label StatusLabel;
         }
 
-        [MenuItem(DDriveMenu.Editors + "Canvas")]
+        [MenuItem(DDriveMenu.Archive + "Canvas Editor")]
         public static void OpenFromMenu() => Open(Selection.activeObject as CanvasData);
 
         public static void Open(CanvasData target)
         {
-            var window = GetWindow<CanvasEditorWindow>("Canvas Editor");
+            var window = GetWindow<CanvasEditorWindow>("(旧) Canvas Editor");
             window.minSize = new Vector2(380, 320);
             if (target != null)
             {
