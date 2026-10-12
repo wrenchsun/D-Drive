@@ -117,6 +117,7 @@ namespace DDrive.Editor.Materials
         {
             _root = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
             rootVisualElement.Add(_root);
+            ApplyUxTheme(); // docs/1010 UX-8: 構造は変えず、共通テーマ(DDriveUx.uss)だけ当てる
 
             // 5-15: この画面自体は既存 MaterialData の変換用だが、[DataEditor] 付き専用エディタとして
             // 一覧に含まれるため、他のエディタと同じく「＋ 新規作成」を上部に置く(空の MaterialData を作って変換元にできる)。
@@ -162,6 +163,21 @@ namespace DDrive.Editor.Materials
             {
                 SetSource(selected);
             }
+        }
+
+        // 共通テーマ(Light / Dark)を当てる。配色が切り替わったら当て直す。
+        private void ApplyUxTheme()
+        {
+            var root = rootVisualElement;
+            DDrive.Editor.Ux.UxTheme.Apply(root);
+            _root.contentContainer.AddToClassList("ux-pad");
+            root.schedule.Execute(() =>
+            {
+                if (DDrive.Editor.Ux.UxTheme.IsStale(root))
+                {
+                    DDrive.Editor.Ux.UxTheme.Apply(root);
+                }
+            }).Every(500);
         }
 
         // 変換前(A)/ 変換後(B)のサムネイル(2026-09-11)。

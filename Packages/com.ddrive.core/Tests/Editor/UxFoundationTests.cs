@@ -92,6 +92,10 @@ namespace DDrive.Tests.Editor
                 Path.Combine(PackageRoot, "Editor", "Anim2D", "Anim2DEditor.Lists.cs"),
                 Path.Combine(PackageRoot, "Editor", "Anim2D", "Anim2DEditor.Preview.cs"),
                 Path.Combine(PackageRoot, "Editor", "Anim2D", "Anim2DCreateWizard.cs"),
+                Path.Combine(PackageRoot, "Editor", "Material", "MaterialEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Material", "MaterialEditor.Rows.cs"),
+                Path.Combine(PackageRoot, "Editor", "Material", "MaterialEditor.Preview.cs"),
+                Path.Combine(PackageRoot, "Editor", "Material", "TextureEditor.cs"),
             });
             // 見た目を持たない目印のクラス(USS に規則が無くてよい)。
             var markers = new HashSet<string> { "ux-root", "ux-dark", "ux-light", "ux-knobs", "ux-panel" };

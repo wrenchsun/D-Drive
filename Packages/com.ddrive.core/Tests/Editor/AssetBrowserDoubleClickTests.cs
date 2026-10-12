@@ -28,6 +28,7 @@ namespace DDrive.Tests.Editor
 
         // 新 VfxEditor は internal(Editor/Ux の方針)なので型名で引く。
         private static System.Type NewVfxEditorType => typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Vfx.VfxEditor", true);
+        private static System.Type NewMaterialEditorType => typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Materials.MaterialEditor", true);
 
         [TearDown]
         public void TearDown()
@@ -35,7 +36,7 @@ namespace DDrive.Tests.Editor
             // 開いたままのテスト用ウィンドウを必ず閉じる(preview-via-scene の方針どおり残骸を残さない)。
             foreach (var window in Resources.FindObjectsOfTypeAll<EditorWindow>())
             {
-                if (window is VfxEditorWindow or MaterialEditorWindow || window.GetType() == NewVfxEditorType)
+                if (window is VfxEditorWindow or MaterialEditorWindow || window.GetType() == NewVfxEditorType || window.GetType() == NewMaterialEditorType)
                 {
                     window.Close();
                 }
@@ -60,14 +61,14 @@ namespace DDrive.Tests.Editor
         [Test]
         public void TryGetPrimary_MultipleCandidates_ResolvesToOrderMinimumAsPrimary()
         {
-            // MaterialData には MaterialEditorWindow(Order 既定=0) / MaterialThumbnailWindow(Order=5) /
-            // MaterialConvertWindow(Order=10) の 3 つが付いている。主エディタは Order 最小の
-            // MaterialEditorWindow(= Inspector の「エディターで開く」列の先頭ボタンと同じ)。
+            // MaterialData には新 MaterialEditor(Order 0) / MaterialThumbnailWindow(Order=5) /
+            // MaterialConvertWindow(Order=10) / (旧) MaterialEditorWindow(Order=100) が付いている。主エディタは Order 最小の
+            // 新 MaterialEditor(= Inspector の「エディターで開く」列の先頭ボタンと同じ)。
             var entries = DataEditorRegistry.GetEntries(typeof(MaterialData));
             Assert.Greater(entries.Count, 1, "このテストは MaterialData に複数の [DataEditor] が付いていることが前提です");
 
             Assert.IsTrue(DataEditorRegistry.TryGetPrimary(typeof(MaterialData), out var primary));
-            Assert.AreEqual(typeof(MaterialEditorWindow), primary.WindowType);
+            Assert.AreEqual(NewMaterialEditorType, primary.WindowType);
             Assert.AreEqual(entries[0].WindowType, primary.WindowType, "TryGetPrimary は GetEntries の先頭と一致するはず");
         }
 
@@ -139,7 +140,7 @@ namespace DDrive.Tests.Editor
 
             Assert.IsTrue(DataEditorRegistry.OpenDefault(asset));
 
-            var window = EditorWindow.GetWindow<MaterialEditorWindow>();
+            var window = EditorWindow.GetWindow(NewMaterialEditorType);
             Assert.IsNotNull(window);
         }
     }

@@ -73,6 +73,21 @@ namespace DDrive.Editor.Ux
 
         // 再生中の実体へ即時反映する(Vfx は VfxManager.SetParam)。反映先が無い種別は何もしない。
         void ApplyLive(string label, ParamValue value);
+
+        // 分類(チップ)の語彙。既定は共通の語彙(色 / サイズ / …)。供給元が独自の語彙を持つなら上書きする
+        // (Material = 共通チャンネル / 描画ステート / 接頭辞ごと / その他)。InferCategory はこの並びの添字を返す。語彙は Signature が変わるまで変えない。
+        IReadOnlyList<string> CategoryNames => TuneCategories.Names;
+
+        // 名前の列を広げるか(Material のようにプロパティ名が長い供給元)。
+        bool WideNames => false;
+
+        // 範囲が決まっているつまみ(シェーダーの Range など)のスライダー範囲。決まっていなければ false(値から自動で決める)。
+        bool TryRange(int index, out float min, out float max)
+        {
+            min = 0f;
+            max = 1f;
+            return false;
+        }
     }
 
     // つまみの分類(チップ)の共通の語彙と推定。
@@ -178,17 +193,25 @@ namespace DDrive.Editor.Ux
             public Button Reset;
             public Action<ParamValue> SetUi;
             public VisualElement Details;
+            public bool DetailsBuilt;
+            public bool Visible = true;
         }
 
         private readonly ITuneSource _src;
         private readonly SerializedObject _so;
         private readonly Action _edited;      // ドラッグ中も呼ぶ軽い通知
         private readonly Action _structural;  // 追加・削除など(検証を含む)
+        public const int VirtualizeAbove = 20; // 表示するつまみがこれを超えたら ListView にする
         private readonly List<Knob> _knobs = new List<Knob>();
         private readonly List<ParamValue> _baseline = new List<ParamValue>();
         private readonly HashSet<int> _openDetails = new HashSet<int>();
         private readonly VisualElement _filterBar;
         private readonly VisualElement _list;
+        private readonly Label _empty;
+        private readonly List<Knob> _shown = new List<Knob>();
+        private ListView _listView;
+        private int _layoutSig = int.MinValue;
+        private string _query = string.Empty;
         private readonly VisualElement _addPanel;
         private readonly Label _message;
         private int _filter = -1;
@@ -209,6 +232,11 @@ namespace DDrive.Editor.Ux
             _filterBar = new VisualElement();
             _filterBar.AddToClassList("ux-filters");
             Add(_filterBar);
+
+            _empty = new Label("つまみはまだありません。「＋ つまみを追加」から足すと、ここで回せます。");
+            _empty.AddToClassList("ux-dim");
+            _empty.AddToClassList("ux-knobs-empty");
+            Add(_empty);
 
             _list = new VisualElement();
             _list.AddToClassList("ux-knobs");
@@ -264,7 +292,9 @@ namespace DDrive.Editor.Ux
             _signature = _src.Signature();
             _list.Clear();
             _knobs.Clear();
+            _layoutSig = int.MinValue;
             _filterKey = string.Empty;
+            EnableInClassList("ux-knobs--wide", _src.WideNames);
             var n = _src.Count;
             while (_baseline.Count > n)
             {
@@ -276,19 +306,10 @@ namespace DDrive.Editor.Ux
                 _baseline.Add(_src.Value(_baseline.Count));
             }
 
-            if (n == 0)
-            {
-                var empty = new Label("つまみはまだありません。「＋ つまみを追加」から色やサイズを足すと、ここで回せます。");
-                empty.AddToClassList("ux-dim");
-                empty.AddToClassList("ux-knobs-empty");
-                _list.Add(empty);
-            }
-
+            _empty.Show(n == 0);
             for (var i = 0; i < n; i++)
             {
-                var k = BuildKnob(i);
-                _knobs.Add(k);
-                _list.Add(k.Row);
+                _knobs.Add(BuildKnob(i));
             }
 
             RefreshChrome();
@@ -338,13 +359,24 @@ namespace DDrive.Editor.Ux
             gear.AddToClassList("ux-btn--icon");
             line.Add(gear);
 
-            k.Details = BuildDetails(k);
-            k.Details.Show(_openDetails.Contains(i));
+            k.Details = new VisualElement();
             main.Add(k.Details);
+            if (_openDetails.Contains(i))
+            {
+                BuildDetails(k);
+            }
+
+            k.Details.Show(_openDetails.Contains(i));
             gear.clicked += () =>
             {
                 var open = !k.Details.IsShown();
+                if (open)
+                {
+                    BuildDetails(k);
+                }
+
                 k.Details.Show(open);
+                _listView?.schedule.Execute(() => _listView.RefreshItems()).StartingIn(30);
                 if (open)
                 {
                     _openDetails.Add(k.Index);
@@ -379,6 +411,12 @@ namespace DDrive.Editor.Ux
                     var b = _baseline[i].FloatValue;
                     var hi = b > 1f ? b * 4f : 1f;
                     var lo = b < 0f ? b * 4f : 0f;
+                    if (_src.TryRange(i, out var rangeLo, out var rangeHi) && rangeHi > rangeLo)
+                    {
+                        lo = Mathf.Min(rangeLo, b);
+                        hi = Mathf.Max(rangeHi, b);
+                    }
+
                     var s = new Slider(lo, hi) { value = cur.FloatValue, showInputField = true };
                     s.RegisterValueChangedCallback(e => Write(i, ParamValue.Of(e.newValue)));
                     k.SetUi = v =>
@@ -443,14 +481,21 @@ namespace DDrive.Editor.Ux
             }
         }
 
-        private VisualElement BuildDetails(Knob k)
+        // ⚙ の中身は最初に開いたときに作る(つまみが多いデータで PropertyField を全部作らない)。
+        private void BuildDetails(Knob k)
         {
-            var box = new VisualElement();
+            if (k.DetailsBuilt)
+            {
+                return;
+            }
+
+            k.DetailsBuilt = true;
+            var box = k.Details;
             box.AddToClassList("ux-details");
             var arr = _so.FindProperty(_src.ArrayPath);
             if (arr == null || k.Index >= arr.arraySize)
             {
-                return box;
+                return;
             }
 
             var el = arr.GetArrayElementAtIndex(k.Index);
@@ -472,7 +517,6 @@ namespace DDrive.Editor.Ux
             remove.AddToClassList("ux-btn");
             remove.AddToClassList("ux-btn--small");
             box.Add(remove);
-            return box;
         }
 
         // ── 値の書き込み(Undo + SetDirty。再生中は即時反映) ──
@@ -533,13 +577,31 @@ namespace DDrive.Editor.Ux
                 && a.VectorValue == b.VectorValue && a.ObjectValue == b.ObjectValue;
         }
 
+        // 分類の語彙(供給元が決める)。
+        private IReadOnlyList<string> Names => _src.CategoryNames ?? TuneCategories.Names;
+
+        // 分類の添字。デザイナーがチップで付け替えた分類(セッション内、名前で覚える)を優先し、無ければ供給元の推定。
         private int CategoryOf(int i)
         {
-            var saved = SessionState.GetInt(CatKey(_src.Label(i)), -1);
-            return saved >= 0 && saved < TuneCategories.Names.Length ? saved : _src.InferCategory(i);
+            var names = Names;
+            var saved = SessionState.GetString(CatKey(_src.Label(i)), string.Empty);
+            if (saved.Length > 0)
+            {
+                for (var c = 0; c < names.Count; c++)
+                {
+                    if (names[c] == saved)
+                    {
+                        return c;
+                    }
+                }
+            }
+
+            return Mathf.Clamp(_src.InferCategory(i), 0, Mathf.Max(0, names.Count - 1));
         }
 
         private string CatKey(string label) => "DDrive.Ux.cat." + _src.OwnerKey + "." + label;
+
+        private const int ChipColors = 6; // ux-cat--0..5 の色。語彙がこれより多いときは繰り返す
 
         private void UpdateKnobState(Knob k)
         {
@@ -548,16 +610,18 @@ namespace DDrive.Editor.Ux
                 return;
             }
 
+            var names = Names;
             var cat = CategoryOf(k.Index);
-            var chip = TuneCategories.Names[cat];
+            var chip = names.Count > 0 ? names[cat] : string.Empty;
             if (k.Chip.text != chip)
             {
                 k.Chip.text = chip;
+                k.Chip.tooltip = chip + "(クリックで分類を変える)";
             }
 
-            for (var c = 0; c < TuneCategories.Names.Length; c++)
+            for (var c = 0; c < ChipColors; c++)
             {
-                k.Chip.EnableInClassList("ux-cat--" + c, c == cat);
+                k.Chip.EnableInClassList("ux-cat--" + c, c == cat % ChipColors);
             }
 
             var rawLabel = _src.Label(k.Index);
@@ -580,12 +644,13 @@ namespace DDrive.Editor.Ux
         {
             var menu = new GenericMenu();
             var cur = CategoryOf(k.Index);
-            for (var c = 0; c < TuneCategories.Names.Length; c++)
+            var names = Names;
+            for (var c = 0; c < names.Count; c++)
             {
-                var cat = c;
-                menu.AddItem(new GUIContent(TuneCategories.Names[c]), c == cur, () =>
+                var name = names[c];
+                menu.AddItem(new GUIContent(name), c == cur, () =>
                 {
-                    SessionState.SetInt(CatKey(_src.Label(k.Index)), cat);
+                    SessionState.SetString(CatKey(_src.Label(k.Index)), name);
                     RefreshChrome();
                 });
             }
@@ -593,9 +658,50 @@ namespace DDrive.Editor.Ux
             menu.ShowAsContext();
         }
 
+        // ウィンドウの検索語で絞る(名前・反映先に一致するつまみだけ出す)。空 = 絞らない。
+        public void SetQuery(string query)
+        {
+            query = (query ?? string.Empty).Trim();
+            if (query == _query)
+            {
+                return;
+            }
+
+            _query = query;
+            RefreshChrome();
+        }
+
+        // 検索語に一致するつまみがあるか(行を残すかの判定に使う)。
+        public bool AnyMatch(string query)
+        {
+            for (var i = 0; i < _knobs.Count; i++)
+            {
+                if (Matches(_knobs[i].Index, query))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool Matches(int index, string query)
+        {
+            if (string.IsNullOrEmpty(query) || index >= _src.Count)
+            {
+                return true;
+            }
+
+            var label = _src.Label(index);
+            var target = _src.TargetName(index);
+            return (label != null && label.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                || (target != null && target.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
         private void RefreshChrome()
         {
-            var counts = new int[TuneCategories.Names.Length];
+            var names = Names;
+            var counts = new int[names.Count];
             for (var i = 0; i < _knobs.Count; i++)
             {
                 UpdateKnobState(_knobs[i]);
@@ -607,12 +713,23 @@ namespace DDrive.Editor.Ux
                 _filter = -1;
             }
 
+            // 絞り込み(分類チップ + 検索語)に当たるつまみ。
+            _shown.Clear();
+            var layout = 17;
             for (var i = 0; i < _knobs.Count; i++)
             {
-                _knobs[i].Row.Show(_filter < 0 || CategoryOf(i) == _filter);
+                var k = _knobs[i];
+                k.Visible = (_filter < 0 || CategoryOf(i) == _filter) && Matches(i, _query);
+                if (k.Visible)
+                {
+                    _shown.Add(k);
+                    layout = layout * 31 + i;
+                }
             }
 
-            var key = _filter + ":" + _knobs.Count + ":" + string.Join(",", counts);
+            LayoutList(layout);
+
+            var key = _filter + ":" + _knobs.Count + ":" + string.Join(",", counts) + ":" + string.Join("|", names);
             if (key == _filterKey)
             {
                 return;
@@ -632,18 +749,63 @@ namespace DDrive.Editor.Ux
             {
                 if (counts[c] > 0)
                 {
-                    AddFilterChip(TuneCategories.Names[c] + " " + counts[c], c);
+                    AddFilterChip(names[c] + " " + counts[c], c);
                 }
+            }
+        }
+
+        // 表示するつまみが VirtualizeAbove を超えたら ListView(内側スクロール)、以下なら行をそのまま並べる。
+        private void LayoutList(int shownSig)
+        {
+            var useList = _shown.Count > VirtualizeAbove;
+            shownSig = shownSig * 31 + (useList ? 1 : 0);
+            if (shownSig == _layoutSig)
+            {
+                return;
+            }
+
+            _layoutSig = shownSig;
+            _list.Clear();
+            if (useList)
+            {
+                _listView = new ListView
+                {
+                    virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
+                    selectionType = SelectionType.None,
+                    showAlternatingRowBackgrounds = AlternatingRowBackground.None,
+                    itemsSource = _shown,
+                    makeItem = () => new VisualElement(),
+                    bindItem = (e, i) =>
+                    {
+                        e.Clear();
+                        if (i >= 0 && i < _shown.Count)
+                        {
+                            e.Add(_shown[i].Row);
+                            _shown[i].Row.Show(true);
+                        }
+                    },
+                };
+                _listView.AddToClassList("ux-itemlist__lv");
+                _list.Add(_listView);
+                return;
+            }
+
+            _listView = null;
+            for (var i = 0; i < _knobs.Count; i++)
+            {
+                _list.Add(_knobs[i].Row);
+                _knobs[i].Row.Show(_knobs[i].Visible);
             }
         }
 
         private void AddFilterChip(string text, int cat)
         {
+            var names = Names;
             var b = new Button(() =>
             {
                 _filter = cat;
                 RefreshChrome();
-            }) { text = text, tooltip = cat < 0 ? "すべてのつまみを表示" : TuneCategories.Names[cat] + "のつまみだけ表示" };
+            }) { text = text, tooltip = cat < 0 ? "すべてのつまみを表示" : names[cat] + "のつまみだけ表示" };
             b.AddToClassList("ux-filter");
             b.EnableInClassList("ux-filter--on", cat == _filter);
             _filterBar.Add(b);

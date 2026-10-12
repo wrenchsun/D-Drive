@@ -4,6 +4,7 @@ using DDrive.Editor.Anchor;
 using DDrive.Editor.Anim;
 using DDrive.Editor.Audio;
 using DDrive.Editor.CameraFx;
+using DDrive.Editor.Materials;
 using DDrive.Editor.Inspector;
 using DDrive.Editor.Model;
 using DDrive.Editor.Presentation;
@@ -16,6 +17,7 @@ using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Cutscene;
 using DDrive.Runtime.Haptics;
+using DDrive.Runtime.Material;
 using DDrive.Runtime.Model;
 using DDrive.Runtime.Presentation;
 using DDrive.Runtime.Vfx;
@@ -74,6 +76,10 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(BgmData), typeof(AudioEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(VfxData), typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Vfx.VfxEditor", true));
             AssertWindow(typeof(VfxData), typeof(VfxEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(MaterialData), asm.GetType("DDrive.Editor.Materials.MaterialEditor", true));
+            AssertWindow(typeof(MaterialData), typeof(MaterialEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(TextureData), asm.GetType("DDrive.Editor.Materials.TextureEditor", true));
+            AssertWindow(typeof(TextureData), typeof(MaterialEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(ModelData), typeof(ModelEditorWindow));
             AssertWindow(typeof(AnimData), typeof(AnimEditorWindow).Assembly.GetType("DDrive.Editor.Anim.AnimEditor", true));
             AssertWindow(typeof(AnimData), typeof(AnimEditorWindow)); // (旧) Order 100

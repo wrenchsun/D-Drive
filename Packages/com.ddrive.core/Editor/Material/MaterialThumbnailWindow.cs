@@ -104,6 +104,7 @@ namespace DDrive.Editor.Materials
             _root = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
             _root.contentContainer.style.flexGrow = 1;
             rootVisualElement.Add(_root);
+            ApplyUxTheme(); // docs/1010 UX-8: 構造は変えず、共通テーマ(DDriveUx.uss)だけ当てる
 
             var toolbar = new Toolbar();
             _targetField = new ObjectField { objectType = typeof(MaterialData), allowSceneObjects = false, style = { flexGrow = 1 } };
@@ -172,6 +173,21 @@ namespace DDrive.Editor.Materials
             {
                 SetTarget(selected);
             }
+        }
+
+        // 共通テーマ(Light / Dark)を当てる。配色が切り替わったら当て直す。
+        private void ApplyUxTheme()
+        {
+            var root = rootVisualElement;
+            DDrive.Editor.Ux.UxTheme.Apply(root);
+            _root.contentContainer.AddToClassList("ux-pad");
+            root.schedule.Execute(() =>
+            {
+                if (DDrive.Editor.Ux.UxTheme.IsStale(root))
+                {
+                    DDrive.Editor.Ux.UxTheme.Apply(root);
+                }
+            }).Every(500);
         }
 
         private void SyncControls()

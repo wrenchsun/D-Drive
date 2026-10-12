@@ -53,7 +53,7 @@
 | UX-5 | ✅ | Presentation の新エディター: トラック一覧（タイムライン）・Signal・環境切替・統合プレビュー・トラックの Anchor/Params・Scope・ログ・SceneView 表示・「専用エディタで開く」は新エディターへ | 4 | UX-2 | 同上 |
 | UX-6 | ✅ | Anim(3D) の新エディター: Clip/StateMachine/IK/BlendShape/イベント・イベントログ・ブレンド確認・Animator から選択・SE/VFX イベント | 3 | UX-2 | 同上 |
 | UX-7 | ✅ | Anim2D の新エディター + 作成ウィザード（B の雛形方式）。ウィンドウ内プレビューは現状維持 | 2 | UX-2 | 同上 |
-| UX-8 | ⬜ | Material / Texture の新エディター: Specific を TuneKnobs、Pass/Keyword。Convert・Thumbnail はテーマのみ | 2 | UX-1 | 同上 |
+| UX-8 | ✅ | Material / Texture の新エディター: Specific を TuneKnobs、Pass/Keyword。Convert・Thumbnail はテーマのみ | 2 | UX-1 | 同上 |
 | UX-9 | ⬜ | Model + Prefab の新エディター（並列表示・Material スロット→新 Material エディターへ・Default Animation） | 1.5 | UX-8 | 同上 |
 | UX-10 | ⬜ | Shake / Haptics の新エディター（プリセット 10 種・波形グラフ・Haptics プレビュー） | 1 | UX-2 | 同上 |
 | UX-11 | ⬜ | Anchor + Anchor Group の新エディター（試し出し・ヒエラルキーから作る・SceneView ハンドル。AnchorPad が主部品） | 2 | UX-2 | 同上 |

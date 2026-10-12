@@ -17,6 +17,8 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 変更
 
+- **Material Editor / Texture Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-8・D-10）: `MaterialEditor` / `TextureEditor`。やりたいことごとのカード（見た目 / 質感と発光 / 固有 / 描画の順序 / 動き / パスとキーワード / 確認する / 管理情報）・かんたん / 標準 / 詳細・設定の検索・保存と自動保存・Light / Dark。**シェーダー固有（Specific）は調整つまみ**（分類チップ = 共通チャンネル / 描画ステート / 接頭辞ごと / その他、型別の部品、↺、⚙、シェーダーに実在するプロパティからの追加。20 行超は ListView）。サムネイル・シーン配置・比較・Pass / Keyword・変換ウィンドウ・ポップアップは機能そのまま（変換とポップアップは共通テーマだけ当てた）。外部契約（`_Toon*` の扱い・`MaterialCommonNaming` の分類・Specific の Merge）は変えていない
+- 共通基盤（`Editor/Ux`、internal）の `ITuneSource` に既定実装つきの任意メンバー（分類の語彙・名前の幅・Range）、`TuneKnobs` に ListView 化・検索語での絞り込みを追加した（既存のつまみの挙動は変えない）
 - **VFX Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-2）: やりたいことごとのカード・かんたん / 標準 / 詳細の 3 モード・設定の検索・保存と自動保存つきの固定バー。メニューは `Tools > D-Drive > Editors > VFX Editor`、Inspector の「VFX Editor で開く」と Presentation の「専用エディタで開く」「一緒に調整」も新エディターを開く。旧エディターは `Tools > D-Drive > Archive > VFX Editor` と Inspector の「(旧) VFX Editor で開く」に残した。マニュアル `vfx-editor.html` を新エディターの説明に書き換え、旧の説明は `archive-vfx-editor.html`
 - **Audio Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-3）: SE は `SeEditor`、BGM は `BgmEditor`（ヒーローの「BGM Editor へ / SE Editor へ」で行き来）。波形の端をドラッグしてトリム範囲 / ループ範囲を決める・無音の自動検出・トリミングの適用・再生開始位置・Mixer・3D（Spatial・距離・Anchor の位置パッド）・3D サウンド確認パッド・同時再生の上限・BGM のフェード、をやりたいことごとのカードに並べ、固定バーの ▶ ■ で実 AudioManager / BgmManager で試聴する。メニューは `Tools > D-Drive > Editors > Audio Editor`、Inspector の「Audio Editor で開く」は新エディターを開く
 - `SeDataValidator` / `BgmDataValidator` の結果に `ValidationResult.Field`（欄名）を付与した（メッセージ・Code・重さは変えない。新エディターが欄の下に表示するため）
@@ -38,6 +40,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- Editor 契約（UX-8）: `[DataEditor]` 対応表に新 `MaterialEditor`（MaterialData、Order 0、ラベルは従来と同じ「Material Editor で開く」）・新 `TextureEditor`（TextureData、「Texture Editor で開く」Order 0）と、旧 `MaterialEditorWindow` の `(旧) Material Editor で開く`（MaterialData / TextureData、Order 100）を追加。旧の 2 行はラベル・Order が変わる（`editor-contract.txt` は削除 2 行 + 追加 4 行）。メニュー `Tools > D-Drive > Editors > Material` は新、旧は `Archive > Material Editor`、`Editors > Texture` を追加。`MaterialConvertWindow` / `MaterialThumbnailWindow` の属性・メニューは変更なし。Foundation / Runtime の公開 API・シリアライズ形式・Validator の結果は変更なし
 - 追加のみ（MINOR）: `UiCanvasScalerDefaults`（`DDrive.Runtime.Ui` の public static class）、`DDriveProjectSettings` の CanvasScaler 既定 3 欄（末尾追加・既定値付き。Editor）、Validator Warning `DD-CANVAS-SCALER-MISMATCH`（新規 Code・Warning のみ）。既存の公開 API・シリアライズ形式は不変。ランタイムの挙動変更: レイヤールートに CanvasScaler が付くので、Prefab に CanvasScaler を持つ Canvas は解像度に追従して拡大縮小される（修正）。CanvasScaler を持たない Prefab は既定 1920x1080 / Match 0.5 で拡大縮小され、従来の等倍とは異なる（変えたいときは `UiCanvasScalerDefaults` / 設定の欄）
 - 追加のみ（MINOR）: `ValidationResult.Field`（`public readonly string`、既定 null）と `ValidationResult.WithField(string)`。`public-api-DDrive.Foundation.txt` に 2 行増えるだけで、既存の `ValidationResult` の構造・コンストラクタ・`Code` / `Severity` / `Message` / `FixAction`・Validator の結果の重さは変えない
 - 追加のみ: `ManualLauncher.OpenPage(string, string)`（Editor。既存の `OpenPage(string)` は変えない）。`Editor/Ux` は internal で公開契約・スナップショットに影響しない
