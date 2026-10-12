@@ -56,7 +56,7 @@
 | UX-8 | ✅ | Material / Texture の新エディター: Specific を TuneKnobs、Pass/Keyword。Convert・Thumbnail はテーマのみ | 2 | UX-1 | 同上 |
 | UX-9 | ✅ | Model + Prefab の新エディター（並列表示・Material スロット→新 Material エディターへ・Default Animation） | 1.5 | UX-8 | 同上 |
 | UX-10 | ✅ | Shake / Haptics の新エディター（プリセット 10 種・波形グラフ・Haptics プレビュー） | 1 | UX-2 | 同上 |
-| UX-11 | ⬜ | Anchor + Anchor Group の新エディター（試し出し・ヒエラルキーから作る・SceneView ハンドル。AnchorPad が主部品） | 2 | UX-2 | 同上 |
+| UX-11 | 🔧 実装中 | Anchor + Anchor Group の新エディター（試し出し・ヒエラルキーから作る・SceneView ハンドル。AnchorPad が主部品） | 2 | UX-2 | 同上 |
 | UX-12 | ⬜ | UI Tween + Preset Gallery の新エディター（トラック・実要素 ▶・ギャラリーのお気に入り/フィルタ/検索） | 2 | UX-2 | 同上 |
 | UX-13 | ⬜ | Slider / Slider Skin / Button Skin の新エディター（プリセット 5 種・`ControlSkinPreviewSection`） | 2 | UX-12 | 同上 |
 | UX-14 | ✅ | Prefab の新エディター（小さいので UX-9 と同じ PR） | 0 | UX-9 | 同上 |
