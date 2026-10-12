@@ -135,6 +135,12 @@ public sealed class AnchorData : AssetDataBase
 | 「埋め込み → アセット化」ボタン | 現在の埋め込み Anchor から AnchorData を新規作成して AnchorId を差し替える（移行補助。埋め込み値は残す） |
 | AssetBrowser | 種別タブに Anchor を追加。作成ダイアログ・命名（接頭辞 `ANC`、配置 `Assets/GameData/Anchor/<Category>/`）・カタログ `AnchorCatalog` を `AssetNamingService` / `AssetCreationService.GetCatalogName` に追加 |
 
+**2026-10-13 追記（UX-11、新デザインの AnchorEditor）**: データ構造・Validator・Manager は変えていない（Editor のみ）。専用エディターを **新 `AnchorEditor`**（`Editor/Anchor/AnchorEditor.cs` / `AnchorEditor.Rows.cs` / `AnchorFieldGuide.cs`、`UxEditorWindow<AnchorData>`）に置き換えた。旧 `AnchorEditorWindow` は `Tools > D-Drive > Archive > Anchor Editor`・`(旧) Anchor Editor で開く`（Order 100）で残す（バグ修正のみ）。
+- **カード**: 出る位置（**`AnchorPad` が主部品**。LocalOffset の X / Z をパッドで、Y を高さスライダーで。向き・大きさ・位置の全設定）/ 試し出し（確認用 VFX・SE の ▶ ■。固定バーの ▶ は両方をまとめて出し、リピートでばらつき・ディレイ・確率を繰り返し確認）/ 基準を決める（Space・Path・スポーン先・「Path を一覧から選ぶ」・解決状況・SceneView 表示切替〔`VfxAnchorToolsRow` と共通部品〕）/ 親 Anchor とつなぐ（Parent・「親を開く」・連鎖〔押すと切替〕）/ ばらつき・タイミング / ヒエラルキーから作る（`AnchorAssetFactory`）/ 管理情報。
+- **SceneView ハンドル**は `AnchorSceneHandles`（§3.10）をそのまま使う（ドラッグ中は検証を省き、つかみが終わったら 1 回検証）。`SceneGuiOwner` の描画権の扱いも従来どおり。
+- 試し出しは従来と同じく実 Manager を駆動する（`SceneVfxPreviewDriver.Play(vfx, attach, AnchorId)` / `PreviewService.PlaySe`）。連鎖の検証は同じ型の Data をすべて文脈に載せる（基底に `ValidationIncludesSameTypeAssets` を追加）。
+- 呼び出し元の向け直し: 新 `VfxEditor` / `SeEditor` と SE の Inspector（`SeDataEditor`）の「Anchor Editor で開く」は新 `AnchorEditor.Open(AnchorData)` を呼ぶ。実装メモ・機能対応表 = [1010](1010_editor_ux_migration.md) §5 UX-11。
+
 ### 3.7 Validation（AnchorDataValidator 新規）
 
 | 検査 | 重大度 |

@@ -232,7 +232,7 @@ namespace DDrive.Editor.Ux
                 return;
             }
 
-            var results = DataValidationRunner.Run(Target);
+            var results = DataValidationRunner.Run(Target, ValidationIncludesSameTypeAssets);
             AppendValidation(results);
             _errors = 0;
             _warnings = 0;
@@ -298,6 +298,9 @@ namespace DDrive.Editor.Ux
             _extraCard?.Show(extra.Count > 0);
             UpdateChips();
         }
+
+        // 他の Data との関係(入れ子・循環)を見る Validator のために、同じ型の Data すべてを検査の文脈に載せるか(Anchor / AnchorGroup。docs/1010 UX-11)。
+        protected virtual bool ValidationIncludesSameTypeAssets => false;
 
         // 共通の検査(DataValidationRunner)に、種別が足したい検査結果を加える(例: 基底型の Validator も通したい派生型。docs/1010 UX-7)。
         protected virtual void AppendValidation(List<ValidationResult> results) { }

@@ -86,7 +86,7 @@ namespace DDrive.Editor.Audio
                         var asset = DDrive.Editor.Preview.EditorAnchorRegistry.Find(se.AnchorId.Value);
                         if (asset != null)
                         {
-                            DDrive.Editor.Anchor.AnchorEditorWindow.Open(asset);
+                            DDrive.Editor.Anchor.AnchorEditor.Open(asset);
                         }
                     }
                 }

@@ -581,3 +581,72 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
   `execute_code`（実ウィンドウ・雛形 10 種のサンプル）: Inspector の登録表（新が先頭・旧が `(旧)`）、プリセット適用と Undo、Shake の ▶（確認用シーンのカメラが揺れ ActiveCount = 1・■ で 0 に戻り、IsPlaying が false）、Haptics の ▶（パッド無しで「パッド: 接続なし」。▶ ■ が例外なく動く）、Shake ⇄ Haptics の切替（Shake 側が残り Haptics が隣に開く）。実データは保存せず、サンプルと確認用シーンは作って削除した。
   スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①Shake の位置と回転が同じ形で重なって 1 本に見えていた（1 本に統合し凡例に峰値）②波形が荒いので標本を 64 → 192 に ③雛形の行に説明が二重（行の下の注記を「マウスを乗せると説明が出ます」に）④グラフの読み取り行の文が欄の説明と重複（短く）⑤ValueDef の欄が閉じたままで編集に 1 手間（Envelope と Haptics のモーターは最初から開く、Frequency は閉じる）⑥ラベルの切れ（「重なったときの強さ」「同時に重ねられる数」に短縮）。2 周目 = 幅 500px の Dark / Light でヒーロー・雛形ボタン列（折り返し）・グラフ・ValueDef の欄・固定バーが切れないこと、雛形 10 件を Data 切替で行き来して全グラフが雛形ごとに変わることを確認。
 - **割り切り**: ①グラフのドラッグは Shake = 長さだけ（強さは位置 / 回転の 2 つの軸を持つので数値の欄で編集）、Haptics = 強さ（固定値 / 始まりの値）と長さ。Curve（AnimationCurve）指定のモーターの強さと、尺が Speed / Rate のデータの長さはドラッグで書かない ②グラフは 1 周期（Loop のデータも最初の 1 周期だけ）③位置と回転は 1 本の「揺れの形」にまとめた（旧は同じ形を正規化して 2 本重ねており、実際には重なって 1 本に見えていた）④空状態の「サンプルを作る」は UX-19 でまとめて足す ⑤Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑥マニュアルは `camera-haptics.html`（データの項目の説明 + 新エディターの説明。旧の説明は `archive-camerafx-editor.html`）。
+
+**2026-10-13 追記（UX-11、Anchor / Anchor Group の新エディター。D-10 対応）**
+
+![新 AnchorEditor / AnchorGroupEditor（左 = Dark、右 = Light。上から Anchor〔3 段連鎖の末端・マズルフラッシュ〕・Anchor Group〔22 点の「戦場の配置」の試し出しと点の一覧〕・同じ配置セットの点の一覧と配置パターン）](images/1010_anchor.png)
+
+- **構成**: Se / Bgm・Shake / Haptics と同じく **`AnchorEditor : UxEditorWindow<AnchorData>` と `AnchorGroupEditor : UxEditorWindow<AnchorGroupData>` の 2 ウィンドウ**（型引数が具体型なので 1 ウィンドウで両方は扱えない。Anchor ⇄ Group の行き来は「Anchor Editor で開く」〔Group の原点の連鎖のボタン〕と Inspector / Asset Browser の「〜で開く」）。メニュー `Tools > D-Drive > Editors > Anchor` / `Anchor Group`。旧 `AnchorEditorWindow` / `AnchorGroupEditorWindow` は `Archive > Anchor Editor` / `Anchor Group Editor`・`(旧) Anchor Editor で開く` / `(旧) Anchor Group Editor で開く` Order 100。
+- **ファイル**（`Editor/Anchor/`）: `AnchorEditor.cs`（土台への指定・再生・ライフサイクル）/ `AnchorEditor.Rows.cs`（欄の組み立て・パッド・連鎖・試し出し・ヒエラルキーから作る・SceneView）/ `AnchorFieldGuide.cs`、`AnchorGroupEditor.cs` / `AnchorGroupEditor.Rows.cs`（試し出し・点の一覧・パターンの出し分け・手置きへの変換・原点の連鎖・SceneView）/ `AnchorGroupFieldGuide.cs`、`AnchorEditorParts.cs`（共有部品 `AnchorUi` / `AnchorAuxRow`）、`Editor/Ux/Samples/AnchorSample.cs`、`DDriveUx.uss` に `ux-anc-*`、`Tests/Editor/AnchorEditorUxTests.cs`。Runtime / Foundation / Validator は触っていない（検証の欄への結びつけは `ValidationTokens` と、メッセージ中の欄名）。共通基盤には internal の `UxEditorWindow.ValidationIncludesSameTypeAssets`（既定 false。Anchor / Group は入れ子・循環の検査に同じ型の Data をすべて文脈に載せる必要があるため true）と、`VfxAnchorToolsRow` に任意のラベル・説明の引数を足しただけ。**`AnchorPad` を主部品**に（Anchor の「出る位置」= LocalOffset の X / Z をパッドで、Y を高さスライダーで）、既存の `CanvasItemList`（絞り込み・件数・20 行超は ListView）で点の一覧を作った。
+- **目的別カード**（段の根拠: 両 Validator の Error は「Parent の未登録・循環・深すぎ」「Space が BoneName / NamedObject なのに Path が空」「点が 1 つもない」「Children の循環」だが、いずれもその設定を選んだときだけの条件なので「必須」の欄は無く、Parent・Space・Path・Layout・原点・出すものを「よく使う」にした。Error / Warning は欄の下に出て、折りたたまれていても見える。Warning の対象 = よく使う、既定のままでよい欄 = 詳細）: **Anchor** = 出る位置（パッド・向き・大きさ・位置の全設定）/ 試し出し / 基準を決める（Space・Path・スポーン先・追従・残す）/ 親 Anchor とつなぐ（Parent・連鎖）/ ばらつき・タイミング / ヒエラルキーから作る / 管理情報。**Group** = 試し出し（全点 / 選択点・スポーン先と状態）/ 点の一覧 / 配置パターン（Layout・Grid 5 / Circle 5 / Line 4 / Random 3 の欄・手置きへの変換・Points）/ 原点（OriginAnchorId・Origin・原点の連鎖）/ 出すもの（SharedVfx / SharedSe / Overrides / Children の 4 配列）/ タイミング・ばらつき / 管理情報。名前が `(` で始まる欄は補助の行。かんたん = Anchor は位置のパッドと試し出しだけ、Group は試し出しと点の一覧だけ（バッジは出さない）。
+- **D-10 の基準をどう満たしたか**: サンプル `AnchorSample.Build(folder)`（internal、一時フォルダに作って削除）= **Anchor 6**（右手〔ボーン基準〕→ 銃口 → マズルフラッシュの 3 段連鎖 + 頭・足元・頭上）+ **配置セット 6**（主役の「戦場の配置」= **Grid 4×4 + 手置き 6 = 22 点**・Skip 2・VFX / SE の上書き 2・入れ子 1・全点共通 VFX 2 / SE 1・原点は 2 段の Anchor 連鎖。ほかに Circle 8 / Line 5 / Random 12 / Manual 5 / 入れ子の子）。(1) 標準モードで Anchor 約 2.5 画面・Group 約 3.5 画面、かんたんは 1 画面（試し出し + 点の一覧）(2) 点は **1 点 = 1 行**（番号・種類のチップ・名前〔Grid は「横 2 × 奥 3」、Circle は角度、手置きは名前〕・位置と上書き / 出さない / 入れ子の要約・▶ / × / ＋。行の展開は無く、操作はボタンで完結）(3) 一覧の上に**絞り込み**（検索・すべて / 上書きあり / そのまま・パターン / 手置き）と**件数**（「22 点中 上書きあり 4」）(4) 入れ子・原点は 1 行要約（「入れ子 1」・「合成後の原点: 基準 BoneName 'Hand_R' から オフセット …」）22 点 > 20 行なので **ListView**（実機で確認）。(7) 幅 500px の Dark / Light でヒーロー・パッド・点の行・固定バーが切れない。
+- **機能対応表（旧 `AnchorEditorWindow` → 新 `AnchorEditor`、全行あり）**: 旧 `AnchorEditorWindow.cs`（695 行）の UI 要素（ツールバー 5・`ObjectField` 2・連鎖の行・`HelpBox`・状態ラベル 2・設定 14 欄 + Path の一覧メニュー + 親を開く・試し出し 2 行・ヒエラルキーから作る 2 ボタン・検証・SceneView）を 1 つずつ突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバー「🔒 対象を固定」 | ヒーローの「固定」 | あり |
+| ツールバー「確認用シーンを開く」 | ヒーローの「確認用シーン」（同じ `VfxPreviewSceneSetup.OpenOrCreate`） | あり |
+| ツールバー「Project で表示」 | ヒーローの「Project」・アイコンのクリック | あり |
+| ツールバー「SceneView 表示」+ 描画権の案内ラベル | 「基準を決める」の「スポーン先」行の「SceneView に表示」と「SceneView: このウィンドウが描画中…」（`VfxAnchorToolsRow` と共通） | あり |
+| ツールバー「＋ 新規作成」 | ヒーローの「＋ 新規」 | あり |
+| 対象アセットの ObjectField | ◀ [名前 ▾] ▶・空状態のピッカー・ドロップ・最近のデータ。Project の選択に追従、🔒 固定 | あり |
+| 連鎖の行（ルート → … → [対象]。押すと切替・⚠ ルートに辿り着けません） | 「親 Anchor とつなぐ」の「連鎖」行（同じ。連鎖が 1 つなら「親はありません」） | あり |
+| カメラ / ライトが無い HelpBox | ヒーロー直下の案内（シーン名入り） | あり |
+| 「スポーン先」ObjectField | 「基準を決める」の「スポーン先」 | あり |
+| 解決状況のラベル（World / ContextTarget / Path の解決 ✓⚠ + 生成: N 秒後・確率） | 同じ行の下（`AnchorUi.ResolutionText`。文言は旧と同じ） | あり |
+| Parent（+「親を開く」） | 「親 Anchor とつなぐ」の Parent 行（欄 + 「親を開く」） | あり |
+| Space / Path（+「一覧から選択」） | 「基準を決める」の Space / Path と、スポーン先行の「Path を一覧から選ぶ」（★AnchorPoint を先頭に。Space が World / ContextTarget のとき選ぶと NamedObject に） | あり |
+| LocalOffset | **「出る位置」のパッド**（X / Z / 高さ・数値入力・原点へ）+ 詳細モードの「位置のオフセット（全設定）」 | あり（拡張） |
+| LocalEuler / LocalScale | 「出る位置」カードの向き / 大きさ（詳細） | あり |
+| FollowRotation / DetachOnStop | 「基準を決める」（詳細） | あり |
+| PositionJitterRadius / EulerJitter / ScaleRange | 「ばらつき・タイミング」 | あり |
+| DelaySec / DelayJitterSec / SpawnChance | 「ばらつき・タイミング」 | あり |
+| 試し出し: 確認用 VFX の ▶ ■ + 状態（● 生成待ち / ● 再生中 / SpawnChance に外れた） | 「試し出し」カード（同じ状態文）。固定バーの ▶ ■ も同じ再生 | あり |
+| 試し出し: 確認用 SE の ▶ ■ | 「試し出し」カード | あり |
+| 既存のヒエラルキーから作る: 選択した Transform から作成 / AnchorRig から一括生成 | 「ヒエラルキーから作る」カード（同じ `AnchorAssetFactory`。作った Anchor はこのウィンドウで開く） | あり |
+| 検証（`DataValidationSection`、同じ型の Data を文脈に載せる） | 欄の下のインライン表示 + ヒーローのチップ + 「その他の検証」（`ValidationIncludesSameTypeAssets`） | あり |
+| SceneView: 連鎖・ランダム半径・移動 / 回転ハンドル（Undo）・薄い目印のクリックで描画権 | 同じ（`AnchorSceneHandles`。ドラッグ中は検証を省き、つかみが終わったら 1 回検証） | あり |
+| Undo / Redo の同期、再コンパイルに耐える状態（`_target` / `_lockTarget` / `_attachTarget` / `_sceneHandleEnabled` / `_testVfx` / `_testSe`） | 基底の `OnUndoRedo` + `[SerializeField]`（対象・固定は基底、スポーン先・SceneView・確認用 VFX / SE は `AnchorEditor`） | あり |
+| シーン切替で出していた実体を捨てる | `OnSceneChanged` | あり |
+
+  新エディターで増えたもの: かんたん / 標準 / 詳細・設定の検索・変更の色バーと ↺・保存と自動保存・未保存の確認・リピート・カードの「?」・Light / Dark・Parent・Path の一覧の「親 Anchor とつなぐ」。
+
+- **機能対応表（旧 `AnchorGroupEditorWindow` → 新 `AnchorGroupEditor`、全行あり）**: 旧 `AnchorGroupEditorWindow.cs`（781 行）の UI 要素（ツールバー 5・`ObjectField` 2・状態ラベル・試し出しの 5 ボタンと選択ラベル・設定 22 欄 + パターンの出し分け + 手置きへの変換・検証・SceneView）を 1 つずつ突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバー（固定 / 確認用シーン / Project / SceneView 表示 / ＋ 新規）・対象 ObjectField・カメラ / ライトの案内 | Anchor と同じ（ヒーロー・Data 切替・案内・スポーン先行のトグル） | あり |
+| 「スポーン先」ObjectField + 状態ラベル（原点の解決・点の数・全点共通 VFX / SE・入れ子・番号順ディレイ・確率） | 「試し出し」カードの「スポーン先と状態」行（`StatusText`。文言は旧と同じ）+「Path を一覧から選ぶ」（埋め込みの原点の Path に書く） | あり（拡張） |
+| ▶ 全点 / ▶ 選択点のみ / ■ 停止 | 「試し出し」カード（固定バーの ▶ ■ = 全点） | あり |
+| 選択中の点のラベル・「選択点を Overrides に追加」・「選択解除」 | 「試し出し」カード（同じ文言）。点の一覧の選択と共通 | あり |
+| OriginAnchorId / Origin | 「原点」カード（Origin は既定で閉じる）+ **原点の連鎖**（親子合成の確認。押すと Anchor Editor） | あり（拡張） |
+| Layout + Grid 5 / Circle 5 / Line 4 / Random 3 の欄（Layout の値に合うものだけ） | 「配置パターン」カード（同じ出し分け。検索中は一致した欄をすべて見せる） | あり |
+| 「手置きの点に変換」（パターンのときだけ・確認ダイアログ・Undo） | 「配置パターン」カード（同じ条件・同じダイアログ・同じ `AnchorGroupPointConverter`） | あり |
+| Points（手置きの点） | 「配置パターン」カード | あり |
+| DelayPerIndex / DelayJitterSec / ChancePerPoint / PositionJitterRadius / EulerJitter / ScaleRange | 「タイミング・ばらつき」 | あり |
+| SharedVfx / SharedSe / Overrides / Children | 「出すもの」 | あり |
+| 検証（同じ型の Data を文脈に載せる） | 欄の下のインライン + チップ + 「その他の検証」 | あり |
+| SceneView: 全点の番号付きギズモ・色分け（通常 / 上書き / 出さない / 選択）・クリック選択・原点ハンドル・手置きの直接ドラッグ・Grid / Circle / Line / Random のドラッグでパターンの大きさ（Undo）・薄い目印 | 同じ（`DrawSceneGui`。選択は点の一覧と共通で強調される） | あり |
+| `Open(data, attach)`（Presentation の「一緒に調整」） | 同じ形の `AnchorGroupEditor.Open(data, attach)`。`PresentationEditor.OpenTrackEditorTogether` を新へ向け直した | あり |
+| Undo / Redo の同期・再コンパイルに耐える状態（`_selectedIndex` ほか） | 基底 + `[SerializeField]` | あり |
+
+  新エディターで増えたもの: **点の一覧**（1 点 = 1 行・絞り込み・件数・1 点だけ試し出し・「出さない」の切替・上書きの追加）・原点の連鎖・かんたん / 標準 / 詳細・検索・保存・Light / Dark。
+
+- **`FieldGuide<TData>` の表**: `AnchorFieldGuide`（Anchor の編集できる全フィールド + 補助の 4 行）/ `AnchorGroupFieldGuide`（Group の全フィールド + 補助の 5 行）。`AnchorEditorUxTests` が「編集できる全フィールドを持つ・表の欄が実在する」を検査（Id / Version / Author / UpdatedAt と `HideInInspector` を除く）。
+- **互換性（editor-contract.txt）**: 追加 4 行（`AnchorData -> AnchorEditor "Anchor Editor で開く" order=0` / `AnchorGroupData -> AnchorGroupEditor "Anchor Group Editor で開く" order=0` / 旧 `AnchorEditorWindow` の `(旧) Anchor Editor で開く` order=100 / 旧 `AnchorGroupEditorWindow` の `(旧) Anchor Group Editor で開く` order=100）と**削除 2 行**（旧の order=0 の 2 行）。UX-2〜UX-10 と同じ扱い。更新前に red だったのは `EditorContractSnapshotTests.MatchesGolden` と `DDriveCompatToolTests.Compat_RealSnapshots_HaveNoDifference` の 2 件だけで、`ddrive_compat_update` のあと `ddrive_compat` は `changed:[]`。CHANGELOG の互換性節に追記済み。
+- **向け直した呼び出し元**（`grep AnchorEditorWindow` / `AnchorGroupEditorWindow`）: 新 `VfxEditor` の「Anchor Editor で開く」〔`VfxEditor.OpenAnchorEditor`〕・新 `SeEditor` の同導線〔`SeEditor.OpenAnchorEditor`〕・SE の Inspector（`SeDataEditor`、現役の `[CustomEditor]`）の「AnchorEditor で開く」→ 新 `AnchorEditor.Open`。新 `PresentationEditor`（AnchorGroup トラックの「専用エディタで開く（一緒に調整）」）→ `AnchorGroupEditor.Open(data, attach)`（`PresentationTrackEditorRouting` の `AnchorGroupWithAttach` の受け皿を足した。UX-5 では `OpenDefault` に逃がしていた）。Inspector の「エディターで開く」・Asset Browser のダブルクリック・Cutscene・MCP の `ddrive_editor_open` は `DataEditorRegistry`（Order 0 = 新）経由なので `[DataEditor]` の付け替えで新へ向く。残した旧への参照は Archive 内（`VfxEditorWindow.Anchor.cs`・旧 Presentation〔`PresentationEditorWindow.TrackEditors.cs`〕）と試験版（`Editor/Prototypes`、UX-19 で削除）だけ。テストは新に追従（`DataEditorRegistryTests`）、旧は開けること（題が `(旧)`）の確認を足した。
+- **マニュアル**: `anchor-data.html`（節 id = `place` / `try` / `base` / `chain` / `random` / `create` / `admin`）・`anchor-group.html`（`try` / `points` / `layout` / `origin` / `content` / `timing` / `admin`）を新エディターの説明に書き換え（機能のみ）。旧は `archive-anchor-editor.html` / `archive-anchor-group-editor.html`（`Readme.html` のアーカイブ節）。画像 `anchor-editor-window.png` / `anchor-group-editor-window.png` を新エディターのスクリーンショットに差し替え（旧画像は `archive-` 付きに改名）。`Tools/SpecWeb` は `build-manual.js` で再生成（clasp push はしていない）。
+- **確認**: コンパイル 0、**EditMode は全件を 1 回で実行して 2235 / 2235 green**（実行前に空きメモリ約 1.8GB・`UnloadUnusedAssetsImmediate` + `GC.Collect` を行った。約 16 分で完走、分割は不要。総数の確認: `TestRunnerApi.RetrieveTestList(EditMode)` の列挙が 2235 件〔UX-10 の 2210 + `AnchorEditorUxTests` の 25〕で、名前空間別の合計〔DDrive.Tests.Editor 1493 + CanvasOverrideCleanupTests の TestCase 展開 24 + Compat 44 + Mcp 236 + Migration 12 + Setup 45 + Update 316 + Validation 3 + ExternalContract.Tests 61 + AddressableAssets.DocExampleCode 1〕がランナーの総数と一致）。`AnchorEditorUxTests` 25 件（欄の表が編集できる全フィールドを持つ〔Anchor / Group〕・登録表〔新が先頭・旧が `(旧)` Order 100〕・旧ウィンドウが開く・サンプル〔3 段連鎖・22 点・Layout 5 種混在〕・ヒーロー / 固定バー / カード / パッド / 確認用欄 / ヒエラルキーから作るボタン・パッドの書き込みと Undo 1 回・連鎖行〔ルート → 自分の 3 ボタン・押すと切替〕・親を開く・SceneView 表示のトグルで `WantsSceneGui` が切り替わる・解決の表示がスポーン先に追従・確認用 VFX の再生が実 Manager で Anchor の位置に出て ■ で止まる・新 `VfxEditor` / `SeEditor` の「Anchor Editor で開く」が新 `AnchorEditor` を開く〔旧は開かない〕・Group の点の一覧〔22 点 = ListView・「22 点中 上書きあり 4」・5 点は ListView なしで 5 行〕・Layout で欄が出し分けられる・点の選択と強調・上書きの追加と「出さない」の切替と Undo・手置きへの変換と Undo・パターンのドラッグで半径が変わる・全点 / 選択点のみの再生（実 Manager）・`Open(data, attach)`・Presentation の「一緒に調整」で `AnchorGroupEditor` が開く・原点の連鎖のボタンで Anchor Editor が開く）。機械点検（`UxFoundationTests`）に新 5 ファイルを足した。`ddrive_compat` は更新後 `changed:[]`。**PlayMode は実行していない**（Runtime を触っていない）。
+  `execute_code`（実ウィンドウ・サンプル）: 確認用シーン（`PreviewScene`）で実際の VFX（`VFX_Player_Slash`）を **Anchor の位置（1, 0, 2）に出し**、■ で止まること / 配置セット「円陣」の ▶ 全点 = 8 点・▶ 選択点のみ = 1 点・■ で 0 に戻ること。Inspector の登録表（新が先頭・旧が `(旧)`）、SceneView ハンドルのトグル、新 `VfxEditor` の「Anchor Editor で開く」→ 新 `AnchorEditor`、Presentation の「一緒に調整」→ `AnchorGroupEditor.Open(data, attach)`（上の EditMode テストと同じ導線）。実データは保存せず、サンプルと確認用シーンは作って削除した。
+  スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①ラベルが切れた（「位置のばらつき(半径…」→ 9 文字以内の短い名前にし単位は説明へ）②試し出し・ヒエラルキーから作る・手置きに変換の行で説明が二重（行の下の注記を削り説明に統合）③確認用 VFX / SE の ObjectField のラベルが Light で薄く行の見出しと重複（ラベルを外し型は欄に出る「None (Vfx Data)」に）④点の行の名前が「Grid / Grid」と重複（Grid は「横 2 × 奥 3」、Circle は角度、Line は「2 / 5」、手置きは名前）⑤Origin（埋め込み）が開いたまま縦に長い（既定で閉じる）。2 周目 = 幅 500px で点の行の名前が潰れ（`ux-anc-pt` で名前を縮めず要約を先に省略）・ボタンの位置が行ごとにずれた（ボタンの縮みを止めた）・「戻す」ボタンが 3 文字で溢れた（「↺」に）のを直し、かんたん / 標準 / 詳細・Dark / Light・幅 500px で崩れないことを確認。
+- **割り切り**: ①Anchor ⇄ Group は 2 ウィンドウ（Se / Bgm・Shake / Haptics と同じ）②「ヒエラルキーから作る」の実行（`AnchorAssetFactory` は実データ `Assets/GameData` に書く）は、既存の `AnchorAssetFactoryTests` に任せ、新エディターのテストではボタンの存在までを確認した（実データを触らないため）③SceneView の `Handles.*` の描画・ドラッグそのものは EditMode では実行できないので、ハンドルの結果を書き戻す部分は `ApplyPatternDrag`（パターンのドラッグ）をテストし、描画は SceneView の目視（旧と同じ呼び出し）に任せた ④空状態の「サンプルを作る」は UX-19 でまとめて足す ⑤Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑥試験版（`Editor/Prototypes`）の `PrototypeEWindow` は旧 `AnchorEditorWindow.Open` を呼んだまま（別 asmdef で新エディターは internal のため。UX-19 で試験版ごと削除）。

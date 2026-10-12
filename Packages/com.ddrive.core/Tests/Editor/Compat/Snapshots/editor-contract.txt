@@ -22,8 +22,10 @@ RunAllMenuItem
 RunValidation
 ValidateAll
 == DataEditor ==
-DDrive.Runtime.Anchoring.AnchorData -> DDrive.Editor.Anchor.AnchorEditorWindow "Anchor Editor で開く" order=0
-DDrive.Runtime.Anchoring.AnchorGroupData -> DDrive.Editor.Anchor.AnchorGroupEditorWindow "Anchor Group Editor で開く" order=0
+DDrive.Runtime.Anchoring.AnchorData -> DDrive.Editor.Anchor.AnchorEditor "Anchor Editor で開く" order=0
+DDrive.Runtime.Anchoring.AnchorData -> DDrive.Editor.Anchor.AnchorEditorWindow "(旧) Anchor Editor で開く" order=100
+DDrive.Runtime.Anchoring.AnchorGroupData -> DDrive.Editor.Anchor.AnchorGroupEditor "Anchor Group Editor で開く" order=0
+DDrive.Runtime.Anchoring.AnchorGroupData -> DDrive.Editor.Anchor.AnchorGroupEditorWindow "(旧) Anchor Group Editor で開く" order=100
 DDrive.Runtime.Anim.AnimData -> DDrive.Editor.Anim.AnimEditor "Anim Editor で開く" order=0
 DDrive.Runtime.Anim.AnimData -> DDrive.Editor.Anim.AnimEditorWindow "(旧) Anim Editor で開く" order=100
 DDrive.Runtime.Anim2D.Anim2DData -> DDrive.Editor.Anim.AnimEditorWindow "(旧) Anim Editor で開く" order=100
