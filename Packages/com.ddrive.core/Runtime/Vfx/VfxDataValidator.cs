@@ -22,7 +22,7 @@ namespace DDrive.Runtime.Vfx
 
             if (vfx.Prefab == null)
             {
-                yield return ValidationResult.Error("Prefab が未設定(または Missing)です");
+                yield return ValidationResult.Error("Prefab が未設定(または Missing)です").WithField(nameof(VfxData.Prefab));
             }
 
             if (vfx.LifeMode == VfxLifeMode.Loop &&
@@ -124,7 +124,7 @@ namespace DDrive.Runtime.Vfx
 
                 if (!AnyRendererHasProperty(renderers, param.TargetProperty))
                 {
-                    yield return ValidationResult.Error($"Params '{param.Label}' の TargetProperty '{param.TargetProperty}' が Prefab のマテリアルに存在しません");
+                    yield return ValidationResult.Error($"Params '{param.Label}' の TargetProperty '{param.TargetProperty}' が Prefab のマテリアルに存在しません").WithField(nameof(VfxData.Params));
                 }
             }
         }

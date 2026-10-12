@@ -1085,6 +1085,30 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - **持ち込み先の拡張**: 接頭辞 `ddrive_` は予約。持ち込み先は自分の Editor asmdef に `[McpTool("ms2026_xxx", ...)]` を書けば同じサーバーに載る（[1002](1002_ddrive_mcp.md) §4.6）。
 - **持ち込み先への導入（MCP-14、2026-10-07）**: isuzu は更新ウィンドウ / セットアップウィザードから導入できる（他の MCP があれば確認、導入後に登録スクリプトを実行できる）。`ddrive_status.mcp` に `otherMcp` / `isuzuVersion`、Validation に Info `DD-MCP-MULTIPLE` / `DD-MCP-ISUZU-OUTDATED`（[1002](1002_ddrive_mcp.md) §11）。
 
+## 16. 新デザインの共通基盤（`Editor/Ux`、2026-10-12、UX-1）
+
+専用エディターを新デザイン（試験版 E を承認、[1010](1010_editor_ux_migration.md)）へ移行するための種別非依存の部品。`DDrive.Editor` の中（namespace `DDrive.Editor.Ux`、全型 internal）にあり、種別ごとの新エディターは **`UxEditorWindow<TData>` を継承して「欄の表・行の作り方・再生のしかた」だけを書く**。実装メモとファイルの対応は [1010](1010_editor_ux_migration.md) §5。
+
+| 部品 | 内容 |
+|---|---|
+| `Theme/DDriveUx.uss` | テーマ 1 本。Light / Dark は root の `.ux-dark` / `.ux-light` の変数（`--ux-*`、Painter2D 用は `--ux-p-*`）だけで切り替える。`.ux-hidden` が表示 / 非表示 |
+| `UxEditorWindow<TData>` | 窓の土台（`TData : AssetDataBase`）。対象の追従 / 🔒 固定 / Data 切替 / ヒーロー / セグメント（かんたん・標準・詳細）/ 検索 / 目的別カード / 未調整の折りたたみ / 固定バー（▶ ■ リピート 速度〔×1.0 デテント〕変更 N 件 自動保存 保存）/ 保存 / 空状態 / 再コンパイル耐性 / Undo 同期 / インライン検証 / Light・Dark |
+| `FieldGuide<TData>` / `FieldGuideEntry` / `FieldTier` | 欄の表。Field / 平易なラベル / 一言説明 / 段（必須・よく使う・詳細）/ 目的カード / 検索語 / 行の種類（`FieldRowKind`: 通常・視覚部品・つまみ・読み取り専用）/ 既定値判定（`DefaultCheck`）。`AssetDataBase` の共通欄は基底が持ち「管理情報」カードに出る（既定で DisplayName と Category だけ「よく使う」） |
+| `UxRow` / `UxVisualRow` / `UxCard` / `GuidedField` | 行（段のバッジ・変更の色バー・↺・インライン検証）、視覚部品を載せる行、カード（「？」は `ManualLauncher.OpenPage(page, anchor)`・空カードの文言・未調整の折りたたみ）、入力部品の共通ヘルパー |
+| `DataSwitcher` | ◀ [名前 ▾] ▶（検索付きドロップダウン・最近 5 件・カテゴリ別）。Data の型名で一覧を引く |
+| `DurationBar` / `AnchorPad` | 長さ（長さ・消え方・余韻）/ 位置（上から見たパッド + 高さ）の視覚入力。Painter2D、色は USS から読む（`UxPalette`） |
+| `TuneKnobs` / `ITuneSource` | 調整つまみ（分類チップ・型別部品・↺・⚙・追加パレット）。供給元（`ITuneSource`: 一覧・値の読み書き・候補の列挙・追加・削除・即時反映）を種別が実装する。Vfx の Params = `VfxTuneSource` |
+| `UxScreenshot` | `GUIView.GrabPixels` でウィンドウを画像化（`Capture` / `Save`）、`SwitchTheme(dark)` で Light / Dark を切り替える。Editor 専用・テストとエージェントの自己確認用 |
+
+### 規約（新しい専用エディターを作るとき）
+
+- **`UxEditorWindow<TData>` から作る**。`ScrollView` + 下部の固定バー（`ScrollView` の外）の構成は土台が持つので、種別が窓の骨組みを作り直さない（U-27 の幅 500px 規約を土台が満たす）
+- **C# にインラインスタイルを書かない**（`.style.xxx = …` / `style = { … }` の禁止）。見た目は `DDriveUx.uss` のクラスで、表示の切り替えは `UxShow.Show(bool)`（`.ux-hidden`）。`UxFoundationTests` が `Editor/Ux` 配下を機械的に点検し、C# が付ける `ux-*` クラスが USS に定義されていることも検査する
+- 保存は `DDriveAssetSave.SaveDirty`（[1010](1010_editor_ux_migration.md) D-5）。土台が保存ボタン・自動保存・未保存の確認を持つので、種別は保存の経路を作らない
+- 検証は欄の下に出す。**Validator が欄名を持たせる**: `ValidationResult.WithField("Prefab")`（`ValidationResult.Field`、追加のみ = MINOR）。`Field` の無い結果は従来どおりメッセージ照合（`ValidationTokens`）で欄に結びつけ、結びつかなければ「その他の検証」に出る
+- 種別の窓は `[DataEditor]` を付け替える（旧エディターは `(旧)` Order 100 に残す）のが UX-2 以降の各チケット。**UX-1 の題材 `VfxEditor` には `[DataEditor]` を付けていない**（メニュー `Tools > D-Drive > Editors > VFX Editor (新)` だけ）
+- 確認は `UxScreenshot` で Dark / Light の両方を撮り、自分で画像を見て崩れを直す（最低 2 周。[1010](1010_editor_ux_migration.md) D-8）
+
 ## Tuning ウィンドウ（M-2a、2026-09-27 実装）
 
 MS2026 チームからの要望（[11_tasks.md](11_tasks.md) M-2 チケット）。`TuningTable`（[02] §14 の 5-13 追記）は現状 Unity 既定の配列 Inspector でしか編集できず、キーが 46 件を超えたところで「目的のキーに辿り着けない」「Player 担当と Match 担当が同じ `.asset` を触って競合する」が問題になった。データ形式は変えず（案 A 継続）、閲覧・編集の単位だけをカテゴリにする。

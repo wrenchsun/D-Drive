@@ -73,3 +73,35 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
 ## 5. 実装メモ（チケットごとに追記）
 
 （UX-1 から順に、ファイル一覧・対応表・割り切った点を追記する）
+
+**2026-10-12 追記（UX-1、共通基盤 `Editor/Ux` + 題材の `VfxEditor`）**
+
+![新 VfxEditor（左 = Dark、右 = Light。標準モード）](images/1010_vfx.png)
+
+- **作ったファイル**（`Packages/com.ddrive.core/Editor/Ux/`、`DDrive.Editor` の中・namespace `DDrive.Editor.Ux`・全型 internal）:
+  `Theme/DDriveUx.uss`（D + E の USS を 1 本に統合。変数 `--ux-*` / Painter2D 用 `--ux-p-*`、`.ux-hidden`）/ `UxEditorWindow.cs`・`.Chrome.cs`・`.Rows.cs`（`UxEditorWindow<TData>`。対象・保存・再生・定期更新 / ヒーロー・固定バー・空状態・テーマ / カード・行・検証・絞り込み・折りたたみ・一括リセット）/ `FieldGuide.cs`（`FieldTier` / `FieldRowKind` / `FieldGuideEntry` / `FieldGuide<TData>`）/ `UxRow.cs`（`UxRow` / `UxVisualRow` / `GuidedField`）/ `UxCard.cs` / `DataSwitcher.cs` / `DurationBar.cs`（`UxLifeMode` を持つ）/ `AnchorPad.cs` / `TuneKnobs.cs`（`TuneKnobs` / `TuneKnobsRow` / `ITuneSource` / `TuneCategories`）/ `UxPalette.cs` / `UxShow.cs`（`Show(bool)` と `IUxSyncable`）/ `UxScreenshot.cs`。
+  Vfx 側（`Editor/Vfx/`）: `VfxEditor.cs`（`VfxEditor : UxEditorWindow<VfxData>` + `VfxSample`）/ `VfxFieldGuide.cs` / `VfxTuneSource.cs`（`ITuneSource` の実装 = Params）/ `VfxEditorRows.cs`（Render・Anchor ツール・AnchorId・LightLayer・複数同時再生・長さの入力）。他: `ValidationResult.Field` + `WithField`（Foundation、追加のみ）、`VfxDataValidator` の Prefab / Params の結果に `Field` を付与、`ManualLauncher.OpenPage(page, anchor)`、`Tests/Editor/UxFoundationTests.cs`。
+- **E からの対応**（`Editor/Prototypes/` は**消していない**。UX-19 で削除）:
+
+| E（試験版） | 共通基盤 / VfxEditor |
+|---|---|
+| `PrototypeWindowBase` + `PrototypeEWindow` の汎用部分 | `UxEditorWindow<TData>`（種別が決めるのは `Guide` / `PrefsKey` / `ManualPage` / `CardDescription` / `CreateRow` / 再生の 3 メソッド / 主操作列の追加 / 検証の補助語だけ） |
+| `PrototypeD.uss` + `PrototypeE.uss`（`pd-*` / `pe-*`） | `DDriveUx.uss`（`ux-*` に統一。`pe-empty` は空状態の `ux-empty` と衝突するため `ux-knobs-empty`） |
+| `FieldGuide` / `VfxFieldGuide` | `FieldGuide<TData>`（共通欄 8 欄 = 管理情報カードは基底が持つ）/ `VfxFieldGuide`（固有欄だけ） |
+| `PdRow` / `PdCard` / `FieldGuideUi`・`GuidedField` | `UxRow` / `UxCard` / `GuidedField`（入力部品の共通ヘルパー）。A〜C 専用の `GuidedField` 本体・`FieldGuideUi.Card` は移植していない |
+| `PdLifeRow` / `PdAnchorRow` | `UxVisualRow`（視覚部品を載せる汎用の行）+ `VfxLifeInput`（DurationBar + 数値） |
+| `PdRenderRow` / `PeAnchorToolsRow` / `PeAnchorIdRow` / `PeLightLayerRow` / `PeSlotsRow` | `VfxRenderRow` / `VfxAnchorToolsRow` / `VfxAnchorIdRow` / `VfxLightLayerRow` / `VfxSlotsRow`（Vfx 固有） |
+| `PeTunePanel` / `PeTuneRow` / `PeProps` | `TuneKnobs` / `TuneKnobsRow`（種別非依存）+ `VfxTuneSource`（候補の列挙 = 材質のシェーダープロパティ）。分類語は `TuneCategories` |
+| `DataSwitcher`（VfxData 専用） | `DataSwitcher`（Data の型名で一覧を引く。最近の鍵も型ごと） |
+| `PdPalette` | `UxPalette` |
+| 固定バー・保存・自動保存・未保存の確認・速度のデテント | 基底に移植。再生の有無は `SupportsPlayback`（false の種別は ▶ ■ リピート 速度を出さない） |
+| `VfxAnchorSceneGui`（既存の public static） | そのまま使う |
+| `SampleVfx` | `VfxSample`（空状態の「サンプルを作る」は `HasSample` / `CreateSample` を持つ種別だけ） |
+
+- **E からの変更点**: ①インラインスタイルを全廃（表示 / 非表示は `.ux-hidden`、薄表示は `.ux-faded`、折り返しは `.ux-note`）。速度の ×1.0 の目盛りは `style.left` の割合指定をやめ、Painter2D の重ね要素（色は USS から）で描く ②モード（かんたん・標準・詳細）は `[SerializeField]` から EditorPrefs（種別ごとの鍵 `DDrive.Ux.<PrefsKey>.Mode`）へ。「未調整を隠す」「自動保存」も同じ鍵の規則 ③検証は `ValidationResult.Field` で欄に結びつけるのを最優先にし、`Field` の無い結果だけ従来のメッセージ照合（`ValidationTokens`）で救済 ④Undo のあとの再描画を 1 本に統合（E は 2 つの購読が別々に走っていた）⑤`DataSwitcher` の同カテゴリ一覧を 2 秒キャッシュ（150ms ごとの全走査をやめた）⑥アセットとして保存されていない Data（メモリ上）では未保存の確認を出さない（テストでダイアログが残る事故の防止）⑦試験版の注意書き（「試験版: 確認後に削除予定」）を外した ⑧`DurationBar` の LifeMode は種別非依存の `UxLifeMode`（Vfx は `VfxEditor` で対応づけ）⑨`Open(VfxData, GameObject)`（Presentation 等から「一緒に調整」で開く入口）も旧エディターと同じ形で持たせた。
+- **`ValidationResult.Field`**: `public readonly string Field`（既定 null）と `WithField(string)`。公開 API の追加のみ（`public-api-DDrive.Foundation.txt` に 2 行増加 = MINOR。更新後 `ddrive_compat` は `changed:[]`）。既存のコンストラクタ・`Code` / `Severity` / `Message` / `FixAction`・Validator の結果の重さは変えていない。付けたのは `VfxDataValidator` の Prefab 未設定と Params の TargetProperty 不一致だけ（他の Validator は UX-2 以降の各チケットで必要になったときに足す。付いていない結果は従来どおり照合 / 「その他の検証」）。
+- **確認**: コンパイル 0、EditMode 2085/2085 green（`UxFoundationTests` = U-27 の機械点検に足した「Editor/Ux に `.style.` 代入が無い」「C# が付ける `ux-*` クラスが USS に定義されている」と、「`VfxFieldGuide` が VfxData の編集できる全フィールドを持つ」「管理情報の既定」「`ValidationResult.Field`」「`VfxEditor` がヒーロー・固定バー・カード 8 枚を組む」を含む）、`ddrive_compat` は `ValidationResult.Field` の 2 行だけ → 更新後 `changed:[]`、`ddrive_forbidden_api` 違反 0。
+  スクリーンショットは `UxScreenshot`（`GUIView.GrabPixels`）で Dark / Light の両方（上の画像）。自己確認ループ（2 周）で直したこと: 1 周目 = `GrabPixels` の矩形がホストビュー（タブ見出し込み）の左下原点で、内容の下 26px が切れて上下も逆さだった（撮り方を直した）。E と新 VfxEditor を同じモード・同じ位置で並べて、ヒーロー・出す・出る場所を変える（AnchorPad・基準・Anchor アセット）・長さ（DurationBar）・つまみ・複数同時再生・管理情報・固定バーのすべてが同じであることを確認。2 周目 = 空状態（Dark / Light）の「サンプルを作る」がピッカーに貼り付いていたので余白を足した、幅 500px（最小幅）でヒーロー・固定バー・各カードが切れず折り返すこと、速度スライダーの ×1.0 の目盛りが新方式でも出ること、Params の調整つまみ（分類チップ・型別部品・TargetProperty 不一致が Params 欄の下に結びつく）を確認。機能の動作確認は `execute_code` で、再生 / 停止、検証の欄結びつけ（Prefab 未設定 → 「エフェクトの実体(Prefab)」の下、Flags → 動作の取り決め、スキーマ → その他の検証）。
+- **割り切り**: ①`Editor/Ux` の型は internal（`InternalsVisibleTo` を置かない方針のため、テストはリフレクション）②`ManualAnchor`（カードの「？」を節に飛ばす）は仕組みだけで、Vfx のマニュアルにまだ節の id が無いので null（ページの先頭が開く）③`FieldRowKind.ReadOnly` と `FieldGuideEntry.DefaultCheck` は共通基盤に用意したが Vfx は使っていない（Id / Version / Author / UpdatedAt は E と同じく管理情報カードの 1 行表示）④PlayMode は実行していない（Editor 専用 + Foundation の追加のみ。[12](12_review.md) §7 の軽い経路に準ずる）⑤`UxScreenshot.SwitchTheme` は `InternalEditorUtility.SwitchSkinAndRepaintAllViews`（ユーザーの Unity の配色設定を一時的に切り替える。撮影後に元へ戻す運用）⑥`vfx_sample.prefab` は `Editor/Prototypes/Samples/` のまま（`VfxSample` は `/Samples/vfx_sample.prefab` で探すので UX-19 で移しても動く）。
+- **UX-2 に残したこと**: ①`VfxEditorWindow` の `[DataEditor]` を `(旧) VFX Editor で開く`（Order 100）に変え、新 `VfxEditor` に `[DataEditor(typeof(VfxData), "VFX Editor で開く")]`（Order 0）を付ける ②メニュー: 新 `Tools > D-Drive > Editors > VFX Editor`（今は仮の `VFX Editor (新)`）、旧は `DDriveMenu.Archive`（UX-18 で定数を足す）③`VfxEditorWindow.Open(...)` の呼び出し元（Presentation の「一緒に調整」ほか）を新エディターへ向ける ④マニュアル（`vfx-editor.html`）の書き換えと、あれば節の id を足して `ManualAnchor` を使う ⑤機能対応表（旧 `VfxEditorWindow` → `VfxEditor` の全行「あり」。試験版 E の対応表 [1008](1008_editor_ux_redesign.md) §5 と同じ行で、UX-1 時点で E と同じ画面が出ることまでは確認済み）を UX-2 の節に載せる ⑥`docs/images/1010_vfx.png` は UX-2 で撮り直してよい。
+

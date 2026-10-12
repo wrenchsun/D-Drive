@@ -42,6 +42,42 @@ namespace DDrive.Editor.Manual
             OpenLocal(page, ManualKind.Designer);
         }
 
+        // 2026-10-12(UX-1) — 新デザインの専用エディターのカード「?」から、ページ内の節(#anchor)まで開く。
+        // anchor が空なら OpenPage(page) と同じ。URL の末尾に #anchor を付けるだけ(ページ側に id が無ければ先頭が開く)。
+        public static void OpenPage(string pageName, string anchor)
+        {
+            if (string.IsNullOrEmpty(anchor))
+            {
+                OpenPage(pageName);
+                return;
+            }
+
+            var page = string.IsNullOrEmpty(pageName) ? ManualPages.TopPageName : pageName;
+            var settings = DDriveSpecSettings.Load();
+            var humanAppUrl = settings != null ? settings.HumanAppUrl : null;
+
+            if (ManualUrlBuilder.ResolveUseWeb(ManualPrefs.PreferWeb, humanAppUrl))
+            {
+                var webUrl = ManualUrlBuilder.BuildWebUrl(humanAppUrl, page);
+                if (!string.IsNullOrEmpty(webUrl))
+                {
+                    Application.OpenURL(webUrl + "#" + anchor);
+                    return;
+                }
+            }
+
+            var projectRoot = ManualPages.GetProjectRoot();
+            var folder = ManualPages.GetManualFolder(projectRoot, ManualKind.Designer);
+            var filePath = Path.Combine(folder, page + ".html");
+            if (!File.Exists(filePath))
+            {
+                Debug.LogWarning($"[D-Drive] マニュアル「{page}」が見つかりません: {filePath}");
+                return;
+            }
+
+            Application.OpenURL(ManualUrlBuilder.BuildLocalFileUrl(folder, page) + "#" + anchor);
+        }
+
         // ドロップダウン末尾の「ローカルのマニュアルを開く」から呼ぶ。優先設定に関わらず常にローカル。
         public static void OpenLocalTop() => OpenLocal(ManualPages.TopPageName, ManualKind.Designer);
 
