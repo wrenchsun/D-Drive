@@ -66,6 +66,12 @@
 | UX-19 | ⬜ | 試験版の後始末: `Editor/Prototypes/` 削除、`vfx_sample` を `Editor/Ux/Samples/` へ、タグ `v1.7.0-preview.*` 削除、[1001](1001_open_items.md) の行を消す | 0.5 | UX-18 | `git tag -l 'v1.7.0-preview*'` が空 |
 | UX-20 | ⬜ | **v1.8.0 リリース**（MINOR、run-ci 全段、[12](12_review.md) §7）。MS2026 への案内（manifest を正式版へ） | 0.5 | UX-19 | run-ci ALL GREEN skipped 0 |
 
+## C（Canvas ランタイム、2026-10-12 ユーザー指摘「ゲーム画面を全画面にしたとき HUD の配置が対応していない」）
+
+| ID | 状態 | 内容 | 人日 | 依存 | AC |
+|---|---|---|---|---|---|
+| C-1 | ⬜ | **レイヤールート Canvas に CanvasScaler を持たせる**。原因: `UiManager` が作るレイヤールート 5 枚（ScreenSpaceOverlay）に CanvasScaler が無く、`CanvasData.Prefab` はその子 Canvas として開かれるため Prefab 側の CanvasScaler（MS2026 の `Hud.prefab` = ScaleWithScreenSize 1920×1080）が Unity の仕様で無視され、常に scaleFactor 1 になる（`UiManager.cs` 280〜297 行）。対処: Open 時に Prefab ルートの CanvasScaler 設定（UiScaleMode / ReferenceResolution / Match 等）をそのレイヤールートの CanvasScaler へ写す（Prefab に無ければ `DDriveProjectSettings` の既定〔新設: 1920×1080 / Match 0.5、追加のみ〕）。同じレイヤーで設定が食い違う Canvas を開いたら Warning ログ + Validator（`CanvasDataValidator`、Warning）。併せて Slide 遷移の `SlideOffset` が絶対 px である点（docs/1010 調査 B3）と ElementFx の基準座標が Open 時のみ保存される点（B4）を、解像度変更後に再計算されるか確認し、必要なら Canvas 単位に直す（追加のみ） | 1.5 | なし | Play Mode で確認用シーンを 1920×1080 → 3840×2160 → 1280×720 → 1080×1920 に切り替え、`Canvas.scaleFactor` と HUD の見かけが追従する（スクリーンショット）。PlayMode テスト（レイヤールートに CanvasScaler があり Prefab の設定が写る）。公開 API・シリアライズ形式は追加のみ。MS2026 実機で全画面にして確認（ユーザー） |
+
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
 - GC-R-01（BGM ループ位置の Warning）・GC-R-07（尺 0 のゴールデン）: v1.5.0 に同梱するか、次の PATCH か
@@ -92,3 +98,4 @@
 - 2026-10-10: UX 節を追加。UX-0（サンプルエディター 3 本）✅
 - 2026-10-12: ユーザーが E のデザインを承認（速度の ×1.0 デテントのみ修正）。全エディターの移行仕様 [1010](1010_editor_ux_migration.md) を起票し、UX-1〜UX-20 を切った（旧エディターは Archive メニューへ、新エディター間の配線は新のみ、機能同等が完了条件、v1.8.0 で正式リリース）
 - 2026-10-12: UX-1（共通基盤 `Editor/Ux` + 題材の `VfxEditor`、`ValidationResult.Field` 追加）✅。次は UX-2（VFX の新エディターの正式化）
+- 2026-10-12: ユーザー指摘「全画面で HUD の配置が追従しない」→ 調査で D-Drive 側（レイヤールートに CanvasScaler 無し）と判明。C-1 を起票、UX-5 より先に実施
