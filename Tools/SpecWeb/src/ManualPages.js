@@ -16,6 +16,8 @@ var SPEC_WEB_MANUAL_PAGE_NAMES = {
     "anchor-group",
     "anim-editor",
     "anim2d-editor",
+    "archive-anchor-editor",
+    "archive-anchor-group-editor",
     "archive-anim-editor",
     "archive-anim2d-editor",
     "archive-audio-editor",

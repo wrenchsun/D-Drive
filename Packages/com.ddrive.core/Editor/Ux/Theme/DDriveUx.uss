@@ -2247,3 +2247,36 @@
     min-width: 76px;
     margin: 0 6px 6px 0;
 }
+
+/* Anchor / Anchor Group(UX-11) */
+.ux-root .ux-anc-parent {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-anc-parent__field {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-anc-chain {
+    margin-top: 0;
+}
+
+/* 点の一覧の 1 行(UX-11): 名前は縮めず、要約が先に省略される。幅 500px でもボタンが右端にそろう */
+.ux-root .ux-anc-pt .ux-fxrow__name {
+    flex-shrink: 0;
+    min-width: 96px;
+    max-width: 150px;
+}
+
+.ux-root .ux-anc-pt .ux-fxrow__summary {
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-anc-pt .ux-btn {
+    flex-shrink: 0;
+}

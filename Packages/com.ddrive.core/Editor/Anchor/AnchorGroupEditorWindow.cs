@@ -21,7 +21,8 @@ namespace DDrive.Editor.Anchor
     // [22_anchor_group.md] §3.7 — 配置セット(AnchorGroupData)専用エディタ。
     // 全点のギズモ(番号付き)を SceneView に描き、クリックで点を選択、パターン(Grid の間隔 / Circle の半径 / Line の長さ)や
     // 手置きの点をハンドルで編集、▶ で全点または選択点だけを実 Manager 経由で試し出しする。
-    [DDrive.Editor.Inspector.DataEditor(typeof(AnchorGroupData), "Anchor Group Editor で開く")]
+    // 2026-10-13(docs/1010 UX-11): 新デザインの AnchorGroupEditor に置き換え。この旧エディターはメニュー Archive から開く(バグ修正のみ)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(AnchorGroupData), "(旧) Anchor Group Editor で開く", Order = 100)]
     public sealed class AnchorGroupEditorWindow : EditorWindow
     {
         [SerializeField] private AnchorGroupData _target;
@@ -55,12 +56,12 @@ namespace DDrive.Editor.Anchor
         private static readonly string[] RandomFields = { "RandomCount", "RandomRadius", "RandomSeed" };
         private readonly Dictionary<string, VisualElement> _layoutSections = new();
 
-        [MenuItem(DDriveMenu.Editors + "Anchor Group")]
+        [MenuItem(DDriveMenu.Archive + "Anchor Group Editor")]
         public static void Open() => Open(null);
 
         public static void Open(AnchorGroupData target)
         {
-            var window = GetWindow<AnchorGroupEditorWindow>("Anchor Group Editor");
+            var window = GetWindow<AnchorGroupEditorWindow>("(旧) Anchor Group Editor");
             window.minSize = new Vector2(500, 400);
             if (target != null)
             {
@@ -73,7 +74,7 @@ namespace DDrive.Editor.Anchor
         // (シーン内・任意)」欄(_attachTarget)にそのまま渡すだけ(原点の Space/Path の検索起点)。
         public static void Open(AnchorGroupData target, GameObject attachTarget)
         {
-            var window = GetWindow<AnchorGroupEditorWindow>("Anchor Group Editor");
+            var window = GetWindow<AnchorGroupEditorWindow>("(旧) Anchor Group Editor");
             window.minSize = new Vector2(500, 400);
             if (target != null)
             {

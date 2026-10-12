@@ -865,6 +865,9 @@ namespace DDrive.Editor.Presentation
                 case PresentationTrackEditorRouting.EditorKind.VfxWithAttach:
                     VfxEditor.Open((VfxData)asset, attach);
                     break;
+                case PresentationTrackEditorRouting.EditorKind.AnchorGroupWithAttach:
+                    DDrive.Editor.Anchor.AnchorGroupEditor.Open((DDrive.Runtime.Anchoring.AnchorGroupData)asset, attach); // UX-11: 新 AnchorGroupEditor(スポーン先は Self のモデル)
+                    break;
                 case PresentationTrackEditorRouting.EditorKind.AnimWithAttach:
                     DDrive.Editor.Anim.AnimEditor.Open((DDrive.Runtime.Anim.AnimData)asset, attach); // UX-6: 新 AnimEditor(Self の Animator をそのまま対象にする)
                     break;

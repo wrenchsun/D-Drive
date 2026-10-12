@@ -113,6 +113,12 @@ Anchors.Stop(h); Anchors.Kill(h); Anchors.IsPlaying(h);  // まとめて操作
 
 プレビュー用 Registry（`EditorAnchorRegistry`）は AnchorData に加えて AnchorGroupData / VfxData / SeData も登録する（計画が ID から VFX/SE を引くため）。
 
+**2026-10-13 追記（UX-11、新デザインの AnchorGroupEditor）**: データ構造・Planner・Player・Validator は変えていない（Editor のみ）。専用エディターを **新 `AnchorGroupEditor`**（`Editor/Anchor/AnchorGroupEditor.cs` / `AnchorGroupEditor.Rows.cs` / `AnchorGroupFieldGuide.cs`、`UxEditorWindow<AnchorGroupData>`）に置き換えた。旧 `AnchorGroupEditorWindow` は `Archive > Anchor Group Editor`・`(旧) Anchor Group Editor で開く`（Order 100）で残す。
+- **カード**: 試し出し（▶ 全点 / ▶ 選択点のみ / ■、選択点の上書き追加、スポーン先と状態）/ **点の一覧**（パターンと手置きの全点を **1 点 = 1 行**。番号・種類・名前・位置と上書きの要約と ▶ / × / ＋。絞り込み〔検索・すべて / 上書きあり / そのまま・パターン / 手置き〕と件数。20 行を超えると ListView）/ 配置パターン（Layout に合う欄だけ出す・手置きの点に変換・Points）/ 原点（Anchor アセット・埋め込み・**原点の連鎖 = 親子合成の確認**。押すと新 `AnchorEditor`）/ 出すもの / タイミング・ばらつき / 管理情報。
+- **SceneView**: 全点の番号付きギズモ・クリック選択・ハンドル（Grid / Circle / Line の大きさ、手置きの直接ドラッグ）は旧と同じ。選択は点の一覧と共通（`_selectedIndex`）。
+- **`AnchorGroupEditor.Open(data, attach)`**: Presentation の「一緒に調整」（`PresentationEditor.OpenTrackEditorTogether`、スポーン先は Self のモデル）から開く。UX-5 で `DataEditorRegistry.OpenDefault` に逃がしていた分を、新 `AnchorGroupEditor` に向け直した。
+- 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/AnchorSample.cs`（Grid 4×4 + 手置き 6 = 22 点・Skip 2・VFX / SE 上書き 2・入れ子 1・原点は 2 段の Anchor 連鎖 + Circle / Line / Random / Manual の配置セット）。対応表 = [1010](1010_editor_ux_migration.md) §5 UX-11。
+
 ### 3.7 自動配置 → 手置きの点に変換（2026-09-17 追加、U-22）
 
 Grid 3×3 などのパターンで並べたあと「この 1 点だけ少しずらしたい」となったときに、**パターンの計算結果をそのまま手置きの点（`Points`）へ焼き付ける**ボタン。実装は `Editor/Anchor/AnchorGroupPointConverter.cs`、UI は Anchor Group Editor の「設定」内、パターンの欄と `Points` の間（パターンのときだけ表示）。
@@ -153,5 +159,6 @@ Grid 3×3 などのパターンで並べたあと「この 1 点だけ少しず�
 
 ## 6. 変更履歴
 
+- 2026-10-13: §3.6 に新エディター（`AnchorGroupEditor`、UX-11）の追記。Editor のみで、データ構造・ランタイムは不変
 - 2026-09-19: §5「Presentation 統合」実装完了（トラック種別 `TrackKind.AnchorGroup`）。詳細は [08_presentation.md](08_presentation.md) 実装メモ参照
 - 2026-09-17: §3.7「自動配置 → 手置きの点に変換」を追加（U-22）。`AnchorLayout.Generate` を `GeneratePattern` + `AppendManualPoints` に分割（挙動は不変）。SceneView に基準（原点）の 3 軸・座標ラベル・基準 → 原点の線を追加（U-24。定義は [21](21_anchor_spec.md) §3.10）

@@ -22,7 +22,8 @@ namespace DDrive.Editor.Anchor
     // [21_anchor_spec.md] §3.6 — AnchorData 専用エディタ。
     // 連鎖(ルート → 対象)の表示、スポーン先を基準にした解決状態、SceneView のギズモ/ハンドル編集、
     // 確認用 VFX / SE の試し出し(実 Manager 経由、ADR-4)、既存ヒエラルキーからの作成(§3.9)、Validation 表示。
-    [DDrive.Editor.Inspector.DataEditor(typeof(AnchorData), "Anchor Editor で開く")]
+    // 2026-10-13(docs/1010 UX-11): 新デザインの AnchorEditor に置き換え。この旧エディターはメニュー Archive から開く(バグ修正のみ)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(AnchorData), "(旧) Anchor Editor で開く", Order = 100)]
     public sealed class AnchorEditorWindow : EditorWindow
     {
         private const string PathFieldName = "Path";
@@ -50,12 +51,12 @@ namespace DDrive.Editor.Anchor
         private Label _vfxStatusLabel;
         private Label _sceneOwnerLabel;
 
-        [MenuItem(DDriveMenu.Editors + "Anchor")]
+        [MenuItem(DDriveMenu.Archive + "Anchor Editor")]
         public static void Open() => Open(null);
 
         public static void Open(AnchorData target)
         {
-            var window = GetWindow<AnchorEditorWindow>("Anchor Editor");
+            var window = GetWindow<AnchorEditorWindow>("(旧) Anchor Editor");
             window.minSize = new Vector2(480, 360);
             if (target != null)
             {

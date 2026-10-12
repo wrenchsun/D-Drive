@@ -555,7 +555,7 @@ namespace DDrive.Editor.Vfx
             var asset = Target != null && Target.AnchorId.IsValid ? EditorAnchorRegistry.Find(Target.AnchorId.Value) : null;
             if (asset != null)
             {
-                AnchorEditorWindow.Open(asset);
+                DDrive.Editor.Anchor.AnchorEditor.Open(asset);
             }
         }
 

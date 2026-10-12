@@ -36,8 +36,10 @@ namespace DDrive.Editor.Vfx
             Action<bool> setHandle,
             Func<string> describe,
             Func<string> ownerText,
-            Action<ToolbarMenu, GameObject> fillMenu)
-            : base(null, null, new[] { entry }, "出る場所の基準", "キャラクターのボーンや目印(AnchorPoint)に付けるとき、ここにキャラクターを入れます。SceneView にも位置の目印とハンドルが出ます。", FieldTier.Common, true, Build(out var af, out var menu, out var status, out var toggle, out var owner), null)
+            Action<ToolbarMenu, GameObject> fillMenu,
+            string label = null,
+            string hint = null)
+            : base(null, null, new[] { entry }, label ?? "出る場所の基準", hint ?? "キャラクターのボーンや目印(AnchorPoint)に付けるとき、ここにキャラクターを入れます。SceneView にも位置の目印とハンドルが出ます。", FieldTier.Common, true, Build(out var af, out var menu, out var status, out var toggle, out var owner), null)
         {
             _getAttach = getAttach;
             _getHandle = getHandle;
@@ -74,7 +76,7 @@ namespace DDrive.Editor.Vfx
             menu = new ToolbarMenu { text = "Path を一覧から選ぶ", tooltip = "スポーン先の階層にあるボーン / ★AnchorPoint から Path を選ぶ" };
             menu.AddToClassList("ux-pathmenu");
             line.Add(menu);
-            toggle = new Toggle("SceneView に表示") { tooltip = "OFF: この VFX の Anchor を SceneView に一切描かない。ON: 目印を描き、このウィンドウを最後に操作していれば移動 / 回転ハンドルも出す" };
+            toggle = new Toggle("SceneView に表示") { tooltip = "OFF: 対象の Anchor を SceneView に一切描かない。ON: 目印を描き、このウィンドウを最後に操作していれば移動 / 回転ハンドルも出す" };
             toggle.AddToClassList("ux-hidetoggle");
             line.Add(toggle);
             box.Add(line);
