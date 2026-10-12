@@ -2280,3 +2280,164 @@
 .ux-root .ux-anc-pt .ux-btn {
     flex-shrink: 0;
 }
+
+/* ── UI Tween Editor / Preset Gallery(docs/1010 UX-12) ── */
+.ux-root .ux-ut-field {
+    margin: 2px 0;
+}
+
+.ux-root .ux-ut-field > .unity-base-field__label,
+.ux-root .ux-ut-field > .unity-property-field__label {
+    min-width: 140px;
+    width: 140px;
+}
+
+.ux-root .ux-row__input .ux-ut-field > .unity-base-field__label,
+.ux-root .ux-row__input .ux-ut-field > .unity-property-field__label {
+    color: var(--ux-text);
+}
+
+.ux-root .ux-ut-head .ux-fxrow__chip {
+    width: 78px;
+    min-width: 78px;
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-ut-collect {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 200px;
+}
+
+.ux-root .ux-ut-check .ux-toolsline {
+    margin-top: 4px;
+}
+
+.ux-root .ux-ut-presets .ux-toolsline {
+    margin-top: 8px;
+}
+
+.ux-root .ux-ut-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+.ux-root .ux-ut-chip {
+    margin: 0 4px 4px 0;
+}
+
+.ux-root .ux-ut-regfold {
+    margin-top: 8px;
+}
+
+.ux-root .ux-ut-register {
+    margin-top: 4px;
+}
+
+.ux-root .ux-ut-list {
+    flex-grow: 1;
+}
+
+.ux-root .ux-ut-head {
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-ut-head .ux-ut-name {
+    flex-shrink: 0;
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+}
+
+.ux-root .ux-ut-bar {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 64px;
+    min-width: 56px;
+    height: 28px;
+    margin: 2px 6px 2px 0;
+}
+
+.ux-root .ux-ut-bar--edge {
+    cursor: resize-horizontal;
+}
+
+.ux-root .ux-ut-bar--move {
+    cursor: pan;
+}
+
+.ux-root .ux-ut-sum {
+    padding: 0 8px 4px 38px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-ut-flag {
+    padding: 0 8px 4px 38px;
+}
+
+.ux-root .ux-ut-row {
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-ut-sketch {
+    height: 48px;
+    margin: 4px 0;
+}
+
+.ux-root .ux-ut-gh {
+    margin-left: 0;
+}
+
+.ux-root .ux-ut-cards {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.ux-root .ux-ut-cardrow {
+    flex-wrap: nowrap;
+}
+
+.ux-root .ux-ut-gcard {
+    width: 160px;
+    margin: 0 8px 8px 0;
+    padding: 8px;
+    border-width: 1px;
+    border-radius: 8px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-surface-2);
+}
+
+.ux-root .ux-ut-gcard__head {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ux-root .ux-ut-gcard__name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-ut-gcard__sub {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 2px;
+}
+
+.ux-root .ux-ut-gcard__btns {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-ut-gcard__btns .ux-btn {
+    margin: 0 4px 4px 0;
+    padding: 0 6px;
+}

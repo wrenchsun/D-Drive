@@ -251,6 +251,12 @@ public static class UiFx
 }
 ```
 
+**2026-10-13 追記（UX-12、新デザインの UI Tween Editor / プリセットギャラリー）**: データ構造・`UiTweenManager`・`UiPresetFactory`・Validator は変えていない（Editor のみ）。専用エディターを **新 `UiTweenEditor`**（`Editor/Ui/UiTweenEditor.cs` ほか、`UxEditorWindow<UiTweenData>`）、プリセットギャラリーを **新 `UiPresetGallery`**（`Editor/Ui/UiPresetGallery.cs`、`UxTheme` を当てた独立ウィンドウ）に置き換えた。旧 `UiTweenEditorWindow` / `UiPresetGalleryWindow` は `Tools > D-Drive > Archive > UI Tween` / `UI Tween · Preset Gallery`・`(旧) UI Tween Editor で開く`（Order 100）で残す（バグ修正のみ）。
+- **カード**: 雛形から始める（タブ〔出現 / 常時 / 消滅 / 強調 / カタログ / ★ お気に入り〕・検索・ボタンで 1 つ選び「置き換え」「＋ 追加」〔8 本まで〕。「プリセットとして保存」= 旧ギャラリーの「独自プリセットとして登録」）/ **トラック**（**1 トラック = 1 行**。種類のチップ・項目名・**時間バー**〔バーのドラッグで Delay、右端のドラッグで Time.Value。バーの中にイージングの形〕・▶〔そのトラックだけ〕↺ ⚙ ×。2 行目に「開始 → 終了 · 長さ · イージング · 遅れ · ループ」。絞り込み〔検索・ループ / 1 回だけ・種類チップ〕と件数、20 行を超えると ListView。⚙ でその行だけ全欄: 項目・Motion・Delay・From・OffScreen・開始値 / 終了値〔項目に合わせた型〕・経路〔制御点の追加 / 削除・SceneView ハンドル〕・複製・並べ替え）/ 全体の長さ / 確認する（収集元・要素の自動収集・確認用シーンに配置 / 撤去。固定バーの ▶ は実 `UiTweenManager` で Tween 全体を、トラックの ▶ は 1 トラックだけを動かす）/ 管理情報。
+- **再生**は実 `UiTweenManager` を `EditorApplication.update` から駆動し（ADR-4）、再生前の位置・サイズ・スケール・回転・CanvasGroup・色・fill を `UiTweenSnapshot` に控えて、止める・終わる・対象の切り替え・閉じるときに戻す。Prefab アセットは再生しない。9 本目以降のトラックは再生されない（`MaxTracksPerTween`）ので、行と欄の下に警告を出す（Validator は変えず、エディター側で追加）。
+- **ギャラリー**: カード（名前・▶・★・分類・曲線の静的スケッチ・要素へ / 全ボタンへ / 置換 / 追加）・適用先（編集中の Tween・CanvasData・要素・フェーズ・選択中のシーン要素のパス・他の要素へコピー）・独自プリセットとして登録。お気に入りは旧と同じ EditorPrefs のキーを共有する。
+- 呼び出し元の向け直し: 新 `CanvasEditor` の ElementFx 行の「✎ Tween Editor」と Skin 系の Enter Tween の編集（`ControlSkinPreviewSection`）は新 `UiTweenEditor.Open(tween, collectRoot, element, label)` を呼ぶ。実装メモ・機能対応表 = [1010](1010_editor_ux_migration.md) §5 UX-12。
+
 ### エディタ: プリセットギャラリー
 
 - CanvasEditor / UiTweenEditor に**プリセット一覧をサムネイル動画（実再生）で表示**。クリックで選択中の要素にその場適用 → 即プレビュー

@@ -650,3 +650,70 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
   `execute_code`（実ウィンドウ・サンプル）: 確認用シーン（`PreviewScene`）で実際の VFX（`VFX_Player_Slash`）を **Anchor の位置（1, 0, 2）に出し**、■ で止まること / 配置セット「円陣」の ▶ 全点 = 8 点・▶ 選択点のみ = 1 点・■ で 0 に戻ること。Inspector の登録表（新が先頭・旧が `(旧)`）、SceneView ハンドルのトグル、新 `VfxEditor` の「Anchor Editor で開く」→ 新 `AnchorEditor`、Presentation の「一緒に調整」→ `AnchorGroupEditor.Open(data, attach)`（上の EditMode テストと同じ導線）。実データは保存せず、サンプルと確認用シーンは作って削除した。
   スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①ラベルが切れた（「位置のばらつき(半径…」→ 9 文字以内の短い名前にし単位は説明へ）②試し出し・ヒエラルキーから作る・手置きに変換の行で説明が二重（行の下の注記を削り説明に統合）③確認用 VFX / SE の ObjectField のラベルが Light で薄く行の見出しと重複（ラベルを外し型は欄に出る「None (Vfx Data)」に）④点の行の名前が「Grid / Grid」と重複（Grid は「横 2 × 奥 3」、Circle は角度、Line は「2 / 5」、手置きは名前）⑤Origin（埋め込み）が開いたまま縦に長い（既定で閉じる）。2 周目 = 幅 500px で点の行の名前が潰れ（`ux-anc-pt` で名前を縮めず要約を先に省略）・ボタンの位置が行ごとにずれた（ボタンの縮みを止めた）・「戻す」ボタンが 3 文字で溢れた（「↺」に）のを直し、かんたん / 標準 / 詳細・Dark / Light・幅 500px で崩れないことを確認。
 - **割り切り**: ①Anchor ⇄ Group は 2 ウィンドウ（Se / Bgm・Shake / Haptics と同じ）②「ヒエラルキーから作る」の実行（`AnchorAssetFactory` は実データ `Assets/GameData` に書く）は、既存の `AnchorAssetFactoryTests` に任せ、新エディターのテストではボタンの存在までを確認した（実データを触らないため）③SceneView の `Handles.*` の描画・ドラッグそのものは EditMode では実行できないので、ハンドルの結果を書き戻す部分は `ApplyPatternDrag`（パターンのドラッグ）をテストし、描画は SceneView の目視（旧と同じ呼び出し）に任せた ④空状態の「サンプルを作る」は UX-19 でまとめて足す ⑤Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑥試験版（`Editor/Prototypes`）の `PrototypeEWindow` は旧 `AnchorEditorWindow.Open` を呼んだまま（別 asmdef で新エディターは internal のため。UX-19 で試験版ごと削除）。
+
+**2026-10-13 追記（UX-12、UI Tween + Preset Gallery の新エディター。D-10 対応）**
+
+![新 UiTweenEditor / UiPresetGallery（左 = Dark、右 = Light。上から エディターの上部〔雛形・トラックの一覧〕・トラックの一覧〔⚙ を 2 行開いた状態。14 トラック・9 本目以降に印〕・ギャラリー〔出現タブ 20 枚〕・ギャラリー〔カタログ 24 件 = ListView〕）](images/1010_uitween.png)
+
+- **構成**: **`UiTweenEditor : UxEditorWindow<UiTweenData>`** と、**独立ウィンドウ `UiPresetGallery`**（`UxTheme` を当てた新実装。`UxEditorWindow` は 1 つの Data を編集する土台なので、カードの一覧を見せるギャラリーは別ウィンドウ）の 2 つ。メニュー `Tools > D-Drive > Editors > UI Tween` / `UI Tween · Preset Gallery`。旧 `UiTweenEditorWindow` は `Archive > UI Tween`・題 `(旧) UI Tween Editor`・`(旧) UI Tween Editor で開く` Order 100、旧 `UiPresetGalleryWindow` は `Archive > UI Tween · Preset Gallery`・題 `(旧) Preset Gallery`。ギャラリーは `[DataEditor]` を持たない（旧も持たない）。新エディターの「雛形から始める」にギャラリーと同じ機能（タブ・検索・お気に入り・置き換え / 追加・登録）を埋め込み、「ギャラリーを開く」「ヒーローのギャラリー」で行き来する。
+- **ファイル**（`Editor/Ui/`）: `UiTweenEditor.cs`（土台への指定・再生・確認する・経路ハンドル・`IUiTweenTrackHost` の実装）/ `UiTweenFieldGuide.cs`（欄の表）/ `UiTweenTrackRows.cs`（`UiTweenTrackList` = `CanvasItemList`〔絞り込み・件数・20 行超は ListView〕に 1 行ずつ `UiTweenTrackRow` を載せる。値の変更は行を作り直さず見えている行の表示だけ更新し、数・項目が変わったときだけ作り直す。署名の比較だけ毎 150ms）/ `UiTweenViews.cs`（`TrackTimeBar` = Painter2D の時間バー、`CurveSketch` = 曲線の静的スケッチ）/ `UiTweenTrackInfo.cs`（種類・文字・署名・トラックの組み立て / 型合わせ。純関数）/ `UiTweenPresetViews.cs`（`UiTweenPresetPicker` = 雛形のタブ・ボタン・置き換え / 追加、`UiPresetRegisterBox` = 独自プリセットとして登録。ギャラリーと共有）/ `UiTweenPresetOps.cs`（プリセット → Tracks の置き換え / 追加・曲線サンプル。ギャラリーと共有）/ `UiTweenSnapshot.cs`（再生前の状態の保存と復元。ギャラリーと共有）/ `UiPresetGallery.cs`、`Editor/Ux/Samples/UiTweenSample.cs`、`DDriveUx.uss` に `ux-ut-*`、`Tests/Editor/UiTweenEditorUxTests.cs`。Runtime / Foundation / Validator は触っていない（検証の欄への結びつけは `ValidationTokens` と、メッセージ中の欄名 `Tracks` / `TotalDuration`）。
+- **目的別カード**（段の根拠: `UiTweenDataValidator` の Error は「PathMove なのに Path の制御点が 2 点未満」だけで、その設定を選んだときだけの条件なので「必須」の欄は無い。ただし「かんたん」で雛形を選んで動きを見られるよう、雛形とトラックの一覧は必須の段に置く〔バッジは出さない〕。Warning の対象 = よく使う、既定のままでよい欄 = 詳細）: 雛形から始める（`(presets)`）/ トラック（`Tracks`。Visual）/ 全体の長さ（`TotalDuration`）/ 確認する（`(check)`）/ 管理情報（共通基盤 + Flags・Events〔詳細〕）。名前が `(` で始まる欄は補助の行。かんたん = 雛形とトラックの一覧だけ。
+- **D-10 の基準をどう満たしたか**: サンプル `UiTweenSample.Build(folder)`（internal、一時フォルダに作って削除）= **HUD の入場演出 14 トラック**（位置・サイズ・拡縮・回転・透明度・色・色相・塗り・経路・回転 X が混在、イージングは OutSine / OutCubic / OutBack / OutQuad / Linear / InOutSine / InOutBack / ベジェ / カーブ、ループは無限・回数指定・往復、開始の遅れ、画面外からのスライド、8 本を超えた分の警告）+ **全部入り 22 トラック**（20 行を超えるので ListView）+ ポップイン 3 / フェード 1 / 空 + **UiPresetCatalog 24 件**（ギャラリーの「カタログ」タブが 20 件を超えて ListView になる）。(1) 標準モードで約 3.1 画面（760×1000。かんたん = 雛形とトラックの一覧）(2) トラックは **1 トラック = 1 行**（番号・種類チップ・項目名・時間バー・▶ ↺ ⚙ ×、2 行目に要約。行の展開は ⚙ でその行だけ）(3) 一覧の上に**絞り込み**（検索・すべて / ループ / 1 回だけ・種類チップ 6 つ）と**件数**（「14 トラック中 ループ 3」）(4) 入れ子の読み取り一覧は無い（トラックの中身は ⚙ の中）(5) 一括操作は無い（雛形の「置き換え」「＋ 追加」が一覧の上）(6) 22 トラックは **ListView**（実機で確認）(7) 幅 500px の Dark / Light でヒーロー・雛形のチップ（折り返し）・行の ▶ ↺ ⚙ ×・⚙ の欄・固定バーが切れない。
+- **機能対応表（旧 `UiTweenEditorWindow` → 新 `UiTweenEditor`、全行あり）**: 旧 `UiTweenEditorWindow.cs`（1117 行）の UI 要素・ボタン・欄を 1 つずつ、新エディターの詳細モードの全ラベルと突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバー「＋ 新規作成」 | ヒーローの「＋ 新規」 | あり |
+| 対象 UiTweenData の ObjectField | ◀ [名前 ▾] ▶・空状態のピッカー・ドロップ・最近のデータ。Project の選択に追従、🔒 固定 | あり |
+| プレビュー対象の見出し + 案内 | 「確認する」カードの説明と本文 | あり |
+| 収集元 ObjectField / 要素を自動収集 / 要素 DropdownField（同名の兄弟に " #2"） | 「確認する」の収集元 / 要素を自動収集 / 要素（同じ。同名は " #2"） | あり |
+| プリセット / カタログのドロップダウン（組み込み全種 + `[Catalog]`） | 「雛形から始める」のタブ（出現 / 常時 / 消滅 / 強調 / カタログ / ★）・検索・ボタン | あり（拡張） |
+| 「プリセットから Tracks を生成」（丸ごと置き換え） | 「置き換え」（同じ `UiTweenPresetOps.Replace`。Undo 1 回） | あり |
+| 「＋ プリセットを追加」（8 本まで） | 「＋ 追加」（同じ規則。上限なら「Track が上限(8 本)…」） | あり |
+| 「プリセットギャラリーを開く」（編集中の Tween を登録の元に） | 「ギャラリーを開く」+ ヒーローの「ギャラリー」 | あり |
+| 「確認用シーンに配置」（左 = 確認用シーン / 右 = このシーン・本配置）/ 撤去 | 同じ（`PreviewPlacementButton`・`EditorPreviewRoots`）/ 撤去 | あり |
+| ▶ 再生 / ■ 停止（連打で前の再生を止めて元に戻す） | 固定バーの ▶ ■（リピート・速度も）+ 各トラックの ▶ | あり（拡張） |
+| 状態の文（再生中 / 完了 / 停止 / プレビュー対象がありません） | 「確認する」の状態の文（同じ文言） | あり |
+| カーブ一覧（行 = 要約 + 曲線 IMGUI。クリックで選択） | トラックの一覧（1 トラック = 1 行・時間バーの中にイージングの形・2 行目に要約・種類チップ・絞り込みと件数・ListView） | あり（拡張） |
+| 選択中 Track の `PropertyField`（全項目） | 行の ⚙（項目 / 動き / 開始の遅れ / 開始値の決め方 / 画面外の方向 / 開始値 / 終了値〔項目に合わせた型〕/ 経路） | あり |
+| 「－ 選択中の Track を削除」 | 行の × | あり |
+| 「＋点を追加」「−最後の点を削除」（PathMove のみ） | ⚙ の中（PathMove のときだけ） | あり |
+| SceneView の制御点ハンドル + 描画権ラベル | `DrawSceneGui`（開いた PathMove 行が対象。描画権は土台の `SceneGuiOwner`）+ 「確認する」の描画権の表示 | あり |
+| 「Inspector(全フィールド)」 | 標準 / 詳細モードの欄（Tracks・TotalDuration）+ 管理情報 + ⚙ の全欄 | あり |
+| 「Validation」（`UiTweenDataValidator`） | 欄の下のインライン表示 + ヒーローのチップ + 「その他の検証」 | あり |
+| Undo / Redo の同期 | 土台の `OnUndoRedo`（再描画 + 検証 + 行の更新） | あり |
+| 再コンパイルに耐える状態（`_target` / `_collectRoot` / `_previewTarget` / `_selectedElementLabel`） | 同じ `[SerializeField]`。対象・固定・リピート・速度は土台 | あり |
+| 再生前の状態の復元（位置・サイズ・スケール・回転・CanvasGroup・色・fill） | `UiTweenSnapshot`（旧と同じ値。止める・終わる・対象の切替・閉じる） | あり |
+| Prefab アセットは再生しない | 同じ（「Prefab アセットは再生対象にできません」） | あり |
+| 閉じる / リロード前の仮画像の片付け（`EditorPreviewRoots.DestroyAll`） | 同じ（`OnWindowEnable` / `OnWindowDisable`） | あり |
+| `Open(target, collectRoot, assigned, label)`（Canvas Editor / Skin から） | 同じ 4 引数の `UiTweenEditor.Open` | あり |
+
+  新エディターで増えたもの: かんたん / 標準 / 詳細・検索・時間バーのドラッグ（開始と長さ）・＋ トラック（種類を選んで足す）・トラックの ↺ / 複製 / 並べ替え / 1 トラックだけの ▶・種類チップ・絞り込みと件数・変更の色バーと ↺・保存と自動保存・未保存の確認・リピート・速度・カードの「?」・9 本目以降の警告・Light / Dark。
+- **機能対応表（旧 `UiPresetGalleryWindow` → 新 `UiPresetGallery`、全行あり）**: 旧 `UiPresetGalleryWindow.cs`（653 行）の UI 要素を 1 つずつ突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| 先頭の案内（カードは静的表示のみ） | 「プリセット」カードの説明 | あり |
+| 適用先: CanvasData / 要素 / 適用フェーズ / 「選択中のシーン要素のパスを使う」（埋め込み Canvas の子へ切替） | 「適用先」カード（同じ。`CanvasEmbeddedEditing`） | あり |
+| タブ 5 つ（出現 / 常時 / 消滅 / 強調 / カタログ） | ヒーローのタブ（同じ。+ ★ お気に入り） | あり |
+| 検索（名前の部分一致） | ヒーローの検索欄（同じ `UiPresetGalleryFilter.Filter`） | あり |
+| お気に入り（★ / ☆。一覧の先頭に寄せる。EditorPrefs） | カードの ★ / ☆（同じキー `DDrive.UiPresetGallery.Favorites`・先頭に寄せる）+ 「★ お気に入り」（全タブから集める） | あり（拡張） |
+| カード: 名前・分類・64 サンプルの曲線（静的） | カード: 名前・分類のチップ・Track の本数・曲線（Painter2D。同じサンプル、オーバーシュートも見える） | あり |
+| 「この要素に適用」 | 「要素へ」（同じ `ElementFxAssignment`） | あり |
+| 「Canvas 内一括適用(全ボタン)」（組み込みのみ・Appear 固定） | 「全ボタンへ」（同じ） | あり |
+| 「選択中のシーン要素で再生」 | カードの ▶（同じ。Prefab アセットは不可。終わると自動で元に戻る）+ 「■ 再生を止める」 | あり |
+| 「この設定を他の要素へコピー」 | 「適用先」カードのボタン（同じ。カードごとではなく 1 つ） | あり |
+| 独自プリセットとして登録（登録先カタログ / 元の UiTweenData / 表示名 / カテゴリ / 登録する） | 「独自プリセットとして登録」カード（`UiPresetRegisterBox`。「雛形」の「プリセットとして保存」と共通） | あり |
+| 状態ラベル | 下部の状態の文 | あり |
+| `Open(source)`（UI Tween Editor から。登録の元に入る） | 同じ（`UiPresetGallery.Open(source)`。「編集中の Tween」と登録の元に入る） | あり |
+| 再生前の姿勢の復元（CanvasGroup を取り除く）・曲線キャッシュのクリア | `UiTweenSnapshot`・`Reload()`（サイズ・色・fill も戻す） | あり |
+
+  新ギャラリーで増えたもの: ★ お気に入りだけ・編集中の Tween への「置換」「追加」・20 件超の ListView・共通テーマ（Light / Dark）。
+- **`FieldGuide<TData>` の表**: `UiTweenFieldGuide`（`Tracks` / `TotalDuration` + 補助の 2 行 + 共通欄）。`UiTweenEditorUxTests` が「編集できる全フィールドを持つ・表の欄が実在する」を検査（Id / Version / Author / UpdatedAt と `HideInInspector` を除く）。
+- **互換性（editor-contract.txt）**: 追加 2 行（`UiTweenData -> UiTweenEditor "UI Tween Editor で開く" order=0` / 旧 `UiTweenEditorWindow` の `(旧) UI Tween Editor で開く` order=100）と**削除 1 行**（旧の order=0 の 1 行）。UX-2〜UX-11 と同じ扱い。更新前に red だったのは `EditorContractSnapshotTests.MatchesGolden` と `DDriveCompatToolTests.Compat_RealSnapshots_HaveNoDifference` の 2 件だけで、`ddrive_compat_update` のあと `ddrive_compat` は `changed:[]`。CHANGELOG の互換性節に追記済み。
+- **向け直した呼び出し元**（`grep UiTweenEditorWindow` / `UiPresetGalleryWindow`）: 新 `CanvasEditor` の ElementFx 行の「✎ Tween Editor」〔`CanvasEditor.ElementFx.cs`〕と Skin 系の Enter Tween の編集〔`ControlSkinPreviewSection.OpenTweenEditor`。旧の Button Skin / Slider Skin もこの共有部品を使うので新へ向く〕→ 新 `UiTweenEditor.Open(tween, collectRoot, element, label)`。`RootElementLabel`（「(ルート)」の共有定数）を参照する新 `CanvasEditor` / `NavigationGraphView` は新 `UiTweenEditor.RootElementLabel` へ。Inspector の「エディターで開く」・Asset Browser のダブルクリック・MCP の `ddrive_editor_open` は `DataEditorRegistry`（Order 0 = 新）経由なので `[DataEditor]` の付け替えで新へ向く。残した旧への参照は Archive 内（旧 `CanvasEditorWindow`・旧 `UiPresetGalleryWindow` の `RootElementLabel`・旧同士の「ギャラリーを開く」）だけ。テストは新に追従（`DataEditorRegistryTests`・`UiTweenEditorUxTests`）、旧は開けること（題が `(旧)`）の確認を足した。
+- **マニュアル**: `ui-tween.html`（節 id = `editor` / `presets` / `tracks` / `total` / `check` / `admin` / `gallery`）を新エディターとギャラリーの説明に書き換え（機能のみ。ElementFx・標準オプションの節は据え置き）。旧は `archive-ui-tween-editor.html`（`Readme.html` のアーカイブ節）。画像 `ui-tween-editor-window.png` / `ui-tween-preset-gallery.png` を新のスクリーンショットに差し替え、`ui-tween-editor-presets.png` を追加（旧画像は `archive-` 付きに改名）。`Tools/SpecWeb` は `build-manual.js` で再生成（clasp push はしていない）。
+- **確認**: コンパイル 0、**EditMode は全件を 1 回で実行して 2275 / 2275 green**（実行前に空きメモリ約 0.4〜0.9GB(再起動後の実行。1 回目は OOM で落ちた)・`UnloadUnusedAssetsImmediate` + `GC.Collect` を行った。約 18 分で完走、分割は不要。総数の確認: `TestRunnerApi.RetrieveTestList(EditMode)` の列挙が 2275 件〔UX-11 の 2235 + `UiTweenEditorUxTests` の 40〕で、ランナーの総数と一致）。`UiTweenEditorUxTests` 40 件（欄の表が編集できる全フィールドを持つ・登録表〔新が先頭・旧が `(旧)` Order 100〕・旧ウィンドウ 2 つが開く・サンプル〔14 トラック・種類 6 / イージング 8 以上が混在・22 トラック・カタログ 24〕・トラックの文字〔要約・軸・型合わせ〕・ヒーロー / 固定バー / カード・1 トラック = 1 行〔14 行・件数・ListView なし〕・22 トラックは ListView・外部の検索での絞り込み・9 本目以降の印と警告と ValueDef 雑音の除去・行の ↺ と Undo・時間バーの書き込みと Undo・＋ トラック / × と Undo・⚙ の項目変更〔型合わせ・Undo 1 回〕・開始値 / 終了値の型付き入力・複製と並べ替え・経路の点の追加 / 削除・雛形の置き換え / 追加〔上限・Undo〕・カタログの雛形・プリセットとして保存〔同名は上書き〕・実要素への ▶ ■〔動く・元に戻る・CanvasGroup が取り除かれる〕・終わったら自動で元に戻る・1 トラックだけの ▶・対象なし / Prefab アセットの拒否・収集〔同名の兄弟は一意〕・Canvas Editor と同じ 4 引数の `Open`・新 `CanvasEditor` の「✎ Tween Editor」が新を開く〔旧は開かない〕・ギャラリー〔タブ 20 / 9 / 11・検索・お気に入りの切替と絞り込みと保存・カタログ 24 件は ListView・シーン要素での再生と復元・Prefab / 未選択の拒否・編集中の Tween への置換 / 追加・要素への適用・登録〕）。機械点検（`UxFoundationTests`）に新 5 ファイルを足した。`ddrive_compat` は更新後 `changed:[]`。**PlayMode は実行していない**（Runtime を触っていない）。
+  `execute_code`（実ウィンドウ・サンプル）: Inspector の登録表（新が先頭・旧が `(旧)`）、トラック 1 行の変更と Undo、実要素への ▶ ■、雛形の適用、ギャラリーの検索とお気に入り、新 `CanvasEditor` からの「UI Tween Editor で開く」が新を開く（上の EditMode テストと同じ導線）。実データは保存せず、サンプルは作って削除した。
+  スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①「Motion の From と To が同じ」の警告が全トラックに出る（Tween は Motion の From / To を使わないので、エディターで外した）②「要素」の DropdownField のラベルが出ない（土台の規則 `.ux-row__input > .unity-base-field` が当たる位置に置いていた → 包んで置いた）③種類チップの幅がまちまちで時間バーの左端が揃わない（チップ・項目名を固定幅に）④ギャラリーのカードが縦に長い（▶ をカードの頭へ・ボタン名を「要素へ」「置換」「追加」に短縮・幅 160px で 4 枚並ぶ）⑤「TypeFillIn は Image.Type.Filled を想定」の警告が曲線サンプルの仮要素で出る（仮要素に Filled の Image を付けた）。2 周目 = 幅 500px の行が ▶ ↺ ⚙ × で折り返す（時間バーの最小幅を縮め、チップ・名前の幅を詰めた）のを直し、かんたん / 標準 / 詳細・Dark / Light・幅 500px で崩れないことを確認。
+- **割り切り**: ①⚙ の開閉はドメインリロードで閉じる（再コンパイルで開いた行は閉じる。対象・収集元・プレビュー対象は残る）②曲線の「形」だけ（軸の数字・途中で止めて見る操作は無い。旧と同じ）③ギャラリーの「他の要素へコピー」はカードごとではなく「適用先」カードの 1 つ（旧は全カードに同じボタンが並んでいた）④ギャラリーのカード一覧は幅から 1 行の枚数を決める（20 件超の ListView は幅が変わったとき作り直す）⑤`ValueDefValidator` の「Tween では当てはまらない From / To の警告」は Foundation 側の根治をせず（Validation の重さ・Code に触れる）、このエディターの検証表示から外すだけにした（Asset Browser の検証には従来どおり出る）⑥空状態の「サンプルを作る」は UX-19 でまとめて足す ⑦Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた

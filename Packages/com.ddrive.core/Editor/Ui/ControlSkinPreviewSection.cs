@@ -1236,7 +1236,7 @@ namespace DDrive.Editor.Ui
             var control = _options.EnsurePreview?.Invoke();
             var rt = control != null ? control.transform as RectTransform : null;
             var root = control != null ? control.transform.root.gameObject : null;
-            UiTweenEditorWindow.Open(tween, root, rt, control != null ? control.name : null);
+            UiTweenEditor.Open(tween, root, rt, control != null ? control.name : null);
         }
 
         private void OnEditorUpdate()

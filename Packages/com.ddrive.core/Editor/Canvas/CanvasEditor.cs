@@ -28,7 +28,7 @@ namespace DDrive.Editor.CanvasTool
     internal sealed partial class CanvasEditor : UxEditorWindow<CanvasData>
     {
         private const string Page = "canvas-editor";
-        private const string RootElementLabel = UiTweenEditorWindow.RootElementLabel;
+        private const string RootElementLabel = UiTweenEditor.RootElementLabel;
         private const string PreviewRootName = "[D-Drive] Canvas Preview (UX)";
         private const string FollowSelectionPrefKey = "DDrive.CanvasEditor.FollowSelection";
         private const string SelectOnPlayPrefKey = "DDrive.CanvasEditor.SelectOnPlay";

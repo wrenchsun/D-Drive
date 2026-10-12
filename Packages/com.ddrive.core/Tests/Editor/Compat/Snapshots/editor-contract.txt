@@ -56,7 +56,8 @@ DDrive.Runtime.Ui.CanvasData -> DDrive.Editor.CanvasTool.CanvasEditor "Canvas Ed
 DDrive.Runtime.Ui.CanvasData -> DDrive.Editor.CanvasTool.CanvasEditorWindow "(旧) Canvas Editor で開く" order=100
 DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderEditorWindow "Slider Editor で開く" order=5
 DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderSkinEditorWindow "Skin Editor で開く" order=0
-DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditorWindow "UI Tween Editor で開く" order=0
+DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditor "UI Tween Editor で開く" order=0
+DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditorWindow "(旧) UI Tween Editor で開く" order=100
 DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditor "VFX Editor で開く" order=0
 DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditorWindow "(旧) VFX Editor で開く" order=100
 == CutsceneImportListener ==
