@@ -16,6 +16,7 @@
 | D-7 | **互換性**: `DDrive.Foundation` / `DDrive.Runtime` の公開 API・シリアライズ形式・enum・Validator の重さに変更なし。Editor 契約（[42](42_distribution.md) §5.9、弱い互換面）の変更は「`DDriveMenu.Archive` の追加」「`[DataEditor]` 対応表の追加」「`Editors/` 配下のメニューが新エディターを指す」の 3 つで、いずれも CHANGELOG に書く。`editor-contract.txt` は追加のみで更新。**リリースは v1.8.0（MINOR）**、全エディターが揃ってから 1 回（途中の試験版は軽い経路で可） |
 | D-8 | **検証**: 各チケットは Editor 専用なので EditMode green + コンパイル 0 + `ddrive_compat` 無変更 + **スクリーンショットの自己確認ループ（Dark と Light の両方、最低 2 周）** を完了条件にする。v1.8.0 のリリース時だけ run-ci 全段 |
 | D-9 | マニュアル（`docs/DesignerManual/*.html`）は新エディターの機能説明に書き換える（機能のみ。「以前は〜」は書かない。[designer-manual の慣習](../CLAUDE.md)）。画像は新エディターのスクリーンショットに差し替える。旧エディターのページは `archive-*.html` に改名してトップの一覧から外す（リンクは「アーカイブ」節にまとめる） |
+| D-10 | **実運用規模のサンプルデータで確認する（2026-10-12 ユーザー指示）**: Canvas・Material など要素や情報量が多い種別は、折りたたみで隠すだけでは解決にならない（旧 Canvas Editor で HUD 10 要素 + 埋め込み 3 つを開くと、要素ごとの Foldout と埋め込みの読み取り一覧が縦に延々と並んだ）。各チケットは **実際に使う形のサンプルデータ**（例: Canvas = HUD 相当〔要素 10 以上・埋め込み 3 以上・配線 5 以上・ElementFx 設定済みと未設定が混在〕、Material = Specific 20 項目以上・Pass/Keyword あり、Presentation = トラック 8 本以上、Anim = Clip 10 以上）を `Editor/Ux/Samples/` の素材か確認用データ（`Assets/GameData`、保存しない）で作り、新エディターで開いた **Dark / Light のスクリーンショットを完了条件に含める**。見通しの基準: (1) 初期表示が 1〜2 画面に収まり、どこに何があるか見出しだけで分かる、(2) 一覧は **1 要素 = 1 行**（要素名・種類のチップ・設定の要約〔「Appear: Pop / Idle: なし / Disappear: Fade」のような 1 行要約〕・▶・↺）で、行の展開は**その行だけ**、(3) 一覧の上に **絞り込み**（検索・「設定済みだけ」「未設定だけ」・種類のチップ）と **件数**（「10 要素中 設定済み 3」）、(4) 埋め込み・入れ子は読み取り一覧を展開表示せず **1 行の要約 + 「開く」**（子の中身は子のエディターで見る）、(5) 一括操作（全 Appear 等）は一覧の上に 1 行、(6) 20 行を超える一覧は `ListView`（仮想化）で描画し、ウィンドウのスクロールは一覧の外側 1 本だけ、(7) 500px 幅で崩れない。折りたたみは (1)〜(6) を満たしたうえでの補助 |
 
 ## 2. 共通基盤（`Editor/Ux/`、UX-1）
 
@@ -67,7 +68,7 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
 3. `[DataEditor(typeof(TData), "〜で開く")]`（新、`Order = 0`）と、旧の `"(旧) 〜で開く"`（`Order = 100`）
 4. メニュー: 新は `DDriveMenu.Editors + "<名前>"`（旧と同じラベル）、旧は `DDriveMenu.Archive + "<名前>"`
 5. EditMode green（U-27 機械点検・`DataEditorRegistryTests`・`EditorContractSnapshotTests`）、コンパイル 0、`ddrive_compat` 無変更
-6. スクリーンショット（Dark / Light）を `docs/images/1010_<種別>.png` に、自己確認ループの記録（直した崩れ）を PR 本文に
+6. スクリーンショット（Dark / Light）を `docs/images/1010_<種別>.png` に、自己確認ループの記録（直した崩れ）を PR 本文に。**要素の多い種別は D-10 の実運用規模のサンプルデータで開いた画像を必須にする**（空に近いデータの画像だけでは完了にしない）
 7. マニュアルの該当ページの更新（D-9）
 
 ## 5. 実装メモ（チケットごとに追記）
