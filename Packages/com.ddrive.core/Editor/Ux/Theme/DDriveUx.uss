@@ -853,6 +853,146 @@
     white-space: normal;
 }
 
+/* Audio: 波形(AudioWaveformView) */
+.ux-root .ux-wave {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-wave__canvas {
+    height: 112px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: resize-horizontal;
+}
+
+.ux-root .ux-wave--readonly .ux-wave__canvas {
+    cursor: arrow;
+}
+
+.ux-root .ux-wave__range {
+    position: absolute;
+    left: 12px;
+    bottom: 4px;
+    color: var(--ux-dim);
+    font-size: 10px;
+}
+
+.ux-root .ux-wave__length {
+    position: absolute;
+    right: 8px;
+    bottom: 4px;
+    color: var(--ux-dim);
+    font-size: 10px;
+}
+
+.ux-root .ux-wave__message {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 0;
+    bottom: 16px;
+    color: var(--ux-dim);
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+/* Audio: トリム / ループ範囲の入力 */
+.ux-root .ux-trim {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-trim__source {
+    margin-bottom: 6px;
+}
+
+.ux-root .ux-trim__fields {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.ux-root .ux-trim__field {
+    flex-grow: 1;
+    flex-basis: 160px;
+    margin: 0 14px 4px 0;
+}
+
+.ux-root .ux-trim__field .unity-base-field__label {
+    display: flex;
+    min-width: 100px;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-trim__toggle {
+    margin: 6px 0 0 0;
+}
+
+.ux-root .ux-offset {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-offset__slider {
+    flex-grow: 1;
+}
+
+/* Audio: 3D サウンド確認パッド(AudioListenerPad) */
+.ux-root .ux-lpad {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-lpad__ranges {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-lpad__field {
+    flex-grow: 1;
+    flex-basis: 160px;
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-lpad__field .unity-base-field__label {
+    display: flex;
+    min-width: 88px;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-lpad__pad {
+    height: 200px;
+    flex-shrink: 0;
+    margin-top: 4px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ux-root .ux-lpad .unity-base-slider__label,
+.ux-root .ux-lpad .unity-base-field__label {
+    display: flex;
+    min-width: 88px;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-lpad__reason {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 0;
+    bottom: 0;
+    color: var(--ux-warn);
+    white-space: normal;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-lpad__info {
+    margin-top: 4px;
+}
+
 /* レイヤー行 */
 .ux-root .ux-layerrow {
     flex-direction: row;

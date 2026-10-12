@@ -21,54 +21,54 @@ namespace DDrive.Runtime.Audio
 
             if (se.Clips == null || se.Clips.Length == 0 || Array.Exists(se.Clips, c => c == null))
             {
-                yield return ValidationResult.Error("Clip が未設定(または Missing)です");
+                yield return ValidationResult.Error("Clip が未設定(または Missing)です").WithField("Clips");
             }
 
             if (se.Mixer == null)
             {
-                yield return ValidationResult.Warning("Mixer が未割当です");
+                yield return ValidationResult.Warning("Mixer が未割当です").WithField("Mixer");
             }
 
             var needsPath = se.Anchor.Space is AnchorSpace.BoneName or AnchorSpace.NamedObject;
             if (se.Spatial == SpatialMode.Anchor && !se.AnchorId.IsValid && needsPath && string.IsNullOrEmpty(se.Anchor.Path))
             {
-                yield return ValidationResult.Error("Spatial=Anchor ですが Anchor の Path が未設定です");
+                yield return ValidationResult.Error("Spatial=Anchor ですが Anchor の Path が未設定です").WithField("Anchor");
             }
 
             if (se.AnchorId.IsValid && DDrive.Runtime.Anchoring.AnchorDataValidator.IsEmbeddedAnchorNonDefault(se.Anchor))
             {
-                yield return ValidationResult.Warning("AnchorId が設定されているため、埋め込みの Anchor は無視されます");
+                yield return ValidationResult.Warning("AnchorId が設定されているため、埋め込みの Anchor は無視されます").WithField("Anchor");
             }
 
             if (se.MaxDistance <= se.MinDistance)
             {
-                yield return ValidationResult.Error("MaxDistance が MinDistance 以下です");
+                yield return ValidationResult.Error("MaxDistance が MinDistance 以下です").WithField("MaxDistance");
             }
 
             if (se.DopplerEnabled && !se.Loop)
             {
-                yield return ValidationResult.Warning("DopplerEnabled ですが Loop=false です(ワンショットでは知覚されにくい)");
+                yield return ValidationResult.Warning("DopplerEnabled ですが Loop=false です(ワンショットでは知覚されにくい)").WithField("DopplerEnabled");
             }
 
             if (se.MaxConcurrent <= 0)
             {
-                yield return ValidationResult.Error("MaxConcurrent が 0 以下です");
+                yield return ValidationResult.Error("MaxConcurrent が 0 以下です").WithField("MaxConcurrent");
             }
 
             if (se.Volume <= 0f)
             {
-                yield return ValidationResult.Warning("Volume が 0 です(鳴りません)");
+                yield return ValidationResult.Warning("Volume が 0 です(鳴りません)").WithField("Volume");
             }
 
             if (se.Sources != null && se.Sources.Length > 0 && se.Clips != null && se.Sources.Length != se.Clips.Length)
             {
-                yield return ValidationResult.Warning("Sources と Clips の要素数が一致していません(トリミング未適用の可能性)");
+                yield return ValidationResult.Warning("Sources と Clips の要素数が一致していません(トリミング未適用の可能性)").WithField("Sources");
             }
 
             if (se.StartOffsetSec > 0f && se.Clips != null && se.Clips.Length > 0 && se.Clips[0] != null &&
                 se.StartOffsetSec >= se.Clips[0].length)
             {
-                yield return ValidationResult.Warning("StartOffsetSec がクリップ長以上のため無音になります");
+                yield return ValidationResult.Warning("StartOffsetSec がクリップ長以上のため無音になります").WithField("StartOffsetSec");
             }
         }
     }

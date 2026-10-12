@@ -110,6 +110,9 @@ namespace DDrive.Editor.Ux
 
         protected virtual bool IsPlaying => false;
 
+        // 速度スライダーを固定バーに出すか。再生はあるが速度を変えられない種別(例: BGM)は false。
+        protected virtual bool SupportsSpeed => true;
+
         protected virtual void StartPlayback(bool focus) { }
 
         protected virtual void StopPlayback() { }

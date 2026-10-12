@@ -491,17 +491,20 @@ namespace DDrive.Editor.Ux
                 _repeatToggle.AddToClassList("ux-bar__repeat");
                 _repeatToggle.RegisterValueChangedCallback(e => Repeat = e.newValue);
                 bar.Add(_repeatToggle);
-                _speedSlider = new Slider("速度", SpeedMin, SpeedMax) { value = Speed, showInputField = false, tooltip = "再生の速さ(0.1〜2 倍)" };
-                _speedSlider.AddToClassList("ux-bar__speed");
-                _speedSlider.RegisterValueChangedCallback(OnSpeedSliderChanged);
-                bar.Add(_speedSlider);
-                AddSpeedTick(_speedSlider);
-                _speedValue = new Label();
-                _speedValue.AddToClassList("ux-bar__speed-value");
-                _speedValue.tooltip = "クリックで ×1.0 に戻す";
-                _speedValue.RegisterCallback<ClickEvent>(_ => ResetSpeed());
-                bar.Add(_speedValue);
-                RefreshSpeedLabel();
+                if (SupportsSpeed)
+                {
+                    _speedSlider = new Slider("速度", SpeedMin, SpeedMax) { value = Speed, showInputField = false, tooltip = "再生の速さ(0.1〜2 倍)" };
+                    _speedSlider.AddToClassList("ux-bar__speed");
+                    _speedSlider.RegisterValueChangedCallback(OnSpeedSliderChanged);
+                    bar.Add(_speedSlider);
+                    AddSpeedTick(_speedSlider);
+                    _speedValue = new Label();
+                    _speedValue.AddToClassList("ux-bar__speed-value");
+                    _speedValue.tooltip = "クリックで ×1.0 に戻す";
+                    _speedValue.RegisterCallback<ClickEvent>(_ => ResetSpeed());
+                    bar.Add(_speedValue);
+                    RefreshSpeedLabel();
+                }
             }
 
             var spacer = new VisualElement();
