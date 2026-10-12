@@ -23,7 +23,8 @@ namespace DDrive.Editor.Model
     //  - 「Prefab を開く」→ ModelData.Prefab をプレハブモードで開く(Renderer / Material をその場で編集)
     //  - ターンテーブル(配置したモデルを回す) / 複数モデル並列表示 / Slot 自動収集 / Material スロット ID 差し替え /
     //    DefaultAnimation の再生確認(実 AnimManager。Anim も EditorAnchorRegistry に登録済み)
-    [DDrive.Editor.Inspector.DataEditor(typeof(ModelData), "Model Editor で開く")]
+    // 2026-10-13(docs/1010 UX-9): 新デザインの ModelEditor ができたので、旧は「(旧)」Order 100・Archive メニューへ退避(機能追加はしない。バグ修正のみ)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(ModelData), "(旧) Model Editor で開く", Order = 100)]
     public sealed class ModelEditorWindow : EditorWindow
     {
         private const int MaxParallelSlots = 4;
@@ -54,12 +55,12 @@ namespace DDrive.Editor.Model
         private VisualElement _animContainer;
         private Button _applySlotsButton;
 
-        [MenuItem(DDriveMenu.Editors + "Model")]
+        [MenuItem(DDriveMenu.Archive + "Model Editor")]
         public static void OpenFromMenu() => Open(Selection.activeObject as ModelData);
 
         public static void Open(ModelData target)
         {
-            var window = GetWindow<ModelEditorWindow>("Model Editor");
+            var window = GetWindow<ModelEditorWindow>("(旧) Model Editor");
             window.minSize = new Vector2(500, 420); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17)
             if (target != null)
             {

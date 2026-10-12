@@ -41,8 +41,10 @@ DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialEditorWi
 DDrive.Runtime.Material.MaterialData -> DDrive.Editor.Materials.MaterialThumbnailWindow "プレビューをポップアップ" order=5
 DDrive.Runtime.Material.TextureData -> DDrive.Editor.Materials.MaterialEditorWindow "(旧) Material Editor で開く" order=100
 DDrive.Runtime.Material.TextureData -> DDrive.Editor.Materials.TextureEditor "Texture Editor で開く" order=0
-DDrive.Runtime.Model.ModelData -> DDrive.Editor.Model.ModelEditorWindow "Model Editor で開く" order=0
-DDrive.Runtime.Prefab.PrefabData -> DDrive.Editor.PrefabTool.PrefabEditorWindow "Prefab Editor で開く" order=0
+DDrive.Runtime.Model.ModelData -> DDrive.Editor.Model.ModelEditor "Model Editor で開く" order=0
+DDrive.Runtime.Model.ModelData -> DDrive.Editor.Model.ModelEditorWindow "(旧) Model Editor で開く" order=100
+DDrive.Runtime.Prefab.PrefabData -> DDrive.Editor.PrefabTool.PrefabEditor "Prefab Editor で開く" order=0
+DDrive.Runtime.Prefab.PrefabData -> DDrive.Editor.PrefabTool.PrefabEditorWindow "(旧) Prefab Editor で開く" order=100
 DDrive.Runtime.Presentation.PresentationData -> DDrive.Editor.Presentation.PresentationEditor "Presentation Editor で開く" order=0
 DDrive.Runtime.Presentation.PresentationData -> DDrive.Editor.Presentation.PresentationEditorWindow "(旧) Presentation Editor で開く" order=100
 DDrive.Runtime.Ui.ButtonSkinData -> DDrive.Editor.Ui.ButtonSkinEditorWindow "Skin Editor で開く" order=0

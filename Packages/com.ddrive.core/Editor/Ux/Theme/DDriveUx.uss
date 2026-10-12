@@ -2121,3 +2121,45 @@
 .ux-root .ux-pk {
     margin-top: 2px;
 }
+
+/* Model / Prefab(UX-9 / UX-14) */
+.ux-root .ux-mdl-kind {
+    min-width: 72px;
+}
+
+.ux-root .ux-mdl-slotfield {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 140px;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-mdl-info {
+    -unity-font-style: normal;
+    margin-bottom: 2px;
+}
+
+.ux-root .ux-mdl-animline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ux-root .ux-mdl-animfield {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 160px;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-mdl-pline {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.ux-root .ux-mdl-pbtn {
+    margin: 0;
+    width: 56px;
+    flex-shrink: 0;
+}

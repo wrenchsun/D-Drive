@@ -80,7 +80,10 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(MaterialData), typeof(MaterialEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(TextureData), asm.GetType("DDrive.Editor.Materials.TextureEditor", true));
             AssertWindow(typeof(TextureData), typeof(MaterialEditorWindow)); // (旧) Order 100
-            AssertWindow(typeof(ModelData), typeof(ModelEditorWindow));
+            AssertWindow(typeof(ModelData), asm.GetType("DDrive.Editor.Model.ModelEditor", true));
+            AssertWindow(typeof(ModelData), typeof(ModelEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(DDrive.Runtime.Prefab.PrefabData), asm.GetType("DDrive.Editor.PrefabTool.PrefabEditor", true));
+            AssertWindow(typeof(DDrive.Runtime.Prefab.PrefabData), typeof(DDrive.Editor.PrefabTool.PrefabEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(AnimData), typeof(AnimEditorWindow).Assembly.GetType("DDrive.Editor.Anim.AnimEditor", true));
             AssertWindow(typeof(AnimData), typeof(AnimEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(Anim2DData), typeof(AnimEditorWindow).Assembly.GetType("DDrive.Editor.Anim2D.Anim2DEditor", true));

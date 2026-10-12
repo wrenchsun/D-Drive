@@ -16,7 +16,8 @@ namespace DDrive.Editor.PrefabTool
     // [07_canvas_prefab.md] Part B の最小エディタ(4-4)。編集は SerializedObject バインド(Undo 対応)、
     // プレビューは実 PrefabsManager で Spawn した実体を開いているシーン / プレハブステージの DontSave
     // ルートに置いて SceneView で確認する(ADR-4: Editor 専用の再生経路を作らない。MaterialEditorWindow と同じ設計)。
-    [DDrive.Editor.Inspector.DataEditor(typeof(PrefabData), "Prefab Editor で開く")]
+    // 2026-10-13(docs/1010 UX-14): 新デザインの PrefabEditor ができたので、旧は「(旧)」Order 100・Archive メニューへ退避(機能追加はしない。バグ修正のみ)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(PrefabData), "(旧) Prefab Editor で開く", Order = 100)]
     public sealed class PrefabEditorWindow : EditorWindow
     {
         public const string PreviewRootName = "[D-Drive] Prefab Preview";
@@ -36,12 +37,12 @@ namespace DDrive.Editor.PrefabTool
         private VisualElement _inspectorContainer;
         private Label _statusLabel;
 
-        [MenuItem(DDriveMenu.Editors + "Prefab")]
+        [MenuItem(DDriveMenu.Archive + "Prefab Editor")]
         public static void OpenFromMenu() => Open(Selection.activeObject as PrefabData);
 
         public static void Open(PrefabData target)
         {
-            var window = GetWindow<PrefabEditorWindow>("Prefab Editor");
+            var window = GetWindow<PrefabEditorWindow>("(旧) Prefab Editor");
             window.minSize = new Vector2(380, 300);
             if (target != null)
             {
