@@ -365,3 +365,14 @@ A-3 の Spawn / Despawn に次の挙動を追加した（追加のみ。MINOR）
 - **AnimEditor**: モデル情報の BlendShape 一覧は所有接頭辞のシェイプを既定で隠し「外部管理 N 件」と件数を出す（詳細の折りたたみ内の「外部管理のシェイプも表示」で見える。AnimData に既に入っている値は消さない）。
 - **取り込みの確認（実コード、[51] §3.5・§4.21）**: D-Drive は一般モデル FBX の `ModelImporter` 設定を書かず（Cutscene のキャラ FBX の `animationType` / `avatarSetup` のみ）、シェイプ名・ボーン・メッシュ・スケールを加工しない。`SetBlendShapeWeight` の呼び出しは `AnimatorProxy`（`AnimData.BlendShapes` 指定名）と `ModelInstancePoolable`（返却時の復元）・Editor のプレビュー復元だけ。再確認の結果、問題なし。FBX フィクスチャを使う確認（U-15）は FC-10 E-17。
 - テスト: PlayMode `ExternalBlendShapeOwnershipTests`（判定・Validator・合成 Mesh の Prefab を Spawn → `AnimManager.Tick` → 外部の後書きが次の Tick で上書きされない・名前が変わらない・プール往復）。
+
+## 追記（2026-10-13、UX-6 = AnimEditor の新デザイン）
+
+> 専用エディターの新デザイン移行（[1010](1010_editor_ux_migration.md)）の Anim(3D)。**データ構造・Manager・再生の挙動は変えていない**（`AnimData` / `AnimManager` / `SceneAnimPreviewDriver` はそのまま）。B-4 の `AnimEditorWindow` は `Tools > D-Drive > Archive > Animation (3D)` に退避し、Inspector の「(旧) Anim Editor で開く」（Order 100）から開く。
+
+- **新エディター `AnimEditor`**（`Editor/Anim/AnimEditor*.cs`、`UxEditorWindow<AnimData>`、メニュー `Tools > D-Drive > Editors > Animation (3D)`、`[DataEditor(typeof(AnimData), "Anim Editor で開く")]` Order 0）。やりたいことごとのカード = 動かす（Clip・ステート・ループ・切り替え時間・レイヤー・マスク・Flags + 「Animator のステートから選ぶ」）/ 合図（タイムライン + イベントの一覧）/ 表情・手足（IK + BlendShape の一覧）/ 確認する（動かす相手・確認用のモデルと情報・一時停止・ブレンド確認・イベントログ）/ 管理情報。段の根拠は `AnimDataValidator`（Clip 未設定 = 必須。欄に結びつくよう結果に `Field` を付与。メッセージ・Code・重さは変えない）。
+- **一覧は 1 件 = 1 行**（D-10）: イベント（# ・SE / VFX / 配置セット / ほかのチップ・対象名・「F12 (0.40s) · 毎周回」の要約・▶ 試聴・⚙ 展開・✕）、BlendShape（名前・「カーブ 3 キー · 0 → 100」・⚠・⚙・✕）、ステート（Controller のステート / クリップ。AnimData の有無・選ぶ / 作成。既定は折りたたみ）。一覧の上に絞り込み（検索・設定済み / 未設定・種類のチップ）と件数、20 行を超えたら `ListView`。展開（⚙）はその行だけ。
+- **Presentation の「一緒に調整」**: `AnimEditor.Open(AnimData, GameObject attach)`（attach の Animator をそのまま動かす相手にする。Presentation の新エディターからここへ向く）。Anim2DData（AnimData の派生）は新 AnimEditor の対象外で、Anim2D の新エディター（UX-7）までは旧 `AnimEditorWindow` で開く（`UxEditorWindow` の `AcceptsTarget` / `OnTargetRejected`）。
+- **再生**: 固定バーの ▶ は常に最初から（一時停止中の再開は「⏸ 一時停止 / ▶ 再開」ボタン）。リピートは固定バーのリピート（旧の「ループ試聴」）、速度は固定バーの速度。`StateName` が Controller に無い / BlendShape がモデルに無い（Validator は対象モデルを知らない）は、確認する > 確認用のモデルと情報に出す。
+- **タイムライン**は旧の IMGUI（クリックでシーク・マーカーのドラッグで時刻変更 = Undo 1 回にまとめる・SE の波形）を `IMGUIContainer` で載せ、色だけ Light / Dark に合わせ、マーカー下のラベルは重なるものを省く。
+- 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/AnimSample.cs`（Controller ステート 14 行・イベント 12 件・IK・BlendShape 3 本）。

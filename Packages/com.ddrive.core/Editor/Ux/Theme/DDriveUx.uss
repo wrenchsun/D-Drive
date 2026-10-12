@@ -1788,6 +1788,71 @@
     color: var(--ux-dim);
 }
 
+/* ── Anim Editor(docs/1010 UX-6): タイムライン・IK・ブレンド確認 ── */
+.ux-root .ux-atl {
+    height: 84px;
+    min-height: 84px;
+    margin-top: 4px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ux-root .ux-toolsline .ux-iktoggle.ux-iktoggle,
+.ux-root .ux-toolsline .ux-looptoggle.ux-looptoggle,
+.ux-root .ux-iktoggle.ux-iktoggle {
+    margin: 0 16px 4px 0;
+}
+
+.ux-root .ux-ikcurve {
+    flex-grow: 1;
+    min-width: 200px;
+}
+
+.ux-root .ux-blendpadrow {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.ux-root .ux-blendpad {
+    width: 168px;
+    height: 168px;
+    min-width: 168px;
+    margin: 0 12px 8px 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ux-root .ux-blendpadside {
+    flex-grow: 1;
+    min-width: 200px;
+}
+
+.ux-root .ux-blendstep {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.ux-root .ux-blendstep__anim {
+    width: 200px;
+    flex-shrink: 1;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-blendstep__num {
+    width: 150px;
+    flex-shrink: 1;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-blendstep__num > .unity-base-field__label {
+    min-width: 0;
+    width: auto;
+    margin-right: 4px;
+}
+
 /* 表示 / 非表示の切り替え。他の display 指定より必ず勝たせるため、クラスを重ねて詳細度を上げる。末尾に置く */
 .ux-root .ux-hidden.ux-hidden {
     display: none;

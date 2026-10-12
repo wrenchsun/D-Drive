@@ -560,7 +560,7 @@ namespace DDrive.Editor.Presentation
             {
                 var open = new VisualElement();
                 open.AddToClassList("ux-toolsline");
-                open.Add(MakeButton("専用エディタで開く(一緒に調整)", null, () => OpenTrackEditorTogether(index), "確認用シーン・配置済みモデル・再生状態はそのまま。専用エディタの「スポーン先」に統合プレビューが配置した Self を渡す(Vfx のみ。ほかの種別は通常どおり開く)"));
+                open.Add(MakeButton("専用エディタで開く(一緒に調整)", null, () => OpenTrackEditorTogether(index), "確認用シーン・配置済みモデル・再生状態はそのまま。専用エディタの「スポーン先」/ 動かす相手に統合プレビューが配置した Self を渡す(Vfx と Anim。ほかの種別は通常どおり開く)"));
                 open.Add(MakeButton("単体で確認用シーンに開き直す", null, () => OpenTrackEditorAlone(index), "専用エディタのいつもの流れで開く(その Data 単体)。統合プレビューは片付きます"));
                 box.Add(open);
             }
@@ -860,13 +860,17 @@ namespace DDrive.Editor.Presentation
             }
 
             var attach = _preview?.SelfRoot != null ? _preview.SelfRoot.gameObject : null;
-            if (PresentationTrackEditorRouting.Classify(asset) == PresentationTrackEditorRouting.EditorKind.VfxWithAttach)
+            switch (PresentationTrackEditorRouting.Classify(asset))
             {
-                VfxEditor.Open((VfxData)asset, attach);
-            }
-            else
-            {
-                DataEditorRegistry.OpenDefault(asset);
+                case PresentationTrackEditorRouting.EditorKind.VfxWithAttach:
+                    VfxEditor.Open((VfxData)asset, attach);
+                    break;
+                case PresentationTrackEditorRouting.EditorKind.AnimWithAttach:
+                    DDrive.Editor.Anim.AnimEditor.Open((DDrive.Runtime.Anim.AnimData)asset, attach); // UX-6: 新 AnimEditor(Self の Animator をそのまま対象にする)
+                    break;
+                default:
+                    DataEditorRegistry.OpenDefault(asset);
+                    break;
             }
 
             AppendLog($"'{asset.DisplayName ?? asset.name}' を専用エディタで開きました(一緒に調整。確認用シーン・再生状態は維持)");
