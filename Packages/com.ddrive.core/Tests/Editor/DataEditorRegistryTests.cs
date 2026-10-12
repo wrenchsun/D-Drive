@@ -68,7 +68,8 @@ namespace DDrive.Tests.Editor
         {
             AssertWindow(typeof(SeData), typeof(AudioEditorWindow));
             AssertWindow(typeof(BgmData), typeof(AudioEditorWindow));
-            AssertWindow(typeof(VfxData), typeof(VfxEditorWindow));
+            AssertWindow(typeof(VfxData), typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Vfx.VfxEditor", true));
+            AssertWindow(typeof(VfxData), typeof(VfxEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(ModelData), typeof(ModelEditorWindow));
             AssertWindow(typeof(AnimData), typeof(AnimEditorWindow));
             AssertWindow(typeof(AnchorData), typeof(AnchorEditorWindow));

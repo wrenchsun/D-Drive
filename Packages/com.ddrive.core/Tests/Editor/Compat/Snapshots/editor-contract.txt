@@ -1,4 +1,5 @@
 == DDriveMenu ==
+Archive = Tools/D-Drive/Archive/
 AssetsCreateData = Assets/D-Drive/Data を作成/
 AssetsRoot = Assets/D-Drive/
 Build = Tools/D-Drive/Build/
@@ -42,7 +43,8 @@ DDrive.Runtime.Ui.CanvasData -> DDrive.Editor.CanvasTool.CanvasEditorWindow "Can
 DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderEditorWindow "Slider Editor で開く" order=5
 DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderSkinEditorWindow "Skin Editor で開く" order=0
 DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditorWindow "UI Tween Editor で開く" order=0
-DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditorWindow "VFX Editor で開く" order=0
+DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditor "VFX Editor で開く" order=0
+DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditorWindow "(旧) VFX Editor で開く" order=100
 == CutsceneImportListener ==
 interface DDrive.Editor.Cutscene.ICutsceneImportListener
   method Void OnCutsceneShotImported(CutsceneImportResult result)

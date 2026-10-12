@@ -58,7 +58,7 @@ namespace DDrive.Editor.Presentation
             switch (PresentationTrackEditorRouting.Classify(asset))
             {
                 case PresentationTrackEditorRouting.EditorKind.VfxWithAttach:
-                    VfxEditorWindow.Open((VfxData)asset, attach);
+                    VfxEditor.Open((VfxData)asset, attach);
                     break;
                 case PresentationTrackEditorRouting.EditorKind.AnchorGroupWithAttach:
                     AnchorGroupEditorWindow.Open((AnchorGroupData)asset, attach);

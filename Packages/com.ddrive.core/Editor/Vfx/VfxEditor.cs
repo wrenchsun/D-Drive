@@ -18,10 +18,11 @@ using UnityEngine.UIElements;
 
 namespace DDrive.Editor.Vfx
 {
-    // VFX の新エディター(docs/1010 UX-1 の題材 = 試験版 E の再現。UX-2 で正式化し、VfxEditorWindow から [DataEditor] を付け替える)。
+    // VFX のエディター(docs/1010 UX-1 で共通基盤と共に作り、UX-2 で正式化。旧 VfxEditorWindow は Archive メニューへ退避)。
     // 共通基盤(UxEditorWindow<VfxData> / FieldGuide / UxRow / UxCard / DurationBar / AnchorPad / TuneKnobs)だけで組み、
     // ここに書くのは Vfx 固有の部分だけ: 欄の表(VfxFieldGuide)・視覚部品の結びつけ・Anchor ツール・LightLayer・複数同時再生・再生(実 Manager)。
     // プレビューは実 VfxManager を Editor から駆動する(ADR-4。SceneVfxPreviewDriver)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(VfxData), "VFX Editor で開く")]
     internal sealed class VfxEditor : UxEditorWindow<VfxData>
     {
         private const string Page = "vfx-editor";
@@ -52,12 +53,12 @@ namespace DDrive.Editor.Vfx
 
         // ── 入口 ──
 
-        [MenuItem(DDriveMenu.Editors + "VFX Editor (新)")]
+        [MenuItem(DDriveMenu.Editors + "VFX Editor")]
         public static void OpenFromMenu() => Open(Selection.activeObject as VfxData);
 
         public static void Open(VfxData target)
         {
-            var w = OpenWindow<VfxEditor>("VFX Editor (新)");
+            var w = OpenWindow<VfxEditor>("VFX Editor");
             if (target != null)
             {
                 w.SetTarget(target);
@@ -67,7 +68,7 @@ namespace DDrive.Editor.Vfx
         // PresentationEditor 等、他のエディタが開いている確認用シーン・配置済みモデルをそのまま使う(スポーン先を渡すだけ)。
         public static void Open(VfxData target, GameObject attachTarget)
         {
-            var w = OpenWindow<VfxEditor>("VFX Editor (新)");
+            var w = OpenWindow<VfxEditor>("VFX Editor");
             if (target != null)
             {
                 w.SetTarget(target);
@@ -82,6 +83,21 @@ namespace DDrive.Editor.Vfx
         protected override string PrefsKey => "Vfx";
         protected override FieldGuide<VfxData> Guide => VfxFieldGuide.Instance;
         protected override string ManualPage => Page;
+
+        // カードの「?」でマニュアルの該当節へ飛ぶ(docs/DesignerManual/vfx-editor.html の節 id)。
+        protected override string ManualAnchor(string purpose)
+        {
+            switch (purpose)
+            {
+                case VfxFieldGuide.PurShow: return "show";
+                case VfxFieldGuide.PurPlace: return "place";
+                case VfxFieldGuide.PurLife: return "life";
+                case VfxFieldGuide.PurLook: return "look";
+                case VfxFieldGuide.PurLink: return "link";
+                case FieldGuide<VfxData>.AdminPurpose: return "admin";
+                default: return null;
+            }
+        }
         protected override bool SupportsPlayback => true;
         protected override bool HasSample => true;
         protected override string SampleLabel => "サンプル VfxData を作る（vfx_sample）";

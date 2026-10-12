@@ -223,7 +223,7 @@ namespace DDrive.EditorPrototypes
             }) { text = "保存" };
             page.Add(save);
 
-            var all = new Button(() => VfxEditorWindow.Open(Target)) { text = "すべての設定を見る(VFX Editor)", tooltip = "標準エディターで全欄を開く" };
+            var all = new Button(() => DDrive.Editor.Inspector.DataEditorRegistry.OpenDefault(Target)) { text = "すべての設定を見る(VFX Editor)", tooltip = "標準エディターで全欄を開く" };
             all.style.whiteSpace = WhiteSpace.Normal;
             page.Add(all);
         }
