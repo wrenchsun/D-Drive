@@ -30,7 +30,7 @@ namespace DDrive.Editor.Anim2D
                 var controller = FindControllerWithState(anim.ResolvedStateName);
                 if (controller == null)
                 {
-                    yield return ValidationResult.Warning($"Controller に StateName '{anim.ResolvedStateName}' が見つかりません(BlendTree のパラメータ検査をスキップしました)");
+                    yield return ValidationResult.Warning($"Controller に StateName '{anim.ResolvedStateName}' が見つかりません(BlendTree のパラメータ検査をスキップしました)").WithField("StateName");
                 }
                 else
                 {
@@ -51,7 +51,7 @@ namespace DDrive.Editor.Anim2D
                         var capturedAnim = anim;
                         yield return ValidationResult.Error(
                             $"'{controller.name}' の BlendTree に x,y パラメータ {string.Join(", ", missing)} がありません",
-                            () => FixAddParameters(capturedController, capturedAnim));
+                            () => FixAddParameters(capturedController, capturedAnim)).WithField("ParamXName");
                     }
                 }
             }
@@ -100,7 +100,7 @@ namespace DDrive.Editor.Anim2D
 
                 if (nullCount > 0)
                 {
-                    yield return ValidationResult.Error($"'{clip.name}' のスライス済みスプライトの参照が {nullCount} 件切れています(元テクスチャの再インポート等で消失した可能性があります)");
+                    yield return ValidationResult.Error($"'{clip.name}' のスライス済みスプライトの参照が {nullCount} 件切れています(元テクスチャの再インポート等で消失した可能性があります)").WithField("Clip");
                 }
             }
         }

@@ -198,6 +198,8 @@ namespace DDrive.Editor.Ux
                 zone.Add(sample);
             }
 
+            AddEmptyActions(zone);
+
             var recent = new VisualElement();
             recent.AddToClassList("ux-empty__recent");
             var guids = AssetDatabase.FindAssets("t:" + DataKindName);

@@ -17,6 +17,7 @@ namespace DDrive.Editor.Inspector
             public Type DataType { get; }
             public string Label { get; }
             public int Order { get; }
+            internal Type ExceptFor { get; }
             private readonly MethodInfo _open;
 
             internal Entry(Type windowType, DataEditorAttribute attribute, MethodInfo open)
@@ -25,6 +26,7 @@ namespace DDrive.Editor.Inspector
                 DataType = attribute.DataType;
                 Label = attribute.Label;
                 Order = attribute.Order;
+                ExceptFor = attribute.ExceptFor;
                 _open = open;
             }
 
@@ -112,7 +114,18 @@ namespace DDrive.Editor.Inspector
             {
                 if (_declared.TryGetValue(t, out var entries))
                 {
-                    var sorted = new List<Entry>(entries);
+                    var sorted = new List<Entry>(entries.Count);
+                    foreach (var entry in entries)
+                    {
+                        // 基底型の登録で、この型(以下)を除外しているものは引き継がない。
+                        if (t != dataType && entry.ExceptFor != null && entry.ExceptFor.IsAssignableFrom(dataType))
+                        {
+                            continue;
+                        }
+
+                        sorted.Add(entry);
+                    }
+
                     sorted.Sort((a, b) => a.Order.CompareTo(b.Order));
                     list.AddRange(sorted);
                 }

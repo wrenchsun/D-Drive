@@ -21,12 +21,12 @@ namespace DDrive.Runtime.Anim2D
 
             if (anim.Clip == null)
             {
-                yield return ValidationResult.Error("Clip が未生成(または Missing)です。Anim2DEditor で生成してください");
+                yield return ValidationResult.Error("Clip が未生成(または Missing)です。Anim2DEditor で生成してください").WithField("Clip");
             }
 
             if (anim.FrameRate <= 0f)
             {
-                yield return ValidationResult.Error("FrameRate が 0 以下です");
+                yield return ValidationResult.Error("FrameRate が 0 以下です").WithField("Clip");
             }
 
             if (anim.HasDirections)
@@ -35,7 +35,7 @@ namespace DDrive.Runtime.Anim2D
                 var count = anim.DirectionClips != null ? anim.DirectionClips.Length : 0;
                 if (count < required)
                 {
-                    yield return ValidationResult.Error($"Directions={anim.Directions} ですが DirectionClips が {count} 本です({required} 本必要)");
+                    yield return ValidationResult.Error($"Directions={anim.Directions} ですが DirectionClips が {count} 本です({required} 本必要)").WithField("DirectionClips");
                 }
                 else
                 {
@@ -43,19 +43,19 @@ namespace DDrive.Runtime.Anim2D
                     {
                         if (anim.DirectionClips[i] == null)
                         {
-                            yield return ValidationResult.Error($"DirectionClips[{i}] が未設定(または Missing)です");
+                            yield return ValidationResult.Error($"DirectionClips[{i}] が未設定(または Missing)です").WithField("DirectionClips");
                         }
                     }
                 }
 
                 if (string.IsNullOrEmpty(anim.ParamXName) || string.IsNullOrEmpty(anim.ParamYName))
                 {
-                    yield return ValidationResult.Error("方向付きなのに BlendTree のパラメータ名(ParamXName / ParamYName)が空です");
+                    yield return ValidationResult.Error("方向付きなのに BlendTree のパラメータ名(ParamXName / ParamYName)が空です").WithField("ParamXName");
                 }
             }
             else if (anim.DirectionClips != null && anim.DirectionClips.Length > 0)
             {
-                yield return ValidationResult.Warning("Directions=None ですが DirectionClips が設定されています(使われません)");
+                yield return ValidationResult.Warning("Directions=None ですが DirectionClips が設定されています(使われません)").WithField("DirectionClips");
             }
         }
     }

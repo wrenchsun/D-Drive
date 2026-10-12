@@ -100,6 +100,9 @@ namespace DDrive.Editor.Ux
 
         protected virtual TData CreateSample() => null;
 
+        // 空状態に足すボタン(例: Anim2D の「＋ スプライトから作成」ウィザード)。
+        protected virtual void AddEmptyActions(VisualElement zone) { }
+
         protected virtual Texture DefaultIcon => EditorGUIUtility.IconContent("ScriptableObject Icon").image;
 
         // 検索語が一致するときのヒント文に出す、Data の種類名(例: "VfxData")。

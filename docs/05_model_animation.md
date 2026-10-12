@@ -376,3 +376,13 @@ A-3 の Spawn / Despawn に次の挙動を追加した（追加のみ。MINOR）
 - **再生**: 固定バーの ▶ は常に最初から（一時停止中の再開は「⏸ 一時停止 / ▶ 再開」ボタン）。リピートは固定バーのリピート（旧の「ループ試聴」）、速度は固定バーの速度。`StateName` が Controller に無い / BlendShape がモデルに無い（Validator は対象モデルを知らない）は、確認する > 確認用のモデルと情報に出す。
 - **タイムライン**は旧の IMGUI（クリックでシーク・マーカーのドラッグで時刻変更 = Undo 1 回にまとめる・SE の波形）を `IMGUIContainer` で載せ、色だけ Light / Dark に合わせ、マーカー下のラベルは重なるものを省く。
 - 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/AnimSample.cs`（Controller ステート 14 行・イベント 12 件・IK・BlendShape 3 本）。
+
+## 追記（2026-10-13、UX-7 = Anim2DEditor の新デザイン + 作成ウィザード）
+
+> 専用エディターの新デザイン移行（[1010](1010_editor_ux_migration.md)）の Anim2D。**データ構造・Manager・再生の挙動は変えていない**（`Anim2DData` / `AnimManager` / `SceneAnimPreviewDriver` / `Anim2DPreviewObject` はそのまま）。C-5 の `Anim2DEditorWindow`（編集）と `Anim2DCreateWindow`（作成ポップアップ）は `Tools > D-Drive > Archive > Animation (2D)` と Inspector の `(旧) Anim2D Editor で開く`（Order 100）へ退避し、バグ修正だけ行う。
+
+- **新エディター `Anim2DEditor`**（`Editor/Anim2D/Anim2DEditor*.cs`、`UxEditorWindow<Anim2DData>`、メニュー `Tools > D-Drive > Editors > Animation (2D)`、`[DataEditor(typeof(Anim2DData), "Anim2D Editor で開く")]` Order 0）。やりたいことごとのカード = 動かす（Clip・ステート・ループ・切り替え時間・レイヤー・マスク）/ 向き（方向セットと方向ごとのクリップ。1 方向 = 1 行）/ コマ（Clip のスプライトを 1 コマ = 1 行で見る・リタイミングのカーブ・適用）/ 合図（イベントの要約。1 イベント = 1 行）/ 確認する（プレビュー物の配置・再生中の絵・イベントログ）/ 管理情報。かんたん / 標準 / 詳細・設定の検索・固定バー（▶ ■ リピート 速度 保存 自動保存）は共通基盤。
+- **C-5 の編集機能はすべて引き継ぐ**: リタイミングの「適用」（主 Clip + 方向 Clip 一括・Undo・保存）、`[D-Drive] Anim2D Preview`（SpriteRenderer + Animator、DontSave）を実 AnimManager で動かす確認（ADR-4。確認用シーン / 今のシーン / 本配置 / 撤去）、検証（Anim2DDataValidator + AnimDataValidator + Anim2DEditorValidator。「修正」ボタンつき）。イベントのタイムライン編集・SE / VFX の同時再生は C-5 と同じく共通の Anim Editor に任せる（新 `AnimEditor.OpenForAnim2D(Anim2DData)`。Anim2D のプレビュー物を動かす相手にする。C-5 の「プレビュー物の引き継ぎ」の流儀はそのまま）。
+- **作成は「スプライトから作成」ウィザード**（`Anim2DCreateWizard`、ページ送り: 雛形〔均等に並んだシート / バラバラに並んだシート / 切ってある画像 / 4 方向 / 8 方向〕→ 素材 → 名前と動き → 確認と登録）。生成ロジック（スライス → 命名 → Clip 生成 → BlendTree 登録 → Anim2DData 自動生成）は C-2 の移植をそのまま `Anim2DCreateService` に移した（`Anim2DCreateRequest` を渡す。`Name` / `State` が空・素材が無いと作らない）。`Anim2DEditor` の空状態の「＋ 新規作成」とヒーローの「＋ スプライトから作成」から開く。
+- **Inspector の並び**: Anim2DData には 新 `Anim2DEditor`（Order 0）→ 旧 `Anim2DEditorWindow`（Order 100）→ 基底 AnimData の旧 `AnimEditorWindow`（Order 100）が並ぶ。基底の新 `AnimEditor` は `DataEditorAttribute.ExceptFor = typeof(Anim2DData)` で引き継がない。
+- 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/Anim2DSample.cs`（24 コマ・8 方向・イベント 12 件）。

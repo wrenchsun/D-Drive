@@ -11,6 +11,7 @@ using DDrive.Editor.Vfx;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Anchoring;
 using DDrive.Runtime.Anim;
+using DDrive.Runtime.Anim2D;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Cutscene;
@@ -76,6 +77,8 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(ModelData), typeof(ModelEditorWindow));
             AssertWindow(typeof(AnimData), typeof(AnimEditorWindow).Assembly.GetType("DDrive.Editor.Anim.AnimEditor", true));
             AssertWindow(typeof(AnimData), typeof(AnimEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(Anim2DData), typeof(AnimEditorWindow).Assembly.GetType("DDrive.Editor.Anim2D.Anim2DEditor", true));
+            AssertWindow(typeof(Anim2DData), typeof(DDrive.Editor.Anim2D.Anim2DEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(AnchorData), typeof(AnchorEditorWindow));
             AssertWindow(typeof(AnchorGroupData), typeof(AnchorGroupEditorWindow));
             AssertWindow(typeof(CameraShakeData), typeof(CameraFxEditorWindow));
