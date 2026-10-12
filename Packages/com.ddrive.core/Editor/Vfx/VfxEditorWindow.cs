@@ -22,7 +22,7 @@ namespace DDrive.Editor.Vfx
     //
     // 設計方針: このウィンドウだけで VfxData の調整が完結する(Inspector との往復を不要にする)。
     // Data への書き込みは全て Undo 対応。プレビューは実 VfxManager を駆動する(ADR-4)。
-    [DDrive.Editor.Inspector.DataEditor(typeof(VfxData), "VFX Editor で開く")]
+    [DDrive.Editor.Inspector.DataEditor(typeof(VfxData), "(旧) VFX Editor で開く", Order = 100)]
     public sealed partial class VfxEditorWindow : EditorWindow
     {
         private const float RepeatGapSec = 0.35f;
@@ -54,12 +54,12 @@ namespace DDrive.Editor.Vfx
         private Slider _speedSlider;
         private Foldout _settingsFoldout;
 
-        [MenuItem(DDriveMenu.Editors + "VFX")]
+        [MenuItem(DDriveMenu.Archive + "VFX Editor")]
         public static void OpenFromMenu() => Open(Selection.activeObject as VfxData);
 
         public static void Open(VfxData target)
         {
-            var window = GetWindow<VfxEditorWindow>("VFX Editor");
+            var window = GetWindow<VfxEditorWindow>("(旧) VFX Editor");
             window.minSize = new Vector2(500, 380); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target != null)
             {
@@ -73,7 +73,7 @@ namespace DDrive.Editor.Vfx
         // attachTarget は「スポーン先(シーン内・任意)」欄(_attachTarget)にそのまま渡すだけ。
         public static void Open(VfxData target, GameObject attachTarget)
         {
-            var window = GetWindow<VfxEditorWindow>("VFX Editor");
+            var window = GetWindow<VfxEditorWindow>("(旧) VFX Editor");
             window.minSize = new Vector2(500, 380);
             if (target != null)
             {

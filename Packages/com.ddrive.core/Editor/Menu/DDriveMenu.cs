@@ -8,6 +8,8 @@ namespace DDrive.Editor.Menu
         public const string Root = "Tools/D-Drive/";
         public const string Editors = Root + "Editors/";
         public const string Validation = Root + "Validation/";
+        // [1010] UX-2(2026-10-12、UX-18 の前倒し) — 新デザインのエディターに置き換えた旧エディターの退避先。
+        public const string Archive = Root + "Archive/";
         public const string Generate = Root + "Generate/";
         public const string Debug = Root + "Debug/";
         // [11_tasks.md] 6-0(E) — 実機確認用ビルド一式。

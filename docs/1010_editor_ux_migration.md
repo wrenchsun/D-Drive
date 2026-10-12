@@ -105,3 +105,54 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
 - **割り切り**: ①`Editor/Ux` の型は internal（`InternalsVisibleTo` を置かない方針のため、テストはリフレクション）②`ManualAnchor`（カードの「？」を節に飛ばす）は仕組みだけで、Vfx のマニュアルにまだ節の id が無いので null（ページの先頭が開く）③`FieldRowKind.ReadOnly` と `FieldGuideEntry.DefaultCheck` は共通基盤に用意したが Vfx は使っていない（Id / Version / Author / UpdatedAt は E と同じく管理情報カードの 1 行表示）④PlayMode は実行していない（Editor 専用 + Foundation の追加のみ。[12](12_review.md) §7 の軽い経路に準ずる）⑤`UxScreenshot.SwitchTheme` は `InternalEditorUtility.SwitchSkinAndRepaintAllViews`（ユーザーの Unity の配色設定を一時的に切り替える。撮影後に元へ戻す運用）⑥`vfx_sample.prefab` は `Editor/Prototypes/Samples/` のまま（`VfxSample` は `/Samples/vfx_sample.prefab` で探すので UX-19 で移しても動く）。
 - **UX-2 に残したこと**: ①`VfxEditorWindow` の `[DataEditor]` を `(旧) VFX Editor で開く`（Order 100）に変え、新 `VfxEditor` に `[DataEditor(typeof(VfxData), "VFX Editor で開く")]`（Order 0）を付ける ②メニュー: 新 `Tools > D-Drive > Editors > VFX Editor`（今は仮の `VFX Editor (新)`）、旧は `DDriveMenu.Archive`（UX-18 で定数を足す）③`VfxEditorWindow.Open(...)` の呼び出し元（Presentation の「一緒に調整」ほか）を新エディターへ向ける ④マニュアル（`vfx-editor.html`）の書き換えと、あれば節の id を足して `ManualAnchor` を使う ⑤機能対応表（旧 `VfxEditorWindow` → `VfxEditor` の全行「あり」。試験版 E の対応表 [1008](1008_editor_ux_redesign.md) §5 と同じ行で、UX-1 時点で E と同じ画面が出ることまでは確認済み）を UX-2 の節に載せる ⑥`docs/images/1010_vfx.png` は UX-2 で撮り直してよい。
 
+
+**2026-10-12 追記（UX-2、VFX の新エディターの正式化）**
+
+![新 VfxEditor（左 = Dark、右 = Light。標準モード。UX-2 で撮り直し）](images/1010_vfx.png)
+
+- **やったこと**: ①`DDriveMenu.Archive`（`Tools/D-Drive/Archive/`）を追加（UX-18 の前倒し、追加のみ）②新 `VfxEditor` に `[DataEditor(typeof(VfxData), "VFX Editor で開く")]`（Order 0）とメニュー `Tools > D-Drive > Editors > VFX Editor`（旧と同じラベル）。旧 `VfxEditorWindow` は `[DataEditor(…, "(旧) VFX Editor で開く", Order = 100)]` とメニュー `Tools > D-Drive > Archive > VFX Editor`、ウィンドウの題は `(旧) VFX Editor` ③`VfxEditorWindow.Open(...)` の呼び出し元を向け直し ④マニュアル `vfx-editor.html` を新エディターの説明に書き換え（節に id: `show` / `place`（`anchor`）/ `life` / `look` / `link` / `multi` / `admin` / `validation` / `prefab-mode` / `header` / `play`。各カードの「?」は `VfxEditor.ManualAnchor` で該当節へ飛ぶ）、旧の説明は `archive-vfx-editor.html`（画像も `archive-vfx-editor-*.png`）、`Readme.html` に「アーカイブ」節 ⑤`Tools/SpecWeb/tools/build-manual.js` を再生成（`push.cmd` / clasp push はしていない）。
+- **向け直した呼び出し元**（`grep -rn VfxEditorWindow Packages/com.ddrive.core/Editor`）: `PresentationEditorWindow.TrackEditors.cs`（トラックの「専用エディタで開く」「一緒に調整」= `VfxEditor.Open(data, attach)`）の 1 か所だけが旧を直接呼んでいた。Inspector の「エディターで開く」・AssetBrowser のダブルクリック・Anim の SE / VFX イベント・NewAsset 導線などは `DataEditorRegistry`（`TryGetPrimary` = Order 最小）経由なので、`[DataEditor]` の付け替えで自動的に新へ向く。試験版 `PrototypeBWindow` の「すべての設定を見る」は `DDrive.Editor.Prototypes` から internal の `VfxEditor` が見えないので `DataEditorRegistry.OpenDefault(Target)` にした（UX-19 で削除）。旧 `VfxEditorWindow` 自身の内部参照はそのまま（旧→旧）。残る `VfxEditorWindow` の文字列はコメント・`VfxAnchorSceneGui`（旧 / 新 / 試験版の共通部品）だけ。
+- **テスト**: `DataEditorRegistryTests`（新を第 1 候補、旧は第 2 候補として登録されていること）・`AssetBrowserDoubleClickTests`（既定の向き先 = 新、`OpenDefault` で新が開き `Target` が入る）・`NewAssetToolbarButtonTests`（TearDown に新を追加。`GetDataTypes(旧)` は旧のまま）。新 `VfxEditor` は internal なのでテストからは型名（`DDrive.Editor.Vfx.VfxEditor`）で引く。
+- **機能対応表（旧 `VfxEditorWindow` → 新 `VfxEditor`、全行あり）**: [1008](1008_editor_ux_redesign.md) §5 の UX-0f の表を元に、旧の UI 要素（`VfxEditorWindow*.cs` の `Button` / `Toggle` / `Foldout` / `AddBoundProperty`）を 1 行ずつ、新エディターを詳細モードで開いたときの全ラベルの一覧（`execute_code` で UIElements を走査）と突き合わせた。
+
+| 旧 VfxEditorWindow の機能 | 新 VfxEditor の場所 | 状態 |
+|---|---|---|
+| ツールバー「🔒 対象を固定」 | ヒーローの「固定」 | あり |
+| ツールバー「確認用シーンを開く」 | ヒーローの「確認用シーン」 | あり |
+| ツールバー「Prefab を開く」（プレハブモード） | ヒーローの「Prefab で開く」 | あり |
+| ツールバー「Project で表示」 | ヒーローの「Project」・アイコンのクリック | あり |
+| 「＋ 新規作成」 | ヒーローの「＋ 新規」 | あり |
+| 対象アセット欄 | ◀ [名前 ▾] ▶ と空状態のピッカー・ドロップ・最近のデータ | あり |
+| スポーン先（シーン内オブジェクト） | 「出る場所を変える」カードの「出る場所の基準」 | あり |
+| ▶ 再生 / ■ 停止 / 再生中のやり直し | 固定バーの「▶ 再生（再生中は ▶ やり直し）/ ■ 停止」 | あり |
+| リピート | 固定バーの「リピート」 | あり |
+| 速度（0.1〜2） | 固定バーの「速度」（×1.0 クリックで等倍） | あり |
+| ステータス（● 再生中 / ■ 停止中） | ▶ ボタンの文言と ■ の状態 | あり |
+| 一時停止（旧マニュアルに記述はあったが旧エディターの UI には無かった） | — （旧にも無いので対象外。新マニュアルからは記述を外した） | 対象外 |
+| 基本設定: Prefab | 「出す」カードの「エフェクトの実体（Prefab）」 | あり |
+| 基本設定: 寿命モード / 継続秒数 / 停止時フェード秒 | 「長さ・消え方を変える」カードの DurationBar と数値 | あり |
+| 基本設定: 描画モード（Render）/ RenderLayer | 「出す」カードの「表示先」と表示レイヤー | あり |
+| 基本設定: LightLayerMask | 「出す」カード（詳細）の「ライトの当たり方」 | あり |
+| 基本設定: 共通フラグ（Pool / Pause / Net） | 「長さ・消え方を変える」カード（詳細）の「動作の取り決め」 | あり |
+| Anchor: Anchor アセット（AnchorId） | 「共通の出る位置（Anchor アセット）」（詳細） | あり |
+| Anchor: Anchor Editor で開く / 埋め込みをアセット化 | 同欄の下の 2 ボタン | あり |
+| Anchor: Space / Path / 高さ / 向き / スケール | AnchorPad + 詳細の「位置の全設定」 | あり |
+| Anchor: Path を一覧から選ぶ（★ AnchorPoint）・解決の表示 | 「出る場所の基準」の「Path を一覧から選ぶ」・解決の文 | あり |
+| Anchor: 2D パッド | AnchorPad（パッド + 高さスライダー + 数値 + 原点へ） | あり |
+| Anchor: 回転追従 / 親消滅後も残す | 詳細の「位置の全設定」の Follow Rotation / Detach On Stop | あり |
+| Anchor: SceneView 表示（移動・回転ハンドル、Anchor アセット編集、描画権の案内） | 「出る場所の基準」の「SceneView に表示」と案内文（描画は共通の `VfxAnchorSceneGui.Draw`） | あり |
+| パラメータ（再生中は即時反映） | 「見た目を調整する（Params）」の調整つまみ | あり |
+| パラメータ: 定義の追加・削除（Label / Type / TargetProperty / Anim） | 「＋ つまみを追加」・行の「⚙」・自由入力 | あり |
+| イベント（OnSpawn / OnLoop / OnDestroy） | 「音・イベントと合わせる」カード（詳細） | あり |
+| 複数同時再生（最大 8 スロット、▶ / ■） | 「複数同時再生」カード（詳細） | あり |
+| 検証（Error / Warning） | 欄の下のインライン表示・「その他の検証」・ヒーローの警告チップ | あり |
+| カメラ / ライトが無い警告・プレハブモード中の案内 | ヒーロー直下の HelpBox | あり |
+| プレハブモードの開閉・保存で再生中の実体を撮り直す | `PrefabStage` 購読（再生中の実体の撮り直し） | あり |
+| シーン切替でプレビューを止める | `activeSceneChangedInEditMode` 購読 | あり |
+| Undo / Redo の同期 | `OnUndoRedo`（再描画 + 検証 + Anchor 反映） | あり |
+| 再コンパイル / PlayMode 遷移に耐える状態 | 対象・固定・リピート・速度・スポーン先・SceneView 表示を `[SerializeField]` | あり |
+| `Open(VfxData, GameObject attachTarget)`（Presentation の「一緒に調整」） | 同じシグネチャで持つ（`execute_code` で attach が入ることを確認） | あり |
+
+  新エディターで増えたもの（旧に無い、欄の整理に伴うもの）: かんたん / 標準 / 詳細の 3 モード・設定の検索・未調整の折りたたみ・すべて既定に戻す・保存ボタンと自動保存・カードの「?」からマニュアルの節へ。
+- **確認**: コンパイル 0。`execute_code`: `DataEditorRegistry.GetEntries(VfxData)` = [`VfxEditor` "VFX Editor で開く" 0, `VfxEditorWindow` "(旧) VFX Editor で開く" 100]、`OpenDefault` で新が 1 つだけ開く・`entries[1].Open` で旧（題 `(旧) VFX Editor`）が開く、Presentation の「一緒に調整」相当の `VfxEditor.Open(data, go)` で `_attachTarget` が入り旧は開かない、`StartPlayback` / `StopPlayback` で再生・停止、メニュー `Tools/D-Drive/Editors/VFX Editor` と `Tools/D-Drive/Archive/VFX Editor` が有効。スクリーンショットは Dark / Light（標準モード、`UxScreenshot`）。自己確認 2 周: 1 周目で Dark の撮影がモード切替前の状態（詳細）で撮れていたので撮り直し、2 周目で両テーマとも標準モードのヒーロー・カード・固定バーが切れていないことを確認（Light のパッドの罫線が薄いのは UX-1 から同じで、承認された E のデザインのまま）。
+- **互換性（editor-contract.txt）**: 追加 3 行（`Archive = Tools/D-Drive/Archive/`、`VfxData -> VfxEditor "VFX Editor で開く" order=0`、`VfxData -> VfxEditorWindow "(旧) VFX Editor で開く" order=100`）と**削除 1 行**（旧 `VfxData -> VfxEditorWindow "VFX Editor で開く" order=0`）。削除行は「旧エディターのラベルと Order が変わる」ことの機械的な帰結で、追加だけでは避けられない（新エディターが旧ラベルを引き継ぐ形でも、旧の行は変わる）。Editor 契約は弱い互換面（[42](42_distribution.md) §5.9）で、1010 §3 の方針（旧は `(旧)` Order 100）どおりだが、`ddrive_compat` が removed を出すため、スナップショット更新はユーザー承認待ち。

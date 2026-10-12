@@ -329,6 +329,8 @@ public static class DDriveMenu
     public const string Root       = "Tools/D-Drive/";
     public const string Editors    = Root + "Editors/";
     public const string Validation = Root + "Validation/";
+    // 2026-10-12(UX-2、[1010]): 新デザインに置き換えた旧エディターの退避先(UX-18 の前倒し)。
+    public const string Archive    = Root + "Archive/";
     public const string Generate   = Root + "Generate/";
     public const string Debug      = Root + "Debug/";
     // 2026-09-17(U-17/U-18/U-19): Project / Hierarchy の右クリックメニューもここに集約する。
@@ -350,7 +352,7 @@ Tools/
     ├─ Presentation Editor          ← 目玉機能につき最上段。2026-09-14 実装(5-4。PresentationEditorWindow。トラック編集(Kind ごとのレーン + D&D + 時間ドラッグ + 複製/削除)+ 統合プレビュー(モデル選択→ Anim/Vfx/Se/CameraShake/Haptic/AnchorGroup を実 Manager で同時再生)+ Signal レーン手動発火 + パラメータ上書き + 環境切替(ライト強度/背景色)。AnchorGroup トラックは 2026-09-19 追加。[08_presentation.md] 実装メモ参照)
     ├─ Editors/
     │   ├─ Audio
-    │   ├─ VFX
+    │   ├─ VFX Editor                  ← 2026-10-12(UX-2)新デザインの VfxEditor(`Editor/Vfx/VfxEditor.cs`、[1010] §5)。旧は Archive/
     │   ├─ 共通確認用シーンを開く
     │   ├─ Anchor                      ← 2026-09-08 追加(AnchorData 専用エディタ、[21])
     │   ├─ Anchor Group                ← 2026-09-08 追加(配置セット、[22])
@@ -370,6 +372,8 @@ Tools/
     │   ├─ 揺れ・振動確認用シーンを開く ← 2026-09-14 追加(5-2c。CameraShakePreviewSceneSetup。VfxPreviewSceneSetup と同じ流儀)
     │   ├─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
     │   └─ Tuning（調整値）              ← 2026-09-27 実装(M-2a。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
+    ├─ Archive/                       ← 2026-10-12(UX-2、`DDriveMenu.Archive`)新デザインに置き換えた旧エディター(旧は `(旧)` を付けた `[DataEditor]` Order 100 でも開ける)
+    │   └─ VFX Editor                  ← 旧 VfxEditorWindow
     ├─ Validation/
     │   ├─ Run All
     │   ├─ 全体の指摘を修正              ← 2026-10-06 追加(`ProjectWideValidationFixes`。Run All の「プロジェクト全体の指摘」のうち修正ボタン(`FixAction`)付きのものを、確認ダイアログの後にまとめて実行する。Undo には載らない)
@@ -669,7 +673,7 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 - 継承した Data（`VfxData` の派生など）は基底型の登録を引き継ぐ
 - 種別独自の Inspector を作る場合は `AssetDataInspector` を継承し、`OnInspectorGUI` の先頭で `DrawOpenEditorHeader()` を呼ぶ（`SeDataEditor` 参照）。UI Toolkit 製なら `DataEditorHeader.Build(target)` を先頭に追加する
 - **付け忘れ防止**: `Tests/Editor/DataEditorRegistryTests.cs` が `DDrive.*` の全 concrete `AssetDataBase` 派生型に登録があるかを検査する。専用エディタを持たない種別は同テストの `Exempt` に理由付きで明示する
-- 現在の対応: SeData / BgmData → AudioEditor、VfxData → VfxEditor、ModelData → ModelEditor、AnimData → AnimEditor、AnchorData → AnchorEditor、AnchorGroupData → AnchorGroupEditor、ButtonSkinData → ButtonSkinEditorWindow(2026-09-11 追加)、CameraShakeData / HapticsData → CameraFxEditorWindow(2026-09-14 追加)、PresentationData → PresentationEditorWindow(2026-09-14 追加、5-4)
+- 現在の対応: SeData / BgmData → AudioEditor、VfxData → VfxEditor（新デザイン、UX-2。旧 `VfxEditorWindow` は `(旧) VFX Editor で開く` Order 100 の第 2 候補）、ModelData → ModelEditor、AnimData → AnimEditor、AnchorData → AnchorEditor、AnchorGroupData → AnchorGroupEditor、ButtonSkinData → ButtonSkinEditorWindow(2026-09-11 追加)、CameraShakeData / HapticsData → CameraFxEditorWindow(2026-09-14 追加)、PresentationData → PresentationEditorWindow(2026-09-14 追加、5-4)
 - **CutsceneBinding の Drawer(2026-10-03 追記、FC-1)**: `Editor/Cutscene/CutsceneBindingDrawer.cs`(`[CustomPropertyDrawer(typeof(CutsceneBinding))]`、IMGUI)が `CutsceneData.Bindings` の各要素で Target に応じて入力欄を出し分ける(Model = SpawnModel のみ / SceneObjectName = SceneObjectByName・AnchorPoint のみ / Source Track Name = SameAsTrack のみ。SameAsTrack は Bindings のトラック名から選ぶ)。非表示の項目の値は保持する。バインド検査には SameAsTrack の「→ 参照先」と ✓/✗(参照先なし・自己参照・循環・参照先トラックが Timeline に無い)を追加
 - **CutsceneData は例外(2026-09-18、6-10d)**: 編集 UI が Unity 標準の Timeline ウィンドウ([26_timeline.md] §3)であり D-Drive 独自の `[DataEditor]` 付き `EditorWindow` を持たないため、この対応表には乗らない(`DataEditorRegistryTests.Exempt` に明記)。代わりに `CutsceneDataEditor`(`AssetDataInspector` を継承する種別独自 Inspector、`Editor/Cutscene/CutsceneDataEditor.cs`)が Inspector 最上部に「Timeline ウィンドウで開く」・「Cutscene確認用シーンを開く」・バインド検査(Bindings ⇔ Timeline のトラック名の食い違いを一覧表示、Validator には昇格させない目視アシスト)・Play Mode 中の「再生/Cancel/Skip」(シーンの `CutscenePreviewHarness` 経由)を提供する。**2026-09-19 追記**: 「Timeline ウィンドウで開く」は単純な `AssetDatabase.OpenAsset` ではなく `CutsceneEditModeDirectorSetup.OpenTimelineWindow` を呼ぶ — Cutscene確認用シーンにプレビュー用 `PlayableDirector`(`"Cutscene Timeline Preview (Edit Mode)"`、無ければ作って使い回す)を用意し、Origin/Bindings を解決してから選択して Timeline ウィンドウを開く(`CutsceneEditModePreviewProvider.PrepareContext` で Editor 用 Manager 参照を割り当てる)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal を確認できる(Presentation クリップ・ネット・入力ロック・Skip は Play Mode のみ、[26_timeline.md] §4.4 実装メモ)
 
@@ -1106,7 +1110,7 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - **C# にインラインスタイルを書かない**（`.style.xxx = …` / `style = { … }` の禁止）。見た目は `DDriveUx.uss` のクラスで、表示の切り替えは `UxShow.Show(bool)`（`.ux-hidden`）。`UxFoundationTests` が `Editor/Ux` 配下を機械的に点検し、C# が付ける `ux-*` クラスが USS に定義されていることも検査する
 - 保存は `DDriveAssetSave.SaveDirty`（[1010](1010_editor_ux_migration.md) D-5）。土台が保存ボタン・自動保存・未保存の確認を持つので、種別は保存の経路を作らない
 - 検証は欄の下に出す。**Validator が欄名を持たせる**: `ValidationResult.WithField("Prefab")`（`ValidationResult.Field`、追加のみ = MINOR）。`Field` の無い結果は従来どおりメッセージ照合（`ValidationTokens`）で欄に結びつけ、結びつかなければ「その他の検証」に出る
-- 種別の窓は `[DataEditor]` を付け替える（旧エディターは `(旧)` Order 100 に残す）のが UX-2 以降の各チケット。**UX-1 の題材 `VfxEditor` には `[DataEditor]` を付けていない**（メニュー `Tools > D-Drive > Editors > VFX Editor (新)` だけ）
+- 種別の窓は `[DataEditor]` を付け替える（旧エディターは `(旧)` Order 100 に残し、メニューは `DDriveMenu.Archive`）のが UX-2 以降の各チケット。VFX は UX-2 で付け替え済み（新 `VfxEditor` = "VFX Editor で開く" Order 0）
 - 確認は `UxScreenshot` で Dark / Light の両方を撮り、自分で画像を見て崩れを直す（最低 2 周。[1010](1010_editor_ux_migration.md) D-8）
 
 ## Tuning ウィンドウ（M-2a、2026-09-27 実装）

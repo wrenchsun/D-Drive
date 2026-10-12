@@ -26,13 +26,16 @@ namespace DDrive.Tests.Editor
         {
         }
 
+        // 新 VfxEditor は internal(Editor/Ux の方針)なので型名で引く。
+        private static System.Type NewVfxEditorType => typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Vfx.VfxEditor", true);
+
         [TearDown]
         public void TearDown()
         {
             // 開いたままのテスト用ウィンドウを必ず閉じる(preview-via-scene の方針どおり残骸を残さない)。
             foreach (var window in Resources.FindObjectsOfTypeAll<EditorWindow>())
             {
-                if (window is VfxEditorWindow or MaterialEditorWindow)
+                if (window is VfxEditorWindow or MaterialEditorWindow || window.GetType() == NewVfxEditorType)
                 {
                     window.Close();
                 }
@@ -49,9 +52,9 @@ namespace DDrive.Tests.Editor
         [Test]
         public void TryGetPrimary_SingleCandidate_ResolvesToThatWindow()
         {
-            // VfxData は VfxEditorWindow のみ([DataEditor] 1 件)。
+            // VfxData の既定は新 VfxEditor(Order 0)。旧 VfxEditorWindow は "(旧)" Order 100 の第 2 候補。
             Assert.IsTrue(DataEditorRegistry.TryGetPrimary(typeof(VfxData), out var primary));
-            Assert.AreEqual(typeof(VfxEditorWindow), primary.WindowType);
+            Assert.AreEqual(NewVfxEditorType, primary.WindowType);
         }
 
         [Test]
@@ -117,12 +120,12 @@ namespace DDrive.Tests.Editor
 
             Assert.IsTrue(DataEditorRegistry.OpenDefault(asset));
 
-            var window = EditorWindow.GetWindow<VfxEditorWindow>();
+            var window = EditorWindow.GetWindow(NewVfxEditorType);
             Assert.IsNotNull(window);
 
-            var targetField = typeof(VfxEditorWindow).GetField("_target", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            Assert.IsNotNull(targetField, "VfxEditorWindow._target が見つかりません(実装が変わった場合はテストを追従させてください)");
-            Assert.AreSame(asset, targetField.GetValue(window));
+            var targetProp = NewVfxEditorType.GetProperty("Target", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.IsNotNull(targetProp, "VfxEditor.Target が見つかりません(実装が変わった場合はテストを追従させてください)");
+            Assert.AreSame(asset, targetProp.GetValue(window));
         }
 
         [Test]

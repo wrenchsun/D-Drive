@@ -15,10 +15,15 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - `ValidationResult.Field` と `WithField`（Validator が結果を欄に結びつけるための任意の付加情報。`VfxDataValidator` の Prefab / Params の結果に付与）
 - `ManualLauncher.OpenPage(page, anchor)`（マニュアルの節まで開く）
 
+### 変更
+
+- **VFX Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-2）: やりたいことごとのカード・かんたん / 標準 / 詳細の 3 モード・設定の検索・保存と自動保存つきの固定バー。メニューは `Tools > D-Drive > Editors > VFX Editor`、Inspector の「VFX Editor で開く」と Presentation の「専用エディタで開く」「一緒に調整」も新エディターを開く。旧エディターは `Tools > D-Drive > Archive > VFX Editor` と Inspector の「(旧) VFX Editor で開く」に残した。マニュアル `vfx-editor.html` を新エディターの説明に書き換え、旧の説明は `archive-vfx-editor.html`
+
 ### 互換性
 
 - 追加のみ（MINOR）: `ValidationResult.Field`（`public readonly string`、既定 null）と `ValidationResult.WithField(string)`。`public-api-DDrive.Foundation.txt` に 2 行増えるだけで、既存の `ValidationResult` の構造・コンストラクタ・`Code` / `Severity` / `Message` / `FixAction`・Validator の結果の重さは変えない
 - 追加のみ: `ManualLauncher.OpenPage(string, string)`（Editor。既存の `OpenPage(string)` は変えない）。`Editor/Ux` は internal で公開契約・スナップショットに影響しない
+- Editor 契約（弱い互換面、[docs/42](docs/42_distribution.md) §5.9）: `DDriveMenu.Archive`（`Tools/D-Drive/Archive/`）追加。`[DataEditor]` 対応表: `VfxData -> VfxEditor "VFX Editor で開く" order=0` と `VfxData -> VfxEditorWindow "(旧) VFX Editor で開く" order=100` を追加し、旧 `VfxData -> VfxEditorWindow "VFX Editor で開く" order=0` の 1 行はラベルと Order の変更で置き換わる（旧エディターを Archive へ退避する [docs/1010](docs/1010_editor_ux_migration.md) §1 の決定による。公開 API・シリアライズ形式には触れない）
 
 ## [1.7.0-preview.3] - 2026-10-11
 
