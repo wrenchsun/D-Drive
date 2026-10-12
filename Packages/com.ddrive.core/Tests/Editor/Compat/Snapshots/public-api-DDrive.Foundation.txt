@@ -571,9 +571,11 @@ TYPE struct DDrive.Foundation.Validation.ValidationReport
 TYPE struct DDrive.Foundation.Validation.ValidationResult
   ctor ValidationResult(DDrive.Foundation.Validation.ValidationSeverity severity, string message, System.Action fixAction = null, string code = "")
   field readonly Code : string
+  field readonly Field : string
   field readonly FixAction : System.Action
   field readonly Message : string
   field readonly Severity : DDrive.Foundation.Validation.ValidationSeverity
+  method WithField(string field) : DDrive.Foundation.Validation.ValidationResult
   method static Error(string message, System.Action fixAction = null, string code = "") : DDrive.Foundation.Validation.ValidationResult
   method static Info(string message, System.Action fixAction = null, string code = "") : DDrive.Foundation.Validation.ValidationResult
   method static Warning(string message, System.Action fixAction = null, string code = "") : DDrive.Foundation.Validation.ValidationResult

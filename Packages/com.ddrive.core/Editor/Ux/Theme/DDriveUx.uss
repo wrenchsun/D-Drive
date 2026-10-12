@@ -1,0 +1,1342 @@
+/* docs/1010 §2 - 専用エディターの共通テーマ(試験版 D + E を統合)。
+   Light / Dark は root に付く .ux-dark / .ux-light の変数だけで切り替える(C# は色もスタイルも持たない = インラインスタイル禁止)。
+   --ux-p-* は Painter2D(DurationBar / AnchorPad / ドロップ領域)が CustomStyleProperty で読む色。
+   8px グリッド: 余白は 4 / 8 / 12 / 16 を使う。見出し 14px 太字 / 本文 12px / 補足 11px。 */
+
+.ux-root.ux-dark {
+    --ux-bg: #232428;
+    --ux-surface: #2c2e34;
+    --ux-surface-2: #373a42;
+    --ux-input: #202227;
+    --ux-border: #41444d;
+    --ux-border-strong: #5a5e69;
+    --ux-text: #e7e9ee;
+    --ux-dim: #9ba1ad;
+    --ux-accent: #4a8cff;
+    --ux-accent-hover: #6aa1ff;
+    --ux-accent-soft: rgba(74, 140, 255, 0.18);
+    --ux-on-accent: #ffffff;
+    --ux-ok: #46c08a;
+    --ux-ok-bg: rgba(70, 192, 138, 0.16);
+    --ux-warn: #eab04a;
+    --ux-warn-bg: rgba(234, 176, 74, 0.16);
+    --ux-err: #f06a6a;
+    --ux-err-bg: rgba(240, 106, 106, 0.16);
+    --ux-mod: #f2a03d;
+    --ux-mod-bg: rgba(242, 160, 61, 0.16);
+    --ux-badge-req: #f27d7d;
+    --ux-badge-req-bg: rgba(240, 106, 106, 0.18);
+    --ux-badge-com: #7db0ff;
+    --ux-badge-com-bg: rgba(74, 140, 255, 0.18);
+    --ux-badge-adv: #a2a8b4;
+    --ux-badge-adv-bg: rgba(160, 166, 180, 0.16);
+    --ux-hero-bg: #2a2f3b;
+    --ux-icon-bg: #3a4560;
+    --ux-p-track: #202227;
+    --ux-p-line: rgba(255, 255, 255, 0.07);
+    --ux-p-line-strong: rgba(255, 255, 255, 0.20);
+    --ux-p-fill: #4a8cff;
+    --ux-p-fill-hi: #7db0ff;
+    --ux-p-fade: #4a8cff;
+    --ux-p-handle: #ffffff;
+    --ux-p-dot: #f2a03d;
+    --ux-p-halo: rgba(242, 160, 61, 0.28);
+    --ux-p-dim: #9ba1ad;
+    --ux-p-warn: #f06a6a;
+    --ux-p-drop: rgba(155, 161, 173, 0.55);
+}
+
+.ux-root.ux-light {
+    --ux-bg: #eceef2;
+    --ux-surface: #ffffff;
+    --ux-surface-2: #e4e7ed;
+    --ux-input: #f6f7f9;
+    --ux-border: #d3d7df;
+    --ux-border-strong: #aab0bd;
+    --ux-text: #1f2430;
+    --ux-dim: #667085;
+    --ux-accent: #2f6fe4;
+    --ux-accent-hover: #1f5acb;
+    --ux-accent-soft: rgba(47, 111, 228, 0.12);
+    --ux-on-accent: #ffffff;
+    --ux-ok: #1f9d68;
+    --ux-ok-bg: rgba(31, 157, 104, 0.14);
+    --ux-warn: #b87a0c;
+    --ux-warn-bg: rgba(217, 150, 20, 0.18);
+    --ux-err: #d23f3f;
+    --ux-err-bg: rgba(210, 63, 63, 0.12);
+    --ux-mod: #d9770d;
+    --ux-mod-bg: rgba(217, 119, 13, 0.14);
+    --ux-badge-req: #c43a3a;
+    --ux-badge-req-bg: rgba(210, 63, 63, 0.12);
+    --ux-badge-com: #2a63cc;
+    --ux-badge-com-bg: rgba(47, 111, 228, 0.12);
+    --ux-badge-adv: #667085;
+    --ux-badge-adv-bg: rgba(102, 112, 133, 0.14);
+    --ux-hero-bg: #f4f7ff;
+    --ux-icon-bg: #dbe6ff;
+    --ux-p-track: #f1f3f7;
+    --ux-p-line: rgba(0, 0, 0, 0.07);
+    --ux-p-line-strong: rgba(0, 0, 0, 0.22);
+    --ux-p-fill: #2f6fe4;
+    --ux-p-fill-hi: #5f95f0;
+    --ux-p-fade: #2f6fe4;
+    --ux-p-handle: #1f2430;
+    --ux-p-dot: #e07b10;
+    --ux-p-halo: rgba(224, 123, 16, 0.25);
+    --ux-p-dim: #667085;
+    --ux-p-warn: #d23f3f;
+    --ux-p-drop: rgba(102, 112, 133, 0.6);
+}
+
+/* 土台 */
+.ux-root {
+    flex-grow: 1;
+    background-color: var(--ux-bg);
+    font-size: 12px;
+}
+
+.ux-root .unity-label {
+    color: var(--ux-text);
+    font-size: 12px;
+}
+
+.ux-root .ux-scroll {
+    flex-grow: 1;
+}
+
+.ux-root .ux-page {
+    padding: 16px;
+}
+
+.ux-root .ux-dim {
+    color: var(--ux-dim);
+    font-size: 11px;
+}
+
+/* ボタン */
+.ux-root .ux-btn {
+    height: 28px;
+    min-width: 0;
+    flex-shrink: 1;
+    margin: 0 8px 8px 0;
+    padding: 0 12px;
+    border-width: 1px;
+    border-radius: 6px;
+    border-color: var(--ux-border-strong);
+    background-color: transparent;
+    color: var(--ux-text);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    transition-property: background-color, border-color;
+    transition-duration: 0.12s;
+}
+
+.ux-root .ux-btn:hover {
+    background-color: var(--ux-surface-2);
+    border-color: var(--ux-dim);
+}
+
+.ux-root .ux-btn:active {
+    background-color: var(--ux-border);
+}
+
+.ux-root .ux-btn:disabled {
+    opacity: 0.4;
+}
+
+.ux-root .ux-btn--primary {
+    background-color: var(--ux-accent);
+    border-color: var(--ux-accent);
+    color: var(--ux-on-accent);
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-btn--primary:hover {
+    background-color: var(--ux-accent-hover);
+    border-color: var(--ux-accent-hover);
+}
+
+.ux-root .ux-btn--primary:active {
+    background-color: var(--ux-accent);
+}
+
+.ux-root .ux-btn--playing,
+.ux-root .ux-btn--playing:hover {
+    background-color: var(--ux-ok);
+    border-color: var(--ux-ok);
+}
+
+.ux-root .ux-btn--ghost {
+    border-width: 0;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-btn--on,
+.ux-root .ux-btn--on:hover {
+    background-color: var(--ux-accent-soft);
+    border-color: var(--ux-accent);
+    color: var(--ux-accent);
+}
+
+.ux-root .ux-btn--small {
+    height: 22px;
+    margin: 0 0 0 8px;
+    padding: 0 8px;
+    font-size: 11px;
+}
+
+.ux-root .ux-btn--icon {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    margin: 0;
+    border-radius: 12px;
+    color: var(--ux-dim);
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+
+/* セグメントコントロール */
+.ux-root .ux-seg {
+    flex-direction: row;
+    padding: 2px;
+    border-radius: 8px;
+    background-color: var(--ux-surface-2);
+}
+
+.ux-root .ux-seg__btn {
+    flex-grow: 1;
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    height: 26px;
+    margin: 0;
+    padding: 0 8px;
+    border-width: 0;
+    border-radius: 6px;
+    background-color: transparent;
+    color: var(--ux-dim);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    transition-property: background-color, color;
+    transition-duration: 0.12s;
+}
+
+.ux-root .ux-seg__btn:hover {
+    color: var(--ux-text);
+}
+
+.ux-root .ux-seg__btn--on,
+.ux-root .ux-seg__btn--on:hover {
+    background-color: var(--ux-accent);
+    color: var(--ux-on-accent);
+    -unity-font-style: bold;
+}
+
+/* ヒーロー */
+.ux-root .ux-hero {
+    margin-bottom: 16px;
+    padding: 16px;
+    border-width: 1px;
+    border-radius: 12px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-hero-bg);
+}
+
+.ux-root .ux-hero__top {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.ux-root .ux-hero__icon {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background-color: var(--ux-icon-bg);
+}
+
+.ux-root .ux-hero__img {
+    width: 36px;
+    height: 36px;
+}
+
+.ux-root .ux-hero__info {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0 12px;
+}
+
+.ux-root .ux-hero__title {
+    font-size: 18px;
+    -unity-font-style: bold;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-hero__id {
+    margin: 0 0 8px 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-hero__chips {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-hero__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.ux-root .ux-hero__spacer {
+    flex-grow: 1;
+}
+
+.ux-root .ux-hero__modes {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.ux-root .ux-hero__modes .ux-seg {
+    flex-grow: 1;
+    flex-basis: 220px;
+    margin: 0 8px 0 0;
+}
+
+.ux-root .ux-hero__modes .ux-btn {
+    margin: 0;
+}
+
+.ux-root .ux-hit {
+    margin-top: 8px;
+    min-height: 14px;
+}
+
+/* 検索 */
+.ux-root .ux-searchbox {
+    flex-direction: row;
+    align-items: center;
+    width: 168px;
+    min-width: 104px;
+    height: 28px;
+    flex-shrink: 1;
+    padding: 0 4px 0 8px;
+    border-width: 1px;
+    border-radius: 14px;
+    border-color: var(--ux-border-strong);
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-searchbox--focus {
+    border-color: var(--ux-accent);
+}
+
+.ux-root .ux-searchbox__icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
+.ux-root .ux-searchbox__field {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0 0 0 4px;
+}
+
+.ux-root .ux-searchbox__field .unity-base-text-field__input {
+    height: 24px;
+    margin: 0;
+    padding: 0 4px;
+    border-width: 0;
+    background-color: transparent;
+    color: var(--ux-text);
+}
+
+.ux-root .ux-searchbox__clear {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-radius: 10px;
+    background-color: transparent;
+    color: var(--ux-dim);
+    font-size: 12px;
+}
+
+.ux-root .ux-searchbox__clear:hover {
+    background-color: var(--ux-surface-2);
+    color: var(--ux-text);
+}
+
+/* チップ / バッジ */
+.ux-root .ux-chip {
+    margin: 0 8px 4px 0;
+    padding: 2px 8px;
+    border-width: 1px;
+    border-radius: 10px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-surface-2);
+    color: var(--ux-dim);
+    font-size: 11px;
+    -unity-text-align: middle-center;
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-chip--ok {
+    border-color: var(--ux-ok);
+    background-color: var(--ux-ok-bg);
+    color: var(--ux-ok);
+}
+
+.ux-root .ux-chip--warn {
+    border-color: var(--ux-warn);
+    background-color: var(--ux-warn-bg);
+    color: var(--ux-warn);
+}
+
+.ux-root .ux-chip--err {
+    border-color: var(--ux-err);
+    background-color: var(--ux-err-bg);
+    color: var(--ux-err);
+}
+
+.ux-root .ux-chip--mod {
+    border-color: var(--ux-mod);
+    background-color: var(--ux-mod-bg);
+    color: var(--ux-mod);
+}
+
+.ux-root .ux-chip--clickable:hover {
+    border-color: var(--ux-text);
+}
+
+.ux-root .ux-chip--on {
+    background-color: var(--ux-mod);
+    color: var(--ux-bg);
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-badge {
+    flex-shrink: 0;
+    margin: 0 8px 0 0;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-badge--req {
+    background-color: var(--ux-badge-req-bg);
+    color: var(--ux-badge-req);
+}
+
+.ux-root .ux-badge--com {
+    background-color: var(--ux-badge-com-bg);
+    color: var(--ux-badge-com);
+}
+
+.ux-root .ux-badge--adv {
+    background-color: var(--ux-badge-adv-bg);
+    color: var(--ux-badge-adv);
+}
+
+/* カード */
+.ux-root .ux-card {
+    margin-bottom: 16px;
+    border-width: 1px;
+    border-radius: 12px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-surface);
+}
+
+.ux-root .ux-card--empty {
+    opacity: 0.75;
+}
+
+.ux-root .ux-card__head {
+    flex-direction: row;
+    align-items: flex-start;
+    padding: 12px 12px 8px 16px;
+}
+
+.ux-root .ux-card__titles {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-card__title {
+    font-size: 14px;
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-card__desc {
+    white-space: normal;
+}
+
+.ux-root .ux-card__body {
+    padding: 0 16px 8px 8px;
+}
+
+.ux-root .ux-card__empty {
+    margin: 0 16px 12px 16px;
+    padding: 8px;
+    border-radius: 8px;
+    background-color: var(--ux-input);
+    color: var(--ux-dim);
+    white-space: normal;
+    -unity-text-align: middle-left;
+}
+
+/* 欄 */
+.ux-root .ux-row {
+    flex-direction: row;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-row__bar {
+    width: 3px;
+    flex-shrink: 0;
+    margin: 4px 8px 4px 0;
+    border-radius: 2px;
+    background-color: transparent;
+}
+
+.ux-root .ux-row--mod .ux-row__bar {
+    background-color: var(--ux-mod);
+}
+
+.ux-root .ux-row__main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    padding: 4px 0;
+}
+
+.ux-root .ux-row__line {
+    flex-direction: row;
+    align-items: center;
+}
+
+.ux-root .ux-row--stacked .ux-row__line {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.ux-root .ux-row__labelcol {
+    width: 172px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    padding-right: 8px;
+}
+
+.ux-root .ux-row--stacked .ux-row__labelcol {
+    width: auto;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-row__label {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-row__inputrow {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-row__input {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-row__reset {
+    flex-shrink: 0;
+    margin-left: 4px;
+    display: none;
+}
+
+.ux-root .ux-row--mod .ux-row__reset {
+    display: flex;
+}
+
+.ux-root .ux-row__hint {
+    margin: 4px 0 0 172px;
+    white-space: normal;
+}
+
+.ux-root .ux-row--stacked .ux-row__hint {
+    margin-left: 0;
+}
+
+.ux-root .ux-row__input .unity-base-field {
+    margin: 0;
+}
+
+.ux-root .ux-row__input > .unity-base-field > .unity-base-field__label {
+    display: none;
+}
+
+.ux-root .ux-row__input .unity-base-field__label {
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-row--stacked .ux-row__inputrow {
+    align-items: flex-start;
+}
+
+.ux-root .ux-row__input .unity-base-field__input,
+.ux-root .ux-row__input .unity-base-text-field__input,
+.ux-root .ux-row__input .unity-base-popup-field__input,
+.ux-root .ux-row__input .unity-object-field-display {
+    min-height: 24px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-input);
+    color: var(--ux-text);
+}
+
+.ux-root .ux-row__input .unity-base-field__input:hover,
+.ux-root .ux-row__input .unity-base-text-field__input:hover,
+.ux-root .ux-row__input .unity-base-popup-field__input:hover,
+.ux-root .ux-row__input .unity-object-field-display:hover {
+    border-color: var(--ux-border-strong);
+}
+
+.ux-root .ux-row__input .unity-base-field__input:focus,
+.ux-root .ux-row__input .unity-base-text-field__input:focus {
+    border-color: var(--ux-accent);
+}
+
+.ux-root .ux-row__input .unity-object-field__selector {
+    border-radius: 6px;
+    background-color: var(--ux-surface-2);
+    border-width: 1px;
+    border-color: var(--ux-border);
+}
+
+.ux-root .ux-missing {
+    color: var(--ux-err);
+}
+
+/* 検証のインライン表示 */
+.ux-root .ux-issues {
+    margin-top: 4px;
+}
+
+.ux-root .ux-issue {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border-left-width: 3px;
+}
+
+.ux-root .ux-issue--err {
+    border-left-color: var(--ux-err);
+    background-color: var(--ux-err-bg);
+}
+
+.ux-root .ux-issue--warn {
+    border-left-color: var(--ux-warn);
+    background-color: var(--ux-warn-bg);
+}
+
+.ux-root .ux-issue--info {
+    border-left-color: var(--ux-accent);
+    background-color: var(--ux-accent-soft);
+}
+
+.ux-root .ux-issue__icon {
+    width: 16px;
+    flex-shrink: 0;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-issue--err .ux-issue__icon {
+    color: var(--ux-err);
+}
+
+.ux-root .ux-issue--warn .ux-issue__icon {
+    color: var(--ux-warn);
+}
+
+.ux-root .ux-issue--info .ux-issue__icon {
+    color: var(--ux-accent);
+}
+
+.ux-root .ux-issue__msg {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin-left: 4px;
+    white-space: normal;
+}
+
+/* DurationBar */
+.ux-root .ux-durbar {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-durbar__modes {
+    margin-bottom: 8px;
+}
+
+.ux-root .ux-durbar__track {
+    height: 64px;
+    flex-shrink: 0;
+    border-radius: 8px;
+}
+
+.ux-root .ux-durbar__track--grab {
+    cursor: resize-horizontal;
+}
+
+.ux-root .ux-durbar__axis {
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 4px 4px 0 4px;
+}
+
+.ux-root .ux-durbar__readout {
+    margin-top: 4px;
+    white-space: normal;
+}
+
+.ux-root .ux-durbar__nums {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.ux-root .ux-durbar__nums .unity-property-field {
+    flex-grow: 1;
+    flex-basis: 140px;
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-durbar__nums .unity-base-field__label {
+    display: flex;
+    min-width: 72px;
+    width: 72px;
+    color: var(--ux-dim);
+}
+
+/* AnchorPad */
+.ux-root .ux-anchor {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-anchor__main {
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.ux-root .ux-anchor__padwrap {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-anchor__pad {
+    height: 200px;
+    border-radius: 8px;
+}
+
+.ux-root .ux-anchor__tag {
+    position: absolute;
+    color: var(--ux-dim);
+    font-size: 10px;
+}
+
+.ux-root .ux-anchor__tag--top {
+    top: 4px;
+    left: 0;
+    right: 0;
+    -unity-text-align: upper-center;
+}
+
+.ux-root .ux-anchor__tag--bottom {
+    bottom: 4px;
+    left: 0;
+    right: 0;
+    -unity-text-align: lower-center;
+}
+
+.ux-root .ux-anchor__tag--left {
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    -unity-text-align: middle-left;
+}
+
+.ux-root .ux-anchor__tag--right {
+    right: 8px;
+    top: 0;
+    bottom: 0;
+    -unity-text-align: middle-right;
+}
+
+.ux-root .ux-anchor__height {
+    width: 56px;
+    flex-shrink: 0;
+    align-items: center;
+    margin-left: 8px;
+    padding: 8px 0;
+    border-radius: 8px;
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-anchor__vslider {
+    flex-grow: 1;
+    width: 24px;
+    min-height: 120px;
+    margin: 8px 0;
+}
+
+.ux-root .ux-anchor__nums {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.ux-root .ux-anchor__nums .unity-base-field {
+    flex-grow: 1;
+    flex-basis: 96px;
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-anchor__nums .unity-base-field__label {
+    display: flex;
+    min-width: 40px;
+    width: 40px;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-anchor__note {
+    margin-top: 4px;
+    white-space: normal;
+}
+
+/* レイヤー行 */
+.ux-root .ux-layerrow {
+    flex-direction: row;
+    align-items: center;
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-layerrow .ux-seg {
+    flex-grow: 3;
+    flex-basis: 0;
+    flex-shrink: 0;
+    min-width: 168px;
+}
+
+.ux-root .ux-layerrow__layer {
+    flex-grow: 2;
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    margin-left: 8px;
+}
+
+/* 空状態 */
+.ux-root .ux-empty {
+    flex-grow: 1;
+    padding: 16px;
+}
+
+.ux-root .ux-empty__zone {
+    align-items: center;
+    min-height: 260px;
+    padding: 32px 16px;
+    border-radius: 16px;
+    background-color: var(--ux-surface);
+    transition-property: background-color;
+    transition-duration: 0.12s;
+}
+
+.ux-root .ux-empty__zone--hover {
+    background-color: var(--ux-accent-soft);
+}
+
+.ux-root .ux-empty__icon {
+    width: 72px;
+    height: 72px;
+    margin-bottom: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 36px;
+    background-color: var(--ux-icon-bg);
+}
+
+.ux-root .ux-empty__img {
+    width: 40px;
+    height: 40px;
+}
+
+.ux-root .ux-empty__headline {
+    font-size: 18px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+.ux-root .ux-empty__sub {
+    margin: 8px 0 16px 0;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-empty__picker {
+    align-self: center;
+    width: 100%;
+    max-width: 320px;
+}
+
+.ux-root .ux-empty__recent {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.ux-root .ux-empty__recent .ux-btn {
+    margin: 0 8px 8px 0;
+}
+
+.ux-root .ux-empty__picker .unity-base-field__input,
+.ux-root .ux-empty__picker .unity-object-field-display {
+    border-radius: 6px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-anchor--dim .ux-anchor__main {
+    opacity: 0.5;
+}
+
+.ux-root .ux-row__input .unity-decorator-drawers-container {
+    display: none;
+}
+
+/* Painter2D 用の色見本(0 サイズ。C# が resolvedStyle で読む) */
+.ux-root .ux-pal {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.ux-root .ux-pal--track { background-color: var(--ux-p-track); }
+.ux-root .ux-pal--line { background-color: var(--ux-p-line); }
+.ux-root .ux-pal--line-strong { background-color: var(--ux-p-line-strong); }
+.ux-root .ux-pal--fill { background-color: var(--ux-p-fill); }
+.ux-root .ux-pal--fill-hi { background-color: var(--ux-p-fill-hi); }
+.ux-root .ux-pal--fade { background-color: var(--ux-p-fade); }
+.ux-root .ux-pal--handle { background-color: var(--ux-p-handle); }
+.ux-root .ux-pal--dot { background-color: var(--ux-p-dot); }
+.ux-root .ux-pal--halo { background-color: var(--ux-p-halo); }
+.ux-root .ux-pal--dim { background-color: var(--ux-p-dim); }
+.ux-root .ux-pal--warn { background-color: var(--ux-p-warn); }
+.ux-root .ux-pal--drop { background-color: var(--ux-p-drop); }
+
+.ux-root .ux-empty__border {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    right: 8px;
+    bottom: 8px;
+}
+
+/* ── 固定バー・未調整の折りたたみ・Data 切替・調整つまみ・視覚部品の補助 ── */
+
+/* 固定アクションバー(ScrollView の外) */
+.ux-root .ux-bar {
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    padding: 8px 16px 0 16px;
+    border-top-width: 1px;
+    border-top-color: var(--ux-border-strong);
+    background-color: var(--ux-surface);
+}
+
+.ux-root .ux-bar .ux-btn {
+    margin-bottom: 8px;
+}
+
+.ux-root .ux-bar__repeat {
+    margin: 0 8px 8px 4px;
+}
+
+.ux-root .ux-bar__spacer {
+    flex-grow: 1;
+}
+
+.ux-root .ux-bar__mod {
+    margin: 0 8px 8px 0;
+}
+
+.ux-root .ux-btn--stop-on,
+.ux-root .ux-btn--stop-on:hover {
+    background-color: var(--ux-err);
+    border-color: var(--ux-err);
+    color: var(--ux-on-accent);
+    -unity-font-style: bold;
+}
+
+/* トグル(未調整を隠す / リピート): ラベルを入力の隣に寄せる */
+.ux-root .ux-hidetoggle {
+    margin: 0 0 8px 8px;
+    flex-shrink: 0;
+}
+
+.ux-root .ux-hidetoggle > .unity-base-field__label,
+.ux-root .ux-bar__repeat > .unity-base-field__label {
+    min-width: 0;
+    width: auto;
+    margin-right: 6px;
+}
+
+.ux-root .ux-hidetoggle > .unity-base-field__input,
+.ux-root .ux-bar__repeat > .unity-base-field__input {
+    flex-grow: 0;
+}
+
+/* 未調整の設定(カード内の折りたたみ) */
+.ux-root .ux-fold {
+    margin: 0 16px 12px 16px;
+    border-width: 1px;
+    border-radius: 8px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-fold__head {
+    height: 28px;
+    margin: 0;
+    padding: 0 12px;
+    border-width: 0;
+    border-radius: 8px;
+    background-color: transparent;
+    color: var(--ux-dim);
+    -unity-text-align: middle-left;
+}
+
+.ux-root .ux-fold__head:hover {
+    color: var(--ux-text);
+}
+
+.ux-root .ux-fold__body {
+    padding: 4px 8px 4px 0;
+}
+
+/* Data 切替 */
+.ux-root .ux-switch {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-switch .ux-btn {
+    height: 24px;
+    margin: 0 4px 0 0;
+}
+
+.ux-root .ux-switch__step {
+    width: 28px;
+    padding: 0;
+}
+
+.ux-root .ux-switch__drop {
+    flex-shrink: 1;
+    min-width: 120px;
+    max-width: 260px;
+    overflow: hidden;
+    -unity-text-align: middle-left;
+}
+
+/* 調整つまみ */
+.ux-root .ux-tune .ux-row__reset,
+.ux-root .ux-tune.ux-row--mod .ux-row__reset {
+    display: none;
+}
+
+.ux-root .ux-tune.ux-row--mod .ux-row__bar {
+    background-color: transparent;
+}
+
+.ux-root .ux-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-filter {
+    height: 22px;
+    margin: 0 4px 4px 0;
+    padding: 0 8px;
+    border-width: 1px;
+    border-radius: 11px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-surface-2);
+    color: var(--ux-dim);
+    font-size: 11px;
+}
+
+.ux-root .ux-filter:hover {
+    color: var(--ux-text);
+}
+
+.ux-root .ux-filter--on,
+.ux-root .ux-filter--on:hover {
+    border-color: var(--ux-accent);
+    background-color: var(--ux-accent);
+    color: var(--ux-on-accent);
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-knob {
+    flex-direction: row;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    background-color: var(--ux-surface-2);
+}
+
+.ux-root .ux-knob__bar {
+    width: 3px;
+    flex-shrink: 0;
+    margin: 4px 8px 4px 4px;
+    border-radius: 2px;
+    background-color: transparent;
+}
+
+.ux-root .ux-knob--mod .ux-knob__bar {
+    background-color: var(--ux-mod);
+}
+
+.ux-root .ux-knob__main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    padding: 4px 4px 4px 0;
+}
+
+.ux-root .ux-knob__line {
+    flex-direction: row;
+    align-items: center;
+}
+
+.ux-root .ux-cat {
+    width: 60px;
+    flex-shrink: 0;
+    margin: 0 8px 0 0;
+    padding: 2px 0;
+    border-color: var(--ux-border-strong);
+    background-color: transparent;
+    color: var(--ux-text);
+}
+
+.ux-root .ux-cat--0 { border-color: var(--ux-accent); color: var(--ux-accent); }
+.ux-root .ux-cat--1 { border-color: var(--ux-ok); color: var(--ux-ok); }
+.ux-root .ux-cat--2 { border-color: var(--ux-warn); color: var(--ux-warn); }
+.ux-root .ux-cat--3 { border-color: var(--ux-err); color: var(--ux-err); }
+.ux-root .ux-cat--4 { border-color: var(--ux-badge-com); color: var(--ux-badge-com); }
+.ux-root .ux-cat--5 { border-color: var(--ux-badge-adv); color: var(--ux-badge-adv); }
+
+.ux-root .ux-knob__name {
+    width: 84px;
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-knob--nolink .ux-knob__name {
+    color: var(--ux-warn);
+}
+
+.ux-root .ux-knob__control {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+.ux-root .ux-knob__reset {
+    flex-shrink: 0;
+    margin-left: 4px;
+    display: none;
+}
+
+.ux-root .ux-knob--mod .ux-knob__reset {
+    display: flex;
+}
+
+.ux-root .ux-knob .ux-btn--icon {
+    flex-shrink: 0;
+    margin: 0 0 0 4px;
+}
+
+.ux-root .ux-details {
+    margin: 8px 0 4px 0;
+    padding: 8px;
+    border-radius: 6px;
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-addrow {
+    flex-direction: row;
+    margin-top: 4px;
+}
+
+.ux-root .ux-palette {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.ux-root .ux-palette__btn {
+    margin: 0 4px 4px 0;
+}
+
+.ux-root .ux-message {
+    margin-top: 4px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background-color: var(--ux-warn-bg);
+    color: var(--ux-warn);
+    white-space: normal;
+}
+
+.ux-root .ux-knobs-empty {
+    white-space: normal;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-card__empty > .unity-label {
+    white-space: normal;
+}
+
+/* 旧 VFX Editor 機能同等(UX-0f) */
+.ux-root .ux-bar {
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-bar__speed {
+    min-width: 170px;
+    margin: 0 8px 8px 4px;
+}
+
+.ux-root .ux-bar__speed > .unity-base-field__label {
+    min-width: 0;
+    width: auto;
+    margin-right: 6px;
+}
+
+.ux-root .ux-bar__speed-value {
+    width: 40px;
+    min-width: 40px;
+    margin: 0 8px 8px 0;
+    -unity-text-align: middle-left;
+    cursor: link;
+}
+
+.ux-root .ux-toolsline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.ux-root .ux-toolsline .ux-btn {
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-pathmenu {
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-wrap {
+    white-space: normal;
+    margin-top: 2px;
+}
+
+.ux-root .ux-slot {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-slot__field {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ux-root .ux-slot__btn {
+    width: 32px;
+    margin: 0 0 0 4px;
+    padding: 0;
+}
+
+.ux-root .ux-scenehelp {
+    margin: 0 0 8px 0;
+}
+
+/* ── 共通の小物(C# のインラインスタイルの代わり) ── */
+.ux-root .ux-faded {
+    opacity: 0.55;
+}
+
+.ux-root .ux-note {
+    white-space: normal;
+}
+
+.ux-root .ux-bar__speed-ticks {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+}
+
+/* 表示 / 非表示の切り替え。他の display 指定より必ず勝たせるため、クラスを重ねて詳細度を上げる。末尾に置く */
+.ux-root .ux-hidden.ux-hidden {
+    display: none;
+}
