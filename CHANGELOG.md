@@ -23,7 +23,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 - 追加のみ（MINOR）: `ValidationResult.Field`（`public readonly string`、既定 null）と `ValidationResult.WithField(string)`。`public-api-DDrive.Foundation.txt` に 2 行増えるだけで、既存の `ValidationResult` の構造・コンストラクタ・`Code` / `Severity` / `Message` / `FixAction`・Validator の結果の重さは変えない
 - 追加のみ: `ManualLauncher.OpenPage(string, string)`（Editor。既存の `OpenPage(string)` は変えない）。`Editor/Ux` は internal で公開契約・スナップショットに影響しない
-- Editor 契約（弱い互換面、[docs/42](docs/42_distribution.md) §5.9）: `DDriveMenu.Archive`（`Tools/D-Drive/Archive/`）追加。`[DataEditor]` 対応表: `VfxData -> VfxEditor "VFX Editor で開く" order=0` と `VfxData -> VfxEditorWindow "(旧) VFX Editor で開く" order=100` を追加し、旧 `VfxData -> VfxEditorWindow "VFX Editor で開く" order=0` の 1 行はラベルと Order の変更で置き換わる（旧エディターを Archive へ退避する [docs/1010](docs/1010_editor_ux_migration.md) §1 の決定による。公開 API・シリアライズ形式には触れない）
+- Editor 契約（弱い互換面、[docs/42](docs/42_distribution.md) §5.9）: `DDriveMenu.Archive` 追加、`[DataEditor]` 対応表に新 `VfxEditor`（Order 0）と旧 `(旧) VFX Editor で開く`（Order 100）を追加。旧の行はラベル・Order が変わる（削除 1 行 + 追加）。公開 API・シリアライズ形式・Validator は無変更。MINOR
 
 ## [1.7.0-preview.3] - 2026-10-11
 
