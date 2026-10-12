@@ -2002,3 +2002,118 @@
 .ux-root .ux-hidden.ux-hidden {
     display: none;
 }
+
+/* Material / Texture(UX-8) */
+.ux-root .ux-pad {
+    padding: 8px;
+}
+
+.ux-root .ux-knobs--wide .ux-cat {
+    width: 70px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-knobs--wide .ux-knob__name {
+    width: 128px;
+}
+
+.ux-root .ux-knobs--wide .ux-knob__line {
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-knobs--wide .ux-knob__control {
+    min-width: 112px;
+}
+
+.ux-root .ux-mat-thumbs {
+    flex-direction: row;
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-mat-col {
+    flex-grow: 1;
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    margin-right: 4px;
+}
+
+.ux-root .ux-mat-thumb {
+    height: 220px;
+    border-radius: 6px;
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-mat-cap {
+    font-size: 10px;
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-mat-ctrl {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.ux-root .ux-mat-ctrl__label {
+    width: 112px;
+    flex-shrink: 0;
+    color: var(--ux-text);
+}
+
+.ux-root .ux-mat-ctrl__input {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+.ux-root .ux-pk__title {
+    margin: 2px 0 4px 0;
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-pk__passes {
+    margin-bottom: 8px;
+}
+
+.ux-root .ux-pk__toggle {
+    margin: 0 0 2px 0;
+}
+
+.ux-root .ux-pk__kw {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 2px;
+    padding: 2px 4px 2px 8px;
+    border-radius: 6px;
+    background-color: var(--ux-surface-2);
+}
+
+.ux-root .ux-pk__kwname {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-pk__input {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0 4px 0 0;
+}
+
+.ux-root .ux-tex-image {
+    height: 160px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    background-color: var(--ux-input);
+}
+
+.ux-root .ux-mat-toggle {
+    margin: 0 8px 0 0;
+}

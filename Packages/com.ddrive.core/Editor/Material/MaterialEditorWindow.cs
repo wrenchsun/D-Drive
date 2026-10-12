@@ -18,8 +18,9 @@ namespace DDrive.Editor.Materials
     // 開いているシーンのプレビュー形状(DontSave)に適用して SceneView で確認する(ADR-4: Editor 専用の再生経路を作らない)。
     // 3-9: 球 / 板(Quad) / Cube / 任意 ModelData の切替、ターンテーブル、ライト回転、変換前後の並列比較を追加。
     // 生成ロジック自体は MaterialPreviewBuilder に分離してテストできるようにしてある。
-    [DDrive.Editor.Inspector.DataEditor(typeof(MaterialData), "Material Editor で開く")]
-    [DDrive.Editor.Inspector.DataEditor(typeof(TextureData), "Material Editor で開く")]
+    // 2026-10-13(docs/1010 UX-8): 新デザインの MaterialEditor / TextureEditor ができたので、旧は「(旧)」Order 100・Archive メニューへ退避(機能追加はしない。バグ修正のみ)。
+    [DDrive.Editor.Inspector.DataEditor(typeof(MaterialData), "(旧) Material Editor で開く", Order = 100)]
+    [DDrive.Editor.Inspector.DataEditor(typeof(TextureData), "(旧) Material Editor で開く", Order = 100)]
     public sealed class MaterialEditorWindow : EditorWindow
     {
         public const string PreviewRootName = "[D-Drive] Material Preview";
@@ -108,7 +109,7 @@ namespace DDrive.Editor.Materials
         private Slider _lightRotationSlider;
         private ObjectField _compareField;
 
-        [MenuItem(DDriveMenu.Editors + "Material")]
+        [MenuItem(DDriveMenu.Archive + "Material Editor")]
         public static void OpenFromMenu() => Open(Selection.activeObject as MaterialData);
 
         public static void Open(MaterialData target) => OpenWith(target);
@@ -168,7 +169,7 @@ namespace DDrive.Editor.Materials
 
         private static void OpenWith(UnityEngine.Object target)
         {
-            var window = GetWindow<MaterialEditorWindow>("Material Editor");
+            var window = GetWindow<MaterialEditorWindow>("(旧) Material Editor");
             window.minSize = new Vector2(420, 360);
             if (target != null)
             {

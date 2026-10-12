@@ -29,7 +29,7 @@ namespace DDrive.Tests.Editor
             // 開いたままのテスト用ウィンドウを必ず閉じる(残骸を残さない)。
             foreach (var window in Resources.FindObjectsOfTypeAll<EditorWindow>())
             {
-                if (window is AudioEditorWindow or VfxEditorWindow or MaterialEditorWindow or NewAssetDialog || window.GetType().Name is "VfxEditor" or "SeEditor" or "BgmEditor")
+                if (window is AudioEditorWindow or VfxEditorWindow or MaterialEditorWindow or NewAssetDialog || window.GetType().Name is "VfxEditor" or "SeEditor" or "BgmEditor" or "MaterialEditor" or "TextureEditor")
                 {
                     window.Close();
                 }
