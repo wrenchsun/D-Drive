@@ -26,4 +26,7 @@ MonoBehaviour:
   _managedPackages: []
   _forbiddenApiAllowEntries: []
   _mcpAllowWrite: 1
+  _canvasScalerReferenceWidth: 1920
+  _canvasScalerReferenceHeight: 1080
+  _canvasScalerMatch: 0.5
   _cameraExecutionOrderExemptions: []

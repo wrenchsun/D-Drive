@@ -87,6 +87,33 @@ namespace DDrive.Editor.Settings
         // 読み取りツールはこの設定に関係なく使える。
         [SerializeField] private bool _mcpAllowWrite;
 
+        // [07_canvas_prefab.md] 2026-10-12(C-1) — UiManager のレイヤールート Canvas の CanvasScaler 既定
+        // (Open した Prefab に CanvasScaler が無いときに使う。ScaleWithScreenSize)。追加のみ(旧設定ファイルには無いので
+        // 既定値 1920x1080 / Match 0.5 で読まれる)。値は `UiCanvasScalerDefaults`(ランタイム)へ Editor 起動時に反映する
+        // (`CanvasScalerDefaultsSync`)。編集は Project Settings > D-Drive > Canvas。
+        [SerializeField] private float _canvasScalerReferenceWidth = DDrive.Runtime.Ui.UiCanvasScalerDefaults.FallbackReferenceWidth;
+        [SerializeField] private float _canvasScalerReferenceHeight = DDrive.Runtime.Ui.UiCanvasScalerDefaults.FallbackReferenceHeight;
+        [SerializeField] private float _canvasScalerMatch = DDrive.Runtime.Ui.UiCanvasScalerDefaults.FallbackMatch;
+
+        public Vector2 CanvasScalerReferenceResolution
+            => new Vector2(
+                _canvasScalerReferenceWidth > 0f ? _canvasScalerReferenceWidth : DDrive.Runtime.Ui.UiCanvasScalerDefaults.FallbackReferenceWidth,
+                _canvasScalerReferenceHeight > 0f ? _canvasScalerReferenceHeight : DDrive.Runtime.Ui.UiCanvasScalerDefaults.FallbackReferenceHeight);
+
+        public float CanvasScalerMatch => Mathf.Clamp01(_canvasScalerMatch);
+
+        public void SetCanvasScalerDefaults(Vector2 referenceResolution, float match, bool save = true)
+        {
+            _canvasScalerReferenceWidth = referenceResolution.x;
+            _canvasScalerReferenceHeight = referenceResolution.y;
+            _canvasScalerMatch = match;
+            CanvasScalerDefaultsSync.Apply();
+            if (save)
+            {
+                Save(true);
+            }
+        }
+
         public bool McpAllowWrite => _mcpAllowWrite;
 
         public void SetMcpAllowWrite(bool value, bool save = true)
