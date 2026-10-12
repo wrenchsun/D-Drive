@@ -2,15 +2,19 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>アニメーション（3D）の設定と Anim Editor | D-Drive デザイナーマニュアル</title>
+<title>（旧）アニメーション（3D）の設定と Anim Editor | D-Drive デザイナーマニュアル</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › アニメーション（3D）の設定と Anim Editor</nav>
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › <a href="Readme.html#archive">アーカイブ</a> › （旧）アニメーション（3D）の設定と Anim Editor</nav>
 
-<h1>アニメーション（3D）の設定と Anim Editor</h1>
-<p class="lastupdate">最終更新日: 2026-10-03</p>
+<h1>（旧）アニメーション（3D）の設定と Anim Editor</h1>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
+
+<div class="tip">
+このページは、メニュー <code>Tools &gt; D-Drive &gt; Archive &gt; Animation (3D)</code> から開く<strong>旧デザインの Anim Editor</strong> の説明です（アニメーションデータの項目の説明を含む旧版のページです）。通常は新デザインの <a href="anim-editor.html">アニメーション（3D）の設定と Anim Editor</a> を使ってください。2D アニメーション（Anim2DData）のイベント編集は、2D 用の新エディターができるまでこの旧 Anim Editor で行います。
+</div>
 
 <p>アニメーションデータ（AnimData）は「この Clip を、このステートで、いつ効果音・エフェクトを出しながら再生するか」をまとめたものです。基本の動き（待機・歩き）は Animator Controller に持たせ、攻撃・被弾などの<strong>ワンショット</strong>を D-Drive のアニメーションデータで再生します。</p>
 <ul>
@@ -21,7 +25,7 @@
 <h2>開き方</h2>
 <ol>
 <li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anim</strong> を選んで作る（表示名は日本語 OK）</li>
-<li>アニメーションデータを Project で選び、<strong>Inspector の一番上の「▶ Anim Editor で開く」</strong>を押す（効果音・VFX・モデル・Anchor も同じ場所に「〜で開く」があります）</li>
+<li>アニメーションデータを Project で選び、<strong>Inspector の一番上の「▶ (旧) Anim Editor で開く」</strong>を押す（新しい Anim Editor は「▶ Anim Editor で開く」）</li>
 <li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Animation (3D)</code>。Project でアニメーションデータを選ぶと自動で入ります</li>
 </ol>
 <div class="tip">
@@ -39,8 +43,8 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 </ol>
 <!-- screenshot: 36-#28 -->
 <figure>
-<img src="images/anim-editor-timeline.png" alt="Anim Editor ウィンドウ全体">
-<figcaption>Anim Editor。タイムライン・SE/VFX イベント一覧・イベントログ・再生コントロール</figcaption>
+<img src="images/archive-anim-editor-timeline.png" alt="Anim Editor ウィンドウ全体">
+<figcaption>（旧）Anim Editor。タイムライン・SE/VFX イベント一覧・イベントログ・再生コントロール</figcaption>
 </figure>
 
 <div class="tip">
@@ -56,7 +60,7 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 </ol>
 <!-- screenshot: 36-#31 -->
 <figure>
-<img src="images/anim-editor-sceneview-playback.png" alt="Anim Editor と SceneView を並べた状態">
+<img src="images/archive-anim-editor-sceneview-playback.png" alt="Anim Editor と SceneView を並べた状態">
 <figcaption>SceneView でモーションを再生して確認する</figcaption>
 </figure>
 
@@ -83,7 +87,7 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 </table>
 
 <figure>
-<img src="images/anim-editor-timeline-zoom.png" alt="タイムラインの拡大">
+<img src="images/archive-anim-editor-timeline-zoom.png" alt="タイムラインの拡大">
 <figcaption>タイムライン。橙のマーカーがイベント、下の目盛りがフレーム番号</figcaption>
 </figure>
 
@@ -115,7 +119,7 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 </table>
 <!-- screenshot: 36-#30 -->
 <figure>
-<img src="images/anim-editor-blend-tools.png" alt="ブレンド確認の折りたたみ">
+<img src="images/archive-anim-editor-blend-tools.png" alt="ブレンド確認の折りたたみ">
 <figcaption>「ブレンド確認」を開いた状態</figcaption>
 </figure>
 
@@ -160,6 +164,7 @@ Anim Editor のツールバーの<strong>「＋ 新規作成」</strong>ボタ�
 
 <h2>関連ページ</h2>
 <ul>
+<li><a href="anim-editor.html">アニメーション（3D）の設定と Anim Editor</a>（新デザイン）</li>
 <li><a href="se-data.html">SE（効果音）の設定項目</a> / <a href="vfx-data.html">VFX の設定項目</a> — イベントで鳴らす・出すもの</li>
 <li><a href="anchor-data.html">Anchor（出す位置）</a> — エフェクトをボーンに付ける</li>
 <li><a href="model-editor.html">モデルの設定と Model Editor</a> — 確認用モデルの登録、Default Animation</li>

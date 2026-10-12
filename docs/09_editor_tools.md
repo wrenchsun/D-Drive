@@ -246,7 +246,7 @@ SceneView に最終位置しか描かれておらず、そのオフセットが*
 
 - **クリック可能な薄い目印**: `SceneGuiOwner` の描画権を持たないウィンドウの薄い目印は、以前は表示のみだった。`Editor/Preview/AnchorSceneHandles.cs` に共通 API `DrawClickableMarker(anchor, baseTransform, extraOffset, label, color, active)` を追加し、押されたら呼び出し元がそのウィンドウを `SceneGuiOwner.Claim` + `Focus()` して描画権を奪うようにした。PresentationEditorWindow(トラック選択)・VfxEditorWindow・AnchorEditorWindow の 3 か所がこれを使う（コピペしない）。当たり判定（pickSize）は可視の円（`DrawTargetMarker` と同じ半径 `handleSize*0.25`）に合わせて広げた（以前は `handleSize*0.12〜0.18` 相当で小さすぎた）。クリックすると Presentation Editor 側はトラック一覧の該当行を展開し `ScrollView.ScrollTo` で見える位置までスクロールする
 - **ケース1（アセット側のみ設定）にもハンドルを出す設計変更**、**ケース3で掴む点を「最終位置」に統一した設計変更**、逆算の式（`PresentationTrackAnchorComposer.SolveTrackLocal`）の詳細は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-20）を参照
-- **トラックの行から専用エディタを同時に開く**（「一緒に調整」/「単体で確認用シーンに開き直す」の 2 モード）は §8 系の「エディターで開く」導線の Presentation 版。VfxEditorWindow / AnchorGroupEditorWindow / AnimEditorWindow に `Open(data, GameObject attachTarget)` の overload を追加し、`PresentationTrackEditorRouting`（ウィンドウを開かずに種別→経路の対応をテストできる純粋な分類関数）が振り分ける。詳細は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-20）を参照
+- **トラックの行から専用エディタを同時に開く**（「一緒に調整」/「単体で確認用シーンに開き直す」の 2 モード）は §8 系の「エディターで開く」導線の Presentation 版。VfxEditorWindow / AnchorGroupEditorWindow / AnimEditorWindow に `Open(data, GameObject attachTarget)` の overload を追加し(Vfx は UX-2 で `VfxEditor.Open(data, attach)`、Anim は UX-6 で `AnimEditor.Open(data, attach)` に向け直した)、`PresentationTrackEditorRouting`（ウィンドウを開かずに種別→経路の対応をテストできる純粋な分類関数）が振り分ける。詳細は [08_presentation.md](08_presentation.md) 実装メモ（2026-09-20）を参照
 
 ## 3. ID 参照 PropertyDrawer
 
@@ -356,7 +356,7 @@ Tools/
     │   ├─ 共通確認用シーンを開く
     │   ├─ Anchor                      ← 2026-09-08 追加(AnchorData 専用エディタ、[21])
     │   ├─ Anchor Group                ← 2026-09-08 追加(配置セット、[22])
-    │   ├─ Animation (3D)
+    │   ├─ Animation (3D)              ← 2026-10-13(UX-6)新デザインの AnimEditor(`Editor/Anim/AnimEditor*.cs`、[1010] §5)。旧は Archive/
     │   ├─ Animation (2D)              ← 2026-09-10 実装(Katsuya.Tools.SpriteAnimation 移植 + Anim2DData 自動生成、[05] C-5 実装メモ)
     │   ├─ Material                   ← 2026-09-10 追加(MaterialData / TextureData 共用エディタ。3-9 で球/板/Cube/任意 ModelData の切替・ターンテーブル・ライト回転・変換前後比較を追加、[06] A 実装メモ)
     │   ├─ Material 変換              ← 2026-09-10 追加(シェーダー変換、差分プレビュー、[06] A-2。2026-09-11 ウィンドウ内に変換前 / 変換後のサムネイル比較を追加)
@@ -373,6 +373,7 @@ Tools/
     │   ├─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
     │   └─ Tuning（調整値）              ← 2026-09-27 実装(M-2a。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
     ├─ Archive/                       ← 2026-10-12(UX-2、`DDriveMenu.Archive`)新デザインに置き換えた旧エディター(旧は `(旧)` を付けた `[DataEditor]` Order 100 でも開ける)
+    │   ├─ Animation (3D)              ← 旧 AnimEditorWindow(2026-10-13、UX-6。Anim2DData はこれで開く = UX-7 まで)
     │   ├─ Presentation Editor         ← 旧 PresentationEditorWindow(2026-10-12、UX-5)
     │   └─ VFX Editor                  ← 旧 VfxEditorWindow
     ├─ Validation/
@@ -674,7 +675,7 @@ U-8（Anim2D）・U-21（Canvas）・U-25（Presentation）で `Toolbar`（`Unit
 - 継承した Data（`VfxData` の派生など）は基底型の登録を引き継ぐ
 - 種別独自の Inspector を作る場合は `AssetDataInspector` を継承し、`OnInspectorGUI` の先頭で `DrawOpenEditorHeader()` を呼ぶ（`SeDataEditor` 参照）。UI Toolkit 製なら `DataEditorHeader.Build(target)` を先頭に追加する
 - **付け忘れ防止**: `Tests/Editor/DataEditorRegistryTests.cs` が `DDrive.*` の全 concrete `AssetDataBase` 派生型に登録があるかを検査する。専用エディタを持たない種別は同テストの `Exempt` に理由付きで明示する
-- 現在の対応: SeData → SeEditor / BgmData → BgmEditor（新デザイン、UX-3。型引数が具体型の `UxEditorWindow<TData>` なので Se / Bgm は 2 つのウィンドウに分け、ヒーローの「BGM Editor へ / SE Editor へ」で行き来する。旧 `AudioEditorWindow` は `(旧) Audio Editor で開く` Order 100 の第 2 候補）、CanvasData → CanvasEditor（新デザイン、UX-4。旧 `CanvasEditorWindow` は `(旧) Canvas Editor で開く` Order 100 の第 2 候補）、VfxData → VfxEditor（新デザイン、UX-2。旧 `VfxEditorWindow` は `(旧) VFX Editor で開く` Order 100 の第 2 候補）、ModelData → ModelEditor、AnimData → AnimEditor、AnchorData → AnchorEditor、AnchorGroupData → AnchorGroupEditor、ButtonSkinData → ButtonSkinEditorWindow(2026-09-11 追加)、CameraShakeData / HapticsData → CameraFxEditorWindow(2026-09-14 追加)、PresentationData → PresentationEditor（新デザイン、UX-5。旧 `PresentationEditorWindow` は `(旧) Presentation Editor で開く` Order 100 の第 2 候補）、PresentationData → PresentationEditorWindow(2026-09-14 追加、5-4)
+- 現在の対応: SeData → SeEditor / BgmData → BgmEditor（新デザイン、UX-3。型引数が具体型の `UxEditorWindow<TData>` なので Se / Bgm は 2 つのウィンドウに分け、ヒーローの「BGM Editor へ / SE Editor へ」で行き来する。旧 `AudioEditorWindow` は `(旧) Audio Editor で開く` Order 100 の第 2 候補）、CanvasData → CanvasEditor（新デザイン、UX-4。旧 `CanvasEditorWindow` は `(旧) Canvas Editor で開く` Order 100 の第 2 候補）、VfxData → VfxEditor（新デザイン、UX-2。旧 `VfxEditorWindow` は `(旧) VFX Editor で開く` Order 100 の第 2 候補）、ModelData → ModelEditor、AnimData → AnimEditor（新デザイン、UX-6。旧 `AnimEditorWindow` は `(旧) Anim Editor で開く` Order 100 の第 2 候補。Anim2DData は派生なので新 AnimEditor も候補に並ぶが、`AnimEditor.Open` は Anim2DData を旧に渡す）、AnchorData → AnchorEditor、AnchorGroupData → AnchorGroupEditor、ButtonSkinData → ButtonSkinEditorWindow(2026-09-11 追加)、CameraShakeData / HapticsData → CameraFxEditorWindow(2026-09-14 追加)、PresentationData → PresentationEditor（新デザイン、UX-5。旧 `PresentationEditorWindow` は `(旧) Presentation Editor で開く` Order 100 の第 2 候補）、PresentationData → PresentationEditorWindow(2026-09-14 追加、5-4)
 - **CutsceneBinding の Drawer(2026-10-03 追記、FC-1)**: `Editor/Cutscene/CutsceneBindingDrawer.cs`(`[CustomPropertyDrawer(typeof(CutsceneBinding))]`、IMGUI)が `CutsceneData.Bindings` の各要素で Target に応じて入力欄を出し分ける(Model = SpawnModel のみ / SceneObjectName = SceneObjectByName・AnchorPoint のみ / Source Track Name = SameAsTrack のみ。SameAsTrack は Bindings のトラック名から選ぶ)。非表示の項目の値は保持する。バインド検査には SameAsTrack の「→ 参照先」と ✓/✗(参照先なし・自己参照・循環・参照先トラックが Timeline に無い)を追加
 - **CutsceneData は例外(2026-09-18、6-10d)**: 編集 UI が Unity 標準の Timeline ウィンドウ([26_timeline.md] §3)であり D-Drive 独自の `[DataEditor]` 付き `EditorWindow` を持たないため、この対応表には乗らない(`DataEditorRegistryTests.Exempt` に明記)。代わりに `CutsceneDataEditor`(`AssetDataInspector` を継承する種別独自 Inspector、`Editor/Cutscene/CutsceneDataEditor.cs`)が Inspector 最上部に「Timeline ウィンドウで開く」・「Cutscene確認用シーンを開く」・バインド検査(Bindings ⇔ Timeline のトラック名の食い違いを一覧表示、Validator には昇格させない目視アシスト)・Play Mode 中の「再生/Cancel/Skip」(シーンの `CutscenePreviewHarness` 経由)を提供する。**2026-09-19 追記**: 「Timeline ウィンドウで開く」は単純な `AssetDatabase.OpenAsset` ではなく `CutsceneEditModeDirectorSetup.OpenTimelineWindow` を呼ぶ — Cutscene確認用シーンにプレビュー用 `PlayableDirector`(`"Cutscene Timeline Preview (Edit Mode)"`、無ければ作って使い回す)を用意し、Origin/Bindings を解決してから選択して Timeline ウィンドウを開く(`CutsceneEditModePreviewProvider.PrepareContext` で Editor 用 Manager 参照を割り当てる)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal を確認できる(Presentation クリップ・ネット・入力ロック・Skip は Play Mode のみ、[26_timeline.md] §4.4 実装メモ)
 
@@ -1112,7 +1113,8 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - **C# にインラインスタイルを書かない**（`.style.xxx = …` / `style = { … }` の禁止）。見た目は `DDriveUx.uss` のクラスで、表示の切り替えは `UxShow.Show(bool)`（`.ux-hidden`）。`UxFoundationTests` が `Editor/Ux` 配下を機械的に点検し、C# が付ける `ux-*` クラスが USS に定義されていることも検査する
 - 保存は `DDriveAssetSave.SaveDirty`（[1010](1010_editor_ux_migration.md) D-5）。土台が保存ボタン・自動保存・未保存の確認を持つので、種別は保存の経路を作らない
 - 検証は欄の下に出す。**Validator が欄名を持たせる**: `ValidationResult.WithField("Prefab")`（`ValidationResult.Field`、追加のみ = MINOR）。`Field` の無い結果は従来どおりメッセージ照合（`ValidationTokens`）で欄に結びつけ、結びつかなければ「その他の検証」に出る
-- 種別の窓は `[DataEditor]` を付け替える（旧エディターは `(旧)` Order 100 に残し、メニューは `DDriveMenu.Archive`）のが UX-2 以降の各チケット。VFX は UX-2、Audio は UX-3、Canvas は UX-4、Presentation は UX-5 で付け替え済み（新 `PresentationEditor` = "Presentation Editor で開く" Order 0、新 `CanvasEditor` = "Canvas Editor で開く" Order 0、新 `VfxEditor` = "VFX Editor で開く" Order 0、新 `SeEditor` / `BgmEditor` = "Audio Editor で開く(…)" Order 0）
+- 種別の窓は `[DataEditor]` を付け替える（旧エディターは `(旧)` Order 100 に残し、メニューは `DDriveMenu.Archive`）のが UX-2 以降の各チケット。VFX は UX-2、Audio は UX-3、Canvas は UX-4、Presentation は UX-5、Anim(3D) は UX-6 で付け替え済み（新 `AnimEditor` = "Anim Editor で開く" Order 0、新 `PresentationEditor` = "Presentation Editor で開く" Order 0、新 `CanvasEditor` = "Canvas Editor で開く" Order 0、新 `VfxEditor` = "VFX Editor で開く" Order 0、新 `SeEditor` / `BgmEditor` = "Audio Editor で開く(…)" Order 0）
+- 種別が編集できる対象を絞るには `AcceptsTarget(data)` / `OnTargetRejected(data)`（UX-6 で追加。例: Anim は派生型の Anim2DData を旧エディターに渡す）。選択への追従・`SetTarget`・`OpenWindow` はこれを通る
 - 確認は `UxScreenshot` で Dark / Light の両方を撮り、自分で画像を見て崩れを直す（最低 2 周。[1010](1010_editor_ux_migration.md) D-8）
 
 ## Tuning ウィンドウ（M-2a、2026-09-27 実装）
