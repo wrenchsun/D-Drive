@@ -13,7 +13,7 @@ namespace DDrive.Editor.Ui
     // プロジェクト方針(2026-09-10)によりウィンドウ内では何も描画しない。設定欄は ControlSkinPreviewSection
     // (各状態の演出欄の横に再生、各 SE 欄の横に試聴)で、確認は「確認用シーンに配置」した実 UiButton を
     // シーン/Game ビュー側で見る(ADR-4)。
-    [DDrive.Editor.Inspector.DataEditor(typeof(ButtonSkinData), "Skin Editor で開く")]
+    [DDrive.Editor.Inspector.DataEditor(typeof(ButtonSkinData), "(旧) Skin Editor で開く", Order = 100)]
     public sealed class ButtonSkinEditorWindow : EditorWindow
     {
         // エディタ固有の名前(2026-09-14。以前は Slider Skin / UI Tween と共有していて、互いのプレビューを消していた)。
@@ -26,12 +26,12 @@ namespace DDrive.Editor.Ui
         private ControlSkinPreviewSection _settings;
         private UiButton _previewButton;
 
-        [MenuItem(DDriveMenu.Editors + "Button Skin")]
+        [MenuItem(DDriveMenu.Archive + "Button Skin")]
         public static void OpenFromMenu() => Open(Selection.activeObject as ButtonSkinData);
 
         public static void Open(ButtonSkinData target)
         {
-            var window = GetWindow<ButtonSkinEditorWindow>("Button Skin Editor");
+            var window = GetWindow<ButtonSkinEditorWindow>("(旧) Button Skin Editor");
             window.minSize = new Vector2(360, 320);
             if (target != null)
             {

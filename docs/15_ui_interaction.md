@@ -257,6 +257,10 @@ public static class UiFx
 - **ギャラリー**: カード（名前・▶・★・分類・曲線の静的スケッチ・要素へ / 全ボタンへ / 置換 / 追加）・適用先（編集中の Tween・CanvasData・要素・フェーズ・選択中のシーン要素のパス・他の要素へコピー）・独自プリセットとして登録。お気に入りは旧と同じ EditorPrefs のキーを共有する。
 - 呼び出し元の向け直し: 新 `CanvasEditor` の ElementFx 行の「✎ Tween Editor」と Skin 系の Enter Tween の編集（`ControlSkinPreviewSection`）は新 `UiTweenEditor.Open(tween, collectRoot, element, label)` を呼ぶ。実装メモ・機能対応表 = [1010](1010_editor_ux_migration.md) §5 UX-12。
 
+**2026-10-13 追記（UX-13、新デザインの Button Skin Editor）**: データ構造・`UiButton` / `UiInteractable`・Validator は変えていない（Editor のみ）。専用エディターを **新 `ButtonSkinEditor`**（`Editor/Ui/ButtonSkinEditor.cs` + `SkinStateRows.cs` + `SkinFieldGuides.cs`、`UxEditorWindow<ButtonSkinData>`）に置き換えた。旧 `ButtonSkinEditorWindow` は `Tools > D-Drive > Archive > Button Skin`・`(旧) Skin Editor で開く`（Order 100）で残す（バグ修正のみ）。
+- **状態の一覧**: Normal / Hover / Pressed / Selected / Disabled / Locked を **1 状態 = 1 行**（種類チップ・名前・Tint の色見本・▶ ↺ ⚙。2 行目に「色 · 拡大 · 画像 · コマ · スクロール · 演出」の 1 行要約。絞り込みと「6 状態中 設定済み N」の件数。⚙ でその行だけ全欄 = 演出 Tween〔+「✎ Tween Editor」〕・簡易演出・色・拡大率・画像・コマ画像・コマ数 / 秒・コマのループ・スクロール速度・Anim2D から読み込む）。▶ は旧と同じ `PlayState`（確認用の実 `UiButton` をその状態にして演出を再生）。
+- **確認する**は旧の `ControlSkinPreviewSection` を `Options.CheckOnly = true` で再利用（状態遷移 5 種・当たり判定を表示・Scroll Material の案内・状態の演出の ⏸ ■）。SE の欄（Hover / Click / LongPress / Denied）は欄の右に ▶ ■（試聴）を付けた行（`SkinSeRow`）。実装メモ・機能対応表 = [1010](1010_editor_ux_migration.md) §5 UX-13。
+
 ### エディタ: プリセットギャラリー
 
 - CanvasEditor / UiTweenEditor に**プリセット一覧をサムネイル動画（実再生）で表示**。クリックで選択中の要素にその場適用 → 即プレビュー

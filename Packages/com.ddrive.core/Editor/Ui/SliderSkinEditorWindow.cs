@@ -18,7 +18,7 @@ namespace DDrive.Editor.Ui
     // 本格的な SliderEditor(応答曲線グラフ・ノッチ可視化・追従比較・Skin プレビュー一覧、4-17)は別チケット。
     // ここではプリセットで Response/Step/Notches/FollowMotion を配り、「動かしてみる」で値を動かしたときの
     // 見た目(つまみ・バー・追従)と SE(掴む・離す・目盛り・端・拒否)を確認する(2026-09-14)。
-    [DDrive.Editor.Inspector.DataEditor(typeof(SliderSkinData), "Skin Editor で開く")]
+    [DDrive.Editor.Inspector.DataEditor(typeof(SliderSkinData), "(旧) Skin Editor で開く", Order = 100)]
     public sealed class SliderSkinEditorWindow : EditorWindow
     {
         // エディタ固有の名前(2026-09-14。以前は Button Skin / UI Tween と共有していて、互いのプレビューを消していた)。
@@ -50,12 +50,12 @@ namespace DDrive.Editor.Ui
         private readonly SliderSePreview _sePreview = new();
         private readonly DDrive.Editor.Preview.ViewRepaintThrottle _repaint = new();
 
-        [MenuItem(DDriveMenu.Editors + "Slider Skin")]
+        [MenuItem(DDriveMenu.Archive + "Slider Skin")]
         public static void OpenFromMenu() => Open(Selection.activeObject as SliderSkinData);
 
         public static void Open(SliderSkinData target)
         {
-            var window = GetWindow<SliderSkinEditorWindow>("Slider Skin Editor");
+            var window = GetWindow<SliderSkinEditorWindow>("(旧) Slider Skin Editor");
             window.minSize = new Vector2(360, 360);
             if (target != null)
             {

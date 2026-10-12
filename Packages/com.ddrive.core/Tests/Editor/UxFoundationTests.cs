@@ -114,6 +114,12 @@ namespace DDrive.Tests.Editor
                 Path.Combine(PackageRoot, "Editor", "Ui", "UiTweenViews.cs"),
                 Path.Combine(PackageRoot, "Editor", "Ui", "UiTweenPresetViews.cs"),
                 Path.Combine(PackageRoot, "Editor", "Ui", "UiPresetGallery.cs"),
+                Path.Combine(PackageRoot, "Editor", "Ui", "ButtonSkinEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Ui", "SliderSkinEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Ui", "SliderSkinEditor.Preview.cs"),
+                Path.Combine(PackageRoot, "Editor", "Ui", "SliderEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Ui", "SliderEditor.Preview.cs"),
+                Path.Combine(PackageRoot, "Editor", "Ui", "SkinStateRows.cs"),
             });
             // 見た目を持たない目印のクラス(USS に規則が無くてよい)。
             var markers = new HashSet<string> { "ux-root", "ux-dark", "ux-light", "ux-knobs", "ux-panel" };
