@@ -56,6 +56,7 @@
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Prefab</td><td>開く実体。未設定でも <code>&lt;Placeholder:CANVAS&gt;</code> という空の RectTransform で開き、1 回だけ警告が出ます</td></tr>
 <tr><td>Layer</td><td>表示レイヤー。手前から <strong>Loading</strong>(ロード画面)/ <strong>Overlay</strong>(最前面の演出)/ <strong>Popup</strong>(確認ダイアログ)/ <strong>Menu</strong>(メニュー画面)/ <strong>HUD</strong>(体力・ミニマップなど常時表示)。並び順がそのまま前後関係です</td></tr>
+<tr><td>(CanvasScaler)</td><td>Prefab に CanvasScaler があれば、その設定(基準解像度・Match など)がそのまま使われ、画面サイズに合わせて拡大縮小されます。無いときは Project Settings &gt; D-Drive &gt; Canvas の既定(1920×1080)で拡大縮小されます。同じレイヤーの Canvas は、先に開いた Canvas の設定を共有します</td></tr>
 <tr><td>SortOffset</td><td>同じレイヤー内での重ね順の微調整。Prefab に Canvas コンポーネントがあれば sortingOrder に加算、無ければ兄弟の並び順に使われます</td></tr>
 <tr><td>OpenTransition / CloseTransition</td><td>画面全体の開閉演出。<code>Kind</code>: None(即時)/ Fade(透明度)/ Slide(位置)/ Scale(拡縮)/ Anim(AnimData を再生)。<code>Duration</code>(秒)、<code>Ease</code>(動きの緩急)、<code>SlideOffset</code>(Slide の開始位置のずれ)、<code>Anim</code>(Kind=Anim のときだけ)</td></tr>
 <tr><td>CloseOnBack(既定 ON)</td><td>「戻る」操作(CloseTop)で閉じる対象に含めるか。HUD のように戻るで消えてほしくない画面は OFF</td></tr>

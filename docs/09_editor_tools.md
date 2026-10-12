@@ -1082,6 +1082,7 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 
 ### 設定・共通ルール
 
+- **Project Settings > D-Drive > Canvas（2026-10-12、C-1）**: `CanvasSettingsProvider`。UiManager のレイヤールート CanvasScaler の既定（基準解像度 1920x1080 / Match 0.5。Prefab に CanvasScaler が無いときだけ使う。`DDriveProjectSettings.CanvasScalerReferenceResolution` / `CanvasScalerMatch`、[07](07_canvas_prefab.md)）。
 - **設定の置き場所**: `Project Settings > D-Drive > MCP`（`McpSettingsProvider`）の「MCP の書き込みツールを許可する」（`DDriveProjectSettings.McpAllowWrite`、既定 OFF。開発リポジトリは `DevRepoSettingsSync` が ON）。§13 のセットアップウィザードの「4. 既定フォルダ・設定の生成」にも同じチェックボックスがある。OFF のとき W / D のツールは `{error:{code:"write_disabled"}}` を返す。
 - **共通ガード（`McpGuard`）**: Play Mode 中の書き込みは `play_mode` で拒否、読み取り専用欄（`Id` / `SchemaVersion` / `ImportSourceGuid` / `Version` / `UpdatedAt` / `Icon`）は `read_only_field`、例外は `{error:{code,msg}}` に畳む（スタックトレースは返さない）。返り値は `max_chars`（既定 4000）で収め、ページ切りは `cursor` / `next`。
 - **ポート**: ポートはプロジェクトのパスから自動決定（27200〜27999）。固定すると Validation の Info `DD-MCP-FIXED-PORT` が出る（[1002](1002_ddrive_mcp.md) §6）。クライアント登録は `Tools/Mcp/register-mcp.ps1`。

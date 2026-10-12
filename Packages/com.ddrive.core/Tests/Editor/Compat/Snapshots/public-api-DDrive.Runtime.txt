@@ -2198,6 +2198,12 @@ TYPE class sealed DDrive.Runtime.Ui.UiButton : DDrive.Runtime.Ui.UiInteractable
   method SetVisual(DDrive.Runtime.Ui.ButtonSkinData skin) : void
   method SimulateClick() : void
   method WaitClickAsync(System.Threading.CancellationToken ct) : Cysharp.Threading.Tasks.UniTask
+TYPE class static DDrive.Runtime.Ui.UiCanvasScalerDefaults
+  field const FallbackMatch : float
+  field const FallbackReferenceHeight : float
+  field const FallbackReferenceWidth : float
+  property static Match : float {get;set}
+  property static ReferenceResolution : UnityEngine.Vector2 {get;set}
 TYPE class static DDrive.Runtime.Ui.UiFx
   method static Appear(UnityEngine.RectTransform t) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>
   method static AttentionJump(UnityEngine.RectTransform t, float height = 20, float sec = 0.4) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.UiTweenMarker>

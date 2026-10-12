@@ -24,8 +24,13 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - 共通基盤（`Editor/Ux`、internal）に、種別が持つ一覧の絞り込み・件数・検査の行ごとの印のための拡張点を追加した（`SetTarget(data, confirmSave)`・`SupportsRepeat`・`OnValidated`・`OnFiltersApplied`・`OnBodyBuilt`・`UxRow.NoBulkReset / ExtraMatch / MaxIssues`）。既定の挙動は変えない
 - 固定バーの速度スライダーを種別ごとに出し分ける（`UxEditorWindow<TData>.SupportsSpeed`、既定 true。BGM は false）
 
+### 修正
+
+- **全画面・解像度の変更で HUD の配置が追従しない**（[docs/1004](docs/1004_tasks.md) C-1）: `UiManager` のレイヤールート Canvas に CanvasScaler が無く、子として開く Prefab の CanvasScaler が Unity の仕様で無視されていた（常に scaleFactor 1）。レイヤールートに CanvasScaler を付け、レイヤーで最初に開く Canvas の Prefab の CanvasScaler 設定（ルートまたは直下の子）をそのまま写す。Prefab に無ければ `UiCanvasScalerDefaults`（既定 ScaleWithScreenSize 1920x1080 / Match 0.5。Project Settings > D-Drive > Canvas）。同じレイヤーで設定が食い違う Canvas を開いたら Warning（1 回）で、先に開いた設定を維持。新 Validator Warning `DD-CANVAS-SCALER-MISMATCH`
+
 ### 互換性
 
+- 追加のみ（MINOR）: `UiCanvasScalerDefaults`（`DDrive.Runtime.Ui` の public static class）、`DDriveProjectSettings` の CanvasScaler 既定 3 欄（末尾追加・既定値付き。Editor）、Validator Warning `DD-CANVAS-SCALER-MISMATCH`（新規 Code・Warning のみ）。既存の公開 API・シリアライズ形式は不変。ランタイムの挙動変更: レイヤールートに CanvasScaler が付くので、Prefab に CanvasScaler を持つ Canvas は解像度に追従して拡大縮小される（修正）。CanvasScaler を持たない Prefab は既定 1920x1080 / Match 0.5 で拡大縮小され、従来の等倍とは異なる（変えたいときは `UiCanvasScalerDefaults` / 設定の欄）
 - 追加のみ（MINOR）: `ValidationResult.Field`（`public readonly string`、既定 null）と `ValidationResult.WithField(string)`。`public-api-DDrive.Foundation.txt` に 2 行増えるだけで、既存の `ValidationResult` の構造・コンストラクタ・`Code` / `Severity` / `Message` / `FixAction`・Validator の結果の重さは変えない
 - 追加のみ: `ManualLauncher.OpenPage(string, string)`（Editor。既存の `OpenPage(string)` は変えない）。`Editor/Ux` は internal で公開契約・スナップショットに影響しない
 - Editor 契約（弱い互換面、[docs/42](docs/42_distribution.md) §5.9）: `DDriveMenu.Archive` 追加、`[DataEditor]` 対応表に新 `VfxEditor`（Order 0）と旧 `(旧) VFX Editor で開く`（Order 100）を追加。旧の行はラベル・Order が変わる（削除 1 行 + 追加）。公開 API・シリアライズ形式・Validator は無変更。MINOR

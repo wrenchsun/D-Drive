@@ -60,6 +60,8 @@ namespace DDrive.Runtime.Ui
             public Transform Root;
             public Canvas Canvas;
             public CanvasGroup Group;
+            public CanvasScaler Scaler;
+            public bool ScalerMismatchWarned;
         }
 
         private sealed class CanvasInstance
@@ -293,10 +295,12 @@ namespace DDrive.Runtime.Ui
                 var canvas = go.AddComponent<Canvas>();
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
                 canvas.sortingOrder = (int)layer * 100;
+                var scaler = go.AddComponent<CanvasScaler>();
+                ApplyDefaultScaler(scaler);
                 go.AddComponent<GraphicRaycaster>();
                 var group = go.AddComponent<CanvasGroup>();
 
-                _layerRoots[(int)layer] = new LayerRoot { Root = go.transform, Canvas = canvas, Group = group };
+                _layerRoots[(int)layer] = new LayerRoot { Root = go.transform, Canvas = canvas, Group = group, Scaler = scaler };
             }
 
             if (Application.isPlaying && !_eventSystemWarned && EventSystem.current == null)
@@ -400,6 +404,10 @@ namespace DDrive.Runtime.Ui
                 rect = root.AddComponent<RectTransform>();
             }
 
+            // C-1(2026-10-12): 子 Canvas の CanvasScaler は Unity の仕様で無視されるため、レイヤー内で最初に開く Canvas の
+            // Prefab の CanvasScaler(無ければ UiCanvasScalerDefaults)をレイヤールートへ写す。
+            ApplyLayerScaler(layerRoot, root, data, isPlaceholder);
+
             root.transform.SetParent(layerRoot.Root, false);
 
             var innerCanvas = root.GetComponent<Canvas>();
@@ -465,6 +473,123 @@ namespace DDrive.Runtime.Ui
             StartTransition(handle, instance, data.OpenTransition, isOpen: true);
 
             return handle;
+        }
+
+        // ── C-1: レイヤールートの CanvasScaler ──
+
+        private static void ApplyDefaultScaler(CanvasScaler scaler)
+        {
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = UiCanvasScalerDefaults.ReferenceResolution;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = UiCanvasScalerDefaults.Match;
+        }
+
+        private static CanvasScaler FindPrefabScaler(GameObject root)
+        {
+            var scaler = root.GetComponent<CanvasScaler>();
+            if (scaler != null)
+            {
+                return scaler;
+            }
+
+            var t = root.transform;
+            for (var i = 0; i < t.childCount; i++)
+            {
+                scaler = t.GetChild(i).GetComponent<CanvasScaler>();
+                if (scaler != null)
+                {
+                    return scaler;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool SameScaler(CanvasScaler a, CanvasScaler b)
+        {
+            if (a.uiScaleMode != b.uiScaleMode)
+            {
+                return false;
+            }
+
+            switch (a.uiScaleMode)
+            {
+                case CanvasScaler.ScaleMode.ScaleWithScreenSize:
+                    return a.referenceResolution == b.referenceResolution
+                           && a.screenMatchMode == b.screenMatchMode
+                           && Mathf.Approximately(a.matchWidthOrHeight, b.matchWidthOrHeight)
+                           && Mathf.Approximately(a.referencePixelsPerUnit, b.referencePixelsPerUnit);
+                case CanvasScaler.ScaleMode.ConstantPhysicalSize:
+                    return a.physicalUnit == b.physicalUnit
+                           && Mathf.Approximately(a.fallbackScreenDPI, b.fallbackScreenDPI)
+                           && Mathf.Approximately(a.defaultSpriteDPI, b.defaultSpriteDPI)
+                           && Mathf.Approximately(a.referencePixelsPerUnit, b.referencePixelsPerUnit);
+                default:
+                    return Mathf.Approximately(a.scaleFactor, b.scaleFactor)
+                           && Mathf.Approximately(a.referencePixelsPerUnit, b.referencePixelsPerUnit);
+            }
+        }
+
+        private static void CopyScaler(CanvasScaler from, CanvasScaler to)
+        {
+            to.uiScaleMode = from.uiScaleMode;
+            to.referencePixelsPerUnit = from.referencePixelsPerUnit;
+            to.scaleFactor = from.scaleFactor;
+            to.referenceResolution = from.referenceResolution;
+            to.screenMatchMode = from.screenMatchMode;
+            to.matchWidthOrHeight = from.matchWidthOrHeight;
+            to.physicalUnit = from.physicalUnit;
+            to.fallbackScreenDPI = from.fallbackScreenDPI;
+            to.defaultSpriteDPI = from.defaultSpriteDPI;
+            to.dynamicPixelsPerUnit = from.dynamicPixelsPerUnit;
+        }
+
+        // そのレイヤーで開いている(閉じ処理中を含む)Canvas があるか。Destroy は次フレームまで反映されないため、
+        // 子オブジェクトではなく UiManager の管理(_stack / _instances)で数える。
+        private bool HasOpenInLayer(UiLayer layer)
+        {
+            for (var i = 0; i < _stack.Count; i++)
+            {
+                if (_instances.TryGetQuiet(_stack[i], out var inst) && inst.Data != null && inst.Data.Layer == layer)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void ApplyLayerScaler(LayerRoot layerRoot, GameObject prefabRoot, CanvasData data, bool isPlaceholder)
+        {
+            if (layerRoot.Scaler == null)
+            {
+                return;
+            }
+
+            var source = isPlaceholder ? null : FindPrefabScaler(prefabRoot);
+            if (!HasOpenInLayer(data.Layer))
+            {
+                // レイヤーで最初に開く Canvas: その Prefab の設定(無ければ既定)を採用する。
+                layerRoot.ScalerMismatchWarned = false;
+                if (source != null)
+                {
+                    CopyScaler(source, layerRoot.Scaler);
+                }
+                else
+                {
+                    ApplyDefaultScaler(layerRoot.Scaler);
+                }
+
+                return;
+            }
+
+            // 既に別の Canvas が開いている: 先に開いた設定を維持し、食い違うときだけ 1 回警告する。
+            if (source != null && !SameScaler(source, layerRoot.Scaler) && !layerRoot.ScalerMismatchWarned)
+            {
+                layerRoot.ScalerMismatchWarned = true;
+                Debug.LogWarning($"[DDrive] UiManager: Canvas '{data.DisplayName}' の Prefab の CanvasScaler が、同じレイヤー({data.Layer})で先に開いている Canvas の設定と異なります。先に開いた設定を使います(レイヤーの Canvas は 1 つの CanvasScaler を共有します)。");
+            }
         }
 
         // ── Close ──
