@@ -18,7 +18,7 @@ namespace DDrive.Editor.Presentation
     // [08_presentation.md] §4(5-4) — PresentationEditor(マルチトラック UI + 統合プレビュー + Signal 手動発火)。
     // トラック編集([09] タイムライン規約を再利用)は PresentationEditorWindow.Tracks.cs、
     // 統合プレビューの駆動は ScenePresentationPreviewDriver(実 Manager を Editor から駆動、ADR-4)。
-    [DataEditor(typeof(PresentationData), "Presentation エディタで開く")]
+    [DataEditor(typeof(PresentationData), "(旧) Presentation Editor で開く", Order = 100)]
     public sealed partial class PresentationEditorWindow : EditorWindow
     {
         private const int MaxLogLines = 16;
@@ -58,12 +58,12 @@ namespace DDrive.Editor.Presentation
         // 該当行までスクロールするため。PresentationEditorWindow.SceneAnchors.cs の ScrollToSelectedTrackRow から使う)。
         private ScrollView _mainScrollView;
 
-        [MenuItem(DDriveMenu.Root + "Presentation Editor")]
+        [MenuItem(DDriveMenu.Archive + "Presentation Editor")]
         public static void Open() => Open(Selection.activeObject as PresentationData);
 
         public static void Open(PresentationData target)
         {
-            var window = GetWindow<PresentationEditorWindow>("Presentation Editor");
+            var window = GetWindow<PresentationEditorWindow>("(旧) Presentation Editor");
             window.minSize = new Vector2(500, 560); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target != null)
             {

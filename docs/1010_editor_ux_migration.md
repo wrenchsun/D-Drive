@@ -248,3 +248,66 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
 - **確認**: コンパイル 0、**EditMode 全件 2105/2105 green**（途中で 1 件 red = `Editor/Ux/Samples/CanvasSample.cs` の `AssetDatabase.SaveAssets()` 直呼びを機械点検が検出 → `DDriveAssetSave.SaveAllSuppressed()` に置き換え、該当テストの再実行で green。意図した 2 件〔`EditorContractSnapshotTests` / `DDriveCompatToolTests`〕は `ddrive_compat_update` のあと green、`ddrive_compat` は `changed:[]`）。`CanvasEditorUxTests` 12 件（欄の表が編集できる全フィールドを持つ・Prefab = 必須・登録表の新 Order 0 / 旧 Order 100・ヒーロー / 固定バー / カード 8 枚・速度とリピートなし・全 Foldout が既定で閉じている・1 要素 1 行と件数と「設定済みだけ」・20 行超で ListView・ElementFx 1 行の変更と Undo・配線 1 本の追加と削除・埋め込みの有効 / 無効の切替と Undo・埋め込みの子は 1 行 + 「開く」・Navigation の自動収集・検証の行ごとの ⚠）。`execute_code`（実ウィンドウ・HUD サンプル）: Inspector の登録表（新が先頭・旧が「(旧)」）、全 Foldout が既定で閉じている、ElementFx 1 行の変更と Undo、配線の追加と削除、埋め込みの無効で始める、▶ で表示 / ■ で片付け、「確認用シーン」で CanvasPreviewScene に切り替わって表示、Navigation の自動収集。実データ（`Assets/GameData`）は触らず、サンプルは一時フォルダで作って削除した。
   スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①埋め込みの子の要約が「埋め込み: CANVAS_InteractPrompt(…」と名前で切れた（名前を RootPath にして子の名前は要約側へ）②埋め込み行の展開で「無効で始める」のラベルが隠れた（ラベルを Toggle 自身の text に）③件数が埋め込みの要約行まで数えていた（`Summary` の行は数えない）④構造体の欄（開く / 閉じるときの演出）の Foldout が開いたまま = 既定の折りたたみに反した（組み終えたあとに閉じる）⑤エラーが多い一覧（要素 27 行中 12 行がエラー）で欄の下に検査が 12 件並んだ（`MaxIssues = 3` と行の ⚠）⑥サンプルの要素が同じ位置に重なり Navigation グラフが 1 ノードに見えた（サンプルの要素を格子状に配置）。2 周目 = Light でも行・チップ・展開の欄・ListView の色が読めること、500px の幅（実測。HUD サンプル）で一覧の行が折り返し・展開した行も切れないこと、展開した行の下のドロップダウン・ObjectField が切れないことを確認。Light は無効の ▶ ↺ が薄く見えるが、承認済みのデザインの disabled 表現のまま。
 - **割り切り**: ①ElementFx の行の ▶ は「最初に割り当てた区間」を再生する（3 区間の個別再生・一時停止は展開した行）②スライダーの配線の専用 UI は作っていない（旧も Inspector の配列だった。通常のリスト欄）③`ListView` は内側スクロールを持つ（20 行超のときだけ）④確認用シーンの再生は「▶ 再生 = 表示 / ■ 停止 = 片付け」で、リピートと速度は出さない（`SupportsRepeat` / `SupportsSpeed` = false）⑤Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑥PlayMode は実行していない（Editor 専用）。
+
+**2026-10-12 追記（UX-5、Presentation の新エディター。D-10 対応）**
+
+![新 PresentationEditor（左 = Dark、右 = Light。上 = 初期の画面の上部、下 = トラックの一覧を 1 行開いたところ。「剣の一撃」サンプルデータ）](images/1010_presentation.png)
+
+- **使ったサンプルデータ（D-10）**: **「剣の一撃」を作るヘルパー `Editor/Ux/Samples/PresentationSample.cs`**（internal。`Build(folder)`）を同梱した。参照先の Data（SE 3・VFX 2〔Params 2 つ持ち〕・Anim・CameraShake・Haptics）と PresentationData 1 つを一時フォルダに作る。**トラック 13 本**（Anim / Se ×3 / Vfx ×2 / CameraShake / Haptic / HitStop / Signal / Marker / **On Signal 2 本**〔Se と、Asset 未設定の Vfx = 検証のエラー 1 本〕）、**Anchor / Params 設定済み 4 本（Vfx ×2・CameraShake の Scope・HitStop の Params）と未設定 9 本の混在**、Flags.Net = Cosmetic、TotalDuration 1.2 秒。呼び出し側が使い終わったらフォルダごと消す（`Assets/GameData` には作らず、Addressables にも登録しない）。スクリーンショット（上の画像）とテスト（`PresentationEditorUxTests`）はこのサンプルで開く。20 行超の確認はこのサンプルにトラック 10 本を足して行う。
+- **D-10 の基準をどう満たしたか**:
+  (1) **初期表示が 1〜2 画面に収まる**: 標準モードの 1 画面目 = ヒーロー + 「流れ」（全体の長さ・タイムライン・Interruptible）、2 画面目 = 「トラック」（13 行が 1 画面に収まる）、そのあとに合図・確認する・管理情報（全体で約 2.5 画面〔760×1000 のウィンドウ〕）。見出しだけで何がどこにあるか分かる。構造体・配列の欄が作る Foldout は組み終えたあとに閉じる（テスト `Sample_AllFoldoutsAreClosedByDefault`）。トラックの一覧は**主役なので Foldout に入れず**そのまま見せる（行の展開 ⚙ は既定で全部閉じ）。
+  (2) **一覧は 1 トラック = 1 行**: 「# 番号・Kind のチップ・アセット名・『t=0.12s · 位置: Self (0, 1.2, 0.6) · Params 2』の 1 行要約・▶ 単体試聴・↺・⚙」。展開（⚙）は**その行だけ**（Kind / Asset / Trigger / Time / SignalKey / Target / AnchorPad + 位置の全設定 / Params のつまみ / Scope / StopOnCancel / 専用エディタで開く / ▲▼ 複製 削除）。展開した行は 1 本だけ（選択と共通。別の行を開くと前の行は閉じる）。
+  (3) **絞り込みと件数**: 一覧の上に検索（アセット名・Kind・要約）・「すべて / 調整あり / 調整なし」・Kind のチップ（Anim / Se・Bgm / Vfx / Shake・Haptic / HitStop・合図 / UI・Timeline）と、「13 トラック中 調整あり 4（表示 n）」。ウィンドウの検索ボックスもトラックのアセット名・Kind・Signal 名に一致する（一致が 0 件なら絞らない）。「調整あり」は行を作り直さずに判定する（`CanvasListItem.IsConfigured`）ので、AnchorPad をドラッグ中に一覧が作り直されない。
+  (4) **入れ子はない**（Presentation は他の Presentation を再生しない）ので該当なし。参照先の Data の中身は展開せず、「専用エディタで開く」で新エディター（VfxEditor / SeEditor / …）を開く。
+  (5) **一括操作は一覧の上に 1 行**: 「＋ トラック」（Kind を選ぶメニュー）+ ドラッグ&ドロップの案内。
+  (6) **20 行を超えたら ListView**: `CanvasItemList`（Canvas の UX-4 で作った一覧部品をそのまま使う。`undoneWord` 引数と `UpdateCount()` と `CanvasListItem.IsConfigured` を足しただけ）が 20 行を超えると `ListView`（`DynamicHeight`）で描く。テスト `Sample_TrackList_MoreThan20_UsesListView`。**割り切り**: ListView は内側にスクロールバーを持つ（20 行超のときだけ）。
+  (7) **500px 幅で崩れない**: 行の見出しは折り返さず（`ux-trk__head` = nowrap）、名前・要約は省略表示（ellipsis）、展開した行の入力は折り返す。ヒーロー・固定バーは UX-1 の共通部品のまま。
+- **機能対応表（旧 `PresentationEditorWindow`〔`.cs` / `.Tracks.cs` / `.Preview.cs` / `.TrackEditors.cs` / `.SceneAnchors.cs`〕→ 新 `PresentationEditor`、全行あり）**: 旧のコード（`Button` / `Toggle` / `Foldout` / `EnumField` / `ObjectField` / `Slider` / `ColorField` / `IMGUIContainer` / 検証・`BuildXxx` の全メソッド）を 1 行ずつ、新エディターの全ラベルと突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバー: 🔒 対象を固定 / Project で表示 / ＋ 新規 | ヒーローの「固定」/「Project」/「＋ 新規」 | あり |
+| ツールバー: 確認用シーンを開く（右クリックで「このシーンに配置 / 本配置」） | ヒーローの「確認用シーン」（同じ `PreviewPlacementButton`。止める → 開く → モデル配置の順も同じ） | あり |
+| 対象アセット ObjectField・選択に追従 | ◀ [名前 ▾] ▶・空状態のピッカー・ドロップ・Project の選択に追従（🔒 で止める） | あり |
+| 検証 Foldout（HelpBox の一覧） | 欄の下のインライン表示 + トラックの行の ⚠ + 「その他の検証」+ ヒーローのチップ（`DataValidationRunner.Run` と同じ。「修正」ボタン付き） | あり |
+| 共通設定: Total Duration / Interruptible | 「流れ」カードの「全体の長さ（秒）」/「途中で止められる」（+ 新たに PredictLocal / Flags） | あり |
+| 尺 0 の警告（HelpBox）+「トラックの最後に合わせる」 | 全体の長さの欄の注記 + ボタン（`PresentationTrackEditOps.FitTotalDurationToTracks` と同じ処理。表示範囲も全体に戻す） | あり |
+| 統合プレビュー: モデル選択（ModelData）/ 配置（右クリックで本配置）/ 配置解除 | 「確認する」カードの「確認用のモデル」（ObjectField・配置・配置解除。`PlaceModel` と `ReleaseModel` は旧と同じ） | あり |
+| ▶ 再生（一時停止中は再開） | 固定バーの ▶（再生中は「やり直し」= 最初から）。**一時停止中の再開は ⏸ ボタン（▶ 再開）で**行う | あり（操作の割り当てを変更） |
+| ⏸ 一時停止 / ▶ 再開 | 「確認する」カードの「⏸ 一時停止 / ▶ 再開」 | あり |
+| ■ 停止 | 固定バーの ■ | あり |
+| ⏮ 最初から | 「確認する」カードの「⏮ 最初から」 | あり |
+| ループ | 固定バーの「リピート」 | あり |
+| ステータス（● 再生中 n% (ns) / ⏸ 一時停止中 / ↻ ループ待機 / ■ 停止中） | 「確認する」カードのステータス行（単体試聴中は「♪ 単体試聴中」） | あり |
+| 速度スライダー（0.1x〜2x） | 固定バーの速度（×1.0 のデテント付き。再生し直しても速度を引き継ぐ） | あり |
+| シークバー（IMGUI。クリックでシーク・再生位置に追従） | タイムラインの上段（目盛りの帯）のクリック / ドラッグ（旧のタイムラインにも同じシークがあったため 1 本に統合。巻き戻しの注意書きも同じ） | あり（統合） |
+| Signal レーン（手動発火。再生中のみ有効・説明文） | 「合図」カードの「Signal を手動で送る」（Signal Key ごとのボタン・停止中は無効・空のときの案内）+ Signal / Marker トラックの名前の一覧 | あり |
+| 環境切替（ライト強度・背景色・スローの案内） | 「確認する」カードの「環境（ライト・背景）」（詳細モード） | あり |
+| タイムライン: レーン 6 本・ルーラー・マーカー（クリックで選択、ドラッグで時刻変更、Undo 1 回にまとめる）・再生ヘッド・⏱ 時刻 / フレーム・「⚠ 尺が未設定です」 | 「流れ」カードのタイムライン（旧の IMGUI をそのまま `IMGUIContainer` で。色だけ Light / Dark に合わせた） | あり |
+| タイムライン: ズーム（－ / スライダー / ＋ / 全体表示 / Ctrl+ホイール）・パン（ホイール・ミニスクロールバー）・再生ヘッドに追従 | 同（`PresentationTimelineZoom` を再利用） | あり |
+| タイムライン: Data のドラッグ&ドロップでトラック追加（時刻 = 落とした位置）・操作ヒント | 同 + トラックの一覧へのドロップ（時刻 0）。操作ヒントは折り返すラベルに | あり |
+| 追加行: 追加する Kind（EnumField）+「＋ トラックを追加」 | 一覧の上の「＋ トラック」（Kind を選ぶメニュー） | あり |
+| SceneView 表示（トグル・表示対象 すべて / 選択中のみ・注記・描画権の表示） | 「確認する」カードの「SceneView に位置を出す」（表示対象は日本語のドロップダウン） | あり |
+| SceneView の描画（Vfx / Se の点・ハンドル・ケース 1 → 3 の逆算・AnchorGroup の全点・点のクリックで選択 + 一覧へスクロール・薄い目印） | 同（旧の描画をそのまま移した。`DrawSceneGui` = 共通基盤の `WantsSceneGui`） | あり |
+| トラック: Foldout の見出し `[i] Kind アセット名 (when)` | 1 行（# 番号・Kind のチップ・アセット名・要約）。選択中の行は強調、タイムライン・SceneView の選択と共通 | あり（1 行要約に変更） |
+| トラック: Trigger / Time / SignalKey / Target | ⚙ の展開（PropertyField） | あり |
+| トラック: Kind（変更で Asset を空に + 行の作り直し） | ⚙ の展開の Kind（変更で Asset を空に。旧のイベントループ対策と同じく、値が変わったときだけ処理） | あり |
+| トラック: Asset ObjectField（Kind で型が決まる） | ⚙ の展開の Asset | あり |
+| トラック: 専用エディタで開く（一緒に調整 / 単体で開き直す） | ⚙ の展開の同名 2 ボタン。**新エディターを開く**（Vfx = `VfxEditor.Open(data, attach)`、そのほかは `DataEditorRegistry.OpenDefault` = 第 1 候補。Se / Bgm / Canvas は新、Anim / AnchorGroup / Shake / Haptics などは移行するまで旧 → UX-6 以降で自動的に新へ） | あり（一部は割り切り。下記） |
+| トラック: Anchor Foldout + 3 ケースの 1 行説明（Vfx / Se のみ） | ⚙ の展開の AnchorPad（位置パッド + 高さ + 数値）+ 3 ケースの 1 行説明 +「位置の全設定（基準・回転・スケール）」（Anchor を持たない Kind では全設定だけ） | あり |
+| トラック: Params Foldout + Vfx の対応ラベルのヒント（参照先 VFX に Params が無いときの注意） | ⚙ の展開の Params = 調整つまみ（`TuneKnobs` + `PresentationTrackTuneSource`）。Vfx は参照先の Params ラベルがつまみの名前、無いときは注意とつまみの「反映されません」 | あり（つまみに変更） |
+| トラック: Scope（HitStop / CameraShake / Haptic のみ） | ⚙ の展開の Scope（同じ Kind だけ） | あり |
+| トラック: StopOnCancel | ⚙ の展開 | あり |
+| トラック: 複製 / 削除 | ⚙ の展開（+ 並べ替え ▲▼） | あり |
+| トラックが無いときの案内 | 一覧の空状態の文言 | あり |
+| ログ（16 行・Marker / TrackFired / Signal / 完了 / Cancel / 配置） | 「確認する」カードの「ログ」（+「ログを消す」） | あり |
+| Undo / Redo への追従・シーン切替・再コンパイルでの復元（モデル・表示範囲・SceneView 設定） | 共通基盤の Undo 同期（`OnUndoRedo` → 一覧・タイムライン・要約）+ `[SerializeField]` | あり |
+
+  新エディターで増えたもの: **▶ 単体試聴**（そのトラックだけを時刻 0 で再生）・**↺**（トラックを既定に戻す）・▲▼ の並べ替え・検索と絞り込みと件数・トラックの行ごとの ⚠・かんたん / 標準 / 詳細・未調整の折りたたみ・変更の色バーと ↺・保存と自動保存（`DDriveAssetSave.SaveDirty`）・カードの「?」（マニュアルの節）・PredictLocal / Flags / Events の欄・保存の確認。
+- **欄の表 `PresentationFieldGuide`**（編集不可は Id / Version / Author / UpdatedAt と `HideInInspector` だけ）: 流れ = TotalDuration（よく使う）・Interruptible（よく使う）・PredictLocal（詳細）・Flags（詳細）/ トラック = Tracks（**必須** = Validator が Error にする「Asset 未設定」「SignalKey 空」）/ 合図 = Events（詳細）/ 管理情報は共通基盤。名前が `(` で始まる欄（`(timeline)` `(signals)` `(model)` `(playctl)` `(sceneview)` `(log)` `(env)`）は Data のフィールドではなく補助の行で、検索・表示モード・目的別カードの対象にするために表へ載せた（テスト `PresentationFieldGuide_CoversEveryEditableField_AndOnlyExistingFields` は `(` で始まる欄を除いて検査）。
+- **ファイル**（`Editor/Presentation/`、新規はすべて internal）: `PresentationEditor.cs`（入口・土台への指定・ライフサイクル・検証の行ごとの印）/ `.Tracks.cs`（トラックの一覧・1 行・展開・操作・専用エディタ）/ `.Timeline.cs`（タイムライン・ズーム）/ `.Preview.cs`（再生・Signal・環境・ログ・単体試聴・モデル）/ `.SceneAnchors.cs`（SceneView。旧から移植）/ `PresentationEditorRows.cs`（`PresentationAuxRow` / `PresentationSyncBox` / `PresentationDurationInput`）/ `PresentationFieldGuide.cs` / `PresentationTrackTuneSource.cs`（`ITuneSource` = 1 トラックの Params）、`Editor/Ux/Samples/PresentationSample.cs`、`Tests/Editor/PresentationEditorUxTests.cs`（13 件）。再利用: `ScenePresentationPreviewDriver` / `PresentationTrackEditOps` / `PresentationTimelineZoom` / `PresentationTimelineRange` / `PresentationTrackKindMapping` / `PresentationTrackAnchorResolver` / `PresentationTrackAnchorComposer` / `PresentationTrackEditorRouting`（いずれも旧のまま）。共通基盤・Canvas の部品の追加（既定の挙動は変えない）: `CanvasItemList` の `undoneWord` 引数・`UpdateCount()`、`CanvasListItem.IsConfigured`、`DDriveUx.uss` に `ux-ptl*` / `ux-pstatus` / `ux-plog` / `ux-trk__*` / `ux-kind--0..5`。旧 `PresentationEditorWindow` は属性・メニュー・題だけ変更（`(旧) Presentation Editor で開く` Order 100・`Archive/Presentation Editor`・題 `(旧) Presentation Editor`）。
+- **向け直した呼び出し元**: `grep -rn PresentationEditorWindow Packages/com.ddrive.core/Editor` で旧を直接呼ぶ箇所は、旧自身（Archive 内）と `ManualMenu.cs` のコメントだけだった（Cutscene の Inspector・Asset Browser・Anim / Anchor Editor・MCP の `ddrive_editor_open` はすべて `DataEditorRegistry` 経由）ので、`[DataEditor]` の付け替えだけで新へ向く。新エディターの「専用エディタで開く」は旧の `GetWindow` / `AnchorGroupEditorWindow.Open` / `AnimEditorWindow.Open(…, attach)` を呼ばず、新 `VfxEditor.Open(data, attach)` と `DataEditorRegistry.OpenDefault` だけを使う（D-4）。テスト: `DataEditorRegistryTests.KnownPairs_ResolveToTheirWindows` は新 `PresentationEditor`（第 1 候補）と旧（Order 100）の両方を確認、旧のテスト（`PresentationTrackEditOpsTests` / `PresentationTrackAnchorResolverTests` ほか）は旧のまま。
+- **互換性（editor-contract.txt）**: 追加 2 行（`PresentationData -> PresentationEditor "Presentation Editor で開く" order=0` / `PresentationData -> PresentationEditorWindow "(旧) Presentation Editor で開く" order=100`）と**削除 1 行**（旧 `PresentationEditorWindow` の `"Presentation エディタで開く" order=0`）。UX-2 〜 UX-4 と同じ扱い。更新前に red だったのは `EditorContractSnapshotTests.MatchesGolden` と `DDriveCompatToolTests.Compat_RealSnapshots_HaveNoDifference` の 2 件だけで、`ddrive_compat_update` のあと `changed:[]`。CHANGELOG の互換性節に追記済み。
+- **確認**: コンパイル 0、**EditMode 全件 2121/2121 green**（意図した 2 件〔`EditorContractSnapshotTests` / `DDriveCompatToolTests`〕は更新前に red、`ddrive_compat_update` のあと該当のみの再実行で green、`ddrive_compat` は `changed:[]`、禁止 API の機械点検も green）。`PresentationEditorUxTests` 13 件（欄の表が編集できる全フィールドを持つ・Tracks = 必須・登録表の新 Order 0 / 旧 Order 100・ヒーロー / 固定バー / カード 6 枚・全 Foldout が既定で閉じている・1 トラック 1 行と件数と「調整あり」・20 行超で ListView・Time の変更と Undo・追加と削除と Undo・並べ替えと複製・Signal ボタンが停止中は無効・検証の行ごとの ⚠・調整ありの数・TuneKnobs と AnchorPad）。 `execute_code`（実ウィンドウ・「剣の一撃」サンプル）: Inspector の登録表（新が先頭・旧が「(旧) Presentation Editor で開く」）、全 Foldout が既定で閉じている、トラック 1 行の Time の欄の変更 → 要約が追従 → Undo で戻る、トラックの追加・削除、確認用シーンで ▶（実 PresentationManager が 13 トラックを時刻どおりに発火し ● 完了まで）・Signal の手動送出（OnSignal の 2 トラックが発火）・■・▶ 単体試聴、「専用エディタで開く」が新 VfxEditor（スポーン先 = 配置したモデル）と新 SeEditor を開く。実データ（`Assets/GameData`）は触らず、サンプルは一時フォルダで作って削除した。
+  スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①ルーラーの時刻ラベルが 1 本目のレーンの名前と重なった（ラベルを帯の中へ）②レーン名が時刻 0 付近のマーカーと重なった（右寄せ）③Light で HitStop の白いマーカーが背景に埋もれた（Light ではレーンの色を暗くする）④Dark で選択中のマーカーと HitStop の白が区別できなかった（選択色を水色に）⑤SceneView 表示の「表示対象」が英語の enum（All）だった（日本語のドロップダウンに）⑥各行の説明文と補助の注記が同じことを二重に言っていた（Signal / SceneView / タイムラインの注記を削る）⑦500px 幅でトラックの見出しが折り返してボタンが 2 行目に落ちた（見出しを nowrap + 要約の省略表示）。2 周目 = Light でも行・チップ・展開の欄（AnchorPad・つまみ・ボタン）・タイムラインの色が読めること、展開した行の入力が切れないことを確認。
+- **割り切り**: ①**一時停止中の再開**: 旧の「▶ 再生」は一時停止中なら再開だったが、固定バーの ▶ は共通基盤の仕様で常に最初からやり直し。再開は「⏸ 一時停止 / ▶ 再開」ボタンで行う ②旧のシークバー（IMGUI の別ウィジェット）は、タイムラインの上段と同じ機能なので 1 本に統合 ③「専用エディタで開く（一緒に調整）」は Vfx だけ Self を渡せる。Anim / AnchorGroup の `Open(data, attach)` は旧エディターにしか無いので、新エディターからは `DataEditorRegistry.OpenDefault`（attach なし）で開く（UX-6 / UX-11 で新エディターに attach を足したらここを向ける）④展開できる行は 1 本（選択と共通）。旧は Foldout ごとに開閉できた ⑤トラックの並べ替えはドラッグではなく ▲▼ ⑥タイムラインは旧の IMGUI を `IMGUIContainer` で載せたまま（Painter2D への書き直しはしない。ホバー・ドラッグの操作感を変えないため）⑦ListView は内側スクロールを持つ（20 行超のときだけ）⑧Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた ⑨PlayMode は実行していない（Editor 専用）。

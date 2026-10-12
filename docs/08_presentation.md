@@ -474,3 +474,16 @@ trackPos = desiredPos - trackRot * childPos
 - SceneView での実際のドラッグ操作感(ケース1→3 の遷移時にジャンプしないか、ケース3で最終位置を掴んだときの逆算が違和感なく追従するか)は人による確認が必要([43] §8/§11/§12)
 - Se/Bgm(AudioEditorWindow)への attach 付き overload は追加していない(3D 試聴の基準となるシーン Transform の概念が無いため)。将来 AudioEditorWindow に基準 Transform を持たせる改修が入ったら追加を検討する
 - 「単体で確認用シーンに開き直す」を押したときに Presentation 側のプレビューを明示的に止める処理は入れていない(専用エディタ側がシーンを開き直す過程で `PreviewPlacement.PrepareScene` 等が既存の未保存確認ダイアログを出す想定。Presentation の `ScenePresentationPreviewDriver` 自体は `OnStageChanged`/`OnPrefabStageChanged` で自動的に片付く既存の仕組みに任せている)
+
+## 2026-10-12 追記(UX-5) — Presentation Editor を新デザインに(`PresentationEditor`)
+
+[1010](1010_editor_ux_migration.md) UX-5。共通基盤 `UxEditorWindow<PresentationData>`(`Editor/Ux`)の上に作り直した。旧 `PresentationEditorWindow` は削除せず `Tools > D-Drive > Archive > Presentation Editor` と Inspector の `(旧) Presentation Editor で開く`(Order 100)に退避した(`PresentationData` の形式・`PresentationDataValidator`・`PresentationManager`・`ScenePresentationPreviewDriver` は不変。旧のバグ修正だけは今後も旧に入れる)。
+
+- **画面**: 目的別のカード = 「流れ(タイムライン)」(全体の長さ・タイムライン・Interruptible・PredictLocal・Flags)/「トラック」/「合図(Signal)」(Signal の手動送出・イベント)/「確認する(環境・モデル・ログ)」/ 管理情報。固定バー = ▶ ■ リピート 速度 変更 N 件 自動保存 保存。**トラックは 1 トラック = 1 行**(# ・Kind のチップ・アセット名・「t=0.12s · 位置: Self (0, 1.2, 0.6) · Params 2」の要約・▶ 単体試聴・↺・⚙)で、⚙ の展開はその行だけ(Kind / Asset / Trigger / Time / SignalKey / Target / AnchorPad / Params のつまみ / Scope / StopOnCancel / 専用エディタ / 並べ替え・複製・削除)。一覧の上に検索・調整あり / なし・Kind のチップ・件数、20 行超は `ListView`。
+- **タイムライン**は旧の IMGUI(ルーラー・6 レーン・マーカーのドラッグで時刻変更〔Undo 1 回にまとめる〕・再生ヘッド・ズーム / パン / ミニスクロールバー・D&D 追加・上段のクリックでシーク)を `IMGUIContainer` のまま載せ、色だけ Light / Dark に合わせた。旧の別ウィジェットだったシークバーは、上段のシークと同じ機能なので 1 本に統合した。
+- **統合プレビュー**は旧と同じく実 `PresentationManager` を `ScenePresentationPreviewDriver` で駆動する(ウィンドウ内には描かない)。固定バーの ▶ は常に最初から(一時停止からの再開は「⏸ / ▶ 再開」ボタン)。**▶ 単体試聴**: そのトラックだけを時刻 0 の AtTime に変えた一時的な `PresentationData`(`HideAndDontSave`)を作って `Play` する(OnSignal のトラックもその場で鳴る。次の試聴・対象の切替・ウィンドウを閉じるときに破棄)。
+- **Params のつまみ**: トラックの `Params`(`ParamValue[]`)を `PresentationTrackTuneSource`(`ITuneSource`)で調整つまみに出す。名前 = Vfx トラックは参照先 `VfxData.Params[i].Label`(`ApplyVfxTrackParams` のインデックス対応を、つまみの名前で見せる)、それ以外は「値 i」。対応する Params が無いつまみは「反映されません」(旧のヒントと同じ意味)。「＋ つまみを追加」は数値 / 整数 / 色。再生中の実体へは反映しない(次の再生から。旧と同じ)。
+- **SceneView**: 旧の描画(Vfx / Se の点・ハンドル・ケース 1 → 3 の逆算・AnchorGroup の全点・点のクリックで一覧の行を選んでスクロール)をそのまま移した(共通基盤の `WantsSceneGui` / `DrawSceneGui` / `SceneGuiOwner`)。表示対象は「すべて / 選択中のみ」のドロップダウン。
+- **「専用エディタで開く」**: 新エディターを開く。Vfx は `VfxEditor.Open(data, attach)`(`attach` = 配置したモデル = Self)、それ以外は `DataEditorRegistry.OpenDefault`(第 1 候補 = 新エディターがあれば新)。旧の `AnimEditorWindow.Open(…, attach)` / `AnchorGroupEditorWindow.Open(…, attach)` は新エディターからは呼ばない(D-4。UX-6 / UX-11 で新エディターに attach を足したら向ける)。
+- **検証の結びつけ**: `PresentationDataValidator` は変えず、結果のメッセージ先頭の「トラック N(…)」から行の ⚠ を付ける。欄への結びつけは `Tracks`(トークン「トラック 」)・`TotalDuration`(「尺」)・`Flags`(「Flags.Net」)、`Interruptible` / `PredictLocal` はメッセージの先頭の語で。
+- 確認用サンプル: `Editor/Ux/Samples/PresentationSample.cs`(「剣の一撃」= トラック 13 本)。マニュアル: `docs/DesignerManual/presentation.html`(新エディターの説明)/ `archive-presentation-editor.html`(旧)。対応表・D-10 の満たし方・割り切りは [1010](1010_editor_ux_migration.md) §5。

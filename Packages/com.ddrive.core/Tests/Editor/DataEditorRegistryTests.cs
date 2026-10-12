@@ -79,7 +79,8 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(AnchorGroupData), typeof(AnchorGroupEditorWindow));
             AssertWindow(typeof(CameraShakeData), typeof(CameraFxEditorWindow));
             AssertWindow(typeof(HapticsData), typeof(CameraFxEditorWindow));
-            AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow));
+            AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow).Assembly.GetType("DDrive.Editor.Presentation.PresentationEditor", true));
+            AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow)); // (旧) Order 100
         }
 
         [Test]
