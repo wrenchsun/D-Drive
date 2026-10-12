@@ -20,6 +20,7 @@ var SPEC_WEB_MANUAL_PAGE_NAMES = {
     "archive-anim2d-editor",
     "archive-audio-editor",
     "archive-canvas-editor",
+    "archive-material-editor",
     "archive-presentation-editor",
     "archive-vfx-editor",
     "asset-browser",

@@ -2117,3 +2117,7 @@
 .ux-root .ux-mat-toggle {
     margin: 0 8px 0 0;
 }
+
+.ux-root .ux-pk {
+    margin-top: 2px;
+}
