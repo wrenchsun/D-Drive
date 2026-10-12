@@ -78,6 +78,38 @@ namespace DDrive.EditorPrototypes
         private bool _wasPlaying;
         private Toggle _autoToggle;
         private Slider _speedSlider;
+        private Label _speedValue;
+        private const float SpeedMin = 0.1f;
+        private const float SpeedMax = 2f;
+        private const float SpeedDetent = 0.07f; // ×1.0 の吸着幅(±)
+
+        private void OnSpeedSliderChanged(ChangeEvent<float> e)
+        {
+            var v = e.newValue;
+            if (!Mathf.Approximately(v, 1f) && Mathf.Abs(v - 1f) <= SpeedDetent)
+            {
+                v = 1f;
+                _speedSlider.SetValueWithoutNotify(1f);
+            }
+
+            Speed = v;
+            RefreshSpeedLabel();
+        }
+
+        private void ResetSpeed()
+        {
+            _speedSlider.SetValueWithoutNotify(1f);
+            Speed = 1f;
+            RefreshSpeedLabel();
+        }
+
+        private void RefreshSpeedLabel()
+        {
+            if (_speedValue != null)
+            {
+                _speedValue.text = "×" + Speed.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
         private HelpBox _sceneHelp;
         private string _sceneHelpKey;
         private PeAnchorToolsRow _toolsRow;
@@ -119,10 +151,22 @@ namespace DDrive.EditorPrototypes
             _repeatToggle.AddToClassList("pe-bar__repeat");
             _repeatToggle.RegisterValueChangedCallback(e => Repeat = e.newValue);
             bar.Add(_repeatToggle);
-            _speedSlider = new Slider("速度", 0.1f, 2f) { value = Speed, showInputField = false, tooltip = "再生の速さ(0.1〜2 倍)" };
+            _speedSlider = new Slider("速度", SpeedMin, SpeedMax) { value = Speed, showInputField = false, tooltip = "再生の速さ(0.1〜2 倍)" };
             _speedSlider.AddToClassList("pe-bar__speed");
-            _speedSlider.RegisterValueChangedCallback(e => Speed = e.newValue);
+            _speedSlider.RegisterValueChangedCallback(OnSpeedSliderChanged);
             bar.Add(_speedSlider);
+            // ×1.0 の目盛り線(スライダー上の基準位置)。
+            var tick = new VisualElement { pickingMode = PickingMode.Ignore };
+            tick.AddToClassList("pe-bar__speed-tick");
+            tick.style.left = new Length((1f - SpeedMin) / (SpeedMax - SpeedMin) * 100f, LengthUnit.Percent);
+            var drag = _speedSlider.Q(className: "unity-base-slider__drag-container");
+            (drag ?? _speedSlider).Add(tick);
+            _speedValue = new Label();
+            _speedValue.AddToClassList("pe-bar__speed-value");
+            _speedValue.tooltip = "クリックで ×1.0 に戻す";
+            _speedValue.RegisterCallback<ClickEvent>(_ => ResetSpeed());
+            bar.Add(_speedValue);
+            RefreshSpeedLabel();
             var spacer = new VisualElement();
             spacer.AddToClassList("pe-bar__spacer");
             bar.Add(spacer);
@@ -1488,6 +1532,7 @@ namespace DDrive.EditorPrototypes
             if (_speedSlider != null && !Mathf.Approximately(_speedSlider.value, Speed))
             {
                 _speedSlider.SetValueWithoutNotify(Speed);
+                RefreshSpeedLabel();
             }
 
             So.Update();

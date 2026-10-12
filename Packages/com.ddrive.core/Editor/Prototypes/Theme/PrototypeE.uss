@@ -295,6 +295,22 @@
     margin-right: 6px;
 }
 
+.pd-root .pe-bar__speed-tick {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    width: 1px;
+    background-color: rgba(255, 255, 255, 0.55);
+}
+
+.pd-root .pe-bar__speed-value {
+    width: 40px;
+    min-width: 40px;
+    margin: 0 8px 8px 0;
+    -unity-text-align: middle-left;
+    cursor: link;
+}
+
 .pd-root .pe-toolsline {
     flex-direction: row;
     flex-wrap: wrap;
