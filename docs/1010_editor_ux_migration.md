@@ -717,3 +717,78 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
   `execute_code`（実ウィンドウ・サンプル）: Inspector の登録表（新が先頭・旧が `(旧)`）、トラック 1 行の変更と Undo、実要素への ▶ ■、雛形の適用、ギャラリーの検索とお気に入り、新 `CanvasEditor` からの「UI Tween Editor で開く」が新を開く（上の EditMode テストと同じ導線）。実データは保存せず、サンプルは作って削除した。
   スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①「Motion の From と To が同じ」の警告が全トラックに出る（Tween は Motion の From / To を使わないので、エディターで外した）②「要素」の DropdownField のラベルが出ない（土台の規則 `.ux-row__input > .unity-base-field` が当たる位置に置いていた → 包んで置いた）③種類チップの幅がまちまちで時間バーの左端が揃わない（チップ・項目名を固定幅に）④ギャラリーのカードが縦に長い（▶ をカードの頭へ・ボタン名を「要素へ」「置換」「追加」に短縮・幅 160px で 4 枚並ぶ）⑤「TypeFillIn は Image.Type.Filled を想定」の警告が曲線サンプルの仮要素で出る（仮要素に Filled の Image を付けた）。2 周目 = 幅 500px の行が ▶ ↺ ⚙ × で折り返す（時間バーの最小幅を縮め、チップ・名前の幅を詰めた）のを直し、かんたん / 標準 / 詳細・Dark / Light・幅 500px で崩れないことを確認。
 - **割り切り**: ①⚙ の開閉はドメインリロードで閉じる（再コンパイルで開いた行は閉じる。対象・収集元・プレビュー対象は残る）②曲線の「形」だけ（軸の数字・途中で止めて見る操作は無い。旧と同じ）③ギャラリーの「他の要素へコピー」はカードごとではなく「適用先」カードの 1 つ（旧は全カードに同じボタンが並んでいた）④ギャラリーのカード一覧は幅から 1 行の枚数を決める（20 件超の ListView は幅が変わったとき作り直す）⑤`ValueDefValidator` の「Tween では当てはまらない From / To の警告」は Foundation 側の根治をせず（Validation の重さ・Code に触れる）、このエディターの検証表示から外すだけにした（Asset Browser の検証には従来どおり出る）⑥空状態の「サンプルを作る」は UX-19 でまとめて足す ⑦Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた
+
+**2026-10-13 追記（UX-13、Button Skin / Slider Skin / Slider の新エディター。D-10 対応）**
+
+![新 ButtonSkinEditor / SliderSkinEditor / SliderEditor（左 = Dark、右 = Light。上から Button Skin の上部〔状態の一覧〕・Button Skin の状態を 2 行開いた状態・Slider Skin の上部〔雛形・状態とパーツの一覧〕・Slider Skin の下部〔押せる範囲・確認する〕・Slider Editor の上部〔応答曲線・ノッチ〕・Slider Editor の下部〔実操作のログ・追従比較・雛形〕）](images/1010_skin.png)
+
+- **構成**: **`ButtonSkinEditor : UxEditorWindow<ButtonSkinData>`**、**`SliderSkinEditor : UxEditorWindow<SliderSkinData>`**、**`SliderEditor`**（独立ウィンドウ）の 3 つ。`SliderEditor` の対象は Data ではなく **UiSlider（シーン / Prefab 上のコンポーネント）**なので `UxEditorWindow<TData>`（`TData : AssetDataBase`）に載せられない。UX-12 の `UiPresetGallery` と同じく `UxTheme` + `UxCard` + `DDriveUx.uss` を当てた別ウィンドウにした（Data 切替・検索・モード・固定バーは持たない）。メニュー `Tools > D-Drive > Editors > Button Skin` / `Slider Skin` / `Slider`。旧 `ButtonSkinEditorWindow` / `SliderSkinEditorWindow` / `SliderEditorWindow` は `Archive > Button Skin` / `Slider Skin` / `Slider`・題 `(旧) …`・`(旧) Skin Editor で開く` Order 100 / `(旧) Slider Editor で開く` Order 105。`SliderSkinData` の Inspector には「Skin Editor で開く」(0)・「Slider Editor で開く」(5)・旧 2 つ(100 / 105)が並ぶ（旧の Slider Editor は Order 5 だったので、旧の並びと同じ順序関係を保った）。
+- **ファイル**（`Editor/Ui/`）: `ButtonSkinEditor.cs` / `SliderSkinEditor.cs` + `SliderSkinEditor.Preview.cs`（確認用スライダー・動かしてみる・イベント → SE・雛形）/ `SkinFieldGuides.cs`（`ButtonSkinFieldGuide` / `SliderSkinFieldGuide` + 共通の `SkinGuideText`）/ `SkinStateRows.cs`（共通部品: `SkinParts`〔状態 6 + パーツ 4 の定義と 1 行の要約〕・`ISkinStateHost`・`SkinStateList` = `CanvasItemList`〔絞り込み・件数〕に 1 行ずつ `SkinStateRow` を載せる・`SkinSwatch` = Painter2D の色見本・`SkinSeRow` = SE の欄に ▶ ■ を付けた行・`SkinPresetsRow` = 雛形 5 種のボタン列）/ `SliderEditor.cs` + `SliderEditor.Preview.cs`（`SliderResponseGraph` / `SliderNotchBar` = Painter2D の静的な図・配置・実操作・追従比較・全状態の並べ表示・SceneView のノッチ帯）/ `Editor/Ux/Samples/SkinSample.cs`、`DDriveUx.uss` に `ux-sk-*` / `ux-sl-*`、`Tests/Editor/SkinEditorUxTests.cs`。**既存の `ControlSkinPreviewSection`（1398 行）は書き直さず再利用**し、`Options.CheckOnly`（設定欄は出さず、状態遷移・当たり判定の表示・Scroll Material の案内・状態の演出の ⏸ ■ だけを出す）と、新エディターから呼ぶ小さな internal の入口（`PlayStatePreview` / `OpenTweenEditorFor` / `PlaySequence` / `BuildAnimImportRowFor` / `AuditionSe` / `CanAudition` / `StatusText` / `IsBusy` など。既存の private メソッドを呼ぶだけ）を足した。旧エディターは従来どおり全部入りで使う（`CheckOnly` は既定 false）。Runtime / Foundation / Validator は触っていない（検証の欄への結びつけは `ValidationTokens` と、メッセージ中の欄名・状態名）。
+- **目的別カード**（段の根拠: `ButtonSkinDataValidator` / `SliderSkinDataValidator` の Error は `NotchSeMinIntervalSec` が負のときだけで「必須」の欄は無い。ただし状態・パーツの見た目は Skin の本体なので、「かんたん」でも見せるため必須の段に置く〔バッジは出さない〕。Warning の対象〔全状態 Tint.a = 0・HapticId・当たり判定の Read/Write・Scroll Material・Anim Frames〕と普段触る欄 = よく使う、既定のままでよい欄 = 詳細）。Button Skin: 状態ごとの見た目（Normal〜Locked の 6 欄 + `ScrollMaterial`）/ 音（SE）/ 押せる範囲 / 確認する / 管理情報。Slider Skin: 動きの雛形（確認用）/ 状態・パーツの見た目（状態 6 + パーツ 4 + `ScrollMaterial`）/ パーツと操作（`NotchSprite`・`HideHandleOnGamepad`）/ 音と触覚 / 押せる範囲（`HitAreaExpand`・`ExtraHitPadding`・`HandleHitAreaExpand`・`AlphaHitThreshold`）/ 確認する / 管理情報。状態 6 欄（とパーツ 4 欄）は 1 つの一覧の行（`UxVisualRow` に全欄を持たせ、他の欄の `CreateRow` は null）にまとめた。名前が `(` で始まる欄は補助の行（雛形・確認する）。
+- **D-10 の基準をどう満たしたか**: サンプル `SkinSample.Build(folder)`（internal、一時フォルダに作って削除）= **Button Skin「メニューボタン(全部入り)」**（状態 6 つが色・拡大率・画像・コマ画像 4 枚 + 1 秒 8 コマ・スクロール・演出 Tween / Preset が混在、SE 3 つ、押せる範囲、透明部分の判定で「Read/Write 無効」の警告 3 件）+ **Slider Skin「音量スライダー(全部入り)」**（状態 6 + パーツ 4〔Track / Fill / Handle / Delay Fill〕・目盛りの装飾・SE 5 つ・存在しない Haptics Id の警告・押せる範囲 3 種）+ 既定のままの Skin 2 つ。**Skin は「要素が多い」種別ではなく状態 6〜10 個が上限**なので、20 行超の ListView は使わず（`CanvasItemList` は 20 行超で自動的に ListView になる）、見通しは (1) 標準モードで約 2.5〜3.4 画面（760×1000。かんたん = 状態の一覧だけ）(2) **1 状態 = 1 行**（種類チップ・名前・色見本・▶ ↺ ⚙、2 行目に要約「色 #FFF2CC · 拡大 ×1.06 · 画像 … · コマ 4 枚 @8fps · 演出 Preset: PunchScale」。行の展開は ⚙ でその行だけ）(3) 一覧の上に**絞り込み**（検索・すべて / 設定済み / 既定のまま・Slider は種類〔状態 / パーツ〕チップ）と**件数**（「6 状態中 設定済み 5」「10 状態・パーツ中 設定済み 9」）(4) 入れ子の読み取り一覧は無い（演出・コマ・スクロールは ⚙ の中、Tween は「✎ Tween Editor」で新 UiTweenEditor へ）(5) 一括操作は無い（雛形は 1 行のボタン列）(6)(7) 幅 500px の Dark / Light でヒーロー（折り返し）・状態の行の ▶ ↺ ⚙・⚙ の欄・SE 行の ▶ ■・固定バーが切れないことを確認。
+- **機能対応表（旧 `ButtonSkinEditorWindow` + `ControlSkinPreviewSection` → 新 `ButtonSkinEditor`、全行あり）**: 旧のウィンドウ（208 行）と、旧が全欄を組んでいた `ControlSkinPreviewSection` の UI 要素・ボタン・欄を 1 つずつ突き合わせた。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバー「＋ 新規作成」 | ヒーローの「＋ 新規」 | あり |
+| 対象 Skin の ObjectField | ◀ [名前 ▾] ▶・空状態のピッカー・ドロップ・最近のデータ。Project の選択に追従、🔒 固定 | あり |
+| 「確認用シーンに配置」（左 = 確認用シーン / 右 = このシーン・本配置）/ 撤去 | 「確認する」の同じボタン（`PreviewPlacementButton`・`EditorPreviewRoots`）/ 撤去 | あり |
+| 設定欄の全 PropertyField（読み取り専用の Id / Version / Author / UpdatedAt を含む） | カード（状態ごとの見た目 / 音 / 押せる範囲 / 管理情報）。編集不可は Id・Version・Author・UpdatedAt だけ | あり |
+| 状態ごとの箱 6 つ: 見出しの要約（Tween: 名前 / Preset: 名前 / 演出なし） | 状態の 1 行 + 2 行目の要約（色・拡大・画像・コマ・スクロール・演出の 1 行） | あり（拡張） |
+| 状態の「▶ 再生」（その状態にして演出を再生。未配置なら自動配置） | 状態の行の ▶（同じ `PlayState`） | あり |
+| 状態の「⏸ 一時停止 / ▶ 再開」「■ 停止」と「● 再生中」 | 「確認する」の「状態の演出」の ⏸ ■ と「● Pressed 再生中」 | あり |
+| Enter Tween / Enter Preset の欄 + 「✎ Tween Editor」（Tween 指定時のみ押せる。新 UiTweenEditor へ） | 行の ⚙ の中の「演出 Tween」「簡易演出」+「✎ Tween Editor」（同じ `OpenTweenEditor`） | あり |
+| 「見た目(Tint / Scale / 画像)」の Foldout（Tint / Scale / OverrideSprite / AnimFrames / AnimFps / AnimLoop / ScrollSpeed） | 行の ⚙ の中の「色 / 拡大率 / 画像 / コマ画像 / コマ数 / 秒 / コマのループ / スクロール速度」 | あり |
+| 「Anim2D から読み込む」+「コマを読み込む」 | 行の ⚙ の中（同じ `BuildAnimImportRow`） | あり |
+| Scroll Speed を使うのに Scroll Material が空の警告 + 「既定のマテリアルを設定」 | 「確認する」の上部（同じ部品。Undo 付き）+ Scroll Material の欄の検証表示 | あり |
+| 「状態遷移」: 遷移 5 種のポップアップ / ▶ 遷移を再生 / ⏸ / ■ / 長さ / ループ / SE も鳴らす / 今の段の表示 | 「確認する」の同じ部品（`ControlSkinPreviewSection`）+ 固定バーの ▶ ■（= 「全状態を順に」） | あり（拡張） |
+| SE の欄 4 つ（Hover / Click / LongPress / Denied）+ 各欄の ▶ 試聴 ■ 停止（未設定 / SeData 無しは押せない） | 「音（SE）」カードの 4 行（欄 + ▶ ■ 。押せる条件は同じ）。未設定は検証の案内 | あり |
+| 「Hit Area Expand」+「当たり判定を表示」（赤い枠・SceneView のドラッグ調整・Alpha Hit は実行時のみの注記） | 「押せる範囲」カードの欄 + 「確認する」の「当たり判定を表示」（同じ部品） | あり |
+| Alpha Hit Threshold | 「押せる範囲」カード（詳細） | あり |
+| 検証（`DataValidationSection`） | 欄の下のインライン表示 + ヒーローのチップ + 「その他の検証」 | あり |
+| 設定変更を配置済みのプレビューへ即反映（`ReapplyPreviewVisuals`）・当たり判定の枠の追従 | 「確認する」の同じ部品の追跡（`CheckOnly` でも有効） | あり |
+| Undo / Redo の同期 | 土台の `OnUndoRedo` | あり |
+| 再コンパイルに耐える状態（`_target`） | 土台の `[SerializeField]`（対象・固定・リピート） | あり |
+| Skin を差し替えたらプレビューにも当てる（外すと SetVisual(null)） | `OnTargetChanged` | あり |
+| 閉じる / リロード前のプレビューの片付け・試聴用 `PreviewService` の `Dispose` | `OnWindowEnable` / `OnWindowDisable` | あり |
+
+  新エディターで増えたもの: かんたん / 標準 / 詳細・検索・状態の 1 行 + 要約・色見本・絞り込みと件数・状態ごとの ↺・変更の色バー・保存と自動保存・未保存の確認・固定バーの ▶ ■・Light / Dark。
+- **機能対応表（旧 `SliderSkinEditorWindow` → 新 `SliderSkinEditor`、全行あり）**: 旧のウィンドウ（502 行）。上の Button Skin の全行（SE は Grab / Release / Notch / Limit / Denied の 5 つ）に加えて:
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| 案内ラベル + 「SliderEditor で開く」 | ヒーローの「Slider Editor へ」 | あり |
+| プリセット（EnumField 5 種。確認用スライダーに当てる。未配置なら配置。Undo 1 回） | 「動きの雛形(確認用)」カードのボタン 5 つ（同じ `SliderPresets.Apply`。マウスを乗せると中身、押すと「○○ を確認用スライダーに当てました」） | あり |
+| 動かしてみる: ◀ ▶（`Move` + `MoveRelease`）/ ドラッグ 0 → 1 / 1 → 0（0.8 秒）/ 値スライダー / 現在値と直前のイベントの表示 / 説明 | 「確認する」の「動かしてみる」（同じ） | あり |
+| 掴む・離す・目盛り・端・拒否のイベント → SE（目盛りの間引き = `SliderSePreview`） | 同じ（`PlaySeField`） | あり |
+| パーツ（Track / Fill / Handle / Delay Fill）の PropertyField + 「常に反映」の説明 | 状態・パーツの一覧のパーツ 4 行（要約・色見本・↺ ⚙。▶ は無し） | あり |
+| Notch Sprite / Hide Handle On Gamepad | 「パーツと操作」カード | あり |
+| Extra Hit Padding / Handle Hit Area Expand（つまみの青い枠・SceneView のドラッグ調整 = `ExtraHitAreas`） | 「押せる範囲」カード + 「確認する」の当たり判定の表示（同じ） | あり |
+| Notch Se Min Interval Sec / Notch Haptic Id / Limit Haptic Id | 「音と触覚」カード | あり |
+| `Open(SliderSkinData)`（Inspector・AssetBrowser・MCP の `ddrive_editor_open` から） | 同じ `Open`（`[DataEditor]` Order 0） | あり |
+
+- **機能対応表（旧 `SliderEditorWindow` → 新 `SliderEditor`、全行あり）**: 旧のウィンドウ（834 行）。
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバー「＋ 新規作成」（新しい Slider Skin → そのサンプルを開く） | ヒーローの「＋ 新規 Skin」 | あり |
+| 対象 UiSlider の ObjectField / 選択から取得 / サンプルを配置（左右クリック）/ 撤去 / 状態の文 | 「応答曲線」カードの対象欄・ヒーローの同じボタン・状態の文 | あり |
+| (a) 応答曲線グラフ（対角線・曲線・現在値の点）+ Response の PropertyField | 応答曲線の Painter2D 図（同じ `SliderEditorMath`）+ Response の欄 | あり |
+| (b) ノッチ可視化（白線・黄色の帯・現在値の点・Notches = 0 の注記）+ SceneView の同じ帯（フォーカス中のみ）+ 説明 | 「値の範囲・刻み・ノッチ」カードの Painter2D 図 + 同じ SceneView の帯（`SceneGuiOwner`）。Min / Max / Step / Whole Numbers / Notches / Snap Threshold の欄を同じカードに足した | あり（拡張） |
+| (c) 実操作: ◀ ▶（実物は階層ごと Undo）/ 微調整 / ドラッグ模擬（サンプルだけ。実物は理由を表示）/ イベントログ 12 行 | 「実操作」カード（同じ） | あり |
+| (d) 追従比較: 2 体目の配置（OutBack 0.4 秒）+ その FollowMotion の欄 + 「同時に 0→1 を模擬」 | 「追従比較」カード（同じ） | あり |
+| (e) Skin プレビュー: 全状態を並べる（6 本。Skin Id → 無ければ明示の Skin） | 「Skin プレビュー」カード（同じ） | あり |
+| (f) プリセット 5 種（`SliderPresets.Apply`。対象の実物にも Undo 付きで当てる） | 「雛形」カードのボタン 5 つ（同じ。Ctrl+Z で戻せる） | あり |
+| (g) Validation（`UiSliderValidation`） | 「検証」カード（1 件 1 行。問題なしの表示） | あり |
+| 実物は `Advance` で駆動しない・サンプルだけ駆動（`EditorApplication.update`） | 同じ（`IsPreviewObject`） | あり |
+| 再コンパイルに耐える状態（`_target` / `_explicitSkin`・イベントの購読し直し・Skin の当て直し） | 同じ `[SerializeField]` + `OnEnable` | あり |
+| `Open(UiSlider)` / `Open(SliderSkinData)`（サンプルを置いて開く） | 同じ 2 つ | あり |
+
+- **`FieldGuide<TData>` の表**: `ButtonSkinFieldGuide`（状態 6 + `ScrollMaterial` + SE 4 + 当たり判定 2 + 補助の `(check)` + 共通欄）/ `SliderSkinFieldGuide`（補助の `(presets)` + 状態 6 + パーツ 4 + `ScrollMaterial` + `NotchSprite`・`HideHandleOnGamepad` + SE 5 + `NotchSeMinIntervalSec` + Haptic Id 2 + 当たり判定 4 + `(check)` + 共通欄）。`SkinEditorUxTests` が「編集できる全フィールドを持つ・表の欄が実在する」を検査（Id / Version / Author / UpdatedAt と `HideInInspector` を除く）。
+- **互換性（editor-contract.txt）**: 追加 6 行（`ButtonSkinData -> ButtonSkinEditor "Skin Editor で開く" order=0` / `ButtonSkinEditorWindow "(旧) Skin Editor で開く" order=100` / `SliderSkinData -> SliderSkinEditor "Skin Editor で開く" order=0` / `SliderEditor "Slider Editor で開く" order=5` / `SliderSkinEditorWindow "(旧) Skin Editor で開く" order=100` / `SliderEditorWindow "(旧) Slider Editor で開く" order=105`）と**削除 3 行**（旧の 3 行。ラベル・Order が変わるため）。UX-2〜UX-12 と同じ扱い。更新前に red だったのは `EditorContractSnapshotTests.MatchesGolden` と `DDriveCompatToolTests.Compat_RealSnapshots_HaveNoDifference` の 2 件だけで、`ddrive_compat_update` のあと `ddrive_compat` は `changed:[]`。CHANGELOG の互換性節に追記済み。
+- **向け直した呼び出し元**（`grep ButtonSkinEditorWindow` / `SliderSkinEditorWindow` / `SliderEditorWindow`）: コードから旧を直接呼んでいた箇所は旧同士（旧 `SliderSkinEditorWindow` の「SliderEditor で開く」→ 旧 `SliderEditorWindow.Open`）だけで、Archive の中で閉じるので残した。Inspector の「エディターで開く」・Asset Browser のダブルクリック・MCP の `ddrive_editor_open` は `DataEditorRegistry`（Order 0 = 新）経由なので `[DataEditor]` の付け替えで新へ向く（Slider Editor は Order 5 で 2 番目）。新 Skin Editor 同士の導線は新へ: Slider Skin Editor のヒーロー「Slider Editor へ」→ 新 `SliderEditor.Open(skin)`、Slider Editor の「Slider Skin Editor へ」→ 新 `SliderSkinEditor.Open`、状態の「✎ Tween Editor」→ 新 `UiTweenEditor.Open`（UX-12 で `ControlSkinPreviewSection.OpenTweenEditor` を向け直し済み）。テストは新に追従（`DataEditorRegistryTests`・`SkinEditorUxTests`）、旧は開けること（題が `(旧)`）の確認を足した。
+- **マニュアル**: `ui-skin.html`（節 id = `button` / `button-states` / `button-se` / `button-hit` / `button-check` / `button-admin` / `slider-skin` / `sskin-presets` / `sskin-states` / `sskin-parts` / `sskin-se` / `sskin-hit` / `sskin-check` / `slider` / `slider-response` / `slider-notch` / `slider-operate` / `slider-compare` / `slider-skinpreview` / `slider-presets` / `slider-validation`。各カードの「？」が `ManualAnchor` で飛ぶ）を新エディターの説明に書き換え（機能のみ。設定項目の表・UiSlider の項目・警告の表は据え置き）。旧は `archive-ui-skin-editor.html`（`Readme.html` のアーカイブ節）。画像 `button-skin-editor-window.png` / `button-skin-state-transition.png` / `slider-skin-editor-window.png` / `slider-editor-response-curve.png` を新のスクリーンショットに差し替え、`button-skin-state-rows.png` / `slider-editor-operate.png` を追加（旧画像は `archive-` 付きに改名）。`Tools/SpecWeb` は `build-manual.js` で再生成（clasp push はしていない）。
+- **確認**: コンパイル 0、**EditMode は全件を 1 回で実行して 2302 / 2302 green**（実行前に空きメモリ 約 0.8GB・`UnloadUnusedAssetsImmediate` + `GC.Collect` を行った。約 約 18〜20 分で完走、分割は不要。総数の確認: UX-12 の 2275 + `SkinEditorUxTests` の 27 = 2302 がランナーの総数と一致。`RetrieveTestList` の列挙は非同期の応答が間に合わず取れなかった）。`SkinEditorUxTests` 27 件（欄の表が編集できる全フィールドを持つ〔Button / Slider〕・登録表〔新が先頭・旧が `(旧)` Order 100 / 105・Slider Editor は 2 番目〕・旧ウィンドウ 3 つが開く・サンプル〔状態 6 が混在・パーツ 4・SE〕・要約の文字・カード構成〔Button 5 / Slider Skin 7 / Slider Editor 7〕・1 状態 = 1 行〔6 行・件数「6 状態中 設定済み 5」・ListView なし〕・Slider は 10 行〔状態 + パーツ・種類チップ・パーツに ▶ が無い〕・既定のままの Skin・行の ↺ と Undo・⚙ はその行だけ開く・「✎ Tween Editor」が新 `UiTweenEditor` を開く〔旧は開かない〕・確認する = `CheckOnly`〔設定欄なし・遷移のポップアップあり〕・SE の ▶ ■〔設定済みの 3 つだけ押せる〕・遷移の再生と停止・確認用ボタンの配置と、閉じたときの片付け・雛形 5 種のボタンと適用 / Undo〔Slider Skin / Slider Editor〕・ドラッグ模擬・Slider Editor のカード構成・応答曲線 64 点・ノッチ帯・検証のインライン・実物はドラッグ模擬で動かさない・サンプルの配置・追従比較・全状態 6 本・Skin から開くとサンプルに Skin が当たる）。機械点検（`UxFoundationTests`）に新 6 ファイルを足した。`ddrive_compat` は更新後 `changed:[]`。**PlayMode は実行していない**（Runtime を触っていない）。
+  `execute_code`（実ウィンドウ・サンプル）: Inspector の登録表（新が先頭・旧が `(旧)`）、Slider Skin の雛形の適用（スタミナ → Notches 4 / Max 100）と Undo、状態 1 行の ↺ と Undo、確認用スライダー / ボタンの表示（Skin の色・拡大率が当たる）、「✎ Tween Editor」が新 `UiTweenEditor` を開く、遷移の再生と停止（`IsBusy`）。実データは保存せず、サンプルは作って削除した。
+  スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）。自己確認ループ（2 周）: 1 周目 = ①SE・当たり判定の欄のラベルが長くて「ホバーしたときの音(H…」のように途中で切れる（ラベルを「ホバーの音」のように短くし、英語名は説明文へ）②⚙ の中の欄名が長くて切れる（「演出 Tween」「簡易演出」「色 Tint」…に短縮）③「簡易演出」（Enter Preset）が最初から開いていて縦に長い（閉じた状態で出す）④雛形のカードで同じ説明が 3 か所に出る（カード・行・注記 → 行の説明を短く）⑤Slider Editor の最初のカードに Min / Max / Step … が並んで応答曲線と混ざる（値・刻み・ノッチのカードに分けた）⑥「対象: SampleSlider」がヒーローの副題と重複（空にした）⑦旧にあった状態ごとの ⏸ ■ が新に無い（「確認する」の「状態の演出」に足した）⑧旧 Slider Editor の「＋ 新規作成」が新に無い（「＋ 新規 Skin」を足した）。2 周目 = 幅 500px でヒーローのボタン・状態の行・SE の行・動かしてみる・固定バーが折り返しても切れないこと、かんたん / 標準 / 詳細・Dark / Light で崩れないことを確認。
+- **割り切り**: ①確認する（`ControlSkinPreviewSection`）は旧の部品を再利用するので、遷移の欄・当たり判定の行・「動かしてみる」の一部は旧の見た目（Unity 標準のラベル・トグル）が混ざる（新テーマの色は当たるが、部品の中の寸法は旧のまま）②⚙ の開閉はドメインリロードで閉じる（対象・固定は残る）③雛形 5 種は確認用スライダーに当てるだけで Skin には保存しない（旧と同じ。Skin に持たせる設計変更はしない）④Slider Editor は対象が UiSlider なので、Data の切替・検索・かんたん / 標準 / 詳細・固定バー・保存・自動保存は持たない（値の編集は Undo 可で、保存はシーン / Prefab 側）⑤応答曲線・ノッチ帯は旧の IMGUI から Painter2D に変えた静的な図（情報は同じ。動くものはウィンドウ内に描かない方針のまま）⑥パーツの行は ▶ が無い（旧と同じく、状態ごとの演出は部品本体に掛かる）⑦空状態の「サンプルを作る」は UX-19 でまとめて足す ⑧Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた

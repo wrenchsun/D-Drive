@@ -95,6 +95,11 @@ namespace DDrive.Editor.Ui
 
             // プレビュー部品のスプライトアニメをこの欄が毎フレーム進めるか(部品側で Advance を回すエディタは false)。
             public bool TickPreviewVisuals = true;
+
+            // 新デザインのエディター(docs/1010 UX-13)用: 設定欄(状態ごとの箱・SE 欄・その他の PropertyField)は出さず、
+            // 状態遷移・当たり判定の表示・Scroll Material の案内だけを出す。状態の ▶ / SE の試聴は新エディター側の行から
+            // 下の internal の入口(PlayStatePreview / AuditionSe など)で呼ぶ。
+            public bool CheckOnly;
         }
 
         private sealed class StateRow
@@ -151,6 +156,11 @@ namespace DDrive.Editor.Ui
         private Button _seqPause;
         private Button _seqStop;
         private Label _seqStatus;
+
+        // 新デザインのエディター用(Options.CheckOnly): 状態の演出の一時停止 / 停止。
+        private Button _chkPause;
+        private Button _chkStop;
+        private Label _chkStatus;
         private int _seqIndex = -1;
         private int _seqStep;
         private float _seqTimer;
@@ -184,7 +194,11 @@ namespace DDrive.Editor.Ui
             _overlayExtraTargets = new RectTransform[_options.ExtraHitAreas.Length];
             _overlayExtra = new Vector4[_options.ExtraHitAreas.Length];
 
-            Add(new HelpBox("各状態の「▶ 再生」でプレビューの部品をその状態にし、状態に入ったときの演出(すぐ下の Enter Tween / Enter Preset)を再生します。「状態遷移」は複数の状態を順に自動で切り替えます。未配置なら自動で「確認用シーンに配置」します。SE 欄の右の「▶」で試聴できます。動きは Game ビューで見てください。", HelpBoxMessageType.Info));
+            Add(new HelpBox(
+                _options.CheckOnly
+                    ? "「状態遷移」は複数の状態を順に自動で切り替えて、画像・演出・SE を通しで確認します。状態ごとの確認は上の各状態の行の「▶」で行います。未配置なら自動で「確認用シーンに配置」します。動きは Game ビューで見てください。"
+                    : "各状態の「▶ 再生」でプレビューの部品をその状態にし、状態に入ったときの演出(すぐ下の Enter Tween / Enter Preset)を再生します。「状態遷移」は複数の状態を順に自動で切り替えます。未配置なら自動で「確認用シーンに配置」します。SE 欄の右の「▶」で試聴できます。動きは Game ビューで見てください。",
+                HelpBoxMessageType.Info));
             Add(_status);
             Add(_body);
 
@@ -240,6 +254,9 @@ namespace DDrive.Editor.Ui
             _seqPause = null;
             _seqStop = null;
             _seqStatus = null;
+            _chkPause = null;
+            _chkStop = null;
+            _chkStatus = null;
             _scrollHint = null;
             _widgetKey = int.MinValue;
 
@@ -255,6 +272,12 @@ namespace DDrive.Editor.Ui
 
             _scrollHint = BuildScrollHint();
             _body.Add(_scrollHint);
+
+            if (_options.CheckOnly)
+            {
+                BuildCheckOnlyBody(skin);
+                return;
+            }
 
             var seByName = new Dictionary<string, SeField>();
             foreach (var field in _options.SeFields)
@@ -332,6 +355,114 @@ namespace DDrive.Editor.Ui
             RefreshWidgets();
             UpdateHitOverlay();
         }
+
+        // 新デザインのエディター用(Options.CheckOnly)。状態遷移と当たり判定の表示だけを組む。
+        private void BuildCheckOnlyBody(ControlSkinData skin)
+        {
+            // 状態の行の「▶」で始めた演出の一時停止 / 停止(旧エディターの状態ごとの箱の ⏸ ■ と同じ)。
+            var play = Row();
+            play.Add(new Label("状態の演出") { style = { unityFontStyleAndWeight = FontStyle.Bold, marginRight = 6, flexShrink = 0f } });
+            _chkPause = new Button(TogglePause) { text = "⏸ 一時停止", tooltip = "その場で一時停止 / 再開(状態の行の ▶ で始めた演出)" };
+            play.Add(_chkPause);
+            _chkStop = new Button(StopSequence) { text = "■ 停止", tooltip = "途中で止める(最終状態には進めない)" };
+            play.Add(_chkStop);
+            _chkStatus = new Label { style = { marginLeft = 6, opacity = 0.8f } };
+            play.Add(_chkStatus);
+            _body.Add(play);
+
+            if (_options.Sequences.Length > 0)
+            {
+                _body.Add(BuildTransitionBlock());
+            }
+
+            _body.Add(BuildHitAreaRow());
+
+            var so = new SerializedObject(skin);
+            _body.Bind(so);
+            var tracker = new VisualElement();
+            _body.Add(tracker);
+            tracker.TrackSerializedObjectValue(so, _ =>
+            {
+                RefreshSummaries();
+                ReapplyPreviewVisuals();
+                UpdateHitOverlay();
+                SceneView.RepaintAll();
+            });
+
+            RefreshSummaries();
+            RefreshWidgets();
+            UpdateHitOverlay();
+        }
+
+        // ── 新デザインのエディター(docs/1010 UX-13)から呼ぶ入口。中身は上の private メソッドと同じ ──
+
+        // 直近の操作の結果の文(▶ の状態・SE の試聴の成否など)。
+        internal string StatusText => _status.text;
+
+        // 状態遷移か状態の演出が動いている間 true(固定バーの ▶ / ■ の表示用)。
+        internal bool IsBusy => _seqIndex >= 0 || (_tweens != null && _tweens.IsPlaying(_tweenHandle));
+
+        // 状態の「▶ 再生」と同じ(プレビューをその状態にして演出を再生。未配置なら配置する)。
+        internal void PlayStatePreview(ControlState state) => PlayState(state);
+
+        internal void OpenTweenEditorFor(ControlState state) => OpenTweenEditor(state);
+
+        // 状態遷移を番号で選んで再生する(固定バーの ▶ は最後の「全状態を順に」)。
+        internal void PlaySequence(int index)
+        {
+            if (_seqPopup == null || _options.Sequences.Length == 0)
+            {
+                return;
+            }
+
+            _seqPopup.index = Mathf.Clamp(index, 0, _options.Sequences.Length - 1);
+            StartSequence();
+        }
+
+        // コマの読み込み行(Anim2D から取り込む)。状態の SerializedProperty に結びつく。
+        internal VisualElement BuildAnimImportRowFor(SerializedProperty stateProp) => BuildAnimImportRow(stateProp);
+
+        internal bool CanAudition(string propertyName)
+        {
+            if (_skin == null)
+            {
+                return false;
+            }
+
+            foreach (var field in _options.SeFields)
+            {
+                if (field.PropertyName == propertyName)
+                {
+                    var id = field.Get(_skin);
+                    return id.IsValid && FindData<SeData>(id.Value) != null;
+                }
+            }
+
+            return false;
+        }
+
+        internal bool IsAuditioning(string propertyName)
+            => _audio != null && _audio.IsInitialized && _audio.AudioManager.IsPlaying(_seHandle) && _sePropertyName == propertyName;
+
+        // SE 欄の右の「▶」(試聴)と同じ。
+        internal void AuditionSe(string propertyName)
+        {
+            if (_skin == null)
+            {
+                return;
+            }
+
+            foreach (var field in _options.SeFields)
+            {
+                if (field.PropertyName == propertyName)
+                {
+                    PlaySe(field.Get(_skin), propertyName);
+                    return;
+                }
+            }
+        }
+
+        internal void StopAudition() => StopSe();
 
         // ── 状態ごとの箱 ──
 
@@ -1339,6 +1470,18 @@ namespace DDrive.Editor.Ui
                 if (w.Status.text != status)
                 {
                     w.Status.text = status;
+                }
+            }
+
+            if (_chkPause != null)
+            {
+                _chkPause.SetEnabled(playing && _seqIndex < 0);
+                _chkStop.SetEnabled(playing || _seqIndex >= 0);
+                SetText(_chkPause, playing && paused ? "▶ 再開" : "⏸ 一時停止");
+                var status = !playing ? string.Empty : paused ? $"⏸ {_tweenState} 一時停止" : $"● {_tweenState} 再生中";
+                if (_chkStatus.text != status)
+                {
+                    _chkStatus.text = status;
                 }
             }
 

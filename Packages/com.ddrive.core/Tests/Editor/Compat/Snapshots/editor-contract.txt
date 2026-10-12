@@ -51,11 +51,14 @@ DDrive.Runtime.Prefab.PrefabData -> DDrive.Editor.PrefabTool.PrefabEditor "Prefa
 DDrive.Runtime.Prefab.PrefabData -> DDrive.Editor.PrefabTool.PrefabEditorWindow "(旧) Prefab Editor で開く" order=100
 DDrive.Runtime.Presentation.PresentationData -> DDrive.Editor.Presentation.PresentationEditor "Presentation Editor で開く" order=0
 DDrive.Runtime.Presentation.PresentationData -> DDrive.Editor.Presentation.PresentationEditorWindow "(旧) Presentation Editor で開く" order=100
-DDrive.Runtime.Ui.ButtonSkinData -> DDrive.Editor.Ui.ButtonSkinEditorWindow "Skin Editor で開く" order=0
+DDrive.Runtime.Ui.ButtonSkinData -> DDrive.Editor.Ui.ButtonSkinEditor "Skin Editor で開く" order=0
+DDrive.Runtime.Ui.ButtonSkinData -> DDrive.Editor.Ui.ButtonSkinEditorWindow "(旧) Skin Editor で開く" order=100
 DDrive.Runtime.Ui.CanvasData -> DDrive.Editor.CanvasTool.CanvasEditor "Canvas Editor で開く" order=0
 DDrive.Runtime.Ui.CanvasData -> DDrive.Editor.CanvasTool.CanvasEditorWindow "(旧) Canvas Editor で開く" order=100
-DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderEditorWindow "Slider Editor で開く" order=5
-DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderSkinEditorWindow "Skin Editor で開く" order=0
+DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderEditor "Slider Editor で開く" order=5
+DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderEditorWindow "(旧) Slider Editor で開く" order=105
+DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderSkinEditor "Skin Editor で開く" order=0
+DDrive.Runtime.Ui.SliderSkinData -> DDrive.Editor.Ui.SliderSkinEditorWindow "(旧) Skin Editor で開く" order=100
 DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditor "UI Tween Editor で開く" order=0
 DDrive.Runtime.Ui.UiTweenData -> DDrive.Editor.Ui.UiTweenEditorWindow "(旧) UI Tween Editor で開く" order=100
 DDrive.Runtime.Vfx.VfxData -> DDrive.Editor.Vfx.VfxEditor "VFX Editor で開く" order=0

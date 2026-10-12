@@ -19,7 +19,7 @@ namespace DDrive.Editor.Ui
     //  - 応答曲線グラフ・ノッチ可視化バーは静的な IMGUI 描画(グラフ/ダイアグラム)なので許容する。
     //  - 実際に動く確認(追従・ドラッグ・状態切替)は全て「確認用シーンに配置」した DontSave の実 UiSlider を
     //    EditorApplication.update から Advance(dt) で駆動し、Scene/Game ビュー側で見せる(ADR-4)。
-    [DDrive.Editor.Inspector.DataEditor(typeof(SliderSkinData), "Slider Editor で開く", Order = 5)]
+    [DDrive.Editor.Inspector.DataEditor(typeof(SliderSkinData), "(旧) Slider Editor で開く", Order = 105)]
     public sealed class SliderEditorWindow : EditorWindow
     {
         private const string PreviewRootName = "[D-Drive] Slider Editor Preview";
@@ -65,12 +65,12 @@ namespace DDrive.Editor.Ui
 
         private double _lastEditorTime;
 
-        [MenuItem(DDriveMenu.Editors + "Slider")]
+        [MenuItem(DDriveMenu.Archive + "Slider")]
         public static void OpenFromMenu() => Open(Selection.activeGameObject != null ? Selection.activeGameObject.GetComponent<UiSlider>() : null);
 
         public static void Open(UiSlider target)
         {
-            var window = GetWindow<SliderEditorWindow>("Slider Editor");
+            var window = GetWindow<SliderEditorWindow>("(旧) Slider Editor");
             window.minSize = new Vector2(420, 480);
             if (target != null)
             {
@@ -82,7 +82,7 @@ namespace DDrive.Editor.Ui
         // そのスキンを当てたサンプルスライダーを確認用シーンに配置してから開く。
         public static void Open(SliderSkinData skin)
         {
-            var window = GetWindow<SliderEditorWindow>("Slider Editor");
+            var window = GetWindow<SliderEditorWindow>("(旧) Slider Editor");
             window.minSize = new Vector2(420, 480);
             // 暗黙の配置なのでシーンは切り替えない(保存ダイアログを出さない)。
             window.PlaceSampleInScene(skin, PreviewPlaceMode.CurrentScene);

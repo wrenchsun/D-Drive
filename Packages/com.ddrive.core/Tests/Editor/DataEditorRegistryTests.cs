@@ -98,6 +98,12 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(HapticsData), typeof(CameraFxEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(DDrive.Runtime.Ui.UiTweenData), typeof(PresentationEditorWindow).Assembly.GetType("DDrive.Editor.Ui.UiTweenEditor", true));
             AssertWindow(typeof(DDrive.Runtime.Ui.UiTweenData), typeof(DDrive.Editor.Ui.UiTweenEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(DDrive.Runtime.Ui.ButtonSkinData), typeof(PresentationEditorWindow).Assembly.GetType("DDrive.Editor.Ui.ButtonSkinEditor", true));
+            AssertWindow(typeof(DDrive.Runtime.Ui.ButtonSkinData), typeof(DDrive.Editor.Ui.ButtonSkinEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(DDrive.Runtime.Ui.SliderSkinData), typeof(PresentationEditorWindow).Assembly.GetType("DDrive.Editor.Ui.SliderSkinEditor", true));
+            AssertWindow(typeof(DDrive.Runtime.Ui.SliderSkinData), typeof(PresentationEditorWindow).Assembly.GetType("DDrive.Editor.Ui.SliderEditor", true)); // Order 5
+            AssertWindow(typeof(DDrive.Runtime.Ui.SliderSkinData), typeof(DDrive.Editor.Ui.SliderSkinEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(DDrive.Runtime.Ui.SliderSkinData), typeof(DDrive.Editor.Ui.SliderEditorWindow)); // (旧) Order 105
             AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow).Assembly.GetType("DDrive.Editor.Presentation.PresentationEditor", true));
             AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow)); // (旧) Order 100
         }

@@ -230,6 +230,10 @@ public struct SliderWire
 > - `Assets/DDrive/Editor/Ui/SliderEditorWindow.cs`（`Tools/D-Drive/Editors/Slider`、`[DataEditor(typeof(SliderSkinData), "Slider Editor で開く")]`）: 対象はシーン / プレハブステージ上の `UiSlider`（「確認用シーンにサンプルを配置」で DontSave のサンプルを作れる）。応答曲線グラフとノッチ可視化は**静的描画**（IMGUIContainer）、実操作 / 追従比較（2 体目を配置）/ Skin プレビュー（全状態を並べる）は**シーン上の実 UiSlider を駆動**して Game ビューで確認する（ウィンドウ内での再生描画はしない、[09] §2）。`SliderPresets`（音量 / 感度 / HP バー / スタミナ / キャラメイク）を Slider Skin エディタと共用、`SliderEditorMath` に曲線サンプリング・ノッチ位置の純関数。
 > - 自動テスト: `SliderEditorTests`(EditMode 237 / PlayMode 466 green、Unity 再起動後に確認)。人による確認手順は [23_manual_verification_2026-09-11.md](verification/23_manual_verification_2026-09-11.md)
 
+> **2026-10-13 追記（UX-13、新デザインの Slider Skin Editor / Slider Editor）**: データ構造・`UiSlider`・Validator は変えていない（Editor のみ）。専用エディターを **新 `SliderSkinEditor`**（`Editor/Ui/SliderSkinEditor.cs` + `.Preview.cs` + `SkinStateRows.cs` + `SkinFieldGuides.cs`、`UxEditorWindow<SliderSkinData>`）と **新 `SliderEditor`**（`Editor/Ui/SliderEditor.cs` + `.Preview.cs`。対象が Data ではなく UiSlider なので、`UxTheme` を当てた独立ウィンドウ）に置き換えた。旧 `SliderSkinEditorWindow` / `SliderEditorWindow` は `Tools > D-Drive > Archive > Slider Skin` / `Slider`・`(旧) Skin Editor で開く`（Order 100）/ `(旧) Slider Editor で開く`（Order 105）で残す（バグ修正のみ）。
+> - **Slider Skin Editor**: 動きの雛形（音量 / 感度 / HPバー / スタミナ / キャラメイクの 5 種ボタン。確認用スライダーに `SliderPresets.Apply` で当てる。Skin には保存しない。Undo 1 回）/ 状態 6 + パーツ 4（Track / Fill / Handle / Delay Fill）を **1 行ずつ**（パーツは ▶ 無し）/ パーツと操作 / 音と触覚（SE 5 つに ▶ ■・Haptic Id）/ 押せる範囲（つまみの青い枠を含む）/ 確認する（確認用シーンに実 `UiSlider`・動かしてみる〔◀ ▶・ドラッグ 0 → 1 / 1 → 0・値スライダー・イベント → SE〕・状態遷移 4 種・当たり判定を表示）。
+> - **Slider Editor**: 応答曲線（Painter2D の静的な図 + Response の欄）/ 値の範囲・刻み・ノッチ（Min / Max / Step / Whole Numbers / Notches / Snap Threshold の欄 + ノッチ帯 + SceneView の同じ帯）/ 実操作（◀ ▶・微調整・ドラッグ模擬〔サンプルだけ〕・イベントログ）/ 追従比較 / Skin プレビュー（6 状態）/ 雛形 5 種 / 検証。実物は駆動しない方針は旧と同じ。実装メモ・機能対応表 = [1010](1010_editor_ux_migration.md) §5 UX-13。
+
 ## B-7. Validation
 
 | 検査 | 重度 |
