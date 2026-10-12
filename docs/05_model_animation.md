@@ -386,3 +386,14 @@ A-3 の Spawn / Despawn に次の挙動を追加した（追加のみ。MINOR）
 - **作成は「スプライトから作成」ウィザード**（`Anim2DCreateWizard`、ページ送り: 雛形〔均等に並んだシート / バラバラに並んだシート / 切ってある画像 / 4 方向 / 8 方向〕→ 素材 → 名前と動き → 確認と登録）。生成ロジック（スライス → 命名 → Clip 生成 → BlendTree 登録 → Anim2DData 自動生成）は C-2 の移植をそのまま `Anim2DCreateService` に移した（`Anim2DCreateRequest` を渡す。`Name` / `State` が空・素材が無いと作らない）。`Anim2DEditor` の空状態の「＋ 新規作成」とヒーローの「＋ スプライトから作成」から開く。
 - **Inspector の並び**: Anim2DData には 新 `Anim2DEditor`（Order 0）→ 旧 `Anim2DEditorWindow`（Order 100）→ 基底 AnimData の旧 `AnimEditorWindow`（Order 100）が並ぶ。基底の新 `AnimEditor` は `DataEditorAttribute.ExceptFor = typeof(Anim2DData)` で引き継がない。
 - 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/Anim2DSample.cs`（24 コマ・8 方向・イベント 12 件）。
+
+## 追記（2026-10-13、UX-9 = ModelEditor の新デザイン）
+
+> 専用エディターの新デザイン移行（[1010](1010_editor_ux_migration.md)）の Model。**データ構造・Manager・配置の挙動は変えていない**（Editor のみ）。
+
+- **新エディター `ModelEditor`**（`Editor/Model/ModelEditor*.cs`、`UxEditorWindow<ModelData>`、メニュー `Tools > D-Drive > Editors > Model`、`[DataEditor]` Order 0）。カード = 見た目（Prefab + モデルの情報）/ Material スロット / アニメーションと Avatar / 描画 / 確認する / 管理情報。旧 `ModelEditorWindow` は `Archive > Model Editor`・`(旧)` Order 100（バグ修正のみ）。
+- **Material スロットは 1 スロット = 1 行**（D-10。`CanvasItemList`: 番号・Renderer の種類のチップ・Renderer 名 [スロット番号]・MaterialData の選び箱・開く・↺。絞り込み〔検索・割当済み / 未割当・Skinned / Mesh / ほか / 見つからない〕と件数、20 行超は ListView）。「開く」は新 `MaterialEditor`、↺ は Prefab の Renderer が使う Material から割り当て直す（`ModelSlotBinder.FindMaterialData`）。「Slot 自動収集」「元ファイル再読み込み」「配置中のモデルに反映」は旧と同じ `ModelSlotBinder` / `ModelsManager.SetMaterial`。
+- **Default Animation** は通常の ID 欄 + 「Anim Editor で開く」（新 `AnimEditor` / Anim2D は `Anim2DEditor`。`DataEditorRegistry.OpenDefault`）。固定バーの ▶ = 配置して DefaultAnimation を流す（配置済みなら流し直し）。未設定のときは理由を出す。
+- **情報行（読み取り専用）**: モデルの情報（Renderer 数・Material スロット数・BlendShape 数〔FC-2 の既定重みへ戻る旨〕・Animator・Prefab 上の `IModelInstanceListener`〔FC-12〕）、Avatar の情報（Data と Animator の Avatar の見比べ・Cutscene の Humanoid 判定。Animator 側にだけあるときは「Animator の Avatar を入れる」）。
+- **確認する**: 確認用シーン / 今のシーンへの配置・撤去・Prefab で開く・ターンテーブル・並べて確認（最大 4 体、2m 間隔。`SceneAnimPreviewDriver.SpawnExtraModel`）。旧の「ツールバーの全ボタン・トグル・欄」は全行あり（対応表 = [1010](1010_editor_ux_migration.md) §5 UX-9）。
+- 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/ModelSample.cs`（ユニティちゃん = スロット 24 行〔未割当 3・Renderer が見つからない 1〕・BlendShape 31 本・Default Animation・Humanoid Avatar）。

@@ -419,6 +419,28 @@ namespace DDrive.Editor.Ux
             return pf;
         }
 
+        // 構造体・配列の欄の展開状態(SerializedProperty.isExpanded。PropertyField の Foldout の初期状態になる)を、子も含めて閉じておく。
+        // 組み終えたあとに Foldout を閉じる方法(schedule)だけだと、バインドが遅れたとき開いたまま見えることがあるため、行を作る前に閉じる。
+        public static void Collapse(SerializedObject so, string field)
+        {
+            var prop = so?.FindProperty(field);
+            if (prop == null)
+            {
+                return;
+            }
+
+            var it = prop.Copy();
+            var end = prop.GetEndProperty();
+            it.isExpanded = false;
+            while (it.Next(true) && !SerializedProperty.EqualContents(it, end))
+            {
+                if (it.hasVisibleChildren)
+                {
+                    it.isExpanded = false;
+                }
+            }
+        }
+
         // 入れ子・配列の欄は入力を縦に積む(stacked)。
         public static bool IsCompound(SerializedObject so, string field)
         {
