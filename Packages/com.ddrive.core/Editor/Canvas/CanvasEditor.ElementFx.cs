@@ -547,7 +547,7 @@ namespace DDrive.Editor.CanvasTool
                 }
 
                 var elementLabel = string.IsNullOrEmpty(elementPath) ? RootElementLabel : elementPath;
-                UiTweenEditorWindow.Open(tween, collectRoot, elementTarget, elementLabel);
+                UiTweenEditor.Open(tween, collectRoot, elementTarget, elementLabel);
             })
             { text = "✎ Tween Editor", tooltip = "UI Tween Editor で開く(この要素を自動でプレビュー対象にして Track を編集・確認)。直接指定(UiTweenData)があるときだけ押せる" };
             edit.AddToClassList("ux-btn");

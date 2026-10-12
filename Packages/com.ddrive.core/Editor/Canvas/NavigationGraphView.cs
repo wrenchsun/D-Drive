@@ -289,7 +289,7 @@ namespace DDrive.Editor.CanvasTool
                 tooltip = "ドラッグで移動 / ダブルクリックで Hierarchy を Ping",
             };
 
-            var label = new Label(string.IsNullOrEmpty(node.DisplayName) ? DDrive.Editor.Ui.UiTweenEditorWindow.RootElementLabel : node.DisplayName) // 共有定数(レビュー対応 2026-09-14)
+            var label = new Label(string.IsNullOrEmpty(node.DisplayName) ? DDrive.Editor.Ui.UiTweenEditor.RootElementLabel : node.DisplayName) // 共有定数(レビュー対応 2026-09-14)
             {
                 style = { fontSize = 10, unityTextAlign = TextAnchor.MiddleCenter, whiteSpace = WhiteSpace.Normal },
                 pickingMode = PickingMode.Ignore,

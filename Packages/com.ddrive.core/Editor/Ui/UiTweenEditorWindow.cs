@@ -19,7 +19,7 @@ namespace DDrive.Editor.Ui
     // ハンドルは「静的な編集 UI」であり禁止対象ではない(動く Tween プレビュー自体は、「収集元」から
     // 実要素を選ぶか「確認用シーンに配置」が出す DontSave の仮画像を対象にして、「▶ 再生」が実
     // UiTweenManager を EditorApplication.update から駆動して見せる。ADR-4)。
-    [DDrive.Editor.Inspector.DataEditor(typeof(UiTweenData), "UI Tween Editor で開く")]
+    [DDrive.Editor.Inspector.DataEditor(typeof(UiTweenData), "(旧) UI Tween Editor で開く", Order = 100)]
     public sealed class UiTweenEditorWindow : EditorWindow
     {
         // エディタ固有の名前(2026-09-14。以前は Button Skin / Slider Skin と共有していて、互いのプレビューを消していた)。
@@ -85,12 +85,12 @@ namespace DDrive.Editor.Ui
         private static readonly float[] CurveRawBuffer = new float[CurvePreviewSamples];
         private static readonly Vector3[] CurvePointBuffer = new Vector3[CurvePreviewSamples];
 
-        [MenuItem(DDriveMenu.Editors + "UI Tween")]
+        [MenuItem(DDriveMenu.Archive + "UI Tween")]
         public static void OpenFromMenu() => Open(Selection.activeObject as UiTweenData);
 
         public static void Open(UiTweenData target)
         {
-            var window = GetWindow<UiTweenEditorWindow>("UI Tween Editor");
+            var window = GetWindow<UiTweenEditorWindow>("(旧) UI Tween Editor");
             window.minSize = new Vector2(380, 360);
             if (target != null)
             {
@@ -103,7 +103,7 @@ namespace DDrive.Editor.Ui
         // assignedElement があればそれを最初からプレビュー対象として選択状態にする。
         public static void Open(UiTweenData target, GameObject collectRoot, RectTransform assignedElement, string assignedElementLabel)
         {
-            var window = GetWindow<UiTweenEditorWindow>("UI Tween Editor");
+            var window = GetWindow<UiTweenEditorWindow>("(旧) UI Tween Editor");
             window.minSize = new Vector2(380, 360);
             if (target != null)
             {

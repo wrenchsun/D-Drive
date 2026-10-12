@@ -76,12 +76,12 @@ namespace DDrive.Editor.Ui
         // メニュー以外からの入口を Open() に切り出した。source を渡すと「独自プリセットとして登録」の
         // 「元になる UiTweenData」を埋めておく(いま編集中の Tween をそのままプリセット化する導線)。
         // minSize は [09] §7.1(横 500px 下限)に合わせて 520 → 500 にした。
-        [MenuItem(DDriveMenu.Editors + "UI Tween · Preset Gallery")]
+        [MenuItem(DDriveMenu.Archive + "UI Tween · Preset Gallery")]
         public static void OpenFromMenu() => Open(Selection.activeObject as UiTweenData);
 
         public static UiPresetGalleryWindow Open(UiTweenData source = null)
         {
-            var window = GetWindow<UiPresetGalleryWindow>("Preset Gallery");
+            var window = GetWindow<UiPresetGalleryWindow>("(旧) Preset Gallery");
             window.minSize = new Vector2(500, 480);
 
             if (source != null)

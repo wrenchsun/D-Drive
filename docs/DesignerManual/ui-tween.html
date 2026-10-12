@@ -10,82 +10,112 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › UI の動き(UI Tween)・プリセットギャラリー・要素演出(ElementFx)</nav>
 
 <h1>UI の動き(UI Tween)・プリセットギャラリー・要素演出(ElementFx)</h1>
-<p class="lastupdate">最終更新日: 2026-09-17</p>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
 <p>UI の「出る・消える・ふわふわ揺れる・押したら跳ねる」といった動きを、プログラムを書かずに付けるための 3 つの道具です。</p>
 <ul>
-<li><strong>プリセットギャラリー</strong>: 組み込みの 59 種類の定番演出（出現・常時・消滅・強調）をカードで選び、Canvas の要素に割り当てる窓口。<strong>まずはここから</strong></li>
-<li><strong>UI Tween Editor</strong>: プリセットで足りない凝った動きを、自分でデータ（UI Tween）として作るウィンドウ。Tween（トゥイーン）= 「ある値からある値まで、決めた形で何秒かけて変える」動きのこと</li>
+<li><strong>プリセットギャラリー</strong>: 組み込みの 59 種類の定番演出（出現・常時・消滅・強調）をカードで選び、お気に入りに入れ、シーン上で動かし、Canvas の要素に割り当てる窓口。<strong>まずはここから</strong></li>
+<li><strong>UI Tween Editor</strong>: プリセットで足りない凝った動きを、自分でデータ（UI Tween）として作るウィンドウ。トラック 1 本 = 1 行で、時間バーをドラッグして開始と長さを決め、シーン上の実要素で動かして確かめます。Tween（トゥイーン）= 「ある値からある値まで、決めた形で何秒かけて変える」動きのこと</li>
 <li><strong>要素演出（ElementFx）</strong>: Canvas を開いたとき（Appear）・表示中（Idle）・閉じるとき（Disappear）に、要素ごとにどの動きを使うかの割り当て</li>
 </ul>
 <div class="tip">ボタンを押した瞬間の演出は <a href="ui-skin.html">Skin</a> の Enter Tween / Enter Preset に指します。このページの演出は「画面（Canvas）の開閉と表示中」のものです。</div>
 
-<h2>UI Tween Editor</h2>
+<h2 id="editor">UI Tween Editor</h2>
 <h3>開き方</h3>
 <ol>
 <li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>UiTween</strong> を選んで作る（接頭辞 <code>UITWEEN</code>、<code>UiTween</code> フォルダに置かれます）</li>
 <li>Project で UI Tween を選び、Inspector の一番上の「<strong>▶ UI Tween Editor で開く</strong>」</li>
 <li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween</code></li>
+<li><a href="canvas-editor.html">Canvas Editor</a> の ElementFx 行の「✎ Tween Editor」、<a href="ui-skin.html">Skin</a> の Enter Tween の編集ボタンからも開きます。そのときは、その要素が自動で「確認する」の対象に選ばれた状態になります</li>
 </ol>
+<p>設定は、やりたいことごとの「カード」に並びます。上の「<strong>かんたん / 標準 / 詳細</strong>」で表示する欄の量を切り替え（かんたん = 雛形とトラックの一覧だけ）、右上の検索で設定を探せます（トラックの中身〔項目名・イージング・ループなど〕も検索に一致します）。ウィンドウ下の固定バーに <strong>▶ 再生 / ■ 停止 / リピート / 速度 / 変更 N 件 / 自動保存 / 保存</strong> があります。</p>
+<figure>
+<img src="images/ui-tween-editor-window.png" alt="UI Tween Editor ウィンドウ（トラックの一覧）">
+<figcaption>UI Tween Editor。トラック 1 本 = 1 行。バーのドラッグで開始と長さ、⚙ ですべての欄</figcaption>
+</figure>
 
 <h3>はじめの一歩（滑り込みながらフェードイン）</h3>
 <ol>
-<li>UI Tween を新規作成して UI Tween Editor で開く</li>
-<li>「確認用シーンに配置」→ 開いているシーンに <code>[D-Drive] UI Tween Preview</code> という Canvas と 200×80 の画像が置かれます（シーンには保存されず、エディタを閉じたとき・別のシーンに移ったときに自動で片付きます）</li>
-<li>「プリセット / カタログ」で <strong>SlideFadeInLeft</strong> を選び「プリセットから Tracks を生成」→ カーブ一覧に位置と透明度の 2 行が並びます</li>
-<li>「▶ 再生」→ Game / Scene ビューで画像が左から滑り込みながら現れます</li>
-<li>カーブ一覧の行をクリックして「選択中 Track」で秒数（Motion の Time）や移動量（From Value）を直し、もう一度 ▶ 再生</li>
+<li>UI Tween を新規作成して UI Tween Editor で開く（ヒーローの「＋ 新規」でも作れます）</li>
+<li>「確認する」カードの「確認用シーンに配置」→ 開いているシーンに <code>[D-Drive] UI Tween Preview</code> という Canvas と 200×80 の画像が置かれます（シーンには保存されず、エディタを閉じたとき・別のシーンに移ったときに自動で片付きます）</li>
+<li>「雛形から始める」で <strong>SlideFadeInLeft</strong> を選び「置き換え」→ トラックの一覧に位置と透明度の 2 行が並びます</li>
+<li>固定バーの「▶ 再生」→ Game / Scene ビューで画像が左から滑り込みながら現れます</li>
+<li>行のバーをドラッグして開始や長さを変え、⚙ で秒数（Motion の Time）や移動量（開始値）を直して、もう一度 ▶ 再生</li>
 <li>気に入ったら、<a href="canvas-editor.html">Canvas Editor</a> かプリセットギャラリーで要素の Appear に割り当てます</li>
 </ol>
-<!-- screenshot: 36-#49 -->
+
+<h3 id="presets">雛形から始める</h3>
 <figure>
-<img src="images/ui-tween-editor-window.png" alt="UI Tween Editor ウィンドウ全体">
-<figcaption>UI Tween Editor。カーブ一覧・選択中 Track の設定・再生</figcaption>
+<img src="images/ui-tween-editor-presets.png" alt="UI Tween Editor の雛形とトラックの一覧">
+<figcaption>「雛形から始める」。タブ・検索・ボタンから 1 つ選んで「置き換え」か「＋ 追加」</figcaption>
 </figure>
-
-
-<div class="tip">
-<strong>実際に動かしたいボタンやパネルで試したいときは、無関係な仮画像ではなく実物を選べます。</strong> 下の「プレビュー対象」を参照。<a href="canvas-editor.html">Canvas Editor</a> の ElementFx 行にある「▶」から開いた場合は、その要素が自動で選ばれた状態で開きます。
-</div>
-
-<h3>プレビュー対象</h3>
-<p>「確認用シーンに配置」の仮画像ではなく、シーン上にある実際の要素（Canvas のパネルやボタンなど）を対象にして確認できます。</p>
+<p>出現・消滅・常時・強調の定番プリセット（組み込み 59 種）と、プロジェクトのカタログに登録した演出から選んで、Tracks に入れます。数値はたたき台なので、あとでトラックの行で調整してください。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>収集元</td><td>要素を集めたいシーン上のオブジェクト（例: Canvas Editor の「確認用シーン」で出た <code>[D-Drive] Canvas Preview</code> の中身）。<a href="canvas-editor.html">Canvas Editor</a> の ElementFx 行の「▶」から開いたときは自動で入ります</td></tr>
-<tr><td>要素を自動収集</td><td>収集元の下にある RectTransform をすべて一覧にします（ルート自身も「(ルート)」として候補に入ります）。パスの表記は CanvasData の ElementPath と同じ形式です</td></tr>
-<tr><td>要素</td><td>収集した中から実際にプレビューしたいものを選びます。選ぶと即座にプレビュー対象になります（「プレビュー対象: パス名」と表示）</td></tr>
+<tr><td>タブ / 検索</td><td>出現 / 常時 / 消滅 / 強調 / カタログ / <strong>★ お気に入り</strong>（全タブからお気に入りだけを集める）。検索欄はプリセット名の部分一致。お気に入りはギャラリーと共通です</td></tr>
+<tr><td>プリセットのボタン</td><td>押すと選択（青）。★ が付いているものはお気に入り。カタログのものは、マウスを乗せると Track の本数が出ます</td></tr>
+<tr><td>置き換え</td><td><strong>いまの Tracks を丸ごと</strong>、選んだプリセットに入れ替えます（Ctrl+Z 可）。カタログ側の Tween に Tracks が無いと「カタログの Tween に Tracks がありません」</td></tr>
+<tr><td>＋ 追加</td><td>いまの Tracks を残したまま、選んだプリセットの Track を<strong>末尾に足します</strong>。スライドイン + フェードインのように、複数のプリセットや手動のトラックを組み合わせたいときに使います。1 つの Tween の Track 上限（8 本）に達すると「Track が上限(8 本)に達しているため追加できません」</td></tr>
+<tr><td>☆ お気に入り</td><td>選んだプリセットをお気に入りに入れる / 外す</td></tr>
+<tr><td>ギャラリーを開く</td><td>プリセットのカード一覧（曲線の形・シーン上での再生・Canvas の要素への適用）を別ウィンドウで開きます。いま編集中の Tween はギャラリーの「編集中の Tween」に入ります</td></tr>
+<tr><td>プリセットとして保存</td><td>いまの Tween を、選んだカタログに名前付きで登録します（同名なら上書き）。登録先カタログ / 元になる UiTweenData / 表示名 / カテゴリ（任意）を入れて「登録する」。登録するとカタログのタブと「雛形」に出ます。未入力だと「カタログ・UiTweenData・表示名を指定してください」</td></tr>
 </table>
-<div class="tip">収集元にドラッグできるのはシーン上のオブジェクトだけです（Prefab アセットは不可）。「▶ 再生」やスプラインのハンドル編集は、ここで選んだ実要素・「確認用シーンに配置」の仮画像のどちらに対しても同じように動きます。「撤去」は自分で置いた仮画像だけを消し、収集・自動割り当てで得た実要素には触れません。実要素で再生しても、止めたとき・再生し終わったとき・対象を切り替えたとき・ウィンドウを閉じたときに<strong>位置・大きさ・拡大率・回転・透明度・色・Fill の量が再生前に戻ります</strong>（再生のために自動で付いた CanvasGroup も外れます）。シーンに変更は残らないので Undo も不要です（2026-09-14）。</div>
+<div class="tip">対象の要素が決まっていないときは、仮の 200×80 の大きさを基準に移動量などが計算されます。実物の大きさに合わせたいときは、先に「確認する」で実要素を選んでから置き換え / 追加してください。</div>
 
-<h3>画面の説明</h3>
+<h3 id="tracks">トラック</h3>
+<p>同時に動く項目の一覧です。<strong>1 行 = 1 トラック</strong>で、1 つの Tween に最大 8 本まで（9 本目以降は再生されず、行と欄の下に警告が出ます）。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>対象 UiTweenData</td><td>編集する UI Tween</td></tr>
-<tr><td>プレビュー対象(収集元 / 要素を自動収集 / 要素)</td><td>上の「プレビュー対象」を参照</td></tr>
-<tr><td>プリセット / カタログ + プリセットから Tracks を生成</td><td>組み込みプリセット全種と、プロジェクトのカタログに登録した演出（「[Catalog] 名前」）から選んで Tracks を作ります。<strong>いまの Tracks は丸ごと上書き</strong>（Ctrl+Z 可）。カタログ側の Tween に Tracks が無いと「カタログの Tween に Tracks がありません」</td></tr>
-<tr><td>＋ プリセットを追加</td><td>上と違い<strong>いまの Tracks を残したまま</strong>、選んだプリセットの Track を末尾に足します。スライドイン + フェードインのように、複数のプリセットや手動 Track を組み合わせたいときに使います。1 つの Tween の Track 上限（8 本）に達すると「Track が上限(8 本)に達しているため追加できません」</td></tr>
-<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] UI Tween Preview</code> Canvas と 200×80 の画像を置く / 消す（実要素で試したいときは上の「プレビュー対象」を使う）</td></tr>
-<tr><td>▶ 再生 / ■ 停止</td><td>実際の仕組み（UiTweenManager）で本当に動かします。プレビュー対象が無いと「プレビュー対象がありません(…)」。再生中は「再生中」、終わると「完了」。再生中にもう一度「▶ 再生」を押すと、前の再生を止めて最初からやり直します</td></tr>
-<tr><td>カーブ一覧</td><td>Track 1 本につき 1 行。「[0] Scale / Ease:OutBack / 0.3s / Once / delay 0s」のように「何を / どんな形で / 何秒 / 繰り返し / 遅れ」が読めます。右に曲線の小さな絵。クリックで選択。無ければ「Tracks がありません(…)」</td></tr>
-<tr><td>選択中 Track [n] / － 選択中の Track を削除</td><td>選んだ Track の全項目（下の「設定項目」）と、その Track だけを削除するボタン</td></tr>
-<tr><td>＋点を追加 / −最後の点を削除</td><td>Property = PathMove のときだけ出ます。このウィンドウがフォーカス中は、SceneView 上の P0 / P1 … のハンドルをドラッグして経路を描けます（2 点以上で水色の線。Ctrl+Z 可）</td></tr>
-<!-- screenshot: 36-#51 -->
-<tr><td>描画権ラベル</td><td>いまどのウィンドウが SceneView に描いているか。他の D-Drive ウィンドウと同時に開いていると、最後にクリックしたウィンドウだけがハンドルを出します</td></tr>
-<tr><td>Inspector(全フィールド)</td><td>対象が無いと「UiTweenData を選択してください」</td></tr>
-<tr><td>Validation</td><td>下の「よくある警告」。無ければ「問題なし」</td></tr>
+<tr><td>＋ トラック</td><td>動かす項目（位置 / 拡縮 / 回転 / 透明度 / 色 / サイズ / 塗り量 / 経路移動 / 回転 X・Y / 色相）を選んで 1 本足します。足したトラックの ⚙ が開きます</td></tr>
+<tr><td>絞り込み・件数</td><td>一覧の上に、検索・すべて / ループ / 1 回だけ・種類（位置 / 拡縮・サイズ / 回転 / 透明度 / 色 / 塗り）のチップ、「14 トラック中 ループ 3」のような件数。20 行を超えると一覧は仮想化されたリスト（ListView）になります</td></tr>
+<tr><td>1 行目</td><td>番号 → 種類のチップ → 項目名 → <strong>時間バー</strong> → ▶ ↺ ⚙ ×</td></tr>
+<tr><td>2 行目</td><td>「開始 → 終了 · 長さ · イージング · 遅れ · ループ」の要約（例: 「×0 → ×1 · 0.35 秒 · OutBack · 0.1 秒遅れ」）</td></tr>
+<tr><td>時間バー</td><td>バーの長さ = トラックの長さ、左の点線 = 開始の遅れ、バーの中の線 = イージングの形。<strong>バーをドラッグ</strong>すると開始（Delay）が、<strong>右端のつまみをドラッグ</strong>すると長さ（Motion の Time。「秒」で指定しているとき）が変わります（0.05 秒刻み、Shift で 0.25 秒刻み。ドラッグ 1 回 = Undo 1 回）。ループは 2 周目以降が薄く続き、無限ループは右端に ▶ が付きます。軸は全トラックで共通です</td></tr>
+<tr><td>▶</td><td>そのトラックだけを、「確認する」で選んだ要素で再生します</td></tr>
+<tr><td>↺</td><td>そのトラックを既定値に戻します（項目は残す。Ctrl+Z 可）</td></tr>
+<tr><td>⚙</td><td>その行だけを開いて、すべての欄を出します（下の表）</td></tr>
+<tr><td>×</td><td>そのトラックを削除します（Ctrl+Z 可）</td></tr>
 </table>
-
+<p>⚙ を開くと出る欄:</p>
+<table>
+<tr><th>欄</th><th>説明</th></tr>
+<tr><td>項目（Property）</td><td>動かすもの。変えると、開始値 / 終了値の型（位置は 2 つの数、拡縮は 3 つの数、色は色…）も合わせます</td></tr>
+<tr><td>動き（Motion）</td><td>形（イージング / ベジェ / カーブ）+ 秒数 + 繰り返し（下の「Motion の読み方」）</td></tr>
+<tr><td>開始の遅れ（Delay）</td><td>再生開始からこの秒数だけ遅らせて始める</td></tr>
+<tr><td>開始値の決め方（From）</td><td>Current = いまの値から / Absolute = 開始値そのまま / Relative = いまの値 + 開始値 / OffScreen = 画面外から（位置のみ）</td></tr>
+<tr><td>画面外の方向（OffScreen）</td><td>From = OffScreen のときだけ出ます（Left / Right / Top / Bottom）</td></tr>
+<tr><td>開始値 / 終了値</td><td>項目に合わせた入力欄（位置・サイズ = X と Y、拡縮 = X・Y・Z、回転・透明度・塗り・色相 = 数、色 = 色）。開始値は From が Absolute / Relative のときだけ、終了値は From が OffScreen でないとき（経路移動以外）だけ出ます</td></tr>
+<tr><td>経路（Path）</td><td>項目 = 経路移動のときだけ出ます。種類（スプラインの形）と制御点（要素のローカル座標）。「＋点を追加」「−最後の点を削除」。このウィンドウがフォーカス中は、SceneView 上の P0 / P1 … のハンドルをドラッグして経路を描けます（2 点以上で水色の線。Ctrl+Z 可）。ハンドルは「確認する」で選んだ要素が基準です</td></tr>
+<tr><td>⧉ 複製 / ↑ 上へ / ↓ 下へ</td><td>直後に同じトラックを足す / 並びを入れ替える（並びは見た目だけで、再生には影響しません）</td></tr>
+</table>
 <figure>
 <img src="images/ui-tween-pathmove-handles.png" alt="SceneView の PathMove 経路">
 <figcaption>PathMove の経路。点をドラッグして形を決める</figcaption>
 </figure>
 
+<h3 id="total">全体の長さ</h3>
+<p>0 = 自動（いちばん遅く終わるトラックまで）。手で入れると、最長トラックより短いときに警告が出ます。</p>
+
+<h3 id="check">確認する</h3>
+<p>シーン上の実際の要素（Canvas のパネルやボタンなど）か、確認用シーンの仮画像を対象にして、実際に動かして確かめます。固定バーの「▶ 再生」は Tween 全体を、トラックの「▶」はそのトラックだけを動かします。リピートにすると終わったら自動でもう一度、速度で再生の速さを変えられます。</p>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>収集元</td><td>要素を集めたいシーン上のオブジェクト（例: Canvas Editor の「確認用シーン」で出た <code>[D-Drive] Canvas Preview</code> の中身）。Canvas Editor の ElementFx 行の「✎ Tween Editor」から開いたときは自動で入ります</td></tr>
+<tr><td>要素を自動収集</td><td>収集元の下にある RectTransform をすべて一覧にします（ルート自身も「(ルート)」として候補に入ります。同名の兄弟は「Button #2」のように番号が付きます）。パスの表記は CanvasData の ElementPath と同じ形式です</td></tr>
+<tr><td>要素</td><td>収集した中から実際に動かしたいものを選びます。選ぶと即座に対象になります（「プレビュー対象: パス名」と表示）</td></tr>
+<tr><td>確認用シーンに配置 / 撤去</td><td><code>[D-Drive] UI Tween Preview</code> Canvas と 200×80 の画像を置く / 消す。右クリックで「このシーンに配置」「このシーンに本配置」も選べます。撤去は自分で置いた仮画像だけを消し、収集した実要素には触れません</td></tr>
+<tr><td>状態の表示</td><td>「再生中」「完了(再生前の状態に戻しました)」「プレビュー対象がありません(…)」など</td></tr>
+</table>
+<div class="tip">収集元にドラッグできるのはシーン上のオブジェクトだけです（Prefab アセットは不可。「Prefab アセットは再生対象にできません」）。実要素で再生しても、止めたとき・再生し終わったとき・対象を切り替えたとき・ウィンドウを閉じたときに<strong>位置・大きさ・拡大率・回転・透明度・色・Fill の量が再生前に戻ります</strong>（再生のために自動で付いた CanvasGroup も外れます）。シーンに変更は残らないので Undo も不要です。再生中にもう一度「▶ 再生」を押すと、前の再生を止めて最初からやり直します。</div>
+
+<h3 id="admin">管理情報</h3>
+<p>表示名・カテゴリ（一覧に出る名前と分類）、説明・タグ・アイコン・担当者・仕様書 URL・変更メモ、動作の取り決め（Flags）、きっかけで鳴らす・出す（イベント）。Id・版数・最終更新者・最終更新日時は読み取り専用です。保存は「保存」ボタン、Ctrl+S、または「自動保存」（編集して 1 秒後）。未保存のまま別の Data へ切り替える・閉じるときは確認が出ます。</p>
+
 <h3>設定項目</h3>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>Tracks</td><td>同時に走る Track の一覧（1 つの Tween に最大 8 本）。Track 1 本 = 「どのプロパティを・どんな形で・何秒で・どこからどこまで」</td></tr>
-<tr><td>Total Duration</td><td>全体の長さ。0 = 自動（いちばん遅く終わる Track に合わせる）。手で入れると、最長 Track とのズレを警告します</td></tr>
+<tr><td>Tracks</td><td>同時に走るトラックの一覧（1 つの Tween に最大 8 本）。トラック 1 本 = 「どのプロパティを・どんな形で・何秒で・どこからどこまで」</td></tr>
+<tr><td>Total Duration</td><td>全体の長さ。0 = 自動（いちばん遅く終わるトラックに合わせる）。手で入れると、最長トラックとのズレを警告します</td></tr>
 <tr><td>Track: Property</td><td>動かすもの。AnchoredPosition（位置）/ Scale（拡大率）/ Rotation（Z 回転）/ Alpha（透明度。CanvasGroup が無ければ自動で付く）/ Color（画像や文字の色）/ FillAmount（Image の Filled の量）/ SizeDelta（大きさ）/ PathMove（経路に沿って移動）/ RotationX・RotationY（縦 / 横のめくり）/ ColorHue（色相を虹色に巡回）</td></tr>
 <tr><td>Track: Motion</td><td>形 + 秒数 + 繰り返し（下の「Motion の読み方」）</td></tr>
 <tr><td>Track: Delay</td><td>再生開始からこの秒数だけ遅らせて始める</td></tr>
@@ -101,73 +131,86 @@
 <tr><td>Mode</td><td><strong>Constant</strong> = 動かない（即時）/ <strong>Parametric</strong> = 名前付きのイージングか自由なベジェ / <strong>Curve</strong> = AnimationCurve で自分で描く</td></tr>
 <tr><td>Parametric: Kind / Ease</td><td>Kind = NamedEase なら 31 種のイージング（Ease）から選ぶ。イージング = 「最初ゆっくり後で速く（In）」「最初速く後でゆっくり（Out）」「行き過ぎて戻る（Back）」「弾む（Bounce）」「ぷるんと震える（Elastic）」など<strong>動きの緩急の型</strong>。Kind = CustomBezier なら CSS と同じ 2 つの制御点で自由に</td></tr>
 <tr><td>Curve</td><td>Mode = Curve のときの自分で描いた形</td></tr>
-<tr><td>From / To</td><td>Tween では使いません（Track 側の From Value / To Value が実際の値）</td></tr>
-<tr><td>Time: Mode / Value</td><td>Duration = 何秒で終わるか / Speed = 基準の何倍速か / Rate = 1 秒に何周するか（回転ループなど）</td></tr>
+<tr><td>From / To</td><td>Tween では使いません（トラック側の開始値 / 終了値が実際の値）</td></tr>
+<tr><td>Time: Mode / Value</td><td>Duration = 何秒で終わるか / Speed = 基準の何倍速か / Rate = 1 秒に何周するか（回転ループなど）。時間バーの右端のつまみで長さを変えられるのは Duration のときだけです</td></tr>
 <tr><td>Time: Ignore Time Scale</td><td>ON でゲーム内のスロー・ポーズの影響を受けない</td></tr>
 <tr><td>Loop</td><td>Once = 1 回だけ / Loop = 頭から繰り返す / PingPong = 行って戻るを繰り返す</td></tr>
 <tr><td>Loop Count</td><td>繰り返す回数。0 = 無限（Idle 用）。2 なら 2 周で止まる</td></tr>
 </table>
-<div class="warn"><strong>PingPong の癖:</strong> Loop Count が<strong>偶数</strong>のときは From 側の姿勢で止まります。「揺れて元に戻る」動きを作るときは、<strong>From を静止した姿勢に</strong>してください。</div>
+<div class="warn"><strong>PingPong の癖:</strong> Loop Count が<strong>偶数</strong>のときは From 側の姿勢で止まります。「揺れて元に戻る」動きを作るときは、<strong>開始値を静止した姿勢に</strong>してください。</div>
 
 <h3>よくある警告</h3>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
-<tr><td>Tracks が空です(再生しても何も起こりません)</td><td>プリセットから生成するか、Track を追加</td></tr>
+<tr><td>Tracks が空です(再生しても何も起こりません)</td><td>「雛形から始める」か「＋ トラック」で足す</td></tr>
+<tr><td>Tracks が N 本あります。同時に再生されるのは 8 本までで、それ以降は無視されます</td><td>8 本以内にまとめる（9 本目以降の行にも印が出ます）</td></tr>
 <tr><td>Motion.Duration が 0 以下のまま Loop/PingPong に設定されています(進行しない無限ループ)</td><td>Time の Value を 0 より大きく</td></tr>
 <tr><td>Property=PathMove ですが Path の制御点が 2 点未満です</td><td>「＋点を追加」で 2 点以上に</td></tr>
 <tr><td>Property=FillAmount は Image を持つ対象でのみ反映されます</td><td>情報のみ。当てる要素に Image（Type = Filled）があるか確認</td></tr>
 <tr><td>Property=Color は Graphic(Image/Text 等)を持つ対象でのみ反映されます</td><td>情報のみ。当てる要素が画像か文字か確認</td></tr>
-<tr><td>TotalDuration が最長 Track の終了時刻より短く設定されています</td><td>Total Duration を 0（自動）に戻す</td></tr>
+<tr><td>TotalDuration が最長 Track の終了時刻より短く設定されています</td><td>全体の長さを 0（自動）に戻す</td></tr>
+<tr><td>プレビュー対象がありません(…)</td><td>「確認する」で要素を選ぶか「確認用シーンに配置」</td></tr>
 </table>
 
 <h3>よくある使い方</h3>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>プリセットを少しだけ変えたい</td><td>「プリセットから Tracks を生成」→ 秒数と移動量だけ直す</td></tr>
-<tr><td>滑り込みながらフェードイン</td><td>AnchoredPosition の Track と Alpha の Track を 2 本並べる（同時に走ります）</td></tr>
-<tr><td>跳ねてから戻る、など 1 つの型では書けない動き</td><td>Delay をずらした 2 本の Track</td></tr>
-<tr><td>アイテムがインベントリへ飛んでいく</td><td>Property = PathMove。SceneView のハンドルで経路を描く</td></tr>
+<tr><td>プリセットを少しだけ変えたい</td><td>「雛形から始める」→「置き換え」→ 該当トラックのバーをドラッグするか ⚙ で秒数と移動量だけ直す</td></tr>
+<tr><td>滑り込みながらフェードイン</td><td>位置のトラックと透明度のトラックを 2 本並べる（同時に走ります）。SlideFadeInLeft の雛形が最初からその形です</td></tr>
+<tr><td>少し遅れて 2 つめの動きを始めたい</td><td>2 本目のトラックのバーを右へドラッグして開始（Delay）をずらす</td></tr>
+<tr><td>跳ねてから戻る、など 1 つの型では書けない動き</td><td>Delay をずらした 2 本のトラック</td></tr>
+<tr><td>アイテムがインベントリへ飛んでいく</td><td>「＋ トラック」→ 経路移動。SceneView のハンドルで経路を描く</td></tr>
 <tr><td>常時ふわふわ（Idle 用）</td><td>Loop = PingPong、Loop Count = 0</td></tr>
-<tr><td>作った動きをチーム全員の選択肢に</td><td>プリセットギャラリーの「独自プリセットとして登録」</td></tr>
+<tr><td>作った動きをチーム全員の選択肢に</td><td>「雛形から始める」の「プリセットとして保存」</td></tr>
 </table>
 
 <h3>注意点</h3>
 <ul>
 <li>プレビュー用 Canvas <code>[D-Drive] UI Tween Preview</code> はこのエディタ専用です（Button Skin / Slider Skin はそれぞれ別の名前）。「撤去」は自分で置いた仮画像だけを消し、エディタを閉じたとき・別のシーンに移ったときは自動で片付きます。万一画面に消えないプレビューが残ったら <code>Tools &gt; D-Drive &gt; Debug &gt; 確認用プレビューの残骸を掃除</code></li>
-<li>「プリセットから Tracks を生成」は Tracks を丸ごと上書きします（Ctrl+Z で戻せます）。組み合わせたいときは「＋ プリセットを追加」を使う</li>
-<li>プレビュー対象が無いまま生成すると、仮の 200×80 の大きさを基準に From / To が計算されます。実物の大きさに合わせたいときは先に「プレビュー対象」で実要素を選ぶ</li>
-<li>カーブ一覧の曲線は「形」だけです。軸の数字や、途中で止めて見る操作はありません</li>
-<li>SceneView の経路ハンドルはプレビュー対象が基準。プレビュー対象が無いとハンドルは出ません</li>
+<li>「置き換え」は Tracks を丸ごと入れ替えます（Ctrl+Z で戻せます）。組み合わせたいときは「＋ 追加」を使う</li>
+<li>時間バーの曲線は「形」だけです。軸の数字や、途中で止めて見る操作はありません</li>
+<li>SceneView の経路ハンドルは「確認する」で選んだ要素が基準。対象が無いとハンドルは出ません</li>
 <li>プリセット参照（UiPresetRef）の Ease Override で CustomBezier を指定しても、まだ効きません</li>
 </ul>
 
-<h2>プリセットギャラリー（Preset Gallery）</h2>
-<!-- screenshot: 36-#50 -->
+<h2 id="gallery">プリセットギャラリー（Preset Gallery）</h2>
 <figure>
 <img src="images/ui-tween-preset-gallery.png" alt="プリセットギャラリー">
-<figcaption>プリセットギャラリー。タブで用途を切り替え、カードから選んで適用する</figcaption>
+<figcaption>プリセットギャラリー。タブ・検索・★ お気に入りで探し、カードの曲線の形を見て、▶ で動かす</figcaption>
 </figure>
+<p>プリセットをカードで一覧して、曲線の形を見比べ、お気に入りに入れ、シーン上の UI 要素で実際に動かし、Canvas の要素に割り当てるための別ウィンドウです。UI Tween Editor の「雛形から始める」と同じプリセット・同じお気に入りを使います。</p>
 
 <h3>開き方</h3>
 <ol>
-<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code>（Inspector からの入口はありません）</li>
-<li>「適用先」の CanvasData に、演出を付けたい <a href="canvas-data.html">Canvas データ</a>を入れる</li>
+<li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; UI Tween · Preset Gallery</code></li>
+<li>UI Tween Editor のヒーローの「ギャラリー」、または「雛形から始める」の「ギャラリーを開く」（いま編集中の Tween が「編集中の Tween」に入ります）</li>
 </ol>
 
 <h3>画面の説明</h3>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>先頭の案内</td><td>カードは<strong>静止画</strong>です。動きは「選択中のシーン要素で再生」で開いているシーン上に出します</td></tr>
-<tr><td>適用先: CanvasData / 要素 / 適用フェーズ</td><td>どの Canvas の、どの要素（Prefab から集めた要素の一覧。Prefab そのものは「(ルート)」）の、どのタイミング（Appear / Idle / Disappear）に付けるか</td></tr>
-<tr><td>選択中のシーン要素のパスを使う</td><td>Hierarchy で選んだオブジェクトから要素パスを入れます。Prefab アセットを選んでいると「シーン上のオブジェクトを選択してください(Prefab アセットは不可)」。入ったパスが Prefab の根元からのものと一致するとは限らないので「手動確認してください」と出ます</td></tr>
-<tr><td>タブ: 出現 / 常時 / 消滅 / 強調 / カタログ</td><td>組み込みプリセットの 4 分類 + プロジェクト独自の登録分。検索欄で名前の部分一致</td></tr>
-<tr><td>カード</td><td>名前、★ / ☆（お気に入り。<strong>一覧の先頭に寄せるだけで絞り込みではありません</strong>。自分の PC にだけ記憶）、分類、曲線の絵（1 本目の Track のみ）、4 つのボタン</td></tr>
-<tr><td>この要素に適用</td><td>選んだ要素・フェーズにこのカードを割り当て。「'名前' を要素 '…' の … に適用しました」</td></tr>
-<tr><td>Canvas 内一括適用(全ボタン)</td><td>Canvas 内の全ボタンの<strong>Appear</strong>に一括設定（<strong>Appear 固定</strong>。組み込みプリセットのみ）</td></tr>
-<tr><td>選択中のシーン要素で再生</td><td>Hierarchy で選んだシーン上の要素で<strong>実際に動かす</strong>。止めると位置・拡大率・回転・透明度は元に戻ります。Prefab アセットは不可</td></tr>
-<tr><td>この設定を他の要素へコピー</td><td>選んだ要素の Appear / Idle / Disappear の設定を他の要素へ写す。先に「この要素に適用」していないと「選択中の要素の ElementFx 行が見つかりません(…)」</td></tr>
-<tr><td>独自プリセットとして登録</td><td>登録先カタログ / 元になる UiTweenData / 表示名 / カテゴリ(任意) を入れて「登録する」。同じ名前なら上書き。未入力だと「カタログ・UiTweenData・表示名を指定してください」</td></tr>
+<tr><td>見出し</td><td>組み込みの種類数・カタログの件数・お気に入りの数と、編集中の Tween。<strong>■ 再生を止める</strong>（シーン上で再生中のものを止めて元に戻す）、<strong>UI Tween Editor で開く</strong></td></tr>
+<tr><td>タブ: 出現 / 常時 / 消滅 / 強調 / カタログ</td><td>組み込みプリセットの 4 分類 + プロジェクト独自の登録分</td></tr>
+<tr><td>★ お気に入り</td><td>お気に入りに入れたものだけを、全タブから集めて出します。タブの中では、お気に入りのカードが先頭に並びます</td></tr>
+<tr><td>検索欄</td><td>プリセット名の部分一致（大文字小文字は区別しません）</td></tr>
+<tr><td>カード</td><td>名前、<strong>▶</strong>（シーンで選んでいる UI 要素で再生）、<strong>★ / ☆</strong>（お気に入り。自分の PC にだけ記憶）、分類、曲線の絵（1 本目のトラックの形）、ボタン。カタログのカードには Track の本数が出ます。20 件を超える一覧（カタログが多いとき）は、仮想化されたリスト（ListView）になります</td></tr>
+<tr><td>▶（カード）</td><td>Hierarchy で選んだシーン上の要素で<strong>実際に動かす</strong>。止めたとき・終わったとき、位置・拡大率・回転・透明度・色などは元に戻ります。Prefab アセットや何も選んでいないときは「シーン上の RectTransform を選択してください(Prefab アセットは不可)」</td></tr>
+<tr><td>要素へ</td><td>「適用先」で選んだ Canvas の要素・フェーズにこのカードを割り当て。「'名前' を要素 '…' の … に適用しました」</td></tr>
+<tr><td>全ボタンへ</td><td>Canvas 内の全ボタンの<strong>Appear</strong>に一括設定（<strong>Appear 固定</strong>。組み込みプリセットのみ）</td></tr>
+<tr><td>置換 / 追加</td><td>「編集中の Tween」の Tracks を、このカードに置き換える / 末尾に足す（8 本まで。Ctrl+Z 可）。「編集中の Tween」を入れたときだけ出ます</td></tr>
 </table>
+
+<h3>適用先</h3>
+<table>
+<tr><th>要素</th><th>説明</th></tr>
+<tr><td>編集中の Tween</td><td>「置換」「追加」の先。「独自プリセットとして登録」の元にもなります</td></tr>
+<tr><td>CanvasData / 要素 / 適用フェーズ</td><td>どの Canvas の、どの要素（Prefab から集めた要素の一覧。Prefab そのものは「(ルート)」）の、どのタイミング（Appear / Idle / Disappear）に付けるか</td></tr>
+<tr><td>選択中のシーン要素のパスを使う</td><td>Hierarchy で選んだオブジェクトから要素パスを入れます。Prefab アセットを選んでいると「シーン上のオブジェクトを選択してください(Prefab アセットは不可)」。埋め込み Canvas の中の要素なら、適用先を子の CanvasData に切り替えます。入ったパスが Prefab の根元からのものと一致するとは限らないので「手動確認してください」と出ます</td></tr>
+<tr><td>この設定を他の要素へコピー</td><td>選んだ要素の Appear / Idle / Disappear の設定を他の要素へ写す。先に「要素へ」で割り当てていないと「選択中の要素の ElementFx 行が見つかりません(…)」</td></tr>
+</table>
+
+<h3>独自プリセットとして登録</h3>
+<p>登録先カタログ / 元になる UiTweenData（「編集中の Tween」が入ります）/ 表示名 / カテゴリ（任意）を入れて「登録する」。同じ名前なら上書き。未入力だと「カタログ・UiTweenData・表示名を指定してください」。登録するとカタログのタブに出ます。</p>
 <div class="tip"><strong>カタログ（UiPresetCatalog）</strong>は「デザイナーが選ぶための一覧」でしかなく、ゲーム実行時には使われません。<code>Create &gt; D-Drive/Ui/Ui Preset Catalog</code> で作ります（ID を持たないので Asset Browser には出ません）。カタログの各行は Name（表示名）/ Tween（実体の UI Tween）/ Category（分類、任意）です。</div>
 
 <h3>プリセット一覧（既定の秒数 / 緩急）</h3>
@@ -187,27 +230,28 @@
 <tr><td>CanvasData(Prefab 設定済み)を選択してください</td><td>一括適用には Canvas データに Prefab が設定されている必要があります</td></tr>
 <tr><td>この Tween は Id が未採番のため割り当てできません(AssetBrowser で採番してください)</td><td>カタログの UI Tween を Asset Browser で採番する</td></tr>
 <tr><td>シーン上の RectTransform を選択してください(Prefab アセットは不可)</td><td>Project ではなく Hierarchy でシーン上の要素を選ぶ</td></tr>
-<tr><td>[n] Name が空です / [n] Tween が未設定です / [n] '…' の Tween('…') は Id が未採番です</td><td>カタログの検証。その行の表示名・Tween・採番を直す</td></tr>
-<tr><td>該当するプリセットがありません</td><td>検索欄の文字を消すか変える</td></tr>
+<tr><td>「編集中の Tween」を指定してください</td><td>「適用先」の「編集中の Tween」を入れる</td></tr>
+<tr><td>Track が上限(8 本)に達しているため追加できません</td><td>「置換」を使うか、編集中の Tween のトラックを減らす</td></tr>
+<tr><td>お気に入りはまだありません / 該当するプリセットがありません</td><td>カードの ☆ を押す / 検索欄の文字を消すか変える</td></tr>
 </table>
 
 <h3>よくある使い方</h3>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>画面全体の出現演出を一気に揃える</td><td>「出現」タブで SlideFadeInLeft →「Canvas 内一括適用(全ボタン)」</td></tr>
-<tr><td>「はじめる」ボタンだけ常時ふわふわ</td><td>要素 = そのボタン、適用フェーズ = Idle、「常時」タブの Pulse →「この要素に適用」</td></tr>
+<tr><td>画面全体の出現演出を一気に揃える</td><td>「出現」タブで SlideFadeInLeft →「全ボタンへ」</td></tr>
+<tr><td>「はじめる」ボタンだけ常時ふわふわ</td><td>要素 = そのボタン、適用フェーズ = Idle、「常時」タブの Pulse →「要素へ」</td></tr>
 <tr><td>閉じるときにフェードアウト</td><td>適用フェーズ = Disappear、FadeOut</td></tr>
-<tr><td>速さを実物で確かめてから決める</td><td>Hierarchy で要素を選び「選択中のシーン要素で再生」→ 良ければ「この要素に適用」</td></tr>
+<tr><td>速さを実物で確かめてから決める</td><td>Hierarchy で要素を選んでカードの ▶ → 良ければ「要素へ」</td></tr>
 <tr><td>1 要素で決めた 3 フェーズをリスト全体に</td><td>「この設定を他の要素へコピー」</td></tr>
 <tr><td>方向違いを見比べる</td><td>検索欄に「Slide」</td></tr>
-<tr><td>よく使う 5〜6 個を先頭に</td><td>☆ を押して ★ に</td></tr>
+<tr><td>よく使う 5〜6 個を手元に</td><td>☆ を押して ★ に →「★ お気に入り」で集める</td></tr>
+<tr><td>気に入った演出を編集中の Tween に入れる</td><td>「編集中の Tween」を入れて、カードの「置換」「追加」</td></tr>
 </table>
 
 <h3>注意点</h3>
 <ul>
-<li>カードは静止画です。動きは「選択中のシーン要素で再生」で見ます</li>
-<li>「Canvas 内一括適用(全ボタン)」は Appear 固定です。Idle / Disappear は要素ごとに「この要素に適用」</li>
-<li>お気に入り（★）は並び替えであって絞り込みではありません</li>
+<li>カードの曲線は静止画（形だけ）です。動きはカードの ▶ でシーン上の要素に出して見ます</li>
+<li>「全ボタンへ」は Appear 固定です。Idle / Disappear は要素ごとに「要素へ」</li>
 <li>カードの曲線は Tracks の 1 本目だけ。2 本ある演出は片方しか見えません</li>
 </ul>
 
@@ -240,6 +284,7 @@
 
 <h2>関連ページ</h2>
 <ul>
+<li><a href="archive-ui-tween-editor.html">（旧）UI Tween Editor・プリセットギャラリーの使い方</a></li>
 <li><a href="ui-skin.html">ボタン / スライダーの見た目(Skin)と Slider Editor</a> — Enter Tween / Enter Preset、音量スライダーの作り方</li>
 <li><a href="canvas-data.html">Canvas データ</a> / <a href="canvas-editor.html">Canvas Editor</a> — ElementEffects と Sliders の配線</li>
 <li><a href="se-data.html">SE の設定項目</a> — 演出と同時に鳴らす音</li>
