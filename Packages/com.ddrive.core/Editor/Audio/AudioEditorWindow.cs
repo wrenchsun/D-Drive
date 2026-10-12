@@ -11,12 +11,12 @@ using DDrive.Editor.Validation;
 
 namespace DDrive.Editor.Audio
 {
-    // [03_audio.md] §5 — Audio 専用エディタ(1-7)。
+    // [03_audio.md] §5 — Audio 専用エディタ(1-7)。docs/1010 UX-3 で新 SeEditor / BgmEditor に置き換え、これは Archive メニューから開く旧版(機能追加はしない)。
     // 波形表示 + 範囲ドラッグ(SE: トリム範囲 / BGM: ループ範囲)、実 AudioManager 試聴、
     // 音量/ピッチ/開始位置のライブ調整、3D サウンド確認パッド(ブレンドスペース風 2D UI)、Mixer 表示。
     // ランダム試聴は ▶ が実 Manager の SelectMode 経路(Random/RoundRobin)をそのまま通ることで実現。
-    [DDrive.Editor.Inspector.DataEditor(typeof(SeData), "Audio Editor で開く(波形・トリム編集)")]
-    [DDrive.Editor.Inspector.DataEditor(typeof(BgmData), "Audio Editor で開く(波形・ループ編集)")]
+    [DDrive.Editor.Inspector.DataEditor(typeof(SeData), "(旧) Audio Editor で開く(波形・トリム編集)", Order = 100)]
+    [DDrive.Editor.Inspector.DataEditor(typeof(BgmData), "(旧) Audio Editor で開く(波形・ループ編集)", Order = 100)]
     public sealed class AudioEditorWindow : EditorWindow
     {
         private const float WaveformHeight = 96f;
@@ -56,12 +56,12 @@ namespace DDrive.Editor.Audio
         private float _rangeY = 10f;
         private bool _draggingListener;
 
-        [MenuItem(DDriveMenu.Editors + "Audio")]
+        [MenuItem(DDriveMenu.Archive + "Audio Editor")]
         public static void OpenFromMenu() => Open(Selection.activeObject as AssetDataBase);
 
         public static void Open(AssetDataBase target)
         {
-            var window = GetWindow<AudioEditorWindow>("Audio Editor");
+            var window = GetWindow<AudioEditorWindow>("(旧) Audio Editor");
             window.minSize = new Vector2(500, 380); // [09] §7.1: 横幅の下限 500px を minSize で回避しない(2026-09-17、U-27)
             if (target is SeData or BgmData)
             {

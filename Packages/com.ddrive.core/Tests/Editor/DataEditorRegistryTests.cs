@@ -66,8 +66,11 @@ namespace DDrive.Tests.Editor
         [Test]
         public void KnownPairs_ResolveToTheirWindows()
         {
-            AssertWindow(typeof(SeData), typeof(AudioEditorWindow));
-            AssertWindow(typeof(BgmData), typeof(AudioEditorWindow));
+            var asm = typeof(AudioEditorWindow).Assembly;
+            AssertWindow(typeof(SeData), asm.GetType("DDrive.Editor.Audio.SeEditor", true));
+            AssertWindow(typeof(SeData), typeof(AudioEditorWindow)); // (旧) Order 100
+            AssertWindow(typeof(BgmData), asm.GetType("DDrive.Editor.Audio.BgmEditor", true));
+            AssertWindow(typeof(BgmData), typeof(AudioEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(VfxData), typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Vfx.VfxEditor", true));
             AssertWindow(typeof(VfxData), typeof(VfxEditorWindow)); // (旧) Order 100
             AssertWindow(typeof(ModelData), typeof(ModelEditorWindow));

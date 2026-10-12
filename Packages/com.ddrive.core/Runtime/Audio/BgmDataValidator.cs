@@ -18,12 +18,12 @@ namespace DDrive.Runtime.Audio
 
             if (bgm.LoopBody == null)
             {
-                yield return ValidationResult.Error("LoopBody(Clip) が未設定(または Missing)です");
+                yield return ValidationResult.Error("LoopBody(Clip) が未設定(または Missing)です").WithField("LoopBody");
             }
 
             if (bgm.Mixer == null)
             {
-                yield return ValidationResult.Warning("Mixer が未割当です");
+                yield return ValidationResult.Warning("Mixer が未割当です").WithField("Mixer");
             }
 
             // GB-R-02(2026-10-06): LoopEndSec = 0(既定)は「LoopStartSec からクリップ末尾まで」の意味で、BgmManager.StartLoopBody も
@@ -32,12 +32,12 @@ namespace DDrive.Runtime.Audio
             var effectiveEnd = bgm.LoopEndSec > 0.0 ? bgm.LoopEndSec : (bgm.LoopBody != null ? bgm.LoopBody.length : 0.0);
             if (effectiveEnd > 0.0 && effectiveEnd <= bgm.LoopStartSec)
             {
-                yield return ValidationResult.Error("LoopEndSec が LoopStartSec 以下です");
+                yield return ValidationResult.Error("LoopEndSec が LoopStartSec 以下です").WithField("LoopStartSec");
             }
 
             if (bgm.Volume <= 0f)
             {
-                yield return ValidationResult.Warning("Volume が 0 です(鳴りません)");
+                yield return ValidationResult.Warning("Volume が 0 です(鳴りません)").WithField("Volume");
             }
         }
     }
