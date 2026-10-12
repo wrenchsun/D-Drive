@@ -75,6 +75,12 @@ namespace DDrive.Tests.Editor
                 Path.Combine(PackageRoot, "Editor", "Canvas", "CanvasEditor.Embedded.cs"),
                 Path.Combine(PackageRoot, "Editor", "Canvas", "CanvasEditor.Navigation.cs"),
                 Path.Combine(PackageRoot, "Editor", "Canvas", "CanvasSectionView.cs"),
+                Path.Combine(PackageRoot, "Editor", "Presentation", "PresentationEditor.cs"),
+                Path.Combine(PackageRoot, "Editor", "Presentation", "PresentationEditor.Tracks.cs"),
+                Path.Combine(PackageRoot, "Editor", "Presentation", "PresentationEditor.Timeline.cs"),
+                Path.Combine(PackageRoot, "Editor", "Presentation", "PresentationEditor.Preview.cs"),
+                Path.Combine(PackageRoot, "Editor", "Presentation", "PresentationEditor.SceneAnchors.cs"),
+                Path.Combine(PackageRoot, "Editor", "Presentation", "PresentationEditorRows.cs"),
             });
             // 見た目を持たない目印のクラス(USS に規則が無くてよい)。
             var markers = new HashSet<string> { "ux-root", "ux-dark", "ux-light", "ux-knobs", "ux-panel" };

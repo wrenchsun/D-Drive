@@ -92,6 +92,7 @@ namespace DDrive.Editor.CanvasTool
         public string Chip;
         public int Kind = -1;         // 種類チップの絞り込み用(CanvasItemList の kinds の添字。-1 = 種類なし)
         public bool Configured;       // 「設定済み」か(絞り込み・件数用)
+        public System.Func<bool> IsConfigured; // 指定すると Configured の代わりに毎回これで判定する(行を作り直さずに状態が変わる一覧用)
         public bool Summary;          // 件数に数えない要約の行(埋め込みの子の 1 行要約)
         public string Search = string.Empty; // 絞り込みに一致させる語(パス・要約)
         public System.Func<VisualElement> Make;
@@ -122,7 +123,7 @@ namespace DDrive.Editor.CanvasTool
         public int TotalCount => _items.Count;
         public int ShownCount => _shown.Count;
 
-        public CanvasItemList(string noun, string doneWord, string[] kinds, string emptyText)
+        public CanvasItemList(string noun, string doneWord, string[] kinds, string emptyText, string undoneWord = "未設定")
         {
             _noun = noun;
             _doneWord = doneWord;
@@ -141,7 +142,7 @@ namespace DDrive.Editor.CanvasTool
                 Render();
             });
             bar.Add(_search);
-            var names = new[] { "すべて", doneWord, "未設定" };
+            var names = new[] { "すべて", doneWord, undoneWord };
             for (var i = 0; i < 3; i++)
             {
                 var s = i;
@@ -228,6 +229,37 @@ namespace DDrive.Editor.CanvasTool
             (item.Title != null && item.Title.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
             || (item.Search != null && item.Search.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0);
 
+        private static bool IsDone(CanvasListItem it) => it.IsConfigured != null ? it.IsConfigured() : it.Configured;
+
+        // 件数の表記だけ最新にする(行は作り直さない。行の外から状態が変わる一覧用)。
+        public void UpdateCount()
+        {
+            var done = 0;
+            var total = _items.Count;
+            for (var i = 0; i < _items.Count; i++)
+            {
+                if (_items[i].Summary)
+                {
+                    total--;
+                }
+                else if (IsDone(_items[i]))
+                {
+                    done++;
+                }
+            }
+
+            var text = $"{total} {_noun}中 {_doneWord} {done}";
+            if (_shown.Count != _items.Count)
+            {
+                text += $"(表示 {_shown.Count})";
+            }
+
+            if (_count.text != text)
+            {
+                _count.text = text;
+            }
+        }
+
         public void Render()
         {
             var ext = !string.IsNullOrEmpty(_external) && AnyMatch(_external) ? _external : null;
@@ -237,16 +269,17 @@ namespace DDrive.Editor.CanvasTool
             for (var i = 0; i < _items.Count; i++)
             {
                 var it = _items[i];
+                var configured = IsDone(it);
                 if (it.Summary)
                 {
                     total--;
                 }
-                else if (it.Configured)
+                else if (configured)
                 {
                     done++;
                 }
 
-                if (_state == 1 && !it.Configured || _state == 2 && it.Configured)
+                if (_state == 1 && !configured || _state == 2 && configured)
                 {
                     continue;
                 }

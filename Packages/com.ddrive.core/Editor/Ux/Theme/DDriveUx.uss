@@ -1702,6 +1702,92 @@
     min-height: 320px;
 }
 
+/* ── Presentation Editor(docs/1010 UX-5 / D-10): タイムライン・トラックの行 ── */
+.ux-root .ux-ptl {
+    height: 172px;
+    min-height: 172px;
+    margin-top: 4px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ux-root .ux-ptl__zoom {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 120px;
+    margin: 0 8px 4px 0;
+}
+
+.ux-root .ux-pstatus {
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    min-height: 18px;
+}
+
+.ux-root .ux-plog {
+    white-space: normal;
+    color: var(--ux-dim);
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    background-color: var(--ux-input);
+    min-height: 40px;
+}
+
+.ux-root .ux-trk__head {
+    flex-wrap: nowrap;
+}
+
+.ux-root .ux-trk__head .ux-fxrow__name {
+    min-width: 60px;
+    max-width: 200px;
+}
+
+.ux-root .ux-trk__head .ux-fxrow__summary {
+    min-width: 0;
+}
+
+.ux-root .ux-trk__head .ux-fxrow__chip {
+    flex-shrink: 0;
+}
+
+.ux-root .ux-trk__idx {
+    flex-shrink: 0;
+    min-width: 24px;
+    margin-right: 6px;
+}
+
+.ux-root .ux-kind--0 {
+    border-color: var(--ux-accent);
+    color: var(--ux-accent);
+}
+
+.ux-root .ux-kind--1 {
+    border-color: var(--ux-ok);
+    color: var(--ux-ok);
+}
+
+.ux-root .ux-kind--2 {
+    border-color: var(--ux-mod);
+    color: var(--ux-mod);
+}
+
+.ux-root .ux-kind--3 {
+    border-color: var(--ux-err);
+    color: var(--ux-err);
+}
+
+.ux-root .ux-kind--4 {
+    border-color: var(--ux-warn);
+    color: var(--ux-warn);
+}
+
+.ux-root .ux-kind--5 {
+    border-color: var(--ux-border-strong);
+    color: var(--ux-dim);
+}
+
 /* 表示 / 非表示の切り替え。他の display 指定より必ず勝たせるため、クラスを重ねて詳細度を上げる。末尾に置く */
 .ux-root .ux-hidden.ux-hidden {
     display: none;
