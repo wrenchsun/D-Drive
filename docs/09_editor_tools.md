@@ -349,10 +349,11 @@ Tools/
     ├─ Asset Browser
     ├─ 未使用アセット                ← 2026-09-14 追加(5-6。UnusedAssetsWindow。AssetBrowser の「未使用...」ボタンからも開く)
     ├─ 仕様書と同期                 ← 2026-09-14 追加(5-13。SpecSyncWindow。差分プレビュー + 適用 + TSV コピー、[27] §8.2)
-    ├─ Presentation Editor          ← 目玉機能につき最上段。2026-09-14 実装(5-4。PresentationEditorWindow。トラック編集(Kind ごとのレーン + D&D + 時間ドラッグ + 複製/削除)+ 統合プレビュー(モデル選択→ Anim/Vfx/Se/CameraShake/Haptic/AnchorGroup を実 Manager で同時再生)+ Signal レーン手動発火 + パラメータ上書き + 環境切替(ライト強度/背景色)。AnchorGroup トラックは 2026-09-19 追加。[08_presentation.md] 実装メモ参照) ← 2026-10-12(UX-5)新デザインの PresentationEditor(`Editor/Presentation/PresentationEditor*.cs`、メニュー `Editors/Presentation Editor`、[1010] §5)に置き換え。旧は Archive/
+    ├─ (Presentation Editor は Editors/ と Archive/ の下。下の §6.4 の表)
     ├─ Editors/
     │   ├─ Audio Editor                ← 2026-10-12(UX-3)新デザインの SeEditor / BgmEditor(`Editor/Audio/SeEditor.cs`・`BgmEditor.cs`、[1010] §5)。BGM を選んでいれば BGM Editor、それ以外は SE Editor を開く。旧は Archive/
     │   ├─ VFX Editor                  ← 2026-10-12(UX-2)新デザインの VfxEditor(`Editor/Vfx/VfxEditor.cs`、[1010] §5)。旧は Archive/
+    │   ├─ Presentation Editor        ← 2026-10-12(UX-5)新デザインの PresentationEditor(`Editor/Presentation/PresentationEditor*.cs`、[1010] §5)。旧は Archive/(2026-09-14 実装 5-4。トラック編集 + 統合プレビューの経緯は [1010] §5 UX-5 の対応表)
     │   ├─ 共通確認用シーンを開く
     │   ├─ Anchor                      ← 2026-09-08 追加(AnchorData 専用エディタ、[21])。2026-10-13(UX-11)新デザインの AnchorEditor(`Editor/Anchor/AnchorEditor*.cs`、[1010] §5)。旧は Archive/
     │   ├─ Anchor Group                ← 2026-09-08 追加(配置セット、[22])。2026-10-13(UX-11)新デザインの AnchorGroupEditor(`Editor/Anchor/AnchorGroupEditor*.cs`、[1010] §5)。旧は Archive/
@@ -373,7 +374,9 @@ Tools/
     │   ├─ 揺れ・振動確認用シーンを開く ← 2026-09-14 追加(5-2c。CameraShakePreviewSceneSetup。VfxPreviewSceneSetup と同じ流儀)
     │   ├─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
     │   └─ Tuning（調整値）              ← 2026-10-13(UX-15)新デザインの TuningEditor(`Editor/Tuning/TuningEditor*.cs`、[1010] §5)。旧は Archive/。以下は旧(2026-09-27 M-2a。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
-    ├─ Archive/                       ← 2026-10-12(UX-2、`DDriveMenu.Archive`)新デザインに置き換えた旧エディター(旧は `(旧)` を付けた `[DataEditor]` Order 100 でも開ける)
+    ├─ Archive/                       ← 2026-10-12(UX-2、`DDriveMenu.Archive`)新デザインに置き換えた旧エディター 18 本(旧は `(旧)` を付けた `[DataEditor]` Order 100 でも開ける。一覧と点検は §6.4)
+    │   ├─ Audio Editor                ← 旧 AudioEditorWindow(2026-10-13、UX-3。SE / BGM 共用)
+    │   ├─ Canvas Editor               ← 旧 CanvasEditorWindow(2026-10-13、UX-4)
     │   ├─ Anchor Editor               ← 旧 AnchorEditorWindow(2026-10-13、UX-11)
     │   ├─ Anchor Group Editor         ← 旧 AnchorGroupEditorWindow(2026-10-13、UX-11)
     │   ├─ UI Tween                    ← 旧 UiTweenEditorWindow(2026-10-13、UX-12)
@@ -438,6 +441,34 @@ GameObject/                     ← Hierarchy の右クリック(U-18/U-19、§6
     ├─ UiButton / UiSlider
     └─ 起動オブジェクト(DDriveRuntimeBootstrap) ← Tools 側と同じ BootstrapSceneSetup.PlaceInScene
 ```
+
+### 6.4 `Editors/` と `Archive/` の対応表（2026-10-13、UX-18 の点検結果）
+
+`Tools/D-Drive/Editors/` には**新デザインのエディターだけ**が並び、旧エディターはすべて `Tools/D-Drive/Archive/`（`DDriveMenu.Archive`）にある。旧のウィンドウ題は「(旧) 〜」。メニューの全項目は `[MenuItem]` を反射で列挙して確認した（`ddrive_help topic=menu` も同じ列挙）。
+
+| 種別 | `Editors/`（新） | `Archive/`（旧） | 旧ウィンドウの題 |
+|---|---|---|---|
+| VFX | VFX Editor | VFX Editor | (旧) VFX Editor |
+| Audio（SE / BGM） | Audio Editor | Audio Editor | (旧) Audio Editor |
+| Canvas | Canvas Editor | Canvas Editor | (旧) Canvas Editor |
+| Presentation | Presentation Editor | Presentation Editor | (旧) Presentation Editor |
+| Anim（3D） | Animation (3D) | Animation (3D) | (旧) Anim Editor |
+| Anim（2D） | Animation (2D) | Animation (2D) | (旧) Anim2D Editor |
+| Material | Material / Texture | Material Editor | (旧) Material Editor |
+| Model | Model | Model Editor | (旧) Model Editor |
+| Prefab | Prefab | Prefab Editor | (旧) Prefab Editor |
+| Shake / Haptics | Shake / Haptics | Shake / Haptics | (旧) Shake / Haptics Editor |
+| Anchor | Anchor | Anchor Editor | (旧) Anchor Editor |
+| Anchor Group | Anchor Group | Anchor Group Editor | (旧) Anchor Group Editor |
+| UI Tween | UI Tween | UI Tween | (旧) UI Tween Editor |
+| プリセットギャラリー | UI Tween · Preset Gallery | UI Tween · Preset Gallery | (旧) Preset Gallery |
+| Slider | Slider | Slider | (旧) Slider Editor |
+| Slider Skin | Slider Skin | Slider Skin | (旧) Slider Skin Editor |
+| Button Skin | Button Skin | Button Skin | (旧) Button Skin Editor |
+| Tuning | Tuning（調整値） | Tuning（調整値） | (旧) Tuning（調整値） |
+
+- 新のみ（旧が無い）: Material 変換 / Material プレビュー（構造は変えずテーマだけ当てた別ウィンドウ）、確認用シーンを開く 4 本（共通・揺れ・振動 / Canvas / Cutscene）
+- 配線: 新エディター・共通基盤・AssetBrowser・Inspector・MCP・SpecSync・更新ウィンドウ・ウィザード・Cutscene から旧ウィンドウ型を参照している箇所は 0（`grep` で確認。残るのは旧 → 旧、旧のテスト、`Editor/Prototypes/`〔UX-19 で削除〕と、`TuningTable` の Inspector の折りたたみ「旧エディター」内のボタンだけ）。MCP の `ddrive_editor_open` は `DataEditorRegistry.TryGetPrimary`（Order 最小）経由で、全種別で新を開く（`DataEditorRegistryTests.EveryDataType_PrimaryIsNewEditor_AndLegacyIsLabelledAndLater` で固定）
 
 ### 6.1 メインツールバーの「マニュアル」ボタン（2026-09-14 追加）
 
@@ -814,6 +845,33 @@ IMGUI 本文（`OnInspectorGUI`、派生クラスが `OnInspectorGUI` を上書�
 disabled になること、`DisplayName` 等の通常フィールドは有効なまま、`SeDataEditor` のように上書きされている場合は
 `CreateInspectorGUI` が `null` を返すこと）。
 
+### 8.7 `[DataEditor]` 対応表（全種別、2026-10-13、UX-18 の点検結果）
+
+`DataEditorRegistry.OpenDefault`（AssetBrowser のダブルクリック・Inspector の主ボタン・MCP の `ddrive_editor_open`）は **Order 最小 = 新エディター（Order 0、`UxEditorWindow<TData>` 派生）** を開く。旧は `(旧) 〜で開く` で Order 100 以上、Inspector では折りたたみ「旧エディター」に入る（[1010] UX-17）。正本は `editor-contract.txt`（スナップショットテスト）。
+
+| Data 種別 | 新（Order 0） | 補助（Order 1〜99） | 旧（Order 100〜） |
+|---|---|---|---|
+| VfxData | VfxEditor | — | VfxEditorWindow |
+| SeData | SeEditor | — | AudioEditorWindow |
+| BgmData | BgmEditor | — | AudioEditorWindow |
+| CanvasData | CanvasEditor | — | CanvasEditorWindow |
+| PresentationData | PresentationEditor | — | PresentationEditorWindow |
+| AnimData | AnimEditor | — | AnimEditorWindow |
+| Anim2DData | Anim2DEditor | — | Anim2DEditorWindow、AnimEditorWindow（基底型 AnimData の旧の登録を引き継ぐ） |
+| MaterialData | MaterialEditor | MaterialThumbnailWindow（5）、MaterialConvertWindow（10） | MaterialEditorWindow |
+| TextureData | TextureEditor | — | MaterialEditorWindow |
+| ModelData | ModelEditor | — | ModelEditorWindow |
+| PrefabData | PrefabEditor | — | PrefabEditorWindow |
+| CameraShakeData | ShakeEditor | — | CameraFxEditorWindow |
+| HapticsData | HapticsEditor | — | CameraFxEditorWindow |
+| AnchorData | AnchorEditor | — | AnchorEditorWindow |
+| AnchorGroupData | AnchorGroupEditor | — | AnchorGroupEditorWindow |
+| UiTweenData | UiTweenEditor | — | UiTweenEditorWindow |
+| ButtonSkinData | ButtonSkinEditor | — | ButtonSkinEditorWindow |
+| SliderSkinData | SliderSkinEditor | SliderEditor（5） | SliderSkinEditorWindow（100）、SliderEditorWindow（105） |
+| CutsceneData | （対象外。標準の Timeline ウィンドウ + `CutsceneDataEditor`。`Exempt`） | | |
+| TuningTable | （AssetDataBase 派生ではないので `[DataEditor]` なし。`TuningTableEditor` の Inspector のボタン = 新 `TuningEditor`、旧は折りたたみの中） | | |
+
 ## 9. AssetDatabase.FindAssets のキャッシュ（2026-09-11）
 
 - **`AssetDatabase.FindAssets` を直接呼ばない。** 必ず `DDrive.Editor.AssetSearch.FindAssets(filter[, folders])` を通す（既定の検索範囲は `Assets` 配下）
@@ -1132,6 +1190,7 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - **C# にインラインスタイルを書かない**（`.style.xxx = …` / `style = { … }` の禁止）。見た目は `DDriveUx.uss` のクラスで、表示の切り替えは `UxShow.Show(bool)`（`.ux-hidden`）。`UxFoundationTests` が `Editor/Ux` 配下を機械的に点検し、C# が付ける `ux-*` クラスが USS に定義されていることも検査する
 - 保存は `DDriveAssetSave.SaveDirty`（[1010](1010_editor_ux_migration.md) D-5）。土台が保存ボタン・自動保存・未保存の確認を持つので、種別は保存の経路を作らない
 - 検証は欄の下に出す。**Validator が欄名を持たせる**: `ValidationResult.WithField("Prefab")`（`ValidationResult.Field`、追加のみ = MINOR）。`Field` の無い結果は従来どおりメッセージ照合（`ValidationTokens`）で欄に結びつけ、結びつかなければ「その他の検証」に出る
+- **最終形（UX-18）: 新しい専用エディターは `UxEditorWindow<TData>` から作り、`[DataEditor(typeof(TData), "〜で開く")]`（Order 0）とメニュー `DDriveMenu.Editors + "<名前>"` を付ける。旧デザインのエディターは増やさない（`Archive/` に置くのは既存の 18 本だけ）。全種別の対応は §6.4 / §8.7、`DataEditorRegistryTests` が「主エディター = Order 0 の `UxEditorWindow<T>` 派生」「(旧) ラベル = Order 100 以上」を機械的に点検する**
 - 種別の窓は `[DataEditor]` を付け替える（旧エディターは `(旧)` Order 100 に残し、メニューは `DDriveMenu.Archive`）のが UX-2 以降の各チケット。VFX は UX-2、Audio は UX-3、Canvas は UX-4、Presentation は UX-5、Anim(3D) は UX-6 で付け替え済み（新 `AnimEditor` = "Anim Editor で開く" Order 0、新 `PresentationEditor` = "Presentation Editor で開く" Order 0、新 `CanvasEditor` = "Canvas Editor で開く" Order 0、新 `VfxEditor` = "VFX Editor で開く" Order 0、新 `SeEditor` / `BgmEditor` = "Audio Editor で開く(…)" Order 0）
 - 種別が編集できる対象を絞るには `AcceptsTarget(data)` / `OnTargetRejected(data)`（UX-6 で追加。例: Anim は派生型の Anim2DData を Anim2DEditor〔UX-7〕へ渡す）。選択への追従・`SetTarget`・`OpenWindow` はこれを通る
 - 基底型に付けた `[DataEditor]` を派生型に並べたくないときは `ExceptFor = typeof(派生型)`（UX-7 で追加。`DataEditorRegistry.GetEntries` が基底の登録をたどるときだけ効く。例: `AnimEditor` は Anim2DData に並ばない）
