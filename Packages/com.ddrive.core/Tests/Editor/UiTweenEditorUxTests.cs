@@ -36,34 +36,16 @@ namespace DDrive.Tests.Editor
         private readonly List<GameObject> _objects = new List<GameObject>();
 
         [SetUp]
-        public void SetUp() => _savedFavourites = EditorPrefs.GetString(FavKey, string.Empty);
+        public void SetUp()
+        {
+            UxTestWindows.CloseAll();
+            _savedFavourites = EditorPrefs.GetString(FavKey, string.Empty);
+        }
 
         [TearDown]
         public void TearDown()
         {
-            foreach (var w in Resources.FindObjectsOfTypeAll<EditorWindow>())
-            {
-                if (w == null)
-                {
-                    continue;
-                }
-
-                var t = w.GetType();
-                if (t == EditorType || t == GalleryType || t == typeof(UiTweenEditorWindow) || t == typeof(UiPresetGalleryWindow))
-                {
-                    if (t == EditorType)
-                    {
-                        var data = t.BaseType.GetField("_target", Inst).GetValue(w) as UnityEngine.Object;
-                        if (data != null)
-                        {
-                            EditorUtility.ClearDirty(data);
-                        }
-                    }
-
-                    UnityEngine.Object.DestroyImmediate(w);
-                }
-            }
-
+            UxTestWindows.CloseAll();
             foreach (var go in _objects)
             {
                 if (go != null)
@@ -77,18 +59,18 @@ namespace DDrive.Tests.Editor
             _gallery = null;
             _sample = null;
             EditorPrefs.SetString(FavKey, _savedFavourites ?? string.Empty);
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         // ── 部品 ──
 
         private object BuildSample()
         {
             var sample = EditorAssembly.GetType("DDrive.Editor.Ui.UiTweenSample", true);
-            _sample = sample.GetMethod("Build", Stat).Invoke(null, new object[] { TmpFolder });
+            _sample = UxTestWindows.Batch(() => sample.GetMethod("Build", Stat).Invoke(null, new object[] { TmpFolder }));
             return _sample;
         }
 
@@ -100,6 +82,7 @@ namespace DDrive.Tests.Editor
 
         private void OpenEditor(UiTweenData target)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _window = (EditorWindow)ScriptableObject.CreateInstance(EditorType);
             EditorType.BaseType.GetField("_target", Inst).SetValue(_window, target);
             _window.Show();
@@ -320,6 +303,7 @@ namespace DDrive.Tests.Editor
         // ── 土台(ヒーロー・カード・固定バー) ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Editor_BuildsHeroCardsAndFooter_WithSpeed()
         {
             BuildSample();
@@ -339,6 +323,7 @@ namespace DDrive.Tests.Editor
         // ── トラックの一覧(1 トラック = 1 行・件数・ListView) ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void TrackList_OneRowPerTrack_WithCountAndKindChips_NoListViewUnder21()
         {
             BuildSample();
@@ -356,6 +341,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void TrackList_MoreThan20Tracks_UsesListView()
         {
             BuildSample();
@@ -365,6 +351,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void TrackList_ExternalSearch_FiltersRows()
         {
             BuildSample();
@@ -379,6 +366,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void TrackList_OverEightTracks_ShowsFlagsAndInlineWarning_AndHidesMotionFromToNoise()
         {
             BuildSample();
@@ -395,6 +383,7 @@ namespace DDrive.Tests.Editor
         // ── トラック 1 行の変更・Undo ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RowReset_RewritesOneTrack_AndUndoRestores()
         {
             BuildSample();
@@ -411,6 +400,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void TimeBar_Drag_WritesDelayAndDuration_AsOneUndo()
         {
             BuildSample();
@@ -427,6 +417,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AddTrack_OpensTheNewRow_AndDeleteRemovesIt_UndoBringsBack()
         {
             BuildSample();
@@ -448,6 +439,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RowDetails_ChangeProperty_NormalizesValueTypes_AsOneUndo()
         {
             BuildSample();
@@ -466,6 +458,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RowDetails_FromToFields_WriteTypedValues()
         {
             BuildSample();
@@ -482,6 +475,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void RowDetails_DuplicateAndMove_ReorderTracks()
         {
             BuildSample();
@@ -501,6 +495,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void PathMove_ShowsSplineTools_AndAddsAndRemovesPoints()
         {
             BuildSample();
@@ -525,6 +520,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Presets_ReplaceAndAppend_FollowTheOldRules_AndUndoWorks()
         {
             BuildSample();
@@ -547,6 +543,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Presets_Append_StopsAtEightTracks()
         {
             BuildSample();
@@ -557,6 +554,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Presets_CatalogTab_AppliesCatalogTween()
         {
             BuildSample();
@@ -569,6 +567,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Presets_Register_UpsertsIntoTheCatalog()
         {
             BuildSample();
@@ -594,6 +593,7 @@ namespace DDrive.Tests.Editor
         // ── 実要素での再生 ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Play_DrivesTheRealElement_AndRestoresItWhenStopped()
         {
             BuildSample();
@@ -619,6 +619,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Play_ToTheEnd_RestoresAutomatically()
         {
             BuildSample();
@@ -641,6 +642,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void PlayTrack_PlaysOnlyThatTrack()
         {
             BuildSample();
@@ -659,6 +661,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Play_WithoutTarget_SaysSo_AndDoesNotThrow()
         {
             BuildSample();
@@ -670,6 +673,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Play_RefusesPrefabAssets()
         {
             BuildSample();
@@ -688,6 +692,7 @@ namespace DDrive.Tests.Editor
         // ── 対象の要素(収集・Open) ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Collect_ListsElements_WithUniqueLabels_AndSelectingSetsTheTarget()
         {
             BuildSample();
@@ -907,8 +912,10 @@ namespace DDrive.Tests.Editor
         // ── 配線(docs/1010 D-4): 新 CanvasEditor の ElementFx 行の「✎ Tween Editor」は新 UiTweenEditor を開く ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void NewCanvasEditor_TweenEditorButton_OpensTheNewUiTweenEditor_NotTheOldOne()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             BuildSample();
             const string canvasFolder = "Assets/__UiTweenEditorUxTestTmpCanvas";
             try
@@ -949,15 +956,12 @@ namespace DDrive.Tests.Editor
                 }
                 finally
                 {
-                    UnityEngine.Object.DestroyImmediate(canvasWindow);
+                    canvasWindow.Close();
                 }
             }
             finally
             {
-                if (AssetDatabase.IsValidFolder(canvasFolder))
-                {
-                    AssetDatabase.DeleteAsset(canvasFolder);
-                }
+                UxTestWindows.DeleteFolder(canvasFolder);
             }
         }
 

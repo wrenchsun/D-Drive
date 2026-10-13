@@ -1137,6 +1137,18 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - 共通の検査（`DataValidationRunner`）に種別が足したい結果は `AppendValidation(results)`（UX-7。例: Anim2D は基底の `AnimDataValidator` も通す）、空状態に足したいボタンは `AddEmptyActions(zone)`（例: Anim2D の「＋ 新規作成」でウィザードを開く）。`UxEditorWindow` を継承しない窓（ウィザードなど）にテーマを当てるには `UxTheme.Apply(root)`（Light / Dark の変化は `UxTheme.IsStale(root)`）
 - 確認は `UxScreenshot` で Dark / Light の両方を撮り、自分で画像を見て崩れを直す（最低 2 周。[1010](1010_editor_ux_migration.md) D-8）
 
+### UX テストの衛生ルール（2026-10-13、UX-1b）
+
+実ウィンドウを `Show()` するテストが型限定の掃除で取りこぼし、ウィンドウとサンプル Data が溜まって Unity がメモリ不足で落ちた（EditMode 全件実行中に 2 回）。新しい UX 系テストは次を守る。
+
+- **`[SetUp]` と `[TearDown]` は `UxTestWindows.CloseAll()`**（`Tests/Editor/UxTestWindows.cs`）。`UxEditorWindow<>` 派生と `DDrive.Editor` 名前空間の旧ウィンドウをすべて閉じ、対象 Data の dirty を捨て、未保存確認のダイアログを出さない（`UxTestHooks.SuppressDialogs`）。`_window` 1 個を追う掃除や型の列挙をしない。クラスの `[OneTimeTearDown]` は `UxTestWindows.Release()`（CloseAll + 抑止の解除 + `UnloadUnusedAssetsImmediate` + `GC.Collect`）
+- **`Show()` した窓は `DestroyImmediate` ではなく `Close()` で閉じる**（`DestroyImmediate` は枠 = `ContainerWindow` を残し、タブ名が「Failed to load」の空の OS ウィンドウが溜まる）。`CloseAll` は EditorWindow を閉じたあと、中身が空の ContainerWindow（MainWindow 以外）も反射で `Close()` する。`UxTestWindows.Count()` は空の枠も数える
+- `Assert` のあとに `DestroyImmediate(_window)` を置かない（落ちたときに残る）。後片付けは TearDown 任せ、どうしても途中で閉じるなら `try / finally`
+- **実ウィンドウを `Show()` するテストは `[Category("RequiresGraphics")]`**、`Show()` する補助メソッドの先頭は `RequiresGraphicsGuard.SkipIfNoGraphicsDevice()`（`-nographics` の CI では飛ぶ）。`CreateGUI` を直接呼べば足りるテストは `Show()` しない（`UxFoundationTests` 方式）
+- **サンプル Data の生成・削除は `UxTestWindows.Batch` / `DeleteFolder`**（`AssetDatabase.StartAssetEditing` で Refresh を 1 回にまとめる）。内容を書き換えないテストが多いクラスは `[OneTimeSetUp]` で 1 回だけ作る（`SkinEditorUxTests`）
+- `UxScreenshot.Capture` が返す `Texture2D` は**呼び出し側が `Object.DestroyImmediate` で破棄する**（`Save` は内部で破棄する）。破棄しないと繰り返しでメモリが増え続ける
+- EditMode 全件は、UX 系をクラス単位で回し、前後で `UxTestWindows.Count()`（または `Resources.FindObjectsOfTypeAll<EditorWindow>().Length`）が増えていないことを確かめる
+
 ## Tuning ウィンドウ（M-2a、2026-09-27 実装）
 
 MS2026 チームからの要望（[11_tasks.md](11_tasks.md) M-2 チケット）。`TuningTable`（[02] §14 の 5-13 追記）は現状 Unity 既定の配列 Inspector でしか編集できず、キーが 46 件を超えたところで「目的のキーに辿り着けない」「Player 担当と Match 担当が同じ `.asset` を触って競合する」が問題になった。データ形式は変えず（案 A 継続）、閲覧・編集の単位だけをカテゴリにする。

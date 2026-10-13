@@ -30,17 +30,17 @@ namespace DDrive.Tests.Editor
         private static System.Type NewVfxEditorType => typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Vfx.VfxEditor", true);
         private static System.Type NewMaterialEditorType => typeof(VfxEditorWindow).Assembly.GetType("DDrive.Editor.Materials.MaterialEditor", true);
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
+
         [TearDown]
         public void TearDown()
         {
-            // 開いたままのテスト用ウィンドウを必ず閉じる(preview-via-scene の方針どおり残骸を残さない)。
-            foreach (var window in Resources.FindObjectsOfTypeAll<EditorWindow>())
-            {
-                if (window is VfxEditorWindow or MaterialEditorWindow || window.GetType() == NewVfxEditorType || window.GetType() == NewMaterialEditorType)
-                {
-                    window.Close();
-                }
-            }
+            // 開いたままのテスト用ウィンドウを必ず閉じる(残骸を残さない。D-Drive のウィンドウは型を問わず全部)。
+            UxTestWindows.CloseAll();
 
             if (AssetDatabase.IsValidFolder(TestRoot))
             {

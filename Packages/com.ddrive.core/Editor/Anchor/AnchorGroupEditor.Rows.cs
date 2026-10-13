@@ -446,15 +446,14 @@ namespace DDrive.Editor.Anchor
 
             _pointElements.Clear();
             var items = new List<CanvasListItem>(_pointCount);
-            var manualStart = _pointCount - ManualCount;
             for (var i = 0; i < _pointCount; i++)
             {
                 var index = i;
                 items.Add(new CanvasListItem
                 {
                     Key = "pt:" + i,
-                    Title = PointTitle(i, manualStart),
-                    Kind = i >= manualStart ? 1 : 0,
+                    Title = PointTitle(i),
+                    Kind = IsManualPoint(i) ? 1 : 0,
                     Configured = Target.FindOverride(i) >= 0,
                     Search = "#" + i + " " + PointSummary(i),
                     Make = () => MakePointRow(index),
@@ -464,12 +463,18 @@ namespace DDrive.Editor.Anchor
             _pointList.SetItems(items);
         }
 
-        private string PointTitle(int index, int manualStart)
+        // 手置きの点か(点の並び = パターン計算分 + 手置き。_pointCount と Points の長さがずれていても例外にしない)。
+        private bool IsManualPoint(int index) => index >= _pointCount - ManualCount;
+
+        private string PointTitle(int index)
         {
+            var manualStart = _pointCount - ManualCount;
             if (index >= manualStart)
             {
-                var name = Target.Points[index - manualStart].Name;
-                return string.IsNullOrEmpty(name) ? "手置き " + (index - manualStart) : name;
+                var k = index - manualStart;
+                var points = Target?.Points;
+                var name = points != null && k >= 0 && k < points.Length ? points[k].Name : null;
+                return string.IsNullOrEmpty(name) ? "手置き " + k : name;
             }
 
             switch (Target.Layout)
@@ -564,7 +569,7 @@ namespace DDrive.Editor.Anchor
             chip.AddToClassList(manual ? "ux-kind--2" : "ux-kind--0");
             head.Add(chip);
 
-            var title = PointTitle(index, manualStart);
+            var title = PointTitle(index);
             var name = new Label(title) { tooltip = "クリックでこの点を選ぶ(SceneView の選択と共通)" };
             name.AddToClassList("ux-fxrow__name");
             head.Add(name);
@@ -743,7 +748,11 @@ namespace DDrive.Editor.Anchor
             Undo.RecordObject(Target, "Move Anchor Group Point");
             if (_selectedIndex >= manualStart)
             {
-                Target.Points[_selectedIndex - manualStart].LocalOffset = local;
+                var manualIndex = _selectedIndex - manualStart;
+                if (Target.Points != null && manualIndex >= 0 && manualIndex < Target.Points.Length)
+                {
+                    Target.Points[manualIndex].LocalOffset = local;
+                }
             }
             else
             {

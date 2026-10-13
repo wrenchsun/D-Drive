@@ -25,26 +25,27 @@ namespace DDrive.Tests.Editor
         private CanvasData _parent;
         private EditorWindow _window;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            if (_window != null)
-            {
-                EditorUtility.ClearDirty(_parent);
-                UnityEngine.Object.DestroyImmediate(_window);
-                _window = null;
-            }
-
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.CloseAll();
+            _window = null;
+            _sample = null;
+            _parent = null;
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private void BuildSampleAndWindow()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             var sample = EditorAssembly.GetType("DDrive.Editor.CanvasTool.CanvasSample", true);
-            _sample = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder });
+            _sample = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder }); // Prefab の生成・読み込みでインポートが要るので Batch にしない
             _parent = (CanvasData)_sample.GetType().GetField("Parent").GetValue(_sample);
             _window = (EditorWindow)ScriptableObject.CreateInstance(EditorType);
             var baseType = EditorType.BaseType;
@@ -132,6 +133,7 @@ namespace DDrive.Tests.Editor
         // ── 実運用規模のサンプルで開く ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_BuildsHeroCardsAndFooter_WithoutSpeedOrRepeat()
         {
             BuildSampleAndWindow();
@@ -144,6 +146,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_AllFoldoutsAreClosedByDefault()
         {
             BuildSampleAndWindow();
@@ -165,6 +168,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_FxList_IsOneRowPerElement_WithCountAndFilters()
         {
             BuildSampleAndWindow();
@@ -184,6 +188,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_FxList_MoreThan20_UsesListView()
         {
             BuildSampleAndWindow();
@@ -200,6 +205,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_ChangeOneFxRow_AndUndo()
         {
             BuildSampleAndWindow();
@@ -218,6 +224,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_AddAndRemoveOneWire()
         {
             BuildSampleAndWindow();
@@ -241,6 +248,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_EmbeddedStartInactive_ToggleAndUndo()
         {
             BuildSampleAndWindow();
@@ -258,6 +266,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_EmbeddedChild_IsOneLineWithOpenButton_NotExpanded()
         {
             BuildSampleAndWindow();
@@ -273,6 +282,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_CollectNavigation_AddsSelectables()
         {
             BuildSampleAndWindow();
@@ -283,6 +293,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SampleHud_ShowsFxRowFlag_WhenValidationHasIndexedProblem()
         {
             BuildSampleAndWindow();

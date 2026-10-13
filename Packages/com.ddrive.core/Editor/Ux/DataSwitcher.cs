@@ -48,22 +48,69 @@ namespace DDrive.Editor.Ux
             Refresh();
         }
 
-        // Refresh は 150ms ごとに呼ばれるため、同じ種別の一覧は 2 秒間キャッシュする(AssetDatabase の全走査を毎回しない)。
+        // Refresh は 150ms ごとに呼ばれる。同じ種別の一覧(Category 順)は全ウィンドウで共有する静的キャッシュにし、
+        // AssetDatabase の変更(インポート・削除・移動)があったときだけ捨てる(窓の数だけ全走査しない)。
+        private static readonly Dictionary<Type, List<AssetDataBase>> SharedAll = new Dictionary<Type, List<AssetDataBase>>();
+
+        [InitializeOnLoadMethod]
+        private static void HookInvalidate()
+        {
+            EditorApplication.projectChanged -= InvalidateShared;
+            EditorApplication.projectChanged += InvalidateShared;
+        }
+
+        private static int _version;
+
+        internal static void InvalidateShared()
+        {
+            SharedAll.Clear();
+            _version++;
+        }
+
         private List<AssetDataBase> _siblingCache;
         private AssetDataBase _siblingFor;
-        private double _siblingTime;
+        private int _siblingVersion = -1;
+        private string _siblingCat;
+
+        private static List<AssetDataBase> CachedAll(Type dataType)
+        {
+            if (!SharedAll.TryGetValue(dataType, out var all))
+            {
+                all = CollectAll(dataType);
+                SharedAll[dataType] = all;
+            }
+
+            return all;
+        }
 
         private List<AssetDataBase> CachedSiblings(AssetDataBase cur)
         {
-            var now = EditorApplication.timeSinceStartup;
-            if (_siblingCache == null || _siblingFor != cur || now - _siblingTime > 2.0)
+            if (cur == null)
             {
-                _siblingCache = Siblings(_dataType, cur);
-                _siblingFor = cur;
-                _siblingTime = now;
+                return new List<AssetDataBase>();
             }
 
-            return _siblingCache;
+            var cat = CategoryOf(cur);
+            if (_siblingCache != null && _siblingFor == cur && _siblingVersion == _version && _siblingCat == cat)
+            {
+                return _siblingCache;
+            }
+
+            var all = CachedAll(_dataType);
+            var list = new List<AssetDataBase>();
+            for (var i = 0; i < all.Count; i++)
+            {
+                if (all[i] != null && CategoryOf(all[i]) == cat)
+                {
+                    list.Add(all[i]);
+                }
+            }
+
+            _siblingCache = list;
+            _siblingFor = cur;
+            _siblingVersion = _version;
+            _siblingCat = cat;
+            return list;
         }
 
         public void Refresh()

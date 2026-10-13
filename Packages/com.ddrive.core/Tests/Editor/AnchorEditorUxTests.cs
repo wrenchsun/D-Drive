@@ -33,38 +33,25 @@ namespace DDrive.Tests.Editor
         private EditorWindow _window;
         private Type _windowType;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            foreach (var w in Resources.FindObjectsOfTypeAll<EditorWindow>())
-            {
-                if (w != null && (w.GetType() == AnchorType || w.GetType() == GroupType || w.GetType() == typeof(AnchorEditorWindow) || w.GetType() == typeof(AnchorGroupEditorWindow)))
-                {
-                    if (w.GetType() == AnchorType || w.GetType() == GroupType)
-                    {
-                        var data = w.GetType().BaseType.GetField("_target", Inst).GetValue(w) as UnityEngine.Object;
-                        if (data != null)
-                        {
-                            EditorUtility.ClearDirty(data);
-                        }
-                    }
-
-                    UnityEngine.Object.DestroyImmediate(w);
-                }
-            }
-
+            UxTestWindows.CloseAll();
             _window = null;
             _sample = null;
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private void BuildSample()
         {
             var sample = EditorAssembly.GetType("DDrive.Editor.Anchor.AnchorSample", true);
-            _sample = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder });
+            _sample = UxTestWindows.Batch(() => sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder }));
         }
 
         private AnchorData[] Anchors => (AnchorData[])_sample.GetType().GetField("Anchors").GetValue(_sample);
@@ -77,6 +64,7 @@ namespace DDrive.Tests.Editor
 
         private void OpenWindow(Type type, UnityEngine.Object target)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _windowType = type;
             _window = (EditorWindow)ScriptableObject.CreateInstance(type);
             var baseType = type.BaseType;
@@ -277,6 +265,7 @@ namespace DDrive.Tests.Editor
         // ── Anchor Editor ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AnchorEditor_BuildsHeroCardsAndFooter_WithPadAsMainPart()
         {
             BuildSample();
@@ -295,6 +284,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AnchorEditor_PadWrite_UpdatesLocalOffset_AndUndoRestores()
         {
             BuildSample();
@@ -313,6 +303,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AnchorEditor_ChainRow_ShowsRootToTarget_AndButtonsSwitchTarget()
         {
             BuildSample();
@@ -329,6 +320,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AnchorEditor_OpenParent_SwitchesToParent()
         {
             BuildSample();
@@ -338,6 +330,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AnchorEditor_SceneHandleToggle_StopsSceneDrawing()
         {
             BuildSample();
@@ -362,6 +355,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AnchorEditor_ResolutionText_FollowsAttachTarget()
         {
             BuildSample();
@@ -387,6 +381,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void AnchorEditor_PlayWithTestVfx_DrivesRealManager_AtTheAnchorPosition()
         {
             BuildSample();
@@ -411,6 +406,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void VfxEditor_OpenAnchorEditor_OpensNewAnchorEditor()
         {
             BuildSample();
@@ -422,11 +418,10 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(1, windows.Length, "新 AnchorEditor が開く");
             Assert.AreEqual(Anchors[3], AnchorType.BaseType.GetField("_target", Inst).GetValue(windows[0]));
             Assert.AreEqual(0, Resources.FindObjectsOfTypeAll<AnchorEditorWindow>().Length, "旧は開かない");
-            UnityEngine.Object.DestroyImmediate(_window);
-            _window = null;
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SeEditor_OpenAnchorEditor_OpensNewAnchorEditor()
         {
             BuildSample();
@@ -438,13 +433,12 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(1, windows.Length);
             Assert.AreEqual(Anchors[5], AnchorType.BaseType.GetField("_target", Inst).GetValue(windows[0]));
             Assert.AreEqual(0, Resources.FindObjectsOfTypeAll<AnchorEditorWindow>().Length);
-            UnityEngine.Object.DestroyImmediate(_window);
-            _window = null;
         }
 
         // ── Anchor Group Editor ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_BuildsHeroCardsFooter_AndPointListAsListView()
         {
             BuildSample();
@@ -462,6 +456,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_SmallGroup_ListsOneRowPerPoint_WithoutListView()
         {
             BuildSample();
@@ -473,6 +468,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_LayoutSwitch_ShowsOnlyMatchingPatternRows()
         {
             BuildSample();
@@ -514,6 +510,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_SelectPoint_HighlightsRow_AndShowsSelectionText()
         {
             BuildSample();
@@ -531,6 +528,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_AddOverrideAndToggleSkip_UndoRestores()
         {
             BuildSample();
@@ -559,6 +557,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_ConvertPatternToPoints_BakesPointsAndSwitchesToManual()
         {
             BuildSample();
@@ -576,6 +575,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_ApplyPatternDrag_ChangesPatternSize()
         {
             BuildSample();
@@ -587,6 +587,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_Play_PlansAllPoints_OrOnlyTheSelectedOne()
         {
             BuildSample();
@@ -628,6 +629,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Presentation_OpenTrackEditorTogether_OpensGroupEditorWithAttach()
         {
             BuildSample();
@@ -649,7 +651,7 @@ namespace DDrive.Tests.Editor
                 if (_window != null)
                 {
                     EditorUtility.ClearDirty(presentation);
-                    UnityEngine.Object.DestroyImmediate(_window);
+                    _window.Close();
                     _window = null;
                 }
 
@@ -658,6 +660,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_OriginChain_ShowsAnchorChainWithOpenButtons()
         {
             BuildSample();

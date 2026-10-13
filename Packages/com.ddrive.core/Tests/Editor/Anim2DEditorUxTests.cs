@@ -27,39 +27,26 @@ namespace DDrive.Tests.Editor
         private Anim2DData _data;
         private EditorWindow _window;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            if (_window != null)
-            {
-                try
-                {
-                    EditorType.GetMethod("RemovePreview", Inst).Invoke(_window, null);
-                }
-                catch (Exception)
-                {
-                    // 後始末。失敗してもテストの結果にはしない。
-                }
-
-                if (_data != null)
-                {
-                    EditorUtility.ClearDirty(_data);
-                }
-
-                UnityEngine.Object.DestroyImmediate(_window);
-                _window = null;
-            }
-
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.CloseAll();
+            _window = null;
+            _data = null;
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private void BuildSampleAndWindow()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             var sample = EditorAssembly.GetType("DDrive.Editor.Anim.Anim2DSample", true);
-            var result = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder });
+            var result = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder }); // 画像のインポートが要る(スプライトを読む)ので Batch にしない
             _data = (Anim2DData)result.GetType().GetField("Anim").GetValue(result);
 
             _window = (EditorWindow)ScriptableObject.CreateInstance(EditorType);
@@ -159,6 +146,7 @@ namespace DDrive.Tests.Editor
         // ── 実運用規模のサンプルで開く ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_BuildsHeroCardsAndFooter_WithPlayback()
         {
             BuildSampleAndWindow();
@@ -173,6 +161,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_AllFoldoutsAreClosedByDefault()
         {
             BuildSampleAndWindow();
@@ -191,6 +180,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_FrameList_IsOneRowPerFrame_AndUsesListViewAbove20()
         {
             BuildSampleAndWindow();
@@ -202,6 +192,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_DirectionList_IsOneRowPerDirection_WithAnglesAndCount()
         {
             BuildSampleAndWindow();
@@ -214,6 +205,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_SetDirectionClip_ChangesData_FlagsEmpty_AndUndoRestores()
         {
             BuildSampleAndWindow();
@@ -229,6 +221,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_EventList_IsOneRowPerEvent_WithCountAndFilters()
         {
             BuildSampleAndWindow();
@@ -244,6 +237,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_OverLengthEvent_ShowsFlag_AndInlineError()
         {
             BuildSampleAndWindow();
@@ -254,6 +248,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ApplyRetiming_UniformRewritesClipTimes()
         {
             BuildSampleAndWindow();
@@ -266,6 +261,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_PlayAndStop_DrivesRealAnimManager()
         {
             BuildSampleAndWindow();
@@ -282,8 +278,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void EmptyState_HasNewCreateButton()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _window = (EditorWindow)ScriptableObject.CreateInstance(EditorType);
             _window.Show();
             if (_window.rootVisualElement.childCount == 0)
@@ -326,7 +324,7 @@ namespace DDrive.Tests.Editor
         public void CreateService_BuildsClipAndAnim2DData_FromASheet()
         {
             var sample = EditorAssembly.GetType("DDrive.Editor.Anim.Anim2DSample", true);
-            var result = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder });
+            var result = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder }); // 画像のインポートが要る(スプライトを読む)ので Batch にしない
             var sheet = (Texture2D)result.GetType().GetField("Sheet").GetValue(result);
             var root = TestTempFolder.Root + "/Ux7GameData";
             var created = default(Anim2DData);

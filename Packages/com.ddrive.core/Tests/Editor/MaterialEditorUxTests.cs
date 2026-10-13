@@ -26,42 +26,21 @@ namespace DDrive.Tests.Editor
         private EditorWindow _window;
         private Type _windowType;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            if (_window != null)
-            {
-                try
-                {
-                    if (_windowType == MatType)
-                    {
-                        MatType.GetMethod("RemovePreview", Inst).Invoke(_window, null);
-                    }
-                }
-                catch (Exception)
-                {
-                    // 後始末。失敗してもテストの結果にはしない。
-                }
-
-                if (_data != null)
-                {
-                    EditorUtility.ClearDirty(_data);
-                }
-
-                if (_tex != null)
-                {
-                    EditorUtility.ClearDirty(_tex);
-                }
-
-                UnityEngine.Object.DestroyImmediate(_window);
-                _window = null;
-            }
-
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.CloseAll();
+            _window = null;
+            _data = null;
+            _tex = null;
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private object BuildSample()
         {
@@ -71,6 +50,7 @@ namespace DDrive.Tests.Editor
 
         private void OpenWindow(Type type, UnityEngine.Object target)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _windowType = type;
             _window = (EditorWindow)ScriptableObject.CreateInstance(type);
             var baseType = type.BaseType;
@@ -288,6 +268,7 @@ namespace DDrive.Tests.Editor
         // ── 実運用規模のサンプルで開く ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_BuildsHeroCardsAndFooter_WithoutPlayback()
         {
             BuildSampleAndMaterialWindow();
@@ -302,6 +283,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_AllFoldoutsAreClosedByDefault()
         {
             BuildSampleAndMaterialWindow();
@@ -320,6 +302,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_SpecificKnobs_FilterChipsWithCounts_AndListViewAbove20()
         {
             BuildSampleAndMaterialWindow();
@@ -347,6 +330,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_SpecificKnob_OneRowChange_WritesData_AndUndoRestores()
         {
             BuildSampleAndMaterialWindow();
@@ -379,6 +363,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_PassKeyword_ToggleAndAdd_WriteData_AndUndoRestores()
         {
             BuildSampleAndMaterialWindow();
@@ -405,6 +390,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_SyncSpecific_AddsMissingProperties_AndReportsConflicts()
         {
             BuildSampleAndMaterialWindow();
@@ -423,6 +409,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_Validation_AttachesToSpecificRow()
         {
             BuildSampleAndMaterialWindow();
@@ -450,6 +437,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ModelShape_NeedsAModelData_BeforePlacing()
         {
             BuildSampleAndMaterialWindow();
@@ -461,8 +449,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void EmptyState_ShowsPickerForMaterialData()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _windowType = MatType;
             _window = (EditorWindow)ScriptableObject.CreateInstance(MatType);
             _window.Show();
@@ -477,6 +467,7 @@ namespace DDrive.Tests.Editor
         // ── Texture Editor ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void TextureEditor_BuildsImageCardAndInfoRow()
         {
             var result = BuildSample();

@@ -16,6 +16,7 @@ namespace DDrive.Editor.Ux
     internal static class UxScreenshot
     {
         // ウィンドウの内容(rootVisualElement の範囲)を画像にする。撮れなければ null。
+        // 戻り値の Texture2D は呼び出し側が Object.DestroyImmediate で破棄する(破棄しないとテストの繰り返しでメモリが増え続ける)。
         public static Texture2D Capture(EditorWindow window)
         {
             if (window == null)
