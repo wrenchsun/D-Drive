@@ -28,35 +28,25 @@ namespace DDrive.Tests.Editor
         private EditorWindow _window;
         private Type _windowType;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            foreach (var w in Resources.FindObjectsOfTypeAll<EditorWindow>())
-            {
-                if (w != null && (w.GetType() == ShakeType || w.GetType() == HapticsType || w.GetType() == typeof(CameraFxEditorWindow)))
-                {
-                    var data = w.GetType() == typeof(CameraFxEditorWindow) ? null : w.GetType().BaseType.GetField("_target", Inst).GetValue(w) as UnityEngine.Object;
-                    if (data != null)
-                    {
-                        EditorUtility.ClearDirty(data);
-                    }
-
-                    UnityEngine.Object.DestroyImmediate(w);
-                }
-            }
-
+            UxTestWindows.CloseAll();
             _window = null;
             _sample = null;
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private object BuildSample()
         {
             var sample = EditorAssembly.GetType("DDrive.Editor.CameraFx.CameraFxSample", true);
-            _sample = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder });
+            _sample = UxTestWindows.Batch(() => sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder }));
             return _sample;
         }
 
@@ -66,6 +56,7 @@ namespace DDrive.Tests.Editor
 
         private void OpenWindow(Type type, UnityEngine.Object target)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _windowType = type;
             _window = (EditorWindow)ScriptableObject.CreateInstance(type);
             var baseType = type.BaseType;
@@ -196,6 +187,7 @@ namespace DDrive.Tests.Editor
         // ── Shake Editor ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ShakeEditor_BuildsHeroCardsAndFooter()
         {
             BuildSample();
@@ -212,6 +204,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ShakeEditor_ApplyPreset_RewritesAllAtOnce_AndUndoRestores()
         {
             BuildSample();
@@ -233,6 +226,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ShakeEditor_PlayAndStop_DrivesRealManager_AndStacks()
         {
             BuildSample();
@@ -250,6 +244,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ShakeEditor_SwitchToHaptics_OpensHapticsEditorWithHapticsData()
         {
             BuildSample();
@@ -268,6 +263,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ShakeEditor_InvalidValues_ShowInlineWarnings()
         {
             BuildSample();
@@ -282,6 +278,7 @@ namespace DDrive.Tests.Editor
         // ── Haptics Editor ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void HapticsEditor_BuildsHeroCardsAndFooter_AndShowsPadStatus()
         {
             BuildSample();
@@ -297,6 +294,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void HapticsEditor_ApplyPreset_AndPlayWithoutPad_DoesNotThrow()
         {
             BuildSample();
@@ -398,6 +396,7 @@ namespace DDrive.Tests.Editor
         // ── 検索・モード ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ShakeEditor_SimpleMode_ShowsPresetsAndGraphOnly()
         {
             BuildSample();

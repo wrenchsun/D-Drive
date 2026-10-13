@@ -10,6 +10,13 @@ using UnityEngine.UIElements;
 
 namespace DDrive.Editor.Ux
 {
+    // テストが立てるフラグ(UxEditorWindow<T> はジェネリックなので、型ごとに別の static にならないよう外に置く)。
+    internal static class UxTestHooks
+    {
+        // true の間は未保存の確認ダイアログを出さない(保存しないで閉じる)。バッチモードでは常に出さない。
+        internal static bool SuppressDialogs;
+    }
+
     // 新デザインの専用エディターの土台(docs/1010 §2。試験版 E の PrototypeWindowBase + PrototypeEWindow を種別非依存にしたもの)。
     // 新しい専用エディターは、この UxEditorWindow<TData> を継承して「欄の表(FieldGuide<TData>)・行の作り方・再生のしかた」だけを書く。
     //
@@ -21,6 +28,8 @@ namespace DDrive.Editor.Ux
     // ファイル構成: 本ファイル = 対象・保存・再生・定期更新 / .Chrome.cs = ヒーロー・固定バー・空状態・カード / .Rows.cs = 行・検証・絞り込み。
     internal abstract partial class UxEditorWindow<TData> : EditorWindow where TData : AssetDataBase
     {
+        private static bool SuppressDialogs => UxTestHooks.SuppressDialogs || Application.isBatchMode;
+
         private const float RepeatGapSec = 0.35f;
         private const float SpeedMin = 0.1f;
         private const float SpeedMax = 2f;
@@ -358,6 +367,7 @@ namespace DDrive.Editor.Ux
 
             if (So == null || So.targetObject == null || So.targetObject != _target)
             {
+                So?.Dispose();
                 So = new SerializedObject(_target);
             }
             else
@@ -387,6 +397,12 @@ namespace DDrive.Editor.Ux
         {
             // アセットとして保存されていない Data(メモリ上のもの)には聞かない。
             if (data == null || !AssetDatabase.Contains(data) || !EditorUtility.IsDirty(data))
+            {
+                return;
+            }
+
+            // バッチモード・テスト中はモーダルを出さない(ダイアログで止まらない)。保存はせずに手放す。
+            if (SuppressDialogs)
             {
                 return;
             }

@@ -30,32 +30,32 @@ namespace DDrive.Tests.Editor
         private EditorWindow _window;
         private Animator _animator;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            if (_window != null)
-            {
-                EditorUtility.ClearDirty(_data);
-                UnityEngine.Object.DestroyImmediate(_window);
-                _window = null;
-            }
-
+            UxTestWindows.CloseAll();
+            _window = null;
+            _data = null;
             if (_animator != null)
             {
                 UnityEngine.Object.DestroyImmediate(_animator.gameObject);
                 _animator = null;
             }
 
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private void BuildSampleAndWindow(bool withAnimator = true)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             var sample = EditorAssembly.GetType("DDrive.Editor.Anim.AnimSample", true);
-            var result = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder });
+            var result = UxTestWindows.Batch(() => sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder }));
             _data = (AnimData)result.GetType().GetField("Anim").GetValue(result);
             if (withAnimator)
             {
@@ -186,6 +186,7 @@ namespace DDrive.Tests.Editor
         // ── 実運用規模のサンプルで開く ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_BuildsHeroCardsAndFooter_WithPlayback()
         {
             BuildSampleAndWindow();
@@ -199,6 +200,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_AllFoldoutsAreClosedByDefault()
         {
             BuildSampleAndWindow();
@@ -217,6 +219,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_EventList_IsOneRowPerEvent_WithCountAndFilters()
         {
             BuildSampleAndWindow();
@@ -237,6 +240,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_EventList_MoreThan20_UsesListView()
         {
             BuildSampleAndWindow();
@@ -254,6 +258,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ChangeOneEventTime_AndUndo()
         {
             BuildSampleAndWindow();
@@ -277,6 +282,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_AddAndRemoveOneEvent()
         {
             BuildSampleAndWindow();
@@ -295,6 +301,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_DuplicateEvent_AndFlagOverLength()
         {
             BuildSampleAndWindow();
@@ -309,6 +316,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_StateList_ListsEveryStateOfTheController_WithAnimDataPresence()
         {
             BuildSampleAndWindow();
@@ -325,6 +333,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_StateWithoutAnimData_IsReportedAsMissing()
         {
             BuildSampleAndWindow();
@@ -347,6 +356,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_BlendShapeList_FlagsShapeMissingOnTheModel()
         {
             BuildSampleAndWindow();
@@ -359,6 +369,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_AddAndRemoveBlendShape_WithUndo()
         {
             BuildSampleAndWindow();
@@ -373,6 +384,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_IkRow_HasFourToggles_AndTheWeightCurve()
         {
             BuildSampleAndWindow();
@@ -385,6 +397,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ModelCheck_ReportsBlendShapeMissingOnTheModel()
         {
             BuildSampleAndWindow();
@@ -405,6 +418,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ValidationErrorIsBoundToTheEventsField_AndShownInline()
         {
             BuildSampleAndWindow();
@@ -419,6 +433,7 @@ namespace DDrive.Tests.Editor
         // ── 対象と再生(実 AnimManager) ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Open_WithAttach_SetsTheSceneTarget()
         {
             BuildSampleAndWindow(false);
@@ -427,7 +442,7 @@ namespace DDrive.Tests.Editor
             _animator = (Animator)sample.GetMethod("BuildAnimatorObject", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { controller });
             var open = EditorType.GetMethod("Open", new[] { typeof(AnimData), typeof(GameObject) });
             Assert.IsNotNull(open, "Open(AnimData, GameObject)(Presentation の「一緒に調整」の入口)");
-            UnityEngine.Object.DestroyImmediate(_window);
+            _window.Close();
             _window = null;
             open.Invoke(null, new object[] { _data, _animator.gameObject });
             var windows = Resources.FindObjectsOfTypeAll(EditorType);
@@ -437,6 +452,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_PlayAndStop_DrivesTheRealAnimManager()
         {
             BuildSampleAndWindow();

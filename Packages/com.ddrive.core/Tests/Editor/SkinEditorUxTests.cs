@@ -45,31 +45,18 @@ namespace DDrive.Tests.Editor
         [OneTimeTearDown]
         public void DeleteSample()
         {
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.Release();
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
 
         [TearDown]
         public void TearDown()
         {
             ClearDirty();
-            foreach (var w in Resources.FindObjectsOfTypeAll<EditorWindow>())
-            {
-                if (w == null)
-                {
-                    continue;
-                }
-
-                var t = w.GetType();
-                if (t == ButtonType || t == SliderSkinType || t == SliderType || t == TweenEditorType
-                    || t == typeof(ButtonSkinEditorWindow) || t == typeof(SliderSkinEditorWindow) || t == typeof(SliderEditorWindow))
-                {
-                    UnityEngine.Object.DestroyImmediate(w);
-                }
-            }
-
+            UxTestWindows.CloseAll();
             foreach (var go in _objects)
             {
                 if (go != null)
@@ -114,6 +101,7 @@ namespace DDrive.Tests.Editor
 
         private void OpenWindow(Type type, UnityEngine.Object target)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _window = (EditorWindow)ScriptableObject.CreateInstance(type);
             if (target != null)
             {
@@ -328,6 +316,7 @@ namespace DDrive.Tests.Editor
         // ── 土台(ヒーロー・カード・固定バー) ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ButtonEditor_BuildsHeroCardsAndFooter_WithoutSpeed()
         {
             OpenWindow(ButtonType, Button);
@@ -340,6 +329,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderSkinEditor_BuildsPresetsStatesPartsSeHitAndCheckCards()
         {
             OpenWindow(SliderSkinType, Slider);
@@ -350,6 +340,7 @@ namespace DDrive.Tests.Editor
         // ── 状態の一覧(1 状態 = 1 行) ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Button_StateList_IsOneRowPerState_WithCountAndNoListView()
         {
             OpenWindow(ButtonType, Button);
@@ -366,6 +357,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Slider_StateList_HasTenRows_StatesAndParts_WithKindChips()
         {
             OpenWindow(SliderSkinType, Slider);
@@ -388,6 +380,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void EmptySkin_ShowsEverythingAsDefault()
         {
             OpenWindow(ButtonType, ButtonEmpty);
@@ -399,6 +392,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void StateRow_ResetToDefault_ThenUndo_RestoresTheState()
         {
             OpenWindow(ButtonType, Button);
@@ -412,6 +406,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void StateRow_Gear_OpensOnlyThatRow_WithTheStateFields()
         {
             OpenWindow(ButtonType, Button);
@@ -426,6 +421,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void StateRow_TweenEditorButton_OpensTheNewUiTweenEditor()
         {
             OpenWindow(ButtonType, Button);
@@ -447,6 +443,7 @@ namespace DDrive.Tests.Editor
         // ── 確認する・SE の試聴 ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void CheckSection_IsCheckOnly_NoStateBlocksOrPropertyFields()
         {
             OpenWindow(ButtonType, Button);
@@ -458,6 +455,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SeRows_HaveAuditionButtons_EnabledOnlyWhenTheSeExists()
         {
             OpenWindow(ButtonType, Button);
@@ -479,6 +477,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Transition_PlaysAndStops_ThroughTheCheckSection()
         {
             OpenWindow(ButtonType, Button);
@@ -495,6 +494,7 @@ namespace DDrive.Tests.Editor
         // ── プレビュー部品 ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Button_Place_CreatesPreviewWithTheSkin_AndRemoveOnClose()
         {
             OpenWindow(ButtonType, Button);
@@ -503,7 +503,7 @@ namespace DDrive.Tests.Editor
             Assert.IsNotNull(preview, "実 UiButton が確認用に置かれる");
             Assert.IsNotNull(EditorPreviewRoots.Find("[D-Drive] Button Skin Editor Preview"));
 
-            UnityEngine.Object.DestroyImmediate(_window);
+            _window.Close();
             _window = null;
             Assert.IsNull(EditorPreviewRoots.Find("[D-Drive] Button Skin Editor Preview"), "閉じたらプレビューも片付く");
         }
@@ -511,6 +511,7 @@ namespace DDrive.Tests.Editor
         // ── 雛形 5 種(Slider Skin / Slider Editor) ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderSkin_Preset_AppliesToThePreviewSlider_AndUndoRestores()
         {
             OpenWindow(SliderSkinType, Slider);
@@ -527,6 +528,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderSkin_PresetsRow_HasFiveButtons()
         {
             OpenWindow(SliderSkinType, Slider);
@@ -541,6 +543,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderSkin_DragSimulation_MovesThePreviewSlider()
         {
             OpenWindow(SliderSkinType, Slider);
@@ -561,6 +564,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderEditor_BuildsCards_AndShowsTheResponseCurveAndNotchBar()
         {
             var slider = MakeRealSlider();
@@ -583,6 +587,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderEditor_Preset_AppliesToTheTarget_AndUndoRestores_AndRefreshesTheCurve()
         {
             var slider = MakeRealSlider();
@@ -599,6 +604,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderEditor_ValidationInline_ShowsTheProblem()
         {
             var slider = MakeRealSlider();
@@ -611,6 +617,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderEditor_RealSlider_IsNotDrivenByDragSimulation()
         {
             var slider = MakeRealSlider();
@@ -622,6 +629,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderEditor_SampleSlider_DragSimulationRuns_AndCompareAndSkinPreviewAreCreated()
         {
             OpenWindow(SliderType, null);

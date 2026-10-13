@@ -23,17 +23,17 @@ namespace DDrive.Tests.Editor
     {
         private const string TestRoot = TestTempFolder.Root + "/TempGameData_5_15";
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
+
         [TearDown]
         public void TearDown()
         {
-            // 開いたままのテスト用ウィンドウを必ず閉じる(残骸を残さない)。
-            foreach (var window in Resources.FindObjectsOfTypeAll<EditorWindow>())
-            {
-                if (window is AudioEditorWindow or VfxEditorWindow or MaterialEditorWindow or NewAssetDialog || window.GetType().Name is "VfxEditor" or "SeEditor" or "BgmEditor" or "MaterialEditor" or "TextureEditor")
-                {
-                    window.Close();
-                }
-            }
+            // 開いたままのテスト用ウィンドウを必ず閉じる(残骸を残さない。D-Drive のウィンドウは型を問わず全部)。
+            UxTestWindows.CloseAll();
 
             if (AssetDatabase.IsValidFolder(TestRoot))
             {

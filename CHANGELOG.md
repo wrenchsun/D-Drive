@@ -43,6 +43,9 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 修正
 
+- **`AnchorGroupEditor` の点の一覧で `IndexOutOfRangeException` が出ることがあったのを直した**（`PointTitle` が古い `manualStart` を閉じ込めていた。現在の `Points` の長さで範囲を確かめ、既定名を返す。SceneView のハンドル移動も同様）
+- **新デザインの専用エディター（`UxEditorWindow`）が `SerializedObject` を Dispose していなかった**のを直した（作り直す前・ウィンドウを無効にするときに Dispose）。バッチモードでは未保存の確認ダイアログを出さない。`DataSwitcher` の一覧は全ウィンドウで共有するキャッシュにし、プロジェクトの変更で捨てる
+
 - **全画面・解像度の変更で HUD の配置が追従しない**（[docs/1004](docs/1004_tasks.md) C-1）: `UiManager` のレイヤールート Canvas に CanvasScaler が無く、子として開く Prefab の CanvasScaler が Unity の仕様で無視されていた（常に scaleFactor 1）。レイヤールートに CanvasScaler を付け、レイヤーで最初に開く Canvas の Prefab の CanvasScaler 設定（ルートまたは直下の子）をそのまま写す。Prefab に無ければ `UiCanvasScalerDefaults`（既定 ScaleWithScreenSize 1920x1080 / Match 0.5。Project Settings > D-Drive > Canvas）。同じレイヤーで設定が食い違う Canvas を開いたら Warning（1 回）で、先に開いた設定を維持。新 Validator Warning `DD-CANVAS-SCALER-MISMATCH`
 
 ### 互換性

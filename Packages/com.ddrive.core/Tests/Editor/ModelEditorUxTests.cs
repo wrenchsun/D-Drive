@@ -30,54 +30,21 @@ namespace DDrive.Tests.Editor
         private EditorWindow _window;
         private Type _windowType;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            if (_window != null)
-            {
-                try
-                {
-                    if (_windowType == ModelType)
-                    {
-                        ModelType.GetMethod("RemoveMain", Inst).Invoke(_window, null);
-                    }
-                    else if (_windowType == PrefabType)
-                    {
-                        PrefabType.GetMethod("RemovePreview", Inst).Invoke(_window, null);
-                    }
-                }
-                catch (Exception)
-                {
-                    // 後始末。失敗してもテストの結果にはしない。
-                }
-
-                if (_model != null)
-                {
-                    EditorUtility.ClearDirty(_model);
-                }
-
-                if (_prefabData != null)
-                {
-                    EditorUtility.ClearDirty(_prefabData);
-                }
-
-                UnityEngine.Object.DestroyImmediate(_window);
-                _window = null;
-            }
-
-            foreach (var w in Resources.FindObjectsOfTypeAll<EditorWindow>())
-            {
-                if (w != null && w.GetType().Name is "MaterialEditor" or "AnimEditor")
-                {
-                    w.Close();
-                }
-            }
-
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.CloseAll();
+            _window = null;
+            _model = null;
+            _prefabData = null;
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private object BuildModelSample()
         {
@@ -93,6 +60,7 @@ namespace DDrive.Tests.Editor
 
         private void OpenWindow(Type type, UnityEngine.Object target)
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             _windowType = type;
             _window = (EditorWindow)ScriptableObject.CreateInstance(type);
             var baseType = type.BaseType;
@@ -207,6 +175,7 @@ namespace DDrive.Tests.Editor
         // ── Model: 実運用規模のサンプルで開く ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_BuildsHeroCardsAndFooter_WithPlayback()
         {
             var result = BuildSampleAndModelWindow();
@@ -223,6 +192,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_AllFoldoutsAreClosedByDefault()
         {
             BuildSampleAndModelWindow();
@@ -241,6 +211,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_SlotList_IsOneRowPerSlot_WithCountsChipsAndListView()
         {
             BuildSampleAndModelWindow();
@@ -255,6 +226,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_SlotRows_FlagUnassignedAndMissingRenderer()
         {
             BuildSampleAndModelWindow();
@@ -269,6 +241,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_SetSlotMaterial_WritesOneSlot_AndUndoRestores()
         {
             var result = BuildSampleAndModelWindow();
@@ -292,6 +265,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_OpenSlotMaterial_OpensNewMaterialEditor()
         {
             BuildSampleAndModelWindow();
@@ -306,6 +280,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_OpenDefaultAnimation_OpensNewAnimEditor()
         {
             BuildSampleAndModelWindow();
@@ -315,6 +290,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_InfoAndAvatarTexts_DescribePrefabAndHumanoid()
         {
             BuildSampleAndModelWindow();
@@ -336,6 +312,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_PlaceParallelAndRemove_UsesRealModelsManager()
         {
             var result = BuildSampleAndModelWindow();
@@ -359,6 +336,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_PlayWithoutDefaultAnimation_SaysSo_AndDoesNotRepeat()
         {
             BuildSampleAndModelWindow();
@@ -370,6 +348,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_PlayWithDefaultAnimation_PlacesTheModel()
         {
             BuildSampleAndModelWindow();
@@ -379,6 +358,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelSample_ValidationShowsOnTheSlotsRow_AndInTheChip()
         {
             BuildSampleAndModelWindow();
@@ -389,6 +369,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void ModelEditor_EmptyState_DoesNotThrow()
         {
             OpenWindow(ModelType, null);
@@ -423,6 +404,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void PrefabSample_BuildsHeroCardsAndFooter_WithoutPlayback()
         {
             BuildSampleAndPrefabWindow();
@@ -435,6 +417,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void PrefabSample_AllFoldoutsAreClosedByDefault()
         {
             BuildSampleAndPrefabWindow();
@@ -453,6 +436,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void PrefabSample_PlaceAndRemovePreview_UsesRealPrefabsManager()
         {
             BuildSampleAndPrefabWindow();
@@ -468,6 +452,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void PrefabSample_ValidationWarnsDuplicateTag_InlineOnTheTagsRow()
         {
             BuildSampleAndPrefabWindow();
@@ -485,6 +470,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void PrefabEditor_EmptyState_DoesNotThrow()
         {
             OpenWindow(PrefabType, null);

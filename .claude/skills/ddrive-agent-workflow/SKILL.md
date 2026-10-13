@@ -69,6 +69,8 @@ D-Drive の MCP は isuzu-unity（Editor 組み込み、ポートはプロジェ
 5. `test_run mode=play` → `test_results` をポーリング（PlayMode 全件で概ね 1〜2 分。`Tests/Runtime` は asmdef が全プラットフォーム対象のため PlayMode でしか走らない）。green を確認
 6. **EditMode と PlayMode の両方が green になるまで完了報告しない**（[`../../CLAUDE.md`](../../CLAUDE.md) §3）。例外: **Editor 専用の自明な変更**（簡単なバグ修正・エディターのちょっとした修正。ランタイム・ネット・Data 形式・公開 API に触れない）は EditMode のみで可。試験版（プレリリース）と自明な変更のリリースは `run-ci` 全段を省く軽い経路（[`../../docs/12_review.md`](../../docs/12_review.md) §7 手順 4 の末尾、2026-10-10）
 
+- **EditMode 全件は、UX 系（`*UxTests`）をクラス単位で回し、前後で `UxTestWindows.Count()`（または `Resources.FindObjectsOfTypeAll<EditorWindow>().Length`）が増えていないことを確認する**（実ウィンドウの取りこぼしで Unity が OOM になった実例、[`../../docs/09_editor_tools.md`](../../docs/09_editor_tools.md) §16「UX テストの衛生ルール」）
+
 ### テストで実データを汚さない確認
 
 - テストは `ScriptableObject.CreateInstance` や一時 `TestRoot` のみを使うべきで、実 `Assets/GameData/` のカタログ・Addressables グループを書き換えてはいけない

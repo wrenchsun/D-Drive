@@ -26,26 +26,26 @@ namespace DDrive.Tests.Editor
         private PresentationData _data;
         private EditorWindow _window;
 
+        [SetUp]
+        public void SetUp() => UxTestWindows.CloseAll();
+
         [TearDown]
         public void TearDown()
         {
-            if (_window != null)
-            {
-                EditorUtility.ClearDirty(_data);
-                UnityEngine.Object.DestroyImmediate(_window);
-                _window = null;
-            }
-
-            if (AssetDatabase.IsValidFolder(TmpFolder))
-            {
-                AssetDatabase.DeleteAsset(TmpFolder);
-            }
+            UxTestWindows.CloseAll();
+            _window = null;
+            _data = null;
+            UxTestWindows.DeleteFolder(TmpFolder);
         }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown() => UxTestWindows.Release();
 
         private void BuildSampleAndWindow()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             var sample = EditorAssembly.GetType("DDrive.Editor.Presentation.PresentationSample", true);
-            var result = sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder });
+            var result = UxTestWindows.Batch(() => sample.GetMethod("Build", BindingFlags.Static | BindingFlags.Public).Invoke(null, new object[] { TmpFolder }));
             _data = (PresentationData)result.GetType().GetField("Presentation").GetValue(result);
             _window = (EditorWindow)ScriptableObject.CreateInstance(EditorType);
             var baseType = EditorType.BaseType;
@@ -139,6 +139,7 @@ namespace DDrive.Tests.Editor
         // ── 実運用規模のサンプルで開く ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_BuildsHeroCardsAndFooter_WithPlayback()
         {
             BuildSampleAndWindow();
@@ -152,6 +153,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_AllFoldoutsAreClosedByDefault()
         {
             BuildSampleAndWindow();
@@ -170,6 +172,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_TrackList_IsOneRowPerTrack_WithCountAndFilters()
         {
             BuildSampleAndWindow();
@@ -192,6 +195,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_TrackList_MoreThan20_UsesListView()
         {
             BuildSampleAndWindow();
@@ -209,6 +213,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ChangeOneTrackTime_AndUndo()
         {
             BuildSampleAndWindow();
@@ -242,6 +247,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_AddAndRemoveOneTrack()
         {
             BuildSampleAndWindow();
@@ -259,6 +265,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_MoveAndDuplicateTrack()
         {
             BuildSampleAndWindow();
@@ -273,6 +280,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_SignalButtons_ListOnSignalKeys_DisabledWhileStopped()
         {
             BuildSampleAndWindow();
@@ -284,6 +292,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ShowsTrackFlag_ForTrackWithMissingAsset()
         {
             BuildSampleAndWindow();
@@ -293,6 +302,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_ReturnsExpectedAdjustedCount()
         {
             BuildSampleAndWindow();
@@ -310,6 +320,7 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Sample_TuneKnobsInOpenRow_ShowParamsOfTheTrack()
         {
             BuildSampleAndWindow();
