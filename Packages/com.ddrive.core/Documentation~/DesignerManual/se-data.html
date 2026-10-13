@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › SE（効果音）の設定項目</nav>
 
 <h1>SE（効果音）の設定項目</h1>
-<p class="lastupdate">最終更新日: 2026-09-19</p>
+<p class="lastupdate">最終更新日: 2026-10-12</p>
 
 <p><a href="asset-browser.html">Asset Browser</a> で SE を選ぶと、Unity 右側の Inspector（インスペクター）に設定項目が表示されます。ここではその<strong>すべての項目</strong>を説明します。各項目はエディタ上でマウスを乗せても説明（ツールチップ）が出ます。</p>
 
@@ -20,7 +20,7 @@
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Clips</td><td>実際に再生される音声ファイル。<strong>複数入れると、鳴らすたびに違う音を選べます</strong>（足音のバリエーションなどに便利）。どう選ぶかは下の Select Mode で決めます。</td></tr>
-<tr><td>Sources</td><td>「音の切り出し（トリミング）」用の元データ置き場。ここに元ファイルを入れて切り出し範囲を指定し、「トリミングを適用」すると Clips に切り出し済みの音が入ります。<strong>元ファイルは一切変更されない</strong>ので、何度でもやり直せます。詳しくは <a href="audio-editor.html#trim">Audio Editor のトリミング</a> へ。</td></tr>
+<tr><td>Sources</td><td>「音の切り出し（トリミング）」用の元データ置き場。ここに元ファイルを入れて切り出し範囲を指定し、「トリミングを適用」すると Clips に切り出し済みの音が入ります。<strong>元ファイルは一切変更されない</strong>ので、何度でもやり直せます。詳しくは <a href="audio-editor.html#se-cut">Audio Editor のトリミング</a> へ。</td></tr>
 <tr><td>Start Offset Sec</td><td>再生を何秒目から始めるか。「頭の無音をスキップしたい」ときに手軽に使えます（0 = 先頭から）。</td></tr>
 <tr><td>Select Mode</td><td>Clips が複数あるときの選び方。<br><strong>Random</strong>: 毎回ランダム（足音など自然なばらつきに）<br><strong>RoundRobin</strong>: 順番に1つずつ（1→2→3→1→…）<br><strong>First</strong>: 常に先頭の1つだけ</td></tr>
 <tr><td>Mixer</td><td>音の出力先グループ。通常はサウンド担当が指定したもの（SE 用グループなど）を設定します。未設定だと警告が出ます。→ <a href="glossary.html#mixer">用語集: Mixer</a></td></tr>

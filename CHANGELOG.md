@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.8.0] - 2026-10-13
+
 ### 追加
 
 - **新デザインの専用エディター全種別の空状態に「サンプルを作る」**（[docs/1010](docs/1010_editor_ux_migration.md) UX-19）: Vfx / Se / Bgm / Canvas / Presentation / Anim / Material / Texture / Model / Prefab / Shake / Haptics / Anchor / Anchor Group / UI Tween / Button Skin / Slider Skin。`Assets/GameData/<種別>/Sample/` にカテゴリ Sample で作る（カタログ・Addressables 登録つき。同じものがあれば選ぶだけ）。Anim2D はスプライトシートが要るので出さない（「＋ 新規作成」のウィザードのみ）。`Editor/Ux` の internal のみ

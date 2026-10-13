@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Anchor（出す位置）の作り方</nav>
 
 <h1>Anchor（出す位置）の作り方</h1>
-<p class="lastupdate">最終更新日: 2026-09-19</p>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
 <p>Anchor は「エフェクトや効果音を<strong>どこに・いつ・どう</strong>出すか」だけを決めるデータです。「何を出すか」は持ちません。1 つ作っておけば、いくつもの VFX / SE から同じ位置設定を使い回せます。</p>
 <ul>
@@ -21,30 +21,31 @@
 </ul>
 
 <div class="tip">
-以前からある VFX / SE データの中の「Anchor」欄（埋め込み）はそのまま使えます。Anchor データを作って VFX / SE の「Anchor アセット」欄に入れると、そちらが優先されます。
+VFX / SE データの中の「Anchor」欄（埋め込み）はそのまま使えます。Anchor データを作って VFX / SE の「Anchor アセット」欄に入れると、そちらが優先されます。
 </div>
+
+<p>対象のデータを選んでいない（空の）ときは、ウィンドウの「<strong>サンプルを作る</strong>」ボタンでサンプルのデータを作って試せます（<code>Assets/GameData/&lt;種別&gt;/Sample/</code> にカテゴリ Sample で作られます。同じものが既にあれば、作らずそれを選びます）。</p>
 
 <h2>開き方</h2>
 <ol>
 <li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Anchor</code>（Anchor Editor）</li>
-<li>または VFX Editor の Anchor 欄「AnchorEditor で開く」、SE データの Inspector の「AnchorEditor で開く」</li>
+<li>または VFX Editor の Anchor 欄「Anchor Editor で開く」、SE データの Inspector の「AnchorEditor で開く」</li>
 <li>Anchor データそのものを Project で選んだときは、Inspector 最上部の「▶ Anchor Editor で開く」（Anchor は絵の元が無いので、アイコンの「自動生成」は使えません）</li>
 </ol>
 
 <h2>はじめの一歩（5 分でできる練習）</h2>
 <p>「キャラクターの右手にエフェクトを出す位置」を作って、実際に出してみる流れです。</p>
 <ol>
-<li>VFX Editor か Anchor Editor のツールバー「<strong>確認用シーンを開く</strong>」で確認用シーンを開く</li>
+<li>VFX Editor か Anchor Editor の上部「<strong>確認用シーン</strong>」で確認用シーンを開く</li>
 <li><code>Tools &gt; D-Drive &gt; Generate &gt; Anchor プレハブを生成</code> でできた <code>AnchorRig</code> を、Project から Hierarchy へドラッグして置く（キャラクターがいる場合はその子に置き、中の <code>Anchor_Main</code> を右手あたりまで動かす）</li>
 <li>Hierarchy で AnchorRig を選んだまま <code>Tools &gt; D-Drive &gt; Generate &gt; 選択した AnchorRig から Anchor を一括生成</code>。Anchor データが 1 つでき、Anchor Editor に入ります</li>
-<li>Anchor Editor の「<strong>スポーン先</strong>」に Hierarchy の AnchorRig（キャラクターの子に置いたならキャラクター）を入れる。基準の表示が「✓」になることを確認</li>
-<li>「試し出し」の「確認用 VFX」に好きな VFX データを入れて ▶。<strong>SceneView の黄色い円の位置にエフェクトが出ます</strong>。円をドラッグして位置を変えると、次の ▶ から反映されます</li>
+<li>「基準を決める」カードの「<strong>スポーン先</strong>」に Hierarchy の AnchorRig（キャラクターの子に置いたならキャラクター）を入れる。解決の表示が「✓」になることを確認</li>
+<li>「試し出し」カードの「確認用 VFX」に好きな VFX データを入れて ▶。<strong>SceneView の黄色い円の位置にエフェクトが出ます</strong>。円をドラッグして位置を変えると、次の ▶ から反映されます</li>
 <li>使いたい VFX を VFX Editor で開き、Anchor 欄の「<strong>Anchor アセット</strong>」に今作った Anchor を選ぶ。これで、その VFX はプログラムから呼ばれたときもこの位置に出ます</li>
 </ol>
-<!-- screenshot: 36-#22 -->
 <figure>
 <img src="images/anchor-editor-window.png" alt="Anchor Editor ウィンドウ全体">
-<figcaption>Anchor Editor。連鎖表示・スポーン先・設定項目・試し出しボタンが縦に並ぶ</figcaption>
+<figcaption>Anchor Editor。上から、出る位置（パッドで決める）・試し出し・基準を決める・親 Anchor とつなぐ・ばらつき・ヒエラルキーから作る</figcaption>
 </figure>
 
 <div class="tip">
@@ -54,41 +55,67 @@
 <h2>作り方（3 通り）</h2>
 <table>
 <tr><th>方法</th><th>手順</th><th>向いている場面</th></tr>
-<tr><td>新規作成</td><td><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anchor</strong> を選ぶ。Anchor Editor でスポーン先（キャラクター）を指定し、「一覧から選択」でボーンを選んで位置を調整</td><td>ゼロから作る</td></tr>
-<tr><td>Hierarchy の Transform から作る</td><td>シーンでボーンの下に空のオブジェクトを置いて位置を決め、それを選択したまま Anchor Editor の「<strong>選択した Transform から作成</strong>」（または <code>Tools &gt; D-Drive &gt; Generate &gt; 選択した Transform から Anchor を作成</code>）。親のボーン名と、そこからのずれが自動で入ります。作った後、その空オブジェクトは消して構いません</td><td>既存のボーンやモデルの階層をそのまま使いたい</td></tr>
+<tr><td>新規作成</td><td>Anchor Editor 上部の「＋ 新規」、または <a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>Anchor</strong> を選ぶ。Anchor Editor でスポーン先（キャラクター）を指定し、「Path を一覧から選ぶ」でボーンを選んで位置を調整</td><td>ゼロから作る</td></tr>
+<tr><td>Hierarchy の Transform から作る</td><td>シーンでボーンの下に空のオブジェクトを置いて位置を決め、それを選択したまま Anchor Editor の「ヒエラルキーから作る」カードの「<strong>選択した Transform から作成</strong>」（または <code>Tools &gt; D-Drive &gt; Generate &gt; 選択した Transform から Anchor を作成</code>）。親のボーン名と、そこからのずれが自動で入ります。作った後、その空オブジェクトは消して構いません</td><td>既存のボーンやモデルの階層をそのまま使いたい</td></tr>
 <tr><td>AnchorRig から一括で作る</td><td><a href="vfx-data.html#anchorpoint">AnchorRig</a>（AnchorPoint の集まり）を選択して「<strong>AnchorRig から一括生成</strong>」。AnchorPoint 1 つにつき Anchor データが 1 つでき、AnchorPoint の親子関係はそのまま Anchor の入れ子になります。ランダム設定も写されます</td><td>SceneView でドラッグして決めた目印をデータ化したい</td></tr>
 </table>
 <p>VFX / SE の埋め込み Anchor から作るには、VFX Editor の「埋め込みをアセット化」（SE は Inspector の「埋め込み Anchor をアセット化」）を押します。埋め込みの値は残り、Anchor アセット欄に新しいデータが入ります。</p>
 
-<h2>Anchor Editor の画面</h2>
-<table>
-<tr><th>要素</th><th>説明</th></tr>
-<tr><td>連鎖: ルート → … → [対象]</td><td>入れ子になっている場合、親をたどった並びが出ます。ボタンを押すとその Anchor に切り替わります</td></tr>
-<tr><td>スポーン先</td><td>ルート Anchor の「Path」を探す起点。シーン内のキャラクターや AnchorRig を入れると、その下のボーンが「一覧から選択」に出ます</td></tr>
-<tr><td>基準の表示</td><td>「✓ 'RightHand'」なら見つかっています。「⚠ … が見つかりません」なら名前を確認。後ろに「生成: 0.5s 後・確率 50%」のように出る場合はディレイ/確率が効いています</td></tr>
-<tr><td>設定</td><td>下の「設定項目」を参照</td></tr>
-<tr><td>試し出し</td><td>確認用の VFX と SE を 1 つずつ入れて ▶。<strong>この Anchor の位置に実際に出ます</strong>。ディレイ・確率・ランダムの効き方は ▶ を何度か押すと分かります</td></tr>
-<tr><td>SceneView</td><td>ルートから対象までを点線で結び、ランダム半径を円で表示。移動/回転ハンドルでドラッグして位置を決められます（Ctrl+Z 可）。ツールバーの「SceneView 表示」を OFF にすると何も描きません。VFX Editor など他の D-Drive ウィンドウも開いているときは、<strong>最後にクリックしたウィンドウだけ</strong>が詳細とハンドルを描き、他は薄い目印だけになります（重なって見づらくなるのを防ぐため。ツールバー下の「SceneView: …が描画中」で確認できます）</td></tr>
-<tr><td>検証</td><td>入れ子の循環、親が見つからない、Path が空、などの問題を表示</td></tr>
-</table>
+<h2>Anchor Editor の使い方</h2>
+<p>設定は、やりたいことごとの「カード」に並びます。上の「かんたん / 標準 / 詳細」で表示する欄の量を切り替え（かんたん = 出る位置と試し出しだけ）、右上の検索で設定を探せます。ウィンドウ下の固定バーに ▶ 再生・■ 停止・リピート・変更件数・自動保存・保存があります。▶ は「確認用の VFX と SE をまとめて出す」ボタンで、リピートを入れると散らばり方・ディレイ・確率を繰り返し確かめられます。</p>
+
+<h3 id="place">出る位置（パッドで決める）</h3>
+<p>上から見た 2D パッドの<strong>点をドラッグ</strong>すると、位置（X = 横・Z = 奥行き）が変わります。右のスライダーが高さ（Y）です。1m ごとの格子と 1 / 2 / 3m の距離の輪が出ます（Shift を押しながらで 0.25m 刻み）。下の数値欄に直接入力もでき、「原点へ」で X / Z を 0 に戻せます（Ctrl+Z で戻せます）。範囲の外に出した値は点が端に寄り、警告色になります。</p>
+<p>ルートの基準が World 以外のとき、親 Anchor があるときは、位置は「基準（または親の姿勢）からの相対（メートル）」になる、という注記がパッドの下に出ます。向き（回転オフセット）は同じカードの「向き」、大きさは詳細モードの「大きさ（スケール）」、位置の数値入力は詳細モードの「位置のオフセット（全設定）」です。</p>
+
+<h3 id="try">試し出し</h3>
+<ul>
+<li><strong>確認用 VFX / 確認用 SE</strong>: 好きな VFX / SE データを入れて、横の ▶ で<strong>この Anchor の位置に実際に出します</strong>（■ で止めます）。VFX は連打すると出し直し、ランダム・ディレイ・確率が毎回サンプリングされます。確率に外れたときは「SpawnChance に外れた」と出ます</li>
+<li>SceneView の円の位置に出ているか、確認用シーン（上部の「確認用シーン」）で見た目も確かめます。カメラやライトが無いシーンでは案内が出ます</li>
+</ul>
+
+<h3 id="base">基準を決める</h3>
+<ul>
+<li><strong>基準の種類（Space）</strong>: World = ワールド座標に固定 / BoneName・NamedObject = スポーン先の階層から Path の名前を探す / ContextTarget = スポーン先そのもの</li>
+<li><strong>探す名前（Path）</strong>: Space が BoneName / NamedObject のときのボーン名・オブジェクト名</li>
+<li><strong>スポーン先（試すときの基準）</strong>: Path を探す起点。シーン内のキャラクターや AnchorRig を入れると、その下のボーンと★AnchorPoint が「<strong>Path を一覧から選ぶ</strong>」に出ます。選ぶと Path に入ります（Space が World のときは NamedObject に切り替わります）</li>
+<li><strong>解決の表示</strong>: 「✓ 'RightHand'」なら見つかっています。「⚠ … が見つかりません」なら名前を確認。後ろに「生成: 0.5s 後・確率 50%」のように出る場合はディレイ / 確率が効いています</li>
+<li><strong>SceneView に表示</strong>: ルートから対象までを点線で結び、ランダム半径を円で表示。移動 / 回転ハンドルでドラッグして位置を決められます（Ctrl+Z 可）。OFF にすると何も描きません。VFX Editor など他の D-Drive ウィンドウも開いているときは、<strong>最後にクリックしたウィンドウだけ</strong>が詳細とハンドルを描き、他は薄い目印だけになります（重なって見づらくなるのを防ぐため。表示の下の「SceneView: …が描画中」で確認できます）</li>
+<li>詳細モードの「回転にも追従する」「アタッチ先が消えても残す」: ルートだけで有効です</li>
+</ul>
 <figure>
 <img src="images/anchor-editor-sceneview.png" alt="Anchor Editor の SceneView 表示">
 <figcaption>SceneView。左上が基準（赤い 3 軸とラベル）、そこから対象の位置（黄色い円と移動ハンドル）までの線に LocalOffset と距離が出る</figcaption>
 </figure>
 <p><a href="vfx-editor.html#anchor">VFX Editor</a> でも、Anchor アセットを設定した VFX なら同じ表示・同じハンドルで Anchor データを動かせます。どちらから動かしても同じ Anchor データが書き換わります。</p>
 
+<h3 id="chain">親 Anchor とつなぐ</h3>
+<ul>
+<li><strong>親 Anchor</strong>: 入れておくと「親で決まった位置」を基準に、この Anchor のオフセットを積みます。空ならルート。「親を開く」で親 Anchor に切り替わります</li>
+<li><strong>連鎖</strong>: ルート → … → [この Anchor] の並び。ボタンを押すとその Anchor に切り替わります。ルートに辿り着けないとき（未登録・循環）は警告が出ます</li>
+</ul>
+
+<h3 id="random">ばらつき・タイミング</h3>
+<p>位置のばらつき・向きのばらつき・大きさのばらつき・待ち時間・待ち時間のばらつき・出る確率。意味は下の「設定項目」の表のとおりです。問題がある欄（確率が 0・ディレイが長すぎる・大きさのばらつきが負など）は、その欄の下に警告が出ます。</p>
+
+<h3 id="create">ヒエラルキーから作る</h3>
+<p>Hierarchy でボーン配下の空オブジェクトや AnchorPoint を選んで「選択した Transform から作成」、AnchorRig を選んで「AnchorRig から一括生成」。作った Anchor はそのままこのウィンドウで開きます（詳しくは上の「作り方（3 通り）」）。</p>
+
+<h3 id="admin">管理情報</h3>
+<p>表示名・カテゴリ・説明・タグ・担当者・仕様書 URL など、一覧での見え方とメモ。詳細モードでは動作の取り決め（Flags）・イベント（Events）も出ます。</p>
+
 <h2>設定項目</h2>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
-<tr><td>Parent</td><td>親の Anchor。入れておくと「親で決まった位置」を基準に、この Anchor のオフセットを積みます。空ならルート</td></tr>
-<tr><td>Space / Path</td><td>ルートだけで有効。基準の決め方と探す名前（<a href="vfx-data.html#anchor">VFX の Anchor</a> と同じ）。子では無視されます（親から引き継ぐ）</td></tr>
-<tr><td>Local Offset / Local Euler / Local Scale</td><td>基準からの位置のずれ（m）・向き（度）・大きさの倍率</td></tr>
+<tr><td>Parent（親 Anchor）</td><td>親の Anchor。入れておくと「親で決まった位置」を基準に、この Anchor のオフセットを積みます。空ならルート</td></tr>
+<tr><td>Space / Path（基準の種類 / 探す名前）</td><td>ルートだけで有効。基準の決め方と探す名前（<a href="vfx-data.html#anchor">VFX の Anchor</a> と同じ）。子では無視されます（親から引き継ぐ）</td></tr>
+<tr><td>Local Offset / Local Euler / Local Scale（位置 / 向き / 大きさ）</td><td>基準からの位置のずれ（m）・向き（度）・大きさの倍率</td></tr>
 <tr><td>Follow Rotation / Detach On Stop</td><td>ルートだけで有効。回転に追従するか／基準が消えた後も残すか</td></tr>
-<tr><td>Position Jitter Radius</td><td>出す位置をこの半径の球の中でランダムに散らす。0 で無効</td></tr>
-<tr><td>Euler Jitter</td><td>向きを ± この角度の範囲でランダムに変える</td></tr>
-<tr><td>Scale Range</td><td>大きさの倍率をこの範囲（最小, 最大）でランダムに。効果音には関係ありません</td></tr>
-<tr><td>Delay Sec / Delay Jitter Sec</td><td>出すまでの待ち秒数と、そこに足すランダム秒数。入れ子では親子の値が足し合わされます</td></tr>
-<tr><td>Spawn Chance</td><td>出す確率（0〜1）。0.3 なら 3 割の確率で出ます。入れ子では掛け合わされます。0 だと出ません（検証に注意が出ます）</td></tr>
+<tr><td>Position Jitter Radius（位置のばらつき）</td><td>出す位置をこの半径の球の中でランダムに散らす。0 で無効</td></tr>
+<tr><td>Euler Jitter（向きのばらつき）</td><td>向きを ± この角度の範囲でランダムに変える</td></tr>
+<tr><td>Scale Range（大きさのばらつき）</td><td>大きさの倍率をこの範囲（最小, 最大）でランダムに。効果音には関係ありません</td></tr>
+<tr><td>Delay Sec / Delay Jitter Sec（待ち時間 / ばらつき）</td><td>出すまでの待ち秒数と、そこに足すランダム秒数。入れ子では親子の値が足し合わされます</td></tr>
+<tr><td>Spawn Chance（出る確率）</td><td>出す確率（0〜1）。0.3 なら 3 割の確率で出ます。入れ子では掛け合わされます。0 だと出ません（検証に注意が出ます）</td></tr>
 </table>
 
 <h2>VFX / SE から使う</h2>
@@ -101,32 +128,32 @@
 <h2>よくある使い方</h2>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>右手の斬撃エフェクトを、少し手前にずらして出す</td><td>スポーン先にキャラクター、「一覧から選択」で右手のボーン（または ★Anchor_RightHand）→ SceneView のハンドルで手前にドラッグ。回転にも追従させるなら Follow Rotation を ON</td></tr>
-<tr><td>ヒット時の火花を毎回少し違う場所・向きで出す</td><td>Position Jitter Radius = 0.2〜0.5、Euler Jitter = (0, 180, 0)。▶ を連打してばらつきを確認</td></tr>
-<tr><td>爆発の後、少し遅れて煙を出す</td><td>煙用の Anchor を作り Delay Sec = 0.3。爆発用と煙用で別の Anchor にすると、それぞれ位置も変えられます</td></tr>
-<tr><td>たまにしか出ないキラッとした演出</td><td>Spawn Chance = 0.2（5 回に 1 回）</td></tr>
-<tr><td>銃口 → 銃口の先のマズルフラッシュ、のように親子で位置を決める</td><td>銃口の Anchor を作り、もう 1 つ Anchor を作って Parent に銃口を指定、Local Offset で前方へ。銃口の位置を直せば先の Anchor も一緒に動きます</td></tr>
+<tr><td>右手の斬撃エフェクトを、少し手前にずらして出す</td><td>スポーン先にキャラクター、「Path を一覧から選ぶ」で右手のボーン（または ★Anchor_RightHand）→ パッドか SceneView のハンドルで手前にドラッグ。回転にも追従させるなら「回転にも追従する」を ON</td></tr>
+<tr><td>ヒット時の火花を毎回少し違う場所・向きで出す</td><td>位置のばらつき = 0.2〜0.5、向きのばらつき = (0, 180, 0)。リピートを入れて ▶ でばらつきを確認</td></tr>
+<tr><td>爆発の後、少し遅れて煙を出す</td><td>煙用の Anchor を作り、待ち時間 = 0.3。爆発用と煙用で別の Anchor にすると、それぞれ位置も変えられます</td></tr>
+<tr><td>たまにしか出ないキラッとした演出</td><td>出る確率 = 0.2（5 回に 1 回）</td></tr>
+<tr><td>銃口 → 銃口の先のマズルフラッシュ、のように親子で位置を決める</td><td>銃口の Anchor を作り、もう 1 つ Anchor を作って親 Anchor に銃口を指定、位置のオフセットで前方へ。銃口の位置を直せば先の Anchor も一緒に動きます</td></tr>
 <tr><td>同じ位置設定をいくつもの VFX / SE で使う</td><td>Anchor を 1 つ作り、各 VFX の「Anchor アセット」・各 SE の「Anchor Id」で同じものを選ぶ</td></tr>
 <tr><td>すでに VFX の中で調整した埋め込み Anchor を使い回したい</td><td>VFX Editor の「埋め込みをアセット化」</td></tr>
 </table>
 
 <h2>確認のしかた（チェックリスト）</h2>
 <ul>
-<li>Anchor Editor の基準の表示が「✓ '…'」になっている（「⚠」ならスポーン先か Path を見直す）</li>
+<li>解決の表示が「✓ '…'」になっている（「⚠」ならスポーン先か Path を見直す）</li>
 <li>試し出しの ▶ で、SceneView の円の位置に出る</li>
-<li>ばらつき・ディレイ・確率は ▶ を何度か押して体感で確認。基準の表示の末尾に「生成: 1s 後・確率 25%」のように合計が出ます</li>
-<li>「検証」に赤（Error）が無い</li>
+<li>ばらつき・ディレイ・確率はリピートで繰り返し確認。解決の表示の末尾に「生成: 1s 後・確率 25%」のように合計が出ます</li>
+<li>ヒーローの検証チップが「✓ 検証 OK」（エラーや警告があれば該当する欄の下に出ます）</li>
 <li>VFX / SE 側に設定したら、VFX Editor / Audio Editor でも一度再生して位置を確認</li>
 </ul>
 
 <h2>よくある警告</h2>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
-<tr><td>Parent が登録されていません</td><td>親に指定した Anchor が削除されています。Parent を選び直す</td></tr>
-<tr><td>Parent が循環しています</td><td>親をたどると自分に戻る設定になっています。どれかの Parent を外す</td></tr>
-<tr><td>Space=BoneName/NamedObject ですが Path が未設定です</td><td>「一覧から選択」でボーンを選ぶ</td></tr>
+<tr><td>Parent が登録されていません</td><td>親に指定した Anchor が削除されています。親 Anchor を選び直す</td></tr>
+<tr><td>Parent が循環しています</td><td>親をたどると自分に戻る設定になっています。どれかの親 Anchor を外す</td></tr>
+<tr><td>Space=BoneName/NamedObject ですが Path が未設定です</td><td>「Path を一覧から選ぶ」でボーンを選ぶ</td></tr>
 <tr><td>子 Anchor では Space/Path は無視されます</td><td>子に基準を設定しても効きません。ルート側で設定する</td></tr>
-<tr><td>SpawnChance が 0 のため何も生成されません</td><td>意図した設定なら Description に理由を書く。そうでなければ 1 に戻す</td></tr>
+<tr><td>SpawnChance が 0 のため何も生成されません</td><td>意図した設定なら説明欄に理由を書く。そうでなければ 1 に戻す</td></tr>
 <tr><td>AnchorId が設定されているため、埋め込みの Anchor は無視されます</td><td>VFX / SE 側の埋め込み Anchor に値が残っています。問題はありませんが、混乱するなら埋め込みを既定値に戻す</td></tr>
 </table>
 

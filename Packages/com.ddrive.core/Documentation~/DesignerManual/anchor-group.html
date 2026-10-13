@@ -10,7 +10,7 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 配置セット（複数の場所にまとめて出す）</nav>
 
 <h1>配置セット（複数の場所にまとめて出す）</h1>
-<p class="lastupdate">最終更新日: 2026-09-19</p>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
 <p>配置セット（Anchor Group）は、「<strong>この形に並べた場所に、このエフェクト / 効果音を出す</strong>」をひとまとめにしたデータです。3×3 の格子、円形、一列、ランダムなどの<strong>パターンを選んで数を入れるだけ</strong>で点が並び、1 か所ずつ作る必要はありません。</p>
 <ul>
@@ -24,46 +24,82 @@
 「1 か所だけの位置」は <a href="anchor-data.html">Anchor（出す位置）</a>で作ります。配置セットは「複数の場所 + 何を出すか」をまとめる単位で、原点として Anchor を使えます。
 </div>
 
+<p>対象のデータを選んでいない（空の）ときは、ウィンドウの「<strong>サンプルを作る</strong>」ボタンでサンプルのデータを作って試せます（<code>Assets/GameData/&lt;種別&gt;/Sample/</code> にカテゴリ Sample で作られます。同じものが既にあれば、作らずそれを選びます）。</p>
+
 <h2>開き方</h2>
 <ol>
-<li><a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>AnchorGroup</strong> を選んで作る</li>
+<li>Anchor Group Editor 上部の「＋ 新規」、または <a href="asset-browser.html">Asset Browser</a> の「新規」ボタンで種別に <strong>AnchorGroup</strong> を選んで作る</li>
 <li>メニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Anchor Group</code>（Anchor Group Editor）。Project で配置セットを選ぶと自動で入ります</li>
+<li>Presentation Editor の AnchorGroup トラックの「専用エディタで開く（一緒に調整）」からも開けます。その場合は、Presentation で配置済みのモデルが「スポーン先」に入った状態で開きます</li>
 </ol>
 
 <h2>はじめの一歩（3×3 の格子に出す）</h2>
 <ol>
-<li>ツールバー「確認用シーンを開く」</li>
-<li>Asset Browser で種別 AnchorGroup の新規作成（例: 表示名「回復フィールド」、識別子 <code>HealField</code>）</li>
-<li>Anchor Group Editor の設定で「配置パターン」を <strong>Grid</strong>、Grid Count X = 3、Grid Count Z = 3、Grid Spacing = (1, 1, 1) → <strong>SceneView に 0〜8 の番号付きの点が 9 個並びます</strong></li>
-<li>「全点共通 VFX」の ＋ で 1 つ増やし、出したい VFX を選ぶ</li>
-<li>「▶ 全点」→ 9 か所にエフェクトが出ます。「■ 停止」で消えます</li>
+<li>上部の「確認用シーン」</li>
+<li>Anchor Group Editor の「＋ 新規」で配置セットを作る（例: 表示名「回復フィールド」、識別子 <code>HealField</code>）</li>
+<li>「配置パターン」カードで配置パターンを <strong>Grid</strong>、Grid: 横の数 = 3、Grid: 奥行きの数 = 3、Grid: 間隔 = (1, 1, 1) → <strong>SceneView に 0〜8 の番号付きの点が 9 個並び、「点の一覧」にも 9 行が並びます</strong></li>
+<li>「出すもの」カードの「全点で出す VFX」の ＋ で 1 つ増やし、出したい VFX を選ぶ</li>
+<li>「試し出し」カードの「▶ 全点」→ 9 か所にエフェクトが出ます。「■ 停止」で消えます</li>
 <li>並びを広げたい: SceneView で角の点（0 や 8）をクリックして選び、ハンドルで外側へドラッグ → 間隔が変わります</li>
-<li>端から順に出したい: 「番号順ディレイ(秒/点)」に 0.05</li>
+<li>端から順に出したい: 「タイミング・ばらつき」カードの「番号順のディレイ」に 0.05</li>
 <li>使いたい場面をプログラマーに伝える（プログラムからは配置セットの ID 1 つで全点が出ます）</li>
 </ol>
-<!-- screenshot: 36-#24 -->
 <figure>
-<img src="images/anchor-group-editor-window.png" alt="Anchor Group Editor ウィンドウ全体">
-<figcaption>Anchor Group Editor。配置パターン・点数・番号順ディレイ・全点共通の設定</figcaption>
+<img src="images/anchor-group-editor-window.png" alt="Anchor Group Editor ウィンドウ">
+<figcaption>Anchor Group Editor。点の一覧（1 点 = 1 行。22 点なのでスクロール式）と配置パターン</figcaption>
 </figure>
 
+<h2>Anchor Group Editor の使い方</h2>
+<p>設定は、やりたいことごとの「カード」に並びます。上の「かんたん / 標準 / 詳細」で表示する欄の量を切り替え（かんたん = 試し出しと点の一覧だけ）、右上の検索で設定を探せます（点の一覧の中身にも効きます）。ウィンドウ下の固定バーに ▶ 再生（全点）・■ 停止・リピート・変更件数・自動保存・保存があります。</p>
 
-<h2>画面の説明</h2>
-<table>
-<tr><th>要素</th><th>説明</th></tr>
-<tr><td>スポーン先</td><td>原点の基準（ボーン名など）を探す起点。キャラクターや AnchorRig を入れる。原点が World 固定なら不要</td></tr>
-<tr><td>状態表示</td><td>「原点: ✓ '…'」「点: 9」「全点共通: VFX 1・SE 0」など。「⚠」なら原点の設定を見直す</td></tr>
-<tr><td>▶ 全点 / ▶ 選択点のみ / ■ 停止</td><td>試し出し。「選択点のみ」は SceneView でクリックした 1 点だけ出す</td></tr>
-<tr><td>選択中の点</td><td>クリックした点の番号と種類（Grid / 手置き など）。「選択点を Overrides に追加」で、その点だけ別のものにする / 出さない設定の行ができます</td></tr>
-<tr><td>SceneView</td><td>大きい円 = 原点。小さい球 = 各点（番号付き）。色: 通常 = 水色、上書きあり = 橙、出さない = 灰色に ×、選択中 = 黄。クリックで選択、ドラッグで編集。「SceneView 表示」を OFF にすると描きません。他の D-Drive ウィンドウと同時に開いているときは、最後にクリックしたウィンドウだけがハンドルを出します</td></tr>
-<tr><td>検証</td><td>点が 0、原点の Path 未設定、出すものが未登録、入れ子の循環などを表示</td></tr>
-</table>
-<!-- screenshot: 36-#25 -->
+<h3 id="try">試し出し</h3>
+<ul>
+<li><strong>▶ 全点 / ▶ 選択点のみ / ■ 停止</strong>: 実際の VFX / SE の再生で確かめます。「選択点のみ」は、点の一覧か SceneView で選んだ 1 点だけ出します。ディレイ・確率・ランダムは毎回サンプリングされます</li>
+<li><strong>選択中の点</strong>: 選んだ点の番号と種類（Grid / 手置き など）。「選択点を上書きに追加」で、その点だけ別のものにする / 出さない設定の行ができます。「選択解除」で外します</li>
+<li><strong>スポーン先と状態</strong>: 原点の基準（ボーン名など）を探す起点。キャラクターや AnchorRig を入れます。原点が World 固定なら不要です。下の状態表示に「原点: ✓ '…'」「点: 22」「全点共通: VFX 2・SE 1」「入れ子: 1」などが出ます。「⚠」なら原点の設定を見直します。「Path を一覧から選ぶ」は、埋め込みの原点の Path に入ります</li>
+<li><strong>SceneView に表示</strong>: 大きい円 = 原点。小さい球 = 各点（番号付き）。色: 通常 = 水色、上書きあり = 橙、出さない = 灰色に ×、選択中 = 黄。クリックで選択、ドラッグで編集（Grid は端の点・Circle は 0 番・Line は端の点をドラッグするとパターンの大きさが、手置きの点は直接動きます。Ctrl+Z 可）。OFF にすると描きません。他の D-Drive ウィンドウと同時に開いているときは、最後にクリックしたウィンドウだけがハンドルを出します</li>
+</ul>
 <figure>
 <img src="images/anchor-group-sceneview-grid.png" alt="SceneView に表示された格子状の点">
 <figcaption>SceneView。番号付きの点が並び、選択中の点は色が変わる</figcaption>
 </figure>
 
+<h3 id="points">点の一覧</h3>
+<p>パターンと手置きの全点を、<strong>番号順に 1 点 = 1 行</strong>で並べます。各行は「番号・種類（Grid など / 手置き）・名前・位置と上書きの要約」と 3 つのボタンです。20 行を超えるとスクロール式（その行だけ描く方式）になります。</p>
+<ul>
+<li><strong>行をクリック</strong>: その点を選びます（SceneView の選択と共通。もう一度で解除）</li>
+<li><strong>▶</strong>: その点だけ試し出し</li>
+<li><strong>×（戻す ↺）</strong>: その点を「出さない」にする（もう一度で戻す）</li>
+<li><strong>＋</strong>: その点を上書きに追加（「出すもの」の「点ごとの上書き」に番号が入り、別の VFX / SE にできます）</li>
+<li>上の絞り込み: 検索（番号・位置・「出さない」など）・「すべて / 上書きあり / そのまま」・「パターン / 手置き」。「22 点中 上書きあり 4」のように件数が出ます</li>
+</ul>
+
+<h3 id="layout">配置パターン</h3>
+<p>配置パターン（Layout）を選ぶと、そのパターンの欄だけが出ます（Grid の欄は Grid のときだけ…）。</p>
+<ul>
+<li><strong>Grid</strong>: 横の数・段の数（詳細）・奥行きの数・間隔・原点を中心にする（詳細）</li>
+<li><strong>Circle</strong>: 点の数・半径・開始角・範囲（扇形）・外向き（詳細）</li>
+<li><strong>Line</strong>: 点の数・長さ・向き・中心（詳細）</li>
+<li><strong>Random</strong>: 点の数・半径・シード（0 = 毎回違う配置、0 以外 = 毎回同じ配置）</li>
+<li><strong>手置きの点に変換</strong>: パターンで計算された点を、そのまま手置きの点として書き込み、Manual に切り替えます。点を 1 つずつ動かしたくなったときに使います。点の番号は変わらないので上書き・入れ子の指定はそのまま使え、パターンの設定値も残ります（Ctrl+Z で戻せます）</li>
+<li><strong>手置きの点</strong>: Manual のとき、またはパターンに足す点（名前・位置・向き・大きさ）。パターンの点のあとに続く番号になります</li>
+</ul>
+
+<h3 id="origin">原点</h3>
+<ul>
+<li><strong>原点の Anchor</strong>: 並びの中心を決める Anchor アセット。選ぶとこちらが優先され、埋め込みの原点は使われません</li>
+<li><strong>原点（埋め込み）</strong>: Anchor アセットが 0 のときだけ使う定義（Space / Path / オフセット）</li>
+<li><strong>原点の連鎖</strong>: 原点に Anchor アセットを使っているとき、そのルートからの連鎖（右手 → 銃口 のような親子）と、合成後のオフセット・向きを表示します。連鎖のボタンを押すと、その Anchor を Anchor Editor で開きます</li>
+</ul>
+
+<h3 id="content">出すもの</h3>
+<p>全点で出す VFX・全点で鳴らす SE・点ごとの上書き（Overrides）・入れ子（Children）。意味は下の「設定項目」の表のとおりです。</p>
+
+<h3 id="timing">タイミング・ばらつき</h3>
+<p>番号順のディレイ・ディレイのばらつき（詳細）・各点の確率・位置のばらつき（詳細）・向きのばらつき（詳細）・大きさのばらつき（詳細）。</p>
+
+<h3 id="admin">管理情報</h3>
+<p>表示名・カテゴリ・説明・タグ・担当者・仕様書 URL など、一覧での見え方とメモ。詳細モードでは動作の取り決め（Flags）・イベント（Events）も出ます。</p>
 
 <h2>設定項目</h2>
 <table>
@@ -71,34 +107,34 @@
 <tr><td>原点 Anchor アセット / 原点(埋め込み)</td><td>並びの中心をどこに置くか。Anchor アセットを選ぶとそれが原点（ランダムやディレイも引き継ぐ）。選ばなければ埋め込みの Space / Path / オフセットで決める</td></tr>
 <tr><td>配置パターン</td><td><strong>Grid</strong>: 格子（X・Y・Z の個数と間隔、中央寄せ）。<strong>Circle</strong>: 円周（個数・半径・開始角・扇の角度・外向き）。<strong>Line</strong>: 一列（個数・長さ・方向・中央寄せ）。<strong>Random</strong>: 球の中にランダム（個数・半径・シード。シード 0 なら毎回違う配置）。<strong>Manual</strong>: 手置きの点だけ</td></tr>
 <tr><td>手置きの点</td><td>パターンに追加する点、または Manual のときの点。SceneView でドラッグして動かせます</td></tr>
-<tr><td>番号順ディレイ(秒/点) / ディレイのランダム</td><td>点の番号 × 秒だけ遅らせる。0.05 なら 8 番は 0.4 秒後。波紋・順番点灯に</td></tr>
-<tr><td>各点の生成確率</td><td>0.7 なら各点が 7 割の確率で出る（ランダムに欠ける）</td></tr>
-<tr><td>位置ランダム半径 / 回転ランダム / スケール範囲</td><td>各点に個別にかかるばらつき</td></tr>
-<tr><td>全点共通 VFX / SE</td><td>すべての点に出すもの。複数入れると全部出ます</td></tr>
-<tr><td>特定の点だけ変える / 出さない（Overrides）</td><td>Index = 点の番号。「Skip」ON でその点は出さない。Vfx / Se に入れるとその点だけ差し替え（空なら共通のまま）</td></tr>
+<tr><td>番号順のディレイ / ディレイのばらつき</td><td>点の番号 × 秒だけ遅らせる。0.05 なら 8 番は 0.4 秒後。波紋・順番点灯に</td></tr>
+<tr><td>各点の確率</td><td>0.7 なら各点が 7 割の確率で出る（ランダムに欠ける）</td></tr>
+<tr><td>位置・向き・大きさのばらつき</td><td>各点に個別にかかるばらつき</td></tr>
+<tr><td>全点で出す VFX / 全点で鳴らす SE</td><td>すべての点に出すもの。複数入れると全部出ます</td></tr>
+<tr><td>点ごとの上書き（Overrides）</td><td>Index = 点の番号。「Skip」ON でその点は出さない。Vfx / Se に入れるとその点だけ差し替え（空なら共通のまま）</td></tr>
 <tr><td>入れ子（Children）</td><td>各点（At Index = -1 で全点、番号で 1 点）に別の配置セットを出す。子の原点は無視され、その点が中心になります</td></tr>
 </table>
 
 <h2>よくある使い方</h2>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>回復エリアの床に格子状に光を出す</td><td>Grid 3×3、間隔 1、共通 VFX に光。番号順ディレイ 0.05 で波紋のように</td></tr>
+<tr><td>回復エリアの床に格子状に光を出す</td><td>Grid 3×3、間隔 1、全点で出す VFX に光。番号順のディレイ 0.05 で波紋のように</td></tr>
 <tr><td>ボスの周りを 8 本の炎で囲む</td><td>スポーン先にボス、原点は Space=ContextTarget。Circle 8、半径 2、外向き ON</td></tr>
-<tr><td>中央だけ大きい柱、周りは小さい火花</td><td>Grid 3×3、共通 VFX に火花。中央（4 番）をクリック →「Overrides に追加」→ Vfx に柱を入れる</td></tr>
-<tr><td>四隅は出さない</td><td>0・2・6・8 番を Overrides に追加して Skip ON</td></tr>
-<tr><td>爆発の周囲にランダムに火花を散らす</td><td>Random 12、半径 1.5、各点の生成確率 0.7、位置ランダム半径 0.2</td></tr>
+<tr><td>中央だけ大きい柱、周りは小さい火花</td><td>Grid 3×3、全点で出す VFX に火花。点の一覧で中央（4 番）の「＋」→「点ごとの上書き」の Vfx に柱を入れる</td></tr>
+<tr><td>四隅は出さない</td><td>点の一覧で 0・2・6・8 番の「×」</td></tr>
+<tr><td>爆発の周囲にランダムに火花を散らす</td><td>Random 12、半径 1.5、各点の確率 0.7、位置のばらつき 0.2</td></tr>
 <tr><td>格子の各点に小さな円形の粒</td><td>円形の配置セットを別に作り、格子側の「入れ子」に At Index = -1 で登録</td></tr>
 </table>
 
 <h2>他の演出とまとめて使いたいとき</h2>
-<p><a href="presentation.html">Presentation</a>のトラック種別「AnchorGroup」に配置セットの ID を入れると、剣攻撃などの一連の演出（アニメ・SE・カメラ揺れ…）の中の 1 トラックとして配置セットを一緒に再生できます。Presentation Editor の SceneView では配置セットの全点が番号付きで表示されますが、<strong>点の位置を動かす編集はできません</strong>。並びや点を変えたいときは、このページの Anchor Group Editor を開いて調整してください。</p>
+<p><a href="presentation.html">Presentation</a>のトラック種別「AnchorGroup」に配置セットの ID を入れると、剣攻撃などの一連の演出（アニメ・SE・カメラ揺れ…）の中の 1 トラックとして配置セットを一緒に再生できます。Presentation Editor の SceneView では配置セットの全点が番号付きで表示されますが、<strong>点の位置を動かす編集はできません</strong>。並びや点を変えたいときは、トラックの「専用エディタで開く」からこのページの Anchor Group Editor を開いて調整してください。</p>
 
 <h2>確認のしかた（チェックリスト）</h2>
 <ul>
 <li>状態表示の「原点」が ✓、「点」の数が想定どおり</li>
 <li>「▶ 全点」で全部の位置に出る。ディレイ・確率は何度か押して確認</li>
-<li>上書きした点は SceneView で橙色 / 灰色 × になっている</li>
-<li>「検証」に赤（Error）が無い</li>
+<li>上書きした点は SceneView で橙色 / 灰色 × になっている（点の一覧にも「上書き」「出さない」と出る）</li>
+<li>ヒーローの検証チップが「✓ 検証 OK」（エラーや警告があれば該当する欄の下に出ます）</li>
 </ul>
 
 <h2>関連ページ</h2>

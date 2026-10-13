@@ -2,178 +2,179 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Material Editor の使い方（プレビュー・シェーダー変換） | D-Drive デザイナーマニュアル</title>
+<title>Material Editor / Texture Editor の使い方 | D-Drive デザイナーマニュアル</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Material Editor の使い方（プレビュー・シェーダー変換）</nav>
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › Material Editor / Texture Editor の使い方</nav>
 
-<h1>Material Editor の使い方（プレビュー・シェーダー変換）</h1>
-<p class="lastupdate">最終更新日: 2026-10-03</p>
+<h1>Material Editor / Texture Editor の使い方</h1>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
-<p>Material Editor は、<a href="material-data.html">マテリアルデータ / テクスチャデータ</a>を<strong>球のサムネイルで見ながら編集する</strong>ウィンドウです。値を変えると 0.1 秒ほどでサムネイルが描き直され、開いているシーンにプレビューを置けば実際の照明でも確認できます。</p>
+<p>Material Editor は、<a href="material-data.html">マテリアルデータ</a>を<strong>サムネイルで見ながら編集する</strong>ウィンドウです。Texture Editor はテクスチャデータ用の小さなウィンドウです。どちらも他のエディター（VFX・Audio・Canvas など）と同じ見た目と操作で、Light / Dark の両方に対応しています。</p>
 <ul>
-<li>Inspector と同じ内容を編集できるうえ、サムネイル・シーン配置・2 つのマテリアルの見比べができます</li>
-<li>シェーダーを設定すると、そのシェーダー固有のパラメータ（Specific）を既定値で自動登録します</li>
+<li>設定は<strong>目的別のカード</strong>に分かれ、「かんたん / 標準 / 詳細」で出す欄を切り替えられます。まだ触っていない欄は折りたたまれます</li>
+<li>シェーダー固有の設定（Specific）は<strong>調整つまみ</strong>。1 つ = 1 行で、分類のチップ（共通チャンネル / 描画ステート / 接頭辞ごと / その他）で絞れます。20 個を超えても内側にスクロールします</li>
+<li>値を変えると 0.1 秒ほどでサムネイルが描き直されます。シェーダーを変えると、そのシェーダー固有のパラメータを既定値で自動登録します</li>
 <li>別ウィンドウとして「Material 変換」（シェーダーの乗り換え）と「Material プレビュー」（サムネイルだけのポップアップ）があります</li>
 </ul>
 
+<p>対象のデータを選んでいない（空の）ときは、ウィンドウの「<strong>サンプルを作る</strong>」ボタンでサンプルのデータを作って試せます（<code>Assets/GameData/&lt;種別&gt;/Sample/</code> にカテゴリ Sample で作られます。同じものが既にあれば、作らずそれを選びます）。</p>
+
 <h2>開き方</h2>
 <ol>
-<li>マテリアルデータを Project で選び、<strong>Inspector の一番上のボタン</strong>を押す。マテリアルデータには「Material Editor で開く」「プレビューをポップアップ」「シェーダー変換」の 3 つ、テクスチャデータには「Material Editor で開く」だけが出ます</li>
-<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Material</code>（Material Editor）/ <code>Tools &gt; D-Drive &gt; Editors &gt; Material 変換</code> / <code>Tools &gt; D-Drive &gt; Editors &gt; Material プレビュー</code>。Project で選択中のマテリアルデータがそのまま対象になります</li>
+<li>マテリアルデータ / テクスチャデータを Project で選び、<strong>Inspector の一番上のボタン</strong>を押す。マテリアルデータには「Material Editor で開く」「プレビューをポップアップ」「シェーダー変換」、テクスチャデータには「Texture Editor で開く」が並びます</li>
+<li>またはメニューバー <code>Tools &gt; D-Drive &gt; Editors &gt; Material</code> / <code>Texture</code> / <code>Material 変換</code> / <code>Material プレビュー</code>。Project で対象を選んでから開くと、そのまま編集できます</li>
 </ol>
 
 <h2>はじめの一歩（マテリアルを作ってシーンで確かめる）</h2>
 <ol>
 <li>Project の右クリック <code>Create &gt; D-Drive &gt; Material &gt; Material Data</code>（または <a href="asset-browser.html">Asset Browser</a> の「新規」で種別 Material）で作る</li>
-<li>Inspector の「Material Editor で開く」を押す。ウィンドウ上部に灰色の球のサムネイルが出ます</li>
-<li>設定の <code>Shader</code> に <code>DDrive/Lit</code> を入れる。Specific に <code>_OcclusionStrength</code> が既定値で自動追加され、ラベルに「固有: 追加 1 …」と出ます</li>
-<li>Common の <code>Albedo</code> にテクスチャデータの ID、<code>Metallic</code> / <code>Smoothness</code> を動かしてサムネイルで確認。サムネイルを<strong>ドラッグすると回転</strong>します（横 = 回す、縦 = 傾ける）</li>
-<li>「シーンにプレビューを配置」を押す → <strong>今開いているシーン</strong>の SceneView カメラの前に球が置かれ、実際の照明で見えます。Hierarchy に <code>[D-Drive] Material Preview</code> が出ますが、シーンには保存されません</li>
+<li>Inspector の「Material Editor で開く」を押す。</li>
+<li>カード「見た目」の<strong>シェーダー</strong>に <code>DDrive/Lit</code> を入れる。カード「固有」に <code>_OcclusionStrength</code> などが既定値で自動追加され、「固有: 追加 1 …」と出ます</li>
+<li>ベースの絵（TextureData）・ベースの色・透け方・金属っぽさ・つやつや度を動かし、カード「確認する」のサムネイルで確認。サムネイルは<strong>ドラッグで回転</strong>（横 = 回す、縦 = 傾き）</li>
+<li>「確認用シーン」を押す → 確認用シーンが開き、球が置かれて実際の照明で見えます。今のシーンに置きたいときは「今のシーンに配置」</li>
 <li>確認できたら「撤去」。使いたいモデルへの割り当ては <a href="model-editor.html">Model Editor</a> で行います</li>
 </ol>
-<!-- screenshot: 36-#36 -->
 <figure>
-<img src="images/material-editor-sphere.png" alt="Material Editor ウィンドウ全体">
-<figcaption>Material Editor。球のサムネイル・Common 欄・Specific の操作行</figcaption>
+<img src="images/material-editor-window.png" alt="Material Editor の上部。ヒーローとカード「見た目」「質感と発光」">
+<figcaption>Material Editor（標準モード）。ヒーロー（名前・状態・操作）、かんたん / 標準 / 詳細、目的別のカード</figcaption>
 </figure>
 
 <div class="tip">
-サムネイルは「既定ライトのみ」（決まった 2 灯 + 環境光）です。実際のシーンの照明・反射・ポストプロセスでどう見えるかは「シーンにプレビューを配置」で確認してください。
+サムネイルは「既定ライトのみ」（決まった 2 灯 + 環境光）です。実際のシーンの照明・反射・ポストプロセスでどう見えるかは「確認用シーン」「今のシーンに配置」で確認してください。
 </div>
 
-<h2>画面の説明（Material Editor）</h2>
+<h2 id="header">ウィンドウ上部と下部</h2>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>対象 / 🔒</td><td>編集するマテリアルデータかテクスチャデータ。それ以外を入れても弾かれます。🔒（選択に追従しない）を ON にすると、Project で別のものを選んでも対象が変わりません</td></tr>
-<tr><td>サムネイル</td><td>マテリアルデータのときだけ表示。画像そのものが操作対象で、<strong>ドラッグで回転（横 = Y 軸、縦 = 傾き）</strong>。傾きは ±80° で止まります。形状が板（Plane）のときは縦ドラッグで傾かず、平面のまま回るだけです。キャプションは「A: 表示名」（比較中は「B: 表示名」も）</td></tr>
-<tr><td>「左右」/「切替」</td><td>比較対象が入っているときだけ出るボタン。ラベルは<strong>今のモード</strong>で、押すと切り替わります。左右 = 2 分割で並べる / 切替 = 1 枚を A と B で切り替える</td></tr>
-<tr><td>「A → B」/「B → A」</td><td>切替モードのときだけ表示。表示する方を切り替えます（A = 対象、B = 比較対象）</td></tr>
-<tr><td>「X 反転」/「Y 反転」</td><td>横ドラッグの回転方向 / 縦ドラッグの傾き方向を逆にします。好みに合わせて。設定は Material Editor・ポップアップ・変換ウィンドウで共通で、Unity を再起動しても残ります</td></tr>
-<tr><td>「ポップアップ」</td><td>サムネイルを独立したウィンドウ（Material プレビュー）に出します。形状・回転・ライトの設定を引き継ぎます</td></tr>
-<tr><td>説明ラベル</td><td>「サムネイル: 既定ライトのみ(…)」など、今のプレビュー条件。形状が Model のときは「Model 形状はサムネイルに出しません。「シーンにプレビューを配置」で確認してください」</td></tr>
-<tr><td>「プレビュー」Foldout</td><td>下の「プレビューの設定」を参照。既定で開いています</td></tr>
-<tr><td>「シーンにプレビューを配置」</td><td>開いているシーンに選んだ形状を置き、生成した共有 Material を適用します。置くたびに SceneView カメラの前（2〜10 m）へ移動し、SceneView がそこにフレームインします。<strong>確認用シーンは開きません</strong>（Model Editor などと違い、今のシーンにそのまま置きます）</td></tr>
-<tr><td>「再生成」</td><td>データの変更を共有 Material に反映し直します（比較用も含む）。普段は自動ですが、プレビューが灰色になったときなどに</td></tr>
-<tr><td>「撤去」</td><td>置いたプレビューを消します。ライト回転で動かした Directional Light も元に戻ります</td></tr>
-<tr><td>ステータス行</td><td>「「シーンにプレビューを配置」で確認できます」「プレビューに適用中」「プレビューに適用中(比較対象あり)」など今の状態。「プレビューの生成に失敗しました(ModelData の Prefab を確認してください)」が出たら、プレビュー用モデルの Prefab を確認</td></tr>
-<tr><td>Specific 操作行</td><td>マテリアルデータのときだけ。下の「Specific 操作行」を参照</td></tr>
-<tr><td>設定</td><td>Inspector と同じ項目。内容は <a href="material-data.html">マテリアル / テクスチャの設定項目</a></td></tr>
+<tr><td>◀ [名前 ▾] ▶</td><td>同じ種類のデータの切り替え（検索つき、最近開いた 5 件）。未保存の変更があると保存するか聞かれます</td></tr>
+<tr><td>「確認用シーン」</td><td>確認用シーンを開いて、選んだ形に Material を貼って置きます。右クリックで「このシーンに配置」</td></tr>
+<tr><td>「シェーダー変換…」</td><td>Material 変換ウィンドウを開きます（下の節）</td></tr>
+<tr><td>Project / ＋ 新規 / 固定</td><td>Project で場所を表示 / 新しいマテリアルデータを作る / Project の選択に追従しない</td></tr>
+<tr><td>かんたん / 標準 / 詳細</td><td>出す欄の切り替え。かんたん = シェーダーだけ、標準 = よく使う欄まで、詳細 = すべて。「未調整を隠す」を ON にすると、まだ触っていない欄が折りたたまれます</td></tr>
+<tr><td>設定を検索</td><td>ラベル・説明・検索語に一致する欄だけ出します。固有のつまみの名前（例: Toon / 影）にも一致します</td></tr>
+<tr><td>下部バー</td><td>変更の件数・自動保存・保存（Ctrl+S でも保存）。Material には再生が無いので、▶ や速度は出ません</td></tr>
 </table>
 
-<h3>プレビューの設定（「プレビュー」Foldout）</h3>
-<table>
-<tr><th>項目</th><th>説明</th></tr>
-<tr><td>形状</td><td><strong>Sphere</strong>（球）/ <strong>Plane</strong>（板 = Quad。UI 素材や平面のテクスチャ向け）/ <strong>Cube</strong> / <strong>Model</strong>（任意のモデルデータ）。<strong>Model はサムネイルに出ません</strong>。「シーンにプレビューを配置」で確認します</td></tr>
-<tr><td>プレビュー用モデル</td><td>形状が Model のときだけ表示。置きたいモデルデータを入れます</td></tr>
-<tr><td>ターンテーブル</td><td>ON でサムネイルとシーンに置いたプレビューが Y 軸でゆっくり回ります（45°/秒）</td></tr>
-<tr><td>ライト回転（0〜360）</td><td>サムネイルのライトと、シーンの最初の Directional Light を Y 軸で回します（シーンに無ければサムネイルのみ）。撤去すると元の角度に戻ります</td></tr>
-<tr><td>比較対象</td><td>見比べたい別のマテリアルデータ。入れるとサムネイルが A / B の比較表示になります（回転・ライトは共通）</td></tr>
-<tr><td>「並べて比較」</td><td>シーン上で、対象の隣（X+1.5）に比較対象を適用したプレビューを並べます。実際の照明で見比べたいときに</td></tr>
-</table>
-<!-- screenshot: 36-#37 -->
+<h2 id="look">カード「見た目（シェーダーと基本）」</h2>
+<p>シェーダー・ベースの絵と色・透け方・裏面。各項目の意味は <a href="material-data.html">マテリアル / テクスチャの設定項目</a>。「必須」のシェーダーを変えると、その固有のつまみが自動で並びます。</p>
+
+<h2 id="surface">カード「質感と発光」</h2>
+<p>凹凸（Normal）・質感（Mask）・金属っぽさ・つやつや度・発光の絵 / 色 / 強さ。画像は TextureData を選びます。</p>
+
+<h2 id="specific">カード「固有（シェーダー専用のつまみ）」</h2>
 <figure>
-<img src="images/material-editor-compare.png" alt="サムネイルの左右比較">
-<figcaption>比較対象を設定すると、A（元のマテリアル）と B（比較対象）が並んで表示される</figcaption>
+<img src="images/material-editor-specific.png" alt="固有のつまみの一覧">
+<figcaption>固有のつまみ。上に同期の操作と状態、分類のチップ、1 つ = 1 行の一覧</figcaption>
 </figure>
-
-
-<h3>Specific 操作行</h3>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
-<tr><td>「シェーダーから固有を同期」</td><td>シェーダーの固有プロパティ（共通チャンネルに当たらないもの）を既定値で Specific に追加します。既にある値は保持。Shader を変えたときは自動でも走るので、押すのは「未登録の固有 N 件」と出ているときだけで十分です</td></tr>
-<tr><td>「共通チャンネルの重複を削除」</td><td>Specific に紛れ込んだ共通チャンネル名（<code>_BaseMap</code> や <code>_Metallic</code> など）や描画ステート名を取り除きます。そのままだと Common の値を上書きしてしまいます。<strong>重複が 1 件以上あるときだけ表示</strong>されます</td></tr>
-<tr><td>ラベル</td><td>「Shader 未設定(既定の Lit で生成)」/「固有 N 件(シェーダーと同期済み)」/「未登録の固有 N 件: _Xxx, _Yyy」/ 末尾の「 / Common を上書きする項目 N 件」。同期直後は「固有: 追加 N / 保持 N / シェーダーに無い N」と内訳が出ます</td></tr>
+<tr><td>「シェーダーから固有を同期」</td><td>シェーダーの固有プロパティ（共通チャンネル名の規約に該当しないもの）を既定値で追加します。既存の値は保持。シェーダーを変えたときは自動で行います</td></tr>
+<tr><td>「共通チャンネルの重複を削除」</td><td>固有に紛れ込んだ共通チャンネル名 / 描画ステート名を取り除きます（そのままだと Common の値を上書きします）。紛れ込みがあるときだけ出ます。1 手で Ctrl+Z できます</td></tr>
+<tr><td>状態の文</td><td>「固有 27 件(シェーダーと同期済み)」「未登録の固有 N 件: …」「Common を上書きする項目 N 件」</td></tr>
+<tr><td>分類のチップ</td><td>「すべて 27 / 共通チャンネル 1 / 描画ステート 1 / Toon 8 / Outline 5 …」。<strong>共通チャンネル・描画ステート</strong>は Common を上書きしてしまう名前（要注意）。接頭辞ごと（<code>_ToonRamp</code> → Toon など。2 件以上あるものだけ）と「その他」。つまみの左のチップを押すと、その 1 つの分類を付け替えられます（この Unity を開いている間だけ）</td></tr>
+<tr><td>つまみの行</td><td>分類 / プロパティ名 / 値 / ↺ / ⚙。色・数値（シェーダーの Range ならその範囲）・整数・ベクトル・テクスチャ。左端の色バーと ↺ は「このウィンドウで開いたときの値」との違いです。名前が黄色の行は、シェーダーに無い名前（反映されません）</td></tr>
+<tr><td>⚙</td><td>定義の詳細（Property 名・Value の型など）と「このつまみを削除」</td></tr>
+<tr><td>「＋ つまみを追加」</td><td>色 / 数値 / テクスチャ / ベクトルから選ぶと、<strong>シェーダーに実在して、まだ登録していない固有プロパティ</strong>だけが候補に出ます。「自由入力」は名前を自分で入れる空の行</td></tr>
 </table>
+<p>20 行を超えるときは一覧が内側のスクロールになります。チップで絞って 20 行以下にすると、そのまま並びます。固有の値の下に、その固有への警告（例: 共通チャンネル名です）が出ます。</p>
 
-<h3>Passes / Keywords 欄</h3>
-<p>マテリアルデータのときだけ、Inspector の上に「Passes / Keywords」欄が出ます。変更は Undo できます。</p>
-<table>
-<tr><th>項目</th><th>内容</th></tr>
-<tr><td>無効にするパス</td><td>選んでいるシェーダーのパス（LightMode 名）がチェックボックスで並びます。<strong>チェックしたパスは描画されません</strong>（例 <code>ShadowCaster</code> にチェック = 影を落とさない）。MaterialData の <code>DisabledPasses</code> に入ります。Unity が返す綴りで出るので <code>SHADOWCASTER</code> のように大文字で表示されることがありますが、同じ意味です。指定済みでシェーダーに無い名前は「（シェーダーに無い）」と出るので、外せます。パスの一覧には、LightMode が書かれていないパスが <code>SRPDefaultUnlit</code> として出ます(輪郭線の描画などに使われるパスで、チェックすると描画されなくなります)</td></tr>
-<tr><td>有効にするキーワード</td><td>キーワード名を入力して「追加」、または「（候補から追加）」でシェーダーが宣言しているキーワードから選びます。「削除」で外します。MaterialData の <code>EnabledKeywords</code> に入ります</td></tr>
-</table>
+<h2 id="render">カード「描画の順序」</h2>
+<p>RenderQueue のずらし（半透明どうしの前後を直す）。ライトレイヤーは未使用です（詳細モードでだけ出ます。ライトレイヤーは Model 側で指定）。</p>
 
+<h2 id="anim">カード「動き（常時アニメ）」</h2>
+<p>UV スクロールやサイン波。使い方は <a href="material-data.html">マテリアル / テクスチャの設定項目</a>の「Anims の使い方」。サムネイルと SceneView では再生ボタンを押さなくても動きます。</p>
 
-<h3>テクスチャデータを選んだとき</h3>
+<h2 id="pass">カード「パスとキーワード」</h2>
 <ul>
-<li>サムネイルの代わりに画像プレビューが出て、ステータス行に「640×640 Channel=Albedo」のようにサイズとチャンネルが出ます（画像が無いときは「Texture が未設定です」）</li>
-<li>Importer の要約ラベル: 「Texture Type: … sRGB: … Mipmap: … 圧縮: … Max Size: …」と、次の行に「規約: &lt;ルール名&gt;」または「規約に該当なし」。Importer が取れない画像は「Importer 情報なし(メモリ上のテクスチャ)」</li>
-<li>「<strong>命名規約を適用して再インポート</strong>」ボタンは、<a href="material-data.html">ファイル名規約</a>と今の Importer 設定が食い違っているときだけ表示されます。押すと規約どおりに直して再インポートし、「命名規約 '…' を適用しました」と出ます</li>
+<li><strong>無効にするパス</strong>: 選んだシェーダーの LightMode 名がチェックボックスで並びます。チェック = 無効（例: <code>ShadowCaster</code> = 影を落とさない）。シェーダーに無い名前を指定済みのときは「(シェーダーに無い)」と出て、外せます</li>
+<li><strong>有効にするキーワード</strong>: 名前を入れて「追加」、またはシェーダーが宣言しているキーワードの候補から選びます。「削除」で外します</li>
+<li>変更は Ctrl+Z で戻せ、サムネイルに反映されます</li>
 </ul>
 
-<!-- screenshot: 36-#38 -->
+<h2 id="check">カード「確認する（サムネイル・シーン）」</h2>
 <figure>
-<img src="images/material-editor-conversion.png" alt="Material 変換ウィンドウ">
-<figcaption>Material 変換。変換前後のサムネイルと、引き継げる項目の互換表が出る</figcaption>
+<img src="images/material-editor-check.png" alt="パスとキーワード、サムネイルとシーン確認">
+<figcaption>パスとキーワード、確認する</figcaption>
 </figure>
+<table>
+<tr><th>項目</th><th>説明</th></tr>
+<tr><td>サムネイル</td><td>実際の Manager が作った Material を球などに貼った絵。<strong>ドラッグで回転</strong>（横 = Y 軸、縦 = 傾き。傾きは ±80°）。「X 反転 / Y 反転」で回す向きを逆にできます（ポップアップ・変換ウィンドウと共通）。「ポップアップ」でサムネイルだけの独立ウィンドウに出します</td></tr>
+<tr><td>形状</td><td>Sphere / Plane（板）/ Cube / Model（任意のモデルデータ。サムネイルには出ず、シーン配置で確認）。Model のときだけ「プレビュー用モデル」が出ます</td></tr>
+<tr><td>ターンテーブル / ライト回転</td><td>サムネイルと置いたプレビューを回す / ライトの向き（0〜360。シーンの最初の Directional Light も一緒に回り、「撤去」で元に戻る）</td></tr>
+<tr><td>比較対象</td><td>もう 1 つのマテリアルデータ。サムネイルが「左右」（2 分割）か「切替」（1 枚を「A → B」で切り替え）になります。「並べて比較」でシーンの隣に並べます</td></tr>
+<tr><td>確認用シーン / 今のシーンに配置</td><td>選んだ形を置いて SceneView で確認します（保存されません。Hierarchy に <code>[D-Drive] Material Preview (UX)</code> が出ます）</td></tr>
+<tr><td>再生成 / 撤去</td><td>共有 Material を作り直す（普段は自動）/ 置いたものを消す</td></tr>
+</table>
+
+<h2 id="admin">カード「管理情報」</h2>
+<p>表示名・カテゴリ・説明・タグ・アイコン・担当者・仕様書 URL・変更メモ・動作の取り決め・イベント、そして Maya から作ったときの<strong>取り込み元</strong>（詳細モード）。</p>
+
+<h2 id="texture">Texture Editor</h2>
+<figure>
+<img src="images/texture-editor-window.png" alt="Texture Editor">
+<figcaption>Texture Editor。1 枚のカード「画像」と管理情報</figcaption>
+</figure>
+<ul>
+<li>カード「画像」: 画像（必須）・使い道（Model / UI）・どの用途の絵か（Albedo / Normal / Mask / Emission / Other）・Sprite（UI 用）・拡縮してよい・9-slice のボーダー</li>
+<li>「見た目と Importer の現状」: 画像のプレビューと大きさ、Texture Type / sRGB / Mipmap / 圧縮 / Max Size、ファイル名の規約に合っているか。食い違うときだけ出る<strong>「命名規約を適用して再インポート」</strong>で直せます（ファイル名の規約は <a href="material-data.html">マテリアル / テクスチャの設定項目</a>）</li>
+<li>検証の結果は該当の欄の下に出ます（Texture 未設定、Usage=UI なのに Sprite が無い、など。「修正」ボタンつき）</li>
+</ul>
 
 <h2>Material 変換ウィンドウ（シェーダーの乗り換え）</h2>
-<p>Inspector の「シェーダー変換」か <code>Tools &gt; D-Drive &gt; Editors &gt; Material 変換</code> で開きます。共通チャンネル（Albedo / Normal / Mask / Emission / Blend）はそのまま維持し、固有パラメータだけを付け替えます。</p>
+<p>Inspector の「シェーダー変換」、Material Editor の「シェーダー変換…」、または <code>Tools &gt; D-Drive &gt; Editors &gt; Material 変換</code> で開きます。共通チャンネル（Albedo / Normal / Mask / Emission / Blend）はそのまま維持し、固有パラメータだけを付け替えます。</p>
 <table>
 <tr><th>要素</th><th>説明</th></tr>
 <tr><td>変換元 MaterialData / 変換先 Shader</td><td>乗り換えたいデータと、乗り換え先のシェーダー。変換先を選ぶと下に結果が出ます</td></tr>
 <tr><td>「変換テーブルを再読み込み」</td><td>プロジェクト内の Shader Conversion Table（固有の対応表）を集め直します。テーブルを作った・直した後に押します</td></tr>
-<tr><td>「見た目の比較(A = 変換前 / B = 変換後)」Foldout</td><td>A と B の 2 枚のサムネイル。B は<strong>アセットを作る前のメモリ上の変換結果</strong>です。「左右」/「切替」、「A → B」/「B → A」、形状（Model は選べません）、「回転」、「ライト」（0〜360）、「X 反転」/「Y 反転」は Material Editor と同じ操作。回転・ライトは A / B 共通、既定ライトのみ。キャプションは「A: 変換前 (DDrive/Lit)」「B: 変換後 (DDrive/Unlit)」のようにシェーダー名付き</td></tr>
-<tr><td>サマリ行</td><td>「&lt;変換元&gt; → &lt;変換先&gt;」と「共通データ(…)はそのまま維持。固有: 対応 N / 維持 N / 破棄 N / 意図的に破棄 N」。末尾の「(変換テーブル使用)」はテーブルが見つかった印、「(この組の変換テーブル無し。N 件の Table を確認)」はテーブルなしで同名維持だけが働いている印</td></tr>
-<tr><td>互換表</td><td>列は「名前 / 型 / 値 / 互換 / 備考」。3 つの節に分かれます（下の「互換表の読み方」）</td></tr>
-<tr><td>「新規 MaterialData として作成」</td><td>変換元は変えずに、同じカテゴリへ変換後のデータを新しく作ります。表示名は「&lt;元の名前&gt; (&lt;シェーダー名&gt;)」。作成後に Project で選択されます。<strong>元を残して試したいときはこちら</strong></td></tr>
-<tr><td>「この Data を変換(Undo 可)」</td><td>変換元の Shader と Specific を書き換えます。Ctrl+Z で戻せます。変換元と変換先が同じシェーダーのときは押せません</td></tr>
+<tr><td>「見た目の比較(A = 変換前 / B = 変換後)」</td><td>A と B の 2 枚のサムネイル。B は<strong>アセットを作る前のメモリ上の変換結果</strong>です。「左右」/「切替」、「A → B」、形状、「回転」、「ライト」、「X 反転」/「Y 反転」は Material Editor と同じ</td></tr>
+<tr><td>サマリ行と互換表</td><td>「共通データ(…)はそのまま維持。固有: 対応 N / 維持 N / 破棄 N …」と、名前 / 型 / 値 / 互換 / 備考の表</td></tr>
+<tr><td>「新規 MaterialData として作成」</td><td>変換元は変えずに、同じカテゴリへ変換後のデータを新しく作ります。<strong>元を残して試したいときはこちら</strong></td></tr>
+<tr><td>「この Data を変換(Undo 可)」</td><td>変換元の Shader と Specific を書き換えます。Ctrl+Z で戻せます</td></tr>
 </table>
 
 <h3>互換表の読み方</h3>
 <table>
 <tr><th>節</th><th>印</th></tr>
-<tr><td>共通チャンネル（MaterialCommon。そのまま引き継ぐ）</td><td><strong>〇</strong> = 変換先に受け口がある（備考「→ _BaseMap / _MainTex」など）/ <strong>×</strong> = 変換先に受け口が無く<strong>無視される</strong>（例: Unlit に Normal や Mask は無い）/ <strong>－</strong> = 元で未設定（備考「未設定(変換先: …)」「未設定(変換先に受け口無し)」）</td></tr>
-<tr><td>固有パラメータ（Specific）</td><td><strong>→</strong> = テーブルで対応先に写す / <strong>=</strong> = 同名・同型で維持 / <strong>×</strong> = 破棄（備考「テーブルで意図的に破棄」または「変換先に無いため破棄」）。何も無ければ「変換元に固有パラメータがありません」</td></tr>
-<tr><td>変換先で新しく追加される固有</td><td>変換元に無く、シェーダーの既定値で登録されるもの（備考「既定値で追加」）。無ければ「変換先シェーダーに追加の固有パラメータはありません」</td></tr>
+<tr><td>共通チャンネル（そのまま引き継ぐ）</td><td><strong>〇</strong> = 変換先に受け口がある / <strong>×</strong> = 受け口が無く<strong>無視される</strong>（例: Unlit に Normal や Mask は無い）/ <strong>－</strong> = 元で未設定</td></tr>
+<tr><td>固有パラメータ（Specific）</td><td><strong>→</strong> = テーブルで対応先に写す / <strong>=</strong> = 同名・同型で維持 / <strong>×</strong> = 破棄</td></tr>
+<tr><td>変換先で新しく追加される固有</td><td>変換元に無く、シェーダーの既定値で登録されるもの</td></tr>
 </table>
 <div class="tip">
-残したい固有が「×」になるときは、<code>Create &gt; D-Drive &gt; Material &gt; Shader Conversion Table</code> でテーブルを作り、Rules に From（変換元）/ To（変換先）と Mappings（FromProperty → ToProperty。Float / Int は Scale と Offset で値の変換も可。ToProperty を空にすると「意図的に破棄」で警告が出なくなります）を書いて「変換テーブルを再読み込み」。同じ From / To の組は最初の 1 件だけが使われます。
+残したい固有が「×」になるときは、<code>Create &gt; D-Drive &gt; Material &gt; Shader Conversion Table</code> でテーブルを作り、Rules に From / To と Mappings（FromProperty → ToProperty。Float / Int は Scale と Offset で値の変換も可。ToProperty を空にすると「意図的に破棄」）を書きます。
 </div>
-<p>変換元を Inspector で編集したり Ctrl+Z で戻したりすると、A も B も自動で作り直されます。</p>
 
 <h2>Material プレビュー（ポップアップ）</h2>
-<p>サムネイルだけを独立したウィンドウに出したものです。Inspector の「プレビューをポップアップ」、Material Editor の「ポップアップ」、または <code>Tools &gt; D-Drive &gt; Editors &gt; Material プレビュー</code> で開きます。タイトルは対象があると「Material: &lt;表示名&gt;」になります。</p>
-<ul>
-<li>ツールバー: 対象（ObjectField）と 🔒（選択に追従しない）、形状（<strong>Model は選べません</strong>）、「回転」、「ライト」（0〜360）、「X 反転」/「Y 反転」</li>
-<li>画像はウィンドウいっぱいに出て、ドラッグで回転します。ウィンドウを広げれば大きく見えます</li>
-<li>ステータス: 「&lt;シェーダー名&gt;  &lt;形状&gt;  既定ライトのみ(…)」。Shader 未設定なら「(既定 Lit)」</li>
-<li>Material Editor を閉じても単独で動き、Inspector での編集・Undo・Material Editor からの変更にすべて追従します。並べて置いて、Inspector で値をいじりながら見るのに便利です</li>
-</ul>
+<p>サムネイルだけを独立したウィンドウに出したものです。Inspector の「プレビューをポップアップ」、Material Editor の「ポップアップ」、または <code>Tools &gt; D-Drive &gt; Editors &gt; Material プレビュー</code> で開きます。対象・🔒・形状（Model は選べません）・「回転」・「ライト」・「X 反転 / Y 反転」があり、画像はドラッグで回転します。Material Editor を閉じても単独で動き、Inspector での編集や Undo に追従します。</p>
 
 <h2>Undo とキーボード</h2>
 <ul>
-<li>設定の編集は Inspector と同じ仕組みなので、<strong>Ctrl+Z / Ctrl+Y がそのまま効きます</strong></li>
+<li>設定の編集・つまみ・パスとキーワードはすべて <strong>Ctrl+Z / Ctrl+Y</strong> が効きます。つまみを 1.2 秒以内に続けて動かした分は 1 手にまとまります</li>
 <li>「シェーダーから固有を同期」「共通チャンネルの重複を削除」「この Data を変換(Undo 可)」はそれぞれ 1 手で戻せます</li>
-<li>値を変えると 0.1 秒間隔で共有 Material が作り直され、サムネイルと置いたプレビューに反映されます。サムネイルの描き直しは最大 30 fps</li>
-<li>対象・🔒・形状・比較対象・比較モード・回転 / 傾き / ライト角・ターンテーブルは、スクリプトの再コンパイルをまたいでも保持されます</li>
+<li>保存は下部の「保存」か Ctrl+S（自動保存を ON にもできます）。別のデータへ切り替える / 閉じるときに未保存なら聞かれます</li>
 </ul>
 
 <h2>よくある使い方</h2>
 <table>
 <tr><th>やりたいこと</th><th>操作</th></tr>
-<tr><td>2 つのマテリアルを見比べる</td><td>「プレビュー」の「比較対象」に別のマテリアルデータ → サムネイルが「左右」で 2 分割。「切替」にして「A → B」で同じ位置でパッと切り替えても分かりやすい。実照明で見たいときは「並べて比較」でシーンに 2 体並べる</td></tr>
-<tr><td>モデルに貼った状態で見る</td><td>形状を Model、「プレビュー用モデル」にモデルデータ →「シーンにプレビューを配置」。サムネイルには出ません</td></tr>
-<tr><td>UV スクロールが動いているか見る</td><td>Anims を設定するとサムネイルと SceneView の両方で、再生ボタンを押さなくても（EditMode のまま）動きます</td></tr>
-<tr><td>光の当たり方を変えて見る</td><td>「ライト回転」を動かす。シーンに置いていれば Directional Light も一緒に回り、「撤去」で元に戻ります</td></tr>
-<tr><td>Lit から Unlit に乗り換える</td><td>Inspector の「シェーダー変換」→ 変換先に <code>DDrive/Unlit</code> → 互換表で Normal / Mask / Emission が × になるのを確認 → 見た目の比較で許容できるか判断 → 「新規 MaterialData として作成」か「この Data を変換(Undo 可)」</td></tr>
-<tr><td>URP Lit のままのデータを DDrive/Lit にする</td><td>「シェーダー変換」で変換先に <code>DDrive/Lit</code>。プロパティ名が同じなので固有は同名維持、テーブルは不要</td></tr>
-<tr><td>Maya から来たデータの Shader が None</td><td>Material Editor で Shader に <code>DDrive/AiStandardSurface</code> か <code>DDrive/Lit</code> を設定（固有は自動同期）。FBX を再インポートしても自動設定されます</td></tr>
-<tr><td>テクスチャの読み込み設定が規約とずれている</td><td>テクスチャデータを Material Editor で開き、「命名規約を適用して再インポート」を押す</td></tr>
+<tr><td>2 つのマテリアルを見比べる</td><td>カード「確認する」の「比較対象」に別のマテリアルデータ → サムネイルが「左右」で 2 分割。実照明で見たいときは「並べて比較」でシーンに 2 体並べる</td></tr>
+<tr><td>モデルに貼った状態で見る</td><td>形状を Model、「プレビュー用モデル」にモデルデータ →「確認用シーン」。サムネイルには出ません</td></tr>
+<tr><td>Toon の影の段数だけ触りたい</td><td>カード「固有」の分類チップ「Toon」を押し、つまみを回す。または上の検索に「shade」</td></tr>
+<tr><td>影を落とさないようにする</td><td>カード「パスとキーワード」で <code>ShadowCaster</code> にチェック</td></tr>
+<tr><td>Lit から Unlit に乗り換える</td><td>「シェーダー変換…」→ 変換先に <code>DDrive/Unlit</code> → 互換表と見た目の比較で確認 → 「新規 MaterialData として作成」か「この Data を変換(Undo 可)」</td></tr>
+<tr><td>Maya から来たデータの Shader が None</td><td>Shader に <code>DDrive/AiStandardSurface</code> か <code>DDrive/Lit</code> を設定（固有は自動同期）</td></tr>
+<tr><td>テクスチャの読み込み設定が規約とずれている</td><td>Texture Editor で開き、「命名規約を適用して再インポート」を押す</td></tr>
 </table>
 
 <h2>注意点</h2>
 <ul>
-<li><strong>サムネイル・ポップアップ・変換ウィンドウの比較はすべて「既定ライトのみ」</strong>（決まった 2 灯 + 環境光）です。実際のシーンの照明・反射・ポストプロセス・モデルのスロット適用は「シーンにプレビューを配置」で確認してください</li>
-<li>「シーンにプレビューを配置」は<strong>確認用シーンを開かず、今開いているシーンに置きます</strong>。置いたものは <code>[D-Drive] Material Preview</code> の下にまとまり、シーンには保存されません</li>
-<li><strong>Model 形状はサムネイルに出ません</strong>。ポップアップと変換ウィンドウでは Model を選ぶこと自体できません（選ぼうとすると元に戻ります）</li>
-<li>板（Plane）は裏を向かないよう、縦ドラッグで傾きません</li>
+<li><strong>サムネイル・ポップアップ・変換ウィンドウの比較はすべて「既定ライトのみ」</strong>です。実際の照明・モデルのスロット適用は「確認用シーン」「今のシーンに配置」で確認してください</li>
+<li>置いたプレビューは保存されません。「このシーンに本配置」は共有 Material がシーンに残らないため使えず、一時配置になります</li>
+<li><strong>Model 形状はサムネイルに出ません</strong>。ポップアップと変換ウィンドウでは Model を選べません</li>
 <li>プレビューが<strong>真っピンク</strong>ならテクスチャデータの ID 参照が切れています。灰色（テクスチャ無し）なら開き直すか「再生成」</li>
-<li>Specific に共通チャンネル名が入っていると Common の値が黙って上書きされます。「共通チャンネルの重複を削除」ボタンが出ていたら押してください（<a href="validation.html">検証</a>側には修正ボタンがありません）</li>
-<li>半透明マテリアルのサムネイル / アイコンに穴が開いて見えるときは、古いアイコン PNG の作り直しが必要です</li>
+<li>固有に共通チャンネル名が入っていると Common の値が黙って上書きされます。「共通チャンネルの重複を削除」が出ていたら押してください</li>
 </ul>
 
 <h2>関連ページ</h2>
@@ -185,6 +186,5 @@
 <li><a href="glossary.html">用語集</a></li>
 </ul>
 
-<footer>D-Drive デザイナーマニュアル | <a href="Readme.html">トップ</a></footer>
 </body>
 </html>

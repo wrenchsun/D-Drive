@@ -56,6 +56,7 @@
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>Prefab</td><td>開く実体。未設定でも <code>&lt;Placeholder:CANVAS&gt;</code> という空の RectTransform で開き、1 回だけ警告が出ます</td></tr>
 <tr><td>Layer</td><td>表示レイヤー。手前から <strong>Loading</strong>(ロード画面)/ <strong>Overlay</strong>(最前面の演出)/ <strong>Popup</strong>(確認ダイアログ)/ <strong>Menu</strong>(メニュー画面)/ <strong>HUD</strong>(体力・ミニマップなど常時表示)。並び順がそのまま前後関係です</td></tr>
+<tr><td>(CanvasScaler)</td><td>Prefab に CanvasScaler があれば、その設定(基準解像度・Match など)がそのまま使われ、画面サイズに合わせて拡大縮小されます。無いときは Project Settings &gt; D-Drive &gt; Canvas の既定(1920×1080)で拡大縮小されます。同じレイヤーの Canvas は、先に開いた Canvas の設定を共有します</td></tr>
 <tr><td>SortOffset</td><td>同じレイヤー内での重ね順の微調整。Prefab に Canvas コンポーネントがあれば sortingOrder に加算、無ければ兄弟の並び順に使われます</td></tr>
 <tr><td>OpenTransition / CloseTransition</td><td>画面全体の開閉演出。<code>Kind</code>: None(即時)/ Fade(透明度)/ Slide(位置)/ Scale(拡縮)/ Anim(AnimData を再生)。<code>Duration</code>(秒)、<code>Ease</code>(動きの緩急)、<code>SlideOffset</code>(Slide の開始位置のずれ)、<code>Anim</code>(Kind=Anim のときだけ)</td></tr>
 <tr><td>CloseOnBack(既定 ON)</td><td>「戻る」操作(CloseTop)で閉じる対象に含めるか。HUD のように戻るで消えてほしくない画面は OFF</td></tr>
@@ -69,7 +70,7 @@
 </table>
 
 <h3>Buttons(ButtonWire)— 「この要素のこの操作で、これをする」</h3>
-<p>Canvas Editor の「<a href="canvas-editor.html#button-wires">ボタンの配線</a>」欄で、下の項目を Inspector を開かずに編集できます。</p>
+<p>Canvas Editor の「<a href="canvas-editor.html#wire">ボタン・スライダーの配線</a>」欄で、下の項目を Inspector を開かずに編集できます(1 ボタン = 1 行、⚙ で配線を 1 本ずつ)。</p>
 <table>
 <tr><th>項目</th><th>説明</th></tr>
 <tr><td>ButtonPath</td><td>Prefab ルートからの相対パス(例 <code>Panel/StartButton</code>)</td></tr>
@@ -142,18 +143,18 @@
 <h2>よくある使い方</h2>
 <table>
 <tr><th>やりたいこと</th><th>設定</th></tr>
-<tr><td>タイトル画面</td><td>Prefab を設定、Layer=Menu。Canvas Editor で「Selectable を自動収集」→ グラフで上下リンク → 右クリック「FirstSelected にする」→「確認用シーンで開く」</td></tr>
+<tr><td>タイトル画面</td><td>Prefab を設定、Layer=Menu。Canvas Editor で「Selectable を自動収集」→ グラフで上下リンク → 右クリック「FirstSelected にする」→「確認用シーン」</td></tr>
 <tr><td>ボタンで別の画面へ(コード 0 行)</td><td>Buttons に 1 行: ButtonPath、Trigger=Click、Action=OpenCanvas、Target=遷移先。UiButton の CooldownSec を 0.2 秒ほど入れて連打対策</td></tr>
 <tr><td>確認ダイアログ(モーダル)</td><td>Layer=Popup、ModalBlocksInput=ON、CloseOnBack=ON。プログラマーは <code>Ui.Popup</code> で開く。「はい」は Action=SendSignal + SignalKey <code>confirm/yes</code>、「いいえ」は Action=CloseSelf</td></tr>
 <tr><td>ポーズメニュー</td><td>Layer=Menu、PauseGameWhileOpen=ON、CloseOnBack=ON</td></tr>
 <tr><td>音量設定画面(コード 0 行)</td><td>Prefab に UiSlider → Sliders に 1 行: Trigger=Commit、Action=SetOption、Option=MasterVolume。保存 / 復元は自動</td></tr>
 <tr><td>項目を順番に出す(スタッガー)</td><td>Canvas Editor の「要素を自動収集」→ 各行の Appear に SlideFadeInLeft など → AppearDelay を 0.05 / 0.10 / 0.15 … と段差を付ける</td></tr>
-<tr><td>全ボタンに同じ出現演出</td><td>Canvas Editor の「プリセット」で PopIn を選び「一括適用: 全ボタンに反映」。またはプリセットギャラリーの「Canvas 内一括適用(全ボタン)」</td></tr>
+<tr><td>全ボタンに同じ出現演出</td><td>Canvas Editor の「要素の動き」で「プリセット」に PopIn を選び「全ボタンに反映」。またはプリセットギャラリーの「Canvas 内一括適用(全ボタン)」</td></tr>
 <tr><td>レイヤーごとの既定演出・既定 SE</td><td>UI_LayerSettings を 1 個作り、DDriveRuntimeBootstrap の LayerSettings に割り当て</td></tr>
 </table>
 
 <h2>よくある警告</h2>
-<p>表示場所は Canvas Editor の「Validation」と <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(<a href="validation.html">Validation の見方</a>)。</p>
+<p>表示場所は Canvas Editor(該当する欄の下と、ヒーローの検証チップ)と <code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> です(<a href="validation.html">Validation の見方</a>)。</p>
 <table>
 <tr><th>表示</th><th>対処</th></tr>
 <tr><td>Prefab が未設定(または Missing)です</td><td>Prefab を設定する。これが出ている間はパスに関する検査は全部止まります</td></tr>
@@ -206,7 +207,7 @@
 
 <h2>関連ページ</h2>
 <ul>
-<li><a href="canvas-editor.html">Canvas Editor の使い方</a> — ナビゲーション・演出・プレビュー</li>
+<li><a href="canvas-editor.html">Canvas Editor の使い方</a> — 要素の動き・配線・埋め込み・ナビゲーション・プレビュー</li>
 <li><a href="ui-skin.html">Button Skin / Slider Skin / Slider Editor</a> — ボタン・スライダーの見た目と音</li>
 <li><a href="ui-tween.html">UI Tween / プリセットギャラリー / ElementFx</a> — 演出の作り方と割り当て</li>
 <li><a href="prefab-data.html">Prefab データの設定と Prefab Editor</a> — UI 以外のゲーム中に出す物</li>
