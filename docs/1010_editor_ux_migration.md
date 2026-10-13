@@ -800,3 +800,45 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
 - **対処（本体、Editor のみ・公開 API 無変更）**: `UxEditorWindow` が `SerializedObject` を作り直す前・`OnDisable` で Dispose / `OnDestroy` の未保存確認はバッチモード・`UxTestHooks.SuppressDialogs`（テストが立てる）中は出さない / `DataSwitcher` の一覧を種別ごとの静的共有キャッシュ（`EditorApplication.projectChanged` で無効化）/ `AnchorGroupEditor.PointTitle` を現在の `Points` で範囲確認 / `UxScreenshot.Capture` の戻り値は呼び出し側が破棄する旨を明記
 - **割り切り**: ①サンプル生成を `AssetDatabase.StartAssetEditing` で束ねる `Batch` は、画像・Prefab・シェーダーのインポートが要るサンプル（Anim2D / Canvas / Material / Model / Skin / UiTween の Canvas）では結果が壊れるので使わず、Anchor / Anim / CameraFx / Presentation / UiTween 本体だけで使う。クラス単位の `[OneTimeSetUp]` 化は、内容を書き換えるテストが多く未着手（Skin は元から）②`Show()` を `CreateGUI` 直呼びに書き換える作業は、イベント配送に panel が要るテストが大半で未着手
 - **確認**: EditMode 2302 / 2302 green（`TestRunnerApi.RetrieveTestList` の総数と一致）。UX 系クラスの前後で `EditorWindow` 数 11・ContainerWindow 数 1（Main のみ）のまま増えない。`ddrive_compat` は `changed: []`
+
+**2026-10-13 追記（UX-15、Tuning の新エディター。D-10 対応）**
+
+![新 TuningEditor（左 = Dark、右 = Light。上から 値タブ〔すべて・ListView〕・値タブ〔カテゴリ Player で絞り込み〕・Tables タブ）](images/1010_tuning.png)
+
+- **構成**: **`TuningEditor`**（`Editor/Tuning/TuningEditor.cs` + `TuningEditor.Tables.cs` + `TuningTuneSource.cs` + `TuningCheck.cs`、`Editor/Ux/Samples/TuningSample.cs`）。対象の `TuningTable` は `AssetDataBase` 派生ではない（プロジェクト単位の設定）ので `UxEditorWindow<TData>` には載せられず、UX-13 の `SliderEditor` / UX-12 の `UiPresetGallery` と同じ **`UxTheme` + `UxCard` + `TuneKnobs` の独立ウィンドウ**にした（再生ボタン・速度・リピートは無い）。ヒーロー（対象の ObjectField・件数チップ〔キー数 / カテゴリ数 / Tables 数 / 検証 / 変更〕・検索・Project / キー定数を再生成 / 仕様書と同期 / 🔒 固定・値 / Tables のタブ）+ 本体（値 = `UxCard` の中に `TuneKnobs`、Tables = テーブルごとのカード、検証カード）+ **Play 中だけ出る再読込の帯**（固定バーの上）+ 固定バー（変更の数・自動保存・保存）。メニュー `Tools > D-Drive > Editors > Tuning（調整値）`、旧 `TuningEditorWindow` は `Archive > Tuning（調整値）`・題 `(旧) Tuning（調整値）`。TuningTable の Inspector（`TuningTableEditor`）に「Tuning Editor で開く」と「(旧) Tuning ウィンドウで開く」。`[DataEditor]` の対象では元からないので **`editor-contract.txt` は変わらない**。
+- **`TuneKnobs` / `ITuneSource` の拡張**（Editor / internal・既定のままなら Vfx / Material / Canvas の見た目は変わらない）: `TuneValueKind` に Bool / String / Enum を追加（値は `ParamValue` の BoolValue / StringValue）、`ITuneSource` に任意の既定実装つきの `EnumOptions` / `UseNumberField`（範囲の無い数値は数値欄）/ `CategoryEditable`（false = チップで分類を付け替えない）/ `CanAddRemove`（false = 「＋ つまみを追加」と「削除」を出さない）/ `ArrayIndex`（並べ替えて見せる供給元の ⚙ が指す要素）/ `SearchText` / `UnitOf`（部品の右の単位）/ `Summary`（名前の下の説明 1 行）を追加。`TuneKnobs` に `KnobCount` / `ShownCount` / `ModifiedCount`。Int のスライダーも `TryRange` を使う。USS に `ux-knob__unit` / `ux-knob__summary` / `ux-tt-*`。
+- **`TuningTuneSource`**: `TuningTable.Entries` を 1 キー 1 つまみに供給。分類 = `TuningCategoryGrouper`（キーの "/" の前。名前順・(未分類)は最後）、並びはカテゴリ順 → キー順（Entries の並びは変えない）。Float / Int は Min ≠ Max ならスライダー、そうでなければ数値欄。再生中の変更は `RebuildIndex()`（読み出し側へ即時）+ 変えたキーを覚えて帯に件数を出す。`Tuning.Rebind()`（M-2c）は帯の「Play 中に再読込」だけが呼ぶ。
+- **機能対応表（旧 `TuningEditorWindow` → 新 `TuningEditor`、全行あり）**:
+
+| 旧の機能 | 新の場所 | 状態 |
+|---|---|---|
+| ツールバーの対象 TuningTable の ObjectField | ヒーローの ObjectField（切替）・空状態のピッカー / ドロップ / 最近のテーブル・Project の選択に追従（🔒 固定で止める） | あり |
+| 既定の対象（`DDriveSpecSettings` の TuningTable → シーンの `DDriveRuntimeBootstrap`） | 同じ `ResolveDefaultTable` | あり |
+| 検索（キー名・テーブル名。選んだカテゴリの中だけ） | ヒーローの検索（全カテゴリ横断。キー名 / 説明 / カテゴリ / 単位、Tables のキー・列・行 ID）+ 一致の件数（キーと Tables の両方） | あり（拡張） |
+| 「キー定数を再生成」（`TuningCodegen`） | ヒーローの同名ボタン（同じ `TuningCodegen.Regenerate(table)`。通知 + ログ） | あり |
+| 「仕様書と同期」（`SpecSyncWindow`） | ヒーローの同名ボタン | あり |
+| 「Play 中に再読込」（`Tuning.Rebind()`。Play 中かつ Bind 済みのときだけ活性） | Play 中だけ出る帯の同名ボタン（Bind 済みのときだけ活性・変えた値の数を帯に出す・押すと 0 に戻る） | あり（拡張） |
+| 左のカテゴリ一覧（件数つき・(未分類)は最後・Tables が最後の擬似カテゴリ） | 値タブ上部のカテゴリのチップ（「すべて N」+ 各カテゴリ N）・Tables は別タブ | あり |
+| キー行: 表示名 = キーの "/" 以降 | 行のキー名（カテゴリのチップは行の左。ツールチップに完全なキー） | あり |
+| Float / Int = Min ≠ Max ならスライダー、そうでなければ数値欄 | 同じ（Int のスライダーも Min / Max） | あり |
+| Bool = トグル / String = 文字欄 / Enum = EnumOptions のドロップダウン | 同じ部品（TuneKnobs が Bool / String / Enum に対応） | あり |
+| 単位・説明（ツールチップ） | 値の右の単位 / 名前の下の説明 1 行（全文はツールチップ）/ ⚙ で編集 | あり（拡張） |
+| Tables: 1 テーブル 1 グリッド（列 × 行、セルは列の型の部品、範囲ありの列はスライダー） | Tables タブのカード（セルは列の型の部品。範囲ありの列は範囲に収める。行が 20 超は ListView） | あり |
+| Tables の検索（テーブル名） | テーブルのキー・列のキー・行 ID | あり（拡張） |
+| 編集のたびに Undo.RecordObject + SaveDirty | Undo.RecordObject + SetDirty（1.2 秒以内の連続は 1 回の Undo）+ 固定バーの保存 / 自動保存（D-5。旧は 1 回ごとに保存していた） | あり（変更: D-5） |
+| Play 中の編集で `RebuildIndex()` | 同じ | あり |
+| Undo / Redo の同期 | `OnUndoRedo`（つまみ・Tables・件数を取り込み直す） | あり |
+| Inspector の「Tuning ウィンドウで開く」 | 「Tuning Editor で開く」+「(旧) Tuning ウィンドウで開く」 | あり |
+| 再コンパイルに耐える状態（`_table`） | `[SerializeField]`（対象・タブ・検索・固定） | あり |
+
+  新エディターで増えたもの: 値の変更の色バーと ↺・⚙（説明 / 単位 / 範囲 / 選択肢）・検証カード（`TuningCheck`）・変更の数・保存と自動保存・未保存の確認・Light / Dark。
+- **D-10 の基準をどう満たしたか**: サンプル `TuningSample.Build(folder)`（internal、一時フォルダに作って削除）= **キー 51（Float 28 / Int 10 / Bool 7 / String 2 / Enum 4）・カテゴリ 9**（Player 12 / Minigame 8 / Match 7 / Fan 6 / Interact 5 / Camera 5 / UI 4 / Audio 3 / (未分類) 1）・**Tables 3**（EnemyParams 6 行 × 5 列 / DropRates 8 行 × 3 列 / LevelCurve 25 行 × 3 列）・わざと矛盾 2 つ（Fan/DecayPerMin が範囲外 = エラー、Camera/Preset が選択肢に無い = 警告）。(1) 初期表示は 760×1000 で ヒーロー + 値の一覧（51 行は内側の ListView 420px）+ 検証が 1 画面。**カテゴリで絞ると 12 行が 1 画面に収まる**（行の余白を詰めた）(2) 1 キー = 1 行（カテゴリ・名前・部品・単位・↺・⚙、2 行目に説明）、⚙ はその行だけ開く (3) 絞り込み（カテゴリのチップ・検索）と件数（チップの件数・「51 キー中 12 件を表示中」・検索の一致数）(4) 入れ子は無い (5) 一括操作は無い (6) 20 行超（値 51 行・LevelCurve 25 行）は ListView で、ウィンドウのスクロールは外側 1 本 (7) 幅 500px の Dark / Light で、ヒーローのチップ・ボタン・カテゴリのチップ（折り返し）・行・Tables・固定バーが切れないことを確認。
+- **`FieldGuide<TData>`**: Tuning は `AssetDataBase` ではない（`UxEditorWindow<TData>` を使わない）ので欄の表は作らない。ヒーロー・値・Tables・検証の構成は上のとおり。
+- **互換性**: Editor のみ。公開 API・シリアライズ形式・Validator は無変更（`TuningCheck` は Editor の public な純関数クラスの追加）。`[DataEditor]` の対象ではないため `editor-contract.txt` は変わらない（`ddrive_compat` は `changed: []`）。メニューは `Editors/` の新エディター + `Archive/` の旧。MINOR。
+- **向け直した呼び出し元**（`grep TuningEditorWindow`）: コードから旧を直接呼ぶのは Inspector の `TuningTableEditor`（→ 新 `TuningEditor.Open`、旧は別ボタン）だけ。SpecSync・更新ウィンドウ・MCP の `ddrive_editor_open`（`[DataEditor]` 経由）に Tuning への導線は元から無い。
+- **マニュアル**: 専用ページが無かったので `spec-sync.html` の「Unity 側の Tuning ウィンドウ」の節を新エディターの説明に書き換え（節 id = `tuning-editor` / `tuning-values` / `tuning-tables` / `tuning-save` / `tuning-check`。各カードの「？」が `ManualAnchor` で飛ぶ）、画像 `tuning-editor-values.png` / `tuning-editor-tables.png` を追加。旧は `archive-tuning-editor.html`（`Readme.html` のアーカイブ節）。`Tools/SpecWeb` は `build-manual.js` で再生成（clasp push はしていない）。
+- **確認**: コンパイル 0。`TuningEditorUxTests` 23 件（サンプルの規模・型の混在・つまみの供給元〔並び・全単射・型ごとの読み書き・範囲 / 数値欄・署名〕・`TuningCheck`〔サンプル = エラー 1 + 警告 1・重複 / 空 / NaN / 選択肢 / セル〕・メニューの位置・`[SerializeField]`・ヒーローと再生ボタンが無いこと・カテゴリのチップと件数・ListView・1 行の変更と Undo / ↺・Bool / String / Enum・数値欄・⚙・検索・Tables 〔1 カード / ListView / セルの編集と範囲 / 検索〕・検証のクリック・保存の印・対象の切替と空状態・キー定数の再生成〔一時パス〕・旧が開く）。機械点検（`UxFoundationTests`）に新 2 ファイルを足した。
+  **EditMode は全件を 1 回で実行して 2325 / 2325 green**（実行前に空きメモリ 約 0.9GB・`UnloadUnusedAssetsImmediate` + `GC.Collect` を行った。総数の確認: UX-13 / UX-1b の 2302 + `TuningEditorUxTests` の 23 = 2325 がランナーの総数と一致）。UX 系クラス（Tuning / Material / Canvas / Anchor / Anim2D / Anim / CameraFx / Model / Presentation / Skin / UiTween / UxFoundation / DataEditorRegistry）はクラス単位でも実行し、前後で `EditorWindow` 数 11・ContainerWindow 数 1（Main のみ）のまま増えない。`ddrive_compat` は `changed: []`。PlayMode は実行していない（Runtime を触っていない）。
+  `execute_code`（実ウィンドウ・サンプル）: Play 中に値を変える → 帯が出て「1 件」・`Tuning.GetFloat` に即反映・「Play 中に再読込」で `Tuning.Reloaded` が 1 回発火し 0 件に戻る（`Tuning.Bind` はサンプルの TuningTable に付け替え、確認後に外した）。実データの TuningTable は触らず、サンプルは作って削除した。
+  スクリーンショットは `UxScreenshot` で Dark / Light（上の画像）+ 幅 500px。自己確認ループ（2 周）: 1 周目 = カテゴリで絞っても 12 行が 1 画面に収まらない（説明の 2 行目の余白が大きい → Tuning の値の行だけ余白を詰めた）。2 周目 = Dark / Light・500px・各タブで崩れないことを確認。
+- **割り切り**: ①旧が持っていた型は Float / Int / Bool / String / Enum の 5 つで、Color / Vector / Curve の Tuning 値は無い（`TuningValueType` に無いため）②空状態の「サンプルを作る」は UX-19 ③Tables のセルは 1 行 1 セルの TextField / FloatField 等（スライダーにはしない。範囲に収めるだけ）④検証は TuningTable の中の矛盾だけ（仕様書との突き合わせ = `SpecDiffValidator` は Validation > Run All）⑤テーブル切替は ObjectField（`DataSwitcher` は AssetDataBase 専用のため）⑥Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた

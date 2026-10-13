@@ -26,6 +26,9 @@ namespace DDrive.Editor.Tuning
     //
     // ウィンドウ内で Tuning.Get*(ランタイム用の静的ファサード)は呼ばない([09] の規約どおり、Editor は
     // TuningTable を直接読み書きする)。保存は Undo.RecordObject + DDriveAssetSave.SaveDirty([09] §保存規約)。
+    //
+    // docs/1010 UX-15: 新デザインの TuningEditor(Editor/Tuning/TuningEditor.cs)に置き換えた。これは旧版で、メニューは Tools > D-Drive > Archive > Tuning（調整値）。
+    // 機能追加はしない(バグ修正のみ)。
     public sealed class TuningEditorWindow : EditorWindow
     {
         private const string TablesCategoryLabel = "Tables";
@@ -41,12 +44,12 @@ namespace DDrive.Editor.Tuning
         private string _selectedCategory;
         private IReadOnlyList<TuningCategoryGrouper.Category> _categories = Array.Empty<TuningCategoryGrouper.Category>();
 
-        [MenuItem(DDriveMenu.Editors + "Tuning（調整値）")]
+        [MenuItem(DDriveMenu.Archive + "Tuning（調整値）")]
         public static void OpenFromMenu() => Open();
 
         public static void Open(TuningTable table = null)
         {
-            var window = GetWindow<TuningEditorWindow>("Tuning（調整値）");
+            var window = GetWindow<TuningEditorWindow>("(旧) Tuning（調整値）");
             window.minSize = new Vector2(560, 420); // [09] §7.1: 横幅の下限を minSize で確保する
             if (table != null)
             {

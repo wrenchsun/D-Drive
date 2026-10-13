@@ -1,0 +1,63 @@
+<style>.sw-manual-page {
+    font-family: "Yu Gothic UI", "Hiragino Sans", "Meiryo", sans-serif;
+    line-height: 1.8;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: #2b2b2b;
+    background: #fafafa;
+}.sw-manual-page h1 { border-bottom: 3px solid #4a7edb; padding-bottom: 8px; }.sw-manual-page h2 { border-left: 6px solid #4a7edb; padding-left: 10px; margin-top: 2.2em; }.sw-manual-page h3 { margin-top: 1.8em; color: #2c4a80; }.sw-manual-page nav.breadcrumb {
+    background: #eef3fb;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    margin-bottom: 20px;
+}.sw-manual-page nav.breadcrumb a { margin-right: 4px; }.sw-manual-page table { border-collapse: collapse; width: 100%; margin: 1em 0; background: #fff; }.sw-manual-page th, .sw-manual-page td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; vertical-align: top; }.sw-manual-page th { background: #e8eef8; white-space: nowrap; }.sw-manual-page code, .sw-manual-page .path {
+    background: #eee;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+}.sw-manual-page .tip {
+    background: #e7f6e7;
+    border-left: 5px solid #4caf50;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .warn {
+    background: #fdf0e3;
+    border-left: 5px solid #ef8c00;
+    padding: 10px 14px;
+    margin: 1em 0;
+    border-radius: 0 6px 6px 0;
+}.sw-manual-page .term { border-bottom: 1px dotted #4a7edb; cursor: help; }.sw-manual-page figure { margin: 1.2em 0; text-align: center; }.sw-manual-page figure img { max-width: 100%; border: 1px solid #ccc; border-radius: 6px; }.sw-manual-page figcaption { font-size: 0.9em; color: #666; margin-top: 6px; }.sw-manual-page .pagelinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 1.5em 0;
+    padding: 0;
+    list-style: none;
+}.sw-manual-page .pagelinks li {
+    background: #fff;
+    border: 1px solid #d0d8e8;
+    border-radius: 8px;
+    padding: 14px;
+}.sw-manual-page .pagelinks li a { font-weight: bold; font-size: 1.05em; }.sw-manual-page .pagelinks li p { margin: 6px 0 0; font-size: 0.92em; color: #555; }.sw-manual-page footer { margin-top: 48px; font-size: 0.85em; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }.sw-manual-page .lastupdate {
+    margin: -0.4em 0 1.2em;
+    font-size: 0.85em;
+    color: #777;
+    text-align: right;
+}</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › <a href="#" data-manual-kind="designer" data-manual-page="Readme" data-manual-anchor="archive">アーカイブ</a> › （旧）Tuning ウィンドウの使い方</nav>
+
+<h1>（旧）Tuning ウィンドウの使い方</h1>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
+
+<div class="tip">
+このページは、メニュー <code>Tools &gt; D-Drive &gt; Archive &gt; Tuning（調整値）</code> から開く<strong>旧デザインの Tuning ウィンドウ</strong>の説明です。通常は新デザインの <a href="#" data-manual-kind="designer" data-manual-page="spec-sync" data-manual-anchor="tuning-editor">Tuning Editor</a> を見てください。
+</div>
+
+<h2>Unity 側の「Tuning ウィンドウ」</h2>
+<p>Unity を開けるメンバーは、発注ツールの代わりに Unity のメニュー「Tools &gt; D-Drive &gt; Editors &gt; Tuning（調整値）」からも同じ数値を編集できます。キーは <code>Player</code> / <code>Match</code> のような接頭辞ごとにカテゴリ分けされて左側に一覧表示され、右側で選んだカテゴリのキーだけを編集します（float/int はスライダー、bool はトグル、enum はドロップダウン、string はテキスト欄。単位と説明も横に表示されます）。表形式の調整値は「Tables」から同じ画面でセルの値を編集できます（列・行の追加削除は発注ツール側で行います）。編集した値は保存すると即座にアセットに反映され、Play Mode 中に変更した場合はツールバーの「Play 中に再読込」を押すと起動時に値をキャッシュしている機能にも新しい値が届きます。</p>
+
+
+<footer>D-Drive デザイナーマニュアル | <a href="#" data-manual-kind="designer" data-manual-page="Readme">トップ</a></footer></div>

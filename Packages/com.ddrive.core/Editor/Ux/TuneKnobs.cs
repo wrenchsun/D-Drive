@@ -17,6 +17,11 @@ namespace DDrive.Editor.Ux
         Vector,
         Texture,
         Other,
+
+        // Tuning(docs/1010 UX-15)用。値は ParamValue の BoolValue / StringValue(Enum は選択肢の文字)。
+        Bool,
+        String,
+        Enum,
     }
 
     // 「＋ つまみを追加」の候補 1 件。Name は反映先の名前(Vfx なら材質の TargetProperty)。
@@ -88,6 +93,32 @@ namespace DDrive.Editor.Ux
             max = 1f;
             return false;
         }
+
+        // ── Tuning(UX-15)向けの任意の拡張。既定のままなら Vfx / Material / Canvas の見た目は変わらない ──
+
+        // Enum の選択肢(KindOf が Enum のとき)。
+        string[] EnumOptions(int index) => null;
+
+        // true: 範囲が無い数値をスライダーではなく数値欄にする(Tuning の Min == Max)。
+        bool UseNumberField(int index) => false;
+
+        // 分類のチップをクリックで付け替えられるか(Tuning は名前の接頭辞で決まるので false)。
+        bool CategoryEditable => true;
+
+        // 「＋ つまみを追加」と「このつまみを削除」を出すか(Tuning は仕様書が正本なので false)。
+        bool CanAddRemove => true;
+
+        // つまみの並び(index)と ArrayPath 上の要素の添字が違うときの対応(並べ替えて見せる供給元)。
+        int ArrayIndex(int index) => index;
+
+        // 検索に使う追加の語(説明・カテゴリなど)。
+        string SearchText(int index) => null;
+
+        // 部品の右に出す単位。
+        string UnitOf(int index) => null;
+
+        // 名前の下の薄い 1 行(説明の要約)。
+        string Summary(int index) => null;
     }
 
     // つまみの分類(チップ)の共通の語彙と推定。
@@ -190,6 +221,8 @@ namespace DDrive.Editor.Ux
             public VisualElement Row;
             public Label Chip;
             public Label Name;
+            public Label Unit;
+            public Label Summary;
             public Button Reset;
             public Action<ParamValue> SetUi;
             public VisualElement Details;
@@ -244,6 +277,7 @@ namespace DDrive.Editor.Ux
 
             var addRow = new VisualElement();
             addRow.AddToClassList("ux-addrow");
+            addRow.Show(_src.CanAddRemove);
             var add = new Button { text = "＋ つまみを追加" };
             add.AddToClassList("ux-btn");
             add.AddToClassList("ux-btn--primary");
@@ -337,7 +371,13 @@ namespace DDrive.Editor.Ux
             k.Chip = new Label { tooltip = "分類(クリックで変える)" };
             k.Chip.AddToClassList("ux-chip");
             k.Chip.AddToClassList("ux-cat");
-            k.Chip.RegisterCallback<ClickEvent>(e => OpenCategoryMenu(k));
+            k.Chip.RegisterCallback<ClickEvent>(e =>
+            {
+                if (_src.CategoryEditable)
+                {
+                    OpenCategoryMenu(k);
+                }
+            });
             line.Add(k.Chip);
 
             k.Name = new Label();
@@ -347,6 +387,12 @@ namespace DDrive.Editor.Ux
             var control = BuildControl(k);
             control.AddToClassList("ux-knob__control");
             line.Add(control);
+
+            k.Unit = new Label();
+            k.Unit.AddToClassList("ux-dim");
+            k.Unit.AddToClassList("ux-knob__unit");
+            k.Unit.Show(false);
+            line.Add(k.Unit);
 
             k.Reset = new Button(() => ResetKnob(k)) { text = "↺", tooltip = "最初に開いたときの値に戻す" };
             k.Reset.AddToClassList("ux-btn");
@@ -358,6 +404,12 @@ namespace DDrive.Editor.Ux
             gear.AddToClassList("ux-btn");
             gear.AddToClassList("ux-btn--icon");
             line.Add(gear);
+
+            k.Summary = new Label();
+            k.Summary.AddToClassList("ux-dim");
+            k.Summary.AddToClassList("ux-knob__summary");
+            k.Summary.Show(false);
+            main.Add(k.Summary);
 
             k.Details = new VisualElement();
             main.Add(k.Details);
@@ -406,6 +458,74 @@ namespace DDrive.Editor.Ux
                     return f;
                 }
 
+                case TuneValueKind.Bool:
+                {
+                    var t = new Toggle { value = cur.BoolValue };
+                    t.RegisterValueChangedCallback(e => Write(i, ParamValue.Of(e.newValue)));
+                    k.SetUi = v => t.SetValueWithoutNotify(v.BoolValue);
+                    return t;
+                }
+
+                case TuneValueKind.String:
+                {
+                    var f = new TextField { value = cur.StringValue ?? string.Empty };
+                    f.RegisterValueChangedCallback(e => Write(i, ParamValue.Of(e.newValue ?? string.Empty)));
+                    k.SetUi = v =>
+                    {
+                        var s = v.StringValue ?? string.Empty;
+                        if (f.value != s)
+                        {
+                            f.SetValueWithoutNotify(s);
+                        }
+                    };
+                    return f;
+                }
+
+                case TuneValueKind.Enum:
+                {
+                    var opts = new List<string>(_src.EnumOptions(i) ?? new string[0]);
+                    var f = new DropdownField(opts, -1);
+                    f.SetValueWithoutNotify(cur.StringValue ?? string.Empty);
+                    f.RegisterValueChangedCallback(e => Write(i, ParamValue.Of(e.newValue ?? string.Empty)));
+                    k.SetUi = v =>
+                    {
+                        var s = v.StringValue ?? string.Empty;
+                        if (f.value != s)
+                        {
+                            f.SetValueWithoutNotify(s);
+                        }
+                    };
+                    return f;
+                }
+
+                case TuneValueKind.Float when _src.UseNumberField(i):
+                {
+                    var f = new FloatField { value = cur.FloatValue };
+                    f.RegisterValueChangedCallback(e => Write(i, ParamValue.Of(e.newValue)));
+                    k.SetUi = v =>
+                    {
+                        if (!Mathf.Approximately(f.value, v.FloatValue))
+                        {
+                            f.SetValueWithoutNotify(v.FloatValue);
+                        }
+                    };
+                    return f;
+                }
+
+                case TuneValueKind.Int when _src.UseNumberField(i):
+                {
+                    var f = new IntegerField { value = cur.IntValue };
+                    f.RegisterValueChangedCallback(e => Write(i, ParamValue.Of(e.newValue)));
+                    k.SetUi = v =>
+                    {
+                        if (f.value != v.IntValue)
+                        {
+                            f.SetValueWithoutNotify(v.IntValue);
+                        }
+                    };
+                    return f;
+                }
+
                 case TuneValueKind.Float:
                 {
                     var b = _baseline[i].FloatValue;
@@ -441,6 +561,12 @@ namespace DDrive.Editor.Ux
                     var b = _baseline[i].IntValue;
                     var hi = Mathf.Max(10, b * 4);
                     var lo = Mathf.Min(0, b * 4);
+                    if (_src.TryRange(i, out var intLo, out var intHi) && intHi > intLo)
+                    {
+                        lo = Mathf.Min(Mathf.RoundToInt(intLo), b);
+                        hi = Mathf.Max(Mathf.RoundToInt(intHi), b);
+                    }
+
                     var s = new SliderInt(lo, hi) { value = cur.IntValue, showInputField = true };
                     s.RegisterValueChangedCallback(e => Write(i, ParamValue.Of(e.newValue)));
                     k.SetUi = v =>
@@ -493,12 +619,13 @@ namespace DDrive.Editor.Ux
             var box = k.Details;
             box.AddToClassList("ux-details");
             var arr = _so.FindProperty(_src.ArrayPath);
-            if (arr == null || k.Index >= arr.arraySize)
+            var elementIndex = _src.ArrayIndex(k.Index);
+            if (arr == null || elementIndex < 0 || elementIndex >= arr.arraySize)
             {
                 return;
             }
 
-            var el = arr.GetArrayElementAtIndex(k.Index);
+            var el = arr.GetArrayElementAtIndex(elementIndex);
             var fields = _src.DetailFields;
             for (var f = 0; f < fields.Count; f++)
             {
@@ -513,10 +640,13 @@ namespace DDrive.Editor.Ux
                 box.Add(pf);
             }
 
-            var remove = new Button(() => RemoveKnob(k.Index)) { text = "このつまみを削除" };
-            remove.AddToClassList("ux-btn");
-            remove.AddToClassList("ux-btn--small");
-            box.Add(remove);
+            if (_src.CanAddRemove)
+            {
+                var remove = new Button(() => RemoveKnob(k.Index)) { text = "このつまみを削除" };
+                remove.AddToClassList("ux-btn");
+                remove.AddToClassList("ux-btn--small");
+                box.Add(remove);
+            }
         }
 
         // ── 値の書き込み(Undo + SetDirty。再生中は即時反映) ──
@@ -574,7 +704,8 @@ namespace DDrive.Editor.Ux
         private static bool SameValue(ParamValue a, ParamValue b)
         {
             return Mathf.Approximately(a.FloatValue, b.FloatValue) && a.IntValue == b.IntValue && a.ColorValue == b.ColorValue
-                && a.VectorValue == b.VectorValue && a.ObjectValue == b.ObjectValue;
+                && a.VectorValue == b.VectorValue && a.ObjectValue == b.ObjectValue
+                && a.BoolValue == b.BoolValue && (a.StringValue ?? string.Empty) == (b.StringValue ?? string.Empty);
         }
 
         // 分類の語彙(供給元が決める)。
@@ -584,7 +715,7 @@ namespace DDrive.Editor.Ux
         private int CategoryOf(int i)
         {
             var names = Names;
-            var saved = SessionState.GetString(CatKey(_src.Label(i)), string.Empty);
+            var saved = _src.CategoryEditable ? SessionState.GetString(CatKey(_src.Label(i)), string.Empty) : string.Empty;
             if (saved.Length > 0)
             {
                 for (var c = 0; c < names.Count; c++)
@@ -616,7 +747,7 @@ namespace DDrive.Editor.Ux
             if (k.Chip.text != chip)
             {
                 k.Chip.text = chip;
-                k.Chip.tooltip = chip + "(クリックで分類を変える)";
+                k.Chip.tooltip = _src.CategoryEditable ? chip + "(クリックで分類を変える)" : "カテゴリ: " + chip;
             }
 
             for (var c = 0; c < ChipColors; c++)
@@ -633,6 +764,21 @@ namespace DDrive.Editor.Ux
 
             var target = _src.TargetName(k.Index);
             k.Name.tooltip = string.IsNullOrEmpty(target) ? "反映先が未設定のため反映されません" : "→ " + target;
+            var unit = _src.UnitOf(k.Index);
+            if (k.Unit.text != (unit ?? string.Empty))
+            {
+                k.Unit.text = unit ?? string.Empty;
+            }
+
+            k.Unit.Show(!string.IsNullOrEmpty(unit));
+            var summary = _src.Summary(k.Index);
+            if (k.Summary.text != (summary ?? string.Empty))
+            {
+                k.Summary.text = summary ?? string.Empty;
+                k.Summary.tooltip = summary ?? string.Empty;
+            }
+
+            k.Summary.Show(!string.IsNullOrEmpty(summary));
             var modified = k.Index < _baseline.Count && !SameValue(_src.Value(k.Index), _baseline[k.Index]);
             k.Row.EnableInClassList("ux-knob--mod", modified);
             k.Row.EnableInClassList("ux-knob--nolink", string.IsNullOrEmpty(target));
@@ -671,6 +817,28 @@ namespace DDrive.Editor.Ux
             RefreshChrome();
         }
 
+        // つまみの総数・いま絞り込みに当たって表示している数・「最初に開いたときの値」から変わった数(Tuning の件数表示 / 変更 N 件に使う)。
+        public int KnobCount => _knobs.Count;
+
+        public int ShownCount => _shown.Count;
+
+        public int ModifiedCount
+        {
+            get
+            {
+                var n = 0;
+                for (var i = 0; i < _knobs.Count && i < _src.Count && i < _baseline.Count; i++)
+                {
+                    if (!SameValue(_src.Value(i), _baseline[i]))
+                    {
+                        n++;
+                    }
+                }
+
+                return n;
+            }
+        }
+
         // 検索語に一致するつまみがあるか(行を残すかの判定に使う)。
         public bool AnyMatch(string query)
         {
@@ -694,8 +862,10 @@ namespace DDrive.Editor.Ux
 
             var label = _src.Label(index);
             var target = _src.TargetName(index);
+            var extra = _src.SearchText(index);
             return (label != null && label.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
-                || (target != null && target.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+                || (target != null && target.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                || (extra != null && extra.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         private void RefreshChrome()
