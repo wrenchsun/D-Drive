@@ -160,8 +160,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void OldWindow_StillOpens_WithOldTitle()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             CameraFxEditorWindow.Open(null);
             var windows = Resources.FindObjectsOfTypeAll<CameraFxEditorWindow>();
             Assert.AreEqual(1, windows.Length);

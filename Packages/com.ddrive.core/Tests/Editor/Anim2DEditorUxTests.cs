@@ -296,8 +296,10 @@ namespace DDrive.Tests.Editor
         // ── 作成ウィザード ──
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Wizard_PagesBuild_AndNextIsBlockedUntilInputsAreValid()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             var wizardType = EditorAssembly.GetType("DDrive.Editor.Anim2D.Anim2DCreateWizard", true);
             var open = wizardType.GetMethod("OpenAt", BindingFlags.Static | BindingFlags.NonPublic);
             var w = (EditorWindow)open.Invoke(null, new object[] { 0 });

@@ -216,8 +216,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void OldWindows_StillOpen_WithOldTitles()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             UiTweenEditorWindow.Open(null);
             var windows = Resources.FindObjectsOfTypeAll<UiTweenEditorWindow>();
             Assert.AreEqual(1, windows.Length);
@@ -716,8 +718,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Open_WithCollectRootAndElement_SelectsItAsThePreviewTarget()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             BuildSample();
             var rt = MakeScene(out var root, "Panel");
             var data = Part<UiTweenData>("Pop");
@@ -754,8 +758,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_BuildsHeroCardsAndTabs_WithTwentyAppearCards()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             OpenGallery();
             var root = _gallery.rootVisualElement;
             Assert.IsNotNull(root.Q(className: "ux-hero"));
@@ -773,8 +779,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_TabsAndSearch_Filter()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             OpenGallery();
             GCall("SelectTab", GalleryTab.常時);
             Assert.AreEqual(9, (int)G("ShownCount"), "常時 = 9 種");
@@ -797,8 +805,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_Favourites_ToggleFilterAndPersist()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             OpenGallery();
             GCall("ToggleFavouriteForTest", "PopIn");
             GCall("ToggleFavouriteForTest", "Pulse");
@@ -818,8 +828,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_CatalogTab_MoreThan20Cards_UsesListView()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             BuildSample();
             OpenGallery();
             GCall("SelectTab", GalleryTab.カタログ);
@@ -828,8 +840,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_Play_OnASceneElement_RestoresOnStop()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             OpenGallery();
             var rt = MakeScene(out _, "Panel");
             var tryArgs = new object[] { "PopIn", null };
@@ -845,8 +859,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_Play_RefusesPrefabAssets_AndNoSelection()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             BuildSample();
             OpenGallery();
             var tryArgs = new object[] { "PopIn", null };
@@ -857,8 +873,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_ApplyToSource_ReplacesAndAppends_ViaTheSharedOps()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             BuildSample();
             var data = Part<UiTweenData>("Simple");
             OpenGallery(data);
@@ -875,8 +893,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_ApplyToElement_WritesTheElementFxRow()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             OpenGallery();
             var canvas = ScriptableObject.CreateInstance<CanvasData>();
             try
@@ -896,8 +916,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void Gallery_Register_UsesTheSharedBox()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             BuildSample();
             var catalog = Part<UiPresetCatalog>("Catalog");
             OpenGallery(Part<UiTweenData>("Simple"));

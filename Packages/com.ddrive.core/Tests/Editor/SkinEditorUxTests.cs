@@ -259,8 +259,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void OldWindows_StillOpen_WithOldTitles()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             ButtonSkinEditorWindow.Open(null);
             SliderSkinEditorWindow.Open(null);
             SliderEditorWindow.Open((UiSlider)null);
@@ -645,8 +647,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void SliderEditor_OpenFromSkin_PlacesASampleWithTheSkin()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             SliderType.GetMethod("Open", new[] { typeof(SliderSkinData) }).Invoke(null, new object[] { Slider });
             _window = (EditorWindow)Resources.FindObjectsOfTypeAll(SliderType)[0];
             var target = (UiSlider)Prop("Target");

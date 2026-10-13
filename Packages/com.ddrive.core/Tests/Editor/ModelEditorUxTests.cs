@@ -378,8 +378,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void OldModelEditorWindow_StillOpens_WithArchiveTitle()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             var result = BuildModelSample();
             _model = (ModelData)result.GetType().GetField("Model").GetValue(result);
             DDrive.Editor.Model.ModelEditorWindow.Open(_model);
@@ -478,8 +480,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void OldPrefabEditorWindow_StillOpens_WithArchiveTitle()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             var result = BuildPrefabSample();
             _prefabData = (PrefabData)result.GetType().GetField("Prefab").GetValue(result);
             DDrive.Editor.PrefabTool.PrefabEditorWindow.Open(_prefabData);

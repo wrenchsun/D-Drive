@@ -1207,6 +1207,7 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - `Assert` のあとに `DestroyImmediate(_window)` を置かない（落ちたときに残る）。後片付けは TearDown 任せ、どうしても途中で閉じるなら `try / finally`
 - **実ウィンドウを `Show()` するテストは `[Category("RequiresGraphics")]`**、`Show()` する補助メソッドの先頭は `RequiresGraphicsGuard.SkipIfNoGraphicsDevice()`（`-nographics` の CI では飛ぶ）。`CreateGUI` を直接呼べば足りるテストは `Show()` しない（`UxFoundationTests` 方式）
 - **サンプル Data の生成・削除は `UxTestWindows.Batch` / `DeleteFolder`**（`AssetDatabase.StartAssetEditing` で Refresh を 1 回にまとめる）。内容を書き換えないテストが多いクラスは `[OneTimeSetUp]` で 1 回だけ作る（`SkinEditorUxTests`）
+- **ウィンドウを開く経路はすべて `RequiresGraphicsGuard` を通す**（旧ウィンドウの `GetWindow` / `Open(null)`・プリセットギャラリー・ウィザードの `OpenAt` など `UxTestWindows` の `Show()` 補助を経由しない経路も。`[Category("RequiresGraphics")]` + テスト先頭の `RequiresGraphicsGuard.SkipIfNoGraphicsDevice()`。2026-10-13 の v1.8.0 run-ci で 19 件がガード漏れで FAIL した）
 - `UxScreenshot.Capture` が返す `Texture2D` は**呼び出し側が `Object.DestroyImmediate` で破棄する**（`Save` は内部で破棄する）。破棄しないと繰り返しでメモリが増え続ける
 - EditMode 全件は、UX 系をクラス単位で回し、前後で `UxTestWindows.Count()`（または `Resources.FindObjectsOfTypeAll<EditorWindow>().Length`）が増えていないことを確かめる
 

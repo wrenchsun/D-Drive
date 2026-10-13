@@ -216,8 +216,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void OldWindows_StillOpen_WithOldTitle()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             AnchorEditorWindow.Open(null);
             AnchorGroupEditorWindow.Open(null);
             var a = Resources.FindObjectsOfTypeAll<AnchorEditorWindow>();
@@ -609,8 +611,10 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        [Category("RequiresGraphics")]
         public void GroupEditor_OpenWithAttach_PassesSpawnTarget()
         {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
             BuildSample();
             var attach = new GameObject("Self");
             try
