@@ -372,7 +372,7 @@ Tools/
     │   ├─ Shake / Haptics             ← 2026-09-14 実装(5-2c。CameraFxEditorWindow。1 ウィンドウで CameraShakeData/HapticsData 両方を扱う(AudioEditorWindow の SE/BGM と同じ設計)。波形編集は ValueDefDrawer の PropertyField のまま、読み取り専用の重ね描き波形(WaveformGraphGui)を追加。Shake は SceneCameraShakePreviewDriver が実 CameraFxManager で開いているシーンの Camera.main を直接揺らす(連打で Trauma 合成を確認可)。Haptics は EditorHapticsPreviewDriver が実 HapticsManager 経由で接続中のパッドを「Test on Pad」で振動。プリセット 10 種(Pulse/Rumble/Heartbeat/Explosion/Hit_Small/Hit_Large/Landing/Earthquake/Alarm/Engine)は `CameraFxPresets` が Undo 付きで適用。詳細は [16] 実装メモ参照)
     │   ├─ 揺れ・振動確認用シーンを開く ← 2026-09-14 追加(5-2c。CameraShakePreviewSceneSetup。VfxPreviewSceneSetup と同じ流儀)
     │   ├─ Cutscene確認用シーンを開く   ← 2026-09-18 追加(6-10d。CutscenePreviewSceneSetup。Ground/Light/Camera/Volume に加えて起動オブジェクト(DDriveRuntimeBootstrap)+ 確認用アクター(CutscenePreviewHarness)を配置)。**2026-09-19 追記**: `CutsceneDataEditor` の「▶ Timeline ウィンドウで開く」からもこのシーンを自動で開くようになった(`CutsceneEditModeDirectorSetup`)。Edit Mode のまま SE/VFX/UI/AnchorGroup/Camera/Shake/Haptic/Event/Signal が実際に動く(`CutsceneEditModePreviewProvider`、[26_timeline.md] §4.4 実装メモ)。Presentation クリップ・ネット・入力ロック・Skip は引き続き Play Mode(CutsceneManager はこの起動オブジェクト経由でしか組み立てられない)が必要
-    │   └─ Tuning（調整値）              ← 2026-09-27 実装(M-2a。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
+    │   └─ Tuning（調整値）              ← 2026-10-13(UX-15)新デザインの TuningEditor(`Editor/Tuning/TuningEditor*.cs`、[1010] §5)。旧は Archive/。以下は旧(2026-09-27 M-2a。TuningEditorWindow。カテゴリ別のキー一覧 + スライダー/トグル/ドロップダウン + Tables グリッド + 再生成/同期/Play 中再読込ボタン。§「Tuning ウィンドウ」)
     ├─ Archive/                       ← 2026-10-12(UX-2、`DDriveMenu.Archive`)新デザインに置き換えた旧エディター(旧は `(旧)` を付けた `[DataEditor]` Order 100 でも開ける)
     │   ├─ Anchor Editor               ← 旧 AnchorEditorWindow(2026-10-13、UX-11)
     │   ├─ Anchor Group Editor         ← 旧 AnchorGroupEditorWindow(2026-10-13、UX-11)
@@ -381,6 +381,7 @@ Tools/
     │   ├─ Button Skin                 ← 旧 ButtonSkinEditorWindow(2026-10-13、UX-13)
     │   ├─ Slider Skin                 ← 旧 SliderSkinEditorWindow(2026-10-13、UX-13)
     │   ├─ Slider                      ← 旧 SliderEditorWindow(2026-10-13、UX-13)
+    │   ├─ Tuning（調整値）              ← 旧 TuningEditorWindow(2026-10-13、UX-15)
     │   ├─ Animation (3D)              ← 旧 AnimEditorWindow(2026-10-13、UX-6)
     │   ├─ Animation (2D)              ← 旧 Anim2DEditorWindow(2026-10-13、UX-7。旧の作成ポップアップ `Anim2DCreateWindow` はこの窓のボタンから開く)
     │   ├─ Material Editor             ← 旧 MaterialEditorWindow(2026-10-13、UX-8。MaterialData / TextureData 共用)
@@ -1150,6 +1151,8 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - EditMode 全件は、UX 系をクラス単位で回し、前後で `UxTestWindows.Count()`（または `Resources.FindObjectsOfTypeAll<EditorWindow>().Length`）が増えていないことを確かめる
 
 ## Tuning ウィンドウ（M-2a、2026-09-27 実装）
+
+> **2026-10-13 追記(UX-15)**: 新デザインの `TuningEditor`（`Editor/Tuning/TuningEditor.cs` + `.Tables.cs` + `TuningTuneSource.cs` + `TuningCheck.cs`）に置き換えた。旧 `TuningEditorWindow` は `Archive > Tuning（調整値）`・題 `(旧) Tuning（調整値）`。TuningTable は AssetDataBase 派生ではないので `UxEditorWindow<TData>` には載せず、`UxTheme` + `UxCard` + `TuneKnobs` の独立ウィンドウ（再生ボタン無し）。以下の「画面」「ボタン」「保存」の記述は旧のもの。新の仕様は [1010](1010_editor_ux_migration.md) §5 の UX-15（保存は固定バーの「保存」/ 自動保存 = D-5、`TuneKnobs` の拡張〔Bool / String / Enum・数値欄・単位・説明の 1 行・分類の固定・追加削除なし〕、Play 中の再読込の帯、検証 `TuningCheck`）。`[DataEditor]` は付けず、Inspector の `TuningTableEditor` に「Tuning Editor で開く」と「(旧) Tuning ウィンドウで開く」を並べた（`editor-contract.txt` は無変更）。
 
 MS2026 チームからの要望（[11_tasks.md](11_tasks.md) M-2 チケット）。`TuningTable`（[02] §14 の 5-13 追記）は現状 Unity 既定の配列 Inspector でしか編集できず、キーが 46 件を超えたところで「目的のキーに辿り着けない」「Player 担当と Match 担当が同じ `.asset` を触って競合する」が問題になった。データ形式は変えず（案 A 継続）、閲覧・編集の単位だけをカテゴリにする。
 

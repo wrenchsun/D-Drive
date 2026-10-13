@@ -2578,3 +2578,136 @@
     bottom: 0;
     -unity-text-align: middle-center;
 }
+
+/* TuneKnobs の単位・説明の 1 行(Tuning。UX-15) */
+.ux-root .ux-knob__unit {
+    flex-shrink: 0;
+    min-width: 24px;
+    margin: 0 0 0 6px;
+    white-space: nowrap;
+}
+
+.ux-root .ux-knob__summary {
+    margin: 2px 0 0 68px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-knobs--wide .ux-knob__summary {
+    margin-left: 78px;
+}
+
+/* Tuning(UX-15) */
+.ux-root .ux-tt-pick {
+    margin: 0 0 4px 0;
+}
+
+.ux-root .ux-tt-notice {
+    flex-direction: row;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 8px 16px 0 16px;
+    border-top-width: 1px;
+    border-top-color: var(--ux-border-strong);
+    background-color: var(--ux-accent-soft);
+}
+
+.ux-root .ux-tt-notice--attn {
+    background-color: var(--ux-warn-bg);
+}
+
+.ux-root .ux-tt-notice__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 200px;
+    margin: 0 8px 8px 0;
+    white-space: normal;
+}
+
+.ux-root .ux-tt-notice .ux-btn {
+    margin-bottom: 8px;
+}
+
+.ux-root .ux-tt-tablecard {
+    margin-bottom: 12px;
+}
+
+.ux-root .ux-tt-grid {
+    flex-grow: 1;
+}
+
+.ux-root .ux-tt-row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 26px;
+    margin-bottom: 2px;
+}
+
+.ux-root .ux-tt-head {
+    border-bottom-width: 1px;
+    border-bottom-color: var(--ux-border);
+    margin-bottom: 4px;
+    padding-bottom: 2px;
+}
+
+.ux-root .ux-tt-rowid {
+    width: 96px;
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ux-root .ux-tt-colname {
+    flex-grow: 1;
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 64px;
+    margin: 0 4px 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-tt-cell {
+    flex-grow: 1;
+    flex-basis: 0;
+    flex-shrink: 1;
+    min-width: 64px;
+    margin: 0 4px 0 0;
+}
+
+.ux-root .ux-tt-cell--mod {
+    border-left-width: 3px;
+    border-left-color: var(--ux-mod);
+}
+
+.ux-root .ux-tt-cell--none {
+    -unity-text-align: middle-center;
+}
+
+.ux-root .ux-tt-lv {
+    height: 360px;
+}
+
+.ux-root .ux-tt-emptyrow {
+    margin: 8px 0;
+    white-space: normal;
+}
+
+/* Tuning の値の行は 46 キー以上を 1 画面に近づけるため、行の余白を詰める */
+.ux-root .ux-tt-values .ux-knob {
+    margin-bottom: 2px;
+}
+
+.ux-root .ux-tt-values .ux-knob__main {
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.ux-root .ux-tt-values .ux-knob__summary {
+    margin-top: 0;
+}

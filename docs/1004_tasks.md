@@ -61,7 +61,7 @@
 | UX-12 | ✅ | UI Tween + Preset Gallery の新エディター（トラック・実要素 ▶・ギャラリーのお気に入り/フィルタ/検索） | 2 | UX-2 | 同上 |
 | UX-13 | ✅ | Slider / Slider Skin / Button Skin の新エディター（プリセット 5 種・`ControlSkinPreviewSection`） | 2 | UX-12 | 同上 |
 | UX-14 | ✅ | Prefab の新エディター（小さいので UX-9 と同じ PR） | 0 | UX-9 | 同上 |
-| UX-15 | ⬜ | Tuning の新エディター（カテゴリ + 検索 + Tables・Play 中の再読込通知・値は TuneKnobs・再生無し） | 1.5 | UX-1 | 同上 |
+| UX-15 | ✅ | Tuning の新エディター（カテゴリ + 検索 + Tables・Play 中の再読込通知・値は TuneKnobs・再生無し） | 1.5 | UX-1 | 同上 |
 | UX-16 | ⬜ | Cutscene の Inspector にテーマを当て、導線を新エディターへ（ウィンドウ化しない） | 0.5 | UX-5 | 導線が旧を指さない |
 | UX-17 | ⬜ | AssetBrowser / NewAssetDialog にテーマ、「開く」の向き先と空状態を新エディターに | 1 | UX-2〜13 | 同上 |
 | UX-18 | ⬜ | Archive メニュー（`DDriveMenu.Archive`）への旧エディター移動、`(旧)` の `[DataEditor]`、配線の総点検（`GetWindow<旧>` = 0）、`editor-contract.txt` 追加更新、マニュアル（D-9）、[09](09_editor_tools.md) §6/§8 | 2 | UX-2〜17 | 新エディター間に旧への導線が無い。CHANGELOG に Editor 契約の 3 点 |
