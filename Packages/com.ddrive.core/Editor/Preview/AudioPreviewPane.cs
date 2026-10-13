@@ -1,4 +1,3 @@
-using DDrive.Editor.Common;
 using DDrive.Foundation.Data;
 using DDrive.Runtime.Audio;
 using UnityEngine;
@@ -31,47 +30,28 @@ namespace DDrive.Editor.Preview
             //   2. 行が flex-wrap: nowrap のうえ速度スライダーが固定幅 180px だったため、バーが狭いと
             //      折り返さずに右側が見切れていた([09] §7.1 の横幅 500px 下限を満たしていなかった)
             // → ラベル幅を内容なりにし、行を折り返し可能にし、固定幅をやめる。
-            style.flexDirection = FlexDirection.Row;
-            style.flexWrap = Wrap.Wrap;
-            style.alignItems = Align.Center;
-            style.paddingLeft = 6;
-            style.paddingRight = 6;
-            style.paddingTop = 3;
-            style.paddingBottom = 3;
-            style.borderTopWidth = 1;
-            style.borderTopColor = new Color(0f, 0f, 0f, 0.3f);
+            // docs/1010 UX-17: その指定はすべて共通テーマ(DDriveUx.uss の .ux-prev 以下)に移した(インラインスタイルは持たない)。
+            // 親(AssetBrowser)が UxTheme を当てている前提。
+            AddToClassList("ux-prev");
 
             _titleLabel = new Label("(プレビュー対象なし)");
-            _titleLabel.style.flexGrow = 1f;
-            _titleLabel.style.flexShrink = 1f;
-            _titleLabel.style.minWidth = 0; // 既定だと縮まず、右側のコントロールを押し出す
-            _titleLabel.style.overflow = Overflow.Hidden;
-            _titleLabel.style.textOverflow = TextOverflow.Ellipsis;
-            _titleLabel.style.whiteSpace = WhiteSpace.NoWrap;
-            _titleLabel.style.marginRight = 6;
-            _titleLabel.style.opacity = 0.7f;
+            _titleLabel.AddToClassList("ux-prev__title");
             Add(_titleLabel);
 
             _playButton = new Button(Play) { text = "▶ 再生", tooltip = "実 AudioManager 経由で試聴(実行時と同じコードパス)" };
-            _playButton.style.flexShrink = 0f;
+            _playButton.AddToClassList("ux-btn");
             Add(_playButton);
 
             _stopButton = new Button(Stop) { text = "■ 停止" };
-            _stopButton.style.flexShrink = 0f;
+            _stopButton.AddToClassList("ux-btn");
             Add(_stopButton);
 
             _loopToggle = new Toggle("ループ") { tooltip = "SE をループで試聴(アセット本体は変更しない)" };
-            _loopToggle.style.marginLeft = 8;
-            _loopToggle.style.flexShrink = 0f;
-            CompactFieldLayout.ShrinkLabel(_loopToggle.labelElement);
+            _loopToggle.AddToClassList("ux-prev__loop");
             Add(_loopToggle);
 
             _speedSlider = new Slider("速度", 0.1f, 2f) { value = 1f, tooltip = "0.1x–2x。Audio ではピッチとして適用" };
-            _speedSlider.style.marginLeft = 8;
-            _speedSlider.style.minWidth = 120;
-            _speedSlider.style.flexGrow = 1f;
-            _speedSlider.style.flexShrink = 1f;
-            CompactFieldLayout.ShrinkLabel(_speedSlider.labelElement);
+            _speedSlider.AddToClassList("ux-prev__speed");
             _speedSlider.RegisterValueChangedCallback(evt => _service.Speed = evt.newValue);
             Add(_speedSlider);
 

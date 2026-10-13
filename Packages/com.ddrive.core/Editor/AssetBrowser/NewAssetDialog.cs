@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DDrive.Editor.Inspectors;
 using DDrive.Editor.Spec;
+using DDrive.Editor.Ux;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
 using DDrive.Runtime.Audio;
@@ -108,6 +109,9 @@ namespace DDrive.Editor.AssetBrowser
 
         private void CreateGUI()
         {
+            // docs/1010 UX-17: 共通テーマ(DDriveUx.uss)。見た目は USS のクラスで当てる(インラインスタイルは持たない)。
+            UxTheme.Apply(rootVisualElement);
+
             _lockedTypes = _pendingLockedTypes;
             _onCreated = _pendingOnCreated;
             _pendingLockedTypes = null;
@@ -130,13 +134,13 @@ namespace DDrive.Editor.AssetBrowser
 
             // ウィンドウが小さい/項目が増えても内容が見切れないよう、ルートをスクロール可能にする
             // ([09_editor_tools.md] §7 拡縮前提のUI規約)。
-            var scrollView = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1f } };
+            var scrollView = new ScrollView(ScrollViewMode.Vertical);
+            scrollView.AddToClassList("ux-scroll");
             rootVisualElement.Add(scrollView);
 
-            var root = scrollView;
-            root.style.paddingLeft = 8;
-            root.style.paddingRight = 8;
-            root.style.paddingTop = 8;
+            var root = new VisualElement();
+            root.AddToClassList("ux-nad");
+            scrollView.Add(root);
 
             // 5-16: 「仕様書から選ぶ」セクション(先頭)。選ぶと下の各欄が入力済みになる。
             // 2026-09-18: 折りたたみ可能な Foldout にする(開閉状態は EditorPrefs に保存。既定は開いたまま)。
@@ -147,16 +151,8 @@ namespace DDrive.Editor.AssetBrowser
             specFoldout.Add(_specSection);
             RebuildSpecSection();
 
-            var divider = new VisualElement
-            {
-                style =
-                {
-                    height = 1,
-                    marginTop = 8,
-                    marginBottom = 8,
-                    backgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.4f),
-                },
-            };
+            var divider = new VisualElement();
+            divider.AddToClassList("ux-nad__divider");
             root.Add(divider);
 
             var choices = _definitions.Select(d => $"{d.assetType} ({d.dataType.Name})").ToList();
@@ -204,21 +200,21 @@ namespace DDrive.Editor.AssetBrowser
             root.Add(_specLinkField);
 
             _previewLabel = new Label();
-            _previewLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            _previewLabel.style.marginTop = 6;
+            _previewLabel.AddToClassList("ux-nad__preview");
             root.Add(_previewLabel);
 
             _validationLabel = new Label();
-            _validationLabel.style.color = new Color(0.9f, 0.4f, 0.3f);
+            _validationLabel.AddToClassList("ux-nad__error");
             root.Add(_validationLabel);
 
             var help = new HelpBox("ファイル名・ID・カタログ登録はツールが自動生成します。人がファイル名を決める必要はありません。", HelpBoxMessageType.Info);
-            help.style.marginTop = 6;
+            help.AddToClassList("ux-nad__help");
             root.Add(help);
 
             _createButton = new Button(CreateAsset) { text = "作成" };
-            _createButton.style.marginTop = 8;
-            _createButton.style.height = 26;
+            _createButton.AddToClassList("ux-btn");
+            _createButton.AddToClassList("ux-btn--primary");
+            _createButton.AddToClassList("ux-nad__create");
             root.Add(_createButton);
 
             RefreshPreview();
@@ -357,11 +353,16 @@ namespace DDrive.Editor.AssetBrowser
             }
 
             var (statusText, needsRefreshButton) = DescribeCacheFreshness();
-            _specSection.Add(new Label(statusText) { style = { marginBottom = 2 } });
+            var status = new Label(statusText);
+            status.AddToClassList("ux-dim");
+            status.AddToClassList("ux-nad__status");
+            _specSection.Add(status);
 
             if (needsRefreshButton)
             {
-                _specSection.Add(new Button(() => OnRefetchClicked(settings)) { text = "仕様書を再取得" });
+                var refetch = new Button(() => OnRefetchClicked(settings)) { text = "仕様書を再取得" };
+                refetch.AddToClassList("ux-btn");
+                _specSection.Add(refetch);
             }
 
             if (!SpecCache.HasData)
@@ -375,10 +376,12 @@ namespace DDrive.Editor.AssetBrowser
 
             // P5 レビュー対応(2026-09-14): 選択中の行を(検索で一覧から外れても分かるよう)常に明示し、
             // 「解除」で手動でも選択を外せるようにする。
-            _selectedSpecRowIndicator = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 2, marginBottom = 2 } };
+            _selectedSpecRowIndicator = new VisualElement();
+            _selectedSpecRowIndicator.AddToClassList("ux-nad__row");
+            _selectedSpecRowIndicator.AddToClassList("ux-nad__row--chosen");
             _specSection.Add(_selectedSpecRowIndicator);
 
-            _specListContainer = new VisualElement { style = { marginTop = 2 } };
+            _specListContainer = new VisualElement();
             _specSection.Add(_specListContainer);
 
             RenderSpecList();
@@ -399,12 +402,11 @@ namespace DDrive.Editor.AssetBrowser
                 return;
             }
 
-            var label = new Label($"選択中の仕様書行: {_selectedSpecRow.Type} / {_selectedSpecRow.Category} / {_selectedSpecRow.Identifier} — {_selectedSpecRow.DisplayName}")
-            {
-                style = { flexGrow = 1, unityFontStyleAndWeight = FontStyle.Bold },
-            };
+            var label = new Label($"選択中の仕様書行: {_selectedSpecRow.Type} / {_selectedSpecRow.Category} / {_selectedSpecRow.Identifier} — {_selectedSpecRow.DisplayName}");
             _selectedSpecRowIndicator.Add(label);
-            _selectedSpecRowIndicator.Add(new Button(ClearSelectedSpecRow) { text = "解除" });
+            var clear = new Button(ClearSelectedSpecRow) { text = "解除" };
+            clear.AddToClassList("ux-btn");
+            _selectedSpecRowIndicator.Add(clear);
         }
 
         // P5 レビュー対応(2026-09-14): 識別子/表示名/カテゴリを手で書き換えたら仕様書行の選択を解除する
@@ -456,7 +458,9 @@ namespace DDrive.Editor.AssetBrowser
             var rowList = rows.ToList();
             if (rowList.Count == 0)
             {
-                _specListContainer.Add(new Label("(該当する未作成行はありません)") { style = { color = new Color(0.6f, 0.6f, 0.6f) } });
+                var none = new Label("(該当する未作成行はありません)");
+                none.AddToClassList("ux-nad__none");
+                _specListContainer.Add(none);
                 return;
             }
 
@@ -469,14 +473,18 @@ namespace DDrive.Editor.AssetBrowser
         private VisualElement BuildSpecRowElement(SpecAssetRow row)
         {
             var isSelected = ReferenceEquals(_selectedSpecRow, row);
-            var container = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginBottom = 1 } };
-            var label = new Label($"{row.Type} / {row.Category} / {row.Identifier} — {row.DisplayName}")
+            var container = new VisualElement();
+            container.AddToClassList("ux-nad__row");
+            if (isSelected)
             {
-                style = { flexGrow = 1, unityFontStyleAndWeight = isSelected ? FontStyle.Bold : FontStyle.Normal },
-            };
+                container.AddToClassList("ux-nad__row--chosen");
+            }
+
+            var label = new Label($"{row.Type} / {row.Category} / {row.Identifier} — {row.DisplayName}");
             container.Add(label);
 
             var button = new Button(() => OnSpecRowSelected(row)) { text = isSelected ? "選択中" : "選ぶ" };
+            button.AddToClassList("ux-btn");
             button.SetEnabled(!isSelected);
             container.Add(button);
             return container;

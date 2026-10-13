@@ -6,6 +6,7 @@ using DDrive.Editor.Inspector;
 using DDrive.Editor.Menu;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Spec;
+using DDrive.Editor.Ux;
 using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
 using DDrive.Foundation.Identity;
@@ -33,14 +34,15 @@ namespace DDrive.Editor.AssetBrowser
         private readonly List<Row> _allRows = new();
         private readonly List<Row> _visibleRows = new();
 
-        private ToolbarSearchField _searchField;
+        private TextField _searchField;
         private DropdownField _typeFilter;
         private ListView _listView;
         private Label _statusLabel;
+        private Label _emptyLabel;
         private PreviewService _previewService;
         private AudioPreviewPane _previewPane;
         // [27_spec_sheet.md] §4.2 / 5-13 — 起動時自動取得(SpecAutoSync)が差分を見つけたときの通知バッジ。
-        private ToolbarButton _specBadge;
+        private Button _specBadge;
 
         [MenuItem(DDriveMenu.Root + "Asset Browser")]
         public static void Open()
@@ -49,37 +51,82 @@ namespace DDrive.Editor.AssetBrowser
             window.minSize = new Vector2(420, 300);
         }
 
+        // 検索ボックス(共通テーマの .ux-searchbox。UxEditorWindow の BuildSearch と同じ作り)。
+        private VisualElement BuildSearchBox()
+        {
+            var box = new VisualElement { tooltip = "表示名・ファイル名・カテゴリ・タグ・説明・作成者で検索" };
+            box.AddToClassList("ux-searchbox");
+            var icon = new Image { image = EditorGUIUtility.IconContent("Search Icon").image, scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
+            icon.AddToClassList("ux-searchbox__icon");
+            box.Add(icon);
+            _searchField = new TextField();
+            _searchField.AddToClassList("ux-searchbox__field");
+            _searchField.textEdition.placeholder = "Data を検索";
+            _searchField.textEdition.hidePlaceholderOnFocus = true;
+            box.Add(_searchField);
+            _searchField.RegisterCallback<FocusInEvent>(_ => box.AddToClassList("ux-searchbox--focus"));
+            _searchField.RegisterCallback<FocusOutEvent>(_ => box.RemoveFromClassList("ux-searchbox--focus"));
+            var clear = new Button(() => _searchField.value = string.Empty) { text = "×", tooltip = "検索を消す" };
+            clear.AddToClassList("ux-searchbox__clear");
+            clear.Show(false);
+            box.Add(clear);
+            _searchField.RegisterValueChangedCallback(e =>
+            {
+                clear.Show(!string.IsNullOrEmpty(e.newValue));
+                ApplyFilter();
+            });
+            return box;
+        }
+
+        private static Button MakeBarButton(string text, string tooltip, Action onClick, string extraClass = null)
+        {
+            var button = new Button(onClick) { text = text, tooltip = tooltip };
+            button.AddToClassList("ux-btn");
+            if (extraClass != null)
+            {
+                button.AddToClassList(extraClass);
+            }
+
+            return button;
+        }
+
         private void CreateGUI()
         {
             var root = rootVisualElement;
+            // docs/1010 UX-17: 共通テーマ(DDriveUx.uss)。見た目はすべて USS のクラスで当てる(ここでインラインスタイルを増やさない)。
+            UxTheme.Apply(root);
+            root.AddToClassList("ux-browser");
 
-            var toolbar = new Toolbar();
+            var toolbar = new VisualElement { name = "browser-bar" };
+            toolbar.AddToClassList("ux-bar");
 
-            _searchField = new ToolbarSearchField();
-            _searchField.style.flexGrow = 1f;
-            _searchField.RegisterValueChangedCallback(_ => ApplyFilter());
-            toolbar.Add(_searchField);
+            toolbar.Add(BuildSearchBox());
 
             var typeChoices = new List<string> { "All" };
             typeChoices.AddRange(Enum.GetNames(typeof(AssetType)).Where(n => n != nameof(AssetType.None)));
-            _typeFilter = new DropdownField(typeChoices, 0);
+            _typeFilter = new DropdownField(typeChoices, 0) { tooltip = "種別で絞り込む" };
+            _typeFilter.AddToClassList("ux-browser__type");
             _typeFilter.RegisterValueChangedCallback(_ => ApplyFilter());
             toolbar.Add(_typeFilter);
 
-            toolbar.Add(new ToolbarButton(() => NewAssetDialog.Open()) { text = "新規" });
-            toolbar.Add(new ToolbarButton(Refresh) { text = "更新" });
+            toolbar.Add(MakeBarButton("新規", "新しい Data を作る", () => NewAssetDialog.Open(), "ux-btn--primary"));
+            toolbar.Add(MakeBarButton("更新", "一覧を読み込み直す", Refresh));
             // 5-6: 未使用検出は専用ウィンドウ([09] §1)。使用箇所検索・依存ツリー・削除は行の右クリックメニューから。
-            toolbar.Add(new ToolbarButton(UnusedAssetsWindow.Open) { text = "未使用..." });
+            toolbar.Add(MakeBarButton("未使用...", "どこからも参照されていない Data を探す", UnusedAssetsWindow.Open));
 
-            _specBadge = new ToolbarButton(() => SpecSyncWindow.Open()) { text = string.Empty };
-            _specBadge.style.display = DisplayStyle.None;
+            _specBadge = new Button(() => SpecSyncWindow.Open()) { text = string.Empty };
+            _specBadge.AddToClassList("ux-chip");
+            _specBadge.AddToClassList("ux-chip--warn");
+            _specBadge.AddToClassList("ux-chip--clickable");
+            _specBadge.AddToClassList("ux-browser__badge");
+            _specBadge.Show(false);
             toolbar.Add(_specBadge);
 
             root.Add(toolbar);
 
             _listView = new ListView
             {
-                fixedItemHeight = 22,
+                fixedItemHeight = 26,
                 // 削除の確認画面(2026-09-14)が複数選択に対応するため Multiple に変更。
                 // 単一選択のときの挙動(Inspector連動・ダブルクリックでエディタを開く等)は変わらない。
                 selectionType = SelectionType.Multiple,
@@ -87,25 +134,27 @@ namespace DDrive.Editor.AssetBrowser
                 bindItem = BindRowElement,
                 itemsSource = _visibleRows,
             };
-            // 一覧が残りの高さだけを使い、下のステータス・試聴バーを押し出さない(窓が低いと試聴バーが隠れていた)。
-            _listView.style.flexGrow = 1f;
-            _listView.style.flexShrink = 1f;
-            _listView.style.flexBasis = 0f;
-            _listView.style.minHeight = 0f;
+            // 一覧が残りの高さだけを使い、下のステータス・試聴バーを押し出さない(窓が低いと試聴バーが隠れていた。USS 側で flex を指定)。
+            _listView.AddToClassList("ux-browser__list");
             _listView.selectionChanged += OnSelectionChanged;
             _listView.itemsChosen += OnItemsChosen;
             _listView.RegisterCallback<KeyDownEvent>(OnListKeyDown, TrickleDown.TrickleDown);
             root.Add(_listView);
 
+            // 一覧が空のときの案内(Data が 1 つも無い / 絞り込みで 0 件)。
+            _emptyLabel = new Label { name = "browser-empty" };
+            _emptyLabel.AddToClassList("ux-browser__empty");
+            _emptyLabel.AddToClassList("ux-dim");
+            _emptyLabel.Show(false);
+            root.Add(_emptyLabel);
+
             _statusLabel = new Label();
-            _statusLabel.style.paddingLeft = 6;
-            _statusLabel.style.paddingBottom = 2;
-            _statusLabel.style.flexShrink = 0f;
+            _statusLabel.AddToClassList("ux-dim");
+            _statusLabel.AddToClassList("ux-browser__status");
             root.Add(_statusLabel);
 
             _previewService ??= new PreviewService();
             _previewPane = new AudioPreviewPane(_previewService);
-            _previewPane.style.flexShrink = 0f;
             root.Add(_previewPane);
 
             SetupDragAndDrop(root);
@@ -133,59 +182,45 @@ namespace DDrive.Editor.AssetBrowser
             if (count > 0)
             {
                 _specBadge.text = $"仕様書に変更 {count} 件";
-                _specBadge.style.display = DisplayStyle.Flex;
+                _specBadge.Show(true);
             }
             else
             {
-                _specBadge.style.display = DisplayStyle.None;
+                _specBadge.Show(false);
             }
         }
 
-        private const float RowIconSize = 18f;
-
         private VisualElement MakeRowElement()
         {
-            var row = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
+            var row = new VisualElement();
+            row.AddToClassList("ux-brow");
 
             var icon = new Image { name = "icon", scaleMode = ScaleMode.ScaleToFit };
-            icon.style.width = RowIconSize;
-            icon.style.height = RowIconSize;
-            icon.style.marginRight = 4;
-            icon.style.flexShrink = 0;
+            icon.AddToClassList("ux-brow__icon");
             row.Add(icon);
 
-            var typeLabel = new Label { name = "type" };
-            typeLabel.style.width = 70;
-            typeLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            row.Add(typeLabel);
-
-            var nameLabel = new Label { name = "name" };
-            nameLabel.style.flexGrow = 1f;
-            row.Add(nameLabel);
-
-            var categoryLabel = new Label { name = "category" };
-            categoryLabel.style.width = 140;
-            categoryLabel.style.opacity = 0.6f;
-            row.Add(categoryLabel);
+            row.Add(MakeCell("type", "ux-brow__type"));
+            row.Add(MakeCell("name", "ux-brow__name"));
+            row.Add(MakeCell("category", "ux-brow__category"));
 
             // [11_tasks.md] 6-3 — 保存フックが記録した更新者・更新日時(今の値だけ)。
             // 現状の ListView は単一列の仮想化リストで、ソート可能な複数列ヘッダーは持っていない
             // (MultiColumnListView への切り替えが必要)。並べ替えは次回に回し、[09_editor_tools.md] §4 に記録する。
-            var authorLabel = new Label { name = "author" };
-            authorLabel.style.width = 70;
-            authorLabel.style.opacity = 0.6f;
-            row.Add(authorLabel);
-
-            var updatedAtLabel = new Label { name = "updatedAt" };
-            updatedAtLabel.style.width = 110;
-            updatedAtLabel.style.opacity = 0.6f;
-            row.Add(updatedAtLabel);
+            row.Add(MakeCell("author", "ux-brow__author"));
+            row.Add(MakeCell("updatedAt", "ux-brow__updated"));
 
             // 5-6: 右クリックメニュー(使用箇所検索 / 依存ツリー / Archive / 安全な削除)。行は ListView に
             // よって使い回されるため、対象は毎回 element.userData(BindRowElement が差し替える)から読む。
             row.AddManipulator(new ContextualMenuManipulator(evt => PopulateRowContextMenu(evt, row)));
 
             return row;
+        }
+
+        private static Label MakeCell(string name, string cls)
+        {
+            var label = new Label { name = name };
+            label.AddToClassList(cls);
+            return label;
         }
 
         private void BindRowElement(VisualElement element, int index)
@@ -215,21 +250,14 @@ namespace DDrive.Editor.AssetBrowser
 
             var displayName = !string.IsNullOrEmpty(row.Asset.DisplayName) ? row.Asset.DisplayName : row.Asset.name;
 
-            // ダブルクリックと同じ経路([09] §1)。候補が複数ある種別(MaterialData 等)は
-            // サブメニューで全候補(Order 昇順、Inspector の「エディターで開く」列と同じ順)を出す。
+            // ダブルクリックと同じ経路([09] §1)。先頭(Order 最小 = 新エディター)は「開く」としてそのまま出し、
+            // 補助ツール・旧エディター(「(旧) 〜」)は「他のエディターで開く」の中に並べる(Inspector の列と同じ順)。
             var editorEntries = DataEditorRegistry.GetEntries(row.Asset.GetType());
-            if (editorEntries.Count == 1)
+            for (var i = 0; i < editorEntries.Count; i++)
             {
-                var only = editorEntries[0];
-                evt.menu.AppendAction("エディターで開く", _ => only.Open(row.Asset));
-            }
-            else if (editorEntries.Count > 1)
-            {
-                foreach (var entry in editorEntries)
-                {
-                    var captured = entry;
-                    evt.menu.AppendAction($"エディターで開く/{captured.Label}", _ => captured.Open(row.Asset));
-                }
+                var captured = editorEntries[i];
+                var label = i == 0 ? captured.Label : $"他のエディターで開く/{captured.Label}";
+                evt.menu.AppendAction(label, _ => captured.Open(row.Asset));
             }
 
             evt.menu.AppendAction("使用箇所を表示", _ => UsagesWindow.Open(row.Type, row.Asset.Id, displayName));
@@ -385,7 +413,19 @@ namespace DDrive.Editor.AssetBrowser
             {
                 _statusLabel.text = $"{_visibleRows.Count} / {_allRows.Count} 件";
             }
+
+            if (_emptyLabel != null)
+            {
+                _emptyLabel.text = _visibleRows.Count > 0 ? string.Empty : EmptyMessage(_allRows.Count > 0);
+                _emptyLabel.Show(_visibleRows.Count == 0);
+            }
         }
+
+        // 一覧が 0 件のときの案内(docs/1010 UX-17)。開き方は Data を選んで ダブルクリック(その種別の新しい専用エディターが開く)。
+        internal static string EmptyMessage(bool hasAnyData)
+            => hasAnyData
+                ? "条件に合う Data がありません。検索や種別の絞り込みを変えてください。"
+                : "Data がまだありません。「新規」で作ると、その種別の専用エディター(Vfx Editor / Canvas Editor など)が開きます。";
 
         // 横断検索: 表示名 / ファイル名 / カテゴリ / タグ / 説明 / 作成者([09] §1)。
         private static bool MatchesSearch(Row row, string search)

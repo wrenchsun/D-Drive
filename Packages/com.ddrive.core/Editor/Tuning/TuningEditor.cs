@@ -157,9 +157,13 @@ namespace DDrive.Editor.Tuning
             RefreshAll();
         }
 
+        // 自動保存の既定は ON(docs/1010 §1 D-5 の例外、2026-10-13 ユーザー方針): 旧 Tuning ウィンドウは編集のたびに保存していたため、
+        // EditorPrefs にキーが無いとき(初回)は ON から始める。他のエディターは OFF のまま。
+        internal const bool AutoSaveDefault = true;
+
         private bool AutoSave
         {
-            get => EditorPrefs.GetBool(AutoSaveKey, false);
+            get => EditorPrefs.GetBool(AutoSaveKey, AutoSaveDefault);
             set => EditorPrefs.SetBool(AutoSaveKey, value);
         }
 
