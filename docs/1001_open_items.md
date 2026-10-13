@@ -95,7 +95,7 @@
 
 ---
 
-- **試験版 v1.7.0-preview.* の後始末**（2026-10-10）: 持ち込み先の確認が済んだら (1) `v1.7.0-preview.1` / `.2` のタグを `git push --delete origin` + ローカルタグ削除、(2) `Packages/com.ddrive.core/Editor/Prototypes/` を削除、(3) 採用した方向を本実装（[1004](1004_tasks.md) UX 節）。MS2026 の manifest を正式版に戻す。
+- **試験版 v1.7.0-preview.* の後始末**（2026-10-10）: 持ち込み先の確認が済んだら (1) `v1.7.0-preview.1` / `.2` のタグを `git push --delete origin` + ローカルタグ削除、(2) `Packages/com.ddrive.core/Editor/Prototypes/` を削除（Unity に開いたままの試験版ウィンドウ 5 つを先に閉じること = [1010](1010_editor_ux_migration.md) §5 UX-18 の引き継ぎ）、(3) 採用した方向を本実装（[1004](1004_tasks.md) UX 節）。MS2026 の manifest を正式版に戻す。
 
 ## 2. 未実装・保留のチケット
 
@@ -209,6 +209,7 @@
 | 次の MINOR で Error に上げる予定: FC-1 の SameAsTrack の Warning（U-2）、§5.8 の 2 段階ルールで v1.4.0 に Warning として入れた検査 | [51](51_tdrive_integration.md) §8、[42](42_distribution.md) §5.8 |
 | `GameLoop` の走査方式の変更（Foundation の挙動変更 = MINOR 以降） | [59](reviews/59_review_round6_valuedef_2026-10-06.md) GB-R-04 |
 | FC-R-19 のスナップショット表記の変更（全行の表記が変わる） | [53](reviews/53_review_fc_2026-10-03.md) |
+| 旧エディター 18 本（`Tools/D-Drive/Archive/`、`(旧)` の `[DataEditor]` Order 100 以上）の削除（コードごと消すのは `[DataEditor]` の表・メニューの削除 = MAJOR） | [1010](1010_editor_ux_migration.md) D-3・§5 UX-18 |
 | 役目を終えた記述: [27](27_spec_sheet.md) §7 の未決事項（スプレッドシート方式は廃止）、[13](13_extensions.md) B-9（Cutscene として実装済み） | — |
 
 ---

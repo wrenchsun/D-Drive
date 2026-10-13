@@ -288,7 +288,8 @@ namespace DDrive.Editor.Mcp.Tools
                 }
             }
 
-            var sb = new StringBuilder("Tools/D-Drive/ 以下のメニュー\n");
+            // Editors/ = 現行の専用エディター(新デザイン)、Archive/ = 旧エディター(ウィンドウ題は「(旧) 〜」、機能追加なし)。
+            var sb = new StringBuilder("Tools/D-Drive/ 以下のメニュー(Editors/ = 現行の専用エディター、Archive/ = 旧エディター)\n");
             foreach (var p in paths)
             {
                 sb.Append(p).Append('\n');

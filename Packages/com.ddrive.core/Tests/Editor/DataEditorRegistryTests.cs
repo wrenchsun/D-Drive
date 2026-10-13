@@ -108,6 +108,58 @@ namespace DDrive.Tests.Editor
             AssertWindow(typeof(PresentationData), typeof(PresentationEditorWindow)); // (旧) Order 100
         }
 
+        // docs/1010 UX-18 — 全 [DataEditor] 種別で、OpenDefault(AssetBrowser のダブルクリック・Inspector の主ボタン・MCP の
+        // ddrive_editor_open)が開くのは Order 0 の新エディター(UxEditorWindow<T> 派生)であること。
+        // 旧エディター(Order 100 以上)のラベルは必ず「(旧) 〜」、「(旧)」のラベルは必ず Order 100 以上。
+        [Test]
+        public void EveryDataType_PrimaryIsNewEditor_AndLegacyIsLabelledAndLater()
+        {
+            var problems = new List<string>();
+            foreach (var dataType in DataEditorRegistry.RegisteredDataTypes)
+            {
+                var entries = DataEditorRegistry.GetEntries(dataType);
+                Assert.IsTrue(DataEditorRegistry.TryGetPrimary(dataType, out var primary), dataType.Name);
+                if (primary.Order != 0)
+                {
+                    problems.Add($"{dataType.Name}: 主エディター {primary.WindowType.Name} の Order が {primary.Order}(0 であること)");
+                }
+
+                if (!IsUxWindow(primary.WindowType))
+                {
+                    problems.Add($"{dataType.Name}: 主エディター {primary.WindowType.Name} が UxEditorWindow<T> 派生ではない");
+                }
+
+                if (primary.Label.StartsWith("(旧)", StringComparison.Ordinal))
+                {
+                    problems.Add($"{dataType.Name}: 主エディターのラベルが「(旧)」");
+                }
+
+                foreach (var entry in entries)
+                {
+                    var legacyLabel = entry.Label.StartsWith("(旧)", StringComparison.Ordinal);
+                    if (legacyLabel != (entry.Order >= DataEditorHeader.LegacyOrder))
+                    {
+                        problems.Add($"{dataType.Name}: {entry.WindowType.Name} は「(旧)」ラベルと Order {entry.Order} が対応していない");
+                    }
+                }
+            }
+
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        private static bool IsUxWindow(Type type)
+        {
+            for (var t = type; t != null; t = t.BaseType)
+            {
+                if (t.IsGenericType && t.GetGenericTypeDefinition().Name == "UxEditorWindow`1")
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         [Test]
         public void DerivedDataType_InheritsBaseTypeEditor()
         {

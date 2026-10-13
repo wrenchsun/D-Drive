@@ -52,6 +52,15 @@ namespace DDrive.Tests.Editor.Mcp
         }
 
         [Test]
+        public void Menu_ListsEditorsAndArchive()
+        {
+            var text = (string)DDriveHelpTools.Help("menu", 100000)["text"];
+            StringAssert.Contains("Editors/VFX Editor", text);
+            StringAssert.Contains("Archive/VFX Editor", text);
+            StringAssert.Contains("Archive/Tuning", text);
+        }
+
+        [Test]
         public void Tool_Status_ListsSectionsArgument()
         {
             var r = DDriveHelpTools.Help("tool:ddrive_status");

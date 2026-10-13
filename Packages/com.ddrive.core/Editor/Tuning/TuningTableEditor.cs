@@ -1,3 +1,4 @@
+using DDrive.Editor.Inspector;
 using DDrive.Runtime.Tuning;
 using UnityEditor;
 using UnityEngine;
@@ -18,7 +19,9 @@ namespace DDrive.Editor.Tuning
                 TuningEditor.Open((TuningTable)target);
             }
 
-            if (GUILayout.Button("(旧) Tuning ウィンドウで開く"))
+            // 旧エディターは他の Inspector と同じ折りたたみ「旧エディター」の中(既定は閉じる、docs/1010 UX-17/18)。
+            DataEditorHeader.LegacyFoldOpen = EditorGUILayout.Foldout(DataEditorHeader.LegacyFoldOpen, "旧エディター", true);
+            if (DataEditorHeader.LegacyFoldOpen && GUILayout.Button("(旧) Tuning ウィンドウで開く"))
             {
                 TuningEditorWindow.Open((TuningTable)target);
             }
