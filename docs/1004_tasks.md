@@ -10,7 +10,7 @@
 | v1.4.1 | Canvas Editor の折りたたみ | ✅ 2026-10-07 リリース済み（タグ push 済み） |
 | **v1.5.0** | D-Drive MCP（下の §1） | ✅ 2026-10-07 リリース（タグ push 済み）。次は MCP-13（isuzu v4.4.2）と人による確認 [verification/1005](verification/1005_manual_verification_mcp.md) |
 | **v1.6.0** | MCP-13（isuzu v4.4.2）/ MCP-14（isuzu 導入を更新ウィンドウに統合）/ 1005 の修正（記録 = [archive/1007](archive/1007_release_1_6_0.md)） | ✅ 2026-10-08 リリース（タグ push 済み） |
-| **v1.8.0** | 専用エディターの新デザイン（UX-1〜19、[1010](1010_editor_ux_migration.md)）/ C-1（記録 = [archive/1011](archive/1011_release_1_8_0.md)） | 🔧 2026-10-13 リリース作業中 |
+| **v1.8.0** | 専用エディターの新デザイン（UX-1〜19、[1010](1010_editor_ux_migration.md)）/ C-1（記録 = [archive/1011](archive/1011_release_1_8_0.md)） | ✅ 2026-10-13 リリース（タグ push 済み） |
 | v1.4.x / 1.5.x 候補 | [11](11_tasks.md)「v1.4.1 候補」表と [1001](1001_open_items.md) §2 の候補。着手するときにここへ起票 | ⬜ |
 
 ## 1. MCP チケット: D-Drive MCP（v1.5.0 MINOR。仕様 = [1002](1002_ddrive_mcp.md)）
@@ -67,7 +67,7 @@
 | UX-17 | ✅ | AssetBrowser / NewAssetDialog にテーマ、「開く」の向き先と空状態を新エディターに | 1 | UX-2〜13 | 同上 |
 | UX-18 | ✅ | Archive メニュー（`DDriveMenu.Archive`）への旧エディター移動、`(旧)` の `[DataEditor]`、配線の総点検（`GetWindow<旧>` = 0）、`editor-contract.txt` 追加更新、マニュアル（D-9）、[09](09_editor_tools.md) §6/§8 | 2 | UX-2〜17 | 新エディター間に旧への導線が無い。CHANGELOG に Editor 契約の 3 点 |
 | UX-19 | ✅ | 試験版の後始末: `Editor/Prototypes/` 削除、`vfx_sample` を `Editor/Ux/Samples/` へ、タグ `v1.7.0-preview.*` 削除、[1001](1001_open_items.md) の行を消す → ✅ 実装: 試験版を削除、全種別に空状態「サンプルを作る」（[1010](1010_editor_ux_migration.md) §5 UX-19） | 0.5 | UX-18 | `git tag -l 'v1.7.0-preview*'` が空 |
-| UX-20 | 🔧 | **v1.8.0 リリース**（MINOR、run-ci 全段、[12](12_review.md) §7）。MS2026 への案内（manifest を正式版へ） | 0.5 | UX-19 | run-ci ALL GREEN skipped 0 |
+| UX-20 | ✅ | **v1.8.0 リリース**（MINOR、run-ci 全段、[12](12_review.md) §7）。MS2026 への案内（manifest を正式版へ） | 0.5 | UX-19 | run-ci ALL GREEN skipped 0 |
 
 ## C（Canvas ランタイム、2026-10-12 ユーザー指摘「ゲーム画面を全画面にしたとき HUD の配置が対応していない」）
 
