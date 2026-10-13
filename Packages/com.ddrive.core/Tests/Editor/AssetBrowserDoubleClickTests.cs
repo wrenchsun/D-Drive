@@ -72,6 +72,56 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(entries[0].WindowType, primary.WindowType, "TryGetPrimary は GetEntries の先頭と一致するはず");
         }
 
+        // docs/1010 UX-17: 全種別で、ダブルクリック(= TryGetPrimary / OpenDefault)の向き先は新エディター(Order 0)で、旧(「(旧) 〜」)ではない。
+        // 旧エディターは Order 100 以上で、Inspector の折りたたみ「旧エディター」の中にだけ並ぶ。
+        [Test]
+        public void AllRegisteredDataTypes_DoubleClickTarget_IsNewEditorAtOrder0()
+        {
+            var checkedTypes = 0;
+            foreach (var dataType in DataEditorRegistry.RegisteredDataTypes)
+            {
+                Assert.IsTrue(DataEditorRegistry.TryGetPrimary(dataType, out var primary), dataType.Name);
+                Assert.AreEqual(0, primary.Order, $"{dataType.Name} の主エディターは Order 0 のはずです(実際: {primary.Label})");
+                Assert.IsFalse(primary.Label.StartsWith("(旧)"), $"{dataType.Name} のダブルクリック先が旧エディターです: {primary.Label}");
+
+                foreach (var entry in DataEditorRegistry.GetEntries(dataType))
+                {
+                    Assert.AreEqual(entry.Order >= DataEditorHeader.LegacyOrder, entry.Label.StartsWith("(旧)"),
+                        $"{dataType.Name}: 「(旧)」ラベルと Order {DataEditorHeader.LegacyOrder} 以上は一致するはずです({entry.Label} / Order {entry.Order})");
+                }
+
+                checkedTypes++;
+            }
+
+            Assert.Greater(checkedTypes, 10, "[DataEditor] の登録が少なすぎます(Registry の収集が壊れていないか)");
+        }
+
+        // 実際に開く(実ウィンドウが要るので RequiresGraphics): VfxData / CanvasData / SeData を OpenDefault すると、
+        // 主エディター(Order 0 の新)のウィンドウが開き、旧のウィンドウは開かない。
+        [TestCase(typeof(VfxData), AssetType.Vfx, "DblClickVfxAll")]
+        [TestCase(typeof(DDrive.Runtime.Ui.CanvasData), AssetType.Canvas, "DblClickCanvasAll")]
+        [TestCase(typeof(DDrive.Runtime.Audio.SeData), AssetType.Se, "DblClickSeAll")]
+        [Category("RequiresGraphics")]
+        public void OpenDefault_OpensNewEditor_NotLegacy(System.Type dataType, AssetType assetType, string identifier)
+        {
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
+            var asset = AssetCreationService.Create(dataType, assetType, "TestAll", "Category", identifier, gameDataRoot: TestRoot);
+            Assert.IsNotNull(asset);
+
+            Assert.IsTrue(DataEditorRegistry.TryGetPrimary(dataType, out var primary));
+            Assert.IsTrue(DataEditorRegistry.OpenDefault(asset));
+            Assert.Greater(Resources.FindObjectsOfTypeAll(primary.WindowType).Length, 0, "主エディターのウィンドウが開いていません");
+
+            foreach (var entry in DataEditorRegistry.GetEntries(dataType))
+            {
+                if (entry.Order >= DataEditorHeader.LegacyOrder && entry.WindowType != primary.WindowType)
+                {
+                    Assert.AreEqual(0, Resources.FindObjectsOfTypeAll(entry.WindowType).Length, $"旧エディター {entry.WindowType.Name} が開いています");
+                }
+            }
+        }
+
         [Test]
         public void TryGetPrimary_NoCandidate_ReturnsFalse()
         {

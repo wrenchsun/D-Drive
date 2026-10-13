@@ -2711,3 +2711,346 @@
 .ux-root .ux-tt-values .ux-knob__summary {
     margin-top: 0;
 }
+
+/* ────────────────────────────────────────────────────────────
+   UX-16 / UX-17: Inspector のボタン列(DataEditorHeader)・Cutscene の Inspector・AssetBrowser・NewAssetDialog
+   ──────────────────────────────────────────────────────────── */
+
+/* Inspector に埋め込む部分は背景を持たない(Inspector 自体の背景に乗せる) */
+.ux-root.ux-insp {
+    flex-grow: 0;
+    background-color: transparent;
+}
+
+.ux-root .ux-open__row {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.ux-root .ux-open__row .ux-btn {
+    height: 26px;
+    flex-grow: 1;
+    flex-basis: 0;
+    min-width: 120px;
+    margin: 0 6px 6px 0;
+}
+
+.ux-root.ux-insp .ux-fold {
+    margin: 0 0 6px 0;
+}
+
+.ux-root.ux-insp .ux-fold__head {
+    -unity-text-align: middle-left;
+}
+
+.ux-root.ux-insp .ux-fold__body {
+    padding: 0 0 0 8px;
+}
+
+.ux-root.ux-insp .ux-card {
+    margin: 0 0 8px 0;
+}
+
+.ux-root.ux-insp .ux-card__titles {
+    padding: 12px 12px 4px 12px;
+}
+
+.ux-root.ux-insp .ux-card > .ux-open__row {
+    padding: 4px 12px 0 12px;
+}
+
+.ux-root.ux-insp .ux-card > .ux-open__row .ux-btn {
+    margin-right: 6px;
+}
+
+.ux-root .ux-insp__info {
+    margin: 2px 12px 8px 12px;
+}
+
+.ux-root .ux-insp__fields {
+    margin-top: 4px;
+}
+
+.ux-root .ux-insp__line {
+    margin: 0 12px 2px 12px;
+    white-space: normal;
+}
+
+.ux-root .ux-insp__line--ok {
+    color: var(--ux-ok);
+}
+
+.ux-root .ux-insp__line--problem {
+    color: var(--ux-err);
+}
+
+.ux-root .ux-insp__line--warning {
+    color: var(--ux-warn);
+}
+
+.ux-root .ux-insp__line--note {
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-insp .ux-card > #inspection {
+    padding-bottom: 8px;
+}
+
+/* AssetBrowser */
+.ux-root .ux-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 8px 8px 0 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--ux-border);
+    background-color: var(--ux-surface);
+}
+
+.ux-root .ux-bar .ux-searchbox {
+    flex-grow: 1;
+    width: auto;
+    min-width: 140px;
+    margin: 0 8px 8px 0;
+}
+
+.ux-root .ux-bar .ux-btn {
+    margin: 0 6px 8px 0;
+}
+
+.ux-root .ux-browser__type {
+    min-width: 96px;
+    margin: 0 8px 8px 0;
+}
+
+.ux-root .ux-browser__type .unity-base-field__input,
+.ux-root .ux-browser__type .unity-base-popup-field__input {
+    min-height: 28px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--ux-border-strong);
+    background-color: var(--ux-input);
+    color: var(--ux-text);
+}
+
+.ux-root .ux-browser__type .unity-base-popup-field__input:hover {
+    border-color: var(--ux-dim);
+}
+
+.ux-root .ux-browser__badge {
+    margin: 0 6px 8px 0;
+}
+
+.ux-root .ux-browser__list {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 0;
+    background-color: var(--ux-bg);
+}
+
+.ux-root .ux-browser__list .unity-collection-view__item {
+    color: var(--ux-text);
+}
+
+.ux-root .ux-browser__list .unity-collection-view__item:hover {
+    background-color: var(--ux-surface-2);
+}
+
+.ux-root .ux-browser__list .unity-collection-view__item--selected,
+.ux-root .ux-browser__list .unity-collection-view__item--selected:hover {
+    background-color: var(--ux-accent-soft);
+}
+
+.ux-root .ux-brow {
+    flex-direction: row;
+    align-items: center;
+    padding: 0 8px;
+}
+
+.ux-root .ux-brow__icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-right: 6px;
+}
+
+.ux-root .ux-brow__type {
+    width: 96px;
+    -unity-font-style: bold;
+    color: var(--ux-accent);
+}
+
+.ux-root .ux-brow__name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ux-root .ux-brow__category {
+    width: 140px;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-brow__author {
+    width: 70px;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-brow__updated {
+    width: 110px;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-browser__empty {
+    flex-shrink: 0;
+    margin: 12px 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background-color: var(--ux-surface);
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+.ux-root .ux-browser__status {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-top-width: 1px;
+    border-top-color: var(--ux-border);
+    background-color: var(--ux-surface);
+}
+
+/* 下部の試聴バー(AudioPreviewPane) */
+.ux-root .ux-prev {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 6px 8px 0 8px;
+    border-top-width: 1px;
+    border-top-color: var(--ux-border);
+    background-color: var(--ux-surface);
+}
+
+.ux-root .ux-prev__title {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin: 0 8px 6px 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-prev .ux-btn {
+    flex-shrink: 0;
+    margin: 0 6px 6px 0;
+}
+
+.ux-root .ux-prev__loop {
+    flex-shrink: 0;
+    margin: 0 8px 6px 4px;
+}
+
+.ux-root .ux-prev__speed {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 140px;
+    margin: 0 0 6px 4px;
+}
+
+.ux-root .ux-prev .unity-base-field__label {
+    min-width: 0;
+    margin-right: 4px;
+    color: var(--ux-dim);
+}
+
+/* NewAssetDialog */
+.ux-root .ux-nad {
+    padding: 12px;
+}
+
+.ux-root .ux-nad .unity-foldout__text {
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-nad__divider {
+    height: 1px;
+    margin: 8px 0;
+    background-color: var(--ux-border);
+}
+
+.ux-root .ux-nad .unity-base-field__label {
+    color: var(--ux-dim);
+}
+
+.ux-root .ux-nad .unity-base-field__input,
+.ux-root .ux-nad .unity-base-text-field__input,
+.ux-root .ux-nad .unity-base-popup-field__input {
+    min-height: 24px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--ux-border);
+    background-color: var(--ux-input);
+    color: var(--ux-text);
+}
+
+.ux-root .ux-nad .unity-base-text-field__input:focus {
+    border-color: var(--ux-accent);
+}
+
+.ux-root .ux-nad__preview {
+    margin-top: 8px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+
+.ux-root .ux-nad__error {
+    color: var(--ux-err);
+    white-space: normal;
+}
+
+.ux-root .ux-nad__help {
+    margin-top: 8px;
+}
+
+.ux-root .ux-nad__create {
+    height: 28px;
+    margin: 12px 0 0 0;
+}
+
+.ux-root .ux-nad__row {
+    flex-direction: row;
+    align-items: center;
+    margin: 2px 0;
+}
+
+.ux-root .ux-nad__row .unity-label {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    white-space: normal;
+}
+
+.ux-root .ux-nad__row .ux-btn {
+    flex-shrink: 0;
+    height: 24px;
+    margin: 0 0 0 6px;
+}
+
+.ux-root .ux-nad__row--chosen .unity-label {
+    -unity-font-style: bold;
+}
+
+.ux-root .ux-nad__status {
+    margin-bottom: 4px;
+}
+
+.ux-root .ux-nad__none {
+    color: var(--ux-dim);
+}

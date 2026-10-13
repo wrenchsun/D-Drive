@@ -11,11 +11,41 @@ namespace DDrive.Editor.Cutscene
     // ウィンドウ(独自 EditorWindow は持たない、[DataEditorRegistryTests] の Exempt 理由と同じ)なので、
     // [DataEditor] は付けない。代わりにここで「標準 Timeline ウィンドウを開く」「確認用シーンを開く」
     // 「バインド検査」「Play Mode 中の再生(実 Manager 経由)」の導線を提供する。
+    //
+    // docs/1010 UX-16: IMGUI のまま(UI Toolkit 化はしない。IMGUIContainer を含む Inspector を起動時の復元表示で
+    // 描いた際にネイティブクラッシュした実例があるため)、GUIStyle で共通テーマの見た目(主ボタン = アクセント色の塗り、
+    // 枠つきのカード、検査の ✓ / ✗ の色)に寄せる。GUIStyle は OnInspectorGUI の中で遅延生成する(静的初期化子では作らない)。
+    // 導線は Timeline ウィンドウと確認用シーンだけで、旧エディターへの導線は無い。
     [CustomEditor(typeof(CutsceneData))]
     public sealed class CutsceneDataEditor : AssetDataInspector
     {
+        private static GUIStyle _cardStyle;
+        private static GUIStyle _titleStyle;
+        private static GUIStyle _primaryStyle;
+        private static GUIStyle _okStyle;
+        private static GUIStyle _problemStyle;
+
+        // 色は DDriveUx.uss の --ux-accent / --ux-ok / --ux-err と同じ値(IMGUI は USS を使えない)。
+        private static Color Accent => EditorGUIUtility.isProSkin ? new Color(0.29f, 0.55f, 1f) : new Color(0.18f, 0.44f, 0.89f);
+
+        private static void EnsureStyles()
+        {
+            if (_cardStyle != null)
+            {
+                return;
+            }
+
+            _cardStyle = new GUIStyle(EditorStyles.helpBox) { padding = new RectOffset(10, 10, 8, 8), margin = new RectOffset(0, 0, 4, 6) };
+            _titleStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+            _primaryStyle = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
+            var pro = EditorGUIUtility.isProSkin;
+            _okStyle = new GUIStyle(EditorStyles.label) { normal = { textColor = pro ? new Color(0.27f, 0.75f, 0.54f) : new Color(0.12f, 0.62f, 0.41f) } };
+            _problemStyle = new GUIStyle(EditorStyles.label) { normal = { textColor = pro ? new Color(0.94f, 0.42f, 0.42f) : new Color(0.82f, 0.25f, 0.25f) } };
+        }
+
         public override void OnInspectorGUI()
         {
+            EnsureStyles();
             serializedObject.Update();
             DrawOpenEditorHeader();
 
@@ -23,7 +53,10 @@ namespace DDrive.Editor.Cutscene
             DrawTimelineButtons(cutscene);
 
             EditorGUILayout.Space(4);
-            DrawBindingInspection(cutscene);
+            using (new EditorGUILayout.VerticalScope(_cardStyle))
+            {
+                DrawBindingInspection(cutscene);
+            }
 
             EditorGUILayout.Space(4);
             DrawPropertiesExcluding(serializedObject, "m_Script");
@@ -32,11 +65,27 @@ namespace DDrive.Editor.Cutscene
 
         private static void DrawTimelineButtons(CutsceneData cutscene)
         {
+            using (new EditorGUILayout.VerticalScope(_cardStyle))
+            {
+                EditorGUILayout.LabelField("Timeline", _titleStyle);
+                DrawTimelineButtonsBody(cutscene);
+            }
+        }
+
+        private static void DrawTimelineButtonsBody(CutsceneData cutscene)
+        {
             using (new EditorGUILayout.HorizontalScope())
             {
                 using (new EditorGUI.DisabledScope(cutscene.Timeline == null))
                 {
-                    if (GUILayout.Button("▶ Timeline ウィンドウで開く", GUILayout.Height(26)))
+                    var oldBg = GUI.backgroundColor;
+                    var oldContent = GUI.contentColor;
+                    GUI.backgroundColor = Accent;
+                    GUI.contentColor = Color.white;
+                    var open = GUILayout.Button("▶ Timeline ウィンドウで開く", _primaryStyle, GUILayout.Height(26));
+                    GUI.backgroundColor = oldBg;
+                    GUI.contentColor = oldContent;
+                    if (open)
                     {
                         // [26_timeline.md] §4.4(Edit Mode プレビュー、2026-09-19) — 確認用シーンに
                         // プレビュー用 Director を用意して Bindings を解決してから選択・Timeline ウィンドウを
@@ -96,7 +145,7 @@ namespace DDrive.Editor.Cutscene
         // (このアシスト表示自体はデータ不整合の確定判定ではなく、目視の手助けに留める)。
         private static void DrawBindingInspection(CutsceneData cutscene)
         {
-            EditorGUILayout.LabelField("バインド検査(Timeline のトラック名 ⇔ Bindings)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("バインド検査(Timeline のトラック名 ⇔ Bindings)", _titleStyle);
 
             if (cutscene.Timeline == null)
             {
@@ -128,7 +177,7 @@ namespace DDrive.Editor.Cutscene
             foreach (var name in trackNames)
             {
                 var bound = boundNames.Contains(name);
-                EditorGUILayout.LabelField(bound ? $"✓ {name}" : $"✗ {name}(Bindings に未登録)");
+                EditorGUILayout.LabelField(bound ? $"✓ {name}" : $"✗ {name}(Bindings に未登録)", bound ? _okStyle : _problemStyle);
             }
 
             if (cutscene.Bindings != null)
@@ -154,7 +203,7 @@ namespace DDrive.Editor.Cutscene
                     var source = string.IsNullOrEmpty(binding.SourceTrackName) ? "(未設定)" : binding.SourceTrackName;
                     EditorGUILayout.LabelField(problem == null
                         ? $"✓ {binding.TrackName} → {source}(同じ相手にバインド)"
-                        : $"✗ {binding.TrackName} → {source}({problem})");
+                        : $"✗ {binding.TrackName} → {source}({problem})", problem == null ? _okStyle : _problemStyle);
                 }
             }
         }

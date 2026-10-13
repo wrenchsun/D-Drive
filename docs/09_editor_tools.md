@@ -1195,3 +1195,4 @@ MS2026 の 46 キーが 11 カテゴリに分かれて表示され、`Player/Mov
 - 検索欄は現在選択中のカテゴリ内（または Tables 選択時はテーブル名）のみに効く。カテゴリをまたいだ横断検索は設計に明記が無かったため今回は見送り（必要になれば別チケット）
 - 未検証（人による確認が必要）: ウィンドウの実際の見た目・操作感（カテゴリボタンの選択ハイライト、スライダーの手触り、Tables グリッドの列幅）。手順は [11_tasks.md] M-2a の完了メモ、または `Tools/D-Drive/Editors/Tuning（調整値）` を開いて `Assets/GameData/Settings/DDriveTuningTable.asset` を対象に確認
 
+> **2026-10-13 追記(UX-16 / UX-17)**: `DataEditorHeader`（Inspector 最上部の「エディターで開く」）は `Order` 100 未満の最小を主ボタン（塗り）、他の新を副ボタン、`Order` 100 以上（旧、ラベル `(旧) 〜`）を折りたたみ「旧エディター（N）」（既定は閉じる、`SessionState` で記憶）に振り分ける（`Split`。新が無い種別は旧を副ボタンのまま出す）。`AssetBrowserWindow` / `NewAssetDialog` / `AudioPreviewPane` は共通テーマ（`DDriveUx.uss`）に移した（構造・メニューは §1 / §6 のまま）。`CutsceneDataEditor` は IMGUI のまま見た目だけ寄せた（IMGUIContainer を含む Inspector の復元表示でネイティブクラッシュした実例があるため UI Toolkit 化しない。詳細は [docs/1010](1010_editor_ux_migration.md) §5 UX-16 / 17）。`TuningEditor` の自動保存の既定は ON（[1010](1010_editor_ux_migration.md) D-5 の例外）。

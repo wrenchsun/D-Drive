@@ -178,7 +178,7 @@ int slimeHp = Tuning.GetTableInt(TUNING_TABLE.EnemyParams, "Slime", TUNING_COLUM
 
 <h4 id="tuning-save">保存・Play 中の再読込・ボタン</h4>
 <ul>
-<li>編集は Ctrl+Z で戻せます。保存は固定バーの「保存」（未保存のときは「保存 ●」）か Ctrl+S です。「自動保存」を ON にすると、編集が止まって 1 秒後に自動で保存します。未保存のままテーブルを切り替える・ウィンドウを閉じるときは確認が出ます</li>
+<li>編集は Ctrl+Z で戻せます。保存は固定バーの「保存」（未保存のときは「保存 ●」）か Ctrl+S です。「自動保存」は最初から ON で、編集が止まって 1 秒後に自動で保存します（OFF にもできます）。未保存のままテーブルを切り替える・ウィンドウを閉じるときは確認が出ます</li>
 <li>Play 中は、画面の下に帯が出ます。値を変えると読み出し側（<code>Tuning.GetFloat</code> など）にはすぐ届きます。起動時に値を読んで保持している機能へは、帯の「Play 中に再読込」を押して通知します（変えた値の数が帯に出ます）</li>
 <li>「キー定数を再生成」は、<code>TUNING</code> のキー定数（Tuning.g.cs）を作り直します（メニュー <code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Tuning Keys</code> と同じ）。「仕様書と同期」は同期ウィンドウを開きます。「🔒 固定」を ON にすると、Project の選択に追従しません</li>
 </ul>
