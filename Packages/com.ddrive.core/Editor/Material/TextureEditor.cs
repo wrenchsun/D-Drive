@@ -16,6 +16,11 @@ namespace DDrive.Editor.Materials
     [DataEditor(typeof(TextureData), "Texture Editor で開く")]
     internal sealed class TextureEditor : UxEditorWindow<TextureData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override TextureData CreateSample() => UxSamples.Texture();
+
         private const string Page = "material-editor";
 
         private Image _image;

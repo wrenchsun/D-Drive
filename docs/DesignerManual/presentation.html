@@ -10,13 +10,15 @@
 <nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 演出（Presentation）の設定項目と Presentation Editor の使い方</nav>
 
 <h1>演出（Presentation）の設定項目と Presentation Editor の使い方</h1>
-<p class="lastupdate">最終更新日: 2026-10-12</p>
+<p class="lastupdate">最終更新日: 2026-10-13</p>
 
 <p>「剣攻撃」のように、<strong>アニメ・効果音・エフェクト・カメラ揺れ・振動・画面停止（ヒットストップ）</strong>などを 1 つにまとめたものが「演出（PresentationData）」です。プログラマーは <code>Presentation.Play(演出のID, ...)</code> と 1 行書くだけで、中身（何を・いつ・どう鳴らすか）はすべてこのデータで決まります。あとから演出の中身を差し替えても、プログラムの修正は不要です。</p>
 
 <div class="tip">
 <strong>専用エディタ</strong>: <code>Tools &gt; D-Drive &gt; Editors &gt; Presentation Editor</code> でトラックをタイムラインと 1 トラック 1 行の一覧で編集し、実際にアニメ・SE・エフェクト・画面揺れ・振動を<strong>同時に再生して確認</strong>しながら作れます。使い方は下の「<a href="#editor">Presentation Editor の使い方</a>」を参照してください。
 </div>
+
+<p>対象のデータを選んでいない（空の）ときは、ウィンドウの「<strong>サンプルを作る</strong>」ボタンでサンプルのデータを作って試せます（<code>Assets/GameData/&lt;種別&gt;/Sample/</code> にカテゴリ Sample で作られます。同じものが既にあれば、作らずそれを選びます）。</p>
 
 <h2 id="data">基本の考え方: トラック（Tracks）</h2>
 <p>演出は「トラック」という短い指示の集まりでできています。1 本のトラックは「いつ」「何を」の 2 つを決めます。</p>

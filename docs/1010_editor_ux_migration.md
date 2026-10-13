@@ -861,3 +861,31 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
 - **マニュアル**: `Readme.html` の「ページ一覧」は新エディターのページ、「アーカイブ」節には `archive-*.html` 15 ページすべて、`getting-started.html` と `glossary.html` は新エディターの名前と導線で書かれている（修正なし）。`glossary.html` に「旧エディター（Archive メニュー）」の行、`Readme.html` の「最近の更新」に 2026-10-13 を追加。画像は `images/` の全ファイルが HTML から参照され、参照先の欠けも無い（整理するものなし）。`build-manual.js` を再生成、`Tools/SpecWeb` の Node テスト 538 件 green（clasp push はしていない）。`Tools/Docs/check_links.py` は 194 件を報告するが、いずれも UX-18 以前から（`DesignerManual` 内のリンク切れは 0）
 - **機能対応表（UX-18）**: メニューの整理 / 配線 / `[DataEditor]` の表 / `ddrive_help topic=menu` / 互換性の記述 / マニュアル = 全行「あり」。
 - **UX-19 への引き継ぎ**: この Unity のレイアウトに**試験版のウィンドウ（Prototype A〜E）が開いたまま残っている**（`Resources.FindObjectsOfTypeAll<EditorWindow>()` で確認: `DDrive.EditorPrototypes.PrototypeAWindow`「A 段階表示」・`PrototypeBWindow`「B ステップ型」・`PrototypeCWindow`「C 目的別カード」・`PrototypeDWindow`「D デザイン重視」・`PrototypeEWindow`「E フィードバック反映」の 5 つ）。`Editor/Prototypes/` を消す前に、**Unity でこの 5 つのウィンドウを閉じてレイアウトを保存し直さないと、再コンパイル後に「Failed to load」の空タブが残る**。メニュー `Tools/D-Drive/Prototypes/`（A〜E の 5 項目）も消える
+
+**2026-10-13 追記（UX-19、試験版の後始末と空状態の「サンプルを作る」）**: `Editor/Prototypes/`（asmdef・USS・Samples・.meta、試験版 A〜E）を丸ごと削除し、`Tools/D-Drive/Prototypes/` メニューも消えた。
+
+- **閉じたウィンドウ**（削除の前に `Resources.FindObjectsOfTypeAll<EditorWindow>()` から型名 `DDrive.EditorPrototypes.Prototype*Window` を `Close()`）: `PrototypeAWindow` / `PrototypeBWindow` / `PrototypeCWindow` / `PrototypeDWindow` / `PrototypeEWindow` の 5 つ（残り 0）。ContainerWindow は MainWindow と、Test Runner などが入った NormalWindow の 2 つで、空のものは無かった。レイアウトは `WindowLayout.SaveDefaultWindowPreferences()` の反射で `UserSettings/Layouts/default-6000.dwlt` に保存し直し、`Prototype` の文字列が 0 件であることを確認した（再コンパイル後の「Failed to load」の空タブは出ない）。
+- **移した素材**: `vfx_sample.prefab`（+ .meta、GUID 不変）を `Editor/Prototypes/Samples/` から `Editor/Ux/Samples/` へ `git mv`。`SampleVfx`（試験版）は削除、`VfxEditor.cs` の末尾にあった `VfxSample`（`GetOrCreate`）は `Editor/Ux/Samples/VfxSample.cs`（`FindPrefab` / `Configure` / `Build(folder)`、他のサンプルと同じ流儀）に移した。
+- **空状態の「サンプルを作る」**: `UxEditorWindow<TData>` の `HasSample` / `CreateSample()`（UX-1 で用意済みの仕組み）を各新エディターで実装し、`Editor/Ux/Samples/UxSamples.cs` に種別ごとの作成関数を集めた。作成先は `Assets/GameData/<種別>/Sample/`（`AssetCreationService.Create` 経由 = カタログ・Addressables 登録・カテゴリ `Sample`・Preload 既定も効く）。表示名が同じ Data が既にあれば作らずそれを返す。素材は持ち込み先に依存しないよう、同梱の `vfx_sample.prefab` かその場で生成した小さな素材（440Hz のビープ WAV・64×64 のグラデーション PNG・円柱 / カプセルの Prefab・Panel + Button の Canvas Prefab・回転のクリップ）を `Assets/GameData/<種別>/Sample/` に置く（Model は `Assets/SourceAssets/Data/UnityChan/Prefabs/unitychan.prefab` があればそれ）。重い実運用規模のサンプル（`*Sample.Build(folder)`）はテスト・撮影用のまま（固定 Id・Addressables 非登録）で、実データには作らない。
+
+| 種別 | サンプル | 内容 |
+|---|---|---|
+| Vfx | あり（同梱の vfx_sample が無ければボタンなし） | `VFX_Sample_Hit`（OneShot・1 秒） |
+| Se / Bgm | あり | 生成したビープ音（`SE_Sample_Beep` / `BGM_Sample_Loop`） |
+| Texture | あり | 生成したグラデーション（`TEX_Sample_Gradient`） |
+| Material | あり | `DDrive/Lit` のオレンジ（`MAT_Sample_Orange`） |
+| Model | あり | UnityChan、無ければカプセル（`MODEL_Sample_Character`） |
+| Prefab | あり | 円柱の樽（Gimmick・タグ 2 つ、`PREFAB_Sample_Barrel`） |
+| Anim | あり | 回転のクリップ 1 本（`ANIM_Sample_Spin`） |
+| Canvas | あり | Panel + Button の Prefab（`CANVAS_Sample_Panel`） |
+| Presentation | あり（Vfx と同条件） | SE + VFX + CameraShake の 3 トラック（`PRES_Sample_Hit`） |
+| Shake / Haptics | あり | 雛形「被弾(小)」 |
+| Anchor / Anchor Group | あり | 頭上（ContextTarget）/ 6 点の輪（Circle） |
+| UI Tween | あり | ポップイン（Scale 0→1、OutBack） |
+| Button Skin / Slider Skin | あり | Hover / Pressed の見た目つき（Slider は Fill も） |
+| Anim2D | **なし** | スプライトシートが要るため。空状態は従来の「＋ 新規作成」（ウィザード）のみ |
+| Tuning | 対象外 | 独立ウィンドウ |
+
+- **確認**（`execute_code`）: 全 17 の作成関数で実際に作成でき（`ddrive_validate` はエラー 0）、Canvas Editor の空状態のボタンを押すと作られて開く。確認後は `ddrive_asset_delete confirm:true` と `Sample` フォルダの削除で消し、`Assets/GameData` / Addressables の差分は残っていない。EditMode `UxSamplesTests`（18 エディターの `HasSample`・`UxSamples` の関数の存在）を追加。EditMode 全件 2341/2341 green（実行後もウィンドウ数 11 のまま・Prototype 0）、`ddrive_compat` `changed:[]`、Designer マニュアルは 13 ページに 1 行ずつ足して `build-manual.js` を再生成（SpecWeb Node テスト 538/538。clasp push はしていない）。PlayMode は実行していない（Editor 専用の変更のみ・[12](12_review.md) §7 の軽い経路に準ずる）。
+- **割り切り**: ①Vfx の空状態のボタンの文言は従来の「サンプル VfxData を作る（vfx_sample）」のまま（他は既定の「サンプルを作る」）②作成関数は固定の最小サンプルで、一覧が長い状態の見え方などは `*Sample.Build(folder)`（撮影・テスト用）で見る ③Documentation~ の同梱マニュアルはリリース時の同期（P-9）に任せた。
+- **タグ**: `v1.7.0-preview.1`〜`.3` を `git push --delete origin` とローカルで削除（承認済み。`git ls-remote --tags origin 'v1.7.0-preview*'` は空）。`CHANGELOG.md` の `[Unreleased]` に「削除」節を追加。

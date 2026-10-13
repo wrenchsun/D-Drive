@@ -27,6 +27,11 @@ namespace DDrive.Editor.CanvasTool
     [DDrive.Editor.Inspector.DataEditor(typeof(DDrive.Runtime.Ui.CanvasData), "Canvas Editor で開く")]
     internal sealed partial class CanvasEditor : UxEditorWindow<CanvasData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override CanvasData CreateSample() => UxSamples.Canvas();
+
         private const string Page = "canvas-editor";
         private const string RootElementLabel = UiTweenEditor.RootElementLabel;
         private const string PreviewRootName = "[D-Drive] Canvas Preview (UX)";

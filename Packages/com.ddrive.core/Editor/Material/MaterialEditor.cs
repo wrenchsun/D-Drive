@@ -25,6 +25,11 @@ namespace DDrive.Editor.Materials
     [DataEditor(typeof(MaterialData), "Material Editor で開く")]
     internal sealed partial class MaterialEditor : UxEditorWindow<MaterialData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override MaterialData CreateSample() => UxSamples.Material();
+
         private const string Page = "material-editor";
         public const string PreviewRootName = "[D-Drive] Material Preview (UX)";
 

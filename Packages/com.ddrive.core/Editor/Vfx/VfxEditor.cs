@@ -99,9 +99,9 @@ namespace DDrive.Editor.Vfx
             }
         }
         protected override bool SupportsPlayback => true;
-        protected override bool HasSample => true;
+        protected override bool HasSample => UxSamples.CanVfx;
         protected override string SampleLabel => "サンプル VfxData を作る（vfx_sample）";
-        protected override VfxData CreateSample() => VfxSample.GetOrCreate();
+        protected override VfxData CreateSample() => UxSamples.Vfx();
         protected override Texture DefaultIcon => EditorGUIUtility.IconContent("ParticleSystem Icon").image;
         protected override string SearchHint => "ラベル・説明・検索語に一致する設定だけ出す(例: 高さ / ループ / レイヤー)";
 
@@ -649,64 +649,6 @@ namespace DDrive.Editor.Vfx
                 case UxLifeMode.Duration: return VfxLifeMode.Duration;
                 default: return VfxLifeMode.OneShot;
             }
-        }
-    }
-
-    // 空状態の「サンプルを作る」: 同梱の vfx_sample.prefab を使う VFX_Sample_Hit を作る(既にあれば選ぶだけ)。
-    internal static class VfxSample
-    {
-        private const string AssetName = "VFX_Sample_Hit";
-        private const string PrefabFileName = "vfx_sample.prefab";
-
-        public static VfxData GetOrCreate()
-        {
-            var existing = AssetDatabase.FindAssets(AssetName + " t:VfxData")
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .Where(p => System.IO.Path.GetFileNameWithoutExtension(p) == AssetName)
-                .Select(AssetDatabase.LoadAssetAtPath<VfxData>)
-                .FirstOrDefault(d => d != null);
-            if (existing != null)
-            {
-                return existing;
-            }
-
-            var prefab = FindPrefab();
-            if (prefab == null)
-            {
-                Debug.LogWarning("[D-Drive] 同梱の vfx_sample.prefab が見つかりません。");
-                return null;
-            }
-
-            var created = AssetCreationService.Create(
-                typeof(VfxData), AssetType.Vfx, "サンプル: ヒット", "Sample", "Hit",
-                configure: asset =>
-                {
-                    var v = (VfxData)asset;
-                    v.Prefab = prefab;
-                    v.LifeMode = VfxLifeMode.OneShot;
-                    v.Duration = 1f;
-                    EditorUtility.SetDirty(v);
-                }) as VfxData;
-            if (created != null)
-            {
-                DDrive.Editor.Versioning.DDriveAssetSave.SaveAllSuppressed();
-            }
-
-            return created;
-        }
-
-        private static GameObject FindPrefab()
-        {
-            foreach (var guid in AssetDatabase.FindAssets("vfx_sample t:Prefab"))
-            {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.EndsWith("/Samples/" + PrefabFileName, StringComparison.Ordinal))
-                {
-                    return AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                }
-            }
-
-            return null;
         }
     }
 }

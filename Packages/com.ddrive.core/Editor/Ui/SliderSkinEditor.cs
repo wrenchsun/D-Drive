@@ -20,6 +20,11 @@ namespace DDrive.Editor.Ui
     [DataEditor(typeof(SliderSkinData), "Skin Editor で開く")]
     internal sealed partial class SliderSkinEditor : UxEditorWindow<SliderSkinData>, ISkinStateHost
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override SliderSkinData CreateSample() => UxSamples.SliderSkin();
+
         private const string Page = "ui-skin";
 
         // エディタ固有の名前(旧 SliderSkinEditorWindow / Button Skin / UI Tween と共有すると、互いのプレビューを消してしまう)。
