@@ -26,6 +26,11 @@ namespace DDrive.Editor.Anchor
     [DataEditor(typeof(AnchorData), "Anchor Editor で開く")]
     internal sealed partial class AnchorEditor : UxEditorWindow<AnchorData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override AnchorData CreateSample() => UxSamples.Anchor();
+
         private const string Page = "anchor-data";
 
         [SerializeField] private GameObject _attachTarget;

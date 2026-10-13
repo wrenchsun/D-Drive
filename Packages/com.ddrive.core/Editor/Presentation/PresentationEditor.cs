@@ -22,6 +22,11 @@ namespace DDrive.Editor.Presentation
     [DataEditor(typeof(PresentationData), "Presentation Editor で開く")]
     internal sealed partial class PresentationEditor : UxEditorWindow<PresentationData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => UxSamples.CanVfx;
+
+        protected override PresentationData CreateSample() => UxSamples.Presentation();
+
         private const string Page = "presentation";
 
         [SerializeField] private ModelData _model;

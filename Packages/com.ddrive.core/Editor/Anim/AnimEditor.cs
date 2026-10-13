@@ -31,6 +31,11 @@ namespace DDrive.Editor.Anim
     [DataEditor(typeof(AnimData), "Anim Editor で開く", ExceptFor = typeof(Anim2DData))]
     internal sealed partial class AnimEditor : UxEditorWindow<AnimData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override AnimData CreateSample() => UxSamples.Anim();
+
         private const string Page = "anim-editor";
         private const int MaxEventLog = 12;
 

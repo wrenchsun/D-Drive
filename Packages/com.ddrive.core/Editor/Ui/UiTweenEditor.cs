@@ -23,6 +23,11 @@ namespace DDrive.Editor.Ui
     [DataEditor(typeof(UiTweenData), "UI Tween Editor で開く")]
     internal sealed partial class UiTweenEditor : UxEditorWindow<UiTweenData>, IUiTweenTrackHost
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override UiTweenData CreateSample() => UxSamples.UiTween();
+
         private const string Page = "ui-tween";
 
         // Canvas Editor / Preset Gallery と共有する(「(ルート)」の直書きが各所に散っていたため)。

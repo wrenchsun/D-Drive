@@ -1177,6 +1177,7 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 |---|---|
 | `Theme/DDriveUx.uss` | テーマ 1 本。Light / Dark は root の `.ux-dark` / `.ux-light` の変数（`--ux-*`、Painter2D 用は `--ux-p-*`）だけで切り替える。`.ux-hidden` が表示 / 非表示 |
 | `UxEditorWindow<TData>` | 窓の土台（`TData : AssetDataBase`）。対象の追従 / 🔒 固定 / Data 切替 / ヒーロー / セグメント（かんたん・標準・詳細）/ 検索 / 目的別カード / 未調整の折りたたみ / 固定バー（▶ ■ リピート 速度〔×1.0 デテント〕変更 N 件 自動保存 保存）/ 保存 / 空状態 / 再コンパイル耐性 / Undo 同期 / インライン検証 / Light・Dark |
+| 空状態の「サンプルを作る」（UX-19） | `UxEditorWindow<TData>.HasSample` / `CreateSample()`。`Editor/Ux/Samples/UxSamples` が `Assets/GameData/<種別>/Sample/` に実データ（カテゴリ Sample、`AssetCreationService` 経由でカタログ・Addressables 登録）を作る。同じ表示名があれば選ぶだけ。作れない種別（Anim2D）は `HasSample` が false でボタンを出さない |
 | `FieldGuide<TData>` / `FieldGuideEntry` / `FieldTier` | 欄の表。Field / 平易なラベル / 一言説明 / 段（必須・よく使う・詳細）/ 目的カード / 検索語 / 行の種類（`FieldRowKind`: 通常・視覚部品・つまみ・読み取り専用）/ 既定値判定（`DefaultCheck`）。`AssetDataBase` の共通欄は基底が持ち「管理情報」カードに出る（既定で DisplayName と Category だけ「よく使う」） |
 | `UxRow` / `UxVisualRow` / `UxCard` / `GuidedField` | 行（段のバッジ・変更の色バー・↺・インライン検証）、視覚部品を載せる行、カード（「？」は `ManualLauncher.OpenPage(page, anchor)`・空カードの文言・未調整の折りたたみ）、入力部品の共通ヘルパー |
 | `DataSwitcher` | ◀ [名前 ▾] ▶（検索付きドロップダウン・最近 5 件・カテゴリ別）。Data の型名で一覧を引く |

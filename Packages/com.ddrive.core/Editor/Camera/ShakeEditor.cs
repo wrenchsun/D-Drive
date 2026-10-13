@@ -20,6 +20,11 @@ namespace DDrive.Editor.CameraFx
     [DataEditor(typeof(CameraShakeData), "Shake Editor で開く")]
     internal sealed class ShakeEditor : UxEditorWindow<CameraShakeData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override CameraShakeData CreateSample() => UxSamples.Shake();
+
         private const string Page = "camera-haptics";
 
         private SceneCameraShakePreviewDriver _driver;

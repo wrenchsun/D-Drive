@@ -11,6 +11,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- **新デザインの専用エディター全種別の空状態に「サンプルを作る」**（[docs/1010](docs/1010_editor_ux_migration.md) UX-19）: Vfx / Se / Bgm / Canvas / Presentation / Anim / Material / Texture / Model / Prefab / Shake / Haptics / Anchor / Anchor Group / UI Tween / Button Skin / Slider Skin。`Assets/GameData/<種別>/Sample/` にカテゴリ Sample で作る（カタログ・Addressables 登録つき。同じものがあれば選ぶだけ）。Anim2D はスプライトシートが要るので出さない（「＋ 新規作成」のウィザードのみ）。`Editor/Ux` の internal のみ
 - **専用エディターの新デザインの共通基盤 `Editor/Ux`**（[docs/1010](docs/1010_editor_ux_migration.md) §2、`DDrive.Editor` 内・全型 internal）: テーマ `DDriveUx.uss`・`UxEditorWindow<TData>`・`FieldGuide<TData>`・`UxRow` / `UxCard`・`DataSwitcher`・`DurationBar` / `AnchorPad` / `TuneKnobs`・`UxScreenshot`。題材として `VfxEditor`（メニュー `Tools > D-Drive > Editors > VFX Editor (新)`。`[DataEditor]` は付けない。UX-2 で正式化）
 - `ValidationResult.Field` と `WithField`（Validator が結果を欄に結びつけるための任意の付加情報。`VfxDataValidator` の Prefab / Params の結果に付与）
 - `ManualLauncher.OpenPage(page, anchor)`（マニュアルの節まで開く）
@@ -43,6 +44,10 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 - **Anim2D Editor を新デザインにした**（[docs/1010](docs/1010_editor_ux_migration.md) UX-7・D-10）: `Anim2DEditor`。やりたいことごとのカード（動かす / 向き〔4・8 方向のクリップ〕/ コマ〔スプライトと間隔・リタイミング〕/ 合図〔イベントの要約〕/ 確認する〔プレビュー物の配置・再生中の絵・ログ〕/ 管理情報）・かんたん / 標準 / 詳細・設定の検索・保存と自動保存・Light / Dark。**コマ・方向ごとのクリップ・イベントは 1 件 = 1 行**で絞り込みと件数付き、20 行超は `ListView`。固定バーの ▶ ■ で SpriteRenderer + Animator のプレビュー物を実 AnimManager で動かす。**作成は「スプライトから作成」ウィザード**（`Anim2DCreateWizard`。雛形〔均等な / バラバラなシート・切ってある画像・4 方向・8 方向〕→ 素材 → 名前と動き → 確認と登録のページ送り。生成ロジックは `Anim2DCreateService` に移し、挙動は旧と同じ）。イベントの編集は「Anim Editor で編集」（`AnimEditor.OpenForAnim2D`）から Anim Editor で行う。旧は `Tools > D-Drive > Archive > Animation (2D)` と Inspector の「(旧) Anim2D Editor で開く」に残した。Anim2DData の Inspector に新 `AnimEditor` のボタンは並ばない（`DataEditorAttribute.ExceptFor`）
 - `Anim2DDataValidator` / `Anim2DEditorValidator` の結果に `ValidationResult.Field`（欄名）を付与した（メッセージ・Code・重さは変えない。新エディターが欄の下に表示するため）
 - 共通基盤（`Editor/Ux`、internal）に `UxEditorWindow.AppendValidation`（共通の検査に種別が結果を足す）・`AddEmptyActions`（空状態にボタンを足す）・`UxTheme`（`UxEditorWindow` を継承しない窓にテーマを当てる）を追加した（既定の挙動は変えない）。`DataEditorAttribute.ExceptFor`（Editor。基底型の登録を引き継がない派生型を指定する任意の追加）を追加した
+
+### 削除
+
+- **試験版のサンプルエディター A〜E**（`DDrive.Editor.Prototypes`、`Tools/D-Drive/Prototypes/`。v1.7.0-preview.* のみに同梱。internal のみで公開契約への影響なし）。`vfx_sample.prefab` は `Editor/Ux/Samples/` へ移した。試験版のタグ `v1.7.0-preview.1`〜`.3` も削除
 
 ### 修正
 

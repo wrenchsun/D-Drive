@@ -21,6 +21,11 @@ namespace DDrive.Editor.Audio
     [DDrive.Editor.Inspector.DataEditor(typeof(SeData), "Audio Editor で開く(波形・トリム編集)")]
     internal sealed class SeEditor : UxEditorWindow<SeData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override SeData CreateSample() => UxSamples.Se();
+
         private const string Page = "audio-editor";
 
         [SerializeField] private bool _loopPreview;

@@ -21,6 +21,11 @@ namespace DDrive.Editor.PrefabTool
     [DataEditor(typeof(PrefabData), "Prefab Editor で開く")]
     internal sealed class PrefabEditor : UxEditorWindow<PrefabData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override PrefabData CreateSample() => UxSamples.Prefab();
+
         private const string Page = "prefab-data";
         public const string PreviewRootName = "[D-Drive] Prefab Preview";
 

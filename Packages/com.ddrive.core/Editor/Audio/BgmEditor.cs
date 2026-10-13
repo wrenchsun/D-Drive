@@ -14,6 +14,11 @@ namespace DDrive.Editor.Audio
     [DDrive.Editor.Inspector.DataEditor(typeof(BgmData), "Audio Editor で開く(波形・ループ編集)")]
     internal sealed class BgmEditor : UxEditorWindow<BgmData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override BgmData CreateSample() => UxSamples.Bgm();
+
         private const string Page = "audio-editor";
 
         private PreviewService _preview;

@@ -20,6 +20,11 @@ namespace DDrive.Editor.CameraFx
     [DataEditor(typeof(HapticsData), "Haptics Editor で開く")]
     internal sealed class HapticsEditor : UxEditorWindow<HapticsData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override HapticsData CreateSample() => UxSamples.Haptics();
+
         private const string Page = "camera-haptics";
 
         private EditorHapticsPreviewDriver _driver;

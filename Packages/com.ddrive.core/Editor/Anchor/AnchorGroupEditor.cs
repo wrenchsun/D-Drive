@@ -27,6 +27,11 @@ namespace DDrive.Editor.Anchor
     [DataEditor(typeof(AnchorGroupData), "Anchor Group Editor で開く")]
     internal sealed partial class AnchorGroupEditor : UxEditorWindow<AnchorGroupData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override AnchorGroupData CreateSample() => UxSamples.AnchorGroup();
+
         private const string Page = "anchor-group";
         private static readonly string[] PointKinds = { "パターン", "手置き" };
 

@@ -23,6 +23,11 @@ namespace DDrive.Editor.Model
     [DataEditor(typeof(ModelData), "Model Editor で開く")]
     internal sealed partial class ModelEditor : UxEditorWindow<ModelData>
     {
+        // 空状態の「サンプルを作る」(docs/1010 UX-19)
+        protected override bool HasSample => true;
+
+        protected override ModelData CreateSample() => UxSamples.Model();
+
         private const string Page = "model-editor";
         private const int MaxParallel = 4;
         private const float ParallelSpacingMeters = 2f;

@@ -95,7 +95,6 @@
 
 ---
 
-- **試験版 v1.7.0-preview.* の後始末**（2026-10-10）: 持ち込み先の確認が済んだら (1) `v1.7.0-preview.1` / `.2` のタグを `git push --delete origin` + ローカルタグ削除、(2) `Packages/com.ddrive.core/Editor/Prototypes/` を削除（Unity に開いたままの試験版ウィンドウ 5 つを先に閉じること = [1010](1010_editor_ux_migration.md) §5 UX-18 の引き継ぎ）、(3) 採用した方向を本実装（[1004](1004_tasks.md) UX 節）。MS2026 の manifest を正式版に戻す。
 
 ## 2. 未実装・保留のチケット
 
