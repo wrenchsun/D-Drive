@@ -83,6 +83,25 @@ var sub = Ui.OnSignal("option/apply", args =&gt;
 });</code></pre>
 <p>子を単独の画面として <code>Ui.Open(CANVASID.Option)</code> することもでき、同じ <code>CanvasData</code> を単独でも埋め込みでも使えます（単独のとき <code>args.ElementPath</code> は同じ <code>BtnApply</code>、<code>args.EmbeddedRootPath</code> は空）。</p>
 
+<h3>RenderTexture に描く（Ui.OpenInto、v1.9.0〜）</h3>
+<p>街のディスプレイ・3D パネルのように、<strong>画面の UI スタックの外で Canvas を RenderTexture に描きたい</strong>ときは <code>Ui.Open</code> の代わりに <code>Ui.OpenInto</code> を使います。</p>
+<pre><code>var rt = new RenderTexture(1024, 512, 16);
+var h = Ui.OpenInto(CANVASID.AdPage, rt);          // RT 全面。一部だけに描くなら size を渡す
+// ... rt を RawImage / マテリアルに貼る
+Ui.PlayDisappear(h);                              // 要素の Disappear だけ今すぐ再生（Canvas は閉じない）
+await Ui.PlayDisappearAsync(h);                   // 終わりまで待つ
+Ui.Close(h);                                      // プールへ返し、専用ルート（Camera 込み）を破棄</code></pre>
+<ul>
+<li>Prefab は 1920×1080 などの基準解像度で作ったままで構いません（<code>CanvasScaler</code> が RT に縮めて収めます）。<code>size</code> は「RT の中で描く画素の大きさ」で、省略か 0 なら RT 全面です。RT より大きい指定は RT に丸めて警告を 1 回出します。</li>
+<li>ElementFx（Appear / Idle / Disappear）・OpenTransition / CloseTransition・埋め込み Canvas・<code>OnSignal</code> は通常の <code>Open</code> と同じに動きます。</li>
+<li>UI スタックには積まれません（<code>CloseTop</code> の対象外・modal にならない・<code>PauseGameWhileOpen</code> は無視）。<strong>入力は受けません</strong>（Prefab ルートの <code>GraphicRaycaster</code> も含めて塞ぎます）。</li>
+<li>画面のカメラに映らないよう、専用ルートは <code>(0, -10000 - 100 * n, 0)</code>（n = 同時に開いている中での空き番号。閉じた番号は再利用されるので、差し替えを繰り返しても遠ざかりません）に置かれます。<strong>カメラの far クリップや他の遠景カメラ・ライトがこの Y に届く構成は避けてください。</strong></li>
+<li><code>target</code> が null / 破棄済みなら警告 1 回 + 無効な Handle を返します。RT の生成・破棄は呼び出し側の責任で、<strong>RT を破棄する前に <code>Ui.Close</code> してください</strong>（先に破棄すると、止めて警告を 1 回出します）。</li>
+<li><strong>1 枚の RT に 1 つの <code>OpenInto</code></strong> にしてください（<code>size</code> は左下原点固定で、同じ RT に複数を出し分けるアトラス方式はできません）。</li>
+<li>レイヤー既定の SE と ElementFx の SE は Offscreen でも鳴ります。看板用の Canvas は既定 SE の無いレイヤーにし、ElementFx に SE を付けないでください。</li>
+<li><code>PlayDisappear</code> の後に <code>Ui.SetEmbeddedActive(…, true)</code> すると、埋め込みの Appear が消えたページの上で再生されます。</li>
+</ul>
+
 <h2>UiFx 静的ファサード（UI の動き）</h2>
 <p><code>Runtime/UiTween/UiFx.cs:13</code>。データ化した <code>UiTweenData</code> の再生、約 60 個あるプリセットの 1 行呼び出し、アドホックな Tween、複数 Tween を連結する <code>Sequence()</code> の 4 グループに分かれます。</p>
 
