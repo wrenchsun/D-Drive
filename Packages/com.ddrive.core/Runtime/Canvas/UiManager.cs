@@ -12,6 +12,7 @@ using DDrive.Foundation.Registry;
 using DDrive.Runtime.Anim;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 using CanvasId = DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker>;
 using EventTrigger = DDrive.Foundation.Event.EventTrigger; // UnityEngine.EventSystems.EventTrigger と衝突するため明示エイリアス
@@ -97,6 +98,10 @@ namespace DDrive.Runtime.Ui
 
             // 埋め込み Canvas の有効 / 無効の状態(2026-10-06)。EmbeddedCanvases が空なら null のまま。
             public List<EmbedState> Embeds;
+
+            // MS-1(2026-10-15): UI スタックの外で RenderTexture に描く Canvas(OpenInto)。OffscreenRoot = 専用ルート(Camera 込み)。
+            public bool Offscreen;
+            public GameObject OffscreenRoot;
         }
 
         // 登録済みの埋め込み 1 つぶんの実行時の状態。Prefix = Open した Canvas のルートから、この埋め込みのルートまでのパス。
@@ -186,6 +191,11 @@ namespace DDrive.Runtime.Ui
         private readonly EventBus _events;
         private readonly InstanceStore<CanvasMarker, CanvasInstance> _instances = new();
         private readonly List<Handle<CanvasMarker>> _stack = new();
+        // MS-1: OpenInto で開いた Canvas(_stack には積まない。Tick / StopAll / GetContextTransform だけが見る)。
+        private readonly List<Handle<CanvasMarker>> _offscreen = new();
+        private int _offscreenSeq;
+        private bool _offscreenPauseWarned;
+        private bool _offscreenSizeWarned;
         private readonly List<TransitionState> _transitions = new();
         private readonly Dictionary<string, List<Action<SignalArgs>>> _signalSubs = new();
         private readonly HashSet<CanvasData> _placeholderWarned = new();
@@ -370,6 +380,154 @@ namespace DDrive.Runtime.Ui
         }
 
         public Handle<CanvasMarker> OpenData(CanvasData data, bool modal = false)
+            => OpenCore(data, modal, false, null, default);
+
+        // ── MS-1: UI スタックの外で RenderTexture に描く ──
+
+        public Handle<CanvasMarker> OpenInto(CanvasId id, RenderTexture target, Vector2Int size = default)
+            => OpenDataInto(_registry.ResolveOrPlaceholder<CanvasData>(id.Value), target, size);
+
+        public Handle<CanvasMarker> OpenDataInto(CanvasData data, RenderTexture target, Vector2Int size = default)
+        {
+            if (target == null)
+            {
+                Debug.LogWarning("[DDrive] UiManager.OpenInto: target(RenderTexture)が null / 破棄済みです。何も開きません。");
+                return Handle<CanvasMarker>.Invalid;
+            }
+
+            return OpenCore(data, false, true, target, size);
+        }
+
+        public async UniTask<Handle<CanvasMarker>> OpenIntoAsync(CanvasId id, RenderTexture target, Vector2Int size = default)
+        {
+            var handle = OpenInto(id, target, size);
+            await AwaitOpenTransition(handle);
+            return handle;
+        }
+
+        // 全要素(有効な埋め込み含む)の ElementFx.Disappear を今すぐ再生する。Canvas は閉じない。
+        // 再生し終えた後の Close は Disappear を繰り返さず CloseTransition だけ行う(StartDisappear が DisappearStarted を見る)。
+        public void PlayDisappear(Handle<CanvasMarker> handle)
+        {
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Closing)
+            {
+                return;
+            }
+
+            StartAllDisappearFx(instance);
+        }
+
+        public async UniTask PlayDisappearAsync(Handle<CanvasMarker> handle)
+        {
+            if (!_instances.TryGetQuiet(handle, out var instance) || instance.Closing)
+            {
+                return;
+            }
+
+            StartAllDisappearFx(instance);
+            while (_instances.TryGetQuiet(handle, out var inst) && ReferenceEquals(inst, instance) && IsAnyDisappearPlaying(instance))
+            {
+                await UniTask.Yield();
+            }
+        }
+
+        private bool IsAnyDisappearPlaying(CanvasInstance instance)
+        {
+            var list = instance.ElementFx;
+            if (list == null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < list.Count; i++)
+            {
+                var r = list[i];
+                if (r.DisappearStarted && !r.DisappearDone && IsTweenPlaying(r.DisappearHandle))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // 呼び出しごとの専用ルート: Camera 1 台 + ScreenSpaceCamera の Canvas + CanvasScaler。他のカメラに映らないよう遠方(Y マイナス)へ置く。
+        private GameObject CreateOffscreenRoot(RenderTexture target, Vector2Int size, GameObject prefabRoot, bool isPlaceholder, out Transform parent)
+        {
+            var n = _offscreenSeq++;
+            var rootGo = new GameObject($"[D-Drive] UI Offscreen {n}");
+            rootGo.transform.position = new Vector3(0f, -10000f - 100f * n, 0f);
+            if (Application.isPlaying)
+            {
+                UnityEngine.Object.DontDestroyOnLoad(rootGo);
+            }
+            else
+            {
+                rootGo.hideFlags = HideFlags.DontSave;
+            }
+
+            var w = target.width;
+            var h = target.height;
+            var pw = size.x > 0 ? size.x : w;
+            var ph = size.y > 0 ? size.y : h;
+            if (pw > w || ph > h)
+            {
+                if (!_offscreenSizeWarned)
+                {
+                    _offscreenSizeWarned = true;
+                    Debug.LogWarning($"[DDrive] UiManager.OpenInto: size({pw}x{ph})が RenderTexture({w}x{h})より大きいため RT に丸めます。");
+                }
+
+                pw = Mathf.Min(pw, w);
+                ph = Mathf.Min(ph, h);
+            }
+
+            var camGo = new GameObject("Camera");
+            camGo.transform.SetParent(rootGo.transform, false);
+            if (!Application.isPlaying)
+            {
+                camGo.hideFlags = HideFlags.DontSave;
+            }
+
+            var cam = camGo.AddComponent<Camera>();
+            cam.orthographic = true;
+            cam.orthographicSize = 5f;
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 1000f;
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
+            cam.targetTexture = target;
+            cam.pixelRect = new Rect(0f, 0f, pw, ph);
+            var urp = camGo.AddComponent<UniversalAdditionalCameraData>();
+            urp.renderType = CameraRenderType.Base;
+            urp.renderPostProcessing = false;
+
+            var canvasGo = new GameObject("Canvas", typeof(RectTransform));
+            canvasGo.transform.SetParent(rootGo.transform, false);
+            if (!Application.isPlaying)
+            {
+                canvasGo.hideFlags = HideFlags.DontSave;
+            }
+
+            var canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = cam;
+            var scaler = canvasGo.AddComponent<CanvasScaler>();
+            var source = isPlaceholder ? null : FindPrefabScaler(prefabRoot);
+            if (source != null)
+            {
+                CopyScaler(source, scaler);
+            }
+            else
+            {
+                ApplyDefaultScaler(scaler);
+            }
+
+            parent = canvasGo.transform;
+            return rootGo;
+        }
+
+        private Handle<CanvasMarker> OpenCore(CanvasData data, bool modal, bool offscreen, RenderTexture target, Vector2Int size)
         {
             EnsureRoot();
             if (data == null)
@@ -404,11 +562,22 @@ namespace DDrive.Runtime.Ui
                 rect = root.AddComponent<RectTransform>();
             }
 
-            // C-1(2026-10-12): 子 Canvas の CanvasScaler は Unity の仕様で無視されるため、レイヤー内で最初に開く Canvas の
-            // Prefab の CanvasScaler(無ければ UiCanvasScalerDefaults)をレイヤールートへ写す。
-            ApplyLayerScaler(layerRoot, root, data, isPlaceholder);
+            GameObject offscreenRoot = null;
+            Transform parentTransform;
+            if (offscreen)
+            {
+                // MS-1: レイヤールート・C-1 のレイヤー共有 CanvasScaler は使わず、専用ルートに Prefab の CanvasScaler を写す。
+                offscreenRoot = CreateOffscreenRoot(target, size, root, isPlaceholder, out parentTransform);
+            }
+            else
+            {
+                // C-1(2026-10-12): 子 Canvas の CanvasScaler は Unity の仕様で無視されるため、レイヤー内で最初に開く Canvas の
+                // Prefab の CanvasScaler(無ければ UiCanvasScalerDefaults)をレイヤールートへ写す。
+                ApplyLayerScaler(layerRoot, root, data, isPlaceholder);
+                parentTransform = layerRoot.Root;
+            }
 
-            root.transform.SetParent(layerRoot.Root, false);
+            root.transform.SetParent(parentTransform, false);
 
             var innerCanvas = root.GetComponent<Canvas>();
             if (innerCanvas != null)
@@ -418,7 +587,7 @@ namespace DDrive.Runtime.Ui
             }
             else
             {
-                var maxIndex = Mathf.Max(0, layerRoot.Root.childCount - 1);
+                var maxIndex = Mathf.Max(0, parentTransform.childCount - 1);
                 rect.SetSiblingIndex(Mathf.Clamp(data.SortOffset, 0, maxIndex));
             }
 
@@ -439,27 +608,44 @@ namespace DDrive.Runtime.Ui
                 Rect = rect,
                 BaseAnchoredPosition = rect.anchoredPosition,
                 BaseScale = root.transform.localScale,
+                Offscreen = offscreen,
+                OffscreenRoot = offscreenRoot,
             };
 
             var handle = _instances.Add(instance);
             instance.Context = new InstanceContext(handle.Index, handle.Generation);
-            _stack.Add(handle);
+            if (offscreen)
+            {
+                _offscreen.Add(handle);
+            }
+            else
+            {
+                _stack.Add(handle);
+                ApplyNavigation(root.transform, data);
+                ApplyFirstSelected(root.transform, data);
+            }
 
-            ApplyNavigation(root.transform, data);
-            ApplyFirstSelected(root.transform, data);
             WireButtons(root.transform, data, instance, handle);
             WireSliders(root.transform, data, instance, handle);
             ApplyLayerDefaults(root.transform, data);
             SetupElementFx(instance, data, root.transform);
             SetupEmbeddedCanvases(instance, handle, data, root.transform);
 
-            if (data.PauseGameWhileOpen && _pause != null)
+            if (data.PauseGameWhileOpen && offscreen)
+            {
+                if (!_offscreenPauseWarned)
+                {
+                    _offscreenPauseWarned = true;
+                    Debug.LogWarning("[DDrive] UiManager.OpenInto: PauseGameWhileOpen は UI スタックの外で開く Canvas では無視します。");
+                }
+            }
+            else if (data.PauseGameWhileOpen && _pause != null)
             {
                 _pause.Push(PauseChannel.Gameplay);
                 instance.PausePushed = true;
             }
 
-            if (modal && data.ModalBlocksInput)
+            if (modal && data.ModalBlocksInput && !offscreen)
             {
                 instance.IsModalBlocking = true;
             }
@@ -793,6 +979,7 @@ namespace DDrive.Runtime.Ui
             _events.End(instance.Context);
 
             _stack.Remove(handle);
+            _offscreen.Remove(handle);
             _instances.Remove(handle);
             RecomputeBlocking();
 
@@ -842,6 +1029,33 @@ namespace DDrive.Runtime.Ui
             {
                 _pool.Discard(instance.Pooled);
             }
+
+            DestroyOffscreenRoot(instance);
+        }
+
+        // MS-1: 専用ルート(Camera 込み)を破棄する。プールへ返した Prefab は先に UI Root へ逃がす(ForceReturn は親を変えないため)。
+        private void DestroyOffscreenRoot(CanvasInstance instance)
+        {
+            if (instance.OffscreenRoot == null)
+            {
+                return;
+            }
+
+            if (!instance.IsPlaceholder && instance.IsPooled && instance.Root != null && _root != null)
+            {
+                instance.Root.transform.SetParent(_root.transform, false);
+            }
+
+            if (Application.isPlaying)
+            {
+                UnityEngine.Object.Destroy(instance.OffscreenRoot);
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(instance.OffscreenRoot);
+            }
+
+            instance.OffscreenRoot = null;
         }
 
         // ── モーダルブロッキング ──
@@ -2545,6 +2759,14 @@ namespace DDrive.Runtime.Ui
                 }
             }
 
+            for (var i = 0; i < _offscreen.Count; i++)
+            {
+                if (_instances.TryGet(_offscreen[i], out var instance) && instance.Context.Equals(ctx))
+                {
+                    return instance.Root != null ? instance.Root.transform : null;
+                }
+            }
+
             return null;
         }
 
@@ -2652,6 +2874,17 @@ namespace DDrive.Runtime.Ui
                 gateChanged |= TickElementFx(handle, instance, dt);
             }
 
+            for (var i = _offscreen.Count - 1; i >= 0; i--)
+            {
+                var handle = _offscreen[i];
+                if (!_instances.TryGet(handle, out var instance) || instance.ElementFx == null)
+                {
+                    continue;
+                }
+
+                TickElementFx(handle, instance, dt);
+            }
+
             if (gateChanged)
             {
                 RecomputeBlocking();
@@ -2683,6 +2916,17 @@ namespace DDrive.Runtime.Ui
             }
 
             _stack.Clear();
+
+            for (var i = _offscreen.Count - 1; i >= 0; i--)
+            {
+                if (_instances.TryGet(_offscreen[i], out var instance))
+                {
+                    StopAllElementFx(instance);
+                    FinalizeClose(_offscreen[i], instance);
+                }
+            }
+
+            _offscreen.Clear();
         }
 
         public void OnSceneUnload() => StopAll(StopReason.SceneUnload);

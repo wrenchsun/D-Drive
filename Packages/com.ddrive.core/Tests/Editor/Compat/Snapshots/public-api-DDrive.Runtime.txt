@@ -2147,6 +2147,11 @@ TYPE class static DDrive.Runtime.Ui.Ui
   method static OnSignal(string key, System.Action<DDrive.Runtime.Ui.SignalArgs> cb) : System.IDisposable
   method static Open(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
   method static OpenAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
+  method static OpenDataInto(DDrive.Runtime.Ui.CanvasData data, UnityEngine.RenderTexture target, UnityEngine.Vector2Int size = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method static OpenInto(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id, UnityEngine.RenderTexture target, UnityEngine.Vector2Int size = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method static OpenIntoAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id, UnityEngine.RenderTexture target, UnityEngine.Vector2Int size = null) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
+  method static PlayDisappear(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : void
+  method static PlayDisappearAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> h) : Cysharp.Threading.Tasks.UniTask
   method static Popup(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
   method static PopupAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
   method static SendSignal(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> from, string elementPath = null) : void
@@ -2364,6 +2369,11 @@ TYPE class sealed DDrive.Runtime.Ui.UiManager
   method Open(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
   method OpenAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
   method OpenData(DDrive.Runtime.Ui.CanvasData data, bool modal = false) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method OpenDataInto(DDrive.Runtime.Ui.CanvasData data, UnityEngine.RenderTexture target, UnityEngine.Vector2Int size = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method OpenInto(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id, UnityEngine.RenderTexture target, UnityEngine.Vector2Int size = null) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
+  method OpenIntoAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id, UnityEngine.RenderTexture target, UnityEngine.Vector2Int size = null) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
+  method PlayDisappear(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : void
+  method PlayDisappearAsync(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> handle) : Cysharp.Threading.Tasks.UniTask
   method Popup(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>
   method PopupAsync(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Ui.CanvasMarker> id) : Cysharp.Threading.Tasks.UniTask<DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker>>
   method SendSignal(string key, DDrive.Foundation.Handle.Handle<DDrive.Runtime.Ui.CanvasMarker> from, string elementPath = null, float value = 0) : void

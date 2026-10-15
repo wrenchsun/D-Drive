@@ -26,6 +26,24 @@ namespace DDrive.Runtime.Ui
         public static UniTask<Handle<CanvasMarker>> PopupAsync(CanvasId id)
             => _instance != null ? _instance.PopupAsync(id) : UniTask.FromResult(Handle<CanvasMarker>.Invalid);
 
+        // [MS-1、2026-10-15] UI スタックの外で、Canvas を RenderTexture に描いて開く(街のディスプレイ等)。
+        // size = RT の中で描く画素の大きさ(default / 0 なら RT 全面。RT より大きい指定は RT に丸めて警告 1 回)。
+        // _stack に積まない・modal にならない・入力を受けない。Close(h) でプールへ返し専用ルート(Camera 込み)を破棄する。
+        // target が null / 破棄済みなら警告 1 回 + Invalid Handle。
+        public static Handle<CanvasMarker> OpenInto(CanvasId id, RenderTexture target, Vector2Int size = default)
+            => _instance?.OpenInto(id, target, size) ?? Handle<CanvasMarker>.Invalid;
+
+        public static Handle<CanvasMarker> OpenDataInto(CanvasData data, RenderTexture target, Vector2Int size = default)
+            => _instance?.OpenDataInto(data, target, size) ?? Handle<CanvasMarker>.Invalid;
+
+        public static UniTask<Handle<CanvasMarker>> OpenIntoAsync(CanvasId id, RenderTexture target, Vector2Int size = default)
+            => _instance != null ? _instance.OpenIntoAsync(id, target, size) : UniTask.FromResult(Handle<CanvasMarker>.Invalid);
+
+        // 全要素と有効な埋め込みの ElementFx.Disappear を今すぐ再生する(Canvas は閉じない)。通常の Open した Canvas にも使える。
+        public static void PlayDisappear(Handle<CanvasMarker> h) => _instance?.PlayDisappear(h);
+
+        public static UniTask PlayDisappearAsync(Handle<CanvasMarker> h) => _instance != null ? _instance.PlayDisappearAsync(h) : UniTask.CompletedTask;
+
         public static void Close(Handle<CanvasMarker> h) => _instance?.Close(h);
 
         public static UniTask CloseAsync(Handle<CanvasMarker> h) => _instance != null ? _instance.CloseAsync(h) : UniTask.CompletedTask;

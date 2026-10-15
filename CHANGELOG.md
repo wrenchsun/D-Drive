@@ -9,9 +9,13 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 追加
+
+- **`Ui.OpenInto` / `OpenDataInto` / `OpenIntoAsync` / `PlayDisappear` / `PlayDisappearAsync`**（MS-1、[docs/07](docs/07_canvas_prefab.md) A-3 の 2026-10-15 の節）: UI スタックの外で Canvas を RenderTexture に描いて開く（MS2026 の街のディスプレイ用）。`UiManager` に同名のメソッド。専用ルート `[D-Drive] UI Offscreen <n>`（正射影 Camera + ScreenSpaceCamera の Canvas）を遠方（Y = -10000 - 100n）に置いて隔離する。ElementFx・Transition・埋め込み・Signal は通常の Open と同じ、スタック / modal / 入力 / `PauseGameWhileOpen` は対象外。
+
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 追加のみ（MINOR）: `Ui` / `UiManager` の公開メソッド 5 つ（`DDrive.Runtime`）。既存の `Open` / `Popup` / `Close` の挙動・シリアライズ形式・enum は変更なし
 
 ## [1.8.0] - 2026-10-13
 
