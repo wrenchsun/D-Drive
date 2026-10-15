@@ -140,6 +140,8 @@ namespace DDrive.Runtime.Cutscene
         }
 
         private readonly List<CameraSlot> _cameraSlots = new();
+        private readonly Stack<CameraSlot> _freeCameraSlots = new(); // 手放した CameraSlot の再利用(MS-R-13。Tick 中に new しない)
+        private readonly HashSet<CutsceneData> _cosmeticOptionsWarned = new();
         private readonly HashSet<CutsceneData> _multiCameraWarned = new();
 
         private readonly EventBus _events = new();
@@ -252,6 +254,16 @@ namespace DDrive.Runtime.Cutscene
             {
                 return Handle<CutsceneMarker>.Invalid;
             }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            // MS-R-05: 指定カメラ / 入力ロック無視は Net=Local の Data 向け。Cosmetic だと受信側では Camera.main を駆動し LockInput どおり入力をロックする。
+            if (data.Flags.Net == DDrive.Foundation.Net.NetMode.Cosmetic
+                && (options.Camera != null || options.IgnoreInputLock)
+                && _cosmeticOptionsWarned.Add(data))
+            {
+                Debug.LogWarning($"[DDrive] Cutscene '{data.DisplayName}': Flags.Net=Cosmetic の Data を指定カメラ / IgnoreInputLock で再生しました。options はこの端末の予測再生にしか効かず、他の参加者では Camera.main を駆動し入力をロックします。指定カメラで流す Cutscene の Data は Net=Local にしてください([26_timeline.md] §4.6.6)。");
+            }
+#endif
 
             // [26_timeline.md] §4.7 — Flags.Net=Cosmetic かつ netBridge が居るときだけネット経路に乗る
             // (null は常にローカル。[14_networking.md] §1 の原則と同じ)。
@@ -1664,7 +1676,10 @@ namespace DDrive.Runtime.Cutscene
 
                 if (cam != null)
                 {
-                    slot = new CameraSlot { Cam = cam, Owner = instance };
+                    slot = _freeCameraSlots.Count > 0 ? _freeCameraSlots.Pop() : new CameraSlot();
+                    slot.Cam = cam;
+                    slot.Owner = instance;
+                    slot.Applier = null;
                     _cameraSlots.Add(slot);
                 }
             }
@@ -1759,6 +1774,10 @@ namespace DDrive.Runtime.Cutscene
             }
 
             _cameraSlots.Remove(slot);
+            slot.Cam = null;
+            slot.Owner = null;
+            slot.Applier = null;
+            _freeCameraSlots.Push(slot);
         }
 
         private void Complete(Handle<CutsceneMarker> handle, CutsceneInstance instance)

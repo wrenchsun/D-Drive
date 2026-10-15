@@ -136,11 +136,20 @@ MS2026 の街のディスプレイ（平面 LED・3D パネル）に Canvas を�
 
 - **API**（`Ui` / `UiManager`）: `OpenInto(CanvasId, RenderTexture target, Vector2Int size = default)` / `OpenDataInto(CanvasData, …)` / `OpenIntoAsync` / `PlayDisappear(handle)` / `PlayDisappearAsync(handle)`。`size` = RT の中で描く画素の大きさ（`default` / 0 なら RT 全面。RT より大きい指定は RT に丸めて警告 1 回。左下から描く）。`target` が null / 破棄済みなら警告 1 回 + Invalid Handle。
 - **専用ルート**: 呼び出しごとに `[D-Drive] UI Offscreen <n>`（Play 中 `DontDestroyOnLoad`、Edit Mode は `DontSave`）を作る。中身は Camera 1 台（正射影・`clearFlags = SolidColor`・背景 α 0・`targetTexture = target`・`pixelRect = size`・URP `UniversalAdditionalCameraData` は Base・ポストプロセス無し）と `RenderMode.ScreenSpaceCamera` の Canvas。`CanvasScaler` は C-1 と同じ規則（Prefab の設定、無ければ `UiCanvasScalerDefaults`）で写すので、1920×1080 で作ったページが小さい RT に縮んで収まる。`Close` でプールへ返し、ルート（Camera 込み）を破棄する。`StopAll` も片付ける。
-- **隔離は Layer マスクではなく遠方配置**: 持ち込み先のレイヤー構成を仮定できず `ProjectSettings` にも触れないため、ルートを `(0, -10000 - 100 * n, 0)` に置く（n = 呼び出しの連番）。**カメラの far クリップや持ち込み先の他の遠景カメラ・ライトの範囲がこの Y に届く構成は避けること**（届くと Offscreen の Canvas が他のカメラに映る）。Offscreen の Camera の `cullingMask` は変えない。
+- **隔離は Layer マスクではなく遠方配置**: 持ち込み先のレイヤー構成を仮定できず `ProjectSettings` にも触れないため、ルートを `(0, -10000 - 100 * n, 0)` に置く（n = 同時に開いている Offscreen の中での空き番号。閉じた番号は再利用する）。**カメラの far クリップや持ち込み先の他の遠景カメラ・ライトの範囲がこの Y に届く構成は避けること**（届くと Offscreen の Canvas が他のカメラに映る）。Offscreen の Camera の `cullingMask` は変えない。
 - **通常の Open と同じに動くもの**: Prefab のプール貸出 / ElementFx（Appear → Idle → Disappear、`AppearDelay`）/ レイヤー既定の SE・Appear・Disappear / OpenTransition・CloseTransition / 埋め込み Canvas（`SetEmbeddedActive` も効く）/ `OnSignal`・`SendSignal` / `Events` / `IsOpen`・`GetGameObject`・`Close`・`CloseAsync`。
-- **しないもの**（UI スタックの外のため）: `_stack` に積まない（`CloseTop` の対象外・`RecomputeBlocking` に数えない）/ modal にならない / `PauseGameWhileOpen` は無視して警告 1 回 / `ApplyNavigation`・`ApplyFirstSelected`・`MoveFocus` の対象外・`GraphicRaycaster` を付けない（入力を受けない）/ `SetLayerVisible` の対象外。
+- **しないもの**（UI スタックの外のため）: `_stack` に積まない（`CloseTop` の対象外・`RecomputeBlocking` に数えない）/ modal にならない / `PauseGameWhileOpen` は無視して警告 1 回 / `ApplyNavigation`・`ApplyFirstSelected`・`MoveFocus` の対象外・専用 Canvas に `GraphicRaycaster` を付けず Prefab 側の入力も `CanvasGroup` で塞ぐ（入力を受けない。下の MS-R-01）/ `SetLayerVisible` の対象外。
 - **`PlayDisappear`**: 全要素と有効な埋め込みの ElementFx.Disappear を今すぐ再生する（Canvas は閉じない。通常の `Open` した Canvas にも使える）。再生し終えた後の `Close` は Disappear をもう一度再生せず CloseTransition だけ行う（`StartDisappear` が `DisappearStarted` を見るため）。`PlayDisappearAsync` は Disappear が終わるまで待つ。
 - 実装 = `Runtime/Canvas/UiManager.cs`（`OpenCore` / `CreateOffscreenRoot` / `DestroyOffscreenRoot`、Offscreen は `_offscreen` リストで管理し Tick / StopAll / `GetContextTransform` が見る）。テスト = `Tests/Runtime/UiOpenIntoTests.cs`（RT の ReadPixels・HUD が写らない・CloseTop 対象外・Disappear が 2 回鳴らない・Close で Camera / ルート破棄・null target）。
+
+- **レビュー対応（2026-10-15、[1013](reviews/1013_review_ms_2026-10-15.md)）**:
+  - **入力（MS-R-01）**: 標準の Canvas Prefab はルートに `GraphicRaycaster` を持つため、専用 Canvas に Raycaster を付けなくても Prefab 側の Raycaster が Offscreen の Camera を eventCamera にして画面の左下のクリックを受けてしまう。Offscreen の `CanvasGroup` を `blocksRaycasts = false` / `interactable = false` にして塞ぐ（プールへ返すときの中立化で `true` に戻す）。
+  - **番号（MS-R-02）**: 専用ルートの番号 `n` は「同時に開いている Offscreen の中での空き番号」（閉じた番号は再利用する）。差し替えを続けても Y が遠ざからず、float の精度で UI がにじむことがない。閉じたルートは破棄が遅れるので先に無効にしてから破棄する。
+  - **RT の破棄（MS-R-03）**: **RT を破棄する前に `Ui.Close` する**。Close より先に RT が破棄されると、Offscreen の Camera は画面へ描いてしまうため、Tick が検出して Camera を止め警告 1 回を出す（Close で片付く）。
+  - **Camera の設定（MS-R-04）**: RT の α を残すため `allowHDR = false` / `allowMSAA = false`、URP の `requiresColorOption` / `requiresDepthOption` = Off・`renderShadows = false`・`antialiasing = None` を明示する。持ち込み先の URP Asset の設定でも背景（α 0）が透過するかは MS2026 での実機確認事項。
+  - **Edit Mode（MS-R-07）**: `DestroyEditorRoot` は Offscreen も閉じ、孤児掃除は `[D-Drive] UI Offscreen ` 接頭辞のルートも対象にする。
+  - **`PlayDisappear`（MS-R-08）**: Appear の途中（`AppearDelay` 待ちを含む）で呼ぶと、その要素の入力ゲートを開ける（通常の `Open` した Canvas の `IsOpening` が true のままにならない）。`PlayDisappear` の後に `SetEmbeddedActive(…, true)` すると、埋め込みの Appear が消えたページの上で再生される。
+  - **使い方の注意（MS-R-09 / 10）**: 同じ RT に複数の `OpenInto` を出し分ける「アトラス方式」はできない（`size` は左下原点固定で、各 Camera のクリアも互いに上書きしうる）。**1 枚の RT に 1 つの `OpenInto`**。`size` を RT の一部にするのは「RT の一部だけに描く」用途（アトラスが必要になったら `RectInt` を取るオーバーロードを追加する）。レイヤー既定の SE・ElementFx の Appear / Disappear SE は Offscreen でも鳴る（2D なのでプレイヤーの耳元で鳴る）ので、**看板用の Canvas は既定 SE の無いレイヤーにし、ElementFx に SE を付けない**。
 
 ### 実装メモ（2026-09-11、4-3 CanvasEditor: Navigation ノードグラフ / パッド入力シミュレーション）
 

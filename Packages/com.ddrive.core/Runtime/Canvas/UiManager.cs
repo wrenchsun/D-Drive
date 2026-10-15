@@ -102,6 +102,9 @@ namespace DDrive.Runtime.Ui
             // MS-1(2026-10-15): UI スタックの外で RenderTexture に描く Canvas(OpenInto)。OffscreenRoot = 専用ルート(Camera 込み)。
             public bool Offscreen;
             public GameObject OffscreenRoot;
+            public int OffscreenIndex;       // 専用ルートの番号(同時に開いている中での空き番号。MS-R-02)
+            public Camera OffscreenCamera;   // RT が先に破棄されたことの検出用(MS-R-03)
+            public bool OffscreenTargetWarned;
         }
 
         // 登録済みの埋め込み 1 つぶんの実行時の状態。Prefix = Open した Canvas のルートから、この埋め込みのルートまでのパス。
@@ -184,6 +187,7 @@ namespace DDrive.Runtime.Ui
         }
 
         public const string RootName = "[D-Drive] UI Root";
+        private const string OffscreenRootPrefix = "[D-Drive] UI Offscreen ";
 
         private readonly IPoolService _pool;
         private readonly IAssetRegistry _registry;
@@ -193,7 +197,6 @@ namespace DDrive.Runtime.Ui
         private readonly List<Handle<CanvasMarker>> _stack = new();
         // MS-1: OpenInto で開いた Canvas(_stack には積まない。Tick / StopAll / GetContextTransform だけが見る)。
         private readonly List<Handle<CanvasMarker>> _offscreen = new();
-        private int _offscreenSeq;
         private bool _offscreenPauseWarned;
         private bool _offscreenSizeWarned;
         private readonly List<TransitionState> _transitions = new();
@@ -331,6 +334,8 @@ namespace DDrive.Runtime.Ui
                 return;
             }
 
+            CloseAllOffscreen(); // MS-R-07: Offscreen の専用ルートは _root の子ではないので別に片付ける
+
             if (_root != null)
             {
                 UnityEngine.Object.DestroyImmediate(_root);
@@ -350,7 +355,8 @@ namespace DDrive.Runtime.Ui
             // 返す(重いが EnsureRoot は 1 回しか呼ばれないため許容する)。
             foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>())
             {
-                if (go.name != RootName || go.transform.parent != null || go.scene.IsValid())
+                var isRoot = go.name == RootName || go.name.StartsWith(OffscreenRootPrefix, StringComparison.Ordinal);
+                if (!isRoot || go.transform.parent != null || go.scene.IsValid())
                 {
                     continue;
                 }
@@ -452,10 +458,33 @@ namespace DDrive.Runtime.Ui
         }
 
         // 呼び出しごとの専用ルート: Camera 1 台 + ScreenSpaceCamera の Canvas + CanvasScaler。他のカメラに映らないよう遠方(Y マイナス)へ置く。
-        private GameObject CreateOffscreenRoot(RenderTexture target, Vector2Int size, GameObject prefabRoot, bool isPlaceholder, out Transform parent)
+        // 同時に開いている Offscreen が使っていない最小の番号(MS-R-02: 番号を増やし続けると Y が遠ざかり描画精度が落ちる)。
+        private int AcquireOffscreenIndex()
         {
-            var n = _offscreenSeq++;
-            var rootGo = new GameObject($"[D-Drive] UI Offscreen {n}");
+            for (var n = 0; ; n++)
+            {
+                var used = false;
+                for (var i = 0; i < _offscreen.Count; i++)
+                {
+                    if (_instances.TryGetQuiet(_offscreen[i], out var inst) && inst.OffscreenIndex == n)
+                    {
+                        used = true;
+                        break;
+                    }
+                }
+
+                if (!used)
+                {
+                    return n;
+                }
+            }
+        }
+
+        private GameObject CreateOffscreenRoot(RenderTexture target, Vector2Int size, GameObject prefabRoot, bool isPlaceholder, out Transform parent, out int index, out Camera camera)
+        {
+            var n = AcquireOffscreenIndex();
+            index = n;
+            var rootGo = new GameObject(OffscreenRootPrefix + n);
             rootGo.transform.position = new Vector3(0f, -10000f - 100f * n, 0f);
             if (Application.isPlaying)
             {
@@ -498,9 +527,17 @@ namespace DDrive.Runtime.Ui
             cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
             cam.targetTexture = target;
             cam.pixelRect = new Rect(0f, 0f, pw, ph);
+            // MS-R-04: RT の α を残すため、中間テクスチャ・HDR・MSAA・深度 / 色のコピー・影を使わない(UI しか映さない Camera)。
+            cam.allowHDR = false;
+            cam.allowMSAA = false;
             var urp = camGo.AddComponent<UniversalAdditionalCameraData>();
             urp.renderType = CameraRenderType.Base;
             urp.renderPostProcessing = false;
+            urp.requiresColorOption = CameraOverrideOption.Off;
+            urp.requiresDepthOption = CameraOverrideOption.Off;
+            urp.renderShadows = false;
+            urp.antialiasing = AntialiasingMode.None;
+            camera = cam;
 
             var canvasGo = new GameObject("Canvas", typeof(RectTransform));
             canvasGo.transform.SetParent(rootGo.transform, false);
@@ -563,11 +600,13 @@ namespace DDrive.Runtime.Ui
             }
 
             GameObject offscreenRoot = null;
+            Camera offscreenCamera = null;
+            var offscreenIndex = 0;
             Transform parentTransform;
             if (offscreen)
             {
                 // MS-1: レイヤールート・C-1 のレイヤー共有 CanvasScaler は使わず、専用ルートに Prefab の CanvasScaler を写す。
-                offscreenRoot = CreateOffscreenRoot(target, size, root, isPlaceholder, out parentTransform);
+                offscreenRoot = CreateOffscreenRoot(target, size, root, isPlaceholder, out parentTransform, out offscreenIndex, out offscreenCamera);
             }
             else
             {
@@ -610,12 +649,18 @@ namespace DDrive.Runtime.Ui
                 BaseScale = root.transform.localScale,
                 Offscreen = offscreen,
                 OffscreenRoot = offscreenRoot,
+                OffscreenIndex = offscreenIndex,
+                OffscreenCamera = offscreenCamera,
             };
 
             var handle = _instances.Add(instance);
             instance.Context = new InstanceContext(handle.Index, handle.Generation);
             if (offscreen)
             {
+                // MS-R-01: 標準の Canvas Prefab はルートに GraphicRaycaster を持ち、専用 Canvas の worldCamera(= Offscreen Camera)を
+                // eventCamera にして画面の左下のクリックを受けてしまう。CanvasGroup で塞ぐ(FinalizeClose の中立化で戻す)。
+                group.interactable = false;
+                group.blocksRaycasts = false;
                 _offscreen.Add(handle);
             }
             else
@@ -1011,6 +1056,8 @@ namespace DDrive.Runtime.Ui
                 if (instance.Group != null)
                 {
                     instance.Group.alpha = 1f;
+                    instance.Group.interactable = true; // Offscreen で塞いだ入力を戻す(通常の Open は RecomputeBlocking が決め直す)
+                    instance.Group.blocksRaycasts = true;
                 }
 
                 if (instance.Root != null)
@@ -1033,6 +1080,27 @@ namespace DDrive.Runtime.Ui
             DestroyOffscreenRoot(instance);
         }
 
+        // MS-R-03: RT が先に破棄された Offscreen の Camera は画面(ディスプレイ)に描いてしまうので、止めて警告する(Close で片付く)。
+        private void CheckOffscreenTarget(CanvasInstance instance)
+        {
+            var cam = instance.OffscreenCamera;
+            if (cam == null || cam.targetTexture != null)
+            {
+                return;
+            }
+
+            if (cam.enabled)
+            {
+                cam.enabled = false;
+            }
+
+            if (!instance.OffscreenTargetWarned)
+            {
+                instance.OffscreenTargetWarned = true;
+                Debug.LogWarning($"[DDrive] UiManager.OpenInto: '{instance.Data.DisplayName}' の RenderTexture が先に破棄されました。Camera を止めます。RT を破棄する前に Ui.Close してください。");
+            }
+        }
+
         // MS-1: 専用ルート(Camera 込み)を破棄する。プールへ返した Prefab は先に UI Root へ逃がす(ForceReturn は親を変えないため)。
         private void DestroyOffscreenRoot(CanvasInstance instance)
         {
@@ -1046,6 +1114,8 @@ namespace DDrive.Runtime.Ui
                 instance.Root.transform.SetParent(_root.transform, false);
             }
 
+            // Destroy は次の更新まで遅れるので、同じ番号(= 同じ位置)で開き直す Offscreen と映り合わないよう先に無効にする。
+            instance.OffscreenRoot.SetActive(false);
             if (Application.isPlaying)
             {
                 UnityEngine.Object.Destroy(instance.OffscreenRoot);
@@ -2655,6 +2725,17 @@ namespace DDrive.Runtime.Ui
 
             r.DisappearStarted = true;
 
+            // Appear の途中(AppearDelay 待ちを含む)で Disappear を始めると OnAppearCompleted が呼ばれず、入力ゲートが開かないままになる(MS-R-08)。
+            if (r.CountsForGate && !r.AppearCompleted)
+            {
+                r.CountsForGate = false;
+                if (instance.PendingAppearCount > 0)
+                {
+                    instance.PendingAppearCount--;
+                    RecomputeBlocking();
+                }
+            }
+
             // Stop は無効/既に完了済みの Handle に対しても安全な no-op(UiTweenManager.Stop 参照)なので、
             // Idle/Appear が実際に生きているかを確認せずそのまま呼んでよい。
             _tweens?.Stop(r.IdleHandle);
@@ -2885,6 +2966,14 @@ namespace DDrive.Runtime.Ui
                 TickElementFx(handle, instance, dt);
             }
 
+            for (var i = _offscreen.Count - 1; i >= 0; i--)
+            {
+                if (_instances.TryGetQuiet(_offscreen[i], out var inst))
+                {
+                    CheckOffscreenTarget(inst);
+                }
+            }
+
             if (gateChanged)
             {
                 RecomputeBlocking();
@@ -2916,7 +3005,11 @@ namespace DDrive.Runtime.Ui
             }
 
             _stack.Clear();
+            CloseAllOffscreen();
+        }
 
+        private void CloseAllOffscreen()
+        {
             for (var i = _offscreen.Count - 1; i >= 0; i--)
             {
                 if (_instances.TryGet(_offscreen[i], out var instance))

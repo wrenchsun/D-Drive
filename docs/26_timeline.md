@@ -437,7 +437,9 @@ MS2026 の 3D パネル用スタジオのように、`Camera.main` 以外のカ�
 - **G-5(§4.6.5)も指定カメラで判定する**: `options.Camera` が再生中に破棄されたら、そのプレイバックのカメラ演出だけ BlendOut 無しで終了(警告 1 回)。Cutscene 自体と他の本は続く。破棄された指定カメラのとき `Camera.main` へフォールバックしない。
 - **`CutsceneBindTarget.MainCamera` のバインド**は指定カメラの Transform に解決する。`DDriveCutsceneCameraApplier.EnsureOn(camera)` はそのまま使うので Volume / DoF も指定カメラに付く。
 - **`ViewCamera.TryGetCurrent` の `Source = Cutscene` 判定は変えない**(`Camera.main` の Applier だけを見る)。指定カメラの再生中も `ViewCamera` は `MainCamera` のまま(画面のゲームカメラは動いていないため)。
-- **ネット**: `CutscenePlayOptions` はローカル専用で送らない。`Flags.Net = Cosmetic` の送信側だけ options を自分のローカル再生に適用し、受信側は従来どおり `Camera.main`・`LockInput` どおり。
+- **ネット**: `CutscenePlayOptions` はローカル専用で送らない。**options が効くのは `Flags.Net = Local` の Data、または Cosmetic + `PredictLocal = true` の送信側の予測再生だけ**（`PredictLocal = false` の送信側は Host 確定の Broadcast の戻りを受信経路で再生するので、送信側でも options は効かず `Camera.main`・`LockInput` どおりになる）。受信側は従来どおり `Camera.main`・`LockInput` どおり。**指定カメラで流す Cutscene の Data は `Net = Local` にする**（Cosmetic のままだと他の参加者の画面で `Camera.main` を駆動し入力をロックする）。`options.Camera != null` または `IgnoreInputLock` で Cosmetic の Data を再生すると Data ごとに Warning 1 回を出す（MS-R-05、Validator は足していない）。
+- **指定カメラの GameObject を非アクティブにしない**（MS-R-14）: 非アクティブだと Applier の `LateUpdate` が走らず検出 3（§4.6.5）でその本のカメラ演出が終わる。止めたいときは `Camera.enabled = false` にする。
+- カメラ所有の対応表の要素（`CameraSlot`）は Stack に返して再利用する（Tick 中に new しない。MS-R-13）。
 - Edit Mode プレビュー(`CutsceneEditModeCameraWriter`)・`CameraExecutionOrderValidator`・`CutscenePreviewHarness` は変更していない。実装 = `CutsceneManager`(`CameraSlot` の対応表 / `ResolveCutsceneCamera` / `ReleaseSlot`)・`CutscenePlayOptions.cs`。テスト = `Tests/Runtime/CutscenePlayOptionsTests.cs`。
 
 ### 4.7 ネット(ローカル再生と同期再生の両方)(2026-09-18 新規)

@@ -142,7 +142,8 @@ var h = Cutscene.PlayData(data, new PlayContext(), opt);   // Play(CUTID.X, ctx,
 <li><code>Camera</code> が null なら従来どおり <code>Camera.main</code>。指定カメラの Camera クリップ・<code>MainCamera</code> バインドはそのカメラへ書かれます（Volume / DoF もそのカメラに付きます）。</li>
 <li>カメラの取り合い（最初の 1 本を優先 + 警告）は<strong>カメラごと</strong>です。<code>Camera.main</code> 用と専用カメラ用は同時に再生できます。再生中に指定カメラを破棄すると、その本のカメラ演出だけが警告 1 回で終わります（G-5）。</li>
 <li><code>IgnoreInputLock = true</code> なら <code>LockInput</code> なデータでも <code>Cutscene.IsInputLocked</code> に数えません（看板の中の演出がプレイヤーの入力を止めないため）。</li>
-<li><strong>ローカル専用</strong>です。ネット同期（<code>Flags.Net = Cosmetic</code>）でも options は送られず、受信側は従来どおり <code>Camera.main</code> で <code>LockInput</code> どおりに動きます。</li>
+<li><strong>ローカル専用</strong>です。options が効くのは <code>Flags.Net = Local</code> の Data、または Cosmetic + <code>PredictLocal = true</code> の送信側の予測再生だけです。受信側（<code>PredictLocal = false</code> の送信側を含む）は従来どおり <code>Camera.main</code> で <code>LockInput</code> どおりに動きます。<strong>指定カメラで流す Cutscene の Data は <code>Net = Local</code> にしてください</strong>（Cosmetic のままだと他の参加者の画面で <code>Camera.main</code> を奪い入力をロックします。options 付きで Cosmetic の Data を再生すると Data ごとに警告を 1 回出します）。</li>
+<li>再生中は指定カメラの GameObject を非アクティブにしないでください（Applier の <code>LateUpdate</code> が走らずカメラ演出が終わります）。止めるなら <code>Camera.enabled = false</code> にします。</li>
 <li><code>ViewCamera.TryGetCurrent</code> の <code>Source = Cutscene</code> は <code>Camera.main</code> の Cutscene だけを指します（指定カメラの再生中は <code>MainCamera</code> のまま）。</li>
 </ul>
 
