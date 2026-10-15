@@ -59,6 +59,12 @@ namespace DDrive.Runtime.Cutscene
             // ことを示す。一度 true になったら、このプレイバックはカメラを再取得しない([26] §4.6.5)。
             public bool CameraOwnershipEnded;
 
+            // [26_timeline.md] §4.6.6(MS-2、2026-10-15) — Cutscene.Play(..., options) の指定。ローカル専用(ネットでは送らない)。
+            // CameraSpecified = options.Camera が非 null で渡された(後で破棄されても Camera.main へは戻さない)。
+            public Camera OptionsCamera;
+            public bool CameraSpecified;
+            public bool IgnoreInputLock;
+
             // [26_timeline.md] §4.3(6-10b) — Play() 時に時刻順で集めた D-Drive マーカー一覧とカーソル
             // (elapsed が跨いだら発火し、カーソルだけ前進する。巻き戻しても再発火しない)。
             public readonly List<(double, CutsceneEventNotification)> EventMarkers = new();
@@ -125,9 +131,15 @@ namespace DDrive.Runtime.Cutscene
         // [26_timeline.md] §4.6(6-10b) — Camera クリップを持つ Cutscene のうち、現在カメラを実際に駆動して
         // いる 1 本(単純化: 同時に複数本がカメラを取り合う場合は最初の 1 本が勝ち、2 本目以降は警告 1 回で
         // カメラ以外のトラックだけ普通に再生する。TODO: 複数同時駆動の合成は将来必要になれば対応する)。
-        private CutsceneInstance _cameraOwner;
-        private DDriveCutsceneCameraApplier _cameraApplier;
-        private Camera _cameraOwnerCamera;
+        // MS-2(2026-10-15): 所有はカメラごと(1 カメラ上書き方式は維持。同じカメラを取り合うときだけ「最初の 1 本を優先」)。
+        private sealed class CameraSlot
+        {
+            public Camera Cam;
+            public CutsceneInstance Owner;
+            public DDriveCutsceneCameraApplier Applier;
+        }
+
+        private readonly List<CameraSlot> _cameraSlots = new();
         private readonly HashSet<CutsceneData> _multiCameraWarned = new();
 
         private readonly EventBus _events = new();
@@ -228,6 +240,13 @@ namespace DDrive.Runtime.Cutscene
             => PlayData(_registry.ResolveOrPlaceholder<CutsceneData>(id.Value), in ctx);
 
         public Handle<CutsceneMarker> PlayData(CutsceneData data, in PlayContext ctx)
+            => PlayData(data, in ctx, default);
+
+        // [26_timeline.md] §4.6.6(MS-2) — options = 指定カメラ / 入力ロック無視(ローカル専用。受信側へは送らない)。
+        public Handle<CutsceneMarker> Play(CutsceneId id, in PlayContext ctx, in CutscenePlayOptions options)
+            => PlayData(_registry.ResolveOrPlaceholder<CutsceneData>(id.Value), in ctx, in options);
+
+        public Handle<CutsceneMarker> PlayData(CutsceneData data, in PlayContext ctx, in CutscenePlayOptions options)
         {
             if (data == null)
             {
@@ -238,10 +257,10 @@ namespace DDrive.Runtime.Cutscene
             // (null は常にローカル。[14_networking.md] §1 の原則と同じ)。
             if (_netBridge != null && data.Flags.Net == DDrive.Foundation.Net.NetMode.Cosmetic)
             {
-                return PlayCosmeticNetworked(data, in ctx);
+                return PlayCosmeticNetworked(data, in ctx, in options);
             }
 
-            return PlayLocalInternal(data, in ctx, elapsedSeek: 0d, seed: 0, handleNetKey: 0, isNetworked: false, playedViaNetworkReceive: false);
+            return PlayLocalInternal(data, in ctx, elapsedSeek: 0d, seed: 0, handleNetKey: 0, isNetworked: false, playedViaNetworkReceive: false, options: options);
         }
 
         private Handle<CutsceneMarker> PlayLocalInternal(
@@ -252,7 +271,8 @@ namespace DDrive.Runtime.Cutscene
             uint handleNetKey,
             bool isNetworked,
             bool playedViaNetworkReceive,
-            bool catchUpFireMarkers = false)
+            bool catchUpFireMarkers = false,
+            CutscenePlayOptions options = default)
         {
             var slot = RentDirector();
             var duration = data.Timeline != null ? data.Timeline.duration : 0d;
@@ -271,6 +291,9 @@ namespace DDrive.Runtime.Cutscene
                 IsNetworked = isNetworked,
                 PlayedViaNetworkReceive = playedViaNetworkReceive,
                 Seed = seed,
+                OptionsCamera = options.Camera,
+                CameraSpecified = options.Camera != null,
+                IgnoreInputLock = options.IgnoreInputLock,
             };
 
             var handle = _instances.Add(instance);
@@ -537,7 +560,7 @@ namespace DDrive.Runtime.Cutscene
             switch (binding.Target)
             {
                 case CutsceneBindTarget.MainCamera:
-                    var cam = Camera.main;
+                    var cam = ResolveCutsceneCamera(instance);
                     target = cam != null ? cam.transform : null;
                     break;
 
@@ -924,7 +947,7 @@ namespace DDrive.Runtime.Cutscene
 
         // ── ネットワーク再生([26] §4.7) ──
 
-        private Handle<CutsceneMarker> PlayCosmeticNetworked(CutsceneData data, in PlayContext ctx)
+        private Handle<CutsceneMarker> PlayCosmeticNetworked(CutsceneData data, in PlayContext ctx, in CutscenePlayOptions options = default)
         {
             var handleNetKey = NextHandleNetKey();
             var seed = (ushort)Random.Range(0, ushort.MaxValue + 1);
@@ -933,7 +956,7 @@ namespace DDrive.Runtime.Cutscene
             var predicted = Handle<CutsceneMarker>.Invalid;
             if (data.PredictLocal)
             {
-                predicted = PlayLocalInternal(data, in ctx, elapsedSeek: 0d, seed: seed, handleNetKey: handleNetKey, isNetworked: true, playedViaNetworkReceive: false);
+                predicted = PlayLocalInternal(data, in ctx, elapsedSeek: 0d, seed: seed, handleNetKey: handleNetKey, isNetworked: true, playedViaNetworkReceive: false, options: options);
                 if (_predictedKeys.Count >= PredictedKeysCap)
                 {
                     _predictedKeys.Clear();
@@ -1429,7 +1452,7 @@ namespace DDrive.Runtime.Cutscene
         // [26_timeline.md] §4.5.1 — Data.LockInput && IsPlaying。BlendOut(6-10b のカメラブレンド)中も
         // IsPlaying のままなので true が続く。
         public bool IsInputLocked(Handle<CutsceneMarker> handle)
-            => _instances.TryGet(handle, out var instance) && instance.Data.LockInput;
+            => _instances.TryGet(handle, out var instance) && instance.Data.LockInput && !instance.IgnoreInputLock;
 
         public float GetNormalizedTime(Handle<CutsceneMarker> handle)
         {
@@ -1500,7 +1523,7 @@ namespace DDrive.Runtime.Cutscene
 
         private void AcquireInputLockIfNeeded(CutsceneInstance instance)
         {
-            if (!instance.Data.LockInput)
+            if (!instance.Data.LockInput || instance.IgnoreInputLock)
             {
                 return;
             }
@@ -1609,10 +1632,11 @@ namespace DDrive.Runtime.Cutscene
             var holder = instance.Slot.Root.GetComponent<CutsceneCameraStateHolder>();
             var hasData = holder != null && holder.HasData;
 
-            if (_cameraOwner == instance && !hasData)
+            var slot = FindSlotOwnedBy(instance);
+            if (slot != null && !hasData)
             {
                 // カメラクリップの区間外(ギャップ、または尾まで再生し終えた)。所有権を手放す。
-                ReleaseCameraOwnership();
+                ReleaseSlot(slot);
                 return;
             }
 
@@ -1621,32 +1645,42 @@ namespace DDrive.Runtime.Cutscene
                 return;
             }
 
-            if (_cameraOwner == null)
+            var cam = ResolveCutsceneCamera(instance);
+            if (slot == null)
             {
-                _cameraOwner = instance;
-            }
-            else if (_cameraOwner != instance)
-            {
-                // [26] §4.6.2 — 「1 カメラ上書き方式」の単純化: 同時に複数本がカメラを取り合った場合は
-                // 最初の 1 本を優先し、2 本目以降はカメラ以外のトラックだけ普通に再生する(警告 1 回)。
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-                if (_multiCameraWarned.Add(instance.Data))
+                var other = cam != null ? FindSlotByCamera(cam) : null;
+                if (other != null && other.Owner != instance)
                 {
-                    Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': 別の Cutscene が既にカメラを駆動しているため、このプレイバックのカメラクリップは無視します([26_timeline.md] §4.6)。");
-                }
+                    // [26] §4.6.2 — 「1 カメラ上書き方式」の単純化: 同じカメラを複数本が取り合った場合は
+                    // 最初の 1 本を優先し、2 本目以降はカメラ以外のトラックだけ普通に再生する(警告 1 回。MS-2 でカメラ単位)。
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                    if (_multiCameraWarned.Add(instance.Data))
+                    {
+                        Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': 別の Cutscene が既にカメラを駆動しているため、このプレイバックのカメラクリップは無視します([26_timeline.md] §4.6)。");
+                    }
 #endif
-                return;
+                    return;
+                }
+
+                if (cam != null)
+                {
+                    slot = new CameraSlot { Cam = cam, Owner = instance };
+                    _cameraSlots.Add(slot);
+                }
             }
 
-            var cam = Camera.main;
-            if (cam == null || (_cameraOwnerCamera != null && cam != _cameraOwnerCamera))
+            if (cam == null || (slot != null && slot.Cam != cam))
             {
-                // G-5([26] §4.6.5) — Camera.main が見つからない/差し替わった。このプレイバックは
-                // BlendOut 無しで終了する(付け直しての継続はしない)。
+                // G-5([26] §4.6.5) — 対象のカメラ(既定は Camera.main)が見つからない/差し替わった(指定カメラは破棄された)。
+                // このプレイバックは BlendOut 無しで終了する(付け直しての継続はしない)。
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-                Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': 再生中に Camera.main が見つからなくなった/差し替わったため、カメラ演出を終了します(G-5、[26_timeline.md] §4.6.5)。");
+                Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': 再生中に対象のカメラが見つからなくなった/差し替わったため、カメラ演出を終了します(G-5、[26_timeline.md] §4.6.5)。");
 #endif
-                ReleaseCameraOwnership();
+                if (slot != null)
+                {
+                    ReleaseSlot(slot);
+                }
+
                 instance.CameraOwnershipEnded = true;
                 return;
             }
@@ -1657,8 +1691,7 @@ namespace DDrive.Runtime.Cutscene
                 return;
             }
 
-            _cameraApplier = applier;
-            _cameraOwnerCamera = cam;
+            slot.Applier = applier;
 
             var root = instance.Slot.Root.transform;
             var request = new CutsceneCameraWriteRequest
@@ -1681,18 +1714,51 @@ namespace DDrive.Runtime.Cutscene
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                 Debug.LogWarning($"[DDrive] Cutscene '{instance.Data.DisplayName}': DDriveCutsceneCameraApplier が LateUpdate で実行されていません。カメラ演出を終了します([26_timeline.md] §4.6.5 検出3)。");
 #endif
-                ReleaseCameraOwnership();
+                ReleaseSlot(slot);
                 instance.CameraOwnershipEnded = true;
             }
         }
 
-        // 所有権を手放し、控えていた画角・ピントを書き戻す([26] §4.6.2 の終了処理)。
-        private void ReleaseCameraOwnership()
+        // この Cutscene が駆動するカメラ。options.Camera が渡されていればそれ(破棄済みなら null。Camera.main へは戻さない)、
+        // 無ければ Camera.main。
+        private static Camera ResolveCutsceneCamera(CutsceneInstance instance)
+            => instance.CameraSpecified ? (instance.OptionsCamera != null ? instance.OptionsCamera : null) : Camera.main;
+
+        private CameraSlot FindSlotOwnedBy(CutsceneInstance instance)
         {
-            _cameraApplier?.Restore();
-            _cameraOwner = null;
-            _cameraApplier = null;
-            _cameraOwnerCamera = null;
+            for (var i = 0; i < _cameraSlots.Count; i++)
+            {
+                if (_cameraSlots[i].Owner == instance)
+                {
+                    return _cameraSlots[i];
+                }
+            }
+
+            return null;
+        }
+
+        private CameraSlot FindSlotByCamera(Camera cam)
+        {
+            for (var i = 0; i < _cameraSlots.Count; i++)
+            {
+                if (_cameraSlots[i].Cam == cam)
+                {
+                    return _cameraSlots[i];
+                }
+            }
+
+            return null;
+        }
+
+        // 所有権を手放し、控えていた画角・ピントを書き戻す([26] §4.6.2 の終了処理)。
+        private void ReleaseSlot(CameraSlot slot)
+        {
+            if (slot.Applier != null)
+            {
+                slot.Applier.Restore();
+            }
+
+            _cameraSlots.Remove(slot);
         }
 
         private void Complete(Handle<CutsceneMarker> handle, CutsceneInstance instance)
@@ -1711,9 +1777,10 @@ namespace DDrive.Runtime.Cutscene
         {
             // [26_timeline.md] §4.6.2(6-10b) — Cancel()/Skip(Immediate) は Tick() の次の巡回を待たずに
             // ここへ来るため、カメラ所有権の解放(Volume weight=0、画角・ピントの書き戻し)もここで行う。
-            if (_cameraOwner == instance)
+            var ownedSlot = FindSlotOwnedBy(instance);
+            if (ownedSlot != null)
             {
-                ReleaseCameraOwnership();
+                ReleaseSlot(ownedSlot);
             }
 
             _active.Remove(handle);

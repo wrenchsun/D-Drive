@@ -134,6 +134,18 @@ Cutscene.OnInputLockChanged
     .AddTo(this);</code></pre>
 <p>ロックは <code>Cancel</code> / 再生終了で必ず解除されます（Handle の破棄経路は 1 本）。<code>Flags.Pause</code> でポーズ中もロック状態は変わりません。ネット同期再生（<code>Flags.Net = Cosmetic</code>）では各クライアントが自分のロック状態を持ち、Host 権威のゲームロジックが「ロック中のクライアントからの入力を捨てる」かどうかはゲーム側の実装です。</p>
 
+<h3 id="play-options">3. 指定カメラで再生する・入力ロックを無視する（<code>CutscenePlayOptions</code>、v1.9.0〜）</h3>
+<p>街のディスプレイの 3D パネルのように、<code>Camera.main</code> ではなく<strong>専用の Camera（<code>targetTexture</code> に RenderTexture を持つスタジオカメラ）</strong>で Cutscene を流すときは、<code>CutscenePlayOptions</code> を渡します。</p>
+<pre><code>var opt = new CutscenePlayOptions(studioCamera, ignoreInputLock: true);
+var h = Cutscene.PlayData(data, new PlayContext(), opt);   // Play(CUTID.X, ctx, opt) も同じ</code></pre>
+<ul>
+<li><code>Camera</code> が null なら従来どおり <code>Camera.main</code>。指定カメラの Camera クリップ・<code>MainCamera</code> バインドはそのカメラへ書かれます（Volume / DoF もそのカメラに付きます）。</li>
+<li>カメラの取り合い（最初の 1 本を優先 + 警告）は<strong>カメラごと</strong>です。<code>Camera.main</code> 用と専用カメラ用は同時に再生できます。再生中に指定カメラを破棄すると、その本のカメラ演出だけが警告 1 回で終わります（G-5）。</li>
+<li><code>IgnoreInputLock = true</code> なら <code>LockInput</code> なデータでも <code>Cutscene.IsInputLocked</code> に数えません（看板の中の演出がプレイヤーの入力を止めないため）。</li>
+<li><strong>ローカル専用</strong>です。ネット同期（<code>Flags.Net = Cosmetic</code>）でも options は送られず、受信側は従来どおり <code>Camera.main</code> で <code>LockInput</code> どおりに動きます。</li>
+<li><code>ViewCamera.TryGetCurrent</code> の <code>Source = Cutscene</code> は <code>Camera.main</code> の Cutscene だけを指します（指定カメラの再生中は <code>MainCamera</code> のまま）。</li>
+</ul>
+
 <h2 id="ci">Validation と CI の走らせ方</h2>
 <p><code>Tools/CI/run-ci.cmd</code> が <code>.github/workflows/ci.yml</code> と同じ検査をローカルで実行します（Unity Editor でこのプロジェクトを開いたままだと多重起動になり失敗するので注意）。</p>
 <table>

@@ -25,6 +25,13 @@ namespace DDrive.Runtime.Cutscene
         public static CutsceneHandle PlayData(CutsceneData data, in PlayContext ctx)
             => _instance != null ? new CutsceneHandle(_instance.PlayData(data, in ctx)) : CutsceneHandle.Invalid;
 
+        // [MS-2、2026-10-15] 指定カメラ(Camera.main 以外。3D パネル用スタジオの RT カメラ等)で再生する。options はローカル専用([26] §4.6.6)。
+        public static CutsceneHandle Play(CutsceneId id, in PlayContext ctx, in CutscenePlayOptions options)
+            => _instance != null ? new CutsceneHandle(_instance.Play(id, in ctx, in options)) : CutsceneHandle.Invalid;
+
+        public static CutsceneHandle PlayData(CutsceneData data, in PlayContext ctx, in CutscenePlayOptions options)
+            => _instance != null ? new CutsceneHandle(_instance.PlayData(data, in ctx, in options)) : CutsceneHandle.Invalid;
+
         // ── Handle 操作(CutsceneHandle からも同じ内容を呼べる) ──
 
         public static void Cancel(Handle<CutsceneMarker> h) => _instance?.Cancel(h);

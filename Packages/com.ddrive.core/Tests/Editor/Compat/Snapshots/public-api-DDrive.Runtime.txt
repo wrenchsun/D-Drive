@@ -517,7 +517,9 @@ TYPE class static DDrive.Runtime.Cutscene.Cutscene
   method static OnMarker(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : R3.Observable<string>
   method static Pause(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : void
   method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Runtime.Cutscene.CutsceneHandle
+  method static Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx, ref DDrive.Runtime.Cutscene.CutscenePlayOptions options) : DDrive.Runtime.Cutscene.CutsceneHandle
   method static PlayData(DDrive.Runtime.Cutscene.CutsceneData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Runtime.Cutscene.CutsceneHandle
+  method static PlayData(DDrive.Runtime.Cutscene.CutsceneData data, ref DDrive.Runtime.Presentation.PlayContext ctx, ref DDrive.Runtime.Cutscene.CutscenePlayOptions options) : DDrive.Runtime.Cutscene.CutsceneHandle
   method static Resume(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h) : void
   method static Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h, float time) : void
   method static SetSpeed(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> h, float speed) : void
@@ -621,7 +623,9 @@ TYPE class sealed DDrive.Runtime.Cutscene.CutsceneManager
   method OnPause(DDrive.Foundation.Pause.PauseChannel channel, bool paused) : void
   method OnSceneUnload() : void
   method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
+  method Play(DDrive.Foundation.Identity.AssetId<DDrive.Runtime.Cutscene.CutsceneMarker> id, ref DDrive.Runtime.Presentation.PlayContext ctx, ref DDrive.Runtime.Cutscene.CutscenePlayOptions options) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
   method PlayData(DDrive.Runtime.Cutscene.CutsceneData data, ref DDrive.Runtime.Presentation.PlayContext ctx) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
+  method PlayData(DDrive.Runtime.Cutscene.CutsceneData data, ref DDrive.Runtime.Presentation.PlayContext ctx, ref DDrive.Runtime.Cutscene.CutscenePlayOptions options) : DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker>
   method ResetNetworkedState() : void
   method Seek(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, float time) : void
   method SetPaused(DDrive.Foundation.Handle.Handle<DDrive.Runtime.Cutscene.CutsceneMarker> handle, bool paused) : void
@@ -657,6 +661,10 @@ TYPE enum DDrive.Runtime.Cutscene.CutsceneOrigin
   field const AnchorPoint : DDrive.Runtime.Cutscene.CutsceneOrigin
   field const Self : DDrive.Runtime.Cutscene.CutsceneOrigin
   field const World : DDrive.Runtime.Cutscene.CutsceneOrigin
+TYPE struct DDrive.Runtime.Cutscene.CutscenePlayOptions
+  ctor CutscenePlayOptions(UnityEngine.Camera camera = null, bool ignoreInputLock = false)
+  field readonly Camera : UnityEngine.Camera
+  field readonly IgnoreInputLock : bool
 TYPE class sealed DDrive.Runtime.Cutscene.CutscenePreviewHarness : UnityEngine.MonoBehaviour
   ctor CutscenePreviewHarness()
   field Self : UnityEngine.Transform

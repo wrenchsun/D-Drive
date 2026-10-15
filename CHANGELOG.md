@@ -12,10 +12,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 ### 追加
 
 - **`Ui.OpenInto` / `OpenDataInto` / `OpenIntoAsync` / `PlayDisappear` / `PlayDisappearAsync`**（MS-1、[docs/07](docs/07_canvas_prefab.md) A-3 の 2026-10-15 の節）: UI スタックの外で Canvas を RenderTexture に描いて開く（MS2026 の街のディスプレイ用）。`UiManager` に同名のメソッド。専用ルート `[D-Drive] UI Offscreen <n>`（正射影 Camera + ScreenSpaceCamera の Canvas）を遠方（Y = -10000 - 100n）に置いて隔離する。ElementFx・Transition・埋め込み・Signal は通常の Open と同じ、スタック / modal / 入力 / `PauseGameWhileOpen` は対象外。
+- **`Cutscene.Play` / `PlayData` に `CutscenePlayOptions`（指定カメラ・入力ロック無視）のオーバーロード**（MS-2、[docs/26](docs/26_timeline.md) §4.6.6）: `Camera.main` 以外のカメラ（RT を持つスタジオカメラ）で Cutscene を流す。カメラの所有は「カメラごと」（取り合いの警告も同じカメラの 2 本だけ）、G-5 も指定カメラで判定、`MainCamera` バインドは指定カメラへ。options はローカル専用でネットには送らない。`PlayContext` は変更なし。
 
 ### 互換性
 
 - 追加のみ（MINOR）: `Ui` / `UiManager` の公開メソッド 5 つ（`DDrive.Runtime`）。既存の `Open` / `Popup` / `Close` の挙動・シリアライズ形式・enum は変更なし
+- 追加のみ（MINOR）: `Cutscene` / `CutsceneManager` の `Play` / `PlayData` のオーバーロード各 2 つと新型 `CutscenePlayOptions`（`DDrive.Runtime.Cutscene`）。既存の `Play(id, ctx)` / `PlayData(data, ctx)` の挙動・`PlayContext`・シリアライズ形式・enum・ネットメッセージは変更なし
 
 ## [1.8.0] - 2026-10-13
 

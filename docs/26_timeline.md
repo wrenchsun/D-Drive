@@ -427,6 +427,19 @@ Volume の書き方:
 - 「合わない場合は Applier の挿入点を PlayerLoop の `PostLateUpdate` 末尾に変える」という旧版の逃げ道は**採らない**(D-Drive 側が契約を決めた以上、ゲーム側が合わせる。`PlayerLoop` の書き換えは持ち込み先の他システムと衝突しやすく、[42] の互換性ポリシー上も維持が重い)。契約を守れない持ち込み先が出た場合はそのときに改めて判断する(§7.2 の表に追記)
 - MS2026 側への伝え方: [ProgrammerManual/rules.html](ProgrammerManual/rules.html) の節 + MS2026 のカメラ設計時に本節を参照してもらう(移植時のチェックは [42] P-12)
 
+#### 4.6.6 指定カメラでの再生(`CutscenePlayOptions`)(2026-10-15 追記、MS-2)
+
+MS2026 の 3D パネル用スタジオのように、`Camera.main` 以外のカメラ(RenderTexture を `targetTexture` に持つ専用カメラ)で Cutscene を流すための追加(追加のみ。`Play(id, ctx)` / `PlayData(data, ctx)` の挙動は変えない)。
+
+- **API**: `Cutscene.Play(CutsceneId, in PlayContext, in CutscenePlayOptions)` / `Cutscene.PlayData(CutsceneData, in PlayContext, in CutscenePlayOptions)`(`CutsceneManager` に同名)。`CutscenePlayOptions` は `readonly struct`(将来の追加に耐えるよう引数ではなく struct): `Camera Camera`(null = 従来どおり `Camera.main`)、`bool IgnoreInputLock`(true なら `CutsceneData.LockInput` でも入力ロックに数えない。`Cutscene.IsInputLocked` / `OnInputLockChanged` / `CutsceneHandle.IsInputLocked` に反映されない)。`PlayContext` は Presentation と共有なので変えていない。
+- **RT は D-Drive が持たない**: 駆動する Camera を渡す形。RT への出力は持ち込み先がその Camera の `targetTexture` に設定する。
+- **カメラの所有はカメラごと**: 1 カメラ上書き方式(§4.6.2)は維持し、所有者の対応表を「`Camera → 所有者`」にした。**同じカメラを 2 本が取り合うときだけ**「最初の 1 本を優先 + 警告 1 回(Data ごと)」。`Camera.main` 用 1 本と専用カメラ用 1 本は同時に再生でき、警告も出ない。
+- **G-5(§4.6.5)も指定カメラで判定する**: `options.Camera` が再生中に破棄されたら、そのプレイバックのカメラ演出だけ BlendOut 無しで終了(警告 1 回)。Cutscene 自体と他の本は続く。破棄された指定カメラのとき `Camera.main` へフォールバックしない。
+- **`CutsceneBindTarget.MainCamera` のバインド**は指定カメラの Transform に解決する。`DDriveCutsceneCameraApplier.EnsureOn(camera)` はそのまま使うので Volume / DoF も指定カメラに付く。
+- **`ViewCamera.TryGetCurrent` の `Source = Cutscene` 判定は変えない**(`Camera.main` の Applier だけを見る)。指定カメラの再生中も `ViewCamera` は `MainCamera` のまま(画面のゲームカメラは動いていないため)。
+- **ネット**: `CutscenePlayOptions` はローカル専用で送らない。`Flags.Net = Cosmetic` の送信側だけ options を自分のローカル再生に適用し、受信側は従来どおり `Camera.main`・`LockInput` どおり。
+- Edit Mode プレビュー(`CutsceneEditModeCameraWriter`)・`CameraExecutionOrderValidator`・`CutscenePreviewHarness` は変更していない。実装 = `CutsceneManager`(`CameraSlot` の対応表 / `ResolveCutsceneCamera` / `ReleaseSlot`)・`CutscenePlayOptions.cs`。テスト = `Tests/Runtime/CutscenePlayOptionsTests.cs`。
+
 ### 4.7 ネット(ローカル再生と同期再生の両方)(2026-09-18 新規)
 
 ユーザー決定: 両方要る。**新しいフィールドは足さず、既存の `AssetFlags.Net`(全 Data 共通、[02] §2 / [14] §3)で切り替える。** Presentation(5-8 / 5-9 / 6-0)と同じ流儀にそのまま乗せる。
