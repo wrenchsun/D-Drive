@@ -114,6 +114,9 @@ namespace DDrive.Tests.Runtime
         [UnityTest]
         public IEnumerator SpecifiedCamera_IsDriven_AndMainCameraIsUntouched()
         {
+            // 専用 Camera に RT を付けて描かせる(MS-R-12)ため、-nographics では Inconclusive にする。
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             var main = CreateCamera("MsMain", true, 100f);
             var studio = CreateCamera("MsStudio", false, -50f);
             var rt = new RenderTexture(64, 64, 16);

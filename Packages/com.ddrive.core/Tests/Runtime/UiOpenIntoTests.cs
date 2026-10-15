@@ -228,6 +228,9 @@ namespace DDrive.Tests.Runtime
         [UnityTest]
         public IEnumerator OpenInto_DoesNotReceiveRaycasts_AtScreenBottomLeft()
         {
+            // RT を実際に Create する(GraphicRaycaster の eventCamera 判定)ため、-nographics では Inconclusive にする。
+            RequiresGraphicsGuard.SkipIfNoGraphicsDevice();
+
             var es = new GameObject("TestEventSystem", typeof(EventSystem));
             _created.Add(es);
 
