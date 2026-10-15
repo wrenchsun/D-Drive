@@ -37,6 +37,9 @@
 # Visual Studio cache directory
 .vs/
 
+# VS Code user settings (mcp.json etc.)
+.vscode/
+
 # Gradle cache directory
 .gradle/
 

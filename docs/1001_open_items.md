@@ -53,6 +53,7 @@
 | D-Drive 自身の URL を追加しようとしたときの文言（Q-1 で変更後） | [43](verification/43_manual_verification_2026-09-17.md) 15-14 |
 | MS2026 を v1.4.0 以降に上げた後、禁止 API 29 件を仕分ける | [43](verification/43_manual_verification_2026-09-17.md) 17-9 |
 | MS2026 の Player ビルドでカットシーンのトラックが読めるか（M-6） | [52](verification/52_manual_verification_fc.md) 4-6 |
+| MS2026 を v1.9.0 に上げ、`Ui.OpenInto`（A-21）/ `CutscenePlayOptions`（A-22）で回避策を置き換えたときに ElementFx・Cutscene が RT に映るか。`Vector2Int size` の解釈（RT の中で描く大きさ）が MS2026 の意図と合うか | [1004](1004_tasks.md) MS-1 / MS-2、[archive/1012](archive/1012_release_1_9_0.md) §4 |
 | 次の実機確認では NetCheck のビルドを作り直す（`8ce3ce1` の古いビルドは使わない。2026-10-07 の v1.4.1 リリースで作り直し済み） | [29](verification/29_network_device_test.md) §27、[64](reviews/64_review_m6_2026-10-06.md) GF-R-18 |
 
 ### 1-D. P-15 更新ウィンドウ（[43](verification/43_manual_verification_2026-09-17.md) §15）
@@ -101,7 +102,6 @@
 | ID | 内容 | 状態 | 出典 | 着手の条件 |
 |---|---|---|---|---|
 | **MCP-1〜**（v1.5.0） | D-Drive MCP（AI 向けの Editor 操作ツール群） | 仕様書あり・未着手 | [1002](1002_ddrive_mcp.md) | 2026-10-07 起票 |
-| **MS-1 / MS-2**（v1.9.0） | MS2026 からの依頼: `Ui.OpenInto`（Canvas を RenderTexture に描く。UI スタックの外、ElementFx は通常どおり）/ `Cutscene` を指定カメラで再生（3D パネルのスタジオ RT 向け） | 起票済み・未着手 | [1004](1004_tasks.md) MS 節、MS2026 `Docs/Spec/09_CityDisplayAuthoring.md` §8 | 2026-10-15 起票。MS2026 側は届くまで回避策（ElementFx 無し・`PlayableDirector` 直接再生） |
 | FC-8 | カットシーンのキャラ FBX でブレンドシェイプのカーブを通す | 保留 | [51](51_tdrive_integration.md) §4.9 | 表情アニメの運用が決まったら |
 | FC-9 | 7-3/7-4 から外部コンポーネントの値を触る口 | 保留 | [51](51_tdrive_integration.md) §4.10 | 7-3/7-4 に着手するとき |
 | FC-13 | インスタンスごとのマテリアル値（MPB） | 保留 | [51](51_tdrive_integration.md) §4.14 | MS2026 で表情パラメータを使い始め、方式が決まったら |
@@ -220,3 +220,4 @@
 - 2026-10-07: 作成（v1.4.1 リリース時。docs/11・verification・reviews・archive・51・26・42・13・09・14・20・32 から未完了分を収集）
 - **Canvas: 全画面・解像度変更で HUD が追従しない（2026-10-12 ユーザー指摘）**: C-1 で修正済み（レイヤールートに CanvasScaler）。**MS2026 実機で全画面にして確認待ち（ユーザー）**。終わったらこの行を消す。残: Slide 遷移の `SlideOffset` は Canvas 単位の絶対値（基準解像度 1920x1080 で決める。横長の画面で左右からのスライドが画面外まで届かないときは値を大きくする）
 - 2026-10-15: §2 に MS-1 / MS-2（MS2026 の街のディスプレイ向け API 依頼）を追加（チケット本体は [1004](1004_tasks.md) MS 節）
+- 2026-10-15: v1.9.0 リリース。§2 の MS-1 / MS-2 の行を消し、§1-C に MS2026 側の置き換え確認の行を足した
