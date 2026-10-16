@@ -11,7 +11,7 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Ux
 {
     // カードと行の組み立て・インライン検証・モード / 検索 / 変更だけの絞り込み・未調整の折りたたみ・一括リセット。
-    internal abstract partial class UxEditorWindow<TData>
+    public abstract partial class UxEditorWindow<TData>
     {
         private readonly List<UxCard> _cards = new List<UxCard>();
         private readonly List<UxRow> _rows = new List<UxRow>();

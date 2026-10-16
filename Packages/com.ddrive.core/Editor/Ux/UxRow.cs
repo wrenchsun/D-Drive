@@ -10,7 +10,7 @@ namespace DDrive.Editor.Ux
 {
     // 1 欄(試験版 D / E の PdRow を移植): [左端の変更バー] [段バッジ + ラベル(固定幅)] [入力] [↺] + 一言説明 + インライン検証。
     // 複数のフィールドをまとめて 1 つのビジュアル入力にする欄(長さ・位置・レイヤー)にも使う(entries が複数)。
-    internal class UxRow : VisualElement
+    public class UxRow : VisualElement
     {
         private readonly SerializedObject _so;
         private readonly SerializedObject _defaultSo;
@@ -134,14 +134,14 @@ namespace DDrive.Editor.Ux
             UpdateState();
         }
 
-        public static string TierName(FieldTier t) => t == FieldTier.Required ? "必須" : t == FieldTier.Common ? "よく使う" : "詳細";
+        internal static string TierName(FieldTier t) => t == FieldTier.Required ? "必須" : t == FieldTier.Common ? "よく使う" : "詳細";
 
         private static string TierTooltip(FieldTier t) =>
             t == FieldTier.Required ? "必須: 空だとエラーになる欄" : t == FieldTier.Common ? "よく使う: 普段触る欄" : "詳細: 既定のままで大丈夫な欄";
 
-        public static VisualElement MakeInput(SerializedObject so, string field) => GuidedField.MakeInput(so, field);
+        internal static VisualElement MakeInput(SerializedObject so, string field) => GuidedField.MakeInput(so, field);
 
-        public static bool IsCompound(SerializedObject so, string field) => GuidedField.IsCompound(so, field);
+        internal static bool IsCompound(SerializedObject so, string field) => GuidedField.IsCompound(so, field);
 
         public virtual void OnModeChanged(int mode) { }
 
@@ -331,7 +331,7 @@ namespace DDrive.Editor.Ux
             }
         }
 
-        public static string IssueKey(List<ValidationResult> results)
+        internal static string IssueKey(List<ValidationResult> results)
         {
             var sb = new System.Text.StringBuilder();
             for (var i = 0; i < results.Count; i++)
@@ -342,7 +342,7 @@ namespace DDrive.Editor.Ux
             return sb.ToString();
         }
 
-        public static VisualElement MakeIssue(ValidationResult r, Action changed)
+        internal static VisualElement MakeIssue(ValidationResult r, Action changed)
         {
             var row = new VisualElement();
             row.AddToClassList("ux-issue");
@@ -380,7 +380,7 @@ namespace DDrive.Editor.Ux
     }
 
     // 視覚部品(DurationBar / AnchorPad など)を 1 つの入力として載せる欄。複数のフィールドをまとめて扱える(entries が複数)。
-    internal sealed class UxVisualRow : UxRow
+    public sealed class UxVisualRow : UxRow
     {
         private readonly IUxSyncable _visual;
 
@@ -394,7 +394,7 @@ namespace DDrive.Editor.Ux
     }
 
     // 案内付きの 1 欄の入力部品を作る共通ヘルパー(ラベルは行側が出すので空にする)。
-    internal static class GuidedField
+    public static class GuidedField
     {
         // PropertyField。RenderLayer だけ LayerField(レイヤー名で選ばせる)。
         public static VisualElement MakeInput(SerializedObject so, string field)

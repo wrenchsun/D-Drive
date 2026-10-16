@@ -6,7 +6,7 @@ namespace DDrive.Editor.Ux
 {
     // UxEditorWindow を継承しない窓(ウィザードなど)に共通テーマ(DDriveUx.uss)を当てる(docs/1010 UX-7)。
     // root に .ux-root と Light / Dark のクラスを付ける。Light / Dark が切り替わったかは IsStale で見る(窓が自分で作り直す)。
-    internal static class UxTheme
+    public static class UxTheme
     {
         private const string SheetName = "DDriveUx";
         private static StyleSheet _sheet;

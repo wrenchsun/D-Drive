@@ -12,7 +12,7 @@ namespace DDrive.Editor.Ux
     // ウィンドウ内で別の Data へ切り替える部品(◀ [名前 ▼] ▶。試験版 E から移植。種別非依存で、Data の型名で一覧を引く)。
     // ドロップダウンは AdvancedDropdown(検索付き。先頭に「最近開いた」、以降は Category 別)。◀ ▶ は同じ Category 内を表示名順に移る。
     // 🔒 固定とは独立(固定中でも切り替えられる)。
-    internal sealed class DataSwitcher : VisualElement
+    public sealed class DataSwitcher : VisualElement
     {
         private const string RecentKeyPrefix = "DDrive.Ux.Recent.";
         private const int RecentMax = 5;
@@ -163,11 +163,11 @@ namespace DDrive.Editor.Ux
 
         // ── 一覧 ──
 
-        public static string Name(AssetDataBase d) => string.IsNullOrEmpty(d.DisplayName) ? d.name : d.DisplayName;
+        internal static string Name(AssetDataBase d) => string.IsNullOrEmpty(d.DisplayName) ? d.name : d.DisplayName;
 
-        public static string CategoryOf(AssetDataBase d) => string.IsNullOrEmpty(d.Category) ? "未分類" : d.Category;
+        internal static string CategoryOf(AssetDataBase d) => string.IsNullOrEmpty(d.Category) ? "未分類" : d.Category;
 
-        public static List<AssetDataBase> CollectAll(Type dataType)
+        internal static List<AssetDataBase> CollectAll(Type dataType)
         {
             var list = new List<AssetDataBase>();
             foreach (var guid in AssetDatabase.FindAssets("t:" + dataType.Name))
@@ -195,7 +195,7 @@ namespace DDrive.Editor.Ux
 
         // ── 最近開いた Data(SessionState) ──
 
-        public static void Record(Type dataType, AssetDataBase d)
+        internal static void Record(Type dataType, AssetDataBase d)
         {
             if (d == null)
             {
@@ -219,7 +219,7 @@ namespace DDrive.Editor.Ux
             SessionState.SetString(RecentKeyPrefix + dataType.Name, string.Join("|", ids));
         }
 
-        public static List<AssetDataBase> LoadRecent(Type dataType)
+        internal static List<AssetDataBase> LoadRecent(Type dataType)
         {
             var result = new List<AssetDataBase>();
             foreach (var guid in SessionState.GetString(RecentKeyPrefix + dataType.Name, string.Empty).Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries))

@@ -9,7 +9,7 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Ux
 {
     // つまみの値の型。Other(カーブ / グラデーション)は Inspector 側で編集するので表示のみ。
-    internal enum TuneValueKind
+    public enum TuneValueKind
     {
         Color,
         Float,
@@ -25,7 +25,7 @@ namespace DDrive.Editor.Ux
     }
 
     // 「＋ つまみを追加」の候補 1 件。Name は反映先の名前(Vfx なら材質の TargetProperty)。
-    internal struct TuneCandidate
+    public struct TuneCandidate
     {
         public string Name;
         public TuneValueKind Kind;
@@ -33,7 +33,7 @@ namespace DDrive.Editor.Ux
     }
 
     // 追加の見込み。Free = 候補の列挙をせず自由入力の行を足す / Message = 足せない理由 / それ以外は Candidates から選ぶ。
-    internal sealed class TuneAddPlan
+    public sealed class TuneAddPlan
     {
         public bool Free;
         public string Message;
@@ -42,7 +42,7 @@ namespace DDrive.Editor.Ux
 
     // つまみの供給元(docs/1010 §2 TuneKnobs)。種別ごとに実装する: Vfx の Params、Material の Specific、Canvas の ElementFx パラメータ、Tuning の値。
     // 値の読み書きの Undo / SetDirty / 再生中の即時反映は TuneKnobs が行い、供給元はデータの読み書きだけをする。
-    internal interface ITuneSource
+    public interface ITuneSource
     {
         UnityEngine.Object Owner { get; }
 
@@ -122,13 +122,15 @@ namespace DDrive.Editor.Ux
     }
 
     // つまみの分類(チップ)の共通の語彙と推定。
-    internal static class TuneCategories
+    public static class TuneCategories
     {
         // 0 色 / 1 サイズ / 2 速度 / 3 強さ / 4 不透明度 / 5 その他
-        public static readonly string[] Names = { "色", "サイズ", "速度", "強さ", "不透明度", "その他" };
+        public static IReadOnlyList<string> Names => NameArray;
+
+        private static readonly string[] NameArray = { "色", "サイズ", "速度", "強さ", "不透明度", "その他" };
 
         // 候補の絞り込み・分類の推定に使う語(添字は種類: 0 色 / 1 サイズ / 2 速度 / 3 強さ / 4 不透明度 / 5 寿命)。
-        public static readonly string[][] Words =
+        internal static readonly string[][] Words =
         {
             new string[0],
             new[] { "size", "scale", "radius", "width", "thick" },
@@ -175,7 +177,7 @@ namespace DDrive.Editor.Ux
             return 5;
         }
 
-        public static bool HasWord(string text, string[] words)
+        internal static bool HasWord(string text, string[] words)
         {
             if (string.IsNullOrEmpty(text))
             {
@@ -195,7 +197,7 @@ namespace DDrive.Editor.Ux
     }
 
     // 調整つまみの欄: 1 つまみ = 1 行(分類チップ / 名前 / 部品 / ↺ / ⚙)。
-    internal sealed class TuneKnobsRow : UxRow
+    public sealed class TuneKnobsRow : UxRow
     {
         private readonly TuneKnobs _panel;
 
@@ -213,7 +215,7 @@ namespace DDrive.Editor.Ux
     // 調整つまみのパネル(試験版 E の PeTunePanel を種別非依存にしたもの)。値は供給元(ITuneSource)へ書く
     // (Undo.RecordObject + SetDirty、1.2 秒以内の連続操作は 1 回の Undo にまとめる)。再生中は ApplyLive で即時反映。
     // 左端の色バーと ↺ は「このウィンドウで開いたときの値」との差。
-    internal sealed class TuneKnobs : VisualElement
+    public sealed class TuneKnobs : VisualElement
     {
         private sealed class Knob
         {

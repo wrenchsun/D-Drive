@@ -46,6 +46,12 @@ namespace DDrive.Editor.Compat
             {
                 foreach (var entry in DataEditorRegistry.GetEntries(dataType))
                 {
+                    // X-3(2026-10-16): テスト用アセンブリの窓(ExternalContract の UxEditorWindow<T> 派生など)は契約に含めない。
+                    if (DDrive.Foundation.Extension.AssetKindRegistry.IsTestAssemblyName(entry.WindowType.Assembly.GetName().Name))
+                    {
+                        continue;
+                    }
+
                     entries.Add($"{dataType.FullName} -> {entry.WindowType.FullName} \"{entry.Label}\" order={entry.Order}");
                 }
             }
@@ -80,7 +86,132 @@ namespace DDrive.Editor.Compat
             AppendType(sb, typeof(ICameraExecutionOrderExemptionProvider));
             AppendType(sb, typeof(CameraExecutionOrderExemption));
 
+            // X-3(2026-10-16、docs/42 §5.9 / §5.14 E-27、docs/1014 §2.3): 持ち込み先が継承・配置する専用エディター基盤。
+            // public と protected の全メンバー(抽象メンバー・virtual の口を含む)を固定する。追加のみ(削除・改名・型変更・
+            // virtual → abstract・既存メンバーの引数変更は MAJOR)。
+            sb.Append("== UxPublicApi ==\n");
+            var uxTypes = typeof(DDriveMenu).Assembly.GetExportedTypes()
+                .Where(t => t.Namespace == "DDrive.Editor.Ux")
+                .OrderBy(t => t.FullName, StringComparer.Ordinal);
+            foreach (var t in uxTypes)
+            {
+                AppendApiType(sb, t);
+            }
+
+            // X-3: 確認用シーンで実 Manager を駆動する基底と Editor プレビューの module 口。
+            sb.Append("== PreviewApi ==\n");
+            AppendApiType(sb, typeof(DDrive.Editor.Preview.UxPreviewDriverBase));
+            AppendApiType(sb, typeof(DDrive.Editor.Preview.PreviewResetReason));
+            AppendApiType(sb, typeof(DDrive.Editor.Preview.EditorModuleHost));
+
             return sb.ToString();
+        }
+
+        // public / protected の全メンバーを 1 行ずつ(static / abstract / virtual / override の区別つき)。並びは名前順(enum は宣言順)。
+        private static void AppendApiType(System.Text.StringBuilder sb, Type type)
+        {
+            var kind = type.IsEnum ? "enum"
+                : type.IsInterface ? "interface"
+                : type.IsValueType ? "struct"
+                : type.IsAbstract && type.IsSealed ? "static class"
+                : type.IsAbstract ? "abstract class"
+                : type.IsSealed ? "sealed class"
+                : "class";
+            var header = kind + " " + type.FullName;
+            if (!type.IsEnum && !type.IsInterface && type.BaseType != null && type.BaseType != typeof(object) && type.BaseType != typeof(ValueType))
+            {
+                header += " : " + type.BaseType.Name;
+            }
+
+            sb.Append(header).Append('\n');
+
+            if (type.IsEnum)
+            {
+                foreach (var name in Enum.GetNames(type))
+                {
+                    sb.Append($"  {name} = {Convert.ToInt64(Enum.Parse(type, name))}\n");
+                }
+
+                return;
+            }
+
+            const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+            var lines = new List<string>();
+
+            foreach (var i in type.GetInterfaces())
+            {
+                if (type.BaseType == null || !i.IsAssignableFrom(type.BaseType))
+                {
+                    lines.Add("  implements " + i.Name);
+                }
+            }
+
+            foreach (var c in type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+            {
+                if (IsApiVisible(c.IsPublic, c.IsFamily || c.IsFamilyOrAssembly))
+                {
+                    lines.Add($"  {Access(c.IsPublic)} ctor({ParamList(c.GetParameters())})");
+                }
+            }
+
+            foreach (var f in type.GetFields(Flags))
+            {
+                if (IsApiVisible(f.IsPublic, f.IsFamily || f.IsFamilyOrAssembly))
+                {
+                    var mod = f.IsLiteral ? "const " : (f.IsStatic ? "static " : string.Empty) + (f.IsInitOnly ? "readonly " : string.Empty);
+                    lines.Add($"  {Access(f.IsPublic)} field {mod}{f.FieldType.Name} {f.Name}");
+                }
+            }
+
+            foreach (var p in type.GetProperties(Flags))
+            {
+                var get = p.GetMethod;
+                var set = p.SetMethod;
+                var vis = (get != null && IsApiVisible(get.IsPublic, get.IsFamily || get.IsFamilyOrAssembly)) || (set != null && IsApiVisible(set.IsPublic, set.IsFamily || set.IsFamilyOrAssembly));
+                if (!vis)
+                {
+                    continue;
+                }
+
+                var m = get ?? set;
+                var pub = (get != null && get.IsPublic) || (set != null && set.IsPublic);
+                lines.Add($"  {Access(pub)} property {MethodMods(m)}{p.PropertyType.Name} {p.Name} {{{(get != null && IsApiVisible(get.IsPublic, get.IsFamily || get.IsFamilyOrAssembly) ? " get;" : string.Empty)}{(set != null && IsApiVisible(set.IsPublic, set.IsFamily || set.IsFamilyOrAssembly) ? " set;" : string.Empty)} }}");
+            }
+
+            foreach (var m in type.GetMethods(Flags).Where(m => !m.IsSpecialName))
+            {
+                if (IsApiVisible(m.IsPublic, m.IsFamily || m.IsFamilyOrAssembly))
+                {
+                    lines.Add($"  {Access(m.IsPublic)} method {MethodMods(m)}{m.ReturnType.Name} {m.Name}({ParamList(m.GetParameters())})");
+                }
+            }
+
+            lines.Sort(StringComparer.Ordinal);
+            foreach (var line in lines)
+            {
+                sb.Append(line).Append('\n');
+            }
+        }
+
+        private static bool IsApiVisible(bool isPublic, bool isFamily) => isPublic || isFamily;
+
+        private static string Access(bool isPublic) => isPublic ? "public" : "protected";
+
+        private static string ParamList(ParameterInfo[] ps) => string.Join(", ", ps.Select(a => a.ParameterType.Name + " " + a.Name));
+
+        private static string MethodMods(MethodInfo m)
+        {
+            var s = m.IsStatic ? "static " : string.Empty;
+            if (m.IsAbstract)
+            {
+                s += "abstract ";
+            }
+            else if (m.IsVirtual && !m.IsFinal)
+            {
+                s += m.GetBaseDefinition() != m ? "override " : "virtual ";
+            }
+
+            return s;
         }
 
         // 型の public な公開面(コンストラクタ / フィールド / プロパティ / メソッド / enum 値)を 1 行ずつ。並びは名前順。

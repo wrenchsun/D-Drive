@@ -26,7 +26,7 @@ namespace DDrive.Editor.Ux
     // 見た目はすべて Theme/DDriveUx.uss(C# にインラインスタイルを書かない)。
     //
     // ファイル構成: 本ファイル = 対象・保存・再生・定期更新 / .Chrome.cs = ヒーロー・固定バー・空状態・カード / .Rows.cs = 行・検証・絞り込み。
-    internal abstract partial class UxEditorWindow<TData> : EditorWindow where TData : AssetDataBase
+    public abstract partial class UxEditorWindow<TData> : EditorWindow where TData : AssetDataBase
     {
         private static bool SuppressDialogs => UxTestHooks.SuppressDialogs || Application.isBatchMode;
 

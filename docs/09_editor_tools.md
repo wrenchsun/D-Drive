@@ -1198,6 +1198,14 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - 共通の検査（`DataValidationRunner`）に種別が足したい結果は `AppendValidation(results)`（UX-7。例: Anim2D は基底の `AnimDataValidator` も通す）、空状態に足したいボタンは `AddEmptyActions(zone)`（例: Anim2D の「＋ 新規作成」でウィザードを開く）。`UxEditorWindow` を継承しない窓（ウィザードなど）にテーマを当てるには `UxTheme.Apply(root)`（Light / Dark の変化は `UxTheme.IsStale(root)`）
 - 確認は `UxScreenshot` で Dark / Light の両方を撮り、自分で画像を見て崩れを直す（最低 2 周。[1010](1010_editor_ux_migration.md) D-8）
 
+### 公開 API（持ち込み先が継承・配置できる、2026-10-16、X-3）
+
+[1014](1014_extension_platform.md) §2.3: 上の部品のうち、持ち込み先の Editor asmdef（`DDrive.Editor` を参照）が `UxEditorWindow<TData>` 派生の窓を書くのに要るものを `public` にした。公開したのは `UxEditorWindow<TData>`（`protected abstract` = `PrefsKey` / `Guide` / `ManualPage` / `CardDescription`、他は `protected virtual` の口）/ `FieldGuide<TData>` / `FieldGuideEntry` / `FieldTier` / `FieldRowKind` / `UxCard` / `UxRow` / `UxVisualRow` / `GuidedField` / `TuneKnobs` / `TuneKnobsRow` / `ITuneSource`（+ `TuneValueKind` / `TuneCandidate` / `TuneAddPlan` / `TuneCategories`）/ `DurationBar`（+ `Values` / `UxLifeMode`）/ `AnchorPad` / `DataSwitcher` / `UxTheme` / `UxShow` / `IUxSyncable`。`UxTestHooks` / `UxScreenshot` / `UxPalette` は internal のまま。
+
+- **契約**: `editor-contract.txt` の `== UxPublicApi ==` 節が public / protected の全メンバー（static / abstract / virtual / override の区別つき）を固定する。**追加のみ**（削除・改名・型変更・virtual → abstract・既存メンバーの引数変更は MAJOR）。`ITuneSource` に既定実装つきメンバーを足すのは MINOR、必須メンバーを足すのは MAJOR。
+- **確認用シーンの駆動**: `DDrive.Editor.Preview.UxPreviewDriverBase`（ルート `[D-Drive] …` の作成と後始末・Edit Mode の Tick・シーン切替 / プレハブモード / Play Mode 突入 / 再コンパイル / シーン保存直前 / Dispose での自動停止）を派生して「▶ で自分の Manager を実物で動かし ■ で戻す」を書く。module（`IDDriveModule`）を Edit Mode で動かすには `EditorModuleHost`。契約は `editor-contract.txt` の `== PreviewApi ==`。
+- 書き方の見本は `Tests/Editor/ExternalContract/ExternalSampleEditorWindow.cs`（`FieldGuide` / `TuneKnobs` / `DurationBar` / `UxPreviewDriverBase` を public API だけで使う窓。契約テスト E-27 = `ExternalContractUxTests`）。
+
 ### UX テストの衛生ルール（2026-10-13、UX-1b）
 
 実ウィンドウを `Show()` するテストが型限定の掃除で取りこぼし、ウィンドウとサンプル Data が溜まって Unity がメモリ不足で落ちた（EditMode 全件実行中に 2 回）。新しい UX 系テストは次を守る。

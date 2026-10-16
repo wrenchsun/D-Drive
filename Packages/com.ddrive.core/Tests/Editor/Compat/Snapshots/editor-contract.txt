@@ -128,3 +128,279 @@ class DDrive.Editor.Validation.CameraExecutionOrderExemption
   field String Reason
   field String TypeName
   field Type Type
+== UxPublicApi ==
+sealed class DDrive.Editor.Ux.AnchorPad : VisualElement
+  implements IUxSyncable
+  public ctor(Object undoTarget, Func`1 get, Action`1 apply, Action`1 changed)
+  public method Void SetDimmed(Boolean dim)
+  public method Void SetNote(String text)
+  public method Void Sync()
+sealed class DDrive.Editor.Ux.DataSwitcher : VisualElement
+  public ctor(Type dataType, Func`1 current, Action`1 set)
+  public method Void Refresh()
+sealed class DDrive.Editor.Ux.DurationBar : VisualElement
+  implements IUxSyncable
+  public ctor(Object undoTarget, Func`1 get, Action`1 apply, Action`1 changed)
+  public method Void Sync()
+struct DDrive.Editor.Ux.DurationBar+Values
+  implements IEquatable`1
+  public field Single Duration
+  public field Single Fade
+  public field UxLifeMode Mode
+  public method Boolean Equals(Values o)
+sealed class DDrive.Editor.Ux.FieldGuideEntry
+  public ctor()
+  public field FieldRowKind Kind
+  public field FieldTier Tier
+  public field Func`3 DefaultCheck
+  public field String Field
+  public field String Hint
+  public field String Label
+  public field String Purpose
+  public field String[] Keywords
+  public method Boolean Matches(String query)
+abstract class DDrive.Editor.Ux.FieldGuide`1
+  protected ctor()
+  protected method static FieldGuideEntry E(String field, String label, String hint, FieldTier tier, String purpose, String[] keywords)
+  protected method static FieldGuideEntry EventsEntry(String purpose)
+  protected method static FieldGuideEntry FlagsEntry(String purpose)
+  protected property abstract IReadOnlyList`1 SpecificEntries { get; }
+  protected property abstract IReadOnlyList`1 SpecificPurposes { get; }
+  public field const String AdminPurpose
+  public method FieldGuideEntry Find(String field)
+  public property IReadOnlyList`1 Entries { get; }
+  public property IReadOnlyList`1 Purposes { get; }
+  public property Type DataType { get; }
+enum DDrive.Editor.Ux.FieldRowKind
+  Normal = 0
+  Visual = 1
+  Knobs = 2
+  ReadOnly = 3
+enum DDrive.Editor.Ux.FieldTier
+  Required = 0
+  Common = 1
+  Advanced = 2
+static class DDrive.Editor.Ux.GuidedField
+  public method static Boolean IsCompound(SerializedObject so, String field)
+  public method static VisualElement MakeInput(SerializedObject so, String field)
+  public method static Void Collapse(SerializedObject so, String field)
+interface DDrive.Editor.Ux.ITuneSource
+  public method abstract Int32 InferCategory(Int32 index)
+  public method abstract ParamValue Value(Int32 index)
+  public method abstract String Label(Int32 index)
+  public method abstract String Signature()
+  public method abstract String TargetName(Int32 index)
+  public method abstract TuneAddPlan PlanAdd(Int32 kind)
+  public method abstract TuneValueKind KindOf(Int32 index)
+  public method abstract Void Append(Int32 kind, TuneCandidate candidate)
+  public method abstract Void AppendFree()
+  public method abstract Void ApplyLive(String label, ParamValue value)
+  public method abstract Void RemoveAt(Int32 index)
+  public method abstract Void SetValue(Int32 index, ParamValue value)
+  public method virtual Boolean TryRange(Int32 index, Single& min, Single& max)
+  public method virtual Boolean UseNumberField(Int32 index)
+  public method virtual Int32 ArrayIndex(Int32 index)
+  public method virtual String SearchText(Int32 index)
+  public method virtual String Summary(Int32 index)
+  public method virtual String UnitOf(Int32 index)
+  public method virtual String[] EnumOptions(Int32 index)
+  public property abstract IReadOnlyList`1 AddKinds { get; }
+  public property abstract IReadOnlyList`1 DetailFields { get; }
+  public property abstract Int32 Count { get; }
+  public property abstract Object Owner { get; }
+  public property abstract String ArrayPath { get; }
+  public property abstract String OwnerKey { get; }
+  public property virtual Boolean CanAddRemove { get; }
+  public property virtual Boolean CategoryEditable { get; }
+  public property virtual Boolean WideNames { get; }
+  public property virtual IReadOnlyList`1 CategoryNames { get; }
+interface DDrive.Editor.Ux.IUxSyncable
+  public method abstract Void Sync()
+sealed class DDrive.Editor.Ux.TuneAddPlan
+  public ctor()
+  public field Boolean Free
+  public field List`1 Candidates
+  public field String Message
+struct DDrive.Editor.Ux.TuneCandidate
+  public field ParamValue Value
+  public field String Name
+  public field TuneValueKind Kind
+static class DDrive.Editor.Ux.TuneCategories
+  public method static Int32 Infer(TuneValueKind kind, String label, String target)
+  public property static IReadOnlyList`1 Names { get; }
+sealed class DDrive.Editor.Ux.TuneKnobs : VisualElement
+  public ctor(ITuneSource source, SerializedObject so, Action edited, Action structural)
+  public field const Int32 VirtualizeAbove
+  public method Boolean AnyMatch(String query)
+  public method Void SetQuery(String query)
+  public method Void Sync()
+  public property Int32 KnobCount { get; }
+  public property Int32 ModifiedCount { get; }
+  public property Int32 ShownCount { get; }
+sealed class DDrive.Editor.Ux.TuneKnobsRow : UxRow
+  public ctor(SerializedObject so, SerializedObject defaultSo, IReadOnlyList`1 entries, String hint, TuneKnobs panel, Action changed)
+  public method override Void Sync()
+enum DDrive.Editor.Ux.TuneValueKind
+  Color = 0
+  Float = 1
+  Int = 2
+  Vector = 3
+  Texture = 4
+  Other = 5
+  Bool = 6
+  String = 7
+  Enum = 8
+sealed class DDrive.Editor.Ux.UxCard : VisualElement
+  public ctor(String title, String desc, Action help)
+  public method Boolean IsFolded(UxRow row)
+  public method Void AddRow(UxRow row)
+  public method Void SetFoldShown(Int32 shown)
+  public method Void SetFolded(UxRow row, Boolean folded)
+  public method Void SetVisibility(Int32 visibleRows, Boolean filtering)
+  public method static Action Help(String page, String anchor)
+  public property List`1 Rows { get; }
+  public property VisualElement Body { get; }
+abstract class DDrive.Editor.Ux.UxEditorWindow`1 : EditorWindow
+  protected ctor()
+  protected method String PrefKey(String name)
+  protected method UxRow CreateDefaultRow(FieldGuideEntry e)
+  protected method Void AddAuxRow(UxCard card, UxRow row)
+  protected method Void AddCard(VisualElement page, UxCard card)
+  protected method Void AddRow(UxCard card, UxRow row, Boolean isAdmin)
+  protected method Void ConfirmSaveBeforeLeave(TData data, String reason)
+  protected method Void PlayMain(Boolean focus)
+  protected method Void RebuildBody()
+  protected method Void RefreshAfterExternalWrite()
+  protected method Void RefreshAll(Boolean syncVisuals)
+  protected method Void RegisterRowOnly(UxRow row, Boolean countAsChange)
+  protected method Void ResetPlayback()
+  protected method Void RestartIfPlaying()
+  protected method Void RowChanged()
+  protected method Void RowChangedRestart()
+  protected method Void RunValidation()
+  protected method Void SaveTarget()
+  protected method Void ScrollToElement(VisualElement element)
+  protected method Void SetTarget(TData data, Boolean confirmSave)
+  protected method Void StopMain()
+  protected method Void VisualEdited(Boolean final, Boolean sideEffect)
+  protected method abstract String CardDescription(String purpose)
+  protected method static Button MakeButton(String text, String cls, Action click, String tooltip)
+  protected method static T OpenWindow(String title)
+  protected method virtual Boolean AcceptsTarget(TData data)
+  protected method virtual String ManualAnchor(String purpose)
+  protected method virtual TData CreateSample()
+  protected method virtual UxRow CreateRow(FieldGuideEntry e, UxCard card, Boolean isAdmin)
+  protected method virtual Void AddEmptyActions(VisualElement zone)
+  protected method virtual Void AddLeadingHeroActions(VisualElement actions)
+  protected method virtual Void AfterHero(VisualElement page)
+  protected method virtual Void AppendValidation(List`1 results)
+  protected method virtual Void BeforeCard(String purpose, VisualElement page)
+  protected method virtual Void DrawSceneGui()
+  protected method virtual Void OnBodyBuilt(VisualElement page)
+  protected method virtual Void OnBuildBodyStart()
+  protected method virtual Void OnFiltersApplied(String query)
+  protected method virtual Void OnPlaybackReset()
+  protected method virtual Void OnPropertyEdited(String path)
+  protected method virtual Void OnRowsRefreshed()
+  protected method virtual Void OnSideEffect()
+  protected method virtual Void OnSlowTick()
+  protected method virtual Void OnSpeedChanged(Single speed)
+  protected method virtual Void OnTargetChanged()
+  protected method virtual Void OnTargetRejected(TData data)
+  protected method virtual Void OnTick()
+  protected method virtual Void OnValidated(IReadOnlyList`1 results)
+  protected method virtual Void OnWindowDisable()
+  protected method virtual Void OnWindowEnable()
+  protected method virtual Void RestartPlayback()
+  protected method virtual Void StartPlayback(Boolean focus)
+  protected method virtual Void StopPlayback()
+  protected property Boolean AutoSave { get; set; }
+  protected property Boolean Locked { get; set; }
+  protected property Boolean Repeat { get; set; }
+  protected property Boolean WantPlaying { get; }
+  protected property Int32 ViewMode { get; }
+  protected property SerializedObject DefaultSo { get; }
+  protected property SerializedObject So { get; }
+  protected property Single Speed { get; set; }
+  protected property String DataKindName { get; }
+  protected property String SearchQuery { get; }
+  protected property TData Target { get; }
+  protected property abstract FieldGuide`1 Guide { get; }
+  protected property abstract String ManualPage { get; }
+  protected property abstract String PrefsKey { get; }
+  protected property virtual Boolean HasSample { get; }
+  protected property virtual Boolean IsPlaying { get; }
+  protected property virtual Boolean SupportsPlayback { get; }
+  protected property virtual Boolean SupportsRepeat { get; }
+  protected property virtual Boolean SupportsSpeed { get; }
+  protected property virtual Boolean ValidationIncludesSameTypeAssets { get; }
+  protected property virtual Boolean WantsSceneGui { get; }
+  protected property virtual IReadOnlyList`1 ValidationTokens { get; }
+  protected property virtual String SampleLabel { get; }
+  protected property virtual String SearchHint { get; }
+  protected property virtual String[] ModeTips { get; }
+  protected property virtual Texture DefaultIcon { get; }
+enum DDrive.Editor.Ux.UxLifeMode
+  OneShot = 0
+  Loop = 1
+  Duration = 2
+class DDrive.Editor.Ux.UxRow : VisualElement
+  public ctor(SerializedObject so, SerializedObject defaultSo, IReadOnlyList`1 entries, String label, String hint, FieldTier tier, Boolean stacked, VisualElement input, Action changed)
+  public method Boolean Matches(String query)
+  public method Void ApplyDefault()
+  public method Void Highlight(String query)
+  public method Void SetIssues(List`1 results)
+  public method Void UpdateState()
+  public method virtual Void OnModeChanged(Int32 mode)
+  public method virtual Void Sync()
+  public property Boolean HasIssues { get; }
+  public property Boolean IsDuplicate { get; set; }
+  public property Boolean IsModified { get; }
+  public property Boolean NeedsAttention { get; }
+  public property Boolean NoBulkReset { get; set; }
+  public property Boolean NoFold { get; set; }
+  public property FieldTier Tier { get; }
+  public property Func`2 ExtraMatch { get; set; }
+  public property IReadOnlyList`1 Entries { get; }
+  public property Int32 MaxIssues { get; set; }
+  public property String Label { get; }
+static class DDrive.Editor.Ux.UxShow
+  public field const String HiddenClass
+  public method static Boolean IsShown(VisualElement element)
+  public method static Void Show(VisualElement element, Boolean shown)
+static class DDrive.Editor.Ux.UxTheme
+  public method static Boolean IsStale(VisualElement root)
+  public method static Void Apply(VisualElement root)
+sealed class DDrive.Editor.Ux.UxVisualRow : UxRow
+  public ctor(SerializedObject so, SerializedObject defaultSo, IReadOnlyList`1 entries, String label, String hint, FieldTier tier, VisualElement visual, Action changed)
+  public method override Void Sync()
+== PreviewApi ==
+abstract class DDrive.Editor.Preview.UxPreviewDriverBase
+  implements IDisposable
+  protected ctor(String rootName)
+  protected method abstract Void OnReset(PreviewResetReason reason)
+  protected method abstract Void OnTick(Single scaledDt)
+  protected method virtual Void OnPausedChanged(Boolean paused)
+  public field const String RootNamePrefix
+  public method Void Dispose()
+  public method Void Tick(Single dt)
+  public property Boolean IsDisposed { get; }
+  public property Boolean Paused { get; set; }
+  public property GameObject PreviewRoot { get; }
+  public property Single Speed { get; set; }
+  public property String RootName { get; }
+enum DDrive.Editor.Preview.PreviewResetReason
+  SceneChanged = 0
+  PrefabStageChanged = 1
+  EnteringPlayMode = 2
+  AssemblyReload = 3
+  SceneSaving = 4
+  Dispose = 5
+sealed class DDrive.Editor.Preview.EditorModuleHost
+  implements IDisposable
+  public ctor(IAssetRegistry registry, IPoolService pool, PauseService pauseService, INetBridge netBridge)
+  public method Void Dispose()
+  public method Void Tick(Single dt)
+  public property DDriveBootstrapContext Context { get; }
+  public property GameLoop Loop { get; }
+  public property IReadOnlyList`1 Managers { get; }

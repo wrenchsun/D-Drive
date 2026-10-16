@@ -11,16 +11,16 @@ namespace DDrive.Editor.Ux
     //  - Loop: ∞ 表示(止めるまで続く)。右端の余韻だけドラッグできる。
     // 書き込みは Undo.RecordObject + SetDirty(1 回のドラッグは 1 回の Undo にまとめる)。外部変更・Undo は Sync() で再描画する。
     // 長さの終わり方(種別の LifeMode を呼び出し側が対応づける)。
-    internal enum UxLifeMode
+    public enum UxLifeMode
     {
         OneShot = 0,
         Loop = 1,
         Duration = 2,
     }
 
-    internal sealed class DurationBar : VisualElement, IUxSyncable
+    public sealed class DurationBar : VisualElement, IUxSyncable
     {
-        internal struct Values : IEquatable<Values>
+        public struct Values : IEquatable<Values>
         {
             public UxLifeMode Mode;
             public float Duration;

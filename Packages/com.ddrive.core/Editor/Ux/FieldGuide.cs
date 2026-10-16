@@ -5,7 +5,7 @@ using DDrive.Foundation.Data;
 namespace DDrive.Editor.Ux
 {
     // 欄の重要度(docs/1008 §2)。Required = Validator が Error にする / Common = よく触る・Warning の対象 / Advanced = 既定のままでよい。
-    internal enum FieldTier
+    public enum FieldTier
     {
         Required = 0,
         Common = 1,
@@ -14,7 +14,7 @@ namespace DDrive.Editor.Ux
 
     // 行の種類。Normal = PropertyField の通常欄 / Visual = 視覚部品(DurationBar・AnchorPad など。種別が行を作る)/
     // Knobs = 調整つまみ(TuneKnobs。種別が行を作る)/ ReadOnly = 表示のみ(編集不可)。
-    internal enum FieldRowKind
+    public enum FieldRowKind
     {
         Normal = 0,
         Visual = 1,
@@ -23,7 +23,7 @@ namespace DDrive.Editor.Ux
     }
 
     // 1 欄ぶんの案内。Field は SerializedObject.FindProperty に渡すフィールド名(入れ子は "Anchor" のようにルート名)。
-    internal sealed class FieldGuideEntry
+    public sealed class FieldGuideEntry
     {
         public string Field;
         public string Label;
@@ -71,7 +71,7 @@ namespace DDrive.Editor.Ux
     // 種別ごとの静的な表(docs/1010 §2)。AssetDataBase の共通欄は基底が持ち、「管理情報」カードに出る
     // (既定で DisplayName と Category だけ「よく使う」、残りは「詳細」。Id / Version / Author / UpdatedAt は読み取り専用の一行)。
     // 種別ごとの表は SpecificEntries / SpecificPurposes を実装して書く。段の根拠は Validator(Error にする欄 = 必須)。
-    internal abstract class FieldGuide<TData> where TData : AssetDataBase
+    public abstract class FieldGuide<TData> where TData : AssetDataBase
     {
         public const string AdminPurpose = "管理情報";
 

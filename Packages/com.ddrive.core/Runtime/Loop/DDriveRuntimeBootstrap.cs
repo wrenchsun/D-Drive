@@ -160,8 +160,7 @@ namespace DDrive.Runtime.Loop
         private UnscaledCameraFxAdapter _cameraFxAdapter;
         private bool _built;
         // [1014] §2.2(X-2) — Bind まで済んだ IDDriveModule(Build の順)。Teardown で逆順に Unbind する。
-        private readonly List<IDDriveModule> _boundModules = new();
-        private readonly List<IAssetManager> _moduleManagers = new();
+        private ModuleRunner _moduleRunner;
 
         // [42_distribution.md] §2.3-9/§7 A-7(P1-1、2026-09-20) — NGO ブリッジ生成(NetBridgeFactoryRegistry
         // 経由)の戻り値。StartHost/StartClient の実行は Start() まで遅延する(NetworkManager.Awake/OnEnable が
@@ -425,66 +424,18 @@ namespace DDrive.Runtime.Loop
                 return;
             }
 
-            var loop = Loop.GameLoop;
             var ctx = new DDriveBootstrapContext(
-                Registry, Pool, new NetworkTimeSource(NetBridge), Loop.PauseService, new EventBus(), NetBridge, loop, false,
+                Registry, Pool, new NetworkTimeSource(NetBridge), Loop.PauseService, new EventBus(), NetBridge, Loop.GameLoop, false,
                 Audio, Bgm, Vfx, Anim, Materials, Models, Prefabs, Ui, UiTweens, CameraFx, Haptics, Presentation, Cutscene);
-
-            for (var i = 0; i < modules.Count; i++)
-            {
-                var module = modules[i];
-                var name = module.GetType().FullName;
-                try
-                {
-                    var managers = module.CreateManagers(in ctx);
-                    if (managers != null)
-                    {
-                        var warnedNull = false;
-                        for (var j = 0; j < managers.Count; j++)
-                        {
-                            if (managers[j] == null)
-                            {
-                                if (!warnedNull)
-                                {
-                                    warnedNull = true;
-                                    Debug.LogWarning($"[DDrive] IDDriveModule '{name}'.CreateManagers returned a null element; it was skipped.");
-                                }
-
-                                continue;
-                            }
-
-                            loop.Register(managers[j]);
-                            _moduleManagers.Add(managers[j]);
-                        }
-                    }
-
-                    module.Bind();
-                    _boundModules.Add(module);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[DDrive] IDDriveModule '{name}' failed to start and was skipped: {e.Message}");
-                }
-            }
+            _moduleRunner = new ModuleRunner(modules);
+            _moduleRunner.Start(in ctx);
         }
 
-        // 終了時: 逆順に Unbind。例外は module 単位で警告して続ける。
+        // 終了時: 逆順に Unbind し、module の Manager を GameLoop から外す(冪等)。
         private void TeardownModules()
         {
-            for (var i = _boundModules.Count - 1; i >= 0; i--)
-            {
-                var module = _boundModules[i];
-                try
-                {
-                    module.Unbind();
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[DDrive] IDDriveModule '{module.GetType().FullName}'.Unbind threw and was ignored: {e.Message}");
-                }
-            }
-
-            _boundModules.Clear();
+            _moduleRunner?.Stop();
+            _moduleRunner = null;
         }
 
         // 実際に解決されたネットワーク起動オプション(コマンドライン引数 + Inspector 既定値)。
@@ -688,13 +639,8 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Presentation);
                 loop.Unregister(_groupAdapter);
                 loop.Unregister(_cameraFxAdapter);
-                for (var i = _moduleManagers.Count - 1; i >= 0; i--)
-                {
-                    loop.Unregister(_moduleManagers[i]);
-                }
             }
 
-            _moduleManagers.Clear();
             TeardownModules(); // loop が無かった場合の取りこぼし防止(冪等)
 
             Dispatcher?.Dispose();

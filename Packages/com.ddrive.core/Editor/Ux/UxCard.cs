@@ -9,7 +9,7 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Ux
 {
     // カード(試験版 D の PdCard を移植): 角丸の枠 + 見出し(14px 太字)+ 一言説明 + 右上「？」。表示できる欄が無いときは既定のままで大丈夫の案内。
-    internal sealed class UxCard : VisualElement
+    public sealed class UxCard : VisualElement
     {
         private readonly VisualElement _body;
         private readonly Label _empty;

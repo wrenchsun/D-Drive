@@ -117,3 +117,23 @@ Assets/_Project/DDriveExtensions/Lighting/            （または Packages/com.
 - **例外**: `CreateManagers` / `Bind` / `Unbind` の例外は module 単位で捕まえ、警告 1 件（module の型のフルネームつき）+ その module を飛ばす。`CreateManagers` が成功した後に `Bind` が例外を出した module の Manager は GameLoop に登録されたまま（Unbind は呼ばれない）。Tick の定常経路には何も足していない（呼び出しは起動と終了だけ）。
 - **Editor プレビューは X-3 に回した（判断）**: プレビューが Manager を new している場所は `SceneAnimPreviewDriver` / `SceneVfxPreviewDriver` / `ScenePresentationPreviewDriver` / `PreviewService` / `EditorAudioFactory` / `CanvasEditorWindow` / `PrefabEditorWindow` / `MaterialEditorWindow` / `CutsceneEditModeManagers` ほか個別で、種別ごとに必要な部品の組が違い、共通の生成経路が無い。ここで無理に統一すると多数のエディターの挙動を変えるうえ、持ち込み先が module を使うプレビューは X-3（`PreviewService` 系の public 化）で初めて必要になる。X-3 で共通の生成口を作るときに `DDriveBootstrapContext`（`IsEditorPreview = true`）と module 呼び出しを乗せる。いまは `IsEditorPreview` を持つだけで、Bootstrap は常に false を渡す。
 - **契約テスト E-25**: `ExternalContractModuleTests`（PlayMode 6 件）+ ダミー `ExternalPackage.Fake.ExternalModuleProbe`（First〔-5〕/ SameA / SameB〔0〕/ Faulty〔3〕/ Late〔5〕）。
+
+## X-3 実装メモ（2026-10-16）
+
+**公開した型**（`DDrive.Editor.Ux`、すべて `public`。`DDrive.Editor` を参照する持ち込み先の Editor asmdef から継承・配置できる）: `UxEditorWindow<TData>`（3 つの partial 全部。`protected abstract` = `PrefsKey` / `Guide` / `ManualPage` / `CardDescription`、他は `protected virtual` の口）/ `FieldGuide<TData>` / `FieldGuideEntry` / `FieldTier` / `FieldRowKind` / `UxCard` / `UxRow` / `UxVisualRow` / `GuidedField` / `TuneKnobs` / `TuneKnobsRow` / `ITuneSource`（+ `TuneValueKind` / `TuneCandidate` / `TuneAddPlan` / `TuneCategories`）/ `DurationBar`（+ `Values` / `UxLifeMode`）/ `AnchorPad` / `DataSwitcher` / `UxTheme` / `UxShow` / `IUxSyncable`。`UxTestHooks` / `UxScreenshot` / `UxPalette` は internal のまま。`TuneKnobsRow` は spec の一覧に無かったが、`TuneKnobs`（パネル）を欄にするのに外部が必要なので公開した。
+
+**公開前に整理した点**（公開後は追加のみなので、先に直した）:
+- `UxRow.MakeInput` / `IsCompound` は `GuidedField.MakeInput` / `IsCompound` の複製だったので internal にした（外部は `GuidedField` を使う）。`UxRow.TierName` / `IssueKey` / `MakeIssue` も内部の道具なので internal。
+- `DataSwitcher` の静的ヘルパー（`Name` / `CategoryOf` / `CollectAll` / `Record` / `LoadRecent`）は内部用なので internal。
+- `TuneCategories.Names` は可変な `string[]` の public フィールドだったのを `IReadOnlyList<string>` のプロパティに（配列の中身を外から書き換えられない）。`Words` / `HasWord` は内部用なので internal。公開は `Names` と `Infer` だけ。
+- 既存の窓の挙動は変えていない（型の可視性だけの変更。メンバーの名前・引数・戻り値は変えていない）。`UxRow` のコンストラクタが引数 9 個と長いが、公開してからは変えられない形になるので、整理せず現状の並びを契約にした（将来は別の入口を追加する）。
+
+**プレビュー基底**（`Editor/Preview/`）: `UxPreviewDriverBase`（public abstract。ルート `[D-Drive] …` の遅延作成〔DontSave、プレハブモード中はステージに置く〕・Edit Mode の Tick〔`EditorApplication.update`、dt は 0.25 秒で頭打ち、`Speed` を掛けて `OnTick` へ、`Paused` 中は呼ばない〕・シーン切替 / プレハブモードの開閉 / Play Mode 突入 / 再コンパイル / シーン保存の直前 / Dispose での自動停止 `OnReset(PreviewResetReason)`。保存の直前だけルートを残し、それ以外は破棄）と `PreviewResetReason`。派生は `OnTick` と `OnReset` を書き、Manager の生成と登録は自分で行う。**既存の `Scene*PreviewDriver`（Vfx / Anim / Presentation）と `PreviewService` は変えていない**（重複が出るが今回は許容）。
+
+**Editor プレビューへの module の乗せ方（X-2 から回した分）**: `DDriveBootstrapContext.ForEditorPreview(...)`（`IsEditorPreview = true`、必須は Registry / Pool / GameLoop、他は省略可で省略した組み込み Manager は null）と `EditorModuleHost : IDisposable`（`Editor/Preview/`。`ModuleRegistry` の module から Manager を作り、自前の `GameLoop` に登録して Edit Mode で Tick。Dispose で StopAll → 逆順に Unbind → 解除）。起動と終了の実体は Runtime の新しい公開クラス `ModuleRunner`（`DDriveRuntimeBootstrap` もこれを使うようにした。順序・例外時の扱いは X-2 のまま）。既存の窓・Driver には乗せていない。
+
+**`[DataEditor]` の検査**: `DataEditorRegistryTests` に `EveryExtensionKindDataType_HasEditor`（`AssetType.Extension` + `KindKey` の Data は、アセンブリを問わず〔`DDrive.Tests*` を除く〕専用エディターを持つこと）を足した。既存の `EveryDataType_PrimaryIsNewEditor_…` は登録済みの全 Data 型（外部のものを含む）を見るので、外部の窓も「Order 0 の `UxEditorWindow<T>` 派生」であることが検査される。`editor-contract.txt` の `[DataEditor]` 節はテスト用アセンブリの窓を含めない。
+
+**契約**: `editor-contract.txt` に `== UxPublicApi ==`（`DDrive.Editor.Ux` の public 型すべて。public / protected の全メンバー、static / abstract / virtual / override の区別つき）と `== PreviewApi ==`（`UxPreviewDriverBase` / `PreviewResetReason` / `EditorModuleHost`）を追加（追加のみ）。E-27 = EditMode `ExternalContractUxTests`（8 件）。窓の模擬は `ExternalSampleEditorWindow`（`Tests/Editor/ExternalContract/`。`ExternalSampleData` に欄を足した〔追加のみ〕）。
+
+**将来の整理候補**: ① `SceneVfxPreviewDriver` / `SceneAnimPreviewDriver` / `ScenePresentationPreviewDriver` を `UxPreviewDriverBase` の上に載せ替える（同じ自動停止の処理が 3 か所と基底に重複している）② `UxRow` のコンストラクタ（引数 9 個）に対する名前付きの作成口 ③ `FieldGuideEntry` の public フィールドをプロパティに（公開してしまったので MAJOR 扱い。必要なら別の型を足す）④ `ITuneSource` の必須メンバーが多い（既定実装つきメンバーの追加は MINOR で済むが、必須メンバーの追加は MAJOR）。

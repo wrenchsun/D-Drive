@@ -49,6 +49,19 @@ namespace DDrive.Runtime.Extension
         public PresentationManager Presentation { get; }
         public CutsceneManager Cutscene { get; }
 
+        // [1014] §2.3(X-3) — Editor プレビュー用の Context(IsEditorPreview = true)。持ち込み先の窓が、確認用の Manager 群を
+        // 自前で組むときに module へ渡す。渡さなかった組み込み Manager は null(module は null を許容して書くこと)。
+        public static DDriveBootstrapContext ForEditorPreview(
+            IAssetRegistry registry, IPoolService pool, GameLoop gameLoop,
+            PauseService pauseService = null, ITimeSource timeSource = null, EventBus events = null, INetBridge netBridge = null,
+            AudioManager audio = null, BgmManager bgm = null, VfxManager vfx = null, AnimManager anim = null,
+            MaterialManager materials = null, ModelsManager models = null, PrefabsManager prefabs = null, UiManager ui = null,
+            UiTweenManager uiTweens = null, CameraFxManager cameraFx = null, HapticsManager haptics = null,
+            PresentationManager presentation = null, CutsceneManager cutscene = null)
+            => new DDriveBootstrapContext(
+                registry, pool, timeSource, pauseService ?? new PauseService(), events ?? new EventBus(), netBridge, gameLoop, true,
+                audio, bgm, vfx, anim, materials, models, prefabs, ui, uiTweens, cameraFx, haptics, presentation, cutscene);
+
         internal DDriveBootstrapContext(
             IAssetRegistry registry, IPoolService pool, ITimeSource timeSource, PauseService pauseService,
             EventBus events, INetBridge netBridge, GameLoop gameLoop, bool isEditorPreview,

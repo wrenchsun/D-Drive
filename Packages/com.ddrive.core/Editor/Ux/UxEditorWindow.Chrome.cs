@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Ux
 {
     // 窓の外枠(テーマ・ヒーロー・検索・固定バー・空状態・カード)。
-    internal abstract partial class UxEditorWindow<TData>
+    public abstract partial class UxEditorWindow<TData>
     {
         private const string SheetName = "DDriveUx";
         private static readonly string[] ModeNames = { "かんたん", "標準", "詳細" };

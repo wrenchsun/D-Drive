@@ -22,6 +22,8 @@
 
 E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。クラス名は移植時に `Pd*` / `Pe*` の接頭辞を外す。
 
+> **public（持ち込み先が継承可、2026-10-16、X-3）**: この表の部品のうち `UxEditorWindow<TData>` / `FieldGuide<TData>` / `UxRow` / `UxCard` / `TuneKnobs` + `ITuneSource` / `DurationBar` / `AnchorPad` / `DataSwitcher` / `UxTheme` / `UxShow` ほかは `public`（`UxTestHooks` / `UxScreenshot` / `UxPalette` は internal）。公開した型は Editor 契約（`editor-contract.txt` の `== UxPublicApi ==`）に載り、以降は追加のみ。詳細は [09](09_editor_tools.md) §16「公開 API」・[1014](1014_extension_platform.md) X-3 実装メモ。
+
 | 部品 | 元（Prototypes） | 内容・移植時の変更 |
 |---|---|---|
 | テーマ | `Theme/PrototypeD.uss` + `PrototypeE.uss` | `Editor/Ux/Theme/DDriveUx.uss` 1 本に統合。Light / Dark の変数（`--ux-*`）。**C# のインラインスタイル禁止**（U-27 の機械点検に「Ux 配下の `.style.` 代入禁止」の検査を足す） |

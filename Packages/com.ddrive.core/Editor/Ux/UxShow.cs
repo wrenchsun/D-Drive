@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 namespace DDrive.Editor.Ux
 {
     // 表示 / 非表示は style.display ではなく USS クラス(.ux-hidden)で切り替える(Ux 配下はインラインスタイル禁止。docs/1010 §2)。
-    internal static class UxShow
+    public static class UxShow
     {
         public const string HiddenClass = "ux-hidden";
 
@@ -13,7 +13,7 @@ namespace DDrive.Editor.Ux
     }
 
     // 部品が持つ「外部変更(Inspector・Undo・別の欄)を取り込んで描き直す」口。UxVisualRow が束ねる。
-    internal interface IUxSyncable
+    public interface IUxSyncable
     {
         void Sync();
     }

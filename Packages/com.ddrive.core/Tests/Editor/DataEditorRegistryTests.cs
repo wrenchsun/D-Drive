@@ -66,6 +66,36 @@ namespace DDrive.Tests.Editor
             Assert.IsEmpty(missing, "専用エディタの EditorWindow に [DataEditor(typeof(XxxData), \"…で開く\")] を付けてください: " + string.Join(", ", missing));
         }
 
+        // X-3(2026-10-16、docs/1014 §2.3): 持ち込み先が AssetType.Extension(KindKey 付き)で定義した Data も専用エディターを持つこと。
+        // 上のテストは DDrive.* のアセンブリだけを見るので、外部アセンブリの Extension 種別はここで検査する(DDrive.Tests* は除く)。
+        // 実際の外部パッケージは自分のテストでこの検査を書く。ここでは ExternalContract.Tests(外部の模擬)の ExternalSampleData が対象になる。
+        [Test]
+        public void EveryExtensionKindDataType_HasEditor()
+        {
+            var missing = new List<string>();
+            foreach (var type in TypeCache.GetTypesDerivedFrom<AssetDataBase>())
+            {
+                var assembly = type.Assembly.GetName().Name;
+                if (type.IsAbstract || assembly.StartsWith("DDrive.Tests", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var def = (DDrive.Foundation.Identity.AssetIdDefinitionAttribute)Attribute.GetCustomAttribute(type, typeof(DDrive.Foundation.Identity.AssetIdDefinitionAttribute), false);
+                if (def == null || def.Type != DDrive.Foundation.Identity.AssetType.Extension || string.IsNullOrEmpty(def.KindKey))
+                {
+                    continue;
+                }
+
+                if (!DataEditorRegistry.HasEditor(type))
+                {
+                    missing.Add(type.Name);
+                }
+            }
+
+            Assert.IsEmpty(missing, "Extension 種別の Data に [DataEditor] の窓がありません: " + string.Join(", ", missing));
+        }
+
         [Test]
         public void KnownPairs_ResolveToTheirWindows()
         {

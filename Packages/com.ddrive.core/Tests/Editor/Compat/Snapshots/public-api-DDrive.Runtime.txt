@@ -823,6 +823,7 @@ TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneVfxTrack : UnityEngine.
 TYPE class static DDrive.Runtime.DDriveVersion
   field const Value : string
 TYPE struct DDrive.Runtime.Extension.DDriveBootstrapContext
+  method static ForEditorPreview(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Pool.IPoolService pool, DDrive.Foundation.Manager.GameLoop gameLoop, DDrive.Foundation.Pause.PauseService pauseService = null, DDrive.Foundation.Net.ITimeSource timeSource = null, DDrive.Foundation.Event.EventBus events = null, DDrive.Foundation.Net.INetBridge netBridge = null, DDrive.Runtime.Audio.AudioManager audio = null, DDrive.Runtime.Audio.BgmManager bgm = null, DDrive.Runtime.Vfx.VfxManager vfx = null, DDrive.Runtime.Anim.AnimManager anim = null, DDrive.Runtime.Material.MaterialManager materials = null, DDrive.Runtime.Model.ModelsManager models = null, DDrive.Runtime.Prefab.PrefabsManager prefabs = null, DDrive.Runtime.Ui.UiManager ui = null, DDrive.Runtime.Ui.UiTweenManager uiTweens = null, DDrive.Runtime.CameraShake.CameraFxManager cameraFx = null, DDrive.Runtime.Haptics.HapticsManager haptics = null, DDrive.Runtime.Presentation.PresentationManager presentation = null, DDrive.Runtime.Cutscene.CutsceneManager cutscene = null) : DDrive.Runtime.Extension.DDriveBootstrapContext
   property Anim : DDrive.Runtime.Anim.AnimManager {get}
   property Audio : DDrive.Runtime.Audio.AudioManager {get}
   property Bgm : DDrive.Runtime.Audio.BgmManager {get}
@@ -853,6 +854,12 @@ TYPE class static DDrive.Runtime.Extension.ModuleRegistry
   method static Refresh() : void
   property static All : System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Extension.IDDriveModule> {get}
   property static IncludeTestAssemblies : bool {get;set}
+TYPE class sealed DDrive.Runtime.Extension.ModuleRunner
+  ctor ModuleRunner(System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Extension.IDDriveModule> modules)
+  method Start(ref DDrive.Runtime.Extension.DDriveBootstrapContext ctx) : void
+  method Stop() : void
+  property BoundCount : int {get}
+  property Managers : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Manager.IAssetManager> {get}
 TYPE class sealed DDrive.Runtime.Haptics.GamepadHapticOutput
   ctor GamepadHapticOutput()
   method SetMotors(float low, float high) : void
