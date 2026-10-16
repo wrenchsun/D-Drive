@@ -28,3 +28,4 @@
 | 65 | [2026-10-06 自前レビュー結果（PR #133 = 埋め込んだ子 Canvas の有効 / 無効）](65_review_pr133_embedded_active_2026-10-06.md) | （docs/README の一覧外だった文書。見出しのとおり） |
 | 66 | [2026-10-06 自前レビュー結果（PR #135 = docs/63 GE-R-01・GE-R-02 への対応 + DesignerManual の追記）](66_review_pr135_editmode_camera_save_2026-10-06.md) | （docs/README の一覧外だった文書。見出しのとおり） |
 | 1013 | [2026-10-15 自前レビュー結果（MS-1 `Ui.OpenInto` / MS-2 `CutscenePlayOptions`）](1013_review_ms_2026-10-15.md) | v1.9.0 のタグ前の差分レビュー（Opus）: P1 2 件（Offscreen が入力を受ける・ルートの Y が遠ざかる）/ P2 4 件 / P3 8 件と対応状況 |
+| 1015 | [2026-10-16 自前レビュー結果（X-1〜X-5 = 外部拡張〔プラグイン〕基盤）](1015_review_x_extension_2026-10-16.md) | v1.10.0 のタグ前の差分レビュー（Opus）: P1 4 件（EditorModuleHost がファサードを取り合う・provider の Prefix が全種別の定数名に効く・AssetKindRegistry が public を見ない・公開シグネチャの任意引数 17 個）/ P2 8 件 / P3 13 件と対応状況 |
