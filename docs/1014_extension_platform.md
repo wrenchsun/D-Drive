@@ -106,4 +106,4 @@ Assets/_Project/DDriveExtensions/Lighting/            （または Packages/com.
 - `IAssetKindProvider.Folder` は GameData ルートからの相対（`Sample` → `Assets/GameData/Sample`）。`Icon` は `Texture2D`（Foundation は UnityEngine を参照できる）。
 - Editor: `AssetNamingService` / `AssetCreationService`（`GetCatalogName` / `NeedsPreloadDefault` の kindKey 付きオーバーロード、`AllCatalogNames` は provider ごとに展開）、`AssetReorganizer`、`AssetBrowserWindow`（`TypeFilterChoices`）、`NewAssetDialog`、`AddressablesRegistrationValidator`、`ddrive_validate` の行（`type` 欄に KindKey）、`ddrive_help types`（provider ごとの行）。既存種別の挙動は不変（KindKey を渡しても無視）。
 
-未実装（後続）: `ddrive_asset_*` / `FieldTables` の Extension 対応（種別キーごとの欄表。`FieldTables` は組み込み 18 種のまま）、`ddrive_validate` の `scope=type:<KindKey>`、`SpecIdentifierCodec` / 仕様書同期の Extension 対応。
+未実装（X-5 へ持ち越し。[1004](1004_tasks.md) X-5 行）: `ddrive_asset_*` / `FieldTables` の Extension 対応（種別キーごとの欄表。`FieldTables` は組み込み 18 種のまま）、`ddrive_validate` の `scope=type:<KindKey>`、`SpecIdentifierCodec` / 仕様書同期の Extension 対応。
