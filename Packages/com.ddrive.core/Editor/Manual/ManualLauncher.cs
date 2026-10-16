@@ -100,6 +100,13 @@ namespace DDrive.Editor.Manual
                 return false;
             }
 
+            // X-R-16: 開く = OS の関連付けで実行されるので、文書の拡張子だけを許す(.exe / .bat などは開かない)。
+            if (!IsDocumentExtension(full))
+            {
+                Debug.LogWarning($"[D-Drive] 外部マニュアル「{page}」は文書(.html / .htm / .md / .pdf / .txt)ではないため開きません: {full}");
+                return true;
+            }
+
             if (!File.Exists(full))
             {
                 Debug.LogWarning($"[D-Drive] 外部マニュアル「{page}」が見つかりません: {full}");
@@ -109,6 +116,17 @@ namespace DDrive.Editor.Manual
             var url = new System.Uri(full).AbsoluteUri;
             Application.OpenURL(string.IsNullOrEmpty(anchor) ? url : url + "#" + anchor);
             return true;
+        }
+
+        // 外部マニュアルとして開いてよい拡張子(大小無視)。
+        public static bool IsDocumentExtension(string path)
+        {
+            var ext = Path.GetExtension(path ?? string.Empty);
+            return string.Equals(ext, ".html", System.StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(ext, ".htm", System.StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(ext, ".md", System.StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(ext, ".pdf", System.StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(ext, ".txt", System.StringComparison.OrdinalIgnoreCase);
         }
 
         // 外部ページの解決だけ(開かない)。page が IManualPageProvider の宣言にあり、組み込みのページが無ければ true と絶対パス(ファイルが無くても返す)。

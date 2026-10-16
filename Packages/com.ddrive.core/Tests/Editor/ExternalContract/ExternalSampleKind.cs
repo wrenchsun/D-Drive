@@ -63,4 +63,101 @@ namespace ExternalContract.Tests
             yield return ValidationResult.Info(Message);
         }
     }
+
+    // ── X-R-05 / X-R-03 用の provider ──
+    // 既定では無害な名前を返し(他のテストに影響しない)、ExternalBadKinds.Enabled = true のときだけ組み込みの種別名・既存の DisplayName と衝突する。
+
+    public static class ExternalBadKinds
+    {
+        public static bool Enabled;
+        // ExternalStagePrefixKind の Prefix を "STAGE" にする(X-R-02)。
+        public static bool StagePrefix;
+    }
+
+    // KindKey が組み込みの種別名(大小無視)と衝突する。
+    public sealed class ExternalBadKeyKind : IAssetKindProvider
+    {
+        public string KindKey => ExternalBadKinds.Enabled ? "model" : "ZzBadKey";
+        public Type DataType => typeof(ExternalSampleData);
+        public string DisplayName => "Zz Bad Key";
+        public string Prefix => "ZZA";
+        public string Folder => "ZzBadKey";
+        public string CatalogName => "ZzBadKeyCatalog";
+        public LoadMode DefaultLoad => LoadMode.LazyLoad;
+        public Texture2D Icon => null;
+        public int Order => 5001;
+    }
+
+    // DisplayName が組み込みの種別名と衝突する。
+    public sealed class ExternalBadDisplayKind : IAssetKindProvider
+    {
+        public string KindKey => "ZzBadDisplay";
+        public Type DataType => typeof(ExternalSampleData);
+        public string DisplayName => ExternalBadKinds.Enabled ? "Material" : "Zz Bad Display";
+        public string Prefix => "ZZB";
+        public string Folder => "ZzBadDisplay";
+        public string CatalogName => "ZzBadDisplayCatalog";
+        public LoadMode DefaultLoad => LoadMode.LazyLoad;
+        public Texture2D Icon => null;
+        public int Order => 5002;
+    }
+
+    // DisplayName が他の provider(Sample)と重なる。型の完全名が ExternalSampleKind より後ろなので Sample が先勝ちになる。
+    public sealed class ZzExternalDupDisplayKind : IAssetKindProvider
+    {
+        public string KindKey => "ZzDupDisplay";
+        public Type DataType => typeof(ExternalSampleData);
+        public string DisplayName => ExternalBadKinds.Enabled ? "sample" : "Zz Dup Display";
+        public string Prefix => "ZZC";
+        public string Folder => "ZzDupDisplay";
+        public string CatalogName => "ZzDupDisplayCatalog";
+        public LoadMode DefaultLoad => LoadMode.LazyLoad;
+        public Texture2D Icon => null;
+        public int Order => 5003;
+    }
+
+    // public でない provider(X-R-03): internal な型、internal な型の中の public 入れ子は、どちらも発見されない。
+    internal sealed class ExternalInternalKind : IAssetKindProvider
+    {
+        public string KindKey => "ZzInternal";
+        public Type DataType => typeof(ExternalSampleData);
+        public string DisplayName => "Zz Internal";
+        public string Prefix => "ZZD";
+        public string Folder => "ZzInternal";
+        public string CatalogName => "ZzInternalCatalog";
+        public LoadMode DefaultLoad => LoadMode.LazyLoad;
+        public Texture2D Icon => null;
+        public int Order => 5004;
+    }
+
+    internal static class ExternalInternalKindHolder
+    {
+        public sealed class NestedKind : IAssetKindProvider
+        {
+            public string KindKey => "ZzNestedInternal";
+            public Type DataType => typeof(ExternalSampleData);
+            public string DisplayName => "Zz Nested Internal";
+            public string Prefix => "ZZE";
+            public string Folder => "ZzNestedInternal";
+            public string CatalogName => "ZzNestedInternalCatalog";
+            public LoadMode DefaultLoad => LoadMode.LazyLoad;
+            public Texture2D Icon => null;
+            public int Order => 5005;
+        }
+    }
+
+    // X-R-02 用: Prefix が組み込み種別 Model の手付け名ファイル(Stage_Light)の 1 語目と一致する provider。
+    // 既定では別の接頭辞(ZZF)を返し、ExternalBadKinds.Enabled のときだけ "STAGE" を名乗る。
+    public sealed class ExternalStagePrefixKind : IAssetKindProvider
+    {
+        public string KindKey => "ZzStage";
+        public Type DataType => typeof(ExternalSampleData);
+        public string DisplayName => "Zz Stage";
+        public string Prefix => ExternalBadKinds.StagePrefix ? "STAGE" : "ZZF";
+        public string Folder => "ZzStage";
+        public string CatalogName => "ZzStageCatalog";
+        public LoadMode DefaultLoad => LoadMode.LazyLoad;
+        public Texture2D Icon => null;
+        public int Order => 5006;
+    }
 }

@@ -37,7 +37,7 @@ namespace DDrive.Editor.Spec
         public static JObject BuildChoicesPayload()
         {
             var assetTypes = Enum.GetValues(typeof(AssetType)).Cast<AssetType>()
-                .Where(t => t != AssetType.None)
+                .Where(t => t != AssetType.None && t != AssetType.Extension) // X-R-18: 仕様書同期は Extension 未対応(対応時に戻す)
                 .Select(t => t.ToString())
                 .ToArray();
 

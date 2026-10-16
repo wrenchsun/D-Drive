@@ -129,48 +129,48 @@ class DDrive.Editor.Validation.CameraExecutionOrderExemption
   field String TypeName
   field Type Type
 == UxPublicApi ==
-sealed class DDrive.Editor.Ux.AnchorPad : VisualElement
-  implements IUxSyncable
-  public ctor(Object undoTarget, Func`1 get, Action`1 apply, Action`1 changed)
-  public method Void SetDimmed(Boolean dim)
-  public method Void SetNote(String text)
-  public method Void Sync()
-sealed class DDrive.Editor.Ux.DataSwitcher : VisualElement
-  public ctor(Type dataType, Func`1 current, Action`1 set)
-  public method Void Refresh()
-sealed class DDrive.Editor.Ux.DurationBar : VisualElement
-  implements IUxSyncable
-  public ctor(Object undoTarget, Func`1 get, Action`1 apply, Action`1 changed)
-  public method Void Sync()
-struct DDrive.Editor.Ux.DurationBar+Values
-  implements IEquatable`1
-  public field Single Duration
-  public field Single Fade
-  public field UxLifeMode Mode
-  public method Boolean Equals(Values o)
+sealed class DDrive.Editor.Ux.AnchorPad : UnityEngine.UIElements.VisualElement
+  implements DDrive.Editor.Ux.IUxSyncable
+  public ctor(UnityEngine.Object undoTarget, System.Func<UnityEngine.Vector3> get, System.Action<UnityEngine.Vector3> apply, System.Action<bool> changed)
+  public method void SetDimmed(bool dim)
+  public method void SetNote(string text)
+  public method void Sync()
+sealed class DDrive.Editor.Ux.DataSwitcher : UnityEngine.UIElements.VisualElement
+  public ctor(System.Type dataType, System.Func<DDrive.Foundation.Data.AssetDataBase> current, System.Action<DDrive.Foundation.Data.AssetDataBase> set)
+  public method void Refresh()
+sealed class DDrive.Editor.Ux.DurationBar : UnityEngine.UIElements.VisualElement
+  implements DDrive.Editor.Ux.IUxSyncable
+  public ctor(UnityEngine.Object undoTarget, System.Func<DDrive.Editor.Ux.DurationBar.Values> get, System.Action<DDrive.Editor.Ux.DurationBar.Values> apply, System.Action<bool> changed)
+  public method void Sync()
+struct DDrive.Editor.Ux.DurationBar.Values
+  implements System.IEquatable<DDrive.Editor.Ux.DurationBar.Values>
+  public field DDrive.Editor.Ux.UxLifeMode Mode
+  public field float Duration
+  public field float Fade
+  public method bool Equals(DDrive.Editor.Ux.DurationBar.Values o)
 sealed class DDrive.Editor.Ux.FieldGuideEntry
   public ctor()
-  public field FieldRowKind Kind
-  public field FieldTier Tier
-  public field Func`3 DefaultCheck
-  public field String Field
-  public field String Hint
-  public field String Label
-  public field String Purpose
-  public field String[] Keywords
-  public method Boolean Matches(String query)
-abstract class DDrive.Editor.Ux.FieldGuide`1
+  public field DDrive.Editor.Ux.FieldRowKind Kind
+  public field DDrive.Editor.Ux.FieldTier Tier
+  public field System.Func<UnityEditor.SerializedProperty, UnityEditor.SerializedProperty, bool> DefaultCheck
+  public field string Field
+  public field string Hint
+  public field string Label
+  public field string Purpose
+  public field string[] Keywords
+  public method bool Matches(string query)
+abstract class DDrive.Editor.Ux.FieldGuide<TData>
   protected ctor()
-  protected method static FieldGuideEntry E(String field, String label, String hint, FieldTier tier, String purpose, String[] keywords)
-  protected method static FieldGuideEntry EventsEntry(String purpose)
-  protected method static FieldGuideEntry FlagsEntry(String purpose)
-  protected property abstract IReadOnlyList`1 SpecificEntries { get; }
-  protected property abstract IReadOnlyList`1 SpecificPurposes { get; }
-  public field const String AdminPurpose
-  public method FieldGuideEntry Find(String field)
-  public property IReadOnlyList`1 Entries { get; }
-  public property IReadOnlyList`1 Purposes { get; }
-  public property Type DataType { get; }
+  protected method static DDrive.Editor.Ux.FieldGuideEntry E(string field, string label, string hint, DDrive.Editor.Ux.FieldTier tier, string purpose, string[] keywords)
+  protected method static DDrive.Editor.Ux.FieldGuideEntry EventsEntry(string purpose)
+  protected method static DDrive.Editor.Ux.FieldGuideEntry FlagsEntry(string purpose)
+  protected property abstract System.Collections.Generic.IReadOnlyList<DDrive.Editor.Ux.FieldGuideEntry> SpecificEntries { get; }
+  protected property abstract System.Collections.Generic.IReadOnlyList<string> SpecificPurposes { get; }
+  public field const string AdminPurpose
+  public method DDrive.Editor.Ux.FieldGuideEntry Find(string field)
+  public property System.Collections.Generic.IReadOnlyList<DDrive.Editor.Ux.FieldGuideEntry> Entries { get; }
+  public property System.Collections.Generic.IReadOnlyList<string> Purposes { get; }
+  public property System.Type DataType { get; }
 enum DDrive.Editor.Ux.FieldRowKind
   Normal = 0
   Visual = 1
@@ -181,65 +181,65 @@ enum DDrive.Editor.Ux.FieldTier
   Common = 1
   Advanced = 2
 static class DDrive.Editor.Ux.GuidedField
-  public method static Boolean IsCompound(SerializedObject so, String field)
-  public method static VisualElement MakeInput(SerializedObject so, String field)
-  public method static Void Collapse(SerializedObject so, String field)
+  public method static UnityEngine.UIElements.VisualElement MakeInput(UnityEditor.SerializedObject so, string field)
+  public method static bool IsCompound(UnityEditor.SerializedObject so, string field)
+  public method static void Collapse(UnityEditor.SerializedObject so, string field)
 interface DDrive.Editor.Ux.ITuneSource
-  public method abstract Int32 InferCategory(Int32 index)
-  public method abstract ParamValue Value(Int32 index)
-  public method abstract String Label(Int32 index)
-  public method abstract String Signature()
-  public method abstract String TargetName(Int32 index)
-  public method abstract TuneAddPlan PlanAdd(Int32 kind)
-  public method abstract TuneValueKind KindOf(Int32 index)
-  public method abstract Void Append(Int32 kind, TuneCandidate candidate)
-  public method abstract Void AppendFree()
-  public method abstract Void ApplyLive(String label, ParamValue value)
-  public method abstract Void RemoveAt(Int32 index)
-  public method abstract Void SetValue(Int32 index, ParamValue value)
-  public method virtual Boolean TryRange(Int32 index, Single& min, Single& max)
-  public method virtual Boolean UseNumberField(Int32 index)
-  public method virtual Int32 ArrayIndex(Int32 index)
-  public method virtual String SearchText(Int32 index)
-  public method virtual String Summary(Int32 index)
-  public method virtual String UnitOf(Int32 index)
-  public method virtual String[] EnumOptions(Int32 index)
-  public property abstract IReadOnlyList`1 AddKinds { get; }
-  public property abstract IReadOnlyList`1 DetailFields { get; }
-  public property abstract Int32 Count { get; }
-  public property abstract Object Owner { get; }
-  public property abstract String ArrayPath { get; }
-  public property abstract String OwnerKey { get; }
-  public property virtual Boolean CanAddRemove { get; }
-  public property virtual Boolean CategoryEditable { get; }
-  public property virtual Boolean WideNames { get; }
-  public property virtual IReadOnlyList`1 CategoryNames { get; }
+  public method abstract DDrive.Editor.Ux.TuneAddPlan PlanAdd(int kind)
+  public method abstract DDrive.Editor.Ux.TuneValueKind KindOf(int index)
+  public method abstract DDrive.Foundation.Data.ParamValue Value(int index)
+  public method abstract int InferCategory(int index)
+  public method abstract string Label(int index)
+  public method abstract string Signature()
+  public method abstract string TargetName(int index)
+  public method abstract void Append(int kind, DDrive.Editor.Ux.TuneCandidate candidate)
+  public method abstract void AppendFree()
+  public method abstract void ApplyLive(string label, DDrive.Foundation.Data.ParamValue value)
+  public method abstract void RemoveAt(int index)
+  public method abstract void SetValue(int index, DDrive.Foundation.Data.ParamValue value)
+  public method virtual bool TryRange(int index, out float min, out float max)
+  public method virtual bool UseNumberField(int index)
+  public method virtual int ArrayIndex(int index)
+  public method virtual string SearchText(int index)
+  public method virtual string Summary(int index)
+  public method virtual string UnitOf(int index)
+  public method virtual string[] EnumOptions(int index)
+  public property abstract System.Collections.Generic.IReadOnlyList<string> AddKinds { get; }
+  public property abstract System.Collections.Generic.IReadOnlyList<string> DetailFields { get; }
+  public property abstract UnityEngine.Object Owner { get; }
+  public property abstract int Count { get; }
+  public property abstract string ArrayPath { get; }
+  public property abstract string OwnerKey { get; }
+  public property virtual System.Collections.Generic.IReadOnlyList<string> CategoryNames { get; }
+  public property virtual bool CanAddRemove { get; }
+  public property virtual bool CategoryEditable { get; }
+  public property virtual bool WideNames { get; }
 interface DDrive.Editor.Ux.IUxSyncable
-  public method abstract Void Sync()
+  public method abstract void Sync()
 sealed class DDrive.Editor.Ux.TuneAddPlan
   public ctor()
-  public field Boolean Free
-  public field List`1 Candidates
-  public field String Message
+  public field System.Collections.Generic.List<DDrive.Editor.Ux.TuneCandidate> Candidates
+  public field bool Free
+  public field string Message
 struct DDrive.Editor.Ux.TuneCandidate
-  public field ParamValue Value
-  public field String Name
-  public field TuneValueKind Kind
+  public field DDrive.Editor.Ux.TuneValueKind Kind
+  public field DDrive.Foundation.Data.ParamValue Value
+  public field string Name
 static class DDrive.Editor.Ux.TuneCategories
-  public method static Int32 Infer(TuneValueKind kind, String label, String target)
-  public property static IReadOnlyList`1 Names { get; }
-sealed class DDrive.Editor.Ux.TuneKnobs : VisualElement
-  public ctor(ITuneSource source, SerializedObject so, Action edited, Action structural)
-  public field const Int32 VirtualizeAbove
-  public method Boolean AnyMatch(String query)
-  public method Void SetQuery(String query)
-  public method Void Sync()
-  public property Int32 KnobCount { get; }
-  public property Int32 ModifiedCount { get; }
-  public property Int32 ShownCount { get; }
-sealed class DDrive.Editor.Ux.TuneKnobsRow : UxRow
-  public ctor(SerializedObject so, SerializedObject defaultSo, IReadOnlyList`1 entries, String hint, TuneKnobs panel, Action changed)
-  public method override Void Sync()
+  public method static int Infer(DDrive.Editor.Ux.TuneValueKind kind, string label, string target)
+  public property static System.Collections.Generic.IReadOnlyList<string> Names { get; }
+sealed class DDrive.Editor.Ux.TuneKnobs : UnityEngine.UIElements.VisualElement
+  public ctor(DDrive.Editor.Ux.ITuneSource source, UnityEditor.SerializedObject so, System.Action edited, System.Action structural)
+  public field const int VirtualizeAbove
+  public method bool AnyMatch(string query)
+  public method void SetQuery(string query)
+  public method void Sync()
+  public property int KnobCount { get; }
+  public property int ModifiedCount { get; }
+  public property int ShownCount { get; }
+sealed class DDrive.Editor.Ux.TuneKnobsRow : DDrive.Editor.Ux.UxRow
+  public ctor(UnityEditor.SerializedObject so, UnityEditor.SerializedObject defaultSo, System.Collections.Generic.IReadOnlyList<DDrive.Editor.Ux.FieldGuideEntry> entries, string hint, DDrive.Editor.Ux.TuneKnobs panel, System.Action changed)
+  public method override void Sync()
 enum DDrive.Editor.Ux.TuneValueKind
   Color = 0
   Float = 1
@@ -250,146 +250,146 @@ enum DDrive.Editor.Ux.TuneValueKind
   Bool = 6
   String = 7
   Enum = 8
-sealed class DDrive.Editor.Ux.UxCard : VisualElement
-  public ctor(String title, String desc, Action help)
-  public method Boolean IsFolded(UxRow row)
-  public method Void AddRow(UxRow row)
-  public method Void SetFoldShown(Int32 shown)
-  public method Void SetFolded(UxRow row, Boolean folded)
-  public method Void SetVisibility(Int32 visibleRows, Boolean filtering)
-  public method static Action Help(String page, String anchor)
-  public property List`1 Rows { get; }
-  public property VisualElement Body { get; }
-abstract class DDrive.Editor.Ux.UxEditorWindow`1 : EditorWindow
+sealed class DDrive.Editor.Ux.UxCard : UnityEngine.UIElements.VisualElement
+  public ctor(string title, string desc, System.Action help)
+  public method bool IsFolded(DDrive.Editor.Ux.UxRow row)
+  public method static System.Action Help(string page, string anchor = null)
+  public method void AddRow(DDrive.Editor.Ux.UxRow row)
+  public method void SetFoldShown(int shown)
+  public method void SetFolded(DDrive.Editor.Ux.UxRow row, bool folded)
+  public method void SetVisibility(int visibleRows, bool filtering)
+  public property System.Collections.Generic.IReadOnlyList<DDrive.Editor.Ux.UxRow> Rows { get; }
+  public property UnityEngine.UIElements.VisualElement Body { get; }
+abstract class DDrive.Editor.Ux.UxEditorWindow<TData> : UnityEditor.EditorWindow
   protected ctor()
-  protected method String PrefKey(String name)
-  protected method UxRow CreateDefaultRow(FieldGuideEntry e)
-  protected method Void AddAuxRow(UxCard card, UxRow row)
-  protected method Void AddCard(VisualElement page, UxCard card)
-  protected method Void AddRow(UxCard card, UxRow row, Boolean isAdmin)
-  protected method Void ConfirmSaveBeforeLeave(TData data, String reason)
-  protected method Void PlayMain(Boolean focus)
-  protected method Void RebuildBody()
-  protected method Void RefreshAfterExternalWrite()
-  protected method Void RefreshAll(Boolean syncVisuals)
-  protected method Void RegisterRowOnly(UxRow row, Boolean countAsChange)
-  protected method Void ResetPlayback()
-  protected method Void RestartIfPlaying()
-  protected method Void RowChanged()
-  protected method Void RowChangedRestart()
-  protected method Void RunValidation()
-  protected method Void SaveTarget()
-  protected method Void ScrollToElement(VisualElement element)
-  protected method Void SetTarget(TData data, Boolean confirmSave)
-  protected method Void StopMain()
-  protected method Void VisualEdited(Boolean final, Boolean sideEffect)
-  protected method abstract String CardDescription(String purpose)
-  protected method static Button MakeButton(String text, String cls, Action click, String tooltip)
-  protected method static T OpenWindow(String title)
-  protected method virtual Boolean AcceptsTarget(TData data)
-  protected method virtual String ManualAnchor(String purpose)
+  protected method DDrive.Editor.Ux.UxRow CreateDefaultRow(DDrive.Editor.Ux.FieldGuideEntry e)
+  protected method abstract string CardDescription(string purpose)
+  protected method static T OpenWindow<T>(string title)
+  protected method static UnityEngine.UIElements.Button MakeButton(string text, string cls, System.Action click, string tooltip)
+  protected method string PrefKey(string name)
+  protected method virtual DDrive.Editor.Ux.UxRow CreateRow(DDrive.Editor.Ux.FieldGuideEntry e, DDrive.Editor.Ux.UxCard card, bool isAdmin)
   protected method virtual TData CreateSample()
-  protected method virtual UxRow CreateRow(FieldGuideEntry e, UxCard card, Boolean isAdmin)
-  protected method virtual Void AddEmptyActions(VisualElement zone)
-  protected method virtual Void AddLeadingHeroActions(VisualElement actions)
-  protected method virtual Void AfterHero(VisualElement page)
-  protected method virtual Void AppendValidation(List`1 results)
-  protected method virtual Void BeforeCard(String purpose, VisualElement page)
-  protected method virtual Void DrawSceneGui()
-  protected method virtual Void OnBodyBuilt(VisualElement page)
-  protected method virtual Void OnBuildBodyStart()
-  protected method virtual Void OnFiltersApplied(String query)
-  protected method virtual Void OnPlaybackReset()
-  protected method virtual Void OnPropertyEdited(String path)
-  protected method virtual Void OnRowsRefreshed()
-  protected method virtual Void OnSideEffect()
-  protected method virtual Void OnSlowTick()
-  protected method virtual Void OnSpeedChanged(Single speed)
-  protected method virtual Void OnTargetChanged()
-  protected method virtual Void OnTargetRejected(TData data)
-  protected method virtual Void OnTick()
-  protected method virtual Void OnValidated(IReadOnlyList`1 results)
-  protected method virtual Void OnWindowDisable()
-  protected method virtual Void OnWindowEnable()
-  protected method virtual Void RestartPlayback()
-  protected method virtual Void StartPlayback(Boolean focus)
-  protected method virtual Void StopPlayback()
-  protected property Boolean AutoSave { get; set; }
-  protected property Boolean Locked { get; set; }
-  protected property Boolean Repeat { get; set; }
-  protected property Boolean WantPlaying { get; }
-  protected property Int32 ViewMode { get; }
-  protected property SerializedObject DefaultSo { get; }
-  protected property SerializedObject So { get; }
-  protected property Single Speed { get; set; }
-  protected property String DataKindName { get; }
-  protected property String SearchQuery { get; }
+  protected method virtual bool AcceptsTarget(TData data)
+  protected method virtual string ManualAnchor(string purpose)
+  protected method virtual void AddEmptyActions(UnityEngine.UIElements.VisualElement zone)
+  protected method virtual void AddLeadingHeroActions(UnityEngine.UIElements.VisualElement actions)
+  protected method virtual void AfterHero(UnityEngine.UIElements.VisualElement page)
+  protected method virtual void AppendValidation(System.Collections.Generic.List<DDrive.Foundation.Validation.ValidationResult> results)
+  protected method virtual void BeforeCard(string purpose, UnityEngine.UIElements.VisualElement page)
+  protected method virtual void DrawSceneGui()
+  protected method virtual void OnBodyBuilt(UnityEngine.UIElements.VisualElement page)
+  protected method virtual void OnBuildBodyStart()
+  protected method virtual void OnFiltersApplied(string query)
+  protected method virtual void OnPlaybackReset()
+  protected method virtual void OnPropertyEdited(string path)
+  protected method virtual void OnRowsRefreshed()
+  protected method virtual void OnSideEffect()
+  protected method virtual void OnSlowTick()
+  protected method virtual void OnSpeedChanged(float speed)
+  protected method virtual void OnTargetChanged()
+  protected method virtual void OnTargetRejected(TData data)
+  protected method virtual void OnTick()
+  protected method virtual void OnValidated(System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Validation.ValidationResult> results)
+  protected method virtual void OnWindowDisable()
+  protected method virtual void OnWindowEnable()
+  protected method virtual void RestartPlayback()
+  protected method virtual void StartPlayback(bool focus)
+  protected method virtual void StopPlayback()
+  protected method void AddAuxRow(DDrive.Editor.Ux.UxCard card, DDrive.Editor.Ux.UxRow row)
+  protected method void AddCard(UnityEngine.UIElements.VisualElement page, DDrive.Editor.Ux.UxCard card)
+  protected method void AddRow(DDrive.Editor.Ux.UxCard card, DDrive.Editor.Ux.UxRow row, bool isAdmin)
+  protected method void ConfirmSaveBeforeLeave(TData data, string reason)
+  protected method void PlayMain(bool focus)
+  protected method void RebuildBody()
+  protected method void RefreshAfterExternalWrite()
+  protected method void RefreshAll(bool syncVisuals)
+  protected method void RegisterRowOnly(DDrive.Editor.Ux.UxRow row, bool countAsChange)
+  protected method void ResetPlayback()
+  protected method void RestartIfPlaying()
+  protected method void RowChanged()
+  protected method void RowChangedRestart()
+  protected method void RunValidation()
+  protected method void SaveTarget()
+  protected method void ScrollToElement(UnityEngine.UIElements.VisualElement element)
+  protected method void SetTarget(TData data, bool confirmSave = true)
+  protected method void StopMain()
+  protected method void VisualEdited(bool final, bool sideEffect)
   protected property TData Target { get; }
-  protected property abstract FieldGuide`1 Guide { get; }
-  protected property abstract String ManualPage { get; }
-  protected property abstract String PrefsKey { get; }
-  protected property virtual Boolean HasSample { get; }
-  protected property virtual Boolean IsPlaying { get; }
-  protected property virtual Boolean SupportsPlayback { get; }
-  protected property virtual Boolean SupportsRepeat { get; }
-  protected property virtual Boolean SupportsSpeed { get; }
-  protected property virtual Boolean ValidationIncludesSameTypeAssets { get; }
-  protected property virtual Boolean WantsSceneGui { get; }
-  protected property virtual IReadOnlyList`1 ValidationTokens { get; }
-  protected property virtual String SampleGameDataRoot { get; }
-  protected property virtual String SampleLabel { get; }
-  protected property virtual String SearchHint { get; }
-  protected property virtual String[] ModeTips { get; }
-  protected property virtual Texture DefaultIcon { get; }
+  protected property UnityEditor.SerializedObject DefaultSo { get; }
+  protected property UnityEditor.SerializedObject So { get; }
+  protected property abstract FieldGuide<TData> Guide { get; }
+  protected property abstract string ManualPage { get; }
+  protected property abstract string PrefsKey { get; }
+  protected property bool AutoSave { get; set; }
+  protected property bool Locked { get; set; }
+  protected property bool Repeat { get; set; }
+  protected property bool WantPlaying { get; }
+  protected property float Speed { get; set; }
+  protected property int ViewMode { get; }
+  protected property string DataKindName { get; }
+  protected property string SearchQuery { get; }
+  protected property virtual System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, string>> ValidationTokens { get; }
+  protected property virtual UnityEngine.Texture DefaultIcon { get; }
+  protected property virtual bool HasSample { get; }
+  protected property virtual bool IsPlaying { get; }
+  protected property virtual bool SupportsPlayback { get; }
+  protected property virtual bool SupportsRepeat { get; }
+  protected property virtual bool SupportsSpeed { get; }
+  protected property virtual bool ValidationIncludesSameTypeAssets { get; }
+  protected property virtual bool WantsSceneGui { get; }
+  protected property virtual string SampleGameDataRoot { get; }
+  protected property virtual string SampleLabel { get; }
+  protected property virtual string SearchHint { get; }
+  protected property virtual string[] ModeTips { get; }
 enum DDrive.Editor.Ux.UxLifeMode
   OneShot = 0
   Loop = 1
   Duration = 2
-class DDrive.Editor.Ux.UxRow : VisualElement
-  public ctor(SerializedObject so, SerializedObject defaultSo, IReadOnlyList`1 entries, String label, String hint, FieldTier tier, Boolean stacked, VisualElement input, Action changed)
-  public method Boolean Matches(String query)
-  public method Void ApplyDefault()
-  public method Void Highlight(String query)
-  public method Void SetIssues(List`1 results)
-  public method Void UpdateState()
-  public method virtual Void OnModeChanged(Int32 mode)
-  public method virtual Void Sync()
-  public property Boolean HasIssues { get; }
-  public property Boolean IsDuplicate { get; set; }
-  public property Boolean IsModified { get; }
-  public property Boolean NeedsAttention { get; }
-  public property Boolean NoBulkReset { get; set; }
-  public property Boolean NoFold { get; set; }
-  public property FieldTier Tier { get; }
-  public property Func`2 ExtraMatch { get; set; }
-  public property IReadOnlyList`1 Entries { get; }
-  public property Int32 MaxIssues { get; set; }
-  public property String Label { get; }
+class DDrive.Editor.Ux.UxRow : UnityEngine.UIElements.VisualElement
+  public ctor(UnityEditor.SerializedObject so, UnityEditor.SerializedObject defaultSo, System.Collections.Generic.IReadOnlyList<DDrive.Editor.Ux.FieldGuideEntry> entries, string label, string hint, DDrive.Editor.Ux.FieldTier tier, bool stacked, UnityEngine.UIElements.VisualElement input, System.Action changed)
+  public method bool Matches(string query)
+  public method virtual void OnModeChanged(int mode)
+  public method virtual void Sync()
+  public method void ApplyDefault()
+  public method void Highlight(string query)
+  public method void SetIssues(System.Collections.Generic.List<DDrive.Foundation.Validation.ValidationResult> results)
+  public method void UpdateState()
+  public property DDrive.Editor.Ux.FieldTier Tier { get; }
+  public property System.Collections.Generic.IReadOnlyList<DDrive.Editor.Ux.FieldGuideEntry> Entries { get; }
+  public property System.Func<string, bool> ExtraMatch { get; set; }
+  public property bool HasIssues { get; }
+  public property bool IsDuplicate { get; set; }
+  public property bool IsModified { get; }
+  public property bool NeedsAttention { get; }
+  public property bool NoBulkReset { get; set; }
+  public property bool NoFold { get; set; }
+  public property int MaxIssues { get; set; }
+  public property string Label { get; }
 static class DDrive.Editor.Ux.UxShow
-  public field const String HiddenClass
-  public method static Boolean IsShown(VisualElement element)
-  public method static Void Show(VisualElement element, Boolean shown)
+  public field const string HiddenClass
+  public method static bool IsShown(UnityEngine.UIElements.VisualElement element)
+  public method static void Show(UnityEngine.UIElements.VisualElement element, bool shown)
 static class DDrive.Editor.Ux.UxTheme
-  public method static Boolean IsStale(VisualElement root)
-  public method static Void Apply(VisualElement root)
-sealed class DDrive.Editor.Ux.UxVisualRow : UxRow
-  public ctor(SerializedObject so, SerializedObject defaultSo, IReadOnlyList`1 entries, String label, String hint, FieldTier tier, VisualElement visual, Action changed)
-  public method override Void Sync()
+  public method static bool IsStale(UnityEngine.UIElements.VisualElement root)
+  public method static void Apply(UnityEngine.UIElements.VisualElement root)
+sealed class DDrive.Editor.Ux.UxVisualRow : DDrive.Editor.Ux.UxRow
+  public ctor(UnityEditor.SerializedObject so, UnityEditor.SerializedObject defaultSo, System.Collections.Generic.IReadOnlyList<DDrive.Editor.Ux.FieldGuideEntry> entries, string label, string hint, DDrive.Editor.Ux.FieldTier tier, UnityEngine.UIElements.VisualElement visual, System.Action changed)
+  public method override void Sync()
 == PreviewApi ==
 abstract class DDrive.Editor.Preview.UxPreviewDriverBase
-  implements IDisposable
-  protected ctor(String rootName)
-  protected method abstract Void OnReset(PreviewResetReason reason)
-  protected method abstract Void OnTick(Single scaledDt)
-  protected method virtual Void OnPausedChanged(Boolean paused)
-  public field const String RootNamePrefix
-  public method Void Dispose()
-  public method Void Tick(Single dt)
-  public property Boolean IsDisposed { get; }
-  public property Boolean Paused { get; set; }
-  public property GameObject PreviewRoot { get; }
-  public property Single Speed { get; set; }
-  public property String RootName { get; }
+  implements System.IDisposable
+  protected ctor(string rootName)
+  protected method abstract void OnReset(DDrive.Editor.Preview.PreviewResetReason reason)
+  protected method abstract void OnTick(float scaledDt)
+  protected method virtual void OnPausedChanged(bool paused)
+  public field const string RootNamePrefix
+  public method void Dispose()
+  public method void Tick(float dt)
+  public property UnityEngine.GameObject PreviewRoot { get; }
+  public property bool IsDisposed { get; }
+  public property bool Paused { get; set; }
+  public property float Speed { get; set; }
+  public property string RootName { get; }
 enum DDrive.Editor.Preview.PreviewResetReason
   SceneChanged = 0
   PrefabStageChanged = 1
@@ -398,35 +398,35 @@ enum DDrive.Editor.Preview.PreviewResetReason
   SceneSaving = 4
   Dispose = 5
 sealed class DDrive.Editor.Preview.EditorModuleHost
-  implements IDisposable
-  public ctor(IAssetRegistry registry, IPoolService pool, PauseService pauseService, INetBridge netBridge)
-  public method Void Dispose()
-  public method Void Tick(Single dt)
-  public property DDriveBootstrapContext Context { get; }
-  public property GameLoop Loop { get; }
-  public property IReadOnlyList`1 Managers { get; }
+  implements System.IDisposable
+  public ctor(DDrive.Runtime.Extension.EditorPreviewContextOptions options = null)
+  public method void Dispose()
+  public method void Tick(float dt)
+  public property DDrive.Foundation.Manager.GameLoop Loop { get; }
+  public property DDrive.Runtime.Extension.DDriveBootstrapContext Context { get; }
+  public property System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Manager.IAssetManager> Managers { get; }
 == ExtensionProviders ==
 interface DDrive.Editor.Extension.ISampleProvider
-  public method abstract AssetDataBase CreateSample(String folder)
-  public property abstract String DisplayName { get; }
-  public property abstract String KindKey { get; }
+  public method abstract DDrive.Foundation.Data.AssetDataBase CreateSample(string folder)
+  public property abstract string DisplayName { get; }
+  public property abstract string KindKey { get; }
 interface DDrive.Editor.Extension.IPreviewSceneProvider
-  public method virtual Void Setup(Scene scene)
-  public property abstract String KindKey { get; }
-  public property abstract String ScenePath { get; }
+  public method virtual void Setup(UnityEngine.SceneManagement.Scene scene)
+  public property abstract string KindKey { get; }
+  public property abstract string ScenePath { get; }
 interface DDrive.Editor.Extension.IManualPageProvider
-  public property abstract IReadOnlyList`1 Pages { get; }
+  public property abstract System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, string, string>> Pages { get; }
 static class DDrive.Editor.Extension.ExtensionProviders
-  public method static Boolean TryGetManualPage(String key, String& path, String& title)
-  public method static Boolean TryGetPreviewScene(String kindKey, IPreviewSceneProvider& provider)
-  public method static Boolean TryGetSample(String kindKey, ISampleProvider& provider)
-  public method static Void Refresh()
-  public property static Boolean IncludeTestAssemblies { get; set; }
-  public property static IReadOnlyList`1 ManualPages { get; }
-  public property static IReadOnlyList`1 ManualProviders { get; }
-  public property static IReadOnlyList`1 PreviewScenes { get; }
-  public property static IReadOnlyList`1 Samples { get; }
+  public method static bool TryGetManualPage(string key, out string path, out string title)
+  public method static bool TryGetPreviewScene(string kindKey, out DDrive.Editor.Extension.IPreviewSceneProvider provider)
+  public method static bool TryGetSample(string kindKey, out DDrive.Editor.Extension.ISampleProvider provider)
+  public method static void Refresh()
+  public property static System.Collections.Generic.IReadOnlyList<DDrive.Editor.Extension.IManualPageProvider> ManualProviders { get; }
+  public property static System.Collections.Generic.IReadOnlyList<DDrive.Editor.Extension.IPreviewSceneProvider> PreviewScenes { get; }
+  public property static System.Collections.Generic.IReadOnlyList<DDrive.Editor.Extension.ISampleProvider> Samples { get; }
+  public property static System.Collections.Generic.IReadOnlyList<System.ValueTuple<string, string, string>> ManualPages { get; }
+  public property static bool IncludeTestAssemblies { get; set; }
 static class DDrive.Editor.Extension.ExtensionProviderActions
-  public field const String SampleCategory
-  public method static AssetDataBase CreateOrGetSample(ISampleProvider provider, Type dataType, String gameDataRoot)
-  public method static Boolean OpenPreviewScene(IPreviewSceneProvider provider)
+  public field const string SampleCategory
+  public method static DDrive.Foundation.Data.AssetDataBase CreateOrGetSample(DDrive.Editor.Extension.ISampleProvider provider, System.Type dataType, string gameDataRoot = "Assets/GameData")
+  public method static bool OpenPreviewScene(DDrive.Editor.Extension.IPreviewSceneProvider provider)

@@ -263,7 +263,7 @@ namespace DDrive.Editor.Dependencies
             }
 
             var fileName = Path.GetFileNameWithoutExtension(assetPath);
-            var constName = AssetIdGenerator.ToConstantName(fileName);
+            var constName = AssetIdGenerator.ToConstantName(fileName, attr.KindKey);
             return $"{attr.ConstantsClassName}.{constName}";
         }
     }

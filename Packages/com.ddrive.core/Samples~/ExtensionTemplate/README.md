@@ -14,6 +14,7 @@ ExtensionTemplate/
     SampleManager.cs                IAssetManager + IExtensionAssetManager(Play → Handle、Tick で経過時間、StopAll)
     Samples.cs                      静的ファサード(Bind / IsBound / Play / Stop。未 Bind は no-op)
     SampleModule.cs                 IDDriveModule(Manager を作って GameLoop に載せ、ファサードを Bind)
+    link.xml                        IL2CPP のコード除去(Managed Stripping)で module が消えないようにする(アセンブリ名を付け替えたら直す)
     SampleDataValidator.cs          IKindValidator(Code は SMP- 接頭辞)
   Editor/                           asmdef Sample.Extension.Editor(DDrive.Editor 参照。Editor 専用)
     SampleEditor.cs                 UxEditorWindow<SampleData> 派生 + FieldGuide + ▶(UxPreviewDriverBase + EditorModuleHost)
@@ -26,7 +27,7 @@ ExtensionTemplate/
 
 1. `Packages/com.ddrive.core/Samples~/ExtensionTemplate/`（Package Manager の Samples タブの Import でも、フォルダごとコピーでも可）を、プロジェクトの **`Assets/_Project/DDriveExtensions/<Name>/`** へコピーする（例: `Assets/_Project/DDriveExtensions/LightCue/`）。`Samples~` は Unity から見えない置き場なので、コピーするまでビルドにも Validation にも混ざらない。
 2. 名前を付け替える（下の一覧）。付け替えたらコンパイルが通ることを確認する（`Tools > D-Drive > Validation > Run All` も 1 回）。
-3. `Tools > D-Drive > Generate > IDs` で ID 定数(`<Name>ID.Xxx`)を生成する。AssetBrowser（`Tools > D-Drive > Asset Browser`）の「＋ 新規作成」に新しい種別が出るので、Data を作る → ダブルクリックで専用エディターが開く → ▶ で自分の Manager が動く。
+3. `Tools > D-Drive > Generate > Regenerate Asset IDs` で ID 定数(`<Name>ID.Xxx`)を生成する。AssetBrowser（`Tools > D-Drive > Asset Browser`）の「＋ 新規作成」に新しい種別が出るので、Data を作る → ダブルクリックで専用エディターが開く → ▶ で自分の Manager が動く。
 4. 空状態の「サンプルを作る」を押すと、`ISampleProvider` が作った Data が命名規則どおりに保存され、カタログと Addressables に登録される。
 
 ## 名前の付け替え箇所

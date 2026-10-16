@@ -823,7 +823,7 @@ TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneVfxTrack : UnityEngine.
 TYPE class static DDrive.Runtime.DDriveVersion
   field const Value : string
 TYPE struct DDrive.Runtime.Extension.DDriveBootstrapContext
-  method static ForEditorPreview(DDrive.Foundation.Registry.IAssetRegistry registry, DDrive.Foundation.Pool.IPoolService pool, DDrive.Foundation.Manager.GameLoop gameLoop, DDrive.Foundation.Pause.PauseService pauseService = null, DDrive.Foundation.Net.ITimeSource timeSource = null, DDrive.Foundation.Event.EventBus events = null, DDrive.Foundation.Net.INetBridge netBridge = null, DDrive.Runtime.Audio.AudioManager audio = null, DDrive.Runtime.Audio.BgmManager bgm = null, DDrive.Runtime.Vfx.VfxManager vfx = null, DDrive.Runtime.Anim.AnimManager anim = null, DDrive.Runtime.Material.MaterialManager materials = null, DDrive.Runtime.Model.ModelsManager models = null, DDrive.Runtime.Prefab.PrefabsManager prefabs = null, DDrive.Runtime.Ui.UiManager ui = null, DDrive.Runtime.Ui.UiTweenManager uiTweens = null, DDrive.Runtime.CameraShake.CameraFxManager cameraFx = null, DDrive.Runtime.Haptics.HapticsManager haptics = null, DDrive.Runtime.Presentation.PresentationManager presentation = null, DDrive.Runtime.Cutscene.CutsceneManager cutscene = null) : DDrive.Runtime.Extension.DDriveBootstrapContext
+  method static ForEditorPreview(DDrive.Runtime.Extension.EditorPreviewContextOptions options) : DDrive.Runtime.Extension.DDriveBootstrapContext
   property Anim : DDrive.Runtime.Anim.AnimManager {get}
   property Audio : DDrive.Runtime.Audio.AudioManager {get}
   property Bgm : DDrive.Runtime.Audio.BgmManager {get}
@@ -845,18 +845,43 @@ TYPE struct DDrive.Runtime.Extension.DDriveBootstrapContext
   property Ui : DDrive.Runtime.Ui.UiManager {get}
   property UiTweens : DDrive.Runtime.Ui.UiTweenManager {get}
   property Vfx : DDrive.Runtime.Vfx.VfxManager {get}
+TYPE class sealed DDrive.Runtime.Extension.EditorPreviewContextOptions
+  ctor EditorPreviewContextOptions()
+  method Clone() : DDrive.Runtime.Extension.EditorPreviewContextOptions
+  property Anim : DDrive.Runtime.Anim.AnimManager {get;set}
+  property Audio : DDrive.Runtime.Audio.AudioManager {get;set}
+  property Bgm : DDrive.Runtime.Audio.BgmManager {get;set}
+  property CameraFx : DDrive.Runtime.CameraShake.CameraFxManager {get;set}
+  property Cutscene : DDrive.Runtime.Cutscene.CutsceneManager {get;set}
+  property Events : DDrive.Foundation.Event.EventBus {get;set}
+  property GameLoop : DDrive.Foundation.Manager.GameLoop {get;set}
+  property Haptics : DDrive.Runtime.Haptics.HapticsManager {get;set}
+  property Materials : DDrive.Runtime.Material.MaterialManager {get;set}
+  property Models : DDrive.Runtime.Model.ModelsManager {get;set}
+  property NetBridge : DDrive.Foundation.Net.INetBridge {get;set}
+  property PauseService : DDrive.Foundation.Pause.PauseService {get;set}
+  property Pool : DDrive.Foundation.Pool.IPoolService {get;set}
+  property Prefabs : DDrive.Runtime.Prefab.PrefabsManager {get;set}
+  property Presentation : DDrive.Runtime.Presentation.PresentationManager {get;set}
+  property Registry : DDrive.Foundation.Registry.IAssetRegistry {get;set}
+  property TimeSource : DDrive.Foundation.Net.ITimeSource {get;set}
+  property Ui : DDrive.Runtime.Ui.UiManager {get;set}
+  property UiTweens : DDrive.Runtime.Ui.UiTweenManager {get;set}
+  property Vfx : DDrive.Runtime.Vfx.VfxManager {get;set}
 TYPE interface DDrive.Runtime.Extension.IDDriveModule
   method Bind() : void
   method CreateManagers(ref DDrive.Runtime.Extension.DDriveBootstrapContext ctx) : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Manager.IAssetManager>
   method Unbind() : void
   property Order : int {get}
 TYPE class static DDrive.Runtime.Extension.ModuleRegistry
+  method static CreateInstances() : System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Extension.IDDriveModule>
   method static Refresh() : void
   property static All : System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Extension.IDDriveModule> {get}
   property static IncludeTestAssemblies : bool {get;set}
+  property static Types : System.Collections.Generic.IReadOnlyList<System.Type> {get}
 TYPE class sealed DDrive.Runtime.Extension.ModuleRunner
   ctor ModuleRunner(System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Extension.IDDriveModule> modules)
-  method Start(ref DDrive.Runtime.Extension.DDriveBootstrapContext ctx) : void
+  method Start(ref DDrive.Runtime.Extension.DDriveBootstrapContext ctx, bool bindFacades = true) : void
   method Stop() : void
   property BoundCount : int {get}
   property Managers : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Manager.IAssetManager> {get}

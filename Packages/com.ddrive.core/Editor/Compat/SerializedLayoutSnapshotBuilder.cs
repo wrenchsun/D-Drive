@@ -50,6 +50,10 @@ namespace DDrive.Editor.Compat
                 }
             }
 
+            // X-R-21(2026-10-16): AssetCatalog の CatalogEntry の欄(KindKey ほか)。AssetDataBase 派生ではないので別枠で、
+            // 配列の要素の欄が出るよう 1 件入れたインスタンスを調べる。追加のみ(欄の削除・型変更は MAJOR)。
+            AppendCatalogLayout(lines);
+
             lines.Sort(StringComparer.Ordinal);
 
             var sb = new System.Text.StringBuilder();
@@ -59,6 +63,36 @@ namespace DDrive.Editor.Compat
             }
 
             return sb.ToString();
+        }
+
+        private static void AppendCatalogLayout(List<string> lines)
+        {
+            ScriptableObject instance = null;
+            try
+            {
+                var catalog = ScriptableObject.CreateInstance<DDrive.Foundation.Registry.AssetCatalog>();
+                instance = catalog;
+                catalog.AddOrUpdate(new DDrive.Foundation.Registry.CatalogEntry { Id = 1, Address = "A" });
+                var so = new SerializedObject(catalog);
+                var prop = so.GetIterator();
+                var entered = prop.NextVisible(true);
+                while (entered)
+                {
+                    lines.Add($"{typeof(DDrive.Foundation.Registry.AssetCatalog).FullName}::{prop.propertyPath} : {prop.propertyType}");
+                    entered = prop.NextVisible(true);
+                }
+            }
+            catch (Exception)
+            {
+                // 例外で止めない(スナップショット比較が差分として検出する)。
+            }
+            finally
+            {
+                if (instance != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(instance);
+                }
+            }
         }
 
         public static IEnumerable<Type> ConcreteDataTypes()

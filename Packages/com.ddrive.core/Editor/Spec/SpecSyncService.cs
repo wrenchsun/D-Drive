@@ -468,7 +468,7 @@ namespace DDrive.Editor.Spec
         public static string BuildChoicesTsv()
         {
             var types = Enum.GetValues(typeof(AssetType)).Cast<AssetType>()
-                .Where(t => t != AssetType.None)
+                .Where(t => t != AssetType.None && t != AssetType.Extension) // X-R-18: 仕様書同期は Extension 未対応(対応時に戻す)
                 .Select(t => t.ToString())
                 .ToArray();
             // 2026-09-17([41] P1-7): 状態は O-1 以降 3 値(発注済 / 納品済 / インポート済)。

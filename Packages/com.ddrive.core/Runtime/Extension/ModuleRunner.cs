@@ -8,6 +8,9 @@ namespace DDrive.Runtime.Extension
     // [1014_extension_platform.md] §2.2/§2.3(X-2/X-3) — IDDriveModule の起動と終了の実体。DDriveRuntimeBootstrap と
     // Editor プレビュー(EditorModuleHost)が同じ規則で使う: Start = Order 順に CreateManagers → GameLoop.Register → Bind()、
     // Stop = 逆順に Unbind() → Manager の Unregister。例外・null 要素は module 単位で警告して飛ばす(例外で止めない)。
+    // X-R-01: bindFacades = false(EditorModuleHost・BindFacades = false の Bootstrap)では Bind() / Unbind() を呼ばない
+    // (Manager の生成・登録・Tick だけ。静的ファサードは Play の Bootstrap だけが結ぶ)。
+    // 渡す module のインスタンスは Runner ごとに ModuleRegistry.CreateInstances() で作ること(他の Runner と共有しない)。
     public sealed class ModuleRunner
     {
         private readonly IReadOnlyList<IDDriveModule> _modules;
@@ -23,18 +26,25 @@ namespace DDrive.Runtime.Extension
         // 登録した module の Manager(Start の順)。
         public IReadOnlyList<IAssetManager> Managers => _managers;
 
-        // Bind まで成功した module の数。
+        // Bind まで成功した module の数(bindFacades = false のときは常に 0)。
         public int BoundCount => _bound.Count;
 
-        public void Start(in DDriveBootstrapContext ctx)
+        public void Start(in DDriveBootstrapContext ctx, bool bindFacades = true)
         {
             _loop = ctx.GameLoop;
             for (var i = 0; i < _modules.Count; i++)
             {
                 var module = _modules[i];
-                var name = module.GetType().FullName;
+                var name = "(null)";
                 try
                 {
+                    if (module == null)
+                    {
+                        Debug.LogWarning("[DDrive] A null IDDriveModule was skipped.");
+                        continue;
+                    }
+
+                    name = module.GetType().FullName;
                     var managers = module.CreateManagers(in ctx);
                     if (managers != null)
                     {
@@ -57,17 +67,20 @@ namespace DDrive.Runtime.Extension
                         }
                     }
 
-                    module.Bind();
-                    _bound.Add(module);
+                    if (bindFacades)
+                    {
+                        module.Bind();
+                        _bound.Add(module);
+                    }
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning($"[DDrive] IDDriveModule '{name}' failed to start and was skipped: {e.Message}");
+                    Debug.LogWarning($"[DDrive] IDDriveModule '{name}' failed to start and was skipped: {e}");
                 }
             }
         }
 
-        // 逆順に Unbind。呼び出し側が先に StopAll を済ませておく。Manager は GameLoop から外す。
+        // 逆順に Unbind(Bind まで成功した module だけ)。呼び出し側が先に StopAll を済ませておく。Manager は GameLoop から外す。
         public void Stop()
         {
             for (var i = _bound.Count - 1; i >= 0; i--)
@@ -79,7 +92,7 @@ namespace DDrive.Runtime.Extension
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning($"[DDrive] IDDriveModule '{module.GetType().FullName}'.Unbind threw and was ignored: {e.Message}");
+                    Debug.LogWarning($"[DDrive] IDDriveModule '{module.GetType().FullName}'.Unbind threw and was ignored: {e}");
                 }
             }
 

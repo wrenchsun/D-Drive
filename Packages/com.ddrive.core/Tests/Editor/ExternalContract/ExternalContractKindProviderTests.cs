@@ -51,6 +51,7 @@ namespace ExternalContract.Tests
                 File.Delete(_tempOutputPath);
             }
 
+            ExternalBadKinds.Enabled = false;
             AssetKindRegistry.IncludeTestAssemblies = _savedInclude;
             AssetKindRegistry.Refresh();
         }
@@ -97,6 +98,54 @@ namespace ExternalContract.Tests
             Assert.AreEqual("Misc", AssetNamingService.GetTargetFolder(AssetType.Extension, "NoSuchKind", null));
             Assert.AreEqual("MiscCatalog", AssetCreationService.GetCatalogName(AssetType.Extension, "NoSuchKind"));
             Assert.IsFalse(AssetCreationService.NeedsPreloadDefault(AssetType.Extension, "NoSuchKind"));
+        }
+
+        // X-R-03: public でない provider(internal な型、internal な型の中の public 入れ子)は発見されない(ModuleRegistry / ExtensionProviders と同じ規則)。
+        [Test]
+        public void E26_NonPublicProviders_AreNotDiscovered()
+        {
+            AssetKindRegistry.Refresh();
+            Assert.IsFalse(AssetKindRegistry.TryGet("ZzInternal", out _), "internal な型");
+            Assert.IsFalse(AssetKindRegistry.TryGet("ZzNestedInternal", out _), "internal な型の中の public 入れ子(IsVisible = false)");
+            Assert.IsTrue(AssetKindRegistry.TryGet("Sample", out _), "public な provider は発見される(テストの前提)");
+        }
+
+        // X-R-05: KindKey / DisplayName が組み込みの種別名(大小無視)と衝突する provider、DisplayName が他の provider と重なる provider は、
+        // 警告 1 件で無視される(先勝ち)。MCP の scope は組み込みを先に見るので、組み込みの scope は変わらない。
+        [Test]
+        public void E26_NameCollisions_AreIgnoredWithWarnings_AndBuiltInScopeIsUnchanged()
+        {
+            ExternalBadKinds.Enabled = true;
+            // 発見は型の完全名順: ExternalBadDisplayKind → ExternalBadKeyKind → ExternalSampleKindDuplicate → ZzExternalDupDisplayKind。
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("ExternalBadDisplayKind.*collides with a built-in AssetType name"));
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("ExternalBadKeyKind.*collides with a built-in AssetType name"));
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("Duplicate KindKey 'Sample'"));
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("ZzExternalDupDisplayKind.*DisplayName 'sample' is already used"));
+            AssetKindRegistry.Refresh();
+
+            Assert.IsFalse(AssetKindRegistry.TryGet("model", out _), "KindKey が組み込みの種別名と衝突");
+            Assert.IsFalse(AssetKindRegistry.TryGet("ZzBadDisplay", out _), "DisplayName が組み込みの種別名と衝突");
+            Assert.IsFalse(AssetKindRegistry.TryGet("ZzDupDisplay", out _), "DisplayName が他の provider と重複");
+            Assert.IsTrue(AssetKindRegistry.TryGet("Sample", out var sample));
+            Assert.IsInstanceOf<ExternalSampleKind>(sample, "先勝ち");
+        }
+
+        // X-R-10: provider が無い Extension 種別は Misc に落ちるが警告を 1 回出し、新規作成は拒否する。
+        [Test]
+        public void E26_MissingProvider_WarnsOnceAndFallsBackToMisc_ButCreateIsRefused()
+        {
+            var key = "NoSuchKind" + System.Guid.NewGuid().ToString("N");
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("No IAssetKindProvider for KindKey '" + key + "'"));
+            Assert.AreEqual("ASSET", AssetNamingService.GetTypePrefix(AssetType.Extension, key));
+            Assert.AreEqual("Misc", AssetNamingService.GetTargetFolder(AssetType.Extension, key, null));
+            Assert.AreEqual("MiscCatalog", AssetCreationService.GetCatalogName(AssetType.Extension, key), "同じ KindKey の警告は 1 回だけ");
+
+            // provider が見えない状態(テスト用アセンブリを除外)で ExternalSampleData を作ろうとすると拒否される。
+            AssetKindRegistry.IncludeTestAssemblies = false;
+            AssetKindRegistry.Refresh();
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("No IAssetKindProvider for KindKey 'Sample'"));
+            var asset = AssetCreationService.Create(typeof(ExternalSampleData), AssetType.Extension, "x", "", "Nokind", gameDataRoot: TestRoot);
+            Assert.IsNull(asset, "Misc/ASSET_ には作らない");
         }
 
         // (f) 既存種別は不変(KindKey を渡しても無視される)。

@@ -120,7 +120,8 @@ namespace DDrive.Editor.AssetBrowser
             _definitions = AssetIdLookup.GetAllDefinitions()
                 .Where(d => d.dataType.Namespace?.Contains("Tests") != true)
                 .Where(d => _lockedTypes == null || _lockedTypes.Contains(d.dataType))
-                .OrderBy(d => d.assetType.ToString())
+                .OrderBy(d => d.assetType == AssetType.Extension ? 1 : 0) // X-R-19: 外部の種別は組み込みの後ろに寄せ、provider の Order 順に並べる
+                .ThenBy(d => d.assetType.ToString())
                 .ThenBy(d => DDrive.Foundation.Extension.AssetKindRegistry.TryGetByDataType(d.dataType, out var p) ? p.Order : 0)
                 .ToList();
 

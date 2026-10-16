@@ -18,10 +18,10 @@
 <tr><th>#</th><th>やること</th><th>どこで</th></tr>
 <tr><td>1</td><td><strong>雛形をコピー</strong>: <code>Packages/com.ddrive.core/Samples~/ExtensionTemplate/</code>（Package Manager の Samples タブの Import でも可）を <code>Assets/_Project/DDriveExtensions/&lt;Name&gt;/</code> へ</td><td>雛形の <code>README.md</code></td></tr>
 <tr><td>2</td><td><strong>名前を付け替える</strong>: 種別キー（<code>SampleKind.Key</code>）・接頭辞（<code>SMP</code>）・ID 定数クラス名（<code>SMPID</code>）・フォルダ・カタログ名・クラス名とファイル名・asmdef 名・検証 Code の接頭辞</td><td>README の「名前の付け替え箇所」の表</td></tr>
-<tr><td>3</td><td><strong>ID 定数を生成</strong>: <code>Tools &gt; D-Drive &gt; Generate &gt; IDs</code>。<code>KindKey</code> ごとに定数クラス（<code>&lt;Name&gt;ID.Xxx</code>）が出る</td><td>契約 E-29</td></tr>
+<tr><td>3</td><td><strong>ID 定数を生成</strong>: <code>Tools &gt; D-Drive &gt; Generate &gt; Regenerate Asset IDs</code>。<code>KindKey</code> ごとに定数クラス（<code>&lt;Name&gt;ID.Xxx</code>）が出る</td><td>契約 E-29</td></tr>
 <tr><td>4</td><td><strong>AssetBrowser で Data を作る</strong>: 「＋ 新規作成」に新しい種別が出る（<code>IAssetKindProvider.Order</code> 順）。空状態の「サンプルを作る」（<code>ISampleProvider</code>）でも作れる</td><td><code>Tools &gt; D-Drive &gt; Asset Browser</code></td></tr>
 <tr><td>5</td><td><strong>窓を開く</strong>: ダブルクリック / Inspector の「〜で開く」（<code>[DataEditor]</code>）/ メニュー。<code>UxEditorWindow&lt;T&gt;</code> 派生なので D-Drive 組み込みの窓と同じ見た目・作法</td><td>契約 E-27</td></tr>
-<tr><td>6</td><td><strong>▶ で動かす</strong>: 固定バーの ▶ が自分の Manager を実物のまま Edit Mode で動かす（<code>UxPreviewDriverBase</code> + <code>EditorModuleHost</code>）。Play Mode では <code>DDriveRuntimeBootstrap</code> が <code>IDDriveModule</code> から Manager を作って <code>GameLoop</code> に載せる</td><td>契約 E-25</td></tr>
+<tr><td>6</td><td><strong>▶ で動かす</strong>: 固定バーの ▶ が自分の Manager を実物のまま Edit Mode で動かす（<code>UxPreviewDriverBase</code> + <code>EditorModuleHost</code>）。Play Mode では <code>DDriveRuntimeBootstrap</code> が <code>IDDriveModule</code> から Manager を作って <code>GameLoop</code> に載せ、<code>Bind()</code> で静的ファサードを結ぶ。<code>EditorModuleHost</code> は <code>Bind</code> / <code>Unbind</code> を呼ばない（Play 中のファサードを奪わない）。Host は ▶ を初めて押したときに作り、窓を閉じたら Dispose する</td><td>契約 E-25</td></tr>
 </table>
 
 <h3>拡張点の一覧</h3>
@@ -40,6 +40,7 @@
 <h3>守ること</h3>
 <ul>
 <li><strong>D-Drive の更新で壊れないのは公開 API だけ</strong>（追加のみの契約）。<code>internal</code> や、契約に載っていない型に依存しない（<code>UxTestHooks</code> / <code>UxScreenshot</code> / <code>UxPalette</code> は internal）。</li>
+<li><code>IDDriveModule</code> は IL2CPP のコード除去で消えないよう、アセンブリに <code>link.xml</code>（雛形に同梱）か <code>[Preserve]</code> を付ける。<code>ctx.Events</code> は module 間の自由な EventBus で、組み込みの AssetEvent（Data の Events → SE / VFX）には繋がっていない。</li>
 <li>検証の Code は自分の接頭辞（<code>SMP-</code> など）。D-Drive の <code>DD-</code> は使わない。</li>
 <li>Manager は <code>Tick(dt)</code> の dt で動かし、<code>Time.time</code> を直接読まない。定常経路（<code>Tick</code> / <code>Play</code>）で LINQ・クロージャ・boxing を書かない。例外で止めず、警告 + no-op / Placeholder で続ける。</li>
 <li>窓の見た目は USS のクラスで（C# にインラインスタイルを書かない）。新しい窓は <code>ScrollView</code> ルート必須（<code>UxEditorWindow&lt;T&gt;</code> が持つ）。</li>

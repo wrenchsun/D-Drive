@@ -301,5 +301,20 @@ namespace ExternalContract.Tests
             typeof(UxEditorWindow<ExternalSampleData>).GetField("_target", Inst).SetValue(window, null);
             typeof(UxEditorWindow<ExternalSampleData>).GetMethod("CreateGUI", Inst).Invoke(window, null);
         }
+
+        // X-R-16: 外部マニュアルとして開くのは文書の拡張子だけ(.exe / .bat などの実行ファイルは開かない)。
+        [Test]
+        public void E28_ManualLauncher_OnlyOpensDocumentExtensions()
+        {
+            foreach (var ok in new[] { "a.html", "a.HTM", "dir/a.md", "a.pdf", "a.txt" })
+            {
+                Assert.IsTrue(ManualLauncher.IsDocumentExtension(ok), ok);
+            }
+
+            foreach (var ng in new[] { "a.exe", "a.bat", "a.cmd", "a.ps1", "a", "", null })
+            {
+                Assert.IsFalse(ManualLauncher.IsDocumentExtension(ng), ng ?? "(null)");
+            }
+        }
     }
 }

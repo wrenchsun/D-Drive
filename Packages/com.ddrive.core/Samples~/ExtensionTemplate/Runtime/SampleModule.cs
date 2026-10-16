@@ -6,7 +6,9 @@ namespace SampleExtension
 {
     // 起動配線の口(docs/1014 §2.2)。DDriveRuntimeBootstrap が組み込みの Manager を登録した後に Order 順で呼ぶ。
     // CreateManagers で作った Manager は GameLoop に登録される。Bind / Unbind で静的ファサードを結ぶ。
-    // Editor プレビュー(EditorModuleHost)も同じ module を使うので、ctx.IsEditorPreview のときも同じ動きでよい。
+    // Editor プレビュー(EditorModuleHost)も同じ module を使う(ctx.IsEditorPreview = true)が、Host は Bind / Unbind を呼ばない。
+    // [Preserve] と同じフォルダの link.xml は、IL2CPP のコード除去(Managed Stripping)で module が消えないようにするため(型がどこからも静的に参照されないので)。
+    [UnityEngine.Scripting.Preserve]
     public sealed class SampleModule : IDDriveModule
     {
         private SampleManager _manager;

@@ -125,10 +125,10 @@ namespace DDrive.Editor.Compat
                 : type.IsAbstract ? "abstract class"
                 : type.IsSealed ? "sealed class"
                 : "class";
-            var header = kind + " " + type.FullName;
+            var header = kind + " " + TypeNameFormatter.Format(type);
             if (!type.IsEnum && !type.IsInterface && type.BaseType != null && type.BaseType != typeof(object) && type.BaseType != typeof(ValueType))
             {
-                header += " : " + type.BaseType.Name;
+                header += " : " + TypeNameFormatter.Format(type.BaseType);
             }
 
             sb.Append(header).Append('\n');
@@ -150,7 +150,7 @@ namespace DDrive.Editor.Compat
             {
                 if (type.BaseType == null || !i.IsAssignableFrom(type.BaseType))
                 {
-                    lines.Add("  implements " + i.Name);
+                    lines.Add("  implements " + TypeNameFormatter.Format(i));
                 }
             }
 
@@ -167,7 +167,7 @@ namespace DDrive.Editor.Compat
                 if (IsApiVisible(f.IsPublic, f.IsFamily || f.IsFamilyOrAssembly))
                 {
                     var mod = f.IsLiteral ? "const " : (f.IsStatic ? "static " : string.Empty) + (f.IsInitOnly ? "readonly " : string.Empty);
-                    lines.Add($"  {Access(f.IsPublic)} field {mod}{f.FieldType.Name} {f.Name}");
+                    lines.Add($"  {Access(f.IsPublic)} field {mod}{TypeNameFormatter.Format(f.FieldType)} {f.Name}");
                 }
             }
 
@@ -183,14 +183,14 @@ namespace DDrive.Editor.Compat
 
                 var m = get ?? set;
                 var pub = (get != null && get.IsPublic) || (set != null && set.IsPublic);
-                lines.Add($"  {Access(pub)} property {MethodMods(m)}{p.PropertyType.Name} {p.Name} {{{(get != null && IsApiVisible(get.IsPublic, get.IsFamily || get.IsFamilyOrAssembly) ? " get;" : string.Empty)}{(set != null && IsApiVisible(set.IsPublic, set.IsFamily || set.IsFamilyOrAssembly) ? " set;" : string.Empty)} }}");
+                lines.Add($"  {Access(pub)} property {MethodMods(m)}{TypeNameFormatter.Format(p.PropertyType)} {p.Name} {{{(get != null && IsApiVisible(get.IsPublic, get.IsFamily || get.IsFamilyOrAssembly) ? " get;" : string.Empty)}{(set != null && IsApiVisible(set.IsPublic, set.IsFamily || set.IsFamilyOrAssembly) ? " set;" : string.Empty)} }}");
             }
 
             foreach (var m in type.GetMethods(Flags).Where(m => !m.IsSpecialName))
             {
                 if (IsApiVisible(m.IsPublic, m.IsFamily || m.IsFamilyOrAssembly))
                 {
-                    lines.Add($"  {Access(m.IsPublic)} method {MethodMods(m)}{m.ReturnType.Name} {m.Name}({ParamList(m.GetParameters())})");
+                    lines.Add($"  {Access(m.IsPublic)} method {MethodMods(m)}{TypeNameFormatter.Format(m.ReturnType)} {m.Name}{GenericArgs(m)}({ParamList(m.GetParameters())})");
                 }
             }
 
@@ -205,7 +205,27 @@ namespace DDrive.Editor.Compat
 
         private static string Access(bool isPublic) => isPublic ? "public" : "protected";
 
-        private static string ParamList(ParameterInfo[] ps) => string.Join(", ", ps.Select(a => a.ParameterType.Name + " " + a.Name));
+        // X-R-08(2026-10-16): 型は名前空間つき・型引数つき(Func<Values> → Func<float> の変更を検出できる)、ref / out / in の区別、既定値を出す。
+        private static string ParamList(ParameterInfo[] ps) => string.Join(", ", ps.Select(FormatParam));
+
+        private static string GenericArgs(MethodInfo m)
+            => m.IsGenericMethodDefinition ? "<" + string.Join(",", m.GetGenericArguments().Select(a => a.Name)) + ">" : string.Empty;
+
+        private static string FormatParam(ParameterInfo p)
+        {
+            var prefix = p.IsOut ? "out " : p.ParameterType.IsByRef ? (p.IsIn ? "in " : "ref ") : string.Empty;
+            var text = prefix + TypeNameFormatter.Format(p.ParameterType) + " " + p.Name;
+            if (p.IsOptional)
+            {
+                var d = p.DefaultValue;
+                text += d == null || d is System.Reflection.Missing ? " = null"
+                    : d is string s ? " = \"" + s + "\""
+                    : d is bool b ? (b ? " = true" : " = false")
+                    : " = " + Convert.ToString(d, System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return text;
+        }
 
         private static string MethodMods(MethodInfo m)
         {

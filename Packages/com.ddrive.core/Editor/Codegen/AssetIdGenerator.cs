@@ -90,7 +90,7 @@ namespace DDrive.Editor.Codegen
                         continue;
                     }
 
-                    var constName = ToConstantName(Path.GetFileNameWithoutExtension(path));
+                    var constName = ToConstantName(Path.GetFileNameWithoutExtension(path), def.KindKey);
                     result.Add(new ConstantEntry(def.AssetType, asset.Id, $"{def.ConstantsClassName}.{constName}", path));
                 }
             }
@@ -181,7 +181,7 @@ namespace DDrive.Editor.Codegen
                     // 定数名は必ずファイル名(ツールが規約生成した SE_Category_Identifier 形式)から作る。
                     // DisplayName は日本語等の自由入力(FR-1.5)であり、C# 識別子の材料にしない。
                     var sourceName = Path.GetFileNameWithoutExtension(path);
-                    entries.Add((ToConstantName(sourceName), asset.Id));
+                    entries.Add((ToConstantName(sourceName, def.KindKey), asset.Id));
                     result.TotalCount++;
                 }
 
@@ -335,11 +335,14 @@ namespace DDrive.Editor.Codegen
 
         // internal(同一 asmdef): 5-6 の CodeReferenceScan が「削除しようとしている ID の生成済み定数名」を
         // 同じ規則で再現するために公開する(定数名の生成ロジックを二重に持たないため)。
-        internal static string ToConstantName(string rawName)
+        internal static string ToConstantName(string rawName) => ToConstantName(rawName, null);
+
+        // X-R-02(2026-10-16): 外部種別(IAssetKindProvider.Prefix)の接頭辞は「その種別(kindKey)の定数名」にだけ効かせる。
+        // 組み込み種別(kindKey が空)は KnownPrefixes だけで判定する(provider を足しても組み込みの生成定数名は変わらない)。
+        internal static string ToConstantName(string rawName, string kindKey)
         {
             var tokens = rawName.Split(new[] { '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            // X-1(2026-10-16): 外部種別(IAssetKindProvider.Prefix)の接頭辞も落とす。
-            var start = tokens.Length > 1 && (KnownPrefixes.Contains(tokens[0]) || AssetKindRegistry.IsKnownPrefix(tokens[0])) ? 1 : 0;
+            var start = tokens.Length > 1 && (KnownPrefixes.Contains(tokens[0]) || IsKindPrefix(kindKey, tokens[0])) ? 1 : 0;
 
             var sb = new StringBuilder();
             for (var i = start; i < tokens.Length; i++)
@@ -371,6 +374,11 @@ namespace DDrive.Editor.Codegen
 
             return sb.ToString();
         }
+
+        private static bool IsKindPrefix(string kindKey, string token)
+            => !string.IsNullOrEmpty(kindKey)
+               && AssetKindRegistry.TryGet(kindKey, out var provider)
+               && string.Equals(provider.Prefix, token, StringComparison.OrdinalIgnoreCase);
 
         private static string SanitizeToken(string token)
         {

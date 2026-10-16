@@ -98,6 +98,8 @@ namespace ExternalContract.Tests
         public bool Playing { get; private set; }
         public int ResetCount { get; private set; }
         public PreviewResetReason LastResetReason { get; private set; }
+        // 雛形(SamplePreviewDriver)と同じ作法: ▶ を初めて押したときに Host を作り、止まるたびに Dispose する(窓を開いただけでは作らない)。
+        public EditorModuleHost Host { get; private set; }
 
         public ExternalSamplePreviewDriver() : base("External Sample Preview")
         {
@@ -107,6 +109,10 @@ namespace ExternalContract.Tests
         {
             Playing = true;
             var _ = PreviewRoot; // ルートを作る
+            if (Host == null && !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Host = new EditorModuleHost();
+            }
         }
 
         public void Stop() => Playing = false;
@@ -125,6 +131,8 @@ namespace ExternalContract.Tests
             ResetCount++;
             LastResetReason = reason;
             Manager.StopAll(StopReason.Manual);
+            Host?.Dispose();
+            Host = null;
         }
     }
 

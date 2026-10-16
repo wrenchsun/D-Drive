@@ -72,6 +72,15 @@ namespace DDrive.Editor.AssetBrowser
                 var currentName = System.IO.Path.GetFileNameWithoutExtension(path);
                 var currentFolder = System.IO.Path.GetDirectoryName(path)?.Replace('\\', '/');
                 var kindKey = assetType == AssetType.Extension ? DDrive.Foundation.Extension.AssetKindRegistry.KindKeyOf(asset.GetType()) : string.Empty;
+
+                // X-R-10: provider が無い Extension の Data は動かさない(Misc へ移すと provider が戻ったときに食い違う)。
+                if (assetType == AssetType.Extension && !DDrive.Foundation.Extension.AssetKindRegistry.TryGet(kindKey, out _))
+                {
+                    result.Skipped++;
+                    result.Warnings.Add($"{path}: KindKey '{kindKey}' の IAssetKindProvider が見つからないためスキップしました。");
+                    continue;
+                }
+
                 var expectedFolder = $"{gameDataRoot}/{AssetNamingService.GetTargetFolder(assetType, kindKey, asset.Category)}";
                 var expectedName = ExpectedFileName(assetType, kindKey, asset.Category, currentName);
                 var expectedPath = $"{expectedFolder}/{expectedName}.asset";

@@ -62,6 +62,13 @@ namespace DDrive.Editor.AssetBrowser
                 return null;
             }
 
+            // X-R-10: provider が無い KindKey は Misc/ASSET_ に作らない(後から provider が戻ったときに配置が食い違うため)。
+            if (assetType == AssetType.Extension && !AssetKindRegistry.TryGet(kindKey, out _))
+            {
+                Debug.LogError($"[DDrive] No IAssetKindProvider for KindKey '{kindKey}' ({dataType.Name}); not created. Check that the provider exists and is public with a public parameterless constructor.");
+                return null;
+            }
+
             // カテゴリはフォルダ階層にも反映する(例: Audio/SE/Player/)。[01_architecture.md] §5
             var folder = $"{gameDataRoot}/{AssetNamingService.GetTargetFolder(assetType, kindKey, category)}";
             EnsureFolder(folder);
@@ -193,7 +200,7 @@ namespace DDrive.Editor.AssetBrowser
         // X-1(2026-10-16): Extension 種別は provider の DefaultLoad が Preload か。それ以外は従来の判定。
         public static bool NeedsPreloadDefault(AssetType type, string kindKey)
             => type == AssetType.Extension
-                ? AssetKindRegistry.TryGet(kindKey, out var provider) && provider.DefaultLoad == LoadMode.Preload
+                ? AssetNamingService.TryGetProvider(kindKey, out var provider) && provider.DefaultLoad == LoadMode.Preload
                 : NeedsPreloadDefault(type);
 
         // [M-1a、2026-09-25] `NeedsPreloadDefault` が false の種別のうち、Manager が公開する非同期の
@@ -228,7 +235,7 @@ namespace DDrive.Editor.AssetBrowser
 
         // X-1(2026-10-16): Extension 種別は provider の CatalogName。
         public static string GetCatalogName(AssetType type, string kindKey)
-            => type == AssetType.Extension && AssetKindRegistry.TryGet(kindKey, out var provider) && !string.IsNullOrEmpty(provider.CatalogName)
+            => type == AssetType.Extension && AssetNamingService.TryGetProvider(kindKey, out var provider) && !string.IsNullOrEmpty(provider.CatalogName)
                 ? provider.CatalogName
                 : GetCatalogName(type);
 

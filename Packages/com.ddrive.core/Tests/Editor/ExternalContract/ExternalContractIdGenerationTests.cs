@@ -46,6 +46,7 @@ namespace ExternalContract.Tests
                 File.Delete(_tempOutputPath);
             }
 
+            ExternalBadKinds.StagePrefix = false;
             AssetKindRegistry.IncludeTestAssemblies = _savedInclude;
             AssetKindRegistry.Refresh();
         }
@@ -114,6 +115,48 @@ namespace ExternalContract.Tests
             AssetKindRegistry.IncludeTestAssemblies = false;
             AssetKindRegistry.Refresh();
             Assert.IsFalse(AssetKindRegistry.IsKnownPrefix("SMP"));
+        }
+
+        // X-R-02: provider の Prefix は「その種別の」定数名にだけ効く。provider を足しても、組み込み種別の定数名は変わらない。
+        [Test]
+        public void E29_ProviderPrefix_DoesNotChangeConstantNamesOfBuiltInTypes()
+        {
+            ExternalBadKinds.StagePrefix = true;
+            AssetKindRegistry.Refresh();
+            try
+            {
+                Assert.IsTrue(AssetKindRegistry.IsKnownPrefix("STAGE"), "provider の Prefix は登録されている(テストの前提)");
+
+                // 組み込み種別(kindKey 空)の手付け名ファイル: 1 語目が provider の Prefix と一致しても落とさない。
+                Assert.AreEqual("StageLight", ToConstantName("Stage_Light", null));
+                Assert.AreEqual("StageLight", ToConstantName("Stage_Light", string.Empty));
+                Assert.AreEqual("SMPFoo", ToConstantName("SMP_Foo", string.Empty), "Sample の Prefix(SMP)も組み込み種別の定数名には効かない");
+
+                // 組み込みの KnownPrefixes は従来どおり。
+                Assert.AreEqual("PlayerSlash", ToConstantName("SE_PlayerSlash", string.Empty));
+                Assert.AreEqual("Light", ToConstantName("MODEL_Light", string.Empty));
+
+                // その種別の定数名にだけ、その種別の Prefix が効く(別の provider の Prefix は効かない)。
+                Assert.AreEqual("Light", ToConstantName("Stage_Light", "ZzStage"));
+                Assert.AreEqual("StageLight", ToConstantName("Stage_Light", "Sample"), "別の種別の Prefix(STAGE)は Sample の定数名に効かない");
+                Assert.AreEqual("Foo", ToConstantName("SMP_Foo", "Sample"));
+                Assert.AreEqual("SMPFoo", ToConstantName("SMP_Foo", "ZzStage"));
+            }
+            finally
+            {
+                ExternalBadKinds.StagePrefix = false;
+                AssetKindRegistry.Refresh();
+            }
+        }
+
+        // AssetIdGenerator.ToConstantName は internal(InternalsVisibleTo を置かない方針)なのでリフレクションで呼ぶ。
+        private static string ToConstantName(string rawName, string kindKey)
+        {
+            var method = typeof(AssetIdGenerator).GetMethod(
+                "ToConstantName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+                null, new[] { typeof(string), typeof(string) }, null);
+            Assert.IsNotNull(method, "ToConstantName(string, string)");
+            return (string)method.Invoke(null, new object[] { rawName, kindKey });
         }
 
         // (c) 既存種別の生成は不変: テスト用 Data 型(Extension)を含めても含めなくても、組み込み種別の定数クラスの集合は同じで、

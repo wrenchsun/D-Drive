@@ -59,21 +59,40 @@ namespace DDrive.Editor.AssetBrowser
         };
 
         // [1014_extension_platform.md] §2.1(X-1、2026-10-16) — Extension 種別は KindKey の provider に委譲する
-        // (provider が無い・組み込み種別なら従来の switch)。
+        // (provider が無い・組み込み種別なら従来の switch)。X-R-10: Extension なのに provider が無いときは Misc へ落ちるが、
+        // KindKey ごとに警告を 1 回出す(provider の削除・綴り違い・コンストラクタ例外に気付けるように)。
         public static string GetTypePrefix(AssetType type, string kindKey)
-            => type == AssetType.Extension && AssetKindRegistry.TryGet(kindKey, out var provider) && !string.IsNullOrEmpty(provider.Prefix)
+            => type == AssetType.Extension && TryGetProvider(kindKey, out var provider) && !string.IsNullOrEmpty(provider.Prefix)
                 ? provider.Prefix
                 : GetTypePrefix(type);
 
         public static string GetTargetFolder(AssetType type, string kindKey, string category)
         {
-            if (type != AssetType.Extension || !AssetKindRegistry.TryGet(kindKey, out var provider) || string.IsNullOrEmpty(provider.Folder))
+            if (type != AssetType.Extension || !TryGetProvider(kindKey, out var provider) || string.IsNullOrEmpty(provider.Folder))
             {
                 return GetTargetFolder(type, category);
             }
 
             var sub = CategoryFolderPath(category);
             return string.IsNullOrEmpty(sub) ? provider.Folder : $"{provider.Folder}/{sub}";
+        }
+
+        private static readonly System.Collections.Generic.HashSet<string> WarnedMissingProviders = new();
+
+        // Extension の KindKey から provider を引く。無ければ KindKey ごとに警告 1 回。
+        internal static bool TryGetProvider(string kindKey, out DDrive.Foundation.Extension.IAssetKindProvider provider)
+        {
+            if (AssetKindRegistry.TryGet(kindKey, out provider))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(kindKey) && WarnedMissingProviders.Add(kindKey))
+            {
+                UnityEngine.Debug.LogWarning($"[DDrive] No IAssetKindProvider for KindKey '{kindKey}'; its assets are named/placed as Misc. Check that the provider exists and is public with a public parameterless constructor.");
+            }
+
+            return false;
         }
 
         public static string BuildFileName(AssetType type, string kindKey, string category, string identifier)

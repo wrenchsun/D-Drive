@@ -134,6 +134,11 @@ namespace DDrive.Tests.Editor.Mcp
             Assert.AreEqual(string.Empty, se.KindKey);
             Assert.AreEqual("type:Se", se.Text);
 
+            // X-R-05: 組み込みの種別名は provider より先に解決される(大小無視)。
+            var model = ValidationScope.Parse("type:model");
+            Assert.AreEqual(AssetType.Model, model.Type);
+            Assert.IsTrue(string.IsNullOrEmpty(model.KindKey));
+
             Assert.Throws<McpToolError>(() => ValidationScope.Parse("type:NoSuchKind"));
         }
 

@@ -28,7 +28,8 @@ namespace DDrive.Runtime.Extension
         public IPoolService Pool { get; }
         public ITimeSource TimeSource { get; }
         public PauseService PauseService { get; }
-        // module 間で共有できる EventBus(Bootstrap が 1 つ作る。組み込み Manager のものとは別)。
+        // module 間で共有できる EventBus(Bootstrap が 1 つ作る。組み込み Manager のものとは別)。組み込みの AssetEventDispatcher
+        // (Data.Events → SE / VFX)には繋がっていない。AssetEvent を鳴らしたい module は自分の Manager で Dispatcher を作って購読する(docs/1014 X-R-07)。
         public EventBus Events { get; }
         // null 可(Editor プレビューなど)。
         public INetBridge NetBridge { get; }
@@ -50,17 +51,17 @@ namespace DDrive.Runtime.Extension
         public CutsceneManager Cutscene { get; }
 
         // [1014] §2.3(X-3) — Editor プレビュー用の Context(IsEditorPreview = true)。持ち込み先の窓が、確認用の Manager 群を
-        // 自前で組むときに module へ渡す。渡さなかった組み込み Manager は null(module は null を許容して書くこと)。
-        public static DDriveBootstrapContext ForEditorPreview(
-            IAssetRegistry registry, IPoolService pool, GameLoop gameLoop,
-            PauseService pauseService = null, ITimeSource timeSource = null, EventBus events = null, INetBridge netBridge = null,
-            AudioManager audio = null, BgmManager bgm = null, VfxManager vfx = null, AnimManager anim = null,
-            MaterialManager materials = null, ModelsManager models = null, PrefabsManager prefabs = null, UiManager ui = null,
-            UiTweenManager uiTweens = null, CameraFxManager cameraFx = null, HapticsManager haptics = null,
-            PresentationManager presentation = null, CutsceneManager cutscene = null)
-            => new DDriveBootstrapContext(
-                registry, pool, timeSource, pauseService ?? new PauseService(), events ?? new EventBus(), netBridge, gameLoop, true,
-                audio, bgm, vfx, anim, materials, models, prefabs, ui, uiTweens, cameraFx, haptics, presentation, cutscene);
+        // 自前で組むときに module へ渡す。options で渡さなかった組み込み Manager は null(module は null を許容して書くこと)。
+        // X-R-04: 以降の項目追加は EditorPreviewContextOptions のプロパティ追加で済む(この関数のシグネチャは変わらない)。
+        public static DDriveBootstrapContext ForEditorPreview(EditorPreviewContextOptions options)
+        {
+            options ??= new EditorPreviewContextOptions();
+            return new DDriveBootstrapContext(
+                options.Registry, options.Pool, options.TimeSource, options.PauseService ?? new PauseService(), options.Events ?? new EventBus(),
+                options.NetBridge, options.GameLoop, true,
+                options.Audio, options.Bgm, options.Vfx, options.Anim, options.Materials, options.Models, options.Prefabs, options.Ui,
+                options.UiTweens, options.CameraFx, options.Haptics, options.Presentation, options.Cutscene);
+        }
 
         internal DDriveBootstrapContext(
             IAssetRegistry registry, IPoolService pool, ITimeSource timeSource, PauseService pauseService,

@@ -35,7 +35,7 @@ namespace DDrive.Foundation.Identity
 
         // [1014_extension_platform.md] §2.1: 持ち込み先(外部アセンブリ)が定義する種別。2026-10-16 追加(X-1)。
         // 持ち込み先の種別はすべてこの値 + KindKey(AssetIdDefinitionAttribute.KindKey / CatalogEntry.KindKey)で区別する。
-        // enum はこれ以降増やさない。
+        // 持ち込み先の種別のためには enum を増やさない(D-Drive 本体の種別に昇格するときだけ、末尾に正式な値を追加する = MINOR。docs/1014 §3)。
         Extension,
     }
 }

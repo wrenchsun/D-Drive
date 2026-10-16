@@ -75,6 +75,11 @@ namespace ExternalContract.Tests
                 Assert.Ignore("雛形(Samples~/ExtensionTemplate)がこのパッケージに無い: " + source);
             }
 
+            if (AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "Sample.Extension.Runtime"))
+            {
+                Assert.Ignore("雛形を既にプロジェクトへ Import 済み(asmdef 名が重複するためコピーするとコンパイルエラーになる)");
+            }
+
             RemoveCopy();
             Directory.CreateDirectory("Assets/Tests/DDriveTemp");
             CopyDirectory(source, Dest);
@@ -102,7 +107,8 @@ namespace ExternalContract.Tests
             Assert.IsTrue(ExtensionProviders.TryGetSample("Sample", out _), "ISampleProvider");
             Assert.IsTrue(ExtensionProviders.TryGetPreviewScene("Sample", out _), "IPreviewSceneProvider");
             Assert.IsTrue(ExtensionProviders.TryGetManualPage("sample-editor", out var manual, out _), "IManualPageProvider");
-            StringAssert.Contains("Documentation~/sample-editor.md", manual);
+            StringAssert.Contains("Documentation~/sample-editor.md", manual.Replace('\\', '/'));
+            StringAssert.Contains("ExtensionTemplateSmoke", manual, "マニュアルの path は雛形の置き場所(コピー先)から求められる");
 
             // 窓: [DataEditor] が登録され、Order 0 の UxEditorWindow<T> 派生。
             var dataType = kind.DataType;

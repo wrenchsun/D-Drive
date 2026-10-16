@@ -1,0 +1,5 @@
+<linker>
+  <!-- IDDriveModule は ModuleRegistry がリフレクションで発見する(どこからも静的に参照されない)。IL2CPP のマネージドコード除去で
+       消えないよう、このアセンブリを保持する。アセンブリ名を付け替えたらここも直す。 -->
+  <assembly fullname="Sample.Extension.Runtime" preserve="all" />
+</linker>

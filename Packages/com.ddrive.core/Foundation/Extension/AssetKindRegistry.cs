@@ -124,6 +124,24 @@ namespace DDrive.Foundation.Extension
             return string.IsNullOrEmpty(kindKey) ? type.ToString() : kindKey;
         }
 
+        private static bool IsBuiltInTypeName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            foreach (var builtIn in Enum.GetNames(typeof(AssetType)))
+            {
+                if (string.Equals(builtIn, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static List<IAssetKindProvider> Discover()
         {
             var candidates = new List<(string typeName, IAssetKindProvider provider)>();
@@ -152,7 +170,7 @@ namespace DDrive.Foundation.Extension
 
                 foreach (var t in types)
                 {
-                    if (t == null || !t.IsClass || t.IsAbstract || t.IsGenericTypeDefinition
+                    if (t == null || !t.IsClass || t.IsAbstract || t.IsGenericTypeDefinition || !t.IsVisible
                         || !typeof(IAssetKindProvider).IsAssignableFrom(t)
                         || t.GetConstructor(Type.EmptyTypes) == null)
                     {
@@ -174,6 +192,7 @@ namespace DDrive.Foundation.Extension
 
             var result = new List<IAssetKindProvider>();
             var seen = new Dictionary<string, string>(StringComparer.Ordinal);
+            var seenDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var (typeName, provider) in candidates)
             {
                 var key = provider.KindKey;
@@ -193,6 +212,22 @@ namespace DDrive.Foundation.Extension
                     continue;
                 }
 
+                // X-R-05: 組み込みの種別名(AssetType の名前。None / Extension を含む。大小無視)と衝突する KindKey / DisplayName は
+                // 登録しない(MCP の scope や AssetBrowser のフィルタで組み込みの種別と取り違えるため)。DisplayName の重複も先勝ち。
+                if (IsBuiltInTypeName(key) || IsBuiltInTypeName(provider.DisplayName))
+                {
+                    Debug.LogWarning($"[DDrive] IAssetKindProvider '{typeName}': KindKey '{key}' / DisplayName '{provider.DisplayName}' collides with a built-in AssetType name and was ignored.");
+                    continue;
+                }
+
+                var display = string.IsNullOrEmpty(provider.DisplayName) ? key : provider.DisplayName;
+                if (seenDisplayNames.TryGetValue(display, out var displayOwner))
+                {
+                    Debug.LogWarning($"[DDrive] IAssetKindProvider '{typeName}': DisplayName '{display}' is already used by '{displayOwner}' and was ignored.");
+                    continue;
+                }
+
+                seenDisplayNames[display] = typeName;
                 seen[key] = typeName;
                 result.Add(provider);
             }

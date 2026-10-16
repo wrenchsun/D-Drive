@@ -15,7 +15,8 @@ namespace DDrive.Editor.Ux
         private readonly Label _empty;
         private readonly Label _desc;
 
-        public List<UxRow> Rows { get; } = new List<UxRow>();
+        private readonly List<UxRow> _rows = new List<UxRow>();
+        public IReadOnlyList<UxRow> Rows => _rows;
         public VisualElement Body => _body;
 
         public UxCard(string title, string desc, Action help)
@@ -65,7 +66,7 @@ namespace DDrive.Editor.Ux
 
         public void AddRow(UxRow row)
         {
-            Rows.Add(row);
+            _rows.Add(row);
             _body.Add(row);
         }
 

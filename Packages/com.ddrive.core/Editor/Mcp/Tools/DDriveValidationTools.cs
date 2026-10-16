@@ -381,11 +381,20 @@ namespace DDrive.Editor.Mcp.Tools
         }
 
         // 数値文字列("3")は Enum.TryParse が通してしまうので、定義済みの名前との一致だけを許す。
-        // 組み込みの種別名、または Extension の種別キー(IAssetKindProvider.KindKey / DisplayName。大小無視)。後者は AssetType.Extension + kindKey。
+        // 組み込みの種別名(先。X-R-05: provider が同じ名前を名乗っても組み込みの scope は変わらない)、または Extension の種別キー(IAssetKindProvider.KindKey / DisplayName。大小無視)。後者は AssetType.Extension + kindKey。
         private static AssetType ParseType(string name, out string kindKey)
         {
             kindKey = string.Empty;
             var trimmed = (name ?? string.Empty).Trim();
+            foreach (var candidate in Enum.GetNames(typeof(AssetType)))
+            {
+                if (string.Equals(candidate, trimmed, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(candidate, nameof(AssetType.None), StringComparison.Ordinal))
+                {
+                    return (AssetType)Enum.Parse(typeof(AssetType), candidate);
+                }
+            }
+
             foreach (var provider in DDrive.Foundation.Extension.AssetKindRegistry.All)
             {
                 if (string.Equals(provider.KindKey, trimmed, StringComparison.OrdinalIgnoreCase)
@@ -393,15 +402,6 @@ namespace DDrive.Editor.Mcp.Tools
                 {
                     kindKey = provider.KindKey;
                     return AssetType.Extension;
-                }
-            }
-
-            foreach (var candidate in Enum.GetNames(typeof(AssetType)))
-            {
-                if (string.Equals(candidate, trimmed, StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(candidate, nameof(AssetType.None), StringComparison.Ordinal))
-                {
-                    return (AssetType)Enum.Parse(typeof(AssetType), candidate);
                 }
             }
 

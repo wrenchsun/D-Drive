@@ -418,9 +418,11 @@ namespace DDrive.Runtime.Loop
         // 例外は module 単位で捕まえて警告 1 件 + その module を飛ばす(他の module と組み込みは動く)。
         private void BuildModules()
         {
-            var modules = ModuleRegistry.All;
+            // X-R-01: module のインスタンスは Bootstrap ごとに新しく作る(EditorModuleHost・他の Bootstrap と状態を共有しない)。
+            var modules = ModuleRegistry.CreateInstances();
             if (modules.Count == 0)
             {
+                WarnNoModulesInPlayer();
                 return;
             }
 
@@ -428,7 +430,23 @@ namespace DDrive.Runtime.Loop
                 Registry, Pool, new NetworkTimeSource(NetBridge), Loop.PauseService, new EventBus(), NetBridge, Loop.GameLoop, false,
                 Audio, Bgm, Vfx, Anim, Materials, Models, Prefabs, Ui, UiTweens, CameraFx, Haptics, Presentation, Cutscene);
             _moduleRunner = new ModuleRunner(modules);
-            _moduleRunner.Start(in ctx);
+            // BindFacades = false(テストや多重起動の検証)では静的ファサードに触れないので、module の Bind / Unbind も呼ばない。
+            _moduleRunner.Start(in ctx, BindFacades);
+        }
+
+        private static bool _warnedNoModules;
+
+        // X-R-06: プレイヤー(開発ビルドのみ)で module が 1 件も見つからないときの Info。IL2CPP のコード除去で module が消えた場合に
+        // 気付けるようにする(雛形の link.xml / [Preserve] を参照)。module を使っていないプロジェクトでは出ても無害。
+        private static void WarnNoModulesInPlayer()
+        {
+            if (_warnedNoModules || Application.isEditor || !Debug.isDebugBuild)
+            {
+                return;
+            }
+
+            _warnedNoModules = true;
+            Debug.Log("[DDrive] IDDriveModule: no module found in this player build. If you expect one, check that its assembly is not stripped (see the ExtensionTemplate link.xml / [Preserve]).");
         }
 
         // 終了時: 逆順に Unbind し、module の Manager を GameLoop から外す(冪等)。

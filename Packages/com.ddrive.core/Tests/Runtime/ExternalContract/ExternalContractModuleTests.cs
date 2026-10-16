@@ -38,13 +38,14 @@ namespace ExternalContract.Tests
             ExternalModuleProbe.Reset();
         }
 
-        private DDriveRuntimeBootstrap Create()
+        private DDriveRuntimeBootstrap Create(bool bindFacades = true)
         {
             _go = new GameObject("ModuleBootstrapTest");
             _go.SetActive(false);
             var bootstrap = _go.AddComponent<DDriveRuntimeBootstrap>();
             bootstrap.CatalogLabel = string.Empty;
             bootstrap.KeepAcrossScenes = false;
+            bootstrap.BindFacades = bindFacades;
             _go.SetActive(true);
             return bootstrap;
         }
@@ -111,7 +112,7 @@ namespace ExternalContract.Tests
         public void E25_ThrowingModule_IsSkippedWithOneWarning_OthersKeepRunning()
         {
             ExternalModuleProbe.FaultyThrowsInCreate = true;
-            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(@"ExternalModuleProbe\+Faulty.*failed to start"));
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(@"ExternalModuleProbe\+Faulty.*failed to start and was skipped: System.InvalidOperationException: boom"));
 
             var b = Create();
 
@@ -167,6 +168,118 @@ namespace ExternalContract.Tests
             Assert.IsNotNull(ctx.TimeSource);
             Assert.IsNotNull(ctx.Events);
             Assert.IsFalse(ctx.IsEditorPreview);
+        }
+
+        // ── X-R-01: Bind / Unbind は BindFacades = true の Bootstrap だけ。module のインスタンスは Runner ごと ──
+
+        [Test]
+        public void E25_BindFacadesFalse_CreatesAndTicksManagers_ButNeverBindsOrUnbinds()
+        {
+            var b = Create(bindFacades: false);
+
+            Assert.AreEqual(5, ExternalModuleProbe.Managers.Count, "Manager は作られて GameLoop に載る");
+            Assert.AreEqual(0, Prefixed("Bind:").Count, "BindFacades = false では Bind を呼ばない");
+            Assert.IsNull(ExternalModuleProbe.FacadeTarget);
+
+            b.Loop.GameLoop.Tick(0.1f);
+            foreach (var m in ExternalModuleProbe.Managers)
+            {
+                Assert.AreEqual(1, m.TickCount);
+            }
+
+            Object.DestroyImmediate(_go);
+            _go = null;
+            Assert.AreEqual(0, Prefixed("Unbind:").Count, "Bind していない module は Unbind もされない");
+        }
+
+        [Test]
+        public void E25_TwoRunners_DoNotBreakEachOthersFacade()
+        {
+            var play = Create(); // Play の Bootstrap(ファサードを結ぶ)
+            var target = ExternalModuleProbe.FacadeTarget;
+            Assert.IsNotNull(target);
+            Assert.AreEqual(5, ExternalModuleProbe.Managers.Count);
+
+            // 別の Runner(Editor プレビューの Host 相当: BindFacades = false)を起動して止める。
+            var loop = new GameLoop();
+            var ctx = DDriveBootstrapContext.ForEditorPreview(new EditorPreviewContextOptions
+            {
+                GameLoop = loop, Registry = play.Registry, Pool = play.Pool,
+            });
+            var second = new ModuleRunner(ModuleRegistry.CreateInstances());
+            second.Start(in ctx, bindFacades: false);
+            Assert.AreEqual(10, ExternalModuleProbe.Managers.Count, "module のインスタンス(と Manager)は Runner ごとに別");
+            Assert.AreEqual(5, Prefixed("Bind:").Count, "2 台目は Bind しない");
+            Assert.AreEqual(0, second.BoundCount);
+
+            second.Stop();
+            Assert.AreSame(target, ExternalModuleProbe.FacadeTarget, "2 台目を止めても 1 台目のファサードは外れない");
+
+            var before = target.TickCount;
+            Assert.IsTrue(ExternalModuleProbe.FacadePlay(), "ファサードの Play は Play の Manager に流れる");
+            Assert.AreEqual(before + 1, target.TickCount);
+        }
+
+        [Test]
+        public void E25_ModuleRegistry_CreatesNewInstancesEachTime_ButCachesTypes()
+        {
+            var a = ModuleRegistry.CreateInstances();
+            var b = ModuleRegistry.CreateInstances();
+            Assert.AreEqual(a.Count, b.Count);
+            Assert.GreaterOrEqual(a.Count, 5);
+            for (var i = 0; i < a.Count; i++)
+            {
+                Assert.AreNotSame(a[i], b[i], "インスタンスは共有しない");
+                Assert.AreSame(a[i].GetType(), b[i].GetType());
+            }
+        }
+
+        // ── X-R-12: Bind / Unbind / Order の例外 ──
+
+        [Test]
+        public void E25_ThrowingBind_IsSkippedWithOneWarning_AndNotUnbound()
+        {
+            ExternalModuleProbe.FaultyThrowsInBind = true;
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(@"ExternalModuleProbe\+Faulty.*failed to start and was skipped: System.InvalidOperationException: bind boom"));
+
+            var b = Create();
+
+            CollectionAssert.AreEqual(new[] { "First", "SameA", "SameB", "Late" }, Prefixed("Bind:"));
+            Assert.AreEqual(5, ExternalModuleProbe.Managers.Count, "Bind が失敗した module の Manager も作られている(登録は残る)");
+            b.Loop.GameLoop.Tick(0.1f);
+            foreach (var m in ExternalModuleProbe.Managers)
+            {
+                Assert.AreEqual(1, m.TickCount);
+            }
+
+            Object.DestroyImmediate(_go);
+            _go = null;
+            CollectionAssert.AreEqual(new[] { "Late", "SameB", "SameA", "First" }, Prefixed("Unbind:"), "Bind まで成功した module だけが Unbind される");
+        }
+
+        [Test]
+        public void E25_ThrowingUnbind_IsIgnoredWithOneWarning_OthersStillUnbind()
+        {
+            ExternalModuleProbe.FaultyThrowsInUnbind = true;
+            Create();
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(@"ExternalModuleProbe\+Faulty'\.Unbind threw and was ignored: System.InvalidOperationException: unbind boom"));
+
+            Object.DestroyImmediate(_go);
+            _go = null;
+
+            CollectionAssert.AreEqual(new[] { "Late", "SameB", "SameA", "First" }, Prefixed("Unbind:"));
+        }
+
+        [Test]
+        public void E25_ThrowingOrder_UsesZeroWithOneWarning()
+        {
+            ExternalModuleProbe.FaultyThrowsInOrder = true;
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(@"ExternalModuleProbe\+Faulty'\.Order threw and 0 is used: System.InvalidOperationException: order boom"));
+
+            Create();
+
+            // Order 0 扱い: First(-5) → Faulty(0、型名順で SameA の前) → SameA → SameB → Late(5)
+            CollectionAssert.AreEqual(new[] { "First", "Faulty", "SameA", "SameB", "Late" }, Prefixed("Create:"));
         }
     }
 }

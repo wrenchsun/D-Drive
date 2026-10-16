@@ -206,21 +206,25 @@ namespace ExternalContract.Tests
             Assert.AreEqual(1, driver.Manager.TickCount, "Dispose 後は Tick しない");
         }
 
-        // (c) EditorModuleHost: ExternalModuleProbe の module から Manager を作って Edit Mode で Tick し、Dispose で逆順に Unbind。
+        // (c) EditorModuleHost: ExternalModuleProbe の module から Manager を作って Edit Mode で Tick し、Dispose で StopAll。
+        // X-R-01: Host は module の Bind / Unbind(静的ファサードの結び付け)を呼ばない。
         [Test]
-        public void E27_EditorModuleHost_TicksModuleManagers_AndUnbindsOnDispose()
+        public void E27_EditorModuleHost_TicksModuleManagers_AndNeverBindsFacades()
         {
             ModuleRegistry.IncludeTestAssemblies = true;
             ModuleRegistry.Refresh();
 
-            var host = new EditorModuleHost(EditorAnchorRegistry.Build(), new PoolService());
+            var host = new EditorModuleHost(new EditorPreviewContextOptions { Registry = EditorAnchorRegistry.Build(), Pool = new PoolService() });
             try
             {
                 Assert.AreEqual(5, host.Managers.Count);
                 Assert.IsTrue(host.Context.IsEditorPreview);
+                Assert.AreSame(host.Loop, host.Context.GameLoop);
                 Assert.IsNull(host.Context.Ui, "プレビューが渡さなかった組み込み Manager は null");
                 Assert.IsNotNull(host.Context.Registry);
-                CollectionAssert.AreEqual(new[] { "First", "SameA", "SameB", "Faulty", "Late" }, Prefixed("Bind:"));
+                CollectionAssert.AreEqual(new[] { "First", "SameA", "SameB", "Faulty", "Late" }, Prefixed("Create:"));
+                Assert.AreEqual(0, Prefixed("Bind:").Count, "Host は Bind を呼ばない");
+                Assert.IsNull(ExternalModuleProbe.FacadeTarget);
 
                 host.Tick(0.25f);
                 foreach (var m in ExternalModuleProbe.Managers)
@@ -235,7 +239,7 @@ namespace ExternalContract.Tests
                 host.Dispose();
             }
 
-            CollectionAssert.AreEqual(new[] { "Late", "Faulty", "SameB", "SameA", "First" }, Prefixed("Unbind:"));
+            Assert.AreEqual(0, Prefixed("Unbind:").Count, "Host は Unbind も呼ばない");
             foreach (var m in ExternalModuleProbe.Managers)
             {
                 Assert.AreEqual(1, m.StopAllCount);
@@ -243,6 +247,182 @@ namespace ExternalContract.Tests
 
             host.Tick(0.25f);
             Assert.AreEqual(1, ExternalModuleProbe.Managers[0].TickCount, "Dispose 後は Tick しない");
+        }
+
+        // X-R-01: Play のファサード(BindFacades = true の Runner)を、Host を作っても閉じても壊さない。Host を 2 つ同時に持っても同じ。
+        [Test]
+        public void E27_EditorModuleHost_DoesNotBreakPlayFacade_EvenWithTwoHosts()
+        {
+            ModuleRegistry.IncludeTestAssemblies = true;
+            ModuleRegistry.Refresh();
+
+            var ctx = DDriveBootstrapContext.ForEditorPreview(new EditorPreviewContextOptions
+            {
+                GameLoop = new DDrive.Foundation.Manager.GameLoop(), Registry = EditorAnchorRegistry.Build(), Pool = new PoolService(),
+            });
+            var play = new ModuleRunner(ModuleRegistry.CreateInstances());
+            play.Start(in ctx); // Play の Bootstrap 相当(ファサードを結ぶ)
+            var target = ExternalModuleProbe.FacadeTarget;
+            try
+            {
+                Assert.IsNotNull(target);
+
+                var hostA = new EditorModuleHost();
+                var hostB = new EditorModuleHost();
+                Assert.AreSame(target, ExternalModuleProbe.FacadeTarget, "Host を作ってもファサードは奪われない");
+                hostA.Dispose();
+                Assert.AreSame(target, ExternalModuleProbe.FacadeTarget, "片方を閉じてもファサードは外れない");
+                hostB.Dispose();
+                Assert.AreSame(target, ExternalModuleProbe.FacadeTarget, "両方を閉じてもファサードは外れない");
+
+                var before = target.TickCount;
+                Assert.IsTrue(ExternalModuleProbe.FacadePlay(), "ファサードの Play は Play 側の Manager に流れる");
+                Assert.AreEqual(before + 1, target.TickCount);
+            }
+            finally
+            {
+                play.Stop();
+            }
+
+            Assert.IsNull(ExternalModuleProbe.FacadeTarget);
+        }
+
+        // X-R-01: 窓を開いたまま Play に入る / Play 中に窓を閉じる、の流れ(Play 側のファサード = BindFacades = true の Runner が既にある状態)。
+        // ▶ で Host が作られても、窓を閉じて Host を Dispose しても、Play 側のファサードは外れず Manager に流れる。
+        [Test]
+        public void E27_Window_PlayThenClose_DoesNotDetachPlayFacade()
+        {
+            ModuleRegistry.IncludeTestAssemblies = true;
+            ModuleRegistry.Refresh();
+
+            var ctx = DDriveBootstrapContext.ForEditorPreview(new EditorPreviewContextOptions
+            {
+                GameLoop = new DDrive.Foundation.Manager.GameLoop(), Registry = EditorAnchorRegistry.Build(), Pool = new PoolService(),
+            });
+            var play = new ModuleRunner(ModuleRegistry.CreateInstances());
+            play.Start(in ctx);
+            var target = ExternalModuleProbe.FacadeTarget;
+            Assert.IsNotNull(target);
+            try
+            {
+                var window = (ExternalSampleEditorWindow)BuildWindow(typeof(ExternalSampleEditorWindow), NewData());
+                var driver = window.Driver;
+                Assert.IsNull(driver.Host, "窓を開いただけでは Host を作らない(▶ で初めて作る)");
+
+                typeof(UxEditorWindow<ExternalSampleData>).GetMethod("PlayMain", Inst).Invoke(window, new object[] { false });
+                Assert.IsNotNull(driver.Host, "▶ で Host を作る");
+                Assert.AreSame(target, ExternalModuleProbe.FacadeTarget, "▶ を押してもファサードは奪われない");
+
+                _cleanup.Remove(window);
+                UnityEngine.Object.DestroyImmediate(window); // 窓を閉じる = OnDisable → Driver.Dispose → Host.Dispose
+                Assert.IsTrue(driver.IsDisposed);
+                Assert.IsNull(driver.Host);
+                Assert.AreSame(target, ExternalModuleProbe.FacadeTarget, "窓を閉じてもファサードは外れない");
+
+                var before = target.TickCount;
+                Assert.IsTrue(ExternalModuleProbe.FacadePlay());
+                Assert.AreEqual(before + 1, target.TickCount, "ファサードの Play は Play 側の Manager に流れ続ける");
+            }
+            finally
+            {
+                play.Stop();
+            }
+        }
+
+        // X-R-09: Host の自動停止(Play Mode 突入・シーン切替)と、再コンパイル直前の Dispose。
+        [Test]
+        public void E27_EditorModuleHost_AutoStopsOnPlayModeSceneChangeAndAssemblyReload()
+        {
+            ModuleRegistry.IncludeTestAssemblies = true;
+            ModuleRegistry.Refresh();
+
+            var host = new EditorModuleHost();
+            try
+            {
+                var hostType = typeof(EditorModuleHost);
+                hostType.GetMethod("OnPlayModeStateChanged", Inst).Invoke(host, new object[] { PlayModeStateChange.EnteredEditMode });
+                foreach (var m in ExternalModuleProbe.Managers)
+                {
+                    Assert.AreEqual(0, m.StopAllCount, "EnteredEditMode では止めない");
+                }
+
+                hostType.GetMethod("OnPlayModeStateChanged", Inst).Invoke(host, new object[] { PlayModeStateChange.ExitingEditMode });
+                foreach (var m in ExternalModuleProbe.Managers)
+                {
+                    Assert.AreEqual(1, m.StopAllCount, "Play Mode 突入で止まる");
+                }
+
+                hostType.GetMethod("OnActiveSceneChanged", Inst).Invoke(host, new object[] { default(UnityEngine.SceneManagement.Scene), default(UnityEngine.SceneManagement.Scene) });
+                foreach (var m in ExternalModuleProbe.Managers)
+                {
+                    Assert.AreEqual(2, m.StopAllCount, "シーン切替で止まる");
+                }
+
+                hostType.GetMethod("OnBeforeAssemblyReload", Inst).Invoke(host, null);
+                foreach (var m in ExternalModuleProbe.Managers)
+                {
+                    Assert.AreEqual(3, m.StopAllCount, "再コンパイル直前に Dispose(StopAll)される");
+                }
+
+                host.Tick(0.1f);
+                Assert.AreEqual(0, ExternalModuleProbe.Managers[0].TickCount, "Dispose 後は Tick しない");
+            }
+            finally
+            {
+                host.Dispose();
+            }
+        }
+
+        // X-R-04: options 型。省略した部品は null、Registry / Pool 省略の Host は空の Registry / 新規の Pool、options は書き換えない。
+        [Test]
+        public void E27_PreviewContextOptions_FlowIntoContext_AndHostDoesNotMutateThem()
+        {
+            ModuleRegistry.IncludeTestAssemblies = true;
+            ModuleRegistry.Refresh();
+
+            var registry = EditorAnchorRegistry.Build();
+            var pool = new PoolService();
+            var options = new EditorPreviewContextOptions { Registry = registry, Pool = pool };
+            var ctx = DDriveBootstrapContext.ForEditorPreview(options);
+            Assert.AreSame(registry, ctx.Registry);
+            Assert.AreSame(pool, ctx.Pool);
+            Assert.IsTrue(ctx.IsEditorPreview);
+            Assert.IsNotNull(ctx.PauseService, "省略した PauseService は新規");
+            Assert.IsNotNull(ctx.Events, "省略した Events は新規");
+            Assert.IsNull(ctx.Audio);
+            Assert.IsNull(ctx.NetBridge);
+            Assert.DoesNotThrow(() => DDriveBootstrapContext.ForEditorPreview(null));
+
+            var host = new EditorModuleHost(options);
+            try
+            {
+                Assert.AreSame(registry, host.Context.Registry);
+                Assert.AreSame(pool, host.Context.Pool);
+                Assert.AreSame(host.Loop, host.Context.GameLoop);
+                Assert.IsNull(options.GameLoop, "options は書き換えない");
+            }
+            finally
+            {
+                host.Dispose();
+            }
+
+            var bare = new EditorModuleHost();
+            try
+            {
+                Assert.IsNotNull(bare.Context.Registry, "Registry 省略時は空の Registry");
+                Assert.IsNotNull(bare.Context.Pool, "Pool 省略時は新規");
+            }
+            finally
+            {
+                bare.Dispose();
+            }
+        }
+
+        // X-R-04: UxCard.Rows は読み取り専用の一覧(内部の List を公開しない)。
+        [Test]
+        public void E27_UxCardRows_IsReadOnlyList()
+        {
+            Assert.AreEqual(typeof(IReadOnlyList<UxRow>), typeof(UxCard).GetProperty("Rows").PropertyType);
         }
 
         private static List<string> Prefixed(string prefix)

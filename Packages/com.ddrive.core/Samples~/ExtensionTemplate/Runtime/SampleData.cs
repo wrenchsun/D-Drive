@@ -13,7 +13,7 @@ namespace SampleExtension
 
     // 持ち込み先が定義する種別の Data(docs/1014 §2.1)。AssetType.Extension + KindKey で種別を区別する(enum は増やさない)。
     // ScriptableObject として保存するので、クラス名 = ファイル名(SampleData.cs)にする。
-    [CreateAssetMenu(menuName = "Sample/Sample Data", fileName = "SMP_NewSample")]
+    // [CreateAssetMenu] は付けない: Project ウィンドウから直接作ると Id 0・カタログ未登録の Data になる。作成は AssetBrowser の「＋ 新規作成」から(Id・命名・カタログ・Addressables 登録まで行う)。
     [AssetIdDefinition(AssetType.Extension, typeof(SampleMarker), "SMPID", KindKey = SampleKind.Key)]
     public sealed class SampleData : AssetDataBase
     {

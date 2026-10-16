@@ -5,7 +5,6 @@ using DDrive.Editor.Preview;
 using DDrive.Editor.Ux;
 using DDrive.Foundation.Handle;
 using DDrive.Foundation.Manager;
-using DDrive.Foundation.Pool;
 using UnityEditor;
 using UnityEngine;
 
@@ -92,7 +91,8 @@ namespace SampleExtension.Editor
             E(nameof(SampleData.Loop), "ループ", "止めるまで続ける。", FieldTier.Common, PurPlay, "繰り返し"),
             E(nameof(SampleData.Fade), "強さの変化", "強さが時間でどう変わるか(形 + 尺)。", FieldTier.Advanced, PurShape, "カーブ", "イージング", "減衰"),
             FlagsEntry(PurPlay),
-            EventsEntry(PurShape),
+            // 「きっかけで鳴らす・出す(Events)」の欄は付けない: 外部 module の Manager は AssetEvent を発火しない(ctx.Events は組み込みの
+            // AssetEventDispatcher に繋がっていない)ので、設定しても何も鳴らない。必要なら自分の Manager で AssetEventDispatcher を作って購読する(docs/1014 §2.2)。
         };
 
         protected override IReadOnlyList<FieldGuideEntry> SpecificEntries => Table;
@@ -101,29 +101,28 @@ namespace SampleExtension.Editor
 
     // 確認用の再生: module が作る Manager(SampleModule)を EditorModuleHost で実物のまま Edit Mode で動かす(docs/1014 §2.3)。
     // UxPreviewDriverBase が、シーン切替・Play Mode 突入・再コンパイル・シーン保存の直前に自動で止めて片付ける。
+    // Host は ▶ を初めて押したときに作る(窓を開いただけでは作らない)。Host は module の Bind / Unbind を呼ばないので、
+    // Play 中のゲーム側の Samples ファサードには触れない(窓を開いたまま Play に入っても、Play 中に窓を閉じても安全)。
     public sealed class SamplePreviewDriver : UxPreviewDriverBase
     {
-        private readonly EditorModuleHost _host;
-        private readonly SampleManager _manager;
+        private EditorModuleHost _host;
+        private SampleManager _manager;
         private Handle<SampleMarker> _handle = Handle<SampleMarker>.Invalid;
 
         public SamplePreviewDriver() : base("Sample Preview")
         {
-            // Registry / Pool は自分のものを渡す(Data を直接再生するだけなら空でよい)。module は ModuleRegistry から実物が作られる。
-            _host = new EditorModuleHost(EditorAnchorRegistry.Build(), new PoolService());
-            foreach (var m in _host.Managers)
-            {
-                if (m is SampleManager sample)
-                {
-                    _manager = sample;
-                }
-            }
         }
 
         public bool IsPlaying => _manager != null && _manager.IsPlaying(_handle);
 
         public void Play(SampleData data)
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                return; // Play 中はゲーム側の Manager が動く。Edit 用の Host は作らない
+            }
+
+            EnsureHost();
             if (_manager != null)
             {
                 _handle = _manager.PlayData(data);
@@ -141,13 +140,30 @@ namespace SampleExtension.Editor
         {
         }
 
+        // 止まるたびに Host ごと片付ける(次の ▶ で作り直す)。
         protected override void OnReset(PreviewResetReason reason)
         {
-            _host.Loop.StopAll(StopReason.Manual);
             _handle = Handle<SampleMarker>.Invalid;
-            if (reason == PreviewResetReason.Dispose)
+            _manager = null;
+            _host?.Dispose();
+            _host = null;
+        }
+
+        private void EnsureHost()
+        {
+            if (_host != null)
             {
-                _host.Dispose();
+                return;
+            }
+
+            // Registry / Pool は省略(空の Registry・新規の Pool)。Data を直接再生するだけなら要らない。module は ModuleRegistry から実物が作られる。
+            _host = new EditorModuleHost();
+            foreach (var m in _host.Managers)
+            {
+                if (m is SampleManager sample)
+                {
+                    _manager = sample;
+                }
             }
         }
     }

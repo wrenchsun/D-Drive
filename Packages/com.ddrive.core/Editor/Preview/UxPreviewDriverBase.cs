@@ -138,6 +138,12 @@ namespace DDrive.Editor.Preview
             var now = EditorApplication.timeSinceStartup;
             var dt = Mathf.Clamp((float)(now - _lastTickTime), 0f, 0.25f);
             _lastTickTime = now;
+            // X-R-09: Play Mode 突入後(自動停止の後)は Tick を回さない。
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                return;
+            }
+
             Tick(dt);
         }
 
