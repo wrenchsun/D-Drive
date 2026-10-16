@@ -16,6 +16,28 @@ namespace DDrive.Foundation.Registry
         T ResolveOrPlaceholder<T>(ulong id) where T : AssetDataBase;
         IReadOnlyList<CatalogEntry> Entries(AssetType type);
 
+        // [1014_extension_platform.md] §2.1(X-1、2026-10-16 追加) — (AssetType, KindKey) で引く。kindKey が空なら Entries(type) と同じ。
+        // 既存の実装(テストの Fake 等)を壊さないよう既定実装を持つ(AssetRegistry は index で override する)。
+        IReadOnlyList<CatalogEntry> Entries(AssetType type, string kindKey)
+        {
+            var all = Entries(type);
+            if (string.IsNullOrEmpty(kindKey))
+            {
+                return all;
+            }
+
+            var filtered = new List<CatalogEntry>();
+            for (var i = 0; i < all.Count; i++)
+            {
+                if (string.Equals(all[i].KindKey, kindKey, StringComparison.Ordinal))
+                {
+                    filtered.Add(all[i]);
+                }
+            }
+
+            return filtered;
+        }
+
         // [14_networking.md] §9/§10(6-6) — ネット受信の入口で「破棄 + ログ」を行うための、Placeholder
         // フォールバック(OnPlaceholderUsed 発火・警告ログ)を一切トリガーしない純粋な存在確認。
         // 「未登録 AssetId」だけでなく「登録されているが種別が一致しない(=範囲外)」も検出できるよう

@@ -53,6 +53,8 @@ namespace DDrive.Foundation.Registry
                 hash = Mix(hash, (ulong)(int)entry.Type);
                 hash = MixString(hash, entry.Address);
                 hash = Mix(hash, (ulong)(int)entry.Flags.Net);
+                // X-1(2026-10-16): 外部種別のキー。空(組み込み種別)のときは何も混ぜないので既存のハッシュは変わらない。
+                hash = MixString(hash, entry.KindKey);
                 return hash;
             }
         }

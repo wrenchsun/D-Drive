@@ -9,9 +9,13 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 追加
+
+- **種別の外部定義**（X-1、[docs/1014](docs/1014_extension_platform.md) §2.1）: 持ち込み先が自分のアセンブリだけで新しい種別を足せる。`AssetType.Extension` + `[AssetIdDefinition(…, KindKey = "…")]` + `IAssetKindProvider`（`AssetKindRegistry` が発見）。`CatalogEntry.KindKey`、`AssetRegistry` の `(AssetType, KindKey)` index、`IExtensionAssetManager` / `IKindValidator`。AssetBrowser・新規作成・カタログ・ID 生成・Validation の種別集計が provider に委譲される。
+
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 追加のみ（MINOR）: `AssetType.Extension`（末尾、値 19）/ `CatalogEntry.KindKey`（空なら既存の ContentHash は不変）/ `AssetIdDefinitionAttribute.KindKey` / 公開型 `DDrive.Foundation.Extension.{IAssetKindProvider, AssetKindRegistry, IExtensionAssetManager, IKindValidator}` / `IAssetRegistry.Entries(AssetType, string)`（既定実装つき）/ `AssetRegistry.IsRegistered(id, type, kindKey)`。契約 E-26（[docs/42](docs/42_distribution.md) §5.14）。既存種別の挙動は不変。
 
 ## [1.9.0] - 2026-10-15
 

@@ -109,6 +109,8 @@ public struct AssetEvent
 
 ## 4. AssetRegistry（ID→Data 解決）
 
+> **2026-10-16 追記（X-1、[1014](1014_extension_platform.md) §2.1）**: `CatalogEntry.KindKey`（string、既定空 = 組み込み種別）を追加。`AssetRegistry` は `Entries(AssetType, string kindKey)` と `IsRegistered(id, type, kindKey)` を持ち、`(AssetType, KindKey)` の index で引く（`IAssetRegistry.Entries(type, kindKey)` は既定実装つきの追加、既存の `Entries(type)` は不変）。`CatalogContentHasher` は KindKey が空なら何も混ぜないので既存の ContentHash は変わらない。`AssetType.Extension` + `[AssetIdDefinition(…, KindKey = "…")]` + `IAssetKindProvider`（`Foundation/Extension/`）で持ち込み先が種別を足せる。ID 定数は `AssetIdGenerator` が Data 型ごとの `ConstantsClassName` で出し、`KnownPrefixes` に加えて provider の `Prefix` も接頭辞として落とす。
+
 ```csharp
 public interface IAssetRegistry
 {

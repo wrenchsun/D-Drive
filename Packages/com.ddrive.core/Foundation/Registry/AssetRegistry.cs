@@ -16,6 +16,8 @@ namespace DDrive.Foundation.Registry
         private readonly IAssetLoader _loader;
         private readonly Dictionary<ulong, CatalogEntry> _index = new();
         private readonly Dictionary<AssetType, List<CatalogEntry>> _byType = new();
+        // X-1(2026-10-16): KindKey を持つ Entry(AssetType.Extension)の (AssetType, KindKey) index。
+        private readonly Dictionary<(AssetType, string), List<CatalogEntry>> _byKind = new();
         private readonly Dictionary<ulong, AssetDataBase> _loaded = new();
 
         // P5 レビュー対応(2026-09-14): IAssetRegistry の PreloadIdsAsync のコメント
@@ -52,6 +54,18 @@ namespace DDrive.Foundation.Registry
                     }
 
                     list.Add(entry);
+
+                    if (!string.IsNullOrEmpty(entry.KindKey))
+                    {
+                        var kindIndexKey = (entry.Type, entry.KindKey);
+                        if (!_byKind.TryGetValue(kindIndexKey, out var kindList))
+                        {
+                            kindList = new List<CatalogEntry>();
+                            _byKind[kindIndexKey] = kindList;
+                        }
+
+                        kindList.Add(entry);
+                    }
                 }
 
                 if (entry.Flags.Load == LoadMode.Preload)
@@ -125,6 +139,22 @@ namespace DDrive.Foundation.Registry
 
         public IReadOnlyList<CatalogEntry> Entries(AssetType type)
             => _byType.TryGetValue(type, out var list) ? list : Array.Empty<CatalogEntry>();
+
+        public IReadOnlyList<CatalogEntry> Entries(AssetType type, string kindKey)
+        {
+            if (string.IsNullOrEmpty(kindKey))
+            {
+                return Entries(type);
+            }
+
+            return _byKind.TryGetValue((type, kindKey), out var list) ? list : Array.Empty<CatalogEntry>();
+        }
+
+        // X-1: 種別 + 種別キーでの存在確認(ネット受信の範囲外検査用)。
+        public bool IsRegistered(ulong id, AssetType type, string kindKey)
+            => _index.TryGetValue(id, out var entry)
+               && entry.Type == type
+               && (string.IsNullOrEmpty(kindKey) || string.Equals(entry.KindKey, kindKey, StringComparison.Ordinal));
 
         // [14_networking.md] §9/§10(6-6) — ResolveOrPlaceholder/NotifyPlaceholderUsed を経由しない
         // (副作用なしの)存在確認。ネット受信ハンドラが「未登録 AssetId・範囲外(種別不一致)」を Placeholder

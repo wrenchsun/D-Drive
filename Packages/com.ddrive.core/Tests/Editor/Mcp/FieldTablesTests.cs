@@ -19,7 +19,8 @@ namespace DDrive.Tests.Editor.Mcp
         {
             foreach (AssetType t in Enum.GetValues(typeof(AssetType)))
             {
-                if (t != AssetType.None)
+                // Extension(X-1)の MCP 対応(種別キーごとの欄表)は後続。FieldTables は組み込み 18 種のみ。
+                if (t != AssetType.None && t != AssetType.Extension)
                 {
                     yield return t;
                 }

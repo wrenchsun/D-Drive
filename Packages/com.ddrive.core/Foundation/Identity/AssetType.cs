@@ -32,5 +32,10 @@ namespace DDrive.Foundation.Identity
 
         // [26_timeline.md] §4.1: Maya FBX 取り込み + D-Drive トラックの Timeline 基盤(CutsceneData)。6-10a で追加。
         Cutscene,
+
+        // [1014_extension_platform.md] §2.1: 持ち込み先(外部アセンブリ)が定義する種別。2026-10-16 追加(X-1)。
+        // 持ち込み先の種別はすべてこの値 + KindKey(AssetIdDefinitionAttribute.KindKey / CatalogEntry.KindKey)で区別する。
+        // enum はこれ以降増やさない。
+        Extension,
     }
 }

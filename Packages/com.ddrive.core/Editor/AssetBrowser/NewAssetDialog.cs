@@ -121,6 +121,7 @@ namespace DDrive.Editor.AssetBrowser
                 .Where(d => d.dataType.Namespace?.Contains("Tests") != true)
                 .Where(d => _lockedTypes == null || _lockedTypes.Contains(d.dataType))
                 .OrderBy(d => d.assetType.ToString())
+                .ThenBy(d => DDrive.Foundation.Extension.AssetKindRegistry.TryGetByDataType(d.dataType, out var p) ? p.Order : 0)
                 .ToList();
 
             if (_definitions.Count == 0)
@@ -155,7 +156,9 @@ namespace DDrive.Editor.AssetBrowser
             divider.AddToClassList("ux-nad__divider");
             root.Add(divider);
 
-            var choices = _definitions.Select(d => $"{d.assetType} ({d.dataType.Name})").ToList();
+            var choices = _definitions
+                .Select(d => $"{DDrive.Foundation.Extension.AssetKindRegistry.LabelOf(d.assetType, DDrive.Foundation.Extension.AssetKindRegistry.KindKeyOf(d.dataType))} ({d.dataType.Name})")
+                .ToList();
             _typeField = new DropdownField("種別", choices, 0);
             _typeField.RegisterValueChangedCallback(_ => RefreshPreview());
             root.Add(_typeField);
@@ -242,8 +245,9 @@ namespace DDrive.Editor.AssetBrowser
 
             if (valid && dataType != null)
             {
-                var fileName = AssetNamingService.BuildFileName(assetType, _categoryField?.value, identifier);
-                var folder = AssetNamingService.GetTargetFolder(assetType, _categoryField?.value);
+                var kindKey = DDrive.Foundation.Extension.AssetKindRegistry.KindKeyOf(dataType);
+                var fileName = AssetNamingService.BuildFileName(assetType, kindKey, _categoryField?.value, identifier);
+                var folder = AssetNamingService.GetTargetFolder(assetType, kindKey, _categoryField?.value);
                 var gameDataRoot = TestGameDataRootOverride ?? AssetCreationService.DefaultGameDataRoot;
                 _previewLabel.text = $"生成先: {gameDataRoot}/{folder}/{fileName}.asset";
             }

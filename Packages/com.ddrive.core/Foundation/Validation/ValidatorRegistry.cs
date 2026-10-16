@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Extension;
 using DDrive.Foundation.Identity;
 
 namespace DDrive.Foundation.Validation
@@ -23,12 +25,20 @@ namespace DDrive.Foundation.Validation
                     continue;
                 }
 
-                var assetType = ResolveAssetType(asset);
+                var assetType = ResolveAssetType(asset, out var kindKey);
 
                 for (var i = 0; i < _validators.Count; i++)
                 {
                     var validator = _validators[i];
                     var applies = validator is IUniversalValidator || validator.Target == assetType;
+
+                    // X-1(2026-10-16): Extension 種別の Validator は IKindValidator.TargetKindKey で種別キーに絞れる。
+                    if (applies && assetType == AssetType.Extension && validator is IKindValidator kindValidator
+                        && !string.Equals(kindValidator.TargetKindKey, kindKey, StringComparison.Ordinal))
+                    {
+                        applies = false;
+                    }
+
                     if (!applies)
                     {
                         continue;
@@ -75,9 +85,10 @@ namespace DDrive.Foundation.Validation
             return list;
         }
 
-        private static AssetType ResolveAssetType(AssetDataBase asset)
+        private static AssetType ResolveAssetType(AssetDataBase asset, out string kindKey)
         {
             var attr = asset.GetType().GetCustomAttribute<AssetIdDefinitionAttribute>();
+            kindKey = attr?.KindKey ?? string.Empty;
             return attr?.Type ?? AssetType.None;
         }
     }

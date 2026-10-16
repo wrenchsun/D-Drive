@@ -7,6 +7,7 @@ using DDrive.Editor.Menu;
 using DDrive.Editor.Settings;
 using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Extension;
 using DDrive.Foundation.Identity;
 using UnityEditor;
 using UnityEngine;
@@ -48,6 +49,7 @@ namespace DDrive.Editor.Codegen
             public AssetType AssetType;
             public Type MarkerType;
             public string ConstantsClassName;
+            public string KindKey;
         }
 
         // [M-1b、2026-09-25] ScenePreloadList の「コード参照」検出(Editor/Preload/
@@ -243,13 +245,32 @@ namespace DDrive.Editor.Codegen
             return result;
         }
 
+        // X-1(2026-10-16): Extension は KindKey が必須。無ければ Error を 1 件出して false(その定義は生成から飛ばす)。
+        public static bool TryAcceptDefinition(Type dataType, AssetIdDefinitionAttribute attr)
+        {
+            if (attr == null)
+            {
+                return false;
+            }
+
+            if (attr.Type == AssetType.Extension && string.IsNullOrEmpty(attr.KindKey))
+            {
+                Debug.LogError($"[DDrive] {dataType?.FullName} has [AssetIdDefinition(AssetType.Extension, …)] without KindKey; skipped (set KindKey = \"…\").");
+                return false;
+            }
+
+            return true;
+        }
+
         private static List<Definition> FindDefinitions(bool includeTestAssemblies)
         {
             var list = new List<Definition>();
 
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (!includeTestAssemblies && asm.GetName().Name.StartsWith("DDrive.Tests", StringComparison.Ordinal))
+                // X-1(2026-10-16): 外部契約テスト(ExternalContract.Tests*)が置く Extension 種別のダミー Data も、
+                // 実際の AssetIds.g.cs に載せない(生成物がテストアセンブリを参照してコンパイルできなくなるため)。
+                if (!includeTestAssemblies && AssetKindRegistry.IsTestAssemblyName(asm.GetName().Name))
                 {
                     continue;
                 }
@@ -282,12 +303,18 @@ namespace DDrive.Editor.Codegen
                         continue;
                     }
 
+                    if (!TryAcceptDefinition(t, attr))
+                    {
+                        continue;
+                    }
+
                     list.Add(new Definition
                     {
                         DataType = t,
                         AssetType = attr.Type,
                         MarkerType = attr.MarkerType,
                         ConstantsClassName = attr.ConstantsClassName,
+                        KindKey = attr.KindKey ?? string.Empty,
                     });
                 }
             }
@@ -311,7 +338,8 @@ namespace DDrive.Editor.Codegen
         internal static string ToConstantName(string rawName)
         {
             var tokens = rawName.Split(new[] { '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            var start = tokens.Length > 1 && KnownPrefixes.Contains(tokens[0]) ? 1 : 0;
+            // X-1(2026-10-16): 外部種別(IAssetKindProvider.Prefix)の接頭辞も落とす。
+            var start = tokens.Length > 1 && (KnownPrefixes.Contains(tokens[0]) || AssetKindRegistry.IsKnownPrefix(tokens[0])) ? 1 : 0;
 
             var sb = new StringBuilder();
             for (var i = start; i < tokens.Length; i++)

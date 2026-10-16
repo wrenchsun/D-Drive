@@ -263,6 +263,30 @@ TYPE enum DDrive.Foundation.Event.EventTrigger
   field const OnLoop : DDrive.Foundation.Event.EventTrigger
   field const OnSpawn : DDrive.Foundation.Event.EventTrigger
   field const Time : DDrive.Foundation.Event.EventTrigger
+TYPE class static DDrive.Foundation.Extension.AssetKindRegistry
+  method static IsKnownPrefix(string token) : bool
+  method static IsTestAssemblyName(string name) : bool
+  method static KindKeyOf(System.Type dataType) : string
+  method static LabelOf(DDrive.Foundation.Identity.AssetType type, string kindKey) : string
+  method static Refresh() : void
+  method static TryGet(string kindKey, out DDrive.Foundation.Extension.IAssetKindProvider provider) : bool
+  method static TryGetByDataType(System.Type dataType, out DDrive.Foundation.Extension.IAssetKindProvider provider) : bool
+  property static All : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Extension.IAssetKindProvider> {get}
+  property static IncludeTestAssemblies : bool {get;set}
+TYPE interface DDrive.Foundation.Extension.IAssetKindProvider
+  property CatalogName : string {get}
+  property DataType : System.Type {get}
+  property DefaultLoad : DDrive.Foundation.Data.LoadMode {get}
+  property DisplayName : string {get}
+  property Folder : string {get}
+  property Icon : UnityEngine.Texture2D {get}
+  property KindKey : string {get}
+  property Order : int {get}
+  property Prefix : string {get}
+TYPE interface DDrive.Foundation.Extension.IExtensionAssetManager
+  property KindKey : string {get}
+TYPE interface DDrive.Foundation.Extension.IKindValidator
+  property TargetKindKey : string {get}
 TYPE struct DDrive.Foundation.Handle.Handle<TMarker>
   field readonly Generation : int
   field readonly Index : int
@@ -287,6 +311,7 @@ TYPE class sealed DDrive.Foundation.Handle.InstanceStore<TMarker, TInstance>
 TYPE class sealed DDrive.Foundation.Identity.AssetIdDefinitionAttribute : System.Attribute
   ctor AssetIdDefinitionAttribute(DDrive.Foundation.Identity.AssetType type, System.Type markerType, string constantsClassName)
   property ConstantsClassName : string {get}
+  property KindKey : string {get;set}
   property MarkerType : System.Type {get}
   property Type : DDrive.Foundation.Identity.AssetType {get}
 TYPE struct DDrive.Foundation.Identity.AssetId<TMarker>
@@ -310,6 +335,7 @@ TYPE enum DDrive.Foundation.Identity.AssetType
   enum-member Canvas = 8
   enum-member ControlSkin = 17
   enum-member Cutscene = 18
+  enum-member Extension = 19
   enum-member Haptics = 12
   enum-member Material = 6
   enum-member Model = 14
@@ -329,6 +355,7 @@ TYPE enum DDrive.Foundation.Identity.AssetType
   field const Canvas : DDrive.Foundation.Identity.AssetType
   field const ControlSkin : DDrive.Foundation.Identity.AssetType
   field const Cutscene : DDrive.Foundation.Identity.AssetType
+  field const Extension : DDrive.Foundation.Identity.AssetType
   field const Haptics : DDrive.Foundation.Identity.AssetType
   field const Material : DDrive.Foundation.Identity.AssetType
   field const Model : DDrive.Foundation.Identity.AssetType
@@ -522,7 +549,9 @@ TYPE class sealed DDrive.Foundation.Registry.AssetRegistry
   ctor AssetRegistry(DDrive.Foundation.Loader.IAssetLoader loader)
   event OnPlaceholderUsed : System.Action<ulong, DDrive.Foundation.Identity.AssetType>
   method Entries(DDrive.Foundation.Identity.AssetType type) : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogEntry>
+  method Entries(DDrive.Foundation.Identity.AssetType type, string kindKey) : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogEntry>
   method IsRegistered(ulong id, DDrive.Foundation.Identity.AssetType type) : bool
+  method IsRegistered(ulong id, DDrive.Foundation.Identity.AssetType type, string kindKey) : bool
   method PreloadIdsAsync(System.Collections.Generic.IReadOnlyList<ulong> ids, System.IProgress<float> progress) : Cysharp.Threading.Tasks.UniTask
   method RegisterCatalogAsync(DDrive.Foundation.Registry.AssetCatalog catalog) : Cysharp.Threading.Tasks.UniTask
   method ReleaseIds(System.Collections.Generic.IReadOnlyList<ulong> ids) : void
@@ -542,10 +571,12 @@ TYPE struct DDrive.Foundation.Registry.CatalogEntry
   field Address : string
   field Flags : DDrive.Foundation.Data.AssetFlags
   field Id : ulong
+  field KindKey : string
   field Type : DDrive.Foundation.Identity.AssetType
 TYPE interface DDrive.Foundation.Registry.IAssetRegistry
   event OnPlaceholderUsed : System.Action<ulong, DDrive.Foundation.Identity.AssetType>
   method Entries(DDrive.Foundation.Identity.AssetType type) : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogEntry>
+  method Entries(DDrive.Foundation.Identity.AssetType type, string kindKey) : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Registry.CatalogEntry>
   method IsRegistered(ulong id, DDrive.Foundation.Identity.AssetType type) : bool
   method PreloadIdsAsync(System.Collections.Generic.IReadOnlyList<ulong> ids, System.IProgress<float> progress) : Cysharp.Threading.Tasks.UniTask
   method RegisterCatalogAsync(DDrive.Foundation.Registry.AssetCatalog catalog) : Cysharp.Threading.Tasks.UniTask

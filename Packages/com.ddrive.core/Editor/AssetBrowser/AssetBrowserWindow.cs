@@ -28,7 +28,12 @@ namespace DDrive.Editor.AssetBrowser
         {
             public AssetDataBase Asset;
             public AssetType Type;
+            // X-1(2026-10-16): Extension 種別の KindKey(組み込み種別は空)。
+            public string KindKey;
             public string Path;
+
+            // 一覧・フィルタに出す種別名(Extension は provider の DisplayName)。
+            public string TypeLabel => DDrive.Foundation.Extension.AssetKindRegistry.LabelOf(Type, KindKey);
         }
 
         private readonly List<Row> _allRows = new();
@@ -102,8 +107,7 @@ namespace DDrive.Editor.AssetBrowser
 
             toolbar.Add(BuildSearchBox());
 
-            var typeChoices = new List<string> { "All" };
-            typeChoices.AddRange(Enum.GetNames(typeof(AssetType)).Where(n => n != nameof(AssetType.None)));
+            var typeChoices = TypeFilterChoices();
             _typeFilter = new DropdownField(typeChoices, 0) { tooltip = "種別で絞り込む" };
             _typeFilter.AddToClassList("ux-browser__type");
             _typeFilter.RegisterValueChangedCallback(_ => ApplyFilter());
@@ -232,7 +236,7 @@ namespace DDrive.Editor.AssetBrowser
             element.Q<Image>("icon").image = row.Asset != null
                 ? (row.Asset.Icon != null ? (Texture)row.Asset.Icon : AssetPreview.GetMiniThumbnail(row.Asset))
                 : null;
-            element.Q<Label>("type").text = row.Type.ToString();
+            element.Q<Label>("type").text = row.TypeLabel;
             element.Q<Label>("name").text = row.Asset != null && !string.IsNullOrEmpty(row.Asset.DisplayName)
                 ? row.Asset.DisplayName
                 : System.IO.Path.GetFileNameWithoutExtension(row.Path);
@@ -361,6 +365,15 @@ namespace DDrive.Editor.AssetBrowser
             EditorGUIUtility.PingObject(row.Asset);
         }
 
+        // 種別フィルタの選択肢("All" + 組み込み種別 + Extension は provider ごとに Order 順。X-1、2026-10-16)。
+        public static List<string> TypeFilterChoices()
+        {
+            var typeChoices = new List<string> { "All" };
+            typeChoices.AddRange(Enum.GetNames(typeof(AssetType)).Where(n => n != nameof(AssetType.None) && n != nameof(AssetType.Extension)));
+            typeChoices.AddRange(DDrive.Foundation.Extension.AssetKindRegistry.All.Select(p => p.DisplayName));
+            return typeChoices;
+        }
+
         public void Refresh()
         {
             _allRows.Clear();
@@ -378,7 +391,13 @@ namespace DDrive.Editor.AssetBrowser
                     continue;
                 }
 
-                _allRows.Add(new Row { Asset = asset, Type = assetType, Path = path });
+                _allRows.Add(new Row
+                {
+                    Asset = asset,
+                    Type = assetType,
+                    KindKey = assetType == AssetType.Extension ? DDrive.Foundation.Extension.AssetKindRegistry.KindKeyOf(asset.GetType()) : string.Empty,
+                    Path = path,
+                });
             }
 
             _allRows.Sort((a, b) => string.CompareOrdinal(a.Path, b.Path));
@@ -394,7 +413,7 @@ namespace DDrive.Editor.AssetBrowser
 
             foreach (var row in _allRows)
             {
-                if (typeName != "All" && row.Type.ToString() != typeName)
+                if (typeName != "All" && row.TypeLabel != typeName)
                 {
                     continue;
                 }

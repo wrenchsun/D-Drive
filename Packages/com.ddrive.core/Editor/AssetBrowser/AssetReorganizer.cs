@@ -71,8 +71,9 @@ namespace DDrive.Editor.AssetBrowser
 
                 var currentName = System.IO.Path.GetFileNameWithoutExtension(path);
                 var currentFolder = System.IO.Path.GetDirectoryName(path)?.Replace('\\', '/');
-                var expectedFolder = $"{gameDataRoot}/{AssetNamingService.GetTargetFolder(assetType, asset.Category)}";
-                var expectedName = ExpectedFileName(assetType, asset.Category, currentName);
+                var kindKey = assetType == AssetType.Extension ? DDrive.Foundation.Extension.AssetKindRegistry.KindKeyOf(asset.GetType()) : string.Empty;
+                var expectedFolder = $"{gameDataRoot}/{AssetNamingService.GetTargetFolder(assetType, kindKey, asset.Category)}";
+                var expectedName = ExpectedFileName(assetType, kindKey, asset.Category, currentName);
                 var expectedPath = $"{expectedFolder}/{expectedName}.asset";
 
                 if (expectedPath == path)
@@ -105,7 +106,7 @@ namespace DDrive.Editor.AssetBrowser
                 if (currentName != expectedName)
                 {
                     result.Renamed++;
-                    UpdateCatalogAddress(gameDataRoot, assetType, asset, expectedName);
+                    UpdateCatalogAddress(gameDataRoot, assetType, kindKey, asset, expectedName);
                 }
 
                 MoveCompanionWavs(currentFolder, currentName, expectedFolder, expectedName, result);
@@ -122,25 +123,25 @@ namespace DDrive.Editor.AssetBrowser
         // 識別子はアセットに保存されないため、現ファイル名の末尾トークンから復元する。
         // 復元できない(手付け名や重複サフィックス " 1" 等)場合は名前を維持し、フォルダ移動のみ行う
         // (無理にリネームすると GenerateUniqueAssetPath 由来の名前が毎回変わる「churn」を起こすため)。
-        private static string ExpectedFileName(AssetType assetType, string category, string currentName)
+        private static string ExpectedFileName(AssetType assetType, string kindKey, string category, string currentName)
         {
             var tokens = currentName.Split('_');
             var identifier = tokens[tokens.Length - 1];
 
             if (tokens.Length < 2 ||
-                tokens[0] != AssetNamingService.GetTypePrefix(assetType) ||
+                tokens[0] != AssetNamingService.GetTypePrefix(assetType, kindKey) ||
                 !AssetNamingService.IsValidIdentifier(identifier))
             {
                 return currentName;
             }
 
-            return AssetNamingService.BuildFileName(assetType, category, identifier);
+            return AssetNamingService.BuildFileName(assetType, kindKey, category, identifier);
         }
 
         // リネームで Address(=ファイル名)が変わった場合、カタログの該当エントリを ID キーで上書きする。
-        private static void UpdateCatalogAddress(string gameDataRoot, AssetType assetType, AssetDataBase asset, string newAddress)
+        private static void UpdateCatalogAddress(string gameDataRoot, AssetType assetType, string kindKey, AssetDataBase asset, string newAddress)
         {
-            var catalogPath = $"{gameDataRoot}/Catalogs/{AssetCreationService.GetCatalogName(assetType)}.asset";
+            var catalogPath = $"{gameDataRoot}/Catalogs/{AssetCreationService.GetCatalogName(assetType, kindKey)}.asset";
             var catalog = AssetDatabase.LoadAssetAtPath<AssetCatalog>(catalogPath);
             if (catalog == null)
             {
@@ -153,6 +154,7 @@ namespace DDrive.Editor.AssetBrowser
                 Type = assetType,
                 Address = newAddress,
                 Flags = asset.Flags,
+                KindKey = kindKey ?? string.Empty,
             });
 
             EditorUtility.SetDirty(catalog);

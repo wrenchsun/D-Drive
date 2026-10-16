@@ -94,3 +94,16 @@ Assets/_Project/DDriveExtensions/Lighting/            （または Packages/com.
 ## 更新履歴
 
 - 2026-10-16: 作成（最初は「依頼の受け渡し手順」として書き始めたが、ユーザーの意図は「持ち込み先で作れるプラグイン基盤」だったため設計文書に書き換えた）
+
+## X-1 実装メモ（2026-10-16）
+
+決めたこと:
+
+- **KindKey の形**: `AssetIdDefinitionAttribute.KindKey`（名前付き引数のプロパティ、`Extension` では必須。空だと `AssetIdGenerator.TryAcceptDefinition` が Error を 1 件出して飛ばす）。`CatalogEntry.KindKey`（string、末尾に追加）。ContentHash は KindKey が空なら不変。
+- **発見の仕組み**: `AssetKindRegistry`（`DDrive.Foundation.Extension`）が `AppDomain` の全アセンブリを走査（Foundation は UnityEditor を参照できないため `TypeCache` ではなく `AssetIdGenerator.FindDefinitions` と同じ流儀）。型の完全名順に集めて Order → KindKey で並べ、重複 KindKey は警告 1 回 + 先勝ち。`DDrive.Tests*` / `ExternalContract.Tests*` のアセンブリの provider は既定で除外（`IncludeTestAssemblies` を契約テストだけが true にする。実際の AssetBrowser・生成物にダミー種別を載せないため）。`AssetIdGenerator` も同じ除外を `ExternalContract.Tests*` に広げた。
+- **index の持ち方**: `AssetRegistry` は `_byType`（従来）に加えて `(AssetType, KindKey)` の `_byKind` を持つ。`IAssetRegistry.Entries(type, kindKey)` は既定実装つきの追加（外部の Fake を壊さない）。
+- `IExtensionAssetManager : IAssetManager`（`KindKey`）、`IKindValidator : IValidator`（`TargetKindKey`、`ValidatorRegistry` が Extension 種別の Data に対し KindKey が合うものだけ実行）。
+- `IAssetKindProvider.Folder` は GameData ルートからの相対（`Sample` → `Assets/GameData/Sample`）。`Icon` は `Texture2D`（Foundation は UnityEngine を参照できる）。
+- Editor: `AssetNamingService` / `AssetCreationService`（`GetCatalogName` / `NeedsPreloadDefault` の kindKey 付きオーバーロード、`AllCatalogNames` は provider ごとに展開）、`AssetReorganizer`、`AssetBrowserWindow`（`TypeFilterChoices`）、`NewAssetDialog`、`AddressablesRegistrationValidator`、`ddrive_validate` の行（`type` 欄に KindKey）、`ddrive_help types`（provider ごとの行）。既存種別の挙動は不変（KindKey を渡しても無視）。
+
+未実装（後続）: `ddrive_asset_*` / `FieldTables` の Extension 対応（種別キーごとの欄表。`FieldTables` は組み込み 18 種のまま）、`ddrive_validate` の `scope=type:<KindKey>`、`SpecIdentifierCodec` / 仕様書同期の Extension 対応。

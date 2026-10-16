@@ -88,7 +88,8 @@ namespace DDrive.Editor.Validation
             // 独自に判定を持つと、種別追加時に片方だけ更新して漏れる事故が起きる。実際に Presentation/Shake/Haptics
             // が Create() 側にだけ追加されここに反映されておらず、既存アセットの検出漏れが発生していた)。
             var resolvedType = ResolveType(data);
-            if (AssetCreationService.NeedsPreloadDefault(resolvedType) && data.Flags.Load != LoadMode.Preload)
+            var kindKey = DDrive.Foundation.Extension.AssetKindRegistry.KindKeyOf(data.GetType());
+            if (AssetCreationService.NeedsPreloadDefault(resolvedType, kindKey) && data.Flags.Load != LoadMode.Preload)
             {
                 var captured = data;
                 yield return ValidationResult.Error(
@@ -101,7 +102,7 @@ namespace DDrive.Editor.Validation
             // その API を呼べば安全に解決できるため Error ではなく Warning にとどめる
             // (`AssetCreationService.TryGetAsyncResolutionApi` 参照。2026-09-25 時点では登録された種別が無いため
             // 現状は発火しないが、将来そのような種別が追加されたときのための拡張ポイント)。
-            else if (!AssetCreationService.NeedsPreloadDefault(resolvedType)
+            else if (!AssetCreationService.NeedsPreloadDefault(resolvedType, kindKey)
                      && AssetCreationService.TryGetAsyncResolutionApi(resolvedType, out var apiName)
                      && data.Flags.Load != LoadMode.Preload)
             {

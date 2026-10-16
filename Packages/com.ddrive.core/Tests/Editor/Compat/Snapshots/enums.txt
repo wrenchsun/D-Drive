@@ -80,6 +80,7 @@ DDrive.Foundation.Identity.AssetType.Bgm=2
 DDrive.Foundation.Identity.AssetType.Canvas=8
 DDrive.Foundation.Identity.AssetType.ControlSkin=17
 DDrive.Foundation.Identity.AssetType.Cutscene=18
+DDrive.Foundation.Identity.AssetType.Extension=19
 DDrive.Foundation.Identity.AssetType.Haptics=12
 DDrive.Foundation.Identity.AssetType.Material=6
 DDrive.Foundation.Identity.AssetType.Model=14

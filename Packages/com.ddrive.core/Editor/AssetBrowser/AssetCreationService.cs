@@ -5,6 +5,7 @@ using DDrive.Editor.Inspector;
 using DDrive.Editor.Settings;
 using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Extension;
 using DDrive.Foundation.Identity;
 using DDrive.Foundation.Registry;
 using UnityEditor;
@@ -53,8 +54,16 @@ namespace DDrive.Editor.AssetBrowser
                 return null;
             }
 
+            // X-1(2026-10-16): Extension 種別は Data 型の [AssetIdDefinition].KindKey で provider を引く。
+            var kindKey = assetType == AssetType.Extension ? AssetKindRegistry.KindKeyOf(dataType) : string.Empty;
+            if (assetType == AssetType.Extension && string.IsNullOrEmpty(kindKey))
+            {
+                Debug.LogError($"[DDrive] {dataType.Name} is an Extension type but its [AssetIdDefinition] has no KindKey.");
+                return null;
+            }
+
             // カテゴリはフォルダ階層にも反映する(例: Audio/SE/Player/)。[01_architecture.md] §5
-            var folder = $"{gameDataRoot}/{AssetNamingService.GetTargetFolder(assetType, category)}";
+            var folder = $"{gameDataRoot}/{AssetNamingService.GetTargetFolder(assetType, kindKey, category)}";
             EnsureFolder(folder);
 
             // カタログ用フォルダも先に作る。CreateAsset の後に CreateFolder を呼ぶと、その Refresh で
@@ -62,7 +71,7 @@ namespace DDrive.Editor.AssetBrowser
             // 上書きされることがある(1 回おきに再現)。
             EnsureFolder($"{gameDataRoot}/Catalogs");
 
-            var fileName = AssetNamingService.BuildFileName(assetType, category, identifier);
+            var fileName = AssetNamingService.BuildFileName(assetType, kindKey, category, identifier);
             var path = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{fileName}.asset");
 
             var asset = (AssetDataBase)ScriptableObject.CreateInstance(dataType);
@@ -83,7 +92,7 @@ namespace DDrive.Editor.AssetBrowser
             // 一切鳴らない/出ない(見た目のアニメーションは Animator 自身の状態遷移で動き続けるため気づきにくい)。
             // 2D キャラクターは ModelData(3D 専用)を経由しないため他経路の先行ロードが起きにくく、3D より
             // 顕在化しやすかった(Anim2DEventDispatchTests.Anim2D_IdPlay_WithoutPriorPreload_… で再現・固定)。
-            if (NeedsPreloadDefault(assetType))
+            if (NeedsPreloadDefault(assetType, kindKey))
             {
                 var flags = asset.Flags;
                 flags.Load = LoadMode.Preload;
@@ -116,7 +125,7 @@ namespace DDrive.Editor.AssetBrowser
             // GenerateUniqueAssetPath が "〜 1.asset" 等へリネームするため、
             // 元の fileName を使うと既存アセットの Address と重複してカタログが壊れる。
             var finalAddress = System.IO.Path.GetFileNameWithoutExtension(path);
-            var catalog = RegisterToCatalog(asset, assetType, finalAddress, gameDataRoot);
+            var catalog = RegisterToCatalog(asset, assetType, kindKey, finalAddress, gameDataRoot);
             AddressablesSync.EnsureEntry(asset, finalAddress);
             AddressablesSync.EnsureCatalogEntry(catalog);
 
@@ -181,6 +190,12 @@ namespace DDrive.Editor.AssetBrowser
                 || type == AssetType.UiTween || type == AssetType.Model
                 || type == AssetType.Anchor || type == AssetType.AnchorGroup;
 
+        // X-1(2026-10-16): Extension 種別は provider の DefaultLoad が Preload か。それ以外は従来の判定。
+        public static bool NeedsPreloadDefault(AssetType type, string kindKey)
+            => type == AssetType.Extension
+                ? AssetKindRegistry.TryGet(kindKey, out var provider) && provider.DefaultLoad == LoadMode.Preload
+                : NeedsPreloadDefault(type);
+
         // [M-1a、2026-09-25] `NeedsPreloadDefault` が false の種別のうち、Manager が公開する非同期の
         // 代替経路(async Play/Spawn、または明示的な事前ロード API)を持つものだけを登録する表。
         // 値は Warning メッセージに出す API 名。2026-09-25 時点のコード調査では該当する種別が無いため空だが、
@@ -211,6 +226,12 @@ namespace DDrive.Editor.AssetBrowser
             _ => "MiscCatalog",
         };
 
+        // X-1(2026-10-16): Extension 種別は provider の CatalogName。
+        public static string GetCatalogName(AssetType type, string kindKey)
+            => type == AssetType.Extension && AssetKindRegistry.TryGet(kindKey, out var provider) && !string.IsNullOrEmpty(provider.CatalogName)
+                ? provider.CatalogName
+                : GetCatalogName(type);
+
         // 既存アセットのカタログ登録漏れを直す(Validation の FixAction 用)。address はファイル名(拡張子なし)。
         // [11_tasks.md] 6-3: カタログ・Addressables 同期の一種なので、機械的な登録直しで Version を上げない。
         public static AssetCatalog RegisterExisting(AssetDataBase asset, AssetType assetType, string gameDataRoot = DefaultGameDataRoot)
@@ -224,16 +245,17 @@ namespace DDrive.Editor.AssetBrowser
             }
 
             var address = System.IO.Path.GetFileNameWithoutExtension(path);
-            var catalog = RegisterToCatalog(asset, assetType, address, gameDataRoot);
+            var kindKey = assetType == AssetType.Extension ? AssetKindRegistry.KindKeyOf(asset.GetType()) : string.Empty;
+            var catalog = RegisterToCatalog(asset, assetType, kindKey, address, gameDataRoot);
             AddressablesSync.EnsureEntry(asset, address);
             AddressablesSync.EnsureCatalogEntry(catalog);
             DDriveAssetSave.SaveAllSuppressed();
             return catalog;
         }
 
-        private static AssetCatalog RegisterToCatalog(AssetDataBase asset, AssetType assetType, string address, string gameDataRoot)
+        private static AssetCatalog RegisterToCatalog(AssetDataBase asset, AssetType assetType, string kindKey, string address, string gameDataRoot)
         {
-            var catalog = EnsureCatalogFile(GetCatalogName(assetType), gameDataRoot);
+            var catalog = EnsureCatalogFile(GetCatalogName(assetType, kindKey), gameDataRoot);
 
             catalog.AddOrUpdate(new CatalogEntry
             {
@@ -241,6 +263,7 @@ namespace DDrive.Editor.AssetBrowser
                 Type = assetType,
                 Address = address,
                 Flags = asset.Flags,
+                KindKey = kindKey ?? string.Empty,
             });
 
             EditorUtility.SetDirty(catalog);
@@ -279,6 +302,21 @@ namespace DDrive.Editor.AssetBrowser
             {
                 if (type == AssetType.None)
                 {
+                    continue;
+                }
+
+                // X-1: Extension は provider ごとのカタログ名に展開する(provider が無ければ何も足さない)。
+                if (type == AssetType.Extension)
+                {
+                    foreach (var provider in AssetKindRegistry.All)
+                    {
+                        var extName = GetCatalogName(type, provider.KindKey);
+                        if (!names.Contains(extName))
+                        {
+                            names.Add(extName);
+                        }
+                    }
+
                     continue;
                 }
 

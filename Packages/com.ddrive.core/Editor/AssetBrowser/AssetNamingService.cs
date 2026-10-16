@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using DDrive.Foundation.Extension;
 using DDrive.Foundation.Identity;
 
 namespace DDrive.Editor.AssetBrowser
@@ -56,6 +57,34 @@ namespace DDrive.Editor.AssetBrowser
             AssetType.Cutscene => "Cutscene",
             _ => "Misc",
         };
+
+        // [1014_extension_platform.md] §2.1(X-1、2026-10-16) — Extension 種別は KindKey の provider に委譲する
+        // (provider が無い・組み込み種別なら従来の switch)。
+        public static string GetTypePrefix(AssetType type, string kindKey)
+            => type == AssetType.Extension && AssetKindRegistry.TryGet(kindKey, out var provider) && !string.IsNullOrEmpty(provider.Prefix)
+                ? provider.Prefix
+                : GetTypePrefix(type);
+
+        public static string GetTargetFolder(AssetType type, string kindKey, string category)
+        {
+            if (type != AssetType.Extension || !AssetKindRegistry.TryGet(kindKey, out var provider) || string.IsNullOrEmpty(provider.Folder))
+            {
+                return GetTargetFolder(type, category);
+            }
+
+            var sub = CategoryFolderPath(category);
+            return string.IsNullOrEmpty(sub) ? provider.Folder : $"{provider.Folder}/{sub}";
+        }
+
+        public static string BuildFileName(AssetType type, string kindKey, string category, string identifier)
+        {
+            var prefix = GetTypePrefix(type, kindKey);
+            var categorySegment = CategorySegmentForFileName(category);
+
+            return string.IsNullOrEmpty(categorySegment)
+                ? $"{prefix}_{identifier}"
+                : $"{prefix}_{categorySegment}_{identifier}";
+        }
 
         // 種別フォルダ + カテゴリ階層。"Player/Attack" → "Audio/SE/Player/Attack"。
         // フォルダはあくまで人間用のビューであり、参照の真実は ID/Address(コードがパスに依存してはならない)。

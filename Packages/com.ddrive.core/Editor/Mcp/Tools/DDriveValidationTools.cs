@@ -414,8 +414,17 @@ namespace DDrive.Editor.Mcp.Tools
             public readonly string Message;
             public readonly bool IsProject;
 
+            // X-1(2026-10-16): Type が Extension のときの種別キー(表の type 欄に種別名を出すため)。
+            public readonly string KindKey;
+
             public Row(string code, ValidationSeverity severity, AssetType type, ulong id, string name, string message, bool isProject)
+                : this(code, severity, type, id, name, message, isProject, string.Empty)
             {
+            }
+
+            public Row(string code, ValidationSeverity severity, AssetType type, ulong id, string name, string message, bool isProject, string kindKey)
+            {
+                KindKey = kindKey ?? string.Empty;
                 Code = code;
                 Severity = severity;
                 Type = type;
@@ -496,7 +505,8 @@ namespace DDrive.Editor.Mcp.Tools
                     isProject ? 0UL : report.Asset.Id,
                     isProject ? null : (string.IsNullOrEmpty(report.Asset.DisplayName) ? report.Asset.name : report.Asset.DisplayName),
                     result.Message,
-                    isProject));
+                    isProject,
+                    isProject ? string.Empty : ResolveKindKey(report.Asset)));
             }
 
             foreach (var kv in byCode)
@@ -581,6 +591,9 @@ namespace DDrive.Editor.Mcp.Tools
         public static AssetType ResolveType(AssetDataBase asset)
             => asset == null ? AssetType.None : asset.GetType().GetCustomAttribute<AssetIdDefinitionAttribute>()?.Type ?? AssetType.None;
 
+        public static string ResolveKindKey(AssetDataBase asset)
+            => asset == null ? string.Empty : asset.GetType().GetCustomAttribute<AssetIdDefinitionAttribute>()?.KindKey ?? string.Empty;
+
         public static string CutMessage(string message)
         {
             message ??= string.Empty;
@@ -642,7 +655,8 @@ namespace DDrive.Editor.Mcp.Tools
             };
             if (!row.IsProject)
             {
-                obj["type"] = row.Type.ToString();
+                // Extension は種別キーを出す("Sample" 等)。組み込み種別は従来どおり enum 名。
+                obj["type"] = row.Type == AssetType.Extension && !string.IsNullOrEmpty(row.KindKey) ? row.KindKey : row.Type.ToString();
                 obj["id"] = McpJson.FormatId(row.Id);
                 obj["name"] = row.Name ?? string.Empty;
             }

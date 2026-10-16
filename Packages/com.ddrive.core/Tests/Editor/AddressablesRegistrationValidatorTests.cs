@@ -252,7 +252,8 @@ namespace DDrive.Tests.Editor
         {
             foreach (AssetType type in Enum.GetValues(typeof(AssetType)))
             {
-                if (type == AssetType.None)
+                // Extension(X-1、2026-10-16)は種別ごとに provider の DefaultLoad で決まる(E-26 で検証)。
+                if (type == AssetType.None || type == AssetType.Extension)
                 {
                     continue;
                 }

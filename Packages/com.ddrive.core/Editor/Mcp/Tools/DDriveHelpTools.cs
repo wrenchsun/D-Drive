@@ -246,6 +246,27 @@ namespace DDrive.Editor.Mcp.Tools
                     continue;
                 }
 
+                // X-1(2026-10-16): Extension は種別キーごとの行に展開する(接頭辞は provider から)。
+                if (type == AssetType.Extension && DDrive.Foundation.Extension.AssetKindRegistry.All.Count > 0)
+                {
+                    foreach (var provider in DDrive.Foundation.Extension.AssetKindRegistry.All)
+                    {
+                        var idClass = string.Empty;
+                        if (dataClasses.TryGetValue(type, out var extList))
+                        {
+                            var match = extList.Find(x => x.data == provider.DataType?.Name);
+                            idClass = match.idClass ?? string.Empty;
+                        }
+
+                        sb.Append(type).Append(':').Append(provider.KindKey).Append(' ')
+                            .Append(provider.DataType?.Name ?? "-").Append(' ')
+                            .Append(string.IsNullOrEmpty(idClass) ? "-" : idClass).Append(' ')
+                            .Append(provider.Prefix).Append('\n');
+                    }
+
+                    continue;
+                }
+
                 sb.Append(type).Append(' ');
                 if (dataClasses.TryGetValue(type, out var list))
                 {

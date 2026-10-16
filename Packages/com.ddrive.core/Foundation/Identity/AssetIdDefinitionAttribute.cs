@@ -13,6 +13,11 @@ namespace DDrive.Foundation.Identity
         public Type MarkerType { get; }
         public string ConstantsClassName { get; }
 
+        // [1014_extension_platform.md] §2.1(X-1、2026-10-16): 種別キー。Type が AssetType.Extension のときは必須
+        // (空だと AssetIdGenerator が Error を出して飛ばす)。組み込み種別では空のまま。
+        // 名前付き引数で指定する: [AssetIdDefinition(AssetType.Extension, typeof(XMarker), "XID", KindKey = "X")]
+        public string KindKey { get; set; }
+
         public AssetIdDefinitionAttribute(AssetType type, Type markerType, string constantsClassName)
         {
             Type = type;
