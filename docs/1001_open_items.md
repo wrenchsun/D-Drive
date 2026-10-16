@@ -54,6 +54,7 @@
 | MS2026 を v1.4.0 以降に上げた後、禁止 API 29 件を仕分ける | [43](verification/43_manual_verification_2026-09-17.md) 17-9 |
 | MS2026 の Player ビルドでカットシーンのトラックが読めるか（M-6） | [52](verification/52_manual_verification_fc.md) 4-6 |
 | MS2026 を v1.9.0 に上げ、`Ui.OpenInto`（A-21）/ `CutscenePlayOptions`（A-22）で回避策を置き換えたときに ElementFx・Cutscene が RT に映るか。`Vector2Int size` の解釈（RT の中で描く大きさ）が MS2026 の意図と合うか | [1004](1004_tasks.md) MS-1 / MS-2、[archive/1012](archive/1012_release_1_9_0.md) §4 |
+| MS2026 を v1.10.0 に上げ、雛形 `Extension Template` から照明（D-L1〜D-L4）を作る。IL2CPP（Managed Stripping）で module が消えないか（雛形の `link.xml`）。Sample Editor を開いたまま Play に入ってもファサードが実行時 Manager に流れるか（1015 X-R-01 の実機確認） | [1004](1004_tasks.md) X 節、[archive/1016](archive/1016_release_1_10_0.md) §4 |
 | 次の実機確認では NetCheck のビルドを作り直す（`8ce3ce1` の古いビルドは使わない。2026-10-07 の v1.4.1 リリースで作り直し済み） | [29](verification/29_network_device_test.md) §27、[64](reviews/64_review_m6_2026-10-06.md) GF-R-18 |
 
 ### 1-D. P-15 更新ウィンドウ（[43](verification/43_manual_verification_2026-09-17.md) §15）
@@ -102,9 +103,8 @@
 | ID | 内容 | 状態 | 出典 | 着手の条件 |
 |---|---|---|---|---|
 | **MCP-1〜**（v1.5.0） | D-Drive MCP（AI 向けの Editor 操作ツール群） | 仕様書あり・未着手 | [1002](1002_ddrive_mcp.md) | 2026-10-07 起票 |
-| **L-1〜L-5**（v1.10.0 候補） | MS2026 からの依頼: ステージ照明（種別 `LightCue` / `LightShow`・Manager・ファサード・エディター 3 窓・Timeline トラック） | ⏸ A で MS2026 側で作る（X-5 の雛形の後） | [1004](1004_tasks.md) L 節、MS2026 `Docs/Spec/10_StageLighting.md` / `11_StageLightConsole.md` | D-Drive 本体で作るか、X の後に MS2026 側で作るか（[1014](1014_extension_platform.md) §4） |
+| **L-1〜L-5**（v1.10.0 候補） | MS2026 からの依頼: ステージ照明（種別 `LightCue` / `LightShow`・Manager・ファサード・エディター 3 窓・Timeline トラック） | ⏸ MS2026 側で雛形（v1.10.0 `Samples~/ExtensionTemplate`）から作る | [1004](1004_tasks.md) L 節、MS2026 `Docs/Spec/10_StageLighting.md` / `11_StageLightConsole.md` | D-Drive 本体で作るか、X の後に MS2026 側で作るか（[1014](1014_extension_platform.md) §4） |
 | **X-5 持ち越し**（Extension 種別の仕様書同期） | 仕様書同期（`SpecDiffService` / `SpecDiffValidator` のシート定義）の Extension 種別対応。列定義を外部が宣言する口（新しい拡張点）と SpecWeb（GAS）側の変更が要るため見送り。`SpecIdentifierCodec` の KindKey 版だけ入れた | ⏸ 見送り | [1014](1014_extension_platform.md) X-5 実装メモ | 持ち込み先が仕様書から Extension の Data を作りたくなったら起票 |
-| **X-1〜X-6**（v1.10.0） | 外部拡張（プラグイン）基盤: `AssetType.Extension` + `IAssetKindProvider`、`IDDriveModule`、`Editor/Ux` の公開、サンプル / 確認用シーン / マニュアルの provider、雛形と手順書 | X-1〜X-5 ✅ 実装済み（2026-10-16）、レビュー [1015](reviews/1015_review_x_extension_2026-10-16.md) 対応済み。X-6（リリース）待ち | [1014](1014_extension_platform.md)、[1004](1004_tasks.md) X 節 | ユーザー指示 2026-10-16（持ち込み先が D-Drive の更新を待たずに種別を足せるように） |
 | **X-R-06 持ち越し**（IL2CPP ビルドでの module 動作） | プレイヤービルドで `IDDriveModule` が発見されて動くこと（`[RequireImplementors]` / 雛形の `link.xml` / 走査の絞り込みを入れたが未確認）。MS2026 の Managed Stripping Level も未確認 | ⬜ 未確認 | [1014](1014_extension_platform.md) 2026-10-16 追記、[1015](reviews/1015_review_x_extension_2026-10-16.md) X-R-06 | IL2CPP のビルドで module が 0 件にならないこと（開発ビルドの Info が出ないこと）を実機で |
 | **X-R-07 持ち越し**（外部 Manager の AssetEvent） | `ctx.Events` は組み込みの `AssetEventDispatcher` に繋がっていない（雛形の「イベント」欄は外した）。Dispatcher を外部の Manager が使える形（`Groups` / 文脈解決の口）にするのは別チケット | ⏸ 見送り | [1014](1014_extension_platform.md) 2026-10-16 追記（X-R-07） | 持ち込み先の Manager が Data の Events で SE / VFX を鳴らしたくなったら起票 |
 | **X-R-17 / X-R-20 持ち越し** | Edit 用 Registry（`EditorAnchorRegistry`）に Extension 種別の Data が載らない／`IAssetRegistry` に `IsRegistered(id, type, kindKey)` が無い（外部の Manager がネット受信の範囲外検査に使えない） | ⏸ 見送り | [1015](reviews/1015_review_x_extension_2026-10-16.md) | 必要になったら PATCH / MINOR で（公開 API の追加のみ） |
@@ -229,3 +229,4 @@
 - 2026-10-15: §2 に MS-1 / MS-2（MS2026 の街のディスプレイ向け API 依頼）を追加（チケット本体は [1004](1004_tasks.md) MS 節）
 - 2026-10-15: v1.9.0 リリース。§2 の MS-1 / MS-2 の行を消し、§1-C に MS2026 側の置き換え確認の行を足した
 - 2026-10-16: §2 に L-1〜L-5・X-1〜X-6・道具の穴 4 件を追加
+- 2026-10-17: v1.10.0 リリース。§2 の X の行を消し、§1-C に MS2026 側の確認（雛形から照明・IL2CPP・Play 中のファサード）を足した
