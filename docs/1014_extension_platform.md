@@ -1,0 +1,96 @@
+# 1014. 外部拡張（プラグイン）基盤 — 持ち込み先が D-Drive の更新を待たずに種別・エディター・トラックを足せるようにする
+
+> 2026-10-16 起票（ユーザー指示: 「このような外部拡張を D-Drive の更新を待たずにできるようにする〔プラグインのようなもの〕を導入先で作って簡単に対応できるようにする」）。きっかけは MS2026 からの依頼が続いたこと（2026-10-15 の `Ui.OpenInto` / `CutscenePlayOptions` = v1.9.0、2026-10-16 のステージ照明 = 種別 2 つ + エディター 3 窓 + Timeline トラック、[1004](1004_tasks.md) MS 節・L 節）。**目標: 「新しい種別（Data + Manager + ファサード + Validator + 専用エディター + Timeline トラック + サンプル）」を持ち込み先のアセンブリだけで作れる**。D-Drive 本体に手を入れるのは「D-Drive 自身の挙動の変更」（`Ui.OpenInto` のような既存 Manager の API）だけにする。チケットは [1004](1004_tasks.md) X 節。
+
+## 1. いま何が足りないか（2026-10-16 時点の実態）
+
+| 持ち込み先が作りたいもの | 今できるか | 足りない点 |
+|---|---|---|
+| `IValidator` の追加 | **できる**（[42](42_distribution.md) §5.14 E-6。`CI.DiscoverValidators()` が全アセンブリから拾う） | — |
+| 外部の `IAssetManager` を Tick に乗せる | **できる**（E-9、`GameLoop.Register`） | Bootstrap の後に自分で `Register` する必要がある（起動順・Bind のタイミングを持ち込み先が面倒を見る）。`DDriveRuntimeBootstrap` には外部の口が無い（`loop.Register(Audio); …` の固定列） |
+| Timeline の Track / Clip / Marker | **できる**（E-2 / E-5 / E-20、Unity 標準の拡張） | — |
+| `[DataEditor]` 付きの Inspector ボタン、`DDriveMenu` 配下のメニュー | **できる**（`DataEditorAttribute` / `DDriveMenu` は public、`TypeCache` 発見） | — |
+| MCP ツール `[McpTool]` | **できる**（isuzu の仕組み） | — |
+| **新しい種別（`AssetType`）** | **できない** | `AssetType` は閉じた `byte` enum。`AssetIdDefinition` / `IAssetManager.Type` / `IValidator.Target` / `CatalogEntry.Type` / `AssetNamingService`（接頭辞・フォルダの `switch`）/ `AssetCreationService`（カタログ名、`Enum.GetValues` で種別一覧）/ AssetBrowser の種別フィルタ、がすべて enum 前提 |
+| **D-Drive 流の専用エディター**（[1010](1010_editor_ux_migration.md) の新デザイン） | **できない** | `Editor/Ux` の全型が `internal`（`UxEditorWindow<T>` / `FieldGuide<T>` / `UxCard` / `UxRow` / `TuneKnobs` / `DurationBar` / `AnchorPad` / `DataSwitcher` / `UxTheme`）。持ち込み先は見た目を複製するしかない（MS2026 11 §7 が最初に書いた「Ux 基底を複製する回避策」） |
+| 「サンプルを作る」・確認用シーン・マニュアル導線 | **できない** | 全部 D-Drive 内部の列挙（UX-19 の `Editor/Ux/Samples/`、`PreviewSceneSetup`、`ManualLauncher`） |
+| ID 定数の生成（`XXID.Name`） | **できる** | `AssetIdGenerator.FindDefinitions` は全アセンブリの `[AssetIdDefinition]` を拾う。ただし `AssetType` が要る（上の行） |
+
+つまり **足りないのは「種別」「エディター基盤」「サンプル / 確認用シーン / マニュアルの口」の 3 つ**。Manager・Validator・Timeline・メニュー・MCP はすでに開いている。
+
+## 2. 設計（追加のみ、MINOR）
+
+### 2.1 種別の外部定義（X-1）
+
+- `AssetType` の**末尾に 1 値 `Extension`** を足す（enum はこれ以降増やさない。持ち込み先の種別はすべて `Extension` + **種別キー（string）**で区別する）。
+- `AssetIdDefinitionAttribute` に省略可能な `KindKey`（例 `"LightCue"`）を足す（既存の 3 引数コンストラクタは残す）。`AssetType.Extension` のときは必須。
+- 新しい拡張点 **`IAssetKindProvider`**（`DDrive.Foundation`、public、`TypeCache` 発見〔[42](42_distribution.md) §5.14 の発見規則どおり public・非 abstract・引数なしコンストラクタ〕）: `KindKey` / `DataType` / `DisplayName` / `Prefix`（`CUE`）/ `Folder`（`Assets/GameData/LightCue`）/ `CatalogName` / `DefaultLoad`（既定 Preload）/ `Icon`（任意）/ `Order`。
+- D-Drive 内部で `AssetType` を `switch` している 4 か所（`AssetNamingService.GetTypePrefix` / `GetTargetFolder`、`AssetCreationService` のカタログ名と種別一覧、AssetBrowser の種別フィルタ、Validation の種別別の集計）は、`Extension` のときに `AssetKindRegistry`（provider の一覧）へ委譲する。
+- `CatalogEntry` に `KindKey`（string、空 = 組み込み種別）を**追加**（シリアライズ形式の追加 = `serialized-layout.txt` 更新、MINOR）。`AssetRegistry` の種別別 index は `(AssetType, KindKey)` で引く。既存データは `KindKey` 空のまま読める。
+- `IAssetManager.Type` が `Extension` の Manager は、追加のインターフェース `IExtensionAssetManager.KindKey` で種別キーを返す（既定実装なし。既存 Manager は触らない）。`IValidator` も同様に `IKindValidator.TargetKindKey`（任意）。
+- ID 定数: `AssetIdGenerator` は `KindKey` ごとに `ConstantsClassName` を出す（今と同じ仕組み。`KnownPrefixes` は provider の `Prefix` も見る）。
+- Validation の重さの互換（§5.8）: 外部の Validator の Code は持ち込み先の責任（`DD-` 接頭辞を使わない規約を docs に）。
+
+### 2.2 起動配線の口（X-2）
+
+- **`IDDriveModule`**（`DDrive.Runtime`、public、`TypeCache` 発見）: `int Order` / `IReadOnlyList<IAssetManager> CreateManagers(in DDriveBootstrapContext ctx)` / `void Bind()` / `void Unbind()`。`DDriveBootstrapContext` は Bootstrap が持つ `IAssetRegistry` / `IPoolService` / `ITimeSource` / `PauseService` / `EventBus` / `INetBridge`（null 可）/ `UiManager` 等の既存 Manager への読み取り参照。
+- `DDriveRuntimeBootstrap` は組み込み Manager を登録した**後**に module を `Order` 順で呼び、返った Manager を `loop.Register`、`Bind()`。終了時は逆順に `Unbind()`。例外は捕まえて警告 1 件 + その module を飛ばす（例外で止めない）。
+- Editor プレビュー（ADR-4）用に `DDriveBootstrapContext` を Editor からも作れる口（既存の `Preview` 系が使っている生成経路に module を乗せる）。
+- 契約 E-25（module の発見・順序・Bind / Unbind・例外時の継続）をテストで固定。
+
+### 2.3 エディター基盤の公開（X-3）
+
+- `Editor/Ux` のうち**持ち込み先が継承・配置する型を public** にする: `UxEditorWindow<TData>`（+ 抽象メンバーの契約）/ `FieldGuide<TData>` / `FieldGuideEntry` / `UxCard` / `UxRow` / `GuidedField` / `TuneKnobs` + `ITuneSource` / `DurationBar` / `AnchorPad` / `DataSwitcher` / `UxTheme`（USS の読み込み）/ `UxShow`。`UxTestHooks` / `UxScreenshot` / `UxPalette` は internal のまま。
+- 公開した型は **Editor 契約**（`editor-contract.txt`、[42](42_distribution.md) §5.9）に載せ、以降は追加のみ。シグネチャの整理が要るものは X-3 の中で先に済ませる（公開してからは変えられない）。
+- 確認用シーンで実 Manager を駆動する経路（`PreviewService` / `SceneXxxPreviewDriver` の基底）のうち汎用部分を public にし、持ち込み先の Manager でも「▶ で実物を動かし ■ で戻す」が書けるようにする。
+- `[DataEditor]` の主エディター検査（`DataEditorRegistryTests`）は `Extension` 種別の窓も対象にする（`UxEditorWindow<T>` 派生であること）。
+
+### 2.4 サンプル・確認用シーン・マニュアルの口（X-4）
+
+- `ISampleProvider`（Editor、public、`TypeCache`）: 空状態の「サンプルを作る」が呼ぶ。`KindKey` / `CreateSample(folder)`。
+- `IPreviewSceneProvider`: 「確認用シーン」ボタンが開くシーン（持ち込み先の `Assets/…/Preview/*.unity`）。
+- `IManualPageProvider`: `ManualLauncher` が開くページの追加（持ち込み先の HTML / Markdown のパス）。`?` ボタンの導線が外部ページにも効く。
+- AssetBrowser の種別フィルタ・「＋ 新規作成」の一覧に `Extension` 種別が provider の `Order` 順で並ぶ。
+
+### 2.5 契約・雛形・手順書（X-5）
+
+- 契約テスト E-25〜E-29（module / kind provider / Ux 公開型のコンストラクタと抽象メンバー / sample・preview・manual provider / `Extension` 種別の ID 生成）を `Tests/{Runtime,Editor}/ExternalContract/` に。
+- **雛形 `Samples~/ExtensionTemplate/`**: 最小のプラグイン 1 式（種別 1 つ `Sample`〔`SMPID`〕+ Data + Manager + ファサード + Validator + `UxEditorWindow<T>` 派生の窓 + サンプル + 確認用シーン + asmdef 2 本〔Runtime / Editor〕）。持ち込み先はこれをコピーして名前を変える。
+- `ProgrammerManual/extending.html` を「**D-Drive を変えずに種別を足す手順**」に書き換え（今の 14 手順は D-Drive 本体に足す手順）。[13](13_extensions.md) に X 節、[42](42_distribution.md) §5.14 に E-25〜。
+- MS2026 側の `CLAUDE.md` に 1 行（「D-Drive に無い機能は、まず拡張点〔1014〕で自分のアセンブリに作る。D-Drive 本体を変えるのは既存 Manager の挙動を変えるときだけ」）— MS2026 リポジトリへの変更なのでユーザー承認後。
+
+## 3. 使い方のイメージ（ステージ照明を MS2026 側で作る場合）
+
+```
+Assets/_Project/DDriveExtensions/Lighting/            （または Packages/com.ms2026.lighting）
+  Runtime/  LightCueData.cs   [AssetIdDefinition(AssetType.Extension, typeof(LightCueMarker), "CUEID", KindKey = "LightCue")]
+            LightShowData.cs  同上 "SHOWID" / "LightShow"
+            LightingKinds.cs  IAssetKindProvider × 2（CUE_ / SHOW_、フォルダ、Preload）
+            LightingModule.cs IDDriveModule（LightingManager を作って loop に載せ、Lighting.Bind）
+            LightingManager.cs / Lighting.cs / StageFixture.cs / LightingRig.cs / LightPattern*.cs / Validator × 2
+            Timeline/ LightCueTrack.cs / LightCueClip.cs / LightCueMixer.cs
+  Editor/   LightCueEditor.cs : UxEditorWindow<LightCueData>  [DataEditor(typeof(LightCueData), "Light Cue Editor で開く")]
+            LightShowEditor.cs / LightingRigEditor.cs / LightingSamples.cs (ISampleProvider) / LightingPreviewScene (IPreviewSceneProvider)
+```
+
+- D-Drive 側の変更は **0**（X-1〜X-5 が入った版以降）。D-Drive のリリースを待つのは「拡張点そのものが足りないとき」だけになる。
+- 代償: 種別が持ち込み先に閉じる（他の持ち込み先で再利用したければ後で D-Drive 本体へ「昇格」する。昇格の手順も X-5 の手順書に書く: `AssetType` 末尾に正式値を足し、`KindKey` からのマイグレーション〔`IProjectMigration`〕で `CatalogEntry` を書き換える）。
+
+## 4. ステージ照明（L 節）との関係 = ユーザー判断
+
+| 案 | 内容 | 利点 | 欠点 |
+|---|---|---|---|
+| **A（推奨）** | **X-1〜X-5 を先に D-Drive で作り（v1.10.0、約 8.5 日）、照明は MS2026 側で雛形から作る**（D-L1〜D-L4 を MS2026 の `Lighting` アセンブリに。D-Drive の L 節は閉じる） | 2 件目以降の依頼が D-Drive 待ちにならない。照明の仕様変更が MS2026 側だけで閉じる。D-Drive 本体に「ステージ照明」というゲーム寄りの種別が入らない | 照明の着手が X の完了（約 1.5 週）後になる。MS2026 の α 期限（11/05）に対して D-L 側 12.5 日が後ろへずれる。他の持ち込み先で照明を再利用するには昇格が要る |
+| B | **L-1〜L-5 を D-Drive 本体で作る（v1.10.0）**、X は次（v1.11.0）に並行で進める | 照明が最短で出る（仕様 10 / 11 の決定 U-6 のまま）。D-Drive の種別として再利用できる | 3 件目以降の依頼はまた D-Drive 待ち。D-Drive 本体に照明が入る |
+| C | 両方を並行（L を Sonnet、X を別の Sonnet） | 期限と仕組みを両取り | 同じファイル（`AssetType.cs` / `AssetNamingService` / Bootstrap）を 2 本が触るので衝突する。レビューと run-ci が 2 倍 |
+
+## 5. 付随して直すもの（v1.9.0 のリリース作業で見つかった道具の穴。[1001](1001_open_items.md) §2 に 1 行ずつ）
+
+- `check-release.ps1` に **pwsh が無ければ止める**検査（Windows PowerShell 5.1 で `bump-version.ps1` を動かすと BOM 無しの CHANGELOG を cp932 で読む）。
+- `run-ci.cmd` の 8 段目の前に **NetCheck のビルドが最新コミットより古ければ警告**（`DDrive.Runtime.dll` の日付 vs `git log -1 --format=%ct`。batch の `-executeMethod DDrive.Editor.Build.NetCheckBuilder.BuildFromMenu` で作り直せる）。
+- [12](12_review.md) §3 に 1 行: Editor 内のテスト失敗が `pathID >= 0` / `!pathName.empty()` / `m_PreventLoadingFromFile` の内部アサーションなら、Editor 再起動か batch の run-ci で再確認してから原因調査に入る（`CutsceneEditModeCameraSaveTests` が保存・削除する `Assets/__GeSaveTest.unity` が引き金の候補）。
+- Sonnet への委任プロンプトの定型に「RT・描画・ウィンドウを開くテストは `RequiresGraphicsGuard`」を入れる（`.claude/skills/ddrive-agent-workflow/SKILL.md` §2）。
+
+## 更新履歴
+
+- 2026-10-16: 作成（最初は「依頼の受け渡し手順」として書き始めたが、ユーザーの意図は「持ち込み先で作れるプラグイン基盤」だったため設計文書に書き換えた）

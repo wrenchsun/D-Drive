@@ -102,6 +102,9 @@
 | ID | 内容 | 状態 | 出典 | 着手の条件 |
 |---|---|---|---|---|
 | **MCP-1〜**（v1.5.0） | D-Drive MCP（AI 向けの Editor 操作ツール群） | 仕様書あり・未着手 | [1002](1002_ddrive_mcp.md) | 2026-10-07 起票 |
+| **L-1〜L-5**（v1.10.0 候補） | MS2026 からの依頼: ステージ照明（種別 `LightCue` / `LightShow`・Manager・ファサード・エディター 3 窓・Timeline トラック） | 起票済み・方式判断待ち | [1004](1004_tasks.md) L 節、MS2026 `Docs/Spec/10_StageLighting.md` / `11_StageLightConsole.md` | D-Drive 本体で作るか、X の後に MS2026 側で作るか（[1014](1014_extension_platform.md) §4） |
+| **X-1〜X-6**（v1.10.0 候補） | 外部拡張（プラグイン）基盤: `AssetType.Extension` + `IAssetKindProvider`、`IDDriveModule`、`Editor/Ux` の公開、サンプル / 確認用シーン / マニュアルの provider、雛形と手順書 | 起票済み・未着手 | [1014](1014_extension_platform.md)、[1004](1004_tasks.md) X 節 | ユーザー指示 2026-10-16（持ち込み先が D-Drive の更新を待たずに種別を足せるように） |
+| 道具の穴 4 件（pwsh 検査・NetCheck ビルドの古さ警告・Editor 内アサーションの判定規則・RequiresGraphics の定型） | v1.9.0 のリリース作業で見つかった | 未着手 | [1014](1014_extension_platform.md) §5 | 次の PATCH |
 | FC-8 | カットシーンのキャラ FBX でブレンドシェイプのカーブを通す | 保留 | [51](51_tdrive_integration.md) §4.9 | 表情アニメの運用が決まったら |
 | FC-9 | 7-3/7-4 から外部コンポーネントの値を触る口 | 保留 | [51](51_tdrive_integration.md) §4.10 | 7-3/7-4 に着手するとき |
 | FC-13 | インスタンスごとのマテリアル値（MPB） | 保留 | [51](51_tdrive_integration.md) §4.14 | MS2026 で表情パラメータを使い始め、方式が決まったら |
@@ -221,3 +224,4 @@
 - **Canvas: 全画面・解像度変更で HUD が追従しない（2026-10-12 ユーザー指摘）**: C-1 で修正済み（レイヤールートに CanvasScaler）。**MS2026 実機で全画面にして確認待ち（ユーザー）**。終わったらこの行を消す。残: Slide 遷移の `SlideOffset` は Canvas 単位の絶対値（基準解像度 1920x1080 で決める。横長の画面で左右からのスライドが画面外まで届かないときは値を大きくする）
 - 2026-10-15: §2 に MS-1 / MS-2（MS2026 の街のディスプレイ向け API 依頼）を追加（チケット本体は [1004](1004_tasks.md) MS 節）
 - 2026-10-15: v1.9.0 リリース。§2 の MS-1 / MS-2 の行を消し、§1-C に MS2026 側の置き換え確認の行を足した
+- 2026-10-16: §2 に L-1〜L-5・X-1〜X-6・道具の穴 4 件を追加
