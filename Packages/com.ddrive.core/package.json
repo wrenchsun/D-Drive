@@ -26,6 +26,11 @@
       "displayName": "Demo",
       "description": "PresentationSkillSlashDemo の参照実装スクリプト。対応する確認用シーン・GameData(SE/VFX/Presentation の実データ)は同梱していない(docs/42_distribution.md §2.1 参照。P-9 のリリース手順で curate する予定)。com.unity.netcode.gameobjects を導入していないプロジェクトでも import してコンパイルできる。",
       "path": "Samples~/Demo"
+    },
+    {
+      "displayName": "Extension Template",
+      "description": "D-Drive を変えずに新しい種別(Data / Manager / ファサード / Validator / 専用エディター / サンプル / 確認用シーン / マニュアル)を足す最小のプラグイン 1 式。Assets/_Project/DDriveExtensions/<Name>/ にコピーして名前を付け替える。手順は README.md と ProgrammerManual の extending(docs/1014_extension_platform.md)。",
+      "path": "Samples~/ExtensionTemplate"
     }
   ]
 }

@@ -77,7 +77,7 @@ namespace DDrive.Editor.Mcp.Tools
             {
                 case ValidationScope.ScopeKind.Asset:
                 {
-                    var asset = FindAsset(scope.Type, scope.Id);
+                    var asset = FindAsset(scope.Type, scope.Id, scope.KindKey);
                     foreach (var r in DataValidationRunner.Run(asset, false))
                     {
                         result.Add(new ValidationReport(asset, r));
@@ -90,7 +90,8 @@ namespace DDrive.Editor.Mcp.Tools
                 {
                     foreach (var report in CI.RunValidation(true))
                     {
-                        if (report.Asset != null && ValidationSummary.ResolveType(report.Asset) == scope.Type)
+                        if (report.Asset != null && ValidationSummary.ResolveType(report.Asset) == scope.Type
+                            && (string.IsNullOrEmpty(scope.KindKey) || ValidationSummary.ResolveKindKey(report.Asset) == scope.KindKey))
                         {
                             result.Add(report);
                         }
@@ -122,12 +123,13 @@ namespace DDrive.Editor.Mcp.Tools
             }
         }
 
-        private static AssetDataBase FindAsset(AssetType type, ulong id)
+        private static AssetDataBase FindAsset(AssetType type, ulong id, string kindKey = "")
         {
             foreach (var guid in DDrive.Editor.AssetSearch.FindAssets("t:" + nameof(AssetDataBase)))
             {
                 var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(AssetDatabase.GUIDToAssetPath(guid));
-                if (asset != null && asset.Id == id && ValidationSummary.ResolveType(asset) == type)
+                if (asset != null && asset.Id == id && ValidationSummary.ResolveType(asset) == type
+                    && (string.IsNullOrEmpty(kindKey) || ValidationSummary.ResolveKindKey(asset) == kindKey))
                 {
                     return asset;
                 }
@@ -324,12 +326,16 @@ namespace DDrive.Editor.Mcp.Tools
         public readonly ulong Id;
         public readonly string Text;
 
-        private ValidationScope(ScopeKind kind, AssetType type, ulong id, string text)
+        // X-5(2026-10-16): Extension 種別の種別キー(type:Sample / asset:Sample:<id>)。組み込み種別は空。
+        public readonly string KindKey;
+
+        private ValidationScope(ScopeKind kind, AssetType type, ulong id, string text, string kindKey = "")
         {
             Kind = kind;
             Type = type;
             Id = id;
             Text = text;
+            KindKey = kindKey ?? string.Empty;
         }
 
         public static ValidationScope Parse(string scope)
@@ -349,13 +355,13 @@ namespace DDrive.Editor.Mcp.Tools
             var parts = text.Split(':');
             if (parts.Length == 2 && string.Equals(parts[0], "type", StringComparison.OrdinalIgnoreCase))
             {
-                var type = ParseType(parts[1]);
-                return new ValidationScope(ScopeKind.Type, type, 0, "type:" + type);
+                var type = ParseType(parts[1], out var kindKey);
+                return new ValidationScope(ScopeKind.Type, type, 0, "type:" + (string.IsNullOrEmpty(kindKey) ? type.ToString() : kindKey), kindKey);
             }
 
             if (parts.Length == 3 && string.Equals(parts[0], "asset", StringComparison.OrdinalIgnoreCase))
             {
-                var type = ParseType(parts[1]);
+                var type = ParseType(parts[1], out var kindKey);
                 var idText = parts[2].Trim();
                 ulong id;
                 var ok = idText.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
@@ -366,7 +372,7 @@ namespace DDrive.Editor.Mcp.Tools
                     throw new McpToolError(McpGuard.CodeInvalidParams, $"scope の id '{idText}' が数値ではありません");
                 }
 
-                return new ValidationScope(ScopeKind.Asset, type, id, $"asset:{type}:{id}");
+                return new ValidationScope(ScopeKind.Asset, type, id, $"asset:{(string.IsNullOrEmpty(kindKey) ? type.ToString() : kindKey)}:{id}", kindKey);
             }
 
             throw new McpToolError(
@@ -375,9 +381,21 @@ namespace DDrive.Editor.Mcp.Tools
         }
 
         // 数値文字列("3")は Enum.TryParse が通してしまうので、定義済みの名前との一致だけを許す。
-        private static AssetType ParseType(string name)
+        // 組み込みの種別名、または Extension の種別キー(IAssetKindProvider.KindKey / DisplayName。大小無視)。後者は AssetType.Extension + kindKey。
+        private static AssetType ParseType(string name, out string kindKey)
         {
+            kindKey = string.Empty;
             var trimmed = (name ?? string.Empty).Trim();
+            foreach (var provider in DDrive.Foundation.Extension.AssetKindRegistry.All)
+            {
+                if (string.Equals(provider.KindKey, trimmed, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(provider.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase))
+                {
+                    kindKey = provider.KindKey;
+                    return AssetType.Extension;
+                }
+            }
+
             foreach (var candidate in Enum.GetNames(typeof(AssetType)))
             {
                 if (string.Equals(candidate, trimmed, StringComparison.OrdinalIgnoreCase)

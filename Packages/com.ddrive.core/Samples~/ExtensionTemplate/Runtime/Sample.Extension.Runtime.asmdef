@@ -1,0 +1,17 @@
+{
+    "name": "Sample.Extension.Runtime",
+    "rootNamespace": "SampleExtension",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

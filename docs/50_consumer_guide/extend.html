@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>拡張の作り方 | D-Drive 持ち込み先ガイド</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="breadcrumb"><a href="index.html">🏠 目次</a> › 拡張の作り方</nav>
+
+<h1>拡張の作り方</h1>
+<p class="lastupdate">最終更新日: 2026-10-16</p>
+
+<p>このプロジェクトだけで使う新しい種別（Data + Manager + 専用エディター …）を、<strong>D-Drive を更新せずに</strong>足す手順です。D-Drive のパッケージ（<code>com.ddrive.core</code>）には何も書き足しません。所要時間の目安は 8 分。</p>
+
+<h2>1. 雛形をコピーする</h2>
+<ol>
+<li>Package Manager で <code>D-Drive</code> を選び、Samples タブの <strong>Extension Template</strong> の Import を押す（または <code>Packages/com.ddrive.core/Samples~/ExtensionTemplate/</code> をフォルダごとコピー）。</li>
+<li>入ったフォルダを <code>Assets/_Project/DDriveExtensions/&lt;Name&gt;/</code>（例: <code>LightCue</code>）へ移す。<code>Runtime/</code> と <code>Editor/</code> に asmdef が 1 つずつ入っている。</li>
+</ol>
+
+<h2>2. 名前を付け替える</h2>
+<p>雛形の種別名は <code>Sample</code>（接頭辞 <code>SMP</code>、ID 定数クラス <code>SMPID</code>）です。種別キー・接頭辞・ID 定数クラス名・フォルダ・カタログ名・クラス名とファイル名・asmdef 名を自分の名前に変えます。<strong>どこをどう変えるかは、コピーしたフォルダの <code>README.md</code> の表</strong>にあります。ScriptableObject の Data は「クラス名 = ファイル名」にします。</p>
+
+<h2>3. 確かめる</h2>
+<ol>
+<li>コンパイルが通ることを確認し、<code>Tools &gt; D-Drive &gt; Validation &gt; Run All</code> を 1 回（Error 0）。</li>
+<li><code>Tools &gt; D-Drive &gt; Generate &gt; IDs</code> で ID 定数（<code>&lt;Name&gt;ID.Xxx</code>）を生成。</li>
+<li><code>Tools &gt; D-Drive &gt; Asset Browser</code> →「＋ 新規作成」に自分の種別が出る。作った Data をダブルクリック → 専用エディターが開く → ▶ で自分の Manager が動く。</li>
+<li>空状態の「サンプルを作る」で、サンプルの Data が命名規則どおり（<code>SMP_…</code>）に作られ、カタログと Addressables に登録される。</li>
+</ol>
+
+<h2>4. D-Drive を更新するとき</h2>
+<p>D-Drive の更新（<a href="update.html">更新方法</a>）で壊れないのは、<strong>公開 API だけ</strong>です（互換性ポリシーで「追加のみ」と決まっています）。雛形が使っているのは、すべてその公開 API（<code>IAssetKindProvider</code> / <code>IDDriveModule</code> / <code>UxEditorWindow&lt;T&gt;</code> / <code>ISampleProvider</code> ほか）です。<code>internal</code> の型や、D-Drive のソースを直接書き換えるやり方は、更新で上書き・破損するので避けてください。更新後は <code>Validation &gt; Run All</code> で自分の種別の検査（<code>IKindValidator</code>）も通ることを確認します。</p>
+
+<h2>5. 困ったとき</h2>
+<ul>
+<li>種別が AssetBrowser に出ない: <code>IAssetKindProvider</code> が <code>public</code> で引数なしコンストラクタか、<code>KindKey</code> が空でないか、Data の <code>[AssetIdDefinition]</code> に <code>KindKey</code> があるか。</li>
+<li>▶ が動かない: <code>IDDriveModule</code> が <code>public</code> か、Console に「IDDriveModule … failed to start」の警告が無いか。</li>
+<li>詳しい仕組み・拡張点の一覧: D-Drive の ProgrammerManual「新しい種別を追加する」（<code>docs/ProgrammerManual/extending.html</code>）。</li>
+</ul>
+
+<h2>関連ページ</h2>
+<ul>
+<li><a href="index.html">目次</a></li>
+<li><a href="install.html">導入手順</a></li>
+<li><a href="update.html">更新方法</a></li>
+<li><a href="operation.html">運用方法</a></li>
+</ul>
+
+<footer>D-Drive 持ち込み先ガイド | <a href="index.html">目次</a></footer>
+</body>
+</html>

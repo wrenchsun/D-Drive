@@ -2,14 +2,59 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>新しい種別（AssetType）を追加する | D-Drive プログラマーマニュアル</title>
+<title>新しい種別を追加する | D-Drive プログラマーマニュアル</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 新しい種別（AssetType）を追加する</nav>
+<nav class="breadcrumb"><a href="Readme.html">🏠 トップ</a> › 新しい種別を追加する</nav>
 
-<h1>新しい種別（AssetType）を追加する</h1>
+<h1>新しい種別を追加する</h1>
+
+<h2 id="external">D-Drive を変えずに種別を足す（プラグイン。雛形から）</h2>
+<p>持ち込み先のプロジェクトだけで新しい種別（Data + Manager + ファサード + Validator + 専用エディター …）を作る方法です。<strong>D-Drive のソースは一切変えません</strong>（<code>AssetType</code> の enum は増やさず、<code>AssetType.Extension</code> + 種別キー <code>KindKey</code> で種別を区別します）。ほとんどの場合、このページの手順だけで足ります。下の「D-Drive 本体に種別を足す手順」は、プラグインを D-Drive 本体の種別にしたいときだけ使います。設計は <code>docs/1014_extension_platform.md</code>、互換性の契約は <code>docs/42_distribution.md</code> §5.14（E-25〜E-29）です。</p>
+
+<table>
+<tr><th>#</th><th>やること</th><th>どこで</th></tr>
+<tr><td>1</td><td><strong>雛形をコピー</strong>: <code>Packages/com.ddrive.core/Samples~/ExtensionTemplate/</code>（Package Manager の Samples タブの Import でも可）を <code>Assets/_Project/DDriveExtensions/&lt;Name&gt;/</code> へ</td><td>雛形の <code>README.md</code></td></tr>
+<tr><td>2</td><td><strong>名前を付け替える</strong>: 種別キー（<code>SampleKind.Key</code>）・接頭辞（<code>SMP</code>）・ID 定数クラス名（<code>SMPID</code>）・フォルダ・カタログ名・クラス名とファイル名・asmdef 名・検証 Code の接頭辞</td><td>README の「名前の付け替え箇所」の表</td></tr>
+<tr><td>3</td><td><strong>ID 定数を生成</strong>: <code>Tools &gt; D-Drive &gt; Generate &gt; IDs</code>。<code>KindKey</code> ごとに定数クラス（<code>&lt;Name&gt;ID.Xxx</code>）が出る</td><td>契約 E-29</td></tr>
+<tr><td>4</td><td><strong>AssetBrowser で Data を作る</strong>: 「＋ 新規作成」に新しい種別が出る（<code>IAssetKindProvider.Order</code> 順）。空状態の「サンプルを作る」（<code>ISampleProvider</code>）でも作れる</td><td><code>Tools &gt; D-Drive &gt; Asset Browser</code></td></tr>
+<tr><td>5</td><td><strong>窓を開く</strong>: ダブルクリック / Inspector の「〜で開く」（<code>[DataEditor]</code>）/ メニュー。<code>UxEditorWindow&lt;T&gt;</code> 派生なので D-Drive 組み込みの窓と同じ見た目・作法</td><td>契約 E-27</td></tr>
+<tr><td>6</td><td><strong>▶ で動かす</strong>: 固定バーの ▶ が自分の Manager を実物のまま Edit Mode で動かす（<code>UxPreviewDriverBase</code> + <code>EditorModuleHost</code>）。Play Mode では <code>DDriveRuntimeBootstrap</code> が <code>IDDriveModule</code> から Manager を作って <code>GameLoop</code> に載せる</td><td>契約 E-25</td></tr>
+</table>
+
+<h3>拡張点の一覧</h3>
+<table>
+<tr><th>やりたいこと</th><th>実装するもの（public・引数なしコンストラクタ。発見は自動）</th><th>名前空間</th><th>契約</th></tr>
+<tr><td>種別を定義する（接頭辞・フォルダ・カタログ名・既定 Load・並び）</td><td><code>IAssetKindProvider</code> + Data の <code>[AssetIdDefinition(AssetType.Extension, typeof(Marker), "XXXID", KindKey = "…")]</code></td><td><code>DDrive.Foundation.Extension</code></td><td>E-26</td></tr>
+<tr><td>種別の Manager の型を名乗る / 種別限定の検証</td><td><code>IExtensionAssetManager</code>（<code>KindKey</code>）/ <code>IKindValidator</code>（<code>TargetKindKey</code>）</td><td><code>DDrive.Foundation.Extension</code></td><td>E-26</td></tr>
+<tr><td>起動時に Manager を作って GameLoop に載せ、静的ファサードを結ぶ</td><td><code>IDDriveModule</code>（<code>Order</code> / <code>CreateManagers(in DDriveBootstrapContext)</code> / <code>Bind</code> / <code>Unbind</code>）</td><td><code>DDrive.Runtime.Extension</code></td><td>E-25</td></tr>
+<tr><td>D-Drive と同じ見た目・作法の専用エディターを作る</td><td><code>UxEditorWindow&lt;TData&gt;</code> 派生 + <code>FieldGuide&lt;TData&gt;</code>（部品: <code>UxRow</code> / <code>UxCard</code> / <code>TuneKnobs</code> + <code>ITuneSource</code> / <code>DurationBar</code> / <code>AnchorPad</code> / <code>DataSwitcher</code>）</td><td><code>DDrive.Editor.Ux</code></td><td>E-27</td></tr>
+<tr><td>確認用シーンで実 Manager を動かす / Editor で module を動かす</td><td><code>UxPreviewDriverBase</code> を派生 / <code>EditorModuleHost</code></td><td><code>DDrive.Editor.Preview</code></td><td>E-27</td></tr>
+<tr><td>空状態の「サンプルを作る」</td><td><code>ISampleProvider</code></td><td><code>DDrive.Editor.Extension</code></td><td>E-28</td></tr>
+<tr><td>ヒーローの「確認用シーン」</td><td><code>IPreviewSceneProvider</code></td><td><code>DDrive.Editor.Extension</code></td><td>E-28</td></tr>
+<tr><td>「？」と <code>ManualLauncher</code> の外部ページ</td><td><code>IManualPageProvider</code></td><td><code>DDrive.Editor.Extension</code></td><td>E-28</td></tr>
+</table>
+
+<h3>守ること</h3>
+<ul>
+<li><strong>D-Drive の更新で壊れないのは公開 API だけ</strong>（追加のみの契約）。<code>internal</code> や、契約に載っていない型に依存しない（<code>UxTestHooks</code> / <code>UxScreenshot</code> / <code>UxPalette</code> は internal）。</li>
+<li>検証の Code は自分の接頭辞（<code>SMP-</code> など）。D-Drive の <code>DD-</code> は使わない。</li>
+<li>Manager は <code>Tick(dt)</code> の dt で動かし、<code>Time.time</code> を直接読まない。定常経路（<code>Tick</code> / <code>Play</code>）で LINQ・クロージャ・boxing を書かない。例外で止めず、警告 + no-op / Placeholder で続ける。</li>
+<li>窓の見た目は USS のクラスで（C# にインラインスタイルを書かない）。新しい窓は <code>ScrollView</code> ルート必須（<code>UxEditorWindow&lt;T&gt;</code> が持つ）。</li>
+<li>ScriptableObject の Data は <strong>クラス名 = ファイル名</strong>（<code>SampleData</code> は <code>SampleData.cs</code>）。</li>
+</ul>
+
+<h3>うまくいかないとき</h3>
+<ul>
+<li>種別が AssetBrowser に出ない → <code>IAssetKindProvider</code> が public・引数なしコンストラクタか / <code>KindKey</code> が空でないか / Data の <code>[AssetIdDefinition]</code> に <code>KindKey</code> があるか（無いと生成器がエラーを 1 件出して飛ばす）/ 同じ <code>KindKey</code> が重複していないか（警告が 1 回出て先勝ち）。</li>
+<li>▶ で動かない → <code>IDDriveModule</code> が public で <code>CreateManagers</code> が Manager を返しているか / Console の「IDDriveModule … failed to start」警告。</li>
+<li>AI（MCP）から扱うには <code>ddrive_asset_list</code> / <code>create</code> / <code>get</code> / <code>set</code> / <code>delete</code> の <code>type</code> に種別キー（例 <code>Sample</code>）、<code>ddrive_validate</code> の <code>scope</code> に <code>type:Sample</code> が使える（<a href="mcp.html">MCP</a>）。</li>
+</ul>
+
+<h2 id="promote">D-Drive 本体に種別を足す手順（昇格する場合）</h2>
+<p>プラグインとして作った種別を D-Drive 本体の種別（<code>AssetType</code> の enum 値）にするとき、または D-Drive 自身に最初から新しい種別を足すときの手順です。D-Drive の更新（リリース）が必要で、<code>AssetType</code> の追加は MINOR（末尾追加のみ。ユーザー承認が要る）。プラグインのまま運用して構わないので、必要になるまでは読まなくて構いません。昇格の手順の要点は、<strong>ID・Address を変えずに種別だけ <code>AssetType.Extension</code> から新しい値へ移す</strong>ことです（<code>[AssetIdDefinition]</code> の書き換え + <code>CatalogEntry.Type</code> / <code>KindKey</code> を直すマイグレーション + <code>IAssetKindProvider</code> の内容を命名規則・カタログの表へ移す）。細部は下の 14 手順に従います。</p>
 
 <p>D-Drive に新しいアセット種別（例: 新しい <code>AssetType</code>）を追加する手順をまとめます。設計上、拡張点（<code>[AssetIdDefinition]</code> 属性、<code>IValidator</code> の自動発見、<code>[DataEditor]</code> 属性）に載せることで、基盤（Foundation / Editor の生成器・発見ロジック）自体は無改修で新種別に対応できるように作られています（NFR-7）。このページのファイル一覧は、既存の <strong>Haptics 種別</strong>（<code>AssetType.Haptics</code>）を実際に grep して確認した実在ファイルです。</p>
 
@@ -17,7 +62,7 @@
 <strong>P-13（互換性ルール）発効後は AssetType の追加そのものに制約がかかります。</strong>（<code>docs/42_distribution.md</code>）配布用パッケージ化が完了し互換性ポリシーが発効すると、<code>AssetType</code> enum への追加・シリアライズ形式の変更は §5 の互換性ポリシーに従う必要があります。発効前の現時点では、このページの手順どおり進めて問題ありません。
 </div>
 
-<h2 id="overview">手順の全体像</h2>
+<h2 id="overview">D-Drive 本体に種別を足す手順の全体像</h2>
 <table>
 <tr><th>#</th><th>やること</th><th>ファイル（Haptics の実例）</th></tr>
 <tr><td>1</td><td><code>AssetType</code> enum に追記（末尾のみ）</td><td><code>Foundation/Identity/AssetType.cs</code></td></tr>

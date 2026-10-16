@@ -1,0 +1,21 @@
+{
+    "name": "Sample.Extension.Editor",
+    "rootNamespace": "SampleExtension.Editor",
+    "references": [
+        "DDrive.Foundation",
+        "DDrive.Runtime",
+        "DDrive.Editor",
+        "Sample.Extension.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

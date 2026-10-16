@@ -14,6 +14,11 @@ namespace DDrive.Editor.Spec
     public static class SpecIdentifierCodec
     {
         public static bool TryExtractIdentifier(string fileNameWithoutExt, AssetType type, out string identifier)
+            => TryExtractIdentifier(fileNameWithoutExt, type, string.Empty, out identifier);
+
+        // X-5(2026-10-16): Extension 種別(KindKey 付き)。接頭辞は IAssetKindProvider.Prefix(AssetNamingService.GetTypePrefix(type, kindKey))。
+        // 組み込み種別(kindKey が空)は上のオーバーロードと同じ結果。仕様書シートへの Extension の配線(SpecDiffService)は別チケット(docs/1004 X-5)。
+        public static bool TryExtractIdentifier(string fileNameWithoutExt, AssetType type, string kindKey, out string identifier)
         {
             identifier = null;
             if (string.IsNullOrEmpty(fileNameWithoutExt))
@@ -21,7 +26,7 @@ namespace DDrive.Editor.Spec
                 return false;
             }
 
-            var expectedPrefix = AssetNamingService.GetTypePrefix(type) + "_";
+            var expectedPrefix = AssetNamingService.GetTypePrefix(type, kindKey) + "_";
             if (!fileNameWithoutExt.StartsWith(expectedPrefix, StringComparison.Ordinal))
             {
                 return false;

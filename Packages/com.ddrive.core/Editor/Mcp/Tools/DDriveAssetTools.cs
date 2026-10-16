@@ -25,7 +25,7 @@ namespace DDrive.Editor.Mcp.Tools
         public const string McpNotePrefix = "[mcp] ";
         public const string UndoName = "D-Drive MCP: Data の変更";
 
-        private const string TypeArgText = "種別名(Se,Bgm,Vfx,Anim,Anim2D,Material,Texture,Canvas,Prefab,Presentation,Shake,Haptics,UiTween,Model,Anchor,AnchorGroup,ControlSkin,Cutscene)";
+        private const string TypeArgText = "種別名(Se,Bgm,Vfx,Anim,Anim2D,Material,Texture,Canvas,Prefab,Presentation,Shake,Haptics,UiTween,Model,Anchor,AnchorGroup,ControlSkin,Cutscene)か、Extension 種別の種別キー(例 Sample)";
 
         // ── ddrive_asset_list ──
 
@@ -206,7 +206,7 @@ namespace DDrive.Editor.Mcp.Tools
                 List<string> names;
                 if (string.IsNullOrWhiteSpace(fields))
                 {
-                    names = new List<string>(FieldTables.DefaultFields(entry.Type, asset.GetType()));
+                    names = new List<string>(FieldTables.DefaultFields(entry, asset.GetType()));
                 }
                 else if (fields.Trim() == "*")
                 {
@@ -360,7 +360,7 @@ namespace DDrive.Editor.Mcp.Tools
                 string ident;
                 if (string.IsNullOrWhiteSpace(identifier))
                 {
-                    ident = AssetNamingService.ToIdentifier(name, entry.Type.ToString());
+                    ident = AssetNamingService.ToIdentifier(name, string.IsNullOrEmpty(entry.KindKey) ? entry.Type.ToString() : entry.KindKey);
                 }
                 else
                 {
@@ -376,8 +376,8 @@ namespace DDrive.Editor.Mcp.Tools
 
                 var root = AssetCreationService.ResolveGameDataRoot(gameDataRoot);
                 // 実作成は Unity が既存フォルダの大小文字に寄せるので、preview の path も同じ綴りにそろえる。
-                var folder = MatchExistingFolderCase($"{root}/{AssetNamingService.GetTargetFolder(entry.Type, category)}");
-                var path = $"{folder}/{AssetNamingService.BuildFileName(entry.Type, category, ident)}.asset";
+                var folder = MatchExistingFolderCase($"{root}/{AssetNamingService.GetTargetFolder(entry.Type, entry.KindKey, category)}");
+                var path = $"{folder}/{AssetNamingService.BuildFileName(entry.Type, entry.KindKey, category, ident)}.asset";
                 if (AssetDatabase.LoadMainAssetAtPath(path) != null || !string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path, AssetPathToGUIDOptions.OnlyExistingAssets)))
                 {
                     throw new McpToolError(McpGuard.CodeInvalidParams, $"同じ識別子のアセットが既にあります: {path}");
@@ -641,7 +641,7 @@ namespace DDrive.Editor.Mcp.Tools
                     }
 
                     var asset = AssetDatabase.LoadAssetAtPath<AssetDataBase>(path);
-                    if (asset != null && ValidationSummary.ResolveType(asset) == entry.Type)
+                    if (asset != null && FieldTables.Matches(entry, asset))
                     {
                         result.Add(asset);
                     }
@@ -662,11 +662,11 @@ namespace DDrive.Editor.Mcp.Tools
                     throw new McpToolError(McpGuard.CodeInvalidParams, $"path '{path}' に Data がありません");
                 }
 
-                if (ValidationSummary.ResolveType(asset) != entry.Type)
+                if (!FieldTables.Matches(entry, asset))
                 {
                     throw new McpToolError(
                         McpGuard.CodeInvalidParams,
-                        $"path '{path}' は {ValidationSummary.ResolveType(asset)} です({entry.Type} ではありません)");
+                        $"path '{path}' は {ValidationSummary.ResolveType(asset)} です({(string.IsNullOrEmpty(entry.KindKey) ? entry.Type.ToString() : entry.KindKey)} ではありません)");
                 }
 
                 return asset;
@@ -690,7 +690,7 @@ namespace DDrive.Editor.Mcp.Tools
                 }
             }
 
-            throw new McpToolError(McpGuard.CodeInvalidParams, $"{entry.Type} に id {id} の Data がありません");
+            throw new McpToolError(McpGuard.CodeInvalidParams, $"{(string.IsNullOrEmpty(entry.KindKey) ? entry.Type.ToString() : entry.KindKey)} に id {id} の Data がありません");
         }
     }
 }

@@ -81,3 +81,19 @@ A 群は「ID 駆動 + デザイナー主体」という本システムの思想
 - A-4〜A-6: Validation / PreviewService / Registry の既存拡張点（IValidator 登録制、解決フック）に載るため基盤改修は不要
 
 タスクは [11_tasks.md](11_tasks.md) Phase 7 に追加。
+
+## X 節 — 外部拡張（プラグイン）の拡張点の一覧（2026-10-16、X-1〜X-5）
+
+持ち込み先が D-Drive のソースを変えずに種別・Manager・専用エディターなどを足すための拡張点。設計は [1014](1014_extension_platform.md)、互換性の契約は [42](42_distribution.md) §5.14（**追加のみ**）、手順は [ProgrammerManual/extending.html](ProgrammerManual/extending.html)、雛形は `Packages/com.ddrive.core/Samples~/ExtensionTemplate/`。
+
+| 拡張点 | 何を足せるか | 型（名前空間） | 契約 |
+|---|---|---|---|
+| 種別の定義 | 新しい種別（`AssetType.Extension` + `KindKey`）。接頭辞・フォルダ・カタログ名・既定 Load・並び、ID 定数クラス | `IAssetKindProvider` / `IExtensionAssetManager` / `IKindValidator`（`DDrive.Foundation.Extension`）、`[AssetIdDefinition(KindKey = …)]` | E-26 / E-29 |
+| 起動配線 | 起動時に Manager を作って GameLoop に載せる・静的ファサードを結ぶ。Editor プレビューでも同じ module を動かせる | `IDDriveModule` / `DDriveBootstrapContext` / `ModuleRegistry` / `ModuleRunner`（`DDrive.Runtime.Extension`） | E-25 |
+| 専用エディター基盤 | D-Drive と同じ見た目・作法の専用エディター。確認用シーンで実 Manager を駆動 | `UxEditorWindow<TData>` / `FieldGuide<TData>` / `UxRow` / `UxCard` / `TuneKnobs` + `ITuneSource` / `DurationBar` / `AnchorPad` / `DataSwitcher` ほか（`DDrive.Editor.Ux`）、`UxPreviewDriverBase` / `EditorModuleHost`（`DDrive.Editor.Preview`） | E-27 |
+| 空状態のサンプル・確認用シーン・マニュアル | 空状態の「サンプルを作る」、ヒーローの「確認用シーン」、「？」の外部ページ | `ISampleProvider` / `IPreviewSceneProvider` / `IManualPageProvider`（`DDrive.Editor.Extension`） | E-28 |
+| MCP（AI）の対応 | `ddrive_asset_*` の `type` と `ddrive_validate` の `scope` が種別キーを受ける | （ツール引数。`mcp-tools.txt` は追加のみ） | E-24 |
+| （既存の外部拡張点） | 外部の `IAssetManager`（GameLoop）/ Timeline のマーカー / 取り込みルール・テクスチャ規則・変換表 / 実行順の検査の除外 / 視点カメラ | `GameLoop.Register`（E-9）/ `ICutsceneMarker`（E-20）/ `IImportRuleHandler` ほか（E-21 / E-22）/ `ICameraExecutionOrderExemptionProvider`（E-23）/ `ViewCamera`（E-18） | E-9 / E-18 / E-20〜E-23 |
+
+組み込みの 14 手順（D-Drive 本体に種別を足す）は昇格の手順として残してある（extending.html の「D-Drive 本体に種別を足す手順」）。
+

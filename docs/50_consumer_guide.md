@@ -13,6 +13,7 @@ D-Drive（`com.ddrive.core`）を**持ち込み先プロジェクト（MS2026 �
 | [50_consumer_guide/index.html](50_consumer_guide/index.html) | 目次。読む順番・関連ドキュメントへの導線 | 2分 |
 | [50_consumer_guide/install.html](50_consumer_guide/install.html) | 導入手順: 依存確認 → manifest 追加 → セットアップウィザード → SE 試聴・Play Mode 確認 | 10分 |
 | [50_consumer_guide/update.html](50_consumer_guide/update.html) | 更新方法: 更新チェック → manifest 版上げ → 更新を適用 → Validation、ロールバック、MAJOR 更新時の移行ガイドの読み方 | 8分 |
+| [50_consumer_guide/extend.html](50_consumer_guide/extend.html) | 拡張の作り方: 雛形（`Samples~/ExtensionTemplate`）から D-Drive を変えずに種別を足す（コピー → 名前の付け替え → ID 生成 → Data → 窓 → ▶）。D-Drive の更新で壊れない範囲 | 8分 |
 | [50_consumer_guide/operation.html](50_consumer_guide/operation.html) | 運用方法: 日常の Validation、ID 再生成、Addressables 同期、CI テンプレ、命名規則との付き合い方、テストの有効化、エージェント向けスキル、困ったときの見方 | 10分 |
 
 ## 正本の所在
@@ -23,4 +24,5 @@ D-Drive（`com.ddrive.core`）を**持ち込み先プロジェクト（MS2026 �
 
 ## 変更履歴
 
+- 2026-10-16: 「拡張の作り方」ページ（`extend.html`）を追加（X-5。雛形 `Samples~/ExtensionTemplate` への導線と、公開 API だけに依存する約束）。
 - 2026-09-20: 新規作成。`docs/50_consumer_guide/{index,install,update,operation}.html` の 4 ページ構成で、パッケージ README・42_distribution・48/49・Tools~/CI・skills/ddrive-consumer・AGENTS_CONSUMER・UpdateWindow/ProjectSetupWizardWindow の実際の文言をもとに作成。`Tools/Release/bump-version.ps1` のミラー同期対象に `docs/50_consumer_guide/` → `Documentation~/ConsumerGuide/` を追加。

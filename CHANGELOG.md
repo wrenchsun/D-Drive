@@ -11,6 +11,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- **拡張の雛形と手順書**（X-5、[docs/1014](docs/1014_extension_platform.md) §2.5）: `Samples~/ExtensionTemplate/`（パッケージの Samples に "Extension Template"。種別 `Sample` の Data / Manager / ファサード / module / Validator / 専用エディター / サンプル / 確認用シーン / マニュアル + README）、ProgrammerManual「新しい種別を追加する」を「D-Drive を変えずに種別を足す手順」に書き換え、持ち込み先ガイドに「拡張の作り方」。MCP の `type` / `scope` が Extension の種別キーを受ける。契約 E-29（Extension 種別の ID 生成）。
 - **サンプル・確認用シーン・マニュアルの口**（X-4、[docs/1014](docs/1014_extension_platform.md) §2.4）: Extension 種別の窓に、空状態の「サンプルを作る」（`ISampleProvider`）・ヒーローの「確認用シーン」（`IPreviewSceneProvider`）・「？」と `ManualLauncher` の外部ページ（`IManualPageProvider`）を足せる。`UxEditorWindow<T>` に `protected virtual SampleGameDataRoot` を追加。
 - **エディター基盤の公開**（X-3、[docs/1014](docs/1014_extension_platform.md) §2.3）: 持ち込み先の Editor asmdef が `UxEditorWindow<TData>` 派生の窓を `DDrive.Editor` の public API だけで書ける（`FieldGuide` / `UxRow` / `UxCard` / `TuneKnobs` + `ITuneSource` / `DurationBar` / `AnchorPad` / `DataSwitcher` ほか）。確認用シーンで実 Manager を駆動する基底 `UxPreviewDriverBase` と、Editor プレビューで module を動かす `EditorModuleHost` / `DDriveBootstrapContext.ForEditorPreview` / `ModuleRunner`。
 - **起動配線の口**（X-2、[docs/1014](docs/1014_extension_platform.md) §2.2）: 持ち込み先が Manager と facade の Bind を `IDDriveModule` で足せる。`DDriveRuntimeBootstrap` が組み込みの後に `Order` 順で `CreateManagers` → `Register` → `Bind()`、終了時は逆順に `Unbind()`、例外は module 単位で警告して飛ばす。
@@ -18,6 +19,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
+- 追加のみ（MINOR）: **X-5** `ddrive_asset_list` / `create` / `get` / `set` / `delete` の `type`、`ddrive_validate` の `scope` が受ける値に Extension の種別キーを追加（引数の名前・型・必須は不変 = `mcp-tools.txt` は変更なし）/ `SpecIdentifierCodec.TryExtractIdentifier` の KindKey 付きオーバーロード / `package.json` の `samples` に "Extension Template"。既存の挙動・シリアライズ形式・enum は変更なし
 - 追加のみ（MINOR）: **X-4** 公開型 `DDrive.Editor.Extension.{ISampleProvider, IPreviewSceneProvider, IManualPageProvider, ExtensionProviders, ExtensionProviderActions}` / `ManualLauncher.TryOpenExternalPage` / `TryResolveExternalPage` / `UxEditorWindow<T>.SampleGameDataRoot`（`protected virtual`、既定は従来の動作）。`editor-contract.txt` に `== ExtensionProviders ==` 節と 1 行を追加（既存の行は不変）。組み込み種別の空状態・確認用シーン・マニュアルの挙動は変更なし
 - 追加のみ（MINOR）: **X-3** `DDrive.Editor.Ux` の型を public にした（internal → public。`editor-contract.txt` に `== UxPublicApi ==` / `== PreviewApi ==` の 2 節を追加、既存の節は不変）/ 新規 `UxPreviewDriverBase` / `PreviewResetReason` / `EditorModuleHost`（`DDrive.Editor.Preview`）/ Runtime に `DDriveBootstrapContext.ForEditorPreview` と `ModuleRunner`。整理（公開前）: `UxRow.MakeInput` / `IsCompound` / `TierName` / `IssueKey` / `MakeIssue` と `DataSwitcher` の静的ヘルパー、`TuneCategories.Words` / `HasWord` は internal のまま（公開しない）、`TuneCategories.Names` は `IReadOnlyList<string>`（公開前は internal だったので破壊ではない）。既存の窓の挙動・シリアライズ形式・enum は変更なし
 - 追加のみ（MINOR）: **X-2** 公開型 `DDrive.Runtime.Extension.{IDDriveModule, DDriveBootstrapContext, ModuleRegistry}`（`DDrive.Runtime`）。`DDriveRuntimeBootstrap` の既存の順序・公開 API は変更なし(module が 0 件なら従来と同じ)

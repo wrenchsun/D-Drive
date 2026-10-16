@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using DDrive.Foundation.Extension;
 using DDrive.Foundation.Identity;
+using UnityEngine;
 
 namespace DDrive.Editor.Mcp
 {
@@ -24,11 +27,16 @@ namespace DDrive.Editor.Mcp
             // DataClasses と同じ並び(クラスごとに主要欄が違う種別 = ControlSkin のため、クラス単位で持つ)。
             public string[][] MainFields { get; }
 
-            public Entry(AssetType type, Type[] dataClasses, string[][] mainFields)
+            // X-5(2026-10-16): Type が Extension のときの種別キー(組み込み種別は空)。type 引数に KindKey("Sample" など)を渡すと、
+            // IAssetKindProvider から作ったこの形の表になる(欄は Data クラスが宣言した公開欄の先頭 6 個)。
+            public string KindKey { get; }
+
+            public Entry(AssetType type, Type[] dataClasses, string[][] mainFields, string kindKey = "")
             {
                 Type = type;
                 DataClasses = dataClasses;
                 MainFields = mainFields;
+                KindKey = kindKey ?? string.Empty;
             }
 
             public bool HasMultipleClasses => DataClasses.Length > 1;
@@ -122,10 +130,73 @@ namespace DDrive.Editor.Mcp
             return false;
         }
 
+        // 種別名(組み込み)か種別キー(Extension。IAssetKindProvider.KindKey / DisplayName、大小文字無視)から表を引く。
+        public static bool TryResolve(string text, out Entry entry)
+        {
+            if (TryParseType(text, out var type) && TryGet(type, out entry))
+            {
+                return true;
+            }
+
+            entry = null;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            var trimmed = text.Trim();
+            foreach (var provider in AssetKindRegistry.All)
+            {
+                if (provider.DataType == null)
+                {
+                    continue;
+                }
+
+                if (string.Equals(provider.KindKey, trimmed, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(provider.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase))
+                {
+                    entry = new Entry(AssetType.Extension, new[] { provider.DataType }, new[] { MainFieldsOf(provider.DataType) }, provider.KindKey);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Extension の Data クラスが宣言した(AssetDataBase より下の)シリアライズされる公開欄の先頭 6 個。
+        private static string[] MainFieldsOf(Type dataType)
+        {
+            var names = new List<string>();
+            var chain = new List<Type>();
+            for (var t = dataType; t != null && t != typeof(DDrive.Foundation.Data.AssetDataBase); t = t.BaseType)
+            {
+                chain.Insert(0, t);
+            }
+
+            foreach (var t in chain)
+            {
+                foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                {
+                    if (f.IsNotSerialized || f.GetCustomAttribute<HideInInspector>() != null)
+                    {
+                        continue;
+                    }
+
+                    names.Add(f.Name);
+                    if (names.Count >= 6)
+                    {
+                        return names.ToArray();
+                    }
+                }
+            }
+
+            return names.ToArray();
+        }
+
         // 種別名の必須引数を解く。不正なら invalid_params(種別名の一覧つき)。
         public static Entry RequireType(string text)
         {
-            if (!TryParseType(text, out var type) || !TryGet(type, out var entry))
+            if (!TryResolve(text, out var entry))
             {
                 throw new McpToolError(
                     McpGuard.CodeInvalidParams,
@@ -135,15 +206,39 @@ namespace DDrive.Editor.Mcp
             return entry;
         }
 
+        // 組み込みの種別名 + 発見された Extension の種別キー。
         public static string TypeNames()
         {
-            var names = new string[Entries.Length];
+            var names = new List<string>(Entries.Length);
             for (var i = 0; i < Entries.Length; i++)
             {
-                names[i] = Entries[i].Type.ToString();
+                names.Add(Entries[i].Type.ToString());
+            }
+
+            foreach (var provider in AssetKindRegistry.All)
+            {
+                names.Add(provider.KindKey);
             }
 
             return string.Join(", ", names);
+        }
+
+        // asset が entry の種別(Extension なら KindKey も)に属するか。
+        public static bool Matches(Entry entry, DDrive.Foundation.Data.AssetDataBase asset)
+        {
+            if (asset == null)
+            {
+                return false;
+            }
+
+            var attr = asset.GetType().GetCustomAttribute<AssetIdDefinitionAttribute>();
+            if ((attr != null ? attr.Type : AssetType.None) != entry.Type)
+            {
+                return false;
+            }
+
+            return string.IsNullOrEmpty(entry.KindKey)
+                || string.Equals(attr.KindKey, entry.KindKey, StringComparison.Ordinal);
         }
 
         // ddrive_asset_create 用。ControlSkin(Button / Slider の 2 クラス)だけ dataClass(クラス名。大小文字無視)が要る。
@@ -184,6 +279,24 @@ namespace DDrive.Editor.Mcp
             }
 
             return string.Join(" / ", names);
+        }
+
+        // Extension(KindKey 付き)の表にも使える既定の欄。組み込みは DefaultFields(type, dataClass) と同じ。
+        public static IReadOnlyList<string> DefaultFields(Entry entry, Type dataClass = null)
+        {
+            if (entry == null)
+            {
+                return CommonFields;
+            }
+
+            if (string.IsNullOrEmpty(entry.KindKey))
+            {
+                return DefaultFields(entry.Type, dataClass);
+            }
+
+            var result = new List<string>(CommonFields);
+            result.AddRange(entry.MainFields[0]);
+            return result;
         }
 
         // 既定で返す欄 = 共通 4 欄 + そのクラスの主要欄。dataClass が表に無い(派生クラス等)ときは先頭クラスの表を使う。
