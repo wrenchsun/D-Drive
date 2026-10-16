@@ -822,6 +822,37 @@ TYPE class sealed DDrive.Runtime.Cutscene.Tracks.CutsceneVfxTrack : UnityEngine.
   ctor CutsceneVfxTrack()
 TYPE class static DDrive.Runtime.DDriveVersion
   field const Value : string
+TYPE struct DDrive.Runtime.Extension.DDriveBootstrapContext
+  property Anim : DDrive.Runtime.Anim.AnimManager {get}
+  property Audio : DDrive.Runtime.Audio.AudioManager {get}
+  property Bgm : DDrive.Runtime.Audio.BgmManager {get}
+  property CameraFx : DDrive.Runtime.CameraShake.CameraFxManager {get}
+  property Cutscene : DDrive.Runtime.Cutscene.CutsceneManager {get}
+  property Events : DDrive.Foundation.Event.EventBus {get}
+  property GameLoop : DDrive.Foundation.Manager.GameLoop {get}
+  property Haptics : DDrive.Runtime.Haptics.HapticsManager {get}
+  property IsEditorPreview : bool {get}
+  property Materials : DDrive.Runtime.Material.MaterialManager {get}
+  property Models : DDrive.Runtime.Model.ModelsManager {get}
+  property NetBridge : DDrive.Foundation.Net.INetBridge {get}
+  property PauseService : DDrive.Foundation.Pause.PauseService {get}
+  property Pool : DDrive.Foundation.Pool.IPoolService {get}
+  property Prefabs : DDrive.Runtime.Prefab.PrefabsManager {get}
+  property Presentation : DDrive.Runtime.Presentation.PresentationManager {get}
+  property Registry : DDrive.Foundation.Registry.IAssetRegistry {get}
+  property TimeSource : DDrive.Foundation.Net.ITimeSource {get}
+  property Ui : DDrive.Runtime.Ui.UiManager {get}
+  property UiTweens : DDrive.Runtime.Ui.UiTweenManager {get}
+  property Vfx : DDrive.Runtime.Vfx.VfxManager {get}
+TYPE interface DDrive.Runtime.Extension.IDDriveModule
+  method Bind() : void
+  method CreateManagers(ref DDrive.Runtime.Extension.DDriveBootstrapContext ctx) : System.Collections.Generic.IReadOnlyList<DDrive.Foundation.Manager.IAssetManager>
+  method Unbind() : void
+  property Order : int {get}
+TYPE class static DDrive.Runtime.Extension.ModuleRegistry
+  method static Refresh() : void
+  property static All : System.Collections.Generic.IReadOnlyList<DDrive.Runtime.Extension.IDDriveModule> {get}
+  property static IncludeTestAssemblies : bool {get;set}
 TYPE class sealed DDrive.Runtime.Haptics.GamepadHapticOutput
   ctor GamepadHapticOutput()
   method SetMotors(float low, float high) : void

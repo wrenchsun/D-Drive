@@ -11,10 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- **起動配線の口**（X-2、[docs/1014](docs/1014_extension_platform.md) §2.2）: 持ち込み先が Manager と facade の Bind を `IDDriveModule` で足せる。`DDriveRuntimeBootstrap` が組み込みの後に `Order` 順で `CreateManagers` → `Register` → `Bind()`、終了時は逆順に `Unbind()`、例外は module 単位で警告して飛ばす。
 - **種別の外部定義**（X-1、[docs/1014](docs/1014_extension_platform.md) §2.1）: 持ち込み先が自分のアセンブリだけで新しい種別を足せる。`AssetType.Extension` + `[AssetIdDefinition(…, KindKey = "…")]` + `IAssetKindProvider`（`AssetKindRegistry` が発見）。`CatalogEntry.KindKey`、`AssetRegistry` の `(AssetType, KindKey)` index、`IExtensionAssetManager` / `IKindValidator`。AssetBrowser・新規作成・カタログ・ID 生成・Validation の種別集計が provider に委譲される。
 
 ### 互換性
 
+- 追加のみ（MINOR）: **X-2** 公開型 `DDrive.Runtime.Extension.{IDDriveModule, DDriveBootstrapContext, ModuleRegistry}`（`DDrive.Runtime`）。`DDriveRuntimeBootstrap` の既存の順序・公開 API は変更なし(module が 0 件なら従来と同じ)
 - 追加のみ（MINOR）: `AssetType.Extension`（末尾、値 19）/ `CatalogEntry.KindKey`（空なら既存の ContentHash は不変）/ `AssetIdDefinitionAttribute.KindKey` / 公開型 `DDrive.Foundation.Extension.{IAssetKindProvider, AssetKindRegistry, IExtensionAssetManager, IKindValidator}` / `IAssetRegistry.Entries(AssetType, string)`（既定実装つき）/ `AssetRegistry.IsRegistered(id, type, kindKey)`。契約 E-26（[docs/42](docs/42_distribution.md) §5.14）。既存種別の挙動は不変。
 
 ## [1.9.0] - 2026-10-15

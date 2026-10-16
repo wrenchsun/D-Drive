@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using DDrive.Foundation.Event;
 using DDrive.Foundation.Manager;
 using DDrive.Foundation.Net;
 using DDrive.Foundation.Pause;
@@ -11,6 +12,7 @@ using DDrive.Runtime.Anim;
 using DDrive.Runtime.Audio;
 using DDrive.Runtime.CameraShake;
 using DDrive.Runtime.Cutscene;
+using DDrive.Runtime.Extension;
 using DDrive.Runtime.Haptics;
 using DDrive.Runtime.Loading;
 using DDrive.Runtime.Material;
@@ -157,6 +159,9 @@ namespace DDrive.Runtime.Loop
         private AnchorGroupLoopAdapter _groupAdapter;
         private UnscaledCameraFxAdapter _cameraFxAdapter;
         private bool _built;
+        // [1014] §2.2(X-2) — Bind まで済んだ IDDriveModule(Build の順)。Teardown で逆順に Unbind する。
+        private readonly List<IDDriveModule> _boundModules = new();
+        private readonly List<IAssetManager> _moduleManagers = new();
 
         // [42_distribution.md] §2.3-9/§7 A-7(P1-1、2026-09-20) — NGO ブリッジ生成(NetBridgeFactoryRegistry
         // 経由)の戻り値。StartHost/StartClient の実行は Start() まで遅延する(NetworkManager.Awake/OnEnable が
@@ -405,7 +410,81 @@ namespace DDrive.Runtime.Loop
                 Runtime.Presentation.Presentation.Bind(Presentation); // [11_tasks.md] 5-1
             }
 
+            BuildModules();
             _built = true;
+        }
+
+        // [1014_extension_platform.md] §2.2(X-2、2026-10-16) — 外部拡張(IDDriveModule)の起動配線。組み込み Manager の
+        // Register と facade の Bind が済んだ後に Order 順で CreateManagers → loop.Register → Bind()。
+        // 例外は module 単位で捕まえて警告 1 件 + その module を飛ばす(他の module と組み込みは動く)。
+        private void BuildModules()
+        {
+            var modules = ModuleRegistry.All;
+            if (modules.Count == 0)
+            {
+                return;
+            }
+
+            var loop = Loop.GameLoop;
+            var ctx = new DDriveBootstrapContext(
+                Registry, Pool, new NetworkTimeSource(NetBridge), Loop.PauseService, new EventBus(), NetBridge, loop, false,
+                Audio, Bgm, Vfx, Anim, Materials, Models, Prefabs, Ui, UiTweens, CameraFx, Haptics, Presentation, Cutscene);
+
+            for (var i = 0; i < modules.Count; i++)
+            {
+                var module = modules[i];
+                var name = module.GetType().FullName;
+                try
+                {
+                    var managers = module.CreateManagers(in ctx);
+                    if (managers != null)
+                    {
+                        var warnedNull = false;
+                        for (var j = 0; j < managers.Count; j++)
+                        {
+                            if (managers[j] == null)
+                            {
+                                if (!warnedNull)
+                                {
+                                    warnedNull = true;
+                                    Debug.LogWarning($"[DDrive] IDDriveModule '{name}'.CreateManagers returned a null element; it was skipped.");
+                                }
+
+                                continue;
+                            }
+
+                            loop.Register(managers[j]);
+                            _moduleManagers.Add(managers[j]);
+                        }
+                    }
+
+                    module.Bind();
+                    _boundModules.Add(module);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[DDrive] IDDriveModule '{name}' failed to start and was skipped: {e.Message}");
+                }
+            }
+        }
+
+        // 終了時: 逆順に Unbind。例外は module 単位で警告して続ける。
+        private void TeardownModules()
+        {
+            for (var i = _boundModules.Count - 1; i >= 0; i--)
+            {
+                var module = _boundModules[i];
+                try
+                {
+                    module.Unbind();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[DDrive] IDDriveModule '{module.GetType().FullName}'.Unbind threw and was ignored: {e.Message}");
+                }
+            }
+
+            _boundModules.Clear();
         }
 
         // 実際に解決されたネットワーク起動オプション(コマンドライン引数 + Inspector 既定値)。
@@ -594,6 +673,7 @@ namespace DDrive.Runtime.Loop
             if (loop != null)
             {
                 loop.StopAll(StopReason.SceneUnload);
+                TeardownModules();
                 loop.Unregister(Audio);
                 loop.Unregister(Bgm);
                 loop.Unregister(Vfx);
@@ -608,7 +688,14 @@ namespace DDrive.Runtime.Loop
                 loop.Unregister(Presentation);
                 loop.Unregister(_groupAdapter);
                 loop.Unregister(_cameraFxAdapter);
+                for (var i = _moduleManagers.Count - 1; i >= 0; i--)
+                {
+                    loop.Unregister(_moduleManagers[i]);
+                }
             }
+
+            _moduleManagers.Clear();
+            TeardownModules(); // loop が無かった場合の取りこぼし防止(冪等)
 
             Dispatcher?.Dispose();
             Dispatcher = null;
