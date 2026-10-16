@@ -1,4 +1,5 @@
 using System.IO;
+using DDrive.Editor.Extension;
 using DDrive.Editor.Spec;
 using UnityEngine;
 
@@ -26,6 +27,11 @@ namespace DDrive.Editor.Manual
         public static void OpenPage(string pageName)
         {
             var page = string.IsNullOrEmpty(pageName) ? ManualPages.TopPageName : pageName;
+            if (TryOpenExternalPage(page, null))
+            {
+                return;
+            }
+
             var settings = DDriveSpecSettings.Load();
             var humanAppUrl = settings != null ? settings.HumanAppUrl : null;
 
@@ -53,6 +59,11 @@ namespace DDrive.Editor.Manual
             }
 
             var page = string.IsNullOrEmpty(pageName) ? ManualPages.TopPageName : pageName;
+            if (TryOpenExternalPage(page, anchor))
+            {
+                return;
+            }
+
             var settings = DDriveSpecSettings.Load();
             var humanAppUrl = settings != null ? settings.HumanAppUrl : null;
 
@@ -76,6 +87,47 @@ namespace DDrive.Editor.Manual
             }
 
             Application.OpenURL(ManualUrlBuilder.BuildLocalFileUrl(folder, page) + "#" + anchor);
+        }
+
+        // [1014] §2.4(X-4、2026-10-16) — 組み込みのページ(docs/DesignerManual/<page>.html)に無い名前は、IManualPageProvider が宣言した
+        // 外部ページから探して開く(組み込みが先。外部の key が組み込みと同じならそのページは組み込みが開く)。
+        // 戻り値 true = 外部ページとして処理した(ファイルが無いときも警告して true。組み込みのページへは流さない)。
+        // path はプロジェクト基準(相対はプロジェクトのルートから)。URL は file:// で、anchor があれば #anchor を付ける。
+        public static bool TryOpenExternalPage(string page, string anchor)
+        {
+            if (!TryResolveExternalPage(page, out var full))
+            {
+                return false;
+            }
+
+            if (!File.Exists(full))
+            {
+                Debug.LogWarning($"[D-Drive] 外部マニュアル「{page}」が見つかりません: {full}");
+                return true;
+            }
+
+            var url = new System.Uri(full).AbsoluteUri;
+            Application.OpenURL(string.IsNullOrEmpty(anchor) ? url : url + "#" + anchor);
+            return true;
+        }
+
+        // 外部ページの解決だけ(開かない)。page が IManualPageProvider の宣言にあり、組み込みのページが無ければ true と絶対パス(ファイルが無くても返す)。
+        public static bool TryResolveExternalPage(string page, out string fullPath)
+        {
+            fullPath = null;
+            if (!ExtensionProviders.TryGetManualPage(page, out var path, out _))
+            {
+                return false;
+            }
+
+            var builtIn = Path.Combine(ManualPages.GetManualFolder(ManualPages.GetProjectRoot(), ManualKind.Designer), page + ".html");
+            if (File.Exists(builtIn))
+            {
+                return false;
+            }
+
+            fullPath = Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(ManualPages.GetProjectRoot(), path));
+            return true;
         }
 
         // ドロップダウン末尾の「ローカルのマニュアルを開く」から呼ぶ。優先設定に関わらず常にローカル。

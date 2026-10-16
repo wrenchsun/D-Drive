@@ -148,6 +148,9 @@ namespace ExternalContract.Tests
         protected override FieldGuide<ExternalSampleData> Guide => ExternalSampleFieldGuide.Instance;
         protected override string ManualPage => "external-sample";
 
+        // サンプルは実データ(Assets/GameData)ではなく、テストが指す一時フォルダに作る(未指定なら既定)。
+        protected override string SampleGameDataRoot => ExternalProviderTestState.GameDataRoot ?? base.SampleGameDataRoot;
+
         protected override string CardDescription(string purpose)
         {
             switch (purpose)

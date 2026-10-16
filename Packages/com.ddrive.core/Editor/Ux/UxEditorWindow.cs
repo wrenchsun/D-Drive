@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Extension;
 using DDrive.Editor.Preview;
 using DDrive.Editor.Versioning;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Extension;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -108,6 +111,24 @@ namespace DDrive.Editor.Ux
         protected virtual string SampleLabel => "サンプルを作る";
 
         protected virtual TData CreateSample() => null;
+
+        // Extension 種別の「サンプルを作る」(ISampleProvider。X-4)がサンプルを作る GameData のルート。既定は DDriveProjectSettings.GameDataRoot。
+        protected virtual string SampleGameDataRoot => AssetCreationService.DefaultGameDataRoot;
+
+        // Extension 種別(TData の [AssetIdDefinition].KindKey)に対応する provider(X-4)。無ければ null。
+        private ISampleProvider FindExtensionSample()
+            => ExtensionProviders.TryGetSample(AssetKindRegistry.KindKeyOf(typeof(TData)), out var p) ? p : null;
+
+        // ヒーローの先頭に「確認用シーン」(IPreviewSceneProvider のシーンを開く)を足す。Extension 種別で provider があるときだけ。
+        private void AddExtensionPreviewSceneButton(VisualElement actions)
+        {
+            if (!ExtensionProviders.TryGetPreviewScene(AssetKindRegistry.KindKeyOf(typeof(TData)), out var provider))
+            {
+                return;
+            }
+
+            actions.Add(MakeButton("確認用シーン", null, () => ExtensionProviderActions.OpenPreviewScene(provider), "この種別の確認用シーンを開く(未保存のシーンがあれば先に確認します)"));
+        }
 
         // 空状態に足すボタン(例: Anim2D の「＋ スプライトから作成」ウィザード)。
         protected virtual void AddEmptyActions(VisualElement zone) { }

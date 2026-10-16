@@ -104,6 +104,14 @@ namespace DDrive.Editor.Compat
             AppendApiType(sb, typeof(DDrive.Editor.Preview.PreviewResetReason));
             AppendApiType(sb, typeof(DDrive.Editor.Preview.EditorModuleHost));
 
+            // X-4(2026-10-16、docs/42 §5.14 E-28): 空状態のサンプル・確認用シーン・マニュアルページの拡張点。追加のみ。
+            sb.Append("== ExtensionProviders ==\n");
+            AppendApiType(sb, typeof(DDrive.Editor.Extension.ISampleProvider));
+            AppendApiType(sb, typeof(DDrive.Editor.Extension.IPreviewSceneProvider));
+            AppendApiType(sb, typeof(DDrive.Editor.Extension.IManualPageProvider));
+            AppendApiType(sb, typeof(DDrive.Editor.Extension.ExtensionProviders));
+            AppendApiType(sb, typeof(DDrive.Editor.Extension.ExtensionProviderActions));
+
             return sb.ToString();
         }
 

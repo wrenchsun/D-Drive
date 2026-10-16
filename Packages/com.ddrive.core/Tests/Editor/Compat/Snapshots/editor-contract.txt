@@ -336,6 +336,7 @@ abstract class DDrive.Editor.Ux.UxEditorWindow`1 : EditorWindow
   protected property virtual Boolean ValidationIncludesSameTypeAssets { get; }
   protected property virtual Boolean WantsSceneGui { get; }
   protected property virtual IReadOnlyList`1 ValidationTokens { get; }
+  protected property virtual String SampleGameDataRoot { get; }
   protected property virtual String SampleLabel { get; }
   protected property virtual String SearchHint { get; }
   protected property virtual String[] ModeTips { get; }
@@ -404,3 +405,28 @@ sealed class DDrive.Editor.Preview.EditorModuleHost
   public property DDriveBootstrapContext Context { get; }
   public property GameLoop Loop { get; }
   public property IReadOnlyList`1 Managers { get; }
+== ExtensionProviders ==
+interface DDrive.Editor.Extension.ISampleProvider
+  public method abstract AssetDataBase CreateSample(String folder)
+  public property abstract String DisplayName { get; }
+  public property abstract String KindKey { get; }
+interface DDrive.Editor.Extension.IPreviewSceneProvider
+  public method virtual Void Setup(Scene scene)
+  public property abstract String KindKey { get; }
+  public property abstract String ScenePath { get; }
+interface DDrive.Editor.Extension.IManualPageProvider
+  public property abstract IReadOnlyList`1 Pages { get; }
+static class DDrive.Editor.Extension.ExtensionProviders
+  public method static Boolean TryGetManualPage(String key, String& path, String& title)
+  public method static Boolean TryGetPreviewScene(String kindKey, IPreviewSceneProvider& provider)
+  public method static Boolean TryGetSample(String kindKey, ISampleProvider& provider)
+  public method static Void Refresh()
+  public property static Boolean IncludeTestAssemblies { get; set; }
+  public property static IReadOnlyList`1 ManualPages { get; }
+  public property static IReadOnlyList`1 ManualProviders { get; }
+  public property static IReadOnlyList`1 PreviewScenes { get; }
+  public property static IReadOnlyList`1 Samples { get; }
+static class DDrive.Editor.Extension.ExtensionProviderActions
+  public field const String SampleCategory
+  public method static AssetDataBase CreateOrGetSample(ISampleProvider provider, Type dataType, String gameDataRoot)
+  public method static Boolean OpenPreviewScene(IPreviewSceneProvider provider)

@@ -137,3 +137,18 @@ Assets/_Project/DDriveExtensions/Lighting/            （または Packages/com.
 **契約**: `editor-contract.txt` に `== UxPublicApi ==`（`DDrive.Editor.Ux` の public 型すべて。public / protected の全メンバー、static / abstract / virtual / override の区別つき）と `== PreviewApi ==`（`UxPreviewDriverBase` / `PreviewResetReason` / `EditorModuleHost`）を追加（追加のみ）。E-27 = EditMode `ExternalContractUxTests`（8 件）。窓の模擬は `ExternalSampleEditorWindow`（`Tests/Editor/ExternalContract/`。`ExternalSampleData` に欄を足した〔追加のみ〕）。
 
 **将来の整理候補**: ① `SceneVfxPreviewDriver` / `SceneAnimPreviewDriver` / `ScenePresentationPreviewDriver` を `UxPreviewDriverBase` の上に載せ替える（同じ自動停止の処理が 3 か所と基底に重複している）② `UxRow` のコンストラクタ（引数 9 個）に対する名前付きの作成口 ③ `FieldGuideEntry` の public フィールドをプロパティに（公開してしまったので MAJOR 扱い。必要なら別の型を足す）④ `ITuneSource` の必須メンバーが多い（既定実装つきメンバーの追加は MINOR で済むが、必須メンバーの追加は MAJOR）。
+
+## X-4 実装メモ（2026-10-16）
+
+**拡張点**（`DDrive.Editor.Extension`、`Editor/Extension/`、すべて public）:
+- `ISampleProvider`（`KindKey` / `DisplayName` / `AssetDataBase CreateSample(string folder)`）: Extension 種別（`[AssetIdDefinition].KindKey`）の窓の空状態「サンプルを作る」。`folder` = `<GameData>/<種別のフォルダ>/Sample`（素材の置き場。D-Drive が用意する）。**保存していない Data を返すと D-Drive が `AssetCreationService.Create` で命名規則どおりに保存し、カタログ・Addressables に登録する**（カテゴリ `Sample`。既定 Load は種別の既定）。保存済みで Id のある Data を返すと `RegisterExisting` で登録だけ行う。同じ DisplayName（カテゴリ Sample）が既にあれば provider を呼ばずそれを選ぶ。例外・null は警告 + 何もしない。
+- `IPreviewSceneProvider`（`KindKey` / `ScenePath` / 既定実装つき `Setup(Scene)`）: ヒーローの先頭に「確認用シーン」ボタンが付き、シーンを開く（未保存の確認 = `SaveCurrentModifiedScenesIfUserWantsTo`、既に開いていれば開き直さない、開いた直後に `Setup`）。provider が無ければボタンを出さない。シーンが無ければ警告。
+- `IManualPageProvider`（`Pages` = `(key, path, title)` の一覧）: `ManualLauncher.OpenPage(key[, anchor])` が、組み込みのページ（`docs/DesignerManual/<key>.html`）が無い key を外部ページから解決して開く（**組み込みが先**）。`UxCard` の「?」は `ManualLauncher.OpenPage` を呼ぶので、窓の `ManualPage` / `ManualAnchor` が返す名前が外部 key でもそのまま効く。path はプロジェクト基準（相対はプロジェクトのルートから、絶対も可）、`file://` で開く。解決だけの `ManualLauncher.TryResolveExternalPage`（開かない）も public。
+
+**発見**（`ExtensionProviders`、public static）: `TypeCache`（Editor なので可）で public〔`Type.IsVisible`〕・非 abstract・ジェネリック定義でない・public 引数なしコンストラクタを集め、型のフルネーム順。`DDrive.Tests*` / `ExternalContract.Tests*` は既定で除外（`IncludeTestAssemblies` + `Refresh()` で契約テストだけが拾う。X-1 の `AssetKindRegistry` / X-2 の `ModuleRegistry` と同じ作法）。KindKey / ページ key の重複は警告 1 回 + 先勝ち。コンストラクタの例外は隔離。呼び出しの実体は `ExtensionProviderActions`（`CreateOrGetSample` / `OpenPreviewScene`、public）。
+
+**接続**: `UxEditorWindow<TData>` の空状態は、`HasSample`（組み込み）が false で provider があるときだけ「サンプルを作る」を出す（組み込み種別の経路は不変）。サンプルを作る GameData のルートは追加の `protected virtual string SampleGameDataRoot`（既定 = `DDriveProjectSettings.GameDataRoot`。テストは一時フォルダへ向ける）。AssetBrowser の種別フィルタと「＋ 新規作成」の一覧に Extension 種別が provider の `Order` 順で並ぶのは X-1 で実装済み（`AssetBrowserWindow.TypeFilterChoices` / `NewAssetDialog`）なので、ここでは確認だけ。
+
+**契約**: `editor-contract.txt` に `== ExtensionProviders ==` 節（3 interface + `ExtensionProviders` + `ExtensionProviderActions`）と `UxEditorWindow<T>.SampleGameDataRoot` の 1 行（いずれも追加のみ）。E-28 = EditMode `ExternalContractProviderTests`（5 件。発見〔テスト用アセンブリ除外・重複の先勝ち〕/ 空状態 → サンプルを作る → `SMP_…` が一時フォルダに出来てカタログに KindKey 付きで載る → 確認用シーンが開き `Setup` が呼ばれる → ▶ / provider が無いときボタンが出ない / provider の失敗は警告で継続 / `ManualLauncher` が外部ページを解決し組み込みが先）。ダミーは `ExternalSampleProviders.cs`。テストの一時フォルダは `Assets/Tests/DDriveTemp/X4Providers`（TearDown で削除）。
+
+**判断**: `ISampleProvider.CreateSample` が「保存していない Data を返す」形を基本にしたのは、Id・カタログ・Addressables・Version の扱い（`AssetCreationService.Create` が持つ）を外部に再実装させないため。素材（音・画像など）は渡した `folder` に自分で作る。

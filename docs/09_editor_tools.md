@@ -1200,11 +1200,17 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 
 ### 公開 API（持ち込み先が継承・配置できる、2026-10-16、X-3）
 
+- **Extension 種別の窓（2026-10-16、X-4）**: 持ち込み先の `AssetType.Extension` の Data も `[DataEditor]` を付けた `UxEditorWindow<T>` 派生の窓を持つ（`DataEditorRegistryTests.EveryExtensionKindDataType_HasEditor`）。空状態の「サンプルを作る」・ヒーローの「確認用シーン」・「？」の外部ページは `ISampleProvider` / `IPreviewSceneProvider` / `IManualPageProvider`（本書 §16「空状態・確認用シーン・マニュアルの provider」）で足す。
+
 [1014](1014_extension_platform.md) §2.3: 上の部品のうち、持ち込み先の Editor asmdef（`DDrive.Editor` を参照）が `UxEditorWindow<TData>` 派生の窓を書くのに要るものを `public` にした。公開したのは `UxEditorWindow<TData>`（`protected abstract` = `PrefsKey` / `Guide` / `ManualPage` / `CardDescription`、他は `protected virtual` の口）/ `FieldGuide<TData>` / `FieldGuideEntry` / `FieldTier` / `FieldRowKind` / `UxCard` / `UxRow` / `UxVisualRow` / `GuidedField` / `TuneKnobs` / `TuneKnobsRow` / `ITuneSource`（+ `TuneValueKind` / `TuneCandidate` / `TuneAddPlan` / `TuneCategories`）/ `DurationBar`（+ `Values` / `UxLifeMode`）/ `AnchorPad` / `DataSwitcher` / `UxTheme` / `UxShow` / `IUxSyncable`。`UxTestHooks` / `UxScreenshot` / `UxPalette` は internal のまま。
 
 - **契約**: `editor-contract.txt` の `== UxPublicApi ==` 節が public / protected の全メンバー（static / abstract / virtual / override の区別つき）を固定する。**追加のみ**（削除・改名・型変更・virtual → abstract・既存メンバーの引数変更は MAJOR）。`ITuneSource` に既定実装つきメンバーを足すのは MINOR、必須メンバーを足すのは MAJOR。
 - **確認用シーンの駆動**: `DDrive.Editor.Preview.UxPreviewDriverBase`（ルート `[D-Drive] …` の作成と後始末・Edit Mode の Tick・シーン切替 / プレハブモード / Play Mode 突入 / 再コンパイル / シーン保存直前 / Dispose での自動停止）を派生して「▶ で自分の Manager を実物で動かし ■ で戻す」を書く。module（`IDDriveModule`）を Edit Mode で動かすには `EditorModuleHost`。契約は `editor-contract.txt` の `== PreviewApi ==`。
 - 書き方の見本は `Tests/Editor/ExternalContract/ExternalSampleEditorWindow.cs`（`FieldGuide` / `TuneKnobs` / `DurationBar` / `UxPreviewDriverBase` を public API だけで使う窓。契約テスト E-27 = `ExternalContractUxTests`）。
+
+### 空状態・確認用シーン・マニュアルの provider（2026-10-16、X-4）
+
+[1014](1014_extension_platform.md) §2.4: 持ち込み先が定義した種別（`AssetType.Extension` + KindKey）の窓に、組み込み種別と同じ導線を足す Editor の拡張点（`DDrive.Editor.Extension`、`TypeCache` で発見、テスト用アセンブリは既定で除外）。`ISampleProvider`（空状態「サンプルを作る」。保存していない Data を返せば D-Drive が命名規則・カタログ・Addressables 登録まで行う）/ `IPreviewSceneProvider`（ヒーローの「確認用シーン」が開くシーン）/ `IManualPageProvider`（`ManualLauncher.OpenPage` と「？」が開く外部ページ。組み込みが先）。provider が無ければボタンは出ない。契約は `editor-contract.txt` の `== ExtensionProviders ==`、E-28。
 
 ### UX テストの衛生ルール（2026-10-13、UX-1b）
 

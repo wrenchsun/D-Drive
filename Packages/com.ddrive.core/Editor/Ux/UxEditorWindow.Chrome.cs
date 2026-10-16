@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using DDrive.Editor.AssetBrowser;
+using DDrive.Editor.Extension;
+using DDrive.Foundation.Extension;
 using DDrive.Foundation.Data;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -183,11 +185,15 @@ namespace DDrive.Editor.Ux
             });
             zone.Add(picker);
 
-            if (HasSample)
+            // 組み込み種別は HasSample / CreateSample、Extension 種別(KindKey 付き)は ISampleProvider(X-4)。どちらも無ければボタンを出さない。
+            var extSample = HasSample ? null : FindExtensionSample();
+            if (HasSample || extSample != null)
             {
                 var sample = new Button(() =>
                 {
-                    var d = CreateSample();
+                    var d = HasSample
+                        ? CreateSample()
+                        : ExtensionProviderActions.CreateOrGetSample(extSample, typeof(TData), SampleGameDataRoot) as TData;
                     if (d != null)
                     {
                         SetTarget(d);
@@ -347,6 +353,7 @@ namespace DDrive.Editor.Ux
 
             var actions = new VisualElement();
             actions.AddToClassList("ux-hero__actions");
+            AddExtensionPreviewSceneButton(actions);
             AddLeadingHeroActions(actions);
             actions.Add(MakeButton("Project", null, PingTarget, "この Data を Project ウィンドウで表示する"));
             actions.Add(MakeButton("＋ 新規", null, NewAsset, "命名規則どおりの新しい " + DataKindName + " を作り、このエディタで開く"));
