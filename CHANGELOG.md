@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.10.0] - 2026-10-17
+
 ### 追加
 
 - **拡張の雛形と手順書**（X-5、[docs/1014](docs/1014_extension_platform.md) §2.5）: `Samples~/ExtensionTemplate/`（パッケージの Samples に "Extension Template"。種別 `Sample` の Data / Manager / ファサード / module / Validator / 専用エディター / サンプル / 確認用シーン / マニュアル + README）、ProgrammerManual「新しい種別を追加する」を「D-Drive を変えずに種別を足す手順」に書き換え、持ち込み先ガイドに「拡張の作り方」。MCP の `type` / `scope` が Extension の種別キーを受ける。契約 E-29（Extension 種別の ID 生成）。 自前レビュー([docs/reviews/1015](docs/reviews/1015_review_x_extension_2026-10-16.md))への対応(X-R-01〜12、[docs/1014](docs/1014_extension_platform.md) の 2026-10-16 追記): Edit 用 Host が静的ファサードを奪わない(`Bind` / `Unbind` は Play の Bootstrap だけ、module のインスタンスは Runner ごと)・provider の `Prefix` を組み込み種別の定数名に効かせない・IL2CPP のコード除去対策(`[RequireImplementors]` / 雛形の `link.xml`)・Host と `UxPreviewDriverBase` の自動停止・provider が無い Extension 種別の新規作成を拒否・雛形のパスをソースの位置から解決・`ManualLauncher` が開く外部ページを文書の拡張子に限定 ほか。

@@ -12,6 +12,6 @@ namespace DDrive.Runtime
     // PackageVersionConsistencyTests(Tests/Editor/Compat)が固定する。
     public static class DDriveVersion
     {
-        public const string Value = "1.9.0";
+        public const string Value = "1.10.0";
     }
 }
