@@ -69,7 +69,110 @@ namespace DDrive.Editor.Cutscene
             return posX != null || posY != null || posZ != null || hasRotation || fov != null;
         }
 
-        private static AnimationCurve FindCurve(AnimationClip clip, EditorCurveBinding[] bindings, string path, string propertyName)
+        // 1017 TA-4(DD-7) — カメラのカット(Ubercam の区間の切り替わり)を検出してステップにする。
+        // 毎フレームのキーで隣り合うキーの位置が positionThreshold を超えて飛ぶ、または回転が rotationThresholdDeg
+        // を超えて変わる箇所を「カット」とみなし、その 2 キーの間の補間を Constant(ステップ)にする
+        // (60 fps 再生で 2 台の間の絵が出ないように)。位置・回転・画角・焦点距離・ピント・絞りの全カーブに適用する
+        // (該当時刻にキーが無いカーブは触らない)。0 以下の閾値はその判定を無効にする。戻り値 = ステップにしたカット数。
+        public static int ApplyCutSteps(CutsceneCameraClip target, float positionThreshold, float rotationThresholdDeg)
+        {
+            if (target == null || (positionThreshold <= 0f && rotationThresholdDeg <= 0f))
+            {
+                return 0;
+            }
+
+            var timeBase = FirstNonEmpty(target.PosX, target.RotX, target.PosY, target.PosZ);
+            if (timeBase == null || timeBase.length < 2)
+            {
+                return 0;
+            }
+
+            var hasPos = target.PosX.length > 0 && target.PosY.length > 0 && target.PosZ.length > 0;
+            var hasRot = target.RotX.length > 0 && target.RotY.length > 0 && target.RotZ.length > 0 && target.RotW.length > 0;
+            var curves = new[]
+            {
+                target.PosX, target.PosY, target.PosZ, target.RotX, target.RotY, target.RotZ, target.RotW,
+                target.FieldOfView, target.FocalLengthMm, target.FocusDistance, target.Aperture,
+            };
+
+            var cuts = 0;
+            for (var i = 0; i + 1 < timeBase.length; i++)
+            {
+                var t0 = timeBase[i].time;
+                var t1 = timeBase[i + 1].time;
+                var isCut = false;
+                if (positionThreshold > 0f && hasPos)
+                {
+                    var p0 = new Vector3(target.PosX.Evaluate(t0), target.PosY.Evaluate(t0), target.PosZ.Evaluate(t0));
+                    var p1 = new Vector3(target.PosX.Evaluate(t1), target.PosY.Evaluate(t1), target.PosZ.Evaluate(t1));
+                    isCut = Vector3.Distance(p0, p1) > positionThreshold;
+                }
+
+                if (!isCut && rotationThresholdDeg > 0f && hasRot)
+                {
+                    var q0 = new Quaternion(target.RotX.Evaluate(t0), target.RotY.Evaluate(t0), target.RotZ.Evaluate(t0), target.RotW.Evaluate(t0));
+                    var q1 = new Quaternion(target.RotX.Evaluate(t1), target.RotY.Evaluate(t1), target.RotZ.Evaluate(t1), target.RotW.Evaluate(t1));
+                    isCut = Quaternion.Angle(q0, q1) > rotationThresholdDeg;
+                }
+
+                if (!isCut)
+                {
+                    continue;
+                }
+
+                cuts++;
+                for (var c = 0; c < curves.Length; c++)
+                {
+                    var curve = curves[c];
+                    var k0 = IndexAtTime(curve, t0);
+                    var k1 = IndexAtTime(curve, t1);
+                    if (k0 >= 0)
+                    {
+                        AnimationUtility.SetKeyRightTangentMode(curve, k0, AnimationUtility.TangentMode.Constant);
+                    }
+
+                    if (k1 >= 0)
+                    {
+                        AnimationUtility.SetKeyLeftTangentMode(curve, k1, AnimationUtility.TangentMode.Constant);
+                    }
+                }
+            }
+
+            return cuts;
+        }
+
+        private static AnimationCurve FirstNonEmpty(params AnimationCurve[] candidates)
+        {
+            for (var i = 0; i < candidates.Length; i++)
+            {
+                if (candidates[i] != null && candidates[i].length > 0)
+                {
+                    return candidates[i];
+                }
+            }
+
+            return null;
+        }
+
+        private static int IndexAtTime(AnimationCurve curve, float time)
+        {
+            if (curve == null)
+            {
+                return -1;
+            }
+
+            for (var i = 0; i < curve.length; i++)
+            {
+                if (Mathf.Abs(curve[i].time - time) < 1e-5f)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static AnimationCurve FindCurve(AnimationClip clip,EditorCurveBinding[] bindings, string path, string propertyName)
         {
             for (var i = 0; i < bindings.Length; i++)
             {

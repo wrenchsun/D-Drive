@@ -11,11 +11,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- **TA-4 / TA-5**（DD-7 / DD-15、[docs/1017](docs/1017_tdrive_anim_requests.md)）: Cutscene 取り込みでカメラのカット（隣り合うキーの位置・回転の大きな飛び）をステップにする（`CutsceneCameraCurveExtractor.ApplyCutSteps`、`CutsceneImportProfile.CameraCutPositionThreshold` / `CameraCutRotationThresholdDeg`）。小物のトラックにそのノード以下のカーブだけのサブクリップを渡す（`CutsceneSubClipExtractor`）。
 - **TA-1 / TA-6**（T-Drive アニメーション作業台からの依頼 DD-1 / DD-14、[docs/1017](docs/1017_tdrive_anim_requests.md)）: Model 種別の取り込みで `SK_` / `SM_` を識別子から外す（`AssetNamingService.StripModelFilePrefix`）。`FindModelDataByIdentifier` が `SK`+識別子の旧データも見つける。`.json` / `.txt` / `.md` は取り込みの案内ログの対象外。
 
 ### 互換性
 
-- 追加のみ(MINOR): `AssetNamingService.StripModelFilePrefix` / `ModelFilePrefixes` の追加。Editor 専用で、既存の取り込み済み Data の名前・ID は変わらない
+- 追加のみ(MINOR): `AssetNamingService.StripModelFilePrefix` / `ModelFilePrefixes` の追加。Editor 専用で、既存の取り込み済み Data の名前・ID は変わらない。`CutsceneImportProfile` に `CameraCutPositionThreshold` / `CameraCutRotationThresholdDeg` を追加（Editor 専用の設定、既定値で動く）
 
 ## [1.10.0] - 2026-10-17
 

@@ -25,6 +25,12 @@ namespace DDrive.Editor.Cutscene
         [Tooltip("新規生成する D-Drive Camera クリップの既定ブレンド秒(BlendIn/BlendOut 共通)。")]
         public float DefaultBlendSeconds = 0.25f;
 
+        [Tooltip("カメラのカット検出: 隣り合うキーで位置がこの距離(Unity の長さ)を超えて飛んだらステップにする(0 で無効。1017 TA-4)。")]
+        public float CameraCutPositionThreshold = 1f;
+
+        [Tooltip("カメラのカット検出: 隣り合うキーで回転がこの角度(度)を超えて変わったらステップにする(0 で無効。1017 TA-4)。")]
+        public float CameraCutRotationThresholdDeg = 60f;
+
         [Tooltip("識別子が生成できない(数字始まり等)ときの前置語。")]
         public string IdentifierFallback = "Cutscene";
 

@@ -119,5 +119,106 @@ namespace DDrive.Tests.Editor
                 Object.DestroyImmediate(clip);
             }
         }
+
+        // ── ApplyCutSteps(1017 TA-4) ──
+
+        private const float Frame = 1f / 30f;
+
+        // 毎フレームのキー(線形補間)。cutFrame 以降は x が jump だけ増える。
+        private static CutsceneCameraClip BuildPerFrameCamera(int frames, int cutFrame, float jump, float yawDegAfterCut = 0f)
+        {
+            var target = ScriptableObject.CreateInstance<CutsceneCameraClip>();
+            target.PosX = new AnimationCurve();
+            target.PosY = new AnimationCurve();
+            target.PosZ = new AnimationCurve();
+            target.RotX = new AnimationCurve();
+            target.RotY = new AnimationCurve();
+            target.RotZ = new AnimationCurve();
+            target.RotW = new AnimationCurve();
+            target.FieldOfView = new AnimationCurve();
+            for (var f = 0; f < frames; f++)
+            {
+                var t = f * Frame;
+                var after = f >= cutFrame;
+                var q = Quaternion.Euler(0f, after ? yawDegAfterCut : 0f, 0f);
+                target.PosX.AddKey(new Keyframe(t, 0.01f * f + (after ? jump : 0f)));
+                target.PosY.AddKey(new Keyframe(t, 0f));
+                target.PosZ.AddKey(new Keyframe(t, 0f));
+                target.RotX.AddKey(new Keyframe(t, q.x));
+                target.RotY.AddKey(new Keyframe(t, q.y));
+                target.RotZ.AddKey(new Keyframe(t, q.z));
+                target.RotW.AddKey(new Keyframe(t, q.w));
+                target.FieldOfView.AddKey(new Keyframe(t, after ? 40f : 60f));
+            }
+
+            return target;
+        }
+
+        [Test]
+        public void ApplyCutSteps_PositionJump_MakesStepBetweenKeys()
+        {
+            var target = BuildPerFrameCamera(20, 10, 5f);
+            try
+            {
+                var cuts = CutsceneCameraCurveExtractor.ApplyCutSteps(target, 1f, 60f);
+                Assert.AreEqual(1, cuts);
+
+                var mid = 9.5f * Frame;
+                Assert.AreEqual(target.PosX.Evaluate(9 * Frame), target.PosX.Evaluate(mid), 1e-4f, "カットの間は前のカメラの位置に留まる");
+                Assert.AreEqual(target.FieldOfView.Evaluate(9 * Frame), target.FieldOfView.Evaluate(mid), 1e-4f, "画角のカーブも同じ位置でステップ");
+                Assert.AreEqual(40f, target.FieldOfView.Evaluate(10 * Frame), 1e-4f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(target);
+            }
+        }
+
+        [Test]
+        public void ApplyCutSteps_RotationJump_MakesStep()
+        {
+            var target = BuildPerFrameCamera(20, 10, 0f, 90f);
+            try
+            {
+                Assert.AreEqual(1, CutsceneCameraCurveExtractor.ApplyCutSteps(target, 1f, 60f));
+                Assert.AreEqual(target.RotY.Evaluate(9 * Frame), target.RotY.Evaluate(9.5f * Frame), 1e-4f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(target);
+            }
+        }
+
+        [Test]
+        public void ApplyCutSteps_ThresholdZero_DoesNothing()
+        {
+            var target = BuildPerFrameCamera(20, 10, 5f, 90f);
+            try
+            {
+                var before = target.PosX.Evaluate(9.5f * Frame);
+                Assert.AreEqual(0, CutsceneCameraCurveExtractor.ApplyCutSteps(target, 0f, 0f));
+                Assert.AreEqual(before, target.PosX.Evaluate(9.5f * Frame), 1e-6f);
+                Assert.AreNotEqual(target.PosX.Evaluate(9 * Frame), target.PosX.Evaluate(9.5f * Frame), "補間のまま(中間の値が出る)");
+            }
+            finally
+            {
+                Object.DestroyImmediate(target);
+            }
+        }
+
+        [Test]
+        public void ApplyCutSteps_SlowCameraMove_IsUntouched()
+        {
+            var target = BuildPerFrameCamera(20, 100, 0f);
+            try
+            {
+                Assert.AreEqual(0, CutsceneCameraCurveExtractor.ApplyCutSteps(target, 1f, 60f));
+                Assert.AreNotEqual(target.PosX.Evaluate(9 * Frame), target.PosX.Evaluate(9.5f * Frame));
+            }
+            finally
+            {
+                Object.DestroyImmediate(target);
+            }
+        }
     }
 }

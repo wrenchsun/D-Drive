@@ -356,7 +356,7 @@ namespace DDrive.Editor.Cutscene
                     continue;
                 }
 
-                ProcessPropChild(timeline, clip, child, assetPath, bindings, bindingNames, roles, report);
+                ProcessPropChild(timeline, clip, child, root.transform, assetPath, bindings, bindingNames, roles, report);
             }
 
             return clip != null && clip.frameRate > 0f ? clip.frameRate : (float?)null;
@@ -366,6 +366,7 @@ namespace DDrive.Editor.Cutscene
             TimelineAsset timeline,
             AnimationClip clip,
             Transform child,
+            Transform root,
             string assetPath,
             List<CutsceneBinding> bindings,
             HashSet<string> bindingNames,
@@ -380,7 +381,24 @@ namespace DDrive.Editor.Cutscene
             var propIdentifierRaw = CutsceneShotParser.StripPropPrefix(child.name);
             var trackName = string.IsNullOrEmpty(propIdentifierRaw) ? child.name : propIdentifierRaw;
 
-            BuildOrUpdateAnimationRoleTrack(timeline, clip, trackName, propIdentifierRaw, bindings, bindingNames, report, roles, CutsceneImportRoleKind.Prop, assetPath);
+            // 1017 TA-5: その小物以下のカーブだけを、道筋を小物起点に付け替えたサブクリップにして渡す。
+            // clip は呼び元(ProcessCameraAndProps)でトリム済みなので、切り出し → トリムと同じ結果になる。
+            var propClip = clip;
+            if (root != null)
+            {
+                var nodePath = AnimationUtility.CalculateTransformPath(child, root);
+                var sub = CutsceneSubClipExtractor.ExtractForNode(clip, nodePath);
+                if (sub != null)
+                {
+                    propClip = PersistTrimmedClip(timeline, sub, Path.GetFileNameWithoutExtension(assetPath) + "_" + trackName);
+                }
+                else
+                {
+                    report.Log($"情報: '{child.name}' のカーブ(道筋 '{nodePath}')が FBX のアニメーションに見つかりません(FBX 全体のクリップを使います)");
+                }
+            }
+
+            BuildOrUpdateAnimationRoleTrack(timeline, propClip, trackName, propIdentifierRaw, bindings, bindingNames, report, roles, CutsceneImportRoleKind.Prop, assetPath);
         }
 
         // ── キャラ(1 FBX = 1 キャラ、Humanoid) ──
@@ -577,6 +595,15 @@ namespace DDrive.Editor.Cutscene
             if (!found)
             {
                 report.Log($"警告: '{trackName}' のカメラカーブが抽出できませんでした(位置/回転/画角のいずれも見つかりません)");
+            }
+            else
+            {
+                // 1017 TA-4: カーブ由来なので再取り込みのたびに毎回適用する(Extract がカーブを作り直すため)。
+                var cuts = CutsceneCameraCurveExtractor.ApplyCutSteps(asset, profile.CameraCutPositionThreshold, profile.CameraCutRotationThresholdDeg);
+                if (cuts > 0)
+                {
+                    report.Log($"情報: '{trackName}' のカメラのカットを {cuts} 箇所検出し、ステップにしました");
+                }
             }
 
             if (isNewTrack)
