@@ -132,4 +132,14 @@
 
 ## 6. 実装メモ（実装時に追記）
 
-（未着手）
+**2026-10-23 実装（TA-1〜TA-6、Sonnet）。設計から変えた点:**
+
+- **TA-1 / TA-6 は 1 コミット**（`ImportRuleService.cs` を両方で触るため）。TA-6 の既存テスト `ProcessPaths_UnmatchedExtension_IsIgnored` は `notes.txt` を「対象外拡張子」の例にしていたので `notes.xyz` に変えた（`.txt` は付帯ファイルになったため）。TA-1 の統合テストは UnityChan のコピー（DevRepoOnly）。`MatchesPrefixedIdentifier` は `internal`（InternalsVisibleTo が無いので単体テストは `FindModelDataByIdentifier` 経由）。
+- **TA-4 / TA-5 は 1 コミット**（`CutsceneImportService.cs` を両方で触るため）。`ApplyCutSteps` は `Extract` の中ではなく `BuildOrUpdateCameraTrack` が `Extract` の直後に毎回呼ぶ（設計どおり）。カットは位置 3 カーブの `Evaluate`（PosX のキー時刻を基準）と回転 4 カーブの `Quaternion.Angle` で判定。
+- **TA-5 の順序が設計と違う**: 設計は「切り出し → トリム」だが、`ProcessCameraAndProps` は FBX 全体のクリップを**先に**トリムして `_Trim` サブアセットにしてから小物へ渡すので、実装は「トリム済みクリップから切り出し」（結果は同じ。0 秒起点）。サブアセット名は `<ファイル名>_<小物名>`。取り込み全体の統合テスト（小物付き FBX）は実素材が無く未実施（`CutsceneSubClipExtractor` の単体テストのみ）。
+- **TA-2**: 書き込みは `CutsceneFbxPostprocessor.ApplyInitialImportSettings` / `AnimFbxPreprocessor.ApplyInitialImportSettings`（`public static`、InternalsVisibleTo が無いためテストから呼ぶ）。静的検査は `preserveHierarchy` を `ForbiddenModelImporterWrite` から外して別の正規表現 + ファイル名の許可リストに移した。`E17_OnlyAnimationTypeAndAvatarSetup…` の `written` 集合の許可に 2 プロパティを足した。`AnimFbxPreprocessor` は `ImportRulePostprocessor.Suppress` / `ImportRuleService.AutoImport` に従う。
+- **TA-3 の `OnPostprocessGameObjectWithAnimatedUserProperties`**: 設計の「束縛の `type` を `typeof(Transform)` に揃えて残す」は実装していない。この通知の `bindings` を書き換えてクリップに反映できるかが Unity のドキュメント・実素材で確認できず、不確実な書き換えは入れない方針（[26] §7.3）。代わりに**束縛を触らず**、1 FBX につき最初の 1 件だけ `ddEvent` の束縛の形（path / type）を `Debug.Log` する診断にした。読み取り側（`BuildEventMarkers`）は束縛の `type` を見ず、道筋 + プロパティ名だけで探す。実 FBX で取れなければ情報ログ + 従来どおり。**§5-3 で束縛の実際の形を見て、必要ならここを直す。**
+- **TA-3 のマーカー時刻**: `clip` がトリム済み（0 秒起点）なので、カーブのキー時刻（秒）をそのまま使う（開始フレームの引き算は不要）。`FindRisingEdges(curve, frameRate)` は秒を返す。`BuildEventMarkers` は `public static`（`Action<string>` のログ + `CutsceneEventNode` 構造体）にして、コードで組んだ `AnimationClip` でテストした。再取り込みで `Events (FBX)` が既にあって今回イベントが無いときも、マーカーは空にする（トラックは残す）。
+- **`CutsceneImportProfile` は Compat の対象か**は最後の EditMode 全件で確認（赤にならなければ対象外）。
+
+**未検証（実 FBX / T-Drive の実出力が要る）**: §5 の 5-1〜5-5 すべて。特に `ddEvent` が Unity 6 の取り込みで取れるか（5-3）、カットのステップ化の閾値（5-4）、小物のインスタンスが動くか（5-5）。TA-7（マニュアル・リリース）は上位モデルが行う。

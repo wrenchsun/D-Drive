@@ -31,6 +31,15 @@ namespace DDrive.Editor.Cutscene
         [Tooltip("カメラのカット検出: 隣り合うキーで回転がこの角度(度)を超えて変わったらステップにする(0 で無効。1017 TA-4)。")]
         public float CameraCutRotationThresholdDeg = 60f;
 
+        [Tooltip("イベント用ロケーター(EVT_<キー>)のアニメ付きプロパティ名。値が 1 になったフレームを Signal マーカーにする(1017 TA-3)。")]
+        public string EventPropertyName = "ddEvent";
+
+        [Tooltip("Signal マーカーのキーの接頭辞(cutscene/ + EVT_ を外した名前。[26] §4.3 の cutscene/xxx 規約)。")]
+        public string EventKeyPrefix = "cutscene/";
+
+        [Tooltip("OFF ならイベント用ロケーター(EVT_)は小物から除外するだけで、Signal マーカーは作らない(1017 TA-3)。")]
+        public bool ImportEventLocators = true;
+
         [Tooltip("識別子が生成できない(数字始まり等)ときの前置語。")]
         public string IdentifierFallback = "Cutscene";
 

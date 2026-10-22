@@ -42,7 +42,9 @@ namespace DDrive.Editor.Cutscene
             }
 
             // 1017 TA-2: キャラ FBX・カメラ+小物 FBX とも、初回取り込み(importSettingsMissing)のときだけ書く。
-            ApplyInitialImportSettings(modelImporter, assetImporter.importSettingsMissing);
+            // 1017 TA-3: カメラ+小物 FBX は EVT_ ロケーターのアニメ付きユーザープロパティ(ddEvent)も取り込む(初回のみ)。
+            ApplyInitialImportSettings(modelImporter, assetImporter.importSettingsMissing,
+                !isCharacter && CutsceneImportProfile.FindOrDefault().ImportEventLocators);
 
             if (!isCharacter)
             {
@@ -71,7 +73,7 @@ namespace DDrive.Editor.Cutscene
         // 1017 TA-2(DD-3) — トップレベルが 1 つの FBX はそのノードがプレハブのルートになり名前がファイル名に替わって
         // カーブの道筋がずれるため、初回取り込みのときだけ preserveHierarchy を ON にする(Inspector での変更は上書きしない)。
         // E-17 (c) の許可ファイル(docs/42 §5.14)。テストから直接呼べるように分離している。
-        public static void ApplyInitialImportSettings(ModelImporter modelImporter, bool isFirstImport)
+        public static void ApplyInitialImportSettings(ModelImporter modelImporter, bool isFirstImport, bool importEventProperties = false)
         {
             if (modelImporter == null || !isFirstImport)
             {
@@ -79,7 +81,35 @@ namespace DDrive.Editor.Cutscene
             }
 
             modelImporter.preserveHierarchy = true;
+            if (importEventProperties)
+            {
+                modelImporter.importAnimatedCustomProperties = true;
+            }
         }
+
+        // 1017 TA-3: アニメ付きユーザープロパティ(ddEvent)の束縛の実際の形(Unity 6 + Maya FBX)は実素材が無く未確認のため、
+        // この通知では束縛を書き換えず、1 FBX につき最初の 1 件だけ形を情報ログに出す(実 FBX での確認用。1017 §5-3)。
+        // ddEvent の読み取りは束縛の type を見ず、道筋とプロパティ名だけで探す(CutsceneImportService.BuildEventMarkers)。
+        private void OnPostprocessGameObjectWithAnimatedUserProperties(GameObject go, EditorCurveBinding[] bindings)
+        {
+            if (Suppress || bindings == null || !IsUnderCutsceneFolder(assetPath))
+            {
+                return;
+            }
+
+            var propertyName = CutsceneImportProfile.FindOrDefault().EventPropertyName;
+            foreach (var binding in bindings)
+            {
+                if (binding.propertyName == propertyName && LoggedEventBindingAssets.Add(assetPath))
+                {
+                    Debug.Log($"[DDrive] Cutscene 取り込み: {assetPath} のアニメ付きプロパティ '{propertyName}' を検出しました"
+                              + $"(束縛: path='{binding.path}', type={binding.type?.Name ?? "null"}。[26] §5.5)");
+                    return;
+                }
+            }
+        }
+
+        private static readonly HashSet<string> LoggedEventBindingAssets = new();
 
         private static bool IsUnderCutsceneFolder(string assetPath)
         {

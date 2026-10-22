@@ -41,6 +41,28 @@ namespace DDrive.Editor.Cutscene
             return match.Success ? match.Groups[1].Value : modelIdentifierRaw;
         }
 
+        // 1017 TA-3(DD-2) — イベント用ロケーター("EVT_Hit" / "ns:EVT_Hit")か。名前空間("ns:")は捨てて判定し、
+        // key = "EVT_" を外した残り("Hit")。Maya が重複で付けた数字("Hit1")は外さない(Combo2 と区別できないため)。
+        public static bool IsEventLocator(string nodeName, out string key)
+        {
+            key = null;
+            if (string.IsNullOrEmpty(nodeName))
+            {
+                return false;
+            }
+
+            const string prefix = "EVT_";
+            var colon = nodeName.LastIndexOf(':');
+            var name = colon >= 0 ? nodeName.Substring(colon + 1) : nodeName;
+            if (!name.StartsWith(prefix, StringComparison.Ordinal) || name.Length == prefix.Length)
+            {
+                return false;
+            }
+
+            key = name.Substring(prefix.Length);
+            return true;
+        }
+
         // "PRP_Sword" / "Sword:root" のような小物のノード名 → Model 識別子候補("Sword")。
         // 名前空間区切り(':')以降を捨て、"PRP_" 接頭辞を外す([26] §5.5)。
         public static string StripPropPrefix(string nodeName)

@@ -11,6 +11,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 追加
 
+- **TA-3**（DD-2 / DD-9、[docs/1017](docs/1017_tdrive_anim_requests.md)）: Cutscene 取り込みで `EVT_<キー>` のロケーターを小物にせず、アニメ付きプロパティ `ddEvent` が 1 になったフレームを Signal マーカー（固定名トラック `Events (FBX)`、キー `cutscene/<キー>`、再取り込みで作り直し）にする（`CutsceneEventCurveReader` / `CutsceneImportProfile.EventPropertyName` / `EventKeyPrefix` / `ImportEventLocators`）。実 FBX での確認は未実施（取れなければ情報ログ + 従来どおり）。
 - **TA-2**（DD-3、[docs/1017](docs/1017_tdrive_anim_requests.md)）: `SourceAssets/Cutscene/` と `SourceAssets/Anim/` の FBX を初回取り込みのときだけ `preserveHierarchy = true` にする（`CutsceneFbxPostprocessor` / 新規 `AnimFbxPreprocessor`）。
 - **TA-4 / TA-5**（DD-7 / DD-15、[docs/1017](docs/1017_tdrive_anim_requests.md)）: Cutscene 取り込みでカメラのカット（隣り合うキーの位置・回転の大きな飛び）をステップにする（`CutsceneCameraCurveExtractor.ApplyCutSteps`、`CutsceneImportProfile.CameraCutPositionThreshold` / `CameraCutRotationThresholdDeg`）。小物のトラックにそのノード以下のカーブだけのサブクリップを渡す（`CutsceneSubClipExtractor`）。
 - **TA-1 / TA-6**（T-Drive アニメーション作業台からの依頼 DD-1 / DD-14、[docs/1017](docs/1017_tdrive_anim_requests.md)）: Model 種別の取り込みで `SK_` / `SM_` を識別子から外す（`AssetNamingService.StripModelFilePrefix`）。`FindModelDataByIdentifier` が `SK`+識別子の旧データも見つける。`.json` / `.txt` / `.md` は取り込みの案内ログの対象外。

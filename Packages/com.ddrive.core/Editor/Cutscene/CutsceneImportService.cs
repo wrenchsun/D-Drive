@@ -349,6 +349,8 @@ namespace DDrive.Editor.Cutscene
             }
 
             // 小物: ルート直下の子のうち、カメラでないもの([26] §5.5「小物は名前空間/PRP_接頭辞」)。
+            // 1017 TA-3: EVT_<キー> のロケーターは小物にせず、Signal マーカー(Events (FBX) トラック)の元にする。
+            var eventNodes = new List<CutsceneEventNode>();
             foreach (Transform child in root.transform)
             {
                 if (child.GetComponent<Camera>() != null)
@@ -356,10 +358,118 @@ namespace DDrive.Editor.Cutscene
                     continue;
                 }
 
+                if (CutsceneShotParser.IsEventLocator(child.name, out var eventKey))
+                {
+                    eventNodes.Add(new CutsceneEventNode
+                    {
+                        Path = AnimationUtility.CalculateTransformPath(child, root.transform),
+                        Key = eventKey,
+                    });
+                    continue;
+                }
+
                 ProcessPropChild(timeline, clip, child, root.transform, assetPath, bindings, bindingNames, roles, report);
             }
 
+            if (profile.ImportEventLocators)
+            {
+                // clip はトリム済み(0 秒起点)なので、カーブのキー時刻がそのままマーカーの時刻になる。
+                BuildEventMarkers(timeline, clip, eventNodes, profile, message => report.Log(message));
+            }
+
             return clip != null && clip.frameRate > 0f ? clip.frameRate : (float?)null;
+        }
+
+        // 取り込み時に作る Signal トラックの固定名。このトラックのマーカーは再取り込みのたびに全部作り直す
+        // (自動生成の単位)。デザイナーが手で置くマーカーは別の Signal トラックに置く([26] §5.5)。
+        public const string EventTrackName = "Events (FBX)";
+
+        public struct CutsceneEventNode
+        {
+            public string Path; // クリップ内の道筋(CalculateTransformPath)
+            public string Key;  // EVT_ を外した名前
+        }
+
+        // 1017 TA-3: ddEvent の立ち上がり(0→1。先頭キーが 1 なら先頭フレーム)ごとに Signal マーカーを置く。
+        // カーブが取れなければ情報ログを出して何もしない(従来どおり。Timeline で手でマーカーを置く運用)。
+        // public: InternalsVisibleTo 未設定のため、テスト asmdef からコードで組んだ AnimationClip で検証する。
+        public static void BuildEventMarkers(
+            TimelineAsset timeline,
+            AnimationClip clip,
+            IReadOnlyList<CutsceneEventNode> eventNodes,
+            CutsceneImportProfile profile,
+            Action<string> log)
+        {
+            if (timeline == null)
+            {
+                return;
+            }
+
+            var track = FindSignalTrack(timeline, EventTrackName);
+            var markers = new List<(double Time, string Key)>();
+            if (clip != null && eventNodes != null && eventNodes.Count > 0)
+            {
+                var bindings = AnimationUtility.GetCurveBindings(clip);
+                foreach (var node in eventNodes)
+                {
+                    AnimationCurve curve = null;
+                    for (var i = 0; i < bindings.Length; i++)
+                    {
+                        if (bindings[i].path == node.Path && bindings[i].propertyName == profile.EventPropertyName)
+                        {
+                            curve = AnimationUtility.GetEditorCurve(clip, bindings[i]);
+                            break;
+                        }
+                    }
+
+                    if (curve == null || curve.length == 0)
+                    {
+                        log?.Invoke($"情報: イベント用ロケーター 'EVT_{node.Key}' に時刻({profile.EventPropertyName})が取れませんでした"
+                                    + "(Signal マーカーは Timeline で手で置いてください。[26] §5.5)");
+                        continue;
+                    }
+
+                    foreach (var time in CutsceneEventCurveReader.FindRisingEdges(curve, clip.frameRate))
+                    {
+                        markers.Add((time, profile.EventKeyPrefix + node.Key));
+                    }
+                }
+            }
+
+            if (track == null)
+            {
+                if (markers.Count == 0)
+                {
+                    return;
+                }
+
+                track = timeline.CreateTrack<CutsceneSignalTrack>(null, EventTrackName);
+            }
+
+            // 自動生成のトラック: 前回のマーカーを全部消して作り直す(他の Signal トラックは触らない)。
+            foreach (var existing in new List<IMarker>(track.GetMarkers()))
+            {
+                track.DeleteMarker(existing);
+            }
+
+            foreach (var (time, key) in markers)
+            {
+                var marker = track.CreateMarker<CutsceneSignalNotification>(time);
+                marker.Key = key;
+            }
+        }
+
+        private static CutsceneSignalTrack FindSignalTrack(TimelineAsset timeline, string name)
+        {
+            foreach (var track in timeline.GetRootTracks())
+            {
+                if (track is CutsceneSignalTrack signal && track.name == name)
+                {
+                    return signal;
+                }
+            }
+
+            return null;
         }
 
         private static void ProcessPropChild(
