@@ -9,7 +9,7 @@
 | 出典 | T-Drive `docs/20_animation_workbench_spec.md` §8.1（ID は T-Drive の `docs/21` コードレビューの番号）。T-Drive 側でできる対応（ログ・マニュアル・既定で `EVT_` を出さない・検証の警告）は済んでいる |
 | 背景 | T-Drive のアニメーション作業台（Maya）が、MS2026 の命名規則（`SK_<ModelId>.fbx` / `A_<ModelId>_<動作>.fbx`）でモデル・アニメーションを分割出力し、ショット（`<Shot>.fbx` + `<Shot>__<ModelId>.fbx`、D-Drive のカットシーン規則そのまま）を出す。D-Drive の取り込み（`ImportRuleService` / `CutsceneImportService`）がそれを正しく受けられるようにする |
 | 範囲 | **Editor 専用の取り込み経路のみ**（`Packages/com.ddrive.core/Editor/Import/`・`Editor/Cutscene/`）。ランタイム・ネット・Data のシリアライズ形式（`CutsceneImportProfile` の欄の追加を除く）・公開 API の変更は無い。すべて追加のみ（[42](42_distribution.md) §5.4 = MINOR、v1.11.0 見込み） |
-| 触る契約 | E-17 (c)（[42](42_distribution.md) §5.14「D-Drive が `ModelImporter` に書くのは `animationType` / `avatarSetup` / `sourceAvatar` だけ」）を **`SourceAssets/Cutscene/` と `SourceAssets/Anim/` の FBX に限って** `preserveHierarchy` / `importAnimatedCustomProperties` の 2 つ（初回取り込みのみ）に広げる（TA-2 / TA-3、§3 Q-1）。`SourceAssets/Model/`（Toon の `SK_` モデル）には今までどおり触らない |
+| 触る契約（承認済み 2026-10-23） | E-17 (c)（[42](42_distribution.md) §5.14「D-Drive が `ModelImporter` に書くのは `animationType` / `avatarSetup` / `sourceAvatar` だけ」）を **`SourceAssets/Cutscene/` と `SourceAssets/Anim/` の FBX に限って** `preserveHierarchy` / `importAnimatedCustomProperties` の 2 つ（初回取り込みのみ）に広げる（TA-2 / TA-3、§3 Q-1）。`SourceAssets/Model/`（Toon の `SK_` モデル）には今までどおり触らない |
 | 検証の限界 | 実 Maya 素材（T-Drive の出力）がこの環境に無いため、EditMode テストはコードで組んだ `AnimationClip` / 既存サンプル FBX（UnityChan）のコピーで行う。**アニメ付きユーザープロパティ（`ddEvent`）が Unity 6 の取り込みで取れるか・階層の道筋・カットのステップ化は、T-Drive の実出力で人が確認する**（§5、[1001](1001_open_items.md) に行を足す） |
 
 ## 1. 依頼と実コードの突き合わせ
@@ -102,7 +102,7 @@
 
 | # | 事項 | 仮の決め | 理由 |
 |---|---|---|---|
-| Q-1 | E-17 (c) を広げてよいか（`preserveHierarchy` / `importAnimatedCustomProperties`） | **広げる。ただし Cutscene / Anim フォルダ・初回取り込みのみ・許可ファイル 2 つ** | 依頼主の T-Drive 自身が求めている。Toon が前提にする `Model` フォルダは不変。[42](42_distribution.md) §5.14 の契約の文言変更なので CHANGELOG に明記し、**ユーザー承認を得る**（承認前に TA-2 / TA-3 を実装してもよいが、リリースはしない） |
+| Q-1 | E-17 (c) を広げてよいか（`preserveHierarchy` / `importAnimatedCustomProperties`） | **広げる。ただし Cutscene / Anim フォルダ・初回取り込みのみ・許可ファイル 2 つ**。**✅ 2026-10-23 ユーザー承認**（「Cutscene / Anim フォルダの FBX・初回取り込みに限って preserveHierarchy / importAnimatedCustomProperties まで広げる」） | 依頼主の T-Drive 自身が求めている。Toon が前提にする `Model` フォルダは不変。[42](42_distribution.md) §5.14 の契約の文言変更なので CHANGELOG に明記し、**ユーザー承認を得る**（承認前に TA-2 / TA-3 を実装してもよいが、リリースはしない） |
 | Q-2 | Signal マーカーのキー | `cutscene/` + Maya の名前のまま（`EVT_Hit` → `cutscene/Hit`） | [26](26_timeline.md) §5.5 の例は `cutscene/hit` だが、小文字化すると `FootPlant` が読めなくなる。接頭辞は profile で変えられる |
 | Q-3 | カットの閾値の既定 | 位置 1.0（Unity 単位 = m）/ 回転 60° | 30 fps で 1 フレームに 1 m = 30 m/s。通常のカメラワークでは出ない。Maya が cm のときは取り込みのスケール（0.01）後の値で判定するので同じ |
 | Q-4 | `EVT_` の除外を profile で切れるようにするか | 切れない（常に除外） | 小物トラックになって困ることはあっても、小物にしたいことは無い |
