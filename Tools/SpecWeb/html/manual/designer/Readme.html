@@ -55,7 +55,7 @@
      詳細は docs/32_spec_web.md「実装メモ(2026-09-14、マニュアル配信)」参照)。 -->
 
 <h1>D-Drive デザイナーマニュアル</h1>
-<p class="lastupdate">最終更新日: 2026-10-13</p>
+<p class="lastupdate">最終更新日: 2026-10-23</p>
 
 <p>このマニュアルは、<strong>D-Drive</strong>（Designer-Driven Re: IDE Visual Environment、このプロジェクトのアセット管理システム）をデザイナーが使うためのガイドです。プログラムの知識は必要ありません。</p>
 
@@ -177,9 +177,15 @@
 </figure>
 
 <h2>最近の更新</h2>
-<p>各ページの見出しの下に「最終更新日」を入れました（2026-09-19 追加）。マニュアル全体の最終更新は <strong>2026-09-27</strong> です。</p>
+<p>各ページの見出しの下に「最終更新日」を入れました（2026-09-19 追加）。マニュアル全体の最終更新は <strong>2026-10-23</strong> です。</p>
 <table>
 <tr><th>日付</th><th>更新内容</th></tr>
+<tr><td>2026-10-23</td><td>
+<ul>
+<li><a href="#" data-manual-kind="designer" data-manual-page="cutscene-maya-export">カットシーン（Maya 書き出し）</a>: イベントの目印 <code>EVT_&lt;キー&gt;</code>（カスタムアトリビュート <code>ddEvent</code>）が Signal トラック <code>Events (FBX)</code> のマーカーになります。Ubercam のカメラの切り替わりは自動でステップになります。小物にはそのノード以下の動きだけが入ります。<code>SourceAssets/Cutscene/</code> に初めて置いた FBX は <code>Preserve Hierarchy</code> ON で取り込まれます</li>
+<li><a href="#" data-manual-kind="designer" data-manual-page="asset-browser">Asset Browser</a>: <code>SourceAssets/Model/</code> の <code>SK_〜</code> / <code>SM_〜</code> は接頭辞を外したものが識別子になります。<code>.json</code> / <code>.txt</code> / <code>.md</code> の付帯ファイルは案内のログを出しません</li>
+</ul>
+</td></tr>
 <tr><td>2026-10-13</td><td>
 <ul>
 <li>専用エディターをすべて同じデザイン（やりたいことごとのカード・かんたん / 標準 / 詳細・設定の検索・保存と自動保存つきの固定バー）にそろえました。メニューは <code>Tools &gt; D-Drive &gt; Editors</code>、Inspector の「▶ 〜 Editor で開く」も同じエディターを開きます</li>

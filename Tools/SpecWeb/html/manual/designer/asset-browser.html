@@ -50,7 +50,7 @@
 }</style><div class="sw-manual-navbar"><a href="#" data-manual-exit="orders">← 発注ツールへ</a> <a href="#" data-manual-kind="designer" data-manual-page="Readme">マニュアル目次</a></div><div class="sw-manual-page"><nav class="breadcrumb"><a href="#" data-manual-kind="designer" data-manual-page="Readme">🏠 トップ</a> › Asset Browser の使い方</nav>
 
 <h1>Asset Browser の使い方</h1>
-<p class="lastupdate">最終更新日: 2026-10-03</p>
+<p class="lastupdate">最終更新日: 2026-10-23</p>
 
 <p>Asset Browser は D-Drive の<strong>入口になるウィンドウ</strong>です。登録済みの素材（<span class="term" title="ゲームで使う音・エフェクトなどの素材データのこと">アセット</span>）を一覧で見たり、検索したり、新しく登録したりできます。</p>
 
@@ -165,6 +165,9 @@
 </table>
 <div class="tip">
 <code>&lt;カテゴリ&gt;</code> のフォルダ名がそのまま Data の「カテゴリ」になり、ファイル名がそのまま識別子(英語 PascalCase になっていない場合は自動で整形)になります。例えば <code>Assets/SourceAssets/Se/Player/Slash.wav</code> を置くと、カテゴリ「Player」・識別子「Slash」の <code>SE_Player_Slash</code> ができます。表示名は後から Inspector で日本語に変えられます。
+</div>
+<div class="tip">
+<strong>モデルのファイル名の接頭辞:</strong> <code>Assets/SourceAssets/Model/</code> に置く FBX の名前が <code>SK_〜</code>（スケルタル）/ <code>SM_〜</code>（スタティック）で始まるときは、<strong>接頭辞を外したものが識別子</strong>になります（<code>SK_Hero.fbx</code> → 識別子 <code>Hero</code>、<code>MODEL_&lt;カテゴリ&gt;_Hero</code>。表示名は <code>SK_Hero</code> のまま）。カットシーンのキャラ FBX（<code>&lt;ショット名&gt;__Hero.fbx</code>）が自動でこのモデルに結び付きます。モデルの横に <code>.json</code> / <code>.txt</code> / <code>.md</code> の付帯ファイル（Maya 側のツールが出す対応表など）を置いても、Data は作られず、案内のログも出ません。<code>Assets/SourceAssets/Anim/</code> の FBX は、初めて置いたときに Inspector の <code>Preserve Hierarchy</code> が ON で取り込まれます（2 回目以降は手で変えた値のまま）。
 </div>
 <div class="warn">
 <strong><code>SourceAssets</code> の直下や、上の表にある種別名(<code>Se</code>/<code>Bgm</code>/<code>Texture</code>/<code>Model</code>/<code>Anim</code>/<code>Anim2D</code>/<code>Prefab</code>/<code>Canvas</code>/<code>Vfx</code>)以外のフォルダに置いても反応しません。</strong>「1階層目」が種別フォルダである必要があります(大文字・小文字も一致させてください)。例えば <code>Assets/SourceAssets/Slash.wav</code>(直下)や <code>Assets/SourceAssets/Check/Se/Slash.wav</code>(種別フォルダの上に別フォルダがある)は無視されます。置き方を間違えた場合は Console に案内の警告ログが出ます。フォルダが用意されていない場合は <code>Tools &gt; D-Drive &gt; Generate &gt; SourceAssets の既定フォルダを作成</code> で作れます。
