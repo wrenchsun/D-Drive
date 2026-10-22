@@ -36,14 +36,17 @@ namespace DDrive.Editor.Cutscene
 
             var fileNameNoExt = Path.GetFileNameWithoutExtension(assetPath);
             CutsceneShotParser.ParseFileName(fileNameNoExt, out _, out var isCharacter, out var modelIdentifierRaw);
-            if (!isCharacter)
-            {
-                return; // カメラ+小物 FBX は Generic のまま(既定)。
-            }
-
             if (assetImporter is not ModelImporter modelImporter)
             {
                 return;
+            }
+
+            // 1017 TA-2: キャラ FBX・カメラ+小物 FBX とも、初回取り込み(importSettingsMissing)のときだけ書く。
+            ApplyInitialImportSettings(modelImporter, assetImporter.importSettingsMissing);
+
+            if (!isCharacter)
+            {
+                return; // カメラ+小物 FBX は Generic のまま(既定)。
             }
 
             var modelIdentifier = CutsceneShotParser.StripDuplicateSuffix(modelIdentifierRaw);
@@ -63,6 +66,19 @@ namespace DDrive.Editor.Cutscene
                 Debug.LogWarning($"[DDrive] Cutscene 取り込み: {assetPath} 用の ModelData('{modelIdentifier}')または Avatar が見つからないため、"
                                   + "仮に CreateFromThisModel で取り込みます([26_timeline.md] §5.4)。");
             }
+        }
+
+        // 1017 TA-2(DD-3) — トップレベルが 1 つの FBX はそのノードがプレハブのルートになり名前がファイル名に替わって
+        // カーブの道筋がずれるため、初回取り込みのときだけ preserveHierarchy を ON にする(Inspector での変更は上書きしない)。
+        // E-17 (c) の許可ファイル(docs/42 §5.14)。テストから直接呼べるように分離している。
+        public static void ApplyInitialImportSettings(ModelImporter modelImporter, bool isFirstImport)
+        {
+            if (modelImporter == null || !isFirstImport)
+            {
+                return;
+            }
+
+            modelImporter.preserveHierarchy = true;
         }
 
         private static bool IsUnderCutsceneFolder(string assetPath)

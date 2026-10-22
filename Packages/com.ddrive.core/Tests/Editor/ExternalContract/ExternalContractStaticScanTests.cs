@@ -63,9 +63,47 @@ namespace ExternalContract.Tests
 
         // ModelImporter(FBX)固有の取り込み設定への書き込み。TextureImporter の isReadable 等とは混ざらない名前だけを挙げる。
         private static readonly Regex ForbiddenModelImporterWrite = new(
-            @"\.\s*(importBlendShapes|importVisibility|importCameras|importLights|optimizeGameObjects|meshCompression|globalScale|useFileScale|useFileUnits|extraExposedTransformPaths|weldVertices|importNormals|importTangents|keepQuads|swapUVChannels|generateSecondaryUV|skinWeights|maxBonesPerVertex|bakeAxisConversion|preserveHierarchy|resampleCurves|materialImportMode|materialLocation|importAnimation)\b\s*=[^=]");
+            @"\.\s*(importBlendShapes|importVisibility|importCameras|importLights|optimizeGameObjects|meshCompression|globalScale|useFileScale|useFileUnits|extraExposedTransformPaths|weldVertices|importNormals|importTangents|keepQuads|swapUVChannels|generateSecondaryUV|skinWeights|maxBonesPerVertex|bakeAxisConversion|resampleCurves|materialImportMode|materialLocation|importAnimation)\b\s*=[^=]");
+
+        // 1017 TA-2 / TA-3: Cutscene / Anim フォルダの FBX に限り、初回取り込みのときだけ書く 2 プロパティ(E-17 (c) の改定)。
+        // 書いてよいのは下の 2 ファイルだけ(ファイル名の許可リスト)。Model フォルダ(Toon の SK_ モデル)には触らない。
+        private static readonly Regex CutscenePreImportWrite = new(@"\.\s*(preserveHierarchy|importAnimatedCustomProperties)\b\s*=[^=]");
+
+        private static readonly string[] CutscenePreImportWriters = { "CutsceneFbxPostprocessor.cs", "AnimFbxPreprocessor.cs" };
+
+        private static bool IsCutscenePreImportWriter(string fileName)
+        {
+            return System.Array.IndexOf(CutscenePreImportWriters, fileName) >= 0;
+        }
 
         // 走査の正規表現が空振りしていないことの確認(検出すべきものを検出し、無関係な名前は拾わない)。
+        [Test]
+        public void E17_Control_CutscenePreImportWrite_AllowListOnlyTwoFiles()
+        {
+            Assert.IsTrue(CutscenePreImportWrite.IsMatch("modelImporter.preserveHierarchy = true;"));
+            Assert.IsTrue(CutscenePreImportWrite.IsMatch("modelImporter.importAnimatedCustomProperties = true;"));
+            Assert.IsFalse(CutscenePreImportWrite.IsMatch("if (modelImporter.preserveHierarchy == true) {}"));
+            Assert.IsTrue(IsCutscenePreImportWriter("CutsceneFbxPostprocessor.cs"));
+            Assert.IsTrue(IsCutscenePreImportWriter("AnimFbxPreprocessor.cs"));
+            Assert.IsFalse(IsCutscenePreImportWriter("ImportRuleService.cs"), "許可リスト以外のファイルが書いたら赤になる");
+            Assert.IsFalse(IsCutscenePreImportWriter("MayaModelPostprocessor.cs"));
+        }
+
+        [Test]
+        public void E17_PreserveHierarchyAndAnimatedProperties_AreWrittenOnlyByAllowedFiles()
+        {
+            var hits = new List<string>();
+            foreach (var (file, line, text) in SourceLines("Foundation", "Runtime", "Editor"))
+            {
+                if (CutscenePreImportWrite.IsMatch(text) && !IsCutscenePreImportWriter(Path.GetFileName(file)))
+                {
+                    hits.Add($"{Path.GetFileName(file)}:{line}: {text.Trim()}");
+                }
+            }
+
+            Assert.IsEmpty(hits, "preserveHierarchy / importAnimatedCustomProperties を書けるのは CutsceneFbxPostprocessor / AnimFbxPreprocessor だけ(docs/42 §5.14 E-17): " + string.Join(" | ", hits));
+        }
+
         [Test]
         public void E17_Control_ForbiddenWritePattern_MatchesExpectedLines()
         {
@@ -83,7 +121,8 @@ namespace ExternalContract.Tests
             Assert.IsEmpty(hits, "D-Drive は URP の Renderer / Renderer Feature に関与しない: " + string.Join(" | ", hits));
         }
 
-        // E-17: ModelImporter への書き込みは Cutscene のキャラ FBX の animationType / avatarSetup だけ。
+        // E-17: ModelImporter への書き込みは Cutscene のキャラ FBX の animationType / avatarSetup と、
+        // Cutscene / Anim の FBX の初回取り込みの preserveHierarchy / importAnimatedCustomProperties(1017 TA-2 / TA-3)だけ。
         [Test]
         public void E17_OnlyAnimationTypeAndAvatarSetup_AreWrittenToModelImporter()
         {
@@ -101,7 +140,8 @@ namespace ExternalContract.Tests
                 }
             }
 
-            CollectionAssert.IsSubsetOf(written, new[] { "animationType", "avatarSetup", "sourceAvatar" }, "ModelImporter に書くプロパティは animationType / avatarSetup(+ 参照先 sourceAvatar)だけ");
+            CollectionAssert.IsSubsetOf(written, new[] { "animationType", "avatarSetup", "sourceAvatar", "preserveHierarchy", "importAnimatedCustomProperties" },
+                "ModelImporter に書くプロパティは animationType / avatarSetup(+ 参照先 sourceAvatar)と、Cutscene / Anim の初回取り込みの preserveHierarchy / importAnimatedCustomProperties だけ");
         }
 
         // E-17: ボーン・メッシュ・スケールを D-Drive が書き換えない(Spawn は位置・回転・親だけ)。

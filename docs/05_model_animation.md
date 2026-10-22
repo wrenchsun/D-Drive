@@ -397,3 +397,5 @@ A-3 の Spawn / Despawn に次の挙動を追加した（追加のみ。MINOR）
 - **情報行（読み取り専用）**: モデルの情報（Renderer 数・Material スロット数・BlendShape 数〔FC-2 の既定重みへ戻る旨〕・Animator・Prefab 上の `IModelInstanceListener`〔FC-12〕）、Avatar の情報（Data と Animator の Avatar の見比べ・Cutscene の Humanoid 判定。Animator 側にだけあるときは「Animator の Avatar を入れる」）。
 - **確認する**: 確認用シーン / 今のシーンへの配置・撤去・Prefab で開く・ターンテーブル・並べて確認（最大 4 体、2m 間隔。`SceneAnimPreviewDriver.SpawnExtraModel`）。旧の「ツールバーの全ボタン・トグル・欄」は全行あり（対応表 = [1010](1010_editor_ux_migration.md) §5 UX-9）。
 - 実運用規模のサンプル（D-10）: `Editor/Ux/Samples/ModelSample.cs`（ユニティちゃん = スロット 24 行〔未割当 3・Renderer が見つからない 1〕・BlendShape 31 本・Default Animation・Humanoid Avatar）。
+
+> **2026-10-23 追記(TA-2)**: `SourceAssets/Anim/` の FBX は初回取り込みのときだけ `preserveHierarchy = true` で取り込む(`AnimFbxPreprocessor`。トップレベルが 1 つの FBX でカーブの道筋がずれないように。Inspector で変えた値は上書きしない。[1017](1017_tdrive_anim_requests.md) DD-3)。
