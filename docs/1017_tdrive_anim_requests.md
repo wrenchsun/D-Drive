@@ -126,7 +126,7 @@
 |---|---|---|
 | 5-1 | T-Drive の出力タブで `SK_MisotenChara.fbx` を D-Drive の `SourceAssets/Model/<cat>/` へ | `MODEL_<cat>_MisotenChara` ができ、表示名は `SK_MisotenChara`。`humanoid.json` / `animset.json` の写しで案内ログが出ない |
 | 5-2 | `<Shot>__MisotenChara.fbx` を `SourceAssets/Cutscene/<cat>/` へ | Bindings の Model が自動で `MisotenChara` に埋まる。`preserveHierarchy` が ON で取り込まれ、ルートの名前がファイル名に替わっていない |
-| 5-3 | `export.includeEvents` を ON にした `<Shot>.fbx` | `Events (FBX)` トラックに `cutscene/<キー>` のマーカーが、shot.json の `events[].frame` と同じ時刻に並ぶ（先頭フレームのイベントを含む）。`EVT_` の小物トラックと「ModelData('EVT_…') が見つかりません」が出ない。**取れなければ情報ログが出て、他は従来どおり**（この場合は `OnPostprocessGameObjectWithAnimatedUserProperties` の束縛の実際の形を `Debug.Log` で見て TA-3 を直す） |
+| 5-3 | `export.includeEvents` を ON にした `<Shot>.fbx` | `Events (FBX)` トラックに `cutscene/<キー>` のマーカーが、shot.json の `events[].frame` と同じ時刻に並ぶ（先頭フレームのイベントを含む）。`EVT_` の小物トラックと「ModelData('EVT_…') が見つかりません」が出ない。**取れなければ情報ログが出て、他は従来どおり**（この場合は `OnPostprocessGameObjectWithAnimatedUserProperties` の束縛の実際の形を `Debug.Log` で見て TA-3 を直す）。**`EVT_` がカメラ + 小物 FBX のルート直下に来ていること**（T-Drive は Maya で `tdShot_<Shot>` グループの下に置く。Export Selection で親が落ちればルート直下、`tdShot_*` が残っていればそれが小物のトラックになる = T-Drive 側で外す。[reviews/1018](reviews/1018_review_ta_2026-10-23.md) 総評） |
 | 5-4 | カメラが 2 区間あるショットを 60 fps の CutsceneData で再生 | カットの前後に 2 台の間の絵が出ない（Timeline ウィンドウのスクラブで切り替わりのフレームを 1 コマずつ） |
 | 5-5 | `PRP_Mic` が動くショット | 小物のインスタンスが Maya と同じに動く |
 

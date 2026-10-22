@@ -111,6 +111,7 @@
 | **X-R-07 持ち越し**（外部 Manager の AssetEvent） | `ctx.Events` は組み込みの `AssetEventDispatcher` に繋がっていない（雛形の「イベント」欄は外した）。Dispatcher を外部の Manager が使える形（`Groups` / 文脈解決の口）にするのは別チケット | ⏸ 見送り | [1014](1014_extension_platform.md) 2026-10-16 追記（X-R-07） | 持ち込み先の Manager が Data の Events で SE / VFX を鳴らしたくなったら起票 |
 | **X-R-17 / X-R-20 持ち越し** | Edit 用 Registry（`EditorAnchorRegistry`）に Extension 種別の Data が載らない／`IAssetRegistry` に `IsRegistered(id, type, kindKey)` が無い（外部の Manager がネット受信の範囲外検査に使えない） | ⏸ 見送り | [1015](reviews/1015_review_x_extension_2026-10-16.md) | 必要になったら PATCH / MINOR で（公開 API の追加のみ） |
 | 道具の穴 4 件（pwsh 検査・NetCheck ビルドの古さ警告・Editor 内アサーションの判定規則・RequiresGraphics の定型） | v1.9.0 のリリース作業で見つかった | 未着手 | [1014](1014_extension_platform.md) §5 | 次の PATCH |
+| **TA-R-04 / TA-R-05 持ち越し** | `SK_` / `SM_` を外した結果の識別子の衝突を取り込みログで案内する／FBX から消えた小物のサブアセット `<ファイル名>_<小物名>` が `.playable` に残る（消えたノードのトラックの自動ミュートと同じ穴） | ⏸ 次の PATCH | [reviews/1018](reviews/1018_review_ta_2026-10-23.md) TA-R-04 / 05 | 消えたノードの扱いをまとめて直すとき |
 | FC-8 | カットシーンのキャラ FBX でブレンドシェイプのカーブを通す | 保留 | [51](51_tdrive_integration.md) §4.9 | 表情アニメの運用が決まったら |
 | FC-9 | 7-3/7-4 から外部コンポーネントの値を触る口 | 保留 | [51](51_tdrive_integration.md) §4.10 | 7-3/7-4 に着手するとき |
 | FC-13 | インスタンスごとのマテリアル値（MPB） | 保留 | [51](51_tdrive_integration.md) §4.14 | MS2026 で表情パラメータを使い始め、方式が決まったら |
