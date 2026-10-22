@@ -8,3 +8,15 @@ Assets/SourceAssets/Samples/Shizuku/FBX/FBX/shizuku.fbx filter=lfs diff=lfs merg
 # （html/manual/designer/, html/manual/programmer/）に分かれたため ** で両方を拾う。
 Tools/SpecWeb/html/manual/**/*.html text eol=lf
 Tools/SpecWeb/src/ManualPages.js text eol=lf
+# 2026-10-23（v1.11.0 リリース準備、run-ci step 4 の誤検知対策）: Unity が書き出す YAML 系ファイルは常に LF。
+# core.autocrlf=true のチェックアウトでは、Unity が同じ内容を LF で書き直しただけでも git status が
+# 「変更あり」と報告し（index は全件 LF、バイト同一でも M になる）、run-ci の step 4「ID 再生成後に作業ツリーが
+# クリーンか」が落ちる。チェックアウト時も LF にして Unity の書き直しを無差分にする（index の内容は変わらない）。
+*.asset text eol=lf
+*.unity text eol=lf
+*.prefab text eol=lf
+*.meta text eol=lf
+*.playable text eol=lf
+*.controller text eol=lf
+*.anim text eol=lf
+*.mat text eol=lf
