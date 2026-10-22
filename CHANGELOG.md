@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.11.0] - 2026-10-23
+
 ### 追加
 
 - **TA-3**（DD-2 / DD-9、[docs/1017](docs/1017_tdrive_anim_requests.md)）: Cutscene 取り込みで `EVT_<キー>` のロケーターを小物にせず、アニメ付きプロパティ `ddEvent` が 1 になったフレームを Signal マーカー（固定名トラック `Events (FBX)`、キー `cutscene/<キー>`、再取り込みで作り直し）にする（`CutsceneEventCurveReader` / `CutsceneImportProfile.EventPropertyName` / `EventKeyPrefix` / `ImportEventLocators`）。実 FBX での確認は未実施（取れなければ情報ログ + 従来どおり）。

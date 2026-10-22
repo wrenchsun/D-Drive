@@ -308,6 +308,9 @@ public sealed class MyHandler : IImportRuleHandler
 <tr><td>キャッシュ</td><td>発見結果はドメインリロードまで使い回されます（取り込みのたびに走査しません）</td></tr>
 <tr><td>制約</td><td>ハンドラが作れる Data は D-Drive の既存の <code>AssetType</code> に限ります（ファイル名・フォルダ・ID の決まりは既存種別のものを使うため）</td></tr>
 <tr><td>互換</td><td>Editor 契約として固定されています。メンバーは追加のみです</td></tr>
+<tr><td>識別子の接頭辞</td><td>組み込みの Model ハンドラだけが、ファイル名の <code>SK_</code> / <code>SM_</code> を識別子から外します（<code>AssetNamingService.StripModelFilePrefix</code>。<code>SK_Hero.fbx</code> → 識別子 <code>Hero</code>、表示名は <code>SK_Hero</code>）。外部ハンドラの識別子はファイル名そのままです</td></tr>
+<tr><td>付帯ファイル</td><td><code>.json</code> / <code>.txt</code> / <code>.md</code> は、どの種別フォルダに置いても案内ログの対象外です（Maya 側ツールの対応表などを元データの横に置ける）</td></tr>
+<tr><td>FBX の取り込み設定</td><td>D-Drive が <code>ModelImporter</code> に書くのは、Cutscene のキャラ FBX の <code>animationType</code> / <code>avatarSetup</code>（+ <code>sourceAvatar</code>）と、<code>SourceAssets/Cutscene/</code>・<code>SourceAssets/Anim/</code> の FBX の<strong>初回取り込みだけ</strong>の <code>preserveHierarchy</code>（カメラ + 小物 FBX は <code>importAnimatedCustomProperties</code> も）です。<code>SourceAssets/Model/</code> の FBX の取り込み設定には触りません（契約 E-17）</td></tr>
 </table>
 
 <h2 id="textureconvext">変換表・テクスチャ規則の提供口（IShaderConversionTableProvider / ITextureImportRuleProvider）</h2>
