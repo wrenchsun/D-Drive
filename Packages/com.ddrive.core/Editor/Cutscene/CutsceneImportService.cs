@@ -658,19 +658,45 @@ namespace DDrive.Editor.Cutscene
                 return null;
             }
 
+            // 完全一致を優先し、無ければ SK_ / SM_ 接頭辞つきで取り込まれた旧データ(MODEL_*_SKHero)を救済する(1017 TA-1)。
+            string fallbackPath = null;
             foreach (var guid in AssetSearch.FindAssets("t:" + nameof(ModelData)))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                var fileNameNoExt = Path.GetFileNameWithoutExtension(path);
-                var segments = fileNameNoExt.Split('_');
-                var lastSegment = segments.Length > 0 ? segments[segments.Length - 1] : fileNameNoExt;
+                var lastSegment = LastNameSegment(Path.GetFileNameWithoutExtension(path));
                 if (string.Equals(lastSegment, identifier, StringComparison.Ordinal))
                 {
                     return AssetDatabase.LoadAssetAtPath<ModelData>(path);
                 }
+
+                if (fallbackPath == null && MatchesPrefixedIdentifier(lastSegment, identifier))
+                {
+                    fallbackPath = path;
+                }
             }
 
-            return null;
+            return fallbackPath != null ? AssetDatabase.LoadAssetAtPath<ModelData>(fallbackPath) : null;
+        }
+
+        private static string LastNameSegment(string fileNameNoExt)
+        {
+            var segments = fileNameNoExt.Split('_');
+            return segments.Length > 0 ? segments[segments.Length - 1] : fileNameNoExt;
+        }
+
+        // lastSegment が "SK" + identifier / "SM" + identifier(識別子化された接頭辞つき)か。
+        internal static bool MatchesPrefixedIdentifier(string lastSegment, string identifier)
+        {
+            foreach (var prefix in AssetNamingService.ModelFilePrefixes)
+            {
+                var identPrefix = prefix.TrimEnd('_');
+                if (string.Equals(lastSegment, identPrefix + identifier, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -166,7 +166,7 @@ namespace DDrive.Tests.Editor
         [Test]
         public void ProcessPaths_UnmatchedExtension_IsIgnored()
         {
-            var relative = $"{SourceRoot}/Se/Player/notes.txt";
+            var relative = $"{SourceRoot}/Se/Player/notes.xyz";
             EnsureDiskFolder(Path.GetDirectoryName(relative));
             File.WriteAllText(Path.GetFullPath(relative), "memo");
             AssetDatabase.ImportAsset(relative, ImportAssetOptions.ForceSynchronousImport);
@@ -174,6 +174,20 @@ namespace DDrive.Tests.Editor
             LogAssert.Expect(LogType.Warning, new Regex(@"\[DDrive\] ImportRule 案内:.*'Se'.*対象拡張子"));
             var report = ImportRuleService.ProcessPaths(new[] { relative }, SourceRoot, GameDataRoot);
             Assert.AreEqual(0, report.Created);
+        }
+
+        // 1017 TA-6: T-Drive の humanoid.json / animset.json の写しなど付帯ファイルは案内ログの対象外。
+        [Test]
+        public void ProcessPaths_CompanionExtension_NoHint()
+        {
+            var relative = $"{SourceRoot}/Model/Test/humanoid.json";
+            EnsureDiskFolder(Path.GetDirectoryName(relative));
+            File.WriteAllText(Path.GetFullPath(relative), "{}");
+            AssetDatabase.ImportAsset(relative, ImportAssetOptions.ForceSynchronousImport);
+
+            var report = ImportRuleService.ProcessPaths(new[] { relative }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(0, report.Created);
+            LogAssert.NoUnexpectedReceived();
         }
 
         // ── 案内ログ(2026-09-14 追加): 置き方を間違えたときに Console へ 1 回だけ警告する ──
@@ -405,6 +419,21 @@ namespace DDrive.Tests.Editor
             var data = AssetDatabase.LoadAssetAtPath<ModelData>($"{GameDataRoot}/Model/Enemy/MODEL_Enemy_Box.asset");
             Assert.IsNotNull(data);
             Assert.AreEqual(AssetDatabase.LoadAssetAtPath<GameObject>(path), data.Prefab);
+        }
+
+        // 1017 TA-1: SK_ / SM_ は識別子から外す(表示名は変えない)。
+        [Test]
+        [Category("DevRepoOnly")]
+        public void ProcessPaths_Model_SkPrefix_IsStrippedFromIdentifier_ButNotFromDisplayName()
+        {
+            DevRepoOnlyGuard.SkipUnlessDevRepo();
+            var path = CopyAsset(SampleModelFbx, $"{SourceRoot}/Model/Test/SK_Hero.fbx");
+            var report = ImportRuleService.ProcessPaths(new[] { path }, SourceRoot, GameDataRoot);
+            Assert.AreEqual(1, report.Created);
+
+            var data = AssetDatabase.LoadAssetAtPath<ModelData>($"{GameDataRoot}/Model/Test/MODEL_Test_Hero.asset");
+            Assert.IsNotNull(data, "識別子は SK_ を外した Hero になる");
+            Assert.AreEqual("SK_Hero", data.DisplayName);
         }
 
         // ── 元ファイル削除時: Data は消えず、参照が null になるだけ(欠落は既存 Validator が担う) ──

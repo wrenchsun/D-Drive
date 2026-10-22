@@ -162,6 +162,17 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(model, found);
         }
 
+        // 1017 TA-1: SK_ つきで取り込まれた旧データ(MODEL_*_SKHero)の救済。完全一致があればそちらを優先。
+        [Test]
+        public void FindModelDataByIdentifier_FallsBackToSkPrefixedData()
+        {
+            var old = CreateModelData("Test_SKZedHero", GameDataRoot);
+            Assert.AreEqual(old, CutsceneImportService.FindModelDataByIdentifier("ZedHero"));
+
+            var exact = CreateModelData("Test_ZedHero", GameDataRoot);
+            Assert.AreEqual(exact, CutsceneImportService.FindModelDataByIdentifier("ZedHero"));
+        }
+
         [Test]
         public void FindModelDataByIdentifier_NotFound_ReturnsNull()
         {

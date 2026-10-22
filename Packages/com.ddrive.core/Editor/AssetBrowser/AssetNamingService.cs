@@ -144,6 +144,31 @@ namespace DDrive.Editor.AssetBrowser
             return sb.ToString();
         }
 
+        /// <summary>Model 種別のファイル名接頭辞(MS2026 Docs/Rules/FolderStructure.md §3: スケルタルメッシュ SK_ / スタティックメッシュ SM_)。</summary>
+        public static readonly string[] ModelFilePrefixes = { "SK_", "SM_" };
+
+        /// <summary>
+        /// 先頭が <see cref="ModelFilePrefixes"/>(大文字・"_" 必須)ならそれを外して返す。該当しなければそのまま。
+        /// Model の識別子を「ファイル名の接頭辞抜き」にして、カットシーンの &lt;Shot&gt;__&lt;ModelId&gt; と一致させる(1017 TA-1)。
+        /// </summary>
+        public static string StripModelFilePrefix(string rawName)
+        {
+            if (string.IsNullOrEmpty(rawName))
+            {
+                return rawName;
+            }
+
+            foreach (var prefix in ModelFilePrefixes)
+            {
+                if (rawName.StartsWith(prefix, System.StringComparison.Ordinal))
+                {
+                    return rawName.Substring(prefix.Length);
+                }
+            }
+
+            return rawName;
+        }
+
         // 識別子は英語 PascalCase(先頭大文字、英数字のみ)。ID 定数名としてそのまま使われる。
         // 表示名 → PascalCase の識別子(ASCII 英数字のみ。区切りの次を大文字化)。空か数字始まりなら fallback を前置する。
         // AnimEditor(State 名 → AnimData 識別子)と AnchorAssetFactory(GameObject 名 → AnchorData 識別子)が共用する。

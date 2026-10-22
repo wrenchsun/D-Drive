@@ -9,9 +9,13 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 追加
+
+- **TA-1 / TA-6**（T-Drive アニメーション作業台からの依頼 DD-1 / DD-14、[docs/1017](docs/1017_tdrive_anim_requests.md)）: Model 種別の取り込みで `SK_` / `SM_` を識別子から外す（`AssetNamingService.StripModelFilePrefix`）。`FindModelDataByIdentifier` が `SK`+識別子の旧データも見つける。`.json` / `.txt` / `.md` は取り込みの案内ログの対象外。
+
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 追加のみ(MINOR): `AssetNamingService.StripModelFilePrefix` / `ModelFilePrefixes` の追加。Editor 専用で、既存の取り込み済み Data の名前・ID は変わらない
 
 ## [1.10.0] - 2026-10-17
 

@@ -29,6 +29,18 @@ namespace DDrive.Tests.Editor
             Assert.AreEqual(expected, AssetNamingService.IsValidIdentifier(identifier));
         }
 
+        // 1017 TA-1
+        [TestCase("SK_Hero", "Hero")]
+        [TestCase("SM_Rock", "Rock")]
+        [TestCase("Skeleton", "Skeleton")]
+        [TestCase("sk_hero", "sk_hero")]
+        [TestCase("SK_", "")]
+        [TestCase("", "")]
+        public void StripModelFilePrefix_RemovesSkAndSmOnly(string raw, string expected)
+        {
+            Assert.AreEqual(expected, AssetNamingService.StripModelFilePrefix(raw));
+        }
+
         [Test]
         public void BuildFileName_WithCategory_UsesPrefixCategoryIdentifier()
         {

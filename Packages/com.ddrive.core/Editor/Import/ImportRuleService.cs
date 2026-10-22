@@ -5,6 +5,7 @@ using System.Linq;
 using DDrive.Editor.AssetBrowser;
 using DDrive.Editor.Settings;
 using DDrive.Foundation.Data;
+using DDrive.Foundation.Identity;
 using UnityEditor;
 using UnityEngine;
 
@@ -224,7 +225,13 @@ namespace DDrive.Editor.Import
 
         // 案内ログ(下記)をセッション内でパスごとに 1 回だけ出すための既知集合。
         // Editor スクリプトリロード(コンパイル)で静的フィールドは失われるため「セッション内」= このドメインリロードの間、の意味になる。
-        private static readonly HashSet<string> WarnedPaths = new(StringComparer.Ordinal);
+        // 案内ログの対象外にする付帯ファイルの拡張子(T-Drive の humanoid.json / animset.json の写し等。1017 DD-14)。
+        private static readonly HashSet<string> CompanionExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".json", ".txt", ".md",
+        };
+
+        private static readonly HashSet<string> WarnedPaths =new(StringComparer.Ordinal);
 
         // テストからのみ呼ぶ想定(ImportRulePostprocessor.Suppress 等と同じく公開フィールド/メソッドで抑止する既存方針に合わせる)。
         // static な WarnedPaths が NUnit のテスト間で残ってしまうと「1 回だけ警告する」の確認ができなくなるため、[SetUp] でリセットする。
@@ -331,6 +338,12 @@ namespace DDrive.Editor.Import
             if (!HandlersByFolder.ContainsKey(typeFolder))
             {
                 GetOrAddList(hints.UnknownTypeFolder, typeFolder).Add(assetPath);
+                return;
+            }
+
+            // T-Drive の humanoid.json / animset.json の写しなど付帯ファイルは案内しない(1017 DD-14)。
+            if (CompanionExtensions.Contains(Path.GetExtension(assetPath)))
+            {
                 return;
             }
 
@@ -493,7 +506,10 @@ namespace DDrive.Editor.Import
             // 識別子・表示名は元ファイルの「ファイル名」から作る(FBX ルートやプレハブのルート GameObject の名前は
             // デザイナーが揃えているとは限らないため使わない。「ファイルを置くだけ」の直感に合わせる)。
             var rawName = Path.GetFileNameWithoutExtension(assetPath);
-            var identifier = AssetNamingService.ToIdentifier(rawName, handler.IdentifierFallback);
+            // Model 種別は MS2026 の命名規則(SK_<ModelId> / SM_<ModelId>)の接頭辞を識別子から外す(1017 TA-1)。
+            // 表示名(rawName)は変えない。
+            var identifierSource = handler.Target == AssetType.Model ? AssetNamingService.StripModelFilePrefix(rawName) : rawName;
+            var identifier = AssetNamingService.ToIdentifier(identifierSource, handler.IdentifierFallback);
 
             var capturedSource = source;
             AssetDataBase created;
