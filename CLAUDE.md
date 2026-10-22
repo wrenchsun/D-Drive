@@ -34,6 +34,8 @@
 > **v1.9.0（2026-10-15）**: MS2026 からの依頼 2 件（[docs/1004](docs/1004_tasks.md) MS 節）。`Ui.OpenInto` / `PlayDisappear`（UI スタックの外で Canvas を RenderTexture に描く。[docs/07](docs/07_canvas_prefab.md) A-3）と `CutscenePlayOptions`（Cutscene を `Camera.main` 以外の指定カメラで再生。[docs/26](docs/26_timeline.md) §4.6.6）。いずれも公開 API の追加のみ。リリース記録は [docs/archive/1012](docs/archive/1012_release_1_9_0.md)。次は MS2026 側の置き換え（A-21 / A-22）。
 > **v1.10.0（2026-10-17）**: 外部拡張（プラグイン）基盤（[docs/1014](docs/1014_extension_platform.md)、X-1〜X-5）。持ち込み先が D-Drive を変えずに種別（`AssetType.Extension` + `IAssetKindProvider`）・Manager（`IDDriveModule`）・専用エディター（`Editor/Ux` が public）・サンプル / 確認用シーン / マニュアル（provider）を自分のアセンブリで足せる。雛形は `Packages/com.ddrive.core/Samples~/ExtensionTemplate/`、手順書は ProgrammerManual の extending。ステージ照明（L 節）は MS2026 側で雛形から作る方針（方式 A）。記録は [docs/archive/1016](docs/archive/1016_release_1_10_0.md)。
 
+> **TA チケット（T-Drive アニメーション作業台からの依頼、2026-10-23 起票）**: T-Drive の `docs/20_animation_workbench_spec.md` §8.1 の 7 件（`SK_` / `SM_` の識別子・`EVT_` → Signal マーカー・`preserveHierarchy`・カメラのカットのステップ化・小物のサブクリップ・`.json` の案内ログ）。設計 = [docs/1017](docs/1017_tdrive_anim_requests.md)、チケット = [docs/1004](docs/1004_tasks.md) TA 節（TA-1〜TA-7、v1.11.0 MINOR 見込み）。E-17 (c) を Cutscene / Anim フォルダに限って広げる判断（1017 §3 Q-1）はユーザー承認待ち。
+
 ## 2. ディレクトリ地図
 
 ```

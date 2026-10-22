@@ -35,6 +35,8 @@
 | FC-7: Timeline 内の SE の使用箇所・未使用・削除・差し替え | [52](verification/52_manual_verification_fc.md) 7-1〜7-5 |
 | FC-15: 知らないシェーダーを含む FBX の自動取り込み | [52](verification/52_manual_verification_fc.md) §15.5 |
 
+| TA（T-Drive アニメーション作業台）: `SK_` の識別子・`__<ModelId>` の自動バインド・`Events (FBX)` マーカー（`ddEvent` が Unity 6 で取れるか）・カメラのカットのステップ化・小物の道筋 | [1017](1017_tdrive_anim_requests.md) §5（5-1〜5-5。T-Drive の実出力が要る） |
+
 ### 1-B. T-Drive 導入後に確認するもの
 
 | 内容 | 出典 |
