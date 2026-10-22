@@ -18,7 +18,7 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ### 互換性
 
-- 追加のみ(MINOR): `AssetNamingService.StripModelFilePrefix` / `ModelFilePrefixes` の追加。Editor 専用で、既存の取り込み済み Data の名前・ID は変わらない。`CutsceneImportProfile` に `CameraCutPositionThreshold` / `CameraCutRotationThresholdDeg` を追加（Editor 専用の設定、既定値で動く）。**契約の明文化（E-17 (c)）**: D-Drive が `ModelImporter` に書いてよいプロパティに、Cutscene / Anim フォルダの FBX の初回取り込み限定で `preserveHierarchy` / `importAnimatedCustomProperties` を加えた（書いてよいファイルは 2 つだけ・静的検査は許可リスト。`SourceAssets/Model/` は不変。docs/1017 Q-1 でユーザー承認済み）
+- 追加のみ(MINOR): `AssetNamingService.StripModelFilePrefix` / `ModelFilePrefixes` の追加。Editor 専用で、既存の取り込み済み Data の名前・ID は変わらない。`CutsceneImportProfile` に `CameraCutPositionThreshold` / `CameraCutRotationThresholdDeg` / `EventPropertyName` / `EventKeyPrefix` / `ImportEventLocators` の 5 欄を追加（Editor 専用の設定、既定値で動く）。**契約の明文化（E-17 (c)）**: D-Drive が `ModelImporter` に書いてよいプロパティに、Cutscene / Anim フォルダの FBX の初回取り込み限定で `preserveHierarchy` / `importAnimatedCustomProperties` を加えた（書いてよいファイルは 2 つだけ・静的検査は許可リスト。`SourceAssets/Model/` は不変。docs/1017 Q-1 でユーザー承認済み）
 
 ## [1.10.0] - 2026-10-17
 

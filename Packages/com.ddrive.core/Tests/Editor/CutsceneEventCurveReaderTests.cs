@@ -122,6 +122,34 @@ namespace DDrive.Tests.Editor
         }
 
         [Test]
+        public void BuildEventMarkers_EmptyNodes_ClearsOwnTrackMarkers_AndKeepsOtherTracks()
+        {
+            // ImportEventLocators=OFF で再取り込みしたときは空の列で呼ばれ、前回のマーカーが消える。
+            var timeline = ScriptableObject.CreateInstance<TimelineAsset>();
+            var profile = ScriptableObject.CreateInstance<CutsceneImportProfile>();
+            var clip = BuildEventClip("EVT_Hit", 0, 1, 0);
+            var nodes = new List<CutsceneImportService.CutsceneEventNode> { new() { Path = "EVT_Hit", Key = "Hit" } };
+            try
+            {
+                var manual = timeline.CreateTrack<CutsceneSignalTrack>(null, "Manual");
+                manual.CreateMarker<CutsceneSignalNotification>(1.0).Key = "cutscene/manual";
+                CutsceneImportService.BuildEventMarkers(timeline, clip, nodes, profile, null);
+                var events = timeline.GetRootTracks().OfType<CutsceneSignalTrack>().Single(t => t.name == CutsceneImportService.EventTrackName);
+                Assert.AreEqual(1, events.GetMarkers().Count());
+
+                CutsceneImportService.BuildEventMarkers(timeline, clip, new List<CutsceneImportService.CutsceneEventNode>(), profile, null);
+                Assert.AreEqual(0, events.GetMarkers().Count(), "OFF の再取り込みで古いマーカーが消える");
+                Assert.AreEqual(1, manual.GetMarkers().Count(), "別トラックは残る");
+            }
+            finally
+            {
+                Object.DestroyImmediate(timeline);
+                Object.DestroyImmediate(profile);
+                Object.DestroyImmediate(clip);
+            }
+        }
+
+        [Test]
         public void BuildEventMarkers_NoCurve_LogsInfoAndCreatesNoTrack()
         {
             var timeline = ScriptableObject.CreateInstance<TimelineAsset>();

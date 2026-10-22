@@ -371,11 +371,10 @@ namespace DDrive.Editor.Cutscene
                 ProcessPropChild(timeline, clip, child, root.transform, assetPath, bindings, bindingNames, roles, report);
             }
 
-            if (profile.ImportEventLocators)
-            {
-                // clip はトリム済み(0 秒起点)なので、カーブのキー時刻がそのままマーカーの時刻になる。
-                BuildEventMarkers(timeline, clip, eventNodes, profile, message => report.Log(message));
-            }
+            // clip はトリム済み(0 秒起点)なので、カーブのキー時刻がそのままマーカーの時刻になる。
+            // ImportEventLocators が OFF のときは空の列で呼び、前回作った Events (FBX) のマーカーを消す
+            // (トラックが無ければ何もしない)。
+            BuildEventMarkers(timeline, clip, profile.ImportEventLocators ? eventNodes : new List<CutsceneEventNode>(), profile, message => report.Log(message));
 
             return clip != null && clip.frameRate > 0f ? clip.frameRate : (float?)null;
         }

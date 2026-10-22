@@ -231,7 +231,7 @@ namespace DDrive.Editor.Import
             ".json", ".txt", ".md",
         };
 
-        private static readonly HashSet<string> WarnedPaths =new(StringComparer.Ordinal);
+        private static readonly HashSet<string> WarnedPaths = new(StringComparer.Ordinal);
 
         // テストからのみ呼ぶ想定(ImportRulePostprocessor.Suppress 等と同じく公開フィールド/メソッドで抑止する既存方針に合わせる)。
         // static な WarnedPaths が NUnit のテスト間で残ってしまうと「1 回だけ警告する」の確認ができなくなるため、[SetUp] でリセットする。
@@ -507,8 +507,8 @@ namespace DDrive.Editor.Import
             // デザイナーが揃えているとは限らないため使わない。「ファイルを置くだけ」の直感に合わせる)。
             var rawName = Path.GetFileNameWithoutExtension(assetPath);
             // Model 種別は MS2026 の命名規則(SK_<ModelId> / SM_<ModelId>)の接頭辞を識別子から外す(1017 TA-1)。
-            // 表示名(rawName)は変えない。
-            var identifierSource = handler.Target == AssetType.Model ? AssetNamingService.StripModelFilePrefix(rawName) : rawName;
+            // 表示名(rawName)は変えない。組み込みの ModelImportHandler に限る(外部の IImportRuleHandler の識別子は変えない)。
+            var identifierSource = handler is ModelImportHandler ? AssetNamingService.StripModelFilePrefix(rawName) : rawName;
             var identifier = AssetNamingService.ToIdentifier(identifierSource, handler.IdentifierFallback);
 
             var capturedSource = source;

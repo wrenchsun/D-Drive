@@ -172,7 +172,7 @@ namespace DDrive.Editor.Cutscene
             return -1;
         }
 
-        private static AnimationCurve FindCurve(AnimationClip clip,EditorCurveBinding[] bindings, string path, string propertyName)
+        private static AnimationCurve FindCurve(AnimationClip clip, EditorCurveBinding[] bindings, string path, string propertyName)
         {
             for (var i = 0; i < bindings.Length; i++)
             {
