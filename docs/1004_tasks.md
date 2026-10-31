@@ -142,7 +142,7 @@
 | EP-2 | `OnPropertyChanged` が、dirty が進んでいない通知（結びつけの初期通知。窓の表示・切替で 186〜288 件）を捨て、`OnPropertyEdited` / `OnDataEdited` を呼ばない | — | 偽通知で `OnPropertyEdited` が呼ばれない・実編集では呼ばれるの EditMode テスト。`UxTestHooks.SpuriousEdits` | ✅ 2026-10-31（`OnPropertyChanged` で `GetDirtyCount` が `_lastEditDirty` と同じなら捨てる。基準は BuildBody 末尾・Undo・RowChanged・VisualEdited・RefreshAfterExternalWrite・ResetAll・保存（手動・自動）で合わせる。`UxTestHooks.SpuriousEdits`） |
 | EP-3 | 連続編集（0.3 秒以内）の 2 回目以降は `RunValidation` + `RefreshAll(true)` を保留し、最後の編集から 200 ms 後に 1 回。保留中は Tick の行ループも飛ばす。`OnPropertyEdited` は毎回呼ぶ | EP-1 | ドラッグ相当の連続編集で `CoalescedEdits` が増え、保留の実行後に状態が最新になる EditMode テスト | ✅ 2026-10-31（`OnDataEdited`: 0.3 s 以内の 2 回目以降は保留 → `schedule.Execute(FlushPendingEdits).ExecuteLater(200)`。`DiscardPendingEdits` を BuildBody / Undo / RowChanged / RefreshAfterExternalWrite / OnDisable で。`UxTestHooks.CoalescedEdits`） |
 | EP-4 | `protected virtual int TickIntervalMs => 150`（50 未満は 50）。`editor-contract.txt` 更新 + CHANGELOG 互換性節 | — | スナップショット差分が `TickIntervalMs` だけ。CHANGELOG `[Unreleased]` に追加のみ（MINOR） | ✅ 2026-10-31（`TickIntervalMs` + internal `EffectiveTickIntervalMs`。`editor-contract.txt` の差分は 1 行。CHANGELOG `[Unreleased]`） |
-| EP-5 | docs: [1010](1010_editor_ux_migration.md) §2 追記・[09](09_editor_tools.md) §16 にひと言・[1001](1001_open_items.md) §1-C に「MS2026 を v1.12.0 に上げて `FloorRowThrottle` を外し、Floor Fx Editor の重さを再計測」 | EP-1〜4 | — | ✅ 2026-10-31（1010 §2 追記・09 §16・1001 §1-C・CHANGELOG。テスト = `Tests/Editor/UxEditorPerfTests.cs` 5 件。UX 系 + Compat の絞り込み 271 件 green、EditMode 全件はメモリ不足で数時間かかるため実行中のまま = 未完走） |
+| EP-5 | docs: [1010](1010_editor_ux_migration.md) §2 追記・[09](09_editor_tools.md) §16 にひと言・[1001](1001_open_items.md) §1-C に「MS2026 を v1.12.0 に上げて `FloorRowThrottle` を外し、Floor Fx Editor の重さを再計測」 | EP-1〜4 | — | ✅ 2026-10-31（1010 §2 追記・09 §16・1001 §1-C・CHANGELOG。テスト = `Tests/Editor/UxEditorPerfTests.cs` 5 件。EditMode 全件 = 失敗 0〔2130 件 + ExternalContract 103 件。`ExtensionTemplateCompilesTests` だけは雛形をコピーして再コンパイルを跨ぐ設計のため MCP 経由の実行がリロードで中断され未実行 → Test Runner ウィンドウで人が 1 回〕。PlayMode は Editor 専用のため省略） |
 
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
@@ -161,7 +161,7 @@
 
 ## 更新履歴
 
-- 2026-10-31: EP-1〜EP-5 実装（Sonnet）。UX 系 + Compat の絞り込み 271 件 green
+- 2026-10-31: EP-1〜EP-5 実装（Sonnet）。EditMode 全件 失敗 0（ExtensionTemplateCompilesTests のみ MCP 経由では走らせられず未実行）。低メモリ下で全件に約 2.5 時間
 - 2026-10-31: EP 節（専用エディター土台の軽量化 = MS2026 PERF-2 の本修正、EP-1〜EP-5、設計 [1020](1020_editor_base_perf.md)）を起票。§2 に MS2026 からの土台への要望 ①〜⑥ を候補として追記
 - 2026-10-07: MCP-11 ✅（docs・CHANGELOG・人による確認手順 1005）。§0 の v1.5.0 を「MCP-12 待ち」に。§2 に MCP 実装中に見つかった後続候補 5 件を追記
 - 2026-10-07: 作成。docs/11 の「MCP チケット」節をここへ移した（docs/11 には参照だけ残す）。MCP-0 ✅・MCP-8 前半 🔶 を反映
