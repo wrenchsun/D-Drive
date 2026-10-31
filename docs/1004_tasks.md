@@ -14,7 +14,7 @@
 | **v1.9.0** | MS2026 からの依頼 2 件（下の MS 節。`Ui.OpenInto` = Canvas を RT に描く / `Cutscene` を指定カメラで再生。記録 = [archive/1012](archive/1012_release_1_9_0.md)） | ✅ 2026-10-15 リリース（タグ push 済み）。次は MS2026 側の置き換え（A-21 / A-22） |
 | **v1.10.0 候補** | MS2026 からの依頼 2 件目 = ステージ照明（下の L 節、MS2026 D-L1〜D-L5）と、外部拡張（プラグイン）基盤（下の X 節、[1014](1014_extension_platform.md)）。A で決定（2026-10-16）: X-1〜X-5 を先に D-Drive で作り v1.10.0、照明は MS2026 側で雛形から。記録 = [archive/1016](archive/1016_release_1_10_0.md) | ✅ 2026-10-17 リリース（タグ push 済み）。次は MS2026 側で雛形から照明（D-L1〜D-L4） |
 | **v1.11.0** | T-Drive アニメーション作業台からの依頼 7 件（下の TA 節、設計 = [1017](1017_tdrive_anim_requests.md)。取り込みの `SK_` / `SM_`・`EVT_` → Signal・`preserveHierarchy`・カメラのカット・小物のサブクリップ・`.json` の案内ログ。記録 = [archive/1019](archive/1019_release_1_11_0.md)） | ✅ 2026-10-23 リリース（タグ push 済み。SpecWeb デプロイは未実施）。次は T-Drive の実出力での確認（1017 §5） |
-| **v1.12.0 候補** | 専用エディター土台の軽量化（下の EP 節、設計 = [1020](1020_editor_base_perf.md)。MS2026 PERF-2 の本修正: 変化の無い Tick の省略・結びつけの偽通知の破棄・連続編集のまとめ・`TickIntervalMs`） | 🔧 2026-10-31 実装済み（Sonnet）・コミット済み。リリース（タグ v1.12.0）は未 |
+| **v1.12.0 候補** | 専用エディター土台の軽量化（下の EP 節、設計 = [1020](1020_editor_base_perf.md)。MS2026 PERF-2 の本修正: 変化の無い Tick の省略・結びつけの偽通知の破棄・連続編集のまとめ・`TickIntervalMs`） | ✅ 2026-10-31 リリース（タグ push 済み。記録 = [archive/1021](archive/1021_release_1_12_0.md)）。次は MS2026 の取り込みと `FloorRowThrottle` の除去・再計測 |
 | v1.4.x / 1.5.x 候補 | [11](11_tasks.md)「v1.4.1 候補」表と [1001](1001_open_items.md) §2 の候補。着手するときにここへ起票 | ⬜ |
 
 ## 1. MCP チケット: D-Drive MCP（v1.5.0 MINOR。仕様 = [1002](1002_ddrive_mcp.md)）
@@ -132,7 +132,7 @@
 | TA-3 | ✅ | **DD-2 + DD-9: `EVT_` を小物から除外し、`ddEvent` の立ち上がりを Signal マーカーにする**（§2.3）。確実に効く部分: `CutsceneShotParser.IsEventLocator` + `ProcessCameraPropsFile` で除外。要検証の部分: カメラ + 小物 FBX に初回のみ `importAnimatedCustomProperties = true`、`OnPostprocessGameObjectWithAnimatedUserProperties` で `ddEvent` の束縛を `typeof(Transform)` に揃える、`CutsceneEventCurveReader.FindRisingEdges`（0.5 以上になった最初のフレーム〔先頭を含む = DD-9〕と再立ち上がり）、固定名 `Events (FBX)` の `CutsceneSignalTrack` を再取り込みのたびに作り直し、`Key = EventKeyPrefix + key`（既定 `cutscene/Hit`）。`CutsceneImportProfile.EventPropertyName = "ddEvent"` / `EventKeyPrefix = "cutscene/"` / `ImportEventLocators = true`。取れなければ情報ログ + 従来どおり | 1 | TA-2 | `EVT_Hit` 子が小物トラックにならず警告も出ない。コードで組んだカーブ 5 パターンの立ち上がりが正しい。再取り込みで `Events (FBX)` だけ作り直され他の Signal トラックは残る。[26](26_timeline.md) §5.5 / §7.3 を更新。EditMode green。実 FBX は人（[1017](1017_tdrive_anim_requests.md) §5-3） → ✅ 実装（要約）: `IsEventLocator` + `ProcessCameraAndProps` の除外 + `CutsceneEventCurveReader.FindRisingEdges` + `BuildEventMarkers`（`Events (FBX)` を再取り込みごとに作り直し）+ 初回のみ `importAnimatedCustomProperties`。`OnPostprocessGameObjectWithAnimatedUserProperties` は束縛を書き換えず形を情報ログに出すだけ（1017 §6）。実 FBX での確認は未実施。EditMode green |
 | TA-7 | ✅ 2026-10-23 | **docs・マニュアル・CHANGELOG・リリース v1.11.0**（§2.7。`DesignerManual/cutscene-maya-export.html`、ProgrammerManual の取り込み規則、CHANGELOG `[1.11.0]` 互換性節に E-17 の明文化。Opus レビュー → P1 対応 → run-ci 全段 → タグ → push。T-Drive へ「`export.includeEvents` の既定を true に戻せる」「取り込み後に識別子を直す手順は不要」を案内） | 0.5 + レビュー | TA-1〜TA-6 | run-ci ALL GREEN skipped 0。タグ push 済み。[1001](1001_open_items.md) 1-A の TA の行（実 FBX での確認 5 件）を残す → ✅ 実施（2026-10-23、[archive/1019](archive/1019_release_1_11_0.md)）: レビュー [reviews/1018](reviews/1018_review_ta_2026-10-23.md)（P1 0 / P2 5 / P3 7）→ 対応 `bb94bf1` → マニュアル `ad72d5b` → run-ci 全段 ALL GREEN skipped 0（EditMode 2426 / PlayMode 999 / Performance 11 / NetCheck 15。1 回目の step 4 FAIL は autocrlf の誤検知で `.gitattributes` を修正）→ Release `fee1308` + タグ `v1.11.0`（main とタグを push 済み。SpecWeb デプロイは未実施） |
 
-## EP（専用エディター土台の軽量化 = MS2026 PERF-2 の本修正、2026-10-31 起票。設計 = [1020](1020_editor_base_perf.md)。v1.12.0 MINOR 見込み）
+## EP（専用エディター土台の軽量化 = MS2026 PERF-2 の本修正、2026-10-31 起票。設計 = [1020](1020_editor_base_perf.md)。v1.12.0 として 2026-10-31 リリース済み、記録 = [archive/1021](archive/1021_release_1_12_0.md)）
 
 > MS2026 の Floor 系エディター（`UxEditorWindow` 派生、最大 219 行）が重く、MS2026 側は `FloorRowThrottle`（土台の private `_rows` をリフレクションで空にする回避策、KI-048 / KI-049）で凌いでいる。D-Drive の土台で本修正し、取り込んだら MS2026 は回避策を外す。Editor 専用・公開 API は追加のみ。コーディングは Sonnet。
 
@@ -161,6 +161,7 @@
 
 ## 更新履歴
 
+- 2026-10-31: v1.12.0 リリース（タグ push 済み、[archive/1021](archive/1021_release_1_12_0.md)）
 - 2026-10-31: EP-1〜EP-5 実装（Sonnet）。EditMode 全件 失敗 0（ExtensionTemplateCompilesTests のみ MCP 経由では走らせられず未実行）。低メモリ下で全件に約 2.5 時間
 - 2026-10-31: EP 節（専用エディター土台の軽量化 = MS2026 PERF-2 の本修正、EP-1〜EP-5、設計 [1020](1020_editor_base_perf.md)）を起票。§2 に MS2026 からの土台への要望 ①〜⑥ を候補として追記
 - 2026-10-07: MCP-11 ✅（docs・CHANGELOG・人による確認手順 1005）。§0 の v1.5.0 を「MCP-12 待ち」に。§2 に MCP 実装中に見つかった後続候補 5 件を追記
