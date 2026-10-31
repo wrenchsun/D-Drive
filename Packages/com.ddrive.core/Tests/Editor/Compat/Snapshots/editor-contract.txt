@@ -337,6 +337,7 @@ abstract class DDrive.Editor.Ux.UxEditorWindow<TData> : UnityEditor.EditorWindow
   protected property virtual bool SupportsSpeed { get; }
   protected property virtual bool ValidationIncludesSameTypeAssets { get; }
   protected property virtual bool WantsSceneGui { get; }
+  protected property virtual int TickIntervalMs { get; }
   protected property virtual string SampleGameDataRoot { get; }
   protected property virtual string SampleLabel { get; }
   protected property virtual string SearchHint { get; }

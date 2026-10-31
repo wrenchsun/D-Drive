@@ -58,6 +58,7 @@
 | MS2026 を v1.9.0 に上げ、`Ui.OpenInto`（A-21）/ `CutscenePlayOptions`（A-22）で回避策を置き換えたときに ElementFx・Cutscene が RT に映るか。`Vector2Int size` の解釈（RT の中で描く大きさ）が MS2026 の意図と合うか | [1004](1004_tasks.md) MS-1 / MS-2、[archive/1012](archive/1012_release_1_9_0.md) §4 |
 | MS2026 を v1.10.0 に上げ、雛形 `Extension Template` から照明（D-L1〜D-L4）を作る。IL2CPP（Managed Stripping）で module が消えないか（雛形の `link.xml`）。Sample Editor を開いたまま Play に入ってもファサードが実行時 Manager に流れるか（1015 X-R-01 の実機確認） | [1004](1004_tasks.md) X 節、[archive/1016](archive/1016_release_1_10_0.md) §4 |
 | 次の実機確認では NetCheck のビルドを作り直す（`8ce3ce1` の古いビルドは使わない。2026-10-07 の v1.4.1 リリースで作り直し済み） | [29](verification/29_network_device_test.md) §27、[64](reviews/64_review_m6_2026-10-06.md) GF-R-18 |
+| MS2026 を v1.12.0 に上げて `FloorRowThrottle`（KI-048）/ `IsRealEdit`（KI-049）を外し、Floor Fx Editor の重さ（`Verify/Floor Fx Editor の重さを測る`）を再計測 | [1004](1004_tasks.md) EP 節、[1020](1020_editor_base_perf.md) §4 |
 
 ### 1-D. P-15 更新ウィンドウ（[43](verification/43_manual_verification_2026-09-17.md) §15）
 
@@ -233,3 +234,4 @@
 - 2026-10-15: v1.9.0 リリース。§2 の MS-1 / MS-2 の行を消し、§1-C に MS2026 側の置き換え確認の行を足した
 - 2026-10-16: §2 に L-1〜L-5・X-1〜X-6・道具の穴 4 件を追加
 - 2026-10-17: v1.10.0 リリース。§2 の X の行を消し、§1-C に MS2026 側の確認（雛形から照明・IL2CPP・Play 中のファサード）を足した
+- 2026-10-31: §1-C に MS2026 の v1.12.0 取り込み後の後始末（EP、1020 §4）を足した

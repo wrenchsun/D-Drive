@@ -1208,6 +1208,8 @@ AI エージェント（Claude Code 等）が D-Drive の Editor 機能を **MCP
 - **確認用シーンの駆動**: `DDrive.Editor.Preview.UxPreviewDriverBase`（ルート `[D-Drive] …` の作成と後始末・Edit Mode の Tick・シーン切替 / プレハブモード / Play Mode 突入 / 再コンパイル / シーン保存直前 / Dispose での自動停止）を派生して「▶ で自分の Manager を実物で動かし ■ で戻す」を書く。module（`IDDriveModule`）を Edit Mode で動かすには `EditorModuleHost`。契約は `editor-contract.txt` の `== PreviewApi ==`。
 - 書き方の見本は `Tests/Editor/ExternalContract/ExternalSampleEditorWindow.cs`（`FieldGuide` / `TuneKnobs` / `DurationBar` / `UxPreviewDriverBase` を public API だけで使う窓。契約テスト E-27 = `ExternalContractUxTests`）。
 
+- **定期更新の間隔（2026-10-31、EP-4）**: `UxEditorWindow<TData>` に `protected virtual int TickIntervalMs`（既定 150 ミリ秒、50 未満は 50 に丸める）を追加（追加のみ）。`OnSlowTick` は 7 tick ごとのままなので、間隔を変えるとその拍も変わる。変化の無い Tick の省略・偽の結びつけ通知の破棄・連続編集のまとめは [1020](1020_editor_base_perf.md)。
+
 ### 空状態・確認用シーン・マニュアルの provider（2026-10-16、X-4）
 
 [1014](1014_extension_platform.md) §2.4: 持ち込み先が定義した種別（`AssetType.Extension` + KindKey）の窓に、組み込み種別と同じ導線を足す Editor の拡張点（`DDrive.Editor.Extension`、`TypeCache` で発見、テスト用アセンブリは既定で除外）。`ISampleProvider`（空状態「サンプルを作る」。保存していない Data を返せば D-Drive が命名規則・カタログ・Addressables 登録まで行う）/ `IPreviewSceneProvider`（ヒーローの「確認用シーン」が開くシーン）/ `IManualPageProvider`（`ManualLauncher.OpenPage` と「？」が開く外部ページ。組み込みが先）。provider が無ければボタンは出ない。契約は `editor-contract.txt` の `== ExtensionProviders ==`、E-28。

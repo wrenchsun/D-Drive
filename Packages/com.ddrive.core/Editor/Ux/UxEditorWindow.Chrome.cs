@@ -104,6 +104,8 @@ namespace DDrive.Editor.Ux
         private void BuildBody(VisualElement body)
         {
             OnBuildBodyStart();
+            DiscardPendingEdits();
+            _rowDirty = -1;
             _cards.Clear();
             _rows.Clear();
             _changeRows.Clear();
@@ -124,6 +126,7 @@ namespace DDrive.Editor.Ux
 
             if (Target == null || So == null)
             {
+                SyncEditBaseline();
                 page.Add(BuildEmpty());
                 return;
             }
@@ -138,6 +141,7 @@ namespace DDrive.Editor.Ux
             ApplyFilters();
             DataSwitcher.Record(typeof(TData), Target);
             OnBodyBuilt(page);
+            SyncEditBaseline();
         }
 
         // 本体(ヒーロー・カード)を組み終えたあと。

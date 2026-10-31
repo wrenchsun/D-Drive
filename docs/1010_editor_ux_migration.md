@@ -36,6 +36,8 @@ E の実装（`Editor/Prototypes/`）を種別非依存に整理して移す。�
 | 検証 | `DataValidationSection` + インライン | 欄に結びつく結果は欄の下、結びつかないものは「その他の検証」。結びつけは文字列照合ではなく `ValidationResult` に欄名（`Field`）を持たせる方向で、Validator 側に**任意の**追加（既存の結果の重さ・Code は変えない） |
 | スクリーンショット自己確認 | エージェントの手順 | `GUIView.GrabPixels` でウィンドウを画像化する共通ヘルパー `UxScreenshot`（Editor 専用、テスト・エージェント用）。Light / Dark の切替込み |
 
+**2026-10-31 追記（EP-1〜4、[1020](1020_editor_base_perf.md)）**: 土台の定期更新・編集後の後始末を軽くした（MS2026 PERF-2 の本修正。Editor 専用）。(1) Data の dirty 数・表示モード・検索語・「変更だけ」が前回の行ループ時と同じ Tick は全行の `UpdateState` / `Sync` と署名計算を飛ばす（7 tick に 1 回は必ず通す）。(2) 結びつけが窓の表示・タブ切替・フォーカス移動で出す `SerializedPropertyChangeEvent` は、dirty 数が進んでいなければ偽の通知として捨てる（`OnPropertyEdited` / `OnDataEdited` を呼ばない）。(3) 0.3 秒以内に続いた編集は、検証 + 全行の更新を最後の編集から 200 ms 後の 1 回にまとめる（`OnPropertyEdited` は毎回呼ぶ）。(4) 定期更新の間隔を種別から変えられる `protected virtual int TickIntervalMs`（既定 150、50 未満は 50）。計測の口は `UxTestHooks.SkippedTicks` / `SpuriousEdits` / `CoalescedEdits`。
+
 ## 3. 移行の順序と各エディターの要点
 
 順序は「共通基盤 → 使用頻度と欄の多さ → 残り」。各チケットの完了条件は §1 D-2 / D-8。

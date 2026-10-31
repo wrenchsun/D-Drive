@@ -18,6 +18,11 @@ namespace DDrive.Editor.Ux
     {
         // true の間は未保存の確認ダイアログを出さない(保存しないで閉じる)。バッチモードでは常に出さない。
         internal static bool SuppressDialogs;
+
+        // 計測の口(docs/1020。累計。テストと持ち込み先の実測道具がリフレクションで読む)。
+        internal static int SkippedTicks;   // 行ループを飛ばした Tick の数(EP-1)
+        internal static int SpuriousEdits;  // 実際には Data が変わっていないので捨てた SerializedPropertyChangeEvent の数(EP-2)
+        internal static int CoalescedEdits; // 検証 + 全行の更新を保留してまとめた編集の数(EP-3)
     }
 
     // 新デザインの専用エディターの土台(docs/1010 §2。試験版 E の PrototypeWindowBase + PrototypeEWindow を種別非依存にしたもの)。
@@ -37,6 +42,9 @@ namespace DDrive.Editor.Ux
         private const float SpeedMin = 0.1f;
         private const float SpeedMax = 2f;
         private const float SpeedDetent = 0.07f; // ×1.0 の吸着幅(±)
+        private const double EditBurstGapSec = 0.3; // 前回の実編集からこれより空いていれば単発(すぐ反映)。以内なら連続編集(まとめる)
+        private const int EditFlushDelayMs = 200;   // 連続編集の最後から、検証 + 全行の更新を行うまでの待ち
+        private const int MinTickIntervalMs = 50;
 
         [SerializeField] private TData _target;
         [SerializeField] private bool _lock;
@@ -58,6 +66,20 @@ namespace DDrive.Editor.Ux
         private double _autoEditTime;
         private int _tick;
         private bool _wasPlaying;
+
+        // EP-1: 前回の行ループ時の状態(Data の dirty 数・表示モード・検索語・変更だけ)。同じなら次の Tick は行ループを飛ばす。-1 = 基準なし。
+        private int _rowDirty = -1;
+        private int _rowMode;
+        private string _rowQuery;
+        private bool _rowModifiedOnly;
+
+        // EP-2: 最後に「実編集」と認めた(または土台が自分で書いて合わせた)時点の dirty 数。これと同じ通知は偽。-1 = 基準なし。
+        private int _lastEditDirty = -1;
+
+        // EP-3: 連続編集のまとめ。
+        private double _lastEditTime = -100;
+        private bool _editPending;
+        private IVisualElementScheduledItem _flushItem;
 
         protected SerializedObject So { get; private set; }
         protected SerializedObject DefaultSo { get; private set; }
@@ -185,10 +207,16 @@ namespace DDrive.Editor.Ux
 
         protected virtual void OnTargetChanged() { }
 
-        // 窓の定期更新(150ms)ごと。
+        // 窓の定期更新(TickIntervalMs。既定 150ms)ごと。
         protected virtual void OnTick() { }
 
-        // 約 1 秒ごと(7 tick)。重い確認(シーンの状態など)に使う。
+        // 定期更新の間隔(ミリ秒)。既定 150。50 未満は 50 に丸める。重い窓(行が多い種別)は大きくできる。
+        // 注意: OnSlowTick は「7 tick ごと」のまま。間隔を変えると OnSlowTick の拍(約 1 秒)も変わる。
+        protected virtual int TickIntervalMs => 150;
+
+        internal int EffectiveTickIntervalMs => Math.Max(MinTickIntervalMs, TickIntervalMs);
+
+        // 7 tick ごと(既定の間隔なら約 1 秒)。重い確認(シーンの状態など)に使う。間隔を変えると拍も変わる。
         protected virtual void OnSlowTick() { }
 
         // データが書き換わった後の副作用(例: Vfx の Anchor を再生中の実体へ反映し直す)。
@@ -284,6 +312,8 @@ namespace DDrive.Editor.Ux
             Undo.undoRedoPerformed -= OnUndoRedo;
             SceneView.duringSceneGui -= OnSceneGuiInternal;
             SceneGuiOwner.Release(this);
+            DiscardPendingEdits();
+            _flushItem = null;
             _wantPlaying = false;
             OnWindowDisable();
             DefaultSo = null;
@@ -317,6 +347,9 @@ namespace DDrive.Editor.Ux
             _autoEditTime = EditorApplication.timeSinceStartup;
             EnsureSo();
             OnSideEffect();
+            DiscardPendingEdits();
+            _rowDirty = -1;
+            SyncEditBaseline();
             if (_target == null || _rows.Count == 0)
             {
                 return;
@@ -341,7 +374,8 @@ namespace DDrive.Editor.Ux
             _footer = CreateFooter();
             root.Add(_footer);
             _body.RegisterCallback<SerializedPropertyChangeEvent>(OnPropertyChanged);
-            root.schedule.Execute(Tick).Every(150);
+            _flushItem = null;
+            root.schedule.Execute(Tick).Every(EffectiveTickIntervalMs);
             if (_target == null && Selection.activeObject is TData sel && AcceptsTarget(sel))
             {
                 _target = sel;
@@ -400,7 +434,12 @@ namespace DDrive.Editor.Ux
         // ── 保存 ──
         // デザイナーの編集の保存は SaveDirty(対象 1 個だけ。版数・UpdatedAt が進む本来の経路。docs/1010 D-5)。
 
-        protected void SaveTarget() => SaveAsset(_target);
+        // 保存は SetDirty で dirty 数を進めるので、保存のあとは EP-2 の基準も合わせる(保存直後の結びつけ通知を実編集と取り違えない)。
+        protected void SaveTarget()
+        {
+            SaveAsset(_target);
+            SyncEditBaseline();
+        }
 
         private static void SaveAsset(TData data)
         {
@@ -456,6 +495,7 @@ namespace DDrive.Editor.Ux
             {
                 SaveAsset(_target);
                 _autoWasDirty = false;
+                SyncEditBaseline();
             }
         }
 
@@ -519,21 +559,37 @@ namespace DDrive.Editor.Ux
 
             SyncFooter();
             So.Update();
-            var sig = 17;
-            for (var i = 0; i < _rows.Count; i++)
-            {
-                _rows[i].UpdateState();
-                _rows[i].Sync();
-                sig = sig * 31 + (_rows[i].IsModified ? 1 : 0) + (_rows[i].HasIssues ? 2 : 0);
-            }
 
-            if (sig != _signature)
+            // EP-1: Data(dirty 数)も表示の条件も前回の行ループ時と同じなら、全行の更新と署名の計算を飛ばす。
+            // 7 tick に 1 回は必ず通す(Inspector 以外の外からの変化・参照切れ・シーン依存の Sync の取り込み)。EP-3 の保留中も飛ばす。
+            var slowBeat = (_tick + 1) % 7 == 0;
+            var dirty = EditorUtility.GetDirtyCount(_target);
+            if (!slowBeat && (_editPending || (_rowDirty >= 0 && dirty == _rowDirty && _mode == _rowMode && _modifiedOnly == _rowModifiedOnly && _query == _rowQuery)))
             {
-                _signature = sig;
-                UpdateChips();
-                if (_modifiedOnly)
+                UxTestHooks.SkippedTicks++;
+            }
+            else
+            {
+                _rowDirty = dirty;
+                _rowMode = _mode;
+                _rowQuery = _query;
+                _rowModifiedOnly = _modifiedOnly;
+                var sig = 17;
+                for (var i = 0; i < _rows.Count; i++)
                 {
-                    ApplyFilters();
+                    _rows[i].UpdateState();
+                    _rows[i].Sync();
+                    sig = sig * 31 + (_rows[i].IsModified ? 1 : 0) + (_rows[i].HasIssues ? 2 : 0);
+                }
+
+                if (sig != _signature)
+                {
+                    _signature = sig;
+                    UpdateChips();
+                    if (_modifiedOnly)
+                    {
+                        ApplyFilters();
+                    }
                 }
             }
 

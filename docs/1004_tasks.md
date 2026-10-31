@@ -14,6 +14,7 @@
 | **v1.9.0** | MS2026 からの依頼 2 件（下の MS 節。`Ui.OpenInto` = Canvas を RT に描く / `Cutscene` を指定カメラで再生。記録 = [archive/1012](archive/1012_release_1_9_0.md)） | ✅ 2026-10-15 リリース（タグ push 済み）。次は MS2026 側の置き換え（A-21 / A-22） |
 | **v1.10.0 候補** | MS2026 からの依頼 2 件目 = ステージ照明（下の L 節、MS2026 D-L1〜D-L5）と、外部拡張（プラグイン）基盤（下の X 節、[1014](1014_extension_platform.md)）。A で決定（2026-10-16）: X-1〜X-5 を先に D-Drive で作り v1.10.0、照明は MS2026 側で雛形から。記録 = [archive/1016](archive/1016_release_1_10_0.md) | ✅ 2026-10-17 リリース（タグ push 済み）。次は MS2026 側で雛形から照明（D-L1〜D-L4） |
 | **v1.11.0** | T-Drive アニメーション作業台からの依頼 7 件（下の TA 節、設計 = [1017](1017_tdrive_anim_requests.md)。取り込みの `SK_` / `SM_`・`EVT_` → Signal・`preserveHierarchy`・カメラのカット・小物のサブクリップ・`.json` の案内ログ。記録 = [archive/1019](archive/1019_release_1_11_0.md)） | ✅ 2026-10-23 リリース（タグ push 済み。SpecWeb デプロイは未実施）。次は T-Drive の実出力での確認（1017 §5） |
+| **v1.12.0 候補** | 専用エディター土台の軽量化（下の EP 節、設計 = [1020](1020_editor_base_perf.md)。MS2026 PERF-2 の本修正: 変化の無い Tick の省略・結びつけの偽通知の破棄・連続編集のまとめ・`TickIntervalMs`） | 🔧 2026-10-31 実装済み（Sonnet）・コミット済み。リリース（タグ v1.12.0）は未 |
 | v1.4.x / 1.5.x 候補 | [11](11_tasks.md)「v1.4.1 候補」表と [1001](1001_open_items.md) §2 の候補。着手するときにここへ起票 | ⬜ |
 
 ## 1. MCP チケット: D-Drive MCP（v1.5.0 MINOR。仕様 = [1002](1002_ddrive_mcp.md)）
@@ -131,11 +132,24 @@
 | TA-3 | ✅ | **DD-2 + DD-9: `EVT_` を小物から除外し、`ddEvent` の立ち上がりを Signal マーカーにする**（§2.3）。確実に効く部分: `CutsceneShotParser.IsEventLocator` + `ProcessCameraPropsFile` で除外。要検証の部分: カメラ + 小物 FBX に初回のみ `importAnimatedCustomProperties = true`、`OnPostprocessGameObjectWithAnimatedUserProperties` で `ddEvent` の束縛を `typeof(Transform)` に揃える、`CutsceneEventCurveReader.FindRisingEdges`（0.5 以上になった最初のフレーム〔先頭を含む = DD-9〕と再立ち上がり）、固定名 `Events (FBX)` の `CutsceneSignalTrack` を再取り込みのたびに作り直し、`Key = EventKeyPrefix + key`（既定 `cutscene/Hit`）。`CutsceneImportProfile.EventPropertyName = "ddEvent"` / `EventKeyPrefix = "cutscene/"` / `ImportEventLocators = true`。取れなければ情報ログ + 従来どおり | 1 | TA-2 | `EVT_Hit` 子が小物トラックにならず警告も出ない。コードで組んだカーブ 5 パターンの立ち上がりが正しい。再取り込みで `Events (FBX)` だけ作り直され他の Signal トラックは残る。[26](26_timeline.md) §5.5 / §7.3 を更新。EditMode green。実 FBX は人（[1017](1017_tdrive_anim_requests.md) §5-3） → ✅ 実装（要約）: `IsEventLocator` + `ProcessCameraAndProps` の除外 + `CutsceneEventCurveReader.FindRisingEdges` + `BuildEventMarkers`（`Events (FBX)` を再取り込みごとに作り直し）+ 初回のみ `importAnimatedCustomProperties`。`OnPostprocessGameObjectWithAnimatedUserProperties` は束縛を書き換えず形を情報ログに出すだけ（1017 §6）。実 FBX での確認は未実施。EditMode green |
 | TA-7 | ✅ 2026-10-23 | **docs・マニュアル・CHANGELOG・リリース v1.11.0**（§2.7。`DesignerManual/cutscene-maya-export.html`、ProgrammerManual の取り込み規則、CHANGELOG `[1.11.0]` 互換性節に E-17 の明文化。Opus レビュー → P1 対応 → run-ci 全段 → タグ → push。T-Drive へ「`export.includeEvents` の既定を true に戻せる」「取り込み後に識別子を直す手順は不要」を案内） | 0.5 + レビュー | TA-1〜TA-6 | run-ci ALL GREEN skipped 0。タグ push 済み。[1001](1001_open_items.md) 1-A の TA の行（実 FBX での確認 5 件）を残す → ✅ 実施（2026-10-23、[archive/1019](archive/1019_release_1_11_0.md)）: レビュー [reviews/1018](reviews/1018_review_ta_2026-10-23.md)（P1 0 / P2 5 / P3 7）→ 対応 `bb94bf1` → マニュアル `ad72d5b` → run-ci 全段 ALL GREEN skipped 0（EditMode 2426 / PlayMode 999 / Performance 11 / NetCheck 15。1 回目の step 4 FAIL は autocrlf の誤検知で `.gitattributes` を修正）→ Release `fee1308` + タグ `v1.11.0`（main とタグを push 済み。SpecWeb デプロイは未実施） |
 
+## EP（専用エディター土台の軽量化 = MS2026 PERF-2 の本修正、2026-10-31 起票。設計 = [1020](1020_editor_base_perf.md)。v1.12.0 MINOR 見込み）
+
+> MS2026 の Floor 系エディター（`UxEditorWindow` 派生、最大 219 行）が重く、MS2026 側は `FloorRowThrottle`（土台の private `_rows` をリフレクションで空にする回避策、KI-048 / KI-049）で凌いでいる。D-Drive の土台で本修正し、取り込んだら MS2026 は回避策を外す。Editor 専用・公開 API は追加のみ。コーディングは Sonnet。
+
+| ID | 内容 | 依存 | AC | 状態 |
+|---|---|---|---|---|
+| EP-1 | `Tick()`（150 ms ごと）の全行 `UpdateState` / `Sync` を、`GetDirtyCount(Target)`・モード・検索・絞り込みが前回と同じなら飛ばす。7 tick に 1 回は必ず全行を通す。対象切替・`RebuildBody`・Undo のあとは基準を捨てる | — | 変化の無い Tick が飛ぶ・7 回目は通る・書き込み後は通るの EditMode テスト。`UxTestHooks.SkippedTicks` | ✅ 2026-10-31（`UxEditorWindow.Tick`: `_rowDirty`/`_rowMode`/`_rowQuery`/`_rowModifiedOnly` の基準、`(_tick + 1) % 7 == 0` で全行、保留中も飛ばす。`UxTestHooks.SkippedTicks`） |
+| EP-2 | `OnPropertyChanged` が、dirty が進んでいない通知（結びつけの初期通知。窓の表示・切替で 186〜288 件）を捨て、`OnPropertyEdited` / `OnDataEdited` を呼ばない | — | 偽通知で `OnPropertyEdited` が呼ばれない・実編集では呼ばれるの EditMode テスト。`UxTestHooks.SpuriousEdits` | ✅ 2026-10-31（`OnPropertyChanged` で `GetDirtyCount` が `_lastEditDirty` と同じなら捨てる。基準は BuildBody 末尾・Undo・RowChanged・VisualEdited・RefreshAfterExternalWrite・ResetAll・保存（手動・自動）で合わせる。`UxTestHooks.SpuriousEdits`） |
+| EP-3 | 連続編集（0.3 秒以内）の 2 回目以降は `RunValidation` + `RefreshAll(true)` を保留し、最後の編集から 200 ms 後に 1 回。保留中は Tick の行ループも飛ばす。`OnPropertyEdited` は毎回呼ぶ | EP-1 | ドラッグ相当の連続編集で `CoalescedEdits` が増え、保留の実行後に状態が最新になる EditMode テスト | ✅ 2026-10-31（`OnDataEdited`: 0.3 s 以内の 2 回目以降は保留 → `schedule.Execute(FlushPendingEdits).ExecuteLater(200)`。`DiscardPendingEdits` を BuildBody / Undo / RowChanged / RefreshAfterExternalWrite / OnDisable で。`UxTestHooks.CoalescedEdits`） |
+| EP-4 | `protected virtual int TickIntervalMs => 150`（50 未満は 50）。`editor-contract.txt` 更新 + CHANGELOG 互換性節 | — | スナップショット差分が `TickIntervalMs` だけ。CHANGELOG `[Unreleased]` に追加のみ（MINOR） | ✅ 2026-10-31（`TickIntervalMs` + internal `EffectiveTickIntervalMs`。`editor-contract.txt` の差分は 1 行。CHANGELOG `[Unreleased]`） |
+| EP-5 | docs: [1010](1010_editor_ux_migration.md) §2 追記・[09](09_editor_tools.md) §16 にひと言・[1001](1001_open_items.md) §1-C に「MS2026 を v1.12.0 に上げて `FloorRowThrottle` を外し、Floor Fx Editor の重さを再計測」 | EP-1〜4 | — | ✅ 2026-10-31（1010 §2 追記・09 §16・1001 §1-C・CHANGELOG。テスト = `Tests/Editor/UxEditorPerfTests.cs` 5 件。UX 系 + Compat の絞り込み 271 件 green、EditMode 全件はメモリ不足で数時間かかるため実行中のまま = 未完走） |
+
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
 - GC-R-01（BGM ループ位置の Warning）・GC-R-07（尺 0 のゴールデン）: v1.5.0 に同梱するか、次の PATCH か
 - `UiTweenManager.Tick` / `UiManager.Tick` の再入耐性（v1.3.1 からの不具合）
 - M-5（時間源の公開 API）: ユーザー判断待ち
+- **MS2026 からの土台への要望（軽量化以外。MS2026 `Docs/Spec/tasks.md` 118 行目・KI-050、[1020](1020_editor_base_perf.md) §5）**: ① `ux-ikcurve` の `CurveField` の既定の高さ ② ヒーローにチップを足す正式な口 ③ 固定バーの ▶ の文言を変える口 ④ `IPreviewSceneProvider` の「開く前」の口 ⑤ 個別検証でも別種別を参照する Validator の参照先が文脈に載ること（KI-046） ⑥ 幅 400 px 未満での縦積み（KI-050）。いずれも追加のみ（MINOR）
 
 **MCP の実装中に見つかった後続候補（v1.5.0 には含めない。MCP-12 のレビューで優先度を決める）**:
 
@@ -147,6 +161,8 @@
 
 ## 更新履歴
 
+- 2026-10-31: EP-1〜EP-5 実装（Sonnet）。UX 系 + Compat の絞り込み 271 件 green
+- 2026-10-31: EP 節（専用エディター土台の軽量化 = MS2026 PERF-2 の本修正、EP-1〜EP-5、設計 [1020](1020_editor_base_perf.md)）を起票。§2 に MS2026 からの土台への要望 ①〜⑥ を候補として追記
 - 2026-10-07: MCP-11 ✅（docs・CHANGELOG・人による確認手順 1005）。§0 の v1.5.0 を「MCP-12 待ち」に。§2 に MCP 実装中に見つかった後続候補 5 件を追記
 - 2026-10-07: 作成。docs/11 の「MCP チケット」節をここへ移した（docs/11 には参照だけ残す）。MCP-0 ✅・MCP-8 前半 🔶 を反映
 - 2026-10-07: v1.5.0 リリース（MCP-12 ✅）。MCP-13（isuzu v4.4.2 への更新）を起票

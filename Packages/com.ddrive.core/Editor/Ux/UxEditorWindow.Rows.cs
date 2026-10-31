@@ -142,6 +142,15 @@ namespace DDrive.Editor.Ux
         // 欄の編集が SerializedProperty 変更として届いたとき(PropertyField 経由)。
         private void OnPropertyChanged(SerializedPropertyChangeEvent evt)
         {
+            // EP-2: UI Toolkit の結びつけは、窓を開く・タブ切替・フォーカス移動でも通知を出す。Data の dirty 数が進んでいなければ実編集ではないので捨てる。
+            var dirty = Target != null ? EditorUtility.GetDirtyCount(Target) : -1;
+            if (dirty == _lastEditDirty)
+            {
+                UxTestHooks.SpuriousEdits++;
+                return;
+            }
+
+            _lastEditDirty = dirty;
             var path = evt.changedProperty?.propertyPath ?? string.Empty;
             OnPropertyEdited(path);
             OnDataEdited();
@@ -151,9 +160,11 @@ namespace DDrive.Editor.Ux
         protected void RowChanged()
         {
             So?.Update();
+            DiscardPendingEdits();
             OnSideEffect();
             RunValidation();
             RefreshAll(false);
+            SyncEditBaseline();
         }
 
         // 再生の撮り直しも要る変更(行の変更 + 再生中なら再生し直す)。
@@ -178,16 +189,23 @@ namespace DDrive.Editor.Ux
             }
 
             RefreshAll(false);
+            SyncEditBaseline();
         }
 
         // 検証・行の状態を最新にする(外から Data を書き換えたとき。Presentation 等から開かれたとき)。
         protected void RefreshAfterExternalWrite()
         {
             So?.Update();
+            DiscardPendingEdits();
             RunValidation();
             RefreshAll(true);
+            SyncEditBaseline();
         }
 
+        // EP-2: 次の結びつけ通知を偽と判定できるよう、基準(最後の編集時の dirty 数)を現在値に合わせる。土台が自分で Data を書いた経路の最後に呼ぶ。
+        private void SyncEditBaseline() => _lastEditDirty = Target != null ? EditorUtility.GetDirtyCount(Target) : -1;
+
+        // EP-3: 単発の編集はすぐ、前回の実編集から EditBurstGapSec 以内に続いた編集は最後から EditFlushDelayMs 後に 1 回だけ、検証 + 全行の更新を行う。
         private void OnDataEdited()
         {
             if (Target == null || So == null || _rows.Count == 0)
@@ -195,8 +213,51 @@ namespace DDrive.Editor.Ux
                 return;
             }
 
+            var now = EditorApplication.timeSinceStartup;
+            var burst = now - _lastEditTime < EditBurstGapSec;
+            _lastEditTime = now;
+            if (!burst && !_editPending)
+            {
+                RunValidation();
+                RefreshAll(true);
+                return;
+            }
+
+            UxTestHooks.CoalescedEdits++;
+            _editPending = true;
+            if (_flushItem == null && _root != null)
+            {
+                _flushItem = _root.schedule.Execute(FlushPendingEdits);
+            }
+
+            _flushItem?.ExecuteLater(EditFlushDelayMs);
+        }
+
+        // 保留した検証 + 全行の更新を今すぐ行う(スケジューラーの実行時、およびテスト用)。
+        internal void FlushPendingEdits()
+        {
+            if (!_editPending)
+            {
+                return;
+            }
+
+            _editPending = false;
+            _flushItem?.Pause();
+            if (Target == null || So == null || _rows.Count == 0)
+            {
+                return;
+            }
+
+            So.Update();
             RunValidation();
             RefreshAll(true);
+        }
+
+        // 保留を捨てる(呼び側が自分で全行を更新する、または窓が消えるとき)。
+        private void DiscardPendingEdits()
+        {
+            _editPending = false;
+            _flushItem?.Pause();
         }
 
         protected void RefreshAll(bool syncVisuals)
@@ -605,6 +666,7 @@ namespace DDrive.Editor.Ux
             RefreshAll(true);
             Reclassify();
             ApplyFilters();
+            SyncEditBaseline();
         }
     }
 }
