@@ -9,6 +9,12 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 互換性
+
+- 破壊なし(このリリース以降の変更はまだありません)
+
+## [1.12.0] - 2026-10-31
+
 ### 変更
 
 - **EP-1〜EP-3**（MS2026 PERF-2 の本修正、[docs/1020](docs/1020_editor_base_perf.md)）: 専用エディターの土台 `UxEditorWindow` を軽くした（Editor 専用）。変化の無い Tick は全行の更新を飛ばす（7 tick に 1 回は必ず通す）。窓の表示・タブ切替で結びつけが出す偽の `SerializedPropertyChangeEvent` は捨てる。0.3 秒以内の連続編集は検証 + 全行の更新を最後の 200 ms 後の 1 回にまとめる。
