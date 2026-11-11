@@ -36,6 +36,7 @@
 
 > **TA チケット（T-Drive アニメーション作業台からの依頼、2026-10-23 起票）**: T-Drive の `docs/20_animation_workbench_spec.md` §8.1 の 7 件（`SK_` / `SM_` の識別子・`EVT_` → Signal マーカー・`preserveHierarchy`・カメラのカットのステップ化・小物のサブクリップ・`.json` の案内ログ）。設計 = [docs/1017](docs/1017_tdrive_anim_requests.md)、チケット = [docs/1004](docs/1004_tasks.md) TA 節（TA-1〜TA-7、v1.11.0 MINOR 見込み）。E-17 (c) を Cutscene / Anim フォルダの FBX・初回取り込みに限って広げる判断（1017 §3 Q-1）は 2026-10-23 にユーザー承認済み。**v1.11.0 として 2026-10-23 にリリース済み（タグ push 済み）**（レビュー = [docs/reviews/1018](docs/reviews/1018_review_ta_2026-10-23.md)、記録 = [docs/archive/1019](docs/archive/1019_release_1_11_0.md)）。次は T-Drive の実出力での人による確認（1017 §5、docs/1001 1-A）。
 > **EP チケット（専用エディター土台の軽量化 = MS2026 PERF-2 の本修正、2026-10-31）**: MS2026 の Floor 系エディターが重く、MS2026 側は `FloorRowThrottle`（土台の private `_rows` をリフレクションで空にする回避策、KI-048 / KI-049）で凌いでいた分を D-Drive の `UxEditorWindow` で本修正した。変化の無い Tick の省略・結びつけの偽通知の破棄・連続編集のまとめ・`TickIntervalMs`。設計 = [docs/1020](docs/1020_editor_base_perf.md)、チケット = [docs/1004](docs/1004_tasks.md) EP 節。**v1.12.0 として 2026-10-31 にリリース済み（タグ push 済み）**（記録 = [docs/archive/1021](docs/archive/1021_release_1_12_0.md)）。次は MS2026 の取り込みと回避策の除去・再計測（docs/1001 §1-C）。軽量化以外の MS2026 からの土台への要望 ①〜⑥ は docs/1004 §2 の候補。
+> **v1.12.1（2026-11-11、CR-1）**: MS2026 からの報告。起動時のウィンドウが基準解像度と違うと `Ui.Open` の画面が左下に小さく寄る不具合を直した（`UiManager` が付け替え直後に Canvas ルートの RectTransform を親全面・倍率 1 に正規化してから開閉の基準を記録）。チケット = [docs/1004](docs/1004_tasks.md) CR 節、記録 = [docs/archive/1022](docs/archive/1022_release_1_12_1.md)。次は MS2026 の取り込みと回避策 `DDriveCanvasRectFix` の除去（docs/1001 §1-C）。
 
 ## 2. ディレクトリ地図
 
