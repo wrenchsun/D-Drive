@@ -9,9 +9,13 @@ D-Drive（`com.ddrive.core`）の変更履歴。[Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### 修正
+
+- **CR-1**（MS2026 からの報告 2026-11-11、[docs/1004](docs/1004_tasks.md) CR 節）: 起動時のウィンドウが Canvas の基準解像度（1920x1080 等）と違うと、`Ui.Open` で開いた画面が左下に小さく寄って表示される（960x540 なら 1/4）不具合を直した。Canvas を持つ Prefab のルートは、プールから出た直後はルート Canvas として Unity が今の画面サイズで RectTransform を配置しており、その倍率・アンカー・位置が入れ子 Canvas に付け替えた後も残っていた。付け替えの直後に「親全面（anchor 0〜1・offset 0）・倍率 1・回転なし」へ直してから、開閉の演出の基準（位置・倍率）を記録する。Canvas を持たないルートの配置は変えない。`OpenInto` も同じ。
+
 ### 互換性
 
-- 破壊なし(このリリース以降の変更はまだありません)
+- 破壊なし(PATCH): 公開 API・シリアライズ形式の変更なし。Canvas を持つ Prefab のルートの RectTransform は開くときに常に親全面・倍率 1 になる（意図した変更。ルートに独自の位置・倍率を付けていた画面は子の RectTransform で付ける）
 
 ## [1.12.0] - 2026-10-31
 

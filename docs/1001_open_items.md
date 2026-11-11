@@ -59,6 +59,7 @@
 | MS2026 を v1.10.0 に上げ、雛形 `Extension Template` から照明（D-L1〜D-L4）を作る。IL2CPP（Managed Stripping）で module が消えないか（雛形の `link.xml`）。Sample Editor を開いたまま Play に入ってもファサードが実行時 Manager に流れるか（1015 X-R-01 の実機確認） | [1004](1004_tasks.md) X 節、[archive/1016](archive/1016_release_1_10_0.md) §4 |
 | 次の実機確認では NetCheck のビルドを作り直す（`8ce3ce1` の古いビルドは使わない。2026-10-07 の v1.4.1 リリースで作り直し済み） | [29](verification/29_network_device_test.md) §27、[64](reviews/64_review_m6_2026-10-06.md) GF-R-18 |
 | MS2026 を v1.12.0 に上げて `FloorRowThrottle`（KI-048）/ `IsRealEdit`（KI-049）を外し、Floor Fx Editor の重さ（`Verify/Floor Fx Editor の重さを測る`）を再計測 | [1004](1004_tasks.md) EP 節、[1020](1020_editor_base_perf.md) §4 |
+| CR-1 を含む版を MS2026 に取り込み、回避策 `DDriveCanvasRectFix` を外す。960x540 / 1280x720 のウィンドウ起動でタイトル・ロビーが正しい位置に出るか。他の PC・マルチモニター・Windows の表示倍率 100% 以外は MS2026 でも未確認 | [1004](1004_tasks.md) CR 節 |
 
 ### 1-D. P-15 更新ウィンドウ（[43](verification/43_manual_verification_2026-09-17.md) §15）
 

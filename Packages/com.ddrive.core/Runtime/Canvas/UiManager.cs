@@ -621,6 +621,9 @@ namespace DDrive.Runtime.Ui
             var innerCanvas = root.GetComponent<Canvas>();
             if (innerCanvas != null)
             {
+                // CR-1(2026-11-11): ルート Canvas だった間に Unity が画面サイズで RectTransform を駆動した値(倍率・アンカー・位置)が
+                // 入れ子 Canvas になっても残り、親の倍率と二重にかかって左下へ寄る。親全面・倍率 1 に正規化してから Base を記録する。
+                NormalizeNestedCanvasRect(rect);
                 innerCanvas.overrideSorting = true;
                 innerCanvas.sortingOrder = (int)data.Layer * 100 + data.SortOffset;
             }
@@ -707,6 +710,19 @@ namespace DDrive.Runtime.Ui
         }
 
         // ── C-1: レイヤールートの CanvasScaler ──
+
+        // CR-1(2026-11-11): 入れ子 Canvas のルート RectTransform を「親全面・倍率 1」に戻す。
+        private static void NormalizeNestedCanvasRect(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.anchoredPosition3D = Vector3.zero;
+            rect.localRotation = Quaternion.identity;
+            rect.localScale = Vector3.one;
+        }
 
         private static void ApplyDefaultScaler(CanvasScaler scaler)
         {

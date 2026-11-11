@@ -144,6 +144,14 @@
 | EP-4 | `protected virtual int TickIntervalMs => 150`（50 未満は 50）。`editor-contract.txt` 更新 + CHANGELOG 互換性節 | — | スナップショット差分が `TickIntervalMs` だけ。CHANGELOG `[Unreleased]` に追加のみ（MINOR） | ✅ 2026-10-31（`TickIntervalMs` + internal `EffectiveTickIntervalMs`。`editor-contract.txt` の差分は 1 行。CHANGELOG `[Unreleased]`） |
 | EP-5 | docs: [1010](1010_editor_ux_migration.md) §2 追記・[09](09_editor_tools.md) §16 にひと言・[1001](1001_open_items.md) §1-C に「MS2026 を v1.12.0 に上げて `FloorRowThrottle` を外し、Floor Fx Editor の重さを再計測」 | EP-1〜4 | — | ✅ 2026-10-31（1010 §2 追記・09 §16・1001 §1-C・CHANGELOG。テスト = `Tests/Editor/UxEditorPerfTests.cs` 5 件。EditMode 全件 = 失敗 0〔2130 件 + ExternalContract 103 件。`ExtensionTemplateCompilesTests` だけは雛形をコピーして再コンパイルを跨ぐ設計のため MCP 経由の実行がリロードで中断され未実行 → Test Runner ウィンドウで人が 1 回〕。PlayMode は Editor 専用のため省略） |
 
+## CR（Canvas のルートの配置、2026-11-11 MS2026 からの報告。PATCH 見込み）
+
+> MS2026 の報告（申し送り `Docs/Notes/2026-11/2026-11-11_wrenchsun_ddrive-canvas-root-scale.md`）: 起動時のウィンドウが 1920x1080 以外（例 960x540）だと、`Ui.Open` で開いたタイトル・ロビーが左下 1/4 に寄る。MS2026 は切り合いのブランチに回避策 `DDriveCanvasRectFix`（毎フレーム直す + `BaseScale` / `BaseAnchoredPosition` をリフレクションで書く）を入れている。コーディングは Sonnet。
+
+| ID | 内容 | 依存 | AC | 状態 |
+|---|---|---|---|---|
+| CR-1 | `UiManager.OpenCore` の `SetParent(parentTransform, false)` の直後、ルートに `Canvas` があれば RectTransform を親全面（anchor 0〜1・pivot 中央・offset 0・anchoredPosition3D 0）・回転なし・倍率 1 に直してから `BaseAnchoredPosition` / `BaseScale` を記録する（`NormalizeNestedCanvasRect`）。原因: Prefab のルート Canvas はプールから出た直後、ルート Canvas として Unity が今の画面サイズで配置する（960x540・基準 1920x1080 なら倍率 0.5・anchor (0,0)・位置 (480,270)）。その値が入れ子になっても残り、レイヤールートの倍率 0.5 と重なって 0.25 倍になっていた。Canvas を持たないルートの配置は変えない。`OpenInto` も同じ経路 | — | PlayMode テスト `UiCanvasRootRectTests`（崩した値の Prefab を開くと全面・倍率 1、Close → 再 Open でも 1、Canvas 無しのルートは不変、`OpenInto` も全面・倍率 1）。MS2026 で 960x540 のウィンドウ起動で正しい位置に出ること（ユーザー / MS2026） | ✅ 2026-11-11（`UiManager.NormalizeNestedCanvasRect`。PlayMode の UI・Canvas 関連 176 件〔新規 4 件含む〕・EditMode の同 242 件 合格。全件は未実行） |
+
 ## 2. 次に起票する候補（[1001](1001_open_items.md) から。着手を決めたら §1 と同じ表形式で節を足す）
 
 - GC-R-01（BGM ループ位置の Warning）・GC-R-07（尺 0 のゴールデン）: v1.5.0 に同梱するか、次の PATCH か
